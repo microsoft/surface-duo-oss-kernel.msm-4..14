@@ -1,0 +1,55 @@
+				=============
+				A N D R O I D
+				=============
+
+Copyright (C) 2017 Google, Inc.
+Written by Mike Chan <mike@android.com>
+
+CONTENTS:
+---------
+
+1. Android
+  1.1 Base config options
+  1.2 Recommended config options
+2. Contact
+
+
+1. Android
+==========
+
+Android (www.android.com) is an open source operating system for mobile devices.
+This document describes configurations needed to run the Android framework on
+top of the Linux kernel.
+
+To see a working defconfig, look at ranchu64_defconfig or ranchu_defconfig
+which can be found at https://android.googlesource.com/ in kernel/common.git.
+
+
+1.1 Base config options
+-----------------------------------
+After building a standard defconfig, ensure that android-base config fragments
+are enabled in your .config or board_defconfig if they are not already.
+
+Download the android config fragments for the current kernel version:
+$ ./kernel/configs/android-fetch-configs.sh
+
+Enable base config options by running following command:
+$ ARCH=$(arch) scripts/kconfig/merge_config.sh -m board_defconfig ./android-base.cfg
+
+For arm64 target platform also enable android-base-arm64 config fragments:
+$ ARCH=arm64 scripts/kconfig/merge_config.sh -m board_defconfig \
+  ./android-base.cfg ./android-base-arm64.cfg
+
+1.2 Recommended config options
+------------------------------
+To also enable not so critical Android recommended config fragments on arm64
+target platfrom, run:
+$ ARCH=arm64 scripts/kconfig/merge_config.sh -m board_defconfig \
+  ./android-base.cfg ./android-base-arm64.cfg ./android-recommended.cfg
+
+
+2. Contact
+==========
+website: https://android.googlesource.com/kernel/common
+
+mailing-lists: android-kernel@googlegroups.com
