@@ -224,3 +224,13 @@ MACHINE_START(U8500, "ST-Ericsson MOP500 platform")
 	.timer		= &ux500_timer,
 	.init_machine	= u8500_init_machine,
 MACHINE_END
+
+MACHINE_START(NOMADIK, "ST-Ericsson MOP500 platform")
+	/* Maintainer: Srinidhi Kasagar <srinidhi.kasagar@stericsson.com> */
+	.boot_params	= 0x100,
+	.map_io		= u8500_map_io,
+	.init_irq	= ux500_init_irq,
+	/* we re-use nomadik timer here */
+	.timer		= &ux500_timer,
+	.init_machine	= u8500_init_machine,
+MACHINE_END
