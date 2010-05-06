@@ -40,7 +40,6 @@
 #include <linux/sched.h>
 #include <linux/swap.h>
 #include <linux/rcupdate.h>
-#include <linux/profile.h>
 #include <linux/notifier.h>
 
 static u32 lowmem_debug_level = 1;
