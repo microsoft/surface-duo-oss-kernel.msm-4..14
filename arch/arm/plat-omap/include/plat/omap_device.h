@@ -50,6 +50,8 @@ extern struct device omap_device_parent;
  * @hwmods: (one .. many per omap_device)
  * @hwmods_cnt: ARRAY_SIZE() of @hwmods
  * @pm_lats: ptr to an omap_device_pm_latency table
+ * @set_rate: fn ptr to change the operating rate.
+ * @get_rate: fn ptr to retrieve the current operating rate.
  * @pm_lats_cnt: ARRAY_SIZE() of what is passed to @pm_lats
  * @pm_lat_level: array index of the last odpl entry executed - -1 if never
  * @dev_wakeup_lat: dev wakeup latency in nanoseconds
@@ -73,6 +75,8 @@ struct omap_device {
 	s8				pm_lat_level;
 	u8				hwmods_cnt;
 	u8				_state;
+	int (*set_rate)(struct device *dev, unsigned long rate);
+	unsigned long (*get_rate) (struct device *dev);
 };
 
 /* Device driver interface (call via platform_data fn ptrs) */
@@ -107,6 +111,11 @@ void __iomem *omap_device_get_rt_va(struct omap_device *od);
 int omap_device_align_pm_lat(struct platform_device *pdev,
 			     u32 new_wakeup_lat_limit);
 struct powerdomain *omap_device_get_pwrdm(struct omap_device *od);
+int omap_device_set_rate(struct device *dev, unsigned long freq);
+unsigned long omap_device_get_rate(struct device *dev);
+void omap_device_register_dvfs_callbacks(struct device *dev,
+		int (*set_rate)(struct device *dev, unsigned long rate),
+		unsigned long (*get_rate) (struct device *dev));
 u32 omap_device_get_context_loss_count(struct platform_device *pdev);
 
 /* Other */

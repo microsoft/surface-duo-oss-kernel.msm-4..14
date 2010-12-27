@@ -810,6 +810,55 @@ int omap_device_enable_clocks(struct omap_device *od)
 	return 0;
 }
 
+int omap_device_set_rate(struct device *dev, unsigned long freq)
+{
+	struct platform_device *pdev;
+	struct omap_device *od;
+
+	pdev = container_of(dev, struct platform_device, dev);
+	od = _find_by_pdev(pdev);
+
+	if (!od->set_rate) {
+		dev_err(dev, "%s: No set_rate API for scaling device\n",
+			__func__);
+		return -ENODATA;
+	}
+
+	return od->set_rate(dev, freq);
+}
+
+unsigned long omap_device_get_rate(struct device *dev)
+{
+	struct platform_device *pdev;
+	struct omap_device *od;
+
+	pdev = container_of(dev, struct platform_device, dev);
+	od = _find_by_pdev(pdev);
+
+
+	if (!od->get_rate) {
+		dev_err(dev, "%s: No get rate API for the device\n",
+			__func__);
+		return 0;
+	}
+
+	return od->get_rate(dev);
+}
+
+void omap_device_register_dvfs_callbacks(struct device *dev,
+		int (*set_rate)(struct device *dev, unsigned long rate),
+		unsigned long (*get_rate) (struct device *dev))
+{
+	struct platform_device *pdev;
+	struct omap_device *od;
+
+	pdev = container_of(dev, struct platform_device, dev);
+	od = _find_by_pdev(pdev);
+
+	od->set_rate = set_rate;
+	od->get_rate = get_rate;
+}
+
 struct device omap_device_parent = {
 	.init_name	= "omap",
 	.parent         = &platform_bus,
