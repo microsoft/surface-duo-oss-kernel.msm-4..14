@@ -17,9 +17,16 @@
 
 #ifdef CONFIG_PM
 int omap_dvfs_register_device(struct voltagedomain *voltdm, struct device *dev);
+int omap_device_scale(struct device *req_dev, struct device *dev,
+			unsigned long rate);
 #else
 static inline int omap_dvfs_register_device(struct voltagedomain *voltdm,
 		struct device *dev)
+{
+	return -EINVAL;
+}
+static inline int omap_device_scale(struct device *req_dev, struct devices
+			*target_dev, unsigned long rate);
 {
 	return -EINVAL;
 }

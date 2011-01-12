@@ -19,6 +19,7 @@
 #include <plat/common.h>
 #include <plat/voltage.h>
 #include <plat/omap_device.h>
+#include <plat/smartreflex.h>
 
 /**
  * struct omap_dev_user_list - Structure maitain userlist per device
@@ -583,6 +584,121 @@ static int omap_dvfs_voltage_scale(struct omap_vdd_dvfs_info *dvfs_info)
 
 	return 0;
 }
+
+/**
+ * omap_device_scale() - Set a new rate at which the device is to operate
+ * @req_dev:	pointer to the device requesting the scaling.
+ * @target_dev:	pointer to the device that is to be scaled
+ * @rate:	the rnew rate for the device.
+ *
+ * This API gets the device opp table associated with this device and
+ * tries putting the device to the requested rate and the voltage domain
+ * associated with the device to the voltage corresponding to the
+ * requested rate. Since multiple devices can be assocciated with a
+ * voltage domain this API finds out the possible voltage the
+ * voltage domain can enter and then decides on the final device
+ * rate. Return 0 on success else the error value
+ */
+int omap_device_scale(struct device *req_dev, struct device *target_dev,
+			unsigned long rate)
+{
+	struct opp *opp;
+	unsigned long volt, freq, min_freq, max_freq;
+	struct omap_vdd_dvfs_info *dvfs_info;
+	struct platform_device *pdev;
+	struct omap_device *od;
+	int ret = 0;
+
+	pdev = container_of(target_dev, struct platform_device, dev);
+	od = container_of(pdev, struct omap_device, pdev);
+
+	/*
+	 * Figure out if the desired frquency lies between the
+	 * maximum and minimum possible for the particular device
+	 */
+	min_freq = 0;
+	if (IS_ERR(opp_find_freq_ceil(target_dev, &min_freq))) {
+		dev_err(target_dev, "%s: Unable to find lowest opp\n",
+						__func__);
+		return -ENODEV;
+	}
+
+	max_freq = ULONG_MAX;
+	if (IS_ERR(opp_find_freq_floor(target_dev, &max_freq))) {
+		dev_err(target_dev, "%s: Unable to find highest opp\n",
+						__func__);
+		return -ENODEV;
+	}
+
+	if (rate < min_freq)
+		freq = min_freq;
+	else if (rate > max_freq)
+		freq = max_freq;
+	else
+		freq = rate;
+
+	opp = opp_find_freq_ceil(target_dev, &freq);
+	if (IS_ERR(opp)) {
+		dev_err(target_dev, "%s: Unable to find OPP for freq%ld\n",
+			__func__, rate);
+		return -ENODEV;
+	}
+
+	/* Get the voltage corresponding to the requested frequency */
+	volt = opp_get_voltage(opp);
+
+	/*
+	 * Call into the voltage layer to get the final voltage possible
+	 * for the voltage domain associated with the device.
+	 */
+
+	if (rate) {
+		dvfs_info = get_dvfs_info(od->hwmods[0]->voltdm);
+
+		ret = omap_dvfs_add_freq_request(dvfs_info, req_dev,
+						target_dev, freq);
+		if (ret) {
+			dev_err(target_dev, "%s: Unable to add frequency request\n",
+				__func__);
+			return ret;
+		}
+
+		ret = omap_dvfs_add_vdd_user(dvfs_info, req_dev, volt);
+		if (ret) {
+			dev_err(target_dev, "%s: Unable to add voltage request\n",
+				__func__);
+			omap_dvfs_remove_freq_request(dvfs_info, req_dev,
+				target_dev);
+			return ret;
+		}
+	} else {
+		dvfs_info = get_dvfs_info(od->hwmods[0]->voltdm);
+
+		ret = omap_dvfs_remove_freq_request(dvfs_info, req_dev,
+				target_dev);
+		if (ret) {
+			dev_err(target_dev, "%s: Unable to remove frequency request\n",
+				__func__);
+			return ret;
+		}
+
+		ret = omap_dvfs_remove_vdd_user(dvfs_info, req_dev);
+		if (ret) {
+			dev_err(target_dev, "%s: Unable to remove voltage request\n",
+				__func__);
+			return ret;
+		}
+	}
+
+	/* Do the actual scaling */
+	ret = omap_dvfs_voltage_scale(dvfs_info);
+	if (!ret)
+		if (omap_device_get_rate(target_dev) >= rate)
+			return 0;
+
+	return ret;
+}
+EXPORT_SYMBOL(omap_device_scale);
 
 /**
  * omap_dvfs_init() - Initialize omap dvfs layer
