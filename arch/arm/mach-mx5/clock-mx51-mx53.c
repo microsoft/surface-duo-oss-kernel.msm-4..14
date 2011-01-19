@@ -464,7 +464,14 @@ static int _clk_main_bus_set_parent(struct clk *clk, struct clk *parent)
 	return 0;
 }
 
+#ifdef CONFIG_CLK_DEBUG
+#define __INIT_CLK_DEBUG(n)	.name = #n,
+#else
+#define __INIT_CLK_DEBUG(n)
+#endif
+
 static struct clk main_bus_clk = {
+	__INIT_CLK_DEBUG(main_bus_clk)
 	.parent = &pll2_sw_clk,
 	.set_parent = _clk_main_bus_set_parent,
 };
@@ -728,23 +735,28 @@ static unsigned long _clk_ddr_hf_get_rate(struct clk *clk)
 
 /* External high frequency clock */
 static struct clk ckih_clk = {
+	__INIT_CLK_DEBUG(ckih_clk)
 	.get_rate = get_high_reference_clock_rate,
 };
 
 static struct clk ckih2_clk = {
+	__INIT_CLK_DEBUG(ckih2_clk)
 	.get_rate = get_ckih2_reference_clock_rate,
 };
 
 static struct clk osc_clk = {
+	__INIT_CLK_DEBUG(osc_clk)
 	.get_rate = get_oscillator_reference_clock_rate,
 };
 
 /* External low frequency (32kHz) clock */
 static struct clk ckil_clk = {
+	__INIT_CLK_DEBUG(ckil_clk)
 	.get_rate = get_low_reference_clock_rate,
 };
 
 static struct clk pll1_main_clk = {
+	__INIT_CLK_DEBUG(pll1_main_clk)
 	.parent = &osc_clk,
 	.get_rate = clk_pll_get_rate,
 	.enable = _clk_pll_enable,
@@ -762,6 +774,7 @@ static struct clk pll1_main_clk = {
 
 /* PLL1 SW supplies to ARM core */
 static struct clk pll1_sw_clk = {
+	__INIT_CLK_DEBUG(pll1_sw_clk)
 	.parent = &pll1_main_clk,
 	.set_parent = _clk_pll1_sw_set_parent,
 	.get_rate = clk_pll1_sw_get_rate,
@@ -769,6 +782,7 @@ static struct clk pll1_sw_clk = {
 
 /* PLL2 SW supplies to AXI/AHB/IP buses */
 static struct clk pll2_sw_clk = {
+	__INIT_CLK_DEBUG(pll2_sw_clk)
 	.parent = &osc_clk,
 	.get_rate = clk_pll_get_rate,
 	.set_rate = _clk_pll_set_rate,
@@ -779,6 +793,7 @@ static struct clk pll2_sw_clk = {
 
 /* PLL3 SW supplies to serial clocks like USB, SSI, etc. */
 static struct clk pll3_sw_clk = {
+	__INIT_CLK_DEBUG(pll3_sw_clk)
 	.parent = &osc_clk,
 	.set_rate = _clk_pll_set_rate,
 	.get_rate = clk_pll_get_rate,
@@ -788,6 +803,7 @@ static struct clk pll3_sw_clk = {
 
 /* PLL4 SW supplies to LVDS Display Bridge(LDB) */
 static struct clk mx53_pll4_sw_clk = {
+	__INIT_CLK_DEBUG(mx53_pll4_clk)
 	.parent = &osc_clk,
 	.set_rate = _clk_pll_set_rate,
 	.enable = _clk_pll_enable,
@@ -796,22 +812,26 @@ static struct clk mx53_pll4_sw_clk = {
 
 /* Low-power Audio Playback Mode clock */
 static struct clk lp_apm_clk = {
+	__INIT_CLK_DEBUG(lp_apm_clk)
 	.parent = &osc_clk,
 	.set_parent = _clk_lp_apm_set_parent,
 };
 
 static struct clk periph_apm_clk = {
+	__INIT_CLK_DEBUG(periph_apm_clk)
 	.parent = &pll1_sw_clk,
 	.set_parent = _clk_periph_apm_set_parent,
 };
 
 static struct clk cpu_clk = {
+	__INIT_CLK_DEBUG(cpu_clk)
 	.parent = &pll1_sw_clk,
 	.get_rate = clk_cpu_get_rate,
 	.set_rate = clk_cpu_set_rate,
 };
 
 static struct clk ahb_clk = {
+	__INIT_CLK_DEBUG(ahb_clk)
 	.parent = &main_bus_clk,
 	.get_rate = clk_ahb_get_rate,
 	.set_rate = _clk_ahb_set_rate,
@@ -819,6 +839,7 @@ static struct clk ahb_clk = {
 };
 
 static struct clk iim_clk = {
+	__INIT_CLK_DEBUG(iim_clk)
 	.parent = &ipg_clk,
 	.enable_reg = MXC_CCM_CCGR0,
 	.enable_shift = MXC_CCM_CCGRx_CG15_OFFSET,
@@ -826,17 +847,20 @@ static struct clk iim_clk = {
 
 /* Main IP interface clock for access to registers */
 static struct clk ipg_clk = {
+	__INIT_CLK_DEBUG(ipg_clk)
 	.parent = &ahb_clk,
 	.get_rate = clk_ipg_get_rate,
 };
 
 static struct clk ipg_perclk = {
+	__INIT_CLK_DEBUG(ipg_clk)
 	.parent = &lp_apm_clk,
 	.get_rate = clk_ipg_per_get_rate,
 	.set_parent = _clk_ipg_per_set_parent,
 };
 
 static struct clk ahb_max_clk = {
+	__INIT_CLK_DEBUG(ahb_max_clk)
 	.parent = &ahb_clk,
 	.enable_reg = MXC_CCM_CCGR0,
 	.enable_shift = MXC_CCM_CCGRx_CG14_OFFSET,
@@ -845,6 +869,7 @@ static struct clk ahb_max_clk = {
 };
 
 static struct clk aips_tz1_clk = {
+	__INIT_CLK_DEBUG(aips_tz1_clk)
 	.parent = &ahb_clk,
 	.secondary = &ahb_max_clk,
 	.enable_reg = MXC_CCM_CCGR0,
@@ -854,6 +879,7 @@ static struct clk aips_tz1_clk = {
 };
 
 static struct clk aips_tz2_clk = {
+	__INIT_CLK_DEBUG(aips_tz2_clk)
 	.parent = &ahb_clk,
 	.secondary = &ahb_max_clk,
 	.enable_reg = MXC_CCM_CCGR0,
@@ -863,11 +889,13 @@ static struct clk aips_tz2_clk = {
 };
 
 static struct clk gpt_32k_clk = {
+	__INIT_CLK_DEBUG(gpt_32k_clk)
 	.id = 0,
 	.parent = &ckil_clk,
 };
 
 static struct clk kpp_clk = {
+	__INIT_CLK_DEBUG(kpp_clk)
 	.id = 0,
 };
 
@@ -876,6 +904,7 @@ static struct clk dummy_clk = {
 };
 
 static struct clk emi_slow_clk = {
+	__INIT_CLK_DEBUG(emi_slow_clk)
 	.parent = &pll2_sw_clk,
 	.enable_reg = MXC_CCM_CCGR5,
 	.enable_shift = MXC_CCM_CCGRx_CG8_OFFSET,
@@ -989,6 +1018,7 @@ static struct clk mipi_hsp_clk = {
 
 #define DEFINE_CLOCK_CCGR(name, i, er, es, pfx, p, s)	\
 	static struct clk name = {			\
+		__INIT_CLK_DEBUG(name)			\
 		.id		= i,			\
 		.enable_reg	= er,			\
 		.enable_shift	= es,			\
@@ -1004,6 +1034,7 @@ static struct clk mipi_hsp_clk = {
 
 #define DEFINE_CLOCK_MAX(name, i, er, es, pfx, p, s)	\
 	static struct clk name = {			\
+		__INIT_CLK_DEBUG(name)			\
 		.id		= i,			\
 		.enable_reg	= er,			\
 		.enable_shift	= es,			\
@@ -1082,6 +1113,7 @@ CLK_GET_RATE(uart, 1, UART)
 CLK_SET_PARENT(uart, 1, UART)
 
 static struct clk uart_root_clk = {
+	__INIT_CLK_DEBUG(uart_root_clk)
 	.parent = &pll2_sw_clk,
 	.get_rate = clk_uart_get_rate,
 	.set_parent = clk_uart_set_parent,
@@ -1092,6 +1124,7 @@ CLK_GET_RATE(usboh3, 1, USBOH3)
 CLK_SET_PARENT(usboh3, 1, USBOH3)
 
 static struct clk usboh3_clk = {
+	__INIT_CLK_DEBUG(usboh3_clk)
 	.parent = &pll2_sw_clk,
 	.get_rate = clk_usboh3_get_rate,
 	.set_parent = clk_usboh3_set_parent,
@@ -1137,6 +1170,7 @@ CLK_GET_RATE(ecspi, 2, CSPI)
 CLK_SET_PARENT(ecspi, 1, CSPI)
 
 static struct clk ecspi_main_clk = {
+	__INIT_CLK_DEBUG(ecspi_main_clk)
 	.parent = &pll3_sw_clk,
 	.get_rate = clk_ecspi_get_rate,
 	.set_parent = clk_ecspi_set_parent,
@@ -1152,7 +1186,8 @@ CLK_SET_PARENT(esdhc2, 1, ESDHC2_MSHC2)
 CLK_SET_RATE(esdhc2, 1, ESDHC2_MSHC2)
 
 #define DEFINE_CLOCK_FULL(name, i, er, es, gr, sr, e, d, p, s)		\
-	static struct clk name = {					\
+static struct clk name = {						\
+		__INIT_CLK_DEBUG(name)					\
 		.id		= i,					\
 		.enable_reg	= er,					\
 		.enable_shift	= es,					\
@@ -1372,8 +1407,10 @@ int __init mx51_clocks_init(unsigned long ckil, unsigned long osc,
 	ckih2_reference = ckih2;
 	oscillator_reference = osc;
 
-	for (i = 0; i < ARRAY_SIZE(mx51_lookups); i++)
+	for (i = 0; i < ARRAY_SIZE(mx51_lookups); i++) {
 		clkdev_add(&mx51_lookups[i]);
+		clk_debug_register(mx51_lookups[i].clk);
+	}
 
 	clk_tree_init();
 
