@@ -85,6 +85,7 @@ struct omap_vdd_dvfs_info {
 	struct mutex scaling_mutex; /* dvfs mutex */
 	struct voltagedomain *voltdm;
 	struct list_head dev_list;
+	struct device vdd_device;
 };
 
 static struct omap_vdd_dvfs_info *omap_dvfs_info_list;
@@ -98,6 +99,7 @@ static struct voltagedomain omap3_vdd[] = {
 	.name = "core",
 	},
 };
+static int omap_dvfs_voltage_scale(struct omap_vdd_dvfs_info *dvfs_info);
 
 static int __init omap_dvfs_init(void);
 
@@ -412,6 +414,79 @@ static int omap_dvfs_remove_freq_request(struct omap_vdd_dvfs_info *dvfs_info,
 	return ret;
 }
 
+/* Calculate dependency vdd voltage for given vdd voltage */
+static int calc_dep_vdd_volt(struct device *dev,
+		struct omap_vdd_info *main_vdd, unsigned long main_volt)
+{
+	struct omap_vdd_dep_info *dep_vdds;
+	int i, ret = 0;
+
+	if (!main_vdd->dep_vdd_info) {
+		pr_debug("%s: No dependent VDD's for vdd_%s\n",
+			__func__, main_vdd->voltdm.name);
+		return 0;
+	}
+
+	dep_vdds = main_vdd->dep_vdd_info;
+
+	for (i = 0; i < main_vdd->nr_dep_vdd; i++) {
+		struct omap_vdd_dep_volt *volt_table = dep_vdds[i].dep_table;
+		int nr_volt = 0;
+		unsigned long dep_volt = 0, act_volt = 0;
+
+		while (volt_table[nr_volt].main_vdd_volt != 0) {
+			if (volt_table[nr_volt].main_vdd_volt == main_volt) {
+				dep_volt = volt_table[nr_volt].dep_vdd_volt;
+				break;
+			}
+			nr_volt++;
+		}
+		if (!dep_volt) {
+			pr_warning("%s: Not able to find a matching volt for"
+				"vdd_%s corresponding to vdd_%s %ld volt\n",
+				__func__, dep_vdds[i].name,
+				main_vdd->voltdm.name, main_volt);
+			ret = -EINVAL;
+			continue;
+		}
+
+		if (!dep_vdds[i].voltdm)
+			dep_vdds[i].voltdm =
+				omap_voltage_domain_lookup(dep_vdds[i].name);
+
+		act_volt = dep_volt;
+
+		/* See if dep_volt is possible for the vdd*/
+		ret = omap_dvfs_add_vdd_user(get_dvfs_info(dep_vdds[i].voltdm),
+				dev, act_volt);
+	}
+
+	return ret;
+}
+
+/* Scale dependent VDD */
+static int scale_dep_vdd(struct omap_vdd_dvfs_info *vdd_info)
+{
+	struct omap_vdd_dep_info *dep_vdds;
+	int i;
+	struct omap_vdd_info *main_vdd;
+	struct voltagedomain *voltdm = vdd_info->voltdm;
+	main_vdd = container_of(voltdm, struct omap_vdd_info, voltdm);
+
+	if (!main_vdd->dep_vdd_info) {
+		pr_debug("%s: No dependent VDD's for vdd_%s\n",
+			__func__, main_vdd->voltdm.name);
+		return 0;
+	}
+
+	dep_vdds = main_vdd->dep_vdd_info;
+
+	for (i = 0; i < main_vdd->nr_dep_vdd; i++)
+		omap_dvfs_voltage_scale(get_dvfs_info(dep_vdds[i].voltdm));
+
+	return 0;
+}
+
 /**
  * omap_dvfs_voltage_scale() : API to scale the devices associated with a
  *						voltage domain vdd voltage.
@@ -435,6 +510,7 @@ static int omap_dvfs_voltage_scale(struct omap_vdd_dvfs_info *dvfs_info)
 	int ret = 0;
 	struct voltagedomain *voltdm;
 	unsigned long volt;
+	struct omap_vdd_info *vdd;
 
 	if (!dvfs_info || IS_ERR(dvfs_info)) {
 		pr_warning("%s: VDD specified does not exist!\n", __func__);
@@ -442,6 +518,7 @@ static int omap_dvfs_voltage_scale(struct omap_vdd_dvfs_info *dvfs_info)
 	}
 
 	voltdm = dvfs_info->voltdm;
+	vdd = container_of(voltdm, struct omap_vdd_info, voltdm);
 
 	mutex_lock(&dvfs_info->scaling_mutex);
 
@@ -493,6 +570,16 @@ static int omap_dvfs_voltage_scale(struct omap_vdd_dvfs_info *dvfs_info)
 		omap_voltage_scale_vdd(voltdm, volt);
 
 	mutex_unlock(&dvfs_info->scaling_mutex);
+
+	/* calculate the voltages for dependent vdd's */
+	if (calc_dep_vdd_volt(&dvfs_info->vdd_device, vdd, volt)) {
+		pr_warning("%s: Error in calculating dependent vdd voltages"
+			"for vdd_%s\n", __func__, voltdm->name);
+		return -EINVAL;
+	}
+
+	/* Scale dependent vdds */
+	scale_dep_vdd(dvfs_info);
 
 	return 0;
 }
