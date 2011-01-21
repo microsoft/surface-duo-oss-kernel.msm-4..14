@@ -530,6 +530,9 @@ static int omap_dvfs_voltage_scale(struct omap_vdd_dvfs_info *dvfs_info)
 
 	curr_volt = omap_voltage_get_nom_volt(voltdm);
 
+	/* Disable smartreflex module across voltage and frequency scaling */
+	omap_sr_disable(voltdm);
+
 	if (curr_volt == volt) {
 		is_volt_scaled = 1;
 	} else if (curr_volt < volt) {
@@ -537,6 +540,7 @@ static int omap_dvfs_voltage_scale(struct omap_vdd_dvfs_info *dvfs_info)
 		if (ret) {
 			pr_warning("%s: Unable to scale the %s to %ld volt\n",
 						__func__, voltdm->name, volt);
+			omap_sr_enable(voltdm);
 			mutex_unlock(&dvfs_info->scaling_mutex);
 			return ret;
 		}
@@ -570,6 +574,9 @@ static int omap_dvfs_voltage_scale(struct omap_vdd_dvfs_info *dvfs_info)
 
 	if (!is_volt_scaled && !ret)
 		omap_voltage_scale_vdd(voltdm, volt);
+
+	/* Enable Smartreflex module */
+	omap_sr_enable(voltdm);
 
 	mutex_unlock(&dvfs_info->scaling_mutex);
 
