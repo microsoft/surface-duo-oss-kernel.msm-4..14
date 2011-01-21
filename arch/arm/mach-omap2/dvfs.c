@@ -21,7 +21,7 @@
 #include <plat/omap_device.h>
 
 /**
- * struct omap_dev_user_list - Structure maitain userlist per devide
+ * struct omap_dev_user_list - Structure maitain userlist per device
  *
  * @dev:       The device requesting for a particular frequency
  * @node:      The list head entry
@@ -410,6 +410,91 @@ static int omap_dvfs_remove_freq_request(struct omap_vdd_dvfs_info *dvfs_info,
 		}
 
 	return ret;
+}
+
+/**
+ * omap_dvfs_voltage_scale() : API to scale the devices associated with a
+ *						voltage domain vdd voltage.
+ *
+ * @dvfs_info: omap_vdd_dvfs_info pointer for the required vdd
+ *
+ * This API runs through the list of devices associated with the
+ * voltage domain and scales the device rates to the one requested
+ * by the user or those corresponding to the new voltage of the
+ * voltage domain. Target voltage is the highest voltage in the vdd_user_list.
+ *
+ * Returns 0 on success
+ * else the error value.
+ */
+static int omap_dvfs_voltage_scale(struct omap_vdd_dvfs_info *dvfs_info)
+{
+	unsigned long curr_volt;
+	int is_volt_scaled = 0;
+	struct omap_vdd_dev_list *temp_dev;
+	struct plist_node *node;
+	int ret = 0;
+	struct voltagedomain *voltdm;
+	unsigned long volt;
+
+	if (!dvfs_info || IS_ERR(dvfs_info)) {
+		pr_warning("%s: VDD specified does not exist!\n", __func__);
+		return -EINVAL;
+	}
+
+	voltdm = dvfs_info->voltdm;
+
+	mutex_lock(&dvfs_info->scaling_mutex);
+
+	/* Find the highest voltage being requested */
+	node = plist_last(&dvfs_info->user_list);
+	volt = node->prio;
+
+	curr_volt = omap_voltage_get_nom_volt(voltdm);
+
+	if (curr_volt == volt) {
+		is_volt_scaled = 1;
+	} else if (curr_volt < volt) {
+		ret = omap_voltage_scale_vdd(voltdm, volt);
+		if (ret) {
+			pr_warning("%s: Unable to scale the %s to %ld volt\n",
+						__func__, voltdm->name, volt);
+			mutex_unlock(&dvfs_info->scaling_mutex);
+			return ret;
+		}
+		is_volt_scaled = 1;
+	}
+
+	list_for_each_entry(temp_dev, &dvfs_info->dev_list, node) {
+		struct device *dev;
+		struct opp *opp;
+		unsigned long freq;
+
+		dev = temp_dev->dev;
+		if (!plist_head_empty(&temp_dev->user_list)) {
+			node = plist_last(&temp_dev->user_list);
+			freq = node->prio;
+		} else {
+			opp = omap_dvfs_find_voltage(dev, volt);
+			if (IS_ERR(opp))
+				continue;
+			freq = opp_get_freq(opp);
+		}
+
+		if (freq == omap_device_get_rate(dev)) {
+			dev_dbg(dev, "%s: Already at the requested"
+				"rate %ld\n", __func__, freq);
+			continue;
+		}
+
+		ret |= omap_device_set_rate(dev, freq);
+	}
+
+	if (!is_volt_scaled && !ret)
+		omap_voltage_scale_vdd(voltdm, volt);
+
+	mutex_unlock(&dvfs_info->scaling_mutex);
+
+	return 0;
 }
 
 /**
