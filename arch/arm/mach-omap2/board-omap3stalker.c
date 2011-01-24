@@ -241,7 +241,7 @@ static struct omap_dss_board_info omap3_stalker_dss_data = {
 };
 
 static struct platform_device omap3_stalker_dss_device = {
-	.name	= "omapdss",
+	.name	= "omap_display",
 	.id	= -1,
 	.dev	= {
 		.platform_data	= &omap3_stalker_dss_data,

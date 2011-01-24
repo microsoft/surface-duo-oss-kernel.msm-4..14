@@ -196,7 +196,7 @@ static struct omap_dss_board_info devkit8000_dss_data = {
 };
 
 static struct platform_device devkit8000_dss_device = {
-	.name		= "omapdss",
+	.name		= "omap_display",
 	.id		= -1,
 	.dev		= {
 		.platform_data = &devkit8000_dss_data,
@@ -204,7 +204,7 @@ static struct platform_device devkit8000_dss_device = {
 };
 
 static struct regulator_consumer_supply devkit8000_vdda_dac_supply =
-	REGULATOR_SUPPLY("vdda_dac", "omapdss");
+	REGULATOR_SUPPLY("vdda_dac", "omap_display");
 
 static uint32_t board_keymap[] = {
 	KEY(0, 0, KEY_1),
@@ -286,7 +286,7 @@ static struct twl4030_gpio_platform_data devkit8000_gpio_data = {
 };
 
 static struct regulator_consumer_supply devkit8000_vpll1_supply =
-	REGULATOR_SUPPLY("vdds_dsi", "omapdss");
+	REGULATOR_SUPPLY("vdds_dsi", "omap_display");
 
 /* VMMC1 for MMC1 pins CMD, CLK, DAT0..DAT3 (20 mA, plus card == max 220 mA) */
 static struct regulator_init_data devkit8000_vmmc1 = {

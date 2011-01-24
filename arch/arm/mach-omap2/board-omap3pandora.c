@@ -254,7 +254,7 @@ static struct omap_dss_board_info pandora_dss_data = {
 };
 
 static struct platform_device pandora_dss_device = {
-	.name		= "omapdss",
+	.name		= "omap_display",
 	.id		= -1,
 	.dev		= {
 		.platform_data = &pandora_dss_data,
@@ -350,11 +350,11 @@ static struct regulator_consumer_supply pandora_vmmc3_supply =
 	REGULATOR_SUPPLY("vmmc", "mmci-omap-hs.2");
 
 static struct regulator_consumer_supply pandora_vdda_dac_supply =
-	REGULATOR_SUPPLY("vdda_dac", "omapdss");
+	REGULATOR_SUPPLY("vdda_dac", "omap_display");
 
 static struct regulator_consumer_supply pandora_vdds_supplies[] = {
-	REGULATOR_SUPPLY("vdds_sdi", "omapdss"),
-	REGULATOR_SUPPLY("vdds_dsi", "omapdss"),
+	REGULATOR_SUPPLY("vdds_sdi", "omap_display"),
+	REGULATOR_SUPPLY("vdds_dsi", "omap_display"),
 };
 
 static struct regulator_consumer_supply pandora_vcc_lcd_supply =

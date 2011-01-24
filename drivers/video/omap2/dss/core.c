@@ -683,7 +683,7 @@ static struct platform_driver omap_dss_driver = {
 	.suspend	= omap_dss_suspend,
 	.resume		= omap_dss_resume,
 	.driver         = {
-		.name   = "omapdss",
+		.name   = "omap_display",
 		.owner  = THIS_MODULE,
 	},
 };
