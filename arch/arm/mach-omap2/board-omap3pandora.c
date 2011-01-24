@@ -253,14 +253,6 @@ static struct omap_dss_board_info pandora_dss_data = {
 	.default_device	= &pandora_lcd_device,
 };
 
-static struct platform_device pandora_dss_device = {
-	.name		= "omap_display",
-	.id		= -1,
-	.dev		= {
-		.platform_data = &pandora_dss_data,
-	},
-};
-
 static void pandora_wl1251_init_card(struct mmc_card *card)
 {
 	/*
@@ -677,7 +669,6 @@ fail:
 static struct platform_device *omap3pandora_devices[] __initdata = {
 	&pandora_leds_gpio,
 	&pandora_keys_gpio,
-	&pandora_dss_device,
 	&pandora_vwlan_device,
 };
 
@@ -712,6 +703,7 @@ static void __init omap3pandora_init(void)
 	pandora_wl1251_init();
 	platform_add_devices(omap3pandora_devices,
 			ARRAY_SIZE(omap3pandora_devices));
+	omap_display_init(&pandora_dss_data);
 	omap_serial_init();
 	spi_register_board_info(omap3pandora_spi_board_info,
 			ARRAY_SIZE(omap3pandora_spi_board_info));
