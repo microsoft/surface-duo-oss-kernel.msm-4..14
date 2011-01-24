@@ -131,7 +131,7 @@ static struct omap_dss_board_info zoom_dss_data = {
 };
 
 static struct platform_device zoom_dss_device = {
-	.name				= "omapdss",
+	.name				= "omap_display",
 	.id				= -1,
 	.dev				= {
 		.platform_data		= &zoom_dss_data,

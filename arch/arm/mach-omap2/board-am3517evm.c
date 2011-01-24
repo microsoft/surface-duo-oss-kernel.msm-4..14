@@ -379,7 +379,7 @@ static struct omap_dss_board_info am3517_evm_dss_data = {
 };
 
 static struct platform_device am3517_evm_dss_device = {
-	.name		= "omapdss",
+	.name		= "omap_display",
 	.id		= -1,
 	.dev		= {
 		.platform_data	= &am3517_evm_dss_data,

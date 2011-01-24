@@ -67,7 +67,7 @@ static struct omap_dss_board_info rx51_dss_board_info = {
 };
 
 struct platform_device rx51_display_device = {
-	.name	= "omapdss",
+	.name	= "omap_display",
 	.id	= -1,
 	.dev	= {
 		.platform_data = &rx51_dss_board_info,

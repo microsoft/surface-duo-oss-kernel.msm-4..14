@@ -227,10 +227,10 @@ static struct omap2_hsmmc_info mmc[] = {
 };
 
 static struct regulator_consumer_supply zoom_vpll2_supply =
-	REGULATOR_SUPPLY("vdds_dsi", "omapdss");
+	REGULATOR_SUPPLY("vdds_dsi", "omap_display");
 
 static struct regulator_consumer_supply zoom_vdda_dac_supply =
-	REGULATOR_SUPPLY("vdda_dac", "omapdss");
+	REGULATOR_SUPPLY("vdda_dac", "omap_display");
 
 static struct regulator_init_data zoom_vpll2 = {
 	.constraints = {

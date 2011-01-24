@@ -402,7 +402,7 @@ static struct omap_dss_board_info cm_t35_dss_data = {
 };
 
 static struct platform_device cm_t35_dss_device = {
-	.name		= "omapdss",
+	.name		= "omap_display",
 	.id		= -1,
 	.dev		= {
 		.platform_data = &cm_t35_dss_data,

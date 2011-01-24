@@ -329,7 +329,7 @@ static struct omap_dss_board_info omap3_evm_dss_data = {
 };
 
 static struct platform_device omap3_evm_dss_device = {
-	.name		= "omapdss",
+	.name		= "omap_display",
 	.id		= -1,
 	.dev		= {
 		.platform_data = &omap3_evm_dss_data,
@@ -522,7 +522,7 @@ static struct regulator_init_data omap3_evm_vdac = {
 
 /* VPLL2 for digital video outputs */
 static struct regulator_consumer_supply omap3_evm_vpll2_supply =
-	REGULATOR_SUPPLY("vdds_dsi", "omapdss");
+	REGULATOR_SUPPLY("vdds_dsi", "omap_display");
 
 static struct regulator_init_data omap3_evm_vpll2 = {
 	.constraints = {

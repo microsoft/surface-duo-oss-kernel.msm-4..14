@@ -486,7 +486,7 @@ static struct omap_dss_board_info igep2_dss_data = {
 };
 
 static struct platform_device igep2_dss_device = {
-	.name	= "omapdss",
+	.name	= "omap_display",
 	.id	= -1,
 	.dev	= {
 		.platform_data = &igep2_dss_data,
