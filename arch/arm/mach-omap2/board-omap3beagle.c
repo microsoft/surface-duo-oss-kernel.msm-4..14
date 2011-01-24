@@ -231,8 +231,10 @@ static struct omap_dss_board_info beagle_dss_data = {
 static struct regulator_consumer_supply beagle_vdac_supply =
 	REGULATOR_SUPPLY("vdda_dac", "omap_venc");
 
-static struct regulator_consumer_supply beagle_vdvi_supply =
-	REGULATOR_SUPPLY("vdds_dsi", "omap_display");
+static struct regulator_consumer_supply beagle_vdvi_supplies[] = {
+	REGULATOR_SUPPLY("vdds_dsi", "omap_display"),
+	REGULATOR_SUPPLY("vdds_dsi", "omap_dsi1"),
+};
 
 static void __init beagle_display_init(void)
 {
@@ -419,8 +421,8 @@ static struct regulator_init_data beagle_vpll2 = {
 		.valid_ops_mask		= REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
 	},
-	.num_consumer_supplies	= 1,
-	.consumer_supplies	= &beagle_vdvi_supply,
+	.num_consumer_supplies	= ARRAY_SIZE(beagle_vdvi_supplies),
+	.consumer_supplies	= beagle_vdvi_supplies,
 };
 
 static struct twl4030_usb_data beagle_usb_data = {

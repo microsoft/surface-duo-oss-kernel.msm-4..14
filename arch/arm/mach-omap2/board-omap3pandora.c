@@ -347,6 +347,7 @@ static struct regulator_consumer_supply pandora_vdda_dac_supply =
 static struct regulator_consumer_supply pandora_vdds_supplies[] = {
 	REGULATOR_SUPPLY("vdds_sdi", "omap_display"),
 	REGULATOR_SUPPLY("vdds_dsi", "omap_display"),
+	REGULATOR_SUPPLY("vdds_dsi", "omap_dsi1"),
 };
 
 static struct regulator_consumer_supply pandora_vcc_lcd_supply =
