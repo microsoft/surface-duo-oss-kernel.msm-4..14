@@ -308,7 +308,7 @@ static struct omap_dss_board_info sdp3430_dss_data = {
 };
 
 static struct regulator_consumer_supply sdp3430_vdda_dac_supply =
-	REGULATOR_SUPPLY("vdda_dac", "omap_display");
+	REGULATOR_SUPPLY("vdda_dac", "omap_venc");
 
 static struct omap_board_config_kernel sdp3430_config[] __initdata = {
 };

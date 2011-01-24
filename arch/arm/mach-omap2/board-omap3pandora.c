@@ -342,7 +342,7 @@ static struct regulator_consumer_supply pandora_vmmc3_supply =
 	REGULATOR_SUPPLY("vmmc", "mmci-omap-hs.2");
 
 static struct regulator_consumer_supply pandora_vdda_dac_supply =
-	REGULATOR_SUPPLY("vdda_dac", "omap_display");
+	REGULATOR_SUPPLY("vdda_dac", "omap_venc");
 
 static struct regulator_consumer_supply pandora_vdds_supplies[] = {
 	REGULATOR_SUPPLY("vdds_sdi", "omap_display"),
