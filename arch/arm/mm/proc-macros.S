@@ -109,10 +109,6 @@
  *  110x   0   1   0	r/w	r/o
  *  11x0   0   1   0	r/w	r/o
  *  1111   0   1   1	r/w	r/w
- *
- * If !CONFIG_CPU_USE_DOMAINS, the following permissions are changed:
- *  110x   1   1   1	r/o	r/o
- *  11x0   1   1   1	r/o	r/o
  */
 	.macro	armv6_mt_table pfx
 \pfx\()_mt_table:
@@ -152,11 +148,8 @@
 
 	tst	r1, #L_PTE_USER
 	orrne	r3, r3, #PTE_EXT_AP1
-#ifdef CONFIG_CPU_USE_DOMAINS
-	@ allow kernel read/write access to read-only user pages
 	tstne	r3, #PTE_EXT_APX
 	bicne	r3, r3, #PTE_EXT_APX | PTE_EXT_AP0
-#endif
 
 	tst	r1, #L_PTE_XN
 	orrne	r3, r3, #PTE_EXT_XN
