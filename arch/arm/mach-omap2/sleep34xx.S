@@ -358,9 +358,9 @@ restore_es3:
 	and	r4, r4, #0x3
 	cmp	r4, #0x0	@ Check if previous power state of CORE is OFF
 	bne	restore
-	adr	r0, es3_sdrc_fix	@ Not using BSYM clears the Thumb bit.
+	adr	r0, _es3_sdrc_fix	@ Not using BSYM clears the Thumb bit.
 	ldr	r1, sram_base	@ Must be 8-byte aligned to preserve alignment.
-	ldr	r2, es3_sdrc_fix_sz
+	ldr	r2, _es3_sdrc_fix_sz
 	mov	r2, r2, ror #2
 copy_to_sram:
 	ldmia	r0!, {r3}	@ val = *src
@@ -622,6 +622,8 @@ usettbr0:
 /* This function implements the erratum ID i443 WA, applies to 34xx >= ES3.0 */
 	.text
 	.align	3
+.type _es3_sdrc_fix, %function
+_es3_sdrc_fix:
 ENTRY(es3_sdrc_fix)
 	ldr	r4, sdrc_syscfg		@ get config addr
 	ldr	r5, [r4]		@ get value
@@ -665,6 +667,7 @@ sdrc_emr2_1:
 sdrc_manual_1:
 	.word	SDRC_MANUAL_1_P
 ENDPROC(es3_sdrc_fix)
+_es3_sdrc_fix_sz:
 ENTRY(es3_sdrc_fix_sz)
 	.word	. - es3_sdrc_fix
 
