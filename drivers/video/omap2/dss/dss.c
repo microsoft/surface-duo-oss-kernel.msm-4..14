@@ -33,6 +33,7 @@
 #include <plat/display.h>
 #include <plat/clock.h>
 #include "dss.h"
+#include "dss_features.h"
 
 #define DSS_SZ_REGS			SZ_512
 
@@ -61,6 +62,7 @@ static struct {
 	struct platform_device *pdev;
 	void __iomem    *base;
 	int             ctx_id;
+	int		irq;
 
 	struct clk	*dpll4_m4_ck;
 	struct clk	*dss_ick;
@@ -494,28 +496,22 @@ found:
 	return 0;
 }
 
-
-
-static irqreturn_t dss_irq_handler_omap2(int irq, void *arg)
+static irqreturn_t dss_irq_handler(int irq, void *arg)
 {
-	dispc_irq_handler();
+	if (dss_has_feature(FEAT_COMMON_IRQ_DISPC_DSI)) {
+		u32 irqstatus;
 
-	return IRQ_HANDLED;
-}
+		irqstatus = dss_read_reg(DSS_IRQSTATUS);
 
-static irqreturn_t dss_irq_handler_omap3(int irq, void *arg)
-{
-	u32 irqstatus;
-
-	irqstatus = dss_read_reg(DSS_IRQSTATUS);
-
-	if (irqstatus & (1<<0))	/* DISPC_IRQ */
-		dispc_irq_handler();
+		if (irqstatus & (1<<0))	/* DISPC_IRQ */
+			dispc_irq_handler();
 #ifdef CONFIG_OMAP2_DSS_DSI
-	if (irqstatus & (1<<1))	/* DSI_IRQ */
-		dsi_irq_handler();
+		if (irqstatus & (1<<1))	/* DSI_IRQ */
+			dsi_irq_handler();
 #endif
-
+	} else {
+		dispc_irq_handler();
+	}
 	return IRQ_HANDLED;
 }
 
@@ -563,7 +559,7 @@ void dss_set_dac_pwrdn_bgz(bool enable)
 
 static int dss_init(bool skip_init)
 {
-	int r, dss_irq;
+	int r;
 	u32 rev;
 	struct resource *dss_mem;
 
@@ -609,18 +605,14 @@ static int dss_init(bool skip_init)
 	REG_FLD_MOD(DSS_CONTROL, 0, 2, 2);	/* venc clock mode = normal */
 #endif
 
-	dss_irq = platform_get_irq(dss.pdev, 0);
-	if (dss_irq < 0) {
+	dss.irq = platform_get_irq(dss.pdev, 0);
+	if (dss.irq < 0) {
 		DSSERR("omap2 dss: platform_get_irq failed\n");
 		r = -ENODEV;
 		goto fail1;
 	}
 
-	r = request_irq(dss_irq,
-		cpu_is_omap24xx()
-		? dss_irq_handler_omap2
-		: dss_irq_handler_omap3,
-		0, "OMAP DSS", NULL);
+	r = request_irq(dss.irq, dss_irq_handler, 0, "OMAP DSS", NULL);
 
 	if (r < 0) {
 		DSSERR("omap2 dss: request_irq failed\n");
@@ -648,7 +640,7 @@ static int dss_init(bool skip_init)
 	return 0;
 
 fail2:
-	free_irq(dss_irq, NULL);
+	free_irq(dss.irq, NULL);
 fail1:
 	iounmap(dss.base);
 fail0:
@@ -660,7 +652,7 @@ static void dss_exit(void)
 	if (cpu_is_omap34xx())
 		clk_put(dss.dpll4_m4_ck);
 
-	free_irq(INT_24XX_DSS_IRQ, NULL);
+	free_irq(dss.irq, NULL);
 
 	iounmap(dss.base);
 }
