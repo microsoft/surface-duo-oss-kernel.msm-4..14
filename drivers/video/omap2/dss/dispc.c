@@ -132,6 +132,17 @@ struct dispc_reg { u16 idx; };
 
 #define DISPC_VID_PRELOAD(n)		DISPC_REG(0x230 + (n)*0x04)
 
+/*
+ * The OMAP4 DISPC_DIVISOR1 is backward compatible to OMAP3xxx DISPC_DIVISOR.
+ * However DISPC_DIVISOR is also provided in OMAP4, to control DISPC_CORE_CLK.
+ * This allows DISPC_CORE_CLK to be independent of logical clock dividers (lcd)
+ * of LCD1 (primary) and LCD2 (secondary) displays.
+ *
+ * To derive pixel clocks for Primary and Secondary LCD channels, configure the
+ * lcd and pcd in DISPC_DIVISOR1 and DISPC_DIVISOR2 respectively, using the
+ * DISPC_DIVISORo(ch).
+ */
+#define DISPC_DIVISOR			DISPC_REG(0x0804)
 
 #define DISPC_IRQ_MASK_ERROR            (DISPC_IRQ_GFX_FIFO_UNDERFLOW | \
 					 DISPC_IRQ_OCP_ERR | \
