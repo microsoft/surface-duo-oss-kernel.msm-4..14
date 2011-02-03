@@ -191,7 +191,7 @@ static struct omap_dss_features omap4_dss_features = {
 	.has_feature	=
 		FEAT_GLOBAL_ALPHA | FEAT_PRE_MULT_ALPHA |
 		FEAT_MGR_LCD2 | FEAT_VAR_DPLL_FCK |
-		FEAT_DPLL_FCK_32_DIV,
+		FEAT_DPLL_FCK_32_DIV | FEAT_CORE_CLK_DIV,
 
 	.num_mgrs = 3,
 	.num_ovls = 3,

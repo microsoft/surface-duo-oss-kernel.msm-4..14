@@ -37,6 +37,8 @@ enum dss_feat_id {
 	FEAT_VAR_DPLL_FCK		= 1 << 9, /* Variable DPLL Func CLK */
 	/* DPLL FCLK has max divider value 32 */
 	FEAT_DPLL_FCK_32_DIV		= 1 << 10,
+	/* Independent core clk divider */
+	FEAT_CORE_CLK_DIV		= 1 << 11,
 };
 
 /* DSS register field id */
