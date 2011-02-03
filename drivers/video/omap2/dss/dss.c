@@ -628,6 +628,13 @@ static int dss_init(bool skip_init)
 			r = PTR_ERR(dss.dpll_per_mx_ck);
 			goto fail2;
 		}
+	} else if (cpu_is_omap44xx()) {
+		dss.dpll_per_mx_ck = clk_get(NULL, "dpll_per_m5x2_ck");
+		if (IS_ERR(dss.dpll_per_mx_ck)) {
+			DSSERR("Failed to get dpll_per_mx_ck\n");
+			r = PTR_ERR(dss.dpll_per_mx_ck);
+			goto fail2;
+		}
 	}
 
 	dss.dsi_clk_source = DSS_SRC_DSS1_ALWON_FCLK;
