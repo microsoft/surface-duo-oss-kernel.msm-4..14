@@ -139,18 +139,8 @@ static int omap3_enter_idle(struct cpuidle_device *dev,
 	if (omap_irq_pending() || need_resched())
 		goto return_sleep_time;
 
-	if (cx->type == OMAP3_STATE_C1) {
-		pwrdm_for_each_clkdm(mpu_pd, _cpuidle_deny_idle);
-		pwrdm_for_each_clkdm(core_pd, _cpuidle_deny_idle);
-	}
-
 	/* Execute ARM wfi */
 	omap_sram_idle();
-
-	if (cx->type == OMAP3_STATE_C1) {
-		pwrdm_for_each_clkdm(mpu_pd, _cpuidle_allow_idle);
-		pwrdm_for_each_clkdm(core_pd, _cpuidle_allow_idle);
-	}
 
 return_sleep_time:
 	getnstimeofday(&ts_postidle);
@@ -283,7 +273,17 @@ static int omap3_enter_idle_bm(struct cpuidle_device *dev,
 
 select_state:
 	dev->last_state = new_state;
+
+	if (new_state == dev->safe_state) {
+		pwrdm_for_each_clkdm(mpu_pd, _cpuidle_deny_idle);
+		pwrdm_for_each_clkdm(core_pd, _cpuidle_deny_idle);
+	}
 	ret = omap3_enter_idle(dev, new_state);
+
+	if (new_state == dev->safe_state) {
+		pwrdm_for_each_clkdm(mpu_pd, _cpuidle_allow_idle);
+		pwrdm_for_each_clkdm(core_pd, _cpuidle_allow_idle);
+	}
 
 	/* Restore original PER state if it was modified */
 	if (per_next_state != per_saved_state)
