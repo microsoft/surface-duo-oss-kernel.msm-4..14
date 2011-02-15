@@ -42,8 +42,6 @@
 /*#define VERBOSE_IRQ*/
 #define DSI_CATCH_MISSING_TE
 
-#define DSI_BASE		0x4804FC00
-
 struct dsi_reg { u16 idx; };
 
 #define DSI_REG(idx)		((const struct dsi_reg) { idx })
@@ -222,6 +220,7 @@ struct dsi_irq_stats {
 
 static struct
 {
+	struct platform_device *pdev;
 	void __iomem	*base;
 
 	struct dsi_clock_info current_cinfo;
@@ -290,6 +289,20 @@ static inline void dsi_write_reg(const struct dsi_reg idx, u32 val)
 static inline u32 dsi_read_reg(const struct dsi_reg idx)
 {
 	return __raw_readl(dsi.base + idx.idx);
+}
+
+static struct regulator *dsi_get_vdds_dsi(void)
+{
+	struct regulator *reg;
+
+	if (dsi.vdds_dsi_reg != NULL)
+		return dsi.vdds_dsi_reg;
+
+	reg = regulator_get(&dsi.pdev->dev, "vdds_dsi");
+	if (!IS_ERR(reg))
+		dsi.vdds_dsi_reg = reg;
+
+	return reg;
 }
 
 
@@ -641,18 +654,18 @@ static void dsi_vc_disable_bta_irq(int channel)
 static inline void enable_clocks(bool enable)
 {
 	if (enable)
-		dss_clk_enable(DSS_CLK_ICK | DSS_CLK_FCK1);
+		dss_clk_enable(DSS_CLK_ICK | DSS_CLK_FCK);
 	else
-		dss_clk_disable(DSS_CLK_ICK | DSS_CLK_FCK1);
+		dss_clk_disable(DSS_CLK_ICK | DSS_CLK_FCK);
 }
 
 /* source clock for DSI PLL. this could also be PCLKFREE */
 static inline void dsi_enable_pll_clock(bool enable)
 {
 	if (enable)
-		dss_clk_enable(DSS_CLK_FCK2);
+		dss_clk_enable(DSS_CLK_SYSCK);
 	else
-		dss_clk_disable(DSS_CLK_FCK2);
+		dss_clk_disable(DSS_CLK_SYSCK);
 
 	if (enable && dsi.pll_locked) {
 		if (wait_for_bit_change(DSI_PLL_STATUS, 1, 1) != 1)
@@ -728,7 +741,7 @@ static unsigned long dsi_fclk_rate(void)
 
 	if (dss_get_dsi_clk_source() == DSS_SRC_DSS1_ALWON_FCLK) {
 		/* DSI FCLK source is DSS1_ALWON_FCK, which is dss1_fck */
-		r = dss_clk_get_rate(DSS_CLK_FCK1);
+		r = dss_clk_get_rate(DSS_CLK_FCK);
 	} else {
 		/* DSI FCLK source is DSI2_PLL_FCLK */
 		r = dsi_get_dsi2_pll_rate();
@@ -808,7 +821,7 @@ static int dsi_calc_clock_rates(struct omap_dss_device *dssdev,
 		return -EINVAL;
 
 	if (cinfo->use_dss2_fck) {
-		cinfo->clkin = dss_clk_get_rate(DSS_CLK_FCK2);
+		cinfo->clkin = dss_clk_get_rate(DSS_CLK_SYSCK);
 		/* XXX it is unclear if highfreq should be used
 		 * with DSS2_FCK source also */
 		cinfo->highfreq = 0;
@@ -854,7 +867,7 @@ int dsi_pll_calc_clock_div_pck(bool is_tft, unsigned long req_pck,
 	int match = 0;
 	unsigned long dss_clk_fck2;
 
-	dss_clk_fck2 = dss_clk_get_rate(DSS_CLK_FCK2);
+	dss_clk_fck2 = dss_clk_get_rate(DSS_CLK_SYSCK);
 
 	if (req_pck == dsi.cache_req_pck &&
 			dsi.cache_cinfo.clkin == dss_clk_fck2) {
@@ -1306,7 +1319,7 @@ void dsi_dump_regs(struct seq_file *s)
 {
 #define DUMPREG(r) seq_printf(s, "%-35s %08x\n", #r, dsi_read_reg(r))
 
-	dss_clk_enable(DSS_CLK_ICK | DSS_CLK_FCK1);
+	dss_clk_enable(DSS_CLK_ICK | DSS_CLK_FCK);
 
 	DUMPREG(DSI_REVISION);
 	DUMPREG(DSI_SYSCONFIG);
@@ -1378,7 +1391,7 @@ void dsi_dump_regs(struct seq_file *s)
 	DUMPREG(DSI_PLL_CONFIGURATION1);
 	DUMPREG(DSI_PLL_CONFIGURATION2);
 
-	dss_clk_disable(DSS_CLK_ICK | DSS_CLK_FCK1);
+	dss_clk_disable(DSS_CLK_ICK | DSS_CLK_FCK);
 #undef DUMPREG
 }
 
@@ -3238,10 +3251,11 @@ void dsi_wait_dsi2_pll_active(void)
 		DSSERR("DSI2 PLL clock not active\n");
 }
 
-int dsi_init(struct platform_device *pdev)
+static int dsi_init(struct platform_device *pdev)
 {
 	u32 rev;
 	int r;
+	struct resource *dsi_mem;
 
 	spin_lock_init(&dsi.errors_lock);
 	dsi.errors = 0;
@@ -3268,14 +3282,20 @@ int dsi_init(struct platform_device *pdev)
 	dsi.te_timer.function = dsi_te_timeout;
 	dsi.te_timer.data = 0;
 #endif
-	dsi.base = ioremap(DSI_BASE, DSI_SZ_REGS);
+	dsi_mem = platform_get_resource(dsi.pdev, IORESOURCE_MEM, 0);
+	if (!dsi_mem) {
+		DSSERR("can't get IORESOURCE_MEM DSI\n");
+		r = -EINVAL;
+		goto err0;
+	}
+	dsi.base = ioremap(dsi_mem->start, resource_size(dsi_mem));
 	if (!dsi.base) {
 		DSSERR("can't ioremap DSI\n");
 		r = -ENOMEM;
 		goto err1;
 	}
 
-	dsi.vdds_dsi_reg = dss_get_vdds_dsi();
+	dsi.vdds_dsi_reg = dsi_get_vdds_dsi();
 	if (IS_ERR(dsi.vdds_dsi_reg)) {
 		DSSERR("can't get VDDS_DSI regulator\n");
 		r = PTR_ERR(dsi.vdds_dsi_reg);
@@ -3285,7 +3305,7 @@ int dsi_init(struct platform_device *pdev)
 	enable_clocks(1);
 
 	rev = dsi_read_reg(DSI_REVISION);
-	printk(KERN_INFO "OMAP DSI rev %d.%d\n",
+	dev_dbg(&pdev->dev, "OMAP DSI rev %d.%d\n",
 	       FLD_GET(rev, 7, 4), FLD_GET(rev, 3, 0));
 
 	enable_clocks(0);
@@ -3295,11 +3315,17 @@ err2:
 	iounmap(dsi.base);
 err1:
 	destroy_workqueue(dsi.workqueue);
+err0:
 	return r;
 }
 
-void dsi_exit(void)
+static void dsi_exit(void)
 {
+	if (dsi.vdds_dsi_reg != NULL) {
+		regulator_put(dsi.vdds_dsi_reg);
+		dsi.vdds_dsi_reg = NULL;
+	}
+
 	iounmap(dsi.base);
 
 	destroy_workqueue(dsi.workqueue);
@@ -3307,3 +3333,41 @@ void dsi_exit(void)
 	DSSDBG("omap_dsi_exit\n");
 }
 
+/* DSI1 HW IP initialisation */
+static int omap_dsi1hw_probe(struct platform_device *pdev)
+{
+	int r;
+	dsi.pdev = pdev;
+	r = dsi_init(pdev);
+	if (r) {
+		DSSERR("Failed to initialize DSI\n");
+		goto err_dsi;
+	}
+err_dsi:
+	return r;
+}
+
+static int omap_dsi1hw_remove(struct platform_device *pdev)
+{
+	dsi_exit();
+	return 0;
+}
+
+static struct platform_driver omap_dsi1hw_driver = {
+	.probe          = omap_dsi1hw_probe,
+	.remove         = omap_dsi1hw_remove,
+	.driver         = {
+		.name   = "omap_dsi1",
+		.owner  = THIS_MODULE,
+	},
+};
+
+int dsi_init_platform_driver(void)
+{
+	return platform_driver_register(&omap_dsi1hw_driver);
+}
+
+void dsi_uninit_platform_driver(void)
+{
+	return platform_driver_unregister(&omap_dsi1hw_driver);
+}

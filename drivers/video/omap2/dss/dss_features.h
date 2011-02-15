@@ -25,14 +25,20 @@
 
 /* DSS has feature id */
 enum dss_feat_id {
-	FEAT_GLOBAL_ALPHA	= 1 << 0,
-	FEAT_GLOBAL_ALPHA_VID1	= 1 << 1,
-	FEAT_PRE_MULT_ALPHA	= 1 << 2,
-	FEAT_LCDENABLEPOL	= 1 << 3,
-	FEAT_LCDENABLESIGNAL	= 1 << 4,
-	FEAT_PCKFREEENABLE	= 1 << 5,
-	FEAT_FUNCGATED		= 1 << 6,
-	FEAT_MGR_LCD2		= 1 << 7,
+	FEAT_GLOBAL_ALPHA		= 1 << 0,
+	FEAT_GLOBAL_ALPHA_VID1		= 1 << 1,
+	FEAT_PRE_MULT_ALPHA		= 1 << 2,
+	FEAT_LCDENABLEPOL		= 1 << 3,
+	FEAT_LCDENABLESIGNAL		= 1 << 4,
+	FEAT_PCKFREEENABLE		= 1 << 5,
+	FEAT_FUNCGATED			= 1 << 6,
+	FEAT_MGR_LCD2			= 1 << 7,
+	FEAT_COMMON_IRQ_DISPC_DSI	= 1 << 8,
+	FEAT_VAR_DPLL_FCK		= 1 << 9, /* Variable DPLL Func CLK */
+	/* DPLL FCLK has max divider value 32 */
+	FEAT_DPLL_FCK_32_DIV		= 1 << 10,
+	/* Independent core clk divider */
+	FEAT_CORE_CLK_DIV		= 1 << 11,
 };
 
 /* DSS register field id */

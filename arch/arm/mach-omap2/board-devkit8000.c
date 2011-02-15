@@ -115,9 +115,6 @@ static struct omap2_hsmmc_info mmc[] = {
 
 static int devkit8000_panel_enable_lcd(struct omap_dss_device *dssdev)
 {
-	twl_i2c_write_u8(TWL4030_MODULE_GPIO, 0x80, REG_GPIODATADIR1);
-	twl_i2c_write_u8(TWL4030_MODULE_LED, 0x0, 0x0);
-
 	if (gpio_is_valid(dssdev->reset_gpio))
 		gpio_set_value_cansleep(dssdev->reset_gpio, 1);
 	return 0;
@@ -198,16 +195,8 @@ static struct omap_dss_board_info devkit8000_dss_data = {
 	.default_device = &devkit8000_lcd_device,
 };
 
-static struct platform_device devkit8000_dss_device = {
-	.name		= "omapdss",
-	.id		= -1,
-	.dev		= {
-		.platform_data = &devkit8000_dss_data,
-	},
-};
-
 static struct regulator_consumer_supply devkit8000_vdda_dac_supply =
-	REGULATOR_SUPPLY("vdda_dac", "omapdss");
+	REGULATOR_SUPPLY("vdda_dac", "omap_venc");
 
 static uint32_t board_keymap[] = {
 	KEY(0, 0, KEY_1),
@@ -247,6 +236,8 @@ static struct gpio_led gpio_leds[];
 static int devkit8000_twl_gpio_setup(struct device *dev,
 		unsigned gpio, unsigned ngpio)
 {
+	int ret;
+
 	omap_mux_init_gpio(29, OMAP_PIN_INPUT);
 	/* gpio + 0 is "mmc0_cd" (input/IRQ) */
 	mmc[0].gpio_cd = gpio + 0;
@@ -255,17 +246,23 @@ static int devkit8000_twl_gpio_setup(struct device *dev,
 	/* TWL4030_GPIO_MAX + 1 == ledB, PMU_STAT (out, active low LED) */
 	gpio_leds[2].gpio = gpio + TWL4030_GPIO_MAX + 1;
 
-        /* gpio + 1 is "LCD_PWREN" (out, active high) */
-	devkit8000_lcd_device.reset_gpio = gpio + 1;
-	gpio_request(devkit8000_lcd_device.reset_gpio, "LCD_PWREN");
-	/* Disable until needed */
-	gpio_direction_output(devkit8000_lcd_device.reset_gpio, 0);
+	/* TWL4030_GPIO_MAX + 0 is "LCD_PWREN" (out, active high) */
+	devkit8000_lcd_device.reset_gpio = gpio + TWL4030_GPIO_MAX + 0;
+	ret = gpio_request_one(devkit8000_lcd_device.reset_gpio,
+			GPIOF_DIR_OUT | GPIOF_INIT_LOW, "LCD_PWREN");
+	if (ret < 0) {
+		devkit8000_lcd_device.reset_gpio = -EINVAL;
+		printk(KERN_ERR "Failed to request GPIO for LCD_PWRN\n");
+	}
 
 	/* gpio + 7 is "DVI_PD" (out, active low) */
 	devkit8000_dvi_device.reset_gpio = gpio + 7;
-	gpio_request(devkit8000_dvi_device.reset_gpio, "DVI PowerDown");
-	/* Disable until needed */
-	gpio_direction_output(devkit8000_dvi_device.reset_gpio, 0);
+	ret = gpio_request_one(devkit8000_dvi_device.reset_gpio,
+			GPIOF_DIR_OUT | GPIOF_INIT_LOW, "DVI PowerDown");
+	if (ret < 0) {
+		devkit8000_dvi_device.reset_gpio = -EINVAL;
+		printk(KERN_ERR "Failed to request GPIO for DVI PowerDown\n");
+	}
 
 	return 0;
 }
@@ -280,8 +277,10 @@ static struct twl4030_gpio_platform_data devkit8000_gpio_data = {
 	.setup		= devkit8000_twl_gpio_setup,
 };
 
-static struct regulator_consumer_supply devkit8000_vpll1_supply =
-	REGULATOR_SUPPLY("vdds_dsi", "omapdss");
+static struct regulator_consumer_supply devkit8000_vpll1_supplies[] = {
+	REGULATOR_SUPPLY("vdds_dsi", "omap_display"),
+	REGULATOR_SUPPLY("vdds_dsi", "omap_dsi1"),
+};
 
 /* VMMC1 for MMC1 pins CMD, CLK, DAT0..DAT3 (20 mA, plus card == max 220 mA) */
 static struct regulator_init_data devkit8000_vmmc1 = {
@@ -322,8 +321,8 @@ static struct regulator_init_data devkit8000_vpll1 = {
 		.valid_ops_mask		= REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
 	},
-	.num_consumer_supplies	= 1,
-	.consumer_supplies	= &devkit8000_vpll1_supply,
+	.num_consumer_supplies	= ARRAY_SIZE(devkit8000_vpll1_supplies),
+	.consumer_supplies	= devkit8000_vpll1_supplies,
 };
 
 /* VAUX4 for ads7846 and nubs */
@@ -570,7 +569,6 @@ static void __init omap_dm9000_init(void)
 }
 
 static struct platform_device *devkit8000_devices[] __initdata = {
-	&devkit8000_dss_device,
 	&leds_gpio,
 	&keys_gpio,
 	&omap_dm9000_dev,
@@ -792,6 +790,7 @@ static void __init devkit8000_init(void)
 	platform_add_devices(devkit8000_devices,
 			ARRAY_SIZE(devkit8000_devices));
 
+	omap_display_init(&devkit8000_dss_data);
 	spi_register_board_info(devkit8000_spi_board_info,
 	ARRAY_SIZE(devkit8000_spi_board_info));
 
