@@ -86,6 +86,7 @@
 
 #include <plat/omap_device.h>
 #include <plat/omap_hwmod.h>
+#include <plat/dvfs.h>
 
 /* These parameters are passed to _omap_device_{de,}activate() */
 #define USE_WAKEUP_LAT			0
@@ -481,6 +482,14 @@ struct omap_device *omap_device_build_ss(const char *pdev_name, int pdev_id,
 	for (i = 0; i < oh_cnt; i++) {
 		hwmods[i]->od = od;
 		_add_optional_clock_alias(od, hwmods[i]);
+		if (!is_early_device && hwmods[i]->vdd_name) {
+			struct omap_hwmod *oh = hwmods[i];
+			struct voltagedomain *voltdm;
+
+			voltdm = omap_voltage_domain_lookup(oh->vdd_name);
+			if (!omap_dvfs_register_device(voltdm, &od->pdev.dev))
+				oh->voltdm = voltdm;
+		}
 	}
 
 	if (ret)
@@ -799,6 +808,55 @@ int omap_device_enable_clocks(struct omap_device *od)
 
 	/* XXX pass along return value here? */
 	return 0;
+}
+
+int omap_device_set_rate(struct device *dev, unsigned long freq)
+{
+	struct platform_device *pdev;
+	struct omap_device *od;
+
+	pdev = container_of(dev, struct platform_device, dev);
+	od = _find_by_pdev(pdev);
+
+	if (!od->set_rate) {
+		dev_err(dev, "%s: No set_rate API for scaling device\n",
+			__func__);
+		return -ENODATA;
+	}
+
+	return od->set_rate(dev, freq);
+}
+
+unsigned long omap_device_get_rate(struct device *dev)
+{
+	struct platform_device *pdev;
+	struct omap_device *od;
+
+	pdev = container_of(dev, struct platform_device, dev);
+	od = _find_by_pdev(pdev);
+
+
+	if (!od->get_rate) {
+		dev_err(dev, "%s: No get rate API for the device\n",
+			__func__);
+		return 0;
+	}
+
+	return od->get_rate(dev);
+}
+
+void omap_device_register_dvfs_callbacks(struct device *dev,
+		int (*set_rate)(struct device *dev, unsigned long rate),
+		unsigned long (*get_rate) (struct device *dev))
+{
+	struct platform_device *pdev;
+	struct omap_device *od;
+
+	pdev = container_of(dev, struct platform_device, dev);
+	od = _find_by_pdev(pdev);
+
+	od->set_rate = set_rate;
+	od->get_rate = get_rate;
 }
 
 struct device omap_device_parent = {
