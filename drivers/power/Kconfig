@@ -185,4 +185,9 @@ config CHARGER_TWL4030
 	help
 	  Say Y here to enable support for TWL4030 Battery Charge Interface.
 
+config BATTERY_VIRTUAL
+	tristate "Virtual Battery Driver"
+	help
+	  Say Y to include support for Virtual Battery.
+
 endif # POWER_SUPPLY
