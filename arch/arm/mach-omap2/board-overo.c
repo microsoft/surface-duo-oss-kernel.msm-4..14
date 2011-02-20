@@ -339,14 +339,6 @@ static struct omap_dss_board_info overo_dss_data = {
 	.default_device	= &overo_dvi_device,
 };
 
-static struct platform_device overo_dss_device = {
-	.name          = "omap_display",
-	.id            = -1,
-	.dev            = {
-		.platform_data = &overo_dss_data,
-	},
-};
-
 static struct regulator_consumer_supply overo_vdda_dac_supply =
 	REGULATOR_SUPPLY("vdda_dac", "omap_display");
 
@@ -592,10 +584,6 @@ static void __init overo_init_irq(void)
 	omap_init_irq();
 }
 
-static struct platform_device *overo_devices[] __initdata = {
-	&overo_dss_device,
-};
-
 static const struct ehci_hcd_omap_platform_data ehci_pdata __initconst = {
 	.port_mode[0] = EHCI_HCD_OMAP_MODE_UNKNOWN,
 	.port_mode[1] = EHCI_HCD_OMAP_MODE_PHY,
@@ -623,7 +611,7 @@ static void __init overo_init(void)
 {
 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBB);
 	overo_i2c_init();
-	platform_add_devices(overo_devices, ARRAY_SIZE(overo_devices));
+	omap_display_init(&overo_dss_data);
 	omap_serial_init();
 	overo_flash_init();
 	usb_musb_init(&musb_board_data);
