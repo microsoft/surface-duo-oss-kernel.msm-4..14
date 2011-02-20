@@ -340,7 +340,7 @@ static struct omap_dss_board_info overo_dss_data = {
 };
 
 static struct platform_device overo_dss_device = {
-	.name          = "omapdss",
+	.name          = "omap_display",
 	.id            = -1,
 	.dev            = {
 		.platform_data = &overo_dss_data,
@@ -348,11 +348,11 @@ static struct platform_device overo_dss_device = {
 };
 
 static struct regulator_consumer_supply overo_vdda_dac_supply =
-	REGULATOR_SUPPLY("vdda_dac", "omapdss");
+	REGULATOR_SUPPLY("vdda_dac", "omap_display");
 
 static struct regulator_consumer_supply overo_vdds_supplies[] = {
-	REGULATOR_SUPPLY("vdds_sdi", "omapdss"),
-	REGULATOR_SUPPLY("vdds_dsi", "omapdss"),
+	REGULATOR_SUPPLY("vdds_sdi", "omap_display"),
+	REGULATOR_SUPPLY("vdds_dsi", "omap_display"),
 };
 
 static struct mtd_partition overo_nand_partitions[] = {
