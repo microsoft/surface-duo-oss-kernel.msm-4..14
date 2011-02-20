@@ -340,7 +340,7 @@ static struct omap_dss_board_info overo_dss_data = {
 };
 
 static struct regulator_consumer_supply overo_vdda_dac_supply =
-	REGULATOR_SUPPLY("vdda_dac", "omap_display");
+	REGULATOR_SUPPLY("vdda_dac", "omap_venc");
 
 static struct regulator_consumer_supply overo_vdds_supplies[] = {
 	REGULATOR_SUPPLY("vdds_sdi", "omap_display"),
