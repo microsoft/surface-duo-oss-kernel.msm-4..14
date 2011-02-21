@@ -42,8 +42,6 @@
 #include "dss_features.h"
 
 /* DISPC */
-#define DISPC_BASE			0x48050400
-
 #define DISPC_SZ_REGS			SZ_4K
 
 struct dispc_reg { u16 idx; };
@@ -74,7 +72,12 @@ struct dispc_reg { u16 idx; };
 #define DISPC_TIMING_H(ch)		DISPC_REG(ch != 2 ? 0x0064 : 0x0400)
 #define DISPC_TIMING_V(ch)		DISPC_REG(ch != 2 ? 0x0068 : 0x0404)
 #define DISPC_POL_FREQ(ch)		DISPC_REG(ch != 2 ? 0x006C : 0x0408)
-#define DISPC_DIVISOR(ch)		DISPC_REG(ch != 2 ? 0x0070 : 0x040C)
+/*
+ * Use DISPC_DIVISORo(ch) when DISPC_DIVISOR1 or DISPC_DIVISOR2 has to be
+ * configured. OMAP4 TRM uses DISPC_DIVISORo generically to refer DISPC_DIVISOR1
+ * and DISPC_DIVISOR2
+ */
+#define DISPC_DIVISORo(ch)		DISPC_REG(ch != 2 ? 0x0070 : 0x040C)
 #define DISPC_GLOBAL_ALPHA		DISPC_REG(0x0074)
 #define DISPC_SIZE_DIG			DISPC_REG(0x0078)
 #define DISPC_SIZE_LCD(ch)		DISPC_REG(ch != 2 ? 0x007C : 0x03CC)
@@ -129,6 +132,17 @@ struct dispc_reg { u16 idx; };
 
 #define DISPC_VID_PRELOAD(n)		DISPC_REG(0x230 + (n)*0x04)
 
+/*
+ * The OMAP4 DISPC_DIVISOR1 is backward compatible to OMAP3xxx DISPC_DIVISOR.
+ * However DISPC_DIVISOR is also provided in OMAP4, to control DISPC_CORE_CLK.
+ * This allows DISPC_CORE_CLK to be independent of logical clock dividers (lcd)
+ * of LCD1 (primary) and LCD2 (secondary) displays.
+ *
+ * To derive pixel clocks for Primary and Secondary LCD channels, configure the
+ * lcd and pcd in DISPC_DIVISOR1 and DISPC_DIVISOR2 respectively, using the
+ * DISPC_DIVISORo(ch).
+ */
+#define DISPC_DIVISOR			DISPC_REG(0x0804)
 
 #define DISPC_IRQ_MASK_ERROR            (DISPC_IRQ_GFX_FIFO_UNDERFLOW | \
 					 DISPC_IRQ_OCP_ERR | \
@@ -178,6 +192,7 @@ struct dispc_irq_stats {
 };
 
 static struct {
+	struct platform_device *pdev;
 	void __iomem    *base;
 
 	u32	fifo_size[3];
@@ -230,7 +245,7 @@ void dispc_save_context(void)
 	SR(TIMING_H(0));
 	SR(TIMING_V(0));
 	SR(POL_FREQ(0));
-	SR(DIVISOR(0));
+	SR(DIVISORo(0));
 	SR(GLOBAL_ALPHA);
 	SR(SIZE_DIG);
 	SR(SIZE_LCD(0));
@@ -242,7 +257,7 @@ void dispc_save_context(void)
 		SR(TIMING_H(2));
 		SR(TIMING_V(2));
 		SR(POL_FREQ(2));
-		SR(DIVISOR(2));
+		SR(DIVISORo(2));
 		SR(CONFIG2);
 	}
 
@@ -373,6 +388,9 @@ void dispc_save_context(void)
 	SR(VID_FIR_COEF_V(1, 7));
 
 	SR(VID_PRELOAD(1));
+
+	if (dss_has_feature(FEAT_CORE_CLK_DIV))
+		SR(DIVISOR);
 }
 
 void dispc_restore_context(void)
@@ -389,7 +407,7 @@ void dispc_restore_context(void)
 	RR(TIMING_H(0));
 	RR(TIMING_V(0));
 	RR(POL_FREQ(0));
-	RR(DIVISOR(0));
+	RR(DIVISORo(0));
 	RR(GLOBAL_ALPHA);
 	RR(SIZE_DIG);
 	RR(SIZE_LCD(0));
@@ -400,7 +418,7 @@ void dispc_restore_context(void)
 		RR(TIMING_H(2));
 		RR(TIMING_V(2));
 		RR(POL_FREQ(2));
-		RR(DIVISOR(2));
+		RR(DIVISORo(2));
 		RR(CONFIG2);
 	}
 
@@ -532,6 +550,9 @@ void dispc_restore_context(void)
 
 	RR(VID_PRELOAD(1));
 
+	if (dss_has_feature(FEAT_CORE_CLK_DIV))
+		RR(DIVISOR);
+
 	/* enable last, because LCD & DIGIT enable are here */
 	RR(CONTROL);
 	if (dss_has_feature(FEAT_MGR_LCD2))
@@ -552,9 +573,9 @@ void dispc_restore_context(void)
 static inline void enable_clocks(bool enable)
 {
 	if (enable)
-		dss_clk_enable(DSS_CLK_ICK | DSS_CLK_FCK1);
+		dss_clk_enable(DSS_CLK_ICK | DSS_CLK_FCK);
 	else
-		dss_clk_disable(DSS_CLK_ICK | DSS_CLK_FCK1);
+		dss_clk_disable(DSS_CLK_ICK | DSS_CLK_FCK);
 }
 
 bool dispc_go_busy(enum omap_channel channel)
@@ -2293,7 +2314,7 @@ static void dispc_set_lcd_divisor(enum omap_channel channel, u16 lck_div,
 	BUG_ON(pck_div < 2);
 
 	enable_clocks(1);
-	dispc_write_reg(DISPC_DIVISOR(channel),
+	dispc_write_reg(DISPC_DIVISORo(channel),
 			FLD_VAL(lck_div, 23, 16) | FLD_VAL(pck_div, 7, 0));
 	enable_clocks(0);
 }
@@ -2302,7 +2323,7 @@ static void dispc_get_lcd_divisor(enum omap_channel channel, int *lck_div,
 		int *pck_div)
 {
 	u32 l;
-	l = dispc_read_reg(DISPC_DIVISOR(channel));
+	l = dispc_read_reg(DISPC_DIVISORo(channel));
 	*lck_div = FLD_GET(l, 23, 16);
 	*pck_div = FLD_GET(l, 7, 0);
 }
@@ -2312,7 +2333,7 @@ unsigned long dispc_fclk_rate(void)
 	unsigned long r = 0;
 
 	if (dss_get_dispc_clk_source() == DSS_SRC_DSS1_ALWON_FCLK)
-		r = dss_clk_get_rate(DSS_CLK_FCK1);
+		r = dss_clk_get_rate(DSS_CLK_FCK);
 	else
 #ifdef CONFIG_OMAP2_DSS_DSI
 		r = dsi_get_dsi1_pll_rate();
@@ -2328,7 +2349,7 @@ unsigned long dispc_lclk_rate(enum omap_channel channel)
 	unsigned long r;
 	u32 l;
 
-	l = dispc_read_reg(DISPC_DIVISOR(channel));
+	l = dispc_read_reg(DISPC_DIVISORo(channel));
 
 	lcd = FLD_GET(l, 23, 16);
 
@@ -2343,7 +2364,7 @@ unsigned long dispc_pclk_rate(enum omap_channel channel)
 	unsigned long r;
 	u32 l;
 
-	l = dispc_read_reg(DISPC_DIVISOR(channel));
+	l = dispc_read_reg(DISPC_DIVISORo(channel));
 
 	lcd = FLD_GET(l, 23, 16);
 	pcd = FLD_GET(l, 7, 0);
@@ -2440,7 +2461,7 @@ void dispc_dump_regs(struct seq_file *s)
 {
 #define DUMPREG(r) seq_printf(s, "%-35s %08x\n", #r, dispc_read_reg(r))
 
-	dss_clk_enable(DSS_CLK_ICK | DSS_CLK_FCK1);
+	dss_clk_enable(DSS_CLK_ICK | DSS_CLK_FCK);
 
 	DUMPREG(DISPC_REVISION);
 	DUMPREG(DISPC_SYSCONFIG);
@@ -2459,7 +2480,7 @@ void dispc_dump_regs(struct seq_file *s)
 	DUMPREG(DISPC_TIMING_H(0));
 	DUMPREG(DISPC_TIMING_V(0));
 	DUMPREG(DISPC_POL_FREQ(0));
-	DUMPREG(DISPC_DIVISOR(0));
+	DUMPREG(DISPC_DIVISORo(0));
 	DUMPREG(DISPC_GLOBAL_ALPHA);
 	DUMPREG(DISPC_SIZE_DIG);
 	DUMPREG(DISPC_SIZE_LCD(0));
@@ -2471,7 +2492,7 @@ void dispc_dump_regs(struct seq_file *s)
 		DUMPREG(DISPC_TIMING_H(2));
 		DUMPREG(DISPC_TIMING_V(2));
 		DUMPREG(DISPC_POL_FREQ(2));
-		DUMPREG(DISPC_DIVISOR(2));
+		DUMPREG(DISPC_DIVISORo(2));
 		DUMPREG(DISPC_SIZE_LCD(2));
 	}
 
@@ -2597,7 +2618,7 @@ void dispc_dump_regs(struct seq_file *s)
 	DUMPREG(DISPC_VID_PRELOAD(0));
 	DUMPREG(DISPC_VID_PRELOAD(1));
 
-	dss_clk_disable(DSS_CLK_ICK | DSS_CLK_FCK1);
+	dss_clk_disable(DSS_CLK_ICK | DSS_CLK_FCK);
 #undef DUMPREG
 }
 
@@ -2713,8 +2734,8 @@ int dispc_get_clock_div(enum omap_channel channel,
 
 	fck = dispc_fclk_rate();
 
-	cinfo->lck_div = REG_GET(DISPC_DIVISOR(channel), 23, 16);
-	cinfo->pck_div = REG_GET(DISPC_DIVISOR(channel), 7, 0);
+	cinfo->lck_div = REG_GET(DISPC_DIVISORo(channel), 23, 16);
+	cinfo->pck_div = REG_GET(DISPC_DIVISORo(channel), 7, 0);
 
 	cinfo->lck = fck / cinfo->lck_div;
 	cinfo->pck = cinfo->lck / cinfo->pck_div;
@@ -3253,6 +3274,15 @@ static void _omap_dispc_initial_config(void)
 	l = FLD_MOD(l, 1, 0, 0);	/* AUTOIDLE */
 	dispc_write_reg(DISPC_SYSCONFIG, l);
 
+	/* Exclusively enable DISPC_CORE_CLK and set divider to 1 */
+	if (dss_has_feature(FEAT_CORE_CLK_DIV)) {
+		l = dispc_read_reg(DISPC_DIVISOR);
+		/* Use DISPC_DIVISOR.LCD, instead of DISPC_DIVISOR1.LCD */
+		l = FLD_MOD(l, 1, 0, 0);
+		l = FLD_MOD(l, 1, 23, 16);
+		dispc_write_reg(DISPC_DIVISOR, l);
+	}
+
 	/* FUNCGATED */
 	if (dss_has_feature(FEAT_FUNCGATED))
 		REG_FLD_MOD(DISPC_CONFIG, 1, 9, 9);
@@ -3267,47 +3297,6 @@ static void _omap_dispc_initial_config(void)
 	dispc_set_loadmode(OMAP_DSS_LOAD_FRAME_ONLY);
 
 	dispc_read_plane_fifo_sizes();
-}
-
-int dispc_init(void)
-{
-	u32 rev;
-
-	spin_lock_init(&dispc.irq_lock);
-
-#ifdef CONFIG_OMAP2_DSS_COLLECT_IRQ_STATS
-	spin_lock_init(&dispc.irq_stats_lock);
-	dispc.irq_stats.last_reset = jiffies;
-#endif
-
-	INIT_WORK(&dispc.error_work, dispc_error_worker);
-
-	dispc.base = ioremap(DISPC_BASE, DISPC_SZ_REGS);
-	if (!dispc.base) {
-		DSSERR("can't ioremap DISPC\n");
-		return -ENOMEM;
-	}
-
-	enable_clocks(1);
-
-	_omap_dispc_initial_config();
-
-	_omap_dispc_initialize_irq();
-
-	dispc_save_context();
-
-	rev = dispc_read_reg(DISPC_REVISION);
-	printk(KERN_INFO "OMAP DISPC rev %d.%d\n",
-	       FLD_GET(rev, 7, 4), FLD_GET(rev, 3, 0));
-
-	enable_clocks(0);
-
-	return 0;
-}
-
-void dispc_exit(void)
-{
-	iounmap(dispc.base);
 }
 
 int dispc_enable_plane(enum omap_plane plane, bool enable)
@@ -3358,4 +3347,74 @@ int dispc_setup_plane(enum omap_plane plane,
 	enable_clocks(0);
 
 	return r;
+}
+
+/* DISPC HW IP initialisation */
+static int omap_dispchw_probe(struct platform_device *pdev)
+{
+	u32 rev;
+	struct resource *dispc_mem;
+
+	dispc.pdev = pdev;
+
+	spin_lock_init(&dispc.irq_lock);
+
+#ifdef CONFIG_OMAP2_DSS_COLLECT_IRQ_STATS
+	spin_lock_init(&dispc.irq_stats_lock);
+	dispc.irq_stats.last_reset = jiffies;
+#endif
+
+	INIT_WORK(&dispc.error_work, dispc_error_worker);
+
+	dispc_mem = platform_get_resource(dispc.pdev, IORESOURCE_MEM, 0);
+	if (!dispc_mem) {
+		DSSERR("can't get IORESOURCE_MEM DISPC\n");
+		return -EINVAL;
+	}
+	dispc.base = ioremap(dispc_mem->start, resource_size(dispc_mem));
+	if (!dispc.base) {
+		DSSERR("can't ioremap DISPC\n");
+		return -ENOMEM;
+	}
+
+	enable_clocks(1);
+
+	_omap_dispc_initial_config();
+
+	_omap_dispc_initialize_irq();
+
+	dispc_save_context();
+
+	rev = dispc_read_reg(DISPC_REVISION);
+	dev_dbg(&pdev->dev, "OMAP DISPC rev %d.%d\n",
+	       FLD_GET(rev, 7, 4), FLD_GET(rev, 3, 0));
+
+	enable_clocks(0);
+
+	return 0;
+}
+
+static int omap_dispchw_remove(struct platform_device *pdev)
+{
+	iounmap(dispc.base);
+	return 0;
+}
+
+static struct platform_driver omap_dispchw_driver = {
+	.probe          = omap_dispchw_probe,
+	.remove         = omap_dispchw_remove,
+	.driver         = {
+		.name   = "omap_dispc",
+		.owner  = THIS_MODULE,
+	},
+};
+
+int dispc_init_platform_driver(void)
+{
+	return platform_driver_register(&omap_dispchw_driver);
+}
+
+void dispc_uninit_platform_driver(void)
+{
+	return platform_driver_unregister(&omap_dispchw_driver);
 }

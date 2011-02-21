@@ -157,7 +157,8 @@ static struct omap_dss_features omap3430_dss_features = {
 	.has_feature	=
 		FEAT_GLOBAL_ALPHA | FEAT_LCDENABLEPOL |
 		FEAT_LCDENABLESIGNAL | FEAT_PCKFREEENABLE |
-		FEAT_FUNCGATED,
+		FEAT_FUNCGATED | FEAT_COMMON_IRQ_DISPC_DSI |
+		FEAT_VAR_DPLL_FCK,
 
 	.num_mgrs = 2,
 	.num_ovls = 3,
@@ -172,7 +173,9 @@ static struct omap_dss_features omap3630_dss_features = {
 	.has_feature    =
 		FEAT_GLOBAL_ALPHA | FEAT_LCDENABLEPOL |
 		FEAT_LCDENABLESIGNAL | FEAT_PCKFREEENABLE |
-		FEAT_PRE_MULT_ALPHA | FEAT_FUNCGATED,
+		FEAT_PRE_MULT_ALPHA | FEAT_FUNCGATED |
+		FEAT_COMMON_IRQ_DISPC_DSI | FEAT_VAR_DPLL_FCK |
+		FEAT_DPLL_FCK_32_DIV,
 
 	.num_mgrs = 2,
 	.num_ovls = 3,
@@ -187,7 +190,8 @@ static struct omap_dss_features omap4_dss_features = {
 
 	.has_feature	=
 		FEAT_GLOBAL_ALPHA | FEAT_PRE_MULT_ALPHA |
-		FEAT_MGR_LCD2,
+		FEAT_MGR_LCD2 | FEAT_VAR_DPLL_FCK |
+		FEAT_DPLL_FCK_32_DIV | FEAT_CORE_CLK_DIV,
 
 	.num_mgrs = 3,
 	.num_ovls = 3,
