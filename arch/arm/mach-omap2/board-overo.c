@@ -43,6 +43,7 @@
 #include <plat/board.h>
 #include <plat/common.h>
 #include <plat/display.h>
+#include <plat/panel-generic-dpi.h>
 #include <mach/gpio.h>
 #include <plat/gpmc.h>
 #include <mach/hardware.h>
@@ -260,13 +261,19 @@ static void overo_panel_disable_dvi(struct omap_dss_device *dssdev)
 	dvi_enabled = 0;
 }
 
+static struct panel_generic_dpi_data dvi_panel = {
+        .name = "generic",
+        .platform_enable = overo_panel_enable_dvi,
+        .platform_disable = overo_panel_disable_dvi,
+};
+
 static struct omap_dss_device overo_dvi_device = {
-	.type			= OMAP_DISPLAY_TYPE_DPI,
-	.name			= "dvi",
-	.driver_name		= "generic_panel",
-	.phy.dpi.data_lines	= 24,
-	.platform_enable	= overo_panel_enable_dvi,
-	.platform_disable	= overo_panel_disable_dvi,
+        .type = OMAP_DISPLAY_TYPE_DPI,
+        .name = "dvi",
+        .driver_name = "generic_dpi_panel",
+        .data = &dvi_panel,
+        .phy.dpi.data_lines = 24,
+        .reset_gpio = -EINVAL,
 };
 
 static struct omap_dss_device overo_tv_device = {
@@ -345,6 +352,7 @@ static struct regulator_consumer_supply overo_vdda_dac_supply =
 static struct regulator_consumer_supply overo_vdds_supplies[] = {
 	REGULATOR_SUPPLY("vdds_sdi", "omap_display"),
 	REGULATOR_SUPPLY("vdds_dsi", "omap_display"),
+	REGULATOR_SUPPLY("vdds_dsi", "omap_dsi1"),
 };
 
 static struct mtd_partition overo_nand_partitions[] = {
