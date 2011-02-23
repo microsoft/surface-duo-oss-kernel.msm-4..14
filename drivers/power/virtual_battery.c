@@ -115,6 +115,7 @@ static struct power_supply power_supply_bat = {
 };
 
 
+#define MAX_KEYLENGTH 256
 struct battery_property_map {
 	int value;
 	char const * key;
@@ -162,16 +163,18 @@ static struct battery_property_map map_technology[] = {
 
 static int map_get_value(struct battery_property_map * map, const char * key, int def_val)
 {
-	char buf[4096];
+	char buf[MAX_KEYLENGTH];
 	int cr;
 
-	strcpy(buf, key);
-	cr = strlen(buf) - 1;
+	strncpy(buf, key, MAX_KEYLENGTH);
+	buf[MAX_KEYLENGTH-1] = '\0';
+
+	cr = strnlen(buf, MAX_KEYLENGTH) - 1;
 	if (buf[cr] == '\n')
 		buf[cr] = '\0';
 
 	while (map->key) {
-		if (strcasecmp(map->key, buf) == 0)
+		if (strncasecmp(map->key, buf, MAX_KEYLENGTH) == 0)
 			return map->value;
 		map++;
 	}
