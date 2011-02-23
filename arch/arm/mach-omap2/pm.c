@@ -23,6 +23,9 @@
 #include "powerdomain.h"
 #include "clockdomain.h"
 #include "pm.h"
+#include "cm2xxx_3xxx.h"
+#include "cm-regbits-34xx.h"
+#include "prm.h"
 
 static struct omap_device_pm_latency *pm_lats;
 
@@ -30,6 +33,8 @@ static struct device *mpu_dev;
 static struct device *iva_dev;
 static struct device *l3_dev;
 static struct device *dsp_dev;
+
+static struct clk *dpll1_clk, *dpll2_clk, *dpll3_clk;
 
 struct device *omap2_get_mpuss_device(void)
 {
@@ -77,6 +82,55 @@ static int _init_omap_device(char *name, struct device **new_dev)
 	return 0;
 }
 
+static unsigned long omap3_mpu_get_rate(struct device *dev)
+{
+	return dpll1_clk->rate;
+}
+
+static int omap3_mpu_set_rate(struct device *dev, unsigned long rate)
+{
+	int ret;
+
+	ret = clk_set_rate(dpll1_clk, rate);
+	if (ret) {
+		dev_warn(dev, "%s: Unable to set rate to %ld\n",
+			__func__, rate);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int omap3_iva_set_rate(struct device *dev, unsigned long rate)
+{
+	return clk_set_rate(dpll2_clk, rate);
+}
+
+static unsigned long omap3_iva_get_rate(struct device *dev)
+{
+	return dpll2_clk->rate;
+}
+
+static int omap3_l3_set_rate(struct device *dev, unsigned long rate)
+{
+	int l3_div;
+
+	l3_div = omap2_cm_read_mod_reg(CORE_MOD, CM_CLKSEL) &
+			OMAP3430_CLKSEL_L3_MASK;
+
+	return clk_set_rate(dpll3_clk, rate * l3_div);
+}
+
+static unsigned long omap3_l3_get_rate(struct device *dev)
+{
+	int l3_div;
+
+	l3_div = omap2_cm_read_mod_reg(CORE_MOD, CM_CLKSEL) &
+			OMAP3430_CLKSEL_L3_MASK;
+	return dpll3_clk->rate / l3_div;
+}
+
+
 /*
  * Build omap_devices for processors and bus.
  */
@@ -89,6 +143,23 @@ static void omap2_init_processor_devices(void)
 		_init_omap_device("dsp", &dsp_dev);
 	} else {
 		_init_omap_device("l3_main", &l3_dev);
+	}
+
+	if (cpu_is_omap34xx()) {
+		dpll1_clk = clk_get(NULL, "dpll1_ck");
+		dpll2_clk = clk_get(NULL, "dpll2_ck");
+		dpll3_clk = clk_get(NULL, "dpll3_m2_ck");
+
+		if (mpu_dev)
+			omap_device_register_dvfs_callbacks(mpu_dev,
+				omap3_mpu_set_rate, omap3_mpu_get_rate);
+		if (iva_dev)
+			omap_device_register_dvfs_callbacks(iva_dev,
+				omap3_iva_set_rate, omap3_iva_get_rate);
+		if (l3_dev)
+			omap_device_register_dvfs_callbacks(l3_dev,
+				omap3_l3_set_rate, omap3_l3_get_rate);
+
 	}
 }
 

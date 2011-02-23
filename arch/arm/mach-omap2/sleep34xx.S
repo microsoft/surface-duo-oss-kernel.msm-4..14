@@ -80,8 +80,10 @@
 /* Function call to get the restore pointer for resume from OFF */
 ENTRY(get_restore_pointer)
 	stmfd	sp!, {lr}	@ save registers on stack
-	adr	r0, restore
+	adr	r0, BSYM(restore)
 	ldmfd	sp!, {pc}	@ restore regs and return
+ENDPROC(get_restore_pointer)
+	.align
 ENTRY(get_restore_pointer_sz)
 	.word	. - get_restore_pointer
 
@@ -89,8 +91,10 @@ ENTRY(get_restore_pointer_sz)
 /* Function call to get the restore pointer for 3630 resume from OFF */
 ENTRY(get_omap3630_restore_pointer)
 	stmfd	sp!, {lr}	@ save registers on stack
-	adr	r0, restore_3630
+	adr	r0, BSYM(restore_3630)
 	ldmfd	sp!, {pc}	@ restore regs and return
+ENDPROC(get_omap3630_restore_pointer)
+	.align
 ENTRY(get_omap3630_restore_pointer_sz)
 	.word	. - get_omap3630_restore_pointer
 
@@ -98,8 +102,10 @@ ENTRY(get_omap3630_restore_pointer_sz)
 /* Function call to get the restore pointer for ES3 to resume from OFF */
 ENTRY(get_es3_restore_pointer)
 	stmfd	sp!, {lr}	@ save registers on stack
-	adr	r0, restore_es3
+	adr	r0, BSYM(restore_es3)
 	ldmfd	sp!, {pc}	@ restore regs and return
+ENDPROC(get_es3_restore_pointer)
+	.align
 ENTRY(get_es3_restore_pointer_sz)
 	.word	. - get_es3_restore_pointer
 
@@ -113,11 +119,15 @@ ENTRY(enable_omap3630_toggle_l2_on_restore)
 	stmfd	sp!, {lr}	@ save registers on stack
 	/* Setup so that we will disable and enable l2 */
 	mov	r1, #0x1
-	str	r1, l2dis_3630
+ ARM(	adrl	r2, l2dis_3630	)	@ may be out of range for adr in ARM
+ THUMB(	adr	r2, l2dis_3630	)	@ Thumb has more range, but not adrl
+	str	r1, [r2]
 	ldmfd	sp!, {pc}	@ restore regs and return
+ENDPROC(enable_omap3630_toggle_l2_on_restore)
 
 	.text
 /* Function to call rom code to save secure ram context */
+	.align	3
 ENTRY(save_secure_ram_context)
 	stmfd	sp!, {r1-r12, lr}	@ save registers on stack
 	adr	r3, api_params		@ r3 points to parameters
@@ -133,18 +143,20 @@ ENTRY(save_secure_ram_context)
 	mov	r6, #0xff
 	mcr	p15, 0, r0, c7, c10, 4	@ data write barrier
 	mcr	p15, 0, r0, c7, c10, 5	@ data memory barrier
-	.word	0xE1600071		@ call SMI monitor (smi #1)
+	smc	#1			@ call SMI monitor (smi #1)
 	nop
 	nop
 	nop
 	nop
 	ldmfd	sp!, {r1-r12, pc}
+	.align
 sram_phy_addr_mask:
 	.word	SRAM_BASE_P
 high_mask:
 	.word	0xffff
 api_params:
 	.word	0x4, 0x0, 0x0, 0x1, 0x1
+ENDPROC(save_secure_ram_context)
 ENTRY(save_secure_ram_context_sz)
 	.word	. - save_secure_ram_context
 
@@ -169,6 +181,7 @@ ENTRY(save_secure_ram_context_sz)
  *   depending on the low power mode (non-OFF vs OFF modes),
  *   cf. 'Resume path for xxx mode' comments.
  */
+	.align	3
 ENTRY(omap34xx_cpu_suspend)
 	stmfd	sp!, {r0-r12, lr}	@ save registers on stack
 
@@ -279,8 +292,7 @@ clean_l2:
 	 *  - 'might' have to copy address, load and jump to it
 	 */
 	ldr	r1, kernel_flush
-	mov	lr, pc
-	bx	r1
+	blx	r1
 
 omap3_do_wfi:
 	ldr	r4, sdrc_power		@ read the SDRC_POWER register
@@ -346,9 +358,9 @@ restore_es3:
 	and	r4, r4, #0x3
 	cmp	r4, #0x0	@ Check if previous power state of CORE is OFF
 	bne	restore
-	adr	r0, es3_sdrc_fix
-	ldr	r1, sram_base
-	ldr	r2, es3_sdrc_fix_sz
+	adr	r0, _es3_sdrc_fix	@ Not using BSYM clears the Thumb bit.
+	ldr	r1, sram_base	@ Must be 8-byte aligned to preserve alignment.
+	ldr	r2, _es3_sdrc_fix_sz
 	mov	r2, r2, ror #2
 copy_to_sram:
 	ldmia	r0!, {r3}	@ val = *src
@@ -356,6 +368,7 @@ copy_to_sram:
 	subs	r2, r2, #0x1	@ num_words--
 	bne	copy_to_sram
 	ldr	r1, sram_base
+ THUMB(	orr	r1, r1, #BSYM(es3_sdrc_fix) & 1 )
 	blx	r1
 	b	restore
 
@@ -408,7 +421,7 @@ skipl2dis:
 	adr	r3, l2_inv_api_params	@ r3 points to dummy parameters
 	mcr	p15, 0, r0, c7, c10, 4	@ data write barrier
 	mcr	p15, 0, r0, c7, c10, 5	@ data memory barrier
-	.word	0xE1600071		@ call SMI monitor (smi #1)
+	smc	#1			@ call SMI monitor (smi #1)
 	/* Write to Aux control register to set some bits */
 	mov	r0, #42			@ set service ID for PPA
 	mov	r12, r0			@ copy secure Service ID in r12
@@ -419,7 +432,7 @@ skipl2dis:
 	ldr	r3, [r4, #0xBC]		@ r3 points to parameters
 	mcr	p15, 0, r0, c7, c10, 4	@ data write barrier
 	mcr	p15, 0, r0, c7, c10, 5	@ data memory barrier
-	.word	0xE1600071		@ call SMI monitor (smi #1)
+	smc	#1			@ call SMI monitor (smi #1)
 
 #ifdef CONFIG_OMAP3_L2_AUX_SECURE_SAVE_RESTORE
 	/* Restore L2 aux control register */
@@ -434,27 +447,28 @@ skipl2dis:
 	adds	r3, r3, #8		@ r3 points to parameters
 	mcr	p15, 0, r0, c7, c10, 4	@ data write barrier
 	mcr	p15, 0, r0, c7, c10, 5	@ data memory barrier
-	.word	0xE1600071		@ call SMI monitor (smi #1)
+	smc	#1			@ call SMI monitor (smi #1)
 #endif
 	b	logic_l1_restore
 
+	.align
 l2_inv_api_params:
 	.word	0x1, 0x00
 l2_inv_gp:
 	/* Execute smi to invalidate L2 cache */
 	mov r12, #0x1			@ set up to invalidate L2
-	.word 0xE1600070		@ Call SMI monitor (smieq)
+	smc	#0			@ Call SMI monitor (smieq)
 	/* Write to Aux control register to set some bits */
 	ldr	r4, scratchpad_base
 	ldr	r3, [r4,#0xBC]
 	ldr	r0, [r3,#4]
 	mov	r12, #0x3
-	.word	0xE1600070		@ Call SMI monitor (smieq)
+	smc	#0			@ Call SMI monitor (smieq)
 	ldr	r4, scratchpad_base
 	ldr	r3, [r4,#0xBC]
 	ldr	r0, [r3,#12]
 	mov	r12, #0x2
-	.word	0xE1600070		@ Call SMI monitor (smieq)
+	smc	#0			@ Call SMI monitor (smieq)
 logic_l1_restore:
 	ldr	r1, l2dis_3630
 	cmp	r1, #0x1		@ Test if L2 re-enable needed on 3630
@@ -607,6 +621,9 @@ usettbr0:
 
 /* This function implements the erratum ID i443 WA, applies to 34xx >= ES3.0 */
 	.text
+	.align	3
+.type _es3_sdrc_fix, %function
+_es3_sdrc_fix:
 ENTRY(es3_sdrc_fix)
 	ldr	r4, sdrc_syscfg		@ get config addr
 	ldr	r5, [r4]		@ get value
@@ -634,6 +651,7 @@ ENTRY(es3_sdrc_fix)
 	str	r5, [r4]		@ kick off refreshes
 	bx	lr
 
+	.align
 sdrc_syscfg:
 	.word	SDRC_SYSCONFIG_P
 sdrc_mr_0:
@@ -648,6 +666,8 @@ sdrc_emr2_1:
 	.word	SDRC_EMR2_1_P
 sdrc_manual_1:
 	.word	SDRC_MANUAL_1_P
+ENDPROC(es3_sdrc_fix)
+_es3_sdrc_fix_sz:
 ENTRY(es3_sdrc_fix_sz)
 	.word	. - es3_sdrc_fix
 
@@ -682,6 +702,10 @@ wait_sdrc_ready:
 	bic	r5, r5, #0x40
 	str	r5, [r4]
 
+@ PC-relative stores lead to undefined behaviour in Thumb-2: use a r7 as a
+@ base instead.
+@ Be careful not to clobber r7 when maintaing this code.
+
 is_dll_in_lock_mode:
 	/* Is dll in lock mode? */
 	ldr	r4, sdrc_dlla_ctrl
@@ -689,10 +713,11 @@ is_dll_in_lock_mode:
 	tst	r5, #0x4
 	bxne	lr			@ Return if locked
 	/* wait till dll locks */
+	adr	r7, kick_counter
 wait_dll_lock_timed:
 	ldr	r4, wait_dll_lock_counter
 	add	r4, r4, #1
-	str	r4, wait_dll_lock_counter
+	str	r4, [r7, #wait_dll_lock_counter - kick_counter]
 	ldr	r4, sdrc_dlla_status
 	/* Wait 20uS for lock */
 	mov	r6, #8
@@ -718,9 +743,10 @@ kick_dll:
 	dsb
 	ldr	r4, kick_counter
 	add	r4, r4, #1
-	str	r4, kick_counter
+	str	r4, [r7]		@ kick_counter
 	b	wait_dll_lock_timed
 
+	.align
 cm_idlest1_core:
 	.word	CM_IDLEST1_CORE_V
 cm_idlest_ckgen:
@@ -763,6 +789,7 @@ kick_counter:
 	.word	0
 wait_dll_lock_counter:
 	.word	0
+ENDPROC(omap34xx_cpu_suspend)
 
 ENTRY(omap34xx_cpu_suspend_sz)
 	.word	. - omap34xx_cpu_suspend

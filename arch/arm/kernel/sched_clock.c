@@ -21,7 +21,9 @@ static void (*sched_clock_update_fn)(void);
 static void sched_clock_poll(unsigned long wrap_ticks)
 {
 	mod_timer(&sched_clock_timer, round_jiffies(jiffies + wrap_ticks));
-	sched_clock_update_fn();
+
+	if (sched_clock_update_fn)
+		sched_clock_update_fn();
 }
 
 void __init init_sched_clock(struct clock_data *cd, void (*update)(void),
