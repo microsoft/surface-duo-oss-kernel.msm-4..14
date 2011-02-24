@@ -125,7 +125,7 @@ static struct irq_chip s5p_irq_eint = {
 	.irq_mask_ack	= s5p_irq_eint_maskack,
 	.irq_ack	= s5p_irq_eint_ack,
 	.irq_set_type	= s5p_irq_eint_set_type,
-#ifdef CONFIG_PM
+#ifdef CONFIG_SUSPEND
 	.irq_set_wake	= s3c_irqext_wake,
 #endif
 };
@@ -195,7 +195,7 @@ static struct irq_chip s5p_irq_vic_eint = {
 	.irq_mask_ack	= s5p_irq_vic_eint_maskack,
 	.irq_ack	= s5p_irq_vic_eint_ack,
 	.irq_set_type	= s5p_irq_eint_set_type,
-#ifdef CONFIG_PM
+#ifdef CONFIG_SUSPEND
 	.irq_set_wake	= s3c_irqext_wake,
 #endif
 };

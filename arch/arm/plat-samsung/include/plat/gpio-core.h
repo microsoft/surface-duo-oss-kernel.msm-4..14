@@ -68,7 +68,7 @@ struct s3c_gpio_chip {
 	int			irq_base;
 	int			group;
 	spinlock_t		 lock;
-#ifdef CONFIG_PM
+#ifdef CONFIG_SUSPEND
 	u32			pm_save[4];
 #endif
 };
@@ -153,7 +153,7 @@ static inline struct s3c_gpio_chip *s3c_gpiolib_getchip(unsigned int chip)
 static inline void s3c_gpiolib_track(struct s3c_gpio_chip *chip) { }
 #endif
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_SUSPEND
 extern struct s3c_gpio_pm s3c_gpio_pm_1bit;
 extern struct s3c_gpio_pm s3c_gpio_pm_2bit;
 extern struct s3c_gpio_pm s3c_gpio_pm_4bit;
@@ -164,7 +164,7 @@ extern struct s3c_gpio_pm s3c_gpio_pm_4bit;
 #define s3c_gpio_pm_4bit NULL
 #define __gpio_pm(x) NULL
 
-#endif /* CONFIG_PM */
+#endif /* CONFIG_SUSPEND */
 
 /* locking wrappers to deal with multiple access to the same gpio bank */
 #define s3c_gpio_lock(_oc, _fl) spin_lock_irqsave(&(_oc)->lock, _fl)

@@ -26,9 +26,9 @@ obj-$(CONFIG_CPU_FREQ_S3C24XX_DEBUGFS) += cpu-freq-debugfs.o
 # Architecture dependant builds
 
 obj-$(CONFIG_PM_SIMTEC)		+= pm-simtec.o
-obj-$(CONFIG_PM)		+= pm.o
-obj-$(CONFIG_PM)		+= irq-pm.o
-obj-$(CONFIG_PM)		+= sleep.o
+obj-$(CONFIG_SUSPEND)		+= pm.o
+obj-$(CONFIG_SUSPEND)		+= irq-pm.o
+obj-$(CONFIG_SUSPEND)		+= sleep.o
 obj-$(CONFIG_S3C2410_CLOCK)	+= s3c2410-clock.o
 obj-$(CONFIG_S3C2443_CLOCK)	+= s3c2443-clock.o
 obj-$(CONFIG_S3C2410_DMA)	+= dma.o

@@ -1202,7 +1202,7 @@ static inline struct s3c2410_dma_chan *to_dma_chan(struct sys_device *dev)
 
 /* system device class */
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_SUSPEND
 
 static int s3c2410_dma_suspend(struct sys_device *dev, pm_message_t state)
 {

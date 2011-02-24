@@ -134,7 +134,7 @@ void __init s3c244x_init_clocks(int xtal)
 	s3c2410_baseclk_add();
 }
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_SUSPEND
 
 static struct sleep_save s3c244x_sleep[] = {
 	SAVE_ITEM(S3C2440_DSC0),

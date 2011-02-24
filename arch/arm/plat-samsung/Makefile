@@ -68,8 +68,8 @@ obj-$(CONFIG_S3C_PL330_DMA)	+= s3c-pl330.o
 
 # PM support
 
-obj-$(CONFIG_PM)		+= pm.o
-obj-$(CONFIG_PM)		+= pm-gpio.o
+obj-$(CONFIG_SUSPEND)		+= pm.o
+obj-$(CONFIG_SUSPEND)		+= pm-gpio.o
 obj-$(CONFIG_SAMSUNG_PM_CHECK)	+= pm-check.o
 
 obj-$(CONFIG_SAMSUNG_WAKEMASK)	+= wakeup-mask.o

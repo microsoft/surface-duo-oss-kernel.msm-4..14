@@ -281,7 +281,7 @@ static struct platform_device osiris_pcmcia = {
 
 /* Osiris power management device */
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_SUSPEND
 static unsigned char pm_osiris_ctrl0;
 
 static int osiris_pm_suspend(struct sys_device *sd, pm_message_t state)

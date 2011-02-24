@@ -143,7 +143,7 @@ __init void s3c_gpiolib_add(struct s3c_gpio_chip *chip)
 	if (!gc->get)
 		gc->get = s3c_gpiolib_get;
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_SUSPEND
 	if (chip->pm != NULL) {
 		if (!chip->pm->save || !chip->pm->resume)
 			printk(KERN_ERR "gpio: %s has missing PM functions\n",

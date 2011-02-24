@@ -457,7 +457,7 @@ static int s5pv310_target(struct cpufreq_policy *policy,
 	return 0;
 }
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_SUSPEND
 static int s5pv310_cpufreq_suspend(struct cpufreq_policy *policy,
 				   pm_message_t pmsg)
 {
@@ -497,7 +497,7 @@ static struct cpufreq_driver s5pv310_driver = {
 	.get		= s5pv310_getspeed,
 	.init		= s5pv310_cpufreq_cpu_init,
 	.name		= "s5pv310_cpufreq",
-#ifdef CONFIG_PM
+#ifdef CONFIG_SUSPEND
 	.suspend	= s5pv310_cpufreq_suspend,
 	.resume		= s5pv310_cpufreq_resume,
 #endif

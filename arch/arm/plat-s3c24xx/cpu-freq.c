@@ -429,7 +429,7 @@ static int s3c_cpufreq_verify(struct cpufreq_policy *policy)
 	return 0;
 }
 
-#ifdef CONFIG_PM
+#ifdef CONFIG_SUSPEND
 static struct cpufreq_frequency_table suspend_pll;
 static unsigned int suspend_freq;
 
