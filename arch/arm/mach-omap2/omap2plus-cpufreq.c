@@ -37,6 +37,7 @@
 #include <plat/common.h>
 
 #include <mach/hardware.h>
+#include <plat/dvfs.h>
 
 #define VERY_HI_RATE	900000000
 
@@ -78,6 +79,7 @@ static int omap_target(struct cpufreq_policy *policy,
 {
 	int i, ret = 0;
 	struct cpufreq_freqs freqs;
+	struct device *mpu_dev = omap2_get_mpuss_device();
 
 	/* Wait untill all CPU's are initialized */
 	if (is_smp() && (num_online_cpus() < NR_CPUS))
@@ -113,7 +115,7 @@ set_freq:
 	pr_info("cpufreq-omap: transition: %u --> %u\n", freqs.old, freqs.new);
 #endif
 
-	ret = clk_set_rate(mpu_clk, freqs.new * 1000);
+	ret = omap_device_scale(mpu_dev, mpu_dev, freqs.new * 1000);
 	if (ret)
 		return ret;
 	freqs.new = omap_getspeed(policy->cpu);
