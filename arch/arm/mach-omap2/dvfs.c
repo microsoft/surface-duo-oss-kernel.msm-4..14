@@ -100,6 +100,19 @@ static struct voltagedomain omap3_vdd[] = {
 	.name = "core",
 	},
 };
+
+static struct voltagedomain omap4_vdd[] = {
+	{
+	.name = "mpu",
+	},
+	{
+	.name = "iva",
+	},
+	{
+	.name = "core",
+	},
+};
+
 static int omap_dvfs_voltage_scale(struct omap_vdd_dvfs_info *dvfs_info);
 
 static int __init omap_dvfs_init(void);
@@ -723,6 +736,12 @@ static int __init omap_dvfs_init()
 	if (cpu_is_omap34xx()) {
 		omap_nr_vdd = 2;
 		vdd_list = omap3_vdd;
+	} else if (cpu_is_omap44xx()) {
+		omap_nr_vdd = 3;
+		vdd_list = omap4_vdd;
+	} else {
+		pr_warning("DVFS not supported\n");
+		return -EINVAL;
 	}
 
 	omap_dvfs_info_list = kzalloc(omap_nr_vdd *

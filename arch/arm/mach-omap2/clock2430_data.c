@@ -1903,6 +1903,7 @@ static struct omap_clk omap2430_clks[] = {
 	CLK(NULL,	"ssi_l4_ick",	&ssi_l4_ick,	CK_243X),
 	/* virtual meta-group clock */
 	CLK(NULL,	"virt_prcm_set", &virt_prcm_set, CK_243X),
+	CLK(NULL,	"cpu_ck", &virt_prcm_set, CK_243X),
 	/* general l4 interface ck, multi-parent functional clk */
 	CLK(NULL,	"gpt1_ick",	&gpt1_ick,	CK_243X),
 	CLK(NULL,	"gpt1_fck",	&gpt1_fck,	CK_243X),

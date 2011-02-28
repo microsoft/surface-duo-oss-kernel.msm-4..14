@@ -130,6 +130,24 @@ static unsigned long omap3_l3_get_rate(struct device *dev)
 	return dpll3_clk->rate / l3_div;
 }
 
+static int omap4_mpu_set_rate(struct device *dev, unsigned long rate)
+{
+	int ret;
+
+	ret = clk_set_rate(dpll1_clk, rate);
+	if (ret) {
+		dev_warn(dev, "%s: Unable to set rate to %ld\n",
+			__func__, rate);
+		return ret;
+	}
+
+	return 0;
+}
+
+static unsigned long omap4_mpu_get_rate(struct device *dev)
+{
+	return dpll1_clk->rate;
+}
 
 /*
  * Build omap_devices for processors and bus.
@@ -160,7 +178,14 @@ static void omap2_init_processor_devices(void)
 			omap_device_register_dvfs_callbacks(l3_dev,
 				omap3_l3_set_rate, omap3_l3_get_rate);
 
+	} else if (cpu_is_omap44xx()) {
+		dpll1_clk = clk_get(NULL, "dpll_mpu_ck");
+
+		if (mpu_dev)
+			omap_device_register_dvfs_callbacks(mpu_dev,
+				omap4_mpu_set_rate, omap4_mpu_get_rate);
 	}
+
 }
 
 /* Types of sleep_switch used in omap_set_pwrdm_state */

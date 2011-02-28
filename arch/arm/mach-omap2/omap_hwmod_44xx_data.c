@@ -2058,6 +2058,7 @@ static struct omap_hwmod omap44xx_mpu_hwmod = {
 	.mpu_irqs	= omap44xx_mpu_irqs,
 	.mpu_irqs_cnt	= ARRAY_SIZE(omap44xx_mpu_irqs),
 	.main_clk	= "dpll_mpu_m2_ck",
+	.vdd_name       = "mpu",
 	.prcm = {
 		.omap4 = {
 			.clkctrl_reg = OMAP4430_CM_MPU_MPU_CLKCTRL,
