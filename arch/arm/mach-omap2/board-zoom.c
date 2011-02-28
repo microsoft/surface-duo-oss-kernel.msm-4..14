@@ -30,6 +30,24 @@
 #include "mux.h"
 #include "sdram-micron-mt46h32m32lf-6.h"
 #include "sdram-hynix-h8mbx00u0mer-0em.h"
+#include "pm.h"
+
+static struct cpuidle_params omap36xx_cpuidle_params_table[] = {
+	/* C1 */
+	{1, 74, 78, 152},
+	/* C2 */
+	{0, 165, 90, 255},
+	/* C3 */
+	{1, 163, 180, 345},
+	/* C4 */
+	{0, 2852, 605, 3457},
+	/* C5 */
+	{1, 800, 366, 2120},
+	/* C6 */
+	{0, 4080, 801, 4881},
+	/* C7 */
+	{1, 4300, 8794, 159000},
+};
 
 #define ZOOM3_EHCI_RESET_GPIO		64
 
@@ -126,6 +144,7 @@ static void __init omap_zoom_init(void)
 		usb_ehci_init(&ehci_pdata);
 	}
 
+	omap3_pm_init_cpuidle(omap36xx_cpuidle_params_table);
 	board_nand_init(zoom_nand_partitions,
 			ARRAY_SIZE(zoom_nand_partitions), ZOOM_NAND_CS);
 	zoom_debugboard_init();
