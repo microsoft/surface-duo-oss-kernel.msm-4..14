@@ -51,6 +51,7 @@
 
 struct omap3_processor_cx {
 	u8 valid;
+	u8 enabled;
 	u8 type;
 	u32 sleep_latency;
 	u32 wakeup_latency;
@@ -309,12 +310,13 @@ void omap3_cpuidle_update_states(u32 mpu_deepest_state, u32 core_deepest_state)
 
 	for (i = OMAP3_STATE_C1; i < OMAP3_MAX_STATES; i++) {
 		struct omap3_processor_cx *cx = &omap3_power_states[i];
-
-		if ((cx->mpu_state >= mpu_deepest_state) &&
-		    (cx->core_state >= core_deepest_state)) {
-			cx->valid = 1;
-		} else {
-			cx->valid = 0;
+		if (cx->enabled) {
+			if ((cx->mpu_state >= mpu_deepest_state) &&
+			    (cx->core_state >= core_deepest_state)) {
+				cx->valid = 1;
+			} else {
+				cx->valid = 0;
+			}
 		}
 	}
 }
@@ -355,6 +357,8 @@ void omap_init_power_states(void)
 	/* C1 . MPU WFI + Core active */
 	omap3_power_states[OMAP3_STATE_C1].valid =
 			cpuidle_params_table[OMAP3_STATE_C1].valid;
+	omap3_power_states[OMAP3_STATE_C1].enabled =
+			cpuidle_params_table[OMAP3_STATE_C1].valid;
 	omap3_power_states[OMAP3_STATE_C1].type = OMAP3_STATE_C1;
 	omap3_power_states[OMAP3_STATE_C1].sleep_latency =
 			cpuidle_params_table[OMAP3_STATE_C1].sleep_latency;
@@ -368,6 +372,8 @@ void omap_init_power_states(void)
 
 	/* C2 . MPU WFI + Core inactive */
 	omap3_power_states[OMAP3_STATE_C2].valid =
+			cpuidle_params_table[OMAP3_STATE_C2].valid;
+	omap3_power_states[OMAP3_STATE_C2].enabled =
 			cpuidle_params_table[OMAP3_STATE_C2].valid;
 	omap3_power_states[OMAP3_STATE_C2].type = OMAP3_STATE_C2;
 	omap3_power_states[OMAP3_STATE_C2].sleep_latency =
@@ -384,6 +390,8 @@ void omap_init_power_states(void)
 	/* C3 . MPU CSWR + Core inactive */
 	omap3_power_states[OMAP3_STATE_C3].valid =
 			cpuidle_params_table[OMAP3_STATE_C3].valid;
+	omap3_power_states[OMAP3_STATE_C3].enabled =
+			cpuidle_params_table[OMAP3_STATE_C3].valid;
 	omap3_power_states[OMAP3_STATE_C3].type = OMAP3_STATE_C3;
 	omap3_power_states[OMAP3_STATE_C3].sleep_latency =
 			cpuidle_params_table[OMAP3_STATE_C3].sleep_latency;
@@ -398,6 +406,8 @@ void omap_init_power_states(void)
 
 	/* C4 . MPU OFF + Core inactive */
 	omap3_power_states[OMAP3_STATE_C4].valid =
+			cpuidle_params_table[OMAP3_STATE_C4].valid;
+	omap3_power_states[OMAP3_STATE_C4].enabled =
 			cpuidle_params_table[OMAP3_STATE_C4].valid;
 	omap3_power_states[OMAP3_STATE_C4].type = OMAP3_STATE_C4;
 	omap3_power_states[OMAP3_STATE_C4].sleep_latency =
@@ -414,6 +424,8 @@ void omap_init_power_states(void)
 	/* C5 . MPU CSWR + Core CSWR*/
 	omap3_power_states[OMAP3_STATE_C5].valid =
 			cpuidle_params_table[OMAP3_STATE_C5].valid;
+	omap3_power_states[OMAP3_STATE_C5].enabled =
+			cpuidle_params_table[OMAP3_STATE_C5].valid;
 	omap3_power_states[OMAP3_STATE_C5].type = OMAP3_STATE_C5;
 	omap3_power_states[OMAP3_STATE_C5].sleep_latency =
 			cpuidle_params_table[OMAP3_STATE_C5].sleep_latency;
@@ -429,6 +441,8 @@ void omap_init_power_states(void)
 	/* C6 . MPU OFF + Core CSWR */
 	omap3_power_states[OMAP3_STATE_C6].valid =
 			cpuidle_params_table[OMAP3_STATE_C6].valid;
+	omap3_power_states[OMAP3_STATE_C6].enabled =
+			cpuidle_params_table[OMAP3_STATE_C6].valid;
 	omap3_power_states[OMAP3_STATE_C6].type = OMAP3_STATE_C6;
 	omap3_power_states[OMAP3_STATE_C6].sleep_latency =
 			cpuidle_params_table[OMAP3_STATE_C6].sleep_latency;
@@ -443,6 +457,8 @@ void omap_init_power_states(void)
 
 	/* C7 . MPU OFF + Core OFF */
 	omap3_power_states[OMAP3_STATE_C7].valid =
+			cpuidle_params_table[OMAP3_STATE_C7].valid;
+	omap3_power_states[OMAP3_STATE_C7].enabled =
 			cpuidle_params_table[OMAP3_STATE_C7].valid;
 	omap3_power_states[OMAP3_STATE_C7].type = OMAP3_STATE_C7;
 	omap3_power_states[OMAP3_STATE_C7].sleep_latency =
@@ -463,6 +479,7 @@ void omap_init_power_states(void)
 	 */
 	if (IS_PM34XX_ERRATUM(PM_SDRC_WAKEUP_ERRATUM_i583)) {
 		omap3_power_states[OMAP3_STATE_C7].valid = 0;
+		omap3_power_states[OMAP3_STATE_C7].enabled = 0;
 		cpuidle_params_table[OMAP3_STATE_C7].valid = 0;
 		WARN_ONCE(1, "%s: core off state C7 disabled due to i583\n",
 				__func__);
