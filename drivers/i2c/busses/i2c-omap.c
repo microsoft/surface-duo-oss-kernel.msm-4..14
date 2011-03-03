@@ -1036,6 +1036,17 @@ omap_i2c_probe(struct platform_device *pdev)
 	else
 		dev->reg_shift = 2;
 
+	dev->regs = (u8 *)reg_map;
+
+	/*
+	 * this is a bit tricky, implementation on 4430 has the active
+	 * part of its ID register moved to +4 instead of +0 as
+	 * previously.  So, we can't probe just using the ID register
+	 * Complicating matters the older implementation using the
+	 * simpler register set on 3530 also reports its revision as
+	 * 0x40, same as the 4430 newer implementation.
+	 */
+
 	if (cpu_is_omap44xx())
 		dev->regs = (u8 *) omap4_reg_map;
 	else
