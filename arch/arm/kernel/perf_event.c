@@ -426,14 +426,18 @@ armpmu_reserve_hardware(void)
 			pr_warning("unable to request IRQ%d for ARM perf "
 				"counters\n", irq);
 			break;
-		}
+		} else if (plat->enable_irq)
+			plat->enable_irq(irq);
 	}
 
 	if (err) {
 		for (i = i - 1; i >= 0; --i) {
 			irq = platform_get_irq(pmu_device, i);
-			if (irq >= 0)
+			if (irq >= 0) {
+				if (plat->disable_irq)
+					plat->disable_irq(irq);
 				free_irq(irq, NULL);
+			}
 		}
 		release_pmu(pmu_device);
 		pmu_device = NULL;
@@ -446,11 +450,16 @@ static void
 armpmu_release_hardware(void)
 {
 	int i, irq;
+	struct arm_pmu_platdata *plat =
+		dev_get_platdata(&pmu_device->dev);
 
 	for (i = pmu_device->num_resources - 1; i >= 0; --i) {
 		irq = platform_get_irq(pmu_device, i);
-		if (irq >= 0)
+		if (irq >= 0) {
+			if (plat->disable_irq)
+				plat->disable_irq(irq);
 			free_irq(irq, NULL);
+		}
 	}
 	armpmu->stop();
 
