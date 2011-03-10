@@ -452,8 +452,7 @@ static int exynos4_target(struct cpufreq_policy *policy,
 }
 
 #ifdef CONFIG_PM
-static int exynos4_cpufreq_suspend(struct cpufreq_policy *policy,
-				   pm_message_t pmsg)
+static int exynos4_cpufreq_suspend(struct cpufreq_policy *policy)
 {
 	return 0;
 }
