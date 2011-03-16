@@ -71,6 +71,7 @@ void enter_idle(void)
 	trace_pm_idle_entry();
 	notify_idle(IDLE_START);
 }
+EXPORT_SYMBOL_GPL(enter_idle);
 
 void __exit_idle(void)
 {
@@ -79,6 +80,7 @@ void __exit_idle(void)
 	notify_idle(IDLE_END);
 	trace_pm_idle_exit();
 }
+EXPORT_SYMBOL_GPL(__exit_idle);
 
 /* Called from interrupts to signify idle end */
 void exit_idle(void)
@@ -88,6 +90,7 @@ void exit_idle(void)
 		return;
 	__exit_idle();
 }
+EXPORT_SYMBOL_GPL(exit_idle);
 
 #ifndef CONFIG_SMP
 static inline void play_dead(void)
