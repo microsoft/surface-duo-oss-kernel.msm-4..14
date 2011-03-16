@@ -415,7 +415,7 @@ _GLOBAL(scom970_write)
  * Create a kernel thread
  *   kernel_thread(fn, arg, flags)
  */
-_GLOBAL(kernel_thread)
+_GLOBAL(original_kernel_thread)
 	std	r29,-24(r1)
 	std	r30,-16(r1)
 	stdu	r1,-STACK_FRAME_OVERHEAD(r1)

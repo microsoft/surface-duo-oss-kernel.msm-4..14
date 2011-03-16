@@ -665,7 +665,7 @@ _GLOBAL(abs)
  * Create a kernel thread
  *   kernel_thread(fn, arg, flags)
  */
-_GLOBAL(kernel_thread)
+_GLOBAL(original_kernel_thread)
 	stwu	r1,-16(r1)
 	stw	r30,8(r1)
 	stw	r31,12(r1)
