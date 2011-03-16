@@ -218,4 +218,16 @@ extern void *marker_get_private_data(const char *name, marker_probe_func *probe,
  */
 #define marker_synchronize_unregister() synchronize_sched()
 
+struct marker_iter {
+	struct module *module;
+	struct marker *marker;
+};
+
+extern void marker_iter_start(struct marker_iter *iter);
+extern void marker_iter_next(struct marker_iter *iter);
+extern void marker_iter_stop(struct marker_iter *iter);
+extern void marker_iter_reset(struct marker_iter *iter);
+extern int marker_get_iter_range(struct marker **marker, struct marker *begin,
+	struct marker *end);
+
 #endif

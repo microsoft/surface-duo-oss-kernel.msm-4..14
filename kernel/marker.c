@@ -898,6 +898,76 @@ EXPORT_SYMBOL_GPL(marker_get_private_data);
 
 #ifdef CONFIG_MODULES
 
+/**
+ * marker_get_iter_range - Get a next marker iterator given a range.
+ * @marker: current markers (in), next marker (out)
+ * @begin: beginning of the range
+ * @end: end of the range
+ *
+ * Returns whether a next marker has been found (1) or not (0).
+ * Will return the first marker in the range if the input marker is NULL.
+ */
+int marker_get_iter_range(struct marker **marker, struct marker *begin,
+	struct marker *end)
+{
+	if (!*marker && begin != end) {
+		*marker = begin;
+		return 1;
+	}
+	if (*marker >= begin && *marker < end)
+		return 1;
+	return 0;
+}
+EXPORT_SYMBOL_GPL(marker_get_iter_range);
+
+static void marker_get_iter(struct marker_iter *iter)
+{
+	int found = 0;
+
+	/* Core kernel markers */
+	if (!iter->module) {
+		found = marker_get_iter_range(&iter->marker,
+				__start___markers, __stop___markers);
+		if (found)
+			goto end;
+	}
+	/* Markers in modules. */
+	found = module_get_iter_markers(iter);
+end:
+	if (!found)
+		marker_iter_reset(iter);
+}
+
+void marker_iter_start(struct marker_iter *iter)
+{
+	marker_get_iter(iter);
+}
+EXPORT_SYMBOL_GPL(marker_iter_start);
+
+void marker_iter_next(struct marker_iter *iter)
+{
+	iter->marker++;
+	/*
+	 * iter->marker may be invalid because we blindly incremented it.
+	 * Make sure it is valid by marshalling on the markers, getting the
+	 * markers from following modules if necessary.
+	 */
+	marker_get_iter(iter);
+}
+EXPORT_SYMBOL_GPL(marker_iter_next);
+
+void marker_iter_stop(struct marker_iter *iter)
+{
+}
+EXPORT_SYMBOL_GPL(marker_iter_stop);
+
+void marker_iter_reset(struct marker_iter *iter)
+{
+	iter->module = NULL;
+	iter->marker = NULL;
+}
+EXPORT_SYMBOL_GPL(marker_iter_reset);
+
 int marker_module_notify(struct notifier_block *self,
 			 unsigned long val, void *data)
 {
