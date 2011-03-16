@@ -292,7 +292,6 @@ marker_entry_add_probe(struct marker_entry *entry,
 			GFP_KERNEL);
 	if (new == NULL)
 		return ERR_PTR(-ENOMEM);
-	INIT_RCU_HEAD(&new->rcu);
 	if (!old)
 		new->c[0] = entry->single;
 	else
@@ -361,7 +360,6 @@ marker_entry_remove_probe(struct marker_entry *entry,
 			      GFP_KERNEL);
 		if (new == NULL)
 			return ERR_PTR(-ENOMEM);
-		INIT_RCU_HEAD(&new->rcu);
 		for (i = 0; old->c[i].func; i++)
 			if ((probe && old->c[i].func != probe) ||
 			    old->c[i].probe_private != probe_private)
