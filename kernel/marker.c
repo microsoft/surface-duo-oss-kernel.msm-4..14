@@ -451,6 +451,7 @@ static struct marker_entry *add_marker(const char *channel, const char *name,
 	e->format_allocated = 0;
 	e->refcount = 0;
 	e->rcu_pending = 0;
+	INIT_RCU_HEAD(&e->rcu);
 	hlist_add_head(&e->hlist, head);
 	return e;
 }
