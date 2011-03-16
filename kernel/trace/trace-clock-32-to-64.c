@@ -112,7 +112,7 @@ u64 notrace trace_clock_read_synthetic_tsc(void)
 
 	preempt_disable_notrace();
 	cpu_synth = &per_cpu(synthetic_tsc, smp_processor_id());
-	index = cpu_synth->index;		/* atomic read */
+	index = ACCESS_ONCE(cpu_synth->index);	/* atomic read */
 	tsc = trace_clock_read32();		/* Hardware clocksource read */
 
 	/* Overflow detection */
