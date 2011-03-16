@@ -83,9 +83,9 @@ extern void put_trace_clock(void);
 extern void get_synthetic_tsc(void);
 extern void put_synthetic_tsc(void);
 
-/* Used by the architecture upon wakeup from PM idle */
+extern void resync_trace_clock(void);
+extern void save_sync_trace_clock(void);
 extern void start_trace_clock(void);
-/* Used by the architecture when going to PM idle */
 extern void stop_trace_clock(void);
 
 static inline void set_trace_clock_is_sync(int state)

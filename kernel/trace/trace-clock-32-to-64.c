@@ -97,17 +97,18 @@ static void update_synthetic_tsc(void)
 }
 
 /*
- * Should only be called when the synthetic clock is not used.
+ * Should only be called when interrupts are off. Affects only current CPU.
  */
 void _trace_clock_write_synthetic_tsc(u64 value)
 {
 	struct synthetic_tsc_struct *cpu_synth;
-	int cpu;
+	unsigned int new_index;
 
-	for_each_online_cpu(cpu) {
-		cpu_synth = &per_cpu(synthetic_tsc, cpu);
-		cpu_synth->tsc[cpu_synth->index].val = value;
-	}
+	cpu_synth = &per_cpu(synthetic_tsc, smp_processor_id());
+	new_index = 1 - cpu_synth->index; /* 0 <-> 1 */
+	cpu_synth->tsc[new_index].val = value;
+	barrier();
+	cpu_synth->index = new_index;	/* atomic change of index */
 }
 
 /* Called from buffer switch : in _any_ context (even NMI) */
@@ -187,7 +188,7 @@ static void prepare_synthetic_tsc(int cpu)
 	cpu_synth->tsc[0].val = local_count;
 	cpu_synth->index = 0;
 	smp_wmb();	/* Writing in data of CPU about to come up */
-	init_timer(&per_cpu(tsc_timer, cpu));
+	init_timer_deferrable(&per_cpu(tsc_timer, cpu));
 	per_cpu(tsc_timer, cpu).function = tsc_timer_fct;
 	per_cpu(tsc_timer, cpu).expires = jiffies + precalc_expire;
 }
@@ -245,10 +246,8 @@ static int __cpuinit hotcpu_callback(struct notifier_block *nb,
 		spin_unlock(&synthetic_tsc_lock);
 		break;
 #ifdef CONFIG_HOTPLUG_CPU
-	case CPU_UP_CANCELED:
-	case CPU_UP_CANCELED_FROZEN:
-	case CPU_DEAD:
-	case CPU_DEAD_FROZEN:
+	case CPU_DOWN_PREPARE:
+	case CPU_DOWN_PREPARE_FROZEN:
 		spin_lock(&synthetic_tsc_lock);
 		if (synthetic_tsc_refcount)
 			disable_synthetic_tsc(hotcpu);
