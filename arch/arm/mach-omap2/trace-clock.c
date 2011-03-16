@@ -12,8 +12,8 @@
 #include <linux/timer.h>
 #include <linux/spinlock.h>
 #include <linux/init.h>
-#include <mach/dmtimer.h>
-#include <mach/trace-clock.h>
+#include <plat/dmtimer.h>
+#include <plat/trace-clock.h>
 
 /* Need direct access to the clock from kernel/time/timekeeping.c */
 extern struct clocksource *clock;

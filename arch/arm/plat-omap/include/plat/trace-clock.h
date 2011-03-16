@@ -9,7 +9,7 @@
 
 #include <linux/clk.h>
 #include <asm/system.h>
-#include <mach/dmtimer.h>
+#include <plat/dmtimer.h>
 
 /*
  * Number of hardware clock bits. The higher order bits are expected to be 0.
@@ -17,9 +17,9 @@
  * 32nd will be truncated by a cast to a 32 bits unsigned. Range : 1 - 32.
  * (too few bits would be unrealistic though, since we depend on the timer to
  * detect the overflows).
- * OMAP3-specific : we clear bit 31 periodically so it never overflows. There is
- * a hardware bug with CP14 and CP15 being executed at the same time a ccnt overflow
- * occurs.
+ * OMAP3-specific : we clear bit 31 periodically so it never overflows. There
+ * is a hardware bug with CP14 and CP15 being executed at the same time a ccnt
+ * overflow occurs.
  *
  * Siarhei Siamashka <siarhei.siamashka@nokia.com> :
  * Performance monitoring unit breaks if somebody is accessing CP14/CP15
