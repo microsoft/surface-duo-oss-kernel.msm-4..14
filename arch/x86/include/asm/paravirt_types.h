@@ -181,6 +181,7 @@ struct pv_cpu_ops {
 	/* Normal iret.  Jump to this with the standard iret stack
 	   frame set up. */
 	void (*iret)(void);
+	void (*nmi_return)(void);
 
 	void (*swapgs)(void);
 
