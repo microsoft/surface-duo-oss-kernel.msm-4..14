@@ -118,7 +118,14 @@ static void clear_ccnt_ms(unsigned long data)
 	unsigned long flags;
 	int cpu;
 
+	cpu = smp_processor_id();
+	pm_count = &per_cpu(pm_save_count, cpu);
+
 	local_irq_save(flags);
+
+	if (!pm_count->fast_clock_ready)
+		goto end;
+
 	isb();	/* clear the pipeline so we can execute ASAP */
 	write_ctens(read_ctens() & ~(1 << 31));	/* disable counter */
 	cycles = read_ccnt();
@@ -126,10 +133,9 @@ static void clear_ccnt_ms(unsigned long data)
 	isb();
 	write_ctens(read_ctens() |  (1 << 31));	/* enable counter */
 	isb();
+end:
 	local_irq_restore(flags);
 
-	cpu = smp_processor_id();
-	pm_count = &per_cpu(pm_save_count, cpu);
 	pm_count->clear_ccnt_ms_timer.expires = jiffies + clear_ccnt_interval;
 	add_timer_on(&pm_count->clear_ccnt_ms_timer, cpu);
 }
@@ -161,6 +167,12 @@ end:
 	 */
 	barrier();
 	pm_count->fast_clock_ready = 0;
+
+	/*
+	 * Disable counter to ensure there is no overflow while we are
+	 * keeping track of time with ext. clock.
+	 */
+	write_ctens(read_ctens() & ~(1 << 31));	/* disable counter */
 	local_irq_restore(flags);
 }
 
