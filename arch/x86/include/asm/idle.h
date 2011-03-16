@@ -2,6 +2,7 @@
 #define _ASM_X86_IDLE_H
 
 void enter_idle(void);
+void __exit_idle(void);
 void exit_idle(void);
 
 void c1e_remove_cpu(int cpu);

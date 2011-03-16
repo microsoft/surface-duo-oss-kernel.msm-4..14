@@ -72,7 +72,7 @@ void enter_idle(void)
 	notify_idle(IDLE_START);
 }
 
-static void __exit_idle(void)
+void __exit_idle(void)
 {
 	if (x86_test_and_clear_bit_percpu(0, is_idle) == 0)
 		return;

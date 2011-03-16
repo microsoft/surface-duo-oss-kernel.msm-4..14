@@ -236,6 +236,7 @@
 #include <asm/olpc.h>
 #include <asm/paravirt.h>
 #include <asm/reboot.h>
+#include <asm/idle.h>
 
 #if defined(CONFIG_APM_DISPLAY_BLANK) && defined(CONFIG_VT)
 extern int (*console_blank_hook)(int);
@@ -953,9 +954,11 @@ recalc:
 			original_pm_idle();
 		else
 			default_idle();
-		/* In many cases the interrupt that ended idle
-		   has already called exit_idle. But some idle
-		   loops can be woken up without interrupt. */
+		/*
+		 * In many cases the interrupt that ended idle
+		 * has already called exit_idle. But some idle
+		 * loops can be woken up without interrupt.
+		 */
 		__exit_idle();
 		local_irq_disable();
 		jiffies_since_last_check = jiffies - last_jiffies;
