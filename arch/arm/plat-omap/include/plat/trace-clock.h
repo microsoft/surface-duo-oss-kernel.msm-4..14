@@ -155,7 +155,7 @@ static inline u32 trace_clock_freq_scale(void)
 	return 1;
 }
 
-extern void get_trace_clock(void);
+extern int get_trace_clock(void);
 extern void put_trace_clock(void);
 extern void get_synthetic_tsc(void);
 extern void put_synthetic_tsc(void);

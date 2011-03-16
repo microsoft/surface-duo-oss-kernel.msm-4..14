@@ -186,7 +186,7 @@ static int __cpuinit hotcpu_callback(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
-void get_trace_clock(void)
+int get_trace_clock(void)
 {
 	int cpu;
 
@@ -212,6 +212,7 @@ void get_trace_clock(void)
 end:
 	spin_unlock(&async_tsc_lock);
 	put_online_cpus();
+	return 0;
 }
 EXPORT_SYMBOL_GPL(get_trace_clock);
 

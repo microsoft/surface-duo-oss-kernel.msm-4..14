@@ -59,9 +59,10 @@ static inline u32 trace_clock_freq_scale(void)
 extern void get_synthetic_tsc(void);
 extern void put_synthetic_tsc(void);
 
-static inline void get_trace_clock(void)
+static inline int get_trace_clock(void)
 {
 	get_synthetic_tsc();
+	return 0;
 }
 
 static inline void put_trace_clock(void)

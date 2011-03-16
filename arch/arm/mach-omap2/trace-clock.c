@@ -534,7 +534,7 @@ static int __cpuinit hotcpu_callback(struct notifier_block *nb,
 	return NOTIFY_OK;
 }
 
-void get_trace_clock(void)
+int get_trace_clock(void)
 {
 	spin_lock(&trace_clock_lock);
 	if (trace_clock_refcount++)
@@ -542,6 +542,7 @@ void get_trace_clock(void)
 	_start_trace_clock();
 end:
 	spin_unlock(&trace_clock_lock);
+	return 0;
 }
 EXPORT_SYMBOL_GPL(get_trace_clock);
 

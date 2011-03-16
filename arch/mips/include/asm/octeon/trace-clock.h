@@ -31,9 +31,9 @@ static inline u32 trace_clock_freq_scale(void)
 	return 1;
 }
 
-static inline void get_trace_clock(void)
+static inline int get_trace_clock(void)
 {
-	return;
+	return 0;
 }
 
 static inline void put_trace_clock(void)
