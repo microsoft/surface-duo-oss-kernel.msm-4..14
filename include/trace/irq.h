@@ -14,4 +14,17 @@ DECLARE_TRACE(irq_exit,
 	TP_PROTO(irqreturn_t retval),
 		TP_ARGS(retval));
 
+DECLARE_TRACE(irq_tasklet_low_entry,
+	TP_PROTO(struct tasklet_struct *t),
+		TP_ARGS(t));
+DECLARE_TRACE(irq_tasklet_low_exit,
+	TP_PROTO(struct tasklet_struct *t),
+		TP_ARGS(t));
+DECLARE_TRACE(irq_tasklet_high_entry,
+	TP_PROTO(struct tasklet_struct *t),
+		TP_ARGS(t));
+DECLARE_TRACE(irq_tasklet_high_exit,
+	TP_PROTO(struct tasklet_struct *t),
+		TP_ARGS(t));
+
 #endif

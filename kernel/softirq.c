@@ -61,6 +61,11 @@ char *softirq_to_name[NR_SOFTIRQS] = {
 	"TASKLET", "SCHED", "HRTIMER",	"RCU"
 };
 
+DEFINE_TRACE(irq_tasklet_high_entry);
+DEFINE_TRACE(irq_tasklet_high_exit);
+DEFINE_TRACE(irq_tasklet_low_entry);
+DEFINE_TRACE(irq_tasklet_low_exit);
+
 /*
  * we cannot loop indefinitely here to avoid userspace starvation,
  * but we also don't want to introduce a worst case 1/HZ latency
@@ -440,7 +445,9 @@ static void tasklet_action(struct softirq_action *a)
 			if (!atomic_read(&t->count)) {
 				if (!test_and_clear_bit(TASKLET_STATE_SCHED, &t->state))
 					BUG();
+				trace_irq_tasklet_low_entry(t);
 				t->func(t->data);
+				trace_irq_tasklet_low_exit(t);
 				tasklet_unlock(t);
 				continue;
 			}
@@ -475,7 +482,9 @@ static void tasklet_hi_action(struct softirq_action *a)
 			if (!atomic_read(&t->count)) {
 				if (!test_and_clear_bit(TASKLET_STATE_SCHED, &t->state))
 					BUG();
+				trace_irq_tasklet_high_entry(t);
 				t->func(t->data);
+				trace_irq_tasklet_high_exit(t);
 				tasklet_unlock(t);
 				continue;
 			}
