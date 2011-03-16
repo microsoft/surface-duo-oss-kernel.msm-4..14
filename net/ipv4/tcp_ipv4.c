@@ -81,6 +81,9 @@
 
 #include <linux/crypto.h>
 #include <linux/scatterlist.h>
+#include <trace/net.h>
+
+DEFINE_TRACE(net_tcpv4_rcv);
 
 int sysctl_tcp_tw_reuse __read_mostly;
 int sysctl_tcp_low_latency __read_mostly;
@@ -1543,6 +1546,9 @@ static __sum16 tcp_v4_checksum_init(struct sk_buff *skb)
 int tcp_v4_do_rcv(struct sock *sk, struct sk_buff *skb)
 {
 	struct sock *rsk;
+
+	trace_net_tcpv4_rcv(skb);
+
 #ifdef CONFIG_TCP_MD5SIG
 	/*
 	 * We really want to reject the packet as early as possible
