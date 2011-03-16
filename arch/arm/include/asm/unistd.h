@@ -397,6 +397,8 @@
 #define __NR_fanotify_mark		(__NR_SYSCALL_BASE+368)
 #define __NR_prlimit64			(__NR_SYSCALL_BASE+369)
 
+#define __NR_syscall_max 370
+
 /*
  * The following SWIs are ARM private.
  */
