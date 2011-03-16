@@ -798,6 +798,7 @@ static const char *section_white_list[] =
 	".note*",
 	".got*",
 	".toc*",
+	"__discard",
 	NULL
 };
 
