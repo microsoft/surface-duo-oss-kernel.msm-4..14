@@ -29,6 +29,7 @@
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/console.h>
+#include <trace/pm.h>
 
 #include <plat/sram.h>
 #include "clockdomain.h"
@@ -40,6 +41,8 @@
 #include <plat/dma.h>
 
 #include <asm/tlbflush.h>
+
+#include <asm/trace-clock.h>
 
 #include "cm2xxx_3xxx.h"
 #include "cm-regbits-34xx.h"
@@ -79,6 +82,11 @@ struct power_state {
 #endif
 	struct list_head node;
 };
+
+DEFINE_TRACE(pm_idle_entry);
+DEFINE_TRACE(pm_idle_exit);
+DEFINE_TRACE(pm_suspend_entry);
+DEFINE_TRACE(pm_suspend_exit);
 
 static LIST_HEAD(pwrst_list);
 
@@ -519,7 +527,26 @@ static void omap3_pm_idle(void)
 	if (omap_irq_pending() || need_resched())
 		goto out;
 
+	trace_pm_idle_entry();
+	/*
+	 * Should only be stopped when the CPU is stopping the ccnt
+	 * counter in idle. sleep_while_idle seems to disable
+	 * the ccnt clock (as of 2.6.32-rc8).
+	 */
+	stop_trace_clock();
+
 	omap_sram_idle();
+
+	/*
+	 * Restarting the trace clock should ideally be done much sooner. When
+	 * we arrive here, there are already some interrupt handlers which have
+	 * run before us, using potentially wrong timestamps. This leads
+	 * to problems when restarting the clock (and synchronizing on the 32k
+	 * clock) if the cycle counter was still active.
+	 * start_track_clock must ensure that timestamps never ever go backward.
+	 */
+	start_trace_clock();
+	trace_pm_idle_exit();
 
 out:
 	local_fiq_enable();
@@ -550,7 +577,11 @@ static int omap3_pm_suspend(void)
 	omap_uart_prepare_suspend();
 	omap3_intc_suspend();
 
-	omap_sram_idle();
+	trace_pm_suspend_entry();
+	stop_trace_clock();
+  	omap_sram_idle();
+	start_trace_clock();
+	trace_pm_suspend_exit();
 
 restore:
 	/* Restore next_pwrsts */
