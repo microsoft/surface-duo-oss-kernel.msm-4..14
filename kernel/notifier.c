@@ -5,6 +5,7 @@
 #include <linux/rcupdate.h>
 #include <linux/vmalloc.h>
 #include <linux/reboot.h>
+#include <linux/idle.h>
 
 /*
  *	Notifier list for kernel code which wants to be called
@@ -584,3 +585,27 @@ int unregister_die_notifier(struct notifier_block *nb)
 	return atomic_notifier_chain_unregister(&die_chain, nb);
 }
 EXPORT_SYMBOL_GPL(unregister_die_notifier);
+
+static ATOMIC_NOTIFIER_HEAD(idle_notifier);
+
+/*
+ * Trace last event before calling notifiers. Notifiers flush data from buffers
+ * before going to idle.
+ */
+int notrace notify_idle(enum idle_val val)
+{
+	return atomic_notifier_call_chain(&idle_notifier, val, NULL);
+}
+EXPORT_SYMBOL_GPL(notify_idle);
+
+void register_idle_notifier(struct notifier_block *n)
+{
+	atomic_notifier_chain_register(&idle_notifier, n);
+}
+EXPORT_SYMBOL_GPL(register_idle_notifier);
+
+void unregister_idle_notifier(struct notifier_block *n)
+{
+	atomic_notifier_chain_unregister(&idle_notifier, n);
+}
+EXPORT_SYMBOL_GPL(unregister_idle_notifier);

@@ -35,6 +35,7 @@
 #include <linux/tick.h>
 #include <linux/prctl.h>
 #include <linux/uaccess.h>
+#include <linux/idle.h>
 #include <linux/io.h>
 #include <linux/ftrace.h>
 #include <trace/pm.h>
@@ -60,20 +61,6 @@ asmlinkage extern void ret_from_fork(void);
 DEFINE_PER_CPU(unsigned long, old_rsp);
 static DEFINE_PER_CPU(unsigned char, is_idle);
 
-static ATOMIC_NOTIFIER_HEAD(idle_notifier);
-
-void idle_notifier_register(struct notifier_block *n)
-{
-	atomic_notifier_chain_register(&idle_notifier, n);
-}
-EXPORT_SYMBOL_GPL(idle_notifier_register);
-
-void idle_notifier_unregister(struct notifier_block *n)
-{
-	atomic_notifier_chain_unregister(&idle_notifier, n);
-}
-EXPORT_SYMBOL_GPL(idle_notifier_unregister);
-
 void enter_idle(void)
 {
 	percpu_write(is_idle, 1);
@@ -82,14 +69,14 @@ void enter_idle(void)
 	 * data from buffers before going to idle.
 	 */
 	trace_pm_idle_entry();
-	atomic_notifier_call_chain(&idle_notifier, IDLE_START, NULL);
+	notify_idle(IDLE_START);
 }
 
 static void __exit_idle(void)
 {
 	if (x86_test_and_clear_bit_percpu(0, is_idle) == 0)
 		return;
-	atomic_notifier_call_chain(&idle_notifier, IDLE_END, NULL);
+	notify_idle(IDLE_END);
 	trace_pm_idle_exit();
 }
 
