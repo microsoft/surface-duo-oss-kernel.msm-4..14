@@ -40,6 +40,7 @@
 #include <linux/kdebug.h>
 #include <linux/notifier.h>
 #include <linux/idle.h>
+#include <trace/pm.h>
 
 #include <asm/pgtable.h>
 #include <asm/system.h>
@@ -61,11 +62,15 @@
 
 asmlinkage void ret_from_fork(void) __asm__("ret_from_fork");
 
+DEFINE_TRACE(pm_idle_exit);
+DEFINE_TRACE(pm_idle_entry);
+
 static DEFINE_PER_CPU(unsigned char, is_idle);
 
 void enter_idle(void)
 {
 	percpu_write(is_idle, 1);
+	trace_pm_idle_entry();
 	notify_idle(IDLE_START);
 }
 
@@ -74,6 +79,7 @@ static void __exit_idle(void)
 	if (x86_test_and_clear_bit_percpu(0, is_idle) == 0)
 		return;
 	notify_idle(IDLE_END);
+	trace_pm_idle_exit();
 }
 
 /* Called from interrupts to signify idle end */
