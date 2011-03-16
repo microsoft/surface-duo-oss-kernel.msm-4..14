@@ -99,7 +99,9 @@
  * 1) List of modules (also safely readable with preempt_disable),
  * 2) module_use links,
  * 3) module_addr_min/module_addr_max.
- * (delete uses stop_machine/add uses RCU list operations). */
+ * (delete uses stop_machine/add uses RCU list operations).
+ * Sorted by ascending list node address.
+ */
 DEFINE_MUTEX(module_mutex);
 EXPORT_SYMBOL_GPL(module_mutex);
 static LIST_HEAD(modules);
@@ -2717,7 +2719,7 @@ static struct module *load_module(void __user *umod,
 				  const char __user *uargs)
 {
 	struct load_info info = { NULL, };
-	struct module *mod;
+	struct module *mod, *iter;
 	long err;
 
 	DEBUGP("load_module: umod=%p, len=%lu, uargs=%p\n",
@@ -2799,7 +2801,23 @@ static struct module *load_module(void __user *umod,
 		goto ddebug;
 
 	module_bug_finalize(info.hdr, info.sechdrs, mod);
+	/*
+	 * We sort the modules by struct module pointer address to permit
+	 * correct iteration over modules of, at least, kallsyms for preemptible
+	 * operations, such as read(). Sorting by struct module pointer address
+	 * is equivalent to sort by list node address.
+	 */
+	list_for_each_entry_reverse(iter, &modules, list) {
+		BUG_ON(iter == mod);	/* Should never be in the list twice */
+		if (iter < mod) {
+			/* We belong to the location right after iter. */
+			list_add_rcu(&mod->list, &iter->list);
+			goto module_added;
+		}
+	}
+	/* We should be added at the head of the list */
 	list_add_rcu(&mod->list, &modules);
+module_added:
 	mutex_unlock(&module_mutex);
 
 	/* Module is ready to execute: parsing args may do that. */
@@ -3196,12 +3214,12 @@ static char *module_flags(struct module *mod, char *buf)
 static void *m_start(struct seq_file *m, loff_t *pos)
 {
 	mutex_lock(&module_mutex);
-	return seq_list_start(&modules, *pos);
+	return seq_sorted_list_start(&modules, pos);
 }
 
 static void *m_next(struct seq_file *m, void *p, loff_t *pos)
 {
-	return seq_list_next(p, &modules, pos);
+	return seq_sorted_list_next(p, &modules, pos);
 }
 
 static void m_stop(struct seq_file *m, void *p)
