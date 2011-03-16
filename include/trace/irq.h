@@ -28,8 +28,4 @@ DECLARE_TRACE(irq_tasklet_high_exit,
 	TP_PROTO(struct tasklet_struct *t),
 		TP_ARGS(t));
 
-DECLARE_TRACE(softirq_raise,
-	TP_PROTO(unsigned int nr),
-		TP_ARGS(nr));
-
 #endif

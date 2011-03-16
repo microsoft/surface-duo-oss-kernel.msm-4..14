@@ -226,8 +226,6 @@ EXPORT_SYMBOL(local_bh_enable_ip);
  */
 #define MAX_SOFTIRQ_RESTART 10
 
-DEFINE_TRACE(softirq_raise);
-
 asmlinkage void __do_softirq(void)
 {
 	struct softirq_action *h;
