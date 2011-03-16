@@ -683,6 +683,16 @@ config CGROUP_MEM_RES_CTLR_SWAP_ENABLED
 	  select this option (if, for some reason, they need to disable it
 	  then noswapaccount does the trick).
 
+#
+# Architectures with a 64-bits get_cycles() should select this.
+# They should also define
+# get_cycles_barrier() : instruction synchronization barrier if required
+# get_cycles_rate() : cycle counter rate, in HZ. If 0, TSC are not synchronized
+# across CPUs or their frequency may vary due to frequency scaling.
+#
+config HAVE_GET_CYCLES
+	def_bool n
+
 menuconfig CGROUP_SCHED
 	bool "Group CPU scheduler"
 	depends on EXPERIMENTAL
