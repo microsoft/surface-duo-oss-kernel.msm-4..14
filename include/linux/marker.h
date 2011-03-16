@@ -72,7 +72,7 @@ struct marker {
 		__attribute__((section("__markers_strings")))		\
 		= #channel "\0" #name "\0" format;			\
 		static struct marker __mark_##channel##_##name		\
-		__attribute__((section("__markers"), aligned(8))) =	\
+		__attribute__((section("__markers"), aligned(128))) =	\
 		{ __mstrtab_##channel##_##name,				\
 		  &__mstrtab_##channel##_##name[sizeof(#channel)],	\
 		  &__mstrtab_##channel##_##name[sizeof(#channel) +	\
