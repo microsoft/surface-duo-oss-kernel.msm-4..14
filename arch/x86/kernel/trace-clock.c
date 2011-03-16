@@ -69,9 +69,7 @@ notrace cycles_t trace_clock_async_tsc_read(void)
 	cycles_t new_tsc, last_tsc;
 
 	WARN_ON(!async_tsc_refcount || !async_tsc_enabled);
-	rdtsc_barrier();
 	new_tsc = get_cycles();
-	rdtsc_barrier();
 	last_tsc = read_last_tsc();
 	do {
 		if (new_tsc < last_tsc)

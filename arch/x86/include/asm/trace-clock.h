@@ -30,11 +30,9 @@ static inline u32 trace_clock_read32(void)
 {
 	u32 cycles;
 
-	if (likely(trace_clock_is_sync())) {
-		get_cycles_barrier();
+	if (likely(trace_clock_is_sync()))
 		cycles = (u32)get_cycles(); /* only need the 32 LSB */
-		get_cycles_barrier();
-	} else
+	else
 		cycles = (u32)trace_clock_async_tsc_read();
 	return cycles;
 }
@@ -43,11 +41,9 @@ static inline u64 trace_clock_read64(void)
 {
 	u64 cycles;
 
-	if (likely(trace_clock_is_sync())) {
-		get_cycles_barrier();
+	if (likely(trace_clock_is_sync()))
 		cycles = get_cycles();
-		get_cycles_barrier();
-	} else
+	else
 		cycles = trace_clock_async_tsc_read();
 	return cycles;
 }
