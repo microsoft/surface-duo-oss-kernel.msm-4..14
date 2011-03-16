@@ -42,9 +42,36 @@ extern unsigned int mips_hpt_frequency;
  * will result in the timer interrupt getting lost.
  */
 
+#ifdef CONFIG_HAVE_GET_CYCLES
+# ifdef CONFIG_CPU_CAVIUM_OCTEON
+typedef unsigned long cycles_t;
+
+static inline cycles_t get_cycles(void)
+{
+	return read_c0_cvmcount();
+}
+
+static inline void get_cycles_barrier(void)
+{
+}
+
+static inline cycles_t get_cycles_rate(void)
+{
+	return mips_hpt_frequency;
+}
+
+extern int test_tsc_synchronization(void);
+extern int _tsc_is_sync;
+static inline int tsc_is_sync(void)
+{
+	return _tsc_is_sync;
+}
+# else /* #ifdef CONFIG_CPU_CAVIUM_OCTEON */
+#  error "64-bit get_cycles() supported only on Cavium Octeon MIPS architectures"
+# endif /* #else #ifdef CONFIG_CPU_CAVIUM_OCTEON */
+#elif defined(CONFIG_HAVE_GET_CYCLES_32)
 typedef unsigned int cycles_t;
 
-#ifdef CONFIG_HAVE_GET_CYCLES_32
 static inline cycles_t get_cycles(void)
 {
 	return read_c0_count();
@@ -66,6 +93,8 @@ static inline int tsc_is_sync(void)
 	return _tsc_is_sync;
 }
 #else
+typedef unsigned int cycles_t;
+
 static inline cycles_t get_cycles(void)
 {
 	return 0;
