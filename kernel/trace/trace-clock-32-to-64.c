@@ -34,7 +34,7 @@
 #define HW_LS32(hw)			((hw) & HW_BITMASK)
 #define SW_MS32(sw)			((sw) & ~HW_BITMASK)
 
-static DEFINE_MUTEX(synthetic_tsc_lock);
+static DEFINE_SPINLOCK(synthetic_tsc_lock);
 static int synthetic_tsc_refcount;  /* Number of readers */
 static int synthetic_tsc_enabled;   /* synth. TSC enabled on all online CPUs */
 
