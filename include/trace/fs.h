@@ -12,7 +12,7 @@ DECLARE_TRACE(fs_buffer_wait_end,
 	TP_PROTO(struct buffer_head *bh),
 	TP_ARGS(bh));
 DECLARE_TRACE(fs_exec,
-	TP_PROTO(char *filename),
+	TP_PROTO(const char *filename),
 	TP_ARGS(filename));
 DECLARE_TRACE(fs_ioctl,
 	TP_PROTO(unsigned int fd, unsigned int cmd, unsigned long arg),
