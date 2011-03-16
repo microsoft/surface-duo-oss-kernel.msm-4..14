@@ -14,7 +14,7 @@
 #include <linux/cpu.h>
 #include <linux/cpufreq.h>
 
-#include <mach/clock.h>
+#include <plat/clock.h>
 #include <asm/trace-clock.h>
 
 /* depends on CONFIG_OMAP_32K_TIMER */
@@ -153,7 +153,7 @@ void save_sync_trace_clock(void)
 	local_irq_save(flags);
 	cpu = smp_processor_id();
 	pm_count = &per_cpu(pm_save_count, cpu);
-	__raw_spin_lock(&pm_count->lock);
+	raw_spin_lock(&pm_count->lock);
 
 	if (!pm_count->refcount)
 		goto end;
@@ -161,7 +161,7 @@ void save_sync_trace_clock(void)
 	pm_count->ext_32k = clock->read(clock);
 	pm_count->int_fast_clock = trace_clock_read64();
 end:
-	__raw_spin_unlock(&pm_count->lock);
+	raw_spin_unlock(&pm_count->lock);
 
 	/*
 	 * Only enable slow read after saving the clock values.
@@ -231,7 +231,7 @@ void resync_trace_clock(void)
 	local_irq_save(flags);
 	cpu = smp_processor_id();
 	pm_count = &per_cpu(pm_save_count, cpu);
-	__raw_spin_lock(&pm_count->lock);
+	raw_spin_lock(&pm_count->lock);
 
 	if (!pm_count->refcount)
 		goto end;
@@ -297,7 +297,7 @@ void resync_trace_clock(void)
 		print_info_done = 1;
 	}
 end:
-	__raw_spin_unlock(&pm_count->lock);
+	raw_spin_unlock(&pm_count->lock);
 	local_irq_restore(flags);
 }
 
@@ -593,7 +593,7 @@ static int cpufreq_trace_clock(struct notifier_block *nb,
 	cpu = smp_processor_id();
 	WARN_ON_ONCE(cpu != freq->cpu);
 	pm_count = &per_cpu(pm_save_count, cpu);
-	__raw_spin_lock(&pm_count->lock);
+	raw_spin_lock(&pm_count->lock);
 
 	if (!pm_count->refcount)
 		goto end;
@@ -632,7 +632,7 @@ static int cpufreq_trace_clock(struct notifier_block *nb,
 	local_fiq_enable();
 	pm_count->dvfs_count++;
 end:
-	__raw_spin_unlock(&pm_count->lock);
+	raw_spin_unlock(&pm_count->lock);
 	local_irq_restore(flags);
 	return 0;
 }
@@ -698,7 +698,8 @@ static __init int init_trace_clock(void)
 		per_cpu(pm_save_count, cpu).max_cpu_freq =
 			__iter_div_u64_rem(cpu_hz, 1000, &rem);
 		per_cpu(pm_save_count, cpu).lock =
-			(raw_spinlock_t)__RAW_SPIN_LOCK_UNLOCKED;
+			__RAW_SPIN_LOCK_UNLOCKED(per_cpu(pm_save_count,
+							 cpu).lock);
 	}
 	hotcpu_notifier(hotcpu_callback, 4);
 	cpufreq_register_notifier(&cpufreq_trace_clock_nb,
