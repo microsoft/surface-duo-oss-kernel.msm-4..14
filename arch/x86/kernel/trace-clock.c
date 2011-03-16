@@ -104,10 +104,8 @@ static void update_timer_ipi(void *info)
 static void update_timer_fct(unsigned long data)
 {
 	(void)trace_clock_async_tsc_read();
-
-	per_cpu(update_timer, smp_processor_id()).expires = jiffies + 1;
-	add_timer_on(&per_cpu(update_timer, smp_processor_id()),
-		     smp_processor_id());
+	mod_timer_pinned(&per_cpu(update_timer, smp_processor_id()),
+			 jiffies + 1);
 }
 
 static void enable_trace_clock(int cpu)
