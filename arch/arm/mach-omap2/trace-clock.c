@@ -390,6 +390,8 @@ static void disable_timer_ipi(void *info)
 
 static void disable_timer(int cpu)
 {
+	struct pm_save_count *pm_count;
+
 	pm_count = &per_cpu(pm_save_count, cpu);
 	del_timer_sync(&pm_count->clear_ccnt_ms_timer);
 	if (pm_count->dvfs_count)
