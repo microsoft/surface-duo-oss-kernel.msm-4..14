@@ -13,6 +13,7 @@
 #include <linux/init.h>
 #include <linux/cpu.h>
 #include <linux/cpufreq.h>
+#include <linux/err.h>
 
 #include <plat/clock.h>
 #include <asm/trace-clock.h>
@@ -545,7 +546,7 @@ int get_trace_clock(void)
 	if (trace_clock_refcount)
 		goto end;
 	reserved_pmu = reserve_pmu(ARM_PMU_DEVICE_CPU);
-	if (!reserved_pmu) {
+	if (IS_ERR_OR_NULL(reserved_pmu) && PTR_ERR(reserved_pmu) != -ENODEV) {
 		ret = -EBUSY;
 		goto end;
 	}
@@ -699,7 +700,7 @@ static __init int init_trace_clock(void)
 	u64 rem;
 
 	ret = init_pmu(ARM_PMU_DEVICE_CPU);
-	if (ret)
+	if (ret && ret != -ENODEV)
 		return ret;
 	clock = get_clocksource_32k();
 	/*
