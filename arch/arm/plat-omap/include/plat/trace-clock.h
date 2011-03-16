@@ -9,6 +9,7 @@
 
 #include <linux/clk.h>
 #include <linux/timer.h>
+#include <linux/percpu.h>
 #include <plat/clock.h>
 
 /*
