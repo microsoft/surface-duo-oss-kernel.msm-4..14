@@ -20,7 +20,7 @@ struct probe_data {
 	marker_probe_func *probe_func;
 };
 
-void probe_subsystem_event(const struct marker *mdata,
+static void probe_subsystem_event(const struct marker *mdata,
 	void *probe_data, void *call_data,
 	const char *format, va_list *args)
 {
@@ -40,7 +40,7 @@ void probe_subsystem_event(const struct marker *mdata,
 
 atomic_t eventb_count = ATOMIC_INIT(0);
 
-void probe_subsystem_eventb(const struct marker *mdata,
+static void probe_subsystem_eventb(const struct marker *mdata,
 	void *probe_data, void *call_data,
 	const char *format, va_list *args)
 {
