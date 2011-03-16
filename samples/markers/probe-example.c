@@ -20,7 +20,8 @@ struct probe_data {
 	marker_probe_func *probe_func;
 };
 
-void probe_subsystem_event(void *probe_data, void *call_data,
+void probe_subsystem_event(const struct marker *mdata,
+	void *probe_data, void *call_data,
 	const char *format, va_list *args)
 {
 	/* Declare args */
@@ -39,7 +40,8 @@ void probe_subsystem_event(void *probe_data, void *call_data,
 
 atomic_t eventb_count = ATOMIC_INIT(0);
 
-void probe_subsystem_eventb(void *probe_data, void *call_data,
+void probe_subsystem_eventb(const struct marker *mdata,
+	void *probe_data, void *call_data,
 	const char *format, va_list *args)
 {
 	/* Increment counter */
@@ -62,7 +64,7 @@ static int __init probe_init(void)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(probe_array); i++) {
-		result = marker_probe_register(probe_array[i].name,
+		result = marker_probe_register("samples", probe_array[i].name,
 				probe_array[i].format,
 				probe_array[i].probe_func, &probe_array[i]);
 		if (result)
@@ -77,7 +79,7 @@ static void __exit probe_fini(void)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(probe_array); i++)
-		marker_probe_unregister(probe_array[i].name,
+		marker_probe_unregister("samples", probe_array[i].name,
 			probe_array[i].probe_func, &probe_array[i]);
 	printk(KERN_INFO "Number of event b : %u\n",
 			atomic_read(&eventb_count));

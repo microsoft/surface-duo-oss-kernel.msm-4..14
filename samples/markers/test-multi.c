@@ -81,7 +81,7 @@ static int __init probe_init(void)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(probe_array); i++) {
-		result = marker_probe_register(probe_array[i].name,
+		result = marker_probe_register("samples", probe_array[i].name,
 				probe_array[i].format,
 				probe_array[i].probe_func, (void*)(long)i);
 		if (result)
@@ -97,7 +97,7 @@ static void __exit probe_fini(void)
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(probe_array); i++) {
-		result = marker_probe_unregister(probe_array[i].name,
+		result = marker_probe_unregister("samples", probe_array[i].name,
 			probe_array[i].probe_func, (void*)(long)i);
 		if (result)
 			printk(KERN_INFO "Unable to unregister probe %s\n",

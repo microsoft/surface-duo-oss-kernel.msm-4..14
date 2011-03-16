@@ -19,10 +19,10 @@ static int my_open(struct inode *inode, struct file *file)
 {
 	int i;
 
-	trace_mark(subsystem_event, "integer %d string %s", 123,
+	trace_mark(samples, subsystem_event, "integer %d string %s", 123,
 		"example string");
 	for (i = 0; i < 10; i++)
-		trace_mark(subsystem_eventb, MARK_NOARGS);
+		trace_mark(samples, subsystem_eventb, MARK_NOARGS);
 	return -EPERM;
 }
 
