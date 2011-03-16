@@ -26,7 +26,7 @@
 #include <linux/err.h>
 #include <linux/slab.h>
 #include <linux/immediate.h>
-#include <linux/ltt-tracer.h>
+#include <linux/ltt-channels.h>
 
 extern struct marker __start___markers[];
 extern struct marker __stop___markers[];
