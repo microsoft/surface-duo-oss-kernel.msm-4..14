@@ -22,6 +22,7 @@ struct marker;
 
 /**
  * marker_probe_func - Type of a marker probe function
+ * @mdata: marker data
  * @probe_private: probe private data
  * @call_private: call site private data
  * @fmt: format string
@@ -32,7 +33,8 @@ struct marker;
  * Type of marker probe functions. They receive the mdata and need to parse the
  * format string to recover the variable argument list.
  */
-typedef void marker_probe_func(void *probe_private, void *call_private,
+typedef void marker_probe_func(const struct marker *mdata,
+		void *probe_private, void *call_private,
 		const char *fmt, va_list *args);
 
 struct marker_probe_closure {
@@ -49,7 +51,7 @@ struct marker {
 	DEFINE_IMV(char, state);/* Immediate value state. */
 	char ptype;		/* probe type : 0 : single, 1 : multi */
 				/* Probe wrapper */
-	u16 chan_id;		/* Numeric channel identifier, dynamic */
+	u16 channel_id;		/* Numeric channel identifier, dynamic */
 	u16 event_id;		/* Numeric event identifier, dynamic */
 	void (*call)(const struct marker *mdata, void *call_private, ...);
 	struct marker_probe_closure single;
