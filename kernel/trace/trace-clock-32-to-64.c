@@ -232,21 +232,27 @@ static int __cpuinit hotcpu_callback(struct notifier_block *nb,
 	switch (action) {
 	case CPU_UP_PREPARE:
 	case CPU_UP_PREPARE_FROZEN:
+		spin_lock(&synthetic_tsc_lock);
 		if (synthetic_tsc_refcount)
 			prepare_synthetic_tsc(hotcpu);
+		spin_unlock(&synthetic_tsc_lock);
 		break;
 	case CPU_ONLINE:
 	case CPU_ONLINE_FROZEN:
+		spin_lock(&synthetic_tsc_lock);
 		if (synthetic_tsc_refcount)
 			enable_synthetic_tsc(hotcpu);
+		spin_unlock(&synthetic_tsc_lock);
 		break;
 #ifdef CONFIG_HOTPLUG_CPU
 	case CPU_UP_CANCELED:
 	case CPU_UP_CANCELED_FROZEN:
 	case CPU_DEAD:
 	case CPU_DEAD_FROZEN:
+		spin_lock(&synthetic_tsc_lock);
 		if (synthetic_tsc_refcount)
 			disable_synthetic_tsc(hotcpu);
+		spin_unlock(&synthetic_tsc_lock);
 		break;
 #endif /* CONFIG_HOTPLUG_CPU */
 	}
@@ -257,7 +263,6 @@ void get_synthetic_tsc(void)
 {
 	int cpu;
 
-	get_online_cpus();
 	spin_lock(&synthetic_tsc_lock);
 	if (synthetic_tsc_refcount++)
 		goto end;
@@ -269,7 +274,6 @@ void get_synthetic_tsc(void)
 	}
 end:
 	spin_unlock(&synthetic_tsc_lock);
-	put_online_cpus();
 }
 EXPORT_SYMBOL_GPL(get_synthetic_tsc);
 
@@ -277,7 +281,6 @@ void put_synthetic_tsc(void)
 {
 	int cpu;
 
-	get_online_cpus();
 	spin_lock(&synthetic_tsc_lock);
 	WARN_ON(synthetic_tsc_refcount <= 0);
 	if (synthetic_tsc_refcount != 1 || !synthetic_tsc_enabled)
@@ -289,7 +292,6 @@ void put_synthetic_tsc(void)
 end:
 	synthetic_tsc_refcount--;
 	spin_unlock(&synthetic_tsc_lock);
-	put_online_cpus();
 }
 EXPORT_SYMBOL_GPL(put_synthetic_tsc);
 
