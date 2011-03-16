@@ -37,6 +37,8 @@ static const int marker_debug;
 /*
  * markers_mutex nests inside module_mutex. Markers mutex protects the builtin
  * and module markers and the hash table.
+ * markers_mutex nests inside the trace lock, to ensure event ID consistency
+ * between the hash table and the marker section.
  */
 static DEFINE_MUTEX(markers_mutex);
 
@@ -783,7 +785,7 @@ void marker_update_probe_range(struct marker *begin,
  * Site effect : marker_set_format may delete the marker entry (creating a
  * replacement).
  */
-static void marker_update_probes(void)
+void marker_update_probes(void)
 {
 	/* Core kernel markers */
 	marker_update_probe_range(__start___markers, __stop___markers);
@@ -879,6 +881,7 @@ error_remove_marker:
 	WARN_ON(ret_err);
 end:
 	mutex_unlock(&markers_mutex);
+	marker_update_probes();	/* for compaction on error path */
 	return ret;
 }
 EXPORT_SYMBOL_GPL(marker_probe_register);
@@ -1090,7 +1093,10 @@ EXPORT_SYMBOL_GPL(marker_get_fmt_from_id);
  * markers_compact_event_ids - Compact markers event IDs and reassign channels
  *
  * Called when no channel users are active by the channel infrastructure.
- * Called with lock_markers() and channel mutex held.
+ * Called with trace lock, lock_markers() and channel mutex held.
+ *
+ * marker_update_probes() must be executed after compaction before releasing the
+ * trace lock.
  */
 void markers_compact_event_ids(void)
 {
@@ -1099,6 +1105,8 @@ void markers_compact_event_ids(void)
 	struct hlist_head *head;
 	struct hlist_node *node, *next;
 	int ret;
+
+	_ltt_channels_reset_event_ids();
 
 	for (i = 0; i < MARKER_TABLE_SIZE; i++) {
 		head = &marker_table[i];
