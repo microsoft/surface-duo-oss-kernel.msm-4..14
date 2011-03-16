@@ -1151,7 +1151,7 @@ sys_sigreturn:
 	 add	%sp, STACKFRAME_SZ, %o0
 
 	ld	[%curptr + TI_FLAGS], %l5
-	andcc	%l5, _TIF_SYSCALL_TRACE, %g0
+	andcc	%l5, (_TIF_SYSCALL_TRACE|_TIF_KERNEL_TRACE), %g0
 	be	1f
 	 nop
 
@@ -1171,7 +1171,7 @@ sys_rt_sigreturn:
 	 add	%sp, STACKFRAME_SZ, %o0
 
 	ld	[%curptr + TI_FLAGS], %l5
-	andcc	%l5, _TIF_SYSCALL_TRACE, %g0
+	andcc	%l5, (_TIF_SYSCALL_TRACE|_TIF_KERNEL_TRACE), %g0
 	be	1f
 	 nop
 
@@ -1313,7 +1313,7 @@ syscall_is_too_hard:
 
 	ld	[%curptr + TI_FLAGS], %l5
 	mov	%i3, %o3
-	andcc	%l5, _TIF_SYSCALL_TRACE, %g0
+	andcc	%l5, (_TIF_SYSCALL_TRACE|_TIF_KERNEL_TRACE), %g0
 	mov	%i4, %o4
 	bne	linux_syscall_trace
 	 mov	%i0, %l5
@@ -1330,7 +1330,7 @@ ret_sys_call:
 	ld	[%sp + STACKFRAME_SZ + PT_PSR], %g3
 	set	PSR_C, %g2
 	bgeu	1f
-	 andcc	%l6, _TIF_SYSCALL_TRACE, %g0
+	 andcc	%l6, (_TIF_SYSCALL_TRACE|_TIF_KERNEL_TRACE), %g0
 
 	/* System call success, clear Carry condition code. */
 	andn	%g3, %g2, %g3
