@@ -34,7 +34,7 @@
 #define HW_LS32(hw)			((hw) & HW_BITMASK)
 #define SW_MS32(sw)			((sw) & ~HW_BITMASK)
 
-static DEFINE_MUTEX(synthetic_tsc_mutex);
+static DEFINE_MUTEX(synthetic_tsc_lock);
 static int synthetic_tsc_refcount;  /* Number of readers */
 static int synthetic_tsc_enabled;   /* synth. TSC enabled on all online CPUs */
 
@@ -252,7 +252,7 @@ void get_synthetic_tsc(void)
 	int cpu;
 
 	get_online_cpus();
-	mutex_lock(&synthetic_tsc_mutex);
+	spin_lock(&synthetic_tsc_lock);
 	if (synthetic_tsc_refcount++)
 		goto end;
 
@@ -262,7 +262,7 @@ void get_synthetic_tsc(void)
 		enable_synthetic_tsc(cpu);
 	}
 end:
-	mutex_unlock(&synthetic_tsc_mutex);
+	spin_unlock(&synthetic_tsc_lock);
 	put_online_cpus();
 }
 EXPORT_SYMBOL_GPL(get_synthetic_tsc);
@@ -272,7 +272,7 @@ void put_synthetic_tsc(void)
 	int cpu;
 
 	get_online_cpus();
-	mutex_lock(&synthetic_tsc_mutex);
+	spin_lock(&synthetic_tsc_lock);
 	WARN_ON(synthetic_tsc_refcount <= 0);
 	if (synthetic_tsc_refcount != 1 || !synthetic_tsc_enabled)
 		goto end;
@@ -282,7 +282,7 @@ void put_synthetic_tsc(void)
 	synthetic_tsc_enabled = 0;
 end:
 	synthetic_tsc_refcount--;
-	mutex_unlock(&synthetic_tsc_mutex);
+	spin_unlock(&synthetic_tsc_lock);
 	put_online_cpus();
 }
 EXPORT_SYMBOL_GPL(put_synthetic_tsc);
