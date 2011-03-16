@@ -8,8 +8,7 @@
 #define _ASM_ARM_TRACE_CLOCK_OMAP3_H
 
 #include <linux/clk.h>
-#include <asm/system.h>
-#include <plat/dmtimer.h>
+#include <plat/clock.h>
 
 /*
  * Number of hardware clock bits. The higher order bits are expected to be 0.
@@ -35,7 +34,6 @@
 
 extern u64 trace_clock_read_synthetic_tsc(void);
 extern void _trace_clock_write_synthetic_tsc(u64 value);
-extern struct omap_dm_timer *trace_clock_timer;
 extern unsigned long long cpu_hz;
 
 /*

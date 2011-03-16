@@ -297,4 +297,6 @@ extern const struct clkops clkops_null;
 
 extern struct clk dummy_ck;
 
+struct clocksource *get_clocksource_32k(void);
+
 #endif

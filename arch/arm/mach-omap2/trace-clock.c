@@ -12,11 +12,12 @@
 #include <linux/timer.h>
 #include <linux/spinlock.h>
 #include <linux/init.h>
-#include <plat/dmtimer.h>
+#include <plat/clock.h>
 #include <plat/trace-clock.h>
 
-/* Need direct access to the clock from kernel/time/timekeeping.c */
-extern struct clocksource *clock;
+/* depends on CONFIG_OMAP_32K_TIMER */
+/* Need direct access to the clock from arch/arm/mach-omap2/timer-gp.c */
+static struct clocksource *clock;
 
 /* 32KHz counter count save upon PM sleep */
 static u32 saved_32k_count;
@@ -149,7 +150,7 @@ void _start_trace_clock(void)
 	 */
 	ref_time = saved_trace_clock;
 	local_irq_save(flags);
-	count_32k = clocksource_read(clock);
+	count_32k = clock->read(clock);
 	prev_time = trace_clock_read64();
 	/*
 	 * Delta done on 32-bits, then casted to u64. Must guarantee
@@ -190,7 +191,7 @@ void _start_trace_clock(void)
 
 void _stop_trace_clock(void)
 {
-	saved_32k_count = clocksource_read(clock);
+	saved_32k_count = clock->read(clock);
 	saved_trace_clock = trace_clock_read64();
 	del_timer_sync(&clear_ccnt_ms_timer);
 	put_synthetic_tsc();
@@ -244,6 +245,7 @@ static __init int init_trace_clock(void)
 {
 	u64 rem;
 
+	clock = get_clocksource_32k();
 	clear_ccnt_interval = __iter_div_u64_rem(HZ * (1ULL << 30),
 				cpu_hz, &rem);
 	printk(KERN_INFO "LTTng will clear ccnt top bit every %u jiffies.\n",
