@@ -40,6 +40,8 @@ static int trace_clock_refcount;
 
 static int print_info_done;
 
+static struct platform_device *reserved_pmu;
+
 static u32 get_mul_fact(u64 max_freq, u64 cur_freq)
 {
 	u64 rem;
@@ -536,13 +538,21 @@ static int __cpuinit hotcpu_callback(struct notifier_block *nb,
 
 int get_trace_clock(void)
 {
+	int ret = 0;
+
 	spin_lock(&trace_clock_lock);
-	if (trace_clock_refcount++)
+	if (trace_clock_refcount)
 		goto end;
+	reserved_pmu = reserve_pmu(ARM_PMU_DEVICE_CPU);
+	if (!reserved_pmu) {
+		ret = -EBUSY;
+		goto end;
+	}
+	trace_clock_refcount++;
 	_start_trace_clock();
 end:
 	spin_unlock(&trace_clock_lock);
-	return 0;
+	return ret;
 }
 EXPORT_SYMBOL_GPL(get_trace_clock);
 
@@ -553,6 +563,7 @@ void put_trace_clock(void)
 	if (trace_clock_refcount != 1)
 		goto end;
 	_stop_trace_clock();
+	release_pmu(reserved_pmu);
 end:
 	trace_clock_refcount--;
 	spin_unlock(&trace_clock_lock);
@@ -683,9 +694,12 @@ EXPORT_SYMBOL_GPL(trace_clock_debug);
 
 static __init int init_trace_clock(void)
 {
-	int cpu;
+	int cpu, ret;
 	u64 rem;
 
+	ret = init_pmu(ARM_PMU_DEVICE_CPU);
+	if (ret)
+		return ret;
 	clock = get_clocksource_32k();
 	/*
 	 * clear_ccnt_interval based on the cpu fastest frequency. Never
