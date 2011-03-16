@@ -153,13 +153,15 @@ static void tsc_timer_fct(unsigned long data)
  */
 static int __init precalc_stsc_interval(void)
 {
+	u64 rem_freq, rem_interval;
+
 	precalc_expire =
-		div_u64(HW_BITMASK,
-		 ((div_u64(trace_clock_frequency(), HZ)
+		__iter_div_u64_rem(HW_BITMASK,
+		 ((__iter_div_u64_rem(trace_clock_frequency(), HZ, &rem_freq)
 		     * trace_clock_freq_scale())
 		    << 1)
 		 - 1
-		 - (EXPECTED_INTERRUPT_LATENCY * HZ / 1000))
+		 - (EXPECTED_INTERRUPT_LATENCY * HZ / 1000), &rem_interval)
 		>> 1;
 	WARN_ON(precalc_expire == 0);
 	printk(KERN_DEBUG "Synthetic TSC timer will fire each %u jiffies.\n",
