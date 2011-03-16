@@ -2573,3 +2573,22 @@ static void free_swap_count_continuations(struct swap_info_struct *si)
 		}
 	}
 }
+
+void ltt_dump_swap_files(void *call_data)
+{
+	int type;
+	struct swap_info_struct *p = NULL;
+
+	mutex_lock(&swapon_mutex);
+	for (type = swap_list.head; type >= 0; type = swap_info[type]->next) {
+		p = swap_info[type];
+		if (!(p->flags & SWP_WRITEOK))
+			continue;
+		__trace_mark(0, statedump_swap_files, call_data,
+			"filp %p vfsmount %p dname %s",
+			p->swap_file, p->swap_file->f_vfsmnt,
+			p->swap_file->f_dentry->d_name.name);
+	}
+	mutex_unlock(&swapon_mutex);
+}
+EXPORT_SYMBOL_GPL(ltt_dump_swap_files);

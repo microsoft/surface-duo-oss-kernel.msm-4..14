@@ -385,6 +385,8 @@ static inline void mem_cgroup_uncharge_swap(swp_entry_t ent)
 }
 #endif
 
+extern void ltt_dump_swap_files(void *call_data);
+
 #else /* CONFIG_SWAP */
 
 #define nr_swap_pages				0L
@@ -508,6 +510,10 @@ mem_cgroup_count_swap_user(swp_entry_t ent, struct page **pagep)
 	return 0;
 }
 #endif
+
+static inline void ltt_dump_swap_files(void *call_data)
+{
+}
 
 #endif /* CONFIG_SWAP */
 #endif /* __KERNEL__*/
