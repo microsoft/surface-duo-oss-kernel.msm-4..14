@@ -11,12 +11,19 @@
  */
 
 #include <linux/timex.h>
+#include <linux/time.h>
 #include <asm/system.h>
 #include <asm/processor.h>
 #include <asm/atomic.h>
 
 /* Minimum duration of a probe, in cycles */
 #define TRACE_CLOCK_MIN_PROBE_DURATION 200
+#define TRACE_CLOCK_RES TRACE_CLOCK_MIN_PROBE_DURATION
+
+union lttng_timespec {
+	struct timespec ts;
+	u64 lttng_ts;
+};
 
 extern cycles_t trace_clock_async_tsc_read(void);
 

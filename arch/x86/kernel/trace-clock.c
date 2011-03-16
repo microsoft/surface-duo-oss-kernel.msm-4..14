@@ -11,6 +11,8 @@
 #include <linux/jiffies.h>
 #include <linux/timer.h>
 #include <linux/cpu.h>
+#include <linux/posix-timers.h>
+#include <asm/vgtod.h>
 
 static cycles_t trace_clock_last_tsc;
 static DEFINE_PER_CPU(struct timer_list, update_timer);
@@ -22,11 +24,19 @@ int _trace_clock_is_sync = 1;
 EXPORT_SYMBOL_GPL(_trace_clock_is_sync);
 
 /*
+ * Is the trace clock being used by user-space ? We leave the trace clock active
+ * as soon as user-space starts using it. We never unref the trace clock
+ * reference taken by user-space.
+ */
+static atomic_t user_trace_clock_ref;
+
+/*
  * Called by check_tsc_sync_source from CPU hotplug.
  */
 void set_trace_clock_is_sync(int state)
 {
 	_trace_clock_is_sync = state;
+	update_trace_clock_is_sync_vdso();
 }
 
 #if BITS_PER_LONG == 64
@@ -236,8 +246,56 @@ end:
 }
 EXPORT_SYMBOL_GPL(put_trace_clock);
 
+static int posix_get_trace(clockid_t which_clock, struct timespec *tp)
+{
+	union lttng_timespec *lts = (union lttng_timespec *) tp;
+	int ret;
+
+	/*
+	 * Yes, there is a race here that would lead to refcount being
+	 * incremented more than once, but all we care is to leave the trace
+	 * clock active forever, so precise accounting is not needed.
+	 */
+	if (unlikely(!atomic_read(&user_trace_clock_ref))) {
+		ret = get_trace_clock();
+		if (ret)
+			return ret;
+		atomic_inc(&user_trace_clock_ref);
+	}
+	lts->lttng_ts = trace_clock_read64();
+	return 0;
+}
+
+static int posix_get_trace_freq(clockid_t which_clock, struct timespec *tp)
+{
+	union lttng_timespec *lts = (union lttng_timespec *) tp;
+
+	lts->lttng_ts = trace_clock_frequency();
+	return 0;
+}
+
+static int posix_get_trace_res(const clockid_t which_clock, struct timespec *tp)
+{
+	union lttng_timespec *lts = (union lttng_timespec *) tp;
+
+	lts->lttng_ts = TRACE_CLOCK_RES;
+	return 0;
+}
+
 static __init int init_unsync_trace_clock(void)
 {
+	struct k_clock clock_trace = {
+		.clock_getres = posix_get_trace_res,
+		.clock_get = posix_get_trace,
+	};
+	struct k_clock clock_trace_freq = {
+		.clock_getres = posix_get_trace_res,
+		.clock_get = posix_get_trace_freq,
+	};
+
+	register_posix_clock(CLOCK_TRACE, &clock_trace);
+	register_posix_clock(CLOCK_TRACE_FREQ, &clock_trace_freq);
+
 	hotcpu_notifier(hotcpu_callback, 4);
 	return 0;
 }
