@@ -19,6 +19,7 @@
 #include <linux/mutex.h>
 #include <linux/types.h>
 #include <linux/jhash.h>
+#include <linux/hash.h>
 #include <linux/list.h>
 #include <linux/rcupdate.h>
 #include <linux/marker.h>
@@ -56,6 +57,7 @@ void unlock_markers(void)
 #define MARKER_HASH_BITS 6
 #define MARKER_TABLE_SIZE (1 << MARKER_HASH_BITS)
 static struct hlist_head marker_table[MARKER_TABLE_SIZE];
+static struct hlist_head id_table[MARKER_TABLE_SIZE];
 
 /*
  * Note about RCU :
@@ -67,6 +69,7 @@ static struct hlist_head marker_table[MARKER_TABLE_SIZE];
  */
 struct marker_entry {
 	struct hlist_node hlist;
+	struct hlist_node id_list;
 	char *format;
 	char *name;
 			/* Probe wrapper */
@@ -452,9 +455,10 @@ static struct marker_entry *add_marker(const char *channel, const char *name,
 
 /*
  * Remove the marker from the marker hash table. Must be called with mutex_lock
- * held.
+ * held. Parameter "registered" indicates if the channel registration has been
+ * performed.
  */
-static int remove_marker(const char *channel, const char *name)
+static int remove_marker(const char *channel, const char *name, int registered)
 {
 	struct hlist_head *head;
 	struct hlist_node *node;
@@ -477,11 +481,18 @@ static int remove_marker(const char *channel, const char *name)
 		return -ENOENT;
 	if (e->single.func != __mark_empty_function)
 		return -EBUSY;
+
+	if (registered && ltt_channels_trace_ref())
+		return 0;
+
 	hlist_del(&e->hlist);
+	hlist_del(&e->id_list);
+	if (registered) {
+		ret = ltt_channels_unregister(e->channel);
+		WARN_ON(ret);
+	}
 	if (e->format_allocated)
 		kfree(e->format);
-	ret = ltt_channels_unregister(e->channel);
-	WARN_ON(ret);
 	/* Make sure the call_rcu has been executed */
 	if (e->rcu_pending)
 		rcu_barrier_sched();
@@ -737,6 +748,9 @@ int marker_probe_register(const char *channel, const char *name,
 		if (ret < 0)
 			goto error_unregister_channel;
 		entry->event_id = ret;
+		hlist_add_head(&entry->id_list, id_table + hash_32(
+				(entry->channel_id << 16) | entry->event_id,
+				MARKER_HASH_BITS));
 		ret = 0;
 		trace_mark(metadata, core_marker_id,
 			   "channel %s name %s event_id %hu "
@@ -789,7 +803,7 @@ error_unregister_channel:
 	ret_err = ltt_channels_unregister(channel);
 	WARN_ON(ret_err);
 error_remove_marker:
-	ret_err = remove_marker(channel, name);
+	ret_err = remove_marker(channel, name, 0);
 	WARN_ON(ret_err);
 end:
 	mutex_unlock(&markers_mutex);
@@ -839,7 +853,7 @@ int marker_probe_unregister(const char *channel, const char *name,
 	/* write rcu_pending before calling the RCU callback */
 	smp_wmb();
 	call_rcu_sched(&entry->rcu, free_old_closure);
-	remove_marker(channel, name);	/* Ignore busy error message */
+	remove_marker(channel, name, 1);	/* Ignore busy error message */
 	ret = 0;
 end:
 	mutex_unlock(&markers_mutex);
@@ -926,7 +940,7 @@ int marker_probe_unregister_private_data(marker_probe_func *probe,
 	smp_wmb();
 	call_rcu_sched(&entry->rcu, free_old_closure);
 	/* Ignore busy error message */
-	remove_marker(channel, name);
+	remove_marker(channel, name, 1);
 end:
 	mutex_unlock(&markers_mutex);
 	kfree(channel);
@@ -996,12 +1010,16 @@ void markers_compact_event_ids(void)
 	struct marker_entry *entry;
 	unsigned int i;
 	struct hlist_head *head;
-	struct hlist_node *node;
+	struct hlist_node *node, *next;
 	int ret;
 
 	for (i = 0; i < MARKER_TABLE_SIZE; i++) {
 		head = &marker_table[i];
-		hlist_for_each_entry(entry, node, head, hlist) {
+		hlist_for_each_entry_safe(entry, node, next, head, hlist) {
+			if (!entry->refcount) {
+				remove_marker(entry->channel, entry->name, 1);
+				continue;
+			}
 			ret = ltt_channels_get_index_from_name(entry->channel);
 			WARN_ON(ret < 0);
 			entry->channel_id = ret;
@@ -1009,6 +1027,16 @@ void markers_compact_event_ids(void)
 							 entry->name);
 			WARN_ON(ret < 0);
 			entry->event_id = ret;
+		}
+	}
+
+	memset(id_table, 0, sizeof(id_table));
+	for (i = 0; i < MARKER_TABLE_SIZE; i++) {
+		head = &marker_table[i];
+		hlist_for_each_entry(entry, node, head, hlist) {
+			hlist_add_head(&entry->id_list, id_table + hash_32(
+					(entry->channel_id << 16)
+					| entry->event_id, MARKER_HASH_BITS));
 		}
 	}
 }
