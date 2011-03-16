@@ -79,6 +79,8 @@ int omap3_core_dpll_m2_set_rate(struct clk *clk, unsigned long rate)
 		unlock_dll = 1;
 	}
 
+	cpu_hz = arm_fck_p->rate;
+
 	/*
 	 * XXX This only needs to be done when the CPU frequency changes
 	 */
