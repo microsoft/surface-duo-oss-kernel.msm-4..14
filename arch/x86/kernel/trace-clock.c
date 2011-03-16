@@ -9,13 +9,12 @@
 #include <linux/module.h>
 #include <linux/trace-clock.h>
 #include <linux/jiffies.h>
-#include <linux/mutex.h>
 #include <linux/timer.h>
 #include <linux/cpu.h>
 
 static cycles_t trace_clock_last_tsc;
 static DEFINE_PER_CPU(struct timer_list, update_timer);
-static DEFINE_MUTEX(async_tsc_mutex);
+static DEFINE_SPINLOCK(async_tsc_lock);
 static int async_tsc_refcount;	/* Number of readers */
 static int async_tsc_enabled;	/* Async TSC enabled on all online CPUs */
 
@@ -140,7 +139,7 @@ static int __cpuinit hotcpu_callback(struct notifier_block *nb,
 	unsigned int hotcpu = (unsigned long)hcpu;
 	int cpu;
 
-	mutex_lock(&async_tsc_mutex);
+	spin_lock(&async_tsc_lock);
 	switch (action) {
 	case CPU_UP_PREPARE:
 	case CPU_UP_PREPARE_FROZEN:
@@ -184,7 +183,7 @@ static int __cpuinit hotcpu_callback(struct notifier_block *nb,
 		break;
 #endif /* CONFIG_HOTPLUG_CPU */
 	}
-	mutex_unlock(&async_tsc_mutex);
+	spin_unlock(&async_tsc_lock);
 
 	return NOTIFY_OK;
 }
@@ -205,7 +204,7 @@ void get_trace_clock(void)
 	}
 
 	get_online_cpus();
-	mutex_lock(&async_tsc_mutex);
+	spin_lock(&async_tsc_lock);
 	if (async_tsc_refcount++ || trace_clock_is_sync())
 		goto end;
 
@@ -213,7 +212,7 @@ void get_trace_clock(void)
 	for_each_online_cpu(cpu)
 		enable_trace_clock(cpu);
 end:
-	mutex_unlock(&async_tsc_mutex);
+	spin_unlock(&async_tsc_lock);
 	put_online_cpus();
 }
 EXPORT_SYMBOL_GPL(get_trace_clock);
@@ -223,7 +222,7 @@ void put_trace_clock(void)
 	int cpu;
 
 	get_online_cpus();
-	mutex_lock(&async_tsc_mutex);
+	spin_lock(&async_tsc_lock);
 	WARN_ON(async_tsc_refcount <= 0);
 	if (async_tsc_refcount != 1 || !async_tsc_enabled)
 		goto end;
@@ -235,7 +234,7 @@ end:
 	async_tsc_refcount--;
 	if (!async_tsc_refcount && num_online_cpus() == 1)
 		set_trace_clock_is_sync(1);
-	mutex_unlock(&async_tsc_mutex);
+	spin_unlock(&async_tsc_lock);
 	put_online_cpus();
 }
 EXPORT_SYMBOL_GPL(put_trace_clock);
