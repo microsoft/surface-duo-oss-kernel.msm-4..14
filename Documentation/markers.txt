@@ -83,12 +83,12 @@ with tracepoint probes in a scheme like this :
 
 void probe_tracepoint_name(unsigned int arg1, struct task_struct *tsk);
 
-DEFINE_MARKER_TP(marker_eventname, tracepoint_name, probe_tracepoint_name,
-	"arg1 %u pid %d");
+DEFINE_MARKER_TP(marker_channel, marker_eventname, tracepoint_name,
+	probe_tracepoint_name, "arg1 %u pid %d");
 
 notrace void probe_tracepoint_name(unsigned int arg1, struct task_struct *tsk)
 {
-	struct marker *marker = &GET_MARKER(kernel_irq_entry);
+	struct marker *marker = &GET_MARKER(marker_channel, marker_eventname);
 	/* write data to trace buffers ... */
 }
 
