@@ -199,7 +199,7 @@ static void enable_synthetic_tsc(int cpu)
 
 static void disable_synthetic_tsc(int cpu)
 {
-	del_timer_sync(&per_cpu(tsc_timer, smp_processor_id()));
+	del_timer_sync(&per_cpu(tsc_timer, cpu));
 }
 
 /*
