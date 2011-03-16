@@ -711,6 +711,13 @@ config HAVE_TRACE_CLOCK_GENERIC
 config HAVE_TRACE_CLOCK_32_TO_64
 	def_bool n
 
+#
+# Architectures which need to dynamically detect if their TSC is unsynchronized
+# across cpus should select this.
+#
+config HAVE_UNSYNCHRONIZED_TSC
+	def_bool n
+
 menuconfig CGROUP_SCHED
 	bool "Group CPU scheduler"
 	depends on EXPERIMENTAL
