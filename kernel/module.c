@@ -57,6 +57,7 @@
 #include <linux/kmemleak.h>
 #include <linux/jump_label.h>
 #include <linux/pfn.h>
+#include <trace/kernel.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/module.h>
@@ -121,6 +122,9 @@ static BLOCKING_NOTIFIER_HEAD(module_notify_list);
 /* Bounds of module allocation, for speeding __module_address.
  * Protected by module_mutex. */
 static unsigned long module_addr_min = -1UL, module_addr_max = 0;
+
+DEFINE_TRACE(kernel_module_load);
+DEFINE_TRACE(kernel_module_free);
 
 int register_module_notifier(struct notifier_block * nb)
 {
@@ -1677,6 +1681,7 @@ static inline void unset_section_ro_nx(struct module *mod, void *module_region) 
 /* Free a module, remove from lists, etc. */
 static void free_module(struct module *mod)
 {
+	trace_kernel_module_free(mod);
 	trace_module_free(mod);
 
 	/* Delete from various lists */
@@ -2839,6 +2844,7 @@ module_added:
 	free_copy(&info);
 
 	/* Done! */
+	trace_kernel_module_load(mod);
 	trace_module_load(mod);
 	return mod;
 
