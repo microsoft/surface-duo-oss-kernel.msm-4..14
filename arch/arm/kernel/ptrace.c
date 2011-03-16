@@ -21,6 +21,7 @@
 #include <linux/uaccess.h>
 #include <linux/perf_event.h>
 #include <linux/hw_breakpoint.h>
+#include <trace/syscall.h>
 
 #include <asm/pgtable.h>
 #include <asm/system.h>
@@ -53,6 +54,9 @@
 #define BREAKINST_ARM	0xe7f001f0
 #define BREAKINST_THUMB	0xde01
 #endif
+
+DEFINE_TRACE(syscall_entry);
+DEFINE_TRACE(syscall_exit);
 
 struct pt_regs_offset {
 	const char *name;
@@ -1168,6 +1172,11 @@ long arch_ptrace(struct task_struct *child, long request,
 asmlinkage int syscall_trace(int why, struct pt_regs *regs, int scno)
 {
 	unsigned long ip;
+
+	if (!why)
+		trace_syscall_entry(regs, scno);
+	else
+		trace_syscall_exit(regs->ARM_r0);
 
 	if (!test_thread_flag(TIF_SYSCALL_TRACE))
 		return scno;
