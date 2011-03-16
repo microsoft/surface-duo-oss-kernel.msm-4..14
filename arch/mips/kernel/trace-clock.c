@@ -138,15 +138,15 @@ void get_trace_clock(void)
 {
 	int cpu;
 
-	get_synthetic_tsc();
 	spin_lock(&async_tsc_lock);
-	if (async_tsc_refcount++ || tsc_is_sync())
-		goto end;
-
-	async_tsc_enabled = 1;
-	for_each_online_cpu(cpu)
-		enable_trace_clock(cpu);
-end:
+	if (async_tsc_refcount++ || tsc_is_sync()) {
+		get_synthetic_tsc();
+	} else {
+		async_tsc_enabled = 1;
+		get_synthetic_tsc();
+		for_each_online_cpu(cpu)
+			enable_trace_clock(cpu);
+	}
 	spin_unlock(&async_tsc_lock);
 }
 EXPORT_SYMBOL_GPL(get_trace_clock);
@@ -157,15 +157,14 @@ void put_trace_clock(void)
 
 	spin_lock(&async_tsc_lock);
 	WARN_ON(async_tsc_refcount <= 0);
-	if (async_tsc_refcount != 1 || !async_tsc_enabled)
-		goto end;
-
-	for_each_online_cpu(cpu)
-		disable_trace_clock(cpu);
-	async_tsc_enabled = 0;
-end:
+	if (async_tsc_refcount != 1 || !async_tsc_enabled) {
+		put_synthetic_tsc();
+	} else {
+		for_each_online_cpu(cpu)
+			disable_trace_clock(cpu);
+		async_tsc_enabled = 0;
+	}
 	async_tsc_refcount--;
 	spin_unlock(&async_tsc_lock);
-	put_synthetic_tsc();
 }
 EXPORT_SYMBOL_GPL(put_trace_clock);
