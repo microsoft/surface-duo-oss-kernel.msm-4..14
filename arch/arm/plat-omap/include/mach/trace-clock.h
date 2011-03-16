@@ -34,6 +34,7 @@
 #define TC_EXPECTED_INTERRUPT_LATENCY	30
 
 extern u64 trace_clock_read_synthetic_tsc(void);
+extern void _trace_clock_write_synthetic_tsc(u64 value);
 extern struct omap_dm_timer *trace_clock_timer;
 extern unsigned long long cpu_hz;
 

@@ -90,6 +90,20 @@ static void update_synthetic_tsc(void)
 	}
 }
 
+/*
+ * Should only be called when the synthetic clock is not used.
+ */
+void _trace_clock_write_synthetic_tsc(u64 value)
+{
+	struct synthetic_tsc_struct *cpu_synth;
+	int cpu;
+
+	for_each_online_cpu(cpu) {
+		cpu_synth = &per_cpu(synthetic_tsc, cpu);
+		cpu_synth->tsc[cpu_synth->index].val = value;
+	}
+}
+
 /* Called from buffer switch : in _any_ context (even NMI) */
 u64 notrace trace_clock_read_synthetic_tsc(void)
 {
