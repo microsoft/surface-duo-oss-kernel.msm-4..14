@@ -10,6 +10,7 @@
 #include <linux/module.h>
 #include <linux/clocksource.h>
 #include <linux/timer.h>
+#include <linux/mutex.h>
 #include <mach/dmtimer.h>
 #include <mach/trace-clock.h>
 
@@ -33,7 +34,7 @@ static DEFINE_TIMER(clear_ccnt_ms_timer, clear_ccnt_ms, 0, 0);
  */
 #define CLEAR_CCNT_INTERVAL	(cpu_hz / 4)
 
-static DEFINE_SPINLOCK(trace_clock_lock);
+static DEFINE_MUTEX(trace_clock_lock);
 static int trace_clock_refcount;
 
 /*
@@ -180,32 +181,32 @@ void _stop_trace_clock(void)
 
 void start_trace_clock(void)
 {
-	spin_lock(&trace_clock_lock);
+	mutex_lock(&trace_clock_lock);
 	if (!trace_clock_refcount)
 		goto end;
 	_start_trace_clock();
 end:
-	spin_unlock(&trace_clock_lock);
+	mutex_unlock(&trace_clock_lock);
 }
 
 void stop_trace_clock(void)
 {
-	spin_lock(&trace_clock_lock);
+	mutex_lock(&trace_clock_lock);
 	if (!trace_clock_refcount)
 		goto end;
 	_stop_trace_clock();
 end:
-	spin_unlock(&trace_clock_lock);
+	mutex_unlock(&trace_clock_lock);
 }
 
 void get_trace_clock(void)
 {
-	spin_lock(&trace_clock_lock);
+	mutex_lock(&trace_clock_lock);
 	if (trace_clock_refcount++)
 		goto end;
 	_start_trace_clock();
 end:
-	spin_unlock(&trace_clock_lock);
+	mutex_unlock(&trace_clock_lock);
 }
 EXPORT_SYMBOL_GPL(get_trace_clock);
 
