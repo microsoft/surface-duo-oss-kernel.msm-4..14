@@ -3429,7 +3429,7 @@ void module_update_markers(void)
 
 	mutex_lock(&module_mutex);
 	list_for_each_entry(mod, &modules, list)
-		if (!mod->taints)
+		if (!(mod->taints & TAINT_FORCED_MODULE))
 			marker_update_probe_range(mod->markers,
 				mod->markers + mod->num_markers);
 	mutex_unlock(&module_mutex);
@@ -3446,7 +3446,7 @@ int module_get_iter_markers(struct marker_iter *iter)
 
 	mutex_lock(&module_mutex);
 	list_for_each_entry(iter_mod, &modules, list) {
-		if (!iter_mod->taints) {
+		if (!(iter_mod->taints & TAINT_FORCED_MODULE)) {
 			/*
 			 * Sorted module list
 			 */
