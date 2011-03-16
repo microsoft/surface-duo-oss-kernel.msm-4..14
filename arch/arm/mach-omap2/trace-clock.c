@@ -600,6 +600,45 @@ static struct notifier_block cpufreq_trace_clock_nb = {
 	.notifier_call = cpufreq_trace_clock,
 };
 
+#ifdef CONFIG_DEBUG_TRACE_CLOCK
+/*
+ * Clock expected to never overflow and never go backward.
+ */
+static DEFINE_PER_CPU(u64, last_clock_value);
+static DEFINE_PER_CPU(u32, last_ccnt_value);
+DEFINE_PER_CPU(unsigned int, last_clock_nest);
+EXPORT_PER_CPU_SYMBOL_GPL(last_clock_nest);
+
+static int tc_print_done;
+
+/*
+ * Called with interrupts disabled.
+ */
+void trace_clock_debug(u64 value)
+{
+	int cpu;
+
+	cpu = smp_processor_id();
+	if (unlikely(per_cpu(last_clock_nest, cpu) != 1))
+		return;		/* fiq nesting, don't perform racy check */
+	if (unlikely(!tc_print_done
+		     && (per_cpu(last_clock_value, cpu) > value))) {
+		printk(KERN_WARNING "Trace clock going back last %llu new %llu "
+				    "diff %llu last_ccnt %u ccnt %u\n",
+		       (unsigned long long) per_cpu(last_clock_value, cpu),
+		       (unsigned long long) value,
+		       (unsigned long long) per_cpu(last_clock_value, cpu)
+					    - value,
+		       per_cpu(last_ccnt_value, cpu),
+		       trace_clock_read32());
+		tc_print_done = 1;
+	}
+	per_cpu(last_clock_value, cpu) = value;
+	per_cpu(last_ccnt_value, cpu) = trace_clock_read32();;
+}
+EXPORT_SYMBOL_GPL(trace_clock_debug);
+#endif
+
 static __init int init_trace_clock(void)
 {
 	int cpu;

@@ -87,6 +87,15 @@ extern u64 trace_clock_async_tsc_read(void);
  */
 extern void _trace_clock_write_synthetic_tsc(u64 value);
 
+#ifdef CONFIG_DEBUG_TRACE_CLOCK
+DECLARE_PER_CPU(unsigned int, last_clock_nest);
+extern void trace_clock_debug(u64 value);
+#else
+static inline void trace_clock_debug(u64 value)
+{
+}
+#endif
+
 static inline u32 read_ccnt(void)
 {
 	u32 val;
@@ -109,6 +118,13 @@ static inline u64 trace_clock_read64(void)
 	struct pm_save_count *pm_count;
 	struct tc_cur_freq *cf;
 	u64 val;
+#ifdef CONFIG_DEBUG_TRACE_CLOCK
+	unsigned long flags;
+
+	local_irq_save(flags);
+	per_cpu(last_clock_nest, smp_processor_id())++;
+	barrier();
+#endif
 
 	preempt_disable();
 	pm_count = &per_cpu(pm_save_count, smp_processor_id());
@@ -118,8 +134,14 @@ static inline u64 trace_clock_read64(void)
 		      * cf->mul_fact) >> 10) + cf->virt_base, cf->floor);
 	} else
 		val = _trace_clock_read_slow();
+	trace_clock_debug(val);
 	preempt_enable();
 
+#ifdef CONFIG_DEBUG_TRACE_CLOCK
+	barrier();
+	per_cpu(last_clock_nest, smp_processor_id())--;
+	local_irq_restore(flags);
+#endif
 	return val;
 }
 
