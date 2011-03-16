@@ -37,6 +37,7 @@
 #include <linux/uaccess.h>
 #include <linux/io.h>
 #include <linux/ftrace.h>
+#include <trace/pm.h>
 
 #include <asm/pgtable.h>
 #include <asm/system.h>
@@ -50,6 +51,9 @@
 #include <asm/idle.h>
 #include <asm/syscalls.h>
 #include <asm/debugreg.h>
+
+DEFINE_TRACE(pm_idle_exit);
+DEFINE_TRACE(pm_idle_entry);
 
 asmlinkage extern void ret_from_fork(void);
 
@@ -73,6 +77,11 @@ EXPORT_SYMBOL_GPL(idle_notifier_unregister);
 void enter_idle(void)
 {
 	percpu_write(is_idle, 1);
+	/*
+	 * Trace last event before calling notifiers. Notifiers flush
+	 * data from buffers before going to idle.
+	 */
+	trace_pm_idle_entry();
 	atomic_notifier_call_chain(&idle_notifier, IDLE_START, NULL);
 }
 
@@ -81,6 +90,7 @@ static void __exit_idle(void)
 	if (x86_test_and_clear_bit_percpu(0, is_idle) == 0)
 		return;
 	atomic_notifier_call_chain(&idle_notifier, IDLE_END, NULL);
+	trace_pm_idle_exit();
 }
 
 /* Called from interrupts to signify idle end */
