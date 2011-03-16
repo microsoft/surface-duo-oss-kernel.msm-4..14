@@ -34,6 +34,7 @@
 #include <linux/hardirq.h> /* for BUG_ON(!in_atomic()) only */
 #include <linux/memcontrol.h>
 #include <linux/mm_inline.h> /* for page_is_file_cache() */
+#include <trace/filemap.h>
 #include "internal.h"
 
 /*
@@ -42,6 +43,9 @@
 #include <linux/buffer_head.h> /* for try_to_free_buffers */
 
 #include <asm/mman.h>
+
+DEFINE_TRACE(wait_on_page_start);
+DEFINE_TRACE(wait_on_page_end);
 
 /*
  * Shared mappings implemented 30.11.1994. It's not fully working yet,
@@ -511,9 +515,11 @@ void wait_on_page_bit(struct page *page, int bit_nr)
 {
 	DEFINE_WAIT_BIT(wait, &page->flags, bit_nr);
 
+	trace_wait_on_page_start(page, bit_nr);
 	if (test_bit(bit_nr, &page->flags))
 		__wait_on_bit(page_waitqueue(page), &wait, sync_page,
 							TASK_UNINTERRUPTIBLE);
+	trace_wait_on_page_end(page, bit_nr);
 }
 EXPORT_SYMBOL(wait_on_page_bit);
 
