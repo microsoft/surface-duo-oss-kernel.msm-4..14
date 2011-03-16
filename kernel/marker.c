@@ -999,6 +999,40 @@ void *marker_get_private_data(const char *channel, const char *name,
 }
 EXPORT_SYMBOL_GPL(marker_get_private_data);
 
+static struct marker_entry *get_entry_from_id(u16 channel_id, u16 event_id)
+{
+	struct hlist_head *head;
+	struct hlist_node *node;
+	struct marker_entry *e, *found = NULL;
+	u32 hash = hash_32((channel_id << 16) | event_id, MARKER_HASH_BITS);
+
+	mutex_lock(&markers_mutex);
+	head = id_table + hash;
+	hlist_for_each_entry(e, node, head, id_list) {
+		if (e->channel_id == channel_id && e->event_id == event_id) {
+			found = e;
+			break;
+		}
+	}
+	mutex_unlock(&markers_mutex);
+	return found;
+}
+
+/* must call when ids/marker_entry are kept alive */
+const char *marker_get_name_form_id(u16 channel_id, u16 event_id)
+{
+	struct marker_entry *e = get_entry_from_id(channel_id, event_id);
+	return e ? e->name : NULL;
+}
+EXPORT_SYMBOL_GPL(marker_get_name_form_id);
+
+const char *marker_get_fmt_form_id(u16 channel_id, u16 event_id)
+{
+	struct marker_entry *e = get_entry_from_id(channel_id, event_id);
+	return e ? e->format : NULL;
+}
+EXPORT_SYMBOL_GPL(marker_get_fmt_form_id);
+
 /**
  * markers_compact_event_ids - Compact markers event IDs and reassign channels
  *
