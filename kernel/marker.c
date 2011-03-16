@@ -650,6 +650,25 @@ static void disable_marker(struct marker *elem)
 	 */
 }
 
+/*
+ * is_marker_enabled - Check if a marker is enabled
+ * @channel: channel name
+ * @name: marker name
+ *
+ * Returns 1 if the marker is enabled, 0 if disabled.
+ */
+int is_marker_enabled(const char *channel, const char *name)
+{
+	struct marker_entry *entry;
+
+	mutex_lock(&markers_mutex);
+	entry = get_marker(channel, name);
+	mutex_unlock(&markers_mutex);
+
+	return entry && !!entry->refcount;
+}
+EXPORT_SYMBOL_GPL(is_marker_enabled);
+
 /**
  * marker_update_probe_range - Update a probe range
  * @begin: beginning of the range
