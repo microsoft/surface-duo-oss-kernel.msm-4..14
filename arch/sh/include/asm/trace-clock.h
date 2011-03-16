@@ -25,12 +25,12 @@
 
 extern u64 trace_clock_read_synthetic_tsc(void);
 
-static inline u32 trace_clock_get_read32(void)
+static inline u32 trace_clock_read32(void)
 {
 	return get_cycles();
 }
 
-static inline u64 trace_clock_get_read64(void)
+static inline u64 trace_clock_read64(void)
 {
 	return trace_clock_read_synthetic_tsc();
 }
