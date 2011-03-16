@@ -14,7 +14,7 @@
 #include <linux/cpu.h>
 #include <linux/cpufreq.h>
 
-#include <plat/clock.h>
+#include <mach/clock.h>
 #include <asm/trace-clock.h>
 
 /* depends on CONFIG_OMAP_32K_TIMER */

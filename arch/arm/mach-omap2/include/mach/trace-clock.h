@@ -9,7 +9,7 @@
 
 #include <linux/clk.h>
 #include <linux/timer.h>
-#include <plat/clock.h>
+#include <mach/clock.h>
 
 /*
  * Number of hardware clock bits. The higher order bits are expected to be 0.
