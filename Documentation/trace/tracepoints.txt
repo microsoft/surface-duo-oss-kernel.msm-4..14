@@ -106,7 +106,7 @@ used to export the defined tracepoints.
 See the example provided in samples/tracepoints
 
 Compile them with your kernel.  They are built during 'make' (not
-'make modules') when CONFIG_SAMPLE_TRACEPOINTS=m.
+'make modules') when CONFIG_SAMPLE=y and CONFIG_SAMPLE_TRACEPOINTS=m.
 
 Run, as root :
 modprobe tracepoint-sample (insmod order is not important)
