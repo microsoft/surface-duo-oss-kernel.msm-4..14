@@ -209,6 +209,8 @@ EXPORT_SYMBOL(local_bh_enable_ip);
  */
 #define MAX_SOFTIRQ_RESTART 10
 
+DEFINE_TRACE(irq_softirq_raise);
+
 asmlinkage void __do_softirq(void)
 {
 	struct softirq_action *h;
@@ -346,6 +348,7 @@ void irq_exit(void)
  */
 inline void raise_softirq_irqoff(unsigned int nr)
 {
+	trace_irq_softirq_raise(nr);
 	__raise_softirq_irqoff(nr);
 
 	/*

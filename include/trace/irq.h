@@ -27,4 +27,16 @@ DECLARE_TRACE(irq_tasklet_high_exit,
 	TP_PROTO(struct tasklet_struct *t),
 		TP_ARGS(t));
 
+#if 0
+DECLARE_TRACE(irq_softirq_entry,
+	TP_PROTO(struct softirq_action *h, struct softirq_action *softirq_vec),
+		TP_ARGS(h, softirq_vec));
+DECLARE_TRACE(irq_softirq_exit,
+	TP_PROTO(struct softirq_action *h, struct softirq_action *softirq_vec),
+		TP_ARGS(h, softirq_vec));
+#endif
+DECLARE_TRACE(irq_softirq_raise,
+	TP_PROTO(unsigned int nr),
+		TP_ARGS(nr));
+
 #endif
