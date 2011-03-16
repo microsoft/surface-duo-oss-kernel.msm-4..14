@@ -44,11 +44,13 @@ void lock_markers(void)
 {
 	mutex_lock(&markers_mutex);
 }
+EXPORT_SYMBOL_GPL(lock_markers);
 
 void unlock_markers(void)
 {
 	mutex_unlock(&markers_mutex);
 }
+EXPORT_SYMBOL_GPL(unlock_markers);
 
 /*
  * Marker hash table, containing the active markers.
