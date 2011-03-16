@@ -304,7 +304,8 @@ end:
 /*
  * Called with IRQ and FIQ off.
  */
-static void resync_on_32k(struct pm_save_count *pm_count, int cpu)
+static void resync_on_32k(struct pm_save_count *pm_count, int cpu,
+			  unsigned int cached_freq, int new_freq)
 {
 	struct tc_cur_freq *new_cf, *cf;
 	u64 ref_time;
@@ -318,9 +319,13 @@ static void resync_on_32k(struct pm_save_count *pm_count, int cpu)
 	ref_time = _trace_clock_read_slow();
 	new_cf->hw_base = trace_clock_read_synthetic_tsc();
 	new_cf->virt_base = ref_time;
-	new_cf->cur_cpu_freq = cpufreq_quick_get(cpu);
-	if (new_cf->cur_cpu_freq == 0)
-		new_cf->cur_cpu_freq = pm_count->max_cpu_freq;
+	if (cached_freq)
+		new_cf->cur_cpu_freq = cf->cur_cpu_freq;
+	else {
+		new_cf->cur_cpu_freq = new_freq;
+		if (new_cf->cur_cpu_freq == 0)
+			new_cf->cur_cpu_freq = pm_count->max_cpu_freq;
+	}
 	new_cf->mul_fact = get_mul_fact(pm_count->max_cpu_freq,
 					new_cf->cur_cpu_freq);
 	new_cf->floor = max((((new_cf->hw_base - cf->hw_base)
@@ -350,7 +355,7 @@ static void clock_resync_timer_fct(unsigned long data)
 
 	/* Need to resync if we had more than 1 dvfs event in period */
 	if (pm_count->dvfs_count > 1)
-		resync_on_32k(pm_count, cpu);
+		resync_on_32k(pm_count, cpu, 1, 0);
 	pm_count->dvfs_count = 0;
 
 	local_fiq_enable();
@@ -605,7 +610,7 @@ static int cpufreq_trace_clock(struct notifier_block *nb,
 	local_fiq_disable();
 
 	if (!pm_count->dvfs_count) {
-		resync_on_32k(pm_count, cpu);
+		resync_on_32k(pm_count, cpu, 0, freq->new);
 		pm_count->clock_resync_timer.expires = jiffies
 					+ (TC_RESYNC_PERIOD * HZ / 1000);
 		add_timer_on(&pm_count->clock_resync_timer, cpu);
