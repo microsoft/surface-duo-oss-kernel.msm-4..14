@@ -12,6 +12,18 @@
 
 #define TRACE_CLOCK_MIN_PROBE_DURATION 200
 
+/*
+ * Number of hardware clock bits. The higher order bits are expected to be 0.
+ * If the hardware clock source has more than 32 bits, the bits higher than the
+ * 32nd will be truncated by a cast to a 32 bits unsigned. Range : 1 - 32.
+ * (too few bits would be unrealistic though, since we depend on the timer to
+ * detect the overflows).
+ */
+#define TC_HW_BITS			32
+
+/* Expected maximum interrupt latency in ms : 15ms, *2 for security */
+#define TC_EXPECTED_INTERRUPT_LATENCY	30
+
 extern u64 trace_clock_read_synthetic_tsc(void);
 
 /*

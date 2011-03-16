@@ -30,21 +30,9 @@
 #include <linux/sched.h> /* needed due to include order problem on m68k */
 #include <linux/math64.h>
 
-/*
- * Number of hardware clock bits. The higher order bits are expected to be 0.
- * If the hardware clock source has more than 32 bits, the bits higher than the
- * 32nd will be truncated by a cast to a 32 bits unsigned. Range : 1 - 32.
- * (too few bits would be unrealistic though, since we depend on the timer to
- * detect the overflows).
- */
-#define HW_BITS				32
-
-#define HW_BITMASK			((1ULL << HW_BITS) - 1)
+#define HW_BITMASK			((1ULL << TC_HW_BITS) - 1)
 #define HW_LS32(hw)			((hw) & HW_BITMASK)
 #define SW_MS32(sw)			((sw) & ~HW_BITMASK)
-
-/* Expected maximum interrupt latency in ms : 15ms, *2 for security */
-#define EXPECTED_INTERRUPT_LATENCY	30
 
 static DEFINE_MUTEX(synthetic_tsc_mutex);
 static int synthetic_tsc_refcount;  /* Number of readers */
@@ -90,7 +78,7 @@ static void update_synthetic_tsc(void)
 		 */
 		cpu_synth->tsc[new_index].val =
 			(SW_MS32(cpu_synth->tsc[cpu_synth->index].val)
-				| (u64)tsc) + (1ULL << HW_BITS);
+				| (u64)tsc) + (1ULL << TC_HW_BITS);
 		cpu_synth->index = new_index;	/* atomic change of index */
 	} else {
 		/*
@@ -118,7 +106,7 @@ u64 notrace trace_clock_read_synthetic_tsc(void)
 	/* Overflow detection */
 	if (unlikely(tsc < HW_LS32(cpu_synth->tsc[index].sel.ls32)))
 		ret = (SW_MS32(cpu_synth->tsc[index].val) | (u64)tsc)
-			+ (1ULL << HW_BITS);
+			+ (1ULL << TC_HW_BITS);
 	else
 		ret = SW_MS32(cpu_synth->tsc[index].val) | (u64)tsc;
 	preempt_enable_notrace();
@@ -161,7 +149,7 @@ static int __init precalc_stsc_interval(void)
 		     * trace_clock_freq_scale())
 		    << 1)
 		 - 1
-		 - (EXPECTED_INTERRUPT_LATENCY * HZ / 1000), &rem_interval)
+		 - (TC_EXPECTED_INTERRUPT_LATENCY * HZ / 1000), &rem_interval)
 		>> 1;
 	WARN_ON(precalc_expire == 0);
 	printk(KERN_DEBUG "Synthetic TSC timer will fire each %u jiffies.\n",
