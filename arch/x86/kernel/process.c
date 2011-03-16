@@ -13,6 +13,7 @@
 #include <linux/dmi.h>
 #include <linux/utsname.h>
 #include <trace/events/power.h>
+#include <trace/sched.h>
 #include <linux/hw_breakpoint.h>
 #include <asm/cpu.h>
 #include <asm/system.h>
@@ -22,6 +23,8 @@
 #include <asm/uaccess.h>
 #include <asm/i387.h>
 #include <asm/debugreg.h>
+
+DEFINE_TRACE(sched_kthread_create);
 
 struct kmem_cache *task_xstate_cachep;
 EXPORT_SYMBOL_GPL(task_xstate_cachep);
@@ -278,6 +281,7 @@ extern void kernel_thread_helper(void);
 int kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
 {
 	struct pt_regs regs;
+	long pid;
 
 	memset(&regs, 0, sizeof(regs));
 
@@ -299,7 +303,10 @@ int kernel_thread(int (*fn)(void *), void *arg, unsigned long flags)
 	regs.flags = X86_EFLAGS_IF | 0x2;
 
 	/* Ok, create the new process.. */
-	return do_fork(flags | CLONE_VM | CLONE_UNTRACED, 0, &regs, 0, NULL, NULL);
+	pid = do_fork(flags | CLONE_VM | CLONE_UNTRACED,
+		      0, &regs, 0, NULL, NULL);
+	trace_sched_kthread_create(fn, pid);
+	return pid;
 }
 EXPORT_SYMBOL(kernel_thread);
 

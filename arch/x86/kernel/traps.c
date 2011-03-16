@@ -31,6 +31,7 @@
 #include <linux/mm.h>
 #include <linux/smp.h>
 #include <linux/io.h>
+#include <trace/trap.h>
 
 #ifdef CONFIG_EISA
 #include <linux/ioport.h>
@@ -81,6 +82,12 @@ gate_desc idt_table[NR_VECTORS] __page_aligned_data = { { { { 0, 0 } } }, };
 DECLARE_BITMAP(used_vectors, NR_VECTORS);
 EXPORT_SYMBOL_GPL(used_vectors);
 
+/*
+ * Also used in arch/x86/mm/fault.c.
+ */
+DEFINE_TRACE(trap_entry);
+DEFINE_TRACE(trap_exit);
+
 static int ignore_nmis;
 
 int unknown_nmi_panic;
@@ -121,6 +128,8 @@ do_trap(int trapnr, int signr, char *str, struct pt_regs *regs,
 	long error_code, siginfo_t *info)
 {
 	struct task_struct *tsk = current;
+
+	trace_trap_entry(regs, trapnr);
 
 #ifdef CONFIG_X86_32
 	if (regs->flags & X86_VM_MASK) {
@@ -168,7 +177,7 @@ trap_signal:
 		force_sig_info(signr, info, tsk);
 	else
 		force_sig(signr, tsk);
-	return;
+	goto end;
 
 kernel_trap:
 	if (!fixup_exception(regs)) {
@@ -176,15 +185,17 @@ kernel_trap:
 		tsk->thread.trap_no = trapnr;
 		die(str, regs, error_code);
 	}
-	return;
+	goto end;
 
 #ifdef CONFIG_X86_32
 vm86_trap:
 	if (handle_vm86_trap((struct kernel_vm86_regs *) regs,
 						error_code, trapnr))
 		goto trap_signal;
-	return;
+	goto end;
 #endif
+end:
+	trace_trap_exit();
 }
 
 #define DO_ERROR(trapnr, signr, str, name)				\
@@ -285,7 +296,9 @@ do_general_protection(struct pt_regs *regs, long error_code)
 		printk("\n");
 	}
 
+	trace_trap_entry(regs, 13);
 	force_sig(SIGSEGV, tsk);
+	trace_trap_exit();
 	return;
 
 #ifdef CONFIG_X86_32
@@ -371,9 +384,11 @@ io_check_error(unsigned char reason, struct pt_regs *regs)
 static notrace __kprobes void
 unknown_nmi_error(unsigned char reason, struct pt_regs *regs)
 {
+	trace_trap_entry(regs, 2);
+
 	if (notify_die(DIE_NMIUNKNOWN, "nmi", regs, reason, 2, SIGINT) ==
 			NOTIFY_STOP)
-		return;
+		goto end;
 #ifdef CONFIG_MCA
 	/*
 	 * Might actually be able to figure out what the guilty party
@@ -381,7 +396,7 @@ unknown_nmi_error(unsigned char reason, struct pt_regs *regs)
 	 */
 	if (MCA_bus) {
 		mca_handle_nmi();
-		return;
+		goto end;
 	}
 #endif
 	pr_emerg("Uhhuh. NMI received for unknown reason %02x on CPU %d.\n",
@@ -392,11 +407,15 @@ unknown_nmi_error(unsigned char reason, struct pt_regs *regs)
 		panic("NMI: Not continuing");
 
 	pr_emerg("Dazed and confused, but trying to continue\n");
+end:
+	trace_trap_exit();
 }
 
 static notrace __kprobes void default_do_nmi(struct pt_regs *regs)
 {
 	unsigned char reason = 0;
+
+	trace_trap_entry(regs, 2);
 
 	/*
 	 * CPU-specific NMI must be processed before non-CPU-specific
@@ -404,7 +423,7 @@ static notrace __kprobes void default_do_nmi(struct pt_regs *regs)
 	 * NMI can not be detected/processed on other CPUs.
 	 */
 	if (notify_die(DIE_NMI, "nmi", regs, 0, 2, SIGINT) == NOTIFY_STOP)
-		return;
+		goto end;
 
 	/* Non-CPU-specific NMI: NMI sources can be processed on any CPU */
 	raw_spin_lock(&nmi_reason_lock);
@@ -423,11 +442,13 @@ static notrace __kprobes void default_do_nmi(struct pt_regs *regs)
 		reassert_nmi();
 #endif
 		raw_spin_unlock(&nmi_reason_lock);
-		return;
+		goto end;
 	}
 	raw_spin_unlock(&nmi_reason_lock);
 
 	unknown_nmi_error(reason, regs);
+end:
+	trace_trap_exit();
 }
 
 dotraplinkage notrace __kprobes void
@@ -570,8 +591,10 @@ dotraplinkage void __kprobes do_debug(struct pt_regs *regs, long error_code)
 	preempt_conditional_sti(regs);
 
 	if (regs->flags & X86_VM_MASK) {
+		trace_trap_entry(regs, 1);
 		handle_vm86_trap((struct kernel_vm86_regs *) regs,
 				error_code, 1);
+		trace_trap_exit();
 		preempt_conditional_cli(regs);
 		return;
 	}
@@ -589,8 +612,11 @@ dotraplinkage void __kprobes do_debug(struct pt_regs *regs, long error_code)
 		regs->flags &= ~X86_EFLAGS_TF;
 	}
 	si_code = get_si_code(tsk->thread.debugreg6);
-	if (tsk->thread.debugreg6 & (DR_STEP | DR_TRAP_BITS) || user_icebp)
+	if (tsk->thread.debugreg6 & (DR_STEP | DR_TRAP_BITS) || user_icebp) {
+		trace_trap_entry(regs, 1);
 		send_sigtrap(tsk, regs, error_code, si_code);
+		trace_trap_exit();
+	}
 	preempt_conditional_cli(regs);
 
 	return;
@@ -701,11 +727,13 @@ do_simd_coprocessor_error(struct pt_regs *regs, long error_code)
 dotraplinkage void
 do_spurious_interrupt_bug(struct pt_regs *regs, long error_code)
 {
+	trace_trap_entry(regs, 16);
 	conditional_sti(regs);
 #if 0
 	/* No need to warn about this any longer. */
 	printk(KERN_INFO "Ignoring P6 Local APIC Spurious Interrupt Bug...\n");
 #endif
+	trace_trap_exit();
 }
 
 asmlinkage void __attribute__((weak)) smp_thermal_interrupt(void)

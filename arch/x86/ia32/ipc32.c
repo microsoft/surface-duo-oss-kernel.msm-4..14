@@ -8,7 +8,10 @@
 #include <linux/shm.h>
 #include <linux/ipc.h>
 #include <linux/compat.h>
+#include <trace/ipc.h>
 #include <asm/sys_ia32.h>
+
+DEFINE_TRACE(ipc_call);
 
 asmlinkage long sys32_ipc(u32 call, int first, int second, int third,
 			  compat_uptr_t ptr, u32 fifth)
@@ -17,6 +20,8 @@ asmlinkage long sys32_ipc(u32 call, int first, int second, int third,
 
 	version = call >> 16; /* hack for backward compatibility */
 	call &= 0xffff;
+
+	trace_ipc_call(call, first);
 
 	switch (call) {
 	case SEMOP:

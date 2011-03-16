@@ -12,6 +12,7 @@
 #include <linux/mmiotrace.h>		/* kmmio_handler, ...		*/
 #include <linux/perf_event.h>		/* perf_sw_event		*/
 #include <linux/hugetlb.h>		/* hstate_index_to_shift	*/
+#include <trace/fault.h>
 
 #include <asm/traps.h>			/* dotraplinkage, ...		*/
 #include <asm/pgalloc.h>		/* pgd_*(), ...			*/
@@ -34,6 +35,11 @@ enum x86_pf_error_code {
 	PF_RSVD		=		1 << 3,
 	PF_INSTR	=		1 << 4,
 };
+
+DEFINE_TRACE(page_fault_entry);
+DEFINE_TRACE(page_fault_exit);
+DEFINE_TRACE(page_fault_nosem_entry);
+DEFINE_TRACE(page_fault_nosem_exit);
 
 /*
  * Returns 0 if mmiotrace is disabled, or if the fault is not
@@ -719,6 +725,7 @@ __bad_area_nosemaphore(struct pt_regs *regs, unsigned long error_code,
 		if (is_errata100(regs, address))
 			return;
 
+		trace_page_fault_nosem_entry(regs, 14, address);
 		if (unlikely(show_unhandled_signals))
 			show_signal_msg(regs, error_code, address, tsk);
 
@@ -728,6 +735,7 @@ __bad_area_nosemaphore(struct pt_regs *regs, unsigned long error_code,
 		tsk->thread.trap_no	= 14;
 
 		force_sig_info_fault(SIGSEGV, si_code, address, tsk, 0);
+		trace_page_fault_nosem_exit();
 
 		return;
 	}
@@ -1130,7 +1138,9 @@ good_area:
 	 * make sure we exit gracefully rather than endlessly redo
 	 * the fault:
 	 */
+	trace_page_fault_entry(regs, 14, mm, vma, address, write);
 	fault = handle_mm_fault(mm, vma, address, flags);
+	trace_page_fault_exit(fault);
 
 	if (unlikely(fault & VM_FAULT_ERROR)) {
 		mm_fault_error(regs, error_code, address, fault);
