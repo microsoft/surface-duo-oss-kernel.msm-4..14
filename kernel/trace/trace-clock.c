@@ -25,8 +25,8 @@ static struct timer_list trace_clock_timer;
  * bits 0..12 : counter, atomically incremented
  * bits 13..{32,64} : time counter, incremented each jiffy.
  */
-atomic_long_t trace_clock;
-EXPORT_SYMBOL(trace_clock);
+atomic_long_t trace_clock_var;
+EXPORT_SYMBOL(trace_clock_var);
 
 static void trace_clock_update(void)
 {
@@ -41,10 +41,10 @@ static void trace_clock_update(void)
 	if (unlikely(!ticks))
 		return;
 	do {
-		old_clock = atomic_long_read(&trace_clock);
+		old_clock = atomic_long_read(&trace_clock_var);
 		new_clock = (old_clock + (ticks << TRACE_CLOCK_SHIFT))
 			& (~((1 << TRACE_CLOCK_SHIFT) - 1));
-	} while (atomic_long_cmpxchg(&trace_clock, old_clock, new_clock)
+	} while (atomic_long_cmpxchg(&trace_clock_var, old_clock, new_clock)
 			!= old_clock);
 }
 

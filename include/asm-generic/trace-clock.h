@@ -26,11 +26,11 @@
 /* Expected maximum interrupt latency in ms : 15ms, *2 for security */
 #define TC_EXPECTED_INTERRUPT_LATENCY	30
 
-extern atomic_long_t trace_clock;
+extern atomic_long_t trace_clock_var;
 
 static inline u32 trace_clock_read32(void)
 {
-	return (u32)atomic_long_add_return(1, &trace_clock);
+	return (u32)atomic_long_add_return(1, &trace_clock_var);
 }
 
 #ifdef CONFIG_HAVE_TRACE_CLOCK_32_TO_64
@@ -53,7 +53,7 @@ static inline void put_synthetic_tsc(void)
 
 static inline u64 trace_clock_read64(void)
 {
-	return atomic_long_add_return(1, &trace_clock);
+	return atomic_long_add_return(1, &trace_clock_var);
 }
 #endif
 
