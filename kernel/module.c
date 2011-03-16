@@ -3294,6 +3294,27 @@ static int __init proc_modules_init(void)
 module_init(proc_modules_init);
 #endif
 
+void list_modules(void *call_data)
+{
+	/* Enumerate loaded modules */
+	struct list_head	*i;
+	struct module		*mod;
+	unsigned long refcount = 0;
+
+	mutex_lock(&module_mutex);
+	list_for_each(i, &modules) {
+		mod = list_entry(i, struct module, list);
+#ifdef CONFIG_MODULE_UNLOAD
+		refcount = module_refcount(mod);
+#endif
+		__trace_mark(0, list_module, call_data,
+				"name %s state %d refcount %lu",
+				mod->name, mod->state, refcount);
+	}
+	mutex_unlock(&module_mutex);
+}
+EXPORT_SYMBOL_GPL(list_modules);
+
 /* Given an address, look for it in the module exception tables. */
 const struct exception_table_entry *search_module_extables(unsigned long addr)
 {
