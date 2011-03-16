@@ -58,6 +58,7 @@
 #include <linux/elf.h>
 #include <linux/gfp.h>
 #include <trace/swap.h>
+#include <trace/fault.h>
 
 #include <asm/io.h>
 #include <asm/pgalloc.h>
@@ -69,6 +70,8 @@
 #include "internal.h"
 
 DEFINE_TRACE(swap_in);
+DEFINE_TRACE(page_fault_get_user_entry);
+DEFINE_TRACE(page_fault_get_user_exit);
 
 #ifndef CONFIG_NEED_MULTIPLE_NODES
 /* use the per-pgdat data instead for discontigmem - mbligh */
@@ -1519,6 +1522,8 @@ int __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 				int ret;
 				unsigned int fault_flags = 0;
 
+				trace_page_fault_get_user_entry(mm,
+					vma, start, foll_flags & FOLL_WRITE);
 				if (foll_flags & FOLL_WRITE)
 					fault_flags |= FAULT_FLAG_WRITE;
 				if (nonblocking)
@@ -1526,6 +1531,7 @@ int __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 
 				ret = handle_mm_fault(mm, vma, start,
 							fault_flags);
+				trace_page_fault_get_user_exit(ret);
 
 				if (ret & VM_FAULT_ERROR) {
 					if (ret & VM_FAULT_OOM)
