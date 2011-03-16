@@ -2461,6 +2461,10 @@ static void find_module_sections(struct module *mod, struct load_info *info)
 				  sizeof(*mod->ctors), &mod->num_ctors);
 #endif
 
+#ifdef CONFIG_MARKERS
+	mod->markers = section_objs(info, "__markers",
+				    sizeof(*mod->markers), &mod->num_markers);
+#endif
 #ifdef CONFIG_TRACEPOINTS
 	mod->tracepoints_ptrs = section_objs(info, "__tracepoints_ptrs",
 					     sizeof(*mod->tracepoints_ptrs),
@@ -3416,6 +3420,20 @@ void module_layout(struct module *mod,
 {
 }
 EXPORT_SYMBOL(module_layout);
+#endif
+
+#ifdef CONFIG_MARKERS
+void module_update_markers(void)
+{
+	struct module *mod;
+
+	mutex_lock(&module_mutex);
+	list_for_each_entry(mod, &modules, list)
+		if (!mod->taints)
+			marker_update_probe_range(mod->markers,
+				mod->markers + mod->num_markers);
+	mutex_unlock(&module_mutex);
+}
 #endif
 
 #ifdef CONFIG_TRACEPOINTS

@@ -15,6 +15,7 @@
 #include <linux/sched.h>
 #include <linux/mm.h>
 #include <linux/preempt.h>
+#include <linux/marker.h>
 #include <linux/msi.h>
 #include <linux/slab.h>
 #include <linux/rcupdate.h>
