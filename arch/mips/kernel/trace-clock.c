@@ -65,7 +65,7 @@ static inline u64 trace_clock_cmpxchg64(u64 *ptr, u64 old, u64 new)
 
 	val = *ptr;
 	if (likely(val == old))
-		*ptr = val = new;
+		*ptr = new;
 	return val;
 }
 
