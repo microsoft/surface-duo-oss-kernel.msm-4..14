@@ -20,6 +20,8 @@
  */
 #define CLOCK_TICK_RATE 1193182
 
+extern unsigned int mips_hpt_frequency;
+
 /*
  * Standard way to access the cycle counter.
  * Currently only used on SMP for scheduling.
