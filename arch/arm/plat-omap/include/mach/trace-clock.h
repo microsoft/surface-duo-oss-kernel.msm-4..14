@@ -52,7 +52,7 @@ static inline u32 read_ccnt(void)
 {
 	u32 val;
         __asm__ __volatile__ ("mrc p15, 0, %0, c9, c13, 0" : "=r" (val));
-	return val;
+	return val & ~(1 << TC_HW_BITS);
 }
 
 static inline u32 trace_clock_read32(void)

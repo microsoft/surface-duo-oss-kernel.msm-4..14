@@ -11,6 +11,7 @@
 #include <linux/clocksource.h>
 #include <linux/timer.h>
 #include <linux/spinlock.h>
+#include <linux/init.h>
 #include <mach/dmtimer.h>
 #include <mach/trace-clock.h>
 
@@ -32,10 +33,12 @@ static DEFINE_TIMER(clear_ccnt_ms_timer, clear_ccnt_ms, 0, 0);
 /*
  * Clear ccnt twice per 31-bit overflow, or 4 times per 32-bits period.
  */
-#define CLEAR_CCNT_INTERVAL	(cpu_hz / 4)
+static u32 clear_ccnt_interval;
 
 static DEFINE_SPINLOCK(trace_clock_lock);
 static int trace_clock_refcount;
+
+static int print_info_done;
 
 /*
  * Cycle counter management.
@@ -111,10 +114,12 @@ static void clear_ccnt_ms(unsigned long data)
 	write_ctens(read_ctens() & ~(1 << 31));	/* disable counter */
 	cycles = read_ccnt();
 	write_ccnt(cycles & ~(1 << 31));
+	isb();
 	write_ctens(read_ctens() |  (1 << 31));	/* enable counter */
+	isb();
 	local_irq_restore(flags);
 
-	mod_timer(&clear_ccnt_ms_timer, jiffies + CLEAR_CCNT_INTERVAL);
+	mod_timer(&clear_ccnt_ms_timer, jiffies + clear_ccnt_interval);
 }
 
 void _start_trace_clock(void)
@@ -122,7 +127,7 @@ void _start_trace_clock(void)
 	unsigned long flags;
 	unsigned int count_32k, count_trace_clock;
 	u32 regval;
-	u64 ref_time;
+	u64 ref_time, prev_time;
 
 	/* Let userspace access performance counter registers */
 	regval = read_useren();
@@ -139,14 +144,13 @@ void _start_trace_clock(void)
 	regval &= ~(1 << 5);	/* Enable even in non-invasive debug prohib. */
 	write_pmnc(regval);
 
-	mod_timer(&clear_ccnt_ms_timer, jiffies + CLEAR_CCNT_INTERVAL);
-
 	/*
 	 * Set the timer's value MSBs to the same as current 32K timer.
 	 */
 	ref_time = saved_trace_clock;
 	local_irq_save(flags);
 	count_32k = clocksource_read(clock);
+	prev_time = trace_clock_read64();
 	/*
 	 * Delta done on 32-bits, then casted to u64. Must guarantee
 	 * that we are called often enough so the difference does not
@@ -154,6 +158,9 @@ void _start_trace_clock(void)
 	 */
 	ref_time += (u64)(count_32k - saved_32k_count)
 			* (cpu_hz >> TIMER_32K_SHIFT);
+	/* Make sure we never _ever_ decrement the clock value */
+	if (ref_time < prev_time)
+		ref_time = prev_time;
 	write_ctens(read_ctens() & ~(1 << 31));	/* disable counter */
 	write_ccnt((u32)ref_time & ~(1 << 31));
 	write_ctens(read_ctens() |  (1 << 31));	/* enable counter */
@@ -163,12 +170,22 @@ void _start_trace_clock(void)
 
 	get_synthetic_tsc();
 
-	printk(KERN_INFO "Trace clock using cycle counter at %llu HZ\n"
-	       "32k clk value 0x%08X, cycle counter value 0x%08X\n"
-	       "synthetic value (write, read) 0x%016llX, 0x%016llX\n",
-	       cpu_hz, count_32k,
-	       count_trace_clock, ref_time, trace_clock_read64());
-	printk(KERN_INFO "Reference clock used : %s\n", clock->name);
+	/* mod_timer generates a trace event. Must run after time-base update */
+	mod_timer(&clear_ccnt_ms_timer, jiffies + clear_ccnt_interval);
+
+	if (unlikely(!print_info_done || saved_trace_clock > ref_time)) {
+		printk(KERN_INFO "Trace clock using cycle counter at %llu HZ\n"
+			"32k clk value 0x%08X, cycle counter value 0x%08X\n"
+			"saved 32k clk value 0x%08X, "
+			"saved cycle counter value 0x%016llX\n"
+			"synthetic value (write, read) 0x%016llX, 0x%016llX\n",
+			cpu_hz,
+			count_32k, count_trace_clock,
+			saved_32k_count, saved_trace_clock,
+			ref_time, trace_clock_read64());
+		printk(KERN_INFO "Reference clock used : %s\n", clock->name);
+		print_info_done = 1;
+	}
 }
 
 void _stop_trace_clock(void)
@@ -222,3 +239,15 @@ end:
 	spin_unlock(&trace_clock_lock);
 }
 EXPORT_SYMBOL_GPL(put_trace_clock);
+
+static __init int init_trace_clock(void)
+{
+	u64 rem;
+
+	clear_ccnt_interval = __iter_div_u64_rem(HZ * (1ULL << 30),
+				cpu_hz, &rem);
+	printk(KERN_INFO "LTTng will clear ccnt top bit every %u jiffies.\n",
+		clear_ccnt_interval);
+	return 0;
+}
+__initcall(init_trace_clock);
