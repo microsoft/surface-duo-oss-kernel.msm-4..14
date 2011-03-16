@@ -158,10 +158,10 @@ static int __init precalc_stsc_interval(void)
 	u64 rem_freq, rem_interval;
 
 	precalc_expire =
-		__iter_div_u64_rem(HW_BITMASK,
-		 ((__iter_div_u64_rem(trace_clock_frequency(), HZ, &rem_freq)
-		     * trace_clock_freq_scale())
-		    << 1)
+		__iter_div_u64_rem(HW_BITMASK, (
+		  __iter_div_u64_rem(trace_clock_frequency(),
+		  HZ * trace_clock_freq_scale(), &rem_freq) << 1
+		 )
 		 - 1
 		 - (TC_EXPECTED_INTERRUPT_LATENCY * HZ / 1000), &rem_interval)
 		>> 1;
