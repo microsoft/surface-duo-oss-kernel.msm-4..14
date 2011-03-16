@@ -653,7 +653,74 @@ static void disable_marker(struct marker *elem)
 }
 
 /*
- * is_marker_enabled - Check if a marker is enabled
+ * _is_marker_present - Check if a marker is present in kernel must be called
+ *                      with markers_mutex held.
+ * @channel: channel name
+ * @name: marker name
+ *
+ * Returns 1 if the marker is present, 0 if not.
+ */
+int _is_marker_present(const char *channel, const char *name)
+{
+	int ret;
+	struct marker_iter iter;
+
+	ret = 0;
+
+	marker_iter_reset(&iter);
+	marker_iter_start(&iter);
+	for (; iter.marker != NULL; marker_iter_next(&iter)) {
+		if (!strcmp(iter.marker->channel, channel) &&
+		    !strcmp(iter.marker->name, name)) {
+			ret = 1;
+			goto end;
+		}
+	}
+end:
+	marker_iter_stop(&iter);
+	return ret;
+}
+EXPORT_SYMBOL_GPL(_is_marker_present);
+
+/*
+ * is_marker_present - the wrapper of _is_marker_present
+ * @channel: channel name
+ * @name: marker name
+ *
+ * Returns 1 if the marker is present, 0 if not.
+ */
+int is_marker_present(const char *channel, const char *name)
+{
+	int ret;
+
+	lock_markers();
+	ret = _is_marker_present(channel, name);
+	unlock_markers();
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(is_marker_present);
+
+/*
+ * _is_marker_enabled - Check if a marker is enabled, must be called with
+ *                      markers_mutex held.
+ * @channel: channel name
+ * @name: marker name
+ *
+ * Returns 1 if the marker is enabled, 0 if disabled.
+ */
+int _is_marker_enabled(const char *channel, const char *name)
+{
+	struct marker_entry *entry;
+
+	entry = get_marker(channel, name);
+
+	return entry && !!entry->refcount;
+}
+EXPORT_SYMBOL_GPL(_is_marker_enabled);
+
+/*
+ * is_marker_enabled - the wrapper of _is_marker_enabled
  * @channel: channel name
  * @name: marker name
  *
@@ -661,13 +728,13 @@ static void disable_marker(struct marker *elem)
  */
 int is_marker_enabled(const char *channel, const char *name)
 {
-	struct marker_entry *entry;
+	int ret;
 
-	mutex_lock(&markers_mutex);
-	entry = get_marker(channel, name);
-	mutex_unlock(&markers_mutex);
+	lock_markers();
+	ret = _is_marker_enabled(channel, name);
+	unlock_markers();
 
-	return entry && !!entry->refcount;
+	return ret;
 }
 EXPORT_SYMBOL_GPL(is_marker_enabled);
 
