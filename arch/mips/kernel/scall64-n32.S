@@ -121,6 +121,8 @@ not_n32_scall:
 
 	END(handle_sysn32)
 
+	.align	3
+	.type	sysn32_call_table,@object
 EXPORT(sysn32_call_table)
 	PTR	sys_read			/* 6000 */
 	PTR	sys_write

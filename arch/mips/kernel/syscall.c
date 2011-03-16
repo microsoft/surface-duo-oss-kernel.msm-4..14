@@ -32,6 +32,7 @@
 #include <linux/random.h>
 #include <linux/elf.h>
 #include <linux/ipc.h>
+#include <linux/kallsyms.h>
 
 #include <asm/asm.h>
 #include <asm/branch.h>
@@ -464,3 +465,67 @@ int kernel_execve(const char *filename,
 
 	return -__v0;
 }
+
+void ltt_dump_sys_call_table(void *call_data)
+{
+	int i;
+	char namebuf[KSYM_NAME_LEN];
+
+#ifdef CONFIG_32BIT
+	for (i = 0; i < __NR_O32_Linux_syscalls; i++) {
+		extern struct {
+			unsigned long ptr;
+			long j;
+		} sys_call_table[];
+
+		sprint_symbol(namebuf, sys_call_table[i].ptr);
+		__trace_mark(0, syscall_state, sys_call_table, call_data,
+			     "id %d address %p symbol %s",
+			     i + __NR_O32_Linux, (void *)sys_call_table[i].ptr,
+			     namebuf);
+	}
+#endif
+#ifdef CONFIG_64BIT
+# ifdef CONFIG_MIPS32_O32
+	for (i = 0; i < __NR_O32_Linux_syscalls; i++) {
+		extern unsigned long syso32_call_table[];
+
+		sprint_symbol(namebuf, syso32_call_table[i]);
+		__trace_mark(0, syscall_state, sys_call_table, call_data,
+			     "id %d address %p symbol %s",
+			     i + __NR_O32_Linux, (void *)syso32_call_table[i],
+			     namebuf);
+	}
+# endif
+
+	for (i = 0; i < __NR_64_Linux_syscalls; i++) {
+		extern unsigned long sys_call_table[];
+
+		sprint_symbol(namebuf, sys_call_table[i]);
+		__trace_mark(0, syscall_state, sys_call_table, call_data,
+			     "id %d address %p symbol %s",
+			     i + __NR_64_Linux, (void *)sys_call_table[i],
+			     namebuf);
+	}
+
+# ifdef CONFIG_MIPS32_N32
+	for (i = 0; i < __NR_N32_Linux_syscalls; i++) {
+		extern unsigned long sysn32_call_table[];
+
+		sprint_symbol(namebuf, sysn32_call_table[i]);
+		__trace_mark(0, syscall_state, sys_call_table, call_data,
+			     "id %d address %p symbol %s",
+			     i + __NR_N32_Linux, (void *)sysn32_call_table[i],
+			     namebuf);
+	}
+# endif
+#endif
+}
+EXPORT_SYMBOL_GPL(ltt_dump_sys_call_table);
+
+void ltt_dump_idt_table(void *call_data)
+{
+	/* No IDT information yet.  */
+	return;
+}
+EXPORT_SYMBOL_GPL(ltt_dump_idt_table);
