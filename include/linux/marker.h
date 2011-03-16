@@ -58,7 +58,12 @@ struct marker {
 	struct marker_probe_array *multi;
 	const char *tp_name;	/* Optional tracepoint name */
 	void *tp_cb;		/* Optional tracepoint callback */
-} __attribute__((aligned(8)));
+} __attribute__((aligned(128)));	/*
+					 * Aligned on 128 bytes because it is
+					 * globally visible and gcc happily
+					 * align these on the structure size.
+					 * Keep in sync with vmlinux.lds.h.
+					 */
 
 #ifdef CONFIG_MARKERS
 
