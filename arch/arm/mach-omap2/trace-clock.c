@@ -16,6 +16,10 @@
 /* Need direct access to the clock from kernel/time/timekeeping.c */
 extern struct clocksource *clock;
 
+/* 32KHz counter count save upon PM sleep */
+static u32 saved_32k_count;
+static u64 saved_trace_clock;
+
 static void clear_ccnt_ms(unsigned long data);
 
 static DEFINE_TIMER(clear_ccnt_ms_timer, clear_ccnt_ms, 0, 0);
@@ -139,13 +143,21 @@ void _start_trace_clock(void)
 	/*
 	 * Set the timer's value MSBs to the same as current 32K timer.
 	 */
+	ref_time = saved_trace_clock;
 	local_irq_save(flags);
 	count_32k = clocksource_read(clock);
-	ref_time = (u64)count_32k * (cpu_hz >> TIMER_32K_SHIFT);
+	/*
+	 * Delta done on 32-bits, then casted to u64. Must guarantee
+	 * that we are called often enough so the difference does not
+	 * overflow 32 bits anyway.
+	 */
+	ref_time += (u64)(count_32k - saved_32k_count)
+			* (cpu_hz >> TIMER_32K_SHIFT);
 	write_ctens(read_ctens() & ~(1 << 31));	/* disable counter */
-	write_ccnt((u32)ref_time);
+	write_ccnt((u32)ref_time & ~(1 << 31));
 	write_ctens(read_ctens() |  (1 << 31));	/* enable counter */
 	count_trace_clock = trace_clock_read32();
+	_trace_clock_write_synthetic_tsc(ref_time);
 	local_irq_restore(flags);
 
 	get_synthetic_tsc();
@@ -160,6 +172,8 @@ void _start_trace_clock(void)
 
 void _stop_trace_clock(void)
 {
+	saved_32k_count = clocksource_read(clock);
+	saved_trace_clock = trace_clock_read64();
 	del_timer_sync(&clear_ccnt_ms_timer);
 	put_synthetic_tsc();
 }
