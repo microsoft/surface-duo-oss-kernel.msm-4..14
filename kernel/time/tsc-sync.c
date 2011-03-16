@@ -34,12 +34,12 @@
 #include <linux/mutex.h>
 #include <linux/cpu.h>
 
-#define MAX_CYCLES_DELTA 1000ULL
+#define MAX_CYCLES_DELTA 3000ULL
 
 /*
  * Number of loops to take care of MCE, NMIs, SMIs.
  */
-#define NR_LOOPS	10
+#define NR_LOOPS	200
 
 static DEFINE_MUTEX(tscsync_mutex);
 
