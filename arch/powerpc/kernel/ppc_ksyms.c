@@ -161,6 +161,9 @@ EXPORT_SYMBOL(screen_info);
 
 #ifdef CONFIG_PPC32
 EXPORT_SYMBOL(timer_interrupt);
+#ifndef CONFIG_SPARSE_IRQ
+EXPORT_SYMBOL(irq_desc);
+#endif
 EXPORT_SYMBOL(tb_ticks_per_jiffy);
 EXPORT_SYMBOL(cacheable_memcpy);
 EXPORT_SYMBOL(cacheable_memzero);

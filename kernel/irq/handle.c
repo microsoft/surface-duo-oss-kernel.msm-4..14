@@ -17,6 +17,7 @@
 #include <linux/kernel_stat.h>
 
 #include <trace/events/irq.h>
+#include <trace/irq.h>
 
 #include "internals.h"
 
