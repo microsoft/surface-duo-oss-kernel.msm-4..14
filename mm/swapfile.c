@@ -2584,7 +2584,7 @@ void ltt_dump_swap_files(void *call_data)
 		p = swap_info[type];
 		if (!(p->flags & SWP_WRITEOK))
 			continue;
-		__trace_mark(0, statedump_swap_files, call_data,
+		__trace_mark(0, swap_state, statedump_swap_files, call_data,
 			"filp %p vfsmount %p dname %s",
 			p->swap_file, p->swap_file->f_vfsmnt,
 			p->swap_file->f_dentry->d_name.name);

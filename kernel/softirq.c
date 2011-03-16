@@ -63,7 +63,7 @@ void ltt_dump_softirq_vec(void *call_data)
 
 	for (i = 0; i < 32; i++) {
 		sprint_symbol(namebuf, (unsigned long)softirq_vec[i].action);
-		__trace_mark(0, statedump_softirq_vec, call_data,
+		__trace_mark(0, softirq_state, softirq_vec, call_data,
 			"id %d address %p symbol %s",
 			i, softirq_vec[i].action, namebuf);
 	}

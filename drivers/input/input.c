@@ -218,7 +218,8 @@ static void input_handle_event(struct input_dev *dev,
 {
 	int disposition = INPUT_IGNORE_EVENT;
 
-	trace_mark(input_event, "type %u code %u value %d", type, code, value);
+	trace_mark(input, input_event,
+		   "type %u code %u value %d", type, code, value);
 
 	switch (type) {
 

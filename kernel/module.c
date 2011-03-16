@@ -3307,7 +3307,7 @@ void list_modules(void *call_data)
 #ifdef CONFIG_MODULE_UNLOAD
 		refcount = module_refcount(mod);
 #endif
-		__trace_mark(0, list_module, call_data,
+		__trace_mark(0, module_state, list_module, call_data,
 				"name %s state %d refcount %lu",
 				mod->name, mod->state, refcount);
 	}
