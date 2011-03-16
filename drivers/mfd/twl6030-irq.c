@@ -127,7 +127,6 @@ static int twl6030_irq_thread(void *data)
 
 
 		sts.bytes[3] = 0; /* Only 24 bits are valid*/
-		pr_info("twl6030: Interrupt status  0x%06x\n", sts.int_sts);
 
 		/*
 		 * Since VBUS status bit is not reliable for VBUS disconnect
@@ -316,16 +315,13 @@ int twl6030_init_irq(int irq_num, unsigned irq_base, unsigned irq_end)
 	u8 mask[4];
 
 	static struct irq_chip	twl6030_irq_chip;
-	mask[1] = 0;
-	mask[2] = 0;
-	mask[3] = 0;
+	mask[1] = 0xFF;
+	mask[2] = 0xFF;
+	mask[3] = 0xFF;
 	ret = twl_i2c_write(TWL_MODULE_PIH, &mask[0],
 			REG_INT_MSK_LINE_A, 3); /* MASK ALL INT LINES */
 	ret = twl_i2c_write(TWL_MODULE_PIH, &mask[0],
 			REG_INT_MSK_STS_A, 3); /* MASK ALL INT STS */
-	mask[1] = 0xFF;
-	mask[2] = 0xFF;
-	mask[3] = 0xFF;
 	ret = twl_i2c_write(TWL_MODULE_PIH, &mask[0],
 			REG_INT_STS_A, 3); /* clear INT_STS_A,B,C */
 
