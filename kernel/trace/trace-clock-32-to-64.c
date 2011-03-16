@@ -150,10 +150,8 @@ static void tsc_timer_fct(unsigned long data)
 {
 	update_synthetic_tsc();
 
-	per_cpu(tsc_timer, smp_processor_id()).expires =
-		jiffies + precalc_expire;
-	add_timer_on(&per_cpu(tsc_timer, smp_processor_id()),
-		     smp_processor_id());
+	mod_timer_pinned(&per_cpu(tsc_timer, smp_processor_id()),
+		  jiffies + precalc_expire);
 }
 
 /*
@@ -199,18 +197,9 @@ static void enable_synthetic_tsc(int cpu)
 	add_timer_on(&per_cpu(tsc_timer, cpu), cpu);
 }
 
-/*
- * Cannot use del_timer_sync with add_timer_on, so use an IPI to locally
- * delete the timer.
- */
-static void disable_synthetic_tsc_ipi(void *info)
-{
-	del_timer(&per_cpu(tsc_timer, smp_processor_id()));
-}
-
 static void disable_synthetic_tsc(int cpu)
 {
-	smp_call_function_single(cpu, disable_synthetic_tsc_ipi, NULL, 1);
+	del_timer_sync(&per_cpu(tsc_timer, smp_processor_id()));
 }
 
 /*
