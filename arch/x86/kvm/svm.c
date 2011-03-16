@@ -34,7 +34,7 @@
 #include <asm/kvm_para.h>
 
 #include <asm/virtext.h>
-#include "trace.h"
+#include <asm/kvm-trace.h>
 
 #define __ex(x) __kvm_handle_fault_on_reboot(x)
 

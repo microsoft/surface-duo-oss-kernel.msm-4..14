@@ -217,9 +217,9 @@ TRACE_EVENT(
 #endif /* _TRACE_KVMMMU_H */
 
 #undef TRACE_INCLUDE_PATH
-#define TRACE_INCLUDE_PATH .
+#define TRACE_INCLUDE_PATH asm
 #undef TRACE_INCLUDE_FILE
-#define TRACE_INCLUDE_FILE mmutrace
+#define TRACE_INCLUDE_FILE kvm-mmutrace
 
 /* This part must be outside protection */
 #include <trace/define_trace.h>

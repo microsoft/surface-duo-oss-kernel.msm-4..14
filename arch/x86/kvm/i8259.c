@@ -32,7 +32,7 @@
 #include "irq.h"
 
 #include <linux/kvm_host.h>
-#include "trace.h"
+#include <asm/kvm-trace.h>
 
 static void pic_irq_request(struct kvm *kvm, int level);
 
