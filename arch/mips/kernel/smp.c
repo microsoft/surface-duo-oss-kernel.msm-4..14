@@ -164,6 +164,7 @@ void __init smp_cpus_done(unsigned int max_cpus)
 {
 	mp_ops->cpus_done();
 	synchronise_count_master();
+	test_tsc_synchronization();
 }
 
 /* called from main before smp_init() */

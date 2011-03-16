@@ -58,12 +58,38 @@ static inline cycles_t get_cycles_rate(void)
 {
 	return mips_hpt_frequency;
 }
+
+extern int test_tsc_synchronization(void);
+extern int _tsc_is_sync;
+static inline int tsc_is_sync(void)
+{
+	return _tsc_is_sync;
+}
 #else
 static inline cycles_t get_cycles(void)
 {
 	return 0;
 }
+static inline int test_tsc_synchronization(void)
+{
+	return 0;
+}
+static inline int tsc_is_sync(void)
+{
+	return 0;
+}
 #endif
+
+#define DELAY_INTERRUPT 100
+/*
+ * Only updates 32 LSB.
+ */
+static inline void write_tsc(u32 val1, u32 val2)
+{
+	write_c0_count(val1);
+	/* Arrange for an interrupt in a short while */
+	write_c0_compare(read_c0_count() + DELAY_INTERRUPT);
+}
 
 #endif /* __KERNEL__ */
 
