@@ -655,14 +655,16 @@ static void disable_marker(struct marker *elem)
 }
 
 /*
- * _is_marker_present - Check if a marker is present in kernel must be called
- *                      with markers_mutex held.
+ * is_marker_present - Check if a marker is present in kernel.
  * @channel: channel name
  * @name: marker name
  *
+ * We cannot take the marker lock around calls to this function because it needs
+ * to take the module mutex within the iterator. Marker mutex nests inside
+ * module mutex.
  * Returns 1 if the marker is present, 0 if not.
  */
-int _is_marker_present(const char *channel, const char *name)
+int is_marker_present(const char *channel, const char *name)
 {
 	int ret;
 	struct marker_iter iter;
@@ -680,25 +682,6 @@ int _is_marker_present(const char *channel, const char *name)
 	}
 end:
 	marker_iter_stop(&iter);
-	return ret;
-}
-EXPORT_SYMBOL_GPL(_is_marker_present);
-
-/*
- * is_marker_present - the wrapper of _is_marker_present
- * @channel: channel name
- * @name: marker name
- *
- * Returns 1 if the marker is present, 0 if not.
- */
-int is_marker_present(const char *channel, const char *name)
-{
-	int ret;
-
-	lock_markers();
-	ret = _is_marker_present(channel, name);
-	unlock_markers();
-
 	return ret;
 }
 EXPORT_SYMBOL_GPL(is_marker_present);

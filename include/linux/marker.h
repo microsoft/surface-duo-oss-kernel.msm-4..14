@@ -262,7 +262,6 @@ extern int marker_get_iter_range(struct marker **marker, struct marker *begin,
 	struct marker *end);
 extern int _is_marker_enabled(const char *channel, const char *name);
 extern int is_marker_enabled(const char *channel, const char *name);
-extern int _is_marker_present(const char *channel, const char *name);
 extern int is_marker_present(const char *channel, const char *name);
 extern void marker_update_probes(void);
 
