@@ -79,6 +79,12 @@ static void update_synthetic_tsc(void)
 		cpu_synth->tsc[new_index].val =
 			(SW_MS32(cpu_synth->tsc[cpu_synth->index].val)
 				| (u64)tsc) + (1ULL << TC_HW_BITS);
+		/*
+		 * Ensure the compiler does not reorder index write. It makes
+		 * sure all nested interrupts will see the new value before the
+		 * new index is written.
+		 */
+		barrier();
 		cpu_synth->index = new_index;	/* atomic change of index */
 	} else {
 		/*
