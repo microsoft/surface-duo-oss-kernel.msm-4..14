@@ -293,6 +293,23 @@ static inline void list_splice_init_rcu(struct list_head *list,
 	     pos = list_entry_rcu(pos->member.next, typeof(*pos), member))
 
 /**
+ * list_for_each_entry_continue_rcu -	continue iteration over typed rcu list
+ * @pos:	the type * to use as a loop cursor.
+ * @head:	the head for your list.
+ * @member:	the name of the list_struct within the struct.
+ *
+ * This list-traversal primitive may safely run concurrently with
+ * the _rcu list-mutation primitives such as list_add_rcu()
+ * as long as the traversal is guarded by rcu_read_lock().
+ * It continues an iteration initiated by list_for_each_entry_rcu().
+ */
+#define list_for_each_entry_continue_rcu(pos, head, member) \
+	for (pos = list_entry_rcu(pos->member.next, typeof(*pos), member); \
+		prefetch(pos->member.next), &pos->member != (head); \
+		pos = list_entry_rcu(pos->member.next, typeof(*pos), member))
+
+
+/**
  * hlist_del_rcu - deletes entry from hash list without re-initialization
  * @n: the element to delete from the hash list.
  *
