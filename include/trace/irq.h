@@ -2,6 +2,7 @@
 #define _LTTNG_TRACE_IRQ_H
 
 #include <linux/kdebug.h>
+#include <linux/interrupt.h>
 
 /*
  * action can be NULL if not available.
@@ -27,15 +28,7 @@ DECLARE_TRACE(irq_tasklet_high_exit,
 	TP_PROTO(struct tasklet_struct *t),
 		TP_ARGS(t));
 
-#if 0
-DECLARE_TRACE(irq_softirq_entry,
-	TP_PROTO(struct softirq_action *h, struct softirq_action *softirq_vec),
-		TP_ARGS(h, softirq_vec));
-DECLARE_TRACE(irq_softirq_exit,
-	TP_PROTO(struct softirq_action *h, struct softirq_action *softirq_vec),
-		TP_ARGS(h, softirq_vec));
-#endif
-DECLARE_TRACE(irq_softirq_raise,
+DECLARE_TRACE(softirq_raise,
 	TP_PROTO(unsigned int nr),
 		TP_ARGS(nr));
 

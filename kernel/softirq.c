@@ -26,6 +26,7 @@
 #include <linux/marker.h>
 #include <linux/kallsyms.h>
 #include <linux/tick.h>
+#include <trace/irq.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/irq.h>
@@ -225,7 +226,7 @@ EXPORT_SYMBOL(local_bh_enable_ip);
  */
 #define MAX_SOFTIRQ_RESTART 10
 
-DEFINE_TRACE(irq_softirq_raise);
+DEFINE_TRACE(softirq_raise);
 
 asmlinkage void __do_softirq(void)
 {
@@ -364,7 +365,7 @@ void irq_exit(void)
  */
 inline void raise_softirq_irqoff(unsigned int nr)
 {
-	trace_irq_softirq_raise(nr);
+	trace_softirq_raise(nr);
 	__raise_softirq_irqoff(nr);
 
 	/*
