@@ -1310,9 +1310,13 @@ void run_local_timers(void)
 
 void do_timer(unsigned long ticks)
 {
+	struct timespec curtime, wtom;
+
 	jiffies_64 += ticks;
 	update_wall_time();
-	trace_timer_update_time(&xtime, &wall_to_monotonic);
+	curtime = __current_kernel_time();
+	wtom = __get_wall_to_monotonic();
+	trace_timer_update_time(&curtime, &wtom);
 	calc_global_load(ticks);
 }
 
