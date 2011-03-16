@@ -1267,7 +1267,7 @@ __initcall(init_markers);
 
 #endif /* CONFIG_MODULES */
 
-void ltt_dump_marker_state(struct ltt_trace_struct *trace)
+void ltt_dump_marker_state(struct ltt_trace *trace)
 {
 	struct marker_entry *entry;
 	struct ltt_probe_private_data call_data;

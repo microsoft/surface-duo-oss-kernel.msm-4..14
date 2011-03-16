@@ -15,7 +15,6 @@
 #include <stdarg.h>
 #include <linux/types.h>
 #include <linux/immediate.h>
-#include <linux/ltt-channels.h>
 
 struct module;
 struct marker;
