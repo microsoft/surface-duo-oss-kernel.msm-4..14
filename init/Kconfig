@@ -1307,6 +1307,9 @@ config MARKERS
 
 source "arch/Kconfig"
 
+config HAVE_LTT_DUMP_TABLES
+	def_bool n
+
 endmenu		# General setup
 
 config HAVE_GENERIC_DMA_COHERENT

@@ -53,6 +53,7 @@
 #include <asm/atomic.h>
 #include <asm/system.h>
 #include <asm/traps.h>
+#include <asm/unistd.h>
 #include <asm/desc.h>
 #include <asm/i387.h>
 #include <asm/mce.h>
@@ -77,6 +78,10 @@ char ignore_fpu_irq;
  * F0 0F bug workaround.
  */
 gate_desc idt_table[NR_VECTORS] __page_aligned_data = { { { { 0, 0 } } }, };
+
+extern unsigned long sys_call_table[];
+extern unsigned long syscall_table_size;
+
 #endif
 
 DECLARE_BITMAP(used_vectors, NR_VECTORS);
@@ -622,6 +627,22 @@ dotraplinkage void __kprobes do_debug(struct pt_regs *regs, long error_code)
 	return;
 }
 
+#ifdef CONFIG_X86_32
+void ltt_dump_sys_call_table(void *call_data)
+{
+	int i;
+	char namebuf[KSYM_NAME_LEN];
+
+	for (i = 0; i < NR_syscalls; i++) {
+		sprint_symbol(namebuf, sys_call_table[i]);
+		__trace_mark(0, statedump_sys_call_table, call_data,
+			"id %d address %p symbol %s",
+			i, (void*)sys_call_table[i], namebuf);
+	}
+}
+EXPORT_SYMBOL_GPL(ltt_dump_sys_call_table);
+#endif
+
 /*
  * Note that we play around with the 'TS' bit in an attempt to get
  * the correct behaviour even in the presence of the asynchronous
@@ -765,6 +786,21 @@ void __math_state_restore(void)
 	thread->status |= TS_USEDFPU;	/* So we fnsave on switch_to() */
 	tsk->fpu_counter++;
 }
+
+void ltt_dump_idt_table(void *call_data)
+{
+	int i;
+	char namebuf[KSYM_NAME_LEN];
+
+	for (i = 0; i < IDT_ENTRIES; i++) {
+		unsigned long address = gate_offset(idt_table[i]);
+		sprint_symbol(namebuf, address);
+		__trace_mark(0, statedump_idt_table, call_data,
+			"irq %d address %p symbol %s",
+			i, (void *)address, namebuf);
+	}
+}
+EXPORT_SYMBOL_GPL(ltt_dump_idt_table);
 
 /*
  * 'math_state_restore()' saves the current math information in the
