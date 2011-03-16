@@ -8,7 +8,7 @@
 #ifndef _ASM_SH_TRACE_CLOCK_H
 #define _ASM_SH_TRACE_CLOCK_H
 
-#include <linux/timer.h>
+#include <linux/clocksource.h>
 #include <asm/clock.h>
 
 /*
@@ -24,10 +24,14 @@
 #define TC_EXPECTED_INTERRUPT_LATENCY	30
 
 extern u64 trace_clock_read_synthetic_tsc(void);
+extern u64 sh_get_clock_frequency(void);
+extern u32 sh_read_timer_count(void);
+extern void get_synthetic_tsc(void);
+extern void put_synthetic_tsc(void);
 
 static inline u32 trace_clock_read32(void)
 {
-	return get_cycles();
+	return sh_read_timer_count();
 }
 
 static inline u64 trace_clock_read64(void)
@@ -37,22 +41,13 @@ static inline u64 trace_clock_read64(void)
 
 static inline u64 trace_clock_frequency(void)
 {
-	u64 rate;
-	struct clk *tmu1_clk;
-
-	tmu1_clk = clk_get(NULL, "tmu1_clk");
-	rate = clk_get_rate(tmu1_clk);
-
-	return rate;
+	return sh_get_clock_frequency();
 }
 
 static inline u32 trace_clock_freq_scale(void)
 {
 	return 1;
 }
-
-extern void get_synthetic_tsc(void);
-extern void put_synthetic_tsc(void);
 
 static inline void get_trace_clock(void)
 {
