@@ -227,6 +227,7 @@
 #include <linux/suspend.h>
 #include <linux/kthread.h>
 #include <linux/jiffies.h>
+#include <linux/idle.h>
 
 #include <asm/system.h>
 #include <asm/uaccess.h>
@@ -947,10 +948,15 @@ recalc:
 				break;
 			}
 		}
+		enter_idle();
 		if (original_pm_idle)
 			original_pm_idle();
 		else
 			default_idle();
+		/* In many cases the interrupt that ended idle
+		   has already called exit_idle. But some idle
+		   loops can be woken up without interrupt. */
+		__exit_idle();
 		local_irq_disable();
 		jiffies_since_last_check = jiffies - last_jiffies;
 		if (jiffies_since_last_check > idle_period)
