@@ -44,6 +44,7 @@ static u32 get_mul_fact(u64 max_freq, u64 cur_freq)
 {
 	u64 rem;
 
+	BUG_ON(cur_freq == 0);
 	return __iter_div_u64_rem(max_freq << 10, cur_freq, &rem);
 }
 
@@ -268,6 +269,8 @@ void resync_trace_clock(void)
 	new_cf->hw_base = ref_time;
 	new_cf->virt_base = ref_time;
 	new_cf->cur_cpu_freq = cpufreq_quick_get(cpu);
+	if (new_cf->cur_cpu_freq == 0)
+		new_cf->cur_cpu_freq = pm_count->max_cpu_freq;
 	new_cf->mul_fact = get_mul_fact(pm_count->max_cpu_freq,
 					new_cf->cur_cpu_freq);
 	new_cf->floor = max(ref_time, cf->floor);
@@ -316,6 +319,8 @@ static void resync_on_32k(struct pm_save_count *pm_count, int cpu)
 	new_cf->hw_base = trace_clock_read_synthetic_tsc();
 	new_cf->virt_base = ref_time;
 	new_cf->cur_cpu_freq = cpufreq_quick_get(cpu);
+	if (new_cf->cur_cpu_freq == 0)
+		new_cf->cur_cpu_freq = pm_count->max_cpu_freq;
 	new_cf->mul_fact = get_mul_fact(pm_count->max_cpu_freq,
 					new_cf->cur_cpu_freq);
 	new_cf->floor = max((((new_cf->hw_base - cf->hw_base)
