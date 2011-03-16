@@ -12,6 +12,9 @@
 
 #define TRACE_CLOCK_MIN_PROBE_DURATION 200
 
+#ifdef CONFIG_CPU_CAVIUM_OCTEON
+# include <asm/octeon/trace-clock.h>
+#else /* !CONFIG_CPU_CAVIUM_OCTEON */
 /*
  * Number of hardware clock bits. The higher order bits are expected to be 0.
  * If the hardware clock source has more than 32 bits, the bits higher than the
@@ -65,6 +68,7 @@ static inline void put_trace_clock(void)
 {
 	put_synthetic_tsc();
 }
+#endif /* CONFIG_CPU_CAVIUM_OCTEON */
 
 static inline void set_trace_clock_is_sync(int state)
 {
