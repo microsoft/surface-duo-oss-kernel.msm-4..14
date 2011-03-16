@@ -1967,6 +1967,10 @@ config CPU_R4000_WORKAROUNDS
 config CPU_R4400_WORKAROUNDS
 	bool
 
+config HAVE_GET_CYCLES_32
+	def_bool y
+	depends on !CPU_R4400_WORKAROUNDS
+
 #
 # - Highmem only makes sense for the 32-bit kernel.
 # - The current highmem code will only work properly on physically indexed
