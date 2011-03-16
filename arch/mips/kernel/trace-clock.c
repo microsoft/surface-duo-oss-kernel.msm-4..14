@@ -9,13 +9,12 @@
 #include <linux/module.h>
 #include <linux/trace-clock.h>
 #include <linux/jiffies.h>
-#include <linux/mutex.h>
 #include <linux/timer.h>
 #include <linux/spinlock.h>
 
 static u64 trace_clock_last_tsc;
 static DEFINE_PER_CPU(struct timer_list, update_timer);
-static DEFINE_MUTEX(async_tsc_mutex);
+static DEFINE_SPINLOCK(async_tsc_lock);
 static int async_tsc_refcount;	/* Number of readers */
 static int async_tsc_enabled;	/* Async TSC enabled on all online CPUs */
 
@@ -140,7 +139,7 @@ void get_trace_clock(void)
 	int cpu;
 
 	get_synthetic_tsc();
-	mutex_lock(&async_tsc_mutex);
+	spin_lock(&async_tsc_lock);
 	if (async_tsc_refcount++ || tsc_is_sync())
 		goto end;
 
@@ -148,7 +147,7 @@ void get_trace_clock(void)
 	for_each_online_cpu(cpu)
 		enable_trace_clock(cpu);
 end:
-	mutex_unlock(&async_tsc_mutex);
+	spin_unlock(&async_tsc_lock);
 }
 EXPORT_SYMBOL_GPL(get_trace_clock);
 
@@ -156,7 +155,7 @@ void put_trace_clock(void)
 {
 	int cpu;
 
-	mutex_lock(&async_tsc_mutex);
+	spin_lock(&async_tsc_lock);
 	WARN_ON(async_tsc_refcount <= 0);
 	if (async_tsc_refcount != 1 || !async_tsc_enabled)
 		goto end;
@@ -166,7 +165,7 @@ void put_trace_clock(void)
 	async_tsc_enabled = 0;
 end:
 	async_tsc_refcount--;
-	mutex_unlock(&async_tsc_mutex);
+	spin_unlock(&async_tsc_lock);
 	put_synthetic_tsc();
 }
 EXPORT_SYMBOL_GPL(put_trace_clock);
