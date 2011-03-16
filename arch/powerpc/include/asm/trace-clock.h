@@ -11,7 +11,7 @@
 
 #include <linux/timex.h>
 #include <linux/time.h>
-#include <asm/processor.h>
+#include <asm/time.h>
 
 static inline u32 trace_clock_read32(void)
 {
