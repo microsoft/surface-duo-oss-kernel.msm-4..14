@@ -137,8 +137,8 @@ static void clear_ccnt_ms(unsigned long data)
 end:
 	local_irq_restore(flags);
 
-	pm_count->clear_ccnt_ms_timer.expires = jiffies + clear_ccnt_interval;
-	add_timer_on(&pm_count->clear_ccnt_ms_timer, cpu);
+	mod_timer_pinned(&pm_count->clear_ccnt_ms_timer,
+		  jiffies + clear_ccnt_interval);
 }
 
 /*
@@ -153,7 +153,7 @@ void save_sync_trace_clock(void)
 	local_irq_save(flags);
 	cpu = smp_processor_id();
 	pm_count = &per_cpu(pm_save_count, cpu);
-	spin_lock(&pm_count->lock);
+	__raw_spin_lock(&pm_count->lock);
 
 	if (!pm_count->refcount)
 		goto end;
@@ -161,7 +161,7 @@ void save_sync_trace_clock(void)
 	pm_count->ext_32k = clock->read(clock);
 	pm_count->int_fast_clock = trace_clock_read64();
 end:
-	spin_unlock(&pm_count->lock);
+	__raw_spin_unlock(&pm_count->lock);
 
 	/*
 	 * Only enable slow read after saving the clock values.
@@ -231,7 +231,7 @@ void resync_trace_clock(void)
 	local_irq_save(flags);
 	cpu = smp_processor_id();
 	pm_count = &per_cpu(pm_save_count, cpu);
-	spin_lock(&pm_count->lock);
+	__raw_spin_lock(&pm_count->lock);
 
 	if (!pm_count->refcount)
 		goto end;
@@ -297,7 +297,7 @@ void resync_trace_clock(void)
 		print_info_done = 1;
 	}
 end:
-	spin_unlock(&pm_count->lock);
+	__raw_spin_unlock(&pm_count->lock);
 	local_irq_restore(flags);
 }
 
@@ -385,22 +385,15 @@ static void enable_timer(int cpu)
 
 static void disable_timer_ipi(void *info)
 {
-	struct pm_save_count *pm_count;
-	int cpu = smp_processor_id();
-	unsigned long flags;
-
-	pm_count = &per_cpu(pm_save_count, cpu);
-	/* Ensure timer interrupts cannot possibly nest */
-	local_irq_save(flags);
-	del_timer(&pm_count->clear_ccnt_ms_timer);
-	if (pm_count->dvfs_count)
-		del_timer(&pm_count->clock_resync_timer);
-	local_irq_restore(flags);
 	save_sync_trace_clock();
 }
 
 static void disable_timer(int cpu)
 {
+	pm_count = &per_cpu(pm_save_count, cpu);
+	del_timer_sync(&pm_count->clear_ccnt_ms_timer);
+	if (pm_count->dvfs_count)
+		del_timer_sync(&pm_count->clock_resync_timer);
 	smp_call_function_single(cpu, disable_timer_ipi, NULL, 1);
 }
 
@@ -598,7 +591,7 @@ static int cpufreq_trace_clock(struct notifier_block *nb,
 	cpu = smp_processor_id();
 	WARN_ON_ONCE(cpu != freq->cpu);
 	pm_count = &per_cpu(pm_save_count, cpu);
-	spin_lock(&pm_count->lock);
+	__raw_spin_lock(&pm_count->lock);
 
 	if (!pm_count->refcount)
 		goto end;
@@ -637,7 +630,7 @@ static int cpufreq_trace_clock(struct notifier_block *nb,
 	local_fiq_enable();
 	pm_count->dvfs_count++;
 end:
-	spin_unlock(&pm_count->lock);
+	__raw_spin_unlock(&pm_count->lock);
 	local_irq_restore(flags);
 	return 0;
 }
@@ -702,7 +695,8 @@ static __init int init_trace_clock(void)
 	for_each_possible_cpu(cpu) {
 		per_cpu(pm_save_count, cpu).max_cpu_freq =
 			__iter_div_u64_rem(cpu_hz, 1000, &rem);
-		spin_lock_init(&per_cpu(pm_save_count, cpu).lock);
+		per_cpu(pm_save_count, cpu).lock =
+			(raw_spinlock_t)__RAW_SPIN_LOCK_UNLOCKED;
 	}
 	hotcpu_notifier(hotcpu_callback, 4);
 	cpufreq_register_notifier(&cpufreq_trace_clock_nb,
