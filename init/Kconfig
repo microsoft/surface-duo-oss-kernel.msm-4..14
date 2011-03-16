@@ -699,6 +699,12 @@ config HAVE_GET_CYCLES
 config HAVE_TRACE_CLOCK
 	def_bool n
 
+config HAVE_TRACE_CLOCK_GENERIC
+	bool
+	default y if (!HAVE_TRACE_CLOCK)
+	default n if HAVE_TRACE_CLOCK
+	select HAVE_TRACE_CLOCK_32_TO_64 if (!64BIT)
+
 #
 # Architectures with only a 32-bits clock source should select this.
 #
