@@ -2059,7 +2059,7 @@ EXPORT_SYMBOL(remap_vmalloc_range);
 void  __attribute__((weak)) vmalloc_sync_all(void)
 {
 }
-
+EXPORT_SYMBOL_GPL(vmalloc_sync_all);
 
 static int f(pte_t *pte, pgtable_t table, unsigned long addr, void *data)
 {
