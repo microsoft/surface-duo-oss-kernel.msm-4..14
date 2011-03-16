@@ -38,6 +38,16 @@ static const int marker_debug;
  */
 static DEFINE_MUTEX(markers_mutex);
 
+void lock_markers(void)
+{
+	mutex_lock(&markers_mutex);
+}
+
+void unlock_markers(void)
+{
+	mutex_unlock(&markers_mutex);
+}
+
 /*
  * Marker hash table, containing the active markers.
  * Protected by module_mutex.
@@ -57,6 +67,7 @@ static struct hlist_head marker_table[MARKER_TABLE_SIZE];
 struct marker_entry {
 	struct hlist_node hlist;
 	char *format;
+	char *name;
 			/* Probe wrapper */
 	void (*call)(const struct marker *mdata, void *call_private, ...);
 	struct marker_probe_closure single;
@@ -65,9 +76,11 @@ struct marker_entry {
 	struct rcu_head rcu;
 	void *oldptr;
 	int rcu_pending;
+	u16 chan_id;
+	u16 event_id;
 	unsigned char ptype:1;
 	unsigned char format_allocated:1;
-	char name[0];	/* Contains name'\0'format'\0' */
+	char channel[0];	/* Contains channel'\0'name'\0'format'\0' */
 };
 
 /**
@@ -205,6 +218,13 @@ static void free_old_closure(struct rcu_head *head)
 {
 	struct marker_entry *entry = container_of(head,
 		struct marker_entry, rcu);
+	int ret;
+
+	/* Single probe removed */
+	if (!entry->ptype) {
+		ret = ltt_channels_unregister(entry->channel);
+		WARN_ON(ret);
+	}
 	kfree(entry->oldptr);
 	/* Make sure we free the data before setting the pending flag to 0 */
 	smp_wmb();
@@ -354,16 +374,19 @@ marker_entry_remove_probe(struct marker_entry *entry,
  * Must be called with markers_mutex held.
  * Returns NULL if not present.
  */
-static struct marker_entry *get_marker(const char *name)
+static struct marker_entry *get_marker(const char *channel, const char *name)
 {
 	struct hlist_head *head;
 	struct hlist_node *node;
 	struct marker_entry *e;
-	u32 hash = jhash(name, strlen(name), 0);
+	size_t channel_len = strlen(channel) + 1;
+	size_t name_len = strlen(name) + 1;
+	u32 hash;
 
+	hash = jhash(channel, channel_len-1, 0) ^ jhash(name, name_len-1, 0);
 	head = &marker_table[hash & ((1 << MARKER_HASH_BITS)-1)];
 	hlist_for_each_entry(e, node, head, hlist) {
-		if (!strcmp(name, e->name))
+		if (!strcmp(channel, e->channel) && !strcmp(name, e->name))
 			return e;
 	}
 	return NULL;
@@ -373,22 +396,25 @@ static struct marker_entry *get_marker(const char *name)
  * Add the marker to the marker hash table. Must be called with markers_mutex
  * held.
  */
-static struct marker_entry *add_marker(const char *name, const char *format)
+static struct marker_entry *add_marker(const char *channel, const char *name,
+		const char *format)
 {
 	struct hlist_head *head;
 	struct hlist_node *node;
 	struct marker_entry *e;
+	size_t channel_len = strlen(channel) + 1;
 	size_t name_len = strlen(name) + 1;
 	size_t format_len = 0;
-	u32 hash = jhash(name, name_len-1, 0);
+	u32 hash;
 
+	hash = jhash(channel, channel_len-1, 0) ^ jhash(name, name_len-1, 0);
 	if (format)
 		format_len = strlen(format) + 1;
 	head = &marker_table[hash & ((1 << MARKER_HASH_BITS)-1)];
 	hlist_for_each_entry(e, node, head, hlist) {
-		if (!strcmp(name, e->name)) {
+		if (!strcmp(channel, e->channel) && !strcmp(name, e->name)) {
 			printk(KERN_NOTICE
-				"Marker %s busy\n", name);
+				"Marker %s.%s busy\n", channel, name);
 			return ERR_PTR(-EBUSY);	/* Already there */
 		}
 	}
@@ -396,13 +422,16 @@ static struct marker_entry *add_marker(const char *name, const char *format)
 	 * Using kmalloc here to allocate a variable length element. Could
 	 * cause some memory fragmentation if overused.
 	 */
-	e = kmalloc(sizeof(struct marker_entry) + name_len + format_len,
-			GFP_KERNEL);
+	e = kmalloc(sizeof(struct marker_entry)
+		    + channel_len + name_len + format_len,
+		    GFP_KERNEL);
 	if (!e)
 		return ERR_PTR(-ENOMEM);
-	memcpy(&e->name[0], name, name_len);
+	memcpy(e->channel, channel, channel_len);
+	e->name = &e->channel[channel_len];
+	memcpy(e->name, name, name_len);
 	if (format) {
-		e->format = &e->name[name_len];
+		e->format = &e->name[channel_len + name_len];
 		memcpy(e->format, format, format_len);
 		if (strcmp(e->format, MARK_NOARGS) == 0)
 			e->call = marker_probe_cb_noarg;
@@ -435,12 +464,14 @@ static int remove_marker(const char *name)
 	struct hlist_node *node;
 	struct marker_entry *e;
 	int found = 0;
-	size_t len = strlen(name) + 1;
-	u32 hash = jhash(name, len-1, 0);
+	size_t channel_len = strlen(channel) + 1;
+	size_t name_len = strlen(name) + 1;
+	u32 hash;
 
+	hash = jhash(channel, channel_len-1, 0) ^ jhash(name, name_len-1, 0);
 	head = &marker_table[hash & ((1 << MARKER_HASH_BITS)-1)];
 	hlist_for_each_entry(e, node, head, hlist) {
-		if (!strcmp(name, e->name)) {
+		if (!strcmp(channel, e->channel) && !strcmp(name, e->name)) {
 			found = 1;
 			break;
 		}
@@ -665,6 +696,7 @@ static void marker_update_probes(void)
 
 /**
  * marker_probe_register -  Connect a probe to a marker
+ * @channel: marker channel
  * @name: marker name
  * @format: format string
  * @probe: probe handler
@@ -674,27 +706,43 @@ static void marker_update_probes(void)
  * Returns 0 if ok, error value on error.
  * The probe address must at least be aligned on the architecture pointer size.
  */
-int marker_probe_register(const char *name, const char *format,
-			marker_probe_func *probe, void *probe_private)
+int marker_probe_register(const char *channel, const char *name,
+			  const char *format, marker_probe_func *probe,
+			  void *probe_private)
 {
 	struct marker_entry *entry;
-	int ret = 0;
+	int ret = 0, ret_err;
 	struct marker_probe_closure *old;
+	int first_probe = 0;
 
 	mutex_lock(&markers_mutex);
 	entry = get_marker(name);
 	if (!entry) {
-		entry = add_marker(name, format);
+		first_probe = 1;
+		entry = add_marker(channel, name, format);
 		if (IS_ERR(entry))
 			ret = PTR_ERR(entry);
+		if (ret)
+			goto end;
+		ret = ltt_channels_register(channel);
+		if (ret)
+			goto error_remove_marker;
+		ret = ltt_channels_get_index_from_name(channel);
+		if (ret < 0)
+			goto error_unregister_channel;
+		entry->channel_id = ret;
+		ret = ltt_channels_get_event_id(channel);
+		if (ret < 0)
+			goto error_unregister_channel;
+		entry->event_id = ret;
 	} else if (format) {
 		if (!entry->format)
 			ret = marker_set_format(entry, format);
 		else if (strcmp(entry->format, format))
 			ret = -EPERM;
+		if (ret)
+			goto end;
 	}
-	if (ret)
-		goto end;
 
 	/*
 	 * If we detect that a call_rcu is pending for this marker,
@@ -705,12 +753,17 @@ int marker_probe_register(const char *name, const char *format,
 	old = marker_entry_add_probe(entry, probe, probe_private);
 	if (IS_ERR(old)) {
 		ret = PTR_ERR(old);
-		goto end;
+		if (first_probe)
+			goto error_unregister_channel;
+		else
+			goto end;
 	}
 	mutex_unlock(&markers_mutex);
+
 	marker_update_probes();
+
 	mutex_lock(&markers_mutex);
-	entry = get_marker(name);
+	entry = get_marker(channel, name);
 	if (!entry)
 		goto end;
 	if (entry->rcu_pending)
@@ -720,6 +773,13 @@ int marker_probe_register(const char *name, const char *format,
 	/* write rcu_pending before calling the RCU callback */
 	smp_wmb();
 	call_rcu_sched(&entry->rcu, free_old_closure);
+
+error_unregister_channel:
+	ret_err = ltt_channels_unregister(channel);
+	WARN_ON(ret_err);
+error_remove_marker:
+	ret_err = remove_marker(channel, name);
+	WARN_ON(ret_err);
 end:
 	mutex_unlock(&markers_mutex);
 	return ret;
@@ -728,6 +788,7 @@ EXPORT_SYMBOL_GPL(marker_probe_register);
 
 /**
  * marker_probe_unregister -  Disconnect a probe from a marker
+ * @channel: marker channel
  * @name: marker name
  * @probe: probe function pointer
  * @probe_private: probe private data
@@ -738,24 +799,26 @@ EXPORT_SYMBOL_GPL(marker_probe_register);
  * itself uses stop_machine(), which insures that every preempt disabled section
  * have finished.
  */
-int marker_probe_unregister(const char *name,
-	marker_probe_func *probe, void *probe_private)
+int marker_probe_unregister(const char *channel, const char *name,
+			    marker_probe_func *probe, void *probe_private)
 {
 	struct marker_entry *entry;
 	struct marker_probe_closure *old;
 	int ret = -ENOENT;
 
 	mutex_lock(&markers_mutex);
-	entry = get_marker(name);
+	entry = get_marker(channel, name);
 	if (!entry)
 		goto end;
 	if (entry->rcu_pending)
 		rcu_barrier_sched();
 	old = marker_entry_remove_probe(entry, probe, probe_private);
 	mutex_unlock(&markers_mutex);
+
 	marker_update_probes();
+
 	mutex_lock(&markers_mutex);
-	entry = get_marker(name);
+	entry = get_marker(channel, name);
 	if (!entry)
 		goto end;
 	if (entry->rcu_pending)
@@ -765,7 +828,7 @@ int marker_probe_unregister(const char *name,
 	/* write rcu_pending before calling the RCU callback */
 	smp_wmb();
 	call_rcu_sched(&entry->rcu, free_old_closure);
-	remove_marker(name);	/* Ignore busy error message */
+	remove_marker(channel, name);	/* Ignore busy error message */
 	ret = 0;
 end:
 	mutex_unlock(&markers_mutex);
@@ -823,6 +886,7 @@ int marker_probe_unregister_private_data(marker_probe_func *probe,
 	struct marker_entry *entry;
 	int ret = 0;
 	struct marker_probe_closure *old;
+	const char *channel = NULL, *name = NULL;
 
 	mutex_lock(&markers_mutex);
 	entry = get_marker_from_private_data(probe, probe_private);
@@ -833,10 +897,14 @@ int marker_probe_unregister_private_data(marker_probe_func *probe,
 	if (entry->rcu_pending)
 		rcu_barrier_sched();
 	old = marker_entry_remove_probe(entry, NULL, probe_private);
+	channel = kstrdup(entry->channel, GFP_KERNEL);
+	name = kstrdup(entry->name, GFP_KERNEL);
 	mutex_unlock(&markers_mutex);
+
 	marker_update_probes();
+
 	mutex_lock(&markers_mutex);
-	entry = get_marker_from_private_data(probe, probe_private);
+	entry = get_marker(channel, name);
 	if (!entry)
 		goto end;
 	if (entry->rcu_pending)
@@ -846,15 +914,19 @@ int marker_probe_unregister_private_data(marker_probe_func *probe,
 	/* write rcu_pending before calling the RCU callback */
 	smp_wmb();
 	call_rcu_sched(&entry->rcu, free_old_closure);
-	remove_marker(entry->name);	/* Ignore busy error message */
+	/* Ignore busy error message */
+	remove_marker(channel, name);
 end:
 	mutex_unlock(&markers_mutex);
+	kfree(channel);
+	kfree(name);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(marker_probe_unregister_private_data);
 
 /**
  * marker_get_private_data - Get a marker's probe private data
+ * @channel: marker channel
  * @name: marker name
  * @probe: probe to match
  * @num: get the nth matching probe's private data
@@ -866,19 +938,21 @@ EXPORT_SYMBOL_GPL(marker_probe_unregister_private_data);
  * owner of the data, or its content could vanish. This is mostly used to
  * confirm that a caller is the owner of a registered probe.
  */
-void *marker_get_private_data(const char *name, marker_probe_func *probe,
-		int num)
+void *marker_get_private_data(const char *channel, const char *name,
+			      marker_probe_func *probe, int num)
 {
 	struct hlist_head *head;
 	struct hlist_node *node;
 	struct marker_entry *e;
+	size_t channel_len = strlen(channel) + 1;
 	size_t name_len = strlen(name) + 1;
-	u32 hash = jhash(name, name_len-1, 0);
 	int i;
+	u32 hash;
 
+	hash = jhash(channel, channel_len-1, 0) ^ jhash(name, name_len-1, 0);
 	head = &marker_table[hash & ((1 << MARKER_HASH_BITS)-1)];
 	hlist_for_each_entry(e, node, head, hlist) {
-		if (!strcmp(name, e->name)) {
+		if (!strcmp(channel, e->channel) && !strcmp(name, e->name)) {
 			if (!e->ptype) {
 				if (num == 0 && e->single.func == probe)
 					return e->single.probe_private;
@@ -899,6 +973,32 @@ void *marker_get_private_data(const char *name, marker_probe_func *probe,
 	return ERR_PTR(-ENOENT);
 }
 EXPORT_SYMBOL_GPL(marker_get_private_data);
+
+/**
+ * markers_compact_event_ids - Compact markers event IDs and reassign channels
+ *
+ * Called when no channel users are active by the channel infrastructure.
+ * Called with lock_markers() held.
+ */
+void markers_compact_event_ids(void)
+{
+	struct marker_entry *entry;
+	unsigned int i;
+	struct hlist_head *head;
+	struct hlist_node *node;
+
+	for (i = 0; i < MARKER_TABLE_SIZE; i++) {
+		head = &marker_table[i];
+		hlist_for_each_entry(entry, node, head, hlist) {
+			ret = ltt_channels_get_index_from_name(entry->channel);
+			WARN_ON(ret < 0);
+			entry->channel_id = ret;
+			ret = ltt_channels_get_event_id(entry->channel);
+			WARN_ON(ret < 0);
+			entry->event_id = ret;
+		}
+	}
+}
 
 #ifdef CONFIG_MODULES
 
