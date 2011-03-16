@@ -15,7 +15,7 @@
 #include <linux/cpufreq.h>
 
 #include <plat/clock.h>
-#include <plat/trace-clock.h>
+#include <asm/trace-clock.h>
 
 /* depends on CONFIG_OMAP_32K_TIMER */
 /* Need direct access to the clock from arch/arm/mach-omap2/timer-gp.c */
