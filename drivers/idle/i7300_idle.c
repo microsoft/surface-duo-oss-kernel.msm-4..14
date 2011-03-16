@@ -27,6 +27,7 @@
 #include <linux/debugfs.h>
 #include <linux/stop_machine.h>
 #include <linux/i7300_idle.h>
+#include <linux/idle.h>
 
 #include <asm/idle.h>
 
@@ -584,7 +585,7 @@ static int __init i7300_idle_init(void)
 		}
 	}
 
-	idle_notifier_register(&i7300_idle_nb);
+	register_idle_notifier(&i7300_idle_nb);
 
 	printk(KERN_INFO "i7300_idle: loaded v%s\n", I7300_IDLE_DRIVER_VERSION);
 	return 0;
@@ -592,7 +593,7 @@ static int __init i7300_idle_init(void)
 
 static void __exit i7300_idle_exit(void)
 {
-	idle_notifier_unregister(&i7300_idle_nb);
+	unregister_idle_notifier(&i7300_idle_nb);
 	free_cpumask_var(idle_cpumask);
 
 	if (debugfs_dir) {
