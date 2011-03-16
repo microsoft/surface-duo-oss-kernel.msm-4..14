@@ -26,6 +26,7 @@
 #include <linux/elf.h>
 #include <linux/regset.h>
 #include <linux/hw_breakpoint.h>
+#include <trace/syscall.h>
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
@@ -36,6 +37,9 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/syscalls.h>
+
+DEFINE_TRACE(syscall_entry);
+DEFINE_TRACE(syscall_exit);
 
 /*
  * This routine will get a word off of the process kernel stack.
@@ -491,6 +495,8 @@ asmlinkage long do_syscall_trace_enter(struct pt_regs *regs)
 {
 	long ret = 0;
 
+	trace_syscall_entry(regs, regs->regs[3]);
+
 	secure_computing(regs->regs[0]);
 
 	if (test_thread_flag(TIF_SYSCALL_TRACE) &&
@@ -516,6 +522,8 @@ asmlinkage long do_syscall_trace_enter(struct pt_regs *regs)
 asmlinkage void do_syscall_trace_leave(struct pt_regs *regs)
 {
 	int step;
+
+	trace_syscall_exit(regs->regs[0]);
 
 	if (unlikely(current->audit_context))
 		audit_syscall_exit(AUDITSC_RESULT(regs->regs[0]),
