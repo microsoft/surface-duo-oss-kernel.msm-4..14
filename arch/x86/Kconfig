@@ -209,10 +209,12 @@ config HAVE_INTEL_TXT
 config X86_32_SMP
 	def_bool y
 	depends on X86_32 && SMP
+	select HAVE_UNSYNCHRONIZED_TSC
 
 config X86_64_SMP
 	def_bool y
 	depends on X86_64 && SMP
+	select HAVE_UNSYNCHRONIZED_TSC
 
 config X86_HT
 	def_bool y
