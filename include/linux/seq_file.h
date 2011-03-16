@@ -153,4 +153,25 @@ extern struct hlist_node *seq_hlist_start_head_rcu(struct hlist_head *head,
 extern struct hlist_node *seq_hlist_next_rcu(void *v,
 						   struct hlist_head *head,
 						   loff_t *ppos);
+
+/*
+ * Helpers for iteration over a list sorted by ascending head pointer address.
+ * To be used in contexts where preemption cannot be disabled to insure to
+ * continue iteration on a modified list starting at the same location where it
+ * stopped, or at a following location. It insures that the lost information
+ * will only be in elements added/removed from the list between iterations.
+ * void *pos is only used to get the next list element and may not be a valid
+ * list_head anymore when given to seq_sorted_list_start() or
+ * seq_sorted_list_start_head().
+ */
+extern struct list_head *seq_sorted_list_start(struct list_head *head,
+		loff_t *ppos);
+extern struct list_head *seq_sorted_list_start_head(struct list_head *head,
+		loff_t *ppos);
+/*
+ * next must be called with an existing p node
+ */
+extern struct list_head *seq_sorted_list_next(void *p, struct list_head *head,
+		loff_t *ppos);
+
 #endif
