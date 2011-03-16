@@ -2280,6 +2280,13 @@ int swap_duplicate(swp_entry_t entry)
 	return err;
 }
 
+struct swap_info_struct *
+get_swap_info_struct(unsigned type)
+{
+	return swap_info[type];
+}
+EXPORT_SYMBOL_GPL(get_swap_info_struct);
+
 /*
  * @entry: swap entry for which we allocate swap cache.
  *
