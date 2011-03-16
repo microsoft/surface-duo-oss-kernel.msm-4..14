@@ -12,6 +12,14 @@
 /* Keep track of trap nesting inside LTT */
 DECLARE_PER_CPU(unsigned int, ltt_nesting);
 
+#ifndef MAYBE_BUILD_BUG_ON
+#define MAYBE_BUILD_BUG_ON(cond)					\
+	do {								\
+		if (__builtin_constant_p(cond))				\
+			BUILD_BUG_ON(cond);				\
+	} while (0)
+#endif
+
 #ifndef CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS
 
 /*
