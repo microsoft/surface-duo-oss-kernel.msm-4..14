@@ -782,7 +782,8 @@ static struct clocksource clocksource_tick = {
 	.flags		= CLOCK_SOURCE_IS_CONTINUOUS,
 };
 
-static unsigned long tb_ticks_per_usec __read_mostly;
+unsigned long tb_ticks_per_usec __read_mostly;
+EXPORT_SYMBOL_GPL(tb_ticks_per_usec);
 
 void __delay(unsigned long loops)
 {
