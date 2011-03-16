@@ -199,8 +199,8 @@ static struct list_head ptype_all __read_mostly;	/* Taps */
 DEFINE_RWLOCK(dev_base_lock);
 EXPORT_SYMBOL(dev_base_lock);
 
-DEFINE_TRACE(net_dev_xmit);
-DEFINE_TRACE(net_dev_receive);
+DEFINE_TRACE(lttng_net_dev_xmit);
+DEFINE_TRACE(lttng_net_dev_receive);
 DEFINE_TRACE(net_napi_schedule);
 DEFINE_TRACE(net_napi_poll);
 DEFINE_TRACE(net_napi_complete);
@@ -2127,7 +2127,7 @@ int dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev,
 			}
 		}
 
-		trace_net_dev_xmit(skb);
+		trace_lttng_net_dev_xmit(skb);
 		rc = ops->ndo_start_xmit(skb, dev);
 		trace_net_dev_xmit(skb, rc);
 		if (rc == NETDEV_TX_OK)
@@ -2149,7 +2149,7 @@ gso:
 		if (dev->priv_flags & IFF_XMIT_DST_RELEASE)
 			skb_dst_drop(nskb);
 
-		trace_net_dev_xmit(nskb);
+		trace_lttng_net_dev_xmit(nskb);
 		rc = ops->ndo_start_xmit(nskb, dev);
 		trace_net_dev_xmit(nskb, rc);
 		if (unlikely(rc != NETDEV_TX_OK)) {
@@ -2751,7 +2751,7 @@ int netif_rx(struct sk_buff *skb)
 	if (netpoll_rx(skb))
 		return NET_RX_DROP;
 
-	trace_net_dev_receive(skb);
+	trace_lttng_net_dev_receive(skb);
 
 	if (netdev_tstamp_prequeue)
 		net_timestamp_check(skb);
@@ -3186,7 +3186,7 @@ int netif_receive_skb(struct sk_buff *skb)
 	if (skb_defer_rx_timestamp(skb))
 		return NET_RX_SUCCESS;
 
-	trace_net_dev_receive(skb);
+	trace_lttng_net_dev_receive(skb);
 
 #ifdef CONFIG_RPS
 	{

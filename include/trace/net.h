@@ -1,13 +1,13 @@
-#ifndef _TRACE_NET_H
-#define _TRACE_NET_H
+#ifndef _TRACE_LTTNG_NET_H
+#define _TRACE_LTTNG_NET_H
 
 #include <linux/tracepoint.h>
 
 struct sk_buff;
-DECLARE_TRACE(net_dev_xmit,
+DECLARE_TRACE(lttng_net_dev_xmit,
 	TP_PROTO(struct sk_buff *skb),
 	TP_ARGS(skb));
-DECLARE_TRACE(net_dev_receive,
+DECLARE_TRACE(lttng_net_dev_receive,
 	TP_PROTO(struct sk_buff *skb),
 	TP_ARGS(skb));
 DECLARE_TRACE(net_tcpv4_rcv,
