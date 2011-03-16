@@ -2127,6 +2127,7 @@ int dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev,
 			}
 		}
 
+		trace_net_dev_xmit(skb);
 		rc = ops->ndo_start_xmit(skb, dev);
 		trace_net_dev_xmit(skb, rc);
 		if (rc == NETDEV_TX_OK)
@@ -2148,6 +2149,7 @@ gso:
 		if (dev->priv_flags & IFF_XMIT_DST_RELEASE)
 			skb_dst_drop(nskb);
 
+		trace_net_dev_xmit(nskb);
 		rc = ops->ndo_start_xmit(nskb, dev);
 		trace_net_dev_xmit(nskb, rc);
 		if (unlikely(rc != NETDEV_TX_OK)) {
@@ -2383,7 +2385,6 @@ int dev_queue_xmit(struct sk_buff *skb)
 	struct Qdisc *q;
 	int rc = -ENOMEM;
 
-	trace_net_dev_xmit(skb);
 	/* Disable soft irqs for various locks below. Also
 	 * stops preemption for RCU.
 	 */
@@ -2750,6 +2751,8 @@ int netif_rx(struct sk_buff *skb)
 	if (netpoll_rx(skb))
 		return NET_RX_DROP;
 
+	trace_net_dev_receive(skb);
+
 	if (netdev_tstamp_prequeue)
 		net_timestamp_check(skb);
 
@@ -3065,7 +3068,6 @@ static int __netif_receive_skb(struct sk_buff *skb)
 	}
 
 	__this_cpu_inc(softnet_data.processed);
-	trace_net_dev_receive(skb);
 	skb_reset_network_header(skb);
 	skb_reset_transport_header(skb);
 	skb->mac_len = skb->network_header - skb->mac_header;
@@ -3183,6 +3185,8 @@ int netif_receive_skb(struct sk_buff *skb)
 
 	if (skb_defer_rx_timestamp(skb))
 		return NET_RX_SUCCESS;
+
+	trace_net_dev_receive(skb);
 
 #ifdef CONFIG_RPS
 	{
