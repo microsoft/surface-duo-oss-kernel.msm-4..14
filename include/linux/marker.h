@@ -18,6 +18,7 @@
 
 struct module;
 struct marker;
+struct marker_probe_array;
 
 /**
  * marker_probe_func - Type of a marker probe function
@@ -54,7 +55,7 @@ struct marker {
 	u16 event_id;		/* Numeric event identifier, dynamic */
 	void (*call)(const struct marker *mdata, void *call_private, ...);
 	struct marker_probe_closure single;
-	struct marker_probe_closure *multi;
+	struct marker_probe_array *multi;
 	const char *tp_name;	/* Optional tracepoint name */
 	void *tp_cb;		/* Optional tracepoint callback */
 } __attribute__((aligned(8)));

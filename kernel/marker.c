@@ -61,6 +61,11 @@ EXPORT_SYMBOL_GPL(unlock_markers);
 static struct hlist_head marker_table[MARKER_TABLE_SIZE];
 static struct hlist_head id_table[MARKER_TABLE_SIZE];
 
+struct marker_probe_array {
+	struct rcu_head rcu;
+	struct marker_probe_closure c[0];
+};
+
 /*
  * Note about RCU :
  * It is used to make sure every handler has finished using its private data
@@ -77,11 +82,8 @@ struct marker_entry {
 			/* Probe wrapper */
 	void (*call)(const struct marker *mdata, void *call_private, ...);
 	struct marker_probe_closure single;
-	struct marker_probe_closure *multi;
+	struct marker_probe_array *multi;
 	int refcount;	/* Number of times armed. 0 if disarmed. */
-	struct rcu_head rcu;
-	void *oldptr;
-	int rcu_pending;
 	u16 channel_id;
 	u16 event_id;
 	unsigned char ptype:1;
@@ -145,7 +147,7 @@ notrace void marker_probe_cb(const struct marker *mdata,
 			mdata->format, &args);
 		va_end(args);
 	} else {
-		struct marker_probe_closure *multi;
+		struct marker_probe_array *multi;
 		int i;
 		/*
 		 * Read mdata->ptype before mdata->multi.
@@ -160,9 +162,9 @@ notrace void marker_probe_cb(const struct marker *mdata,
 		 * in the fast path, so put the explicit barrier here.
 		 */
 		smp_read_barrier_depends();
-		for (i = 0; multi[i].func; i++) {
+		for (i = 0; multi->c[i].func; i++) {
 			va_start(args, call_private);
-			multi[i].func(mdata, multi[i].probe_private,
+			multi->c[i].func(mdata, multi->c[i].probe_private,
 				call_private, mdata->format, &args);
 			va_end(args);
 		}
@@ -199,7 +201,7 @@ static notrace void marker_probe_cb_noarg(const struct marker *mdata,
 		func(mdata, mdata->single.probe_private, call_private,
 			mdata->format, &args);
 	} else {
-		struct marker_probe_closure *multi;
+		struct marker_probe_array *multi;
 		int i;
 		/*
 		 * Read mdata->ptype before mdata->multi.
@@ -214,8 +216,8 @@ static notrace void marker_probe_cb_noarg(const struct marker *mdata,
 		 * in the fast path, so put the explicit barrier here.
 		 */
 		smp_read_barrier_depends();
-		for (i = 0; multi[i].func; i++)
-			multi[i].func(mdata, multi[i].probe_private,
+		for (i = 0; multi->c[i].func; i++)
+			multi->c[i].func(mdata, multi->c[i].probe_private,
 				call_private, mdata->format, &args);
 	}
 	rcu_read_unlock_sched_notrace();
@@ -223,12 +225,8 @@ static notrace void marker_probe_cb_noarg(const struct marker *mdata,
 
 static void free_old_closure(struct rcu_head *head)
 {
-	struct marker_entry *entry = container_of(head,
-		struct marker_entry, rcu);
-	kfree(entry->oldptr);
-	/* Make sure we free the data before setting the pending flag to 0 */
-	smp_wmb();
-	entry->rcu_pending = 0;
+	struct marker_probe_array *multi = container_of(head, struct marker_probe_array, rcu);
+	kfree(multi);
 }
 
 static void debug_print_probes(struct marker_entry *entry)
@@ -243,19 +241,19 @@ static void debug_print_probes(struct marker_entry *entry)
 			entry->single.func,
 			entry->single.probe_private);
 	} else {
-		for (i = 0; entry->multi[i].func; i++)
+		for (i = 0; entry->multi->c[i].func; i++)
 			printk(KERN_DEBUG "Multi probe %d : %p %p\n", i,
-				entry->multi[i].func,
-				entry->multi[i].probe_private);
+				entry->multi->c[i].func,
+				entry->multi->c[i].probe_private);
 	}
 }
 
-static struct marker_probe_closure *
+static struct marker_probe_array *
 marker_entry_add_probe(struct marker_entry *entry,
 		marker_probe_func *probe, void *probe_private)
 {
 	int nr_probes = 0;
-	struct marker_probe_closure *old, *new;
+	struct marker_probe_array *old, *new;
 
 	WARN_ON(!probe);
 
@@ -280,24 +278,26 @@ marker_entry_add_probe(struct marker_entry *entry,
 		}
 	} else {
 		/* (N -> N+1), (N != 0, 1) probes */
-		for (nr_probes = 0; old[nr_probes].func; nr_probes++)
-			if (old[nr_probes].func == probe
-					&& old[nr_probes].probe_private
+		for (nr_probes = 0; old->c[nr_probes].func; nr_probes++)
+			if (old->c[nr_probes].func == probe
+					&& old->c[nr_probes].probe_private
 						== probe_private)
 				return ERR_PTR(-EBUSY);
 	}
 	/* + 2 : one for new probe, one for NULL func */
-	new = kzalloc((nr_probes + 2) * sizeof(struct marker_probe_closure),
+	new = kzalloc(sizeof(struct marker_probe_array)
+		      + ((nr_probes + 2) * sizeof(struct marker_probe_closure)),
 			GFP_KERNEL);
 	if (new == NULL)
 		return ERR_PTR(-ENOMEM);
+	INIT_RCU_HEAD(&new->rcu);
 	if (!old)
-		new[0] = entry->single;
+		new->c[0] = entry->single;
 	else
-		memcpy(new, old,
+		memcpy(&new->c[0], &old->c[0],
 			nr_probes * sizeof(struct marker_probe_closure));
-	new[nr_probes].func = probe;
-	new[nr_probes].probe_private = probe_private;
+	new->c[nr_probes].func = probe;
+	new->c[nr_probes].probe_private = probe_private;
 	entry->refcount = nr_probes + 1;
 	entry->multi = new;
 	entry->ptype = 1;
@@ -305,12 +305,12 @@ marker_entry_add_probe(struct marker_entry *entry,
 	return old;
 }
 
-static struct marker_probe_closure *
+static struct marker_probe_array *
 marker_entry_remove_probe(struct marker_entry *entry,
 		marker_probe_func *probe, void *probe_private)
 {
 	int nr_probes = 0, nr_del = 0, i;
-	struct marker_probe_closure *old, *new;
+	struct marker_probe_array *old, *new;
 
 	old = entry->multi;
 
@@ -328,9 +328,9 @@ marker_entry_remove_probe(struct marker_entry *entry,
 		return NULL;
 	} else {
 		/* (N -> M), (N > 1, M >= 0) probes */
-		for (nr_probes = 0; old[nr_probes].func; nr_probes++) {
-			if ((!probe || old[nr_probes].func == probe)
-					&& old[nr_probes].probe_private
+		for (nr_probes = 0; old->c[nr_probes].func; nr_probes++) {
+			if ((!probe || old->c[nr_probes].func == probe)
+					&& old->c[nr_probes].probe_private
 						== probe_private)
 				nr_del++;
 		}
@@ -343,24 +343,27 @@ marker_entry_remove_probe(struct marker_entry *entry,
 		entry->ptype = 0;
 	} else if (nr_probes - nr_del == 1) {
 		/* N -> 1, (N > 1) */
-		for (i = 0; old[i].func; i++)
-			if ((probe && old[i].func != probe) ||
-					old[i].probe_private != probe_private)
-				entry->single = old[i];
+		for (i = 0; old->c[i].func; i++)
+			if ((probe && old->c[i].func != probe) ||
+			    old->c[i].probe_private != probe_private)
+				entry->single = old->c[i];
 		entry->refcount = 1;
 		entry->ptype = 0;
 	} else {
 		int j = 0;
 		/* N -> M, (N > 1, M > 1) */
 		/* + 1 for NULL */
-		new = kzalloc((nr_probes - nr_del + 1)
-			* sizeof(struct marker_probe_closure), GFP_KERNEL);
+		new = kzalloc(sizeof(struct marker_probe_array)
+			      + ((nr_probes - nr_del + 1)
+			         * sizeof(struct marker_probe_closure)),
+			      GFP_KERNEL);
 		if (new == NULL)
 			return ERR_PTR(-ENOMEM);
-		for (i = 0; old[i].func; i++)
-			if ((probe && old[i].func != probe) ||
-					old[i].probe_private != probe_private)
-				new[j++] = old[i];
+		INIT_RCU_HEAD(&new->rcu);
+		for (i = 0; old->c[i].func; i++)
+			if ((probe && old->c[i].func != probe) ||
+			    old->c[i].probe_private != probe_private)
+				new->c[j++] = old->c[i];
 		entry->refcount = nr_probes - nr_del;
 		entry->ptype = 1;
 		entry->multi = new;
@@ -450,8 +453,6 @@ static struct marker_entry *add_marker(const char *channel, const char *name,
 	e->ptype = 0;
 	e->format_allocated = 0;
 	e->refcount = 0;
-	e->rcu_pending = 0;
-	INIT_RCU_HEAD(&e->rcu);
 	hlist_add_head(&e->hlist, head);
 	return e;
 }
@@ -497,9 +498,6 @@ static int remove_marker(const char *channel, const char *name, int registered,
 	}
 	if (e->format_allocated)
 		kfree(e->format);
-	/* Make sure the call_rcu has been executed */
-	if (e->rcu_pending)
-		rcu_barrier_sched();
 	kfree(e);
 	return 0;
 }
@@ -815,7 +813,7 @@ int marker_probe_register(const char *channel, const char *name,
 {
 	struct marker_entry *entry;
 	int ret = 0, ret_err;
-	struct marker_probe_closure *old;
+	struct marker_probe_array *old;
 	int first_probe = 0;
 
 	mutex_lock(&markers_mutex);
@@ -858,12 +856,6 @@ int marker_probe_register(const char *channel, const char *name,
 			goto end;
 	}
 
-	/*
-	 * If we detect that a call_rcu is pending for this marker,
-	 * make sure it's executed now.
-	 */
-	if (entry->rcu_pending)
-		rcu_barrier_sched();
 	old = marker_entry_add_probe(entry, probe, probe_private);
 	if (IS_ERR(old)) {
 		ret = PTR_ERR(old);
@@ -875,19 +867,9 @@ int marker_probe_register(const char *channel, const char *name,
 	mutex_unlock(&markers_mutex);
 
 	marker_update_probes();
-
-	mutex_lock(&markers_mutex);
-	entry = get_marker(channel, name);
-	if (!entry)
-		goto end;
-	if (entry->rcu_pending)
-		rcu_barrier_sched();
-	entry->oldptr = old;
-	entry->rcu_pending = 1;
-	/* write rcu_pending before calling the RCU callback */
-	smp_wmb();
-	call_rcu_sched(&entry->rcu, free_old_closure);
-	goto end;
+	if (old)
+		call_rcu_sched(&old->rcu, free_old_closure);
+	return ret;
 
 error_unregister_channel:
 	ret_err = ltt_channels_unregister(channel, 1);
@@ -918,35 +900,24 @@ int marker_probe_unregister(const char *channel, const char *name,
 			    marker_probe_func *probe, void *probe_private)
 {
 	struct marker_entry *entry;
-	struct marker_probe_closure *old;
-	int ret = -ENOENT;
-
-	mutex_lock(&markers_mutex);
-	entry = get_marker(channel, name);
-	if (!entry)
-		goto end;
-	if (entry->rcu_pending)
-		rcu_barrier_sched();
-	old = marker_entry_remove_probe(entry, probe, probe_private);
-	mutex_unlock(&markers_mutex);
-
-	marker_update_probes();
+	struct marker_probe_array *old;
+	int ret = 0;
 
 	mutex_lock(&markers_mutex);
 	entry = get_marker(channel, name);
 	if (!entry) {
-		ret = 0;	/* concurrent compaction removed it. */
+		ret = -ENOENT;
 		goto end;
 	}
-	if (entry->rcu_pending)
-		rcu_barrier_sched();
-	entry->oldptr = old;
-	entry->rcu_pending = 1;
-	/* write rcu_pending before calling the RCU callback */
-	smp_wmb();
-	call_rcu_sched(&entry->rcu, free_old_closure);
+	old = marker_entry_remove_probe(entry, probe, probe_private);
 	remove_marker(channel, name, 1, 0);	/* Ignore busy error message */
-	ret = 0;
+	mutex_unlock(&markers_mutex);
+
+	marker_update_probes();
+	if (old)
+		call_rcu_sched(&old->rcu, free_old_closure);
+	return ret;
+
 end:
 	mutex_unlock(&markers_mutex);
 	return ret;
@@ -970,12 +941,12 @@ get_marker_from_private_data(marker_probe_func *probe, void *probe_private)
 						== probe_private)
 					return entry;
 			} else {
-				struct marker_probe_closure *closure;
+				struct marker_probe_array *closure;
 				closure = entry->multi;
-				for (i = 0; closure[i].func; i++) {
-					if (closure[i].func == probe &&
-							closure[i].probe_private
-							== probe_private)
+				for (i = 0; closure->c[i].func; i++) {
+					if (closure->c[i].func == probe &&
+					    closure->c[i].probe_private
+					    == probe_private)
 						return entry;
 				}
 			}
@@ -1002,41 +973,29 @@ int marker_probe_unregister_private_data(marker_probe_func *probe,
 {
 	struct marker_entry *entry;
 	int ret = 0;
-	struct marker_probe_closure *old;
+	struct marker_probe_array *old;
 	const char *channel = NULL, *name = NULL;
 
 	mutex_lock(&markers_mutex);
 	entry = get_marker_from_private_data(probe, probe_private);
 	if (!entry) {
 		ret = -ENOENT;
-		goto end;
+		goto unlock;
 	}
-	if (entry->rcu_pending)
-		rcu_barrier_sched();
 	old = marker_entry_remove_probe(entry, NULL, probe_private);
 	channel = kstrdup(entry->channel, GFP_KERNEL);
 	name = kstrdup(entry->name, GFP_KERNEL);
+	remove_marker(channel, name, 1, 0);	/* Ignore busy error message */
 	mutex_unlock(&markers_mutex);
 
 	marker_update_probes();
+	if (old)
+		call_rcu_sched(&old->rcu, free_old_closure);
+	goto end;
 
-	mutex_lock(&markers_mutex);
-	entry = get_marker(channel, name);
-	if (!entry) {
-		ret = 0;	/* concurrent compaction removed it. */
-		goto end;
-	}
-	if (entry->rcu_pending)
-		rcu_barrier_sched();
-	entry->oldptr = old;
-	entry->rcu_pending = 1;
-	/* write rcu_pending before calling the RCU callback */
-	smp_wmb();
-	call_rcu_sched(&entry->rcu, free_old_closure);
-	/* Ignore busy error message */
-	remove_marker(channel, name, 1, 0);
-end:
+unlock:
 	mutex_unlock(&markers_mutex);
+end:
 	kfree(channel);
 	kfree(name);
 	return ret;
@@ -1076,14 +1035,14 @@ void *marker_get_private_data(const char *channel, const char *name,
 				if (num == 0 && e->single.func == probe)
 					return e->single.probe_private;
 			} else {
-				struct marker_probe_closure *closure;
+				struct marker_probe_array *closure;
 				int match = 0;
 				closure = e->multi;
-				for (i = 0; closure[i].func; i++) {
-					if (closure[i].func != probe)
+				for (i = 0; closure->c[i].func; i++) {
+					if (closure->c[i].func != probe)
 						continue;
 					if (match++ == num)
-						return closure[i].probe_private;
+						return closure->c[i].probe_private;
 				}
 			}
 			break;
