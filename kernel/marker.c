@@ -461,7 +461,8 @@ static struct marker_entry *add_marker(const char *channel, const char *name,
  * held. Parameter "registered" indicates if the channel registration has been
  * performed.
  */
-static int remove_marker(const char *channel, const char *name, int registered)
+static int remove_marker(const char *channel, const char *name, int registered,
+			 int compacting)
 {
 	struct hlist_head *head;
 	struct hlist_node *node;
@@ -491,7 +492,7 @@ static int remove_marker(const char *channel, const char *name, int registered)
 	hlist_del(&e->hlist);
 	hlist_del(&e->id_list);
 	if (registered) {
-		ret = ltt_channels_unregister(e->channel);
+		ret = ltt_channels_unregister(e->channel, compacting);
 		WARN_ON(ret);
 	}
 	if (e->format_allocated)
@@ -889,10 +890,10 @@ int marker_probe_register(const char *channel, const char *name,
 	goto end;
 
 error_unregister_channel:
-	ret_err = ltt_channels_unregister(channel);
+	ret_err = ltt_channels_unregister(channel, 1);
 	WARN_ON(ret_err);
 error_remove_marker:
-	ret_err = remove_marker(channel, name, 0);
+	ret_err = remove_marker(channel, name, 0, 0);
 	WARN_ON(ret_err);
 end:
 	mutex_unlock(&markers_mutex);
@@ -933,8 +934,10 @@ int marker_probe_unregister(const char *channel, const char *name,
 
 	mutex_lock(&markers_mutex);
 	entry = get_marker(channel, name);
-	if (!entry)
+	if (!entry) {
+		ret = 0;	/* concurrent compaction removed it. */
 		goto end;
+	}
 	if (entry->rcu_pending)
 		rcu_barrier_sched();
 	entry->oldptr = old;
@@ -942,7 +945,7 @@ int marker_probe_unregister(const char *channel, const char *name,
 	/* write rcu_pending before calling the RCU callback */
 	smp_wmb();
 	call_rcu_sched(&entry->rcu, free_old_closure);
-	remove_marker(channel, name, 1);	/* Ignore busy error message */
+	remove_marker(channel, name, 1, 0);	/* Ignore busy error message */
 	ret = 0;
 end:
 	mutex_unlock(&markers_mutex);
@@ -1019,8 +1022,10 @@ int marker_probe_unregister_private_data(marker_probe_func *probe,
 
 	mutex_lock(&markers_mutex);
 	entry = get_marker(channel, name);
-	if (!entry)
+	if (!entry) {
+		ret = 0;	/* concurrent compaction removed it. */
 		goto end;
+	}
 	if (entry->rcu_pending)
 		rcu_barrier_sched();
 	entry->oldptr = old;
@@ -1029,7 +1034,7 @@ int marker_probe_unregister_private_data(marker_probe_func *probe,
 	smp_wmb();
 	call_rcu_sched(&entry->rcu, free_old_closure);
 	/* Ignore busy error message */
-	remove_marker(channel, name, 1);
+	remove_marker(channel, name, 1, 0);
 end:
 	mutex_unlock(&markers_mutex);
 	kfree(channel);
@@ -1140,7 +1145,8 @@ void markers_compact_event_ids(void)
 		head = &marker_table[i];
 		hlist_for_each_entry_safe(entry, node, next, head, hlist) {
 			if (!entry->refcount) {
-				remove_marker(entry->channel, entry->name, 1);
+				remove_marker(entry->channel, entry->name,
+					      1, 1);
 				continue;
 			}
 			ret = ltt_channels_get_index_from_name(entry->channel);
