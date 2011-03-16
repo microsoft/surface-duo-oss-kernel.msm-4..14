@@ -693,6 +693,18 @@ config CGROUP_MEM_RES_CTLR_SWAP_ENABLED
 config HAVE_GET_CYCLES
 	def_bool n
 
+#
+# Architectures with a specialized tracing clock should select this.
+#
+config HAVE_TRACE_CLOCK
+	def_bool n
+
+#
+# Architectures with only a 32-bits clock source should select this.
+#
+config HAVE_TRACE_CLOCK_32_TO_64
+	def_bool n
+
 menuconfig CGROUP_SCHED
 	bool "Group CPU scheduler"
 	depends on EXPERIMENTAL
