@@ -30,6 +30,7 @@
 #include <linux/kdb.h>
 #include <linux/irq.h>
 #include <linux/perf_event.h>
+#include <trace/trap.h>
 
 #include <asm/bootinfo.h>
 #include <asm/branch.h>
@@ -54,6 +55,12 @@
 #include <asm/types.h>
 #include <asm/stacktrace.h>
 #include <asm/uasm.h>
+
+/*
+ * Also used in unaligned.c and fault.c.
+ */
+DEFINE_TRACE(trap_entry);
+DEFINE_TRACE(trap_exit);
 
 extern void check_wait(void);
 extern asmlinkage void r4k_wait(void);
@@ -321,7 +328,7 @@ static void __show_regs(const struct pt_regs *regs)
 
 	printk("Cause : %08x\n", cause);
 
-	cause = (cause & CAUSEF_EXCCODE) >> CAUSEB_EXCCODE;
+	cause = CAUSE_EXCCODE(cause);
 	if (1 <= cause && cause <= 5)
 		printk("BadVA : %0*lx\n", field, regs->cp0_badvaddr);
 
@@ -698,6 +705,7 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 		return;
 	die_if_kernel("FP exception in kernel code", regs);
 
+	trace_trap_entry(regs, CAUSE_EXCCODE(regs->cp0_cause));
 	if (fcr31 & FPU_CSR_UNI_X) {
 		int sig;
 		void __user *fault_addr = NULL;
@@ -730,7 +738,7 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 
 		/* If something went wrong, signal */
 		process_fpemu_return(sig, fault_addr);
-
+		trace_trap_exit();
 		return;
 	} else if (fcr31 & FPU_CSR_INV_X)
 		info.si_code = FPE_FLTINV;
@@ -748,6 +756,7 @@ asmlinkage void do_fpe(struct pt_regs *regs, unsigned long fcr31)
 	info.si_errno = 0;
 	info.si_addr = (void __user *) regs->cp0_epc;
 	force_sig_info(SIGFPE, &info, current);
+	trace_trap_exit();
 }
 
 static void do_trap_or_bp(struct pt_regs *regs, unsigned int code,
@@ -979,6 +988,8 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 	int status;
 	unsigned long __maybe_unused flags;
 
+	trace_trap_entry(regs, CAUSE_EXCCODE(regs->cp0_cause));
+
 	die_if_kernel("do_cpu invoked from kernel context!", regs);
 
 	cpid = (regs->cp0_cause >> CAUSEB_CE) & 3;
@@ -990,8 +1001,10 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 		opcode = 0;
 		status = -1;
 
-		if (unlikely(compute_return_epc(regs) < 0))
+		if (unlikely(compute_return_epc(regs) < 0)) {
+			trace_trap_exit();
 			return;
+		}
 
 		if (unlikely(get_user(opcode, epc) < 0))
 			status = SIGSEGV;
@@ -1009,7 +1022,7 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 			regs->cp0_epc = old_epc;	/* Undo skip-over.  */
 			force_sig(status, current);
 		}
-
+		trace_trap_exit();
 		return;
 
 	case 1:
@@ -1029,11 +1042,12 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 			if (!process_fpemu_return(sig, fault_addr))
 				mt_ase_fp_affinity();
 		}
-
+		trace_trap_exit();
 		return;
 
 	case 2:
 		raw_notifier_call_chain(&cu2_chain, CU2_EXCEPTION, regs);
+		trace_trap_exit();
 		return;
 
 	case 3:
@@ -1041,6 +1055,7 @@ asmlinkage void do_cpu(struct pt_regs *regs)
 	}
 
 	force_sig(SIGILL, current);
+	trace_trap_exit();
 }
 
 asmlinkage void do_mdmx(struct pt_regs *regs)

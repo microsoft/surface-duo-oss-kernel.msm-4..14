@@ -31,6 +31,7 @@
 #include <linux/slab.h>
 #include <linux/random.h>
 #include <linux/elf.h>
+#include <linux/ipc.h>
 
 #include <asm/asm.h>
 #include <asm/branch.h>

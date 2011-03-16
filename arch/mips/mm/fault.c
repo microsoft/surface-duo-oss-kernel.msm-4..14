@@ -19,6 +19,7 @@
 #include <linux/module.h>
 #include <linux/kprobes.h>
 #include <linux/perf_event.h>
+#include <trace/fault.h>
 
 #include <asm/branch.h>
 #include <asm/mmu_context.h>
@@ -27,6 +28,9 @@
 #include <asm/ptrace.h>
 #include <asm/highmem.h>		/* For VMALLOC_END */
 #include <linux/kdebug.h>
+
+DEFINE_TRACE(page_fault_entry);
+DEFINE_TRACE(page_fault_exit);
 
 /*
  * This routine handles page faults.  It determines the address,
@@ -144,7 +148,10 @@ good_area:
 	 * make sure we exit gracefully rather than endlessly redo
 	 * the fault.
 	 */
+	trace_page_fault_entry(regs, CAUSE_EXCCODE(regs->cp0_cause), mm, vma,
+			       address, write);
 	fault = handle_mm_fault(mm, vma, address, write ? FAULT_FLAG_WRITE : 0);
+	trace_page_fault_exit(fault);
 	perf_sw_event(PERF_COUNT_SW_PAGE_FAULTS, 1, 0, regs, address);
 	if (unlikely(fault & VM_FAULT_ERROR)) {
 		if (fault & VM_FAULT_OOM)

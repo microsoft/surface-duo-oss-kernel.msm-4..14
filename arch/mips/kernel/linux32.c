@@ -34,6 +34,7 @@
 #include <linux/vfs.h>
 #include <linux/ipc.h>
 #include <linux/slab.h>
+#include <trace/ipc.h>
 
 #include <net/sock.h>
 #include <net/scm.h>
@@ -43,6 +44,8 @@
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
 #include <asm/mman.h>
+
+DEFINE_TRACE(ipc_call);
 
 /* Use this to get at 32-bit user passed pointers. */
 /* A() macro should be used for places where you e.g.
@@ -165,6 +168,8 @@ SYSCALL_DEFINE6(32_ipc, u32, call, long, first, long, second, long, third,
 
 	version = call >> 16; /* hack for backward compatibility */
 	call &= 0xffff;
+
+	trace_ipc_call(call, first);
 
 	switch (call) {
 	case SEMOP:

@@ -25,6 +25,7 @@
 #include <linux/security.h>
 #include <linux/audit.h>
 #include <linux/seccomp.h>
+#include <trace/syscall.h>
 
 #include <asm/byteorder.h>
 #include <asm/cpu.h>
@@ -38,6 +39,9 @@
 #include <asm/uaccess.h>
 #include <asm/bootinfo.h>
 #include <asm/reg.h>
+
+DEFINE_TRACE(syscall_entry);
+DEFINE_TRACE(syscall_exit);
 
 /*
  * Called by kernel/ptrace.c when detaching..
@@ -535,6 +539,11 @@ static inline int audit_arch(void)
  */
 asmlinkage void do_syscall_trace(struct pt_regs *regs, int entryexit)
 {
+	if (!entryexit)
+		trace_syscall_entry(regs, regs->regs[2]);
+	else
+		trace_syscall_exit(regs->regs[2]);
+
 	/* do the secure computing check first */
 	if (!entryexit)
 		secure_computing(regs->regs[2]);
