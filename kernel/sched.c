@@ -9255,3 +9255,57 @@ struct cgroup_subsys cpuacct_subsys = {
 };
 #endif	/* CONFIG_CGROUP_CPUACCT */
 
+static DEFINE_MUTEX(kernel_trace_mutex);
+static int kernel_trace_refcount;
+
+/**
+ * clear_kernel_trace_flag_all_tasks - clears all TIF_KERNEL_TRACE thread flags.
+ *
+ * This function iterates on all threads in the system to clear their
+ * TIF_KERNEL_TRACE flag. Setting the TIF_KERNEL_TRACE flag with the
+ * tasklist_lock held in copy_process() makes sure that once we finish clearing
+ * the thread flags, all threads have their flags cleared.
+ */
+void clear_kernel_trace_flag_all_tasks(void)
+{
+	struct task_struct *p;
+	struct task_struct *t;
+
+	mutex_lock(&kernel_trace_mutex);
+	if (--kernel_trace_refcount)
+		goto end;
+	read_lock(&tasklist_lock);
+	do_each_thread(p, t) {
+		clear_tsk_thread_flag(t, TIF_KERNEL_TRACE);
+	} while_each_thread(p, t);
+	read_unlock(&tasklist_lock);
+end:
+	mutex_unlock(&kernel_trace_mutex);
+}
+EXPORT_SYMBOL_GPL(clear_kernel_trace_flag_all_tasks);
+
+/**
+ * set_kernel_trace_flag_all_tasks - sets all TIF_KERNEL_TRACE thread flags.
+ *
+ * This function iterates on all threads in the system to set their
+ * TIF_KERNEL_TRACE flag. Setting the TIF_KERNEL_TRACE flag with the
+ * tasklist_lock held in copy_process() makes sure that once we finish setting
+ * the thread flags, all threads have their flags set.
+ */
+void set_kernel_trace_flag_all_tasks(void)
+{
+	struct task_struct *p;
+	struct task_struct *t;
+
+	mutex_lock(&kernel_trace_mutex);
+	if (kernel_trace_refcount++)
+		goto end;
+	read_lock(&tasklist_lock);
+	do_each_thread(p, t) {
+		set_tsk_thread_flag(t, TIF_KERNEL_TRACE);
+	} while_each_thread(p, t);
+	read_unlock(&tasklist_lock);
+end:
+	mutex_unlock(&kernel_trace_mutex);
+}
+EXPORT_SYMBOL_GPL(set_kernel_trace_flag_all_tasks);

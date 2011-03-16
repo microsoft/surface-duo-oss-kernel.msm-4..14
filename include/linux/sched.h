@@ -2620,6 +2620,9 @@ static inline unsigned long rlimit_max(unsigned int limit)
 	return task_rlimit_max(current, limit);
 }
 
+extern void clear_kernel_trace_flag_all_tasks(void);
+extern void set_kernel_trace_flag_all_tasks(void);
+
 #endif /* __KERNEL__ */
 
 #endif
