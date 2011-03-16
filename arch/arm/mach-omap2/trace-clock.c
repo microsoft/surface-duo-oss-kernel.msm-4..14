@@ -12,6 +12,7 @@
 #include <linux/spinlock.h>
 #include <linux/init.h>
 #include <linux/cpu.h>
+#include <linux/cpufreq.h>
 
 #include <plat/clock.h>
 #include <plat/trace-clock.h>
@@ -20,23 +21,8 @@
 /* Need direct access to the clock from arch/arm/mach-omap2/timer-gp.c */
 static struct clocksource *clock;
 
-/* 32KHz counter per-cpu count save upon PM sleep */
-struct pm_save_count {
-	u64 int_fast_clock;
-	struct timer_list clear_ccnt_ms_timer;
-	u32 ext_32k;
-	int refcount;
-	u32 init_clock;
-	spinlock_t lock;	/* spinlock only sync the refcount */
-	/*
-	 * Is fast clock ready to be read ?  Read with preemption off. Modified
-	 * only by local CPU in thread and interrupt context or by start/stop
-	 * when time is not read concurrently.
-	 */
-	int fast_clock_ready;
-};
-
-static DEFINE_PER_CPU(struct pm_save_count, pm_save_count);
+DEFINE_PER_CPU(struct pm_save_count, pm_save_count);
+EXPORT_PER_CPU_SYMBOL_GPL(pm_save_count);
 
 static void clear_ccnt_ms(unsigned long data);
 
@@ -53,6 +39,13 @@ static DEFINE_SPINLOCK(trace_clock_lock);
 static int trace_clock_refcount;
 
 static int print_info_done;
+
+static u32 get_mul_fact(u64 max_freq, u64 cur_freq)
+{
+	u64 rem;
+
+	return __iter_div_u64_rem(max_freq << 10, cur_freq, &rem);
+}
 
 /*
  * Cycle counter management.
@@ -174,7 +167,8 @@ end:
 /*
  * Called with preemption disabled. Read the external clock source directly
  * and return corresponding time in fast clock source time frame.
- * Only called after time is saved and before it is resynced.
+ * Called after time is saved and before it is resynced.
+ * Also used to periodically resync the drifting dvfs clock on external clock.
  */
 u64 _trace_clock_read_slow(void)
 {
@@ -185,7 +179,6 @@ u64 _trace_clock_read_slow(void)
 
 	cpu = smp_processor_id();
 	pm_count = &per_cpu(pm_save_count, cpu);
-	WARN_ON_ONCE(pm_count->fast_clock_ready);
 	WARN_ON_ONCE(!pm_count->refcount);
 
 	/*
@@ -215,6 +208,8 @@ EXPORT_SYMBOL_GPL(_trace_clock_read_slow);
 void resync_trace_clock(void)
 {
 	struct pm_save_count *pm_count;
+	struct tc_cur_freq *new_cf, *cf;
+	unsigned int new_index, index;
 	u64 ref_time;
 	unsigned long flags;
 	u32 regval;
@@ -253,6 +248,20 @@ void resync_trace_clock(void)
 	write_ctens(read_ctens() |  (1 << 31));	/* enable counter */
 
 	_trace_clock_write_synthetic_tsc(ref_time);
+
+	index = pm_count->index;
+	new_index = 1 - index;
+	cf = &pm_count->cf[index];
+	new_cf = &pm_count->cf[new_index];
+	new_cf->hw_base = ref_time;
+	new_cf->virt_base = ref_time;
+	new_cf->cur_cpu_freq = cpufreq_quick_get(cpu);
+	new_cf->mul_fact = get_mul_fact(pm_count->max_cpu_freq,
+					new_cf->cur_cpu_freq);
+	new_cf->floor = max(ref_time, cf->floor);
+	new_cf->need_resync = 0;
+	barrier();
+	pm_count->index = new_index;
 	barrier();	/* make clock ready before enabling */
 	pm_count->fast_clock_ready = 1;
 
@@ -273,6 +282,54 @@ end:
 	local_irq_restore(flags);
 }
 
+/*
+ * Periodic timer resynchonizing the clock with ext. 32k clock.
+ * Necessary to deal with drift caused by DVFS updates.
+ */
+static void clock_resync_timer_fct(unsigned long data)
+{
+	struct pm_save_count *pm_count;
+	struct tc_cur_freq *new_cf, *cf;
+	u64 ref_time;
+	unsigned int new_index, index;
+	unsigned long flags;
+	int cpu;
+
+	cpu = smp_processor_id();
+	pm_count = &per_cpu(pm_save_count, cpu);
+
+	local_irq_save(flags);
+	local_fiq_disable();	/* disable fiqs for floor value */
+
+	index = pm_count->index;
+
+	if (likely(!pm_count->cf[index].need_resync))
+		goto end;
+
+	new_index = 1 - index;
+	cf = &pm_count->cf[index];
+	new_cf = &pm_count->cf[new_index];
+	ref_time = _trace_clock_read_slow();
+	new_cf->hw_base = trace_clock_read_synthetic_tsc();
+	new_cf->virt_base = ref_time;
+	new_cf->cur_cpu_freq = cpufreq_quick_get(cpu);
+	new_cf->mul_fact = get_mul_fact(pm_count->max_cpu_freq,
+					new_cf->cur_cpu_freq);
+	new_cf->floor = max((((new_cf->hw_base - cf->hw_base)
+			    * cf->mul_fact) >> 10) + cf->virt_base,
+			    cf->floor);
+	new_cf->need_resync = 0;
+	barrier();
+	pm_count->index = new_index;
+end:
+	local_fiq_enable();
+	local_irq_restore(flags);
+
+	pm_count->clock_resync_timer.expires = jiffies
+					+ (TC_RESYNC_PERIOD * HZ / 1000);
+	add_timer_on(&pm_count->clock_resync_timer, cpu);
+}
+
 static void prepare_timer(int cpu)
 {
 	struct pm_save_count *pm_count;
@@ -281,6 +338,11 @@ static void prepare_timer(int cpu)
 	init_timer_deferrable(&pm_count->clear_ccnt_ms_timer);
 	pm_count->clear_ccnt_ms_timer.function = clear_ccnt_ms;
 	pm_count->clear_ccnt_ms_timer.expires = jiffies + clear_ccnt_interval;
+
+	init_timer_deferrable(&pm_count->clock_resync_timer);
+	pm_count->clock_resync_timer.function = clock_resync_timer_fct;
+	pm_count->clock_resync_timer.expires = jiffies
+					+ (TC_RESYNC_PERIOD * HZ / 1000);
 }
 
 static void enable_timer(int cpu)
@@ -289,6 +351,7 @@ static void enable_timer(int cpu)
 
 	pm_count = &per_cpu(pm_save_count, cpu);
 	add_timer_on(&pm_count->clear_ccnt_ms_timer, cpu);
+	add_timer_on(&pm_count->clock_resync_timer, cpu);
 }
 
 static void disable_timer_ipi(void *info)
@@ -298,6 +361,7 @@ static void disable_timer_ipi(void *info)
 
 	pm_count = &per_cpu(pm_save_count, cpu);
 	del_timer(&pm_count->clear_ccnt_ms_timer);
+	del_timer(&pm_count->clock_resync_timer);
 	save_sync_trace_clock();
 }
 
@@ -463,19 +527,101 @@ end:
 }
 EXPORT_SYMBOL_GPL(put_trace_clock);
 
+/*
+ * We do not use prechange hook to sample 2 clock values and average because
+ * locking wrt other timers can be difficult to get right.
+ * A bit more imprecision just increases the drift. We have a periodic timer
+ * in place to resynchronize periodically on the 32k clock anyway.
+ */
+static int cpufreq_trace_clock(struct notifier_block *nb,
+			       unsigned long val, void *data)
+{
+	struct cpufreq_freqs *freq = data;
+	struct pm_save_count *pm_count;
+	struct tc_cur_freq *new_cf, *cf;
+	unsigned long flags;
+	unsigned int new_index, index;
+	u64 post_val;
+	int cpu;
+
+#if 0 /* debug trace_mark */
+	trace_mark(test, freq_change,
+		   "%s cpu %u oldfreq %u newfreq %u const %u",
+		   (val != CPUFREQ_POSTCHANGE) ? "prechange" : "postchange",
+		   freq->cpu, freq->old, freq->new,
+		   (freq->flags & CPUFREQ_CONST_LOOPS) ? 1 : 0);
+#endif
+
+	if (freq->flags & CPUFREQ_CONST_LOOPS)
+		return 0;
+
+	if (val != CPUFREQ_POSTCHANGE)
+		return 0;
+
+	local_irq_save(flags);
+	cpu = smp_processor_id();
+	WARN_ON_ONCE(cpu != freq->cpu);
+	pm_count = &per_cpu(pm_save_count, cpu);
+	spin_lock(&pm_count->lock);
+
+	if (!pm_count->refcount)
+		goto end;
+
+	/*
+	 * Disable FIQs to ensure the floor value is indeed the
+	 * floor.
+	 */
+	local_fiq_disable();
+	post_val = trace_clock_read_synthetic_tsc();
+	/* disable irqs to ensure we are the only value modifier */
+	index = pm_count->index;
+	new_index = 1 - index;
+	cf = &pm_count->cf[index];
+	new_cf = &pm_count->cf[new_index];
+	new_cf->hw_base = post_val;
+	new_cf->virt_base = (((post_val - cf->hw_base) * cf->mul_fact) >> 10)
+			    + cf->virt_base;
+	new_cf->cur_cpu_freq = freq->new;
+	new_cf->mul_fact = get_mul_fact(pm_count->max_cpu_freq, freq->new);
+	new_cf->floor = max((((post_val - cf->hw_base) * cf->mul_fact) >> 10)
+			    + cf->virt_base,
+			    cf->floor);
+	new_cf->need_resync = 1;
+	barrier();
+	pm_count->index = new_index;
+	local_fiq_enable();
+end:
+	spin_unlock(&pm_count->lock);
+	local_irq_restore(flags);
+	return 0;
+}
+
+static struct notifier_block cpufreq_trace_clock_nb = {
+	.notifier_call = cpufreq_trace_clock,
+};
+
 static __init int init_trace_clock(void)
 {
 	int cpu;
 	u64 rem;
 
 	clock = get_clocksource_32k();
-	clear_ccnt_interval = __iter_div_u64_rem(HZ * (1ULL << 30),
-				cpu_hz, &rem);
+	/*
+	 * clear_ccnt_interval based on the cpu fastest frequency. Never
+	 * recomputed.
+	 */
+	clear_ccnt_interval = __iter_div_u64_rem(HZ * (1ULL << 30), cpu_hz,
+						 &rem);
 	printk(KERN_INFO "LTTng will clear ccnt top bit every %u jiffies.\n",
 		clear_ccnt_interval);
-	hotcpu_notifier(hotcpu_callback, 4);
-	for_each_possible_cpu(cpu)
+	for_each_possible_cpu(cpu) {
+		per_cpu(pm_save_count, cpu).max_cpu_freq =
+			__iter_div_u64_rem(cpu_hz, 1000, &rem);
 		spin_lock_init(&per_cpu(pm_save_count, cpu).lock);
+	}
+	hotcpu_notifier(hotcpu_callback, 4);
+	cpufreq_register_notifier(&cpufreq_trace_clock_nb,
+				  CPUFREQ_TRANSITION_NOTIFIER);
 	return 0;
 }
 __initcall(init_trace_clock);

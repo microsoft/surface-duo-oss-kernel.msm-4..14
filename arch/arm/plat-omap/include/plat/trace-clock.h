@@ -8,6 +8,7 @@
 #define _ASM_ARM_TRACE_CLOCK_OMAP3_H
 
 #include <linux/clk.h>
+#include <linux/timer.h>
 #include <plat/clock.h>
 
 /*
@@ -32,9 +33,49 @@
 /* Expected maximum interrupt latency in ms : 15ms, *2 for security */
 #define TC_EXPECTED_INTERRUPT_LATENCY	30
 
+/* Resync with 32k clock each 100ms */
+#define TC_RESYNC_PERIOD		100
+
+struct tc_cur_freq {
+	u64 cur_cpu_freq;	/* in khz */
+	/* cur time : (now - base) * (max_freq / cur_freq) + base */
+	u32 mul_fact;		/* (max_cpu_freq << 10) / cur_freq */
+	u64 hw_base;		/* stamp of last cpufreq change, hw cycles */
+	u64 virt_base;		/* same as above, virtual trace clock cycles */
+	u64 floor;		/* floor value, so time never go back */
+	int need_resync;	/* Need resync after dvfs update ? */
+};
+
+/* 32KHz counter per-cpu count save upon PM sleep and cpufreq management */
+struct pm_save_count {
+	struct tc_cur_freq cf[2];	/* rcu-protected */
+	unsigned int index;		/* tc_cur_freq current read index */
+	/*
+	 * Is fast clock ready to be read ?  Read with preemption off. Modified
+	 * only by local CPU in thread and interrupt context or by start/stop
+	 * when time is not read concurrently.
+	 */
+	int fast_clock_ready;
+
+	u64 int_fast_clock;
+	struct timer_list clear_ccnt_ms_timer;
+	struct timer_list clock_resync_timer;
+	u32 ext_32k;
+	int refcount;
+	u32 init_clock;
+	spinlock_t lock;		/* spinlock only sync the refcount */
+	/* cpufreq management */
+	u64 max_cpu_freq;		/* in khz */
+};
+
+DECLARE_PER_CPU(struct pm_save_count, pm_save_count);
+
 extern u64 trace_clock_read_synthetic_tsc(void);
 extern void _trace_clock_write_synthetic_tsc(u64 value);
 extern unsigned long long cpu_hz;
+
+DECLARE_PER_CPU(int, fast_clock_ready);
+extern u64 _trace_clock_read_slow(void);
 
 /*
  * ARM OMAP3 timers only return 32-bits values. We ened to extend it to a
@@ -65,7 +106,21 @@ static inline u32 trace_clock_read32(void)
 
 static inline u64 trace_clock_read64(void)
 {
-	return trace_clock_read_synthetic_tsc();
+	struct pm_save_count *pm_count;
+	struct tc_cur_freq *cf;
+	u64 val;
+
+	preempt_disable();
+	pm_count = &per_cpu(pm_save_count, smp_processor_id());
+	if (likely(pm_count->fast_clock_ready)) {
+		cf = &pm_count->cf[ACCESS_ONCE(pm_count->index)];
+		val = max((((trace_clock_read_synthetic_tsc() - cf->hw_base)
+		      * cf->mul_fact) >> 10) + cf->virt_base, cf->floor);
+	} else
+		val = _trace_clock_read_slow();
+	preempt_enable();
+
+	return val;
 }
 
 static inline u64 trace_clock_frequency(void)
