@@ -14,6 +14,7 @@
 
 #include <stdarg.h>
 #include <linux/types.h>
+#include <linux/immediate.h>
 
 struct module;
 struct marker;
@@ -43,7 +44,7 @@ struct marker {
 	const char *format;	/* Marker format string, describing the
 				 * variable argument list.
 				 */
-	char state;		/* Marker state. */
+	DEFINE_IMV(char, state);/* Immediate value state. */
 	char ptype;		/* probe type : 0 : single, 1 : multi */
 				/* Probe wrapper */
 	void (*call)(const struct marker *mdata, void *call_private, ...);
@@ -84,9 +85,16 @@ struct marker {
 	do {								\
 		DEFINE_MARKER(name, format);				\
 		__mark_check_format(format, ## args);			\
-		if (unlikely(__mark_##name.state)) {			\
-			(*__mark_##name.call)				\
-				(&__mark_##name, call_private, ## args);\
+		if (!generic) {						\
+			if (unlikely(imv_read(__mark_##name.state)))	\
+				(*__mark_##name.call)			\
+					(&__mark_##name, call_private,	\
+					## args);			\
+		} else {						\
+			if (unlikely(_imv_read(__mark_##name.state)))	\
+				(*__mark_##name.call)			\
+					(&__mark_##name, call_private,	\
+					## args);			\
 		}							\
 	} while (0)
 

@@ -24,6 +24,7 @@
 #include <linux/marker.h>
 #include <linux/err.h>
 #include <linux/slab.h>
+#include <linux/immediate.h>
 
 extern struct marker __start___markers[];
 extern struct marker __stop___markers[];
@@ -532,7 +533,7 @@ static int set_marker(struct marker_entry *entry, struct marker *elem,
 	smp_wmb();
 	elem->ptype = entry->ptype;
 
-	if (elem->tp_name && (active ^ elem->state)) {
+	if (elem->tp_name && (active ^ _imv_read(elem->state))) {
 		WARN_ON(!elem->tp_cb);
 		/*
 		 * It is ok to directly call the probe registration because type
@@ -562,7 +563,7 @@ static int set_marker(struct marker_entry *entry, struct marker *elem,
 				(unsigned long)elem->tp_cb));
 		}
 	}
-	elem->state = active;
+	elem->state__imv = active;
 
 	return ret;
 }
@@ -578,7 +579,7 @@ static void disable_marker(struct marker *elem)
 	int ret;
 
 	/* leave "call" as is. It is known statically. */
-	if (elem->tp_name && elem->state) {
+	if (elem->tp_name && _imv_read(elem->state)) {
 		WARN_ON(!elem->tp_cb);
 		/*
 		 * It is ok to directly call the probe registration because type
@@ -593,7 +594,7 @@ static void disable_marker(struct marker *elem)
 		 */
 		module_put(__module_text_address((unsigned long)elem->tp_cb));
 	}
-	elem->state = 0;
+	elem->state__imv = 0;
 	elem->single.func = __mark_empty_function;
 	/* Update the function before setting the ptype */
 	smp_wmb();
@@ -657,6 +658,9 @@ static void marker_update_probes(void)
 	/* Markers in modules. */
 	module_update_markers();
 	tracepoint_probe_update_all();
+	/* Update immediate values */
+	core_imv_update();
+	module_imv_update();
 }
 
 /**
