@@ -43,7 +43,6 @@ struct tc_cur_freq {
 	u64 hw_base;		/* stamp of last cpufreq change, hw cycles */
 	u64 virt_base;		/* same as above, virtual trace clock cycles */
 	u64 floor;		/* floor value, so time never go back */
-	int need_resync;	/* Need resync after dvfs update ? */
 };
 
 /* 32KHz counter per-cpu count save upon PM sleep and cpufreq management */
@@ -60,6 +59,7 @@ struct pm_save_count {
 	u64 int_fast_clock;
 	struct timer_list clear_ccnt_ms_timer;
 	struct timer_list clock_resync_timer;
+	unsigned int dvfs_count;	/* Number of DVFS updates in period */
 	u32 ext_32k;
 	int refcount;
 	u32 init_clock;

@@ -259,11 +259,15 @@ void resync_trace_clock(void)
 	new_cf->mul_fact = get_mul_fact(pm_count->max_cpu_freq,
 					new_cf->cur_cpu_freq);
 	new_cf->floor = max(ref_time, cf->floor);
-	new_cf->need_resync = 0;
 	barrier();
 	pm_count->index = new_index;
 	barrier();	/* make clock ready before enabling */
 	pm_count->fast_clock_ready = 1;
+
+	/* Delete resync timer if present. Just done its job anyway. */
+	if (pm_count->dvfs_count)
+		del_timer(&pm_count->clock_resync_timer);
+	pm_count->dvfs_count = 0;
 
 	if (unlikely(!print_info_done)) {
 		printk(KERN_INFO "Trace clock using cycle counter at %llu HZ\n"
@@ -283,28 +287,15 @@ end:
 }
 
 /*
- * Periodic timer resynchonizing the clock with ext. 32k clock.
- * Necessary to deal with drift caused by DVFS updates.
+ * Called with IRQ and FIQ off.
  */
-static void clock_resync_timer_fct(unsigned long data)
+static void resync_on_32k(struct pm_save_count *pm_count, int cpu)
 {
-	struct pm_save_count *pm_count;
 	struct tc_cur_freq *new_cf, *cf;
 	u64 ref_time;
 	unsigned int new_index, index;
-	unsigned long flags;
-	int cpu;
-
-	cpu = smp_processor_id();
-	pm_count = &per_cpu(pm_save_count, cpu);
-
-	local_irq_save(flags);
-	local_fiq_disable();	/* disable fiqs for floor value */
 
 	index = pm_count->index;
-
-	if (likely(!pm_count->cf[index].need_resync))
-		goto end;
 
 	new_index = 1 - index;
 	cf = &pm_count->cf[index];
@@ -318,16 +309,35 @@ static void clock_resync_timer_fct(unsigned long data)
 	new_cf->floor = max((((new_cf->hw_base - cf->hw_base)
 			    * cf->mul_fact) >> 10) + cf->virt_base,
 			    cf->floor);
-	new_cf->need_resync = 0;
 	barrier();
 	pm_count->index = new_index;
-end:
+}
+
+/*
+ * Timer to resynchronize with ext. 32k clock after DVFS update (but not too
+ * often if flooded by DVFS updates).
+ * Necessary to deal with drift caused by DVFS updates.
+ * Per-cpu timer added by cpu freq events, single-shot.
+ */
+static void clock_resync_timer_fct(unsigned long data)
+{
+	struct pm_save_count *pm_count;
+	unsigned long flags;
+	int cpu;
+
+	cpu = smp_processor_id();
+	pm_count = &per_cpu(pm_save_count, cpu);
+
+	local_irq_save(flags);
+	local_fiq_disable();	/* disable fiqs for floor value */
+
+	/* Need to resync if we had more than 1 dvfs event in period */
+	if (pm_count->dvfs_count > 1)
+		resync_on_32k(pm_count, cpu);
+	pm_count->dvfs_count = 0;
+
 	local_fiq_enable();
 	local_irq_restore(flags);
-
-	pm_count->clock_resync_timer.expires = jiffies
-					+ (TC_RESYNC_PERIOD * HZ / 1000);
-	add_timer_on(&pm_count->clock_resync_timer, cpu);
 }
 
 static void prepare_timer(int cpu)
@@ -341,8 +351,6 @@ static void prepare_timer(int cpu)
 
 	init_timer_deferrable(&pm_count->clock_resync_timer);
 	pm_count->clock_resync_timer.function = clock_resync_timer_fct;
-	pm_count->clock_resync_timer.expires = jiffies
-					+ (TC_RESYNC_PERIOD * HZ / 1000);
 }
 
 static void enable_timer(int cpu)
@@ -351,17 +359,21 @@ static void enable_timer(int cpu)
 
 	pm_count = &per_cpu(pm_save_count, cpu);
 	add_timer_on(&pm_count->clear_ccnt_ms_timer, cpu);
-	add_timer_on(&pm_count->clock_resync_timer, cpu);
 }
 
 static void disable_timer_ipi(void *info)
 {
 	struct pm_save_count *pm_count;
 	int cpu = smp_processor_id();
+	unsigned long flags;
 
 	pm_count = &per_cpu(pm_save_count, cpu);
+	/* Ensure timer interrupts cannot possibly nest */
+	local_irq_save(flags);
 	del_timer(&pm_count->clear_ccnt_ms_timer);
-	del_timer(&pm_count->clock_resync_timer);
+	if (pm_count->dvfs_count)
+		del_timer(&pm_count->clock_resync_timer);
+	local_irq_restore(flags);
 	save_sync_trace_clock();
 }
 
@@ -391,6 +403,7 @@ void _start_trace_clock(void)
 		pm_count->int_fast_clock = old_fast_clock;
 		pm_count->refcount = 1;
 		pm_count->init_clock = ext_32k;
+		pm_count->dvfs_count = 0;
 	}
 
 	on_each_cpu(resync_ipi, NULL, 1);
@@ -468,6 +481,7 @@ static int __cpuinit hotcpu_callback(struct notifier_block *nb,
 			pm_count->int_fast_clock = trace_clock_read64();
 			local_irq_restore(flags);
 			pm_count->refcount = 1;
+			pm_count->dvfs_count = 0;
 			prepare_timer(hotcpu);
 		}
 		spin_unlock(&trace_clock_lock);
@@ -572,24 +586,34 @@ static int cpufreq_trace_clock(struct notifier_block *nb,
 	 * floor.
 	 */
 	local_fiq_disable();
-	post_val = trace_clock_read_synthetic_tsc();
-	/* disable irqs to ensure we are the only value modifier */
-	index = pm_count->index;
-	new_index = 1 - index;
-	cf = &pm_count->cf[index];
-	new_cf = &pm_count->cf[new_index];
-	new_cf->hw_base = post_val;
-	new_cf->virt_base = (((post_val - cf->hw_base) * cf->mul_fact) >> 10)
-			    + cf->virt_base;
-	new_cf->cur_cpu_freq = freq->new;
-	new_cf->mul_fact = get_mul_fact(pm_count->max_cpu_freq, freq->new);
-	new_cf->floor = max((((post_val - cf->hw_base) * cf->mul_fact) >> 10)
-			    + cf->virt_base,
-			    cf->floor);
-	new_cf->need_resync = 1;
-	barrier();
-	pm_count->index = new_index;
+
+	if (!pm_count->dvfs_count) {
+		resync_on_32k(pm_count, cpu);
+		pm_count->clock_resync_timer.expires = jiffies
+					+ (TC_RESYNC_PERIOD * HZ / 1000);
+		add_timer_on(&pm_count->clock_resync_timer, cpu);
+	} else {
+		post_val = trace_clock_read_synthetic_tsc();
+		/* disable irqs to ensure we are the only value modifier */
+		index = pm_count->index;
+		new_index = 1 - index;
+		cf = &pm_count->cf[index];
+		new_cf = &pm_count->cf[new_index];
+		new_cf->hw_base = post_val;
+		new_cf->virt_base = (((post_val - cf->hw_base)
+				      * cf->mul_fact) >> 10) + cf->virt_base;
+		new_cf->cur_cpu_freq = freq->new;
+		new_cf->mul_fact = get_mul_fact(pm_count->max_cpu_freq,
+						freq->new);
+		new_cf->floor = max((((post_val - cf->hw_base)
+				      * cf->mul_fact) >> 10) + cf->virt_base,
+				    cf->floor);
+		barrier();
+		pm_count->index = new_index;
+	}
+
 	local_fiq_enable();
+	pm_count->dvfs_count++;
 end:
 	spin_unlock(&pm_count->lock);
 	local_irq_restore(flags);
