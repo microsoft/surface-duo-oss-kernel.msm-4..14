@@ -13,6 +13,9 @@ DECLARE_TRACE(net_dev_receive,
 DECLARE_TRACE(net_tcpv4_rcv,
 	TP_PROTO(struct sk_buff *skb),
 	TP_ARGS(skb));
+DECLARE_TRACE(net_udpv4_rcv,
+	TP_PROTO(struct sk_buff *skb),
+	TP_ARGS(skb));
 
 /*
  * Note these first 2 traces are actually in __napi_schedule and net_rx_action
