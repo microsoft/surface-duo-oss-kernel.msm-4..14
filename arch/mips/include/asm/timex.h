@@ -44,7 +44,7 @@ extern unsigned int mips_hpt_frequency;
 
 typedef unsigned int cycles_t;
 
-#ifdef HAVE_GET_CYCLES_32
+#ifdef CONFIG_HAVE_GET_CYCLES_32
 static inline cycles_t get_cycles(void)
 {
 	return read_c0_count();
@@ -89,6 +89,21 @@ static inline void write_tsc(u32 val1, u32 val2)
 	write_c0_count(val1);
 	/* Arrange for an interrupt in a short while */
 	write_c0_compare(read_c0_count() + DELAY_INTERRUPT);
+}
+
+/*
+ * Currently unused, should update internal tsc-related timekeeping sources.
+ */
+static inline void mark_tsc_unstable(char *reason)
+{
+}
+
+/*
+ * Currently simply use the tsc_is_sync value.
+ */
+static inline int unsynchronized_tsc(void)
+{
+	return !tsc_is_sync();
 }
 
 #endif /* __KERNEL__ */
