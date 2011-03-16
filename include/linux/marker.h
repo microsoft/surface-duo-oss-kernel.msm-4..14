@@ -237,8 +237,8 @@ extern int marker_probe_unregister_private_data(marker_probe_func *probe,
 extern void *marker_get_private_data(const char *channel, const char *name,
 	marker_probe_func *probe, int num);
 
-const char *marker_get_name_form_id(u16 channel_id, u16 event_id);
-const char *marker_get_fmt_form_id(u16 channel_id, u16 event_id);
+const char *marker_get_name_from_id(u16 channel_id, u16 event_id);
+const char *marker_get_fmt_from_id(u16 channel_id, u16 event_id);
 
 /*
  * marker_synchronize_unregister must be called between the last marker probe

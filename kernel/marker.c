@@ -1107,19 +1107,19 @@ static struct marker_entry *get_entry_from_id(u16 channel_id, u16 event_id)
 }
 
 /* must call when ids/marker_entry are kept alive */
-const char *marker_get_name_form_id(u16 channel_id, u16 event_id)
+const char *marker_get_name_from_id(u16 channel_id, u16 event_id)
 {
 	struct marker_entry *e = get_entry_from_id(channel_id, event_id);
 	return e ? e->name : NULL;
 }
-EXPORT_SYMBOL_GPL(marker_get_name_form_id);
+EXPORT_SYMBOL_GPL(marker_get_name_from_id);
 
-const char *marker_get_fmt_form_id(u16 channel_id, u16 event_id)
+const char *marker_get_fmt_from_id(u16 channel_id, u16 event_id)
 {
 	struct marker_entry *e = get_entry_from_id(channel_id, event_id);
 	return e ? e->format : NULL;
 }
-EXPORT_SYMBOL_GPL(marker_get_fmt_form_id);
+EXPORT_SYMBOL_GPL(marker_get_fmt_from_id);
 
 /**
  * markers_compact_event_ids - Compact markers event IDs and reassign channels
