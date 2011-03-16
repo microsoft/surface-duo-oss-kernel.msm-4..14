@@ -55,6 +55,7 @@
 #include <linux/fs_struct.h>
 #include <linux/pipe_fs_i.h>
 #include <linux/oom.h>
+#include <trace/fs.h>
 
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
@@ -76,6 +77,11 @@ static atomic_t call_count = ATOMIC_INIT(1);
 
 static LIST_HEAD(formats);
 static DEFINE_RWLOCK(binfmt_lock);
+
+/*
+ * Also used in compat.c.
+ */
+DEFINE_TRACE(fs_exec);
 
 int __register_binfmt(struct linux_binfmt * fmt, int insert)
 {
@@ -1447,6 +1453,7 @@ int do_execve(const char * filename,
 	if (retval < 0)
 		goto out;
 
+	trace_fs_exec(filename);
 	/* execve succeeded */
 	current->fs->in_exec = 0;
 	current->in_execve = 0;

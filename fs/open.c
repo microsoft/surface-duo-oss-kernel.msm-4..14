@@ -30,8 +30,12 @@
 #include <linux/fs_struct.h>
 #include <linux/ima.h>
 #include <linux/dnotify.h>
+#include <trace/fs.h>
 
 #include "internal.h"
+
+DEFINE_TRACE(fs_open);
+DEFINE_TRACE(fs_close);
 
 int do_truncate(struct dentry *dentry, loff_t length, unsigned int time_attrs,
 	struct file *filp)
@@ -906,6 +910,7 @@ long do_sys_open(int dfd, const char __user *filename, int flags, int mode)
 				fsnotify_open(f);
 				fd_install(fd, f);
 			}
+			trace_fs_open(fd, tmp);
 		}
 		putname(tmp);
 	}
@@ -995,6 +1000,7 @@ SYSCALL_DEFINE1(close, unsigned int, fd)
 	filp = fdt->fd[fd];
 	if (!filp)
 		goto out_unlock;
+	trace_fs_close(fd);
 	rcu_assign_pointer(fdt->fd[fd], NULL);
 	FD_CLR(fd, fdt->close_on_exec);
 	__put_unused_fd(files, fd);
