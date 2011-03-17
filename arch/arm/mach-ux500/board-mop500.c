@@ -434,5 +434,5 @@ MACHINE_START(NOMADIK, "ST-Ericsson MOP500 platform")
 	.init_irq	= ux500_init_irq,
 	/* we re-use nomadik timer here */
 	.timer		= &ux500_timer,
-	.init_machine	= u8500_init_machine,
+	.init_machine	= mop500_init_machine,
 MACHINE_END
