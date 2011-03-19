@@ -637,12 +637,20 @@ static inline void omap_hdq_init(void) {}
 #if defined(CONFIG_VIDEO_OMAP2_VOUT) || \
 	defined(CONFIG_VIDEO_OMAP2_VOUT_MODULE)
 #if defined(CONFIG_FB_OMAP2) || defined(CONFIG_FB_OMAP2_MODULE)
-static struct resource omap_vout_resource[3 - CONFIG_FB_OMAP2_NUM_FBS] = {
-};
+#define NUM_FB       CONFIG_FB_OMAP2_NUM_FBS
+#elif defined(CONFIG_DRM_OMAP) || defined(CONFIG_DRM_OMAP_MODULE)
+#define NUM_FB       CONFIG_DRM_OMAP_NUM_CRTCS
 #else
-static struct resource omap_vout_resource[2] = {
-};
+#define NUM_FB       1  /* we don't want gfx pipe */
 #endif
+#ifdef CONFIG_ARCH_OMAP4
+#define NUM_PIPES    4
+#else
+#define NUM_PIPES    3
+#endif
+
+static struct resource omap_vout_resource[NUM_PIPES - NUM_FB] = {
+};
 
 static struct platform_device omap_vout_device = {
 	.name		= "omap_vout",
