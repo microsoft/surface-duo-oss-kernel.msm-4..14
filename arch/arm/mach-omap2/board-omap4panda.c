@@ -28,9 +28,12 @@
 #include <linux/regulator/machine.h>
 #include <linux/regulator/fixed.h>
 #include <linux/wl12xx.h>
+#include <linux/netdevice.h>
+#include <linux/if_ether.h>
 
 #include <mach/hardware.h>
 #include <mach/omap4-common.h>
+#include <mach/id.h>
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/map.h>
@@ -681,6 +684,90 @@ void omap4_panda_display_init(void)
 	omap_display_init(&omap4_panda_dss_data);
 }
 
+/*
+ * These device paths represent the onboard USB <-> Ethernet bridge, and
+ * the WLAN module on Panda, both of which need their random or all-zeros
+ * mac address replacing with a per-cpu stable generated one
+ */
+static const char * const panda_fixup_mac_device_paths[] = {
+	"usb1/1-1/1-1.1/1-1.1:1.0",
+	"mmc1:0001:2",
+};
+
+static int panda_device_path_need_mac(struct device *dev)
+{
+	const char **try = panda_fixup_mac_device_paths;
+	const char *path;
+	int count = ARRAY_SIZE(panda_fixup_mac_device_paths);
+	const char *p;
+	int len;
+	struct device *devn;
+
+	while (count--) {
+
+		p = *try + strlen(*try);
+		devn = dev;
+
+		while (devn) {
+
+			path = dev_name(devn);
+			len = strlen(path);
+
+			if ((p - *try) < len) {
+				devn = NULL;
+				continue;
+			}
+
+			p -= len;
+
+			if (strncmp(path, p, len)) {
+				devn = NULL;
+				continue;
+			}
+
+			devn = devn->parent;
+			if (p == *try)
+				return count;
+
+			if (devn != NULL && (p - *try) < 2)
+				devn = NULL;
+
+			p--;
+			if (devn != NULL && *p != '/')
+				devn = NULL;
+		}
+
+		try++;
+	}
+
+	return -ENOENT;
+}
+
+static int omap_panda_netdev_event(struct notifier_block *this,
+						 unsigned long event, void *ptr)
+{
+	struct net_device *dev = ptr;
+	struct sockaddr sa;
+	int n;
+
+	if (event != NETDEV_REGISTER)
+		return NOTIFY_DONE;
+
+	n = panda_device_path_need_mac(dev->dev.parent);
+	if (n >= 0) {
+		sa.sa_family = dev->type;
+		omap2_die_id_to_ethernet_mac(sa.sa_data, n);
+		dev->netdev_ops->ndo_set_mac_address(dev, &sa);
+	}
+
+	return NOTIFY_DONE;
+}
+
+static struct notifier_block omap_panda_netdev_notifier = {
+	.notifier_call = omap_panda_netdev_event,
+	.priority = 1,
+};
+
 static void __init omap4_panda_init(void)
 {
 	int package = OMAP_PACKAGE_CBS;
@@ -691,6 +778,8 @@ static void __init omap4_panda_init(void)
 
 	if (wl12xx_set_platform_data(&omap_panda_wlan_data))
 		pr_err("error setting wl12xx data\n");
+
+	register_netdevice_notifier(&omap_panda_netdev_notifier);
 
 	omap4_panda_i2c_init();
 	platform_add_devices(panda_devices, ARRAY_SIZE(panda_devices));
