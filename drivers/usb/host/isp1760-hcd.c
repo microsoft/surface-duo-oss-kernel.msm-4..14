@@ -883,7 +883,12 @@ static void enqueue_an_ATL_packet(struct usb_hcd *hcd, struct isp1760_qh *qh,
 		reg_write32(hcd->regs, HC_INTERRUPT_ENABLE,
 				INTERRUPT_ENABLE_SOT_MASK);
 
-	buffstatus = reg_read32(hcd->regs, HC_BUFFER_STATUS_REG);
+	priv->atl_queued++;
+	if (priv->atl_queued == 2)
+		isp1760_writel(INTERRUPT_ENABLE_SOT_MASK,
+				hcd->regs + HC_INTERRUPT_ENABLE);
+
+	buffstatus = isp1760_readl(hcd->regs + HC_BUFFER_STATUS_REG);
 	buffstatus |= ATL_BUFFER;
 	reg_write32(hcd->regs, HC_BUFFER_STATUS_REG, buffstatus);
 }
@@ -1068,21 +1073,28 @@ static void do_atl_int(struct usb_hcd *hcd)
 			 * is unchanged. Just make sure that this entry is
 			 * unskipped once it gets written to the HW.
 			 */
-			skip_map &= ~(1 << slot);
-			or_map = reg_read32(hcd->regs, HC_ATL_IRQ_MASK_OR_REG);
-			or_map |= 1 << slot;
-			reg_write32(hcd->regs, HC_ATL_IRQ_MASK_OR_REG, or_map);
+			skip_map &= ~(1 << queue_entry);
+			or_map = isp1760_readl(usb_hcd->regs +
+					HC_ATL_IRQ_MASK_OR_REG);
+			or_map |= 1 << queue_entry;
+			isp1760_writel(or_map, usb_hcd->regs +
+					HC_ATL_IRQ_MASK_OR_REG);
 
-			ptd.dw0 |= PTD_VALID;
-			ptd_write(hcd->regs, ATL_PTD_OFFSET, slot, &ptd);
+			ptd.dw3 = cpu_to_le32(dw3);
+			priv_write_copy(priv, (u32 *)&ptd, usb_hcd->regs +
+					atl_regs, sizeof(ptd));
+
+			ptd.dw0 |= cpu_to_le32(PTD_VALID);
+			priv_write_copy(priv, (u32 *)&ptd, usb_hcd->regs +
+					atl_regs, sizeof(ptd));
 
 			priv->atl_queued++;
 			if (priv->atl_queued == 2)
-				reg_write32(hcd->regs, HC_INTERRUPT_ENABLE,
-						INTERRUPT_ENABLE_SOT_MASK);
+				isp1760_writel(INTERRUPT_ENABLE_SOT_MASK,
+				    usb_hcd->regs + HC_INTERRUPT_ENABLE);
 
-			buffstatus = reg_read32(hcd->regs,
-							HC_BUFFER_STATUS_REG);
+			buffstatus = isp1760_readl(usb_hcd->regs +
+					HC_BUFFER_STATUS_REG);
 			buffstatus |= ATL_BUFFER;
 			reg_write32(hcd->regs, HC_BUFFER_STATUS_REG,
 								buffstatus);
@@ -1181,8 +1193,8 @@ static void do_atl_int(struct usb_hcd *hcd)
 		skip_map = reg_read32(hcd->regs, HC_ATL_PTD_SKIPMAP_REG);
 	}
 	if (priv->atl_queued <= 1)
-		reg_write32(hcd->regs, HC_INTERRUPT_ENABLE,
-							INTERRUPT_ENABLE_MASK);
+		isp1760_writel(INTERRUPT_ENABLE_MASK,
+				usb_hcd->regs + HC_INTERRUPT_ENABLE);
 }
 
 static void do_intl_int(struct usb_hcd *hcd)
@@ -1676,9 +1688,9 @@ static irqreturn_t isp1760_irq(struct usb_hcd *hcd)
 	if (unlikely(!imask))
 		goto leave;
 
-	reg_write32(hcd->regs, HC_INTERRUPT_REG, imask);
+	isp1760_writel(imask, usb_hcd->regs + HC_INTERRUPT_REG);
 	if (imask & (HC_ATL_INT | HC_SOT_INT))
-		do_atl_int(hcd);
+		do_atl_int(usb_hcd);
 
 	if (imask & HC_INTL_INT)
 		do_intl_int(hcd);
