@@ -199,7 +199,7 @@ static struct tagtable __tagtable_##fn __tag = { tag, fn }
 #endif
 
 struct membank {
-	unsigned long start;
+	phys_addr_t start;
 	unsigned long size;
 	unsigned int highmem;
 };
@@ -220,11 +220,6 @@ extern struct meminfo meminfo;
 #define bank_phys_start(bank)	(bank)->start
 #define bank_phys_end(bank)	((bank)->start + (bank)->size)
 #define bank_phys_size(bank)	(bank)->size
-
-extern int arm_add_memory(unsigned long start, unsigned long size);
-extern char cmd_line[COMMAND_LINE_SIZE];
-extern void early_print(const char *str, ...);
-extern void dump_machine_table(void);
 
 #endif  /*  __KERNEL__  */
 

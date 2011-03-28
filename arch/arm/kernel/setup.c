@@ -20,7 +20,6 @@
 #include <linux/screen_info.h>
 #include <linux/init.h>
 #include <linux/kexec.h>
-#include <linux/of_fdt.h>
 #include <linux/crash_dump.h>
 #include <linux/root_dev.h>
 #include <linux/cpu.h>
@@ -43,7 +42,6 @@
 #include <asm/cachetype.h>
 #include <asm/tlbflush.h>
 
-#include <asm/prom.h>
 #include <asm/mach/arch.h>
 #include <asm/mach/irq.h>
 #include <asm/mach/time.h>
@@ -127,7 +125,7 @@ EXPORT_SYMBOL(elf_platform);
 
 static const char *cpu_name;
 static const char *machine_name;
-char cmd_line[COMMAND_LINE_SIZE];
+static char __initdata cmd_line[COMMAND_LINE_SIZE];
 struct machine_desc *machine_desc __initdata;
 
 static char default_command_line[COMMAND_LINE_SIZE] __initdata = CONFIG_CMDLINE;
@@ -311,7 +309,7 @@ static void __init cacheid_init(void)
  */
 extern struct proc_info_list *lookup_processor_type(unsigned int);
 
-void __init early_print(const char *str, ...)
+static void __init early_print(const char *str, ...)
 {
 	extern void printascii(const char *);
 	char buf[256];
@@ -441,12 +439,25 @@ void cpu_init(void)
 	    : "r14");
 }
 
-void __init dump_machine_table(void)
+static struct machine_desc * __init setup_machine(unsigned int nr)
 {
+	extern struct machine_desc __arch_info_begin[], __arch_info_end[];
 	struct machine_desc *p;
 
-	early_print("Available machine support:\n\nID (hex)\tNAME\n");
-	for_each_machine_desc(p)
+	/*
+	 * locate machine in the list of supported machines.
+	 */
+	for (p = __arch_info_begin; p < __arch_info_end; p++)
+		if (nr == p->nr) {
+			printk("Machine: %s\n", p->name);
+			return p;
+		}
+
+	early_print("\n"
+		"Error: unrecognized/unsupported machine ID (r1 = 0x%08x).\n\n"
+		"Available machine support:\n\nID (hex)\tNAME\n", nr);
+
+	for (p = __arch_info_begin; p < __arch_info_end; p++)
 		early_print("%08x\t%s\n", p->nr, p->name);
 
 	early_print("\nPlease check your kernel config and/or bootloader.\n");
@@ -455,13 +466,13 @@ void __init dump_machine_table(void)
 		/* can't use cpu_relax() here as it may require MMU setup */;
 }
 
-int __init arm_add_memory(unsigned long start, unsigned long size)
+static int __init arm_add_memory(phys_addr_t start, unsigned long size)
 {
 	struct membank *bank = &meminfo.bank[meminfo.nr_banks];
 
 	if (meminfo.nr_banks >= NR_BANKS) {
 		printk(KERN_CRIT "NR_BANKS too low, "
-			"ignoring memory at %#lx\n", start);
+			"ignoring memory at 0x%08llx\n", (long long)start);
 		return -EINVAL;
 	}
 
@@ -491,7 +502,8 @@ int __init arm_add_memory(unsigned long start, unsigned long size)
 static int __init early_mem(char *p)
 {
 	static int usermem __initdata = 0;
-	unsigned long size, start;
+	unsigned long size;
+	phys_addr_t start;
 	char *endp;
 
 	/*
@@ -808,29 +820,23 @@ static void __init squash_mem_tags(struct tag *tag)
 			tag->hdr.tag = ATAG_NONE;
 }
 
-static struct machine_desc * __init setup_machine_tags(unsigned int nr)
+void __init setup_arch(char **cmdline_p)
 {
 	struct tag *tags = (struct tag *)&init_tags;
-	struct machine_desc *mdesc = NULL, *p;
+	struct machine_desc *mdesc;
 	char *from = default_command_line;
 
-	/*
-	 * locate machine in the list of supported machines.
-	 */
-	for_each_machine_desc(p)
-		if (nr == p->nr) {
-			printk("Machine: %s\n", p->name);
-			mdesc = p;
-			break;
-		}
+	init_tags.mem.start = PHYS_OFFSET;
 
-	if (!mdesc) {
-		early_print("\nError: unrecognized/unsupported machine ID"
-			" (r1 = 0x%08x).\n\n", nr);
-		dump_machine_table(); /* does not return */
-	}
+	unwind_init();
 
-	printk("Machine: %s\n", mdesc->name);
+	setup_processor();
+	mdesc = setup_machine(machine_arch_type);
+	machine_desc = mdesc;
+	machine_name = mdesc->name;
+
+	if (mdesc->soft_reboot)
+		reboot_setup("s");
 
 	if (__atags_pointer)
 		tags = phys_to_virt(__atags_pointer);
@@ -875,39 +881,16 @@ static struct machine_desc * __init setup_machine_tags(unsigned int nr)
 		parse_tags(tags);
 	}
 
-	/* parse_early_param needs a boot_command_line */
-	strlcpy(boot_command_line, from, COMMAND_LINE_SIZE);
-
-	/* populate cmd_line too for later use, preserving boot_command_line */
-	strlcpy(cmd_line, boot_command_line, COMMAND_LINE_SIZE);
-
-	return mdesc;
-}
-
-
-void __init setup_arch(char **cmdline_p)
-{
-	struct machine_desc *mdesc;
-
-	init_tags.mem.start = PHYS_OFFSET;
-
-	unwind_init();
-
-	setup_processor();
-	mdesc = setup_machine_fdt(__atags_pointer);
-	if (!mdesc)
-		mdesc = setup_machine_tags(machine_arch_type);
-	machine_desc = mdesc;
-	machine_name = mdesc->name;
-
-	if (mdesc->soft_reboot)
-		reboot_setup("s");
-
 	init_mm.start_code = (unsigned long) _text;
 	init_mm.end_code   = (unsigned long) _etext;
 	init_mm.end_data   = (unsigned long) _edata;
 	init_mm.brk	   = (unsigned long) _end;
 
+	/* parse_early_param needs a boot_command_line */
+	strlcpy(boot_command_line, from, COMMAND_LINE_SIZE);
+
+	/* populate cmd_line too for later use, preserving boot_command_line */
+	strlcpy(cmd_line, boot_command_line, COMMAND_LINE_SIZE);
 	*cmdline_p = cmd_line;
 
 	parse_early_param();
@@ -916,8 +899,6 @@ void __init setup_arch(char **cmdline_p)
 
 	paging_init(mdesc);
 	request_standard_resources(mdesc);
-
-	unflatten_device_tree();
 
 #ifdef CONFIG_SMP
 	if (is_smp())

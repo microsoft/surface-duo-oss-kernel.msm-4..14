@@ -347,7 +347,7 @@ static int __devexit s3c_pwm_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_SUSPEND
+#ifdef CONFIG_PM
 static int s3c_pwm_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	struct pwm_device *pwm = platform_get_drvdata(pdev);

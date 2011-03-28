@@ -380,10 +380,8 @@ static struct xhci_segment *find_trb_seg(
 	while (cur_seg->trbs > trb ||
 			&cur_seg->trbs[TRBS_PER_SEGMENT - 1] < trb) {
 		generic_trb = &cur_seg->trbs[TRBS_PER_SEGMENT - 1].generic;
-		if ((generic_trb->field[3] & TRB_TYPE_BITMASK) ==
-				TRB_TYPE(TRB_LINK) &&
-				(generic_trb->field[3] & LINK_TOGGLE))
-			*cycle_state = ~(*cycle_state) & 0x1;
+		if (generic_trb->field[3] & LINK_TOGGLE)
+			*cycle_state ^= 0x1;
 		cur_seg = cur_seg->next;
 		if (cur_seg == start_seg)
 			/* Looped over the entire list.  Oops! */
@@ -497,7 +495,7 @@ void xhci_find_new_dequeue_state(struct xhci_hcd *xhci,
 	trb = &state->new_deq_ptr->generic;
 	if ((trb->field[3] & TRB_TYPE_BITMASK) == TRB_TYPE(TRB_LINK) &&
 				(trb->field[3] & LINK_TOGGLE))
-		state->new_cycle_state = ~(state->new_cycle_state) & 0x1;
+		state->new_cycle_state ^= 0x1;
 	next_trb(xhci, ep_ring, &state->new_deq_seg, &state->new_deq_ptr);
 
 	/*
@@ -610,13 +608,14 @@ static inline void xhci_stop_watchdog_timer_in_irq(struct xhci_hcd *xhci,
 static void xhci_giveback_urb_in_irq(struct xhci_hcd *xhci,
 		struct xhci_td *cur_td, int status, char *adjective)
 {
-	struct usb_hcd *hcd = xhci_to_hcd(xhci);
+	struct usb_hcd *hcd;
 	struct urb	*urb;
 	struct urb_priv	*urb_priv;
 
 	urb = cur_td->urb;
 	urb_priv = urb->hcpriv;
 	urb_priv->td_cnt++;
+	hcd = bus_to_hcd(urb->dev->bus);
 
 	/* Only giveback urb when this is the last td in urb */
 	if (urb_priv->td_cnt == urb_priv->length) {
@@ -835,8 +834,7 @@ void xhci_stop_endpoint_command_watchdog(unsigned long arg)
 	if (ret < 0) {
 		/* This is bad; the host is not responding to commands and it's
 		 * not allowing itself to be halted.  At least interrupts are
-		 * disabled, so we can set HC_STATE_HALT and notify the
-		 * USB core.  But if we call usb_hc_died(), it will attempt to
+		 * disabled. If we call usb_hc_died(), it will attempt to
 		 * disconnect all device drivers under this host.  Those
 		 * disconnect() methods will wait for all URBs to be unlinked,
 		 * so we must complete them.
@@ -881,9 +879,8 @@ void xhci_stop_endpoint_command_watchdog(unsigned long arg)
 		}
 	}
 	spin_unlock(&xhci->lock);
-	xhci_to_hcd(xhci)->state = HC_STATE_HALT;
 	xhci_dbg(xhci, "Calling usb_hc_died()\n");
-	usb_hc_died(xhci_to_hcd(xhci));
+	usb_hc_died(xhci_to_hcd(xhci)->primary_hcd);
 	xhci_dbg(xhci, "xHCI host controller is dead.\n");
 }
 
@@ -1146,7 +1143,6 @@ bandwidth_change:
 		handle_set_deq_completion(xhci, event, xhci->cmd_ring->dequeue);
 		break;
 	case TRB_TYPE(TRB_CMD_NOOP):
-		++xhci->noops_handled;
 		break;
 	case TRB_TYPE(TRB_RESET_EP):
 		handle_reset_ep_completion(xhci, event, xhci->cmd_ring->dequeue);
@@ -1190,15 +1186,55 @@ static void handle_vendor_event(struct xhci_hcd *xhci,
 		handle_cmd_completion(xhci, &event->event_cmd);
 }
 
+/* @port_id: the one-based port ID from the hardware (indexed from array of all
+ * port registers -- USB 3.0 and USB 2.0).
+ *
+ * Returns a zero-based port number, which is suitable for indexing into each of
+ * the split roothubs' port arrays and bus state arrays.
+ */
+static unsigned int find_faked_portnum_from_hw_portnum(struct usb_hcd *hcd,
+		struct xhci_hcd *xhci, u32 port_id)
+{
+	unsigned int i;
+	unsigned int num_similar_speed_ports = 0;
+
+	/* port_id from the hardware is 1-based, but port_array[], usb3_ports[],
+	 * and usb2_ports are 0-based indexes.  Count the number of similar
+	 * speed ports, up to 1 port before this port.
+	 */
+	for (i = 0; i < (port_id - 1); i++) {
+		u8 port_speed = xhci->port_array[i];
+
+		/*
+		 * Skip ports that don't have known speeds, or have duplicate
+		 * Extended Capabilities port speed entries.
+		 */
+		if (port_speed == 0 || port_speed == -1)
+			continue;
+
+		/*
+		 * USB 3.0 ports are always under a USB 3.0 hub.  USB 2.0 and
+		 * 1.1 ports are under the USB 2.0 hub.  If the port speed
+		 * matches the device speed, it's a similar speed port.
+		 */
+		if ((port_speed == 0x03) == (hcd->speed == HCD_USB3))
+			num_similar_speed_ports++;
+	}
+	return num_similar_speed_ports;
+}
+
 static void handle_port_status(struct xhci_hcd *xhci,
 		union xhci_trb *event)
 {
-	struct usb_hcd *hcd = xhci_to_hcd(xhci);
+	struct usb_hcd *hcd;
 	u32 port_id;
 	u32 temp, temp1;
-	u32 __iomem *addr;
-	int ports;
+	int max_ports;
 	int slot_id;
+	unsigned int faked_port_index;
+	u8 major_revision;
+	struct xhci_bus_state *bus_state;
+	u32 __iomem **port_array;
 
 	/* Port status change events always have a successful completion code */
 	if (GET_COMP_CODE(event->generic.field[2]) != COMP_SUCCESS) {
@@ -1208,14 +1244,50 @@ static void handle_port_status(struct xhci_hcd *xhci,
 	port_id = GET_PORT_ID(event->generic.field[0]);
 	xhci_dbg(xhci, "Port Status Change Event for port %d\n", port_id);
 
-	ports = HCS_MAX_PORTS(xhci->hcs_params1);
-	if ((port_id <= 0) || (port_id > ports)) {
+	max_ports = HCS_MAX_PORTS(xhci->hcs_params1);
+	if ((port_id <= 0) || (port_id > max_ports)) {
 		xhci_warn(xhci, "Invalid port id %d\n", port_id);
 		goto cleanup;
 	}
 
-	addr = &xhci->op_regs->port_status_base + NUM_PORT_REGS * (port_id - 1);
-	temp = xhci_readl(xhci, addr);
+	/* Figure out which usb_hcd this port is attached to:
+	 * is it a USB 3.0 port or a USB 2.0/1.1 port?
+	 */
+	major_revision = xhci->port_array[port_id - 1];
+	if (major_revision == 0) {
+		xhci_warn(xhci, "Event for port %u not in "
+				"Extended Capabilities, ignoring.\n",
+				port_id);
+		goto cleanup;
+	}
+	if (major_revision == (u8) -1) {
+		xhci_warn(xhci, "Event for port %u duplicated in"
+				"Extended Capabilities, ignoring.\n",
+				port_id);
+		goto cleanup;
+	}
+
+	/*
+	 * Hardware port IDs reported by a Port Status Change Event include USB
+	 * 3.0 and USB 2.0 ports.  We want to check if the port has reported a
+	 * resume event, but we first need to translate the hardware port ID
+	 * into the index into the ports on the correct split roothub, and the
+	 * correct bus_state structure.
+	 */
+	/* Find the right roothub. */
+	hcd = xhci_to_hcd(xhci);
+	if ((major_revision == 0x03) != (hcd->speed == HCD_USB3))
+		hcd = xhci->shared_hcd;
+	bus_state = &xhci->bus_state[hcd_index(hcd)];
+	if (hcd->speed == HCD_USB3)
+		port_array = xhci->usb3_ports;
+	else
+		port_array = xhci->usb2_ports;
+	/* Find the faked port hub number */
+	faked_port_index = find_faked_portnum_from_hw_portnum(hcd, xhci,
+			port_id);
+
+	temp = xhci_readl(xhci, port_array[faked_port_index]);
 	if (hcd->state == HC_STATE_SUSPENDED) {
 		xhci_dbg(xhci, "resume root hub\n");
 		usb_hcd_resume_root_hub(hcd);
@@ -1235,8 +1307,9 @@ static void handle_port_status(struct xhci_hcd *xhci,
 			temp = xhci_port_state_to_neutral(temp);
 			temp &= ~PORT_PLS_MASK;
 			temp |= PORT_LINK_STROBE | XDEV_U0;
-			xhci_writel(xhci, temp, addr);
-			slot_id = xhci_find_slot_id_by_port(xhci, port_id);
+			xhci_writel(xhci, temp, port_array[faked_port_index]);
+			slot_id = xhci_find_slot_id_by_port(hcd, xhci,
+					faked_port_index);
 			if (!slot_id) {
 				xhci_dbg(xhci, "slot_id is zero\n");
 				goto cleanup;
@@ -1244,16 +1317,16 @@ static void handle_port_status(struct xhci_hcd *xhci,
 			xhci_ring_device(xhci, slot_id);
 			xhci_dbg(xhci, "resume SS port %d finished\n", port_id);
 			/* Clear PORT_PLC */
-			temp = xhci_readl(xhci, addr);
+			temp = xhci_readl(xhci, port_array[faked_port_index]);
 			temp = xhci_port_state_to_neutral(temp);
 			temp |= PORT_PLC;
-			xhci_writel(xhci, temp, addr);
+			xhci_writel(xhci, temp, port_array[faked_port_index]);
 		} else {
 			xhci_dbg(xhci, "resume HS port %d\n", port_id);
-			xhci->resume_done[port_id - 1] = jiffies +
+			bus_state->resume_done[faked_port_index] = jiffies +
 				msecs_to_jiffies(20);
 			mod_timer(&hcd->rh_timer,
-				  xhci->resume_done[port_id - 1]);
+				  bus_state->resume_done[faked_port_index]);
 			/* Do the rest in GetPortStatus */
 		}
 	}
@@ -1264,7 +1337,7 @@ cleanup:
 
 	spin_unlock(&xhci->lock);
 	/* Pass this up to the core */
-	usb_hcd_poll_rh_status(xhci_to_hcd(xhci));
+	usb_hcd_poll_rh_status(hcd);
 	spin_lock(&xhci->lock);
 }
 
@@ -2018,12 +2091,12 @@ cleanup:
 					trb_comp_code != COMP_BABBLE))
 				xhci_urb_free_priv(xhci, urb_priv);
 
-			usb_hcd_unlink_urb_from_ep(xhci_to_hcd(xhci), urb);
+			usb_hcd_unlink_urb_from_ep(bus_to_hcd(urb->dev->bus), urb);
 			xhci_dbg(xhci, "Giveback URB %p, len = %d, "
 					"status = %d\n",
 					urb, urb->actual_length, status);
 			spin_unlock(&xhci->lock);
-			usb_hcd_giveback_urb(xhci_to_hcd(xhci), urb, status);
+			usb_hcd_giveback_urb(bus_to_hcd(urb->dev->bus), urb, status);
 			spin_lock(&xhci->lock);
 		}
 
@@ -2147,7 +2220,6 @@ irqreturn_t xhci_irq(struct usb_hcd *hcd)
 		xhci_warn(xhci, "WARNING: Host System Error\n");
 		xhci_halt(xhci);
 hw_died:
-		xhci_to_hcd(xhci)->state = HC_STATE_HALT;
 		spin_unlock(&xhci->lock);
 		return -ESHUTDOWN;
 	}
@@ -2215,8 +2287,12 @@ hw_died:
 irqreturn_t xhci_msi_irq(int irq, struct usb_hcd *hcd)
 {
 	irqreturn_t ret;
+	struct xhci_hcd *xhci;
 
+	xhci = hcd_to_xhci(hcd);
 	set_bit(HCD_FLAG_SAW_IRQ, &hcd->flags);
+	if (xhci->shared_hcd)
+		set_bit(HCD_FLAG_SAW_IRQ, &xhci->shared_hcd->flags);
 
 	ret = xhci_irq(hcd);
 
@@ -2360,7 +2436,7 @@ static int prepare_transfer(struct xhci_hcd *xhci,
 	INIT_LIST_HEAD(&td->cancelled_td_list);
 
 	if (td_index == 0) {
-		ret = usb_hcd_link_urb_to_ep(xhci_to_hcd(xhci), urb);
+		ret = usb_hcd_link_urb_to_ep(bus_to_hcd(urb->dev->bus), urb);
 		if (unlikely(ret)) {
 			xhci_urb_free_priv(xhci, urb_priv);
 			urb->hcpriv = NULL;
@@ -3157,24 +3233,6 @@ static int queue_command(struct xhci_hcd *xhci, u32 field1, u32 field2,
 	queue_trb(xhci, xhci->cmd_ring, false, false, field1, field2, field3,
 			field4 | xhci->cmd_ring->cycle_state);
 	return 0;
-}
-
-/* Queue a no-op command on the command ring */
-static int queue_cmd_noop(struct xhci_hcd *xhci)
-{
-	return queue_command(xhci, 0, 0, 0, TRB_TYPE(TRB_CMD_NOOP), false);
-}
-
-/*
- * Place a no-op command on the command ring to test the command and
- * event ring.
- */
-void *xhci_setup_one_noop(struct xhci_hcd *xhci)
-{
-	if (queue_cmd_noop(xhci) < 0)
-		return NULL;
-	xhci->noops_submitted++;
-	return xhci_ring_cmd_db;
 }
 
 /* Queue a slot enable or disable request on the command ring */

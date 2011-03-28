@@ -28,6 +28,7 @@
 #include <linux/platform_device.h>
 #include <linux/i2c/twl.h>
 #include <linux/regulator/machine.h>
+#include <linux/regulator/fixed.h>
 #include <linux/spi/spi.h>
 
 #include <linux/mtd/mtd.h>
@@ -97,6 +98,34 @@ static struct ads7846_platform_data ads7846_config = {
 	.keep_vref_on		= 1,
 };
 
+/* fixed regulator for ads7846 */
+static struct regulator_consumer_supply ads7846_supply =
+	REGULATOR_SUPPLY("vcc", "spi1.0");
+
+static struct regulator_init_data vads7846_regulator = {
+	.constraints = {
+		.valid_ops_mask		= REGULATOR_CHANGE_STATUS,
+	},
+	.num_consumer_supplies	= 1,
+	.consumer_supplies	= &ads7846_supply,
+};
+
+static struct fixed_voltage_config vads7846 = {
+	.supply_name		= "vads7846",
+	.microvolts		= 3300000, /* 3.3V */
+	.gpio			= -EINVAL,
+	.startup_delay		= 0,
+	.init_data		= &vads7846_regulator,
+};
+
+static struct platform_device vads7846_device = {
+	.name		= "reg-fixed-voltage",
+	.id		= 1,
+	.dev = {
+		.platform_data = &vads7846,
+	},
+};
+
 static void __init overo_ads7846_init(void)
 {
 	if ((gpio_request(OVERO_GPIO_PENDOWN, "ADS7846_PENDOWN") == 0) &&
@@ -106,6 +135,8 @@ static void __init overo_ads7846_init(void)
 		printk(KERN_ERR "could not obtain gpio for ADS7846_PENDOWN\n");
 		return;
 	}
+
+	platform_device_register(&vads7846_device);
 }
 
 #else
@@ -262,18 +293,17 @@ static void overo_panel_disable_dvi(struct omap_dss_device *dssdev)
 }
 
 static struct panel_generic_dpi_data dvi_panel = {
-        .name = "generic",
-        .platform_enable = overo_panel_enable_dvi,
-        .platform_disable = overo_panel_disable_dvi,
+	.name			= "generic",
+	.platform_enable	= overo_panel_enable_dvi,
+	.platform_disable	= overo_panel_disable_dvi,
 };
 
 static struct omap_dss_device overo_dvi_device = {
-        .type = OMAP_DISPLAY_TYPE_DPI,
-        .name = "dvi",
-        .driver_name = "generic_dpi_panel",
-        .data = &dvi_panel,
-        .phy.dpi.data_lines = 24,
-        .reset_gpio = -EINVAL,
+	.name			= "dvi",
+	.type			= OMAP_DISPLAY_TYPE_DPI,
+	.driver_name		= "generic_dpi_panel",
+	.data			= &dvi_panel,
+	.phy.dpi.data_lines	= 24,
 };
 
 static struct omap_dss_device overo_tv_device = {
@@ -303,24 +333,26 @@ static void overo_panel_disable_lcd(struct omap_dss_device *dssdev)
 	lcd_enabled = 0;
 }
 
+static struct panel_generic_dpi_data lcd43_panel = {
+	.name			= "samsung_lte430wq_f0c",
+	.platform_enable	= overo_panel_enable_lcd,
+	.platform_disable	= overo_panel_disable_lcd,
+};
+
+static struct omap_dss_device overo_lcd43_device = {
+	.name			= "lcd43",
+	.type			= OMAP_DISPLAY_TYPE_DPI,
+	.driver_name		= "generic_dpi_panel",
+	.data			= &lcd43_panel,
+	.phy.dpi.data_lines	= 24,
+};
+
 #if defined(CONFIG_PANEL_LGPHILIPS_LB035Q02) || \
 	defined(CONFIG_PANEL_LGPHILIPS_LB035Q02_MODULE)
 static struct omap_dss_device overo_lcd35_device = {
 	.type			= OMAP_DISPLAY_TYPE_DPI,
 	.name			= "lcd35",
 	.driver_name		= "lgphilips_lb035q02_panel",
-	.phy.dpi.data_lines	= 24,
-	.platform_enable	= overo_panel_enable_lcd,
-	.platform_disable	= overo_panel_disable_lcd,
-};
-#endif
-
-#if defined(CONFIG_PANEL_SAMSUNG_LTE430WQ_F0C) || \
-	defined(CONFIG_PANEL_SAMSUNG_LTE430WQ_F0C_MODULE)
-static struct omap_dss_device overo_lcd43_device = {
-	.type			= OMAP_DISPLAY_TYPE_DPI,
-	.name			= "lcd43",
-	.driver_name		= "samsung_lte_panel",
 	.phy.dpi.data_lines	= 24,
 	.platform_enable	= overo_panel_enable_lcd,
 	.platform_disable	= overo_panel_disable_lcd,
@@ -334,10 +366,7 @@ static struct omap_dss_device *overo_dss_devices[] = {
 	defined(CONFIG_PANEL_LGPHILIPS_LB035Q02_MODULE)
 	&overo_lcd35_device,
 #endif
-#if defined(CONFIG_PANEL_SAMSUNG_LTE430WQ_F0C) || \
-	defined(CONFIG_PANEL_SAMSUNG_LTE430WQ_F0C_MODULE)
 	&overo_lcd43_device,
-#endif
 };
 
 static struct omap_dss_board_info overo_dss_data = {
@@ -347,12 +376,11 @@ static struct omap_dss_board_info overo_dss_data = {
 };
 
 static struct regulator_consumer_supply overo_vdda_dac_supply =
-	REGULATOR_SUPPLY("vdda_dac", "omap_venc");
+	REGULATOR_SUPPLY("vdda_dac", "omapdss_venc");
 
-static struct regulator_consumer_supply overo_vdds_supplies[] = {
-	REGULATOR_SUPPLY("vdds_sdi", "omap_display"),
-	REGULATOR_SUPPLY("vdds_dsi", "omap_display"),
-	REGULATOR_SUPPLY("vdds_dsi", "omap_dsi1"),
+static struct regulator_consumer_supply overo_vdds_dsi_supply[] = {
+	REGULATOR_SUPPLY("vdds_dsi", "omapdss"),
+	REGULATOR_SUPPLY("vdds_dsi", "omapdss_dsi1"),
 };
 
 static struct mtd_partition overo_nand_partitions[] = {
@@ -445,12 +473,104 @@ static struct regulator_consumer_supply overo_vmmc1_supply = {
 	.supply			= "vmmc",
 };
 
+#if defined(CONFIG_LEDS_GPIO) || defined(CONFIG_LEDS_GPIO_MODULE)
+#include <linux/leds.h>
+
+static struct gpio_led gpio_leds[] = {
+	{
+		.name			= "overo:red:gpio21",
+		.default_trigger	= "heartbeat",
+		.gpio			= 21,
+		.active_low		= true,
+	},
+	{
+		.name			= "overo:blue:gpio22",
+		.default_trigger	= "none",
+		.gpio			= 22,
+		.active_low		= true,
+	},
+	{
+		.name			= "overo:blue:COM",
+		.default_trigger	= "mmc0",
+		.gpio			= -EINVAL,	/* gets replaced */
+		.active_low		= true,
+	},
+};
+
+static struct gpio_led_platform_data gpio_leds_pdata = {
+	.leds		= gpio_leds,
+	.num_leds	= ARRAY_SIZE(gpio_leds),
+};
+
+static struct platform_device gpio_leds_device = {
+	.name	= "leds-gpio",
+	.id	= -1,
+	.dev	= {
+		.platform_data	= &gpio_leds_pdata,
+	},
+};
+
+static void __init overo_init_led(void)
+{
+	platform_device_register(&gpio_leds_device);
+}
+
+#else
+static inline void __init overo_init_led(void) { return; }
+#endif
+
+#if defined(CONFIG_KEYBOARD_GPIO) || defined(CONFIG_KEYBOARD_GPIO_MODULE)
+#include <linux/input.h>
+#include <linux/gpio_keys.h>
+
+static struct gpio_keys_button gpio_buttons[] = {
+	{
+		.code			= BTN_0,
+		.gpio			= 23,
+		.desc			= "button0",
+		.wakeup			= 1,
+	},
+	{
+		.code			= BTN_1,
+		.gpio			= 14,
+		.desc			= "button1",
+		.wakeup			= 1,
+	},
+};
+
+static struct gpio_keys_platform_data gpio_keys_pdata = {
+	.buttons	= gpio_buttons,
+	.nbuttons	= ARRAY_SIZE(gpio_buttons),
+};
+
+static struct platform_device gpio_keys_device = {
+	.name	= "gpio-keys",
+	.id	= -1,
+	.dev	= {
+		.platform_data	= &gpio_keys_pdata,
+	},
+};
+
+static void __init overo_init_keys(void)
+{
+	platform_device_register(&gpio_keys_device);
+}
+
+#else
+static inline void __init overo_init_keys(void) { return; }
+#endif
+
 static int overo_twl_gpio_setup(struct device *dev,
 		unsigned gpio, unsigned ngpio)
 {
 	omap2_hsmmc_init(mmc);
 
 	overo_vmmc1_supply.dev = mmc[0].dev;
+
+#if defined(CONFIG_LEDS_GPIO) || defined(CONFIG_LEDS_GPIO_MODULE)
+	/* TWL4030_GPIO_MAX + 1 == ledB, PMU_STAT (out, active low LED) */
+	gpio_leds[2].gpio = gpio + TWL4030_GPIO_MAX + 1;
+#endif
 
 	return 0;
 }
@@ -459,6 +579,7 @@ static struct twl4030_gpio_platform_data overo_gpio_data = {
 	.gpio_base	= OMAP_MAX_GPIO_LINES,
 	.irq_base	= TWL4030_GPIO_IRQ_BASE,
 	.irq_end	= TWL4030_GPIO_IRQ_END,
+	.use_leds	= true,
 	.setup		= overo_twl_gpio_setup,
 };
 
@@ -505,22 +626,16 @@ static struct regulator_init_data overo_vpll2 = {
 		.valid_ops_mask		= REGULATOR_CHANGE_MODE
 					| REGULATOR_CHANGE_STATUS,
 	},
-	.num_consumer_supplies	= ARRAY_SIZE(overo_vdds_supplies),
-	.consumer_supplies	= &overo_vdds_supplies,
+	.num_consumer_supplies	= ARRAY_SIZE(overo_vdds_dsi_supply),
+	.consumer_supplies	= overo_vdds_dsi_supply,
 };
 
-/* mmc2 (WLAN) and Bluetooth don't use twl4030 regulators */
-
-static struct twl4030_codec_audio_data overo_audio_data = {
-	.audio_mclk = 26000000,
-};
+static struct twl4030_codec_audio_data overo_audio_data;
 
 static struct twl4030_codec_data overo_codec_data = {
 	.audio_mclk = 26000000,
 	.audio = &overo_audio_data,
 };
-
-/* mmc2 (WLAN) and Bluetooth don't use twl4030 regulators */
 
 static struct twl4030_platform_data overo_twldata = {
 	.irq_base	= TWL4030_IRQ_BASE,
@@ -584,18 +699,17 @@ static int __init overo_spi_init(void)
 	return 0;
 }
 
-static void __init overo_init_irq(void)
+static void __init overo_init_early(void)
 {
 	omap2_init_common_infrastructure();
 	omap2_init_common_devices(mt46h32m32lf6_sdrc_params,
 				  mt46h32m32lf6_sdrc_params);
-	omap_init_irq();
 }
 
-static const struct ehci_hcd_omap_platform_data ehci_pdata __initconst = {
-	.port_mode[0] = EHCI_HCD_OMAP_MODE_UNKNOWN,
-	.port_mode[1] = EHCI_HCD_OMAP_MODE_PHY,
-	.port_mode[2] = EHCI_HCD_OMAP_MODE_UNKNOWN,
+static const struct usbhs_omap_board_data usbhs_bdata __initconst = {
+	.port_mode[0] = OMAP_USBHS_PORT_MODE_UNUSED,
+	.port_mode[1] = OMAP_EHCI_PORT_MODE_PHY,
+	.port_mode[2] = OMAP_USBHS_PORT_MODE_UNUSED,
 
 	.phy_reset  = true,
 	.reset_gpio_port[0]  = -EINVAL,
@@ -623,10 +737,13 @@ static void __init overo_init(void)
 	omap_serial_init();
 	overo_flash_init();
 	usb_musb_init(&musb_board_data);
-	usb_ehci_init(&ehci_pdata);
+	usbhs_init(&usbhs_bdata);
+	overo_ads7846_init();
 	overo_spi_init();
 	overo_init_smsc911x();
 	overo_display_init();
+	overo_init_led();
+	overo_init_keys();
 
 	/* Ensure SDRC pins are mux'd for self-refresh */
 	omap_mux_init_signal("sdrc_cke0", OMAP_PIN_OUTPUT);
@@ -671,9 +788,10 @@ static void __init overo_init(void)
 
 MACHINE_START(OVERO, "Gumstix Overo")
 	.boot_params	= 0x80000100,
-	.map_io		= omap3_map_io,
 	.reserve	= omap_reserve,
-	.init_irq	= overo_init_irq,
+	.map_io		= omap3_map_io,
+	.init_early	= overo_init_early,
+	.init_irq	= omap_init_irq,
 	.init_machine	= overo_init,
 	.timer		= &omap_timer,
 MACHINE_END

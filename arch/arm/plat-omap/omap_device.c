@@ -83,10 +83,11 @@
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/clk.h>
+#include <linux/clkdev.h>
 
 #include <plat/omap_device.h>
 #include <plat/omap_hwmod.h>
-#include <plat/dvfs.h>
+#include <plat/clock.h>
 
 /* These parameters are passed to _omap_device_{de,}activate() */
 #define USE_WAKEUP_LAT			0
@@ -240,12 +241,12 @@ static inline struct omap_device *_find_by_pdev(struct platform_device *pdev)
 }
 
 /**
- * _add_optional_clock_alias - Add clock alias for hwmod optional clocks
+ * _add_optional_clock_clkdev - Add clkdev entry for hwmod optional clocks
  * @od: struct omap_device *od
  *
  * For every optional clock present per hwmod per omap_device, this function
- * adds an entry in the clocks list of the form <dev-id=dev_name, con-id=role>
- * if an entry is already present in it with the form <dev-id=NULL, con-id=role>
+ * adds an entry in the clkdev table of the form <dev-id=dev_name, con-id=role>
+ * if it does not exist already.
  *
  * The function is called from inside omap_device_build_ss(), after
  * omap_device_register.
@@ -255,25 +256,39 @@ static inline struct omap_device *_find_by_pdev(struct platform_device *pdev)
  *
  * No return value.
  */
-static void _add_optional_clock_alias(struct omap_device *od,
+static void _add_optional_clock_clkdev(struct omap_device *od,
 				      struct omap_hwmod *oh)
 {
 	int i;
 
 	for (i = 0; i < oh->opt_clks_cnt; i++) {
 		struct omap_hwmod_opt_clk *oc;
-		int r;
+		struct clk *r;
+		struct clk_lookup *l;
 
 		oc = &oh->opt_clks[i];
 
 		if (!oc->_clk)
 			continue;
 
-		r = clk_add_alias(oc->role, dev_name(&od->pdev.dev),
-				  (char *)oc->clk, &od->pdev.dev);
-		if (r)
-			pr_err("omap_device: %s: clk_add_alias for %s failed\n",
+		r = clk_get_sys(dev_name(&od->pdev.dev), oc->role);
+		if (!IS_ERR(r))
+			continue; /* clkdev entry exists */
+
+		r = omap_clk_get_by_name((char *)oc->clk);
+		if (IS_ERR(r)) {
+			pr_err("omap_device: %s: omap_clk_get_by_name for %s failed\n",
+			       dev_name(&od->pdev.dev), oc->clk);
+			continue;
+		}
+
+		l = clkdev_alloc(r, oc->role, dev_name(&od->pdev.dev));
+		if (!l) {
+			pr_err("omap_device: %s: clkdev_alloc for %s failed\n",
 			       dev_name(&od->pdev.dev), oc->role);
+			return;
+		}
+		clkdev_add(l);
 	}
 }
 
@@ -481,15 +496,7 @@ struct omap_device *omap_device_build_ss(const char *pdev_name, int pdev_id,
 
 	for (i = 0; i < oh_cnt; i++) {
 		hwmods[i]->od = od;
-		_add_optional_clock_alias(od, hwmods[i]);
-		if (!is_early_device && hwmods[i]->vdd_name) {
-			struct omap_hwmod *oh = hwmods[i];
-			struct voltagedomain *voltdm;
-
-			voltdm = omap_voltage_domain_lookup(oh->vdd_name);
-			if (!omap_dvfs_register_device(voltdm, &od->pdev.dev))
-				oh->voltdm = voltdm;
-		}
+		_add_optional_clock_clkdev(od, hwmods[i]);
 	}
 
 	if (ret)
@@ -808,55 +815,6 @@ int omap_device_enable_clocks(struct omap_device *od)
 
 	/* XXX pass along return value here? */
 	return 0;
-}
-
-int omap_device_set_rate(struct device *dev, unsigned long freq)
-{
-	struct platform_device *pdev;
-	struct omap_device *od;
-
-	pdev = container_of(dev, struct platform_device, dev);
-	od = _find_by_pdev(pdev);
-
-	if (!od->set_rate) {
-		dev_err(dev, "%s: No set_rate API for scaling device\n",
-			__func__);
-		return -ENODATA;
-	}
-
-	return od->set_rate(dev, freq);
-}
-
-unsigned long omap_device_get_rate(struct device *dev)
-{
-	struct platform_device *pdev;
-	struct omap_device *od;
-
-	pdev = container_of(dev, struct platform_device, dev);
-	od = _find_by_pdev(pdev);
-
-
-	if (!od->get_rate) {
-		dev_err(dev, "%s: No get rate API for the device\n",
-			__func__);
-		return 0;
-	}
-
-	return od->get_rate(dev);
-}
-
-void omap_device_register_dvfs_callbacks(struct device *dev,
-		int (*set_rate)(struct device *dev, unsigned long rate),
-		unsigned long (*get_rate) (struct device *dev))
-{
-	struct platform_device *pdev;
-	struct omap_device *od;
-
-	pdev = container_of(dev, struct platform_device, dev);
-	od = _find_by_pdev(pdev);
-
-	od->set_rate = set_rate;
-	od->get_rate = get_rate;
 }
 
 struct device omap_device_parent = {

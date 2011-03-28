@@ -11,6 +11,7 @@
 #include <linux/platform_device.h>
 #include <linux/input.h>
 #include <linux/gpio.h>
+#include <linux/mtd/nand.h>
 
 #include <asm/mach-types.h>
 #include <asm/mach/arch.h>
@@ -25,24 +26,6 @@
 #include "board-flash.h"
 #include "mux.h"
 #include "sdram-hynix-h8mbx00u0mer-0em.h"
-#include "pm.h"
-
-static struct cpuidle_params omap36xx_cpuidle_params_table[] = {
-	/* C1 */
-	{1, 74, 78, 152},
-	/* C2 */
-	{0, 165, 90, 255},
-	/* C3 */
-	{1, 163, 180, 345},
-	/* C4 */
-	{0, 2852, 605, 3457},
-	/* C5 */
-	{1, 800, 366, 2120},
-	/* C6 */
-	{0, 4080, 801, 4881},
-	/* C7 */
-	{1, 4300, 8794, 159000},
-};
 
 #if defined(CONFIG_SMC91X) || defined(CONFIG_SMC91X_MODULE)
 
@@ -72,11 +55,11 @@ static void enable_board_wakeup_source(void)
 		OMAP_WAKEUP_EN | OMAP_PIN_INPUT_PULLUP);
 }
 
-static const struct ehci_hcd_omap_platform_data ehci_pdata __initconst = {
+static const struct usbhs_omap_board_data usbhs_bdata __initconst = {
 
-	.port_mode[0] = EHCI_HCD_OMAP_MODE_PHY,
-	.port_mode[1] = EHCI_HCD_OMAP_MODE_PHY,
-	.port_mode[2] = EHCI_HCD_OMAP_MODE_UNKNOWN,
+	.port_mode[0] = OMAP_EHCI_PORT_MODE_PHY,
+	.port_mode[1] = OMAP_EHCI_PORT_MODE_PHY,
+	.port_mode[2] = OMAP_USBHS_PORT_MODE_UNUSED,
 
 	.phy_reset  = true,
 	.reset_gpio_port[0]  = 126,
@@ -87,14 +70,11 @@ static const struct ehci_hcd_omap_platform_data ehci_pdata __initconst = {
 static struct omap_board_config_kernel sdp_config[] __initdata = {
 };
 
-static void __init omap_sdp_init_irq(void)
+static void __init omap_sdp_init_early(void)
 {
-	omap_board_config = sdp_config;
-	omap_board_config_size = ARRAY_SIZE(sdp_config);
 	omap2_init_common_infrastructure();
 	omap2_init_common_devices(h8mbx00u0mer0em_sdrc_params,
 				  h8mbx00u0mer0em_sdrc_params);
-	omap_init_irq();
 }
 
 #ifdef CONFIG_OMAP_MUX
@@ -224,20 +204,22 @@ static struct flash_partitions sdp_flash_partitions[] = {
 static void __init omap_sdp_init(void)
 {
 	omap3_mux_init(board_mux, OMAP_PACKAGE_CBP);
+	omap_board_config = sdp_config;
+	omap_board_config_size = ARRAY_SIZE(sdp_config);
 	zoom_peripherals_init();
 	zoom_display_init();
 	board_smc91x_init();
-	board_flash_init(sdp_flash_partitions, chip_sel_sdp);
+	board_flash_init(sdp_flash_partitions, chip_sel_sdp, NAND_BUSWIDTH_16);
 	enable_board_wakeup_source();
-	usb_ehci_init(&ehci_pdata);
-	omap3_pm_init_cpuidle(omap36xx_cpuidle_params_table);
+	usbhs_init(&usbhs_bdata);
 }
 
 MACHINE_START(OMAP_3630SDP, "OMAP 3630SDP board")
 	.boot_params	= 0x80000100,
-	.map_io		= omap3_map_io,
 	.reserve	= omap_reserve,
-	.init_irq	= omap_sdp_init_irq,
+	.map_io		= omap3_map_io,
+	.init_early	= omap_sdp_init_early,
+	.init_irq	= omap_init_irq,
 	.init_machine	= omap_sdp_init,
 	.timer		= &omap_timer,
 MACHINE_END

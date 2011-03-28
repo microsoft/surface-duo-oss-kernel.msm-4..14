@@ -47,7 +47,7 @@ static struct {
 
 static char *def_disp_name;
 module_param_named(def_disp, def_disp_name, charp, 0);
-MODULE_PARM_DESC(def_disp_name, "default display name");
+MODULE_PARM_DESC(def_disp, "default display name");
 
 #ifdef DEBUG
 unsigned int dss_debug;
@@ -166,7 +166,6 @@ static inline void dss_uninitialize_debugfs(void)
 static int omap_dss_probe(struct platform_device *pdev)
 {
 	struct omap_dss_board_info *pdata = pdev->dev.platform_data;
-	int skip_init = 0;
 	int r;
 	int i;
 
@@ -192,12 +191,6 @@ static int omap_dss_probe(struct platform_device *pdev)
 		goto err_rfbi;
 	}
 
-	r = dpi_init(pdev);
-	if (r) {
-		DSSERR("Failed to initialize dpi\n");
-		goto err_dpi;
-	}
-
 	r = dispc_init_platform_driver();
 	if (r) {
 		DSSERR("Failed to initialize dispc platform driver\n");
@@ -210,23 +203,16 @@ static int omap_dss_probe(struct platform_device *pdev)
 		goto err_venc;
 	}
 
-#ifdef CONFIG_FB_OMAP_BOOTLOADER_INIT
-	/* DISPC_CONTROL */
-	if (omap_readl(0x48050440) & 1)	/* LCD enabled? */
-		skip_init = 1;
-#endif
-	if (cpu_is_omap34xx()) {
-		r = sdi_init(skip_init);
-		if (r) {
-			DSSERR("Failed to initialize SDI\n");
-			goto err_sdi;
-		}
+	r = dsi_init_platform_driver();
+	if (r) {
+		DSSERR("Failed to initialize DSI platform driver\n");
+		goto err_dsi;
+	}
 
-		r = dsi_init_platform_driver();
-		if (r) {
-			DSSERR("Failed to initialize DSI platform driver\n");
-			goto err_dsi;
-		}
+	r = hdmi_init_platform_driver();
+	if (r) {
+		DSSERR("Failed to initialize hdmi\n");
+		goto err_hdmi;
 	}
 
 	r = dss_initialize_debugfs();
@@ -258,18 +244,14 @@ static int omap_dss_probe(struct platform_device *pdev)
 err_register:
 	dss_uninitialize_debugfs();
 err_debugfs:
-	if (cpu_is_omap34xx())
-		dsi_uninit_platform_driver();
+	hdmi_uninit_platform_driver();
+err_hdmi:
+	dsi_uninit_platform_driver();
 err_dsi:
-	if (cpu_is_omap34xx())
-		sdi_exit();
-err_sdi:
 	venc_uninit_platform_driver();
 err_venc:
 	dispc_uninit_platform_driver();
 err_dispc:
-	dpi_exit();
-err_dpi:
 	rfbi_uninit_platform_driver();
 err_rfbi:
 	dss_uninit_platform_driver();
@@ -287,13 +269,9 @@ static int omap_dss_remove(struct platform_device *pdev)
 
 	venc_uninit_platform_driver();
 	dispc_uninit_platform_driver();
-	dpi_exit();
 	rfbi_uninit_platform_driver();
-	if (cpu_is_omap34xx()) {
-		dsi_uninit_platform_driver();
-		sdi_exit();
-	}
-
+	dsi_uninit_platform_driver();
+	hdmi_uninit_platform_driver();
 	dss_uninit_platform_driver();
 
 	dss_uninit_overlays(pdev);
@@ -332,7 +310,7 @@ static struct platform_driver omap_dss_driver = {
 	.suspend	= omap_dss_suspend,
 	.resume		= omap_dss_resume,
 	.driver         = {
-		.name   = "omap_display",
+		.name   = "omapdss",
 		.owner  = THIS_MODULE,
 	},
 };

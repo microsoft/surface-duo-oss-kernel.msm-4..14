@@ -51,7 +51,6 @@
 
 struct omap3_processor_cx {
 	u8 valid;
-	u8 enabled;
 	u8 type;
 	u32 sleep_latency;
 	u32 wakeup_latency;
@@ -59,6 +58,7 @@ struct omap3_processor_cx {
 	u32 core_state;
 	u32 threshold;
 	u32 flags;
+	const char *desc;
 };
 
 struct omap3_processor_cx omap3_power_states[OMAP3_MAX_STATES];
@@ -100,14 +100,14 @@ static int omap3_idle_bm_check(void)
 static int _cpuidle_allow_idle(struct powerdomain *pwrdm,
 				struct clockdomain *clkdm)
 {
-	omap2_clkdm_allow_idle(clkdm);
+	clkdm_allow_idle(clkdm);
 	return 0;
 }
 
 static int _cpuidle_deny_idle(struct powerdomain *pwrdm,
 				struct clockdomain *clkdm)
 {
-	omap2_clkdm_deny_idle(clkdm);
+	clkdm_deny_idle(clkdm);
 	return 0;
 }
 
@@ -140,8 +140,18 @@ static int omap3_enter_idle(struct cpuidle_device *dev,
 	if (omap_irq_pending() || need_resched())
 		goto return_sleep_time;
 
+	if (cx->type == OMAP3_STATE_C1) {
+		pwrdm_for_each_clkdm(mpu_pd, _cpuidle_deny_idle);
+		pwrdm_for_each_clkdm(core_pd, _cpuidle_deny_idle);
+	}
+
 	/* Execute ARM wfi */
 	omap_sram_idle();
+
+	if (cx->type == OMAP3_STATE_C1) {
+		pwrdm_for_each_clkdm(mpu_pd, _cpuidle_allow_idle);
+		pwrdm_for_each_clkdm(core_pd, _cpuidle_allow_idle);
+	}
 
 return_sleep_time:
 	getnstimeofday(&ts_postidle);
@@ -274,17 +284,7 @@ static int omap3_enter_idle_bm(struct cpuidle_device *dev,
 
 select_state:
 	dev->last_state = new_state;
-
-	if (new_state == dev->safe_state) {
-		pwrdm_for_each_clkdm(mpu_pd, _cpuidle_deny_idle);
-		pwrdm_for_each_clkdm(core_pd, _cpuidle_deny_idle);
-	}
 	ret = omap3_enter_idle(dev, new_state);
-
-	if (new_state == dev->safe_state) {
-		pwrdm_for_each_clkdm(mpu_pd, _cpuidle_allow_idle);
-		pwrdm_for_each_clkdm(core_pd, _cpuidle_allow_idle);
-	}
 
 	/* Restore original PER state if it was modified */
 	if (per_next_state != per_saved_state)
@@ -310,13 +310,12 @@ void omap3_cpuidle_update_states(u32 mpu_deepest_state, u32 core_deepest_state)
 
 	for (i = OMAP3_STATE_C1; i < OMAP3_MAX_STATES; i++) {
 		struct omap3_processor_cx *cx = &omap3_power_states[i];
-		if (cx->enabled) {
-			if ((cx->mpu_state >= mpu_deepest_state) &&
-			    (cx->core_state >= core_deepest_state)) {
-				cx->valid = 1;
-			} else {
-				cx->valid = 0;
-			}
+
+		if ((cx->mpu_state >= mpu_deepest_state) &&
+		    (cx->core_state >= core_deepest_state)) {
+			cx->valid = 1;
+		} else {
+			cx->valid = 0;
 		}
 	}
 }
@@ -357,8 +356,6 @@ void omap_init_power_states(void)
 	/* C1 . MPU WFI + Core active */
 	omap3_power_states[OMAP3_STATE_C1].valid =
 			cpuidle_params_table[OMAP3_STATE_C1].valid;
-	omap3_power_states[OMAP3_STATE_C1].enabled =
-			cpuidle_params_table[OMAP3_STATE_C1].valid;
 	omap3_power_states[OMAP3_STATE_C1].type = OMAP3_STATE_C1;
 	omap3_power_states[OMAP3_STATE_C1].sleep_latency =
 			cpuidle_params_table[OMAP3_STATE_C1].sleep_latency;
@@ -369,11 +366,10 @@ void omap_init_power_states(void)
 	omap3_power_states[OMAP3_STATE_C1].mpu_state = PWRDM_POWER_ON;
 	omap3_power_states[OMAP3_STATE_C1].core_state = PWRDM_POWER_ON;
 	omap3_power_states[OMAP3_STATE_C1].flags = CPUIDLE_FLAG_TIME_VALID;
+	omap3_power_states[OMAP3_STATE_C1].desc = "MPU ON + CORE ON";
 
 	/* C2 . MPU WFI + Core inactive */
 	omap3_power_states[OMAP3_STATE_C2].valid =
-			cpuidle_params_table[OMAP3_STATE_C2].valid;
-	omap3_power_states[OMAP3_STATE_C2].enabled =
 			cpuidle_params_table[OMAP3_STATE_C2].valid;
 	omap3_power_states[OMAP3_STATE_C2].type = OMAP3_STATE_C2;
 	omap3_power_states[OMAP3_STATE_C2].sleep_latency =
@@ -386,11 +382,10 @@ void omap_init_power_states(void)
 	omap3_power_states[OMAP3_STATE_C2].core_state = PWRDM_POWER_ON;
 	omap3_power_states[OMAP3_STATE_C2].flags = CPUIDLE_FLAG_TIME_VALID |
 				CPUIDLE_FLAG_CHECK_BM;
+	omap3_power_states[OMAP3_STATE_C2].desc = "MPU ON + CORE ON";
 
 	/* C3 . MPU CSWR + Core inactive */
 	omap3_power_states[OMAP3_STATE_C3].valid =
-			cpuidle_params_table[OMAP3_STATE_C3].valid;
-	omap3_power_states[OMAP3_STATE_C3].enabled =
 			cpuidle_params_table[OMAP3_STATE_C3].valid;
 	omap3_power_states[OMAP3_STATE_C3].type = OMAP3_STATE_C3;
 	omap3_power_states[OMAP3_STATE_C3].sleep_latency =
@@ -403,11 +398,10 @@ void omap_init_power_states(void)
 	omap3_power_states[OMAP3_STATE_C3].core_state = PWRDM_POWER_ON;
 	omap3_power_states[OMAP3_STATE_C3].flags = CPUIDLE_FLAG_TIME_VALID |
 				CPUIDLE_FLAG_CHECK_BM;
+	omap3_power_states[OMAP3_STATE_C3].desc = "MPU RET + CORE ON";
 
 	/* C4 . MPU OFF + Core inactive */
 	omap3_power_states[OMAP3_STATE_C4].valid =
-			cpuidle_params_table[OMAP3_STATE_C4].valid;
-	omap3_power_states[OMAP3_STATE_C4].enabled =
 			cpuidle_params_table[OMAP3_STATE_C4].valid;
 	omap3_power_states[OMAP3_STATE_C4].type = OMAP3_STATE_C4;
 	omap3_power_states[OMAP3_STATE_C4].sleep_latency =
@@ -420,11 +414,10 @@ void omap_init_power_states(void)
 	omap3_power_states[OMAP3_STATE_C4].core_state = PWRDM_POWER_ON;
 	omap3_power_states[OMAP3_STATE_C4].flags = CPUIDLE_FLAG_TIME_VALID |
 				CPUIDLE_FLAG_CHECK_BM;
+	omap3_power_states[OMAP3_STATE_C4].desc = "MPU OFF + CORE ON";
 
 	/* C5 . MPU CSWR + Core CSWR*/
 	omap3_power_states[OMAP3_STATE_C5].valid =
-			cpuidle_params_table[OMAP3_STATE_C5].valid;
-	omap3_power_states[OMAP3_STATE_C5].enabled =
 			cpuidle_params_table[OMAP3_STATE_C5].valid;
 	omap3_power_states[OMAP3_STATE_C5].type = OMAP3_STATE_C5;
 	omap3_power_states[OMAP3_STATE_C5].sleep_latency =
@@ -437,11 +430,10 @@ void omap_init_power_states(void)
 	omap3_power_states[OMAP3_STATE_C5].core_state = PWRDM_POWER_RET;
 	omap3_power_states[OMAP3_STATE_C5].flags = CPUIDLE_FLAG_TIME_VALID |
 				CPUIDLE_FLAG_CHECK_BM;
+	omap3_power_states[OMAP3_STATE_C5].desc = "MPU RET + CORE RET";
 
 	/* C6 . MPU OFF + Core CSWR */
 	omap3_power_states[OMAP3_STATE_C6].valid =
-			cpuidle_params_table[OMAP3_STATE_C6].valid;
-	omap3_power_states[OMAP3_STATE_C6].enabled =
 			cpuidle_params_table[OMAP3_STATE_C6].valid;
 	omap3_power_states[OMAP3_STATE_C6].type = OMAP3_STATE_C6;
 	omap3_power_states[OMAP3_STATE_C6].sleep_latency =
@@ -454,11 +446,10 @@ void omap_init_power_states(void)
 	omap3_power_states[OMAP3_STATE_C6].core_state = PWRDM_POWER_RET;
 	omap3_power_states[OMAP3_STATE_C6].flags = CPUIDLE_FLAG_TIME_VALID |
 				CPUIDLE_FLAG_CHECK_BM;
+	omap3_power_states[OMAP3_STATE_C6].desc = "MPU OFF + CORE RET";
 
 	/* C7 . MPU OFF + Core OFF */
 	omap3_power_states[OMAP3_STATE_C7].valid =
-			cpuidle_params_table[OMAP3_STATE_C7].valid;
-	omap3_power_states[OMAP3_STATE_C7].enabled =
 			cpuidle_params_table[OMAP3_STATE_C7].valid;
 	omap3_power_states[OMAP3_STATE_C7].type = OMAP3_STATE_C7;
 	omap3_power_states[OMAP3_STATE_C7].sleep_latency =
@@ -471,6 +462,7 @@ void omap_init_power_states(void)
 	omap3_power_states[OMAP3_STATE_C7].core_state = PWRDM_POWER_OFF;
 	omap3_power_states[OMAP3_STATE_C7].flags = CPUIDLE_FLAG_TIME_VALID |
 				CPUIDLE_FLAG_CHECK_BM;
+	omap3_power_states[OMAP3_STATE_C7].desc = "MPU OFF + CORE OFF";
 
 	/*
 	 * Erratum i583: implementation for ES rev < Es1.2 on 3630. We cannot
@@ -479,9 +471,8 @@ void omap_init_power_states(void)
 	 */
 	if (IS_PM34XX_ERRATUM(PM_SDRC_WAKEUP_ERRATUM_i583)) {
 		omap3_power_states[OMAP3_STATE_C7].valid = 0;
-		omap3_power_states[OMAP3_STATE_C7].enabled = 0;
 		cpuidle_params_table[OMAP3_STATE_C7].valid = 0;
-		WARN_ONCE(1, "%s: core off state C7 disabled due to i583\n",
+		pr_warn("%s: core off state C7 disabled due to i583\n",
 				__func__);
 	}
 }
@@ -529,6 +520,7 @@ int __init omap3_idle_init(void)
 		if (cx->type == OMAP3_STATE_C1)
 			dev->safe_state = state;
 		sprintf(state->name, "C%d", count+1);
+		strncpy(state->desc, cx->desc, CPUIDLE_DESC_LEN);
 		count++;
 	}
 

@@ -36,7 +36,7 @@
 
 /*
  * This file needs be built unconditionally as ARM to interoperate correctly
- * with non-Thumb-2-capable firmware. 
+ * with non-Thumb-2-capable firmware.
  */
 	.arm
 

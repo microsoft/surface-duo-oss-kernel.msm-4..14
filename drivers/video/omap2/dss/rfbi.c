@@ -1068,7 +1068,7 @@ static struct platform_driver omap_rfbihw_driver = {
 	.probe          = omap_rfbihw_probe,
 	.remove         = omap_rfbihw_remove,
 	.driver         = {
-		.name   = "omap_rfbi",
+		.name   = "omapdss_rfbi",
 		.owner  = THIS_MODULE,
 	},
 };

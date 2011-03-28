@@ -18,7 +18,7 @@
 #include <linux/kernel.h>
 #include <linux/i2c/twl.h>
 
-#include <plat/voltage.h>
+#include "voltage.h"
 
 #include "pm.h"
 
@@ -328,7 +328,7 @@ int __init omap3_twl_set_sr_bit(bool enable)
 		temp &= ~SMARTREFLEX_ENABLE;
 
 	ret = twl_i2c_write_u8(TWL4030_MODULE_PM_RECEIVER, temp,
-					TWL4030_DCDC_GLOBAL_CFG);
+				TWL4030_DCDC_GLOBAL_CFG);
 	if (!ret) {
 		twl_sr_enable_autoinit = true;
 		return 0;
