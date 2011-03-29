@@ -3,6 +3,7 @@
 #include <linux/ioport.h>
 #include <linux/of.h>
 
+extern int of_address_count(struct device_node *np);
 extern u64 of_translate_address(struct device_node *np, const __be32 *addr);
 extern int of_address_to_resource(struct device_node *dev, int index,
 				  struct resource *r);

@@ -16,6 +16,7 @@
 #include <linux/device.h>
 #include <linux/dma-mapping.h>
 #include <linux/slab.h>
+#include <linux/notifier.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
 #include <linux/of_irq.h>
@@ -670,6 +671,225 @@ struct platform_device *of_platform_device_create(struct device_node *np,
 }
 EXPORT_SYMBOL(of_platform_device_create);
 
+struct of_platform_prepare_data {
+	struct list_head list;
+	struct device_node *node;
+	struct device *dev;		/* assigned device */
+
+	int num_resources;
+	struct resource resource[0];
+};
+
+static LIST_HEAD(of_platform_prepare_list);
+static struct notifier_block of_platform_nb;
+
+static struct of_platform_prepare_data *of_platform_find_prepare_data(
+						struct device_node *node)
+{
+	struct of_platform_prepare_data *prep;
+	list_for_each_entry(prep, &of_platform_prepare_list, list)
+		if (prep->node == node)
+			return prep;
+	return NULL;
+}
+
+static bool of_pdev_match_resources(struct platform_device *pdev,
+			struct of_platform_prepare_data *prep)
+{
+	struct resource *node_res = prep->resource;
+	struct resource *pdev_res;
+	int i, j;
+
+	if (prep->num_resources == 0 || pdev->num_resources == 0)
+		return false;
+
+	dev_dbg(&pdev->dev, "compare dt node %s\n", prep->node->full_name);
+
+	/* Compare both resource tables and make sure every node resource
+	 * is represented by the platform device.  Here we check that each
+	 * resource has corresponding entry with the same type and start
+	 * values, and the end value falls inside the range specified
+	 * in the device tree node. */
+	for (i = 0; i < prep->num_resources; i++, node_res++) {
+		pr_debug("        node res %2i:%.8x..%.8x[%lx]...\n", i,
+			node_res->start, node_res->end, node_res->flags);
+		pdev_res = pdev->resource;
+		for (j = 0; j < pdev->num_resources; j++, pdev_res++) {
+			pr_debug("        pdev res %2i:%.8x..%.8x[%lx]\n", j,
+				pdev_res->start, pdev_res->end, pdev_res->flags);
+			if ((pdev_res->start == node_res->start) &&
+			    (pdev_res->end >= node_res->start) &&
+			    (pdev_res->end <= node_res->end) &&
+			    (pdev_res->flags == node_res->flags)) {
+				pr_debug("    ...MATCH!  :-)\n");
+				break;
+			}
+		}
+		if (j >= pdev->num_resources)
+			return false;
+	}
+	return true;
+}
+
+static int of_platform_device_notifier_call(struct notifier_block *nb,
+					unsigned long event, void *_dev)
+{
+	struct platform_device *pdev = to_platform_device(_dev);
+	struct of_platform_prepare_data *prep;
+
+	switch (event) {
+	case BUS_NOTIFY_ADD_DEVICE:
+		if (pdev->dev.of_node)
+			return NOTIFY_DONE;
+
+		list_for_each_entry(prep, &of_platform_prepare_list, list) {
+			if (prep->dev)
+				continue;
+
+			if (!of_pdev_match_resources(pdev, prep))
+				continue;
+
+			/* If disabled, don't let the device bind */
+			if (!of_device_is_available(prep->node)) {
+				char buf[strlen(pdev->name) + 12];
+				dev_info(&pdev->dev, "disabled by dt node %s\n",
+					prep->node->full_name);
+				sprintf(buf, "%s-disabled", pdev->name);
+				pdev->name = kstrdup(buf, GFP_KERNEL);
+				continue;
+			}
+
+			dev_info(&pdev->dev, "attaching dt node %s\n",
+				prep->node->full_name);
+			prep->dev = get_device(&pdev->dev);
+			pdev->dev.of_node = of_node_get(prep->node);
+			return NOTIFY_OK;
+		}
+		break;
+
+	case BUS_NOTIFY_DEL_DEVICE:
+		list_for_each_entry(prep, &of_platform_prepare_list, list) {
+			if (prep->dev == &pdev->dev) {
+				dev_info(&pdev->dev, "detaching dt node %s\n",
+					 prep->node->full_name);
+				of_node_put(pdev->dev.of_node);
+				put_device(prep->dev);
+				pdev->dev.of_node = NULL;
+				prep->dev = NULL;
+				return NOTIFY_OK;
+			}
+		}
+		break;
+	}
+
+	return NOTIFY_DONE;
+}
+
+/**
+ * of_platform_prepare - Flag nodes to be used for creating devices
+ * @root: parent of the first level to probe or NULL for the root of the tree
+ * @bus_match: match table for child bus nodes, or NULL
+ *
+ * This function sets up 'snooping' of device tree registrations and
+ * when a device registration is found that matches a node in the
+ * device tree, it populates the platform_device with a pointer to the
+ * matching node.
+ *
+ * A bus notifier is used to implement this behaviour.  When this
+ * function is called, it will parse all the child nodes of @root and
+ * create a lookup table of eligible device nodes.  A device node is
+ * considered eligible if it:
+ *    a) has a compatible property,
+ *    b) has memory mapped registers, and
+ *    c) has a mappable interrupt.
+ *
+ * It will also recursively parse child buses providing
+ *    a) the child bus node has a ranges property (children have
+ *       memory-mapped registers), and
+ *    b) it is compatible with the @matches list.
+ *
+ * The lookup table will be used as data for a platform bus notifier
+ * that will compare each new device registration with the table
+ * before a device driver is bound to it.  If there is a match, then
+ * the of_node pointer will be added to the device.  Therefore it is
+ * important to call this function *before* any platform devices get
+ * registered.
+ */
+void of_platform_prepare(struct device_node *root,
+			 const struct of_device_id *matches)
+{
+	struct device_node *child;
+	struct of_platform_prepare_data *prep;
+
+	/* register the notifier if it isn't already */
+	if (!of_platform_nb.notifier_call) {
+		of_platform_nb.notifier_call = of_platform_device_notifier_call;
+		bus_register_notifier(&platform_bus_type, &of_platform_nb);
+	}
+
+	/* If root is null, then start at the root of the tree */
+	root = root ? of_node_get(root) : of_find_node_by_path("/");
+	if (!root)
+		return;
+
+	pr_debug("of_platform_prepare()\n");
+	pr_debug(" starting at: %s\n", root->full_name);
+
+	/* Loop over children and record the details */
+	for_each_child_of_node(root, child) {
+		struct resource *res;
+		int num_irq, num_reg, i;
+
+		/* If this is a bus node, recursively inspect the children,
+		 * but *don't* prepare it.  Prepare only concerns
+		 * itself with leaf-nodes.  */
+		if (of_match_node(matches, child)) {
+			of_platform_prepare(child, matches);
+			continue;
+		}
+
+		/* Is it already in the list? */
+		if (of_platform_find_prepare_data(child))
+			continue;
+
+		/* Make sure it has a compatible property */
+		if (!of_get_property(child, "compatible", NULL))
+			continue;
+
+		/*
+		 * Count the resources.  If the device doesn't have any
+		 * register ranges, then it gets skipped because there is no
+		 * way to match such a device against static registration
+		 */
+		num_irq = of_irq_count(child);
+		num_reg = of_address_count(child);
+		if (!num_reg)
+			continue;
+
+		/* Device node looks valid; record the details */
+		prep = kzalloc(sizeof(*prep) +
+			(sizeof(prep->resource[0]) * (num_irq + num_reg)),
+			GFP_KERNEL);
+		if (!prep)
+			return; /* We're screwed if malloc doesn't work. */
+
+		INIT_LIST_HEAD(&prep->list);
+
+		res = &prep->resource[0];
+		for (i = 0; i < num_reg; i++, res++)
+			WARN_ON(of_address_to_resource(child, i, res));
+		WARN_ON(of_irq_to_resource_table(child, res, num_irq) != num_irq);
+		prep->num_resources = num_reg + num_irq;
+		prep->node = of_node_get(child);
+
+		list_add_tail(&prep->list, &of_platform_prepare_list);
+
+		pr_debug("%s() - %s prepared (%i regs, %i irqs)\n",
+			__func__, prep->node->full_name, num_reg, num_irq);
+	}
+
+}
+
 /**
  * of_platform_bus_create() - Create a device for a node and its children.
  * @bus: device node of the bus to instantiate
@@ -684,6 +904,7 @@ static int of_platform_bus_create(struct device_node *bus,
 				  const struct of_device_id *matches,
 				  struct device *parent, bool strict)
 {
+	struct of_platform_prepare_data *prep;
 	struct device_node *child;
 	struct platform_device *dev;
 	int rc = 0;
@@ -691,6 +912,14 @@ static int of_platform_bus_create(struct device_node *bus,
 	/* Make sure it has a compatible property */
 	if (strict && (!of_get_property(bus, "compatible", NULL))) {
 		pr_debug("%s() - skipping %s, no compatible prop\n",
+			 __func__, bus->full_name);
+		return 0;
+	}
+
+	/* Has the device already been registered manually? */
+	prep = of_platform_find_prepare_data(bus);
+	if (prep && prep->dev) {
+		pr_debug("%s() - skipping %s, already registered\n",
 			 __func__, bus->full_name);
 		return 0;
 	}

@@ -556,6 +556,20 @@ static int __of_address_to_resource(struct device_node *dev,
 }
 
 /**
+ * of_address_count - Return the number of entries in the reg property
+ */
+int of_address_count(struct device_node *np)
+{
+	struct resource temp_res;
+	int num_reg = 0;
+
+	while (of_address_to_resource(np, num_reg, &temp_res) == 0)
+		num_reg++;
+	return num_reg;
+}
+EXPORT_SYMBOL_GPL(of_address_count);
+
+/**
  * of_address_to_resource - Translate device tree address and return as resource
  *
  * Note that if your address is a PIO address, the conversion will fail if
