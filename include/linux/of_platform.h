@@ -68,12 +68,14 @@ extern struct platform_device *of_platform_device_create(struct device_node *np,
 						   const char *bus_id,
 						   struct device *parent);
 
-/* pseudo "matches" value to not do deep probe */
-#define OF_NO_DEEP_PROBE ((struct of_device_id *)-1)
-
+extern void of_platform_prepare(struct device_node *root,
+				const struct of_device_id *matches);
 extern int of_platform_bus_probe(struct device_node *root,
 				 const struct of_device_id *matches,
 				 struct device *parent);
+extern int of_platform_populate(struct device_node *root,
+				const struct of_device_id *matches,
+				struct device *parent);
 #endif /* !CONFIG_SPARC */
 
 #endif /* CONFIG_OF_DEVICE */
