@@ -103,6 +103,114 @@ struct omap_volt_pmic_info {
 	u8 (*uv_to_vsel) (unsigned long uV);
 };
 
+
+/* Voltage processor register offsets */
+struct vp_reg_offs {
+	u8 vpconfig;
+	u8 vstepmin;
+	u8 vstepmax;
+	u8 vlimitto;
+	u8 vstatus;
+	u8 voltage;
+};
+
+/* Voltage Processor bit field values, shifts and masks */
+struct vp_reg_val {
+	/* PRM module */
+	u16 prm_mod;
+	/* VPx_VPCONFIG */
+	u32 vpconfig_erroroffset;
+	u16 vpconfig_errorgain;
+	u32 vpconfig_errorgain_mask;
+	u8 vpconfig_errorgain_shift;
+	u32 vpconfig_initvoltage_mask;
+	u8 vpconfig_initvoltage_shift;
+	u32 vpconfig_timeouten;
+	u32 vpconfig_initvdd;
+	u32 vpconfig_forceupdate;
+	u32 vpconfig_vpenable;
+	/* VPx_VSTEPMIN */
+	u8 vstepmin_stepmin;
+	u16 vstepmin_smpswaittimemin;
+	u8 vstepmin_stepmin_shift;
+	u8 vstepmin_smpswaittimemin_shift;
+	/* VPx_VSTEPMAX */
+	u8 vstepmax_stepmax;
+	u16 vstepmax_smpswaittimemax;
+	u8 vstepmax_stepmax_shift;
+	u8 vstepmax_smpswaittimemax_shift;
+	/* VPx_VLIMITTO */
+	u8 vlimitto_vddmin;
+	u8 vlimitto_vddmax;
+	u16 vlimitto_timeout;
+	u8 vlimitto_vddmin_shift;
+	u8 vlimitto_vddmax_shift;
+	u8 vlimitto_timeout_shift;
+	/* PRM_IRQSTATUS*/
+	u32 tranxdone_status;
+};
+
+/* Voltage controller registers and offsets */
+struct vc_reg_info {
+	/* PRM module */
+	u16 prm_mod;
+	/* VC register offsets */
+	u8 smps_sa_reg;
+	u8 smps_volra_reg;
+	u8 bypass_val_reg;
+	u8 cmdval_reg;
+	u8 voltsetup_reg;
+	/*VC_SMPS_SA*/
+	u8 smps_sa_shift;
+	u32 smps_sa_mask;
+	/* VC_SMPS_VOL_RA */
+	u8 smps_volra_shift;
+	u32 smps_volra_mask;
+	/* VC_BYPASS_VAL */
+	u8 data_shift;
+	u8 slaveaddr_shift;
+	u8 regaddr_shift;
+	u32 valid;
+	/* VC_CMD_VAL */
+	u8 cmd_on_shift;
+	u8 cmd_onlp_shift;
+	u8 cmd_ret_shift;
+	u8 cmd_off_shift;
+	u32 cmd_on_mask;
+	/* PRM_VOLTSETUP */
+	u8 voltsetup_shift;
+	u32 voltsetup_mask;
+};
+
+
+/**
+ * omap_vdd_dep_volt - Table containing the parent vdd voltage and the
+ *			dependent vdd voltage corresponding to it.
+ *
+ * @main_vdd_volt	: The main vdd voltage
+ * @dep_vdd_volt	: The voltage at which the dependent vdd should be
+ *			  when the main vdd is at <main_vdd_volt> voltage
+ */
+struct omap_vdd_dep_volt {
+	u32 main_vdd_volt;
+	u32 dep_vdd_volt;
+};
+
+/**
+ * omap_vdd_dep_info - Dependent vdd info
+ *
+ * @name		: Dependent vdd name
+ * @voltdm		: Dependent vdd pointer
+ * @dep_table		: Table containing the dependent vdd voltage
+ *			  corresponding to every main vdd voltage.
+ */
+struct omap_vdd_dep_info {
+	char *name;
+	struct voltagedomain *voltdm;
+	struct omap_vdd_dep_volt *dep_table;
+};
+
+
 /**
  * omap_vdd_info - Per Voltage Domain info
  *
@@ -130,6 +238,8 @@ struct omap_vdd_info {
 	struct omap_vc_instance_data *vc_data;
 	const struct omap_vfsm_instance_data *vfsm;
 	struct voltagedomain voltdm;
+	struct omap_vdd_dep_info *dep_vdd_info;
+	int nr_dep_vdd;
 	struct dentry *debug_dir;
 	u32 curr_volt;
 	bool vp_enabled;
