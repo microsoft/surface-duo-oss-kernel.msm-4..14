@@ -22,15 +22,15 @@
 #include <linux/init.h>
 
 #include <plat/common.h>
+#include <plat/voltage.h>
+#include <plat/vc.h>
+#include <plat/vp.h>
 
 #include "prm-regbits-44xx.h"
 #include "prm44xx.h"
 #include "prcm44xx.h"
 #include "prminst44xx.h"
-#include "voltage.h"
 #include "omap_opp_data.h"
-#include "vc.h"
-#include "vp.h"
 
 static const struct omap_vfsm_instance_data omap4_vdd_mpu_vfsm_data = {
 	.voltsetup_reg = OMAP4_PRM_VOLTSETUP_MPU_RET_SLEEP_OFFSET,

@@ -20,12 +20,12 @@
 
 #include <plat/common.h>
 #include <plat/cpu.h>
+#include <plat/voltage.h>
+#include <plat/vc.h>
+#include <plat/vp.h>
 
 #include "prm-regbits-34xx.h"
 #include "omap_opp_data.h"
-#include "voltage.h"
-#include "vc.h"
-#include "vp.h"
 
 /*
  * VDD data
