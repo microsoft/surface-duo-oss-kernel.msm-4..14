@@ -181,6 +181,30 @@ static struct panel_config generic_dpi_panels[] = {
 		.power_off_delay	= 0,
 		.name			= "samsung_lte430wq_f0c",
 	},
+
+	/* Vesa 720p 1280x768 */
+	{
+		{
+			.x_res		= 1280,
+			.y_res		= 768,
+
+			.pixel_clock	= 71000,
+
+			.hfp		= 128,
+			.hsw		= 64,
+			.hbp		= 192,
+
+			.vfp		= 3,
+			.vsw		= 7,
+			.vbp		= 20,
+		},
+		.acbi			= 0x0,
+		.acb			= 0x0,
+		.config			= OMAP_DSS_LCD_TFT,
+		.power_on_delay		= 0,
+		.power_off_delay	= 0,
+		.name			= "dvi_720p",
+	},
 };
 
 struct panel_drv_data {
