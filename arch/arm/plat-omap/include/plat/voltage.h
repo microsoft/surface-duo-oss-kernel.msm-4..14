@@ -290,5 +290,7 @@ static inline struct voltagedomain *omap_voltage_domain_lookup(char *name)
 	return ERR_PTR(-EINVAL);
 }
 #endif
+int __init omap3xxx_voltage_early_init(void);
+int __init omap44xx_voltage_early_init(void);
 
 #endif

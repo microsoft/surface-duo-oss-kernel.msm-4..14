@@ -68,7 +68,7 @@ static struct omap_vdd_info *omap3_vdd_info[] = {
 };
 
 /* OMAP3 specific voltage init functions */
-static int __init omap3xxx_voltage_early_init(void)
+int __init omap3xxx_voltage_early_init(void)
 {
 	s16 prm_mod = OMAP3430_GR_MOD;
 	s16 prm_irqst_ocp_mod = OCP_MOD;
@@ -97,4 +97,3 @@ static int __init omap3xxx_voltage_early_init(void)
 				       omap3_vdd_info,
 				       ARRAY_SIZE(omap3_vdd_info));
 };
-core_initcall(omap3xxx_voltage_early_init);
