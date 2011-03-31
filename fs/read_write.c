@@ -15,6 +15,7 @@
 #include <linux/syscalls.h>
 #include <linux/pagemap.h>
 #include <linux/splice.h>
+#include <trace/fs.h>
 #include "read_write.h"
 
 #include <asm/uaccess.h>
@@ -29,6 +30,15 @@ const struct file_operations generic_ro_fops = {
 };
 
 EXPORT_SYMBOL(generic_ro_fops);
+
+DEFINE_TRACE(fs_lseek);
+DEFINE_TRACE(fs_llseek);
+DEFINE_TRACE(fs_read);
+DEFINE_TRACE(fs_write);
+DEFINE_TRACE(fs_pread64);
+DEFINE_TRACE(fs_pwrite64);
+DEFINE_TRACE(fs_readv);
+DEFINE_TRACE(fs_writev);
 
 static inline int unsigned_offsets(struct file *file)
 {
@@ -187,6 +197,9 @@ SYSCALL_DEFINE3(lseek, unsigned int, fd, off_t, offset, unsigned int, origin)
 		if (res != (loff_t)retval)
 			retval = -EOVERFLOW;	/* LFS: should only happen on 32 bit platforms */
 	}
+
+	trace_fs_lseek(fd, offset, origin);
+
 	fput_light(file, fput_needed);
 bad:
 	return retval;
@@ -213,6 +226,8 @@ SYSCALL_DEFINE5(llseek, unsigned int, fd, unsigned long, offset_high,
 
 	offset = vfs_llseek(file, ((loff_t) offset_high << 32) | offset_low,
 			origin);
+
+	trace_fs_llseek(fd, offset, origin);
 
 	retval = (int)offset;
 	if (offset >= 0) {
@@ -409,6 +424,7 @@ SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
 	if (file) {
 		loff_t pos = file_pos_read(file);
 		ret = vfs_read(file, buf, count, &pos);
+		trace_fs_read(fd, buf, count, ret);
 		file_pos_write(file, pos);
 		fput_light(file, fput_needed);
 	}
@@ -427,6 +443,7 @@ SYSCALL_DEFINE3(write, unsigned int, fd, const char __user *, buf,
 	if (file) {
 		loff_t pos = file_pos_read(file);
 		ret = vfs_write(file, buf, count, &pos);
+		trace_fs_write(fd, buf, count, ret);
 		file_pos_write(file, pos);
 		fput_light(file, fput_needed);
 	}
@@ -447,8 +464,11 @@ SYSCALL_DEFINE(pread64)(unsigned int fd, char __user *buf,
 	file = fget_light(fd, &fput_needed);
 	if (file) {
 		ret = -ESPIPE;
-		if (file->f_mode & FMODE_PREAD)
+		if (file->f_mode & FMODE_PREAD) {
 			ret = vfs_read(file, buf, count, &pos);
+			trace_fs_pread64(fd, buf, count, pos, ret);
+		}
+
 		fput_light(file, fput_needed);
 	}
 
@@ -476,8 +496,10 @@ SYSCALL_DEFINE(pwrite64)(unsigned int fd, const char __user *buf,
 	file = fget_light(fd, &fput_needed);
 	if (file) {
 		ret = -ESPIPE;
-		if (file->f_mode & FMODE_PWRITE)  
+		if (file->f_mode & FMODE_PWRITE) {
 			ret = vfs_write(file, buf, count, &pos);
+			trace_fs_pwrite64(fd, buf, count, pos, ret);
+		}
 		fput_light(file, fput_needed);
 	}
 
@@ -736,6 +758,7 @@ SYSCALL_DEFINE3(readv, unsigned long, fd, const struct iovec __user *, vec,
 	if (file) {
 		loff_t pos = file_pos_read(file);
 		ret = vfs_readv(file, vec, vlen, &pos);
+		trace_fs_readv(fd, vec, vlen, ret);
 		file_pos_write(file, pos);
 		fput_light(file, fput_needed);
 	}
@@ -757,6 +780,7 @@ SYSCALL_DEFINE3(writev, unsigned long, fd, const struct iovec __user *, vec,
 	if (file) {
 		loff_t pos = file_pos_read(file);
 		ret = vfs_writev(file, vec, vlen, &pos);
+		trace_fs_writev(fd, vec, vlen, ret);
 		file_pos_write(file, pos);
 		fput_light(file, fput_needed);
 	}

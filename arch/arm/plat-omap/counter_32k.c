@@ -107,6 +107,11 @@ static struct clocksource clocksource_32k = {
 	.flags		= CLOCK_SOURCE_IS_CONTINUOUS,
 };
 
+struct clocksource *get_clocksource_32k(void)
+{
+	return &clocksource_32k;
+}
+
 /*
  * Returns current time from boot in nsecs. It's OK for this to wrap
  * around for now, as it's just a relative time stamp.

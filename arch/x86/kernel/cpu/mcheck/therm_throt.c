@@ -23,6 +23,7 @@
 #include <linux/init.h>
 #include <linux/smp.h>
 #include <linux/cpu.h>
+#include <trace/irq.h>
 
 #include <asm/processor.h>
 #include <asm/system.h>
@@ -402,8 +403,10 @@ asmlinkage void smp_thermal_interrupt(struct pt_regs *regs)
 {
 	exit_idle();
 	irq_enter();
+	trace_irq_entry(THERMAL_APIC_VECTOR, regs, NULL);
 	inc_irq_stat(irq_thermal_count);
 	smp_thermal_vector();
+	trace_irq_exit(IRQ_HANDLED);
 	irq_exit();
 	/* Ack only at the end to avoid potential reentry */
 	ack_APIC_irq();

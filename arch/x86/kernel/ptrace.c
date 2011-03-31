@@ -21,6 +21,7 @@
 #include <linux/signal.h>
 #include <linux/perf_event.h>
 #include <linux/hw_breakpoint.h>
+#include <trace/syscall.h>
 
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
@@ -151,6 +152,9 @@ static const int arg_offs_table[] = {
 				  X86_EFLAGS_SF | X86_EFLAGS_TF |	\
 				  X86_EFLAGS_DF | X86_EFLAGS_OF |	\
 				  X86_EFLAGS_RF | X86_EFLAGS_AC))
+
+DEFINE_TRACE(syscall_entry);
+DEFINE_TRACE(syscall_exit);
 
 /*
  * Determines whether a value may be installed in a segment register.
@@ -1361,6 +1365,8 @@ asmregparm long syscall_trace_enter(struct pt_regs *regs)
 	if (test_thread_flag(TIF_SINGLESTEP))
 		regs->flags |= X86_EFLAGS_TF;
 
+	trace_syscall_entry(regs, regs->orig_ax);
+
 	/* do the secure computing check first */
 	secure_computing(regs->orig_ax);
 
@@ -1395,6 +1401,8 @@ asmregparm long syscall_trace_enter(struct pt_regs *regs)
 asmregparm void syscall_trace_leave(struct pt_regs *regs)
 {
 	bool step;
+
+	trace_syscall_exit(regs->ax);
 
 	if (unlikely(current->audit_context))
 		audit_syscall_exit(AUDITSC_RESULT(regs->ax), regs->ax);

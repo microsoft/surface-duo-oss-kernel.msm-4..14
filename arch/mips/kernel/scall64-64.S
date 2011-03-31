@@ -54,7 +54,7 @@ NESTED(handle_sys64, PT_SIZE, sp)
 
 	sd	a3, PT_R26(sp)		# save a3 for syscall restarting
 
-	li	t1, _TIF_SYSCALL_TRACE | _TIF_SYSCALL_AUDIT
+	li	t1, _TIF_SYSCALL_TRACE | _TIF_SYSCALL_AUDIT | _TIF_KERNEL_TRACE
 	LONG_L	t0, TI_FLAGS($28)	# syscall tracing enabled?
 	and	t0, t1, t0
 	bnez	t0, syscall_trace_entry
@@ -126,7 +126,8 @@ illegal_syscall:
 	END(handle_sys64)
 
 	.align	3
-sys_call_table:
+	.type	sys_call_table,@object
+EXPORT(sys_call_table)
 	PTR	sys_read			/* 5000 */
 	PTR	sys_write
 	PTR	sys_open

@@ -29,8 +29,11 @@
 #include <linux/personality.h>
 #include <linux/unistd.h>
 #include <linux/ipc.h>
+#include <trace/ipc.h>
 #include <asm/uaccess.h>
 #include "entry.h"
+
+DEFINE_TRACE(ipc_call);
 
 /*
  * Perform the mmap() system call. Linux for S/390 isn't able to handle more
@@ -69,6 +72,8 @@ SYSCALL_DEFINE5(s390_ipc, uint, call, int, first, unsigned long, second,
 {
         struct ipc_kludge tmp;
 	int ret;
+
+        trace_ipc_call(call, first);
 
         switch (call) {
         case SEMOP:

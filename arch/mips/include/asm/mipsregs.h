@@ -438,6 +438,7 @@
  */
 #define  CAUSEB_EXCCODE		2
 #define  CAUSEF_EXCCODE		(_ULCAST_(31)  <<  2)
+#define  CAUSE_EXCCODE(cause)	(((cause) & CAUSEF_EXCCODE) >> CAUSEB_EXCCODE)
 #define  CAUSEB_IP		8
 #define  CAUSEF_IP		(_ULCAST_(255) <<  8)
 #define  CAUSEB_IP0		8

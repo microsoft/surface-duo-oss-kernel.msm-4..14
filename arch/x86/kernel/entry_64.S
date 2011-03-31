@@ -163,6 +163,8 @@ GLOBAL(return_to_handler)
 #endif
 
 
+#define NMI_MASK 0x04000000
+
 #ifndef CONFIG_PREEMPT
 #define retint_kernel retint_restore_args
 #endif
@@ -515,6 +517,8 @@ sysret_check:
 	/* Handle reschedules */
 	/* edx:	work, edi: workmask */
 sysret_careful:
+	testl $_TIF_KERNEL_TRACE,%edx	/* Re-read : concurrently changed */
+	jnz ret_from_sys_call_trace
 	bt $TIF_NEED_RESCHED,%edx
 	jnc sysret_signal
 	TRACE_IRQS_ON
@@ -523,6 +527,16 @@ sysret_careful:
 	call schedule
 	popq_cfi %rdi
 	jmp sysret_check
+
+ret_from_sys_call_trace:
+	TRACE_IRQS_ON
+	sti
+	SAVE_REST
+	FIXUP_TOP_OF_STACK %rdi
+	movq %rsp,%rdi
+	LOAD_ARGS ARGOFFSET  /* reload args from stack in case ptrace changed it */
+	RESTORE_REST
+	jmp int_ret_from_sys_call
 
 	/* Handle a signal */
 sysret_signal:
@@ -872,6 +886,9 @@ ENTRY(native_iret)
 	.section __ex_table,"a"
 	.quad native_iret, bad_iret
 	.previous
+
+ENTRY(native_nmi_return)
+	NATIVE_INTERRUPT_RETURN_NMI_SAFE
 #endif
 
 	.section .fixup,"ax"
@@ -923,6 +940,24 @@ retint_signal:
 	TRACE_IRQS_OFF
 	GET_THREAD_INFO(%rcx)
 	jmp retint_with_reschedule
+
+	/* Returning to kernel space from exception. */
+	/* rcx:	 threadinfo. interrupts off. */
+ENTRY(retexc_kernel)
+	testl $NMI_MASK,TI_preempt_count(%rcx)
+	jz retint_kernel		/* Not nested over NMI ? */
+	testw $X86_EFLAGS_TF,EFLAGS-ARGOFFSET(%rsp)	/* trap flag? */
+	jnz retint_kernel		/*
+					 * If single-stepping an NMI handler,
+					 * use the normal iret path instead of
+					 * the popf/lret because lret would be
+					 * single-stepped. It should not
+					 * happen : it will reactivate NMIs
+					 * prematurely.
+					 */
+	RESTORE_ARGS 0,8,0
+	TRACE_IRQS_IRETQ
+	INTERRUPT_RETURN_NMI_SAFE
 
 #ifdef CONFIG_PREEMPT
 	/* Returning to kernel space. Check if we need preemption */
@@ -1361,12 +1396,18 @@ ENTRY(paranoid_exit)
 paranoid_swapgs:
 	TRACE_IRQS_IRETQ 0
 	SWAPGS_UNSAFE_STACK
+paranoid_restore_no_nmi:
 	RESTORE_ALL 8
 	jmp irq_return
 paranoid_restore:
+	GET_THREAD_INFO(%rcx)
 	TRACE_IRQS_IRETQ 0
+	testl $NMI_MASK,TI_preempt_count(%rcx)
+	jz paranoid_restore_no_nmi              /* Nested over NMI ? */
+	testw $X86_EFLAGS_TF,EFLAGS-0(%rsp)     /* trap flag? */
+	jnz paranoid_restore_no_nmi
 	RESTORE_ALL 8
-	jmp irq_return
+	INTERRUPT_RETURN_NMI_SAFE
 paranoid_userspace:
 	GET_THREAD_INFO(%rcx)
 	movl TI_flags(%rcx),%ebx
@@ -1465,7 +1506,7 @@ ENTRY(error_exit)
 	TRACE_IRQS_OFF
 	GET_THREAD_INFO(%rcx)
 	testl %eax,%eax
-	jne retint_kernel
+	jne retexc_kernel
 	LOCKDEP_SYS_EXIT_IRQ
 	movl TI_flags(%rcx),%edx
 	movl $_TIF_WORK_MASK,%edi

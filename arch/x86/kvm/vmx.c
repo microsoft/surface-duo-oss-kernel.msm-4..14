@@ -40,7 +40,7 @@
 #include <asm/i387.h>
 #include <asm/xcr.h>
 
-#include "trace.h"
+#include <asm/kvm-trace.h>
 
 #define __ex(x) __kvm_handle_fault_on_reboot(x)
 

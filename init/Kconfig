@@ -797,6 +797,41 @@ config NET_NS
 
 endif # NAMESPACES
 
+#
+# Architectures with a 64-bits get_cycles() should select this.
+# They should also define
+# get_cycles_barrier() : instruction synchronization barrier if required
+# get_cycles_rate() : cycle counter rate, in HZ. If 0, TSC are not synchronized
+# across CPUs or their frequency may vary due to frequency scaling.
+#
+config HAVE_GET_CYCLES
+	def_bool n
+
+#
+# Architectures with a specialized tracing clock should select this.
+#
+config HAVE_TRACE_CLOCK
+	def_bool n
+
+config HAVE_TRACE_CLOCK_GENERIC
+	bool
+	default y if (!HAVE_TRACE_CLOCK)
+	default n if HAVE_TRACE_CLOCK
+	select HAVE_TRACE_CLOCK_32_TO_64 if (!64BIT)
+
+#
+# Architectures with only a 32-bits clock source should select this.
+#
+config HAVE_TRACE_CLOCK_32_TO_64
+	def_bool n
+
+#
+# Architectures which need to dynamically detect if their TSC is unsynchronized
+# across cpus should select this.
+#
+config HAVE_UNSYNCHRONIZED_TSC
+	def_bool n
+
 config SCHED_AUTOGROUP
 	bool "Automatic process group scheduling"
 	select EVENTFD
@@ -1263,7 +1298,17 @@ config PROFILING
 config TRACEPOINTS
 	bool
 
+config MARKERS
+	bool "Activate markers"
+	select TRACEPOINTS
+	help
+	  Place an empty function call at each marker site. Can be
+	  dynamically changed for a probe function.
+
 source "arch/Kconfig"
+
+config HAVE_LTT_DUMP_TABLES
+	def_bool n
 
 endmenu		# General setup
 

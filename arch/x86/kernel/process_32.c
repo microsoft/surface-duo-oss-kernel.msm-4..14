@@ -38,6 +38,9 @@
 #include <linux/uaccess.h>
 #include <linux/io.h>
 #include <linux/kdebug.h>
+#include <linux/notifier.h>
+#include <linux/idle.h>
+#include <trace/pm.h>
 
 #include <asm/pgtable.h>
 #include <asm/system.h>
@@ -58,6 +61,38 @@
 #include <asm/debugreg.h>
 
 asmlinkage void ret_from_fork(void) __asm__("ret_from_fork");
+
+DEFINE_TRACE(pm_idle_exit);
+DEFINE_TRACE(pm_idle_entry);
+
+static DEFINE_PER_CPU(unsigned char, is_idle);
+
+void enter_idle(void)
+{
+	percpu_write(is_idle, 1);
+	trace_pm_idle_entry();
+	notify_idle(IDLE_START);
+}
+EXPORT_SYMBOL_GPL(enter_idle);
+
+void __exit_idle(void)
+{
+	if (x86_test_and_clear_bit_percpu(0, is_idle) == 0)
+		return;
+	notify_idle(IDLE_END);
+	trace_pm_idle_exit();
+}
+EXPORT_SYMBOL_GPL(__exit_idle);
+
+/* Called from interrupts to signify idle end */
+void exit_idle(void)
+{
+	/* idle loop has pid 0 */
+	if (current->pid)
+		return;
+	__exit_idle();
+}
+EXPORT_SYMBOL_GPL(exit_idle);
 
 /*
  * Return saved PC of a blocked thread.
@@ -107,10 +142,18 @@ void cpu_idle(void)
 				play_dead();
 
 			local_irq_disable();
+			enter_idle();
 			/* Don't trace irqs off for idle */
 			stop_critical_timings();
 			pm_idle();
 			start_critical_timings();
+
+			/*
+			 * In many cases the interrupt that ended idle
+			 * has already called exit_idle. But some idle
+			 * loops can be woken up without interrupt.
+			 */
+			__exit_idle();
 		}
 		tick_nohz_restart_sched_tick();
 		preempt_enable_no_resched();

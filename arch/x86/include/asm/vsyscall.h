@@ -39,6 +39,14 @@ extern struct timezone sys_tz;
 
 extern void map_vsyscall(void);
 
+#ifdef CONFIG_X86_64
+extern void update_trace_clock_is_sync_vdso(void);
+#else
+static inline void update_trace_clock_is_sync_vdso(void)
+{
+}
+#endif
+
 #endif /* __KERNEL__ */
 
 #endif /* _ASM_X86_VSYSCALL_H */

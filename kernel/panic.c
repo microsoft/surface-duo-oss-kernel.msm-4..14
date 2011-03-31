@@ -23,6 +23,9 @@
 #include <linux/init.h>
 #include <linux/nmi.h>
 #include <linux/dmi.h>
+#include <trace/kernel.h>
+
+DEFINE_TRACE(kernel_panic);
 
 #define PANIC_TIMER_STEP 100
 #define PANIC_BLINK_SPD 18
@@ -63,6 +66,10 @@ NORET_TYPE void panic(const char * fmt, ...)
 	va_list args;
 	long i, i_next = 0;
 	int state = 0;
+
+	va_start(args, fmt);
+	trace_kernel_panic(fmt, args);
+	va_end(args);
 
 	/*
 	 * It's possible to come here directly from a panic-assertion and

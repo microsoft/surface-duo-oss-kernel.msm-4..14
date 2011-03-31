@@ -701,9 +701,9 @@ TRACE_EVENT(kvm_emulate_insn,
 #endif /* _TRACE_KVM_H */
 
 #undef TRACE_INCLUDE_PATH
-#define TRACE_INCLUDE_PATH arch/x86/kvm
+#define TRACE_INCLUDE_PATH asm
 #undef TRACE_INCLUDE_FILE
-#define TRACE_INCLUDE_FILE trace
+#define TRACE_INCLUDE_FILE kvm-trace
 
 /* This part must be outside protection */
 #include <trace/define_trace.h>

@@ -81,6 +81,8 @@ static inline int poll_schedule(struct poll_wqueues *pwq, int state)
 	return poll_schedule_timeout(pwq, state, NULL, 0);
 }
 
+extern void poll_wait_set_exclusive(poll_table *p);
+
 /*
  * Scaleable version of the fd_set.
  */

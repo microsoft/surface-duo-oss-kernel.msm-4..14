@@ -50,6 +50,7 @@
 #include <linux/fs_struct.h>
 #include <linux/slab.h>
 #include <linux/pagemap.h>
+#include <trace/fs.h>
 
 #include <asm/uaccess.h>
 #include <asm/mmu_context.h>
@@ -1533,6 +1534,7 @@ int compat_do_execve(char * filename,
 	if (retval < 0)
 		goto out;
 
+	trace_fs_exec(filename);
 	/* execve succeeded */
 	current->fs->in_exec = 0;
 	current->in_execve = 0;

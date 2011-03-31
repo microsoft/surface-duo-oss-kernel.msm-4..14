@@ -1,8 +1,8 @@
 #undef TRACE_SYSTEM
 #define TRACE_SYSTEM timer
 
-#if !defined(_TRACE_TIMER_H) || defined(TRACE_HEADER_MULTI_READ)
-#define _TRACE_TIMER_H
+#if !defined(_TRACE_EVENTS_TIMER_H) || defined(TRACE_HEADER_MULTI_READ)
+#define _TRACE_EVENTS_TIMER_H
 
 #include <linux/tracepoint.h>
 #include <linux/hrtimer.h>
@@ -323,7 +323,7 @@ TRACE_EVENT(itimer_expire,
 		  (int) __entry->pid, (unsigned long long)__entry->now)
 );
 
-#endif /*  _TRACE_TIMER_H */
+#endif /*  _TRACE_EVENTS_TIMER_H */
 
 /* This part must be outside protection */
 #include <trace/define_trace.h>

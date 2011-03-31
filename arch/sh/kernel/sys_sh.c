@@ -27,6 +27,9 @@
 #include <asm/unistd.h>
 #include <asm/cacheflush.h>
 #include <asm/cachectl.h>
+#include <trace/ipc.h>
+
+DEFINE_TRACE(ipc_call);
 
 asmlinkage int old_mmap(unsigned long addr, unsigned long len,
 	unsigned long prot, unsigned long flags,

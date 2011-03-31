@@ -18,6 +18,7 @@
 #undef DEBUG
 
 #include <linux/kernel.h>
+#include <linux/module.h>
 #include <linux/clk.h>
 #include <linux/io.h>
 
@@ -111,6 +112,9 @@ const struct clkops clkops_omap3430es2_iclk_dss_usbhost_wait = {
 	.allow_idle	= omap2_clkt_iclk_allow_idle,
 	.deny_idle	= omap2_clkt_iclk_deny_idle,
 };
+
+unsigned long long cpu_hz;
+EXPORT_SYMBOL(cpu_hz);
 
 /**
  * omap3430es2_clk_hsotgusb_find_idlest - return CM_IDLEST info for HSOTGUSB

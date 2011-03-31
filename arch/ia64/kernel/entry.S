@@ -620,9 +620,11 @@ GLOBAL_ENTRY(ia64_ret_from_clone)
 	;;
 	ld4 r2=[r2]
 	;;
+	movl r8=_TIF_SYSCALL_TRACEAUDIT
+	;;					// added stop bits to prevent r8 dependency
+	and r2=r8,r2
 	mov r8=0
-	and r2=_TIF_SYSCALL_TRACEAUDIT,r2
-	;;
+	;;					// added stop bits to prevent r2 dependency
 	cmp.ne p6,p0=r2,r0
 (p6)	br.cond.spnt .strace_check_retval
 	;;					// added stop bits to prevent r8 dependency

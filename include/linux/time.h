@@ -292,6 +292,8 @@ struct itimerval {
 #define CLOCK_MONOTONIC_RAW		4
 #define CLOCK_REALTIME_COARSE		5
 #define CLOCK_MONOTONIC_COARSE		6
+#define CLOCK_TRACE_FREQ		14
+#define CLOCK_TRACE				15
 
 /*
  * The IDs of various hardware clocks:

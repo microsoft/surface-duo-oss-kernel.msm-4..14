@@ -7,7 +7,7 @@
 #include <linux/tracepoint.h>
 
 struct pt_regs;
-
+#if 0 /* disabled by Mathieu Desnoyers. Belongs to generic IRQS. */
 TRACE_EVENT(irq_entry,
 
 	TP_PROTO(struct pt_regs *regs),
@@ -41,6 +41,7 @@ TRACE_EVENT(irq_exit,
 
 	TP_printk("pt_regs=%p", __entry->regs)
 );
+#endif //0
 
 TRACE_EVENT(timer_interrupt_entry,
 

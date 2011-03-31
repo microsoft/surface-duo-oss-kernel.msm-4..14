@@ -57,6 +57,7 @@
 #include <linux/kmemleak.h>
 #include <linux/jump_label.h>
 #include <linux/pfn.h>
+#include <trace/kernel.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/module.h>
@@ -99,7 +100,9 @@
  * 1) List of modules (also safely readable with preempt_disable),
  * 2) module_use links,
  * 3) module_addr_min/module_addr_max.
- * (delete uses stop_machine/add uses RCU list operations). */
+ * (delete uses stop_machine/add uses RCU list operations).
+ * Sorted by ascending list node address.
+ */
 DEFINE_MUTEX(module_mutex);
 EXPORT_SYMBOL_GPL(module_mutex);
 static LIST_HEAD(modules);
@@ -119,6 +122,9 @@ static BLOCKING_NOTIFIER_HEAD(module_notify_list);
 /* Bounds of module allocation, for speeding __module_address.
  * Protected by module_mutex. */
 static unsigned long module_addr_min = -1UL, module_addr_max = 0;
+
+DEFINE_TRACE(kernel_module_load);
+DEFINE_TRACE(kernel_module_free);
 
 int register_module_notifier(struct notifier_block * nb)
 {
@@ -1675,6 +1681,7 @@ static inline void unset_section_ro_nx(struct module *mod, void *module_region) 
 /* Free a module, remove from lists, etc. */
 static void free_module(struct module *mod)
 {
+	trace_kernel_module_free(mod);
 	trace_module_free(mod);
 
 	/* Delete from various lists */
@@ -2272,6 +2279,12 @@ static int copy_and_check(struct load_info *info,
 	if (len > 64 * 1024 * 1024 || (hdr = vmalloc(len)) == NULL)
 		return -ENOMEM;
 
+	/*
+	 * Make sure the module text or data access never generates any page
+	 * fault.
+	 */
+	vmalloc_sync_all();
+
 	if (copy_from_user(hdr, umod, len) != 0) {
 		err = -EFAULT;
 		goto free_hdr;
@@ -2459,6 +2472,10 @@ static void find_module_sections(struct module *mod, struct load_info *info)
 				  sizeof(*mod->ctors), &mod->num_ctors);
 #endif
 
+#ifdef CONFIG_MARKERS
+	mod->markers = section_objs(info, "__markers",
+				    sizeof(*mod->markers), &mod->num_markers);
+#endif
 #ifdef CONFIG_TRACEPOINTS
 	mod->tracepoints_ptrs = section_objs(info, "__tracepoints_ptrs",
 					     sizeof(*mod->tracepoints_ptrs),
@@ -2717,7 +2734,7 @@ static struct module *load_module(void __user *umod,
 				  const char __user *uargs)
 {
 	struct load_info info = { NULL, };
-	struct module *mod;
+	struct module *mod, *iter;
 	long err;
 
 	DEBUGP("load_module: umod=%p, len=%lu, uargs=%p\n",
@@ -2799,7 +2816,23 @@ static struct module *load_module(void __user *umod,
 		goto ddebug;
 
 	module_bug_finalize(info.hdr, info.sechdrs, mod);
+	/*
+	 * We sort the modules by struct module pointer address to permit
+	 * correct iteration over modules of, at least, kallsyms for preemptible
+	 * operations, such as read(). Sorting by struct module pointer address
+	 * is equivalent to sort by list node address.
+	 */
+	list_for_each_entry_reverse(iter, &modules, list) {
+		BUG_ON(iter == mod);	/* Should never be in the list twice */
+		if (iter < mod) {
+			/* We belong to the location right after iter. */
+			list_add_rcu(&mod->list, &iter->list);
+			goto module_added;
+		}
+	}
+	/* We should be added at the head of the list */
 	list_add_rcu(&mod->list, &modules);
+module_added:
 	mutex_unlock(&module_mutex);
 
 	/* Module is ready to execute: parsing args may do that. */
@@ -2817,6 +2850,7 @@ static struct module *load_module(void __user *umod,
 	free_copy(&info);
 
 	/* Done! */
+	trace_kernel_module_load(mod);
 	trace_module_load(mod);
 	return mod;
 
@@ -3196,12 +3230,12 @@ static char *module_flags(struct module *mod, char *buf)
 static void *m_start(struct seq_file *m, loff_t *pos)
 {
 	mutex_lock(&module_mutex);
-	return seq_list_start(&modules, *pos);
+	return seq_sorted_list_start(&modules, pos);
 }
 
 static void *m_next(struct seq_file *m, void *p, loff_t *pos)
 {
-	return seq_list_next(p, &modules, pos);
+	return seq_sorted_list_next(p, &modules, pos);
 }
 
 static void m_stop(struct seq_file *m, void *p)
@@ -3265,6 +3299,27 @@ static int __init proc_modules_init(void)
 }
 module_init(proc_modules_init);
 #endif
+
+void list_modules(void *call_data)
+{
+	/* Enumerate loaded modules */
+	struct list_head	*i;
+	struct module		*mod;
+	unsigned long refcount = 0;
+
+	mutex_lock(&module_mutex);
+	list_for_each(i, &modules) {
+		mod = list_entry(i, struct module, list);
+#ifdef CONFIG_MODULE_UNLOAD
+		refcount = module_refcount(mod);
+#endif
+		__trace_mark(0, module_state, list_module, call_data,
+				"name %s state %d refcount %lu",
+				mod->name, mod->state, refcount);
+	}
+	mutex_unlock(&module_mutex);
+}
+EXPORT_SYMBOL_GPL(list_modules);
 
 /* Given an address, look for it in the module exception tables. */
 const struct exception_table_entry *search_module_extables(unsigned long addr)
@@ -3393,10 +3448,57 @@ void module_layout(struct module *mod,
 		   struct modversion_info *ver,
 		   struct kernel_param *kp,
 		   struct kernel_symbol *ks,
+		   struct marker *marker,
 		   struct tracepoint * const *tp)
 {
 }
 EXPORT_SYMBOL(module_layout);
+#endif
+
+#ifdef CONFIG_MARKERS
+void module_update_markers(void)
+{
+	struct module *mod;
+
+	mutex_lock(&module_mutex);
+	list_for_each_entry(mod, &modules, list)
+		if (!(mod->taints & TAINT_FORCED_MODULE))
+			marker_update_probe_range(mod->markers,
+				mod->markers + mod->num_markers);
+	mutex_unlock(&module_mutex);
+}
+
+/*
+ * Returns 0 if current not found.
+ * Returns 1 if current found.
+ */
+int module_get_iter_markers(struct marker_iter *iter)
+{
+	struct module *iter_mod;
+	int found = 0;
+
+	mutex_lock(&module_mutex);
+	list_for_each_entry(iter_mod, &modules, list) {
+		if (!(iter_mod->taints & TAINT_FORCED_MODULE)) {
+			/*
+			 * Sorted module list
+			 */
+			if (iter_mod < iter->module)
+				continue;
+			else if (iter_mod > iter->module)
+				iter->marker = NULL;
+			found = marker_get_iter_range(&iter->marker,
+				iter_mod->markers,
+				iter_mod->markers + iter_mod->num_markers);
+			if (found) {
+				iter->module = iter_mod;
+				break;
+			}
+		}
+	}
+	mutex_unlock(&module_mutex);
+	return found;
+}
 #endif
 
 #ifdef CONFIG_TRACEPOINTS

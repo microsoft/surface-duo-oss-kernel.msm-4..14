@@ -17,6 +17,7 @@
 #include <linux/kernel_stat.h>
 
 #include <trace/events/irq.h>
+#include <trace/irq.h>
 
 #include "internals.h"
 
@@ -51,6 +52,9 @@ static void warn_no_thread(unsigned int irq, struct irqaction *action)
 	       "but no thread function available.", irq, action->name);
 }
 
+DEFINE_TRACE(irq_entry);
+DEFINE_TRACE(irq_exit);
+
 /**
  * handle_IRQ_event - irq action chain handler
  * @irq:	the interrupt number
@@ -62,6 +66,8 @@ irqreturn_t handle_IRQ_event(unsigned int irq, struct irqaction *action)
 {
 	irqreturn_t ret, retval = IRQ_NONE;
 	unsigned int status = 0;
+
+	trace_irq_entry(irq, NULL, action);
 
 	do {
 		trace_irq_handler_entry(irq, action);
@@ -115,6 +121,8 @@ irqreturn_t handle_IRQ_event(unsigned int irq, struct irqaction *action)
 	if (status & IRQF_SAMPLE_RANDOM)
 		add_interrupt_randomness(irq);
 	local_irq_disable();
+
+	trace_irq_exit(retval);
 
 	return retval;
 }

@@ -27,6 +27,7 @@
 #include <linux/sysfs.h>
 #include <linux/uaccess.h>
 #include <linux/perf_event.h>
+#include <trace/trap.h>
 #include <asm/system.h>
 #include <asm/alignment.h>
 #include <asm/fpu.h>
@@ -46,6 +47,9 @@
 #define TRAP_RESERVED_INST	12
 #define TRAP_ILLEGAL_SLOT_INST	13
 #endif
+
+DEFINE_TRACE(trap_entry);
+DEFINE_TRACE(trap_exit);
 
 static void dump_mem(const char *str, unsigned long bottom, unsigned long top)
 {
@@ -545,6 +549,8 @@ asmlinkage void do_address_error(struct pt_regs *regs,
 	error_code = lookup_exception_vector();
 #endif
 
+	trace_trap_entry(regs, error_code >> 5);
+
 	oldfs = get_fs();
 
 	if (user_mode(regs)) {
@@ -589,8 +595,10 @@ fixup:
 					      address);
 		set_fs(oldfs);
 
-		if (tmp == 0)
+		if (!tmp) {
+			trace_trap_exit();
 			return; /* sorted */
+		}
 uspace_segv:
 		printk(KERN_NOTICE "Sending SIGBUS to \"%s\" due to unaligned "
 		       "access (PC %lx PR %lx)\n", current->comm, regs->pc,
@@ -623,6 +631,7 @@ uspace_segv:
 					0, address);
 		set_fs(oldfs);
 	}
+	trace_trap_exit();
 }
 
 #ifdef CONFIG_SH_DSP
