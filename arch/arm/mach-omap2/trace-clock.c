@@ -565,7 +565,8 @@ void put_trace_clock(void)
 	if (trace_clock_refcount != 1)
 		goto end;
 	_stop_trace_clock();
-	release_pmu(reserved_pmu);
+	if (!IS_ERR_OR_NULL(reserved_pmu))
+		release_pmu(reserved_pmu);
 end:
 	trace_clock_refcount--;
 	spin_unlock(&trace_clock_lock);
