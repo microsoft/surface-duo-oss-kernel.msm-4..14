@@ -293,4 +293,4 @@ static int __init init_synthetic_tsc(void)
 
 /* Before SMP is up */
 /* workaround for omap4 */
-early_initcall(init_synthetic_tsc);
+late_initcall(init_synthetic_tsc);

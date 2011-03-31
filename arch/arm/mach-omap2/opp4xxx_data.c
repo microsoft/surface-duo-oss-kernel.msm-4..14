@@ -19,8 +19,11 @@
  * GNU General Public License for more details.
  */
 #include <linux/module.h>
+#include <linux/opp.h>
 
 #include <plat/cpu.h>
+#include <plat/common.h>
+#include <asm/trace-clock.h>
 
 #include "control.h"
 #include "omap_opp_data.h"
@@ -93,12 +96,20 @@ static struct omap_opp_def __initdata omap44xx_opp_def_list[] = {
 int __init omap4_opp_init(void)
 {
 	int r = -ENODEV;
+        struct device *dev;
 
 	if (!cpu_is_omap44xx())
 		return r;
 
 	r = omap_init_opp_table(omap44xx_opp_def_list,
 			ARRAY_SIZE(omap44xx_opp_def_list));
+
+        dev = omap2_get_mpuss_device();
+        cpu_hz = ULONG_MAX;
+        if (IS_ERR(opp_find_freq_floor(dev,&cpu_hz))) {
+                dev_err(dev, "%s: Unable to find highest opp\n", __func__);
+                return -ENODEV;
+        }
 
 	return r;
 }
