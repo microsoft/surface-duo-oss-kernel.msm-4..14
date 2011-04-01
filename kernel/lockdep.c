@@ -2439,6 +2439,8 @@ void trace_softirqs_off(unsigned long ip)
 {
 	struct task_struct *curr = current;
 
+	trace_lockdep_softirqs_off(ip);
+
 	if (unlikely(!debug_locks))
 		return;
 
@@ -2461,8 +2463,6 @@ void trace_softirqs_off(unsigned long ip)
 static void __lockdep_trace_alloc(gfp_t gfp_mask, unsigned long flags)
 {
 	struct task_struct *curr = current;
-
-	trace_lockdep_softirqs_off(ip);
 
 	if (unlikely(!debug_locks))
 		return;
