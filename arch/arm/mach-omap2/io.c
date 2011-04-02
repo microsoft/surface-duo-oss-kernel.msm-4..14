@@ -38,6 +38,7 @@
 #include "io.h"
 
 #include <plat/omap-pm.h>
+#include <plat/voltage.h>
 #include "powerdomain.h"
 
 #include "clockdomain.h"
@@ -365,10 +366,12 @@ void __init omap2_init_common_infrastructure(void)
 	} else if (cpu_is_omap34xx()) {
 		omap3xxx_powerdomains_init();
 		omap3xxx_clockdomains_init();
+		omap3xxx_voltage_early_init();
 		omap3xxx_hwmod_init();
 	} else if (cpu_is_omap44xx()) {
 		omap44xx_powerdomains_init();
 		omap44xx_clockdomains_init();
+		omap44xx_voltage_early_init();
 		omap44xx_hwmod_init();
 	} else {
 		pr_err("Could not init hwmod data - unknown SoC\n");

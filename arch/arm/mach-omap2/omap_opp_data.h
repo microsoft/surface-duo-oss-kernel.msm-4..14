@@ -20,8 +20,7 @@
 #define __ARCH_ARM_MACH_OMAP2_OMAP_OPP_DATA_H
 
 #include <plat/omap_hwmod.h>
-
-#include "voltage.h"
+#include <plat/voltage.h>
 
 /*
  * *BIG FAT WARNING*:
@@ -86,8 +85,10 @@ extern int __init omap_init_opp_table(struct omap_opp_def *opp_def,
 
 extern struct omap_volt_data omap34xx_vddmpu_volt_data[];
 extern struct omap_volt_data omap34xx_vddcore_volt_data[];
+extern struct omap_vdd_dep_info omap34xx_vdd1_dep_info[];
 extern struct omap_volt_data omap36xx_vddmpu_volt_data[];
 extern struct omap_volt_data omap36xx_vddcore_volt_data[];
+extern struct omap_vdd_dep_info omap36xx_vdd1_dep_info[];
 
 extern struct omap_volt_data omap44xx_vdd_mpu_volt_data[];
 extern struct omap_volt_data omap44xx_vdd_iva_volt_data[];

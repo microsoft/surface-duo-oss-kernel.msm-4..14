@@ -22,15 +22,15 @@
 #include <linux/init.h>
 
 #include <plat/common.h>
+#include <plat/voltage.h>
+#include <plat/vc.h>
+#include <plat/vp.h>
 
 #include "prm-regbits-44xx.h"
 #include "prm44xx.h"
 #include "prcm44xx.h"
 #include "prminst44xx.h"
-#include "voltage.h"
 #include "omap_opp_data.h"
-#include "vc.h"
-#include "vp.h"
 
 static const struct omap_vfsm_instance_data omap4_vdd_mpu_vfsm_data = {
 	.voltsetup_reg = OMAP4_PRM_VOLTSETUP_MPU_RET_SLEEP_OFFSET,
@@ -79,7 +79,7 @@ static struct omap_vdd_info *omap4_vdd_info[] = {
 };
 
 /* OMAP4 specific voltage init functions */
-static int __init omap44xx_voltage_early_init(void)
+int __init omap44xx_voltage_early_init(void)
 {
 	s16 prm_mod = OMAP4430_PRM_DEVICE_INST;
 	s16 prm_irqst_ocp_mod = OMAP4430_PRM_OCP_SOCKET_INST;
@@ -99,4 +99,3 @@ static int __init omap44xx_voltage_early_init(void)
 				       omap4_vdd_info,
 				       ARRAY_SIZE(omap4_vdd_info));
 };
-core_initcall(omap44xx_voltage_early_init);

@@ -20,12 +20,12 @@
 #include <linux/init.h>
 
 #include <plat/common.h>
+#include <plat/voltage.h>
+#include <plat/vp.h>
 
 #include "prm44xx.h"
 #include "prm-regbits-44xx.h"
-#include "voltage.h"
 
-#include "vp.h"
 
 /*
  * VP data common to 44xx chips
