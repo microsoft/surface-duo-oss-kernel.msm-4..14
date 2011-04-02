@@ -237,7 +237,7 @@ static void __init smdkv310_machine_init(void)
 	platform_add_devices(smdkv310_devices, ARRAY_SIZE(smdkv310_devices));
 }
 
-static char const *smdkv310_dt_compat[] = {
+static char const *smdkv310_dt_compat[] __initdata = {
 	"samsung,smdkv310",
 	NULL
 };
