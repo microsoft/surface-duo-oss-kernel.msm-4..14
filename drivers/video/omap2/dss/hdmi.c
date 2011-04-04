@@ -1204,6 +1204,15 @@ static void hdmi_power_off(struct omap_dss_device *dssdev)
 	hdmi.edid_set = 0;
 }
 
+bool omapdss_hdmi_is_detected(struct omap_dss_device *dssdev)
+{
+	u32 r;
+
+	r = hdmi_read_reg(HDMI_CORE_SYS_SYS_STAT);
+
+	return !!(r & 0x2);
+}
+
 int omapdss_hdmi_get_edid(struct omap_dss_device *dssdev, u8 *buf, int len)
 {
 	if (!hdmi.edid_set)
