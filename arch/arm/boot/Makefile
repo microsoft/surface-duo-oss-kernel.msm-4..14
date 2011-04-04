@@ -63,6 +63,8 @@ endif
 $(obj)/%.dtb: $(src)/dts/%.dts
 	$(call cmd,dtc)
 
+$(obj)/dtbs: $(addprefix $(obj)/, $(dtb-y))
+
 quiet_cmd_uimage = UIMAGE  $@
       cmd_uimage = $(CONFIG_SHELL) $(MKIMAGE) -A arm -O linux -T kernel \
 		   -C none -a $(LOADADDR) -e $(STARTADDR) \
