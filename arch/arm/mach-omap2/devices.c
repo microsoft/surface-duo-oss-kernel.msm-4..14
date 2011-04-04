@@ -659,6 +659,16 @@ static void omap_init_vout(void)
 static inline void omap_init_vout(void) {}
 #endif
 
+static struct platform_device omap_gpu_device = {
+	.name	= "omap_gpu",
+	.id	= -1,
+};
+
+static void omap_init_gpu(void)
+{
+	platform_device_register(&omap_gpu_device);
+}
+
 /*-------------------------------------------------------------------------*/
 
 static int __init omap2_init_devices(void)
@@ -677,6 +687,7 @@ static int __init omap2_init_devices(void)
 	omap_init_sham();
 	omap_init_aes();
 	omap_init_vout();
+	omap_init_gpu();
 
 	return 0;
 }
