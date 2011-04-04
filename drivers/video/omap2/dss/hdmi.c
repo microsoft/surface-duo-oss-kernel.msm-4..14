@@ -667,7 +667,9 @@ static void hdmi_read_edid(struct omap_video_timings *dp)
 
 	code = get_timings_index();
 
-	*dp = cea_vesa_timings[code].timings;
+	if (dp) {
+		*dp = cea_vesa_timings[code].timings;
+	}
 }
 
 static void hdmi_core_init(struct hdmi_core_video_config *video_cfg,
@@ -1200,6 +1202,16 @@ static void hdmi_power_off(struct omap_dss_device *dssdev)
 	hdmi_enable_clocks(0);
 
 	hdmi.edid_set = 0;
+}
+
+int omapdss_hdmi_get_edid(struct omap_dss_device *dssdev, u8 *buf, int len)
+{
+	if (!hdmi.edid_set)
+		hdmi_read_edid(NULL);
+	if (!hdmi.edid_set)
+		return -EINVAL;
+	memcpy(buf, hdmi.edid, min(len, HDMI_EDID_MAX_LENGTH));
+	return 0;
 }
 
 int omapdss_hdmi_display_check_timing(struct omap_dss_device *dssdev,
