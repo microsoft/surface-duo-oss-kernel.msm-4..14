@@ -32,6 +32,7 @@
 struct omap_connector {
 	struct drm_connector base;
 	struct omap_dss_device *dssdev;
+	struct drm_display_mode *native_mode;
 };
 
 static inline void copy_timings_omap_to_drm(struct drm_display_mode *mode,
@@ -113,6 +114,104 @@ static void omap_connector_destroy(struct drm_connector *connector)
 	kfree(omap_connector);
 }
 
+static struct drm_display_mode * omap_connector_native_mode(
+			struct drm_connector *connector)
+{
+	struct omap_connector *omap_connector = to_omap_connector(connector);
+	struct drm_device *dev = connector->dev;
+	struct drm_display_mode *mode, *largest = NULL;
+	int high_w = 0, high_h = 0, high_v = 0;
+
+	list_for_each_entry(mode, &omap_connector->base.probed_modes, head) {
+		mode->vrefresh = drm_mode_vrefresh(mode);
+		if (mode->flags & DRM_MODE_FLAG_INTERLACE)
+			continue;
+
+		/* Use preferred mode if there is one */
+		if (mode->type & DRM_MODE_TYPE_PREFERRED) {
+			DBG("native mode from preferred: %dx%d@%d",
+				mode->hdisplay, mode->vdisplay, mode->vrefresh);
+			return drm_mode_duplicate(dev, mode);
+		}
+
+		/* Otherwise, take the resolution with the largest width, then
+		 * height, then vertical refresh
+		 */
+		if (mode->hdisplay < high_w)
+			continue;
+
+		if (mode->hdisplay == high_w && mode->vdisplay < high_h)
+			continue;
+
+		if (mode->hdisplay == high_w && mode->vdisplay == high_h &&
+				mode->vrefresh < high_v)
+			continue;
+
+		high_w = mode->hdisplay;
+		high_h = mode->vdisplay;
+		high_v = mode->vrefresh;
+		largest = mode;
+	}
+
+	DBG("native mode from largest: %dx%d@%d", high_w, high_h, high_v);
+	return largest ? drm_mode_duplicate(dev, largest) : NULL;
+}
+
+struct moderec {
+	int hdisplay;
+	int vdisplay;
+};
+
+static struct moderec scaler_modes[] = {
+	{ 1920, 1200 },
+	{ 1920, 1080 },
+	{ 1680, 1050 },
+	{ 1600, 1200 },
+	{ 1400, 1050 },
+	{ 1400, 900 },
+	{ 1280, 1024 },
+	{ 1280, 960 },
+	{ 1280, 720 },
+	{ 1152, 768 },
+	{ 1024, 768 },
+	{ 800, 600 },
+	{ 720, 480 },
+	{ 640, 480 },
+	{}
+};
+
+static int omap_connector_scaler_modes_add(struct drm_connector *connector)
+{
+	struct omap_connector *omap_connector = to_omap_connector(connector);
+	struct drm_display_mode *native = omap_connector->native_mode, *m;
+	struct drm_device *dev = connector->dev;
+	struct moderec *mode = &scaler_modes[0];
+	int modes = 0;
+
+	if (!native)
+		return 0;
+
+	while (mode->hdisplay) {
+		if (mode->hdisplay <= native->hdisplay &&
+				mode->vdisplay <= native->vdisplay) {
+			m = drm_cvt_mode(dev, mode->hdisplay, mode->vdisplay,
+					60, true, false, false);
+			if (!m)
+				continue;
+
+			m->type |= DRM_MODE_TYPE_DRIVER;
+
+			DBG("adding scaler mode: %dx%d@%d", mode->hdisplay,
+				 mode->vdisplay, drm_mode_vrefresh(m));
+			drm_mode_probed_add(connector, m);
+			modes++;
+		}
+		mode++;
+	}
+
+	return modes;
+}
+
 #define MAX_EDID  256
 
 static int omap_connector_get_modes(struct drm_connector *connector)
@@ -124,6 +223,11 @@ static int omap_connector_get_modes(struct drm_connector *connector)
 	int n = 0;
 
 	DBG("%s", omap_connector->dssdev->name);
+
+	if (omap_connector->native_mode) {
+		drm_mode_destroy(dev, omap_connector->native_mode);
+		omap_connector->native_mode = NULL;
+	}
 
 	/* if display exposes EDID, then we parse that in the normal way to
 	 * build table of supported modes.. otherwise (ie. fixed resolution
@@ -137,6 +241,9 @@ static int omap_connector_get_modes(struct drm_connector *connector)
 				drm_edid_is_valid(edid)) {
 			drm_mode_connector_update_edid_property(connector, edid);
 			n = drm_add_edid_modes(connector, edid);
+			omap_connector->native_mode =
+					omap_connector_native_mode(connector);
+			n += omap_connector_scaler_modes_add(connector);
 			kfree(connector->display_info.raw_edid);
 			connector->display_info.raw_edid = edid;
 		} else {
