@@ -132,6 +132,7 @@
 #include <trace/events/skb.h>
 #include <linux/pci.h>
 #include <linux/inetdevice.h>
+#include <trace/net.h>
 
 #include "net-sysfs.h"
 
@@ -197,6 +198,13 @@ static struct list_head ptype_all __read_mostly;	/* Taps */
  */
 DEFINE_RWLOCK(dev_base_lock);
 EXPORT_SYMBOL(dev_base_lock);
+
+DEFINE_TRACE(lttng_net_dev_xmit);
+DEFINE_TRACE(lttng_net_dev_receive);
+DEFINE_TRACE(net_napi_schedule);
+DEFINE_TRACE(net_napi_poll);
+DEFINE_TRACE(net_napi_complete);
+EXPORT_TRACEPOINT_SYMBOL_GPL(net_napi_complete);
 
 static inline struct hlist_head *dev_name_hash(struct net *net, const char *name)
 {
@@ -2119,6 +2127,7 @@ int dev_hard_start_xmit(struct sk_buff *skb, struct net_device *dev,
 			}
 		}
 
+		trace_lttng_net_dev_xmit(skb);
 		rc = ops->ndo_start_xmit(skb, dev);
 		trace_net_dev_xmit(skb, rc);
 		if (rc == NETDEV_TX_OK)
@@ -2140,6 +2149,7 @@ gso:
 		if (dev->priv_flags & IFF_XMIT_DST_RELEASE)
 			skb_dst_drop(nskb);
 
+		trace_lttng_net_dev_xmit(nskb);
 		rc = ops->ndo_start_xmit(nskb, dev);
 		trace_net_dev_xmit(nskb, rc);
 		if (unlikely(rc != NETDEV_TX_OK)) {
@@ -2741,6 +2751,8 @@ int netif_rx(struct sk_buff *skb)
 	if (netpoll_rx(skb))
 		return NET_RX_DROP;
 
+	trace_lttng_net_dev_receive(skb);
+
 	if (netdev_tstamp_prequeue)
 		net_timestamp_check(skb);
 
@@ -3173,6 +3185,8 @@ int netif_receive_skb(struct sk_buff *skb)
 
 	if (skb_defer_rx_timestamp(skb))
 		return NET_RX_SUCCESS;
+
+	trace_lttng_net_dev_receive(skb);
 
 #ifdef CONFIG_RPS
 	{
@@ -3625,6 +3639,8 @@ void __napi_schedule(struct napi_struct *n)
 {
 	unsigned long flags;
 
+	trace_net_napi_schedule(n);
+
 	local_irq_save(flags);
 	____napi_schedule(&__get_cpu_var(softnet_data), n);
 	local_irq_restore(flags);
@@ -3639,6 +3655,7 @@ void __napi_complete(struct napi_struct *n)
 	list_del(&n->poll_list);
 	smp_mb__before_clear_bit();
 	clear_bit(NAPI_STATE_SCHED, &n->state);
+	trace_net_napi_complete(n);
 }
 EXPORT_SYMBOL(__napi_complete);
 
@@ -3738,6 +3755,7 @@ static void net_rx_action(struct softirq_action *h)
 		 */
 		work = 0;
 		if (test_bit(NAPI_STATE_SCHED, &n->state)) {
+			trace_net_napi_poll(n);
 			work = n->poll(n, weight);
 			trace_napi_poll(n);
 		}

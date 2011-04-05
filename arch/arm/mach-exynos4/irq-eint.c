@@ -152,7 +152,7 @@ static struct irq_chip exynos4_irq_eint = {
 	.irq_mask_ack	= exynos4_irq_eint_maskack,
 	.irq_ack	= exynos4_irq_eint_ack,
 	.irq_set_type	= exynos4_irq_eint_set_type,
-#ifdef CONFIG_SUSPEND
+#ifdef CONFIG_PM
 	.irq_set_wake	= s3c_irqext_wake,
 #endif
 };

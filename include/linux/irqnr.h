@@ -24,6 +24,7 @@
 #else /* CONFIG_GENERIC_HARDIRQS */
 
 extern int nr_irqs;
+struct irq_desc;
 extern struct irq_desc *irq_to_desc(unsigned int irq);
 unsigned int irq_get_next_irq(unsigned int offset);
 

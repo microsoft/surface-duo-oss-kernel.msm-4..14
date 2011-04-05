@@ -5,6 +5,7 @@
  *    Copyright (C) 1999,2000 IBM Deutschland Entwicklung GmbH, IBM Corporation
  *    Author(s): Martin Schwidefsky (schwidefsky@de.ibm.com),
  *               Denis Joseph Barrow (djbarrow@de.ibm.com,barrow_dj@yahoo.com),
+ *  Portions added by T. Halloran: (C) Copyright 2002 IBM Poughkeepsie, IBM Corporation
  *
  *  Derived from "arch/i386/kernel/traps.c"
  *    Copyright (C) 1991, 1992 Linus Torvalds
@@ -33,6 +34,7 @@
 #include <linux/kprobes.h>
 #include <linux/bug.h>
 #include <linux/utsname.h>
+#include <trace/trap.h>
 #include <asm/system.h>
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -63,6 +65,12 @@ static int kstack_depth_to_print = 12;
 #define FOURLONG "%016lx %016lx %016lx %016lx\n"
 static int kstack_depth_to_print = 20;
 #endif /* CONFIG_64BIT */
+
+/*
+ * Also used in fault.c.
+ */
+DEFINE_TRACE(trap_entry);
+DEFINE_TRACE(trap_exit);
 
 /*
  * For show_trace we have tree different stack to consider:
@@ -299,6 +307,8 @@ static inline void __kprobes do_trap(long pgm_int_code, int signr, char *str,
 		       pgm_int_code, signr) == NOTIFY_STOP)
 		return;
 
+	trace_trap_entry(regs, pgm_int_code & 0xffff);
+
         if (regs->psw.mask & PSW_MASK_PSTATE) {
                 struct task_struct *tsk = current;
 
@@ -314,11 +324,14 @@ static inline void __kprobes do_trap(long pgm_int_code, int signr, char *str,
 			enum bug_trap_type btt;
 
 			btt = report_bug(regs->psw.addr & PSW_ADDR_INSN, regs);
-			if (btt == BUG_TRAP_TYPE_WARN)
+			if (btt == BUG_TRAP_TYPE_WARN) {
+				trace_trap_exit();
 				return;
+			}
 			die(str, regs, pgm_int_code);
 		}
         }
+	trace_trap_exit();
 }
 
 static inline void __user *get_psw_address(struct pt_regs *regs,
@@ -422,9 +435,11 @@ static void __kprobes illegal_op(struct pt_regs *regs, long pgm_int_code,
 
 	location = get_psw_address(regs, pgm_int_code);
 
+	trace_trap_entry(regs, pgm_int_code & 0xffff);
+
 	if (regs->psw.mask & PSW_MASK_PSTATE) {
 		if (get_user(*((__u16 *) opcode), (__u16 __user *) location))
-			return;
+			goto end;
 		if (*((__u16 *) opcode) == S390_BREAKPOINT_U16) {
 			if (tracehook_consider_fatal_signal(current, SIGTRAP))
 				force_sig(SIGTRAP, current);
@@ -433,24 +448,24 @@ static void __kprobes illegal_op(struct pt_regs *regs, long pgm_int_code,
 #ifdef CONFIG_MATHEMU
 		} else if (opcode[0] == 0xb3) {
 			if (get_user(*((__u16 *) (opcode+2)), location+1))
-				return;
+				goto end;
 			signal = math_emu_b3(opcode, regs);
                 } else if (opcode[0] == 0xed) {
 			if (get_user(*((__u32 *) (opcode+2)),
 				     (__u32 __user *)(location+1)))
-				return;
+				goto end;
 			signal = math_emu_ed(opcode, regs);
 		} else if (*((__u16 *) opcode) == 0xb299) {
 			if (get_user(*((__u16 *) (opcode+2)), location+1))
-				return;
+				goto end;
 			signal = math_emu_srnm(opcode, regs);
 		} else if (*((__u16 *) opcode) == 0xb29c) {
 			if (get_user(*((__u16 *) (opcode+2)), location+1))
-				return;
+				goto end;
 			signal = math_emu_stfpc(opcode, regs);
 		} else if (*((__u16 *) opcode) == 0xb29d) {
 			if (get_user(*((__u16 *) (opcode+2)), location+1))
-				return;
+				goto end;
 			signal = math_emu_lfpc(opcode, regs);
 #endif
 		} else
@@ -486,6 +501,8 @@ static void __kprobes illegal_op(struct pt_regs *regs, long pgm_int_code,
 		do_trap(pgm_int_code, signal,
 			"illegal operation", regs, &info);
 	}
+end:
+	trace_trap_exit();
 }
 
 
@@ -499,6 +516,8 @@ asmlinkage void specification_exception(struct pt_regs *regs,
 	int signal = 0;
 
 	location = (__u16 __user *) get_psw_address(regs, pgm_int_code);
+
+	trace_trap_entry(regs, pgm_int_code & 0xffff);
 
         if (regs->psw.mask & PSW_MASK_PSTATE) {
 		get_user(*((__u16 *) opcode), location);
@@ -544,6 +563,7 @@ asmlinkage void specification_exception(struct pt_regs *regs,
 		do_trap(pgm_int_code, signal,
 			"specification exception", regs, &info);
 	}
+	trace_trap_exit();
 }
 #else
 DO_ERROR_INFO(specification_exception, SIGILL, ILL_ILLOPN,
@@ -557,6 +577,8 @@ static void data_exception(struct pt_regs *regs, long pgm_int_code,
 	int signal = 0;
 
 	location = get_psw_address(regs, pgm_int_code);
+
+	trace_trap_entry(regs, pgm_int_code & 0xffff);
 
 	if (MACHINE_HAS_IEEE)
 		asm volatile("stfpc %0" : "=m" (current->thread.fp_regs.fpc));
@@ -631,6 +653,7 @@ static void data_exception(struct pt_regs *regs, long pgm_int_code,
 		info.si_addr = location;
 		do_trap(pgm_int_code, signal, "data exception", regs, &info);
 	}
+	trace_trap_exit();
 }
 
 static void space_switch_exception(struct pt_regs *regs, long pgm_int_code,
@@ -638,6 +661,7 @@ static void space_switch_exception(struct pt_regs *regs, long pgm_int_code,
 {
         siginfo_t info;
 
+	trace_trap_entry(regs, pgm_int_code & 0xffff);
 	/* Set user psw back to home space mode. */
 	if (regs->psw.mask & PSW_MASK_PSTATE)
 		regs->psw.mask |= PSW_ASC_HOME;
@@ -647,6 +671,7 @@ static void space_switch_exception(struct pt_regs *regs, long pgm_int_code,
         info.si_code = ILL_PRVOPC;
 	info.si_addr = get_psw_address(regs, pgm_int_code);
 	do_trap(pgm_int_code, SIGILL, "space switch event", regs, &info);
+	trace_trap_exit();
 }
 
 asmlinkage void __kprobes kernel_stack_overflow(struct pt_regs * regs)

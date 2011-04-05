@@ -17,9 +17,10 @@
 #include <linux/slab.h>
 #include <linux/opp.h>
 #include <plat/common.h>
-#include <plat/voltage.h>
 #include <plat/omap_device.h>
-#include <plat/smartreflex.h>
+#include <plat/voltage.h>
+
+#include "smartreflex.h"
 
 /**
  * struct omap_dev_user_list - Structure maitain userlist per device
@@ -100,6 +101,7 @@ static struct voltagedomain omap3_vdd[] = {
 	.name = "core",
 	},
 };
+static int omap_dvfs_voltage_scale(struct omap_vdd_dvfs_info *dvfs_info);
 
 static struct voltagedomain omap4_vdd[] = {
 	{
@@ -112,8 +114,6 @@ static struct voltagedomain omap4_vdd[] = {
 	.name = "core",
 	},
 };
-
-static int omap_dvfs_voltage_scale(struct omap_vdd_dvfs_info *dvfs_info);
 
 static int __init omap_dvfs_init(void);
 

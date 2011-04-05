@@ -57,30 +57,30 @@ To summarize the basic design of DVFS framework:-
 2.  The Core DVFS data structure:
 =================================
 
-					|-------------------|			|-------------------|
-					|User2 (dev2, freq2)|			|User4 (dev4, freq4)|
-					|-------^-----------|			|-------^-----------|
-							|								|
-					|-------|-----------|			|-------|-----------|
-					|User1 (dev1, freq1)|			|User3 (dev3, freq3)|(omap_dev_user_list)
-					|-------^-----------|			|-------^-----------|
+ 					|-------------------|			|-------------------|
+ 					|User2 (dev2, freq2)|			|User4 (dev4, freq4)|
+ 					|-------^-----------|			|-------^-----------|
+ 							|								|
+ 					|-------|-----------|			|-------|-----------|
+ 					|User1 (dev1, freq1)|			|User3 (dev3, freq3)|(omap_dev_user_list)
+ 					|-------^-----------|			|-------^-----------|
                             |                               |
-						|---|--------------|             |------------------|
-		     |--------->| DEV1 (dev)       |------------>| DEV2 (dev)       |(omap_vdd_dev_list)
-			 |			|omap_dev_user_list|			 |omap_dev_user_list|
-			 |			|------------------|             |------------------|
-			 |
+ 						|---|--------------|             |------------------|
+ 		     |--------->| DEV1 (dev)       |------------>| DEV2 (dev)       |(omap_vdd_dev_list)
+ 			 |			|omap_dev_user_list|			 |omap_dev_user_list|
+ 			 |			|------------------|             |------------------|
+ 			 |
    |---------|-----------|
    |       VDD_n         |
    |  omap_vdd_dev_list  |
    |  omap_vdd_user_list |(omap_vdd_dvfs_info)
    |                     |
    |--------|------------|
-			|
+ 			|
             |           |------------|  |------------|  |--------------|
             |---------> | vdd_user1  |->|  vdd_user2 |->|   vdd_user3  | (omap_vdd_user_list)
-						| (dev, volt)|	| (dev, volt)|  | (dev, volt)  |
-						|------------|	|------------|	|--------------|
+ 						| (dev, volt)|	| (dev, volt)|  | (dev, volt)  |
+ 						|------------|	|------------|	|--------------|
 
 3.  APIs:
  =====
@@ -92,7 +92,7 @@ To summarize the basic design of DVFS framework:-
   is the device * for module M. Then this could be achieved by
   ret = omap_device_scale(mdev, dev1, f1)
   if (ret)
-	/* handle error *.
+  	/* handle error *.
 
   2. Frequency Throttling
   Suppose say there are 2 modules M1 and M2 in Voltage domain VDDx.
@@ -103,9 +103,9 @@ To summarize the basic design of DVFS framework:-
   /* this operation will place M1 and M2 to run at OPP100 */
   ret = omap_device_scale(mdev1, dev1, f1_opp100);
   if (ret)
-	/* handle error *.
+  	/* handle error *.
 
   /* This operation will bring M2 to run at f2_opp50 w/o decreasing VDDx voltage */
   ret = omap_device_scale(mdev2, dev2, f2_opp50);
   if (ret)
-	/* handle error *.
+  	/* handle error *.

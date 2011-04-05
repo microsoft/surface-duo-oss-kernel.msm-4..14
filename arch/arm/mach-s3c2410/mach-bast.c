@@ -213,7 +213,7 @@ static struct s3c2410_uartcfg bast_uartcfgs[] __initdata = {
 
 /* NAND Flash on BAST board */
 
-#ifdef CONFIG_SUSPEND
+#ifdef CONFIG_PM
 static int bast_pm_suspend(struct sys_device *sd, pm_message_t state)
 {
 	/* ensure that an nRESET is not generated on resume. */

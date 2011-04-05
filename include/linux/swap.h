@@ -341,6 +341,7 @@ extern int swap_type_of(dev_t, sector_t, struct block_device **);
 extern unsigned int count_swap_pages(int, int);
 extern sector_t map_swap_page(struct page *, struct block_device **);
 extern sector_t swapdev_block(int, pgoff_t);
+extern struct swap_info_struct *get_swap_info_struct(unsigned);
 extern int reuse_swap_page(struct page *);
 extern int try_to_free_swap(struct page *);
 struct backing_dev_info;
@@ -383,6 +384,8 @@ static inline void mem_cgroup_uncharge_swap(swp_entry_t ent)
 {
 }
 #endif
+
+extern void ltt_dump_swap_files(void *call_data);
 
 #else /* CONFIG_SWAP */
 
@@ -507,6 +510,10 @@ mem_cgroup_count_swap_user(swp_entry_t ent, struct page **pagep)
 	return 0;
 }
 #endif
+
+static inline void ltt_dump_swap_files(void *call_data)
+{
+}
 
 #endif /* CONFIG_SWAP */
 #endif /* __KERNEL__*/

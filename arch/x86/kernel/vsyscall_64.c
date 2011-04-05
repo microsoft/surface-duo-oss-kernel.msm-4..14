@@ -44,6 +44,8 @@
 #include <asm/desc.h>
 #include <asm/topology.h>
 #include <asm/vgtod.h>
+#include <asm/trace-clock.h>
+#include <asm/timer.h>
 
 #define __vsyscall(nr) \
 		__attribute__ ((unused, __section__(".vsyscall_" #nr))) notrace
@@ -61,6 +63,7 @@ struct vsyscall_gtod_data __vsyscall_gtod_data __section_vsyscall_gtod_data =
 {
 	.lock = SEQLOCK_UNLOCKED,
 	.sysctl_enabled = 1,
+	.trace_clock_is_sync = 1,
 };
 
 void update_vsyscall_tz(void)
@@ -72,6 +75,16 @@ void update_vsyscall_tz(void)
 	vsyscall_gtod_data.sys_tz = sys_tz;
 	write_sequnlock_irqrestore(&vsyscall_gtod_data.lock, flags);
 }
+
+void update_trace_clock_is_sync_vdso(void)
+{
+	unsigned long flags;
+
+	write_seqlock_irqsave(&vsyscall_gtod_data.lock, flags);
+	vsyscall_gtod_data.trace_clock_is_sync = _trace_clock_is_sync;
+	write_sequnlock_irqrestore(&vsyscall_gtod_data.lock, flags);
+}
+EXPORT_SYMBOL_GPL(update_trace_clock_is_sync_vdso);
 
 void update_vsyscall(struct timespec *wall_time, struct timespec *wtm,
 			struct clocksource *clock, u32 mult)
@@ -89,6 +102,7 @@ void update_vsyscall(struct timespec *wall_time, struct timespec *wtm,
 	vsyscall_gtod_data.wall_time_nsec = wall_time->tv_nsec;
 	vsyscall_gtod_data.wall_to_monotonic = *wtm;
 	vsyscall_gtod_data.wall_time_coarse = __current_kernel_time();
+	vsyscall_gtod_data.trace_clock_is_sync = _trace_clock_is_sync;
 	write_sequnlock_irqrestore(&vsyscall_gtod_data.lock, flags);
 }
 

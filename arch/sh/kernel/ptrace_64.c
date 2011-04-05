@@ -31,6 +31,7 @@
 #include <linux/tracehook.h>
 #include <linux/elf.h>
 #include <linux/regset.h>
+#include <trace/syscall.h>
 #include <asm/io.h>
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
@@ -42,6 +43,9 @@
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/syscalls.h>
+
+DEFINE_TRACE(syscall_entry);
+DEFINE_TRACE(syscall_exit);
 
 /* This mask defines the bits of the SR which the user is not allowed to
    change, which are everything except S, Q, M, PR, SZ, FR. */
@@ -403,6 +407,9 @@ long arch_ptrace(struct task_struct *child, long request,
 		else if ((addr >= offsetof(struct user, fpu)) &&
 			 (addr <  offsetof(struct user, u_fpvalid))) {
 			unsigned long index;
+			ret = init_fpu(child);
+			if (ret)
+				break;
 			index = addr - offsetof(struct user, fpu);
 			tmp = get_fpu_long(child, index);
 		} else if (addr == offsetof(struct user, u_fpvalid)) {
@@ -442,6 +449,9 @@ long arch_ptrace(struct task_struct *child, long request,
 		else if ((addr >= offsetof(struct user, fpu)) &&
 			 (addr <  offsetof(struct user, u_fpvalid))) {
 			unsigned long index;
+			ret = init_fpu(child);
+			if (ret)
+				break;
 			index = addr - offsetof(struct user, fpu);
 			ret = put_fpu_long(child, index, data);
 		}

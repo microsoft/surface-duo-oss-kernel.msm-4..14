@@ -47,7 +47,7 @@
 #include <trace/events/kvm.h>
 
 #define CREATE_TRACE_POINTS
-#include "trace.h"
+#include <asm/kvm-trace.h>
 
 #include <asm/debugreg.h>
 #include <asm/msr.h>

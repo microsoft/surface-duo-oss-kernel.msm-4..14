@@ -40,6 +40,7 @@
 #include <linux/cpu.h>
 #include <linux/notifier.h>
 #include <linux/rculist.h>
+#include <trace/kernel.h>
 
 #include <asm/uaccess.h>
 
@@ -71,6 +72,7 @@ int console_printk[4] = {
 	MINIMUM_CONSOLE_LOGLEVEL,	/* minimum_console_loglevel */
 	DEFAULT_CONSOLE_LOGLEVEL,	/* default_console_loglevel */
 };
+EXPORT_SYMBOL_GPL(console_printk);
 
 /*
  * Low level drivers may need that to know if they can schedule in
@@ -139,6 +141,9 @@ EXPORT_SYMBOL(console_set_on_cmdline);
 
 /* Flag: console code may call schedule() */
 static int console_may_schedule;
+
+DEFINE_TRACE(kernel_printk);
+DEFINE_TRACE(kernel_vprintk);
 
 #ifdef CONFIG_PRINTK
 
@@ -701,6 +706,7 @@ asmlinkage int printk(const char *fmt, ...)
 	}
 #endif
 	va_start(args, fmt);
+	trace_kernel_printk(_RET_IP_);
 	r = vprintk(fmt, args);
 	va_end(args);
 
@@ -827,6 +833,7 @@ asmlinkage int vprintk(const char *fmt, va_list args)
 #ifdef	CONFIG_DEBUG_LL
 	printascii(printk_buf);
 #endif
+	trace_kernel_vprintk(_RET_IP_, printk_buf, printed_len);
 
 	p = printk_buf;
 

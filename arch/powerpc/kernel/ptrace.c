@@ -34,11 +34,15 @@
 #endif
 #include <linux/hw_breakpoint.h>
 #include <linux/perf_event.h>
+#include <trace/syscall.h>
 
 #include <asm/uaccess.h>
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
+
+DEFINE_TRACE(syscall_entry);
+DEFINE_TRACE(syscall_exit);
 
 /*
  * The parameter save area on the stack is used to store arguments being passed
@@ -1680,6 +1684,8 @@ long do_syscall_trace_enter(struct pt_regs *regs)
 {
 	long ret = 0;
 
+	trace_syscall_entry(regs, regs->gpr[0]);
+
 	secure_computing(regs->gpr[0]);
 
 	if (test_thread_flag(TIF_SYSCALL_TRACE) &&
@@ -1714,6 +1720,8 @@ long do_syscall_trace_enter(struct pt_regs *regs)
 void do_syscall_trace_leave(struct pt_regs *regs)
 {
 	int step;
+
+	trace_syscall_exit(regs->result);
 
 	if (unlikely(current->audit_context))
 		audit_syscall_exit((regs->ccr&0x10000000)?AUDITSC_FAILURE:AUDITSC_SUCCESS,

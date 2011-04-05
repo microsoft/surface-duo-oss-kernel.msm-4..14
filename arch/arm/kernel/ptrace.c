@@ -21,10 +21,15 @@
 #include <linux/uaccess.h>
 #include <linux/perf_event.h>
 #include <linux/hw_breakpoint.h>
+#include <linux/module.h>
+#include <linux/marker.h>
+#include <linux/kallsyms.h>
+#include <trace/syscall.h>
 
 #include <asm/pgtable.h>
 #include <asm/system.h>
 #include <asm/traps.h>
+#include <asm/unistd.h>
 
 #define REG_PC	15
 #define REG_PSR	16
@@ -51,6 +56,30 @@
 #define BREAKINST_ARM	0xe7f001f0
 #define BREAKINST_THUMB	0xde01
 #endif
+
+DEFINE_TRACE(syscall_entry);
+DEFINE_TRACE(syscall_exit);
+
+extern unsigned long sys_call_table[];
+
+void ltt_dump_sys_call_table(void *call_data)
+{
+	int i;
+	char namebuf[KSYM_NAME_LEN];
+
+	for (i = 0; i < __NR_syscall_max + 1; i++) {
+		sprint_symbol(namebuf, sys_call_table[i]);
+		__trace_mark(0, syscall_state, sys_call_table, call_data,
+			"id %d address %p symbol %s",
+			i, (void*)sys_call_table[i], namebuf);
+	}
+}
+EXPORT_SYMBOL_GPL(ltt_dump_sys_call_table);
+
+void ltt_dump_idt_table(void *call_data)
+{
+}
+EXPORT_SYMBOL_GPL(ltt_dump_idt_table);
 
 struct pt_regs_offset {
 	const char *name;
@@ -787,6 +816,11 @@ long arch_ptrace(struct task_struct *child, long request,
 asmlinkage int syscall_trace(int why, struct pt_regs *regs, int scno)
 {
 	unsigned long ip;
+
+	if (!why)
+		trace_syscall_entry(regs, scno);
+	else
+		trace_syscall_exit(regs->ARM_r0);
 
 	if (!test_thread_flag(TIF_SYSCALL_TRACE))
 		return scno;

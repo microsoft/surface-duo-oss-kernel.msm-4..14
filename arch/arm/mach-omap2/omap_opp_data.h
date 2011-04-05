@@ -20,6 +20,7 @@
 #define __ARCH_ARM_MACH_OMAP2_OMAP_OPP_DATA_H
 
 #include <plat/omap_hwmod.h>
+#include <plat/voltage.h>
 
 /*
  * *BIG FAT WARNING*:
@@ -65,8 +66,32 @@ struct omap_opp_def {
 	.u_volt		= _uv,					\
 }
 
+/*
+ * Initialization wrapper used to define SmartReflex process data
+ * XXX Is this needed?  Just use C99 initializers in data files?
+ */
+#define VOLT_DATA_DEFINE(_v_nom, _efuse_offs, _errminlimit, _errgain)  \
+{								       \
+	.volt_nominal	= _v_nom,				       \
+	.sr_efuse_offs	= _efuse_offs,				       \
+	.sr_errminlimit = _errminlimit,				       \
+	.vp_errgain	= _errgain				       \
+}
+
 /* Use this to initialize the default table */
 extern int __init omap_init_opp_table(struct omap_opp_def *opp_def,
 		u32 opp_def_size);
+
+
+extern struct omap_volt_data omap34xx_vddmpu_volt_data[];
+extern struct omap_volt_data omap34xx_vddcore_volt_data[];
+extern struct omap_vdd_dep_info omap34xx_vdd1_dep_info[];
+extern struct omap_volt_data omap36xx_vddmpu_volt_data[];
+extern struct omap_volt_data omap36xx_vddcore_volt_data[];
+extern struct omap_vdd_dep_info omap36xx_vdd1_dep_info[];
+
+extern struct omap_volt_data omap44xx_vdd_mpu_volt_data[];
+extern struct omap_volt_data omap44xx_vdd_iva_volt_data[];
+extern struct omap_volt_data omap44xx_vdd_core_volt_data[];
 
 #endif		/* __ARCH_ARM_MACH_OMAP2_OMAP_OPP_DATA_H */

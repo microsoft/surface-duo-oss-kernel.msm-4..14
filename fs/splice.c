@@ -259,6 +259,7 @@ ssize_t splice_to_pipe(struct pipe_inode_info *pipe,
 
 	return ret;
 }
+EXPORT_SYMBOL_GPL(splice_to_pipe);
 
 static void spd_release_page(struct splice_pipe_desc *spd, unsigned int i)
 {

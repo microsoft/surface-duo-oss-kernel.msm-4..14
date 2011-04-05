@@ -40,12 +40,14 @@
 #include <linux/irq_work.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
+#include <trace/timer.h>
 
 #include <asm/uaccess.h>
 #include <asm/unistd.h>
 #include <asm/div64.h>
 #include <asm/timex.h>
 #include <asm/io.h>
+#include <asm/irq_regs.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/timer.h>
@@ -53,6 +55,10 @@
 u64 jiffies_64 __cacheline_aligned_in_smp = INITIAL_JIFFIES;
 
 EXPORT_SYMBOL(jiffies_64);
+
+DEFINE_TRACE(timer_set);
+DEFINE_TRACE(timer_update_time);
+DEFINE_TRACE(timer_timeout);
 
 /*
  * per-CPU timer vector definitions:
@@ -366,6 +372,7 @@ static void internal_add_timer(struct tvec_base *base, struct timer_list *timer)
 		i = (expires >> (TVR_BITS + 3 * TVN_BITS)) & TVN_MASK;
 		vec = base->tv5.vec + i;
 	}
+	trace_timer_set(timer);
 	/*
 	 * Timers are FIFO:
 	 */
@@ -1303,8 +1310,13 @@ void run_local_timers(void)
 
 void do_timer(unsigned long ticks)
 {
+	struct timespec curtime, wtom;
+
 	jiffies_64 += ticks;
 	update_wall_time();
+	curtime = __current_kernel_time();
+	wtom = __get_wall_to_monotonic();
+	trace_timer_update_time(&curtime, &wtom);
 	calc_global_load(ticks);
 }
 
@@ -1387,7 +1399,9 @@ SYSCALL_DEFINE0(getegid)
 
 static void process_timeout(unsigned long __data)
 {
-	wake_up_process((struct task_struct *)__data);
+	struct task_struct *task = (struct task_struct *)__data;
+	trace_timer_timeout(task);
+	wake_up_process(task);
 }
 
 /**

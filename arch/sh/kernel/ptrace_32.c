@@ -26,6 +26,10 @@
 #include <linux/elf.h>
 #include <linux/regset.h>
 #include <linux/hw_breakpoint.h>
+#include <linux/module.h>
+#include <linux/kallsyms.h>
+#include <linux/marker.h>
+#include <trace/syscall.h>
 #include <asm/uaccess.h>
 #include <asm/pgtable.h>
 #include <asm/system.h>
@@ -33,9 +37,33 @@
 #include <asm/mmu_context.h>
 #include <asm/syscalls.h>
 #include <asm/fpu.h>
+#include <asm/unistd.h>
 
 #define CREATE_TRACE_POINTS
 #include <trace/events/syscalls.h>
+
+DEFINE_TRACE(syscall_entry);
+DEFINE_TRACE(syscall_exit);
+
+extern unsigned long sys_call_table[];
+void ltt_dump_sys_call_table(void *call_data)
+{
+	int i;
+	char namebuf[KSYM_NAME_LEN];
+
+	for (i = 0; i < NR_syscalls; i++) {
+		sprint_symbol(namebuf, sys_call_table[i]);
+		__trace_mark(0, syscall_state, sys_call_table, call_data,
+			"id %d address %p symbol %s",
+			i, (void *)sys_call_table[i], namebuf);
+	}
+}
+EXPORT_SYMBOL_GPL(ltt_dump_sys_call_table);
+
+void ltt_dump_idt_table(void *call_data)
+{
+}
+EXPORT_SYMBOL_GPL(ltt_dump_idt_table);
 
 /*
  * This routine will get a word off of the process kernel stack.
@@ -101,6 +129,8 @@ static int set_single_step(struct task_struct *tsk, unsigned long addr)
 
 		attr = bp->attr;
 		attr.bp_addr = addr;
+		/* reenable breakpoint */
+		attr.disabled = false;
 		err = modify_user_hw_breakpoint(bp, &attr);
 		if (unlikely(err))
 			return err;
@@ -392,6 +422,9 @@ long arch_ptrace(struct task_struct *child, long request,
 					tmp = 0;
 			} else {
 				unsigned long index;
+				ret = init_fpu(child);
+				if (ret)
+					break;
 				index = addr - offsetof(struct user, fpu);
 				tmp = ((unsigned long *)child->thread.xstate)
 					[index >> 2];
@@ -423,6 +456,9 @@ long arch_ptrace(struct task_struct *child, long request,
 		else if (addr >= offsetof(struct user, fpu) &&
 			 addr < offsetof(struct user, u_fpvalid)) {
 			unsigned long index;
+			ret = init_fpu(child);
+			if (ret)
+				break;
 			index = addr - offsetof(struct user, fpu);
 			set_stopped_child_used_math(child);
 			((unsigned long *)child->thread.xstate)
@@ -491,6 +527,8 @@ asmlinkage long do_syscall_trace_enter(struct pt_regs *regs)
 {
 	long ret = 0;
 
+	trace_syscall_entry(regs, regs->regs[3]);
+
 	secure_computing(regs->regs[0]);
 
 	if (test_thread_flag(TIF_SYSCALL_TRACE) &&
@@ -516,6 +554,8 @@ asmlinkage long do_syscall_trace_enter(struct pt_regs *regs)
 asmlinkage void do_syscall_trace_leave(struct pt_regs *regs)
 {
 	int step;
+
+	trace_syscall_exit(regs->regs[0]);
 
 	if (unlikely(current->audit_context))
 		audit_syscall_exit(AUDITSC_RESULT(regs->regs[0]),

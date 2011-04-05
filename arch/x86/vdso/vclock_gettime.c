@@ -22,6 +22,8 @@
 #include <asm/hpet.h>
 #include <asm/unistd.h>
 #include <asm/io.h>
+#include <asm/trace-clock.h>
+#include <asm/timer.h>
 #include "vextern.h"
 
 #define gtod vdso_vsyscall_gtod_data
@@ -111,6 +113,46 @@ notrace static noinline int do_monotonic_coarse(struct timespec *ts)
 	return 0;
 }
 
+/*
+ * If the TSC is synchronized across all CPUs, read the current TSC
+ * and export its value in the nsec field of the timespec
+ */
+notrace static noinline int do_trace_clock(struct timespec *ts)
+{
+	unsigned long seq;
+	union lttng_timespec *lts = (union lttng_timespec *) ts;
+
+	do {
+		seq = read_seqbegin(&gtod->lock);
+		if (unlikely(!gtod->trace_clock_is_sync))
+			return vdso_fallback_gettime(CLOCK_TRACE, ts);
+		/*
+		 * We don't protect the rdtsc with the rdtsc_barrier because
+		 * we can't obtain with tracing that level of precision.
+		 * The operation of recording an event is not atomic therefore
+		 * the small chance of imprecision doesn't justify the overhead
+		 * of a barrier.
+		 */
+		/*
+		 * TODO: check that vget_cycles(), using paravirt ops, will
+		 * match the TSC read by get_cycles() at the kernel level.
+		 */
+		lts->lttng_ts = vget_cycles();
+	} while (unlikely(read_seqretry(&gtod->lock, seq)));
+
+	return 0;
+}
+
+/*
+ * Returns the cpu_khz, it needs to be a syscall because we can't access
+ * this value from userspace and it will only be called at the beginning
+ * of the tracing session
+ */
+notrace static noinline int do_trace_clock_freq(struct timespec *ts)
+{
+	return vdso_fallback_gettime(CLOCK_TRACE_FREQ, ts);
+}
+
 notrace int __vdso_clock_gettime(clockid_t clock, struct timespec *ts)
 {
 	if (likely(gtod->sysctl_enabled))
@@ -127,6 +169,12 @@ notrace int __vdso_clock_gettime(clockid_t clock, struct timespec *ts)
 			return do_realtime_coarse(ts);
 		case CLOCK_MONOTONIC_COARSE:
 			return do_monotonic_coarse(ts);
+		case CLOCK_TRACE:
+			return do_trace_clock(ts);
+		case CLOCK_TRACE_FREQ:
+			return do_trace_clock_freq(ts);
+		default:
+			return -EINVAL;
 		}
 	return vdso_fallback_gettime(clock, ts);
 }

@@ -13,6 +13,7 @@ config ARM
 	select HAVE_KPROBES if (!XIP_KERNEL && !THUMB2_KERNEL)
 	select HAVE_KRETPROBES if (HAVE_KPROBES)
 	select HAVE_FUNCTION_TRACER if (!XIP_KERNEL)
+	select HAVE_LTT_DUMP_TABLES
 	select HAVE_FTRACE_MCOUNT_RECORD if (!XIP_KERNEL)
 	select HAVE_DYNAMIC_FTRACE if (!XIP_KERNEL)
 	select HAVE_FUNCTION_GRAPH_TRACER if (!THUMB2_KERNEL)
@@ -244,6 +245,7 @@ config ARCH_INTEGRATOR
 	select ICST
 	select GENERIC_CLOCKEVENTS
 	select PLAT_VERSATILE
+	select PLAT_VERSATILE_FPGA_IRQ
 	help
 	  Support for ARM's Integrator platform.
 
@@ -251,11 +253,11 @@ config ARCH_REALVIEW
 	bool "ARM Ltd. RealView family"
 	select ARM_AMBA
 	select CLKDEV_LOOKUP
-	select HAVE_SCHED_CLOCK
 	select ICST
 	select GENERIC_CLOCKEVENTS
 	select ARCH_WANT_OPTIONAL_GPIOLIB
 	select PLAT_VERSATILE
+	select PLAT_VERSATILE_CLCD
 	select ARM_TIMER_SP804
 	select GPIO_PL061 if GPIOLIB
 	help
@@ -266,11 +268,12 @@ config ARCH_VERSATILE
 	select ARM_AMBA
 	select ARM_VIC
 	select CLKDEV_LOOKUP
-	select HAVE_SCHED_CLOCK
 	select ICST
 	select GENERIC_CLOCKEVENTS
 	select ARCH_WANT_OPTIONAL_GPIOLIB
 	select PLAT_VERSATILE
+	select PLAT_VERSATILE_CLCD
+	select PLAT_VERSATILE_FPGA_IRQ
 	select ARM_TIMER_SP804
 	help
 	  This enables support for ARM Ltd Versatile board.
@@ -283,9 +286,10 @@ config ARCH_VEXPRESS
 	select CLKDEV_LOOKUP
 	select GENERIC_CLOCKEVENTS
 	select HAVE_CLK
-	select HAVE_SCHED_CLOCK
+	select HAVE_PATA_PLATFORM
 	select ICST
 	select PLAT_VERSATILE
+	select PLAT_VERSATILE_CLCD
 	help
 	  This enables support for the ARM Ltd Versatile Express boards.
 
@@ -361,7 +365,7 @@ config ARCH_FOOTBRIDGE
 	bool "FootBridge"
 	select CPU_SA110
 	select FOOTBRIDGE
-	select ARCH_USES_GETTIMEOFFSET
+	select GENERIC_CLOCKEVENTS
 	help
 	  Support for systems based on the DC21285 companion chip
 	  ("FootBridge"), such as the Simtec CATS and the Rebel NetWinder.
@@ -635,6 +639,7 @@ config ARCH_MSM
 	select HAVE_CLK
 	select GENERIC_CLOCKEVENTS
 	select ARCH_REQUIRE_GPIOLIB
+	select CLKDEV_LOOKUP
 	help
 	  Support for Qualcomm MSM/QSD based systems.  This runs on the
 	  apps processor of the MSM/QSD and depends on a shared memory
@@ -893,6 +898,16 @@ config PLAT_SPEAR
 	help
 	  Support for ST's SPEAr platform (SPEAr3xx, SPEAr6xx and SPEAr13xx).
 
+config ARCH_VT8500
+	bool "VIA/WonderMedia 85xx"
+	select CPU_ARM926T
+	select GENERIC_GPIO
+	select ARCH_HAS_CPUFREQ
+	select GENERIC_CLOCKEVENTS
+	select ARCH_REQUIRE_GPIOLIB
+	select HAVE_PWM
+	help
+	  Support for VIA/WonderMedia VT8500/WM85xx System-on-Chip.
 endchoice
 
 #
@@ -1024,6 +1039,9 @@ source "arch/arm/mach-ux500/Kconfig"
 source "arch/arm/mach-versatile/Kconfig"
 
 source "arch/arm/mach-vexpress/Kconfig"
+source "arch/arm/plat-versatile/Kconfig"
+
+source "arch/arm/mach-vt8500/Kconfig"
 
 source "arch/arm/mach-w90x900/Kconfig"
 
@@ -1229,6 +1247,28 @@ config ARM_ERRATA_753970
 	  by another offset targeting an unmapped PL310 register 0x740.
 	  This has the same effect as the cache sync operation: store buffer
 	  drain and waiting for all buffers empty.
+
+config ARM_ERRATA_754322
+	bool "ARM errata: possible faulty MMU translations following an ASID switch"
+	depends on CPU_V7
+	help
+	  This option enables the workaround for the 754322 Cortex-A9 (r2p*,
+	  r3p*) erratum. A speculative memory access may cause a page table walk
+	  which starts prior to an ASID switch but completes afterwards. This
+	  can populate the micro-TLB with a stale entry which may be hit with
+	  the new ASID. This workaround places two dsb instructions in the mm
+	  switching code so that no page table walks can cross the ASID switch.
+
+config ARM_ERRATA_754327
+	bool "ARM errata: no automatic Store Buffer drain"
+	depends on CPU_V7 && SMP
+	help
+	  This option enables the workaround for the 754327 Cortex-A9 (prior to
+	  r2p0) erratum. The Store Buffer does not have any automatic draining
+	  mechanism and therefore a livelock may occur if an external agent
+	  continuously polls a memory location waiting to observe an update.
+	  This workaround defines cpu_relax() as smp_mb(), preventing correctly
+	  written polling loops from denying visibility of updates to memory.
 
 endmenu
 
@@ -1711,6 +1751,18 @@ config ZBOOT_ROM
 	  Say Y here if you intend to execute your compressed kernel image
 	  (zImage) directly from ROM or flash.  If unsure, say N.
 
+config ZBOOT_ROM_MMCIF
+	bool "Include MMCIF loader in zImage (EXPERIMENTAL)"
+	depends on ZBOOT_ROM && ARCH_SH7372 && EXPERIMENTAL
+	help
+	  Say Y here to include experimental MMCIF loading code in the
+	  ROM-able zImage. With this enabled it is possible to write the
+	  the ROM-able zImage kernel image to an MMC card and boot the
+	  kernel straight from the reset vector. At reset the processor
+	  Mask ROM will load the first part of the the ROM-able zImage
+	  which in turn loads the rest the kernel image to RAM using the
+	  MMCIF hardware block.
+
 config CMDLINE
 	string "Default kernel command string"
 	default ""
@@ -1989,6 +2041,9 @@ menu "Power management options"
 source "kernel/power/Kconfig"
 
 config ARCH_SUSPEND_POSSIBLE
+	depends on !ARCH_S5P64X0 && !ARCH_S5P6442
+	depends on CPU_ARM920T || CPU_ARM926T || CPU_SA1100 || \
+		CPU_V6 || CPU_V6K || CPU_V7 || CPU_XSC3 || CPU_XSCALE
 	def_bool y
 
 endmenu

@@ -14,6 +14,8 @@
 
 typedef unsigned long cycles_t;
 
+extern unsigned long tb_ticks_per_sec;
+
 static inline cycles_t get_cycles(void)
 {
 #ifdef __powerpc64__
@@ -44,6 +46,16 @@ static inline cycles_t get_cycles(void)
 		: "=r" (ret) : "i" (CPU_FTR_601));
 	return ret;
 #endif
+}
+
+static inline cycles_t get_cycles_rate(void)
+{
+	return tb_ticks_per_sec;
+}
+
+static inline void get_cycles_barrier(void)
+{
+	isync();
 }
 
 #endif	/* __KERNEL__ */

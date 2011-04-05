@@ -6,6 +6,7 @@
 #include <linux/ftrace_event.h>
 
 #include <asm/ptrace.h>
+#include <linux/tracepoint.h>
 
 
 /*
@@ -53,5 +54,12 @@ void perf_sysenter_disable(struct ftrace_event_call *call);
 int perf_sysexit_enable(struct ftrace_event_call *call);
 void perf_sysexit_disable(struct ftrace_event_call *call);
 #endif
+
+DECLARE_TRACE(syscall_entry,
+	TP_PROTO(struct pt_regs *regs, long id),
+	TP_ARGS(regs, id));
+DECLARE_TRACE(syscall_exit,
+	TP_PROTO(long ret),
+	TP_ARGS(ret));
 
 #endif /* _TRACE_SYSCALL_H */

@@ -141,7 +141,7 @@ struct machine_desc * __init setup_machine_fdt(unsigned int dt_phys)
 	strlcpy(boot_command_line, cmd_line, COMMAND_LINE_SIZE);
 
 	/* Change machine number to match the mdesc we're using */
-	__machine_arch_type = mdesc->nr;
+	__machine_arch_type = mdesc_best->nr;
 
 	return mdesc_best;
 }

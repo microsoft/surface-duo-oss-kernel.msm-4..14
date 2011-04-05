@@ -455,13 +455,13 @@ void __init dump_machine_table(void)
 		/* can't use cpu_relax() here as it may require MMU setup */;
 }
 
-int __init arm_add_memory(unsigned long start, unsigned long size)
+int __init arm_add_memory(phys_addr_t start, unsigned long size)
 {
 	struct membank *bank = &meminfo.bank[meminfo.nr_banks];
 
 	if (meminfo.nr_banks >= NR_BANKS) {
 		printk(KERN_CRIT "NR_BANKS too low, "
-			"ignoring memory at %#lx\n", start);
+			"ignoring memory at 0x%08llx\n", (long long)start);
 		return -EINVAL;
 	}
 
@@ -491,7 +491,8 @@ int __init arm_add_memory(unsigned long start, unsigned long size)
 static int __init early_mem(char *p)
 {
 	static int usermem __initdata = 0;
-	unsigned long size, start;
+	unsigned long size;
+	phys_addr_t start;
 	char *endp;
 
 	/*
@@ -814,6 +815,8 @@ static struct machine_desc * __init setup_machine_tags(unsigned int nr)
 	struct machine_desc *mdesc = NULL, *p;
 	char *from = default_command_line;
 
+	init_tags.mem.start = PHYS_OFFSET;
+
 	/*
 	 * locate machine in the list of supported machines.
 	 */
@@ -829,8 +832,6 @@ static struct machine_desc * __init setup_machine_tags(unsigned int nr)
 			" (r1 = 0x%08x).\n\n", nr);
 		dump_machine_table(); /* does not return */
 	}
-
-	printk("Machine: %s\n", mdesc->name);
 
 	if (__atags_pointer)
 		tags = phys_to_virt(__atags_pointer);
@@ -862,8 +863,17 @@ static struct machine_desc * __init setup_machine_tags(unsigned int nr)
 	if (tags->hdr.tag != ATAG_CORE)
 		convert_to_tag_list(tags);
 #endif
-	if (tags->hdr.tag != ATAG_CORE)
+
+	if (tags->hdr.tag != ATAG_CORE) {
+#if defined(CONFIG_OF)
+		/*
+		 * If CONFIG_OF is set, then assume this is a reasonably
+		 * modern system that should pass boot parameters
+		 */
+		early_print("Warning: Neither atags nor dtb found\n");
+#endif
 		tags = (struct tag *)&init_tags;
+	}
 
 	if (mdesc->fixup)
 		mdesc->fixup(mdesc, tags, &from, &meminfo);
@@ -888,8 +898,6 @@ static struct machine_desc * __init setup_machine_tags(unsigned int nr)
 void __init setup_arch(char **cmdline_p)
 {
 	struct machine_desc *mdesc;
-
-	init_tags.mem.start = PHYS_OFFSET;
 
 	unwind_init();
 

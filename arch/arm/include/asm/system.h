@@ -395,7 +395,7 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 		break;
 	case 2:
 		do {
-			asm volatile("@ __cmpxchg1\n"
+			asm volatile("@ __cmpxchg2\n"
 			"	ldrexh	%1, [%2]\n"
 			"	mov	%0, #0\n"
 			"	teq	%1, %3\n"

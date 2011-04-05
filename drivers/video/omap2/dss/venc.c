@@ -305,17 +305,6 @@ static inline u32 venc_read_reg(int idx)
 	return l;
 }
 
-static struct regulator *venc_get_vdda_dac(void)
-{
-	struct regulator *reg;
-
-	reg = regulator_get(&venc.pdev->dev, "vdda_dac");
-	if (!IS_ERR(reg))
-		venc.vdda_dac_reg = reg;
-
-	return reg;
-}
-
 static void venc_write_config(const struct venc_config *config)
 {
 	DSSDBG("write venc conf\n");
@@ -655,6 +644,19 @@ int venc_init_display(struct omap_dss_device *dssdev)
 {
 	DSSDBG("init_display\n");
 
+	if (venc.vdda_dac_reg == NULL) {
+		struct regulator *vdda_dac;
+
+		vdda_dac = regulator_get(&venc.pdev->dev, "vdda_dac");
+
+		if (IS_ERR(vdda_dac)) {
+			DSSERR("can't get VDDA_DAC regulator\n");
+			return PTR_ERR(vdda_dac);
+		}
+
+		venc.vdda_dac_reg = vdda_dac;
+	}
+
 	return 0;
 }
 
@@ -734,13 +736,6 @@ static int omap_venchw_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	venc.vdda_dac_reg = venc_get_vdda_dac();
-	if (IS_ERR(venc.vdda_dac_reg)) {
-		iounmap(venc.base);
-		DSSERR("can't get VDDA_DAC regulator\n");
-		return PTR_ERR(venc.vdda_dac_reg);
-	}
-
 	venc_enable_clocks(1);
 
 	rev_id = (u8)(venc_read_reg(VENC_REV_ID) & 0xff);
@@ -767,17 +762,23 @@ static struct platform_driver omap_venchw_driver = {
 	.probe          = omap_venchw_probe,
 	.remove         = omap_venchw_remove,
 	.driver         = {
-		.name   = "omap_venc",
+		.name   = "omapdss_venc",
 		.owner  = THIS_MODULE,
 	},
 };
 
 int venc_init_platform_driver(void)
 {
+	if (cpu_is_omap44xx())
+		return 0;
+
 	return platform_driver_register(&omap_venchw_driver);
 }
 
 void venc_uninit_platform_driver(void)
 {
+	if (cpu_is_omap44xx())
+		return;
+
 	return platform_driver_unregister(&omap_venchw_driver);
 }

@@ -98,6 +98,7 @@
 
 #include <net/sock.h>
 #include <linux/netfilter.h>
+#include <trace/socket.h>
 
 #include <linux/if_tun.h>
 #include <linux/ipv6_route.h>
@@ -163,6 +164,21 @@ static const struct net_proto_family __rcu *net_families[NPROTO] __read_mostly;
  */
 
 static DEFINE_PER_CPU(int, sockets_in_use);
+
+DEFINE_TRACE(socket_create);
+DEFINE_TRACE(socket_bind);
+DEFINE_TRACE(socket_connect);
+DEFINE_TRACE(socket_listen);
+DEFINE_TRACE(socket_accept);
+DEFINE_TRACE(socket_getsockname);
+DEFINE_TRACE(socket_getpeername);
+DEFINE_TRACE(socket_socketpair);
+DEFINE_TRACE(socket_sendmsg);
+DEFINE_TRACE(socket_recvmsg);
+DEFINE_TRACE(socket_setsockopt);
+DEFINE_TRACE(socket_getsockopt);
+DEFINE_TRACE(socket_shutdown);
+DEFINE_TRACE(socket_call);
 
 /*
  * Support routines.
@@ -565,6 +581,7 @@ static inline int __sock_sendmsg(struct kiocb *iocb, struct socket *sock,
 		return err;
 
 	err = sock->ops->sendmsg(iocb, sock, msg, size);
+	trace_socket_sendmsg(sock, msg, size, err);
 	return err;
 }
 
@@ -694,6 +711,7 @@ static inline int __sock_recvmsg_nosec(struct kiocb *iocb, struct socket *sock,
 	si->flags = flags;
 
 	err = sock->ops->recvmsg(iocb, sock, msg, size, flags);
+	trace_socket_recvmsg(sock, msg, size, flags, err);
 	return err;
 }
 
@@ -1302,8 +1320,10 @@ SYSCALL_DEFINE3(socket, int, family, int, type, int, protocol)
 	BUILD_BUG_ON(SOCK_NONBLOCK & SOCK_TYPE_MASK);
 
 	flags = type & ~SOCK_TYPE_MASK;
-	if (flags & ~(SOCK_CLOEXEC | SOCK_NONBLOCK))
-		return -EINVAL;
+	if (flags & ~(SOCK_CLOEXEC | SOCK_NONBLOCK)) {
+		retval = -EINVAL;
+		goto out;
+	}
 	type &= SOCK_TYPE_MASK;
 
 	if (SOCK_NONBLOCK != O_NONBLOCK && (flags & SOCK_NONBLOCK))
@@ -1317,12 +1337,12 @@ SYSCALL_DEFINE3(socket, int, family, int, type, int, protocol)
 	if (retval < 0)
 		goto out_release;
 
-out:
-	/* It may be already another descriptor 8) Not kernel problem. */
-	return retval;
-
+	goto out;
 out_release:
 	sock_release(sock);
+out:
+	trace_socket_create(family, type, protocol, sock, retval);
+	/* It may be already another descriptor 8) Not kernel problem. */
 	return retval;
 }
 
@@ -1339,8 +1359,10 @@ SYSCALL_DEFINE4(socketpair, int, family, int, type, int, protocol,
 	int flags;
 
 	flags = type & ~SOCK_TYPE_MASK;
-	if (flags & ~(SOCK_CLOEXEC | SOCK_NONBLOCK))
-		return -EINVAL;
+	if (flags & ~(SOCK_CLOEXEC | SOCK_NONBLOCK)) {
+		err = -EINVAL;
+		goto out;
+	}
 	type &= SOCK_TYPE_MASK;
 
 	if (SOCK_NONBLOCK != O_NONBLOCK && (flags & SOCK_NONBLOCK))
@@ -1389,17 +1411,18 @@ SYSCALL_DEFINE4(socketpair, int, family, int, type, int, protocol,
 	if (!err)
 		err = put_user(fd2, &usockvec[1]);
 	if (!err)
-		return 0;
+		goto out;
 
 	sys_close(fd2);
 	sys_close(fd1);
-	return err;
+	goto out;
 
 out_release_both:
 	sock_release(sock2);
 out_release_1:
 	sock_release(sock1);
 out:
+	trace_socket_socketpair(family, type, protocol, usockvec, err);
 	return err;
 }
 
@@ -1431,6 +1454,7 @@ SYSCALL_DEFINE3(bind, int, fd, struct sockaddr __user *, umyaddr, int, addrlen)
 		}
 		fput_light(sock->file, fput_needed);
 	}
+	trace_socket_bind(fd, umyaddr, addrlen, err);
 	return err;
 }
 
@@ -1458,6 +1482,7 @@ SYSCALL_DEFINE2(listen, int, fd, int, backlog)
 
 		fput_light(sock->file, fput_needed);
 	}
+	trace_socket_listen(fd, backlog, err);
 	return err;
 }
 
@@ -1481,8 +1506,10 @@ SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
 	int err, len, newfd, fput_needed;
 	struct sockaddr_storage address;
 
-	if (flags & ~(SOCK_CLOEXEC | SOCK_NONBLOCK))
-		return -EINVAL;
+	if (flags & ~(SOCK_CLOEXEC | SOCK_NONBLOCK)) {
+		err = -EINVAL;
+		goto out;
+	}
 
 	if (SOCK_NONBLOCK != O_NONBLOCK && (flags & SOCK_NONBLOCK))
 		flags = (flags & ~SOCK_NONBLOCK) | O_NONBLOCK;
@@ -1540,6 +1567,7 @@ SYSCALL_DEFINE4(accept4, int, fd, struct sockaddr __user *, upeer_sockaddr,
 out_put:
 	fput_light(sock->file, fput_needed);
 out:
+	trace_socket_accept(fd, upeer_sockaddr, upeer_addrlen, flags, err);
 	return err;
 out_fd:
 	fput(newfile);
@@ -1589,6 +1617,7 @@ SYSCALL_DEFINE3(connect, int, fd, struct sockaddr __user *, uservaddr,
 out_put:
 	fput_light(sock->file, fput_needed);
 out:
+	trace_socket_connect(fd, uservaddr, addrlen, err);
 	return err;
 }
 
@@ -1620,6 +1649,7 @@ SYSCALL_DEFINE3(getsockname, int, fd, struct sockaddr __user *, usockaddr,
 out_put:
 	fput_light(sock->file, fput_needed);
 out:
+	trace_socket_getsockname(fd, usockaddr, usockaddr_len, err);
 	return err;
 }
 
@@ -1640,7 +1670,7 @@ SYSCALL_DEFINE3(getpeername, int, fd, struct sockaddr __user *, usockaddr,
 		err = security_socket_getpeername(sock);
 		if (err) {
 			fput_light(sock->file, fput_needed);
-			return err;
+			goto out;
 		}
 
 		err =
@@ -1651,6 +1681,8 @@ SYSCALL_DEFINE3(getpeername, int, fd, struct sockaddr __user *, usockaddr,
 						usockaddr_len);
 		fput_light(sock->file, fput_needed);
 	}
+out:
+	trace_socket_getpeername(fd, usockaddr, usockaddr_len, err);
 	return err;
 }
 
@@ -1781,8 +1813,10 @@ SYSCALL_DEFINE5(setsockopt, int, fd, int, level, int, optname,
 	int err, fput_needed;
 	struct socket *sock;
 
-	if (optlen < 0)
-		return -EINVAL;
+	if (optlen < 0) {
+		err = -EINVAL;
+		goto out;
+	}
 
 	sock = sockfd_lookup_light(fd, &err, &fput_needed);
 	if (sock != NULL) {
@@ -1801,6 +1835,8 @@ SYSCALL_DEFINE5(setsockopt, int, fd, int, level, int, optname,
 out_put:
 		fput_light(sock->file, fput_needed);
 	}
+out:
+	trace_socket_setsockopt(fd, level, optname, optval, optlen, err);
 	return err;
 }
 
@@ -1832,6 +1868,7 @@ SYSCALL_DEFINE5(getsockopt, int, fd, int, level, int, optname,
 out_put:
 		fput_light(sock->file, fput_needed);
 	}
+	trace_socket_getsockopt(fd, level, optname, optval, optlen, err);
 	return err;
 }
 
@@ -1851,6 +1888,7 @@ SYSCALL_DEFINE2(shutdown, int, fd, int, how)
 			err = sock->ops->shutdown(sock, how);
 		fput_light(sock->file, fput_needed);
 	}
+	trace_socket_shutdown(fd, how, err);
 	return err;
 }
 
@@ -2252,6 +2290,8 @@ SYSCALL_DEFINE2(socketcall, int, call, unsigned long __user *, args)
 	a0 = a[0];
 	a1 = a[1];
 
+	trace_socket_call(call, a0);
+
 	switch (call) {
 	case SYS_SOCKET:
 		err = sys_socket(a0, a1, a[2]);
@@ -2586,23 +2626,123 @@ static int dev_ifconf(struct net *net, struct compat_ifconf __user *uifc32)
 
 static int ethtool_ioctl(struct net *net, struct compat_ifreq __user *ifr32)
 {
+	struct compat_ethtool_rxnfc __user *compat_rxnfc;
+	bool convert_in = false, convert_out = false;
+	size_t buf_size = ALIGN(sizeof(struct ifreq), 8);
+	struct ethtool_rxnfc __user *rxnfc;
 	struct ifreq __user *ifr;
+	u32 rule_cnt = 0, actual_rule_cnt;
+	u32 ethcmd;
 	u32 data;
-	void __user *datap;
-
-	ifr = compat_alloc_user_space(sizeof(*ifr));
-
-	if (copy_in_user(&ifr->ifr_name, &ifr32->ifr_name, IFNAMSIZ))
-		return -EFAULT;
+	int ret;
 
 	if (get_user(data, &ifr32->ifr_ifru.ifru_data))
 		return -EFAULT;
 
-	datap = compat_ptr(data);
-	if (put_user(datap, &ifr->ifr_ifru.ifru_data))
+	compat_rxnfc = compat_ptr(data);
+
+	if (get_user(ethcmd, &compat_rxnfc->cmd))
 		return -EFAULT;
 
-	return dev_ioctl(net, SIOCETHTOOL, ifr);
+	/* Most ethtool structures are defined without padding.
+	 * Unfortunately struct ethtool_rxnfc is an exception.
+	 */
+	switch (ethcmd) {
+	default:
+		break;
+	case ETHTOOL_GRXCLSRLALL:
+		/* Buffer size is variable */
+		if (get_user(rule_cnt, &compat_rxnfc->rule_cnt))
+			return -EFAULT;
+		if (rule_cnt > KMALLOC_MAX_SIZE / sizeof(u32))
+			return -ENOMEM;
+		buf_size += rule_cnt * sizeof(u32);
+		/* fall through */
+	case ETHTOOL_GRXRINGS:
+	case ETHTOOL_GRXCLSRLCNT:
+	case ETHTOOL_GRXCLSRULE:
+		convert_out = true;
+		/* fall through */
+	case ETHTOOL_SRXCLSRLDEL:
+	case ETHTOOL_SRXCLSRLINS:
+		buf_size += sizeof(struct ethtool_rxnfc);
+		convert_in = true;
+		break;
+	}
+
+	ifr = compat_alloc_user_space(buf_size);
+	rxnfc = (void *)ifr + ALIGN(sizeof(struct ifreq), 8);
+
+	if (copy_in_user(&ifr->ifr_name, &ifr32->ifr_name, IFNAMSIZ))
+		return -EFAULT;
+
+	if (put_user(convert_in ? rxnfc : compat_ptr(data),
+		     &ifr->ifr_ifru.ifru_data))
+		return -EFAULT;
+
+	if (convert_in) {
+		/* We expect there to be holes between fs.m_u and
+		 * fs.ring_cookie and at the end of fs, but nowhere else.
+		 */
+		BUILD_BUG_ON(offsetof(struct compat_ethtool_rxnfc, fs.m_u) +
+			     sizeof(compat_rxnfc->fs.m_u) !=
+			     offsetof(struct ethtool_rxnfc, fs.m_u) +
+			     sizeof(rxnfc->fs.m_u));
+		BUILD_BUG_ON(
+			offsetof(struct compat_ethtool_rxnfc, fs.location) -
+			offsetof(struct compat_ethtool_rxnfc, fs.ring_cookie) !=
+			offsetof(struct ethtool_rxnfc, fs.location) -
+			offsetof(struct ethtool_rxnfc, fs.ring_cookie));
+
+		if (copy_in_user(rxnfc, compat_rxnfc,
+				 (void *)(&rxnfc->fs.m_u + 1) -
+				 (void *)rxnfc) ||
+		    copy_in_user(&rxnfc->fs.ring_cookie,
+				 &compat_rxnfc->fs.ring_cookie,
+				 (void *)(&rxnfc->fs.location + 1) -
+				 (void *)&rxnfc->fs.ring_cookie) ||
+		    copy_in_user(&rxnfc->rule_cnt, &compat_rxnfc->rule_cnt,
+				 sizeof(rxnfc->rule_cnt)))
+			return -EFAULT;
+	}
+
+	ret = dev_ioctl(net, SIOCETHTOOL, ifr);
+	if (ret)
+		return ret;
+
+	if (convert_out) {
+		if (copy_in_user(compat_rxnfc, rxnfc,
+				 (const void *)(&rxnfc->fs.m_u + 1) -
+				 (const void *)rxnfc) ||
+		    copy_in_user(&compat_rxnfc->fs.ring_cookie,
+				 &rxnfc->fs.ring_cookie,
+				 (const void *)(&rxnfc->fs.location + 1) -
+				 (const void *)&rxnfc->fs.ring_cookie) ||
+		    copy_in_user(&compat_rxnfc->rule_cnt, &rxnfc->rule_cnt,
+				 sizeof(rxnfc->rule_cnt)))
+			return -EFAULT;
+
+		if (ethcmd == ETHTOOL_GRXCLSRLALL) {
+			/* As an optimisation, we only copy the actual
+			 * number of rules that the underlying
+			 * function returned.  Since Mallory might
+			 * change the rule count in user memory, we
+			 * check that it is less than the rule count
+			 * originally given (as the user buffer size),
+			 * which has been range-checked.
+			 */
+			if (get_user(actual_rule_cnt, &rxnfc->rule_cnt))
+				return -EFAULT;
+			if (actual_rule_cnt < rule_cnt)
+				rule_cnt = actual_rule_cnt;
+			if (copy_in_user(&compat_rxnfc->rule_locs[0],
+					 &rxnfc->rule_locs[0],
+					 rule_cnt * sizeof(u32)))
+				return -EFAULT;
+		}
+	}
+
+	return 0;
 }
 
 static int compat_siocwandev(struct net *net, struct compat_ifreq __user *uifr32)

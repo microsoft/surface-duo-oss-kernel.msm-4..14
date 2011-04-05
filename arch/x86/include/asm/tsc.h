@@ -51,6 +51,18 @@ extern int unsynchronized_tsc(void);
 extern int check_tsc_unstable(void);
 extern unsigned long native_calibrate_tsc(void);
 
+static inline cycles_t get_cycles_rate(void)
+{
+	if (check_tsc_unstable())
+		return 0;
+	return (cycles_t)tsc_khz * 1000;
+}
+
+static inline void get_cycles_barrier(void)
+{
+	rdtsc_barrier();
+}
+
 /*
  * Boot-time check whether the TSCs are synchronized across
  * all CPUs/cores:
@@ -62,4 +74,10 @@ extern int notsc_setup(char *);
 extern void save_sched_clock_state(void);
 extern void restore_sched_clock_state(void);
 
+extern int test_tsc_synchronization(void);
+extern int _tsc_is_sync;
+static inline int tsc_is_sync(void)
+{
+	return _tsc_is_sync;
+}
 #endif /* _ASM_X86_TSC_H */

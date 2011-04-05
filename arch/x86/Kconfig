@@ -19,6 +19,7 @@ config X86
 	select HAVE_READQ
 	select HAVE_WRITEQ
 	select HAVE_UNSTABLE_SCHED_CLOCK
+	select HAVE_GET_CYCLES
 	select HAVE_IDE
 	select HAVE_OPROFILE
 	select HAVE_PERF_EVENTS
@@ -27,9 +28,11 @@ config X86
 	select HAVE_KPROBES
 	select HAVE_MEMBLOCK
 	select ARCH_WANT_OPTIONAL_GPIOLIB
+	select HAVE_LTT_DUMP_TABLES
 	select ARCH_WANT_FRAME_POINTERS
 	select HAVE_DMA_ATTRS
 	select HAVE_KRETPROBES
+	select HAVE_TRACE_CLOCK
 	select HAVE_OPTPROBES
 	select HAVE_FTRACE_MCOUNT_RECORD
 	select HAVE_C_RECORDMCOUNT
@@ -208,10 +211,12 @@ config HAVE_INTEL_TXT
 config X86_32_SMP
 	def_bool y
 	depends on X86_32 && SMP
+	select HAVE_UNSYNCHRONIZED_TSC
 
 config X86_64_SMP
 	def_bool y
 	depends on X86_64 && SMP
+	select HAVE_UNSYNCHRONIZED_TSC
 
 config X86_HT
 	def_bool y

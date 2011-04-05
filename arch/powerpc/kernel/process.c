@@ -38,6 +38,7 @@
 #include <linux/personality.h>
 #include <linux/random.h>
 #include <linux/hw_breakpoint.h>
+#include <trace/sched.h>
 
 #include <asm/pgtable.h>
 #include <asm/uaccess.h>
@@ -54,6 +55,8 @@
 #endif
 #include <linux/kprobes.h>
 #include <linux/kdebug.h>
+
+DEFINE_TRACE(sched_kthread_create);
 
 extern unsigned long _get_SP(void);
 
@@ -661,6 +664,17 @@ void show_regs(struct pt_regs * regs)
 	show_stack(current, (unsigned long *) regs->gpr[1]);
 	if (!user_mode(regs))
 		show_instructions(regs);
+}
+
+long original_kernel_thread(int (*fn) (void *), void *arg, unsigned long flags);
+
+long kernel_thread(int (fn) (void *), void *arg, unsigned long flags)
+{
+	long retval;
+
+	retval = original_kernel_thread(fn, arg, flags);
+	trace_sched_kthread_create(fn, retval);
+	return retval;
 }
 
 void exit_thread(void)

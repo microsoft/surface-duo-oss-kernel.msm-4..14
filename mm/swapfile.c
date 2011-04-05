@@ -31,11 +31,15 @@
 #include <linux/syscalls.h>
 #include <linux/memcontrol.h>
 #include <linux/poll.h>
+#include <trace/swap.h>
 
 #include <asm/pgtable.h>
 #include <asm/tlbflush.h>
 #include <linux/swapops.h>
 #include <linux/page_cgroup.h>
+
+DEFINE_TRACE(swap_file_open);
+DEFINE_TRACE(swap_file_close);
 
 static bool swap_count_continued(struct swap_info_struct *, pgoff_t,
 				 unsigned char);
@@ -1669,6 +1673,7 @@ SYSCALL_DEFINE1(swapoff, const char __user *, specialfile)
 	swap_map = p->swap_map;
 	p->swap_map = NULL;
 	p->flags = 0;
+	trace_swap_file_close(swap_file);
 	spin_unlock(&swap_lock);
 	mutex_unlock(&swapon_mutex);
 	vfree(swap_map);
@@ -2129,6 +2134,7 @@ SYSCALL_DEFINE2(swapon, const char __user *, specialfile, int, swap_flags)
 		swap_list.head = swap_list.next = type;
 	else
 		swap_info[prev]->next = type;
+	trace_swap_file_open(swap_file, name);
 	spin_unlock(&swap_lock);
 	mutex_unlock(&swapon_mutex);
 	atomic_inc(&proc_poll_event);
@@ -2149,8 +2155,13 @@ bad_swap_2:
 	p->flags = 0;
 	spin_unlock(&swap_lock);
 	vfree(swap_map);
-	if (swap_file)
+	if (swap_file) {
+		if (did_down) {
+			mutex_unlock(&inode->i_mutex);
+			did_down = 0;
+		}
 		filp_close(swap_file, NULL);
+	}
 out:
 	if (page && !IS_ERR(page)) {
 		kunmap(page);
@@ -2279,6 +2290,13 @@ int swap_duplicate(swp_entry_t entry)
 		err = add_swap_count_continuation(entry, GFP_ATOMIC);
 	return err;
 }
+
+struct swap_info_struct *
+get_swap_info_struct(unsigned type)
+{
+	return swap_info[type];
+}
+EXPORT_SYMBOL_GPL(get_swap_info_struct);
 
 /*
  * @entry: swap entry for which we allocate swap cache.
@@ -2560,3 +2578,22 @@ static void free_swap_count_continuations(struct swap_info_struct *si)
 		}
 	}
 }
+
+void ltt_dump_swap_files(void *call_data)
+{
+	int type;
+	struct swap_info_struct *p = NULL;
+
+	mutex_lock(&swapon_mutex);
+	for (type = swap_list.head; type >= 0; type = swap_info[type]->next) {
+		p = swap_info[type];
+		if (!(p->flags & SWP_WRITEOK))
+			continue;
+		__trace_mark(0, swap_state, statedump_swap_files, call_data,
+			"filp %p vfsmount %p dname %s",
+			p->swap_file, p->swap_file->f_vfsmnt,
+			p->swap_file->f_dentry->d_name.name);
+	}
+	mutex_unlock(&swapon_mutex);
+}
+EXPORT_SYMBOL_GPL(ltt_dump_swap_files);

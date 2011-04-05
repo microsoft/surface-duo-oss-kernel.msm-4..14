@@ -178,4 +178,10 @@
 #define nudge_writes() mb()
 #endif
 
+/*
+ * MIPS does not have any instruction to serialize instruction execution on the
+ * core.
+ */
+#define sync_core()
+
 #endif /* __ASM_BARRIER_H */

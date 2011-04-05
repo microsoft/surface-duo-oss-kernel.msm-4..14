@@ -48,6 +48,7 @@ config SUPERH32
 	select PERF_EVENTS
 	select ARCH_HIBERNATION_POSSIBLE if MMU
 	select SPARSE_IRQ
+	select HAVE_LTT_DUMP_TABLES
 
 config SUPERH64
 	def_bool ARCH = "sh64"
@@ -211,6 +212,8 @@ config CPU_SH4
 	select CPU_HAS_FPU if !CPU_SH4AL_DSP
 	select SYS_SUPPORTS_TMU
 	select SYS_SUPPORTS_HUGETLBFS if MMU
+	select HAVE_TRACE_CLOCK
+	select HAVE_TRACE_CLOCK_32_TO_64
 
 config CPU_SH4A
 	bool

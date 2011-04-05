@@ -147,4 +147,8 @@ config DEBUG_S3C_UART
 	  The uncompressor code port configuration is now handled
 	  by CONFIG_S3C_LOWLEVEL_UART_PORT.
 
+config DEBUG_TRACE_CLOCK
+	bool "Debug trace clock"
+	depends on HAVE_TRACE_CLOCK
+
 endmenu

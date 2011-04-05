@@ -49,6 +49,8 @@
 
 #include "lockdep_internals.h"
 
+#include <trace/lockdep.h>
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/lock.h>
 
@@ -65,6 +67,13 @@ module_param(lock_stat, int, 0644);
 #else
 #define lock_stat 0
 #endif
+
+DEFINE_TRACE(lockdep_hardirqs_on);
+DEFINE_TRACE(lockdep_hardirqs_off);
+DEFINE_TRACE(lockdep_softirqs_on);
+DEFINE_TRACE(lockdep_softirqs_off);
+DEFINE_TRACE(lockdep_lock_acquire);
+DEFINE_TRACE(lockdep_lock_release);
 
 /*
  * lockdep_lock: protects the lockdep graph, the hashes and the
@@ -2300,6 +2309,8 @@ void trace_hardirqs_on_caller(unsigned long ip)
 
 	time_hardirqs_on(CALLER_ADDR0, ip);
 
+	trace_lockdep_hardirqs_on(ip);
+
 	if (unlikely(!debug_locks || current->lockdep_recursion))
 		return;
 
@@ -2358,6 +2369,8 @@ void trace_hardirqs_off_caller(unsigned long ip)
 
 	time_hardirqs_off(CALLER_ADDR0, ip);
 
+	trace_lockdep_hardirqs_off(ip);
+
 	if (unlikely(!debug_locks || current->lockdep_recursion))
 		return;
 
@@ -2389,6 +2402,8 @@ EXPORT_SYMBOL(trace_hardirqs_off);
 void trace_softirqs_on(unsigned long ip)
 {
 	struct task_struct *curr = current;
+
+	trace_lockdep_softirqs_on(ip);
 
 	if (unlikely(!debug_locks))
 		return;
@@ -2423,6 +2438,8 @@ void trace_softirqs_on(unsigned long ip)
 void trace_softirqs_off(unsigned long ip)
 {
 	struct task_struct *curr = current;
+
+	trace_lockdep_softirqs_off(ip);
 
 	if (unlikely(!debug_locks))
 		return;
@@ -2729,6 +2746,9 @@ static int __lock_acquire(struct lockdep_map *lock, unsigned int subclass,
 	int chain_head = 0;
 	int class_idx;
 	u64 chain_key;
+
+	trace_lockdep_lock_acquire(ip, subclass, lock, trylock, read,
+		hardirqs_off);
 
 	if (!prove_locking)
 		check = 1;
@@ -3107,6 +3127,8 @@ static void
 __lock_release(struct lockdep_map *lock, int nested, unsigned long ip)
 {
 	struct task_struct *curr = current;
+
+	trace_lockdep_lock_release(ip, lock, nested);
 
 	if (!check_unlock(curr, lock, ip))
 		return;

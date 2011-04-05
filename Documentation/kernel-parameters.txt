@@ -794,6 +794,10 @@ bytes respectively. Such letter suffixes can also be entirely omitted.
 			that can be changed at run time by the
 			set_graph_function file in the debugfs tracing directory.
 
+	force_tsc_sync=1
+			Force TSC resynchronization when SMP CPUs go online.
+			See also idle=poll and disable frequency scaling.
+
 	gamecon.map[2|3]=
 			[HW,JOY] Multisystem joystick and NES/SNES/PSX pad
 			support via parallel port (up to 5 devices per port)

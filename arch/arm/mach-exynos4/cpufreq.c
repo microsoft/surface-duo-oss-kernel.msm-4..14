@@ -451,9 +451,8 @@ static int exynos4_target(struct cpufreq_policy *policy,
 	return 0;
 }
 
-#ifdef CONFIG_SUSPEND
-static int exynos4_cpufreq_suspend(struct cpufreq_policy *policy,
-				   pm_message_t pmsg)
+#ifdef CONFIG_PM
+static int exynos4_cpufreq_suspend(struct cpufreq_policy *policy)
 {
 	return 0;
 }
@@ -491,7 +490,7 @@ static struct cpufreq_driver exynos4_driver = {
 	.get		= exynos4_getspeed,
 	.init		= exynos4_cpufreq_cpu_init,
 	.name		= "exynos4_cpufreq",
-#ifdef CONFIG_SUSPEND
+#ifdef CONFIG_PM
 	.suspend	= exynos4_cpufreq_suspend,
 	.resume		= exynos4_cpufreq_resume,
 #endif

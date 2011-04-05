@@ -15,6 +15,7 @@
 #include <linux/stringify.h>
 #include <linux/kobject.h>
 #include <linux/moduleparam.h>
+#include <linux/marker.h>
 #include <linux/tracepoint.h>
 
 #include <linux/percpu.h>
@@ -376,6 +377,10 @@ struct module
 	/* The command line arguments (may be mangled).  People like
 	   keeping pointers to this stuff */
 	char *args;
+#ifdef CONFIG_MARKERS
+	struct marker *markers;
+	unsigned int num_markers;
+#endif
 #ifdef CONFIG_TRACEPOINTS
 	struct tracepoint * const *tracepoints_ptrs;
 	unsigned int num_tracepoints;
@@ -574,6 +579,10 @@ int register_module_notifier(struct notifier_block * nb);
 int unregister_module_notifier(struct notifier_block * nb);
 
 extern void print_modules(void);
+extern void list_modules(void *call_data);
+
+extern void module_update_markers(void);
+extern int module_get_iter_markers(struct marker_iter *iter);
 
 extern void module_update_tracepoints(void);
 extern int module_get_iter_tracepoints(struct tracepoint_iter *iter);
@@ -694,11 +703,24 @@ static inline void print_modules(void)
 {
 }
 
+static inline void list_modules(void *call_data)
+{
+}
+
+static inline void module_update_markers(void)
+{
+}
+
 static inline void module_update_tracepoints(void)
 {
 }
 
 static inline int module_get_iter_tracepoints(struct tracepoint_iter *iter)
+{
+	return 0;
+}
+
+static inline int module_get_iter_markers(struct marker_iter *iter)
 {
 	return 0;
 }

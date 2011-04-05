@@ -54,7 +54,7 @@ static cycle_t notrace omap16xx_32k_read(struct clocksource *cs)
 #define omap16xx_32k_read	NULL
 #endif
 
-#ifdef CONFIG_ARCH_OMAP2420
+#ifdef CONFIG_SOC_OMAP2420
 static cycle_t notrace omap2420_32k_read(struct clocksource *cs)
 {
 	return omap_readl(OMAP2420_32KSYNCT_BASE + 0x10) - offset_32k;
@@ -63,7 +63,7 @@ static cycle_t notrace omap2420_32k_read(struct clocksource *cs)
 #define omap2420_32k_read	NULL
 #endif
 
-#ifdef CONFIG_ARCH_OMAP2430
+#ifdef CONFIG_SOC_OMAP2430
 static cycle_t notrace omap2430_32k_read(struct clocksource *cs)
 {
 	return omap_readl(OMAP2430_32KSYNCT_BASE + 0x10) - offset_32k;
@@ -106,6 +106,11 @@ static struct clocksource clocksource_32k = {
 	.mask		= CLOCKSOURCE_MASK(32),
 	.flags		= CLOCK_SOURCE_IS_CONTINUOUS,
 };
+
+struct clocksource *get_clocksource_32k(void)
+{
+	return &clocksource_32k;
+}
 
 /*
  * Returns current time from boot in nsecs. It's OK for this to wrap

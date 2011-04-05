@@ -57,13 +57,13 @@ static int dpi_set_dsi_clk(struct omap_dss_device *dssdev, bool is_tft,
 	if (r)
 		return r;
 
-	dss_select_dispc_clk_source(DSS_SRC_DSI1_PLL_FCLK);
+	dss_select_dispc_clk_source(DSS_CLK_SRC_DSI_PLL_HSDIV_DISPC);
 
 	r = dispc_set_clock_div(dssdev->manager->id, &dispc_cinfo);
 	if (r)
 		return r;
 
-	*fck = dsi_cinfo.dsi1_pll_fclk;
+	*fck = dsi_cinfo.dsi_pll_hsdiv_dispc_clk;
 	*lck_div = dispc_cinfo.lck_div;
 	*pck_div = dispc_cinfo.pck_div;
 
@@ -217,7 +217,7 @@ void omapdss_dpi_display_disable(struct omap_dss_device *dssdev)
 	dssdev->manager->disable(dssdev->manager);
 
 #ifdef CONFIG_OMAP2_DSS_USE_DSI_PLL
-	dss_select_dispc_clk_source(DSS_SRC_DSS1_ALWON_FCLK);
+	dss_select_dispc_clk_source(DSS_CLK_SRC_FCK);
 	dsi_pll_uninit();
 	dss_clk_disable(DSS_CLK_SYSCK);
 #endif
@@ -271,7 +271,7 @@ int dpi_check_timings(struct omap_dss_device *dssdev,
 		if (r)
 			return r;
 
-		fck = dsi_cinfo.dsi1_pll_fclk;
+		fck = dsi_cinfo.dsi_pll_hsdiv_dispc_clk;
 		lck_div = dispc_cinfo.lck_div;
 		pck_div = dispc_cinfo.pck_div;
 	}
@@ -303,19 +303,24 @@ int dpi_init_display(struct omap_dss_device *dssdev)
 {
 	DSSDBG("init_display\n");
 
+	if (cpu_is_omap34xx() && dpi.vdds_dsi_reg == NULL) {
+		struct regulator *vdds_dsi;
+
+		vdds_dsi = dss_get_vdds_dsi();
+
+		if (IS_ERR(vdds_dsi)) {
+			DSSERR("can't get VDDS_DSI regulator\n");
+			return PTR_ERR(vdds_dsi);
+		}
+
+		dpi.vdds_dsi_reg = vdds_dsi;
+	}
+
 	return 0;
 }
 
-int dpi_init(struct platform_device *pdev)
+int dpi_init(void)
 {
-	if (cpu_is_omap34xx()) {
-		dpi.vdds_dsi_reg = dss_get_vdds_dsi();
-		if (IS_ERR(dpi.vdds_dsi_reg)) {
-			DSSERR("can't get VDDS_DSI regulator\n");
-			return PTR_ERR(dpi.vdds_dsi_reg);
-		}
-	}
-
 	return 0;
 }
 
