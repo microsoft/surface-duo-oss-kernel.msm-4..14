@@ -748,4 +748,5 @@ module_exit(omap_gpu_fini);
 
 MODULE_AUTHOR("Rob Clark <rob@ti.com>");
 MODULE_DESCRIPTION("OMAP DRM Display Driver");
+MODULE_ALIAS("platform:" DRIVER_NAME);
 MODULE_LICENSE("GPL v2");
