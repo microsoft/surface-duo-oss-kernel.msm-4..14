@@ -168,9 +168,9 @@ static struct i2c_board_info i2c_devs1[] __initdata = {
 };
 
 static struct platform_device *smdkv310_devices[] __initdata = {
+	&s3c_device_hsmmc2,
 	&s3c_device_hsmmc0,
 	&s3c_device_hsmmc1,
-	&s3c_device_hsmmc2,
 	&s3c_device_hsmmc3,
 	&s3c_device_i2c1,
 	&s3c_device_rtc,
