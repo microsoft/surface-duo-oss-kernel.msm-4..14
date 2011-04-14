@@ -1,18 +1,10 @@
 /dts-v1/;
+/include/ "skeleton.dtsi"
 
 / {
 	model = "ARM Versatile Express";
 	compatible = "arm,vexpress";
-
-	#address-cells = <1>;
-	#size-cells = <1>;
-
-	aliases { };
-
-	chosen { };
-
 	memory {
-		device_type = "memory";
 		reg = <0x60000000 0x40000000>;
 	};
 };
