@@ -262,15 +262,12 @@ EXPORT_SYMBOL(drm_init);
 
 void drm_exit(struct drm_driver *driver)
 {
-	struct drm_device *dev, *tmp;
 	DRM_DEBUG("\n");
 
-	if (driver->driver_features & DRIVER_MODESET) {
-		pci_unregister_driver(&driver->pci_driver);
-	} else {
-		list_for_each_entry_safe(dev, tmp, &driver->device_list, driver_item)
-			drm_put_dev(dev);
-	}
+	if (driver->driver_features & DRIVER_USE_PLATFORM_DEVICE)
+		drm_platform_exit(driver);
+	else
+		drm_pci_exit(driver);
 
 	DRM_INFO("Module unloaded\n");
 }

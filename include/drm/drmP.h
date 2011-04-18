@@ -896,7 +896,7 @@ struct drm_driver {
 	int num_ioctls;
 	struct file_operations fops;
 	struct pci_driver pci_driver;
-	struct platform_device *platform_device;
+	struct platform_driver platform_driver;
 	/* List of devices hanging off this driver */
 	struct list_head device_list;
 };
@@ -1656,6 +1656,8 @@ static inline void *drm_get_device(struct drm_device *dev)
 
 extern int drm_platform_init(struct drm_driver *driver);
 extern int drm_pci_init(struct drm_driver *driver);
+extern void drm_platform_exit(struct drm_driver *driver);
+extern void drm_pci_exit(struct drm_driver *driver);
 extern int drm_fill_in_dev(struct drm_device *dev,
 			   const struct pci_device_id *ent,
 			   struct drm_driver *driver);
