@@ -14,6 +14,7 @@
 #include <linux/string.h>
 #include <linux/fb.h>
 #include <asm/types.h>
+#include "fb_draw.h"
 
 #define DEBUG
 
@@ -80,6 +81,7 @@ static void color_imageblit(const struct fb_image *image, struct fb_info *p,
 			else
 				color = *src;
 			color <<= FB_LEFT_POS(p, bpp);
+			color = solid_color(p, color);
 			val |= FB_SHIFT_HIGH(p, color, shift);
 			if (shift >= null_bits) {
 				*dst++ = val;
@@ -265,8 +267,8 @@ void sys_imageblit(struct fb_info *p, const struct fb_image *image)
 			fgcolor = ((u32*)(p->pseudo_palette))[image->fg_color];
 			bgcolor = ((u32*)(p->pseudo_palette))[image->bg_color];
 		} else {
-			fgcolor = image->fg_color;
-			bgcolor = image->bg_color;
+			fgcolor = solid_color(p, image->fg_color);
+			bgcolor = solid_color(p, image->bg_color);
 		}
 
 		if (32 % bpp == 0 && !start_index && !pitch_index &&

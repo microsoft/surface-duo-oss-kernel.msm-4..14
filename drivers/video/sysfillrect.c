@@ -256,7 +256,7 @@ void sys_fillrect(struct fb_info *p, const struct fb_fillrect *rect)
 	    p->fix.visual == FB_VISUAL_DIRECTCOLOR )
 		fg = ((u32 *) (p->pseudo_palette))[rect->color];
 	else
-		fg = rect->color;
+		fg = solid_color(p, rect->color);
 
 	pat = pixel_to_pat( bpp, fg);
 

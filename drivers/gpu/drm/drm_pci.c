@@ -263,11 +263,28 @@ int drm_pci_init(struct drm_driver *driver)
 	return 0;
 }
 
+void drm_pci_exit(struct drm_driver *driver)
+{
+	struct drm_device *dev, *tmp;
+
+	if (driver->driver_features & DRIVER_MODESET) {
+		pci_unregister_driver(&driver->pci_driver);
+	} else {
+		list_for_each_entry_safe(dev, tmp, &driver->device_list,
+				driver_item)
+		drm_put_dev(dev);
+	}
+}
+
 #else
 
 int drm_pci_init(struct drm_driver *driver)
 {
 	return -1;
+}
+
+void drm_pci_exit(struct drm_driver *driver)
+{
 }
 
 #endif

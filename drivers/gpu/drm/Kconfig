@@ -165,3 +165,27 @@ config DRM_SAVAGE
 	help
 	  Choose this option if you have a Savage3D/4/SuperSavage/Pro/Twister
 	  chipset. If M is selected the module will be called savage.
+
+config DRM_OMAP
+	tristate "OMAP GPU (EXPERIMENTAL)"
+	depends on DRM && !CONFIG_FB_OMAP2
+	select DRM_KMS_HELPER
+	select OMAP2_VRAM
+	select OMAP2_DSS
+	select FB_SYS_FILLRECT
+	select FB_SYS_COPYAREA
+	select FB_SYS_IMAGEBLIT
+	select FB_SYS_FOPS
+	default y
+	help
+	  DRM display driver for OMAP2/3/4 based boards.
+
+config DRM_OMAP_NUM_CRTCS
+	int "Number of CRTCs"
+	range 1 10
+	default 1  if ARCH_OMAP2 || ARCH_OMAP3
+	default 2  if ARCH_OMAP4
+	depends on DRM_OMAP
+	help
+	  Select the number of video overlays which can be used as framebuffers.
+	  The remaining overlays are reserved for video.

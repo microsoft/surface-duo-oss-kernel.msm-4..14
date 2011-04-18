@@ -247,5 +247,30 @@ extern int s3c_gpio_setpull_s3c2443(struct s3c_gpio_chip *chip,
 extern s3c_gpio_pull_t s3c_gpio_getpull_s3c2443(struct s3c_gpio_chip *chip,
 						unsigned int off);
 
+/**
+ * s3c_gpio_setpull_exynos4() - Pull configuration for Exynos 4210.
+ * @chip: The gpio chip that is being configured.
+ * @off: The offset for the GPIO being configured.
+ * @param: pull: The pull mode being requested.
+ *
+ * This is a wrapper function for s3c_gpio_setpull_updown() function.
+ * It provides a different mapping of S3C_GPIO_PULL_XXX to actual
+ * register settings.
+ */
+extern int s3c_gpio_setpull_exynos4(struct s3c_gpio_chip *chip,
+				   unsigned int off, s3c_gpio_pull_t pull);
+
+/**
+ * s3c_gpio_getpull_exynos4() - Get configuration for Exynos 4210 pull resistors
+ * @chip: The gpio chip that the GPIO pin belongs to
+ * @off: The offset to the pin to get the configuration of.
+ *
+ * This is a wrapper function for s3c_gpio_getpull_updown() function.
+ * It provides a different mapping of S3C_GPIO_PULL_XXX to actual
+ * register settings.
+*/
+extern s3c_gpio_pull_t s3c_gpio_getpull_exynos4(struct s3c_gpio_chip *chip,
+					       unsigned int off);
+
 #endif /* __PLAT_GPIO_CFG_HELPERS_H */
 

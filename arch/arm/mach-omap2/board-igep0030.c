@@ -447,6 +447,11 @@ static void __init igep3_init(void)
 
 }
 
+static const char *igep3_dt_compat[] __initdata = {
+	"ISEE,igep-v3",
+	NULL
+};
+
 MACHINE_START(IGEP0030, "IGEP OMAP3 module")
 	.boot_params	= 0x80000100,
 	.reserve	= omap_reserve,
@@ -455,4 +460,5 @@ MACHINE_START(IGEP0030, "IGEP OMAP3 module")
 	.init_irq	= omap_init_irq,
 	.init_machine	= igep3_init,
 	.timer		= &omap_timer,
+	.dt_compat	= &igep3_dt_compat,
 MACHINE_END

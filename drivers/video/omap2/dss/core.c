@@ -434,6 +434,12 @@ int omap_dss_register_driver(struct omap_dss_driver *dssdriver)
 	if (dssdriver->get_recommended_bpp == NULL)
 		dssdriver->get_recommended_bpp =
 			omapdss_default_get_recommended_bpp;
+	if (!dssdriver->check_timings)
+		dssdriver->check_timings = omapdss_default_check_timings;
+	if (!dssdriver->get_timings)
+		dssdriver->get_timings = omapdss_default_get_timings;
+	if (!dssdriver->is_detected)
+		dssdriver->is_detected = omapdss_default_is_detected;
 
 	return driver_register(&dssdriver->driver);
 }
@@ -491,6 +497,9 @@ int omap_dss_register_device(struct omap_dss_device *dssdev)
 	dssdev->dev.parent = &dss_bus;
 	dssdev->dev.release = omap_dss_dev_release;
 	dev_set_name(&dssdev->dev, "display%d", dev_num++);
+
+	BLOCKING_INIT_NOTIFIER_HEAD(&dssdev->notifier);
+
 	return device_register(&dssdev->dev);
 }
 

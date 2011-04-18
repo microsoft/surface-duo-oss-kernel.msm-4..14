@@ -15,6 +15,20 @@ comp(unsigned long a, unsigned long b, unsigned long mask)
     return ((a ^ b) & mask) ^ b;
 }
 
+/* if framebuffer has alpha channel, mask in the appropriate
+ * bit(s) to make the specified color opaque
+ */
+static inline unsigned long
+solid_color(struct fb_info *p, unsigned long color)
+{
+	if (p->var.transp.length > 0) {
+		u32 mask = (1 << p->var.transp.length) - 1;
+		mask <<= p->var.transp.offset;
+		color |= mask;
+	}
+	return color;
+}
+
     /*
      *  Create a pattern with the given pixel's color
      */

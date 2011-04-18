@@ -278,6 +278,7 @@ header-y += nl80211.h
 header-y += nubus.h
 header-y += nvram.h
 header-y += omapfb.h
+header-y += omap_gpu.h
 header-y += oom.h
 header-y += param.h
 header-y += parport.h
