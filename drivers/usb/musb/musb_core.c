@@ -555,7 +555,6 @@ static irqreturn_t musb_stage0_irq(struct musb *musb, u8 int_usb,
 		musb->ep0_stage = MUSB_EP0_START;
 		musb->xceiv->state = OTG_STATE_A_IDLE;
 		MUSB_HST_MODE(musb);
-		musb_platform_set_vbus(musb, 1);
 
 		handled = IRQ_HANDLED;
 	}
@@ -1836,6 +1835,9 @@ static void musb_irq_work(struct work_struct *data)
 {
 	struct musb *musb = container_of(data, struct musb, irq_work);
 	static int old_state;
+
+	if(musb->xceiv->state = OTG_STATE_A_IDLE)
+		musb_platform_set_vbus(musb, 1);
 
 	if (musb->xceiv->state != old_state) {
 		old_state = musb->xceiv->state;
