@@ -847,12 +847,16 @@ b_host:
 				DBG(1, "HNP: in %s, %d msec timeout\n",
 						otg_state_string(musb),
 						TA_WAIT_BCON(musb));
+#ifdef  CONFIG_USB_MUSB_OTG
 				mod_timer(&musb->otg_timer, jiffies
 					+ msecs_to_jiffies(TA_WAIT_BCON(musb)));
+#endif
 				break;
 			case OTG_STATE_A_PERIPHERAL:
 				musb->ignore_disconnect = 0;
+#ifdef  CONFIG_USB_MUSB_OTG
 				del_timer(&musb->otg_timer);
+#endif
 				musb_g_reset(musb);
 				break;
 			case OTG_STATE_B_WAIT_ACON:
