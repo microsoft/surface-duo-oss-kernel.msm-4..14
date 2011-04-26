@@ -136,8 +136,9 @@ static void __init omap3_beagle_init_rev(void)
 		omap3_beagle_version = OMAP3BEAGLE_BOARD_XMC;
 		break;
 	default:
-		printk(KERN_INFO "OMAP3 Beagle Rev: unknown %hd\n", beagle_rev);
-		omap3_beagle_version = OMAP3BEAGLE_BOARD_UNKN;
+		printk(KERN_INFO "OMAP3 Beagle Rev: unknown %hd, "
+				 "assuming xM C or newer\n", beagle_rev);
+		omap3_beagle_version = OMAP3BEAGLE_BOARD_XMC;
 	}
 
 	return;
