@@ -30,20 +30,7 @@ unsigned int __machine_arch_type;
 static void putstr(const char *ptr);
 extern void error(char *x);
 
-/*
- * Many instances of mach/uncompress.h are including global variables.
- * Contrary to standard usage, we should _not_ mark those variables
- * static otherwise they get accessed via GOTOFF references which cannot
- * be modified at run time.  The entry code in head.S relies on the ability
- * to move writable sections around, and for that to work, we must have all
- * references going through the GOT which works only with non static
- * variables.  So, instead of asking for a non intuitive requirement
- * making many files non standard according to accepted coding practices
- * we fix the issue here by simply defining the static keyword to nothing.
- */
-#define static /* non-static */
 #include <mach/uncompress.h>
-#undef static
 
 #ifdef CONFIG_DEBUG_ICEDCC
 
