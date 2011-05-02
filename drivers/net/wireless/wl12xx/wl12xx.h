@@ -302,6 +302,7 @@ struct wl1271_if_operations {
 	struct device* (*dev)(struct wl1271 *wl);
 	void (*enable_irq)(struct wl1271 *wl);
 	void (*disable_irq)(struct wl1271 *wl);
+	void (*set_block_size) (struct wl1271 *wl);
 };
 
 #define MAX_NUM_KEYS 14
@@ -531,6 +532,8 @@ struct wl1271 {
 	/* RX BA constraint value */
 	bool ba_support;
 	u8 ba_rx_bitmap;
+
+	u32 block_size;
 
 	/*
 	 * AP-mode - links indexed by HLID. The global and broadcast links
