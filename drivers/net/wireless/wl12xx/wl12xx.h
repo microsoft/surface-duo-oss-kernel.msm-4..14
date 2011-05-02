@@ -319,7 +319,6 @@ enum wl12xx_flags {
 	WL1271_FLAG_IN_ELP,
 	WL1271_FLAG_PSM,
 	WL1271_FLAG_PSM_REQUESTED,
-	WL1271_FLAG_IRQ_PENDING,
 	WL1271_FLAG_IRQ_RUNNING,
 	WL1271_FLAG_IDLE,
 	WL1271_FLAG_IDLE_REQUESTED,
@@ -403,6 +402,12 @@ struct wl1271 {
 	struct sk_buff_head tx_queue[NUM_TX_QUEUES];
 	int tx_queue_count;
 
+	/* Frames received, not handled yet by mac80211 */
+	struct sk_buff_head deferred_rx_queue;
+
+	/* Frames sent, not returned yet to mac80211 */
+	struct sk_buff_head deferred_tx_queue;
+
 	struct work_struct tx_work;
 
 	/* Pending TX frames */
@@ -423,8 +428,8 @@ struct wl1271 {
 	/* Intermediate buffer, used for packet aggregation */
 	u8 *aggr_buf;
 
-	/* The target interrupt mask */
-	struct work_struct irq_work;
+	/* Network stack work  */
+	struct work_struct netstack_work;
 
 	/* Hardware recovery work */
 	struct work_struct recovery_work;
@@ -554,6 +559,8 @@ int wl1271_plt_stop(struct wl1271 *wl);
 
 #define WL1271_TX_QUEUE_LOW_WATERMARK  10
 #define WL1271_TX_QUEUE_HIGH_WATERMARK 25
+
+#define WL1271_DEFERRED_QUEUE_LIMIT    64
 
 /* WL1271 needs a 200ms sleep after power on, and a 20ms sleep before power
    on in case is has been shut down shortly before */
