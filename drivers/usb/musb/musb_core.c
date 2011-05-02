@@ -555,7 +555,6 @@ static irqreturn_t musb_stage0_irq(struct musb *musb, u8 int_usb,
 		musb->ep0_stage = MUSB_EP0_START;
 		musb->xceiv->state = OTG_STATE_A_IDLE;
 		MUSB_HST_MODE(musb);
-		musb_platform_set_vbus(musb, 1);
 
 		handled = IRQ_HANDLED;
 	}
@@ -848,12 +847,16 @@ b_host:
 				DBG(1, "HNP: in %s, %d msec timeout\n",
 						otg_state_string(musb),
 						TA_WAIT_BCON(musb));
+#ifdef  CONFIG_USB_MUSB_OTG
 				mod_timer(&musb->otg_timer, jiffies
 					+ msecs_to_jiffies(TA_WAIT_BCON(musb)));
+#endif
 				break;
 			case OTG_STATE_A_PERIPHERAL:
 				musb->ignore_disconnect = 0;
+#ifdef  CONFIG_USB_MUSB_OTG
 				del_timer(&musb->otg_timer);
+#endif
 				musb_g_reset(musb);
 				break;
 			case OTG_STATE_B_WAIT_ACON:
@@ -1729,6 +1732,8 @@ musb_mode_store(struct device *dev, struct device_attribute *attr,
 	unsigned long	flags;
 	int		status;
 
+	pm_runtime_get_sync(musb->controller);
+
 	spin_lock_irqsave(&musb->lock, flags);
 	if (sysfs_streq(buf, "host"))
 		status = musb_platform_set_mode(musb, MUSB_HOST);
@@ -1739,6 +1744,8 @@ musb_mode_store(struct device *dev, struct device_attribute *attr,
 	else
 		status = -EINVAL;
 	spin_unlock_irqrestore(&musb->lock, flags);
+
+	pm_runtime_put_sync(musb->controller);
 
 	return (status == 0) ? n : status;
 }
@@ -1836,6 +1843,9 @@ static void musb_irq_work(struct work_struct *data)
 {
 	struct musb *musb = container_of(data, struct musb, irq_work);
 	static int old_state;
+
+	if(musb->xceiv->state = OTG_STATE_A_IDLE)
+		musb_platform_set_vbus(musb, 1);
 
 	if (musb->xceiv->state != old_state) {
 		old_state = musb->xceiv->state;

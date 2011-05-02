@@ -99,7 +99,7 @@ static void wl1271_debugfs_update_stats(struct wl1271 *wl)
 
 	mutex_lock(&wl->mutex);
 
-	ret = wl1271_ps_elp_wakeup(wl, false);
+	ret = wl1271_ps_elp_wakeup(wl);
 	if (ret < 0)
 		goto out;
 
@@ -261,27 +261,25 @@ static ssize_t gpio_power_write(struct file *file,
 	unsigned long value;
 	int ret;
 
-	mutex_lock(&wl->mutex);
-
 	len = min(count, sizeof(buf) - 1);
 	if (copy_from_user(buf, user_buf, len)) {
-		ret = -EFAULT;
-		goto out;
+		return -EFAULT;
 	}
 	buf[len] = '\0';
 
-	ret = strict_strtoul(buf, 0, &value);
+	ret = kstrtoul(buf, 0, &value);
 	if (ret < 0) {
 		wl1271_warning("illegal value in gpio_power");
-		goto out;
+		return -EINVAL;
 	}
+
+	mutex_lock(&wl->mutex);
 
 	if (value)
 		wl1271_power_on(wl);
 	else
 		wl1271_power_off(wl);
 
-out:
 	mutex_unlock(&wl->mutex);
 	return count;
 }
@@ -293,12 +291,143 @@ static const struct file_operations gpio_power_ops = {
 	.llseek = default_llseek,
 };
 
-static int wl1271_debugfs_add_files(struct wl1271 *wl)
+static ssize_t dtim_interval_read(struct file *file, char __user *user_buf,
+				  size_t count, loff_t *ppos)
+{
+	struct wl1271 *wl = file->private_data;
+	u8 value;
+
+	if (wl->conf.conn.wake_up_event == CONF_WAKE_UP_EVENT_DTIM ||
+	    wl->conf.conn.wake_up_event == CONF_WAKE_UP_EVENT_N_DTIM)
+		value = wl->conf.conn.listen_interval;
+	else
+		value = 0;
+
+	return wl1271_format_buffer(user_buf, count, ppos, "%d\n", value);
+}
+
+static ssize_t dtim_interval_write(struct file *file,
+				   const char __user *user_buf,
+				   size_t count, loff_t *ppos)
+{
+	struct wl1271 *wl = file->private_data;
+	char buf[10];
+	size_t len;
+	unsigned long value;
+	int ret;
+
+	len = min(count, sizeof(buf) - 1);
+	if (copy_from_user(buf, user_buf, len))
+		return -EFAULT;
+	buf[len] = '\0';
+
+	ret = kstrtoul(buf, 0, &value);
+	if (ret < 0) {
+		wl1271_warning("illegal value for dtim_interval");
+		return -EINVAL;
+	}
+
+	if (value < 1 || value > 10) {
+		wl1271_warning("dtim value is not in valid range");
+		return -ERANGE;
+	}
+
+	mutex_lock(&wl->mutex);
+
+	wl->conf.conn.listen_interval = value;
+	/* for some reason there are different event types for 1 and >1 */
+	if (value == 1)
+		wl->conf.conn.wake_up_event = CONF_WAKE_UP_EVENT_DTIM;
+	else
+		wl->conf.conn.wake_up_event = CONF_WAKE_UP_EVENT_N_DTIM;
+
+	/*
+	 * we don't reconfigure ACX_WAKE_UP_CONDITIONS now, so it will only
+	 * take effect on the next time we enter psm.
+	 */
+	mutex_unlock(&wl->mutex);
+	return count;
+}
+
+static const struct file_operations dtim_interval_ops = {
+	.read = dtim_interval_read,
+	.write = dtim_interval_write,
+	.open = wl1271_open_file_generic,
+	.llseek = default_llseek,
+};
+
+static ssize_t beacon_interval_read(struct file *file, char __user *user_buf,
+				    size_t count, loff_t *ppos)
+{
+	struct wl1271 *wl = file->private_data;
+	u8 value;
+
+	if (wl->conf.conn.wake_up_event == CONF_WAKE_UP_EVENT_BEACON ||
+	    wl->conf.conn.wake_up_event == CONF_WAKE_UP_EVENT_N_BEACONS)
+		value = wl->conf.conn.listen_interval;
+	else
+		value = 0;
+
+	return wl1271_format_buffer(user_buf, count, ppos, "%d\n", value);
+}
+
+static ssize_t beacon_interval_write(struct file *file,
+				     const char __user *user_buf,
+				     size_t count, loff_t *ppos)
+{
+	struct wl1271 *wl = file->private_data;
+	char buf[10];
+	size_t len;
+	unsigned long value;
+	int ret;
+
+	len = min(count, sizeof(buf) - 1);
+	if (copy_from_user(buf, user_buf, len))
+		return -EFAULT;
+	buf[len] = '\0';
+
+	ret = kstrtoul(buf, 0, &value);
+	if (ret < 0) {
+		wl1271_warning("illegal value for beacon_interval");
+		return -EINVAL;
+	}
+
+	if (value < 1 || value > 255) {
+		wl1271_warning("beacon interval value is not in valid range");
+		return -ERANGE;
+	}
+
+	mutex_lock(&wl->mutex);
+
+	wl->conf.conn.listen_interval = value;
+	/* for some reason there are different event types for 1 and >1 */
+	if (value == 1)
+		wl->conf.conn.wake_up_event = CONF_WAKE_UP_EVENT_BEACON;
+	else
+		wl->conf.conn.wake_up_event = CONF_WAKE_UP_EVENT_N_BEACONS;
+
+	/*
+	 * we don't reconfigure ACX_WAKE_UP_CONDITIONS now, so it will only
+	 * take effect on the next time we enter psm.
+	 */
+	mutex_unlock(&wl->mutex);
+	return count;
+}
+
+static const struct file_operations beacon_interval_ops = {
+	.read = beacon_interval_read,
+	.write = beacon_interval_write,
+	.open = wl1271_open_file_generic,
+	.llseek = default_llseek,
+};
+
+static int wl1271_debugfs_add_files(struct wl1271 *wl,
+				     struct dentry *rootdir)
 {
 	int ret = 0;
 	struct dentry *entry, *stats;
 
-	stats = debugfs_create_dir("fw-statistics", wl->rootdir);
+	stats = debugfs_create_dir("fw-statistics", rootdir);
 	if (!stats || IS_ERR(stats)) {
 		entry = stats;
 		goto err;
@@ -395,16 +524,13 @@ static int wl1271_debugfs_add_files(struct wl1271 *wl)
 	DEBUGFS_FWSTATS_ADD(rxpipe, missed_beacon_host_int_trig_rx_data);
 	DEBUGFS_FWSTATS_ADD(rxpipe, tx_xfr_host_int_trig_rx_data);
 
-	DEBUGFS_ADD(tx_queue_len, wl->rootdir);
-	DEBUGFS_ADD(retry_count, wl->rootdir);
-	DEBUGFS_ADD(excessive_retries, wl->rootdir);
+	DEBUGFS_ADD(tx_queue_len, rootdir);
+	DEBUGFS_ADD(retry_count, rootdir);
+	DEBUGFS_ADD(excessive_retries, rootdir);
 
-	DEBUGFS_ADD(gpio_power, wl->rootdir);
-
-	entry = debugfs_create_x32("debug_level", 0600, wl->rootdir,
-				   &wl12xx_debug_level);
-	if (!entry || IS_ERR(entry))
-		goto err;
+	DEBUGFS_ADD(gpio_power, rootdir);
+	DEBUGFS_ADD(dtim_interval, rootdir);
+	DEBUGFS_ADD(beacon_interval, rootdir);
 
 	return 0;
 
@@ -419,7 +545,7 @@ err:
 
 void wl1271_debugfs_reset(struct wl1271 *wl)
 {
-	if (!wl->rootdir)
+	if (!wl->stats.fw_stats)
 		return;
 
 	memset(wl->stats.fw_stats, 0, sizeof(*wl->stats.fw_stats));
@@ -430,13 +556,13 @@ void wl1271_debugfs_reset(struct wl1271 *wl)
 int wl1271_debugfs_init(struct wl1271 *wl)
 {
 	int ret;
+	struct dentry *rootdir;
 
-	wl->rootdir = debugfs_create_dir(KBUILD_MODNAME,
-					 wl->hw->wiphy->debugfsdir);
+	rootdir = debugfs_create_dir(KBUILD_MODNAME,
+				     wl->hw->wiphy->debugfsdir);
 
-	if (IS_ERR(wl->rootdir)) {
-		ret = PTR_ERR(wl->rootdir);
-		wl->rootdir = NULL;
+	if (IS_ERR(rootdir)) {
+		ret = PTR_ERR(rootdir);
 		goto err;
 	}
 
@@ -450,7 +576,7 @@ int wl1271_debugfs_init(struct wl1271 *wl)
 
 	wl->stats.fw_stats_update = jiffies;
 
-	ret = wl1271_debugfs_add_files(wl);
+	ret = wl1271_debugfs_add_files(wl, rootdir);
 
 	if (ret < 0)
 		goto err_file;
@@ -462,8 +588,7 @@ err_file:
 	wl->stats.fw_stats = NULL;
 
 err_fw:
-	debugfs_remove_recursive(wl->rootdir);
-	wl->rootdir = NULL;
+	debugfs_remove_recursive(rootdir);
 
 err:
 	return ret;
@@ -473,8 +598,4 @@ void wl1271_debugfs_exit(struct wl1271 *wl)
 {
 	kfree(wl->stats.fw_stats);
 	wl->stats.fw_stats = NULL;
-
-	debugfs_remove_recursive(wl->rootdir);
-	wl->rootdir = NULL;
-
 }

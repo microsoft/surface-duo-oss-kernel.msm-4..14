@@ -33,6 +33,7 @@ void wl1271_pspoll_work(struct work_struct *work)
 {
 	struct delayed_work *dwork;
 	struct wl1271 *wl;
+	int ret;
 
 	dwork = container_of(work, struct delayed_work, work);
 	wl = container_of(dwork, struct wl1271, pspoll_work);
@@ -55,8 +56,13 @@ void wl1271_pspoll_work(struct work_struct *work)
 	 * delivery failure occurred, and no-one changed state since, so
 	 * we should go back to powersave.
 	 */
+	ret = wl1271_ps_elp_wakeup(wl);
+	if (ret < 0)
+		goto out;
+
 	wl1271_ps_set_mode(wl, STATION_POWER_SAVE_MODE, wl->basic_rate, true);
 
+	wl1271_ps_elp_sleep(wl);
 out:
 	mutex_unlock(&wl->mutex);
 };
@@ -129,26 +135,7 @@ static int wl1271_event_ps_report(struct wl1271 *wl,
 
 		/* enable beacon early termination */
 		ret = wl1271_acx_bet_enable(wl, true);
-		if (ret < 0)
-			break;
-
-		/* go to extremely low power mode */
-		wl1271_ps_elp_sleep(wl);
 		break;
-	case EVENT_EXIT_POWER_SAVE_FAIL:
-		wl1271_debug(DEBUG_PSM, "PSM exit failed");
-
-		if (test_bit(WL1271_FLAG_PSM, &wl->flags)) {
-			wl->psm_entry_retry = 0;
-			break;
-		}
-
-		/* make sure the firmware goes to active mode - the frame to
-		   be sent next will indicate to the AP, that we are active. */
-		ret = wl1271_ps_set_mode(wl, STATION_ACTIVE_MODE,
-					 wl->basic_rate, false);
-		break;
-	case EVENT_EXIT_POWER_SAVE_SUCCESS:
 	default:
 		break;
 	}
@@ -186,6 +173,9 @@ static int wl1271_event_process(struct wl1271 *wl, struct event_mailbox *mbox)
 	int ret;
 	u32 vector;
 	bool beacon_loss = false;
+	bool is_ap = (wl->bss_type == BSS_TYPE_AP_BSS);
+	bool disconnect_sta = false;
+	unsigned long sta_bitmap = 0;
 
 	wl1271_event_mbox_dump(mbox);
 
@@ -218,21 +208,21 @@ static int wl1271_event_process(struct wl1271 *wl, struct event_mailbox *mbox)
 	 * BSS_LOSE_EVENT, beacon loss has to be reported to the stack.
 	 *
 	 */
-	if (vector & BSS_LOSE_EVENT_ID) {
+	if ((vector & BSS_LOSE_EVENT_ID) && !is_ap) {
 		wl1271_info("Beacon loss detected.");
 
 		/* indicate to the stack, that beacons have been lost */
 		beacon_loss = true;
 	}
 
-	if (vector & PS_REPORT_EVENT_ID) {
+	if ((vector & PS_REPORT_EVENT_ID) && !is_ap) {
 		wl1271_debug(DEBUG_EVENT, "PS_REPORT_EVENT");
 		ret = wl1271_event_ps_report(wl, mbox, &beacon_loss);
 		if (ret < 0)
 			return ret;
 	}
 
-	if (vector & PSPOLL_DELIVERY_FAILURE_EVENT_ID)
+	if ((vector & PSPOLL_DELIVERY_FAILURE_EVENT_ID) && !is_ap)
 		wl1271_event_pspoll_delivery_fail(wl);
 
 	if (vector & RSSI_SNR_TRIGGER_0_EVENT_ID) {
@@ -241,8 +231,61 @@ static int wl1271_event_process(struct wl1271 *wl, struct event_mailbox *mbox)
 			wl1271_event_rssi_trigger(wl, mbox);
 	}
 
+	if ((vector & DUMMY_PACKET_EVENT_ID) && !is_ap) {
+		wl1271_debug(DEBUG_EVENT, "DUMMY_PACKET_ID_EVENT_ID");
+		if (wl->vif)
+			wl1271_tx_dummy_packet(wl);
+	}
+
+	/*
+	 * "TX retries exceeded" has a different meaning according to mode.
+	 * In AP mode the offending station is disconnected. In STA mode we
+	 * report connection loss.
+	 */
+	if (vector & MAX_TX_RETRY_EVENT_ID) {
+		wl1271_debug(DEBUG_EVENT, "MAX_TX_RETRY_EVENT_ID");
+		if (is_ap) {
+			sta_bitmap |= le16_to_cpu(mbox->sta_tx_retry_exceeded);
+			disconnect_sta = true;
+		} else {
+			beacon_loss = true;
+		}
+	}
+
+	if ((vector & INACTIVE_STA_EVENT_ID) && is_ap) {
+		wl1271_debug(DEBUG_EVENT, "INACTIVE_STA_EVENT_ID");
+		sta_bitmap |= le16_to_cpu(mbox->sta_aging_status);
+		disconnect_sta = true;
+	}
+
 	if (wl->vif && beacon_loss)
 		ieee80211_connection_loss(wl->vif);
+
+	if (is_ap && disconnect_sta) {
+		u32 num_packets = wl->conf.tx.max_tx_retries;
+		struct ieee80211_sta *sta;
+		const u8 *addr;
+		int h;
+
+		for (h = find_first_bit(&sta_bitmap, AP_MAX_LINKS);
+		     h < AP_MAX_LINKS;
+		     h = find_next_bit(&sta_bitmap, AP_MAX_LINKS, h+1)) {
+			if (!wl1271_is_active_sta(wl, h))
+				continue;
+
+			addr = wl->links[h].addr;
+
+			rcu_read_lock();
+			sta = ieee80211_find_sta(wl->vif, addr);
+			if (sta) {
+				wl1271_debug(DEBUG_EVENT, "remove sta %d", h);
+#if 0
+				ieee80211_report_low_ack(sta, num_packets);
+#endif
+			}
+			rcu_read_unlock();
+		}
+	}
 
 	return 0;
 }

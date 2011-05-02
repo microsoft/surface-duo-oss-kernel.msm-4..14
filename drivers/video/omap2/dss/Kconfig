@@ -56,6 +56,7 @@ config OMAP2_DSS_RFBI
 
 config OMAP2_DSS_VENC
 	bool "VENC support"
+	depends on BROKEN
         default y
 	help
 	  OMAP Video Encoder support for S-Video and composite TV-out.
