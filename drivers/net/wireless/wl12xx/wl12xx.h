@@ -112,8 +112,8 @@ extern u32 wl12xx_debug_level;
 				  CFG_RX_CTL_EN | CFG_RX_BCN_EN |     \
 				  CFG_RX_AUTH_EN | CFG_RX_ASSOC_EN)
 
-#define WL1271_FW_NAME "wl1271-fw.bin"
-#define WL1271_NVS_NAME "wl1271-nvs.bin"
+#define WL1271_FW_NAME "ti-connectivity/wl1271-fw.bin"
+#define WL1271_NVS_NAME "ti-connectivity/wl1271-nvs.bin"
 
 #define WL1271_TX_SECURITY_LO16(s) ((u16)((s) & 0xffff))
 #define WL1271_TX_SECURITY_HI32(s) ((u32)(((s) >> 16) & 0xffffffff))
