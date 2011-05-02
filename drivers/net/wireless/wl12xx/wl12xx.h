@@ -124,6 +124,8 @@ extern u32 wl12xx_debug_level;
 				  CFG_RX_ASSOC_EN)
 
 
+#define WL1271_AP_FW_NAME "ti-connectivity/wl1271-fw-ap.bin"
+
 #define WL1271_TX_SECURITY_LO16(s) ((u16)((s) & 0xffff))
 #define WL1271_TX_SECURITY_HI32(s) ((u32)(((s) >> 16) & 0xffffffff))
 
@@ -309,6 +311,7 @@ struct wl1271 {
 
 	u8 *fw;
 	size_t fw_len;
+	u8 fw_bss_type;
 	struct wl1271_nvs_file *nvs;
 	size_t nvs_len;
 
