@@ -471,7 +471,6 @@ struct wl1271 {
 
 	/* RX BA constraint value */
 	bool ba_support;
-	u8 ba_allowed;
 	u8 ba_rx_bitmap;
 };
 
