@@ -121,8 +121,6 @@ extern u32 wl12xx_debug_level;
 				  CFG_RX_CTL_EN | CFG_RX_BCN_EN |     \
 				  CFG_RX_AUTH_EN | CFG_RX_ASSOC_EN)
 
-#define WL1271_FW_NAME "ti-connectivity/wl1271-fw-2.bin"
-#define WL1271_NVS_NAME "ti-connectivity/wl1271-nvs.bin"
 #define WL1271_DEFAULT_AP_RX_CONFIG  0
 
 #define WL1271_DEFAULT_AP_RX_FILTER  (CFG_RX_RCTS_ACK | CFG_RX_PREQ_EN | \
@@ -131,8 +129,10 @@ extern u32 wl12xx_debug_level;
 				  CFG_RX_ASSOC_EN)
 
 
+#define WL1271_FW_NAME "ti-connectivity/wl1271-fw-2.bin"
 #define WL1271_AP_FW_NAME "ti-connectivity/wl1271-fw-ap.bin"
-#define WL1271_AP_FW_NAME "wl1271-fw-ap.bin"
+
+#define WL1271_NVS_NAME "ti-connectivity/wl1271-nvs.bin"
 
 #define WL1271_TX_SECURITY_LO16(s) ((u16)((s) & 0xffff))
 #define WL1271_TX_SECURITY_HI32(s) ((u32)(((s) >> 16) & 0xffffffff))
