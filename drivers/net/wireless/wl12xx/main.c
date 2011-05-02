@@ -3088,11 +3088,21 @@ out:
 	return ret;
 }
 
+/*
+ *         int (*ampdu_action)(struct ieee80211_hw *hw,
+                            struct ieee80211_vif *vif,
+                            enum ieee80211_ampdu_mlme_action action,
+                            struct ieee80211_sta *sta, u16 tid, u16 *ssn);
+*/
+
 static int wl1271_op_ampdu_action(struct ieee80211_hw *hw,
 				  struct ieee80211_vif *vif,
 				  enum ieee80211_ampdu_mlme_action action,
-				  struct ieee80211_sta *sta, u16 tid, u16 *ssn,
-				  u8 buf_size)
+				  struct ieee80211_sta *sta, u16 tid, u16 *ssn
+#if 0
+				  , u8 buf_size
+#endif
+				  )
 {
 	struct wl1271 *wl = hw->priv;
 	int ret;
@@ -3422,7 +3432,9 @@ static const struct ieee80211_ops wl1271_ops = {
 	.sta_add = wl1271_op_sta_add,
 	.sta_remove = wl1271_op_sta_remove,
 	.ampdu_action = wl1271_op_ampdu_action,
+#if 0
 	.tx_frames_pending = wl1271_tx_frames_pending,
+#endif
 	CFG80211_TESTMODE_CMD(wl1271_tm_cmd)
 };
 
@@ -3609,8 +3621,11 @@ int wl1271_init_ieee80211(struct wl1271 *wl)
 		IEEE80211_HW_SUPPORTS_UAPSD |
 		IEEE80211_HW_HAS_RATE_CONTROL |
 		IEEE80211_HW_CONNECTION_MONITOR |
-		IEEE80211_HW_SUPPORTS_CQM_RSSI |
-		IEEE80211_HW_AP_LINK_PS;
+		IEEE80211_HW_SUPPORTS_CQM_RSSI
+#if 0
+		| IEEE80211_HW_AP_LINK_PS
+#endif
+		;
 
 	wl->hw->wiphy->cipher_suites = cipher_suites;
 	wl->hw->wiphy->n_cipher_suites = ARRAY_SIZE(cipher_suites);
@@ -3652,9 +3667,9 @@ int wl1271_init_ieee80211(struct wl1271 *wl)
 	SET_IEEE80211_DEV(wl->hw, wl1271_wl_to_dev(wl));
 
 	wl->hw->sta_data_size = sizeof(struct wl1271_station);
-
+#if 0
 	wl->hw->max_rx_aggregation_subframes = 8;
-
+#endif
 	return 0;
 }
 EXPORT_SYMBOL_GPL(wl1271_init_ieee80211);

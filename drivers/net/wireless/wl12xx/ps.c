@@ -234,7 +234,9 @@ void wl1271_ps_link_start(struct wl1271 *wl, u8 hlid, bool clean_queues)
 		return;
 	}
 
+#if 0
 	ieee80211_sta_ps_transition_ni(sta, true);
+#endif
 	rcu_read_unlock();
 
 	/* do we want to filter all frames from this link's queues? */
@@ -263,7 +265,9 @@ void wl1271_ps_link_end(struct wl1271 *wl, u8 hlid)
 		goto end;
 	}
 
+#if 0
 	ieee80211_sta_ps_transition_ni(sta, false);
+#endif
 end:
 	rcu_read_unlock();
 }

@@ -279,7 +279,9 @@ static int wl1271_event_process(struct wl1271 *wl, struct event_mailbox *mbox)
 			sta = ieee80211_find_sta(wl->vif, addr);
 			if (sta) {
 				wl1271_debug(DEBUG_EVENT, "remove sta %d", h);
+#if 0
 				ieee80211_report_low_ack(sta, num_packets);
+#endif
 			}
 			rcu_read_unlock();
 		}

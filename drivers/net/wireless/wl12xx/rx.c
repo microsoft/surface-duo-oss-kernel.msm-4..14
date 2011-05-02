@@ -72,8 +72,11 @@ static void wl1271_rx_status(struct wl1271 *wl,
 	 */
 	wl->noise = desc->rssi - (desc->snr >> 1);
 
-	status->freq = ieee80211_channel_to_frequency(desc->channel,
-						      status->band);
+	status->freq = ieee80211_channel_to_frequency(desc->channel
+#if 0
+	, status->band
+#endif
+	);
 
 	if (desc->flags & WL1271_RX_DESC_ENCRYPT_MASK) {
 		u8 desc_err_code = desc->status & WL1271_RX_DESC_STATUS_MASK;
