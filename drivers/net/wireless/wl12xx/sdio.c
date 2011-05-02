@@ -106,8 +106,6 @@ static void wl1271_sdio_raw_read(struct wl1271 *wl, int addr, void *buf,
 	int ret;
 	struct sdio_func *func = wl_to_func(wl);
 
-	sdio_claim_host(func);
-
 	if (unlikely(addr == HW_ACCESS_ELP_CTRL_REG_ADDR)) {
 		((u8 *)buf)[0] = sdio_f0_readb(func, addr, &ret);
 		wl1271_debug(DEBUG_SDIO, "sdio read 52 addr 0x%x, byte 0x%02x",
@@ -123,8 +121,6 @@ static void wl1271_sdio_raw_read(struct wl1271 *wl, int addr, void *buf,
 		wl1271_dump_ascii(DEBUG_SDIO, "data: ", buf, len);
 	}
 
-	sdio_release_host(func);
-
 	if (ret)
 		wl1271_error("sdio read failed (%d)", ret);
 }
@@ -134,8 +130,6 @@ static void wl1271_sdio_raw_write(struct wl1271 *wl, int addr, void *buf,
 {
 	int ret;
 	struct sdio_func *func = wl_to_func(wl);
-
-	sdio_claim_host(func);
 
 	if (unlikely(addr == HW_ACCESS_ELP_CTRL_REG_ADDR)) {
 		sdio_f0_writeb(func, ((u8 *)buf)[0], addr, &ret);
@@ -151,8 +145,6 @@ static void wl1271_sdio_raw_write(struct wl1271 *wl, int addr, void *buf,
 		else
 			ret = sdio_memcpy_toio(func, addr, buf, len);
 	}
-
-	sdio_release_host(func);
 
 	if (ret)
 		wl1271_error("sdio write failed (%d)", ret);
@@ -175,7 +167,6 @@ static int wl1271_sdio_power_on(struct wl1271 *wl)
 
 	sdio_claim_host(func);
 	sdio_enable_func(func);
-	sdio_release_host(func);
 
 out:
 	return ret;
@@ -186,7 +177,6 @@ static int wl1271_sdio_power_off(struct wl1271 *wl)
 	struct sdio_func *func = wl_to_func(wl);
 	int ret;
 
-	sdio_claim_host(func);
 	sdio_disable_func(func);
 	sdio_release_host(func);
 
