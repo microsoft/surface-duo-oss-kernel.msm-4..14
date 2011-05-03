@@ -53,6 +53,7 @@ static struct omap_hwmod omap44xx_emif_fw_hwmod;
 static struct omap_hwmod omap44xx_hsi_hwmod;
 static struct omap_hwmod omap44xx_ipu_hwmod;
 static struct omap_hwmod omap44xx_iss_hwmod;
+static struct omap_hwmod omap44xx_gpu_hwmod;
 static struct omap_hwmod omap44xx_iva_hwmod;
 static struct omap_hwmod omap44xx_l3_instr_hwmod;
 static struct omap_hwmod omap44xx_l3_main_1_hwmod;
@@ -322,14 +323,21 @@ static struct omap_hwmod_ocp_if omap44xx_dma_system__l3_main_2 = {
 /* hsi -> l3_main_2 */
 static struct omap_hwmod_ocp_if omap44xx_hsi__l3_main_2 = {
 	.master		= &omap44xx_hsi_hwmod,
+        .slave          = &omap44xx_l3_main_2_hwmod,
+        .clk            = "l3_div_ck",
+        .user           = OCP_USER_MPU | OCP_USER_SDMA,
+};
+/* gpu -> l3_main_2 */
+static struct omap_hwmod_ocp_if omap44xx_gpu__l3_main_2 = {
+	.master		= &omap44xx_gpu_hwmod,
 	.slave		= &omap44xx_l3_main_2_hwmod,
 	.clk		= "l3_div_ck",
 	.user		= OCP_USER_MPU | OCP_USER_SDMA,
 };
 
-/* ipu -> l3_main_2 */
-static struct omap_hwmod_ocp_if omap44xx_ipu__l3_main_2 = {
-	.master		= &omap44xx_ipu_hwmod,
+/* iva -> l3_main_2 */
+static struct omap_hwmod_ocp_if omap44xx_iva__l3_main_2 = {
+	.master		= &omap44xx_iva_hwmod,
 	.slave		= &omap44xx_l3_main_2_hwmod,
 	.clk		= "l3_div_ck",
 	.user		= OCP_USER_MPU | OCP_USER_SDMA,
@@ -343,9 +351,9 @@ static struct omap_hwmod_ocp_if omap44xx_iss__l3_main_2 = {
 	.user		= OCP_USER_MPU | OCP_USER_SDMA,
 };
 
-/* iva -> l3_main_2 */
-static struct omap_hwmod_ocp_if omap44xx_iva__l3_main_2 = {
-	.master		= &omap44xx_iva_hwmod,
+/* ipu -> l3_main_2 */
+static struct omap_hwmod_ocp_if omap44xx_ipu__l3_main_2 = {
+	.master		= &omap44xx_ipu_hwmod,
 	.slave		= &omap44xx_l3_main_2_hwmod,
 	.clk		= "l3_div_ck",
 	.user		= OCP_USER_MPU | OCP_USER_SDMA,
@@ -393,6 +401,7 @@ static struct omap_hwmod_ocp_if *omap44xx_l3_main_2_slaves[] = {
 	&omap44xx_iss__l3_main_2,
 	&omap44xx_iva__l3_main_2,
 	&omap44xx_l3_main_1__l3_main_2,
+	&omap44xx_gpu__l3_main_2,
 	&omap44xx_l4_cfg__l3_main_2,
 	&omap44xx_usb_otg_hs__l3_main_2,
 };
@@ -630,7 +639,6 @@ static struct omap_hwmod omap44xx_mpu_private_hwmod = {
  *  elm
  *  emif1
  *  emif2
- *  fdif
  *  gpmc
  *  gpu
  *  hdq1w
@@ -2070,6 +2078,43 @@ static struct omap_hwmod_addr_space omap44xx_hsi_addrs[] = {
 	{
 		.pa_start	= 0x4a058000,
 		.pa_end		= 0x4a05bfff,
+		.flags          = ADDR_TYPE_RT
+	}
+};
+
+/*
+ * 'gpu' class
+ * 2d/3d graphics accelerator
+ */
+
+static struct omap_hwmod_class_sysconfig omap44xx_gpu_sysc = {
+	.rev_offs	= 0xfe00,
+	.sysc_offs	= 0xfe10,
+	.sysc_flags	= (SYSC_HAS_MIDLEMODE | SYSC_HAS_SIDLEMODE),
+	.idlemodes	= (SIDLE_FORCE | SIDLE_NO | SIDLE_SMART |
+			   MSTANDBY_FORCE | MSTANDBY_NO | MSTANDBY_SMART),
+	.sysc_fields	= &omap_hwmod_sysc_type2,
+};
+
+static struct omap_hwmod_class omap44xx_gpu_hwmod_class = {
+	.name = "gpu",
+	.sysc = &omap44xx_gpu_sysc,
+};
+
+/* gpu */
+static struct omap_hwmod_irq_info omap44xx_gpu_irqs[] = {
+	{ .irq = 21 + OMAP44XX_IRQ_GIC_START },
+};
+
+/* gpu master ports */
+static struct omap_hwmod_ocp_if *omap44xx_gpu_masters[] = {
+	&omap44xx_gpu__l3_main_2,
+};
+
+static struct omap_hwmod_addr_space omap44xx_gpu_addrs[] = {
+	{
+		.pa_start	= 0x56000000,
+		.pa_end		= 0x5600ffff,
 		.flags		= ADDR_TYPE_RT
 	},
 };
@@ -2104,6 +2149,41 @@ static struct omap_hwmod omap44xx_hsi_hwmod = {
 	.slaves_cnt	= ARRAY_SIZE(omap44xx_hsi_slaves),
 	.masters	= omap44xx_hsi_masters,
 	.masters_cnt	= ARRAY_SIZE(omap44xx_hsi_masters),
+        .omap_chip      = OMAP_CHIP_INIT(CHIP_IS_OMAP4430),
+};
+
+
+/* l3_main_2 -> gpu */
+static struct omap_hwmod_ocp_if omap44xx_l3_main_2__gpu = {
+	.master		= &omap44xx_l3_main_2_hwmod,
+	.slave		= &omap44xx_gpu_hwmod,
+	.clk		= "l3_div_ck",
+	.addr		= omap44xx_gpu_addrs,
+	.addr_cnt	= ARRAY_SIZE(omap44xx_gpu_addrs),
+	.user		= OCP_USER_MPU | OCP_USER_SDMA,
+};
+
+/* gpu slave ports */
+static struct omap_hwmod_ocp_if *omap44xx_gpu_slaves[] = {
+	&omap44xx_l3_main_2__gpu,
+};
+
+static struct omap_hwmod omap44xx_gpu_hwmod = {
+	.name		= "gpu",
+	.class		= &omap44xx_gpu_hwmod_class,
+	.mpu_irqs	= omap44xx_gpu_irqs,
+	.mpu_irqs_cnt	= ARRAY_SIZE(omap44xx_gpu_irqs),
+	.main_clk	= "gpu_fck",
+	.vdd_name	= "core",
+	.prcm = {
+		.omap4 = {
+			.clkctrl_reg = OMAP4430_CM_GFX_GFX_CLKCTRL,
+		},
+	},
+	.slaves		= omap44xx_gpu_slaves,
+	.slaves_cnt	= ARRAY_SIZE(omap44xx_gpu_slaves),
+	.masters	= omap44xx_gpu_masters,
+	.masters_cnt	= ARRAY_SIZE(omap44xx_gpu_masters),
 	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP4430),
 };
 
