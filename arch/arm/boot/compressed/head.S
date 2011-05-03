@@ -229,7 +229,8 @@ restart:	adr	r0, LC0
 		cmp	r4, r10
 		bhs	wont_overwrite
 		add	r10, r4, r9
-		cmp	r10, pc
+		mov	lr, pc
+		cmp	r10, lr
 		bls	wont_overwrite
 
 /*
