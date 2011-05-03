@@ -125,8 +125,8 @@ module_param(vid2_static_vrfb_alloc, bool, S_IRUGO);
 MODULE_PARM_DESC(vid2_static_vrfb_alloc,
 	"Static allocation of the VRFB buffer for video2 device");
 
-module_param(debug, bool, S_IRUGO);
-MODULE_PARM_DESC(debug, "Debug level (0-1)");
+module_param(debug, int, S_IRUGO);
+MODULE_PARM_DESC(debug, "Debug level");
 
 /* list of image formats supported by OMAP2 video pipelines */
 const static struct v4l2_fmtdesc omap_formats[] = {
@@ -2241,6 +2241,8 @@ static int __init omap_vout_setup_video_data(struct omap_vout_device *vout)
 	mutex_init(&vout->lock);
 
 	vfd->minor = -1;
+	vfd->debug = debug;
+
 	return 0;
 
 }
