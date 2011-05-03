@@ -30,6 +30,11 @@
 #include <linux/delay.h>
 #include <linux/string.h>
 #include <plat/display.h>
+#if defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI) || \
+	defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI_MODULE)
+#include <sound/soc.h>
+#include <sound/pcm_params.h>
+#endif
 
 #include "dss.h"
 #include "hdmi.h"
@@ -1480,12 +1485,193 @@ static int hdmi_config_audio_acr(u32 sample_freq, u32 *n, u32 *cts)
 
 	return 0;
 }
+
+static int hdmi_audio_hw_params(struct snd_pcm_substream *substream,
+				    struct snd_pcm_hw_params *params,
+				    struct snd_soc_dai *dai)
+{
+	struct hdmi_audio_format audio_format;
+	struct hdmi_audio_dma audio_dma;
+	struct hdmi_core_audio_config core_cfg;
+	struct hdmi_core_infoframe_audio aud_if_cfg;
+	int err, n, cts;
+	enum hdmi_core_audio_sample_freq sample_freq;
+
+	switch (params_format(params)) {
+	case SNDRV_PCM_FORMAT_S16_LE:
+		core_cfg.i2s_cfg.word_max_length =
+			HDMI_AUDIO_I2S_MAX_WORD_20BITS;
+		core_cfg.i2s_cfg.word_length = HDMI_AUDIO_I2S_CHST_WORD_16_BITS;
+		core_cfg.i2s_cfg.in_length_bits =
+			HDMI_AUDIO_I2S_INPUT_LENGTH_16;
+		core_cfg.i2s_cfg.justif = HDMI_AUDIO_JUSTIFY_LEFT;
+		audio_format.samples_p_word = HDMI_AUDIO_ONEWORD_TWOSAMPLES;
+		audio_format.sample_size = HDMI_AUDIO_SAMPLE_16BITS;
+		audio_format.justif = HDMI_AUDIO_JUSTIFY_LEFT;
+		audio_dma.transfer_size = 0x10;
+		break;
+	case SNDRV_PCM_FORMAT_S24_LE:
+		core_cfg.i2s_cfg.word_max_length =
+			HDMI_AUDIO_I2S_MAX_WORD_24BITS;
+		core_cfg.i2s_cfg.word_length = HDMI_AUDIO_I2S_CHST_WORD_24_BITS;
+		core_cfg.i2s_cfg.in_length_bits =
+			HDMI_AUDIO_I2S_INPUT_LENGTH_24;
+		audio_format.samples_p_word = HDMI_AUDIO_ONEWORD_ONESAMPLE;
+		audio_format.sample_size = HDMI_AUDIO_SAMPLE_24BITS;
+		audio_format.justif = HDMI_AUDIO_JUSTIFY_RIGHT;
+		core_cfg.i2s_cfg.justif = HDMI_AUDIO_JUSTIFY_RIGHT;
+		audio_dma.transfer_size = 0x20;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	switch (params_rate(params)) {
+	case 32000:
+		sample_freq = HDMI_AUDIO_FS_32000;
+		break;
+	case 44100:
+		sample_freq = HDMI_AUDIO_FS_44100;
+		break;
+	case 48000:
+		sample_freq = HDMI_AUDIO_FS_48000;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	err = hdmi_config_audio_acr(params_rate(params), &n, &cts);
+	if (err < 0)
+		return err;
+
+	/* audio wrapper config */
+	audio_format.stereo_channels = HDMI_AUDIO_STEREO_ONECHANNEL;
+	audio_format.active_chnnls_msk = 0x03;
+	audio_format.type = HDMI_AUDIO_TYPE_LPCM;
+	audio_format.sample_order = HDMI_AUDIO_SAMPLE_LEFT_FIRST;
+	audio_format.sig_blk_strt_end = HDMI_AUDIO_BLOCK_SIG_STARTEND_ON;
+
+	audio_dma.block_size = 0xC0;
+	audio_dma.mode = HDMI_AUDIO_TRANSF_DMA;
+	audio_dma.threshold = 0x20;
+
+	hdmi_wp_audio_config_dma(&audio_dma);
+	hdmi_wp_audio_config_format(&audio_format);
+
+	/* I2S config */
+	core_cfg.i2s_cfg.en_high_br_aud = false;
+	core_cfg.i2s_cfg.sck_edge_mode =
+		HDMI_AUDIO_I2S_SCK_SAMPLE_EDGE_RISING;
+	core_cfg.i2s_cfg.cbit_order = false;
+	core_cfg.i2s_cfg.vbit = HDMI_AUDIO_I2S_VBIT_PCM;
+	core_cfg.i2s_cfg.ws_polarity = HDMI_AUDIO_I2S_WS_POLARITY_LOW_IS_LEFT;
+	core_cfg.i2s_cfg.direction = HDMI_AUDIO_I2S_MSB_SHIFTED_FIRST;
+	core_cfg.i2s_cfg.shift = HDMI_AUDIO_I2S_FIRST_BIT_SHIFT;
+
+	/* core audio config */
+	core_cfg.freq_sample = sample_freq;
+	core_cfg.n = n;
+	core_cfg.cts = cts;
+	if (omap_rev() == OMAP4430_REV_ES1_0) {
+		core_cfg.aud_par_busclk = (((128 * 31) - 1) << 8);
+		core_cfg.cts_mode = HDMI_AUDIO_CTS_MODE_HW;
+	} else {
+		core_cfg.aud_par_busclk = 0;
+		core_cfg.cts_mode = HDMI_AUDIO_CTS_MODE_SW;
+	}
+	core_cfg.layout = HDMI_AUDIO_LAYOUT_2CH;
+	core_cfg.use_mclk = false;
+	core_cfg.mclk_mode = HDMI_AUDIO_MCLK_128FS;
+	core_cfg.fs_override = true;
+	core_cfg.en_acr_pkt = true;
+	core_cfg.en_direct_strm_dig_aud = false;
+	core_cfg.en_parallel_aud = true;
+	core_cfg.en_spdif = false;
+
+	hdmi_core_audio_config(&core_cfg);
+
+	/*
+	 * configure packet
+	 * info frame audio see doc CEA861-D page 74
+	 */
+	aud_if_cfg.db1_coding_type = HDMI_INFOFRAME_AUDIO_DB1CT_FROM_STREAM;
+	aud_if_cfg.db1_channel_count = 2;
+	aud_if_cfg.db2_sample_freq = HDMI_INFOFRAME_AUDIO_DB2SF_FROM_STREAM;
+	aud_if_cfg.db2_sample_size = HDMI_INFOFRAME_AUDIO_DB2SS_FROM_STREAM;
+	aud_if_cfg.db4_channel_alloc = 0x00;
+	aud_if_cfg.db5_downmix_inh = false;
+	aud_if_cfg.db5_lsv = 0;
+
+	hdmi_core_audio_infoframe_config(&aud_if_cfg);
+	return 0;
+}
+
+static int hdmi_audio_trigger(struct snd_pcm_substream *substream, int cmd,
+				  struct snd_soc_dai *dai)
+{
+	int err = 0;
+	switch (cmd) {
+	case SNDRV_PCM_TRIGGER_START:
+	case SNDRV_PCM_TRIGGER_RESUME:
+	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
+		REG_FLD_MOD(HDMI_CORE_AV_AUD_MODE, 1, 0, 0);
+		REG_FLD_MOD(HDMI_WP_AUDIO_CTRL, 1, 31, 31);
+		REG_FLD_MOD(HDMI_WP_AUDIO_CTRL, 1, 30, 30);
+		break;
+
+	case SNDRV_PCM_TRIGGER_STOP:
+	case SNDRV_PCM_TRIGGER_SUSPEND:
+	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
+		REG_FLD_MOD(HDMI_CORE_AV_AUD_MODE, 0, 0, 0);
+		REG_FLD_MOD(HDMI_WP_AUDIO_CTRL, 0, 30, 30);
+		REG_FLD_MOD(HDMI_WP_AUDIO_CTRL, 0, 31, 31);
+		break;
+	default:
+		err = -EINVAL;
+	}
+	return err;
+}
+
+static struct snd_soc_codec_driver hdmi_audio_codec_drv = {
+};
+
+static struct snd_soc_dai_ops hdmi_audio_codec_ops = {
+	.hw_params = hdmi_audio_hw_params,
+	.trigger = hdmi_audio_trigger,
+};
+
+static struct snd_soc_dai_driver hdmi_codec_dai_drv = {
+		.name = "omap4-hdmi-audio-codec",
+		.playback = {
+			.channels_min = 2,
+			.channels_max = 2,
+			.rates = SNDRV_PCM_RATE_32000 |
+				SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000,
+			.formats = SNDRV_PCM_FMTBIT_S16_LE |
+				SNDRV_PCM_FMTBIT_S24_LE,
+		},
+		.ops = &hdmi_audio_codec_ops,
+};
 #endif
+
 
 /* HDMI HW IP initialisation */
 static int omapdss_hdmihw_probe(struct platform_device *pdev)
 {
 	struct resource *hdmi_mem;
+
+#if defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI) || \
+	defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI_MODULE)
+	int ret;
+
+	/* Register ASoC codec DAI */
+	ret = snd_soc_register_codec(&pdev->dev, &hdmi_audio_codec_drv,
+					&hdmi_codec_dai_drv, 1);
+	if (ret) {
+		DSSERR("can't register ASoC HDMI audio codec\n");
+		return ret;
+	}
+#endif
 
 	hdmi.pdata = pdev->dev.platform_data;
 	hdmi.pdev = pdev;
@@ -1513,6 +1699,11 @@ static int omapdss_hdmihw_probe(struct platform_device *pdev)
 static int omapdss_hdmihw_remove(struct platform_device *pdev)
 {
 	hdmi_panel_exit();
+
+#if defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI) || \
+	defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI_MODULE)
+	snd_soc_unregister_codec(&pdev->dev);
+#endif
 
 	iounmap(hdmi.base_wp);
 
