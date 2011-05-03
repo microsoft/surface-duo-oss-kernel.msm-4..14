@@ -126,6 +126,12 @@ enum dss_clk_source {
 						 * OMAP4: DSS_FCLK */
 };
 
+/* Correlates clock source name and dss_clk_source member */
+struct dss_clk_source_name {
+	enum dss_clk_source clksrc;
+	const char *clksrc_name;
+};
+
 enum dss_hdmi_venc_clk_source_select {
 	DSS_VENC_TV_CLK = 0,
 	DSS_HDMI_M_PCLK = 1,
