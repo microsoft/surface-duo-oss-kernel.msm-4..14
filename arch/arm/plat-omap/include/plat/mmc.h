@@ -34,7 +34,7 @@
 /* omap_hwmod integration data */
 #define OMAP_HSMMC_SUPPORTS_DUAL_VOLT	BIT(1)
 
-struct mmc_dev_attr {
+struct omap_mmc_dev_attr {
 	u8 flags;
 };
 
