@@ -309,6 +309,20 @@ static inline u32 dsi_read_reg(const struct dsi_reg idx)
 	return __raw_readl(dsi.base + idx.idx);
 }
 
+static struct regulator *dsi_get_vdds_dsi(void)
+{
+	struct regulator *reg;
+
+	if (dsi.vdds_dsi_reg != NULL)
+		return dsi.vdds_dsi_reg;
+
+	reg = regulator_get(&dsi.pdev->dev, "vdds_dsi");
+	if (!IS_ERR(reg))
+		dsi.vdds_dsi_reg = reg;
+
+	return reg;
+}
+
 
 void dsi_save_context(void)
 {
@@ -3721,6 +3735,12 @@ static int dsi_init(struct platform_device *pdev)
 		"OMAP DSI1", dsi.pdev);
 	if (r < 0) {
 		DSSERR("request_irq failed\n");
+		goto err2;
+	}
+	dsi.vdds_dsi_reg = dsi_get_vdds_dsi();
+	if (IS_ERR(dsi.vdds_dsi_reg)) {
+		DSSERR("can't get VDDS_DSI regulator\n");
+		r = PTR_ERR(dsi.vdds_dsi_reg);
 		goto err2;
 	}
 
