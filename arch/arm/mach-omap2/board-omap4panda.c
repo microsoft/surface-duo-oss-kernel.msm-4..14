@@ -83,8 +83,14 @@ static struct platform_device leds_gpio = {
 	},
 };
 
+static struct platform_device omap4panda_hdmi_audio_device = {
+	.name		= "hdmi-audio-dai",
+	.id		= -1,
+};
+
 static struct platform_device *panda_devices[] __initdata = {
 	&leds_gpio,
+	&omap4panda_hdmi_audio_device,
 };
 
 /* Display DVI */
