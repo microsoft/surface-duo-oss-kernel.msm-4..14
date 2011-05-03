@@ -1282,6 +1282,206 @@ void omapdss_hdmi_display_disable(struct omap_dss_device *dssdev)
 	mutex_unlock(&hdmi.lock);
 }
 
+#if defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI) || \
+	defined(CONFIG_SND_OMAP_SOC_OMAP4_HDMI_MODULE)
+static void hdmi_wp_audio_config_format(
+		struct hdmi_audio_format *aud_fmt)
+{
+	u32 r;
+
+	DSSDBG("Enter hdmi_wp_audio_config_format\n");
+
+	r = hdmi_read_reg(HDMI_WP_AUDIO_CFG);
+	r = FLD_MOD(r, aud_fmt->stereo_channels, 26, 24);
+	r = FLD_MOD(r, aud_fmt->active_chnnls_msk, 23, 16);
+	r = FLD_MOD(r, aud_fmt->sig_blk_strt_end, 5, 5);
+	r = FLD_MOD(r, aud_fmt->type, 4, 4);
+	r = FLD_MOD(r, aud_fmt->justif, 3, 3);
+	r = FLD_MOD(r, aud_fmt->sample_order, 2, 2);
+	r = FLD_MOD(r, aud_fmt->samples_p_word, 1, 1);
+	r = FLD_MOD(r, aud_fmt->sample_size, 0, 0);
+	hdmi_write_reg(HDMI_WP_AUDIO_CFG, r);
+}
+
+static void hdmi_wp_audio_config_dma(struct hdmi_audio_dma *aud_dma)
+{
+	u32 r;
+
+	DSSDBG("Enter hdmi_wp_audio_config_dma\n");
+
+	r = hdmi_read_reg(HDMI_WP_AUDIO_CFG2);
+	r = FLD_MOD(r, aud_dma->transfer_size, 15, 8);
+	r = FLD_MOD(r, aud_dma->block_size, 7, 0);
+	hdmi_write_reg(HDMI_WP_AUDIO_CFG2, r);
+
+	r = hdmi_read_reg(HDMI_WP_AUDIO_CTRL);
+	r = FLD_MOD(r, aud_dma->mode, 9, 9);
+	r = FLD_MOD(r, aud_dma->threshold, 8, 0);
+	hdmi_write_reg(HDMI_WP_AUDIO_CTRL, r);
+}
+
+static void hdmi_core_audio_config(struct hdmi_core_audio_config *cfg)
+{
+	u32 r;
+
+	/* audio clock recovery parameters */
+	r = hdmi_read_reg(HDMI_CORE_AV_ACR_CTRL);
+	r = FLD_MOD(r, cfg->use_mclk, 2, 2);
+	r = FLD_MOD(r, cfg->en_acr_pkt, 1, 1);
+	r = FLD_MOD(r, cfg->cts_mode, 0, 0);
+	hdmi_write_reg(HDMI_CORE_AV_ACR_CTRL, r);
+
+	REG_FLD_MOD(HDMI_CORE_AV_FREQ_SVAL, cfg->mclk_mode, 2, 0);
+	REG_FLD_MOD(HDMI_CORE_AV_N_SVAL1, cfg->n, 7, 0);
+	REG_FLD_MOD(HDMI_CORE_AV_N_SVAL2, cfg->n >> 8, 7, 0);
+	REG_FLD_MOD(HDMI_CORE_AV_N_SVAL3, cfg->n >> 16, 7, 0);
+	REG_FLD_MOD(HDMI_CORE_AV_CTS_SVAL1, cfg->cts, 7, 0);
+	REG_FLD_MOD(HDMI_CORE_AV_CTS_SVAL2, cfg->cts >> 8, 7, 0);
+	REG_FLD_MOD(HDMI_CORE_AV_CTS_SVAL3, cfg->cts >> 16, 7, 0);
+
+	REG_FLD_MOD(HDMI_CORE_AV_AUD_PAR_BUSCLK_1, cfg->aud_par_busclk, 7, 0);
+	REG_FLD_MOD(HDMI_CORE_AV_AUD_PAR_BUSCLK_2,
+		(cfg->aud_par_busclk >> 8), 7, 0);
+	REG_FLD_MOD(HDMI_CORE_AV_AUD_PAR_BUSCLK_3,
+		(cfg->aud_par_busclk >> 16), 7, 0);
+	REG_FLD_MOD(HDMI_CORE_AV_SPDIF_CTRL, cfg->fs_override, 1, 1);
+
+	/* I2S parameters */
+	REG_FLD_MOD(HDMI_CORE_AV_I2S_CHST4, cfg->freq_sample, 3, 0);
+
+	r = FLD_MOD(r, cfg->i2s_cfg.en_high_br_aud, 7, 7);
+	r = FLD_MOD(r, cfg->i2s_cfg.sck_edge_mode, 6, 6);
+	r = FLD_MOD(r, cfg->i2s_cfg.cbit_order, 5, 5);
+	r = FLD_MOD(r, cfg->i2s_cfg.vbit, 4, 4);
+	r = FLD_MOD(r, cfg->i2s_cfg.ws_polarity, 3, 3);
+	r = FLD_MOD(r, cfg->i2s_cfg.justif, 2, 2);
+	r = FLD_MOD(r, cfg->i2s_cfg.direction, 1, 1);
+	r = FLD_MOD(r, cfg->i2s_cfg.shift, 0, 0);
+	hdmi_write_reg(HDMI_CORE_AV_I2S_IN_CTRL, r);
+
+	r = hdmi_read_reg(HDMI_CORE_AV_I2S_CHST5);
+	r = FLD_MOD(r, cfg->freq_sample, 7, 4);
+	r = FLD_MOD(r, cfg->i2s_cfg.word_length, 3, 1);
+	r = FLD_MOD(r, cfg->i2s_cfg.word_max_length, 0, 0);
+	hdmi_write_reg(HDMI_CORE_AV_I2S_CHST5, r);
+
+	REG_FLD_MOD(HDMI_CORE_AV_I2S_IN_LEN, cfg->i2s_cfg.in_length_bits, 3, 0);
+
+	/* audio channels and mode parameters */
+	REG_FLD_MOD(HDMI_CORE_AV_HDMI_CTRL, cfg->layout, 2, 1);
+	r = hdmi_read_reg(HDMI_CORE_AV_AUD_MODE);
+	r = FLD_MOD(r, 0, 7, 7);
+	r = FLD_MOD(r, 0, 6, 6);
+	r = FLD_MOD(r, 0, 5, 5);
+	r = FLD_MOD(r, 1, 4, 4);
+	r = FLD_MOD(r, cfg->en_direct_strm_dig_aud, 3, 3);
+	r = FLD_MOD(r, cfg->en_parallel_aud, 2, 2);
+	r = FLD_MOD(r, cfg->en_spdif, 1, 1);
+	hdmi_write_reg(HDMI_CORE_AV_AUD_MODE, r);
+}
+
+static void hdmi_core_audio_infoframe_config(
+		struct hdmi_core_infoframe_audio *info_aud)
+{
+	u8 val;
+	u8 sum = 0, checksum = 0;
+
+	sum += 0x84 + 0x001 + 0x00a;
+	hdmi_write_reg(HDMI_CORE_AV_AUDIO_TYPE, 0x84);
+	hdmi_write_reg(HDMI_CORE_AV_AUDIO_VERS, 0x01);
+	hdmi_write_reg(HDMI_CORE_AV_AUDIO_LEN, 0x0a);
+
+	val = (info_aud->db1_coding_type << 4)
+			| (info_aud->db1_channel_count - 1);
+	hdmi_write_reg(HDMI_CORE_AV_AUD_DBYTE(0), val);
+	sum += val;
+
+	val = (info_aud->db2_sample_freq << 2) | info_aud->db2_sample_size;
+	hdmi_write_reg(HDMI_CORE_AV_AUD_DBYTE(1), val);
+	sum += val;
+
+	hdmi_write_reg(HDMI_CORE_AV_AUD_DBYTE(2), 0x00);
+
+	val = info_aud->db4_channel_alloc;
+	hdmi_write_reg(HDMI_CORE_AV_AUD_DBYTE(3), val);
+	sum += val;
+
+	val = (info_aud->db5_downmix_inh << 7) | (info_aud->db5_lsv << 3);
+	hdmi_write_reg(HDMI_CORE_AV_AUD_DBYTE(4), val);
+	sum += val;
+
+	hdmi_write_reg(HDMI_CORE_AV_AUD_DBYTE(5), 0x00);
+	hdmi_write_reg(HDMI_CORE_AV_AUD_DBYTE(6), 0x00);
+	hdmi_write_reg(HDMI_CORE_AV_AUD_DBYTE(7), 0x00);
+	hdmi_write_reg(HDMI_CORE_AV_AUD_DBYTE(8), 0x00);
+	hdmi_write_reg(HDMI_CORE_AV_AUD_DBYTE(9), 0x00);
+
+	checksum = 0x100 - sum;
+	hdmi_write_reg(HDMI_CORE_AV_AUDIO_CHSUM, checksum);
+
+	/*
+	 * TODO: Add MPEG and SPD enable and repeat cfg when EDID parsing
+	 * is available.
+	 */
+}
+
+static int hdmi_config_audio_acr(u32 sample_freq, u32 *n, u32 *cts)
+{
+	u32 r;
+	u32 deep_color = 0;
+	u32 pclk = hdmi.cfg.timings.timings.pixel_clock;
+
+	if (n == NULL || cts == NULL)
+		return -EINVAL;
+	if (omap_rev() == OMAP4430_REV_ES1_0)
+		deep_color = 100;
+	else {
+		r = hdmi_read_reg(HDMI_WP_VIDEO_CFG);
+		switch (r & 0x03) {
+		case 1:
+			deep_color = 100;
+			break;
+		case 2:
+			deep_color = 125;
+			break;
+		case 3:
+			deep_color = 150;
+			break;
+		default:
+			return -EINVAL;
+		}
+	}
+
+	switch (sample_freq) {
+	case 32000:
+		if ((deep_color == 125) && ((pclk == 54054)
+				|| (pclk == 74250)))
+			*n = 8192;
+		else
+			*n = 4096;
+		break;
+	case 44100:
+		*n = 6272;
+		break;
+	case 48000:
+		if ((deep_color == 125) && ((pclk == 54054)
+				|| (pclk == 74250)))
+			*n = 8192;
+		else
+			*n = 6144;
+		break;
+	default:
+		*n = 0;
+		return -EINVAL;
+	}
+
+	/* calculate CTS */
+	*cts = pclk*(*n/128)*deep_color / (sample_freq/10);
+
+	return 0;
+}
+#endif
+
 /* HDMI HW IP initialisation */
 static int omapdss_hdmihw_probe(struct platform_device *pdev)
 {
