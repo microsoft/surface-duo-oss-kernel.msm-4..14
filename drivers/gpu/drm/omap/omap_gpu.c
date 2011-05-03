@@ -72,6 +72,8 @@ static struct drm_mode_config_funcs omap_mode_config_funcs = {
 static int get_connector_type(struct omap_dss_device *dssdev)
 {
 	switch (dssdev->type) {
+	case OMAP_DISPLAY_TYPE_HDMI:
+		return DRM_MODE_CONNECTOR_HDMIA;
 	case OMAP_DISPLAY_TYPE_DPI:
 		if (!strcmp(dssdev->name, "dvi"))
 			return DRM_MODE_CONNECTOR_DVID;
