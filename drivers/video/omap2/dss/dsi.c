@@ -1423,7 +1423,6 @@ int dsi_pll_init(struct omap_dss_device *dssdev, bool enable_hsclk,
 
 	DSSDBG("PLL init\n");
 
-#ifdef CONFIG_OMAP2_DSS_USE_DSI_PLL
 	/*
 	 * HACK: this is just a quick hack to get the USE_DSI_PLL
 	 * option working. USE_DSI_PLL is itself a big hack, and
@@ -1441,7 +1440,6 @@ int dsi_pll_init(struct omap_dss_device *dssdev, bool enable_hsclk,
 
 		dsi.vdds_dsi_reg = vdds_dsi;
 	}
-#endif
 
 	enable_clocks(1);
 	dsi_enable_pll_clock(1);
