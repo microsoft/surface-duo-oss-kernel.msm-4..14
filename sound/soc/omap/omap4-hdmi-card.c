@@ -25,7 +25,7 @@
 #include <sound/soc.h>
 #include <asm/mach-types.h>
 
-#define OMAP4_HDMI_SND_DEV_ID 1
+#define OMAP4_HDMI_SND_DEV_ID 0
 
 static struct snd_soc_dai_link omap4_hdmi_dai = {
 		.name = "HDMI",
