@@ -551,6 +551,8 @@ int omap_hwmod_for_each(int (*fn)(struct omap_hwmod *oh, void *data),
 
 int __init omap_hwmod_setup_one(const char *name);
 
+int __init omap_hwmod_setup_one(const char *name);
+
 int omap_hwmod_enable(struct omap_hwmod *oh);
 int _omap_hwmod_enable(struct omap_hwmod *oh);
 int omap_hwmod_idle(struct omap_hwmod *oh);
