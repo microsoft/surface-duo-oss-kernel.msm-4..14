@@ -611,7 +611,7 @@ static int omap_i2c_xfer_msg(struct i2c_adapter *adap,
 	if (r < 0)
 		return r;
 	if (r == 0) {
-		dev_err(dev->dev, "controller timed out\n");
+		dev_warn(dev->dev, "controller timed out\n");
 		omap_i2c_init(dev);
 		return -ETIMEDOUT;
 	}
