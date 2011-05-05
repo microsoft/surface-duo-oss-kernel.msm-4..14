@@ -773,6 +773,9 @@ static void omap_init_gpu(void)
 	struct gpu_platform_data *pdata;
 	char *name = "pvrsrvkm";
 
+	/* Register drm omap device and then look for SGX */
+	platform_device_register(&omap_gpu_device);
+
 	l = snprintf(oh_name, max_omap_gpu_hwmod_name_len,
 		     "gpu");
 	WARN(l >= max_omap_gpu_hwmod_name_len,
@@ -804,7 +807,6 @@ static void omap_init_gpu(void)
 
 	kfree(pdata);
 	platform_device_register(&omap_omaplfb_device);
-	platform_device_register(&omap_gpu_device);
 }
 
 /*-------------------------------------------------------------------------*/
