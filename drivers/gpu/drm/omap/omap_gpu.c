@@ -24,6 +24,7 @@
 #include "drm_fb_helper.h"
 
 #define DRIVER_NAME		MODULE_NAME
+#define PVR_DRIVER_NAME		"pvrsrvkm"
 #define DRIVER_DESC		"OMAP GPU"
 #define DRIVER_DATE		"20110403"
 #define DRIVER_MAJOR		1
@@ -449,7 +450,7 @@ static int dev_open(struct drm_device *dev, struct drm_file *file)
 	DBG("open: dev=%p, file=%p", dev, file);
 
 	list_for_each_entry(plugin, &plugin_list, list) {
-		if (!strcmp(DRIVER_NAME "_pvr", plugin->name)) {
+		if (!strcmp(PVR_DRIVER_NAME, plugin->name)) {
 			found_pvr = true;
 			break;
 		}
@@ -457,7 +458,7 @@ static int dev_open(struct drm_device *dev, struct drm_file *file)
 
 	if (!found_pvr) {
 		DBG("open: PVR submodule not loaded.. let's try now");
-		request_module(DRIVER_NAME "_pvr");
+		request_module(PVR_DRIVER_NAME);
 	}
 
 	list_for_each_entry(plugin, &plugin_list, list) {
