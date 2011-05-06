@@ -720,11 +720,7 @@ static inline void omap_hdq_init(void) {}
 #else
 #define NUM_FB       1  /* we don't want gfx pipe */
 #endif
-#ifdef CONFIG_ARCH_OMAP4
-#define NUM_PIPES    4
-#else
 #define NUM_PIPES    3
-#endif
 
 static struct resource omap_vout_resource[NUM_PIPES - NUM_FB] = {
 };
