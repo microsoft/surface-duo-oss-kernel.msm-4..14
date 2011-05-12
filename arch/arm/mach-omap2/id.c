@@ -141,14 +141,14 @@ static void __init omap24xx_check_revision(void)
 	dev_type = (prod_id >> 16) & 0x0f;
 	omap_get_die_id(&odi);
 
-	pr_debug("OMAP_TAP_IDCODE 0x%08x REV %i HAWKEYE 0x%04x MANF %03x\n",
+	pr_info("OMAP_TAP_IDCODE 0x%08x REV %i HAWKEYE 0x%04x MANF %03x\n",
 		 idcode, rev, hawkeye, (idcode >> 1) & 0x7ff);
-	pr_debug("OMAP_TAP_DIE_ID_0: 0x%08x\n", odi.id_0);
-	pr_debug("OMAP_TAP_DIE_ID_1: 0x%08x DEV_REV: %i\n",
+	pr_info("OMAP_TAP_DIE_ID_0: 0x%08x\n", odi.id_0);
+	pr_info("OMAP_TAP_DIE_ID_1: 0x%08x DEV_REV: %i\n",
 		 odi.id_1, (odi.id_1 >> 28) & 0xf);
-	pr_debug("OMAP_TAP_DIE_ID_2: 0x%08x\n", odi.id_2);
-	pr_debug("OMAP_TAP_DIE_ID_3: 0x%08x\n", odi.id_3);
-	pr_debug("OMAP_TAP_PROD_ID_0: 0x%08x DEV_TYPE: %i\n",
+	pr_info("OMAP_TAP_DIE_ID_2: 0x%08x\n", odi.id_2);
+	pr_info("OMAP_TAP_DIE_ID_3: 0x%08x\n", odi.id_3);
+	pr_info("OMAP_TAP_PROD_ID_0: 0x%08x DEV_TYPE: %i\n",
 		 prod_id, dev_type);
 
 	/* Check hawkeye ids */
@@ -333,6 +333,14 @@ static void __init omap4_check_revision(void)
 	u32 idcode;
 	u16 hawkeye;
 	u8 rev;
+	struct omap_die_id odi;
+
+	omap_get_die_id(&odi);
+
+	pr_info("OMAP_TAP_DIE_ID_0: 0x%08x\n", odi.id_0);
+	pr_info("OMAP_TAP_DIE_ID_1: 0x%08x\n", odi.id_1);
+	pr_info("OMAP_TAP_DIE_ID_2: 0x%08x\n", odi.id_2);
+	pr_info("OMAP_TAP_DIE_ID_3: 0x%08x\n", odi.id_3);
 
 	/*
 	 * The IC rev detection is done with hawkeye and rev.

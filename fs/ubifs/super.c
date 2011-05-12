@@ -1543,6 +1543,7 @@ static int ubifs_remount_rw(struct ubifs_info *c)
 	mutex_lock(&c->umount_mutex);
 	dbg_save_space_info(c);
 	c->remounting_rw = 1;
+	c->ro_mount = 0;
 	c->always_chk_crc = 1;
 
 	err = check_free_space(c);
@@ -1642,20 +1643,32 @@ static int ubifs_remount_rw(struct ubifs_info *c)
 	if (err)
 		goto out;
 
+	dbg_gen("re-mounted read-write");
+	c->remounting_rw = 0;
+
 	if (c->need_recovery) {
 		c->need_recovery = 0;
 		ubifs_msg("deferred recovery completed");
+	} else {
+		/*
+		 * Do not run the debugging space check if the were doing
+		 * recovery, because when we saved the information we had the
+		 * file-system in a state where the TNC and lprops has been
+		 * modified in memory, but all the I/O operations (including a
+		 * commit) were deferred. So the file-system was in
+		 * "non-committed" state. Now the file-system is in committed
+		 * state, and of course the amount of free space will change
+		 * because, for example, the old index size was imprecise.
+		 */
+		err = dbg_check_space_info(c);
 	}
 
-	dbg_gen("re-mounted read-write");
-	c->ro_mount = 0;
-	c->remounting_rw = 0;
 	c->always_chk_crc = 0;
-	err = dbg_check_space_info(c);
 	mutex_unlock(&c->umount_mutex);
 	return err;
 
 out:
+	c->ro_mount = 1;
 	vfree(c->orph_buf);
 	c->orph_buf = NULL;
 	if (c->bgt) {
