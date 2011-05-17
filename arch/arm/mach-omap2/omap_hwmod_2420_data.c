@@ -22,6 +22,7 @@
 #include <plat/dmtimer.h>
 #include <plat/l3_2xxx.h>
 #include <plat/l4_2xxx.h>
+#include <plat/mmc.h>
 
 #include "omap_hwmod_common_data.h"
 
@@ -54,6 +55,7 @@ static struct omap_hwmod omap2420_gpio4_hwmod;
 static struct omap_hwmod omap2420_dma_system_hwmod;
 static struct omap_hwmod omap2420_mcspi1_hwmod;
 static struct omap_hwmod omap2420_mcspi2_hwmod;
+static struct omap_hwmod omap2420_mmc_hwmod;
 
 /* L3 -> L4_CORE interface */
 static struct omap_hwmod_ocp_if omap2420_l3_main__l4_core = {
@@ -154,6 +156,24 @@ static struct omap_hwmod_ocp_if omap2420_l4_core__l4_wkup = {
 	.master	= &omap2420_l4_core_hwmod,
 	.slave	= &omap2420_l4_wkup_hwmod,
 	.user	= OCP_USER_MPU | OCP_USER_SDMA,
+};
+
+/* L4 CORE -> MMC interface */
+static struct omap_hwmod_addr_space omap2420_mmc_addr_space[] = {
+	{
+		.pa_start	= 0x4809c000,
+		.pa_end		= 0x4809c07f,
+		.flags		= ADDR_TYPE_RT,
+	},
+};
+
+static struct omap_hwmod_ocp_if omap2420_l4_core__mmc = {
+	.master		= &omap2420_l4_core_hwmod,
+	.slave		= &omap2420_mmc_hwmod,
+	.clk		= "mmc_ick",
+	.addr		= omap2420_mmc_addr_space,
+	.addr_cnt	= ARRAY_SIZE(omap2420_mmc_addr_space),
+	.user		= OCP_USER_MPU | OCP_USER_SDMA,
 };
 
 /* L4 CORE -> UART1 interface */
@@ -257,6 +277,7 @@ static struct omap_hwmod_ocp_if *omap2420_l4_core_slaves[] = {
 /* Master interfaces on the L4_CORE interconnect */
 static struct omap_hwmod_ocp_if *omap2420_l4_core_masters[] = {
 	&omap2420_l4_core__l4_wkup,
+	&omap2420_l4_core__mmc,
 	&omap2_l4_core__uart1,
 	&omap2_l4_core__uart2,
 	&omap2_l4_core__uart3,
@@ -1919,6 +1940,17 @@ static struct omap_hwmod_class_sysconfig omap2420_mcspi_sysc = {
 	.sysc_flags	= (SYSC_HAS_CLOCKACTIVITY | SYSC_HAS_SIDLEMODE |
 				SYSC_HAS_ENAWAKEUP | SYSC_HAS_SOFTRESET |
 				SYSC_HAS_AUTOIDLE | SYSS_HAS_RESET_STATUS),
+        .idlemodes      = (SIDLE_FORCE | SIDLE_NO | SIDLE_SMART),
+        .sysc_fields    = &omap_hwmod_sysc_type1,
+};
+
+/* MMC/SD/SDIO common */
+
+static struct omap_hwmod_class_sysconfig mmc_sysc = {
+	.rev_offs	= 0x3c,
+	.sysc_offs	= 0x64,
+	.syss_offs	= 0x68,
+	.sysc_flags	= (SYSC_HAS_SOFTRESET | SYSS_HAS_RESET_STATUS),
 	.idlemodes	= (SIDLE_FORCE | SIDLE_NO | SIDLE_SMART),
 	.sysc_fields    = &omap_hwmod_sysc_type1,
 };
@@ -2139,6 +2171,54 @@ static struct omap_hwmod omap2420_mcbsp2_hwmod = {
 	},
 	.slaves		= omap2420_mcbsp2_slaves,
 	.slaves_cnt	= ARRAY_SIZE(omap2420_mcbsp2_slaves),
+        .omap_chip      = OMAP_CHIP_INIT(CHIP_IS_OMAP2420),
+};
+
+
+static struct omap_hwmod_class mmc_class = {
+	.name = "mmc",
+	.sysc = &mmc_sysc,
+};
+
+/* MMC/SD/SDIO1 */
+
+static struct mmc_dev_attr mmc_dev_attr = {
+	.flags = OMAP_HSMMC_SUPPORTS_DUAL_VOLT,
+};
+
+static struct omap_hwmod_irq_info mmc_mpu_irqs[] = {
+	{ .irq = 83 },
+};
+
+static struct omap_hwmod_dma_info mmc_sdma_reqs[] = {
+	{ .name = "tx",	.dma_req = 61 }, /* DMA_MMC_TX */
+	{ .name = "rx",	.dma_req = 62 }, /* DMA_MMC_RX */
+};
+
+static struct omap_hwmod_ocp_if *omap2420_mmc_slaves[] = {
+	&omap2420_l4_core__mmc,
+};
+
+static struct omap_hwmod omap2420_mmc_hwmod = {
+	.name		= "mmc_hwmod",
+	.mpu_irqs	= mmc_mpu_irqs,
+	.mpu_irqs_cnt	= ARRAY_SIZE(mmc_mpu_irqs),
+	.sdma_reqs	= mmc_sdma_reqs,
+	.sdma_reqs_cnt	= ARRAY_SIZE(mmc_sdma_reqs),
+	.main_clk	= "mmc_fck",
+	.prcm		= {
+	.omap2 = {
+			.module_offs = CORE_MOD,
+			.prcm_reg_id = 1,
+			.module_bit  = OMAP2420_EN_MMC_SHIFT,
+			.idlest_reg_id = 1,
+			.idlest_idle_bit = OMAP2420_ST_MMC_SHIFT,
+		},
+	},
+	.slaves		= omap2420_mmc_slaves,
+	.slaves_cnt	= ARRAY_SIZE(omap2420_mmc_slaves),
+	.class		= &mmc_class,
+	.dev_attr	= &mmc_dev_attr,
 	.omap_chip	= OMAP_CHIP_INIT(CHIP_IS_OMAP2420),
 };
 
@@ -2163,6 +2243,7 @@ static __initdata struct omap_hwmod *omap2420_hwmods[] = {
 	&omap2420_timer12_hwmod,
 
 	&omap2420_wd_timer2_hwmod,
+	&omap2420_mmc_hwmod,
 	&omap2420_uart1_hwmod,
 	&omap2420_uart2_hwmod,
 	&omap2420_uart3_hwmod,

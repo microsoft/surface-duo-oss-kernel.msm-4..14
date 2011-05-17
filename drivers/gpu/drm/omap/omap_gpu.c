@@ -24,6 +24,7 @@
 #include "drm_fb_helper.h"
 
 #define DRIVER_NAME		MODULE_NAME
+#define PVR_DRIVER_NAME		"pvrsrvkm"
 #define DRIVER_DESC		"OMAP GPU"
 #define DRIVER_DATE		"20110403"
 #define DRIVER_MAJOR		1
@@ -72,6 +73,8 @@ static struct drm_mode_config_funcs omap_mode_config_funcs = {
 static int get_connector_type(struct omap_dss_device *dssdev)
 {
 	switch (dssdev->type) {
+	case OMAP_DISPLAY_TYPE_HDMI:
+		return DRM_MODE_CONNECTOR_HDMIA;
 	case OMAP_DISPLAY_TYPE_DPI:
 		if (!strcmp(dssdev->name, "dvi"))
 			return DRM_MODE_CONNECTOR_DVID;
@@ -447,7 +450,7 @@ static int dev_open(struct drm_device *dev, struct drm_file *file)
 	DBG("open: dev=%p, file=%p", dev, file);
 
 	list_for_each_entry(plugin, &plugin_list, list) {
-		if (!strcmp(DRIVER_NAME "_pvr", plugin->name)) {
+		if (!strcmp(PVR_DRIVER_NAME, plugin->name)) {
 			found_pvr = true;
 			break;
 		}
@@ -455,7 +458,7 @@ static int dev_open(struct drm_device *dev, struct drm_file *file)
 
 	if (!found_pvr) {
 		DBG("open: PVR submodule not loaded.. let's try now");
-		request_module(DRIVER_NAME "_pvr");
+		request_module_nowait(PVR_DRIVER_NAME);
 	}
 
 	list_for_each_entry(plugin, &plugin_list, list) {

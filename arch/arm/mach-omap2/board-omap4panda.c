@@ -57,16 +57,6 @@
 #define HDMI_GPIO_HPD 60 /* Hot plug pin for HDMI */
 #define HDMI_GPIO_LS_OE 41 /* Level shifter for HDMI */
 
-/* wl127x BT, FM, GPS connectivity chip */
-static int wl1271_gpios[] = {46, -1, -1};
-static struct platform_device wl1271_device = {
-	.name	= "kim",
-	.id	= -1,
-	.dev	= {
-		.platform_data	= &wl1271_gpios,
-	},
-};
-
 static struct gpio_led gpio_leds[] = {
 	{
 		.name			= "pandaboard::status1",
@@ -93,10 +83,59 @@ static struct platform_device leds_gpio = {
 	},
 };
 
+static struct platform_device omap4panda_hdmi_audio_device = {
+	.name		= "hdmi-audio-dai",
+	.id		= -1,
+};
+
 static struct platform_device *panda_devices[] __initdata = {
 	&leds_gpio,
-	&wl1271_device,
+	&omap4panda_hdmi_audio_device,
 };
+
+/* Display DVI */
+#define PANDA_DVI_TFP410_POWER_DOWN_GPIO	0
+
+static int panda_enable_dvi(struct omap_dss_device *dssdev)
+{
+	gpio_set_value(dssdev->reset_gpio, 1);
+	return 0;
+}
+
+static void panda_disable_dvi(struct omap_dss_device *dssdev)
+{
+	gpio_set_value(dssdev->reset_gpio, 0);
+}
+
+/* Using generic display panel */
+static struct panel_generic_dpi_data dvi_panel = {
+	.name			= "generic",
+	.platform_enable	= panda_enable_dvi,
+	.platform_disable	= panda_disable_dvi,
+};
+
+struct omap_dss_device panda_dvi_device = {
+	.type			= OMAP_DISPLAY_TYPE_DPI,
+	.name			= "dvi",
+	.driver_name		= "generic_dpi_panel",
+	.data			= &dvi_panel,
+	.phy.dpi.data_lines	= 24,
+	.reset_gpio		= PANDA_DVI_TFP410_POWER_DOWN_GPIO,
+	.channel		= OMAP_DSS_CHANNEL_LCD2,
+};
+
+int __init panda_dvi_init(void)
+{
+	int r;
+
+	/* Requesting TFP410 DVI GPIO and disabling it, at bootup */
+	r = gpio_request_one(panda_dvi_device.reset_gpio,
+				GPIOF_OUT_INIT_LOW, "DVI PD");
+	if (r)
+		pr_err("Failed to get DVI powerdown GPIO\n");
+
+	return r;
+}
 
 static void __init omap4_panda_init_early(void)
 {
@@ -627,6 +666,7 @@ static struct panel_generic_dpi_data omap4_dvi_panel = {
 	.name			= "generic",
 	.platform_enable	= omap4_panda_enable_dvi,
 	.platform_disable	= omap4_panda_disable_dvi,
+	.i2c_bus_num            = 3,
 };
 
 struct omap_dss_device omap4_panda_dvi_device = {
@@ -709,13 +749,15 @@ static struct omap_dss_device  omap4_panda_hdmi_device = {
 
 static struct omap_dss_device *omap4_panda_dss_devices[] = {
 	&omap4_panda_dvi_device,
+#ifdef CONFIG_OMAP4_DSS_HDMI
 	&omap4_panda_hdmi_device,
+#endif
 };
 
 static struct omap_dss_board_info omap4_panda_dss_data = {
 	.num_devices	= ARRAY_SIZE(omap4_panda_dss_devices),
 	.devices	= omap4_panda_dss_devices,
-	.default_device	= &omap4_panda_dvi_device,
+	.default_device	= &omap4_panda_hdmi_device,
 };
 
 void omap4_panda_display_init(void)

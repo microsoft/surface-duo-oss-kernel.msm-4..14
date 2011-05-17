@@ -30,6 +30,7 @@
 #include <mach/gpio.h>
 #include <plat/mmc.h>
 #include <plat/dma.h>
+#include <plat/gpu.h>
 #include <plat/omap_hwmod.h>
 #include <plat/omap_device.h>
 #include <plat/omap4-keypad.h>
@@ -719,11 +720,7 @@ static inline void omap_hdq_init(void) {}
 #else
 #define NUM_FB       1  /* we don't want gfx pipe */
 #endif
-#ifdef CONFIG_ARCH_OMAP4
-#define NUM_PIPES    4
-#else
 #define NUM_PIPES    3
-#endif
 
 static struct resource omap_vout_resource[NUM_PIPES - NUM_FB] = {
 };
@@ -748,9 +745,64 @@ static struct platform_device omap_gpu_device = {
 	.id	= -1,
 };
 
+static struct omap_device_pm_latency omap_gpu_latency[] = {
+	[0] = {
+		.deactivate_func	= omap_device_idle_hwmods,
+		.activate_func		= omap_device_enable_hwmods,
+		.flags			= OMAP_DEVICE_LATENCY_AUTO_ADJUST,
+	},
+};
+
+static struct platform_device omap_omaplfb_device = {
+	.name		= "omaplfb",
+	.id		= -1,
+};
+
+
 static void omap_init_gpu(void)
 {
+	struct omap_hwmod *oh;
+	struct omap_device *od;
+	int max_omap_gpu_hwmod_name_len = 16;
+	char oh_name[max_omap_gpu_hwmod_name_len];
+	int l;
+	struct gpu_platform_data *pdata;
+	char *name = "pvrsrvkm";
+
+	/* Register drm omap device and then look for SGX */
 	platform_device_register(&omap_gpu_device);
+
+	l = snprintf(oh_name, max_omap_gpu_hwmod_name_len,
+		     "gpu");
+	WARN(l >= max_omap_gpu_hwmod_name_len,
+		"String buffer overflow in GPU device setup\n");
+
+	oh = omap_hwmod_lookup(oh_name);
+	if (!oh) {
+
+		pr_err("omap_init_gpu: Could not look up %s\n", oh_name);
+		return;
+	}
+
+	pdata = kzalloc(sizeof(struct gpu_platform_data),
+					GFP_KERNEL);
+	if (!pdata) {
+		pr_err("omap_init_gpu: Platform data memory allocation failed\n");
+		return;
+	}
+
+	pdata->device_enable = omap_device_enable;
+	pdata->device_idle = omap_device_idle;
+	pdata->device_shutdown = omap_device_shutdown;
+
+	od = omap_device_build(name, 0, oh, pdata,
+			     sizeof(struct gpu_platform_data),
+			     omap_gpu_latency, ARRAY_SIZE(omap_gpu_latency), 0);
+	WARN(IS_ERR(od), "Could not build omap_device for %s %s\n",
+	     name, oh_name);
+
+	kfree(pdata);
+	platform_device_register(&omap_omaplfb_device);
 }
 
 /*-------------------------------------------------------------------------*/
