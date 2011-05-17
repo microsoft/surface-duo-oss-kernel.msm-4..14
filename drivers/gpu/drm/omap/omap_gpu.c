@@ -458,7 +458,7 @@ static int dev_open(struct drm_device *dev, struct drm_file *file)
 
 	if (!found_pvr) {
 		DBG("open: PVR submodule not loaded.. let's try now");
-		request_module(PVR_DRIVER_NAME);
+		request_module_nowait(PVR_DRIVER_NAME);
 	}
 
 	list_for_each_entry(plugin, &plugin_list, list) {
