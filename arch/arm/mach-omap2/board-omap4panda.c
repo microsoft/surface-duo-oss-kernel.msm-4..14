@@ -624,7 +624,7 @@ static void omap4_panda_disable_dvi(struct omap_dss_device *dssdev)
 
 /* Using generic display panel */
 static struct panel_generic_dpi_data omap4_dvi_panel = {
-	.name			= "dvi_720p",
+	.name			= "generic",
 	.platform_enable	= omap4_panda_enable_dvi,
 	.platform_disable	= omap4_panda_disable_dvi,
 };
@@ -652,7 +652,7 @@ int __init omap4_panda_dvi_init(void)
 	return r;
 }
 
-#ifdef CONFIG_OMAP4_DSS_HDMI
+
 static void omap4_panda_hdmi_mux_init(void)
 {
 	/* PAD0_HDMI_HPD_PAD1_HDMI_CEC */
@@ -712,12 +712,6 @@ static struct omap_dss_device *omap4_panda_dss_devices[] = {
 	&omap4_panda_hdmi_device,
 };
 
-#else
-static struct omap_dss_device *omap4_panda_dss_devices[] = {
-	&omap4_panda_dvi_device,
-};
-#endif
-
 static struct omap_dss_board_info omap4_panda_dss_data = {
 	.num_devices	= ARRAY_SIZE(omap4_panda_dss_devices),
 	.devices	= omap4_panda_dss_devices,
@@ -732,9 +726,7 @@ void omap4_panda_display_init(void)
 	if (r)
 		pr_err("error initializing panda DVI\n");
 
-#ifdef CONFIG_OMAP4_DSS_HDMI
 	omap4_panda_hdmi_mux_init();
-#endif
 	omap_display_init(&omap4_panda_dss_data);
 }
 
