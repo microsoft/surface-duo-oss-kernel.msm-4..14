@@ -82,10 +82,10 @@ static struct {
 	u32		ctx[DSS_SZ_REGS / sizeof(u32)];
 } dss;
 
-static const char * const dss_generic_clk_source_names[] = {
-	[DSS_CLK_SRC_DSI_PLL_HSDIV_DISPC]	= "DSI_PLL_HSDIV_DISPC",
-	[DSS_CLK_SRC_DSI_PLL_HSDIV_DSI]		= "DSI_PLL_HSDIV_DSI",
-	[DSS_CLK_SRC_FCK]			= "DSS_FCK",
+static const struct dss_clk_source_name dss_generic_clk_source_names[] = {
+	{ DSS_CLK_SRC_DSI_PLL_HSDIV_DISPC, "DSI_PLL_HSDIV_DISPC" },
+	{ DSS_CLK_SRC_DSI_PLL_HSDIV_DSI, "DSI_PLL_HSDIV_DSI" },
+	{ DSS_CLK_SRC_FCK, "DSS_FCK" },
 };
 
 static void dss_clk_enable_all_no_ctx(void);
@@ -232,47 +232,37 @@ void dss_sdi_disable(void)
 
 const char *dss_get_generic_clk_source_name(enum dss_clk_source clk_src)
 {
-	return dss_generic_clk_source_names[clk_src];
+	return dss_generic_clk_source_names[clk_src].clksrc_name;
 }
 
 void dss_dump_clocks(struct seq_file *s)
 {
 	unsigned long dpll4_ck_rate;
 	unsigned long dpll4_m4_ck_rate;
-	const char *fclk_name, *fclk_real_name;
-	unsigned long fclk_rate;
 
 	dss_clk_enable(DSS_CLK_ICK | DSS_CLK_FCK);
 
+	dpll4_ck_rate = clk_get_rate(clk_get_parent(dss.dpll4_m4_ck));
+	dpll4_m4_ck_rate = clk_get_rate(dss.dpll4_m4_ck);
+
 	seq_printf(s, "- DSS -\n");
 
-	fclk_name = dss_get_generic_clk_source_name(DSS_CLK_SRC_FCK);
-	fclk_real_name = dss_feat_get_clk_source_name(DSS_CLK_SRC_FCK);
-	fclk_rate = dss_clk_get_rate(DSS_CLK_FCK);
+	seq_printf(s, "dpll4_ck %lu\n", dpll4_ck_rate);
 
-	if (dss.dpll4_m4_ck) {
-		dpll4_ck_rate = clk_get_rate(clk_get_parent(dss.dpll4_m4_ck));
-		dpll4_m4_ck_rate = clk_get_rate(dss.dpll4_m4_ck);
-
-		seq_printf(s, "dpll4_ck %lu\n", dpll4_ck_rate);
-
-		if (cpu_is_omap3630() || cpu_is_omap44xx())
-			seq_printf(s, "%s (%s) = %lu / %lu  = %lu\n",
-					fclk_name, fclk_real_name,
-					dpll4_ck_rate,
-					dpll4_ck_rate / dpll4_m4_ck_rate,
-					fclk_rate);
-		else
-			seq_printf(s, "%s (%s) = %lu / %lu * 2 = %lu\n",
-					fclk_name, fclk_real_name,
-					dpll4_ck_rate,
-					dpll4_ck_rate / dpll4_m4_ck_rate,
-					fclk_rate);
-	} else {
-		seq_printf(s, "%s (%s) = %lu\n",
-				fclk_name, fclk_real_name,
-				fclk_rate);
-	}
+	if (cpu_is_omap3630() || cpu_is_omap44xx())
+		seq_printf(s, "%s (%s) = %lu / %lu  = %lu\n",
+			dss_get_generic_clk_source_name(DSS_CLK_SRC_FCK),
+			dss_feat_get_clk_source_name(DSS_CLK_SRC_FCK),
+			dpll4_ck_rate,
+			dpll4_ck_rate / dpll4_m4_ck_rate,
+			dss_clk_get_rate(DSS_CLK_FCK));
+	else
+		seq_printf(s, "%s (%s) = %lu / %lu * 2 = %lu\n",
+			dss_get_generic_clk_source_name(DSS_CLK_SRC_FCK),
+			dss_feat_get_clk_source_name(DSS_CLK_SRC_FCK),
+			dpll4_ck_rate,
+			dpll4_ck_rate / dpll4_m4_ck_rate,
+			dss_clk_get_rate(DSS_CLK_FCK));
 
 	dss_clk_disable(DSS_CLK_ICK | DSS_CLK_FCK);
 }
@@ -392,43 +382,34 @@ enum dss_clk_source dss_get_lcd_clk_source(enum omap_channel channel)
 /* calculate clock rates using dividers in cinfo */
 int dss_calc_clock_rates(struct dss_clock_info *cinfo)
 {
-	if (dss.dpll4_m4_ck) {
-		unsigned long prate;
-		u16 fck_div_max = 16;
+	unsigned long prate;
+	u16 fck_div_max = 16;
 
-		if (cpu_is_omap3630() || cpu_is_omap44xx())
-			fck_div_max = 32;
+	if (cpu_is_omap3630() || cpu_is_omap44xx())
+		fck_div_max = 32;
 
-		if (cinfo->fck_div > fck_div_max || cinfo->fck_div == 0)
-			return -EINVAL;
+	if ((cinfo->fck_div > fck_div_max) || cinfo->fck_div == 0)
+		return -EINVAL;
 
-		prate = clk_get_rate(clk_get_parent(dss.dpll4_m4_ck));
+	prate = clk_get_rate(clk_get_parent(dss.dpll4_m4_ck));
 
-		cinfo->fck = prate / cinfo->fck_div;
-	} else {
-		if (cinfo->fck_div != 0)
-			return -EINVAL;
-		cinfo->fck = dss_clk_get_rate(DSS_CLK_FCK);
-	}
+	cinfo->fck = prate / cinfo->fck_div;
 
 	return 0;
 }
 
 int dss_set_clock_div(struct dss_clock_info *cinfo)
 {
-	if (dss.dpll4_m4_ck) {
-		unsigned long prate;
-		int r;
+	unsigned long prate;
+	int r;
 
+	if (cpu_is_omap34xx() || cpu_is_omap44xx()) {
 		prate = clk_get_rate(clk_get_parent(dss.dpll4_m4_ck));
 		DSSDBG("dpll4_m4 = %ld\n", prate);
 
 		r = clk_set_rate(dss.dpll4_m4_ck, prate / cinfo->fck_div);
 		if (r)
 			return r;
-	} else {
-		if (cinfo->fck_div != 0)
-			return -EINVAL;
 	}
 
 	DSSDBG("fck = %ld (%d)\n", cinfo->fck, cinfo->fck_div);
@@ -440,11 +421,9 @@ int dss_get_clock_div(struct dss_clock_info *cinfo)
 {
 	cinfo->fck = dss_clk_get_rate(DSS_CLK_FCK);
 
-	if (dss.dpll4_m4_ck) {
+	if (cpu_is_omap34xx() || cpu_is_omap44xx()) {
 		unsigned long prate;
-
 		prate = clk_get_rate(clk_get_parent(dss.dpll4_m4_ck));
-
 		if (cpu_is_omap3630() || cpu_is_omap44xx())
 			cinfo->fck_div = prate / (cinfo->fck);
 		else
@@ -458,7 +437,7 @@ int dss_get_clock_div(struct dss_clock_info *cinfo)
 
 unsigned long dss_get_dpll4_rate(void)
 {
-	if (dss.dpll4_m4_ck)
+	if (cpu_is_omap34xx() || cpu_is_omap44xx())
 		return clk_get_rate(clk_get_parent(dss.dpll4_m4_ck));
 	else
 		return 0;
@@ -481,7 +460,7 @@ int dss_calc_clock_div(bool is_tft, unsigned long req_pck,
 
 	prate = dss_get_dpll4_rate();
 
-	max_dss_fck = dss_feat_get_param_max(FEAT_PARAM_DSS_FCK);
+	max_dss_fck = dss_feat_get_max_dss_fck();
 
 	fck = dss_clk_get_rate(DSS_CLK_FCK);
 	if (req_pck == dss.cache_req_pck &&
@@ -507,7 +486,7 @@ retry:
 	memset(&best_dss, 0, sizeof(best_dss));
 	memset(&best_dispc, 0, sizeof(best_dispc));
 
-	if (dss.dpll4_m4_ck == NULL) {
+	if (cpu_is_omap24xx()) {
 		struct dispc_clock_info cur_dispc;
 		/* XXX can we change the clock on omap2? */
 		fck = dss_clk_get_rate(DSS_CLK_FCK);
@@ -522,7 +501,8 @@ retry:
 		best_dispc = cur_dispc;
 
 		goto found;
-	} else {
+	} else if (cpu_is_omap34xx() || cpu_is_omap44xx()) {
+
 		if (cpu_is_omap3630() || cpu_is_omap44xx())
 			fck_div_max = 32;
 
@@ -557,6 +537,8 @@ retry:
 					goto found;
 			}
 		}
+	} else {
+		BUG();
 	}
 
 found:
@@ -639,7 +621,6 @@ static int dss_init(void)
 	int r;
 	u32 rev;
 	struct resource *dss_mem;
-	struct clk *dpll4_m4_ck;
 
 	dss_mem = platform_get_resource(dss.pdev, IORESOURCE_MEM, 0);
 	if (!dss_mem) {
@@ -680,25 +661,22 @@ static int dss_init(void)
 	REG_FLD_MOD(DSS_CONTROL, 1, 3, 3);	/* venc clock 4x enable */
 	REG_FLD_MOD(DSS_CONTROL, 0, 2, 2);	/* venc clock mode = normal */
 #endif
+
 	if (cpu_is_omap34xx()) {
-		dpll4_m4_ck = clk_get(NULL, "dpll4_m4_ck");
-		if (IS_ERR(dpll4_m4_ck)) {
+		dss.dpll4_m4_ck = clk_get(NULL, "dpll4_m4_ck");
+		if (IS_ERR(dss.dpll4_m4_ck)) {
 			DSSERR("Failed to get dpll4_m4_ck\n");
-			r = PTR_ERR(dpll4_m4_ck);
+			r = PTR_ERR(dss.dpll4_m4_ck);
 			goto fail1;
 		}
 	} else if (cpu_is_omap44xx()) {
-		dpll4_m4_ck = clk_get(NULL, "dpll_per_m5x2_ck");
-		if (IS_ERR(dpll4_m4_ck)) {
+		dss.dpll4_m4_ck = clk_get(NULL, "dpll_per_m5x2_ck");
+		if (IS_ERR(dss.dpll4_m4_ck)) {
 			DSSERR("Failed to get dpll4_m4_ck\n");
-			r = PTR_ERR(dpll4_m4_ck);
+			r = PTR_ERR(dss.dpll4_m4_ck);
 			goto fail1;
 		}
-	} else { /* omap24xx */
-		dpll4_m4_ck = NULL;
 	}
-
-	dss.dpll4_m4_ck = dpll4_m4_ck;
 
 	dss.dsi_clk_source = DSS_CLK_SRC_FCK;
 	dss.dispc_clk_source = DSS_CLK_SRC_FCK;
@@ -721,7 +699,7 @@ fail0:
 
 static void dss_exit(void)
 {
-	if (dss.dpll4_m4_ck)
+	if (cpu_is_omap34xx() || cpu_is_omap44xx())
 		clk_put(dss.dpll4_m4_ck);
 
 	iounmap(dss.base);

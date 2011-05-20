@@ -126,6 +126,12 @@ enum dss_clk_source {
 						 * OMAP4: DSS_FCLK */
 };
 
+/* Correlates clock source name and dss_clk_source member */
+struct dss_clk_source_name {
+	enum dss_clk_source clksrc;
+	const char *clksrc_name;
+};
+
 enum dss_hdmi_venc_clk_source_select {
 	DSS_VENC_TV_CLK = 0,
 	DSS_HDMI_M_PCLK = 1,
@@ -477,6 +483,8 @@ void omapdss_hdmi_display_disable(struct omap_dss_device *dssdev);
 void omapdss_hdmi_display_set_timing(struct omap_dss_device *dssdev);
 int omapdss_hdmi_display_check_timing(struct omap_dss_device *dssdev,
 					struct omap_video_timings *timings);
+bool omapdss_hdmi_is_detected(struct omap_dss_device *dssdev, bool force);
+int omapdss_hdmi_get_edid(struct omap_dss_device *dssdev, u8 *buf, int len);
 int hdmi_panel_init(void);
 void hdmi_panel_exit(void);
 

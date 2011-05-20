@@ -93,7 +93,7 @@ enum drm_connector_status omap_connector_detect(
 	struct omap_dss_driver *dssdrv = dssdev->driver;
 	enum drm_connector_status ret;
 
-	if (dssdrv->is_detected(dssdev)) {
+	if (dssdrv->is_detected(dssdev, force)) {
 		ret = connector_status_connected;
 	} else {
 		ret = connector_status_disconnected;

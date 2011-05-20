@@ -192,6 +192,9 @@ struct panel_drv_data {
 	struct panel_config *panel_config;
 };
 
+static bool generic_dpi_panel_is_detected(struct omap_dss_device *dssdev,
+				bool force);
+
 static inline struct panel_generic_dpi_data
 *get_panel_data(const struct omap_dss_device *dssdev)
 {
@@ -301,6 +304,13 @@ static void generic_dpi_panel_remove(struct omap_dss_device *dssdev)
 static int generic_dpi_panel_enable(struct omap_dss_device *dssdev)
 {
 	int r = 0;
+
+	/* Avoid enabling the panel if there is none around */
+	if (!generic_dpi_panel_is_detected(dssdev, false)) {
+		printk(KERN_ERR "Not enabling generic panel as no "
+				"connector is detected\n");
+		return 1;
+	}
 
 	r = generic_dpi_panel_power_on(dssdev);
 	if (r)
@@ -438,7 +448,8 @@ out:
 	return -EINVAL;
 }
 
-static bool generic_dpi_panel_is_detected(struct omap_dss_device *dssdev)
+static bool generic_dpi_panel_is_detected(struct omap_dss_device *dssdev,
+				bool force)
 {
 	struct panel_generic_dpi_data *panel_data = get_panel_data(dssdev);
 	struct i2c_adapter *adapter;
@@ -446,7 +457,7 @@ static bool generic_dpi_panel_is_detected(struct omap_dss_device *dssdev)
 
 	adapter = i2c_get_adapter(panel_data->i2c_bus_num);
 	if (!adapter) {
-		return omapdss_default_is_detected(dssdev);
+		return omapdss_default_is_detected(dssdev, force);
 	}
 
 	return (do_probe_ddc_edid(adapter, &out, 0, 1) == 0);
