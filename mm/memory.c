@@ -1418,9 +1418,8 @@ no_page_table:
 
 static inline int stack_guard_page(struct vm_area_struct *vma, unsigned long addr)
 {
-	return (vma->vm_flags & VM_GROWSDOWN) &&
-		(vma->vm_start == addr) &&
-		!vma_stack_continue(vma->vm_prev, addr);
+	return stack_guard_page_start(vma, addr) ||
+	       stack_guard_page_end(vma, addr+PAGE_SIZE);
 }
 
 int __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
@@ -1508,12 +1507,6 @@ int __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 			continue;
 		}
 
-		/*
-		 * For mlock, just skip the stack guard page.
-		 */
-		if ((gup_flags & FOLL_MLOCK) && stack_guard_page(vma, start))
-			goto next_page;
-
 		do {
 			struct page *page;
 			unsigned int foll_flags = gup_flags;
@@ -1532,6 +1525,12 @@ int __get_user_pages(struct task_struct *tsk, struct mm_struct *mm,
 
 				trace_page_fault_get_user_entry(mm,
 					vma, start, foll_flags & FOLL_WRITE);
+
+				/* For mlock, just skip the stack guard page. */
+				if (foll_flags & FOLL_MLOCK) {
+					if (stack_guard_page(vma, start))
+						goto next_page;
+				}
 				if (foll_flags & FOLL_WRITE)
 					fault_flags |= FAULT_FLAG_WRITE;
 				if (nonblocking)
