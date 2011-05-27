@@ -59,7 +59,7 @@ void sdhci_be32bs_writel(struct sdhci_host *host, u32 val, int reg)
 
 void sdhci_be32bs_writew(struct sdhci_host *host, u16 val, int reg)
 {
-	struct sdhci_of_host *of_host = sdhci_priv(host);
+	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	int base = reg & ~0x3;
 	int shift = (reg & 0x2) * 8;
 
@@ -69,10 +69,11 @@ void sdhci_be32bs_writew(struct sdhci_host *host, u16 val, int reg)
 		 * Postpone this write, we must do it together with a
 		 * command write that is down below.
 		 */
-		of_host->xfer_mode_shadow = val;
+		pltfm_host->xfer_mode_shadow = val;
 		return;
 	case SDHCI_COMMAND:
-		sdhci_be32bs_writel(host, val << 16 | of_host->xfer_mode_shadow,
+		sdhci_be32bs_writel(host,
+				    val << 16 | pltfm_host->xfer_mode_shadow,
 				    SDHCI_TRANSFER_MODE);
 		return;
 	}
@@ -129,7 +130,7 @@ static int __devinit sdhci_of_probe(struct platform_device *ofdev)
 {
 	const struct of_device_id *match;
 	struct device_node *np = ofdev->dev.of_node;
-	struct sdhci_of_data *sdhci_of_data;
+	struct sdhci_pltfm_data *pdata;
 	struct sdhci_host *host;
 	struct sdhci_of_host *of_host;
 	const __be32 *clk;
@@ -139,16 +140,16 @@ static int __devinit sdhci_of_probe(struct platform_device *ofdev)
 	match = of_match_device(sdhci_of_match, &ofdev->dev);
 	if (!match)
 		return -EINVAL;
-	sdhci_of_data = match->data;
+	pdata = ofdev->dev.of_match->data;
 
 	if (!of_device_is_available(np))
 		return -ENODEV;
 
-	host = sdhci_alloc_host(&ofdev->dev, sizeof(*of_host));
+	host = sdhci_alloc_host(&ofdev->dev, sizeof(*pltfm_host));
 	if (IS_ERR(host))
 		return -ENOMEM;
 
-	of_host = sdhci_priv(host);
+	pltfm_host = sdhci_priv(host);
 	dev_set_drvdata(&ofdev->dev, host);
 
 	host->ioaddr = of_iomap(np, 0);
@@ -164,9 +165,9 @@ static int __devinit sdhci_of_probe(struct platform_device *ofdev)
 	}
 
 	host->hw_name = dev_name(&ofdev->dev);
-	if (sdhci_of_data) {
-		host->quirks = sdhci_of_data->quirks;
-		host->ops = &sdhci_of_data->ops;
+	if (pdata) {
+		host->quirks = pdata->quirks;
+		host->ops = &pdata->ops;
 	}
 
 	if (of_get_property(np, "sdhci,auto-cmd12", NULL))
@@ -181,7 +182,7 @@ static int __devinit sdhci_of_probe(struct platform_device *ofdev)
 
 	clk = of_get_property(np, "clock-frequency", &size);
 	if (clk && size == sizeof(*clk) && *clk)
-		of_host->clock = be32_to_cpup(clk);
+		pltfm_host->clock = be32_to_cpup(clk);
 
 	ret = sdhci_add_host(host);
 	if (ret)
@@ -211,12 +212,12 @@ static int __devexit sdhci_of_remove(struct platform_device *ofdev)
 
 static const struct of_device_id sdhci_of_match[] = {
 #ifdef CONFIG_MMC_SDHCI_OF_ESDHC
-	{ .compatible = "fsl,mpc8379-esdhc", .data = &sdhci_esdhc, },
-	{ .compatible = "fsl,mpc8536-esdhc", .data = &sdhci_esdhc, },
-	{ .compatible = "fsl,esdhc", .data = &sdhci_esdhc, },
+	{ .compatible = "fsl,mpc8379-esdhc", .data = &sdhci_esdhc_pdata, },
+	{ .compatible = "fsl,mpc8536-esdhc", .data = &sdhci_esdhc_pdata, },
+	{ .compatible = "fsl,esdhc", .data = &sdhci_esdhc_pdata, },
 #endif
 #ifdef CONFIG_MMC_SDHCI_OF_HLWD
-	{ .compatible = "nintendo,hollywood-sdhci", .data = &sdhci_hlwd, },
+	{ .compatible = "nintendo,hollywood-sdhci", .data = &sdhci_hlwd_pdata, },
 #endif
 	{ .compatible = "generic-sdhci", },
 	{},
