@@ -54,6 +54,12 @@ static unsigned int esdhc_pltfm_get_max_blk_size(struct sdhci_host *host)
 	return 2;
 }
 
+static unsigned int esdhc_pltfm_get_max_blk_count(struct sdhci_host *host)
+{
+	/* Fix errata ENGcm07207 which is present on i.MX25 and i.MX35 */
+	return (cpu_is_mx25() || cpu_is_mx35()) ? 1 : 65535;
+}
+
 static inline void esdhc_clrset_le(struct sdhci_host *host, u32 mask, u32 val, int reg)
 {
 	void __iomem *base = host->ioaddr + (reg & ~0x3);
@@ -205,6 +211,7 @@ static struct sdhci_ops sdhci_esdhc_ops = {
 	.get_max_clock = esdhc_pltfm_get_max_clock,
 	.get_min_clock = esdhc_pltfm_get_min_clock,
 	.get_max_blk_size = esdhc_pltfm_get_max_blk_size,
+	.get_max_blk_count = esdhc_pltfm_get_max_blk_count,
 };
 
 static struct sdhci_pltfm_data sdhci_esdhc_imx_pdata = {
@@ -266,8 +273,6 @@ static int __devinit sdhci_esdhc_imx_probe(struct platform_device *pdev)
 		host->quirks |= SDHCI_QUIRK_BROKEN_TIMEOUT_VAL;
 
 	if (cpu_is_mx25() || cpu_is_mx35()) {
-		/* Fix errata ENGcm07207 present on i.MX25 and i.MX35 */
-		host->quirks |= SDHCI_QUIRK_NO_MULTIBLOCK;
 		/* write_protect can't be routed to controller, use gpio */
 		sdhci_esdhc_ops.get_ro = esdhc_pltfm_get_ro;
 	}
