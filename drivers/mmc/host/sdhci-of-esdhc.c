@@ -71,6 +71,12 @@ static unsigned int esdhc_of_get_min_clock(struct sdhci_host *host)
 	return pltfm_host->clock / 256 / 16;
 }
 
+static unsigned int esdhc_of_get_max_blk_size(struct sdhci_host *host)
+{
+	/* Force 2048 bytes, which is the maximum supported size in SDHCI. */
+	return 2;
+}
+
 static struct sdhci_ops sdhci_esdhc_ops = {
 	.read_l = sdhci_be32bs_readl,
 	.read_w = esdhc_readw,
@@ -82,6 +88,7 @@ static struct sdhci_ops sdhci_esdhc_ops = {
 	.enable_dma = esdhc_of_enable_dma,
 	.get_max_clock = esdhc_of_get_max_clock,
 	.get_min_clock = esdhc_of_get_min_clock,
+	.get_max_blk_size = esdhc_of_get_max_blk_size,
 };
 
 static struct sdhci_pltfm_data sdhci_esdhc_pdata = {

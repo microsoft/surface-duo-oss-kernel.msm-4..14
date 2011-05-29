@@ -48,6 +48,12 @@ struct pltfm_imx_data {
 	u32 scratchpad;
 };
 
+static unsigned int esdhc_pltfm_get_max_blk_size(struct sdhci_host *host)
+{
+	/* Force 2048 bytes, which is the maximum supported size in SDHCI. */
+	return 2;
+}
+
 static inline void esdhc_clrset_le(struct sdhci_host *host, u32 mask, u32 val, int reg)
 {
 	void __iomem *base = host->ioaddr + (reg & ~0x3);
@@ -198,6 +204,7 @@ static struct sdhci_ops sdhci_esdhc_ops = {
 	.set_clock = esdhc_set_clock,
 	.get_max_clock = esdhc_pltfm_get_max_clock,
 	.get_min_clock = esdhc_pltfm_get_min_clock,
+	.get_max_blk_size = esdhc_pltfm_get_max_blk_size,
 };
 
 static struct sdhci_pltfm_data sdhci_esdhc_imx_pdata = {

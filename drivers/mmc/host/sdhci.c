@@ -1969,8 +1969,8 @@ int sdhci_add_host(struct sdhci_host *host)
 	 * Maximum block size. This varies from controller to controller and
 	 * is specified in the capabilities register.
 	 */
-	if (host->quirks & SDHCI_QUIRK_FORCE_BLK_SZ_2048) {
-		mmc->max_blk_size = 2;
+	if (host->ops->get_max_blk_size) {
+		mmc->max_blk_size = host->ops->get_max_blk_size(host);
 	} else {
 		mmc->max_blk_size = (caps & SDHCI_MAX_BLOCK_MASK) >>
 				SDHCI_MAX_BLOCK_SHIFT;
