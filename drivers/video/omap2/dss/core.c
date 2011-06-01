@@ -33,7 +33,7 @@
 #include <linux/device.h>
 #include <linux/regulator/consumer.h>
 
-#include <plat/display.h>
+#include <video/omapdss.h>
 
 #include "dss.h"
 #include "dss_features.h"
@@ -53,6 +53,9 @@ MODULE_PARM_DESC(def_disp, "default display name");
 unsigned int dss_debug;
 module_param_named(debug, dss_debug, bool, 0644);
 #endif
+
+static int omap_dss_register_device(struct omap_dss_device *);
+static void omap_dss_unregister_device(struct omap_dss_device *);
 
 /* REGULATORS */
 
@@ -480,7 +483,7 @@ static void omap_dss_dev_release(struct device *dev)
 	reset_device(dev, 0);
 }
 
-int omap_dss_register_device(struct omap_dss_device *dssdev)
+static int omap_dss_register_device(struct omap_dss_device *dssdev)
 {
 	static int dev_num;
 
@@ -494,7 +497,7 @@ int omap_dss_register_device(struct omap_dss_device *dssdev)
 	return device_register(&dssdev->dev);
 }
 
-void omap_dss_unregister_device(struct omap_dss_device *dssdev)
+static void omap_dss_unregister_device(struct omap_dss_device *dssdev)
 {
 	device_unregister(&dssdev->dev);
 }

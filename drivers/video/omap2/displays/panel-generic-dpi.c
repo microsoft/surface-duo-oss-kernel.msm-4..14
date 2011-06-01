@@ -33,8 +33,9 @@
 #include <linux/module.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
+#include <video/omapdss.h>
 
-#include <plat/panel-generic-dpi.h>
+#include <video/omap-panel-generic-dpi.h>
 
 struct panel_config {
 	struct omap_video_timings timings;
@@ -285,7 +286,7 @@ static int generic_dpi_panel_probe(struct omap_dss_device *dssdev)
 	return 0;
 }
 
-static void generic_dpi_panel_remove(struct omap_dss_device *dssdev)
+static void __exit generic_dpi_panel_remove(struct omap_dss_device *dssdev)
 {
 	struct panel_drv_data *drv_data = dev_get_drvdata(&dssdev->dev);
 
@@ -358,7 +359,7 @@ static int generic_dpi_panel_check_timings(struct omap_dss_device *dssdev,
 
 static struct omap_dss_driver dpi_driver = {
 	.probe		= generic_dpi_panel_probe,
-	.remove		= generic_dpi_panel_remove,
+	.remove		= __exit_p(generic_dpi_panel_remove),
 
 	.enable		= generic_dpi_panel_enable,
 	.disable	= generic_dpi_panel_disable,

@@ -1,6 +1,4 @@
 /*
- * linux/include/asm-arm/arch-omap/display.h
- *
  * Copyright (C) 2008 Nokia Corporation
  * Author: Tomi Valkeinen <tomi.valkeinen@nokia.com>
  *
@@ -17,8 +15,8 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef __ASM_ARCH_OMAP_DISPLAY_H
-#define __ASM_ARCH_OMAP_DISPLAY_H
+#ifndef __OMAP_OMAPDSS_H
+#define __OMAP_OMAPDSS_H
 
 #include <linux/list.h>
 #include <linux/kobject.h>
@@ -172,6 +170,15 @@ enum omap_overlay_caps {
 
 enum omap_overlay_manager_caps {
 	OMAP_DSS_OVL_MGR_CAP_DISPC = 1 << 0,
+};
+
+enum omap_dss_clk_source {
+	OMAP_DSS_CLK_SRC_FCK = 0,		/* OMAP2/3: DSS1_ALWON_FCLK
+						 * OMAP4: DSS_FCLK */
+	OMAP_DSS_CLK_SRC_DSI_PLL_HSDIV_DISPC,	/* OMAP3: DSI1_PLL_FCLK
+						 * OMAP4: PLL1_CLK1 */
+	OMAP_DSS_CLK_SRC_DSI_PLL_HSDIV_DSI,	/* OMAP3: DSI2_PLL_FCLK
+						 * OMAP4: PLL1_CLK2 */
 };
 
 /* RFBI */
@@ -401,18 +408,6 @@ struct omap_dss_device {
 			u8 data2_lane;
 			u8 data2_pol;
 
-			struct {
-				u16 regn;
-				u16 regm;
-				u16 regm_dispc;
-				u16 regm_dsi;
-
-				u16 lp_clk_div;
-
-				u16 lck_div;
-				u16 pck_div;
-			} div;
-
 			bool ext_te;
 			u8 ext_te_gpio;
 		} dsi;
@@ -422,6 +417,33 @@ struct omap_dss_device {
 			bool invert_polarity;
 		} venc;
 	} phy;
+
+	struct {
+		struct {
+			struct {
+				u16 lck_div;
+				u16 pck_div;
+				enum omap_dss_clk_source lcd_clk_src;
+			} channel;
+
+			enum omap_dss_clk_source dispc_fclk_src;
+		} dispc;
+
+		struct {
+			u16 regn;
+			u16 regm;
+			u16 regm_dispc;
+			u16 regm_dsi;
+
+			u16 lp_clk_div;
+			enum omap_dss_clk_source dsi_fclk_src;
+		} dsi;
+
+		struct {
+			u16 regn;
+			u16 regm2;
+		} hdmi;
+	} clocks;
 
 	struct {
 		struct omap_video_timings timings;
@@ -503,6 +525,8 @@ struct omap_dss_driver {
 
 	void (*get_resolution)(struct omap_dss_device *dssdev,
 			u16 *xres, u16 *yres);
+	void (*get_dimensions)(struct omap_dss_device *dssdev,
+			u32 *width, u32 *height);
 	int (*get_recommended_bpp)(struct omap_dss_device *dssdev);
 
 	int (*check_timings)(struct omap_dss_device *dssdev,
@@ -518,9 +542,6 @@ struct omap_dss_driver {
 
 int omap_dss_register_driver(struct omap_dss_driver *);
 void omap_dss_unregister_driver(struct omap_dss_driver *);
-
-int omap_dss_register_device(struct omap_dss_device *);
-void omap_dss_unregister_device(struct omap_dss_device *);
 
 void omap_dss_get_device(struct omap_dss_device *dssdev);
 void omap_dss_put_device(struct omap_dss_device *dssdev);

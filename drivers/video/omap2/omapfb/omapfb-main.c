@@ -30,7 +30,7 @@
 #include <linux/platform_device.h>
 #include <linux/omapfb.h>
 
-#include <plat/display.h>
+#include <video/omapdss.h>
 #include <plat/vram.h>
 #include <plat/vrfb.h>
 
@@ -702,8 +702,16 @@ int check_fb_var(struct fb_info *fbi, struct fb_var_screeninfo *var)
 			var->xres, var->yres,
 			var->xres_virtual, var->yres_virtual);
 
-	var->height             = -1;
-	var->width              = -1;
+	if (display && display->driver->get_dimensions) {
+		u32 w, h;
+		display->driver->get_dimensions(display, &w, &h);
+		var->width = DIV_ROUND_CLOSEST(w, 1000);
+		var->height = DIV_ROUND_CLOSEST(h, 1000);
+	} else {
+		var->height = -1;
+		var->width = -1;
+	}
+
 	var->grayscale          = 0;
 
 	if (display && display->driver->get_timings) {
@@ -1263,7 +1271,6 @@ static int omapfb_blank(int blank, struct fb_info *fbi)
 	struct omapfb_info *ofbi = FB2OFB(fbi);
 	struct omapfb2_device *fbdev = ofbi->fbdev;
 	struct omap_dss_device *display = fb2display(fbi);
-	int do_update = 0;
 	int r = 0;
 
 	if (!display)
@@ -1278,11 +1285,6 @@ static int omapfb_blank(int blank, struct fb_info *fbi)
 
 		if (display->driver->resume)
 			r = display->driver->resume(display);
-
-		if (r == 0 && display->driver->get_update_mode &&
-				display->driver->get_update_mode(display) ==
-				OMAP_DSS_UPDATE_MANUAL)
-			do_update = 1;
 
 		break;
 
@@ -1306,13 +1308,6 @@ static int omapfb_blank(int blank, struct fb_info *fbi)
 
 exit:
 	omapfb_unlock(fbdev);
-
-	if (r == 0 && do_update && display->driver->update) {
-		u16 w, h;
-		display->driver->get_resolution(display, &w, &h);
-
-		r = display->driver->update(display, 0, 0, w, h);
-	}
 
 	return r;
 }
@@ -2185,6 +2180,61 @@ static int omapfb_parse_def_modes(struct omapfb2_device *fbdev)
 	return r;
 }
 
+static int omapfb_init_display(struct omapfb2_device *fbdev,
+		struct omap_dss_device *dssdev)
+{
+	struct omap_dss_driver *dssdrv = dssdev->driver;
+	int r;
+
+	r = dssdrv->enable(dssdev);
+	if (r) {
+		dev_warn(fbdev->dev, "Failed to enable display '%s'\n",
+				dssdev->name);
+		return r;
+	}
+
+	if (dssdev->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE) {
+		u16 w, h;
+		if (dssdrv->enable_te) {
+			r = dssdrv->enable_te(dssdev, 1);
+			if (r) {
+				dev_err(fbdev->dev, "Failed to set TE\n");
+				return r;
+			}
+		}
+
+		if (dssdrv->set_update_mode) {
+			r = dssdrv->set_update_mode(dssdev,
+					OMAP_DSS_UPDATE_MANUAL);
+			if (r) {
+				dev_err(fbdev->dev,
+						"Failed to set update mode\n");
+				return r;
+			}
+		}
+
+		dssdrv->get_resolution(dssdev, &w, &h);
+		r = dssdrv->update(dssdev, 0, 0, w, h);
+		if (r) {
+			dev_err(fbdev->dev,
+					"Failed to update display\n");
+			return r;
+		}
+	} else {
+		if (dssdrv->set_update_mode) {
+			r = dssdrv->set_update_mode(dssdev,
+					OMAP_DSS_UPDATE_AUTO);
+			if (r) {
+				dev_err(fbdev->dev,
+						"Failed to set update mode\n");
+				return r;
+			}
+		}
+	}
+
+	return 0;
+}
+
 static int omapfb_probe(struct platform_device *pdev)
 {
 	struct omapfb2_device *fbdev = NULL;
@@ -2284,29 +2334,12 @@ static int omapfb_probe(struct platform_device *pdev)
 	}
 
 	if (def_display) {
-		struct omap_dss_driver *dssdrv = def_display->driver;
-
-		r = def_display->driver->enable(def_display);
+		r = omapfb_init_display(fbdev, def_display);
 		if (r) {
-			dev_warn(fbdev->dev, "Failed to enable display '%s'\n",
-					def_display->name);
+			dev_err(fbdev->dev,
+					"failed to initialize default "
+					"display\n");
 			goto cleanup;
-		}
-
-		if (def_display->caps & OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE) {
-			u16 w, h;
-			if (dssdrv->enable_te)
-				dssdrv->enable_te(def_display, 1);
-			if (dssdrv->set_update_mode)
-				dssdrv->set_update_mode(def_display,
-						OMAP_DSS_UPDATE_MANUAL);
-
-			dssdrv->get_resolution(def_display, &w, &h);
-			def_display->driver->update(def_display, 0, 0, w, h);
-		} else {
-			if (dssdrv->set_update_mode)
-				dssdrv->set_update_mode(def_display,
-						OMAP_DSS_UPDATE_AUTO);
 		}
 	}
 
