@@ -1556,7 +1556,8 @@ static int musb_gadget_wakeup(struct usb_gadget *gadget)
 		status = 0;
 		goto done;
 	default:
-		DBG(2, "Unhandled wake: %s\n", otg_state_string(musb));
+		DBG(2, "Unhandled wake: %s\n",
+			otg_state_string(musb->xceiv->state));
 		goto done;
 	}
 
@@ -2037,7 +2038,7 @@ void musb_g_resume(struct musb *musb)
 		break;
 	default:
 		WARNING("unhandled RESUME transition (%s)\n",
-				otg_state_string(musb));
+				otg_state_string(musb->xceiv->state));
 	}
 }
 
@@ -2067,7 +2068,7 @@ void musb_g_suspend(struct musb *musb)
 		 * A_PERIPHERAL may need care too
 		 */
 		WARNING("unhandled SUSPEND transition (%s)\n",
-				otg_state_string(musb));
+				otg_state_string(musb->xceiv->state));
 	}
 }
 
@@ -2102,7 +2103,7 @@ void musb_g_disconnect(struct musb *musb)
 	default:
 #ifdef	CONFIG_USB_MUSB_OTG
 		DBG(2, "Unhandled disconnect %s, setting a_idle\n",
-			otg_state_string(musb));
+			otg_state_string(musb->xceiv->state));
 		musb->xceiv->state = OTG_STATE_A_IDLE;
 		MUSB_HST_MODE(musb);
 		break;

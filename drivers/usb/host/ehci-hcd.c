@@ -739,7 +739,7 @@ static int ehci_run (struct usb_hcd *hcd)
 	up_write(&ehci_cf_port_reset_rwsem);
 	ehci->last_periodic_enable = ktime_get_real();
 
-	temp = HC_VERSION(ehci_readl(ehci, &ehci->caps->hc_capbase));
+	temp = HC_VERSION(ehci, ehci_readl(ehci, &ehci->caps->hc_capbase));
 	ehci_info (ehci,
 		"USB %x.%x started, EHCI %x.%02x%s\n",
 		((ehci->sbrn & 0xf0)>>4), (ehci->sbrn & 0x0f),
@@ -1263,6 +1263,21 @@ MODULE_LICENSE ("GPL");
 #ifdef CONFIG_USB_EHCI_TEGRA
 #include "ehci-tegra.c"
 #define PLATFORM_DRIVER		tegra_ehci_driver
+#endif
+
+#ifdef CONFIG_USB_EHCI_S5P
+#include "ehci-s5p.c"
+#define PLATFORM_DRIVER		s5p_ehci_driver
+#endif
+
+#ifdef CONFIG_USB_EHCI_ATH79
+#include "ehci-ath79.c"
+#define PLATFORM_DRIVER		ehci_ath79_driver
+#endif
+
+#ifdef CONFIG_SPARC_LEON
+#include "ehci-grlib.c"
+#define PLATFORM_DRIVER		ehci_grlib_driver
 #endif
 
 #if !defined(PCI_DRIVER) && !defined(PLATFORM_DRIVER) && \

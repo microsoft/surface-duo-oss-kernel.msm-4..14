@@ -128,12 +128,14 @@ struct ehci_hcd {			/* one per controller */
 	unsigned		has_fsl_port_bug:1; /* FreeScale */
 	unsigned		big_endian_mmio:1;
 	unsigned		big_endian_desc:1;
+	unsigned		big_endian_capbase:1;
 	unsigned		has_amcc_usb23:1;
 	unsigned		need_io_watchdog:1;
 	unsigned		broken_periodic:1;
 	unsigned		amd_pll_fix:1;
 	unsigned		fs_i_thresh:1;	/* Intel iso scheduling */
 	unsigned		use_dummy_qh:1;	/* AMD Frame List table quirk*/
+	unsigned		has_synopsys_hc_bug:1; /* Synopsys HC */
 
 	/* required for usb32 quirk */
 	#define OHCI_CTRL_HCFS          (3 << 6)
@@ -160,6 +162,10 @@ struct ehci_hcd {			/* one per controller */
 #ifdef DEBUG
 	struct dentry		*debug_dir;
 #endif
+	/*
+	 * OTG controllers and transceivers need software interaction
+	 */
+	struct otg_transceiver	*transceiver;
 };
 
 /* convert between an HCD pointer and the corresponding EHCI_HCD */
@@ -600,12 +606,18 @@ ehci_port_speed(struct ehci_hcd *ehci, unsigned int portsc)
  * This attempts to support either format at compile time without a
  * runtime penalty, or both formats with the additional overhead
  * of checking a flag bit.
+ *
+ * ehci_big_endian_capbase is a special quirk for controllers that
+ * implement the HC capability registers as separate registers and not
+ * as fields of a 32-bit register.
  */
 
 #ifdef CONFIG_USB_EHCI_BIG_ENDIAN_MMIO
 #define ehci_big_endian_mmio(e)		((e)->big_endian_mmio)
+#define ehci_big_endian_capbase(e)	((e)->big_endian_capbase)
 #else
 #define ehci_big_endian_mmio(e)		0
+#define ehci_big_endian_capbase(e)	0
 #endif
 
 /*
@@ -615,6 +627,9 @@ ehci_port_speed(struct ehci_hcd *ehci, unsigned int portsc)
 #if defined(CONFIG_ARM) && defined(CONFIG_ARCH_IXP4XX)
 #define readl_be(addr)		__raw_readl((__force unsigned *)addr)
 #define writel_be(val, addr)	__raw_writel(val, (__force unsigned *)addr)
+#elif defined(CONFIG_SPARC_LEON)
+#define readl_be(addr)		__raw_readl(addr)
+#define writel_be(val, addr)	__raw_writel(val, addr)
 #endif
 
 static inline unsigned int ehci_readl(const struct ehci_hcd *ehci,

@@ -380,6 +380,9 @@ struct uhci_hcd {
 	/* Grabbed from PCI */
 	unsigned long io_addr;
 
+	/* Used when registers are memory mapped */
+	void __iomem *regs;
+
 	struct dma_pool *qh_pool;
 	struct dma_pool *td_pool;
 
@@ -415,6 +418,10 @@ struct uhci_hcd {
 
 	struct timer_list fsbr_timer;		/* For turning off FBSR */
 
+	/* Silicon quirks */
+	unsigned int oc_low:1;			/* OverCurrent bit active low */
+	unsigned int wait_for_hp:1;		/* Wait for HP port reset */
+
 	/* Support for port suspend/resume/reset */
 	unsigned long port_c_suspend;		/* Bit-arrays of ports */
 	unsigned long resuming_ports;
@@ -429,6 +436,16 @@ struct uhci_hcd {
 
 	int total_load;				/* Sum of array values */
 	short load[MAX_PHASE];			/* Periodic allocations */
+
+	/* Reset host controller */
+	void	(*reset_hc) (struct uhci_hcd *uhci);
+	int	(*check_and_reset_hc) (struct uhci_hcd *uhci);
+	/* configure_hc should perform arch specific settings, if needed */
+	void	(*configure_hc) (struct uhci_hcd *uhci);
+	/* Check for broken resume detect interrupts */
+	int	(*resume_detect_interrupts_are_broken) (struct uhci_hcd *uhci);
+	/* Check for broken global suspend */
+	int	(*global_suspend_mode_is_broken) (struct uhci_hcd *uhci);
 };
 
 /* Convert between a usb_hcd pointer and the corresponding uhci_hcd */
@@ -466,5 +483,97 @@ struct urb_priv {
 
 #define PCI_VENDOR_ID_GENESYS		0x17a0
 #define PCI_DEVICE_ID_GL880S_UHCI	0x8083
+
+/*
+ * Functions used to access controller registers. The UCHI spec says that host
+ * controller I/O registers are mapped into PCI I/O space. For non-PCI hosts
+ * we use memory mapped registers.
+ */
+
+#if !defined(CONFIG_USB_UHCI_SUPPORT_NON_PCI_HC)
+/* Support PCI only */
+static inline u32 uhci_readl(struct uhci_hcd *uhci, int reg)
+{
+	return inl(uhci->io_addr + reg);
+}
+
+static inline void uhci_writel(struct uhci_hcd *uhci, u32 val, int reg)
+{
+	outl(val, uhci->io_addr + reg);
+}
+
+static inline u16 uhci_readw(struct uhci_hcd *uhci, int reg)
+{
+	return inw(uhci->io_addr + reg);
+}
+
+static inline void uhci_writew(struct uhci_hcd *uhci, u16 val, int reg)
+{
+	outw(val, uhci->io_addr + reg);
+}
+
+static inline u8 uhci_readb(struct uhci_hcd *uhci, int reg)
+{
+	return inb(uhci->io_addr + reg);
+}
+
+static inline void uhci_writeb(struct uhci_hcd *uhci, u8 val, int reg)
+{
+	outb(val, uhci->io_addr + reg);
+}
+
+#else
+/* Support PCI and non-PCI host controllers */
+
+#define uhci_has_pci_registers(u)	((u)->io_addr != 0)
+
+static inline u32 uhci_readl(struct uhci_hcd *uhci, int reg)
+{
+	if (uhci_has_pci_registers(uhci))
+		return inl(uhci->io_addr + reg);
+	else
+		return readl(uhci->regs + reg);
+}
+
+static inline void uhci_writel(struct uhci_hcd *uhci, u32 val, int reg)
+{
+	if (uhci_has_pci_registers(uhci))
+		outl(val, uhci->io_addr + reg);
+	else
+		writel(val, uhci->regs + reg);
+}
+
+static inline u16 uhci_readw(struct uhci_hcd *uhci, int reg)
+{
+	if (uhci_has_pci_registers(uhci))
+		return inw(uhci->io_addr + reg);
+	else
+		return readw(uhci->regs + reg);
+}
+
+static inline void uhci_writew(struct uhci_hcd *uhci, u16 val, int reg)
+{
+	if (uhci_has_pci_registers(uhci))
+		outw(val, uhci->io_addr + reg);
+	else
+		writew(val, uhci->regs + reg);
+}
+
+static inline u8 uhci_readb(struct uhci_hcd *uhci, int reg)
+{
+	if (uhci_has_pci_registers(uhci))
+		return inb(uhci->io_addr + reg);
+	else
+		return readb(uhci->regs + reg);
+}
+
+static inline void uhci_writeb(struct uhci_hcd *uhci, u8 val, int reg)
+{
+	if (uhci_has_pci_registers(uhci))
+		outb(val, uhci->io_addr + reg);
+	else
+		writeb(val, uhci->regs + reg);
+}
+#endif /* !defined(CONFIG_USB_UHCI_SUPPORT_NON_PCI_HC) */
 
 #endif
