@@ -1,0 +1,7 @@
+/dts-v1/;
+/include/ "skeleton.dtsi"
+
+/ {
+	model = "NVIDIA Tegra2 Harmony evaluation board";
+	compatible = "nvidia,harmony", "nvidia,tegra250";
+};
