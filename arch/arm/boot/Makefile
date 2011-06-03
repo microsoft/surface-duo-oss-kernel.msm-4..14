@@ -59,6 +59,10 @@ $(obj)/zImage:	$(obj)/compressed/vmlinux FORCE
 
 endif
 
+# Rule to build device tree blobs
+$(obj)/%.dtb: $(src)/dts/%.dts
+	$(call cmd,dtc)
+
 quiet_cmd_uimage = UIMAGE  $@
       cmd_uimage = $(CONFIG_SHELL) $(MKIMAGE) -A arm -O linux -T kernel \
 		   -C none -a $(LOADADDR) -e $(STARTADDR) \
