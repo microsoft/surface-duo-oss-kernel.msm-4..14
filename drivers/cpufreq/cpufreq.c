@@ -1104,8 +1104,6 @@ static int __cpufreq_remove_dev(struct sys_device *sys_dev)
 		cpufreq_driver->exit(data);
 	unlock_policy_rwsem_write(cpu);
 
-	cpufreq_debug_enable_ratelimit();
-
 #ifdef CONFIG_HOTPLUG_CPU
 	/* when the CPU which is the parent of the kobj is hotplugged
 	 * offline, check for siblings, and create cpufreq sysfs interface
