@@ -38,6 +38,7 @@ config OMAP2_DSS_COLLECT_IRQ_STATS
 
 config OMAP2_DSS_DPI
 	bool "DPI support"
+	select OMAP2_DSS_DSI
 	default y
 	help
 	  DPI Interface. This is the Parallel Display Interface.
