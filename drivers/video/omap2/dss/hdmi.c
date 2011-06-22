@@ -1208,6 +1208,16 @@ bool omapdss_hdmi_is_detected(struct omap_dss_device *dssdev, bool force)
 
 	r = hdmi_read_reg(HDMI_CORE_SYS_SYS_STAT);
 
+	/* Some annoying LG monitors will report that's disconnected
+	 * right after reporting it's connected, so try again if probe
+	 * failed and force is enabled */
+	if (!(r & 0x2) && (force)) {
+		DSSDBG("Fail to detect the connector and force is enabled, "
+				"trying at least one more time\n");
+		msleep(2000);
+		r = hdmi_read_reg(HDMI_CORE_SYS_SYS_STAT);
+	}
+
 	return !!(r & 0x2);
 }
 
