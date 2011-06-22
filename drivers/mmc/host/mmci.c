@@ -213,6 +213,9 @@ static void __devinit mmci_dma_setup(struct mmci_host *host)
 		return;
 	}
 
+	/* initialize pre request cookie */
+	host->next_data.cookie = 1;
+
 	/* Try to acquire a generic DMA engine slave channel */
 	dma_cap_zero(mask);
 	dma_cap_set(DMA_SLAVE, mask);
@@ -1122,8 +1125,6 @@ static int __devinit mmci_probe(struct amba_device *dev,
 	host->gpio_wp = -ENOSYS;
 	host->gpio_cd = -ENOSYS;
 	host->gpio_cd_irq = -1;
-
-	host->next_data.cookie = 1;
 
 	host->hw_designer = amba_manf(dev);
 	host->hw_revision = amba_rev(dev);
