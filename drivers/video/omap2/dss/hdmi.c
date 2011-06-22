@@ -1206,6 +1206,10 @@ bool omapdss_hdmi_is_detected(struct omap_dss_device *dssdev, bool force)
 {
 	u32 r;
 
+	/* If EDID has already been read, we have HDMI connected */
+	if (hdmi.edid_set)
+		return true;
+
 	r = hdmi_read_reg(HDMI_CORE_SYS_SYS_STAT);
 
 	/* Some annoying LG monitors will report that's disconnected
