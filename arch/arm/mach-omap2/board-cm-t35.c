@@ -238,6 +238,7 @@ static struct panel_generic_dpi_data lcd_panel = {
 	.name			= "toppoly_tdo35s",
 	.platform_enable	= cm_t35_panel_enable_lcd,
 	.platform_disable	= cm_t35_panel_disable_lcd,
+	.i2c_bus_num		= 3,
 };
 
 static struct omap_dss_device cm_t35_lcd_device = {
@@ -252,6 +253,7 @@ static struct panel_generic_dpi_data dvi_panel = {
 	.name			= "generic",
 	.platform_enable	= cm_t35_panel_enable_dvi,
 	.platform_disable	= cm_t35_panel_disable_dvi,
+	.i2c_bus_num		= 3,
 };
 
 static struct omap_dss_device cm_t35_dvi_device = {
