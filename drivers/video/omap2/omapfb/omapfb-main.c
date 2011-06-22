@@ -29,6 +29,8 @@
 #include <linux/device.h>
 #include <linux/platform_device.h>
 #include <linux/omapfb.h>
+#include <linux/console.h>
+#include <linux/pm.h>
 
 #include <video/omapdss.h>
 #include <plat/vram.h>
@@ -2233,6 +2235,37 @@ static int omapfb_init_display(struct omapfb2_device *fbdev,
 	return 0;
 }
 
+#ifdef CONFIG_PM
+static int omapfb_suspend(struct device *dev)
+{
+	return 0;
+}
+
+static int omapfb_resume(struct device *dev)
+{
+	struct platform_device *pdev = to_platform_device(dev);
+	struct omapfb2_device *fbdev = platform_get_drvdata(pdev);
+	int i;
+
+	if (fbdev != NULL)
+		for (i = 0; i < fbdev->num_fbs; i++)
+			omapfb_set_par(fbdev->fbs[i]);
+
+	return 0;
+}
+#else
+#define omapfb_suspend NULL
+#define omapfb_resume  NULL
+#endif
+
+static const struct dev_pm_ops omapfb_pm_ops = {
+	.suspend	= omapfb_suspend,
+	.resume		= omapfb_resume,
+	.poweroff	= omapfb_suspend,
+	.restore	= omapfb_resume,
+};
+
+
 static int omapfb_probe(struct platform_device *pdev)
 {
 	struct omapfb2_device *fbdev = NULL;
@@ -2376,6 +2409,7 @@ static struct platform_driver omapfb_driver = {
 	.driver         = {
 		.name   = "omapfb",
 		.owner  = THIS_MODULE,
+		.pm	= &omapfb_pm_ops,
 	},
 };
 
