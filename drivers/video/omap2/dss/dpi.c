@@ -167,6 +167,9 @@ static int dpi_basic_init(struct omap_dss_device *dssdev)
 {
 	bool is_tft;
 
+	if (!dssdev->manager)
+		return -ENODEV;
+
 	is_tft = (dssdev->panel.config & OMAP_DSS_LCD_TFT) != 0;
 
 	dispc_set_parallel_interface_mode(dssdev->manager->id,
