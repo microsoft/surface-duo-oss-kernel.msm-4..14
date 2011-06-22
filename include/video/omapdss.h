@@ -569,6 +569,13 @@ struct omap_dss_driver {
 	/* return raw EDID.. len indicates the max number of bytes of the
 	 * EDID to read */
 	int (*get_edid)(struct omap_dss_device *dssdev, u8 *edid, int len);
+
+	/* is this display physically present / plugged-in?  For hot-plug
+	 * type displays (DVI, HDMI), this means is the cable plugged in.
+	 * For displays like LCD panels, this means is the display present
+	 * on the board.
+	 */
+	bool (*is_detected)(struct omap_dss_device *dssdev);
 };
 
 int omap_dss_register_driver(struct omap_dss_driver *);
@@ -606,6 +613,7 @@ void omapdss_default_get_timings(struct omap_dss_device *dssdev,
 		struct omap_video_timings *timings);
 int omapdss_default_check_timings(struct omap_dss_device *dssdev,
 		struct omap_video_timings *timings);
+bool omapdss_default_is_detected(struct omap_dss_device *dssdev);
 void omapdss_default_get_resolution(struct omap_dss_device *dssdev,
 		u16 *xres, u16 *yres);
 int omapdss_default_get_recommended_bpp(struct omap_dss_device *dssdev);

@@ -439,6 +439,8 @@ int omap_dss_register_driver(struct omap_dss_driver *dssdriver)
 		dssdriver->check_timings = omapdss_default_check_timings;
 	if (!dssdriver->get_timings)
 		dssdriver->get_timings = omapdss_default_get_timings;
+	if (!dssdriver->is_detected)
+		dssdriver->is_detected = omapdss_default_is_detected;
 
 	return driver_register(&dssdriver->driver);
 }
