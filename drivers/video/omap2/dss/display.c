@@ -341,7 +341,7 @@ int omapdss_default_check_timings(struct omap_dss_device *dssdev,
 }
 EXPORT_SYMBOL(omapdss_default_check_timings);
 
-bool omapdss_default_is_detected(struct omap_dss_device *dssdev)
+bool omapdss_default_is_detected(struct omap_dss_device *dssdev, bool force)
 {
 	if (dssdev->state == OMAP_DSS_DISPLAY_SUSPENDED) {
 		/* show resume info for suspended displays */

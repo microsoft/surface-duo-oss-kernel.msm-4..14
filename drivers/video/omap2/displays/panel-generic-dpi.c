@@ -489,7 +489,8 @@ out:
 	return -EINVAL;
 }
 
-static bool generic_dpi_panel_is_detected(struct omap_dss_device *dssdev)
+static bool generic_dpi_panel_is_detected(struct omap_dss_device *dssdev,
+				bool force)
 {
 	struct panel_generic_dpi_data *panel_data = get_panel_data(dssdev);
 	struct i2c_adapter *adapter;
@@ -497,7 +498,7 @@ static bool generic_dpi_panel_is_detected(struct omap_dss_device *dssdev)
 
 	adapter = i2c_get_adapter(panel_data->i2c_bus_num);
 	if (!adapter) {
-		return omapdss_default_is_detected(dssdev);
+		return omapdss_default_is_detected(dssdev, force);
 	}
 
 	return (do_probe_ddc_edid(adapter, &out, 0, 1) == 0);

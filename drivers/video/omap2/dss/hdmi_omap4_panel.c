@@ -143,9 +143,9 @@ err:
 	return r;
 }
 
-static bool hdmi_panel_is_detected(struct omap_dss_device *dssdev)
+static bool hdmi_panel_is_detected(struct omap_dss_device *dssdev, bool force)
 {
-	return omapdss_hdmi_is_detected(dssdev);
+	return omapdss_hdmi_is_detected(dssdev, force);
 }
 
 static int hdmi_get_edid(struct omap_dss_device *dssdev, u8 *buf, int len)
