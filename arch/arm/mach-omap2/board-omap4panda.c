@@ -696,7 +696,7 @@ static const char * const panda_fixup_mac_device_paths[] = {
 
 static int panda_device_path_need_mac(struct device *dev)
 {
-	const char **try = panda_fixup_mac_device_paths;
+	const char **try = (const char **)panda_fixup_mac_device_paths;
 	const char *path;
 	int count = ARRAY_SIZE(panda_fixup_mac_device_paths);
 	const char *p;
