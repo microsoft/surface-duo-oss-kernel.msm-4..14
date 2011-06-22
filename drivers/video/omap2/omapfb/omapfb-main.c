@@ -1872,9 +1872,11 @@ static void omapfb_free_resources(struct omapfb2_device *fbdev)
 
 static void size_notify(struct fb_info *fbi, int w, int h)
 {
+	struct omapfb_info *ofbi = FB2OFB(fbi);
 	struct fb_var_screeninfo var = fbi->var;
 	struct fb_var_screeninfo saved_var = fbi->var;
 	int orig_flags;
+	int new_size = (w * var.bits_per_pixel >> 3) * h;
 
 	DBG("size_notify: %dx%d\n", w, h);
 
@@ -1885,6 +1887,14 @@ static void size_notify(struct fb_info *fbi, int w, int h)
 	var.yres_virtual = h;
 
 	console_lock();
+
+	/* Try to increase memory allocated for FB, if needed */
+	if (new_size > ofbi->region->size) {
+		DBG("re-allocating FB - old size: %ld - new size: %d\n", ofbi->region->size, new_size);
+		omapfb_get_mem_region(ofbi->region);
+		omapfb_realloc_fbmem(fbi, new_size, 0);
+		omapfb_put_mem_region(ofbi->region);
+	}
 
 	/* this ensures fbdev clients, like the console driver, get notified about
 	 * the change:
