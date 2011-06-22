@@ -135,6 +135,10 @@ enum omap_dss_venc_type {
 enum omap_display_caps {
 	OMAP_DSS_DISPLAY_CAP_MANUAL_UPDATE	= 1 << 0,
 	OMAP_DSS_DISPLAY_CAP_TEAR_ELIM		= 1 << 1,
+	/* set if display supports hotplug detect, and will call
+	 * omap_dss_notify(CONNECT/DISCONNECT) at appropriate times
+	 */
+	OMAP_DSS_DISPLAY_CAP_HPD			= 1 << 2,
 };
 
 enum omap_dss_update_mode {
@@ -595,8 +599,13 @@ void omap_dss_stop_device(struct omap_dss_device *dssdev);
  * to the notifier function, and the dssdev is passed as the third.
  */
 enum omap_dss_event {
-	OMAP_DSS_SIZE_CHANGE
-	/* possibly add additional events, like hot-plug connect/disconnect */
+	OMAP_DSS_SIZE_CHANGE,
+	/* the CONNECT/DISCONNECT events will be sent if OMAP_DSS_DISPLAY_CAP_HPD
+	 * flag is set in the dssdev->caps.  Otherwise the user will have to poll
+	 * for detection when a monitor is plugged/unplugged.
+	 */
+	OMAP_DSS_HOTPLUG_CONNECT,
+	OMAP_DSS_HOTPLUG_DISCONNECT,
 };
 
 void omap_dss_notify(struct omap_dss_device *dssdev, enum omap_dss_event evt);
