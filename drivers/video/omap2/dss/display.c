@@ -327,6 +327,20 @@ void omapdss_default_get_resolution(struct omap_dss_device *dssdev,
 }
 EXPORT_SYMBOL(omapdss_default_get_resolution);
 
+void omapdss_default_get_timings(struct omap_dss_device *dssdev,
+			struct omap_video_timings *timings)
+{
+	*timings = dssdev->panel.timings;
+}
+EXPORT_SYMBOL(omapdss_default_get_timings);
+
+int omapdss_default_check_timings(struct omap_dss_device *dssdev,
+			struct omap_video_timings *timings)
+{
+	return memcmp(&dssdev->panel.timings, timings, sizeof(*timings));
+}
+EXPORT_SYMBOL(omapdss_default_check_timings);
+
 void default_get_overlay_fifo_thresholds(enum omap_plane plane,
 		u32 fifo_size, enum omap_burst_size *burst_size,
 		u32 *fifo_low, u32 *fifo_high)
