@@ -1127,7 +1127,6 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 		dssdev->panel.timings.y_res);
 
 	if (!hdmi.custom_set) {
-		code = get_timings_index();
 		DSSDBG("Read EDID as no EDID is not set on poweron\n");
 		hdmi_read_edid(p);
 		dirty = get_timings_index() != code;
@@ -1142,11 +1141,11 @@ static int hdmi_power_on(struct omap_dss_device *dssdev)
 
 	hdmi_wp_video_start(0);
 
- 	if (dirty) {
-		omap_dss_notify(dssdev, OMAP_DSS_SIZE_CHANGE);
- 	}
- 
- 	/* config the PLL and PHY first */
+       if (dirty) {
+               omap_dss_notify(dssdev, OMAP_DSS_SIZE_CHANGE);
+       } 
+
+	/* config the PLL and PHY first */
 	r = hdmi_pll_program(&pll_data);
 	if (r) {
 		DSSDBG("Failed to lock PLL\n");
