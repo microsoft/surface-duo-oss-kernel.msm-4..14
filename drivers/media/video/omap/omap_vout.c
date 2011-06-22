@@ -825,6 +825,43 @@ int omapvid_apply_changes(struct omap_vout_device *vout)
 	return 0;
 }
 
+static int _program_cur(struct omap_vout_device *vout)
+{
+	int ret;
+	u32 addr = (unsigned long) vout->queued_buf_addr[vout->cur_frm->i]
+			+ vout->cropped_offset;
+
+	/* First save the configuration in ovelray structure */
+	ret = omapvid_init(vout, addr);
+	if (ret) {
+		printk(KERN_ERR VOUT_NAME
+				"failed to set overlay info\n");
+		return ret;
+	}
+	/* Enable the pipeline and set the Go bit */
+	ret = omapvid_apply_changes(vout);
+	if (ret)
+		printk(KERN_ERR VOUT_NAME
+				"failed to change mode\n");
+
+	return ret;
+}
+
+static struct videobuf_buffer * _get_next_frm(struct omap_vout_device *vout)
+{
+	struct videobuf_buffer *frm;
+
+	if (list_empty(&vout->dma_queue))
+		return NULL;
+
+	frm = list_entry(vout->dma_queue.next,
+			struct videobuf_buffer, queue);
+
+	list_del(&frm->queue);
+
+	return frm;
+}
+
 void omap_vout_isr(void *arg, unsigned int irqstatus)
 {
 	int ret;
@@ -894,45 +931,18 @@ void omap_vout_isr(void *arg, unsigned int irqstatus)
 			goto vout_isr_err;
 
 		vout->field_id ^= 1;
-		if (fid != vout->field_id) {
-			if (0 == fid)
-				vout->field_id = fid;
-
-			goto vout_isr_err;
-		}
 		if (0 == fid) {
-			if (vout->cur_frm == vout->next_frm)
-				goto vout_isr_err;
-
-			vout->cur_frm->ts = timevalue;
-			vout->cur_frm->state = VIDEOBUF_DONE;
-			wake_up_interruptible(&vout->cur_frm->done);
-			vout->cur_frm = vout->next_frm;
-		} else if (1 == fid) {
-			if (list_empty(&vout->dma_queue) ||
-					(vout->cur_frm != vout->next_frm))
-				goto vout_isr_err;
-
-			vout->next_frm = list_entry(vout->dma_queue.next,
-					struct videobuf_buffer, queue);
-			list_del(&vout->next_frm->queue);
-
-			vout->next_frm->state = VIDEOBUF_ACTIVE;
-			addr = (unsigned long)
-				vout->queued_buf_addr[vout->next_frm->i] +
-				vout->cropped_offset;
-			/* First save the configuration in ovelray structure */
-			ret = omapvid_init(vout, addr);
-			if (ret)
-				printk(KERN_ERR VOUT_NAME
-						"failed to set overlay info\n");
-			/* Enable the pipeline and set the Go bit */
-			ret = omapvid_apply_changes(vout);
-			if (ret)
-				printk(KERN_ERR VOUT_NAME
-						"failed to change mode\n");
+			if (vout->cur_frm) {
+				vout->cur_frm->ts = timevalue;
+				vout->cur_frm->state = VIDEOBUF_DONE;
+				wake_up_interruptible(&vout->cur_frm->done);
+			}
 		}
-
+		vout->cur_frm = _get_next_frm(vout);
+		if (!vout->cur_frm)
+			goto vout_isr_err;
+		vout->cur_frm->state = VIDEOBUF_ACTIVE;
+		_program_cur(vout);
 	}
 
 vout_isr_err:
@@ -1922,16 +1932,12 @@ static int vidioc_streamon(struct file *file, void *fh, enum v4l2_buf_type i)
 	if (ret)
 		goto streamon_err;
 
-	if (list_empty(&vout->dma_queue)) {
+	/* Get the next frame from the buffer queue */
+	vout->cur_frm = _get_next_frm(vout);
+	if (!vout->cur_frm) {
 		ret = -EIO;
 		goto streamon_err1;
 	}
-
-	/* Get the next frame from the buffer queue */
-	vout->next_frm = vout->cur_frm = list_entry(vout->dma_queue.next,
-			struct videobuf_buffer, queue);
-	/* Remove buffer from the buffer queue */
-	list_del(&vout->cur_frm->queue);
 	/* Mark state of the current frame to active */
 	vout->cur_frm->state = VIDEOBUF_ACTIVE;
 	/* Initialize field_id and started member */
