@@ -131,6 +131,7 @@ static struct panel_generic_dpi_data lcd_panel = {
 	.name			= "generic",
 	.platform_enable	= omap3_stalker_enable_lcd,
 	.platform_disable	= omap3_stalker_disable_lcd,
+	.i2c_bus_num		= 3,
 };
 
 static struct omap_dss_device omap3_stalker_lcd_device = {
@@ -184,6 +185,7 @@ static struct panel_generic_dpi_data dvi_panel = {
 	.name			= "generic",
 	.platform_enable	= omap3_stalker_enable_dvi,
 	.platform_disable	= omap3_stalker_disable_dvi,
+	.i2c_bus_num		= 3,
 };
 
 static struct omap_dss_device omap3_stalker_dvi_device = {

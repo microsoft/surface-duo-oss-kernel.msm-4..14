@@ -669,7 +669,7 @@ static struct omap_dss_device *omap4_panda_dss_devices[] = {
 static struct omap_dss_board_info omap4_panda_dss_data = {
 	.num_devices	= ARRAY_SIZE(omap4_panda_dss_devices),
 	.devices	= omap4_panda_dss_devices,
-	.default_device	= &omap4_panda_dvi_device,
+	.default_device	= &omap4_panda_hdmi_device,
 };
 
 void omap4_panda_display_init(void)
@@ -696,7 +696,7 @@ static const char * const panda_fixup_mac_device_paths[] = {
 
 static int panda_device_path_need_mac(struct device *dev)
 {
-	const char **try = panda_fixup_mac_device_paths;
+	const char **try = (const char **)panda_fixup_mac_device_paths;
 	const char *path;
 	int count = ARRAY_SIZE(panda_fixup_mac_device_paths);
 	const char *p;

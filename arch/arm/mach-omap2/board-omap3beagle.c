@@ -181,6 +181,7 @@ static struct panel_generic_dpi_data dvi_panel = {
 	.name = "generic",
 	.platform_enable = beagle_enable_dvi,
 	.platform_disable = beagle_disable_dvi,
+	.i2c_bus_num = 3,
 };
 
 static struct omap_dss_device beagle_dvi_device = {

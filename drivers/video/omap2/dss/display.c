@@ -26,6 +26,7 @@
 #include <linux/module.h>
 #include <linux/jiffies.h>
 #include <linux/platform_device.h>
+#include <linux/slab.h>
 
 #include <video/omapdss.h>
 #include "dss.h"
@@ -325,6 +326,32 @@ void omapdss_default_get_resolution(struct omap_dss_device *dssdev,
 	*yres = dssdev->panel.timings.y_res;
 }
 EXPORT_SYMBOL(omapdss_default_get_resolution);
+
+void omapdss_default_get_timings(struct omap_dss_device *dssdev,
+			struct omap_video_timings *timings)
+{
+	*timings = dssdev->panel.timings;
+}
+EXPORT_SYMBOL(omapdss_default_get_timings);
+
+int omapdss_default_check_timings(struct omap_dss_device *dssdev,
+			struct omap_video_timings *timings)
+{
+	return memcmp(&dssdev->panel.timings, timings, sizeof(*timings));
+}
+EXPORT_SYMBOL(omapdss_default_check_timings);
+
+bool omapdss_default_is_detected(struct omap_dss_device *dssdev, bool force)
+{
+	if (dssdev->state == OMAP_DSS_DISPLAY_SUSPENDED) {
+		/* show resume info for suspended displays */
+		return dssdev->activate_after_resume;
+	} else {
+		return dssdev->state != OMAP_DSS_DISPLAY_DISABLED;
+	}
+}
+EXPORT_SYMBOL(omapdss_default_is_detected);
+
 
 void default_get_overlay_fifo_thresholds(enum omap_plane plane,
 		u32 fifo_size, enum omap_burst_size *burst_size,
@@ -628,3 +655,50 @@ void omap_dss_stop_device(struct omap_dss_device *dssdev)
 }
 EXPORT_SYMBOL(omap_dss_stop_device);
 
+/* since omap_dss_update_size can be called in irq context, schedule work from
+ * work-queue to deliver notification to client..
+ */
+struct notify_work {
+	struct work_struct work;
+	struct omap_dss_device *dssdev;
+	enum omap_dss_event evt;
+};
+
+static void notify_worker(struct work_struct *work)
+{
+	struct notify_work *nw =
+		container_of(work, struct notify_work, work);
+	struct omap_dss_device *dssdev = nw->dssdev;
+	blocking_notifier_call_chain(&dssdev->notifier, nw->evt, dssdev);
+	kfree(work);
+}
+
+/**
+ * Called by lower level driver to notify about a change in resolution, etc.
+ */
+void omap_dss_notify(struct omap_dss_device *dssdev, enum omap_dss_event evt)
+{
+	struct notify_work *nw =
+			kmalloc(sizeof(struct notify_work), GFP_KERNEL);
+	if (nw) {
+		INIT_WORK(&nw->work, notify_worker);
+		nw->dssdev = dssdev;
+		nw->evt = evt;
+		schedule_work(&nw->work);
+	}
+}
+EXPORT_SYMBOL(omap_dss_notify);
+
+void omap_dss_add_notify(struct omap_dss_device *dssdev,
+		struct notifier_block *nb)
+{
+	blocking_notifier_chain_register(&dssdev->notifier, nb);
+}
+EXPORT_SYMBOL(omap_dss_add_notify);
+
+void omap_dss_remove_notify(struct omap_dss_device *dssdev,
+		struct notifier_block *nb)
+{
+	blocking_notifier_chain_unregister(&dssdev->notifier, nb);
+}
+EXPORT_SYMBOL(omap_dss_remove_notify);

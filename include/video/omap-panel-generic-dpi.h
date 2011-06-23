@@ -27,11 +27,13 @@ struct omap_dss_device;
  * @name: panel name
  * @platform_enable: platform specific panel enable function
  * @platform_disable: platform specific panel disable function
+ * @i2c_bus_num: i2c control bus id the eeprom is attached to
  */
 struct panel_generic_dpi_data {
 	const char *name;
 	int (*platform_enable)(struct omap_dss_device *dssdev);
 	void (*platform_disable)(struct omap_dss_device *dssdev);
+	u16 i2c_bus_num;
 };
 
 #endif /* __OMAP_PANEL_GENERIC_DPI_H */

@@ -23,6 +23,7 @@
 #define MAX_DSS_MANAGERS	3
 #define MAX_DSS_OVERLAYS	3
 #define MAX_DSS_LCD_MANAGERS	2
+#define MAX_NUM_DSI		2
 
 /* DSS has feature id */
 enum dss_feat_id {
@@ -43,9 +44,13 @@ enum dss_feat_id {
 	/* DSI-PLL power command 0x3 is not working */
 	FEAT_DSI_PLL_PWR_BUG		= 1 << 13,
 	FEAT_DSI_PLL_FREQSEL		= 1 << 14,
-	FEAT_DSI_LDO_STATUS		= 1 << 15,
-	FEAT_DSI_DCS_CMD_CONFIG_VC	= 1 << 16,
-	FEAT_DSI_VC_OCP_WIDTH		= 1 << 17,
+	FEAT_DSI_DCS_CMD_CONFIG_VC	= 1 << 15,
+	FEAT_DSI_VC_OCP_WIDTH		= 1 << 16,
+	FEAT_DSI_REVERSE_TXCLKESC	= 1 << 17,
+	FEAT_DSI_GNQ			= 1 << 18,
+	FEAT_HDMI_CTS_SWMODE		= 1 << 19,
+	FEAT_HANDLE_UV_SEPARATE         = 1 << 20,
+	FEAT_ATTR2                      = 1 << 21,
 };
 
 /* DSS register field id */
