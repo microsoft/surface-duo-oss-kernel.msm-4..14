@@ -142,6 +142,7 @@ static struct panel_generic_dpi_data lcd_panel = {
 	.name			= "generic",
 	.platform_enable        = devkit8000_panel_enable_lcd,
 	.platform_disable       = devkit8000_panel_disable_lcd,
+	.i2c_bus_num		= 3,
 };
 
 static struct omap_dss_device devkit8000_lcd_device = {
@@ -156,6 +157,7 @@ static struct panel_generic_dpi_data dvi_panel = {
 	.name			= "generic",
 	.platform_enable        = devkit8000_panel_enable_dvi,
 	.platform_disable       = devkit8000_panel_disable_dvi,
+	.i2c_bus_num		= 3,
 };
 
 static struct omap_dss_device devkit8000_dvi_device = {

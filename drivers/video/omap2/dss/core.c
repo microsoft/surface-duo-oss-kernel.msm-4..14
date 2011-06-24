@@ -127,8 +127,7 @@ static int dss_initialize_debugfs(void)
 #endif
 
 #if defined(CONFIG_OMAP2_DSS_DSI) && defined(CONFIG_OMAP2_DSS_COLLECT_IRQ_STATS)
-	debugfs_create_file("dsi_irq", S_IRUGO, dss_debugfs_dir,
-			&dsi_dump_irqs, &dss_debug_fops);
+	dsi_create_debugfs_files_irq(dss_debugfs_dir, &dss_debug_fops);
 #endif
 
 	debugfs_create_file("dss", S_IRUGO, dss_debugfs_dir,
@@ -140,8 +139,7 @@ static int dss_initialize_debugfs(void)
 			&rfbi_dump_regs, &dss_debug_fops);
 #endif
 #ifdef CONFIG_OMAP2_DSS_DSI
-	debugfs_create_file("dsi", S_IRUGO, dss_debugfs_dir,
-			&dsi_dump_regs, &dss_debug_fops);
+	dsi_create_debugfs_files_reg(dss_debugfs_dir, &dss_debug_fops);
 #endif
 #ifdef CONFIG_OMAP2_DSS_VENC
 	debugfs_create_file("venc", S_IRUGO, dss_debugfs_dir,
@@ -437,6 +435,12 @@ int omap_dss_register_driver(struct omap_dss_driver *dssdriver)
 	if (dssdriver->get_recommended_bpp == NULL)
 		dssdriver->get_recommended_bpp =
 			omapdss_default_get_recommended_bpp;
+	if (!dssdriver->check_timings)
+		dssdriver->check_timings = omapdss_default_check_timings;
+	if (!dssdriver->get_timings)
+		dssdriver->get_timings = omapdss_default_get_timings;
+	if (!dssdriver->is_detected)
+		dssdriver->is_detected = omapdss_default_is_detected;
 
 	return driver_register(&dssdriver->driver);
 }
@@ -494,6 +498,9 @@ static int omap_dss_register_device(struct omap_dss_device *dssdev)
 	dssdev->dev.parent = &dss_bus;
 	dssdev->dev.release = omap_dss_dev_release;
 	dev_set_name(&dssdev->dev, "display%d", dev_num++);
+
+	BLOCKING_INIT_NOTIFIER_HEAD(&dssdev->notifier);
+
 	return device_register(&dssdev->dev);
 }
 

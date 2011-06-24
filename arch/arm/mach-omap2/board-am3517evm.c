@@ -289,6 +289,7 @@ static struct panel_generic_dpi_data lcd_panel = {
 	.name			= "sharp_lq",
 	.platform_enable	= am3517_evm_panel_enable_lcd,
 	.platform_disable	= am3517_evm_panel_disable_lcd,
+	.i2c_bus_num		= 3,
 };
 
 static struct omap_dss_device am3517_evm_lcd_device = {
@@ -337,6 +338,7 @@ static struct panel_generic_dpi_data dvi_panel = {
 	.name			= "generic",
 	.platform_enable	= am3517_evm_panel_enable_dvi,
 	.platform_disable	= am3517_evm_panel_disable_dvi,
+	.i2c_bus_num		= 3,
 };
 
 static struct omap_dss_device am3517_evm_dvi_device = {

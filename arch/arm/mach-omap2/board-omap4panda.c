@@ -669,7 +669,7 @@ static struct omap_dss_device *omap4_panda_dss_devices[] = {
 static struct omap_dss_board_info omap4_panda_dss_data = {
 	.num_devices	= ARRAY_SIZE(omap4_panda_dss_devices),
 	.devices	= omap4_panda_dss_devices,
-	.default_device	= &omap4_panda_dvi_device,
+	.default_device	= &omap4_panda_hdmi_device,
 };
 
 void omap4_panda_display_init(void)
@@ -696,7 +696,7 @@ static const char * const panda_fixup_mac_device_paths[] = {
 
 static int panda_device_path_need_mac(struct device *dev)
 {
-	const char **try = panda_fixup_mac_device_paths;
+	const char **try = (const char **)panda_fixup_mac_device_paths;
 	const char *path;
 	int count = ARRAY_SIZE(panda_fixup_mac_device_paths);
 	const char *p;
@@ -797,6 +797,11 @@ static void __init omap4_panda_map_io(void)
 	omap44xx_map_common_io();
 }
 
+static const char *omap4_panda_match[] __initdata = {
+	"ti,omap4-panda",
+	NULL,
+};
+
 MACHINE_START(OMAP4_PANDA, "OMAP4 Panda board")
 	/* Maintainer: David Anders - Texas Instruments Inc */
 	.boot_params	= 0x80000100,
@@ -806,4 +811,5 @@ MACHINE_START(OMAP4_PANDA, "OMAP4 Panda board")
 	.init_irq	= gic_init_irq,
 	.init_machine	= omap4_panda_init,
 	.timer		= &omap_timer,
+	.dt_compat	= omap4_panda_match,
 MACHINE_END

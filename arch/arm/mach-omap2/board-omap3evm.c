@@ -251,6 +251,7 @@ static struct panel_generic_dpi_data dvi_panel = {
 	.name			= "generic",
 	.platform_enable	= omap3_evm_enable_dvi,
 	.platform_disable	= omap3_evm_disable_dvi,
+	.i2c_bus_num		= 3,
 };
 
 static struct omap_dss_device omap3_evm_dvi_device = {
