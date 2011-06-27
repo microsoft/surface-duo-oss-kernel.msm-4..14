@@ -715,12 +715,13 @@ static int mmc_test_check_result(struct mmc_test_card *test,
 	return ret;
 }
 
-
 static int mmc_test_check_result_async(struct mmc_card *card,
 				       struct mmc_async_req *areq)
 {
 	struct mmc_test_async_req *test_async =
 		container_of(areq, struct mmc_test_async_req, areq);
+
+	mmc_test_wait_busy(test_async->test);
 
 	return mmc_test_check_result(test_async->test, areq->mrq);
 }
