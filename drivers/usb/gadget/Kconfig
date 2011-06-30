@@ -938,6 +938,12 @@ config USB_ANDROID_ADB
 	help
 	  Provides adb function for android gadget driver.
 
+config USB_ANDROID_GENERIC_ADB
+	boolean "Generic Android adb gadget driver"
+	depends on USB_ANDROID_ADB
+	help
+	  Provides generic android adb gadget driver.
+
 config USB_ANDROID_MASS_STORAGE
 	boolean "Android gadget mass storage function"
 	depends on USB_ANDROID && SWITCH
