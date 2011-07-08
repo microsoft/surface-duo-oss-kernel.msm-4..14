@@ -40,6 +40,8 @@
 #include "hdmi.h"
 #include "dss_features.h"
 
+#include <plat/edid.h>
+
 static struct {
 	struct mutex lock;
 	struct omap_display_platform_data *pdata;
@@ -548,41 +550,136 @@ static struct hdmi_cm hdmi_get_code(struct omap_video_timings *timing)
 	return cm;
 }
 
+/*
+ * An amalgamation of work from
+ * Mythri P K <mythripk@ti.com>
+ * With EDID parsing for DVI Monitor from Rob Clark <rob@ti.com>
+ * See d96ea7bff990a2bce52b1087a446f15625993b21
+ */
 static void get_horz_vert_timing_info(int current_descriptor_addrs, u8 *edid ,
 		struct omap_video_timings *timings)
 {
-	/* X and Y resolution */
-	timings->x_res = (((edid[current_descriptor_addrs + 4] & 0xF0) << 4) |
-			 edid[current_descriptor_addrs + 2]);
-	timings->y_res = (((edid[current_descriptor_addrs + 7] & 0xF0) << 4) |
-			 edid[current_descriptor_addrs + 5]);
+	union HDMI_EDID_DTD *edid_dtd =
+		(union HDMI_EDID_DTD *) &edid[current_descriptor_addrs];
 
-	timings->pixel_clock = ((edid[current_descriptor_addrs + 1] << 8) |
-				edid[current_descriptor_addrs]);
+	if (edid_dtd->video.pixel_clock) {
+		struct HDMI_EDID_DTD_VIDEO *vid = &edid_dtd->video;
 
-	timings->pixel_clock = 10 * timings->pixel_clock;
+		timings->pixel_clock = 10 * vid->pixel_clock;
+		timings->x_res = vid->horiz_active |
+				(((u16)vid->horiz_high & 0xf0) << 4);
+		timings->y_res = vid->vert_active |
+				(((u16)vid->vert_high & 0xf0) << 4);
 
-	/* HORIZONTAL FRONT PORCH */
-	timings->hfp = edid[current_descriptor_addrs + 8] |
-			((edid[current_descriptor_addrs + 11] & 0xc0) << 2);
-	/* HORIZONTAL SYNC WIDTH */
-	timings->hsw = edid[current_descriptor_addrs + 9] |
-			((edid[current_descriptor_addrs + 11] & 0x30) << 4);
-	/* HORIZONTAL BACK PORCH */
-	timings->hbp = (((edid[current_descriptor_addrs + 4] & 0x0F) << 8) |
-			edid[current_descriptor_addrs + 3]) -
-			(timings->hfp + timings->hsw);
-	/* VERTICAL FRONT PORCH */
-	timings->vfp = ((edid[current_descriptor_addrs + 10] & 0xF0) >> 4) |
-			((edid[current_descriptor_addrs + 11] & 0x0f) << 2);
-	/* VERTICAL SYNC WIDTH */
-	timings->vsw = (edid[current_descriptor_addrs + 10] & 0x0F) |
-			((edid[current_descriptor_addrs + 11] & 0x03) << 4);
-	/* VERTICAL BACK PORCH */
-	timings->vbp = (((edid[current_descriptor_addrs + 7] & 0x0F) << 8) |
-			edid[current_descriptor_addrs + 6]) -
-			(timings->vfp + timings->vsw);
+		/* HORIZONTAL FRONT PORCH */
+		timings->hfp = vid->horiz_sync_offset |
+				(((u16)vid->sync_pulse_high & 0xc0) << 2);
+		/* HORIZONTAL SYNC WIDTH */
+		timings->hsw = vid->horiz_sync_pulse |
+				(((u16)vid->sync_pulse_high & 0x30) << 4);
+		/* HORIZONTAL BACK PORCH */
+		timings->hbp = (vid->horiz_blanking |
+				(((u16)vid->horiz_high & 0x0f) << 8)) -
+				(timings->hfp + timings->hsw);
+		/* VERTICAL FRONT PORCH */
+		timings->vfp = ((vid->vert_sync_pulse & 0xf0) >> 4) |
+				((vid->sync_pulse_high & 0x0f) << 2);
+		/* VERTICAL SYNC WIDTH */
+		timings->vsw = (vid->vert_sync_pulse & 0x0f) |
+				((vid->sync_pulse_high & 0x03) << 4);
+		/* VERTICAL BACK PORCH */
+		timings->vbp = (vid->vert_blanking |
+				(((u16)vid->vert_high & 0x0f) << 8)) -
+				(timings->vfp + timings->vsw);
+		return;
+	}
 
+	switch (edid_dtd->monitor_name.block_type) {
+	case HDMI_EDID_DTD_TAG_STANDARD_TIMING_DATA:
+		printk(KERN_INFO "standard timing data\n");
+		return;
+	case HDMI_EDID_DTD_TAG_COLOR_POINT_DATA:
+		printk(KERN_INFO "color point data\n");
+		return;
+	case HDMI_EDID_DTD_TAG_MONITOR_NAME:
+		printk(KERN_INFO "monitor name: %s\n",
+						edid_dtd->monitor_name.text);
+		return;
+	case HDMI_EDID_DTD_TAG_MONITOR_LIMITS:
+	{
+		int i, max_area = 0;
+		struct HDMI_EDID_DTD_MONITOR *limits =
+						&edid_dtd->monitor_limits;
+
+		printk(KERN_INFO "monitor limits\n");
+		printk(KERN_INFO "  min_vert_freq=%d\n", limits->min_vert_freq);
+		printk(KERN_INFO "  max_vert_freq=%d\n", limits->max_vert_freq);
+		printk(KERN_INFO "  min_horiz_freq=%d\n",
+						limits->min_horiz_freq);
+		printk(KERN_INFO "  max_horiz_freq=%d\n",
+						limits->max_horiz_freq);
+		printk(KERN_INFO "  pixel_clock_mhz=%d\n",
+						limits->pixel_clock_mhz * 10);
+
+		/* find the highest matching resolution (w*h) */
+
+		/*
+		 * XXX since this is mainly for DVI monitors, should we only
+		 * support VESA timings?  My monitor at home would pick
+		 * 1920x1080 otherwise, but that seems to not work well (monitor
+		 * blanks out and comes back, and picture doesn't fill full
+		 * screen, but leaves a black bar on left (native res is
+		 * 2048x1152). However if I only consider VESA timings, it picks
+		 * 1680x1050 and the picture is stable and fills whole screen
+		 */
+		for (i = OMAP_HDMI_TIMINGS_VESA_START;
+					i < OMAP_HDMI_TIMINGS_NB; i++) {
+			const struct omap_video_timings *t =
+				&cea_vesa_timings[i].timings;
+			int hz, hscan, pixclock;
+			int vtotal, htotal;
+			htotal = t->hbp + t->hfp + t->hsw + t->x_res;
+			vtotal = t->vbp + t->vfp + t->vsw + t->y_res;
+
+			/* NOTE: We don't support interlaced mode for VESA */
+			pixclock = t->pixel_clock * 1000;
+			hscan = (pixclock + htotal / 2) / htotal;
+			hscan = (hscan + 500) / 1000 * 1000;
+			hz = (hscan + vtotal / 2) / vtotal;
+			hscan /= 1000;
+			pixclock /= 1000000;
+			printk(KERN_DEBUG "debug only pixclock=%d, hscan=%d, hz=%d\n",
+					pixclock, hscan, hz);
+			if ((pixclock < (limits->pixel_clock_mhz * 10)) &&
+			    (limits->min_horiz_freq <= hscan) &&
+			    (hscan <= limits->max_horiz_freq) &&
+			    (limits->min_vert_freq <= hz) &&
+			    (hz <= limits->max_vert_freq)) {
+				int area = t->x_res * t->y_res;
+				printk(KERN_INFO " -> %d: %dx%d\n", i,
+					t->x_res, t->y_res);
+				if (area > max_area) {
+					max_area = area;
+					*timings = *t;
+				}
+			}
+		}
+		if (max_area)
+			printk(KERN_INFO "found best resolution: %dx%d\n",
+				timings->x_res, timings->y_res);
+		return;
+	}
+	case HDMI_EDID_DTD_TAG_ASCII_STRING:
+		printk(KERN_INFO "ascii string: %s\n", edid_dtd->ascii.text);
+		return;
+	case HDMI_EDID_DTD_TAG_MONITOR_SERIALNUM:
+		printk(KERN_INFO "monitor serialnum: %s\n",
+			edid_dtd->monitor_serial_number.text);
+		return;
+	default:
+		printk(KERN_INFO "unsupported EDID descriptor block format\n");
+		return;
+	}
 }
 
 /* Description : This function gets the resolution information from EDID */
