@@ -1,7 +1,7 @@
 /* linux/arch/arm/mach-exynos4/mach-origen.c
  *
  * Copyright (c) 2011 Insignal Co., Ltd.
- *              http://www.insignal.co.kr/
+ *		http://www.insignal.co.kr/
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -99,7 +99,7 @@ static void __init origen_machine_init(void)
 }
 
 MACHINE_START(ORIGEN, "ORIGEN")
-       /* Maintainer: JeongHyeon Kim <jhkim@insignal.co.kr> */
+	/* Maintainer: JeongHyeon Kim <jhkim@insignal.co.kr> */
 	.boot_params	= S5P_PA_SDRAM + 0x100,
 	.init_irq	= exynos4_init_irq,
 	.map_io		= origen_map_io,
