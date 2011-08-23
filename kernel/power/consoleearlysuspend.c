@@ -33,8 +33,11 @@ static void console_early_suspend(struct early_suspend *h)
 		goto err;
 	release_console_sem();
 
+	tty_lock();
 	if (vt_waitactive(EARLY_SUSPEND_CONSOLE + 1))
 		pr_warning("console_early_suspend: Can't switch VCs.\n");
+	tty_unlock();
+
 	return;
 err:
 	pr_warning("console_early_suspend: Can't set console\n");
@@ -52,8 +55,11 @@ static void console_late_resume(struct early_suspend *h)
 		return;
 	}
 
+	tty_lock();
 	if (vt_waitactive(orig_fgconsole + 1))
 		pr_warning("console_late_resume: Can't switch VCs.\n");
+	tty_unlock();
+
 }
 
 static struct early_suspend console_early_suspend_desc = {
