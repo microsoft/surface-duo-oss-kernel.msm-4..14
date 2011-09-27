@@ -22,7 +22,7 @@
  * software in any way with any other Broadcom software provided under a license
  * other than the GPL, without Broadcom's express prior written consent.
  *
- * $Id: dhd_linux.c,v 1.131.2.55 2011-02-09 05:31:56 Exp $
+ * $Id: dhd_linux.c 285933 2011-09-23 21:45:31Z $
  */
 
 #include <typedefs.h>
@@ -473,7 +473,7 @@ static int dhd_toe_set(dhd_info_t *dhd, int idx, uint32 toe_ol);
 static int dhd_wl_host_event(dhd_info_t *dhd, int *ifidx, void *pktdata,
                              wl_event_msg_t *event_ptr, void **data_ptr);
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(CONFIG_PM_SLEEP) && 1
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(CONFIG_PM_SLEEP)
 static int dhd_sleep_pm_callback(struct notifier_block *nfb, unsigned long action, void *ignored)
 {
 	int ret = NOTIFY_DONE;
@@ -1986,6 +1986,20 @@ dhd_ethtool(dhd_info_t *dhd, void *uaddr)
 }
 #endif /* LINUX_VERSION_CODE > KERNEL_VERSION(2, 4, 2) */
 
+static bool dhd_check_hang(struct net_device *net, dhd_pub_t *dhdp, int error)
+{
+	if (!dhdp)
+		return FALSE;
+	if ((error == -ETIMEDOUT) || ((dhdp->busstate == DHD_BUS_DOWN) &&
+		(!dhdp->dongle_reset))) {
+		DHD_ERROR(("%s: Event HANG send up due to  re=%d te=%d e=%d s=%d\n", __FUNCTION__,
+			dhdp->rxcnt_timeout, dhdp->txcnt_timeout, error, dhdp->busstate));
+		net_os_send_hang_message(net);
+		return TRUE;
+	}
+	return FALSE;
+}
+
 static int
 dhd_ioctl_entry(struct net_device *net, struct ifreq *ifr, int cmd)
 {
@@ -2036,6 +2050,7 @@ dhd_ioctl_entry(struct net_device *net, struct ifreq *ifr, int cmd)
 
 	if (cmd == SIOCDEVPRIVATE+1) {
 		ret = wl_android_priv_cmd(net, ifr, cmd);
+		dhd_check_hang(net, &dhd->pub, ret);
 		DHD_OS_WAKE_UNLOCK(&dhd->pub);
 		return ret;
 	}
@@ -2173,11 +2188,7 @@ dhd_ioctl_entry(struct net_device *net, struct ifreq *ifr, int cmd)
 	bcmerror = dhd_wl_ioctl(&dhd->pub, ifidx, (wl_ioctl_t *)&ioc, buf, buflen);
 
 done:
-	if ((bcmerror == -ETIMEDOUT) || ((dhd->pub.busstate == DHD_BUS_DOWN) &&
-		(!dhd->pub.dongle_reset))) {
-		DHD_ERROR(("%s: Event HANG send up\n", __FUNCTION__));
-		net_os_send_hang_message(net);
-	}
+	dhd_check_hang(net, &dhd->pub, bcmerror);
 
 	if (!bcmerror && buf && ioc.buf) {
 		if (copy_to_user(ioc.buf, buf, buflen))
@@ -2214,9 +2225,11 @@ dhd_cleanup_virt_ifaces(dhd_info_t *dhd)
 	for (i = 1; i < DHD_MAX_IFS; i++) {
 		if (dhd->iflist[i]) {
 			DHD_TRACE(("Deleting IF: %d \n", i));
-			dhd->iflist[i]->state = WLC_E_IF_DEL;
-			dhd->iflist[i]->idx = i;
-			dhd_op_if(dhd->iflist[i]);
+			if (dhd->iflist[i]->state != WLC_E_IF_DEL) {
+				dhd->iflist[i]->state = WLC_E_IF_DEL;
+				dhd->iflist[i]->idx = i;
+				dhd_op_if(dhd->iflist[i]);
+			}
 		}
 	}
 
@@ -2270,6 +2283,8 @@ dhd_stop(struct net_device *net)
 		wl_android_wifi_off(net);
 #endif
 	dhd->pub.hang_was_sent = 0;
+	dhd->pub.rxcnt_timeout = 0;
+	dhd->pub.txcnt_timeout = 0;
 	OLD_MOD_DEC_USE_COUNT;
 	return 0;
 }
@@ -2376,7 +2391,7 @@ dhd_osl_detach(osl_t *osh)
 		DHD_ERROR(("%s: MEMORY LEAK %d bytes\n", __FUNCTION__, MALLOCED(osh)));
 	}
 	osl_detach(osh);
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && 1
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27))
 	up(&dhd_registration_sem);
 #endif
 }
@@ -2623,7 +2638,7 @@ dhd_attach(osl_t *osh, struct dhd_bus *bus, uint bus_hdrlen)
 	 */
 	memcpy(netdev_priv(net), &dhd, sizeof(dhd));
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(CONFIG_PM_SLEEP) && 1
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(CONFIG_PM_SLEEP)
 	register_pm_notifier(&dhd_sleep_pm_notifier);
 #endif /*  (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)) && defined(CONFIG_PM_SLEEP) */
 
@@ -2917,6 +2932,8 @@ dhd_preinit_ioctls(dhd_pub_t *dhd)
 		bcmstrtok(&ptr, "\n", 0);
 		/* Print fw version info */
 		DHD_ERROR(("Firmware version = %s\n", buf));
+		DHD_BLOG(buf, strlen(buf) + 1);
+		DHD_BLOG(dhd_version, strlen(dhd_version) + 1);
 	}
 	/* Set PowerSave mode */
 	dhd_wl_ioctl_cmd(dhd, WLC_SET_PM, (char *)&power_mode, sizeof(power_mode), TRUE, 0);
@@ -4504,6 +4521,7 @@ int dhd_ioctl_entry_local(struct net_device *net, wl_ioctl_t *ioc, int cmd)
 
 	DHD_OS_WAKE_LOCK(&dhd->pub);
 	ret = dhd_wl_ioctl(&dhd->pub, ifidx, ioc, ioc->buf, ioc->len);
+	dhd_check_hang(net, &dhd->pub, ret);
 	DHD_OS_WAKE_UNLOCK(&dhd->pub);
 
 	return ret;
