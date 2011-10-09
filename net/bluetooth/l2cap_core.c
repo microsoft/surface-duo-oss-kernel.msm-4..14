@@ -3287,11 +3287,7 @@ static int l2cap_streaming_reassembly_sdu(struct l2cap_chan *chan, struct sk_buf
 			break;
 		}
 
-		err = chan->ops->recv(chan->data, skb);
-		if (!err)
-			return 0;
-
-		break;
+		return chan->ops->recv(chan->data, skb);
 
 	case L2CAP_SDU_START:
 		if (test_bit(CONN_SAR_SDU, &chan->conn_state)) {
