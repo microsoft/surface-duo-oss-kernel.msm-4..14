@@ -405,7 +405,7 @@ static int config_buf(struct usb_configuration *config,
 			descriptors = f->descriptors;
 		}
 
-		if (!descriptors)
+		if (!descriptors) {
 			continue;
 		}
 		status = usb_descriptor_fillbuf(next, len,
