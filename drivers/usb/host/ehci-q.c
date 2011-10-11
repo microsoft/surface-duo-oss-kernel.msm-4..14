@@ -1097,11 +1097,7 @@ static struct ehci_qh *qh_append_tds (
 			 * is added to flush 'token' immediatelly into
 			 * memory, so that ehci can execute the transaction
 			 * ASAP.
-<<<<<<< HEAD
-			 * */
-=======
 			 */
->>>>>>> upstream/linaro-3.1
 			ehci_sync_mem();
 
 			urb->hcpriv = qh_get (qh);
