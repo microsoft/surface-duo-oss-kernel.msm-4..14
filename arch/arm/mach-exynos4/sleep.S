@@ -27,8 +27,6 @@
 */
 
 #include <linux/linkage.h>
-#include <asm/assembler.h>
-#include <asm/memory.h>
 
 	.text
 
@@ -52,3 +50,4 @@
 
 ENTRY(s3c_cpu_resume)
 	b	cpu_resume
+ENDPROC(s3c_cpu_resume)
