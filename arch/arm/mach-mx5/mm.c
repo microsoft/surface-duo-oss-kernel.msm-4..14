@@ -20,6 +20,8 @@
 #include <mach/common.h>
 #include <mach/devices-common.h>
 #include <mach/iomux-v3.h>
+#include <mach/cpuidle.h>
+#include "cpuidle.h"
 
 /*
  * Define the MX51 memory map.
@@ -148,6 +150,8 @@ void __init imx51_soc_init(void)
 
 	/* i.mx51 has the i.mx35 type sdma */
 	imx_add_imx_sdma("imx35-sdma", MX51_SDMA_BASE_ADDR, MX51_INT_SDMA, &imx51_sdma_pdata);
+
+	imx_cpuidle_init(&mx5_cpuidle_data);
 }
 
 void __init imx53_soc_init(void)

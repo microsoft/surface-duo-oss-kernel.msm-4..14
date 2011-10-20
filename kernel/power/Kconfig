@@ -1,3 +1,4 @@
+
 config SUSPEND
 	bool "Suspend to RAM and standby"
 	depends on ARCH_SUSPEND_POSSIBLE
@@ -310,3 +311,6 @@ config SUSPEND_TIME
 	  keeps statistics on the time spent in suspend in
 	  /sys/kernel/debug/suspend_time
 
+config CPU_PM
+	bool
+	depends on SUSPEND || CPU_IDLE

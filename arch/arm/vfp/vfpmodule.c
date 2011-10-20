@@ -11,6 +11,7 @@
 #include <linux/module.h>
 #include <linux/types.h>
 #include <linux/cpu.h>
+#include <linux/cpu_pm.h>
 #include <linux/kernel.h>
 #include <linux/notifier.h>
 #include <linux/signal.h>
@@ -42,9 +43,22 @@ void (*vfp_vector)(void) = vfp_null_entry;
 union vfp_state *vfp_current_hw_state[NR_CPUS];
 
 /*
- * Dual-use variable.
- * Used in startup: set to non-zero if VFP checks fail
- * After startup, holds VFP architecture
+ * Is 'thread's most up to date state stored in this CPUs hardware?
+ * Must be called from non-preemptible context.
+ */
+static bool vfp_state_in_hw(unsigned int cpu, struct thread_info *thread)
+{
+#ifdef CONFIG_SMP
+	if (thread->vfpstate.hard.cpu != cpu)
+		return false;
+#endif
+	return vfp_current_hw_state[cpu] == &thread->vfpstate;
+}
+
+/*
+ * Force a reload of the VFP context from the thread structure.  We do
+ * this by ensuring that access to the VFP hardware is disabled, and
+ * clear vfp_current_hw_state.  Must be called from non-preemptible context.
  */
 unsigned int VFP_arch;
 
@@ -403,9 +417,7 @@ static void vfp_enable(void *unused)
 	set_copro_access(access | CPACC_FULL(10) | CPACC_FULL(11));
 }
 
-#ifdef CONFIG_PM
-#include <linux/syscore_ops.h>
-
+#ifdef CONFIG_CPU_PM
 static int vfp_pm_suspend(void)
 {
 	struct thread_info *ti = current_thread_info();
@@ -439,19 +451,33 @@ static void vfp_pm_resume(void)
 	fmxr(FPEXC, fmrx(FPEXC) & ~FPEXC_EN);
 }
 
-static struct syscore_ops vfp_pm_syscore_ops = {
-	.suspend	= vfp_pm_suspend,
-	.resume		= vfp_pm_resume,
+static int vfp_cpu_pm_notifier(struct notifier_block *self, unsigned long cmd,
+	void *v)
+{
+	switch (cmd) {
+	case CPU_PM_ENTER:
+		vfp_pm_suspend();
+		break;
+	case CPU_PM_ENTER_FAILED:
+	case CPU_PM_EXIT:
+		vfp_pm_resume();
+		break;
+	}
+	return NOTIFY_OK;
+}
+
+static struct notifier_block vfp_cpu_pm_notifier_block = {
+	.notifier_call = vfp_cpu_pm_notifier,
 };
 
 static void vfp_pm_init(void)
 {
-	register_syscore_ops(&vfp_pm_syscore_ops);
+	cpu_pm_register_notifier(&vfp_cpu_pm_notifier_block);
 }
 
 #else
 static inline void vfp_pm_init(void) { }
-#endif /* CONFIG_PM */
+#endif /* CONFIG_CPU_PM */
 
 void vfp_sync_hwstate(struct thread_info *thread)
 {
