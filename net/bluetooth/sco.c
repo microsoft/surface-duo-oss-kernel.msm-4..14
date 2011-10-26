@@ -41,6 +41,7 @@
 #include <linux/debugfs.h>
 #include <linux/seq_file.h>
 #include <linux/list.h>
+#include <linux/security.h>
 #include <net/sock.h>
 
 #include <asm/system.h>
@@ -406,8 +407,10 @@ static void sco_sock_init(struct sock *sk, struct sock *parent)
 {
 	BT_DBG("sk %p", sk);
 
-	if (parent)
+	if (parent) {
 		sk->sk_type = parent->sk_type;
+		security_sk_clone(parent, sk);
+	}
 }
 
 static struct proto sco_proto = {
