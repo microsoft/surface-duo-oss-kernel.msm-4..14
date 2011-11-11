@@ -30,9 +30,11 @@
 #include <mach/regs-clock.h>
 #include <mach/regs-pmu.h>
 
+#include <plat/exynos4.h>
+
 extern void exynos4_secondary_startup(void);
 
-#define CPU1_BOOT_REG S5P_VA_SYSRAM
+#define CPU1_BOOT_REG (exynos4_subrev() == 0 ? S5P_VA_SYSRAM : S5P_INFORM5)
 
 /*
  * control for which core is the next to come out of the secondary
@@ -218,5 +220,6 @@ void __init platform_smp_prepare_cpus(unsigned int max_cpus)
 	 * until it receives a soft interrupt, and then the
 	 * secondary CPU branches to this address.
 	 */
-	__raw_writel(BSYM(virt_to_phys(exynos4_secondary_startup)), S5P_VA_SYSRAM);
+	__raw_writel(BSYM(virt_to_phys(exynos4_secondary_startup)),
+						CPU1_BOOT_REG);
 }
