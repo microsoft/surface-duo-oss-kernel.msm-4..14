@@ -260,6 +260,15 @@ static int __init exynos4_l2x0_cache_init(void)
 early_initcall(exynos4_l2x0_cache_init);
 #endif
 
+int exynos4_subrev(void)
+{
+	static int subrev = -1;
+	if (unlikely(subrev < 0))
+		subrev = readl(S5P_VA_CHIPID) & 0xf;
+
+	return subrev;
+}
+
 int __init exynos4_init(void)
 {
 	printk(KERN_INFO "EXYNOS4: Initializing architecture\n");
