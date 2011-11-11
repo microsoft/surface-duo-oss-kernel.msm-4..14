@@ -20,6 +20,8 @@ enum sys_powerdown {
 	NUM_SYS_POWERDOWN,
 };
 
+extern unsigned long l2x0_regs_phys;
 extern void exynos4_sys_powerdown_conf(enum sys_powerdown mode);
+extern void s3c_cpu_resume(void);
 
 #endif /* __ASM_ARCH_PMU_H */
