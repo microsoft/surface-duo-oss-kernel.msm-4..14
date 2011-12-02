@@ -23,6 +23,7 @@ obj-$(CONFIG_RTS_PSTOR)		+= rts_pstor/
 obj-$(CONFIG_RTS5139)		+= rts5139/
 obj-$(CONFIG_SPECTRA)		+= spectra/
 obj-$(CONFIG_TRANZPORT)		+= frontier/
+obj-$(CONFIG_ANDROID)		+= android/
 obj-$(CONFIG_POHMELFS)		+= pohmelfs/
 obj-$(CONFIG_IDE_PHISON)	+= phison/
 obj-$(CONFIG_LINE6_USB)		+= line6/
