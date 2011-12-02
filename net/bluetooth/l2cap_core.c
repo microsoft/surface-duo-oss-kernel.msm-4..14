@@ -3279,6 +3279,95 @@ void l2cap_chan_busy(struct l2cap_chan *chan, int busy)
 	}
 }
 
+static int l2cap_streaming_reassembly_sdu(struct l2cap_chan *chan, struct sk_buff *skb, u16 control)
+{
+	struct sk_buff *_skb;
+	int err = -EINVAL;
+
+	/*
+	 * TODO: We have to notify the userland if some data is lost with the
+	 * Streaming Mode.
+	 */
+
+	switch (control & L2CAP_CTRL_SAR) {
+	case L2CAP_SDU_UNSEGMENTED:
+		if (test_bit(CONN_SAR_SDU, &chan->conn_state)) {
+			kfree_skb(chan->sdu);
+			break;
+		}
+
+		return chan->ops->recv(chan->data, skb);
+
+	case L2CAP_SDU_START:
+		if (test_bit(CONN_SAR_SDU, &chan->conn_state)) {
+			kfree_skb(chan->sdu);
+			break;
+		}
+
+		chan->sdu_len = get_unaligned_le16(skb->data);
+		skb_pull(skb, 2);
+
+		if (chan->sdu_len > chan->imtu) {
+			err = -EMSGSIZE;
+			break;
+		}
+
+		chan->sdu = bt_skb_alloc(chan->sdu_len, GFP_ATOMIC);
+		if (!chan->sdu) {
+			err = -ENOMEM;
+			break;
+		}
+
+		memcpy(skb_put(chan->sdu, skb->len), skb->data, skb->len);
+
+		set_bit(CONN_SAR_SDU, &chan->conn_state);
+		chan->partial_sdu_len = skb->len;
+		err = 0;
+		break;
+
+	case L2CAP_SDU_CONTINUE:
+		if (!test_bit(CONN_SAR_SDU, &chan->conn_state))
+			break;
+
+		memcpy(skb_put(chan->sdu, skb->len), skb->data, skb->len);
+
+		chan->partial_sdu_len += skb->len;
+		if (chan->partial_sdu_len > chan->sdu_len)
+			kfree_skb(chan->sdu);
+		else
+			err = 0;
+
+		break;
+
+	case L2CAP_SDU_END:
+		if (!test_bit(CONN_SAR_SDU, &chan->conn_state))
+			break;
+
+		memcpy(skb_put(chan->sdu, skb->len), skb->data, skb->len);
+
+		clear_bit(CONN_SAR_SDU, &chan->conn_state);
+		chan->partial_sdu_len += skb->len;
+
+		if (chan->partial_sdu_len > chan->imtu)
+			goto drop;
+
+		if (chan->partial_sdu_len == chan->sdu_len) {
+			_skb = skb_clone(chan->sdu, GFP_ATOMIC);
+			err = chan->ops->recv(chan->data, _skb);
+			if (err < 0)
+				kfree_skb(_skb);
+		}
+		err = 0;
+
+drop:
+		kfree_skb(chan->sdu);
+		break;
+	}
+
+	kfree_skb(skb);
+	return err;
+}
+
 static void l2cap_check_srej_gap(struct l2cap_chan *chan, u8 tx_seq)
 {
 	struct sk_buff *skb;
