@@ -568,6 +568,8 @@ static struct logger_log *get_log_from_minor(int minor)
 		return &log_events;
 	if (log_radio.misc.minor == minor)
 		return &log_radio;
+	if (log_system.misc.minor == minor)
+		return &log_system;
 	return NULL;
 }
 
@@ -601,6 +603,10 @@ static int __init logger_init(void)
 		goto out;
 
 	ret = init_log(&log_radio);
+	if (unlikely(ret))
+		goto out;
+
+	ret = init_log(&log_system);
 	if (unlikely(ret))
 		goto out;
 
