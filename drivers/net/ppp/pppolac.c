@@ -1,4 +1,4 @@
-/* drivers/net/pppolac.c
+/* drivers/net/ppp/pppolac.c
  *
  * Driver for PPP on L2TP Access Concentrator / PPPoLAC Socket (RFC 2661)
  *

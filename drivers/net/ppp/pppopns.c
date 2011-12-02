@@ -1,4 +1,4 @@
-/* drivers/net/pppopns.c
+/* drivers/net/ppp/pppopns.c
  *
  * Driver for PPP on PPTP Network Server / PPPoPNS Socket (RFC 2637)
  *
