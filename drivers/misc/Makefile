@@ -50,5 +50,6 @@ obj-y				+= lis3lv02d/
 obj-y				+= carma/
 obj-$(CONFIG_USB_SWITCH_FSA9480) += fsa9480.o
 obj-$(CONFIG_ALTERA_STAPL)	+=altera-stapl/
-obj-$(CONFIG_APANIC)		+= apanic.o
 obj-$(CONFIG_WL127X_RFKILL)	+= wl127x-rfkill.o
+obj-$(CONFIG_APANIC)		+= apanic.o
+obj-$(CONFIG_SENSORS_AK8975)	+= akm8975.o
