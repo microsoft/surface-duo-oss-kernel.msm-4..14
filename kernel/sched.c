@@ -72,6 +72,7 @@
 #include <linux/ftrace.h>
 #include <linux/slab.h>
 #include <linux/cpuacct.h>
+#include <linux/init_task.h>
 
 #include <asm/tlb.h>
 #include <asm/irq_regs.h>
@@ -4811,6 +4812,9 @@ EXPORT_SYMBOL(wait_for_completion);
  * This waits for either a completion of a specific task to be signaled or for a
  * specified timeout to expire. The timeout is in jiffies. It is not
  * interruptible.
+ *
+ * The return value is 0 if timed out, and positive (at least 1, or number of
+ * jiffies left till timeout) if completed.
  */
 unsigned long __sched
 wait_for_completion_timeout(struct completion *x, unsigned long timeout)
@@ -4825,6 +4829,8 @@ EXPORT_SYMBOL(wait_for_completion_timeout);
  *
  * This waits for completion of a specific task to be signaled. It is
  * interruptible.
+ *
+ * The return value is -ERESTARTSYS if interrupted, 0 if completed.
  */
 int __sched wait_for_completion_interruptible(struct completion *x)
 {
@@ -4842,6 +4848,9 @@ EXPORT_SYMBOL(wait_for_completion_interruptible);
  *
  * This waits for either a completion of a specific task to be signaled or for a
  * specified timeout to expire. It is interruptible. The timeout is in jiffies.
+ *
+ * The return value is -ERESTARTSYS if interrupted, 0 if timed out,
+ * positive (at least 1, or number of jiffies left till timeout) if completed.
  */
 long __sched
 wait_for_completion_interruptible_timeout(struct completion *x,
@@ -4857,6 +4866,8 @@ EXPORT_SYMBOL(wait_for_completion_interruptible_timeout);
  *
  * This waits to be signaled for completion of a specific task. It can be
  * interrupted by a kill signal.
+ *
+ * The return value is -ERESTARTSYS if interrupted, 0 if completed.
  */
 int __sched wait_for_completion_killable(struct completion *x)
 {
@@ -4875,6 +4886,9 @@ EXPORT_SYMBOL(wait_for_completion_killable);
  * This waits for either a completion of a specific task to be
  * signaled or for a specified timeout to expire. It can be
  * interrupted by a kill signal. The timeout is in jiffies.
+ *
+ * The return value is -ERESTARTSYS if interrupted, 0 if timed out,
+ * positive (at least 1, or number of jiffies left till timeout) if completed.
  */
 long __sched
 wait_for_completion_killable_timeout(struct completion *x,
@@ -6100,6 +6114,9 @@ void __cpuinit init_idle(struct task_struct *idle, int cpu)
 	 */
 	idle->sched_class = &idle_sched_class;
 	ftrace_graph_init_idle_task(idle, cpu);
+#if defined(CONFIG_SMP)
+	sprintf(idle->comm, "%s/%d", INIT_TASK_COMM, cpu);
+#endif
 }
 
 /*
