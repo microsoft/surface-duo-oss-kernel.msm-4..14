@@ -331,6 +331,17 @@ config MACH_OMAP4_PANDA
 	select OMAP_PACKAGE_CBS
 	select REGULATOR_FIXED_VOLTAGE
 
+config MACH_OMAP4_PANDA_DVI_PRIMARY
+	bool "OMAP4 Panda: Make DVI the primary display"
+	default n
+	depends on MACH_OMAP4_PANDA
+	help
+	  Make DVI (instead of HDMI) the primary display.
+	  This results in the DVI-D port becoming the
+	  primary display, and the HDMI port mirroring it.
+	  In the default configuration, the HDMI port is
+	  used as the primary display.
+
 config OMAP3_EMU
 	bool "OMAP3 debugging peripherals"
 	depends on ARCH_OMAP3
