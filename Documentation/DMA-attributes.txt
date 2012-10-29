@@ -117,3 +117,12 @@ So, this provides a way for drivers to avoid those error messages on calls
 where allocation failures are not a problem, and shouldn't bother the logs.
 
 NOTE: At the moment DMA_ATTR_NO_WARN is only implemented on PowerPC.
+
+DMA_ATTR_STRONGLY_ORDERED
+-------------------------
+
+DMA_ATTR_STRONGLY_ORDERED allocates memory with a very restrictive type
+of mapping (no unaligned accesses, no re-ordering, no write merging, no
+buffering, no pre-fetching). This has severe performance penalties and
+should not be used for general purpose DMA allocations. It should only
+be used if one of the restrictions on strongly ordered memory is required.
