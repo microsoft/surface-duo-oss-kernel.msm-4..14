@@ -2370,6 +2370,16 @@ static struct platform_device apq8064_device_ext_ts_sw_vreg __devinitdata = {
 	},
 };
 
+static struct platform_device
+apq8064_device_ext_3p3v_mpp4_vreg __devinitdata = {
+	.name	= GPIO_REGULATOR_DEV_NAME,
+	.id	= PM8921_MPP_PM_TO_SYS(4),
+	.dev	= {
+		.platform_data =
+		&apq8064_gpio_regulator_pdata[GPIO_VREG_ID_EXT_SATA_PWR],
+	},
+};
+
 static struct platform_device apq8064_device_rpm_regulator __devinitdata = {
 	.name	= "rpm-regulator",
 	.id	= 0,
@@ -3449,6 +3459,23 @@ static void __init apq8064_cdp_init(void)
 	if (machine_is_mpq8064_cdp()) {
 		platform_device_register(&mpq_gpio_keys_pdev);
 		platform_device_register(&mpq_keypad_device);
+	}
+
+	if (machine_is_apq8064_cdp() || machine_is_mpq8064_hrd()) {
+		int ret;
+		struct pm8xxx_mpp_config_data sata_pwr_cfg = {
+			.type = PM8XXX_MPP_TYPE_D_OUTPUT,
+			.level = PM8921_MPP_DIG_LEVEL_VPH,
+			.control = PM8XXX_MPP_DOUT_CTRL_HIGH,
+		};
+
+		/* Apply MPP-4 init only when it is used to control SATA PWR */
+		ret = pm8xxx_mpp_config(PM8921_MPP_PM_TO_SYS(4), &sata_pwr_cfg);
+		if (ret)
+			pr_err("%s: pm8921 MPP %d init config failed(%d)\n",
+					__func__, PM8921_MPP_PM_TO_SYS(4), ret);
+		platform_device_register(&apq8064_device_ext_3p3v_mpp4_vreg);
+		platform_device_register(&apq8064_device_sata);
 	}
 }
 
