@@ -89,7 +89,7 @@ static inline __u8 ipv6_tclass(const struct ipv6hdr *iph)
 
 struct inet6_skb_parm {
 	int			iif;
-	__u16			ra;
+	__be16			ra;
 	__u16			hop;
 	__u16			dst0;
 	__u16			srcrt;
@@ -105,6 +105,7 @@ struct inet6_skb_parm {
 #define IP6SKB_XFRM_TRANSFORMED	1
 #define IP6SKB_FORWARDED	2
 #define IP6SKB_REROUTED		4
+#define IP6SKB_ROUTERALERT	8
 };
 
 #define IP6CB(skb)	((struct inet6_skb_parm*)((skb)->cb))
