@@ -256,6 +256,7 @@ void dwc3_gadget_giveback(struct dwc3_ep *dep, struct dwc3_request *req,
 		if (((dep->busy_slot & DWC3_TRB_MASK) == DWC3_TRB_NUM - 1) &&
 				usb_endpoint_xfer_isoc(dep->endpoint.desc))
 			dep->busy_slot++;
+		req->queued = false;
 	}
 	list_del(&req->list);
 	req->trb = NULL;
