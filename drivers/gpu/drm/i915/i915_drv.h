@@ -85,7 +85,7 @@ enum port {
 
 #define I915_GEM_GPU_DOMAINS	(~(I915_GEM_DOMAIN_CPU | I915_GEM_DOMAIN_GTT))
 
-#define for_each_pipe(p) for ((p) = 0; (p) < dev_priv->num_pipe; (p)++)
+#define for_each_pipe(p) for ((p) = 0; (p) < INTEL_INFO(dev)->num_pipes; (p)++)
 
 #define for_each_encoder_on_crtc(dev, __crtc, intel_encoder) \
 	list_for_each_entry((intel_encoder), &(dev)->mode_config.encoder_list, base.head) \
@@ -318,6 +318,7 @@ struct drm_i915_gt_funcs {
 	DEV_INFO_FLAG(has_llc)
 
 struct intel_device_info {
+	u8 num_pipes:3;
 	u8 gen;
 	u8 is_mobile:1;
 	u8 is_i85x:1;
@@ -674,7 +675,6 @@ typedef struct drm_i915_private {
 	u32 hotplug_supported_mask;
 	struct work_struct hotplug_work;
 
-	int num_pipe;
 	int num_pch_pll;
 
 	/* For hangcheck timer */

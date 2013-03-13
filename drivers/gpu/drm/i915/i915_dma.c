@@ -1588,14 +1588,7 @@ int i915_driver_load(struct drm_device *dev, unsigned long flags)
 	if (!IS_I945G(dev) && !IS_I945GM(dev))
 		pci_enable_msi(dev->pdev);
 
-	if (IS_IVYBRIDGE(dev) || IS_HASWELL(dev))
-		dev_priv->num_pipe = 3;
-	else if (IS_MOBILE(dev) || !IS_GEN2(dev))
-		dev_priv->num_pipe = 2;
-	else
-		dev_priv->num_pipe = 1;
-
-	ret = drm_vblank_init(dev, dev_priv->num_pipe);
+	ret = drm_vblank_init(dev, INTEL_INFO(dev)->num_pipes);
 	if (ret)
 		goto out_gem_unload;
 
