@@ -1433,6 +1433,16 @@ struct drm_ioctl_desc kgsl_drm_ioctls[] = {
 		      DRM_MASTER),
 };
 
+static const const struct file_operations fops = {
+		.owner = THIS_MODULE,
+		.open = drm_open,
+		.release = drm_release,
+		.unlocked_ioctl = drm_ioctl,
+		.mmap = msm_drm_gem_mmap,
+		.poll = drm_poll,
+		.fasync = drm_fasync,
+};
+
 static struct drm_driver driver = {
 	.driver_features = DRIVER_GEM,
 	.load = kgsl_drm_load,
@@ -1445,15 +1455,7 @@ static struct drm_driver driver = {
 	.gem_free_object = kgsl_gem_free_object,
 	.ioctls = kgsl_drm_ioctls,
 
-	.fops = {
-		 .owner = THIS_MODULE,
-		 .open = drm_open,
-		 .release = drm_release,
-		 .unlocked_ioctl = drm_ioctl,
-		 .mmap = msm_drm_gem_mmap,
-		 .poll = drm_poll,
-		 .fasync = drm_fasync,
-		 },
+	.fops = &fops,
 
 	.name = DRIVER_NAME,
 	.desc = DRIVER_DESC,
