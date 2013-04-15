@@ -115,7 +115,7 @@ static int config_pcm(int mode)
 	int pin, rc = 0;
 
 	if (mode == BT_PCM_ON) {
-		pr_err("%s mode =BT_PCM_ON", __func__);
+		pr_debug("%s mode : BT_PCM_ON", __func__);
 		for (pin = 0; pin < ARRAY_SIZE(bt_config_pcm_on);
 			pin++) {
 				rc = gpio_tlmm_config(bt_config_pcm_on[pin],
@@ -124,7 +124,7 @@ static int config_pcm(int mode)
 					return rc;
 		}
 	} else if (mode == BT_PCM_OFF) {
-		pr_err("%s mode =BT_PCM_OFF", __func__);
+		pr_debug("%s mode : BT_PCM_OFF", __func__);
 		for (pin = 0; pin < ARRAY_SIZE(bt_config_pcm_off);
 			pin++) {
 				rc = gpio_tlmm_config(bt_config_pcm_off[pin],
@@ -575,12 +575,22 @@ static int atheros_bluetooth_power(int on)
 			gpio_bt_sys_reset_en);
 		gpio_direction_output(gpio_bt_sys_reset_en, 1);
 		msleep(100);
+		/*setup BT PCM lines*/
+		pr_debug("%s: Configuring PCM lines.\n", __func__);
+		rc = config_pcm(BT_PCM_ON);
+		if (rc < 0)
+			pr_err("%s: config_pcm , rc = %d\n", __func__, rc);
 		goto out;
 	} else {
 		pr_debug("%s: Powering down BT module on AR3002\n", __func__);
 		gpio_set_value(gpio_bt_sys_reset_en, 0);
 		rc = gpio_direction_input(gpio_bt_sys_reset_en);
 		msleep(100);
+		pr_debug("%s: Releasing the PCM lines.\n", __func__);
+		rc = config_pcm(BT_PCM_OFF);
+		if (rc < 0)
+			pr_err("%s: Disabling PCM lines failed with rc =%d\n",
+				__func__, rc);
 	}
 free_gpio:
 	gpio_free(gpio_bt_sys_reset_en);
