@@ -4042,10 +4042,19 @@ struct fdi_m_n {
 static void
 fdi_reduce_ratio(u32 *num, u32 *den)
 {
-	while (*num > 0xffffff || *den > 0xffffff) {
+	while (*num > DATA_LINK_M_N_MASK ||
+	       *den > DATA_LINK_M_N_MASK) {
 		*num >>= 1;
 		*den >>= 1;
 	}
+}
+
+static void compute_m_n(unsigned int m, unsigned int n,
+			uint32_t *ret_m, uint32_t *ret_n)
+{
+	*ret_n = min_t(unsigned int, roundup_pow_of_two(n), DATA_LINK_N_MAX);
+	*ret_m = div_u64((uint64_t) m * *ret_n, n);
+	fdi_reduce_ratio(ret_m, ret_n);
 }
 
 static void
@@ -4054,14 +4063,12 @@ ironlake_compute_m_n(int bits_per_pixel, int nlanes, int pixel_clock,
 {
 	m_n->tu = 64; /* default size */
 
-	/* BUG_ON(pixel_clock > INT_MAX / 36); */
-	m_n->gmch_m = bits_per_pixel * pixel_clock;
-	m_n->gmch_n = link_clock * nlanes * 8;
-	fdi_reduce_ratio(&m_n->gmch_m, &m_n->gmch_n);
+	compute_m_n(bits_per_pixel * pixel_clock,
+		    link_clock * nlanes * 8,
+		    &m_n->gmch_m, &m_n->gmch_n);
 
-	m_n->link_m = pixel_clock;
-	m_n->link_n = link_clock;
-	fdi_reduce_ratio(&m_n->link_m, &m_n->link_n);
+	compute_m_n(pixel_clock, link_clock,
+		    &m_n->link_m, &m_n->link_n);
 }
 
 static inline bool intel_panel_use_ssc(struct drm_i915_private *dev_priv)
