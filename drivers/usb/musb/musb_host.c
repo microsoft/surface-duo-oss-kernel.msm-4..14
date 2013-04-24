@@ -1212,7 +1212,6 @@ void musb_host_tx(struct musb *musb, u8 epnum)
 	void __iomem		*mbase = musb->mregs;
 	struct dma_channel	*dma;
 	bool			transfer_pending = false;
-	static bool use_sg;
 
 	musb_ep_select(mbase, epnum);
 	tx_csr = musb_readw(epio, MUSB_TXCSR);
@@ -1443,9 +1442,9 @@ done:
 	 * NULL.
 	 */
 	if (!urb->transfer_buffer)
-		use_sg = true;
+		qh->use_sg = true;
 
-	if (use_sg) {
+	if (qh->use_sg) {
 		/* sg_miter_start is already done in musb_ep_program */
 		if (!sg_miter_next(&qh->sg_miter)) {
 			dev_err(musb->controller, "error: sg list empty\n");
@@ -1464,9 +1463,9 @@ done:
 
 	qh->segsize = length;
 
-	if (use_sg) {
+	if (qh->use_sg) {
 		if (offset + length >= urb->transfer_buffer_length)
-			use_sg = false;
+			qh->use_sg = false;
 	}
 
 	musb_ep_select(mbase, epnum);
@@ -1532,7 +1531,6 @@ void musb_host_rx(struct musb *musb, u8 epnum)
 	bool			done = false;
 	u32			status;
 	struct dma_channel	*dma;
-	static bool use_sg;
 	unsigned int sg_flags = SG_MITER_ATOMIC | SG_MITER_TO_SG;
 
 	musb_ep_select(mbase, epnum);
@@ -1858,12 +1856,12 @@ void musb_host_rx(struct musb *musb, u8 epnum)
 			 * NULL.
 			 */
 			if (!urb->transfer_buffer) {
-				use_sg = true;
+				qh->use_sg = true;
 				sg_miter_start(&qh->sg_miter, urb->sg, 1,
 						sg_flags);
 			}
 
-			if (use_sg) {
+			if (qh->use_sg) {
 				if (!sg_miter_next(&qh->sg_miter)) {
 					dev_err(musb->controller, "error: sg list empty\n");
 					sg_miter_stop(&qh->sg_miter);
@@ -1893,8 +1891,8 @@ finish:
 	urb->actual_length += xfer_len;
 	qh->offset += xfer_len;
 	if (done) {
-		if (use_sg)
-			use_sg = false;
+		if (qh->use_sg)
+			qh->use_sg = false;
 
 		if (urb->status == -EINPROGRESS)
 			urb->status = status;
