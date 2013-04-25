@@ -798,11 +798,6 @@ kgsl_gem_get_bufinfo_ioctl(struct drm_device *dev, void *data,
 	mutex_lock(&dev->struct_mutex);
 	priv = obj->driver_private;
 
-	if (!kgsl_gem_memory_allocated(obj)) {
-		DRM_ERROR("Memory not allocated for this object\n");
-		goto out;
-	}
-
 	for (index = 0; index < priv->bufcount; index++) {
 		args->offset[index] = priv->bufs[index].offset;
 		args->gpuaddr[index] = priv->bufs[index].gpuaddr;
@@ -813,7 +808,6 @@ kgsl_gem_get_bufinfo_ioctl(struct drm_device *dev, void *data,
 
 	ret = 0;
 
-out:
 	drm_gem_object_unreference(obj);
 	mutex_unlock(&dev->struct_mutex);
 
@@ -880,15 +874,9 @@ kgsl_gem_set_active_ioctl(struct drm_device *dev, void *data,
 	mutex_lock(&dev->struct_mutex);
 	priv = obj->driver_private;
 
-	if (args->active < 0 || args->active >= priv->bufcount) {
-		DRM_ERROR("Invalid active buffer %d\n", args->active);
-		goto out;
-	}
-
 	priv->active = args->active;
 	ret = 0;
 
-out:
 	drm_gem_object_unreference(obj);
 	mutex_unlock(&dev->struct_mutex);
 
