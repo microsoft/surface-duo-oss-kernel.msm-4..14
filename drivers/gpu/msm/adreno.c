@@ -2227,6 +2227,8 @@ static int adreno_waittimestamp(struct kgsl_device *device,
 	if (msecs == KGSL_TIMEOUT_DEFAULT)
 		msecs = adreno_dev->wait_timeout;
 
+	/* this is sort of crack.. it would be racy to check the ts and the
+	 * wait on it, and this check is pointless.. so just get rid of it:
 	if (timestamp_cmp(timestamp, ts_issued) > 0) {
 		KGSL_DRV_ERR(device, "Cannot wait for invalid ts <%d:0x%x>, "
 			"last issued ts <%d:0x%x>\n",
@@ -2234,6 +2236,7 @@ static int adreno_waittimestamp(struct kgsl_device *device,
 		status = -EINVAL;
 		goto done;
 	}
+	 */
 
 	/*
 	 * Make the first timeout interval 100 msecs and then try to kick the
