@@ -342,6 +342,10 @@ void __init apq8064_init_mmc(void)
 			apq8064_sdc3_pdata->wpswitch_gpio = 0;
 			apq8064_sdc3_pdata->is_wpswitch_active_low = false;
 		}
+		if (!machine_is_apq8064_ifc6410()) {
+			apq8064_sdc3_pdata->wpswitch_gpio = 0;
+			apq8064_sdc3_pdata->is_wpswitch_active_low = false;
+		}
 		if (machine_is_mpq8064_cdp() || machine_is_mpq8064_hrd() ||
 			machine_is_mpq8064_dtv()) {
 			int rc;
@@ -368,7 +372,7 @@ void __init apq8064_init_mmc(void)
 				apq8064_sdc3_pdata->status_irq = 0;
 			}
 		}
-		if (machine_is_apq8064_cdp()) {
+		if (machine_is_apq8064_cdp() || machine_is_apq8064_ifc6410()) {
 			int i;
 
 			for (i = 0;

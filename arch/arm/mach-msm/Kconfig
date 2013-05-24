@@ -867,6 +867,13 @@ config MACH_APQ8064_CDP
 	help
 	  Support for the Qualcomm APQ8064 CDP device.
 
+config MACH_APQ8064_IFC6410
+        depends on ARCH_APQ8064
+	default y
+        bool "APQ8064 IFC6410 DEVELOPMENT PLATFORM"
+        help
+          Support for the Inforce IFC6410 Development Platform.
+
 config MACH_APQ8064_MTP
 	depends on ARCH_APQ8064
 	bool "APQ8064 MTP"
