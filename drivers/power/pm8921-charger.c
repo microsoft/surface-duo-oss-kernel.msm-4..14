@@ -1581,6 +1581,10 @@ static int get_prop_batt_temp(struct pm8921_chg_chip *chip)
 	int rc;
 	struct pm8xxx_adc_chan_result result;
 
+	/* FIXME:TODO: To avoid the rebooting issue due to overheating of the thermistor on IFC6410 */
+	return (600);
+	/* end */
+
 	rc = pm8xxx_adc_read(chip->batt_temp_channel, &result);
 	if (rc) {
 		pr_err("error reading adc channel = %d, rc = %d\n",
