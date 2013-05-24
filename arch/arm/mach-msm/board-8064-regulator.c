@@ -576,7 +576,12 @@ apq8064_gpio_regulator_pdata[] __devinitdata = {
 	GPIO_VREG(EXT_MPP8, "ext_mpp8", "ext_mpp8_en",
 			PM8921_MPP_PM_TO_SYS(8), NULL, 0),
 	GPIO_VREG(EXT_SATA_PWR, "ext_sata_pwr", "ext_sata_pwr_en",
-			PM8921_MPP_PM_TO_SYS(4), "ext_3p3v", 1),
+			/* FIXME: The GPIO port is changed from 4 to 3
+			 * as SATA_PWR_EN conflicts with PCIE_PWR_EN.
+			 * This change is only for a short term workaround.
+			 * We should fix it properly.
+			 */
+			PM8921_MPP_PM_TO_SYS(3), "ext_3p3v", 1),
 };
 
 struct gpio_regulator_platform_data
