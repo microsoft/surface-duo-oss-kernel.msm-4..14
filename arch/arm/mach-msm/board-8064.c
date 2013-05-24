@@ -3425,6 +3425,7 @@ static void __init apq8064_allocate_memory_regions(void)
 
 static void __init apq8064_cdp_init(void)
 {
+	int ret;
 	if (meminfo_init(SYS_MEMORY, SZ_256M) < 0)
 		pr_err("meminfo_init() failed!\n");
 	if (machine_is_apq8064_mtp() &&
@@ -3491,6 +3492,18 @@ static void __init apq8064_cdp_init(void)
 		platform_device_register(&apq8064_device_ext_3p3v_mpp4_vreg);
 		platform_device_register(&apq8064_device_sata);
 	}
+	ret = gpio_request(PM8921_GPIO_PM_TO_SYS(43), "WLAN_RST#");
+	printk("%s: gpio_request(PM8921_GPIO_PM_TO_SYS(43),\"WLAN_RST#\") returned %d\n", __func__, ret);
+
+	ret = gpio_export(PM8921_GPIO_PM_TO_SYS(43), true);
+	printk("%s: gpio_export(PM8921_GPIO_PM_TO_SYS(43), true) returned %d\n", __func__, ret);
+
+	ret = gpio_direction_output(PM8921_GPIO_PM_TO_SYS(43), 0);
+	printk("%s: gpio_direction_output(PM8921_GPIO_PM_TO_SYS(43), 0) returned %d\n", __func__, ret);
+
+	udelay(10);
+
+	gpio_set_value(PM8921_GPIO_PM_TO_SYS(43), 1);
 }
 
 MACHINE_START(APQ8064_CDP, "QCT APQ8064 CDP")
