@@ -205,6 +205,8 @@ VREG_CONSUMERS(S8) = {
 VREG_CONSUMERS(LVS1) = {
 	REGULATOR_SUPPLY("8921_lvs1",		NULL),
 	REGULATOR_SUPPLY("iris_vddio",		"wcnss_wlan.0"),
+	REGULATOR_SUPPLY("sdc_vdd",		"msm_sdcc.4"),
+	REGULATOR_SUPPLY("sdc_vdd_io",		"msm_sdcc.4"),
 };
 VREG_CONSUMERS(LVS3) = {
 	REGULATOR_SUPPLY("8921_lvs3",		NULL),
