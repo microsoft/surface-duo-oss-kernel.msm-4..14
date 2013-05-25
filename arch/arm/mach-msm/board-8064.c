@@ -137,6 +137,11 @@
 #define PCIE_PWR_EN_PMIC_GPIO 13
 #define PCIE_RST_N_PMIC_MPP 1
 
+/* PCIe pmic gpios for IFC6410 Dragon board */
+#define PCIE_WAKE_N_PMIC_GPIO_DRAGON 6
+#define PCIE_PWR_EN_PMIC_MPP_DRAGON  4
+#define PCIE_RST_N_CPU_GPIO_DRAGON   27
+
 #ifdef CONFIG_KERNEL_MSM_CONTIG_MEM_REGION
 static unsigned msm_contig_mem_size = MSM_CONTIG_MEM_SIZE;
 static int __init msm_contig_mem_size_setup(char *p)
@@ -2330,6 +2335,11 @@ static int __init mpq8064_pcie_enabled(void)
 static void __init mpq8064_pcie_init(void)
 {
 	if (mpq8064_pcie_enabled()) {
+		if (machine_is_apq8064_ifc6410() || machine_is_apq8064_cdp()) {
+			msm_pcie_gpio_info[0].num = PCIE_RST_N_CPU_GPIO_DRAGON;
+			msm_pcie_gpio_info[1].num = PM8921_MPP_PM_TO_SYS(PCIE_PWR_EN_PMIC_MPP_DRAGON);
+			msm_pcie_platform_data.wake_n =	PM8921_GPIO_IRQ(PM8921_IRQ_BASE,PCIE_WAKE_N_PMIC_GPIO_DRAGON);
+		}
 		msm_device_pcie.dev.platform_data = &msm_pcie_platform_data;
 		platform_device_register(&msm_device_pcie);
 	}
@@ -3433,6 +3443,7 @@ static void __init apq8064_cdp_init(void)
 		platform_add_devices(cdp_devices, ARRAY_SIZE(cdp_devices));
 		spi_register_board_info(spi_board_info,
 						ARRAY_SIZE(spi_board_info));
+		mpq8064_pcie_init();
 	}
 	apq8064_init_fb();
 	apq8064_init_gpu();
