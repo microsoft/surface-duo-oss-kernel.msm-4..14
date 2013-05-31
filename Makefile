@@ -1,8 +1,8 @@
 VERSION = 3
 PATCHLEVEL = 8
 SUBLEVEL = 13
-EXTRAVERSION =
-NAME = Displaced Humerus Anterior
+EXTRAVERSION = .1
+NAME = Remoralised Urchins Update
 
 # *DOCUMENTATION*
 # To see a list of typical targets execute "make help"
