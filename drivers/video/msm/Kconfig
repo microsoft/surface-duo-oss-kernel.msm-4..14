@@ -929,6 +929,9 @@ config FB_MSM_DEFAULT_DEPTH_RGB565
 config FB_MSM_DEFAULT_DEPTH_ARGB8888
 	bool "32 bits per pixel (ARGB8888)"
 
+config FB_MSM_DEFAULT_DEPTH_BGRA8888
+	bool "32 bits per pixel (BGRA8888) (actually ARGB/xRGB)"
+
 config FB_MSM_DEFAULT_DEPTH_RGBA8888
 	bool "32 bits per pixel (RGBA8888)"
 
