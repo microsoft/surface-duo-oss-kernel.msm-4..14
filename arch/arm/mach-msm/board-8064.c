@@ -3453,7 +3453,8 @@ static void __init apq8064_cdp_init(void)
 	apq8064_init_cam();
 #endif
 
-	if (machine_is_mpq8064_hrd() || machine_is_mpq8064_dtv()) {
+	if (machine_is_mpq8064_hrd() || machine_is_mpq8064_dtv() ||
+		machine_is_apq8064_cdp() || machine_is_apq8064_sys6440()) {
 		platform_device_register(&mpq8064_device_uartdm_gsbi6);
 #ifdef CONFIG_SERIAL_MSM_HS
 		/* GSBI6(2) - UARTDM_RX */
