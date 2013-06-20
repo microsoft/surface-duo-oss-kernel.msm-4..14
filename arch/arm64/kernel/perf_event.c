@@ -1331,6 +1331,7 @@ void perf_callchain_user(struct perf_callchain_entry *entry,
 {
 	struct frame_tail __user *tail;
 
+	perf_callchain_store(entry, regs->pc);
 	tail = (struct frame_tail __user *)regs->regs[29];
 
 	while (entry->nr < PERF_MAX_STACK_DEPTH &&
