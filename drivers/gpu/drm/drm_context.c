@@ -40,7 +40,7 @@
  *		needed by SiS driver's memory management.
  */
 
-#include "drmP.h"
+#include <drm/drmP.h>
 
 /******************************************************************/
 /** \name Context bitmap support */
@@ -85,11 +85,12 @@ again:
 	mutex_lock(&dev->struct_mutex);
 	ret = idr_get_new_above(&dev->ctx_idr, NULL,
 				DRM_RESERVED_CONTEXTS, &new_id);
-	if (ret == -EAGAIN) {
-		mutex_unlock(&dev->struct_mutex);
-		goto again;
-	}
 	mutex_unlock(&dev->struct_mutex);
+	if (ret == -EAGAIN)
+		goto again;
+	else if (ret)
+		return ret;
+
 	return new_id;
 }
 
@@ -117,7 +118,7 @@ int drm_ctxbitmap_init(struct drm_device * dev)
 void drm_ctxbitmap_cleanup(struct drm_device * dev)
 {
 	mutex_lock(&dev->struct_mutex);
-	idr_remove_all(&dev->ctx_idr);
+	idr_destroy(&dev->ctx_idr);
 	mutex_unlock(&dev->struct_mutex);
 }
 

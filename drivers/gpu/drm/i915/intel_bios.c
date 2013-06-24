@@ -26,9 +26,8 @@
  */
 #include <linux/dmi.h>
 #include <drm/drm_dp_helper.h>
-#include "drmP.h"
-#include "drm.h"
-#include "i915_drm.h"
+#include <drm/drmP.h>
+#include <drm/i915_drm.h>
 #include "i915_drv.h"
 #include "intel_bios.h"
 
@@ -174,6 +173,28 @@ get_lvds_dvo_timing(const struct bdb_lvds_lfp_data *lvds_lfp_data,
 	return (struct lvds_dvo_timing *)(entry + dvo_timing_offset);
 }
 
+/* get lvds_fp_timing entry
+ * this function may return NULL if the corresponding entry is invalid
+ */
+static const struct lvds_fp_timing *
+get_lvds_fp_timing(const struct bdb_header *bdb,
+		   const struct bdb_lvds_lfp_data *data,
+		   const struct bdb_lvds_lfp_data_ptrs *ptrs,
+		   int index)
+{
+	size_t data_ofs = (const u8 *)data - (const u8 *)bdb;
+	u16 data_size = ((const u16 *)data)[-1]; /* stored in header */
+	size_t ofs;
+
+	if (index >= ARRAY_SIZE(ptrs->ptr))
+		return NULL;
+	ofs = ptrs->ptr[index].fp_timing_offset;
+	if (ofs < data_ofs ||
+	    ofs + sizeof(struct lvds_fp_timing) > data_ofs + data_size)
+		return NULL;
+	return (const struct lvds_fp_timing *)((const u8 *)bdb + ofs);
+}
+
 /* Try to find integrated panel data */
 static void
 parse_lfp_panel_data(struct drm_i915_private *dev_priv,
@@ -183,6 +204,7 @@ parse_lfp_panel_data(struct drm_i915_private *dev_priv,
 	const struct bdb_lvds_lfp_data *lvds_lfp_data;
 	const struct bdb_lvds_lfp_data_ptrs *lvds_lfp_data_ptrs;
 	const struct lvds_dvo_timing *panel_dvo_timing;
+	const struct lvds_fp_timing *fp_timing;
 	struct drm_display_mode *panel_fixed_mode;
 	int i, downclock;
 
@@ -244,6 +266,19 @@ parse_lfp_panel_data(struct drm_i915_private *dev_priv,
 			      "Normal Clock %dKHz, downclock %dKHz\n",
 			      panel_fixed_mode->clock, 10*downclock);
 	}
+
+	fp_timing = get_lvds_fp_timing(bdb, lvds_lfp_data,
+				       lvds_lfp_data_ptrs,
+				       lvds_options->panel_type);
+	if (fp_timing) {
+		/* check the resolution, just to be sure */
+		if (fp_timing->x_res == panel_fixed_mode->hdisplay &&
+		    fp_timing->y_res == panel_fixed_mode->vdisplay) {
+			dev_priv->bios_lvds_val = fp_timing->lvds_reg_val;
+			DRM_DEBUG_KMS("VBT initial LVDS value %x\n",
+				      dev_priv->bios_lvds_val);
+		}
+	}
 }
 
 /* Try to find sdvo panel data */
@@ -256,6 +291,11 @@ parse_sdvo_panel_data(struct drm_i915_private *dev_priv,
 	int index;
 
 	index = i915_vbt_sdvo_panel_type;
+	if (index == -2) {
+		DRM_DEBUG_KMS("Ignore SDVO panel mode from BIOS VBT tables.\n");
+		return;
+	}
+
 	if (index == -1) {
 		struct bdb_sdvo_lvds_options *sdvo_lvds_options;
 
@@ -311,12 +351,14 @@ parse_general_features(struct drm_i915_private *dev_priv,
 		dev_priv->lvds_ssc_freq =
 			intel_bios_ssc_frequency(dev, general->ssc_freq);
 		dev_priv->display_clock_mode = general->display_clock_mode;
-		DRM_DEBUG_KMS("BDB_GENERAL_FEATURES int_tv_support %d int_crt_support %d lvds_use_ssc %d lvds_ssc_freq %d display_clock_mode %d\n",
+		dev_priv->fdi_rx_polarity_inverted = general->fdi_rx_polarity_inverted;
+		DRM_DEBUG_KMS("BDB_GENERAL_FEATURES int_tv_support %d int_crt_support %d lvds_use_ssc %d lvds_ssc_freq %d display_clock_mode %d fdi_rx_polarity_inverted %d\n",
 			      dev_priv->int_tv_support,
 			      dev_priv->int_crt_support,
 			      dev_priv->lvds_use_ssc,
 			      dev_priv->lvds_ssc_freq,
-			      dev_priv->display_clock_mode);
+			      dev_priv->display_clock_mode,
+			      dev_priv->fdi_rx_polarity_inverted);
 	}
 }
 
@@ -332,11 +374,11 @@ parse_general_definitions(struct drm_i915_private *dev_priv,
 		if (block_size >= sizeof(*general)) {
 			int bus_pin = general->crt_ddc_gmbus_pin;
 			DRM_DEBUG_KMS("crt_ddc_bus_pin: %d\n", bus_pin);
-			if (bus_pin >= 1 && bus_pin <= 6)
+			if (intel_gmbus_is_port_valid(bus_pin))
 				dev_priv->crt_ddc_pin = bus_pin;
 		} else {
 			DRM_DEBUG_KMS("BDB_GD too small (%d). Invalid.\n",
-				  block_size);
+				      block_size);
 		}
 	}
 }
@@ -459,12 +501,8 @@ parse_edp(struct drm_i915_private *dev_priv, struct bdb_header *bdb)
 
 	edp = find_section(bdb, BDB_EDP);
 	if (!edp) {
-		if (SUPPORTS_EDP(dev_priv->dev) && dev_priv->edp.support) {
-			DRM_DEBUG_KMS("No eDP BDB found but eDP panel "
-				      "supported, assume %dbpp panel color "
-				      "depth.\n",
-				      dev_priv->edp.bpp);
-		}
+		if (SUPPORTS_EDP(dev_priv->dev) && dev_priv->edp.support)
+			DRM_DEBUG_KMS("No eDP BDB found but eDP panel supported.\n");
 		return;
 	}
 
@@ -617,9 +655,6 @@ init_vbt_defaults(struct drm_i915_private *dev_priv)
 	dev_priv->lvds_use_ssc = 1;
 	dev_priv->lvds_ssc_freq = intel_bios_ssc_frequency(dev, 1);
 	DRM_DEBUG_KMS("Set default to SSC at %dMHz\n", dev_priv->lvds_ssc_freq);
-
-	/* eDP data */
-	dev_priv->edp.bpp = 18;
 }
 
 static int __init intel_no_opregion_vbt_callback(const struct dmi_system_id *id)
@@ -651,13 +686,16 @@ static const struct dmi_system_id intel_no_opregion_vbt[] = {
  *
  * Returns 0 on success, nonzero on failure.
  */
-bool
+int
 intel_parse_bios(struct drm_device *dev)
 {
 	struct drm_i915_private *dev_priv = dev->dev_private;
 	struct pci_dev *pdev = dev->pdev;
 	struct bdb_header *bdb = NULL;
 	u8 __iomem *bios = NULL;
+
+	if (HAS_PCH_NOP(dev))
+		return -ENODEV;
 
 	init_vbt_defaults(dev_priv);
 
@@ -722,7 +760,8 @@ void intel_setup_bios(struct drm_device *dev)
 	struct drm_i915_private *dev_priv = dev->dev_private;
 
 	 /* Set the Panel Power On/Off timings if uninitialized. */
-	if ((I915_READ(PP_ON_DELAYS) == 0) && (I915_READ(PP_OFF_DELAYS) == 0)) {
+	if (!HAS_PCH_SPLIT(dev) &&
+	    I915_READ(PP_ON_DELAYS) == 0 && I915_READ(PP_OFF_DELAYS) == 0) {
 		/* Set T2 to 40ms and T5 to 200ms */
 		I915_WRITE(PP_ON_DELAYS, 0x019007d0);
 

@@ -1,7 +1,7 @@
 #ifndef _KGSL_DRM_H_
 #define _KGSL_DRM_H_
 
-#include "drm.h"
+#include "drm/drm.h"
 
 #define DRM_KGSL_GEM_CREATE 0x00
 #define DRM_KGSL_GEM_PREP   0x01

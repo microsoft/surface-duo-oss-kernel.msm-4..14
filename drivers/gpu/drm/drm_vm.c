@@ -33,7 +33,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "drmP.h"
+#include <drm/drmP.h>
 #include <linux/export.h>
 #if defined(__ia64__)
 #include <linux/efi.h>
@@ -62,7 +62,7 @@ static pgprot_t drm_io_prot(uint32_t map_type, struct vm_area_struct *vma)
 		tmp = pgprot_writecombine(tmp);
 	else
 		tmp = pgprot_noncached(tmp);
-#elif defined(__sparc__) || defined(__arm__)
+#elif defined(__sparc__) || defined(__arm__) || defined(__mips__)
 	tmp = pgprot_noncached(tmp);
 #endif
 	return tmp;
@@ -406,10 +406,9 @@ static const struct vm_operations_struct drm_vm_sg_ops = {
  * Create a new drm_vma_entry structure as the \p vma private data entry and
  * add it to drm_device::vmalist.
  */
-void drm_vm_open_locked(struct vm_area_struct *vma)
+void drm_vm_open_locked(struct drm_device *dev,
+		struct vm_area_struct *vma)
 {
-	struct drm_file *priv = vma->vm_file->private_data;
-	struct drm_device *dev = priv->minor->dev;
 	struct drm_vma_entry *vma_entry;
 
 	DRM_DEBUG("0x%08lx,0x%08lx\n",
@@ -423,6 +422,7 @@ void drm_vm_open_locked(struct vm_area_struct *vma)
 		list_add(&vma_entry->head, &dev->vmalist);
 	}
 }
+EXPORT_SYMBOL_GPL(drm_vm_open_locked);
 
 static void drm_vm_open(struct vm_area_struct *vma)
 {
@@ -430,14 +430,13 @@ static void drm_vm_open(struct vm_area_struct *vma)
 	struct drm_device *dev = priv->minor->dev;
 
 	mutex_lock(&dev->struct_mutex);
-	drm_vm_open_locked(vma);
+	drm_vm_open_locked(dev, vma);
 	mutex_unlock(&dev->struct_mutex);
 }
 
-void drm_vm_close_locked(struct vm_area_struct *vma)
+void drm_vm_close_locked(struct drm_device *dev,
+		struct vm_area_struct *vma)
 {
-	struct drm_file *priv = vma->vm_file->private_data;
-	struct drm_device *dev = priv->minor->dev;
 	struct drm_vma_entry *pt, *temp;
 
 	DRM_DEBUG("0x%08lx,0x%08lx\n",
@@ -467,7 +466,7 @@ static void drm_vm_close(struct vm_area_struct *vma)
 	struct drm_device *dev = priv->minor->dev;
 
 	mutex_lock(&dev->struct_mutex);
-	drm_vm_close_locked(vma);
+	drm_vm_close_locked(dev, vma);
 	mutex_unlock(&dev->struct_mutex);
 }
 
@@ -519,7 +518,7 @@ static int drm_mmap_dma(struct file *filp, struct vm_area_struct *vma)
 	vma->vm_flags |= VM_RESERVED;	/* Don't swap */
 	vma->vm_flags |= VM_DONTEXPAND;
 
-	drm_vm_open_locked(vma);
+	drm_vm_open_locked(dev, vma);
 	return 0;
 }
 
@@ -621,20 +620,11 @@ int drm_mmap_locked(struct file *filp, struct vm_area_struct *vma)
 		offset = drm_core_get_reg_ofs(dev);
 		vma->vm_flags |= VM_IO;	/* not in core dump */
 		vma->vm_page_prot = drm_io_prot(map->type, vma);
-#if !defined(__arm__)
 		if (io_remap_pfn_range(vma, vma->vm_start,
 				       (map->offset + offset) >> PAGE_SHIFT,
 				       vma->vm_end - vma->vm_start,
 				       vma->vm_page_prot))
 			return -EAGAIN;
-#else
-		if (remap_pfn_range(vma, vma->vm_start,
-					(map->offset + offset) >> PAGE_SHIFT,
-					vma->vm_end - vma->vm_start,
-					vma->vm_page_prot))
-			return -EAGAIN;
-#endif
-
 		DRM_DEBUG("   Type = %d; start = 0x%lx, end = 0x%lx,"
 			  " offset = 0x%llx\n",
 			  map->type,
@@ -670,7 +660,7 @@ int drm_mmap_locked(struct file *filp, struct vm_area_struct *vma)
 	vma->vm_flags |= VM_RESERVED;	/* Don't swap */
 	vma->vm_flags |= VM_DONTEXPAND;
 
-	drm_vm_open_locked(vma);
+	drm_vm_open_locked(dev, vma);
 	return 0;
 }
 

@@ -24,6 +24,41 @@
 #ifndef SI_H
 #define SI_H
 
+#define TAHITI_RB_BITMAP_WIDTH_PER_SH  2
+
+#define TAHITI_GB_ADDR_CONFIG_GOLDEN        0x12011003
+#define VERDE_GB_ADDR_CONFIG_GOLDEN         0x12010002
+#define HAINAN_GB_ADDR_CONFIG_GOLDEN        0x02010001
+
+/* discrete uvd clocks */
+#define	CG_UPLL_FUNC_CNTL				0x634
+#	define UPLL_RESET_MASK				0x00000001
+#	define UPLL_SLEEP_MASK				0x00000002
+#	define UPLL_BYPASS_EN_MASK			0x00000004
+#	define UPLL_CTLREQ_MASK				0x00000008
+#	define UPLL_VCO_MODE_MASK			0x00000600
+#	define UPLL_REF_DIV_MASK			0x003F0000
+#	define UPLL_CTLACK_MASK				0x40000000
+#	define UPLL_CTLACK2_MASK			0x80000000
+#define	CG_UPLL_FUNC_CNTL_2				0x638
+#	define UPLL_PDIV_A(x)				((x) << 0)
+#	define UPLL_PDIV_A_MASK				0x0000007F
+#	define UPLL_PDIV_B(x)				((x) << 8)
+#	define UPLL_PDIV_B_MASK				0x00007F00
+#	define VCLK_SRC_SEL(x)				((x) << 20)
+#	define VCLK_SRC_SEL_MASK			0x01F00000
+#	define DCLK_SRC_SEL(x)				((x) << 25)
+#	define DCLK_SRC_SEL_MASK			0x3E000000
+#define	CG_UPLL_FUNC_CNTL_3				0x63C
+#	define UPLL_FB_DIV(x)				((x) << 0)
+#	define UPLL_FB_DIV_MASK				0x01FFFFFF
+#define	CG_UPLL_FUNC_CNTL_4                             0x644
+#	define UPLL_SPARE_ISPARE9			0x00020000
+#define	CG_UPLL_FUNC_CNTL_5				0x648
+#	define RESET_ANTI_MUX_MASK			0x00000200
+#define	CG_UPLL_SPREAD_SPECTRUM				0x650
+#	define SSEN_MASK				0x00000001
+
 #define	CG_MULT_THERMAL_STATUS					0x714
 #define		ASIC_MAX_TEMP(x)				((x) << 0)
 #define		ASIC_MAX_TEMP_MASK				0x000001ff
@@ -53,12 +88,47 @@
 #define VGA_HDP_CONTROL  				0x328
 #define		VGA_MEMORY_DISABLE				(1 << 4)
 
+#define CG_CLKPIN_CNTL                                    0x660
+#       define XTALIN_DIVIDE                              (1 << 1)
+#define CG_CLKPIN_CNTL_2                                  0x664
+#       define MUX_TCLK_TO_XCLK                           (1 << 8)
+
 #define DMIF_ADDR_CONFIG  				0xBD4
 
+#define DMIF_ADDR_CALC  				0xC00
+
 #define	SRBM_STATUS				        0xE50
+#define		GRBM_RQ_PENDING 			(1 << 5)
+#define		VMC_BUSY 				(1 << 8)
+#define		MCB_BUSY 				(1 << 9)
+#define		MCB_NON_DISPLAY_BUSY 			(1 << 10)
+#define		MCC_BUSY 				(1 << 11)
+#define		MCD_BUSY 				(1 << 12)
+#define		SEM_BUSY 				(1 << 14)
+#define		IH_BUSY 				(1 << 17)
+
+#define	SRBM_SOFT_RESET				        0x0E60
+#define		SOFT_RESET_BIF				(1 << 1)
+#define		SOFT_RESET_DC				(1 << 5)
+#define		SOFT_RESET_DMA1				(1 << 6)
+#define		SOFT_RESET_GRBM				(1 << 8)
+#define		SOFT_RESET_HDP				(1 << 9)
+#define		SOFT_RESET_IH				(1 << 10)
+#define		SOFT_RESET_MC				(1 << 11)
+#define		SOFT_RESET_ROM				(1 << 14)
+#define		SOFT_RESET_SEM				(1 << 15)
+#define		SOFT_RESET_VMC				(1 << 17)
+#define		SOFT_RESET_DMA				(1 << 20)
+#define		SOFT_RESET_TST				(1 << 21)
+#define		SOFT_RESET_REGBB			(1 << 22)
+#define		SOFT_RESET_ORB				(1 << 23)
 
 #define	CC_SYS_RB_BACKEND_DISABLE			0xe80
 #define	GC_USER_SYS_RB_BACKEND_DISABLE			0xe84
+
+#define	SRBM_STATUS2				        0x0EC4
+#define		DMA_BUSY 				(1 << 5)
+#define		DMA1_BUSY 				(1 << 6)
 
 #define VM_L2_CNTL					0x1400
 #define		ENABLE_L2_CACHE					(1 << 0)
@@ -86,7 +156,18 @@
 #define VM_CONTEXT0_CNTL				0x1410
 #define		ENABLE_CONTEXT					(1 << 0)
 #define		PAGE_TABLE_DEPTH(x)				(((x) & 3) << 1)
+#define		RANGE_PROTECTION_FAULT_ENABLE_INTERRUPT		(1 << 3)
 #define		RANGE_PROTECTION_FAULT_ENABLE_DEFAULT		(1 << 4)
+#define		DUMMY_PAGE_PROTECTION_FAULT_ENABLE_INTERRUPT	(1 << 6)
+#define		DUMMY_PAGE_PROTECTION_FAULT_ENABLE_DEFAULT	(1 << 7)
+#define		PDE0_PROTECTION_FAULT_ENABLE_INTERRUPT		(1 << 9)
+#define		PDE0_PROTECTION_FAULT_ENABLE_DEFAULT		(1 << 10)
+#define		VALID_PROTECTION_FAULT_ENABLE_INTERRUPT		(1 << 12)
+#define		VALID_PROTECTION_FAULT_ENABLE_DEFAULT		(1 << 13)
+#define		READ_PROTECTION_FAULT_ENABLE_INTERRUPT		(1 << 15)
+#define		READ_PROTECTION_FAULT_ENABLE_DEFAULT		(1 << 16)
+#define		WRITE_PROTECTION_FAULT_ENABLE_INTERRUPT		(1 << 18)
+#define		WRITE_PROTECTION_FAULT_ENABLE_DEFAULT		(1 << 19)
 #define VM_CONTEXT1_CNTL				0x1414
 #define VM_CONTEXT0_CNTL2				0x1430
 #define VM_CONTEXT1_CNTL2				0x1434
@@ -98,6 +179,9 @@
 #define	VM_CONTEXT13_PAGE_TABLE_BASE_ADDR		0x144c
 #define	VM_CONTEXT14_PAGE_TABLE_BASE_ADDR		0x1450
 #define	VM_CONTEXT15_PAGE_TABLE_BASE_ADDR		0x1454
+
+#define	VM_CONTEXT1_PROTECTION_FAULT_ADDR		0x14FC
+#define	VM_CONTEXT1_PROTECTION_FAULT_STATUS		0x14DC
 
 #define VM_INVALIDATE_REQUEST				0x1478
 #define VM_INVALIDATE_RESPONSE				0x147c
@@ -408,11 +492,18 @@
 #define		SOFT_RESET_IA					(1 << 15)
 
 #define GRBM_GFX_INDEX          			0x802C
+#define		INSTANCE_INDEX(x)			((x) << 0)
+#define		SH_INDEX(x)     			((x) << 8)
+#define		SE_INDEX(x)     			((x) << 16)
+#define		SH_BROADCAST_WRITES      		(1 << 29)
+#define		INSTANCE_BROADCAST_WRITES      		(1 << 30)
+#define		SE_BROADCAST_WRITES      		(1 << 31)
 
 #define GRBM_INT_CNTL                                   0x8060
 #       define RDERR_INT_ENABLE                         (1 << 0)
 #       define GUI_IDLE_INT_ENABLE                      (1 << 19)
 
+#define	CP_STRMOUT_CNTL					0x84FC
 #define	SCRATCH_REG0					0x8500
 #define	SCRATCH_REG1					0x8504
 #define	SCRATCH_REG2					0x8508
@@ -480,6 +571,8 @@
 #define	VGT_TF_MEMORY_BASE				0x89B8
 
 #define CC_GC_SHADER_ARRAY_CONFIG			0x89bc
+#define		INACTIVE_CUS_MASK			0xFFFF0000
+#define		INACTIVE_CUS_SHIFT			16
 #define GC_USER_SHADER_ARRAY_CONFIG			0x89c0
 
 #define	PA_CL_ENHANCE					0x8A14
@@ -685,8 +778,17 @@
 #define RLC_UCODE_ADDR                                    0xC32C
 #define RLC_UCODE_DATA                                    0xC330
 
+#define RLC_GPU_CLOCK_COUNT_LSB                           0xC338
+#define RLC_GPU_CLOCK_COUNT_MSB                           0xC33C
+#define RLC_CAPTURE_GPU_CLOCK_COUNT                       0xC340
 #define RLC_MC_CNTL                                       0xC344
 #define RLC_UCODE_CNTL                                    0xC348
+
+#define PA_SC_RASTER_CONFIG                             0x28350
+#       define RASTER_CONFIG_RB_MAP_0                   0
+#       define RASTER_CONFIG_RB_MAP_1                   1
+#       define RASTER_CONFIG_RB_MAP_2                   2
+#       define RASTER_CONFIG_RB_MAP_3                   3
 
 #define VGT_EVENT_INITIATOR                             0x28a90
 #       define SAMPLE_STREAMOUTSTATS1                   (1 << 0)
@@ -728,18 +830,18 @@
 #       define THREAD_TRACE_FINISH                      (55 << 0)
 
 /*
+ * UVD
+ */
+#define UVD_UDEC_ADDR_CONFIG				0xEF4C
+#define UVD_UDEC_DB_ADDR_CONFIG				0xEF50
+#define UVD_UDEC_DBW_ADDR_CONFIG			0xEF54
+#define UVD_RBC_RB_RPTR					0xF690
+#define UVD_RBC_RB_WPTR					0xF694
+
+/*
  * PM4
  */
-#define	PACKET_TYPE0	0
-#define	PACKET_TYPE1	1
-#define	PACKET_TYPE2	2
-#define	PACKET_TYPE3	3
-
-#define CP_PACKET_GET_TYPE(h) (((h) >> 30) & 3)
-#define CP_PACKET_GET_COUNT(h) (((h) >> 16) & 0x3FFF)
-#define CP_PACKET0_GET_REG(h) (((h) & 0xFFFF) << 2)
-#define CP_PACKET3_GET_OPCODE(h) (((h) >> 8) & 0xFF)
-#define PACKET0(reg, n)	((PACKET_TYPE0 << 30) |				\
+#define PACKET0(reg, n)	((RADEON_PACKET_TYPE0 << 30) |			\
 			 (((reg) >> 2) & 0xFFFF) |			\
 			 ((n) & 0x3FFF) << 16)
 #define CP_PACKET2			0x80000000
@@ -748,7 +850,7 @@
 
 #define PACKET2(v)	(CP_PACKET2 | REG_SET(PACKET2_PAD, (v)))
 
-#define PACKET3(op, n)	((PACKET_TYPE3 << 30) |				\
+#define PACKET3(op, n)	((RADEON_PACKET_TYPE3 << 30) |			\
 			 (((op) & 0xFF) << 8) |				\
 			 ((n) & 0x3FFF) << 16)
 
@@ -790,6 +892,21 @@
 #define	PACKET3_DRAW_INDEX_OFFSET_2			0x35
 #define	PACKET3_DRAW_INDEX_MULTI_ELEMENT		0x36
 #define	PACKET3_WRITE_DATA				0x37
+#define		WRITE_DATA_DST_SEL(x)                   ((x) << 8)
+                /* 0 - register
+		 * 1 - memory (sync - via GRBM)
+		 * 2 - tc/l2
+		 * 3 - gds
+		 * 4 - reserved
+		 * 5 - memory (async - direct)
+		 */
+#define		WR_ONE_ADDR                             (1 << 16)
+#define		WR_CONFIRM                              (1 << 20)
+#define		WRITE_DATA_ENGINE_SEL(x)                ((x) << 30)
+                /* 0 - me
+		 * 1 - pfp
+		 * 2 - ce
+		 */
 #define	PACKET3_DRAW_INDEX_INDIRECT_MULTI		0x38
 #define	PACKET3_MEM_SEMAPHORE				0x39
 #define	PACKET3_MPEG_INDEX				0x3A
@@ -797,6 +914,54 @@
 #define	PACKET3_WAIT_REG_MEM				0x3C
 #define	PACKET3_MEM_WRITE				0x3D
 #define	PACKET3_COPY_DATA				0x40
+#define	PACKET3_CP_DMA					0x41
+/* 1. header
+ * 2. SRC_ADDR_LO or DATA [31:0]
+ * 3. CP_SYNC [31] | SRC_SEL [30:29] | ENGINE [27] | DST_SEL [21:20] |
+ *    SRC_ADDR_HI [7:0]
+ * 4. DST_ADDR_LO [31:0]
+ * 5. DST_ADDR_HI [7:0]
+ * 6. COMMAND [30:21] | BYTE_COUNT [20:0]
+ */
+#              define PACKET3_CP_DMA_DST_SEL(x)    ((x) << 20)
+                /* 0 - SRC_ADDR
+		 * 1 - GDS
+		 */
+#              define PACKET3_CP_DMA_ENGINE(x)     ((x) << 27)
+                /* 0 - ME
+		 * 1 - PFP
+		 */
+#              define PACKET3_CP_DMA_SRC_SEL(x)    ((x) << 29)
+                /* 0 - SRC_ADDR
+		 * 1 - GDS
+		 * 2 - DATA
+		 */
+#              define PACKET3_CP_DMA_CP_SYNC       (1 << 31)
+/* COMMAND */
+#              define PACKET3_CP_DMA_DIS_WC        (1 << 21)
+#              define PACKET3_CP_DMA_CMD_SRC_SWAP(x) ((x) << 23)
+                /* 0 - none
+		 * 1 - 8 in 16
+		 * 2 - 8 in 32
+		 * 3 - 8 in 64
+		 */
+#              define PACKET3_CP_DMA_CMD_DST_SWAP(x) ((x) << 24)
+                /* 0 - none
+		 * 1 - 8 in 16
+		 * 2 - 8 in 32
+		 * 3 - 8 in 64
+		 */
+#              define PACKET3_CP_DMA_CMD_SAS       (1 << 26)
+                /* 0 - memory
+		 * 1 - register
+		 */
+#              define PACKET3_CP_DMA_CMD_DAS       (1 << 27)
+                /* 0 - memory
+		 * 1 - register
+		 */
+#              define PACKET3_CP_DMA_CMD_SAIC      (1 << 28)
+#              define PACKET3_CP_DMA_CMD_DAIC      (1 << 29)
+#              define PACKET3_CP_DMA_CMD_RAW_WAIT  (1 << 30)
 #define	PACKET3_PFP_SYNC_ME				0x42
 #define	PACKET3_SURFACE_SYNC				0x43
 #              define PACKET3_DEST_BASE_0_ENA      (1 << 0)
@@ -882,5 +1047,65 @@
 #define	PACKET3_WAIT_ON_DE_COUNTER_DIFF			0x88
 #define	PACKET3_SET_CE_DE_COUNTERS			0x89
 #define	PACKET3_WAIT_ON_AVAIL_BUFFER			0x8A
+#define	PACKET3_SWITCH_BUFFER				0x8B
+
+/* ASYNC DMA - first instance at 0xd000, second at 0xd800 */
+#define DMA0_REGISTER_OFFSET                              0x0 /* not a register */
+#define DMA1_REGISTER_OFFSET                              0x800 /* not a register */
+
+#define DMA_RB_CNTL                                       0xd000
+#       define DMA_RB_ENABLE                              (1 << 0)
+#       define DMA_RB_SIZE(x)                             ((x) << 1) /* log2 */
+#       define DMA_RB_SWAP_ENABLE                         (1 << 9) /* 8IN32 */
+#       define DMA_RPTR_WRITEBACK_ENABLE                  (1 << 12)
+#       define DMA_RPTR_WRITEBACK_SWAP_ENABLE             (1 << 13)  /* 8IN32 */
+#       define DMA_RPTR_WRITEBACK_TIMER(x)                ((x) << 16) /* log2 */
+#define DMA_RB_BASE                                       0xd004
+#define DMA_RB_RPTR                                       0xd008
+#define DMA_RB_WPTR                                       0xd00c
+
+#define DMA_RB_RPTR_ADDR_HI                               0xd01c
+#define DMA_RB_RPTR_ADDR_LO                               0xd020
+
+#define DMA_IB_CNTL                                       0xd024
+#       define DMA_IB_ENABLE                              (1 << 0)
+#       define DMA_IB_SWAP_ENABLE                         (1 << 4)
+#define DMA_IB_RPTR                                       0xd028
+#define DMA_CNTL                                          0xd02c
+#       define TRAP_ENABLE                                (1 << 0)
+#       define SEM_INCOMPLETE_INT_ENABLE                  (1 << 1)
+#       define SEM_WAIT_INT_ENABLE                        (1 << 2)
+#       define DATA_SWAP_ENABLE                           (1 << 3)
+#       define FENCE_SWAP_ENABLE                          (1 << 4)
+#       define CTXEMPTY_INT_ENABLE                        (1 << 28)
+#define DMA_STATUS_REG                                    0xd034
+#       define DMA_IDLE                                   (1 << 0)
+#define DMA_TILING_CONFIG  				  0xd0b8
+
+#define DMA_PACKET(cmd, b, t, s, n)	((((cmd) & 0xF) << 28) |	\
+					 (((b) & 0x1) << 26) |		\
+					 (((t) & 0x1) << 23) |		\
+					 (((s) & 0x1) << 22) |		\
+					 (((n) & 0xFFFFF) << 0))
+
+#define DMA_IB_PACKET(cmd, vmid, n)	((((cmd) & 0xF) << 28) |	\
+					 (((vmid) & 0xF) << 20) |	\
+					 (((n) & 0xFFFFF) << 0))
+
+#define DMA_PTE_PDE_PACKET(n)		((2 << 28) |			\
+					 (1 << 26) |			\
+					 (1 << 21) |			\
+					 (((n) & 0xFFFFF) << 0))
+
+/* async DMA Packet types */
+#define	DMA_PACKET_WRITE				  0x2
+#define	DMA_PACKET_COPY					  0x3
+#define	DMA_PACKET_INDIRECT_BUFFER			  0x4
+#define	DMA_PACKET_SEMAPHORE				  0x5
+#define	DMA_PACKET_FENCE				  0x6
+#define	DMA_PACKET_TRAP					  0x7
+#define	DMA_PACKET_SRBM_WRITE				  0x9
+#define	DMA_PACKET_CONSTANT_FILL			  0xd
+#define	DMA_PACKET_NOP					  0xf
 
 #endif

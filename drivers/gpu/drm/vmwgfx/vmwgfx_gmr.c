@@ -26,8 +26,8 @@
  **************************************************************************/
 
 #include "vmwgfx_drv.h"
-#include "drmP.h"
-#include "ttm/ttm_bo_driver.h"
+#include <drm/drmP.h>
+#include <drm/ttm/ttm_bo_driver.h>
 
 #define VMW_PPN_SIZE sizeof(unsigned long)
 
@@ -66,7 +66,7 @@ static int vmw_gmr2_bind(struct vmw_private *dev_priv,
 	cmd += sizeof(remap_cmd) / sizeof(uint32);
 
 	for (i = 0; i < num_pages; ++i) {
-		if (VMW_PPN_SIZE > 4)
+		if (VMW_PPN_SIZE <= 4)
 			*cmd = page_to_pfn(*pages++);
 		else
 			*((uint64_t *)cmd) = page_to_pfn(*pages++);
