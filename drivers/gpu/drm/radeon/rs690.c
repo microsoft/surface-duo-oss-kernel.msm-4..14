@@ -25,7 +25,7 @@
  *          Alex Deucher
  *          Jerome Glisse
  */
-#include "drmP.h"
+#include <drm/drmP.h>
 #include "radeon.h"
 #include "radeon_asic.h"
 #include "atom.h"
@@ -145,9 +145,11 @@ void rs690_pm_info(struct radeon_device *rdev)
 	rdev->pm.sideport_bandwidth.full = dfixed_div(rdev->pm.sideport_bandwidth, tmp);
 }
 
-void rs690_mc_init(struct radeon_device *rdev)
+static void rs690_mc_init(struct radeon_device *rdev)
 {
 	u64 base;
+	uint32_t h_addr, l_addr;
+	unsigned long long k8_addr;
 
 	rs400_gart_adjust_size(rdev);
 	rdev->mc.vram_is_ddr = true;
@@ -160,6 +162,27 @@ void rs690_mc_init(struct radeon_device *rdev)
 	base = RREG32_MC(R_000100_MCCFG_FB_LOCATION);
 	base = G_000100_MC_FB_START(base) << 16;
 	rdev->mc.igp_sideport_enabled = radeon_atombios_sideport_present(rdev);
+
+	/* Use K8 direct mapping for fast fb access. */ 
+	rdev->fastfb_working = false;
+	h_addr = G_00005F_K8_ADDR_EXT(RREG32_MC(R_00005F_MC_MISC_UMA_CNTL));
+	l_addr = RREG32_MC(R_00001E_K8_FB_LOCATION);
+	k8_addr = ((unsigned long long)h_addr) << 32 | l_addr;
+#if defined(CONFIG_X86_32) && !defined(CONFIG_X86_PAE)
+	if (k8_addr + rdev->mc.visible_vram_size < 0x100000000ULL)	
+#endif
+	{
+		/* FastFB shall be used with UMA memory. Here it is simply disabled when sideport 
+		 * memory is present.
+		 */
+		if (rdev->mc.igp_sideport_enabled == false && radeon_fastfb == 1) {
+			DRM_INFO("Direct mapping: aper base at 0x%llx, replaced by direct mapping base 0x%llx.\n", 
+					(unsigned long long)rdev->mc.aper_base, k8_addr);
+			rdev->mc.aper_base = (resource_size_t)k8_addr;
+			rdev->fastfb_working = true;
+		}
+	}  
+
 	rs690_pm_info(rdev);
 	radeon_vram_location(rdev, &rdev->mc, base);
 	rdev->mc.gtt_base_align = rdev->mc.gtt_size - 1;
@@ -224,7 +247,7 @@ struct rs690_watermark {
 	fixed20_12 sclk;
 };
 
-void rs690_crtc_bandwidth_compute(struct radeon_device *rdev,
+static void rs690_crtc_bandwidth_compute(struct radeon_device *rdev,
 				  struct radeon_crtc *crtc,
 				  struct rs690_watermark *wm)
 {
@@ -581,7 +604,7 @@ void rs690_mc_wreg(struct radeon_device *rdev, uint32_t reg, uint32_t v)
 	WREG32(R_000078_MC_INDEX, 0x7F);
 }
 
-void rs690_mc_program(struct radeon_device *rdev)
+static void rs690_mc_program(struct radeon_device *rdev)
 {
 	struct rv515_mc_save save;
 
@@ -628,6 +651,12 @@ static int rs690_startup(struct radeon_device *rdev)
 	}
 
 	/* Enable IRQ */
+	if (!rdev->irq.installed) {
+		r = radeon_irq_kms_init(rdev);
+		if (r)
+			return r;
+	}
+
 	rs600_irq_set(rdev);
 	rdev->config.r300.hdp_cntl = RREG32(RADEON_HOST_PATH_CNTL);
 	/* 1M ring buffer */
@@ -637,20 +666,15 @@ static int rs690_startup(struct radeon_device *rdev)
 		return r;
 	}
 
-	r = r600_audio_init(rdev);
+	r = radeon_ib_pool_init(rdev);
 	if (r) {
-		dev_err(rdev->dev, "failed initializing audio\n");
+		dev_err(rdev->dev, "IB initialization failed (%d).\n", r);
 		return r;
 	}
 
-	r = radeon_ib_pool_start(rdev);
-	if (r)
-		return r;
-
-	r = radeon_ib_test(rdev, RADEON_RING_TYPE_GFX_INDEX, &rdev->ring[RADEON_RING_TYPE_GFX_INDEX]);
+	r = r600_audio_init(rdev);
 	if (r) {
-		dev_err(rdev->dev, "failed testing IB (%d).\n", r);
-		rdev->accel_working = false;
+		dev_err(rdev->dev, "failed initializing audio\n");
 		return r;
 	}
 
@@ -688,7 +712,6 @@ int rs690_resume(struct radeon_device *rdev)
 
 int rs690_suspend(struct radeon_device *rdev)
 {
-	radeon_ib_pool_suspend(rdev);
 	r600_audio_fini(rdev);
 	r100_cp_disable(rdev);
 	radeon_wb_disable(rdev);
@@ -702,7 +725,7 @@ void rs690_fini(struct radeon_device *rdev)
 	r600_audio_fini(rdev);
 	r100_cp_fini(rdev);
 	radeon_wb_fini(rdev);
-	r100_ib_fini(rdev);
+	radeon_ib_pool_fini(rdev);
 	radeon_gem_fini(rdev);
 	rs400_gart_fini(rdev);
 	radeon_irq_kms_fini(rdev);
@@ -759,9 +782,6 @@ int rs690_init(struct radeon_device *rdev)
 	r = radeon_fence_driver_init(rdev);
 	if (r)
 		return r;
-	r = radeon_irq_kms_init(rdev);
-	if (r)
-		return r;
 	/* Memory manager */
 	r = radeon_bo_init(rdev);
 	if (r)
@@ -771,20 +791,14 @@ int rs690_init(struct radeon_device *rdev)
 		return r;
 	rs600_set_safe_registers(rdev);
 
-	r = radeon_ib_pool_init(rdev);
 	rdev->accel_working = true;
-	if (r) {
-		dev_err(rdev->dev, "IB initialization failed (%d).\n", r);
-		rdev->accel_working = false;
-	}
-
 	r = rs690_startup(rdev);
 	if (r) {
 		/* Somethings want wront with the accel init stop accel */
 		dev_err(rdev->dev, "Disabling GPU acceleration\n");
 		r100_cp_fini(rdev);
 		radeon_wb_fini(rdev);
-		r100_ib_fini(rdev);
+		radeon_ib_pool_fini(rdev);
 		rs400_gart_fini(rdev);
 		radeon_irq_kms_fini(rdev);
 		rdev->accel_working = false;
