@@ -238,7 +238,7 @@ static struct gpiomux_setting mdp_vsync_active_cfg = {
 	.pull = GPIOMUX_PULL_DOWN,
 };
 
-#ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
+#if defined(CONFIG_FB_MSM_HDMI_MSM_PANEL) || defined(CONFIG_DRM_MSM)
 static struct gpiomux_setting hdmi_suspend_cfg = {
 	.func = GPIOMUX_FUNC_GPIO,
 	.drv = GPIOMUX_DRV_2MA,
@@ -598,7 +598,7 @@ static struct msm_gpiomux_config msm8960_mdp_vsync_configs[] __initdata = {
 	}
 };
 
-#ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
+#if defined(CONFIG_FB_MSM_HDMI_MSM_PANEL) || defined(CONFIG_DRM_MSM)
 static struct msm_gpiomux_config msm8960_hdmi_configs[] __initdata = {
 	{
 		.gpio = 99,
@@ -782,7 +782,7 @@ int __init msm8930_init_gpiomux(void)
 		msm_gpiomux_install(msm8930_haptics_configs,
 			ARRAY_SIZE(msm8930_haptics_configs));
 
-#ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
+#if defined(CONFIG_FB_MSM_HDMI_MSM_PANEL) || defined(CONFIG_DRM_MSM)
 	msm_gpiomux_install(msm8960_hdmi_configs,
 			ARRAY_SIZE(msm8960_hdmi_configs));
 	if (msm8930_mhl_display_enabled())
