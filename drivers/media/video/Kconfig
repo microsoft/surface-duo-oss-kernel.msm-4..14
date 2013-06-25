@@ -1188,6 +1188,7 @@ menuconfig MSM_CAMERA
 	  Say Y here to enable selecting the video adapters for
 	  Qualcomm msm camera and video encoding
 
+if MSM_CAMERA
 config MSM_CAMERA_DEBUG
 	bool "Qualcomm MSM camera debugging with printk"
 	depends on MSM_CAMERA
@@ -1195,8 +1196,9 @@ config MSM_CAMERA_DEBUG
 	help
 	  Enable printk() debug for msm camera
 
-
 source "drivers/media/video/msm/Kconfig"
+
+endif # MSM_CAMERA
 
 endif # V4L_PLATFORM_DRIVERS
 endif # VIDEO_CAPTURE_DRIVERS
