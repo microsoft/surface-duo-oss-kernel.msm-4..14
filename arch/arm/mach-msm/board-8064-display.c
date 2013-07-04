@@ -752,8 +752,10 @@ static struct msm_bus_vectors dtv_bus_init_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_MDP_PORT0,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab = 0,
-		.ib = 0,
+//		.ab = 0,
+//		.ib = 0,
+		.ab = 2000000000,
+		.ib = 2000000000,
 	},
 };
 
@@ -761,8 +763,10 @@ static struct msm_bus_vectors dtv_bus_def_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_MDP_PORT0,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab = 566092800 * 2,
-		.ib = 707616000 * 2,
+//		.ab = 566092800 * 2,
+//		.ib = 707616000 * 2,
+		.ab = 2000000000,
+		.ib = 2000000000,
 	},
 };
 
