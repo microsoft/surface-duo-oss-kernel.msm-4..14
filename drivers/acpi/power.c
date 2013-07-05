@@ -256,7 +256,7 @@ static int acpi_power_on(acpi_handle handle)
 
 	if (resource->ref_count++) {
 		ACPI_DEBUG_PRINT((ACPI_DB_INFO,
-				  "Power resource [%s] already on",
+				  "Power resource [%s] already on\n",
 				  resource->name));
 	} else {
 		result = __acpi_power_on(resource);
@@ -298,7 +298,7 @@ static int acpi_power_off(acpi_handle handle)
 
 	if (!resource->ref_count) {
 		ACPI_DEBUG_PRINT((ACPI_DB_INFO,
-				  "Power resource [%s] already off",
+				  "Power resource [%s] already off\n",
 				  resource->name));
 		goto unlock;
 	}
