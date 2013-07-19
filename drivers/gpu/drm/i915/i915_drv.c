@@ -1247,23 +1247,23 @@ ilk_dummy_write(struct drm_i915_private *dev_priv)
 
 #define __i915_read(x, y) \
 u##x i915_read##x(struct drm_i915_private *dev_priv, u32 reg) { \
+	unsigned long irqflags; \
 	u##x val = 0; \
+	spin_lock_irqsave(&dev_priv->gt_lock, irqflags); \
 	if (IS_GEN5(dev_priv->dev)) \
 		ilk_dummy_write(dev_priv); \
 	if (NEEDS_FORCE_WAKE((dev_priv), (reg))) { \
-		unsigned long irqflags; \
-		spin_lock_irqsave(&dev_priv->gt_lock, irqflags); \
 		if (dev_priv->forcewake_count == 0) \
 			dev_priv->gt.force_wake_get(dev_priv); \
 		val = read##y(dev_priv->regs + reg); \
 		if (dev_priv->forcewake_count == 0) \
 			dev_priv->gt.force_wake_put(dev_priv); \
-		spin_unlock_irqrestore(&dev_priv->gt_lock, irqflags); \
 	} else if (IS_VALLEYVIEW(dev_priv->dev) && IS_DISPLAYREG(reg)) { \
 		val = read##y(dev_priv->regs + reg + 0x180000);		\
 	} else { \
 		val = read##y(dev_priv->regs + reg); \
 	} \
+	spin_unlock_irqrestore(&dev_priv->gt_lock, irqflags); \
 	trace_i915_reg_rw(false, reg, val, sizeof(val)); \
 	return val; \
 }
@@ -1276,8 +1276,10 @@ __i915_read(64, q)
 
 #define __i915_write(x, y) \
 void i915_write##x(struct drm_i915_private *dev_priv, u32 reg, u##x val) { \
+	unsigned long irqflags; \
 	u32 __fifo_ret = 0; \
 	trace_i915_reg_rw(true, reg, val, sizeof(val)); \
+	spin_lock_irqsave(&dev_priv->gt_lock, irqflags); \
 	if (NEEDS_FORCE_WAKE((dev_priv), (reg))) { \
 		__fifo_ret = __gen6_gt_wait_for_fifo(dev_priv); \
 	} \
@@ -1299,6 +1301,7 @@ void i915_write##x(struct drm_i915_private *dev_priv, u32 reg, u##x val) { \
 		DRM_ERROR("Unclaimed write to %x\n", reg); \
 		writel(ERR_INT_MMIO_UNCLAIMED, dev_priv->regs + GEN7_ERR_INT);	\
 	} \
+	spin_unlock_irqrestore(&dev_priv->gt_lock, irqflags); \
 }
 __i915_write(8, b)
 __i915_write(16, w)
