@@ -170,6 +170,7 @@ obj-$(CONFIG_FB_MSM_LCDC_SAMSUNG_OLED_PT) += lcdc_samsung_oled_pt.o
 obj-$(CONFIG_FB_MSM_HDMI_ADV7520_PANEL) += adv7520.o
 obj-$(CONFIG_FB_MSM_LCDC_ST15_WXGA) += lcdc_st15.o
 obj-$(CONFIG_FB_MSM_LVDS_CHIMEI_WXGA) += lvds_chimei_wxga.o
+obj-$(CONFIG_FB_MSM_LVDS_LGE_WVGA) += lvds_lge_wvga.o
 obj-$(CONFIG_FB_MSM_LVDS_FRC_FHD) += lvds_frc_fhd.o
 obj-$(CONFIG_FB_MSM_HDMI_MSM_PANEL) += hdmi_msm.o
 obj-$(CONFIG_FB_MSM_EXT_INTERFACE_COMMON) += external_common.o
