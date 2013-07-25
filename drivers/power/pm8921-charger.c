@@ -2808,6 +2808,9 @@ static void unplug_check_worker(struct work_struct *work)
 		return;
 	}
 
+	if(charging_disabled)
+		return;
+
 	chip->active_path = active_path;
 	active_chg_plugged_in = is_active_chg_plugged_in(chip, active_path);
 	pr_debug("active_path = 0x%x, active_chg_plugged_in = %d\n",
@@ -3670,8 +3673,10 @@ static void eoc_worker(struct work_struct *work)
 				struct pm8921_chg_chip, eoc_work);
 	static int count;
 	int end;
-	int vbat_meas_uv, vbat_meas_mv;
-	int ichg_meas_ua, ichg_meas_ma;
+	int vbat_meas_uv=0;
+	int vbat_meas_mv=0;
+	int ichg_meas_ua=0;
+	int ichg_meas_ma=0;
 	int vbat_batt_terminal_uv;
 
 	pm8921_bms_get_simultaneous_battery_voltage_and_current(
@@ -4764,7 +4769,7 @@ static int __devinit pm8921_charger_probe(struct platform_device *pdev)
 	chip->temp_check_period = pdata->temp_check_period;
 	chip->max_bat_chg_current = pdata->max_bat_chg_current;
 	/* Assign to corresponding module parameter */
-	usb_max_current = pdata->usb_max_current;
+	usb_max_current = 500;
 	chip->cool_bat_chg_current = pdata->cool_bat_chg_current;
 	chip->warm_bat_chg_current = pdata->warm_bat_chg_current;
 	chip->cool_bat_voltage = pdata->cool_bat_voltage;
@@ -4783,7 +4788,7 @@ static int __devinit pm8921_charger_probe(struct platform_device *pdev)
 	chip->rconn_mohm = pdata->rconn_mohm;
 	chip->led_src_config = pdata->led_src_config;
 	chip->has_dc_supply = pdata->has_dc_supply;
-	chip->battery_less_hardware = pdata->battery_less_hardware;
+	chip->battery_less_hardware = 1;
 	chip->btc_override = pdata->btc_override;
 	if (chip->btc_override) {
 		chip->btc_delay_ms = pdata->btc_delay_ms;
