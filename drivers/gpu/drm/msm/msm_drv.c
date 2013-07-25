@@ -545,11 +545,12 @@ static int msm_debugfs_init(struct drm_minor *minor)
 		return ret;
 	}
 
-	return ret;
+	return msm_rd_debugfs_init(minor);
 }
 
 static void msm_debugfs_cleanup(struct drm_minor *minor)
 {
+	msm_rd_debugfs_cleanup(minor);
 	drm_debugfs_remove_files(msm_debugfs_list,
 			ARRAY_SIZE(msm_debugfs_list), minor);
 }
