@@ -52,10 +52,8 @@
 drm_dma_handle_t *drm_pci_alloc(struct drm_device * dev, size_t size, size_t align)
 {
 	drm_dma_handle_t *dmah;
-#if 1
 	unsigned long addr;
 	size_t sz;
-#endif
 
 	/* pci_alloc_consistent only guarantees alignment to the smallest
 	 * PAGE_SIZE order which is greater than or equal to the requested size.
@@ -97,10 +95,8 @@ EXPORT_SYMBOL(drm_pci_alloc);
  */
 void __drm_pci_free(struct drm_device * dev, drm_dma_handle_t * dmah)
 {
-#if 1
 	unsigned long addr;
 	size_t sz;
-#endif
 
 	if (dmah->vaddr) {
 		/* XXX - Is virt_to_page() legal for consistent mem? */
@@ -278,10 +274,10 @@ static int drm_pci_agp_init(struct drm_device *dev)
 		}
 		if (drm_core_has_MTRR(dev)) {
 			if (dev->agp)
-				dev->agp->agp_mtrr =
-					mtrr_add(dev->agp->agp_info.aper_base,
-						 dev->agp->agp_info.aper_size *
-						 1024 * 1024, MTRR_TYPE_WRCOMB, 1);
+				dev->agp->agp_mtrr = arch_phys_wc_add(
+					dev->agp->agp_info.aper_base,
+					dev->agp->agp_info.aper_size *
+					1024 * 1024);
 		}
 	}
 	return 0;

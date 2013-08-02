@@ -210,12 +210,16 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 		if (drm_core_has_MTRR(dev)) {
 			if (map->type == _DRM_FRAME_BUFFER ||
 			    (map->flags & _DRM_WRITE_COMBINING)) {
-				map->mtrr = mtrr_add(map->offset, map->size,
-						     MTRR_TYPE_WRCOMB, 1);
+				map->mtrr =
+					arch_phys_wc_add(map->offset, map->size);
 			}
 		}
 		if (map->type == _DRM_REGISTERS) {
-			map->handle = ioremap(map->offset, map->size);
+			if (map->flags & _DRM_WRITE_COMBINING)
+				map->handle = ioremap_wc(map->offset,
+							 map->size);
+			else
+				map->handle = ioremap(map->offset, map->size);
 			if (!map->handle) {
 				kfree(map);
 				return -ENOMEM;
@@ -239,7 +243,7 @@ static int drm_addmap_core(struct drm_device * dev, resource_size_t offset,
 		}
 		map->handle = vmalloc_user(map->size);
 		DRM_DEBUG("%lu %d %p\n",
-			  map->size, drm_order(map->size), map->handle);
+			  map->size, order_base_2(map->size), map->handle);
 		if (!map->handle) {
 			kfree(map);
 			return -ENOMEM;
@@ -410,6 +414,15 @@ int drm_addmap_ioctl(struct drm_device *dev, void *data,
 
 	/* avoid a warning on 64-bit, this casting isn't very nice, but the API is set so too late */
 	map->handle = (void *)(unsigned long)maplist->user_token;
+
+	/*
+	 * It appears that there are no users of this value whatsoever --
+	 * drmAddMap just discards it.  Let's not encourage its use.
+	 * (Keeping drm_addmap_core's returned mtrr value would be wrong --
+	 *  it's not a real mtrr index anymore.)
+	 */
+	map->mtrr = -1;
+
 	return 0;
 }
 
@@ -451,11 +464,8 @@ int drm_rmmap_locked(struct drm_device *dev, struct drm_local_map *map)
 		iounmap(map->handle);
 		/* FALLTHROUGH */
 	case _DRM_FRAME_BUFFER:
-		if (drm_core_has_MTRR(dev) && map->mtrr >= 0) {
-			int retcode;
-			retcode = mtrr_del(map->mtrr, map->offset, map->size);
-			DRM_DEBUG("mtrr_del=%d\n", retcode);
-		}
+		if (drm_core_has_MTRR(dev))
+			arch_phys_wc_del(map->mtrr);
 		break;
 	case _DRM_SHM:
 		vfree(map->handle);
@@ -620,7 +630,7 @@ int drm_addbufs_agp(struct drm_device * dev, struct drm_buf_desc * request)
 		return -EINVAL;
 
 	count = request->count;
-	order = drm_order(request->size);
+	order = order_base_2(request->size);
 	size = 1 << order;
 
 	alignment = (request->flags & _DRM_PAGE_ALIGN)
@@ -790,7 +800,7 @@ int drm_addbufs_pci(struct drm_device * dev, struct drm_buf_desc * request)
 		return -EPERM;
 
 	count = request->count;
-	order = drm_order(request->size);
+	order = order_base_2(request->size);
 	size = 1 << order;
 
 	DRM_DEBUG("count=%d, size=%d (%d), order=%d\n",
@@ -992,7 +1002,7 @@ static int drm_addbufs_sg(struct drm_device * dev, struct drm_buf_desc * request
 		return -EPERM;
 
 	count = request->count;
-	order = drm_order(request->size);
+	order = order_base_2(request->size);
 	size = 1 << order;
 
 	alignment = (request->flags & _DRM_PAGE_ALIGN)
@@ -1147,7 +1157,7 @@ static int drm_addbufs_fb(struct drm_device * dev, struct drm_buf_desc * request
 		return -EPERM;
 
 	count = request->count;
-	order = drm_order(request->size);
+	order = order_base_2(request->size);
 	size = 1 << order;
 
 	alignment = (request->flags & _DRM_PAGE_ALIGN)
@@ -1425,7 +1435,7 @@ int drm_markbufs(struct drm_device *dev, void *data,
 
 	DRM_DEBUG("%d, %d, %d\n",
 		  request->size, request->low_mark, request->high_mark);
-	order = drm_order(request->size);
+	order = order_base_2(request->size);
 	if (order < DRM_MIN_ORDER || order > DRM_MAX_ORDER)
 		return -EINVAL;
 	entry = &dma->bufs[order];
@@ -1590,25 +1600,16 @@ int drm_mapbufs(struct drm_device *dev, void *data,
 	return retcode;
 }
 
-/**
- * Compute size order.  Returns the exponent of the smaller power of two which
- * is greater or equal to given number.
- *
- * \param size size.
- * \return order.
- *
- * \todo Can be made faster.
- */
-int drm_order(unsigned long size)
+struct drm_local_map *drm_getsarea(struct drm_device *dev)
 {
-	int order;
-	unsigned long tmp;
+	struct drm_map_list *entry;
 
-	for (order = 0, tmp = size >> 1; tmp; tmp >>= 1, order++) ;
-
-	if (size & (size - 1))
-		++order;
-
-	return order;
+	list_for_each_entry(entry, &dev->maplist, head) {
+		if (entry->map && entry->map->type == _DRM_SHM &&
+		    (entry->map->flags & _DRM_CONTAINS_LOCK)) {
+			return entry->map;
+		}
+	}
+	return NULL;
 }
-EXPORT_SYMBOL(drm_order);
+EXPORT_SYMBOL(drm_getsarea);
