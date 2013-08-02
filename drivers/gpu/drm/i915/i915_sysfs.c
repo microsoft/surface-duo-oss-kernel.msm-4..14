@@ -212,7 +212,13 @@ static ssize_t gt_cur_freq_mhz_show(struct device *kdev,
 	int ret;
 
 	mutex_lock(&dev_priv->rps.hw_lock);
-	ret = dev_priv->rps.cur_delay * GT_FREQUENCY_MULTIPLIER;
+	if (IS_VALLEYVIEW(dev_priv->dev)) {
+		u32 freq;
+		freq = vlv_punit_read(dev_priv, PUNIT_REG_GPU_FREQ_STS);
+		ret = vlv_gpu_freq(dev_priv->mem_freq, (freq >> 8) & 0xff);
+	} else {
+		ret = dev_priv->rps.cur_delay * GT_FREQUENCY_MULTIPLIER;
+	}
 	mutex_unlock(&dev_priv->rps.hw_lock);
 
 	return snprintf(buf, PAGE_SIZE, "%d\n", ret);
@@ -226,7 +232,10 @@ static ssize_t gt_max_freq_mhz_show(struct device *kdev, struct device_attribute
 	int ret;
 
 	mutex_lock(&dev_priv->rps.hw_lock);
-	ret = dev_priv->rps.max_delay * GT_FREQUENCY_MULTIPLIER;
+	if (IS_VALLEYVIEW(dev_priv->dev))
+		ret = vlv_gpu_freq(dev_priv->mem_freq, dev_priv->rps.max_delay);
+	else
+		ret = dev_priv->rps.max_delay * GT_FREQUENCY_MULTIPLIER;
 	mutex_unlock(&dev_priv->rps.hw_lock);
 
 	return snprintf(buf, PAGE_SIZE, "%d\n", ret);
@@ -246,16 +255,25 @@ static ssize_t gt_max_freq_mhz_store(struct device *kdev,
 	if (ret)
 		return ret;
 
-	val /= GT_FREQUENCY_MULTIPLIER;
-
 	mutex_lock(&dev_priv->rps.hw_lock);
 
-	rp_state_cap = I915_READ(GEN6_RP_STATE_CAP);
-	hw_max = dev_priv->rps.hw_max;
-	non_oc_max = (rp_state_cap & 0xff);
-	hw_min = ((rp_state_cap & 0xff0000) >> 16);
+	if (IS_VALLEYVIEW(dev_priv->dev)) {
+		val = vlv_freq_opcode(dev_priv->mem_freq, val);
 
-	if (val < hw_min || val > hw_max || val < dev_priv->rps.min_delay) {
+		hw_max = valleyview_rps_max_freq(dev_priv);
+		hw_min = valleyview_rps_min_freq(dev_priv);
+		non_oc_max = hw_max;
+	} else {
+		val /= GT_FREQUENCY_MULTIPLIER;
+
+		rp_state_cap = I915_READ(GEN6_RP_STATE_CAP);
+		hw_max = dev_priv->rps.hw_max;
+		non_oc_max = (rp_state_cap & 0xff);
+		hw_min = ((rp_state_cap & 0xff0000) >> 16);
+	}
+
+	if (val < hw_min || val > hw_max ||
+	    val < dev_priv->rps.min_delay) {
 		mutex_unlock(&dev_priv->rps.hw_lock);
 		return -EINVAL;
 	}
@@ -264,8 +282,12 @@ static ssize_t gt_max_freq_mhz_store(struct device *kdev,
 		DRM_DEBUG("User requested overclocking to %d\n",
 			  val * GT_FREQUENCY_MULTIPLIER);
 
-	if (dev_priv->rps.cur_delay > val)
-		gen6_set_rps(dev_priv->dev, val);
+	if (dev_priv->rps.cur_delay > val) {
+		if (IS_VALLEYVIEW(dev_priv->dev))
+			valleyview_set_rps(dev_priv->dev, val);
+		else
+			gen6_set_rps(dev_priv->dev, val);
+	}
 
 	dev_priv->rps.max_delay = val;
 
@@ -282,7 +304,10 @@ static ssize_t gt_min_freq_mhz_show(struct device *kdev, struct device_attribute
 	int ret;
 
 	mutex_lock(&dev_priv->rps.hw_lock);
-	ret = dev_priv->rps.min_delay * GT_FREQUENCY_MULTIPLIER;
+	if (IS_VALLEYVIEW(dev_priv->dev))
+		ret = vlv_gpu_freq(dev_priv->mem_freq, dev_priv->rps.min_delay);
+	else
+		ret = dev_priv->rps.min_delay * GT_FREQUENCY_MULTIPLIER;
 	mutex_unlock(&dev_priv->rps.hw_lock);
 
 	return snprintf(buf, PAGE_SIZE, "%d\n", ret);
@@ -302,21 +327,32 @@ static ssize_t gt_min_freq_mhz_store(struct device *kdev,
 	if (ret)
 		return ret;
 
-	val /= GT_FREQUENCY_MULTIPLIER;
-
 	mutex_lock(&dev_priv->rps.hw_lock);
 
-	rp_state_cap = I915_READ(GEN6_RP_STATE_CAP);
-	hw_max = dev_priv->rps.hw_max;
-	hw_min = ((rp_state_cap & 0xff0000) >> 16);
+	if (IS_VALLEYVIEW(dev)) {
+		val = vlv_freq_opcode(dev_priv->mem_freq, val);
+
+		hw_max = valleyview_rps_max_freq(dev_priv);
+		hw_min = valleyview_rps_min_freq(dev_priv);
+	} else {
+		val /= GT_FREQUENCY_MULTIPLIER;
+
+		rp_state_cap = I915_READ(GEN6_RP_STATE_CAP);
+		hw_max = dev_priv->rps.hw_max;
+		hw_min = ((rp_state_cap & 0xff0000) >> 16);
+	}
 
 	if (val < hw_min || val > hw_max || val > dev_priv->rps.max_delay) {
 		mutex_unlock(&dev_priv->rps.hw_lock);
 		return -EINVAL;
 	}
 
-	if (dev_priv->rps.cur_delay < val)
-		gen6_set_rps(dev_priv->dev, val);
+	if (dev_priv->rps.cur_delay < val) {
+		if (IS_VALLEYVIEW(dev))
+			valleyview_set_rps(dev, val);
+		else
+			gen6_set_rps(dev_priv->dev, val);
+	}
 
 	dev_priv->rps.min_delay = val;
 
@@ -373,6 +409,71 @@ static const struct attribute *gen6_attrs[] = {
 	NULL,
 };
 
+static ssize_t error_state_read(struct file *filp, struct kobject *kobj,
+				struct bin_attribute *attr, char *buf,
+				loff_t off, size_t count)
+{
+
+	struct device *kdev = container_of(kobj, struct device, kobj);
+	struct drm_minor *minor = container_of(kdev, struct drm_minor, kdev);
+	struct drm_device *dev = minor->dev;
+	struct i915_error_state_file_priv error_priv;
+	struct drm_i915_error_state_buf error_str;
+	ssize_t ret_count = 0;
+	int ret;
+
+	memset(&error_priv, 0, sizeof(error_priv));
+
+	ret = i915_error_state_buf_init(&error_str, count, off);
+	if (ret)
+		return ret;
+
+	error_priv.dev = dev;
+	i915_error_state_get(dev, &error_priv);
+
+	ret = i915_error_state_to_str(&error_str, &error_priv);
+	if (ret)
+		goto out;
+
+	ret_count = count < error_str.bytes ? count : error_str.bytes;
+
+	memcpy(buf, error_str.buf, ret_count);
+out:
+	i915_error_state_put(&error_priv);
+	i915_error_state_buf_release(&error_str);
+
+	return ret ?: ret_count;
+}
+
+static ssize_t error_state_write(struct file *file, struct kobject *kobj,
+				 struct bin_attribute *attr, char *buf,
+				 loff_t off, size_t count)
+{
+	struct device *kdev = container_of(kobj, struct device, kobj);
+	struct drm_minor *minor = container_of(kdev, struct drm_minor, kdev);
+	struct drm_device *dev = minor->dev;
+	int ret;
+
+	DRM_DEBUG_DRIVER("Resetting error state\n");
+
+	ret = mutex_lock_interruptible(&dev->struct_mutex);
+	if (ret)
+		return ret;
+
+	i915_destroy_error_state(dev);
+	mutex_unlock(&dev->struct_mutex);
+
+	return count;
+}
+
+static struct bin_attribute error_state_attr = {
+	.attr.name = "error",
+	.attr.mode = S_IRUSR | S_IWUSR,
+	.size = 0,
+	.read = error_state_read,
+	.write = error_state_write,
+};
+
 void i915_setup_sysfs(struct drm_device *dev)
 {
 	int ret;
@@ -396,10 +497,16 @@ void i915_setup_sysfs(struct drm_device *dev)
 		if (ret)
 			DRM_ERROR("gen6 sysfs setup failed\n");
 	}
+
+	ret = sysfs_create_bin_file(&dev->primary->kdev.kobj,
+				    &error_state_attr);
+	if (ret)
+		DRM_ERROR("error_state sysfs setup failed\n");
 }
 
 void i915_teardown_sysfs(struct drm_device *dev)
 {
+	sysfs_remove_bin_file(&dev->primary->kdev.kobj, &error_state_attr);
 	sysfs_remove_files(&dev->primary->kdev.kobj, gen6_attrs);
 	device_remove_bin_file(&dev->primary->kdev,  &dpf_attrs);
 #ifdef CONFIG_PM

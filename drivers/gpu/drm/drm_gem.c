@@ -37,6 +37,7 @@
 #include <linux/shmem_fs.h>
 #include <linux/dma-buf.h>
 #include <drm/drmP.h>
+#include <drm/drm_vma_manager.h>
 
 /** @file drm_gem.c
  *
@@ -102,18 +103,9 @@ drm_gem_init(struct drm_device *dev)
 	}
 
 	dev->mm_private = mm;
-
-	if (drm_ht_create(&mm->offset_hash, 12)) {
-		kfree(mm);
-		return -ENOMEM;
-	}
-
-	if (drm_mm_init(&mm->offset_manager, DRM_FILE_PAGE_OFFSET_START,
-			DRM_FILE_PAGE_OFFSET_SIZE)) {
-		drm_ht_remove(&mm->offset_hash);
-		kfree(mm);
-		return -ENOMEM;
-	}
+	drm_vma_offset_manager_init(&mm->vma_manager,
+				    DRM_FILE_PAGE_OFFSET_START,
+				    DRM_FILE_PAGE_OFFSET_SIZE);
 
 	return 0;
 }
@@ -123,8 +115,7 @@ drm_gem_destroy(struct drm_device *dev)
 {
 	struct drm_gem_mm *mm = dev->mm_private;
 
-	drm_mm_takedown(&mm->offset_manager);
-	drm_ht_remove(&mm->offset_hash);
+	drm_vma_offset_manager_destroy(&mm->vma_manager);
 	kfree(mm);
 	dev->mm_private = NULL;
 }
@@ -136,16 +127,14 @@ drm_gem_destroy(struct drm_device *dev)
 int drm_gem_object_init(struct drm_device *dev,
 			struct drm_gem_object *obj, size_t size)
 {
-	BUG_ON((size & (PAGE_SIZE - 1)) != 0);
+	struct file *filp;
 
-	obj->dev = dev;
-	obj->filp = shmem_file_setup("drm mm object", size, VM_NORESERVE);
-	if (IS_ERR(obj->filp))
-		return PTR_ERR(obj->filp);
+	filp = shmem_file_setup("drm mm object", size, VM_NORESERVE);
+	if (IS_ERR(filp))
+		return PTR_ERR(filp);
 
-	kref_init(&obj->refcount);
-	atomic_set(&obj->handle_count, 0);
-	obj->size = size;
+	drm_gem_private_object_init(dev, obj, size);
+	obj->filp = filp;
 
 	return 0;
 }
@@ -156,8 +145,8 @@ EXPORT_SYMBOL(drm_gem_object_init);
  * no GEM provided backing store. Instead the caller is responsible for
  * backing the object and handling it.
  */
-int drm_gem_private_object_init(struct drm_device *dev,
-			struct drm_gem_object *obj, size_t size)
+void drm_gem_private_object_init(struct drm_device *dev,
+				 struct drm_gem_object *obj, size_t size)
 {
 	BUG_ON((size & (PAGE_SIZE - 1)) != 0);
 
@@ -167,8 +156,6 @@ int drm_gem_private_object_init(struct drm_device *dev,
 	kref_init(&obj->refcount);
 	atomic_set(&obj->handle_count, 0);
 	obj->size = size;
-
-	return 0;
 }
 EXPORT_SYMBOL(drm_gem_private_object_init);
 
@@ -312,12 +299,8 @@ drm_gem_free_mmap_offset(struct drm_gem_object *obj)
 {
 	struct drm_device *dev = obj->dev;
 	struct drm_gem_mm *mm = dev->mm_private;
-	struct drm_map_list *list = &obj->map_list;
 
-	drm_ht_remove_item(&mm->offset_hash, &list->hash);
-	drm_mm_put_block(list->file_offset_node);
-	kfree(list->map);
-	list->map = NULL;
+	drm_vma_offset_remove(&mm->vma_manager, &obj->vma_node);
 }
 EXPORT_SYMBOL(drm_gem_free_mmap_offset);
 
@@ -337,54 +320,9 @@ drm_gem_create_mmap_offset(struct drm_gem_object *obj)
 {
 	struct drm_device *dev = obj->dev;
 	struct drm_gem_mm *mm = dev->mm_private;
-	struct drm_map_list *list;
-	struct drm_local_map *map;
-	int ret;
 
-	/* Set the object up for mmap'ing */
-	list = &obj->map_list;
-	list->map = kzalloc(sizeof(struct drm_map_list), GFP_KERNEL);
-	if (!list->map)
-		return -ENOMEM;
-
-	map = list->map;
-	map->type = _DRM_GEM;
-	map->size = obj->size;
-	map->handle = obj;
-
-	/* Get a DRM GEM mmap offset allocated... */
-	list->file_offset_node = drm_mm_search_free(&mm->offset_manager,
-			obj->size / PAGE_SIZE, 0, false);
-
-	if (!list->file_offset_node) {
-		DRM_ERROR("failed to allocate offset for bo %d\n", obj->name);
-		ret = -ENOSPC;
-		goto out_free_list;
-	}
-
-	list->file_offset_node = drm_mm_get_block(list->file_offset_node,
-			obj->size / PAGE_SIZE, 0);
-	if (!list->file_offset_node) {
-		ret = -ENOMEM;
-		goto out_free_list;
-	}
-
-	list->hash.key = list->file_offset_node->start;
-	ret = drm_ht_insert_item(&mm->offset_hash, &list->hash);
-	if (ret) {
-		DRM_ERROR("failed to add to map hash\n");
-		goto out_free_mm;
-	}
-
-	return 0;
-
-out_free_mm:
-	drm_mm_put_block(list->file_offset_node);
-out_free_list:
-	kfree(list->map);
-	list->map = NULL;
-
-	return ret;
+	return drm_vma_offset_add(&mm->vma_manager, &obj->vma_node,
+				  obj->size / PAGE_SIZE);
 }
 EXPORT_SYMBOL(drm_gem_create_mmap_offset);
 
@@ -650,63 +588,45 @@ void drm_gem_vm_close(struct vm_area_struct *vma)
 }
 EXPORT_SYMBOL(drm_gem_vm_close);
 
-
 /**
- * drm_gem_mmap - memory map routine for GEM objects
- * @filp: DRM file pointer
+ * drm_gem_mmap_obj - memory map a GEM object
+ * @obj: the GEM object to map
+ * @obj_size: the object size to be mapped, in bytes
  * @vma: VMA for the area to be mapped
  *
- * If a driver supports GEM object mapping, mmap calls on the DRM file
- * descriptor will end up here.
+ * Set up the VMA to prepare mapping of the GEM object using the gem_vm_ops
+ * provided by the driver. Depending on their requirements, drivers can either
+ * provide a fault handler in their gem_vm_ops (in which case any accesses to
+ * the object will be trapped, to perform migration, GTT binding, surface
+ * register allocation, or performance monitoring), or mmap the buffer memory
+ * synchronously after calling drm_gem_mmap_obj.
  *
- * If we find the object based on the offset passed in (vma->vm_pgoff will
- * contain the fake offset we created when the GTT map ioctl was called on
- * the object), we set up the driver fault handler so that any accesses
- * to the object can be trapped, to perform migration, GTT binding, surface
- * register allocation, or performance monitoring.
+ * This function is mainly intended to implement the DMABUF mmap operation, when
+ * the GEM object is not looked up based on its fake offset. To implement the
+ * DRM mmap operation, drivers should use the drm_gem_mmap() function.
+ *
+ * NOTE: This function has to be protected with dev->struct_mutex
+ *
+ * Return 0 or success or -EINVAL if the object size is smaller than the VMA
+ * size, or if no gem_vm_ops are provided.
  */
-int drm_gem_mmap(struct file *filp, struct vm_area_struct *vma)
+int drm_gem_mmap_obj(struct drm_gem_object *obj, unsigned long obj_size,
+		     struct vm_area_struct *vma)
 {
-	struct drm_file *priv = filp->private_data;
-	struct drm_device *dev = priv->minor->dev;
-	struct drm_gem_mm *mm = dev->mm_private;
-	struct drm_local_map *map = NULL;
-	struct drm_gem_object *obj;
-	struct drm_hash_item *hash;
-	int ret = 0;
+	struct drm_device *dev = obj->dev;
 
-	if (drm_device_is_unplugged(dev))
-		return -ENODEV;
-
-	mutex_lock(&dev->struct_mutex);
-
-	if (drm_ht_find_item(&mm->offset_hash, vma->vm_pgoff, &hash)) {
-		mutex_unlock(&dev->struct_mutex);
-		return drm_mmap(filp, vma);
-	}
-
-	map = drm_hash_entry(hash, struct drm_map_list, hash)->map;
-	if (!map ||
-	    ((map->flags & _DRM_RESTRICTED) && !capable(CAP_SYS_ADMIN))) {
-		ret =  -EPERM;
-		goto out_unlock;
-	}
+	lockdep_assert_held(&dev->struct_mutex);
 
 	/* Check for valid size. */
-	if (map->size < vma->vm_end - vma->vm_start) {
-		ret = -EINVAL;
-		goto out_unlock;
-	}
+	if (obj_size < vma->vm_end - vma->vm_start)
+		return -EINVAL;
 
-	obj = map->handle;
-	if (!obj->dev->driver->gem_vm_ops) {
-		ret = -EINVAL;
-		goto out_unlock;
-	}
+	if (!dev->driver->gem_vm_ops)
+		return -EINVAL;
 
 	vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
-	vma->vm_ops = obj->dev->driver->gem_vm_ops;
-	vma->vm_private_data = map->handle;
+	vma->vm_ops = dev->driver->gem_vm_ops;
+	vma->vm_private_data = obj;
 	vma->vm_page_prot =  pgprot_writecombine(vm_get_page_prot(vma->vm_flags));
 
 	/* Take a ref for this mapping of the object, so that the fault
@@ -718,8 +638,46 @@ int drm_gem_mmap(struct file *filp, struct vm_area_struct *vma)
 	drm_gem_object_reference(obj);
 
 	drm_vm_open_locked(dev, vma);
+	return 0;
+}
+EXPORT_SYMBOL(drm_gem_mmap_obj);
 
-out_unlock:
+/**
+ * drm_gem_mmap - memory map routine for GEM objects
+ * @filp: DRM file pointer
+ * @vma: VMA for the area to be mapped
+ *
+ * If a driver supports GEM object mapping, mmap calls on the DRM file
+ * descriptor will end up here.
+ *
+ * Look up the GEM object based on the offset passed in (vma->vm_pgoff will
+ * contain the fake offset we created when the GTT map ioctl was called on
+ * the object) and map it with a call to drm_gem_mmap_obj().
+ */
+int drm_gem_mmap(struct file *filp, struct vm_area_struct *vma)
+{
+	struct drm_file *priv = filp->private_data;
+	struct drm_device *dev = priv->minor->dev;
+	struct drm_gem_mm *mm = dev->mm_private;
+	struct drm_gem_object *obj;
+	struct drm_vma_offset_node *node;
+	int ret = 0;
+
+	if (drm_device_is_unplugged(dev))
+		return -ENODEV;
+
+	mutex_lock(&dev->struct_mutex);
+
+	node = drm_vma_offset_exact_lookup(&mm->vma_manager, vma->vm_pgoff,
+					   vma_pages(vma));
+	if (!node) {
+		mutex_unlock(&dev->struct_mutex);
+		return drm_mmap(filp, vma);
+	}
+
+	obj = container_of(node, struct drm_gem_object, vma_node);
+	ret = drm_gem_mmap_obj(obj, drm_vma_node_size(node) << PAGE_SHIFT, vma);
+
 	mutex_unlock(&dev->struct_mutex);
 
 	return ret;
