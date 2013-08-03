@@ -545,12 +545,25 @@ static int msm_debugfs_init(struct drm_minor *minor)
 		return ret;
 	}
 
-	return msm_rd_debugfs_init(minor);
+	ret = msm_rd_debugfs_init(minor);
+	if (ret) {
+		dev_err(dev->dev, "could not install rd debugfs\n");
+		return ret;
+	}
+
+	ret = msm_perf_debugfs_init(minor);
+	if (ret) {
+		dev_err(dev->dev, "could not install perf debugfs\n");
+		return ret;
+	}
+
+	return 0;
 }
 
 static void msm_debugfs_cleanup(struct drm_minor *minor)
 {
 	msm_rd_debugfs_cleanup(minor);
+	msm_perf_debugfs_cleanup(minor);
 	drm_debugfs_remove_files(msm_debugfs_list,
 			ARRAY_SIZE(msm_debugfs_list), minor);
 }
