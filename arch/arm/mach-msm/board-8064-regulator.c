@@ -95,6 +95,8 @@ VREG_CONSUMERS(L13) = {
 };
 VREG_CONSUMERS(L14) = {
 	REGULATOR_SUPPLY("8921_l14",		NULL),
+REGULATOR_SUPPLY("pa_therm",	 "pm8xxx-adc"), //<-this 
+REGULATOR_SUPPLY("vreg_xoadc",	 "pm8921-charger"), 
 };
 VREG_CONSUMERS(L15) = {
 	REGULATOR_SUPPLY("8921_l15",		NULL),
@@ -441,8 +443,7 @@ VREG_CONSUMERS(BOOST) = {
 		.pin_ctrl	= _pin_ctrl, \
 	}
 
-#define GPIO_VREG(_id, _reg_name, _gpio_label, _gpio, _supply_regulator, \
-		_active_low) \
+#define GPIO_VREG(_id, _reg_name, _gpio_label, _gpio, _supply_regulator) \
 	[GPIO_VREG_ID_##_id] = { \
 		.init_data = { \
 			.constraints = { \
@@ -456,8 +457,8 @@ VREG_CONSUMERS(BOOST) = {
 		.regulator_name = _reg_name, \
 		.gpio_label	= _gpio_label, \
 		.gpio		= _gpio, \
-		.active_low	= _active_low, \
-	}
+	}	
+	
 
 #define SAW_VREG_INIT(_id, _name, _min_uV, _max_uV) \
 	{ \
@@ -571,35 +572,32 @@ VREG_CONSUMERS(BOOST) = {
 /* GPIO regulator constraints */
 struct gpio_regulator_platform_data
 apq8064_gpio_regulator_pdata[] __devinitdata = {
-	/*        ID      vreg_name gpio_label   gpio   supply   active_low */
-	GPIO_VREG(EXT_5V, "ext_5v", "ext_5v_en",
-			PM8921_MPP_PM_TO_SYS(7), NULL, 0),
+	/*        ID      vreg_name gpio_label   gpio                  supply */
+	GPIO_VREG(EXT_5V, "ext_5v", "ext_5v_en", PM8921_MPP_PM_TO_SYS(7), NULL),
 	GPIO_VREG(EXT_3P3V, "ext_3p3v", "ext_3p3v_en",
-		  APQ8064_EXT_3P3V_REG_EN_GPIO, NULL, 0),
+		  APQ8064_EXT_3P3V_REG_EN_GPIO, NULL),
 	GPIO_VREG(EXT_TS_SW, "ext_ts_sw", "ext_ts_sw_en",
-		  PM8921_GPIO_PM_TO_SYS(23), "ext_3p3v", 0),
+		  PM8921_GPIO_PM_TO_SYS(23), "ext_3p3v"),
 	GPIO_VREG(EXT_MPP8, "ext_mpp8", "ext_mpp8_en",
-			PM8921_MPP_PM_TO_SYS(8), NULL, 0),
+			PM8921_MPP_PM_TO_SYS(8), NULL),
 	GPIO_VREG(EXT_SATA_PWR, "ext_sata_pwr", "ext_sata_pwr_en",
 			/* FIXME: The GPIO port is changed from 4 to 3
 			 * as SATA_PWR_EN conflicts with PCIE_PWR_EN.
 			 * This change is only for a short term workaround.
 			 * We should fix it properly.
 			 */
-			PM8921_MPP_PM_TO_SYS(3), "ext_3p3v", 1),
+			PM8921_MPP_PM_TO_SYS(3), "ext_3p3v"),
 };
 
 struct gpio_regulator_platform_data
 mpq8064_gpio_regulator_pdata[] __devinitdata = {
-	GPIO_VREG(AVC_1P2V, "avc_1p2v", "avc_1p2v_en",
-			SX150X_GPIO(4, 2), NULL, 0),
-	GPIO_VREG(AVC_1P8V, "avc_1p8v", "avc_1p8v_en",
-			SX150X_GPIO(4, 4), NULL, 0),
+	GPIO_VREG(AVC_1P2V, "avc_1p2v", "avc_1p2v_en", SX150X_GPIO(4, 2), NULL),
+	GPIO_VREG(AVC_1P8V, "avc_1p8v", "avc_1p8v_en", SX150X_GPIO(4, 4), NULL),
 	GPIO_VREG(AVC_2P2V, "avc_2p2v", "avc_2p2v_en",
-						 SX150X_GPIO(4, 14), NULL, 0),
-	GPIO_VREG(AVC_5V, "avc_5v", "avc_5v_en", SX150X_GPIO(4, 3), NULL, 0),
+						 SX150X_GPIO(4, 14), NULL),
+	GPIO_VREG(AVC_5V, "avc_5v", "avc_5v_en", SX150X_GPIO(4, 3), NULL),
 	GPIO_VREG(AVC_3P3V, "avc_3p3v", "avc_3p3v_en",
-					SX150X_GPIO(4, 15), "avc_5v", 0),
+					SX150X_GPIO(4, 15), "avc_5v"),
 };
 
 /* SAW regulator constraints */

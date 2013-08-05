@@ -480,10 +480,18 @@ static int pm8xxx_tm_init_reg(struct pm8xxx_tm_chip *chip)
 {
 	int rc;
 	u8 reg;
+	u8 reg_test_pwm;
 
 	rc = pm8xxx_tm_read_ctrl(chip, &reg);
 	if (rc < 0)
 		return rc;
+
+
+	rc = pm8xxx_readb(chip->dev->parent,
+			  chip->cdata.reg_addr_temp_alarm_pwm, &reg_test_pwm);
+	if (rc < 0)
+		return rc;
+	pr_info("pwm cntrl read reg: 0%x\n", reg_test_pwm);
 
 	chip->stage = (reg & TEMP_ALARM_CTRL_STATUS_MASK)
 			>> TEMP_ALARM_CTRL_STATUS_SHIFT;
@@ -584,6 +592,11 @@ static int __devinit pm8xxx_tm_probe(struct platform_device *pdev)
 	else
 		tz_ops = &pm8xxx_thermal_zone_ops_no_adc;
 
+	rc = pm8xxx_tm_init_reg(chip);
+	if (rc < 0)
+		goto err_fail_adc;
+
+         
 	chip->tz_dev = thermal_zone_device_register(chip->cdata.tm_name,
 			TRIP_NUM, chip, tz_ops, 0, 0, 0, 0);
 
@@ -592,10 +605,12 @@ static int __devinit pm8xxx_tm_probe(struct platform_device *pdev)
 		rc = -ENODEV;
 		goto err_fail_adc;
 	}
-
+       /* 
 	rc = pm8xxx_tm_init_reg(chip);
 	if (rc < 0)
 		goto err_free_tz;
+       */
+         // Kiran - moved this code before thermal_zone_device_register above for Thermal shutdown issue
 	rc = pm8xxx_tm_shutdown_override(chip, SOFTWARE_OVERRIDE_DISABLED);
 	if (rc < 0)
 		goto err_free_tz;

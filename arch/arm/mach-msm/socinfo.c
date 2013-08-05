@@ -255,7 +255,6 @@ static enum msm_cpu cpu_of_id[] = {
 	[127] = MSM_CPU_8625,
 	[128] = MSM_CPU_8625,
 	[129] = MSM_CPU_8625,
-	[137] = MSM_CPU_8625,
 
 	/* 8064 MPQ ID */
 	[130] = MSM_CPU_8064,
@@ -279,6 +278,7 @@ static enum msm_cpu cpu_of_id[] = {
 	[142] = MSM_CPU_8930AA,
 	[143] = MSM_CPU_8930AA,
 	[144] = MSM_CPU_8930AA,
+	[160] = MSM_CPU_8930AA,
 
 	/* 8226 IDs */
 	[145] = MSM_CPU_8226,
@@ -288,6 +288,15 @@ static enum msm_cpu cpu_of_id[] = {
 
 	/* 8064AB IDs */
 	[153] = MSM_CPU_8064AB,
+
+	/* 8930AB IDs */
+	[154] = MSM_CPU_8930AB,
+	[155] = MSM_CPU_8930AB,
+	[156] = MSM_CPU_8930AB,
+	[157] = MSM_CPU_8930AB,
+
+	/* 8064AA IDs */
+	[172] = MSM_CPU_8064AA,
 
 	/* Uninitialized IDs are not known to run Linux.
 	   MSM_CPU_UNKNOWN is set to 0 to ensure these IDs are

@@ -396,7 +396,7 @@ static int pm8921_therm_mitigation[] = {
 #define MAX_VOLTAGE_MV		4200
 #define CHG_TERM_MA		100
 static struct pm8921_charger_platform_data pm8921_chg_pdata __devinitdata = {
-	.safety_time		= 180,
+	
 	.update_time		= 60000,
 	.max_voltage		= MAX_VOLTAGE_MV,
 	.min_voltage		= 3200,
@@ -425,7 +425,7 @@ static struct pm8xxx_misc_platform_data pm8xxx_misc_pdata = {
 
 static struct pm8921_bms_platform_data pm8921_bms_pdata __devinitdata = {
 	.battery_type			= BATT_UNKNOWN,
-	.r_sense			= 10,
+	
 	.v_cutoff			= 3400,
 	.max_voltage_uv			= MAX_VOLTAGE_MV * 1000,
 	.rconn_mohm			= 18,
@@ -553,7 +553,7 @@ static struct pm8xxx_led_platform_data pm8xxx_leds_pdata = {
 };
 
 static struct pm8xxx_ccadc_platform_data pm8xxx_ccadc_pdata = {
-	.r_sense		= 10,
+	
 	.calib_delay_ms		= 600000,
 };
 

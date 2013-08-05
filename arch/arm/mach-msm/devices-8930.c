@@ -1,4 +1,4 @@
-/* Copyright (c) 2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -18,7 +18,6 @@
 #include <mach/msm_iomap.h>
 #include <mach/irqs-8930.h>
 #include <mach/rpm.h>
-#include <mach/msm_dcvs.h>
 #include <mach/msm_bus.h>
 #include <mach/msm_bus_board.h>
 #include <mach/board.h>
@@ -38,6 +37,23 @@
 #include <mach/mpm.h>
 #endif
 #define MSM8930_RPM_MASTER_STATS_BASE	0x10B100
+#define MSM8930_PC_CNTR_PHYS	(MSM8930_IMEM_PHYS + 0x664)
+#define MSM8930_PC_CNTR_SIZE		0x40
+
+static struct resource msm8930_resources_pccntr[] = {
+	{
+		.start	= MSM8930_PC_CNTR_PHYS,
+		.end	= MSM8930_PC_CNTR_PHYS + MSM8930_PC_CNTR_SIZE,
+		.flags	= IORESOURCE_MEM,
+	},
+};
+
+struct platform_device msm8930_pc_cntr = {
+	.name		= "pc-cntr",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(msm8930_resources_pccntr),
+	.resource	= msm8930_resources_pccntr,
+};
 
 struct msm_rpm_platform_data msm8930_rpm_data __initdata = {
 	.reg_base_addrs = {
@@ -127,12 +143,12 @@ struct msm_rpm_platform_data msm8930_rpm_data __initdata = {
 		MSM_RPM_MAP(8930, PM8038_CLK2_0, PM8038_CLK2, 2),
 		MSM_RPM_MAP(8930, PM8038_LVS1, PM8038_LVS1, 1),
 		MSM_RPM_MAP(8930, PM8038_LVS2, PM8038_LVS2, 1),
-		MSM_RPM_MAP(8930, NCP_0, NCP, 2),
-		MSM_RPM_MAP(8930, CXO_BUFFERS, CXO_BUFFERS, 1),
-		MSM_RPM_MAP(8930, USB_OTG_SWITCH, USB_OTG_SWITCH, 1),
-		MSM_RPM_MAP(8930, HDMI_SWITCH, HDMI_SWITCH, 1),
-		MSM_RPM_MAP(8930, QDSS_CLK, QDSS_CLK, 1),
-		MSM_RPM_MAP(8930, VOLTAGE_CORNER, VOLTAGE_CORNER, 1),
+		MSM_RPM_MAP_PMIC(8930, 8038, NCP_0, NCP, 2),
+		MSM_RPM_MAP_PMIC(8930, 8038, CXO_BUFFERS, CXO_BUFFERS, 1),
+		MSM_RPM_MAP_PMIC(8930, 8038, USB_OTG_SWITCH, USB_OTG_SWITCH, 1),
+		MSM_RPM_MAP_PMIC(8930, 8038, HDMI_SWITCH, HDMI_SWITCH, 1),
+		MSM_RPM_MAP_PMIC(8930, 8038, QDSS_CLK, QDSS_CLK, 1),
+		MSM_RPM_MAP_PMIC(8930, 8038, VOLTAGE_CORNER, VOLTAGE_CORNER, 1),
 	},
 	.target_status = {
 		MSM_RPM_STATUS_ID_MAP(8930, VERSION_MAJOR),
@@ -353,12 +369,12 @@ struct msm_rpm_platform_data msm8930_rpm_data_pm8917 __initdata = {
 		MSM_RPM_MAP(8930, PM8917_LVS5, PM8917_LVS5, 1),
 		MSM_RPM_MAP(8930, PM8917_LVS6, PM8917_LVS6, 1),
 		MSM_RPM_MAP(8930, PM8917_LVS7, PM8917_LVS7, 1),
-		MSM_RPM_MAP(8930, NCP_0, NCP, 2),
-		MSM_RPM_MAP(8930, CXO_BUFFERS, CXO_BUFFERS, 1),
-		MSM_RPM_MAP(8930, USB_OTG_SWITCH, USB_OTG_SWITCH, 1),
-		MSM_RPM_MAP(8930, HDMI_SWITCH, HDMI_SWITCH, 1),
-		MSM_RPM_MAP(8930, QDSS_CLK, QDSS_CLK, 1),
-		MSM_RPM_MAP(8930, VOLTAGE_CORNER, VOLTAGE_CORNER, 1),
+		MSM_RPM_MAP_PMIC(8930, 8917, NCP_0, NCP, 2),
+		MSM_RPM_MAP_PMIC(8930, 8917, CXO_BUFFERS, CXO_BUFFERS, 1),
+		MSM_RPM_MAP_PMIC(8930, 8917, USB_OTG_SWITCH, USB_OTG_SWITCH, 1),
+		MSM_RPM_MAP_PMIC(8930, 8917, HDMI_SWITCH, HDMI_SWITCH, 1),
+		MSM_RPM_MAP_PMIC(8930, 8917, QDSS_CLK, QDSS_CLK, 1),
+		MSM_RPM_MAP_PMIC(8930, 8917, VOLTAGE_CORNER, VOLTAGE_CORNER, 1),
 	},
 	.target_status = {
 		MSM_RPM_STATUS_ID_MAP(8930, VERSION_MAJOR),
@@ -598,53 +614,6 @@ struct platform_device msm8930_rpm_rbcpr_device = {
 	.resource = &msm_rpm_rbcpr_resource,
 };
 
-static int msm8930_LPM_latency = 1000; /* >100 usec for WFI */
-
-struct platform_device msm8930_cpu_idle_device = {
-	.name   = "msm_cpu_idle",
-	.id     = -1,
-	.dev = {
-		.platform_data = &msm8930_LPM_latency,
-	},
-};
-
-static struct msm_dcvs_freq_entry msm8930_freq[] = {
-	{ 384000, 166981,  345600},
-	{ 702000, 213049,  632502},
-	{1026000, 285712,  925613},
-	{1242000, 383945, 1176550},
-	{1458000, 419729, 1465478},
-	{1512000, 434116, 1546674},
-
-};
-
-static struct msm_dcvs_core_info msm8930_core_info = {
-	.freq_tbl = &msm8930_freq[0],
-	.core_param = {
-		.max_time_us = 100000,
-		.num_freq = ARRAY_SIZE(msm8930_freq),
-	},
-	.algo_param = {
-		.slack_time_us = 58000,
-		.scale_slack_time = 0,
-		.scale_slack_time_pct = 0,
-		.disable_pc_threshold = 1458000,
-		.em_window_size = 100000,
-		.em_max_util_pct = 97,
-		.ss_window_size = 1000000,
-		.ss_util_pct = 95,
-		.ss_iobusy_conv = 100,
-	},
-};
-
-struct platform_device msm8930_msm_gov_device = {
-	.name = "msm_dcvs_gov",
-	.id = -1,
-	.dev = {
-		.platform_data = &msm8930_core_info,
-	},
-};
-
 struct platform_device msm_bus_8930_sys_fabric = {
 	.name  = "msm_bus_fabric",
 	.id    =  MSM_BUS_FAB_SYSTEM,
@@ -686,6 +655,18 @@ struct platform_device msm8930_device_acpuclk = {
 struct platform_device msm8930aa_device_acpuclk = {
 	.name		= "acpuclk-8930aa",
 	.id		= -1,
+};
+
+static struct acpuclk_platform_data acpuclk_8930ab_pdata = {
+	.uses_pm8917 = false,
+};
+
+struct platform_device msm8930ab_device_acpuclk = {
+	.name		= "acpuclk-8930ab",
+	.id		= -1,
+	.dev = {
+		.platform_data = &acpuclk_8930ab_pdata,
+	},
 };
 
 static struct fs_driver_data gfx3d_fs_data = {

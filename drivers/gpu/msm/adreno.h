@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -33,7 +33,7 @@
 /* Flags to control command packet settings */
 #define KGSL_CMD_FLAGS_NONE             0x00000000
 #define KGSL_CMD_FLAGS_PMODE		0x00000001
-#define KGSL_CMD_FLAGS_DUMMY_INTR_CMD	0x00000002
+#define KGSL_CMD_FLAGS_INTERNAL_ISSUE	0x00000002
 
 /* Command identifiers */
 #define KGSL_CONTEXT_TO_MEM_IDENTIFIER	0x2EADBEEF
@@ -85,9 +85,11 @@ struct adreno_device {
 	const char *pfp_fwfile;
 	unsigned int *pfp_fw;
 	size_t pfp_fw_size;
+	unsigned int pfp_fw_version;
 	const char *pm4_fwfile;
 	unsigned int *pm4_fw;
 	size_t pm4_fw_size;
+	unsigned int pm4_fw_version;
 	struct adreno_ringbuffer ringbuffer;
 	unsigned int mharb;
 	struct adreno_gpudev *gpudev;
@@ -97,6 +99,7 @@ struct adreno_device {
 	unsigned int instruction_size;
 	unsigned int ib_check_level;
 	unsigned int fast_hang_detect;
+	unsigned int gpulist_index;
 	struct ocmem_buf *ocmem_hdl;
 	unsigned int ocmem_base;
 };
@@ -120,6 +123,7 @@ struct adreno_gpudev {
 					struct adreno_context *);
 	irqreturn_t (*irq_handler)(struct adreno_device *);
 	void (*irq_control)(struct adreno_device *, int);
+	unsigned int (*irq_pending)(struct adreno_device *);
 	void * (*snapshot)(struct adreno_device *, void *, int *, int);
 	void (*rb_init)(struct adreno_device *, struct adreno_ringbuffer *);
 	void (*start)(struct adreno_device *);
@@ -138,6 +142,7 @@ struct adreno_gpudev {
  * bad_rb_size - Number of valid dwords in bad_rb_buffer
  * @last_valid_ctx_id - The last context from which commands were placed in
  * ringbuffer before the GPU hung
+ * @fault - Indicates whether the hang was caused due to a pagefault
  */
 struct adreno_recovery_data {
 	unsigned int ib1;
@@ -148,6 +153,7 @@ struct adreno_recovery_data {
 	unsigned int *bad_rb_buffer;
 	unsigned int bad_rb_size;
 	unsigned int last_valid_ctx_id;
+	int fault;
 };
 
 extern struct adreno_gpudev adreno_a2xx_gpudev;
@@ -164,6 +170,9 @@ extern const unsigned int a225_registers_count;
 /* A3XX register set defined in adreno_a3xx.c */
 extern const unsigned int a3xx_registers[];
 extern const unsigned int a3xx_registers_count;
+
+extern const unsigned int a3xx_hlsq_registers[];
+extern const unsigned int a3xx_hlsq_registers_count;
 
 extern const unsigned int a330_registers[];
 extern const unsigned int a330_registers_count;
@@ -351,6 +360,28 @@ static inline int adreno_add_read_cmds(struct kgsl_device *device,
 	*cmds++ = 0xFFFFFFFF;
 	*cmds++ = 0xFFFFFFFF;
 	cmds += __adreno_add_idle_indirect_cmds(cmds, nop_gpuaddr);
+	return cmds - start;
+}
+
+/*
+ * adreno_idle_cmds - Add pm4 packets for GPU idle
+ * @adreno_dev - Pointer to device structure
+ * @cmds - Pointer to memory where idle commands need to be added
+ */
+static inline int adreno_add_idle_cmds(struct adreno_device *adreno_dev,
+							unsigned int *cmds)
+{
+	unsigned int *start = cmds;
+
+	*cmds++ = cp_type3_packet(CP_WAIT_FOR_IDLE, 1);
+	*cmds++ = 0x00000000;
+
+	if ((adreno_dev->gpurev == ADRENO_REV_A305) ||
+		(adreno_dev->gpurev == ADRENO_REV_A320)) {
+		*cmds++ = cp_type3_packet(CP_WAIT_FOR_ME, 1);
+		*cmds++ = 0x00000000;
+	}
+
 	return cmds - start;
 }
 

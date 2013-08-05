@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -15,7 +15,7 @@
 #define __ARCH_ARM_MACH_MSM_CLOCK_LOCAL_H
 
 #include <linux/spinlock.h>
-#include "clock.h"
+#include <mach/clk-provider.h>
 
 #define MN_MODE_DUAL_EDGE 0x2
 

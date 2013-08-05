@@ -1,4 +1,4 @@
-/* Copyright (c) 2011-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -131,7 +131,7 @@ static void idlestats_busy(struct kgsl_device *device,
 }
 
 static void idlestats_idle(struct kgsl_device *device,
-		struct kgsl_pwrscale *pwrscale, unsigned int ignore_idle)
+		struct kgsl_pwrscale *pwrscale)
 {
 	int i, nr_cpu;
 	struct idlestats_priv *priv = pwrscale->priv;

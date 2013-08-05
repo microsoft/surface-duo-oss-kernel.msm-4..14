@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2002,2007-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -25,6 +25,7 @@
 #include "kgsl_mmu.h"
 #include "kgsl_device.h"
 #include "kgsl_sharedmem.h"
+#include "adreno.h"
 
 #define KGSL_MMU_ALIGN_SHIFT    13
 #define KGSL_MMU_ALIGN_MASK     (~((1 << KGSL_MMU_ALIGN_SHIFT) - 1))
@@ -553,6 +554,12 @@ void kgsl_setstate(struct kgsl_mmu *mmu, unsigned int context_id,
 			uint32_t flags)
 {
 	struct kgsl_device *device = mmu->device;
+	struct adreno_device *adreno_dev = ADRENO_DEVICE(device);
+
+	if (!(flags & (KGSL_MMUFLAGS_TLBFLUSH | KGSL_MMUFLAGS_PTUPDATE))
+		&& !adreno_is_a2xx(adreno_dev))
+		return;
+
 	if (KGSL_MMU_TYPE_NONE == kgsl_mmu_type)
 		return;
 	else if (device->ftbl->setstate)
@@ -593,7 +600,7 @@ static inline struct gen_pool *
 _get_pool(struct kgsl_pagetable *pagetable, unsigned int flags)
 {
 	if (pagetable->kgsl_pool &&
-		(KGSL_MEMFLAGS_GLOBAL & flags))
+		(KGSL_MEMDESC_GLOBAL & flags))
 		return pagetable->kgsl_pool;
 	return pagetable->pool;
 }
@@ -606,6 +613,7 @@ kgsl_mmu_map(struct kgsl_pagetable *pagetable,
 	int ret;
 	struct gen_pool *pool;
 	int size;
+	int page_align = ilog2(PAGE_SIZE);
 
 	if (kgsl_mmu_type == KGSL_MMU_TYPE_NONE) {
 		if (memdesc->sglen == 1) {
@@ -630,7 +638,16 @@ kgsl_mmu_map(struct kgsl_pagetable *pagetable,
 	/* Allocate from kgsl pool if it exists for global mappings */
 	pool = _get_pool(pagetable, memdesc->priv);
 
-	memdesc->gpuaddr = gen_pool_alloc(pool, size);
+	/* Allocate aligned virtual addresses for iommu. This allows
+	 * more efficient pagetable entries if the physical memory
+	 * is also aligned. Don't do this for GPUMMU, because
+	 * the address space is so small.
+	 */
+	if (KGSL_MMU_TYPE_IOMMU == kgsl_mmu_get_mmutype() &&
+	    kgsl_memdesc_get_align(memdesc) > 0)
+		page_align = kgsl_memdesc_get_align(memdesc);
+
+	memdesc->gpuaddr = gen_pool_alloc_aligned(pool, size, page_align);
 	if (memdesc->gpuaddr == 0) {
 		KGSL_CORE_ERR("gen_pool_alloc(%d) failed from pool: %s\n",
 			size,
@@ -708,7 +725,7 @@ kgsl_mmu_unmap(struct kgsl_pagetable *pagetable,
 	 * Don't clear the gpuaddr on global mappings because they
 	 * may be in use by other pagetables
 	 */
-	if (!(memdesc->priv & KGSL_MEMFLAGS_GLOBAL))
+	if (!(memdesc->priv & KGSL_MEMDESC_GLOBAL))
 		memdesc->gpuaddr = 0;
 	return 0;
 }
@@ -729,7 +746,7 @@ int kgsl_mmu_map_global(struct kgsl_pagetable *pagetable,
 		return 0;
 
 	gpuaddr = memdesc->gpuaddr;
-	memdesc->priv |= KGSL_MEMFLAGS_GLOBAL;
+	memdesc->priv |= KGSL_MEMDESC_GLOBAL;
 
 	result = kgsl_mmu_map(pagetable, memdesc, protflags);
 	if (result)

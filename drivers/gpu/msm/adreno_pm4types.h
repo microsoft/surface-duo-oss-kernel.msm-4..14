@@ -1,4 +1,4 @@
-/* Copyright (c) 2002,2007-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2002,2007-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -141,6 +141,12 @@
 
 /* copy sequencer instruction memory to system memory */
 #define CP_IM_STORE            0x2c
+
+/* test 2 memory locations to dword values specified */
+#define CP_TEST_TWO_MEMS    0x71
+
+/* PFP waits until the FIFO between the PFP and the ME is empty */
+#define CP_WAIT_FOR_ME      0x13
 
 /*
  * for a20x

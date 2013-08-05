@@ -1,4 +1,4 @@
-/* Copyright (c) 2008-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2008-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -124,7 +124,10 @@ struct kgsl_memdesc_ops {
 	int (*map_kernel_mem)(struct kgsl_memdesc *);
 };
 
+/* Internal definitions for memdesc->priv */
 #define KGSL_MEMDESC_GUARD_PAGE BIT(0)
+/* Set if the memdesc is mapped into all pagetables */
+#define KGSL_MEMDESC_GLOBAL BIT(1)
 
 /* shared memory allocation */
 struct kgsl_memdesc {
@@ -133,11 +136,12 @@ struct kgsl_memdesc {
 	unsigned int gpuaddr;
 	unsigned int physaddr;
 	unsigned int size;
-	unsigned int priv;
+	unsigned int priv; /* Internal flags and settings */
 	struct scatterlist *sg;
-	unsigned int sglen;
+	unsigned int sglen; /* Active entries in the sglist */
+	unsigned int sglen_alloc;  /* Allocated entries in the sglist */
 	struct kgsl_memdesc_ops *ops;
-	int flags;
+	unsigned int flags; /* Flags set from userspace */
 };
 
 /* List of different memory entry types */
@@ -181,6 +185,8 @@ struct kgsl_mem_entry *kgsl_get_mem_entry(struct kgsl_device *device,
 struct kgsl_mem_entry *kgsl_sharedmem_find_region(
 	struct kgsl_process_private *private, unsigned int gpuaddr,
 	size_t size);
+
+void kgsl_get_memory_usage(char *str, size_t len, unsigned int memflags);
 
 int kgsl_add_event(struct kgsl_device *device, u32 id, u32 ts,
 	void (*cb)(struct kgsl_device *, void *, u32, u32), void *priv,

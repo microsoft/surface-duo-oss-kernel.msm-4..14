@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -23,8 +23,7 @@ struct kgsl_pwrscale_policy  {
 	void (*close)(struct kgsl_device *device,
 		struct kgsl_pwrscale *pwrscale);
 	void (*idle)(struct kgsl_device *device,
-		struct kgsl_pwrscale *pwrscale,
-		unsigned int ignore_idle);
+		struct kgsl_pwrscale *pwrscale);
 	void (*busy)(struct kgsl_device *device,
 		struct kgsl_pwrscale *pwrscale);
 	void (*sleep)(struct kgsl_device *device,
@@ -64,8 +63,7 @@ int kgsl_pwrscale_attach_policy(struct kgsl_device *device,
 	struct kgsl_pwrscale_policy *policy);
 void kgsl_pwrscale_detach_policy(struct kgsl_device *device);
 
-void kgsl_pwrscale_idle(struct kgsl_device *device,
-				unsigned int ignore_idle);
+void kgsl_pwrscale_idle(struct kgsl_device *device);
 void kgsl_pwrscale_busy(struct kgsl_device *device);
 void kgsl_pwrscale_sleep(struct kgsl_device *device);
 void kgsl_pwrscale_wake(struct kgsl_device *device);

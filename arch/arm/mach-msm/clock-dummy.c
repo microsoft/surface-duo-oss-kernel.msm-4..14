@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2011, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -10,7 +10,7 @@
  * GNU General Public License for more details.
  */
 
-#include "clock.h"
+#include <mach/clk-provider.h>
 
 static int dummy_clk_reset(struct clk *clk, enum clk_reset_action action)
 {

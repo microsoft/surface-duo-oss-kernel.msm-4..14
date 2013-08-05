@@ -286,7 +286,7 @@ obj-$(CONFIG_MACH_MSM8960_FLUID) += board-8960-all.o board-8960-regulator.o
 obj-$(CONFIG_MACH_MSM8930_CDP) += board-8930-all.o board-8930-regulator-pm8038.o board-8930-regulator-pm8917.o
 obj-$(CONFIG_MACH_MSM8930_MTP) += board-8930-all.o board-8930-regulator-pm8038.o board-8930-regulator-pm8917.o
 obj-$(CONFIG_MACH_MSM8930_FLUID) += board-8930-all.o board-8930-regulator-pm8038.o board-8930-regulator-pm8917.o
-obj-$(CONFIG_PM8921_BMS) += bms-batterydata.o bms-batterydata-desay.o
+obj-$(CONFIG_PM8921_BMS) += bms-batterydata.o bms-batterydata-desay.o batterydata-lib.o
 obj-$(CONFIG_MACH_APQ8064_CDP) += board-8064-all.o board-8064-regulator.o
 obj-$(CONFIG_MACH_APQ8064_IFC6410) += board-8064-all.o board-8064-regulator.o
 obj-$(CONFIG_MACH_APQ8064_MTP) += board-8064-all.o board-8064-regulator.o
@@ -361,7 +361,7 @@ obj-$(CONFIG_ARCH_MSM9625) += gpiomux-v2.o gpiomux.o
 obj-$(CONFIG_ARCH_MPQ8092) += gpiomux-v2.o gpiomux.o
 
 obj-$(CONFIG_MSM_SLEEP_STATS_DEVICE) += idle_stats_device.o
-obj-$(CONFIG_MSM_DCVS) += msm_dcvs_scm.o msm_dcvs.o msm_dcvs_idle.o
+obj-$(CONFIG_MSM_DCVS) += msm_dcvs_scm.o msm_dcvs.o msm_mpdecision.o
 obj-$(CONFIG_MSM_RUN_QUEUE_STATS) += msm_rq_stats.o
 obj-$(CONFIG_MSM_SHOW_RESUME_IRQ) += msm_show_resume_irq.o
 obj-$(CONFIG_BT_MSM_PINTEST)  += btpintest.o
@@ -394,3 +394,4 @@ obj-$(CONFIG_MSM_VP_REGULATOR) += msm_vp.o
 ifdef CONFIG_MSM_CPR
 obj-$(CONFIG_DEBUG_FS) += msm_cpr-debug.o
 endif
+obj-$(CONFIG_MSM_CPU_PWRCTL) +=  msm_cpu_pwrctl.o

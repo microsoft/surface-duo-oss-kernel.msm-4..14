@@ -397,12 +397,7 @@ extern struct platform_device msm_dsps_device_8064;
 extern struct platform_device *msm_8974_stub_regulator_devices[];
 extern int msm_8974_stub_regulator_devices_len;
 
-extern struct platform_device msm8960_cpu_idle_device;
-extern struct platform_device msm8930_cpu_idle_device;
-extern struct platform_device apq8064_cpu_idle_device;
-
-extern struct platform_device msm8960_msm_gov_device;
-extern struct platform_device msm8930_msm_gov_device;
+extern struct platform_device apq8064_dcvs_device;
 extern struct platform_device apq8064_msm_gov_device;
 
 extern struct platform_device msm_bus_8930_apps_fabric;
@@ -449,6 +444,8 @@ extern struct platform_device msm8930aa_device_acpuclk;
 extern struct platform_device msm8960_device_acpuclk;
 extern struct platform_device msm8960ab_device_acpuclk;
 extern struct platform_device msm9615_device_acpuclk;
+
+extern struct platform_device apq8064_msm_mpd_device;
 
 extern struct platform_device msm_gpio_device;
 

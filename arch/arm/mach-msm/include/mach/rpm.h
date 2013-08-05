@@ -1,4 +1,4 @@
-/* Copyright (c) 2010-2012, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1084,6 +1084,14 @@ struct msm_rpm_map_data {
 		.id = MSM_RPM_##t##_ID_##i, \
 		.sel = MSM_RPM_##t##_SEL_##s, \
 		.count = c, \
+	}
+
+#define MSM_RPM_MAP_PMIC(_target, _pmic, _id, _select, _count) \
+	[MSM_RPM_ID_##_id] = \
+	{\
+		.id = MSM_RPM_##_target##_ID_PM##_pmic##_##_id, \
+		.sel = MSM_RPM_##_target##_SEL_##_select, \
+		.count = _count, \
 	}
 
 #define MSM_RPM_STATUS_ID_VALID BIT(31)

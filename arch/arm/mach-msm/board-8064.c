@@ -918,7 +918,7 @@ static struct msm_usb_host_platform_data msm_ehci_host_pdata4;
 static void __init apq8064_ehci_host_init(void)
 {
 	if (machine_is_apq8064_liquid() || machine_is_mpq8064_cdp() ||
-		machine_is_apq8064_cdp() || machine_is_apq8064_sys6440() ||
+		machine_is_apq8064_cdp() || machine_is_apq8064_ifc6410() ||
 		machine_is_mpq8064_hrd() || machine_is_mpq8064_dtv()) {
 		if (machine_is_apq8064_liquid())
 			msm_ehci_host_pdata3.dock_connect_irq =
@@ -1538,6 +1538,9 @@ static struct i2c_board_info mxt_device_info[] __initdata = {
 		.irq = MSM_GPIO_TO_INT(MXT_TS_GPIO_IRQ),
 	},
 };
+
+
+
 #define CYTTSP_TS_GPIO_IRQ		6
 #define CYTTSP_TS_GPIO_SLEEP		33
 #define CYTTSP_TS_GPIO_SLEEP_ALT	12
@@ -2552,7 +2555,8 @@ static struct platform_device *common_devices[] __initdata = {
 	&msm_pil_vidc,
 	&msm_gss,
 	&apq8064_rtb_device,
-	&apq8064_cpu_idle_device,
+	&apq8064_dcvs_device,
+	&apq8064_msm_gov_device,
 	&apq8064_device_cache_erp,
 	&msm8960_device_ebi1_ch0_erp,
 	&msm8960_device_ebi1_ch1_erp,
@@ -3454,7 +3458,7 @@ static void __init apq8064_cdp_init(void)
 #endif
 
 	if (machine_is_mpq8064_hrd() || machine_is_mpq8064_dtv() ||
-		machine_is_apq8064_cdp() || machine_is_apq8064_sys6440()) {
+		machine_is_apq8064_cdp() || machine_is_apq8064_ifc6410()) {
 		platform_device_register(&mpq8064_device_uartdm_gsbi6);
 #ifdef CONFIG_SERIAL_MSM_HS
 		/* GSBI6(2) - UARTDM_RX */
@@ -3465,7 +3469,7 @@ static void __init apq8064_cdp_init(void)
 	}
 
 #if defined(CONFIG_BT) && defined(CONFIG_MARIMBA_CORE)
-	if (machine_is_mpq8064_hrd() || machine_is_apq8064_cdp() || machine_is_apq8064_sys6440())
+	if (machine_is_mpq8064_hrd() || machine_is_apq8064_cdp() || machine_is_apq8064_ifc6410())
 		apq8064_bt_power_init();
 #endif
 
