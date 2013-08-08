@@ -23,6 +23,7 @@ struct user_namespace {
 	struct uid_gid_map	projid_map;
 	struct kref		kref;
 	struct user_namespace	*parent;
+	int			level;
 	kuid_t			owner;
 	kgid_t			group;
 	unsigned int		proc_inum;
