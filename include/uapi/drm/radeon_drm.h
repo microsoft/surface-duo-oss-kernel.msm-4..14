@@ -972,6 +972,9 @@ struct drm_radeon_cs {
 #define RADEON_INFO_MAX_SE		0x12
 /* max SH per SE */
 #define RADEON_INFO_MAX_SH_PER_SE	0x13
+/* query if CP DMA is supported on the compute ring */
+#define RADEON_INFO_SI_CP_DMA_COMPUTE	0x17
+
 
 struct drm_radeon_info {
 	uint32_t		request;
