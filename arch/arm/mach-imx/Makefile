@@ -97,6 +97,18 @@ obj-$(CONFIG_SOC_IMX6) += suspend-imx6.o
 endif
 obj-$(CONFIG_SOC_IMX6) += pm-imx6.o
 
+ifeq ($(CONFIG_ARM_IMX6Q_CPUFREQ),y)
+obj-y += busfreq-imx6.o
+obj-$(CONFIG_SOC_IMX6Q) += ddr3_freq_imx6.o busfreq_ddr3.o
+endif
+
+
+# i.MX5 based machines
+obj-$(CONFIG_MACH_MX51_BABBAGE) += mach-mx51_babbage.o
+obj-$(CONFIG_MACH_EUKREA_CPUIMX51SD) += mach-cpuimx51sd.o
+obj-$(CONFIG_MACH_EUKREA_MBIMXSD51_BASEBOARD) += eukrea_mbimxsd51-baseboard.o
+
+obj-$(CONFIG_MACH_IMX51_DT) += imx51-dt.o
 obj-$(CONFIG_SOC_IMX50) += mach-imx50.o
 obj-$(CONFIG_SOC_IMX51) += mach-imx51.o
 obj-$(CONFIG_SOC_IMX53) += mach-imx53.o
