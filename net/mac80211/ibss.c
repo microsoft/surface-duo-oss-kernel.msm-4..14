@@ -1207,6 +1207,7 @@ int ieee80211_ibss_leave(struct ieee80211_sub_if_data *sdata)
 	sdata->vif.bss_conf.ibss_creator = false;
 	ieee80211_bss_info_change_notify(sdata, BSS_CHANGED_BEACON_ENABLED |
 						BSS_CHANGED_IBSS);
+	ieee80211_vif_release_channel(sdata);
 	synchronize_rcu();
 	kfree_skb(skb);
 
