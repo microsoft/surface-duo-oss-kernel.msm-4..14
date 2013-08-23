@@ -14,8 +14,16 @@
 #include <linux/mfd/pm8xxx/pm8921.h>
 #include <mach/gpio.h>
 
+#define LVDS_OPTRONICS_PWM_FREQ_HZ 300
+#define LVDS_OPTRONICS_PWM_PERIOD_USEC \
+	(USEC_PER_SEC / LVDS_OPTRONICS_PWM_FREQ_HZ)
+#define LVDS_OPTRONICS_PWM_LEVEL 255
+#define LVDS_OPTRONICS_PWM_DUTY_LEVEL \
+	(LVDS_OPTRONICS_PWM_PERIOD_USEC / LVDS_OPTRONICS_PWM_LEVEL)
+
 static struct lvds_panel_platform_data *optronics_pdata;
 static struct platform_device *optronics_fbpdev;
+static struct pwm_device *optronics_bl;
 
 static int lvds_optronics_panel_on(struct platform_device *pdev)
 {
@@ -27,7 +35,34 @@ static int lvds_optronics_panel_off(struct platform_device *pdev)
 	return 0;
 }
 
-static int __devinit lvds_optronics_probe(struct platform_device *pdev)
+static void lvds_optronics_set_backlight(struct msm_fb_data_type *mfd)
+{
+	int ret;
+
+	pr_debug("%s: back light level %d\n", __func__, mfd->bl_level);
+
+	if (optronics_bl) {
+		ret = pwm_config(optronics_bl,
+			LVDS_OPTRONICS_PWM_DUTY_LEVEL * mfd->bl_level,
+			LVDS_OPTRONICS_PWM_PERIOD_USEC);
+		if (ret) {
+			pr_err("pwm_config on lpm failed %d\n", ret);
+			return;
+		}
+		if (mfd->bl_level) {
+			ret = pwm_enable(optronics_bl);
+			if (ret)
+				pr_err(
+					"pwm enable/disable on lpm failed"
+					"for bl %d\n", mfd->bl_level);
+		} else {
+			pwm_disable(optronics_bl);
+		}
+	}
+}
+
+static int __devinit lvds_optronics_probe(
+				struct platform_device *pdev)
 {
 	int rc = 0;
 
@@ -40,6 +75,16 @@ static int __devinit lvds_optronics_probe(struct platform_device *pdev)
 		return 0;
 	}
 
+	if (optronics_pdata != NULL)
+		optronics_bl = pwm_request(optronics_pdata->gpio[0],
+					      "backlight");
+
+	if (optronics_bl == NULL || IS_ERR(optronics_bl)) {
+		pr_err("%s pwm_request() failed\n", __func__);
+		optronics_bl = NULL;
+	}
+	pr_debug("bl_lpm = %p\n", optronics_bl);
+
 	optronics_fbpdev = msm_fb_add_device(pdev);
 	if (!optronics_fbpdev) {
 		dev_err(&pdev->dev, "failed to add msm_fb device\n");
@@ -51,7 +96,8 @@ static int __devinit lvds_optronics_probe(struct platform_device *pdev)
 	return rc;
 }
 
-static int __devexit lvds_optronics_remove(struct platform_device *pdev)
+static int __devexit lvds_optronics_remove(
+				struct platform_device *pdev)
 {
 	return 0;
 }
@@ -66,7 +112,8 @@ static struct platform_driver this_driver = {
 
 static struct msm_fb_panel_data lvds_optronics_panel_data = {
 	.on = lvds_optronics_panel_on,
-	.off = lvds_optronics_panel_off
+	.off = lvds_optronics_panel_off,
+	.set_backlight = lvds_optronics_set_backlight,
 };
 
 static struct platform_device this_device = {
