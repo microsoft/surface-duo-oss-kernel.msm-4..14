@@ -1513,7 +1513,7 @@ static int htb_change_class(struct Qdisc *sch, u32 classid,
 	htb_precompute_ratedata(&cl->ceil);
 
 	cl->buffer = hopt->buffer << PSCHED_SHIFT;
-	cl->cbuffer = hopt->buffer << PSCHED_SHIFT;
+	cl->cbuffer = hopt->cbuffer << PSCHED_SHIFT;
 
 	sch_tree_unlock(sch);
 
