@@ -2925,6 +2925,7 @@ static bool tg3_phy_led_bug(struct tg3 *tp)
 {
 	switch (GET_ASIC_REV(tp->pci_chip_rev_id)) {
 	case ASIC_REV_5719:
+	case ASIC_REV_5720:
 		if ((tp->phy_flags & TG3_PHYFLG_MII_SERDES) &&
 		    !tp->pci_fn)
 			return true;
