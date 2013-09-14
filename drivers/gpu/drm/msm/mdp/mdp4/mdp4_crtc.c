@@ -16,6 +16,7 @@
  */
 
 #include "mdp4_kms.h"
+#include "msm_trace.h"
 
 #include <drm/drm_mode.h>
 #include "drm_crtc.h"
@@ -161,6 +162,8 @@ static void complete_flip(struct drm_crtc *crtc, struct drm_file *file)
 	struct drm_device *dev = crtc->dev;
 	struct drm_pending_vblank_event *event;
 	unsigned long flags;
+
+	trace_msm_flip_complete(mdp4_crtc->id);
 
 	spin_lock_irqsave(&dev->event_lock, flags);
 	event = mdp4_crtc->event;
@@ -463,6 +466,8 @@ static int mdp4_crtc_page_flip(struct drm_crtc *crtc,
 	spin_unlock_irqrestore(&dev->event_lock, flags);
 
 	update_fb(crtc, new_fb);
+
+	trace_msm_flip_request(mdp4_crtc->id, obj);
 
 	return msm_gem_queue_inactive_cb(obj, &mdp4_crtc->pageflip_cb);
 }
