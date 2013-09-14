@@ -152,7 +152,7 @@ int br_getlink(struct sk_buff *skb, u32 pid, u32 seq,
 	       struct net_device *dev)
 {
 	int err = 0;
-	struct net_bridge_port *port = br_port_get_rcu(dev);
+	struct net_bridge_port *port = br_port_get_rtnl(dev);
 
 	/* not a bridge port */
 	if (!port)
