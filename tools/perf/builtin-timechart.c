@@ -365,6 +365,117 @@ struct sched_switch {
 	int  next_prio;
 };
 
+/*
+ * GPU trace entries:
+ */
+
+/* flip_request/flip_complete: */
+struct flip_entry {
+	struct trace_entry te;
+	int id;  /* crtc id */
+	void *obj;
+};
+
+/* fence_wait_request/fence_wait_complete: */
+struct fence_entry {
+	struct trace_entry te;
+	uint32_t fence;
+	int ret;  /* only valid for fence_wait_complete */
+};
+
+/* gpu_request/gpu_complete: */
+struct gpu_entry {
+	struct trace_entry te;
+	uint32_t fence;
+};
+
+/*
+ * GPU trace events:
+ */
+
+struct flip_event {
+	struct flip_event *next;
+	u64 time;
+	int id;
+	void *obj;     /* GEM object ptr */
+	int complete;
+};
+
+struct fence_event {
+	struct fence_event *next;
+	u64 time;
+	uint32_t fence;
+	int pid;
+	int ret;  /* only valid for fence_wait_complete */
+	int complete;
+};
+
+struct gpu_event {
+	struct gpu_event *next;
+	u64 time;
+	uint32_t fence;
+	int complete;
+};
+
+static struct flip_event *flip_events;
+static struct fence_event *fence_events;
+static struct gpu_event *gpu_events;
+
+static void
+flip(int cpu, u64 timestamp, int pid, struct trace_entry *te, int complete)
+{
+	struct flip_event *fe;
+	struct flip_entry *fence = (void *)te;
+
+	fe = calloc(sizeof(*fe), 1);
+	if (!fe)
+		return;
+
+	fe->time = timestamp;
+	fe->id = fence->id;
+	fe->obj = fence->obj;
+	fe->complete = complete;
+	fe->next = flip_events;
+	flip_events = fe;
+}
+
+static void
+fence(int cpu, u64 timestamp, int pid, struct trace_entry *te, int complete)
+{
+	struct fence_event *fe;
+	struct fence_entry *fence = (void *)te;
+
+	fe = calloc(sizeof(*fe), 1);
+	if (!fe)
+		return;
+
+	fe->time = timestamp;
+	fe->pid = pid;
+	fe->fence = fence->fence;
+	fe->complete = complete;
+	if (complete)
+		fe->ret = fence->ret;
+	fe->next = fence_events;
+	fence_events = fe;
+}
+
+static void
+gpu(int cpu, u64 timestamp, int pid, struct trace_entry *te, int complete)
+{
+	struct gpu_event *ge;
+	struct gpu_entry *gpu = (void *)te;
+
+	ge = calloc(sizeof(*ge), 1);
+	if (!ge)
+		return;
+
+	ge->time = timestamp;
+	ge->fence = gpu->fence;
+	ge->complete = complete;
+	ge->next = gpu_events;
+	gpu_events = ge;
+}
+
 static void c_state_start(int cpu, u64 timestamp, int state)
 {
 	cpus_cstate_start_times[cpu] = timestamp;
@@ -549,6 +660,19 @@ static int process_sample_event(struct perf_tool *tool __used,
 
 		else if (strcmp(event_str, "sched:sched_switch") == 0)
 			sched_switch(sample->cpu, sample->time, te);
+
+		else if (strcmp(event_str, "msm:msm_flip_request") == 0)
+			flip(sample->cpu, sample->time, sample->pid, te, 0);
+		else if (strcmp(event_str, "msm:msm_flip_complete") == 0)
+			flip(sample->cpu, sample->time, sample->pid, te, 1);
+		else if (strcmp(event_str, "msm:msm_fence_wait_request") == 0)
+			fence(sample->cpu, sample->time, sample->pid, te, 0);
+		else if (strcmp(event_str, "msm:msm_fence_wait_complete") == 0)
+			fence(sample->cpu, sample->time, sample->pid, te, 1);
+		else if (strcmp(event_str, "msm:msm_gpu_request") == 0)
+			gpu(sample->cpu, sample->time, sample->pid, te, 0);
+		else if (strcmp(event_str, "msm:msm_gpu_complete") == 0)
+			gpu(sample->cpu, sample->time, sample->pid, te, 1);
 
 #ifdef SUPPORT_OLD_POWER_EVENTS
 		if (use_old_power_events) {
@@ -780,6 +904,93 @@ static void draw_cpu_usage(void)
 	}
 }
 
+static void draw_gpu_usage(void)
+{
+	struct gpu_event *ge, *prev = NULL;
+	uint32_t submitted_fence = 0;
+	uint32_t completed_fence = 0;
+	char str[32];
+
+	/* remember that we are processing events in reverse order here and
+	 * 'prev' is the event following 'ge' in time:
+	 */
+
+	for (ge = gpu_events; ge; prev = ge, ge = ge->next) {
+		if (prev) {
+			if (prev->complete)
+				completed_fence = prev->fence;
+			else
+				submitted_fence = prev->fence;
+
+			if (submitted_fence > completed_fence) {
+				if ((submitted_fence - completed_fence) == 1)
+					snprintf(str, sizeof(str), "fence: %u", submitted_fence);
+				else
+					snprintf(str, sizeof(str), "fence: %u-%u", completed_fence + 1, submitted_fence);
+				svg_process(numcpus, ge->time, prev->time, "sample", str);
+
+			}
+		}
+	}
+}
+
+static void draw_fence_bars(void)
+{
+	struct per_pid *p;
+	int Y = 0;
+
+	Y = 2 * numcpus + 2;
+
+	p = all_data;
+	while (p) {
+		struct per_pidcomm *c;
+		struct fence_event *fe, *prev = NULL;
+
+		c = p->all;
+
+		/* remember that we are processing events in reverse order here and
+		 * 'prev' is the event following 'fe' in time:
+		 *
+		 * XXX this probably isn't quite right.. we need to use the pidcomm
+		 * that is active during the timespan of the wait request/complete
+		 * to deal w/ pid recycling..
+		 */
+
+		for (fe = fence_events; fe; prev = fe, fe = fe->next) {
+			if (fe->pid != p->pid)
+				continue;
+			if (prev && prev->complete && !fe->complete)
+				svg_fence(Y, fe->time, prev->time, fe->fence, prev->ret);
+		}
+
+		while (c) {
+			if (c->display)
+				Y++;
+			c = c->next;
+		}
+		p = p->next;
+	}
+
+
+}
+
+static void draw_flips(void)
+{
+	struct flip_event *fe, *prev = NULL;
+
+	/* remember that we are processing events in reverse order here and
+	 * 'prev' is the event following 'fe' in time:
+	 *
+	 * TODO make this support more than one crtc..
+	 */
+
+	for (fe = flip_events; fe; prev = fe, fe = fe->next) {
+		if (prev && prev->complete && !fe->complete)
+			svg_flip(numcpus, fe->time, prev->time, fe->id, fe->obj);
+	}
+}
+
+
 static void draw_process_bars(void)
 {
 	struct per_pid *p;
@@ -964,7 +1175,7 @@ static void write_svg_file(const char *filename)
 	if (count < 15)
 		count = determine_display_tasks(TIME_THRESH / 10);
 
-	open_svg(filename, numcpus, count, first_time, last_time);
+	open_svg(filename, numcpus+1, count, first_time, last_time);
 
 	svg_time_grid();
 	svg_legenda();
@@ -972,8 +1183,19 @@ static void write_svg_file(const char *filename)
 	for (i = 0; i < numcpus; i++)
 		svg_cpu_box(i, max_freq, turbo_frequency);
 
+	svg_gpu_box(numcpus);
+
 	draw_cpu_usage();
+
+	draw_gpu_usage();
+	draw_flips();
+
+	// XXX ugly hack.. update places that put process after
+	// numcpus -> numcpus+numgpus
+	numcpus++;
+
 	draw_process_bars();
+	draw_fence_bars();
 	draw_c_p_states();
 	draw_wakeups();
 
@@ -1034,6 +1256,13 @@ static const char * const record_old_args[] = {
 	"-e", "power:power_frequency",
 	"-e", "sched:sched_wakeup",
 	"-e", "sched:sched_switch",
+	/* TODO only enable for gpu record? */
+	"-e", "msm:msm_flip_request",
+	"-e", "msm:msm_flip_complete",
+	"-e", "msm:msm_fence_wait_request",
+	"-e", "msm:msm_fence_wait_complete",
+	"-e", "msm:msm_gpu_request",
+	"-e", "msm:msm_gpu_complete",
 };
 #endif
 
@@ -1047,6 +1276,13 @@ static const char * const record_new_args[] = {
 	"-e", "power:cpu_idle",
 	"-e", "sched:sched_wakeup",
 	"-e", "sched:sched_switch",
+	/* TODO only enable for gpu record? */
+	"-e", "msm:msm_flip_request",
+	"-e", "msm:msm_flip_complete",
+	"-e", "msm:msm_fence_wait_request",
+	"-e", "msm:msm_fence_wait_complete",
+	"-e", "msm:msm_gpu_request",
+	"-e", "msm:msm_gpu_complete",
 };
 
 static int __cmd_record(int argc, const char **argv)
