@@ -18,7 +18,7 @@
 #include "msm_gpu.h"
 #include "msm_gem.h"
 #include "msm_mmu.h"
-
+#include "msm_trace.h"
 
 /*
  * Power Management:
@@ -424,6 +424,8 @@ static void retire_worker(struct work_struct *work)
 	struct drm_device *dev = gpu->dev;
 	uint32_t fence = gpu->funcs->last_fence(gpu);
 
+	trace_msm_gpu_complete(fence);
+
 	msm_update_fence(gpu->dev, fence);
 
 	mutex_lock(&dev->struct_mutex);
@@ -469,13 +471,13 @@ int msm_gpu_submit(struct msm_gpu *gpu, struct msm_gem_submit *submit,
 
 	submit->fence = ++priv->next_fence;
 
+	trace_msm_gpu_request(submit->fence);
+
 	gpu->submitted_fence = submit->fence;
 
 	inactive_cancel(gpu);
 
 	msm_rd_dump_submit(submit);
-
-	gpu->submitted_fence = submit->fence;
 
 	update_sw_cntrs(gpu);
 
