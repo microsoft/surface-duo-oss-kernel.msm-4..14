@@ -4750,9 +4750,6 @@ static int i9xx_crtc_mode_set(struct drm_crtc *crtc,
 		return -EINVAL;
 	}
 
-	/* Ensure that the cursor is valid for the new mode before changing... */
-	intel_crtc_update_cursor(crtc, true);
-
 	if (is_lvds && dev_priv->lvds_downclock_avail) {
 		/*
 		 * Ensure we match the reduced clock's P to the target clock.
@@ -5639,9 +5636,6 @@ static int ironlake_crtc_mode_set(struct drm_crtc *crtc,
 		return -EINVAL;
 	}
 
-	/* Ensure that the cursor is valid for the new mode before changing... */
-	intel_crtc_update_cursor(crtc, true);
-
 	/* determine panel color depth */
 	dither = intel_choose_pipe_bpp_dither(crtc, fb, &intel_crtc->bpp,
 					      adjusted_mode);
@@ -5841,9 +5835,6 @@ static int haswell_crtc_mode_set(struct drm_crtc *crtc,
 			return -EINVAL;
 		}
 	}
-
-	/* Ensure that the cursor is valid for the new mode before changing... */
-	intel_crtc_update_cursor(crtc, true);
 
 	/* determine panel color depth */
 	dither = intel_choose_pipe_bpp_dither(crtc, fb, &intel_crtc->bpp,
