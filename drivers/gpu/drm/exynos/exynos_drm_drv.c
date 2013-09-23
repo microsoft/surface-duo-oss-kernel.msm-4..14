@@ -47,10 +47,8 @@ static int exynos_drm_load(struct drm_device *dev, unsigned long flags)
 	int nr;
 
 	private = kzalloc(sizeof(struct exynos_drm_private), GFP_KERNEL);
-	if (!private) {
-		DRM_ERROR("failed to allocate private\n");
+	if (!private)
 		return -ENOMEM;
-	}
 
 	INIT_LIST_HEAD(&private->pageflip_event_list);
 	dev->dev_private = (void *)private;
@@ -271,7 +269,7 @@ static struct drm_driver exynos_drm_driver = {
 	.gem_vm_ops		= &exynos_drm_gem_vm_ops,
 	.dumb_create		= exynos_drm_gem_dumb_create,
 	.dumb_map_offset	= exynos_drm_gem_dumb_map_offset,
-	.dumb_destroy		= exynos_drm_gem_dumb_destroy,
+	.dumb_destroy		= drm_gem_dumb_destroy,
 	.prime_handle_to_fd	= drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle	= drm_gem_prime_fd_to_handle,
 	.gem_prime_export	= exynos_dmabuf_prime_export,
