@@ -39,7 +39,7 @@
 
 struct drm_flip_work;
 
-/**
+/*
  * drm_flip_func_t - callback function
  *
  * @work: the flip work
@@ -52,6 +52,11 @@ typedef void (*drm_flip_func_t)(struct drm_flip_work *work, void *val);
 
 /**
  * struct drm_flip_work - flip work queue
+ * @name: debug name
+ * @pending: number of queued but not committed items
+ * @count: number of committed items
+ * @func: callback fxn called for each committed item
+ * @worker: worker which calls @func
  */
 struct drm_flip_work {
 	const char *name;

@@ -33,16 +33,6 @@
 #include "i915_trace.h"
 #include "intel_drv.h"
 
-/*
- * 965+ support PIPE_CONTROL commands, which provide finer grained control
- * over cache flushing.
- */
-struct pipe_control {
-	struct drm_i915_gem_object *obj;
-	volatile u32 *cpu_page;
-	u32 gtt_offset;
-};
-
 static inline int ring_space(struct intel_ring_buffer *ring)
 {
 	int space = (ring->head & HEAD_ADDR) - (ring->tail + I915_RING_FREE_SPACE);
@@ -175,8 +165,7 @@ gen4_render_ring_flush(struct intel_ring_buffer *ring,
 static int
 intel_emit_post_sync_nonzero_flush(struct intel_ring_buffer *ring)
 {
-	struct pipe_control *pc = ring->private;
-	u32 scratch_addr = pc->gtt_offset + 128;
+	u32 scratch_addr = ring->scratch.gtt_offset + 128;
 	int ret;
 
 
@@ -213,8 +202,7 @@ gen6_render_ring_flush(struct intel_ring_buffer *ring,
                          u32 invalidate_domains, u32 flush_domains)
 {
 	u32 flags = 0;
-	struct pipe_control *pc = ring->private;
-	u32 scratch_addr = pc->gtt_offset + 128;
+	u32 scratch_addr = ring->scratch.gtt_offset + 128;
 	int ret;
 
 	/* Force SNB workarounds for PIPE_CONTROL flushes */
@@ -306,8 +294,7 @@ gen7_render_ring_flush(struct intel_ring_buffer *ring,
 		       u32 invalidate_domains, u32 flush_domains)
 {
 	u32 flags = 0;
-	struct pipe_control *pc = ring->private;
-	u32 scratch_addr = pc->gtt_offset + 128;
+	u32 scratch_addr = ring->scratch.gtt_offset + 128;
 	int ret;
 
 	/*
@@ -481,66 +468,41 @@ out:
 static int
 init_pipe_control(struct intel_ring_buffer *ring)
 {
-	struct pipe_control *pc;
-	struct drm_i915_gem_object *obj;
 	int ret;
 
-	if (ring->private)
+	if (ring->scratch.obj)
 		return 0;
 
-	pc = kmalloc(sizeof(*pc), GFP_KERNEL);
-	if (!pc)
-		return -ENOMEM;
-
-	obj = i915_gem_alloc_object(ring->dev, 4096);
-	if (obj == NULL) {
+	ring->scratch.obj = i915_gem_alloc_object(ring->dev, 4096);
+	if (ring->scratch.obj == NULL) {
 		DRM_ERROR("Failed to allocate seqno page\n");
 		ret = -ENOMEM;
 		goto err;
 	}
 
-	i915_gem_object_set_cache_level(obj, I915_CACHE_LLC);
+	i915_gem_object_set_cache_level(ring->scratch.obj, I915_CACHE_LLC);
 
-	ret = i915_gem_object_pin(obj, 4096, true, false);
+	ret = i915_gem_obj_ggtt_pin(ring->scratch.obj, 4096, true, false);
 	if (ret)
 		goto err_unref;
 
-	pc->gtt_offset = i915_gem_obj_ggtt_offset(obj);
-	pc->cpu_page = kmap(sg_page(obj->pages->sgl));
-	if (pc->cpu_page == NULL) {
+	ring->scratch.gtt_offset = i915_gem_obj_ggtt_offset(ring->scratch.obj);
+	ring->scratch.cpu_page = kmap(sg_page(ring->scratch.obj->pages->sgl));
+	if (ring->scratch.cpu_page == NULL) {
 		ret = -ENOMEM;
 		goto err_unpin;
 	}
 
 	DRM_DEBUG_DRIVER("%s pipe control offset: 0x%08x\n",
-			 ring->name, pc->gtt_offset);
-
-	pc->obj = obj;
-	ring->private = pc;
+			 ring->name, ring->scratch.gtt_offset);
 	return 0;
 
 err_unpin:
-	i915_gem_object_unpin(obj);
+	i915_gem_object_unpin(ring->scratch.obj);
 err_unref:
-	drm_gem_object_unreference(&obj->base);
+	drm_gem_object_unreference(&ring->scratch.obj->base);
 err:
-	kfree(pc);
 	return ret;
-}
-
-static void
-cleanup_pipe_control(struct intel_ring_buffer *ring)
-{
-	struct pipe_control *pc = ring->private;
-	struct drm_i915_gem_object *obj;
-
-	obj = pc->obj;
-
-	kunmap(sg_page(obj->pages->sgl));
-	i915_gem_object_unpin(obj);
-	drm_gem_object_unreference(&obj->base);
-
-	kfree(pc);
 }
 
 static int init_render_ring(struct intel_ring_buffer *ring)
@@ -607,16 +569,16 @@ static void render_ring_cleanup(struct intel_ring_buffer *ring)
 {
 	struct drm_device *dev = ring->dev;
 
-	if (!ring->private)
+	if (ring->scratch.obj == NULL)
 		return;
 
-	if (HAS_BROKEN_CS_TLB(dev))
-		drm_gem_object_unreference(to_gem_object(ring->private));
+	if (INTEL_INFO(dev)->gen >= 5) {
+		kunmap(sg_page(ring->scratch.obj->pages->sgl));
+		i915_gem_object_unpin(ring->scratch.obj);
+	}
 
-	if (INTEL_INFO(dev)->gen >= 5)
-		cleanup_pipe_control(ring);
-
-	ring->private = NULL;
+	drm_gem_object_unreference(&ring->scratch.obj->base);
+	ring->scratch.obj = NULL;
 }
 
 static void
@@ -742,8 +704,7 @@ do {									\
 static int
 pc_render_add_request(struct intel_ring_buffer *ring)
 {
-	struct pipe_control *pc = ring->private;
-	u32 scratch_addr = pc->gtt_offset + 128;
+	u32 scratch_addr = ring->scratch.gtt_offset + 128;
 	int ret;
 
 	/* For Ironlake, MI_USER_INTERRUPT was deprecated and apparently
@@ -761,7 +722,7 @@ pc_render_add_request(struct intel_ring_buffer *ring)
 	intel_ring_emit(ring, GFX_OP_PIPE_CONTROL(4) | PIPE_CONTROL_QW_WRITE |
 			PIPE_CONTROL_WRITE_FLUSH |
 			PIPE_CONTROL_TEXTURE_CACHE_INVALIDATE);
-	intel_ring_emit(ring, pc->gtt_offset | PIPE_CONTROL_GLOBAL_GTT);
+	intel_ring_emit(ring, ring->scratch.gtt_offset | PIPE_CONTROL_GLOBAL_GTT);
 	intel_ring_emit(ring, ring->outstanding_lazy_request);
 	intel_ring_emit(ring, 0);
 	PIPE_CONTROL_FLUSH(ring, scratch_addr);
@@ -780,7 +741,7 @@ pc_render_add_request(struct intel_ring_buffer *ring)
 			PIPE_CONTROL_WRITE_FLUSH |
 			PIPE_CONTROL_TEXTURE_CACHE_INVALIDATE |
 			PIPE_CONTROL_NOTIFY);
-	intel_ring_emit(ring, pc->gtt_offset | PIPE_CONTROL_GLOBAL_GTT);
+	intel_ring_emit(ring, ring->scratch.gtt_offset | PIPE_CONTROL_GLOBAL_GTT);
 	intel_ring_emit(ring, ring->outstanding_lazy_request);
 	intel_ring_emit(ring, 0);
 	intel_ring_advance(ring);
@@ -814,15 +775,13 @@ ring_set_seqno(struct intel_ring_buffer *ring, u32 seqno)
 static u32
 pc_render_get_seqno(struct intel_ring_buffer *ring, bool lazy_coherency)
 {
-	struct pipe_control *pc = ring->private;
-	return pc->cpu_page[0];
+	return ring->scratch.cpu_page[0];
 }
 
 static void
 pc_render_set_seqno(struct intel_ring_buffer *ring, u32 seqno)
 {
-	struct pipe_control *pc = ring->private;
-	pc->cpu_page[0] = seqno;
+	ring->scratch.cpu_page[0] = seqno;
 }
 
 static bool
@@ -836,11 +795,8 @@ gen5_ring_get_irq(struct intel_ring_buffer *ring)
 		return false;
 
 	spin_lock_irqsave(&dev_priv->irq_lock, flags);
-	if (ring->irq_refcount++ == 0) {
-		dev_priv->gt_irq_mask &= ~ring->irq_enable_mask;
-		I915_WRITE(GTIMR, dev_priv->gt_irq_mask);
-		POSTING_READ(GTIMR);
-	}
+	if (ring->irq_refcount++ == 0)
+		ilk_enable_gt_irq(dev_priv, ring->irq_enable_mask);
 	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
 
 	return true;
@@ -854,11 +810,8 @@ gen5_ring_put_irq(struct intel_ring_buffer *ring)
 	unsigned long flags;
 
 	spin_lock_irqsave(&dev_priv->irq_lock, flags);
-	if (--ring->irq_refcount == 0) {
-		dev_priv->gt_irq_mask |= ring->irq_enable_mask;
-		I915_WRITE(GTIMR, dev_priv->gt_irq_mask);
-		POSTING_READ(GTIMR);
-	}
+	if (--ring->irq_refcount == 0)
+		ilk_disable_gt_irq(dev_priv, ring->irq_enable_mask);
 	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
 }
 
@@ -968,6 +921,18 @@ void intel_ring_setup_status_page(struct intel_ring_buffer *ring)
 
 	I915_WRITE(mmio, (u32)ring->status_page.gfx_addr);
 	POSTING_READ(mmio);
+
+	/* Flush the TLB for this page */
+	if (INTEL_INFO(dev)->gen >= 6) {
+		u32 reg = RING_INSTPM(ring->mmio_base);
+		I915_WRITE(reg,
+			   _MASKED_BIT_ENABLE(INSTPM_TLB_INVALIDATE |
+					      INSTPM_SYNC_FLUSH));
+		if (wait_for((I915_READ(reg) & INSTPM_SYNC_FLUSH) == 0,
+			     1000))
+			DRM_ERROR("%s: wait for SyncFlush to complete for TLB invalidation timed out\n",
+				  ring->name);
+	}
 }
 
 static int
@@ -1028,9 +993,7 @@ gen6_ring_get_irq(struct intel_ring_buffer *ring)
 					 GT_RENDER_L3_PARITY_ERROR_INTERRUPT));
 		else
 			I915_WRITE_IMR(ring, ~ring->irq_enable_mask);
-		dev_priv->gt_irq_mask &= ~ring->irq_enable_mask;
-		I915_WRITE(GTIMR, dev_priv->gt_irq_mask);
-		POSTING_READ(GTIMR);
+		ilk_enable_gt_irq(dev_priv, ring->irq_enable_mask);
 	}
 	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
 
@@ -1051,9 +1014,7 @@ gen6_ring_put_irq(struct intel_ring_buffer *ring)
 				       ~GT_RENDER_L3_PARITY_ERROR_INTERRUPT);
 		else
 			I915_WRITE_IMR(ring, ~0);
-		dev_priv->gt_irq_mask |= ring->irq_enable_mask;
-		I915_WRITE(GTIMR, dev_priv->gt_irq_mask);
-		POSTING_READ(GTIMR);
+		ilk_disable_gt_irq(dev_priv, ring->irq_enable_mask);
 	}
 	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
 
@@ -1072,10 +1033,8 @@ hsw_vebox_get_irq(struct intel_ring_buffer *ring)
 
 	spin_lock_irqsave(&dev_priv->irq_lock, flags);
 	if (ring->irq_refcount++ == 0) {
-		u32 pm_imr = I915_READ(GEN6_PMIMR);
 		I915_WRITE_IMR(ring, ~ring->irq_enable_mask);
-		I915_WRITE(GEN6_PMIMR, pm_imr & ~ring->irq_enable_mask);
-		POSTING_READ(GEN6_PMIMR);
+		snb_enable_pm_irq(dev_priv, ring->irq_enable_mask);
 	}
 	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
 
@@ -1094,10 +1053,8 @@ hsw_vebox_put_irq(struct intel_ring_buffer *ring)
 
 	spin_lock_irqsave(&dev_priv->irq_lock, flags);
 	if (--ring->irq_refcount == 0) {
-		u32 pm_imr = I915_READ(GEN6_PMIMR);
 		I915_WRITE_IMR(ring, ~0);
-		I915_WRITE(GEN6_PMIMR, pm_imr | ring->irq_enable_mask);
-		POSTING_READ(GEN6_PMIMR);
+		snb_disable_pm_irq(dev_priv, ring->irq_enable_mask);
 	}
 	spin_unlock_irqrestore(&dev_priv->irq_lock, flags);
 }
@@ -1143,8 +1100,7 @@ i830_dispatch_execbuffer(struct intel_ring_buffer *ring,
 		intel_ring_emit(ring, MI_NOOP);
 		intel_ring_advance(ring);
 	} else {
-		struct drm_i915_gem_object *obj = ring->private;
-		u32 cs_offset = i915_gem_obj_ggtt_offset(obj);
+		u32 cs_offset = ring->scratch.gtt_offset;
 
 		if (len > I830_BATCH_LIMIT)
 			return -ENOSPC;
@@ -1224,7 +1180,7 @@ static int init_status_page(struct intel_ring_buffer *ring)
 
 	i915_gem_object_set_cache_level(obj, I915_CACHE_LLC);
 
-	ret = i915_gem_object_pin(obj, 4096, true, false);
+	ret = i915_gem_obj_ggtt_pin(obj, 4096, true, false);
 	if (ret != 0) {
 		goto err_unref;
 	}
@@ -1307,7 +1263,7 @@ static int intel_init_ring_buffer(struct drm_device *dev,
 
 	ring->obj = obj;
 
-	ret = i915_gem_object_pin(obj, PAGE_SIZE, true, false);
+	ret = i915_gem_obj_ggtt_pin(obj, PAGE_SIZE, true, false);
 	if (ret)
 		goto err_unref;
 
@@ -1594,6 +1550,8 @@ void intel_ring_init_seqno(struct intel_ring_buffer *ring, u32 seqno)
 	if (INTEL_INFO(ring->dev)->gen >= 6) {
 		I915_WRITE(RING_SYNC_0(ring->mmio_base), 0);
 		I915_WRITE(RING_SYNC_1(ring->mmio_base), 0);
+		if (HAS_VEBOX(ring->dev))
+			I915_WRITE(RING_SYNC_2(ring->mmio_base), 0);
 	}
 
 	ring->set_seqno(ring, seqno);
@@ -1828,14 +1786,15 @@ int intel_init_render_ring_buffer(struct drm_device *dev)
 			return -ENOMEM;
 		}
 
-		ret = i915_gem_object_pin(obj, 0, true, false);
+		ret = i915_gem_obj_ggtt_pin(obj, 0, true, false);
 		if (ret != 0) {
 			drm_gem_object_unreference(&obj->base);
 			DRM_ERROR("Failed to ping batch bo\n");
 			return ret;
 		}
 
-		ring->private = obj;
+		ring->scratch.obj = obj;
+		ring->scratch.gtt_offset = i915_gem_obj_ggtt_offset(obj);
 	}
 
 	return intel_init_ring_buffer(dev, ring);

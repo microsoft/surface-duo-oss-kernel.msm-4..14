@@ -524,12 +524,6 @@ static int dev_open(struct drm_device *dev, struct drm_file *file)
 	return 0;
 }
 
-static int dev_firstopen(struct drm_device *dev)
-{
-	DBG("firstopen: dev=%p", dev);
-	return 0;
-}
-
 /**
  * lastclose - clean up after all DRM clients have exited
  * @dev: DRM device
@@ -598,7 +592,6 @@ static const struct file_operations omapdriver_fops = {
 		.release = drm_release,
 		.mmap = omap_gem_mmap,
 		.poll = drm_poll,
-		.fasync = drm_fasync,
 		.read = drm_read,
 		.llseek = noop_llseek,
 };
@@ -609,7 +602,6 @@ static struct drm_driver omap_drm_driver = {
 		.load = dev_load,
 		.unload = dev_unload,
 		.open = dev_open,
-		.firstopen = dev_firstopen,
 		.lastclose = dev_lastclose,
 		.preclose = dev_preclose,
 		.postclose = dev_postclose,
@@ -633,7 +625,7 @@ static struct drm_driver omap_drm_driver = {
 		.gem_vm_ops = &omap_gem_vm_ops,
 		.dumb_create = omap_gem_dumb_create,
 		.dumb_map_offset = omap_gem_dumb_map_offset,
-		.dumb_destroy = omap_gem_dumb_destroy,
+		.dumb_destroy = drm_gem_dumb_destroy,
 		.ioctls = ioctls,
 		.num_ioctls = DRM_OMAP_NUM_IOCTLS,
 		.fops = &omapdriver_fops,
