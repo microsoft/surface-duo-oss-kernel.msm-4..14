@@ -10,6 +10,7 @@
 
 #include <net/secure_seq.h>
 
+#if IS_ENABLED(CONFIG_IPV6) || IS_ENABLED(CONFIG_INET)
 static u32 net_secret[MD5_MESSAGE_BYTES / 4] ____cacheline_aligned;
 
 static int __init net_secret_init(void)
@@ -18,6 +19,7 @@ static int __init net_secret_init(void)
 	return 0;
 }
 late_initcall(net_secret_init);
+#endif
 
 #ifdef CONFIG_INET
 static u32 seq_scale(u32 seq)
