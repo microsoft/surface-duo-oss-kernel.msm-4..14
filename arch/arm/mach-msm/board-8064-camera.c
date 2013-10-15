@@ -422,6 +422,8 @@ static struct gpio apq8064_common_cam_gpio[] = {
 
 static struct gpio apq8064_back_cam_gpio[] = {
 	{5, GPIOF_DIR_IN, "CAMIF_MCLK"},
+	{10, GPIOF_DIR_IN, "PRICAM_I2C4_DATA"},
+	{11, GPIOF_DIR_IN, "PRICAM_I2C4_CLK"},
 	{CAML_RSTN, GPIOF_DIR_OUT, "CAM_RESET"},
 };
 

@@ -152,6 +152,7 @@ struct msm_gpiomux_config vcap_configs[] = {
 			[GPIOMUX_ACTIVE] =		&gpio_vcap_config[1],
 		}
 	},
+#ifndef CONFIG_OV5640
 	{
 		.gpio = 23,
 		.settings = {
@@ -159,6 +160,7 @@ struct msm_gpiomux_config vcap_configs[] = {
 			[GPIOMUX_ACTIVE] =		&gpio_vcap_config[2],
 		}
 	},
+#endif
 	{
 		.gpio = 19,
 		.settings = {
@@ -166,6 +168,7 @@ struct msm_gpiomux_config vcap_configs[] = {
 			[GPIOMUX_ACTIVE] =		&gpio_vcap_config[8],
 		}
 	},
+#ifndef CONFIG_OV5640
 	{
 		.gpio = 22,
 		.settings = {
@@ -173,6 +176,7 @@ struct msm_gpiomux_config vcap_configs[] = {
 			[GPIOMUX_ACTIVE] =		&gpio_vcap_config[2],
 		}
 	},
+#endif
 	{
 		.gpio = 21,
 		.settings = {
@@ -194,6 +198,7 @@ struct msm_gpiomux_config vcap_configs[] = {
 			[GPIOMUX_ACTIVE] =		&gpio_vcap_config[9],
 		}
 	},
+#ifndef CONFIG_OV5640
 	{
 		.gpio = 11,
 		.settings = {
@@ -201,6 +206,7 @@ struct msm_gpiomux_config vcap_configs[] = {
 			[GPIOMUX_ACTIVE] =		&gpio_vcap_config[10],
 		}
 	},
+
 	{
 		.gpio = 10,
 		.settings = {
@@ -208,6 +214,7 @@ struct msm_gpiomux_config vcap_configs[] = {
 			[GPIOMUX_ACTIVE] =		&gpio_vcap_config[9],
 		}
 	},
+#endif
 	{
 		.gpio = 9,
 		.settings = {

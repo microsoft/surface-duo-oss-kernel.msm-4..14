@@ -307,6 +307,7 @@ static struct resource resources_qup_i2c_gsbi4[] = {
 		.end	= GSBI4_QUP_IRQ,
 		.flags	= IORESOURCE_IRQ,
 	},
+#ifndef CONFIG_OV5640
 	{
 		.name	= "i2c_clk",
 		.start	= 11,
@@ -319,6 +320,7 @@ static struct resource resources_qup_i2c_gsbi4[] = {
 		.end	= 10,
 		.flags	= IORESOURCE_IO,
 	},
+#endif
 };
 
 struct platform_device apq8064_device_qup_i2c_gsbi4 = {
