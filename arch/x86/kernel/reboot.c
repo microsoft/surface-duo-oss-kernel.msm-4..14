@@ -629,6 +629,10 @@ static void native_machine_emergency_restart(void)
 void native_machine_shutdown(void)
 {
 	/* Stop the cpus and apics */
+#ifdef CONFIG_X86_IO_APIC
+	disable_IO_APIC();
+#endif
+
 #ifdef CONFIG_SMP
 
 	/* The boot cpu is always logical cpu 0 */
@@ -656,10 +660,6 @@ void native_machine_shutdown(void)
 #endif
 
 	lapic_shutdown();
-
-#ifdef CONFIG_X86_IO_APIC
-	disable_IO_APIC();
-#endif
 
 #ifdef CONFIG_HPET_TIMER
 	hpet_disable();
