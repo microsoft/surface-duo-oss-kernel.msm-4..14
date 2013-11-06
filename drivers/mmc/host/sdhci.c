@@ -2551,7 +2551,7 @@ static irqreturn_t sdhci_irq(int irq, void *dev_id)
 	irqreturn_t result = IRQ_NONE;
 	struct sdhci_host *host = dev_id;
 	u32 intmask, mask, unexpected = 0;
-	int max_loops = 16;
+	int cardint = 0, max_loops = 16;
 
 	spin_lock(&host->lock);
 
@@ -2636,7 +2636,17 @@ static irqreturn_t sdhci_irq(int irq, void *dev_id)
 			result = IRQ_HANDLED;
 
 		intmask = sdhci_readl(host, SDHCI_INT_STATUS);
+
+		/*
+		 * If we know we'll call the driver to signal SDIO IRQ, disregard
+		 * further indications of Card Interrupt in the status to avoid a
+		 * needless loop.
+		 */
+		if (cardint)
+			intmask &= ~SDHCI_INT_CARD_INT;
+	
 	} while (intmask && --max_loops);
+
 out:
 	spin_unlock(&host->lock);
 
