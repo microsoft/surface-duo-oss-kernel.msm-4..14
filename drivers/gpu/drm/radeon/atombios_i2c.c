@@ -55,7 +55,10 @@ static int radeon_process_i2c_ch(struct radeon_i2c_chan *chan,
 			DRM_ERROR("hw i2c: tried to write too many bytes (%d vs 2)\n", num);
 			return -EINVAL;
 		}
-		memcpy(&out, buf, num);
+		if (num > 1) {
+			num--;
+			memcpy(&out, &buf[1], num);
+		}
 		args.lpI2CDataOut = cpu_to_le16(out);
 	} else {
 		if (num > ATOM_MAX_HW_I2C_READ) {
