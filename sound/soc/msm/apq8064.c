@@ -65,7 +65,7 @@
 #define TABLA_MBHC_DEF_BUTTONS 8
 #define TABLA_MBHC_DEF_RLOADS 5
 
-#define JACK_DETECT_GPIO 38
+#define JACK_DETECT_GPIO PM8921_GPIO_PM_TO_SYS(7)
 
 /* Shared channel numbers for Slimbus ports that connect APQ to MDM. */
 enum {
