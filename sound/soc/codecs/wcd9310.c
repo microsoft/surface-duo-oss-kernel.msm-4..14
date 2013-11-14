@@ -3822,6 +3822,14 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"ADC5", NULL, "AMIC5"},
 	{"ADC6", NULL, "AMIC6"},
 
+	/* AMIC - LDOH Connetcions */
+	{"AMIC1", NULL, "LDO_H"},
+	{"AMIC2", NULL, "LDO_H"},
+	{"AMIC3", NULL, "LDO_H"},
+	{"AMIC4", NULL, "LDO_H"},
+	{"AMIC5", NULL, "LDO_H"},
+	{"AMIC6", NULL, "LDO_H"},
+
 	/* AUX PGA Connections */
 	{"HPHL_PA_MIXER", "AUX_PGA_L Switch", "AUX_PGA_Left"},
 	{"HPHL_PA_MIXER", "AUX_PGA_R Switch", "AUX_PGA_Right"},
