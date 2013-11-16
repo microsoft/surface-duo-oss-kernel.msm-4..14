@@ -829,7 +829,9 @@ early_param("ext_display", ext_display_setup);
 
 static void __init msm8960_reserve(void)
 {
+	void __init msm8960_setup_vram(void);
 	msm8960_set_display_params(prim_panel_name, ext_panel_name);
+	msm8960_setup_vram();
 	msm_reserve();
 }
 
