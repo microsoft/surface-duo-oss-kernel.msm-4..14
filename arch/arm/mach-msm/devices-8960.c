@@ -2718,6 +2718,40 @@ struct platform_device msm_lvds_device = {
 	.id     = 0,
 };
 
+#include "mach/iommu.h"
+#include "linux/dma-contiguous.h"
+
+static unsigned long vram_size = SZ_128M;
+
+static int __init msm_set_vram(char *p)
+{
+	printk(KERN_INFO "using %s VRAM\n", p);
+	vram_size = memparse(p, NULL);
+	return 0;
+}
+early_param("msm.vram", msm_set_vram);
+
+void __init msm8960_setup_vram(void)
+{
+	if (!msm_soc_version_supports_iommu_v1()) {
+		extern phys_addr_t arm_lowmem_limit;
+		/* force CMA pool into highmem, because:
+		 *   a) it is a huge chunk of memory to be stuffing in lowmem
+		 *   b) kmap_atomic() gets quite confused when we shoot down
+		 *      the lowmem pte's (due to DMA_ATTR_NO_KERNEL_MAPPING),
+		 *      and returns something bogus for those pages.  Net
+		 *      result is cache operations, vm_insert_mixed() for
+		 *      mapping to userspace, etc, all start blowing up.
+		 */
+		int ret = dma_declare_contiguous(&msm_mdp_device.dev,
+				vram_size, arm_lowmem_limit, 0);
+		if (WARN_ON(ret)) {
+			printk(KERN_ERR "%s: failed to reserve VRAM! (%d)\n",
+					__func__, ret);
+		}
+	}
+}
+
 void __init msm_fb_register_device(char *name, void *data)
 {
 	if (!strncmp(name, "mdp", 3))
