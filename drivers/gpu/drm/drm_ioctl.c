@@ -231,7 +231,7 @@ int drm_getclient(struct drm_device *dev, void *data,
 	 */
 	if (client->idx == 0) {
 		client->auth = file_priv->authenticated;
-		client->pid = file_priv->pid;
+		client->pid = pid_nr(file_priv->pid);
 		client->uid = file_priv->uid;
 		client->magic = 0;
 		client->iocs = 0;
@@ -298,6 +298,27 @@ int drm_getcap(struct drm_device *dev, void *data, struct drm_file *file_priv)
 	default:
 		return -EINVAL;
 	}
+	return 0;
+}
+
+/**
+ * Set device/driver capabilities
+ */
+int
+drm_setclientcap(struct drm_device *dev, void *data, struct drm_file *file_priv)
+{
+	struct drm_set_client_cap *req = data;
+
+	switch (req->capability) {
+	case DRM_CLIENT_CAP_STEREO_3D:
+		if (req->value > 1)
+			return -EINVAL;
+		file_priv->stereo_allowed = req->value;
+		break;
+	default:
+		return -EINVAL;
+	}
+
 	return 0;
 }
 

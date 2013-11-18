@@ -163,13 +163,13 @@ int drm_vblank_info(struct seq_file *m, void *data)
 	mutex_lock(&dev->struct_mutex);
 	for (crtc = 0; crtc < dev->num_crtcs; crtc++) {
 		seq_printf(m, "CRTC %d enable:     %d\n",
-			   crtc, atomic_read(&dev->vblank_refcount[crtc]));
+			   crtc, atomic_read(&dev->vblank[crtc].refcount));
 		seq_printf(m, "CRTC %d counter:    %d\n",
 			   crtc, drm_vblank_count(dev, crtc));
 		seq_printf(m, "CRTC %d last wait:  %d\n",
-			   crtc, dev->last_vblank_wait[crtc]);
+			   crtc, dev->vblank[crtc].last_wait);
 		seq_printf(m, "CRTC %d in modeset: %d\n",
-			   crtc, dev->vblank_inmodeset[crtc]);
+			   crtc, dev->vblank[crtc].inmodeset);
 	}
 	mutex_unlock(&dev->struct_mutex);
 	return 0;
@@ -191,7 +191,7 @@ int drm_clients_info(struct seq_file *m, void *data)
 		seq_printf(m, "%c %3d %5d %5d %10u %10lu\n",
 			   priv->authenticated ? 'y' : 'n',
 			   priv->minor->index,
-			   priv->pid,
+			   pid_nr(priv->pid),
 			   priv->uid, priv->magic, priv->ioctl_count);
 	}
 	mutex_unlock(&dev->struct_mutex);
