@@ -4850,6 +4850,7 @@ enum {
 	ALC260_FIXUP_REPLACER,
 	ALC260_FIXUP_HP_B1900,
 	ALC260_FIXUP_KN1,
+	ALC260_FIXUP_VAIO_PINS,
 };
 
 static void alc260_gpio1_automute(struct hda_codec *codec)
@@ -4962,6 +4963,24 @@ static const struct alc_fixup alc260_fixups[] = {
 		.type = ALC_FIXUP_FUNC,
 		.v.func = alc260_fixup_kn1,
 	},
+	[ALC260_FIXUP_VAIO_PINS] = {
+		.type = HDA_FIXUP_PINS,
+		.v.pins = (const struct hda_pintbl[]) {
+			/* Pin configs are missing completely on some VAIOs */
+			{ 0x0f, 0x01211020 },
+			{ 0x10, 0x0001003f },
+			{ 0x11, 0x411111f0 },
+			{ 0x12, 0x01a15930 },
+			{ 0x13, 0x411111f0 },
+			{ 0x14, 0x411111f0 },
+			{ 0x15, 0x411111f0 },
+			{ 0x16, 0x411111f0 },
+			{ 0x17, 0x411111f0 },
+			{ 0x18, 0x411111f0 },
+			{ 0x19, 0x411111f0 },
+			{ }
+		}
+	},
 };
 
 static const struct snd_pci_quirk alc260_fixup_tbl[] = {
@@ -4970,6 +4989,7 @@ static const struct snd_pci_quirk alc260_fixup_tbl[] = {
 	SND_PCI_QUIRK(0x1025, 0x008f, "Acer", ALC260_FIXUP_GPIO1),
 	SND_PCI_QUIRK(0x103c, 0x280a, "HP dc5750", ALC260_FIXUP_HP_DC5750),
 	SND_PCI_QUIRK(0x103c, 0x30ba, "HP Presario B1900", ALC260_FIXUP_HP_B1900),
+	SND_PCI_QUIRK(0x104d, 0x81bb, "Sony VAIO", ALC260_FIXUP_VAIO_PINS),
 	SND_PCI_QUIRK(0x104d, 0x81e2, "Sony VAIO TX", ALC260_FIXUP_HP_PIN_0F),
 	SND_PCI_QUIRK(0x1509, 0x4540, "Favorit 100XS", ALC260_FIXUP_GPIO1),
 	SND_PCI_QUIRK(0x152d, 0x0729, "Quanta KN1", ALC260_FIXUP_KN1),
