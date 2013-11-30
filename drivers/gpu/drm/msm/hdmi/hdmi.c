@@ -381,6 +381,25 @@ static struct hdmi *find_hdmi(void)
 	return hdmi_pdev_hack ? platform_get_drvdata(hdmi_pdev_hack) : NULL;
 }
 
+struct msm_hdmi_audio_codec_ops;
+int msm_hdmi_register_audio_codec(struct platform_device *pdev,
+	struct msm_hdmi_audio_codec_ops *ops)
+{
+#if 0
+	struct hdmi_tx_ctrl *hdmi_ctrl = platform_get_drvdata(pdev);
+
+	if (!hdmi_ctrl || !ops) {
+		DEV_ERR("%s: invalid input\n", __func__);
+		return -ENODEV;
+	}
+
+	ops->audio_info_setup = hdmi_tx_audio_info_setup;
+	ops->get_audio_edid_blk = hdmi_tx_get_audio_edid_blk;
+#endif
+	return 0;
+}
+EXPORT_SYMBOL(msm_hdmi_register_audio_codec);
+
 int hdmi_msm_audio_info_setup(bool enabled, u32 num_of_channels,
 	u32 channel_allocation, u32 level_shift, bool down_mix)
 {
