@@ -65,6 +65,7 @@ static int msm_iommu_map(struct msm_mmu *mmu, uint32_t iova,
 	if (!domain || !sgt)
 		return -EINVAL;
 
+if (0) {
 	for_each_sg(sgt->sgl, sg, sgt->nents, i) {
 		u32 pa = sg_phys(sg) - sg->offset;
 		size_t bytes = sg->length + sg->offset;
@@ -77,6 +78,9 @@ static int msm_iommu_map(struct msm_mmu *mmu, uint32_t iova,
 
 		da += bytes;
 	}
+} else {
+	return iommu_map_range(domain, iova, sgt->sgl, len, prot);
+}
 
 	return 0;
 
@@ -100,6 +104,7 @@ static int msm_iommu_unmap(struct msm_mmu *mmu, uint32_t iova,
 	unsigned int da = iova;
 	int i;
 
+if (0) {
 	for_each_sg(sgt->sgl, sg, sgt->nents, i) {
 		size_t bytes = sg->length + sg->offset;
 		size_t unmapped;
@@ -114,6 +119,9 @@ static int msm_iommu_unmap(struct msm_mmu *mmu, uint32_t iova,
 
 		da += bytes;
 	}
+} else {
+	iommu_unmap_range(domain, iova, len);
+}
 
 	return 0;
 }
