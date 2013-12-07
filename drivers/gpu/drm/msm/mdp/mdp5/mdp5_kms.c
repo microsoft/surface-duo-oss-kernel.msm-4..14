@@ -340,10 +340,32 @@ fail:
 	return ERR_PTR(ret);
 }
 
+// ugg, this probably differs between upstream and msm-3.4..
+// at any rate, we shouldn't be registering a domain ourselves,
+// that should come from DT.. but msm downstream kernel is
+// bonkers
+#include <mach/iommu_domains.h>
+
 static struct mdp5_platform_config *mdp5_get_config(struct platform_device *dev)
 {
 	static struct mdp5_platform_config config = {};
 #ifdef CONFIG_OF
+	static struct msm_iova_partition partitions[] = {
+		// TODO size could probably be 2G since we aren't using secure...
+		{ .start = SZ_128K, .size = SZ_1G - SZ_128K, },
+	};
+	static struct msm_iova_layout layout = {
+			.client_name = "mdp_ns",
+			.partitions = partitions,
+			.npartitions = ARRAY_SIZE(partitions),
+	};
+	int idx = msm_register_domain(&layout);
+	config.iommu = msm_get_iommu_domain(idx);
+	/* TODO hard-coded in downstream mdss, but should it be? */
+	config.max_clk = 200000000;
+	/* TODO get from DT: */
+	config.smp_blk_cnt = 22;
+#else
 	/* TODO */
 #endif
 	return &config;
