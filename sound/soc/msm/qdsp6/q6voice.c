@@ -16,6 +16,7 @@
 #include <linux/uaccess.h>
 #include <linux/wait.h>
 #include <linux/mutex.h>
+#include <linux/dma-mapping.h>
 
 #include <asm/mach-types.h>
 #include <mach/qdsp6v2/audio_acdb.h>
@@ -4171,10 +4172,11 @@ static void voice_allocate_shared_memory(void)
 	int			i, j, result;
 	int			offset = 0;
 	int			mem_len;
-	unsigned long		paddr;
+	dma_addr_t		paddr;
 	void                    *kvptr;
 	pr_debug("%s\n", __func__);
 
+#if defined(CONFIG_MSM_MULTIMEDIA_USE_ION) && defined(CONFIG_ION)
 	common.ion_client = msm_ion_client_create(UINT_MAX, "q6voice_client");
 	if (IS_ERR_OR_NULL((void *)common.ion_client)) {
 		pr_err("%s: ION create client failed\n", __func__);
@@ -4203,6 +4205,19 @@ static void voice_allocate_shared_memory(void)
 		pr_err("%s: ION memory mapping failed\n", __func__);
 		goto err_ion_handle;
 	}
+#else
+	/* heh, awesome practice here, of allocating your resources from an
+	 * initcall rather than probe, etc..
+	 */
+	kvptr = dma_alloc_writecombine(NULL, TOTAL_VOICE_CAL_SIZE,
+			&paddr, GFP_KERNEL);
+	if (WARN_ON(IS_ERR_OR_NULL(kvptr))) {
+		pr_err("%s: allocation failed\n", __func__);
+		goto err;
+	}
+	(void)mem_len;
+	(void)result;
+#endif
 
 	/* Make all phys & buf point to the correct address */
 	for (i = 0; i < NUM_VOICE_CAL_BUFFERS; i++) {
@@ -4224,11 +4239,12 @@ static void voice_allocate_shared_memory(void)
 	}
 
 	return;
-
+#ifdef CONFIG_ION
 err_ion_handle:
 	ion_free(common.ion_client, common.ion_handle);
 err_ion_client:
 	ion_client_destroy(common.ion_client);
+#endif
 err:
 	return;
 }
