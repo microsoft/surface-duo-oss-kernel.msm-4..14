@@ -323,7 +323,9 @@ static void __init reserve_pmem_memory(void)
 	reserve_memory_for(&android_pmem_pdata);
 	reserve_memory_for(&android_pmem_audio_pdata);
 #endif /*CONFIG_MSM_MULTIMEDIA_USE_ION*/
+#ifdef CONFIG_KERNEL_MSM_CONTIG_MEM_REGION
 	msm8930_reserve_table[MEMTYPE_EBI1].size += msm_contig_mem_size;
+#endif
 #endif /*CONFIG_ANDROID_PMEM*/
 }
 
@@ -689,8 +691,10 @@ static void __init locate_unstable_memory(void)
 	if (high < mb->start)
 		high -= PAGE_SIZE;
 
+#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
 	if (high < MAX_FIXED_AREA_SIZE + MSM8930_FIXED_AREA_START)
 		panic("fixed area extends beyond end of memory\n");
+#endif
 
 	low &= ~(bank_size - 1);
 

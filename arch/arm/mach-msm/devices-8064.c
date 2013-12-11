@@ -1438,7 +1438,7 @@ struct msm_vidc_platform_data apq8064_vidc_platform_data = {
 	.enable_ion = 1,
 	.cp_enabled = 1,
 #else
-	.memtype = MEMTYPE_EBI1,
+//	.memtype = MEMTYPE_EBI1,
 	.enable_ion = 0,
 #endif
 	.disable_dmx = 0,

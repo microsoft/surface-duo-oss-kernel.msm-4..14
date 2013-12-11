@@ -150,6 +150,7 @@ static struct platform_device msm_fb_device = {
 
 void __init apq8064_allocate_fb_region(void)
 {
+#ifdef CONFIG_FB_MSM  /* do not need carveout for DRM_MSM */
 	void *addr;
 	unsigned long size;
 
@@ -159,6 +160,7 @@ void __init apq8064_allocate_fb_region(void)
 	msm_fb_resources[0].end = msm_fb_resources[0].start + size - 1;
 	pr_info("allocating %lu bytes at %p (%lx physical) for fb\n",
 			size, addr, __pa(addr));
+#endif
 }
 
 #define MDP_VSYNC_GPIO 0
