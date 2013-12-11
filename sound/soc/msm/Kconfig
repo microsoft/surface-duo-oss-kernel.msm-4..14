@@ -82,7 +82,7 @@ config SND_VOIP_PCM
 
 config SND_SOC_MSM_QDSP6_HDMI_AUDIO
 	tristate "Soc QDSP6 HDMI Audio DAI driver"
-	depends on FB_MSM_HDMI_MSM_PANEL
+	depends on FB_MSM_HDMI_MSM_PANEL || DRM_MSM
 	default n
 	help
 	 To support HDMI Audio on MSM8960 over QDSP6.
