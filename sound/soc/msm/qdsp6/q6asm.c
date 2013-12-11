@@ -240,7 +240,7 @@ int q6asm_audio_client_buf_free(unsigned int dir,
 
 		while (cnt >= 0) {
 			if (port->buf[cnt].data) {
-#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+#if defined(CONFIG_MSM_MULTIMEDIA_USE_ION) && defined(CONFIG_ION)
 				ion_unmap_kernel(port->buf[cnt].client,
 						port->buf[cnt].handle);
 				ion_free(port->buf[cnt].client,
@@ -257,10 +257,7 @@ int q6asm_audio_client_buf_free(unsigned int dir,
 					 __func__,
 				PTR_ERR((void *)port->buf[cnt].mem_buffer));
 				else {
-					if (iounmap(
-						port->buf[cnt].mem_buffer) < 0)
-						pr_err("%s: unmap buffer failed\n",
-								 __func__);
+					iounmap(port->buf[cnt].mem_buffer);
 				}
 				free_contiguous_memory_by_paddr(
 					port->buf[cnt].phys);
@@ -302,7 +299,7 @@ int q6asm_audio_client_buf_free_contiguous(unsigned int dir,
 	}
 
 	if (port->buf[0].data) {
-#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+#if defined(CONFIG_MSM_MULTIMEDIA_USE_ION) && defined(CONFIG_ION)
 		ion_unmap_kernel(port->buf[0].client, port->buf[0].handle);
 		ion_free(port->buf[0].client, port->buf[0].handle);
 		ion_client_destroy(port->buf[0].client);
@@ -325,9 +322,7 @@ int q6asm_audio_client_buf_free_contiguous(unsigned int dir,
 				 __func__,
 				PTR_ERR((void *)port->buf[0].mem_buffer));
 		else {
-			if (iounmap(
-				port->buf[0].mem_buffer) < 0)
-				pr_err("%s: unmap buffer failed\n", __func__);
+			iounmap(port->buf[0].mem_buffer);
 		}
 		free_contiguous_memory_by_paddr(port->buf[0].phys);
 #endif
@@ -485,7 +480,7 @@ int q6asm_audio_client_buf_alloc(unsigned int dir,
 	int cnt = 0;
 	int rc = 0;
 	struct audio_buffer *buf;
-#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+#if defined(CONFIG_MSM_MULTIMEDIA_USE_ION) && defined(CONFIG_ION)
 	int len;
 #endif
 
@@ -517,7 +512,7 @@ int q6asm_audio_client_buf_alloc(unsigned int dir,
 		while (cnt < bufcnt) {
 			if (bufsz > 0) {
 				if (!buf[cnt].data) {
-#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+#if defined(CONFIG_MSM_MULTIMEDIA_USE_ION) && defined(CONFIG_ION)
 					buf[cnt].client = msm_ion_client_create
 						(UINT_MAX, "audio_client");
 					if (IS_ERR_OR_NULL((void *)
@@ -627,7 +622,7 @@ int q6asm_audio_client_buf_alloc_contiguous(unsigned int dir,
 	int cnt = 0;
 	int rc = 0;
 	struct audio_buffer *buf;
-#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+#if defined(CONFIG_MSM_MULTIMEDIA_USE_ION) && defined(CONFIG_ION)
 	int len;
 #else
 	int flags = 0;
@@ -657,7 +652,7 @@ int q6asm_audio_client_buf_alloc_contiguous(unsigned int dir,
 
 	ac->port[dir].buf = buf;
 
-#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+#if defined(CONFIG_MSM_MULTIMEDIA_USE_ION) && defined(CONFIG_ION)
 	buf[0].client = msm_ion_client_create(UINT_MAX, "audio_client");
 	if (IS_ERR_OR_NULL((void *)buf[0].client)) {
 		pr_err("%s: ION create client for AUDIO failed\n", __func__);

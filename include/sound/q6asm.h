@@ -14,7 +14,7 @@
 
 #include <mach/qdsp6v2/apr.h>
 #include <sound/apr_audio.h>
-#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+#if defined(CONFIG_MSM_MULTIMEDIA_USE_ION) && defined(CONFIG_ION)
 #include <linux/msm_ion.h>
 #endif
 
@@ -108,7 +108,7 @@ struct audio_buffer {
 	uint32_t   used;
 	uint32_t   size;/* size of buffer */
 	uint32_t   actual_size; /* actual number of bytes read by DSP */
-#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+#if defined(CONFIG_MSM_MULTIMEDIA_USE_ION) && defined(CONFIG_ION)
 	struct ion_handle *handle;
 	struct ion_client *client;
 #else

@@ -953,8 +953,10 @@ struct common_data {
 	/* APR to CVP in the Q6 */
 	void *apr_q6_cvp;
 
+#ifdef CONFIG_ION
 	struct ion_client *ion_client;
 	struct ion_handle *ion_handle;
+#endif
 	struct cal_data voice_cal[NUM_VOICE_CAL_BUFFERS];
 
 	struct mutex common_lock;
