@@ -67,6 +67,8 @@ void hdmi_destroy(struct kref *kref)
 	if (hdmi->i2c)
 		hdmi_i2c_destroy(hdmi->i2c);
 
+	platform_set_drvdata(hdmi->pdev, NULL);
+
 	put_device(&hdmi->pdev->dev);
 }
 
@@ -101,6 +103,8 @@ struct hdmi *hdmi_init(struct drm_device *dev, struct drm_encoder *encoder)
 	hdmi->pdev = pdev;
 	hdmi->config = config;
 	hdmi->encoder = encoder;
+
+	hdmi_audio_infoframe_init(&hdmi->audio.infoframe);
 
 	/* not sure about which phy maps to which msm.. probably I miss some */
 	if (config->phy_init)
@@ -228,6 +232,8 @@ struct hdmi *hdmi_init(struct drm_device *dev, struct drm_encoder *encoder)
 	priv->bridges[priv->num_bridges++]       = hdmi->bridge;
 	priv->connectors[priv->num_connectors++] = hdmi->connector;
 
+	platform_set_drvdata(pdev, hdmi);
+
 	return hdmi;
 
 fail:
@@ -305,7 +311,7 @@ static int hdmi_dev_probe(struct platform_device *pdev)
 		config.ddc_data_gpio = 71;
 		config.hpd_gpio      = 72;
 		config.mux_en_gpio   = -1;
-		config.mux_sel_gpio  = 13 + NR_GPIO_IRQS;
+		config.mux_sel_gpio  = -1;
 	} else if (cpu_is_msm8960() || cpu_is_msm8960ab()) {
 		static const char *hpd_reg_names[] = {"8921_hdmi_mvs"};
 		config.phy_init      = hdmi_phy_8960_init;
@@ -340,6 +346,31 @@ static int hdmi_dev_probe(struct platform_device *pdev)
 	hdmi_pdev = pdev;
 	return 0;
 }
+
+static struct hdmi *find_hdmi(void)
+{
+	return hdmi_pdev ? platform_get_drvdata(hdmi_pdev) : NULL;
+}
+
+int hdmi_msm_audio_info_setup(bool enabled, u32 num_of_channels,
+	u32 channel_allocation, u32 level_shift, bool down_mix)
+{
+	struct hdmi *hdmi = find_hdmi();
+	if (!hdmi)
+		return -EINVAL;
+	return hdmi_audio_info_setup(hdmi, enabled, num_of_channels,
+			channel_allocation, level_shift, down_mix);
+}
+EXPORT_SYMBOL(hdmi_msm_audio_info_setup);
+
+void hdmi_msm_audio_sample_rate_reset(int rate)
+{
+	struct hdmi *hdmi = find_hdmi();
+	if (!hdmi)
+		return;
+	hdmi_audio_set_sample_rate(hdmi, rate);
+}
+EXPORT_SYMBOL(hdmi_msm_audio_sample_rate_reset);
 
 static int hdmi_dev_remove(struct platform_device *pdev)
 {
