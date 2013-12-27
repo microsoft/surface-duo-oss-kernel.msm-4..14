@@ -1948,8 +1948,8 @@ static struct platform_device msm_tsens_device = {
 static struct msm_thermal_data msm_thermal_pdata = {
 	.sensor_id = 7,
 	.poll_ms = 250,
-	.limit_temp_degC = 60,
-	.temp_hysteresis_degC = 10,
+	.limit_temp_degC = 70,
+	.temp_hysteresis_degC = 5,
 	.freq_step = 2,
 };
 
