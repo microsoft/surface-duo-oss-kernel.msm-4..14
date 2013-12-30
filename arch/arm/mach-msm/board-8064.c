@@ -3432,7 +3432,8 @@ static void __init apq8064_cdp_init(void)
 	apq8064_init_cam();
 #endif
 
-	if (machine_is_mpq8064_hrd() || machine_is_mpq8064_dtv()) {
+	if (machine_is_mpq8064_hrd() || machine_is_mpq8064_dtv() ||
+		machine_is_apq8064_cdp() || machine_is_apq8064_ifc6410()){
 #ifdef CONFIG_SERIAL_MSM_HS
 		/* GSBI6(2) - UARTDM_RX */
 		mpq8064_gsbi6_uartdm_pdata.wakeup_irq = gpio_to_irq(15);
