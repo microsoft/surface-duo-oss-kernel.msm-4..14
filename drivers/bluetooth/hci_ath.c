@@ -44,7 +44,7 @@
 
 #include "hci_uart.h"
 
-unsigned int enableuartsleep = 1;
+unsigned int enableuartsleep;
 module_param(enableuartsleep, uint, 0644);
 /*
  * Global variables
@@ -149,6 +149,11 @@ static int ath_bluesleep_gpio_config(int on)
 {
 	int ret = 0;
 
+	if (!enableuartsleep) {
+		pr_err("%s: LPM is disabled\n", __func__);
+		return 0;
+	}
+
 	BT_INFO("%s config: %d", __func__, on);
 	if (!on) {
 		if (disable_irq_wake(bsi->host_wake_irq))
@@ -239,8 +244,10 @@ static int ath_open(struct hci_uart *hu)
 
 	BT_DBG("hu %p, bsi %p", hu, bsi);
 
-	if (!bsi)
+	if (!bsi) {
+		pr_err("%s: Bluetooth sleep info. not available\n", __func__);
 		return -EIO;
+	}
 
 	if (ath_bluesleep_gpio_config(1) < 0) {
 		BT_ERR("HCIATH3K GPIO Config failed");
@@ -413,6 +420,11 @@ static int __init bluesleep_probe(struct platform_device *pdev)
 		goto failed;
 	}
 
+	if (!enableuartsleep) {
+		pr_debug("%s: Low power mode disabled\n", __func__);
+		return 0;
+	}
+
 	res = platform_get_resource_byname(pdev, IORESOURCE_IO,
 						"gpio_host_wake");
 	if (!res) {
@@ -476,8 +488,11 @@ int __init ath_init(void)
 		return ret;
 	}
 	ret = platform_driver_probe(&bluesleep_driver, bluesleep_probe);
-	if (ret)
+	if (ret) {
+		pr_err("%s: Probe registration failed with ret value : %d\n",
+			 __func__, ret);
 		return ret;
+	}
 	return 0;
 }
 
