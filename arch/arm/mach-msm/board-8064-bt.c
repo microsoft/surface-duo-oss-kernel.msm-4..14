@@ -35,20 +35,20 @@ static struct platform_device msm_bt_power_device = {
 static struct resource bluesleep_resources[] = {
 	{
 		.name   = "gpio_host_wake",
-		.start  = 27,
-		.end    = 27,
+		.start  = PM8921_GPIO_PM_TO_SYS(42),
+		.end    = PM8921_GPIO_PM_TO_SYS(42),
 		.flags  = IORESOURCE_IO,
 	},
 	{
 		.name   = "gpio_ext_wake",
-		.start  = 29,
-		.end    = 29,
+		.start  = 89,
+		.end    = 89,
 		.flags  = IORESOURCE_IO,
 	},
 	{
 		.name   = "host_wake",
-		.start  = MSM_GPIO_TO_INT(27),
-		.end    = MSM_GPIO_TO_INT(27),
+		.start  = PM8921_GPIO_IRQ(PM8921_IRQ_BASE, 42),
+		.end    = PM8921_GPIO_IRQ(PM8921_IRQ_BASE, 42),
 		.flags  = IORESOURCE_IRQ,
 	},
 };
@@ -675,7 +675,7 @@ void __init apq8064_bt_power_init(void)
 
 #if defined CONFIG_BT_HCIUART_ATH3K
 	pr_debug("%s: Registering AR3002 specific information\n", __func__);
-	gpio_bt_sys_reset_en = PM8921_MPP_PM_TO_SYS(10);
+	gpio_bt_sys_reset_en = PM8921_GPIO_PM_TO_SYS(44);
 	if (platform_device_register(&msm_bluesleep_device) < 0)
 		pr_err("%s: Bluesleep registration failed\n", __func__);
 	else
