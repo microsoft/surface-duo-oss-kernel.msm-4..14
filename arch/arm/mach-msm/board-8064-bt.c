@@ -534,10 +534,18 @@ void __init apq8064_bt_power_init(void)
 {
 	int rc = 0;
 	struct device *dev;
+	uint32_t hrd_version = socinfo_get_version();
 
-	rc = i2c_register_board_info(APQ_8064_GSBI5_QUP_I2C_BUS_ID,
-				bahama_devices,
-				ARRAY_SIZE(bahama_devices));
+	if (machine_is_mpq8064_hrd()
+		&& (SOCINFO_VERSION_MAJOR(hrd_version) == 2)) {
+		rc = i2c_register_board_info(APQ_8064_GSBI1_QUP_I2C_BUS_ID,
+					bahama_devices,
+					ARRAY_SIZE(bahama_devices));
+	} else{
+		rc = i2c_register_board_info(APQ_8064_GSBI5_QUP_I2C_BUS_ID,
+					bahama_devices,
+					ARRAY_SIZE(bahama_devices));
+	}
 	if (rc < 0) {
 		pr_err("%s: I2C Register failed\n", __func__);
 		return;
