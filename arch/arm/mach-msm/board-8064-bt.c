@@ -25,6 +25,42 @@
 
 #include "board-8064.h"
 
+int gpio_bt_sys_reset_en;
+static struct platform_device msm_bt_power_device = {
+	.name = "bt_power",
+	.id = -1,
+};
+
+#if defined CONFIG_BT_HCIUART_ATH3K
+static struct resource bluesleep_resources[] = {
+	{
+		.name   = "gpio_host_wake",
+		.start  = 27,
+		.end    = 27,
+		.flags  = IORESOURCE_IO,
+	},
+	{
+		.name   = "gpio_ext_wake",
+		.start  = 29,
+		.end    = 29,
+		.flags  = IORESOURCE_IO,
+	},
+	{
+		.name   = "host_wake",
+		.start  = MSM_GPIO_TO_INT(27),
+		.end    = MSM_GPIO_TO_INT(27),
+		.flags  = IORESOURCE_IRQ,
+	},
+};
+
+static struct platform_device msm_bluesleep_device = {
+	.name		= "bluesleep",
+	.id		= -1,
+	.num_resources	= ARRAY_SIZE(bluesleep_resources),
+	.resource	= bluesleep_resources,
+};
+#endif
+
 #if defined(CONFIG_BT) && defined(CONFIG_MARIMBA_CORE)
 
 #define BAHAMA_SLAVE_ID_FM_ADDR  0x2A
@@ -51,11 +87,6 @@ static struct bt_vreg_info bt_vregs[] = {
 };
 
 static struct msm_xo_voter *bt_clock;
-
-static struct platform_device msm_bt_power_device = {
-	.name = "bt_power",
-	.id = -1,
-};
 
 static unsigned bt_config_pcm_on[] = {
 	/*PCM_DOUT*/
@@ -412,23 +443,15 @@ static unsigned int msm_bahama_core_config(int type)
 	return rc;
 }
 
-static int bluetooth_power(int on)
+static int bahama_bluetooth_power(int on)
 {
 	int rc = 0;
 	const char *id = "BTPW";
-	int cid = 0;
 	int bt_state = 0;
 	struct marimba config = { .mod_id =  SLAVE_ID_BAHAMA};
 
-	cid = adie_get_detected_connectivity_type();
-	if (cid != BAHAMA_ID) {
-		pr_err("%s: unexpected adie connectivity type: %d\n",
-					__func__, cid);
-		return -ENODEV;
-	}
-
 	if (on) {
-		pr_debug("%s: Powering up the BT module.\n", __func__);
+		pr_debug("%s: Powering up BT module on WCN2243.\n", __func__);
 		rc = bluetooth_switch_regulators(on);
 		if (rc < 0) {
 			pr_err("%s: bluetooth_switch_regulators rc = %d",
@@ -479,7 +502,7 @@ static int bluetooth_power(int on)
 			goto fail_xo_vote;
 		} */
 	} else {
-		pr_debug("%s: Turning BT Off.\n", __func__);
+		pr_debug("%s: Powering down BT module on WCN2243.\n", __func__);
 		bt_state = marimba_get_bt_status(&config);
 		if (!bt_state) {
 			pr_err("%s: BT is already turned OFF.\n", __func__);
@@ -530,36 +553,124 @@ static struct i2c_board_info bahama_devices[] = {
 },
 };
 
+static int atheros_bluetooth_power(int on)
+{
+	int rc = 0;
+
+	if (on) {
+		pr_debug("%s: Powering up BT module on On AR3002\n", __func__);
+		rc = gpio_request(gpio_bt_sys_reset_en, "bt sys_rst_n");
+		if (rc) {
+			pr_err("%s: unable to request gpio %d (%d)\n",
+				__func__, gpio_bt_sys_reset_en, rc);
+			goto out;
+		}
+		rc = gpio_direction_output(gpio_bt_sys_reset_en, 0);
+		if (rc) {
+			pr_err("%s: Unable to set direction\n", __func__);
+			goto free_gpio;
+		}
+		msleep(100);
+		pr_debug("%s: Configuring BT_SYS_RST_EN GPIO%d\n", __func__,
+			gpio_bt_sys_reset_en);
+		gpio_direction_output(gpio_bt_sys_reset_en, 1);
+		msleep(100);
+		goto out;
+	} else {
+		pr_debug("%s: Powering down BT module on AR3002\n", __func__);
+		gpio_set_value(gpio_bt_sys_reset_en, 0);
+		rc = gpio_direction_input(gpio_bt_sys_reset_en);
+		msleep(100);
+	}
+free_gpio:
+	gpio_free(gpio_bt_sys_reset_en);
+out:
+	return rc;
+}
+
+int bluetooth_power(int on)
+{
+	int rc = 0;
+	int conn_chip = 0;
+
+	conn_chip = adie_get_detected_connectivity_type();
+	if (conn_chip == BAHAMA_ID) {
+		pr_debug("%s: Chip type is WCN2243\n", __func__);
+		rc = bahama_bluetooth_power(on);
+		if (rc < 0) {
+			if (on)
+				pr_err("%s: BT power on failed with ret : %d\n",
+					 __func__, rc);
+			else
+				pr_err("%s: BT power off failed with ret: %d\n",
+					 __func__, rc);
+		} else {
+			if (on)
+				pr_debug("%s: BT powered on\n", __func__);
+			else
+				pr_debug("%s: BT powered off\n", __func__);
+		}
+	} else {
+		pr_debug("%s: Chip type is AR3002\n", __func__);
+		rc = atheros_bluetooth_power(on);
+		if (rc < 0) {
+			if (on)
+				pr_err("%s: BT power on failed with ret : %d\n",
+					 __func__, rc);
+			else
+				pr_err("%s: BT power off failed with ret: %d\n",
+					 __func__, rc);
+		} else {
+			if (on)
+				pr_debug("%s: BT powered on\n", __func__);
+			else
+				pr_debug("%s: BT powered off\n", __func__);
+		}
+	}
+	return rc;
+}
+
 void __init apq8064_bt_power_init(void)
 {
 	int rc = 0;
 	struct device *dev;
 	uint32_t hrd_version = socinfo_get_version();
 
+	dev = &msm_bt_power_device.dev;
+	dev->platform_data = bluetooth_power;
+
+	pr_debug("%s: Registering WCN2243 specific information\n", __func__);
+	/* I2C registration for WCN2243 */
 	if (machine_is_mpq8064_hrd()
 		&& (SOCINFO_VERSION_MAJOR(hrd_version) == 2)) {
-		rc = i2c_register_board_info(APQ_8064_GSBI1_QUP_I2C_BUS_ID,
-					bahama_devices,
-					ARRAY_SIZE(bahama_devices));
-	} else{
-		rc = i2c_register_board_info(APQ_8064_GSBI5_QUP_I2C_BUS_ID,
-					bahama_devices,
-					ARRAY_SIZE(bahama_devices));
+		rc = i2c_register_board_info(
+				APQ_8064_GSBI1_QUP_I2C_BUS_ID,
+				bahama_devices,
+				ARRAY_SIZE(bahama_devices));
+	} else {
+		rc = i2c_register_board_info(
+				APQ_8064_GSBI5_QUP_I2C_BUS_ID,
+				bahama_devices,
+				ARRAY_SIZE(bahama_devices));
 	}
-	if (rc < 0) {
+	if (rc < 0)
 		pr_err("%s: I2C Register failed\n", __func__);
-		return;
-	}
-	rc = platform_device_register(&msm_bt_power_device);
-	if (rc < 0) {
-		pr_err("%s: device register failed\n", __func__);
-		platform_device_unregister(&msm_bt_power_device);
-		return;
-	}
+	else
+		pr_debug("%s: I2C Registration successful\n", __func__);
 
-	dev = &msm_bt_power_device.dev;
-	dev->platform_data = &bluetooth_power;
+	if (platform_device_register(&msm_bt_power_device) < 0)
+		pr_err("%s: Platform dev. registration failed\n", __func__);
+	else
+		pr_debug("%s: Platform dev. registration success\n", __func__);
 
+#if defined CONFIG_BT_HCIUART_ATH3K
+	pr_debug("%s: Registering AR3002 specific information\n", __func__);
+	gpio_bt_sys_reset_en = PM8921_MPP_PM_TO_SYS(10);
+	if (platform_device_register(&msm_bluesleep_device) < 0)
+		pr_err("%s: Bluesleep registration failed\n", __func__);
+	else
+		pr_debug("%s: Bluesleep registration success\n", __func__);
+#endif
 	return;
 }
 #endif
