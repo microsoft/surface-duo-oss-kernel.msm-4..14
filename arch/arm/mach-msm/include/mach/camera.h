@@ -27,7 +27,10 @@
 #include <linux/msm_ion.h>
 #include <mach/iommu_domains.h>
 
+#ifndef CONFIG_MSM_CAMERA_DEBUG
 #define CONFIG_MSM_CAMERA_DEBUG
+#endif
+
 #ifdef CONFIG_MSM_CAMERA_DEBUG
 #define CDBG(fmt, args...) pr_debug(fmt, ##args)
 #else

@@ -36,12 +36,6 @@ config IMX074
 	depends on MSM_CAMERA
 	---help---
 	SONY 13.5 MP Bayer Sensor
-config OV5640
-	bool "Sensor OV5640 (YUV 5M)"
-	depends on MSM_CAMERA && !MSM_CAMERA_V4L2
-	default n
-	---help---
-	Omni 5M YUV Sensor
 
 config OV5647
 	bool "Sensor ov5647 (BAYER 5M)"
@@ -61,6 +55,14 @@ config WEBCAM_OV7692_QRD
 	default n
 	---help---
 	  Omni Vision VGA YUV Sensor for QRD Devices
+
+config OV5640
+        bool "Sensor OV5640 (YUV 5M)"
+        depends on MSM_CAMERA
+        default y
+        ---help---
+        OmniVision 5 MP YUV Sensor for Inforce APQ8064 dragon boards
+
 config MT9M114
         bool "Sensor MT9M114 (YUV 1.26M)"
         depends on MSM_CAMERA
