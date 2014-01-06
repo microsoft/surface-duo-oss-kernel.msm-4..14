@@ -375,6 +375,11 @@ void mdp4_dsi_video_wait4vsync(int cndx)
 		pr_err("%s timeout ret=%d", __func__, ret);
 
 	mdp4_video_vsync_irq_ctrl(cndx, 0);
+	
+	/* BUGFIX: vsync issue pulled from
+	 * https://github.com/infernix/android_kernel_samsung_apexq/commit/6dfe55a3af0c44409ad821390c577f1d03851e7a
+	 */
+	wait_for_completion(&vctrl->vsync_comp);
 	mdp4_stat.wait4vsync0++;
 }
 
