@@ -3154,6 +3154,8 @@ static void __init register_i2c_devices(void)
 	/* Build the matching 'supported_machs' bitmask */
 	if (machine_is_apq8064_cdp())
 		mach_mask = I2C_SURF;
+    else if (machine_is_apq8064_ifc6410())
+        mach_mask = I2C_SURF;
 	else if (machine_is_apq8064_mtp())
 		mach_mask = I2C_FFA;
 	else if (machine_is_apq8064_liquid())
@@ -3409,8 +3411,8 @@ static void __init apq8064_cdp_init(void)
 		platform_device_register(&mpq8064_device_uartdm_gsbi6);
 	}
 
-	if (machine_is_apq8064_cdp() || machine_is_apq8064_liquid())
-		platform_device_register(&cdp_kp_pdev);
+	if (machine_is_apq8064_cdp() || machine_is_apq8064_liquid() || machine_is_apq8064_ifc6410())
+	        platform_device_register(&cdp_kp_pdev);
 
 	if (machine_is_apq8064_mtp())
 		platform_device_register(&mtp_kp_pdev);
@@ -3420,7 +3422,7 @@ static void __init apq8064_cdp_init(void)
 		platform_device_register(&mpq_keypad_device);
 	}
 
-	if (machine_is_apq8064_cdp() || machine_is_mpq8064_hrd()) {
+	if (machine_is_apq8064_cdp() || machine_is_mpq8064_hrd() || machine_is_apq8064_ifc6410()) {
 		int ret;
 		struct pm8xxx_mpp_config_data sata_pwr_cfg = {
 			.type = PM8XXX_MPP_TYPE_D_OUTPUT,
@@ -3448,6 +3450,18 @@ MACHINE_START(APQ8064_CDP, "QCT APQ8064 CDP")
 	.init_early = apq8064_allocate_memory_regions,
 	.init_very_early = apq8064_early_reserve,
 	.restart = msm_restart,
+MACHINE_END
+
+MACHINE_START(APQ8064_IFC6410, "QCT APQ8064 IFC6410")
+        .map_io = apq8064_map_io,
+        .reserve = apq8064_reserve,
+        .init_irq = apq8064_init_irq,
+        .handle_irq = gic_handle_irq,
+        .timer = &msm_timer,
+        .init_machine = apq8064_cdp_init,
+        .init_early = apq8064_allocate_memory_regions,
+        .init_very_early = apq8064_early_reserve,
+        .restart = msm_restart,
 MACHINE_END
 
 MACHINE_START(APQ8064_MTP, "QCT APQ8064 MTP")
