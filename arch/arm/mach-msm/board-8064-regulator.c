@@ -584,9 +584,9 @@ apq8064_gpio_regulator_pdata[] __devinitdata = {
 			 */
 #if defined(CONFIG_FB_MSM_LVDS_OPTRONICS)
 			PM8921_MPP_PM_TO_SYS(4), "ext_3p3v", 1),
-#else
-			PM8921_MPP_PM_TO_SYS(3), "ext_3p3v", 1),
 #endif
+	GPIO_VREG(EXT_SATA_PWR, "ext_sata_pwr", "ext_sata_pwr_en",
+			PM8921_MPP_PM_TO_SYS(3), "ext_3p3v", 1),
 };
 
 struct gpio_regulator_platform_data
