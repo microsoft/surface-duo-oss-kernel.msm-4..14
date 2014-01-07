@@ -34,6 +34,51 @@
 #include "msm_fb.h"
 #include "mdp4.h"
 
+#define LVDS_CH2_CLK_LANE_EN	BIT(17)
+#define LVDS_CH1_CLK_LANE_EN	BIT(16)
+#define LVDS_CH2_DATA_LANE3_EN	BIT(15)
+#define LVDS_CH2_DATA_LANE2_EN	BIT(14)
+#define LVDS_CH2_DATA_LANE1_EN	BIT(13)
+#define LVDS_CH2_DATA_LANE0_EN	BIT(12)
+#define LVDS_CH1_DATA_LANE3_EN	BIT(11)
+#define LVDS_CH1_DATA_LANE2_EN	BIT(10)
+#define LVDS_CH1_DATA_LANE1_EN	BIT(9)
+#define LVDS_CH1_DATA_LANE0_EN	BIT(8)
+#define LVDS_EN			BIT(7)
+#define LVDS_CH2_RES_BIT		BIT(6)
+#define LVDS_CH1_RES_BIT		BIT(5)
+#define LVDS_CH_SWAP			BIT(4)
+#define LVDS_RGB_OUT			BIT(3)
+#define LVDS_MODE_SEL		BIT(2)
+
+/* MDP_LCDC_LVDS_MUX_CTL_FOR_D2_3_TO_0 */
+#define LVDS_D2_BIT_0_SEL (0x1A <<  0)	/* Bits  4: 0 - 0x1A: DE */
+#define LVDS_D2_BIT_1_SEL (0x19 <<  8)	/* Bits 12: 8 - 0x19: VS */
+#define LVDS_D2_BIT_2_SEL (0x18 << 16)	/* Bits 20:16 - 0x18: HS */
+#define LVDS_D2_BIT_3_SEL (0x17 << 24)	/* Bits 28:24 - 0x17: B7 */
+/* MDP_LCDC_LVDS_MUX_CTL_FOR_D2_6_TO_4 */
+#define LVDS_D2_BIT_4_SEL (0x16 <<  0)	/* Bits  4: 0 - 0x16: B6 */
+#define LVDS_D2_BIT_5_SEL (0x15 <<  8)	/* Bits 12: 8 - 0x15: B5 */
+#define LVDS_D2_BIT_6_SEL (0x14 << 16)	/* Bits 20:16 - 0x14: B4 */
+/* MDP_LCDC_LVDS_MUX_CTL_FOR_D1_3_TO_0 */
+#define LVDS_D1_BIT_0_SEL (0x13 <<  0)	/* Bits  4: 0 - 0x13: B3 */
+#define LVDS_D1_BIT_1_SEL (0x12 <<  8)	/* Bits 12: 8 - 0x12: B2 */
+#define LVDS_D1_BIT_2_SEL (0x0F << 16)	/* Bits 20:16 - 0x0F: G7 */
+#define LVDS_D1_BIT_3_SEL (0x0E << 24)	/* Bits 28:24 - 0x0E: G6 */
+/* MDP_LCDC_LVDS_MUX_CTL_FOR_D1_6_TO_4 */
+#define LVDS_D1_BIT_4_SEL (0x0D <<  0)	/* Bits  4: 0 - 0x0D: G5 */
+#define LVDS_D1_BIT_5_SEL (0x0C <<  8)	/* Bits 12: 8 - 0x0C: G4 */
+#define LVDS_D1_BIT_6_SEL (0x0B << 16)	/* Bits 20:16 - 0x0B: G3 */
+/* MDP_LCDC_LVDS_MUX_CTL_FOR_D0_3_TO_0 */
+#define LVDS_D0_BIT_0_SEL (0x0A <<  0)	/* Bits  4: 0 - 0x0A: G2 */
+#define LVDS_D0_BIT_1_SEL (0x07 <<  8)	/* Bits 12: 8 - 0x07: R7 */
+#define LVDS_D0_BIT_2_SEL (0x06 << 16)	/* Bits 20:16 - 0x06: R6 */
+#define LVDS_D0_BIT_3_SEL (0x05 << 24)	/* Bits 28:24 - 0x05: R5 */
+/* MDP_LCDC_LVDS_MUX_CTL_FOR_D0_6_TO_4 */
+#define LVDS_D0_BIT_4_SEL (0x04 <<  0)	/* Bits  4: 0 - 0x04: R4 */
+#define LVDS_D0_BIT_5_SEL (0x03 <<  8)	/* Bits 12: 8 - 0x03: R3 */
+#define LVDS_D0_BIT_6_SEL (0x02 << 16)	/* Bits 20:16 - 0x02: R2 */
+
 #define LVDS_PIXEL_MAP_PATTERN_2	2
 
 static int lvds_probe(struct platform_device *pdev);
@@ -193,18 +238,34 @@ static void lvds_init(struct msm_fb_data_type *mfd)
 			lvds_phy_cfg0 = BIT(6);
 		}
 	} else if (mfd->panel_info.bpp == 18) {
+
 		/* MDP_LCDC_LVDS_MUX_CTL_FOR_D0_3_TO_0 */
-		MDP_OUTP(MDP_BASE +  0xc2014, 0x03040508);
+		MDP_OUTP(MDP_BASE +  0xc2014, LVDS_D0_BIT_3_SEL |
+						  LVDS_D0_BIT_2_SEL |
+						  LVDS_D0_BIT_1_SEL |
+						  LVDS_D0_BIT_0_SEL);
 		/* MDP_LCDC_LVDS_MUX_CTL_FOR_D0_6_TO_4 */
-		MDP_OUTP(MDP_BASE +  0xc2018, 0x00000102);
+		MDP_OUTP(MDP_BASE +  0xc2018, LVDS_D0_BIT_6_SEL |
+						  LVDS_D0_BIT_5_SEL |
+						  LVDS_D0_BIT_4_SEL);
 		/* MDP_LCDC_LVDS_MUX_CTL_FOR_D1_3_TO_0 */
-		MDP_OUTP(MDP_BASE +  0xc201c, 0x0c0d1011);
+		MDP_OUTP(MDP_BASE +  0xc201c, LVDS_D1_BIT_3_SEL |
+						  LVDS_D1_BIT_2_SEL |
+						  LVDS_D1_BIT_1_SEL |
+						  LVDS_D1_BIT_0_SEL);
 		/* MDP_LCDC_LVDS_MUX_CTL_FOR_D1_6_TO_4 */
-		MDP_OUTP(MDP_BASE +  0xc2020, 0x00090a0b);
+		MDP_OUTP(MDP_BASE +  0xc2020, LVDS_D1_BIT_6_SEL |
+						  LVDS_D1_BIT_5_SEL |
+						  LVDS_D1_BIT_4_SEL);
 		/* MDP_LCDC_LVDS_MUX_CTL_FOR_D2_3_TO_0 */
-		MDP_OUTP(MDP_BASE +  0xc2024, 0x1518191a);
+		MDP_OUTP(MDP_BASE +  0xc2024, LVDS_D2_BIT_3_SEL |
+						  LVDS_D2_BIT_2_SEL |
+						  LVDS_D2_BIT_1_SEL |
+						  LVDS_D2_BIT_0_SEL);
 		/* MDP_LCDC_LVDS_MUX_CTL_FOR_D2_6_TO_4 */
-		MDP_OUTP(MDP_BASE +  0xc2028, 0x00121314);
+		MDP_OUTP(MDP_BASE +  0xc2028, LVDS_D2_BIT_6_SEL |
+						  LVDS_D2_BIT_5_SEL |
+						  LVDS_D2_BIT_4_SEL);
 
 		if (mfd->panel_info.lvds.channel_mode ==
 			LVDS_DUAL_CHANNEL_MODE) {
@@ -213,7 +274,18 @@ static void lvds_init(struct msm_fb_data_type *mfd)
 			if (mfd->panel_info.lvds.channel_swap)
 				lvds_intf |= BIT(4);
 		} else {
-			lvds_intf = 0x0001078c;
+			lvds_intf = LVDS_CH1_CLK_LANE_EN |
+				     LVDS_CH1_DATA_LANE2_EN |
+				     LVDS_CH1_DATA_LANE1_EN |
+				     LVDS_CH1_DATA_LANE0_EN |
+				     LVDS_EN | LVDS_RGB_OUT |
+				     LVDS_MODE_SEL;
+			/**
+			 * Shuts down all data lanes, LN0 to LN3,
+			 * and clock lane, LNCK0, power which includes
+			 * gating all digital clocks and disables analog
+			 * block.(Active low)
+			 */
 			lvds_phy_cfg0 = BIT(6);
 		}
 	} else {
