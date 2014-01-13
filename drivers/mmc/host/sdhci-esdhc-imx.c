@@ -1156,6 +1156,9 @@ sdhci_esdhc_imx_probe_dt(struct platform_device *pdev,
 	if (of_property_read_u32(np, "fsl,delay-line", &boarddata->delay_line))
 		boarddata->delay_line = 0;
 
+	if (of_find_property(np, "keep-power-in-suspend", NULL))
+		host->mmc->pm_caps |= MMC_PM_KEEP_POWER;
+
 	mmc_of_parse_voltage(np, &host->ocr_mask);
 
 	/* sdr50 and sdr104 need work on 1.8v signal voltage */
