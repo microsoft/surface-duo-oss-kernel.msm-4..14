@@ -194,6 +194,10 @@ static struct esdhc_soc_data usdhc_sac58r_data = {
 	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MULTIBLK_READ_ACMD12,
 };
 
+static struct esdhc_soc_data usdhc_s32v234_data = {
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MULTIBLK_READ_ACMD12,
+};
+
 struct pltfm_imx_data {
 	u32 scratchpad;
 	struct pinctrl *pinctrl;
@@ -240,6 +244,7 @@ static const struct of_device_id imx_esdhc_dt_ids[] = {
 	{ .compatible = "fsl,imx7d-usdhc", .data = &usdhc_imx7d_data, },
 	{ .compatible = "fsl,vf610-esdhc", .data = &esdhc_vf610_data, },
 	{ .compatible = "fsl,sac58r-usdhc", .data = &usdhc_sac58r_data, },
+	{ .compatible = "fsl,s32v234-usdhc", .data = &usdhc_s32v234_data, },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, imx_esdhc_dt_ids);
@@ -262,6 +267,11 @@ static inline int is_imx6q_usdhc(struct pltfm_imx_data *data)
 static inline int is_sac58r_usdhc(struct pltfm_imx_data *data)
 {
 	return data->socdata == &usdhc_sac58r_data;
+}
+
+static inline int is_s32v234_usdhc(struct pltfm_imx_data *data)
+{
+	return data->socdata == &usdhc_s32v234_data;
 }
 
 static inline int esdhc_is_usdhc(struct pltfm_imx_data *data)
@@ -317,11 +327,20 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 				val = readl(host->ioaddr + SDHCI_CAPABILITIES)
 					& 0xFFFF;
 			else {
-				if (is_sac58r_usdhc(imx_data)) {
-					/* sac58r cap register does not provide
-					 * speed info
+				if (is_sac58r_usdhc(imx_data)
+					|| is_s32v234_usdhc(imx_data)) {
+					/*
+					 * sac58r and s32v234 HOST_CTRL_CAP
+					 * register does not provide speed info.
+					 * __Only__ sac58r does not support
+					 * DDR50, but this is needed to support
+					 * DDR50 SD cards. If this is not
+					 * enabled, a lot of TIMEOUT errors get
+					 * returned when trying to access SD
+					 * card.
 					 */
-					val = SDHCI_SUPPORT_SDR50;
+					val = SDHCI_SUPPORT_SDR50
+						| SDHCI_SUPPORT_DDR50;
 				} else
 					/* imx6q/dl does not have cap_1
 					 * register, fake one
@@ -1159,27 +1178,37 @@ sdhci_esdhc_imx_probe_dt(struct platform_device *pdev,
 	if (of_find_property(np, "keep-power-in-suspend", NULL))
 		host->mmc->pm_caps |= MMC_PM_KEEP_POWER;
 
+	if (of_find_property(np, "enable-sdio-wakeup", NULL))
+		host->mmc->pm_caps |= MMC_PM_WAKE_SDIO_IRQ;
+
 	mmc_of_parse_voltage(np, &host->ocr_mask);
 
-	/* sdr50 and sdr104 need work on 1.8v signal voltage */
-	if ((boarddata->support_vsel) && esdhc_is_usdhc(imx_data) &&
-	    !IS_ERR(imx_data->pins_default)) {
-		imx_data->pins_100mhz = pinctrl_lookup_state(imx_data->pinctrl,
-						ESDHC_PINCTRL_STATE_100MHZ);
-		imx_data->pins_200mhz = pinctrl_lookup_state(imx_data->pinctrl,
-						ESDHC_PINCTRL_STATE_200MHZ);
-		if (IS_ERR(imx_data->pins_100mhz) ||
-				IS_ERR(imx_data->pins_200mhz)) {
-			dev_warn(mmc_dev(host->mmc),
-				"could not get ultra high speed state, work on normal mode\n");
-			/*
-			 * fall back to not supporting uhs by specifying no
-			 * 1.8v quirk
-			 */
+	/* UHS-I support: sac58r does not have pinctrl driver
+	 * however, there's 1.8V support.
+	 * So, ignore the pinctrl lookup.
+	 * FIXME: there must be a better way to handle this!
+	 */
+	if (!is_sac58r_usdhc(imx_data)) {
+		/* sdr50 and sdr104 need work on 1.8v signal voltage */
+		if ((boarddata->support_vsel) && esdhc_is_usdhc(imx_data) &&
+		    !IS_ERR(imx_data->pins_default)) {
+			imx_data->pins_100mhz = pinctrl_lookup_state(imx_data->pinctrl,
+							ESDHC_PINCTRL_STATE_100MHZ);
+			imx_data->pins_200mhz = pinctrl_lookup_state(imx_data->pinctrl,
+							ESDHC_PINCTRL_STATE_200MHZ);
+			if (IS_ERR(imx_data->pins_100mhz) ||
+					IS_ERR(imx_data->pins_200mhz)) {
+				dev_warn(mmc_dev(host->mmc),
+					"could not get ultra high speed state, work on normal mode\n");
+				/*
+				 * fall back to not supporting uhs by
+				 * specifying no 1.8v quirk
+				 */
+				host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
+			}
+		} else {
 			host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
 		}
-	} else {
-		host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
 	}
 
 	/* call to generic mmc_of_parse to support additional capabilities */
@@ -1362,6 +1391,10 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 		goto disable_ahb_clk;
 
 	sdhci_esdhc_imx_hwinit(host);
+
+	if (host->mmc->pm_caps & MMC_PM_KEEP_POWER &&
+		host->mmc->pm_caps & MMC_PM_WAKE_SDIO_IRQ)
+		device_init_wakeup(&pdev->dev, 1);
 
 	err = sdhci_add_host(host);
 	if (err)
