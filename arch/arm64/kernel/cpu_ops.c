@@ -35,16 +35,18 @@ static const struct cpu_operations *supported_cpu_ops[] __initconst = {
 	NULL,
 };
 
+extern struct cpu_operations __cpu_method_of_table[];
+static const struct cpu_operations *__cpu_method_of_table_sentinel
+	__used __section(__cpu_method_of_table_end);
+
 static const struct cpu_operations * __init cpu_get_ops(const char *name)
 {
-	const struct cpu_operations **ops = supported_cpu_ops;
+	const struct cpu_operations **start = (void *)__cpu_method_of_table;
 
-	while (*ops) {
-		if (!strcmp(name, (*ops)->name))
-			return *ops;
-
-		ops++;
-	}
+	for (; *start; start++) {
+		if (!strcmp((*start)->name, name))
+			return *start;
+	};
 
 	return NULL;
 }
