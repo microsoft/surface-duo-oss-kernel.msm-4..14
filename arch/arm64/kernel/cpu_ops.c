@@ -27,6 +27,9 @@
 extern const struct cpu_operations smp_spin_table_ops;
 extern const struct cpu_operations acpi_parking_protocol_ops;
 extern const struct cpu_operations cpu_psci_ops;
+extern struct cpu_operations __cpu_method_of_table[];
+static const struct cpu_operations *__cpu_method_of_table_sentinel
+	__used __section(__cpu_method_of_table_end);
 
 const struct cpu_operations *cpu_ops[NR_CPUS];
 
@@ -47,13 +50,21 @@ static const struct cpu_operations *acpi_supported_cpu_ops[] __initconst = {
 static const struct cpu_operations * __init cpu_get_ops(const char *name)
 {
 	const struct cpu_operations **ops;
-
+	pr_emerg("CPU %s \n", name);
 	ops = acpi_disabled ? dt_supported_cpu_ops : acpi_supported_cpu_ops;
 
 	while (*ops) {
 		if (!strcmp(name, (*ops)->name))
 			return *ops;
 
+		ops++;
+	}
+
+	ops = (void *)__cpu_method_of_table;
+
+	while (*ops) {
+		if (!strcmp(name, (*ops)->name))
+			return *ops;
 		ops++;
 	}
 
@@ -85,6 +96,7 @@ static const char *__init cpu_read_enable_method(int cpu)
 					dn->full_name);
 		}
 	} else {
+		pr_emerg("CPU enable method %s \n",__func__);
 		enable_method = acpi_get_enable_method(cpu);
 		if (!enable_method) {
 			/*
