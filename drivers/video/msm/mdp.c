@@ -1595,16 +1595,16 @@ void mdp_enable_irq(uint32 term)
 	unsigned long irq_flags;
 
 	spin_lock_irqsave(&mdp_lock, irq_flags);
-	if (mdp_irq_mask & term) {
+/*	if (mdp_irq_mask & term) {
 		printk(KERN_ERR "%s: MDP IRQ term-0x%x is already set, mask=%x irq=%d\n",
 				__func__, term, mdp_irq_mask, mdp_irq_enabled);
-	} else {
+	} else { */
 		mdp_irq_mask |= term;
 		if (mdp_irq_mask && !mdp_irq_enabled) {
 			mdp_irq_enabled = 1;
 			enable_irq(mdp_irq);
 		}
-	}
+//	}
 	spin_unlock_irqrestore(&mdp_lock, irq_flags);
 }
 
@@ -3298,11 +3298,12 @@ void mdp_footswitch_ctrl(boolean on)
 
 	if (dsi_pll_vdda)
 		regulator_enable(dsi_pll_vdda);
-
+#ifdef CONFIG_FB_MSM_MIPI_DSI
 	mipi_dsi_prepare_clocks();
 	mipi_dsi_ahb_ctrl(1);
 	mipi_dsi_phy_ctrl(1);
 	mipi_dsi_clk_enable();
+#endif
 
 	if (on && !mdp_footswitch_on) {
 		pr_debug("Enable MDP FS\n");
@@ -3313,12 +3314,12 @@ void mdp_footswitch_ctrl(boolean on)
 		regulator_disable(footswitch);
 		mdp_footswitch_on = 0;
 	}
-
+#ifdef CONFIG_FB_MSM_MIPI_DSI
 	mipi_dsi_clk_disable();
 	mipi_dsi_phy_ctrl(0);
 	mipi_dsi_ahb_ctrl(0);
 	mipi_dsi_unprepare_clocks();
-
+#endif
 	if (dsi_pll_vdda)
 		regulator_disable(dsi_pll_vdda);
 

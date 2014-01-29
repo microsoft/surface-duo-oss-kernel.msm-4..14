@@ -123,7 +123,7 @@ struct mdp4_overlay_perf {
 
 struct mdp4_overlay_perf perf_request;
 struct mdp4_overlay_perf perf_current;
-
+#ifdef CONFIG_FB_MSM_MIPI_DSI
 void  mdp4_overlay_free_base_pipe(struct msm_fb_data_type *mfd)
 {
 	if (!hdmi_prim_display && mfd->index == 0) {
@@ -137,7 +137,7 @@ void  mdp4_overlay_free_base_pipe(struct msm_fb_data_type *mfd)
 		mdp4_dtv_free_base_pipe(mfd);
 	}
 }
-
+#endif
 static struct ion_client *display_iclient;
 
 static int mdp4_map_sec_resource(struct msm_fb_data_type *mfd)
@@ -2415,9 +2415,9 @@ struct mdp4_overlay_pipe *mdp4_overlay_pipe_alloc(int ptype, int mixer)
 			return pipe;
 		}
 	}
-
+#ifdef CONFIG_FB_MSM_MIPI_DSI
 	pr_err("%s: ptype=%d FAILED\n", __func__, ptype);
-
+#endif
 	return NULL;
 }
 
@@ -2629,7 +2629,9 @@ static int mdp4_overlay_req2pipe(struct mdp_overlay *req, int mixer,
 		pipe = mdp4_overlay_ndx2pipe(req->id);
 
 	if (pipe == NULL) {
+#ifdef CONFIG_FB_MSM_MIPI_DSI
 		pr_err("%s: pipe == NULL!\n", __func__);
+#endif
 		return -ENOMEM;
 	}
 
@@ -3921,10 +3923,14 @@ int mdp4_overlay_commit(struct fb_info *info)
 
 	switch (mfd->panel.type) {
 	case MIPI_CMD_PANEL:
+#ifdef CONFIG_FB_MSM_MIPI_DSI
 		mdp4_dsi_cmd_pipe_commit(0, 1);
+#endif
 		break;
 	case MIPI_VIDEO_PANEL:
+#ifdef CONFIG_FB_MSM_MIPI_DSI
 		mdp4_dsi_video_pipe_commit(0, 1);
+#endif
 		break;
 	case LVDS_PANEL:
 	case LCDC_PANEL:

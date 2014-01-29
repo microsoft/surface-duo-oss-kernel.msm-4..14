@@ -506,7 +506,7 @@ void mdp4_lcdc_vsync_init(int cndx)
 	atomic_set(&vctrl->vsync_resume, 1);
 	spin_lock_init(&vctrl->spin_lock);
 }
-
+#ifdef CONFIG_FB_MSM_MIPI_DSI
 void mdp4_lcdc_free_base_pipe(struct msm_fb_data_type *mfd)
 {
 	struct vsycn_ctrl *vctrl;
@@ -527,7 +527,7 @@ void mdp4_lcdc_free_base_pipe(struct msm_fb_data_type *mfd)
 	mdp4_overlay_pipe_free(pipe, 1);
 	vctrl->base_pipe = NULL;
 }
-
+#endif
 void mdp4_lcdc_base_swap(int cndx, struct mdp4_overlay_pipe *pipe)
 {
 	struct vsycn_ctrl *vctrl;

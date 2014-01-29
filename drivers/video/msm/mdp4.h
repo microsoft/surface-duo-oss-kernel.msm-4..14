@@ -870,7 +870,7 @@ static inline void mdp4_overlay_dsi_video_start(void)
 	/* empty */
 }
 
-static int mdp4_dsi_video_splash_done(void)
+static inline void mdp4_dsi_video_splash_done(void)
 {
 }
 #endif /* CONFIG_FB_MSM_MIPI_DSI */

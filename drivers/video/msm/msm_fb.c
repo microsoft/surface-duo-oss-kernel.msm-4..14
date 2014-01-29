@@ -120,7 +120,7 @@ static int mdp_bl_scale_config(struct msm_fb_data_type *mfd,
 static void msm_fb_scale_bl(__u32 *bl_lvl);
 static void msm_fb_commit_wq_handler(struct work_struct *work);
 static int msm_fb_pan_idle(struct msm_fb_data_type *mfd);
-
+#define MSM_FB_ENABLE_DBGFS
 #ifdef MSM_FB_ENABLE_DBGFS
 
 #define MSM_FB_MAX_DBGFS 1024
@@ -611,7 +611,7 @@ static int msm_fb_suspend_sub(struct msm_fb_data_type *mfd)
 
 	if (mfd->op_enable) {
 		ret =
-		     msm_fb_blank_sub(FB_BLANK_POWERDOWN, mfd->fbi,
+	     msm_fb_blank_sub(FB_BLANK_UNBLANK, mfd->fbi,
 				      mfd->suspend.op_enable);
 		if (ret) {
 			MSM_FB_INFO
@@ -729,7 +729,7 @@ static int msm_fb_runtime_idle(struct device *dev)
 	return 0;
 }
 
-#if (defined(CONFIG_SUSPEND) && defined(CONFIG_FB_MSM_HDMI_MSM_PANEL))
+#if (defined(CONFIG_SUSPEND) && defined(CONFIG_FB_MSM_HDMI_MSM_PANEL) && !defined(CONFIG_FB_MSM_HDMI_AS_PRIMARY))
 static int msm_fb_ext_suspend(struct device *dev)
 {
 	struct msm_fb_data_type *mfd = dev_get_drvdata(dev);
@@ -751,12 +751,14 @@ static int msm_fb_ext_suspend(struct device *dev)
 		mfd->panel_info.type == DTV_PANEL) {
 		ret = msm_fb_suspend_sub(mfd);
 
+#ifdef CONFIG_FB_MSM_MIPI_DSI
 		/* Turn off the HPD circuitry */
 		if (pdata->power_ctrl) {
 			MSM_FB_INFO("%s: Turning off HPD circuitry\n",
 					__func__);
 			pdata->power_ctrl(FALSE);
 		}
+#endif
 	}
 
 	return ret;
@@ -862,12 +864,14 @@ static void msmfb_early_suspend(struct early_suspend *h)
 	if (hdmi_prim_display &&
 		(mfd->panel_info.type == HDMI_PANEL ||
 		 mfd->panel_info.type == DTV_PANEL)) {
+#ifdef CONFIG_FB_MSM_MIPI_DSI
 		/* Turn off the HPD circuitry */
 		if (pdata->power_ctrl) {
 			MSM_FB_INFO("%s: Turning off HPD circuitry\n",
 				__func__);
 			pdata->power_ctrl(FALSE);
 		}
+#endif
 	}
 }
 
@@ -1811,12 +1815,12 @@ static int msm_fb_open(struct fb_info *info, int user)
 	mfd->ref_cnt++;
 	return 0;
 }
-
+#ifdef CONFIG_FB_MSM_MIPI_DSI
 static void msm_fb_free_base_pipe(struct msm_fb_data_type *mfd)
 {
 	return 	mdp4_overlay_free_base_pipe(mfd);
 }
-
+#endif
 static int msm_fb_release(struct fb_info *info, int user)
 {
 	struct msm_fb_data_type *mfd = (struct msm_fb_data_type *)info->par;
@@ -1846,7 +1850,9 @@ static int msm_fb_release(struct fb_info *info, int user)
 				return ret;
 			}
 		} else {
+#ifdef CONFIG_FB_MSM_MIPI_DSI
 			msm_fb_free_base_pipe(mfd);
+#endif
 		}
 	}
 
@@ -3234,8 +3240,10 @@ static int msmfb_overlay_set(struct fb_info *info, void __user *p)
 
 	ret = mdp4_overlay_set(info, &req);
 	if (ret) {
+#ifdef CONFIG_FB_MSM_MIPI_DSI
 		printk(KERN_ERR "%s: ioctl failed, rc=%d\n",
 			__func__, ret);
+#endif
 		return ret;
 	}
 
@@ -3916,10 +3924,14 @@ static int msm_fb_ioctl(struct fb_info *info, unsigned int cmd,
 	case MSMFB_VSYNC_CTRL:
 	case MSMFB_OVERLAY_VSYNC_CTRL:
 		down(&msm_fb_ioctl_ppp_sem);
+#ifdef CONFIG_FB_MSM_OVERLAY
 		if (mdp_rev >= MDP_REV_40)
 			ret = msmfb_overlay_vsync_ctrl(info, argp);
 		else
 			ret = msmfb_vsync_ctrl(info, argp);
+#else
+		ret = msmfb_vsync_ctrl(info, argp);
+#endif
 		up(&msm_fb_ioctl_ppp_sem);
 		break;
 	case MSMFB_BLIT:

@@ -55,14 +55,6 @@ static void __mdp_outp(uint32 port, uint32 value)
 static int first_pixel_start_x;
 static int first_pixel_start_y;
 
-void mdp4_dtv_base_swap(int cndx, struct mdp4_overlay_pipe *pipe)
-{
-#ifdef BYPASS4
-	if (hdmi_prim_display)
-		dtv_pipe = pipe;
-#endif
-}
-
 #define MAX_CONTROLLER	1
 
 static struct vsycn_ctrl {
@@ -113,6 +105,24 @@ static void vsync_irq_disable(int intr, int term)
 	spin_unlock_irqrestore(&mdp_spin_lock, flag);
 	pr_debug("%s: IRQ-dis done, term=%x\n", __func__, term);
 }
+
+#if (!defined(CONFIG_FB_MSM_HDMI_AS_PRIMARY))
+void mdp4_dtv_base_swap(int cndx, struct mdp4_overlay_pipe *pipe)
+{
+#ifdef BYPASS4
+	if (hdmi_prim_display)
+		dtv_pipe = pipe;
+#endif
+}
+#else
+void mdp4_dtv_base_swap(int cndx, struct mdp4_overlay_pipe *pipe)
+{
+    struct vsycn_ctrl *vctrl;
+    vctrl = &vsync_ctrl_db[cndx];
+    if (hdmi_prim_display)
+	vctrl->base_pipe = pipe;
+}
+#endif
 
 void mdp4_dtv_free_base_pipe(struct msm_fb_data_type *mfd)
 {
