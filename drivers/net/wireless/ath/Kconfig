@@ -1,5 +1,7 @@
 menuconfig ATH_COMMON
 	tristate "Atheros Wireless Cards"
+	select WIRELESS_EXT
+	select CFG80211_WEXT
 	depends on CFG80211 && (!UML || BROKEN)
 	---help---
 	  This will enable the support for the Atheros wireless drivers.
