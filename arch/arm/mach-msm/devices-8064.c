@@ -1289,32 +1289,7 @@ static struct msm_bus_vectors vidc_venc_vga_vectors[] = {
 		.ib  = 1000000,
 	},
 };
-static struct msm_bus_vectors vidc_vdec_vga_vectors[] = {
-	{
-		.src = MSM_BUS_MASTER_VIDEO_ENC,
-		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 40894464,
-		.ib  = 327155712,
-	},
-	{
-		.src = MSM_BUS_MASTER_VIDEO_DEC,
-		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 48234496,
-		.ib  = 192937984,
-	},
-	{
-		.src = MSM_BUS_MASTER_AMPSS_M0,
-		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 500000,
-		.ib  = 2000000,
-	},
-	{
-		.src = MSM_BUS_MASTER_AMPSS_M0,
-		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 500000,
-		.ib  = 2000000,
-	},
-};
+
 static struct msm_bus_vectors vidc_venc_720p_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_VIDEO_ENC,
@@ -1341,32 +1316,7 @@ static struct msm_bus_vectors vidc_venc_720p_vectors[] = {
 		.ib  = 3500000,
 	},
 };
-static struct msm_bus_vectors vidc_vdec_720p_vectors[] = {
-	{
-		.src = MSM_BUS_MASTER_VIDEO_ENC,
-		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 121634816,
-		.ib  = 973078528,
-	},
-	{
-		.src = MSM_BUS_MASTER_VIDEO_DEC,
-		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 155189248,
-		.ib  = 620756992,
-	},
-	{
-		.src = MSM_BUS_MASTER_AMPSS_M0,
-		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 1750000,
-		.ib  = 7000000,
-	},
-	{
-		.src = MSM_BUS_MASTER_AMPSS_M0,
-		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 1750000,
-		.ib  = 7000000,
-	},
-};
+
 static struct msm_bus_vectors vidc_venc_1080p_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_VIDEO_ENC,
@@ -1397,14 +1347,14 @@ static struct msm_bus_vectors vidc_vdec_1080p_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_VIDEO_ENC,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 222298112,
-		.ib  = 2560000000U,
+		.ab  = 4200000000U,
+		.ib  = 4200000000U,
 	},
 	{
 		.src = MSM_BUS_MASTER_VIDEO_DEC,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab  = 330301440,
-		.ib  = 2560000000U,
+		.ab  = 4200000000U,
+		.ib  = 4200000000U,
 	},
 	{
 		.src = MSM_BUS_MASTER_AMPSS_M0,
@@ -1483,16 +1433,16 @@ static struct msm_bus_paths vidc_bus_client_config[] = {
 		vidc_venc_vga_vectors,
 	},
 	{
-		ARRAY_SIZE(vidc_vdec_vga_vectors),
-		vidc_vdec_vga_vectors,
+		ARRAY_SIZE(vidc_vdec_1080p_vectors),
+		vidc_vdec_1080p_vectors,
 	},
 	{
 		ARRAY_SIZE(vidc_venc_720p_vectors),
 		vidc_venc_720p_vectors,
 	},
 	{
-		ARRAY_SIZE(vidc_vdec_720p_vectors),
-		vidc_vdec_720p_vectors,
+		ARRAY_SIZE(vidc_vdec_1080p_vectors),
+		vidc_vdec_1080p_vectors,
 	},
 	{
 		ARRAY_SIZE(vidc_venc_1080p_vectors),

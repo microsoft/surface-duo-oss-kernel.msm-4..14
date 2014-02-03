@@ -2857,8 +2857,10 @@ static void a3xx_start(struct adreno_device *adreno_dev)
 			SP_ALU_ACTIVE_CYCLES);
 		adreno_regwrite(device, A3XX_SP_PERFCOUNTER6_SELECT,
 			SP0_ICL1_MISSES);
+//		adreno_regwrite(device, A3XX_SP_PERFCOUNTER7_SELECT,
+//			SP_FS_CFLOW_INSTRUCTIONS);
 		adreno_regwrite(device, A3XX_SP_PERFCOUNTER7_SELECT,
-			SP_FS_CFLOW_INSTRUCTIONS);
+			SP_FS_FULL_ALU_INSTRUCTIONS);
 	}
 }
 

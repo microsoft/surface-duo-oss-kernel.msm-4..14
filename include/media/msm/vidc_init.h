@@ -17,8 +17,8 @@
 #include <media/msm/vidc_type.h>
 #include <media/msm/vcd_property.h>
 
-#define VIDC_MAX_NUM_CLIENTS 4
-#define MAX_VIDEO_NUM_OF_BUFF 100
+#define VIDC_MAX_NUM_CLIENTS 16
+#define MAX_VIDEO_NUM_OF_BUFF 200
 #define MAX_META_BUFFERS 32
 
 enum buffer_dir {
