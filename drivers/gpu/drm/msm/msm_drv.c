@@ -326,7 +326,7 @@ static void msm_lastclose(struct drm_device *dev)
 	}
 }
 
-static irqreturn_t msm_irq(DRM_IRQ_ARGS)
+static irqreturn_t msm_irq(int irq, void *arg)
 {
 	struct drm_device *dev = arg;
 	struct msm_drm_private *priv = dev->dev_private;
@@ -415,7 +415,7 @@ static int msm_gem_show(struct drm_device *dev, struct seq_file *m)
 
 static int msm_mm_show(struct drm_device *dev, struct seq_file *m)
 {
-	return drm_mm_dump_table(m, dev->mm_private);
+	return drm_mm_dump_table(m, &dev->vma_offset_manager->vm_addr_space_mm);
 }
 
 static int msm_fb_show(struct drm_device *dev, struct seq_file *m)
