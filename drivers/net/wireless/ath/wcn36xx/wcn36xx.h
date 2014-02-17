@@ -155,7 +155,6 @@ struct wcn36xx_platform_data {
  */
 struct wcn36xx_vif {
 	struct list_head list;
-	struct wcn36xx_sta *sta;
 	u8 dtim_period;
 	enum ani_ed_type encrypt_type;
 	bool is_joining;
