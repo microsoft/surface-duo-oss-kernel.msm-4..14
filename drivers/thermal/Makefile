@@ -13,6 +13,7 @@ thermal_sys-$(CONFIG_THERMAL_OF)		+= of-thermal.o
 thermal_sys-$(CONFIG_THERMAL_GOV_FAIR_SHARE)	+= fair_share.o
 thermal_sys-$(CONFIG_THERMAL_GOV_STEP_WISE)	+= step_wise.o
 thermal_sys-$(CONFIG_THERMAL_GOV_USER_SPACE)	+= user_space.o
+thermal_sys-$(CONFIG_THERMAL_GOV_POWER_ALLOCATOR)	+= power_allocator.o
 
 # power actors
 obj-$(CONFIG_THERMAL_POWER_ACTOR) += power_actor.o

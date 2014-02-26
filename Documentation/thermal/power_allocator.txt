@@ -1,0 +1,61 @@
+Integration of the power_allocator governor in a platform
+=========================================================
+
+Registering thermal_zone_device
+-------------------------------
+
+An estimate of the sustainable dissipatable power (in mW) should be
+provided while registering the thermal zone.  This is the maximum
+sustained power for allocation at the desired maximum temperature.
+This number can vary for different conditions, but the closed-loop of
+the controller should take care of those variations, the
+`sustainable_power` should be an estimation of it.  Register your
+thermal zone with `thermal_zone_params` that have a
+`sustainable_power`.  If you weren't passing any
+`thermal_zone_params`, then something like this will do:
+
+	static const struct thermal_zone_params tz_params = {
+		.sustainable_power = 3500,
+	};
+
+and then pass `tz_params` as the 5th parameter to
+`thermal_zone_device_register()`
+
+Trip points
+-----------
+
+The governor requires the following two trip points:
+
+1.  "switch on" trip point: temperature above which the governor
+    control loop starts operating
+2.  "desired temperature" trip point: it should be higher than the
+    "switch on" trip point. It is the target temperature the governor
+    is controlling for.
+
+The trip points can be either active or passive.
+
+Power actors
+------------
+
+Devices controlled by this governor must be registered with the power
+actor API.  Read `power_actor.txt` for more information about them.
+
+Limitations of the power allocator governor
+===========================================
+
+The power allocator governor can't work with cooling devices directly.
+A power actor can be created to interface between the governor and the
+cooling device (see cpu_actor.c for an example).  Otherwise, if you
+have power actors and cooling devices that are next to the same
+thermal sensor create two thermal zones, one for each type.  Use the
+power allocator governor for the power actor thermal zone with the
+power actors and any other governor for the one with cooling devices.
+
+The power allocator governor's PID controller is highly dependent on a
+periodic tick.  If you have a driver that calls
+`thermal_zone_device_update()` (or anything that ends up calling the
+governor's `throttle()` function) repetitively, the governor response
+won't be very good.  Note that this is not particular to this
+governor, step-wise will also misbehave if you call its throttle()
+faster than the normal thermal framework tick (due to interrupts for
+example) as it will overreact.

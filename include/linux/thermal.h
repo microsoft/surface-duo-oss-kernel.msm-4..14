@@ -57,6 +57,8 @@
 #define DEFAULT_THERMAL_GOVERNOR       "fair_share"
 #elif defined(CONFIG_THERMAL_DEFAULT_GOV_USER_SPACE)
 #define DEFAULT_THERMAL_GOVERNOR       "user_space"
+#elif defined(CONFIG_THERMAL_DEFAULT_GOV_POWER_ALLOCATOR)
+#define DEFAULT_THERMAL_GOVERNOR       "power_allocator"
 #endif
 
 struct thermal_zone_device;
@@ -277,6 +279,12 @@ struct thermal_zone_params {
 
 	int num_tbps;	/* Number of tbp entries */
 	struct thermal_bind_params *tbp;
+
+	/*
+	 * Sustainable power (heat) that this thermal zone can dissipate in
+	 * mW
+	 */
+	u32 sustainable_power;
 };
 
 struct thermal_genl_event {
