@@ -77,4 +77,12 @@ config DA8XX_REMOTEPROC
 	  It's safe to say n here if you're not interested in multimedia
 	  offloading.
 
+config QCOM_TZ_PIL
+	tristate "Qualcomm TrustZone based Peripherial Image Loader"
+	depends on OF && ARCH_QCOM
+	select REMOTEPROC
+	help
+	  Say y here to support the TrustZone based Qualcomm Peripherial Image
+	  Loader.
+
 endmenu
