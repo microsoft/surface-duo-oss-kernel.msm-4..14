@@ -140,6 +140,14 @@ config ST_REMOTEPROC
 config ST_SLIM_REMOTEPROC
 	tristate
 
+config QCOM_TZ_PIL
+	tristate "Qualcomm TrustZone based Peripherial Image Loader"
+	depends on OF && ARCH_QCOM
+	select REMOTEPROC
+	help
+	  Say y here to support the TrustZone based Qualcomm Peripherial Image
+	  Loader.
+
 endif # REMOTEPROC
 
 endmenu
