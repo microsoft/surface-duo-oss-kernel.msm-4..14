@@ -86,4 +86,12 @@ config ST_REMOTEPROC
 	  processor framework.
 	  This can be either built-in or a loadable module.
 
+config QCOM_TZ_PIL
+	tristate "Qualcomm TrustZone based Peripherial Image Loader"
+	depends on OF && ARCH_QCOM
+	select REMOTEPROC
+	help
+	  Say y here to support the TrustZone based Qualcomm Peripherial Image
+	  Loader.
+
 endmenu
