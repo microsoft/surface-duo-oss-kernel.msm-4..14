@@ -583,6 +583,9 @@ static int msm_gem_new_impl(struct drm_device *dev,
 	struct msm_gem_object *msm_obj;
 	unsigned sz;
 
+	if (flags & ~MSM_BO_FLAGS)
+		return -EINVAL;
+
 	switch (flags & MSM_BO_CACHE_MASK) {
 	case MSM_BO_UNCACHED:
 	case MSM_BO_CACHED:
