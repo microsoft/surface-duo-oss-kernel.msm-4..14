@@ -17,8 +17,12 @@
 #ifndef __POWER_ACTOR_H__
 #define __POWER_ACTOR_H__
 
+#include <linux/cpumask.h>
+#include <linux/device.h>
+#include <linux/err.h>
 #include <linux/list.h>
 #include <linux/mutex.h>
+#include <linux/thermal.h>
 
 struct power_actor;
 
@@ -54,6 +58,28 @@ struct power_actor {
 struct power_actor *power_actor_register(struct power_actor_ops *ops,
 					void *privdata);
 void power_actor_unregister(struct power_actor *actor);
+
+typedef u32 (*get_static_t)(cpumask_t *cpumask,
+				unsigned long voltage,
+				unsigned long temperature);
+
+#ifdef CONFIG_THERMAL_POWER_ACTOR_CPU
+struct power_actor *
+power_cpu_actor_register(struct device_node *np, unsigned int cpu,
+			u32 capacitance, get_static_t plat_static_func);
+void power_cpu_actor_unregister(struct power_actor *actor);
+#else
+static inline
+struct power_actor *
+power_cpu_actor_register(struct device_node *np, unsigned int cpu,
+			u32 capacitance, get_static_t plat_static_func)
+{
+	return ERR_PTR(-ENOSYS);
+}
+static inline void power_cpu_actor_unregister(struct power_actor *actor)
+{
+}
+#endif
 
 extern struct list_head actor_list;
 

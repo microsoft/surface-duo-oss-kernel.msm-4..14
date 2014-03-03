@@ -91,6 +91,11 @@ config THERMAL_GOV_USER_SPACE
 config THERMAL_POWER_ACTOR
 	bool
 
+config THERMAL_POWER_ACTOR_CPU
+	depends on CPU_THERMAL
+	select THERMAL_POWER_ACTOR
+	bool
+
 config CPU_THERMAL
 	bool "generic cpu cooling support"
 	depends on CPU_FREQ
