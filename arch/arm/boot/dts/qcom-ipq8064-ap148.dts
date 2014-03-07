@@ -1,0 +1,12 @@
+#include "qcom-ipq8064.dtsi"
+
+/ {
+	model = "Qualcomm IPQ8064/DB149";
+	compatible = "qcom,ipq8064-db149", "qcom,ipq8064";
+
+	soc {
+		serial@16340000 {
+			status = "ok";
+		};
+	};
+};
