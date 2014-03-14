@@ -28,6 +28,8 @@
 #include <linux/printk.h>
 #include <linux/slab.h>
 
+#include <trace/events/thermal_power_allocator.h>
+
 /**
  * struct power_table - frequency to power conversion
  * @frequency:	frequency in KHz
@@ -184,11 +186,12 @@ static u32 get_static_power(struct cpu_actor *cpu_actor,
  */
 static u32 get_dynamic_power(struct cpu_actor *cpu_actor, unsigned long freq)
 {
-	int cpu;
-	u32 power = 0, raw_cpu_power, total_load = 0;
+	int i, cpu;
+	u32 power = 0, raw_cpu_power, total_load = 0, load_cpu[NR_CPUS];
 
 	raw_cpu_power = cpu_freq_to_power(cpu_actor, freq);
 
+	i = 0;
 	for_each_cpu(cpu, &cpu_actor->cpumask) {
 		u32 load;
 
@@ -199,7 +202,14 @@ static u32 get_dynamic_power(struct cpu_actor *cpu_actor, unsigned long freq)
 
 		power += (raw_cpu_power * load) / 100;
 		total_load += load;
+		load_cpu[i] = load;
+
+		i++;
 	}
+
+	trace_thermal_power_actor_cpu_get_dyn_power(&cpu_actor->cpumask, freq,
+						raw_cpu_power, load_cpu, i,
+						power);
 
 	cpu_actor->last_load = total_load;
 
@@ -301,6 +311,9 @@ static int cpu_set_power(struct power_actor *actor,
 			target_freq, cpu);
 		return -EINVAL;
 	}
+
+	trace_thermal_power_actor_cpu_limit(&cpu_actor->cpumask, target_freq,
+					cdev_state, power);
 
 	return cdev->ops->set_cur_state(cdev, cdev_state);
 }

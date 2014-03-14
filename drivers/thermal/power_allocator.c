@@ -20,6 +20,9 @@
 #include <linux/slab.h>
 #include <linux/thermal.h>
 
+#define CREATE_TRACE_POINTS
+#include <trace/events/thermal_power_allocator.h>
+
 #include "thermal_core.h"
 
 #define FRAC_BITS 10
@@ -143,7 +146,14 @@ static u32 pid_controller(struct thermal_zone_device *tz,
 	/* feed-forward the known sustainable dissipatable power */
 	power_range = tz->tzp->sustainable_power + frac_to_int(power_range);
 
-	return clamp(power_range, (s64)0, (s64)max_allocatable_power);
+	power_range = clamp(power_range, (s64)0, (s64)max_allocatable_power);
+
+	trace_thermal_power_allocator_pid(frac_to_int(err),
+					frac_to_int(params->err_integral),
+					frac_to_int(p), frac_to_int(i),
+					frac_to_int(d), power_range);
+
+	return power_range;
 }
 
 /**
@@ -224,7 +234,7 @@ static int allocate_power(struct thermal_zone_device *tz,
 	struct power_actor *actor;
 	u32 *req_power, *max_power, *granted_power;
 	u32 total_req_power, max_allocatable_power;
-	u32 power_range;
+	u32 total_granted_power, power_range;
 	int i, num_actors, ret = 0;
 
 	mutex_lock(&tz->lock);
@@ -275,11 +285,19 @@ static int allocate_power(struct thermal_zone_device *tz,
 	divvy_up_power(req_power, max_power, num_actors, total_req_power,
 		power_range, granted_power);
 
+	total_granted_power = 0;
 	i = 0;
 	list_for_each_entry_rcu(actor, &actor_list, actor_node) {
 		actor->ops->set_power(actor, tz, granted_power[i]);
+		total_granted_power += granted_power[i];
+
 		i++;
 	}
+
+	trace_thermal_power_allocator(req_power, total_req_power, granted_power,
+				total_granted_power, num_actors, power_range,
+				max_allocatable_power, current_temp,
+				(s32)control_temp - (s32)current_temp);
 
 	devm_kfree(&tz->device, granted_power);
 free_max_power:
