@@ -9,3 +9,18 @@ menuconfig EEPROM
 	  from both the Linux Kernel and the userspace.
 
 	  If unsure, say no.
+
+if EEPROM
+
+config EEPROM_SUNXI_SID
+	tristate "Allwinner SoCs SID support"
+	depends on ARCH_SUNXI
+	select REGMAP_MMIO
+	help
+	  This is a driver for the 'security ID' available on various Allwinner
+	  devices.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called eeprom-sunxi-sid.
+
+endif
