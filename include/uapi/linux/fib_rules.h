@@ -50,6 +50,8 @@ enum {
 	FRA_FWMASK,	/* mask for netfilter mark */
 	FRA_OIFNAME,
 	FRA_PAD,
+	FRA_UID_START,	/* UID range */
+	FRA_UID_END,
 	__FRA_MAX
 };
 
