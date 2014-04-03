@@ -1,0 +1,12 @@
+#include "qcom-apq8064.dtsi"
+
+/ {
+	model = "Qualcomm APQ8064/IFC6410";
+	compatible = "qcom,apq8064-ifc6410", "qcom,apq8064";
+
+	soc {
+		serial@16640000 {
+			status = "ok";
+		};
+	};
+};
