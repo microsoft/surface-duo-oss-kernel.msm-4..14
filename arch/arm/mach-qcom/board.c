@@ -15,6 +15,7 @@
 #include <asm/mach/arch.h>
 
 static const char * const qcom_dt_match[] __initconst = {
+	"qcom,apq8064",
 	"qcom,apq8074-dragonboard",
 	"qcom,ipq8062",
 	"qcom,ipq8064",
