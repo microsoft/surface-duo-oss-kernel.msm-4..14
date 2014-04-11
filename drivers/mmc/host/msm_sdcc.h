@@ -236,7 +236,7 @@ struct msmsdcc_host {
 	unsigned int		oldstat;
 
 	struct msmsdcc_dma_data	dma;
-	struct msmsdcc_pio_data	pio;
+	struct sg_mapping_iter	sg_miter;
 	int			cmdpoll;
 	struct msmsdcc_stats	stats;
 

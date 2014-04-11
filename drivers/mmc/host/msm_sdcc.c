@@ -497,23 +497,24 @@ msmsdcc_start_data(struct msmsdcc_host *host, struct mmc_data *data,
 	host->curr.data_xfered = 0;
 	host->curr.got_dataend = 0;
 
-	memset(&host->pio, 0, sizeof(host->pio));
-
 	datactrl = MCI_DPSM_ENABLE | (data->blksz << 4);
 
 	if (!msmsdcc_config_dma(host, data))
 		datactrl |= MCI_DPSM_DMAENABLE;
 	else {
-		host->pio.sg = data->sg;
-		host->pio.sg_len = data->sg_len;
-		host->pio.sg_off = 0;
+		unsigned int sg_miter_flags = SG_MITER_ATOMIC;
 
 		if (data->flags & MMC_DATA_READ) {
+			sg_miter_flags |= SG_MITER_TO_SG;
 			pio_irqmask = MCI_RXFIFOHALFFULLMASK;
 			if (host->curr.xfer_remain < MCI_FIFOSIZE)
 				pio_irqmask |= MCI_RXDATAAVLBLMASK;
-		} else
+		} else {
+			sg_miter_flags |= SG_MITER_FROM_SG;
 			pio_irqmask = MCI_TXFIFOHALFEMPTYMASK;
+		}
+		sg_miter_start(&host->sg_miter, data->sg, data->sg_len,
+				sg_miter_flags);
 	}
 
 	if (data->flags & MMC_DATA_READ)
@@ -665,6 +666,7 @@ msmsdcc_pio_irq(int irq, void *dev_id)
 	struct msmsdcc_host	*host = dev_id;
 	uint32_t		status;
 	u32 mci_mask0;
+	unsigned long flags;
 
 	status = msmsdcc_readl(host, MMCISTATUS);
 	mci_mask0 = msmsdcc_readl(host, MMCIMASK0);
@@ -672,8 +674,8 @@ msmsdcc_pio_irq(int irq, void *dev_id)
 	if (((mci_mask0 & status) & MCI_IRQ_PIO) == 0)
 		return IRQ_NONE;
 
-	do {
-		unsigned long flags;
+	local_irq_save(flags);
+	while (sg_miter_next(&host->sg_miter)) {
 		unsigned int remain, len;
 		char *buffer;
 
@@ -689,44 +691,27 @@ msmsdcc_pio_irq(int irq, void *dev_id)
 			}
 		}
 
-		/* Map the current scatter buffer */
-		local_irq_save(flags);
-		buffer = kmap_atomic(sg_page(host->pio.sg))
-				     + host->pio.sg->offset;
-		buffer += host->pio.sg_off;
-		remain = host->pio.sg->length - host->pio.sg_off;
+		buffer = host->sg_miter.addr;
+		remain = host->sg_miter.length;
 		len = 0;
 		if (status & MCI_RXACTIVE)
 			len = msmsdcc_pio_read(host, buffer, remain);
 		if (status & MCI_TXACTIVE)
 			len = msmsdcc_pio_write(host, buffer, remain, status);
 
-		/* Unmap the buffer */
-		kunmap_atomic(buffer);
-		local_irq_restore(flags);
 
-		host->pio.sg_off += len;
+		host->sg_miter.consumed = len;
 		host->curr.xfer_remain -= len;
 		host->curr.data_xfered += len;
 		remain -= len;
 
-		if (remain == 0) {
-			/* This sg page is full - do some housekeeping */
-			if (status & MCI_RXACTIVE && host->curr.user_pages)
-				flush_dcache_page(sg_page(host->pio.sg));
-
-			if (!--host->pio.sg_len) {
-				memset(&host->pio, 0, sizeof(host->pio));
-				break;
-			}
-
-			/* Advance to next sg */
-			host->pio.sg++;
-			host->pio.sg_off = 0;
-		}
+		if (remain)
+			break;
 
 		status = msmsdcc_readl(host, MMCISTATUS);
-	} while (1);
+	};
+	sg_miter_stop(&host->sg_miter);
+	local_irq_restore(flags);
 
 	if (status & MCI_RXACTIVE && host->curr.xfer_remain < MCI_FIFOSIZE)
 		msmsdcc_writel(host, (mci_mask0 & (~MCI_IRQ_PIO)) |
