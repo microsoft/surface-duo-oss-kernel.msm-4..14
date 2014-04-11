@@ -43,9 +43,12 @@
 #include <asm/sizes.h>
 
 #include <linux/platform_data/mmc-msm_sdcc.h>
-#include <mach/dma.h>
-#include <mach/clk.h>
 
+#ifndef CONFIG_ARCH_QCOM
+#include <mach/clk.h>
+#endif
+
+#include "msm_dma.h"
 #include "msm_sdcc.h"
 
 #define DRIVER_NAME "msm-sdcc"
@@ -136,7 +139,7 @@ static void msmsdcc_reset_and_restore(struct msmsdcc_host *host)
 	/* Save the controller state */
 	mci_clk = readl(host->base + MMCICLOCK);
 	mci_mask0 = readl(host->base + MMCIMASK0);
-
+#ifndef CONFIG_ARCH_QCOM
 	/* Reset the controller */
 	ret = clk_reset(host->clk, CLK_RESET_ASSERT);
 	if (ret)
@@ -150,7 +153,7 @@ static void msmsdcc_reset_and_restore(struct msmsdcc_host *host)
 
 	pr_info("%s: Controller has been re-initialiazed\n",
 			mmc_hostname(host->mmc));
-
+#endif
 	/* Restore the contoller state */
 	writel(host->pwr, host->base + MMCIPOWER);
 	writel(mci_clk, host->base + MMCICLOCK);
