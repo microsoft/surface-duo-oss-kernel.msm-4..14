@@ -626,11 +626,9 @@ msmsdcc_pio_write(struct msmsdcc_host *host, char *buffer,
 	char *ptr = buffer;
 
 	do {
-		unsigned int count, maxcnt, sz;
+		unsigned int count, sz;
 
-		maxcnt = status & MCI_TXFIFOEMPTY ? MCI_FIFOSIZE :
-						    MCI_FIFOHALFSIZE;
-		count = min(remain, maxcnt);
+		count = min_t(unsigned int, remain, MCI_FIFOHALFSIZE);
 
 		sz = count % 4 ? (count >> 2) + 1 : (count >> 2);
 		writesl(base + MMCIFIFO, ptr, sz);
