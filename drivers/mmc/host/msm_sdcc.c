@@ -729,10 +729,14 @@ static void msmsdcc_do_cmdirq(struct msmsdcc_host *host, uint32_t status)
 	struct mmc_command *cmd = host->curr.cmd;
 
 	host->curr.cmd = NULL;
-	cmd->resp[0] = msmsdcc_readl(host, MMCIRESPONSE0);
-	cmd->resp[1] = msmsdcc_readl(host, MMCIRESPONSE1);
-	cmd->resp[2] = msmsdcc_readl(host, MMCIRESPONSE2);
-	cmd->resp[3] = msmsdcc_readl(host, MMCIRESPONSE3);
+	if (mmc_resp_type(cmd))
+		cmd->resp[0] = msmsdcc_readl(host, MMCIRESPONSE0);
+
+	if (mmc_resp_type(cmd) & MMC_RSP_136) {
+		cmd->resp[1] = msmsdcc_readl(host, MMCIRESPONSE1);
+		cmd->resp[2] = msmsdcc_readl(host, MMCIRESPONSE2);
+		cmd->resp[3] = msmsdcc_readl(host, MMCIRESPONSE3);
+	}
 
 	if (status & MCI_CMDTIMEOUT) {
 		cmd->error = -ETIMEDOUT;
