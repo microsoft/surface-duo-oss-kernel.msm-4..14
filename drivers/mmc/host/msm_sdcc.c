@@ -28,6 +28,7 @@
 #include <linux/mmc/host.h>
 #include <linux/mmc/card.h>
 #include <linux/mmc/sdio.h>
+#include <linux/mmc/mmc.h>
 #include <linux/clk.h>
 #include <linux/scatterlist.h>
 #include <linux/platform_device.h>
@@ -517,6 +518,8 @@ msmsdcc_start_data(struct msmsdcc_host *host, struct mmc_data *data,
 
 	if (data->flags & MMC_DATA_READ)
 		datactrl |= MCI_DPSM_DIRECTION;
+	else if (host->curr.use_wr_data_pend)
+		datactrl |= MCI_DATA_PEND;
 
 	clks = (unsigned long long)data->timeout_ns * host->clk_rate;
 	do_div(clks, NSEC_PER_SEC);
@@ -769,10 +772,13 @@ static void msmsdcc_do_cmdirq(struct msmsdcc_host *host, uint32_t status)
 				msmsdcc_request_end(host, cmd->mrq);
 			}
 		}
-	} else if (cmd->data)
-		if (!(cmd->data->flags & MMC_DATA_READ))
-			msmsdcc_start_data(host, cmd->data,
-						NULL, 0);
+	} else if (cmd->data) {
+		if (cmd == host->curr.mrq->sbc)
+			msmsdcc_start_command(host, host->curr.mrq->cmd, 0);
+		else if ((cmd->data->flags & MMC_DATA_WRITE) &&
+			 !host->curr.use_wr_data_pend)
+			msmsdcc_start_data(host, cmd->data, NULL, 0);
+	}
 }
 
 static void
@@ -914,7 +920,12 @@ msmsdcc_request(struct mmc_host *mmc, struct mmc_request *mrq)
 
 	host->curr.mrq = mrq;
 
-	if (mrq->data && mrq->data->flags & MMC_DATA_READ)
+	if ((mrq->cmd->opcode == MMC_WRITE_BLOCK) ||
+			(mrq->cmd->opcode == MMC_WRITE_MULTIPLE_BLOCK))
+		host->curr.use_wr_data_pend = true;
+
+	if (mrq->data && ((mrq->data->flags & MMC_DATA_READ) ||
+	    host->curr.use_wr_data_pend))
 		/* Queue/read data, daisy-chain command when data starts */
 		msmsdcc_start_data(host, mrq->data, mrq->cmd, 0);
 	else
