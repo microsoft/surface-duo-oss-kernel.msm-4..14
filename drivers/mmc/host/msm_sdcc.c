@@ -1287,14 +1287,14 @@ msmsdcc_probe(struct platform_device *pdev)
 	mmc->caps |= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED;
 
 	mmc->max_segs = NR_SG;
-	mmc->max_blk_size = 4096;	/* MCI_DATA_CTL BLOCKSIZE up to 4096 */
-	mmc->max_blk_count = 65536;
+	mmc->max_blk_size = MCI_MAX_BLK_SIZE;
+	mmc->max_blk_count = MCI_MAX_BLK_COUNT;
 
-	mmc->max_req_size = 33554432;	/* MCI_DATA_LENGTH is 25 bits */
+	mmc->max_req_size = MCI_MAX_DATA_LENGTH;
 	mmc->max_seg_size = mmc->max_req_size;
 
 	msmsdcc_writel(host, 0, MMCIMASK0);
-	msmsdcc_writel(host, 0x5e007ff, MMCICLEAR);
+	msmsdcc_writel(host, MCI_CLEAR_STATIC_MASK, MMCICLEAR);
 
 	msmsdcc_writel(host, MCI_IRQENABLE, MMCIMASK0);
 	host->saved_irq0mask = MCI_IRQENABLE;
