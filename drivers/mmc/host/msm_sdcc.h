@@ -233,7 +233,7 @@ struct msmsdcc_host {
 	struct resource		*memres;
 	struct resource		*dmares;
 	void __iomem		*base;
-	int			pdev_id;
+	int			id;
 	unsigned int		stat_irq;
 
 	struct msmsdcc_curr_req	curr;

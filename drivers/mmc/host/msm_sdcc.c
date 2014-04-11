@@ -352,7 +352,7 @@ static int msmsdcc_config_dma(struct msmsdcc_host *host, struct mmc_data *data)
 
 	nc = host->dma.nc;
 
-	switch (host->pdev_id) {
+	switch (host->id) {
 	case 1:
 		crci = MSMSDCC_CRCI_SDC1;
 		break;
@@ -938,7 +938,8 @@ static void msmsdcc_setup_gpio(struct msmsdcc_host *host, bool enable)
 	struct msm_mmc_gpio_data *curr;
 	int i, rc = 0;
 
-	if (!host->plat->gpio_data || host->gpio_config_status == enable)
+	if ((!host->plat ||  !host->plat->gpio_data) ||
+	     host->gpio_config_status == enable)
 		return;
 
 	curr = host->plat->gpio_data;
@@ -1000,7 +1001,7 @@ msmsdcc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	clk |= (1 << 12); /* FLOW_ENA */
 	clk |= (1 << 15); /* feedback clock */
 
-	if (host->plat->translate_vdd)
+	if (host->plat && host->plat->translate_vdd)
 		pwr |= host->plat->translate_vdd(mmc_dev(mmc), ios->vdd);
 
 	switch (ios->power_mode) {
@@ -1055,7 +1056,7 @@ static void msmsdcc_init_card(struct mmc_host *mmc, struct mmc_card *card)
 {
 	struct msmsdcc_host *host = mmc_priv(mmc);
 
-	if (host->plat->init_card)
+	if (host->plat && host->plat->init_card)
 		host->plat->init_card(card);
 }
 
@@ -1072,7 +1073,7 @@ msmsdcc_check_status(unsigned long data)
 	struct msmsdcc_host *host = (struct msmsdcc_host *)data;
 	unsigned int status;
 
-	if (!host->plat->status) {
+	if (!host->plat || !host->plat->status) {
 		mmc_detect_change(host->mmc, 0);
 		goto out;
 	}
@@ -1154,23 +1155,30 @@ msmsdcc_init_dma(struct msmsdcc_host *host)
 static int
 msmsdcc_probe(struct platform_device *pdev)
 {
-	struct msm_mmc_platform_data *plat = pdev->dev.platform_data;
+	struct msm_mmc_platform_data *plat = NULL;
 	struct msmsdcc_host *host;
 	struct mmc_host *mmc;
 	struct resource *cmd_irqres = NULL;
 	struct resource *stat_irqres = NULL;
 	struct resource *memres = NULL;
 	struct resource *dmares = NULL;
-	int ret;
+	int ret, id;
 
-	/* must have platform data */
-	if (!plat) {
-		pr_err("%s: Platform data not available\n", __func__);
-		ret = -EINVAL;
-		goto out;
+	if (pdev->dev.of_node) {
+		id = of_alias_get_id(pdev->dev.of_node, "sdcc");
+	} else {
+		plat = pdev->dev.platform_data;
+
+		/* must have platform data */
+		if (!plat) {
+			pr_err("%s: Platform data not available\n", __func__);
+			ret = -EINVAL;
+			goto out;
+		}
+		id = pdev->id;
 	}
 
-	if (pdev->id < 1 || pdev->id > 4)
+	if (id < 1 || id > 4)
 		return -EINVAL;
 
 	if (pdev->resource == NULL || pdev->num_resources < 2) {
@@ -1201,7 +1209,7 @@ msmsdcc_probe(struct platform_device *pdev)
 	}
 
 	host = mmc_priv(mmc);
-	host->pdev_id = pdev->id;
+	host->id = id;
 	host->plat = plat;
 	host->mmc = mmc;
 	host->curr.cmd = NULL;
@@ -1276,15 +1284,24 @@ msmsdcc_probe(struct platform_device *pdev)
 	 * Setup MMC host structure
 	 */
 	mmc->ops = &msmsdcc_ops;
-	mmc->f_min = msmsdcc_fmin;
-	mmc->f_max = msmsdcc_fmax;
-	mmc->ocr_avail = plat->ocr_mask;
 
-	if (msmsdcc_4bit)
-		mmc->caps |= MMC_CAP_4_BIT_DATA;
-	if (msmsdcc_sdioirq)
-		mmc->caps |= MMC_CAP_SDIO_IRQ;
-	mmc->caps |= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED;
+	if (pdev->dev.of_node) {
+		ret = mmc_of_parse(mmc);
+		if (ret)
+			return ret;
+
+		mmc->ocr_avail = MMC_VDD_27_28 | MMC_VDD_28_29;
+	} else {
+		mmc->ocr_avail = plat->ocr_mask;
+		mmc->f_min = msmsdcc_fmin;
+		mmc->f_max = msmsdcc_fmax;
+
+		if (msmsdcc_4bit)
+			mmc->caps |= MMC_CAP_4_BIT_DATA;
+		if (msmsdcc_sdioirq)
+			mmc->caps |= MMC_CAP_SDIO_IRQ;
+		mmc->caps |= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED;
+	}
 
 	mmc->max_segs = NR_SG;
 	mmc->max_blk_size = MCI_MAX_BLK_SIZE;
@@ -1320,9 +1337,9 @@ msmsdcc_probe(struct platform_device *pdev)
 			       mmc_hostname(mmc), host->stat_irq, ret);
 			goto clk_disable;
 		}
-	} else if (plat->register_status_notify) {
+	} else if (plat && plat->register_status_notify) {
 		plat->register_status_notify(msmsdcc_status_notify_cb, host);
-	} else if (!plat->status)
+	} else if (!plat || !plat->status)
 		pr_err("%s: No card detect facilities available\n",
 		       mmc_hostname(mmc));
 	else {
@@ -1333,7 +1350,7 @@ msmsdcc_probe(struct platform_device *pdev)
 		add_timer(&host->timer);
 	}
 
-	if (plat->status) {
+	if (plat && plat->status) {
 		host->oldstat = host->plat->status(mmc_dev(host->mmc));
 		host->eject = !host->oldstat;
 	}
@@ -1447,12 +1464,21 @@ msmsdcc_resume(struct platform_device *dev)
 #define msmsdcc_resume 0
 #endif
 
+#ifdef CONFIG_OF
+static struct of_device_id msmsdcc_match[] = {
+	{ .compatible = "qcom,sdcc", },
+	{},
+};
+
+MODULE_DEVICE_TABLE(of, msmsdcc_match);
+#endif
 static struct platform_driver msmsdcc_driver = {
 	.probe		= msmsdcc_probe,
 	.suspend	= msmsdcc_suspend,
 	.resume		= msmsdcc_resume,
 	.driver		= {
 		.name	= "msm_sdcc",
+		.of_match_table = of_match_ptr(msmsdcc_match),
 	},
 };
 
