@@ -1030,9 +1030,6 @@ msmsdcc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		break;
 	}
 
-	if (ios->bus_mode == MMC_BUSMODE_OPENDRAIN)
-		pwr |= MCI_OD;
-
 	msmsdcc_writel(host, clk, MMCICLOCK);
 
 	if (host->pwr != pwr) {
