@@ -97,11 +97,11 @@ struct binder_version {
 #endif
 
 #define BINDER_WRITE_READ		_IOWR('b', 1, struct binder_write_read)
-#define	BINDER_SET_IDLE_TIMEOUT		_IOW('b', 3, __s64)
-#define	BINDER_SET_MAX_THREADS		_IOW('b', 5, __u32)
-#define	BINDER_SET_IDLE_PRIORITY	_IOW('b', 6, __s32)
-#define	BINDER_SET_CONTEXT_MGR		_IOW('b', 7, __s32)
-#define	BINDER_THREAD_EXIT		_IOW('b', 8, __s32)
+#define BINDER_SET_IDLE_TIMEOUT		_IOW('b', 3, __s64)
+#define BINDER_SET_MAX_THREADS		_IOW('b', 5, __u32)
+#define BINDER_SET_IDLE_PRIORITY	_IOW('b', 6, __s32)
+#define BINDER_SET_CONTEXT_MGR		_IOW('b', 7, __s32)
+#define BINDER_THREAD_EXIT		_IOW('b', 8, __s32)
 #define BINDER_VERSION			_IOWR('b', 9, struct binder_version)
 
 /*
@@ -131,8 +131,10 @@ struct binder_transaction_data {
 	 * identifying the target and contents of the transaction.
 	 */
 	union {
-		__u32	handle;	/* target descriptor of command transaction */
-		binder_uintptr_t ptr;	/* target descriptor of return transaction */
+		/* target descriptor of command transaction */
+		__u32	handle;
+		/* target descriptor of return transaction */
+		binder_uintptr_t ptr;
 	} target;
 	binder_uintptr_t	cookie;	/* target object cookie */
 	__u32		code;		/* transaction command */
@@ -325,13 +327,15 @@ enum binder_driver_command_protocol {
 	 * of looping threads it has available.
 	 */
 
-	BC_REQUEST_DEATH_NOTIFICATION = _IOW('c', 14, struct binder_handle_cookie),
+	BC_REQUEST_DEATH_NOTIFICATION = _IOW('c', 14,
+						struct binder_handle_cookie),
 	/*
 	 * int: handle
 	 * void *: cookie
 	 */
 
-	BC_CLEAR_DEATH_NOTIFICATION = _IOW('c', 15, struct binder_handle_cookie),
+	BC_CLEAR_DEATH_NOTIFICATION = _IOW('c', 15,
+						struct binder_handle_cookie),
 	/*
 	 * int: handle
 	 * void *: cookie
