@@ -67,6 +67,8 @@ static unsigned int fmax = 515633;
  * @pwrreg_clkgate: MMCIPOWER register must be used to gate the clock
  * @busy_detect: true if busy detection on dat0 is supported
  * @pwrreg_nopower: bits in MMCIPOWER don't controls ext. power supply
+ * @mclk_delayed_writes: enable delayed writes to ensure, subsequent updates
+ *			 are not ignored.
  */
 struct variant_data {
 	unsigned int		clkreg;
@@ -83,6 +85,7 @@ struct variant_data {
 	bool			pwrreg_clkgate;
 	bool			busy_detect;
 	bool			pwrreg_nopower;
+	bool			mclk_delayed_writes;
 };
 
 static struct variant_data variant_arm = {
@@ -171,6 +174,12 @@ static struct variant_data variant_qcom = {
 	.datalength_bits	= 24,
 	.blksz_datactrl4	= true,
 	.pwrreg_powerup		= MCI_PWR_UP,
+	/*
+	 * On QCom SD card controller, registers must be updated to the
+	 * MCLK domain so subsequent writes to this register will be ignored
+	 * for 3 clk cycles.
+	 */
+	.mclk_delayed_writes	= true,
 };
 
 static inline u32 mmci_readl(struct mmci_host *host, u32 off)
@@ -181,6 +190,9 @@ static inline u32 mmci_readl(struct mmci_host *host, u32 off)
 static inline void mmci_writel(struct mmci_host *host, u32 data, u32 off)
 {
 	writel(data, host->base + off);
+
+	if (host->variant->mclk_delayed_writes)
+		udelay(DIV_ROUND_UP((3 * USEC_PER_SEC), host->mclk));
 }
 
 static int mmci_card_busy(struct mmc_host *mmc)
