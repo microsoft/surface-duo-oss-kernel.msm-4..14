@@ -55,6 +55,8 @@ static unsigned int fmax = 515633;
  *	      is asserted (likewise for RX)
  * @fifohalfsize: number of bytes that can be written when MCI_TXFIFOHALFEMPTY
  *		  is asserted (likewise for RX)
+ * @reg_write_delay: delay in number of clock cycles required after each write
+ *		     to controller registers.
  * @sdio: variant supports SDIO
  * @st_clkdiv: true if using a ST-specific clock divider algorithm
  * @blksz_datactrl16: true if Block size is at b16..b30 position in datactrl register
@@ -72,6 +74,7 @@ struct variant_data {
 	unsigned int		datalength_bits;
 	unsigned int		fifosize;
 	unsigned int		fifohalfsize;
+	unsigned int		reg_write_delay;
 	bool			sdio;
 	bool			st_clkdiv;
 	bool			blksz_datactrl16;
@@ -178,7 +181,12 @@ static inline u32 mmci_readl(struct mmci_host *host, u32 off)
 
 static inline void mmci_writel(struct mmci_host *host, u32 data, u32 off)
 {
+	struct variant_data *var = host->variant;
+
 	writel(data, host->base + off);
+
+	if (var->reg_write_delay && host->mclk)
+		udelay(1 + ((var->reg_write_delay * USEC_PER_SEC)/host->mclk));
 }
 
 static int mmci_card_busy(struct mmc_host *mmc)
