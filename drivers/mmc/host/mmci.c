@@ -327,13 +327,37 @@ static void mmci_set_clkreg(struct mmci_host *host, unsigned int desired)
 	/* Set actual clock for debug */
 	host->mmc->actual_clock = host->cclk;
 
-	if (host->mmc->ios.bus_width == MMC_BUS_WIDTH_4)
-		clk |= MCI_4BIT_BUS;
-	if (host->mmc->ios.bus_width == MMC_BUS_WIDTH_8)
-		clk |= MCI_ST_8BIT_BUS;
+	if (host->hw_designer == AMBA_VENDOR_QCOM) {
+		clk |= MCI_CLK_QCOM_FLOWENA;
+		clk |= (MCI_CLK_QCOM_SEL_FEEDBACK_CLK <<
+				MCI_CLK_QCOM_SEL_IN_SHIFT); /* feedback clk */
+		if (host->mmc->ios.bus_width == MMC_BUS_WIDTH_8)
+			clk |= MCI_CLK_QCOM_WIDEBUS_8;
+		else if (host->mmc->ios.bus_width == MMC_BUS_WIDTH_4)
+			clk |= MCI_CLK_QCOM_WIDEBUS_4;
+		else
+			clk |= MCI_CLK_QCOM_WIDEBUS_1;
 
-	if (host->mmc->ios.timing == MMC_TIMING_UHS_DDR50)
-		clk |= MCI_ST_UX500_NEG_EDGE;
+		if (host->mmc->ios.timing == MMC_TIMING_UHS_DDR50) {
+			/* clear SELECT_IN field */
+			clk &= ~(MCI_CLK_QCOM_SEL_MASK <<
+					MCI_CLK_QCOM_SEL_IN_SHIFT);
+			/* set DDR timing mode */
+			clk |= (MCI_CLK_QCOM_SEL_DDR_MODE <<
+					MCI_CLK_QCOM_SEL_IN_SHIFT);
+		}
+		clk |= (MCI_CLK_SDC4_MCLK_SEL_MCLK <<
+				MCI_CLK_SDC4_MCLK_SEL_SHIFT);
+
+	} else {
+		if (host->mmc->ios.bus_width == MMC_BUS_WIDTH_4)
+			clk |= MCI_4BIT_BUS;
+		if (host->mmc->ios.bus_width == MMC_BUS_WIDTH_8)
+			clk |= MCI_ST_8BIT_BUS;
+
+		if (host->mmc->ios.timing == MMC_TIMING_UHS_DDR50)
+			clk |= MCI_ST_UX500_NEG_EDGE;
+	}
 
 	mmci_write_clkreg(host, clk);
 }

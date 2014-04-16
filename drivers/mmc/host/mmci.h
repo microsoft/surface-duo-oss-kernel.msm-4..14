@@ -31,6 +31,27 @@
 /* Modified PL180 on Versatile Express platform */
 #define MCI_ARM_HWFCEN		(1 << 12)
 
+/* Modified on Qualcomm Integrations */
+#define MCI_CLK_QCOM_WIDEBUS_1	(0 << 10)
+#define MCI_CLK_QCOM_WIDEBUS_4	(2 << 10)
+#define MCI_CLK_QCOM_WIDEBUS_8	(3 << 10)
+#define MCI_CLK_QCOM_FLOWENA	(1 << 12)
+#define MCI_CLK_QCOM_INVERTOUT	(1 << 13)
+
+/* select in latch data and command */
+#define MCI_CLK_QCOM_SEL_IN_SHIFT	(14)
+#define MCI_CLK_QCOM_SEL_MASK		(0x3)
+#define MCI_CLK_QCOM_SEL_RISING_EDGE	(1)
+#define MCI_CLK_QCOM_SEL_FEEDBACK_CLK	(2)
+#define MCI_CLK_QCOM_SEL_DDR_MODE	(3)
+
+/* mclk selection */
+#define MCI_CLK_SDC4_MCLK_SEL_SHIFT	(23)
+#define MCI_CLK_SDC4_MCLK_SEL_MASK	(0x3)
+#define MCI_CLK_SDC4_MCLK_SEL_FB_CLK	(1)
+#define MCI_CLK_SDC4_MCLK_SEL_MCLK	(2)
+
+
 #define MMCIARGUMENT		0x008
 #define MMCICOMMAND		0x00c
 #define MCI_CPSM_RESPONSE	(1 << 6)
