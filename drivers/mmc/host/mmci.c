@@ -1023,6 +1023,29 @@ mmci_cmd_irq(struct mmci_host *host, struct mmc_command *cmd,
 	}
 }
 
+static int mmci_qcom_pio_read(struct mmci_host *host, char *buffer,
+			 unsigned int remain)
+{
+	uint32_t	*ptr = (uint32_t *) buffer;
+	int		count = 0;
+	struct variant_data *variant = host->variant;
+	int		fifo_size = variant->fifosize;
+
+	if (remain % 4)
+		remain = ((remain >> 2) + 1) << 2;
+
+	while (readl(host->base + MMCISTATUS) & MCI_RXDATAAVLBL) {
+		*ptr = readl(host->base + MMCIFIFO + (count % fifo_size));
+		ptr++;
+		count += sizeof(uint32_t);
+
+		remain -=  sizeof(uint32_t);
+		if (remain == 0)
+			break;
+	}
+	return count;
+}
+
 static int mmci_pio_read(struct mmci_host *host, char *buffer, unsigned int remain)
 {
 	void __iomem *base = host->base;
@@ -1144,8 +1167,12 @@ static irqreturn_t mmci_pio_irq(int irq, void *dev_id)
 		remain = sg_miter->length;
 
 		len = 0;
-		if (status & MCI_RXACTIVE)
-			len = mmci_pio_read(host, buffer, remain);
+		if (status & MCI_RXACTIVE) {
+			if (host->hw_designer == AMBA_VENDOR_QCOM)
+				len = mmci_qcom_pio_read(host, buffer, remain);
+			else
+				len = mmci_pio_read(host, buffer, remain);
+		}
 		if (status & MCI_TXACTIVE)
 			len = mmci_pio_write(host, buffer, remain, status);
 
