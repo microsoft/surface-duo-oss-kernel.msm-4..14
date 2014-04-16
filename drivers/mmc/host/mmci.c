@@ -910,6 +910,10 @@ mmci_start_command(struct mmci_host *host, struct mmc_command *cmd, u32 c)
 	if (/*interrupt*/0)
 		c |= MCI_CPSM_INTERRUPT;
 
+	if (host->hw_designer == AMBA_VENDOR_QCOM &&
+	    mmc_cmd_type(cmd) == MMC_CMD_ADTC)
+		c |= MCI_CSPM_QCOM_DATCMD;
+
 	host->cmd = cmd;
 
 	mmci_writel(host, cmd->arg, MMCIARGUMENT);

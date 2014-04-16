@@ -63,6 +63,14 @@
 #define MCI_ENCMD_COMPL		(1 << 12)
 #define MCI_NIEN		(1 << 13)
 #define MCI_CE_ATACMD		(1 << 14)
+/* Modified on Qualcomm Integrations */
+#define MCI_CSPM_QCOM_DATCMD		(1 << 12)
+#define MCI_CSPM_QCOM_MCIABORT		(1 << 13)
+#define MCI_CSPM_QCOM_CCSENABLE		(1 << 14)
+#define MCI_CSPM_QCOM_CCSDISABLE	(1 << 15)
+#define MCI_CSPM_QCOM_AUTO_CMD19	(1 << 16)
+#define MCI_CSPM_QCOM_AUTO_CMD21	(1 << 21)
+
 
 #define MMCIRESPCMD		0x010
 #define MMCIRESPONSE0		0x014
