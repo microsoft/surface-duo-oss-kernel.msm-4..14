@@ -291,7 +291,18 @@ static void mmci_set_clkreg(struct mmci_host *host, unsigned int desired)
 	host->cclk = 0;
 
 	if (desired) {
-		if (desired >= host->mclk) {
+		if (desired != host->mclk &&
+		    host->hw_designer == AMBA_VENDOR_QCOM) {
+			/* Qcom MCLKCLK register does not define bypass bits */
+			int rc = clk_set_rate(host->clk, desired);
+			if (rc < 0) {
+				dev_err(mmc_dev(host->mmc),
+					"Error setting clock rate (%d)\n", rc);
+			} else {
+				host->mclk = clk_get_rate(host->clk);
+				host->cclk = host->mclk;
+			}
+		} else if (desired >= host->mclk) {
 			clk = MCI_CLK_BYPASS;
 			if (variant->st_clkdiv)
 				clk |= MCI_ST_UX500_NEG_EDGE;
@@ -1584,7 +1595,8 @@ static int mmci_probe(struct amba_device *dev,
 	 * of course.
 	 */
 	if (plat->f_max)
-		mmc->f_max = min(host->mclk, plat->f_max);
+		mmc->f_max = (host->hw_designer == AMBA_VENDOR_QCOM) ?
+				plat->f_max : min(host->mclk, plat->f_max);
 	else
 		mmc->f_max = min(host->mclk, fmax);
 	dev_dbg(mmc_dev(mmc), "clocking block at %u Hz\n", mmc->f_max);
