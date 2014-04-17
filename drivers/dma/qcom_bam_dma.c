@@ -61,12 +61,18 @@ struct bam_desc_hw {
 #define DESC_FLAG_INT BIT(15)
 #define DESC_FLAG_EOT BIT(14)
 #define DESC_FLAG_EOB BIT(13)
+#define DESC_FLAG_NWD BIT(12)
+#define DESC_FLAG_CMD BIT(11)
 
 struct bam_async_desc {
 	struct virt_dma_desc vd;
 
 	u32 num_desc;
 	u32 xfer_len;
+
+	/* transaction flags, EOT|EOB|NWD|CMD */
+	u16 flags;
+
 	struct bam_desc_hw *curr_desc;
 
 	enum dma_transfer_direction dir;
@@ -800,6 +806,34 @@ static void bam_apply_new_config(struct bam_chan *bchan,
 	bchan->reconfigure = 0;
 }
 
+void qcom_bam_set_desc_eot(struct dma_async_tx_descriptor *txd)
+{
+	struct bam_async_desc *async_desc = container_of(txd,
+			struct bam_async_desc, vd.tx);
+
+	async_desc->flags |= DESC_FLAG_EOT;
+}
+EXPORT_SYMBOL(qcom_bam_set_desc_eot);
+
+void qcom_bam_set_desc_cmd(struct dma_async_tx_descriptor *txd)
+{
+	struct bam_async_desc *async_desc = container_of(txd,
+			struct bam_async_desc, vd.tx);
+
+	async_desc->flags |= DESC_FLAG_CMD;
+}
+EXPORT_SYMBOL(qcom_bam_set_desc_cmd);
+
+void qcom_bam_set_desc_nwd(struct dma_async_tx_descriptor *txd)
+{
+	struct bam_async_desc *async_desc = container_of(txd,
+			struct bam_async_desc, vd.tx);
+
+	async_desc->flags |= DESC_FLAG_NWD;
+}
+EXPORT_SYMBOL(qcom_bam_set_desc_nwd);
+
+
 /**
  * bam_start_dma - start next transaction
  * @bchan - bam dma channel
@@ -812,6 +846,7 @@ static void bam_start_dma(struct bam_chan *bchan)
 	struct bam_desc_hw *desc;
 	struct bam_desc_hw *fifo = PTR_ALIGN(bchan->fifo_virt,
 					sizeof(struct bam_desc_hw));
+	int i;
 
 	lockdep_assert_held(&bchan->vc.lock);
 
@@ -838,8 +873,17 @@ static void bam_start_dma(struct bam_chan *bchan)
 	else
 		async_desc->xfer_len = async_desc->num_desc;
 
-	/* set INT on last descriptor */
-	desc[async_desc->xfer_len - 1].flags |= DESC_FLAG_INT;
+	/* set command descriptor flag, if applicable */
+	if (async_desc->flags & DESC_FLAG_CMD)
+		for (i = 0; i < async_desc->xfer_len; i++)
+			desc[i].flags |= DESC_FLAG_CMD;
+
+	/* set EOT or INT based on flag settings and if final transaction */
+	if (async_desc->flags & DESC_FLAG_EOT &&
+		async_desc->num_desc == async_desc->xfer_len)
+		desc[async_desc->xfer_len - 1].flags |= DESC_FLAG_EOT;
+	else
+		desc[async_desc->xfer_len - 1].flags |= DESC_FLAG_INT;
 
 	if (bchan->tail + async_desc->xfer_len > MAX_DESCRIPTORS) {
 		u32 partial = MAX_DESCRIPTORS - bchan->tail;
