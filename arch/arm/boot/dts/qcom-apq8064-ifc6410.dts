@@ -16,7 +16,7 @@
 		amba {
 			/* eMMC */
 			sdcc1: sdcc@12400000 {
-				status = "okay";
+		//		status = "okay";
 			};
 
 			/* External micro SD card */
