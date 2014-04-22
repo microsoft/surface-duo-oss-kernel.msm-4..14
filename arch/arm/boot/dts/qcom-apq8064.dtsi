@@ -164,9 +164,10 @@
 			interrupts = <0 96 0>;
 			clocks = <&gcc SDC3_H_CLK>;
 			clock-names = "bam_clk";
-			#dma-cells = <1>
+			#dma-cells = <1>;
 			qcom,ee = <0>;
 		};
+
 		amba {
 			compatible = "arm,amba-bus";
 			#address-cells = <1>;
