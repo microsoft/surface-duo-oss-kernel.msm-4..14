@@ -112,6 +112,12 @@
 #define ESDHC_FLAG_STD_TUNING		BIT(5)
 /* The IP has SDHCI_CAPABILITIES_1 register */
 #define ESDHC_FLAG_HAVE_CAP1		BIT(6)
+/* The IP has errata ERR004536 */
+#define ESDHC_FLAG_ERR004536		BIT(7)
+/* need request bus freq during low power */
+#define ESDHC_FLAG_BUSFREQ		BIT(8)
+/* IP support ESDHC multiblock read ACMD 12 */
+#define ESDHC_FLAG_MULTIBLK_READ_ACMD12		BIT(9)
 
 struct esdhc_soc_data {
 	u32 flags;
@@ -142,10 +148,14 @@ static struct esdhc_soc_data usdhc_imx6sl_data = {
 			| ESDHC_FLAG_HAVE_CAP1,
 };
 
+static struct esdhc_soc_data esdhc_vf610_data = {
+        .flags = ESDHC_FLAG_MULTIBLK_READ_ACMD12,
+};
+
+
 static struct esdhc_soc_data usdhc_sac58r_data = {
 	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MULTIBLK_READ_ACMD12,
 };
-
 
 struct pltfm_imx_data {
 	u32 scratchpad;
@@ -189,6 +199,7 @@ static const struct of_device_id imx_esdhc_dt_ids[] = {
 	{ .compatible = "fsl,imx53-esdhc", .data = &esdhc_imx53_data, },
 	{ .compatible = "fsl,imx6sl-usdhc", .data = &usdhc_imx6sl_data, },
 	{ .compatible = "fsl,imx6q-usdhc", .data = &usdhc_imx6q_data, },
+	{ .compatible = "fsl,vf610-esdhc", .data = &esdhc_vf610_data, },
 	{ .compatible = "fsl,sac58r-usdhc", .data = &usdhc_sac58r_data, },
 	{ /* sentinel */ }
 };
@@ -997,6 +1008,9 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 		dev_warn(mmc_dev(host->mmc), "could not get default state\n");
 
 	host->quirks |= SDHCI_QUIRK_BROKEN_TIMEOUT_VAL;
+
+	if (imx_data->socdata->flags & ESDHC_FLAG_MULTIBLK_READ_ACMD12)
+		host->quirks |= SDHCI_QUIRK_MULTIBLOCK_READ_ACMD12;
 
 	if (imx_data->socdata->flags & ESDHC_FLAG_ENGCM07207)
 		/* Fix errata ENGcm07207 present on i.MX25 and i.MX35 */
