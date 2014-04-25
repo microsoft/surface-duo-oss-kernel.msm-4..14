@@ -623,6 +623,16 @@ config SOC_LS1021A
 	help
 	  This enables support for Freescale LS1021A processor.
 
+config SOC_SAC58R
+	bool "Rayleigh SAC58R support"
+	select CPU_V7
+	select ARM_GIC
+	select CLKSRC_OF
+	select VF_PIT_TIMER
+
+	help
+	  This enable support for Freescale Rayleigh SAC58R processor.
+
 endif
 
 source "arch/arm/mach-imx/devices/Kconfig"
