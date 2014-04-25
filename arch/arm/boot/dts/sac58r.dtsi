@@ -1,0 +1,845 @@
+/*
+ * Copyright 2014 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ */
+
+#include "skeleton.dtsi"
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/clock/sac58r-clock.h>
+
+/ {
+	compatible = "fsl,sac58r";
+	interrupt-parent = <&intc>;
+
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		serial2 = &uart2;
+		serial3 = &uart3;
+		serial4 = &uart4;
+		serial5 = &uart5;
+		gpio0 = &gpio1; /* PORT_A */
+		gpio1 = &gpio2; /* PORT_B */
+		gpio2 = &gpio3; /* PORT_C */
+		gpio3 = &gpio4; /* PORT_D */
+		gpio4 = &gpio5; /* PORT_E */
+		gpio5 = &gpio6; /* PORT_F */
+		gpio6 = &gpio7; /* PORT_G */
+		gpio7 = &gpio8; /* PORT_H */
+		gpio8 = &gpio9; /* PORT_J */
+		gpio9 = &gpio10; /* PORT_K */
+		gpio10 = &gpio11; /* PORT_L */
+	};
+
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		cpu@0 {
+			compatible = "arm,cortex-a7";
+			device_type = "cpu";
+			reg = <0x0>;
+		};
+	};
+
+	clocks {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		sxosc {
+			compatible = "fixed-clock";
+			clock-frequency = <32768>;
+		};
+
+		fxosc {
+			compatible = "fixed-clock";
+			clock-frequency = <24000000>;
+		};
+	};
+
+/*
+	timer {
+		compatible = "arm,armv7-timer";
+		interrupts = 	<GIC_PPI 13 0xf08>,
+				<GIC_PPI 14 0xf08>,
+				<GIC_PPI 11 0xf08>,
+				<GIC_PPI 10 0xf08>;
+	};
+*/
+
+	soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		interrupt-parent = <&intc>;
+		ranges;
+
+		aips0: aips-bus@40000000 {
+			compatible = "fsl,aips-bus", "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			interrupt-parent = <&intc>;
+			reg = <0x40000000 0x70000>;
+			ranges;
+
+			gpc: gpc@40020000 {
+				compatible = "fsl,sac58r-gpc";
+				reg = <0x40020000 0x1000>;
+				interrupts = <0 89 0x04 0 90 0x04>;
+			};
+
+			src: src@40022000 {
+				compatible = "fsl,imx6q-src", "fsl,imx51-src";
+				reg = <0x40022000 0x1000>;
+				interrupts = <0 91 0x04 0 96 0x04>;
+				#reset-cells = <1>;
+			};
+
+			clks: ccm@40023000 {
+				compatible = "fsl,sac58r-ccm";
+				reg = <0x40023000 0x1000>;
+				#clock-cells = <1>;
+			};
+
+			/* Missing: 
+				- Slow Clock Source controller Module (SCSC) @ 0x40024000
+				- Clock Monitor Unit (CMU) @ 0x40025000
+			*/
+
+			anadig: anadig@40026000 {
+				compatible = "fsl,sac58r-anatop", "syscon", "simple-bus";
+				reg = <0x40026000 0x1000>;
+			};
+
+		/* USBPHYs address not known yet.
+			usbphy1: usbphy@40026800 {
+				compatible = "fsl,imx6sl-usbphy", "fsl,imx23-usbphy";
+				reg = <0x40026800 0x400>;
+				interrupts = <0 44 0x04>;
+				clocks = <&clks SAC58R_CLK_USBPHY1>;
+				fsl,anatop = <&anadig>;
+			};
+
+			usbphy2: usbphy@40026C00 {
+				compatible = "fsl,imx6sl-usbphy", "fsl,imx23-usbphy";
+				reg = <0x40026C00 0x400>;
+				interrupts = <0 45 0x04>;
+				clocks = <&clks SAC58R_CLK_USBPHY2>;
+				fsl,anatop = <&anadig>;
+			};
+		*/
+
+			iomuxc: iomuxc@40028000 {
+				compatible = "fsl,vf610-iomuxc";
+				reg = <0x40028000 0x1000>;
+				#gpio-range-cells = <2>;
+				status = "disabled";
+			};
+
+			/* Missing:
+				- GPIO
+			*/
+
+			gpio1: gpio@4002A000 {
+				compatible = "fsl,vf610-gpio";
+				reg = <0x4002A000 0x1000 0x400ff000 0x40>;
+				interrupts = <0 100 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				gpio-ranges = <&iomuxc 0 32>;
+			};
+
+			gpio2: gpio@4002B000 {
+				compatible = "fsl,vf610-gpio";
+				reg = <0x4002B000 0x1000 0x400ff040 0x40>;
+				interrupts = <0 101 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				gpio-ranges = <&iomuxc 32 32>;
+			};
+
+			gpio3: gpio@4002C000 {
+				compatible = "fsl,vf610-gpio";
+				reg = <0x4002C000 0x1000 0x400ff080 0x40>;
+				interrupts = <0 102 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				gpio-ranges = <&iomuxc 64 32>;
+			};
+
+			gpio4: gpio@4002D000 {
+				compatible = "fsl,vf610-gpio";
+				reg = <0x4002D000 0x1000 0x400ff0c0 0x40>;
+				interrupts = <0 103 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				gpio-ranges = <&iomuxc 96 32>;
+			};
+
+			gpio5: gpio@4002E000 {
+				compatible = "fsl,vf610-gpio";
+				reg = <0x4002E000 0x1000 0x400ff100 0x40>;
+				interrupts = <0 104 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				gpio-ranges = <&iomuxc 128 7>;
+			};
+
+			gpio6: gpio@4002F000 {
+				compatible = "fsl,vf610-gpio";
+				reg = <0x4002F000 0x1000 0x400ff000 0x40>;
+				interrupts = <0 105 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				gpio-ranges = <&iomuxc 0 32>;
+			};
+
+			gpio7: gpio@40030000 {
+				compatible = "fsl,vf610-gpio";
+				reg = <0x40030000 0x1000 0x400ff040 0x40>;
+				interrupts = <0 106 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				gpio-ranges = <&iomuxc 32 32>;
+			};
+
+			gpio8: gpio@40031000 {
+				compatible = "fsl,vf610-gpio";
+				reg = <0x40031000 0x1000 0x400ff080 0x40>;
+				interrupts = <0 107 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				gpio-ranges = <&iomuxc 64 32>;
+			};
+
+			gpio9: gpio@40032000 {
+				compatible = "fsl,vf610-gpio";
+				reg = <0x40032000 0x1000 0x400ff0c0 0x40>;
+				interrupts = <0 108 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				gpio-ranges = <&iomuxc 96 32>;
+			};
+
+			gpio10: gpio@40033000 {
+				compatible = "fsl,vf610-gpio";
+				reg = <0x40033000 0x1000 0x400ff100 0x40>;
+				interrupts = <0 109 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				gpio-ranges = <&iomuxc 128 7>;
+			};
+
+			gpio11: gpio@40034000 {
+				compatible = "fsl,vf610-gpio";
+				reg = <0x40034000 0x1000 0x400ff100 0x40>;
+				interrupts = <0 110 0x04>;
+				gpio-controller;
+				#gpio-cells = <2>;
+				interrupt-controller;
+				#interrupt-cells = <2>;
+				gpio-ranges = <&iomuxc 128 7>;
+			};
+
+			/* Missing:
+				- OCOTP Controller
+				- OCOTP Controller
+				- SNVS
+				- SNVS-WDOG
+			*/
+
+			flexcan0: can@40040000 {
+				compatible = "fsl,imx6q-flexcan";
+				reg = <0x40040000 0x1000>;
+				interrupts = <0 57 0x04>;
+				clocks = <&clks 108>, <&clks 109>;
+				clock-names = "ipg", "per";
+				status = "disabled";
+			};
+
+			flexcan1: can@40041000 {
+				compatible = "fsl,imx6q-flexcan";
+				reg = <0x40041000 0x1000>;
+				interrupts = <0 58 0x04>;
+				clocks = <&clks 108>, <&clks 109>;
+				clock-names = "ipg", "per";
+				status = "disabled";
+			};
+
+			flexcan2: can@40042000 {
+				compatible = "fsl,imx6q-flexcan";
+				reg = <0x40042000 0x1000>;
+				interrupts = <0 59 0x04>;
+				clocks = <&clks 110>, <&clks 111>;
+				clock-names = "ipg", "per";
+				status = "disabled";
+			};
+
+			spi0: spi@40045000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "fsl,vf610-dspi";
+				reg = <0x40045000 0x1000>;
+				interrupts = <0 67 0x04>;
+				clocks = <&clks SAC58R_CLK_DSPI0>,
+					<&clks SAC58R_CLK_DSPI0>;
+				clock-names = "spi_en", "spi";
+				status = "disabled";
+			};
+
+			uart2: serial@40048000 {
+				compatible = "fsl,vf610-lpuart";
+				reg = <0x40048000 0x1000>;
+				interrupts = <0 63 0x04>;
+				clocks = <&clks SAC58R_CLK_UART2>;
+				clock-names = "ipg";
+				status = "disabled";
+			};
+
+			/* Missing:
+				- DMA 0 Channel Mux 0	DMA_CH_MUX_0
+				- DMA 0 Channel Mux 1	DMA_CH_MUX_1
+				- Wake up Unit (WKPU)	WKPU
+				- CRC	CRC_0
+				- LPTimer	LPTIMER_0
+			*/
+			pit: pit@40058000 {
+				compatible = "fsl,vf610-pit";
+				reg = <0x40058000 0x1000>;
+				interrupts = <0 39 0x04>;
+				clocks = <&clks SAC58R_CLK_PIT>;
+				clock-names = "pit";
+			};
+
+			/* Missing:
+				- General Purpose Analog-to-Digital Converter (GPADC) 0	GPADC_0
+				- FlexTimer (FTM) 0	FTM_0
+				- PDB	PDB
+				- REG_BANK_PD0 	REG_BANK_PD0 
+				- REG_BANK_PD1	REG_BANK_PD1
+			*/
+
+			wdog@4003e000 {
+				compatible = "fsl,vf610-wdt", "fsl,imx21-wdt";
+				reg = <0x4003e000 0x1000>;
+				clocks = <&clks SAC58R_CLK_WDT>;
+				clock-names = "wdog";
+				status = "disabled";
+			};
+		};
+
+		aips1: aips-bus@40080000 {
+			compatible = "fsl,aips-bus", "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x40080000 0x80000>;
+			ranges;
+
+			/* Missing:
+				- Audio Codecs	AUD_ADC_DAC
+			*/
+
+			sai4: sai@400A6000 {
+				compatible = "fsl,vf610-sai";
+				reg = <0x400A6000 0x1000>;
+				interrupts = <0 79 0x04>;
+				clocks = <&clks SAC58R_CLK_SAI4>;
+				clock-names = "sai";
+				status = "disabled";
+			};
+
+			sai5: sai@400A7000 {
+				compatible = "fsl,vf610-sai";
+				reg = <0x400A7000 0x1000>;
+				interrupts = <0 80 0x04>;
+				clocks = <&clks SAC58R_CLK_SAI5>;
+				clock-names = "sai";
+				status = "disabled";
+			};
+
+			sai6: sai@400AC000 {
+				compatible = "fsl,vf610-sai";
+				reg = <0x400AC000 0x1000>;
+				interrupts = <0 81 0x04>;
+				clocks = <&clks SAC58R_CLK_SAI2>;
+				clock-names = "sai";
+				status = "disabled";
+			};
+
+			sai7: sai@400AD000 {
+				compatible = "fsl,vf610-sai";
+				reg = <0x400AD000 0x1000>;
+				interrupts = <0 82 0x04>;
+				clocks = <&clks SAC58R_CLK_SAI2>;
+				clock-names = "sai";
+				status = "disabled";
+			};
+
+			/* Missing:
+				- REG_BANK_PD2	REG_BANK_PD2
+				- MISC PIN CTRL	MISC_PIN_CONTROL
+			*/
+
+			esai0: esai@400B3000 {
+				compatible = "fsl,imx6q-esai";
+				reg = <0x400B3000 0x1000>;
+				interrupts = <0 87 0x04>;
+				clocks = <&clks 118>, <&clks 156>;
+				clock-names = "core", "dma";
+				fsl,esai-dma-events = <24 23>;
+				fsl,flags = <1>;
+				status = "disabled";
+			};
+
+			/*
+			mlb: mlb@400B6000 {
+				compatible = "fsl,imx6q-mlb150";
+				reg = <0x400B6000 0x1000>;
+				interrupts = <0 53 0x04 0 117 0x04 0 126 0x04>;
+				clocks = <&clks 139>, <&clks 175>;
+				clock-names = "mlb", "pll8_mlb";
+				iram = <&ocram>;
+				status = "disabled";
+			};
+			*/
+
+			spi1: spi@400B8000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "fsl,vf610-dspi";
+				reg = <0x400B8000 0x1000>;
+				interrupts = <0 68 0x04>;
+				clocks = <&clks SAC58R_CLK_DSPI1>,
+					<&clks SAC58R_CLK_DSPI1>;
+				clock-names = "spi_en", "spi";
+				status = "disabled";
+			};
+
+			uart0: serial@400BB000 {
+				compatible = "fsl,vf610-lpuart";
+				reg = <0x400BB000 0x1000>;
+				interrupts = <0 61 0x00>;
+				clocks = <&clks SAC58R_CLK_UART0>;
+				clock-names = "ipg";
+				status = "disabled";
+			};
+
+			uart1: serial@400BC000 {
+				compatible = "fsl,vf610-lpuart";
+				reg = <0x400BC000 0x1000>;
+				interrupts = <0 62 0x04>;
+				clocks = <&clks SAC58R_CLK_UART1>;
+				clock-names = "ipg";
+				status = "disabled";
+			};
+
+			i2c0: i2c@400BF000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "fsl,vf610-i2c";
+				reg = <0x400BF000 0x1000>;
+				interrupts =<0 71 0x04>;
+				clocks = <&clks SAC58R_CLK_I2C0>;
+				clock-names = "ipg";
+				status = "disabled";
+			};
+
+			i2c1: i2c@400C0000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "fsl,vf610-i2c";
+				reg = <0x400C0000 0x1000>;
+				interrupts =<0 72 0x04>;
+				clocks = <&clks SAC58R_CLK_I2C1>;
+				clock-names = "ipg";
+				status = "disabled";
+			};
+
+			crypto: caam@400D0000 {
+				compatible = "fsl,sec-v4.0";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				reg = <0x400D0000 0x40000>;
+				ranges = <0 0x2100000 0x40000>;
+				interrupt-parent = <&intc>; /* interrupts = <0 92 0x4>; */
+				clocks = <&clks 213>, <&clks 214>, <&clks 215>;
+				clock-names = "caam_mem", "caam_aclk", "caam_ipg";
+				status = "disabled";
+
+				sec_jr0: jr0@1000 {
+					compatible = "fsl,sec-v4.0-job-ring";
+					reg = <0x1000 0x1000>;
+					interrupt-parent = <&intc>;
+					interrupts = <0 105 0x4>;
+					status = "disabled";
+				};
+
+				sec_jr1: jr1@2000 {
+					compatible = "fsl,sec-v4.0-job-ring";
+					reg = <0x2000 0x1000>;
+					interrupt-parent = <&intc>;
+					interrupts = <0 106 0x4>;
+					status = "disabled";
+				};
+			};
+
+			sai8: sai@400E8000 {
+				compatible = "fsl,vf610-sai";
+				reg = <0x400E8000 0x1000>;
+				interrupts = <0 83 0x04>;
+				clocks = <&clks SAC58R_CLK_SAI2>;
+				clock-names = "sai";
+				status = "disabled";
+			};
+
+			sai9: sai@400E9000 {
+				compatible = "fsl,vf610-sai";
+				reg = <0x400E9000 0x1000>;
+				interrupts = <0 84 0x04>;
+				clocks = <&clks SAC58R_CLK_SAI2>;
+				clock-names = "sai";
+				status = "disabled";
+			};
+
+			sai10: sai@400EA000 {
+				compatible = "fsl,vf610-sai";
+				reg = <0x400EA000 0x1000>;
+				interrupts = <0 85 0x04>;
+				clocks = <&clks SAC58R_CLK_SAI2>;
+				clock-names = "sai";
+				status = "disabled";
+			};
+
+			sai11: sai@400EB000 {
+				compatible = "fsl,vf610-sai";
+				reg = <0x400EB000 0x1000>;
+				interrupts = <0 86 0x04>;
+				clocks = <&clks SAC58R_CLK_SAI2>;
+				clock-names = "sai";
+				status = "disabled";
+			};
+		};
+
+		aips2: aips-bus@40100000 {
+			compatible = "fsl,aips-bus", "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			reg = <0x40100000 0x80000>;
+			ranges;
+
+			intc: interrupt-controller@40108000 {
+				compatible = "arm,cortex-a15-gic";
+				#interrupt-cells = <3>;
+				interrupt-controller;
+				reg = <0x40109000 0x1000>,
+					<0x4010A000 0x1000>,
+					<0x4010C000 0x2000>,
+					<0x4010E000 0x2000>;
+				interrupts = <GIC_PPI 9 0x304>;
+			};
+
+			uart3: serial@40120000 {
+				compatible = "fsl,vf610-lpuart";
+				reg = <0x40120000 0x1000>;
+				interrupts = <0 64 0x00>;
+				clocks = <&clks SAC58R_CLK_UART3>;
+				clock-names = "ipg";
+				status = "disabled";
+			};
+
+			uart4: serial@40121000 {
+				compatible = "fsl,vf610-lpuart";
+				reg = <0x40121000 0x1000>;
+				interrupts = <0 65 0x04>;
+				clocks = <&clks SAC58R_CLK_UART4>;
+				clock-names = "ipg";
+				status = "disabled";
+			};
+
+			uart5: serial@40122000 {
+				compatible = "fsl,vf610-lpuart";
+				reg = <0x40122000 0x1000>;
+				interrupts = <0 66 0x04>;
+				clocks = <&clks SAC58R_CLK_UART5>;
+				clock-names = "ipg";
+				status = "disabled";
+			};
+
+			i2c2: i2c@40124000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "fsl,vf610-i2c";
+				reg = <0x40124000 0x1000>;
+				interrupts =<0 73 0x04>;
+				clocks = <&clks SAC58R_CLK_I2C2>;
+				clock-names = "ipg";
+				status = "disabled";
+			};
+
+			i2c3: i2c@40125000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "fsl,vf610-i2c";
+				reg = <0x40125000 0x1000>;
+				interrupts =<0 74 0x04>;
+				clocks = <&clks SAC58R_CLK_I2C3>;
+				clock-names = "ipg";
+				status = "disabled";
+			};
+
+			esai1: esai@40127000 {
+				compatible = "fsl,imx6q-esai";
+				reg = <0x40127000 0x1000>;
+				interrupts = <0 88 0x04>;
+				clocks = <&clks 118>, <&clks 156>;
+				clock-names = "core", "dma";
+				fsl,esai-dma-events = <24 23>;
+				fsl,flags = <1>;
+				status = "disabled";
+			};
+
+			sai0: sai@40129000 {
+				compatible = "fsl,vf610-sai";
+				reg = <0x40129000 0x1000>;
+				interrupts = <0 75 0x04>;
+				clocks = <&clks SAC58R_CLK_SAI0>;
+				clock-names = "sai";
+				status = "disabled";
+			};
+
+			sai1: sai@4012A000 {
+				compatible = "fsl,vf610-sai";
+				reg = <0x4012A000 0x1000>;
+				interrupts = <0 76 0x04>;
+				clocks = <&clks SAC58R_CLK_SAI1>;
+				clock-names = "sai";
+				status = "disabled";
+			};
+
+			sai2: sai@4012B000 {
+				compatible = "fsl,vf610-sai";
+				reg = <0x4012B000 0x1000>;
+				interrupts = <0 77 0x04>;
+				clocks = <&clks SAC58R_CLK_SAI2>;
+				clock-names = "sai";
+				status = "disabled";
+			};
+
+			sai3: sai@4012C000 {
+				compatible = "fsl,vf610-sai";
+				reg = <0x4012C000 0x1000>;
+				interrupts = <0 78 0x04>;
+				clocks = <&clks SAC58R_CLK_SAI3>;
+				clock-names = "sai";
+				status = "disabled";
+			};
+
+			/* Missing:
+				- SPDIF 0	SPDIF_0
+				- SPDIF 1	SPDIF_1
+			*/
+
+			asrc0: asrc@40132000 {
+				compatible = "fsl,imx53-asrc";
+				reg = <0x02034000 0x1000>;
+				interrupts = <0 90 0x04>;
+				clocks = <&clks 107>, <&clks 156>;
+				clock-names = "core", "dma";
+				/*
+				dmas = <&sdma 17 20 1>, <&sdma 18 20 1>, <&sdma 19 20 1>,
+				     <&sdma 20 20 1>, <&sdma 21 20 1>, <&sdma 22 20 1>;
+				dma-names = "rxa", "rxb", "rxc",
+					"txa", "txb", "txc";
+				*/
+				status = "disabled";
+			};
+
+			asrc1: asrc@40133000 {
+				compatible = "fsl,imx53-asrc";
+				reg = <0x02034000 0x1000>;
+				interrupts = <0 91 0x04>;
+				clocks = <&clks 107>, <&clks 156>;
+				clock-names = "core", "dma";
+				/*
+				dmas = <&sdma 17 20 1>, <&sdma 18 20 1>, <&sdma 19 20 1>,
+				     <&sdma 20 20 1>, <&sdma 21 20 1>, <&sdma 22 20 1>;
+				dma-names = "rxa", "rxb", "rxc",
+					"txa", "txb", "txc";
+				*/
+				status = "disabled";
+			};
+
+			/* Missing:
+				Video ADC	VADC
+				Video Decoder	VDEC
+				VIU3	VIU
+				MIPI CSI-2	MIPI CSI-2
+				2D-ACE 0	ACE_0
+				2D-ACE 0	ACE_0
+				2D-ACE 0	ACE_0
+				2D-ACE 0	ACE_0
+				2D-ACE 0	ACE_0
+				2D-ACE 0	ACE_0
+				2D-ACE 0	ACE_0
+				2D-ACE 0	ACE_0
+				TCON0	TCON_0
+				LVDS Dsiplay Bridge	LDB
+				RLE	RLE
+				VPU 
+				GC400T	GC400T
+				GC400T	GC400T
+				GC400T	GC400T
+				GC400T	GC400T
+			*/
+			fec0: ethernet@40160000 {
+				compatible = "fsl,mvf600-fec";
+				reg = <0x40160000 0x1000>;
+				interrupts = <0 43 0x04>;
+				clocks = <&clks SAC58R_CLK_ENET>,
+					<&clks SAC58R_CLK_ENET>,
+					<&clks SAC58R_CLK_ENET>;
+				clock-names = "ipg", "ahb", "ptp";
+				status = "disabled";
+			};
+
+/*
+			usbotg1: usb@40163000 {
+				compatible = "fsl,imx6sl-usb", "fsl,imx27-usb";
+				reg = <0x40163000 0x1000>;
+				interrupts = <0 43 0x04>;
+				clocks = <&clks SAC58R_USBC1>;
+				fsl,usbphy = <&usbphy1>;
+				fsl,usbmisc = <&usbmisc 0>;
+				fsl,anatop = <&anadig>;
+				status = "disabled";
+			};
+
+			usbotg2: usb@40164000 {
+				compatible = "fsl,imx6sl-usb", "fsl,imx27-usb";
+				reg = <0x40164000 0x1000>;
+				interrupts = <0 42 0x04>;
+				clocks = <&clks SAC58R_USBC2>;
+				fsl,usbphy = <&usbphy2>;
+				fsl,usbmisc = <&usbmisc 1>;
+				status = "disabled";
+			};
+
+			usbh: usb@40165000 {
+				compatible = "fsl,imx6sl-usb", "fsl,imx27-usb";
+				reg = <0x40165000 0x1000>;
+				interrupts = <0 40 0x04>;
+				clocks = <&clks SAC58R_USBC3>;
+				fsl,usbmisc = <&usbmisc 2>;
+				phy_type = "hsic";
+				fsl,usbphy = <&usbphy_nop1>;
+				fsl,anatop = <&anadig>;
+				status = "disabled";
+			};
+
+			usbmisc: usbmisc@02184800 {
+				#index-cells = <1>;
+				compatible = "fsl,imx6sl-usbmisc", "fsl,imx6q-usbmisc";
+				reg = <0x40163800 0x200>,
+						<0x40164800 0x200>,
+						<0x40165800 0x200>;
+				clocks = <&clks SAC58R_USBC1>,
+						<&clks SAC58R_USBC2>,
+						<&clks SAC58R_USBC3>;
+				vbus-wakeup-supply = <&reg_vbus_wakeup>;
+			};
+*/
+
+			/* Missing:
+				- DMA 1 Channel Mux 2	DMA_CH_MUX_2
+				- DMA 1 Channel Mux 3	DMA_CH_MUX_3
+			*/
+
+
+			mmdc: mmdc@40169000 { /* MMDC */
+				compatible = "fsl,imx6q-mmdc";
+				reg = <0x40169000 0x4000>;
+			};
+
+			qspi0: quadspi@4016C000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "fsl,vf610-qspi";
+				reg = <0x4016C000 0x1000>;
+				interrupts = <0 24 0x04>;
+				clocks = <&clks SAC58R_CLK_QSPI_EN>,
+					<&clks SAC58R_CLK_QSPI>;
+				clock-names = "qspi_en", "qspi";
+				status = "disabled";
+			};
+
+			usdhc0: usdhc@4016C000 {
+				compatible = "fsl,sac58r-usdhc";
+				reg = <0x4016C000 0x1000>;
+				interrupts = <0 27 0x04>;
+				clocks = <&clks SAC58R_CLK_USDHC0>,
+						<&clks SAC58R_CLK_USDHC0>,
+						<&clks SAC58R_CLK_USDHC0>;
+				clock-names = "ipg", "ahb", "per";
+				bus-width = <4>;
+				status = "disabled";
+			};
+
+			usdhc1: usdhc@4016D000 {
+				compatible = "fsl,sac58r-usdhc";
+				reg = <0x4016D000 0x1000>;
+				interrupts = <0 28 0x04>;
+				clocks = <&clks SAC58R_CLK_USDHC1>,
+					<&clks SAC58R_CLK_USDHC1>,
+					<&clks SAC58R_CLK_USDHC1>;
+				clock-names = "ipg", "ahb", "per";
+				bus-width = <4>;
+				status = "disabled";
+			};
+
+			usdhc2: usdhc@4016E000 {
+				compatible = "fsl,sac58r-usdhc";
+				reg = <0x4016E000 0x1000>;
+				interrupts = <0 29 0x04>;
+				clocks = <&clks SAC58R_CLK_USDHC2>,
+					<&clks SAC58R_CLK_USDHC2>,
+					<&clks SAC58R_CLK_USDHC2>;
+				clock-names = "ipg", "ahb", "per";
+				bus-width = <4>;
+				status = "disabled";
+			};
+
+			nfc: nfc@40178000 {
+				compatible = "fsl,vf610-nfc";
+				reg = <0x40178000 0x4000>;
+				interrupts = <0 26 0x04>;
+				status = "disabled";
+			};
+		};
+
+	};
+};
+
