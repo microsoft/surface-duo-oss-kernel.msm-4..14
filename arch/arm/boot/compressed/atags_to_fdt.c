@@ -97,6 +97,22 @@ static void merge_fdt_bootargs(void *fdt, const char *fdt_cmdline)
 	setprop_string(fdt, "/chosen", "bootargs", cmdline);
 }
 
+static int fdt_overrides_atag_mem(void *fdt)
+{
+	const char *memory;
+	int len = 0;
+
+	memory = getprop(fdt, "/memory", "reg", &len);
+	if (memory) {
+		while (len--) {
+			if (*memory != '\0')
+				return 1;
+		}
+	}
+
+	return 0;
+}
+
 /*
  * Convert and fold provided ATAGs into the provided FDT.
  *
@@ -182,7 +198,7 @@ int atags_to_fdt(void *atag_list, void *fdt, int total_space)
 		}
 	}
 
-	if (memcount) {
+	if (memcount && !fdt_overrides_atag_mem(fdt)) {
 		setprop(fdt, "/memory", "reg", mem_reg_property,
 			4 * memcount * memsize);
 	}
