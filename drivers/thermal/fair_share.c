@@ -23,6 +23,7 @@
  */
 
 #include <linux/thermal.h>
+#include <trace/events/thermal.h>
 
 #include "thermal_core.h"
 
@@ -34,14 +35,18 @@ static int get_trip_level(struct thermal_zone_device *tz)
 {
 	int count = 0;
 	unsigned long trip_temp;
+	enum thermal_trip_type trip_type;
 
 	if (tz->trips == 0 || !tz->ops->get_trip_temp)
 		return 0;
 
 	for (count = 0; count < tz->trips; count++) {
 		tz->ops->get_trip_temp(tz, count, &trip_temp);
-		if (tz->temperature < trip_temp)
+		if (tz->temperature < trip_temp) {
+			tz->ops->get_trip_type(tz, count, &trip_type);
+			trace_thermal_zone_trip(tz, count, trip_type);
 			break;
+		}
 	}
 	return count;
 }

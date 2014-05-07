@@ -51,6 +51,36 @@ TRACE_EVENT(cdev_update,
 	TP_printk("type=%s target=%lu", __get_str(type), __entry->target)
 );
 
+TRACE_EVENT(thermal_zone_trip,
+
+	TP_PROTO(struct thermal_zone_device *tz, int trip,
+		enum thermal_trip_type trip_type),
+
+	TP_ARGS(tz, trip, trip_type),
+
+	TP_STRUCT__entry(
+		__string(thermal_zone, tz->type)
+		__field(int, id)
+		__field(int, trip)
+		__field(enum thermal_trip_type, trip_type)
+	),
+
+	TP_fast_assign(
+		__assign_str(thermal_zone, tz->type);
+		__entry->id = tz->id;
+		__entry->trip = trip;
+		__entry->trip_type = trip_type;
+	),
+
+	TP_printk("thermal_zone=%s id=%d trip=%d trip_type=%s",
+		__get_str(thermal_zone), __entry->id, __entry->trip,
+		__print_symbolic(__entry->trip_type,
+				{ THERMAL_TRIP_ACTIVE, "active" },
+				{ THERMAL_TRIP_PASSIVE, "passive" },
+				{ THERMAL_TRIP_HOT, "hot" },
+				{ THERMAL_TRIP_CRITICAL, "critical" }))
+);
+
 #endif /* _TRACE_THERMAL_H */
 
 /* This part must be outside protection */
