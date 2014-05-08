@@ -25,7 +25,7 @@ INITRD_PHYS := $(initrd_phys-y)
 
 export ZRELADDR INITRD_PHYS PARAMS_PHYS
 
-targets := Image zImage xipImage bootpImage uImage
+targets := Image zImage xipImage bootpImage uImage uImage.ipq Image.gz
 
 ifeq ($(CONFIG_XIP_KERNEL),y)
 
@@ -78,6 +78,15 @@ fi
 $(obj)/uImage:	$(obj)/zImage FORCE
 	@$(check_for_multiple_loadaddr)
 	$(call if_changed,uimage)
+	@$(kecho) '  Image $@ is ready'
+
+$(obj)/uImage.ipq: $(obj)/Image.gz FORCE
+	@$(check_for_multiple_loadaddr)
+	$(call if_changed,uimage,gzip)
+	@$(kecho) '  Image $@ is ready'
+
+$(obj)/Image.gz: $(obj)/Image FORCE
+	$(call if_changed,gzip)
 	@$(kecho) '  Image $@ is ready'
 
 $(obj)/bootp/bootp: $(obj)/zImage initrd FORCE
