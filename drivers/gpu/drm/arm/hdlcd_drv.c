@@ -373,10 +373,6 @@ static struct drm_driver hdlcd_driver = {
 	.prime_fd_to_handle	= drm_gem_prime_fd_to_handle,
 	.gem_prime_export	= drm_gem_prime_export,
 	.gem_prime_import	= drm_gem_prime_import,
-	.gem_prime_get_sg_table	= drm_gem_cma_prime_get_sg_table,
-	.gem_prime_vmap		= drm_gem_cma_prime_vmap,
-	.gem_prime_vunmap	= drm_gem_cma_prime_vunmap,
-	.gem_prime_mmap		= drm_gem_cma_prime_mmap,
 #ifdef CONFIG_DEBUG_FS
 	.debugfs_init		= hdlcd_debugfs_init,
 	.debugfs_cleanup	= hdlcd_debugfs_cleanup,
