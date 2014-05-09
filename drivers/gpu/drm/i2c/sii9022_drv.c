@@ -209,7 +209,7 @@ static void sii9022_encoder_mode_set(struct drm_encoder *encoder,
 {
 	struct i2c_client *client = drm_i2c_encoder_get_client(encoder);
 	/* SiI9022 clock is pixclock / 10000 Hz */
-	int clk = adjusted_mode->crtc_clock / 10;
+	int clk = adjusted_mode->clock / 10;
 	int i, vrefresh = adjusted_mode->vrefresh * 100;
 	uint8_t buf[15];   /* start address reg + 14 bytes max */
 
