@@ -341,6 +341,13 @@ static const struct file_operations hdlcd_fops = {
 	.llseek		= no_llseek,
 };
 
+int drm_gem_dumb_destroy(struct drm_file *file,
+			 struct drm_device *dev,
+			 uint32_t handle)
+{
+	return drm_gem_handle_delete(file, handle);
+}
+
 static struct drm_driver hdlcd_driver = {
 	.driver_features	= DRIVER_HAVE_IRQ | DRIVER_GEM |
 					DRIVER_MODESET | DRIVER_PRIME,
