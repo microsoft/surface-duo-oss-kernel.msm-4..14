@@ -63,8 +63,7 @@ void hdlcd_set_scanout(struct hdlcd_drm_private *hdlcd, bool wait)
 
 static int hdlcd_crtc_page_flip(struct drm_crtc *crtc,
 			struct drm_framebuffer *fb,
-			struct drm_pending_vblank_event *event,
-			uint32_t flags)
+			struct drm_pending_vblank_event *event)
 {
 	struct hdlcd_drm_private *hdlcd = crtc_to_hdlcd_priv(crtc);
 
