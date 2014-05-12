@@ -41,7 +41,6 @@ struct iio_event_interface {
 	struct list_head	dev_attr_list;
 	unsigned long		flags;
 	struct attribute_group	group;
-	struct mutex		read_lock;
 };
 
 /**
