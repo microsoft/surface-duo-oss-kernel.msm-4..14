@@ -423,7 +423,7 @@ static inline struct sg_table *ion_sg_table(struct ion_client *client,
 }
 
 static inline void *ion_map_kernel(struct ion_client *client,
-	struct ion_handle *handle, unsigned long flags)
+	struct ion_handle *handle)
 {
 	return ERR_PTR(-ENODEV);
 }
