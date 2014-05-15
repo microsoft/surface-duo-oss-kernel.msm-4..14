@@ -54,6 +54,8 @@ static unsigned int fmax = 515633;
  * @clkreg_enable: enable value for MMCICLOCK register
  * @clkreg_8bit_bus_enable: enable value for 8 bit bus
  * @clkreg_neg_edge_enable: enable value for inverted data/cmd output
+ * @clkreg_fbclk_latch: enable value to select feedback clock to
+ *			latch data and command comming in.
  * @datalength_bits: number of bits in the MMCIDATALENGTH register
  * @fifosize: number of bytes that can be written when MMCI_TXFIFOEMPTY
  *	      is asserted (likewise for RX)
@@ -79,6 +81,7 @@ struct variant_data {
 	unsigned int		clkreg_enable;
 	unsigned int		clkreg_8bit_bus_enable;
 	unsigned int		clkreg_neg_edge_enable;
+	unsigned int		clkreg_fbclk_latch;
 	unsigned int		datalength_bits;
 	unsigned int		fifosize;
 	unsigned int		fifohalfsize;
@@ -189,6 +192,7 @@ static struct variant_data variant_qcom = {
 	.clkreg			= MCI_CLK_ENABLE,
 	.clkreg_enable		= MCI_QCOM_CLK_FLOWENA,
 	.clkreg_8bit_bus_enable = MCI_QCOM_CLK_WIDEBUS_8,
+	.clkreg_fbclk_latch	= MCI_QCOM_CLK_FEEDBACK_CLK,
 	.datactrl_mask_ddrmode	= MCI_QCOM_CLK_DDR_MODE,
 	.data_cmd_enable	= MCI_QCOM_CSPM_DATCMD,
 	.blksz_datactrl4	= true,
@@ -343,6 +347,7 @@ static void mmci_set_clkreg(struct mmci_host *host, unsigned int desired)
 			host->cclk = host->mclk / (2 * (clk + 1));
 		}
 
+		clk |= variant->clkreg_fbclk_latch;
 		clk |= variant->clkreg_enable;
 		clk |= MCI_CLK_ENABLE;
 		/* This hasn't proven to be worthwhile */
