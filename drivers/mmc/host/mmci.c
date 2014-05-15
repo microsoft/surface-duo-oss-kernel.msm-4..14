@@ -77,6 +77,7 @@ static unsigned int fmax = 515633;
  *			 are not ignored.
  * @explicit_mclk_control: enable explicit mclk control in driver.
  * @qcom_cclk_is_mclk: enable iff card clock is multimedia card adapter clock.
+ * @qcom_fifo: enables qcom specific fifo pio read function.
  */
 struct variant_data {
 	unsigned int		clkreg;
@@ -101,6 +102,7 @@ struct variant_data {
 	bool			mclk_delayed_writes;
 	bool			explicit_mclk_control;
 	bool			qcom_cclk_is_mclk;
+	bool			qcom_fifo;
 };
 
 static struct variant_data variant_arm = {
@@ -211,6 +213,7 @@ static struct variant_data variant_qcom = {
 	.mclk_delayed_writes	= true,
 	.explicit_mclk_control	= true,
 	.qcom_cclk_is_mclk	= true,
+	.qcom_fifo		= true,
 };
 
 static inline u32 mmci_readl(struct mmci_host *host, u32 off)
@@ -1026,6 +1029,29 @@ mmci_cmd_irq(struct mmci_host *host, struct mmc_command *cmd,
 	}
 }
 
+static int mmci_qcom_pio_read(struct mmci_host *host, char *buffer,
+			 unsigned int remain)
+{
+	uint32_t	*ptr = (uint32_t *) buffer;
+	int		count = 0;
+	struct variant_data *variant = host->variant;
+	int		fifo_size = variant->fifosize;
+
+	if (remain % 4)
+		remain = ((remain >> 2) + 1) << 2;
+
+	while (readl(host->base + MMCISTATUS) & MCI_RXDATAAVLBL) {
+		*ptr = readl(host->base + MMCIFIFO + (count % fifo_size));
+		ptr++;
+		count += sizeof(uint32_t);
+
+		remain -=  sizeof(uint32_t);
+		if (remain == 0)
+			break;
+	}
+	return count;
+}
+
 static int mmci_pio_read(struct mmci_host *host, char *buffer, unsigned int remain)
 {
 	void __iomem *base = host->base;
@@ -1147,8 +1173,13 @@ static irqreturn_t mmci_pio_irq(int irq, void *dev_id)
 		remain = sg_miter->length;
 
 		len = 0;
-		if (status & MCI_RXACTIVE)
-			len = mmci_pio_read(host, buffer, remain);
+		if (status & MCI_RXACTIVE) {
+			if (variant->qcom_fifo)
+				len = mmci_qcom_pio_read(host, buffer, remain);
+			else
+				len = mmci_pio_read(host, buffer, remain);
+		}
+
 		if (status & MCI_TXACTIVE)
 			len = mmci_pio_write(host, buffer, remain, status);
 
