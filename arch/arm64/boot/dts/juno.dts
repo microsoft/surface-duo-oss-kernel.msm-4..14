@@ -142,33 +142,26 @@
 				 0 0 0 4 &gic 0 139 4>;
 	};
 
-	scpi: scpi@2b1f0000 {
-		compatible = "arm,scpi-mhu";
+	scpi: mhu@2b1f0000 {
+		compatible = "arm,mhu";
 		reg = <0x0 0x2b1f0000 0x0 0x10000>,   /* MHU registers */
 		      <0x0 0x2e000000 0x0 0x10000>;   /* Payload area */
 		interrupts = <0 36 4>,   /* low priority interrupt */
-			     <0 35 4>,   /* high priority interrupt */
-			     <0 37 4>;   /* secure channel interrupt */
-		#clock-cells = <1>;
-		clock-output-names = "a57", "a53", "gpu", "hdlcd0", "hdlcd1";
+			     <0 35 4>;   /* high priority interrupt */
 	};
 
-	hdlcd0_osc: scpi_osc@3 {
-		compatible = "arm,scpi-osc";
-		#clock-cells = <0>;
-		clocks = <&scpi 3>;
-		frequency-range = <23000000 210000000>;
-		clock-output-names = "pxlclk0";
-	};
+	clocks {
+		compatible = "arm,scpi-clks";
 
-	hdlcd1_osc: scpi_osc@4 {
-		compatible = "arm,scpi-osc";
-		#clock-cells = <0>;
-		clocks = <&scpi 4>;
-		frequency-range = <23000000 210000000>;
-		clock-output-names = "pxlclk1";
-	};
+		scpi_clk: scpi_clocks@3 {
+			compatible = "arm,scpi-clk-range";
+			#clock-cells = <1>;
+			clock-indices = <3>, <4>;
+			frequency-range = <23000000 210000000>;
+			clock-output-names = "pxlclk0", "pxlclk1";
+		};
 
+	};
 	soc_uartclk: refclk72738khz {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
@@ -335,7 +328,7 @@
 		compatible = "arm,hdlcd";
 		reg = <0 0x7ff60000 0 0x1000>;
 		interrupts = <0 85 4>;
-		clocks = <&hdlcd0_osc>;
+		clocks = <&scpi_clk 0>;
 		clock-names = "pxlclk";
 		i2c-slave = <&dvi0>;
 
@@ -360,7 +353,7 @@
 		compatible = "arm,hdlcd";
 		reg = <0 0x7ff50000 0 0x1000>;
 		interrupts = <0 93 4>;
-		clocks = <&hdlcd1_osc>;
+		clocks = <&scpi_clk 1>;
 		clock-names = "pxlclk";
 		i2c-slave = <&dvi1>;
 
