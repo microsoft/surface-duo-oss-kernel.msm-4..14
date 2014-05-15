@@ -41,6 +41,22 @@
 /* Modified PL180 on Versatile Express platform */
 #define MCI_ARM_HWFCEN		BIT(12)
 
+/* Modified on Qualcomm Integrations */
+#define MCI_QCOM_CLK_WIDEBUS_4	(2 << 10)
+#define MCI_QCOM_CLK_WIDEBUS_8	(3 << 10)
+#define MCI_QCOM_CLK_FLOWENA	BIT(12)
+#define MCI_QCOM_CLK_INVERTOUT	BIT(13)
+
+/* select in latch data and command */
+#define MCI_QCOM_CLK_SEL_IN_SHIFT	(14)
+#define MCI_QCOM_CLK_SEL_MASK		(0x3)
+#define MCI_QCOM_CLK_SEL_RISING_EDGE	(1)
+#define MCI_QCOM_CLK_FEEDBACK_CLK	(2 << 14)
+#define MCI_QCOM_CLK_DDR_MODE		(3 << 14)
+
+/* mclk selection */
+#define MCI_QCOM_CLK_SEL_MCLK		(2 << 23)
+
 #define MMCIARGUMENT		0x008
 #define MMCICOMMAND		0x00c
 #define MCI_CPSM_RESPONSE	BIT(6)
@@ -53,6 +69,14 @@
 #define MCI_ST_ENCMD_COMPL	BIT(12)
 #define MCI_ST_NIEN		BIT(13)
 #define MCI_ST_CE_ATACMD	BIT(14)
+
+/* Modified on Qualcomm Integrations */
+#define MCI_QCOM_CSPM_DATCMD		BIT(12)
+#define MCI_QCOM_CSPM_MCIABORT		BIT(13)
+#define MCI_QCOM_CSPM_CCSENABLE		BIT(14)
+#define MCI_QCOM_CSPM_CCSDISABLE	BIT(15)
+#define MCI_QCOM_CSPM_AUTO_CMD19	BIT(16)
+#define MCI_QCOM_CSPM_AUTO_CMD21	BIT(21)
 
 #define MMCIRESPCMD		0x010
 #define MMCIRESPONSE0		0x014
