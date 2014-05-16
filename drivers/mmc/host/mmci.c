@@ -43,6 +43,7 @@
 #include <asm/sizes.h>
 
 #include "mmci.h"
+#include "qcom_dml.h"
 
 #define DRIVER_NAME "mmci-pl18x"
 
@@ -78,6 +79,7 @@ static unsigned int fmax = 515633;
  * @explicit_mclk_control: enable explicit mclk control in driver.
  * @qcom_cclk_is_mclk: enable iff card clock is multimedia card adapter clock.
  * @qcom_fifo: enables qcom specific fifo pio read function.
+ * @qcom_dml: enables qcom specific dml glue for dma transfers.
  */
 struct variant_data {
 	unsigned int		clkreg;
@@ -103,6 +105,7 @@ struct variant_data {
 	bool			explicit_mclk_control;
 	bool			qcom_cclk_is_mclk;
 	bool			qcom_fifo;
+	bool			qcom_dml;
 };
 
 static struct variant_data variant_arm = {
@@ -214,6 +217,7 @@ static struct variant_data variant_qcom = {
 	.explicit_mclk_control	= true,
 	.qcom_cclk_is_mclk	= true,
 	.qcom_fifo		= true,
+	.qcom_dml		= true,
 };
 
 static inline u32 mmci_readl(struct mmci_host *host, u32 off)
@@ -663,6 +667,9 @@ static int mmci_dma_start_data(struct mmci_host *host, unsigned int datactrl)
 		 data->sg_len, data->blksz, data->blocks, data->flags);
 	dmaengine_submit(host->dma_desc_current);
 	dma_async_issue_pending(host->dma_current);
+
+	if (host->variant->qcom_dml)
+		dml_start_xfer(host, data);
 
 	datactrl |= MCI_DPSM_DMAENABLE;
 
@@ -1701,6 +1708,11 @@ static int mmci_probe(struct amba_device *dev,
 		 dev->irq[0], dev->irq[1]);
 
 	mmci_dma_setup(host);
+
+	if (variant->qcom_dml && host->dma_rx_channel && host->dma_tx_channel) {
+		if (dml_hw_init(host, np))
+			variant->qcom_dml = false;
+	}
 
 	pm_runtime_set_autosuspend_delay(&dev->dev, 50);
 	pm_runtime_use_autosuspend(&dev->dev);
