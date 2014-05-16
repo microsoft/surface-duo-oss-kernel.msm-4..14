@@ -652,6 +652,14 @@ static inline int mmci_dma_prep_next(struct mmci_host *host,
 	return __mmci_dma_prep_data(host, data, &nd->dma_chan, &nd->dma_desc);
 }
 
+#ifdef CONFIG_QCOM_BAM_DMA
+extern void qcom_bam_set_desc_eot(struct dma_async_tx_descriptor *txd);
+#else
+void qcom_bam_set_desc_eot(struct dma_async_tx_descriptor *txd)
+{
+}
+#endif
+
 static int mmci_dma_start_data(struct mmci_host *host, unsigned int datactrl)
 {
 	int ret;
@@ -660,6 +668,9 @@ static int mmci_dma_start_data(struct mmci_host *host, unsigned int datactrl)
 	ret = mmci_dma_prep_data(host, host->data);
 	if (ret)
 		return ret;
+
+	if (data->flags & MMC_DATA_WRITE)
+		qcom_bam_set_desc_eot(host->dma_desc_current);
 
 	/* Okay, go for it. */
 	dev_vdbg(mmc_dev(host->mmc),
