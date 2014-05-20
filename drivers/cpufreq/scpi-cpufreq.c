@@ -21,7 +21,7 @@
 #include <linux/cpufreq.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
-#include <linux/pm_opp.h>
+#include <linux/opp.h>
 #include <linux/scpi_protocol.h>
 #include <linux/types.h>
 
@@ -41,7 +41,7 @@ static int scpi_init_opp_table(struct device *cpu_dev)
 	freqs = opp->freqs;
 	max_opp = opp->count;
 	for (idx = 0; idx < max_opp; idx++, freqs++) {
-		ret = dev_pm_opp_add(cpu_dev, *freqs, 900000000 /* TODO */);
+		ret = opp_add(cpu_dev, *freqs, 900000000 /* TODO */);
 		if (ret) {
 			dev_warn(cpu_dev, "failed to add opp %u\n", *freqs);
 			return ret;
