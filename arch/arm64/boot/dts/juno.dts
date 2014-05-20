@@ -23,46 +23,84 @@
 		#address-cells = <2>;
 		#size-cells = <0>;
 
-		cpu@100 {
+		cpu-map {
+			cluster1 {
+				core0 {
+					cpu = <&CPU0>;
+				};
+				core1 {
+					cpu = <&CPU1>;
+				};
+				core2 {
+					cpu = <&CPU2>;
+				};
+				core3 {
+					cpu = <&CPU3>;
+				};
+			};
+
+			cluster0 {
+				core0 {
+					cpu = <&CPU4>;
+				};
+				core1 {
+					cpu = <&CPU5>;
+				};
+			};
+		};
+
+		CPU0:cpu@100 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a53","arm,armv8";
 			reg = <0x0 0x100>;
 			enable-method = "psci";
+			clocks = <&scpi_dvfs 1>;
+			clock-names = "vlittle";
 		};
 
-		cpu@101 {
+		CPU1:cpu@101 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a53","arm,armv8";
 			reg = <0x0 0x101>;
 			enable-method = "psci";
+			clocks = <&scpi_dvfs 1>;
+			clock-names = "vlittle";
 		};
 
-		cpu@102 {
+		CPU2:cpu@102 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a53","arm,armv8";
 			reg = <0x0 0x102>;
 			enable-method = "psci";
+			clocks = <&scpi_dvfs 1>;
+			clock-names = "vlittle";
 		};
 
-		cpu@103 {
+		CPU3:cpu@103 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a53","arm,armv8";
 			reg = <0x0 0x103>;
 			enable-method = "psci";
+			clocks = <&scpi_dvfs 1>;
+			clock-names = "vlittle";
 		};
 
-		cpu@0 {
+		CPU4:cpu@0 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57","arm,armv8";
 			reg = <0x0 0x0>;
 			enable-method = "psci";
+			clocks = <&scpi_dvfs 0>;
+			clock-names = "vbig";
 		};
 
-		cpu@1 {
+		CPU5:cpu@1 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a57","arm,armv8";
 			reg = <0x0 0x1>;
 			enable-method = "psci";
+			clocks = <&scpi_dvfs 0>;
+			clock-names = "vbig";
 		};
 	};
 
@@ -153,6 +191,13 @@
 	clocks {
 		compatible = "arm,scpi-clks";
 
+		scpi_dvfs: scpi_clocks@0 {
+			compatible = "arm,scpi-clk-indexed";
+			#clock-cells = <1>;
+			clock-indices = <0>, <1>, <2>;
+			clock-output-names = "vbig", "vlittle", "vgpu";
+		};
+
 		scpi_clk: scpi_clocks@3 {
 			compatible = "arm,scpi-clk-range";
 			#clock-cells = <1>;
@@ -162,6 +207,11 @@
 		};
 
 	};
+
+	cpufreq {
+		compatible = "arm,scpi-cpufreq";
+	};
+
 	soc_uartclk: refclk72738khz {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
