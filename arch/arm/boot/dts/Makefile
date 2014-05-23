@@ -320,9 +320,9 @@ dtb-$(CONFIG_SOC_VF610) += \
 	vf500-colibri-eval-v3.dtb \
 	vf610-colibri-eval-v3.dtb \
 	vf610-cosmic.dtb \
-	vf610-twr.dtb
-dtb-$(CONFIG_ARCH_MXS) += \
-	imx23-evk.dtb \
+	vf610-twr.dtb \
+	sac58r-palladium.dtb
+dtb-$(CONFIG_ARCH_MXS) += imx23-evk.dtb \
 	imx23-olinuxino.dtb \
 	imx23-stmp378x_devb.dtb \
 	imx28-apf28.dtb \
