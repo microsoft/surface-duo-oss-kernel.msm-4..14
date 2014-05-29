@@ -454,6 +454,61 @@ ftrace_print_hex_seq(struct trace_seq *p, const unsigned char *buf, int buf_len)
 }
 EXPORT_SYMBOL(ftrace_print_hex_seq);
 
+static const char *
+ftrace_print_array_seq(struct trace_seq *p, const void *buf, int buf_len,
+		       bool (*iterator)(struct trace_seq *p, const char *prefix,
+					const void **buf, int *buf_len))
+{
+	const char *ret = p->buffer + p->len;
+	const char *prefix = "";
+
+	trace_seq_putc(p, '{');
+
+	if (iterator(p, prefix, &buf, &buf_len)) {
+		prefix = ",";
+
+		while (iterator(p, prefix, &buf, &buf_len))
+			;
+	}
+
+	trace_seq_putc(p, '}');
+	trace_seq_putc(p, 0);
+
+	return ret;
+}
+
+#define DEFINE_PRINT_ARRAY(type, printk_type, format)			\
+static bool								\
+ftrace_print_array_iterator_##type(struct trace_seq *p, const char *prefix, \
+				   const void **buf, int *buf_len)	\
+{									\
+	const type *__src = *buf;					\
+									\
+	if (*buf_len < sizeof(*__src))					\
+		return false;						\
+									\
+	trace_seq_printf(p, "%s" format, prefix, (printk_type)*__src++); \
+									\
+	*buf = __src;							\
+	*buf_len -= sizeof(*__src);					\
+									\
+	return true;							\
+}									\
+									\
+const char *ftrace_print_##type##_array_seq(				\
+	struct trace_seq *p, const type *buf, int count)		\
+{									\
+	return ftrace_print_array_seq(p, buf, (count) * sizeof(type),	\
+				      ftrace_print_array_iterator_##type); \
+}									\
+									\
+EXPORT_SYMBOL(ftrace_print_##type##_array_seq);
+
+DEFINE_PRINT_ARRAY(u8, unsigned int, "0x%x")
+DEFINE_PRINT_ARRAY(u16, unsigned int, "0x%x")
+DEFINE_PRINT_ARRAY(u32, unsigned int, "0x%x")
+DEFINE_PRINT_ARRAY(u64, unsigned long long, "0x%llx")
+
 int ftrace_raw_output_prep(struct trace_iterator *iter,
 			   struct trace_event *trace_event)
 {

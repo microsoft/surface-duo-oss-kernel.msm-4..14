@@ -236,6 +236,19 @@
 #undef __print_hex
 #define __print_hex(buf, buf_len) ftrace_print_hex_seq(p, buf, buf_len)
 
+#undef __print_u8_array
+#define __print_u8_array(array, count)			\
+	ftrace_print_u8_array_seq(p, array, count)
+#undef __print_u16_array
+#define __print_u16_array(array, count)			\
+	ftrace_print_u16_array_seq(p, array, count)
+#undef __print_u32_array
+#define __print_u32_array(array, count)			\
+	ftrace_print_u32_array_seq(p, array, count)
+#undef __print_u64_array
+#define __print_u64_array(array, count)			\
+	ftrace_print_u64_array_seq(p, array, count)
+
 #undef DECLARE_EVENT_CLASS
 #define DECLARE_EVENT_CLASS(call, proto, args, tstruct, assign, print)	\
 static notrace enum print_line_t					\
@@ -622,6 +635,10 @@ static inline void ftrace_test_probe_##call(void)			\
 #undef __get_dynamic_array
 #undef __get_str
 #undef __get_bitmask
+#undef __print_u8_array
+#undef __print_u16_array
+#undef __print_u32_array
+#undef __print_u64_array
 
 #undef TP_printk
 #define TP_printk(fmt, args...) "\"" fmt "\", "  __stringify(args)

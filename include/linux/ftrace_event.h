@@ -42,6 +42,15 @@ const char *ftrace_print_bitmask_seq(struct trace_seq *p, void *bitmask_ptr,
 const char *ftrace_print_hex_seq(struct trace_seq *p,
 				 const unsigned char *buf, int len);
 
+const char *ftrace_print_u8_array_seq(struct trace_seq *p,
+				      const u8 *buf, int count);
+const char *ftrace_print_u16_array_seq(struct trace_seq *p,
+				       const u16 *buf, int count);
+const char *ftrace_print_u32_array_seq(struct trace_seq *p,
+				       const u32 *buf, int count);
+const char *ftrace_print_u64_array_seq(struct trace_seq *p,
+				       const u64 *buf, int count);
+
 struct trace_iterator;
 struct trace_event;
 
