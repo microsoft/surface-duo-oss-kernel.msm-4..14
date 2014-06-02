@@ -33,3 +33,5 @@ int scpi_clk_set_val(u16 clk_id, unsigned long rate);
 int scpi_dvfs_get_idx(u8 domain);
 int scpi_dvfs_set_idx(u8 domain, u8 idx);
 struct scpi_opp *scpi_dvfs_get_opps(u8 domain);
+int scpi_get_sensor(char *name);
+int scpi_get_sensor_value(u16 sensor, u32 *val);

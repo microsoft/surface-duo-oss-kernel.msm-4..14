@@ -64,6 +64,7 @@ enum scpi_client_id {
 	SCPI_CL_CLOCKS,
 	SCPI_CL_DVFS,
 	SCPI_CL_POWER,
+	SCPI_CL_THERMAL,
 	SCPI_MAX,
 };
 
@@ -347,3 +348,72 @@ int scpi_dvfs_set_idx(u8 domain, u8 idx)
 	return scpi_execute_cmd(&sdata);
 }
 EXPORT_SYMBOL_GPL(scpi_dvfs_set_idx);
+
+int scpi_get_sensor(char *name)
+{
+	struct scpi_data_buf sdata;
+	struct mhu_data_buf mdata;
+	struct __packed {
+		u32 status;
+		u16 sensors;
+	} cap_buf;
+	struct __packed {
+		u32 status;
+		u16 sensor;
+		u8 class;
+		u8 trigger;
+		char name[20];
+	} info_buf;
+	int ret;
+	u16 sensor_id;
+
+	/* This should be handled by a generic macro */
+	do {
+		struct mhu_data_buf *pdata = &mdata;
+		pdata->cmd = SCPI_CMD_SENSOR_CAPABILITIES;
+		pdata->tx_size = 0;
+		pdata->rx_buf = &cap_buf;
+		pdata->rx_size = sizeof(cap_buf);
+		sdata.client_id = SCPI_CL_THERMAL;
+		sdata.data = pdata;
+	} while (0);
+
+	if ((ret = scpi_execute_cmd(&sdata)))
+		goto out;
+
+	ret = -ENODEV;
+	for (sensor_id = 0; sensor_id < cap_buf.sensors; sensor_id++) {
+		SCPI_SETUP_DBUF(sdata, mdata, SCPI_CL_THERMAL,
+				SCPI_CMD_SENSOR_INFO, sensor_id, info_buf);
+		if ((ret = scpi_execute_cmd(&sdata)))
+			break;
+
+		if (!strcmp(name, info_buf.name)) {
+			ret = sensor_id;
+			break;
+		}
+	}
+out:
+	return ret;
+}
+EXPORT_SYMBOL_GPL(scpi_get_sensor);
+
+int scpi_get_sensor_value(u16 sensor, u32 *val)
+{
+	struct scpi_data_buf sdata;
+	struct mhu_data_buf mdata;
+	struct __packed {
+		u32 status;
+		u32 val;
+	} buf;
+	int ret;
+
+	SCPI_SETUP_DBUF(sdata, mdata, SCPI_CL_THERMAL, SCPI_CMD_SENSOR_VALUE,
+			sensor, buf);
+
+	if ((ret = scpi_execute_cmd(&sdata)) == 0)
+		*val = buf.val;
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(scpi_get_sensor_value);
