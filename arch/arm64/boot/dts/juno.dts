@@ -7,6 +7,7 @@
 /dts-v1/;
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/thermal/thermal.h>
 
 / {
 	model = "Juno";
@@ -24,7 +25,9 @@
 		#size-cells = <0>;
 
 		cpu-map {
-			cluster1 {
+			cluster1: cluster1 {
+				#cooling-cells = <2>; /* min followed by max */
+
 				core0 {
 					cpu = <&CPU0>;
 				};
@@ -39,7 +42,9 @@
 				};
 			};
 
-			cluster0 {
+			cluster0: cluster0 {
+				#cooling-cells = <2>; /* min followed by max */
+
 				core0 {
 					cpu = <&CPU4>;
 				};
@@ -263,6 +268,45 @@
 
 	cpufreq {
 		compatible = "arm,scpi-cpufreq";
+	};
+
+        scpi_sensor0: scpi-sensor@0 {
+			compatible = "arm,scpi-thermal";
+			#thermal-sensor-cells = <1>;
+	};
+
+	thermal-zones {
+		soc_thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <100>;
+
+			thermal-sensors = <&scpi_sensor0 3>;
+
+			trips {
+		                threshold: trip-point@0 {
+				        temperature = <55000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+				target: trip-point@1 {
+				        temperature = <65000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+			};
+
+			cooling-maps {
+			        map0 {
+				     trip = <&target>;
+				     cooling-device = <&cluster0 0 5>;
+				};
+				map1 {
+				     trip = <&target>;
+				     cooling-device = <&cluster1 0 5>;
+				};
+
+			};
+		};
 	};
 
 	soc_uartclk: refclk72738khz {
