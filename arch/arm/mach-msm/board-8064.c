@@ -3444,7 +3444,7 @@ static void __init apq8064_cdp_init(void)
 	}
 
 #if defined(CONFIG_BT) && defined(CONFIG_MARIMBA_CORE)
-	if (machine_is_mpq8064_hrd())
+	if (machine_is_mpq8064_hrd() || machine_is_apq8064_cdp() || machine_is_apq8064_ifc6410())
 		apq8064_bt_power_init();
 #endif
 
