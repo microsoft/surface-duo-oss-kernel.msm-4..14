@@ -59,6 +59,7 @@ static struct resource msm_fb_resources[] = {
 
 #define LVDS_CHIMEI_PANEL_NAME "lvds_chimei_wxga"
 #define LVDS_FRC_PANEL_NAME "lvds_frc_fhd"
+#define LVDS_OPTRONICS_PANEL_NAME "lvds_optronics"
 #define MIPI_VIDEO_TOSHIBA_WSVGA_PANEL_NAME "mipi_video_toshiba_wsvga"
 #define MIPI_VIDEO_CHIMEI_WXGA_PANEL_NAME "mipi_video_chimei_wxga"
 #define HDMI_PANEL_NAME "hdmi_msm"
@@ -109,6 +110,16 @@ static int msm_fb_detect_panel(const char *name)
 		if (!strncmp(name, MIPI_VIDEO_TOSHIBA_WSVGA_PANEL_NAME,
 			strnlen(MIPI_VIDEO_TOSHIBA_WSVGA_PANEL_NAME,
 				PANEL_NAME_MAX_LEN)))
+			return 0;
+	/* FIXME: TODO: Once the fix to read platform id from EEPROM or
+	* SBL2 is done we need to remove machine_is_apq8064_cdp.
+	* the cdp version should use lvds option while ifc6410 should
+	* use truly display as truly is for ifc6410 board
+	*/
+	} else if (machine_is_apq8064_cdp() || machine_is_apq8064_ifc6410()) {
+		if (!strncmp(name, LVDS_OPTRONICS_PANEL_NAME,
+				      strnlen(LVDS_OPTRONICS_PANEL_NAME,
+						PANEL_NAME_MAX_LEN)))
 			return 0;
 	} else if (machine_is_apq8064_cdp()) {
 		if (!strncmp(name, LVDS_CHIMEI_PANEL_NAME,
@@ -607,7 +618,11 @@ static int lvds_panel_power(int on)
 			return -ENODEV;
 		}
 
+#if defined(CONFIG_FB_MSM_LVDS_OPTRONICS)
+		gpio_set_value_cansleep(gpio36, 1);
+#else
 		gpio_set_value_cansleep(gpio36, 0);
+#endif
 		gpio_set_value_cansleep(mpp3, 1);
 		if (socinfo_get_pmic_model() == PMIC_MODEL_PM8917)
 			gpio_set_value_cansleep(gpio26, 1);
@@ -615,7 +630,11 @@ static int lvds_panel_power(int on)
 		if (socinfo_get_pmic_model() == PMIC_MODEL_PM8917)
 			gpio_set_value_cansleep(gpio26, 0);
 		gpio_set_value_cansleep(mpp3, 0);
+#if defined(CONFIG_FB_MSM_LVDS_OPTRONICS)
+		gpio_set_value_cansleep(gpio36, 0);
+#else
 		gpio_set_value_cansleep(gpio36, 1);
+#endif
 
 		rc = regulator_disable(reg_lvs7);
 		if (rc) {
@@ -688,6 +707,20 @@ static struct platform_device lvds_frc_panel_device = {
 	.id = 0,
 	.dev = {
 		.platform_data = &lvds_frc_pdata,
+	}
+};
+
+/* LVDS_OPTRONICS_PANEL */
+static int lvds_optronics_gpio[] = {LPM_CHANNEL};
+static struct lvds_panel_platform_data lvds_optronics_pdata = {
+	.gpio = lvds_optronics_gpio,
+};
+
+static struct platform_device lvds_optronics_device = {
+	.name = "lvds_optronics",
+	.id = 0,
+	.dev = {
+		.platform_data = &lvds_optronics_pdata,
 	}
 };
 
@@ -1031,6 +1064,8 @@ void __init apq8064_init_fb(void)
 	msm_fb_register_device("mipi_dsi", &mipi_dsi_pdata);
 	platform_device_register(&hdmi_msm_device);
 	msm_fb_register_device("dtv", &dtv_pdata);
+
+	platform_device_register(&lvds_optronics_device);
 }
 
 /**
