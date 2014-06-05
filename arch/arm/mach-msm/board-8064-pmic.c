@@ -128,6 +128,8 @@ static struct pm8xxx_gpio_init pm8921_gpios[] __initdata = {
 	PM8921_GPIO_OUTPUT(34, 0, MED),
 	PM8921_GPIO_OUTPUT(13, 0, HIGH),               /* PCIE_CLK_PWR_EN */
 	PM8921_GPIO_INPUT(6, PM_GPIO_PULL_UP_30),     /* PCIE_WAKE_N */
+	PM8921_GPIO_OUTPUT(43, 1, HIGH),
+	PM8921_GPIO_OUTPUT(44, 1, HIGH),
 #ifdef CONFIG_OV5640
 	PM8921_GPIO_OUTPUT(28,1, MED),
 #endif
