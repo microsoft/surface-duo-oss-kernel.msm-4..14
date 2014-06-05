@@ -3427,6 +3427,11 @@ static void __init apq8064_cdp_init(void)
 		platform_device_register(&mpq8064_device_uartdm_gsbi6);
 	}
 
+#if defined(CONFIG_BT) && defined(CONFIG_MARIMBA_CORE)
+	if (machine_is_mpq8064_hrd())
+		apq8064_bt_power_init();
+#endif
+
 	if (machine_is_apq8064_cdp() || machine_is_apq8064_liquid())
 		platform_device_register(&cdp_kp_pdev);
 
