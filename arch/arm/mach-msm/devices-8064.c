@@ -1803,6 +1803,44 @@ int __init apq8064_add_uio()
 	return platform_device_register(&apq8064_device_uio_rmtfs);
 }
 
+#define MSM_SATA_AHCI_BASE	0x29000000
+#define MSM_SATA_AHCI_REGS_SZ	0x180
+#define MSM_SATA_PHY_BASE	0x1B400000
+#define MSM_SATA_PHY_REGS_SZ	0x200
+
+static struct resource resources_sata[] = {
+	{
+		.name	= "ahci_mem",
+		.flags	= IORESOURCE_MEM,
+		.start	= MSM_SATA_AHCI_BASE,
+		.end	= MSM_SATA_AHCI_BASE + MSM_SATA_AHCI_REGS_SZ - 1,
+	},
+	{
+		.name	= "ahci_irq",
+		.flags	= IORESOURCE_IRQ,
+		.start	= SATA_CONTROLLER_IRQ,
+		.end	= SATA_CONTROLLER_IRQ,
+	},
+	{
+		.name	= "phy_mem",
+		.flags	= IORESOURCE_MEM,
+		.start	= MSM_SATA_PHY_BASE,
+		.end	= MSM_SATA_PHY_BASE + MSM_SATA_PHY_REGS_SZ - 1,
+	},
+};
+
+static u64 sata_dma_mask = DMA_BIT_MASK(32);
+struct platform_device apq8064_device_sata = {
+	.name		= "msm_sata",
+	.id		= 0,
+	.num_resources	= ARRAY_SIZE(resources_sata),
+	.resource	= resources_sata,
+	.dev		= {
+		.dma_mask		= &sata_dma_mask,
+		.coherent_dma_mask	= DMA_BIT_MASK(32),
+	},
+};
+
 static struct resource resources_sps[] = {
 	{
 		.name	= "pipe_mem",
