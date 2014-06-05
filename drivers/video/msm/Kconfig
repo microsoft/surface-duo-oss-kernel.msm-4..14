@@ -321,6 +321,11 @@ config FB_MSM_LVDS_CHIMEI_WXGA
 	select FB_MSM_LVDS
 	default n
 
+config FB_MSM_LVDS_OPTRONICS
+	bool
+	select FB_MSM_LVDS
+	default y
+
 config FB_MSM_MIPI_TOSHIBA_VIDEO_WVGA_PT
 	bool
 	select FB_MSM_MIPI_DSI_TOSHIBA
@@ -541,6 +546,12 @@ config FB_MSM_LVDS_FRC_FHD_PANEL
 	  interface. It is treated as a HDMI panel with
 	  1920x1080 resolution.
 
+config FB_MSM_LVDS_OPTRONICS_PANEL
+	bool "LVDS OPTRONICS Panel"
+	select FB_MSM_LVDS_OPTRONICS
+	---help---
+	  Support for LVDS Optronics (1366x768) panel
+
 config FB_MSM_TRY_MDDI_CATCH_LCDC_PRISM
 	depends on FB_MSM_LCDC_HW
 	bool "MDDI Panel Auto Detect + LCDC Prism WVGA"
@@ -624,6 +635,7 @@ config FB_MSM_LVDS_MIPI_PANEL_DETECT
 	bool "LVDS + MIPI Panel Auto Detect"
 	select FB_MSM_LVDS_CHIMEI_WXGA
 	select FB_MSM_LVDS_FRC_FHD
+	select FB_MSM_LVDS_OPTRONICS
 	select FB_MSM_MIPI_NT35590_VIDEO_720P_PT
 	select FB_MSM_MIPI_TOSHIBA_VIDEO_WVGA_PT
 	select FB_MSM_MIPI_TOSHIBA_VIDEO_WSVGA_PT
