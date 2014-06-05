@@ -690,6 +690,35 @@ static struct msm_camera_sensor_info msm_camera_sensor_mt9m114_data = {
 	.sensor_type = YUV_SENSOR,
 };
 
+#ifdef CONFIG_OV5640
+static struct msm_camera_sensor_flash_data flash_ov5640 = {
+    .flash_type = MSM_CAMERA_FLASH_NONE
+};
+
+static struct msm_camera_csi_lane_params ov5640_csi_lane_params = {
+    .csi_lane_assign = 0xE4,
+    .csi_lane_mask = 0x3,
+};
+
+static struct msm_camera_sensor_platform_info sensor_board_info_ov5640 =
+{
+    .mount_angle = 0,
+    .gpio_conf = &apq8064_back_cam_gpio_conf,
+    .i2c_conf = &apq8064_back_cam_i2c_conf,
+    .csi_lane_params = &ov5640_csi_lane_params,
+};
+
+static struct msm_camera_sensor_info msm_camera_sensor_ov5640_data = {
+    .sensor_name = "ov5640",
+    .pdata = &msm_camera_csi_device_data[0],
+    .flash_data = &flash_ov5640,
+    .sensor_platform_info = &sensor_board_info_ov5640,
+    .csi_if = 1,
+    .camera_type = BACK_CAMERA_2D,
+    .sensor_type = YUV_SENSOR,
+};
+#endif
+
 static struct msm_camera_sensor_flash_data flash_ov2720 = {
 	.flash_type	= MSM_CAMERA_FLASH_NONE,
 };
@@ -764,6 +793,12 @@ static struct i2c_board_info apq8064_camera_i2c_boardinfo[] = {
 	I2C_BOARD_INFO("mt9m114", 0x48),
 	.platform_data = &msm_camera_sensor_mt9m114_data,
 	},
+#ifdef CONFIG_OV5640
+   {
+   I2C_BOARD_INFO("ov5640", 0x3C),
+   .platform_data = &msm_camera_sensor_ov5640_data,
+   },
+#endif
 	{
 	I2C_BOARD_INFO("ov2720", 0x6C),
 	.platform_data = &msm_camera_sensor_ov2720_data,

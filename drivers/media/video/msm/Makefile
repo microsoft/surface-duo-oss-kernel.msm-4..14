@@ -51,7 +51,8 @@ endif
 obj-$(CONFIG_QS_S5K4E1) += qs_s5k4e1.o qs_s5k4e1_reg.o
 obj-$(CONFIG_VB6801) += vb6801.o
 obj-$(CONFIG_IMX072) += imx072.o imx072_reg.o
-obj-$(CONFIG_OV5640) += ov5640.o
+#ov5640 YUV sensor is now moved to sensors/ov5640_v4l2.c in sensors/Makefile
+#obj-$(CONFIG_OV5640) += ov5640.o
 obj-$(CONFIG_MT9D112) += mt9d112.o mt9d112_reg.o
 
 obj-$(CONFIG_MT9D113) += mt9d113.o mt9d113_reg.o
