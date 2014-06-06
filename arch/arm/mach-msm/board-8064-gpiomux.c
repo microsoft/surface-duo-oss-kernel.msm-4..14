@@ -1568,8 +1568,8 @@ void __init apq8064_init_gpiomux(void)
 				ARRAY_SIZE(apq8064_hsic_configs));
 #endif
 
-	if (machine_is_apq8064_cdp() || machine_is_apq8064_liquid())
-		msm_gpiomux_install(apq8064_mxt_configs,
+    if (machine_is_apq8064_cdp() || machine_is_apq8064_liquid() || machine_is_apq8064_ifc6410())
+        msm_gpiomux_install(apq8064_mxt_configs,
 			ARRAY_SIZE(apq8064_mxt_configs));
 
 	msm_gpiomux_install(apq8064_hdmi_configs,
