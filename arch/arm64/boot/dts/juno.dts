@@ -440,6 +440,13 @@
 		};
 	};
 
+	gpu@0xfc010000 {
+		compatible = "arm,malit6xx", "arm,mali";
+		reg = <0x0 0x2d000000 0x0 0x10000>;
+		interrupts = <0 33 4>, <0 34 4>, <0 32 4>;
+		interrupt-names = "JOB", "MMU", "GPU";
+	};
+
 	smb {
 		compatible = "simple-bus";
 		#address-cells = <2>;
