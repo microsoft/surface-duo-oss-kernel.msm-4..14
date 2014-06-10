@@ -25,3 +25,5 @@ obj-$(CONFIG_PINCTRL) += pinctrl.o
 
 ccflags-$(CONFIG_DEBUG_DRIVER) := -DDEBUG
 
+obj-$(CONFIG_KDS) += kds/
+obj-$(CONFIG_UMP) += ump/
