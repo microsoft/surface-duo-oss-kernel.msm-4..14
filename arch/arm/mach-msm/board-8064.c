@@ -3487,6 +3487,17 @@ static void __init apq8064_cdp_init(void)
 	udelay(10);
 
 	gpio_set_value(PM8921_GPIO_PM_TO_SYS(43), 1);
+	/*gpio 87 controlling LED D7 */
+	ret = gpio_request(87,"sata_led");
+	if (ret < 0) {
+		printk("%s: gpio_request(87),sata_led failed%d\n", __func__, ret);
+	}else {
+	ret = gpio_export(87,true);
+		printk("%s: gpio_export(87),sata_led failed%d\n", __func__, ret);
+		ret = gpio_direction_output(87,0);
+		udelay(10);
+		gpio_set_value(87,0);
+	}
 }
 
 MACHINE_START(APQ8064_CDP, "QCT APQ8064 CDP")

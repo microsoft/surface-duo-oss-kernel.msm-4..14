@@ -43,6 +43,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/pci.h>
+#include <linux/gpio.h>
 #include <linux/init.h>
 #include <linux/list.h>
 #include <linux/mm.h>
@@ -2650,9 +2651,11 @@ static void sata_print_link_status(struct ata_link *link)
 
 	if (ata_phys_link_online(link)) {
 		tmp = (sstatus >> 4) & 0xf;
+		gpio_set_value(87,1); //Turning on sata LED -- D7
 		ata_link_info(link, "SATA link up %s (SStatus %X SControl %X)\n",
 			      sata_spd_string(tmp), sstatus, scontrol);
 	} else {
+		gpio_set_value(87,0); //Turning off sata LED -- D7
 		ata_link_info(link, "SATA link down (SStatus %X SControl %X)\n",
 			      sstatus, scontrol);
 	}
