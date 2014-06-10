@@ -222,6 +222,7 @@ config SCPI_THERMAL
 	tristate "Temperature sensor on ARM SoC based on SCPI Firmware interface"
 	depends on ARM_SCPI_PROTOCOL
 	depends on OF
+	select THERMAL_POWER_ACTOR_CPU
 	help
 	  Support for the SCPI thermal sensor driver in the Linux thermal
 	  framework.

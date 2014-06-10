@@ -1,8 +1,8 @@
-#include <linux/cpu_cooling.h>
 #include <linux/cpufreq.h>
 #include <linux/cpumask.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/power_actor.h>
 #include <linux/scpi_protocol.h>
 #include <linux/thermal.h>
 #include <linux/topology.h>
@@ -10,15 +10,35 @@
 #define SOC_SENSOR "SENSOR_TEMP_SOC"
 
 #define NUM_CLUSTERS 2
+enum cluster_type {
+	CLUSTER_BIG = 0,
+	CLUSTER_LITTLE
+};
 
 struct scpi_sensor {
 	u16 sensor_id;
 	struct thermal_zone_device *tzd;
 	struct cpumask cluster[NUM_CLUSTERS];
-	struct thermal_cooling_device *cdevs[NUM_CLUSTERS];
+	struct power_actor *pactor[NUM_CLUSTERS];
 };
 
 struct scpi_sensor scpi_temp_sensor;
+
+static int get_dyn_power_coeff(enum cluster_type cluster)
+{
+	int coeff = 0;
+
+	switch(cluster) {
+	case CLUSTER_BIG:
+		coeff = 530;
+		break;
+	case CLUSTER_LITTLE:
+		coeff = 140;
+		break;
+	}
+
+	return coeff;
+}
 
 static int get_temp_value(void *data, long *temp)
 {
@@ -61,6 +81,8 @@ static int scpi_thermal_probe(struct platform_device *pdev)
 
 	for (i = 0; i < NUM_CLUSTERS; i++) {
 		char node[16];
+		enum cluster_type cluster =
+			topology_physical_package_id(cpumask_any(&sensor_data->cluster[i]));
 
 		snprintf(node, 16, "cluster%d", i);
 		np = of_find_node_by_name(NULL, node);
@@ -68,13 +90,14 @@ static int scpi_thermal_probe(struct platform_device *pdev)
 		if (!np)
 			dev_info(&pdev->dev, "Node not found: %s\n", node);
 
-		sensor_data->cdevs[i] =
-			of_cpufreq_cooling_register(np,
-						&sensor_data->cluster[i]);
+		sensor_data->pactor[i] =
+			power_cpu_actor_register(np, &sensor_data->cluster[i],
+						get_dyn_power_coeff(cluster),
+						NULL);
 
-		if (IS_ERR(sensor_data->cdevs[i]))
+		if (IS_ERR(sensor_data->pactor[i]))
 			dev_warn(&pdev->dev,
-				"Error registering cooling device: %d\n", i);
+				"Error registering cpu power actor: %d\n", i);
 	}
 
 	if ((sensor = scpi_get_sensor(SOC_SENSOR)) < 0) {
