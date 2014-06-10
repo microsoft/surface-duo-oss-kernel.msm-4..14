@@ -256,6 +256,11 @@
 
 	};
 
+	hwmon@1c010000 {
+		compatible = "arm,v2m-juno-meters";
+		reg = <0x0 0x1c010000 0x0 0x1000>;
+	};
+
 	cpufreq {
 		compatible = "arm,scpi-cpufreq";
 	};
