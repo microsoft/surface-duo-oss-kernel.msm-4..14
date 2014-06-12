@@ -145,10 +145,12 @@
 
 	pmu {
 		compatible = "arm,armv8-pmuv3";
-		interrupts = <GIC_SPI 60 4>,
-			     <GIC_SPI 61 4>,
-			     <GIC_SPI 62 4>,
-			     <GIC_SPI 63 4>;
+		interrupts = <GIC_SPI 18 4>,
+			     <GIC_SPI 22 4>,
+			     <GIC_SPI 26 4>,
+			     <GIC_SPI 30 4>,
+			     <GIC_SPI 02 4>,
+			     <GIC_SPI 06 4>;
 	};
 
 	psci {
