@@ -161,6 +161,7 @@ static struct platform_device msm_fb_device = {
 
 void __init apq8064_allocate_fb_region(void)
 {
+#ifdef CONFIG_FB_MSM  /* do not need carveout for DRM_MSM */
 	void *addr;
 	unsigned long size;
 
@@ -170,6 +171,7 @@ void __init apq8064_allocate_fb_region(void)
 	msm_fb_resources[0].end = msm_fb_resources[0].start + size - 1;
 	pr_info("allocating %lu bytes at %p (%lx physical) for fb\n",
 			size, addr, __pa(addr));
+#endif
 }
 
 #define MDP_VSYNC_GPIO 0
@@ -752,8 +754,10 @@ static struct msm_bus_vectors dtv_bus_init_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_MDP_PORT0,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab = 0,
-		.ib = 0,
+//		.ab = 0,
+//		.ib = 0,
+		.ab = 2000000000,
+		.ib = 2000000000,
 	},
 };
 
@@ -761,8 +765,10 @@ static struct msm_bus_vectors dtv_bus_def_vectors[] = {
 	{
 		.src = MSM_BUS_MASTER_MDP_PORT0,
 		.dst = MSM_BUS_SLAVE_EBI_CH0,
-		.ab = 566092800 * 2,
-		.ib = 707616000 * 2,
+//		.ab = 566092800 * 2,
+//		.ib = 707616000 * 2,
+		.ab = 2000000000,
+		.ib = 2000000000,
 	},
 };
 

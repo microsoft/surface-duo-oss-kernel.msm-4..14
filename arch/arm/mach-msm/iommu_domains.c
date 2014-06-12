@@ -390,7 +390,7 @@ int msm_register_domain(struct msm_iova_layout *layout)
 	data->pools = pools;
 	data->npools = layout->npartitions;
 	data->domain_num = atomic_inc_return(&domain_nums);
-	data->domain = iommu_domain_alloc(&platform_bus_type,
+	data->domain = iommu_domain_alloc_flags(&platform_bus_type,
 					  layout->domain_flags);
 
 	add_domain(data);
