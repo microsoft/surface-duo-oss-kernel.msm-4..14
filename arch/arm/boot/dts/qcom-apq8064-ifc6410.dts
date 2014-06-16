@@ -4,6 +4,11 @@
 	model = "Qualcomm APQ8064/IFC6410";
 	compatible = "qcom,apq8064-ifc6410", "qcom,apq8064";
 
+	memory{
+		device_type = "memory";
+		reg = <0x80000000 0x80000000>;
+	};
+
 	soc {
 		gsbi@16600000 {
 			status = "ok";
