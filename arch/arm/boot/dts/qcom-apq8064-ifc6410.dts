@@ -49,11 +49,25 @@
 			};
 		};
 
+		/* OTG */
+		usb1_phy:phy@12500000 {
+			status = "ok";
+		};
+
 		usb3_phy:phy@12520000 {
 			status = "ok";
 		};
 
 		usb4_phy:phy@12530000 {
+			status = "ok";
+		};
+
+		gadget1:gadget@12500000 {
+			status = "ok";
+		};
+
+		/* OTG */
+		usb1: usb@12500000 {
 			status = "ok";
 		};
 
