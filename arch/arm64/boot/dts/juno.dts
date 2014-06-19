@@ -279,6 +279,7 @@
 		soc_thermal {
 			polling-delay = <1000>;
 			polling-delay-passive = <100>;
+			sustainable-power = <2500>;
 
 			thermal-sensors = <&scpi_sensor0 3>;
 
