@@ -721,7 +721,7 @@ thermal_of_build_thermal_zone(struct device_node *np)
 
 finish:
 	of_node_put(child);
-	tz->mode = THERMAL_DEVICE_DISABLED;
+	tz->mode = THERMAL_DEVICE_ENABLED;
 
 	return tz;
 
