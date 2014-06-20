@@ -102,6 +102,19 @@ config CPU_THERMAL
 
 	  If you want this support, you should say Y here.
 
+config DEVFREQ_THERMAL
+	bool "generic device cooling support"
+	depends on PM_DEVFREQ
+	depends on PM_OPP
+	help
+	  This implements the generic devfreq cooling mechanism through
+	  frequency reduction for devices using devfreq.
+
+	  This will throttle the device by limiting the maximum allowed DVFS
+	  frequency corresponding to the cooling level.
+
+	  If you want this support, you should say Y here.
+
 config THERMAL_EMULATION
 	bool "Thermal emulation mode support"
 	help
