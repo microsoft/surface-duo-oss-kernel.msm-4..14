@@ -684,6 +684,48 @@ err_out:
 }
 EXPORT_SYMBOL(devfreq_remove_governor);
 
+int devfreq_qos_set_max(struct devfreq *df, unsigned long value)
+{
+	unsigned long min;
+	int ret = 0;
+
+	mutex_lock(&df->lock);
+	min = df->min_freq;
+	if (value && min && value < min) {
+		ret = -EINVAL;
+		goto unlock;
+	}
+
+	df->max_freq = value;
+	update_devfreq(df);
+unlock:
+	mutex_unlock(&df->lock);
+
+	return ret;
+}
+EXPORT_SYMBOL(devfreq_qos_set_max);
+
+int devfreq_qos_set_min(struct devfreq *df, unsigned long value)
+{
+	unsigned long max;
+	int ret = 0;
+
+	mutex_lock(&df->lock);
+	max = df->max_freq;
+	if (value && max && value > max) {
+		ret = -EINVAL;
+		goto unlock;
+	}
+
+	df->min_freq = value;
+	update_devfreq(df);
+unlock:
+	mutex_unlock(&df->lock);
+
+	return ret;
+}
+EXPORT_SYMBOL(devfreq_qos_set_min);
+
 static ssize_t show_governor(struct device *dev,
 			     struct device_attribute *attr, char *buf)
 {
@@ -809,24 +851,15 @@ static ssize_t store_min_freq(struct device *dev, struct device_attribute *attr,
 	struct devfreq *df = to_devfreq(dev);
 	unsigned long value;
 	int ret;
-	unsigned long max;
 
 	ret = sscanf(buf, "%lu", &value);
 	if (ret != 1)
 		return -EINVAL;
 
-	mutex_lock(&df->lock);
-	max = df->max_freq;
-	if (value && max && value > max) {
-		ret = -EINVAL;
-		goto unlock;
-	}
+	ret = devfreq_qos_set_min(df, value);
+	if (!ret)
+		ret = count;
 
-	df->min_freq = value;
-	update_devfreq(df);
-	ret = count;
-unlock:
-	mutex_unlock(&df->lock);
 	return ret;
 }
 
@@ -842,24 +875,15 @@ static ssize_t store_max_freq(struct device *dev, struct device_attribute *attr,
 	struct devfreq *df = to_devfreq(dev);
 	unsigned long value;
 	int ret;
-	unsigned long min;
 
 	ret = sscanf(buf, "%lu", &value);
 	if (ret != 1)
 		return -EINVAL;
 
-	mutex_lock(&df->lock);
-	min = df->min_freq;
-	if (value && min && value < min) {
-		ret = -EINVAL;
-		goto unlock;
-	}
+	ret = devfreq_qos_set_max(df, value);
+	if (!ret)
+		ret = count;
 
-	df->max_freq = value;
-	update_devfreq(df);
-	ret = count;
-unlock:
-	mutex_unlock(&df->lock);
 	return ret;
 }
 
