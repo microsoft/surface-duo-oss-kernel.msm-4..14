@@ -1,4 +1,4 @@
-Qualcomm IPQ806x SATA PHY Controller
+Qualcomm IPQ806x/APQ8064 SATA PHY Controller
 ------------------------------------
 
 SATA PHY nodes are defined to describe on-chip SATA Physical layer controllers.
@@ -6,6 +6,7 @@ Each SATA PHY controller should have its own node.
 
 Required properties:
 - compatible: compatible list, contains "qcom,ipq806x-sata-phy"
+	     or "qcom,apq8064-sata-phy".
 - reg: offset and length of the SATA PHY register set;
 - #phy-cells: must be zero
 - clocks: must be exactly one entry
