@@ -275,6 +275,17 @@
 				regulator-always-on;
 			};
 
+			pm8921_s4: pm8921-s4 {
+				compatible	= "qcom,rpm-pm8921-smps";
+				reg		= <QCOM_RPM_PM8921_SMPS4>;
+
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				qcom,boot-load 		= <200000>;
+				qcom,switch-mode-frequency = <3200000>;
+				regulator-always-on;
+			};
+
 			pm8921_l3: pm8921-l3 {
 				compatible	= "qcom,rpm-pm8921-pldo";
 				reg		= <QCOM_RPM_PM8921_LDO3>;
@@ -395,6 +406,35 @@
 			interrupts	= <0 215 0>;
 			status		= "disabled";
 			usb-phy		= <&usb4_phy>;
+		};
+
+		sata_phy0:sata-phy@1b400000{
+			compatible	= "qcom,apq8064-sata-phy";
+			reg		= <0x1b400000 0x200>;
+			reg-names	= "phy_mem";
+			clocks		= <&gcc SATA_PHY_CFG_CLK>;
+			clock-names = "cfg";
+			#phy-cells = <0>;
+		};
+
+		sata0: sata@29000000 {
+			compatible	= "generic-ahci";
+			reg		= <0x29000000 0x180>;
+			interrupts	= <0 209 0>;
+			clocks = <&gcc SFAB_SATA_S_H_CLK>, <&gcc SATA_H_CLK>,
+				 <&gcc SATA_A_CLK>, <&gcc SATA_RXOOB_CLK>,
+				 <&gcc SATA_PMALIVE_CLK>;
+
+			clock-names = "slave_iface", "iface",
+				      "bus", "rxoob",
+				      "core_pmalive";
+			assigned-clocks = <&gcc SATA_RXOOB_CLK>,
+						<&gcc SATA_PMALIVE_CLK>;
+			assigned-clock-rates = <100000000>, <100000000>;
+
+			phys  = <&sata_phy0>;
+			phy-names = "sata-phy";
+			target-supply = <&pm8921_s4>;
 		};
 
 		/* Temporary fixed regulator */
