@@ -25,6 +25,7 @@
 #include <linux/kref.h>
 #include <linux/xattr.h>
 #include <linux/pid_namespace.h>
+#include <linux/user_namespace.h>
 #include <linux/refcount.h>
 #include <linux/user_namespace.h>
 

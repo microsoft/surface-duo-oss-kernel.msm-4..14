@@ -1251,8 +1251,9 @@ static ssize_t fuse_dev_do_read(struct fuse_dev *fud, struct file *file,
 	struct fuse_in *in;
 	unsigned reqsize;
 
-	if (current_user_ns() != fc->user_ns)
-		return -EIO;
+	if (task_active_pid_ns(current) != fc->pid_ns ||
+	    current_user_ns() != fc->user_ns)
+ 		return -EIO;
 
  restart:
 	spin_lock(&fiq->waitq.lock);
@@ -1863,8 +1864,9 @@ static ssize_t fuse_dev_do_write(struct fuse_dev *fud,
 	struct fuse_req *req;
 	struct fuse_out_header oh;
 
-	if (current_user_ns() != fc->user_ns)
-		return -EIO;
+	if (task_active_pid_ns(current) != fc->pid_ns ||
+	    current_user_ns() != fc->user_ns)
+ 		return -EIO;
 
 	if (nbytes < sizeof(struct fuse_out_header))
 		return -EINVAL;
