@@ -165,15 +165,15 @@ static int send_scpi_cmd(struct scpi_data_buf *scpi_buf, bool high_priority)
 	struct mhu_data_buf *data = scpi_buf->data;
 	u32 status;
 
+	cl.dev = the_scpi_device;
 	cl.rx_callback = scpi_rx_callback;
 	cl.tx_done = NULL;
 	cl.tx_block = true;
 	cl.tx_tout = 50; /* 50 msec */
-	cl.link_data = NULL;
 	cl.knows_txdone = false;
 	cl.chan_name = high_priority ?
-		       CONTROLLER_NAME":"CHANNEL_HIGH_PRIORITY :
-		       CONTROLLER_NAME":"CHANNEL_LOW_PRIORITY;
+		       CHANNEL_HIGH_PRIORITY :
+		       CHANNEL_LOW_PRIORITY;
 
 	chan = mbox_request_channel(&cl);
 	if (IS_ERR(chan))

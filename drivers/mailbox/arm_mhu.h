@@ -29,3 +29,5 @@ struct mhu_data_buf {
 	void *rx_buf;
 	void *cl_data;
 };
+
+extern struct device* the_scpi_device;

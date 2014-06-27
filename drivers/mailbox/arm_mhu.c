@@ -46,7 +46,9 @@
 
 #include "arm_mhu.h"
 
-#define DRIVER_NAME		CONTROLLER_NAME"_drv"
+struct device* the_scpi_device;
+
+#define DRIVER_NAME		"arm_mhu"
 
 /*
  * +--------------------+-------+---------------+
@@ -98,7 +100,6 @@
 struct mhu_chan {
 	int index;
 	int rx_irq;
-	struct mbox_link link;
 	struct mhu_ctlr *ctlr;
 	struct mhu_data_buf *data;
 };
@@ -111,18 +112,10 @@ struct mhu_ctlr {
 	struct mhu_chan channels[CHANNEL_MAX];
 };
 
-static inline struct mhu_chan *to_mhu_chan(struct mbox_link *lnk)
-{
-	if (!lnk)
-		return NULL;
-
-	return container_of(lnk, struct mhu_chan, link);
-}
-
 static irqreturn_t mbox_handler(int irq, void *p)
 {
-	struct mbox_link *link = (struct mbox_link *)p;
-	struct mhu_chan *chan = to_mhu_chan(link);
+	struct mbox_chan *link = (struct mbox_chan *)p;
+	struct mhu_chan *chan = link->con_priv;
 	struct mhu_ctlr *ctlr = chan->ctlr;
 	void __iomem *mbox_base = ctlr->mbox_base;
 	void __iomem *payload = ctlr->payload_base;
@@ -138,15 +131,15 @@ static irqreturn_t mbox_handler(int irq, void *p)
 			       data->rx_size);
 		chan->data = NULL;
 		writel(~0, mbox_base + RX_CLEAR(idx));
-		mbox_link_received_data(link, data);
+		mbox_chan_received_data(link, data);
 	}
 
 	return IRQ_HANDLED;
 }
 
-static int mhu_send_data(struct mbox_link *link, void *msg)
+static int mhu_send_data(struct mbox_chan *link, void *msg)
 {
-	struct mhu_chan *chan = to_mhu_chan(link);
+	struct mhu_chan *chan = link->con_priv;
 	struct mhu_ctlr *ctlr = chan->ctlr;
 	void __iomem *mbox_base = ctlr->mbox_base;
 	void __iomem *payload = ctlr->payload_base;
@@ -164,31 +157,27 @@ static int mhu_send_data(struct mbox_link *link, void *msg)
 	return 0;
 }
 
-static int mhu_startup(struct mbox_link *link, void *ignored)
+static int mhu_startup(struct mbox_chan *link)
 {
-	struct mhu_chan *chan = to_mhu_chan(link);
+	struct mhu_chan *chan = link->con_priv;
 	int err, mbox_irq = chan->rx_irq;
 
 	err = request_threaded_irq(mbox_irq, NULL, mbox_handler, IRQF_ONESHOT,
-				   link->link_name, link);
-	if (err)
-		return err;
-
-	chan->data = NULL;
-	return 0;
+				   DRIVER_NAME, link);
+	return err;
 }
 
-static void mhu_shutdown(struct mbox_link *link)
+static void mhu_shutdown(struct mbox_chan *link)
 {
-	struct mhu_chan *chan = to_mhu_chan(link);
+	struct mhu_chan *chan = link->con_priv;
 
 	chan->data = NULL;
 	free_irq(chan->rx_irq, link);
 }
 
-static bool mhu_last_tx_done(struct mbox_link *link)
+static bool mhu_last_tx_done(struct mbox_chan *link)
 {
-	struct mhu_chan *chan = to_mhu_chan(link);
+	struct mhu_chan *chan = link->con_priv;
 	struct mhu_ctlr *ctlr = chan->ctlr;
 	void __iomem *mbox_base = ctlr->mbox_base;
 	int idx = chan->index;
@@ -196,7 +185,7 @@ static bool mhu_last_tx_done(struct mbox_link *link)
 	return !readl(mbox_base + TX_STATUS(idx));
 }
 
-static struct mbox_link_ops mhu_ops = {
+static struct mbox_chan_ops mhu_ops = {
 	.send_data = mhu_send_data,
 	.startup = mhu_startup,
 	.shutdown = mhu_shutdown,
@@ -208,7 +197,7 @@ static int mhu_probe(struct platform_device *pdev)
 	struct mhu_ctlr *ctlr;
 	struct mhu_chan *chan;
 	struct device *dev = &pdev->dev;
-	struct mbox_link **l;
+	struct mbox_chan *l;
 	struct resource *res;
 	int idx;
 	static const char * const channel_names[] = {
@@ -249,17 +238,17 @@ static int mhu_probe(struct platform_device *pdev)
 	ctlr->dev = dev;
 	platform_set_drvdata(pdev, ctlr);
 
-	l = devm_kzalloc(dev, sizeof(*l) * (CHANNEL_MAX + 1), GFP_KERNEL);
+	l = devm_kzalloc(dev, sizeof(*l) * CHANNEL_MAX, GFP_KERNEL);
 	if (!l) {
 		dev_err(dev, "failed to allocate memory\n");
 		return -ENOMEM;
 	}
 
-	ctlr->mbox_con.links = l;
+	ctlr->mbox_con.chans = l;
+	ctlr->mbox_con.num_chans = CHANNEL_MAX;
 	ctlr->mbox_con.txdone_poll = true;
 	ctlr->mbox_con.txpoll_period = 10;
 	ctlr->mbox_con.ops = &mhu_ops;
-	snprintf(ctlr->mbox_con.controller_name, 16, CONTROLLER_NAME);
 	ctlr->mbox_con.dev = dev;
 
 	for (idx = 0; idx < CHANNEL_MAX; idx++) {
@@ -272,17 +261,15 @@ static int mhu_probe(struct platform_device *pdev)
 				channel_names[idx]);
 			return -ENXIO;
 		}
-		l[idx] = &chan->link;
-		snprintf(l[idx]->link_name, 16, channel_names[idx]);
+		l[idx].con_priv = chan;
 	}
-	l[idx] = NULL;
 
 	if (mbox_controller_register(&ctlr->mbox_con)) {
 		dev_err(dev, "failed to register mailbox controller\n");
 		return -ENOMEM;
 	}
-	_dev_info(dev, "registered mailbox controller %s\n",
-		  ctlr->mbox_con.controller_name);
+
+	the_scpi_device = dev;
 	return 0;
 }
 
@@ -292,9 +279,7 @@ static int mhu_remove(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 
 	mbox_controller_unregister(&ctlr->mbox_con);
-	_dev_info(dev, "unregistered mailbox controller %s\n",
-		  ctlr->mbox_con.controller_name);
-	devm_kfree(dev, ctlr->mbox_con.links);
+	devm_kfree(dev, ctlr->mbox_con.chans);
 
 	devm_iounmap(dev, ctlr->payload_base);
 	devm_iounmap(dev, ctlr->mbox_base);
