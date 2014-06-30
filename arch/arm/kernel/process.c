@@ -61,9 +61,9 @@ static const char *isa_modes[] __maybe_unused = {
 };
 
 #ifdef CONFIG_SMP
-void arch_trigger_all_cpu_backtrace(void)
+void arch_trigger_all_cpu_backtrace(bool include_self)
 {
-	smp_send_all_cpu_backtrace();
+	smp_send_all_cpu_backtrace(include_self);
 }
 #else
 void arch_trigger_all_cpu_backtrace(void)

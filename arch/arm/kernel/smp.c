@@ -551,7 +551,7 @@ static DEFINE_RAW_SPINLOCK(backtrace_lock);
 /* "in progress" flag of arch_trigger_all_cpu_backtrace */
 static unsigned long backtrace_flag;
 
-void smp_send_all_cpu_backtrace(void)
+void smp_send_all_cpu_backtrace(bool include_self)
 {
 	unsigned int this_cpu = smp_processor_id();
 	int i;
