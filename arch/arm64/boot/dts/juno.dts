@@ -222,12 +222,16 @@
 				 0 0 0 4 &gic 0 139 4>;
 	};
 
-	scpi: mhu@2b1f0000 {
+
+	mailbox: mhu@2b1f0000 {
 		compatible = "arm,mhu";
 		reg = <0x0 0x2b1f0000 0x0 0x10000>,   /* MHU registers */
 		      <0x0 0x2e000000 0x0 0x10000>;   /* Payload area */
 		interrupts = <0 36 4>,   /* low priority interrupt */
 			     <0 35 4>;   /* high priority interrupt */
+		#mbox-cells = <1>;
+		mbox-names = "cpu_to_scp_low", "cpu_to_scp_high";
+		mbox = <&mailbox 0 &mailbox 1>;
 	};
 
 	clocks {
