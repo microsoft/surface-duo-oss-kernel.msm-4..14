@@ -568,14 +568,14 @@ static int msm_dmov_init_clocks(struct platform_device *pdev)
 	int adm = (pdev->id >= 0) ? pdev->id : 0;
 	int ret;
 
-	dmov_conf[adm].clk = devm_clk_get(&pdev->dev, "core_clk");
+	dmov_conf[adm].clk = devm_clk_get(&pdev->dev, "core");
 	if (IS_ERR(dmov_conf[adm].clk)) {
 		printk(KERN_ERR "%s: Error getting adm_clk\n", __func__);
 		dmov_conf[adm].clk = NULL;
 		return -ENOENT;
 	}
 
-	dmov_conf[adm].pclk = devm_clk_get(&pdev->dev, "iface_clk");
+	dmov_conf[adm].pclk = devm_clk_get(&pdev->dev, "iface");
 	if (IS_ERR(dmov_conf[adm].pclk)) {
 		dmov_conf[adm].pclk = NULL;
 		/* pclk not present on all SoCs, don't bail on failure */
@@ -690,7 +690,7 @@ static int msm_dmov_probe(struct platform_device *pdev)
 	}
 
 	/* get resets */
-	dmov_conf[adm].adm_reset = devm_reset_control_get(&pdev->dev, "adm");
+	dmov_conf[adm].adm_reset = devm_reset_control_get(&pdev->dev, "clk");
 	if (IS_ERR(dmov_conf[adm].adm_reset)) {
 		dev_err(&pdev->dev, "failed to get adm reset\n");
 		ret = PTR_ERR(dmov_conf[adm].adm_reset);
