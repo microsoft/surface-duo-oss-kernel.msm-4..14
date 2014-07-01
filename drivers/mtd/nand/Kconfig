@@ -511,15 +511,15 @@ config MTD_NAND_XWAY
 	  to the External Bus Unit (EBU).
 
 config MTD_QCOM_DMA
-	tristate "QCMO NAND DMA Support"
-	depends on ARCH_QCOM && MTD_QCOM_NAND
+	tristate "QCOM NAND DMA Support"
+	depends on !QCOM_ADM && ARCH_QCOM && MTD_QCOM_NAND
 	default n
 	help
 	  DMA support for QCOM NAND
 
 config MTD_QCOM_NAND
 	tristate "QCOM NAND Device Support"
-	depends on MTD && ARCH_QCOM
+	depends on MTD && ARCH_QCOM && !QCOM_ADM
 	select CRC16
 	select BITREVERSE
 	select MTD_NAND_IDS

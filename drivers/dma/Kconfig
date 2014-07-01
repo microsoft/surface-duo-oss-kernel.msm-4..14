@@ -412,7 +412,7 @@ config QCOM_BAM_DMA
 
 config QCOM_ADM
 	tristate "Qualcomm ADM support"
-	depends on ARCH_QCOM || (COMPILE_TEST && OF && ARM)
+	depends on !MTD_QCOM_ADM && (ARCH_QCOM || (COMPILE_TEST && OF && ARM))
 	select DMA_ENGINE
 	select DMA_VIRTUAL_CHANNELS
 	---help---
