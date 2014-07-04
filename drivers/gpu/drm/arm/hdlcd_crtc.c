@@ -33,7 +33,7 @@ static void hdlcd_crtc_destroy(struct drm_crtc *crtc)
 
 void hdlcd_set_scanout(struct hdlcd_drm_private *hdlcd, bool wait)
 {
-	struct drm_framebuffer *fb = hdlcd->crtc.primary->fb;
+	struct drm_framebuffer *fb = hdlcd->crtc.fb;
 	struct hdlcd_bo *bo;
 	unsigned int depth, bpp;
 	dma_addr_t scanout_start;
@@ -76,7 +76,7 @@ static int hdlcd_crtc_page_flip(struct drm_crtc *crtc,
 		drm_vblank_get(crtc->dev, 0);
 	}
 
-	crtc->primary->fb = fb;
+	crtc->fb = fb;
 
 	if (hdlcd->dpms == DRM_MODE_DPMS_ON) {
 		hdlcd_set_scanout(hdlcd, true);
@@ -160,13 +160,13 @@ static int hdlcd_crtc_mode_set(struct drm_crtc *crtc,
 
 	/* This function gets called when the only change is the start of
 	   the scanout buffer. Detect that and bail out early */
-	if (hdlcd->initialised && hdlcd_fb_mode_equal(oldfb, crtc->primary->fb)) {
+	if (hdlcd->initialised && hdlcd_fb_mode_equal(oldfb, crtc->fb)) {
 		hdlcd_set_scanout(hdlcd, true);
 		return 0;
 	}
 
 	/* Preset the number of bits per colour */
-	drm_fb_get_bpp_depth(crtc->primary->fb->pixel_format, &depth, &bpp);
+	drm_fb_get_bpp_depth(crtc->fb->pixel_format, &depth, &bpp);
 	switch (depth) {
 	case 32:
 		alpha_width = 8;
@@ -195,9 +195,9 @@ static int hdlcd_crtc_mode_set(struct drm_crtc *crtc,
 
 	hdlcd_write(hdlcd, HDLCD_REG_PIXEL_FORMAT, (bpp - 1) << 3);
 
-	hdlcd_write(hdlcd, HDLCD_REG_FB_LINE_LENGTH, crtc->primary->fb->width * bpp);
-	hdlcd_write(hdlcd, HDLCD_REG_FB_LINE_COUNT, crtc->primary->fb->height - 1);
-	hdlcd_write(hdlcd, HDLCD_REG_FB_LINE_PITCH, crtc->primary->fb->width * bpp);
+	hdlcd_write(hdlcd, HDLCD_REG_FB_LINE_LENGTH, crtc->fb->width * bpp);
+	hdlcd_write(hdlcd, HDLCD_REG_FB_LINE_COUNT, crtc->fb->height - 1);
+	hdlcd_write(hdlcd, HDLCD_REG_FB_LINE_PITCH, crtc->fb->width * bpp);
 	hdlcd_write(hdlcd, HDLCD_REG_V_BACK_PORCH,
 				mode->vtotal - mode->vsync_end - 1);
 	hdlcd_write(hdlcd, HDLCD_REG_V_FRONT_PORCH,
