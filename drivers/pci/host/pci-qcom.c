@@ -422,23 +422,14 @@ static void qcom_pcie_config_controller(struct qcom_pcie *dev)
 	wmb();
 }
 
-static int qcom_pcie_probe(struct platform_device *pdev)
+static int qcom_pcie_parse_dt(struct qcom_pcie *qcom_pcie,
+			      struct platform_device *pdev)
 {
-	unsigned long flags;
-	struct qcom_pcie *qcom_pcie;
 	struct device_node *np = pdev->dev.of_node;
 	struct resource *elbi_base, *parf_base, *dwc_base;
-	struct hw_pci *hw;
 	struct of_pci_range range;
 	struct of_pci_range_parser parser;
 	int ret, i;
-	u32 val;
-
-	qcom_pcie = devm_kzalloc(&pdev->dev, sizeof(*qcom_pcie), GFP_KERNEL);
-	if (!qcom_pcie) {
-		dev_err(&pdev->dev, "no memory for qcom_pcie\n");
-		return -ENOMEM;
-	}
 
 	elbi_base = platform_get_resource_byname(pdev, IORESOURCE_MEM, "elbi");
 	qcom_pcie->elbi_base = devm_ioremap_resource(&pdev->dev, elbi_base);
@@ -480,13 +471,6 @@ static int qcom_pcie_probe(struct platform_device *pdev)
 			of_pci_range_to_resource(&range, np, &qcom_pcie->mem);
 			break;
 		}
-	}
-
-	qcom_pcie->cfg_base = devm_ioremap_resource(&pdev->dev,
-						    &qcom_pcie->conf);
-	if (IS_ERR(qcom_pcie->cfg_base)) {
-		dev_err(&pdev->dev, "Failed to ioremap PCIe cfg space\n");
-		return PTR_ERR(qcom_pcie->cfg_base);
 	}
 
 	qcom_pcie->reset_gpio = of_get_named_gpio(np, "reset-gpio", 0);
@@ -556,6 +540,34 @@ static int qcom_pcie_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "failed to get irq resource\n");
 			return qcom_pcie->irq_int[i];
 		}
+	}
+
+	return 0;
+}
+
+static int qcom_pcie_probe(struct platform_device *pdev)
+{
+	unsigned long flags;
+	struct qcom_pcie *qcom_pcie;
+	struct hw_pci *hw;
+	int ret;
+	u32 val;
+
+	qcom_pcie = devm_kzalloc(&pdev->dev, sizeof(*qcom_pcie), GFP_KERNEL);
+	if (!qcom_pcie) {
+		dev_err(&pdev->dev, "no memory for qcom_pcie\n");
+		return -ENOMEM;
+	}
+
+	ret = qcom_pcie_parse_dt(qcom_pcie, pdev);
+	if (IS_ERR_VALUE(ret))
+		return ret;
+
+	qcom_pcie->cfg_base = devm_ioremap_resource(&pdev->dev,
+						    &qcom_pcie->conf);
+	if (IS_ERR(qcom_pcie->cfg_base)) {
+		dev_err(&pdev->dev, "Failed to ioremap PCIe cfg space\n");
+		return PTR_ERR(qcom_pcie->cfg_base);
 	}
 
 	gpio_set_value(qcom_pcie->reset_gpio, 0);
