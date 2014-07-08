@@ -130,51 +130,6 @@ struct qcom_pcie {
 
 };
 
-static int qcom_pcie_map_irq(const struct pci_dev *dev, u8 slot, u8 pin);
-static int qcom_pcie_setup(int nr, struct pci_sys_data *sys);
-static int msm_pcie_rd_conf(struct pci_bus *bus, u32 devfn, int where,
-			    int size, u32 *val);
-static int msm_pcie_wr_conf(struct pci_bus *bus, u32 devfn,
-			    int where, int size, u32 val);
-
-static struct pci_ops qcom_pcie_ops = {
-	.read = msm_pcie_rd_conf,
-	.write = msm_pcie_wr_conf,
-};
-
-static struct hw_pci qcom_hw_pci[MAX_RC_NUM] = {
-	{
-#ifdef CONFIG_PCI_DOMAINS
-		.domain = 0,
-#endif
-		.ops		= &qcom_pcie_ops,
-		.nr_controllers	= 1,
-		.swizzle	= pci_common_swizzle,
-		.setup		= qcom_pcie_setup,
-		.map_irq	= qcom_pcie_map_irq,
-	},
-	{
-#ifdef CONFIG_PCI_DOMAINS
-		.domain = 1,
-#endif
-		.ops		= &qcom_pcie_ops,
-		.nr_controllers	= 1,
-		.swizzle	= pci_common_swizzle,
-		.setup		= qcom_pcie_setup,
-		.map_irq	= qcom_pcie_map_irq,
-	},
-	{
-#ifdef CONFIG_PCI_DOMAINS
-		.domain = 2,
-#endif
-		.ops		= &qcom_pcie_ops,
-		.nr_controllers	= 1,
-		.swizzle	= pci_common_swizzle,
-		.setup		= qcom_pcie_setup,
-		.map_irq	= qcom_pcie_map_irq,
-	},
-};
-
 static int nr_controllers;
 static DEFINE_SPINLOCK(qcom_hw_pci_lock);
 
@@ -347,6 +302,45 @@ static int qcom_pcie_setup(int nr, struct pci_sys_data *sys)
 
 	return 1;
 }
+
+static struct pci_ops qcom_pcie_ops = {
+	.read = msm_pcie_rd_conf,
+	.write = msm_pcie_wr_conf,
+};
+
+static struct hw_pci qcom_hw_pci[MAX_RC_NUM] = {
+	{
+#ifdef CONFIG_PCI_DOMAINS
+		.domain = 0,
+#endif
+		.ops		= &qcom_pcie_ops,
+		.nr_controllers	= 1,
+		.swizzle	= pci_common_swizzle,
+		.setup		= qcom_pcie_setup,
+		.map_irq	= qcom_pcie_map_irq,
+		.add_bus	= qcom_pcie_add_bus,
+	},
+	{
+#ifdef CONFIG_PCI_DOMAINS
+		.domain = 1,
+#endif
+		.ops		= &qcom_pcie_ops,
+		.nr_controllers	= 1,
+		.swizzle	= pci_common_swizzle,
+		.setup		= qcom_pcie_setup,
+		.map_irq	= qcom_pcie_map_irq,
+	},
+	{
+#ifdef CONFIG_PCI_DOMAINS
+		.domain = 2,
+#endif
+		.ops		= &qcom_pcie_ops,
+		.nr_controllers	= 1,
+		.swizzle	= pci_common_swizzle,
+		.setup		= qcom_pcie_setup,
+		.map_irq	= qcom_pcie_map_irq,
+	},
+};
 
 static inline void qcom_elbi_writel_relaxed(struct qcom_pcie *pcie,
 					    u32 val, u32 reg)
