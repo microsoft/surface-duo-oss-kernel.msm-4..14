@@ -19,6 +19,7 @@
 #include <linux/gpio.h>
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
+#include <linux/regulator/consumer.h>
 #include <linux/of_address.h>
 #include <linux/clk.h>
 #include <linux/reset.h>
@@ -107,6 +108,7 @@ struct qcom_pcie {
 	void __iomem		*parf_base;
 	void __iomem		*dwc_base;
 	void __iomem		*cfg_base;
+	struct device		*dev;
 	int			reset_gpio;
 	struct clk		*iface_clk;
 	struct clk		*bus_clk;
@@ -121,6 +123,11 @@ struct qcom_pcie {
 	struct resource		conf;
 	struct resource		io;
 	struct resource		mem;
+
+	struct regulator  *vdd_supply;
+	struct regulator  *avdd_supply;
+	struct regulator  *pcie_clk_supply;
+
 };
 
 static int qcom_pcie_map_irq(const struct pci_dev *dev, u8 slot, u8 pin);
@@ -422,6 +429,32 @@ static void qcom_pcie_config_controller(struct qcom_pcie *dev)
 	wmb();
 }
 
+static int qcom_pcie_vreg_on(struct qcom_pcie *qcom_pcie)
+{
+	int err;
+	/* enable regulators */
+	err = regulator_enable(qcom_pcie->vdd_supply);
+	if (err < 0) {
+		dev_err(qcom_pcie->dev, "failed to enable VDD regulator\n");
+		return err;
+	}
+
+	err = regulator_enable(qcom_pcie->pcie_clk_supply);
+	if (err < 0) {
+		dev_err(qcom_pcie->dev, "failed to enable pcie-clk regulator\n");
+		return err;
+	}
+
+	err = regulator_enable(qcom_pcie->avdd_supply);
+	if (err < 0) {
+		dev_err(qcom_pcie->dev, "failed to enable AVDD regulator\n");
+		return err;
+	}
+
+	return err;
+
+}
+
 static int qcom_pcie_parse_dt(struct qcom_pcie *qcom_pcie,
 			      struct platform_device *pdev)
 {
@@ -472,6 +505,24 @@ static int qcom_pcie_parse_dt(struct qcom_pcie *qcom_pcie,
 			break;
 		}
 	}
+
+	qcom_pcie->vdd_supply = devm_regulator_get(&pdev->dev, "vdd");
+	if (IS_ERR(qcom_pcie->vdd_supply)) {
+		dev_err(&pdev->dev, "Failed to get vdd supply\n");
+		return PTR_ERR(qcom_pcie->vdd_supply);
+	}
+
+	qcom_pcie->pcie_clk_supply = devm_regulator_get(&pdev->dev, "pcie-clk");
+	if (IS_ERR(qcom_pcie->pcie_clk_supply)) {
+		dev_err(&pdev->dev, "Failed to get pcie clk supply\n");
+		return PTR_ERR(qcom_pcie->pcie_clk_supply);
+	}
+	qcom_pcie->avdd_supply = devm_regulator_get(&pdev->dev, "avdd");
+	if (IS_ERR(qcom_pcie->avdd_supply)) {
+		dev_err(&pdev->dev, "Failed to get avdd supply\n");
+		return PTR_ERR(qcom_pcie->avdd_supply);
+	}
+
 
 	qcom_pcie->reset_gpio = of_get_named_gpio(np, "reset-gpio", 0);
 	if (!gpio_is_valid(qcom_pcie->reset_gpio)) {
@@ -558,6 +609,7 @@ static int qcom_pcie_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "no memory for qcom_pcie\n");
 		return -ENOMEM;
 	}
+	qcom_pcie->dev = &pdev->dev;
 
 	ret = qcom_pcie_parse_dt(qcom_pcie, pdev);
 	if (IS_ERR_VALUE(ret))
@@ -573,6 +625,8 @@ static int qcom_pcie_probe(struct platform_device *pdev)
 	gpio_set_value(qcom_pcie->reset_gpio, 0);
 	usleep_range(10000, 15000);
 
+	/* enable power */
+	qcom_pcie_vreg_on(qcom_pcie);
 	/* assert PCIe PARF reset while powering the core */
 	reset_control_assert(qcom_pcie->ahb_reset);
 
