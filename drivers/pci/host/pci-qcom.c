@@ -110,6 +110,7 @@ struct qcom_pcie {
 	void __iomem		*cfg_base;
 	struct device		*dev;
 	int			reset_gpio;
+	bool			ext_phy_ref_clk;
 	struct clk		*iface_clk;
 	struct clk		*bus_clk;
 	struct clk		*phy_clk;
@@ -458,6 +459,9 @@ static int qcom_pcie_parse_dt(struct qcom_pcie *qcom_pcie,
 	struct of_pci_range_parser parser;
 	int ret, i;
 
+	qcom_pcie->ext_phy_ref_clk = of_property_read_bool(np,
+					"qcom,external-phy-refclk");
+
 	elbi_base = platform_get_resource_byname(pdev, IORESOURCE_MEM, "elbi");
 	qcom_pcie->elbi_base = devm_ioremap_resource(&pdev->dev, elbi_base);
 	if (IS_ERR(qcom_pcie->elbi_base)) {
@@ -667,7 +671,8 @@ static int qcom_pcie_probe(struct platform_device *pdev)
 
 	/* enable reference clock */
 	msm_pcie_write_mask(qcom_pcie->parf_base + PCIE20_PARF_PHY_REFCLK,
-			    BIT(12), BIT(16));
+			    qcom_pcie->ext_phy_ref_clk ? 0 : BIT(12),
+			    BIT(16));
 
 	/* ensure that access is enabled before proceeding */
 	wmb();
