@@ -622,7 +622,7 @@ static int qcom_pcie_probe(struct platform_device *pdev)
 	usleep_range(10000, 15000);
 
 	/* de-assert PCIe reset link to bring EP out of reset */
-	gpio_set_value(qcom_pcie->reset_gpio, 1 - 0);
+	gpio_set_value(qcom_pcie->reset_gpio, 1);
 	usleep_range(10000, 15000);
 
 	/* enable link training */
