@@ -655,8 +655,6 @@ static int qcom_pcie_probe(struct platform_device *pdev)
 
 static int __exit qcom_pcie_remove(struct platform_device *pdev)
 {
-	struct qcom_pcie *qcom_pcie = platform_get_drvdata(pdev);
-
 	return 0;
 }
 
