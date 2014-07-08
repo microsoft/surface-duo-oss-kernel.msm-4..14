@@ -17,7 +17,11 @@
 #include <linux/kernel.h>
 #include <linux/pci.h>
 #include <linux/gpio.h>
+#include <linux/interrupt.h>
+#include <linux/irq.h>
+#include <linux/irqdomain.h>
 #include <linux/of_gpio.h>
+#include <linux/msi.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 #include <linux/of_address.h>
@@ -25,6 +29,16 @@
 #include <linux/reset.h>
 #include <linux/delay.h>
 
+#define INT_PCI_MSI_NR (8 * 32)
+#define MSM_PCIE_MSI_PHY 0xa0000000
+
+#define PCIE20_MSI_CTRL_ADDR            (0x820)
+#define PCIE20_MSI_CTRL_UPPER_ADDR      (0x824)
+#define PCIE20_MSI_CTRL_INTR_EN         (0x828)
+#define PCIE20_MSI_CTRL_INTR_MASK       (0x82C)
+#define PCIE20_MSI_CTRL_INTR_STATUS     (0x830)
+
+#define PCIE20_MSI_CTRL_MAX 8
 /* Root Complex Port vendor/device IDs */
 #define PCIE_VENDOR_ID_RCP		0x17cb
 #define PCIE_DEVICE_ID_RCP		0x0101
@@ -103,6 +117,15 @@
 	(cond) ? 0 : -ETIMEDOUT; \
 })
 
+struct qcom_msi {
+	struct msi_controller chip;
+	DECLARE_BITMAP(used, INT_PCI_MSI_NR);
+	struct irq_domain *domain;
+	unsigned long pages;
+	struct mutex lock;
+	int irq;
+};
+
 struct qcom_pcie {
 	void __iomem		*elbi_base;
 	void __iomem		*parf_base;
@@ -129,6 +152,7 @@ struct qcom_pcie {
 	struct regulator  *avdd_supply;
 	struct regulator  *pcie_clk_supply;
 
+	struct qcom_msi		msi;
 };
 
 static int nr_controllers;
@@ -138,6 +162,7 @@ static inline struct qcom_pcie *sys_to_pcie(struct pci_sys_data *sys)
 {
 	return sys->private_data;
 }
+
 
 inline int is_msm_pcie_rc(struct pci_bus *bus)
 {
@@ -319,7 +344,6 @@ static struct hw_pci qcom_hw_pci[MAX_RC_NUM] = {
 		.swizzle	= pci_common_swizzle,
 		.setup		= qcom_pcie_setup,
 		.map_irq	= qcom_pcie_map_irq,
-		.add_bus	= qcom_pcie_add_bus,
 	},
 	{
 #ifdef CONFIG_PCI_DOMAINS
@@ -422,6 +446,187 @@ static void qcom_pcie_config_controller(struct qcom_pcie *dev)
 	writel_relaxed(0x1, dev->dwc_base + PCIE20_AXI_MSTR_RESP_COMP_CTRL1);
 	/* ensure that hardware registers the configuration */
 	wmb();
+}
+
+static int qcom_msi_alloc(struct qcom_msi *chip)
+{
+	int msi;
+
+	mutex_lock(&chip->lock);
+
+	msi = find_first_zero_bit(chip->used, INT_PCI_MSI_NR);
+	if (msi < INT_PCI_MSI_NR)
+		set_bit(msi, chip->used);
+	else
+		msi = -ENOSPC;
+
+	mutex_unlock(&chip->lock);
+
+	return msi;
+}
+
+static void qcom_msi_free(struct qcom_msi *chip, unsigned long irq)
+{
+	struct device *dev = chip->chip.dev;
+
+	mutex_lock(&chip->lock);
+
+	if (!test_bit(irq, chip->used))
+		dev_err(dev, "trying to free unused MSI#%lu\n", irq);
+	else
+		clear_bit(irq, chip->used);
+
+	mutex_unlock(&chip->lock);
+}
+
+
+static irqreturn_t handle_msi_irq(int irq, void *data)
+{
+	int i, j, index;
+	unsigned long val;
+	struct qcom_pcie *dev = data;
+	void __iomem *ctrl_status;
+	struct qcom_msi *msi = &dev->msi;
+
+	/* check for set bits, clear it by setting that bit
+	   and trigger corresponding irq */
+	for (i = 0; i < PCIE20_MSI_CTRL_MAX; i++) {
+		ctrl_status = dev->dwc_base +
+				PCIE20_MSI_CTRL_INTR_STATUS + (i * 12);
+
+		val = readl_relaxed(ctrl_status);
+		while (val) {
+			j = find_first_bit(&val, 32);
+			index = j + (32 * i);
+			writel_relaxed(BIT(j), ctrl_status);
+			/* ensure that interrupt is cleared (acked) */
+			wmb();
+
+			irq = irq_find_mapping(msi->domain, index);
+			if (irq) {
+				if (test_bit(index, msi->used))
+					generic_handle_irq(irq);
+				else
+					dev_info(dev->dev, "unhandled MSI\n");
+			}
+			val = readl_relaxed(ctrl_status);
+		}
+	}
+
+	return IRQ_HANDLED;
+}
+
+static inline struct qcom_msi *to_qcom_msi(struct msi_controller *chip)
+{
+	return container_of(chip, struct qcom_msi, chip);
+}
+
+static int qcom_msi_setup_irq(struct msi_controller *chip, struct pci_dev *pdev,
+			       struct msi_desc *desc)
+{
+	struct qcom_msi *msi = to_qcom_msi(chip);
+	struct msi_msg msg;
+	unsigned int irq;
+	int hwirq;
+
+	hwirq = qcom_msi_alloc(msi);
+	if (hwirq < 0)
+		return hwirq;
+
+	irq = irq_create_mapping(msi->domain, hwirq);
+	if (!irq)
+		return -EINVAL;
+
+	irq_set_msi_desc(irq, desc);
+
+	msg.address_lo = MSM_PCIE_MSI_PHY;
+	/* 32 bit address only */
+	msg.address_hi = 0;
+	msg.data = hwirq;
+
+	write_msi_msg(irq, &msg);
+
+	return 0;
+}
+
+static void qcom_msi_teardown_irq(struct msi_controller *chip, unsigned int irq)
+{
+	struct qcom_msi *msi = to_qcom_msi(chip);
+	struct irq_data *d = irq_get_irq_data(irq);
+
+	qcom_msi_free(msi, d->hwirq);
+}
+
+static struct irq_chip qcom_msi_irq_chip = {
+	.name = "PCI-MSI",
+	.irq_enable = unmask_msi_irq,
+	.irq_disable = mask_msi_irq,
+	.irq_mask = mask_msi_irq,
+	.irq_unmask = unmask_msi_irq,
+};
+
+
+static int qcom_pcie_msi_map(struct irq_domain *domain, unsigned int irq,
+			irq_hw_number_t hwirq)
+{
+	irq_set_chip_and_handler(irq, &qcom_msi_irq_chip, handle_simple_irq);
+	irq_set_chip_data(irq, domain->host_data);
+	set_irq_flags(irq, IRQF_VALID);
+
+	return 0;
+}
+
+
+static const struct irq_domain_ops msi_domain_ops = {
+	.map = qcom_pcie_msi_map,
+};
+uint32_t msm_pcie_msi_init(struct qcom_pcie *pcie, struct platform_device *pdev)
+{
+	int i, rc;
+	struct qcom_msi *msi = &pcie->msi;
+	int err;
+
+	mutex_init(&msi->lock);
+
+	msi->chip.dev = pcie->dev;
+	msi->chip.setup_irq = qcom_msi_setup_irq;
+	msi->chip.teardown_irq = qcom_msi_teardown_irq;
+	msi->domain = irq_domain_add_linear(pdev->dev.of_node, INT_PCI_MSI_NR,
+					    &msi_domain_ops, &msi->chip);
+	if (!msi->domain) {
+		dev_err(&pdev->dev, "failed to create IRQ domain\n");
+		return -ENOMEM;
+	}
+
+
+	err = platform_get_irq_byname(pdev, "msi");
+	if (err < 0) {
+		dev_err(&pdev->dev, "failed to get IRQ: %d\n", err);
+		return err;
+	}
+
+	msi->irq = err;
+
+	/* program MSI controller and enable all interrupts */
+	writel_relaxed(MSM_PCIE_MSI_PHY, pcie->dwc_base + PCIE20_MSI_CTRL_ADDR);
+	writel_relaxed(0, pcie->dwc_base + PCIE20_MSI_CTRL_UPPER_ADDR);
+
+	for (i = 0; i < PCIE20_MSI_CTRL_MAX; i++)
+		writel_relaxed(~0, pcie->dwc_base +
+			       PCIE20_MSI_CTRL_INTR_EN + (i * 12));
+
+	/* ensure that hardware is configured before proceeding */
+	wmb();
+
+	/* register handler for physical MSI interrupt line */
+	rc = request_irq(msi->irq, handle_msi_irq, IRQF_TRIGGER_RISING,
+			 "msm_pcie_msi", pcie);
+	if (rc) {
+		pr_err("Unable to allocate msi interrupt\n");
+		return rc;
+	}
+
+	return rc;
 }
 
 static int qcom_pcie_vreg_on(struct qcom_pcie *qcom_pcie)
@@ -710,11 +915,16 @@ static int qcom_pcie_probe(struct platform_device *pdev)
 	spin_lock_irqsave(&qcom_hw_pci_lock, flags);
 	qcom_hw_pci[nr_controllers].private_data = (void **)&qcom_pcie;
 	hw = &qcom_hw_pci[nr_controllers];
+
+#ifdef CONFIG_PCI_MSI
+	hw->msi_ctrl = &qcom_pcie->msi.chip;
+#endif
 	nr_controllers++;
 	spin_unlock_irqrestore(&qcom_hw_pci_lock, flags);
 
 	pci_common_init(hw);
 
+	msm_pcie_msi_init(qcom_pcie, pdev);
 	return 0;
 }
 
