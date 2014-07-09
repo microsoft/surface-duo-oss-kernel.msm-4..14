@@ -7,6 +7,7 @@
 #include <dt-bindings/mfd/qcom-rpm.h>
 #include <dt-bindings/soc/qcom,gsbi.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/gpio/gpio.h>
 
 / {
 	model = "Qualcomm APQ8064";
@@ -316,7 +317,53 @@
 				regulator-always-on;
 			};
 
+
+			pm8921_lvs6: pm8921-lvs6 {
+				compatible	= "qcom,rpm-pm8921-switch";
+				reg		= <QCOM_RPM_PM8921_LVS6>;
+				regulator-always-on;
+			};
+
+
 		};
+
+		/* PCIE */
+
+		pci@1b500000 {
+			compatible	= "qcom,pcie-ipq8064";
+			reg		= <0x1b500000 0x1000>, <0x1b502000 0x100>, <0x1b600000 0x80>;
+			reg-names	= "base", "elbi", "parf";
+			status		= "disabled";
+			#address-cells	= <3>;
+			#size-cells	= <2>;
+			device_type	= "pci";
+			interrupts = <0 35 0x0
+				 0 36 0x0
+				 0 37 0x0
+				 0 38 0x0
+				 0 39 0x0
+				 0 238 0x0>;
+			interrupt-names = "irq1", "irq2", "irq3", "irq4", "iqr5", "msi";
+
+			resets = <&gcc PCIE_ACLK_RESET>,
+				 <&gcc PCIE_HCLK_RESET>,
+				 <&gcc PCIE_POR_RESET>,
+				 <&gcc PCIE_PCI_RESET>,
+				 <&gcc PCIE_PHY_RESET>;
+			reset-names = "axi", "ahb", "por", "pci", "phy";
+
+			clocks = <&gcc PCIE_A_CLK>,
+				 <&gcc PCIE_H_CLK>,
+				 <&gcc PCIE_PHY_REF_CLK>;
+			clock-names = "core", "iface", "phy";
+
+			ranges = <0x00000000 0 0 0x0ff00000 0 0x00100000 /* configuration space */
+				  0x81000000 0 0 0x0fe00000 0 0x00100000 /* downstream I/O */
+				  0x82000000 0 0 0x08000000 0 0x07e00000>; /* non-prefetchable memory */
+
+		};
+
+
 
 		usb1_phy:phy@12500000 {
 			compatible	= "qcom,usb-otg-ci";
