@@ -952,7 +952,7 @@ static int qcom_pcie_init(void)
 {
 	return platform_driver_register(&qcom_pcie_driver);
 }
-subsys_initcall(qcom_pcie_init);
+subsys_initcall_sync(qcom_pcie_init);
 
 /* RC do not represent the right class; set it to PCI_CLASS_BRIDGE_PCI */
 static void msm_pcie_fixup_early(struct pci_dev *dev)
