@@ -5,6 +5,7 @@
 #include <linux/module.h>
 #include <linux/of_address.h>
 #include <linux/pci_regs.h>
+#include <linux/slab.h>
 #include <linux/string.h>
 
 /* Max address size we deal with */
@@ -601,12 +602,72 @@ const __be32 *of_get_address(struct device_node *dev, int index, u64 *size,
 }
 EXPORT_SYMBOL(of_get_address);
 
+struct io_range {
+	struct list_head list;
+	phys_addr_t start;
+	resource_size_t size;
+};
+
+static LIST_HEAD(io_range_list);
+
+/*
+ * Record the PCI IO range (expressed as CPU physical address + size).
+ * Return a negative value if an error has occured, zero otherwise
+ */
+int __weak pci_register_io_range(phys_addr_t addr, resource_size_t size)
+{
+#ifdef PCI_IOBASE
+	struct io_range *res;
+	resource_size_t allocated_size = 0;
+
+	/* check if the range hasn't been previously recorded */
+	list_for_each_entry(res, &io_range_list, list) {
+		if (addr >= res->start && addr + size <= res->start + size)
+			return 0;
+		allocated_size += res->size;
+	}
+
+	/* range not registed yet, check for available space */
+	if (allocated_size + size - 1 > IO_SPACE_LIMIT)
+		return -E2BIG;
+
+	/* add the range to the list */
+	res = kzalloc(sizeof(*res), GFP_KERNEL);
+	if (!res)
+		return -ENOMEM;
+
+	res->start = addr;
+	res->size = size;
+
+	list_add_tail(&res->list, &io_range_list);
+
+	return 0;
+#else
+	return -EINVAL;
+#endif
+}
+
 unsigned long __weak pci_address_to_pio(phys_addr_t address)
 {
+#ifdef PCI_IOBASE
+	struct io_range *res;
+	resource_size_t offset = 0;
+
+	list_for_each_entry(res, &io_range_list, list) {
+		if (address >= res->start &&
+			address < res->start + res->size) {
+			return res->start - address + offset;
+		}
+		offset += res->size;
+	}
+
+	return (unsigned long)-1;
+#else
 	if (address > IO_SPACE_LIMIT)
 		return (unsigned long)-1;
 
 	return (unsigned long) address;
+#endif
 }
 
 static int __of_address_to_resource(struct device_node *dev,
