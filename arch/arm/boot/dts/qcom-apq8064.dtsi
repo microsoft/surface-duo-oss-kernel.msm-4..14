@@ -678,6 +678,7 @@
 
 		gpu: qcom,adreno-3xx@4300000 {
 			compatible = "qcom,adreno-3xx";
+			#stream-id-cells = <16>;
 			reg = <0x04300000 0x20000>;
 			reg-names = "kgsl_3d0_reg_memory";
 			interrupts = <GIC_SPI 80 0>;
@@ -706,6 +707,7 @@
 
 		mdp: qcom,mdp@5100000 {
 			compatible = "qcom,mdp";
+			#stream-id-cells = <2>;
 			reg = <0x05100000 0xf0000>;
 			interrupts = <GIC_SPI 75 0>;
 			connectors = <&hdmi>;
@@ -727,6 +729,96 @@
 			    <&mmcc MDP_TV_CLK>,
 			    <&mmcc MDP_AXI_CLK>;
 //			vdd-supply = <&footswitch_mdp>;
+		};
+
+		mdp_port0: qcom,iommu@7500000 {
+			compatible = "qcom,iommu-v0";
+			clock-names =
+			    "smmu_pclk",
+			    "iommu_clk";
+			clocks =
+			    <&mmcc SMMU_AHB_CLK>,
+			    <&mmcc MDP_AXI_CLK>;
+			reg-names = "physbase";
+			reg = <0x07500000 0x100000>;
+			interrupt-names =
+			    "secure_irq",
+			    "nonsecure_irq";
+			interrupts =
+			    <GIC_SPI 63 0>,
+			    <GIC_SPI 64 0>;
+			ncb = <2>;
+			mmu-masters = <&mdp 0 2>;
+		};
+
+		mdp_port1: qcom,iommu@7600000 {
+			compatible = "qcom,iommu";
+			clock-names =
+			    "smmu_pclk",
+			    "iommu_clk";
+			clocks =
+			    <&mmcc SMMU_AHB_CLK>,
+			    <&mmcc MDP_AXI_CLK>;
+			reg-names = "physbase";
+			reg = <0x07600000 0x100000>;
+			interrupt-names =
+			    "secure_irq",
+			    "nonsecure_irq";
+			interrupts =
+			    <GIC_SPI 61 0>,
+			    <GIC_SPI 62 0>;
+			ncb = <2>;
+			mmu-masters = <&mdp 0 2>;
+		};
+
+		gfx3d: qcom,iommu@7c00000 {
+			compatible = "qcom,iommu-v0";
+			clock-names =
+			    "smmu_pclk",
+			    "iommu_clk";
+			clocks =
+			    <&mmcc SMMU_AHB_CLK>,
+			    <&mmcc GFX3D_AXI_CLK>;
+			reg-names = "physbase";
+			reg = <0x07c00000 0x100000>;
+			interrupt-names =
+			    "secure_irq",
+			    "nonsecure_irq";
+			interrupts =
+			    <GIC_SPI 69 0>,
+			    <GIC_SPI 70 0>;
+			ncb = <3>;
+			ttbr-split = <1>;
+			mmu-masters =
+			    /* gfx3d_user: */
+			    <&gpu 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15>,
+			    /* gfx3d_priv: */
+			    <&gpu 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31>;
+		};
+
+		gfx3d1: qcom,iommu@7d00000 {
+			compatible = "qcom,iommu-v0";
+			clock-names =
+			    "smmu_pclk",
+			    "iommu_clk";
+			clocks =
+			    <&mmcc SMMU_AHB_CLK>,
+			    <&mmcc GFX3D_AXI_CLK>;
+			reg-names = "physbase";
+			reg = <0x07d00000 0x100000>;
+			interrupt-names =
+			    "secure_irq",
+			    "nonsecure_irq";
+			interrupts =
+			    <GIC_SPI 210 0>,
+			    <GIC_SPI 211 0>;
+			ncb = <3>;
+			ttbr-split = <1>;
+			mmu-masters =
+			    /* gfx3d_user: */
+			    <&gpu 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15>,
+			    /* gfx3d_priv: */
+			    <&gpu 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30 31>;
 		};
 	};
 };
