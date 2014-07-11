@@ -271,6 +271,7 @@ static int allocate_power(struct thermal_zone_device *tz,
 
 	list_for_each_entry_rcu(actor, &actor_list, actor_node) {
 		req_power[i] = actor->ops->get_req_power(actor, tz);
+		req_power[i] = frac_to_int(actor->weight * req_power[i]);
 		total_req_power += req_power[i];
 
 		max_power[i] = actor->ops->get_max_power(actor, tz);

@@ -45,17 +45,20 @@ struct power_actor_ops {
 
 /**
  * struct power_actor - structure for a power actor
+ * @weight:	weight of the actor as an 8-bit fixed point
  * @ops:	callbacks for the power actor
  * @data:	a private pointer for type-specific data
  * @actor_node:	node in actor_list
  */
 struct power_actor {
+	u32 weight;
 	struct power_actor_ops *ops;
 	void *data;
 	struct list_head actor_node;
 };
 
-struct power_actor *power_actor_register(struct power_actor_ops *ops,
+struct power_actor *power_actor_register(u32 weight,
+					struct power_actor_ops *ops,
 					void *privdata);
 void power_actor_unregister(struct power_actor *actor);
 

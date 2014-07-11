@@ -26,12 +26,14 @@ static DEFINE_MUTEX(actor_list_lock);
 
 /**
  * power_actor_register() - Register an actor in the power actor API
+ * @weight:	weight of the actor as an 8-bit fixed point
  * @ops:	&struct power_actor_ops for this actor
  * @privdata:	pointer to private data related to the actor
  *
  * Return: The &struct power_actor * on success, ERR_PTR() on failure
  */
-struct power_actor *power_actor_register(struct power_actor_ops *ops,
+struct power_actor *power_actor_register(u32 weight,
+					struct power_actor_ops *ops,
 					void *privdata)
 {
 	struct power_actor *actor;
@@ -43,6 +45,7 @@ struct power_actor *power_actor_register(struct power_actor_ops *ops,
 	if (!actor)
 		return ERR_PTR(-ENOMEM);
 
+	actor->weight = weight;
 	actor->ops = ops;
 	actor->data = privdata;
 
