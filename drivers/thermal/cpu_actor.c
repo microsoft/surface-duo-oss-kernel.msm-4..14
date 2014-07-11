@@ -412,6 +412,7 @@ unlock:
  * @np:		DT node for the cpus.
  * @cpu:	one of the cpus covered by this power_actor
  * @capacitance:	dynamic power coefficient for these cpus
+ * @weight:	weight of the cpu actor as an 8-bit fixed point
  * @plat_static_func:	function to calculate the static power consumed by these
  *			cpus (optional)
  *
@@ -434,7 +435,8 @@ unlock:
  */
 struct power_actor *
 power_cpu_actor_register(struct device_node *np, unsigned int cpu,
-			u32 capacitance, get_static_t plat_static_func)
+			u32 capacitance, u32 weight,
+			get_static_t plat_static_func)
 {
 	int ret;
 	struct thermal_cooling_device *cdev;
@@ -475,7 +477,7 @@ power_cpu_actor_register(struct device_node *np, unsigned int cpu,
 		goto cdev_unregister;
 	}
 
-	actor = power_actor_register(&cpu_actor_ops, cpu_actor);
+	actor = power_actor_register(weight, &cpu_actor_ops, cpu_actor);
 	if (IS_ERR(actor)) {
 		err_ret = actor;
 		goto kfree_dyn_power_table;

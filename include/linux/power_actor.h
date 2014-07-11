@@ -69,13 +69,15 @@ typedef u32 (*get_static_t)(cpumask_t *cpumask,
 #ifdef CONFIG_THERMAL_POWER_ACTOR_CPU
 struct power_actor *
 power_cpu_actor_register(struct device_node *np, unsigned int cpu,
-			u32 capacitance, get_static_t plat_static_func);
+			u32 capacitance, u32 weight,
+			get_static_t plat_static_func);
 void power_cpu_actor_unregister(struct power_actor *actor);
 #else
 static inline
 struct power_actor *
 power_cpu_actor_register(struct device_node *np, unsigned int cpu,
-			u32 capacitance, get_static_t plat_static_func)
+			u32 capacitance, u32 weight,
+			get_static_t plat_static_func)
 {
 	return ERR_PTR(-ENOSYS);
 }
