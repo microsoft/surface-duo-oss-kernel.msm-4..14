@@ -1,8 +1,12 @@
 /dts-v1/;
-
 #include "skeleton.dtsi"
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/clock/qcom,gcc-msm8960.h>
 #include <dt-bindings/soc/qcom,gsbi.h>
+#include <dt-bindings/soc/qcom,rpm.h>
+#include <dt-bindings/reset/qcom,gcc-msm8960.h>
+#include <dt-bindings/gpio/gpio.h>
 
 / {
 	model = "Qualcomm APQ8064";
@@ -165,6 +169,316 @@
 			reg = <0x00900000 0x4000>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
+		};
+
+		rpm@108000 {
+			compatible	= "qcom,rpm-apq8064";
+			reg		= <0x108000 0x1000 0x2011008 0x4>;
+
+			interrupts	= <0 19 0>, <0 21 0>, <0 22 0>;
+			interrupt-names = "ack", "err", "wakeup";
+
+			#address-cells	= <1>;
+			#size-cells	= <0>;
+
+			pm8921_s3: pm8921-s3 {
+				compatible	= "qcom,rpm-pm8921-smps";
+				reg		= <QCOM_RPM_PM8921_S3>;
+
+				regulator-min-microvolt = <1000000>;
+				regulator-max-microvolt = <1400000>;
+				qcom,boot-load 		= <49360>;
+				qcom,switch-mode-frequency = <3200000>;
+				regulator-always-on;
+			};
+
+			pm8921_s4: pm8921-s4 {
+				compatible	= "qcom,rpm-pm8921-smps";
+				reg		= <QCOM_RPM_PM8921_S4>;
+
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <1800000>;
+				qcom,boot-load 		= <200000>;
+				qcom,switch-mode-frequency = <3200000>;
+				regulator-always-on;
+			};
+
+			pm8921_l3: pm8921-l3 {
+				compatible	= "qcom,rpm-pm8921-pldo";
+				reg		= <QCOM_RPM_PM8921_L3>;
+
+				regulator-min-microvolt = <3050000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				qcom,boot-load = <50000>;
+			};
+
+			pm8921_l4: pm8921-l4 {
+				compatible	= "qcom,rpm-pm8921-pldo";
+				reg		= <QCOM_RPM_PM8921_L4>;
+
+				regulator-min-microvolt = <1000000>;
+				regulator-max-microvolt = <1800000>;
+				regulator-always-on;
+				qcom,boot-load = <50000>;
+			};
+
+			pm8921_l23: pm8921-l23 {
+				compatible	= "qcom,rpm-pm8921-pldo";
+				reg		= <QCOM_RPM_PM8921_L23>;
+
+				regulator-min-microvolt = <1000000>;
+				regulator-max-microvolt = <1800000>;
+				qcom,boot-load = <50000>;
+				regulator-always-on;
+			};
+
+
+			pm8921_lvs6: pm8921-lvs6 {
+				compatible	= "qcom,rpm-pm8921-switch";
+				reg		= <QCOM_RPM_PM8921_LVS6>;
+				regulator-always-on;
+			};
+
+
+		};
+
+		/* PCIE */
+		qcom_pinmux: pinctrl@800000 {
+			compatible = "qcom,apq8064-pinctrl";
+			gpio-controller;
+			#gpio-cells = <2>;
+			ngpio = <150>;
+			interrupts = <GIC_SPI 16 0x4>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
+			reg = <0x00800000 0x4000>;
+
+		};
+
+		pci@1b500000 {
+			compatible	= "qcom,pcie-ipq8064";
+			reg		= <0x1b500000 0x1000>, <0x1b502000 0x100>, <0x1b600000 0x80>;
+			reg-names	= "base", "elbi", "parf";
+			status		= "disabled";
+			#address-cells	= <3>;
+			#size-cells	= <2>;
+			device_type	= "pci";
+			interrupts = <0 35 0x0
+				 0 36 0x0
+				 0 37 0x0
+				 0 38 0x0
+				 0 39 0x0
+				 0 238 0x0>;
+			interrupt-names = "irq1", "irq2", "irq3", "irq4", "iqr5", "msi";
+
+			resets = <&gcc PCIE_ACLK_RESET>,
+				 <&gcc PCIE_HCLK_RESET>,
+				 <&gcc PCIE_POR_RESET>,
+				 <&gcc PCIE_PCI_RESET>,
+				 <&gcc PCIE_PHY_RESET>;
+			reset-names = "axi", "ahb", "por", "pci", "phy";
+
+			clocks = <&gcc PCIE_A_CLK>,
+				 <&gcc PCIE_H_CLK>,
+				 <&gcc PCIE_PHY_REF_CLK>;
+			clock-names = "core", "iface", "phy";
+
+			ranges = <0x00000000 0 0 0x0ff00000 0 0x00100000 /* configuration space */
+				  0x81000000 0 0 0x0fe00000 0 0x00100000 /* downstream I/O */
+				  0x82000000 0 0 0x08000000 0 0x07e00000>; /* non-prefetchable memory */
+
+		};
+
+
+
+		usb1_phy:phy@12500000 {
+			compatible	= "qcom,usb-otg-ci";
+			reg		= <0x12500000 0x400>;
+			interrupts	= <0 100 0>;
+			status		= "disabled";
+			dr_mode		= "host";
+
+			clocks		= <&gcc USB_HS1_XCVR_CLK>,
+					  <&gcc USB_HS1_H_CLK>;
+			clock-names	= "core", "iface";
+
+			vddcx-supply	= <&pm8921_s3>;
+			v3p3-supply	= <&pm8921_l3>;
+			v1p8-supply	= <&pm8921_l4>;
+
+			resets		= <&gcc USB_HS1_RESET>;
+			reset-names	= "link";
+		};
+
+		usb3_phy:phy@12520000 {
+			compatible	= "qcom,usb-otg-ci";
+			reg		= <0x12520000 0x400>;
+			interrupts	= <0 188 0>;
+			status		= "disabled";
+			dr_mode		= "host";
+			
+			clocks		= <&gcc USB_HS3_XCVR_CLK>,
+					  <&gcc USB_HS3_H_CLK>;
+			clock-names	= "core", "iface";
+
+			vddcx-supply	= <&pm8921_s3>;
+			v3p3-supply	= <&pm8921_l3>;
+			v1p8-supply	= <&pm8921_l23>;
+
+			resets		= <&gcc USB_HS3_RESET>;
+			reset-names	= "link";
+		};
+
+		usb4_phy:phy@12530000 {
+			compatible	= "qcom,usb-otg-ci";
+			reg		= <0x12530000 0x400>;
+			interrupts	= <0 215 0>;
+			status		= "disabled";
+			dr_mode		= "host";
+
+			clocks		= <&gcc USB_HS4_XCVR_CLK>,
+					  <&gcc USB_HS4_H_CLK>;
+			clock-names	= "core", "iface";
+
+			vddcx-supply	= <&pm8921_s3>;
+			v3p3-supply	= <&pm8921_l3>;
+			v1p8-supply	= <&pm8921_l23>;
+
+			resets		= <&gcc USB_HS4_RESET>;
+			reset-names	= "link";
+		};
+
+		gadget1:gadget@12500000 {
+			compatible	= "qcom,ci-hdrc";
+			reg		= <0x12500000 0x400>;
+			status		= "disabled";
+			dr_mode		= "peripheral";
+			interrupts	= <0 100 0>;
+			usb-phy		= <&usb1_phy>;
+		};
+
+		usb1: usb@12500000 {
+			compatible	= "qcom,ehci-host";
+			reg		= <0x12500000 0x400>;
+			interrupts	= <0 100 0>;
+			status		= "disabled";
+			usb-phy		= <&usb1_phy>;
+		};
+
+		usb3: usb@12520000 {
+			compatible	= "qcom,ehci-host";
+			reg		= <0x12520000 0x400>;
+			interrupts	= <0 188 0>;
+			status		= "disabled";
+			usb-phy		= <&usb3_phy>;
+		};
+
+		usb4: usb@12530000 {
+			compatible	= "qcom,ehci-host";
+			reg		= <0x12530000 0x400>;
+			interrupts	= <0 215 0>;
+			status		= "disabled";
+			usb-phy		= <&usb4_phy>;
+		};
+
+		sata_phy0:sata-phy@1b400000{
+			compatible	= "qcom,apq8064-sata-phy";
+			reg		= <0x1b400000 0x200>;
+			reg-names	= "phy_mem";
+			clocks		= <&gcc SATA_PHY_CFG_CLK>;
+			clock-names = "cfg";
+			#phy-cells = <0>;
+		};
+
+		sata0: sata@29000000 {
+			compatible	= "qcom,msm-ahci";
+			reg		= <0x29000000 0x180>;
+			interrupts	= <0 209 0>;
+			clocks = <&gcc SFAB_SATA_S_H_CLK>, <&gcc SATA_H_CLK>,
+				 <&gcc SATA_A_CLK>, <&gcc SATA_RXOOB_CLK>,
+				 <&gcc SATA_PMALIVE_CLK>;
+
+			clock-names = "slave_iface", "iface",
+				      "bus", "rxoob",
+				      "core_pmalive";
+
+			phys  = <&sata_phy0>;
+			phy-names = "sata-phy";
+			target-supply = <&pm8921_s4>;
+		};
+
+		/* Temporary fixed regulator */
+		vsdcc_fixed: vsdcc-regulator {
+			compatible = "regulator-fixed";
+			regulator-name = "SDCC Power";
+			regulator-min-microvolt = <2700000>;
+			regulator-max-microvolt = <2700000>;
+			regulator-always-on;
+		};
+
+		sdcc1bam:dma@12402000{
+			compatible = "qcom,bam-v1.3.0";
+			reg = <0x12402000 0x8000>;
+			interrupts = <0 98 0>;
+			clocks = <&gcc SDC1_H_CLK>;
+			clock-names = "bam_clk";
+			#dma-cells = <1>;
+			qcom,ee = <0>;
+		};
+
+		sdcc3bam:dma@12182000{
+			compatible = "qcom,bam-v1.3.0";
+			reg = <0x12182000 0x8000>;
+			interrupts = <0 96 0>;
+			clocks = <&gcc SDC3_H_CLK>;
+			clock-names = "bam_clk";
+			#dma-cells = <1>;
+			qcom,ee = <0>;
+		};
+
+		amba {
+			compatible = "arm,amba-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+			sdcc1: sdcc@12400000 {
+				status		= "disabled";
+				compatible	= "arm,pl18x", "arm,primecell";
+				arm,primecell-periphid = <0x00051180>;
+				reg		= <0x12400000 0x2000>;
+				interrupts	= <GIC_SPI 104 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-names	= "cmd_irq";
+				clocks		= <&gcc SDC1_CLK>, <&gcc SDC1_H_CLK>;
+				clock-names	= "mclk", "apb_pclk";
+				bus-width	= <8>;
+				max-frequency	= <96000000>;
+				non-removable;
+				cap-sd-highspeed;
+				cap-mmc-highspeed;
+				vmmc-supply = <&vsdcc_fixed>;
+				dmas = <&sdcc1bam 2>, <&sdcc1bam 1>;
+				dma-names = "tx", "rx";
+			};
+
+			sdcc3: sdcc@12180000 {
+				compatible	= "arm,pl18x", "arm,primecell";
+				arm,primecell-periphid = <0x00051180>;
+				status		= "disabled";
+				reg		= <0x12180000 0x2000>;
+				interrupts	= <GIC_SPI 102 IRQ_TYPE_LEVEL_HIGH>;
+				interrupt-names	= "cmd_irq";
+				clocks		= <&gcc SDC3_CLK>, <&gcc SDC3_H_CLK>;
+				clock-names	= "mclk", "apb_pclk";
+				bus-width	= <4>;
+				cap-sd-highspeed;
+				cap-mmc-highspeed;
+				max-frequency	= <192000000>;
+				no-1-8-v;
+				vmmc-supply = <&vsdcc_fixed>;
+				dmas = <&sdcc3bam 2>, <&sdcc3bam 1>;
+				dma-names = "tx", "rx";
+			};
 		};
 	};
 };
