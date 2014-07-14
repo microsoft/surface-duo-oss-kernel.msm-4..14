@@ -22,6 +22,7 @@
 #include <linux/of_iommu.h>
 #include <linux/of_irq.h>
 #include <linux/of_platform.h>
+#include <linux/of_reserved_mem.h>
 #include <linux/platform_device.h>
 
 const struct of_device_id of_default_bus_match_table[] = {
@@ -236,10 +237,12 @@ static struct platform_device *of_platform_device_create_pdata(
 
 	dev->dev.bus = &platform_bus_type;
 	dev->dev.platform_data = platform_data;
+	of_reserved_mem_device_init(&dev->dev);
 	of_dma_configure(&dev->dev);
 
 	if (of_device_add(dev) != 0) {
 		of_dma_deconfigure(&dev->dev);
+		of_reserved_mem_device_release(&dev->dev);
 		platform_device_put(dev);
 		goto err_clear_flag;
 	}
@@ -299,6 +302,7 @@ static struct amba_device *of_amba_device_create(struct device_node *node,
 		dev_set_name(&dev->dev, "%s", bus_id);
 	else
 		of_device_make_bus_id(&dev->dev);
+	of_reserved_mem_device_init(&dev->dev);
 	of_dma_configure(&dev->dev);
 
 	/* Allow the HW Peripheral ID to be overridden */
@@ -327,6 +331,7 @@ static struct amba_device *of_amba_device_create(struct device_node *node,
 	return dev;
 
 err_free:
+	of_reserved_mem_device_release(&dev->dev);
 	amba_device_put(dev);
 err_clear_flag:
 	of_node_clear_flag(node, OF_POPULATED);
