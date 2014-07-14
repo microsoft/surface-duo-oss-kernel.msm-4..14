@@ -913,6 +913,17 @@ static void msm_console_write(struct console *co, const char *s,
 	spin_unlock(&port->lock);
 }
 
+static int have_boot_console(void)
+{
+	struct console *con;
+
+	for_each_console(con)
+		if (con->flags & CON_BOOT)
+			return 1;
+
+	return 0;
+}
+
 static int __init msm_console_setup(struct console *co, char *options)
 {
 	struct uart_port *port;
@@ -943,7 +954,12 @@ static int __init msm_console_setup(struct console *co, char *options)
 		baud = 115200;
 	msm_set_baud_rate(port, baud);
 
-	msm_reset(port);
+	/*
+	 * do not reset if we are the boot console
+	 * can result in a lockup from bootconsole
+	 */
+	if (!have_boot_console())
+		msm_reset(port);
 
 	if (msm_port->is_uartdm) {
 		msm_write(port, UART_CR_CMD_PROTECTION_EN, UART_CR);
