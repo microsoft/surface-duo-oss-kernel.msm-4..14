@@ -1,0 +1,110 @@
+/dts-v1/;
+/ {
+	model = "Foundation-v8A";
+	compatible = "arm,foundation-aarch64", "arm,vexpress";
+	interrupt-parent = <&gic>;
+	#address-cells = <1>;
+	#size-cells = <1>;
+
+	chosen {
+	  
+	  
+	  
+	  };	
+	
+	memory@0 {
+		device_type = "memory";
+		reg = <0x00000000 0x00800000>,
+		      <0x3E800000 0x00800000>,
+		      <0x80000000 0x3FFFFFFF>,
+		      <0xC0000000 0x3FFFFFFF>;
+	};
+
+	
+	cpus {
+	  #size-cells = <0>;
+	  #address-cells = <2>;
+
+	  cpu@0 {
+		  device_type = "cpu";
+		  compatible = "arm,cortex-a53";
+		  reg = <0x0 0x0>;
+		  enable-method = "spin-table";
+		  cpu-release-addr = <0 0x90000000>;
+	  };
+
+	  cpu@1 {
+		  device_type = "cpu";
+		  compatible = "arm,cortex-a53";
+		  reg = <0x0 0x1>;
+		  enable-method = "spin-table";
+		  cpu-release-addr = <0 0x90000000>;
+	  };
+	};
+	
+	gic: interrupt-controller@0x77101000 {
+		compatible = "arm,cortex-a15-gic";
+		#interrupt-cells = <3>;
+		interrupt-controller;
+		/*reg = <0x77300000 0x1000>,
+		      <0x77304000 0x1000>;*/
+		reg = <0x77101000 0x1000>,
+		      <0x77102000 0x1000>,
+		      <0x77104000 0x2000>,
+		      <0x77106000 0x2000>;
+		interrupts = <1 9 0xf04>;
+	};
+		
+	/*interrupts : Interrupt list for secure, non-secure, virtual and hypervisor timers, in that order.*/
+	timer: timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <1 13 0xf08>,
+			     <1 14 0xf08>,
+			     <1 11 0xf08>,
+			     <1 10 0xf08>;
+		/*clock-frequency = <800000000>;*/
+	}; 
+
+	/*pmu {
+		compatible = "arm,armv8-pmuv3";
+		interrupts = <0 20 0x4>,
+			     <0 21 0x4>,
+			     <0 22 0x4>,
+			     <0 23 0x4>;
+	};*/
+
+	
+	amba {
+		compatible = "arm,amba-bus";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+		
+		uart_clk: uart_clk {
+		  #clock-cells = <0>;
+		  compatible = "fixed-clock";
+		  clock-frequency = <133000000>;
+		};
+	
+		
+		serial0: uart@0x77300000 {
+				compatible = "arm,pl011", "arm,primecell";
+				reg = <0x77300000 0x1000>;
+				interrupts = <0 89 0x4>;
+				baud = <57600>;
+				clocks = <&uart_clk>;
+				clock-names = "apb_pclk";
+			};
+
+		serial1: uart@0x77304000 {
+				compatible = "arm,pl011", "arm,primecell";
+				reg = <0x77304000 0x1000>;
+				interrupts = <0 90 0x4>;
+				clocks = <&uart_clk>, <&uart_clk>;
+				clock-names = "uartclk", "apb_pclk";
+			};
+	};
+		
+	
+		
+};
