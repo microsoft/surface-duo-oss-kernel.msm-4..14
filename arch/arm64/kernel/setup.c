@@ -42,6 +42,7 @@
 #include <linux/of_fdt.h>
 #include <linux/of_platform.h>
 #include <linux/efi.h>
+#include <linux/debugfs.h>
 
 #include <asm/fixmap.h>
 #include <asm/cputype.h>
@@ -483,6 +484,16 @@ static const char *hwcap_str[] = {
 	NULL
 };
 
+
+static u32 fake_armv7 = 0;
+
+static int __init fake_armv7_init(void)
+{
+	debugfs_create_bool("fake_armv7", 0666, NULL, &fake_armv7);
+	return 0;
+}
+late_initcall(fake_armv7_init);
+
 static int c_show(struct seq_file *m, void *v)
 {
 	int i;
@@ -508,11 +519,19 @@ static int c_show(struct seq_file *m, void *v)
 		if (elf_hwcap & (1 << i))
 			seq_printf(m, "%s ", hwcap_str[i]);
 
-	seq_printf(m, "\nCPU implementer\t: 0x%02x\n", read_cpuid_id() >> 24);
-	seq_printf(m, "CPU architecture: AArch64\n");
-	seq_printf(m, "CPU variant\t: 0x%x\n", (read_cpuid_id() >> 20) & 15);
-	seq_printf(m, "CPU part\t: 0x%03x\n", (read_cpuid_id() >> 4) & 0xfff);
-	seq_printf(m, "CPU revision\t: %d\n", read_cpuid_id() & 15);
+	if (!fake_armv7) {
+		seq_printf(m, "\nCPU implementer\t: 0x%02x\n", read_cpuid_id() >> 24);
+		seq_printf(m, "CPU architecture: AArch64\n");
+		seq_printf(m, "CPU variant\t: 0x%x\n", (read_cpuid_id() >> 20) & 15);
+		seq_printf(m, "CPU part\t: 0x%03x\n", (read_cpuid_id() >> 4) & 0xfff);
+		seq_printf(m, "CPU revision\t: %d\n", read_cpuid_id() & 15);
+	} else {
+		seq_printf(m, "\nCPU implementer\t: 0x%02x\n", read_cpuid_id() >> 24);
+		seq_printf(m, "CPU architecture: 7\n");
+		seq_printf(m, "CPU variant\t: 0x3\n");
+		seq_printf(m, "CPU part\t: 0xc09\n");
+		seq_printf(m, "CPU revision\t: 0\n");
+	}
 
 	seq_puts(m, "\n");
 
