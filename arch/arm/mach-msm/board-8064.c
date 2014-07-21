@@ -282,7 +282,9 @@ static void __init reserve_pmem_memory(void)
 	reserve_memory_for(&android_pmem_pdata);
 	reserve_memory_for(&android_pmem_audio_pdata);
 #endif /*CONFIG_MSM_MULTIMEDIA_USE_ION*/
+#ifdef CONFIG_KERNEL_MSM_CONTIG_MEM_REGION
 	apq8064_reserve_table[MEMTYPE_EBI1].size += msm_contig_mem_size;
+#endif
 #endif /*CONFIG_ANDROID_PMEM*/
 }
 
@@ -3248,6 +3250,20 @@ static void __init apq8064ab_update_retention_spm(void)
 	}
 }
 
+static void enable_ddr3_regulator(void)
+{
+	static struct regulator *ext_ddr3;
+
+	/* Use MPP7 output state as a flag for PCDDR3 presence. */
+	if (gpio_get_value_cansleep(PM8921_MPP_PM_TO_SYS(7)) > 0) {
+		ext_ddr3 = regulator_get(NULL, "ext_ddr3");
+		if (IS_ERR(ext_ddr3) || ext_ddr3 == NULL)
+			pr_err("Could not get MPP7 regulator\n");
+		else
+			regulator_enable(ext_ddr3);
+	}
+}
+
 static void __init apq8064_common_init(void)
 {
 	u32 platform_version = socinfo_get_platform_version();
@@ -3324,6 +3340,8 @@ static void __init apq8064_common_init(void)
 
 	msm_hsic_pdata.swfi_latency =
 		msm_rpmrs_levels[0].latency_us;
+
+	enable_ddr3_regulator();
 	if (machine_is_apq8064_mtp()) {
 		msm_hsic_pdata.log2_irq_thresh = 5,
 		apq8064_device_hsic_host.dev.platform_data = &msm_hsic_pdata;

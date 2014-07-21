@@ -344,7 +344,9 @@ static void __init reserve_pmem_memory(void)
 	reserve_memory_for(&android_pmem_pdata);
 	reserve_memory_for(&android_pmem_audio_pdata);
 #endif
+#ifdef CONFIG_KERNEL_MSM_CONTIG_MEM_REGION
 	msm8960_reserve_table[MEMTYPE_EBI1].size += msm_contig_mem_size;
+#endif
 #endif
 }
 
@@ -516,11 +518,14 @@ struct platform_device msm8960_fmem_device = {
 	.dev = { .platform_data = &msm8960_fmem_pdata },
 };
 
+#if defined(CONFIG_ION_MSM) && defined(CONFIG_MSM_MULTIMEDIA_USE_ION)
 static void __init adjust_mem_for_liquid(void)
 {
 	unsigned int i;
 
+#ifdef CONFIG_ANDROID_PMEM
 	if (!pmem_param_set) {
+#endif
 		if (machine_is_msm8960_liquid())
 			msm_ion_sf_size = MSM_LIQUID_ION_SF_SIZE;
 
@@ -540,7 +545,9 @@ static void __init adjust_mem_for_liquid(void)
 				}
 			}
 		}
+#ifdef CONFIG_ANDROID_PMEM
 	}
+#endif
 }
 
 static void __init reserve_mem_for_ion(enum ion_memory_types mem_type,
@@ -548,6 +555,7 @@ static void __init reserve_mem_for_ion(enum ion_memory_types mem_type,
 {
 	msm8960_reserve_table[mem_type].size += size;
 }
+#endif
 
 static void __init msm8960_reserve_fixed_area(unsigned long fixed_area_size)
 {
@@ -827,7 +835,9 @@ early_param("ext_display", ext_display_setup);
 
 static void __init msm8960_reserve(void)
 {
+	void __init msm8960_setup_vram(void);
 	msm8960_set_display_params(prim_panel_name, ext_panel_name);
+	msm8960_setup_vram();
 	msm_reserve();
 }
 

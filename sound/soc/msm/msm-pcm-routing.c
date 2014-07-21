@@ -51,7 +51,7 @@ struct msm_pcm_routing_fdai_data {
 #define SESSION_TYPE_RX 0
 #define SESSION_TYPE_TX 1
 
-static struct mutex routing_lock;
+static DEFINE_MUTEX(routing_lock);
 
 static int fm_switch_enable;
 static int fm_pcmrx_switch_enable;
@@ -3149,7 +3149,6 @@ int msm_routing_check_backend_enabled(int fedai_id)
 
 static int __init msm_soc_routing_platform_init(void)
 {
-	mutex_init(&routing_lock);
 	return platform_driver_register(&msm_routing_pcm_driver);
 }
 module_init(msm_soc_routing_platform_init);

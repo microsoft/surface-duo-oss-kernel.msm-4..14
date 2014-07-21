@@ -320,6 +320,22 @@ int hdmi_pll_set_rate(unsigned rate)
 		writel_relaxed(0x33, HDMI_PHY_PLL_VCOCAL_CFG6);
 		writel_relaxed(0x00, HDMI_PHY_PLL_VCOCAL_CFG7);
 	break;
+	case 65000000:
+		writel_relaxed(0x18, HDMI_PHY_PLL_REFCLK_CFG);
+		writel_relaxed(0x20, HDMI_PHY_PLL_LOOP_FLT_CFG0);
+		writel_relaxed(0xF9, HDMI_PHY_PLL_LOOP_FLT_CFG1);
+		writel_relaxed(0x8A, HDMI_PHY_PLL_VCOCAL_CFG0);
+		writel_relaxed(0x02, HDMI_PHY_PLL_VCOCAL_CFG1);
+		writel_relaxed(0x3B, HDMI_PHY_PLL_VCOCAL_CFG2);
+		writel_relaxed(0x00, HDMI_PHY_PLL_VCOCAL_CFG3);
+		writel_relaxed(0x86, HDMI_PHY_PLL_VCOCAL_CFG4);
+		writel_relaxed(0x00, HDMI_PHY_PLL_VCOCAL_CFG5);
+		writel_relaxed(0x0B, HDMI_PHY_PLL_SDM_CFG0);
+		writel_relaxed(0x4B, HDMI_PHY_PLL_SDM_CFG1);
+		writel_relaxed(0x7B, HDMI_PHY_PLL_SDM_CFG2);
+		writel_relaxed(0x09, HDMI_PHY_PLL_SDM_CFG3);
+		writel_relaxed(0x00, HDMI_PHY_PLL_SDM_CFG4);
+	break;
 
 	case 74250000:
 		/* 720p60/720p50/1080i60/1080i50

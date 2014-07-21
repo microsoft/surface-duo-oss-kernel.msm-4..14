@@ -3052,7 +3052,7 @@ static struct spi_board_info lcdc_nt35582_spi_board_info[] __initdata = {
 };
 #endif
 
-#ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
+#if defined(CONFIG_FB_MSM_HDMI_MSM_PANEL) || defined(CONFIG_DRM_MSM)
 static struct resource hdmi_msm_resources[] = {
 	{
 		.name  = "hdmi_msm_qfprom_addr",
@@ -5195,7 +5195,7 @@ static struct platform_device *surf_devices[] __initdata = {
 #ifdef CONFIG_FB_MSM_LCDC_AUO_WVGA
 	&lcdc_auo_wvga_panel_device,
 #endif
-#ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
+#if defined(CONFIG_FB_MSM_HDMI_MSM_PANEL) || defined(CONFIG_DRM_MSM)
 	&hdmi_msm_device,
 #endif /* CONFIG_FB_MSM_HDMI_MSM_PANEL */
 #ifdef CONFIG_FB_MSM_MIPI_DSI
@@ -8885,7 +8885,7 @@ static void lcdc_samsung_panel_power(int on)
 	mipi_dsi_panel_power(0); /* set 8058_ldo0 to LPM */
 }
 
-#ifdef CONFIG_FB_MSM_HDMI_MSM_PANEL
+#if defined(CONFIG_FB_MSM_HDMI_MSM_PANEL) || defined(CONFIG_DRM_MSM)
 #define _GET_REGULATOR(var, name) do {				\
 	var = regulator_get(NULL, name);			\
 	if (IS_ERR(var)) {					\

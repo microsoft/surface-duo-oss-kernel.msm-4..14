@@ -115,6 +115,10 @@ void open_svg(const char *filename, int cpus, int rows, u64 start, u64 end)
 	fprintf(svgfile, "      rect.c5       { fill:rgb(255, 44, 44); fill-opacity:0.5; stroke-width:0; } \n");
 	fprintf(svgfile, "      rect.c6       { fill:rgb(255,  0,  0); fill-opacity:0.5; stroke-width:0; } \n");
 	fprintf(svgfile, "      line.pstate   { stroke:rgb(255,255,  0); stroke-opacity:0.8; stroke-width:2; } \n");
+	fprintf(svgfile, "      rect.flip     {   fill:rgb(  0,255,  0); fill-opacity:0.5; stroke-width:0; } \n");
+	fprintf(svgfile, "      line.flip     { stroke:rgb(  0,255,  0); stroke-opacity:0.8; stroke-width:9; } \n");
+	fprintf(svgfile, "      rect.fence    {   fill:rgb(255,255,  0); fill-opacity:0.5; stroke-width:0; } \n");
+	fprintf(svgfile, "      line.fence    { stroke:rgb(255,255,  0); stroke-opacity:0.8; stroke-width:9; } \n");
 
 	fprintf(svgfile, "    ]]>\n   </style>\n</defs>\n");
 }
@@ -215,6 +219,10 @@ static char *cpu_model(void)
 				strncpy(cpu_m, &buf[13], 255);
 				break;
 			}
+			if (strstr(buf, "Processor")) {
+				strncpy(cpu_m, &buf[12], 255);
+				break;
+			}
 		}
 		fclose(file);
 	}
@@ -253,6 +261,26 @@ void svg_cpu_box(int cpu, u64 __max_freq, u64 __turbo_freq)
 
 	fprintf(svgfile, "<text transform=\"translate(%4.8f,%4.8f)\" font-size=\"1.25pt\">%s</text>\n",
 		10+time2pixels(first_time), cpu2y(cpu) + SLOT_MULT + SLOT_HEIGHT - 4, cpu_model());
+}
+
+void svg_gpu_box(int cpu)
+{
+	char cpu_string[80];
+
+	if (!svgfile)
+		return;
+
+	fprintf(svgfile, "<rect x=\"%4.8f\" width=\"%4.8f\" y=\"%4.1f\" height=\"%4.1f\" class=\"cpu\"/>\n",
+		time2pixels(first_time),
+		time2pixels(last_time)-time2pixels(first_time),
+		cpu2y(cpu), SLOT_MULT+SLOT_HEIGHT);
+
+	sprintf(cpu_string, "GPU"); /* might be nice to know gpu name somehow?? */
+	fprintf(svgfile, "<text x=\"%4.8f\" y=\"%4.8f\">%s</text>\n",
+		10+time2pixels(first_time), cpu2y(cpu) + SLOT_HEIGHT/2, cpu_string);
+
+	fprintf(svgfile, "<text transform=\"translate(%4.8f,%4.8f)\" font-size=\"1.25pt\">%s</text>\n",
+		10+time2pixels(first_time), cpu2y(cpu) + SLOT_MULT + SLOT_HEIGHT - 4, "adreno 320");
 }
 
 void svg_process(int cpu, u64 start, u64 end, const char *type, const char *name)
@@ -349,6 +377,57 @@ void svg_pstate(int cpu, u64 start, u64 end, u64 freq)
 
 }
 
+void svg_flip(int cpu, u64 start, u64 end, int crtc, const void *obj)
+{
+	double height, width;
+
+	if (!svgfile)
+		return;
+
+	width = time2pixels(end)-time2pixels(start);
+	if (width > 6)
+		width = 6;
+
+	width = round_text_size(width);
+	width /= 1.5;
+	height = 1 + cpu2y(cpu) + SLOT_MULT + SLOT_HEIGHT - 8.0;
+
+	fprintf(svgfile, "<line x1=\"%4.8f\" x2=\"%4.8f\" y1=\"%4.1f\" y2=\"%4.1f\" class=\"flip\"/>\n",
+		time2pixels(start), time2pixels(end), height, height);
+
+	if (width > MIN_TEXT_SIZE) {
+		fprintf(svgfile, "<text x=\"%4.8f\" y=\"%4.8f\" font-size=\"%3.8fpt\">gem:</text>\n",
+				time2pixels(start), height-0.2, width);
+		fprintf(svgfile, "<text x=\"%4.8f\" y=\"%4.8f\" font-size=\"%3.8fpt\">%p</text>\n",
+				time2pixels(start), height+width, width, obj);
+	}
+}
+
+void svg_fence(int Yslot, u64 start, u64 end, u32 fence, int ret)
+{
+	double height, width;
+
+	if (!svgfile)
+		return;
+
+	width = time2pixels(end)-time2pixels(start);
+	if (width > 6)
+		width = 6;
+
+	width = round_text_size(width);
+	width /= 1.5;
+	height = Yslot * SLOT_MULT+SLOT_HEIGHT - 8.0;
+
+	fprintf(svgfile, "<line x1=\"%4.8f\" x2=\"%4.8f\" y1=\"%4.1f\" y2=\"%4.1f\" class=\"fence\"/>\n",
+		time2pixels(start), time2pixels(end), height, height);
+
+	if (width > MIN_TEXT_SIZE) {
+		fprintf(svgfile, "<text x=\"%4.8f\" y=\"%4.8f\" font-size=\"%3.8fpt\">fence:</text>\n",
+				time2pixels(start), height-0.2, width);
+		fprintf(svgfile, "<text x=\"%4.8f\" y=\"%4.8f\" font-size=\"%3.8fpt\">%u (%d)</text>\n",
+				time2pixels(start), height+width, width, fence, ret);
+	}
+}
 
 void svg_partial_wakeline(u64 start, int row1, char *desc1, int row2, char *desc2)
 {
@@ -457,11 +536,13 @@ void svg_legenda(void)
 
 	svg_legenda_box(0,	"Running", "sample");
 	svg_legenda_box(100,	"Idle","c1");
-	svg_legenda_box(200,	"Deeper Idle", "c3");
-	svg_legenda_box(350,	"Deepest Idle", "c6");
-	svg_legenda_box(550,	"Sleeping", "process2");
-	svg_legenda_box(650,	"Waiting for cpu", "waiting");
-	svg_legenda_box(800,	"Blocked on IO", "blocked");
+	svg_legenda_box(175,	"Deeper Idle", "c3");
+	svg_legenda_box(300,	"Deepest Idle", "c6");
+	svg_legenda_box(425,	"Sleeping", "process2");
+	svg_legenda_box(525,	"Waiting for cpu", "waiting");
+	svg_legenda_box(650,	"Blocked on IO", "blocked");
+	svg_legenda_box(775,    "Waiting Fence", "fence");
+	svg_legenda_box(900,    "Pending flip", "flip");
 }
 
 void svg_time_grid(void)

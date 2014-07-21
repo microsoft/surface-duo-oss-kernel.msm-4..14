@@ -128,15 +128,16 @@ EXPORT_SYMBOL_GPL(iommu_present);
  * error code otherwise.
  */
 void iommu_set_fault_handler(struct iommu_domain *domain,
-					iommu_fault_handler_t handler)
+					iommu_fault_handler_t handler, void *arg)
 {
 	BUG_ON(!domain);
 
+	domain->arg = arg;
 	domain->handler = handler;
 }
 EXPORT_SYMBOL_GPL(iommu_set_fault_handler);
 
-struct iommu_domain *iommu_domain_alloc(struct bus_type *bus, int flags)
+struct iommu_domain *iommu_domain_alloc_flags(struct bus_type *bus, int flags)
 {
 	struct iommu_domain *domain;
 	int ret;

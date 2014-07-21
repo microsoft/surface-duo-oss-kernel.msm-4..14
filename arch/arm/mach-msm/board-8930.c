@@ -328,7 +328,9 @@ static void __init reserve_pmem_memory(void)
 	reserve_memory_for(&android_pmem_pdata);
 	reserve_memory_for(&android_pmem_audio_pdata);
 #endif /*CONFIG_MSM_MULTIMEDIA_USE_ION*/
+#ifdef CONFIG_KERNEL_MSM_CONTIG_MEM_REGION
 	msm8930_reserve_table[MEMTYPE_EBI1].size += msm_contig_mem_size;
+#endif
 #endif /*CONFIG_ANDROID_PMEM*/
 }
 
