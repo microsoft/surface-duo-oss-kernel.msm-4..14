@@ -994,13 +994,38 @@ read_edid_block(struct drm_encoder *encoder, uint8_t *buf, int blk)
 	return 0;
 }
 
+static int
+read_validate_edid_block(struct drm_encoder *encoder, uint8_t *buf, int blk)
+{
+	bool print_bad_edid = drm_debug & DRM_UT_KMS;
+	int ret;
+	int retries = 1;
+
+	do
+	{
+		bool print_bad = print_bad_edid && (retries == 0);
+
+		ret = read_edid_block(encoder, buf, blk);
+		/* Fail on I2C error */
+		if (ret)
+			break;
+
+		/* But retry checksum errored blocks */
+		if (drm_edid_block_valid(buf, blk, print_bad))
+			break;
+		else
+			ret = -EINVAL;
+	} while (retries-- > 0);
+
+	return ret;
+}
+
 static uint8_t *
 do_get_edid(struct drm_encoder *encoder)
 {
 	struct tda998x_priv *priv = to_tda998x_priv(encoder);
 	int j = 0, valid_extensions = 0;
 	uint8_t *block, *new;
-	bool print_bad_edid = drm_debug & DRM_UT_KMS;
 
 	if ((block = kmalloc(EDID_LENGTH, GFP_KERNEL)) == NULL)
 		return NULL;
@@ -1009,10 +1034,7 @@ do_get_edid(struct drm_encoder *encoder)
 		reg_clear(encoder, REG_TX4, TX4_PD_RAM);
 
 	/* base block fetch */
-	if (read_edid_block(encoder, block, 0))
-		goto fail;
-
-	if (!drm_edid_block_valid(block, 0, print_bad_edid))
+	if (read_validate_edid_block(encoder, block, 0))
 		goto fail;
 
 	/* if there's no extensions, we're done */
@@ -1026,10 +1048,7 @@ do_get_edid(struct drm_encoder *encoder)
 
 	for (j = 1; j <= block[0x7e]; j++) {
 		uint8_t *ext_block = block + (valid_extensions + 1) * EDID_LENGTH;
-		if (read_edid_block(encoder, ext_block, j))
-			goto fail;
-
-		if (!drm_edid_block_valid(ext_block, j, print_bad_edid))
+		if (read_validate_edid_block(encoder, ext_block, j))
 			goto fail;
 
 		valid_extensions++;
