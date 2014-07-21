@@ -18,11 +18,14 @@
 #define __POWER_ACTOR_H__
 
 #include <linux/cpumask.h>
+#include <linux/debugfs.h>
 #include <linux/device.h>
 #include <linux/err.h>
 #include <linux/list.h>
 #include <linux/mutex.h>
 #include <linux/thermal.h>
+
+extern struct dentry *power_allocator_d;
 
 struct power_actor;
 
@@ -55,6 +58,7 @@ struct power_actor {
 	struct power_actor_ops *ops;
 	void *data;
 	struct list_head actor_node;
+	struct dentry *debugfs_file;
 };
 
 struct power_actor *power_actor_register(u32 weight,

@@ -23,6 +23,7 @@
 
 LIST_HEAD(actor_list);
 static DEFINE_MUTEX(actor_list_lock);
+static int actor_id = 0;
 
 /**
  * power_actor_register() - Register an actor in the power actor API
@@ -37,6 +38,7 @@ struct power_actor *power_actor_register(u32 weight,
 					void *privdata)
 {
 	struct power_actor *actor;
+	char actor_name[32];
 
 	if (!ops->get_req_power || !ops->get_max_power || !ops->set_power)
 		return ERR_PTR(-EINVAL);
@@ -48,6 +50,12 @@ struct power_actor *power_actor_register(u32 weight,
 	actor->weight = weight;
 	actor->ops = ops;
 	actor->data = privdata;
+
+	snprintf(actor_name, 16, "actor%d", actor_id++);
+	actor->debugfs_file = debugfs_create_u32(actor_name,
+						S_IRUGO | S_IWUSR,
+						power_allocator_d,
+						&actor->weight);
 
 	mutex_lock(&actor_list_lock);
 	list_add_rcu(&actor->actor_node, &actor_list);

@@ -478,6 +478,16 @@ static int power_allocator_throttle(struct thermal_zone_device *tz, int trip)
 	return allocate_power(tz, current_temp, control_temp);
 }
 
+struct dentry *power_allocator_d;
+static void create_debugfs_interface(void)
+{
+	power_allocator_d = debugfs_create_dir("power_allocator", NULL);
+	if (IS_ERR_OR_NULL(power_allocator_d)) {
+		pr_info("unable to create debugfs directory\n");
+		return;
+	}
+}
+
 static struct thermal_governor thermal_gov_power_allocator = {
 	.name		= "power_allocator",
 	.bind_to_tz	= power_allocator_bind,
@@ -487,6 +497,8 @@ static struct thermal_governor thermal_gov_power_allocator = {
 
 int thermal_gov_power_allocator_register(void)
 {
+	create_debugfs_interface();
+
 	return thermal_register_governor(&thermal_gov_power_allocator);
 }
 
