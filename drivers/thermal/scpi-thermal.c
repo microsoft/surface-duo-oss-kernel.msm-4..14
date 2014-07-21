@@ -58,6 +58,25 @@ static int get_cpu_static_power_coeff(enum cluster_type cluster)
 	return coeff;
 }
 
+/*
+ * The weight is an integer multiplied by 256.
+ */
+static u32 get_cluster_weight(enum cluster_type cluster)
+{
+	u32 weight = 0;
+
+	switch(cluster) {
+	case CLUSTER_BIG:
+		weight = 1 * 256;
+		break;
+	case CLUSTER_LITTLE:
+		weight = 2 * 256;
+		break;
+	}
+
+	return weight;
+}
+
 static int get_cache_static_power_coeff(enum cluster_type cluster)
 {
 	int coeff = 0;
@@ -178,6 +197,7 @@ static int scpi_thermal_probe(struct platform_device *pdev)
 		sensor_data->pactor[i] =
 			power_cpu_actor_register(np, cpumask_any(mask),
 						get_dyn_power_coeff(cluster),
+						get_cluster_weight(cluster),
 						get_static_power);
 
 		if (IS_ERR(sensor_data->pactor[i]))
