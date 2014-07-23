@@ -49,7 +49,7 @@ void hdlcd_set_scanout(struct hdlcd_drm_private *hdlcd, bool wait)
 
 	if (wait && hdlcd->dpms == DRM_MODE_DPMS_ON) {
 		drm_vblank_get(fb->dev, 0);
-		reinit_completion(&hdlcd->frame_completion);
+		hdlcd->frame_completion.done = 0;
 		do {
 			ret = wait_for_completion_interruptible_timeout(&hdlcd->frame_completion,
 							msecs_to_jiffies(50));
