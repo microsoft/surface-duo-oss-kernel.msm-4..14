@@ -130,8 +130,8 @@ static irqreturn_t mbox_handler(int irq, void *p)
 			memcpy(data->rx_buf, payload + RX_PAYLOAD(idx),
 			       data->rx_size);
 		chan->data = NULL;
-		writel(~0, mbox_base + RX_CLEAR(idx));
 		mbox_chan_received_data(link, data);
+		writel(~0, mbox_base + RX_CLEAR(idx));
 	}
 
 	return IRQ_HANDLED;
