@@ -279,11 +279,11 @@ static int msm_otg_link_clk_reset(struct msm_otg *motg, bool assert)
 
 static int msm_otg_phy_clk_reset(struct msm_otg *motg)
 {
-	int ret;
+	int ret = 0;
 
 	if (motg->pdata->phy_clk_reset)
 		ret = motg->pdata->phy_clk_reset(motg->phy_reset_clk);
-	else
+	else if (motg->phy_rst)
 		ret = reset_control_reset(motg->phy_rst);
 
 	if (ret)
@@ -1466,7 +1466,7 @@ static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 
 	motg->phy_rst = devm_reset_control_get(&pdev->dev, "phy");
 	if (IS_ERR(motg->phy_rst))
-		return PTR_ERR(motg->phy_rst);
+		motg->phy_rst = NULL;
 
 	pdata->mode = of_usb_get_dr_mode(node);
 	if (pdata->mode == USB_DR_MODE_UNKNOWN)
@@ -1554,11 +1554,14 @@ static int msm_otg_probe(struct platform_device *pdev)
 	phy = &motg->phy;
 	phy->dev = &pdev->dev;
 
-	motg->phy_reset_clk = devm_clk_get(&pdev->dev,
+	if (motg->pdata->phy_clk_reset) {
+		motg->phy_reset_clk = devm_clk_get(&pdev->dev,
 					   np ? "phy" : "usb_phy_clk");
-	if (IS_ERR(motg->phy_reset_clk)) {
-		dev_err(&pdev->dev, "failed to get usb_phy_clk\n");
-		return PTR_ERR(motg->phy_reset_clk);
+
+		if (IS_ERR(motg->phy_reset_clk)) {
+			dev_err(&pdev->dev, "failed to get usb_phy_clk\n");
+			return PTR_ERR(motg->phy_reset_clk);
+		}
 	}
 
 	motg->clk = devm_clk_get(&pdev->dev, np ? "core" : "usb_hs_clk");
