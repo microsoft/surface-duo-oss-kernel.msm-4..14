@@ -190,7 +190,7 @@ out:
 	return restart;
 }
 
-static void bring_up_cpu(int cpu)
+static void __cpuinit bring_up_cpu(int cpu)
 {
 	int cpu_action_time_ms;
 	int time_taken_ms;
