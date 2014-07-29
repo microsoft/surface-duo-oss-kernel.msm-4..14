@@ -246,8 +246,7 @@ static int mhu_probe(struct platform_device *pdev)
 
 	ctlr->mbox_con.chans = l;
 	ctlr->mbox_con.num_chans = CHANNEL_MAX;
-	ctlr->mbox_con.txdone_poll = true;
-	ctlr->mbox_con.txpoll_period = 10;
+	ctlr->mbox_con.txdone_irq = true;
 	ctlr->mbox_con.ops = &mhu_ops;
 	ctlr->mbox_con.dev = dev;
 
