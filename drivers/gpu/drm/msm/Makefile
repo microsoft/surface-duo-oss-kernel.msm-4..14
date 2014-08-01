@@ -18,6 +18,9 @@ msm-y := \
 	mdp/mdp_kms.o \
 	mdp/mdp4/mdp4_crtc.o \
 	mdp/mdp4/mdp4_dtv_encoder.o \
+	mdp/mdp4/mdp4_lcdc_encoder.o \
+	mdp/mdp4/mdp4_lvds_connector.o \
+	mdp/mdp4/mdp4_lvds_pll.o \
 	mdp/mdp4/mdp4_irq.o \
 	mdp/mdp4/mdp4_kms.o \
 	mdp/mdp4/mdp4_plane.o \
