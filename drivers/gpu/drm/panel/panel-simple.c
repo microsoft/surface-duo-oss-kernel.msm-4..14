@@ -447,6 +447,29 @@ static const struct panel_desc samsung_ltn101nt05 = {
 	},
 };
 
+static const struct drm_display_mode optronics_lvds_mode = {
+	.clock = 72000,
+	.hdisplay = 1366,
+	.hsync_start = 1366 + 20,
+	.hsync_end = 1366 + 20 + 70,
+	.htotal = 1366 + 20 + 70,
+	.vdisplay = 768,
+	.vsync_start = 768 + 14,
+	.vsync_end = 768 + 14 + 42,
+	.vtotal = 768 + 14 + 42,
+	.vrefresh = 60,
+	.flags = DRM_MODE_FLAG_NVSYNC | DRM_MODE_FLAG_NHSYNC,
+};
+
+static const struct panel_desc optronics_lvds = {
+	.modes = &optronics_lvds_mode,
+	.num_modes = 1,
+	.size = {
+		.width = 1366,
+		.height = 768,
+	},
+};
+
 static const struct of_device_id platform_of_match[] = {
 	{
 		.compatible = "auo,b101aw03",
@@ -475,6 +498,10 @@ static const struct of_device_id platform_of_match[] = {
 	}, {
 		.compatible = "samsung,ltn101nt05",
 		.data = &samsung_ltn101nt05,
+	}, {
+		.compatible = "optronics,b101xtn01",
+		.data = &optronics_lvds,
+	}, {
 	}, {
 		.compatible = "simple-panel",
 	}, {
