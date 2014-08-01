@@ -185,6 +185,20 @@ static int get_temp_value(void *data, long *temp)
 	return 0;
 }
 
+extern struct dentry *power_allocator_d;
+
+static void update_debugfs(struct scpi_sensor *sensor_data)
+{
+	struct dentry *dentry_f;
+
+	dentry_f = debugfs_create_u32("alpha", S_IWUSR | S_IRUGO,
+				power_allocator_d, &sensor_data->alpha);
+	if (IS_ERR_OR_NULL(dentry_f)) {
+		pr_warn("Unable to create debugfsfile: alpha\n");
+		return;
+	}
+}
+
 static int scpi_thermal_probe(struct platform_device *pdev)
 {
 	struct scpi_sensor *sensor_data = &scpi_temp_sensor;
@@ -259,6 +273,8 @@ static int scpi_thermal_probe(struct platform_device *pdev)
 		dev_warn(&pdev->dev, "Error registering sensor: %p\n", sensor_data->tzd);
 		return PTR_ERR(sensor_data->tzd);
 	}
+
+	update_debugfs(sensor_data);
 
 	thermal_zone_device_update(sensor_data->tzd);
 
