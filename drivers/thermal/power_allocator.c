@@ -409,7 +409,7 @@ static int power_allocator_bind(struct thermal_zone_device *tz)
 		temperature_threshold;
 	params->k_pu = int_to_frac(2 * tz->tzp->sustainable_power) /
 		temperature_threshold;
-	params->k_i = int_to_frac(1) / 1000;
+	params->k_i = int_to_frac(10) / 1000;
 	params->k_d = int_to_frac(0);
 	params->integral_cutoff = 0;
 
