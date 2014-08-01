@@ -330,7 +330,12 @@ static struct platform_driver ssbi_driver = {
 		.of_match_table = ssbi_match_table,
 	},
 };
-module_platform_driver(ssbi_driver);
+
+static int ssbi_init(void)
+{
+	return platform_driver_register(&ssbi_driver);
+}
+subsys_initcall(ssbi_init);
 
 MODULE_LICENSE("GPL v2");
 MODULE_VERSION("1.0");
