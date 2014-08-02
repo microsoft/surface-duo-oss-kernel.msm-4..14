@@ -214,7 +214,7 @@ struct thermal_zone_device {
 	int passive;
 	unsigned int forced_passive;
 	struct thermal_zone_device_ops *ops;
-	const struct thermal_zone_params *tzp;
+	struct thermal_zone_params *tzp;
 	struct thermal_governor *governor;
 	void *governor_data;
 	struct list_head thermal_instances;
@@ -318,7 +318,7 @@ void thermal_zone_of_sensor_unregister(struct device *dev,
 #endif
 struct thermal_zone_device *thermal_zone_device_register(const char *, int, int,
 		void *, struct thermal_zone_device_ops *,
-		const struct thermal_zone_params *, int, int);
+		struct thermal_zone_params *, int, int);
 void thermal_zone_device_unregister(struct thermal_zone_device *);
 
 int thermal_zone_bind_cooling_device(struct thermal_zone_device *, int,

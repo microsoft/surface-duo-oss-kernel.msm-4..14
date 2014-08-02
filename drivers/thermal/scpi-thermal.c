@@ -197,6 +197,14 @@ static void update_debugfs(struct scpi_sensor *sensor_data)
 		pr_warn("Unable to create debugfsfile: alpha\n");
 		return;
 	}
+
+	dentry_f = debugfs_create_u32("sustainable_power", S_IWUSR | S_IRUGO,
+				power_allocator_d,
+				&sensor_data->tzd->tzp->sustainable_power);
+	if (IS_ERR_OR_NULL(dentry_f)) {
+		pr_warn("Unable to create debugfsfile: sustainable_power\n");
+		return;
+	}
 }
 
 static int scpi_thermal_probe(struct platform_device *pdev)
