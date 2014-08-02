@@ -358,6 +358,28 @@ static void allow_maximum_power(struct thermal_zone_device *tz)
 	rcu_read_unlock();
 }
 
+#define debugfs_entry(name) \
+	dentry_f = debugfs_create_u32( #name, S_IWUSR | S_IRUGO, power_allocator_d, &params->name); \
+	if (IS_ERR_OR_NULL(dentry_f)) {					\
+		pr_warn("Unable to create debugfsfile: " #name "\n"); \
+		return; \
+	}
+
+static void create_debugfs_pi_params(struct power_allocator_params *params)
+{
+	struct dentry *dentry_f;
+
+	debugfs_entry(k_po);
+	debugfs_entry(k_pu);
+	debugfs_entry(k_i);
+	debugfs_entry(k_d);
+	debugfs_entry(integral_cutoff);
+	debugfs_entry(err_integral);
+	debugfs_entry(prev_err);
+}
+
+#undef debugfs_entry
+
 /**
  * power_allocator_bind() - bind the power_allocator governor to a thermal zone
  * @tz:	thermal zone to bind it to
@@ -414,6 +436,8 @@ static int power_allocator_bind(struct thermal_zone_device *tz)
 	params->integral_cutoff = 0;
 
 	reset_pid_controller(params);
+
+	create_debugfs_pi_params(params);
 
 	tz->governor_data = params;
 
