@@ -386,6 +386,8 @@ int drm_pci_init(struct drm_driver *driver, struct pci_driver *pdriver)
 
 int drm_pcie_get_speed_cap_mask(struct drm_device *dev, u32 *mask)
 {
+/* hack to avoid backporting pci stuff that we don't need: */
+#if 0
 	struct pci_dev *root;
 	u32 lnkcap, lnkcap2;
 
@@ -418,6 +420,9 @@ int drm_pcie_get_speed_cap_mask(struct drm_device *dev, u32 *mask)
 	}
 
 	DRM_INFO("probing gen 2 caps for device %x:%x = %x/%x\n", root->vendor, root->device, lnkcap, lnkcap2);
+#else
+	*mask = 0;
+#endif
 	return 0;
 }
 EXPORT_SYMBOL(drm_pcie_get_speed_cap_mask);

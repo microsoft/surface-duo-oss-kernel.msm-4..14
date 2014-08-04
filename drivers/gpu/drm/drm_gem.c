@@ -324,23 +324,28 @@ drm_gem_handle_create_tail(struct drm_file *file_priv,
 	WARN_ON(!mutex_is_locked(&dev->object_name_lock));
 
 	/*
-	 * Get the user-visible handle using idr.  Preload and perform
-	 * allocation under our spinlock.
+	 * Get the user-visible handle using idr.
 	 */
-	idr_preload(GFP_KERNEL);
-	spin_lock(&file_priv->table_lock);
+again:
+	/* ensure there is space available to allocate a handle */
+	if (idr_pre_get(&file_priv->object_idr, GFP_KERNEL) == 0)
+		return -ENOMEM;
 
-	ret = idr_alloc(&file_priv->object_idr, obj, 1, 0, GFP_NOWAIT);
+	/* do the allocation under our spinlock */
+	spin_lock(&file_priv->table_lock);
+	ret = idr_get_new_above(&file_priv->object_idr, obj, 1, (int *)handlep);
+	if (!ret) {
 	drm_gem_object_reference(obj);
 	obj->handle_count++;
+	}
 	spin_unlock(&file_priv->table_lock);
-	idr_preload_end();
+	if (ret == -EAGAIN)
+		goto again;
 	mutex_unlock(&dev->object_name_lock);
 	if (ret < 0) {
 		drm_gem_object_handle_unreference_unlocked(obj);
 		return ret;
 	}
-	*handlep = ret;
 
 	ret = drm_vma_node_allow(&obj->vma_node, file_priv->filp);
 	if (ret) {
@@ -614,7 +619,11 @@ drm_gem_flink_ioctl(struct drm_device *dev, void *data,
 		return -ENOENT;
 
 	mutex_lock(&dev->object_name_lock);
-	idr_preload(GFP_KERNEL);
+again:
+	if (idr_pre_get(&dev->object_name_idr, GFP_KERNEL) == 0) {
+		ret = -ENOMEM;
+		goto err;
+	}
 	/* prevent races with concurrent gem_close. */
 	if (obj->handle_count == 0) {
 		ret = -ENOENT;
@@ -622,18 +631,19 @@ drm_gem_flink_ioctl(struct drm_device *dev, void *data,
 	}
 
 	if (!obj->name) {
-		ret = idr_alloc(&dev->object_name_idr, obj, 1, 0, GFP_NOWAIT);
-		if (ret < 0)
+		ret = idr_get_new_above(&dev->object_name_idr, obj, 1,
+				&obj->name);
+		if (ret == -EAGAIN)
+			goto again;
+		else if (ret < 0)
 			goto err;
 
-		obj->name = ret;
 	}
 
 	args->name = (uint64_t) obj->name;
 	ret = 0;
 
 err:
-	idr_preload_end();
 	mutex_unlock(&dev->object_name_lock);
 	drm_gem_object_unreference_unlocked(obj);
 	return ret;
@@ -836,7 +846,7 @@ int drm_gem_mmap_obj(struct drm_gem_object *obj, unsigned long obj_size,
 	if (!dev->driver->gem_vm_ops)
 		return -EINVAL;
 
-	vma->vm_flags |= VM_IO | VM_PFNMAP | VM_DONTEXPAND | VM_DONTDUMP;
+	vma->vm_flags |= VM_RESERVED | VM_IO | VM_PFNMAP | VM_DONTEXPAND;
 	vma->vm_ops = dev->driver->gem_vm_ops;
 	vma->vm_private_data = obj;
 	vma->vm_page_prot = pgprot_writecombine(vm_get_page_prot(vma->vm_flags));

@@ -296,15 +296,19 @@ static int drm_minor_register(struct drm_device *dev, unsigned int type)
 	if (!new_minor)
 		return 0;
 
-	idr_preload(GFP_KERNEL);
+again:
+	if (idr_pre_get(&drm_minors_idr, GFP_KERNEL) == 0) {
+		ret = -ENOMEM;
+		goto err;
+	}
 	spin_lock_irqsave(&drm_minor_lock, flags);
-	minor_id = idr_alloc(&drm_minors_idr,
+	ret = idr_get_new_above(&drm_minors_idr,
 			     NULL,
 			     64 * type,
-			     64 * (type + 1),
-			     GFP_NOWAIT);
+			     &minor_id);
 	spin_unlock_irqrestore(&drm_minor_lock, flags);
-	idr_preload_end();
+	if (ret == -EAGAIN)
+		goto again;
 
 	if (minor_id < 0)
 		return minor_id;
@@ -337,6 +341,7 @@ err_id:
 	spin_lock_irqsave(&drm_minor_lock, flags);
 	idr_remove(&drm_minors_idr, minor_id);
 	spin_unlock_irqrestore(&drm_minor_lock, flags);
+err:
 	new_minor->index = 0;
 	return ret;
 }

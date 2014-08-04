@@ -29,6 +29,10 @@
 
 #include <linux/vmalloc.h>
 
+#ifndef SIZE_MAX
+#  define SIZE_MAX ULONG_MAX
+#endif
+
 static __inline__ void *drm_calloc_large(size_t nmemb, size_t size)
 {
 	if (size != 0 && nmemb > SIZE_MAX / size)

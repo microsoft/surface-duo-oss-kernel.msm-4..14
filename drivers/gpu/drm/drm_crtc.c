@@ -376,21 +376,26 @@ static int drm_mode_object_get_reg(struct drm_device *dev,
 				   uint32_t obj_type,
 				   bool register_obj)
 {
+	int new_id = 0;
 	int ret;
 
-	mutex_lock(&dev->mode_config.idr_mutex);
-	ret = idr_alloc(&dev->mode_config.crtc_idr, register_obj ? obj : NULL, 1, 0, GFP_KERNEL);
-	if (ret >= 0) {
-		/*
-		 * Set up the object linking under the protection of the idr
-		 * lock so that other users can't see inconsistent state.
-		 */
-		obj->id = ret;
-		obj->type = obj_type;
+again:
+	if (idr_pre_get(&dev->mode_config.crtc_idr, GFP_KERNEL) == 0) {
+		DRM_ERROR("Ran out memory getting a mode number\n");
+		return -ENOMEM;
 	}
-	mutex_unlock(&dev->mode_config.idr_mutex);
 
-	return ret < 0 ? ret : 0;
+	mutex_lock(&dev->mode_config.idr_mutex);
+	ret = idr_get_new_above(&dev->mode_config.crtc_idr, register_obj ? obj : NULL, 1, &new_id);
+	mutex_unlock(&dev->mode_config.idr_mutex);
+	if (ret == -EAGAIN)
+		goto again;
+	else if (ret)
+		return ret;
+
+	obj->id = new_id;
+	obj->type = obj_type;
+	return 0;
 }
 
 /**

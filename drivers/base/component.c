@@ -17,6 +17,7 @@
 #include <linux/module.h>
 #include <linux/mutex.h>
 #include <linux/slab.h>
+#include <linux/err.h>
 
 struct component_match {
 	size_t alloc;
@@ -237,7 +238,7 @@ static struct component_match *component_match_realloc(struct device *dev,
 	if (match && match->alloc == num)
 		return match;
 
-	new = devm_kmalloc(dev, component_match_size(num), GFP_KERNEL);
+	new = devm_kzalloc(dev, component_match_size(num), GFP_KERNEL);
 	if (!new)
 		return ERR_PTR(-ENOMEM);
 
