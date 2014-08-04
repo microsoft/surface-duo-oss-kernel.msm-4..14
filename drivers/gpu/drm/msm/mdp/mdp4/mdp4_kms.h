@@ -225,7 +225,12 @@ struct drm_encoder *mdp4_lcdc_encoder_init(struct drm_device *dev,
 struct drm_connector *mdp4_lvds_connector_init(struct drm_device *dev,
 		struct drm_panel *panel, struct drm_encoder *encoder);
 
-struct clk *mpd4_lvds_pll_init(struct drm_device *dev);
+struct clk_hw;
+int mpd4_lvds_pll_enable(struct clk_hw *hw);
+void mpd4_lvds_pll_disable(struct clk_hw *hw);
+long mpd4_lvds_pll_round_rate(struct clk_hw *hw, unsigned long rate);
+int mpd4_lvds_pll_set_rate(struct clk_hw *hw, unsigned long rate);
+struct clk_hw *mpd4_lvds_pll_init(struct drm_device *dev);
 
 #ifdef CONFIG_MSM_BUS_SCALING
 static inline int match_dev_name(struct device *dev, void *data)

@@ -24,7 +24,7 @@
 struct mdp4_lcdc_encoder {
 	struct drm_encoder base;
 	struct drm_panel *panel;
-	struct clk *lcdc_clk;
+	struct clk_hw *lcdc_clk;
 	unsigned long int pixclock;
 	struct regulator *regs[3];
 	bool enabled;
@@ -266,10 +266,10 @@ static void mdp4_lcdc_encoder_dpms(struct drm_encoder *encoder, int mode)
 		}
 
 		DBG("setting lcdc_clk=%lu", pc);
-		ret = clk_set_rate(mdp4_lcdc_encoder->lcdc_clk, pc);
+		ret = mpd4_lvds_pll_set_rate(mdp4_lcdc_encoder->lcdc_clk, pc);
 		if (ret)
 			dev_err(dev->dev, "failed to configure lcdc_clk: %d\n", ret);
-		ret = clk_prepare_enable(mdp4_lcdc_encoder->lcdc_clk);
+		ret = mpd4_lvds_pll_enable(mdp4_lcdc_encoder->lcdc_clk);
 		if (ret)
 			dev_err(dev->dev, "failed to enable lcdc_clk: %d\n", ret);
 
@@ -295,7 +295,7 @@ static void mdp4_lcdc_encoder_dpms(struct drm_encoder *encoder, int mode)
 		 */
 		mdp_irq_wait(&mdp4_kms->base, MDP4_IRQ_PRIMARY_VSYNC);
 
-		clk_disable_unprepare(mdp4_lcdc_encoder->lcdc_clk);
+		mpd4_lvds_pll_disable(mdp4_lcdc_encoder->lcdc_clk);
 
 		for (i = 0; i < ARRAY_SIZE(mdp4_lcdc_encoder->regs); i++) {
 			ret = regulator_disable(mdp4_lcdc_encoder->regs[i]);
@@ -414,7 +414,7 @@ long mdp4_lcdc_round_pixclk(struct drm_encoder *encoder, unsigned long rate)
 {
 	struct mdp4_lcdc_encoder *mdp4_lcdc_encoder =
 			to_mdp4_lcdc_encoder(encoder);
-	return clk_round_rate(mdp4_lcdc_encoder->lcdc_clk, rate);
+	return mpd4_lvds_pll_round_rate(mdp4_lcdc_encoder->lcdc_clk, rate);
 }
 
 /* initialize encoder */

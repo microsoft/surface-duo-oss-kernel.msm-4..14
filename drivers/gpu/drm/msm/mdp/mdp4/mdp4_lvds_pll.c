@@ -20,6 +20,16 @@
 
 #include "mdp4_kms.h"
 
+/* *********************************************************************
+ * backwards compat:
+ */
+
+struct clk_hw {
+	uint32_t dummy;
+};
+
+/* ********************************************************************* */
+
 struct mdp4_lvds_pll {
 	struct clk_hw pll_hw;
 	struct drm_device *dev;
@@ -65,7 +75,7 @@ static const struct pll_rate *find_rate(unsigned long rate)
 	return &freqtbl[i-1];
 }
 
-static int mpd4_lvds_pll_enable(struct clk_hw *hw)
+int mpd4_lvds_pll_enable(struct clk_hw *hw)
 {
 	struct mdp4_lvds_pll *lvds_pll = to_mdp4_lvds_pll(hw);
 	struct mdp4_kms *mdp4_kms = get_kms(lvds_pll);
@@ -91,7 +101,7 @@ static int mpd4_lvds_pll_enable(struct clk_hw *hw)
 	return 0;
 }
 
-static void mpd4_lvds_pll_disable(struct clk_hw *hw)
+void mpd4_lvds_pll_disable(struct clk_hw *hw)
 {
 	struct mdp4_lvds_pll *lvds_pll = to_mdp4_lvds_pll(hw);
 	struct mdp4_kms *mdp4_kms = get_kms(lvds_pll);
@@ -102,52 +112,22 @@ static void mpd4_lvds_pll_disable(struct clk_hw *hw)
 	mdp4_write(mdp4_kms, REG_MDP4_LVDS_PHY_PLL_CTRL_0, 0x0);
 }
 
-static unsigned long mpd4_lvds_pll_recalc_rate(struct clk_hw *hw,
-				unsigned long parent_rate)
-{
-	struct mdp4_lvds_pll *lvds_pll = to_mdp4_lvds_pll(hw);
-	return lvds_pll->pixclk;
-}
-
-static long mpd4_lvds_pll_round_rate(struct clk_hw *hw, unsigned long rate,
-		unsigned long *parent_rate)
+long mpd4_lvds_pll_round_rate(struct clk_hw *hw, unsigned long rate)
 {
 	const struct pll_rate *pll_rate = find_rate(rate);
 	return pll_rate->rate;
 }
 
-static int mpd4_lvds_pll_set_rate(struct clk_hw *hw, unsigned long rate,
-		unsigned long parent_rate)
+int mpd4_lvds_pll_set_rate(struct clk_hw *hw, unsigned long rate)
 {
 	struct mdp4_lvds_pll *lvds_pll = to_mdp4_lvds_pll(hw);
 	lvds_pll->pixclk = rate;
 	return 0;
 }
 
-
-static const struct clk_ops mpd4_lvds_pll_ops = {
-	.enable = mpd4_lvds_pll_enable,
-	.disable = mpd4_lvds_pll_disable,
-	.recalc_rate = mpd4_lvds_pll_recalc_rate,
-	.round_rate = mpd4_lvds_pll_round_rate,
-	.set_rate = mpd4_lvds_pll_set_rate,
-};
-
-static const char *mpd4_lvds_pll_parents[] = {
-	"pxo",
-};
-
-static struct clk_init_data pll_init = {
-	.name = "mpd4_lvds_pll",
-	.ops = &mpd4_lvds_pll_ops,
-	.parent_names = mpd4_lvds_pll_parents,
-	.num_parents = ARRAY_SIZE(mpd4_lvds_pll_parents),
-};
-
-struct clk *mpd4_lvds_pll_init(struct drm_device *dev)
+struct clk_hw *mpd4_lvds_pll_init(struct drm_device *dev)
 {
 	struct mdp4_lvds_pll *lvds_pll;
-	struct clk *clk;
 	int ret;
 
 	lvds_pll = devm_kzalloc(dev->dev, sizeof(*lvds_pll), GFP_KERNEL);
@@ -158,14 +138,7 @@ struct clk *mpd4_lvds_pll_init(struct drm_device *dev)
 
 	lvds_pll->dev = dev;
 
-	lvds_pll->pll_hw.init = &pll_init;
-	clk = devm_clk_register(dev->dev, &lvds_pll->pll_hw);
-	if (IS_ERR(clk)) {
-		ret = PTR_ERR(clk);
-		goto fail;
-	}
-
-	return clk;
+	return &lvds_pll->pll_hw;
 
 fail:
 	return ERR_PTR(ret);
