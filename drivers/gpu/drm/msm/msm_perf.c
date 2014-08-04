@@ -167,8 +167,6 @@ static int perf_open(struct inode *inode, struct file *file)
 
 	mutex_lock(&dev->struct_mutex);
 
-priv->perf = perf; // XXX this isn't really good..
-
 	if (perf->open || !gpu) {
 		ret = -EBUSY;
 		goto out;
@@ -210,6 +208,10 @@ int msm_perf_debugfs_init(struct drm_minor *minor)
 	struct msm_drm_private *priv = minor->dev->dev_private;
 	struct msm_perf_state *perf;
 
+	/* only create on first minor: */
+	if (priv->perf)
+		return 0;
+
 	perf = kzalloc(sizeof(*perf), GFP_KERNEL);
 	if (!perf)
 		return -ENOMEM;
@@ -217,8 +219,7 @@ int msm_perf_debugfs_init(struct drm_minor *minor)
 	perf->dev = minor->dev;
 
 	mutex_init(&perf->read_lock);
-DBG("********** perf->dev=%p, priv=%p", perf->dev, priv);
-//	priv->perf = perf;
+	priv->perf = perf;
 
 	perf->node = kzalloc(sizeof(*perf->node), GFP_KERNEL);
 	if (!perf->node)
@@ -251,6 +252,11 @@ void msm_perf_debugfs_cleanup(struct drm_minor *minor)
 {
 	struct msm_drm_private *priv = minor->dev->dev_private;
 	struct msm_perf_state *perf = priv->perf;
+
+	if (!perf)
+		return;
+
+	priv->perf = NULL;
 
 	debugfs_remove(perf->ent);
 

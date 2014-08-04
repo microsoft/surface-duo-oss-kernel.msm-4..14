@@ -283,6 +283,7 @@ static int hdmi_bind(struct device *dev, struct device *master, void *data)
 	static const char *hpd_reg_names[] = {"hpd-gdsc", "hpd-5v"};
 	static const char *pwr_reg_names[] = {"core-vdda", "core-vcc"};
 	static const char *hpd_clk_names[] = {"iface_clk", "core_clk", "mdp_core_clk"};
+	static unsigned long hpd_clk_freq[] = {0, 19200000, 0};
 	static const char *pwr_clk_names[] = {"extp_clk", "alt_iface_clk"};
 
 	config.phy_init      = hdmi_phy_8x74_init;
@@ -292,6 +293,7 @@ static int hdmi_bind(struct device *dev, struct device *master, void *data)
 	config.pwr_reg_names = pwr_reg_names;
 	config.pwr_reg_cnt   = ARRAY_SIZE(pwr_reg_names);
 	config.hpd_clk_names = hpd_clk_names;
+	config.hpd_freq      = hpd_clk_freq;
 	config.hpd_clk_cnt   = ARRAY_SIZE(hpd_clk_names);
 	config.pwr_clk_names = pwr_clk_names;
 	config.pwr_clk_cnt   = ARRAY_SIZE(pwr_clk_names);
@@ -424,7 +426,6 @@ static const struct of_device_id dt_match[] = {
 	{ .compatible = "qcom,hdmi-tx" },
 	{}
 };
-MODULE_DEVICE_TABLE(of, dt_match);
 
 static struct platform_driver hdmi_driver = {
 	.probe = hdmi_dev_probe,

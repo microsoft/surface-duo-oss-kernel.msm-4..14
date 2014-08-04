@@ -361,4 +361,32 @@ static inline void regulator_set_drvdata(struct regulator *regulator,
 
 #endif
 
+
+/*
+ * For happy backports:
+ */
+
+#include <linux/regulator/consumer.h>
+
+static inline struct regulator *
+devm_regulator_get_exclusive(struct device *dev, const char *id)
+{
+	return devm_regulator_get(dev, id);
+}
+
+/**
+ * devm_regulator_get_optional - Resource managed regulator_get_optional()
+ * @dev: device for regulator "consumer"
+ * @id: Supply name or regulator ID.
+ *
+ * Managed regulator_get_optional(). Regulators returned from this
+ * function are automatically regulator_put() on driver detach. See
+ * regulator_get_optional() for more information.
+ */
+static inline struct regulator *
+devm_regulator_get_optional(struct device *dev, const char *id)
+{
+	return devm_regulator_get(dev, id);
+}
+
 #endif

@@ -164,7 +164,7 @@ static int msm_unload(struct drm_device *dev)
 static int get_mdp_ver(struct platform_device *pdev)
 {
 #ifdef CONFIG_OF
-	const static struct of_device_id match_types[] = { {
+	static const struct of_device_id match_types[] = { {
 		.compatible = "qcom,mdss_mdp",
 		.data	= (void	*)5,
 	}, {
@@ -225,7 +225,7 @@ static int msm_load(struct drm_device *dev, unsigned long flags)
 		 * is bogus, but non-null if allocation succeeded:
 		 */
 		p = dma_alloc_attrs(dev->dev, size,
-				&priv->vram.paddr, 0, &attrs);
+				&priv->vram.paddr, GFP_KERNEL, &attrs);
 		if (!p) {
 			dev_err(dev->dev, "failed to allocate VRAM\n");
 			priv->vram.paddr = 0;
@@ -293,7 +293,7 @@ static int msm_load(struct drm_device *dev, unsigned long flags)
 	}
 
 	pm_runtime_get_sync(dev->dev);
-	ret = drm_irq_install(dev);
+	ret = drm_irq_install(dev, platform_get_irq(dev->platformdev, 0));
 	pm_runtime_put_sync(dev->dev);
 	if (ret < 0) {
 		dev_err(dev->dev, "failed to install IRQ handler\n");
@@ -303,6 +303,10 @@ static int msm_load(struct drm_device *dev, unsigned long flags)
 #ifdef CONFIG_DRM_MSM_FBDEV
 	priv->fbdev = msm_fbdev_init(dev);
 #endif
+
+	ret = msm_debugfs_late_init(dev);
+	if (ret)
+		goto fail;
 
 	drm_kms_helper_poll_init(dev);
 
@@ -387,11 +391,8 @@ static void msm_preclose(struct drm_device *dev, struct drm_file *file)
 static void msm_lastclose(struct drm_device *dev)
 {
 	struct msm_drm_private *priv = dev->dev_private;
-	if (priv->fbdev) {
-		drm_modeset_lock_all(dev);
-		drm_fb_helper_restore_fbdev_mode(priv->fbdev);
-		drm_modeset_unlock_all(dev);
-	}
+	if (priv->fbdev)
+		drm_fb_helper_restore_fbdev_mode_unlocked(priv->fbdev);
 }
 
 static irqreturn_t msm_irq(int irq, void *arg)
@@ -536,6 +537,41 @@ static struct drm_info_list msm_debugfs_list[] = {
 		{ "fb", show_locked, 0, msm_fb_show },
 };
 
+static int late_init_minor(struct drm_minor *minor)
+{
+	int ret;
+
+	if (!minor)
+		return 0;
+
+	ret = msm_rd_debugfs_init(minor);
+	if (ret) {
+		dev_err(minor->dev->dev, "could not install rd debugfs\n");
+		return ret;
+	}
+
+	ret = msm_perf_debugfs_init(minor);
+	if (ret) {
+		dev_err(minor->dev->dev, "could not install perf debugfs\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+int msm_debugfs_late_init(struct drm_device *dev)
+{
+	int ret;
+	ret = late_init_minor(dev->primary);
+	if (ret)
+		return ret;
+	ret = late_init_minor(dev->render);
+	if (ret)
+		return ret;
+	ret = late_init_minor(dev->control);
+	return ret;
+}
+
 static int msm_debugfs_init(struct drm_minor *minor)
 {
 	struct drm_device *dev = minor->dev;
@@ -550,27 +586,17 @@ static int msm_debugfs_init(struct drm_minor *minor)
 		return ret;
 	}
 
-	ret = msm_rd_debugfs_init(minor);
-	if (ret) {
-		dev_err(dev->dev, "could not install rd debugfs\n");
-		return ret;
-	}
-
-	ret = msm_perf_debugfs_init(minor);
-	if (ret) {
-		dev_err(dev->dev, "could not install perf debugfs\n");
-		return ret;
-	}
-
 	return 0;
 }
 
 static void msm_debugfs_cleanup(struct drm_minor *minor)
 {
-	msm_rd_debugfs_cleanup(minor);
-	msm_perf_debugfs_cleanup(minor);
 	drm_debugfs_remove_files(msm_debugfs_list,
 			ARRAY_SIZE(msm_debugfs_list), minor);
+	if (!minor->dev->dev_private)
+		return;
+	msm_rd_debugfs_cleanup(minor);
+	msm_perf_debugfs_cleanup(minor);
 }
 #endif
 
@@ -610,6 +636,7 @@ int msm_wait_fence_interruptable(struct drm_device *dev, uint32_t fence,
 		ret = wait_event_interruptible_timeout(priv->fence_event,
 				fence_completed(dev, fence),
 				remaining_jiffies);
+
 		if (ret == 0) {
 			DBG("timeout waiting for fence: %u (completed: %u)",
 					fence, priv->completed_fence);
@@ -684,6 +711,12 @@ static int msm_ioctl_gem_new(struct drm_device *dev, void *data,
 		struct drm_file *file)
 {
 	struct drm_msm_gem_new *args = data;
+
+	if (args->flags & ~MSM_BO_FLAGS) {
+		DRM_ERROR("invalid flags: %08x\n", args->flags);
+		return -EINVAL;
+	}
+
 	return msm_gem_new_handle(dev, file, args->size,
 			args->flags, &args->handle);
 }
@@ -696,6 +729,11 @@ static int msm_ioctl_gem_cpu_prep(struct drm_device *dev, void *data,
 	struct drm_msm_gem_cpu_prep *args = data;
 	struct drm_gem_object *obj;
 	int ret;
+
+	if (args->op & ~MSM_PREP_FLAGS) {
+		DRM_ERROR("invalid op: %08x\n", args->op);
+		return -EINVAL;
+	}
 
 	obj = drm_gem_object_lookup(dev, file, args->handle);
 	if (!obj)
@@ -751,7 +789,14 @@ static int msm_ioctl_wait_fence(struct drm_device *dev, void *data,
 		struct drm_file *file)
 {
 	struct drm_msm_wait_fence *args = data;
-	return msm_wait_fence_interruptable(dev, args->fence, &TS(args->timeout));
+
+	if (args->pad) {
+		DRM_ERROR("invalid pad: %08x\n", args->pad);
+		return -EINVAL;
+	}
+
+	return msm_wait_fence_interruptable(dev, args->fence,
+			&TS(args->timeout));
 }
 
 static const struct drm_ioctl_desc msm_ioctls[] = {
@@ -863,37 +908,45 @@ static const struct dev_pm_ops msm_pm_ops = {
 /* NOTE: the CONFIG_OF case duplicates the same code as exynos or imx
  * (or probably any other).. so probably some room for some helpers
  */
-static int compare_parent_of(struct device *dev, void *data)
-{
-	struct of_phandle_args *args = data;
-	return dev->parent && dev->parent->of_node == args->np;
-}
-
 static int compare_of(struct device *dev, void *data)
 {
 	return dev->of_node == data;
 }
-
-static int msm_drm_add_components(struct device *master, struct master *m)
+#else
+static int compare_dev(struct device *dev, void *data)
 {
-	struct device_node *np = master->of_node;
+	return dev == data;
+}
+#endif
+
+static int msm_drm_bind(struct device *dev)
+{
+	return drm_platform_init(&msm_driver, to_platform_device(dev));
+}
+
+static void msm_drm_unbind(struct device *dev)
+{
+	drm_put_dev(platform_get_drvdata(to_platform_device(dev)));
+}
+
+static const struct component_master_ops msm_drm_ops = {
+	.bind = msm_drm_bind,
+	.unbind = msm_drm_unbind,
+};
+
+/*
+ * Platform driver:
+ */
+
+static int msm_pdev_probe(struct platform_device *pdev)
+{
+	struct component_match *match = NULL;
+#ifdef CONFIG_OF
+	/* NOTE: the CONFIG_OF case duplicates the same code as exynos or imx
+	 * (or probably any other).. so probably some room for some helpers
+	 */
+	struct device_node *np = pdev->dev.of_node;
 	unsigned i;
-	int ret;
-
-	for (i = 0; ; i++) {
-		struct of_phandle_args args;
-
-		ret = of_parse_phandle_with_fixed_args(np, "crtcs", 1,
-				i, &args);
-		if (ret)
-			break;
-
-		ret = component_master_add_child(m, compare_parent_of, &args);
-		of_node_put(args.np);
-
-		if (ret)
-			return ret;
-	}
 
 	for (i = 0; ; i++) {
 		struct device_node *node;
@@ -902,22 +955,9 @@ static int msm_drm_add_components(struct device *master, struct master *m)
 		if (!node)
 			break;
 
-		ret = component_master_add_child(m, compare_of, node);
-		of_node_put(node);
-
-		if (ret)
-			return ret;
+		component_match_add(&pdev->dev, &match, compare_of, node);
 	}
-	return 0;
-}
 #else
-static int compare_dev(struct device *dev, void *data)
-{
-	return dev == data;
-}
-
-static int msm_drm_add_components(struct device *master, struct master *m)
-{
 	/* For non-DT case, it kinda sucks.  We don't actually have a way
 	 * to know whether or not we are waiting for certain devices (or if
 	 * they are simply not present).  But for non-DT we only need to
@@ -941,41 +981,12 @@ static int msm_drm_add_components(struct device *master, struct master *m)
 			return -EPROBE_DEFER;
 		}
 
-		ret = component_master_add_child(m, compare_dev, dev);
-		if (ret) {
-			DBG("could not add child: %d", ret);
-			return ret;
-		}
+		component_match_add(&pdev->dev, &match, compare_dev, dev);
 	}
-
-	return 0;
-}
 #endif
 
-static int msm_drm_bind(struct device *dev)
-{
-	return drm_platform_init(&msm_driver, to_platform_device(dev));
-}
-
-static void msm_drm_unbind(struct device *dev)
-{
-	drm_put_dev(platform_get_drvdata(to_platform_device(dev)));
-}
-
-static const struct component_master_ops msm_drm_ops = {
-		.add_components = msm_drm_add_components,
-		.bind = msm_drm_bind,
-		.unbind = msm_drm_unbind,
-};
-
-/*
- * Platform driver:
- */
-
-static int msm_pdev_probe(struct platform_device *pdev)
-{
 	pdev->dev.coherent_dma_mask = DMA_BIT_MASK(32);
-	return component_master_add(&pdev->dev, &msm_drm_ops);
+	return component_master_add_with_match(&pdev->dev, &msm_drm_ops, match);
 }
 
 static int msm_pdev_remove(struct platform_device *pdev)

@@ -210,12 +210,14 @@ void __exit hdmi_unregister(void);
 void msm_gem_describe(struct drm_gem_object *obj, struct seq_file *m);
 void msm_gem_describe_objects(struct list_head *list, struct seq_file *m);
 void msm_framebuffer_describe(struct drm_framebuffer *fb, struct seq_file *m);
+int msm_debugfs_late_init(struct drm_device *dev);
 int msm_rd_debugfs_init(struct drm_minor *minor);
 void msm_rd_debugfs_cleanup(struct drm_minor *minor);
 void msm_rd_dump_submit(struct msm_gem_submit *submit);
 int msm_perf_debugfs_init(struct drm_minor *minor);
 void msm_perf_debugfs_cleanup(struct drm_minor *minor);
 #else
+static inline int msm_debugfs_late_init(struct drm_device *dev) { return 0; }
 static inline void msm_rd_dump_submit(struct msm_gem_submit *submit) {}
 #endif
 

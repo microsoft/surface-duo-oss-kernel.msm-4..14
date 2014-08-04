@@ -47,18 +47,16 @@ int drm_name_info(struct seq_file *m, void *data)
 	struct drm_minor *minor = node->minor;
 	struct drm_device *dev = minor->dev;
 	struct drm_master *master = minor->master;
-	const char *bus_name;
 	if (!master)
 		return 0;
 
-	bus_name = dev->driver->bus->get_name(dev);
 	if (master->unique) {
 		seq_printf(m, "%s %s %s\n",
-			   bus_name,
+			   dev->driver->name,
 			   dev_name(dev->dev), master->unique);
 	} else {
 		seq_printf(m, "%s %s\n",
-			   bus_name, dev_name(dev->dev));
+			   dev->driver->name, dev_name(dev->dev));
 	}
 	return 0;
 }
@@ -134,7 +132,7 @@ int drm_bufs_info(struct seq_file *m, void *data)
 				   i,
 				   dma->bufs[i].buf_size,
 				   dma->bufs[i].buf_count,
-				   atomic_read(&dma->bufs[i].freelist.count),
+				   0,
 				   dma->bufs[i].seg_count,
 				   seg_pages,
 				   seg_pages * PAGE_SIZE / 1024);
@@ -188,11 +186,11 @@ int drm_clients_info(struct seq_file *m, void *data)
 	mutex_lock(&dev->struct_mutex);
 	seq_printf(m, "a dev	pid    uid	magic\n\n");
 	list_for_each_entry(priv, &dev->filelist, lhead) {
-		seq_printf(m, "%c %3d %5d %5d %10u %10lu\n",
+		seq_printf(m, "%c %3d %5d %5d %10u\n",
 			   priv->authenticated ? 'y' : 'n',
 			   priv->minor->index,
-			   pid_nr(priv->pid),
-			   priv->uid, priv->magic,
+			   pid_vnr(priv->pid),
+			   from_kuid_munged(seq_user_ns(m), priv->uid),
 			   priv->magic);
 	}
 	mutex_unlock(&dev->struct_mutex);

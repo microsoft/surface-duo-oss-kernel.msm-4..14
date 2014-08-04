@@ -61,7 +61,7 @@ nouveau_gem_object_open(struct drm_gem_object *gem, struct drm_file *file_priv)
 	if (!cli->base.vm)
 		return 0;
 
-	ret = ttm_bo_reserve(&nvbo->bo, false, false, false, 0);
+	ret = ttm_bo_reserve(&nvbo->bo, false, false, false, NULL);
 	if (ret)
 		return ret;
 
@@ -132,7 +132,7 @@ nouveau_gem_object_close(struct drm_gem_object *gem, struct drm_file *file_priv)
 	if (!cli->base.vm)
 		return;
 
-	ret = ttm_bo_reserve(&nvbo->bo, false, false, false, 0);
+	ret = ttm_bo_reserve(&nvbo->bo, false, false, false, NULL);
 	if (ret)
 		return;
 
@@ -227,8 +227,6 @@ nouveau_gem_ioctl_new(struct drm_device *dev, void *data,
 	struct drm_nouveau_gem_new *req = data;
 	struct nouveau_bo *nvbo = NULL;
 	int ret = 0;
-
-	drm->ttm.bdev.dev_mapping = drm->dev->dev_mapping;
 
 	if (!pfb->memtype_valid(pfb, req->info.tile_flags)) {
 		NV_ERROR(cli, "bad page flags: 0x%08x\n", req->info.tile_flags);

@@ -688,7 +688,6 @@ static const struct of_device_id dt_match[] = {
 	{ .compatible = "qcom,kgsl-3d0" },
 	{}
 };
-MODULE_DEVICE_TABLE(of, dt_match);
 
 static struct platform_driver a3xx_driver = {
 	.probe = a3xx_probe,

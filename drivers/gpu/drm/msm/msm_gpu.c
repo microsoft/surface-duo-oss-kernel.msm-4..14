@@ -479,6 +479,8 @@ int msm_gpu_submit(struct msm_gpu *gpu, struct msm_gem_submit *submit,
 
 	msm_rd_dump_submit(submit);
 
+	gpu->submitted_fence = submit->fence;
+
 	update_sw_cntrs(gpu);
 
 	ret = gpu->funcs->submit(gpu, submit, ctx);

@@ -801,7 +801,7 @@ u32 rv770_get_xclk(struct radeon_device *rdev)
 	return reference_clock;
 }
 
-u32 rv770_page_flip(struct radeon_device *rdev, int crtc_id, u64 crtc_base)
+void rv770_page_flip(struct radeon_device *rdev, int crtc_id, u64 crtc_base)
 {
 	struct radeon_crtc *radeon_crtc = rdev->mode_info.crtcs[crtc_id];
 	u32 tmp = RREG32(AVIVO_D1GRPH_UPDATE + radeon_crtc->crtc_offset);
@@ -835,9 +835,15 @@ u32 rv770_page_flip(struct radeon_device *rdev, int crtc_id, u64 crtc_base)
 	/* Unlock the lock, so double-buffering can take place inside vblank */
 	tmp &= ~AVIVO_D1GRPH_UPDATE_LOCK;
 	WREG32(AVIVO_D1GRPH_UPDATE + radeon_crtc->crtc_offset, tmp);
+}
+
+bool rv770_page_flip_pending(struct radeon_device *rdev, int crtc_id)
+{
+	struct radeon_crtc *radeon_crtc = rdev->mode_info.crtcs[crtc_id];
 
 	/* Return current update_pending status: */
-	return RREG32(AVIVO_D1GRPH_UPDATE + radeon_crtc->crtc_offset) & AVIVO_D1GRPH_SURFACE_UPDATE_PENDING;
+	return !!(RREG32(AVIVO_D1GRPH_UPDATE + radeon_crtc->crtc_offset) &
+		AVIVO_D1GRPH_SURFACE_UPDATE_PENDING);
 }
 
 /* get temperature in millidegrees */
@@ -1321,6 +1327,9 @@ static void rv770_gpu_init(struct radeon_device *rdev)
 	if (tmp < rdev->config.rv770.max_simds) {
 		rdev->config.rv770.max_simds = tmp;
 	}
+	tmp = rdev->config.rv770.max_simds -
+		r600_count_pipe_bits((cc_gc_shader_pipe_config >> 16) & R7XX_MAX_SIMDS_MASK);
+	rdev->config.rv770.active_simds = tmp;
 
 	switch (rdev->config.rv770.max_tile_pipes) {
 	case 1:
@@ -1811,7 +1820,8 @@ int rv770_resume(struct radeon_device *rdev)
 	/* init golden registers */
 	rv770_init_golden_registers(rdev);
 
-	radeon_pm_resume(rdev);
+	if (rdev->pm.pm_method == PM_METHOD_DPM)
+		radeon_pm_resume(rdev);
 
 	rdev->accel_working = true;
 	r = rv770_startup(rdev);

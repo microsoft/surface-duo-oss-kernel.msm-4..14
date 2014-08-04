@@ -168,8 +168,6 @@ static int rd_open(struct inode *inode, struct file *file)
 
 	mutex_lock(&dev->struct_mutex);
 
-priv->rd = rd; // XXX this isn't really good..
-
 	if (rd->open || !gpu) {
 		ret = -EBUSY;
 		goto out;
@@ -212,6 +210,10 @@ int msm_rd_debugfs_init(struct drm_minor *minor)
 	struct msm_drm_private *priv = minor->dev->dev_private;
 	struct msm_rd_state *rd;
 
+	/* only create on first minor: */
+	if (priv->rd)
+		return 0;
+
 	rd = kzalloc(sizeof(*rd), GFP_KERNEL);
 	if (!rd)
 		return -ENOMEM;
@@ -220,8 +222,7 @@ int msm_rd_debugfs_init(struct drm_minor *minor)
 	rd->fifo.buf = rd->buf;
 
 	mutex_init(&rd->read_lock);
-DBG("********** rd->dev=%p, priv=%p", rd->dev, priv);
-//	priv->rd = rd;
+	priv->rd = rd;
 
 	init_waitqueue_head(&rd->fifo_event);
 
@@ -257,6 +258,11 @@ void msm_rd_debugfs_cleanup(struct drm_minor *minor)
 	struct msm_drm_private *priv = minor->dev->dev_private;
 	struct msm_rd_state *rd = priv->rd;
 
+	if (!rd)
+		return;
+
+	priv->rd = NULL;
+
 	debugfs_remove(rd->ent);
 
 	if (rd->node) {
@@ -279,8 +285,6 @@ void msm_rd_dump_submit(struct msm_gem_submit *submit)
 	struct msm_rd_state *rd = priv->rd;
 	char msg[128];
 	int i, n;
-
-if (!rd) return; // XXX
 
 	if (!rd->open)
 		return;
