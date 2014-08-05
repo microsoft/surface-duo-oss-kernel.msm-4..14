@@ -22,10 +22,11 @@
 #include <linux/errno.h>
 #include <linux/err.h>
 
+#include <soc/qcom/scm.h>
+
 #include <asm/outercache.h>
 #include <asm/cacheflush.h>
 
-#include "scm.h"
 
 #define SCM_ENOMEM		-5
 #define SCM_EOPNOTSUPP		-4
