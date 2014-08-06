@@ -211,7 +211,9 @@ static struct drm_panel *detect_panel(struct drm_device *dev, const char *name)
 #else
 static struct drm_panel *detect_panel(struct drm_device *dev, const char *name)
 {
-	// ??? maybe use a module param to specify which panel is attached?
+	/* TODO get panel name from module param? */
+	const char *panelname = "optronics,b101xtn01";
+	return panel_simple_register(dev->dev, panelname);
 }
 #endif
 
