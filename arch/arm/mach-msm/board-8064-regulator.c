@@ -31,7 +31,7 @@ VREG_CONSUMERS(L2) = {
 	REGULATOR_SUPPLY("mipi_csi_vdd",	"msm_csid.0"),
 	REGULATOR_SUPPLY("mipi_csi_vdd",	"msm_csid.1"),
 	REGULATOR_SUPPLY("mipi_csi_vdd",	"msm_csid.2"),
-	REGULATOR_SUPPLY("lvds_pll_vdda",	"lvds.0"),
+	REGULATOR_SUPPLY("lvds-pll-vdda",	"mdp.0"),
 	REGULATOR_SUPPLY("dsi1_pll_vdda",	"mipi_dsi.1"),
 	REGULATOR_SUPPLY("dsi_pll_vdda",	"mdp.0"),
 };
@@ -230,7 +230,7 @@ VREG_CONSUMERS(LVS6) = {
 VREG_CONSUMERS(LVS7) = {
 	REGULATOR_SUPPLY("8921_lvs7",		NULL),
 	REGULATOR_SUPPLY("pll_vdd",		"pil_riva"),
-	REGULATOR_SUPPLY("lvds_vdda",		"lvds.0"),
+	REGULATOR_SUPPLY("lvds-vdda",		"mdp.0"),
 	REGULATOR_SUPPLY("dsi1_vddio",		"mipi_dsi.1"),
 	REGULATOR_SUPPLY("dsi_pll_vddio",	"mdp.0"),
 	REGULATOR_SUPPLY("hdmi_vdda",		"hdmi_msm.0"),
@@ -255,7 +255,7 @@ VREG_CONSUMERS(EXT_3P3V) = {
 	REGULATOR_SUPPLY("ext_3p3v",		NULL),
 	REGULATOR_SUPPLY("vdd-phy",		"spi0.2"),
 	REGULATOR_SUPPLY("mhl_usb_hs_switch",	"msm_otg"),
-	REGULATOR_SUPPLY("lvds_vccs_3p3v",      "lvds.0"),
+	REGULATOR_SUPPLY("lvds-vccs-3p3v",      "mdp.0"),
 	REGULATOR_SUPPLY("dsi1_vccs_3p3v",      "mipi_dsi.1"),
 	REGULATOR_SUPPLY("hdmi_mux_vdd",        "hdmi_msm.0"),
 	REGULATOR_SUPPLY("pcie_ext_3p3v",       "msm_pcie"),
