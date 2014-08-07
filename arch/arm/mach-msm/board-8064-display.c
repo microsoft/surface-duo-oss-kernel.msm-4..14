@@ -672,7 +672,47 @@ static int lvds_pixel_remap(void)
 	return 0;
 }
 
+static struct msm_bus_vectors lvds_bus_init_vectors[] = {
+	{
+		.src = MSM_BUS_MASTER_MDP_PORT0,
+		.dst = MSM_BUS_SLAVE_EBI_CH0,
+//		.ab = 0,
+//		.ib = 0,
+		.ab = 2000000000,
+		.ib = 2000000000,
+	},
+};
+
+static struct msm_bus_vectors lvds_bus_def_vectors[] = {
+	{
+		.src = MSM_BUS_MASTER_MDP_PORT0,
+		.dst = MSM_BUS_SLAVE_EBI_CH0,
+//		.ab = 566092800 * 2,
+//		.ib = 707616000 * 2,
+		.ab = 2000000000,
+		.ib = 2000000000,
+	},
+};
+
+static struct msm_bus_paths lvds_bus_scale_usecases[] = {
+	{
+		ARRAY_SIZE(lvds_bus_init_vectors),
+		lvds_bus_init_vectors,
+	},
+	{
+		ARRAY_SIZE(lvds_bus_def_vectors),
+		lvds_bus_def_vectors,
+	},
+};
+static struct msm_bus_scale_pdata lvds_bus_scale_pdata = {
+	lvds_bus_scale_usecases,
+	ARRAY_SIZE(lvds_bus_scale_usecases),
+	.name = "lvds",
+};
+
+
 static struct lcdc_platform_data lvds_pdata = {
+	.bus_scale_table = &lvds_bus_scale_pdata,
 	.lcdc_power_save = lvds_panel_power,
 	.lvds_pixel_remap = lvds_pixel_remap
 };
