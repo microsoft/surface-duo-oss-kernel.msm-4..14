@@ -1,0 +1,12 @@
+#include "imxv84.dtsi"
+
+/ {
+
+   chosen {
+      bootargs = "console=ttyLP1,115200 root=/dev/ram rdinit=/bin/sh";
+   };
+};
+&serial {
+   status = "okay";
+};
+

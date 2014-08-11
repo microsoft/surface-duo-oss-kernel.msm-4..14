@@ -1,0 +1,68 @@
+/*#include "skeleton.dtsi"*/
+#include "A53.dts"
+#if 0
+#include <dt-bindings/clock/treerunner-clock.h>
+#else
+#include <dt-bindings/clock/vf610-clock.h>
+#endif
+
+/ {
+    compatible = "fsl,treerunner";
+
+    memory {
+	reg = <0x80000000 0x8000000>;
+ 	};
+
+    soc {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        compatible = "simple-bus";
+        ranges;
+
+        axbs-bus@FFFFFFFF { /* TODO: fix address */
+            compatible = "simple-bus";
+            #address-cells = <1>;
+            #size-cells = <1>;
+            reg = <0xFFFFFFFF 0x00000>; /* TODO: fix address */
+            ranges;
+/*
+            peripheralbridge0: peripheral-bridge@FFFFFFFF{
+                compatible = "simple-bus";
+                #address-cells = <1>;
+                #size-cells = <1>;
+                reg = <0xFFFFFFFF 0x00000>;
+                ranges;
+*/
+                serial: linflex@0x40053000 {
+                    compatible = "fsl,imxv84-linflex-uart";
+                    reg = <0x40053000 0x1000>;
+/*
+                    clocks = <&uart_clk>;
+                    clock-names = "apb_pclk";
+*/
+                    status = "disabled";
+                };
+/*
+            };
+*/
+        };
+/*WARNING: these are bogus entries*/
+        wdog@3F03e000 {
+            compatible = "fsl,vf610-wdt", "fsl,imx21-wdt";
+            reg = <0x3F03e000 0x1000>;
+            clocks = <&clks VF610_CLK_WDT>;
+            clock-names = "wdog";
+        };
+        anatop@3F050000 {
+            compatible = "fsl,vf610-anatop";
+            reg = <0x3F050000 0x1000>;
+        };
+        clks: ccm@3F06b000 {
+            compatible = "fsl,vf610-ccm";
+            reg = <0x3F06b000 0x1000>;
+            #clock-cells = <1>;
+        };
+/*bogus entries end*/
+    };
+};
+
