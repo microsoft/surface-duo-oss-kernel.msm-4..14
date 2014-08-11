@@ -1,19 +1,15 @@
-Qualcomm PMIC GPIO block
+Qualcomm PMIC Multi-Purpose Pin (MPP) block
 
-This binding describes the GPIO block(s) found in the 8xxx series of pmics from
+This binding describes the MPP block(s) found in the 8xxx series of pmics from
 Qualcomm.
 
 - compatible:
 	Usage: required
 	Value type: <string>
 	Definition: must be one of:
-		    "qcom,pm8018-gpio"
-		    "qcom,pm8038-gpio"
-		    "qcom,pm8058-gpio"
-		    "qcom,pm8917-gpio"
-		    "qcom,pm8921-gpio"
-		    "qcom,pm8941-gpio"
-		    "qcom,pma8084-gpio"
+		    "qcom,pm8841-mpp"
+		    "qcom,pm8941-mpp"
+		    "qcom,pma8084-mpp"
 
 - reg:
 	Usage: required
@@ -71,55 +67,41 @@ to specify in a pin configuration subnode:
 	Value type: <string-array>
 	Definition: List of gpio pins affected by the properties specified in
 		    this subnode.  Valid pins are:
-		    gpio1-gpio6 for pm8018
-		    gpio1-gpio12 for pm8038
-		    gpio1-gpio40 for pm8058
-		    gpio1-gpio38 for pm8917
-		    gpio1-gpio44 for pm8921
-		    gpio1-gpio36 for pm8941
-		    gpio1-gpio22 for pma8084
+		    mpp1-mpp4 for pm8841
+		    mpp1-mpp8 for pm8941
+		    mpp1-mpp4 for pma8084
 
 - function:
-	Usage: required
+	Usage: optional
 	Value type: <string>
 	Definition: Specify the alternative function to be configured for the
 		    specified pins.  Valid values are:
 		    "normal",
 		    "paired",
-		    "func1",
-		    "func2",
 		    "dtest1",
 		    "dtest2",
 		    "dtest3",
 		    "dtest4"
+
+- qcom,mode:
+	Usage: optional
+	Value type: <u32>
+	Definition: Selects MPP mode of operation: Digital Input, Digital Output,
+		    Digital Input and Digital Output, Bidirectional Logic,
+		    Analog Input, Analog Output, Current Sink Valid values are
+		    defined in <dt-bindings/pinctrl/qcom,pmic-mpp.h>
+		    PMIC_MPP_MODE_DI, PMIC_MPP_MODE_DO, PMIC_MPP_MODE_DIO...
 
 - bias-disable:
 	Usage: optional
 	Value type: <none>
 	Definition: The specified pins should be configued as no pull.
 
-- bias-pull-down:
-	Usage: optional
-	Value type: <none>
-	Definition: The specified pins should be configued as pull down.
-
 - bias-pull-up:
 	Usage: optional
-	Value type: <empty>
-	Definition: The specified pins should be configured as pull up.
-
-- qcom,pull-up-strength:
-	Usage: optional
-	Value type: <u32>
-	Definition: Specifies the strength to use for pull up, if selected.
-		    Valid values are; as defined in
-		    <dt-bindings/pinctrl/qcom,pmic-gpio.h>:
-		    1: 30uA                     (PMIC_GPIO_PULL_UP_30)
-		    2: 1.5uA                    (PMIC_GPIO_PULL_UP_1P5)
-		    3: 31.5uA                   (PMIC_GPIO_PULL_UP_31P5)
-		    4: 1.5uA + 30uA boost       (PMIC_GPIO_PULL_UP_1P5_30)
-		    If this property is ommited 30uA strength will be used if
-		    pull up is selected
+	Value type:  <u32>
+	Definition: The specified pins should be configued as pull up.
+		    Valid values are 600, 10000 and 30000.
 
 - bias-high-impedance:
 	Usage: optional
@@ -146,67 +128,52 @@ to specify in a pin configuration subnode:
 - power-source:
 	Usage: optional
 	Value type: <u32>
-	Definition: Selects the power source for the specified pins. Valid
-		    power sources are defined per chip in
-		    <dt-bindings/pinctrl/qcom,pmic-gpio.h>
-		    xxxx_GPIO_L6, xxxx_GPIO_L5...
+	Definition: Selects the power source for the specified pins. Valid only
+		    when pin operate in Digital I/O mode ("gpio"). Valid
+		    power sources are defined in
+		    <dt-bindings/pinctrl/qcom,pmic-mpp.h>
 
-- qcom,drive-strength:
+- drive-strength:
 	Usage: optional
 	Value type: <u32>
 	Definition: Selects the drive strength for the specified pins. Value
-		    drive strengths are:
-		    0: no (PMIC_GPIO_STRENGTH_NO)
-		    1: high (PMIC_GPIO_STRENGTH_HIGH) 0.9mA @ 1.8V - 1.9mA @ 2.6V
-		    2: medium (PMIC_GPIO_STRENGTH_MED) 0.6mA @ 1.8V - 1.25mA @ 2.6V
-		    3: low (PMIC_GPIO_STRENGTH_LOW) 0.15mA @ 1.8V - 0.3mA @ 2.6V
-		    as defined in <dt-bindings/pinctrl/qcom,pmic-gpio.h>
+		    drive strengths are: 5-40mA with 5mA step
 
-- drive-push-pull:
+- qcom,amux-route:
 	Usage: optional
-	Value type: <none>
-	Definition: The specified pins are configured in push-pull mode.
+	Value type: <u32>
+	Definition: Selects the source for analog input. Valid values are
+		    defined in <dt-bindings/pinctrl/qcom,pmic-mpp.h>
+		    PMIC_MPP_AMUX_ROUTE_CH5, PMIC_MPP_AMUX_ROUTE_CH6...
 
-- drive-open-drain:
+- qcom,vrefence:
 	Usage: optional
-	Value type: <none>
-	Definition: The specified pins are configured in open-drain mode.
-
+	Value type: <u32>
+	Definition: Selects the analog output voltage reference. Valid values
+		    are defined in <dt-bindings/pinctrl/qcom,pmic-mpp.h>
+		    PMIC_MPP_VREFERENCE_1V25, PMIC_MPP_VREFERENCE_0V625...
 
 Example:
 
-	pm8921_gpio: gpio@150 {
-		compatible = "qcom,pm8921-gpio";
-		reg = <0x150>;
-		interrupts = <192 1>, <193 1>, <194 1>,
-			     <195 1>, <196 1>, <197 1>,
-			     <198 1>, <199 1>, <200 1>,
-			     <201 1>, <202 1>, <203 1>,
-			     <204 1>, <205 1>, <206 1>,
-			     <207 1>, <208 1>, <209 1>,
-			     <210 1>, <211 1>, <212 1>,
-			     <213 1>, <214 1>, <215 1>,
-			     <216 1>, <217 1>, <218 1>,
-			     <219 1>, <220 1>, <221 1>,
-			     <222 1>, <223 1>, <224 1>,
-			     <225 1>, <226 1>, <227 1>,
-			     <228 1>, <229 1>, <230 1>,
-			     <231 1>, <232 1>, <233 1>,
-			     <234 1>, <235 1>;
-
+	mpps@a000 {
+		compatible = "qcom,pm8841-mpp";
+		reg = <0xa000>;
 		gpio-controller;
 		#gpio-cells = <2>;
+		interrupts = <4 0xa0 0 0>, <4 0xa1 0 0>, <4 0xa2 0 0>, <4 0xa3 0 0>;
 
-		pm8921_gpio_keys: gpio-keys {
-			volume-keys {
-				pins = "gpio20", "gpio21";
+		pinctrl-names = "default";
+		pinctrl-0 = <&pm8841_default>;
+
+		pm8841_default: default {
+			gpio {
+				pins = "mpp1", "mpp2", "mpp3", "mpp4";
 				function = "normal";
 
 				input-enable;
-				bias-pull-up;
-				drive-push-pull;
-				qcom,drive-strength = <PMIC_GPIO_STRENGTH_NO>;
-				power-source = <PM8921_GPIO_S4>;
+
+				power-source = <PM8841_MPP_S3>;
+				bias-pull-up = <600>;
 			};
 		};
 	};
