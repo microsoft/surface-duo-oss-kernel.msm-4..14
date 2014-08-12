@@ -800,15 +800,16 @@ static void mmci_start_data(struct mmci_host *host, struct mmc_data *data)
 	writel(timeout, base + MMCIDATATIMER);
 	writel(host->size, base + MMCIDATALENGTH);
 
-	blksz_bits = ffs(data->blksz) - 1;
-	BUG_ON(1 << blksz_bits != data->blksz);
 
-	if (variant->blksz_datactrl16)
+	if (variant->blksz_datactrl16) {
 		datactrl = MCI_DPSM_ENABLE | (data->blksz << 16);
-	else if (variant->blksz_datactrl4)
+	} else if (variant->blksz_datactrl4) {
 		datactrl = MCI_DPSM_ENABLE | (data->blksz << 4);
-	else
+	} else {
+		blksz_bits = ffs(data->blksz) - 1;
+		BUG_ON(1 << blksz_bits != data->blksz);
 		datactrl = MCI_DPSM_ENABLE | blksz_bits << 4;
+	}
 
 	if (data->flags & MMC_DATA_READ)
 		datactrl |= MCI_DPSM_DIRECTION;
