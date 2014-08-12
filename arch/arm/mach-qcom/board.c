@@ -11,6 +11,10 @@
  */
 
 #include <linux/init.h>
+#include <linux/of.h>
+#include <linux/of_gpio.h>
+#include <linux/of_platform.h>
+#include <linux/delay.h>
 
 #include <asm/mach/arch.h>
 
@@ -25,6 +29,31 @@ static const char * const qcom_dt_match[] __initconst = {
 	NULL
 };
 
+static void __init qcom_late_init(void)
+{
+	struct device_node *node;
+	int reset_gpio, ret;
+
+	for_each_compatible_node(node, NULL, "atheros,ath6kl") {
+		of_node_put(node);
+
+		reset_gpio = of_get_named_gpio(node, "reset-gpio", 0);
+		if (reset_gpio < 0)
+			return;
+
+		ret = gpio_request_one(reset_gpio,
+					GPIOF_DIR_OUT | GPIOF_INIT_HIGH, "reset");
+		if (ret)
+			return;
+		
+		udelay(100);
+		gpio_set_value(reset_gpio, 0);
+		udelay(100);
+		gpio_set_value(reset_gpio, 1);
+	}
+}
+
 DT_MACHINE_START(QCOM_DT, "Qualcomm (Flattened Device Tree)")
-	.dt_compat = qcom_dt_match,
+	.init_late	= qcom_late_init,
+	.dt_compat	= qcom_dt_match,
 MACHINE_END
