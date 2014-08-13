@@ -200,6 +200,8 @@
 		cpu_off = <0x84000002>;
 		cpu_on = <0xC4000003>;
 		migrate = <0xC4000005>;
+		sys_poweroff = <0x84000008>;
+		sys_reset = <0x84000009>;
 	};
 
 	pci0: pci@30000000 {
