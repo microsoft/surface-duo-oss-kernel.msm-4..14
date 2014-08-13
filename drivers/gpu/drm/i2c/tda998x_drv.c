@@ -1159,6 +1159,7 @@ tda998x_encoder_init(struct i2c_client *client,
 {
 	struct drm_encoder *encoder = &encoder_slave->base;
 	struct tda998x_priv *priv;
+	unsigned short cec_addr;
 
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 	if (!priv)
@@ -1169,7 +1170,9 @@ tda998x_encoder_init(struct i2c_client *client,
 	priv->vip_cntrl_2 = VIP_CNTRL_2_SWAP_E(4) | VIP_CNTRL_2_SWAP_F(5);
 
 	priv->current_page = 0xff;
-	priv->cec = i2c_new_dummy(client->adapter, 0x34);
+	/* CEC I2C address is bound to TDA998x I2C address by configuration pins */
+	cec_addr = 0x34 + (client->addr & 3);
+	priv->cec = i2c_new_dummy(client->adapter, cec_addr);
 	if (!priv->cec) {
 		kfree(priv);
 		return -ENODEV;
