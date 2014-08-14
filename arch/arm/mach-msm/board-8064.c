@@ -1891,6 +1891,29 @@ static struct platform_device msm_tsens_device = {
 	.id = -1,
 };
 
+static struct msm_thermal_data_actions msm_thermal_pdata_actions[] = {
+	{
+		.threshold = 60,
+		.threshold_clr = 55,
+		.max_freq = 1728000,
+	},
+	{
+		.threshold = 70,
+		.threshold_clr = 65,
+		.max_freq = 1134000,
+	},
+	{
+		.threshold = 75,
+		.threshold_clr = 70,
+		.max_freq = 810000,
+	},
+	{
+		.threshold = 80,
+		.threshold_clr = 75,
+		.max_freq = 384000,
+	},
+};
+
 static struct msm_thermal_data msm_thermal_pdata = {
 	.sensor_id = 7,
 	.poll_ms = 250,
@@ -1900,6 +1923,8 @@ static struct msm_thermal_data msm_thermal_pdata = {
 	.core_limit_temp_degC = 80,
 	.core_temp_hysteresis_degC = 10,
 	.core_control_mask = 0xe,
+	.num_actions = ARRAY_SIZE(msm_thermal_pdata_actions),
+	.actions = msm_thermal_pdata_actions,
 };
 
 #define MSM_SHARED_RAM_PHYS 0x80000000

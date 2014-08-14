@@ -14,6 +14,12 @@
 #ifndef __MSM_THERMAL_H
 #define __MSM_THERMAL_H
 
+struct msm_thermal_data_actions {
+	int32_t threshold;
+	int32_t threshold_clr;
+	uint32_t max_freq;
+};
+
 struct msm_thermal_data {
 	uint32_t sensor_id;
 	uint32_t poll_ms;
@@ -23,6 +29,8 @@ struct msm_thermal_data {
 	int32_t core_limit_temp_degC;
 	int32_t core_temp_hysteresis_degC;
 	uint32_t core_control_mask;
+	uint32_t num_actions;
+	struct msm_thermal_data_actions* actions;
 };
 
 #ifdef CONFIG_THERMAL_MONITOR

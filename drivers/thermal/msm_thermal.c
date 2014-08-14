@@ -26,6 +26,7 @@
 #include <mach/cpufreq.h>
 
 static int enabled;
+static int state;
 static struct msm_thermal_data msm_thermal_info;
 static uint32_t limited_max_freq = MSM_CPUFREQ_NO_LIMIT;
 static struct delayed_work check_temp_work;
@@ -56,7 +57,14 @@ static int msm_thermal_get_freq_table(void)
 	limit_idx_low = 0;
 	limit_idx_high = limit_idx = i - 1;
 	BUG_ON(limit_idx_high <= 0 || limit_idx_high <= limit_idx_low);
-fail:
+
+	/* the actions table has either 0 (disabled) or at least 2 elements */
+	BUG_ON(msm_thermal_info.num_actions == 1);
+
+	/* the new actions based algo assumes the actions table is sorted */
+	/* TODO: validate threshold, threshold_clr and max_freq */
+
+ fail:
 	return ret;
 }
 
@@ -168,36 +176,59 @@ static void __cpuinit check_temp(struct work_struct *work)
 
 	do_core_control(temp);
 
-	if (temp >= msm_thermal_info.limit_temp_degC) {
-		if (limit_idx == limit_idx_low)
-			goto reschedule;
+	/* new algo using actions table */
+	if (msm_thermal_info.num_actions > 1) {
+		BUG_ON(state < 0 || state >= msm_thermal_info.num_actions);
 
-		limit_idx -= msm_thermal_info.freq_step;
-		if (limit_idx < limit_idx_low)
-			limit_idx = limit_idx_low;
-		max_freq = table[limit_idx].frequency;
-	} else if (temp < msm_thermal_info.limit_temp_degC -
-		 msm_thermal_info.temp_hysteresis_degC) {
-		if (limit_idx == limit_idx_high)
+		if (state > 0 &&
+		    temp <= msm_thermal_info.actions[state].threshold_clr) {
+			pr_info("%s: Switch from state %d to %d with temp %ld\n",
+				KBUILD_MODNAME, state, state-1, temp);
+			max_freq = msm_thermal_info.actions[--state].max_freq;
+		}
+		else if (state < msm_thermal_info.num_actions -1 &&
+			 temp >= msm_thermal_info.actions[state+1].threshold) {
+			pr_info("%s: Switch from state %d to %d with temp %ld\n",
+				KBUILD_MODNAME, state, state+1, temp);
+			max_freq = msm_thermal_info.actions[++state].max_freq;
+		}
+		else
 			goto reschedule;
-
-		limit_idx += msm_thermal_info.freq_step;
-		if (limit_idx >= limit_idx_high) {
-			limit_idx = limit_idx_high;
-			max_freq = MSM_CPUFREQ_NO_LIMIT;
-		} else
-			max_freq = table[limit_idx].frequency;
 	}
-	if (max_freq == limited_max_freq)
-		goto reschedule;
+	/* legacy algo */
+	else {
+		if (temp >= msm_thermal_info.limit_temp_degC) {
+			if (limit_idx == limit_idx_low)
+				goto reschedule;
+
+			limit_idx -= msm_thermal_info.freq_step;
+			if (limit_idx < limit_idx_low)
+				limit_idx = limit_idx_low;
+			max_freq = table[limit_idx].frequency;
+		} else if (temp < msm_thermal_info.limit_temp_degC -
+			   msm_thermal_info.temp_hysteresis_degC) {
+			if (limit_idx == limit_idx_high)
+				goto reschedule;
+
+			limit_idx += msm_thermal_info.freq_step;
+			if (limit_idx >= limit_idx_high) {
+				limit_idx = limit_idx_high;
+				max_freq = MSM_CPUFREQ_NO_LIMIT;
+			} else
+				max_freq = table[limit_idx].frequency;
+		}
+		if (max_freq == limited_max_freq)
+			goto reschedule;
+
+	}
 
 	/* Update new limits */
 	for_each_possible_cpu(cpu) {
 		ret = update_cpu_max_freq(cpu, max_freq);
 		if (ret)
 			pr_debug(
-			"%s: Unable to limit cpu%d max freq to %d\n",
-					KBUILD_MODNAME, cpu, max_freq);
+				 "%s: Unable to limit cpu%d max freq to %d\n",
+				 KBUILD_MODNAME, cpu, max_freq);
 	}
 
 reschedule:
@@ -242,6 +273,7 @@ static void __cpuinit disable_msm_thermal(void)
 	/* make sure check_temp is no longer running */
 	cancel_delayed_work(&check_temp_work);
 	flush_scheduled_work();
+	enabled = 0;
 
 	if (limited_max_freq == MSM_CPUFREQ_NO_LIMIT)
 		return;
@@ -258,9 +290,11 @@ static int __cpuinit set_enabled(const char *val, const struct kernel_param *kp)
 	ret = param_set_bool(val, kp);
 	if (!enabled)
 		disable_msm_thermal();
-	else
-		pr_info("%s: no action for enabled = %d\n",
-				KBUILD_MODNAME, enabled);
+	else {
+		enabled = 1;
+		state = 0;
+		schedule_delayed_work(&check_temp_work, 0);
+	}
 
 	pr_info("%s: enabled = %d\n", KBUILD_MODNAME, enabled);
 
@@ -431,10 +465,10 @@ int __devinit msm_thermal_init(struct msm_thermal_data *pdata)
 	memcpy(&msm_thermal_info, pdata, sizeof(struct msm_thermal_data));
 
 	enabled = 1;
-	core_control_enabled = 1;
+	core_control_enabled = 0; //1;
+	state = 0;
 	INIT_DELAYED_WORK(&check_temp_work, check_temp);
 	schedule_delayed_work(&check_temp_work, 0);
-
 	register_cpu_notifier(&msm_thermal_cpu_notifier);
 
 	return ret;
