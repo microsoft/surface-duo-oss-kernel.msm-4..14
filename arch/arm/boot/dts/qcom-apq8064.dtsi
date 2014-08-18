@@ -7,7 +7,7 @@
 #include <dt-bindings/mfd/qcom-rpm.h>
 #include <dt-bindings/soc/qcom,gsbi.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
-#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
 / {
 	model = "Qualcomm APQ8064";
 	compatible = "qcom,apq8064";
@@ -242,7 +242,6 @@
 				#address-cells = <1>;
 				#size-cells = <0>;
 				pm8921_gpio: gpio@150 {
-
 					compatible = "qcom,pm8921-gpio";
 					reg = <0x150>;
 					interrupts = <192 1>, <193 1>, <194 1>,
@@ -263,7 +262,17 @@
 
 					gpio-controller;
 					#gpio-cells = <2>;
+					pinctrl-names = "default";
+					pinctrl-0 = <&wlan_default_gpios>;
 
+					wlan_default_gpios: wlan-gpios {
+						pios {
+							pins = "gpio43";
+							function = "normal";
+							bias-disable;
+							power-source = <PM8921_GPIO_S4>;
+						};
+					};
 				};
 			};
 		};
