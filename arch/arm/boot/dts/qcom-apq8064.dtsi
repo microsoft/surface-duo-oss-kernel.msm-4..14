@@ -6,6 +6,7 @@
 #include <dt-bindings/clock/qcom,mmcc-msm8960.h>
 #include <dt-bindings/soc/qcom,gsbi.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/gpio/gpio.h>
 / {
 	model = "Qualcomm APQ8064";
 	compatible = "qcom,apq8064";
@@ -333,7 +334,6 @@
 				#size-cells = <0>;
 
 				pm8921_gpio: gpio@150 {
-
 					compatible = "qcom,pm8921-gpio";
 					reg = <0x150>;
 					interrupts = <192 1>, <193 1>, <194 1>,
