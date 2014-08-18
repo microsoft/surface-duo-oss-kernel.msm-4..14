@@ -236,6 +236,7 @@ struct mmci_host;
  * @start_err: bitmask identifying the STARTBITERR bit inside MMCISTATUS
  *	       register.
  * @opendrain: bitmask identifying the OPENDRAIN bit inside MMCIPOWER register
+ * @any_blksize: true if block any sizes are supported
  */
 struct variant_data {
 	unsigned int		clkreg;
@@ -268,6 +269,7 @@ struct variant_data {
 	bool			mmcimask1;
 	u32			start_err;
 	u32			opendrain;
+	bool			any_blksize;
 	void (*init)(struct mmci_host *host);
 };
 
