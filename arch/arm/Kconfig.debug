@@ -786,6 +786,30 @@ choice
 		  their output to UART 2. The port must have been initialised
 		  by the boot-loader before use.
 
+	config DEBUG_SA1100_UART1
+		depends on ARCH_SA1100
+		select DEBUG_SA1100_UART
+		bool "Kernel low-level debugging messages via SA1100 Ser1"
+		help
+		  Say Y here if you want kernel low-level debugging support
+		  on SA1100 based platforms.
+
+	config DEBUG_SA1100_UART2
+		depends on ARCH_SA1100
+		select DEBUG_SA1100_UART
+		bool "Kernel low-level debugging messages via SA1100 Ser2"
+		help
+		  Say Y here if you want kernel low-level debugging support
+		  on SA1100 based platforms.
+
+	config DEBUG_SA1100_UART3
+		depends on ARCH_SA1100
+		select DEBUG_SA1100_UART
+		bool "Kernel low-level debugging messages via SA1100 Ser3"
+		help
+		  Say Y here if you want kernel low-level debugging support
+		  on SA1100 based platforms.
+
 	config DEBUG_SOCFPGA_UART
 		depends on ARCH_SOCFPGA
 		bool "Use SOCFPGA UART for low-level debug"
@@ -1089,6 +1113,10 @@ config DEBUG_TEGRA_UART
 	bool
 	depends on ARCH_TEGRA
 
+config DEBUG_SA1100_UART
+	bool
+	depends on ARCH_SA1100
+
 config DEBUG_STI_UART
 	bool
 	depends on ARCH_STI
@@ -1119,6 +1147,7 @@ config DEBUG_LL_INCLUDE
 	default "debug/omap2plus.S" if DEBUG_OMAP2PLUS_UART
 	default "debug/s3c24xx.S" if DEBUG_S3C24XX_UART
 	default "debug/s5pv210.S" if DEBUG_S5PV210_UART
+	default "debug/sa1100.S" if DEBUG_SA1100_UART
 	default "debug/sirf.S" if DEBUG_SIRFPRIMA2_UART1 || DEBUG_SIRFMARCO_UART1
 	default "debug/sti.S" if DEBUG_STI_UART
 	default "debug/tegra.S" if DEBUG_TEGRA_UART
@@ -1139,7 +1168,7 @@ config DEBUG_UART_PL01X
 		ARCH_SPEAR13XX || \
 		ARCH_VERSATILE
 
-# Compatibility options for 8250
+#Compatibility options for 8250
 config DEBUG_UART_8250
 	def_bool ARCH_DOVE || ARCH_EBSA110 || \
 		(FOOTBRIDGE && !DEBUG_DC21285_PORT) || \
@@ -1192,6 +1221,9 @@ config DEBUG_UART_PHYS
 	default 0x78000000 if DEBUG_CNS3XXX
 	default 0x7c0003f8 if FOOTBRIDGE
 	default 0x78000000 if DEBUG_CNS3XXX
+	default 0x80010000 if DEBUG_SA1100_UART1
+	default 0x80030000 if DEBUG_SA1100_UART2
+	default 0x80050000 if DEBUG_SA1100_UART3
 	default 0x80070000 if DEBUG_IMX23_UART
 	default 0x80074000 if DEBUG_IMX28_UART
 	default 0x80230000 if DEBUG_PICOXCELL_UART
@@ -1231,7 +1263,7 @@ config DEBUG_UART_PHYS
 		DEBUG_LL_UART_EFM32 || \
 		DEBUG_UART_8250 || DEBUG_UART_PL01X || DEBUG_MESON_UARTAO || \
 		DEBUG_MSM_UART || DEBUG_QCOM_UARTDM || DEBUG_S3C24XX_UART || \
-		DEBUG_UART_BCM63XX || DEBUG_NETX_UART
+		DEBUG_UART_BCM63XX || DEBUG_NETX_UART || DEBUG_SA1100_UART
 
 config DEBUG_UART_VIRT
 	hex "Virtual base address of debug UART"
@@ -1260,6 +1292,9 @@ config DEBUG_UART_VIRT
 	default 0xf7fc9000 if DEBUG_BERLIN_UART
 	default 0xf8007000 if DEBUG_HIP04_UART
 	default 0xf8009000 if DEBUG_VEXPRESS_UART0_CA9
+	default 0xf8010000 if DEBUG_SA1100_UART1
+	default 0xf8030000 if DEBUG_SA1100_UART2
+	default 0xf8050000 if DEBUG_SA1100_UART3
 	default 0xf8090000 if DEBUG_VEXPRESS_UART0_RS1
 	default 0xfa71e000 if DEBUG_QCOM_UARTDM
 	default 0xfb002000 if DEBUG_CNS3XXX
@@ -1308,7 +1343,7 @@ config DEBUG_UART_VIRT
 	depends on DEBUG_LL_UART_8250 || DEBUG_LL_UART_PL01X || \
 		DEBUG_UART_8250 || DEBUG_UART_PL01X || DEBUG_MESON_UARTAO || \
 		DEBUG_MSM_UART || DEBUG_QCOM_UARTDM || DEBUG_S3C24XX_UART || \
-		DEBUG_UART_BCM63XX || DEBUG_NETX_UART
+		DEBUG_UART_BCM63XX || DEBUG_NETX_UART || DEBUG_SA1100_UART
 
 config DEBUG_UART_8250_SHIFT
 	int "Register offset shift for the 8250 debug UART"
