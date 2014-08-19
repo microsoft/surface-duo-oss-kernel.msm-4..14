@@ -20,7 +20,7 @@
 #include <linux/kernel.h>
 #include <linux/seq_file.h>
 #include <linux/syscore_ops.h>
-#include <linux/time.h>
+#include <linux/ktime.h>
 
 static struct timespec suspend_time_before;
 static unsigned int time_in_suspend_bins[32];
