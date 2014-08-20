@@ -863,7 +863,11 @@ static struct platform_driver pm8xxx_gpio_driver = {
 	.remove = pm8xxx_gpio_remove,
 };
 
-module_platform_driver(pm8xxx_gpio_driver);
+static int pm8xxx_gpio_init(void)
+{
+	return platform_driver_register(&pm8xxx_gpio_driver);
+}
+subsys_initcall(pm8xxx_gpio_init);
 
 MODULE_AUTHOR("Bjorn Andersson <bjorn.andersson@sonymobile.com>");
 MODULE_DESCRIPTION("Qualcomm SSBI PMIC GPIO driver");
