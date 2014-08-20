@@ -49,6 +49,7 @@
 #define SSBI_REG_ADDR_GPIO_BASE		0x150
 #define SSBI_REG_ADDR_GPIO(n)		(SSBI_REG_ADDR_GPIO_BASE + n)
 
+#define	PM8XXX_GPIO_MODE_ENABLE		BIT(0)
 #define PM8XXX_GPIO_WRITE		BIT(7)
 
 #define PM8XXX_MAX_GPIOS		44
@@ -493,7 +494,8 @@ static int pm8xxx_gpio_config_set(struct pinctrl_dev *pctldev,
 	}
 
 	if (banks & BIT(0))
-		pm8xxx_gpio_write(pctrl, offset, 0, pin->power_source << 1);
+		pm8xxx_gpio_write(pctrl, offset, 0, pin->power_source << 1 |
+				  PM8XXX_GPIO_MODE_ENABLE);
 
 	if (banks & BIT(1)) {
 		val = pin->direction << 2;
