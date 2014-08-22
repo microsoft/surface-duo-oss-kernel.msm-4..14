@@ -233,7 +233,7 @@
 			     <0 35 4>;   /* high priority interrupt */
 		#mbox-cells = <1>;
 		mbox-names = "cpu_to_scp_low", "cpu_to_scp_high";
-		mbox = <&mailbox 0 &mailbox 1>;
+		mboxes = <&mailbox 0 &mailbox 1>;
 	};
 
 	clocks {
