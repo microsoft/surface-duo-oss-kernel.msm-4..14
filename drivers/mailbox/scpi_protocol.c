@@ -170,11 +170,8 @@ static int send_scpi_cmd(struct scpi_data_buf *scpi_buf, bool high_priority)
 	cl.tx_done = NULL;
 	cl.tx_block = false;
 	cl.knows_txdone = false;
-	cl.chan_name = high_priority ?
-		       CHANNEL_HIGH_PRIORITY :
-		       CHANNEL_LOW_PRIORITY;
 
-	chan = mbox_request_channel(&cl);
+	chan = mbox_request_channel(&cl, high_priority);
 	if (IS_ERR(chan))
 		return PTR_ERR(chan);
 
