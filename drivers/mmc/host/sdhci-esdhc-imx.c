@@ -142,6 +142,11 @@ static struct esdhc_soc_data usdhc_imx6sl_data = {
 			| ESDHC_FLAG_HAVE_CAP1,
 };
 
+static struct esdhc_soc_data usdhc_sac58r_data = {
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MULTIBLK_READ_ACMD12,
+};
+
+
 struct pltfm_imx_data {
 	u32 scratchpad;
 	struct pinctrl *pinctrl;
@@ -184,6 +189,7 @@ static const struct of_device_id imx_esdhc_dt_ids[] = {
 	{ .compatible = "fsl,imx53-esdhc", .data = &esdhc_imx53_data, },
 	{ .compatible = "fsl,imx6sl-usdhc", .data = &usdhc_imx6sl_data, },
 	{ .compatible = "fsl,imx6q-usdhc", .data = &usdhc_imx6q_data, },
+	{ .compatible = "fsl,sac58r-usdhc", .data = &usdhc_sac58r_data, },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, imx_esdhc_dt_ids);
@@ -202,6 +208,12 @@ static inline int is_imx6q_usdhc(struct pltfm_imx_data *data)
 {
 	return data->socdata == &usdhc_imx6q_data;
 }
+
+static inline int is_sac58r_usdhc(struct pltfm_imx_data *data)
+{
+	return data->socdata == &usdhc_sac58r_data;
+}
+
 
 static inline int esdhc_is_usdhc(struct pltfm_imx_data *data)
 {
@@ -252,13 +264,21 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 
 	if (unlikely(reg == SDHCI_CAPABILITIES_1)) {
 		if (esdhc_is_usdhc(imx_data)) {
-			if (imx_data->socdata->flags & ESDHC_FLAG_HAVE_CAP1)
+			if (imx_data->socdata->flags & ESDHC_FLAG_HAVE_CAP1) {
 				val = readl(host->ioaddr + SDHCI_CAPABILITIES) & 0xFFFF;
-			else
-				/* imx6q/dl does not have cap_1 register, fake one */
-				val = SDHCI_SUPPORT_DDR50 | SDHCI_SUPPORT_SDR104
-					| SDHCI_SUPPORT_SDR50
-					| SDHCI_USE_SDR50_TUNING;
+			}
+			else {
+				if (is_sac58r_usdhc(imx_data)) {
+					/* sac58r cap register does not provide speed info */
+					val = SDHCI_SUPPORT_SDR50;
+				}
+				else {
+					/* imx6q/dl does not have cap_1 register, fake one */
+					val = SDHCI_SUPPORT_DDR50 | SDHCI_SUPPORT_SDR104
+						| SDHCI_SUPPORT_SDR50
+						| SDHCI_USE_SDR50_TUNING;
+				}
+			}
 		}
 	}
 
