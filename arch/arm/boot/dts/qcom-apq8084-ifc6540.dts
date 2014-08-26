@@ -1,0 +1,6 @@
+#include "qcom-apq8084.dtsi"
+
+/ {
+	model = "Qualcomm APQ8084/IFC6540";
+	compatible = "qcom,apq8084-ifc6540", "qcom,apq8084";
+};
