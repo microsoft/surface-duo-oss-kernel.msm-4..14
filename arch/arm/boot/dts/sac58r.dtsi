@@ -317,6 +317,7 @@
 				interrupts = <0 63 0x04>;
 				clocks = <&clks SAC58R_CLK_UART2>;
 				clock-names = "ipg";
+				no-hw-flow-control;
 				status = "disabled";
 			};
 
@@ -568,6 +569,7 @@
 				interrupts = <0 64 0x00>;
 				clocks = <&clks SAC58R_CLK_UART3>;
 				clock-names = "ipg";
+				no-hw-flow-control;
 				status = "disabled";
 			};
 
@@ -577,6 +579,7 @@
 				interrupts = <0 65 0x04>;
 				clocks = <&clks SAC58R_CLK_UART4>;
 				clock-names = "ipg";
+				no-hw-flow-control;
 				status = "disabled";
 			};
 
@@ -586,6 +589,7 @@
 				interrupts = <0 66 0x04>;
 				clocks = <&clks SAC58R_CLK_UART5>;
 				clock-names = "ipg";
+				no-hw-flow-control;
 				status = "disabled";
 			};
 
