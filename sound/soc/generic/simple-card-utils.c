@@ -104,6 +104,17 @@ int asoc_simple_card_parse_clk(struct device_node *node,
 {
 	struct clk *clk;
 	u32 val;
+	const char *str;
+
+	/* Parse system clock direction */
+	if (!of_property_read_string(node, "system-clock-direction", &str)) {
+		if (!strcmp(str, "out"))
+			simple_dai->sysclk_dir = SND_SOC_CLOCK_OUT;
+		else if (!strcmp(str, "in"))
+			simple_dai->sysclk_dir = SND_SOC_CLOCK_IN;
+		else
+			return -EINVAL;
+	}
 
 	/*
 	 * Parse dai->sysclk come from "clocks = <&xxx>"
@@ -170,7 +181,8 @@ int asoc_simple_card_init_dai(struct snd_soc_dai *dai,
 	int ret;
 
 	if (simple_dai->sysclk) {
-		ret = snd_soc_dai_set_sysclk(dai, 0, simple_dai->sysclk, 0);
+		ret = snd_soc_dai_set_sysclk(dai, 0, simple_dai->sysclk,
+					     simple_dai->sysclk_dir);
 		if (ret && ret != -ENOTSUPP) {
 			dev_err(dai->dev, "simple-card: set_sysclk error\n");
 			return ret;
