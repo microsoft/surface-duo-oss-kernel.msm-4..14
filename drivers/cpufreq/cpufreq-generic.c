@@ -349,7 +349,7 @@ static int generic_cpufreq_remove(struct platform_device *pdev)
 
 static struct platform_driver generic_cpufreq_platdrv = {
 	.driver = {
-		.name	= "cpufreq-cpu0",
+		.name	= "cpufreq-generic",
 		.owner	= THIS_MODULE,
 	},
 	.probe		= generic_cpufreq_probe,
