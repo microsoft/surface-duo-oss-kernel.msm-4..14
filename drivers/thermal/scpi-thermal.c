@@ -81,6 +81,7 @@ static int scpi_thermal_probe(struct platform_device *pdev)
 
 	for (i = 0; i < NUM_CLUSTERS; i++) {
 		char node[16];
+		struct cpumask *mask = &sensor_data->cluster[i];
 		enum cluster_type cluster =
 			topology_physical_package_id(cpumask_any(&sensor_data->cluster[i]));
 
@@ -91,7 +92,7 @@ static int scpi_thermal_probe(struct platform_device *pdev)
 			dev_info(&pdev->dev, "Node not found: %s\n", node);
 
 		sensor_data->pactor[i] =
-			power_cpu_actor_register(np, &sensor_data->cluster[i],
+			power_cpu_actor_register(np, cpumask_any(mask),
 						get_dyn_power_coeff(cluster),
 						NULL);
 
