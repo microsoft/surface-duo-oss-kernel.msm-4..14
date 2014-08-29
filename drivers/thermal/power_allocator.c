@@ -119,13 +119,10 @@ static u32 pid_controller(struct thermal_zone_device *tz,
 	 * err is below the integral_cutoff and
 	 * -max_allocatable_power < err_integral < max_allocatable_power
 	 */
-	if ((err < int_to_frac(params->integral_cutoff)) &&
-		(-max_power_frac < params->err_integral) &&
-		(params->err_integral < max_power_frac)) {
-		s64 tmpi = mul_frac(params->k_i, err);
+	if (err < int_to_frac(params->integral_cutoff)) {
+		s64 tmpi = i + mul_frac(params->k_i, err);
 
-		tmpi += i;
-		if (tmpi <= max_power_frac) {
+		if ((-max_power_frac < tmpi) && (tmpi <= max_power_frac)) {
 			i = tmpi;
 			params->err_integral += err;
 		}
