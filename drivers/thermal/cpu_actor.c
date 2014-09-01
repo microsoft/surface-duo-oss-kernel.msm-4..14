@@ -186,12 +186,11 @@ static u32 get_static_power(struct cpu_actor *cpu_actor,
  */
 static u32 get_dynamic_power(struct cpu_actor *cpu_actor, unsigned long freq)
 {
-	int i, cpu;
-	u32 power = 0, raw_cpu_power, total_load = 0, load_cpu[NR_CPUS];
+	int cpu;
+	u32 power = 0, raw_cpu_power, total_load = 0;
 
 	raw_cpu_power = cpu_freq_to_power(cpu_actor, freq);
 
-	i = 0;
 	for_each_cpu(cpu, &cpu_actor->cpumask) {
 		u32 load;
 
@@ -202,14 +201,7 @@ static u32 get_dynamic_power(struct cpu_actor *cpu_actor, unsigned long freq)
 
 		power += (raw_cpu_power * load) / 100;
 		total_load += load;
-		load_cpu[i] = load;
-
-		i++;
 	}
-
-	trace_thermal_power_actor_cpu_get_dyn_power(&cpu_actor->cpumask, freq,
-						raw_cpu_power, load_cpu, i,
-						power);
 
 	cpu_actor->last_load = total_load;
 
