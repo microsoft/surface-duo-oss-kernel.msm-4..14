@@ -205,8 +205,8 @@ static u32 get_dynamic_power(struct cpu_actor *cpu_actor, unsigned long freq)
 static u32 cpu_get_req_power(struct power_actor *actor,
 			struct thermal_zone_device *tz)
 {
-	int cpu;
-	u32 static_power, dynamic_power, total_load = 0;
+	int i = 0, cpu;
+	u32 static_power, dynamic_power, total_load = 0, load_cpu[NR_CPUS];
 	unsigned long freq;
 	struct cpu_actor *cpu_actor = actor->data;
 
@@ -221,12 +221,19 @@ static u32 cpu_get_req_power(struct power_actor *actor,
 			load = 0;
 
 		total_load += load;
+		load_cpu[i] = load;
+
+		i++;
 	}
 
 	cpu_actor->last_load = total_load;
 
 	static_power = get_static_power(cpu_actor, tz, freq);
 	dynamic_power = get_dynamic_power(cpu_actor, freq);
+
+	trace_thermal_power_actor_cpu_get_power(&cpu_actor->cpumask, freq,
+						load_cpu, i, dynamic_power,
+						static_power);
 
 	return static_power + dynamic_power;
 }
