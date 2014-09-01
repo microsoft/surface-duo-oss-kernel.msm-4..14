@@ -43,6 +43,7 @@
 #include <asm/sizes.h>
 
 #include "mmci.h"
+#include "mmci_qcom_dml.h"
 
 #define DRIVER_NAME "mmci-pl18x"
 
@@ -60,12 +61,13 @@ static unsigned int fmax = 515633;
  * @fifohalfsize: number of bytes that can be written when MCI_TXFIFOHALFEMPTY
  *		  is asserted (likewise for RX)
  * @data_cmd_enable: enable value for data commands.
- * @sdio: variant supports SDIO
+ * @st_sdio: enable ST specific SDIO logic
  * @st_clkdiv: true if using a ST-specific clock divider algorithm
  * @datactrl_mask_ddrmode: ddr mode mask in datactrl register.
  * @blksz_datactrl16: true if Block size is at b16..b30 position in datactrl register
  * @blksz_datactrl4: true if Block size is at b4..b16 position in datactrl
  *		     register
+ * @datactrl_mask_sdio: SDIO enable mask in datactrl register
  * @pwrreg_powerup: power up value for MMCIPOWER register
  * @f_max: maximum clk frequency supported by the controller.
  * @signal_direction: input/out direction of bus signals can be indicated
@@ -75,6 +77,8 @@ static unsigned int fmax = 515633;
  * @explicit_mclk_control: enable explicit mclk control in driver.
  * @qcom_fifo: enables qcom specific fifo pio read logic.
  * @reversed_irq_handling: handle data irq before cmd irq.
+ * @qcom_dml: enables qcom specific dma glue for dma transfers.
+ * @any_blksize: true if block any sizes are supported
  */
 struct variant_data {
 	unsigned int		clkreg;
@@ -86,7 +90,8 @@ struct variant_data {
 	unsigned int		fifohalfsize;
 	unsigned int		data_cmd_enable;
 	unsigned int		datactrl_mask_ddrmode;
-	bool			sdio;
+	unsigned int		datactrl_mask_sdio;
+	bool			st_sdio;
 	bool			st_clkdiv;
 	bool			blksz_datactrl16;
 	bool			blksz_datactrl4;
@@ -99,6 +104,8 @@ struct variant_data {
 	bool			explicit_mclk_control;
 	bool			qcom_fifo;
 	bool			reversed_irq_handling;
+	bool			qcom_dml;
+	bool			any_blksize;
 };
 
 static struct variant_data variant_arm = {
@@ -133,7 +140,8 @@ static struct variant_data variant_u300 = {
 	.clkreg_enable		= MCI_ST_U300_HWFCEN,
 	.clkreg_8bit_bus_enable = MCI_ST_8BIT_BUS,
 	.datalength_bits	= 16,
-	.sdio			= true,
+	.datactrl_mask_sdio	= MCI_ST_DPSM_SDIOEN,
+	.st_sdio			= true,
 	.pwrreg_powerup		= MCI_PWR_ON,
 	.f_max			= 100000000,
 	.signal_direction	= true,
@@ -146,7 +154,8 @@ static struct variant_data variant_nomadik = {
 	.fifohalfsize		= 8 * 4,
 	.clkreg			= MCI_CLK_ENABLE,
 	.datalength_bits	= 24,
-	.sdio			= true,
+	.datactrl_mask_sdio	= MCI_ST_DPSM_SDIOEN,
+	.st_sdio		= true,
 	.st_clkdiv		= true,
 	.pwrreg_powerup		= MCI_PWR_ON,
 	.f_max			= 100000000,
@@ -163,7 +172,8 @@ static struct variant_data variant_ux500 = {
 	.clkreg_8bit_bus_enable = MCI_ST_8BIT_BUS,
 	.clkreg_neg_edge_enable	= MCI_ST_UX500_NEG_EDGE,
 	.datalength_bits	= 24,
-	.sdio			= true,
+	.datactrl_mask_sdio	= MCI_ST_DPSM_SDIOEN,
+	.st_sdio		= true,
 	.st_clkdiv		= true,
 	.pwrreg_powerup		= MCI_PWR_ON,
 	.f_max			= 100000000,
@@ -182,7 +192,8 @@ static struct variant_data variant_ux500v2 = {
 	.clkreg_neg_edge_enable	= MCI_ST_UX500_NEG_EDGE,
 	.datactrl_mask_ddrmode	= MCI_ST_DPSM_DDRMODE,
 	.datalength_bits	= 24,
-	.sdio			= true,
+	.datactrl_mask_sdio	= MCI_ST_DPSM_SDIOEN,
+	.st_sdio		= true,
 	.st_clkdiv		= true,
 	.blksz_datactrl16	= true,
 	.pwrreg_powerup		= MCI_PWR_ON,
@@ -191,6 +202,7 @@ static struct variant_data variant_ux500v2 = {
 	.pwrreg_clkgate		= true,
 	.busy_detect		= true,
 	.pwrreg_nopower		= true,
+	.any_blksize		= true,
 };
 
 static struct variant_data variant_qcom = {
@@ -208,6 +220,8 @@ static struct variant_data variant_qcom = {
 	.f_max			= 208000000,
 	.explicit_mclk_control	= true,
 	.qcom_fifo		= true,
+	.qcom_dml		= true,
+	.any_blksize		= true,
 };
 
 static int mmci_card_busy(struct mmc_host *mmc)
@@ -235,10 +249,11 @@ static int mmci_card_busy(struct mmc_host *mmc)
 static int mmci_validate_data(struct mmci_host *host,
 			      struct mmc_data *data)
 {
+	struct variant_data *variant = host->variant;
+
 	if (!data)
 		return 0;
-
-	if (!is_power_of_2(data->blksz)) {
+	if (!is_power_of_2(data->blksz) && !variant->any_blksize) {
 		dev_err(mmc_dev(host->mmc),
 			"unsupported block size (%d bytes)\n", data->blksz);
 		return -EINVAL;
@@ -421,6 +436,7 @@ static void mmci_dma_setup(struct mmci_host *host)
 {
 	const char *rxname, *txname;
 	dma_cap_mask_t mask;
+	struct variant_data *variant = host->variant;
 
 	host->dma_rx_channel = dma_request_slave_channel(mmc_dev(host->mmc), "rx");
 	host->dma_tx_channel = dma_request_slave_channel(mmc_dev(host->mmc), "tx");
@@ -471,6 +487,10 @@ static void mmci_dma_setup(struct mmci_host *host)
 		if (max_seg_size < host->mmc->max_seg_size)
 			host->mmc->max_seg_size = max_seg_size;
 	}
+
+	if (variant->qcom_dml && host->dma_rx_channel && host->dma_tx_channel)
+		if (dml_hw_init(host, host->mmc->parent->of_node))
+			variant->qcom_dml = false;
 }
 
 /*
@@ -572,6 +592,7 @@ static int __mmci_dma_prep_data(struct mmci_host *host, struct mmc_data *data,
 	struct dma_async_tx_descriptor *desc;
 	enum dma_data_direction buffer_dirn;
 	int nr_sg;
+	unsigned long flags = DMA_CTRL_ACK;
 
 	if (data->flags & MMC_DATA_READ) {
 		conf.direction = DMA_DEV_TO_MEM;
@@ -596,9 +617,12 @@ static int __mmci_dma_prep_data(struct mmci_host *host, struct mmc_data *data,
 	if (nr_sg == 0)
 		return -EINVAL;
 
+	if (host->variant->qcom_dml)
+		flags |= DMA_PREP_INTERRUPT;
+
 	dmaengine_slave_config(chan, &conf);
 	desc = dmaengine_prep_slave_sg(chan, data->sg, nr_sg,
-					    conf.direction, DMA_CTRL_ACK);
+					    conf.direction, flags);
 	if (!desc)
 		goto unmap_exit;
 
@@ -646,6 +670,9 @@ static int mmci_dma_start_data(struct mmci_host *host, unsigned int datactrl)
 		 data->sg_len, data->blksz, data->blocks, data->flags);
 	dmaengine_submit(host->dma_desc_current);
 	dma_async_issue_pending(host->dma_current);
+
+	if (host->variant->qcom_dml)
+		dml_start_xfer(host, data);
 
 	datactrl |= MCI_DPSM_DMAENABLE;
 
@@ -780,7 +807,6 @@ static void mmci_start_data(struct mmci_host *host, struct mmc_data *data)
 	writel(host->size, base + MMCIDATALENGTH);
 
 	blksz_bits = ffs(data->blksz) - 1;
-	BUG_ON(1 << blksz_bits != data->blksz);
 
 	if (variant->blksz_datactrl16)
 		datactrl = MCI_DPSM_ENABLE | (data->blksz << 16);
@@ -792,32 +818,26 @@ static void mmci_start_data(struct mmci_host *host, struct mmc_data *data)
 	if (data->flags & MMC_DATA_READ)
 		datactrl |= MCI_DPSM_DIRECTION;
 
-	/* The ST Micro variants has a special bit to enable SDIO */
-	if (variant->sdio && host->mmc->card)
-		if (mmc_card_sdio(host->mmc->card)) {
-			/*
-			 * The ST Micro variants has a special bit
-			 * to enable SDIO.
-			 */
-			u32 clk;
+	if (host->mmc->card && mmc_card_sdio(host->mmc->card)) {
+		u32 clk;
 
-			datactrl |= MCI_ST_DPSM_SDIOEN;
+		datactrl |= variant->datactrl_mask_sdio;
 
-			/*
-			 * The ST Micro variant for SDIO small write transfers
-			 * needs to have clock H/W flow control disabled,
-			 * otherwise the transfer will not start. The threshold
-			 * depends on the rate of MCLK.
-			 */
-			if (data->flags & MMC_DATA_WRITE &&
-			    (host->size < 8 ||
-			     (host->size <= 8 && host->mclk > 50000000)))
-				clk = host->clk_reg & ~variant->clkreg_enable;
-			else
-				clk = host->clk_reg | variant->clkreg_enable;
+		/*
+		 * The ST Micro variant for SDIO small write transfers
+		 * needs to have clock H/W flow control disabled,
+		 * otherwise the transfer will not start. The threshold
+		 * depends on the rate of MCLK.
+		 */
+		if (variant->st_sdio && data->flags & MMC_DATA_WRITE &&
+		    (host->size < 8 ||
+		     (host->size <= 8 && host->mclk > 50000000)))
+			clk = host->clk_reg & ~variant->clkreg_enable;
+		else
+			clk = host->clk_reg | variant->clkreg_enable;
 
-			mmci_write_clkreg(host, clk);
-		}
+		mmci_write_clkreg(host, clk);
+	}
 
 	if (host->mmc->ios.timing == MMC_TIMING_UHS_DDR50 ||
 	    host->mmc->ios.timing == MMC_TIMING_MMC_DDR52)
