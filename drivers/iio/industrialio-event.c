@@ -35,12 +35,12 @@
  */
 struct iio_event_interface {
 	wait_queue_head_t	wait;
+	struct mutex		read_lock;
 	DECLARE_KFIFO(det_events, struct iio_event_data, 16);
 
 	struct list_head	dev_attr_list;
 	unsigned long		flags;
 	struct attribute_group	group;
-	struct mutex		read_lock;
 };
 
 /**
@@ -492,6 +492,7 @@ int iio_device_register_eventset(struct iio_dev *indio_dev)
 
 error_free_setup_event_lines:
 	iio_free_chan_devattr_list(&indio_dev->event_interface->dev_attr_list);
+	mutex_destroy(&indio_dev->event_interface->read_lock);
 	kfree(indio_dev->event_interface);
 	return ret;
 }
@@ -516,5 +517,6 @@ void iio_device_unregister_eventset(struct iio_dev *indio_dev)
 		return;
 	iio_free_chan_devattr_list(&indio_dev->event_interface->dev_attr_list);
 	kfree(indio_dev->event_interface->group.attrs);
+	mutex_destroy(&indio_dev->event_interface->read_lock);
 	kfree(indio_dev->event_interface);
 }
