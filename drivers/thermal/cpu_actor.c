@@ -186,24 +186,10 @@ static u32 get_static_power(struct cpu_actor *cpu_actor,
  */
 static u32 get_dynamic_power(struct cpu_actor *cpu_actor, unsigned long freq)
 {
-	int cpu;
-	u32 power = 0, raw_cpu_power, total_load = 0;
+	u32 power, raw_cpu_power;
 
 	raw_cpu_power = cpu_freq_to_power(cpu_actor, freq);
-
-	for_each_cpu(cpu, &cpu_actor->cpumask) {
-		u32 load;
-
-		if (cpu_online(cpu))
-			load = get_load(cpu_actor, cpu);
-		else
-			load = 0;
-
-		power += (raw_cpu_power * load) / 100;
-		total_load += load;
-	}
-
-	cpu_actor->last_load = total_load;
+	power = (raw_cpu_power * cpu_actor->last_load) / 100;
 
 	return power;
 }
@@ -219,11 +205,25 @@ static u32 get_dynamic_power(struct cpu_actor *cpu_actor, unsigned long freq)
 static u32 cpu_get_req_power(struct power_actor *actor,
 			struct thermal_zone_device *tz)
 {
-	u32 static_power, dynamic_power;
+	int cpu;
+	u32 static_power, dynamic_power, total_load = 0;
 	unsigned long freq;
 	struct cpu_actor *cpu_actor = actor->data;
 
 	freq = cpufreq_quick_get(cpumask_any(&cpu_actor->cpumask));
+
+	for_each_cpu(cpu, &cpu_actor->cpumask) {
+		u32 load;
+
+		if (cpu_online(cpu))
+			load = get_load(cpu_actor, cpu);
+		else
+			load = 0;
+
+		total_load += load;
+	}
+
+	cpu_actor->last_load = total_load;
 
 	static_power = get_static_power(cpu_actor, tz, freq);
 	dynamic_power = get_dynamic_power(cpu_actor, freq);
