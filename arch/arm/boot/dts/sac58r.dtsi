@@ -165,14 +165,13 @@
 				status = "disabled";
 			};
 
-			/* Missing:
-				- GPIO
-			*/
-
 			gpio1: gpio@4002A000 {
 				compatible = "fsl,vf610-gpio";
-				reg = <0x4002A000 0x1000 0x400ff000 0x40>;
+				reg = <0x4002A000 0x1000 0x40029000 0x40>;
 				interrupts = <0 100 0x04>;
+				clocks = <&clks SAC58R_CLK_GPIO>,
+						<&clks SAC58R_CLK_PORTA>;
+				clock-names = "gpio", "port";
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
@@ -182,8 +181,11 @@
 
 			gpio2: gpio@4002B000 {
 				compatible = "fsl,vf610-gpio";
-				reg = <0x4002B000 0x1000 0x400ff040 0x40>;
+				reg = <0x4002B000 0x1000 0x40029040 0x40>;
 				interrupts = <0 101 0x04>;
+				clocks = <&clks SAC58R_CLK_GPIO>,
+						<&clks SAC58R_CLK_PORTB>;
+				clock-names = "gpio", "port";
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
@@ -193,8 +195,11 @@
 
 			gpio3: gpio@4002C000 {
 				compatible = "fsl,vf610-gpio";
-				reg = <0x4002C000 0x1000 0x400ff080 0x40>;
+				reg = <0x4002C000 0x1000 0x40029080 0x40>;
 				interrupts = <0 102 0x04>;
+				clocks = <&clks SAC58R_CLK_GPIO>,
+						<&clks SAC58R_CLK_PORTC>;
+				clock-names = "gpio", "port";
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
@@ -204,8 +209,11 @@
 
 			gpio4: gpio@4002D000 {
 				compatible = "fsl,vf610-gpio";
-				reg = <0x4002D000 0x1000 0x400ff0c0 0x40>;
+				reg = <0x4002D000 0x1000 0x400290C0 0x40>;
 				interrupts = <0 103 0x04>;
+				clocks = <&clks SAC58R_CLK_GPIO>,
+						<&clks SAC58R_CLK_PORTD>;
+				clock-names = "gpio", "port";
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
@@ -215,79 +223,100 @@
 
 			gpio5: gpio@4002E000 {
 				compatible = "fsl,vf610-gpio";
-				reg = <0x4002E000 0x1000 0x400ff100 0x40>;
+				reg = <0x4002E000 0x1000 0x40029100 0x40>;
 				interrupts = <0 104 0x04>;
+				clocks = <&clks SAC58R_CLK_GPIO>,
+						<&clks SAC58R_CLK_PORTE>;
+				clock-names = "gpio", "port";
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
 				#interrupt-cells = <2>;
-				gpio-ranges = <&iomuxc 128 7>;
+				gpio-ranges = <&iomuxc 128 30>;
 			};
 
 			gpio6: gpio@4002F000 {
 				compatible = "fsl,vf610-gpio";
-				reg = <0x4002F000 0x1000 0x400ff000 0x40>;
+				reg = <0x4002F000 0x1000 0x40029140 0x40>;
 				interrupts = <0 105 0x04>;
+				clocks = <&clks SAC58R_CLK_GPIO>,
+						<&clks SAC58R_CLK_PORTF>;
+				clock-names = "gpio", "port";
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
 				#interrupt-cells = <2>;
-				gpio-ranges = <&iomuxc 0 32>;
+				gpio-ranges = <&iomuxc 160 30>;
 			};
 
 			gpio7: gpio@40030000 {
 				compatible = "fsl,vf610-gpio";
-				reg = <0x40030000 0x1000 0x400ff040 0x40>;
+				reg = <0x40030000 0x1000 0x40029180 0x40>;
 				interrupts = <0 106 0x04>;
+				clocks = <&clks SAC58R_CLK_GPIO>,
+						<&clks SAC58R_CLK_PORTG>;
+				clock-names = "gpio", "port";
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
 				#interrupt-cells = <2>;
-				gpio-ranges = <&iomuxc 32 32>;
+				gpio-ranges = <&iomuxc 192 8>;
 			};
 
 			gpio8: gpio@40031000 {
 				compatible = "fsl,vf610-gpio";
-				reg = <0x40031000 0x1000 0x400ff080 0x40>;
+				reg = <0x40031000 0x1000 0x400291C0 0x40>;
 				interrupts = <0 107 0x04>;
+				clocks = <&clks SAC58R_CLK_GPIO>,
+						<&clks SAC58R_CLK_PORTH>;
+				clock-names = "gpio", "port";
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
 				#interrupt-cells = <2>;
-				gpio-ranges = <&iomuxc 64 32>;
+				gpio-ranges = <&iomuxc 224 25>;
 			};
 
-			gpio9: gpio@40032000 {
+			gpio9: gpio@40033000 {
 				compatible = "fsl,vf610-gpio";
-				reg = <0x40032000 0x1000 0x400ff0c0 0x40>;
+				reg = <0x40033000 0x1000 0x40029240 0x40>;
 				interrupts = <0 108 0x04>;
+				clocks = <&clks SAC58R_CLK_GPIO>,
+						<&clks SAC58R_CLK_PORTJ>;
+				clock-names = "gpio", "port";
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
 				#interrupt-cells = <2>;
-				gpio-ranges = <&iomuxc 96 32>;
+				gpio-ranges = <&iomuxc 288 19>;
 			};
 
-			gpio10: gpio@40033000 {
+			gpio10: gpio@40034000 {
 				compatible = "fsl,vf610-gpio";
-				reg = <0x40033000 0x1000 0x400ff100 0x40>;
+				reg = <0x40034000 0x1000 0x40029280 0x40>;
 				interrupts = <0 109 0x04>;
+				clocks = <&clks SAC58R_CLK_GPIO>,
+						<&clks SAC58R_CLK_PORTK>;
+				clock-names = "gpio", "port";
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
 				#interrupt-cells = <2>;
-				gpio-ranges = <&iomuxc 128 7>;
+				gpio-ranges = <&iomuxc 320 22>;
 			};
 
-			gpio11: gpio@40034000 {
+			gpio11: gpio@40035000 {
 				compatible = "fsl,vf610-gpio";
-				reg = <0x40034000 0x1000 0x400ff100 0x40>;
+				reg = <0x40035000 0x1000 0x400292C0 0x40>;
 				interrupts = <0 110 0x04>;
+				clocks = <&clks SAC58R_CLK_GPIO>,
+						<&clks SAC58R_CLK_PORTL>;
+				clock-names = "gpio", "port";
 				gpio-controller;
 				#gpio-cells = <2>;
 				interrupt-controller;
 				#interrupt-cells = <2>;
-				gpio-ranges = <&iomuxc 128 7>;
+				gpio-ranges = <&iomuxc 352 14>;
 			};
 
 			/* Missing:
