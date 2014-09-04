@@ -1,0 +1,47 @@
+* Subsystem Power Manager (SAW2)
+
+S4 generation of MSMs have SPM hardware blocks to control the Application
+Processor Sub-System power. These SPM blocks run individual state machine
+to determine what the core (L2 or Krait/Scorpion) would do when the WFI
+instruction is executed by the core.
+
+The devicetree representation of the SPM block should be:
+
+Required properties
+
+- compatible: Could be one of -
+		"qcom,spm-v2.1"
+- reg: The physical address and the size of the SPM's memory mapped registers
+- qcom,cpu: phandle for the CPU that the SPM block is attached to.
+	This field is required on only for SPMs that control the CPU.
+- qcom,saw2-clk-div: SAW2 configuration register to program the SPM runtime
+	clocks.
+- qcom,saw2-delays: The SPM delay values that SPM sequences would refer to.
+- qcom,saw2-enable: The SPM control register to enable/disable the sleep state
+	machine.
+
+Optional properties
+
+- qcom,saw2-spm-cmd-wfi: The WFI command sequence
+- qcom,saw2-spm-cmd-ret: The Retention command sequence
+- qcom,saw2-spm-cmd-spc: The Standalone PC command sequence
+- qcom,saw2-spm-cmd-pc: The Power Collapse command sequence. This sequence may
+	turn off other SoC components.
+- qcom,saw2-spm-cmd-gdhs: GDHS (Globally Distributed Head Switch) command
+	sequence. This sequence will retain the memory but turn off the logic.
+-
+Example:
+	spm@f9089000 {
+		compatible = "qcom,spm-v2.1";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0xf9089000 0x1000>;
+		qcom,cpu = <&CPU0>;
+		qcom,saw2-clk-div = <0x1>;
+		qcom,saw2-delays = <0x20000400>;
+		qcom,saw2-enable = <0x1>;
+		qcom,saw2-spm-cmd-wfi = [03 0b 0f];
+		qcom,saw2-spm-cmd-spc = [00 20 50 80 60 70 10 92
+				a0 b0 03 68 70 3b 92 a0 b0
+				82 2b 50 10 30 02 22 30 0f];
+	};
