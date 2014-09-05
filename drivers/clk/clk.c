@@ -1533,20 +1533,22 @@ static struct clk *clk_propagate_rate_change(struct clk *clk, unsigned long even
  * walk down a subtree and set the new rates notifying the rate
  * change on the way
  */
-static void clk_change_rate(struct clk *clk)
+static void clk_change_rate(struct clk *clk, unsigned long best_parent_rate)
 {
 	struct clk *child;
 	unsigned long old_rate;
-	unsigned long best_parent_rate = 0;
 	bool skip_set_rate = false;
 	struct clk *old_parent;
 
-	old_rate = clk->rate;
+	hlist_for_each_entry(child, &clk->children, child_node) {
+		/* Skip children who will be reparented to another clock */
+		if (child->new_parent && child->new_parent != clk)
+			continue;
+		if (child->new_rate > child->rate)
+			clk_change_rate(child, clk->new_rate);
+	}
 
-	if (clk->new_parent)
-		best_parent_rate = clk->new_parent->rate;
-	else if (clk->parent)
-		best_parent_rate = clk->parent->rate;
+	old_rate = clk->rate;
 
 	if (clk->new_parent && clk->new_parent != clk->parent &&
 			!clk->safe_parent) {
@@ -1567,18 +1569,19 @@ static void clk_change_rate(struct clk *clk)
 	if (!skip_set_rate && clk->ops->set_rate)
 		clk->ops->set_rate(clk->hw, clk->new_rate, best_parent_rate);
 
-	clk->rate = clk_recalc(clk, best_parent_rate);
+	clk->rate = clk->new_rate;
 
 	hlist_for_each_entry(child, &clk->children, child_node) {
 		/* Skip children who will be reparented to another clock */
 		if (child->new_parent && child->new_parent != clk)
 			continue;
-		clk_change_rate(child);
+		if (child->new_rate != child->rate)
+			clk_change_rate(child, clk->new_rate);
 	}
 
 	/* handle the new child who might not be in clk->children yet */
-	if (clk->new_child)
-		clk_change_rate(clk->new_child);
+	if (clk->new_child && clk->new_child->new_rate != clk->new_child->rate)
+		clk_change_rate(clk->new_child, clk->new_rate);
 }
 
 /**
@@ -1606,6 +1609,7 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 {
 	struct clk *top, *fail_clk;
 	int ret = 0;
+	unsigned long parent_rate;
 
 	if (!clk)
 		return 0;
@@ -1639,8 +1643,13 @@ int clk_set_rate(struct clk *clk, unsigned long rate)
 		goto out;
 	}
 
+	if (top->parent)
+		parent_rate = top->parent->rate;
+	else
+		parent_rate = 0;
+
 	/* change the rates */
-	clk_change_rate(top);
+	clk_change_rate(top, parent_rate);
 
 	clk_propagate_rate_change(top, POST_RATE_CHANGE);
 out:
