@@ -347,6 +347,17 @@
 				regulator-always-on;
 			};
 
+			pm8921_l2: pm8921-l2 {
+				compatible	= "qcom,rpm-pm8921-pldo";
+				reg		= <QCOM_RPM_PM8921_LDO2>;
+
+// ???
+				regulator-min-microvolt = <1200000>;
+				regulator-max-microvolt = <1200000>;
+				regulator-always-on;
+//				qcom,boot-load = <50000>;
+			};
+
 			pm8921_l3: pm8921-l3 {
 				compatible	= "qcom,rpm-pm8921-pldo";
 				reg		= <QCOM_RPM_PM8921_LDO3>;
@@ -381,6 +392,12 @@
 			pm8921_lvs6: pm8921-lvs6 {
 				compatible	= "qcom,rpm-pm8921-switch";
 				reg		= <QCOM_RPM_PM8921_LVS6>;
+				regulator-always-on;
+			};
+
+			pm8921_lvs7: pm8921-lvs7 {
+				compatible	= "qcom,rpm-pm8921-switch";
+				reg		= <QCOM_RPM_PM8921_LVS7>;
 				regulator-always-on;
 			};
 
@@ -705,6 +722,12 @@
 			};
 		};
 
+		panel: auo,b101xtn01 {
+			compatible = "auo,b101xtn01";
+			// lcd1_pwr_en_n:
+			enable-gpio = <&tlmm_pinmux 36 GPIO_ACTIVE_HIGH>;
+		};
+
 		mdp: qcom,mdp@5100000 {
 			compatible = "qcom,mdp";
 			#stream-id-cells = <2>;
@@ -712,6 +735,7 @@
 			interrupts = <GIC_SPI 75 0>;
 			connectors = <&hdmi>;
 			gpus = <&gpu>;
+			qcom,lvds-panel = <&panel>;
 			clock-names =
 			    "core_clk",
 			    "iface_clk",
@@ -729,6 +753,9 @@
 			    <&mmcc MDP_TV_CLK>,
 			    <&mmcc MDP_AXI_CLK>;
 //			vdd-supply = <&footswitch_mdp>;
+			lvds-vccs-3p3v-supply = <&ext_3p3v>;
+			lvds-pll-vdda-supply = <&pm8921_l2>;
+			lvds-vdda-supply = <&pm8921_lvs7>;
 		};
 
 		mdp_port0: qcom,iommu@7500000 {
