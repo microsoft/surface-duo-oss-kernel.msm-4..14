@@ -61,6 +61,12 @@
 					qcom,switch-mode-frequency = <3200000>;
 				};
 
+				pm8921_l2: l2 {
+					regulator-min-microvolt = <1200000>;
+					regulator-max-microvolt = <1200000>;
+					bias-pull-down;
+				};
+
 				pm8921_l3: l3 {
 					regulator-min-microvolt = <3050000>;
 					regulator-max-microvolt = <3300000>;
@@ -98,6 +104,10 @@
 				pm8921_lvs6: lvs6 {
 					bias-pull-down;
 				};
+
+				pm8921_lvs7: lvs7 {
+					bias-pull-down;
+				};
 			};
 		};
 
@@ -121,6 +131,16 @@
 
 		mdp: qcom,mdp@5100000 {
 			status = "okay";
+			qcom,lvds-panel = <&panel>;
+			lvds-vccs-3p3v-supply = <&ext_3p3v>;
+			lvds-pll-vdda-supply = <&pm8921_l2>;
+			lvds-vdda-supply = <&pm8921_lvs7>;
+		};
+
+		panel: auo,b101xtn01 {
+			status = "okay";
+			compatible = "auo,b101xtn01";
+			enable-gpio = <&tlmm_pinmux 36 GPIO_ACTIVE_HIGH>;
 		};
 
 		gsbi3: gsbi@16200000 {
