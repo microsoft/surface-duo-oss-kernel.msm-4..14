@@ -272,8 +272,8 @@ static void __init sac58r_clocks_init(struct device_node *ccm_node)
 
 	clk[SAC58R_CLK_I2C0] = imx_clk_gate2("i2c0", "per", GPC_AIPS1_OFFPF_PCTL1, 30);
 	clk[SAC58R_CLK_I2C1] = imx_clk_gate2("i2c1", "per", GPC_AIPS1_OFFPF_PCTL2, 0);
-	clk[SAC58R_CLK_I2C2] = imx_clk_gate2("i2c0", "per", GPC_AIPS2_OFFPF_PCTL0, 8);
-	clk[SAC58R_CLK_I2C3] = imx_clk_gate2("i2c1", "per", GPC_AIPS2_OFFPF_PCTL0, 10);
+	clk[SAC58R_CLK_I2C2] = imx_clk_gate2("i2c2", "per", GPC_AIPS2_OFFPF_PCTL0, 8);
+	clk[SAC58R_CLK_I2C3] = imx_clk_gate2("i2c3", "per", GPC_AIPS2_OFFPF_PCTL0, 10);
 
 	clk[SAC58R_CLK_AUDIO0_PLL_SEL] = imx_clk_mux("audio0_pll_sel", CCM_AUDIO0_PLL_DIV_CLK_REG, 0, 1, audio0_pll_sels, 2);
 	clk[SAC58R_CLK_AUDIO0_PLL_EN] = imx_clk_gate("audio0_pll_en", "audio0_pll_sel", CCM_AUDIO0_PLL_DIV_CLK_REG, 31);
