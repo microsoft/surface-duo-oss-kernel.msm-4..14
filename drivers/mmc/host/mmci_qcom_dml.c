@@ -123,7 +123,7 @@ int dml_hw_init(struct mmci_host *host, struct device_node *np)
 {
 	u32 config;
 	void __iomem *base;
-	u32 consumer_id, producer_id;
+	int consumer_id, producer_id;
 
 	consumer_id = of_get_dml_pipe_index(np, "tx");
 	producer_id = of_get_dml_pipe_index(np, "rx");
