@@ -3,6 +3,7 @@
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/clock/qcom,gcc-msm8960.h>
+#include <dt-bindings/clock/qcom,mmcc-msm8960.h>
 #include <dt-bindings/soc/qcom,gsbi.h>
 #include <dt-bindings/mfd/qcom,rpm.h>
 #include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
@@ -245,6 +246,13 @@
 		apcs: syscon@2011000 {
 			compatible = "syscon";
 			reg = <0x2011000 0x1000>;
+		};
+
+		mmcc: clock-controller@4000000 {
+			compatible = "qcom,mmcc-msm8960";
+			reg = <0x04000000 0x1000>;
+			#clock-cells = <1>;
+			#reset-cells = <1>;
 		};
 
 		rpm@108000 {
