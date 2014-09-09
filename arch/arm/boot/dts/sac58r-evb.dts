@@ -23,6 +23,10 @@
 	};
 };
 
+&uart0 {
+	status = "okay";
+};
+
 &uart4 {
 	status = "okay";
 };
