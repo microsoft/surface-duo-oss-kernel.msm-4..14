@@ -30,3 +30,8 @@
 &usdhc1 {
 	status = "okay";
 };
+
+&usdhc2 {
+	status = "okay";
+	bus-width = <8>;
+};
