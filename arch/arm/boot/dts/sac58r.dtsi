@@ -305,9 +305,8 @@
 				compatible = "fsl,vf610-dspi";
 				reg = <0x40045000 0x1000>;
 				interrupts = <0 67 0x04>;
-				clocks = <&clks SAC58R_CLK_DSPI0>,
-					<&clks SAC58R_CLK_DSPI0>;
-				clock-names = "spi_en", "spi";
+				clocks = <&clks SAC58R_CLK_DSPI0>;
+				clock-names = "dspi";
 				status = "disabled";
 			};
 
