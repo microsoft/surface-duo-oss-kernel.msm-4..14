@@ -38,6 +38,12 @@
 	status = "okay";
 };
 
+&spi0 {
+	spi-num-chipselects = <3>;
+	bus-num = <0>;
+	status = "okay";
+};
+
 &uart0 {
 	status = "okay";
 };
