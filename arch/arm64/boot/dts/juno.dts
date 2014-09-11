@@ -290,7 +290,7 @@
 					type = "passive";
 				};
 				target: trip-point@1 {
-				        temperature = <65000>;
+				        temperature = <80000>;
 					hysteresis = <1000>;
 					type = "passive";
 				};
