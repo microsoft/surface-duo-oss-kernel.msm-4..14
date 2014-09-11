@@ -2766,6 +2766,7 @@ fec_enet_open(struct net_device *ndev)
 	int ret;
 
 	pinctrl_pm_select_default_state(&fep->pdev->dev);
+
 	ret = fec_enet_clk_enable(ndev, true);
 	if (ret)
 		return ret;
@@ -2818,7 +2819,9 @@ fec_enet_close(struct net_device *ndev)
 	fep->phy_dev = NULL;
 
 	fec_enet_clk_enable(ndev, false);
+
 	pinctrl_pm_select_sleep_state(&fep->pdev->dev);
+
 	fec_enet_free_buffers(ndev);
 
 	return 0;
@@ -3349,6 +3352,8 @@ fec_probe(struct platform_device *pdev)
 	/* Carrier starts down, phylib will bring it up */
 	netif_carrier_off(ndev);
 	fec_enet_clk_enable(ndev, false);
+
+	/* Select sleep pin state */
 	pinctrl_pm_select_sleep_state(&pdev->dev);
 
 	ret = register_netdev(ndev);
@@ -3489,6 +3494,7 @@ static SIMPLE_DEV_PM_OPS(fec_pm_ops, fec_suspend, fec_resume);
 static struct platform_driver fec_driver = {
 	.driver	= {
 		.name	= DRIVER_NAME,
+		.owner	= THIS_MODULE,
 		.pm	= &fec_pm_ops,
 		.of_match_table = fec_dt_ids,
 	},
