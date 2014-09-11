@@ -23,6 +23,16 @@
 	};
 };
 
+&fec0 {
+	phy-mode = "rmii";
+	phy-reset-gpios = <&gpio11 13 1>; /* GPIO 365 */
+	clocks = <&clks SAC58R_CLK_ENET>,
+		<&clks SAC58R_CLK_ENET>,
+		<&clks SAC58R_CLK_ENET_50M>;
+	clock-names = "ipg", "ahb", "ptp";
+	status = "okay";
+};
+
 &i2c0 {
 	clock-frequency = <100000>;
 	status = "okay";
