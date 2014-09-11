@@ -78,6 +78,7 @@
 #define PLL1_CTRL_REG				(anatop_base + 0x270)
 #define PLL2_CTRL_REG				(anatop_base + 0x30)
 #define PLL3_CTRL_REG				(anatop_base + 0x10)
+#define PLL5_CTRL_REG				(anatop_base + 0xE0)
 #define PLL7_CTRL_REG				(anatop_base + 0x20)
 #define PFD_PLL2_REG				(anatop_base + 0x100)
 #define PFD_PLL3_REG				(anatop_base + 0x0F0)
@@ -210,8 +211,8 @@ static void __init sac58r_clocks_init(struct device_node *ccm_node)
 	clk[SAC58R_CLK_PLL4_MAIN_DIV2] = imx_clk_fixed_factor("pll4_div2", "pll4_main", 1, 2);
 	
 	/* PLL5 (ENET_PLL)  fixed 500 Mhz */
-	clk[SAC58R_CLK_PLL5_MAIN] = imx_clk_fixed_factor("pll5_main", "fast_clk_sel", 125, 6);
-	clk[SAC58R_CLK_ENET_EXT] = imx_clk_fixed("enet_ext", 50000000);
+	clk[SAC58R_CLK_PLL5_MAIN] = imx_clk_pllv3(IMX_PLLV3_ENET, "pll5_main", "fast_clk_sel", PLL5_CTRL_REG, 0x1);
+	clk[SAC58R_CLK_ENET_50M] = imx_clk_fixed_factor("enet_50M", "pll5_main", 1, 10);
 	
 	/* PLL6 (VIDEO PLL): default 960Mhz */
 	clk[SAC58R_CLK_PLL6_MAIN] = imx_clk_fixed_factor("pll6_main", "fast_clk_sel", 40, 1);
@@ -387,8 +388,11 @@ static void __init sac58r_clocks_init(struct device_node *ccm_node)
 	clk[SAC58R_CLK_VIU_INTF_EN] = imx_clk_gate("viu_intf_en", "viu_div", CCM_VIU_INTF_CLK_REG, 31);
 	clk[SAC58R_CLK_VIU_INTF_DIV] = imx_clk_divider("viu_intf_div", "viu_intf_en", CCM_VIU_INTF_CLK_REG, 16, 3);
 
-	clk[SAC58R_CLK_USBC0] = imx_clk_gate2("usbc0", "sys_bus", GPC_AIPS2_OFFPF_PCTL4, 6);
-	clk[SAC58R_CLK_USBC1] = imx_clk_gate2("usbc1", "sys_bus", GPC_AIPS2_OFFPF_PCTL4, 8);
+	clk[SAC58R_CLK_ENET] = imx_clk_gate2("enet", "sys_bus", GPC_AIPS2_OFFPF_PCTL4, 0);
+
+	clk[SAC58R_CLK_USBC0] = imx_clk_gate2("usbc0", "pll3_main", GPC_AIPS2_OFFPF_PCTL4, 6);
+	clk[SAC58R_CLK_USBC1] = imx_clk_gate2("usbc1", "pll7_main", GPC_AIPS2_OFFPF_PCTL4, 8);
+
 	clk[SAC58R_CLK_USBC2] = imx_clk_gate2("usbc2", "sys_bus", GPC_AIPS2_OFFPF_PCTL4, 10);
 
 	clk[SAC58R_CLK_USBPHY0] = imx_clk_gate("usbphy1", "pll3_main",	PLL3_CTRL_REG, 6);
