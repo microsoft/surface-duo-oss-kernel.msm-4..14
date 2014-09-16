@@ -3167,8 +3167,8 @@ static void __init register_i2c_devices(void)
 	/* Build the matching 'supported_machs' bitmask */
 	if (machine_is_apq8064_cdp())
 		mach_mask = I2C_SURF;
-    else if (machine_is_apq8064_ifc6410())
-        mach_mask = I2C_SURF;
+	else if (machine_is_apq8064_ifc6410())
+		mach_mask = I2C_SURF;
 	else if (machine_is_apq8064_mtp())
 		mach_mask = I2C_FFA;
 	else if (machine_is_apq8064_liquid())
@@ -3447,7 +3447,8 @@ static void __init apq8064_cdp_init(void)
 		apq8064_bt_power_init();
 #endif
 
-	if (machine_is_apq8064_cdp() || machine_is_apq8064_liquid() || machine_is_apq8064_ifc6410())
+	if (machine_is_apq8064_cdp() || machine_is_apq8064_liquid() ||
+		machine_is_apq8064_ifc6410())
 	        platform_device_register(&cdp_kp_pdev);
 
 	if (machine_is_apq8064_mtp())

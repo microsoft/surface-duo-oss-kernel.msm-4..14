@@ -1575,18 +1575,18 @@ void __init apq8064_init_gpiomux(void)
 	msm_gpiomux_install(apq8064_hdmi_configs,
 			ARRAY_SIZE(apq8064_hdmi_configs));
 
-	 if (machine_is_mpq8064_cdp())
+	if (machine_is_mpq8064_cdp())
 		msm_gpiomux_install(mpq8064_ir_configs,
 				ARRAY_SIZE(mpq8064_ir_configs));
 
 #ifdef CONFIG_MMC_MSM_SDC2_SUPPORT
-	 msm_gpiomux_install(apq8064_sdc2_configs,
-			     ARRAY_SIZE(apq8064_sdc2_configs));
+	msm_gpiomux_install(apq8064_sdc2_configs,
+			ARRAY_SIZE(apq8064_sdc2_configs));
 #endif
 
 #ifdef CONFIG_MMC_MSM_SDC4_SUPPORT
-	 msm_gpiomux_install(apq8064_sdc4_configs,
-			     ARRAY_SIZE(apq8064_sdc4_configs));
+	msm_gpiomux_install(apq8064_sdc4_configs,
+			ARRAY_SIZE(apq8064_sdc4_configs));
 #endif
 
 	msm_gpiomux_install(apq8064_sdc3_configs,
