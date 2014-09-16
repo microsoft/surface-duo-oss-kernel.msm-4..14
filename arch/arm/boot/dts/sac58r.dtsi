@@ -86,6 +86,21 @@
 			reg = <0x40000000 0x70000>;
 			ranges;
 
+			edma0: dma-controller@4004000 {
+				#dma-cells = <2>;
+				compatible = "fsl,vf610-edma";
+				reg = <0x40004000 0x2000>,
+					<0x4004C000 0x1000>,
+					<0x4004D000 0x1000>;
+				interrupts = <0 8 0x04>,
+						<0 9 0x04>;
+				interrupt-names = "edma-tx", "edma-err";
+				dma-channels = <32>;
+				clock-names = "dmach_mux0", "dmach_mux1";
+				clocks = <&clks SAC58R_CLK_DMACH_MUX0>,
+					<&clks SAC58R_CLK_DMACH_MUX1>;
+			};
+
 			gpc: gpc@40020000 {
 				compatible = "fsl,sac58r-gpc";
 				reg = <0x40020000 0x1000>;
