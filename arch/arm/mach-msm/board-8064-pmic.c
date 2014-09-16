@@ -220,10 +220,20 @@ static void __init apq8064_configure_gpios(struct pm8xxx_gpio_init *data,
 	}
 }
 
-void __init apq8064_pm8xxx_gpio_mpp_init(void)
+static void __init apq8064_configure_mpps(struct pm8xxx_mpp_init *data, int len)
 {
 	int i, rc;
 
+	for (i = 0; i < len; i++) {
+		rc = pm8xxx_mpp_config(data[i].mpp, &data[i].config);
+		if (rc)
+			pr_err("%s: pm8xxx_mpp_config(%u) failed: rc=%d\n",
+				__func__, data[i].mpp, rc);
+	}
+}
+
+void __init apq8064_pm8xxx_gpio_mpp_init(void)
+{
 	if (socinfo_get_pmic_model() != PMIC_MODEL_PM8917)
 		apq8064_configure_gpios(pm8921_gpios, ARRAY_SIZE(pm8921_gpios));
 	else
@@ -260,14 +270,7 @@ void __init apq8064_pm8xxx_gpio_mpp_init(void)
 		apq8064_configure_gpios(pm8921_mpq8064_hrd_gpios,
 					ARRAY_SIZE(pm8921_mpq8064_hrd_gpios));
 
-	for (i = 0; i < ARRAY_SIZE(pm8xxx_mpps); i++) {
-		rc = pm8xxx_mpp_config(pm8xxx_mpps[i].mpp,
-					&pm8xxx_mpps[i].config);
-		if (rc) {
-			pr_err("%s: pm8xxx_mpp_config: rc=%d\n", __func__, rc);
-			break;
-		}
-	}
+	apq8064_configure_mpps(pm8xxx_mpps, ARRAY_SIZE(pm8xxx_mpps));
 }
 
 static struct pm8xxx_pwrkey_platform_data apq8064_pm8921_pwrkey_pdata = {
