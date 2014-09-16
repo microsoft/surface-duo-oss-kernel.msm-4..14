@@ -207,7 +207,8 @@ static struct pm8xxx_gpio_init pm8921_sglte2_gpios[] __initdata = {
 	PM8921_GPIO_OUTPUT(21, 1, HIGH),		/* PM2QSC_KEYPADPWR */
 };
 
-void __init apq8064_configure_gpios(struct pm8xxx_gpio_init *data, int len)
+static void __init apq8064_configure_gpios(struct pm8xxx_gpio_init *data,
+					   int len)
 {
 	int i, rc;
 
