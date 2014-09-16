@@ -226,6 +226,10 @@ static int __init msm_pcie_gpio_init(void)
 	for (i = 0; i < MSM_PCIE_MAX_GPIO; i++) {
 		info = &msm_pcie_dev.gpio[i];
 
+		/* for always powered on PCIe cards */
+		if (i == MSM_PCIE_GPIO_PWR_EN && !gpio_is_valid(info->num))
+			continue;
+
 		rc = gpio_request(info->num, info->name);
 		if (rc) {
 			pr_err("can't get gpio %s; %d\n", info->name, rc);
@@ -513,8 +517,9 @@ static int __init msm_pcie_setup(int nr, struct pci_sys_data *sys)
 		goto clk_fail;
 
 	/* enable pcie power; wait 3ms for clock to stabilize */
-	gpio_set_value_cansleep(dev->gpio[MSM_PCIE_GPIO_PWR_EN].num,
-				dev->gpio[MSM_PCIE_GPIO_PWR_EN].on);
+	if (gpio_is_valid(dev->gpio[MSM_PCIE_GPIO_PWR_EN].num))
+		gpio_set_value_cansleep(dev->gpio[MSM_PCIE_GPIO_PWR_EN].num,
+					dev->gpio[MSM_PCIE_GPIO_PWR_EN].on);
 	usleep(3000);
 
 	/*
