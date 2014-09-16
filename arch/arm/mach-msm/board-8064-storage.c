@@ -12,6 +12,7 @@
  */
 
 #include <linux/init.h>
+#include <linux/err.h>
 #include <linux/ioport.h>
 #include <linux/platform_device.h>
 #include <linux/gpio.h>
@@ -375,14 +376,9 @@ void __init apq8064_init_mmc(void)
 		apq8064_add_sdcc(2, apq8064_sdc2_pdata);
 
 	if (apq8064_sdc3_pdata) {
-		if (!machine_is_apq8064_cdp()) {
-			apq8064_sdc3_pdata->wpswitch_gpio = 0;
-			apq8064_sdc3_pdata->is_wpswitch_active_low = false;
-		}
-        if (!machine_is_apq8064_ifc6410()) {
-            apq8064_sdc3_pdata->wpswitch_gpio = 0;
-            apq8064_sdc3_pdata->is_wpswitch_active_low = false;
-        }
+		if (!machine_is_apq8064_cdp())
+			apq8064_sdc3_pdata->wpswitch_gpio = -EINVAL;
+
 		if (machine_is_mpq8064_cdp() || machine_is_mpq8064_hrd() ||
 			machine_is_mpq8064_dtv()) {
 			int rc;
