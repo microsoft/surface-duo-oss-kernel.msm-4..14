@@ -861,6 +861,15 @@ config MACH_APQ8064_CDP
 	help
 	  Support for the Qualcomm APQ8064 CDP device.
 
+config MACH_CM_QS600
+	depends on ARCH_APQ8064
+	default y
+	bool "APQ8064 CM-QS600 Computer on Module"
+	help
+	  Support for the CompuLab CM-QS600 module.
+	  CM-QS600 is a Qualcomm APQ8064 based
+	  Computer on Module (CoM).
+
 config MACH_APQ8064_IFC6410
         depends on ARCH_APQ8064
         default y

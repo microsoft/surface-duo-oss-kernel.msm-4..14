@@ -1568,9 +1568,10 @@ void __init apq8064_init_gpiomux(void)
 				ARRAY_SIZE(apq8064_hsic_configs));
 #endif
 
-    if (machine_is_apq8064_cdp() || machine_is_apq8064_liquid() || machine_is_apq8064_ifc6410())
-        msm_gpiomux_install(apq8064_mxt_configs,
-			ARRAY_SIZE(apq8064_mxt_configs));
+	if (machine_is_apq8064_cdp() || machine_is_apq8064_liquid() ||
+		machine_is_apq8064_ifc6410() || machine_is_cm_qs600())
+		msm_gpiomux_install(apq8064_mxt_configs,
+				ARRAY_SIZE(apq8064_mxt_configs));
 
 	msm_gpiomux_install(apq8064_hdmi_configs,
 			ARRAY_SIZE(apq8064_hdmi_configs));
@@ -1592,7 +1593,8 @@ void __init apq8064_init_gpiomux(void)
 	msm_gpiomux_install(apq8064_sdc3_configs,
 			ARRAY_SIZE(apq8064_sdc3_configs));
 	if (machine_is_mpq8064_hrd() || machine_is_mpq8064_dtv() ||
-		machine_is_apq8064_cdp() || machine_is_apq8064_ifc6410())
+		machine_is_apq8064_cdp() || machine_is_apq8064_ifc6410() ||
+		machine_is_cm_qs600())
 		msm_gpiomux_install(mpq8064_uartdm_configs,
 				ARRAY_SIZE(mpq8064_uartdm_configs));
 }

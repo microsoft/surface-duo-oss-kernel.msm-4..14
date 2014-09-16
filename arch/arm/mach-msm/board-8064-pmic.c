@@ -192,6 +192,16 @@ static struct pm8xxx_gpio_init pm8921_mpq_gpios[] __initdata = {
 			PM_GPIO_FUNC_NORMAL, 0, 0),
 };
 
+static struct pm8xxx_gpio_init pm8921_cm_qs600_gpios[] __initdata = {
+	PM8921_GPIO_INPUT(19, PM_GPIO_PULL_DN),	/* WoBT */
+	PM8921_GPIO_INPUT(42, PM_GPIO_PULL_DN),	/* WoWL */
+};
+
+/* CM-QS600 rev 1.1 PM8821_MPP 2 PCIE_RESET_N */
+static struct pm8xxx_mpp_init pm8xxx_cm_qs600_mpps[] __initdata = {
+	PM8821_MPP_INIT(2, D_OUTPUT, PM8821_MPP_DIG_LEVEL_VPH, DOUT_CTRL_HIGH),
+};
+
 /* Initial PM8XXX MPP configurations */
 static struct pm8xxx_mpp_init pm8xxx_mpps[] __initdata = {
 	PM8921_MPP_INIT(3, D_OUTPUT, PM8921_MPP_DIG_LEVEL_VPH, DOUT_CTRL_LOW),
@@ -261,6 +271,10 @@ void __init apq8064_pm8xxx_gpio_mpp_init(void)
 		}
 	}
 
+	if (machine_is_cm_qs600())
+		apq8064_configure_gpios(pm8921_cm_qs600_gpios,
+					ARRAY_SIZE(pm8921_cm_qs600_gpios));
+
 	if (machine_is_mpq8064_cdp() || machine_is_mpq8064_hrd()
 	    || machine_is_mpq8064_dtv())
 		apq8064_configure_gpios(pm8921_mpq_gpios,
@@ -271,6 +285,10 @@ void __init apq8064_pm8xxx_gpio_mpp_init(void)
 					ARRAY_SIZE(pm8921_mpq8064_hrd_gpios));
 
 	apq8064_configure_mpps(pm8xxx_mpps, ARRAY_SIZE(pm8xxx_mpps));
+
+	if (machine_is_cm_qs600())
+		apq8064_configure_mpps(pm8xxx_cm_qs600_mpps,
+					ARRAY_SIZE(pm8xxx_cm_qs600_mpps));
 }
 
 static struct pm8xxx_pwrkey_platform_data apq8064_pm8921_pwrkey_pdata = {
@@ -546,6 +564,9 @@ void __init apq8064_init_pmic(void)
 		apq8064_pm8921_chg_pdata.has_dc_supply = true;
 	} else if (machine_is_apq8064_ifc6410()) {
         	apq8064_pm8921_chg_pdata.has_dc_supply = true;
+	} else if (machine_is_cm_qs600()) {
+		apq8064_pm8921_chg_pdata.has_dc_supply = true;
+		apq8064_pm8921_rtc_pdata.rtc_write_enable = true;
 	}
 
 	if (!machine_is_apq8064_mtp() && !machine_is_apq8064_liquid())

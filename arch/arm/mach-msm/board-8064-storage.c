@@ -405,7 +405,8 @@ void __init apq8064_init_mmc(void)
 				apq8064_sdc3_pdata->status_irq = 0;
 			}
 		}
-		if (machine_is_apq8064_cdp() || machine_is_apq8064_ifc6410()) {
+		if (machine_is_apq8064_cdp() || machine_is_apq8064_ifc6410() ||
+			machine_is_cm_qs600()) {
 			int i;
 
 			for (i = 0;

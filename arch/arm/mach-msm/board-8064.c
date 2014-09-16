@@ -13,12 +13,14 @@
 #include <linux/kernel.h>
 #include <linux/bitops.h>
 #include <linux/platform_device.h>
+#include <linux/err.h>
 #include <linux/gpio.h>
 #include <linux/io.h>
 #include <linux/irq.h>
 #include <linux/i2c.h>
 #include <linux/i2c/smb349.h>
 #include <linux/i2c/sx150x.h>
+#include <linux/i2c/at24.h>
 #include <linux/slimbus/slimbus.h>
 #include <linux/mfd/wcd9xxx/core.h>
 #include <linux/mfd/wcd9xxx/pdata.h>
@@ -921,7 +923,8 @@ static void __init apq8064_ehci_host_init(void)
 {
 	if (machine_is_apq8064_liquid() || machine_is_mpq8064_cdp() ||
 		machine_is_apq8064_cdp() || machine_is_apq8064_ifc6410() ||
-		machine_is_mpq8064_hrd() || machine_is_mpq8064_dtv()) {
+		machine_is_mpq8064_hrd() || machine_is_mpq8064_dtv() ||
+		machine_is_cm_qs600()) {
 		if (machine_is_apq8064_liquid())
 			msm_ehci_host_pdata3.dock_connect_irq =
 					PM8921_MPP_IRQ(PM8921_IRQ_BASE, 9);
@@ -2319,6 +2322,15 @@ static void __init mpq8064_pcie_init(void)
 			msm_pcie_gpio_info[1].num = PM8921_MPP_PM_TO_SYS(PCIE_PWR_EN_PMIC_MPP_DRAGON);
 			msm_pcie_platform_data.wake_n =	PM8921_GPIO_IRQ(PM8921_IRQ_BASE,PCIE_WAKE_N_PMIC_GPIO_DRAGON);
 		}
+
+		if (machine_is_cm_qs600()) {
+			msm_pcie_gpio_info[MSM_PCIE_GPIO_RST_N].num =
+				PM8821_MPP_PM_TO_SYS(2);
+			msm_pcie_gpio_info[MSM_PCIE_GPIO_PWR_EN].num = -EINVAL;
+			msm_pcie_platform_data.wake_n =
+				PM8921_GPIO_IRQ(PM8921_IRQ_BASE, 6);
+		}
+
 		msm_device_pcie.dev.platform_data = &msm_pcie_platform_data;
 		platform_device_register(&msm_device_pcie);
 	}
@@ -3028,6 +3040,18 @@ static void __init apq8064_init_dsps(void)
 	platform_device_register(&msm_dsps_device_8064);
 }
 
+static struct at24_platform_data cm_qs600_at24_pdata = {
+	.byte_len	= 256,
+	.page_size	= 16,
+};
+
+static struct i2c_board_info cm_qs600_i2c1_binfo[] __initdata = {
+	{	/* at24 eeprom chip */
+		I2C_BOARD_INFO("24c02", 0x50),
+		.platform_data = &cm_qs600_at24_pdata,
+	},
+};
+
 #define I2C_SURF 1
 #define I2C_FFA  (1 << 1)
 #define I2C_RUMI (1 << 2)
@@ -3036,6 +3060,7 @@ static void __init apq8064_init_dsps(void)
 #define I2C_MPQ_CDP	BIT(5)
 #define I2C_MPQ_HRD	BIT(6)
 #define I2C_MPQ_DTV	BIT(7)
+#define I2C_CM_QS600	BIT(8)
 
 struct i2c_registry {
 	u32			machs;
@@ -3074,6 +3099,12 @@ static struct i2c_registry apq8064_i2c_devices[] __initdata = {
 		APQ_8064_GSBI5_QUP_I2C_BUS_ID,
 		cs8427_device_info,
 		ARRAY_SIZE(cs8427_device_info),
+	},
+	{
+		I2C_CM_QS600,
+		APQ_8064_GSBI1_QUP_I2C_BUS_ID,
+		cm_qs600_i2c1_binfo,
+		ARRAY_SIZE(cm_qs600_i2c1_binfo),
 	},
 };
 
@@ -3167,6 +3198,8 @@ static void __init register_i2c_devices(void)
 	/* Build the matching 'supported_machs' bitmask */
 	if (machine_is_apq8064_cdp())
 		mach_mask = I2C_SURF;
+	else if (machine_is_cm_qs600())
+		mach_mask = I2C_CM_QS600;
 	else if (machine_is_apq8064_ifc6410())
 		mach_mask = I2C_SURF;
 	else if (machine_is_apq8064_mtp())
@@ -3433,7 +3466,8 @@ static void __init apq8064_cdp_init(void)
 #endif
 
 	if (machine_is_mpq8064_hrd() || machine_is_mpq8064_dtv() ||
-		machine_is_apq8064_cdp() || machine_is_apq8064_ifc6410()){
+		machine_is_apq8064_cdp() || machine_is_apq8064_ifc6410() ||
+		machine_is_cm_qs600()){
 #ifdef CONFIG_SERIAL_MSM_HS
 		/* GSBI6(2) - UARTDM_RX */
 		mpq8064_gsbi6_uartdm_pdata.wakeup_irq = gpio_to_irq(15);
@@ -3443,7 +3477,8 @@ static void __init apq8064_cdp_init(void)
 		platform_device_register(&mpq8064_device_uartdm_gsbi6);
 	}
 #if defined(CONFIG_BT) && defined(CONFIG_MARIMBA_CORE)
-	if (machine_is_mpq8064_hrd() || machine_is_apq8064_cdp() || machine_is_apq8064_ifc6410())
+	if (machine_is_mpq8064_hrd() || machine_is_apq8064_cdp() ||
+		machine_is_apq8064_ifc6410() || machine_is_cm_qs600())
 		apq8064_bt_power_init();
 #endif
 
@@ -3459,7 +3494,8 @@ static void __init apq8064_cdp_init(void)
 		platform_device_register(&mpq_keypad_device);
 	}
 
-	if (machine_is_apq8064_cdp() || machine_is_mpq8064_hrd() || machine_is_apq8064_ifc6410()) {
+	if (machine_is_apq8064_cdp() || machine_is_mpq8064_hrd() ||
+		machine_is_apq8064_ifc6410() || machine_is_cm_qs600()) {
 		int ret;
 		struct pm8xxx_mpp_config_data sata_pwr_cfg = {
 			.type = PM8XXX_MPP_TYPE_D_OUTPUT,
@@ -3499,6 +3535,18 @@ MACHINE_START(APQ8064_CDP, "QCT APQ8064 CDP")
 	.init_early = apq8064_allocate_memory_regions,
 	.init_very_early = apq8064_early_reserve,
 	.restart = msm_restart,
+MACHINE_END
+
+MACHINE_START(CM_QS600, "Compulab CM-QS600")
+        .map_io = apq8064_map_io,
+        .reserve = apq8064_reserve,
+        .init_irq = apq8064_init_irq,
+        .handle_irq = gic_handle_irq,
+        .timer = &msm_timer,
+        .init_machine = apq8064_cdp_init,
+        .init_early = apq8064_allocate_memory_regions,
+        .init_very_early = apq8064_early_reserve,
+        .restart = msm_restart,
 MACHINE_END
 
 MACHINE_START(APQ8064_IFC6410, "QCT APQ8064 IFC6410")
