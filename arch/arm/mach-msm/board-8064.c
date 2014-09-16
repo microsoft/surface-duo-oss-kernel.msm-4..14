@@ -3038,10 +3038,10 @@ static void __init apq8064_init_dsps(void)
 #define I2C_MPQ_DTV	BIT(7)
 
 struct i2c_registry {
-	u8                     machs;
-	int                    bus;
-	struct i2c_board_info *info;
-	int                    len;
+	u32			machs;
+	int			bus;
+	struct i2c_board_info	*info;
+	int			len;
 };
 
 static struct i2c_registry apq8064_i2c_devices[] __initdata = {
@@ -3153,7 +3153,7 @@ static struct i2c_registry mpq8064_i2c_devices[] __initdata = {
 
 static void __init register_i2c_devices(void)
 {
-	u8 mach_mask = 0;
+	u32 mach_mask = 0;
 	int i;
 
 #ifdef CONFIG_MSM_CAMERA
