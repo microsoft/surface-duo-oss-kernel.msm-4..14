@@ -23,7 +23,7 @@
 #include <linux/err.h>
 #include <linux/init.h>
 #include <linux/list.h>
-#include <linux/pm_opp.h>
+#include <linux/opp.h>
 #include <linux/power_actor.h>
 #include <linux/printk.h>
 #include <linux/slab.h>
@@ -139,7 +139,7 @@ static u32 get_static_power(struct cpu_actor *cpu_actor,
 			struct thermal_zone_device *tz, unsigned long freq)
 {
 	struct device *cpu_dev;
-	struct dev_pm_opp *opp;
+	struct opp *opp;
 	unsigned long voltage, temperature;
 	cpumask_t *cpumask = &cpu_actor->cpumask;
 	unsigned long freq_hz = freq * 1000;
@@ -154,8 +154,8 @@ static u32 get_static_power(struct cpu_actor *cpu_actor,
 
 	rcu_read_lock();
 
-	opp = dev_pm_opp_find_freq_exact(cpu_dev, freq_hz, true);
-	voltage = dev_pm_opp_get_voltage(opp);
+	opp = opp_find_freq_exact(cpu_dev, freq_hz, true);
+	voltage = opp_get_voltage(opp);
 
 	rcu_read_unlock();
 
@@ -339,7 +339,7 @@ static struct power_actor_ops cpu_actor_ops = {
 static int build_dyn_power_table(struct cpu_actor *cpu_actor, u32 capacitance)
 {
 	struct power_table *power_table;
-	struct dev_pm_opp *opp;
+	struct opp *opp;
 	struct device *dev = NULL;
 	int num_opps, cpu, i, ret = 0;
 	unsigned long freq;
@@ -353,7 +353,7 @@ static int build_dyn_power_table(struct cpu_actor *cpu_actor, u32 capacitance)
 		if (!dev)
 			continue;
 
-		num_opps = dev_pm_opp_get_opp_count(dev);
+		num_opps = opp_get_opp_count(dev);
 		if (num_opps > 0) {
 			break;
 		} else if (num_opps < 0) {
@@ -371,13 +371,13 @@ static int build_dyn_power_table(struct cpu_actor *cpu_actor, u32 capacitance)
 
 	i = 0;
 	for (freq = 0;
-	     opp = dev_pm_opp_find_freq_ceil(dev, &freq), !IS_ERR(opp);
+	     opp = opp_find_freq_ceil(dev, &freq), !IS_ERR(opp);
 	     freq++) {
 		u32 freq_mhz, voltage_mv;
 		u64 power;
 
 		freq_mhz = freq / 1000000;
-		voltage_mv = dev_pm_opp_get_voltage(opp) / 1000;
+		voltage_mv = opp_get_voltage(opp) / 1000;
 
 		/*
 		 * Do the multiplication with MHz and millivolt so as

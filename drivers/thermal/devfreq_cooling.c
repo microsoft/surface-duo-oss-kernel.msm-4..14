@@ -18,7 +18,7 @@
 #include <linux/devfreq_cooling.h>
 #include <linux/export.h>
 #include <linux/slab.h>
-#include <linux/pm_opp.h>
+#include <linux/opp.h>
 #include <linux/thermal.h>
 
 unsigned long devfreq_cooling_get_level(struct devfreq *df, unsigned long freq)
