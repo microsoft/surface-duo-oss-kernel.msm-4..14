@@ -18,7 +18,7 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		cpu@0 {
+		CPU0: cpu@0 {
 			compatible = "qcom,krait";
 			enable-method = "qcom,kpss-acc-v1";
 			device_type = "cpu";
@@ -29,9 +29,10 @@
 			clocks = <&kraitcc 0>;
 			clock-names = "cpu";
 			clock-latency = <100000>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
-		cpu@1 {
+		CPU1: cpu@1 {
 			compatible = "qcom,krait";
 			enable-method = "qcom,kpss-acc-v1";
 			device_type = "cpu";
@@ -42,9 +43,10 @@
 			clocks = <&kraitcc 1>;
 			clock-names = "cpu";
 			clock-latency = <100000>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
-		cpu@2 {
+		CPU2: cpu@2 {
 			compatible = "qcom,krait";
 			enable-method = "qcom,kpss-acc-v1";
 			device_type = "cpu";
@@ -55,9 +57,10 @@
 			clocks = <&kraitcc 2>;
 			clock-names = "cpu";
 			clock-latency = <100000>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
-		cpu@3 {
+		CPU3: cpu@3 {
 			compatible = "qcom,krait";
 			enable-method = "qcom,kpss-acc-v1";
 			device_type = "cpu";
@@ -68,11 +71,28 @@
 			clocks = <&kraitcc 3>;
 			clock-names = "cpu";
 			clock-latency = <100000>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
 		L2: l2-cache {
 			compatible = "cache";
 			cache-level = <2>;
+		};
+
+		idle-states {
+			CPU_WFI: cpu-idle-state-0 {
+				compatible = "qcom,idle-state-wfi", "arm,idle-state";
+				entry-latency-us = <1>;
+				exit-latency-us = <1>;
+				min-residency-us = <2>;
+			};
+
+			CPU_SPC: cpu-idle-state-1 {
+				compatible = "qcom,idle-state-spc", "arm,idle-state";
+				entry-latency-us = <150>;
+				exit-latency-us = <200>;
+				min-residency-us = <2000>;
+			};
 		};
 	};
 
@@ -1088,3 +1108,4 @@
 		};
 	};
 };
+#include "qcom-apq8064-pm.dtsi"
