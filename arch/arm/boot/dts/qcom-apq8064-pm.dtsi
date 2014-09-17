@@ -1,0 +1,65 @@
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	spm@f9089000 {
+		compatible = "qcom,spm-v2.1";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x02089000 0x1000>;
+		qcom,cpu = <&CPU0>;
+		qcom,saw2-clk-div = <0x1f>;
+		qcom,saw2-delays = <0x03020004>;
+		qcom,saw2-enable = <0x01>;
+		qcom,saw2-spm-cmd-wfi = [03 0f];
+		qcom,saw2-spm-cmd-spc = [00 24 54 10 09 03 01 10 54 30 0C 24 30 0f];
+	};
+
+	spm@f9099000 {
+		compatible = "qcom,spm-v2.1";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x02099000 0x1000>;
+		qcom,cpu = <&CPU1>;
+		qcom,saw2-clk-div = <0x1f>;
+		qcom,saw2-delays = <0x02020204>;
+		qcom,saw2-enable = <0x01>;
+		qcom,saw2-spm-cmd-wfi = [03 0f];
+		qcom,saw2-spm-cmd-spc = [00 24 54 10 09 03 01 10 54 30 0C 24 30 0f];
+	};
+
+	spm@f90a9000 {
+		compatible = "qcom,spm-v2.1";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x020a9000 0x1000>;
+		qcom,cpu = <&CPU2>;
+		qcom,saw2-clk-div = <0x1f>;
+		qcom,saw2-delays = <0x02020204>;
+		qcom,saw2-enable = <0x01>;
+		qcom,saw2-spm-cmd-wfi = [03 0f];
+		qcom,saw2-spm-cmd-spc = [00 24 54 10 09 03 01 10 54 30 0C 24 30 0f];
+	};
+
+	spm@f90b9000 {
+		compatible = "qcom,spm-v2.1";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0x020b9000 0x1000>;
+		qcom,cpu = <&CPU3>;
+		qcom,saw2-clk-div = <0x1f>;
+		qcom,saw2-delays = <0x02020204>;
+		qcom,saw2-enable = <0x01>;
+		qcom,saw2-spm-cmd-wfi = [03 0f];
+		qcom,saw2-spm-cmd-spc = [00 24 54 10 09 03 01 10 54 30 0C 24 30 0f];
+	};
+};
