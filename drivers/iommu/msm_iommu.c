@@ -422,12 +422,12 @@ static int msm_iommu_map(struct iommu_domain *domain, unsigned long va,
 		int i = 0;
 		for (i = 0; i < 16; i++)
 			*(fl_pte+i) = (pa & 0xFF000000) | FL_SUPERSECTION |
-				  FL_AP_READ | FL_AP_WRITE | FL_TYPE_SECT |
+				  FL_AP1 | FL_AP0 | FL_TYPE_SECT |
 				  FL_SHARED | FL_NG | pgprot;
 	}
 
 	if (len == SZ_1M)
-		*fl_pte = (pa & 0xFFF00000) | FL_AP_READ | FL_AP_WRITE | FL_NG |
+		*fl_pte = (pa & 0xFFF00000) | FL_AP1 | FL_AP0 | FL_NG |
 					    FL_TYPE_SECT | FL_SHARED | pgprot;
 
 	/* Need a 2nd level table */
