@@ -16,4 +16,4 @@
 obj-y += mali_kbase_config_vexpress.o
 
 
-obj-m += juno_mali_opp.o
+obj-y += juno_mali_opp.o

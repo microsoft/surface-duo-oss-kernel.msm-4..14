@@ -18,6 +18,7 @@
 #include <mali_kbase.h>
 #include <mali_kbase_config_defaults.h>
 
+#include <linux/clk.h>
 #include <linux/devfreq_cooling.h>
 #include <linux/power_actor.h>
 #include <linux/thermal.h>
@@ -31,7 +32,7 @@ static u32 mali_pa_get_req_power(struct power_actor *actor, struct thermal_zone_
 	struct kbase_device *kbdev = mali_actor->kbdev;
 	unsigned long total_time, busy_time;
 	unsigned long power, temperature;
-	struct dev_pm_opp *opp;
+	struct opp *opp;
 	unsigned long voltage;
 	unsigned long freq;
 
@@ -40,13 +41,13 @@ static u32 mali_pa_get_req_power(struct power_actor *actor, struct thermal_zone_
 	freq = clk_get_rate(kbdev->clock);
 
 	rcu_read_lock();
-	opp = dev_pm_opp_find_freq_floor(kbdev->dev, &freq);
+	opp = opp_find_freq_floor(kbdev->dev, &freq);
 	if (IS_ERR_OR_NULL(opp)) {
 		rcu_read_unlock();
 		return 0;
 	}
 
-	voltage = dev_pm_opp_get_voltage(opp) / 1000; /* mV */
+	voltage = opp_get_voltage(opp) / 1000; /* mV */
 	rcu_read_unlock();
 
 	power = mali_actor->ops->get_dynamic_power(freq);
@@ -66,19 +67,19 @@ static u32 mali_pa_get_max_power(struct power_actor *actor, struct thermal_zone_
 {
 	struct mali_power_actor *mali_actor = actor->data;
 	struct kbase_device *kbdev = mali_actor->kbdev;
-	struct dev_pm_opp *opp;
+	struct opp *opp;
 	unsigned long voltage, temperature;
 	unsigned long freq = ULONG_MAX;
 	u32 power;
 
 	rcu_read_lock();
-	opp = dev_pm_opp_find_freq_floor(kbdev->dev, &freq);
+	opp = opp_find_freq_floor(kbdev->dev, &freq);
 	if (IS_ERR_OR_NULL(opp)) {
 		rcu_read_unlock();
 		dev_err(kbdev->dev, "Failed to get OPP for max freq\n");
 		return 0;
 	}
-	voltage = dev_pm_opp_get_voltage(opp) / 1000; /* mV */
+	voltage = opp_get_voltage(opp) / 1000; /* mV */
 	rcu_read_unlock();
 
 	temperature = zone->temperature;
@@ -100,7 +101,7 @@ static int mali_pa_set_power(struct power_actor *actor, struct thermal_zone_devi
 	unsigned long freq, state;
 	unsigned long static_power, normalized_power;
 	unsigned long voltage, temperature;
-	struct dev_pm_opp *opp;
+	struct opp *opp;
 	int err, i;
 
 	dev_dbg(kbdev->dev, "Setting max power %u\n", power);
@@ -110,12 +111,12 @@ static int mali_pa_set_power(struct power_actor *actor, struct thermal_zone_devi
 	freq = clk_get_rate(kbdev->clock);
 
 	rcu_read_lock();
-	opp = dev_pm_opp_find_freq_exact(kbdev->dev, freq, true);
+	opp = opp_find_freq_exact(kbdev->dev, freq, true);
 	if (IS_ERR_OR_NULL(opp)) {
 		rcu_read_unlock();
 		return -ENOENT;
 	}
-	voltage = dev_pm_opp_get_voltage(opp) / 1000; /* mV */
+	voltage = opp_get_voltage(opp) / 1000; /* mV */
 	rcu_read_unlock();
 
 	temperature = zone->temperature;
@@ -188,7 +189,7 @@ int mali_pa_init(struct kbase_device *kbdev)
 	mali_actor->kbdev = kbdev;
 
 	rcu_read_lock();
-	num_opps = dev_pm_opp_get_opp_count(kbdev->dev);
+	num_opps = opp_get_opp_count(kbdev->dev);
 	rcu_read_unlock();
 
 	table = kcalloc(num_opps, sizeof(table[0]), GFP_KERNEL);
@@ -200,13 +201,13 @@ int mali_pa_init(struct kbase_device *kbdev)
 	rcu_read_lock();
 	for (i = 0, freq = 0; i < num_opps; i++, freq++) {
 		unsigned long power_static, power_dyn, voltage;
-		struct dev_pm_opp *opp;
+		struct opp *opp;
 
-		opp = dev_pm_opp_find_freq_ceil(kbdev->dev, &freq);
+		opp = opp_find_freq_ceil(kbdev->dev, &freq);
 		if (IS_ERR(opp))
 			break;
 
-		voltage = dev_pm_opp_get_voltage(opp) / 1000; /* mV */
+		voltage = opp_get_voltage(opp) / 1000; /* mV */
 
 		table[i].freq = freq;
 

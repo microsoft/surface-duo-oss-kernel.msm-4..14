@@ -23,13 +23,15 @@
 #include <linux/devfreq_cooling.h>
 #endif
 
+#include <linux/clk.h>
+
 #include "mali_kbase_power_actor.h"
 
 static int
 kbase_devfreq_target(struct device *dev, unsigned long *target_freq, u32 flags)
 {
 	struct kbase_device *kbdev = dev_get_drvdata(dev);
-	struct dev_pm_opp *opp;
+	struct opp *opp;
 	unsigned long freq = 0;
 	int err;
 
@@ -98,10 +100,10 @@ static int kbase_devfreq_init_freq_table(struct kbase_device *kbdev,
 	int count;
 	int i = 0;
 	unsigned long freq = 0;
-	struct dev_pm_opp *opp;
+	struct opp *opp;
 
 	rcu_read_lock();
-	count = dev_pm_opp_get_opp_count(kbdev->dev);
+	count = opp_get_opp_count(kbdev->dev);
 	if (count < 0) {
 		rcu_read_unlock();
 		return count;
@@ -115,7 +117,7 @@ static int kbase_devfreq_init_freq_table(struct kbase_device *kbdev,
 
 	rcu_read_lock();
 	for (i = 0; i < count; i++, freq++) {
-		opp = dev_pm_opp_find_freq_ceil(kbdev->dev, &freq);
+		opp = opp_find_freq_ceil(kbdev->dev, &freq);
 		if (IS_ERR(opp))
 			break;
 

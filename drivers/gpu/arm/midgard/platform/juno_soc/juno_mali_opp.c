@@ -10,7 +10,7 @@
 #include <linux/module.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
-#include <linux/pm_opp.h>
+#include <linux/opp.h>
 #include <linux/scpi_protocol.h>
 
 
@@ -29,7 +29,7 @@ static int init_juno_opps_from_scpi(struct device *dev)
 		dev_info(dev, "Mali OPP from SCPI: %u Hz @ %u mV\n",
 				e->freq_hz, e->volt_mv);
 
-		dev_pm_opp_add(dev, e->freq_hz, e->volt_mv * 1000);
+		opp_add(dev, e->freq_hz, e->volt_mv * 1000);
 	}
 
 	return 0;
