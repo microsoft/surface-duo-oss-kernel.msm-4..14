@@ -261,8 +261,8 @@ static void __init sac58r_clocks_init(struct device_node *ccm_node)
 
 	clk[SAC58R_CLK_DSPI0] = imx_clk_gate2("spi0", "per", GPC_AIPS0_OFFPF_PCTL2, 10);
 	clk[SAC58R_CLK_DSPI1] = imx_clk_gate2("spi1", "per", GPC_AIPS1_OFFPF_PCTL1, 16);
-	clk[SAC58R_CLK_DMACH_MUX0] = imx_clk_gate2("dmach_mux0", "per", GPC_AIPS0_OFFPF_PCTL2, 24);
-	clk[SAC58R_CLK_DMACH_MUX1] = imx_clk_gate2("dmach_mux1", "per", GPC_AIPS0_OFFPF_PCTL2, 26);
+	clk[SAC58R_CLK_DMACH_MUX0] = imx_clk_gate2("dmamux0", "per", GPC_AIPS0_OFFPF_PCTL2, 24);
+	clk[SAC58R_CLK_DMACH_MUX1] = imx_clk_gate2("dmamux1", "per", GPC_AIPS0_OFFPF_PCTL2, 26);
 
 	clk[SAC58R_CLK_UART1] = imx_clk_gate2("uart1", "per", GPC_AIPS1_OFFPF_PCTL1, 24);
 	clk[SAC58R_CLK_UART2] = imx_clk_gate2("uart2", "per", GPC_AIPS0_OFFPF_PCTL2, 16);
