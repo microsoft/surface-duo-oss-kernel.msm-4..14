@@ -30,8 +30,7 @@
 #include <linux/irq.h>
 #include <linux/irqchip/chained_irq.h>
 #include <linux/spinlock.h>
-
-#include <asm/system_misc.h>
+#include <linux/reboot.h>
 
 #include "../core.h"
 #include "../pinconf.h"
@@ -47,6 +46,7 @@
  * @pctrl:          pinctrl handle.
  * @domain:         irqdomain handle.
  * @chip:           gpiochip handle.
+ * @restart_nb:     restart notifier block.
  * @irq:            parent irq for the TLMM irq_chip.
  * @lock:           Spinlock to protect register resources as well
  *                  as msm_pinctrl data structures.
@@ -61,6 +61,7 @@ struct msm_pinctrl {
 	struct pinctrl_dev *pctrl;
 	struct irq_domain *domain;
 	struct gpio_chip chip;
+	struct notifier_block restart_nb;
 	int irq;
 
 	spinlock_t lock;
@@ -919,13 +920,14 @@ static int msm_gpio_init(struct msm_pinctrl *pctrl)
 	return 0;
 }
 
-#ifdef CONFIG_ARM
-static void __iomem *msm_ps_hold;
-
-static void msm_reset(enum reboot_mode reboot_mode, const char *cmd)
+static int msm_ps_hold_restart(struct notifier_block *nb, unsigned long action,
+			       void *data)
 {
-	writel(0, msm_ps_hold);
-	mdelay(10000);
+	struct msm_pinctrl *pctrl = container_of(nb, struct msm_pinctrl, restart_nb);
+
+	writel(0, pctrl->regs + PS_HOLD_OFFSET);
+	mdelay(1000);
+	return NOTIFY_DONE;
 }
 
 static void msm_pinctrl_setup_pm_reset(struct msm_pinctrl *pctrl)
@@ -935,13 +937,14 @@ static void msm_pinctrl_setup_pm_reset(struct msm_pinctrl *pctrl)
 
 	for (; i <= pctrl->soc->nfunctions; i++)
 		if (!strcmp(func[i].name, "ps_hold")) {
-			msm_ps_hold = pctrl->regs + PS_HOLD_OFFSET;
-			arm_pm_restart = msm_reset;
+			pctrl->restart_nb.notifier_call = msm_ps_hold_restart;
+			pctrl->restart_nb.priority = 128;
+			if (register_restart_handler(&pctrl->restart_nb))
+				dev_err(pctrl->dev,
+					"failed to setup restart handler.\n");
+			break;
 		}
 }
-#else
-static void msm_pinctrl_setup_pm_reset(const struct msm_pinctrl *pctrl) {}
-#endif
 
 int msm_pinctrl_probe(struct platform_device *pdev,
 		      const struct msm_pinctrl_soc_data *soc_data)
@@ -1011,6 +1014,8 @@ int msm_pinctrl_remove(struct platform_device *pdev)
 	irq_set_chained_handler(pctrl->irq, NULL);
 	irq_domain_remove(pctrl->domain);
 	pinctrl_unregister(pctrl->pctrl);
+
+	unregister_restart_handler(&pctrl->restart_nb);
 
 	return 0;
 }
