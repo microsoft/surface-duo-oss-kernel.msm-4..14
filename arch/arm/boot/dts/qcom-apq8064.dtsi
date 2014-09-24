@@ -263,6 +263,91 @@
 			#address-cells	= <1>;
 			#size-cells	= <0>;
 
+			pm8921_s3: pm8921-s3 {
+				compatible	= "qcom,rpm-pm8921-smps";
+				reg		= <QCOM_RPM_PM8921_SMPS3>;
+
+				regulator-min-microvolt = <1000000>;
+				regulator-max-microvolt = <1400000>;
+				qcom,boot-load 		= <49360>;
+				qcom,switch-mode-frequency = <3200000>;
+				regulator-always-on;
+			};
+
+			pm8921_l3: pm8921-l3 {
+				compatible	= "qcom,rpm-pm8921-pldo";
+				reg		= <QCOM_RPM_PM8921_LDO3>;
+
+				regulator-min-microvolt = <3050000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-always-on;
+				qcom,boot-load = <50000>;
+			};
+
+			pm8921_l23: pm8921-l23 {
+				compatible	= "qcom,rpm-pm8921-pldo";
+				reg		= <QCOM_RPM_PM8921_LDO23>;
+
+				regulator-min-microvolt = <1000000>;
+				regulator-max-microvolt = <1800000>;
+				qcom,boot-load = <50000>;
+				regulator-always-on;
+			};
+
+		};
+
+		usb3_phy:phy@12520000 {
+			compatible	= "qcom,usb-otg-ci";
+			reg		= <0x12520000 0x400>;
+			interrupts	= <0 188 0>;
+			status		= "disabled";
+			dr_mode		= "host";
+
+			clocks		= <&gcc USB_HS3_XCVR_CLK>,
+					  <&gcc USB_HS3_H_CLK>;
+			clock-names	= "core", "iface";
+
+			vddcx-supply	= <&pm8921_s3>;
+			v3p3-supply	= <&pm8921_l3>;
+			v1p8-supply	= <&pm8921_l23>;
+
+			resets		= <&gcc USB_HS3_RESET>;
+			reset-names	= "link";
+		};
+
+		usb4_phy:phy@12530000 {
+			compatible	= "qcom,usb-otg-ci";
+			reg		= <0x12530000 0x400>;
+			interrupts	= <0 215 0>;
+			status		= "disabled";
+			dr_mode		= "host";
+
+			clocks		= <&gcc USB_HS4_XCVR_CLK>,
+					  <&gcc USB_HS4_H_CLK>;
+			clock-names	= "core", "iface";
+
+			vddcx-supply	= <&pm8921_s3>;
+			v3p3-supply	= <&pm8921_l3>;
+			v1p8-supply	= <&pm8921_l23>;
+
+			resets		= <&gcc USB_HS4_RESET>;
+			reset-names	= "link";
+		};
+
+		usb3: usb@12520000 {
+			compatible	= "qcom,ehci-host";
+			reg		= <0x12520000 0x400>;
+			interrupts	= <0 188 0>;
+			status		= "disabled";
+			usb-phy		= <&usb3_phy>;
+		};
+
+		usb4: usb@12530000 {
+			compatible	= "qcom,ehci-host";
+			reg		= <0x12530000 0x400>;
+			interrupts	= <0 215 0>;
+			status		= "disabled";
+			usb-phy		= <&usb4_phy>;
 		};
 
 		/* Temporary fixed regulator */
