@@ -362,6 +362,13 @@ config GPIO_QCOM_SMSM
 	  The state machine is represented by bits in shared memory and is
 	  exposed to the system as GPIOs.
 
+config GPIO_QCOM_SMP2P
+	bool "Qualcomm Shared Memory Point to Point support"
+	depends on QCOM_SMEM
+	help
+	  Say yes here to support the Qualcomm Shared Memory Point to Point
+	  protocol, exposed to the system as GPIOs.
+
 config GPIO_RCAR
 	tristate "Renesas R-Car GPIO"
 	depends on ARCH_SHMOBILE || COMPILE_TEST
