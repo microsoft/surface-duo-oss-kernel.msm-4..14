@@ -337,6 +337,14 @@ config GPIO_PXA
 	help
 	  Say yes here to support the PXA GPIO device
 
+config GPIO_QCOM_SMSM
+	bool "Qualcomm Shared Memory State Machine"
+	depends on QCOM_SMEM
+	help
+	  Say yes here to support the Qualcomm Shared Memory State Machine.
+	  The state machine is represented by bits in shared memory and is
+	  exposed to the system as GPIOs.
+
 config GPIO_RCAR
 	tristate "Renesas R-Car GPIO"
 	depends on ARCH_SHMOBILE || COMPILE_TEST
