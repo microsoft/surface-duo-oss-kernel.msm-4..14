@@ -23,7 +23,7 @@ Fifo::Fifo(int singleBufferSize, int bufferSize, sem_t* readerSem) {
   mWrapThreshold = bufferSize;
   mSingleBufferSize = singleBufferSize;
   mReaderSem = readerSem;
-  mBuffer = (char*)valloc(bufferSize + singleBufferSize);
+  mBuffer = (char*)malloc(bufferSize + singleBufferSize);
   mEnd = false;
 
   if (mBuffer == NULL) {
