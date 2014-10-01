@@ -161,5 +161,34 @@
 			pinctrl-0 = <&nand_pins>;
 			pinctrl-names = "default";
 		};
+
+		tcsr@1a400000 {
+			status = "ok";
+			qcom,usb-ctrl-select = <TCSR_USB_SELECT_USB3_DUAL>;
+		};
+
+		phy@100f8800 {		/* USB3 port 1 HS phy */
+			status = "ok";
+		};
+
+		phy@100f8830 {		/* USB3 port 1 SS phy */
+			status = "ok";
+		};
+
+		phy@110f8800 {		/* USB3 port 0 HS phy */
+			status = "ok";
+		};
+
+		phy@110f8830 {		/* USB3 port 0 SS phy */
+			status = "ok";
+		};
+
+		usb30@0 {
+			status = "ok";
+		};
+
+		usb30@1 {
+			status = "ok";
+		};
 	};
 };
