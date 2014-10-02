@@ -54,6 +54,12 @@ static void __init sac58r_init_early(void)
 			"imprecise external abort");
 }
 
+static void __init sac58r_init_irq(void)
+{
+	imx_src_init();
+	irqchip_init();
+}
+
 static void __init sac58r_init_machine(void)
 {
 	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
@@ -73,6 +79,9 @@ static const char *sac58r_dt_compat[] __initdata = {
 };
 
 DT_MACHINE_START(rayleigh, "Freescale Radio sac58r")
+	.smp		= smp_ops(sac58r_smp_ops),
+	.init_early = sac58r_init_early,
+	.init_irq	= sac58r_init_irq,
 	.init_time	= sac58r_init_time,
 	.init_machine   = sac58r_init_machine,
 	.dt_compat	= sac58r_dt_compat,
