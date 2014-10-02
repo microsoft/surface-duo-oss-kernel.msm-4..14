@@ -629,6 +629,7 @@ config SOC_SAC58R
 	select ARM_GIC
 	select CLKSRC_OF
 	select VF_PIT_TIMER
+	select HAVE_IMX_SRC
 
 	help
 	  This enable support for Freescale Rayleigh SAC58R processor.
