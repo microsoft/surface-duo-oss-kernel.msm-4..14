@@ -149,6 +149,7 @@ static int panel_simple_get_modes(struct drm_panel *panel)
 	struct panel_simple *p = to_panel_simple(panel);
 	int num = 0;
 
+	p->base.connector->status = connector_status_disconnected;
 	p->ddc = i2c_get_adapter(3); // ifc6410-gsbi3, lvds ddc is connected to i2c3
 
 	/* probe EDID if a DDC bus is available */
@@ -156,11 +157,11 @@ static int panel_simple_get_modes(struct drm_panel *panel)
 		struct edid *edid = drm_get_edid(panel->connector, p->ddc);
 		drm_mode_connector_update_edid_property(panel->connector, edid);
 		if (edid) {
+			p->base.connector->status = connector_status_connected;
 			num += drm_add_edid_modes(panel->connector, edid);
 			kfree(edid);
 		}
 	}
-
 	/* add hard-coded panel modes */
 //	num += panel_simple_get_fixed_modes(p);// Hardcoded value is removed, since we are using the ddc read for lvds
 

@@ -30,12 +30,14 @@ struct mdp4_lvds_connector {
 static enum drm_connector_status mdp4_lvds_connector_detect(
 		struct drm_connector *connector, bool force)
 {
-	struct mdp4_lvds_connector *mdp4_lvds_connector =
-			to_mdp4_lvds_connector(connector);
-
-	return mdp4_lvds_connector->panel ?
+//	struct mdp4_lvds_connector *mdp4_lvds_connector =
+//			to_mdp4_lvds_connector(connector);
+/*
+	return mdp4_lvds_connector->base.status ?
 			connector_status_connected :
 			connector_status_disconnected;
+
+*/	return connector->status;
 }
 
 static void mdp4_lvds_connector_destroy(struct drm_connector *connector)
