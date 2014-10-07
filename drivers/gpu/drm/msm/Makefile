@@ -3,6 +3,8 @@ ifeq (, $(findstring -W,$(EXTRA_CFLAGS)))
 	ccflags-y += -Werror
 endif
 
+obj-y += pwm_bl.o
+
 msm-y := \
 	adreno/adreno_gpu.o \
 	adreno/a3xx_gpu.o \

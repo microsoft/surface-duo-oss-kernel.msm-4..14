@@ -92,6 +92,8 @@
 #include "smd_private.h"
 #include "sysmon.h"
 
+#include <linux/pwm_backlight.h>
+
 #define MSM_PMEM_ADSP_SIZE         0x7800000
 #define MSM_PMEM_AUDIO_SIZE        0x4CF000
 #ifdef CONFIG_FB_MSM_HDMI_AS_PRIMARY
@@ -3077,6 +3079,22 @@ static struct i2c_board_info cm_qs600_i2c1_binfo[] __initdata = {
 	},
 };
 
+/* PWM controlled backlight */
+static struct platform_pwm_backlight_data ifc6410_pwm_backlight_data = {
+        .pwm_id         = 2, // GPIO26 maps to LPGCHANNEL2
+        .max_brightness = 100,
+        .dft_brightness = 40,
+	/* 100khz*/
+        .pwm_period_ns  = 10000,
+};
+
+static struct platform_device ifc6410_pwm_backlight_device = {
+        .name   = "pwm-backlight",
+        .dev    = {
+                .platform_data  = &ifc6410_pwm_backlight_data,
+        }
+};
+
 #define I2C_SURF 1
 #define I2C_FFA  (1 << 1)
 #define I2C_RUMI (1 << 2)
@@ -3358,6 +3376,7 @@ static void __init apq8064_common_init(void)
 	apq8064_i2c_init();
 	register_i2c_devices();
 
+	platform_device_register(&ifc6410_pwm_backlight_device);
 	apq8064_device_qup_spi_gsbi5.dev.platform_data =
 						&apq8064_qup_spi_gsbi5_pdata;
 	apq8064_init_pmic();
