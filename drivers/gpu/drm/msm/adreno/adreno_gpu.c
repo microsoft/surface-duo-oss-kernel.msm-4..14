@@ -293,10 +293,54 @@ static uint32_t ring_freewords(struct msm_gpu *gpu)
 	return (rptr + (size - 1) - wptr) % size;
 }
 
+static void ring_wait_contiguous_freewords(struct msm_gpu *gpu,
+		uint32_t ndwords)
+{
+	struct adreno_gpu *adreno_gpu = to_adreno_gpu(gpu);
+	uint32_t size = gpu->rb->size/4;
+	uint32_t wptr;
+	uint32_t rptr;
+
+	/* Wait for free space and then check if they are contiguous */
+	if(spin_until(ring_freewords(gpu)>= ndwords)){
+		DRM_ERROR("%s: timeout waiting for ringbuffer space\n",
+				gpu->name);
+		return;
+	}
+
+	wptr = get_wptr(gpu->rb);
+	rptr = adreno_gpu->memptrs->rptr;
+
+	/* We have enough space in the ring for ndwords. Three conditions
+	 * indicates we have contigous space:
+	 * (1) wptr can be equal to size, ring has wrapped and wptr is 0
+	 * (see OUT_RING), meaning we have enough space.
+	 * (2) We have enough space in the ring, wptr < rptr indicates
+	 * enough contiguous space
+	 * (3) wptr + ndwords < size - 1 implies enough space in the ring.
+	 */
+	if((wptr == size) || (wptr < rptr) || (wptr + ndwords < size - 1))
+		return;
+
+	/* Fill the end of ring with no-ops
+	 * */
+	OUT_RING(gpu->rb, CP_TYPE3_PKT | (((size - wptr - 1) - 1) << 16) |
+			((CP_NOP & 0xFF) << 8));
+	gpu->rb->cur = gpu->rb->start;
+
+	/* We have reset cur pointer to start. If ring_freewords returns
+	 * greater than ndwords, then we have contigous space.
+	 * */
+	if(spin_until(ring_freewords(gpu)>= ndwords)){
+		DRM_ERROR("%s: timeout waiting for ringbuffer space\n",
+				gpu->name);
+		return;
+	}
+}
+
 void adreno_wait_ring(struct msm_gpu *gpu, uint32_t ndwords)
 {
-	if (spin_until(ring_freewords(gpu) >= ndwords))
-		DRM_ERROR("%s: timeout waiting for ringbuffer space\n", gpu->name);
+	ring_wait_contiguous_freewords(gpu, ndwords);
 }
 
 static const char *iommu_ports[] = {
