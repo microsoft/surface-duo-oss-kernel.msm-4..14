@@ -841,12 +841,6 @@ fail:
 	return ret;
 }
 
-static int qcom_iommu_domain_has_cap(struct iommu_domain *domain,
-				    unsigned long cap)
-{
-	return 0;
-}
-
 static void print_ctx_regs(void __iomem *base, int ctx)
 {
 	unsigned int fsr = GET_FSR(base, ctx);
@@ -938,7 +932,6 @@ static struct iommu_ops qcom_iommu_ops = {
 	.map = qcom_iommu_map,
 	.unmap = qcom_iommu_unmap,
 	.iova_to_phys = qcom_iommu_iova_to_phys,
-	.domain_has_cap = qcom_iommu_domain_has_cap,
 	.pgsize_bitmap = QCOM_IOMMU_PGSIZES,
 };
 
