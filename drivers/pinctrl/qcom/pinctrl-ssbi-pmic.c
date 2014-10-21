@@ -352,7 +352,7 @@ static const struct pinmux_ops pm8xxx_pinmux_ops = {
 	.get_functions_count	= pm8xxx_get_functions_count,
 	.get_function_name	= pm8xxx_get_function_name,
 	.get_function_groups	= pm8xxx_get_function_groups,
-	.enable			= pm8xxx_pinmux_enable,
+	.set_mux		= pm8xxx_pinmux_enable,
 };
 
 static int pm8xxx_gpio_config_get(struct pinctrl_dev *pctldev,
@@ -838,8 +838,7 @@ unregister_pinctrl:
 	pinctrl_unregister(pctrl->pctrl);
 
 unregister_gpiochip:
-	if (gpiochip_remove(&pctrl->chip))
-		dev_err(&pdev->dev, "unable to unregister gpiochip\n");
+	gpiochip_remove(&pctrl->chip);
 
 	return ret;
 }
