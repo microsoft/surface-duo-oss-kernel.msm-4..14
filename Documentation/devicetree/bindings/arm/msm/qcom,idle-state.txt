@@ -1,0 +1,72 @@
+QCOM Idle States for cpuidle driver
+
+ARM provides idle-state node to define the cpuidle states, as defined in [1].
+cpuidle-qcom is the cpuidle driver for Qualcomm SoCs and uses these idle
+states. Idle states have different enter/exit latency and residency values.
+The idle states supported by the QCOM SoC are defined as -
+
+    * WFI
+    * Retention
+    * Standalone Power Collapse (Standalone PC or SPC)
+    * Power Collapse (PC)
+
+WFI: WFI does a little more in addition to architectural clock gating.  ARM
+processors when execute the wfi instruction will gate their internal clocks.
+QCOM cpus use this instruction as a trigger for the SPM state machine. Usually
+with a cpu entering WFI, the SPM is configured to do clock-gating as well. The
+SPM state machine waits for the interrrupt to trigger the core back in to
+active. When all CPUs in the SoC, clock gate using the ARM wfi instruction, the
+second level cache usually can also clock gate sensing no cpu activity. When a
+cpu is ready to run, it needs the cache to be active before starting execution.
+Allowing the SPM to execute the clock gating statemachine and waiting for
+interrupt on behalf of the processor has a benefit of guaranteeing that the
+system state is conducive for the core to resume execution.
+
+Retention: Retention is a low power state where the core is clockgated and the
+memory and the registers associated with the core are retained.  The voltage
+may be reduced to the minimum value needed to keep the processor registers
+active. Retention is triggered when the core executes wfi instruction. The SPM
+should be configured to execute the retention sequence and would wait for
+interrupt, before restoring the cpu to execution state. Retention may have a
+slightly higher latency than WFI.
+
+Standalone PC: A cpu can power down and warmboot if there is a sufficient time
+between now and the next know wake up. SPC mode is used to indicate a core
+entering a power down state without consulting any other cpu or the system
+resources. This helps save power only on that core. Like WFI and Retention, the
+core executes wfi and the SPM programmed to do SPC would use the cpu control
+logic to power down the core's supply and restore it back when woken up by an
+interrupt.  Applying power and reseting the core causes the core to warmboot
+back into secure mode which trampolines the control back to the kernel. To
+enter a power down state the kernel needs to call into the secure layer which
+would then execute the ARM wfi instruction. Failing to do so, would result in a
+crash enforced by the warm boot code in the secure layer. On a SoC with
+write-back L1 cache, the cache would need to be flushed.
+
+Power Collapse: This state is similiar to the SPC mode, but distinguishes
+itself in the fact that the cpu acknowledges and permits the SoC to enter
+deeper sleep modes. In a hierarchical power domain SoC, this means L2 and other
+caches can be flushed, system bus, clocks - lowered, and SoC main XO turned off
+and voltages reduced, provided all cpus enter this state. In other words, it is
+a coupled idle state.  Since the span of low power modes possible at this state
+is vast, the exit latency and the residency of this low power mode would be
+considered high even though at a cpu level, this essentially is cpu power down.
+The SPM in this state also may handshake with the Resource power manager
+processor in the SoC to indicate a complete subsystem shut down.
+
+The idle-state for QCOM SoCs are distinguished by the compatible property of
+the node. They indicate to the cpuidle driver the entry point to use for
+cpuidle. The devicetree representation of the idle state should be -
+
+Required properties:
+
+- compatible: Must be "arm,idle-state"
+		and one of -
+			"qcom,idle-state-wfi",
+			"qcom,idle-state-ret",
+			"qcom,idle-state-spc",
+			"qcom,idle-state-pc",
+
+Other required and optional properties are specified in [1].
+
+[1]. Documentation/devicetree/bindings/arm/idle-states.txt
