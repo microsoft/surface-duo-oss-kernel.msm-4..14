@@ -378,7 +378,7 @@ static const struct pinmux_ops pmic_gpio_pinmux_ops = {
 	.get_functions_count	= pmic_gpio_get_functions_count,
 	.get_function_name	= pmic_gpio_get_function_name,
 	.get_function_groups	= pmic_gpio_get_function_groups,
-	.enable			= pmic_gpio_pinmux_enable,
+	.set_mux		= pmic_gpio_pinmux_enable,
 };
 
 static int pmic_gpio_config_get(struct pinctrl_dev *pctldev,
@@ -907,12 +907,8 @@ err_chip:
 static int pmic_gpio_remove(struct platform_device *pdev)
 {
 	struct pmic_gpio_state *state = platform_get_drvdata(pdev);
-	int ret;
 
-	ret = gpiochip_remove(&state->chip);
-	if (ret < 0)
-		return ret;
-
+	gpiochip_remove(&state->chip);
 	pinctrl_unregister(state->ctrl);
 	return 0;
 }
