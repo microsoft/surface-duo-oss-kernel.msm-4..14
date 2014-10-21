@@ -13,6 +13,14 @@
 					function = "gsbi1";
 				};
 			};
+
+			card_detect: card_detect {
+				mux {
+					pins = "gpio26";
+					function = "gpio";
+					bias-disable;
+				};
+			};
 		};
 
 		gsbi@12440000 {
@@ -103,6 +111,9 @@
 			/* External micro SD card */
 			sdcc3: sdcc@12180000 {
 				status = "okay";
+				pinctrl-names	= "default";
+				pinctrl-0	= <&card_detect>;
+				cd-gpios	= <&tlmm_pinmux 26 GPIO_ACTIVE_LOW>;
 			};
 			/* WLAN */
 			sdcc4: sdcc@121c0000 {
