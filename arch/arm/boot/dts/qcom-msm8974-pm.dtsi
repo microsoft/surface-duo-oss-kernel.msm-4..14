@@ -1,0 +1,69 @@
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	spm@f9089000 {
+		compatible = "qcom,spm-v2.1";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0xf9089000 0x1000>;
+		qcom,cpu = <&CPU0>;
+		qcom,saw2-clk-div = <0x01>;
+		qcom,saw2-delays = <0x3C102800>;
+		qcom,saw2-enable = <0x01>;
+		qcom,saw2-spm-cmd-wfi = [03 0b 0f];
+		qcom,saw2-spm-cmd-spc = [00 20 80 10 E8 5B 03 3B E8 5B 82 10 0B
+			30 06 26 30 0F];
+	};
+
+	spm@f9099000 {
+		compatible = "qcom,spm-v2.1";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0xf9099000 0x1000>;
+		qcom,cpu = <&CPU1>;
+		qcom,saw2-clk-div = <0x01>;
+		qcom,saw2-delays = <0x3C102800>;
+		qcom,saw2-enable = <0x01>;
+		qcom,saw2-spm-cmd-wfi = [03 0b 0f];
+		qcom,saw2-spm-cmd-spc = [00 20 80 10 E8 5B 03 3B E8 5B 82 10 0B
+			30 06 26 30 0F];
+	};
+
+	spm@f90a9000 {
+		compatible = "qcom,spm-v2.1";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0xf90a9000 0x1000>;
+		qcom,cpu = <&CPU2>;
+		qcom,saw2-clk-div = <0x01>;
+		qcom,saw2-delays = <0x3C102800>;
+		qcom,saw2-enable = <0x01>;
+		qcom,saw2-spm-cmd-wfi = [03 0b 0f];
+		qcom,saw2-spm-cmd-spc = [00 20 80 10 E8 5B 03 3B E8 5B 82 10 0B
+			30 06 26 30 0F];
+	};
+
+	spm@f90b9000 {
+		compatible = "qcom,spm-v2.1";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		reg = <0xf90b9000 0x1000>;
+		qcom,cpu = <&CPU3>;
+		qcom,saw2-clk-div = <0x01>;
+		qcom,saw2-delays = <0x3C102800>;
+		qcom,saw2-enable = <0x01>;
+		qcom,saw2-spm-cmd-wfi = [03 0b 0f];
+		qcom,saw2-spm-cmd-spc = [00 20 80 10 E8 5B 03 3B E8 5B 82 10 0B
+			30 06 26 30 0F];
+	};
+};
