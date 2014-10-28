@@ -45,3 +45,11 @@ config ARM_AT91_CPUIDLE
 	depends on ARCH_AT91
 	help
 	  Select this to enable cpuidle for AT91 processors
+
+config ARM_QCOM_CPUIDLE
+	bool "CPU Idle drivers for Qualcomm processors"
+	depends on QCOM_PM
+	select DT_IDLE_STATES
+	help
+	  Select this to enable cpuidle for QCOM processors
+
