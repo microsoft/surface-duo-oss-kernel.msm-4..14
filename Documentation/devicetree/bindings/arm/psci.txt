@@ -42,6 +42,16 @@ Main node optional properties:
 
  - migrate       : Function ID for MIGRATE operation
 
+Device tree nodes that require usage of PSCI CPU_SUSPEND function (ie idle
+state nodes, as per bindings in [1]) must specify the following properties:
+
+- arm,psci-suspend-param
+		Usage: Required for state nodes[1] if the corresponding
+                       idle-states node entry-method property is set
+                       to "psci".
+		Value type: <u32>
+		Definition: power_state parameter to pass to the PSCI
+			    suspend call.
 
 Example:
 
@@ -53,3 +63,6 @@ Example:
 		cpu_on		= <0x95c10002>;
 		migrate		= <0x95c10003>;
 	};
+
+[1] Kernel documentation - ARM idle states bindings
+    Documentation/devicetree/bindings/arm/idle-states.txt
