@@ -32,6 +32,8 @@
 #include <linux/task_work.h>
 
 #include <trace/events/sched.h>
+#include <linux/sysfs.h>
+#include <linux/vmalloc.h>
 
 #include "sched.h"
 
@@ -2286,6 +2288,30 @@ static u32 __compute_runnable_contrib(u64 n)
 	contrib = decay_load(contrib, n);
 	return contrib + runnable_avg_yN_sum[n];
 }
+
+#ifdef CONFIG_SCHED_HMP
+#define HMP_VARIABLE_SCALE_SHIFT 16ULL
+struct hmp_global_attr {
+	struct attribute attr;
+	ssize_t (*show)(struct kobject *kobj,
+			struct attribute *attr, char *buf);
+	ssize_t (*store)(struct kobject *a, struct attribute *b,
+			const char *c, size_t count);
+	int *value;
+	int (*to_sysfs)(int);
+	int (*from_sysfs)(int);
+	ssize_t (*to_sysfs_text)(char *buf, int buf_size);
+};
+
+#define HMP_DATA_SYSFS_MAX 8
+
+struct hmp_data_struct {
+	struct attribute_group attr_group;
+	struct attribute *attributes[HMP_DATA_SYSFS_MAX + 1];
+	struct hmp_global_attr attr[HMP_DATA_SYSFS_MAX];
+} hmp_data;
+
+#endif /* CONFIG_SCHED_HMP */
 
 /*
  * We can represent the historical contribution to runnable average as the
@@ -4845,6 +4871,135 @@ static inline void hmp_next_down_delay(struct sched_entity *se, int cpu)
 	cpu_rq(cpu)->avg.hmp_last_down_migration = now;
 	cpu_rq(cpu)->avg.hmp_last_up_migration = 0;
 }
+
+static ssize_t hmp_show(struct kobject *kobj,
+				struct attribute *attr, char *buf)
+{
+	struct hmp_global_attr *hmp_attr =
+		container_of(attr, struct hmp_global_attr, attr);
+	int temp;
+
+	if (hmp_attr->to_sysfs_text != NULL)
+		return hmp_attr->to_sysfs_text(buf, PAGE_SIZE);
+
+	temp = *(hmp_attr->value);
+	if (hmp_attr->to_sysfs != NULL)
+		temp = hmp_attr->to_sysfs(temp);
+
+	return (ssize_t)sprintf(buf, "%d\n", temp);
+}
+
+static ssize_t hmp_store(struct kobject *a, struct attribute *attr,
+				const char *buf, size_t count)
+{
+	int temp;
+	ssize_t ret = count;
+	struct hmp_global_attr *hmp_attr =
+		container_of(attr, struct hmp_global_attr, attr);
+	char *str = vmalloc(count + 1);
+	if (str == NULL)
+		return -ENOMEM;
+	memcpy(str, buf, count);
+	str[count] = 0;
+	if (sscanf(str, "%d", &temp) < 1)
+		ret = -EINVAL;
+	else {
+		if (hmp_attr->from_sysfs != NULL)
+			temp = hmp_attr->from_sysfs(temp);
+		if (temp < 0)
+			ret = -EINVAL;
+		else
+			*(hmp_attr->value) = temp;
+	}
+	vfree(str);
+	return ret;
+}
+
+static ssize_t hmp_print_domains(char *outbuf, int outbufsize)
+{
+	char buf[64];
+	const char nospace[] = "%s", space[] = " %s";
+	const char *fmt = nospace;
+	struct hmp_domain *domain;
+	struct list_head *pos;
+	int outpos = 0;
+	list_for_each(pos, &hmp_domains) {
+		domain = list_entry(pos, struct hmp_domain, hmp_domains);
+		if (cpumask_scnprintf(buf, 64, &domain->possible_cpus)) {
+			outpos += sprintf(outbuf+outpos, fmt, buf);
+			fmt = space;
+		}
+	}
+	strcat(outbuf, "\n");
+	return outpos+1;
+}
+
+/* max value for threshold is 1024 */
+static int hmp_theshold_from_sysfs(int value)
+{
+	if (value > 1024)
+		return -1;
+	return value;
+}
+
+static void hmp_attr_add(
+	const char *name,
+	int *value,
+	int (*to_sysfs)(int),
+	int (*from_sysfs)(int),
+	ssize_t (*to_sysfs_text)(char *, int),
+	umode_t mode)
+{
+	int i = 0;
+	while (hmp_data.attributes[i] != NULL) {
+		i++;
+		if (i >= HMP_DATA_SYSFS_MAX)
+			return;
+	}
+	if (mode)
+		hmp_data.attr[i].attr.mode = mode;
+	else
+		hmp_data.attr[i].attr.mode = 0644;
+	hmp_data.attr[i].show = hmp_show;
+	hmp_data.attr[i].store = hmp_store;
+	hmp_data.attr[i].attr.name = name;
+	hmp_data.attr[i].value = value;
+	hmp_data.attr[i].to_sysfs = to_sysfs;
+	hmp_data.attr[i].from_sysfs = from_sysfs;
+	hmp_data.attr[i].to_sysfs_text = to_sysfs_text;
+	hmp_data.attributes[i] = &hmp_data.attr[i].attr;
+	hmp_data.attributes[i + 1] = NULL;
+}
+
+static int hmp_attr_init(void)
+{
+	int ret;
+	memset(&hmp_data, 0, sizeof(hmp_data));
+	hmp_attr_add("hmp_domains",
+		NULL,
+		NULL,
+		NULL,
+		hmp_print_domains,
+		0444);
+	hmp_attr_add("up_threshold",
+		&hmp_up_threshold,
+		NULL,
+		hmp_theshold_from_sysfs,
+		NULL,
+		0);
+	hmp_attr_add("down_threshold",
+		&hmp_down_threshold,
+		NULL,
+		hmp_theshold_from_sysfs,
+		NULL,
+		0);
+	hmp_data.attr_group.name = "hmp";
+	hmp_data.attr_group.attrs = hmp_data.attributes;
+	ret = sysfs_create_group(kernel_kobj,
+		&hmp_data.attr_group);
+	return 0;
+}
+late_initcall(hmp_attr_init);
 
 /*
  * return the load of the lowest-loaded CPU in a given HMP domain
