@@ -31,7 +31,4 @@ config ARCH_MSM8974
 
 endmenu
 
-config QCOM_SCM
-	bool
-
 endif
