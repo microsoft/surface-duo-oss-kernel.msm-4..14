@@ -4575,6 +4575,7 @@ done:
  * fastest domain first.
  */
 DEFINE_PER_CPU(struct hmp_domain *, hmp_cpu_domain);
+static const int hmp_max_tasks = 5;
 
 extern void __init arch_get_hmp_domains(struct list_head *hmp_domains_list);
 
@@ -4640,6 +4641,91 @@ static void hmp_offline_cpu(int cpu)
 		cpumask_clear_cpu(cpu, &domain->cpus);
 }
 
+/*
+ * Needed to determine heaviest tasks etc.
+ */
+static inline unsigned int hmp_cpu_is_fastest(int cpu);
+static inline unsigned int hmp_cpu_is_slowest(int cpu);
+static inline struct hmp_domain *hmp_slower_domain(int cpu);
+static inline struct hmp_domain *hmp_faster_domain(int cpu);
+
+/* must hold runqueue lock for queue se is currently on */
+static struct sched_entity *hmp_get_heaviest_task(
+				struct sched_entity *se, int target_cpu)
+{
+	int num_tasks = hmp_max_tasks;
+	struct sched_entity *max_se = se;
+	unsigned long int max_ratio = se->avg.load_avg_ratio;
+	const struct cpumask *hmp_target_mask = NULL;
+	struct hmp_domain *hmp;
+
+	if (hmp_cpu_is_fastest(cpu_of(se->cfs_rq->rq)))
+		return max_se;
+
+	hmp = hmp_faster_domain(cpu_of(se->cfs_rq->rq));
+	hmp_target_mask = &hmp->cpus;
+	if (target_cpu >= 0) {
+		/* idle_balance gets run on a CPU while
+		 * it is in the middle of being hotplugged
+		 * out. Bail early in that case.
+		 */
+		if(!cpumask_test_cpu(target_cpu, hmp_target_mask))
+			return NULL;
+		hmp_target_mask = cpumask_of(target_cpu);
+	}
+	/* The currently running task is not on the runqueue */
+	se = __pick_first_entity(cfs_rq_of(se));
+
+	while (num_tasks && se) {
+		if (entity_is_task(se) &&
+			se->avg.load_avg_ratio > max_ratio &&
+			cpumask_intersects(hmp_target_mask,
+				tsk_cpus_allowed(task_of(se)))) {
+			max_se = se;
+			max_ratio = se->avg.load_avg_ratio;
+		}
+		se = __pick_next_entity(se);
+		num_tasks--;
+	}
+	return max_se;
+}
+
+static struct sched_entity *hmp_get_lightest_task(
+				struct sched_entity *se, int migrate_down)
+{
+	int num_tasks = hmp_max_tasks;
+	struct sched_entity *min_se = se;
+	unsigned long int min_ratio = se->avg.load_avg_ratio;
+	const struct cpumask *hmp_target_mask = NULL;
+
+	if (migrate_down) {
+		struct hmp_domain *hmp;
+		if (hmp_cpu_is_slowest(cpu_of(se->cfs_rq->rq)))
+			return min_se;
+		hmp = hmp_slower_domain(cpu_of(se->cfs_rq->rq));
+		hmp_target_mask = &hmp->cpus;
+	}
+	/* The currently running task is not on the runqueue */
+	se = __pick_first_entity(cfs_rq_of(se));
+
+	while (num_tasks && se) {
+		if (entity_is_task(se) &&
+			(se->avg.load_avg_ratio < min_ratio &&
+			hmp_target_mask &&
+				cpumask_intersects(hmp_target_mask,
+				tsk_cpus_allowed(task_of(se))))) {
+			min_se = se;
+			min_ratio = se->avg.load_avg_ratio;
+		}
+		se = __pick_next_entity(se);
+		num_tasks--;
+	}
+	return min_se;
+}
+
+static inline unsigned int hmp_domain_min_load(struct hmp_domain *hmpd,
+						int *min_cpu, struct cpumask *affinity);
+
 static inline struct hmp_domain *hmp_smallest_domain(void)
 {
 	return list_entry(hmp_domains.prev, struct hmp_domain, hmp_domains);
@@ -4679,6 +4765,120 @@ static inline struct hmp_domain *hmp_faster_domain(int cpu)
 
 	pos = &hmp_cpu_domain(cpu)->hmp_domains;
 	return list_entry(pos->prev, struct hmp_domain, hmp_domains);
+}
+
+/*
+ * Selects a cpu in previous (faster) hmp_domain
+ */
+static inline unsigned int hmp_select_faster_cpu(struct task_struct *tsk,
+							int cpu)
+{
+	int lowest_cpu=NR_CPUS;
+	__always_unused int lowest_ratio;
+	struct hmp_domain *hmp;
+
+	if (hmp_cpu_is_fastest(cpu))
+		hmp = hmp_cpu_domain(cpu);
+	else
+		hmp = hmp_faster_domain(cpu);
+
+	lowest_ratio = hmp_domain_min_load(hmp, &lowest_cpu,
+			tsk_cpus_allowed(tsk));
+
+	return lowest_cpu;
+}
+
+/*
+ * Selects a cpu in next (slower) hmp_domain
+ * Note that cpumask_any_and() returns the first cpu in the cpumask
+ */
+static inline unsigned int hmp_select_slower_cpu(struct task_struct *tsk,
+							int cpu)
+{
+	int lowest_cpu=NR_CPUS;
+	struct hmp_domain *hmp;
+	__always_unused int lowest_ratio;
+
+	if (hmp_cpu_is_slowest(cpu))
+		hmp = hmp_cpu_domain(cpu);
+	else
+		hmp = hmp_slower_domain(cpu);
+
+	lowest_ratio = hmp_domain_min_load(hmp, &lowest_cpu,
+			tsk_cpus_allowed(tsk));
+
+	return lowest_cpu;
+}
+
+/*
+ * return the load of the lowest-loaded CPU in a given HMP domain
+ * min_cpu optionally points to an int to receive the CPU.
+ * affinity optionally points to a cpumask containing the
+ * CPUs to be considered. note:
+ *   + min_cpu = NR_CPUS only if no CPUs are in the set of
+ *     affinity && hmp_domain cpus
+ *   + min_cpu will always otherwise equal one of the CPUs in
+ *     the hmp domain
+ *   + when more than one CPU has the same load, the one which
+ *     is least-recently-disturbed by an HMP migration will be
+ *     selected
+ *   + if all CPUs are equally loaded or idle and the times are
+ *     all the same, the first in the set will be used
+ *   + if affinity is not set, cpu_online_mask is used
+ */
+static inline unsigned int hmp_domain_min_load(struct hmp_domain *hmpd,
+						int *min_cpu, struct cpumask *affinity)
+{
+	int cpu;
+	int min_cpu_runnable_temp = NR_CPUS;
+	u64 min_target_last_migration = ULLONG_MAX;
+	u64 curr_last_migration;
+	unsigned long min_runnable_load = INT_MAX;
+	unsigned long contrib;
+	struct sched_avg *avg;
+	struct cpumask temp_cpumask;
+	/*
+	 * only look at CPUs allowed if specified,
+	 * otherwise look at all online CPUs in the
+	 * right HMP domain
+	 */
+	cpumask_and(&temp_cpumask, &hmpd->cpus, affinity ? affinity : cpu_online_mask);
+
+	for_each_cpu_mask(cpu, temp_cpumask) {
+		avg = &cpu_rq(cpu)->avg;
+		/* used for both up and down migration */
+		curr_last_migration = avg->hmp_last_up_migration ?
+			avg->hmp_last_up_migration : avg->hmp_last_down_migration;
+
+		contrib = avg->load_avg_ratio;
+		/*
+		 * Consider a runqueue completely busy if there is any load
+		 * on it. Definitely not the best for overall fairness, but
+		 * does well in typical Android use cases.
+		 */
+		if (contrib)
+			contrib = 1023;
+
+		if ((contrib < min_runnable_load) ||
+			(contrib == min_runnable_load &&
+			 curr_last_migration < min_target_last_migration)) {
+			/*
+			 * if the load is the same target the CPU with
+			 * the longest time since a migration.
+			 * This is to spread migration load between
+			 * members of a domain more evenly when the
+			 * domain is fully loaded
+			 */
+			min_runnable_load = contrib;
+			min_cpu_runnable_temp = cpu;
+			min_target_last_migration = curr_last_migration;
+		}
+	}
+
+	if (min_cpu)
+		*min_cpu = min_cpu_runnable_temp;
+
+	return min_runnable_load;
 }
 
 #endif /* CONFIG_SCHED_HMP */
