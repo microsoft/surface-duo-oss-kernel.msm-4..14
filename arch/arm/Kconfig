@@ -1424,6 +1424,25 @@ config HMP_SLOW_CPU_MASK
 	  Specify the cpuids of the slow CPUs in the system as a list string,
 	  e.g. cpuid 0+1 should be specified as 0-1.
 
+config HMP_VARIABLE_SCALE
+	bool "Allows changing the load tracking scale through sysfs"
+	depends on SCHED_HMP
+	help
+	  When turned on, this option exports the load average period value
+	  for the load tracking patches through sysfs.
+	  The values can be modified to change the rate of load accumulation
+	  used for HMP migration. 'load_avg_period_ms' is the time in ms to
+	  reach a load average of 0.5 for an idle task of 0 load average
+	  ratio which becomes 100% busy.
+	  For example, with load_avg_period_ms = 128 and up_threshold = 512,
+	  a running task with a load of 0 will be migrated to a bigger CPU after
+	  128ms, because after 128ms its load_avg_ratio is 0.5 and the real
+	  up_threshold is 0.5.
+	  This patch has the same behavior as changing the Y of the load
+	  average computation to
+	        (1002/1024)^(LOAD_AVG_PERIOD/load_avg_period_ms)
+	  but removes intermediate overflows in computation.
+
 config SCHED_HMP_LITTLE_PACKING
 	bool "Small task packing for HMP"
 	depends on SCHED_HMP
