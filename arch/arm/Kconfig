@@ -1408,6 +1408,19 @@ config SCHED_HMP
 	  Note that both the threshold files can be written at runtime to
 	  control scheduler behaviour.
 
+config SCHED_HMP_PRIO_FILTER
+	bool "(EXPERIMENTAL) Filter HMP migrations by task priority"
+	depends on SCHED_HMP
+	help
+	  Enables task priority based HMP migration filter. Any task with
+	  a NICE value above the threshold will always be on low-power cpus
+	  with less compute capacity.
+
+config SCHED_HMP_PRIO_FILTER_VAL
+	int "NICE priority threshold"
+	default 5
+	depends on SCHED_HMP_PRIO_FILTER
+
 config HMP_FAST_CPU_MASK
 	string "HMP scheduler fast CPU mask"
 	depends on SCHED_HMP

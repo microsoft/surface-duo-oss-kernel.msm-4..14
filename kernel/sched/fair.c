@@ -4881,6 +4881,9 @@ static struct sched_entity *hmp_get_lightest_task(
  */
 unsigned int hmp_up_threshold = 700;
 unsigned int hmp_down_threshold = 512;
+#ifdef CONFIG_SCHED_HMP_PRIO_FILTER
+unsigned int hmp_up_prio = NICE_TO_PRIO(CONFIG_SCHED_HMP_PRIO_FILTER_VAL);
+#endif
 unsigned int hmp_next_up_threshold = 4096;
 unsigned int hmp_next_down_threshold = 4096;
 
@@ -8625,6 +8628,11 @@ static unsigned int hmp_up_migration(int cpu, int *target_cpu, struct sched_enti
 	if (hmp_cpu_is_fastest(cpu))
 		return 0;
 
+#ifdef CONFIG_SCHED_HMP_PRIO_FILTER
+	/* Filter by task priority */
+	if (p->prio >= hmp_up_prio)
+		return 0;
+#endif
 	if (!hmp_task_eligible_for_up_migration(se))
 		return 0;
 
@@ -8662,6 +8670,15 @@ static unsigned int hmp_down_migration(int cpu, struct sched_entity *se)
 #endif
 		return 0;
 	}
+
+#ifdef CONFIG_SCHED_HMP_PRIO_FILTER
+	/* Filter by task priority */
+	if ((p->prio >= hmp_up_prio) &&
+		cpumask_intersects(&hmp_slower_domain(cpu)->cpus,
+					tsk_cpus_allowed(p))) {
+		return 1;
+	}
+#endif
 
 	/* Let the task load settle before doing another down migration */
 	/* hack - always use clock from first online CPU */
