@@ -5228,6 +5228,29 @@ select_task_rq_fair(struct task_struct *p, int prev_cpu, int sd_flag, int wake_f
 unlock:
 	rcu_read_unlock();
 
+#ifdef CONFIG_SCHED_HMP
+	prev_cpu = task_cpu(p);
+
+	if (hmp_up_migration(prev_cpu, &new_cpu, &p->se)) {
+		hmp_next_up_delay(&p->se, new_cpu);
+		return new_cpu;
+	}
+	if (hmp_down_migration(prev_cpu, &p->se)) {
+		new_cpu = hmp_select_slower_cpu(p, prev_cpu);
+		/*
+		 * we might have no suitable CPU
+		 * in which case new_cpu == NR_CPUS
+		 */
+		if (new_cpu < NR_CPUS && new_cpu != prev_cpu) {
+			hmp_next_down_delay(&p->se, new_cpu);
+			return new_cpu;
+		}
+	}
+	/* Make sure that the task stays in its previous hmp domain */
+	if (!cpumask_test_cpu(new_cpu, &hmp_cpu_domain(prev_cpu)->cpus))
+		return prev_cpu;
+#endif
+
 	return new_cpu;
 }
 
