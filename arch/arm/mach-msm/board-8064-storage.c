@@ -320,8 +320,7 @@ static struct mmc_platform_data sdc3_data = {
 	.sup_clk_cnt	= ARRAY_SIZE(sdc3_sup_clk_rates),
 	.pin_data	= &mmc_slot_pin_data[SDCC3],
 	.vreg_data	= &mmc_slot_vreg_data[SDCC3],
-	.wpswitch_gpio	= PM8921_GPIO_PM_TO_SYS(17),
-	.is_wpswitch_active_low = true,
+	.wpswitch_gpio	= -EINVAL,
 	.status_gpio	= 26,
 	.status_irq	= MSM_GPIO_TO_INT(26),
 	.irq_flags	= IRQF_TRIGGER_RISING | IRQF_TRIGGER_FALLING,
@@ -376,9 +375,6 @@ void __init apq8064_init_mmc(void)
 		apq8064_add_sdcc(2, apq8064_sdc2_pdata);
 
 	if (apq8064_sdc3_pdata) {
-		if (!machine_is_apq8064_cdp())
-			apq8064_sdc3_pdata->wpswitch_gpio = -EINVAL;
-
 		if (machine_is_mpq8064_cdp() || machine_is_mpq8064_hrd() ||
 			machine_is_mpq8064_dtv()) {
 			int rc;
