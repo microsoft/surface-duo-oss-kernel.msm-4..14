@@ -278,7 +278,6 @@
 #include <net/ip6_route.h>
 #include <net/ipv6.h>
 #include <net/transp_v6.h>
-#include <net/netdma.h>
 #include <net/sock.h>
 
 #include <asm/uaccess.h>
