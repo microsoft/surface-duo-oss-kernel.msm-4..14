@@ -4723,6 +4723,22 @@ static struct sched_entity *hmp_get_lightest_task(
 	return min_se;
 }
 
+/*
+ * Migration thresholds should be in the range [0..1023]
+ * hmp_up_threshold: min. load required for migrating tasks to a faster cpu
+ * hmp_down_threshold: max. load allowed for tasks migrating to a slower cpu
+ *
+ * hmp_up_prio: Only up migrate task with high priority (<hmp_up_prio)
+ * hmp_next_up_threshold: Delay before next up migration (1024 ~= 1 ms)
+ * hmp_next_down_threshold: Delay before next down migration (1024 ~= 1 ms)
+ */
+unsigned int hmp_up_threshold = 700;
+unsigned int hmp_down_threshold = 512;
+unsigned int hmp_next_up_threshold = 4096;
+unsigned int hmp_next_down_threshold = 4096;
+
+static unsigned int hmp_up_migration(int cpu, int *target_cpu, struct sched_entity *se);
+static unsigned int hmp_down_migration(int cpu, struct sched_entity *se);
 static inline unsigned int hmp_domain_min_load(struct hmp_domain *hmpd,
 						int *min_cpu, struct cpumask *affinity);
 
@@ -4810,6 +4826,26 @@ static inline unsigned int hmp_select_slower_cpu(struct task_struct *tsk,
 	return lowest_cpu;
 }
 
+static inline void hmp_next_up_delay(struct sched_entity *se, int cpu)
+{
+	/* hack - always use clock from first online CPU */
+	u64 now = cpu_rq(cpumask_first(cpu_online_mask))->clock_task;
+	se->avg.hmp_last_up_migration = now;
+	se->avg.hmp_last_down_migration = 0;
+	cpu_rq(cpu)->avg.hmp_last_up_migration = now;
+	cpu_rq(cpu)->avg.hmp_last_down_migration = 0;
+}
+
+static inline void hmp_next_down_delay(struct sched_entity *se, int cpu)
+{
+	/* hack - always use clock from first online CPU */
+	u64 now = cpu_rq(cpumask_first(cpu_online_mask))->clock_task;
+	se->avg.hmp_last_down_migration = now;
+	se->avg.hmp_last_up_migration = 0;
+	cpu_rq(cpu)->avg.hmp_last_down_migration = now;
+	cpu_rq(cpu)->avg.hmp_last_up_migration = 0;
+}
+
 /*
  * return the load of the lowest-loaded CPU in a given HMP domain
  * min_cpu optionally points to an int to receive the CPU.
@@ -4881,6 +4917,56 @@ static inline unsigned int hmp_domain_min_load(struct hmp_domain *hmpd,
 	return min_runnable_load;
 }
 
+/*
+ * Calculate the task starvation
+ * This is the ratio of actually running time vs. runnable time.
+ * If the two are equal the task is getting the cpu time it needs or
+ * it is alone on the cpu and the cpu is fully utilized.
+ */
+static inline unsigned int hmp_task_starvation(struct sched_entity *se)
+{
+	u32 starvation;
+
+	starvation = se->avg.usage_avg_sum * scale_load_down(NICE_0_LOAD);
+	starvation /= (se->avg.runnable_avg_sum + 1);
+
+	return scale_load(starvation);
+}
+
+static inline unsigned int hmp_offload_down(int cpu, struct sched_entity *se)
+{
+	int min_usage;
+	int dest_cpu = NR_CPUS;
+
+	if (hmp_cpu_is_slowest(cpu))
+		return NR_CPUS;
+
+	/* Is there an idle CPU in the current domain */
+	min_usage = hmp_domain_min_load(hmp_cpu_domain(cpu), NULL, NULL);
+	if (min_usage == 0) {
+		return NR_CPUS;
+	}
+
+	/* Is the task alone on the cpu? */
+	if (cpu_rq(cpu)->cfs.h_nr_running < 2) {
+		return NR_CPUS;
+	}
+
+	/* Is the task actually starving? */
+	/* >=25% ratio running/runnable = starving */
+	if (hmp_task_starvation(se) > 768) {
+		return NR_CPUS;
+	}
+
+	/* Does the slower domain have any idle CPUs? */
+	min_usage = hmp_domain_min_load(hmp_slower_domain(cpu), &dest_cpu,
+			tsk_cpus_allowed(task_of(se)));
+
+	if (min_usage == 0)
+		return dest_cpu;
+
+	return NR_CPUS;
+}
 #endif /* CONFIG_SCHED_HMP */
 
 /*
@@ -7868,6 +7954,229 @@ need_kick:
 #else
 static void nohz_idle_balance(struct rq *this_rq, enum cpu_idle_type idle) { }
 #endif
+
+#ifdef CONFIG_SCHED_HMP
+static unsigned int hmp_task_eligible_for_up_migration(struct sched_entity *se)
+{
+	/* below hmp_up_threshold, never eligible */
+	if (se->avg.load_avg_ratio < hmp_up_threshold)
+		return 0;
+	return 1;
+}
+
+/* Check if task should migrate to a faster cpu */
+static unsigned int hmp_up_migration(int cpu, int *target_cpu, struct sched_entity *se)
+{
+	struct task_struct *p = task_of(se);
+	int temp_target_cpu;
+	u64 now;
+
+	if (hmp_cpu_is_fastest(cpu))
+		return 0;
+
+	if (!hmp_task_eligible_for_up_migration(se))
+		return 0;
+
+	/* Let the task load settle before doing another up migration */
+	/* hack - always use clock from first online CPU */
+	now = cpu_rq(cpumask_first(cpu_online_mask))->clock_task;
+	if (((now - se->avg.hmp_last_up_migration) >> 10)
+					< hmp_next_up_threshold)
+		return 0;
+
+	/* hmp_domain_min_load only returns 0 for an
+	 * idle CPU or 1023 for any partly-busy one.
+	 * Be explicit about requirement for an idle CPU.
+	 */
+	if (hmp_domain_min_load(hmp_faster_domain(cpu), &temp_target_cpu,
+			tsk_cpus_allowed(p)) == 0 && temp_target_cpu != NR_CPUS) {
+		if(target_cpu)
+			*target_cpu = temp_target_cpu;
+		return 1;
+	}
+	return 0;
+}
+
+/* Check if task should migrate to a slower cpu */
+static unsigned int hmp_down_migration(int cpu, struct sched_entity *se)
+{
+	struct task_struct *p = task_of(se);
+	u64 now;
+
+	if (hmp_cpu_is_slowest(cpu)) {
+		return 0;
+	}
+
+	/* Let the task load settle before doing another down migration */
+	/* hack - always use clock from first online CPU */
+	now = cpu_rq(cpumask_first(cpu_online_mask))->clock_task;
+	if (((now - se->avg.hmp_last_down_migration) >> 10)
+					< hmp_next_down_threshold)
+		return 0;
+
+	if (cpumask_intersects(&hmp_slower_domain(cpu)->cpus,
+					tsk_cpus_allowed(p))
+		&& se->avg.load_avg_ratio < hmp_down_threshold) {
+		return 1;
+	}
+	return 0;
+}
+
+/*
+ * hmp_can_migrate_task - may task p from runqueue rq be migrated to this_cpu?
+ * Ideally this function should be merged with can_migrate_task() to avoid
+ * redundant code.
+ */
+static int hmp_can_migrate_task(struct task_struct *p, struct lb_env *env)
+{
+	int tsk_cache_hot = 0;
+
+	/*
+	 * We do not migrate tasks that are:
+	 * 1) running (obviously), or
+	 * 2) cannot be migrated to this CPU due to cpus_allowed
+	 */
+	if (!cpumask_test_cpu(env->dst_cpu, tsk_cpus_allowed(p))) {
+		schedstat_inc(p, se.statistics.nr_failed_migrations_affine);
+		return 0;
+	}
+	env->flags &= ~LBF_ALL_PINNED;
+
+	if (task_running(env->src_rq, p)) {
+		schedstat_inc(p, se.statistics.nr_failed_migrations_running);
+		return 0;
+	}
+
+	/*
+	 * Aggressive migration if:
+	 * 1) task is cache cold, or
+	 * 2) too many balance attempts have failed.
+	 */
+
+	tsk_cache_hot = task_hot(p, env);
+	if (!tsk_cache_hot ||
+		env->sd->nr_balance_failed > env->sd->cache_nice_tries) {
+#ifdef CONFIG_SCHEDSTATS
+		if (tsk_cache_hot) {
+			schedstat_inc(env->sd, lb_hot_gained[env->idle]);
+			schedstat_inc(p, se.statistics.nr_forced_migrations);
+		}
+#endif
+		return 1;
+	}
+
+	return 1;
+}
+
+/*
+ * move_task - move a task from one runqueue to another runqueue.
+ * Both runqueues must be locked.
+ */
+static void move_task(struct task_struct *p, struct lb_env *env)
+{
+        deactivate_task(env->src_rq, p, 0);
+        set_task_cpu(p, env->dst_cpu);
+        activate_task(env->dst_rq, p, 0);
+        check_preempt_curr(env->dst_rq, p, 0);
+}
+
+/*
+ * move_specific_task tries to move a specific task.
+ * Returns 1 if successful and 0 otherwise.
+ * Called with both runqueues locked.
+ */
+static int move_specific_task(struct lb_env *env, struct task_struct *pm)
+{
+	struct task_struct *p, *n;
+
+	list_for_each_entry_safe(p, n, &env->src_rq->cfs_tasks, se.group_node) {
+		if (throttled_lb_pair(task_group(p),
+				env->src_rq->cpu, env->dst_cpu))
+			continue;
+
+		if (!hmp_can_migrate_task(p, env))
+			continue;
+		/* Check if we found the right task */
+		if (p != pm)
+			continue;
+
+		move_task(p, env);
+		/*
+		 * Right now, this is only the third place move_task()
+		 * is called, so we can safely collect move_task()
+		 * stats here rather than inside move_task().
+		 */
+		schedstat_inc(env->sd, lb_gained[env->idle]);
+		return 1;
+	}
+	return 0;
+}
+
+ * Move task in a runnable state to another CPU.
+ *
+ * Tailored on 'active_load_balance_cpu_stop' with slight
+ * modification to locking and pre-transfer checks.  Note
+ * rq->lock must be held before calling.
+ */
+static void hmp_migrate_runnable_task(struct rq *rq)
+{
+	struct sched_domain *sd;
+	int src_cpu = cpu_of(rq);
+	struct rq *src_rq = rq;
+	int dst_cpu = rq->push_cpu;
+	struct rq *dst_rq = cpu_rq(dst_cpu);
+	struct task_struct *p = rq->migrate_task;
+	/*
+	 * One last check to make sure nobody else is playing
+	 * with the source rq.
+	 */
+	if (src_rq->active_balance)
+		goto out;
+
+	if (src_rq->nr_running <= 1)
+		goto out;
+
+	if (task_rq(p) != src_rq)
+		goto out;
+	/*
+	 * Not sure if this applies here but one can never
+	 * be too cautious
+	 */
+	BUG_ON(src_rq == dst_rq);
+
+	double_lock_balance(src_rq, dst_rq);
+
+	rcu_read_lock();
+	for_each_domain(dst_cpu, sd) {
+		if (cpumask_test_cpu(src_cpu, sched_domain_span(sd)))
+			break;
+	}
+
+	if (likely(sd)) {
+		struct lb_env env = {
+			.sd             = sd,
+			.dst_cpu        = dst_cpu,
+			.dst_rq         = dst_rq,
+			.src_cpu        = src_cpu,
+			.src_rq         = src_rq,
+			.idle           = CPU_IDLE,
+		};
+
+		schedstat_inc(sd, alb_count);
+
+		if (move_specific_task(&env, p))
+			schedstat_inc(sd, alb_pushed);
+		else
+			schedstat_inc(sd, alb_failed);
+	}
+
+	rcu_read_unlock();
+	double_unlock_balance(src_rq, dst_rq);
+out:
+	put_task_struct(p);
+}
+
+#endif /* CONFIG_SCHED_HMP */
 
 /*
  * run_rebalance_domains is triggered when needed from the scheduler tick.

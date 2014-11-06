@@ -1825,6 +1825,8 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 	INIT_LIST_HEAD(&p->se.group_node);
 
 #ifdef CONFIG_SCHED_HMP
+	p->se.avg.hmp_last_up_migration = 0;
+	p->se.avg.hmp_last_down_migration = 0;
 		p->se.avg.load_avg_ratio = 1023;
 		p->se.avg.load_avg_contrib =
 				(1023 * scale_load_down(p->se.load.weight));
