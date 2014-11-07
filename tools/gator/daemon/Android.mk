@@ -3,7 +3,7 @@ include $(CLEAR_VARS)
 
 XML_H := $(shell cd $(LOCAL_PATH) && make events_xml.h defaults_xml.h)
 
-LOCAL_CFLAGS += -Wall -O3 -mthumb-interwork -fno-exceptions -pthread -DETCDIR=\"/etc\" -Ilibsensors
+LOCAL_CFLAGS += -Wall -O3 -fno-exceptions -pthread -DETCDIR=\"/etc\" -Ilibsensors
 
 LOCAL_SRC_FILES := \
 	Buffer.cpp \
