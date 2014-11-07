@@ -7,6 +7,7 @@
 /dts-v1/;
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/thermal/thermal.h>
 
 / {
 	model = "Juno";
@@ -24,7 +25,9 @@
 		#size-cells = <0>;
 
 		cpu-map {
-			cluster1 {
+			cluster1: cluster1 {
+				#cooling-cells = <2>; /* min followed by max */
+
 				core0 {
 					cpu = <&CPU0>;
 				};
@@ -39,7 +42,9 @@
 				};
 			};
 
-			cluster0 {
+			cluster0: cluster0 {
+				#cooling-cells = <2>; /* min followed by max */
+
 				core0 {
 					cpu = <&CPU4>;
 				};
@@ -265,6 +270,49 @@
 		compatible = "arm,scpi-cpufreq";
 	};
 
+        scpi_sensor0: scpi-sensor@0 {
+			compatible = "arm,scpi-thermal";
+			#thermal-sensor-cells = <1>;
+	};
+
+	thermal-zones {
+		soc_thermal {
+			polling-delay = <1000>;
+			polling-delay-passive = <100>;
+			sustainable-power = <2500>;
+
+			thermal-sensors = <&scpi_sensor0 3>;
+
+			trips {
+		                threshold: trip-point@0 {
+				        temperature = <55000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+				target: trip-point@1 {
+				        temperature = <80000>;
+					hysteresis = <1000>;
+					type = "passive";
+				};
+			};
+
+			cooling-maps {
+			        map0 {
+				     trip = <&target>;
+				     cooling-device = <&cluster0 0 5>;
+				};
+				map1 {
+				     trip = <&target>;
+				     cooling-device = <&cluster1 0 5>;
+				};
+				map2 {
+				    trip = <&target>;
+				    cooling-device = <&gpu 0 4>;
+				};
+			};
+		};
+	};
+
 	soc_uartclk: refclk72738khz {
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
@@ -477,8 +525,9 @@
 		};
 	}; */
 
-	gpu@0x2d000000 {
+	gpu: gpu@0x2d000000 {
 		compatible = "arm,malit6xx", "arm,mali";
+		#cooling-cells = <2>; /* min followed by max */
 		reg = <0x0 0x2d000000 0x0 0x4000>;
 		interrupts = <0 33 4>, <0 34 4>, <0 32 4>;
 		interrupt-names = "JOB", "MMU", "GPU";

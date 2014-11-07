@@ -39,7 +39,7 @@
 	(((txsz) & CMD_DATA_SIZE_MASK) << CMD_DATA_SIZE_SHIFT))
 
 #define MAX_DVFS_DOMAINS	3
-#define MAX_DVFS_OPPS		4
+#define MAX_DVFS_OPPS		8
 #define DVFS_LATENCY(hdr)	((hdr) >> 16)
 #define DVFS_OPP_COUNT(hdr)	(((hdr) >> 8) & 0xff)
 
@@ -64,6 +64,7 @@ enum scpi_client_id {
 	SCPI_CL_CLOCKS,
 	SCPI_CL_DVFS,
 	SCPI_CL_POWER,
+	SCPI_CL_THERMAL,
 	SCPI_MAX,
 };
 
@@ -122,7 +123,6 @@ static int high_priority_cmds[] = {
 	SCPI_CMD_GET_CLOCK_VALUE,
 	SCPI_CMD_SET_PSU,
 	SCPI_CMD_GET_PSU,
-	SCPI_CMD_SENSOR_VALUE,
 	SCPI_CMD_SENSOR_CFG_PERIODIC,
 	SCPI_CMD_SENSOR_CFG_BOUNDS,
 };
@@ -264,10 +264,10 @@ struct scpi_opp *scpi_dvfs_get_opps(u8 domain)
 	struct __packed {
 		u32 status;
 		u32 header;
-		u32 freqs[MAX_DVFS_OPPS];
+		struct scpi_opp_entry opp[MAX_DVFS_OPPS];
 	} buf;
-	struct scpi_opp *opp;
-	size_t freqs_sz;
+	struct scpi_opp *opps;
+	size_t opps_sz;
 	int count, ret;
 
 	if (domain >= MAX_DVFS_DOMAINS)
@@ -282,25 +282,25 @@ struct scpi_opp *scpi_dvfs_get_opps(u8 domain)
 	if (ret)
 		return ERR_PTR(ret);
 
-	opp = kmalloc(sizeof(*opp), GFP_KERNEL);
-	if (!opp)
+	opps = kmalloc(sizeof(*opps), GFP_KERNEL);
+	if (!opps)
 		return ERR_PTR(-ENOMEM);
 
 	count = DVFS_OPP_COUNT(buf.header);
-	freqs_sz = count * sizeof(*(opp->freqs));
+	opps_sz = count * sizeof(*(opps->opp));
 
-	opp->count = count;
-	opp->latency = DVFS_LATENCY(buf.header);
-	opp->freqs = kmalloc(freqs_sz, GFP_KERNEL);
-	if (!opp->freqs) {
-		kfree(opp);
+	opps->count = count;
+	opps->latency = DVFS_LATENCY(buf.header);
+	opps->opp = kmalloc(opps_sz, GFP_KERNEL);
+	if (!opps->opp) {
+		kfree(opps);
 		return ERR_PTR(-ENOMEM);
 	}
 
-	memcpy(opp->freqs, &buf.freqs[0], freqs_sz);
-	scpi_opps[domain] = opp;
+	memcpy(opps->opp, &buf.opp[0], opps_sz);
+	scpi_opps[domain] = opps;
 
-	return opp;
+	return opps;
 }
 EXPORT_SYMBOL_GPL(scpi_dvfs_get_opps);
 
@@ -348,3 +348,72 @@ int scpi_dvfs_set_idx(u8 domain, u8 idx)
 	return scpi_execute_cmd(&sdata);
 }
 EXPORT_SYMBOL_GPL(scpi_dvfs_set_idx);
+
+int scpi_get_sensor(char *name)
+{
+	struct scpi_data_buf sdata;
+	struct mhu_data_buf mdata;
+	struct __packed {
+		u32 status;
+		u16 sensors;
+	} cap_buf;
+	struct __packed {
+		u32 status;
+		u16 sensor;
+		u8 class;
+		u8 trigger;
+		char name[20];
+	} info_buf;
+	int ret;
+	u16 sensor_id;
+
+	/* This should be handled by a generic macro */
+	do {
+		struct mhu_data_buf *pdata = &mdata;
+		pdata->cmd = SCPI_CMD_SENSOR_CAPABILITIES;
+		pdata->tx_size = 0;
+		pdata->rx_buf = &cap_buf;
+		pdata->rx_size = sizeof(cap_buf);
+		sdata.client_id = SCPI_CL_THERMAL;
+		sdata.data = pdata;
+	} while (0);
+
+	if ((ret = scpi_execute_cmd(&sdata)))
+		goto out;
+
+	ret = -ENODEV;
+	for (sensor_id = 0; sensor_id < cap_buf.sensors; sensor_id++) {
+		SCPI_SETUP_DBUF(sdata, mdata, SCPI_CL_THERMAL,
+				SCPI_CMD_SENSOR_INFO, sensor_id, info_buf);
+		if ((ret = scpi_execute_cmd(&sdata)))
+			break;
+
+		if (!strcmp(name, info_buf.name)) {
+			ret = sensor_id;
+			break;
+		}
+	}
+out:
+	return ret;
+}
+EXPORT_SYMBOL_GPL(scpi_get_sensor);
+
+int scpi_get_sensor_value(u16 sensor, u32 *val)
+{
+	struct scpi_data_buf sdata;
+	struct mhu_data_buf mdata;
+	struct __packed {
+		u32 status;
+		u32 val;
+	} buf;
+	int ret;
+
+	SCPI_SETUP_DBUF(sdata, mdata, SCPI_CL_THERMAL, SCPI_CMD_SENSOR_VALUE,
+			sensor, buf);
+
+	if ((ret = scpi_execute_cmd(&sdata)) == 0)
+		*val = buf.val;
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(scpi_get_sensor_value);

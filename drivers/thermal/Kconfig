@@ -71,6 +71,14 @@ config THERMAL_DEFAULT_GOV_USER_SPACE
 	  Select this if you want to let the user space manage the
 	  lpatform thermals.
 
+config THERMAL_DEFAULT_GOV_POWER_ALLOCATOR
+	bool "power_allocator"
+	select THERMAL_GOV_POWER_ALLOCATOR
+	help
+	  Select this if you want to control temperature based on
+	  system and device power allocation. This governor relies on
+	  power actors to operate.
+
 endchoice
 
 config THERMAL_GOV_FAIR_SHARE
@@ -88,6 +96,21 @@ config THERMAL_GOV_USER_SPACE
 	help
 	  Enable this to let the user space manage the platform thermals.
 
+config THERMAL_GOV_POWER_ALLOCATOR
+	bool "Power allocator thermal governor"
+	select THERMAL_POWER_ACTOR
+	help
+	  Enable this to manage platform thermals by dynamically
+	  allocating and limiting power to devices.
+
+config THERMAL_POWER_ACTOR
+	bool
+
+config THERMAL_POWER_ACTOR_CPU
+	depends on CPU_THERMAL
+	select THERMAL_POWER_ACTOR
+	bool
+
 config CPU_THERMAL
 	bool "generic cpu cooling support"
 	depends on CPU_FREQ
@@ -99,6 +122,19 @@ config CPU_THERMAL
 	  (drivers/acpi/processor_thermal.c).
 	  This will be useful for platforms using the generic thermal interface
 	  and not the ACPI interface.
+
+	  If you want this support, you should say Y here.
+
+config DEVFREQ_THERMAL
+	bool "generic device cooling support"
+	depends on PM_DEVFREQ
+	depends on PM_OPP
+	help
+	  This implements the generic devfreq cooling mechanism through
+	  frequency reduction for devices using devfreq.
+
+	  This will throttle the device by limiting the maximum allowed DVFS
+	  frequency corresponding to the cooling level.
 
 	  If you want this support, you should say Y here.
 
@@ -181,6 +217,15 @@ config DB8500_CPUFREQ_COOLING
 	  bound to thermal zone trip points. When a trip point reached, the
 	  bound cpufreq cooling device turns active to set CPU frequency low to
 	  cool down the CPU.
+
+config SCPI_THERMAL
+	tristate "Temperature sensor on ARM SoC based on SCPI Firmware interface"
+	depends on ARM_SCPI_PROTOCOL
+	depends on OF
+	select THERMAL_POWER_ACTOR_CPU
+	help
+	  Support for the SCPI thermal sensor driver in the Linux thermal
+	  framework.
 
 config INTEL_POWERCLAMP
 	tristate "Intel PowerClamp idle injection driver"

@@ -1,0 +1,181 @@
+Power Actor API
+===============
+
+The base power actor API is meant to be used to derive specific power
+actors, such as a cpu power actor.  Power actors can be registered by
+calling `power_actor_register()` and should be unregistered by calling
+`power_actor_unregister()` with the `struct power_actor *` received in
+the call to `power_actor_register()`.
+
+This can't be implemented using the cooling device API because:
+
+1.  get_max_state() gives you the maximum cooling state which, for
+    passive devices, is the minimum performance (frequency in case of
+    cpufreq cdev).  get_max_power() gives you the maximum power, which
+    gives you the maximum performance (frequency in the case of CPUs,
+    GPUs and buses)
+
+2.  You need to pass the thermal_zone_device to all the callbacks,
+    something that the current cooling device API doesn't do.
+
+Callbacks
+---------
+
+1. u32 get_req_power(struct power_actor *actor,
+					struct thermal_zone_device *tz)
+@actor: a valid `struct power_actor *` registered with
+        `power_actor_register()`
+@tz:	the thermal zone closest to the actor (typically, the thermal
+		zone the caller is operating on)
+
+`get_req_power()` returns the current requested power in milliwatts.
+
+2. u32 get_max_power(struct power_actor *actor,
+					struct thermal_zone_device *tz)
+@actor: a valid `struct power_actor *` registered with
+        `power_actor_register()`
+@tz:	the thermal zone closest to the actor (typically, the thermal
+		zone the caller is operating on)
+
+`get_max_power()` returns the maximum power that the device could
+consume if it was fully utilized.  It's a function as some devices'
+maximum power consumption can change due to external factors such as
+temperature.
+
+3. int set_power(struct power_actor *actor,
+				struct thermal_zone_device *tz, u32 power)
+@actor: a valid `struct power_actor *` registered with
+        `power_actor_register()`
+@tz:	the thermal zone closest to the actor (typically, the thermal
+		zone the caller is operating on)
+@power: power in milliwatts
+
+`set_power()` should configure the device to consume @power
+milliwatts.
+
+Returns 0 on success, -E* on error.
+
+CPU Power Actor API
+===================
+
+A simple power model for CPUs.  The current power is calculated as
+dynamic + (optionally) static power.  This power model requires that
+the operating-points of the CPUs are registered using the kernel's opp
+library and the `cpufreq_frequency_table` is assigned to the `struct
+device` of the cpu.  If you are using the `cpufreq-cpu0.c` driver then
+the `cpufreq_frequency_table` should already be assigned to the cpu
+device.
+
+The `plat_static_func` parameter of `power_cpu_actor_register()` is
+optional.  If you don't provide it, only dynamic power will be
+considered.
+
+Dynamic power
+-------------
+
+The dynamic power consumption of a processor depends on many factors.
+For a given processor implementation the primary factors are:
+
+- The time the processor spends running, consuming dynamic power, as
+  compared to the time in idle states where dynamic consumption is
+  negligible.  Herein we refer to this as 'utilisation'.
+- The voltage and frequency levels as a result of DVFS.  The DVFS
+  level is a dominant factor governing power consumption.
+- In running time the 'execution' behaviour (instruction types, memory
+  access patterns and so forth) causes, in most cases, a second order
+  variation.  In pathological cases this variation can be significant,
+  but typically it is of a much lesser impact than the factors above.
+
+A high level dynamic power consumption model may then be represented as:
+
+Pdyn = f(run) * Voltage^2 * Frequency * Utilisation
+
+f(run) here represents the described execution behaviour and its
+result has a units of Watts/Hz/Volt^2 (this often expressed in
+mW/MHz/uVolt^2)
+
+The detailed behaviour for f(run) could be modelled on-line.  However,
+in practice, such an on-line model has dependencies on a number of
+implementation specific processor support and characterisation
+factors.  Therefore, in initial implementation that contribution is
+represented as a constant coefficient.  This is a simplification
+consistent with the relative contribution to overall power variation.
+
+In this simplified representation our model becomes:
+
+Pdyn = Kd * Voltage^2 * Frequency * Utilisation
+
+Where Kd (capacitance) represents an indicative running time dynamic
+power coefficient in fundamental units of mW/MHz/uVolt^2
+
+Static Power
+------------
+
+Static leakage power consumption depends on a number of factors.  For a
+given circuit implementation the primary factors are:
+
+- Time the circuit spends in each 'power state'
+- Temperature
+- Operating voltage
+- Process grade
+
+The time the circuit spends in each 'power state' for a given
+evaluation period at first order means OFF or ON.  However,
+'retention' states can also be supported that reduce power during
+inactive periods without loss of context.
+
+Note: The visibility of state entries to the OS can vary, according to
+platform specifics, and this can then impact the accuracy of a model
+based on OS state information alone.  It might be possible in some
+cases to extract more accurate information from system resources.
+
+The temperature, operating voltage and process 'grade' (slow to fast)
+of the circuit are all significant factors in static leakage power
+consumption.  All of these have complex relationships to static power.
+
+Circuit implementation specific factors include the chosen silicon
+process as well as the type, number and size of transistors in both
+the logic gates and any RAM elements included.
+
+The static power consumption modelling must take into account the
+power managed regions that are implemented.  Taking the example of an
+ARM processor cluster, the modelling would take into account whether
+each CPU can be powered OFF separately or if only a single power
+region is implemented for the complete cluster.
+
+In one view, there are others, a static power consumption model can
+then start from a set of reference values for each power managed
+region (e.g. CPU, Cluster/L2) in each state (e.g. ON, OFF) at an
+arbitrary process grade, voltage and temperature point.  These values
+are then scaled for all of the following: the time in each state, the
+process grade, the current temperature and the operating
+voltage.  However, since both implementation specific and complex
+relationships dominate the estimate, the appropriate interface to the
+model from the cpu power actor is to provide a function callback that
+calculates the static power in this platform.  When registering the
+power cpu actor, pass the thermal zone closest to the cpu (to get the
+temperature) and a function pointer that follows the `get_static_t`
+prototype:
+
+    u32 plat_get_static(cpumask_t *cpumask, unsigned long voltage,
+				unsigned long temperature);
+
+with `cpumask` a cpumask of the cpus involved in the calculation,
+`voltage` the voltage at which they are opperating and `temperature`
+their current temperature.
+
+If `plat_static_func` is NULL when registering the power cpu actor,
+static power is considered to be negligible for this platform and only
+dynamic power is considered.
+
+The platform specific callback can then use any combination of tables
+and/or equations to permute the estimated value.  Process grade
+information is not passed to the model since access to such data, from
+on-chip measurement capability or manufacture time data, is platform
+specific.
+
+Note: the significance of static power for CPUs in comparison to
+dynamic power is highly dependent on implementation.  Given the
+potential complexity in implementation, the importance and accuracy of
+its inclusion when using cpu power actors should be assessed on a case by
+cases basis.
