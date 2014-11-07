@@ -1597,13 +1597,8 @@ drm_mode_std(struct drm_connector *connector, struct edid *edid,
 	}
 
 	/* check whether it can be found in default mode table */
-	if (drm_monitor_supports_rb(edid)) {
-		mode = drm_mode_find_dmt(dev, hsize, vsize, vrefresh_rate,
-					 true);
-		if (mode)
-			return mode;
-	}
-	mode = drm_mode_find_dmt(dev, hsize, vsize, vrefresh_rate, false);
+	mode = drm_mode_find_dmt(dev, hsize, vsize, vrefresh_rate,
+				drm_monitor_supports_rb(edid));
 	if (mode)
 		return mode;
 
@@ -1994,7 +1989,8 @@ do_inferred_modes(struct detailed_timing *timing, void *c)
 						  closure->edid,
 						  timing);
 	
-	if (!version_greater(closure->edid, 1, 1))
+	if (!version_greater(closure->edid, 1, 1) ||
+		!(closure->edid->features & DRM_EDID_FEATURE_DEFAULT_GTF))
 		return; /* GTF not defined yet */
 
 	switch (range->flags) {
@@ -2951,8 +2947,7 @@ int drm_add_edid_modes(struct drm_connector *connector, struct edid *edid)
 	num_modes += add_cvt_modes(connector, edid);
 	num_modes += add_standard_modes(connector, edid);
 	num_modes += add_established_modes(connector, edid);
-	if (edid->features & DRM_EDID_FEATURE_DEFAULT_GTF)
-		num_modes += add_inferred_modes(connector, edid);
+	num_modes += add_inferred_modes(connector, edid);
 	num_modes += add_cea_modes(connector, edid);
 
 	if (quirks & (EDID_QUIRK_PREFER_LARGE_60 | EDID_QUIRK_PREFER_LARGE_75))

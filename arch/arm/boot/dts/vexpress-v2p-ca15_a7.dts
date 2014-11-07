@@ -147,6 +147,7 @@
 		interrupts = <0 85 4>;
 		mode = "1024x768-16@60";
 		framebuffer = <0 0xff000000 0 0x01000000>;
+		i2c-slave = <&dvi_i2c_slave>;
 		clocks = <&oscclk5>;
 		clock-names = "pxlclk";
 	};
