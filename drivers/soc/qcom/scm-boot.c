@@ -21,6 +21,7 @@
 #include <soc/qcom/scm.h>
 #include <soc/qcom/scm-boot.h>
 
+static DEFINE_PER_CPU(void *, last_known_entry);
 /*
  * Set the cold/warm boot address for one of the CPU cores.
  */
@@ -47,7 +48,6 @@ int scm_set_warm_boot_addr(void *entry, int cpu)
 		SCM_FLAG_WARMBOOT_CPU2,
 		SCM_FLAG_WARMBOOT_CPU3,
 	};
-	static DEFINE_PER_CPU(void *, last_known_entry);
 	int ret;
 
 	if (entry == per_cpu(last_known_entry, cpu))
