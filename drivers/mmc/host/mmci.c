@@ -1541,6 +1541,8 @@ static int mmci_probe(struct amba_device *dev,
 	if (!mmc)
 		return -ENOMEM;
 
+	mmc->ops = &mmci_ops;
+
 	ret = mmci_of_parse(np, mmc);
 	if (ret)
 		goto host_free;
@@ -1645,7 +1647,6 @@ static int mmci_probe(struct amba_device *dev,
 		mmc->max_discard_to = 0;
 	}
 
-	mmc->ops = &mmci_ops;
 
 	/* We support these PM capabilities. */
 	mmc->pm_caps |= MMC_PM_KEEP_POWER;
