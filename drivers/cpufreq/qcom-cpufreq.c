@@ -18,8 +18,13 @@
 #include <linux/err.h>
 #include <linux/io.h>
 #include <linux/slab.h>
+#include <linux/cpufreq-dt.h>
 #include <linux/pm_opp.h>
 #include <linux/init.h>
+
+static struct cpufreq_dt_platform_data cpufreq_data = {
+	.independent_clocks = true,
+};
 
 static void __init get_krait_bin_format_a(int *speed, int *pvs, int *pvs_ver)
 {
@@ -169,7 +174,11 @@ again:
 
 static int __init qcom_cpufreq_driver_init(void)
 {
-	struct platform_device_info devinfo = { .name = "cpufreq-generic", };
+	struct platform_device_info devinfo = {
+					.name = "cpufreq-dt",
+					.data = &cpufreq_data,
+					.size_data = sizeof(cpufreq_data)
+					};
 	struct device *cpu_dev;
 	struct device_node *np;
 	struct platform_device *pdev;
