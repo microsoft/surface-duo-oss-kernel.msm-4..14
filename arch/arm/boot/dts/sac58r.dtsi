@@ -67,15 +67,15 @@
 		};
 	};
 
-/*
 	timer {
 		compatible = "arm,armv7-timer";
 		interrupts = 	<GIC_PPI 13 0xf08>,
 				<GIC_PPI 14 0xf08>,
 				<GIC_PPI 11 0xf08>,
 				<GIC_PPI 10 0xf08>;
+
+		clock-frequency = <32000000>;
 	};
-*/
 
 	soc {
 		#address-cells = <1>;
@@ -347,6 +347,7 @@
 				- CRC	CRC_0
 				- LPTimer	LPTIMER_0
 			*/
+
 			pit: pit@40058000 {
 				compatible = "fsl,vf610-pit";
 				reg = <0x40058000 0x1000>;
