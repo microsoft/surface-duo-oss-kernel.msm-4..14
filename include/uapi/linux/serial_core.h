@@ -258,4 +258,7 @@
 /* Cris v10 / v32 SoC */
 #define PORT_CRIS	112
 
+/* Linflex UART */
+#define PORT_LINFLEXUART	113
+
 #endif /* _UAPILINUX_SERIAL_CORE_H */

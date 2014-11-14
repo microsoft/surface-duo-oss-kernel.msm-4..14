@@ -34,7 +34,7 @@
                 ranges;
 */
                 serial: linflex@0x40053000 {
-                    compatible = "fsl,imxv84-linflex-uart";
+                    compatible = "fsl,imxv84-linflex-uart", "fsl-linflexuart";
                     reg = <0x40053000 0x1000>;
 /*
                     clocks = <&uart_clk>;
