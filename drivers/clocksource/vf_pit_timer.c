@@ -144,7 +144,7 @@ static int __init pit_clockevent_init(unsigned long rate, int irq)
 
 	BUG_ON(setup_irq(irq, &pit_timer_irq));
 
-	clockevent_pit.cpumask = cpumask_of(0);
+	clockevent_pit.cpumask = cpu_possible_mask;
 	clockevent_pit.irq = irq;
 	/*
 	 * The value for the LDVAL register trigger is calculated as:
