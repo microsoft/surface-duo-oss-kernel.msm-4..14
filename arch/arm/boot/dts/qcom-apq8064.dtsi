@@ -316,7 +316,6 @@
 		};
 	};
 
-
 	/*
 	 * These channels from the ADC are simply hardware monitors.
 	 * That is why the ADC is referred to as "HKADC" - HouseKeeping
@@ -331,6 +330,14 @@
 			    <&xoadc 0x00 0x0c>, /* Reference voltage 1.25V */
 			    <&xoadc 0x00 0x0d>, /* Reference voltage 0.625V */
 			    <&xoadc 0x00 0x0e>; /* Charger temperature */
+	};
+
+	clocks {
+		sleep_clk: sleep_clk {
+			compatible = "fixed-clock";
+			clock-frequency = <32768>;
+			#clock-cells = <0>;
+		};
 	};
 
 	soc: soc {
@@ -376,6 +383,13 @@
 			clock-frequency = <27000000>,
 					  <32768>;
 			cpu-offset = <0x80000>;
+		};
+
+		watchdog@208a038 {
+			compatible = "qcom,kpss-wdt-apq8064";
+			reg = <0x0208a038 0x40>;
+			clocks = <&sleep_clk>;
+			timeout-sec = <10>;
 		};
 
 		acc0: clock-controller@2088000 {
