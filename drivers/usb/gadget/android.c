@@ -312,55 +312,6 @@ static struct android_usb_function ffs_function = {
 	.attributes	= ffs_function_attributes,
 };
 
-static int functionfs_ready_callback(struct ffs_data *ffs)
-{
-	struct android_dev *dev = _android_dev;
-	struct functionfs_config *config = ffs_function.config;
-	int ret = 0;
-
-	mutex_lock(&dev->mutex);
-
-	ret = functionfs_bind(ffs, dev->cdev);
-	if (ret)
-		goto err;
-
-	config->data = ffs;
-	config->opened = true;
-
-	if (config->enabled)
-		android_enable(dev);
-
-err:
-	mutex_unlock(&dev->mutex);
-	return ret;
-}
-
-static void functionfs_closed_callback(struct ffs_data *ffs)
-{
-	struct android_dev *dev = _android_dev;
-	struct functionfs_config *config = ffs_function.config;
-
-	mutex_lock(&dev->mutex);
-
-	if (config->enabled)
-		android_disable(dev);
-
-	config->opened = false;
-	config->data = NULL;
-
-	functionfs_unbind(ffs);
-
-	mutex_unlock(&dev->mutex);
-}
-
-static void *functionfs_acquire_dev_callback(const char *dev_name)
-{
-	return 0;
-}
-
-static void functionfs_release_dev_callback(struct ffs_data *ffs_data)
-{
-}
 
 #define MAX_ACM_INSTANCES 4
 struct acm_function_config {
@@ -825,16 +776,6 @@ err_usb_add_function:
 	while (i-- > 0)
 		usb_remove_function(c, config->f_ms[i]);
 	return ret;
-}
-
-static void mass_storage_function_unbind_config(struct android_usb_function *f,
-					       struct usb_configuration *c)
-{
-	int i;
-	struct mass_storage_function_config *config = f->config;
-
-	for (i = 0; i < config->instances_on; i++)
-		usb_remove_function(c, config->f_ms[i]);
 }
 
 static ssize_t mass_storage_inquiry_show(struct device *dev,
