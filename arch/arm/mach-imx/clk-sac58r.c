@@ -402,6 +402,12 @@ static void __init sac58r_clocks_init(struct device_node *ccm_node)
 	clk[SAC58R_CLK_SWT1] = imx_clk_gate2("swt1", "per", GPC_AIPS1_ONPF_PCTL0, 2);
 	clk[SAC58R_CLK_SWT2] = imx_clk_gate2("swt2", "per", GPC_AIPS1_ONPF_PCTL0, 6);
 
+	/* When SWT modules are disabled, it is not possible to reset the platform.
+		Force them to be used, so that they do not get gated by clock framework */
+	clk_prepare_enable(clk[SAC58R_CLK_SWT0]);
+	clk_prepare_enable(clk[SAC58R_CLK_SWT1]);
+	clk_prepare_enable(clk[SAC58R_CLK_SWT2]);
+
 	clk[SAC58R_CLK_SNVS_WDOG] = imx_clk_gate2("snvs_wdog", "per", GPC_AIPS0_OFFPF_PCTL1, 30);
 
 	/* Add the clocks to provider list */
