@@ -20,12 +20,15 @@
 #include <linux/dma-mapping.h>
 #include <linux/firmware.h>
 #include <linux/remoteproc.h>
+#include <linux/interrupt.h>
 #include <linux/memblock.h>
+#include <linux/gpio/consumer.h>
 #include <linux/of.h>
 #include <linux/elf.h>
 #include <linux/clk.h>
 #include <linux/slab.h>
 #include <linux/regulator/consumer.h>
+#include <linux/soc/qcom/smem.h>
 
 #include "remoteproc_internal.h"
 
@@ -45,6 +48,14 @@ struct qproc {
 
 	int pas_id;
 
+	int wdog_irq;
+	int fatal_irq;
+	int ready_irq;
+	int handover_irq;
+	int stop_ack_irq;
+
+	struct gpio_desc *stop_gpio;
+
 	const char *name;
 	struct regulator *pll;
 
@@ -54,6 +65,11 @@ struct qproc {
 	struct clk *scm_bus_clk;
 
 	struct clk **proxy_clks;
+
+	struct completion start_done;
+	struct completion stop_done;
+
+	struct qcom_smem_item crash_reason;
 };
 
 static int pas_supported(int id)
@@ -301,7 +317,6 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 	phys_addr_t max_addr = 0;
 	struct qproc *qproc = rproc->priv;
 	char *fw_name;
-	int ext;
 	int ret;
 	int i;
 
@@ -344,14 +359,7 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 		return -EINVAL;
 	}
 
-	ext = strlen(rproc->firmware) - 4;
-	if (ext < 0)
-		return -EINVAL;
-
-	if (strcmp(rproc->firmware + ext, ".mdt"))
-		return -EINVAL;
-
-	fw_name = kstrdup(rproc->firmware, GFP_KERNEL);
+	fw_name = kzalloc(strlen(qproc->name) + 5, GFP_KERNEL);
 	if (!fw_name)
 		return -ENOMEM;
 
@@ -361,7 +369,7 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 		if (!segment_is_loadable(phdr))
 			continue;
 
-		sprintf(fw_name + ext, ".b%02d", i);
+		sprintf(fw_name, "%s.b%02d", qproc->name, i);
 		ret = qproc_load_segment(rproc, fw_name, phdr);
 		if (ret)
 			break;
@@ -402,6 +410,14 @@ static int qproc_start(struct rproc *rproc)
 		goto unroll_clocks;
 	}
 
+	ret = wait_for_completion_timeout(&qproc->start_done, msecs_to_jiffies(10000));
+	if (ret == 0) {
+		dev_err(qproc->dev, "start timed out\n");
+
+		pas_shutdown(qproc->pas_id);
+		goto unroll_clocks;
+	}
+
 	return 0;
 
 unroll_clocks:
@@ -417,21 +433,20 @@ static int qproc_stop(struct rproc *rproc)
 {
 	struct qproc *qproc = (struct qproc *)rproc->priv;
 	int ret;
-	int i;
 
-	ret = pas_shutdown(qproc->pas_id);
-	if (ret) {
-		dev_err(qproc->dev, "failed to shutdown: %d\n", ret);
+	gpiod_set_value(qproc->stop_gpio, 1);
+
+	ret = wait_for_completion_timeout(&qproc->stop_done, msecs_to_jiffies(1000));
+	if (ret == 0) {
+		dev_err(qproc->dev, "timed out on wait\n");
 		return ret;
 	}
 
-	for (i = 0; i < qproc->proxy_clk_count; i++)
-		clk_disable_unprepare(qproc->proxy_clks[i]);
+	gpiod_set_value(qproc->stop_gpio, 0);
 
-	ret = regulator_disable(qproc->pll);
+	ret = pas_shutdown(qproc->pas_id);
 	if (ret)
-		dev_warn(qproc->dev, "failed to disable pll supply\n");
-
+		dev_err(qproc->dev, "failed to shutdown: %d\n", ret);
 	return ret;
 }
 
@@ -439,6 +454,63 @@ static const struct rproc_ops qproc_ops = {
 	.start = qproc_start,
 	.stop = qproc_stop,
 };
+
+static irqreturn_t qproc_wdog_interrupt(int irq, void *dev)
+{
+	struct qproc *qproc = dev;
+
+	rproc_report_crash(qproc->rproc, RPROC_WATCHDOG);
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t qproc_fatal_interrupt(int irq, void *dev)
+{
+	struct qproc *qproc = dev;
+	size_t len;
+	char *msg;
+	int ret;
+
+	ret = qcom_smem_get(&qproc->crash_reason, (void**)&msg, &len);
+	if (!ret && len > 0 && msg[0])
+		dev_err(qproc->dev, "fatal error received: %s\n", msg);
+
+	rproc_report_crash(qproc->rproc, RPROC_FATAL_ERROR);
+
+	if (!ret) {
+		msg[0] = '\0';
+#if 0
+		qcom_smem_put(qproc->smem, msg);
+#endif
+	}
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t qproc_ready_interrupt(int irq, void *dev)
+{
+	struct qproc *qproc = dev;
+
+	complete(&qproc->start_done);
+
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t qproc_handover_interrupt(int irq, void *dev)
+{
+	struct qproc *qproc = dev;
+
+	qproc_scm_clk_disable(qproc);
+	regulator_disable(qproc->pll);
+	return IRQ_HANDLED;
+}
+
+static irqreturn_t qproc_stop_ack_interrupt(int irq, void *dev)
+{
+	struct qproc *qproc = dev;
+
+	complete(&qproc->stop_done);
+	return IRQ_HANDLED;
+}
 
 static ssize_t qproc_boot_store(struct device *dev,
 				struct device_attribute *attr,
@@ -448,7 +520,6 @@ static ssize_t qproc_boot_store(struct device *dev,
 	int ret;
 
 	ret = rproc_boot(qproc->rproc);
-
 	return ret ? : size;
 }
 
@@ -459,7 +530,6 @@ static ssize_t qproc_shutdown_store(struct device *dev,
 	struct qproc *qproc = dev_get_drvdata(dev);
 
 	rproc_shutdown(qproc->rproc);
-
 	return size;
 }
 
@@ -552,6 +622,25 @@ static int qproc_init_regulators(struct qproc *qproc)
 	return 0;
 }
 
+static int qproc_request_irq(struct qproc *qproc, struct platform_device *pdev, const char *name, irq_handler_t thread_fn)
+{
+	int ret;
+
+	ret = platform_get_irq_byname(pdev, name);
+	if (ret < 0) {
+		dev_err(&pdev->dev, "no %s IRQ defined\n", name);
+		return ret;
+	}
+
+	ret = devm_request_threaded_irq(&pdev->dev, ret,
+					NULL, thread_fn,
+					IRQF_TRIGGER_RISING | IRQF_ONESHOT,
+					"qproc", qproc);
+	if (ret)
+		dev_err(&pdev->dev, "request %s IRQ failed\n", name);
+	return ret;
+}
+
 static int qproc_probe(struct platform_device *pdev)
 {
 	struct qproc *qproc;
@@ -586,6 +675,18 @@ static int qproc_probe(struct platform_device *pdev)
 	qproc->name = name;
 	platform_set_drvdata(pdev, qproc);
 
+	init_completion(&qproc->start_done);
+	init_completion(&qproc->stop_done);
+
+	ret = of_parse_qcom_smem_item(pdev->dev.of_node,
+				      "qcom,crash-reason", 0,
+				      &qproc->crash_reason);
+	if (ret) {
+		if (ret != -EPROBE_DEFER)
+			dev_err(&pdev->dev, "failed to acquire smem handle\n");
+		return ret;
+	}
+
 	ret = qproc_init_pas(qproc);
 	if (ret)
 		goto free_rproc;
@@ -597,6 +698,37 @@ static int qproc_probe(struct platform_device *pdev)
 	ret = qproc_init_regulators(qproc);
 	if (ret)
 		goto free_rproc;
+
+	ret = qproc_request_irq(qproc, pdev, "wdog", qproc_wdog_interrupt);
+	if (ret < 0)
+		goto free_rproc;
+	qproc->wdog_irq = ret;
+
+	ret = qproc_request_irq(qproc, pdev, "fatal", qproc_fatal_interrupt);
+	if (ret < 0)
+		goto free_rproc;
+	qproc->fatal_irq = ret;
+
+	ret = qproc_request_irq(qproc, pdev, "ready", qproc_ready_interrupt);
+	if (ret < 0)
+		goto free_rproc;
+	qproc->ready_irq = ret;
+
+	ret = qproc_request_irq(qproc, pdev, "handover", qproc_handover_interrupt);
+	if (ret < 0)
+		goto free_rproc;
+	qproc->handover_irq = ret;
+
+	ret = qproc_request_irq(qproc, pdev, "stop-ack", qproc_stop_ack_interrupt);
+	if (ret < 0)
+		goto free_rproc;
+	qproc->stop_ack_irq = ret;
+
+	qproc->stop_gpio = devm_gpiod_get(&pdev->dev, "qcom,stop", GPIOD_OUT_LOW);
+	if (IS_ERR(qproc->stop_gpio)) {
+		dev_err(&pdev->dev, "failed to acquire stop gpio\n");
+		return PTR_ERR(qproc->stop_gpio);
+	}
 
 	for (i = 0; i < ARRAY_SIZE(qproc_attrs); i++) {
 		ret = device_create_file(&pdev->dev, &qproc_attrs[i]);
