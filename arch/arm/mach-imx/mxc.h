@@ -38,6 +38,8 @@
 #define MXC_CPU_IMX6DL		0x61
 #define MXC_CPU_IMX6SX		0x62
 #define MXC_CPU_IMX6Q		0x63
+#define MXC_CPU_SAC58R		58
+
 
 #define IMX_CHIP_REVISION_1_0		0x10
 #define IMX_CHIP_REVISION_1_1		0x11
@@ -155,6 +157,19 @@ extern unsigned int __mxc_cpu_type;
 # define cpu_is_mx53()		(mxc_cpu_type == MXC_CPU_MX53)
 #else
 # define cpu_is_mx53()		(0)
+#endif
+
+#ifdef CONFIG_SOC_SAC58R
+# ifdef mxc_cpu_type
+#  undef mxc_cpu_type
+#  define mxc_cpu_type __mxc_cpu_type
+# else
+#  define mxc_cpu_type MXC_CPU_SAC58R
+# endif
+# define cpu_is_sac58r()		(mxc_cpu_type == MXC_CPU_SAC58R)
+#else
+# define cpu_is_sac58r()		(0)
+
 #endif
 
 #ifndef __ASSEMBLY__
