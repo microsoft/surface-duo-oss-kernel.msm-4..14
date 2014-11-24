@@ -33,7 +33,37 @@
 #include "hardware.h"
 
 static void __iomem *wdog_base;
+#if defined(CONFIG_SOC_SAC58R)
+static void __iomem *sac58r_src_base;
+#endif
+
 static struct clk *wdog_clk;
+
+#if defined(CONFIG_SOC_SAC58R)
+#define SAC58R_SRC_SCR		0x00
+#define SAC58R_SRC_SRC_SW_RST	0x1000
+#endif
+
+#if defined(CONFIG_SOC_SAC58R)
+static void sac58r_restart(void)
+{
+	BUG_ON(!sac58r_src_base);
+
+	/* Assert SW Reset */
+	__raw_writel(SAC58R_SRC_SRC_SW_RST, sac58r_src_base + SAC58R_SRC_SCR);
+
+	/* wait for reset to assert... */
+	mdelay(500);
+
+	pr_err("%s: failed to assert SW reset\n", __func__);
+
+	/* delay to allow the serial port to show the message */
+	mdelay(50);
+
+	/* we'll take a jump through zero as a poor second */
+	soft_restart(0);
+}
+#endif
 
 /*
  * Reset the system. It is called by machine_restart().
@@ -41,6 +71,11 @@ static struct clk *wdog_clk;
 void mxc_restart(enum reboot_mode mode, const char *cmd)
 {
 	unsigned int wcr_enable;
+
+#if defined(CONFIG_SOC_SAC58R)
+        if (cpu_is_sac58r())
+                sac58r_restart();
+#endif
 
 	if (!wdog_base)
 		goto reset_fallback;
@@ -89,6 +124,57 @@ void __init mxc_arch_reset_init(void __iomem *base)
 		clk_prepare(wdog_clk);
 }
 
+#if defined(CONFIG_SOC_SAC58R)
+void __init sac58r_arch_reset_init_dt(void)
+{
+	struct device_node *np = NULL;
+
+	np = of_find_compatible_node(NULL, NULL, "fsl,sac58r-src");
+	if (!np)
+		return;
+	sac58r_src_base = of_iomap(np, 0);
+	WARN_ON(!sac58r_src_base);
+
+	if (sac58r_src_base)
+		pr_info("Use SRC Software Reset as reset source\n");
+}
+#endif
+
+void __init imx_arch_reset_init_dt(void)
+{
+	struct device_node *np;
+	np = of_find_compatible_node(NULL, NULL, "fsl,imx21-wdt");
+	wdog_base = of_iomap(np, 0);
+	WARN_ON(!wdog_base);
+
+	wdog_clk = of_clk_get(np, 0);
+	if (IS_ERR(wdog_clk))
+		pr_warn("%s: failed to get wdog clock\n", __func__);
+	else
+		clk_prepare(wdog_clk);
+}
+
+void __init mxc_arch_reset_init_dt(void)
+{
+
+      struct device_node *np;
+
+#if defined(CONFIG_SOC_SAC58R)
+      if (cpu_is_sac58r()) {
+	      sac58r_arch_reset_init_dt();
+	      return;
+      }
+#endif
+      np = of_find_compatible_node(NULL, NULL, "fsl,imx21-wdt");
+      wdog_base = of_iomap(np, 0);
+      WARN_ON(!wdog_base);
+
+      wdog_clk = of_clk_get(np, 0);
+      if (IS_ERR(wdog_clk))
+	      pr_warn("%s: failed to get wdog clock\n", __func__);
+      else
+	      clk_prepare(wdog_clk);
+}
 #ifdef CONFIG_CACHE_L2X0
 void __init imx_init_l2cache(void)
 {
