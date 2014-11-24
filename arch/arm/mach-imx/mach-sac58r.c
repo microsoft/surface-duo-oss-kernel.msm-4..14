@@ -14,10 +14,51 @@
 #include <asm/mach/arch.h>
 
 #include "common.h"
+#include "hardware.h"
+
+#include <asm/siginfo.h>
+#include <asm/signal.h>
+
+static bool first_fault = true;
+
+/* This abort handler is here because kernel catches an imprecise data abort
+	right when we get in userspace. We could not find the exact reason/cause
+	why this is happening. Using this workaround helps, but we should definitely
+	understand where this comes from
+	*/
+static int sac58r_abort_handler(unsigned long addr, unsigned int fsr,
+				 struct pt_regs *regs)
+{
+	if (fsr == 0x1c06 && first_fault) {
+		first_fault = false;
+
+		/*
+		 * Still could not catch the reason why this is happening
+		 * Using this abort handler allows working around the issue.
+		 */
+		pr_warn("External imprecise Data abort (0x%03x) at 0x%08lx ignored.\n",
+		fsr, addr);
+
+		/* Returning non-zero causes fault display and panic */
+		return 0;
+	}
+
+	/* Others should cause a fault */
+	return 1;
+}
+
+static void __init sac58r_init_early(void)
+{
+	/* Install our hook */
+	hook_fault_code(16 + 6, sac58r_abort_handler, SIGBUS, BUS_OBJERR,
+			"imprecise external abort");
+}
 
 static void __init sac58r_init_machine(void)
 {
 	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
+	mxc_set_cpu_type(MXC_CPU_SAC58R);
+	mxc_arch_reset_init_dt();
 }
 
 static void __init sac58r_init_time(void)
@@ -35,4 +76,5 @@ DT_MACHINE_START(rayleigh, "Freescale Radio sac58r")
 	.init_time	= sac58r_init_time,
 	.init_machine   = sac58r_init_machine,
 	.dt_compat	= sac58r_dt_compat,
+	.restart	= mxc_restart,
 MACHINE_END
