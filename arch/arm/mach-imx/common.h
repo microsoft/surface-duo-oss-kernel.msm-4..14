@@ -95,8 +95,10 @@ u32 imx_get_cpu_arg(int cpu);
 void imx_set_cpu_arg(int cpu, u32 arg);
 #ifdef CONFIG_SMP
 void v7_secondary_startup(void);
-void imx_scu_map_io(void);
-void imx_smp_prepare(void);
+extern void sac58r_secondary_startup(void);
+extern void imx_scu_map_io(void);
+extern void imx_smp_prepare(void);
+extern void imx_scu_standby_enable(void);
 #else
 static inline void imx_scu_map_io(void) {}
 static inline void imx_smp_prepare(void) {}

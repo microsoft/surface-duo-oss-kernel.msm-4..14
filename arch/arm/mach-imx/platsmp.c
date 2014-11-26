@@ -57,6 +57,17 @@ static int imx_boot_secondary(unsigned int cpu, struct task_struct *idle)
 	return 0;
 }
 
+static int __cpuinit sac58r_boot_secondary(unsigned int cpu, struct task_struct *idle)
+{
+	pr_info("%s\n", __func__);
+
+	imx_set_cpu_jump(cpu, sac58r_secondary_startup);
+	imx_enable_cpu(cpu, true);
+
+	pr_info("%s done\n", __func__);
+
+	return 0;
+}
 /*
  * Initialise the CPU possible map early - this describes the CPUs
  * which may be present or become present in the system.
@@ -155,5 +166,5 @@ struct smp_operations  ls1021a_smp_ops __initdata = {
 struct smp_operations  sac58r_smp_ops __initdata = {
 	.smp_init_cpus		= imx_smp_init_cpus,
 	.smp_prepare_cpus	= imx_smp_prepare_cpus,
-	.smp_boot_secondary	= imx_boot_secondary,
+	.smp_boot_secondary	= sac58r_boot_secondary,
 };
