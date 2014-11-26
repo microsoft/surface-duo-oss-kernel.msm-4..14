@@ -103,6 +103,11 @@
 					regulator-max-microvolt = <1900000>;
 					bias-pull-down;
 				};
+
+				pm8921_lvs6: lvs6 {
+					bias-pull-down;
+				};
+
 			};
 		};
 
@@ -203,6 +208,15 @@
 					};
 				};
 			};
+		};
+
+		pci@1b500000 {
+			status = "ok";
+			pcie-clk-supply	= <&v3p3_fixed>;
+			avdd-supply	= <&pm8921_s3>;
+			vdd-supply	= <&pm8921_lvs6>;
+			qcom,external-phy-refclk;
+			reset-gpio = <&tlmm_pinmux 27 GPIO_ACTIVE_LOW>;
 		};
 
 		amba {
