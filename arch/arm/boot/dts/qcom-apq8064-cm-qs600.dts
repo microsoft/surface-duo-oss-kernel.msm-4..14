@@ -1,4 +1,5 @@
 #include "qcom-apq8064-v2.0.dtsi"
+#include <dt-bindings/gpio/gpio.h>
 
 / {
 	model = "CompuLab CM-QS600";
@@ -38,6 +39,24 @@
 			serial@16640000 {
 				status = "ok";
 			};
+		};
+
+		/* on board fixed 3.3v supply */
+		v3p3_pcieclk: v3p3-pcieclk {
+			compatible = "regulator-fixed";
+			regulator-name = "PCIE V3P3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+		};
+
+		pci@1b500000 {
+			status = "ok";
+			pcie-clk-supply	= <&v3p3_pcieclk>;
+			avdd-supply	= <&pm8921_s3>;
+			vdd-supply	= <&pm8921_lvs6>;
+			qcom,external-phy-refclk;
+			reset-gpio = <&tlmm_pinmux 27 GPIO_ACTIVE_LOW>;
 		};
 
 		amba {
