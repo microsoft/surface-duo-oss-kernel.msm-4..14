@@ -29,3 +29,8 @@ ENTRY(v7_secondary_startup)
 	set_diag_reg
 	b	secondary_startup
 ENDPROC(v7_secondary_startup)
+
+ENTRY(sac58r_secondary_startup)
+	bl	v7_invalidate_l1
+	b	secondary_startup
+ENDPROC(sac58r_secondary_startup)
