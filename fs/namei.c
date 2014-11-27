@@ -3074,7 +3074,7 @@ opened:
 	error = open_check_o_direct(file);
 	if (error)
 		goto exit_fput;
-	error = ima_file_check(file, op->acc_mode);
+	error = ima_file_check(file, op->acc_mode, *opened);
 	if (error)
 		goto exit_fput;
 
@@ -3154,7 +3154,8 @@ static int do_tmpfile(int dfd, struct filename *pathname,
 	if (error)
 		goto out2;
 	audit_inode(pathname, nd->path.dentry, 0);
-	error = may_open(&nd->path, op->acc_mode, op->open_flag);
+	/* Don't check for other permissions, the inode was just created */
+	error = may_open(&nd->path, MAY_OPEN, op->open_flag);
 	if (error)
 		goto out2;
 	file->f_path.mnt = nd->path.mnt;
