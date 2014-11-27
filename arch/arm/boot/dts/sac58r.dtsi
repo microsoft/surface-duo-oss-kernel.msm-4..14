@@ -110,7 +110,6 @@
 			src: src@40022000 {
 				compatible = "fsl,sac58r-src";
 				reg = <0x40022000 0x1000>;
-				interrupts = <0 91 0x04 0 96 0x04>;
 				#reset-cells = <1>;
 			};
 
