@@ -398,9 +398,9 @@ static void __init sac58r_clocks_init(struct device_node *ccm_node)
 	clk[SAC58R_CLK_USBPHY0] = imx_clk_gate("usbphy1", "pll3_main",	PLL3_CTRL_REG, 6);
 	clk[SAC58R_CLK_USBPHY1] = imx_clk_gate("usbphy2", "pll7_main",	PLL7_CTRL_REG, 6);
 
-	clk[SAC58R_CLK_SWT0] = imx_clk_gate2("swt0", "per", GPC_AIPS0_ONPF_PCTL0, 6);
-	clk[SAC58R_CLK_SWT1] = imx_clk_gate2("swt1", "per", GPC_AIPS1_ONPF_PCTL0, 2);
-	clk[SAC58R_CLK_SWT2] = imx_clk_gate2("swt2", "per", GPC_AIPS1_ONPF_PCTL0, 6);
+	clk[SAC58R_CLK_SWT0] = imx_clk_gate2("swt0", "sirc_128k", GPC_AIPS0_ONPF_PCTL0, 6);
+	clk[SAC58R_CLK_SWT1] = imx_clk_gate2("swt1", "sirc_128k", GPC_AIPS1_ONPF_PCTL0, 2);
+	clk[SAC58R_CLK_SWT2] = imx_clk_gate2("swt2", "sirc_128k", GPC_AIPS1_ONPF_PCTL0, 6);
 
 	/* When SWT modules are disabled, it is not possible to reset the platform.
 		Force them to be used, so that they do not get gated by clock framework */
