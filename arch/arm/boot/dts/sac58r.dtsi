@@ -380,10 +380,24 @@
 			reg = <0x40080000 0x80000>;
 			ranges;
 
-			/* Missing:
-				- Audio Codecs	AUD_ADC_DAC
-			*/
+			swt1: swt@40081000 {
+				compatible = "fsl,sac58r-wdt";
+				reg = <0x40081000 0x1000>;
+				interrupts = <0 13 0x04>;
+				clocks = <&clks SAC58R_CLK_SWT1>;
+				clock-names = "swt";
+				status = "disabled";
+			};
 
+			swt2: swt@40083000 {
+				compatible = "fsl,sac58r-wdt";
+				reg = <0x40083000 0x1000>;
+				interrupts = <0 14 0x04>;
+				clocks = <&clks SAC58R_CLK_SWT2>;
+				clock-names = "swt";
+				status = "disabled";
+			};
+				
 			sai4: sai@400A6000 {
 				compatible = "fsl,vf610-sai";
 				reg = <0x400A6000 0x1000>;
