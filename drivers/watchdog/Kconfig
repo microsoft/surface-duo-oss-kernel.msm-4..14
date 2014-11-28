@@ -427,6 +427,14 @@ config IMX2_WDT
 	  To compile this driver as a module, choose M here: the
 	  module will be called imx2_wdt.
 
+config SAC58R_WDT
+	tristate "SAC58R Watchdog"
+	depends on ARCH_MXC && SOC_SAC58R
+	select WATCHDOG_CORE
+	help
+	  This is the driver for the hardware watchdog
+	  on the Freescale SAC58R processor.
+
 config UX500_WATCHDOG
 	tristate "ST-Ericsson Ux500 watchdog"
 	depends on MFD_DB8500_PRCMU
