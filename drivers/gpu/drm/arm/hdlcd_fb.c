@@ -69,7 +69,11 @@ static void hdlcd_dmabuf_release(struct dma_buf *dma_buf)
 	struct hdlcd_drm_private *hdlcd = dma_buf->priv;
 	struct drm_gem_object *obj = &hdlcd->bo->gem;
 
-	drm_gem_object_unreference_unlocked(obj);
+	if (obj->export_dma_buf == dma_buf) {
+		/* drop the reference the export fd holds */
+		obj->export_dma_buf = NULL;
+		drm_gem_object_unreference_unlocked(obj);
+	}
 }
 
 static struct sg_table *hdlcd_map_dma_buf(struct dma_buf_attachment *attach,
