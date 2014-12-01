@@ -54,6 +54,10 @@
 	status = "okay";
 };
 
+&swt1 {
+	status = "okay";
+};
+
 &uart0 {
 	status = "okay";
 };
