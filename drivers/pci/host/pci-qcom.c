@@ -151,6 +151,7 @@ struct qcom_pcie {
 	struct regulator  *vdd_supply;
 	struct regulator  *avdd_supply;
 	struct regulator  *pcie_clk_supply;
+	struct regulator  *pcie_ext3p3v_supply;
 
 	struct qcom_msi		msi;
 };
@@ -651,6 +652,12 @@ static int qcom_pcie_vreg_on(struct qcom_pcie *qcom_pcie)
 		return err;
 	}
 
+	err = regulator_enable(qcom_pcie->pcie_ext3p3v_supply);
+	if (err < 0) {
+		dev_err(qcom_pcie->dev, "failed to enable pcie_ext3p3v regulator\n");
+		return err;
+	}
+
 	return err;
 
 }
@@ -726,6 +733,12 @@ static int qcom_pcie_parse_dt(struct qcom_pcie *qcom_pcie,
 		return PTR_ERR(qcom_pcie->avdd_supply);
 	}
 
+	qcom_pcie->pcie_ext3p3v_supply = devm_regulator_get(&pdev->dev,
+							    "ext-3p3v");
+	if (IS_ERR(qcom_pcie->pcie_ext3p3v_supply)) {
+		dev_err(&pdev->dev, "Failed to get pcie_ext3p3v supply\n");
+		return PTR_ERR(qcom_pcie->pcie_ext3p3v_supply);
+	}
 
 	qcom_pcie->reset_gpio = of_get_named_gpio(np, "reset-gpio", 0);
 	if (!gpio_is_valid(qcom_pcie->reset_gpio)) {
