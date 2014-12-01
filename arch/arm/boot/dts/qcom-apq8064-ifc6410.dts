@@ -93,6 +93,7 @@
 			pcie-clk-supply	= <&v3p3_pcieclk>;
 			avdd-supply	= <&pm8921_s3>;
 			vdd-supply	= <&pm8921_lvs6>;
+			ext-3p3v-supply = <&ext_3p3v>;
 			qcom,external-phy-refclk;
 			reset-gpio = <&tlmm_pinmux 27 GPIO_ACTIVE_LOW>;
 		};
