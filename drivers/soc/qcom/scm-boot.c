@@ -17,9 +17,9 @@
 
 #include <linux/module.h>
 #include <linux/slab.h>
-#include <soc/qcom/scm.h>
 
-#include "scm-boot.h"
+#include <soc/qcom/scm.h>
+#include <soc/qcom/scm-boot.h>
 
 /*
  * Set the cold/warm boot address for one of the CPU cores.
