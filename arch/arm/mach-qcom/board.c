@@ -51,6 +51,27 @@ static void __init qcom_late_init(void)
 		udelay(100);
 		gpio_set_value(reset_gpio, 1);
 	}
+
+	for_each_compatible_node(node, NULL, "bt_reset") {
+		of_node_put(node);
+
+		reset_gpio = of_get_named_gpio(node, "reset-gpio", 0);
+		if (reset_gpio < 0)
+			return;
+
+		ret = gpio_request_one(reset_gpio,
+				       GPIOF_DIR_OUT | GPIOF_INIT_HIGH,
+				       "reset");
+		if (ret) {
+			pr_err("bt_reset gpio_request failed %d\n", ret);
+			return;
+		}
+
+		udelay(100);
+		gpio_set_value(reset_gpio, 0);
+		udelay(100);
+		gpio_set_value(reset_gpio, 1);
+	}
 }
 
 DT_MACHINE_START(QCOM_DT, "Qualcomm (Flattened Device Tree)")
