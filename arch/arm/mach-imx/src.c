@@ -129,8 +129,9 @@ void imx_set_cpu_jump(int cpu, void *jump_addr)
 		src_base_address = SAC58R_SRC_GPR2;
 	}
 
-	printk("%s: cpu(%d), jump_addr(%x), base @ = %x\n",
-		__func__, cpu, (int)virt_to_phys(jump_addr), (int)(src_base + src_base_address + cpu * 8));
+	printk(KERN_DEBUG "%s: cpu(%d), jump_addr(%x), base @ = %x\n",
+		__func__, cpu, (int)virt_to_phys(jump_addr),
+		(int)(src_base + src_base_address + cpu * 8));
 
 
 	cpu = cpu_logical_map(cpu);

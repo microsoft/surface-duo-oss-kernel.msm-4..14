@@ -59,12 +59,8 @@ static int imx_boot_secondary(unsigned int cpu, struct task_struct *idle)
 
 static int __cpuinit sac58r_boot_secondary(unsigned int cpu, struct task_struct *idle)
 {
-	pr_info("%s\n", __func__);
-
 	imx_set_cpu_jump(cpu, sac58r_secondary_startup);
 	imx_enable_cpu(cpu, true);
-
-	pr_info("%s done\n", __func__);
 
 	return 0;
 }
