@@ -7,6 +7,7 @@
 
 	aliases {
 		serial0 = &serial0;
+		serial1 = &serial1;
 	};
 
 	soc {
@@ -15,6 +16,13 @@
 				mux {
 					pins = "gpio20", "gpio21";
 					function = "gsbi1";
+				};
+			};
+
+			uart_pins: uart_pins {
+				mux {
+					pins = "gpio14", "gpio15", "gpio16", "gpio17";
+					function = "gsbi6";
 				};
 			};
 
@@ -42,6 +50,18 @@
 					reg = <0x52>;
 					pagesize = <32>;
 				};
+			};
+		};
+
+		gsbi@16500000 {
+			status = "ok";
+			qcom,mode = <GSBI_PROT_I2C_UART>;
+
+			serial@16540000 {
+				status = "ok";
+
+				pinctrl-names = "default";
+				pinctrl-0 = <&uart_pins>;
 			};
 		};
 
