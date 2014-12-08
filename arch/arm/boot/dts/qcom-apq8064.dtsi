@@ -491,7 +491,7 @@
 			#size-cells = <1>;
 			ranges;
 
-			serial@16640000 {
+			serial0: serial@16640000 {
 				compatible = "qcom,msm-uartdm-v1.3", "qcom,msm-uartdm";
 				reg = <0x16640000 0x1000>,
 				      <0x16600000 0x1000>;
