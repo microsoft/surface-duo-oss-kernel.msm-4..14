@@ -577,11 +577,20 @@
 					gpio-controller;
 					#gpio-cells = <2>;
 					pinctrl-names = "default";
-					pinctrl-0 = <&wlan_default_gpios>;
+					pinctrl-0 = <&wlan_default_gpios &bt_gpios>;
 
 					wlan_default_gpios: wlan-gpios {
 						pios {
 							pins = "gpio43";
+							function = "normal";
+							bias-disable;
+							power-source = <PM8921_GPIO_S4>;
+						};
+					};
+
+					bt_gpios: bt-gpio {
+						pios {
+							pins = "gpio44";
 							function = "normal";
 							bias-disable;
 							power-source = <PM8921_GPIO_S4>;

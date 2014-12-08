@@ -127,6 +127,11 @@
 			reset-gpio = <&pm8921_gpio 42 GPIO_ACTIVE_LOW>;
 		};
 
+		bluetooth {
+			compatible = "bt_reset";
+			reset-gpio = <&pm8921_gpio 43 GPIO_ACTIVE_LOW>;
+		};
+
 		amba {
 			/* eMMC */
 			sdcc1: sdcc@12400000 {
