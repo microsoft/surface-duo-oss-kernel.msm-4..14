@@ -24,5 +24,6 @@ extern s32 scm_call_atomic2(u32 svc, u32 cmd, u32 arg1, u32 arg2);
 #define SCM_VERSION(major, minor) (((major) << 16) | ((minor) & 0xFF))
 
 extern u32 scm_get_version(void);
+extern int scm_is_call_available(u32 svc_id, u32 cmd_id);
 
 #endif
