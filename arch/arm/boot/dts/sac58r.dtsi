@@ -84,6 +84,11 @@
 		interrupt-parent = <&intc>;
 		ranges;
 
+		pmu {
+			compatible = "arm,cortex-a7-pmu";
+			interrupts = <0 7 0x04>;
+		};
+
 		aips0: aips-bus@40000000 {
 			compatible = "fsl,aips-bus", "simple-bus";
 			#address-cells = <1>;
