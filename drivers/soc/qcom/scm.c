@@ -151,9 +151,13 @@ static inline void *scm_get_response_buffer(const struct scm_response *rsp)
 	return (void *)rsp + rsp->buf_offset;
 }
 
-static int scm_remap_error(int err)
+static int scm_remap_error(const struct scm_command *cmd, int err)
 {
-	pr_err("scm_call failed with error code %d\n", err);
+	u32 svc_id = cmd->id >> 10;
+	u32 cmd_id = cmd->id & GENMASK(10, 0);
+
+	pr_err("scm_call for svc_id %d & cmd_id %d failed with error code %d\n",
+			svc_id, cmd_id, err);
 	switch (err) {
 	case SCM_ERROR:
 		return -EIO;
@@ -206,7 +210,7 @@ static int __scm_call(const struct scm_command *cmd)
 
 	ret = smc(cmd_addr);
 	if (ret < 0)
-		ret = scm_remap_error(ret);
+		ret = scm_remap_error(cmd, ret);
 
 	return ret;
 }
