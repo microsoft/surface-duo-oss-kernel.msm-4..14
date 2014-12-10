@@ -440,10 +440,8 @@ static int qproc_stop(struct rproc *rproc)
 	gpiod_set_value(qproc->stop_gpio, 1);
 
 	ret = wait_for_completion_timeout(&qproc->stop_done, msecs_to_jiffies(1000));
-	if (ret == 0) {
+	if (ret == 0)
 		dev_err(qproc->dev, "timed out on wait\n");
-		return ret;
-	}
 
 	gpiod_set_value(qproc->stop_gpio, 0);
 
