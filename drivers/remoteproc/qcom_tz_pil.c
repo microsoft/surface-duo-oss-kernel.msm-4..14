@@ -70,6 +70,7 @@ struct qproc {
 	struct completion stop_done;
 
 	struct qcom_smem_item crash_reason;
+	struct device_node *smd_edge_node;
 };
 
 static int pas_supported(int id)
@@ -429,6 +430,8 @@ disable_regulator:
 	return ret;
 }
 
+extern void qcom_smd_reset_edge(struct device_node *node);
+
 static int qproc_stop(struct rproc *rproc)
 {
 	struct qproc *qproc = (struct qproc *)rproc->priv;
@@ -447,6 +450,9 @@ static int qproc_stop(struct rproc *rproc)
 	ret = pas_shutdown(qproc->pas_id);
 	if (ret)
 		dev_err(qproc->dev, "failed to shutdown: %d\n", ret);
+
+	qcom_smd_reset_edge(qproc->smd_edge_node);
+
 	return ret;
 }
 
@@ -686,6 +692,8 @@ static int qproc_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "failed to acquire smem handle\n");
 		return ret;
 	}
+
+	qproc->smd_edge_node = of_parse_phandle(pdev->dev.of_node, "qcom,smd-edges", 0);
 
 	ret = qproc_init_pas(qproc);
 	if (ret)
