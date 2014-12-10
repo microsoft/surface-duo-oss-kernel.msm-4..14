@@ -108,3 +108,8 @@ config BUS_TOPOLOGY_ADHOC
 		directionality of connections by explicitly listing device connections
 		thus avoiding illegal routes.
 
+config QCOM_IPCRTR_STUB
+	tristate "Qualcomm IPCRTR stub driver"
+	depends on QCOM_SMD
+	help
+	  Stub driver to bring the IPCRTR channel up.
