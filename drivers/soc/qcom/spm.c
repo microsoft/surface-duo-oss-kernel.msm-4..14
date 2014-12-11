@@ -182,7 +182,8 @@ static int qcom_pm_collapse(unsigned long int unused)
 	 * Returns here only if there was a pending interrupt and we did not
 	 * power down as a result.
 	 */
-	return ret;
+	/* Hack:: Ignore scm call return values in power down path */
+	return 0;
 }
 
 static int qcom_cpu_standby(void *unused)
