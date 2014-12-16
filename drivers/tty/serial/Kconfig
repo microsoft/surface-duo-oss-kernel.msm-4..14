@@ -1530,7 +1530,7 @@ config SERIAL_FSL_LPUART_CONSOLE
 
 config SERIAL_FSL_LINFLEXUART
 	tristate "Freescale linflexuart serial port support"
-	depends on HAS_DMA
+#	depends on HAS_DMA
 	select SERIAL_CORE
 	help
 	  Support for the on-chip linflexuartt on some Freescale SOCs.
