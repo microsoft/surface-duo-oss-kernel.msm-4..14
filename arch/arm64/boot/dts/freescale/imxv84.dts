@@ -1,5 +1,4 @@
 /dts-v1/;
-/memreserve/ 0xff000000 0x01000000;
 
 / {
 	model = "V2P-AARCH64";
@@ -8,12 +7,14 @@
 	#address-cells = <2>;
 	#size-cells = <2>;
 
-	chosen { 
-        bootargs = "root=/dev/ram rdinit=/bin/bash rw console=ttyAMA0";
+	chosen {
+
+        bootargs = "console=ttyAMA0";
+        //bootargs = "root=/dev/ram rdinit=/bin/bash rw console=ttyAMA0 earlycon=pl011,0x40053000";
 		linux,initrd-start = <0x90000000>;
-		linux,initrd-end   = <0x9004ABA4>;
+		linux,initrd-end   = <0x900E3C95>;
 	};
-        
+
     aliases {
         serial0 = &imx_serial0;
     };
@@ -34,7 +35,7 @@
 
 	memory_DDR0@80000000 {
 	    device_type = "memory";
-	    reg = <0 0x80000000 0 0x10000000>;
+	    reg = <0 0x80000000 0 0x30000000>;
 	};
 /*
 	memory_DDR1@c0000000 {
@@ -72,23 +73,14 @@
 		     <1 10 0xf08>;
     };
 
-//	imx_serial0: uart@3e800000 {
-	imx_serial0: uart@3b000000 {
-	    compatible = "arm,pl011", "arm,primecell";
-	    reg = <0x0 0x3b000000 0x0 0x1000>;
-	    interrupts = <0 5 4>;
-	    clocks = <&v2m_oscclk2>, <&p9_smbclk>;
-	    clock-names = "uartclk", "apb_pclk";
-	};
 
-	v2m_oscclk2: oscclk2 {
+    	v2m_oscclk2: oscclk2 {
 	    /* IO FPGA peripheral clock */
 		compatible = "fixed-clock";
 		#clock-cells = <0>;
 		clock-frequency = <24000000>;
 		clock-output-names = "v2m:oscclk2";
 	};
-		  
 	p9_smbclk: smbclk {
 		/* Static memory controller clock */
 		compatible = "fixed-clock";
@@ -96,4 +88,28 @@
 		clock-frequency = <24000000>;
 		clock-output-names = "p9:smbclk";
 	};
+soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		interrupt-parent = <&gic>;
+		ranges;
+
+        aips0: aips-bus@40000000 {
+                compatible = "fsl,aips-bus", "simple-bus";
+                #address-cells = <1>;
+                #size-cells = <1>;
+                interrupt-parent = <&gic>;
+                reg = <0x40000000 0x7D000>;
+                ranges;
+
+                imx_serial0:serial@40053000 {
+                    compatible = "fsl,imxv84-linflexuart";
+                    reg = <0x40053000 0x1000>;
+                    interrupts = <0 59 4>;
+                    clocks = <&v2m_oscclk2>, <&p9_smbclk>;
+                    clock-names = "uartclk", "apb_pclk";
+                };
+        };
+    };
 };
