@@ -49,7 +49,7 @@
 		usb3_phy:phy@12520000 {
 			status = "ok";
 		};
-		
+
 		usb4_phy:phy@12530000 {
 			status = "ok";
 		};
@@ -66,7 +66,7 @@
 		usb3: usb@12520000 {
 			status = "ok";
 		};
-		
+
 		usb4: usb@12530000 {
 			status = "ok";
 		};
