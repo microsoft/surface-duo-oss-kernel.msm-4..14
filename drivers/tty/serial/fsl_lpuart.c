@@ -1511,6 +1511,61 @@ static int lpuart_verify_port(struct uart_port *port, struct serial_struct *ser)
 	return ret;
 }
 
+#ifdef CONFIG_CONSOLE_POLL
+static int lpuart_poll_get_char(struct uart_port *port)
+{
+	unsigned char c;
+	unsigned char old_cr2, cr2;
+
+	/* first save CR2 and then disable interrupts */
+	cr2 = old_cr2 = readb(port->membase + UARTCR2);
+	cr2 |= (UARTCR2_TE | UARTCR2_RE);
+	cr2 &= ~(UARTCR2_TIE | UARTCR2_TCIE | UARTCR2_RIE);
+	writeb(cr2, port->membase + UARTCR2);
+
+	/* poll */
+	do {
+		c = readb(port->membase + UARTSR1);
+	} while (~c & UARTSR1_RDRF);
+
+	/* read */
+	c = readb(port->membase + UARTDR);
+
+	/* restore CR2 */
+	writeb(old_cr2, port->membase + UARTCR2);
+
+	return c;
+}
+
+static void lpuart_poll_put_char(struct uart_port *port, unsigned char c)
+{
+	unsigned char status;
+	unsigned char old_cr2, cr2;
+
+	/* first save CR2 and then disable interrupts */
+	cr2 = old_cr2 = readb(port->membase + UARTCR2);
+	cr2 |= (UARTCR2_TE | UARTCR2_RE);
+	cr2 &= ~(UARTCR2_TIE | UARTCR2_TCIE | UARTCR2_RIE);
+	writeb(cr2, port->membase + UARTCR2);
+
+	/* poll */
+	do {
+		status = readb(port->membase + UARTSR1);
+	} while (~status & UARTSR1_TDRE);
+
+	/* write */
+	writeb(c, port->membase + UARTDR);
+
+	/* flush */
+	do {
+		status = readb(port->membase + UARTSR1);
+	} while (~status & UARTSR1_TC);
+
+	/* restore CR2 */
+	writeb(old_cr2, port->membase + UARTCR2);
+}
+#endif
+
 static struct uart_ops lpuart_pops = {
 	.tx_empty	= lpuart_tx_empty,
 	.set_mctrl	= lpuart_set_mctrl,
@@ -1528,6 +1583,10 @@ static struct uart_ops lpuart_pops = {
 	.config_port	= lpuart_config_port,
 	.verify_port	= lpuart_verify_port,
 	.flush_buffer	= lpuart_flush_buffer,
+#ifdef CONFIG_CONSOLE_POLL
+	.poll_get_char	= lpuart_poll_get_char,
+	.poll_put_char	= lpuart_poll_put_char,
+#endif
 };
 
 static struct uart_ops lpuart32_pops = {
