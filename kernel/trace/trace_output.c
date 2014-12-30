@@ -526,29 +526,20 @@ int trace_print_context(struct trace_iterator *iter)
 
 	trace_find_cmdline(entry->pid, comm);
 
-	ret = trace_seq_printf(s, "%16s-%-5d ", comm, entry->pid);
-	if (!ret)
-		return 0;
+	trace_seq_printf(s, "%16s-%-5d ", comm, entry->pid);
 
 	if (trace_flags & TRACE_ITER_TGID) {
 		tgid = trace_find_tgid(entry->pid);
 		if (tgid < 0)
-			ret = trace_seq_puts(s, "(-----) ");
+			trace_seq_puts(s, "(-----) ");
 		else
-			ret = trace_seq_printf(s, "(%5d) ", tgid);
-		if (!ret)
-			return 0;
+			trace_seq_printf(s, "(%5d) ", tgid);
 	}
 
-	ret = trace_seq_printf(s, "[%03d] ", iter->cpu);
-	if (!ret)
-		return 0;
+	trace_seq_printf(s, "[%03d] ", iter->cpu);
 
-	if (trace_flags & TRACE_ITER_IRQ_INFO) {
+	if (trace_flags & TRACE_ITER_IRQ_INFO)
 		ret = trace_print_lat_fmt(s, entry);
-		if (!ret)
-			return 0;
-	}
 
 	if (iter->iter_flags & TRACE_FILE_TIME_IN_NS) {
 		t = ns2usecs(iter->ts);
@@ -868,13 +859,15 @@ static enum print_line_t trace_graph_ent_trace(struct trace_iterator *iter, int 
 
 	trace_assign_type(field, iter->ent);
 
-	if (!trace_seq_puts(s, "graph_ent: func="))
+	trace_seq_puts(s, "graph_ent: func=");
+	if (trace_seq_has_overflowed(s))
 		return TRACE_TYPE_PARTIAL_LINE;
 
 	if (!seq_print_ip_sym(s, field->graph_ent.func, flags))
 		return TRACE_TYPE_PARTIAL_LINE;
 
-	if (!trace_seq_puts(s, "\n"))
+	trace_seq_puts(s, "\n");
+	if (trace_seq_has_overflowed(s))
 		return TRACE_TYPE_PARTIAL_LINE;
 
 	return TRACE_TYPE_HANDLED;
@@ -887,9 +880,10 @@ static enum print_line_t trace_graph_ent_raw(struct trace_iterator *iter, int fl
 
 	trace_assign_type(field, iter->ent);
 
-	if (!trace_seq_printf(&iter->seq, "%lx %d\n",
-			      field->graph_ent.func,
-			      field->graph_ent.depth))
+	trace_seq_printf(&iter->seq, "%lx %d\n",
+			 field->graph_ent.func,
+			 field->graph_ent.depth);
+	if (trace_seq_has_overflowed(&iter->seq))
 		return TRACE_TYPE_PARTIAL_LINE;
 
 	return TRACE_TYPE_HANDLED;
@@ -903,8 +897,8 @@ static enum print_line_t trace_graph_ent_hex(struct trace_iterator *iter, int fl
 
 	trace_assign_type(field, iter->ent);
 
-	SEQ_PUT_HEX_FIELD_RET(s, field->graph_ent.func);
-	SEQ_PUT_HEX_FIELD_RET(s, field->graph_ent.depth);
+	SEQ_PUT_HEX_FIELD(s, field->graph_ent.func);
+	SEQ_PUT_HEX_FIELD(s, field->graph_ent.depth);
 
 	return TRACE_TYPE_HANDLED;
 }
@@ -917,8 +911,8 @@ static enum print_line_t trace_graph_ent_bin(struct trace_iterator *iter, int fl
 
 	trace_assign_type(field, iter->ent);
 
-	SEQ_PUT_FIELD_RET(s, field->graph_ent.func);
-	SEQ_PUT_FIELD_RET(s, field->graph_ent.depth);
+	SEQ_PUT_FIELD(s, field->graph_ent.func);
+	SEQ_PUT_FIELD(s, field->graph_ent.depth);
 
 	return TRACE_TYPE_HANDLED;
 }
@@ -945,13 +939,15 @@ static enum print_line_t trace_graph_ret_trace(struct trace_iterator *iter, int 
 
 	trace_assign_type(field, entry);
 
-	if (!trace_seq_puts(s, "graph_ret: func="))
+	trace_seq_puts(s, "graph_ret: func=");
+	if (trace_seq_has_overflowed(s))
 		return TRACE_TYPE_PARTIAL_LINE;
 
 	if (!seq_print_ip_sym(s, field->ret.func, flags))
 		return TRACE_TYPE_PARTIAL_LINE;
 
-	if (!trace_seq_puts(s, "\n"))
+	trace_seq_puts(s, "\n");
+	if (trace_seq_has_overflowed(s))
 		return TRACE_TYPE_PARTIAL_LINE;
 
 	return TRACE_TYPE_HANDLED;
@@ -964,12 +960,13 @@ static enum print_line_t trace_graph_ret_raw(struct trace_iterator *iter, int fl
 
 	trace_assign_type(field, iter->ent);
 
-	if (!trace_seq_printf(&iter->seq, "%lx %lld %lld %ld %d\n",
-			      field->ret.func,
-			      field->ret.calltime,
-			      field->ret.rettime,
-			      field->ret.overrun,
-			      field->ret.depth));
+	trace_seq_printf(&iter->seq, "%lx %lld %lld %ld %d\n",
+			 field->ret.func,
+			 field->ret.calltime,
+			 field->ret.rettime,
+			 field->ret.overrun,
+			 field->ret.depth);
+	if (trace_seq_has_overflowed(&iter->seq))
 		return TRACE_TYPE_PARTIAL_LINE;
 
 	return TRACE_TYPE_HANDLED;
@@ -983,11 +980,11 @@ static enum print_line_t trace_graph_ret_hex(struct trace_iterator *iter, int fl
 
 	trace_assign_type(field, iter->ent);
 
-	SEQ_PUT_HEX_FIELD_RET(s, field->ret.func);
-	SEQ_PUT_HEX_FIELD_RET(s, field->ret.calltime);
-	SEQ_PUT_HEX_FIELD_RET(s, field->ret.rettime);
-	SEQ_PUT_HEX_FIELD_RET(s, field->ret.overrun);
-	SEQ_PUT_HEX_FIELD_RET(s, field->ret.depth);
+	SEQ_PUT_HEX_FIELD(s, field->ret.func);
+	SEQ_PUT_HEX_FIELD(s, field->ret.calltime);
+	SEQ_PUT_HEX_FIELD(s, field->ret.rettime);
+	SEQ_PUT_HEX_FIELD(s, field->ret.overrun);
+	SEQ_PUT_HEX_FIELD(s, field->ret.depth);
 
 	return TRACE_TYPE_HANDLED;
 }
@@ -1000,11 +997,11 @@ static enum print_line_t trace_graph_ret_bin(struct trace_iterator *iter, int fl
 
 	trace_assign_type(field, iter->ent);
 
-	SEQ_PUT_FIELD_RET(s, field->ret.func);
-	SEQ_PUT_FIELD_RET(s, field->ret.calltime);
-	SEQ_PUT_FIELD_RET(s, field->ret.rettime);
-	SEQ_PUT_FIELD_RET(s, field->ret.overrun);
-	SEQ_PUT_FIELD_RET(s, field->ret.depth);
+	SEQ_PUT_FIELD(s, field->ret.func);
+	SEQ_PUT_FIELD(s, field->ret.calltime);
+	SEQ_PUT_FIELD(s, field->ret.rettime);
+	SEQ_PUT_FIELD(s, field->ret.overrun);
+	SEQ_PUT_FIELD(s, field->ret.depth);
 
 	return TRACE_TYPE_HANDLED;
 }
