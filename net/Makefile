@@ -5,8 +5,6 @@
 # Rewritten to use lists instead of if-statements.
 #
 
-obj-y	:= nonet.o
-
 obj-$(CONFIG_NET)		:= socket.o core/
 
 tmp-$(CONFIG_COMPAT) 		:= compat.o
@@ -74,3 +72,6 @@ obj-$(CONFIG_VSOCKETS)	+= vmw_vsock/
 obj-$(CONFIG_NET_MPLS_GSO)	+= mpls/
 obj-$(CONFIG_HSR)		+= hsr/
 obj-$(CONFIG_NET_ACTIVITY_STATS)		+= activity_stats.o
+ifneq ($(CONFIG_NET_SWITCHDEV),)
+obj-y				+= switchdev/
+endif
