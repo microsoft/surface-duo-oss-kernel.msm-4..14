@@ -1,6 +1,7 @@
 /*
  * Qualcomm Peripheral Image Loader
  *
+ * Copyright (C) 2016 Linaro Ltd.
  * Copyright (C) 2014 Sony Mobile Communications AB
  * Copyright (c) 2012-2013, The Linux Foundation. All rights reserved.
  *
@@ -24,53 +25,103 @@
 #include <linux/memblock.h>
 #include <linux/gpio/consumer.h>
 #include <linux/of.h>
-#include <linux/of_address.h>
 #include <linux/elf.h>
+#include <linux/of_address.h>
+#include <linux/of_device.h>
+#include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
 #include <linux/slab.h>
 #include <linux/regulator/consumer.h>
 #include <linux/soc/qcom/smem.h>
+#include <linux/soc/qcom/smem_state.h>
 #include <linux/reset.h>
-#include <linux/qcom_scm.h>
 
 #include "remoteproc_internal.h"
+#include "qcom_mdt_loader.h"
 
 #include <linux/qcom_scm.h>
 
-#define SCM_SVC_PIL                    0x2
+#define MBA_FIRMWARE_NAME		"mba.b00"
+#define MPSS_FIRMWARE_NAME		"modem.mdt"
 
-struct mdt_hdr {
-	struct elf32_hdr hdr;
-	struct elf32_phdr phdr[];
-};
+#define MPSS_CRASH_REASON_SMEM		421
 
-struct qproc {
+#define VDD_MSS_UV_MIN			1000000
+#define VDD_MSS_UV_MAX			1150000
+#define VDD_MSS_UA			100000
+
+/* AXI Halting Registers */
+#define MSS_Q6_HALT_BASE		0x180
+#define MSS_MODEM_HALT_BASE		0x200
+#define MSS_NC_HALT_BASE		0x280
+
+/* RMB Status Register Values */
+#define RMB_PBL_SUCCESS			0x1
+
+#define RMB_MBA_XPU_UNLOCKED		0x1
+#define RMB_MBA_XPU_UNLOCKED_SCRIBBLED	0x2
+#define RMB_MBA_META_DATA_AUTH_SUCCESS	0x3
+#define RMB_MBA_AUTH_COMPLETE		0x4
+
+/* PBL/MBA interface registers */
+#define RMB_MBA_IMAGE_REG		0x00
+#define RMB_PBL_STATUS_REG		0x04
+#define RMB_MBA_COMMAND_REG		0x08
+#define RMB_MBA_STATUS_REG		0x0C
+#define RMB_PMI_META_DATA_REG		0x10
+#define RMB_PMI_CODE_START_REG		0x14
+#define RMB_PMI_CODE_LENGTH_REG		0x18
+
+#define RMB_CMD_META_DATA_READY		0x1
+#define RMB_CMD_LOAD_READY		0x2
+
+/* QDSP6SS Register Offsets */
+#define QDSP6SS_RESET_REG		0x014
+#define QDSP6SS_GFMUX_CTL_REG		0x020
+#define QDSP6SS_PWR_CTL_REG		0x030
+
+/* AXI Halt Register Offsets */
+#define AXI_HALTREQ_REG			0x0
+#define AXI_HALTACK_REG			0x4
+#define AXI_IDLE_REG			0x8
+
+#define HALT_ACK_TIMEOUT_MS		100
+
+/* QDSP6SS_RESET */
+#define Q6SS_STOP_CORE			BIT(0)
+#define Q6SS_CORE_ARES			BIT(1)
+#define Q6SS_BUS_ARES_ENABLE		BIT(2)
+
+/* QDSP6SS_GFMUX_CTL */
+#define Q6SS_CLK_ENABLE			BIT(1)
+
+/* QDSP6SS_PWR_CTL */
+#define Q6SS_L2DATA_SLP_NRET_N_0	BIT(0)
+#define Q6SS_L2DATA_SLP_NRET_N_1	BIT(1)
+#define Q6SS_L2DATA_SLP_NRET_N_2	BIT(2)
+#define Q6SS_L2TAG_SLP_NRET_N		BIT(16)
+#define Q6SS_ETB_SLP_NRET_N		BIT(17)
+#define Q6SS_L2DATA_STBY_N		BIT(18)
+#define Q6SS_SLP_RET_N			BIT(19)
+#define Q6SS_CLAMP_IO			BIT(20)
+#define QDSS_BHS_ON			BIT(21)
+#define QDSS_LDO_BYP			BIT(22)
+
+struct q6v5 {
 	struct device *dev;
 	struct rproc *rproc;
 
 	void __iomem *reg_base;
 	void __iomem *halt_base;
-	void __iomem *halt_q6;
-	void __iomem *halt_modem;
-	void __iomem *halt_nc;
 	void __iomem *rmb_base;
-	void __iomem *restart_sec_base;
 
 	struct reset_control *mss_restart;
 
-	int wdog_irq;
-	int fatal_irq;
-	int ready_irq;
-	int handover_irq;
-	int stop_ack_irq;
-
-	struct gpio_desc *stop_gpio;
+	struct qcom_smem_state *state;
+	unsigned stop_bit;
 
 	struct regulator *vdd;
-	struct regulator *cx;
-	struct regulator *mx;
-	struct regulator *pll;
 
 	struct clk *ahb_clk;
 	struct clk *axi_clk;
@@ -78,191 +129,88 @@ struct qproc {
 
 	struct completion start_done;
 
-	void			*mba_va;
-	dma_addr_t		mba_da;
-	size_t			mba_size;
-	struct dma_attrs	mba_attrs;
+	phys_addr_t mba_phys;
+	void *mba_region;
+	size_t mba_size;
 
-	phys_addr_t reloc_phys;
-	size_t reloc_size;
+	phys_addr_t mpss_phys;
+	void *mpss_region;
+	size_t mpss_size;
 };
 
-#define VDD_MSS_UV	1000000
-#define VDD_MSS_UV_MAX	1150000
-#define VDD_MSS_UA	100000
-
-/* Q6 Register Offsets */
-#define QDSP6SS_RST_EVB                 0x010
-
-/* AXI Halting Registers */
-#define MSS_Q6_HALT_BASE                0x180
-#define MSS_MODEM_HALT_BASE             0x200
-#define MSS_NC_HALT_BASE                0x280
-
-/* RMB Status Register Values */
-#define STATUS_PBL_SUCCESS              0x1
-#define STATUS_XPU_UNLOCKED             0x1
-#define STATUS_XPU_UNLOCKED_SCRIBBLED   0x2
-
-/* PBL/MBA interface registers */
-#define RMB_MBA_IMAGE                   0x00
-#define RMB_PBL_STATUS                  0x04
-#define RMB_MBA_COMMAND                 0x08
-#define RMB_MBA_STATUS                  0x0C
-#define RMB_PMI_META_DATA               0x10
-#define RMB_PMI_CODE_START              0x14
-#define RMB_PMI_CODE_LENGTH             0x18
-
-#define POLL_INTERVAL_US                50
-
-#define CMD_META_DATA_READY             0x1
-#define CMD_LOAD_READY                  0x2
-
-#define STATUS_META_DATA_AUTH_SUCCESS   0x3
-#define STATUS_AUTH_COMPLETE            0x4
-
-/* External BHS */
-#define EXTERNAL_BHS_ON                 BIT(0)
-#define EXTERNAL_BHS_STATUS             BIT(4)
-#define BHS_TIMEOUT_US                  50
-
-#define MSS_RESTART_ID                  0xA
-
-/* QDSP6SS Register Offsets */
-#define QDSP6SS_RESET                   0x014
-#define QDSP6SS_GFMUX_CTL               0x020
-#define QDSP6SS_PWR_CTL                 0x030
-#define QDSP6SS_STRAP_ACC               0x110
-
-/* AXI Halt Register Offsets */
-#define AXI_HALTREQ                     0x0
-#define AXI_HALTACK                     0x4
-#define AXI_IDLE                        0x8
-
-#define HALT_ACK_TIMEOUT_US             100000
-
-/* QDSP6SS_RESET */
-#define Q6SS_STOP_CORE                  BIT(0)
-#define Q6SS_CORE_ARES                  BIT(1)
-#define Q6SS_BUS_ARES_ENA               BIT(2)
-
-/* QDSP6SS_GFMUX_CTL */
-#define Q6SS_CLK_ENA                    BIT(1)
-#define Q6SS_CLK_SRC_SEL_C              BIT(3)
-#define Q6SS_CLK_SRC_SEL_FIELD          0xC
-#define Q6SS_CLK_SRC_SWITCH_CLK_OVR     BIT(8)
-
-/* QDSP6SS_PWR_CTL */
-#define Q6SS_L2DATA_SLP_NRET_N_0        BIT(0)
-#define Q6SS_L2DATA_SLP_NRET_N_1        BIT(1)
-#define Q6SS_L2DATA_SLP_NRET_N_2        BIT(2)
-#define Q6SS_L2TAG_SLP_NRET_N           BIT(16)
-#define Q6SS_ETB_SLP_NRET_N             BIT(17)
-#define Q6SS_L2DATA_STBY_N              BIT(18)
-#define Q6SS_SLP_RET_N                  BIT(19)
-#define Q6SS_CLAMP_IO                   BIT(20)
-#define QDSS_BHS_ON                     BIT(21)
-#define QDSS_LDO_BYP                    BIT(22)
-
-/* QDSP6v55 parameters */
-#define QDSP6v55_LDO_ON                 BIT(26)
-#define QDSP6v55_LDO_BYP                BIT(25)
-#define QDSP6v55_BHS_ON                 BIT(24)
-#define QDSP6v55_CLAMP_WL               BIT(21)
-#define L1IU_SLP_NRET_N                 BIT(15)
-#define L1DU_SLP_NRET_N                 BIT(14)
-#define L2PLRU_SLP_NRET_N               BIT(13)
-
-#define HALT_CHECK_MAX_LOOPS            (200)
-#define QDSP6SS_XO_CBCR                 (0x0038)
-
-#define QDSP6SS_ACC_OVERRIDE_VAL        0x20
-
-#define segment_is_hash(flag) (((flag) & (0x7 << 24)) == (0x2 << 24))
-static int segment_is_loadable(const struct elf32_phdr *p)
+static int q6v5_load(struct rproc *rproc, const struct firmware *fw)
 {
-	return (p->p_type == PT_LOAD) &&
-	       !segment_is_hash(p->p_flags) &&
-	       p->p_memsz;
-}
+	struct q6v5 *qproc = rproc->priv;
 
-static bool segment_is_relocatable(const struct elf32_phdr *p)
-{
-	return !!(p->p_flags & BIT(27));
-}
-
-static int qproc_sanity_check(struct rproc *rproc,
-				  const struct firmware *fw)
-{
-	if (!fw) {
-		dev_err(&rproc->dev, "failed to load %s\n", rproc->name);
-		return -EINVAL;
-	}
-
-	/* XXX: ??? */
+	memcpy(qproc->mba_region, fw->data, fw->size);
 
 	return 0;
 }
 
-static struct resource_table * qproc_find_rsc_table(struct rproc *rproc,
-						    const struct firmware *fw,
-						    int *tablesz)
-{
-	static struct resource_table table = { .ver = 1, };
-
-	*tablesz = sizeof(table);
-	return &table;
-}
-
-static int qproc_load(struct rproc *rproc, const struct firmware *fw)
-{
-	struct qproc *qproc = rproc->priv;
-	DEFINE_DMA_ATTRS(attrs);
-	dma_addr_t phys;
-	dma_addr_t end;
-	void *ptr;
-
-	dma_set_mask(qproc->dev, DMA_BIT_MASK(32));
-	dma_set_attr(DMA_ATTR_FORCE_CONTIGUOUS, &attrs);
-
-	ptr = dma_alloc_attrs(qproc->dev, fw->size, &phys, GFP_KERNEL, &attrs);
-	if (!ptr) {
-		dev_err(qproc->dev, "failed to allocate mba metadata buffer\n");
-		return -ENOMEM;
-	}
-
-	end = phys + fw->size;
-	dev_info(qproc->dev, "loading MBA from %pa to %pa\n", &phys, &end);
-
-	memcpy(ptr, fw->data, fw->size);
-
-	qproc->mba_va = ptr;
-	qproc->mba_da = phys;
-	qproc->mba_size = fw->size;
-	qproc->mba_attrs = attrs;
-
-	return 0;
-}
-
-static const struct rproc_fw_ops qproc_fw_ops = {
-	.find_rsc_table = qproc_find_rsc_table,
-	.load = qproc_load,
-	.sanity_check = qproc_sanity_check,
+static const struct rproc_fw_ops q6v5_fw_ops = {
+	.find_rsc_table = qcom_mdt_find_rsc_table,
+	.load = q6v5_load,
 };
 
-static void q6v5proc_reset(struct qproc *qproc)
+static int q6v5_rmb_pbl_wait(struct q6v5 *qproc, int ms)
+{
+	unsigned long timeout;
+	s32 val;
+
+	timeout = jiffies + msecs_to_jiffies(ms);
+	for (;;) {
+		val = readl(qproc->rmb_base + RMB_PBL_STATUS_REG);
+		if (val)
+			break;
+
+		if (time_after(jiffies, timeout))
+			return -ETIMEDOUT;
+
+		msleep(1);
+	}
+
+	return val;
+}
+
+static int q6v5_rmb_mba_wait(struct q6v5 *qproc, u32 status, int ms)
+{
+
+	unsigned long timeout;
+	s32 val;
+
+	timeout = jiffies + msecs_to_jiffies(ms);
+	for (;;) {
+		val = readl(qproc->rmb_base + RMB_MBA_STATUS_REG);
+		if (val < 0)
+			break;
+
+		if (!status && val)
+			break;
+		else if (status && val == status)
+			break;
+
+		if (time_after(jiffies, timeout))
+			return -ETIMEDOUT;
+
+		msleep(1);
+	}
+
+	return val;
+}
+
+static void q6v5proc_reset(struct q6v5 *qproc)
 {
 	u32 val;
 
 	/* Assert resets, stop core */
-	val = readl_relaxed(qproc->reg_base + QDSP6SS_RESET);
-	val |= (Q6SS_CORE_ARES | Q6SS_BUS_ARES_ENA | Q6SS_STOP_CORE);
-	writel_relaxed(val, qproc->reg_base + QDSP6SS_RESET);
+	val = readl(qproc->reg_base + QDSP6SS_RESET_REG);
+	val |= (Q6SS_CORE_ARES | Q6SS_BUS_ARES_ENABLE | Q6SS_STOP_CORE);
+	writel(val, qproc->reg_base + QDSP6SS_RESET_REG);
 
 	/* Enable power block headswitch, and wait for it to stabilize */
-	val = readl_relaxed(qproc->reg_base + QDSP6SS_PWR_CTL);
+	val = readl(qproc->reg_base + QDSP6SS_PWR_CTL_REG);
 	val |= QDSS_BHS_ON | QDSS_LDO_BYP;
-	writel_relaxed(val, qproc->reg_base + QDSP6SS_PWR_CTL);
+	writel(val, qproc->reg_base + QDSP6SS_PWR_CTL_REG);
 	mb();
 	udelay(1);
 
@@ -270,604 +218,181 @@ static void q6v5proc_reset(struct qproc *qproc)
 	 * Turn on memories. L2 banks should be done individually
 	 * to minimize inrush current.
 	 */
-	val = readl_relaxed(qproc->reg_base + QDSP6SS_PWR_CTL);
+	val = readl(qproc->reg_base + QDSP6SS_PWR_CTL_REG);
 	val |= Q6SS_SLP_RET_N | Q6SS_L2TAG_SLP_NRET_N |
 		Q6SS_ETB_SLP_NRET_N | Q6SS_L2DATA_STBY_N;
-	writel_relaxed(val, qproc->reg_base + QDSP6SS_PWR_CTL);
+	writel(val, qproc->reg_base + QDSP6SS_PWR_CTL_REG);
 	val |= Q6SS_L2DATA_SLP_NRET_N_2;
-	writel_relaxed(val, qproc->reg_base + QDSP6SS_PWR_CTL);
+	writel(val, qproc->reg_base + QDSP6SS_PWR_CTL_REG);
 	val |= Q6SS_L2DATA_SLP_NRET_N_1;
-	writel_relaxed(val, qproc->reg_base + QDSP6SS_PWR_CTL);
+	writel(val, qproc->reg_base + QDSP6SS_PWR_CTL_REG);
 	val |= Q6SS_L2DATA_SLP_NRET_N_0;
-	writel_relaxed(val, qproc->reg_base + QDSP6SS_PWR_CTL);
+	writel(val, qproc->reg_base + QDSP6SS_PWR_CTL_REG);
 
 	/* Remove IO clamp */
 	val &= ~Q6SS_CLAMP_IO;
-	writel_relaxed(val, qproc->reg_base + QDSP6SS_PWR_CTL);
+	writel(val, qproc->reg_base + QDSP6SS_PWR_CTL_REG);
 
 	/* Bring core out of reset */
-	val = readl_relaxed(qproc->reg_base + QDSP6SS_RESET);
+	val = readl(qproc->reg_base + QDSP6SS_RESET_REG);
 	val &= ~Q6SS_CORE_ARES;
-	writel_relaxed(val, qproc->reg_base + QDSP6SS_RESET);
+	writel(val, qproc->reg_base + QDSP6SS_RESET_REG);
 
 	/* Turn on core clock */
-	val = readl_relaxed(qproc->reg_base + QDSP6SS_GFMUX_CTL);
-	val |= Q6SS_CLK_ENA;
-
-#if 0
-	/* Need a different clock source for v5.2.0 */
-	if (qproc->qdsp6v5_2_0) {
-		val &= ~Q6SS_CLK_SRC_SEL_FIELD;
-		val |= Q6SS_CLK_SRC_SEL_C;
-	}
-
-#endif
-	/* force clock on during source switch */
-//	if (qproc->qdsp6v56)
-		val |= Q6SS_CLK_SRC_SWITCH_CLK_OVR;
-
-	writel_relaxed(val, qproc->reg_base + QDSP6SS_GFMUX_CTL);
+	val = readl(qproc->reg_base + QDSP6SS_GFMUX_CTL_REG);
+	val |= Q6SS_CLK_ENABLE;
+	writel(val, qproc->reg_base + QDSP6SS_GFMUX_CTL_REG);
 
 	/* Start core execution */
-	val = readl_relaxed(qproc->reg_base + QDSP6SS_RESET);
+	val = readl(qproc->reg_base + QDSP6SS_RESET_REG);
 	val &= ~Q6SS_STOP_CORE;
-	writel_relaxed(val, qproc->reg_base + QDSP6SS_RESET);
+	writel(val, qproc->reg_base + QDSP6SS_RESET_REG);
 }
 
-static void q6v5proc_halt_axi_port(struct qproc *qproc, void __iomem *halt)
+static void q6v5proc_halt_axi_port(struct q6v5 *qproc, void __iomem *halt)
 {
 	unsigned long timeout;
+	u32 val;
 
-	if (readl_relaxed(halt + AXI_IDLE))
+	/* Check if we're already idle */
+	if (readl(halt + AXI_IDLE_REG))
 		return;
 
         /* Assert halt request */
-        writel_relaxed(1, halt + AXI_HALTREQ);
+        writel(1, halt + AXI_HALTREQ_REG);
 
         /* Wait for halt */
-	timeout = jiffies + 10 * HZ;
+	timeout = jiffies + msecs_to_jiffies(HALT_ACK_TIMEOUT_MS);
 	for (;;) {
-		if (readl(halt + AXI_HALTACK) || time_after(jiffies, timeout))
+		val = readl(halt + AXI_HALTACK_REG);
+		if (val || time_after(jiffies, timeout))
 			break;
 
 		msleep(1);
 	}
 
-	if (!readl_relaxed(halt + AXI_IDLE))
+	if (!readl(halt + AXI_IDLE_REG))
 		dev_err(qproc->dev, "port %pa failed halt\n", &halt);
 
         /* Clear halt request (port will remain halted until reset) */
-        writel_relaxed(0, halt + AXI_HALTREQ);
+        writel(0, halt + AXI_HALTREQ_REG);
 }
 
-static int qproc_mba_load_mdt(struct qproc *qproc, const struct firmware *fw)
+static int q6v5_mpss_init_image(struct q6v5 *qproc, const struct firmware *fw)
 {
-	DEFINE_DMA_ATTRS(attrs);
-	unsigned long timeout;
-	dma_addr_t phys;
-	dma_addr_t end;
-	void *ptr;
 	int ret;
-	s32 val;
 
-	dma_set_mask(qproc->dev, DMA_BIT_MASK(32));
-	dma_set_attr(DMA_ATTR_FORCE_CONTIGUOUS, &attrs);
+	/* Use mpss memory as scratch buffer for the mdt validation */
+	memcpy(qproc->mpss_region, fw->data, fw->size);
 
-	ptr = dma_alloc_attrs(qproc->dev, fw->size, &phys, GFP_KERNEL, &attrs);
-	if (!ptr) {
-		dev_err(qproc->dev, "failed to allocate mba metadata buffer\n");
-		return -ENOMEM;
-	}
+	writel(qproc->mpss_phys, qproc->rmb_base + RMB_PMI_META_DATA_REG);
+	writel(RMB_CMD_META_DATA_READY, qproc->rmb_base + RMB_MBA_COMMAND_REG);
 
-	end = phys + fw->size;
-	dev_info(qproc->dev, "loading mdt header from %pa to %pa\n", &phys, &end);
+	ret = q6v5_rmb_mba_wait(qproc, RMB_MBA_META_DATA_AUTH_SUCCESS, 1000);
+	if (ret == -ETIMEDOUT)
+		dev_err(qproc->dev, "MBA header authentication timed out\n");
+	else if (ret < 0)
+		dev_err(qproc->dev, "MBA returned error %d for MDT header\n", ret);
 
-	memcpy(ptr, fw->data, fw->size);
-
-	writel_relaxed(0, qproc->rmb_base + RMB_PMI_CODE_LENGTH);
-
-	writel_relaxed(phys, qproc->rmb_base + RMB_PMI_META_DATA);
-	writel(CMD_META_DATA_READY, qproc->rmb_base + RMB_MBA_COMMAND);
-
-	timeout = jiffies + HZ;
-	for (;;) {
-		msleep(1);
-
-		val = readl(qproc->rmb_base + RMB_MBA_STATUS);
-		if (val == STATUS_META_DATA_AUTH_SUCCESS || val < 0)
-			break;
-
-		if (time_after(jiffies, timeout))
-			break;
-	}
-	if (val == 0) {
-		dev_err(qproc->dev, "MBA authentication of headers timed out\n");
-		ret = -ETIMEDOUT;
-		goto out;
-	} else if (val < 0) {
-		dev_err(qproc->dev, "MBA returned error %d for headers\n", val);
-		ret = -EINVAL;
-		goto out;
-	}
-
-	dev_err(qproc->dev, "mdt authenticated\n");
-
-	ret = 0;
-out:
-	dma_free_attrs(qproc->dev, fw->size, ptr, phys, &attrs);
-
-	return ret;
+	return ret < 0 ? ret : 0;
 }
 
-
-static int
-old_qproc_load_segments(struct qproc *qproc, const struct firmware *fw)
+static int q6v5_mpss_validate(struct q6v5 *qproc, const struct firmware *fw)
 {
-	struct device *dev = qproc->dev;
+	const struct elf32_phdr *phdrs;
+	const struct elf32_phdr *phdr;
 	struct elf32_hdr *ehdr;
-	struct elf32_phdr *phdr;
-	int i, ret = 0;
-	const u8 *elf_data = fw->data;
-	const struct firmware *seg_fw;
-	char fw_name[20];
+	size_t size;
+	u32 val;
+	int i;
 
-	ehdr = (struct elf32_hdr *)elf_data;
-	phdr = (struct elf32_phdr *)(elf_data + ehdr->e_phoff);
-
-
-
-	/* go through the available ELF segments */
+	ehdr = (struct elf32_hdr *)fw->data;
+	phdrs = (struct elf32_phdr *)(ehdr + 1);
 	for (i = 0; i < ehdr->e_phnum; i++, phdr++) {
-		u32 da = phdr->p_paddr;
-		u32 memsz = phdr->p_memsz;
-		u32 filesz = phdr->p_filesz;
-		void *ptr;
+		phdr = &phdrs[i];
 
-		if (!segment_is_loadable(phdr))
-			continue;
-		/*
 		if (phdr->p_type != PT_LOAD)
 			continue;
 
-		if (segment_is_hash(phdr->p_flags))
+		if ((phdr->p_flags & QCOM_MDT_TYPE_MASK) == QCOM_MDT_TYPE_HASH)
 			continue;
 
-		if (filesz == 0)
+		if (!phdr->p_memsz)
 			continue;
-*/
-		//dev_dbg(dev, "phdr: type %d da 0x%x memsz 0x%x filesz 0x%x\n",
-		pr_emerg("phdr(%d): type %d da 0x%x memsz 0x%x filesz 0x%x\n",
-					i, phdr->p_type, da, memsz, filesz);
 
-		if (filesz > memsz) {
-			dev_err(dev, "bad phdr filesz 0x%x memsz 0x%x\n",
-							filesz, memsz);
-			ret = -EINVAL;
-			break;
+		size = readl(qproc->rmb_base + RMB_PMI_CODE_LENGTH_REG);
+		if (!size) {
+			writel(qproc->mpss_phys, qproc->rmb_base + RMB_PMI_CODE_START_REG);
+			writel(RMB_CMD_LOAD_READY, qproc->rmb_base + RMB_MBA_COMMAND_REG);
 		}
 
-		ptr = ioremap(da, memsz);
-		if (!ptr) {
-			dev_err(qproc->dev, "failed to allocate mba metadata buffer\n");
-			ret = -ENOMEM;
-			break;
-		}
-
-		if (filesz) {
-			snprintf(fw_name, sizeof(fw_name), "modem.b%02d", i);
-			ret = request_firmware(&seg_fw, fw_name, qproc->dev);
-			if (ret) {
-				iounmap(ptr);
-				break;
-			}
-
-			memcpy(ptr, seg_fw->data, filesz);
-
-			release_firmware(seg_fw);
-		}
-
-		if (memsz > filesz)
-			memset(ptr + filesz, 0, memsz - filesz);
-
-
-
-		wmb();
-		iounmap(ptr);
+		size += phdr->p_memsz;
+		writel(size, qproc->rmb_base + RMB_PMI_CODE_LENGTH_REG);
 	}
 
-	return ret;
+	val = readl(qproc->rmb_base + RMB_MBA_STATUS_REG);
+	return val < 0 ? val : 0;
 }
 
-static int qproc_verify_segment(struct qproc *qproc, phys_addr_t paddr, size_t size)
-{
-	s32 status;
-	u32 img_length;
-
-	img_length = readl_relaxed(qproc->rmb_base + RMB_PMI_CODE_LENGTH);
-	dev_err(qproc->dev, "RMB_PMI_CODE_LENGTH: %x\n", img_length);
-
-	msleep(1);
-	img_length = readl_relaxed(qproc->rmb_base + RMB_PMI_CODE_LENGTH);
-	dev_err(qproc->dev, "RMB_PMI_CODE_LENGTH: %x\n", img_length);
-
-
-	if (img_length == 0) {
-		writel_relaxed(paddr, qproc->rmb_base + RMB_PMI_CODE_START);
-		writel(CMD_LOAD_READY, qproc->rmb_base + RMB_MBA_COMMAND);
-	}
-	img_length += size;
-	writel(img_length, qproc->rmb_base + RMB_PMI_CODE_LENGTH);
-
-	img_length = readl_relaxed(qproc->rmb_base + RMB_PMI_CODE_LENGTH);
-	dev_err(qproc->dev, "RMB_PMI_CODE_LENGTH: %x\n", img_length);
-	
-	status = readl_relaxed(qproc->rmb_base + RMB_MBA_STATUS);
-
-
-	if (status < 0) {
-		dev_err(qproc->dev, "MBA returned error %d\n", status);
-	}
-
-	printk("DEBUG:pil: status... %08x\n", readl_relaxed(qproc->rmb_base + RMB_MBA_STATUS));
-
-	return 0;
-}
-
-static int qproc_load_segment(struct qproc *rproc, const char *fw_name,
-				const struct elf32_phdr *phdr, phys_addr_t paddr)
+static int q6v5_mpss_load(struct q6v5 *qproc)
 {
 	const struct firmware *fw;
-	void *ptr;
-	int ret = 0;
-
-	ptr = ioremap_nocache(paddr, phdr->p_memsz);
-	if (!ptr) {
-		dev_err(rproc->dev, "failed to ioremap segment area (%pa+0x%x)\n", &paddr, phdr->p_memsz);
-		return -EBUSY;
-	}
-
-	if (phdr->p_filesz) {
-		ret = request_firmware(&fw, fw_name, rproc->dev);
-		if (ret) {
-			dev_err(rproc->dev, "failed to load %s\n", fw_name);
-			goto out;
-		}
-
-		memcpy_toio(ptr, fw->data, fw->size);
-
-		release_firmware(fw);
-	}
-
-	if (phdr->p_memsz > phdr->p_filesz)
-		memset_io(ptr + phdr->p_filesz, 0,
-			  phdr->p_memsz - phdr->p_filesz);
-
-	printk("DEBUG:pil: verifing %s size: %x\n",fw_name, phdr->p_memsz);
-	qproc_verify_segment(rproc, paddr, phdr->p_memsz);
-
-out:
-	iounmap(ptr);
-	return ret;
-}
-
-static int
-qproc_load_segments(struct qproc *qproc, const struct firmware *fw)
-{
-	struct device *dev = qproc->dev;
-	struct elf32_hdr *ehdr;
-	struct elf32_phdr *phdr;
-	int i, ret = 0;
-	const u8 *elf_data = fw->data;
-	const struct firmware *seg_fw;
-	char fw_name[20];
-
-	const struct mdt_hdr *mdt;
-	phys_addr_t min_addr = (phys_addr_t)ULLONG_MAX;
-	phys_addr_t max_addr = 0;
-	size_t align = 0;
-	bool relocatable = false;
-	phys_addr_t paddr;
-
-
-	ehdr = (struct elf32_hdr *)elf_data;
-	phdr = (struct elf32_phdr *)(elf_data + ehdr->e_phoff);
-
-
-	mdt = (struct mdt_hdr *)fw->data;
-	ehdr = &mdt->hdr;
-
-	for (i = 0; i < ehdr->e_phnum; i++) {
-		phdr = &mdt->phdr[i];
-
-		if (!segment_is_loadable(phdr))
-			continue;
-
-		if (phdr->p_paddr < min_addr) {
-			min_addr = phdr->p_paddr;
-
-			if (segment_is_relocatable(phdr)) {
-				align = phdr->p_align;
-				relocatable = true;
-			}
-		}
-
-		if (phdr->p_paddr + phdr->p_memsz > max_addr)
-			max_addr = round_up(phdr->p_paddr + phdr->p_memsz, SZ_4K);
-	}
-
-	ehdr = (struct elf32_hdr *)elf_data;
-	phdr = (struct elf32_phdr *)(elf_data + ehdr->e_phoff);
-	/* go through the available ELF segments */
-	for (i = 0; i < ehdr->e_phnum; i++, phdr++) {
-		u32 da = phdr->p_paddr;
-		u32 paddr = phdr->p_paddr;
-		u32 memsz = phdr->p_memsz;
-		u32 filesz = phdr->p_filesz;
-		void *ptr;
-
-		if (!segment_is_loadable(phdr))
-			continue;
-		/*
-		if (phdr->p_type != PT_LOAD)
-			continue;
-
-		if (segment_is_hash(phdr->p_flags))
-			continue;
-
-		if (filesz == 0)
-			continue;
-*/
-		//dev_dbg(dev, "phdr: type %d da 0x%x memsz 0x%x filesz 0x%x\n",
-		pr_emerg("phdr(%d): type %d paddr 0x%x memsz 0x%x filesz 0x%x\n",
-					i, phdr->p_type, paddr, memsz, filesz);
-
-		if (filesz > memsz) {
-			dev_err(dev, "bad phdr filesz 0x%x memsz 0x%x\n",
-							filesz, memsz);
-			ret = -EINVAL;
-			break;
-		}
-
-		paddr = relocatable ?
-				(phdr->p_paddr - min_addr + qproc->reloc_phys) :
-				phdr->p_paddr;
-
-		pr_emerg("Relocated-phdr(%d): type %d paddr 0x%x memsz 0x%x filesz 0x%x\n",
-					i, phdr->p_type, paddr, memsz, filesz);
-//		if (filesz) {
-			snprintf(fw_name, sizeof(fw_name), "modem.b%02d", i);
-			ret = qproc_load_segment(qproc, fw_name, phdr, paddr);
-//		}
-#if 0
-
-		ptr = ioremap(da, memsz);
-		if (!ptr) {
-			dev_err(qproc->dev, "failed to allocate mba metadata buffer\n");
-			ret = -ENOMEM;
-			break;
-		}
-
-		if (filesz) {
-			snprintf(fw_name, sizeof(fw_name), "modem.b%02d", i);
-			ret = request_firmware(&seg_fw, fw_name, qproc->dev);
-			if (ret) {
-				iounmap(ptr);
-				break;
-			}
-
-			memcpy(ptr, seg_fw->data, filesz);
-
-			release_firmware(seg_fw);
-		}
-
-		if (memsz > filesz)
-			memset(ptr + filesz, 0, memsz - filesz);
-
-
-
-		wmb();
-		iounmap(ptr);
-#endif
-	}
-
-	return ret;
-}
-
-static int qproc_verify_segments(struct qproc *qproc, const struct firmware *fw)
-{
-	struct elf32_hdr *ehdr;
-	struct elf32_phdr *phdr;
-	const u8 *elf_data = fw->data;
-	unsigned long timeout;
-	phys_addr_t min_addr = (phys_addr_t)ULLONG_MAX;
-	u32 size = 0;
-	s32 val;
-	int ret;
-	int i;
-	u32 v;
-
-	ehdr = (struct elf32_hdr *)elf_data;
-	phdr = (struct elf32_phdr *)(elf_data + ehdr->e_phoff);
-
-	v = readl_relaxed(qproc->rmb_base + RMB_PMI_CODE_LENGTH);
-	dev_err(qproc->dev, "RMB_PMI_CODE_LENGTH: %pa\n", &v);
-
-	msleep(1);
-
-
-#if 1
-	for (i = 0; i < ehdr->e_phnum; i++, phdr++) {
-		phys_addr_t da = phdr->p_paddr;
-		u32 memsz = phdr->p_memsz;
-
-
-		if (!segment_is_loadable(phdr))
-			continue;
-		/*
-		if (phdr->p_type != PT_LOAD)
-			continue;
-*/
-		dev_err(qproc->dev, "0x%x %d %d\n", phdr->p_paddr, segment_is_hash(phdr->p_flags), !!(phdr->p_flags & BIT(27)));
-
-		/*
-		if (segment_is_hash(phdr->p_flags))
-			continue;
-
-		if (memsz == 0)
-			continue;
-		*/
-		if (da < min_addr)
-			min_addr = da;
-
-		size += memsz;
-	}
-
-	dev_err(qproc->dev, "verify: %pa:%pa\n", &min_addr, &size);
-	v = readl_relaxed(qproc->rmb_base + RMB_PMI_CODE_LENGTH);
-	dev_err(qproc->dev, "RMB_PMI_CODE_LENGTH: %pa\n", &v);
-#if 0
-if (v == 0) {
-	writel_relaxed(min_addr, qproc->rmb_base + RMB_PMI_CODE_START);
-	writel(CMD_LOAD_READY, qproc->rmb_base + RMB_MBA_COMMAND);
-}
-	writel(size, qproc->rmb_base + RMB_PMI_CODE_LENGTH);
-#endif
-#endif
-
-	v = readl_relaxed(qproc->rmb_base + RMB_PMI_CODE_LENGTH);
-	dev_err(qproc->dev, "RMB_PMI_CODE_LENGTH: %pa\n", &v);
-	
-	printk("DEBUG:pil: status... %08x\n", readl_relaxed(qproc->rmb_base + RMB_MBA_STATUS));
-
-	timeout = jiffies + 10 * HZ;
-	for (;;) {
-		msleep(1);
-
-		val = readl(qproc->rmb_base + RMB_MBA_STATUS);
-		if (val == STATUS_AUTH_COMPLETE || val < 0)
-			break;
-
-		if (time_after(jiffies, timeout))
-			break;
-	}
-	if (val == 0) {
-		dev_err(qproc->dev, "MBA authentication of headers timed out\n");
-		ret = -ETIMEDOUT;
-		goto out;
-	} else if (val < 0) {
-		dev_err(qproc->dev, "MBA returned error %d for segments\n", val);
-		ret = -EINVAL;
-		goto out;
-	}
-
-	ret = 0;
-out:
-	return ret;
-
-
-}
-
-static int qproc_msa_mba_auth(struct qproc *qproc)
-{
-	unsigned long timeout;
-	s32 val;
-	int ret;
-	int i;
-	u32 v;
-
-	timeout = jiffies + 10 * HZ;
-	for (;;) {
-		msleep(1);
-
-		val = readl(qproc->rmb_base + RMB_MBA_STATUS);
-		if (val == STATUS_AUTH_COMPLETE || val < 0)
-			break;
-
-		if (time_after(jiffies, timeout))
-			break;
-	}
-	if (val == 0) {
-		dev_err(qproc->dev, "MBA authentication of headers timed out\n");
-		ret = -ETIMEDOUT;
-//		goto out;
-	} else if (val < 0) {
-		dev_err(qproc->dev, "MBA returned error %d for segments\n", val);
-		ret = -EINVAL;
-//		goto out;
-	}
-	printk("DEBUG:pil: status auth... %08x\n", readl_relaxed(qproc->rmb_base + RMB_MBA_STATUS));
-
-	return 0;
-}
-
-static int qproc_load_modem(struct qproc *qproc)
-{
-	const struct firmware *fw;
+	phys_addr_t fw_addr;
+	size_t fw_size;
+	bool relocate;
 	int ret;
 
-	ret = request_firmware(&fw, "modem.mdt", qproc->dev);
+	ret = request_firmware(&fw, MPSS_FIRMWARE_NAME, qproc->dev);
 	if (ret < 0) {
-		dev_err(qproc->dev, "unable to load modem.mdt\n");
+		dev_err(qproc->dev, "unable to load " MPSS_FIRMWARE_NAME "\n");
 		return ret;
 	}
 
-	dev_err(qproc->dev, "Loading mba\n");
-	ret = qproc_mba_load_mdt(qproc, fw);
-	if (ret)
-		goto out;
+	ret = qcom_mdt_parse(fw, &fw_addr, &fw_size, &relocate);
+	if (ret) {
+		dev_err(qproc->dev, "failed to parse mdt header\n");
+		return ret;
+	}
 
-	dev_err(qproc->dev, "Loading segments\n");
-	ret = qproc_load_segments(qproc, fw);
-	if (ret)
-		goto out;
+	/* Initialize the RMB validator */
+	writel(0, qproc->rmb_base + RMB_PMI_CODE_LENGTH_REG);
 
-	ret = qproc_msa_mba_auth(qproc);
-//	dev_err(qproc->dev, "Verifying segments\n");
-//	ret = qproc_verify_segments(qproc, fw);
-//	if (ret)
-//		goto out;
-	return 0;
-out:
+	ret = q6v5_mpss_init_image(qproc, fw);
+	if (ret)
+		goto release_firmware;
+
+	ret = qcom_mdt_load(qproc->rproc, fw, MPSS_FIRMWARE_NAME, fw_addr, qproc->mpss_region, qproc->mpss_size);
+	if (ret)
+		goto release_firmware;
+
+	ret = q6v5_mpss_validate(qproc, fw);
+	if (ret)
+		goto release_firmware;
+
+	ret = q6v5_rmb_mba_wait(qproc, RMB_MBA_AUTH_COMPLETE, 10000);
+	if (ret == -ETIMEDOUT)
+		dev_err(qproc->dev, "MBA authentication timed out\n");
+	else if (ret < 0)
+		dev_err(qproc->dev, "MBA returned error %d\n", ret);
+
+release_firmware:
 	release_firmware(fw);
 
-	return ret;
+	return ret < 0 ? ret : 0;
 }
 
-static int pil_mss_restart_reg(struct qproc *qproc, int mss_restart)
+static int q6v5_start(struct rproc *rproc)
 {
-	int ret = 0;
-	unsigned int resp;
-	ret = qcom_scm_restart_proc(MSS_RESTART_ID, mss_restart, &resp);
-	if (ret || resp)
-		pr_err("Secure MSS restart failed\n");
-
-	return ret;
-}
-
-static int qproc_start(struct rproc *rproc)
-{
-	struct qproc *qproc = (struct qproc *)rproc->priv;
-	unsigned long timeout;
+	struct q6v5 *qproc = (struct q6v5 *)rproc->priv;
 	int ret;
-	u32 val;
 
-	printk("DEBUG::: pill................... %s \n", __func__);
-//	ret = regulator_enable(qproc->vdd);
-//	if (ret) {
-//		dev_err(qproc->dev, "failed to enable mss vdd\n");
-//		return ret;
-//	}
-
-	ret = regulator_enable(qproc->pll);
+	ret = regulator_enable(qproc->vdd);
 	if (ret) {
-		dev_err(qproc->dev, "failed to enable mss vdd pll\n");
+		dev_err(qproc->dev, "failed to enable mss vdd\n");
 		return ret;
 	}
 
-
-	ret = pil_mss_restart_reg(qproc, 0);
-	//FIXME
-	//ret = reset_control_deassert(qproc->mss_restart);
+	ret = reset_control_deassert(qproc->mss_restart);
 	if (ret) {
 		dev_err(qproc->dev, "failed to deassert mss restart\n");
 		goto disable_vdd;
@@ -885,54 +410,45 @@ static int qproc_start(struct rproc *rproc)
 	if (ret)
 		goto disable_axi_clk;
 
-	writel_relaxed(qproc->mba_da, qproc->rmb_base + RMB_MBA_IMAGE);
-
-	/* Ensure order of data/entry point and the following reset release */
-	wmb();
+	writel(qproc->mba_phys, qproc->rmb_base + RMB_MBA_IMAGE_REG);
 
 	q6v5proc_reset(qproc);
 
-	timeout = jiffies + HZ;
-	for (;;) {
-		msleep(1);
-
-		val = readl(qproc->rmb_base + RMB_PBL_STATUS);
-		if (val || time_after(jiffies, timeout))
-			break;
-	}
-	if (val == 0) {
+	ret = q6v5_rmb_pbl_wait(qproc, 1000);
+	if (ret == -ETIMEDOUT) {
 		dev_err(qproc->dev, "PBL boot timed out\n");
-		ret = -ETIMEDOUT;
 		goto halt_axi_ports;
-	} else if (val != STATUS_PBL_SUCCESS) {
-		dev_err(qproc->dev, "PBL returned unexpected status %d\n", val);
+	} else if (ret != RMB_PBL_SUCCESS) {
+		dev_err(qproc->dev, "PBL returned unexpected status %d\n", ret);
 		ret = -EINVAL;
 		goto halt_axi_ports;
 	}
 
-	timeout = jiffies + HZ;
-	for (;;) {
-		msleep(1);
-
-		val = readl(qproc->rmb_base + RMB_MBA_STATUS);
-		if (val || time_after(jiffies, timeout))
-			break;
-	}
-	if (val == 0) {
+	ret = q6v5_rmb_mba_wait(qproc, 0, 5000);
+	if (ret == -ETIMEDOUT) {
 		dev_err(qproc->dev, "MBA boot timed out\n");
-		ret = -ETIMEDOUT;
 		goto halt_axi_ports;
-	} else if (val != STATUS_XPU_UNLOCKED && val != STATUS_XPU_UNLOCKED_SCRIBBLED) {
-		dev_err(qproc->dev, "MBA returned unexpected status %d\n", val);
+	} else if (ret != RMB_MBA_XPU_UNLOCKED && ret != RMB_MBA_XPU_UNLOCKED_SCRIBBLED) {
+		dev_err(qproc->dev, "MBA returned unexpected status %d\n", ret);
 		ret = -EINVAL;
 		goto halt_axi_ports;
 	}
 
-	dev_info(qproc->dev, "MBA boot done\n");
+	dev_info(qproc->dev, "MBA booted, loading mpss\n");
 
-	ret = qproc_load_modem(qproc);
+	ret = q6v5_mpss_load(qproc);
 	if (ret)
 		goto halt_axi_ports;
+
+	ret = wait_for_completion_timeout(&qproc->start_done,
+					  msecs_to_jiffies(5000));
+	if (ret == 0) {
+		dev_err(qproc->dev, "start timed out\n");
+		ret = -ETIMEDOUT;
+		goto halt_axi_ports;
+	}
+
+	/* All done, release the handover resources */
 
 	return 0;
 
@@ -947,15 +463,14 @@ disable_ahb_clk:
 assert_reset:
 	reset_control_assert(qproc->mss_restart);
 disable_vdd:
-//	regulator_disable(qproc->vdd);
+	regulator_disable(qproc->vdd);
 
-	dma_free_attrs(qproc->dev, qproc->mba_size, qproc->mba_va, qproc->mba_da, &qproc->mba_attrs);
 	return ret;
 }
 
-static int qproc_stop(struct rproc *rproc)
+static int q6v5_stop(struct rproc *rproc)
 {
-	struct qproc *qproc = (struct qproc *)rproc->priv;
+	struct q6v5 *qproc = (struct q6v5 *)rproc->priv;
 
 	q6v5proc_halt_axi_port(qproc, qproc->halt_base + MSS_Q6_HALT_BASE);
 	q6v5proc_halt_axi_port(qproc, qproc->halt_base + MSS_MODEM_HALT_BASE);
@@ -964,198 +479,136 @@ static int qproc_stop(struct rproc *rproc)
 	reset_control_assert(qproc->mss_restart);
 	clk_disable_unprepare(qproc->axi_clk);
 	clk_disable_unprepare(qproc->ahb_clk);
-//	regulator_disable(qproc->vdd);
-
-	dma_free_attrs(qproc->dev, qproc->mba_size, qproc->mba_va, qproc->mba_da, &qproc->mba_attrs);
+	regulator_disable(qproc->vdd);
 
 	return 0;
 }
 
-static const struct rproc_ops qproc_ops = {
-	.start = qproc_start,
-	.stop = qproc_stop,
+static const struct rproc_ops q6v5_ops = {
+	.start = q6v5_start,
+	.stop = q6v5_stop,
 };
 
-static irqreturn_t qproc_wdog_interrupt(int irq, void *dev)
+static irqreturn_t q6v5_wdog_interrupt(int irq, void *dev)
 {
-	struct qproc *qproc = dev;
+	struct q6v5 *qproc = dev;
+	size_t len;
+	char *msg;
 
-	dev_err(qproc->dev, "                                                            WATCHDOG\n");
+	msg = qcom_smem_get(QCOM_SMEM_HOST_ANY, MPSS_CRASH_REASON_SMEM, &len);
+	if (!IS_ERR(msg) && len > 0 && msg[0])
+		dev_err(qproc->dev, "watchdog received: %s\n", msg);
+	else
+		dev_err(qproc->dev, "watchdog without message\n");
 
 	rproc_report_crash(qproc->rproc, RPROC_WATCHDOG);
+
+	if (!IS_ERR(msg))
+		msg[0] = '\0';
+
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t qproc_fatal_interrupt(int irq, void *dev)
+static irqreturn_t q6v5_fatal_interrupt(int irq, void *dev)
 {
-	struct qproc *qproc = dev;
+	struct q6v5 *qproc = dev;
+	size_t len;
+	char *msg;
 
-	dev_err(qproc->dev, "                                                            FATAL\n");
+	msg = qcom_smem_get(QCOM_SMEM_HOST_ANY, MPSS_CRASH_REASON_SMEM, &len);
+	if (!IS_ERR(msg) && len > 0 && msg[0])
+		dev_err(qproc->dev, "fatal error received: %s\n", msg);
+	else
+		dev_err(qproc->dev, "fatal error without message\n");
 
 	rproc_report_crash(qproc->rproc, RPROC_FATAL_ERROR);
 
+	if (!IS_ERR(msg))
+		msg[0] = '\0';
+
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t qproc_ready_interrupt(int irq, void *dev)
+static irqreturn_t q6v5_handover_interrupt(int irq, void *dev)
 {
-	struct qproc *qproc = dev;
-
-	dev_err(qproc->dev, "                                                            READY\n");
+	struct q6v5 *qproc = dev;
 
 	complete(&qproc->start_done);
-
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t qproc_handover_interrupt(int irq, void *dev)
+static irqreturn_t q6v5_stop_ack_interrupt(int irq, void *dev)
 {
-	struct qproc *qproc = dev;
-
-	dev_err(qproc->dev, "                                                            HANDOVER\n");
-
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t qproc_stop_ack_interrupt(int irq, void *dev)
-{
-	struct qproc *qproc = dev;
-
-	dev_err(qproc->dev, "                                                            STOP-ACK\n");
-
-	return IRQ_HANDLED;
-}
-
-static ssize_t qproc_boot_store(struct device *dev,
-				struct device_attribute *attr,
-				const char *buf, size_t size)
-{
-	struct qproc *qproc = dev_get_drvdata(dev);
-	int ret;
-
-	ret = rproc_boot(qproc->rproc);
-	return ret ? : size;
-}
-
-static ssize_t qproc_shutdown_store(struct device *dev,
-				    struct device_attribute *attr,
-				    const char *buf, size_t size)
-{
-	struct qproc *qproc = dev_get_drvdata(dev);
-
-	rproc_shutdown(qproc->rproc);
-	return size;
-}
-
-static const struct device_attribute qproc_attrs[] = {
-	__ATTR(boot, S_IWUSR, 0, qproc_boot_store),
-	__ATTR(shutdown, S_IWUSR, 0, qproc_shutdown_store),
-};
-
-static int qproc_init_mem(struct qproc *qproc, struct platform_device *pdev)
+static int q6v5_init_mem(struct q6v5 *qproc, struct platform_device *pdev)
 {
 	struct resource *res;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "qdsp6_base");
 	qproc->reg_base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(qproc->reg_base))
+	if (IS_ERR(qproc->reg_base)) {
+		dev_err(qproc->dev, "failed to get qdsp6_base\n");
 		return PTR_ERR(qproc->reg_base);
+	}
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "halt_base");
 	qproc->halt_base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(qproc->halt_base)) {
-#if 0
-		//return PTR_ERR(qproc->halt_base);
-
-		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "halt_q6");
-		qproc->halt_q6 = devm_ioremap_resource(&pdev->dev, res);
-		if (IS_ERR(qproc->halt_q6))
-			return PTR_ERR(qproc->halt_q6);
-
-
-		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "halt_modem");
-		qproc->halt_modem = devm_ioremap_resource(&pdev->dev, res);
-		if (IS_ERR(qproc->halt_modem))
-			return PTR_ERR(qproc->halt_modem);
-
-		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "halt_nc");
-		qproc->halt_nc = devm_ioremap_resource(&pdev->dev, res);
-		if (IS_ERR(qproc->halt_nc))
-			return PTR_ERR(qproc->halt_nc);
-#endif
-
+		dev_err(qproc->dev, "failed to get halt_base\n");
+		return PTR_ERR(qproc->halt_base);
 	}
-//Only required if self auth is set???
+
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "rmb_base");
 	qproc->rmb_base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(qproc->rmb_base))
+	if (IS_ERR(qproc->rmb_base)) {
+		dev_err(qproc->dev, "failed to get rmb_base\n");
 		return PTR_ERR(qproc->rmb_base);
-
-//	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "restart_reg_sec");
-//	qproc->restart_sec_base = devm_ioremap_resource(&pdev->dev, res);
-//	if (IS_ERR(qproc->restart_sec_base))
-//		return PTR_ERR(qproc->restart_sec_base);
+	}
 
 	return 0;
 }
 
-static int qproc_init_clocks(struct qproc *qproc)
+static int q6v5_init_clocks(struct q6v5 *qproc)
 {
 	qproc->ahb_clk = devm_clk_get(qproc->dev, "iface");
-	if (IS_ERR(qproc->ahb_clk))
+	if (IS_ERR(qproc->ahb_clk)) {
+		dev_err(qproc->dev, "failed to get iface clock\n");
 		return PTR_ERR(qproc->ahb_clk);
+	}
 
 	qproc->axi_clk = devm_clk_get(qproc->dev, "bus");
-	if (IS_ERR(qproc->axi_clk))
+	if (IS_ERR(qproc->axi_clk)) {
+		dev_err(qproc->dev, "failed to get bus clock\n");
 		return PTR_ERR(qproc->axi_clk);
+	}
 
 	qproc->rom_clk = devm_clk_get(qproc->dev, "mem");
-	if (IS_ERR(qproc->rom_clk))
+	if (IS_ERR(qproc->rom_clk)) {
+		dev_err(qproc->dev, "failed to get mem clock\n");
 		return PTR_ERR(qproc->rom_clk);
+	}
 
 	return 0;
 }
 
-static int qproc_init_regulators(struct qproc *qproc)
+static int q6v5_init_regulators(struct q6v5 *qproc)
 {
-	int ret;
-	u32 uV;
+	qproc->vdd = devm_regulator_get(qproc->dev, "vdd");
+	if (IS_ERR(qproc->vdd)) {
+		dev_err(qproc->dev, "failed to get vdd supply\n");
+		return PTR_ERR(qproc->vdd);
+	}
 
-	printk("DEBUG:pil: starting vdd\n");
-//	qproc->vdd = devm_regulator_get_optional(qproc->dev, "qcom,vdd");
-//	if (IS_ERR(qproc->vdd))
-//		return PTR_ERR(qproc->vdd);
-
-//	regulator_set_voltage(qproc->vdd, VDD_MSS_UV, VDD_MSS_UV_MAX);
-//	regulator_set_load(qproc->vdd, VDD_MSS_UA);
-
-	printk("DEBUG:pil: done vdd\n");
-//	qproc->cx = devm_regulator_get(qproc->dev, "qcom,cx");
-//	if (IS_ERR(qproc->cx))
-//		return PTR_ERR(qproc->cx);
-
-	qproc->mx = devm_regulator_get(qproc->dev, "qcom,mx");
-	if (IS_ERR(qproc->mx))
-		return PTR_ERR(qproc->mx);
-
-	ret = of_property_read_u32(qproc->dev->of_node, "qcom,mx-uV", &uV);
-	if (!ret)
-		regulator_set_voltage(qproc->mx, uV, uV);
-
-	qproc->pll = devm_regulator_get(qproc->dev, "qcom,pll");
-	if (IS_ERR(qproc->pll))
-		return PTR_ERR(qproc->pll);
-
-	ret = of_property_read_u32(qproc->dev->of_node, "qcom,pll-uV", &uV);
-	if (!ret)
-		regulator_set_voltage(qproc->pll, uV, uV);
+	regulator_set_voltage(qproc->vdd, VDD_MSS_UV_MIN, VDD_MSS_UV_MAX);
+	regulator_set_load(qproc->vdd, VDD_MSS_UA);
 
 	return 0;
 }
 
-static int qproc_init_reset(struct qproc *qproc)
+static int q6v5_init_reset(struct q6v5 *qproc)
 {
-	//FIXME 
 	qproc->mss_restart = devm_reset_control_get(qproc->dev, NULL);
 	if (IS_ERR(qproc->mss_restart)) {
 		dev_err(qproc->dev, "failed to acquire mss restart\n");
@@ -1165,7 +618,7 @@ static int qproc_init_reset(struct qproc *qproc)
 	return 0;
 }
 
-static int qproc_request_irq(struct qproc *qproc,
+static int q6v5_request_irq(struct q6v5 *qproc,
 			     struct platform_device *pdev,
 			     const char *name,
 			     irq_handler_t thread_fn)
@@ -1181,118 +634,123 @@ static int qproc_request_irq(struct qproc *qproc,
 	ret = devm_request_threaded_irq(&pdev->dev, ret,
 					NULL, thread_fn,
 					IRQF_TRIGGER_RISING | IRQF_ONESHOT,
-					"qproc", qproc);
+					"q6v5", qproc);
 	if (ret)
 		dev_err(&pdev->dev, "request %s IRQ failed\n", name);
 	return ret;
 }
 
-static int qproc_probe(struct platform_device *pdev)
+static int q6v5_alloc_memory_region(struct q6v5 *qproc)
 {
-	struct qproc *qproc;
+	struct device_node *child;
+	struct device_node *node;
+	struct resource r;
+	int ret;
+
+	child = of_get_child_by_name(qproc->dev->of_node, "mba");
+	node = of_parse_phandle(child, "memory-region", 0);
+	ret = of_address_to_resource(node, 0, &r);
+	if (ret) {
+		dev_err(qproc->dev, "unable to resolve mba region\n");
+		return ret;
+	}
+
+	qproc->mba_phys = r.start;
+	qproc->mba_size = resource_size(&r);
+	qproc->mba_region = devm_ioremap_wc(qproc->dev, qproc->mba_phys, qproc->mba_size);
+	if (!qproc->mba_region) {
+		dev_err(qproc->dev, "unable to map memory region: %pa+%zx\n",
+			&r.start, qproc->mba_size);
+		return -EBUSY;
+	}
+
+	child = of_get_child_by_name(qproc->dev->of_node, "mpss");
+	node = of_parse_phandle(child, "memory-region", 0);
+	ret = of_address_to_resource(node, 0, &r);
+	if (ret) {
+		dev_err(qproc->dev, "unable to resolve mpss region\n");
+		return ret;
+	}
+
+	qproc->mpss_phys = r.start;
+	qproc->mpss_size = resource_size(&r);
+	qproc->mpss_region = devm_ioremap_wc(qproc->dev, qproc->mpss_phys, qproc->mpss_size);
+	if (!qproc->mpss_region) {
+		dev_err(qproc->dev, "unable to map memory region: %pa+%zx\n",
+			&r.start, qproc->mpss_size);
+		return -EBUSY;
+	}
+
+	return 0;
+}
+
+static int q6v5_probe(struct platform_device *pdev)
+{
+	struct q6v5 *qproc;
 	struct rproc *rproc;
 	int ret;
-	int i;
-	struct device_node *np;
-	struct resource r;
 
-	rproc = rproc_alloc(&pdev->dev, pdev->name, &qproc_ops,
-			    "mba.mbn", sizeof(*qproc));
-	if (!rproc)
+	rproc = rproc_alloc(&pdev->dev, pdev->name, &q6v5_ops,
+			    MBA_FIRMWARE_NAME, sizeof(*qproc));
+	if (!rproc) {
+		dev_err(&pdev->dev, "failed to allocate rproc\n");
 		return -ENOMEM;
+	}
 
-	rproc->fw_ops = &qproc_fw_ops;
+	rproc->fw_ops = &q6v5_fw_ops;
 
-	qproc = (struct qproc *)rproc->priv;
+	qproc = (struct q6v5 *)rproc->priv;
 	qproc->dev = &pdev->dev;
 	qproc->rproc = rproc;
 	platform_set_drvdata(pdev, qproc);
 
 	init_completion(&qproc->start_done);
 
-	ret = qproc_init_mem(qproc, pdev);
+	ret = q6v5_init_mem(qproc, pdev);
 	if (ret)
 		goto free_rproc;
 
-	ret = qproc_init_clocks(qproc);
+	ret = q6v5_alloc_memory_region(qproc);
 	if (ret)
 		goto free_rproc;
 
-	ret = qproc_init_regulators(qproc);
+	ret = q6v5_init_clocks(qproc);
 	if (ret)
 		goto free_rproc;
 
-	//FIXME need to convert this to a proper reset... 
-//	ret = qproc_init_reset(qproc);
-//	if (ret)
-//		goto free_rproc;
+	ret = q6v5_init_regulators(qproc);
+	if (ret)
+		goto free_rproc;
 
-	ret = qproc_request_irq(qproc, pdev, "wdog", qproc_wdog_interrupt);
+	ret = q6v5_init_reset(qproc);
+	if (ret)
+		goto free_rproc;
+
+	ret = q6v5_request_irq(qproc, pdev, "wdog", q6v5_wdog_interrupt);
 	if (ret < 0)
 		goto free_rproc;
-	qproc->wdog_irq = ret;
 
-	ret = qproc_request_irq(qproc, pdev, "fatal", qproc_fatal_interrupt);
+	ret = q6v5_request_irq(qproc, pdev, "fatal", q6v5_fatal_interrupt);
 	if (ret < 0)
 		goto free_rproc;
-	qproc->fatal_irq = ret;
 
-	ret = qproc_request_irq(qproc, pdev, "ready", qproc_ready_interrupt);
+	ret = q6v5_request_irq(qproc, pdev, "handover", q6v5_handover_interrupt);
 	if (ret < 0)
 		goto free_rproc;
-	qproc->ready_irq = ret;
 
-	ret = qproc_request_irq(qproc, pdev, "handover", qproc_handover_interrupt);
+	ret = q6v5_request_irq(qproc, pdev, "stop-ack", q6v5_stop_ack_interrupt);
 	if (ret < 0)
 		goto free_rproc;
-	qproc->handover_irq = ret;
 
-	ret = qproc_request_irq(qproc, pdev, "stop-ack", qproc_stop_ack_interrupt);
-	if (ret < 0)
+	qproc->state = qcom_smem_state_get(&pdev->dev, "stop", &qproc->stop_bit);
+	if (IS_ERR(qproc->state))
 		goto free_rproc;
-	qproc->stop_ack_irq = ret;
-
-	qproc->stop_gpio = devm_gpiod_get(&pdev->dev, "qcom,stop", GPIOD_OUT_LOW);
-	if (IS_ERR(qproc->stop_gpio)) {
-		dev_err(&pdev->dev, "failed to acquire stop gpio\n");
-		return PTR_ERR(qproc->stop_gpio);
-	}
-
-	for (i = 0; i < ARRAY_SIZE(qproc_attrs); i++) {
-		ret = device_create_file(&pdev->dev, &qproc_attrs[i]);
-		if (ret) {
-			dev_err(&pdev->dev, "unable to create sysfs file\n");
-			goto remove_device_files;
-		}
-	}
-
-	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
-	if (!np) {
-		dev_err(&pdev->dev, "No memory region specified\n");
-	} else {
-
-		ret = of_address_to_resource(np, 0, &r);
-		of_node_put(np);
-		if (ret)
-			return ret;
-
-		qproc->reloc_phys = r.start;
-		qproc->reloc_size = resource_size(&r);
-
-		dev_info(&pdev->dev, "Found relocation area %lu@%pad\n",
-				qproc->reloc_size, &qproc->reloc_phys);
-	}
-
 
 	ret = rproc_add(rproc);
 	if (ret)
-		goto remove_device_files;
+		goto free_rproc;
 
 	return 0;
-
-remove_device_files:
-	for (i--; i >= 0; i--)
-		device_remove_file(&pdev->dev, &qproc_attrs[i]);
 
 free_rproc:
 	rproc_put(rproc);
@@ -1300,31 +758,28 @@ free_rproc:
 	return ret;
 }
 
-static int qproc_remove(struct platform_device *pdev)
+static int q6v5_remove(struct platform_device *pdev)
 {
-	struct qproc *qproc = platform_get_drvdata(pdev);
-	int i;
+	struct q6v5 *qproc = platform_get_drvdata(pdev);
 
-	for (i = 0; i < ARRAY_SIZE(qproc_attrs); i++)
-		device_remove_file(&pdev->dev, &qproc_attrs[i]);
-
+	rproc_del(qproc->rproc);
 	rproc_put(qproc->rproc);
 
 	return 0;
 }
 
-static const struct of_device_id qproc_of_match[] = {
+static const struct of_device_id q6v5_of_match[] = {
 	{ .compatible = "qcom,q6v5-pil", },
 	{ },
 };
 
-static struct platform_driver qproc_driver = {
-	.probe = qproc_probe,
-	.remove = qproc_remove,
+static struct platform_driver q6v5_driver = {
+	.probe = q6v5_probe,
+	.remove = q6v5_remove,
 	.driver = {
 		.name = "qcom-q6v5-pil",
-		.of_match_table = qproc_of_match,
+		.of_match_table = q6v5_of_match,
 	},
 };
 
-module_platform_driver(qproc_driver);
+module_platform_driver(q6v5_driver);

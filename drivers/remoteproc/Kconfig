@@ -81,6 +81,7 @@ config QCOM_Q6V5_PIL
 	tristate "Qualcomm Hexagon V5 Peripherial Image Loader"
 	depends on OF && ARCH_QCOM
 	select REMOTEPROC
+	select QCOM_MDT_LOADER
 	help
 	  Say y here to support the Qualcomm Peripherial Image Loader for the
 	  Hexagon V5 based remote processors.
