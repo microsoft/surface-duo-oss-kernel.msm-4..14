@@ -343,7 +343,7 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 			min_addr = phdr->p_paddr;
 
 		if (phdr->p_paddr + phdr->p_memsz > max_addr)
-			max_addr = ALIGN(phdr->p_paddr + phdr->p_memsz, SZ_4K);
+			max_addr = round_up(phdr->p_paddr + phdr->p_memsz, SZ_4K);
 	}
 
 	ret = pas_init_image(qproc->pas_id, fw->data, fw->size);
