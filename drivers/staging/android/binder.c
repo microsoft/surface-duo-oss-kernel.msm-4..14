@@ -26,6 +26,7 @@
 #include <linux/miscdevice.h>
 #include <linux/mm.h>
 #include <linux/module.h>
+#include <linux/rtmutex.h>
 #include <linux/mutex.h>
 #include <linux/nsproxy.h>
 #include <linux/poll.h>
@@ -42,7 +43,7 @@
 #include "binder.h"
 #include "binder_trace.h"
 
-static DEFINE_MUTEX(binder_main_lock);
+static DEFINE_RT_MUTEX(binder_main_lock);
 static DEFINE_MUTEX(binder_deferred_lock);
 static DEFINE_MUTEX(binder_mmap_lock);
 
@@ -420,14 +421,14 @@ static long task_close_fd(struct binder_proc *proc, unsigned int fd)
 static inline void binder_lock(const char *tag)
 {
 	trace_binder_lock(tag);
-	mutex_lock(&binder_main_lock);
+	rt_mutex_lock(&binder_main_lock);
 	trace_binder_locked(tag);
 }
 
 static inline void binder_unlock(const char *tag)
 {
 	trace_binder_unlock(tag);
-	mutex_unlock(&binder_main_lock);
+	rt_mutex_unlock(&binder_main_lock);
 }
 
 static void binder_set_nice(long nice)
@@ -1731,8 +1732,7 @@ err_no_context_mgr_node:
 		thread->return_error = return_error;
 }
 
-static int binder_thread_write(struct binder_proc *proc,
-			struct binder_thread *thread,
+int binder_thread_write(struct binder_proc *proc, struct binder_thread *thread,
 			binder_uintptr_t binder_buffer, size_t size,
 			binder_size_t *consumed)
 {
@@ -2089,8 +2089,8 @@ static int binder_thread_write(struct binder_proc *proc,
 	return 0;
 }
 
-static void binder_stat_br(struct binder_proc *proc,
-			   struct binder_thread *thread, uint32_t cmd)
+void binder_stat_br(struct binder_proc *proc, struct binder_thread *thread,
+		    uint32_t cmd)
 {
 	trace_binder_return(cmd);
 	if (_IOC_NR(cmd) < ARRAY_SIZE(binder_stats.br)) {

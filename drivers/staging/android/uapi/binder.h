@@ -56,8 +56,8 @@ typedef __u64 binder_uintptr_t;
  */
 struct flat_binder_object {
 	/* 8 bytes for large_flat_header. */
-	__u32		type;
-	__u32		flags;
+	__u32	type;
+	__u32	flags;
 
 	/* 8 bytes of data. */
 	union {
@@ -86,7 +86,7 @@ struct binder_write_read {
 /* Use with BINDER_VERSION, driver fills in fields. */
 struct binder_version {
 	/* driver protocol version -- increment with incompatible change */
-	__s32       protocol_version;
+	__s32	protocol_version;
 };
 
 /* This is the current protocol version. */
@@ -138,7 +138,7 @@ struct binder_transaction_data {
 	__u32		code;		/* transaction command */
 
 	/* General information about the transaction. */
-	__u32	        flags;
+	__u32		flags;
 	pid_t		sender_pid;
 	uid_t		sender_euid;
 	binder_size_t	data_size;	/* number of bytes of data */
