@@ -938,6 +938,10 @@ static int wcn36xx_init_ieee80211(struct wcn36xx *wcn)
 		IEEE80211_HW_AMPDU_AGGREGATION |
 		IEEE80211_HW_TIMING_BEACON_ONLY;
 
+	/* 3620 powersaving currently unstable */
+	if (wcn->chip_version == WCN36XX_CHIP_3620)
+		wcn->hw->flags &= ~IEEE80211_HW_SUPPORTS_PS;
+
 	wcn->hw->wiphy->interface_modes = BIT(NL80211_IFTYPE_STATION) |
 		BIT(NL80211_IFTYPE_AP) |
 		BIT(NL80211_IFTYPE_ADHOC) |
