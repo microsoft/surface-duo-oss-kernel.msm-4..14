@@ -110,6 +110,8 @@ struct smd_tty_info {
 	char ch_name[SMD_MAX_CH_NAME_LEN];
 	char dev_name[SMD_MAX_CH_NAME_LEN];
 
+	bool swallow_first_tx_byte;
+
 	struct mutex open_lock_lha1;
 	unsigned int open_wait;
 
@@ -265,8 +267,15 @@ static void smd_tty_read(unsigned long param)
 	unsigned char *ptr;
 	int avail;
 	struct smd_tty_info *info = (struct smd_tty_info *)param;
-	struct tty_struct *tty = tty_port_tty_get(&info->port);
+	struct smd_tty_info *info_smd = info;
+
+	struct tty_struct *tty;
 	unsigned long flags;
+
+	if (info == &smd_tty[2])
+		info = &smd_tty[3];
+
+	tty = tty_port_tty_get(&info->port);
 
 	if (!tty)
 		return;
@@ -282,12 +291,14 @@ static void smd_tty_read(unsigned long param)
 		if (test_bit(TTY_THROTTLED, &tty->flags))
 			break;
 		spin_lock_irqsave(&info->ra_lock_lha3, flags);
-		avail = smd_read_avail(info->ch);
+		avail = smd_read_avail(info_smd->ch);
 		if (avail == 0) {
 			__pm_relax(&info->ra_wakeup_source);
 			spin_unlock_irqrestore(&info->ra_lock_lha3, flags);
 			break;
 		}
+		if (info->swallow_first_tx_byte)
+			avail++;
 		spin_unlock_irqrestore(&info->ra_lock_lha3, flags);
 
 		if (avail > MAX_TTY_BUF_SIZE)
@@ -300,16 +311,30 @@ static void smd_tty_read(unsigned long param)
 			tty_kref_put(tty);
 			return;
 		}
-
-		if (smd_read(info->ch, ptr, avail) != avail) {
-			/* shouldn't be possible since we're in interrupt
-			** context here and nobody else could 'steal' our
-			** characters.
-			*/
-			SMD_TTY_ERR(
-				"%s - Possible smd_tty_buffer mismatch for %s",
-				__func__, info->ch_name);
-		}
+		if (info->swallow_first_tx_byte) {
+			if (info == info_smd)
+				*ptr = 4; /* HCI EVENT */
+			else
+				*ptr = 2; /* ACL */
+			if (smd_read(info_smd->ch, ptr + 1, avail - 1) != avail - 1) {
+				/* shouldn't be possible since we're in interrupt
+				** context here and nobody else could 'steal' our
+				** characters.
+				*/
+				SMD_TTY_ERR(
+					"%s - Possible smd_tty_buffer mismatch for %s",
+					__func__, info->ch_name);
+			}
+		} else
+			if (smd_read(info_smd->ch, ptr, avail) != avail) {
+				/* shouldn't be possible since we're in interrupt
+				** context here and nobody else could 'steal' our
+				** characters.
+				*/
+				SMD_TTY_ERR(
+					"%s - Possible smd_tty_buffer mismatch for %s",
+					__func__, info->ch_name);
+			}
 
 		/*
 		 * Keep system awake long enough to allow the TTY
@@ -635,6 +660,22 @@ static int smd_tty_port_activate(struct tty_port *tport,
 		goto release_wl_tl;
 	}
 
+	if (info->swallow_first_tx_byte) {
+		tasklet_init(&smd_tty[2].tty_tsklt, smd_tty_read, (unsigned long)&smd_tty[2]);
+
+		res = smd_named_open_on_edge("APPS_RIVA_BT_ACL",
+					     SMD_APPS_WCNSS, &smd_tty[2].ch, &smd_tty[2],
+				     smd_tty_notify);
+
+		if (res < 0) {
+			SMD_TTY_INFO("%s: %s open failed %d\n",
+			      __func__, info->ch_name, res);
+			goto release_wl_tl;
+		}
+
+
+	}
+
 	res = wait_event_interruptible_timeout(info->ch_opened_wait_queue,
 					       info->is_open, (2 * HZ));
 	if (res == 0)
@@ -647,6 +688,8 @@ static int smd_tty_port_activate(struct tty_port *tport,
 	SMD_TTY_INFO("%s with PID %u opened port %s",
 		      current->comm, current->pid, info->ch_name);
 	smd_disable_read_intr(info->ch);
+	smd_disable_read_intr(smd_tty[2].ch);
+
 	mutex_unlock(&info->open_lock_lha1);
 	return 0;
 
@@ -701,6 +744,10 @@ static void smd_tty_port_shutdown(struct tty_port *tport)
 
 	smd_close(info->ch);
 	info->ch = NULL;
+
+	if (info->swallow_first_tx_byte)
+		smd_close(smd_tty[2].ch);
+
 	subsystem_put(info->pil);
 	smd_tty_remove_driver(info);
 
@@ -727,6 +774,10 @@ static int smd_tty_write(struct tty_struct *tty, const unsigned char *buf,
 {
 	struct smd_tty_info *info = tty->driver_data;
 	int avail;
+	smd_channel_t *ch = info->ch;
+
+	if (info->swallow_first_tx_byte && *buf != 1)
+		ch = smd_tty[2].ch;
 
 	/* if we're writing to a packet channel we will
 	** never be able to write more data than there
@@ -735,12 +786,12 @@ static int smd_tty_write(struct tty_struct *tty, const unsigned char *buf,
 	if (is_in_reset(info))
 		return -ENETRESET;
 
-	avail = smd_write_avail(info->ch);
+	avail = smd_write_avail(ch);
 	/* if no space, we'll have to setup a notification later to wake up the
 	 * tty framework when space becomes avaliable
 	 */
 	if (!avail) {
-		smd_enable_read_intr(info->ch);
+		smd_enable_read_intr(ch);
 		return 0;
 	}
 	if (len > avail)
@@ -748,7 +799,13 @@ static int smd_tty_write(struct tty_struct *tty, const unsigned char *buf,
 	SMD_TTY_INFO("[WRITE]: PID %u -> port %s %x bytes",
 			current->pid, info->ch_name, len);
 
-	return smd_write(info->ch, buf, len);
+	if (info->swallow_first_tx_byte) {
+		if (len < 2)
+			return 0;
+		return smd_write(ch, buf + 1, len - 1) + 1;
+	}
+
+	return smd_write(ch, buf, len);
 }
 
 static int smd_tty_write_room(struct tty_struct *tty)
@@ -913,6 +970,7 @@ static void smd_tty_device_init(int idx)
 	port = &smd_tty[idx].port;
 	tty_port_init(port);
 	port->ops = &smd_tty_port_ops;
+	smd_tty[idx].swallow_first_tx_byte = idx == 3;
 	smd_tty[idx].device_ptr = tty_port_register_device(port, smd_tty_driver,
 							   idx, NULL);
 	init_completion(&smd_tty[idx].ch_allocated);
@@ -946,6 +1004,7 @@ static int smd_tty_core_init(void)
 	for (n = 0; n < ARRAY_SIZE(smd_configs); ++n) {
 		idx = smd_configs[n].tty_dev_index;
 		smd_tty[idx].edge = smd_configs[n].edge;
+		smd_tty[idx].swallow_first_tx_byte = idx == 3;
 
 		strlcpy(smd_tty[idx].ch_name, smd_configs[n].port_name,
 							SMD_MAX_CH_NAME_LEN);
