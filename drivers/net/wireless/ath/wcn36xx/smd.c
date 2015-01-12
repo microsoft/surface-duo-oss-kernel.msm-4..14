@@ -307,7 +307,8 @@ static int wcn36xx_smd_rsp_status_check_v2(struct wcn36xx *wcn, void *buf,
 {
 	struct wcn36xx_fw_msg_status_rsp_v2 *rsp;
 
-	if (len < sizeof(struct wcn36xx_hal_msg_header) + sizeof(*rsp))
+	if (wcn->chip_version != WCN36XX_CHIP_3620 ||
+	    len < sizeof(struct wcn36xx_hal_msg_header) + sizeof(*rsp))
 		return wcn36xx_smd_rsp_status_check(buf, len);
 
 	rsp = buf + sizeof(struct wcn36xx_hal_msg_header);
