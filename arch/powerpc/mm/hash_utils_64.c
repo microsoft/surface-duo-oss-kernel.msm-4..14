@@ -265,9 +265,9 @@ static int __init htab_dt_scan_seg_sizes(unsigned long node,
 					 const char *uname, int depth,
 					 void *data)
 {
-	char *type = of_get_flat_dt_prop(node, "device_type", NULL);
-	__be32 *prop;
-	unsigned long size = 0;
+	const char *type = of_get_flat_dt_prop(node, "device_type", NULL);
+	const __be32 *prop;
+	int size = 0;
 
 	/* We are scanning "cpu" nodes only */
 	if (type == NULL || strcmp(type, "cpu") != 0)
@@ -320,9 +320,9 @@ static int __init htab_dt_scan_page_sizes(unsigned long node,
 					  const char *uname, int depth,
 					  void *data)
 {
-	char *type = of_get_flat_dt_prop(node, "device_type", NULL);
-	__be32 *prop;
-	unsigned long size = 0;
+	const char *type = of_get_flat_dt_prop(node, "device_type", NULL);
+	const __be32 *prop;
+	int size = 0;
 
 	/* We are scanning "cpu" nodes only */
 	if (type == NULL || strcmp(type, "cpu") != 0)
@@ -402,9 +402,9 @@ static int __init htab_dt_scan_page_sizes(unsigned long node,
 static int __init htab_dt_scan_hugepage_blocks(unsigned long node,
 					const char *uname, int depth,
 					void *data) {
-	char *type = of_get_flat_dt_prop(node, "device_type", NULL);
-	__be64 *addr_prop;
-	__be32 *page_count_prop;
+	const char *type = of_get_flat_dt_prop(node, "device_type", NULL);
+	const __be64 *addr_prop;
+	const __be32 *page_count_prop;
 	unsigned int expected_pages;
 	long unsigned int phys_addr;
 	long unsigned int block_size;
@@ -546,8 +546,8 @@ static int __init htab_dt_scan_pftsize(unsigned long node,
 				       const char *uname, int depth,
 				       void *data)
 {
-	char *type = of_get_flat_dt_prop(node, "device_type", NULL);
-	__be32 *prop;
+	const char *type = of_get_flat_dt_prop(node, "device_type", NULL);
+	const __be32 *prop;
 
 	/* We are scanning "cpu" nodes only */
 	if (type == NULL || strcmp(type, "cpu") != 0)
@@ -960,6 +960,22 @@ void hash_failure_debug(unsigned long ea, unsigned long access,
 		trap, vsid, ssize, psize, lpsize, pte);
 }
 
+static void check_paca_psize(unsigned long ea, struct mm_struct *mm,
+			     int psize, bool user_region)
+{
+	if (user_region) {
+		if (psize != get_paca_psize(ea)) {
+			get_paca()->context = mm->context;
+			slb_flush_and_rebolt();
+		}
+	} else if (get_paca()->vmalloc_sllp !=
+		   mmu_psize_defs[mmu_vmalloc_psize].sllp) {
+		get_paca()->vmalloc_sllp =
+			mmu_psize_defs[mmu_vmalloc_psize].sllp;
+		slb_vmalloc_update();
+	}
+}
+
 /* Result code is:
  *  0 - handled
  *  1 - normal page fault
@@ -1081,6 +1097,8 @@ int hash_page(unsigned long ea, unsigned long access, unsigned long trap)
 			WARN_ON(1);
 		}
 #endif
+		check_paca_psize(ea, mm, psize, user_region);
+
 		goto bail;
 	}
 
@@ -1121,17 +1139,8 @@ int hash_page(unsigned long ea, unsigned long access, unsigned long trap)
 #endif
 		}
 	}
-	if (user_region) {
-		if (psize != get_paca_psize(ea)) {
-			get_paca()->context = mm->context;
-			slb_flush_and_rebolt();
-		}
-	} else if (get_paca()->vmalloc_sllp !=
-		   mmu_psize_defs[mmu_vmalloc_psize].sllp) {
-		get_paca()->vmalloc_sllp =
-			mmu_psize_defs[mmu_vmalloc_psize].sllp;
-		slb_vmalloc_update();
-	}
+
+	check_paca_psize(ea, mm, psize, user_region);
 #endif /* CONFIG_PPC_64K_PAGES */
 
 #ifdef CONFIG_PPC_HAS_HASH_64K

@@ -157,7 +157,9 @@
  * enqueue.
  */
 
+#ifndef CONFIG_HAVE_FUTEX_CMPXCHG
 int __read_mostly futex_cmpxchg_enabled;
+#endif
 
 /*
  * Futex flags used to encode options to functions and preserve them across
@@ -875,6 +877,11 @@ lookup_pi_state(u32 uval, struct futex_hash_bucket *hb,
 	if (!p)
 		return -ESRCH;
 
+	if (!p->mm) {
+		put_task_struct(p);
+		return -EPERM;
+	}
+
 	/*
 	 * We need to look at the task state flags to figure out,
 	 * whether the task is exiting. To protect against the do_exit
@@ -1427,7 +1434,7 @@ void requeue_pi_wake_futex(struct futex_q *q, union futex_key *key,
  *
  * Return:
  *  0 - failed to acquire the lock atomically;
- *  1 - acquired the lock;
+ * >0 - acquired the lock, return value is vpid of the top_waiter
  * <0 - error
  */
 static int futex_proxy_trylock_atomic(u32 __user *pifutex,
@@ -1438,7 +1445,7 @@ static int futex_proxy_trylock_atomic(u32 __user *pifutex,
 {
 	struct futex_q *top_waiter = NULL;
 	u32 curval;
-	int ret;
+	int ret, vpid;
 
 	if (get_futex_value_locked(&curval, pifutex))
 		return -EFAULT;
@@ -1466,11 +1473,13 @@ static int futex_proxy_trylock_atomic(u32 __user *pifutex,
 	 * the contended case or if set_waiters is 1.  The pi_state is returned
 	 * in ps in contended cases.
 	 */
+	vpid = task_pid_vnr(top_waiter->task);
 	ret = futex_lock_pi_atomic(pifutex, hb2, key2, ps, top_waiter->task,
 				   set_waiters);
-	if (ret == 1)
+	if (ret == 1) {
 		requeue_pi_wake_futex(top_waiter, key2, hb2);
-
+		return vpid;
+	}
 	return ret;
 }
 
@@ -1501,7 +1510,6 @@ static int futex_requeue(u32 __user *uaddr1, unsigned int flags,
 	struct futex_pi_state *pi_state = NULL;
 	struct futex_hash_bucket *hb1, *hb2;
 	struct futex_q *this, *next;
-	u32 curval2;
 
 	if (requeue_pi) {
 		/*
@@ -1562,6 +1570,7 @@ retry:
 	hb2 = hash_futex(&key2);
 
 retry_private:
+	hb_waiters_inc(hb2);
 	double_lock_hb(hb1, hb2);
 
 	if (likely(cmpval != NULL)) {
@@ -1571,6 +1580,7 @@ retry_private:
 
 		if (unlikely(ret)) {
 			double_unlock_hb(hb1, hb2);
+			hb_waiters_dec(hb2);
 
 			ret = get_user(curval, uaddr1);
 			if (ret)
@@ -1603,16 +1613,25 @@ retry_private:
 		 * At this point the top_waiter has either taken uaddr2 or is
 		 * waiting on it.  If the former, then the pi_state will not
 		 * exist yet, look it up one more time to ensure we have a
-		 * reference to it.
+		 * reference to it. If the lock was taken, ret contains the
+		 * vpid of the top waiter task.
 		 */
-		if (ret == 1) {
+		if (ret > 0) {
 			WARN_ON(pi_state);
 			drop_count++;
 			task_count++;
-			ret = get_futex_value_locked(&curval2, uaddr2);
-			if (!ret)
-				ret = lookup_pi_state(curval2, hb2, &key2,
-						      &pi_state);
+			/*
+			 * If we acquired the lock, then the user
+			 * space value of uaddr2 should be vpid. It
+			 * cannot be changed by the top waiter as it
+			 * is blocked on hb2 lock if it tries to do
+			 * so. If something fiddled with it behind our
+			 * back the pi state lookup might unearth
+			 * it. So we rather use the known value than
+			 * rereading and handing potential crap to
+			 * lookup_pi_state.
+			 */
+			ret = lookup_pi_state(ret, hb2, &key2, &pi_state);
 		}
 
 		switch (ret) {
@@ -1620,6 +1639,7 @@ retry_private:
 			break;
 		case -EFAULT:
 			double_unlock_hb(hb1, hb2);
+			hb_waiters_dec(hb2);
 			put_futex_key(&key2);
 			put_futex_key(&key1);
 			ret = fault_in_user_writeable(uaddr2);
@@ -1629,6 +1649,7 @@ retry_private:
 		case -EAGAIN:
 			/* The owner was exiting, try again. */
 			double_unlock_hb(hb1, hb2);
+			hb_waiters_dec(hb2);
 			put_futex_key(&key2);
 			put_futex_key(&key1);
 			cond_resched();
@@ -1704,6 +1725,7 @@ retry_private:
 
 out_unlock:
 	double_unlock_hb(hb1, hb2);
+	hb_waiters_dec(hb2);
 
 	/*
 	 * drop_futex_key_refs() must be called outside the spinlocks. During
@@ -2594,6 +2616,7 @@ static int futex_wait_requeue_pi(u32 __user *uaddr, unsigned int flags,
 	 * shared futexes. We need to compare the keys:
 	 */
 	if (match_futex(&q.key, &key2)) {
+		queue_unlock(hb);
 		ret = -EINVAL;
 		goto out_put_keys;
 	}
@@ -2995,9 +3018,28 @@ SYSCALL_DEFINE6(futex, u32 __user *, uaddr, int, op, u32, val,
 	return do_futex(uaddr, op, val, tp, uaddr2, val2, val3);
 }
 
+static void __init futex_detect_cmpxchg(void)
+{
+#ifndef CONFIG_HAVE_FUTEX_CMPXCHG
+	u32 curval;
+
+	/*
+	 * This will fail and we want it. Some arch implementations do
+	 * runtime detection of the futex_atomic_cmpxchg_inatomic()
+	 * functionality. We want to know that before we call in any
+	 * of the complex code paths. Also we want to prevent
+	 * registration of robust lists in that case. NULL is
+	 * guaranteed to fault and we get -EFAULT on functional
+	 * implementation, the non-functional ones will return
+	 * -ENOSYS.
+	 */
+	if (cmpxchg_futex_value_locked(&curval, NULL, 0, 0) == -EFAULT)
+		futex_cmpxchg_enabled = 1;
+#endif
+}
+
 static int __init futex_init(void)
 {
-	u32 curval;
 	unsigned int futex_shift;
 	unsigned long i;
 
@@ -3013,18 +3055,8 @@ static int __init futex_init(void)
 					       &futex_shift, NULL,
 					       futex_hashsize, futex_hashsize);
 	futex_hashsize = 1UL << futex_shift;
-	/*
-	 * This will fail and we want it. Some arch implementations do
-	 * runtime detection of the futex_atomic_cmpxchg_inatomic()
-	 * functionality. We want to know that before we call in any
-	 * of the complex code paths. Also we want to prevent
-	 * registration of robust lists in that case. NULL is
-	 * guaranteed to fault and we get -EFAULT on functional
-	 * implementation, the non-functional ones will return
-	 * -ENOSYS.
-	 */
-	if (cmpxchg_futex_value_locked(&curval, NULL, 0, 0) == -EFAULT)
-		futex_cmpxchg_enabled = 1;
+
+	futex_detect_cmpxchg();
 
 	for (i = 0; i < futex_hashsize; i++) {
 		atomic_set(&futex_queues[i].waiters, 0);

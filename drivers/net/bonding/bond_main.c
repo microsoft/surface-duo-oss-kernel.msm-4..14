@@ -2450,9 +2450,9 @@ static void bond_loadbalance_arp_mon(struct work_struct *work)
 		if (!rtnl_trylock())
 			goto re_arm;
 
-		if (slave_state_changed) {
+		if (slave_state_changed)
 			bond_slave_state_change(bond);
-		} else if (do_failover) {
+		if (do_failover) {
 			/* the bond_select_active_slave must hold RTNL
 			 * and curr_slave_lock for write.
 			 */
@@ -3624,8 +3624,14 @@ static int bond_xmit_roundrobin(struct sk_buff *skb, struct net_device *bond_dev
 		else
 			bond_xmit_slave_id(bond, skb, 0);
 	} else {
-		slave_id = bond_rr_gen_slave_id(bond);
-		bond_xmit_slave_id(bond, skb, slave_id % bond->slave_cnt);
+		int slave_cnt = ACCESS_ONCE(bond->slave_cnt);
+
+		if (likely(slave_cnt)) {
+			slave_id = bond_rr_gen_slave_id(bond);
+			bond_xmit_slave_id(bond, skb, slave_id % slave_cnt);
+		} else {
+			dev_kfree_skb_any(skb);
+		}
 	}
 
 	return NETDEV_TX_OK;
@@ -3656,8 +3662,13 @@ static int bond_xmit_activebackup(struct sk_buff *skb, struct net_device *bond_d
 static int bond_xmit_xor(struct sk_buff *skb, struct net_device *bond_dev)
 {
 	struct bonding *bond = netdev_priv(bond_dev);
+	int slave_cnt = ACCESS_ONCE(bond->slave_cnt);
 
-	bond_xmit_slave_id(bond, skb, bond_xmit_hash(bond, skb, bond->slave_cnt));
+	if (likely(slave_cnt))
+		bond_xmit_slave_id(bond, skb,
+				   bond_xmit_hash(bond, skb, bond->slave_cnt));
+	else
+		dev_kfree_skb_any(skb);
 
 	return NETDEV_TX_OK;
 }
@@ -4068,7 +4079,7 @@ static int bond_check_params(struct bond_params *params)
 	}
 
 	if (ad_select) {
-		bond_opt_initstr(&newval, lacp_rate);
+		bond_opt_initstr(&newval, ad_select);
 		valptr = bond_opt_parse(bond_opt_get(BOND_OPT_AD_SELECT),
 					&newval);
 		if (!valptr) {
@@ -4536,6 +4547,7 @@ static int __init bonding_init(void)
 out:
 	return res;
 err:
+	bond_destroy_debugfs();
 	bond_netlink_fini();
 err_link:
 	unregister_pernet_subsys(&bond_net_ops);

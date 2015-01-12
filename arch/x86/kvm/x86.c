@@ -225,24 +225,29 @@ static void kvm_shared_msr_cpu_online(void)
 		shared_msr_update(i, shared_msrs_global.msrs[i]);
 }
 
-void kvm_set_shared_msr(unsigned slot, u64 value, u64 mask)
+int kvm_set_shared_msr(unsigned slot, u64 value, u64 mask)
 {
 	unsigned int cpu = smp_processor_id();
 	struct kvm_shared_msrs *smsr = per_cpu_ptr(shared_msrs, cpu);
+	int err;
 
 	if (((value ^ smsr->values[slot].curr) & mask) == 0)
-		return;
+		return 0;
 	smsr->values[slot].curr = value;
-	wrmsrl(shared_msrs_global.msrs[slot], value);
+	err = wrmsrl_safe(shared_msrs_global.msrs[slot], value);
+	if (err)
+		return 1;
+
 	if (!smsr->registered) {
 		smsr->urn.on_user_return = kvm_on_user_return;
 		user_return_notifier_register(&smsr->urn);
 		smsr->registered = true;
 	}
+	return 0;
 }
 EXPORT_SYMBOL_GPL(kvm_set_shared_msr);
 
-static void drop_user_return_notifiers(void *ignore)
+static void drop_user_return_notifiers(void)
 {
 	unsigned int cpu = smp_processor_id();
 	struct kvm_shared_msrs *smsr = per_cpu_ptr(shared_msrs, cpu);
@@ -946,7 +951,6 @@ void kvm_enable_efer_bits(u64 mask)
 }
 EXPORT_SYMBOL_GPL(kvm_enable_efer_bits);
 
-
 /*
  * Writes msr value into into the appropriate "register".
  * Returns 0 on success, non-0 otherwise.
@@ -954,8 +958,34 @@ EXPORT_SYMBOL_GPL(kvm_enable_efer_bits);
  */
 int kvm_set_msr(struct kvm_vcpu *vcpu, struct msr_data *msr)
 {
+	switch (msr->index) {
+	case MSR_FS_BASE:
+	case MSR_GS_BASE:
+	case MSR_KERNEL_GS_BASE:
+	case MSR_CSTAR:
+	case MSR_LSTAR:
+		if (is_noncanonical_address(msr->data))
+			return 1;
+		break;
+	case MSR_IA32_SYSENTER_EIP:
+	case MSR_IA32_SYSENTER_ESP:
+		/*
+		 * IA32_SYSENTER_ESP and IA32_SYSENTER_EIP cause #GP if
+		 * non-canonical address is written on Intel but not on
+		 * AMD (which ignores the top 32-bits, because it does
+		 * not implement 64-bit SYSENTER).
+		 *
+		 * 64-bit code should hence be able to write a non-canonical
+		 * value on AMD.  Making the address canonical ensures that
+		 * vmentry does not fail on Intel after writing a non-canonical
+		 * value, and that something deterministic happens if the guest
+		 * invokes 64-bit SYSENTER.
+		 */
+		msr->data = get_canonical(msr->data);
+	}
 	return kvm_x86_ops->set_msr(vcpu, msr);
 }
+EXPORT_SYMBOL_GPL(kvm_set_msr);
 
 /*
  * Adapt set_msr() to msr_io()'s calling convention
@@ -1109,7 +1139,6 @@ static inline u64 get_kernel_ns(void)
 {
 	struct timespec ts;
 
-	WARN_ON(preemptible());
 	ktime_get_ts(&ts);
 	monotonic_to_bootbased(&ts);
 	return timespec_to_ns(&ts);
@@ -1867,7 +1896,7 @@ static int set_msr_hyperv_pw(struct kvm_vcpu *vcpu, u32 msr, u64 data)
 		if (!(data & HV_X64_MSR_TSC_REFERENCE_ENABLE))
 			break;
 		gfn = data >> HV_X64_MSR_TSC_REFERENCE_ADDRESS_SHIFT;
-		if (kvm_write_guest(kvm, data,
+		if (kvm_write_guest(kvm, gfn << HV_X64_MSR_TSC_REFERENCE_ADDRESS_SHIFT,
 			&tsc_ref, sizeof(tsc_ref)))
 			return 1;
 		mark_page_dirty(kvm, gfn);
@@ -2578,7 +2607,7 @@ out:
 	return r;
 }
 
-int kvm_dev_ioctl_check_extension(long ext)
+int kvm_vm_ioctl_check_extension(struct kvm *kvm, long ext)
 {
 	int r;
 
@@ -4882,7 +4911,7 @@ static int handle_emulation_failure(struct kvm_vcpu *vcpu)
 
 	++vcpu->stat.insn_emulation_fail;
 	trace_kvm_emulate_insn_failed(vcpu);
-	if (!is_guest_mode(vcpu)) {
+	if (!is_guest_mode(vcpu) && kvm_x86_ops->get_cpl(vcpu) == 0) {
 		vcpu->run->exit_reason = KVM_EXIT_INTERNAL_ERROR;
 		vcpu->run->internal.suberror = KVM_INTERNAL_ERROR_EMULATION;
 		vcpu->run->internal.ndata = 0;
@@ -6780,7 +6809,7 @@ void kvm_vcpu_deliver_sipi_vector(struct kvm_vcpu *vcpu, unsigned int vector)
 	kvm_rip_write(vcpu, 0);
 }
 
-int kvm_arch_hardware_enable(void *garbage)
+int kvm_arch_hardware_enable(void)
 {
 	struct kvm *kvm;
 	struct kvm_vcpu *vcpu;
@@ -6791,7 +6820,7 @@ int kvm_arch_hardware_enable(void *garbage)
 	bool stable, backwards_tsc = false;
 
 	kvm_shared_msr_cpu_online();
-	ret = kvm_x86_ops->hardware_enable(garbage);
+	ret = kvm_x86_ops->hardware_enable();
 	if (ret != 0)
 		return ret;
 
@@ -6871,10 +6900,10 @@ int kvm_arch_hardware_enable(void *garbage)
 	return 0;
 }
 
-void kvm_arch_hardware_disable(void *garbage)
+void kvm_arch_hardware_disable(void)
 {
-	kvm_x86_ops->hardware_disable(garbage);
-	drop_user_return_notifiers(garbage);
+	kvm_x86_ops->hardware_disable();
+	drop_user_return_notifiers();
 }
 
 int kvm_arch_hardware_setup(void)
@@ -6989,6 +7018,10 @@ void kvm_arch_vcpu_uninit(struct kvm_vcpu *vcpu)
 	free_page((unsigned long)vcpu->arch.pio_data);
 	if (!irqchip_in_kernel(vcpu->kvm))
 		static_key_slow_dec(&kvm_no_apic_vcpu);
+}
+
+void kvm_arch_sched_in(struct kvm_vcpu *vcpu, int cpu)
+{
 }
 
 int kvm_arch_init_vm(struct kvm *kvm, unsigned long type)

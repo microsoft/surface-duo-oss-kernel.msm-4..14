@@ -532,12 +532,11 @@ static int __dwc3_gadget_ep_enable(struct dwc3_ep *dep,
 		if (!usb_endpoint_xfer_isoc(desc))
 			return 0;
 
-		memset(&trb_link, 0, sizeof(trb_link));
-
 		/* Link TRB for ISOC. The HWO bit is never reset */
 		trb_st_hw = &dep->trb_pool[0];
 
 		trb_link = &dep->trb_pool[DWC3_TRB_NUM - 1];
+		memset(trb_link, 0, sizeof(*trb_link));
 
 		trb_link->bpl = lower_32_bits(dwc3_trb_dma_offset(dep, trb_st_hw));
 		trb_link->bph = upper_32_bits(dwc3_trb_dma_offset(dep, trb_st_hw));
@@ -585,6 +584,10 @@ static int __dwc3_gadget_ep_disable(struct dwc3_ep *dep)
 	u32			reg;
 
 	dwc3_remove_requests(dwc, dep);
+
+	/* make sure HW endpoint isn't stalled */
+	if (dep->flags & DWC3_EP_STALL)
+		__dwc3_gadget_ep_set_halt(dep, 0, false);
 
 	reg = dwc3_readl(dwc->regs, DWC3_DALEPENA);
 	reg &= ~DWC3_DALEPENA_EP(dep->number);
@@ -1182,7 +1185,7 @@ out0:
 	return ret;
 }
 
-int __dwc3_gadget_ep_set_halt(struct dwc3_ep *dep, int value)
+int __dwc3_gadget_ep_set_halt(struct dwc3_ep *dep, int value, int protocol)
 {
 	struct dwc3_gadget_ep_cmd_params	params;
 	struct dwc3				*dwc = dep->dwc;
@@ -1191,6 +1194,14 @@ int __dwc3_gadget_ep_set_halt(struct dwc3_ep *dep, int value)
 	memset(&params, 0x00, sizeof(params));
 
 	if (value) {
+		if (!protocol && ((dep->direction && dep->flags & DWC3_EP_BUSY) ||
+				(!list_empty(&dep->req_queued) ||
+				 !list_empty(&dep->request_list)))) {
+			dev_dbg(dwc->dev, "%s: pending request, cannot halt\n",
+					dep->name);
+			return -EAGAIN;
+		}
+
 		ret = dwc3_send_gadget_ep_cmd(dwc, dep->number,
 			DWC3_DEPCMD_SETSTALL, &params);
 		if (ret)
@@ -1230,7 +1241,7 @@ static int dwc3_gadget_ep_set_halt(struct usb_ep *ep, int value)
 		goto out;
 	}
 
-	ret = __dwc3_gadget_ep_set_halt(dep, value);
+	ret = __dwc3_gadget_ep_set_halt(dep, value, false);
 out:
 	spin_unlock_irqrestore(&dwc->lock, flags);
 
@@ -1250,7 +1261,7 @@ static int dwc3_gadget_ep_set_wedge(struct usb_ep *ep)
 	if (dep->number == 0 || dep->number == 1)
 		return dwc3_gadget_ep0_set_halt(ep, 1);
 	else
-		return dwc3_gadget_ep_set_halt(ep, 1);
+		return __dwc3_gadget_ep_set_halt(dep, 1, false);
 }
 
 /* -------------------------------------------------------------------------- */
@@ -2381,6 +2392,30 @@ static void dwc3_gadget_linksts_change_interrupt(struct dwc3 *dwc,
 	dev_vdbg(dwc->dev, "%s link %d\n", __func__, dwc->link_state);
 }
 
+static void dwc3_gadget_hibernation_interrupt(struct dwc3 *dwc,
+		unsigned int evtinfo)
+{
+	unsigned int is_ss = evtinfo & BIT(4);
+
+	/**
+	 * WORKAROUND: DWC3 revison 2.20a with hibernation support
+	 * have a known issue which can cause USB CV TD.9.23 to fail
+	 * randomly.
+	 *
+	 * Because of this issue, core could generate bogus hibernation
+	 * events which SW needs to ignore.
+	 *
+	 * Refers to:
+	 *
+	 * STAR#9000546576: Device Mode Hibernation: Issue in USB 2.0
+	 * Device Fallback from SuperSpeed
+	 */
+	if (is_ss ^ (dwc->speed == USB_SPEED_SUPER))
+		return;
+
+	/* enter hibernation here */
+}
+
 static void dwc3_gadget_interrupt(struct dwc3 *dwc,
 		const struct dwc3_event_devt *event)
 {
@@ -2396,6 +2431,13 @@ static void dwc3_gadget_interrupt(struct dwc3 *dwc,
 		break;
 	case DWC3_DEVICE_EVENT_WAKEUP:
 		dwc3_gadget_wakeup_interrupt(dwc);
+		break;
+	case DWC3_DEVICE_EVENT_HIBER_REQ:
+		if (dev_WARN_ONCE(dwc->dev, !dwc->has_hibernation,
+					"unexpected hibernation event\n"))
+			break;
+
+		dwc3_gadget_hibernation_interrupt(dwc, event->event_info);
 		break;
 	case DWC3_DEVICE_EVENT_LINK_STATUS_CHANGE:
 		dwc3_gadget_linksts_change_interrupt(dwc, event->event_info);

@@ -77,6 +77,7 @@
 
 /* Architecturally defined mapping between AArch32 and AArch64 registers */
 #define compat_usr(x)	regs[(x)]
+#define compat_fp	regs[11]
 #define compat_sp	regs[13]
 #define compat_lr	regs[14]
 #define compat_sp_hyp	regs[15]
@@ -178,7 +179,7 @@ static inline int valid_user_regs(struct user_pt_regs *regs)
 	return 0;
 }
 
-#define instruction_pointer(regs)	(regs)->pc
+#define instruction_pointer(regs)	((unsigned long)(regs)->pc)
 
 #ifdef CONFIG_SMP
 extern unsigned long profile_pc(struct pt_regs *regs);

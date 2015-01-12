@@ -646,8 +646,10 @@ int rs600_gart_set_page(struct radeon_device *rdev, int i, uint64_t addr)
 		return -EINVAL;
 	}
 	addr = addr & 0xFFFFFFFFFFFFF000ULL;
-	addr |= R600_PTE_VALID | R600_PTE_SYSTEM | R600_PTE_SNOOPED;
-	addr |= R600_PTE_READABLE | R600_PTE_WRITEABLE;
+	if (addr != rdev->dummy_page.addr)
+		addr |= R600_PTE_VALID | R600_PTE_READABLE |
+			R600_PTE_WRITEABLE;
+	addr |= R600_PTE_SYSTEM | R600_PTE_SNOOPED;
 	writeq(addr, ptr + (i * 8));
 	return 0;
 }
@@ -887,6 +889,9 @@ void rs600_bandwidth_update(struct radeon_device *rdev)
 	struct drm_display_mode *mode1 = NULL;
 	u32 d1mode_priority_a_cnt, d2mode_priority_a_cnt;
 	/* FIXME: implement full support */
+
+	if (!rdev->mode_info.mode_config_initialized)
+		return;
 
 	radeon_update_display_priority(rdev);
 

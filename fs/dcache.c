@@ -106,8 +106,7 @@ static inline struct hlist_bl_head *d_hash(const struct dentry *parent,
 					unsigned int hash)
 {
 	hash += (unsigned long) parent / L1_CACHE_BYTES;
-	hash = hash + (hash >> d_hash_shift);
-	return dentry_hashtable + (hash & d_hash_mask);
+	return dentry_hashtable + hash_32(hash, d_hash_shift);
 }
 
 /* Statistics gathering. */
@@ -1647,8 +1646,7 @@ static void __d_instantiate(struct dentry *dentry, struct inode *inode)
 	unsigned add_flags = d_flags_for_inode(inode);
 
 	spin_lock(&dentry->d_lock);
-	dentry->d_flags &= ~DCACHE_ENTRY_TYPE;
-	dentry->d_flags |= add_flags;
+	__d_set_type(dentry, add_flags);
 	if (inode)
 		hlist_add_head(&dentry->d_alias, &inode->i_dentry);
 	dentry->d_inode = inode;
@@ -2826,12 +2824,17 @@ static int prepend(char **buffer, int *buflen, const char *str, int namelen)
  * the beginning of the name. The sequence number check at the caller will
  * retry it again when a d_move() does happen. So any garbage in the buffer
  * due to mismatched pointer and length will be discarded.
+ *
+ * Data dependency barrier is needed to make sure that we see that terminating
+ * NUL.  Alpha strikes again, film at 11...
  */
 static int prepend_name(char **buffer, int *buflen, struct qstr *name)
 {
 	const char *dname = ACCESS_ONCE(name->name);
 	u32 dlen = ACCESS_ONCE(name->len);
 	char *p;
+
+	smp_read_barrier_depends();
 
 	*buflen -= dlen + 1;
 	if (*buflen < 0)
