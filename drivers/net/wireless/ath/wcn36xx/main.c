@@ -938,6 +938,10 @@ static int wcn36xx_init_ieee80211(struct wcn36xx *wcn)
 	ieee80211_hw_set(wcn->hw, SIGNAL_DBM);
 	ieee80211_hw_set(wcn->hw, HAS_RATE_CONTROL);
 
+	/* 3620 powersaving currently unstable */
+	if (wcn->chip_version == WCN36XX_CHIP_3620)
+		wcn->hw->flags &= ~IEEE80211_HW_SUPPORTS_PS;
+
 	wcn->hw->wiphy->interface_modes = BIT(NL80211_IFTYPE_STATION) |
 		BIT(NL80211_IFTYPE_AP) |
 		BIT(NL80211_IFTYPE_ADHOC) |
