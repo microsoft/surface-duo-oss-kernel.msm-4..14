@@ -262,12 +262,6 @@ static void cpufreq_stats_free_table(unsigned int cpu)
 	if (cpufreq_frequency_get_table(policy->cpu))
 		__cpufreq_stats_free_table(policy);
 
-	if (!policy_is_shared(policy)) {
-		pr_debug("%s: Free sysfs stat\n", __func__);
-		sysfs_remove_group(&policy->kobj, &stats_attr_group);
-	}
-
-put_ref:
 	cpufreq_cpu_put(policy);
 }
 
@@ -612,7 +606,6 @@ static void __exit cpufreq_stats_exit(void)
 			CPUFREQ_TRANSITION_NOTIFIER);
 	for_each_online_cpu(cpu)
 		cpufreq_stats_free_table(cpu);
-	}
 	cpufreq_allstats_free();
 }
 
