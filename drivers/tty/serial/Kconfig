@@ -1075,6 +1075,14 @@ config SERIAL_MSM_HS
 	  Choose M here to compile it as a module. The module will be
 	  called msm_serial_hs.
 
+config SERIAL_MSM_SMD
+        bool "Enable tty device interface for some SMD ports"
+        default n
+        depends on MSM_SMD
+        help
+          Enables userspace clients to read and write to some streaming SMD
+          ports via tty device interface for MSM chipset.
+
 config SERIAL_VT8500
 	bool "VIA VT8500 on-chip serial port support"
 	depends on ARCH_VT8500
