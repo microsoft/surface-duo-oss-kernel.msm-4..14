@@ -19,12 +19,17 @@
 #include <linux/clk.h>
 #include <linux/phy/phy.h>
 #include <linux/regulator/consumer.h>
-#include <linux/reset.h>
 #include <linux/slab.h>
 #include <linux/platform_device.h>
 #include <linux/io.h>
 #include <linux/delay.h>
 #include <linux/iopoll.h>
+
+#define UFS_QCOM_PHY_CAL_ENTRY(reg, val)	\
+	{				\
+		.reg_offset = reg,	\
+		.cfg_value = val,	\
+	}
 
 #define UFS_QCOM_PHY_CAL_ENTRY(reg, val)	\
 	{				\
