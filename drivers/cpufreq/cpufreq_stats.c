@@ -361,29 +361,6 @@ error_get_fail:
 	return ret;
 }
 
-static void cpufreq_allstats_free(void)
-{
-	int cpu;
-	struct all_cpufreq_stats *all_stat;
-
-	sysfs_remove_file(cpufreq_global_kobject,
-			&_attr_all_time_in_state.attr);
-
-	for_each_possible_cpu(cpu) {
-		all_stat = per_cpu(all_cpufreq_stats, cpu);
-		if (!all_stat)
-			continue;
-		kfree(all_stat->time_in_state);
-		kfree(all_stat);
-		per_cpu(all_cpufreq_stats, cpu) = NULL;
-	}
-	if (all_freq_table) {
-		kfree(all_freq_table->freq_table);
-		kfree(all_freq_table);
-		all_freq_table = NULL;
-	}
-}
-
 static void cpufreq_stats_create_table(unsigned int cpu)
 {
 	struct cpufreq_policy *policy;
