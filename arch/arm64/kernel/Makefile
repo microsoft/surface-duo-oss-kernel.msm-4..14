@@ -21,6 +21,7 @@ arm64-obj-$(CONFIG_EARLY_PRINTK)	+= early_printk.o
 arm64-obj-$(CONFIG_ARM64_CPU_SUSPEND)	+= sleep.o suspend.o
 arm64-obj-$(CONFIG_ARM_CPU_SUSPEND)	+= sleep.o suspend.o
 arm64-obj-$(CONFIG_JUMP_LABEL)		+= jump_label.o
+obj-$(CONFIG_SWP_EMULATE)	+= swp_emulate.o
 
 obj-$(CONFIG_SWP_EMULATE)	+= swp_emulate.o
 
