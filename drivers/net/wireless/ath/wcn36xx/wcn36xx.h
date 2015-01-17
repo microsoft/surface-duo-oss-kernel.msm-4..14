@@ -120,6 +120,7 @@ struct wcn36xx_platform_ctrl_ops {
 	void (*close)(void);
 	int (*tx)(char *buf, size_t len);
 	int (*get_hw_mac)(u8 *addr);
+	int (*get_chip_type)(void);
 	int (*smsm_change_state)(u32 clear_mask, u32 set_mask);
 };
 
