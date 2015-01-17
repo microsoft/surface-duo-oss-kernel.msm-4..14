@@ -221,17 +221,6 @@ static void wcn36xx_feat_caps_info(struct wcn36xx *wcn)
 	}
 }
 
-static void wcn36xx_detect_chip_version(struct wcn36xx *wcn)
-{
-	if (get_feat_caps(wcn->fw_feat_caps, DOT11AC)) {
-		wcn36xx_info("Chip is 3680\n");
-		wcn->chip_version = WCN36XX_CHIP_3680;
-	} else {
-		wcn36xx_info("Chip is 3660\n");
-		wcn->chip_version = WCN36XX_CHIP_3660;
-	}
-}
-
 static int wcn36xx_start(struct ieee80211_hw *hw)
 {
 	struct wcn36xx *wcn = hw->priv;
@@ -285,8 +274,6 @@ static int wcn36xx_start(struct ieee80211_hw *hw)
 		else
 			wcn36xx_feat_caps_info(wcn);
 	}
-
-	wcn36xx_detect_chip_version(wcn);
 
 	/* DMA channel initialization */
 	ret = wcn36xx_dxe_init(wcn);
@@ -1037,6 +1024,11 @@ static int wcn36xx_probe(struct platform_device *pdev)
 	wcn->hw = hw;
 	wcn->dev = &pdev->dev;
 	wcn->ctrl_ops = pdev->dev.platform_data;
+	if (!wcn->ctrl_ops->get_chip_type) {
+		dev_err(&pdev->dev, "Missing ops->get_chip_type\n");
+		return -EINVAL;
+	}
+	wcn->chip_version = wcn->ctrl_ops->get_chip_type();
 
 	mutex_init(&wcn->hal_mutex);
 
