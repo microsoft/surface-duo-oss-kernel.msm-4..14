@@ -103,6 +103,13 @@ struct nv_data {
 	u8	table;
 };
 
+enum wcn36xx_chip_type {
+	WCN36XX_CHIP_UNKNOWN,
+	WCN36XX_CHIP_3660,
+	WCN36XX_CHIP_3680,
+	WCN36XX_CHIP_3620,
+};
+
 /* Interface for platform control path
  *
  * @open: hook must be called when wcn36xx wants to open control channel.
@@ -193,7 +200,7 @@ struct wcn36xx {
 	u8			fw_minor;
 	u8			fw_major;
 	u32			fw_feat_caps[WCN36XX_HAL_CAPS_SIZE];
-	u32			chip_version;
+	enum wcn36xx_chip_type	chip_version;
 
 	/* extra byte for the NULL termination */
 	u8			crm_version[WCN36XX_HAL_VERSION_LENGTH + 1];
@@ -240,9 +247,6 @@ struct wcn36xx {
 #endif /* CONFIG_WCN36XX_DEBUGFS */
 
 };
-
-#define WCN36XX_CHIP_3660	0
-#define WCN36XX_CHIP_3680	1
 
 static inline bool wcn36xx_is_fw_version(struct wcn36xx *wcn,
 					 u8 major,
