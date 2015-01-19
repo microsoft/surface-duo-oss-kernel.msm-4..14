@@ -135,3 +135,11 @@ config KRAITCC
 config KRAIT_CLOCKS
 	bool
 	select KRAIT_L2_ACCESSORS
+
+config MSM_RPMCC_8064
+	tristate "MSM8064 RPM Clock Controller"
+	depends on COMMON_CLK_QCOM
+	help
+	  Support for the RPM clock controller which controls fabric clocks
+	  on SoCs like MSM8064/APQ8064.
+	  Say Y if you want to use fabric clocks like AFAB, DAYTONA etc.
