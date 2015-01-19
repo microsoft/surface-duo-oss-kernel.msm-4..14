@@ -201,7 +201,21 @@ static const char * const wcn36xx_caps_names[] = {
 	"BCN_FILTER",			/* 19 */
 	"RTT",				/* 20 */
 	"RATECTRL",			/* 21 */
-	"WOW"				/* 22 */
+	"WOW",				/* 22 */
+	"WLAN_ROAM_SCAN_OFFLOAD",	/* 23 */
+	"SPECULATIVE_PS_POLL",		/* 24 */
+	"SCAN_SCH",			/* 25 */
+	"IBSS_HEARTBEAT_OFFLOAD",	/* 26 */
+	"WLAN_SCAN_OFFLOAD",		/* 27 */
+	"WLAN_PERIODIC_TX_PTRN",	/* 28 */
+	"ADVANCE_TDLS",			/* 29 */
+	"BATCH_SCAN",			/* 30 */
+	"FW_IN_TX_PATH",		/* 31 */
+	"EXTENDED_NSOFFLOAD_SLOT",	/* 32 */
+	"CH_SWITCH_V1",			/* 33 */
+	"HT40_OBSS_SCAN",		/* 34 */
+	"UPDATE_CHANNEL_LIST",		/* 35 */
+
 };
 
 static const char *wcn36xx_get_cap_name(enum place_holder_in_cap_bitmap x)
