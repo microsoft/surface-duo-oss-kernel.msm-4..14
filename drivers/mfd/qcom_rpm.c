@@ -331,6 +331,42 @@ static const struct of_device_id qcom_rpm_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, qcom_rpm_of_match);
 
+#define QCOM_RPM_STATUS_ID_SEQUENCE 7
+int qcom_rpm_read(struct qcom_rpm *rpm,
+		   int resource,
+		   u32 *val,
+		   size_t count)
+{
+	const struct qcom_rpm_resource *res;
+	const struct qcom_rpm_data *data = rpm->data;
+	uint32_t seq_begin;
+	uint32_t seq_end;
+	int rc;
+	int i;
+
+	if (WARN_ON(resource < 0 || resource >= data->n_resources))
+		return -EINVAL;
+
+	res = &data->resource_table[resource];
+	if (WARN_ON(res->size != count))
+		return -EINVAL;
+
+	mutex_lock(&rpm->lock);
+	seq_begin = readl(RPM_STATUS_REG(rpm, QCOM_RPM_STATUS_ID_SEQUENCE));
+
+	for (i = 0; i < count; i++)
+		*val++ = readl(RPM_STATUS_REG(rpm, res->status_id));
+
+	seq_end = readl(RPM_STATUS_REG(rpm, QCOM_RPM_STATUS_ID_SEQUENCE));
+
+	rc = (seq_begin != seq_end || (seq_begin & 0x01)) ? -EBUSY : 0;
+
+	mutex_unlock(&rpm->lock);
+	return rc;
+
+}
+EXPORT_SYMBOL(qcom_rpm_read);
+
 int qcom_rpm_write(struct qcom_rpm *rpm,
 		   int state,
 		   int resource,
