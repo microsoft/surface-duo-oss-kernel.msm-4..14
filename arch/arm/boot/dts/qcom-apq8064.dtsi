@@ -604,6 +604,11 @@
 
 			#address-cells	= <1>;
 			#size-cells	= <0>;
+			rpmcc: rpm-clock-controller {
+				compatible	= "qcom,apq8064-rpm-clk";
+				#clock-cells = <1>;
+				#reset-cells = <1>;
+			};
 
 			pm8921_s3: pm8921-s3 {
 				compatible	= "qcom,rpm-pm8921-smps";
@@ -688,6 +693,15 @@
 				bias-pull-down;
 			};
 
+		};
+
+		/* fabric clks handoff */
+		fabclk-handoff{
+			compatible	= "qcom,apq8064-rpmcc-handoff";
+			clocks		= <&rpmcc QCOM_RPM_APPS_FABRIC_CLK>;
+
+			assigned-clocks = <&rpmcc QCOM_RPM_APPS_FABRIC_CLK>;
+			assigned-clock-rates = <0x7fffffff>;
 		};
 
 		/* PCIE */
