@@ -3655,8 +3655,6 @@ MODULE_DEVICE_TABLE(of, gcc_msm8960_match_table);
 
 static int gcc_msm8960_probe(struct platform_device *pdev)
 {
-	struct clk *clk;
-	struct device *dev = &pdev->dev;
 	const struct of_device_id *match;
 
 	match = of_match_device(gcc_msm8960_match_table, &pdev->dev);
@@ -3667,15 +3665,6 @@ static int gcc_msm8960_probe(struct platform_device *pdev)
 		hfpll1.d = &hfpll1_8064_data;
 		hfpll_l2.d = &hfpll_l2_8064_data;
 	}
-
-	/* Temporary until RPM clocks supported */
-	clk = clk_register_fixed_rate(dev, "cxo", NULL, CLK_IS_ROOT, 19200000);
-	if (IS_ERR(clk))
-		return PTR_ERR(clk);
-
-	clk = clk_register_fixed_rate(dev, "pxo", NULL, CLK_IS_ROOT, 27000000);
-	if (IS_ERR(clk))
-		return PTR_ERR(clk);
 
 	return qcom_cc_probe(pdev, match->data);
 }
