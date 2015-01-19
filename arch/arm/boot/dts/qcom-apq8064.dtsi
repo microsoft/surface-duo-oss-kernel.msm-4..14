@@ -6,6 +6,7 @@
 #include <dt-bindings/reset/qcom,gcc-msm8960.h>
 #include <dt-bindings/clock/qcom,mmcc-msm8960.h>
 #include <dt-bindings/soc/qcom,gsbi.h>
+#include <dt-bindings/mfd/qcom-rpm.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/gpio/gpio.h>
 
@@ -664,12 +665,19 @@
 			compatible	= "qcom,rpm-apq8064";
 			reg		= <0x108000 0x1000>;
 			qcom,ipc	= <&l2cc 0x8 2>;
+			#address-cells	= <1>;
+			#size-cells	= <0>;
 
 			interrupts	= <GIC_SPI 19 IRQ_TYPE_EDGE_RISING>,
 					  <GIC_SPI 21 IRQ_TYPE_EDGE_RISING>,
 					  <GIC_SPI 22 IRQ_TYPE_EDGE_RISING>;
 			interrupt-names	= "ack", "err", "wakeup";
 
+			rpmcc: rpm-clock-controller {
+				compatible	= "qcom,apq8064-rpm-clk";
+				#clock-cells = <1>;
+				#reset-cells = <1>;
+			};
 			regulators {
 				compatible = "qcom,rpm-pm8921-regulators";
 
@@ -678,6 +686,7 @@
 				};
 			};
 		};
+
 
 		/* PCIE */
 
