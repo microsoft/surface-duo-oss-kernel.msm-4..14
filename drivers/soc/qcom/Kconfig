@@ -20,6 +20,11 @@ config QCOM_PM
 	  modes. It interface with various system drivers to put the cores in
 	  low power modes.
 
+config QCOM_SMD
+	tristate "Shared Memory device"
+	---help---
+          Supports the Shared memory device
+
 config MSM_PIL
         tristate "MSM Periphera Loader"
         depends on ARCH_QCOM
