@@ -13,7 +13,16 @@
 	model = "Qualcomm APQ8064";
 	compatible = "qcom,apq8064";
 	interrupt-parent = <&intc>;
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
 
+		smem@80000000 {
+			reg = <0x80000000 0x200000>;
+			no-map;
+		};
+	};
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -323,6 +332,56 @@
 		#size-cells = <1>;
 		ranges;
 		compatible = "simple-bus";
+
+		smd {
+			compatible	= "qcom,smd-apq8064";
+			reg		= <0x02011000 0x100>, <0x02011000 0x100>;
+			reg-names	= "adsp_a11", "adsp_a11_smsm";
+			interrupts	= <0 90 IRQ_TYPE_EDGE_RISING>, <0 89 IRQ_TYPE_EDGE_RISING>;
+			interrupt-names	= "adsp_a11", "adsp_a11_smsm";
+		};
+
+		pil_q6v4: pil@28800000 {
+			compatible	= "qcom,pil-qdsp6v4";
+			reg		= <0x28800000 0x100>;
+			strap-tcm-base  = <0x01460000>;
+			strap-ahb-upper = <0x00290000>;
+			strap-ahb-lower = <0x00000280>;
+			pas-id		= <1>; /* PAS_Q6 */
+			pas-name	= "q6";
+			resets		= <&gcc SFAB_LPASS_RESET>;
+			reset-names	= "lpass";
+			core-vdd-supply = <&pm8921_l26>;
+		};
+
+		/*
+		FIXME these should go properly in to sound nodes,
+		Let them stay like this till we have a proper
+		upstream plan.
+		*/
+		snd {
+			compatible	= "qcom,snd-apq8064";
+		};
+
+		dai_fe {
+			compatible	= "qcom,msm-dai-fe";
+		};
+
+		dai_hdmi {
+			compatible = "qcom,msm-dai-q6-hdmi";
+		};
+
+		codec_hdmi {
+			compatible = "linux,hdmi-audio";
+		};
+
+		msm_pcm {
+			compatible = "qcom,msm-pcm-dsp";
+		};
+
+		msm_pcm_routing {
+			compatible = "qcom,msm-pcm-routing";
+		};
 
 		tlmm_pinmux: pinctrl@800000 {
 			compatible = "qcom,apq8064-pinctrl";
@@ -687,6 +746,27 @@
 				regulator-always-on;
 			};
 
+			pm8921_l26: pm8921-l26 {
+				compatible	= "qcom,rpm-pm8921-nldo1200";
+				reg		= <QCOM_RPM_PM8921_LDO26>;
+
+				regulator-min-microvolt = < 375000>;
+				regulator-max-microvolt = <1050000>;
+				qcom,boot-load = <50000>;
+				regulator-always-on;
+				//FIXME ??
+				bias-pull-down;
+
+			};
+		pm8921_s7: pm8921-s7 {
+			compatible = "qcom,rpm-pm8921-smps";
+			reg = <QCOM_RPM_PM8921_SMPS7>;
+			regulator-min-microvolt = <1300000>;
+			regulator-max-microvolt = <1300000>;
+			 qcom,switch-mode-frequency = <3200000>;
+			regulator-boot-on;
+			regulator-always-on;
+		};
 
 			pm8921_lvs6: pm8921-lvs6 {
 				compatible	= "qcom,rpm-pm8921-switch";
