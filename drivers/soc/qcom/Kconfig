@@ -27,6 +27,11 @@ config QCOM_QFPROM
           Say y here to enable QFPROM support. The QFPROM provides access
           functions for QFPROM data to rest of the drivers via syscon wrappers.
 
+config QCOM_SMD
+	tristate "Shared Memory device"
+	---help---
+          Supports the Shared memory device
+
 config MSM_PIL
         tristate "MSM Periphera Loader"
         depends on ARCH_QCOM
