@@ -26,3 +26,10 @@ config MSM_PIL
         help
           Say y here to enable Periphera loader support.  The PIL provides support
           to download firmware securely and reset peripherials.
+
+config MSM_PIL_Q6V4
+        tristate "MSM Periphera Loader for QDSP 6V4"
+        depends on MSM_PIL
+        help
+          Say y here to enable Periphera loader support for QDSP.
+
