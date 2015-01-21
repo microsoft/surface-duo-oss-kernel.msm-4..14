@@ -19,3 +19,10 @@ config QCOM_PM
 	  QCOM Platform specific power driver to manage cores and L2 low power
 	  modes. It interface with various system drivers to put the cores in
 	  low power modes.
+
+config MSM_PIL
+        tristate "MSM Periphera Loader"
+        depends on ARCH_QCOM
+        help
+          Say y here to enable Periphera loader support.  The PIL provides support
+          to download firmware securely and reset peripherials.
