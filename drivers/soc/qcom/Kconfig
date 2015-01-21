@@ -33,3 +33,9 @@ config MSM_PIL_Q6V4
         help
           Say y here to enable Periphera loader support for QDSP.
 
+config MSM_REMOTE_SPINLOCKS
+        tristate "MSM Remote Spinlocks"
+        depends on ARCH_QCOM
+        help
+          Say y here to enable Remote Spinlock support.
+
