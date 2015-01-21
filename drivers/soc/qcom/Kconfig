@@ -26,3 +26,10 @@ config QCOM_QFPROM
         help
           Say y here to enable QFPROM support. The QFPROM provides access
           functions for QFPROM data to rest of the drivers via syscon wrappers.
+
+config MSM_PIL
+        tristate "MSM Periphera Loader"
+        depends on ARCH_QCOM
+        help
+          Say y here to enable Periphera loader support.  The PIL provides support
+          to download firmware securely and reset peripherials.
