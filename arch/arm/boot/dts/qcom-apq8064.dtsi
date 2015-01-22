@@ -658,12 +658,28 @@
 				};
 			};
 		};
+		qfprom: qfprom@00700000 {
+			compatible 	= "qcom,qfprom", "syscon";
+			reg		= <0x00700000 0x1000>;
+		};
 
 		gcc: clock-controller@900000 {
 			compatible = "qcom,gcc-apq8064";
 			reg = <0x00900000 0x4000>;
 			#clock-cells = <1>;
 			#reset-cells = <1>;
+			#address-cells	= <1>;
+			#size-cells	= <1>;
+			ranges;
+
+			/* tsens */
+			tsens: tsens {
+				#thermal-sensor-cells = <1>;
+				compatible = "qcom,apq8064-tsens";
+				qcom,calib-data = <&qfprom 0x404 0x20>;
+				interrupts	= <0 178 0>;
+				interrupt-names = "tsens-ul";
+			};
 		};
 
 		mmcc: clock-controller@4000000 {
