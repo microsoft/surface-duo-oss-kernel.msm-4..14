@@ -409,7 +409,7 @@ static void rx_fill(struct eth_dev *dev, gfp_t gfp_flags)
 	spin_lock_irqsave(&dev->req_lock, flags);
 	while (!list_empty(&dev->rx_reqs)) {
 		/* break the nexus of continuous completion and re-submission*/
-		if (++req_cnt > qlen(dev->gadget))
+		if (++req_cnt > qlen(dev->gadget, dev->qmult))
 			break;
 
 		req = container_of(dev->rx_reqs.next,
