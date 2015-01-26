@@ -9,3 +9,9 @@ config QCOM_GSBI
           functions for connecting the underlying serial UART, SPI, and I2C
           devices to the output pins.
 
+config QCOM_QFPROM
+	tristate "QCOM QFPROM Interface"
+        depends on ARCH_QCOM && OF
+        help
+          Say y here to enable QFPROM support. The QFPROM provides access
+          functions for QFPROM data to rest of the drivers via syscon wrappers.
