@@ -29,6 +29,7 @@
 
 #include "core.h"
 #include "host.h"
+#include "pwrseq.h"
 
 #define cls_dev_to_mmc_host(d)	container_of(d, struct mmc_host, class_dev)
 
@@ -562,7 +563,7 @@ int mmc_add_host(struct mmc_host *host)
 	mmc_start_host(host);
 	register_pm_notifier(&host->pm_notify);
 
-	return 0;
+	return mmc_pwrseq_alloc(host);
 }
 
 EXPORT_SYMBOL(mmc_add_host);
@@ -604,7 +605,8 @@ void mmc_free_host(struct mmc_host *host)
 	spin_lock(&mmc_host_lock);
 	idr_remove(&mmc_host_idr, host->index);
 	spin_unlock(&mmc_host_lock);
-
+	
+	mmc_pwrseq_free(host);
 	put_device(&host->class_dev);
 }
 
