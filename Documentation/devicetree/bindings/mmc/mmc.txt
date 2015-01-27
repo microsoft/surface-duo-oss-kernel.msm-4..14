@@ -64,6 +64,19 @@ Optional SDIO properties:
 - keep-power-in-suspend: Preserves card power during a suspend/resume cycle
 - enable-sdio-wakeup: Enables wake up of host system on SDIO IRQ assertion
 
+MMC power sequences:
+--------------------
+
+System on chip designs may specify a specific MMC power sequence. To
+successfully detect an (e)MMC/SD/SDIO card, that power sequence must be
+maintained while initializing the card.
+
+Optional property:
+- mmc-pwrseq: phandle to the MMC power sequence node. See "mmc-pwrseq-*"
+	for documentation of MMC power sequence bindings.
+
+
+ 
 Example:
 
 sdhci@ab000000 {
@@ -77,4 +90,5 @@ sdhci@ab000000 {
 	max-frequency = <50000000>;
 	keep-power-in-suspend;
 	enable-sdio-wakeup;
+	mmc-pwrseq = <&sdhci0_pwrseq>
 }
