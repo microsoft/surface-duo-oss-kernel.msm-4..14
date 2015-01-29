@@ -24,6 +24,10 @@
 			next-level-cache = <&L2>;
 			qcom,acc = <&acc0>;
 			qcom,saw = <&saw0>;
+			clocks = <&kraitcc 0>;
+			clock-names = "cpu";
+			clock-latency = <100000>;
+
 		};
 
 		cpu@1 {
@@ -34,6 +38,10 @@
 			next-level-cache = <&L2>;
 			qcom,acc = <&acc1>;
 			qcom,saw = <&saw1>;
+			clocks = <&kraitcc 1>;
+			clock-names = "cpu";
+			clock-latency = <100000>;
+
 		};
 
 		L2: l2-cache {
@@ -46,6 +54,39 @@
 		compatible = "qcom,krait-pmu";
 		interrupts = <1 10 0x304>;
 		qcom,no-pc-write;
+	};
+
+	qcom,pvs {
+		qcom,pvs-format-a;
+			/* Hz		uV */
+		qcom,speed0-pvs0-bin-v0 =
+			<  384000000  950000 >,
+			<  486000000  975000 >,
+			<  594000000 1000000 >,
+			<  702000000 1025000 >,
+			<  810000000 1075000 >,
+			<  918000000 1100000 >;
+
+		qcom,speed0-pvs1-bin-v0 =
+			<  384000000  900000 >,
+			<  486000000  925000 >,
+			<  594000000  950000 >,
+			<  702000000  975000 >,
+			<  810000000 1025000 >,
+			<  918000000 1050000 >;
+
+		qcom,speed0-pvs3-bin-v0 =
+			<  384000000  850000 >,
+			<  486000000  875000 >,
+			<  594000000  900000 >,
+			<  702000000  925000 >,
+			<  810000000  975000 >,
+			<  918000000 1000000 >;
+	};
+
+	kraitcc: clock-controller {
+		compatible = "qcom,krait-cc-v1";
+		#clock-cells = <1>;
 	};
 
 	soc: soc {
@@ -101,11 +142,19 @@
 		acc0: clock-controller@2088000 {
 			compatible = "qcom,kpss-acc-v1";
 			reg = <0x02088000 0x1000>, <0x02008000 0x1000>;
+			clock-output-names = "acpu0_aux";
 		};
 
 		acc1: clock-controller@2098000 {
 			compatible = "qcom,kpss-acc-v1";
 			reg = <0x02098000 0x1000>, <0x02008000 0x1000>;
+			clock-output-names = "acpu1_aux";
+		};
+
+		l2cc: clock-controller@2011000 {
+			compatible = "qcom,kpss-gcc";
+			reg = <0x2011000 0x1000>;
+			clock-output-names = "acpu_l2_aux";
 		};
 
 		saw0: regulator@2089000 {
