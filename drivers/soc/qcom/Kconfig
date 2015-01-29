@@ -19,3 +19,10 @@ config QCOM_PM
 	  QCOM Platform specific power driver to manage cores and L2 low power
 	  modes. It interface with various system drivers to put the cores in
 	  low power modes.
+
+config QCOM_QFPROM
+	tristate "QCOM QFPROM Interface"
+        depends on ARCH_QCOM && OF
+        help
+          Say y here to enable QFPROM support. The QFPROM provides access
+          functions for QFPROM data to rest of the drivers via syscon wrappers.
