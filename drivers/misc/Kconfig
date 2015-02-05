@@ -545,6 +545,13 @@ config MEMORY_STATE_TIME
 	help
 	  Memory time statistics exported to /sys/kernel/memory_state_time
 
+config HI3660_SYSCFG
+	bool "Hisilicon HI3660 System Configuration driver"
+	default y
+	help
+	  Hisilicon HI3660 uses some registers to configure some chip hosts to
+	  work or not, e.g. disable the UART hosts reset and let's them work.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
