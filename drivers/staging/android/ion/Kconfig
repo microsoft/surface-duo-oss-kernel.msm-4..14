@@ -33,3 +33,8 @@ config ION_TEGRA
 	help
 	  Choose this option if you wish to use ion on an nVidia Tegra.
 
+config ION_JUNO
+	bool "Ion for Juno board"
+	depends on ION
+	help
+	  ION support for arm juno reference board.
