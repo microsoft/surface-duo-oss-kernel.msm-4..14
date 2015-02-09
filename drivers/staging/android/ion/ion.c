@@ -252,8 +252,25 @@ static struct ion_buffer *ion_buffer_create(struct ion_heap *heap,
 	   memory comming from the heaps is ready for dma, ie if it has a
 	   cached mapping that mapping has been invalidated */
 	for_each_sg(buffer->sg_table->sgl, sg, buffer->sg_table->nents, i) {
+
+
+if(buffer && buffer->heap && buffer->heap->ops && buffer->heap->ops->phys)
+{
+		ion_phys_addr_t addr;
+		size_t len;
+//		sg_dma_address(sg) = sg_phys(sg);
+		buffer->heap->ops->phys(buffer->heap, buffer, &addr, &len);
+		sg_dma_address(sg) = addr;
+//		sg_dma_len(sg) = sg->length;
+		sg_dma_len(sg) = len;
+}
+else
+{
+
 		sg_dma_address(sg) = sg_phys(sg);
 		sg_dma_len(sg) = sg->length;
+}
+
 	}
 	mutex_lock(&dev->buffer_lock);
 	ion_buffer_add(dev, buffer);
