@@ -17,6 +17,7 @@
 	#size-cells = <2>;
 
 	aliases {
+		malidp0 = &dp0;
 		serial0 = &soc_uart0;
 	};
 
@@ -535,6 +536,7 @@
 		clock-names = "clk_mali";
 	};
 
+
 	smb {
 		compatible = "simple-bus";
 		#address-cells = <2>;
@@ -654,4 +656,79 @@
 			};
 		};
 	};
+
+	fpgaosc0: fpgaosc@0 {
+                /* Internal FPGA 77 MHz clock */
+                compatible = "fixed-clock";
+                #clock-cells = <0>;
+                clock-frequency = <77000000>;
+                clock-output-names = "fpga:osc0";
+        };
+
+	fpgaosc1: fpgaosc@1 {
+                /* Internal FPGA 67 MHz clock */
+                compatible = "fixed-clock";
+                #clock-cells = <0>;
+                clock-frequency = <67000000>;
+                clock-output-names = "fpga:osc1";
+        };
+
+	fpgaosc2: fpgaosc@2 {
+                /* Internal FPGA 23.75 MHz clock */
+                compatible = "fixed-clock";
+                #clock-cells = <0>;
+                clock-frequency = <23750000>;
+                clock-output-names = "fpga:osc2";
+        };
+
+        dcc_lt {
+                compatible = "arm,vexpress,config-bus";
+                arm,vexpress,site = <2>;
+                arm,vexpress,config-bridge = <&v2m_sysreg>;
+
+                db2oscclk2: osc@2 {
+                        compatible = "arm,vexpress-osc";
+                        arm,vexpress-sysreg,func = <1 2>;
+                        freq-range = <2000000 230000000>;
+                        #clock-cells = <0>;
+                        clock-output-names = "db2:osc2";
+                };
+        };
+
+	dp0: display@6f200000 {
+                compatible = "arm,mali-dp550";
+                reg = <0 0x6f200000 0 0x40000>;
+                interrupts = <0 168 4>, <0 168 4>;
+                interrupt-names = "DE", "SE";
+                clocks = <&db2oscclk2>, <&fpgaosc0>, <&fpgaosc1>, <&fpgaosc1>;
+                clock-names = "pxclk", "mclk", "aclk", "pclk";
+                de-axi-burst-length = <32>;
+                de-axi-outstanding-transactions = <15>;
+                se-axi-burst-length = <32>;
+                se-axi-outstanding-transactions = <15>;
+                se-axi-awqos = <0>;
+                se-axi-awcache = <0>;
+                #stream-id-cells = <1>;
+                port {
+                        dp0_out: endpoint {
+                                remote-endpoint = <&tx0_in>;
+                        };
+                };
+        };
+
+        test-transmitters {
+                compatible = "simple-bus";
+                #address-cells = <1>;
+                #size-cells = <0>;
+
+                tx0: test-transmitter@0 {
+                        compatible = "generic,video_transmitter";
+                        reg = <0>;
+                        port {
+                                tx0_in: endpoint {
+                                        remote-endpoint = <&dp0_out>;
+                                };
+                        };
+                };
+        };
 };
