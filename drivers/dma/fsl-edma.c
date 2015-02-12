@@ -157,6 +157,7 @@ struct fsl_edma_desc {
 	struct virt_dma_desc		vdesc;
 	struct fsl_edma_chan		*echan;
 	bool				iscyclic;
+	unsigned int			cyclic_len;
 	unsigned int			n_tcds;
 	struct fsl_edma_sw_tcd		tcd[];
 };
@@ -365,10 +366,14 @@ static size_t fsl_edma_desc_residue(struct fsl_edma_chan *fsl_chan,
 	size_t len, size;
 	int i;
 
-	/* calculate the total size in this desc */
-	for (len = i = 0; i < fsl_chan->edesc->n_tcds; i++)
+	if (edesc->iscyclic)
+		len = edesc->cyclic_len;
+	else {
+		/* calculate the total size in this desc */
+		for (len = i = 0; i < fsl_chan->edesc->n_tcds; i++)
 		len += le32_to_cpu(edesc->tcd[i].vtcd->nbytes)
 			* le16_to_cpu(edesc->tcd[i].vtcd->biter);
+	}
 
 	if (!in_progress)
 		return len;
@@ -377,6 +382,10 @@ static size_t fsl_edma_desc_residue(struct fsl_edma_chan *fsl_chan,
 		cur_addr = edma_readl(fsl_chan->edma, addr + EDMA_TCD_SADDR(ch));
 	else
 		cur_addr = edma_readl(fsl_chan->edma, addr + EDMA_TCD_DADDR(ch));
+
+	/* In cyclic, buffer is contiguous, current addr and buffer start are enough to get residue */
+	if (edesc->iscyclic)
+		return (len - (cur_addr - edesc->tcd[0].vtcd->saddr));
 
 	/* figure out the finished and calculate the residue */
 	for (i = 0; i < fsl_chan->edesc->n_tcds; i++) {
@@ -548,6 +557,7 @@ static struct dma_async_tx_descriptor *fsl_edma_prep_dma_cyclic(
 	if (!fsl_desc)
 		return NULL;
 	fsl_desc->iscyclic = true;
+	fsl_desc->cyclic_len = buf_len;
 
 	dma_buf_next = dma_addr;
 	nbytes = fsl_chan->fsc.addr_width * fsl_chan->fsc.burst;
