@@ -9,17 +9,15 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-#ifndef __MACH_SCM_H
-#define __MACH_SCM_H
+#ifndef __MACH_SCM_BOOT_H
+#define __MACH_SCM_BOOT_H
 
-#define SCM_SVC_BOOT			0x1
-#define SCM_SVC_PIL			0x2
+#define SCM_BOOT_ADDR			0x1
+#define SCM_FLAG_COLDBOOT_CPU1		0x01
+#define SCM_FLAG_COLDBOOT_CPU2		0x08
+#define SCM_FLAG_COLDBOOT_CPU3		0x20
 
-extern int scm_call(u32 svc_id, u32 cmd_id, const void *cmd_buf, size_t cmd_len,
-		void *resp_buf, size_t resp_len);
-
-#define SCM_VERSION(major, minor) (((major) << 16) | ((minor) & 0xFF))
-
-extern u32 scm_get_version(void);
+int scm_set_boot_addr(phys_addr_t addr, int flags);
+int scm_set_warm_boot_addr(void *entry, int cpu);
 
 #endif

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
+/* Copyright (c) 2010-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,16 +9,24 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-#ifndef __MACH_SCM_BOOT_H
-#define __MACH_SCM_BOOT_H
+#ifndef __MSM_SCM_PAS_H
+#define __MSM_SCM_PAS_H
 
-#define SCM_BOOT_ADDR			0x1
-#define SCM_FLAG_COLDBOOT_CPU1		0x01
-#define SCM_FLAG_COLDBOOT_CPU2		0x08
-#define SCM_FLAG_COLDBOOT_CPU3		0x20
-#define SCM_FLAG_WARMBOOT_CPU0		0x04
-#define SCM_FLAG_WARMBOOT_CPU1		0x02
+enum pas_id {
+	PAS_MODEM,
+	PAS_Q6,
+	PAS_DSPS,
+	PAS_TZAPPS,
+	PAS_MODEM_SW,
+	PAS_MODEM_FW,
+	PAS_WCNSS,
+	PAS_SECAPP,
+	PAS_GSS,
+	PAS_VIDC,
+};
 
-int scm_set_boot_addr(phys_addr_t addr, int flags);
-
+extern int pas_init_image(enum pas_id id, const u8 *metadata, size_t size);
+extern int pas_auth_and_reset(enum pas_id id);
+extern int pas_shutdown(enum pas_id id);
+extern int pas_supported(enum pas_id id);
 #endif
