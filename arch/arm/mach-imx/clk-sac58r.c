@@ -188,11 +188,11 @@ static void __init sac58r_clocks_init(struct device_node *ccm_node)
 
 	/* PLL1: ARM_PLL/CORE_PLL */
 	clk[SAC58R_CLK_PLL1_MAIN] = imx_clk_pllv3(IMX_PLLV3_SYS,
-		"pll1_main", "fast_clk_sel", PLL1_CTRL_REG, 0x7f, true);
+		"pll1_main", "fast_clk_sel", PLL1_CTRL_REG, 0x7f);
 	clk[SAC58R_CLK_PLL1_MAIN_DIV2] = imx_clk_fixed_factor("pll1_div2", "pll1_main", 1, 2);
 
 	/* PLL2: SYS_PLL */
-	clk[SAC58R_CLK_PLL2_MAIN] = imx_clk_pllv3(IMX_PLLV3_GENERIC, "pll2_main", "fast_clk_sel", PLL2_CTRL_REG, 0x1, true);	
+	clk[SAC58R_CLK_PLL2_MAIN] = imx_clk_pllv3(IMX_PLLV3_GENERIC, "pll2_main", "fast_clk_sel", PLL2_CTRL_REG, 0x1);	
 	clk[SAC58R_CLK_PLL2_PFD1] = imx_clk_pfd("pll2_pfd1", "pll2_main", PFD_PLL2_REG, 0);
 	clk[SAC58R_CLK_PLL2_PFD2] = imx_clk_pfd("pll2_pfd2", "pll2_main", PFD_PLL2_REG, 1);
 	clk[SAC58R_CLK_PLL2_PFD3] = imx_clk_pfd("pll2_pfd3", "pll2_main", PFD_PLL2_REG, 2);
