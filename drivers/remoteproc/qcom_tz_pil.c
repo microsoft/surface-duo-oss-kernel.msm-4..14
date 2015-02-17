@@ -69,7 +69,7 @@ struct qproc {
 	struct completion start_done;
 	struct completion stop_done;
 
-	struct qcom_smem_item crash_reason;
+	unsigned crash_reason;
 	struct device_node *smd_edge_node;
 };
 
@@ -474,7 +474,7 @@ static irqreturn_t qproc_fatal_interrupt(int irq, void *dev)
 	char *msg;
 	int ret;
 
-	ret = qcom_smem_get(&qproc->crash_reason, (void**)&msg, &len);
+	ret = qcom_smem_get(qproc->crash_reason, (void**)&msg, &len);
 	if (!ret && len > 0 && msg[0])
 		dev_err(qproc->dev, "fatal error received: %s\n", msg);
 
@@ -482,9 +482,7 @@ static irqreturn_t qproc_fatal_interrupt(int irq, void *dev)
 
 	if (!ret) {
 		msg[0] = '\0';
-#if 0
-		qcom_smem_put(qproc->smem, msg);
-#endif
+		qcom_smem_put(qproc->crash_reason);
 	}
 
 	return IRQ_HANDLED;
@@ -682,16 +680,15 @@ static int qproc_probe(struct platform_device *pdev)
 	init_completion(&qproc->start_done);
 	init_completion(&qproc->stop_done);
 
-	ret = of_parse_qcom_smem_item(pdev->dev.of_node,
-				      "qcom,crash-reason", 0,
-				      &qproc->crash_reason);
+	ret = of_property_read_u32(pdev->dev.of_node, "qcom,crash-reason",
+				   &qproc->crash_reason);
 	if (ret) {
-		if (ret != -EPROBE_DEFER)
-			dev_err(&pdev->dev, "failed to acquire smem handle\n");
-		return ret;
+		dev_err(&pdev->dev, "failed to read crash reason id\n");
+		goto free_rproc;
 	}
 
-	qproc->smd_edge_node = of_parse_phandle(pdev->dev.of_node, "qcom,smd-edges", 0);
+	qproc->smd_edge_node = of_parse_phandle(pdev->dev.of_node,
+						"qcom,smd-edges", 0);
 
 	ret = qproc_init_pas(qproc);
 	if (ret)
