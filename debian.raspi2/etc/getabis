@@ -1,0 +1,11 @@
+repo_list=(
+	"http://archive.ubuntu.com/ubuntu/pool/main/l/linux-raspi2"
+	"http://ports.ubuntu.com/ubuntu-ports/pool/main/l/linux-raspi2"
+	"http://archive.ubuntu.com/ubuntu/pool/universe/l/linux-raspi2"
+	"http://ports.ubuntu.com/ubuntu-ports/pool/universe/l/linux-raspi2"
+	"http://ppa.launchpad.net/canonical-kernel-team/ppa/ubuntu/pool/main/l/linux-raspi2"
+)
+
+package_prefixes linux-image
+
+getall armhf raspi2
