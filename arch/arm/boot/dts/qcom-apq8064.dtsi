@@ -547,6 +547,16 @@
 			};
 		};
 
+		adm_dma: dma@18300000 {
+			compatible = "qcom,adm";
+			reg = <0x18320000 0x100000>;
+			interrupts = <0 171 0>;
+			#dma-cells = <1>;
+
+			clocks = <&gcc ADM0_CLK>, <&gcc ADM0_PBUS_CLK>;
+			clock-names = "core", "iface";
+		};
+
 		gsbi6: gsbi@16500000 {
 			status = "disabled";
 			compatible = "qcom,gsbi-v1.0.0";
@@ -558,7 +568,7 @@
 			ranges;
 
 			serial1: serial@16540000 {
-				compatible = "qcom,msm-uartdm-v1.3", "qcom,msm-uartdm";
+				compatible = "qcom,msm-uartdm-v1.3-hs", "qcom,msm-uartdm-hs";
 				reg = <0x16540000 0x100>,
 				      <0x16500000 0x03>;
 				interrupts = <0 156 0x0>;
