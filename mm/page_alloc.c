@@ -6456,6 +6456,15 @@ int min_free_kbytes_sysctl_handler(struct ctl_table *table, int write,
 {
 	int rc;
 
+	/* 
+	 * hack for smsc95xx: if reduced below this, smsc ethernet driver
+	 * can blow up with spew of
+	 * smsc95xx 1-1.1:1.0: eth0: kevent 2 may have been dropped
+	 */
+
+	if (min_free_kbytes < 32768)
+		min_free_kbytes = 32768;
+
 	rc = proc_dointvec_minmax(table, write, buffer, length, ppos);
 	if (rc)
 		return rc;
