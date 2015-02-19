@@ -1,0 +1,74 @@
+Source: linux-raspi2
+Section: devel
+Priority: optional
+Maintainer: Ubuntu Kernel Team <kernel-team@lists.ubuntu.com>
+Standards-Version: 3.9.4.0
+Build-Depends:
+ debhelper (>= 5),
+ dh-systemd,
+ cpio,
+ kernel-wedge (>= 2.24ubuntu1),
+ kmod <!stage1>,
+ makedumpfile [amd64 i386] <!stage1>,
+ libelf-dev <!stage1>,
+ libnewt-dev <!stage1>,
+ libiberty-dev <!stage1>,
+ rsync <!stage1>,
+ libdw-dev <!stage1>,
+ libpci-dev <!stage1>,
+ dpkg (>= 1.16.0~ubuntu4) <!stage1>,
+ pkg-config <!stage1>,
+ flex <!stage1>,
+ bison <!stage1>,
+ libunwind8-dev <!stage1>,
+ openssl <!stage1>,
+ libssl-dev <!stage1>,
+ libaudit-dev <!stage1>,
+ bc <!stage1>,
+ python-dev <!stage1>,
+ gawk <!stage1>,
+ device-tree-compiler [powerpc] <!stage1>,
+ u-boot-tools [powerpc] <!stage1>,
+ libc6-dev-ppc64 [powerpc] <!stage1>,
+ libudev-dev <!stage1>,
+ autoconf <!stage1>,
+ automake <!stage1>,
+ libtool <!stage1>,
+ uuid-dev <!stage1>,
+Build-Depends-Indep:
+ xmlto <!stage1>,
+ docbook-utils <!stage1>,
+ ghostscript <!stage1>,
+ transfig <!stage1>,
+ bzip2 <!stage1>,
+ sharutils <!stage1>,
+ asciidoc <!stage1>,
+Vcs-Git: git://kernel.ubuntu.com/ubuntu/ubuntu-xenial.git raspi2
+XS-Testsuite: autopkgtest
+#XS-Testsuite-Depends: gcc-4.7 binutils
+
+Package: SRCPKGNAME-headers-PKGVER-ABINUM
+Build-Profiles: <!stage1>
+Architecture: armhf
+Multi-Arch: foreign
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}, coreutils | fileutils (>= 4.0)
+Description: Header files related to Linux kernel version PKGVER
+ This package provides kernel header files for version PKGVER, for sites
+ that want the latest kernel headers. Please read
+ /usr/share/doc/SRCPKGNAME-headers-PKGVER-ABINUM/debian.README.gz for details
+
+Package: SRCPKGNAME-tools-PKGVER-ABINUM
+Build-Profiles: <!stage1>
+Architecture: armhf
+Section: devel
+Priority: optional
+Depends: ${misc:Depends}, ${shlibs:Depends}, linux-tools-common
+Description: Linux kernel version specific tools for version PKGVER-ABINUM
+ This package provides the architecture dependant parts for kernel
+ version locked tools (such as perf and x86_energy_perf_policy) for
+ version PKGVER-ABINUM on
+ =HUMAN=.
+ You probabaly want to install the linux-tools-<flavour> meta package.
+
