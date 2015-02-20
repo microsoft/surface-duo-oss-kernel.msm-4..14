@@ -123,9 +123,8 @@ ifneq ($(wildcard $(src)/linux/mali_slp_global_lock.c),)
 	mali-y += linux/mali_slp_global_lock.o
 endif
 
-ifneq ($(MALI_PLATFORM_FILES),)
-	mali-y += $(MALI_PLATFORM_FILES:.c=.o)
-endif
+EXTRA_DEFINES += -DMALI_FAKE_PLATFORM_DEVICE=1
+mali-y += platform/hikey/mali_hikey.o
 
 ifneq ($(MALI_PLATFORM_FILES_ADD_PREFIX),)
 	mali-y += $(MALI_PLATFORM_FILES_ADD_PREFIX:.c=.o)
