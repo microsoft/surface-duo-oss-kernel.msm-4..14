@@ -337,9 +337,6 @@ static struct pci_ops qcom_pcie_ops = {
 
 static struct hw_pci qcom_hw_pci[MAX_RC_NUM] = {
 	{
-#ifdef CONFIG_PCI_DOMAINS
-		.domain = 0,
-#endif
 		.ops		= &qcom_pcie_ops,
 		.nr_controllers	= 1,
 		.swizzle	= pci_common_swizzle,
@@ -347,9 +344,6 @@ static struct hw_pci qcom_hw_pci[MAX_RC_NUM] = {
 		.map_irq	= qcom_pcie_map_irq,
 	},
 	{
-#ifdef CONFIG_PCI_DOMAINS
-		.domain = 1,
-#endif
 		.ops		= &qcom_pcie_ops,
 		.nr_controllers	= 1,
 		.swizzle	= pci_common_swizzle,
@@ -357,9 +351,6 @@ static struct hw_pci qcom_hw_pci[MAX_RC_NUM] = {
 		.map_irq	= qcom_pcie_map_irq,
 	},
 	{
-#ifdef CONFIG_PCI_DOMAINS
-		.domain = 2,
-#endif
 		.ops		= &qcom_pcie_ops,
 		.nr_controllers	= 1,
 		.swizzle	= pci_common_swizzle,
@@ -935,7 +926,8 @@ static int qcom_pcie_probe(struct platform_device *pdev)
 	nr_controllers++;
 	spin_unlock_irqrestore(&qcom_hw_pci_lock, flags);
 
-	pci_common_init(hw);
+	///pci_common_init(hw);
+	pci_common_init_dev(&pdev->dev, hw);
 
 	msm_pcie_msi_init(qcom_pcie, pdev);
 	return 0;
