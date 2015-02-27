@@ -68,25 +68,47 @@
 			device_type = "cpu";
 			compatible = "arm,cortex-a53", "arm,armv8";
 			reg = <0x0>;
+			enable-method = "qcom,arm-cortex-acc";
+			qcom,acc = <&acc0>;
+			next-level-cache = <&L2_0>;
+			L2_0: l2-cache {
+			      compatible = "arm,arch-cache";
+			      cache-level = <2>;
+			      power-domain = <&l2ccc_0>;
+			};
 		};
 
 		CPU1: cpu@1 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a53", "arm,armv8";
 			reg = <0x1>;
+			enable-method = "qcom,arm-cortex-acc";
+			qcom,acc = <&acc1>;
+			next-level-cache = <&L2_0>;
 		};
 
 		CPU2: cpu@2 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a53", "arm,armv8";
 			reg = <0x2>;
+			enable-method = "qcom,arm-cortex-acc";
+			qcom,acc = <&acc2>;
+			next-level-cache = <&L2_0>;
 		};
 
 		CPU3: cpu@3 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a53", "arm,armv8";
 			reg = <0x3>;
+			enable-method = "qcom,arm-cortex-acc";
+			qcom,acc = <&acc3>;
+			next-level-cache = <&L2_0>;
 		};
+	};
+
+	cpu-pmu {
+		compatible = "arm,armv8-pmuv3";
+		interrupts = <GIC_PPI 7 GIC_CPU_MASK_SIMPLE(4)>;
 	};
 
 	timer {
@@ -425,6 +447,11 @@
 			reg = <0x0b000000 0x1000>, <0x0b002000 0x1000>;
 		};
 
+		l2ccc_0: clock-controller@b011000 {
+			compatible = "qcom,8916-l2ccc";
+			reg = <0x0b011000 0x1000>;
+		};
+
 		timer@b020000 {
 			#address-cells = <1>;
 			#size-cells = <1>;
@@ -507,6 +534,29 @@
 			reg = <0x00022000 0x200>;
 			clocks = <&gcc GCC_PRNG_AHB_CLK>;
 			clock-names = "core";
+		};
+		acc0: clock-controller@b088000 {
+			compatible = "qcom,arm-cortex-acc";
+			reg = <0x0b088000 0x1000>,
+			      <0x0b008000 0x1000>;
+		};
+
+		acc1: clock-controller@b098000 {
+			compatible = "qcom,arm-cortex-acc";
+			reg = <0x0b098000 0x1000>,
+			      <0x0b008000 0x1000>;
+		};
+
+		acc2: clock-controller@b0a8000 {
+			compatible = "qcom,arm-cortex-acc";
+			reg = <0x0b0a8000 0x1000>,
+			      <0x0b008000 0x1000>;
+		};
+
+		acc3: clock-controller@b0b8000 {
+			compatible = "qcom,arm-cortex-acc";
+			reg = <0x0b0b8000 0x1000>,
+			      <0x0b008000 0x1000>;
 		};
 	};
 
