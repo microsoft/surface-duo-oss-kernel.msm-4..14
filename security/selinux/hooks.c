@@ -401,23 +401,14 @@ static int selinux_is_sblabel_mnt(struct super_block *sb)
 {
 	struct superblock_security_struct *sbsec = sb->s_security;
 
-	if (sbsec->behavior == SECURITY_FS_USE_XATTR ||
-	    sbsec->behavior == SECURITY_FS_USE_TRANS ||
-	    sbsec->behavior == SECURITY_FS_USE_TASK)
-		return 1;
-
-	/* Special handling for sysfs. Is genfs but also has setxattr handler*/
-	if (strncmp(sb->s_type->name, "sysfs", sizeof("sysfs")) == 0)
-		return 1;
-
-	/*
-	 * Special handling for rootfs. Is genfs but supports
-	 * setting SELinux context on in-core inodes.
-	 */
-	if (strncmp(sb->s_type->name, "rootfs", sizeof("rootfs")) == 0)
-		return 1;
-
-	return 0;
+	return sbsec->behavior == SECURITY_FS_USE_XATTR ||
+		sbsec->behavior == SECURITY_FS_USE_TRANS ||
+		sbsec->behavior == SECURITY_FS_USE_TASK ||
+		/* Special handling. Genfs but also in-core setxattr handler */
+		!strcmp(sb->s_type->name, "sysfs") ||
+		!strcmp(sb->s_type->name, "pstore") ||
+		!strcmp(sb->s_type->name, "debugfs") ||
+		!strcmp(sb->s_type->name, "rootfs");
 }
 
 static int sb_finish_set_opts(struct super_block *sb)
@@ -456,10 +447,6 @@ static int sb_finish_set_opts(struct super_block *sb)
 	if (sbsec->behavior > ARRAY_SIZE(labeling_behaviors))
 		printk(KERN_ERR "SELinux: initialized (dev %s, type %s), unknown behavior\n",
 		       sb->s_id, sb->s_type->name);
-	else
-		printk(KERN_DEBUG "SELinux: initialized (dev %s, type %s), %s\n",
-		       sb->s_id, sb->s_type->name,
-		       labeling_behaviors[sbsec->behavior-1]);
 
 	sbsec->flags |= SE_SBINITIALIZED;
 	if (selinux_is_sblabel_mnt(sb))
@@ -1812,7 +1799,7 @@ static inline int may_rename(struct inode *old_dir,
 
 	old_dsec = old_dir->i_security;
 	old_isec = old_dentry->d_inode->i_security;
-	old_is_dir = S_ISDIR(old_dentry->d_inode->i_mode);
+	old_is_dir = d_is_dir(old_dentry);
 	new_dsec = new_dir->i_security;
 
 	ad.type = LSM_AUDIT_DATA_DENTRY;
@@ -1835,14 +1822,14 @@ static inline int may_rename(struct inode *old_dir,
 
 	ad.u.dentry = new_dentry;
 	av = DIR__ADD_NAME | DIR__SEARCH;
-	if (new_dentry->d_inode)
+	if (d_is_positive(new_dentry))
 		av |= DIR__REMOVE_NAME;
 	rc = avc_has_perm(sid, new_dsec->sid, SECCLASS_DIR, av, &ad);
 	if (rc)
 		return rc;
-	if (new_dentry->d_inode) {
+	if (d_is_positive(new_dentry)) {
 		new_isec = new_dentry->d_inode->i_security;
-		new_is_dir = S_ISDIR(new_dentry->d_inode->i_mode);
+		new_is_dir = d_is_dir(new_dentry);
 		rc = avc_has_perm(sid, new_isec->sid,
 				  new_isec->sclass,
 				  (new_is_dir ? DIR__RMDIR : FILE__UNLINK), &ad);
@@ -1938,10 +1925,12 @@ static int selinux_binder_set_context_mgr(struct task_struct *mgr)
 	u32 mysid = current_sid();
 	u32 mgrsid = task_sid(mgr);
 
-	return avc_has_perm(mysid, mgrsid, SECCLASS_BINDER, BINDER__SET_CONTEXT_MGR, NULL);
+	return avc_has_perm(mysid, mgrsid, SECCLASS_BINDER,
+			    BINDER__SET_CONTEXT_MGR, NULL);
 }
 
-static int selinux_binder_transaction(struct task_struct *from, struct task_struct *to)
+static int selinux_binder_transaction(struct task_struct *from,
+				      struct task_struct *to)
 {
 	u32 mysid = current_sid();
 	u32 fromsid = task_sid(from);
@@ -1949,22 +1938,29 @@ static int selinux_binder_transaction(struct task_struct *from, struct task_stru
 	int rc;
 
 	if (mysid != fromsid) {
-		rc = avc_has_perm(mysid, fromsid, SECCLASS_BINDER, BINDER__IMPERSONATE, NULL);
+		rc = avc_has_perm(mysid, fromsid, SECCLASS_BINDER,
+				  BINDER__IMPERSONATE, NULL);
 		if (rc)
 			return rc;
 	}
 
-	return avc_has_perm(fromsid, tosid, SECCLASS_BINDER, BINDER__CALL, NULL);
+	return avc_has_perm(fromsid, tosid, SECCLASS_BINDER, BINDER__CALL,
+			    NULL);
 }
 
-static int selinux_binder_transfer_binder(struct task_struct *from, struct task_struct *to)
+static int selinux_binder_transfer_binder(struct task_struct *from,
+					  struct task_struct *to)
 {
 	u32 fromsid = task_sid(from);
 	u32 tosid = task_sid(to);
-	return avc_has_perm(fromsid, tosid, SECCLASS_BINDER, BINDER__TRANSFER, NULL);
+
+	return avc_has_perm(fromsid, tosid, SECCLASS_BINDER, BINDER__TRANSFER,
+			    NULL);
 }
 
-static int selinux_binder_transfer_file(struct task_struct *from, struct task_struct *to, struct file *file)
+static int selinux_binder_transfer_file(struct task_struct *from,
+					struct task_struct *to,
+					struct file *file)
 {
 	u32 sid = task_sid(to);
 	struct file_security_struct *fsec = file->f_security;

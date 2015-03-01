@@ -619,20 +619,6 @@ static struct ctl_table ipv4_table[] = {
 		.proc_handler	= proc_tcp_congestion_control,
 	},
 	{
-		.procname	= "tcp_mtu_probing",
-		.data		= &sysctl_tcp_mtu_probing,
-		.maxlen		= sizeof(int),
-		.mode		= 0644,
-		.proc_handler	= proc_dointvec,
-	},
-	{
-		.procname	= "tcp_base_mss",
-		.data		= &sysctl_tcp_base_mss,
-		.maxlen		= sizeof(int),
-		.mode		= 0644,
-		.proc_handler	= proc_dointvec,
-	},
-	{
 		.procname	= "tcp_workaround_signed_windows",
 		.data		= &sysctl_tcp_workaround_signed_windows,
 		.maxlen		= sizeof(int),
@@ -742,6 +728,13 @@ static struct ctl_table ipv4_table[] = {
 		.proc_handler	= proc_dointvec_minmax,
 		.extra1		= &zero,
 		.extra2		= &one,
+	},
+	{
+		.procname	= "tcp_invalid_ratelimit",
+		.data		= &sysctl_tcp_invalid_ratelimit,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec_ms_jiffies,
 	},
 	{
 		.procname	= "icmp_msgs_per_sec",
@@ -894,6 +887,20 @@ static struct ctl_table ipv4_net_table[] = {
 	{
 		.procname	= "tcp_fwmark_accept",
 		.data		= &init_net.ipv4.sysctl_tcp_fwmark_accept,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+	},
+	{
+		.procname	= "tcp_mtu_probing",
+		.data		= &init_net.ipv4.sysctl_tcp_mtu_probing,
+		.maxlen		= sizeof(int),
+		.mode		= 0644,
+		.proc_handler	= proc_dointvec,
+	},
+	{
+		.procname	= "tcp_base_mss",
+		.data		= &init_net.ipv4.sysctl_tcp_base_mss,
 		.maxlen		= sizeof(int),
 		.mode		= 0644,
 		.proc_handler	= proc_dointvec,

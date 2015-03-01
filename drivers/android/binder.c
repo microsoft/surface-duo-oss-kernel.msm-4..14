@@ -602,6 +602,7 @@ static int binder_update_page_range(struct binder_proc *proc, int allocate,
 		}
 		tmp_area.addr = page_addr;
 		tmp_area.size = PAGE_SIZE + PAGE_SIZE /* guard page? */;
+		tmp_area.flags &= ~VM_NO_GUARD;
 		ret = map_vm_area(&tmp_area, PAGE_KERNEL, page);
 		if (ret) {
 			pr_err("%d: binder_alloc_buf failed to map page at %p in kernel\n",
@@ -1402,7 +1403,8 @@ static void binder_transaction(struct binder_proc *proc,
 			return_error = BR_DEAD_REPLY;
 			goto err_dead_binder;
 		}
-		if (security_binder_transaction(proc->tsk, target_proc->tsk) < 0) {
+		if (security_binder_transaction(proc->tsk,
+						target_proc->tsk) < 0) {
 			return_error = BR_FAILED_REPLY;
 			goto err_invalid_target_handle;
 		}
@@ -1563,7 +1565,8 @@ static void binder_transaction(struct binder_proc *proc,
 				return_error = BR_FAILED_REPLY;
 				goto err_binder_get_ref_for_node_failed;
 			}
-			if (security_binder_transfer_binder(proc->tsk, target_proc->tsk)) {
+			if (security_binder_transfer_binder(proc->tsk,
+							    target_proc->tsk)) {
 				return_error = BR_FAILED_REPLY;
 				goto err_binder_get_ref_for_node_failed;
 			}
@@ -1597,7 +1600,8 @@ static void binder_transaction(struct binder_proc *proc,
 				return_error = BR_FAILED_REPLY;
 				goto err_binder_get_ref_failed;
 			}
-			if (security_binder_transfer_binder(proc->tsk, target_proc->tsk)) {
+			if (security_binder_transfer_binder(proc->tsk,
+							    target_proc->tsk)) {
 				return_error = BR_FAILED_REPLY;
 				goto err_binder_get_ref_failed;
 			}
@@ -1658,7 +1662,9 @@ static void binder_transaction(struct binder_proc *proc,
 				return_error = BR_FAILED_REPLY;
 				goto err_fget_failed;
 			}
-			if (security_binder_transfer_file(proc->tsk, target_proc->tsk, file) < 0) {
+			if (security_binder_transfer_file(proc->tsk,
+							  target_proc->tsk,
+							  file) < 0) {
 				fput(file);
 				return_error = BR_FAILED_REPLY;
 				goto err_get_unused_fd_failed;
@@ -2700,6 +2706,9 @@ static int binder_ioctl_set_ctx_mgr(struct file *filp)
 		ret = -EBUSY;
 		goto out;
 	}
+	ret = security_binder_set_context_mgr(proc->tsk);
+	if (ret < 0)
+		goto out;
 	if (uid_valid(binder_context_mgr_uid)) {
 		if (!uid_eq(binder_context_mgr_uid, curr_euid)) {
 			pr_err("BINDER_SET_CONTEXT_MGR bad uid %d != %d\n",

@@ -140,17 +140,20 @@ int security_binder_set_context_mgr(struct task_struct *mgr)
 	return security_ops->binder_set_context_mgr(mgr);
 }
 
-int security_binder_transaction(struct task_struct *from, struct task_struct *to)
+int security_binder_transaction(struct task_struct *from,
+				struct task_struct *to)
 {
 	return security_ops->binder_transaction(from, to);
 }
 
-int security_binder_transfer_binder(struct task_struct *from, struct task_struct *to)
+int security_binder_transfer_binder(struct task_struct *from,
+				    struct task_struct *to)
 {
 	return security_ops->binder_transfer_binder(from, to);
 }
 
-int security_binder_transfer_file(struct task_struct *from, struct task_struct *to, struct file *file)
+int security_binder_transfer_file(struct task_struct *from,
+				  struct task_struct *to, struct file *file)
 {
 	return security_ops->binder_transfer_file(from, to, file);
 }
@@ -746,16 +749,15 @@ static inline unsigned long mmap_prot(struct file *file, unsigned long prot)
 		return prot | PROT_EXEC;
 	/*
 	 * ditto if it's not on noexec mount, except that on !MMU we need
-	 * BDI_CAP_EXEC_MMAP (== VM_MAYEXEC) in this case
+	 * NOMMU_MAP_EXEC (== VM_MAYEXEC) in this case
 	 */
 	if (!(file->f_path.mnt->mnt_flags & MNT_NOEXEC)) {
 #ifndef CONFIG_MMU
-		unsigned long caps = 0;
-		struct address_space *mapping = file->f_mapping;
-		if (mapping && mapping->backing_dev_info)
-			caps = mapping->backing_dev_info->capabilities;
-		if (!(caps & BDI_CAP_EXEC_MAP))
-			return prot;
+		if (file->f_op->mmap_capabilities) {
+			unsigned caps = file->f_op->mmap_capabilities(file);
+			if (!(caps & NOMMU_MAP_EXEC))
+				return prot;
+		}
 #endif
 		return prot | PROT_EXEC;
 	}
