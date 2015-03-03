@@ -856,7 +856,6 @@
 						<&clks SAC58R_CLK_USDHC0>;
 				clock-names = "ipg", "ahb", "per";
 				bus-width = <4>;
-				no-1-8-v;
 				status = "disabled";
 			};
 
@@ -869,7 +868,6 @@
 					<&clks SAC58R_CLK_USDHC1>;
 				clock-names = "ipg", "ahb", "per";
 				bus-width = <4>;
-				no-1-8-v;
 				status = "disabled";
 			};
 
@@ -882,7 +880,6 @@
 					<&clks SAC58R_CLK_USDHC2>;
 				clock-names = "ipg", "ahb", "per";
 				bus-width = <4>;
-				no-1-8-v;
 				status = "disabled";
 			};
 
