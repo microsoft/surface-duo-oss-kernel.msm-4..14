@@ -280,8 +280,15 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 			}
 			else {
 				if (is_sac58r_usdhc(imx_data)) {
-					/* sac58r cap register does not provide speed info */
-					val = SDHCI_SUPPORT_SDR50;
+					/*
+					 * sac58r HOST_CTRL_CAP register
+					 * does not provide speed info .
+					 * sac58r does not support DDR50, but this is needed
+					 * to support DDR50 SD cards. If this is not enabled,
+					 * a lot of TIMEOUT errors get returned when trying to
+					 * access SD card.
+					 */
+					val = SDHCI_SUPPORT_SDR50 | SDHCI_SUPPORT_DDR50;
 				}
 				else {
 					/* imx6q/dl does not have cap_1 register, fake one */
@@ -1122,22 +1129,29 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 		break;
 	}
 
-	/* sdr50 and sdr104 needs work on 1.8v signal voltage */
-	if ((boarddata->support_vsel) && esdhc_is_usdhc(imx_data) &&
-	    !IS_ERR(imx_data->pins_default)) {
-		imx_data->pins_100mhz = pinctrl_lookup_state(imx_data->pinctrl,
-						ESDHC_PINCTRL_STATE_100MHZ);
-		imx_data->pins_200mhz = pinctrl_lookup_state(imx_data->pinctrl,
-						ESDHC_PINCTRL_STATE_200MHZ);
-		if (IS_ERR(imx_data->pins_100mhz) ||
-				IS_ERR(imx_data->pins_200mhz)) {
-			dev_warn(mmc_dev(host->mmc),
-				"could not get ultra high speed state, work on normal mode\n");
-			/* fall back to not support uhs by specify no 1.8v quirk */
+	/* UHS-I support: sac58r does not have pinctrl driver
+	 * however, there's 1.8V support.
+	 * So, ignore the pinctrl lookup.
+	 * FIXME: there must be a better way to handle this!
+	 */
+	if (!is_sac58r_usdhc(imx_data)) {
+		/* sdr50 and sdr104 needs work on 1.8v signal voltage */
+		if ((boarddata->support_vsel) && esdhc_is_usdhc(imx_data) &&
+				!IS_ERR(imx_data->pins_default)) {
+			imx_data->pins_100mhz = pinctrl_lookup_state(imx_data->pinctrl,
+					ESDHC_PINCTRL_STATE_100MHZ);
+			imx_data->pins_200mhz = pinctrl_lookup_state(imx_data->pinctrl,
+					ESDHC_PINCTRL_STATE_200MHZ);
+			if (IS_ERR(imx_data->pins_100mhz) ||
+					IS_ERR(imx_data->pins_200mhz)) {
+				dev_warn(mmc_dev(host->mmc),
+						"could not get ultra high speed state, work on normal mode\n");
+				/* fall back to not support uhs by specify no 1.8v quirk */
+				host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
+			}
+		} else {
 			host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
 		}
-	} else {
-		host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
 	}
 
 	if (host->mmc->pm_caps & MMC_PM_KEEP_POWER &&
