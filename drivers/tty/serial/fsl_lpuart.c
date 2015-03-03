@@ -638,6 +638,38 @@ out:
 	return IRQ_HANDLED;
 }
 
+static void lpuart_handle_rx_overrun(struct lpuart_port *sport)
+{
+	unsigned char temp;
+	unsigned char rx;
+
+	/*
+	 * Overrun gets cleared by reading the Data register
+	 * until the event disappears
+	 */
+	temp = readb(sport->port.membase + UARTSR1);
+	while (temp & UARTSR1_OR) {
+		rx = readb(sport->port.membase + UARTDR);
+		temp = readb(sport->port.membase + UARTSR1);
+	}
+
+	/*
+	 * For some reason, we also need to flush the RX FIFO
+	 * to resume normal RX operation on UART
+	 */
+	temp = readb(sport->port.membase + UARTCFIFO);
+	temp |= UARTCFIFO_RXFLUSH;
+	writeb(temp, sport->port.membase + UARTCFIFO);
+
+	/*
+	 * Clear any possible FIFO event resulting from
+	 * RX FIFO flush (e.g. RXUFE)
+	 */
+	temp = readb(sport->port.membase + UARTSFIFO);
+	writeb(temp, sport->port.membase + UARTSFIFO);
+}
+
+
 static irqreturn_t lpuart_rxint(int irq, void *dev_id)
 {
 	struct lpuart_port *sport = dev_id;
@@ -773,12 +805,18 @@ static irqreturn_t lpuart_int(int irq, void *dev_id)
 	sts = readb(sport->port.membase + UARTSR1);
 	crdma = readb(sport->port.membase + UARTCR5);
 
+	if (sts & UARTSR1_OR) {
+		lpuart_handle_rx_overrun(sport);
+		return IRQ_HANDLED;
+	}
+
 	if (sts & UARTSR1_RDRF && !(crdma & UARTCR5_RDMAS)) {
 		if (sport->lpuart_dma_rx_use)
 			lpuart_prepare_rx(sport);
 		else
 			lpuart_rxint(irq, dev_id);
 	}
+
 	if (sts & UARTSR1_TDRE && !(crdma & UARTCR5_TDMAS)) {
 		if (sport->lpuart_dma_tx_use)
 			lpuart_pio_tx(sport);
