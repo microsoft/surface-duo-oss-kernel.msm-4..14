@@ -64,3 +64,13 @@ config MSM_SUBSYSTEM_RESTART
 	  shutdown, and restart subsystems with a reference counted API.
 	  It also notifies userspace of transitions between these states via
 	  sysfs.
+
+config MSM_PIL
+	bool "Peripheral image loading"
+	select FW_LOADER
+	default n
+	help
+	  Some peripherals need to be loaded into memory before they can be
+	  brought out of reset.
+
+	  Say yes to support these devices.
