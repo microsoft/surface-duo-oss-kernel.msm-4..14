@@ -7,3 +7,8 @@ obj-$(CONFIG_MSM_RPM_SMD) +=	rpm-smd-debug.o
 endif
 obj-$(CONFIG_MSM_SMD)	+=	smd.o smd_debug.o smd_private.o smd_init_dt.o smsm_debug.o
 obj-$(CONFIG_MSM_SMEM)	+=	smem.o smem_debug.o
+ifdef CONFIG_MSM_SUBSYSTEM_RESTART
+       obj-y += subsystem_notif.o
+       obj-y += subsystem_restart.o
+       obj-y += ramdump.o
+endif

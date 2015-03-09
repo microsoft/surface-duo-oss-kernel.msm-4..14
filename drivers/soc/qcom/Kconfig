@@ -54,3 +54,13 @@ config MSM_SMEM
 	  Support for the shared memory interface between the various
 	  processors in the System on a Chip (SoC) which allows basic
 	  inter-processor communication.
+
+config MSM_SUBSYSTEM_RESTART
+	bool "MSM Subsystem Restart"
+	help
+	  This option enables the MSM subsystem restart framework.
+
+	  The MSM subsystem restart framework provides support to boot,
+	  shutdown, and restart subsystems with a reference counted API.
+	  It also notifies userspace of transitions between these states via
+	  sysfs.
