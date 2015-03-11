@@ -1,4 +1,5 @@
 /* Copyright (c) 2010,2015, The Linux Foundation. All rights reserved.
+>>>>>>> firmware: qcom: scm: Split out 32-bit specific SCM code
  * Copyright (C) 2015 Linaro Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -28,6 +29,13 @@
 #include <asm/cacheflush.h>
 
 #include "qcom_scm.h"
+
+#define QCOM_SCM_ENOMEM		-5
+#define QCOM_SCM_EOPNOTSUPP	-4
+#define QCOM_SCM_EINVAL_ADDR	-3
+#define QCOM_SCM_EINVAL_ARG	-2
+#define QCOM_SCM_ERROR		-1
+#define QCOM_SCM_INTERRUPTED	1
 
 #define QCOM_SCM_FLAG_COLDBOOT_CPU0	0x00
 #define QCOM_SCM_FLAG_COLDBOOT_CPU1	0x01
