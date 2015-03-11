@@ -12,10 +12,13 @@
 
 /dts-v1/;
 
+#include <dt-bindings/arm/qcom-ids.h>
 #include "msm8916-mtp.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. MSM 8916 MTP";
 	compatible = "qcom,msm8916-mtp", "qcom,msm8916-mtp-smb1360",
 			"qcom,msm8916", "qcom,mtp";
+	qcom,board-id = <QCOM_BRD_ID(MTP, 1, 0) QCOM_BRD_SUBTYPE_DEFAULT>,
+			<QCOM_BRD_ID(MTP, 1, 0) QCOM_BRD_SUBTYPE_MTP8916_SMB1360>;
 };
