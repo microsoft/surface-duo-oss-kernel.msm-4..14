@@ -307,7 +307,7 @@ static int _do_ramdump(void *handle, struct ramdump_segment *segments,
 	rd_dev->data_ready = 1;
 	rd_dev->ramdump_status = -1;
 
-	INIT_COMPLETION(rd_dev->ramdump_complete);
+	reinit_completion(&rd_dev->ramdump_complete);
 
 	/* Tell userspace that the data is ready */
 	wake_up(&rd_dev->dump_wait_q);
