@@ -39,6 +39,7 @@
 #include <asm/uaccess.h>
 #include <asm/setup.h>
 #include <asm-generic/io-64-nonatomic-lo-hi.h>
+#include <asm-generic/cacheflush.h>
 
 #include "peripheral-loader.h"
 
@@ -552,69 +553,35 @@ static int pil_load_seg(struct pil_desc *desc, struct pil_seg *seg)
 	phys_addr_t paddr;
 	char fw_name[30];
 	int num = seg->num;
-	struct pil_map_fw_info map_fw_info = {
-		.attrs = desc->attrs,
-		.region = desc->priv->region,
-		.base_addr = desc->priv->region_start,
-		.dev = desc->dev,
-	};
-	void *map_data = desc->map_data ? desc->map_data : &map_fw_info;
+        const struct firmware *fw;
 
 	if (seg->filesz) {
 		snprintf(fw_name, ARRAY_SIZE(fw_name), "%s.b%02d",
 				desc->name, num);
-		ret = request_firmware_direct(fw_name, desc->dev, seg->paddr,
-					      seg->filesz, desc->map_fw_mem,
-					      desc->unmap_fw_mem, map_data);
+
+		ret = request_firmware_direct(&fw, fw_name, desc->dev);
+
 		if (ret < 0) {
 			pil_err(desc, "Failed to locate blob %s or blob is too big.\n",
 				fw_name);
 			return ret;
 		}
 
-		if (ret != seg->filesz) {
-			pil_err(desc, "Blob size %u doesn't match %lu\n",
-					ret, seg->filesz);
-			return -EPERM;
-		}
+		memcpy(desc->priv->region + (seg->paddr - desc->priv->region_start),
+			fw->data, seg->filesz);
+
+		wmb();
+		flush_cache_all();
+		release_firmware(fw);
 		ret = 0;
 	}
 
 	/* Zero out trailing memory */
 	paddr = seg->paddr + seg->filesz;
 	count = seg->sz - seg->filesz;
-	while (count > 0) {
-		int size, orig_size;
-		u8 __iomem *buf;
-		u8 bytes_before;
-		u8 bytes_after;
 
-		orig_size = size = min_t(size_t, IOMAP_SIZE, count);
-		buf = desc->map_fw_mem(paddr, size, map_data);
-		if (!buf) {
-			pil_err(desc, "Failed to map memory\n");
-			return -ENOMEM;
-		}
-
-		if ((unsigned long)buf & 0x7) {
-			bytes_before = 8 - ((unsigned long)buf & 0x7);
-			memset_io(buf, 0, bytes_before);
-			size -= bytes_before;
-			buf += bytes_before;
-		}
-
-		if (size & 0x7) {
-			bytes_after = size & 0x7;
-			memset_io(buf + size - bytes_after, 0, bytes_after);
-			size -= bytes_after;
-		}
-
-		memset(buf, 0, size);
-
-		desc->unmap_fw_mem(buf, size, map_data);
-
-		count -= orig_size;
-		paddr += orig_size;
+        if (count > 0) {
+		memset(desc->priv->region + paddr - desc->priv->region_start, 0, count);
 	}
 
 	if (desc->ops->verify_blob) {
