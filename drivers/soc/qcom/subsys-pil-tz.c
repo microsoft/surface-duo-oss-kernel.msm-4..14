@@ -752,7 +752,7 @@ static int subsys_powerup(const struct subsys_desc *subsys)
 	int ret = 0;
 
 	if (subsys->stop_ack_irq)
-		INIT_COMPLETION(d->stop_ack);
+		reinit_completion(&d->stop_ack);
 	ret = pil_boot(&d->desc);
 
 	return ret;
