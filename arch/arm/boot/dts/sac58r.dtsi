@@ -97,7 +97,7 @@
 			reg = <0x40000000 0x70000>;
 			ranges;
 
-			edma0: dma-controller@4004000 {
+			edma0: dma-controller@40004000 {
 				#dma-cells = <2>;
 				compatible = "fsl,vf610-edma";
 				reg = <0x40004000 0x2000>,
