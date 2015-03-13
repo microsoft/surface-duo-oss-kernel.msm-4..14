@@ -23,7 +23,6 @@
 #include <linux/sysfs.h>
 #include <linux/workqueue.h>
 #include <linux/jiffies.h>
-#include <linux/wakelock.h>
 #include <linux/err.h>
 #include <linux/list.h>
 #include <linux/list_sort.h>
@@ -47,6 +46,12 @@
 	dev_err(desc->dev, "%s: " fmt, desc->name, ##__VA_ARGS__)
 #define pil_info(desc, fmt, ...)					\
 	dev_info(desc->dev, "%s: " fmt, desc->name, ##__VA_ARGS__)
+
+#if defined(CONFIG_ARM)
+#define pil_memset_io(d, c, count) memset(d, c, count)
+#else
+#define pil_memset_io(d, c, count) memset_io(d, c, count)
+#endif
 
 #define PIL_NUM_DESC		10
 static void __iomem *pil_info_base;
@@ -73,7 +78,7 @@ struct pil_mdt {
 /**
  * struct pil_seg - memory map representing one segment
  * @next: points to next seg mentor NULL if last segment
- * @paddr: start address of segment
+ * @paddr: physical start address of segment
  * @sz: size of segment
  * @filesz: size of segment on disk
  * @num: segment number
@@ -92,22 +97,10 @@ struct pil_seg {
 };
 
 /**
- * struct pil_image_info - information in IMEM about image and where it is loaded
- * @name: name of image (may or may not be NULL terminated)
- * @start: indicates physical address where image starts (little endian)
- * @size: size of image (little endian)
- */
-struct pil_image_info {
-	char name[8];
-	__le64 start;
-	__le32 size;
-} __attribute__((__packed__));
-
-/**
  * struct pil_priv - Private state for a pil_desc
  * @proxy: work item used to run the proxy unvoting routine
- * @wlock: wakelock to prevent suspend during pil_boot
- * @wname: name of @wlock
+ * @ws: wakeup source to prevent suspend during pil_boot
+ * @wname: name of @ws
  * @desc: pointer to pil_desc this is private data for
  * @seg: list of segments sorted by physical address
  * @entry_addr: physical address where processor starts booting at
@@ -126,7 +119,7 @@ struct pil_image_info {
  */
 struct pil_priv {
 	struct delayed_work proxy;
-	struct wake_lock wlock;
+	struct wakeup_source ws;
 	char wname[32];
 	struct pil_desc *desc;
 	struct list_head segs;
@@ -159,7 +152,7 @@ int pil_do_ramdump(struct pil_desc *desc, void *ramdump_dev)
 	list_for_each_entry(seg, &priv->segs, list)
 		count++;
 
-	ramdump_segs = kmalloc_array(count, sizeof(*ramdump_segs), GFP_KERNEL);
+	ramdump_segs = kcalloc(count, sizeof(*ramdump_segs), GFP_KERNEL);
 	if (!ramdump_segs)
 		return -ENOMEM;
 
@@ -195,7 +188,7 @@ static void __pil_proxy_unvote(struct pil_priv *priv)
 
 	desc->ops->proxy_unvote(desc);
 	notify_proxy_unvote(desc->dev);
-	wake_unlock(&priv->wlock);
+	__pm_relax(&priv->ws);
 	module_put(desc->owner);
 
 }
@@ -213,10 +206,10 @@ static int pil_proxy_vote(struct pil_desc *desc)
 	struct pil_priv *priv = desc->priv;
 
 	if (desc->ops->proxy_vote) {
-		wake_lock(&priv->wlock);
+		__pm_stay_awake(&priv->ws);
 		ret = desc->ops->proxy_vote(desc);
 		if (ret)
-			wake_unlock(&priv->wlock);
+			__pm_relax(&priv->ws);
 	}
 
 	if (desc->proxy_unvote_irq)
@@ -838,7 +831,7 @@ int pil_desc_init(struct pil_desc *desc)
 	}
 
 	snprintf(priv->wname, sizeof(priv->wname), "pil-%s", desc->name);
-	wake_lock_init(&priv->wlock, WAKE_LOCK_SUSPEND, priv->wname);
+	wakeup_source_init(&priv->ws, priv->wname);
 	INIT_DELAYED_WORK(&priv->proxy, pil_proxy_unvote_work);
 	INIT_LIST_HEAD(&priv->segs);
 
@@ -869,7 +862,7 @@ void pil_desc_release(struct pil_desc *desc)
 	if (priv) {
 		ida_simple_remove(&pil_ida, priv->id);
 		flush_delayed_work(&priv->proxy);
-		wake_lock_destroy(&priv->wlock);
+		wakeup_source_trash(&priv->ws);
 	}
 	desc->priv = NULL;
 	kfree(priv);
@@ -896,16 +889,27 @@ static struct notifier_block pil_pm_notifier = {
 static int __init msm_pil_init(void)
 {
 	struct device_node *np;
+	struct resource res;
+	int i;
 
 	np = of_find_compatible_node(NULL, NULL, "qcom,msm-imem-pil");
-	if (np) {
-		pil_info_base = of_iomap(np, 0);
-		if (!pil_info_base)
-			pr_warn("pil: could not map imem region\n");
-	} else {
+	if (!np) {
 		pr_warn("pil: failed to find qcom,msm-imem-pil node\n");
+		goto out;
 	}
+	if (of_address_to_resource(np, 0, &res)) {
+		pr_warn("pil: address to resource on imem region failed\n");
+		goto out;
+	}
+	pil_info_base = ioremap(res.start, resource_size(&res));
+	if (!pil_info_base) {
+		pr_warn("pil: could not map imem region\n");
+		goto out;
+	}
+	for (i = 0; i < resource_size(&res)/sizeof(u32); i++)
+		writel_relaxed(0, pil_info_base + (i * sizeof(u32)));
 
+out:
 	return register_pm_notifier(&pil_pm_notifier);
 }
 device_initcall(msm_pil_init);
