@@ -50,6 +50,7 @@ obj-$(CONFIG_MOXART_DMA) += moxart-dma.o
 obj-$(CONFIG_FSL_RAID) += fsl_raid.o
 obj-$(CONFIG_FSL_EDMA) += fsl-edma.o
 obj-$(CONFIG_QCOM_BAM_DMA) += qcom_bam_dma.o
+obj-$(CONFIG_QCOM_ADM) += qcom_adm.o
 obj-y += xilinx/
 obj-$(CONFIG_INTEL_MIC_X100_DMA) += mic_x100_dma.o
 obj-$(CONFIG_NBPFAXI_DMA) += nbpfaxi.o
