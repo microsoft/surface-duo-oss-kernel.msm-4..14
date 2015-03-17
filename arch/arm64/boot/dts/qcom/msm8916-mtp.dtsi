@@ -31,3 +31,11 @@
 		};
 	};
 };
+
+&blsp_dma {
+	status = "okay";
+};
+
+&blsp_spi3 {
+	status = "okay";
+};
