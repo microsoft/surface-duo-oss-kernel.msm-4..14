@@ -21,10 +21,12 @@
 #include "clk-rcg.h"
 #include "clk-regmap.h"
 #include "reset.h"
+#include "gdsc.h"
 
 struct qcom_cc {
 	struct qcom_reset_controller reset;
 	struct clk_onecell_data data;
+	struct genpd_onecell_data pd_data;
 	struct clk *clks[];
 };
 
@@ -66,10 +68,12 @@ int qcom_cc_really_probe(struct platform_device *pdev,
 	struct device *dev = &pdev->dev;
 	struct clk *clk;
 	struct clk_onecell_data *data;
+	struct genpd_onecell_data *pd;
 	struct clk **clks;
 	struct qcom_reset_controller *reset;
 	struct qcom_cc *cc;
 	size_t num_clks = desc->num_clks;
+	size_t num_gdscs = desc->num_gdscs;
 	struct clk_regmap **rclks = desc->clks;
 
 	cc = devm_kzalloc(dev, sizeof(*cc) + sizeof(*clks) * num_clks,
@@ -79,8 +83,11 @@ int qcom_cc_really_probe(struct platform_device *pdev,
 
 	clks = cc->clks;
 	data = &cc->data;
+	pd = &cc->pd_data;
 	data->clks = clks;
 	data->clk_num = num_clks;
+	pd->domains = desc->gdscs;
+	pd->num_domains = num_gdscs;
 
 	for (i = 0; i < num_clks; i++) {
 		if (!rclks[i]) {
@@ -108,8 +115,25 @@ int qcom_cc_really_probe(struct platform_device *pdev,
 
 	ret = reset_controller_register(&reset->rcdev);
 	if (ret)
-		of_clk_del_provider(dev->of_node);
+		goto err_reset;
 
+	if (num_gdscs) {
+		for (i = 0; i < num_gdscs; i++) {
+			if (!desc->gdscs[i])
+				continue;
+			gdsc_init(desc->gdscs[i], regmap);
+		}
+
+		ret = of_genpd_add_provider_onecell(dev->of_node, pd);
+		if (ret)
+			goto err_pd;
+	}
+
+	return 0;
+err_pd:
+	reset_controller_unregister(&reset->rcdev);
+err_reset:
+	of_clk_del_provider(dev->of_node);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(qcom_cc_really_probe);
@@ -128,6 +152,7 @@ EXPORT_SYMBOL_GPL(qcom_cc_probe);
 
 void qcom_cc_remove(struct platform_device *pdev)
 {
+	of_genpd_del_provider(pdev->dev.of_node);
 	of_clk_del_provider(pdev->dev.of_node);
 	reset_controller_unregister(platform_get_drvdata(pdev));
 }
