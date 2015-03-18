@@ -260,7 +260,7 @@
 				};
 			};
 
-			spi5_sleep: spi4_sleep {
+			spi5_sleep: spi5_sleep {
 				pinmux {
 					function = "gpio";
 					pins = "gpio16", "gpio17", "gpio18", "gpio19";
