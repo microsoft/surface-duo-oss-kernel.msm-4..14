@@ -143,3 +143,11 @@ config MSM_RPMCC_8064
 	  Support for the RPM clock controller which controls fabric clocks
 	  on SoCs like MSM8064/APQ8064.
 	  Say Y if you want to use fabric clocks like AFAB, DAYTONA etc.
+
+config QCOM_A53
+	tristate "A53 Clock Controller"
+	depends on COMMON_CLK_QCOM
+	help
+	  Support for the A53 clock controller on Qualcomm devices.
+	  Say Y if you want to support CPU frequency scaling on devices
+	  such as MSM8916.
