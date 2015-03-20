@@ -114,14 +114,16 @@ static struct clk_regmap pll14_vote = {
 	},
 };
 
-#define P_PXO	0
-#define P_PLL8	1
-#define P_PLL3	2
-#define P_CXO	2
+enum {
+	P_PXO,
+	P_PLL8,
+	P_PLL3,
+	P_CXO,
+};
 
-static const u8 gcc_pxo_pll8_map[] = {
-	[P_PXO]		= 0,
-	[P_PLL8]	= 3,
+static const struct parent_map gcc_pxo_pll8_map[] = {
+	{ P_PXO, 0 },
+	{ P_PLL8, 3 }
 };
 
 static const char *gcc_pxo_pll8[] = {
@@ -129,10 +131,10 @@ static const char *gcc_pxo_pll8[] = {
 	"pll8_vote",
 };
 
-static const u8 gcc_pxo_pll8_cxo_map[] = {
-	[P_PXO]		= 0,
-	[P_PLL8]	= 3,
-	[P_CXO]		= 5,
+static const struct parent_map gcc_pxo_pll8_cxo_map[] = {
+	{ P_PXO, 0 },
+	{ P_PLL8, 3 },
+	{ P_CXO, 5 }
 };
 
 static const char *gcc_pxo_pll8_cxo[] = {
@@ -141,10 +143,10 @@ static const char *gcc_pxo_pll8_cxo[] = {
 	"cxo",
 };
 
-static const u8 gcc_pxo_pll8_pll3_map[] = {
-	[P_PXO]		= 0,
-	[P_PLL8]	= 3,
-	[P_PLL3]	= 6,
+static const struct parent_map gcc_pxo_pll8_pll3_map[] = {
+	{ P_PXO, 0 },
+	{ P_PLL8, 3 },
+	{ P_PLL3, 6 }
 };
 
 static const char *gcc_pxo_pll8_pll3[] = {
