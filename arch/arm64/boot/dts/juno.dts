@@ -466,6 +466,25 @@
 		};
 	};
 
+	i2c@0x6f190000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "arm,versatile-i2c";
+		reg = <0x0 0x6f190000 0x0 0x1000>;
+
+		dvi2: dvi-transmitter@70 {
+			compatible = "nxp,tda998x";
+			reg = <0x70>;
+			video-ports = <0x234501>;
+		};
+
+		dvi3: dvi-transmitter@71 {
+			compatible = "nxp,tda998x";
+			reg = <0x71>;
+			video-ports = <0x234501>;
+		};
+	};
+
 	/* mmci@1c050000 {
 		compatible = "arm,pl180", "arm,primecell";
 		reg = <0x0 0x1c050000 0x0 0x1000>;
@@ -743,19 +762,24 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		tx0: test-transmitter@0 {
-			compatible = "generic,video_transmitter";
+		tx0: video_tx@0 {
+			compatible = "generic,slave_enc_video_tx";
 			reg = <0>;
+			i2c-slave = <&dvi2>;
+			type = "HDMI";
+			type-idx = <0>;
 			port {
 				tx0_in: endpoint {
 					remote-endpoint = <&dp0_out>;
 				};
 			};
 		};
-
-		tx1: test-transmitter@1 {
-			compatible = "generic,video_transmitter";
+		tx1: video_tx@1 {
+			compatible = "generic,slave_enc_video_tx";
 			reg = <1>;
+			i2c-slave = <&dvi3>;
+			type = "HDMI";
+			type-idx = <1>;
 			port {
 				tx1_in: endpoint {
 					remote-endpoint = <&dp1_out>;
