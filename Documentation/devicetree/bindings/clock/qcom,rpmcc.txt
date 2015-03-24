@@ -1,0 +1,15 @@
+Qualcomm RPM Clock Controller Binding
+------------------------------------------------
+
+Required properties :
+- compatible : shall contain only one of the following:
+
+			"qcom,rpmcc-msm8916"
+
+- #clock-cells : shall contain 1
+
+Example:
+	rpmcc: rpmcc {
+		compatible = "qcom,rpmcc-msm8916";
+		#clock-cells = <1>;
+	};
