@@ -12,6 +12,13 @@ config QCOM_CLK_SMD_RPM
 	  Support for the clocks exposed by the Resource Power Manager
 	  processor found in Qualcomm based devices like apq8016.
 
+config QCOM_RPMCC
+	tristate "Qualcomm RPM Clock Controller"
+	depends on QCOM_CLK_SMD_RPM
+	help
+	  Support for the clocks exposed by the Resource Power Manager
+	  processor on devices like apq8016, apq8084 and msm8974.
+
 config APQ_GCC_8084
 	tristate "APQ8084 Global Clock Controller"
 	select QCOM_GDSC
