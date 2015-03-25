@@ -25,6 +25,7 @@
 			clock-names = "cpu";
 			clock-latency = <100000>;
 			qcom,saw = <&saw0>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
 		cpu1: cpu@1 {
@@ -38,6 +39,7 @@
 			clock-names = "cpu";
 			clock-latency = <100000>;
 			qcom,saw = <&saw1>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
 		cpu2: cpu@2 {
@@ -51,6 +53,7 @@
 			clock-names = "cpu";
 			clock-latency = <100000>;
 			qcom,saw = <&saw2>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
 		cpu3: cpu@3 {
@@ -64,12 +67,23 @@
 			clock-names = "cpu";
 			clock-latency = <100000>;
 			qcom,saw = <&saw3>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
 		L2: l2-cache {
 			compatible = "cache";
 			cache-level = <2>;
 			qcom,saw = <&saw_l2>;
+		};
+
+		idle-states {
+			CPU_SPC: spc {
+				compatible = "qcom,idle-state-spc",
+						"arm,idle-state";
+				entry-latency-us = <150>;
+				exit-latency-us = <200>;
+				min-residency-us = <2000>;
+			};
 		};
 	};
 
