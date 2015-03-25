@@ -29,6 +29,7 @@
 			clocks = <&kraitcc 0>;
 			clock-names = "cpu";
 			clock-latency = <100000>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
 		cpu@1 {
@@ -42,6 +43,7 @@
 			clocks = <&kraitcc 1>;
 			clock-names = "cpu";
 			clock-latency = <100000>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
 		cpu@2 {
@@ -55,6 +57,7 @@
 			clocks = <&kraitcc 2>;
 			clock-names = "cpu";
 			clock-latency = <100000>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
 		cpu@3 {
@@ -68,11 +71,22 @@
 			clocks = <&kraitcc 3>;
 			clock-names = "cpu";
 			clock-latency = <100000>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
 		L2: l2-cache {
 			compatible = "cache";
 			cache-level = <2>;
+		};
+
+		idle-states {
+			CPU_SPC: spc {
+				compatible = "qcom,idle-state-spc",
+						"arm,idle-state";
+				entry-latency-us = <400>;
+				exit-latency-us = <900>;
+				min-residency-us = <3000>;
+			};
 		};
 	};
 
