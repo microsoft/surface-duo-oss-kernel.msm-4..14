@@ -124,7 +124,7 @@
 		ranges = <0 0 0 0xffffffff>;
 		compatible = "simple-bus";
 
-		pinctrl@1000000 {
+		msm_gpio: pinctrl@1000000 {
 			compatible = "qcom,msm8916-pinctrl";
 			reg = <0x1000000 0x300000>;
 			interrupts = <GIC_SPI 208 IRQ_TYPE_LEVEL_HIGH>;
@@ -360,7 +360,173 @@
 					bias-pull-down;
 				};
 			};
+
+
+
+	sdhc2_cd_pin {
+		sdc2_cd_on: cd_on {
+			pinmux {
+				function = "gpio";
+				pins = "gpio38";
+			};
+			pinconf {
+				pins = "gpio38";
+				drive-strength = <2>;
+				bias-pull-up;
+			};
 		};
+		sdc2_cd_off: cd_off {
+			pinmux {
+				function = "gpio";
+				pins = "gpio38";
+			};
+			pinconf {
+				pins = "gpio38";
+				drive-strength = <2>;
+				bias-disable;
+			};
+		};
+	};
+
+	pmx_sdc1_clk {
+		sdc1_clk_on: clk_on {
+			pinmux {
+				pins = "sdc1_clk";
+			};
+			pinconf {
+				pins = "sdc1_clk";
+				bias-disable;
+				drive-strength = <16>;
+			};
+		};
+		sdc1_clk_off: clk_off {
+			pinmux {
+				pins = "sdc1_clk";
+			};
+			pinconf {
+				pins = "sdc1_clk";
+				bias-disable;
+				drive-strength = <2>;
+			};
+		};
+	};
+
+	pmx_sdc1_cmd {
+		sdc1_cmd_on: cmd_on {
+			pinmux {
+				pins = "sdc1_cmd";
+			};
+			pinconf {
+				pins = "sdc1_cmd";
+				bias-pull-up;
+				drive-strength = <10>;
+			};
+		};
+		sdc1_cmd_off: cmd_off {
+			pinmux {
+				pins = "sdc1_cmd";
+			};
+			pinconf {
+				pins = "sdc1_cmd";
+				bias-pull-up;
+				drive-strength = <2>;
+			};
+		};
+	};
+
+	pmx_sdc1_data {
+		sdc1_data_on: data_on {
+			pinmux {
+				pins = "sdc1_data";
+			};
+			pinconf {
+				pins = "sdc1_data";
+				bias-pull-up;
+				drive-strength = <10>;
+			};
+		};
+		sdc1_data_off: data_off {
+			pinmux {
+				pins = "sdc1_data";
+			};
+			pinconf {
+				pins = "sdc1_data";
+				bias-pull-up;
+				drive-strength = <2>;
+			};
+		};
+	};
+
+	pmx_sdc2_clk {
+		sdc2_clk_on: clk_on {
+			pinmux {
+				pins = "sdc2_clk";
+			};
+			pinconf {
+				pins = "sdc2_clk";
+				bias-disable;
+				drive-strength = <16>;
+			};
+		};
+		sdc2_clk_off: clk_off {
+			pinmux {
+				pins = "sdc2_clk";
+			};
+			pinconf {
+				pins = "sdc2_clk";
+				bias-disable;
+				drive-strength = <2>;
+			};
+		};
+	};
+
+	pmx_sdc2_cmd {
+		sdc2_cmd_on: cmd_on {
+			pinmux {
+				pins = "sdc2_cmd";
+			};
+			pinconf {
+				pins = "sdc2_cmd";
+				bias-pull-up;
+				drive-strength = <10>;
+			};
+		};
+		sdc2_cmd_off: cmd_off {
+			pinmux {
+				pins = "sdc2_cmd";
+			};
+			pinconf {
+				pins = "sdc2_cmd";
+				bias-pull-up;
+				drive-strength = <2>;
+			};
+		};
+	};
+
+	pmx_sdc2_data {
+		sdc2_data_on: data_on {
+			pinmux {
+				pins = "sdc2_data";
+			};
+			pinconf {
+				pins = "sdc2_data";
+				bias-pull-up;
+				drive-strength = <10>;
+			};
+		};
+		sdc2_data_off: data_off {
+			pinmux {
+				pins = "sdc2_data";
+			};
+			pinconf {
+				pins = "sdc2_data";
+				bias-pull-up;
+				drive-strength = <2>;
+			};
+		};
+	};
+
+  };
 
 		gcc: qcom,gcc@1800000 {
 			compatible = "qcom,gcc-msm8916";
@@ -556,6 +722,35 @@
 				status = "disabled";
 			};
 		};
+
+
+	sdhc_1: sdhci@07824000 {
+		compatible = "qcom,sdhci-msm-v4";
+		reg = <0x07824900 0x11c>, <0x07824000 0x800>;
+		reg-names = "hc_mem", "core_mem";
+
+		interrupts = <0 123 0>, <0 138 0>;
+		interrupt-names = "hc_irq", "pwr_irq";
+		clocks = <&gcc GCC_SDCC1_APPS_CLK>, <&gcc GCC_SDCC1_AHB_CLK>;
+		clock-names = "core", "iface";
+		bus-width = <8>;
+		non-removable;
+		status = "disabled";
+	};
+
+	sdhc_2: sdhci@07864000 {
+		compatible = "qcom,sdhci-msm-v4";
+		reg = <0x07864900 0x11c>, <0x07864000 0x800>;
+		reg-names = "hc_mem", "core_mem";
+
+		interrupts = <0 125 0>, <0 221 0>;
+		interrupt-names = "hc_irq", "pwr_irq";
+		clocks = <&gcc GCC_SDCC2_APPS_CLK>, <&gcc GCC_SDCC2_AHB_CLK>;
+		clock-names = "core", "iface";
+		bus-width = <4>;
+		status = "disabled";
+	};
+
 
 		qcom,ipc-spinlock@1905000 {
 			compatible = "qcom,ipc-spinlock-sfpb";
