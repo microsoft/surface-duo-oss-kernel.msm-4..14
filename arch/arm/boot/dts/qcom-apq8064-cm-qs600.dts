@@ -15,6 +15,13 @@
 				};
 			};
 
+			uart_pins: uart_pins {
+				mux {
+					pins = "gpio14", "gpio15", "gpio16", "gpio17";
+					function = "gsbi6";
+				};
+			};
+
 			card_detect: card_detect {
 				mux {
 					pins = "gpio26";
@@ -39,6 +46,18 @@
 					reg = <0x50>;
 					pagesize = <16>;
 				};
+			};
+		};
+
+		gsbi@16500000 {
+			status = "ok";
+			qcom,mode = <GSBI_PROT_I2C_UART>;
+
+			serial@16540000 {
+				status = "ok";
+
+				pinctrl-names = "default";
+				pinctrl-0 = <&uart_pins>;
 			};
 		};
 
