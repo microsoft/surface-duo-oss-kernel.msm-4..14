@@ -10,13 +10,14 @@
  * GNU General Public License for more details.
  */
 
-#include "skeleton.dtsi"
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/clock/qcom,gcc-msm8916.h>
 #include <dt-bindings/reset/qcom,gcc-msm8916.h>
 #include <dt-bindings/arm/qcom-ids.h>
 
 / {
+	#address-cells = <2>;
+	#size-cells = <2>;
 	model = "Qualcomm Technologies, Inc. MSM8916";
 	compatible = "qcom,msm8916";
 	qcom,msm-id =	<QCOM_ID_MSM8916 0>,
@@ -26,6 +27,60 @@
 
 	interrupt-parent = <&intc>;
 
+	memory {
+		device_type = "memory";
+		reg = <0 0 0 0>;
+	};
+
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		external_image_mem: external_image_region@86000000 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x86000000 0x0 0x0800000>;
+		};
+
+		modem_adsp_mem: modem_adsp_region@86800000 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x86800000 0x0 0x04e00000>;
+		};
+
+		peripheral_mem: peripheral_region@8b600000 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x0 0x8b600000 0x0 0x0600000>;
+		};
+
+		secure_mem: secure_region {
+                        compatible = "shared-dma-pool";
+                        reusable;
+			alignment = <0 0x400000>;
+			size = <0 0x7000000>;
+		};
+
+		venus_qseecom_mem: venus_qseecom_region {
+                        compatible = "shared-dma-pool";
+			alloc-ranges = <0 0x80000000 0 0x10000000>;
+                        reusable;
+			alignment = <0 0x400000>;
+			size = <0 0x1400000>;
+		};
+
+		audio_mem: audio_region {
+                        compatible = "shared-dma-pool";
+                        reusable;
+			alignment = <0 0x400000>;
+			size = <0 0x400000>;
+		};
+
+		cont_splash_mem: splash_region@83000000 {
+			reg = <0x0 0x83000000 0x0 0x1200000>;
+		};
+	};
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
