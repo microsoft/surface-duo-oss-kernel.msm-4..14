@@ -1,0 +1,105 @@
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+/* SPM controlled regulators */
+&spmi_bus {
+	qcom,pm8916@1 {
+		pm8916_s2: spm-regulator@1700 {
+			compatible = "qcom,spm-regulator";
+			regulator-name = "8916_s2";
+			reg = <0x1700 0x100>;
+			regulator-min-microvolt = <1050000>;
+			regulator-max-microvolt = <1350000>;
+		};
+	};
+};
+
+/* CPR controlled regulator */
+
+&soc {
+	mem_acc_vreg_corner: regulator@1946000 {
+		compatible = "qcom,mem-acc-regulator";
+		reg = <0x1946000 0x4>, <0x1946000 0x4>, <0x58000 0x1000>;
+		reg-names = "acc-sel-l1", "acc-sel-l2", "efuse_addr";
+		regulator-name = "mem_acc_corner";
+		regulator-min-microvolt = <1>;
+		regulator-max-microvolt = <3>;
+
+		qcom,acc-sel-l1-bit-pos = <0>;
+		qcom,acc-sel-l2-bit-pos = <8>;
+		qcom,corner-acc-map = <0 1 1>;
+		qcom,l1-config-skip-fuse-sel = <0 52 1 1 0>;
+	};
+
+	apc_vreg_corner: regulator@b018000 {
+		compatible = "qcom,cpr-regulator";
+		reg = <0xb018000 0x1000>, <0xb011064 4>, <0x58000 0x1000>;
+		reg-names = "rbcpr", "rbcpr_clk", "efuse_addr";
+		interrupts = <0 15 0>;
+		regulator-name = "apc_corner";
+		qcom,cpr-fuse-corners = <3>;
+		regulator-min-microvolt = <1>;
+		regulator-max-microvolt = <8>;
+
+		qcom,cpr-voltage-ceiling = <1050000 1150000 1350000>;
+		qcom,cpr-voltage-floor = <1050000 1050000 1162500>;
+		vdd-apc-supply = <&pm8916_s2>;
+
+		qcom,vdd-mx-corner-map = <4 5 7>;
+		qcom,vdd-mx-vmin-method = <4>;
+		vdd-mx-supply = <&pm8916_l3_corner_ao>;
+		qcom,vdd-mx-vmax = <7>;
+
+		mem-acc-supply = <&mem_acc_vreg_corner>;
+
+		qcom,cpr-ref-clk = <19200>;
+		qcom,cpr-timer-delay = <5000>;
+		qcom,cpr-timer-cons-up = <0>;
+		qcom,cpr-timer-cons-down = <2>;
+		qcom,cpr-irq-line = <0>;
+		qcom,cpr-step-quotient = <26>;
+		qcom,cpr-up-threshold = <0>;
+		qcom,cpr-down-threshold = <2>;
+		qcom,cpr-idle-clocks = <15>;
+		qcom,cpr-gcnt-time = <1>;
+		qcom,vdd-apc-step-up-limit = <1>;
+		qcom,vdd-apc-step-down-limit = <1>;
+		qcom,cpr-apc-volt-step = <12500>;
+
+		qcom,cpr-fuse-row = <27 0>;
+		qcom,cpr-fuse-target-quot = <42 24 6>;
+		qcom,cpr-fuse-ro-sel = <54 54 54>;
+		qcom,cpr-fuse-bp-cpr-disable = <57>;
+		qcom,cpr-fuse-init-voltage =
+					<27 36 6 0>,
+					<27 18 6 0>,
+					<27 0 6 0>;
+		qcom,cpr-init-voltage-ref = <1050000 1150000 1350000>;
+		qcom,cpr-init-voltage-step = <10000>;
+		qcom,cpr-corner-map = <1 1 2 2 3 3 3 3>;
+		qcom,cpr-corner-frequency-map =
+					<1 200000000>,
+					<2 400000000>,
+					<3 533330000>,
+					<4 800000000>,
+					<5 998400000>,
+					<6 1094400000>,
+					<7 1152000000>,
+					<8 1209600000>;
+		qcom,speed-bin-fuse-sel = <0 55 2 0>;
+		qcom,cpr-speed-bin-max-corners =
+					<0 0 2 4 8>,
+					<1 0 2 4 7>;
+		qcom,cpr-quot-adjust-scaling-factor-max = <650>;
+		qcom,cpr-enable;
+	};
+};
