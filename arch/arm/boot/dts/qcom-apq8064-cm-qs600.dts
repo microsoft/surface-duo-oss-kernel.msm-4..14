@@ -122,10 +122,19 @@
 			pmicintc: pmic@0 {
 				pm8921_gpio: gpio@150 {
 					pinctrl-names = "default";
-					pinctrl-0 = <&wlan_default_gpios>;
+					pinctrl-0 = <&wlan_default_gpios &bt_gpios>;
 					wlan_default_gpios: wlan-gpios {
 						pios {
 							pins = "gpio43";
+							function = "normal";
+							bias-disable;
+							power-source = <PM8921_GPIO_S4>;
+						};
+					};
+
+					bt_gpios: bt-gpio {
+						pios {
+							pins = "gpio44";
 							function = "normal";
 							bias-disable;
 							power-source = <PM8921_GPIO_S4>;
@@ -137,8 +146,8 @@
 
 		sdcc4_pwrseq:pwrseq {
 			compatible = "mmc-pwrseq-simple";
-			/* WLAN reset */
-			reset-gpios = <&pm8921_gpio 42 GPIO_ACTIVE_LOW>;
+			reset-gpios = <&pm8921_gpio 42 GPIO_ACTIVE_LOW>,
+				      <&pm8921_gpio 43 GPIO_ACTIVE_LOW>;
 		};
 
 		amba {
