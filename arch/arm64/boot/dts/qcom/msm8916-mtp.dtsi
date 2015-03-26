@@ -51,7 +51,7 @@
 };
 
 &sdhc_2 {
-	vmmc-supply = <&pm8916_l11>;
+	//vmmc-supply = <&pm8916_l11>;
 	vqmmc-supply = <&pm8916_l12>;
 
 	pinctrl-names = "active", "sleep";
@@ -68,5 +68,5 @@
 	interrupt-names = "hc_irq", "pwr_irq", "status_irq";
 	cd-gpios = <&msm_gpio 38 0x1>;
 
-	//status = "okay";
+	status = "okay";
 };
