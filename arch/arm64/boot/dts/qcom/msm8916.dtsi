@@ -23,7 +23,9 @@
 	qcom,msm-id =	<QCOM_ID_MSM8916 0>,
 			<QCOM_ID_MSM8216 0>,
 			<QCOM_ID_MSM8116 0>,
-			<QCOM_ID_MSM8616 0>;
+			<QCOM_ID_MSM8616 0>,
+			<QCOM_ID_APQ8016 0>;
+
 
 	interrupt-parent = <&intc>;
 
