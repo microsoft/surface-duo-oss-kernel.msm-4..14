@@ -65,11 +65,6 @@ void arch_trigger_all_cpu_backtrace(bool include_self)
 {
 	smp_send_all_cpu_backtrace(include_self);
 }
-#else
-void arch_trigger_all_cpu_backtrace(void)
-{
-	dump_stack();
-}
 #endif
 
 extern void call_with_stack(void (*fn)(void *), void *arg, void *sp);

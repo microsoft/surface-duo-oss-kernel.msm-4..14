@@ -30,6 +30,11 @@ struct cpufreq_stats {
 #endif
 };
 
+struct cpufreq_stats_attribute {
+	struct attribute attr;
+	ssize_t(*show) (struct cpufreq_stats *, char *);
+};
+
 static int cpufreq_stats_update(struct cpufreq_stats *stats)
 {
 	unsigned long long cur_time = get_jiffies_64();

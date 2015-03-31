@@ -565,7 +565,6 @@ int trace_print_context(struct trace_iterator *iter)
 	unsigned long long t;
 	unsigned long secs, usec_rem;
 	char comm[TASK_COMM_LEN];
-	int ret;
 	int tgid;
 
 	trace_find_cmdline(entry->pid, comm);
@@ -583,7 +582,8 @@ int trace_print_context(struct trace_iterator *iter)
 	trace_seq_printf(s, "[%03d] ", iter->cpu);
 
 	if (trace_flags & TRACE_ITER_IRQ_INFO)
-		ret = trace_print_lat_fmt(s, entry);
+		if (!trace_print_lat_fmt(s, entry))
+			return 0;
 
 	if (iter->iter_flags & TRACE_FILE_TIME_IN_NS) {
 		t = ns2usecs(iter->ts);

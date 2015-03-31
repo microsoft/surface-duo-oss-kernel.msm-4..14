@@ -1533,7 +1533,7 @@ static int trace_save_cmdline(struct task_struct *tsk)
 
 	saved_tgids[idx] = tsk->tgid;
 	set_cmdline(idx, tsk->comm);
-
+	saved_tgids[idx] = tsk->tgid;
 	arch_spin_unlock(&trace_cmdline_lock);
 
 	return 1;

@@ -49,7 +49,6 @@ static inline bool watchdog_hardlockup_detector_is_enabled(void)
 static inline bool trigger_all_cpu_backtrace(void)
 {
 	arch_trigger_all_cpu_backtrace(true);
-
 	return true;
 }
 static inline bool trigger_allbutself_cpu_backtrace(void)

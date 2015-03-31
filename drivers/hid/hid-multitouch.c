@@ -920,6 +920,7 @@ static int mt_input_configured(struct hid_device *hdev, struct hid_input *hi)
 	const char *suffix = NULL;
 	int ret = 0;
 	struct hid_field *field = hi->report->field[0];
+	int ret = 0;
 
 	if (hi->report->id == td->mt_report_id)
 		ret = mt_touch_input_configured(hdev, hi);

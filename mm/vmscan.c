@@ -47,6 +47,7 @@
 #include <linux/prefetch.h>
 #include <linux/debugfs.h>
 #include <linux/printk.h>
+#include <linux/debugfs.h>
 
 #include <asm/tlbflush.h>
 #include <asm/div64.h>

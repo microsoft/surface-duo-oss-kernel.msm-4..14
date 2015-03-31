@@ -114,15 +114,6 @@ static void release_task_mempolicy(struct proc_maps_private *priv)
 }
 #endif
 
-static void vma_stop(struct proc_maps_private *priv)
-{
-	struct mm_struct *mm = priv->mm;
-
-	release_task_mempolicy(priv);
-	up_read(&mm->mmap_sem);
-	mmput(mm);
-}
-
 static void seq_print_vma_name(struct seq_file *m, struct vm_area_struct *vma)
 {
 	const char __user *name = vma_get_anon_name(vma);
@@ -171,6 +162,15 @@ static void seq_print_vma_name(struct seq_file *m, struct vm_area_struct *vma)
 	}
 
 	seq_putc(m, ']');
+}
+
+static void vma_stop(struct proc_maps_private *priv)
+{
+	struct mm_struct *mm = priv->mm;
+
+	release_task_mempolicy(priv);
+	up_read(&mm->mmap_sem);
+	mmput(mm);
 }
 
 static struct vm_area_struct *
@@ -681,6 +681,12 @@ static int show_smap(struct seq_file *m, void *v, int is_pid)
 	walk_page_vma(vma, &smaps_walk);
 
 	show_map_vma(m, vma, is_pid);
+
+	if (vma_get_anon_name(vma)) {
+		seq_puts(m, "Name:           ");
+		seq_print_vma_name(m, vma);
+		seq_putc(m, '\n');
+	}
 
 	seq_printf(m,
 		   "Size:           %8lu kB\n"
