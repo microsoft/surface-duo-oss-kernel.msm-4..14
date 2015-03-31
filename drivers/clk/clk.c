@@ -233,7 +233,7 @@ static struct freq_stats *freq_stats_insert(struct rb_root *freq_stats_table,
 }
 
 static void generic_print_freq_stats_table(struct seq_file *m,
-				struct clk *clk,
+				struct clk_core *clk,
 				bool indent, int level)
 {
 	struct rb_node *pos;
@@ -286,7 +286,7 @@ static void generic_print_freq_stats_table(struct seq_file *m,
 
 static int clock_print_freq_stats_table(struct seq_file *m, void *unused)
 {
-	struct clk *clk = m->private;
+	struct clk_core *clk = m->private;
 
 	if (!(clk->flags & CLK_GET_RATE_NOCACHE))
 		generic_print_freq_stats_table(m, clk, false, 0);
@@ -449,9 +449,9 @@ static int freq_stats_get(void *unused, u64 *val)
 	return 0;
 }
 
-static void clk_traverse_subtree(struct clk *clk, int freq_stats_on)
+static void clk_traverse_subtree(struct clk_core *clk, int freq_stats_on)
 {
-	struct clk *child;
+	struct clk_core *child;
 	struct rb_node *node;
 
 	if (!clk)
@@ -465,7 +465,7 @@ static void clk_traverse_subtree(struct clk *clk, int freq_stats_on)
 
 		clk->current_freq_stats = freq_stats_insert(
 						&clk->freq_stats_table,
-						clk_get_rate(clk));
+						clk_core_get_rate(clk));
 
 		if (clk->enable_count > 0)
 			clk->start_time = ktime_get();
@@ -489,7 +489,7 @@ static void clk_traverse_subtree(struct clk *clk, int freq_stats_on)
 
 static int freq_stats_set(void *data, u64 val)
 {
-	struct clk *c;
+	struct clk_core *c;
 	unsigned long flags;
 	struct hlist_head **lists = (struct hlist_head **)data;
 
@@ -1228,6 +1228,21 @@ static void clk_core_disable(struct clk_core *clk)
 	if (!clk)
 		return;
 
+#ifdef CONFIG_COMMON_CLK_FREQ_STATS_ACCOUNTING
+	if (freq_stats_on) {
+		if (!clk->current_freq_stats)
+			clk->default_freq_time =
+			ktime_add(clk->default_freq_time,
+			ktime_sub(ktime_get(), clk->start_time));
+		else
+			clk->current_freq_stats->time_spent =
+			ktime_add(clk->current_freq_stats->time_spent,
+			ktime_sub(ktime_get(), clk->start_time));
+
+		clk->start_time = ktime_set(0, 0);
+	}
+#endif /*CONFIG_COMMON_CLK_FREQ_STATS_ACCOUNTING*/
+
 	if (WARN_ON(clk->enable_count == 0))
 		return;
 
@@ -1244,22 +1259,6 @@ static void __clk_disable(struct clk *clk)
 {
 	if (!clk)
 		return;
-
-#ifdef CONFIG_COMMON_CLK_FREQ_STATS_ACCOUNTING
-
-	if (freq_stats_on) {
-		if (!clk->current_freq_stats)
-			clk->default_freq_time =
-			ktime_add(clk->default_freq_time,
-			ktime_sub(ktime_get(), clk->start_time));
-		else
-			clk->current_freq_stats->time_spent =
-			ktime_add(clk->current_freq_stats->time_spent,
-			ktime_sub(ktime_get(), clk->start_time));
-
-		clk->start_time = ktime_set(0, 0);
-	}
-#endif /*CONFIG_COMMON_CLK_FREQ_STATS_ACCOUNTING*/
 
 	clk_core_disable(clk->core);
 }
