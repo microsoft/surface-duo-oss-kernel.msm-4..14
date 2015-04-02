@@ -863,22 +863,22 @@
 			status = "disabled";
 		};
 
-		spmi_bus: qcom,spmi@200f000 {
+		spmi_bus: spmi@200f000 {
 			compatible = "qcom,spmi-pmic-arb";
-			reg = <0x200f000 0x1000>,
-				<0x2400000 0x400000>,
-				<0x2c00000 0x400000>,
-				<0x3800000 0x200000>,
-				<0x200a000 0x2100>;
+			reg = <0x200f000 0x001000>,
+			      <0x2400000 0x400000>,
+			      <0x2c00000 0x400000>,
+			      <0x3800000 0x200000>,
+			      <0x200a000 0x002100>;
 			reg-names = "core", "chnls", "obsrvr", "intr", "cnfg";
-			interrupts = <0 190 0>;
-			qcom,pmic-arb-channel = <0>;
-			qcom,pmic-arb-ee = <0>;
-			#interrupt-cells = <3>;
-			interrupt-controller;
-			#address-cells = <1>;
+			interrupt-names = "periph_irq";
+			interrupts = <GIC_SPI 190 IRQ_TYPE_NONE>;
+			qcom,ee = <0>;
+			qcom,channel = <0>;
+			#address-cells = <2>;
 			#size-cells = <0>;
-			cell-index = <0>;
+			interrupt-controller;
+			#interrupt-cells = <4>;
 		};
 
 		qfprom: qfprom@5c000 {
@@ -907,5 +907,5 @@
 };
 
 #include "msm-pm8916-rpm-regulator.dtsi"
-#include "msm-pm8916.dtsi"
+#include "pm8916.dtsi"
 #include "msm8916-regulator.dtsi"
