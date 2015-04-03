@@ -70,7 +70,7 @@ int qcom_smsm_change_state(struct qcom_smsm *smsm, u32 clear_mask, u32 set_mask)
 
 	print_hex_dump(KERN_DEBUG, "raw data: ", DUMP_PREFIX_OFFSET, 16, 1, smsm->shared_state, smsm->shared_state_size, true);
 
-	// qcom_smem_signal(smsm->smem, smsm->signal_offset, smsm->signal_bit);
+	// qcom_smem_signal(-1, smsm->smem, smsm->signal_offset, smsm->signal_bit);
 
 	return 0;
 }
@@ -220,13 +220,13 @@ static int qcom_smsm_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	smsm->dev = &pdev->dev;
 
-	ret = qcom_smem_alloc(SMEM_SMSM_SHARED_STATE, 8 * sizeof(uint32_t));
+	ret = qcom_smem_alloc(-1, SMEM_SMSM_SHARED_STATE, 8 * sizeof(uint32_t));
 	if (ret < 0 && ret != -EEXIST) {
 		dev_err(&pdev->dev, "unable to allocate shared state entry\n");
 		return ret;
 	}
 
-	ret = qcom_smem_get(SMEM_SMSM_SHARED_STATE,
+	ret = qcom_smem_get(-1, SMEM_SMSM_SHARED_STATE,
 			    (void**)&smsm->shared_state,
 			    &smsm->shared_state_size);
 	if (ret < 0) {
