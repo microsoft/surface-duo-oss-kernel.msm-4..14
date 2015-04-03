@@ -47,6 +47,7 @@
 #include <linux/delay.h>
 #include <linux/device.h>
 #include <linux/dma-mapping.h>
+#include <linux/extcon.h>
 #include <linux/phy/phy.h>
 #include <linux/platform_device.h>
 #include <linux/module.h>
@@ -700,6 +701,18 @@ static int ci_hdrc_probe(struct platform_device *pdev)
 			ci->phy = NULL;
 		else if (IS_ERR(ci->usb_phy))
 			ci->usb_phy = NULL;
+	}
+
+	if (of_property_read_bool(dev->parent->of_node, "extcon")) {
+
+		/* Each one of them is not mandatory */
+		ci->edev_vbus = extcon_get_edev_by_phandle(dev->parent, 0);
+		if (IS_ERR(ci->edev_vbus) && PTR_ERR(ci->edev_vbus) != -ENODEV)
+			return PTR_ERR(ci->edev_vbus);
+
+		ci->edev_id = extcon_get_edev_by_phandle(dev->parent, 1);
+		if (IS_ERR(ci->edev_id) && PTR_ERR(ci->edev_id) != -ENODEV)
+			return PTR_ERR(ci->edev_id);
 	}
 
 	ret = ci_usb_phy_init(ci);
