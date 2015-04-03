@@ -431,6 +431,27 @@ static int msm_phy_init(struct usb_phy *phy)
 		ulpi_write(phy, ulpi_val, ULPI_USB_INT_EN_FALL);
 	}
 
+	/* workaround for rx buffer collision issue */
+	val = readl(USB_GENCONFIG);
+	val &= ~GENCONFIG_TXFIFO_IDLE_FORCE_DISABLE;
+	writel(val, USB_GENCONFIG);
+
+ 	val = ULPI_MISC_A_VBUSVLDEXTSEL | ULPI_MISC_A_VBUSVLDEXT;
+	ulpi_write(phy, val, ULPI_SET(ULPI_MISC_A));
+
+ 	val = readl(USB_GENCONFIG_2);
+	val |= GEN2_SESS_VLD_CTRL_EN;
+ 	writel(val, USB_GENCONFIG_2);
+
+ 	val = readl(USB_USBCMD);
+ 	val |= USBCMD_SESS_VLD_CTRL;
+ 	writel(val, USB_USBCMD);
+
+	val = ulpi_read(phy, ULPI_FUNC_CTRL);
+	val &= ~ULPI_FUNC_CTRL_OPMODE_MASK;
+	val |= ULPI_FUNC_CTRL_OPMODE_NORMAL;
+	ulpi_write(phy, val, ULPI_FUNC_CTRL);
+
 	if (motg->phy_number)
 		writel(readl(USB_PHY_CTRL2) | BIT(16), USB_PHY_CTRL2);
 
