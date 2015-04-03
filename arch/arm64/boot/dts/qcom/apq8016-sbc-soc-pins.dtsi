@@ -1,0 +1,14 @@
+
+#include <dt-bindings/gpio/gpio.h>
+
+&msm_gpio {
+	usb_id_default: usb_id_default {
+		pinconf {
+			pins = "gpio121";
+			function = "gpio";
+			drive-strength = <8>;
+			input-enable;
+			bias-pull-up;
+		};
+	};
+};

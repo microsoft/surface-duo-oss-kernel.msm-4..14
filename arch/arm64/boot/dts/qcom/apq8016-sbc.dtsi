@@ -11,7 +11,11 @@
  * GNU General Public License for more details.
  */
 
+#include <dt-bindings/gpio/gpio.h>
 #include "msm8916.dtsi"
+#include "pm8916.dtsi"
+#include "apq8016-sbc-soc-pins.dtsi"
+#include "apq8016-sbc-pmic-pins.dtsi"
 
 / {
 	aliases {
@@ -30,4 +34,37 @@
 			pinctrl-1 = <&blsp1_uart2_sleep>;
 		};
 	};
+
+	usb2513 {
+		compatible = "smsc,usb3503";
+		reset-gpios = <&pm8916_gpios 1 GPIO_ACTIVE_LOW>;
+		initial-mode = <1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usb_hub_reset_pm_default>;
+	};
+
+	usb_id: usb-id {
+		interrupt-parent = <&msm_gpio>;
+		compatible = "linux,extcon-usb-gpio";
+		id-gpio = <&msm_gpio 121 GPIO_ACTIVE_HIGH>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&usb_id_default>;
+	};
 };
+
+
+&usb_dev {
+	extcon = <&usb_id>, <&usb_id>;
+	status = "okay";
+};
+
+&usb_host {
+	status = "okay";
+};
+
+&usb_otg {
+	extcon = <&usb_id>, <&usb_id>;
+	dr_mode = "otg";
+	status = "okay";
+};
+
