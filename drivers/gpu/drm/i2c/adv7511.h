@@ -241,6 +241,7 @@ enum adv7511_sync_polarity {
  * @sync_pulse:			Select the sync pulse
  * @vsync_polarity:		vsync input signal configuration
  * @hsync_polarity:		hsync input signal configuration
+ * @num_dsi_lanes:		number of dsi lanes in use(for ADV7533)
  */
 struct adv7511_link_config {
 	unsigned int input_color_depth;
@@ -255,6 +256,8 @@ struct adv7511_link_config {
 	enum adv7511_input_sync_pulse sync_pulse;
 	enum adv7511_sync_polarity vsync_polarity;
 	enum adv7511_sync_polarity hsync_polarity;
+
+	unsigned int num_dsi_lanes;
 };
 
 /**
