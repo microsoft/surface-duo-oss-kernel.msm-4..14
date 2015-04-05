@@ -433,7 +433,29 @@
 				};
 			};
 
+			i2c4_default: i2c4_default {
+				pinmux {
+					function = "blsp_i2c4";
+					pins = "gpio14", "gpio15";
+				};
+				pinconf {
+					pins = "gpio14", "gpio15";
+					drive-strength = <2>;
+					bias-disable = <0>;
+				};
+			};
 
+			i2c4_sleep: i2c4_sleep {
+				pinmux {
+					function = "blsp_i2c4";
+					pins = "gpio14", "gpio15";
+				};
+				pinconf {
+					pins = "gpio14", "gpio15";
+					drive-strength = <2>;
+					bias-disable = <0>;
+				};
+			};
 
 			sdhc2_cd_pin {
 				sdc2_cd_on: cd_on {
@@ -791,6 +813,21 @@
 			pinctrl-names = "default", "sleep";
 			pinctrl-0 = <&spi6_default>;
 			pinctrl-1 = <&spi6_sleep>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "disabled";
+		};
+
+		blsp_i2c4: i2c@78b8000 {
+			compatible = "qcom,i2c-qup-v2.2.1";
+			reg = <0x78b8000 0x1000>;
+			interrupts = <GIC_SPI 98 0>;
+			clocks = <&gcc GCC_BLSP1_AHB_CLK>,
+				<&gcc GCC_BLSP1_QUP4_I2C_APPS_CLK>;
+			clock-names = "iface", "core";
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&i2c4_default>;
+			pinctrl-1 = <&i2c4_sleep>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
