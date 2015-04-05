@@ -7,6 +7,14 @@ config DRM_I2C_ADV7511
 	help
 	  Support for the Analog Device ADV7511(W) and ADV7513 HDMI encoders.
 
+config DRM_I2C_ADV7511_SLAVE_ENCODER
+	tristate "Use ADV7511 as an I2C slave encoder"
+	default y
+	depends on DRM_I2C_ADV7511
+	help
+	  Configure ADV7511 as an I2C slave encoder. Selecting 'n' will
+	  configure the driver as a drm bridge driver
+
 config DRM_I2C_CH7006
 	tristate "Chrontel ch7006 TV encoder"
 	default m if DRM_NOUVEAU
