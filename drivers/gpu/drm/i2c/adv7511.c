@@ -48,6 +48,7 @@ struct adv7511 {
 	enum adv7511_sync_polarity vsync_polarity;
 	enum adv7511_sync_polarity hsync_polarity;
 	bool rgb;
+	u8 num_dsi_lanes;
 
 	struct edid *edid;
 
@@ -359,6 +360,17 @@ static void adv7511_set_link_config(struct adv7511 *adv7511,
 	unsigned int color_depth;
 	unsigned int input_id;
 
+	adv7511->rgb = config->input_colorspace == HDMI_COLORSPACE_RGB;
+
+	/*
+	 * TODO: some of the below configurations might be needed for ADV7533
+	 * too, check in ADV7533 spec.
+	 */
+	if (adv7511->type == ADV7533) {
+		adv7511->num_dsi_lanes = config->num_dsi_lanes;
+		return;
+	}
+
 	clock_delay = (config->clock_delay + 1200) / 400;
 	color_depth = config->input_color_depth == 8 ? 3
 		    : (config->input_color_depth == 10 ? 1 : 2);
@@ -389,7 +401,6 @@ static void adv7511_set_link_config(struct adv7511 *adv7511,
 	adv7511->embedded_sync = config->embedded_sync;
 	adv7511->hsync_polarity = config->hsync_polarity;
 	adv7511->vsync_polarity = config->vsync_polarity;
-	adv7511->rgb = config->input_colorspace == HDMI_COLORSPACE_RGB;
 }
 
 static void adv7511_dsi_receiver_dpms(struct adv7511 *adv7511)
@@ -398,9 +409,14 @@ static void adv7511_dsi_receiver_dpms(struct adv7511 *adv7511)
 		return;
 
 	if (adv7511->powered) {
+		/* set number of dsi lanes */
+		regmap_write(adv7511->regmap_cec, 0x1c, adv7511->num_dsi_lanes << 4);
+		/* disable internal timing generator */
+		regmap_write(adv7511->regmap_cec, 0x27, 0x0b);
+		/* enable hdmi */
 		regmap_write(adv7511->regmap_cec, 0x03, 0x89);
-		regmap_write(adv7511->regmap_cec, 0x27, 0x0b); // Timing generator off
-//		regmap_write(adv7511->regmap_cec, 0x55, 0x80); // Test mode
+		/* explicitly disable test mode */
+		regmap_write(adv7511->regmap_cec, 0x55, 0x00);
 	} else {
 		regmap_write(adv7511->regmap_cec, 0x03, 0x0b);
 	}
@@ -819,7 +835,7 @@ static struct drm_encoder_slave_funcs adv7511_encoder_funcs = {
  * Probe & remove
  */
 
-static int adv7511_parse_dt(struct device_node *np,
+static int adv7511_parse_dt(struct adv7511 *adv7511, struct device_node *np,
 			    struct adv7511_link_config *config)
 {
 	const char *str;
@@ -842,6 +858,16 @@ static int adv7511_parse_dt(struct device_node *np,
 		config->input_colorspace = HDMI_COLORSPACE_YUV444;
 	else
 		return -EINVAL;
+
+	if (adv7511->type == ADV7533) {
+		of_property_read_u32(np, "adi,dsi-lanes",
+			&config->num_dsi_lanes);
+
+		if (config->num_dsi_lanes < 1 || config->num_dsi_lanes > 4)
+			return -EINVAL;
+
+		return 0;
+	}
 
 	ret = of_property_read_string(np, "adi,input-clock", &str);
 	if (ret < 0)
@@ -943,11 +969,9 @@ static int adv7511_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 
 	memset(&link_config, 0, sizeof(link_config));
 
-	if (adv7511->type == ADV7511) {
-		ret = adv7511_parse_dt(dev->of_node, &link_config);
-		if (ret)
-			return ret;
-	}
+	ret = adv7511_parse_dt(adv7511, dev->of_node, &link_config);
+	if (ret)
+		return ret;
 
 	/*
 	 * The power down GPIO is optional. If present, toggle it from active to
@@ -1033,8 +1057,7 @@ static int adv7511_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 
 	i2c_set_clientdata(i2c, adv7511);
 
-	if (adv7511->type == ADV7511)
-		adv7511_set_link_config(adv7511, &link_config);
+	adv7511_set_link_config(adv7511, &link_config);
 
 	return 0;
 
