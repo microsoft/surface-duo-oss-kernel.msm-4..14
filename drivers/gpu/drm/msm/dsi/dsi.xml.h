@@ -8,8 +8,8 @@ http://github.com/freedreno/envytools/
 git clone https://github.com/freedreno/envytools.git
 
 The rules-ng-ng source files this header was generated from are:
-- /usr2/hali/local/envytools/envytools/rnndb/dsi/dsi.xml             (  18681 bytes, from 2015-03-04 23:08:31)
-- /usr2/hali/local/envytools/envytools/rnndb/freedreno_copyright.xml (   1453 bytes, from 2015-01-28 21:43:22)
+- /local/mnt/workspace/source_trees/envytools/rnndb/../rnndb/dsi/dsi.xml    (  18802 bytes, from 2015-04-05 09:42:01)
+- /local/mnt/workspace/source_trees/envytools/rnndb/freedreno_copyright.xml (   1453 bytes, from 2015-02-09 03:18:10)
 
 Copyright (C) 2013-2015 by the following authors:
 - Rob Clark <robdclark@gmail.com> (robclark)
@@ -393,6 +393,9 @@ static inline uint32_t DSI_CLKOUT_TIMING_CTRL_T_CLK_POST(uint32_t val)
 #define REG_DSI_EOT_PACKET_CTRL					0x000000c8
 #define DSI_EOT_PACKET_CTRL_TX_EOT_APPEND			0x00000001
 #define DSI_EOT_PACKET_CTRL_RX_EOT_IGNORE			0x00000010
+
+#define REG_DSI_LANE_CTRL					0x000000a8
+#define DSI_LANE_CTRL_CLKLN_HS_FORCE_REQUEST			0x10000000
 
 #define REG_DSI_LANE_SWAP_CTRL					0x000000ac
 #define DSI_LANE_SWAP_CTRL_DLN_SWAP_SEL__MASK			0x00000007
