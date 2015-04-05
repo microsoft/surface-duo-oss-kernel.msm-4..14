@@ -623,13 +623,11 @@ static int adv7511_get_edid_block(void *data, u8 *buf, unsigned int block,
 }
 
 /* -----------------------------------------------------------------------------
- * Encoder operations
+ * ADV75xx helpers
  */
-
-static int adv7511_get_modes(struct drm_encoder *encoder,
-			     struct drm_connector *connector)
+static int adv7511_get_modes(struct adv7511 *adv7511,
+		struct drm_connector *connector)
 {
-	struct adv7511 *adv7511 = encoder_to_adv7511(encoder);
 	struct edid *edid;
 	unsigned int count;
 
@@ -667,21 +665,10 @@ static int adv7511_get_modes(struct drm_encoder *encoder,
 	return count;
 }
 
-static void adv7511_encoder_dpms(struct drm_encoder *encoder, int mode)
-{
-	struct adv7511 *adv7511 = encoder_to_adv7511(encoder);
-
-	if (mode == DRM_MODE_DPMS_ON)
-		adv7511_power_on(adv7511);
-	else
-		adv7511_power_off(adv7511);
-}
-
 static enum drm_connector_status
-adv7511_encoder_detect(struct drm_encoder *encoder,
+adv7511_detect(struct adv7511 *adv7511,
 		       struct drm_connector *connector)
 {
-	struct adv7511 *adv7511 = encoder_to_adv7511(encoder);
 	enum drm_connector_status status;
 	unsigned int val;
 	bool hpd;
@@ -705,7 +692,7 @@ adv7511_encoder_detect(struct drm_encoder *encoder,
 	if (status == connector_status_connected && hpd && adv7511->powered) {
 		regcache_mark_dirty(adv7511->regmap);
 		adv7511_power_on(adv7511);
-		adv7511_get_modes(encoder, connector);
+		adv7511_get_modes(adv7511, connector);
 		if (adv7511->status == connector_status_connected)
 			status = connector_status_disconnected;
 	} else {
@@ -719,20 +706,10 @@ adv7511_encoder_detect(struct drm_encoder *encoder,
 	return status;
 }
 
-static int adv7511_encoder_mode_valid(struct drm_encoder *encoder,
-				      struct drm_display_mode *mode)
-{
-	if (mode->clock > 165000)
-		return MODE_CLOCK_HIGH;
-
-	return MODE_OK;
-}
-
-static void adv7511_encoder_mode_set(struct drm_encoder *encoder,
+static void adv7511_mode_set(struct adv7511 *adv7511,
 				     struct drm_display_mode *mode,
 				     struct drm_display_mode *adj_mode)
 {
-	struct adv7511 *adv7511 = encoder_to_adv7511(encoder);
 	unsigned int low_refresh_rate;
 	unsigned int hsync_polarity = 0;
 	unsigned int vsync_polarity = 0;
@@ -823,12 +800,61 @@ static void adv7511_encoder_mode_set(struct drm_encoder *encoder,
 	adv7511->f_tmds = mode->clock;
 }
 
+/* -----------------------------------------------------------------------------
+ * Encoder i2c slave functions
+ */
+
+static int adv7511_encoder_get_modes(struct drm_encoder *encoder,
+			     struct drm_connector *connector)
+{
+	struct adv7511 *adv7511 = encoder_to_adv7511(encoder);
+
+	return adv7511_get_modes(adv7511, connector);
+}
+
+static void adv7511_encoder_dpms(struct drm_encoder *encoder, int mode)
+{
+	struct adv7511 *adv7511 = encoder_to_adv7511(encoder);
+
+	if (mode == DRM_MODE_DPMS_ON)
+		adv7511_power_on(adv7511);
+	else
+		adv7511_power_off(adv7511);
+}
+
+static enum drm_connector_status
+adv7511_encoder_detect(struct drm_encoder *encoder,
+		       struct drm_connector *connector)
+{
+	struct adv7511 *adv7511 = encoder_to_adv7511(encoder);
+
+	return adv7511_detect(adv7511, connector);
+}
+
+static int adv7511_encoder_mode_valid(struct drm_encoder *encoder,
+				      struct drm_display_mode *mode)
+{
+	if (mode->clock > 165000)
+		return MODE_CLOCK_HIGH;
+
+	return MODE_OK;
+}
+
+static void adv7511_encoder_mode_set(struct drm_encoder *encoder,
+				     struct drm_display_mode *mode,
+				     struct drm_display_mode *adj_mode)
+{
+	struct adv7511 *adv7511 = encoder_to_adv7511(encoder);
+
+	adv7511_mode_set(adv7511, mode, adj_mode);
+}
+
 static struct drm_encoder_slave_funcs adv7511_encoder_funcs = {
 	.dpms = adv7511_encoder_dpms,
 	.mode_valid = adv7511_encoder_mode_valid,
 	.mode_set = adv7511_encoder_mode_set,
 	.detect = adv7511_encoder_detect,
-	.get_modes = adv7511_get_modes,
+	.get_modes = adv7511_encoder_get_modes,
 };
 
 /* -----------------------------------------------------------------------------
