@@ -235,6 +235,9 @@ struct msm_dsi_host {
 	enum mipi_dsi_pixel_format format;
 	unsigned long mode_flags;
 
+	/* external bridge info */
+	struct device_node *ext_bridge_node;
+
 	u32 dma_cmd_ctrl_restore;
 
 	bool registered;
@@ -1609,10 +1612,25 @@ int msm_dsi_host_register(struct mipi_dsi_host *host, bool check_defer)
 		 * create framebuffer.
 		 */
 		if (check_defer) {
+			/*
+			 * first look for a child panel node, if a panel node
+			 * exists but the corresponding panel device isn't
+			 * probed, defer msm dsi's probe
+			 *
+			 * if a child panel isn't specified at all, try to look
+			 * for a bridge phandle, defer probe if it there is a
+			 * bridge phandle but the bridge device isn't added yet
+			 */
 			node = of_get_child_by_name(msm_host->pdev->dev.of_node,
 							"panel");
 			if (node) {
 				if (!of_drm_find_panel(node))
+					return -EPROBE_DEFER;
+			} else {
+				struct drm_bridge *bridge;
+
+				bridge = msm_dsi_host_get_ext_bridge(host);
+				if (!bridge)
 					return -EPROBE_DEFER;
 			}
 		}
@@ -1996,3 +2014,21 @@ struct drm_panel *msm_dsi_host_get_panel(struct mipi_dsi_host *host,
 	return panel;
 }
 
+struct drm_bridge *msm_dsi_host_get_ext_bridge(struct mipi_dsi_host *host)
+{
+	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
+	struct drm_bridge *bridge;
+	struct device_node *np = msm_host->pdev->dev.of_node;
+
+	msm_host->ext_bridge_node = of_parse_phandle(np, "bridge", 0);
+	if (!msm_host->ext_bridge_node) {
+		dev_err(&msm_host->pdev->dev, "bridge not found\n");
+		return NULL;
+	}
+
+	of_node_put(np);
+
+	bridge = of_drm_find_bridge(msm_host->ext_bridge_node);
+
+	return bridge;
+}

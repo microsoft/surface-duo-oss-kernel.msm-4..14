@@ -177,12 +177,38 @@ int msm_dsi_modeset_init(struct msm_dsi *msm_dsi, struct drm_device *dev,
 		goto fail;
 	}
 
-	msm_dsi->connector = msm_dsi_manager_connector_init(msm_dsi->id);
-	if (IS_ERR(msm_dsi->connector)) {
-		ret = PTR_ERR(msm_dsi->connector);
-		dev_err(dev->dev, "failed to create dsi connector: %d\n", ret);
-		msm_dsi->connector = NULL;
-		goto fail;
+	msm_dsi->ext_bridge = msm_dsi_host_get_ext_bridge(msm_dsi->host);
+
+	/*
+	 * skip making connector if we have a bridge. the bridge driver will take
+	 * care of creating a connector
+	 */
+	if (msm_dsi->ext_bridge) {
+		struct drm_encoder *encoder = encoders[MSM_DSI_VIDEO_ENCODER_ID];
+		struct drm_connector *connector;
+		struct drm_bridge *int_bridge = msm_dsi->bridge;
+		struct drm_bridge *ext_bridge = msm_dsi->ext_bridge;
+
+		int_bridge->next = ext_bridge;
+		ext_bridge->encoder = encoder;
+
+		drm_bridge_attach(msm_dsi->dev, ext_bridge);
+
+		/* TODO: don't just pick up the first connector, pick the one the bridge
+		 * driver just created
+		 */
+		list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
+			if (connector)
+				msm_dsi->connector = connector;
+		}
+	} else {
+		msm_dsi->connector = msm_dsi_manager_connector_init(msm_dsi->id);
+		if (IS_ERR(msm_dsi->connector)) {
+			ret = PTR_ERR(msm_dsi->connector);
+			dev_err(dev->dev, "failed to create dsi connector: %d\n", ret);
+			msm_dsi->connector = NULL;
+			goto fail;
+		}
 	}
 
 	for (i = 0; i < MSM_DSI_ENCODER_NUM; i++) {
