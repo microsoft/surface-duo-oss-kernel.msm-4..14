@@ -696,9 +696,28 @@ unlock:
 int wcn36xx_dxe_init(struct wcn36xx *wcn)
 {
 	int reg_data = 0, ret;
-
+#if	0
 	reg_data = WCN36XX_DXE_REG_RESET;
 	wcn36xx_dxe_write_register(wcn, WCN36XX_DXE_REG_CSR_RESET, reg_data);
+#else
+	wcn36xx_dxe_read_register(wcn, WCN36XX_DEX_CCU_SOFT_RESET, &reg_data);
+
+	/* Make reset */
+	reg_data |= WCN36XX_DEX_CCU_SOFT_RESET_MASK;
+	wcn36xx_dxe_write_register(wcn, WCN36XX_DEX_CCU_SOFT_RESET, reg_data);
+
+	/* Clear reset */	
+	reg_data &= ~WCN36XX_DEX_CCU_SOFT_RESET_MASK;
+	wcn36xx_dxe_write_register(wcn, WCN36XX_DEX_CCU_SOFT_RESET, reg_data);
+	
+	//reg_data = WCN36XX_DXE_REG_RESET;
+	reg_data = 0x14001;
+	wcn36xx_dxe_write_register(wcn, WCN36XX_DXE_REG_CSR_RESET, reg_data);
+
+	msleep(50);
+	wcn36xx_dxe_read_register(wcn, WCN36XX_DXE_REG_CSR_RESET, &reg_data);
+	pr_info("CSR_RESET: 0x%x\n", reg_data);
+#endif
 
 	/* Setting interrupt path */
 	reg_data = WCN36XX_DXE_CCU_INT;
