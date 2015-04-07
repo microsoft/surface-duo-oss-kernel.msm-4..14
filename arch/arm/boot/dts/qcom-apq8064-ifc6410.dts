@@ -1,9 +1,15 @@
 #include "qcom-apq8064-v2.0.dtsi"
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
 
 / {
 	model = "Qualcomm APQ8064/IFC6410";
 	compatible = "qcom,apq8064-ifc6410", "qcom,apq8064";
+
+	aliases {
+		serial0 = &serial0;
+		serial1 = &serial1;
+	};
 
 	soc {
 		pinctrl@800000 {
@@ -11,6 +17,13 @@
 				mux {
 					pins = "gpio20", "gpio21";
 					function = "gsbi1";
+				};
+			};
+
+			uart_pins: uart_pins {
+				mux {
+					pins = "gpio14", "gpio15", "gpio16", "gpio17";
+					function = "gsbi6";
 				};
 			};
 
@@ -41,12 +54,104 @@
 			};
 		};
 
+		gsbi@16500000 {
+			status = "ok";
+			qcom,mode = <GSBI_PROT_I2C_UART>;
+
+			serial@16540000 {
+				status = "ok";
+
+				pinctrl-names = "default";
+				pinctrl-0 = <&uart_pins>;
+			};
+		};
+
 		gsbi@16600000 {
 			status = "ok";
 			qcom,mode = <GSBI_PROT_I2C_UART>;
 			serial@16640000 {
 				status = "ok";
 			};
+		};
+
+		/* OTG */
+		usb1_phy:phy@12500000 {
+			status = "ok";
+		};
+
+		usb3_phy:phy@12520000 {
+			status = "ok";
+		};
+
+		usb4_phy:phy@12530000 {
+			status = "ok";
+		};
+
+		gadget1:gadget@12500000 {
+			status = "ok";
+		};
+
+		/* OTG */
+		usb1: usb@12500000 {
+			status = "ok";
+		};
+
+		usb3: usb@12520000 {
+			status = "ok";
+		};
+
+		usb4: usb@12530000 {
+			status = "ok";
+		};
+		
+		/* on board fixed 3.3v supply */
+		v3p3_pcieclk: v3p3-pcieclk {
+			compatible = "regulator-fixed";
+			regulator-name = "PCIE V3P3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+		};
+
+		pci@1b500000 {
+			status = "ok";
+			pcie-clk-supply	= <&v3p3_pcieclk>;
+			avdd-supply	= <&pm8921_s3>;
+			vdd-supply	= <&pm8921_lvs6>;
+			ext-3p3v-supply = <&ext_3p3v>;
+			qcom,external-phy-refclk;
+			reset-gpio = <&tlmm_pinmux 27 GPIO_ACTIVE_LOW>;
+		};
+
+		qcom,ssbi@500000 {
+			pmicintc: pmic@0 {
+				pm8921_gpio: gpio@150 {
+					pinctrl-names = "default";
+					pinctrl-0 = <&wlan_default_gpios &bt_gpios>;
+					wlan_default_gpios: wlan-gpios {
+						pios {
+							pins = "gpio43";
+							function = "normal";
+							bias-disable;
+							power-source = <PM8921_GPIO_S4>;
+						};
+					};
+
+					bt_gpios: bt-gpio {
+						pios {
+							pins = "gpio44";
+							function = "normal";
+							bias-disable;
+							power-source = <PM8921_GPIO_S4>;
+						};
+					};
+				};
+			};
+		};
+		sdcc4_pwrseq:pwrseq {
+			compatible = "mmc-pwrseq-simple";
+			reset-gpios = <&pm8921_gpio 42 GPIO_ACTIVE_LOW>,
+				      <&pm8921_gpio 43 GPIO_ACTIVE_LOW>;
 		};
 
 		amba {
@@ -65,6 +170,8 @@
 			/* WLAN */
 			sdcc4: sdcc@121c0000 {
 				status = "okay";
+				mmc-pwrseq = <&sdcc4_pwrseq>;
+
 			};
 		};
 	};
