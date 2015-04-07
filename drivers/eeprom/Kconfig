@@ -1,0 +1,37 @@
+menuconfig EEPROM
+	tristate "EEPROM Support"
+	depends on OF
+	select REGMAP
+	help
+	  Support for EEPROM alike devices.
+
+	  This framework is designed to provide a generic interface to EEPROM
+	  from both the Linux Kernel and the userspace.
+
+	  If unsure, say no.
+
+if EEPROM
+
+config EEPROM_SUNXI_SID
+	tristate "Allwinner SoCs SID support"
+	depends on ARCH_SUNXI
+	select REGMAP_MMIO
+	help
+	  This is a driver for the 'security ID' available on various Allwinner
+	  devices.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called eeprom-sunxi-sid.
+
+config QCOM_QFPROM
+	tristate "QCOM QFPROM Support"
+	depends on ARCH_QCOM
+	select REGMAP_MMIO
+	help
+	  Say y here to enable QFPROM support. The QFPROM provides access
+	  functions for QFPROM data to rest of the drivers via eeprom interface.
+
+	  This driver can also be built as a module. If so, the module
+	  will be called eeprom-qfprom.
+
+endif
