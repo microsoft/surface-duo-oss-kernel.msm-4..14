@@ -42,6 +42,21 @@
 		reg = <0 0 0 0>;
 	};
 
+	reserved-memory {
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		stuff: stuff@0x86000000 {	/* fill in the gap */
+			reg = <0x0 0x86000000 0x0 0x0300000>;
+			no-map;
+		};
+		smem_mem: smem_region@86300000 {
+			reg = <0x0 0x86300000 0x0 0x0100000>;
+			no-map;
+		};
+	};
+
 	cpus {
 		#address-cells = <1>;
 		#size-cells = <0>;
@@ -98,6 +113,27 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
+		};
+
+		tcsr_mutex_regs: syscon@1905000 {
+			compatible = "syscon";
+			reg = <0x1905000 0x20000>;
+		};
+
+		tcsr_mutex: hwlock {
+			compatible = "qcom,tcsr-mutex";
+			syscon = <&tcsr_mutex_regs 0 0x1000>;
+			#hwlock-cells = <1>;
+		};
+
+		smem {
+			compatible = "qcom,smem";
+			reg = <0x60000 0x8000>;
+			reg-names = "aux-mem1";
+
+			memory-region = <&smem_mem>;
+
+			hwlocks = <&tcsr_mutex 3>;
 		};
 
 		gcc: qcom,gcc@1800000 {
