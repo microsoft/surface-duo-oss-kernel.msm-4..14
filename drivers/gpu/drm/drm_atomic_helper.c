@@ -287,14 +287,11 @@ mode_fixup(struct drm_atomic_state *state)
 		encoder = conn_state->best_encoder;
 		funcs = encoder->helper_private;
 
-		if (encoder->bridge && encoder->bridge->funcs->mode_fixup) {
-			ret = encoder->bridge->funcs->mode_fixup(
-					encoder->bridge, &crtc_state->mode,
-					&crtc_state->adjusted_mode);
-			if (!ret) {
-				DRM_DEBUG_ATOMIC("Bridge fixup failed\n");
-				return -EINVAL;
-			}
+		ret = drm_bridge_mode_fixup(encoder->bridge, &crtc_state->mode,
+				&crtc_state->adjusted_mode);
+		if (!ret) {
+			DRM_DEBUG_KMS("Bridge fixup failed\n");
+			return -EINVAL;
 		}
 
 		if (funcs->atomic_check) {
@@ -608,8 +605,7 @@ disable_outputs(struct drm_device *dev, struct drm_atomic_state *old_state)
 		 * Each encoder has at most one connector (since we always steal
 		 * it away), so we won't call disable hooks twice.
 		 */
-		if (encoder->bridge)
-			encoder->bridge->funcs->disable(encoder->bridge);
+		drm_bridge_disable(encoder->bridge);
 
 		/* Right function depends upon target state. */
 		if (connector->state->crtc && funcs->prepare)
@@ -619,8 +615,7 @@ disable_outputs(struct drm_device *dev, struct drm_atomic_state *old_state)
 		else
 			funcs->dpms(encoder, DRM_MODE_DPMS_OFF);
 
-		if (encoder->bridge)
-			encoder->bridge->funcs->post_disable(encoder->bridge);
+		drm_bridge_post_disable(encoder->bridge);
 	}
 
 	for (i = 0; i < ncrtcs; i++) {
@@ -763,9 +758,7 @@ crtc_set_mode(struct drm_device *dev, struct drm_atomic_state *old_state)
 		if (funcs->mode_set)
 			funcs->mode_set(encoder, mode, adjusted_mode);
 
-		if (encoder->bridge && encoder->bridge->funcs->mode_set)
-			encoder->bridge->funcs->mode_set(encoder->bridge,
-							 mode, adjusted_mode);
+		drm_bridge_mode_set(encoder->bridge, mode, adjusted_mode);
 	}
 }
 
@@ -862,16 +855,14 @@ void drm_atomic_helper_commit_modeset_enables(struct drm_device *dev,
 		 * Each encoder has at most one connector (since we always steal
 		 * it away), so we won't call enable hooks twice.
 		 */
-		if (encoder->bridge)
-			encoder->bridge->funcs->pre_enable(encoder->bridge);
+		drm_bridge_pre_enable(encoder->bridge);
 
 		if (funcs->enable)
 			funcs->enable(encoder);
 		else
 			funcs->commit(encoder);
 
-		if (encoder->bridge)
-			encoder->bridge->funcs->enable(encoder->bridge);
+		drm_bridge_enable(encoder->bridge);
 	}
 }
 EXPORT_SYMBOL(drm_atomic_helper_commit_modeset_enables);
