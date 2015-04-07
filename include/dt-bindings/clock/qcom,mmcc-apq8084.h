@@ -180,4 +180,12 @@
 #define VPU_SLEEP_CLK			163
 #define VPU_VDP_CLK			164
 
+/* GDSCs */
+#define VENUS0_GDSC			0
+#define MDSS_GDSC			1
+#define CAMSS_JPEG_GDSC			2
+#define CAMSS_VFE_GDSC			3
+#define OXILI_GDSC			4
+#define OXILICX_GDSC			5
+
 #endif
