@@ -196,10 +196,13 @@ const struct mdp5_cfg_hw msm8x16_config = {
 
 	},
 	.intf = {
-		.count = 1, /* INTF_1 */
-		.base = { 0x6B800 },
+		.count = 2, /* INTF_1 */
+		.base = { 0x6B000, 0x6B800 },
 	},
-	/* TODO enable .intfs[] with [1] = INTF_DSI, once DSI is implemented */
+	.intfs = {
+		[0] = INTF_DISABLED,
+		[1] = INTF_DSI,
+	},
 	.max_clk = 320000000,
 };
 
