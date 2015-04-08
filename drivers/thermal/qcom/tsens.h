@@ -13,6 +13,10 @@
 #ifndef __QCOM_TSENS_H__
 #define __QCOM_TSENS_H__
 
+#define ONE_PT_CALIB		0x1
+#define ONE_PT_CALIB2		0x2
+#define TWO_PT_CALIB		0x3
+
 struct tsens_device;
 
 struct tsens_sensor {
@@ -50,5 +54,12 @@ struct tsens_device {
 	const struct tsens_ops		*ops;
 	struct tsens_sensor		sensor[0];
 };
+
+char *qfprom_read(struct device *, const char *);
+void compute_intercept_slope(struct tsens_device *, u32 *, u32 *, u32);
+int init_common(struct tsens_device *);
+int get_temp_common(struct tsens_device *, int, long *);
+
+extern const struct tsens_ops ops_8916;
 
 #endif /* __QCOM_TSENS_H__ */
