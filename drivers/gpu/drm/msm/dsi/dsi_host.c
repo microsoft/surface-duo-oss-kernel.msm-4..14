@@ -1580,6 +1580,15 @@ int msm_dsi_host_modeset_init(struct mipi_dsi_host *host,
 		return ret;
 	}
 
+	/*
+	 * hack: set the host params to what the bridge wants. This should go
+	 * away when our bridge driver is converted into a mipi dsi driver
+	 */
+	msm_host->channel = 0;
+	msm_host->lanes = 4;
+	msm_host->format = MIPI_DSI_FMT_RGB888;
+	msm_host->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_SYNC_PULSE  |
+			MIPI_DSI_MODE_EOT_PACKET | MIPI_DSI_MODE_VIDEO_HSE;
 	return 0;
 }
 
