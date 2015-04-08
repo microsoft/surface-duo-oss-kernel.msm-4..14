@@ -60,6 +60,6 @@ void compute_intercept_slope(struct tsens_device *, u32 *, u32 *, u32);
 int init_common(struct tsens_device *);
 int get_temp_common(struct tsens_device *, int, long *);
 
-extern const struct tsens_ops ops_8916;
+extern const struct tsens_ops ops_8916, ops_8974;
 
 #endif /* __QCOM_TSENS_H__ */
