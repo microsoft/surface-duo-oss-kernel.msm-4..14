@@ -430,8 +430,6 @@ disable_regulator:
 	return ret;
 }
 
-extern void qcom_smd_reset_edge(struct device_node *node);
-
 static int qproc_stop(struct rproc *rproc)
 {
 	struct qproc *qproc = (struct qproc *)rproc->priv;
@@ -448,8 +446,6 @@ static int qproc_stop(struct rproc *rproc)
 	ret = pas_shutdown(qproc->pas_id);
 	if (ret)
 		dev_err(qproc->dev, "failed to shutdown: %d\n", ret);
-
-	qcom_smd_reset_edge(qproc->smd_edge_node);
 
 	return ret;
 }
