@@ -114,6 +114,22 @@ static char manufacturer_string[256];
 static char product_string[256];
 static char serial_string[256];
 
+/*---Copied from configfs.c to let this composite driver build---*/
+static struct class *android_class;
+static struct device *android_device;
+static int index;
+
+struct device *create_function_device(char *name)
+{
+        if (android_device && !IS_ERR(android_device))
+                return device_create(android_class, android_device,
+                        MKDEV(0, index++), NULL, name);
+        else
+                return ERR_PTR(-EINVAL);
+}
+EXPORT_SYMBOL_GPL(create_function_device);
+/*---------------------------------------------------------------*/
+
 /* String Table */
 static struct usb_string strings_dev[] = {
 	[STRING_MANUFACTURER_IDX].s = manufacturer_string,
@@ -945,23 +961,6 @@ static void audio_source_function_unbind_config(struct android_usb_function *f,
 	config->card = -1;
 	config->device = -1;
 }
-
-static ssize_t audio_source_pcm_show(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-	struct android_usb_function *f = dev_get_drvdata(dev);
-	struct audio_source_config *config = f->config;
-
-	/* print PCM card and device numbers */
-	return sprintf(buf, "%d %d\n", config->card, config->device);
-}
-
-static DEVICE_ATTR(pcm, S_IRUGO, audio_source_pcm_show, NULL);
-
-static struct device_attribute *audio_source_function_attributes[] = {
-	&dev_attr_pcm,
-	NULL
-};
 
 static struct android_usb_function audio_source_function = {
 	.name		= "audio_source",
