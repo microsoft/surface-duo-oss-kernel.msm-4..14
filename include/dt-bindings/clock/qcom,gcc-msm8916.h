@@ -152,6 +152,8 @@
 #define GCC_VENUS0_AHB_CLK			135
 #define GCC_VENUS0_AXI_CLK			136
 #define GCC_VENUS0_VCODEC0_CLK			137
+#define GCC_APSS_TCU_CLK			138
+#define GCC_GFX_TCU_CLK				139
 
 /* Indexes for GDSCs */
 #define BIMC_GDSC				0
