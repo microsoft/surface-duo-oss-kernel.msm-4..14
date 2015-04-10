@@ -38,6 +38,7 @@
 #include <linux/platform_device.h>
 #include <linux/proc_fs.h>
 #include <linux/sched.h>
+#include <linux/slab.h>
 #include <linux/smp.h>
 
 #include "hardware.h"
