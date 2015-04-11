@@ -1,0 +1,49 @@
+Qualcomm Shared Memory binding
+
+This binding describes the Qualcomm Shared Memory, used to share data between
+various subsystems and OSes in Qualcomm platforms.
+
+- compatible:
+	Usage: required
+	Value type: <stringlist>
+	Definition: must be:
+		    "qcom,smem"
+
+- memory-region:
+	Usage: required
+	Value type: <prop-encoded-array>
+	Definition: handle to memory reservation for main smem memory region.
+
+- reg:
+	Usage: optional
+	Value type: <prop-encoded-array>
+	Definition: base address and size pair for any additional memory areas
+		    of the shared memory.
+
+- hwspinlocks:
+	Usage: required
+	Value type: <prop-encoded-array>
+	Definition: reference to a hwspinlock used to protect allocations from
+		    the shared memory
+
+= EXAMPLE
+
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		smem_region: smem@fa00000 {
+			reg = <0xfa00000 0x200000>;
+			no-map;
+		};
+	};
+
+	smem@fa00000 {
+		compatible = "qcom,smem";
+
+		memory-region = <&smem_region>;
+		reg = <0xfc428000 0x4000>;
+
+		hwlocks = <&tcsr_mutex 3>;
+	};
