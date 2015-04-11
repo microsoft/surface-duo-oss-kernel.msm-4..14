@@ -10,6 +10,14 @@ config QCOM_GSBI
           functions for connecting the underlying serial UART, SPI, and I2C
           devices to the output pins.
 
+config QCOM_SMD
+	tristate "Qualcomm Shared Memory Driver (SMD)"
+	depends on QCOM_SMEM
+	help
+	  Say y here to enable support for the Qualcomm Shared Memory Driver
+	  providing communication channels to remote processors in Qualcomm
+	  platforms.
+
 config QCOM_SMEM
 	tristate "Qualcomm Shared Memory Manager (SMEM)"
 	depends on ARCH_QCOM
