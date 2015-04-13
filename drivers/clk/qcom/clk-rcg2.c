@@ -486,6 +486,75 @@ const struct clk_ops clk_byte_ops = {
 };
 EXPORT_SYMBOL_GPL(clk_byte_ops);
 
+static long clk_byte2_determine_rate(struct clk_hw *hw, unsigned long rate,
+			 unsigned long min_rate, unsigned long max_rate,
+			 unsigned long *p_rate, struct clk_hw **p_hw)
+{
+	struct clk_rcg2 *rcg = to_clk_rcg2(hw);
+	unsigned long parent_rate, div;
+	u32 mask = BIT(rcg->hid_width) - 1;
+	struct clk *p;
+
+	if (rate == 0)
+		return -EINVAL;
+
+	p = (*p_hw)->clk;
+	*p_rate = parent_rate = __clk_round_rate(p, rate);
+
+	div = DIV_ROUND_UP((2 * parent_rate), rate) - 1;
+	div = min_t(u32, div, mask);
+
+	return calc_rate(parent_rate, 0, 0, 0, div);
+}
+
+static int clk_byte2_set_rate(struct clk_hw *hw, unsigned long rate,
+			 unsigned long parent_rate)
+{
+	struct clk_rcg2 *rcg = to_clk_rcg2(hw);
+	struct freq_tbl f = { 0 };
+	unsigned long div;
+	int i, num_parents = __clk_get_num_parents(hw->clk);
+	u32 mask = BIT(rcg->hid_width) - 1;
+	u32 cfg;
+
+	div = DIV_ROUND_UP((2 * parent_rate), rate) - 1;
+	div = min_t(u32, div, mask);
+
+	f.pre_div = div;
+
+	regmap_read(rcg->clkr.regmap, rcg->cmd_rcgr + CFG_REG, &cfg);
+	cfg &= CFG_SRC_SEL_MASK;
+	cfg >>= CFG_SRC_SEL_SHIFT;
+
+	for (i = 0; i < num_parents; i++) {
+		if (cfg == rcg->parent_map[i].cfg) {
+			f.src = rcg->parent_map[i].src;
+			return clk_rcg2_configure(rcg, &f);
+		}
+	}
+
+	return -EINVAL;
+}
+
+static int clk_byte2_set_rate_and_parent(struct clk_hw *hw,
+		unsigned long rate, unsigned long parent_rate, u8 index)
+{
+	/* Parent index is set statically in frequency table */
+	return clk_byte2_set_rate(hw, rate, parent_rate);
+}
+
+/* Read the hardware to determine parent during set_rate */
+const struct clk_ops clk_byte2_ops = {
+	.is_enabled = clk_rcg2_is_enabled,
+	.get_parent = clk_rcg2_get_parent,
+	.set_parent = clk_rcg2_set_parent,
+	.recalc_rate = clk_rcg2_recalc_rate,
+	.set_rate = clk_byte2_set_rate,
+	.set_rate_and_parent = clk_byte2_set_rate_and_parent,
+	.determine_rate = clk_byte2_determine_rate,
+};
+EXPORT_SYMBOL_GPL(clk_byte2_ops);
+
 static const struct frac_entry frac_table_pixel[] = {
 	{ 3, 8 },
 	{ 2, 9 },
@@ -499,15 +568,10 @@ static long clk_pixel_determine_rate(struct clk_hw *hw, unsigned long rate,
 				 unsigned long max_rate,
 				 unsigned long *p_rate, struct clk_hw **p)
 {
-	struct clk_rcg2 *rcg = to_clk_rcg2(hw);
 	unsigned long request, src_rate;
 	int delta = 100000;
-	const struct freq_tbl *f = rcg->freq_tbl;
 	const struct frac_entry *frac = frac_table_pixel;
-	int index = qcom_find_src_index(hw, rcg->parent_map, f->src);
-	struct clk *parent = clk_get_parent_by_index(hw->clk, index);
-
-	*p = __clk_get_hw(parent);
+	struct clk *parent = (*p)->clk;
 
 	for (; frac->num; frac++) {
 		request = (rate * frac->den) / frac->num;
@@ -528,12 +592,28 @@ static int clk_pixel_set_rate(struct clk_hw *hw, unsigned long rate,
 		unsigned long parent_rate)
 {
 	struct clk_rcg2 *rcg = to_clk_rcg2(hw);
-	struct freq_tbl f = *rcg->freq_tbl;
+	struct freq_tbl f = { 0 };
 	const struct frac_entry *frac = frac_table_pixel;
 	unsigned long request;
 	int delta = 100000;
 	u32 mask = BIT(rcg->hid_width) - 1;
-	u32 hid_div;
+	u32 hid_div, cfg;
+	struct clk *parent = NULL;
+	int i, num_parents = __clk_get_num_parents(hw->clk);
+
+	regmap_read(rcg->clkr.regmap, rcg->cmd_rcgr + CFG_REG, &cfg);
+	cfg &= CFG_SRC_SEL_MASK;
+	cfg >>= CFG_SRC_SEL_SHIFT;
+
+	for (i = 0; i < num_parents; i++)
+		if (cfg == rcg->parent_map[i].cfg) {
+			parent = clk_get_parent_by_index(hw->clk, i);
+			f.src = rcg->parent_map[i].src;
+			break;
+		}
+
+	if (!parent)
+		return -EINVAL;
 
 	for (; frac->num; frac++) {
 		request = (rate * frac->den) / frac->num;
