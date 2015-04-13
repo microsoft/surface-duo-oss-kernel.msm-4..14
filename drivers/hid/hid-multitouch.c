@@ -918,7 +918,6 @@ static int mt_input_configured(struct hid_device *hdev, struct hid_input *hi)
 	struct mt_device *td = hid_get_drvdata(hdev);
 	char *name;
 	const char *suffix = NULL;
-	int ret = 0;
 	struct hid_field *field = hi->report->field[0];
 	int ret = 0;
 
