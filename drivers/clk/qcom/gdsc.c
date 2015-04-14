@@ -83,6 +83,9 @@ static int gdsc_enable(struct generic_pm_domain *domain)
 	struct gdsc *sc = domain_to_gdsc(domain);
 	int ret;
 
+	if (sc->root_clk)
+		clk_prepare_enable(sc->root_clk);
+
 	ret = gdsc_toggle_logic(sc, true);
 	if (ret)
 		return ret;
@@ -100,9 +103,15 @@ static int gdsc_enable(struct generic_pm_domain *domain)
 
 static int gdsc_disable(struct generic_pm_domain *domain)
 {
+	int ret;
 	struct gdsc *sc = domain_to_gdsc(domain);
 
-	return gdsc_toggle_logic(sc, false);
+	ret = gdsc_toggle_logic(sc, false);
+
+	if (sc->root_clk)
+		clk_disable_unprepare(sc->root_clk);
+
+	return ret;
 }
 
 static int gdsc_attach(struct generic_pm_domain *domain, struct device *dev)
@@ -127,6 +136,15 @@ static int gdsc_attach(struct generic_pm_domain *domain, struct device *dev)
 			goto fail;
 		}
 	}
+
+	if (sc->root_con_id) {
+		sc->root_clk = clk_get(dev, sc->root_con_id);
+		if (IS_ERR(sc->root_clk)) {
+			dev_err(dev, "failed to get root clock\n");
+			return PTR_ERR(sc->root_clk);
+		}
+	}
+
 	return 0;
 fail:
 	pm_clk_destroy(dev);
