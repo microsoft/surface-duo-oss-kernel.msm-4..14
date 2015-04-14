@@ -22,11 +22,13 @@
  * @pd: generic power domain
  * @regmap: regmap for MMIO accesses
  * @gdscr: gsdc control register
+ * @con_ids: List of clocks to be controlled for the gdsc
  */
 struct gdsc {
 	struct generic_pm_domain	pd;
 	struct regmap			*regmap;
 	unsigned int			gdscr;
+	char				*con_ids[];
 };
 
 #ifdef CONFIG_QCOM_GDSC

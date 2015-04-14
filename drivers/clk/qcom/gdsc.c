@@ -14,6 +14,7 @@
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/jiffies.h>
+#include <linux/pm_clock.h>
 #include <linux/slab.h>
 #include "gdsc.h"
 
@@ -104,6 +105,45 @@ static int gdsc_disable(struct generic_pm_domain *domain)
 	return gdsc_toggle_logic(sc, false);
 }
 
+static int gdsc_attach(struct generic_pm_domain *domain, struct device *dev)
+{
+	int ret;
+	struct gdsc *sc = domain_to_gdsc(domain);
+	char **con_id;
+
+	if (!sc->con_ids[0])
+		return 0;
+
+	ret = pm_clk_create(dev);
+	if (ret) {
+		dev_err(dev, "pm_clk_create failed %d\n", ret);
+		return ret;
+	}
+
+	for (con_id = sc->con_ids; *con_id; con_id++) {
+		ret = pm_clk_add(dev, *con_id);
+		if (ret) {
+			dev_err(dev, "pm_clk_add failed %d\n", ret);
+			goto fail;
+		}
+	}
+	return 0;
+fail:
+	pm_clk_destroy(dev);
+	return ret;
+};
+
+static void gdsc_detach(struct generic_pm_domain *domain, struct device *dev)
+{
+	struct gdsc *sc = domain_to_gdsc(domain);
+
+	if (!sc->con_ids[0])
+		return;
+
+	pm_clk_destroy(dev);
+	return;
+};
+
 static int gdsc_init(struct gdsc *sc)
 {
 	u32 mask, val;
@@ -127,6 +167,9 @@ static int gdsc_init(struct gdsc *sc)
 
 	sc->pd.power_off = gdsc_disable;
 	sc->pd.power_on = gdsc_enable;
+	sc->pd.attach_dev = gdsc_attach;
+	sc->pd.detach_dev = gdsc_detach;
+	sc->pd.flags = GENPD_FLAG_PM_CLK;
 	pm_genpd_init(&sc->pd, NULL, !on);
 
 	return 0;
