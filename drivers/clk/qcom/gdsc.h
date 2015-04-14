@@ -14,6 +14,7 @@
 #ifndef __QCOM_GDSC_H__
 #define __QCOM_GDSC_H__
 
+#include <linux/clk.h>
 #include <linux/pm_domain.h>
 #include <linux/regmap.h>
 
@@ -28,6 +29,8 @@ struct gdsc {
 	struct generic_pm_domain	pd;
 	struct regmap			*regmap;
 	unsigned int			gdscr;
+	char				*root_con_id;
+	struct clk			*root_clk;
 	char				*con_ids[];
 };
 
