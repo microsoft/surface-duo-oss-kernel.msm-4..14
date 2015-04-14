@@ -136,6 +136,27 @@
 			hwlocks = <&tcsr_mutex 3>;
 		};
 
+
+		apcs: syscon@b011000 {
+			compatible = "syscon";
+			reg = <0x0b011000 0x1000>;
+		};
+
+		smd {
+			compatible = "qcom,smd";
+
+			rpm {
+				interrupts = <0 168 1>;
+				qcom,ipc = <&apcs 8 0>;
+				qcom,smd-edge = <15>;
+
+				rpm_requests {
+					compatible = "qcom,rpm-msm8916";
+					qcom,smd-channels = "rpm_requests";
+				};
+			};
+		};
+
 		gcc: qcom,gcc@1800000 {
 			compatible = "qcom,gcc-msm8916";
 			#clock-cells = <1>;
