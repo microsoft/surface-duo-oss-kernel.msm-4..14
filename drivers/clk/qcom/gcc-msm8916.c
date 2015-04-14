@@ -2591,6 +2591,14 @@ static struct gdsc vfe_gdsc = {
 	},
 };
 
+static struct gdsc oxili_gdsc = {
+	.gdscr = 0x5901c,
+	.pd = {
+		.name = "oxili",
+	},
+	.root_con_id = "gfx3d_clk_src",
+};
+
 static struct clk_regmap *gcc_msm8916_clocks[] = {
 	[GPLL0] = &gpll0.clkr,
 	[GPLL0_VOTE] = &gpll0_vote,
@@ -2737,6 +2745,7 @@ static struct gdsc *gcc_msm8916_gdscs[] = {
 	[MDSS_GDSC] = &mdss_gdsc,
 	[JPEG_GDSC] = &jpeg_gdsc,
 	[VFE_GDSC] = &vfe_gdsc,
+	[OXILI_GDSC] = &oxili_gdsc,
 };
 
 static const struct qcom_reset_map gcc_msm8916_resets[] = {
