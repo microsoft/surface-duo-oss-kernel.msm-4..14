@@ -1522,15 +1522,9 @@ int msm_dsi_host_init(struct msm_dsi *msm_dsi)
 	msm_host->workqueue = alloc_ordered_workqueue("dsi_drm_work", 0);
 	INIT_WORK(&msm_host->err_work, dsi_err_worker);
 
-	msm_dsi->phy = msm_dsi_phy_init(pdev, msm_host->cfg->phy_type,
-					msm_host->id);
-	if (!msm_dsi->phy) {
-		ret = -EINVAL;
-		pr_err("%s: phy init failed\n", __func__);
-		goto fail;
-	}
 	msm_dsi->host = &msm_host->base;
 	msm_dsi->id = msm_host->id;
+	msm_dsi->phy_type = msm_host->cfg->phy_type;
 
 	DBG("Dsi Host %d initialized", msm_host->id);
 	return 0;

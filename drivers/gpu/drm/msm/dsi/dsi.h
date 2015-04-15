@@ -38,6 +38,12 @@
 #define DSI_ENCODER_MASTER	DSI_1
 #define DSI_ENCODER_SLAVE	DSI_0
 
+enum msm_dsi_phy_type {
+	MSM_DSI_PHY_UNKNOWN,
+	MSM_DSI_PHY_28NM,
+	MSM_DSI_PHY_MAX
+};
+
 struct msm_dsi {
 	struct drm_device *dev;
 	struct platform_device *pdev;
@@ -54,6 +60,7 @@ struct msm_dsi {
 	/* dsi host is connected to a bridge/encoder chip */
 	struct drm_bridge *ext_bridge;
 
+	enum msm_dsi_phy_type phy_type;
 	bool phy_enabled;
 
 	/* the encoders we are hooked to (outside of dsi block) */
@@ -107,17 +114,22 @@ int msm_dsi_host_init(struct msm_dsi *msm_dsi);
 
 /* dsi phy */
 struct msm_dsi_phy;
-enum msm_dsi_phy_type {
-	MSM_DSI_PHY_UNKNOWN,
-	MSM_DSI_PHY_28NM,
-	MSM_DSI_PHY_MAX
-};
 struct msm_dsi_phy *msm_dsi_phy_init(struct platform_device *pdev,
 			enum msm_dsi_phy_type type, int id);
+void msm_dsi_phy_destroy(struct msm_dsi_phy *phy);
 int msm_dsi_phy_enable(struct msm_dsi_phy *phy, bool is_dual_panel,
 	const unsigned long bit_rate, const unsigned long esc_rate);
 int msm_dsi_phy_disable(struct msm_dsi_phy *phy);
 void msm_dsi_phy_get_clk_pre_post(struct msm_dsi_phy *phy,
 					u32 *clk_pre, u32 *clk_post);
+
+/* dsi pll */
+struct msm_dsi_pll;
+struct msm_dsi_pll *msm_dsi_pll_init(struct platform_device *pdev,
+			enum msm_dsi_phy_type type, int dsi_id);
+void msm_dsi_pll_destroy(struct msm_dsi_pll *pll);
+void msm_dsi_pll_get_provided_clk(struct msm_dsi_pll *pll,
+	struct clk **pll_byte_clk, struct clk **pll_pixel_clk);
+
 #endif /* __DSI_CONNECTOR_H__ */
 

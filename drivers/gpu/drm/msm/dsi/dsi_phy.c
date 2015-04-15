@@ -38,6 +38,10 @@ struct msm_dsi_phy {
 	void __iomem *reg_base;
 	int id;
 	struct dsi_dphy_timing timing;
+	enum msm_dsi_phy_type type;
+
+	struct msm_dsi_pll *pll;
+
 	int (*enable)(struct msm_dsi_phy *phy, bool is_dual_panel,
 		const unsigned long bit_rate, const unsigned long esc_rate);
 	int (*disable)(struct msm_dsi_phy *phy);
@@ -319,9 +323,21 @@ struct msm_dsi_phy *msm_dsi_phy_init(struct platform_device *pdev,
 		return NULL;
 	}
 
+	phy->pll = msm_dsi_pll_init(pdev, type, id);
+	if (!phy->pll)
+		pr_info("%s: pll init failed, need separate pll clk driver\n",
+			__func__);
+
+	phy->type = type;
 	phy->id = id;
 
 	return phy;
+}
+
+void msm_dsi_phy_destroy(struct msm_dsi_phy *phy)
+{
+	if (phy->pll)
+		msm_dsi_pll_destroy(phy->pll);
 }
 
 int msm_dsi_phy_enable(struct msm_dsi_phy *phy, bool is_dual_panel,
