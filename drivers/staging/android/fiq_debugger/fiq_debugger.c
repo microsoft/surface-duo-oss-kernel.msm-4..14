@@ -1144,7 +1144,7 @@ static int fiq_debugger_probe(struct platform_device *pdev)
 	if (state->wakeup_irq >= 0) {
 		ret = request_irq(state->wakeup_irq,
 				  fiq_debugger_wakeup_irq_handler,
-				  IRQF_TRIGGER_FALLING | IRQF_DISABLED,
+				  IRQF_TRIGGER_FALLING,
 				  "debug-wakeup", state);
 		if (ret) {
 			pr_err("serial_debugger: "
