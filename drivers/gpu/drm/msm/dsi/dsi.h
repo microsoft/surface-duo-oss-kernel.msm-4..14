@@ -41,6 +41,7 @@
 enum msm_dsi_phy_type {
 	MSM_DSI_PHY_UNKNOWN,
 	MSM_DSI_PHY_28NM,
+	MSM_DSI_PHY_28NM_LP,
 	MSM_DSI_PHY_MAX
 };
 

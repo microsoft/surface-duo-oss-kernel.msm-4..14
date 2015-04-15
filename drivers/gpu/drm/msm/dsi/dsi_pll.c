@@ -52,6 +52,8 @@ struct msm_dsi_pll {
 	const struct lpfr_cfg *lpfr_lut;
 	u32		lpfr_lut_size;
 
+	int vco_delay;
+
 	int (*pll_enable_seqs[MAX_DSI_PLL_EN_SEQS]) (struct msm_dsi_pll *pll);
 
 	/* private clocks: */
@@ -210,6 +212,43 @@ static int dsi_pll_enable_seq(struct msm_dsi_pll *pll)
 	return locked ? 0 : -EINVAL;
 }
 
+static int dsi_pll_enable_seq_lp(struct msm_dsi_pll *pll)
+{
+	struct device *dev = &pll->pdev->dev;
+	bool locked;
+	u32 max_reads = 10, timeout_us = 50;
+
+	dsi_pll_software_reset(pll);
+
+	/*
+	 * PLL power up sequence.
+	 * Add necessary delays recommended by hardware.
+	 */
+	pll_write(pll, REG_PLL_28nm_CAL_CFG1, 0x34);
+	ndelay(500);
+	pll_write(pll, REG_PLL_28nm_GLB_CFG, 0x01);
+	ndelay(500);
+	pll_write(pll,REG_PLL_28nm_GLB_CFG, 0x05);
+	ndelay(500);
+	pll_write(pll, REG_PLL_28nm_GLB_CFG, 0x0f);
+	ndelay(500);
+
+	/* DSI PLL toggle lock detect setting */
+	pll_write(pll, REG_PLL_28nm_LKDET_CFG2, 0x04);
+	ndelay(500);
+	pll_write(pll, REG_PLL_28nm_LKDET_CFG2, 0x05);
+	udelay(512);
+
+	locked = poll_for_pll_ready_status(pll, max_reads, timeout_us);
+
+	if (unlikely(!locked))
+		dev_err(dev, "DSI PLL lock failed\n");
+	else
+		DBG("DSI PLL lock success");
+
+	return locked ? 0 : -EINVAL;
+}
+
 static int dsi_pll_enable(struct clk_hw *hw)
 {
 	int i, ret = 0;
@@ -349,7 +388,7 @@ static int dsi_pll_set_rate(struct clk_hw *hw, unsigned long rate,
 	pll_write(pll, REG_PLL_28nm_SDM_CFG4, 0x00);
 
 	/* Add hardware recommended delay for correct PLL configuration */
-	udelay(1);
+	udelay(pll->vco_delay);
 
 	pll_write(pll, REG_PLL_28nm_REFCLK_CFG, (u32)refclk_cfg);
 	pll_write(pll, REG_PLL_28nm_PWRGEN_CFG, 0x00);
@@ -583,10 +622,19 @@ static int dsi_28nm_pll_init(struct msm_dsi_pll *pll)
 	pll->min_rate = 350000000;
 	pll->max_rate = 750000000;
 
-	pll->pll_en_seq_cnt = 3;
-	pll->pll_enable_seqs[0] = dsi_pll_enable_seq;
-	pll->pll_enable_seqs[1] = dsi_pll_enable_seq;
-	pll->pll_enable_seqs[2] = dsi_pll_enable_seq;
+	if (pll->type == MSM_DSI_PHY_28NM) {
+		pll->vco_delay = 1;
+
+		pll->pll_en_seq_cnt = 3;
+		pll->pll_enable_seqs[0] = dsi_pll_enable_seq;
+		pll->pll_enable_seqs[1] = dsi_pll_enable_seq;
+		pll->pll_enable_seqs[2] = dsi_pll_enable_seq;
+	} else {
+		pll->vco_delay = 1000;
+
+		pll->pll_en_seq_cnt = 1;
+		pll->pll_enable_seqs[0] = dsi_pll_enable_seq_lp;
+	}
 
 	pll->lpfr_lut = lpfr_lut;
 	pll->lpfr_lut_size = ARRAY_SIZE(lpfr_lut);
@@ -608,6 +656,7 @@ void msm_dsi_pll_destroy(struct msm_dsi_pll *pll)
 {
 	switch (pll->type) {
 	case MSM_DSI_PHY_28NM:
+	case MSM_DSI_PHY_28NM_LP:
 		dsi_28nm_pll_destroy(pll);
 		break;
 	default:
@@ -638,6 +687,7 @@ struct msm_dsi_pll *msm_dsi_pll_init(struct platform_device *pdev,
 
 	switch (type) {
 	case MSM_DSI_PHY_28NM:
+	case MSM_DSI_PHY_28NM_LP:
 		ret = dsi_28nm_pll_init(pll);
 		break;
 	default:
