@@ -30,6 +30,11 @@ Optional properties:
   argument that indicate usb controller index
 - disable-over-current: (FSL only) disable over current detect
 - external-vbus-divider: (FSL only) enables off-chip resistor divider for Vbus
+- extcon: phandles to external connector devices. First phandle should point to
+  external connector, which provide "USB" cable events, the second should point
+  to external connector device, which provide "USB-HOST" cable events. If one
+  of the external connector devices is not required, empty <0> phandle should
+  be specified.
 
 Example:
 
@@ -41,4 +46,5 @@ Example:
 		phys = <&usb_phy0>;
 		phy-names = "usb-phy";
 		vbus-supply = <&reg_usb0_vbus>;
+		extcon = <0>, <&usb_id>;
 	};
