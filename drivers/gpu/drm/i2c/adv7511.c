@@ -428,10 +428,6 @@ static void adv7511_power_on(struct adv7511 *adv7511)
 {
 	adv7511->current_edid_segment = -1;
 
-	regmap_write(adv7511->regmap, ADV7511_REG_INT(0),
-		     ADV7511_INT0_EDID_READY);
-	regmap_write(adv7511->regmap, ADV7511_REG_INT(1),
-		     ADV7511_INT1_DDC_ERROR);
 	regmap_update_bits(adv7511->regmap, ADV7511_REG_POWER,
 			   ADV7511_POWER_POWER_DOWN, 0);
 
@@ -579,11 +575,24 @@ static int adv7511_get_edid_block(void *data, u8 *buf, unsigned int block,
 
 		if (status != 2) {
 			adv7511->edid_read = false;
+
+			/* enable DDC interrupts */
+			regmap_write(adv7511->regmap, ADV7511_REG_INT_ENABLE(0),
+				ADV7511_INT0_EDID_READY);
+			regmap_write(adv7511->regmap, ADV7511_REG_INT_ENABLE(1),
+				ADV7511_INT1_DDC_ERROR);
+
 			regmap_write(adv7511->regmap, ADV7511_REG_EDID_SEGMENT,
 				     block);
 			ret = adv7511_wait_for_edid(adv7511, 200);
 			if (ret < 0)
 				return ret;
+
+			/* disable DDC interrupts */
+			regmap_write(adv7511->regmap, ADV7511_REG_INT_ENABLE(0),
+				0);
+			regmap_write(adv7511->regmap, ADV7511_REG_INT_ENABLE(1),
+				0);
 		}
 
 		/* Break this apart, hopefully more I2C controllers will
