@@ -16,7 +16,7 @@
 #include "pm8916.dtsi"
 #include "apq8016-sbc-soc-pins.dtsi"
 #include "apq8016-sbc-pmic-pins.dtsi"
-
+#include "msm8916-mdss.dtsi"
 / {
 	aliases {
 		serial0 = &blsp1_uart2;
@@ -202,3 +202,36 @@
 	status = "okay";
 };
 
+&blsp_i2c4 {
+	status = "ok";
+
+	bridge@39 {
+		status = "ok";
+		compatible = "adi,adv7533";
+		reg = <0x39>;
+		interrupt-parent = <&msmgpio>;
+		//interrupts = <31 2>;
+		adi,dsi-lanes = <4>;
+		pd-gpios = <&msmgpio 32 0>;
+		pinctrl-names = "default","sleep";
+		pinctrl-0 = <&adv7533_int_active &adv7533_switch_active>;
+		pinctrl-1 = <&adv7533_int_suspend &adv7533_switch_suspend>;
+
+		port {
+			adv_in: endpoint {
+				remote-endpoint = <&dsi_out>;
+			};
+		};
+
+	};
+};
+
+&mdss_dsi0 {
+	status = "ok";
+
+	port {
+		dsi_out: endpoint {
+			remote-endpoint = <&adv_in>;
+		};
+	};
+};
