@@ -105,3 +105,25 @@
 	status = "okay";
 };
 
+&blsp_i2c4 {
+	status = "ok";
+
+	adv_bridge: adv7533@39 {
+		status = "ok";
+		compatible = "adi,adv7533";
+		reg = <0x39>;
+		interrupt-parent = <&msm_gpio>;
+		interrupts = <31 2>;
+		adi,input-depth = <8>;
+		adi,input-colorspace = "rgb";
+		adi,dsi-lanes = <4>;
+		pd-gpios = <&msm_gpio 32 0>;
+		pinctrl-names = "default","sleep";
+		pinctrl-0 = <&adv7533_int_active &adv7533_switch_active>;
+		pinctrl-1 = <&adv7533_int_suspend &adv7533_switch_suspend>;
+	};
+};
+
+&mdss_dsi0 {
+	bridge = <&adv_bridge>;
+};
