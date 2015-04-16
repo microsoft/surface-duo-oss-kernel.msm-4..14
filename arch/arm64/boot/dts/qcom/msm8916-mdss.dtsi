@@ -1,0 +1,70 @@
+/* Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+	mdss_mdp: qcom,mdss_mdp@1a00000 {
+		compatible = "qcom,mdss_mdp";
+		reg = <0x1a00000 0x90000>,
+			<0x1ac8000 0x3000>;
+		reg-names = "mdp_phys", "vbif_phys";
+		interrupts = <0 72 0>;
+
+		interrupt-controller;
+		#interrupt-cells = <1>;
+
+		power-domains = <&gcc MDSS_GDSC>;
+
+		connectors = <&mdss_dsi0>;
+
+		clocks = <&gcc GCC_MDSS_AHB_CLK>,
+			 <&gcc GCC_MDSS_AXI_CLK>,
+			 <&gcc MDP_CLK_SRC>,
+			 <&gcc GCC_MDSS_MDP_CLK>,
+			 <&gcc GCC_MDSS_MDP_CLK>,
+			 <&gcc GCC_MDSS_VSYNC_CLK>;
+		clock-names = "iface_clk", "bus_clk", "core_clk_src",
+			      "core_clk", "lut_clk", "vsync_clk";
+	};
+
+	mdss_dsi0: qcom,mdss_dsi@1a98000 {
+		compatible = "qcom,mdss-dsi-ctrl";
+		label = "MDSS DSI CTRL->0";
+		qcom,dsi-host-index = <0>;
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <0x1a98000 0x25c>,
+		      <0x1a98300 0xd4>,
+		      <0x1a98500 0x280>,
+		      <0x1a98780 0x30>;
+		reg-names = "dsi_ctrl", "dsi_pll", "dsi_phy", "dsi_phy_regulator";
+
+		interrupt-parent = <&mdss_mdp>;
+		interrupts = <4 0>;
+
+		vdda-supply = <&pm8916_l2>;
+		vdd-supply = <&pm8916_l17>;
+		vddio-supply = <&pm8916_l6>;
+
+		clocks = <&gcc GCC_MDSS_MDP_CLK>,
+                         <&gcc GCC_MDSS_AHB_CLK>,
+                         <&gcc GCC_MDSS_AXI_CLK>,
+                         <&gcc GCC_MDSS_AHB_CLK>,
+                         <&gcc GCC_MDSS_BYTE0_CLK>,
+                         <&gcc GCC_MDSS_PCLK0_CLK>,
+                         <&gcc GCC_MDSS_ESC0_CLK>;
+                clock-names = "mdp_core_clk", "iface_clk", "bus_clk",
+			      "core_mmss_clk", "byte_clk", "pixel_clk",
+			      "core_clk";
+	};
+};
+
+
