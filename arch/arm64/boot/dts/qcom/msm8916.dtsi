@@ -693,6 +693,7 @@
 			compatible = "qcom,gcc-msm8916";
 			#clock-cells = <1>;
 			#reset-cells = <1>;
+			#power-domain-cells = <1>;
 			reg = <0x1800000 0x80000>;
 		};
 
@@ -1043,3 +1044,4 @@
 #include "msm-pm8916-rpm-regulator.dtsi"
 #include "pm8916.dtsi"
 #include "msm8916-regulator.dtsi"
+#include "msm8916-mdss.dtsi"
