@@ -547,10 +547,24 @@ static int dsi_28nm_pll_register(struct msm_dsi_pll *pll)
 	char clk_name[32], parent1[32], parent2[32];
 	struct device *dev = &pll->pdev->dev;
 	struct clk **clks = pll->clks;
+	struct clk *ahb_clk;
 	int num = 0;
 	int ret;
 
 	DBG("DSI:%d", pll->dsi_id);
+
+	/* grab ahb clock for initial configurations */
+	ahb_clk = clk_get(dev, "iface_clk");
+	if (IS_ERR(ahb_clk)) {
+		dev_err(dev, "failed to get interface clock\n");
+		return PTR_ERR(ahb_clk);
+	}
+
+	ret = clk_prepare_enable(ahb_clk);
+	if (ret) {
+		dev_err(dev, "failed to enable interface clock\n");
+		goto err_enable;
+	}
 
 	pll->clk_hw.init = &dsi_init[pll->dsi_id];
 
@@ -593,7 +607,12 @@ static int dsi_28nm_pll_register(struct msm_dsi_pll *pll)
 
 	pll->num_clks = num;
 
-	return 0;
+	clk_disable_unprepare(ahb_clk);
+
+err_enable:
+	clk_put(ahb_clk);
+
+	return ret;
 }
 
 static void dsi_28nm_pll_destroy(struct msm_dsi_pll *pll)
