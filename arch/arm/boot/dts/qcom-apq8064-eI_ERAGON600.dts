@@ -1,0 +1,218 @@
+#include "qcom-apq8064-v2.0.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
+
+/ {
+	model = "eInfochips ERAGON600";
+	compatible = "qcom,apq8064-eragon600", "qcom,apq8064";
+
+	soc {
+		pinctrl@800000 {
+			i2c1_pins: i2c1 {
+				mux {
+					pins = "gpio20", "gpio21";
+					function = "gsbi1";
+				};
+			};
+
+			i2c3_pins: i2c3 {
+				mux {
+					pins = "gpio8", "gpio9";
+					function = "gsbi3";
+				};
+			};
+
+			i2c4_pins: i2c4 {
+				mux {
+					pins = "gpio10", "gpio11";
+					function = "gsbi4";
+				};
+			};
+
+			i2c7_pins: i2c7 {
+				mux {
+					pins = "gpio84", "gpio85";
+					function = "gsbi7";
+				};
+			};
+
+            uart_pins: uart_pins {
+                mux {
+                    pins = "gpio14", "gpio15", "gpio16", "gpio17";
+                    function = "gsbi6";
+                };
+            };
+
+			card_detect: card_detect {
+				mux {
+					pins = "gpio26";
+					function = "gpio";
+					bias-disable;
+				};
+			};
+		};
+
+/*GSBI 1
+		gsbi@12440000 {
+			status = "okay";
+			qcom,mode = <GSBI_PROT_I2C>;
+
+			i2c@12460000 {
+				status = "okay";
+				clock-frequency = <200000>;
+				pinctrl-0 = <&i2c1_pins>;
+				pinctrl-names = "default";
+
+				eeprom: eeprom@52 {
+					compatible = "atmel,24c128";
+					reg = <0x52>;
+					pagesize = <32>;
+				};
+			};
+		};
+*/
+
+/*GSBI 4*/
+		gsbi@16300000 {
+			status = "okay";
+			qcom,mode = <GSBI_PROT_I2C>;
+
+			i2c@16380000 {
+				status = "okay";
+				clock-frequency = <200000>;
+				pinctrl-0 = <&i2c4_pins>;
+				pinctrl-names = "default";
+			};
+		};
+
+/*GSBI6*/
+        gsbi@16500000 {
+            status = "ok";
+            qcom,mode = <GSBI_PROT_I2C_UART>;
+
+            serial@16540000 {
+                status = "ok";
+
+                pinctrl-names = "default";
+                pinctrl-0 = <&uart_pins>;
+            };
+        };
+
+/*GSBI 7*/ /*DEBUG UART*/
+		gsbi@16600000 {
+			status = "ok";
+			qcom,mode = <GSBI_PROT_I2C_UART>;
+			serial@16640000 {
+				status = "ok";
+			};
+			i2c@16680000 {
+				status = "okay";
+				clock-frequency = <200000>;
+				pinctrl-0 = <&i2c7_pins>;
+				pinctrl-names = "default";
+			};
+		};
+
+		/* OTG */
+		usb1_phy:phy@12500000 {
+			status = "ok";
+		};
+
+		usb3_phy:phy@12520000 {
+			status = "ok";
+		};
+
+		usb4_phy:phy@12530000 {
+			status = "ok";
+		};
+
+		gadget1:gadget@12500000 {
+			status = "ok";
+		};
+
+		/* OTG */
+		usb1: usb@12500000 {
+			status = "ok";
+		};
+
+		usb3: usb@12520000 {
+			status = "ok";
+		};
+
+		usb4: usb@12530000 {
+			status = "ok";
+		};
+
+		/* on board fixed 3.3v supply */
+		v3p3_pcieclk: v3p3-pcieclk {
+			compatible = "regulator-fixed";
+			regulator-name = "PCIE V3P3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+		};
+
+		pci@1b500000 {
+			status = "ok";
+			pcie-clk-supply	= <&v3p3_pcieclk>;
+			avdd-supply	= <&pm8921_s3>;
+			vdd-supply	= <&pm8921_lvs6>;
+			ext-3p3v-supply = <&ext_3p3v>;
+			qcom,external-phy-refclk;
+			reset-gpio = <&tlmm_pinmux 27 GPIO_ACTIVE_LOW>;
+		};
+
+		qcom,ssbi@500000 {
+			pmicintc: pmic@0 {
+				pm8921_gpio: gpio@150 {
+					pinctrl-names = "default";
+					pinctrl-0 = <&wlan_default_gpios &bt_gpios>;
+					wlan_default_gpios: wlan-gpios {
+						pios {
+							pins = "gpio43";
+							function = "normal";
+							bias-disable;
+							power-source = <PM8921_GPIO_S4>;
+						};
+					};
+
+					bt_gpios: bt-gpio {
+						pios {
+							pins = "gpio44";
+							function = "normal";
+							bias-disable;
+							power-source = <PM8921_GPIO_S4>;
+						};
+					};
+				};
+			};
+		};
+		sdcc4_pwrseq:pwrseq {
+			compatible = "mmc-pwrseq-simple";
+			reset-gpios = <&pm8921_gpio 42 GPIO_ACTIVE_LOW>,
+				      <&pm8921_gpio 43 GPIO_ACTIVE_LOW>;
+		};
+
+		amba {
+			/* eMMC */
+			sdcc1: sdcc@12400000 {
+				status = "okay";
+			};
+
+			/* External micro SD card */
+			sdcc3: sdcc@12180000 {
+				status = "okay";
+				pinctrl-names	= "default";
+				pinctrl-0	= <&card_detect>;
+				cd-gpios	= <&tlmm_pinmux 26 GPIO_ACTIVE_LOW>;
+			};
+
+			/* WLAN */
+			sdcc4: sdcc@121c0000 {
+				status = "okay";
+				mmc-pwrseq = <&sdcc4_pwrseq>;
+
+			};
+		};
+	};
+};
