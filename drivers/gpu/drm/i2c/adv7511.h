@@ -10,6 +10,13 @@
 #define __DRM_I2C_ADV7511_H__
 
 #include <linux/hdmi.h>
+#include <drm/drm_crtc_helper.h>
+
+struct regmap;
+struct adv7511;
+
+int adv7511_packet_enable(struct adv7511 *adv7511, unsigned int packet);
+int adv7511_packet_disable(struct adv7511 *adv7511, unsigned int packet);
 
 #define ADV7511_REG_CHIP_REVISION		0x00
 #define ADV7511_REG_N0				0x01
@@ -227,6 +234,50 @@ enum adv7511_sync_polarity {
 	ADV7511_SYNC_POLARITY_PASSTHROUGH,
 	ADV7511_SYNC_POLARITY_LOW,
 	ADV7511_SYNC_POLARITY_HIGH,
+};
+
+enum adv7511_type {
+	ADV7511,
+	ADV7533,
+};
+
+struct adv7511 {
+	struct i2c_client *i2c_main;
+	struct i2c_client *i2c_edid;
+	struct i2c_client *i2c_cec;
+
+	struct regmap *regmap;
+	struct regmap *regmap_cec;
+	enum drm_connector_status status;
+	bool powered;
+
+	unsigned int f_tmds;
+	unsigned int f_audio;
+	unsigned int audio_source;
+
+	unsigned int current_edid_segment;
+	uint8_t edid_buf[256];
+	bool edid_read;
+	struct drm_encoder *encoder;
+
+	wait_queue_head_t wq;
+
+#ifndef CONFIG_DRM_I2C_ADV7511_SLAVE_ENCODER
+	struct drm_connector connector;
+	struct drm_bridge bridge;
+#endif
+
+	bool embedded_sync;
+	enum adv7511_sync_polarity vsync_polarity;
+	enum adv7511_sync_polarity hsync_polarity;
+	bool rgb;
+	u8 num_dsi_lanes;
+
+	struct edid *edid;
+
+	struct gpio_desc *gpio_pd;
+
+	enum adv7511_type type;
 };
 
 /**
