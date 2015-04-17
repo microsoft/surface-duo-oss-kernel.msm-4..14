@@ -1183,6 +1183,8 @@ static int adv7511_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 
 	i2c_set_clientdata(i2c, adv7511);
 
+	adv7511_audio_init(dev);
+
 	adv7511_set_link_config(adv7511, &link_config);
 
 #ifndef CONFIG_DRM_I2C_ADV7511_SLAVE_ENCODER
@@ -1210,6 +1212,7 @@ static int adv7511_remove(struct i2c_client *i2c)
 {
 	struct adv7511 *adv7511 = i2c_get_clientdata(i2c);
 
+	adv7511_audio_exit(&i2c->dev);
 	i2c_unregister_device(adv7511->i2c_cec);
 	i2c_unregister_device(adv7511->i2c_edid);
 
