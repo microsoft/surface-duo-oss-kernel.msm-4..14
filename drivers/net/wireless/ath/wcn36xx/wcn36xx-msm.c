@@ -19,10 +19,15 @@
 #include <linux/firmware.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/regulator/consumer.h>
+#include <linux/regulator/rpm-smd-regulator.h>
 #include <linux/workqueue.h>
+#include <linux/of.h>
+#include <linux/clk.h>
 #include <soc/qcom/smd.h>
 #include <soc/qcom/smsm.h>
 #include "wcn36xx.h"
+#include "wcnss_core.h"
 
 #include <soc/qcom/subsystem_restart.h>
 #include <soc/qcom/subsystem_notif.h>
@@ -274,6 +279,8 @@ static int wcn36xx_msm_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	wcnss_core_prepare(pdev);
+
 	if (IS_ERR_OR_NULL(pil))
 		pil = subsystem_get("wcnss");
 	if (IS_ERR_OR_NULL(pil))
@@ -303,15 +310,18 @@ static int wcn36xx_msm_probe(struct platform_device *pdev)
 	}
 
 	platform_device_add(wmsm.core);
+	wcnss_core_init();
 
 	dev_info(&pdev->dev, "%s initialized\n", __func__);
 
 	return 0;
 }
+
 static int wcn36xx_msm_remove(struct platform_device *pdev)
 {
         struct pinctrl_state *ps;
 
+	wcnss_core_deinit();
 	platform_device_del(wmsm.core);
 	platform_device_put(wmsm.core);
 
@@ -349,8 +359,6 @@ static void __exit wcn36xx_msm_exit(void)
 	platform_driver_unregister(&wcn36xx_msm_driver);
 	if (pil)
 		subsystem_put(pil);
-
-
 }
 module_exit(wcn36xx_msm_exit);
 
