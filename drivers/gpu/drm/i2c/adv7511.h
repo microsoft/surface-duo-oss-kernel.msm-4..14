@@ -18,6 +18,9 @@ struct adv7511;
 int adv7511_packet_enable(struct adv7511 *adv7511, unsigned int packet);
 int adv7511_packet_disable(struct adv7511 *adv7511, unsigned int packet);
 
+int adv7511_audio_init(struct device *dev);
+void adv7511_audio_exit(struct device *dev);
+
 #define ADV7511_REG_CHIP_REVISION		0x00
 #define ADV7511_REG_N0				0x01
 #define ADV7511_REG_N1				0x02
