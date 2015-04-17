@@ -1186,6 +1186,8 @@ static int adv7511_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 
 	i2c_set_clientdata(i2c, adv7511);
 
+	adv7511_audio_init(dev);
+
 	adv7511_set_link_config(adv7511, &link_config);
 
 	return 0;
@@ -1202,6 +1204,7 @@ static int adv7511_remove(struct i2c_client *i2c)
 {
 	struct adv7511 *adv7511 = i2c_get_clientdata(i2c);
 
+	adv7511_audio_exit(&i2c->dev);
 	i2c_unregister_device(adv7511->i2c_cec);
 	i2c_unregister_device(adv7511->i2c_edid);
 
@@ -1379,6 +1382,8 @@ static int adv7533_probe(struct mipi_dsi_device *dsi)
 
 	adv7511_power_off(adv);
 
+	adv7511_audio_init(dev);
+
 	adv7511_set_link_config(adv, &link_config);
 
 	adv->bridge.funcs = &adv7511_bridge_funcs;
@@ -1411,6 +1416,8 @@ err_i2c_unregister_main:
 static int adv7533_remove(struct mipi_dsi_device *dsi)
 {
 	struct adv7511 *adv = mipi_dsi_get_drvdata(dsi);
+
+	adv7511_audio_exit(&dsi->dev);
 
 	i2c_unregister_device(adv->i2c_main);
 	i2c_unregister_device(adv->i2c_cec);
