@@ -72,7 +72,7 @@ static void __init imx_smp_init_cpus(void)
 {
 	int i, ncores;
 
-	cpu_part_number = read_cpuid_part_number();
+	cpu_part_number = read_cpuid_part();
 
 	switch (cpu_part_number)
 	{
