@@ -23,6 +23,20 @@
 
 #define LPASS_AHBIX_CLOCK_FREQUENCY		131072000
 
+/* Vairant data per each SOC */
+struct lpass_variant_data {
+	u32	i2sctrl_reg_base;
+	u32	i2sctrl_reg_stride;
+	u32 	i2s_ports;
+	u32	irq_reg_base;
+	u32	irq_reg_stride;
+	u32	irq_ports;
+	u32	rdma_reg_base;
+	u32	rdma_reg_stride;
+	u32	rdma_channels;
+
+};
+
 /* Both the CPU DAI and platform drivers will access this data */
 struct lpass_data {
 
@@ -45,6 +59,8 @@ struct lpass_data {
 
 	/* interrupts from the low-power audio interface (LPAIF) */
 	int lpaif_irq;
+
+	struct lpass_variant_data *vdata;
 };
 
 /* register the platform driver from the CPU DAI driver */
