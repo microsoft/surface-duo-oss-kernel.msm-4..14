@@ -283,6 +283,96 @@ static struct snd_soc_dai_driver lpass_cpu_dai_driver = {
 	.ops    = &lpass_cpu_dai_ops,
 };
 
+
+static struct snd_soc_dai_driver apq8016_lpass_cpu_dai_driver[] = {
+	[APQ8016_LPAIF_MI2S_PRIMARY] =  {
+		.id = APQ8016_LPAIF_MI2S_PRIMARY,
+		.name = "Primary MI2S",
+		.playback = {
+			.stream_name	= "Primary Playback",
+			.formats	= SNDRV_PCM_FMTBIT_S16 |
+						SNDRV_PCM_FMTBIT_S24 |
+						SNDRV_PCM_FMTBIT_S32,
+			.rates		= SNDRV_PCM_RATE_8000 |
+						SNDRV_PCM_RATE_16000 |
+						SNDRV_PCM_RATE_32000 |
+						SNDRV_PCM_RATE_48000 |
+						SNDRV_PCM_RATE_96000,
+			.rate_min	= 8000,
+			.rate_max	= 96000,
+			.channels_min	= 1,
+			.channels_max	= 8,
+		},
+		.probe	= &lpass_cpu_dai_probe,
+		.ops    = &lpass_cpu_dai_ops,
+	},
+	[APQ8016_LPAIF_MI2S_SECONDARY] =  { 
+		.id = APQ8016_LPAIF_MI2S_SECONDARY,
+		.name = "Secondary MI2S",
+		.playback = {
+			.stream_name	= "Secondary Playback",
+			.formats	= SNDRV_PCM_FMTBIT_S16 |
+						SNDRV_PCM_FMTBIT_S24 |
+						SNDRV_PCM_FMTBIT_S32,
+			.rates		= SNDRV_PCM_RATE_8000 |
+						SNDRV_PCM_RATE_16000 |
+						SNDRV_PCM_RATE_32000 |
+						SNDRV_PCM_RATE_48000 |
+						SNDRV_PCM_RATE_96000,
+			.rate_min	= 8000,
+			.rate_max	= 96000,
+			.channels_min	= 1,
+			.channels_max	= 8,
+		},
+		.probe	= &lpass_cpu_dai_probe,
+		.ops    = &lpass_cpu_dai_ops,
+	},
+	[APQ8016_LPAIF_MI2S_TERTIARY] =  {
+		.id = APQ8016_LPAIF_MI2S_TERTIARY,
+		.name = "Tertiary MI2S",
+		.playback = {
+			.stream_name	= "Tertiary Capture",
+			.formats	= SNDRV_PCM_FMTBIT_S16 |
+						SNDRV_PCM_FMTBIT_S24 |
+						SNDRV_PCM_FMTBIT_S32,
+			.rates		= SNDRV_PCM_RATE_8000 |
+						SNDRV_PCM_RATE_16000 |
+						SNDRV_PCM_RATE_32000 |
+						SNDRV_PCM_RATE_48000 |
+						SNDRV_PCM_RATE_96000,
+			.rate_min	= 8000,
+			.rate_max	= 96000,
+			.channels_min	= 1,
+			.channels_max	= 8,
+		},
+		.probe	= &lpass_cpu_dai_probe,
+		.ops    = &lpass_cpu_dai_ops,
+	},
+	[APQ8016_LPAIF_MI2S_QUATERNARY] =  {
+		.id = APQ8016_LPAIF_MI2S_QUATERNARY,
+		.name = "Quatenary MI2S",
+		.playback = {
+			.stream_name	= "Quatenary Playback",
+			.formats	= SNDRV_PCM_FMTBIT_S16 |
+						SNDRV_PCM_FMTBIT_S24 |
+						SNDRV_PCM_FMTBIT_S32,
+			.rates		= SNDRV_PCM_RATE_8000 |
+						SNDRV_PCM_RATE_16000 |
+						SNDRV_PCM_RATE_32000 |
+						SNDRV_PCM_RATE_48000 |
+						SNDRV_PCM_RATE_96000,
+			.rate_min	= 8000,
+			.rate_max	= 96000,
+			.channels_min	= 1,
+			.channels_max	= 8,
+		},
+		.capture =  {
+		},
+		.probe	= &lpass_cpu_dai_probe,
+		.ops    = &lpass_cpu_dai_ops,
+	},
+};
+
 static const struct snd_soc_component_driver lpass_cpu_comp_driver = {
 	.name = "lpass-cpu",
 };
@@ -380,6 +470,19 @@ static const struct regmap_config lpass_cpu_regmap_config = {
 	.cache_type = REGCACHE_FLAT,
 };
 
+
+struct lpass_variant_data apq8016_data = {
+	.i2sctrl_reg_base	= 0x1000,
+	.i2sctrl_reg_stride	= 0x1000,
+	.i2s_ports		= 4,
+	.irq_reg_base		= 0x6000,
+	.irq_reg_stride		= 0x1000,
+	.irq_ports		= 3,
+	.rdma_reg_base		= 0x8400,
+	.rdma_reg_stride 	= 0x1000,
+	.rdma_channels		= 2,
+};
+
 struct lpass_variant_data ipq8064_data = {
 	.i2sctrl_reg_base	= 0x0010,
 	.i2sctrl_reg_stride 	= 0x04,
@@ -395,6 +498,7 @@ struct lpass_variant_data ipq8064_data = {
 #ifdef CONFIG_OF
 static const struct of_device_id lpass_cpu_device_id[] = {
 	{ .compatible = "qcom,lpass-cpu", .data = &ipq8064_data },
+	{ .compatible = "qcom,lpass-cpu-apq8016", .data = &apq8016_data },
 	{}
 };
 MODULE_DEVICE_TABLE(of, lpass_cpu_device_id);
@@ -518,7 +622,12 @@ static int lpass_cpu_platform_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	ret = devm_snd_soc_register_component(&pdev->dev,
+	if (of_device_is_compatible(pdev->dev.of_node, "qcom,lpass-cpu-apq8016"))
+		ret = devm_snd_soc_register_component(&pdev->dev,
+			&lpass_cpu_comp_driver, apq8016_lpass_cpu_dai_driver,
+			ARRAY_SIZE(apq8016_lpass_cpu_dai_driver));
+	else
+		ret = devm_snd_soc_register_component(&pdev->dev,
 			&lpass_cpu_comp_driver, &lpass_cpu_dai_driver, 1);
 	if (ret) {
 		dev_err(&pdev->dev, "%s() error registering cpu driver: %d\n",

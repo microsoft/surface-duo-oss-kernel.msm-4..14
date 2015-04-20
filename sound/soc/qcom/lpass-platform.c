@@ -27,7 +27,7 @@
 #include <sound/pcm_params.h>
 #include <linux/regmap.h>
 #include <sound/soc.h>
-#include "lpass-lpaif-ipq806x.h"
+#include "lpass-lpaif-reg.h"
 #include "lpass.h"
 
 #define LPASS_PLATFORM_BUFFER_SIZE	(16 * 1024)
@@ -86,6 +86,7 @@ static int lpass_platform_pcmops_hw_params(struct snd_pcm_substream *substream,
 	struct snd_soc_pcm_runtime *soc_runtime = substream->private_data;
 	struct lpass_data *drvdata =
 		snd_soc_platform_get_drvdata(soc_runtime->platform);
+	struct lpass_variant_data *v = drvdata->vdata;
 	snd_pcm_format_t format = params_format(params);
 	unsigned int channels = params_channels(params);
 	unsigned int regval;
@@ -99,8 +100,10 @@ static int lpass_platform_pcmops_hw_params(struct snd_pcm_substream *substream,
 		return bitwidth;
 	}
 
+//FIXME 
 	regval = LPAIF_RDMACTL_BURSTEN_INCR4 |
-			LPAIF_RDMACTL_AUDINTF_MI2S |
+//			LPAIF_RDMACTL_AUDINTF_MI2S |
+			APQ8016_LPAIF_RDMACTL_AUDINTF_QUA_MI2S |
 			LPAIF_RDMACTL_FIFOWM_8;
 
 	switch (bitwidth) {
@@ -156,7 +159,7 @@ static int lpass_platform_pcmops_hw_params(struct snd_pcm_substream *substream,
 	}
 
 	ret = regmap_write(drvdata->lpaif_map,
-			LPAIF_RDMACTL_REG(LPAIF_RDMA_CHAN_MI2S), regval);
+			LPAIF_RDMACTL_REG(v, APQ8016_LPAIF_RDMA_CHAN0), regval);
 	if (ret) {
 		dev_err(soc_runtime->dev, "%s() error writing to rdmactl reg: %d\n",
 				__func__, ret);
@@ -171,10 +174,11 @@ static int lpass_platform_pcmops_hw_free(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *soc_runtime = substream->private_data;
 	struct lpass_data *drvdata =
 		snd_soc_platform_get_drvdata(soc_runtime->platform);
+	struct lpass_variant_data *v = drvdata->vdata;
 	int ret;
 
 	ret = regmap_write(drvdata->lpaif_map,
-			LPAIF_RDMACTL_REG(LPAIF_RDMA_CHAN_MI2S), 0);
+			LPAIF_RDMACTL_REG(v, APQ8016_LPAIF_RDMA_CHAN0), 0);
 	if (ret)
 		dev_err(soc_runtime->dev, "%s() error writing to rdmactl reg: %d\n",
 				__func__, ret);
@@ -188,10 +192,11 @@ static int lpass_platform_pcmops_prepare(struct snd_pcm_substream *substream)
 	struct snd_soc_pcm_runtime *soc_runtime = substream->private_data;
 	struct lpass_data *drvdata =
 		snd_soc_platform_get_drvdata(soc_runtime->platform);
+	struct lpass_variant_data *v = drvdata->vdata;
 	int ret;
 
 	ret = regmap_write(drvdata->lpaif_map,
-			LPAIF_RDMABASE_REG(LPAIF_RDMA_CHAN_MI2S),
+			LPAIF_RDMABASE_REG(v, APQ8016_LPAIF_RDMA_CHAN0),
 			runtime->dma_addr);
 	if (ret) {
 		dev_err(soc_runtime->dev, "%s() error writing to rdmabase reg: %d\n",
@@ -200,7 +205,7 @@ static int lpass_platform_pcmops_prepare(struct snd_pcm_substream *substream)
 	}
 
 	ret = regmap_write(drvdata->lpaif_map,
-			LPAIF_RDMABUFF_REG(LPAIF_RDMA_CHAN_MI2S),
+			LPAIF_RDMABUFF_REG(v, APQ8016_LPAIF_RDMA_CHAN0),
 			(snd_pcm_lib_buffer_bytes(substream) >> 2) - 1);
 	if (ret) {
 		dev_err(soc_runtime->dev, "%s() error writing to rdmabuff reg: %d\n",
@@ -209,7 +214,7 @@ static int lpass_platform_pcmops_prepare(struct snd_pcm_substream *substream)
 	}
 
 	ret = regmap_write(drvdata->lpaif_map,
-			LPAIF_RDMAPER_REG(LPAIF_RDMA_CHAN_MI2S),
+			LPAIF_RDMAPER_REG(v, APQ8016_LPAIF_RDMA_CHAN0),
 			(snd_pcm_lib_period_bytes(substream) >> 2) - 1);
 	if (ret) {
 		dev_err(soc_runtime->dev, "%s() error writing to rdmaper reg: %d\n",
@@ -218,7 +223,7 @@ static int lpass_platform_pcmops_prepare(struct snd_pcm_substream *substream)
 	}
 
 	ret = regmap_update_bits(drvdata->lpaif_map,
-			LPAIF_RDMACTL_REG(LPAIF_RDMA_CHAN_MI2S),
+			LPAIF_RDMACTL_REG(v, APQ8016_LPAIF_RDMA_CHAN0),
 			LPAIF_RDMACTL_ENABLE_MASK, LPAIF_RDMACTL_ENABLE_ON);
 	if (ret) {
 		dev_err(soc_runtime->dev, "%s() error writing to rdmactl reg: %d\n",
@@ -235,6 +240,7 @@ static int lpass_platform_pcmops_trigger(struct snd_pcm_substream *substream,
 	struct snd_soc_pcm_runtime *soc_runtime = substream->private_data;
 	struct lpass_data *drvdata =
 		snd_soc_platform_get_drvdata(soc_runtime->platform);
+	struct lpass_variant_data *v = drvdata->vdata;
 	int ret;
 
 	switch (cmd) {
@@ -243,8 +249,8 @@ static int lpass_platform_pcmops_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		/* clear status before enabling interrupts */
 		ret = regmap_write(drvdata->lpaif_map,
-				LPAIF_IRQCLEAR_REG(LPAIF_IRQ_PORT_HOST),
-				LPAIF_IRQ_ALL(LPAIF_RDMA_CHAN_MI2S));
+				LPAIF_IRQCLEAR_REG(v, LPAIF_IRQ_PORT_HOST),
+				LPAIF_IRQ_ALL(APQ8016_LPAIF_RDMA_CHAN0));
 		if (ret) {
 			dev_err(soc_runtime->dev, "%s() error writing to irqclear reg: %d\n",
 					__func__, ret);
@@ -252,9 +258,9 @@ static int lpass_platform_pcmops_trigger(struct snd_pcm_substream *substream,
 		}
 
 		ret = regmap_update_bits(drvdata->lpaif_map,
-				LPAIF_IRQEN_REG(LPAIF_IRQ_PORT_HOST),
-				LPAIF_IRQ_ALL(LPAIF_RDMA_CHAN_MI2S),
-				LPAIF_IRQ_ALL(LPAIF_RDMA_CHAN_MI2S));
+				LPAIF_IRQEN_REG(v, LPAIF_IRQ_PORT_HOST),
+				LPAIF_IRQ_ALL(APQ8016_LPAIF_RDMA_CHAN0),
+				LPAIF_IRQ_ALL(APQ8016_LPAIF_RDMA_CHAN0));
 		if (ret) {
 			dev_err(soc_runtime->dev, "%s() error writing to irqen reg: %d\n",
 					__func__, ret);
@@ -262,7 +268,7 @@ static int lpass_platform_pcmops_trigger(struct snd_pcm_substream *substream,
 		}
 
 		ret = regmap_update_bits(drvdata->lpaif_map,
-				LPAIF_RDMACTL_REG(LPAIF_RDMA_CHAN_MI2S),
+				LPAIF_RDMACTL_REG(v, APQ8016_LPAIF_RDMA_CHAN0),
 				LPAIF_RDMACTL_ENABLE_MASK,
 				LPAIF_RDMACTL_ENABLE_ON);
 		if (ret) {
@@ -275,7 +281,7 @@ static int lpass_platform_pcmops_trigger(struct snd_pcm_substream *substream,
 	case SNDRV_PCM_TRIGGER_SUSPEND:
 	case SNDRV_PCM_TRIGGER_PAUSE_PUSH:
 		ret = regmap_update_bits(drvdata->lpaif_map,
-				LPAIF_RDMACTL_REG(LPAIF_RDMA_CHAN_MI2S),
+				LPAIF_RDMACTL_REG(v, APQ8016_LPAIF_RDMA_CHAN0),
 				LPAIF_RDMACTL_ENABLE_MASK,
 				LPAIF_RDMACTL_ENABLE_OFF);
 		if (ret) {
@@ -285,8 +291,8 @@ static int lpass_platform_pcmops_trigger(struct snd_pcm_substream *substream,
 		}
 
 		ret = regmap_update_bits(drvdata->lpaif_map,
-				LPAIF_IRQEN_REG(LPAIF_IRQ_PORT_HOST),
-				LPAIF_IRQ_ALL(LPAIF_RDMA_CHAN_MI2S), 0);
+				LPAIF_IRQEN_REG(v, LPAIF_IRQ_PORT_HOST),
+				LPAIF_IRQ_ALL(APQ8016_LPAIF_RDMA_CHAN0), 0);
 		if (ret) {
 			dev_err(soc_runtime->dev, "%s() error writing to irqen reg: %d\n",
 					__func__, ret);
@@ -304,11 +310,12 @@ static snd_pcm_uframes_t lpass_platform_pcmops_pointer(
 	struct snd_soc_pcm_runtime *soc_runtime = substream->private_data;
 	struct lpass_data *drvdata =
 			snd_soc_platform_get_drvdata(soc_runtime->platform);
+	struct lpass_variant_data *v = drvdata->vdata;
 	unsigned int base_addr, curr_addr;
 	int ret;
 
 	ret = regmap_read(drvdata->lpaif_map,
-			LPAIF_RDMABASE_REG(LPAIF_RDMA_CHAN_MI2S), &base_addr);
+			LPAIF_RDMABASE_REG(v, APQ8016_LPAIF_RDMA_CHAN0), &base_addr);
 	if (ret) {
 		dev_err(soc_runtime->dev, "%s() error reading from rdmabase reg: %d\n",
 				__func__, ret);
@@ -316,7 +323,7 @@ static snd_pcm_uframes_t lpass_platform_pcmops_pointer(
 	}
 
 	ret = regmap_read(drvdata->lpaif_map,
-			LPAIF_RDMACURR_REG(LPAIF_RDMA_CHAN_MI2S), &curr_addr);
+			LPAIF_RDMACURR_REG(v, APQ8016_LPAIF_RDMA_CHAN0), &curr_addr);
 	if (ret) {
 		dev_err(soc_runtime->dev, "%s() error reading from rdmacurr reg: %d\n",
 				__func__, ret);
@@ -353,23 +360,24 @@ static irqreturn_t lpass_platform_lpaif_irq(int irq, void *data)
 	struct snd_soc_pcm_runtime *soc_runtime = substream->private_data;
 	struct lpass_data *drvdata =
 		snd_soc_platform_get_drvdata(soc_runtime->platform);
+	struct lpass_variant_data *v = drvdata->vdata;
 	unsigned int interrupts;
 	irqreturn_t ret = IRQ_NONE;
 	int rv;
 
 	rv = regmap_read(drvdata->lpaif_map,
-			LPAIF_IRQSTAT_REG(LPAIF_IRQ_PORT_HOST), &interrupts);
+			LPAIF_IRQSTAT_REG(v, LPAIF_IRQ_PORT_HOST), &interrupts);
 	if (rv) {
 		dev_err(soc_runtime->dev, "%s() error reading from irqstat reg: %d\n",
 				__func__, rv);
 		return IRQ_NONE;
 	}
-	interrupts &= LPAIF_IRQ_ALL(LPAIF_RDMA_CHAN_MI2S);
+	interrupts &= LPAIF_IRQ_ALL(APQ8016_LPAIF_RDMA_CHAN0);
 
-	if (interrupts & LPAIF_IRQ_PER(LPAIF_RDMA_CHAN_MI2S)) {
+	if (interrupts & LPAIF_IRQ_PER(APQ8016_LPAIF_RDMA_CHAN0)) {
 		rv = regmap_write(drvdata->lpaif_map,
-				LPAIF_IRQCLEAR_REG(LPAIF_IRQ_PORT_HOST),
-				LPAIF_IRQ_PER(LPAIF_RDMA_CHAN_MI2S));
+				LPAIF_IRQCLEAR_REG(v, LPAIF_IRQ_PORT_HOST),
+				LPAIF_IRQ_PER(APQ8016_LPAIF_RDMA_CHAN0));
 		if (rv) {
 			dev_err(soc_runtime->dev, "%s() error writing to irqclear reg: %d\n",
 					__func__, rv);
@@ -379,10 +387,10 @@ static irqreturn_t lpass_platform_lpaif_irq(int irq, void *data)
 		ret = IRQ_HANDLED;
 	}
 
-	if (interrupts & LPAIF_IRQ_XRUN(LPAIF_RDMA_CHAN_MI2S)) {
+	if (interrupts & LPAIF_IRQ_XRUN(APQ8016_LPAIF_RDMA_CHAN0)) {
 		rv = regmap_write(drvdata->lpaif_map,
-				LPAIF_IRQCLEAR_REG(LPAIF_IRQ_PORT_HOST),
-				LPAIF_IRQ_XRUN(LPAIF_RDMA_CHAN_MI2S));
+				LPAIF_IRQCLEAR_REG(v, LPAIF_IRQ_PORT_HOST),
+				LPAIF_IRQ_XRUN(APQ8016_LPAIF_RDMA_CHAN0));
 		if (rv) {
 			dev_err(soc_runtime->dev, "%s() error writing to irqclear reg: %d\n",
 					__func__, rv);
@@ -393,10 +401,10 @@ static irqreturn_t lpass_platform_lpaif_irq(int irq, void *data)
 		ret = IRQ_HANDLED;
 	}
 
-	if (interrupts & LPAIF_IRQ_ERR(LPAIF_RDMA_CHAN_MI2S)) {
+	if (interrupts & LPAIF_IRQ_ERR(APQ8016_LPAIF_RDMA_CHAN0)) {
 		rv = regmap_write(drvdata->lpaif_map,
-				LPAIF_IRQCLEAR_REG(LPAIF_IRQ_PORT_HOST),
-				LPAIF_IRQ_ERR(LPAIF_RDMA_CHAN_MI2S));
+				LPAIF_IRQCLEAR_REG(v, LPAIF_IRQ_PORT_HOST),
+				LPAIF_IRQ_ERR(APQ8016_LPAIF_RDMA_CHAN0));
 		if (rv) {
 			dev_err(soc_runtime->dev, "%s() error writing to irqclear reg: %d\n",
 					__func__, rv);
@@ -450,6 +458,7 @@ static int lpass_platform_pcm_new(struct snd_soc_pcm_runtime *soc_runtime)
 		pcm->streams[SNDRV_PCM_STREAM_PLAYBACK].substream;
 	struct lpass_data *drvdata =
 		snd_soc_platform_get_drvdata(soc_runtime->platform);
+	struct lpass_variant_data *v = drvdata->vdata;
 	int ret;
 
 	soc_runtime->dev->coherent_dma_mask = DMA_BIT_MASK(32);
@@ -470,14 +479,14 @@ static int lpass_platform_pcm_new(struct snd_soc_pcm_runtime *soc_runtime)
 
 	/* ensure audio hardware is disabled */
 	ret = regmap_write(drvdata->lpaif_map,
-			LPAIF_IRQEN_REG(LPAIF_IRQ_PORT_HOST), 0);
+			LPAIF_IRQEN_REG(v, LPAIF_IRQ_PORT_HOST), 0);
 	if (ret) {
 		dev_err(soc_runtime->dev, "%s() error writing to irqen reg: %d\n",
 				__func__, ret);
 		return ret;
 	}
 	ret = regmap_write(drvdata->lpaif_map,
-			LPAIF_RDMACTL_REG(LPAIF_RDMA_CHAN_MI2S), 0);
+			LPAIF_RDMACTL_REG(v, APQ8016_LPAIF_RDMA_CHAN0), 0);
 	if (ret) {
 		dev_err(soc_runtime->dev, "%s() error writing to rdmactl reg: %d\n",
 				__func__, ret);
