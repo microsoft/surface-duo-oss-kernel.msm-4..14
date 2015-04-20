@@ -553,6 +553,7 @@
 			interrupt-controller;
 			#interrupt-cells = <4>;
 		};
+
 	};
 };
 
