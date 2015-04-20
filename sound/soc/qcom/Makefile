@@ -9,3 +9,4 @@ obj-$(CONFIG_SND_SOC_LPASS_PLATFORM) += snd-soc-lpass-platform.o
 snd-soc-storm-objs := storm.o
 
 obj-$(CONFIG_SND_SOC_STORM) += snd-soc-storm.o
+obj-$(CONFIG_SND_SOC_APQ8016) += apq8016.o

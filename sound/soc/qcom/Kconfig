@@ -23,3 +23,14 @@ config SND_SOC_STORM
 	help
           Say Y or M if you want add support for SoC audio on the
           Qualcomm Technologies IPQ806X-based Storm board.
+
+config SND_SOC_APQ8016
+	tristate "SoC Audio support for APQ8016 based platforms"
+	depends on SND_SOC_QCOM || ARCH_QCOM || COMPILE_TEST
+	select SND_SOC_LPASS_CPU
+	select SND_SOC_LPASS_PLATFORM
+	help
+          Support for Qualcomm Technologies LPASS audio block in
+          IPQ806X SOC-based systems.
+          Say Y if you want to use audio devices such as I2S, PCM,
+          S/PDIF, etc.
