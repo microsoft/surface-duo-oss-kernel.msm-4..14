@@ -270,7 +270,7 @@ bool drm_crtc_helper_set_mode(struct drm_crtc *crtc,
 			      struct drm_framebuffer *old_fb)
 {
 	struct drm_device *dev = crtc->dev;
-	struct drm_display_mode *adjusted_mode, saved_mode;
+	struct drm_display_mode *adjusted_mode, saved_mode, saved_hwmode;
 	struct drm_crtc_helper_funcs *crtc_funcs = crtc->helper_private;
 	struct drm_encoder_helper_funcs *encoder_funcs;
 	int saved_x, saved_y;
@@ -292,6 +292,7 @@ bool drm_crtc_helper_set_mode(struct drm_crtc *crtc,
 	}
 
 	saved_mode = crtc->mode;
+	saved_hwmode = crtc->hwmode;
 	saved_x = crtc->x;
 	saved_y = crtc->y;
 
@@ -333,6 +334,8 @@ bool drm_crtc_helper_set_mode(struct drm_crtc *crtc,
 		goto done;
 	}
 	DRM_DEBUG_KMS("[CRTC:%d]\n", crtc->base.id);
+
+	crtc->hwmode = *adjusted_mode;
 
 	/* Prepare the encoders and CRTCs before setting the mode. */
 	list_for_each_entry(encoder, &dev->mode_config.encoder_list, head) {
@@ -396,9 +399,6 @@ bool drm_crtc_helper_set_mode(struct drm_crtc *crtc,
 			encoder->bridge->funcs->enable(encoder->bridge);
 	}
 
-	/* Store real post-adjustment hardware mode. */
-	crtc->hwmode = *adjusted_mode;
-
 	/* Calculate and store various constants which
 	 * are later needed by vblank and swap-completion
 	 * timestamping. They are derived from true hwmode.
@@ -411,6 +411,7 @@ done:
 	if (!ret) {
 		crtc->enabled = saved_enabled;
 		crtc->mode = saved_mode;
+		crtc->hwmode = saved_hwmode;
 		crtc->x = saved_x;
 		crtc->y = saved_y;
 	}
@@ -837,6 +838,7 @@ void drm_helper_mode_fill_fb_struct(struct drm_framebuffer *fb,
 	for (i = 0; i < 4; i++) {
 		fb->pitches[i] = mode_cmd->pitches[i];
 		fb->offsets[i] = mode_cmd->offsets[i];
+		fb->modifier[i] = mode_cmd->modifier[i];
 	}
 	drm_fb_get_bpp_depth(mode_cmd->pixel_format, &fb->depth,
 				    &fb->bits_per_pixel);

@@ -1247,7 +1247,7 @@ static void intel_sdvo_pre_enable(struct intel_encoder *intel_encoder)
 
 	switch (crtc->config->pixel_multiplier) {
 	default:
-		WARN(1, "unknown pixel mutlipler specified\n");
+		WARN(1, "unknown pixel multiplier specified\n");
 	case 1: rate = SDVO_CLOCK_RATE_MULT_1X; break;
 	case 2: rate = SDVO_CLOCK_RATE_MULT_2X; break;
 	case 4: rate = SDVO_CLOCK_RATE_MULT_4X; break;
@@ -2194,6 +2194,7 @@ static const struct drm_connector_funcs intel_sdvo_connector_funcs = {
 	.atomic_get_property = intel_connector_atomic_get_property,
 	.destroy = intel_sdvo_destroy,
 	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
+	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
 };
 
 static const struct drm_connector_helper_funcs intel_sdvo_connector_helper_funcs = {
