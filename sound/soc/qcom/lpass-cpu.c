@@ -37,6 +37,9 @@ static int lpass_cpu_daiops_set_sysclk(struct snd_soc_dai *dai, int clk_id,
 	struct lpass_data *drvdata = snd_soc_dai_get_drvdata(dai);
 	int ret;
 
+	if (!drvdata->mi2s_osr_clk)
+		return 0;
+
 	ret = clk_set_rate(drvdata->mi2s_osr_clk, freq);
 	if (ret)
 		dev_err(dai->dev, "%s() error setting mi2s osrclk to %u: %d\n",
@@ -51,19 +54,25 @@ static int lpass_cpu_daiops_startup(struct snd_pcm_substream *substream,
 	struct lpass_data *drvdata = snd_soc_dai_get_drvdata(dai);
 	int ret;
 
-	ret = clk_prepare_enable(drvdata->mi2s_osr_clk);
-	if (ret) {
-		dev_err(dai->dev, "%s() error in enabling mi2s osr clk: %d\n",
+	if (drvdata->mi2s_osr_clk) {
+		ret = clk_prepare_enable(drvdata->mi2s_osr_clk);
+		if (ret) {
+			dev_err(dai->dev, "%s() error in enabling mi2s osr clk: %d\n",
 				__func__, ret);
-		return ret;
+			return ret;
+		}
 	}
 
-	ret = clk_prepare_enable(drvdata->mi2s_bit_clk);
-	if (ret) {
-		dev_err(dai->dev, "%s() error in enabling mi2s bit clk: %d\n",
+	if (drvdata->mi2s_bit_clk) {
+		ret = clk_prepare_enable(drvdata->mi2s_bit_clk);
+		if (ret) {
+			dev_err(dai->dev, "%s() error in enabling mi2s bit clk: %d\n",
 				__func__, ret);
-		clk_disable_unprepare(drvdata->mi2s_osr_clk);
-		return ret;
+			if (drvdata->mi2s_osr_clk)
+				clk_disable_unprepare(drvdata->mi2s_osr_clk);
+
+			return ret;
+		}
 	}
 
 	return 0;
@@ -401,12 +410,15 @@ static int lpass_cpu_platform_probe(struct platform_device *pdev)
 		return PTR_ERR(drvdata->lpaif_map);
 	}
 
+#if 0
+//FIXME
 	drvdata->mi2s_osr_clk = devm_clk_get(&pdev->dev, "mi2s-osr-clk");
 	if (IS_ERR(drvdata->mi2s_osr_clk)) {
 		dev_err(&pdev->dev, "%s() error getting mi2s-osr-clk: %ld\n",
 				__func__, PTR_ERR(drvdata->mi2s_osr_clk));
 		return PTR_ERR(drvdata->mi2s_osr_clk);
 	}
+#endif
 
 	drvdata->mi2s_bit_clk = devm_clk_get(&pdev->dev, "mi2s-bit-clk");
 	if (IS_ERR(drvdata->mi2s_bit_clk)) {
@@ -434,6 +446,33 @@ static int lpass_cpu_platform_probe(struct platform_device *pdev)
 	ret = clk_prepare_enable(drvdata->ahbix_clk);
 	if (ret) {
 		dev_err(&pdev->dev, "%s() error enabling ahbix_clk: %d\n",
+				__func__, ret);
+		return ret;
+	}
+	drvdata->pcnoc_mport_clk = of_clk_get_by_name(pdev->dev.of_node, "pcnoc-mport-clk");
+	if (IS_ERR(drvdata->pcnoc_mport_clk)) {
+		dev_err(&pdev->dev, "%s() error getting pcnoc-mport-clk: %ld\n",
+				__func__, PTR_ERR(drvdata->pcnoc_mport_clk));
+		return PTR_ERR(drvdata->pcnoc_mport_clk);
+	}
+
+	ret= clk_prepare_enable(drvdata->pcnoc_mport_clk);
+	if (ret) {
+		dev_err(&pdev->dev, "%s() Error enabling ahbix_clk: %d\n",
+				__func__, ret);
+		return ret;
+	}
+
+	drvdata->pcnoc_sway_clk = of_clk_get_by_name(pdev->dev.of_node, "pcnoc-sway-clk");
+	if (IS_ERR(drvdata->pcnoc_sway_clk)) {
+		dev_err(&pdev->dev, "%s() error getting pcnoc-sway-clk: %ld\n",
+				__func__, PTR_ERR(drvdata->pcnoc_sway_clk));
+		return PTR_ERR(drvdata->pcnoc_sway_clk);
+	}
+
+	ret = clk_prepare_enable(drvdata->pcnoc_sway_clk);
+	if (ret) {
+		dev_err(&pdev->dev, "%s() Error enabling ahbix_clk: %d\n",
 				__func__, ret);
 		return ret;
 	}

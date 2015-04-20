@@ -28,6 +28,8 @@ struct lpass_data {
 
 	/* AHB-I/X bus clocks inside the low-power audio subsystem (LPASS) */
 	struct clk *ahbix_clk;
+	struct clk *pcnoc_mport_clk;
+	struct clk *pcnoc_sway_clk;
 
 	/* MI2S system clock */
 	struct clk *mi2s_osr_clk;
