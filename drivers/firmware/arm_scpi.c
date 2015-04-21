@@ -219,6 +219,21 @@ struct dvfs_set {
 	u8 index;
 } __packed;
 
+struct sensor_capabilities {
+	__le16 sensors;
+} __packed;
+
+struct sensor_info {
+	__le16 id;
+	u8 class;
+	u8 triggers;
+	u8 name[20];
+} __packed;
+
+struct sensor_value {
+	__le32 value;
+} __packed;
+
 static struct scpi_drvinfo *scpi_info;
 
 static int scpi_linux_errmap[SCPI_ERR_MAX] = {
@@ -481,6 +496,48 @@ static struct scpi_dvfs_info *scpi_dvfs_get_info(u8 domain)
 	return info;
 }
 
+static int scpi_sensor_get_id(char *name)
+{
+	struct sensor_capabilities caps;
+	u16 sensors, sensor_id;
+	int ret;
+
+	ret = scpi_send_message(SCPI_CMD_SENSOR_CAPABILITIES,
+				NULL, 0, &caps, sizeof(caps));
+	if (ret)
+		return ret;
+	sensors = le16_to_cpu(caps.sensors);
+
+	for (sensor_id = 0; sensor_id < sensors; sensor_id++) {
+
+		struct sensor_info info;
+		__le16 le_sensor_id = cpu_to_le16(sensor_id);
+		ret = scpi_send_message(SCPI_CMD_SENSOR_INFO, &le_sensor_id,
+					sizeof(le_sensor_id), &info, sizeof(info));
+		if (ret)
+			return ret;
+
+		if (strcmp(name, info.name) == 0)
+			return sensor_id;
+	}
+
+	return -ENODEV;
+}
+
+static int scpi_sensor_get_value(u16 sensor_id, u32 *value)
+{
+	struct sensor_value val;
+	__le16 le_sensor_id = cpu_to_le16(sensor_id);
+	int ret;
+
+	ret = scpi_send_message(SCPI_CMD_SENSOR_VALUE, &le_sensor_id,
+				sizeof(le_sensor_id), &val, sizeof(val));
+	if (ret == 0)
+		*value = le32_to_cpu(val.value);
+
+	return ret;
+}
+
 static struct scpi_ops scpi_ops = {
 	.get_version = scpi_get_version,
 	.clk_get_range = scpi_clk_get_range,
@@ -489,6 +546,8 @@ static struct scpi_ops scpi_ops = {
 	.dvfs_get_idx = scpi_dvfs_get_idx,
 	.dvfs_set_idx = scpi_dvfs_set_idx,
 	.dvfs_get_info = scpi_dvfs_get_info,
+	.sensor_get_id = scpi_sensor_get_id,
+	.sensor_get_value = scpi_sensor_get_value,
 };
 
 struct scpi_ops *get_scpi_ops(void)

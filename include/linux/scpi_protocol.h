@@ -52,6 +52,8 @@ struct scpi_ops {
 	int (*dvfs_get_idx)(u8);
 	int (*dvfs_set_idx)(u8, u8);
 	struct scpi_dvfs_info *(*dvfs_get_info)(u8);
+	int (*sensor_get_id)(char *);
+	int (*sensor_get_value)(u16, u32 *);
 };
 
 #if IS_ENABLED(CONFIG_ARM_SCPI_PROTOCOL)
