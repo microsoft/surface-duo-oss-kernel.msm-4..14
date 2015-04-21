@@ -523,3 +523,4 @@ const struct cpu_operations cpu_psci_ops = {
 #endif
 };
 
+CPU_METHOD_OF_DECLARE(psci, &cpu_psci_ops);
