@@ -1,0 +1,11 @@
+#include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
+
+&pm8916_gpios {
+	usb_hub_reset_pm_default: usb_hub_reset_pm_default {
+		pinconf {
+			pins = "gpio1";
+			function = PMIC_GPIO_FUNC_NORMAL;
+			output-low;
+		};
+	};
+};

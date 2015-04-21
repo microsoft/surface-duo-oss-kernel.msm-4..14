@@ -14,46 +14,158 @@
 		#size-cells = <0>;
 		interrupts = <1 9 0xf04>;
 
-		cpu@0 {
+		cpu0: cpu@0 {
 			compatible = "qcom,krait";
 			enable-method = "qcom,kpss-acc-v2";
 			device_type = "cpu";
 			reg = <0>;
 			next-level-cache = <&L2>;
 			qcom,acc = <&acc0>;
+			clocks = <&kraitcc 0>;
+			clock-names = "cpu";
+			clock-latency = <100000>;
+			qcom,saw = <&saw0>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
-		cpu@1 {
+		cpu1: cpu@1 {
 			compatible = "qcom,krait";
 			enable-method = "qcom,kpss-acc-v2";
 			device_type = "cpu";
 			reg = <1>;
 			next-level-cache = <&L2>;
 			qcom,acc = <&acc1>;
+			clocks = <&kraitcc 1>;
+			clock-names = "cpu";
+			clock-latency = <100000>;
+			qcom,saw = <&saw1>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
-		cpu@2 {
+		cpu2: cpu@2 {
 			compatible = "qcom,krait";
 			enable-method = "qcom,kpss-acc-v2";
 			device_type = "cpu";
 			reg = <2>;
 			next-level-cache = <&L2>;
 			qcom,acc = <&acc2>;
+			clocks = <&kraitcc 2>;
+			clock-names = "cpu";
+			clock-latency = <100000>;
+			qcom,saw = <&saw2>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
-		cpu@3 {
+		cpu3: cpu@3 {
 			compatible = "qcom,krait";
 			enable-method = "qcom,kpss-acc-v2";
 			device_type = "cpu";
 			reg = <3>;
 			next-level-cache = <&L2>;
 			qcom,acc = <&acc3>;
+			clocks = <&kraitcc 3>;
+			clock-names = "cpu";
+			clock-latency = <100000>;
+			qcom,saw = <&saw3>;
+			cpu-idle-states = <&CPU_SPC>;
 		};
 
 		L2: l2-cache {
 			compatible = "cache";
 			cache-level = <2>;
 			qcom,saw = <&saw_l2>;
+		};
+
+		idle-states {
+			CPU_SPC: spc {
+				compatible = "qcom,idle-state-spc",
+						"arm,idle-state";
+				entry-latency-us = <150>;
+				exit-latency-us = <200>;
+				min-residency-us = <2000>;
+			};
+		};
+	};
+
+	thermal-zones {
+		cpu-thermal0 {
+			polling-delay-passive = <250>;
+			polling-delay = <1000>;
+
+			thermal-sensors = <&tsens 5>;
+
+			trips {
+				cpu_alert0: trip@0 {
+					temperature = <100000>;
+					hysteresis = <2000>;
+					type = "passive";
+				};
+				cpu_crit0: trip@1 {
+					temperature = <125000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		cpu-thermal1 {
+			polling-delay-passive = <250>;
+			polling-delay = <1000>;
+
+			thermal-sensors = <&tsens 6>;
+
+			trips {
+				cpu_alert1: trip@0 {
+					temperature = <100000>;
+					hysteresis = <2000>;
+					type = "passive";
+				};
+				cpu_crit1: trip@1 {
+					temperature = <125000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		cpu-thermal2 {
+			polling-delay-passive = <250>;
+			polling-delay = <1000>;
+
+			thermal-sensors = <&tsens 7>;
+
+			trips {
+				cpu_alert2: trip@0 {
+					temperature = <100000>;
+					hysteresis = <2000>;
+					type = "passive";
+				};
+				cpu_crit2: trip@1 {
+					temperature = <125000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
+		};
+
+		cpu-thermal3 {
+			polling-delay-passive = <250>;
+			polling-delay = <1000>;
+
+			thermal-sensors = <&tsens 8>;
+
+			trips {
+				cpu_alert3: trip@0 {
+					temperature = <100000>;
+					hysteresis = <2000>;
+					type = "passive";
+				};
+				cpu_crit3: trip@1 {
+					temperature = <125000>;
+					hysteresis = <2000>;
+					type = "critical";
+				};
+			};
 		};
 	};
 
@@ -71,6 +183,267 @@
 		clock-frequency = <19200000>;
 	};
 
+	qcom,pvs {
+		qcom,pvs-format-b;
+			/* Hz		uV	ua */
+		qcom,speed0-pvs0-bin-v0 =
+			<  300000000  815000  73 >,
+			<  345600000  825000  85 >,
+			<  422400000  835000 104 >,
+			<  499200000  845000 124 >,
+			<  576000000  855000 144 >,
+			<  652800000  865000 165 >,
+			<  729600000  875000 186 >,
+			<  806400000  890000 208 >,
+			<  883200000  900000 229 >,
+			<  960000000  915000 252 >;
+
+		qcom,speed0-pvs1-bin-v0 =
+			<  300000000  800000  73 >,
+			<  345600000  810000  85 >,
+			<  422400000  820000 104 >,
+			<  499200000  830000 124 >,
+			<  576000000  840000 144 >,
+			<  652800000  850000 165 >,
+			<  729600000  860000 186 >,
+			<  806400000  875000 208 >,
+			<  883200000  885000 229 >,
+			<  960000000  895000 252 >;
+
+		qcom,speed0-pvs2-bin-v0 =
+			<  300000000  785000  73 >,
+			<  345600000  795000  85 >,
+			<  422400000  805000 104 >,
+			<  499200000  815000 124 >,
+			<  576000000  825000 144 >,
+			<  652800000  835000 165 >,
+			<  729600000  845000 186 >,
+			<  806400000  855000 208 >,
+			<  883200000  865000 229 >,
+			<  960000000  875000 252 >;
+
+		qcom,speed0-pvs3-bin-v0 =
+			<  300000000  775000  73 >,
+			<  345600000  780000  85 >,
+			<  422400000  790000 104 >,
+			<  499200000  800000 124 >,
+			<  576000000  810000 144 >,
+			<  652800000  820000 165 >,
+			<  729600000  830000 186 >,
+			<  806400000  840000 208 >,
+			<  883200000  850000 229 >,
+			<  960000000  860000 252 >;
+
+		qcom,speed0-pvs4-bin-v0 =
+			<  300000000  775000  73 >,
+			<  345600000  775000  85 >,
+			<  422400000  780000 104 >,
+			<  499200000  790000 124 >,
+			<  576000000  800000 144 >,
+			<  652800000  810000 165 >,
+			<  729600000  820000 186 >,
+			<  806400000  830000 208 >,
+			<  883200000  840000 229 >,
+			<  960000000  850000 252 >;
+
+		qcom,speed0-pvs5-bin-v0 =
+			<  300000000  750000  73 >,
+			<  345600000  760000  85 >,
+			<  422400000  770000 104 >,
+			<  499200000  780000 124 >,
+			<  576000000  790000 144 >,
+			<  652800000  800000 165 >,
+			<  729600000  810000 186 >,
+			<  806400000  820000 208 >,
+			<  883200000  830000 229 >,
+			<  960000000  840000 252 >;
+
+		qcom,speed0-pvs6-bin-v0 =
+			<  300000000  750000  73 >,
+			<  345600000  750000  85 >,
+			<  422400000  760000 104 >,
+			<  499200000  770000 124 >,
+			<  576000000  780000 144 >,
+			<  652800000  790000 165 >,
+			<  729600000  800000 186 >,
+			<  806400000  810000 208 >,
+			<  883200000  820000 229 >,
+			<  960000000  830000 252 >;
+
+		qcom,speed2-pvs0-bin-v0 =
+			<  300000000  800000  72 >,
+			<  345600000  800000  83 >,
+			<  422400000  805000 102 >,
+			<  499200000  815000 121 >,
+			<  576000000  825000 141 >,
+			<  652800000  835000 161 >,
+			<  729600000  845000 181 >,
+			<  806400000  855000 202 >,
+			<  883200000  865000 223 >,
+			<  960000000  875000 245 >;
+
+		qcom,speed2-pvs1-bin-v0 =
+			<  300000000  800000  72 >,
+			<  345600000  800000  83 >,
+			<  422400000  800000 102 >,
+			<  499200000  800000 121 >,
+			<  576000000  810000 141 >,
+			<  652800000  820000 161 >,
+			<  729600000  830000 181 >,
+			<  806400000  840000 202 >,
+			<  883200000  850000 223 >,
+			<  960000000  860000 245 >;
+
+		qcom,speed2-pvs2-bin-v0 =
+			<  300000000  775000  72 >,
+			<  345600000  775000  83 >,
+			<  422400000  775000 102 >,
+			<  499200000  785000 121 >,
+			<  576000000  795000 141 >,
+			<  652800000  805000 161 >,
+			<  729600000  815000 181 >,
+			<  806400000  825000 202 >,
+			<  883200000  835000 223 >,
+			<  960000000  845000 245 >;
+
+		qcom,speed2-pvs3-bin-v0 =
+			<  300000000  775000  72 >,
+			<  345600000  775000  83 >,
+			<  422400000  775000 102 >,
+			<  499200000  775000 121 >,
+			<  576000000  780000 141 >,
+			<  652800000  790000 161 >,
+			<  729600000  800000 181 >,
+			<  806400000  810000 202 >,
+			<  883200000  820000 223 >,
+			<  960000000  830000 245 >;
+
+		qcom,speed2-pvs4-bin-v0 =
+			<  300000000  775000  72 >,
+			<  345600000  775000  83 >,
+			<  422400000  775000 102 >,
+			<  499200000  775000 121 >,
+			<  576000000  775000 141 >,
+			<  652800000  780000 161 >,
+			<  729600000  790000 181 >,
+			<  806400000  800000 202 >,
+			<  883200000  810000 223 >,
+			<  960000000  820000 245 >;
+
+		qcom,speed2-pvs5-bin-v0 =
+			<  300000000  750000  72 >,
+			<  345600000  750000  83 >,
+			<  422400000  750000 102 >,
+			<  499200000  750000 121 >,
+			<  576000000  760000 141 >,
+			<  652800000  770000 161 >,
+			<  729600000  780000 181 >,
+			<  806400000  790000 202 >,
+			<  883200000  800000 223 >,
+			<  960000000  810000 245 >;
+
+		qcom,speed2-pvs6-bin-v0 =
+			<  300000000  750000  72 >,
+			<  345600000  750000  83 >,
+			<  422400000  750000 102 >,
+			<  499200000  750000 121 >,
+			<  576000000  750000 141 >,
+			<  652800000  760000 161 >,
+			<  729600000  770000 181 >,
+			<  806400000  780000 202 >,
+			<  883200000  790000 223 >,
+			<  960000000  800000 245 >;
+
+		qcom,speed1-pvs0-bin-v0 =
+			<  300000000  775000  72 >,
+			<  345600000  775000  83 >,
+			<  422400000  775000 101 >,
+			<  499200000  780000 120 >,
+			<  576000000  790000 139 >,
+			<  652800000  800000 159 >,
+			<  729600000  810000 180 >,
+			<  806400000  820000 200 >,
+			<  883200000  830000 221 >,
+			<  960000000  840000 242 >;
+
+		qcom,speed1-pvs1-bin-v0 =
+			<  300000000  775000  72 >,
+			<  345600000  775000  83 >,
+			<  422400000  775000 101 >,
+			<  499200000  775000 120 >,
+			<  576000000  775000 139 >,
+			<  652800000  785000 159 >,
+			<  729600000  795000 180 >,
+			<  806400000  805000 200 >,
+			<  883200000  815000 221 >,
+			<  960000000  825000 242 >;
+
+		qcom,speed1-pvs2-bin-v0 =
+			<  300000000  750000  72 >,
+			<  345600000  750000  83 >,
+			<  422400000  750000 101 >,
+			<  499200000  750000 120 >,
+			<  576000000  760000 139 >,
+			<  652800000  770000 159 >,
+			<  729600000  780000 180 >,
+			<  806400000  790000 200 >,
+			<  883200000  800000 221 >,
+			<  960000000  810000 242 >;
+
+		qcom,speed1-pvs3-bin-v0 =
+			<  300000000  750000  72 >,
+			<  345600000  750000  83 >,
+			<  422400000  750000 101 >,
+			<  499200000  750000 120 >,
+			<  576000000  750000 139 >,
+			<  652800000  755000 159 >,
+			<  729600000  765000 180 >,
+			<  806400000  775000 200 >,
+			<  883200000  785000 221 >,
+			<  960000000  795000 242 >;
+
+		qcom,speed1-pvs4-bin-v0 =
+			<  300000000  750000  72 >,
+			<  345600000  750000  83 >,
+			<  422400000  750000 101 >,
+			<  499200000  750000 120 >,
+			<  576000000  750000 139 >,
+			<  652800000  750000 159 >,
+			<  729600000  755000 180 >,
+			<  806400000  765000 200 >,
+			<  883200000  775000 221 >,
+			<  960000000  785000 242 >;
+
+		qcom,speed1-pvs5-bin-v0 =
+			<  300000000  725000  72 >,
+			<  345600000  725000  83 >,
+			<  422400000  725000 101 >,
+			<  499200000  725000 120 >,
+			<  576000000  725000 139 >,
+			<  652800000  735000 159 >,
+			<  729600000  745000 180 >,
+			<  806400000  755000 200 >,
+			<  883200000  765000 221 >,
+			<  960000000  775000 242 >;
+
+		qcom,speed1-pvs6-bin-v0 =
+			<  300000000  725000  72 >,
+			<  345600000  725000  83 >,
+			<  422400000  725000 101 >,
+			<  499200000  725000 120 >,
+			<  576000000  725000 139 >,
+			<  652800000  725000 159 >,
+			<  729600000  735000 180 >,
+			<  806400000  745000 200 >,
+			<  883200000  755000 221 >,
+			<  960000000  765000 242 >;
+	};
+
+	kraitcc: clock-controller {
+		compatible = "qcom,krait-cc-v2";
+		#clock-cells = <1>;
+	};
+
 	soc: soc {
 		#address-cells = <1>;
 		#size-cells = <1>;
@@ -83,6 +456,29 @@
 			#interrupt-cells = <3>;
 			reg = <0xf9000000 0x1000>,
 			      <0xf9002000 0x1000>;
+		};
+
+		qfprom: qfprom@fc4bc000 {
+			#address-cells = <1>;
+			#size-cells = <1>;
+			compatible = "qcom,qfprom";
+			reg = <0xfc4bc000 0x1000>;
+			tsens_calib: calib@d0 {
+				reg = <0xd0 0x18>;
+			};
+			tsens_backup: backup@440 {
+				reg = <0x440 0x10>;
+			};
+		};
+
+		tsens: thermal-sensor@fc4a8000 {
+			compatible = "qcom,msm8974-tsens";
+			reg = <0xfc4a8000 0x2000>;
+			eeproms = <&tsens_calib>, <&tsens_backup>;
+			eeprom-names = "calib_data", "calib_backup";
+			qcom,tsens-slopes = <3200 3200 3200 3200 3200 3200
+				3200 3200 3200 3200 3200>;
+			#thermal-sensor-cells = <1>;
 		};
 
 		timer@f9020000 {
@@ -144,7 +540,57 @@
 			};
 		};
 
-		saw_l2: regulator@f9012000 {
+		clock-controller@f9016000 {
+			compatible = "qcom,hfpll";
+			reg = <0xf9016000 0x30>;
+			clock-output-names = "hfpll_l2";
+		};
+
+		clock-controller@f908a000 {
+			compatible = "qcom,hfpll";
+			reg = <0xf908a000 0x30>, <0xf900a000 0x30>;
+			clock-output-names = "hfpll0";
+		};
+
+		clock-controller@f909a000 {
+			compatible = "qcom,hfpll";
+			reg = <0xf909a000 0x30>, <0xf900a000 0x30>;
+			clock-output-names = "hfpll1";
+		};
+
+		clock-controller@f90aa000 {
+			compatible = "qcom,hfpll";
+			reg = <0xf90aa000 0x30>, <0xf900a000 0x30>;
+			clock-output-names = "hfpll2";
+		};
+
+		clock-controller@f90ba000 {
+			compatible = "qcom,hfpll";
+			reg = <0xf90ba000 0x30>, <0xf900a000 0x30>;
+			clock-output-names = "hfpll3";
+		};
+
+		saw0: power-controller@f9089000 {
+			compatible = "qcom,msm8974-saw2-v2.1-cpu", "qcom,saw2";
+			reg = <0xf9089000 0x1000>, <0xf9009000 0x1000>;
+		};
+
+		saw1: power-controller@f9099000 {
+			compatible = "qcom,msm8974-saw2-v2.1-cpu", "qcom,saw2";
+			reg = <0xf9099000 0x1000>, <0xf9009000 0x1000>;
+		};
+
+		saw2: power-controller@f90a9000 {
+			compatible = "qcom,msm8974-saw2-v2.1-cpu", "qcom,saw2";
+			reg = <0xf90a9000 0x1000>, <0xf9009000 0x1000>;
+		};
+
+		saw3: power-controller@f90b9000 {
+			compatible = "qcom,msm8974-saw2-v2.1-cpu", "qcom,saw2";
+			reg = <0xf90b9000 0x1000>, <0xf9009000 0x1000>;
+		};
+
+		saw_l2: power-controller@f9012000 {
 			compatible = "qcom,saw2";
 			reg = <0xf9012000 0x1000>;
 			regulator;
@@ -179,6 +625,7 @@
 			compatible = "qcom,gcc-msm8974";
 			#clock-cells = <1>;
 			#reset-cells = <1>;
+			#power-domain-cells = <1>;
 			reg = <0xfc400000 0x4000>;
 		};
 
@@ -186,6 +633,7 @@
 			compatible = "qcom,mmcc-msm8974";
 			#clock-cells = <1>;
 			#reset-cells = <1>;
+			#power-domain-cells = <1>;
 			reg = <0xfd8c0000 0x6000>;
 		};
 
@@ -246,6 +694,22 @@
 			clock-names = "core", "iface";
 			#address-cells = <1>;
 			#size-cells = <0>;
+		};
+
+		spmi_bus: spmi@fc4cf000 {
+			compatible = "qcom,spmi-pmic-arb";
+			reg-names = "core", "intr", "cnfg";
+			reg = <0xfc4cf000 0x1000>,
+			      <0xfc4cb000 0x1000>,
+			      <0xfc4ca000 0x1000>;
+			interrupt-names = "periph_irq";
+			interrupts = <0 190 0>;
+			qcom,ee = <0>;
+			qcom,channel = <0>;
+			#address-cells = <2>;
+			#size-cells = <0>;
+			interrupt-controller;
+			#interrupt-cells = <4>;
 		};
 	};
 };
