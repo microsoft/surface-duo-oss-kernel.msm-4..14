@@ -31,15 +31,18 @@
 #include "clk-rcg.h"
 #include "clk-branch.h"
 #include "reset.h"
+#include "gdsc.h"
 
-#define P_XO	0
-#define P_GPLL0	1
-#define P_GPLL1	1
-#define P_GPLL4	2
+enum {
+	P_XO,
+	P_GPLL0,
+	P_GPLL1,
+	P_GPLL4,
+};
 
-static const u8 gcc_xo_gpll0_map[] = {
-	[P_XO]		= 0,
-	[P_GPLL0]	= 1,
+static const struct parent_map gcc_xo_gpll0_map[] = {
+	{ P_XO, 0 },
+	{ P_GPLL0, 1 }
 };
 
 static const char *gcc_xo_gpll0[] = {
@@ -47,10 +50,10 @@ static const char *gcc_xo_gpll0[] = {
 	"gpll0_vote",
 };
 
-static const u8 gcc_xo_gpll0_gpll4_map[] = {
-	[P_XO]		= 0,
-	[P_GPLL0]	= 1,
-	[P_GPLL4]	= 5,
+static const struct parent_map gcc_xo_gpll0_gpll4_map[] = {
+	{ P_XO, 0 },
+	{ P_GPLL0, 1 },
+	{ P_GPLL4, 5 }
 };
 
 static const char *gcc_xo_gpll0_gpll4[] = {
@@ -984,9 +987,9 @@ static const struct freq_tbl ftbl_gcc_usb_hsic_clk[] = {
 	{ }
 };
 
-static u8 usb_hsic_clk_src_map[] = {
-	[P_XO]		= 0,
-	[P_GPLL1]	= 4,
+static const struct parent_map usb_hsic_clk_src_map[] = {
+	{ P_XO, 0 },
+	{ P_GPLL1, 4 }
 };
 
 static struct clk_rcg2 usb_hsic_clk_src = {
@@ -2429,6 +2432,13 @@ static struct clk_branch gcc_usb_hsic_system_clk = {
 	},
 };
 
+static struct gdsc usb_hs_hsic_gdsc = {
+	.gdscr = 0x404,
+	.pd = {
+		.name = "usb_hs_hsic",
+	},
+};
+
 static struct clk_regmap *gcc_msm8974_clocks[] = {
 	[GPLL0] = &gpll0.clkr,
 	[GPLL0_VOTE] = &gpll0_vote,
@@ -2658,6 +2668,10 @@ static const struct qcom_reset_map gcc_msm8974_resets[] = {
 	[GCC_VENUS_RESTART] = { 0x1740 },
 };
 
+static struct gdsc *gcc_msm8974_gdscs[] = {
+	[USB_HS_HSIC_GDSC] = &usb_hs_hsic_gdsc,
+};
+
 static const struct regmap_config gcc_msm8974_regmap_config = {
 	.reg_bits	= 32,
 	.reg_stride	= 4,
@@ -2672,6 +2686,8 @@ static const struct qcom_cc_desc gcc_msm8974_desc = {
 	.num_clks = ARRAY_SIZE(gcc_msm8974_clocks),
 	.resets = gcc_msm8974_resets,
 	.num_resets = ARRAY_SIZE(gcc_msm8974_resets),
+	.gdscs = gcc_msm8974_gdscs,
+	.num_gdscs = ARRAY_SIZE(gcc_msm8974_gdscs),
 };
 
 static const struct of_device_id gcc_msm8974_match_table[] = {

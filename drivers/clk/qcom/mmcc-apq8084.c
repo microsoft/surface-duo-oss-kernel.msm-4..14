@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -26,29 +26,32 @@
 #include "clk-rcg.h"
 #include "clk-branch.h"
 #include "reset.h"
+#include "gdsc.h"
 
-#define P_XO		0
-#define P_MMPLL0	1
-#define P_EDPLINK	1
-#define P_MMPLL1	2
-#define P_HDMIPLL	2
-#define P_GPLL0		3
-#define P_EDPVCO	3
-#define P_MMPLL4	4
-#define P_DSI0PLL	4
-#define P_DSI0PLL_BYTE	4
-#define P_MMPLL2	4
-#define P_MMPLL3	4
-#define P_GPLL1		5
-#define P_DSI1PLL	5
-#define P_DSI1PLL_BYTE	5
-#define P_MMSLEEP	6
+enum {
+	P_XO,
+	P_MMPLL0,
+	P_EDPLINK,
+	P_MMPLL1,
+	P_HDMIPLL,
+	P_GPLL0,
+	P_EDPVCO,
+	P_MMPLL4,
+	P_DSI0PLL,
+	P_DSI0PLL_BYTE,
+	P_MMPLL2,
+	P_MMPLL3,
+	P_GPLL1,
+	P_DSI1PLL,
+	P_DSI1PLL_BYTE,
+	P_MMSLEEP,
+};
 
-static const u8 mmcc_xo_mmpll0_mmpll1_gpll0_map[] = {
-	[P_XO]		= 0,
-	[P_MMPLL0]	= 1,
-	[P_MMPLL1]	= 2,
-	[P_GPLL0]	= 5,
+static const struct parent_map mmcc_xo_mmpll0_mmpll1_gpll0_map[] = {
+	{ P_XO, 0 },
+	{ P_MMPLL0, 1 },
+	{ P_MMPLL1, 2 },
+	{ P_GPLL0, 5 }
 };
 
 static const char *mmcc_xo_mmpll0_mmpll1_gpll0[] = {
@@ -58,13 +61,13 @@ static const char *mmcc_xo_mmpll0_mmpll1_gpll0[] = {
 	"mmss_gpll0_vote",
 };
 
-static const u8 mmcc_xo_mmpll0_dsi_hdmi_gpll0_map[] = {
-	[P_XO]		= 0,
-	[P_MMPLL0]	= 1,
-	[P_HDMIPLL]	= 4,
-	[P_GPLL0]	= 5,
-	[P_DSI0PLL]	= 2,
-	[P_DSI1PLL]	= 3,
+static const struct parent_map mmcc_xo_mmpll0_dsi_hdmi_gpll0_map[] = {
+	{ P_XO, 0 },
+	{ P_MMPLL0, 1 },
+	{ P_HDMIPLL, 4 },
+	{ P_GPLL0, 5 },
+	{ P_DSI0PLL, 2 },
+	{ P_DSI1PLL, 3 }
 };
 
 static const char *mmcc_xo_mmpll0_dsi_hdmi_gpll0[] = {
@@ -76,12 +79,12 @@ static const char *mmcc_xo_mmpll0_dsi_hdmi_gpll0[] = {
 	"dsi1pll",
 };
 
-static const u8 mmcc_xo_mmpll0_1_2_gpll0_map[] = {
-	[P_XO]		= 0,
-	[P_MMPLL0]	= 1,
-	[P_MMPLL1]	= 2,
-	[P_GPLL0]	= 5,
-	[P_MMPLL2]	= 3,
+static const struct parent_map mmcc_xo_mmpll0_1_2_gpll0_map[] = {
+	{ P_XO, 0 },
+	{ P_MMPLL0, 1 },
+	{ P_MMPLL1, 2 },
+	{ P_GPLL0, 5 },
+	{ P_MMPLL2, 3 }
 };
 
 static const char *mmcc_xo_mmpll0_1_2_gpll0[] = {
@@ -92,12 +95,12 @@ static const char *mmcc_xo_mmpll0_1_2_gpll0[] = {
 	"mmpll2",
 };
 
-static const u8 mmcc_xo_mmpll0_1_3_gpll0_map[] = {
-	[P_XO]		= 0,
-	[P_MMPLL0]	= 1,
-	[P_MMPLL1]	= 2,
-	[P_GPLL0]	= 5,
-	[P_MMPLL3]	= 3,
+static const struct parent_map mmcc_xo_mmpll0_1_3_gpll0_map[] = {
+	{ P_XO, 0 },
+	{ P_MMPLL0, 1 },
+	{ P_MMPLL1, 2 },
+	{ P_GPLL0, 5 },
+	{ P_MMPLL3, 3 }
 };
 
 static const char *mmcc_xo_mmpll0_1_3_gpll0[] = {
@@ -108,13 +111,13 @@ static const char *mmcc_xo_mmpll0_1_3_gpll0[] = {
 	"mmpll3",
 };
 
-static const u8 mmcc_xo_dsi_hdmi_edp_map[] = {
-	[P_XO]		= 0,
-	[P_EDPLINK]	= 4,
-	[P_HDMIPLL]	= 3,
-	[P_EDPVCO]	= 5,
-	[P_DSI0PLL]	= 1,
-	[P_DSI1PLL]	= 2,
+static const struct parent_map mmcc_xo_dsi_hdmi_edp_map[] = {
+	{ P_XO, 0 },
+	{ P_EDPLINK, 4 },
+	{ P_HDMIPLL, 3 },
+	{ P_EDPVCO, 5 },
+	{ P_DSI0PLL, 1 },
+	{ P_DSI1PLL, 2 }
 };
 
 static const char *mmcc_xo_dsi_hdmi_edp[] = {
@@ -126,13 +129,13 @@ static const char *mmcc_xo_dsi_hdmi_edp[] = {
 	"dsi1pll",
 };
 
-static const u8 mmcc_xo_dsi_hdmi_edp_gpll0_map[] = {
-	[P_XO]		= 0,
-	[P_EDPLINK]	= 4,
-	[P_HDMIPLL]	= 3,
-	[P_GPLL0]	= 5,
-	[P_DSI0PLL]	= 1,
-	[P_DSI1PLL]	= 2,
+static const struct parent_map mmcc_xo_dsi_hdmi_edp_gpll0_map[] = {
+	{ P_XO, 0 },
+	{ P_EDPLINK, 4 },
+	{ P_HDMIPLL, 3 },
+	{ P_GPLL0, 5 },
+	{ P_DSI0PLL, 1 },
+	{ P_DSI1PLL, 2 }
 };
 
 static const char *mmcc_xo_dsi_hdmi_edp_gpll0[] = {
@@ -144,13 +147,13 @@ static const char *mmcc_xo_dsi_hdmi_edp_gpll0[] = {
 	"dsi1pll",
 };
 
-static const u8 mmcc_xo_dsibyte_hdmi_edp_gpll0_map[] = {
-	[P_XO]			= 0,
-	[P_EDPLINK]		= 4,
-	[P_HDMIPLL]		= 3,
-	[P_GPLL0]		= 5,
-	[P_DSI0PLL_BYTE]	= 1,
-	[P_DSI1PLL_BYTE]	= 2,
+static const struct parent_map mmcc_xo_dsibyte_hdmi_edp_gpll0_map[] = {
+	{ P_XO, 0 },
+	{ P_EDPLINK, 4 },
+	{ P_HDMIPLL, 3 },
+	{ P_GPLL0, 5 },
+	{ P_DSI0PLL_BYTE, 1 },
+	{ P_DSI1PLL_BYTE, 2 }
 };
 
 static const char *mmcc_xo_dsibyte_hdmi_edp_gpll0[] = {
@@ -162,12 +165,12 @@ static const char *mmcc_xo_dsibyte_hdmi_edp_gpll0[] = {
 	"dsi1pllbyte",
 };
 
-static const u8 mmcc_xo_mmpll0_1_4_gpll0_map[] = {
-	[P_XO]		= 0,
-	[P_MMPLL0]	= 1,
-	[P_MMPLL1]	= 2,
-	[P_GPLL0]	= 5,
-	[P_MMPLL4]	= 3,
+static const struct parent_map mmcc_xo_mmpll0_1_4_gpll0_map[] = {
+	{ P_XO, 0 },
+	{ P_MMPLL0, 1 },
+	{ P_MMPLL1, 2 },
+	{ P_GPLL0, 5 },
+	{ P_MMPLL4, 3 }
 };
 
 static const char *mmcc_xo_mmpll0_1_4_gpll0[] = {
@@ -178,13 +181,13 @@ static const char *mmcc_xo_mmpll0_1_4_gpll0[] = {
 	"gpll0",
 };
 
-static const u8 mmcc_xo_mmpll0_1_4_gpll1_0_map[] = {
-	[P_XO]		= 0,
-	[P_MMPLL0]	= 1,
-	[P_MMPLL1]	= 2,
-	[P_MMPLL4]	= 3,
-	[P_GPLL0]	= 5,
-	[P_GPLL1]	= 4,
+static const struct parent_map mmcc_xo_mmpll0_1_4_gpll1_0_map[] = {
+	{ P_XO, 0 },
+	{ P_MMPLL0, 1 },
+	{ P_MMPLL1, 2 },
+	{ P_MMPLL4, 3 },
+	{ P_GPLL0, 5 },
+	{ P_GPLL1, 4 }
 };
 
 static const char *mmcc_xo_mmpll0_1_4_gpll1_0[] = {
@@ -196,14 +199,14 @@ static const char *mmcc_xo_mmpll0_1_4_gpll1_0[] = {
 	"gpll0",
 };
 
-static const u8 mmcc_xo_mmpll0_1_4_gpll1_0_sleep_map[] = {
-	[P_XO]		= 0,
-	[P_MMPLL0]	= 1,
-	[P_MMPLL1]	= 2,
-	[P_MMPLL4]	= 3,
-	[P_GPLL0]	= 5,
-	[P_GPLL1]	= 4,
-	[P_MMSLEEP]	= 6,
+static const struct parent_map mmcc_xo_mmpll0_1_4_gpll1_0_sleep_map[] = {
+	{ P_XO, 0 },
+	{ P_MMPLL0, 1 },
+	{ P_MMPLL1, 2 },
+	{ P_MMPLL4, 3 },
+	{ P_GPLL0, 5 },
+	{ P_GPLL1, 4 },
+	{ P_MMSLEEP, 6 }
 };
 
 static const char *mmcc_xo_mmpll0_1_4_gpll1_0_sleep[] = {
@@ -3075,6 +3078,48 @@ static const struct pll_config mmpll3_config = {
 	.aux_output_mask = BIT(1),
 };
 
+static struct gdsc venus0_gdsc = {
+	.gdscr = 0x1024,
+	.pd = {
+		.name = "venus0",
+	},
+};
+
+static struct gdsc mdss_gdsc = {
+	.gdscr = 0x2304,
+	.pd = {
+		.name = "mdss",
+	},
+};
+
+static struct gdsc camss_jpeg_gdsc = {
+	.gdscr = 0x35a4,
+	.pd = {
+		.name = "camss_jpeg",
+	},
+};
+
+static struct gdsc camss_vfe_gdsc = {
+	.gdscr = 0x36a4,
+	.pd = {
+		.name = "camss_vfe",
+	},
+};
+
+static struct gdsc oxili_gdsc = {
+	.gdscr = 0x4024,
+	.pd = {
+		.name = "oxili",
+	},
+};
+
+static struct gdsc oxilicx_gdsc = {
+	.gdscr = 0x4034,
+	.pd = {
+		.name = "oxilicx",
+	},
+};
+
 static struct clk_regmap *mmcc_apq8084_clocks[] = {
 	[MMSS_AHB_CLK_SRC] = &mmss_ahb_clk_src.clkr,
 	[MMSS_AXI_CLK_SRC] = &mmss_axi_clk_src.clkr,
@@ -3292,6 +3337,15 @@ static const struct qcom_reset_map mmcc_apq8084_resets[] = {
 	[MMSSNOCAXI_RESET] = { 0x5060 },
 };
 
+static struct gdsc *mmcc_apq8084_gdscs[] = {
+	[VENUS0_GDSC] = &venus0_gdsc,
+	[MDSS_GDSC] = &mdss_gdsc,
+	[CAMSS_JPEG_GDSC] = &camss_jpeg_gdsc,
+	[CAMSS_VFE_GDSC] = &camss_vfe_gdsc,
+	[OXILI_GDSC] = &oxili_gdsc,
+	[OXILICX_GDSC] = &oxilicx_gdsc,
+};
+
 static const struct regmap_config mmcc_apq8084_regmap_config = {
 	.reg_bits	= 32,
 	.reg_stride	= 4,
@@ -3306,6 +3360,8 @@ static const struct qcom_cc_desc mmcc_apq8084_desc = {
 	.num_clks = ARRAY_SIZE(mmcc_apq8084_clocks),
 	.resets = mmcc_apq8084_resets,
 	.num_resets = ARRAY_SIZE(mmcc_apq8084_resets),
+	.gdscs = mmcc_apq8084_gdscs,
+	.num_gdscs = ARRAY_SIZE(mmcc_apq8084_gdscs),
 };
 
 static const struct of_device_id mmcc_apq8084_match_table[] = {

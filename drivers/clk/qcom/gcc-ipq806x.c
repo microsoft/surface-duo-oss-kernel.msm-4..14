@@ -30,6 +30,7 @@
 #include "clk-pll.h"
 #include "clk-rcg.h"
 #include "clk-branch.h"
+#include "clk-hfpll.h"
 #include "reset.h"
 
 static struct clk_pll pll0 = {
@@ -113,6 +114,85 @@ static struct clk_regmap pll8_vote = {
 	},
 };
 
+static struct hfpll_data hfpll0_data = {
+	.mode_reg = 0x3200,
+	.l_reg = 0x3208,
+	.m_reg = 0x320c,
+	.n_reg = 0x3210,
+	.config_reg = 0x3204,
+	.status_reg = 0x321c,
+	.config_val = 0x7845c665,
+	.droop_reg = 0x3214,
+	.droop_val = 0x0108c000,
+	.min_rate = 600000000UL,
+	.max_rate = 1800000000UL,
+};
+
+static struct clk_hfpll hfpll0 = {
+	.d = &hfpll0_data,
+	.clkr.hw.init = &(struct clk_init_data){
+		.parent_names = (const char *[]){ "pxo" },
+		.num_parents = 1,
+		.name = "hfpll0",
+		.ops = &clk_ops_hfpll,
+		.flags = CLK_IGNORE_UNUSED,
+	},
+	.lock = __SPIN_LOCK_UNLOCKED(hfpll0.lock),
+};
+
+static struct hfpll_data hfpll1_data = {
+	.mode_reg = 0x3240,
+	.l_reg = 0x3248,
+	.m_reg = 0x324c,
+	.n_reg = 0x3250,
+	.config_reg = 0x3244,
+	.status_reg = 0x325c,
+	.config_val = 0x7845c665,
+	.droop_reg = 0x3314,
+	.droop_val = 0x0108c000,
+	.min_rate = 600000000UL,
+	.max_rate = 1800000000UL,
+};
+
+static struct clk_hfpll hfpll1 = {
+	.d = &hfpll1_data,
+	.clkr.hw.init = &(struct clk_init_data){
+		.parent_names = (const char *[]){ "pxo" },
+		.num_parents = 1,
+		.name = "hfpll1",
+		.ops = &clk_ops_hfpll,
+		.flags = CLK_IGNORE_UNUSED,
+	},
+	.lock = __SPIN_LOCK_UNLOCKED(hfpll1.lock),
+};
+
+static struct hfpll_data hfpll_l2_data = {
+	.mode_reg = 0x3300,
+	.l_reg = 0x3308,
+	.m_reg = 0x330c,
+	.n_reg = 0x3310,
+	.config_reg = 0x3304,
+	.status_reg = 0x331c,
+	.config_val = 0x7845c665,
+	.droop_reg = 0x3314,
+	.droop_val = 0x0108c000,
+	.min_rate = 600000000UL,
+	.max_rate = 1800000000UL,
+};
+
+static struct clk_hfpll hfpll_l2 = {
+	.d = &hfpll_l2_data,
+	.clkr.hw.init = &(struct clk_init_data){
+		.parent_names = (const char *[]){ "pxo" },
+		.num_parents = 1,
+		.name = "hfpll_l2",
+		.ops = &clk_ops_hfpll,
+		.flags = CLK_IGNORE_UNUSED,
+	},
+	.lock = __SPIN_LOCK_UNLOCKED(hfpll_l2.lock),
+};
+
+
 static struct clk_pll pll14 = {
 	.l_reg = 0x31c4,
 	.m_reg = 0x31c8,
@@ -140,15 +220,17 @@ static struct clk_regmap pll14_vote = {
 	},
 };
 
-#define P_PXO	0
-#define P_PLL8	1
-#define P_PLL3	1
-#define P_PLL0	2
-#define P_CXO	2
+enum {
+	P_PXO,
+	P_PLL8,
+	P_PLL3,
+	P_PLL0,
+	P_CXO,
+};
 
-static const u8 gcc_pxo_pll8_map[] = {
-	[P_PXO]		= 0,
-	[P_PLL8]	= 3,
+static const struct parent_map gcc_pxo_pll8_map[] = {
+	{ P_PXO, 0 },
+	{ P_PLL8, 3 }
 };
 
 static const char *gcc_pxo_pll8[] = {
@@ -156,10 +238,10 @@ static const char *gcc_pxo_pll8[] = {
 	"pll8_vote",
 };
 
-static const u8 gcc_pxo_pll8_cxo_map[] = {
-	[P_PXO]		= 0,
-	[P_PLL8]	= 3,
-	[P_CXO]		= 5,
+static const struct parent_map gcc_pxo_pll8_cxo_map[] = {
+	{ P_PXO, 0 },
+	{ P_PLL8, 3 },
+	{ P_CXO, 5 }
 };
 
 static const char *gcc_pxo_pll8_cxo[] = {
@@ -168,14 +250,14 @@ static const char *gcc_pxo_pll8_cxo[] = {
 	"cxo",
 };
 
-static const u8 gcc_pxo_pll3_map[] = {
-	[P_PXO]		= 0,
-	[P_PLL3]	= 1,
+static const struct parent_map gcc_pxo_pll3_map[] = {
+	{ P_PXO, 0 },
+	{ P_PLL3, 1 }
 };
 
-static const u8 gcc_pxo_pll3_sata_map[] = {
-	[P_PXO]		= 0,
-	[P_PLL3]	= 6,
+static const struct parent_map gcc_pxo_pll3_sata_map[] = {
+	{ P_PXO, 0 },
+	{ P_PLL3, 6 }
 };
 
 static const char *gcc_pxo_pll3[] = {
@@ -183,10 +265,10 @@ static const char *gcc_pxo_pll3[] = {
 	"pll3",
 };
 
-static const u8 gcc_pxo_pll8_pll0[] = {
-	[P_PXO]		= 0,
-	[P_PLL8]	= 3,
-	[P_PLL0]	= 2,
+static const struct parent_map gcc_pxo_pll8_pll0[] = {
+	{ P_PXO, 0 },
+	{ P_PLL8, 3 },
+	{ P_PLL0, 2 }
 };
 
 static const char *gcc_pxo_pll8_pll0_map[] = {
@@ -2273,6 +2355,9 @@ static struct clk_regmap *gcc_ipq806x_clks[] = {
 	[USB_FS1_XCVR_SRC] = &usb_fs1_xcvr_clk_src.clkr,
 	[USB_FS1_XCVR_CLK] = &usb_fs1_xcvr_clk.clkr,
 	[USB_FS1_SYSTEM_CLK] = &usb_fs1_sys_clk.clkr,
+	[PLL9] = &hfpll0.clkr,
+	[PLL10] = &hfpll1.clkr,
+	[PLL12] = &hfpll_l2.clkr,
 };
 
 static const struct qcom_reset_map gcc_ipq806x_resets[] = {
