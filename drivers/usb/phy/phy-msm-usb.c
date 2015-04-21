@@ -431,6 +431,27 @@ static int msm_phy_init(struct usb_phy *phy)
 		ulpi_write(phy, ulpi_val, ULPI_USB_INT_EN_FALL);
 	}
 
+	/* workaround for rx buffer collision issue */
+	val = readl(USB_GENCONFIG);
+	val &= ~GENCONFIG_TXFIFO_IDLE_FORCE_DISABLE;
+	writel(val, USB_GENCONFIG);
+
+ 	val = ULPI_MISC_A_VBUSVLDEXTSEL | ULPI_MISC_A_VBUSVLDEXT;
+	ulpi_write(phy, val, ULPI_SET(ULPI_MISC_A));
+
+ 	val = readl(USB_GENCONFIG_2);
+	val |= GEN2_SESS_VLD_CTRL_EN;
+ 	writel(val, USB_GENCONFIG_2);
+
+ 	val = readl(USB_USBCMD);
+ 	val |= USBCMD_SESS_VLD_CTRL;
+ 	writel(val, USB_USBCMD);
+
+	val = ulpi_read(phy, ULPI_FUNC_CTRL);
+	val &= ~ULPI_FUNC_CTRL_OPMODE_MASK;
+	val |= ULPI_FUNC_CTRL_OPMODE_NORMAL;
+	ulpi_write(phy, val, ULPI_FUNC_CTRL);
+
 	if (motg->phy_number)
 		writel(readl(USB_PHY_CTRL2) | BIT(16), USB_PHY_CTRL2);
 
@@ -1445,6 +1466,40 @@ static const struct of_device_id msm_otg_dt_match[] = {
 };
 MODULE_DEVICE_TABLE(of, msm_otg_dt_match);
 
+static int msm_otg_vbus_notifier(struct notifier_block *nb, unsigned long event,
+				void *ptr)
+{
+	struct msm_otg *motg = container_of(nb, struct msm_otg, vbus_nb);
+
+	dev_dbg(motg->phy.dev, "USB/VBUS is %d\n", (int)event);
+
+	if (event)
+		set_bit(B_SESS_VLD, &motg->inputs);
+	else
+		clear_bit(B_SESS_VLD, &motg->inputs);
+
+	schedule_work(&motg->sm_work);
+
+	return NOTIFY_DONE;
+}
+
+static int msm_otg_id_notifier(struct notifier_block *nb, unsigned long event,
+				void *ptr)
+{
+	struct msm_otg *motg = container_of(nb, struct msm_otg, id_nb);
+
+	dev_dbg(motg->phy.dev, "USB-HOST/ID is %d\n", (int)event);
+
+	if (event)
+		set_bit(ID, &motg->inputs);
+	else
+		clear_bit(ID, &motg->inputs);
+
+	schedule_work(&motg->sm_work);
+
+	return NOTIFY_DONE;
+}
+
 static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 {
 	struct msm_otg_platform_data *pdata;
@@ -1494,6 +1549,55 @@ static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 		motg->vdd_levels[VDD_LEVEL_NONE] = tmp[VDD_LEVEL_NONE];
 		motg->vdd_levels[VDD_LEVEL_MIN] = tmp[VDD_LEVEL_MIN];
 		motg->vdd_levels[VDD_LEVEL_MAX] = tmp[VDD_LEVEL_MAX];
+	}
+
+	if (of_property_read_bool(node, "extcon")) {
+		struct extcon_dev *ext_id, *ext_vbus;
+
+		/* Each one of them is not mandatory */
+		ext_vbus = extcon_get_edev_by_phandle(&pdev->dev, 0);
+		if (IS_ERR(ext_vbus) && PTR_ERR(ext_vbus) != -ENODEV)
+			return PTR_ERR(ext_vbus);
+
+		ext_id = extcon_get_edev_by_phandle(&pdev->dev, 1);
+		if (IS_ERR(ext_id) && PTR_ERR(ext_id) != -ENODEV)
+			return PTR_ERR(ext_id);
+
+		if (IS_ERR(ext_vbus)) {
+			dev_dbg(&pdev->dev, "no VBUS extcon\n");
+		} else {
+			motg->vbus_nb.notifier_call = msm_otg_vbus_notifier;
+			ret = extcon_register_interest(&motg->vbus_cable, ext_vbus->name,
+						       "USB", &motg->vbus_nb);
+			if (ret < 0) {
+				dev_err(&pdev->dev, "register VBUS notifier failed\n");
+				return ret;
+			} else {
+				ret = extcon_get_cable_state(ext_vbus, "USB");
+				if (ret)
+					set_bit(B_SESS_VLD, &motg->inputs);
+				else
+					clear_bit(B_SESS_VLD, &motg->inputs);
+			}
+		}
+
+		if (IS_ERR(ext_id)) {
+			dev_dbg(&pdev->dev, "no ID extcon\n");
+		} else {
+			motg->id_nb.notifier_call = msm_otg_id_notifier;
+			ret = extcon_register_interest(&motg->id_cable, ext_id->name,
+						       "USB", &motg->id_nb);
+			if (ret < 0) {
+				dev_err(&pdev->dev, "register ID notifier failed\n");
+				return ret;
+			} else {
+				ret = extcon_get_cable_state(ext_id, "USB-HOST");
+				if (ret)
+					set_bit(ID, &motg->inputs);
+				else
+					clear_bit(ID, &motg->inputs);
+			}
+		}
 	}
 
 	prop = of_find_property(node, "qcom,phy-init-sequence", &len);
