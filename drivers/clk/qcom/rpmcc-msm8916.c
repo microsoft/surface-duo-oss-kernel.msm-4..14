@@ -144,8 +144,14 @@ static int rpmcc_msm8916_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	clk_set_rate(bimc_a_clk.hw.clk, 800000000);
+	/* Hold an active set vote */
+	clk_set_rate(bimc_a_clk.hw.clk, INT_MAX);
 	clk_prepare_enable(bimc_a_clk.hw.clk);
+	clk_set_rate(bimc_clk.hw.clk, INT_MAX);
+	clk_prepare_enable(bimc_clk.hw.clk);
+	clk_set_rate(snoc_clk.hw.clk, INT_MAX);
+	clk_prepare_enable(snoc_clk.hw.clk);
+	clk_prepare_enable(xo.hw.clk);
 
 	return 0;
 }
