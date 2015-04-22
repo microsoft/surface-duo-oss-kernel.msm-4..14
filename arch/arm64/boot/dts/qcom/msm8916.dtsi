@@ -153,6 +153,105 @@
 				rpm_requests {
 					compatible = "qcom,rpm-msm8916";
 					qcom,smd-channels = "rpm_requests";
+
+					pm8916-regulators {
+						compatible = "qcom,rpm-pm8916-regulators";
+
+						vdd_l1_l2_l3-supply = <&pm8916_s3>;
+						vdd_l5-supply = <&pm8916_s3>;
+						vdd_l4_l5_l6-supply = <&pm8916_s4>;
+						vdd_l7-supply = <&pm8916_s4>;
+
+						pm8916_s1: s1 {
+							regulator-min-microvolt = <375000>;
+							regulator-max-microvolt = <1562000>;
+						};
+						pm8916_s2: s2 {
+							regulator-min-microvolt = <375000>;
+							regulator-max-microvolt = <1562000>;
+						};
+						pm8916_s3: s3 {
+							regulator-min-microvolt = <375000>;
+							regulator-max-microvolt = <1562000>;
+						};
+						pm8916_s4: s4 {
+							regulator-min-microvolt = <1550000>;
+							regulator-max-microvolt = <2325000>;
+						};
+
+						pm8916_l1: l1 {
+							regulator-min-microvolt = <375000>;
+							regulator-max-microvolt = <1525000>;
+						};
+						pm8916_l2: l2 {
+							regulator-min-microvolt = <375000>;
+							regulator-max-microvolt = <1525000>;
+						};
+						pm8916_l3: l3 {
+							regulator-min-microvolt = <375000>;
+							regulator-max-microvolt = <1525000>;
+						};
+						pm8916_l4: l4 {
+							regulator-min-microvolt = <1750000>;
+							regulator-max-microvolt = <3337000>;
+						};
+						pm8916_l5: l5 {
+							regulator-min-microvolt = <1750000>;
+							regulator-max-microvolt = <3337000>;
+						};
+						pm8916_l6: l6 {
+							regulator-min-microvolt = <1750000>;
+							regulator-max-microvolt = <3337000>;
+						};
+						pm8916_l7: l7 {
+							regulator-min-microvolt = <1750000>;
+							regulator-max-microvolt = <3337000>;
+						};
+						pm8916_l8: l8 {
+							regulator-min-microvolt = <1750000>;
+							regulator-max-microvolt = <3337000>;
+						};
+						pm8916_l9: l9 {
+							regulator-min-microvolt = <1750000>;
+							regulator-max-microvolt = <3337000>;
+						};
+						pm8916_l10: l10 {
+							regulator-min-microvolt = <1750000>;
+							regulator-max-microvolt = <3337000>;
+						};
+						pm8916_l11: l11 {
+							regulator-min-microvolt = <1750000>;
+							regulator-max-microvolt = <3337000>;
+						};
+						pm8916_l12: l12 {
+							regulator-min-microvolt = <1750000>;
+							regulator-max-microvolt = <3337000>;
+						};
+						pm8916_l13: l13 {
+							regulator-min-microvolt = <1750000>;
+							regulator-max-microvolt = <3337000>;
+						};
+						pm8916_l14: l14 {
+							regulator-min-microvolt = <1750000>;
+							regulator-max-microvolt = <3337000>;
+						};
+						pm8916_l15: l15 {
+							regulator-min-microvolt = <1750000>;
+							regulator-max-microvolt = <3337000>;
+						};
+						pm8916_l16: l16 {
+							regulator-min-microvolt = <1750000>;
+							regulator-max-microvolt = <3337000>;
+						};
+						pm8916_l17: l17 {
+							regulator-min-microvolt = <1750000>;
+							regulator-max-microvolt = <3337000>;
+						};
+						pm8916_l18: l18 {
+							regulator-min-microvolt = <1750000>;
+							regulator-max-microvolt = <3337000>;
+						};
+					};
 				};
 			};
 		};
