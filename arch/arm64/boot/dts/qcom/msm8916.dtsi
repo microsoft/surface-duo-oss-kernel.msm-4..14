@@ -294,6 +294,13 @@
 			reg = <0x1800000 0x80000>;
 		};
 
+		a53cc: qcom,a53cc@0b016000 {
+			compatible = "qcom,clock-a53-msm8916";
+			reg = <0x0b016000 0x40>;
+			#clock-cells = <1>;
+			qcom,apcs = <&apcs>;
+		};
+
 		blsp1_uart2: serial@78b0000 {
 			compatible = "qcom,msm-uartdm-v1.4", "qcom,msm-uartdm";
 			reg = <0x78b0000 0x200>;
