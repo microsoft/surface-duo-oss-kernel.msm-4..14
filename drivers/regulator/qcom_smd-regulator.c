@@ -164,10 +164,10 @@ static const struct regulator_desc pm8941_hfsmps = {
 	.ops = &rpm_smps_ldo_ops,
 };
 
-static const struct regulator_desc pm8941_ftsmps = {
+static const struct regulator_desc pm8841_ftsmps = {
 	.linear_ranges = (struct regulator_linear_range[]) {
 		REGULATOR_LINEAR_RANGE(350000,  0, 184, 5000),
-		REGULATOR_LINEAR_RANGE(700000, 185, 339, 25000),
+		REGULATOR_LINEAR_RANGE(700000, 185, 339, 10000),
 	},
 	.n_linear_ranges = 2,
 	.n_voltages = 340,
@@ -258,13 +258,13 @@ struct rpm_regulator_data {
 
 static const struct rpm_regulator_data rpm_pm8841_regulators[] = {
 	{ "s1", QCOM_SMD_RPM_SMPB, 1, &pm8941_hfsmps, "vdd_s1" },
-	{ "s2", QCOM_SMD_RPM_SMPB, 2, &pm8941_ftsmps, "vdd_s2" },
+	{ "s2", QCOM_SMD_RPM_SMPB, 2, &pm8841_ftsmps, "vdd_s2" },
 	{ "s3", QCOM_SMD_RPM_SMPB, 3, &pm8941_hfsmps, "vdd_s3" },
-	{ "s4", QCOM_SMD_RPM_SMPB, 4, &pm8941_ftsmps, "vdd_s4" },
-	{ "s5", QCOM_SMD_RPM_SMPB, 5, &pm8941_ftsmps, "vdd_s5" },
-	{ "s6", QCOM_SMD_RPM_SMPB, 6, &pm8941_ftsmps, "vdd_s6" },
-	{ "s7", QCOM_SMD_RPM_SMPB, 7, &pm8941_ftsmps, "vdd_s7" },
-	{ "s8", QCOM_SMD_RPM_SMPB, 8, &pm8941_ftsmps, "vdd_s8" },
+	{ "s4", QCOM_SMD_RPM_SMPB, 4, &pm8841_ftsmps, "vdd_s4" },
+	{ "s5", QCOM_SMD_RPM_SMPB, 5, &pm8841_ftsmps, "vdd_s5" },
+	{ "s6", QCOM_SMD_RPM_SMPB, 6, &pm8841_ftsmps, "vdd_s6" },
+	{ "s7", QCOM_SMD_RPM_SMPB, 7, &pm8841_ftsmps, "vdd_s7" },
+	{ "s8", QCOM_SMD_RPM_SMPB, 8, &pm8841_ftsmps, "vdd_s8" },
 	{}
 };
 
