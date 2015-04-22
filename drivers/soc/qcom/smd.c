@@ -378,7 +378,7 @@ static size_t qcom_smd_channel_peek(struct qcom_smd_channel *channel,
 
 	tail = GET_RX_CHANNEL_INFO(channel, tail);
 
-	len = min(count, channel->fifo_size - tail);
+	len = min_t(size_t, count, channel->fifo_size - tail);
 	if (len)
 		memcpy(buf, channel->rx_fifo + tail, len);
 
@@ -583,7 +583,7 @@ static int qcom_smd_write_fifo(struct qcom_smd_channel *channel,
 
 	head = GET_TX_CHANNEL_INFO(channel, head);
 
-	len = min(count, channel->fifo_size - head);
+	len = min_t(size_t, count, channel->fifo_size - head);
 	if (len)
 		memcpy(channel->tx_fifo + head, data, len);
 
@@ -935,7 +935,7 @@ static struct qcom_smd_channel *qcom_smd_create_channel(struct qcom_smd_edge *ed
 		channel->rx_info = info + sizeof(struct smd_channel_info);
 	} else {
 		dev_err(smd->dev,
-			"channel info of size %d not supported\n", info_size);
+			"channel info of size %li not supported\n", info_size);
 		ret = -EINVAL;
 		goto free_name_and_channel;
 	}
@@ -947,7 +947,7 @@ static struct qcom_smd_channel *qcom_smd_create_channel(struct qcom_smd_edge *ed
 	/* The channel consist of a rx and tx fifo of equal size */
 	fifo_size /= 2;
 
-	dev_dbg(smd->dev, "new channel '%s' info-size: %d fifo-size: %d\n",
+	dev_dbg(smd->dev, "new channel '%s' info-size: %li fifo-size: %li\n",
 			  name, info_size, fifo_size);
 
 	channel->tx_fifo = fifo_base;
