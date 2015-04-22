@@ -72,6 +72,10 @@ struct qcom_rpm {
 
 #define RPM_SIGNAL		BIT(2)
 
+static const struct qcom_rpm_resource msm8916_rpm_resource_table[] = {
+
+};
+
 static const struct qcom_rpm_resource apq8064_rpm_resource_table[] = {
 	[QCOM_RPM_CXO_CLK] =			{ 25, 9, 5, 1 },
 	[QCOM_RPM_PXO_CLK] =			{ 26, 10, 6, 1 },
