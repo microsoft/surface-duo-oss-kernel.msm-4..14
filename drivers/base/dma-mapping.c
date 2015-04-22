@@ -228,8 +228,14 @@ EXPORT_SYMBOL(dmam_release_declared_memory);
 int dma_common_get_sgtable(struct device *dev, struct sg_table *sgt,
 		 void *cpu_addr, dma_addr_t handle, size_t size)
 {
-	struct page *page = virt_to_page(cpu_addr);
+	struct page *page;
 	int ret;
+
+	/* per-device coherent pool allocations have vmemmap addresses */
+	if (virt_addr_valid(cpu_addr))
+		page = virt_to_page(cpu_addr);
+	else
+		page = phys_to_page(handle);
 
 	ret = sg_alloc_table(sgt, 1, GFP_KERNEL);
 	if (unlikely(ret))
