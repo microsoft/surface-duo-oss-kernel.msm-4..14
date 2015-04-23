@@ -10,6 +10,7 @@ frequencies.
 	Value type: <string>
 	Definition: must be one of:
 		    "qcom,rpm-msm8974"
+		    "qcom,rpm-msm8916"
 
 - qcom,smd-channels:
 	Usage: required
@@ -31,6 +32,7 @@ Regulator nodes are identified by their compatible:
 	Definition: must be one of:
 		    "qcom,rpm-pm8841-regulators"
 		    "qcom,rpm-pm8941-regulators"
+		    "qcom,rpm-pm8916-regulators"
 
 - vdd_s1-supply:
 - vdd_s2-supply:
@@ -82,6 +84,20 @@ Regulator nodes are identified by their compatible:
 	Definition: reference to regulator supplying the input pin, as
 		    described in the data sheet
 
+- vdd_s1-supply:
+- vdd_s2-supply:
+- vdd_s3-supply:
+- vdd_s4-supply:
+- l1_l2_l3-supply:
+- l4_l5_l6-supply:
+- l7-supply:
+- l8_l9_l10_l11_l12_l13_l14_l15_l16_l17_l18-supply:
+
+	Usage: optional (pm8916 only)
+	Value type: <phandle>
+	Definition: reference to regulator supplying the input pin, as
+		    described in the data sheet
+
 The regulator node houses sub-nodes for each regulator within the device. Each
 sub-node is identified using the node's name, with valid values listed for each
 of the pmics below.
@@ -93,6 +109,10 @@ pm8941:
 	s1, s2, s3, s4, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11, l12, l13,
 	l14, l15, l16, l17, l18, l19, l20, l21, l22, l23, l24, lvs1, lvs2,
 	lvs3, 5vs1, 5vs2
+
+pm8916:
+	s1, s2, s3, s4, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11, l12, l13,
+	l14, l15, l16, l17, l18
 
 The content of each sub-node is defined by the standard binding for regulators -
 see regulator.txt.
