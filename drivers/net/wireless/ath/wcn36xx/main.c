@@ -1041,10 +1041,17 @@ static int wcn36xx_probe(struct platform_device *pdev)
 	wcn = hw->priv;
 	wcn->hw = hw;
 	wcn->dev = &pdev->dev;
+	wcn->dev->dma_mask = kzalloc(sizeof(*wcn->dev->dma_mask), GFP_KERNEL);
+	if (!wcn->dev->dma_mask) {
+		ret = -ENOMEM;
+		goto dma_mask_err;
+	}
+	dma_set_mask_and_coherent(wcn->dev, DMA_BIT_MASK(32));
 	wcn->ctrl_ops = pdev->dev.platform_data;
 	if (!wcn->ctrl_ops->get_chip_type) {
 		dev_err(&pdev->dev, "Missing ops->get_chip_type\n");
-		return -EINVAL;
+		ret = -EINVAL;
+		goto out_wq;
 	}
 	wcn->chip_version = wcn->ctrl_ops->get_chip_type();
 
@@ -1069,6 +1076,8 @@ static int wcn36xx_probe(struct platform_device *pdev)
 out_unmap:
 	iounmap(wcn->mmio);
 out_wq:
+	kfree(wcn->dev->dma_mask);
+dma_mask_err:
 	ieee80211_free_hw(hw);
 out_err:
 	return ret;
