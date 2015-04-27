@@ -842,7 +842,7 @@
 		qcom,ipc-spinlock@1905000 {
 			compatible = "qcom,ipc-spinlock-sfpb";
 			reg = <0x1905000 0x8000>;
-			qcom,num-locks = <8>;	
+			qcom,num-locks = <8>;
 		};
 
 		qcom,smem@86300000 {
@@ -1184,7 +1184,7 @@
 				reg = <0xec 0x4>;
 			};
 		};
-	
+
 		tsens: thermal-sensor@4a8000 {
 			compatible = "qcom,msm8916-tsens";
 			reg = <0x4a8000 0x2000>;
@@ -1203,7 +1203,7 @@
 			usb-phy = <&usb_otg>;
 			status = "disabled";
 		};
-	
+
 		usb_host: ehci@78d9000 {
 			compatible = "qcom,ehci-host";
 			reg = <0x78d9000 0x400>;
@@ -1211,27 +1211,27 @@
 			usb-phy = <&usb_otg>;
 			status = "disabled";
 		};
-	
+
 		usb_otg: phy@78d9000 {
 			compatible = "qcom,usb-otg-snps";
 			reg = <0x78d9000 0x400>;
 			interrupts = <GIC_SPI 134 IRQ_TYPE_EDGE_BOTH>,
 				     <GIC_SPI 140 IRQ_TYPE_EDGE_RISING>;
-	
+
 			vddcx-supply = <&pm8916_s1_corner>;
 			v1p8-supply = <&pm8916_l7>;
 			v3p3-supply = <&pm8916_l13>;
 			qcom,vdd-levels = <1 5 7>;
-	
+
 			qcom,phy-init-sequence = <0x44 0x6B 0x24 0x13>;
 			dr_mode = "peripheral";
 			qcom,otg-control = <2>; // PMIC
-	
+
 			clocks = <&gcc GCC_USB_HS_AHB_CLK>,
 				 <&gcc GCC_USB_HS_SYSTEM_CLK>,
 				 <&gcc GCC_USB2A_PHY_SLEEP_CLK>;
 			clock-names = "iface", "core", "sleep";
-	
+
 			resets = <&gcc GCC_USB2A_PHY_BCR>, <&gcc GCC_USB_HS_BCR>;
 			reset-names = "phy", "link";
 			status = "disabled";
@@ -1296,6 +1296,38 @@
 			reg-names = "mic-iomux", "spkr-iomux";
 		};
 
+		pil_venus: qcom,venus@1de0000 {
+			compatible = "qcom,pil-tz-generic";
+			reg = <0x1de0000 0x4000>;
+			power-domains = <&gcc VENUS_GDSC>;
+			clocks = <&gcc GCC_VENUS0_VCODEC0_CLK>,
+				 <&gcc GCC_VENUS0_AHB_CLK>,
+				 <&gcc GCC_VENUS0_AXI_CLK>,
+				 <&gcc GCC_CRYPTO_CLK>,
+				 <&gcc GCC_CRYPTO_AHB_CLK>,
+				 <&gcc GCC_CRYPTO_AXI_CLK>,
+				 <&gcc CRYPTO_CLK_SRC>;
+			clock-names = "core_clk",
+				      "iface_clk",
+				      "bus_clk",
+				      "scm_core_clk",
+				      "scm_iface_clk",
+				      "scm_bus_clk",
+				      "scm_core_clk_src";
+			qcom,proxy-clock-names = "core_clk",
+						 "iface_clk",
+						 "bus_clk",
+						 "scm_core_clk",
+						 "scm_iface_clk",
+						 "scm_bus_clk",
+						 "scm_core_clk_src";
+			qcom,scm_core_clk_src-freq = <80000000>;
+			qcom,pas-id = <9>;
+			qcom,proxy-timeout-ms = <5000>;
+			qcom,firmware-name = "venus";
+			memory-region = <&venus_qseecom_mem>;
+			status = "disabled";
+		};
 	};
 };
 
