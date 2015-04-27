@@ -77,6 +77,16 @@ struct qcom_scm_desc {
 	u64 x5;
 };
 
+
+#define QCOM_SCM_ENOMEM		-5
+#define QCOM_SCM_EOPNOTSUPP	-4
+#define QCOM_SCM_EINVAL_ADDR	-3
+#define QCOM_SCM_EINVAL_ARG	-2
+#define QCOM_SCM_ERROR		-1
+#define QCOM_SCM_INTERRUPTED	1
+#define QCOM_SCM_EBUSY		-55
+#define QCOM_SCM_V2_EBUSY	-12
+
 static DEFINE_MUTEX(qcom_scm_lock);
 
 #define QCOM_SCM_EBUSY_WAIT_MS 30
@@ -88,6 +98,7 @@ static DEFINE_MUTEX(qcom_scm_lock);
 #define N_REGISTER_ARGS (MAX_QCOM_SCM_ARGS - N_EXT_QCOM_SCM_ARGS + 1)
 #define SMC64_MASK 0x40000000
 #define SMC_ATOMIC_MASK 0x80000000
+#define IS_CALL_AVAIL_CMD 1
 
 #define R0_STR "x0"
 #define R1_STR "x1"
@@ -95,6 +106,7 @@ static DEFINE_MUTEX(qcom_scm_lock);
 #define R3_STR "x3"
 #define R4_STR "x4"
 #define R5_STR "x5"
+
 
 int __qcom_scm_call_armv8_64(u64 x0, u64 x1, u64 x2, u64 x3, u64 x4, u64 x5,
 				u64 *ret1, u64 *ret2, u64 *ret3)
@@ -316,6 +328,14 @@ static int qcom_scm_call(u32 svc_id, u32 cmd_id, struct qcom_scm_desc *desc)
 	return 0;
 }
 
+/**
+ * qcom_scm_call_atomic() - Invoke a syscall in the secure world
+ *
+ * Similar to qcom_scm_call except that this can be invoked in atomic context.
+ * There is also no retry mechanism implemented. Please ensure that the
+ * secure world syscall can be executed in such a context and can complete
+ * in a timely manner.
+ */
 static int qcom_scm_call_atomic(u32 s, u32 c, struct qcom_scm_desc *desc)
 {
 	int arglen = desc->arginfo & 0xf;
@@ -330,21 +350,21 @@ static int qcom_scm_call_atomic(u32 s, u32 c, struct qcom_scm_desc *desc)
 	x0 = fn_id | BIT(SMC_ATOMIC_SYSCALL) | qcom_scm_version_mask;
 
 	pr_debug("qcom_scm_call: func id %#llx, args: %#x, %#llx, %#llx, %#llx, %#llx\n",
-			x0, desc->arginfo, desc->args[0], desc->args[1],
-			desc->args[2], desc->x5);
+		x0, desc->arginfo, desc->args[0], desc->args[1],
+		desc->args[2], desc->x5);
 
 	if (qcom_scm_version == QCOM_SCM_ARMV8_64)
 		ret = __qcom_scm_call_armv8_64(x0, desc->arginfo, desc->args[0],
-						desc->args[1], desc->args[2],
-						desc->x5, &desc->ret[0],
-						&desc->ret[1], &desc->ret[2]);
+					  desc->args[1], desc->args[2],
+					  desc->x5, &desc->ret[0],
+					  &desc->ret[1], &desc->ret[2]);
 	else
 		ret = __qcom_scm_call_armv8_32(x0, desc->arginfo, desc->args[0],
-						desc->args[1], desc->args[2],
-						desc->x5, &desc->ret[0],
-						&desc->ret[1], &desc->ret[2]);
+					  desc->args[1], desc->args[2],
+					  desc->x5, &desc->ret[0],
+					  &desc->ret[1], &desc->ret[2]);
 	if (ret < 0)
-		pr_err("qcom_scm_call failed: func id %#llx, arginfo: %#x, args: %#llx, %#llx, %#llx, %#llx, ret: %d, syscall returns: %#llx, %#llx, %#llx\n", 
+		pr_err("qcom_scm_call failed: func id %#llx, arginfo: %#x, args: %#llx, %#llx, %#llx, %#llx, ret: %d, syscall returns: %#llx, %#llx, %#llx\n",
 			x0, desc->arginfo, desc->args[0], desc->args[1],
 			desc->args[2], desc->x5, ret, desc->ret[0],
 			desc->ret[1], desc->ret[2]);
@@ -399,7 +419,7 @@ void __qcom_scm_cpu_power_down(u32 flags)
 {
 	struct qcom_scm_desc desc = {0};
 	desc.args[0] = QCOM_SCM_CMD_CORE_HOTPLUGGED |
-			(flags & QCOM_SCM_FLUSH_FLAG_MASK);
+		       (flags & QCOM_SCM_FLUSH_FLAG_MASK);
 	desc.arginfo = QCOM_SCM_ARGS(1);
 
 	qcom_scm_call_atomic(QCOM_SCM_SVC_BOOT, QCOM_SCM_CMD_TERMINATE_PC, &desc);
@@ -545,6 +565,76 @@ int __qcom_scm_pas_shutdown(u32 peripheral)
 	return ret ? : scm_ret;
 }
 
+int __qcom_scm_pil_init_image_cmd(u32 proc, u64 image_addr)
+{
+	struct qcom_scm_desc desc = {0};
+	int ret, scm_ret;
+
+	desc.args[0] = proc;
+	desc.args[1] = image_addr;
+	desc.arginfo = QCOM_SCM_ARGS(2, QCOM_SCM_VAL, QCOM_SCM_RW);
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, PAS_INIT_IMAGE_CMD, &desc);
+	scm_ret = desc.ret[0];
+
+	if (ret)
+		return ret;
+
+	return scm_ret;
+}
+
+int __qcom_scm_pil_mem_setup_cmd(u32 proc, u64 start_addr, u32 len)
+{
+	struct qcom_scm_desc desc = {0};
+	int ret, scm_ret;
+
+	desc.args[0] = proc;
+	desc.args[1] = start_addr;
+	desc.args[2] = len;
+	desc.arginfo = QCOM_SCM_ARGS(3);
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, PAS_MEM_SETUP_CMD, &desc);
+	scm_ret = desc.ret[0];
+
+	if (ret)
+		return ret;
+
+	return scm_ret;
+}
+
+int __qcom_scm_pil_auth_and_reset_cmd(u32 proc)
+{
+	struct qcom_scm_desc desc = {0};
+	int ret, scm_ret;
+
+	desc.args[0] = proc;
+	desc.arginfo = QCOM_SCM_ARGS(1);
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, PAS_AUTH_AND_RESET_CMD, &desc);
+	scm_ret = desc.ret[0];
+
+	if (ret)
+		return ret;
+
+	return scm_ret;
+}
+
+int __qcom_scm_pil_shutdown_cmd(u32 proc)
+{
+	struct qcom_scm_desc desc = {0};
+	int ret, scm_ret;
+
+	desc.args[0] = proc;
+	desc.arginfo = QCOM_SCM_ARGS(1);
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, PAS_SHUTDOWN_CMD, &desc);
+	scm_ret = desc.ret[0];
+
+	if (ret)
+		return ret;
+
+	return scm_ret;
+}
 #define QCOM_SCM_SVC_INFO              0x6
 static int __init qcom_scm_init(void)
 {

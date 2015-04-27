@@ -583,3 +583,78 @@ int __qcom_scm_pas_shutdown(u32 peripheral)
 
 	return ret ? : scm_ret;
 }
+
+
+int __qcom_scm_pil_init_image_cmd(u32 proc, u64 image_addr)
+{
+	int ret;
+	u32 scm_ret = 0;
+	struct {
+		u32 proc;
+		u32 image_addr;
+	} req;
+
+	req.proc = proc;
+	req.image_addr = image_addr;
+
+	ret = qcom_scm_call(SCM_SVC_PIL, PAS_INIT_IMAGE_CMD, &req,
+			    sizeof(req), &scm_ret, sizeof(scm_ret));
+	if (ret)
+		return ret;
+
+	return scm_ret;
+}
+
+int __qcom_scm_pil_mem_setup_cmd(u32 proc, u64 start_addr, u32 len)
+{
+	u32 scm_ret = 0;
+	int ret;
+	struct {
+		u32 proc;
+		u32 start_addr;
+		u32 len;
+	} req;
+
+	req.proc = proc;
+	req.start_addr = start_addr;
+	req.len = len;
+
+	ret = qcom_scm_call(SCM_SVC_PIL, PAS_MEM_SETUP_CMD, &req,
+			    sizeof(req), &scm_ret, sizeof(scm_ret));
+	if (ret)
+		return ret;
+
+	return scm_ret;
+}
+
+int __qcom_scm_pil_auth_and_reset_cmd(u32 proc)
+{
+	u32 scm_ret = 0;
+	int ret;
+	u32 req;
+
+	req = proc;
+
+	ret = qcom_scm_call(SCM_SVC_PIL, PAS_AUTH_AND_RESET_CMD, &req,
+			    sizeof(req), &scm_ret, sizeof(scm_ret));
+	if (ret)
+		return ret;
+
+	return scm_ret;
+}
+
+int __qcom_scm_pil_shutdown_cmd(u32 proc)
+{
+	u32 scm_ret = 0;
+	int ret;
+	u32 req;
+
+	req = proc;
+
+	ret = qcom_scm_call(SCM_SVC_PIL, PAS_SHUTDOWN_CMD, &req,
+			    sizeof(req), &scm_ret, sizeof(scm_ret));
+	if (ret)
+		return ret;
+
+	return scm_ret;
+}
