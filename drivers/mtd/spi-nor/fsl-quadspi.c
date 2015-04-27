@@ -194,7 +194,7 @@
 enum fsl_qspi_devtype {
 	FSL_QUADSPI_VYBRID,
 	FSL_QUADSPI_IMX6SX,
-	FSL_QUADSPI_IMXSV4,
+	FSL_QUADSPI_S32V234,
 };
 
 struct fsl_qspi_devtype_data {
@@ -218,8 +218,8 @@ static struct fsl_qspi_devtype_data imx6sx_data = {
 	.ahb_buf_size = 1024
 };
 
-static struct fsl_qspi_devtype_data imxvs4_data = {
-	.devtype = FSL_QUADSPI_IMXVS4,
+static struct fsl_qspi_devtype_data s32v234_data = {
+	.devtype = FSL_QUADSPI_S32V234,
 	.rxfifo = 128,
 	.txfifo = 128
 };
@@ -672,7 +672,7 @@ static int fsl_qspi_nor_setup_last(struct fsl_qspi *q)
 static struct of_device_id fsl_qspi_dt_ids[] = {
 	{ .compatible = "fsl,vf610-qspi", .data = (void *)&vybrid_data, },
 	{ .compatible = "fsl,imx6sx-qspi", .data = (void *)&imx6sx_data, },
-	{ .compatible = "fsl,imxvs4-qspi", .data = (void *)&imxvs4_data, },
+	{ .compatible = "fsl,s32v234-qspi", .data = (void *)&s32v234_data, },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, fsl_qspi_dt_ids);
