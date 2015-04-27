@@ -46,4 +46,9 @@ extern void qcom_scm_cpu_power_down(u32 flags);
 
 extern u32 qcom_scm_get_version(void);
 
+extern int qcom_scm_pil_init_image_cmd(u32 proc, u64 image_addr);
+extern int qcom_scm_pil_mem_setup_cmd(u32 proc, u64 start_addr, u32 len);
+extern int qcom_scm_pil_auth_and_reset_cmd(u32 proc);
+extern int qcom_scm_pil_shutdown_cmd(u32 proc);
+
 #endif

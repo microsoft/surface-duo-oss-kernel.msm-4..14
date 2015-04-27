@@ -79,4 +79,18 @@ static inline int qcom_scm_remap_error(int err)
 	return -EINVAL;
 }
 
+enum scm_cmd {
+	PAS_INIT_IMAGE_CMD = 1,
+	PAS_MEM_SETUP_CMD,
+	PAS_AUTH_AND_RESET_CMD = 5,
+	PAS_SHUTDOWN_CMD,
+};
+
+#define SCM_SVC_PIL	0x2
+
+extern int __qcom_scm_pil_init_image_cmd(u32 proc, u64 image_addr);
+extern int __qcom_scm_pil_mem_setup_cmd(u32 proc, u64 start_addr, u32 len);
+extern int __qcom_scm_pil_auth_and_reset_cmd(u32 proc);
+extern int __qcom_scm_pil_shutdown_cmd(u32 proc);
+
 #endif
