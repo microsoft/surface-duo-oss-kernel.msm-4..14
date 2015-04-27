@@ -64,3 +64,27 @@ void qcom_scm_cpu_power_down(u32 flags)
 	__qcom_scm_cpu_power_down(flags);
 }
 EXPORT_SYMBOL(qcom_scm_cpu_power_down);
+
+int qcom_scm_pil_init_image_cmd(u32 proc, u64 image_addr)
+{
+	return __qcom_scm_pil_init_image_cmd(proc, image_addr);
+}
+EXPORT_SYMBOL(qcom_scm_pil_init_image_cmd);
+
+int qcom_scm_pil_mem_setup_cmd(u32 proc, u64 start_addr, u32 len)
+{
+	return __qcom_scm_pil_mem_setup_cmd(proc, start_addr, len);
+}
+EXPORT_SYMBOL(qcom_scm_pil_mem_setup_cmd);
+
+int qcom_scm_pil_auth_and_reset_cmd(u32 proc)
+{
+	return __qcom_scm_pil_auth_and_reset_cmd(proc);
+}
+EXPORT_SYMBOL(qcom_scm_pil_auth_and_reset_cmd);
+
+int qcom_scm_pil_shutdown_cmd(u32 proc)
+{
+	return __qcom_scm_pil_shutdown_cmd(proc);
+}
+EXPORT_SYMBOL(qcom_scm_pil_shutdown_cmd);

@@ -33,6 +33,13 @@
 #define MAX_QCOM_SCM_ARGS 10
 #define MAX_QCOM_SCM_RETS 3
 
+enum scm_arg_types {
+	SCM_VAL,
+	SCM_RO,
+	SCM_RW,
+	SCM_BUFVAL,
+};
+
 #define QCOM_SCM_ARGS_IMPL(num, a, b, c, d, e, f, g, h, i, j, ...) (\
 			(((a) & 0xff) << 4) | \
 			(((b) & 0xff) << 6) | \
@@ -433,6 +440,77 @@ void __qcom_scm_cpu_power_down(u32 flags)
 	desc.arginfo = QCOM_SCM_ARGS(1);
 
 	qcom_scm_call_atomic(QCOM_SCM_SVC_BOOT, QCOM_SCM_CMD_TERMINATE_PC, &desc);
+}
+
+int __qcom_scm_pil_init_image_cmd(u32 proc, u64 image_addr)
+{
+	struct qcom_scm_desc desc = {0};
+	int ret, scm_ret;
+
+	desc.args[0] = proc;
+	desc.args[1] = image_addr;
+	desc.arginfo = QCOM_SCM_ARGS(2, SCM_VAL, SCM_RW);
+
+	ret = qcom_scm_call(SCM_SVC_PIL, PAS_INIT_IMAGE_CMD, &desc);
+	scm_ret = desc.ret[0];
+
+	if (ret)
+		return ret;
+
+	return scm_ret;
+}
+
+int __qcom_scm_pil_mem_setup_cmd(u32 proc, u64 start_addr, u32 len)
+{
+	struct qcom_scm_desc desc = {0};
+	int ret, scm_ret;
+
+	desc.args[0] = proc;
+	desc.args[1] = start_addr;
+	desc.args[2] = len;
+	desc.arginfo = QCOM_SCM_ARGS(3);
+
+	ret = qcom_scm_call(SCM_SVC_PIL, PAS_MEM_SETUP_CMD, &desc);
+	scm_ret = desc.ret[0];
+
+	if (ret)
+		return ret;
+
+	return scm_ret;
+}
+
+int __qcom_scm_pil_auth_and_reset_cmd(u32 proc)
+{
+	struct qcom_scm_desc desc = {0};
+	int ret, scm_ret;
+
+	desc.args[0] = proc;
+	desc.arginfo = QCOM_SCM_ARGS(1);
+
+	ret = qcom_scm_call(SCM_SVC_PIL, PAS_AUTH_AND_RESET_CMD, &desc);
+	scm_ret = desc.ret[0];
+
+	if (ret)
+		return ret;
+
+	return scm_ret;
+}
+
+int __qcom_scm_pil_shutdown_cmd(u32 proc)
+{
+	struct qcom_scm_desc desc = {0};
+	int ret, scm_ret;
+
+	desc.args[0] = proc;
+	desc.arginfo = QCOM_SCM_ARGS(1);
+
+	ret = qcom_scm_call(SCM_SVC_PIL, PAS_SHUTDOWN_CMD, &desc);
+	scm_ret = desc.ret[0];
+
+	if (ret)
+		return ret;
+
+	return scm_ret;
 }
 
 #define QCOM_SCM_SVC_INFO              0x6
