@@ -21,6 +21,7 @@
 #include <linux/interrupt.h>
 #include <linux/of_gpio.h>
 #include <linux/delay.h>
+#include <linux/qcom_scm.h>
 
 #include <linux/msm-bus-board.h>
 #include <linux/msm-bus.h>
@@ -28,7 +29,6 @@
 
 #include <soc/qcom/subsystem_restart.h>
 #include <soc/qcom/ramdump.h>
-#include <soc/qcom/scm.h>
 
 #include <soc/qcom/smem.h>
 
@@ -555,17 +555,11 @@ static int pil_init_image_trusted(struct pil_desc *pil,
 		const u8 *metadata, size_t size)
 {
 	struct pil_tz_data *d = desc_to_data(pil);
-	struct pas_init_image_req {
-		u32	proc;
-		u32	image_addr;
-	} request;
-	u32 scm_ret = 0;
 	void *mdata_buf;
 	dma_addr_t mdata_phys;
 	int ret;
 	DEFINE_DMA_ATTRS(attrs);
 	struct device dev = {0};
-	struct scm_desc desc = {0};
 
 	if (d->subsys_desc.no_auth)
 		return 0;
@@ -573,8 +567,9 @@ static int pil_init_image_trusted(struct pil_desc *pil,
 	ret = scm_pas_enable_bw();
 	if (ret)
 		return ret;
-	dev.coherent_dma_mask =
-		DMA_BIT_MASK(sizeof(dma_addr_t) * 8);
+
+	dev.coherent_dma_mask = DMA_BIT_MASK(sizeof(dma_addr_t) * 8);
+
 	dma_set_attr(DMA_ATTR_STRONGLY_ORDERED, &attrs);
 	mdata_buf = dma_alloc_attrs(&dev, size, &mdata_phys, GFP_KERNEL,
 					&attrs);
@@ -586,72 +581,32 @@ static int pil_init_image_trusted(struct pil_desc *pil,
 
 	memcpy(mdata_buf, metadata, size);
 
-	desc.args[0] = request.proc = d->pas_id;
-	desc.args[1] = request.image_addr = mdata_phys;
-	desc.arginfo = SCM_ARGS(2, SCM_VAL, SCM_RW);
-
-	if (!is_scm_armv8()) {
-		ret = scm_call(SCM_SVC_PIL, PAS_INIT_IMAGE_CMD, &request,
-				sizeof(request), &scm_ret, sizeof(scm_ret));
-	} else {
-		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_PIL, PAS_INIT_IMAGE_CMD),
-				&desc);
-		scm_ret = desc.ret[0];
-	}
+	ret = qcom_scm_pil_init_image_cmd(d->pas_id, mdata_phys);
 
 	dma_free_attrs(&dev, size, mdata_buf, mdata_phys, &attrs);
 	scm_pas_disable_bw();
-	if (ret)
-		return ret;
-	return scm_ret;
+
+	return ret;
 }
 
 static int pil_mem_setup_trusted(struct pil_desc *pil, phys_addr_t addr,
 			       size_t size)
 {
 	struct pil_tz_data *d = desc_to_data(pil);
-	struct pas_init_image_req {
-		u32	proc;
-		u32	start_addr;
-		u32	len;
-	} request;
-	u32 scm_ret = 0;
-	int ret;
-	struct scm_desc desc = {0};
 
 	if (d->subsys_desc.no_auth)
 		return 0;
 
-	desc.args[0] = request.proc = d->pas_id;
-	desc.args[1] = request.start_addr = addr;
-	desc.args[2] = request.len = size;
-	desc.arginfo = SCM_ARGS(3);
-
-	if (!is_scm_armv8()) {
-		ret = scm_call(SCM_SVC_PIL, PAS_MEM_SETUP_CMD, &request,
-				sizeof(request), &scm_ret, sizeof(scm_ret));
-	} else {
-		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_PIL, PAS_MEM_SETUP_CMD),
-				&desc);
-		scm_ret = desc.ret[0];
-	}
-	if (ret)
-		return ret;
-	return scm_ret;
+	return qcom_scm_pil_mem_setup_cmd(d->pas_id, addr, size);
 }
 
 static int pil_auth_and_reset(struct pil_desc *pil)
 {
 	struct pil_tz_data *d = desc_to_data(pil);
 	int rc;
-	u32 proc, scm_ret = 0;
-	struct scm_desc desc = {0};
 
 	if (d->subsys_desc.no_auth)
 		return 0;
-
-	desc.args[0] = proc = d->pas_id;
-	desc.arginfo = SCM_ARGS(1);
 
 	rc = enable_regulators(pil->dev, d->regs, d->reg_count);
 	if (rc)
@@ -665,19 +620,13 @@ static int pil_auth_and_reset(struct pil_desc *pil)
 	if (rc)
 		goto err_reset;
 
-	if (!is_scm_armv8()) {
-		rc = scm_call(SCM_SVC_PIL, PAS_AUTH_AND_RESET_CMD, &proc,
-				sizeof(proc), &scm_ret, sizeof(scm_ret));
-	} else {
-		rc = scm_call2(SCM_SIP_FNID(SCM_SVC_PIL,
-			       PAS_AUTH_AND_RESET_CMD), &desc);
-		scm_ret = desc.ret[0];
-	}
+	rc = qcom_scm_pil_auth_and_reset_cmd(d->pas_id);
+
 	scm_pas_disable_bw();
 	if (rc)
 		goto err_reset;
 
-	return scm_ret;
+	return 0;
 err_reset:
 	disable_unprepare_clocks(d->clks, d->clk_count);
 err_clks:
@@ -689,15 +638,10 @@ err_clks:
 static int pil_shutdown_trusted(struct pil_desc *pil)
 {
 	struct pil_tz_data *d = desc_to_data(pil);
-	u32 proc, scm_ret = 0;
 	int rc;
-	struct scm_desc desc = {0};
 
 	if (d->subsys_desc.no_auth)
 		return 0;
-
-	desc.args[0] = proc = d->pas_id;
-	desc.arginfo = SCM_ARGS(1);
 
 	rc = enable_regulators(pil->dev, d->proxy_regs, d->proxy_reg_count);
 	if (rc)
@@ -708,14 +652,7 @@ static int pil_shutdown_trusted(struct pil_desc *pil)
 	if (rc)
 		goto err_clks;
 
-	if (!is_scm_armv8()) {
-		rc = scm_call(SCM_SVC_PIL, PAS_SHUTDOWN_CMD, &proc,
-			      sizeof(proc), &scm_ret, sizeof(scm_ret));
-	} else {
-		rc = scm_call2(SCM_SIP_FNID(SCM_SVC_PIL, PAS_SHUTDOWN_CMD),
-			       &desc);
-		scm_ret = desc.ret[0];
-	}
+	rc = qcom_scm_pil_shutdown_cmd(d->pas_id);
 
 	disable_unprepare_clocks(d->proxy_clks, d->proxy_clk_count);
 	disable_regulators(d->proxy_regs, d->proxy_reg_count);
@@ -726,7 +663,7 @@ static int pil_shutdown_trusted(struct pil_desc *pil)
 	disable_unprepare_clocks(d->clks, d->clk_count);
 	disable_regulators(d->regs, d->reg_count);
 
-	return scm_ret;
+	return 0;
 err_clks:
 	disable_regulators(d->proxy_regs, d->proxy_reg_count);
 	return rc;
@@ -870,6 +807,8 @@ static int pil_tz_driver_probe(struct platform_device *pdev)
 	struct pil_tz_data *d;
 	u32 proxy_timeout;
 	int len, rc;
+
+	pr_err("%s: enter\n", __func__);
 
 	d = devm_kzalloc(&pdev->dev, sizeof(*d), GFP_KERNEL);
 	if (!d)

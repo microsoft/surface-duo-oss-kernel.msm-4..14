@@ -525,21 +525,6 @@ struct pil_map_fw_info {
 	struct device *dev;
 };
 
-static void *map_fw_mem(phys_addr_t paddr, size_t size, void *data)
-{
-	struct pil_map_fw_info *info = data;
-
-	return dma_remap(info->dev, info->region, paddr, size,
-					&info->attrs);
-}
-
-static void unmap_fw_mem(void *vaddr, size_t size, void *data)
-{
-	struct pil_map_fw_info *info = data;
-
-	dma_unremap(info->dev, vaddr, size);
-}
-
 static int pil_load_seg(struct pil_desc *desc, struct pil_seg *seg)
 {
 	int ret = 0, count;
@@ -834,13 +819,6 @@ int pil_desc_init(struct pil_desc *desc)
 	wakeup_source_init(&priv->ws, priv->wname);
 	INIT_DELAYED_WORK(&priv->proxy, pil_proxy_unvote_work);
 	INIT_LIST_HEAD(&priv->segs);
-
-	/* Make sure mapping functions are set. */
-	if (!desc->map_fw_mem)
-		desc->map_fw_mem = map_fw_mem;
-
-	if (!desc->unmap_fw_mem)
-		desc->unmap_fw_mem = unmap_fw_mem;
 
 	return 0;
 err_parse_dt:

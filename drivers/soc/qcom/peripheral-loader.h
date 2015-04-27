@@ -30,9 +30,7 @@ struct pil_priv;
  * @attrs: DMA attributes to be used during dma allocation.
  * @proxy_unvote_irq: IRQ to trigger a proxy unvote. proxy_timeout
  * is ignored if this is set.
- * @map_fw_mem: Custom function used to map physical address space to virtual.
  * This defaults to ioremap if not specified.
- * @unmap_fw_mem: Custom function used to undo mapping by map_fw_mem.
  * This defaults to iounmap if not specified.
  */
 struct pil_desc {
@@ -46,8 +44,6 @@ struct pil_desc {
 	struct pil_priv *priv;
 	struct dma_attrs attrs;
 	unsigned int proxy_unvote_irq;
-	void * (*map_fw_mem)(phys_addr_t phys, size_t size, void *data);
-	void (*unmap_fw_mem)(void *virt, size_t size, void *data);
 	void *map_data;
 };
 
