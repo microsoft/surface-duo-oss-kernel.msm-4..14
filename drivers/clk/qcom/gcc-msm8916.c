@@ -3015,6 +3015,7 @@ static struct gdsc venus_gdsc = {
 	.pd = {
 		.name = "venus",
 	},
+	.con_ids = { NULL },
 };
 
 static struct gdsc mdss_gdsc = {
@@ -3022,6 +3023,7 @@ static struct gdsc mdss_gdsc = {
 	.pd = {
 		.name = "mdss",
 	},
+	.con_ids = { NULL },
 };
 
 static struct gdsc jpeg_gdsc = {
@@ -3029,6 +3031,7 @@ static struct gdsc jpeg_gdsc = {
 	.pd = {
 		.name = "jpeg",
 	},
+	.con_ids = { NULL },
 };
 
 static struct gdsc vfe_gdsc = {
@@ -3036,6 +3039,7 @@ static struct gdsc vfe_gdsc = {
 	.pd = {
 		.name = "vfe",
 	},
+	.con_ids = { NULL },
 };
 
 static struct gdsc oxili_gdsc = {
@@ -3044,6 +3048,7 @@ static struct gdsc oxili_gdsc = {
 		.name = "oxili",
 	},
 	.root_con_id = "gfx3d_clk_src",
+	.con_ids = { NULL },
 };
 
 static struct clk_regmap *gcc_msm8916_clocks[] = {
