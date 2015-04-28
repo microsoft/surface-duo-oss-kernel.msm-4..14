@@ -835,3 +835,51 @@ int __qcom_scm_restore_sec_cfg(u32 device_id, u32 spare)
 
 	return 0;
 }
+
+#define TZBSP_VIDEO_SET_STATE	0xa
+int __qcom_scm_set_video_state(u32 state, u32 spare)
+{
+	struct {
+		u32 state;
+		u32 spare;
+	} req;
+	int scm_ret = 0;
+	int ret;
+
+	req.state = state;
+	req.spare = spare;
+
+	ret = qcom_scm_call(SCM_SVC_BOOT, TZBSP_VIDEO_SET_STATE, &req,
+			    sizeof(req), &scm_ret, sizeof(scm_ret));
+	if (ret || scm_ret)
+			return ret ? ret : -EINVAL;
+
+	return 0;
+}
+
+#define TZBSP_MEM_PROTECT_VIDEO_VAR	0x8
+
+int __qcom_scm_mem_protect_video_var(u32 start, u32 size, u32 nonpixel_start,
+				     u32 nonpixel_size)
+{
+	struct {
+		u32 cp_start;
+		u32 cp_size;
+		u32 cp_nonpixel_start;
+		u32 cp_nonpixel_size;
+	} req;
+	int ret, scm_ret;
+
+	req.cp_start = start;
+	req.cp_size = size;
+	req.cp_nonpixel_start = nonpixel_start;
+	req.cp_nonpixel_size = nonpixel_size;
+
+	ret = qcom_scm_call(SCM_SVC_MP, TZBSP_MEM_PROTECT_VIDEO_VAR, &req,
+			    sizeof(req), &scm_ret, sizeof(scm_ret));
+
+	if (ret || scm_ret)
+			return ret ? ret : -EINVAL;
+
+	return 0;
+}
