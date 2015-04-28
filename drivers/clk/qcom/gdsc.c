@@ -185,8 +185,8 @@ static int gdsc_init(struct gdsc *sc)
 
 	sc->pd.power_off = gdsc_disable;
 	sc->pd.power_on = gdsc_enable;
-	sc->pd.attach_dev = gdsc_attach;
-	sc->pd.detach_dev = gdsc_detach;
+//	sc->pd.attach_dev = gdsc_attach;
+//	sc->pd.detach_dev = gdsc_detach;
 	sc->pd.flags = GENPD_FLAG_PM_CLK;
 	pm_genpd_init(&sc->pd, NULL, !on);
 
