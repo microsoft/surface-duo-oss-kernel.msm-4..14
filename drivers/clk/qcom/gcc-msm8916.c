@@ -1253,6 +1253,7 @@ static const struct freq_tbl ftbl_gcc_ultaudio_lpaif_i2s_clk[] = {
 	F(768000, P_XO, 5, 1, 5),
 	F(800000, P_XO, 5, 5, 24),
 	F(1024000, P_GPLL1, 14, 1, 63),
+	F(1152000, P_XO, 1, 3, 50),
 	F(1411200, P_GPLL1, 16, 1, 40),
 	F(1536000, P_XO, 1, 2, 25),
 	F(1600000, P_XO, 12, 0, 0),
