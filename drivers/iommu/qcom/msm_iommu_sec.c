@@ -27,7 +27,7 @@
 #include <linux/of_device.h>
 #include <linux/kmemleak.h>
 #include <linux/dma-mapping.h>
-#include <soc/qcom/scm.h>
+#include <linux/qcom_scm.h>
 
 #include <asm/cacheflush.h>
 #include <asm/sizes.h>
@@ -124,29 +124,12 @@ static int msm_iommu_dump_fault_regs(int smmu_id, int cb_num,
 				struct msm_scm_fault_regs_dump *regs)
 {
 	int ret;
-	struct scm_desc desc = {0};
-
-	struct msm_scm_fault_regs_dump_req {
-		uint32_t id;
-		uint32_t cb_num;
-		uint32_t buff;
-		uint32_t len;
-	} req_info;
-	int resp = 0;
-
-	desc.args[0] = req_info.id = smmu_id;
-	desc.args[1] = req_info.cb_num = cb_num;
-	desc.args[2] = req_info.buff = virt_to_phys(regs);
-	desc.args[3] = req_info.len = sizeof(*regs);
-	desc.arginfo = SCM_ARGS(4, SCM_VAL, SCM_VAL, SCM_RW, SCM_VAL);
 
 	dmac_clean_range(regs, regs + 1);
-	if (!is_scm_armv8())
-		ret = scm_call(SCM_SVC_UTIL, IOMMU_DUMP_SMMU_FAULT_REGS,
-			&req_info, sizeof(req_info), &resp, 1);
-	else
-		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_UTIL,
-			IOMMU_DUMP_SMMU_FAULT_REGS), &desc);
+
+	ret = qcom_scm_iommu_dump_fault_regs(smmu_id, cb_num,
+					     virt_to_phys(regs), sizeof(*regs));
+
 	dmac_inv_range(regs, regs + 1);
 
 	return ret;
@@ -339,24 +322,20 @@ lock_release:
 	return ret;
 }
 
+#define SCM_SVC_MP			0xc
+
 static int msm_iommu_sec_ptbl_init(void)
 {
 	struct device_node *np;
-	struct msm_scm_ptbl_init {
-		unsigned int paddr;
-		unsigned int size;
-		unsigned int spare;
-	} pinit = {0};
 	int psize[2] = {0, 0};
-	unsigned int spare;
-	int ret, ptbl_ret = 0;
+	unsigned int spare = 0;
+	int ret;
 	int version;
 	/* Use a dummy device for dma_alloc_attrs allocation */
 	struct device dev = { 0 };
 	void *cpu_addr;
 	dma_addr_t paddr;
 	DEFINE_DMA_ATTRS(attrs);
-	struct scm_desc desc = {0};
 
 	for_each_matching_node(np, msm_smmu_list)
 		if (of_find_property(np, "qcom,iommu-secure-id", NULL) &&
@@ -368,52 +347,23 @@ static int msm_iommu_sec_ptbl_init(void)
 
 	of_node_put(np);
 
-	version = scm_get_feat_version(SCM_SVC_MP);
-
-	pr_err("iommu sec: version:%x, is_scm_armv8:%d\n", version,
-		is_scm_armv8());
+	version = qcom_scm_get_feat_version(SCM_SVC_MP);
 
 	if (version >= MAKE_VERSION(1, 1, 1)) {
-		struct msm_cp_pool_size psize;
-		int retval;
-		struct scm_desc desc = {0};
-
-		desc.args[0] = psize.size = MAXIMUM_VIRT_SIZE;
-		desc.args[1] = psize.spare = 0;
-		desc.arginfo = SCM_ARGS(2);
-
-		if (!is_scm_armv8())
-			ret = scm_call(SCM_SVC_MP, IOMMU_SET_CP_POOL_SIZE,
-					&psize, sizeof(psize), &retval,
-					sizeof(retval));
-		else
-			ret = scm_call2(SCM_SIP_FNID(SCM_SVC_MP,
-					IOMMU_SET_CP_POOL_SIZE), &desc);
-
+		ret = qcom_scm_iommu_set_cp_pool_size(MAXIMUM_VIRT_SIZE, 0);
 		if (ret) {
 			pr_err("scm call IOMMU_SET_CP_POOL_SIZE failed\n");
 			goto fail;
 		}
-
 	}
 
-	if (!is_scm_armv8()) {
-		ret = scm_call(SCM_SVC_MP, IOMMU_SECURE_PTBL_SIZE, &spare,
-				sizeof(spare), psize, sizeof(psize));
-	} else {
-		struct scm_desc desc = {0};
-
-		desc.args[0] = spare;
-		desc.arginfo = SCM_ARGS(1);
-		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_MP,
-				IOMMU_SECURE_PTBL_SIZE), &desc);
-		psize[0] = desc.ret[0];
-		psize[1] = desc.ret[1];
-	}
+	ret = qcom_scm_iommu_secure_ptbl_size(spare, psize);
 	if (ret) {
 		pr_err("scm call IOMMU_SECURE_PTBL_SIZE failed\n");
 		goto fail;
 	}
+
+	pr_err("iommu sec: psize[0]: %d, psize[1]: %d\n", psize[0], psize[1]);
 
 	if (psize[1]) {
 		pr_err("scm call IOMMU_SECURE_PTBL_SIZE failed\n");
@@ -423,8 +373,6 @@ static int msm_iommu_sec_ptbl_init(void)
 	dma_set_attr(DMA_ATTR_NO_KERNEL_MAPPING, &attrs);
 	dev.coherent_dma_mask = DMA_BIT_MASK(sizeof(dma_addr_t) * 8);
 
-	pr_err("iommu sec: psize[0]: %d\n", psize[0]);
-
 	cpu_addr = dma_alloc_attrs(&dev, psize[0], &paddr, GFP_KERNEL, &attrs);
 	if (!cpu_addr) {
 		pr_err("%s: Failed to allocate %d bytes for PTBL\n",
@@ -433,26 +381,10 @@ static int msm_iommu_sec_ptbl_init(void)
 		goto fail;
 	}
 
-	desc.args[0] = pinit.paddr = (unsigned int)paddr;
-	desc.args[1] = pinit.size = psize[0];
-	desc.args[2] = pinit.spare;
-	desc.arginfo = SCM_ARGS(3, SCM_RW, SCM_VAL, SCM_VAL);
+	ret = qcom_scm_iommu_secure_ptbl_init(paddr, psize[0], spare);
 
-	if (!is_scm_armv8()) {
-		ret = scm_call(SCM_SVC_MP, IOMMU_SECURE_PTBL_INIT, &pinit,
-				sizeof(pinit), &ptbl_ret, sizeof(ptbl_ret));
-	} else {
-		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_MP,
-				IOMMU_SECURE_PTBL_INIT), &desc);
-		ptbl_ret = desc.ret[0];
-	}
 	if (ret) {
 		pr_err("scm call IOMMU_SECURE_PTBL_INIT failed (%d)\n", ret);
-		goto fail_mem;
-	}
-	if (ptbl_ret) {
-		pr_err("scm call IOMMU_SECURE_PTBL_INIT extended ret fail (%d)\n",
-			ptbl_ret);
 		goto fail_mem;
 	}
 
@@ -467,55 +399,33 @@ fail:
 int msm_iommu_sec_program_iommu(struct msm_iommu_drvdata *drvdata,
 			struct msm_iommu_ctx_drvdata *ctx_drvdata)
 {
-	int ret, scm_ret = 0;
-
 	if (drvdata->smmu_local_base) {
-		writel_relaxed(0xFFFFFFFF, drvdata->smmu_local_base +
-						SMMU_INTR_SEL_NS);
+		writel_relaxed(0xFFFFFFFF,
+			       drvdata->smmu_local_base + SMMU_INTR_SEL_NS);
 		mb();
 	}
 
-	ret = scm_restore_sec_cfg(drvdata->sec_id, ctx_drvdata->num, &scm_ret);
-	if (ret || scm_ret) {
-		pr_err("scm call IOMMU_SECURE_CFG failed\n");
-		return ret ? ret : -EINVAL;
-	}
-
-	return ret;
+	return qcom_scm_restore_sec_cfg(drvdata->sec_id, ctx_drvdata->num);
 }
 
 static int msm_iommu_sec_map2(struct msm_scm_map2_req *map)
 {
-	struct scm_desc desc = {0};
-	u32 resp;
-	int ret;
+	u32 flags;
 
-	desc.args[0] = map->plist.list;
-	desc.args[1] = map->plist.list_size;
-	desc.args[2] = map->plist.size;
-	desc.args[3] = map->info.id;
-	desc.args[4] = map->info.ctx_id;
-	desc.args[5] = map->info.va;
-	desc.args[6] = map->info.size;
 #ifdef CONFIG_MSM_IOMMU_TLBINVAL_ON_MAP
-	desc.args[7] = map->flags = IOMMU_TLBINVAL_FLAG;
+	flags = IOMMU_TLBINVAL_FLAG;
 #else
-	desc.args[7] = map->flags = 0;
+	flags = 0;
 #endif
-	desc.arginfo = SCM_ARGS(8, SCM_RW, SCM_VAL, SCM_VAL, SCM_VAL, SCM_VAL,
-				SCM_VAL, SCM_VAL, SCM_VAL);
-	if (!is_scm_armv8()) {
-		ret = scm_call(SCM_SVC_MP, IOMMU_SECURE_MAP2, map, sizeof(*map),
-				&resp, sizeof(resp));
-	} else {
-		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_MP,
-				IOMMU_SECURE_MAP2_FLAT), &desc);
-		resp = desc.ret[0];
-	}
-	if (ret || resp)
-		return -EINVAL;
 
-	return 0;
+	return qcom_scm_iommu_secure_map(map->plist.list,
+					 map->plist.list_size,
+					 map->plist.size,
+					 map->info.id,
+					 map->info.ctx_id,
+					 map->info.va,
+					 map->info.size,
+					 flags);
 }
 
 static int msm_iommu_sec_ptbl_map(struct msm_iommu_drvdata *iommu_drvdata,
@@ -640,9 +550,6 @@ static int msm_iommu_sec_ptbl_map_range(struct msm_iommu_drvdata *iommu_drvdata,
 		flush_va = pa_list;
 	}
 
-/*	trace_iommu_sec_ptbl_map_range_start(map.info.id, map.info.ctx_id, va,
-								pa, len);*/
-
 	/*
 	 * Ensure that the buffer is in RAM by the time it gets to TZ
 	 */
@@ -653,37 +560,21 @@ static int msm_iommu_sec_ptbl_map_range(struct msm_iommu_drvdata *iommu_drvdata,
 	ret = msm_iommu_sec_map2(&map);
 	kfree(pa_list);
 
-/*	trace_iommu_sec_ptbl_map_range_end(map.info.id, map.info.ctx_id, va, pa,
-									len);*/
-
 	return ret;
 }
 
 static int msm_iommu_sec_ptbl_unmap(struct msm_iommu_drvdata *iommu_drvdata,
-			struct msm_iommu_ctx_drvdata *ctx_drvdata,
-			unsigned long va, size_t len)
+				    struct msm_iommu_ctx_drvdata *ctx_drvdata,
+				    unsigned long va, size_t len)
 {
-	struct msm_scm_unmap2_req unmap;
-	int ret, scm_ret;
-	struct scm_desc desc = {0};
-
 	if (!IS_ALIGNED(va, SZ_1M) || !IS_ALIGNED(len, SZ_1M))
 		return -EINVAL;
-	desc.args[0] = unmap.info.id = iommu_drvdata->sec_id;
-	desc.args[1] = unmap.info.ctx_id = ctx_drvdata->num;
-	desc.args[2] = unmap.info.va = va;
-	desc.args[3] = unmap.info.size = len;
-	desc.args[4] = unmap.flags = IOMMU_TLBINVAL_FLAG;
-	desc.arginfo = SCM_ARGS(5);
 
-	if (!is_scm_armv8())
-		ret = scm_call(SCM_SVC_MP, IOMMU_SECURE_UNMAP2, &unmap,
-				sizeof(unmap), &scm_ret, sizeof(scm_ret));
-	else
-		ret = scm_call2(SCM_SIP_FNID(SCM_SVC_MP,
-				IOMMU_SECURE_UNMAP2_FLAT), &desc);
-
-	return ret;
+	return qcom_scm_iommu_secure_unmap(iommu_drvdata->sec_id,
+					   ctx_drvdata->num,
+					   va,
+					   len,
+					   IOMMU_TLBINVAL_FLAG);
 }
 
 static int msm_iommu_domain_init(struct iommu_domain *domain)
@@ -933,35 +824,14 @@ static phys_addr_t msm_iommu_iova_to_phys(struct iommu_domain *domain,
 	return 0;
 }
 
-static phys_addr_t msm_iommu_get_pt_base_addr(struct iommu_domain *domain)
-{
-	return 0;
-}
-
 void msm_iommu_check_scm_call_avail(void)
 {
-	is_secure = scm_is_call_available(SCM_SVC_MP, IOMMU_SECURE_CFG);
+	is_secure = qcom_scm_is_call_available(SCM_SVC_MP, IOMMU_SECURE_CFG);
 }
 
 int msm_iommu_get_scm_call_avail(void)
 {
 	return is_secure;
-}
-
-/*
- * VFE SMMU is changing from being non-secure to being secure.
- * For backwards compatibility we need to check whether the secure environment
- * has support for this.
- */
-static s32 secure_camera_enabled = -1;
-int is_vfe_secure(void)
-{
-	if (secure_camera_enabled == -1) {
-		u32 ver = scm_get_feat_version(SCM_SVC_SEC_CAMERA);
-		secure_camera_enabled = ver >= MAKE_VERSION(1, 0, 0);
-	}
-
-	return secure_camera_enabled;
 }
 
 static struct iommu_ops msm_iommu_ops = {
@@ -971,11 +841,10 @@ static struct iommu_ops msm_iommu_ops = {
 	.detach_dev = msm_iommu_detach_dev,
 	.map = msm_iommu_map,
 	.unmap = msm_iommu_unmap,
-//	.map_range = msm_iommu_map_range,
+/*	.map_range = msm_iommu_map_range,*/
 	.map_sg = default_iommu_map_sg,
-//	.unmap_range = msm_iommu_unmap_range,
+/*	.unmap_range = msm_iommu_unmap_range,*/
 	.iova_to_phys = msm_iommu_iova_to_phys,
-//	.get_pt_base_addr = msm_iommu_get_pt_base_addr,
 	.pgsize_bitmap = MSM_IOMMU_PGSIZES,
 };
 
