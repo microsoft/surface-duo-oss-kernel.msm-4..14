@@ -29,6 +29,7 @@
 #include "lpass.h"
 
 static struct snd_soc_dai_driver lpass_cpu_dai_driver = {
+	.id	= LPAIF_I2S_PORT_MI2S,
 	.playback = {
 		.stream_name	= "lpass-cpu-playback",
 		.formats	= SNDRV_PCM_FMTBIT_S16 |
