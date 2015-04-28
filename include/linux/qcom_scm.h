@@ -66,4 +66,8 @@ extern int qcom_scm_is_call_available(u32 svc_id, u32 cmd_id);
 extern int qcom_scm_get_feat_version(u32 feat);
 extern int qcom_scm_restore_sec_cfg(u32 device_id, u32 spare);
 
+extern int qcom_scm_set_video_state(u32 state, u32 spare);
+extern int qcom_scm_mem_protect_video_var(u32 start, u32 size,
+					  u32 nonpixel_start,
+					  u32 nonpixel_size);
 #endif
