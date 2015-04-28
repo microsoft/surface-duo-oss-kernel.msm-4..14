@@ -1,7 +1,7 @@
 # Qualcomm IOMMU support
 
 # QCOM IOMMUv1 support
-config QCOM_IOMMU
+config QCOM_IOMMU_V1
 	bool "Qualcomm IOMMUv1 Support"
 	depends on ARCH_QCOM
 	select IOMMU_API
@@ -16,7 +16,7 @@ config QCOM_IOMMU
 
 config MMU500_ACTIVE_PREFETCH_BUG_WITH_SECTION_MAPPING
 	bool "Don't align virtual address at 1MB boundary"
-	depends on QCOM_IOMMU
+	depends on QCOM_IOMMU_V1
 	help
 	  Say Y here if the MMU500 revision has a bug in active prefetch
 	  which can cause TLB corruptions due to 1MB alignment of a buffer.
@@ -35,7 +35,7 @@ config MMU500_ACTIVE_PREFETCH_BUG_WITH_SECTION_MAPPING
 
 config IOMMU_PGTABLES_L2
 	bool "Allow SMMU page tables in the L2 cache (Experimental)"
-	depends on QCOM_IOMMU && MMU && SMP && CPU_DCACHE_DISABLE=n
+	depends on QCOM_IOMMU_V1 && MMU && SMP && CPU_DCACHE_DISABLE=n
 	help
 	  Improves TLB miss latency at the expense of potential L2 pollution.
 	  However, with large multimedia buffers, the TLB should mostly contain
