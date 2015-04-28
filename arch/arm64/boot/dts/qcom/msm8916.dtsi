@@ -1335,3 +1335,4 @@
 #include "pm8916.dtsi"
 #include "msm8916-regulator.dtsi"
 #include "msm8916-mdss.dtsi"
+#include "msm8916-iommu.dtsi"
