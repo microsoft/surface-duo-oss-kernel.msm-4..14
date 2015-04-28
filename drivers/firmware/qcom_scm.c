@@ -254,3 +254,18 @@ int qcom_scm_restore_sec_cfg(u32 device_id, u32 spare)
 	return __qcom_scm_restore_sec_cfg(device_id, spare);
 }
 EXPORT_SYMBOL(qcom_scm_restore_sec_cfg);
+
+int qcom_scm_set_video_state(u32 state, u32 spare)
+{
+	return __qcom_scm_set_video_state(state, spare);
+}
+EXPORT_SYMBOL(qcom_scm_set_video_state);
+
+int qcom_scm_mem_protect_video_var(u32 start, u32 size,
+				   u32 nonpixel_start,
+				   u32 nonpixel_size)
+{
+	return __qcom_scm_mem_protect_video_var(start, size, nonpixel_start,
+						nonpixel_size);
+}
+EXPORT_SYMBOL(qcom_scm_mem_protect_video_var);
