@@ -785,3 +785,4 @@
 };
 
 #include "msm8916-pins.dtsi"
+#include "msm8916-iommu.dtsi"
