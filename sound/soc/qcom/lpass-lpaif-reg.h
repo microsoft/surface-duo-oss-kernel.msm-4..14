@@ -9,21 +9,16 @@
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
- * lpass-lpaif-ipq806x.h -- Definitions for the QTi LPAIF in the ipq806x LPASS
  */
 
-#ifndef __LPASS_LPAIF_H__
-#define __LPASS_LPAIF_H__
+#ifndef __LPASS_LPAIF_REG_H__
+#define __LPASS_LPAIF_REG_H__
 
-#define LPAIF_BANK_OFFSET		0x1000
 
 /* LPAIF I2S */
 
-#define LPAIF_I2SCTL_REG_BASE		0x0010
-#define LPAIF_I2SCTL_REG_STRIDE		0x4
-#define LPAIF_I2SCTL_REG_ADDR(addr, port) \
-	(LPAIF_I2SCTL_REG_BASE + (addr) + (LPAIF_I2SCTL_REG_STRIDE * (port)))
+#define LPAIF_I2SCTL_REG_ADDR(v, addr, port) \
+	(v->i2sctrl_reg_base + (addr) + v->i2sctrl_reg_stride * (port))
 
 enum lpaif_i2s_ports {
 	LPAIF_I2S_PORT_MIN		= 0,
@@ -38,8 +33,8 @@ enum lpaif_i2s_ports {
 	LPAIF_I2S_PORT_NUM		= 5,
 };
 
-#define LPAIF_I2SCTL_REG(port)		LPAIF_I2SCTL_REG_ADDR(0x0, (port))
 
+#define LPAIF_I2SCTL_REG(v, port)	LPAIF_I2SCTL_REG_ADDR(v, 0x0, (port))
 #define LPAIF_I2SCTL_LOOPBACK_MASK	0x8000
 #define LPAIF_I2SCTL_LOOPBACK_SHIFT	15
 #define LPAIF_I2SCTL_LOOPBACK_DISABLE	(0 << LPAIF_I2SCTL_LOOPBACK_SHIFT)
@@ -79,11 +74,8 @@ enum lpaif_i2s_ports {
 #define LPAIF_I2SCTL_BITWIDTH_32	(2 << LPAIF_I2SCTL_BITWIDTH_SHIFT)
 
 /* LPAIF IRQ */
-
-#define LPAIF_IRQ_REG_BASE		0x3000
-#define LPAIF_IRQ_REG_STRIDE		0x1000
-#define LPAIF_IRQ_REG_ADDR(addr, port) \
-	(LPAIF_IRQ_REG_BASE + (addr) + (LPAIF_IRQ_REG_STRIDE * (port)))
+#define LPAIF_IRQ_REG_ADDR(v, addr, port) \
+	(v->irq_reg_base + (addr) + v->irq_reg_stride * (port))
 
 enum lpaif_irq_ports {
 	LPAIF_IRQ_PORT_MIN		= 0,
@@ -95,22 +87,22 @@ enum lpaif_irq_ports {
 	LPAIF_IRQ_PORT_NUM		= 3,
 };
 
-#define LPAIF_IRQEN_REG(port)		LPAIF_IRQ_REG_ADDR(0x0, (port))
-#define LPAIF_IRQSTAT_REG(port)		LPAIF_IRQ_REG_ADDR(0x4, (port))
-#define LPAIF_IRQCLEAR_REG(port)	LPAIF_IRQ_REG_ADDR(0xC, (port))
+#define LPAIF_IRQEN_REG(v, port)	LPAIF_IRQ_REG_ADDR(v, 0x0, (port))
+#define LPAIF_IRQSTAT_REG(v, port)	LPAIF_IRQ_REG_ADDR(v, 0x4, (port))
+#define LPAIF_IRQCLEAR_REG(v, port)	LPAIF_IRQ_REG_ADDR(v, 0xC, (port))
 
 #define LPAIF_IRQ_BITSTRIDE		3
+
 #define LPAIF_IRQ_PER(chan)		(1 << (LPAIF_IRQ_BITSTRIDE * (chan)))
 #define LPAIF_IRQ_XRUN(chan)		(2 << (LPAIF_IRQ_BITSTRIDE * (chan)))
 #define LPAIF_IRQ_ERR(chan)		(4 << (LPAIF_IRQ_BITSTRIDE * (chan)))
+
 #define LPAIF_IRQ_ALL(chan)		(7 << (LPAIF_IRQ_BITSTRIDE * (chan)))
 
 /* LPAIF DMA */
 
-#define LPAIF_RDMA_REG_BASE		0x6000
-#define LPAIF_RDMA_REG_STRIDE		0x1000
-#define LPAIF_RDMA_REG_ADDR(addr, chan) \
-	(LPAIF_RDMA_REG_BASE + (addr) + (LPAIF_RDMA_REG_STRIDE * (chan)))
+#define LPAIF_RDMA_REG_ADDR(v, addr, chan) \
+	(v->rdma_reg_base + (addr) + v->rdma_reg_stride * (chan))
 
 enum lpaif_dma_channels {
 	LPAIF_RDMA_CHAN_MIN		= 0,
@@ -123,11 +115,14 @@ enum lpaif_dma_channels {
 	LPAIF_RDMA_CHAN_NUM		= 5,
 };
 
-#define LPAIF_RDMACTL_REG(chan)		LPAIF_RDMA_REG_ADDR(0x00, (chan))
-#define LPAIF_RDMABASE_REG(chan)	LPAIF_RDMA_REG_ADDR(0x04, (chan))
-#define	LPAIF_RDMABUFF_REG(chan)	LPAIF_RDMA_REG_ADDR(0x08, (chan))
-#define LPAIF_RDMACURR_REG(chan)	LPAIF_RDMA_REG_ADDR(0x0C, (chan))
-#define	LPAIF_RDMAPER_REG(chan)		LPAIF_RDMA_REG_ADDR(0x10, (chan))
+#define LPAIF_RDMACTL_AUDINTF(id)	(id << LPAIF_RDMACTL_AUDINTF_SHIFT)
+
+#define LPAIF_RDMACTL_REG(v, chan)	LPAIF_RDMA_REG_ADDR(v, 0x00, (chan))
+#define LPAIF_RDMABASE_REG(v, chan)	LPAIF_RDMA_REG_ADDR(v, 0x04, (chan))
+#define	LPAIF_RDMABUFF_REG(v, chan)	LPAIF_RDMA_REG_ADDR(v, 0x08, (chan))
+#define LPAIF_RDMACURR_REG(v, chan)	LPAIF_RDMA_REG_ADDR(v, 0x0C, (chan))
+#define	LPAIF_RDMAPER_REG(v, chan)	LPAIF_RDMA_REG_ADDR(v, 0x10, (chan))
+#define	LPAIF_RDMAPERCNT_REG(v, chan)	LPAIF_RDMA_REG_ADDR(v, 0x14, (chan))
 
 #define LPAIF_RDMACTL_BURSTEN_MASK	0x800
 #define LPAIF_RDMACTL_BURSTEN_SHIFT	11
@@ -169,4 +164,4 @@ enum lpaif_dma_channels {
 #define LPAIF_RDMACTL_ENABLE_OFF	(0 << LPAIF_RDMACTL_ENABLE_SHIFT)
 #define LPAIF_RDMACTL_ENABLE_ON		(1 << LPAIF_RDMACTL_ENABLE_SHIFT)
 
-#endif /* __LPASS_LPAIF_H__ */
+#endif /* __LPASS_LPAIF_REG_H__ */
