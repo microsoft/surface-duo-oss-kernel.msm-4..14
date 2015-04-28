@@ -277,7 +277,7 @@ struct remote_iommu_petersons_spinlock {
 	uint32_t turn;
 };
 
-#ifdef CONFIG_QCOM_IOMMU
+#ifdef CONFIG_QCOM_IOMMU_V1
 void *msm_iommu_lock_initialize(void);
 void msm_iommu_mutex_lock(void);
 void msm_iommu_mutex_unlock(void);
@@ -300,22 +300,7 @@ static inline struct iommu_access_ops *msm_get_iommu_access_ops(void)
 }
 #endif
 
-#ifdef CONFIG_QCOM_IOMMU_SYNC
-void msm_iommu_remote_p0_spin_lock(unsigned int need_lock);
-void msm_iommu_remote_p0_spin_unlock(unsigned int need_lock);
-
-#define msm_iommu_remote_lock_init() _msm_iommu_remote_spin_lock_init()
-#define msm_iommu_remote_spin_lock(need_lock) \
-				msm_iommu_remote_p0_spin_lock(need_lock)
-#define msm_iommu_remote_spin_unlock(need_lock) \
-				msm_iommu_remote_p0_spin_unlock(need_lock)
-#else
-#define msm_iommu_remote_lock_init()
-#define msm_iommu_remote_spin_lock(need_lock)
-#define msm_iommu_remote_spin_unlock(need_lock)
-#endif
-
-#ifdef CONFIG_QCOM_IOMMU
+#ifdef CONFIG_QCOM_IOMMU_V1
 /*
  * Look up an IOMMU context device by its context name. NULL if none found.
  * Useful for testing and drivers that do not yet fully have IOMMU stuff in
@@ -392,7 +377,7 @@ u32 msm_iommu_get_nmrr(void);
 /* events for notifiers passed to msm_iommu_register_notify */
 #define TLB_SYNC_TIMEOUT 1
 
-#ifdef CONFIG_QCOM_IOMMU
+#ifdef CONFIG_QCOM_IOMMU_V1
 void msm_iommu_register_notify(struct notifier_block *nb);
 #else
 static inline void msm_iommu_register_notify(struct notifier_block *nb)
