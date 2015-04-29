@@ -69,6 +69,7 @@ struct lpass_variant ipq806x_data = {
 	.rdma_reg_base		= 0x6000,
 	.rdma_reg_stride	= 0x1000,
 	.rdma_channels		= 4,
+	.rdmactl_audif_start	= 4,
 	.dai_driver		= &lpass_cpu_dai_driver,
 	.num_dai		= 1,
 	.alloc_dma_channel	= ipq806x_lpass_alloc_dma_channel,
