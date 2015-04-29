@@ -61,6 +61,8 @@ struct lpass_variant {
 	u32	rdma_reg_stride;
 	u32	rdma_channels;
 
+	/* OCR clock is not present in SOCs like APQ8016 */
+	bool	no_osr_clk;
 	/* SOC specific intialization like clocks */
 	int (*init)(struct platform_device *pdev);
 	int (*exit)(struct platform_device *pdev);
