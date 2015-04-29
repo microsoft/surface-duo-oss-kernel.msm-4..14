@@ -61,6 +61,12 @@ struct lpass_variant {
 	u32	rdma_reg_stride;
 	u32	rdma_channels;
 
+	/**
+	 * on SOCs like APQ8016 the channel control bits start
+	 * at different offset to ipq806x
+	 **/
+	u32	rdmactl_audif_start;
+
 	/* OCR clock is not present in SOCs like APQ8016 */
 	bool	no_osr_clk;
 	/* SOC specific intialization like clocks */
