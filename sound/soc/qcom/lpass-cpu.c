@@ -33,6 +33,9 @@ static int lpass_cpu_daiops_set_sysclk(struct snd_soc_dai *dai, int clk_id,
 	struct lpass_data *drvdata = snd_soc_dai_get_drvdata(dai);
 	int ret;
 
+	if (drvdata->variant->no_osr_clk)
+		return 0;
+
 	ret = clk_set_rate(drvdata->mi2s_osr_clk[dai->id], freq);
 	if (ret)
 		dev_err(dai->dev, "%s() error setting mi2s osrclk to %u: %d\n",
@@ -47,18 +50,21 @@ static int lpass_cpu_daiops_startup(struct snd_pcm_substream *substream,
 	struct lpass_data *drvdata = snd_soc_dai_get_drvdata(dai);
 	int ret;
 
-	ret = clk_prepare_enable(drvdata->mi2s_osr_clk[dai->id]);
-	if (ret) {
-		dev_err(dai->dev, "%s() error in enabling mi2s osr clk: %d\n",
-				__func__, ret);
-		return ret;
+	if (!drvdata->variant->no_osr_clk) {
+		ret = clk_prepare_enable(drvdata->mi2s_osr_clk[dai->id]);
+		if (ret) {
+			dev_err(dai->dev, "%s() error in enabling mi2s osr clk: %d\n",
+					__func__, ret);
+			return ret;
+		}
 	}
 
 	ret = clk_prepare_enable(drvdata->mi2s_bit_clk[dai->id]);
 	if (ret) {
 		dev_err(dai->dev, "%s() error in enabling mi2s bit clk: %d\n",
 				__func__, ret);
-		clk_disable_unprepare(drvdata->mi2s_osr_clk[dai->id]);
+		if (!drvdata->variant->no_osr_clk)
+			clk_disable_unprepare(drvdata->mi2s_osr_clk[dai->id]);
 		return ret;
 	}
 
@@ -71,7 +77,9 @@ static void lpass_cpu_daiops_shutdown(struct snd_pcm_substream *substream,
 	struct lpass_data *drvdata = snd_soc_dai_get_drvdata(dai);
 
 	clk_disable_unprepare(drvdata->mi2s_bit_clk[dai->id]);
-	clk_disable_unprepare(drvdata->mi2s_osr_clk[dai->id]);
+
+	if (!drvdata->variant->no_osr_clk)
+		clk_disable_unprepare(drvdata->mi2s_osr_clk[dai->id]);
 }
 
 static int lpass_cpu_daiops_hw_params(struct snd_pcm_substream *substream,
@@ -398,17 +406,22 @@ int lpass_cpu_platform_probe(struct platform_device *pdev)
 	if (variant->init)
 		variant->init(pdev);
 
-	for (i = 0; i < variant->num_dai; i++) {
-		if (variant->num_dai > 1)
-			sprintf(clk_name, "mi2s-osr-clk%d", i);
-		else
-			sprintf(clk_name, "mi2s-osr-clk");
+	if (!variant->no_osr_clk) {
+		for (i = 0; i < variant->num_dai; i++) {
+			if (variant->num_dai > 1)
+				sprintf(clk_name, "mi2s-osr-clk%d", i);
+			else
+				sprintf(clk_name, "mi2s-osr-clk");
 
-		drvdata->mi2s_osr_clk[i] = devm_clk_get(&pdev->dev, clk_name);
-		if (IS_ERR(drvdata->mi2s_osr_clk[i])) {
-			dev_err(&pdev->dev, "%s() error getting mi2s-osr-clk: %ld\n",
-				__func__, PTR_ERR(drvdata->mi2s_osr_clk[i]));
-			return PTR_ERR(drvdata->mi2s_osr_clk[i]);
+			drvdata->mi2s_osr_clk[i] = devm_clk_get(&pdev->dev,
+								clk_name);
+			if (IS_ERR(drvdata->mi2s_osr_clk[i])) {
+				dev_err(&pdev->dev,
+					"%s() error getting mi2s-osr-clk: %ld\n",
+					__func__,
+					PTR_ERR(drvdata->mi2s_osr_clk[i]));
+				return PTR_ERR(drvdata->mi2s_osr_clk[i]);
+			}
 		}
 	}
 
