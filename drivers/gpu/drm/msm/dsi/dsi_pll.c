@@ -13,7 +13,6 @@
 
 #include "dsi.h"
 #include "dsi.xml.h"
-#include "pll.xml.h"
 
 #ifndef CONFIG_COMMON_CLK
 struct msm_dsi_pll *msm_dsi_pll_init(struct platform_device *pdev,
@@ -28,10 +27,126 @@ void msm_dsi_pll_destroy(struct msm_dsi_pll *pll)
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 
-#include "pll.xml.h"
-
 #define NUM_DSI_CLOCKS_MAX	6
 #define MAX_DSI_PLL_EN_SEQS	10
+
+#define REG_PLL_28nm_REFCLK_CFG					0x00000000
+
+#define REG_PLL_28nm_POSTDIV1_CFG				0x00000004
+
+#define REG_PLL_28nm_CHGPUMP_CFG				0x00000008
+
+#define REG_PLL_28nm_VCOLPF_CFG					0x0000000c
+
+#define REG_PLL_28nm_VREG_CFG					0x00000010
+
+#define REG_PLL_28nm_PWRGEN_CFG					0x00000014
+
+#define REG_PLL_28nm_DMUX_CFG					0x00000018
+
+#define REG_PLL_28nm_AMUX_CFG					0x0000001c
+
+#define REG_PLL_28nm_GLB_CFG					0x00000020
+
+#define REG_PLL_28nm_POSTDIV2_CFG				0x00000024
+
+#define REG_PLL_28nm_POSTDIV3_CFG				0x00000028
+
+#define REG_PLL_28nm_LPFR_CFG					0x0000002c
+
+#define REG_PLL_28nm_LPFC1_CFG					0x00000030
+
+#define REG_PLL_28nm_LPFC2_CFG					0x00000034
+
+#define REG_PLL_28nm_SDM_CFG0					0x00000038
+
+#define REG_PLL_28nm_SDM_CFG1					0x0000003c
+
+#define REG_PLL_28nm_SDM_CFG2					0x00000040
+
+#define REG_PLL_28nm_SDM_CFG3					0x00000044
+
+#define REG_PLL_28nm_SDM_CFG4					0x00000048
+
+#define REG_PLL_28nm_SSC_CFG0					0x0000004c
+
+#define REG_PLL_28nm_SSC_CFG1					0x00000050
+
+#define REG_PLL_28nm_SSC_CFG2					0x00000054
+
+#define REG_PLL_28nm_SSC_CFG3					0x00000058
+
+#define REG_PLL_28nm_LKDET_CFG0					0x0000005c
+
+#define REG_PLL_28nm_LKDET_CFG1					0x00000060
+
+#define REG_PLL_28nm_LKDET_CFG2					0x00000064
+
+#define REG_PLL_28nm_TEST_CFG					0x00000068
+
+#define REG_PLL_28nm_CAL_CFG0					0x0000006c
+
+#define REG_PLL_28nm_CAL_CFG1					0x00000070
+
+#define REG_PLL_28nm_CAL_CFG2					0x00000074
+
+#define REG_PLL_28nm_CAL_CFG3					0x00000078
+
+#define REG_PLL_28nm_CAL_CFG4					0x0000007c
+
+#define REG_PLL_28nm_CAL_CFG5					0x00000080
+
+#define REG_PLL_28nm_CAL_CFG6					0x00000084
+
+#define REG_PLL_28nm_CAL_CFG7					0x00000088
+
+#define REG_PLL_28nm_CAL_CFG8					0x0000008c
+
+#define REG_PLL_28nm_CAL_CFG9					0x00000090
+
+#define REG_PLL_28nm_CAL_CFG10					0x00000094
+
+#define REG_PLL_28nm_CAL_CFG11					0x00000098
+
+#define REG_PLL_28nm_EFUSE_CFG					0x0000009c
+
+#define REG_PLL_28nm_DEBUG_BUS_SEL				0x000000a0
+
+#define REG_PLL_28nm_CTRL_42					0x000000a4
+
+#define REG_PLL_28nm_CTRL_43					0x000000a8
+
+#define REG_PLL_28nm_CTRL_44					0x000000ac
+
+#define REG_PLL_28nm_CTRL_45					0x000000b0
+
+#define REG_PLL_28nm_CTRL_46					0x000000b4
+
+#define REG_PLL_28nm_CTRL_47					0x000000b8
+
+#define REG_PLL_28nm_CTRL_48					0x000000bc
+
+#define REG_PLL_28nm_STATUS					0x000000c0
+
+#define REG_PLL_28nm_DEBUG_BUS0					0x000000c4
+
+#define REG_PLL_28nm_DEBUG_BUS1					0x000000c8
+
+#define REG_PLL_28nm_DEBUG_BUS2					0x000000cc
+
+#define REG_PLL_28nm_DEBUG_BUS3					0x000000d0
+
+#define REG_PLL_28nm_CTRL_54					0x000000d4
+
+
+#define PLL_28nm_STATUS_PLL_RDY					BIT(0)
+#define PLL_28nm_TEST_CFG_PLL_SW_RESET				0x1
+
+#define PLL_28nm_GLB_CFG_PLL_PWRDN_B				1
+#define PLL_28nm_GLB_CFG_PLL_PWRGEN_PWRDN_B			5
+#define PLL_28nm_GLB_CFG_PLL_LDO_PWRDN_B			7
+#define PLL_28nm_GLB_CFG_PLL_ENABLE				0xf
+
 
 struct msm_dsi_pll {
 	struct platform_device *pdev;
