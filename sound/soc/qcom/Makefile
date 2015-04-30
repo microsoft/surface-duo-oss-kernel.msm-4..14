@@ -13,3 +13,4 @@ obj-$(CONFIG_SND_SOC_LPASS_APQ8016) += snd-soc-lpass-apq8016.o
 snd-soc-storm-objs := storm.o
 
 obj-$(CONFIG_SND_SOC_STORM) += snd-soc-storm.o
+obj-$(CONFIG_SND_SOC_APQ8016) += apq8016.o
