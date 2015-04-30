@@ -39,6 +39,8 @@
 
 #ifndef __ASSEMBLY__
 
+#include <linux/kernel.h>
+
 struct arm64_cpu_capabilities {
 	const char *desc;
 	u16 capability;
