@@ -66,6 +66,7 @@ struct msm_dsi {
 	struct platform_device *pdev;
 
 	struct drm_connector *connector;
+	/* internal bridge to link to mdp5 encoder */
 	struct drm_bridge *bridge;
 
 	struct mipi_dsi_host *host;
@@ -73,7 +74,11 @@ struct msm_dsi {
 	struct drm_panel *panel;
 	unsigned long panel_flags;
 
+	/* dsi host is connected to a bridge/encoder chip */
+	struct drm_bridge *ext_bridge;
+
 	struct device *phy_dev;
+
 	bool phy_enabled;
 
 	/* the encoders we are hooked to (outside of dsi block) */
@@ -140,6 +145,7 @@ int msm_dsi_host_set_display_mode(struct mipi_dsi_host *host,
 					struct drm_display_mode *mode);
 struct drm_panel *msm_dsi_host_get_panel(struct mipi_dsi_host *host,
 					unsigned long *panel_flags);
+struct drm_bridge *msm_dsi_host_get_ext_bridge(struct mipi_dsi_host *host);
 int msm_dsi_host_register(struct mipi_dsi_host *host, bool check_defer);
 void msm_dsi_host_unregister(struct mipi_dsi_host *host);
 int msm_dsi_host_set_src_pll(struct mipi_dsi_host *host,
