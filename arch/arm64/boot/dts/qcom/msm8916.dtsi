@@ -477,7 +477,12 @@
 			status = "disabled";
 		};
 
-		lpass: lpass@07700000 {
+		wcd_digital: codec-digital{
+			compatible = "syscon", "qcom,apq8016-wcd-digital-codec";
+			reg = <0x0771c000 0x400>;
+		};
+
+		lpass: lpass@07708000 {
 			status = "disabled";
 			compatible = "qcom,lpass-cpu-apq8016";
 			clocks = <&gcc GCC_ULTAUDIO_AHBFABRIC_IXFABRIC_CLK>,
@@ -502,6 +507,14 @@
 			reg = <0x07708000 0x10000>;
 			reg-names = "lpass-lpaif";
 		};
+
+		sound: sound {
+			status = "disabled";
+			compatible = "qcom,apq8016-sbc-sndcard";
+			reg = <0x07702000 0x4>, <0x07702004 0x4>;
+			reg-names = "mic-iomux", "spkr-iomux";
+		};
+
 
 		sdhc_1: sdhci@07824000 {
 			compatible = "qcom,sdhci-msm-v4";
