@@ -12,6 +12,7 @@
  */
 
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/sound/apq8016-lpass.h>
 #include "msm8916.dtsi"
 #include "pm8916.dtsi"
 #include "apq8016-sbc-soc-pins.dtsi"
@@ -157,7 +158,7 @@
 &blsp_i2c4 {
 	status = "ok";
 
-	bridge@39 {
+	adv_bridge: bridge@39 {
 		status = "ok";
 		compatible = "adi,adv7533";
 		reg = <0x39>;
@@ -168,6 +169,7 @@
 		pinctrl-names = "default","sleep";
 		pinctrl-0 = <&adv7533_int_active &adv7533_switch_active>;
 		pinctrl-1 = <&adv7533_int_suspend &adv7533_switch_suspend>;
+		#sound-dai-cells = <0>;
 
 		port {
 			adv_in: endpoint {
@@ -184,6 +186,44 @@
 	port {
 		dsi_out: endpoint {
 			remote-endpoint = <&adv_in>;
+		};
+	};
+};
+
+&lpass {
+	status = "okay";
+};
+	/*
+	Internal Codec
+		playback - Primary MI2S
+		capture - Ter MI2S
+
+	External Primary:
+		playback - secondary MI2S
+		capture - Quat MI2S
+
+	External Secondary:
+		playback - Quat MI2S
+		capture - Quat MI2S
+
+	*/
+&sound {
+	status = "okay";
+	pinctrl-0 = <&cdc_pdm_lines_act &ext_sec_tlmm_lines_act &ext_mclk_tlmm_lines_act>;
+	pinctrl-1 = <&cdc_pdm_lines_sus &ext_sec_tlmm_lines_sus &ext_mclk_tlmm_lines_sus>;
+	pinctrl-names = "default", "sleep";
+	qcom,model = "DB410c";
+
+
+	/* External Primary or External Secondary -ADV7533 HDMI */
+	external-dai-link@0 {
+		link-name = "ADV7533";
+
+		cpu { /* QUAT */
+			sound-dai = <&lpass MI2S_QUATERNARY>;
+		};
+		codec {
+			sound-dai = <&adv_bridge 0>;
 		};
 	};
 };
