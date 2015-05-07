@@ -69,9 +69,14 @@ static LIST_HEAD(qcom_iommu_devices);
  */
 struct qcom_domain_priv {
 	unsigned long *pgtable;
-	struct iommu_domain *domain;
+	struct iommu_domain domain;
 	struct list_head iommu_list;  /* list of attached 'struct qcom_iommu' */
 };
+
+static struct qcom_domain_priv *to_qcom_domain(struct iommu_domain *dom)
+{
+       return container_of(dom, struct qcom_domain_priv, domain);
+}
 
 static int __enable_clocks(struct qcom_iommu *iommu)
 {
@@ -358,8 +363,14 @@ static void __program_context(struct qcom_domain_priv *priv,
 	mb();
 }
 
-static int qcom_iommu_domain_init(struct iommu_domain *domain)
+static struct iommu_domain * qcom_iommu_domain_alloc(unsigned type)
 {
+
+	struct iommu_domain *domain;
+
+	if (type != IOMMU_DOMAIN_UNMANAGED)
+		return NULL;
+
 	struct qcom_domain_priv *priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 
 	if (!priv)
@@ -373,8 +384,8 @@ static int qcom_iommu_domain_init(struct iommu_domain *domain)
 		goto fail_nomem;
 
 	memset(priv->pgtable, 0, SZ_16K);
-	domain->priv = priv;
-	priv->domain = domain;
+//	domain->priv = priv;
+	domain = &priv->domain;
 
 //XXX I think not needed?
 	dmac_flush_range(priv->pgtable, priv->pgtable + NUM_FL_PTE);
@@ -383,22 +394,22 @@ static int qcom_iommu_domain_init(struct iommu_domain *domain)
 	domain->geometry.aperture_end   = (1ULL << 32) - 1;
 	domain->geometry.force_aperture = true;
 
-	return 0;
+	return domain;
 
 fail_nomem:
 	kfree(priv);
-	return -ENOMEM;
+	return NULL;
 }
 
-static void qcom_iommu_domain_destroy(struct iommu_domain *domain)
+static void qcom_iommu_domain_free(struct iommu_domain *domain)
 {
 	struct qcom_domain_priv *priv;
 	unsigned long *fl_table;
 	int i;
 
 	mutex_lock(&qcom_iommu_lock);
-	priv = domain->priv;
-	domain->priv = NULL;
+	priv = to_qcom_domain(domain);
+//	domain->priv = NULL;
 
 	if (priv) {
 		fl_table = priv->pgtable;
@@ -418,7 +429,7 @@ static void qcom_iommu_domain_destroy(struct iommu_domain *domain)
 
 static int qcom_iommu_attach_dev(struct iommu_domain *domain, struct device *dev)
 {
-	struct qcom_domain_priv *priv = domain->priv;
+	struct qcom_domain_priv *priv = to_qcom_domain(domain);
 	struct qcom_iommu *iommu;
 	struct qcom_iommu_ctx *iommu_ctx = NULL;
 	int ret = 0;
@@ -473,7 +484,7 @@ fail:
 static void qcom_iommu_detach_dev(struct iommu_domain *domain,
 				 struct device *dev)
 {
-	struct qcom_domain_priv *priv = domain->priv;
+	struct qcom_domain_priv *priv = to_qcom_domain(domain);
 	struct qcom_iommu *iommu;
 	struct qcom_iommu_ctx *iommu_ctx;
 	int ret;
@@ -560,7 +571,7 @@ static int __get_pgprot(int prot, int len)
 static int qcom_iommu_map(struct iommu_domain *domain, unsigned long va,
 			 phys_addr_t pa, size_t len, int prot)
 {
-	struct qcom_domain_priv *priv = domain->priv;
+	struct qcom_domain_priv *priv = to_qcom_domain(domain);
 	struct qcom_iommu *iommu;
 	unsigned long *fl_table, *fl_pte, fl_offset;
 	unsigned long *sl_table, *sl_pte, sl_offset;
@@ -696,7 +707,7 @@ fail:
 static size_t qcom_iommu_unmap(struct iommu_domain *domain, unsigned long va,
 			    size_t len)
 {
-	struct qcom_domain_priv *priv = domain->priv;
+	struct qcom_domain_priv *priv = to_qcom_domain(domain);
 	struct qcom_iommu *iommu;
 	unsigned long *fl_table, *fl_pte, fl_offset;
 	unsigned long *sl_table, *sl_pte, sl_offset;
@@ -790,7 +801,7 @@ fail:
 static phys_addr_t qcom_iommu_iova_to_phys(struct iommu_domain *domain,
 					  dma_addr_t va)
 {
-	struct qcom_domain_priv *priv = domain->priv;
+	struct qcom_domain_priv *priv = to_qcom_domain(domain);
 	struct qcom_iommu *iommu;
 	struct qcom_iommu_ctx *iommu_ctx;
 	unsigned int par;
@@ -925,8 +936,8 @@ fail:
 }
 
 static struct iommu_ops qcom_iommu_ops = {
-	.domain_init = qcom_iommu_domain_init,
-	.domain_destroy = qcom_iommu_domain_destroy,
+	.domain_alloc = qcom_iommu_domain_alloc,
+	.domain_free = qcom_iommu_domain_free,
 	.attach_dev = qcom_iommu_attach_dev,
 	.detach_dev = qcom_iommu_detach_dev,
 	.map = qcom_iommu_map,
