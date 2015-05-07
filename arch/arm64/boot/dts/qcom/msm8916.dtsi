@@ -1192,7 +1192,7 @@
 			interrupts = <GIC_SPI 134 IRQ_TYPE_EDGE_BOTH>,
 				     <GIC_SPI 140 IRQ_TYPE_EDGE_RISING>;
 	
-			vddcx-supply = <&pm8916_s1_corner>;
+//			vddcx-supply = <&pm8916_s1_corner>;
 			v1p8-supply = <&pm8916_l7>;
 			v3p3-supply = <&pm8916_l13>;
 			qcom,vdd-levels = <1 5 7>;
