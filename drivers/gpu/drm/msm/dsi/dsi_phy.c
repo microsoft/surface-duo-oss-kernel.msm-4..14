@@ -107,8 +107,7 @@ static void dsi_phy_regulator_disable(struct msm_dsi_phy *phy)
 	DBG("");
 	for (i = num - 1; i >= 0; i--)
 		if (regs[i].disable_load >= 0)
-			regulator_set_optimum_mode(s[i].consumer,
-						regs[i].disable_load);
+			regulator_disable(s[i].consumer);
 
 	regulator_bulk_disable(num, s);
 }
@@ -124,8 +123,8 @@ static int dsi_phy_regulator_enable(struct msm_dsi_phy *phy)
 	DBG("");
 	for (i = 0; i < num; i++) {
 		if (regs[i].enable_load >= 0) {
-			ret = regulator_set_optimum_mode(s[i].consumer,
-							regs[i].enable_load);
+
+			ret = regulator_enable(s[i].consumer);
 			if (ret < 0) {
 				dev_err(dev,
 					"regulator %d set op mode failed, %d\n",
@@ -145,7 +144,7 @@ static int dsi_phy_regulator_enable(struct msm_dsi_phy *phy)
 
 fail:
 	for (i--; i >= 0; i--)
-		regulator_set_optimum_mode(s[i].consumer, regs[i].disable_load);
+		regulator_disable(s[i].consumer);
 	return ret;
 }
 
