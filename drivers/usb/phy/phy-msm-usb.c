@@ -76,6 +76,9 @@ static int msm_hsusb_init_vddcx(struct msm_otg *motg, int init)
 {
 	int ret = 0;
 
+	if (IS_ERR(motg->vddcx))
+		return 0;
+
 	if (init) {
 		ret = regulator_set_voltage(motg->vddcx,
 				motg->vdd_levels[VDD_LEVEL_MIN],
@@ -1649,7 +1652,7 @@ static int msm_otg_reboot_notify(struct notifier_block *this,
 
 static int msm_otg_probe(struct platform_device *pdev)
 {
-	struct regulator_bulk_data regs[3];
+	struct regulator_bulk_data regs[2];
 	int ret = 0;
 	struct device_node *np = pdev->dev.of_node;
 	struct msm_otg_platform_data *pdata;
@@ -1736,17 +1739,21 @@ static int msm_otg_probe(struct platform_device *pdev)
 		goto unregister_extcon;
 	}
 
-	regs[0].supply = "vddcx";
-	regs[1].supply = "v3p3";
-	regs[2].supply = "v1p8";
+	regs[0].supply = "v3p3";
+	regs[1].supply = "v1p8";
 
 	ret = devm_regulator_bulk_get(motg->phy.dev, ARRAY_SIZE(regs), regs);
-	if (ret)
+	if (ret) {
+		dev_err(&pdev->dev, "no v3p3 or v1p8\n");
 		goto unregister_extcon;
+	}
 
-	motg->vddcx = regs[0].consumer;
-	motg->v3p3  = regs[1].consumer;
-	motg->v1p8  = regs[2].consumer;
+	motg->v3p3  = regs[0].consumer;
+	motg->v1p8  = regs[1].consumer;
+
+	motg->vddcx = devm_regulator_get_optional(motg->phy.dev, "vddcx");
+	if (IS_ERR(motg->vddcx))
+		dev_info(&pdev->dev, "no vddcx\n");
 
 	clk_set_rate(motg->clk, 60000000);
 
