@@ -1629,15 +1629,6 @@ static int msm_otg_probe(struct platform_device *pdev)
 	if (!motg)
 		return -ENOMEM;
 
-	pdata = dev_get_platdata(&pdev->dev);
-	if (!pdata) {
-		if (!np)
-			return -ENXIO;
-		ret = msm_otg_read_dt(pdev, motg);
-		if (ret)
-			return ret;
-	}
-
 	motg->phy.otg = devm_kzalloc(&pdev->dev, sizeof(struct usb_otg),
 				     GFP_KERNEL);
 	if (!motg->phy.otg)
@@ -1707,6 +1698,15 @@ static int msm_otg_probe(struct platform_device *pdev)
 	ret = devm_regulator_bulk_get(motg->phy.dev, ARRAY_SIZE(regs), regs);
 	if (ret)
 		return ret;
+
+	pdata = dev_get_platdata(&pdev->dev);
+	if (!pdata) {
+		if (!np)
+			return -ENXIO;
+		ret = msm_otg_read_dt(pdev, motg);
+		if (ret)
+			return ret;
+	}
 
 	motg->vddcx = regs[0].consumer;
 	motg->v3p3  = regs[1].consumer;
@@ -1789,6 +1789,12 @@ disable_vddcx:
 	clk_disable_unprepare(motg->clk);
 	if (!IS_ERR(motg->core_clk))
 		clk_disable_unprepare(motg->core_clk);
+
+	if (motg->id_cable.edev)
+		extcon_unregister_interest(&motg->id_cable);
+	if (motg->vbus_cable.edev)
+		extcon_unregister_interest(&motg->vbus_cable);
+
 	return ret;
 }
 
@@ -1800,6 +1806,11 @@ static int msm_otg_remove(struct platform_device *pdev)
 
 	if (phy->otg->host || phy->otg->gadget)
 		return -EBUSY;
+
+	if (motg->id_cable.edev)
+		extcon_unregister_interest(&motg->id_cable);
+	if (motg->vbus_cable.edev)
+		extcon_unregister_interest(&motg->vbus_cable);
 
 	msm_otg_debugfs_cleanup();
 	cancel_delayed_work_sync(&motg->chg_work);
