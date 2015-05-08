@@ -1721,10 +1721,8 @@ static int msm_otg_probe(struct platform_device *pdev)
 		clk_prepare_enable(motg->core_clk);
 
 	ret = msm_hsusb_init_vddcx(motg, 1);
-	if (ret) {
-		dev_err(&pdev->dev, "hsusb vddcx configuration failed\n");
-		goto disable_clks;
-	}
+	if (ret)
+		dev_err(&pdev->dev, "hsusb vddcx configuration failed - nevermind\n");
 
 	ret = msm_hsusb_ldo_init(motg, 1);
 	if (ret) {
@@ -1787,7 +1785,6 @@ disable_ldo:
 	msm_hsusb_ldo_init(motg, 0);
 disable_vddcx:
 	msm_hsusb_init_vddcx(motg, 0);
-disable_clks:
 	clk_disable_unprepare(motg->pclk);
 	clk_disable_unprepare(motg->clk);
 	if (!IS_ERR(motg->core_clk))
