@@ -1,0 +1,38 @@
+* QCOM SoC Temperature Sensor (TSENS)
+
+Required properties:
+- compatible :
+ - "qcom,msm8916-tsens" : For 8916 Family of SoCs
+ - "qcom,msm8974-tsens" : For 8974 Family of SoCs
+ - "qcom,apq8064-tsens" : For 8064 Family of SoCs
+ - "qcom,msm8960-tsens" : For 8960 Family of SoCs
+
+- reg: Address range of the thermal registers
+- qcom,tsens-slopes : Must contain slope value for each of the sensors controlled
+			by this device
+- eeproms: List of phandles to the data cells containing calibration data in EEPROM
+- #thermal-sensor-cells : Should be 1. See ./thermal.txt for a description.
+
+Optional properties:
+- eeprom-names: List of eeprom data cell names stored in the same order as the
+		eeprom property
+- qcom,sensor-id: List of sensor instances used in a given SoC. A TSENS IP can
+		  have a fixed number of sensors (like 11) but a given SoC can
+		  use only 5 of these and they might not always the first 5. They
+		  could be sensors 0, 1, 4, 8 and 9. This property is used to
+		  describe the subset of the sensors used. If this property is
+		  missing they are assumed to be the first 'n'
+		  sensors numbered sequentially.
+
+Exiample:
+tsens: thermal-sesnor@900000 {
+		compatible = "qcom,msm8916-tsens";
+		qcom,tsens-slopes = <1176 1176 1154 1176 1111
+				1132 1132 1199 1132 1199
+				1132>;
+		eeproms = <&tsens_caldata>, <&tsens_calsel>;
+		eeprom-names = "calib_data", "calib_sel";
+		qcom,tsens-slopes = <3200 3200 3200 3200 3200>;
+		qcom,sensor-id = <0 1 2 4 5>;
+		#thermal-sensor-cells = <1>;
+	};
