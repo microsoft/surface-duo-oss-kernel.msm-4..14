@@ -18,6 +18,7 @@
 #ifndef __ASM_ARCH_MSM_HSUSB_H
 #define __ASM_ARCH_MSM_HSUSB_H
 
+#include <linux/extcon.h>
 #include <linux/types.h>
 #include <linux/usb/otg.h>
 #include <linux/clk.h>
@@ -170,6 +171,10 @@ struct msm_otg {
 	struct reset_control *phy_rst;
 	struct reset_control *link_rst;
 	int vdd_levels[3];
+	struct extcon_specific_cable_nb vbus_cable;
+	struct notifier_block		vbus_nb;
+	struct extcon_specific_cable_nb id_cable;
+	struct notifier_block		id_nb;
 };
 
 #endif
