@@ -10,6 +10,16 @@
 #define __DRM_I2C_ADV7511_H__
 
 #include <linux/hdmi.h>
+#include <drm/drm_crtc_helper.h>
+
+struct regmap;
+struct adv7511;
+
+int adv7511_packet_enable(struct adv7511 *adv7511, unsigned int packet);
+int adv7511_packet_disable(struct adv7511 *adv7511, unsigned int packet);
+
+int adv7511_audio_init(struct device *dev);
+void adv7511_audio_exit(struct device *dev);
 
 #define ADV7511_REG_CHIP_REVISION		0x00
 #define ADV7511_REG_N0				0x01
@@ -229,6 +239,50 @@ enum adv7511_sync_polarity {
 	ADV7511_SYNC_POLARITY_HIGH,
 };
 
+enum adv7511_type {
+	ADV7511,
+	ADV7533,
+};
+
+struct adv7511 {
+	struct i2c_client *i2c_main;
+	struct i2c_client *i2c_edid;
+	struct i2c_client *i2c_cec;
+
+	struct regmap *regmap;
+	struct regmap *regmap_cec;
+	enum drm_connector_status status;
+	bool powered;
+
+	unsigned int f_tmds;
+	unsigned int f_audio;
+	unsigned int audio_source;
+
+	unsigned int current_edid_segment;
+	uint8_t edid_buf[256];
+	bool edid_read;
+	struct drm_encoder *encoder;
+
+	wait_queue_head_t wq;
+
+#ifndef CONFIG_DRM_I2C_ADV7511_SLAVE_ENCODER
+	struct drm_connector connector;
+	struct drm_bridge bridge;
+#endif
+
+	bool embedded_sync;
+	enum adv7511_sync_polarity vsync_polarity;
+	enum adv7511_sync_polarity hsync_polarity;
+	bool rgb;
+	u8 num_dsi_lanes;
+
+	struct edid *edid;
+
+	struct gpio_desc *gpio_pd;
+
+	enum adv7511_type type;
+};
+
 /**
  * struct adv7511_link_config - Describes adv7511 hardware configuration
  * @input_color_depth:		Number of bits per color component (8, 10 or 12)
@@ -241,6 +295,7 @@ enum adv7511_sync_polarity {
  * @sync_pulse:			Select the sync pulse
  * @vsync_polarity:		vsync input signal configuration
  * @hsync_polarity:		hsync input signal configuration
+ * @num_dsi_lanes:		number of dsi lanes in use(for ADV7533)
  */
 struct adv7511_link_config {
 	unsigned int input_color_depth;
@@ -255,6 +310,8 @@ struct adv7511_link_config {
 	enum adv7511_input_sync_pulse sync_pulse;
 	enum adv7511_sync_polarity vsync_polarity;
 	enum adv7511_sync_polarity hsync_polarity;
+
+	unsigned int num_dsi_lanes;
 };
 
 /**
