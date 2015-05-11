@@ -36,35 +36,19 @@
 
 #define DSI_6G_REG_SHIFT	4
 
-#define DSI_REGULATOR_MAX	8
-struct dsi_reg_entry {
-	char name[32];
-	int min_voltage;
-	int max_voltage;
-	int enable_load;
-	int disable_load;
-};
-
-struct dsi_reg_config {
-	int num;
-	struct dsi_reg_entry regs[DSI_REGULATOR_MAX];
-};
-
 struct dsi_config {
 	u32 major;
 	u32 minor;
 	u32 io_offset;
-	enum msm_dsi_phy_type phy_type;
 	struct dsi_reg_config reg_cfg;
 };
 
 static const struct dsi_config dsi_cfgs[] = {
-	{MSM_DSI_VER_MAJOR_V2, 0, 0, MSM_DSI_PHY_UNKNOWN},
+	{MSM_DSI_VER_MAJOR_V2, 0, 0, {0,} },
 	{ /* 8974 v1 */
 		.major = MSM_DSI_VER_MAJOR_6G,
 		.minor = MSM_DSI_6G_VER_MINOR_V1_0,
 		.io_offset = DSI_6G_REG_SHIFT,
-		.phy_type = MSM_DSI_PHY_28NM,
 		.reg_cfg = {
 			.num = 4,
 			.regs = {
@@ -79,7 +63,6 @@ static const struct dsi_config dsi_cfgs[] = {
 		.major = MSM_DSI_VER_MAJOR_6G,
 		.minor = MSM_DSI_6G_VER_MINOR_V1_1,
 		.io_offset = DSI_6G_REG_SHIFT,
-		.phy_type = MSM_DSI_PHY_28NM,
 		.reg_cfg = {
 			.num = 4,
 			.regs = {
@@ -94,7 +77,6 @@ static const struct dsi_config dsi_cfgs[] = {
 		.major = MSM_DSI_VER_MAJOR_6G,
 		.minor = MSM_DSI_6G_VER_MINOR_V1_1_1,
 		.io_offset = DSI_6G_REG_SHIFT,
-		.phy_type = MSM_DSI_PHY_28NM,
 		.reg_cfg = {
 			.num = 4,
 			.regs = {
@@ -109,7 +91,6 @@ static const struct dsi_config dsi_cfgs[] = {
 		.major = MSM_DSI_VER_MAJOR_6G,
 		.minor = MSM_DSI_6G_VER_MINOR_V1_2,
 		.io_offset = DSI_6G_REG_SHIFT,
-		.phy_type = MSM_DSI_PHY_28NM,
 		.reg_cfg = {
 			.num = 4,
 			.regs = {
@@ -124,7 +105,6 @@ static const struct dsi_config dsi_cfgs[] = {
 		.major = MSM_DSI_VER_MAJOR_6G,
 		.minor = MSM_DSI_6G_VER_MINOR_V1_3_1,
 		.io_offset = DSI_6G_REG_SHIFT,
-		.phy_type = MSM_DSI_PHY_28NM,
 		.reg_cfg = {
 			.num = 4,
 			.regs = {
@@ -197,7 +177,7 @@ struct msm_dsi_host {
 	int id;
 
 	void __iomem *ctrl_base;
-	struct regulator_bulk_data supplies[DSI_REGULATOR_MAX];
+	struct regulator_bulk_data supplies[DSI_DEV_REGULATOR_MAX];
 	struct clk *mdp_core_clk;
 	struct clk *ahb_clk;
 	struct clk *axi_clk;
@@ -205,6 +185,9 @@ struct msm_dsi_host {
 	struct clk *byte_clk;
 	struct clk *esc_clk;
 	struct clk *pixel_clk;
+	struct clk *byte_clk_src;
+	struct clk *pixel_clk_src;
+
 	u32 byte_clk_rate;
 
 	struct gpio_desc *disp_en_gpio;
@@ -234,6 +217,9 @@ struct msm_dsi_host {
 	unsigned int lanes;
 	enum mipi_dsi_pixel_format format;
 	unsigned long mode_flags;
+
+	/* external bridge info */
+	struct device_node *ext_bridge_node;
 
 	u32 dma_cmd_ctrl_restore;
 
@@ -460,6 +446,22 @@ static int dsi_clk_init(struct msm_dsi_host *msm_host)
 		pr_err("%s: can't find dsi_esc_clk. ret=%d\n",
 			__func__, ret);
 		msm_host->esc_clk = NULL;
+		goto exit;
+	}
+
+	msm_host->byte_clk_src = devm_clk_get(dev, "byte_clk_src");
+	if (IS_ERR(msm_host->byte_clk_src)) {
+		ret = PTR_ERR(msm_host->byte_clk_src);
+		pr_err("%s: can't find byte_clk_src. ret=%d\n", __func__, ret);
+		msm_host->byte_clk_src = NULL;
+		goto exit;
+	}
+
+	msm_host->pixel_clk_src = devm_clk_get(dev, "pixel_clk_src");
+	if (IS_ERR(msm_host->pixel_clk_src)) {
+		ret = PTR_ERR(msm_host->pixel_clk_src);
+		pr_err("%s: can't find pixel_clk_src. ret=%d\n", __func__, ret);
+		msm_host->pixel_clk_src = NULL;
 		goto exit;
 	}
 
@@ -787,6 +789,11 @@ static void dsi_ctrl_config(struct msm_dsi_host *msm_host, bool enable,
 		dsi_write(msm_host, REG_DSI_LANE_SWAP_CTRL,
 			DSI_LANE_SWAP_CTRL_DLN_SWAP_SEL(LANE_SWAP_0123));
 	}
+
+	if (!(flags & MIPI_DSI_CLOCK_NON_CONTINUOUS))
+		dsi_write(msm_host, REG_DSI_LANE_CTRL,
+			DSI_LANE_CTRL_CLKLN_HS_FORCE_REQUEST);
+
 	data |= DSI_CTRL_ENABLE;
 
 	dsi_write(msm_host, REG_DSI_CTRL, data);
@@ -1397,6 +1404,10 @@ static int dsi_host_attach(struct mipi_dsi_host *host,
 	msm_host->format = dsi->format;
 	msm_host->mode_flags = dsi->mode_flags;
 
+	/* if we have an external bridge, don't populate panel data */
+	if (msm_host->ext_bridge_node)
+		return 0;
+
 	msm_host->panel_node = dsi->dev.of_node;
 
 	/* Some gpios defined in panel DT need to be controlled by host */
@@ -1514,13 +1525,6 @@ int msm_dsi_host_init(struct msm_dsi *msm_dsi)
 	msm_host->workqueue = alloc_ordered_workqueue("dsi_drm_work", 0);
 	INIT_WORK(&msm_host->err_work, dsi_err_worker);
 
-	msm_dsi->phy = msm_dsi_phy_init(pdev, msm_host->cfg->phy_type,
-					msm_host->id);
-	if (!msm_dsi->phy) {
-		ret = -EINVAL;
-		pr_err("%s: phy init failed\n", __func__);
-		goto fail;
-	}
 	msm_dsi->host = &msm_host->base;
 	msm_dsi->id = msm_host->id;
 
@@ -1604,10 +1608,25 @@ int msm_dsi_host_register(struct mipi_dsi_host *host, bool check_defer)
 		 * create framebuffer.
 		 */
 		if (check_defer) {
+			/*
+			 * first look for a child panel node, if a panel node
+			 * exists but the corresponding panel device isn't
+			 * probed, defer msm dsi's probe
+			 *
+			 * if a child panel isn't specified at all, try to look
+			 * for a bridge phandle, defer probe if it there is a
+			 * bridge phandle but the bridge device isn't added yet
+			 */
 			node = of_get_child_by_name(msm_host->pdev->dev.of_node,
 							"panel");
 			if (node) {
 				if (!of_drm_find_panel(node))
+					return -EPROBE_DEFER;
+			} else {
+				struct drm_bridge *bridge;
+
+				bridge = msm_dsi_host_get_ext_bridge(host);
+				if (!bridge)
 					return -EPROBE_DEFER;
 			}
 		}
@@ -1829,6 +1848,39 @@ void msm_dsi_host_cmd_xfer_commit(struct mipi_dsi_host *host, u32 iova, u32 len)
 	wmb();
 }
 
+int msm_dsi_host_set_src_pll(struct mipi_dsi_host *host,
+	struct msm_dsi_pll *src_pll)
+{
+	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
+	struct clk *byte_clk_provider, *pixel_clk_provider;
+	int ret;
+
+	ret = msm_dsi_pll_get_clk_provider(src_pll,
+				&byte_clk_provider, &pixel_clk_provider);
+	if (ret) {
+		pr_info("%s: can't get provider from pll, don't set parent\n",
+			__func__);
+		return 0;
+	}
+
+	ret = clk_set_parent(msm_host->byte_clk_src, byte_clk_provider);
+	if (ret) {
+		pr_err("%s: can't set parent to byte_clk_src. ret=%d\n",
+			__func__, ret);
+		goto exit;
+	}
+
+	ret = clk_set_parent(msm_host->pixel_clk_src, pixel_clk_provider);
+	if (ret) {
+		pr_err("%s: can't set parent to pixel_clk_src. ret=%d\n",
+			__func__, ret);
+		goto exit;
+	}
+
+exit:
+	return ret;
+}
+
 int msm_dsi_host_enable(struct mipi_dsi_host *host)
 {
 	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
@@ -1873,7 +1925,6 @@ int msm_dsi_host_power_on(struct mipi_dsi_host *host)
 		DBG("dsi host already on");
 		goto unlock_ret;
 	}
-
 	ret = dsi_calc_clk_rate(msm_host);
 	if (ret) {
 		pr_err("%s: unable to calc clk rate, %d\n", __func__, ret);
@@ -1991,3 +2042,21 @@ struct drm_panel *msm_dsi_host_get_panel(struct mipi_dsi_host *host,
 	return panel;
 }
 
+struct drm_bridge *msm_dsi_host_get_ext_bridge(struct mipi_dsi_host *host)
+{
+	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
+	struct drm_bridge *bridge;
+	struct device_node *np = msm_host->pdev->dev.of_node;
+
+	msm_host->ext_bridge_node = of_get_child_by_name(np, "bridge");
+	if (!msm_host->ext_bridge_node) {
+		dev_err(&msm_host->pdev->dev, "bridge not found\n");
+		return NULL;
+	}
+
+	of_node_put(np);
+
+	bridge = of_drm_find_bridge(msm_host->ext_bridge_node);
+
+	return bridge;
+}

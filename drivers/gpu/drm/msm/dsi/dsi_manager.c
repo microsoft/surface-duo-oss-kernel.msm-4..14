@@ -60,6 +60,53 @@ static int dsi_mgr_parse_dual_panel(struct device_node *np, int id)
 	return 0;
 }
 
+static int dsi_mgr_host_register(int id)
+{
+	struct msm_dsi *msm_dsi = dsi_mgr_get_dsi(id);
+	struct msm_dsi *other_dsi = dsi_mgr_get_other_dsi(id);
+	struct msm_dsi *clk_master_dsi = dsi_mgr_get_dsi(DSI_CLOCK_MASTER);
+	struct msm_dsi_pll *src_pll;
+	int ret;
+
+	if (!IS_DUAL_PANEL()) {
+		ret = msm_dsi_host_register(msm_dsi->host, true);
+		if (ret)
+			return ret;
+
+		src_pll = msm_dsi_phy_get_pll(msm_dsi->phy);
+		ret = msm_dsi_host_set_src_pll(msm_dsi->host, src_pll);
+	} else if (!other_dsi) {
+		ret = 0;
+	} else {
+		struct msm_dsi *mdsi = IS_MASTER_PANEL(id) ?
+					msm_dsi : other_dsi;
+		struct msm_dsi *sdsi = IS_MASTER_PANEL(id) ?
+					other_dsi : msm_dsi;
+		/* Register slave host first, so that slave DSI device
+		 * has a chance to probe, and do not block the master
+		 * DSI device's probe.
+		 * Also, do not check defer for the slave host,
+		 * because only master DSI device adds the panel to global
+		 * panel list. The panel's device is the master DSI device.
+		 */
+		ret = msm_dsi_host_register(sdsi->host, false);
+		if (ret)
+			return ret;
+		ret = msm_dsi_host_register(mdsi->host, true);
+		if (ret)
+			return ret;
+
+		/* PLL0 is to driver both 2 DSI link clocks in Dual DSI mode. */
+		src_pll = msm_dsi_phy_get_pll(clk_master_dsi->phy);
+		ret = msm_dsi_host_set_src_pll(msm_dsi->host, src_pll);
+		if (ret)
+			return ret;
+		ret = msm_dsi_host_set_src_pll(other_dsi->host, src_pll);
+	}
+
+	return ret;
+}
+
 struct dsi_connector {
 	struct drm_connector base;
 	int id;
@@ -274,7 +321,31 @@ dsi_mgr_connector_best_encoder(struct drm_connector *connector)
 	return msm_dsi_get_encoder(msm_dsi);
 }
 
-static void dsi_mgr_bridge_pre_enable(struct drm_bridge *bridge)
+static void pre_enable_bridge(struct drm_bridge *bridge)
+{
+	int id = dsi_mgr_bridge_get_id(bridge);
+	struct msm_dsi *msm_dsi = dsi_mgr_get_dsi(id);
+	struct mipi_dsi_host *host = msm_dsi->host;
+	struct drm_bridge *ext_bridge = msm_dsi->ext_bridge;
+	int ret;
+
+	if (!ext_bridge)
+		return;
+
+	ret = msm_dsi_host_power_on(host);
+	if (ret) {
+		pr_err("%s: power on host %d failed, %d\n", __func__, id, ret);
+		return;
+	}
+
+	ret = msm_dsi_host_enable(host);
+	if (ret) {
+		pr_err("%s: enable host %d failed, %d\n", __func__, id, ret);
+		msm_dsi_host_power_off(host);
+	}
+}
+
+static void pre_enable_panel(struct drm_bridge *bridge)
 {
 	int id = dsi_mgr_bridge_get_id(bridge);
 	struct msm_dsi *msm_dsi = dsi_mgr_get_dsi(id);
@@ -285,6 +356,7 @@ static void dsi_mgr_bridge_pre_enable(struct drm_bridge *bridge)
 	int ret;
 
 	DBG("id=%d", id);
+
 	if (!panel || (is_dual_panel && (DSI_1 == id)))
 		return;
 
@@ -350,17 +422,27 @@ host_on_fail:
 	return;
 }
 
-static void dsi_mgr_bridge_enable(struct drm_bridge *bridge)
+static void post_disable_bridge(struct drm_bridge *bridge)
 {
-	DBG("");
+	int id = dsi_mgr_bridge_get_id(bridge);
+	struct msm_dsi *msm_dsi = dsi_mgr_get_dsi(id);
+	struct mipi_dsi_host *host = msm_dsi->host;
+	struct drm_bridge *ext_bridge = msm_dsi->ext_bridge;
+	int ret;
+
+	if (!ext_bridge)
+		return;
+
+	ret = msm_dsi_host_disable(host);
+	if (ret)
+		pr_err("%s: host %d disable failed, %d\n", __func__, id, ret);
+
+	ret = msm_dsi_host_power_off(host);
+	if (ret)
+		pr_err("%s: host %d power off failed,%d\n", __func__, id, ret);
 }
 
-static void dsi_mgr_bridge_disable(struct drm_bridge *bridge)
-{
-	DBG("");
-}
-
-static void dsi_mgr_bridge_post_disable(struct drm_bridge *bridge)
+static void post_disable_panel(struct drm_bridge *bridge)
 {
 	int id = dsi_mgr_bridge_get_id(bridge);
 	struct msm_dsi *msm_dsi = dsi_mgr_get_dsi(id);
@@ -405,7 +487,21 @@ static void dsi_mgr_bridge_post_disable(struct drm_bridge *bridge)
 	}
 }
 
-static void dsi_mgr_bridge_mode_set(struct drm_bridge *bridge,
+static void mode_set_bridge(struct drm_bridge *bridge,
+		struct drm_display_mode *mode,
+		struct drm_display_mode *adjusted_mode)
+{
+	int id = dsi_mgr_bridge_get_id(bridge);
+	struct msm_dsi *msm_dsi = dsi_mgr_get_dsi(id);
+	struct mipi_dsi_host *host = msm_dsi->host;
+
+	if (!msm_dsi->ext_bridge)
+		return;
+
+	msm_dsi_host_set_display_mode(host, adjusted_mode);
+}
+
+static void mode_set_panel(struct drm_bridge *bridge,
 		struct drm_display_mode *mode,
 		struct drm_display_mode *adjusted_mode)
 {
@@ -414,6 +510,57 @@ static void dsi_mgr_bridge_mode_set(struct drm_bridge *bridge,
 	struct msm_dsi *other_dsi = dsi_mgr_get_other_dsi(id);
 	struct mipi_dsi_host *host = msm_dsi->host;
 	bool is_dual_panel = IS_DUAL_PANEL();
+
+
+	if (is_dual_panel && (DSI_1 == id))
+		return;
+
+	msm_dsi_host_set_display_mode(host, adjusted_mode);
+	if (is_dual_panel && other_dsi)
+		msm_dsi_host_set_display_mode(other_dsi->host, adjusted_mode);
+}
+/*
+ * for now, the dsi bridge functions ignore dual dsi mode if an external
+ * bridge IC is connected to it
+ */
+static void dsi_mgr_bridge_pre_enable(struct drm_bridge *bridge)
+{
+	int id = dsi_mgr_bridge_get_id(bridge);
+	struct msm_dsi *msm_dsi = dsi_mgr_get_dsi(id);
+
+	if (msm_dsi->panel)
+		pre_enable_panel(bridge);
+	else
+		pre_enable_bridge(bridge);
+}
+
+static void dsi_mgr_bridge_enable(struct drm_bridge *bridge)
+{
+	DBG("");
+}
+
+static void dsi_mgr_bridge_disable(struct drm_bridge *bridge)
+{
+	DBG("");
+}
+
+static void dsi_mgr_bridge_post_disable(struct drm_bridge *bridge)
+{
+	int id = dsi_mgr_bridge_get_id(bridge);
+	struct msm_dsi *msm_dsi = dsi_mgr_get_dsi(id);
+
+	if (msm_dsi->panel)
+		post_disable_panel(bridge);
+	else
+		post_disable_bridge(bridge);
+}
+
+static void dsi_mgr_bridge_mode_set(struct drm_bridge *bridge,
+		struct drm_display_mode *mode,
+		struct drm_display_mode *adjusted_mode)
+{
+	int id = dsi_mgr_bridge_get_id(bridge);
+	struct msm_dsi *msm_dsi = dsi_mgr_get_dsi(id);
 
 	DBG("set mode: %d:\"%s\" %d %d %d %d %d %d %d %d %d %d 0x%x 0x%x",
 			mode->base.id, mode->name,
@@ -424,12 +571,10 @@ static void dsi_mgr_bridge_mode_set(struct drm_bridge *bridge,
 			mode->vsync_end, mode->vtotal,
 			mode->type, mode->flags);
 
-	if (is_dual_panel && (DSI_1 == id))
-		return;
-
-	msm_dsi_host_set_display_mode(host, adjusted_mode);
-	if (is_dual_panel && other_dsi)
-		msm_dsi_host_set_display_mode(other_dsi->host, adjusted_mode);
+	if (msm_dsi->panel)
+		mode_set_panel(bridge, mode, adjusted_mode);
+	else
+		mode_set_bridge(bridge, mode, adjusted_mode);
 }
 
 static const struct drm_connector_funcs dsi_mgr_connector_funcs = {
@@ -648,7 +793,6 @@ int msm_dsi_manager_register(struct msm_dsi *msm_dsi)
 {
 	struct msm_dsi_manager *msm_dsim = &msm_dsim_glb;
 	int id = msm_dsi->id;
-	struct msm_dsi *other_dsi = dsi_mgr_get_other_dsi(id);
 	int ret;
 
 	if (id > DSI_MAX) {
@@ -666,31 +810,20 @@ int msm_dsi_manager_register(struct msm_dsi *msm_dsi)
 	ret = dsi_mgr_parse_dual_panel(msm_dsi->pdev->dev.of_node, id);
 	if (ret) {
 		pr_err("%s: failed to parse dual panel info\n", __func__);
-		return ret;
+		goto fail;
 	}
 
-	if (!IS_DUAL_PANEL()) {
-		ret = msm_dsi_host_register(msm_dsi->host, true);
-	} else if (!other_dsi) {
-		return 0;
-	} else {
-		struct msm_dsi *mdsi = IS_MASTER_PANEL(id) ?
-					msm_dsi : other_dsi;
-		struct msm_dsi *sdsi = IS_MASTER_PANEL(id) ?
-					other_dsi : msm_dsi;
-		/* Register slave host first, so that slave DSI device
-		 * has a chance to probe, and do not block the master
-		 * DSI device's probe.
-		 * Also, do not check defer for the slave host,
-		 * because only master DSI device adds the panel to global
-		 * panel list. The panel's device is the master DSI device.
-		 */
-		ret = msm_dsi_host_register(sdsi->host, false);
-		if (ret)
-			return ret;
-		ret = msm_dsi_host_register(mdsi->host, true);
+	ret = dsi_mgr_host_register(id);
+	if (ret) {
+		pr_err("%s: failed to register mipi dsi host for DSI %d\n",
+			__func__, id);
+		goto fail;
 	}
 
+	return 0;
+
+fail:
+	msm_dsim->dsi[id] = NULL;
 	return ret;
 }
 
