@@ -115,6 +115,7 @@
 			enable-method = "psci";
 			cpu-idle-states = <&CPU_SPC>;
 			clocks = <&apcs 0>;
+			cpu-supply = <&pm8916_spmi_s2>;
 			operating-points-v2 = <&cpu_opp_table>;
 			#cooling-cells = <2>;
 		};
@@ -127,6 +128,7 @@
 			enable-method = "psci";
 			cpu-idle-states = <&CPU_SPC>;
 			clocks = <&apcs 0>;
+			cpu-supply = <&pm8916_spmi_s2>;
 			operating-points-v2 = <&cpu_opp_table>;
 			#cooling-cells = <2>;
 		};
@@ -139,6 +141,7 @@
 			enable-method = "psci";
 			cpu-idle-states = <&CPU_SPC>;
 			clocks = <&apcs 0>;
+			cpu-supply = <&pm8916_spmi_s2>;
 			operating-points-v2 = <&cpu_opp_table>;
 			#cooling-cells = <2>;
 		};
@@ -151,6 +154,7 @@
 			enable-method = "psci";
 			cpu-idle-states = <&CPU_SPC>;
 			clocks = <&apcs 0>;
+			cpu-supply = <&pm8916_spmi_s2>;
 			operating-points-v2 = <&cpu_opp_table>;
 			#cooling-cells = <2>;
 		};
