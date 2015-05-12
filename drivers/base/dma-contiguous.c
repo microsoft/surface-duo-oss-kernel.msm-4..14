@@ -22,10 +22,12 @@
 #include <asm/page.h>
 #include <asm/dma-contiguous.h>
 
+#include <linux/kernel.h>
 #include <linux/memblock.h>
 #include <linux/err.h>
 #include <linux/sizes.h>
 #include <linux/dma-contiguous.h>
+#include <linux/dma-removed.h>
 #include <linux/cma.h>
 
 #ifdef CONFIG_CMA_SIZE_MBYTES
@@ -212,6 +214,21 @@ bool dma_release_from_contiguous(struct device *dev, struct page *pages,
 	return cma_release(dev_get_cma_area(dev), pages, count);
 }
 
+unsigned long dma_alloc_from_contiguous_nomap(struct device *dev, int count,
+				       unsigned int align)
+{
+	if (align > CONFIG_CMA_ALIGNMENT)
+		align = CONFIG_CMA_ALIGNMENT;
+
+	return cma_alloc_nomap(dev_get_cma_area(dev), count, align);
+}
+
+bool dma_release_from_contiguous_nomap(struct device *dev, unsigned long pfn,
+				 int count)
+{
+	return cma_release_nomap(dev_get_cma_area(dev), pfn, count);
+}
+
 /*
  * Support for reserved memory regions defined in device tree
  */
@@ -277,4 +294,86 @@ static int __init rmem_cma_setup(struct reserved_mem *rmem)
 	return 0;
 }
 RESERVEDMEM_OF_DECLARE(cma, "shared-dma-pool", rmem_cma_setup);
+
+static int rmem_nomap_cma_device_init(struct reserved_mem *rmem, struct device *dev)
+{
+	struct cma *cma = (struct cma *)rmem->priv;
+	int bitmap_size =
+		BITS_TO_LONGS(cma->count >> cma->order_per_bit) * sizeof(long);
+
+	cma->bitmap = kzalloc(bitmap_size, GFP_KERNEL);
+	if (!cma->bitmap) {
+		pr_info("no memory for cma bitmap\n");
+		kfree(cma);
+		return -ENOMEM;
+	}
+
+	mutex_init(&cma->lock);
+
+	dev_set_cma_area(dev, rmem->priv);
+	dev->archdata.dma_ops = &removed_dma_ops;
+	return 0;
+}
+
+static void rmem_nomap_cma_device_release(struct reserved_mem *rmem,
+				    struct device *dev)
+{
+	struct cma *cma = (struct cma *)rmem->priv;
+
+	kfree(cma->bitmap);
+	dev->archdata.dma_ops = NULL;
+	dev_set_cma_area(dev, NULL);
+}
+
+static const struct reserved_mem_ops rmem_nomap_cma_ops = {
+	.device_init	= rmem_nomap_cma_device_init,
+	.device_release = rmem_nomap_cma_device_release,
+};
+
+#define	NOMAP_CMAP_MAX_NUM	16
+static struct cma nomap_cma[NOMAP_CMAP_MAX_NUM];
+static int next_nomap_cma = 0;
+
+static int __init rmem_nomap_cma_setup(struct reserved_mem *rmem)
+{
+	phys_addr_t mask = PAGE_SIZE - 1;
+	unsigned long node = rmem->fdt_node;
+	struct cma *cma;
+
+	if (!of_get_flat_dt_prop(node, "no-map", NULL))
+		return -EINVAL;
+
+	if ((rmem->base & mask) || (rmem->size & mask)) {
+		pr_err("Reserved memory: incorrect alignment of CMA region\n");
+		return -EINVAL;
+	}
+
+	/* cma for nomap range is not like general cma. There is no physical
+	 * page associated. So we can't go to general cma active path.
+         * We maintain it here by ourself instead of using general one.
+	 * sl[au]b is not available now. Static array is used.
+	 *
+	 * not necessary to have lock here until the parallel boot applied
+	 * to this early stage.
+	 */
+	next_nomap_cma++;
+	cma = &nomap_cma[next_nomap_cma - 1];
+
+	cma->base_pfn = PFN_DOWN(rmem->base);
+	cma->count = rmem->size >> PAGE_SHIFT;
+	cma->order_per_bit = 0;
+	/* bitmap for cma initliazation was delayed to .device_init which
+	 * has sl[au]b available.
+	 */ 
+
+	rmem->ops = &rmem_nomap_cma_ops;
+	rmem->priv = cma;
+
+	pr_info("Reserved memory: created CMA memory pool at %pa, size %ld MiB\n",
+		&rmem->base, (unsigned long)rmem->size / SZ_1M);
+
+	return 0;
+}
+RESERVEDMEM_OF_DECLARE(nomap_cma, "removed-dma-pool", rmem_nomap_cma_setup);
+
 #endif

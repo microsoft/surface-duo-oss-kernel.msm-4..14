@@ -450,3 +450,66 @@ bool cma_release(struct cma *cma, struct page *pages, int count)
 
 	return true;
 }
+
+/* For nomap cma range, we don't actually have page associated.
+ * So we just use pfn to track the range usage.
+ */
+unsigned long cma_alloc_nomap(struct cma *cma, int count, unsigned int align)
+{
+	unsigned long mask, offset, pfn = 0, start = 0;
+	unsigned long bitmap_maxno, bitmap_no, bitmap_count;
+
+	if (!cma || !cma->count)
+		return 0;
+
+	pr_debug("%s(cma %p, count %d, align %d)\n", __func__, (void *)cma,
+		 count, align);
+
+	if (!count)
+		return 0;
+
+	mask = cma_bitmap_aligned_mask(cma, align);
+	offset = cma_bitmap_aligned_offset(cma, align);
+	bitmap_maxno = cma_bitmap_maxno(cma);
+	bitmap_count = cma_bitmap_pages_to_bits(cma, count);
+
+	for (;;) {
+		mutex_lock(&cma->lock);
+		bitmap_no = bitmap_find_next_zero_area_off(cma->bitmap,
+				bitmap_maxno, start, bitmap_count, mask,
+				offset);
+		if (bitmap_no >= bitmap_maxno) {
+			mutex_unlock(&cma->lock);
+			break;
+		}
+		bitmap_set(cma->bitmap, bitmap_no, bitmap_count);
+		/*
+		 * It's safe to drop the lock here. We've marked this region for
+		 * our exclusive use. If the migration fails we will take the
+		 * lock again and unmark it.
+		 */
+		mutex_unlock(&cma->lock);
+
+		pfn = cma->base_pfn + (bitmap_no << cma->order_per_bit);
+	}
+
+	pr_debug("%s(): returned %ld\n", __func__, pfn);
+	return pfn;
+}
+
+bool cma_release_nomap(struct cma *cma, unsigned long pfn, int count)
+{
+	if (!cma || (pfn == 0))
+		return false;
+
+	pr_debug("%s(pfn %ld)\n", __func__, pfn);
+
+	if (pfn < cma->base_pfn || pfn >= cma->base_pfn + cma->count)
+		return false;
+
+	VM_BUG_ON(pfn + count > cma->base_pfn + cma->count);
+
+	cma_clear_bitmap(cma, pfn, count);
+
+	return true;
+}
