@@ -114,8 +114,10 @@ static void __iomem *gpc_base;
 /* sources for multiplexer clocks, this is used multiple times */
 static const char const *fast_sels[]	= { "firc", "fxosc", };
 static const char const *slow_sels[]	= { "sirc_32k", "sxosc", };
+#if 0 /* Unused so disable to remove warnings */
 static const char const *pll1_sels[]	= { "pll1_main", "pll1_pfd1", "pll1_pfd2", "pll1_pfd3", "pll1_pfd4", };
 static const char const *pll2_sels[]	= { "pll2_main", "pll2_pfd1", "pll2_pfd2", "pll2_pfd3", "pll2_pfd4", };
+#endif
 static const char const *a7_sels[] 	= { "dummy", "firc", "fxosc", "pll1_main", "pll2_main", "pll2_pfd1", "pll2_pfd2", "pll2_pfd3", "pll2_pfd4", 
 						"pll3_main", "pll3_pfd1", "pll1_div2", };
 
@@ -141,8 +143,10 @@ static const char const *aud_clk1_sels[] = { "dummy", "dummy", "dummy", };
 
 static const char const *sai_sels[]	= {"dummy", "aud_clk_0", "aud_clk_1", "audio0_pll_div", "audio1_pll_div", "video_pll_div", };
 static const char const *esai_sels[] = { "dummy", "aud_clk_0", "aud_clk_1", "audio0_pll_div", "audio1_pll_div", "video_pll_div", "bus_clk", };
+#if 0 /* Unused so disable to remove warnings */
 static const char const *asrc_sels[]	= { "esai0_sckr", "esai0_hckr", "tun34_rx_bclk_div", };
 static const char const *codec_sai_sels[] = { "dummy", "pll4_main", "pll8_main", "audio0_pll_div", "audio1_pll_div", "video_pll_div", };
+#endif
 static const char const *viu_sels[] = { "pll1_main", 
 					"pll2_main", "pll2_pfd1", "pll2_pfd2", "pll2_pfd3", "pll2_pfd4",
 					"pll3_main", "pll3_pfd1", "pll3_pfd2", "pll3_pfd3", "pll3_pfd4",
