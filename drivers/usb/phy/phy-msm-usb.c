@@ -1565,7 +1565,7 @@ static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 		} else {
 			motg->id_nb.notifier_call = msm_otg_id_notifier;
 			ret = extcon_register_interest(&motg->id_cable, ext_id->name,
-						       "USB", &motg->id_nb);
+						       "USB-HOST", &motg->id_nb);
 			if (ret < 0) {
 				dev_err(&pdev->dev, "register ID notifier failed\n");
 				return ret;
