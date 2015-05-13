@@ -1679,6 +1679,8 @@ static int msm_otg_probe(struct platform_device *pdev)
 
 	phy = &motg->phy;
 	phy->dev = &pdev->dev;
+	INIT_WORK(&motg->sm_work, msm_otg_sm_work);
+	INIT_DELAYED_WORK(&motg->chg_work, msm_chg_detect_work);
 
 	motg->clk = devm_clk_get(&pdev->dev, np ? "core" : "usb_hs_clk");
 	if (IS_ERR(motg->clk)) {
@@ -1778,8 +1780,6 @@ static int msm_otg_probe(struct platform_device *pdev)
 	writel(0, USB_USBINTR);
 	writel(0, USB_OTGSC);
 
-	INIT_WORK(&motg->sm_work, msm_otg_sm_work);
-	INIT_DELAYED_WORK(&motg->chg_work, msm_chg_detect_work);
 	ret = devm_request_irq(&pdev->dev, motg->irq, msm_otg_irq, IRQF_SHARED,
 					"msm_otg", motg);
 	if (ret) {
