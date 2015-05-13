@@ -1470,9 +1470,9 @@ static int msm_otg_id_notifier(struct notifier_block *nb, unsigned long event,
 	dev_dbg(motg->phy.dev, "USB-HOST/ID is %d\n", (int)event);
 
 	if (event)
-		set_bit(ID, &motg->inputs);
-	else
 		clear_bit(ID, &motg->inputs);
+	else
+		set_bit(ID, &motg->inputs);
 
 	schedule_work(&motg->sm_work);
 
@@ -1572,9 +1572,9 @@ static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 			} else {
 				ret = extcon_get_cable_state(ext_id, "USB-HOST");
 				if (ret)
-					set_bit(ID, &motg->inputs);
-				else
 					clear_bit(ID, &motg->inputs);
+				else
+					set_bit(ID, &motg->inputs);
 			}
 		}
 	}
