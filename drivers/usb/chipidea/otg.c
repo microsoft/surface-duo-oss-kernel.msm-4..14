@@ -41,9 +41,9 @@ u32 hw_read_otgsc(struct ci_hdrc *ci, u32 mask)
 
 	if ((mask & OTGSC_ID) && !IS_ERR(ci->edev_id)) {
 		if (extcon_get_cable_state(ci->edev_id, "USB-HOST"))
-			val |= OTGSC_ID;
-		else
 			val &= ~OTGSC_ID;
+		else
+			val |= OTGSC_ID;
 	}
 
 	val &= mask;
