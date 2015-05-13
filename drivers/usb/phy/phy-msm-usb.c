@@ -1784,7 +1784,6 @@ static int msm_otg_probe(struct platform_device *pdev)
 	}
 
 	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
 
 	return 0;
 
