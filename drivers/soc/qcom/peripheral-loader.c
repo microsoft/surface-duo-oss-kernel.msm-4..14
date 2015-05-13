@@ -558,7 +558,7 @@ static int pil_load_seg(struct pil_desc *desc, struct pil_seg *seg)
 	count = seg->sz - seg->filesz;
 
         if (count > 0) {
-		memset(desc->priv->region + paddr - desc->priv->region_start, 0, count);
+		pil_memset_io(desc->priv->region + paddr - desc->priv->region_start, 0, count);
 	}
 
 	if (desc->ops->verify_blob) {
