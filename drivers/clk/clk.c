@@ -61,6 +61,7 @@ struct clk_core {
 	unsigned long		req_rate;
 	unsigned long		old_rate;
 	unsigned long		new_rate;
+	unsigned long		safe_freq;
 	struct clk_core		*safe_parent;
 	struct clk_core		*new_parent;
 	struct clk_core		*new_child;
@@ -1554,6 +1555,7 @@ static void clk_calc_subtree(struct clk_core *clk, unsigned long new_rate,
 {
 	struct clk_core *child, *parent;
 	struct clk_hw *parent_hw;
+	unsigned long safe_freq;
 
 	clk->new_rate = new_rate;
 	clk->new_parent = new_parent;
@@ -1564,15 +1566,20 @@ static void clk_calc_subtree(struct clk_core *clk, unsigned long new_rate,
 		new_parent->new_child = clk;
 
 	if (clk->ops->get_safe_parent) {
-		parent_hw = clk->ops->get_safe_parent(clk->hw);
+		parent_hw = clk->ops->get_safe_parent(clk->hw, &safe_freq);
 		if (parent_hw) {
 			parent = parent_hw->core;
 			p_index = clk_fetch_parent_index(clk, parent);
 			clk->safe_parent_index = p_index;
 			clk->safe_parent = parent;
+			if (safe_freq)
+				clk->safe_freq = safe_freq;
+			else
+				clk->safe_freq = 0;
 		}
 	} else {
 		clk->safe_parent = NULL;
+		clk->safe_freq = 0;
 	}
 
 	hlist_for_each_entry(child, &clk->children, child_node) {
@@ -1678,8 +1685,16 @@ static struct clk_core *clk_propagate_rate_change(struct clk_core *clk,
 
 	switch (event) {
 	case PRE_RATE_CHANGE:
-		if (clk->safe_parent)
-			clk->ops->set_parent(clk->hw, clk->safe_parent_index);
+		if (clk->safe_parent) {
+			if (clk->safe_freq)
+				clk->ops->set_rate_and_parent(clk->hw,
+						clk->safe_freq,
+						clk->safe_parent->rate,
+						clk->safe_parent_index);
+			else
+				clk->ops->set_parent(clk->hw,
+						     clk->safe_parent_index);
+		}
 		clk->old_rate = clk->rate;
 		break;
 	case POST_RATE_CHANGE:
