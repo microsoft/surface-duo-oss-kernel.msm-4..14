@@ -179,11 +179,9 @@ static struct platform_device *of_platform_device_create_pdata(
 	dev->dev.bus = &platform_bus_type;
 	dev->dev.platform_data = platform_data;
 	of_dma_configure_masks(&dev->dev, dev->dev.of_node);
-	of_dma_configure_ops(&dev->dev, dev->dev.of_node);
 	of_msi_configure(&dev->dev, dev->dev.of_node);
 
 	if (of_device_add(dev) != 0) {
-		of_dma_deconfigure(&dev->dev);
 		platform_device_put(dev);
 		goto err_clear_flag;
 	}
@@ -476,11 +474,12 @@ static int of_platform_device_destroy(struct device *dev, void *data)
 	if (dev->bus == &platform_bus_type)
 		platform_device_unregister(to_platform_device(dev));
 #ifdef CONFIG_ARM_AMBA
-	else if (dev->bus == &amba_bustype)
+	else if (dev->bus == &amba_bustype) {
 		amba_device_unregister(to_amba_device(dev));
+		of_dma_deconfigure(dev);
+	}
 #endif
 
-	of_dma_deconfigure(dev);
 	of_node_clear_flag(dev->of_node, OF_POPULATED);
 	of_node_clear_flag(dev->of_node, OF_POPULATED_BUS);
 	return 0;
