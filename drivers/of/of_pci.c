@@ -132,7 +132,8 @@ void of_pci_dma_configure(struct pci_dev *pci_dev)
 	if (!bridge->parent)
 		return;
 
-	of_dma_configure(dev, bridge->parent->of_node);
+	of_dma_configure_masks(dev, bridge->parent->of_node);
+	of_dma_configure_ops(dev, bridge->parent->of_node);
 	pci_put_host_bridge_device(bridge);
 }
 EXPORT_SYMBOL_GPL(of_pci_dma_configure);
