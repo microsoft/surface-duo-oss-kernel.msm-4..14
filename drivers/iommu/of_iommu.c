@@ -133,6 +133,19 @@ struct iommu_ops *of_iommu_get_ops(struct device_node *np)
 	return ops;
 }
 
+/**
+ * of_iommu_configure - Configure and return the IOMMU for a device
+ * @dev: device for which to configure the IOMMU
+ * @master_np: device node of the bus master connected to the IOMMU
+ *
+ * The master_np parameter specifies the device node of the bus master seen by
+ * the IOMMU. This is usually the device node of the dev device, but can be the
+ * device node of a bridge when the device is dynamically discovered and
+ * instantiated and thus has no device node (such as PCI devices for instance).
+ *
+ * Return a pointer to the iommu_ops for the device, NULL if the device isn't
+ * connected to an IOMMU, or a negative value if an error occurs.
+ */
 struct iommu_ops *of_iommu_configure(struct device *dev,
 				     struct device_node *master_np)
 {
