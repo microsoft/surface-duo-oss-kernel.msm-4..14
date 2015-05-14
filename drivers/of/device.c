@@ -70,7 +70,7 @@ int of_device_add(struct platform_device *ofdev)
 }
 
 /**
- * of_dma_configure - Setup DMA configuration
+ * of_dma_configure - Setup DMA masks and offset
  * @dev:	Device to apply DMA configuration
  * @np:		Pointer to OF node having DMA configuration
  *
@@ -81,13 +81,11 @@ int of_device_add(struct platform_device *ofdev)
  * can use a platform bus notifier and handle BUS_NOTIFY_ADD_DEVICE events
  * to fix up DMA configuration.
  */
-void of_dma_configure(struct device *dev, struct device_node *np)
+void of_dma_configure_masks(struct device *dev, struct device_node *np)
 {
-	u64 dma_addr, paddr, size;
-	int ret;
-	bool coherent;
+	u64 dma_addr, paddr, size, range_mask;
 	unsigned long offset;
-	struct iommu_ops *iommu;
+	int ret;
 
 	/*
 	 * Set default coherent_dma_mask to 32 bit.  Drivers are expected to
@@ -105,9 +103,10 @@ void of_dma_configure(struct device *dev, struct device_node *np)
 
 	ret = of_dma_get_range(np, &dma_addr, &paddr, &size);
 	if (ret < 0) {
-		dma_addr = offset = 0;
-		size = dev->coherent_dma_mask + 1;
+		range_mask = dev->coherent_dma_mask + 1;
+		offset = 0;
 	} else {
+		range_mask = DMA_BIT_MASK(ilog2(dma_addr + size));
 		offset = PFN_DOWN(paddr - dma_addr);
 		dev_dbg(dev, "dma_pfn_offset(%#08lx)\n", offset);
 	}
@@ -118,10 +117,31 @@ void of_dma_configure(struct device *dev, struct device_node *np)
 	 * Limit coherent and dma mask based on size and default mask
 	 * set by the driver.
 	 */
-	dev->coherent_dma_mask = min(dev->coherent_dma_mask,
-				     DMA_BIT_MASK(ilog2(dma_addr + size)));
-	*dev->dma_mask = min((*dev->dma_mask),
-			     DMA_BIT_MASK(ilog2(dma_addr + size)));
+	dev->coherent_dma_mask = min(dev->coherent_dma_mask, range_mask);
+	*dev->dma_mask = min((*dev->dma_mask), range_mask);
+}
+EXPORT_SYMBOL_GPL(of_dma_configure_masks);
+
+/**
+ * of_dma_configure_ops - Setup DMA operations
+ * @dev:	Device to apply DMA configuration
+ * @np:		Pointer to OF node having DMA configuration
+ *
+ * Try to get devices's DMA configuration from DT and update it
+ * accordingly.
+ */
+int of_dma_configure_ops(struct device *dev, struct device_node *np)
+{
+	u64 dma_addr, paddr, size;
+	struct iommu_ops *iommu;
+	bool coherent;
+	int ret;
+
+	ret = of_dma_get_range(np, &dma_addr, &paddr, &size);
+	if (ret < 0) {
+		dma_addr = 0;
+		size = dev->coherent_dma_mask + 1;
+	}
 
 	coherent = of_dma_is_coherent(np);
 	dev_dbg(dev, "device is%sdma coherent\n",
@@ -132,8 +152,10 @@ void of_dma_configure(struct device *dev, struct device_node *np)
 		iommu ? " " : " not ");
 
 	arch_setup_dma_ops(dev, dma_addr, size, iommu, coherent);
+
+	return 0;
 }
-EXPORT_SYMBOL_GPL(of_dma_configure);
+EXPORT_SYMBOL_GPL(of_dma_configure_ops);
 
 /**
  * of_dma_deconfigure - Clean up DMA configuration
