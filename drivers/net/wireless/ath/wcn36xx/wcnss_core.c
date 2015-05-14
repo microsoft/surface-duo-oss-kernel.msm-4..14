@@ -15,7 +15,21 @@
 static int wcnss_core_config(struct platform_device *pdev, void __iomem *base)
 {
 	int ret = 0;
+	struct clk *clk = NULL;
 	u32 value;
+
+	clk = clk_get(&pdev->dev, "xo");
+	if (IS_ERR(clk)) {
+		dev_err(&pdev->dev, "can't get clock xo\n");
+		return PTR_ERR(clk);
+	}
+
+	ret = clk_prepare_enable(clk);
+	if (ret) {
+		dev_err(&pdev->dev, "clock xo enabling failed\n");
+		clk_put(clk);
+		return ret;
+	}
 
 	value = readl_relaxed(base + SPARE_OFFSET);
 	value |= WCNSS_FW_DOWNLOAD_ENABLE;
@@ -57,8 +71,11 @@ static int wcnss_core_config(struct platform_device *pdev, void __iomem *base)
 	value &= ~(WCNSS_PMU_CFG_GC_BUS_MUX_SEL_TOP |
 			WCNSS_PMU_CFG_IRIS_XO_CFG);
 	writel_relaxed(value, base + PMU_OFFSET);
+	clk_disable_unprepare(clk);
 
         msleep(200);
+
+	clk_put(clk);
 
 	return ret;
 }
