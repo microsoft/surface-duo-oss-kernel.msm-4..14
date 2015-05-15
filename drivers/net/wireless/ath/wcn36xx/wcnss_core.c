@@ -12,115 +12,11 @@
 #include "wcn36xx.h"
 #include "wcnss_core.h"
 
-#define VREG_NULL_CONFIG            0x0000
-#define VREG_GET_REGULATOR_MASK     0x0001
-#define VREG_SET_VOLTAGE_MASK       0x0002
-#define VREG_OPTIMUM_MODE_MASK      0x0004
-#define VREG_ENABLE_MASK            0x0008
-
-struct vregs_info {
-	const char * const name;
-	int state;
-	const int nominal_min;
-	const int low_power_min;
-	const int max_voltage;
-	const int uA_load;
-	struct regulator *regulator;
-};
-
-/* IRIS regulators for Pronto v2 hardware */
-static struct vregs_info iris_vregs_pronto_v2[] = {
-	{"qcom,iris-vddxo",  VREG_NULL_CONFIG, 1800000, 0,
-		1800000, 10000,  NULL},
-	{"qcom,iris-vddrfa", VREG_NULL_CONFIG, 1300000, 0,
-		1300000, 100000, NULL},
-	{"qcom,iris-vddpa",  VREG_NULL_CONFIG, 3300000, 0,
-		3300000, 515000, NULL},
-	{"qcom,iris-vdddig", VREG_NULL_CONFIG, 1800000, 0,
-		1800000, 10000,  NULL},
-};
-
-/* WCNSS regulators for Pronto v2 hardware */
-static struct vregs_info pronto_vregs_pronto_v2[] = {
-	{"qcom,pronto-vddmx",  VREG_NULL_CONFIG, 1287500,  0,
-		1287500, 0,    NULL},
-	{"qcom,pronto-vddcx",  VREG_NULL_CONFIG, RPM_REGULATOR_CORNER_NORMAL,
-		RPM_REGULATOR_CORNER_NONE, RPM_REGULATOR_CORNER_SUPER_TURBO,
-		0,             NULL},
-	{"qcom,pronto-vddpx",  VREG_NULL_CONFIG, 1800000, 0,
-		1800000, 0,    NULL},
-};
-
-/* Common helper routine to turn on all WCNSS & IRIS vregs */
-static int wcnss_vregs_on(struct device *dev,
-		struct vregs_info regulators[], uint size)
-{
-	int i, rc = 0, reg_cnt;
-
-	for (i = 0; i < size; i++) {
-			/* Get regulator source */
-		regulators[i].regulator =
-			regulator_get(dev, regulators[i].name);
-		if (IS_ERR(regulators[i].regulator)) {
-			rc = PTR_ERR(regulators[i].regulator);
-				pr_err("regulator get of %s failed (%d)\n",
-					regulators[i].name, rc);
-				goto fail;
-		}
-		regulators[i].state |= VREG_GET_REGULATOR_MASK;
-		reg_cnt = regulator_count_voltages(regulators[i].regulator);
-		/* Set voltage to nominal. Exclude swtiches e.g. LVS */
-		if ((regulators[i].nominal_min || regulators[i].max_voltage)
-				&& (reg_cnt > 0)) {
-			rc = regulator_set_voltage(regulators[i].regulator,
-					regulators[i].nominal_min,
-					regulators[i].max_voltage);
-			if (rc) {
-				pr_err("regulator_set_voltage(%s) failed (%d)\n",
-						regulators[i].name, rc);
-				goto fail;
-			}
-			regulators[i].state |= VREG_SET_VOLTAGE_MASK;
-		}
-
-		/* Vote for PWM/PFM mode if needed */
-		if (regulators[i].uA_load && (reg_cnt > 0)) {
-			rc = regulator_set_optimum_mode(regulators[i].regulator,
-					regulators[i].uA_load);
-			if (rc < 0) {
-				pr_err("regulator_set_optimum_mode(%s) failed (%d)\n",
-						regulators[i].name, rc);
-				goto fail;
-			}
-			regulators[i].state |= VREG_OPTIMUM_MODE_MASK;
-		}
-
-		/* Enable the regulator */
-		rc = regulator_enable(regulators[i].regulator);
-		if (rc) {
-			pr_err("vreg %s enable failed (%d)\n",
-				regulators[i].name, rc);
-			goto fail;
-		}
-		regulators[i].state |= VREG_ENABLE_MASK;
-	}
-
-	return rc;
-
-fail:
-	return -1;
-}
-
 static int wcnss_core_config(struct platform_device *pdev, void __iomem *base)
 {
 	int ret = 0;
-	u32 value, iris_read_v = 0xbaadbaad, reg;
-
-	wcnss_vregs_on(&pdev->dev, pronto_vregs_pronto_v2,
-		ARRAY_SIZE(pronto_vregs_pronto_v2));
-
-	wcnss_vregs_on(&pdev->dev, iris_vregs_pronto_v2,
-		ARRAY_SIZE(pronto_vregs_pronto_v2));
+	u32 value, iris_read_v = INVALID_IRIS_REG;
+	int clk_48m = 0;
 
 	value = readl_relaxed(base + SPARE_OFFSET);
 	value |= WCNSS_FW_DOWNLOAD_ENABLE;
@@ -132,29 +28,31 @@ static int wcnss_core_config(struct platform_device *pdev, void __iomem *base)
 			WCNSS_PMU_CFG_IRIS_XO_EN;
 	writel_relaxed(value, base + PMU_OFFSET);
 
-	/*
-	iris_read_v = readl_relaxed(base + 0x1134);
+	iris_read_v = readl_relaxed(base + IRIS_REG_OFFSET);
 	pr_info("iris_read_v: 0x%x\n", iris_read_v);
 
 	iris_read_v &= 0xffff;
 	iris_read_v |= 0x04;
-	writel_relaxed(iris_read_v, base + 0x1134);
+	writel_relaxed(iris_read_v, base + IRIS_REG_OFFSET);
 
 	value = readl_relaxed(base + PMU_OFFSET);
-	value |= BIT(9);
+	value |= WCNSS_PMU_CFG_IRIS_XO_READ;
 	writel_relaxed(value, base + PMU_OFFSET);
 
 	while (readl_relaxed(base + PMU_OFFSET) &
-		BIT(10))
+		WCNSS_PMU_CFG_IRIS_XO_READ_STS)
 		cpu_relax();
 
 	iris_read_v = readl_relaxed(base + 0x1134);
 	pr_info("wcnss: IRIS Reg: 0x%08x\n", iris_read_v);
-	value &= ~BIT(9);
-	*/
+	clk_48m = (iris_read_v >> 30) ? 0 : 1;
+	value &= ~WCNSS_PMU_CFG_IRIS_XO_READ;
 
-	// value |= WCNSS_PMU_CFG_IRIS_XO_MODE_48;
-	value &= ~6;
+	/* XO_MODE[b2:b1]. Clear implies 19.2MHz */
+	value &= ~WCNSS_PMU_CFG_IRIS_XO_MODE;
+
+	if (clk_48m)
+		value |= WCNSS_PMU_CFG_IRIS_XO_MODE_48;
 
 	writel_relaxed(value, base + PMU_OFFSET);
 
