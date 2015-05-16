@@ -2658,6 +2658,9 @@ static inline void update_rq_runnable_avg(struct rq *rq, int runnable)
 	__update_entity_runnable_avg(rq_clock_task(rq), &rq->avg, runnable,
 				     runnable, cpu);
 	__update_tg_runnable_avg(&rq->avg, &rq->cfs);
+	trace_sched_rq_runnable_ratio(cpu_of(rq), rq->avg.load_avg_ratio);
+	trace_sched_rq_runnable_load(cpu_of(rq), rq->cfs.runnable_load_avg);
+	trace_sched_rq_nr_running(cpu_of(rq), rq->nr_running, rq->nr_iowait.counter);
 }
 #else /* CONFIG_FAIR_GROUP_SCHED */
 static inline void __update_cfs_rq_tg_load_contrib(struct cfs_rq *cfs_rq,
@@ -2676,9 +2679,11 @@ static inline void __update_task_entity_contrib(struct sched_entity *se)
 	contrib = se->avg.runnable_avg_sum * scale_load_down(se->load.weight);
 	contrib /= (se->avg.runnable_avg_period + 1);
 	se->avg.load_avg_contrib = scale_load(contrib);
+	trace_sched_task_load_contrib(task_of(se), se->avg.load_avg_contrib);
 	contrib = se->avg.runnable_avg_sum * scale_load_down(NICE_0_LOAD);
 	contrib /= (se->avg.runnable_avg_period + 1);
 	se->avg.load_avg_ratio = scale_load(contrib);
+	trace_sched_task_runnable_ratio(task_of(se), se->avg.load_avg_ratio);
 }
 
 /* Compute the current contribution to load_avg by se, return any delta */
