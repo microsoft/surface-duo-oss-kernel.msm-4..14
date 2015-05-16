@@ -1825,11 +1825,18 @@ static void __sched_fork(unsigned long clone_flags, struct task_struct *p)
 	INIT_LIST_HEAD(&p->se.group_node);
 
 #ifdef CONFIG_SCHED_HMP
+	/* keep LOAD_AVG_MAX in sync with fair.c if load avg series is changed */
+#define LOAD_AVG_MAX 47742
 	p->se.avg.hmp_last_up_migration = 0;
 	p->se.avg.hmp_last_down_migration = 0;
+	if (hmp_task_should_forkboost(p)) {
 		p->se.avg.load_avg_ratio = 1023;
 		p->se.avg.load_avg_contrib =
 				(1023 * scale_load_down(p->se.load.weight));
+		p->se.avg.runnable_avg_period = LOAD_AVG_MAX;
+		p->se.avg.runnable_avg_sum = LOAD_AVG_MAX;
+		p->se.avg.usage_avg_sum = LOAD_AVG_MAX;
+	}
 #endif
 #ifdef CONFIG_SCHEDSTATS
 	memset(&p->se.statistics, 0, sizeof(p->se.statistics));
