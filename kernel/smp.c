@@ -14,6 +14,8 @@
 #include <linux/smp.h>
 #include <linux/cpu.h>
 #include <linux/sched.h>
+#define CREATE_TRACE_POINTS
+#include <trace/events/smp.h>
 
 #include "smpboot.h"
 
@@ -152,7 +154,9 @@ static int generic_exec_single(int cpu, struct call_single_data *csd,
 
 	if (cpu == smp_processor_id()) {
 		local_irq_save(flags);
+		trace_smp_call_func_entry(func);
 		func(info);
+		trace_smp_call_func_exit(func);
 		local_irq_restore(flags);
 		return 0;
 	}
@@ -187,8 +191,10 @@ static int generic_exec_single(int cpu, struct call_single_data *csd,
 	 * locking and barrier primitives. Generic code isn't really
 	 * equipped to do the right thing...
 	 */
-	if (llist_add(&csd->llist, &per_cpu(call_single_queue, cpu)))
+	if (llist_add(&csd->llist, &per_cpu(call_single_queue, cpu))) {
+		trace_smp_call_func_send(csd->func, cpu);
 		arch_send_call_function_single_ipi(cpu);
+	}
 
 	if (wait)
 		csd_lock_wait(csd);
@@ -250,7 +256,9 @@ static void flush_smp_call_function_queue(bool warn_cpu_offline)
 	}
 
 	llist_for_each_entry_safe(csd, csd_next, entry, llist) {
+		trace_smp_call_func_entry(csd->func);
 		csd->func(csd->info);
+		trace_smp_call_func_exit(csd->func);
 		csd_unlock(csd);
 	}
 
@@ -277,6 +285,7 @@ int smp_call_function_single(int cpu, smp_call_func_t func, void *info,
 	int this_cpu;
 	int err;
 
+	trace_smp_call_func_send(func, cpu);
 	/*
 	 * prevent preemption and reschedule on another processor,
 	 * as well as CPU removal
