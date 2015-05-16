@@ -7689,24 +7689,128 @@ out:
 	return pulled_task;
 }
 
-/*
- * active_load_balance_cpu_stop is run by cpu stopper. It pushes
- * running tasks off the busiest CPU onto idle CPUs. It requires at
- * least 1 task to be running on each physical CPU where possible, and
- * avoids physical / logical imbalances.
- */
-static int active_load_balance_cpu_stop(void *data)
+static int active_load_balance_fair(void *data)
 {
 	struct rq *busiest_rq = data;
 	int busiest_cpu = cpu_of(busiest_rq);
 	int target_cpu = busiest_rq->push_cpu;
 	struct rq *target_rq = cpu_rq(target_cpu);
-	struct sched_domain *sd;
-	struct task_struct *p = NULL;
+	struct task_struct *tsk = NULL;
+	struct lb_env env = {
+		.dst_cpu	= target_cpu,
+		.dst_rq		= target_rq,
+		.src_cpu	= busiest_rq->cpu,
+		.src_rq		= busiest_rq,
+		.idle		= CPU_IDLE,
+	};
+
+	/* Search for an sd spanning us and the target CPU. */
+	rcu_read_lock();
+	for_each_domain(target_cpu, env.sd)
+		if ((env.sd->flags & SD_LOAD_BALANCE) &&
+			cpumask_test_cpu(busiest_cpu, sched_domain_span(env.sd)))
+				break;
+
+	/* Task could not be migrated between these two CPUs */
+	if (unlikely(env.sd == NULL))
+		goto out_done;
+
+	/* FAIR active balance */
+	schedstat_inc(env.sd, alb_count);
+
+	tsk = detach_one_task(&env);
+	if (tsk)
+		schedstat_inc(env.sd, alb_pushed);
+	else
+		schedstat_inc(env.sd, alb_failed);
+
+out_done:
+
+	rcu_read_unlock();
+
+	busiest_rq->active_balance = 0;
+	raw_spin_unlock(&busiest_rq->lock);
+
+	if (tsk)
+		attach_one_task(target_rq, tsk);
+
+	local_irq_enable();
+
+	return 0;
+}
+
+#ifdef CONFIG_SCHED_HMP
+static int move_specific_task(struct lb_env *env, struct task_struct *pm);
+static int active_load_balance_hmp(void *data)
+{
+	struct rq *busiest_rq = data;
+	int busiest_cpu = cpu_of(busiest_rq);
+	int target_cpu = busiest_rq->push_cpu;
+	struct rq *target_rq = cpu_rq(target_cpu);
+	struct task_struct *tsk = busiest_rq->migrate_task;
+	struct lb_env env = {
+		.dst_cpu        = target_cpu,
+		.dst_rq         = target_rq,
+		.src_cpu        = busiest_rq->cpu,
+		.src_rq         = busiest_rq,
+		.idle           = CPU_IDLE,
+	};
+
+	/* move a task from busiest_rq to target_rq */
+	double_lock_balance(busiest_rq, target_rq);
+
+	/* Search for an sd spanning us and the target CPU. */
+	rcu_read_lock();
+	for_each_domain(target_cpu, env.sd)
+		if (cpumask_test_cpu(busiest_cpu, sched_domain_span(env.sd)))
+				break;
+
+	/* Task could not be migrated between these two CPUs */
+	if (unlikely(env.sd == NULL))
+		goto out_done;
+
+	schedstat_inc(env.sd, alb_count);
+
+	if (move_specific_task(&env, tsk))
+		schedstat_inc(env.sd, alb_pushed);
+	else
+		schedstat_inc(env.sd, alb_failed);
+
+out_done:
+
+	rcu_read_unlock();
+	double_unlock_balance(busiest_rq, target_rq);
+
+	busiest_rq->active_balance = 0;
+	raw_spin_unlock(&busiest_rq->lock);
+
+	/*
+	 * Reset active balance request and release the task
+	 *
+	 * NOTE: The put_task_struct() is done while the runqueue spinlock is
+	 * held, but put_task_struct() can also cause a reschedule causing the
+	 * runqueue lock to be acquired recursively.
+	 * To avoid this race condition, we keep the put_task_struct() outside
+	 * the runqueue spinlock.
+	 */
+	put_task_struct(tsk);
+
+	local_irq_enable();
+
+	return 0;
+}
+#endif
+
+static int __do_active_load_balance_cpu_stop(void *data, bool hmp_active_balance)
+{
+	struct rq *busiest_rq = data;
+	int busiest_cpu = cpu_of(busiest_rq);
+	int target_cpu = busiest_rq->push_cpu;
+	struct rq *target_rq = cpu_rq(target_cpu);
 
 	raw_spin_lock_irq(&busiest_rq->lock);
 
-	/* make sure the requested cpu hasn't gone down in the meantime */
+	/* Make sure the requested cpu hasn't gone down in the meantime */
 	if (unlikely(busiest_cpu != smp_processor_id() ||
 		     !busiest_rq->active_balance))
 		goto out_unlock;
@@ -7722,43 +7826,41 @@ static int active_load_balance_cpu_stop(void *data)
 	 */
 	BUG_ON(busiest_rq == target_rq);
 
-	/* Search for an sd spanning us and the target CPU. */
-	rcu_read_lock();
-	for_each_domain(target_cpu, sd) {
-		if ((sd->flags & SD_LOAD_BALANCE) &&
-		    cpumask_test_cpu(busiest_cpu, sched_domain_span(sd)))
-				break;
-	}
+#ifdef CONFIG_SCHED_HMP
+	/* HMP active balance (using double locking) */
+	if (hmp_active_balance)
+		return active_load_balance_hmp(data);
+#endif
 
-	if (likely(sd)) {
-		struct lb_env env = {
-			.sd		= sd,
-			.dst_cpu	= target_cpu,
-			.dst_rq		= target_rq,
-			.src_cpu	= busiest_rq->cpu,
-			.src_rq		= busiest_rq,
-			.idle		= CPU_IDLE,
-		};
+	/* FAIR active balance (using attach/detach) */
+	return active_load_balance_fair(data);
 
-		schedstat_inc(sd, alb_count);
-
-		p = detach_one_task(&env);
-		if (p)
-			schedstat_inc(sd, alb_pushed);
-		else
-			schedstat_inc(sd, alb_failed);
-	}
-	rcu_read_unlock();
 out_unlock:
+
 	busiest_rq->active_balance = 0;
+
 	raw_spin_unlock(&busiest_rq->lock);
 
-	if (p)
-		attach_one_task(target_rq, p);
+#ifdef CONFIG_SCHED_HMP
+	if (hmp_active_balance)
+		put_task_struct(busiest_rq->migrate_task);
+#endif
 
 	local_irq_enable();
 
 	return 0;
+
+}
+
+/*
+ * active_load_balance_cpu_stop is run by cpu stopper. It pushes
+ * running tasks off the busiest CPU onto idle CPUs. It requires at
+ * least 1 task to be running on each physical CPU where possible, and
+ * avoids physical / logical imbalances.
+ */
+static int active_load_balance_cpu_stop(void *data)
+{
+	return __do_active_load_balance_cpu_stop(data, false);
 }
 
 static inline int on_null_domain(struct rq *rq)
@@ -8303,6 +8405,20 @@ static int move_specific_task(struct lb_env *env, struct task_struct *pm)
 	return 0;
 }
 
+/*
+ * hmp_active_task_migration_cpu_stop is run by cpu stopper and used to
+ * migrate a specific task from one runqueue to another.
+ * hmp_force_up_migration uses this to push a currently running task
+ * off a runqueue. hmp_idle_pull uses this to pull a currently
+ * running task to an idle runqueue.
+ * Reuses __do_active_load_balance_cpu_stop to actually do the work.
+ */
+static int hmp_active_task_migration_cpu_stop(void *data)
+{
+	return __do_active_load_balance_cpu_stop(data, true);
+}
+
+/*
  * Move task in a runnable state to another CPU.
  *
  * Tailored on 'active_load_balance_cpu_stop' with slight
@@ -8367,6 +8483,97 @@ out:
 	put_task_struct(p);
 }
 
+static DEFINE_SPINLOCK(hmp_force_migration);
+
+/*
+ * hmp_force_up_migration checks runqueues for tasks that need to
+ * be actively migrated to a faster cpu.
+ */
+static void hmp_force_up_migration(int this_cpu)
+{
+	int cpu, target_cpu;
+	struct sched_entity *curr, *orig;
+	struct rq *target;
+	unsigned long flags;
+	unsigned int force, got_target;
+	struct task_struct *p;
+
+	if (!spin_trylock(&hmp_force_migration))
+		return;
+	for_each_online_cpu(cpu) {
+		force = 0;
+		got_target = 0;
+		target = cpu_rq(cpu);
+		raw_spin_lock_irqsave(&target->lock, flags);
+		curr = target->cfs.curr;
+		if (!curr || target->active_balance) {
+			raw_spin_unlock_irqrestore(&target->lock, flags);
+			continue;
+		}
+		if (!entity_is_task(curr)) {
+			struct cfs_rq *cfs_rq;
+
+			cfs_rq = group_cfs_rq(curr);
+			while (cfs_rq) {
+				curr = cfs_rq->curr;
+				cfs_rq = group_cfs_rq(curr);
+			}
+		}
+		orig = curr;
+		curr = hmp_get_heaviest_task(curr, -1);
+		if (!curr) {
+			raw_spin_unlock_irqrestore(&target->lock, flags);
+			continue;
+		}
+		p = task_of(curr);
+		if (hmp_up_migration(cpu, &target_cpu, curr)) {
+			raw_spin_unlock_irqrestore(&target->lock, flags);
+			spin_unlock(&hmp_force_migration);
+			smp_send_reschedule(target_cpu);
+			return;
+		}
+		if (!got_target) {
+			/*
+			 * For now we just check the currently running task.
+			 * Selecting the lightest task for offloading will
+			 * require extensive book keeping.
+			 */
+			curr = hmp_get_lightest_task(orig, 1);
+			p = task_of(curr);
+			target->push_cpu = hmp_offload_down(cpu, curr);
+			if (target->push_cpu < NR_CPUS) {
+				get_task_struct(p);
+				target->migrate_task = p;
+				got_target = 1;
+				hmp_next_down_delay(&p->se, target->push_cpu);
+			}
+		}
+		/*
+		 * We have a target with no active_balance.  If the task
+		 * is not currently running move it, otherwise let the
+		 * CPU stopper take care of it.
+		 */
+		if (got_target) {
+			if (!task_running(target, p)) {
+				hmp_migrate_runnable_task(target);
+			} else {
+				target->active_balance = 1;
+				force = 1;
+			}
+		}
+
+		raw_spin_unlock_irqrestore(&target->lock, flags);
+
+		if (force)
+			stop_one_cpu_nowait(cpu_of(target),
+				hmp_active_task_migration_cpu_stop,
+				target, &target->active_balance_work);
+	}
+	spin_unlock(&hmp_force_migration);
+}
+
+#else
+static void hmp_force_up_migration(int this_cpu) { }
 #endif /* CONFIG_SCHED_HMP */
 
 /*
@@ -8378,6 +8585,8 @@ static void run_rebalance_domains(struct softirq_action *h)
 	struct rq *this_rq = this_rq();
 	enum cpu_idle_type idle = this_rq->idle_balance ?
 						CPU_IDLE : CPU_NOT_IDLE;
+
+	hmp_force_up_migration(cpu_of(this_rq));
 
 	rebalance_domains(this_rq, idle);
 
