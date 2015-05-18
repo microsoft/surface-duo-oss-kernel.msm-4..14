@@ -996,7 +996,7 @@ static size_t msm_iommu_map_sg(struct iommu_domain *domain, unsigned long iova,
 	}
 
 	for_each_sg(sg, tmp, nents, i)
-		len += sg->length;
+		len += tmp->length;
 
 	ret = msm_iommu_pagetable_map_range(&priv->pt, iova, sg, len, prot);
 	if (ret)
