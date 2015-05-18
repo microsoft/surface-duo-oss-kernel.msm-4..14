@@ -324,16 +324,60 @@ static int qup_i2c_issue_write(struct qup_i2c_dev *qup, struct i2c_msg *msg)
 	return ret;
 }
 
-static int qup_i2c_write_one(struct qup_i2c_dev *qup, struct i2c_msg *msg)
+static int qup_i2c_wait_for_complete(struct qup_i2c_dev *qup,
+				     struct i2c_msg *msg)
 {
 	unsigned long left;
+	int ret = 0;
+
+	left = wait_for_completion_timeout(&qup->xfer, HZ);
+	if (!left) {
+		writel(1, qup->base + QUP_SW_RESET);
+		ret = -ETIMEDOUT;
+	}
+
+	if (qup->bus_err || qup->qup_err) {
+		if (qup->bus_err & QUP_I2C_NACK_FLAG) {
+			dev_err(qup->dev, "NACK from %x\n", msg->addr);
+			ret = -EIO;
+		}
+	}
+
+	return ret;
+}
+
+static int qup_i2c_write_one(struct qup_i2c_dev *qup, struct i2c_msg *msg)
+{
+	int ret = 0;
+
+	do {
+		ret = qup_i2c_change_state(qup, QUP_PAUSE_STATE);
+		if (ret)
+			return ret;
+
+		ret = qup_i2c_issue_write(qup, msg);
+		if (ret)
+			return ret;
+
+		ret = qup_i2c_change_state(qup, QUP_RUN_STATE);
+		if (ret)
+			return ret;
+
+		ret = qup_i2c_wait_for_complete(qup, msg);
+		if (ret)
+			return ret;
+	} while (qup->pos < msg->len);
+
+	return ret;
+}
+
+static int qup_i2c_write(struct qup_i2c_dev *qup, struct i2c_msg *msg)
+{
 	int ret;
 
 	qup->msg = msg;
 	qup->pos = 0;
-
 	enable_irq(qup->irq);
-
 	qup_i2c_set_write_mode(qup, msg);
 
 	ret = qup_i2c_change_state(qup, QUP_RUN_STATE);
@@ -342,35 +386,10 @@ static int qup_i2c_write_one(struct qup_i2c_dev *qup, struct i2c_msg *msg)
 
 	writel(qup->clk_ctl, qup->base + QUP_I2C_CLK_CTL);
 
-	do {
-		ret = qup_i2c_change_state(qup, QUP_PAUSE_STATE);
-		if (ret)
-			goto err;
+	ret = qup_i2c_write_one(qup, msg);
+	if (ret)
+		goto err;
 
-		ret = qup_i2c_issue_write(qup, msg);
-		if (ret)
-			goto err;
-
-		ret = qup_i2c_change_state(qup, QUP_RUN_STATE);
-		if (ret)
-			goto err;
-
-		left = wait_for_completion_timeout(&qup->xfer, HZ);
-		if (!left) {
-			writel(1, qup->base + QUP_SW_RESET);
-			ret = -ETIMEDOUT;
-			goto err;
-		}
-
-		if (qup->bus_err || qup->qup_err) {
-			if (qup->bus_err & QUP_I2C_NACK_FLAG)
-				dev_err(qup->dev, "NACK from %x\n", msg->addr);
-			ret = -EIO;
-			goto err;
-		}
-	} while (qup->pos < msg->len);
-
-	/* Wait for the outstanding data in the fifo to drain */
 	ret = qup_i2c_wait_ready(qup, QUP_OUT_NOT_EMPTY, RESET_BIT, ONE_BYTE);
 
 err:
@@ -436,7 +455,43 @@ static int qup_i2c_read_fifo(struct qup_i2c_dev *qup, struct i2c_msg *msg)
 
 static int qup_i2c_read_one(struct qup_i2c_dev *qup, struct i2c_msg *msg)
 {
-	unsigned long left;
+	int ret = 0;
+
+	/*
+	 * The QUP block will issue a NACK and STOP on the bus when reaching
+	 * the end of the read, the length of the read is specified as one byte
+	 * which limits the possible read to 256 (QUP_READ_LIMIT) bytes.
+	 */
+	if (msg->len > QUP_READ_LIMIT) {
+		dev_err(qup->dev, "HW not capable of reads over %d bytes\n",
+			QUP_READ_LIMIT);
+		return -EINVAL;
+	}
+
+	ret = qup_i2c_change_state(qup, QUP_PAUSE_STATE);
+	if (ret)
+		return ret;
+
+	qup_i2c_issue_read(qup, msg);
+
+	ret = qup_i2c_change_state(qup, QUP_RUN_STATE);
+	if (ret)
+		return ret;
+
+	do {
+		ret = qup_i2c_wait_for_complete(qup, msg);
+		if (ret)
+			return ret;
+		ret = qup_i2c_read_fifo(qup, msg);
+		if (ret)
+			return ret;
+	} while (qup->pos < msg->len);
+
+	return ret;
+}
+
+static int qup_i2c_read(struct qup_i2c_dev *qup, struct i2c_msg *msg)
+{
 	int ret;
 
 	qup->msg = msg;
@@ -452,35 +507,7 @@ static int qup_i2c_read_one(struct qup_i2c_dev *qup, struct i2c_msg *msg)
 
 	writel(qup->clk_ctl, qup->base + QUP_I2C_CLK_CTL);
 
-	ret = qup_i2c_change_state(qup, QUP_PAUSE_STATE);
-	if (ret)
-		goto err;
-
-	qup_i2c_issue_read(qup, msg);
-
-	ret = qup_i2c_change_state(qup, QUP_RUN_STATE);
-	if (ret)
-		goto err;
-
-	do {
-		left = wait_for_completion_timeout(&qup->xfer, HZ);
-		if (!left) {
-			writel(1, qup->base + QUP_SW_RESET);
-			ret = -ETIMEDOUT;
-			goto err;
-		}
-
-		if (qup->bus_err || qup->qup_err) {
-			if (qup->bus_err & QUP_I2C_NACK_FLAG)
-				dev_err(qup->dev, "NACK from %x\n", msg->addr);
-			ret = -EIO;
-			goto err;
-		}
-
-		ret = qup_i2c_read_fifo(qup, msg);
-		if (ret)
-			goto err;
-	} while (qup->pos < msg->len);
+	ret = qup_i2c_read_one(qup, msg);
 
 err:
 	disable_irq(qup->irq);
@@ -520,9 +547,9 @@ static int qup_i2c_xfer(struct i2c_adapter *adap,
 		}
 
 		if (msgs[idx].flags & I2C_M_RD)
-			ret = qup_i2c_read_one(qup, &msgs[idx]);
+			ret = qup_i2c_read(qup, &msgs[idx]);
 		else
-			ret = qup_i2c_write_one(qup, &msgs[idx]);
+			ret = qup_i2c_write(qup, &msgs[idx]);
 
 		if (ret)
 			break;
