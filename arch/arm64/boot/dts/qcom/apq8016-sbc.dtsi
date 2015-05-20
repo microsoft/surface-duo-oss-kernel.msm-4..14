@@ -100,6 +100,58 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&usb_id_default>;
 	};
+
+	leds {
+		pinctrl-names = "default";
+		pinctrl-0 = <&msm_gpios_leds_default>,
+			    <&pm8916_gpios_leds_default>,
+			    <&pm8916_mpps_leds_default>;
+
+		compatible = "gpio-leds";
+
+		led@1 {
+			label = "apq8016-sbc:green:user1";
+			gpios = <&msmgpio 21 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "heartbeat";
+			default-state = "off";
+		};
+
+		led@2 {
+			label = "apq8016-sbc:green:user2";
+			gpios = <&msmgpio 120 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "mmc0";
+			default-state = "off";
+		};
+
+		led@3 {
+			label = "apq8016-sbc:green:user3";
+			gpios = <&pm8916_gpios 1 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "mmc1";
+			default-state = "off";
+		};
+
+		led@4 {
+			label = "apq8016-sbc:green:user4";
+			gpios = <&pm8916_gpios 2 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "none";
+			default-state = "off";
+		};
+
+		led@5 {
+			label = "apq8016-sbc:yellow:wlan";
+			gpios = <&pm8916_mpps 2 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "wlan";
+			default-state = "off";
+		};
+
+		led@6 {
+			label = "apq8016-sbc:blue:bt";
+			gpios = <&pm8916_mpps 3 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "bt";
+			default-state = "off";
+		};
+	};
+
 };
 &blsp_dma {
 	status = "okay";
