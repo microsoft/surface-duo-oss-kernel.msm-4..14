@@ -19,6 +19,14 @@
 		};
 	};
 
+	msm_gpios_leds_default: msm_gpios_leds_default {
+		pinconf {
+			pins = "gpio21", "gpio10";
+			function = "gpio";
+			output-low;
+		};
+	};
+
 	adv7533_int_active: adv533_int_active {
 		pinmux {
 			function = "gpio";
