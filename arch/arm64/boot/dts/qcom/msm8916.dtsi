@@ -99,6 +99,9 @@
 			next-level-cache = <&L2_0>;
 			enable-method = "psci";
 			cpu-idle-states = <&CPU_SPC>;
+			clocks = <&apcs 0>;
+			clock-latency = <200000>;
+			cpu-supply = <&pm8916_spmi_s2>;
 		};
 
 		CPU1: cpu@1 {
@@ -108,6 +111,9 @@
 			next-level-cache = <&L2_0>;
 			enable-method = "psci";
 			cpu-idle-states = <&CPU_SPC>;
+			clocks = <&apcs 0>;
+			clock-latency = <200000>;
+			cpu-supply = <&pm8916_spmi_s2>;
 		};
 
 		CPU2: cpu@2 {
@@ -117,6 +123,9 @@
 			next-level-cache = <&L2_0>;
 			enable-method = "psci";
 			cpu-idle-states = <&CPU_SPC>;
+			clocks = <&apcs 0>;
+			clock-latency = <200000>;
+			cpu-supply = <&pm8916_spmi_s2>;
 		};
 
 		CPU3: cpu@3 {
@@ -126,6 +135,9 @@
 			next-level-cache = <&L2_0>;
 			enable-method = "psci";
 			cpu-idle-states = <&CPU_SPC>;
+			clocks = <&apcs 0>;
+			clock-latency = <200000>;
+			cpu-supply = <&pm8916_spmi_s2>;
 		};
 
 		L2_0: l2-cache {
@@ -251,10 +263,17 @@
 			status = "disabled";
 		};
 
-		apcs: syscon@b011000 {
-			compatible = "syscon";
-			reg = <0x0b011000 0x1000>;
+		a53pll: a53pll@0b016000 {
+			compatible = "qcom,a53-pll";
+			reg = <0x0b016000 0x40>;
 		};
+
+		apcs: syscon@b011000 {
+			compatible = "qcom,a53cc", "syscon";
+			reg = <0x0b011000 0x1000>;
+			#clock-cells = <1>;
+		};
+
 
 		blsp1_uart2: serial@78b0000 {
 			compatible = "qcom,msm-uartdm-v1.4", "qcom,msm-uartdm";
