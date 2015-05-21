@@ -3,9 +3,17 @@
 &pm8916_gpios {
 	usb_hub_reset_pm_default: usb_hub_reset_pm_default {
 		pinconf {
-			pins = "gpio1";
+			pins = "gpio3";
 			function = PMIC_GPIO_FUNC_NORMAL;
 			output-low;
+		};
+	};
+
+	usb_sw_sel_pm_default: usb_sw_sel_pm {
+		pinconf {
+			pins = "gpio4";
+			function = PMIC_GPIO_FUNC_NORMAL;
+			input-disable;
 		};
 	};
 };
