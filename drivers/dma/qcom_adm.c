@@ -233,7 +233,7 @@ static void *adm_process_fc_descriptors(struct adm_chan *achan,
 	void *desc, struct scatterlist *sg, u32 crci, u32 burst,
 	enum dma_transfer_direction direction)
 {
-	struct adm_desc_hw_box *box_desc;
+	struct adm_desc_hw_box *box_desc = NULL;
 	struct adm_desc_hw_single *single_desc;
 	u32 remainder = sg_dma_len(sg);
 	u32 rows, row_offset, crci_cmd;
@@ -253,7 +253,7 @@ static void *adm_process_fc_descriptors(struct adm_chan *achan,
 		dst = &achan->slave.dst_addr;
 	}
 
-	do {
+	while (remainder >= burst) {
 		box_desc = desc;
 		box_desc->cmd = ADM_CMD_TYPE_BOX | crci_cmd;
 		box_desc->row_offset = row_offset;
@@ -268,7 +268,7 @@ static void *adm_process_fc_descriptors(struct adm_chan *achan,
 		*incr_addr += burst * rows;
 		remainder -= burst * rows;
 		desc += sizeof(*box_desc);
-	} while (remainder >= burst);
+	}
 
 	/* if leftover bytes, do one single descriptor */
 	if (remainder) {
@@ -282,7 +282,7 @@ static void *adm_process_fc_descriptors(struct adm_chan *achan,
 		if (sg_is_last(sg))
 			single_desc->cmd |= ADM_CMD_LC;
 	} else {
-		if (sg_is_last(sg))
+		if (box_desc && sg_is_last(sg))
 			box_desc->cmd |= ADM_CMD_LC;
 	}
 
