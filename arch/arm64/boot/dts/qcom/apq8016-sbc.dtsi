@@ -89,7 +89,7 @@
 
 	usb2513 {
 		compatible = "smsc,usb3503";
-		reset-gpios = <&pm8916_gpios 1 GPIO_ACTIVE_LOW>;
+		reset-gpios = <&pm8916_gpios 3 GPIO_ACTIVE_LOW>;
 		initial-mode = <1>;
 	};
 
