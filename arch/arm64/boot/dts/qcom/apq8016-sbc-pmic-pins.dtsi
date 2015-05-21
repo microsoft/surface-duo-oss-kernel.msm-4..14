@@ -18,10 +18,13 @@
 			function = PMIC_GPIO_FUNC_NORMAL;
 			output-low;
 		};
-		usr_led_4_ctrl {
+	};
+
+	usb_sw_sel_pm_default: usb_sw_sel_pm {
+		pinconf {
 			pins = "gpio4";
 			function = PMIC_GPIO_FUNC_NORMAL;
-			output-low;
+			input-disable;
 		};
 	};
 };
