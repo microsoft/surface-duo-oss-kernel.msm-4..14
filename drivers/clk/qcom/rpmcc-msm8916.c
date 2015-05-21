@@ -131,8 +131,15 @@ static int rpm_clk_probe(struct platform_device *pdev)
 		clks[i] = clk;
 	}
 
-	return of_clk_add_provider(pdev->dev.of_node, of_clk_src_onecell_get,
+	ret = of_clk_add_provider(pdev->dev.of_node, of_clk_src_onecell_get,
 				   data);
+	if (ret)
+		return ret;
+
+	clk_set_rate(bimc_a_clk.hw.clk, 800000000);
+	clk_prepare_enable(bimc_a_clk.hw.clk);
+
+	return 0;
 }
 
 static int rpm_clk_remove(struct platform_device *pdev)
