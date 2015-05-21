@@ -434,6 +434,147 @@ static void __nvmem_device_put(struct nvmem_device *nvmem)
 	mutex_unlock(&nvmem_mutex);
 }
 
+static int nvmem_match(struct device *dev, const void *data)
+{
+	return !strcmp(dev_name(dev), data);
+}
+
+static struct nvmem_device *nvmem_find(const char *name)
+{
+	struct device *d;
+
+	d = class_find_device(&nvmem_class, NULL, name, nvmem_match);
+
+	return d ? to_nvmem_device(d) : NULL;
+}
+
+/**
+ * of_nvmem_device_get() - Get nvmem device from a given id
+ *
+ * @dev node: Device tree node that uses the nvmem device
+ * @id: nvmem name from nvmem-names property.
+ *
+ * The return value will be an ERR_PTR() on error or a valid pointer
+ * to a struct nvmem_device.
+ */
+struct nvmem_device *of_nvmem_device_get(struct device_node *np, const char *id)
+{
+
+	struct device_node *nvmem_np;
+	int index;
+
+	index = of_property_match_string(np, "nvmem-names", id);
+
+	nvmem_np = of_parse_phandle(np, "nvmem", index);
+	if (!nvmem_np)
+		return ERR_PTR(-EINVAL);
+
+	return __nvmem_device_get(nvmem_np, NULL, NULL);
+
+}
+EXPORT_SYMBOL_GPL(of_nvmem_device_get);
+
+
+/**
+ * nvmem_device_get() - Get nvmem device from a given id
+ *
+ * @dev : Device that uses the nvmem device
+ * @id: nvmem name from nvmem-names property.
+ *
+ * The return value will be an ERR_PTR() on error or a valid pointer
+ * to a struct nvmem_device.
+ */
+struct nvmem_device *nvmem_device_get(struct device *dev, const char *dev_name)
+{
+	if (dev->of_node) { /* try dt first */
+		struct nvmem_device *nvmem;
+
+		nvmem = of_nvmem_device_get(dev->of_node, dev_name);
+
+		if (!IS_ERR(nvmem) || PTR_ERR(nvmem) == -EPROBE_DEFER)
+			return nvmem;
+
+	}
+
+	return nvmem_find(dev_name);
+
+}
+EXPORT_SYMBOL_GPL(nvmem_device_get);
+
+static int devm_nvmem_device_match(struct device *dev, void *res, void *data)
+{
+	struct nvmem_device **nvmem = res;
+	if (!nvmem || !*nvmem) {
+		WARN_ON(!nvmem || !*nvmem);
+		return 0;
+	}
+	return *nvmem == data;
+}
+
+static void devm_nvmem_device_release(struct device *dev, void *res)
+{
+	nvmem_device_put(*(struct nvmem_device **)res);
+}
+
+/**
+ * devm_nvmem_device_put() - put alredy got nvmem device
+ *
+ * @nvmem: pointer to nvmem device allocated by devm_nvmem_cell_get(),
+ * that needs to be released.
+ */
+void devm_nvmem_device_put(struct device *dev, struct nvmem_device *nvmem)
+{
+	int ret;
+
+	ret = devres_release(dev, devm_nvmem_device_release,
+			     devm_nvmem_device_match, nvmem);
+
+	WARN_ON(ret);
+
+}
+EXPORT_SYMBOL_GPL(devm_nvmem_device_put);
+
+/**
+ * nvmem_device_put() - put alredy got nvmem device
+ *
+ * @nvmem: pointer to nvmem device that needs to be released.
+ */
+void nvmem_device_put(struct nvmem_device *nvmem)
+{
+	__nvmem_device_put(nvmem);
+}
+EXPORT_SYMBOL_GPL(nvmem_device_put);
+
+/**
+ * devm_nvmem_device_get() - Get nvmem cell of device form a given id
+ *
+ * @dev node: Device tree node that uses the nvmem cell
+ * @id: nvmem name in nvmems property.
+ *
+ * The return value will be an ERR_PTR() on error or a valid pointer
+ * to a struct nvmem_cell.  The nvmem_cell will be freed by the
+ * automatically once the device is freed.
+ */
+struct nvmem_device *devm_nvmem_device_get(struct device *dev, const char *id)
+{
+	struct nvmem_device **ptr, *nvmem;
+
+	ptr = devres_alloc(devm_nvmem_device_release, sizeof(*ptr), GFP_KERNEL);
+	if (!ptr)
+		return ERR_PTR(-ENOMEM);
+
+	nvmem = nvmem_device_get(dev, id);
+	if (!IS_ERR(nvmem)) {
+		*ptr = nvmem;
+		devres_add(dev, ptr);
+	} else {
+		devres_free(ptr);
+	}
+
+	return nvmem;
+}
+EXPORT_SYMBOL_GPL(devm_nvmem_device_get);
+
 static struct nvmem_cell *nvmem_cell_get_from_list(const char *cell_id)
 {
 	struct nvmem_cell *cell = NULL;
@@ -793,6 +934,121 @@ int nvmem_cell_write(struct nvmem_cell *cell, void *buf, ssize_t len)
 	return len;
 }
 EXPORT_SYMBOL_GPL(nvmem_cell_write);
+
+/**
+ * nvmem_device_cell_read() - Read a given nvmem device and cell
+ *
+ * @nvmem: nvmem device to read from.
+ * @info: nvmem cell info to be read.
+ * @buf: buffer pointer which will be populated on successful read.
+ *
+ * The return value would be length of successful bytes read on success
+ * and error code in error cases.
+ */
+int nvmem_device_cell_read(struct nvmem_device *nvmem,
+			   struct nvmem_cell_info *info, void *buf)
+{
+	struct nvmem_cell cell;
+	int rc, len;
+
+	if (!nvmem || !nvmem->regmap)
+		return -EINVAL;
+
+	rc = nvmem_cell_info_to_nvmem_cell(nvmem, info, &cell);
+	if (IS_ERR_VALUE(rc))
+		return rc;
+
+	rc = __nvmem_cell_read(nvmem, &cell, buf, &len);
+	if (IS_ERR_VALUE(rc))
+		return rc;
+
+	return len;
+}
+EXPORT_SYMBOL_GPL(nvmem_device_cell_read);
+
+/**
+ * nvmem_device_cell_write() - Write cell to a given nvmem device
+ *
+ * @nvmem: nvmem device to be written to.
+ * @info: nvmem cell info to be written
+ * @buf: buffer to be written to cell.
+ *
+ * The return value will be an length of bytes written or non zero on failure.
+ * */
+int nvmem_device_cell_write(struct nvmem_device *nvmem,
+			    struct nvmem_cell_info *info, void *buf)
+{
+	struct nvmem_cell cell;
+	int rc;
+
+	if (!nvmem || !nvmem->regmap)
+		return -EINVAL;
+
+	rc = nvmem_cell_info_to_nvmem_cell(nvmem, info, &cell);
+	if (IS_ERR_VALUE(rc))
+		return rc;
+
+	return nvmem_cell_write(&cell, buf, cell.bytes);
+}
+EXPORT_SYMBOL_GPL(nvmem_device_cell_write);
+
+/**
+ * nvmem_device_read() - Read from a given nvmem device
+ *
+ * @nvmem: nvmem device to read from.
+ * @offset: offset in nvmem device.
+ * @bytes: number of bytes to read.
+ * @buf: buffer pointer which will be populated on successful read.
+ *
+ * The return value would be length of successful bytes read on success
+ * and error code in error cases.
+ */
+int nvmem_device_read(struct nvmem_device *nvmem,
+		      unsigned int offset,
+		      size_t bytes, void *buf)
+{
+	int rc;
+
+	if (!nvmem || !nvmem->regmap)
+		return -EINVAL;
+
+	rc = regmap_raw_read(nvmem->regmap, offset, buf, bytes);
+
+	if (IS_ERR_VALUE(rc))
+		return rc;
+
+	return bytes;
+}
+EXPORT_SYMBOL_GPL(nvmem_device_read);
+
+/**
+ * nvmem_device_write() - Write cell to a given nvmem device
+ *
+ * @nvmem: nvmem device to be written to.
+ * @offset: offset in nvmem device.
+ * @bytes: number of bytes to write.
+ * @buf: buffer to be written.
+ *
+ * The return value will be an length of bytes written or non zero on failure.
+ * */
+int nvmem_device_write(struct nvmem_device *nvmem,
+		       unsigned int offset,
+		       size_t bytes, void *buf)
+{
+	int rc;
+
+	if (!nvmem || !nvmem->regmap)
+		return -EINVAL;
+
+	rc = regmap_raw_write(nvmem->regmap, offset, buf, bytes);
+
+	if (IS_ERR_VALUE(rc))
+		return rc;
+
+
+	return bytes;
+}
+EXPORT_SYMBOL_GPL(nvmem_device_write);
 
 static int __init nvmem_init(void)
 {
