@@ -16,3 +16,6 @@
 &uart0 {
 	status = "okay";
 };
+&swt0 {
+	status = "okay";
+};

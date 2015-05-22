@@ -21,7 +21,6 @@
 		};
 	};
 
-
 	memory_DDR0@80000000 {
 		device_type = "memory";
 		reg = <0 0x80000000 0 0x30000000>;
@@ -93,6 +92,18 @@
 				reg = <0x40000000 0x7D000>;
 				ranges;
 
+				/*
+				 * TODO: Update the clocks when the clock framework is
+				 * defined.
+				 */
+				swt0:swt@4000A000 {
+					compatible = "fsl,s32v234-wdt", "fsl,sac58r-wdt";
+					reg = <0x4000A000 0x1000>;
+					clocks = <&v2m_oscclk2>;
+					clock-names = "swt";
+					status = "disabled";
+				};
+
 				uart0:serial@40053000 {
 					compatible = "fsl,s32v234-linflexuart";
 					reg = <0x40053000 0x1000>;
@@ -102,7 +113,6 @@
 				};
 		};
 	};
-
 
 };
 
