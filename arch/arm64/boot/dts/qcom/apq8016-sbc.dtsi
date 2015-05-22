@@ -290,3 +290,8 @@
 		};
 	};
 };
+
+/* default regulators required for mezzanine boards */
+&pm8916_l15 {
+	regulator-always-on;
+};
