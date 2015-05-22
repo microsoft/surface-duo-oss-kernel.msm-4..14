@@ -1,7 +1,7 @@
 /*
  *  Freescale linflexuart serial port driver
  *
- *  Copyright 2012-2013 Freescale Semiconductor, Inc.
+ *  Copyright 2012-2015 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -165,7 +165,7 @@ struct linflex_port {
 
 static struct of_device_id linflex_dt_ids[] = {
 	{
-		.compatible = "fsl,imxv84-linflexuart",
+		.compatible = "fsl,s32v234-linflexuart",
 	},
 	{ /* sentinel */ }
 };
