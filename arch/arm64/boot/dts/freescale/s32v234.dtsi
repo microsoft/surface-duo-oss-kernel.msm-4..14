@@ -1,68 +1,108 @@
-/*#include "skeleton.dtsi"*/
-#include "A53.dts"
-#if 0
-#include <dt-bindings/clock/treerunner-clock.h>
-#else
-#include <dt-bindings/clock/vf610-clock.h>
-#endif
-
 / {
-    compatible = "fsl,treerunner";
+	compatible = "arm,vexpress,v2p-aarch64", "arm,vexpress";
+	interrupt-parent = <&gic>;
+	#address-cells = <2>;
+	#size-cells = <2>;
 
-    memory {
-	reg = <0x80000000 0x8000000>;
- 	};
+	aliases {
+		serial0 = &uart0;
+	};
 
-    soc {
-        #address-cells = <1>;
-        #size-cells = <1>;
-        compatible = "simple-bus";
-        ranges;
+	cpus {
+		#address-cells = <1>;
+		#size-cells = <0>;
 
-        axbs-bus@FFFFFFFF { /* TODO: fix address */
-            compatible = "simple-bus";
-            #address-cells = <1>;
-            #size-cells = <1>;
-            reg = <0xFFFFFFFF 0x00000>; /* TODO: fix address */
-            ranges;
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,arm-v8";
+			reg = <0x0 0x0>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x8000fff8>;
+		};
+	};
+
+
+	memory_DDR0@80000000 {
+		device_type = "memory";
+		reg = <0 0x80000000 0 0x30000000>;
+	};
 /*
-            peripheralbridge0: peripheral-bridge@FFFFFFFF{
-                compatible = "simple-bus";
-                #address-cells = <1>;
-                #size-cells = <1>;
-                reg = <0xFFFFFFFF 0x00000>;
-                ranges;
+	memory_DDR1@c0000000 {
+		device_type = "memory";
+		reg = <0 0xc0000000 0 0x40000000>;
+	};
 */
-                serial: linflex@0x40053000 {
-                    compatible = "fsl,s32v234-linflex-uart", "fsl-linflexuart";
-                    reg = <0x40053000 0x1000>;
-/*
-                    clocks = <&uart_clk>;
-                    clock-names = "apb_pclk";
-*/
-                    status = "disabled";
-                };
-/*
-            };
-*/
-        };
-/*WARNING: these are bogus entries*/
-        wdog@3F03e000 {
-            compatible = "fsl,vf610-wdt", "fsl,imx21-wdt";
-            reg = <0x3F03e000 0x1000>;
-            clocks = <&clks VF610_CLK_WDT>;
-            clock-names = "wdog";
-        };
-        anatop@3F050000 {
-            compatible = "fsl,vf610-anatop";
-            reg = <0x3F050000 0x1000>;
-        };
-        clks: ccm@3F06b000 {
-            compatible = "fsl,vf610-ccm";
-            reg = <0x3F06b000 0x1000>;
-            #clock-cells = <1>;
-        };
-/*bogus entries end*/
-    };
+	gic: interrupt-controller@7d001000 {
+		compatible = "arm,cortex-a15-gic", "arm,cortex-a9-gic";
+		#interrupt-cells = <3>;
+		#address-cells = <0>;
+		interrupt-controller;
+		reg = <0 0x7d001000 0 0x1000>,
+			  <0 0x7d002000 0 0x1000>,
+			  <0 0x7d004000 0 0x2000>,
+			  <0 0x7d006000 0 0x2000>;
+		interrupts = <1 9 0xf04>;
+	};
+
+	cci@7d090000 {
+		compatible = "arm,cci";
+		reg = <0 0x7d090000 0 0x10000>;
+		interrupts = <0 101 4>,
+			 <0 102 4>,
+			 <0 103 4>,
+			 <0 104 4>,
+			 <0 105 4>;
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <1 13 0xf08>,
+			 <1 14 0xf08>,
+			 <1 11 0xf08>,
+			 <1 10 0xf08>;
+	};
+
+	v2m_oscclk2: oscclk2 {
+		/* IO FPGA peripheral clock */
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <24000000>;
+		clock-output-names = "v2m:oscclk2";
+	};
+
+	p9_smbclk: smbclk {
+		/* Static memory controller clock */
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <24000000>;
+		clock-output-names = "p9:smbclk";
+	};
+
+	soc {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "simple-bus";
+		interrupt-parent = <&gic>;
+		ranges;
+
+		aips0: aips-bus@40000000 {
+				compatible = "fsl,aips-bus", "simple-bus";
+				#address-cells = <1>;
+				#size-cells = <1>;
+				interrupt-parent = <&gic>;
+				reg = <0x40000000 0x7D000>;
+				ranges;
+
+				uart0:serial@40053000 {
+					compatible = "fsl,s32v234-linflexuart";
+					reg = <0x40053000 0x1000>;
+					interrupts = <0 59 4>;
+					clocks = <&v2m_oscclk2>, <&p9_smbclk>;
+					clock-names = "uartclk", "apb_pclk";
+				};
+		};
+	};
+
+
 };
 
