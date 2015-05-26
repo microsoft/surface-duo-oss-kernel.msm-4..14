@@ -67,14 +67,6 @@ static int get_device_address(struct smem_client *smem_client,
 		goto mem_map_table_failed;
 	}
 
-	/* Map a scatterlist into an SMMU */
-	rc = dma_map_sg(cb->dev, table->sgl, table->nents,
-			DMA_BIDIRECTIONAL);
-	if (!rc) {
-		dprintk(VIDC_ERR, "dma_map_sg failed! (%d != %d)\n",
-				rc, table->nents);
-		goto mem_map_sg_failed;
-	}
 	if (table->sgl) {
 		dprintk(VIDC_DBG,
 				"%s: DMA buf: %p, device: %p, attach: %p, table: %p, table sgl: %p, rc: %d, dma_address: %pa\n",
@@ -144,8 +136,6 @@ static void put_device_address(struct smem_client *smem_client,
 			mapping_info->buf, mapping_info->table,
 			mapping_info->attach);
 
-		dma_unmap_sg(mapping_info->dev, mapping_info->table->sgl,
-			mapping_info->table->nents, DMA_BIDIRECTIONAL);
 		dma_buf_unmap_attachment(mapping_info->attach,
 			mapping_info->table, DMA_BIDIRECTIONAL);
 		dma_buf_detach(mapping_info->buf, mapping_info->attach);
