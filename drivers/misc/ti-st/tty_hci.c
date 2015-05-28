@@ -36,6 +36,7 @@
 #include <linux/interrupt.h>
 
 #include <linux/ti_wilink_st.h>
+#include "led.h"
 
 /* Number of seconds to wait for registration completion
  * when ST returns PENDING status.
@@ -119,6 +120,22 @@ static struct st_proto_s ti_st_proto[MAX_BT_CHNL_IDS] = {
 		.reserve = 8,
 	},
 };
+
+static struct hci_dev *hdev;		/* hci_dev during hci_tty_init */
+/* a dumb callback function for hci_dev open and close */
+static int dumb_hci_callback(struct hci_dev *hdev)
+{
+	pr_info("called %s\n", __func__);
+	return 0;
+}
+
+/* a dumb callback function for hci_dev send */
+static int dumb_hci_send_callback(struct hci_dev *hdev, struct sk_buff *skb)
+{
+	pr_info("called %s\n", __func__);
+	return 0;
+}
+
 /** hci_tty_open Function
  *  This function will perform an register on ST driver.
  *
@@ -140,6 +157,7 @@ int hci_tty_open(struct inode *inod, struct file *file)
 	file->private_data = hst;
 	hst = file->private_data;
 
+	hst->hdev = hdev;
 	for (i = 0; i < MAX_BT_CHNL_IDS; i++) {
 		ti_st_proto[i].priv_data = hst;
 		ti_st_proto[i].max_frame_size = 1026;
@@ -310,6 +328,7 @@ ssize_t hci_tty_read(struct file *file, char __user *data, size_t size,
 		memcpy(skb_put(rskb, 1), &skb->cb[0], 1);
 		memcpy(skb_put(rskb, skb->len), skb->data, skb->len);
 
+		bluetooth_led_rx(hst->hdev);
 		if (copy_to_user(data, rskb->data, rskb->len)) {
 			pr_err("unable to copy to user space\n");
 			/* Queue the skb back to head */
@@ -363,6 +382,8 @@ ssize_t hci_tty_write(struct file *file, const char __user *data,
 		kfree_skb(skb);
 		return -EIO;
 	}
+
+	bluetooth_led_tx(hst->hdev);
 
 #ifdef VERBOSE
 	pr_debug("start data..");
@@ -486,6 +507,7 @@ static struct device *hci_tty_dev;	/* dev during device_create */
  */
 static int __init hci_tty_init(void)
 {
+	int err = 0;
 	pr_info("inside %s\n", __func__);
 
 	/* Expose the device DEVICE_NAME to user space
@@ -516,6 +538,32 @@ static int __init hci_tty_init(void)
 		return -1;
 	}
 	pr_info("allocated %d, %d\n", hci_tty_major, 0);
+
+	/* Alloc and register "hciX" device so we can use hci
+	 * LED trigger feature
+	 */
+	hdev = hci_alloc_dev();
+	if (!hdev)
+		return -ENOMEM;
+
+	pr_info("hdev %p\n", hdev);
+
+	hdev->bus = HCI_UART;
+	hci_set_drvdata(hdev, NULL);
+	hdev->open = dumb_hci_callback;
+	hdev->close = dumb_hci_callback;
+	hdev->flush = NULL;
+	hdev->send = dumb_hci_send_callback;
+	hdev->dev_type = HCI_AMP;
+	err = hci_register_dev(hdev);
+	if (err < 0) {
+		pr_err("Can't register HCI device error %d\n", err);
+		hci_free_dev(hdev);
+		return err;
+	}
+
+	pr_info("HCI device registered (hdev %p)", hdev);
+
 	return 0;
 }
 
@@ -528,6 +576,9 @@ static int __init hci_tty_init(void)
 static void __exit hci_tty_exit(void)
 {
 	pr_info("inside %s\n", __func__);
+	hci_unregister_dev(hdev);
+	hci_free_dev(hdev);
+
 	pr_info("bye.. freeing up %d\n", hci_tty_major);
 
 	device_destroy(hci_tty_class, MKDEV(hci_tty_major, 0));
