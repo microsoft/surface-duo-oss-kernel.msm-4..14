@@ -19,6 +19,7 @@ void bluetooth_led_rx(struct hci_dev *hdev)
 		return;
 	led_trigger_blink_oneshot(hdev->rx_led, &led_delay, &led_delay, 0);
 }
+EXPORT_SYMBOL_GPL(bluetooth_led_rx);
 
 void bluetooth_led_tx(struct hci_dev *hdev)
 {
@@ -27,6 +28,7 @@ void bluetooth_led_tx(struct hci_dev *hdev)
 		return;
 	led_trigger_blink_oneshot(hdev->tx_led, &led_delay, &led_delay, 0);
 }
+EXPORT_SYMBOL_GPL(bluetooth_led_tx);
 
 void bluetooth_led_names(struct hci_dev *hdev)
 {
