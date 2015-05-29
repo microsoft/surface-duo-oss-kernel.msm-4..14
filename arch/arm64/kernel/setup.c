@@ -142,7 +142,6 @@ bool arch_match_cpu_phys_id(int cpu, u64 phys_id)
 }
 
 struct mpidr_hash mpidr_hash;
-#ifdef CONFIG_SMP
 /**
  * smp_build_mpidr_hash - Pre-compute shifts required at each affinity
  *			  level in order to build a linear index from an
@@ -208,7 +207,6 @@ static void __init smp_build_mpidr_hash(void)
 		pr_warn("Large number of MPIDR hash buckets detected\n");
 	__flush_dcache_area(&mpidr_hash, sizeof(struct mpidr_hash));
 }
-#endif
 
 static void __init hyp_mode_check(void)
 {
@@ -413,10 +411,8 @@ void __init setup_arch(char **cmdline_p)
 	}
 
 	cpu_read_bootcpu_ops();
-#ifdef CONFIG_SMP
 	smp_init_cpus();
 	smp_build_mpidr_hash();
-#endif
 
 #ifdef CONFIG_VT
 #if defined(CONFIG_VGA_CONSOLE)
@@ -516,9 +512,7 @@ static int c_show(struct seq_file *m, void *v)
 		 * online processors, looking for lines beginning with
 		 * "processor".  Give glibc what it expects.
 		 */
-#ifdef CONFIG_SMP
 		seq_printf(m, "processor\t: %d\n", i);
-#endif
 
 		/*
 		 * Dump out the common processor features in a single line.
