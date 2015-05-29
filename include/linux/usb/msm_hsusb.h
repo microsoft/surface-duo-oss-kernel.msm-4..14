@@ -171,6 +171,8 @@ struct msm_otg {
 	struct notifier_block		vbus_nb;
 	struct extcon_specific_cable_nb id_cable;
 	struct notifier_block		id_nb;
+
+	struct gpio_desc *switch_gpio;
 };
 
 #endif

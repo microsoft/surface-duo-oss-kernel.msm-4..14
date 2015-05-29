@@ -18,6 +18,7 @@
 
 #include <linux/module.h>
 #include <linux/device.h>
+#include <linux/gpio/consumer.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/slab.h>
@@ -701,6 +702,7 @@ static void msm_otg_start_host(struct usb_phy *phy, int on)
 		 */
 		if (pdata->setup_gpio)
 			pdata->setup_gpio(OTG_STATE_A_HOST);
+		gpiod_set_value_cansleep(motg->switch_gpio, 1);
 #ifdef CONFIG_USB
 		usb_add_hcd(hcd, hcd->irq, IRQF_SHARED);
 		device_wakeup_enable(hcd->self.controller);
@@ -775,6 +777,7 @@ static void msm_otg_start_peripheral(struct usb_phy *phy, int on)
 		 */
 		if (pdata->setup_gpio)
 			pdata->setup_gpio(OTG_STATE_B_PERIPHERAL);
+		gpiod_set_value_cansleep(motg->switch_gpio, 0);
 		usb_gadget_vbus_connect(phy->otg->gadget);
 	} else {
 		dev_dbg(phy->dev, "gadget off\n");
@@ -1528,6 +1531,13 @@ static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 		motg->vdd_levels[VDD_LEVEL_NONE] = tmp[VDD_LEVEL_NONE];
 		motg->vdd_levels[VDD_LEVEL_MIN] = tmp[VDD_LEVEL_MIN];
 		motg->vdd_levels[VDD_LEVEL_MAX] = tmp[VDD_LEVEL_MAX];
+	}
+
+	motg->switch_gpio = devm_gpiod_get(&pdev->dev, "switch", GPIOD_OUT_LOW);
+	if (IS_ERR(motg->switch_gpio)) {
+		ret = PTR_ERR(motg->switch_gpio);
+		if (ret != -ENODEV)
+			return ret;
 	}
 
 	if (of_property_read_bool(node, "extcon")) {
