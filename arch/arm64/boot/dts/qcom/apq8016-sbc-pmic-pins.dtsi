@@ -24,7 +24,8 @@
 		pinconf {
 			pins = "gpio4";
 			function = PMIC_GPIO_FUNC_NORMAL;
-			input-disable;
+			power-source = <PM8916_GPIO_VPH>;
+			output-low;	// USB device mode
 		};
 	};
 
