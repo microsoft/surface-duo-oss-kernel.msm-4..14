@@ -201,6 +201,9 @@
 	extcon = <&usb_id>, <&usb_id>;
 	dr_mode = "otg";
 	status = "okay";
+	switch-gpio = <&pm8916_gpios 4 GPIO_ACTIVE_HIGH>; // D+/D- lines: 1 - Routed to HUB, 0 - Device
+	pinctrl-names = "default";
+	pinctrl-0 = <&usb_sw_sel_pm>;
 };
 
 &blsp_i2c4 {
