@@ -23,6 +23,8 @@
 #include <linux/regulator/qcom_smd-regulator.h>
 #include <linux/mfd/qcom-smd-rpm.h>
 
+#include "internal.h"
+
 struct qcom_rpm_reg {
 	struct device *dev;
 
@@ -63,9 +65,9 @@ static int rpm_reg_write_active(struct qcom_rpm_reg *vreg,
 				  req, size);
 }
 
-int qcom_rpm_set_floor(struct regulator_dev *rdev,
-			int floor)
+int qcom_rpm_set_floor(struct regulator *regulator, int floor)
 {
+	struct regulator_dev *rdev = regulator->rdev;
 	struct qcom_rpm_reg *vreg = rdev_get_drvdata(rdev);
 	struct rpm_regulator_req req;
 	int ret;
@@ -78,16 +80,16 @@ int qcom_rpm_set_floor(struct regulator_dev *rdev,
 		return -EINVAL;
 
 	ret = rpm_reg_write_active(vreg, &req, sizeof(req));
-	if (!ret)
+	if (ret)
 		dev_err(rdev_get_dev(rdev), "Failed to set floor %d\n", floor);
 
 	return ret;
 }
 EXPORT_SYMBOL(qcom_rpm_set_floor);
 
-int qcom_rpm_set_corner(struct regulator_dev *rdev,
-			int corner)
+int qcom_rpm_set_corner(struct regulator *regulator, int corner)
 {
+	struct regulator_dev *rdev = regulator->rdev;
 	struct qcom_rpm_reg *vreg = rdev_get_drvdata(rdev);
 	struct rpm_regulator_req req;
 	int ret;
@@ -99,8 +101,9 @@ int qcom_rpm_set_corner(struct regulator_dev *rdev,
 	if (corner < RPM_MIN_FLOOR_CORNER || corner > RPM_MAX_FLOOR_CORNER)
 		return -EINVAL;
 
+	pr_info("Set corner to %d\n", corner);
 	ret = rpm_reg_write_active(vreg, &req, sizeof(req));
-	if (!ret)
+	if (ret)
 		dev_err(rdev_get_dev(rdev), "Failed to set corner %d\n", corner);
 
 	return ret;
