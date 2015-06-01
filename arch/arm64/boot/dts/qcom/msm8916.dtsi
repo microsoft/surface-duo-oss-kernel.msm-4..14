@@ -74,6 +74,7 @@
 			qcom,acc = <&acc0>;
 			clocks = <&a53cc 1>;
 			clock-latency = <200000>;
+			cpu-supply = <&pm8916_s2>;
 		};
 
 		CPU1: cpu@1 {
@@ -85,6 +86,7 @@
 			next-level-cache = <&L2_0>;
 			clocks = <&a53cc 1>;
 			clock-latency = <200000>;
+			cpu-supply = <&pm8916_s2>;
 		};
 
 		CPU2: cpu@2 {
@@ -96,6 +98,7 @@
 			next-level-cache = <&L2_0>;
 			clocks = <&a53cc 1>;
 			clock-latency = <200000>;
+			cpu-supply = <&pm8916_s2>;
 		};
 
 		CPU3: cpu@3 {
@@ -107,6 +110,7 @@
 			qcom,acc = <&acc3>;
 			clocks = <&a53cc 1>;
 			clock-latency = <200000>;
+			cpu-supply = <&pm8916_s2>;
 		};
 
 		L2_0: l2-cache {
