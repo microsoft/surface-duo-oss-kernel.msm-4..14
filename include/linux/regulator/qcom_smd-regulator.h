@@ -13,15 +13,15 @@
 #define __QCOM_SMD_REGULATOR_H_
 
 #ifdef CONFIG_REGULATOR_QCOM_SMD_RPM
-int qcom_rpm_set_floor(struct regulator_dev *rdev, int floor);
-int qcom_rpm_set_corner(struct regulator_dev *rdev, int corner);
+int qcom_rpm_set_floor(struct regulator *regulator, int floor);
+int qcom_rpm_set_corner(struct regulator *regulator, int corner);
 #else
-static inline int qcom_rpm_set_floor(struct regulator_dev *rdev, int floor)
+static inline int qcom_rpm_set_floor(struct regulator *regulator, int floor)
 {
 	return -EINVAL;
 }
 
-static inline int qcom_rpm_set_corner(struct regulator_dev *rdev, int floor)
+static inline int qcom_rpm_set_corner(struct regulator *regulator, int corner)
 {
 	return -EINVAL;
 }
