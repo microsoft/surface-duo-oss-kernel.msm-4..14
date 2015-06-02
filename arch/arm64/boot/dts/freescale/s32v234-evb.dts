@@ -73,12 +73,12 @@
 			     <0 105 4>;
 	};
 
-	timer {
-		compatible = "arm,armv8-timer";
-		interrupts = <1 13 0xf08>,
-			     <1 14 0xf08>,
-			     <1 11 0xf08>,
-			     <1 10 0xf08>;
+	p9_smbclk: smbclk {
+		/* Static memory controller clock */
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <24000000>;
+		clock-output-names = "p9:smbclk";
 	};
 
 	v2m_oscclk2: oscclk2 {
@@ -88,12 +88,13 @@
 		clock-frequency = <24000000>;
 		clock-output-names = "v2m:oscclk2";
 	};
-	p9_smbclk: smbclk {
-		/* Static memory controller clock */
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-frequency = <24000000>;
-		clock-output-names = "p9:smbclk";
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <1 13 0xf08>,
+			     <1 14 0xf08>,
+			     <1 11 0xf08>,
+			     <1 10 0xf08>;
 	};
 
 soc {
