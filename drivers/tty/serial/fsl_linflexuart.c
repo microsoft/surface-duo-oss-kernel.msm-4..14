@@ -1,7 +1,7 @@
 /*
- *  Freescale linflexuart serial port driver
+ * Freescale linflexuart serial port driver
  *
- *  Copyright 2012-2015 Freescale Semiconductor, Inc.
+ * Copyright 2012-2015 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,9 +12,6 @@
 #if defined(CONFIG_SERIAL_FSL_LINFLEXUART_CONSOLE) && defined(CONFIG_MAGIC_SYSRQ)
 #define SUPPORT_SYSRQ
 #endif
-
-#define IMXV8X_PALLADIUM
-#define REMOVE_CODE 0
 
 #include <linux/clk.h>
 #include <linux/console.h>
@@ -30,130 +27,128 @@
 #include <linux/serial_core.h>
 #include <linux/slab.h>
 #include <linux/tty_flip.h>
- 
+
 /* All registers are 32-bit width */
 
-#define LINCR1  0x0000 /* LIN control register 1                 */
-#define LINIER  0x0004 /* LIN interrupt enable register          */
-#define LINSR   0x0008 /* LIN status register                    */
-#define LINESR  0x000C /* LIN error status register              */
-#define UARTCR  0x0010 /* UART mode control register             */
-#define UARTSR  0x0014 /* UART mode status register              */
-#define LINTCSR 0x0018 /* LIN timeout control status register    */
-#define LINOCR  0x001C /* LIN output compare register            */
-#define LINTOCR 0x0020 /* LIN timeout control register           */
-#define LINFBRR 0x0024 /* LIN fractional baud rate register      */
-#define LINIBRR 0x0028 /* LIN integer baud rate register         */
-#define LINCFR  0x002C /* LIN checksum field register            */
-#define LINCR2  0x0030 /* LIN control register 2                 */
-#define BIDR    0x0034 /* Buffer identifier register             */
-#define BDRL    0x0038 /* Buffer data register least significant */
-#define BDRM    0x003C /* Buffer data register most significant  */
-#define IFER    0x0040 /* Identifier filter enable register      */
-#define IFMI    0x0044 /* Identifier filter match index          */
-#define IFMR    0x0048 /* Identifier filter mode register        */
-#define IFCR0   0x004C /* Identifier filter control register 0   */
-#define IFCR1   0x0050 /* Identifier filter control register 1   */
-#define IFCR2   0x0054 /* Identifier filter control register 2   */
-#define IFCR3   0x0058 /* Identifier filter control register 3   */
-#define IFCR4   0x005C /* Identifier filter control register 4   */
-#define IFCR5   0x0060 /* Identifier filter control register 5   */
-#define IFCR6   0x0064 /* Identifier filter control register 6   */
-#define IFCR7   0x0068 /* Identifier filter control register 7   */
-#define IFCR8   0x006C /* Identifier filter control register 8   */
-#define IFCR9   0x0070 /* Identifier filter control register 9   */
-#define IFCR10  0x0074 /* Identifier filter control register 10  */
-#define IFCR11  0x0078 /* Identifier filter control register 11  */
-#define IFCR12  0x007C /* Identifier filter control register 12  */
-#define IFCR13  0x0080 /* Identifier filter control register 13  */
-#define IFCR14  0x0084 /* Identifier filter control register 14  */
-#define IFCR15  0x0088 /* Identifier filter control register 15  */
-#define GCR     0x008C /* Global control register                */
-#define UARTPTO 0x0090 /* UART preset timeout register           */
-#define UARTCTO 0x0094 /* UART current timeout register          */
-#define DMATXE  0x0098 /* DMA Tx enable register                 */
-#define DMARXE  0x009C /* DMAx enable register                   */
+#define LINCR1	0x0000 /* LIN control register 				*/
+#define LINIER	0x0004 /* LIN interrupt enable register			*/
+#define LINSR	0x0008 /* LIN status register				*/
+#define LINESR	0x000C /* LIN error status register			*/
+#define UARTCR	0x0010 /* UART mode control register			*/
+#define UARTSR	0x0014 /* UART mode status register			*/
+#define LINTCSR 0x0018 /* LIN timeout control status register		*/
+#define LINOCR	0x001C /* LIN output compare register			*/
+#define LINTOCR 0x0020 /* LIN timeout control register			*/
+#define LINFBRR 0x0024 /* LIN fractional baud rate register		*/
+#define LINIBRR 0x0028 /* LIN integer baud rate register		*/
+#define LINCFR	0x002C /* LIN checksum field register			*/
+#define LINCR2	0x0030 /* LIN control register 2			*/
+#define BIDR	0x0034 /* Buffer identifier register			*/
+#define BDRL	0x0038 /* Buffer data register least significant	*/
+#define BDRM	0x003C /* Buffer data register most significant		*/
+#define IFER	0x0040 /* Identifier filter enable register		*/
+#define IFMI	0x0044 /* Identifier filter match index			*/
+#define IFMR	0x0048 /* Identifier filter mode register		*/
+#define IFCR0	0x004C /* Identifier filter control register 0		*/
+#define IFCR1	0x0050 /* Identifier filter control register 1		*/
+#define IFCR2	0x0054 /* Identifier filter control register 2		*/
+#define IFCR3	0x0058 /* Identifier filter control register 3		*/
+#define IFCR4	0x005C /* Identifier filter control register 4		*/
+#define IFCR5	0x0060 /* Identifier filter control register 5		*/
+#define IFCR6	0x0064 /* Identifier filter control register 6		*/
+#define IFCR7	0x0068 /* Identifier filter control register 7		*/
+#define IFCR8	0x006C /* Identifier filter control register 8		*/
+#define IFCR9	0x0070 /* Identifier filter control register 9		*/
+#define IFCR10	0x0074 /* Identifier filter control register 10		*/
+#define IFCR11	0x0078 /* Identifier filter control register 11		*/
+#define IFCR12	0x007C /* Identifier filter control register 12		*/
+#define IFCR13	0x0080 /* Identifier filter control register 13		*/
+#define IFCR14	0x0084 /* Identifier filter control register 14		*/
+#define IFCR15	0x0088 /* Identifier filter control register 15		*/
+#define GCR	0x008C /* Global control register			*/
+#define UARTPTO 0x0090 /* UART preset timeout register			*/
+#define UARTCTO 0x0094 /* UART current timeout register			*/
+#define DMATXE	0x0098 /* DMA Tx enable register			*/
+#define DMARXE	0x009C /* DMAx enable register				*/
 
-
-/*--------------------------------------------------------------------------*/
 /*
-**                    CONSTANT DEFINITIONS
+**	CONSTANT DEFINITIONS
 */
 
-#define LINFLEXD_LINCR1_INIT        (1<<0)
+#define LINFLEXD_LINCR1_INIT		(1<<0)
 
-#define LINFLEXD_LINIER_SZIE        (1<<15)
-#define LINFLEXD_LINIER_OCIE        (1<<14)
-#define LINFLEXD_LINIER_BEIE        (1<<13)
-#define LINFLEXD_LINIER_CEIE        (1<<12)
-#define LINFLEXD_LINIER_HEIE        (1<<11)
-#define LINFLEXD_LINIER_FEIE        (1<<8)
-#define LINFLEXD_LINIER_BOIE        (1<<7)
-#define LINFLEXD_LINIER_LSIE        (1<<6)
-#define LINFLEXD_LINIER_WUIE        (1<<5)
-#define LINFLEXD_LINIER_DBFIE       (1<<4)
-#define LINFLEXD_LINIER_DBEIETOIE   (1<<3)
-#define LINFLEXD_LINIER_DRIE        (1<<2)
-#define LINFLEXD_LINIER_DTIE        (1<<1)
-#define LINFLEXD_LINIER_HRIE        (1<<0)
+#define LINFLEXD_LINIER_SZIE		(1<<15)
+#define LINFLEXD_LINIER_OCIE		(1<<14)
+#define LINFLEXD_LINIER_BEIE		(1<<13)
+#define LINFLEXD_LINIER_CEIE		(1<<12)
+#define LINFLEXD_LINIER_HEIE		(1<<11)
+#define LINFLEXD_LINIER_FEIE		(1<<8)
+#define LINFLEXD_LINIER_BOIE		(1<<7)
+#define LINFLEXD_LINIER_LSIE		(1<<6)
+#define LINFLEXD_LINIER_WUIE		(1<<5)
+#define LINFLEXD_LINIER_DBFIE		(1<<4)
+#define LINFLEXD_LINIER_DBEIETOIE	(1<<3)
+#define LINFLEXD_LINIER_DRIE		(1<<2)
+#define LINFLEXD_LINIER_DTIE		(1<<1)
+#define LINFLEXD_LINIER_HRIE		(1<<0)
 
 #if defined(PSP_MPXD10)
-#define LINFLEXD_UARTCR_TDFLTFC_MASK 0x6000
-#define LINFLEXD_UARTCR_RDFLRFC_MASK 0xc00
+#define LINFLEXD_UARTCR_TDFLTFC_MASK	(0x6000)
+#define LINFLEXD_UARTCR_RDFLRFC_MASK	(0xc00)
 #else
-#define LINFLEXD_UARTCR_TDFLTFC_MASK 0xe000
-#define LINFLEXD_UARTCR_RDFLRFC_MASK 0x1c00
+#define LINFLEXD_UARTCR_TDFLTFC_MASK	(0xe000)
+#define LINFLEXD_UARTCR_RDFLRFC_MASK	()0x1c00)
 #endif
 
-#define LINFLEXD_UARTCR_TDFLTFC_SHIFT 13
-#define LINFLEXD_UARTCR_RDFLRFC_SHIFT 10
+#define LINFLEXD_UARTCR_TDFLTFC_SHIFT	(13)
+#define LINFLEXD_UARTCR_RDFLRFC_SHIFT	(10)
 
-#define LINFLEXD_UARTCR_TDFLTFC 		 (1<<13)
-#define LINFLEXD_UARTCR_RDFLRFC			 (1<<10)
+#define LINFLEXD_UARTCR_TDFLTFC		(1<<13)
+#define LINFLEXD_UARTCR_RDFLRFC		(1<<10)
 
-#define LINFLEXD_UARTCR_RFBM    (1<<9)
-#define LINFLEXD_UARTCR_TFBM    (1<<8)
-#define LINFLEXD_UARTCR_WL1     (1<<7)
-#define LINFLEXD_UARTCR_PC1     (1<<6)
+#define LINFLEXD_UARTCR_RFBM		(1<<9)
+#define LINFLEXD_UARTCR_TFBM		(1<<8)
+#define LINFLEXD_UARTCR_WL1		(1<<7)
+#define LINFLEXD_UARTCR_PC1		(1<<6)
 
-#define LINFLEXD_UARTCR_RXEN    (1<<5)
-#define LINFLEXD_UARTCR_TXEN    (1<<4)
-#define LINFLEXD_UARTCR_PC0     (1<<3)
+#define LINFLEXD_UARTCR_RXEN		(1<<5)
+#define LINFLEXD_UARTCR_TXEN		(1<<4)
+#define LINFLEXD_UARTCR_PC0		(1<<3)
 
-#define LINFLEXD_UARTCR_PCE     (1<<2)
-#define LINFLEXD_UARTCR_WL0     (1<<1)
-#define LINFLEXD_UARTCR_UART    (1<<0)
+#define LINFLEXD_UARTCR_PCE		(1<<2)
+#define LINFLEXD_UARTCR_WL0		(1<<1)
+#define LINFLEXD_UARTCR_UART		(1<<0)
 
-#define LINFLEXD_UARTSR_SZF     (1<<15)
-#define LINFLEXD_UARTSR_OCF     (1<<14)
-#define LINFLEXD_UARTSR_PE3     (1<<13)
-#define LINFLEXD_UARTSR_PE2     (1<<12)
-#define LINFLEXD_UARTSR_PE1     (1<<11)
-#define LINFLEXD_UARTSR_PE0     (1<<10)
-#define LINFLEXD_UARTSR_RMB     (1<<9)
-#define LINFLEXD_UARTSR_FEF     (1<<8)
-#define LINFLEXD_UARTSR_BOF     (1<<7)
-#define LINFLEXD_UARTSR_RPS     (1<<6)
-#define LINFLEXD_UARTSR_WUF     (1<<5)
-#define LINFLEXD_UARTSR_4       (1<<4)
+#define LINFLEXD_UARTSR_SZF		(1<<15)
+#define LINFLEXD_UARTSR_OCF		(1<<14)
+#define LINFLEXD_UARTSR_PE3		(1<<13)
+#define LINFLEXD_UARTSR_PE2		(1<<12)
+#define LINFLEXD_UARTSR_PE1		(1<<11)
+#define LINFLEXD_UARTSR_PE0		(1<<10)
+#define LINFLEXD_UARTSR_RMB		(1<<9)
+#define LINFLEXD_UARTSR_FEF		(1<<8)
+#define LINFLEXD_UARTSR_BOF		(1<<7)
+#define LINFLEXD_UARTSR_RPS		(1<<6)
+#define LINFLEXD_UARTSR_WUF		(1<<5)
+#define LINFLEXD_UARTSR_4		(1<<4)
 
-#define LINFLEXD_UARTSR_TO      (1<<3)
+#define LINFLEXD_UARTSR_TO		(1<<3)
 
-#define LINFLEXD_UARTSR_DRFRFE  (1<<2)
-#define LINFLEXD_UARTSR_DTFTFF  (1<<1)
-#define LINFLEXD_UARTSR_NF      (1<<0)
-#define LINFLEXD_UARTSR_PE      (LINFLEXD_UARTSR_PE0|LINFLEXD_UARTSR_PE1|LINFLEXD_UARTSR_PE2|LINFLEXD_UARTSR_PE3)
+#define LINFLEXD_UARTSR_DRFRFE		(1<<2)
+#define LINFLEXD_UARTSR_DTFTFF		(1<<1)
+#define LINFLEXD_UARTSR_NF		(1<<0)
+#define LINFLEXD_UARTSR_PE		(LINFLEXD_UARTSR_PE0|LINFLEXD_UARTSR_PE1|LINFLEXD_UARTSR_PE2|LINFLEXD_UARTSR_PE3)
 
-#define DMA_MAXBURST		16
-#define DMA_MAXBURST_MASK	(DMA_MAXBURST - 1)
-#define FSL_UART_RX_DMA_BUFFER_SIZE	64
+#define DMA_MAXBURST			(16)
+#define DMA_MAXBURST_MASK		(DMA_MAXBURST - 1)
+#define FSL_UART_RX_DMA_BUFFER_SIZE	(64)
 
 
 #define DRIVER_NAME	"fsl-linflexuart"
 #define DEV_NAME	"ttyAMA"
 #define UART_NR		1
 
-#define prd_info(a)  ;//pr_info(a);
+#define prd_info(a)	;//pr_info(a);
 
 struct linflex_port {
 	struct uart_port	port;
@@ -188,21 +183,21 @@ static void linflex_stop_tx(struct uart_port *port)
 }
  static void linflex_enable_ms(struct uart_port *port)
 {
-	;
 }
 static inline void linflex_transmit_buffer(struct linflex_port *sport)
 {
+	//volatile unsigned int i;
 	struct circ_buf *xmit = &sport->port.state->xmit;
 	unsigned char c;
 
 	while (!uart_circ_empty(xmit)) {
-	    c = xmit->buf[xmit->tail];
+		c = xmit->buf[xmit->tail];
 		writeb(c, sport->port.membase + BDRL);
-	    while(( readb(sport->port.membase + UARTSR) & LINFLEXD_UARTSR_DTFTFF)!=LINFLEXD_UARTSR_DTFTFF){
+		while(( readb(sport->port.membase + UARTSR) & LINFLEXD_UARTSR_DTFTFF)!=LINFLEXD_UARTSR_DTFTFF){
 		 //for (i = 0; i < 100000; i++);
-	    }
-	    /* waiting for data transmission completed - TODO: add a timeout */
-    	writeb( (readb(sport->port.membase + UARTSR)|LINFLEXD_UARTSR_DTFTFF), sport->port.membase + UARTSR);
+		}
+		/* waiting for data transmission completed - TODO: add a timeout */
+		writeb( (readb(sport->port.membase + UARTSR)|LINFLEXD_UARTSR_DTFTFF), sport->port.membase + UARTSR);
 		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
 	}
 
@@ -224,9 +219,9 @@ static void linflex_start_tx(struct uart_port *port)
 	struct linflex_port *sport = container_of(port,
 			struct linflex_port, port);
 	unsigned int temp;
-	
+
 	temp = readl(port->membase + LINIER);
-	
+
 	writel(temp | LINFLEXD_LINIER_DTIE, port->membase + LINIER);
 
 	linflex_transmit_buffer(sport);
@@ -238,12 +233,12 @@ static irqreturn_t linflex_txint(int irq, void *dev_id)
 	struct linflex_port *sport = dev_id;
 	struct circ_buf *xmit = &sport->port.state->xmit;
 	unsigned long flags, status;
-    
+
 	status = readl(sport->port.membase + UARTSR);
 	status = status | LINFLEXD_UARTSR_DTFTFF;
 	writel(status, sport->port.membase + UARTSR);
 	spin_lock_irqsave(&sport->port.lock, flags);
-    
+
 	if (sport->port.x_char) {
 		writeb(sport->port.x_char, sport->port.membase + BDRL);
 		goto out;
@@ -278,42 +273,42 @@ static irqreturn_t linflex_rxint(int irq, void *dev_id)
 	status = readl(sport->port.membase + UARTSR);
 	while (status & LINFLEXD_UARTSR_DRFRFE) {
 
-        status = readl(sport->port.membase + UARTSR);
-        status = status | LINFLEXD_UARTSR_DRFRFE;
-        writel(status, sport->port.membase + UARTSR);
+		status = readl(sport->port.membase + UARTSR);
+		status = status | LINFLEXD_UARTSR_DRFRFE;
+		writel(status, sport->port.membase + UARTSR);
 
-        status = readl(sport->port.membase + UARTSR);
-        if (status & (LINFLEXD_UARTSR_BOF|LINFLEXD_UARTSR_SZF|LINFLEXD_UARTSR_FEF|LINFLEXD_UARTSR_PE)) {
+		status = readl(sport->port.membase + UARTSR);
+		if (status & (LINFLEXD_UARTSR_BOF|LINFLEXD_UARTSR_SZF|LINFLEXD_UARTSR_FEF|LINFLEXD_UARTSR_PE)) {
 
-            if (status & LINFLEXD_UARTSR_SZF) {
-                status |= LINFLEXD_UARTSR_SZF;
-            }
-            if (status & LINFLEXD_UARTSR_BOF) {
-                status |= LINFLEXD_UARTSR_BOF;
-            }
-            if (status & LINFLEXD_UARTSR_FEF) {
-                status |= LINFLEXD_UARTSR_FEF;
-            }
-            if (status & LINFLEXD_UARTSR_PE) {
-                status |=  LINFLEXD_UARTSR_PE;
-            }
-        }
+			if (status & LINFLEXD_UARTSR_SZF) {
+				status |= LINFLEXD_UARTSR_SZF;
+			}
+			if (status & LINFLEXD_UARTSR_BOF) {
+				status |= LINFLEXD_UARTSR_BOF;
+			}
+			if (status & LINFLEXD_UARTSR_FEF) {
+				status |= LINFLEXD_UARTSR_FEF;
+			}
+			if (status & LINFLEXD_UARTSR_PE) {
+				status |=  LINFLEXD_UARTSR_PE;
+			}
+		}
 
-        rx = readl(sport->port.membase + BDRM);
+		rx = readl(sport->port.membase + BDRM);
 
-        writel( readl(sport->port.membase + UARTSR)|LINFLEXD_UARTSR_RMB, sport->port.membase + UARTSR);
+		writel( readl(sport->port.membase + UARTSR)|LINFLEXD_UARTSR_RMB, sport->port.membase + UARTSR);
 
-        flg = TTY_NORMAL;
-        sport->port.icount.rx++;
+		flg = TTY_NORMAL;
+		sport->port.icount.rx++;
 
-        if (uart_handle_sysrq_char(&sport->port, (unsigned char)rx))
+		if (uart_handle_sysrq_char(&sport->port, (unsigned char)rx))
 			continue;
 
-        #ifdef SUPPORT_SYSRQ
-            sport->port.sysrq = 0;
-        #endif
-            tty_insert_flip_char(port, rx, flg);
-        status = readl(sport->port.membase + UARTSR);
+		#ifdef SUPPORT_SYSRQ
+			sport->port.sysrq = 0;
+		#endif
+			tty_insert_flip_char(port, rx, flg);
+		status = readl(sport->port.membase + UARTSR);
 	}
 
 	spin_unlock_irqrestore(&sport->port.lock, flags);
@@ -325,27 +320,26 @@ static irqreturn_t linflex_rxint(int irq, void *dev_id)
 
 static irqreturn_t linflex_int(int irq, void *dev_id)
 {
-    struct linflex_port *sport = dev_id;
-    unsigned int status;
+	struct linflex_port *sport = dev_id;
+	unsigned int status;
 
-    
-    status = readl(sport->port.membase + UARTSR);
+	status = readl(sport->port.membase + UARTSR);
 
-    if (status & LINFLEXD_UARTSR_DRFRFE) {
-        linflex_rxint(irq, dev_id);
+	if (status & LINFLEXD_UARTSR_DRFRFE) {
+		linflex_rxint(irq, dev_id);
 	}
 	if (status & LINFLEXD_UARTSR_DTFTFF ) {
-        linflex_txint(irq, dev_id);
+		linflex_txint(irq, dev_id);
 	}
 
 
-    return IRQ_HANDLED;
+	return IRQ_HANDLED;
 }
 
 /* return TIOCSER_TEMT when transmitter is not busy */
 static unsigned int linflex_tx_empty(struct uart_port *port)
 {
-	return (readb(port->membase + UARTSR) & LINFLEXD_UARTSR_DTFTFF) ? 
+	return (readb(port->membase + UARTSR) & LINFLEXD_UARTSR_DTFTFF) ?
 		TIOCSER_TEMT : 0;
 
 }
@@ -379,13 +373,10 @@ static void linflex_setup_watermark(struct linflex_port *sport)
 
 	cr1 |= LINFLEXD_LINCR1_INIT;
 
-        writel(cr1, sport->port.membase + LINCR1);
-
-
+		writel(cr1, sport->port.membase + LINCR1);
 
 	/* determine FIFO size and enable FIFO mode from UARTCR */
 	/* TO BE DONE
-
 
 	sport->txfifo_size = 0x1 << (((val >> UARTPFIFO_TXSIZE_OFF) &
 		UARTPFIFO_FIFOSIZE_MASK) + 1);
@@ -405,16 +396,15 @@ static void linflex_setup_watermark(struct linflex_port *sport)
 	*/
 
 	/*
-	   UART = 0x1;    - Linflex working in UART mode
-	   TXEN = 0x1;    - Enable transmission of data now
-	   RXEn = 0x1;    - Receiver enabled
-	   WL0  = 0x1;    - 8 bit data
-	   PCE  = 0x0;    - No parity
+		UART = 0x1;		- Linflex working in UART mode
+		TXEN = 0x1;		- Enable transmission of data now
+		RXEn = 0x1;		- Receiver enabled
+		WL0 = 0x1;		- 8 bit data
+		PCE = 0x0;		- No parity
 	*/
 
 	cr_saved |= (LINFLEXD_UARTCR_UART|LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN|
-			    LINFLEXD_UARTCR_PCE|LINFLEXD_UARTCR_WL0);
-
+				LINFLEXD_UARTCR_PCE|LINFLEXD_UARTCR_WL0);
 
 	/* Restore cr2 */
 	writeb(cr_saved, sport->port.membase + UARTCR);
@@ -435,8 +425,8 @@ static int linflex_startup(struct uart_port *port)
 	int ret;
 	unsigned long flags;
 
-    /* No support for dma in the current driver */
-    sport->linflex_dma_use = false;
+	/* No support for dma in the current driver */
+	sport->linflex_dma_use = false;
 /*
 	ret = devm_request_irq(port->dev, port->irq, linflex_int, 0,
 				DRIVER_NAME, sport);
@@ -463,12 +453,12 @@ static void linflex_shutdown(struct uart_port *port)
 
 	/* disable Rx/Tx and interrupts*/
 	ier = readl(port->membase + LINIER);
-    
+
 	ier &= ~(LINFLEXD_LINIER_DTIE | LINFLEXD_LINIER_DRIE );
 	writel(ier, port->membase + LINIER);
 	cr = readl(port->membase + UARTCR);
 
-	cr &= ~(LINFLEXD_UARTCR_RXEN |  LINFLEXD_UARTCR_TXEN); 
+	cr &= ~(LINFLEXD_UARTCR_RXEN |	LINFLEXD_UARTCR_TXEN);
 	writel(ier, port->membase + UARTCR);
 
 	spin_unlock_irqrestore(&port->lock, flags);
@@ -479,10 +469,10 @@ static void linflex_shutdown(struct uart_port *port)
 
 static void
 linflex_set_termios(struct uart_port *port, struct ktermios *termios,
-		   struct ktermios *old)
+			struct ktermios *old )
 {
-#ifndef IMXV8X_PALLADIUM
-//on Palladium we trust the configuration provided by u-boot
+#ifndef CONFIG_S32V234_PALLADIUM
+	/*on Palladium we trust the configuration provided by u-boot*/
 	struct linflex_port *sport = container_of(port, struct linflex_port, port);
 	unsigned long flags;
 	/*unsigned char cr1, old_cr1, old_cr2, cr4, bdh, modem;*/
@@ -493,77 +483,75 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 
 	cr = old_cr = readl(sport->port.membase + UARTCR);
 
+	/* Enter initialization mode by setting INIT bit */
+	cr1=readl(sport->port.membase + LINCR1);
 
+	cr1 |= LINFLEXD_LINCR1_INIT;
 
-    /* Enter initialization mode by setting INIT bit */
-    cr1=readl(sport->port.membase + LINCR1);
+	writel(cr1, sport->port.membase + LINCR1);
 
-    cr1 |= LINFLEXD_LINCR1_INIT;
+	/*
+	 * only support CS8 and CS7, and for CS7 must enable PE.
+	 * supported mode:
+	 *	- (7,e/o,1)
+	 *	- (8,n,1)
+	 *	- (8,m/s,1)
+	 *	- (8,e/o,1)
+	 */
+	/* enter the UART into configuration mode */
 
-    writel(cr1, sport->port.membase + LINCR1);
-
-    /*
-     * only support CS8 and CS7, and for CS7 must enable PE.
-     * supported mode:
-     *  - (7,e/o,1)
-     *  - (8,n,1)
-     *  - (8,m/s,1)
-     *  - (8,e/o,1)
-     */
-    /* enter the UART into configuration mode */
-
-    while ((termios->c_cflag & CSIZE) != CS8 &&
-    	(termios->c_cflag & CSIZE) != CS7) {
-    	termios->c_cflag &= ~CSIZE;
-    	termios->c_cflag |= old_csize;
-    	old_csize = CS8;
-    }
-
-    if ((termios->c_cflag & CSIZE) == CS7 ){
-    	/* Word lenght: WL1WL0:00 */
-    	cr = old_cr & ~LINFLEXD_UARTCR_WL1 & ~LINFLEXD_UARTCR_WL0;
+	while ((termios->c_cflag & CSIZE) != CS8 &&
+	(termios->c_cflag & CSIZE) != CS7) {
+		termios->c_cflag &= ~CSIZE;
+		termios->c_cflag |= old_csize;
+		old_csize = CS8;
 	}
 
-    if ((termios->c_cflag & CSIZE) == CS8 ){
-    	/* Word lenght: WL1WL0:01 */
-    	cr = (old_cr | LINFLEXD_UARTCR_WL0)& ~LINFLEXD_UARTCR_WL1;
-    }
+	if ((termios->c_cflag & CSIZE) == CS7 ){
+	/* Word lenght: WL1WL0:00 */
+	cr = old_cr & ~LINFLEXD_UARTCR_WL1 & ~LINFLEXD_UARTCR_WL0;
+	}
 
-    if (termios->c_cflag & CMSPAR) {
-    	if ((termios->c_cflag & CSIZE) != CS8) {
-    		termios->c_cflag &= ~CSIZE;
-    		termios->c_cflag |= CS8;
-    	}
-    	/* has a space/sticky bit */
-    	cr |= LINFLEXD_UARTCR_WL0;
-    }
+	if ((termios->c_cflag & CSIZE) == CS8 ){
+		/* Word lenght: WL1WL0:01 */
+		cr = (old_cr | LINFLEXD_UARTCR_WL0)& ~LINFLEXD_UARTCR_WL1;
+	}
 
-    if (termios->c_cflag & CSTOPB)
-    		termios->c_cflag &= ~CSTOPB;
-
-    /* parity must be enabled when CS7 to match 8-bits format */
-    if ((termios->c_cflag & CSIZE) == CS7)
-    	termios->c_cflag |= PARENB;
-
-    if ((termios->c_cflag & PARENB)) {
-    	if (termios->c_cflag & CMSPAR) {
-    		cr &= ~LINFLEXD_UARTCR_PCE;
-
-    	}
-    	else {
-
-    		cr |= LINFLEXD_UARTCR_PCE;
-    		if ((termios->c_cflag & CSIZE) == CS8)
-		{
-    			if (termios->c_cflag & PARODD)
-    				cr = (cr | LINFLEXD_UARTCR_PC0 )&(~LINFLEXD_UARTCR_PC1);
-    			else
-    				cr = cr & (~LINFLEXD_UARTCR_PC1 & ~LINFLEXD_UARTCR_PC0);
+	if (termios->c_cflag & CMSPAR) {
+		if ((termios->c_cflag & CSIZE) != CS8) {
+			termios->c_cflag &= ~CSIZE;
+			termios->c_cflag |= CS8;
 		}
-    	}
-    }
+		/* has a space/sticky bit */
+		cr |= LINFLEXD_UARTCR_WL0;
+	}
 
-    /* ask the core to calculate the divisor */
+	if (termios->c_cflag & CSTOPB)
+		termios->c_cflag &= ~CSTOPB;
+
+	/* parity must be enabled when CS7 to match 8-bits format */
+	if ((termios->c_cflag & CSIZE) == CS7)
+		termios->c_cflag |= PARENB;
+
+	if ((termios->c_cflag & PARENB)) {
+		if (termios->c_cflag & CMSPAR) {
+			cr &= ~LINFLEXD_UARTCR_PCE;
+
+		}
+		else {
+
+			cr |= LINFLEXD_UARTCR_PCE;
+			if ((termios->c_cflag & CSIZE) == CS8)
+			{
+				if (termios->c_cflag & PARODD)
+					cr = (cr | LINFLEXD_UARTCR_PC0 )&(~LINFLEXD_UARTCR_PC1);
+				else
+					cr = cr & (~LINFLEXD_UARTCR_PC1 & ~LINFLEXD_UARTCR_PC0);
+			}
+		}
+	}
+
+	/* ask the core to calculate the divisor */
 	baud = uart_get_baud_rate(port, termios, old, 50, port->uartclk / 16);
 
 	spin_lock_irqsave(&sport->port.lock, flags);
@@ -572,7 +560,7 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 
 	if (termios->c_iflag & INPCK)
 		sport->port.read_status_mask |=	(LINFLEXD_UARTSR_FEF | LINFLEXD_UARTSR_PE0|LINFLEXD_UARTSR_PE1
-                                        |LINFLEXD_UARTSR_PE2|LINFLEXD_UARTSR_PE3);
+										|LINFLEXD_UARTSR_PE2|LINFLEXD_UARTSR_PE3);
 	if (termios->c_iflag & (IGNBRK | BRKINT | PARMRK))
 		sport->port.read_status_mask |= LINFLEXD_UARTSR_FEF;
 
@@ -595,26 +583,19 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 
 	/* disable transmit and receive */
 	writel(old_cr & ~(LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN),
-		   sport->port.membase + UARTCR);
+		sport->port.membase + UARTCR);
 
-    divisr = sport->port.uartclk;		//freq in Hz
-    dividr = (baud * 16);
+	divisr = sport->port.uartclk;	//freq in Hz
+	dividr = (baud * 16);
 
-    ibr = divisr/dividr;
+	ibr = divisr/dividr;
 
-    fbr = (divisr%dividr)*16;
-/*
-	ibr = 4;
-	fbr = 0;
-*/
+	fbr = (divisr%dividr)*16;
 
+	writel(ibr, sport->port.membase + LINIBRR);
+	writel(fbr, sport->port.membase + LINFBRR);
 
-
-    writel(ibr, sport->port.membase + LINIBRR);
-    writel(fbr, sport->port.membase + LINFBRR);
-
-
-    writel(cr, sport->port.membase + UARTCR);
+	writel(cr, sport->port.membase + UARTCR);
 
 	cr1 &= ~(LINFLEXD_LINCR1_INIT);
 
@@ -637,10 +618,10 @@ static void linflex_release_port(struct uart_port *port)
 
 static int linflex_request_port(struct uart_port *port)
 {
-	return  0;
+	return 0;
 }
 
-/* configure/autoconfigure the port */
+/* configure/auto-configure the port */
 static void linflex_config_port(struct uart_port *port, int flags)
 {
 	if (flags & UART_CONFIG_TYPE)
@@ -689,12 +670,11 @@ static struct linflex_port *linflex_ports[UART_NR];
 #ifdef CONFIG_SERIAL_FSL_LINFLEXUART_CONSOLE
 static void linflex_console_putchar(struct uart_port *port, int ch)
 {
-//	volatile unsigned int i;
-
+	//volatile unsigned int;
 	writeb(ch, port->membase + BDRL);
 
 	while(( readb(port->membase + UARTSR) & LINFLEXD_UARTSR_DTFTFF)!=LINFLEXD_UARTSR_DTFTFF){
-	    //for (i = 0; i < 100000; i++);
+		//for (i = 0; i < 100000; i++);
 	}
 	/* waiting for data transmission completed - TODO: add a timeout */
 
@@ -705,29 +685,29 @@ static void
 linflex_console_write(struct console *co, const char *s, unsigned int count)
 {
 	struct linflex_port *sport = linflex_ports[co->index];
-	/*unsigned char  old_cr2, cr2;*/
-    unsigned long cr, ier, old_ier;
+	/*unsigned char	 old_cr2, cr2;*/
+	unsigned long cr, ier, old_ier;
 
 	/* first save CR2 and then disable interrupts */
 	ier = old_ier = readl(sport->port.membase + LINIER);
 
-    cr = readl(sport->port.membase + UARTCR);
-	cr |= (LINFLEXD_UARTCR_RXEN |  LINFLEXD_UARTCR_TXEN); 
+	cr = readl(sport->port.membase + UARTCR);
+	cr |= (LINFLEXD_UARTCR_RXEN |  LINFLEXD_UARTCR_TXEN);
 	ier &= ~(LINFLEXD_LINIER_DTIE | LINFLEXD_LINIER_DRIE);
-    
+
 	writeb(ier, sport->port.membase + LINIER);
-    writeb(cr, sport->port.membase + UARTCR);
+	writeb(cr, sport->port.membase + UARTCR);
 
 	uart_console_write(&sport->port, s, count, linflex_console_putchar);
 
 	/* wait for transmitter finish complete and restore CR2 */
-    /*
+	/*
 	while(!( readl(sport->port.membase + UARTSR) & LINFLEXD_UARTSR_DTFTFF))
 		barrier();
-    */
+	*/
 	//writeb(old_cr2, sport->port.membase + UARTCR2);
-    writeb(old_ier, sport->port.membase + LINIER);
-    
+	writeb(old_ier, sport->port.membase + LINIER);
+
 }
 
 /*
@@ -736,16 +716,16 @@ linflex_console_write(struct console *co, const char *s, unsigned int count)
  */
 static void __init
 linflex_console_get_options(struct linflex_port *sport, int *baud,
-			   int *parity, int *bits)
+				int *parity, int *bits)
 {
-#ifndef IMXV8X_PALLADIUM 
+#ifndef CONFIG_S32V234_PALLADIUM
 	/*unsigned char cr, bdh, bdl, brfa;*/
-    unsigned long cr, fbr, ibr;
+	unsigned long cr, fbr, ibr;
 	unsigned int uartclk, baud_raw;
 
-    prd_info("8\n");
+	prd_info("8\n");
 	cr = readl(sport->port.membase + UARTCR);
-    cr &= LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN;
+	cr &= LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN;
 
 	if (!cr)
 		return;
@@ -761,19 +741,19 @@ linflex_console_get_options(struct linflex_port *sport, int *baud,
 	}
 
 	if ( (cr & LINFLEXD_UARTCR_WL0) && ((cr & LINFLEXD_UARTCR_WL1) == 0)){
-        if( cr & LINFLEXD_UARTCR_PCE )
-            *bits = 9;
-        else
-            *bits = 8;
-    }
+		if( cr & LINFLEXD_UARTCR_PCE )
+			*bits = 9;
+		else
+			*bits = 8;
+	}
 
 	fbr = readl(sport->port.membase + LINFBRR);
-    
+
 	ibr = readl(sport->port.membase + LINIBRR);
 
 	uartclk = clk_get_rate(sport->clk);
-    
-    baud_raw = uartclk / (16 * ibr);
+
+	baud_raw = uartclk / (16 * ibr);
 
 	if (*baud != baud_raw)
 		printk(KERN_INFO "Serial: Console linflex rounded baud rate"
@@ -806,9 +786,7 @@ static int __init linflex_console_setup(struct console *co, char *options)
 		linflex_console_get_options(sport, &baud, &parity, &bits);
 
 	linflex_setup_watermark(sport);
-	
 
-	
 	writel( (readl(sport->port.membase + LINIER) | (LINFLEXD_LINIER_DRIE) ), sport->port.membase + LINIER);
 
 	return uart_set_options(&sport->port, co, baud, parity, bits, flow);
@@ -871,7 +849,7 @@ static int linflex_probe(struct platform_device *pdev)
 	sport->port.irq = platform_get_irq(pdev, 0);
 	sport->port.ops = &linflex_pops;
 	sport->port.flags = UPF_BOOT_AUTOCONF;
-#ifndef IMXV8X_PALLADIUM
+#ifndef CONFIG_S32V234_PALLADIUM
 	sport->clk = devm_clk_get(&pdev->dev, "ipg");
 	if (IS_ERR(sport->clk)) {
 		ret = PTR_ERR(sport->clk);
@@ -935,7 +913,7 @@ static struct platform_driver linflex_driver = {
 	.driver		= {
 		.name	= DRIVER_NAME,
 		.owner	= THIS_MODULE,
-		.of_match_table = linflex_dt_ids,
+		.of_match_table	= linflex_dt_ids,
 		.pm	= &linflex_pm_ops,
 	},
 };
