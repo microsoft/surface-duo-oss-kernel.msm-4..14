@@ -146,10 +146,11 @@ static LIST_HEAD(dev_opp_list);
 /* Lock to allow exclusive modification to the device and opp lists */
 static DEFINE_MUTEX(dev_opp_list_lock);
 
-#define opp_rcu_lockdep_assert()					\
+#define opp_rcu_lockdep_assert(s)					\
 do {									\
 	RCU_LOCKDEP_WARN(!rcu_read_lock_held() &&			\
-				!lockdep_is_held(&dev_opp_list_lock),	\
+				!((s && srcu_read_lock_held(s)) || 	\
+				lockdep_is_held(&dev_opp_list_lock)),	\
 			   "Missing rcu_read_lock() or "		\
 			   "dev_opp_list_lock protection");		\
 } while (0)
@@ -236,9 +237,10 @@ unsigned long dev_pm_opp_get_voltage(struct dev_pm_opp *opp)
 	struct dev_pm_opp *tmp_opp;
 	unsigned long v = 0;
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(&opp->dev_opp->srcu_head.srcu);
 
-	tmp_opp = rcu_dereference(opp);
+	tmp_opp = srcu_dereference_check(opp, &opp->dev_opp->srcu_head.srcu,
+					 rcu_read_lock_held());
 	if (IS_ERR_OR_NULL(tmp_opp) || !tmp_opp->available)
 		pr_err("%s: Invalid parameters\n", __func__);
 	else
@@ -268,9 +270,10 @@ unsigned long dev_pm_opp_get_freq(struct dev_pm_opp *opp)
 	struct dev_pm_opp *tmp_opp;
 	unsigned long f = 0;
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(&opp->dev_opp->srcu_head.srcu);
 
-	tmp_opp = rcu_dereference(opp);
+	tmp_opp = srcu_dereference_check(opp, &opp->dev_opp->srcu_head.srcu,
+					 rcu_read_lock_held());
 	if (IS_ERR_OR_NULL(tmp_opp) || !tmp_opp->available)
 		pr_err("%s: Invalid parameters\n", __func__);
 	else
@@ -302,7 +305,7 @@ bool dev_pm_opp_is_turbo(struct dev_pm_opp *opp)
 {
 	struct dev_pm_opp *tmp_opp;
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(&opp->dev_opp->srcu_head.srcu);
 
 	tmp_opp = rcu_dereference(opp);
 	if (IS_ERR_OR_NULL(tmp_opp) || !tmp_opp->available) {
@@ -357,7 +360,7 @@ struct dev_pm_opp *dev_pm_opp_get_suspend_opp(struct device *dev)
 {
 	struct device_opp *dev_opp;
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	dev_opp = _find_device_opp(dev);
 	if (IS_ERR(dev_opp) || !dev_opp->suspend_opp ||
@@ -437,7 +440,7 @@ struct dev_pm_opp *dev_pm_opp_find_freq_exact(struct device *dev,
 	struct device_opp *dev_opp;
 	struct dev_pm_opp *temp_opp, *opp = ERR_PTR(-ERANGE);
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	dev_opp = _find_device_opp(dev);
 	if (IS_ERR(dev_opp)) {
@@ -485,7 +488,7 @@ struct dev_pm_opp *dev_pm_opp_find_freq_ceil(struct device *dev,
 	struct device_opp *dev_opp;
 	struct dev_pm_opp *temp_opp, *opp = ERR_PTR(-ERANGE);
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	if (!dev || !freq) {
 		dev_err(dev, "%s: Invalid argument freq=%p\n", __func__, freq);
@@ -535,7 +538,7 @@ struct dev_pm_opp *dev_pm_opp_find_freq_floor(struct device *dev,
 	struct device_opp *dev_opp;
 	struct dev_pm_opp *temp_opp, *opp = ERR_PTR(-ERANGE);
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	if (!dev || !freq) {
 		dev_err(dev, "%s: Invalid argument freq=%p\n", __func__, freq);
