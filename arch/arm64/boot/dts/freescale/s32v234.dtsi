@@ -18,7 +18,7 @@
 	};
 
 	cpus {
-		#address-cells = <1>;
+		#address-cells = <2>;
 		#size-cells = <0>;
 
 		cpu@0 {
@@ -87,18 +87,18 @@
 	};
 
 	soc {
-		#address-cells = <1>;
-		#size-cells = <1>;
+		#address-cells = <2>;
+		#size-cells = <2>;
 		compatible = "simple-bus";
 		interrupt-parent = <&gic>;
 		ranges;
 
 		aips0: aips-bus@40000000 {
 			compatible = "fsl,aips-bus", "simple-bus";
-			#address-cells = <1>;
-			#size-cells = <1>;
+			#address-cells = <2>;
+			#size-cells = <2>;
 			interrupt-parent = <&gic>;
-			reg = <0x40000000 0x7D000>;
+			reg = <0x0 0x40000000 0x0 0x7D000>;
 			ranges;
 
 			/*
@@ -107,7 +107,7 @@
 			 */
 			swt0:swt@4000A000 {
 				compatible = "fsl,s32v234-wdt", "fsl,sac58r-wdt";
-				reg = <0x4000A000 0x1000>;
+				reg = <0x0 0x4000A000 0x0 0x1000>;
 				clocks = <&v2m_oscclk2>;
 				clock-names = "swt";
 				status = "disabled";
@@ -115,7 +115,7 @@
 
 			uart0:serial@40053000 {
 				compatible = "fsl,s32v234-linflexuart";
-				reg = <0x40053000 0x1000>;
+				reg = <0x0 0x40053000 0x0 0x1000>;
 				interrupts = <0 59 4>;
 				clocks = <&v2m_oscclk2>, <&p9_smbclk>;
 				clock-names = "uartclk", "apb_pclk";
