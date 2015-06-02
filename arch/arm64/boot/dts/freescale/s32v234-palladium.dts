@@ -1,8 +1,17 @@
+/*
+ * Copyright 2015 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ */
+
 /dts-v1/;
 #include "s32v234.dtsi"
 / {
-	model = "Freescale Treerunner S32V234";
-	compatible = "arm,vexpress,v2p-aarch64", "arm,vexpress";
+	model = "Freescale S32V234";
+	compatible = "fsl,s32v234-evb", "fsl,s32v234", "arm,vexpress,v2p-aarch64", "arm,vexpress";
 
 	chosen {
 		bootargs = "console=ttyAMA0";

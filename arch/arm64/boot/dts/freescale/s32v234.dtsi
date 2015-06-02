@@ -1,5 +1,14 @@
+/*
+ * Copyright 2015 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ */
+
 / {
-	compatible = "arm,vexpress,v2p-aarch64", "arm,vexpress";
+	compatible = "fsl,s32v234", "arm,vexpress,v2p-aarch64", "arm,vexpress";
 	interrupt-parent = <&gic>;
 	#address-cells = <2>;
 	#size-cells = <2>;
@@ -37,9 +46,9 @@
 		#address-cells = <0>;
 		interrupt-controller;
 		reg = <0 0x7d001000 0 0x1000>,
-			  <0 0x7d002000 0 0x1000>,
-			  <0 0x7d004000 0 0x2000>,
-			  <0 0x7d006000 0 0x2000>;
+		      <0 0x7d002000 0 0x1000>,
+		      <0 0x7d004000 0 0x2000>,
+		      <0 0x7d006000 0 0x2000>;
 		interrupts = <1 9 0xf04>;
 	};
 
@@ -47,18 +56,18 @@
 		compatible = "arm,cci";
 		reg = <0 0x7d090000 0 0x10000>;
 		interrupts = <0 101 4>,
-			 <0 102 4>,
-			 <0 103 4>,
-			 <0 104 4>,
-			 <0 105 4>;
+			     <0 102 4>,
+			     <0 103 4>,
+			     <0 104 4>,
+			     <0 105 4>;
 	};
 
 	timer {
 		compatible = "arm,armv8-timer";
 		interrupts = <1 13 0xf08>,
-			 <1 14 0xf08>,
-			 <1 11 0xf08>,
-			 <1 10 0xf08>;
+			     <1 14 0xf08>,
+			     <1 11 0xf08>,
+			     <1 10 0xf08>;
 	};
 
 	v2m_oscclk2: oscclk2 {
@@ -85,32 +94,32 @@
 		ranges;
 
 		aips0: aips-bus@40000000 {
-				compatible = "fsl,aips-bus", "simple-bus";
-				#address-cells = <1>;
-				#size-cells = <1>;
-				interrupt-parent = <&gic>;
-				reg = <0x40000000 0x7D000>;
-				ranges;
+			compatible = "fsl,aips-bus", "simple-bus";
+			#address-cells = <1>;
+			#size-cells = <1>;
+			interrupt-parent = <&gic>;
+			reg = <0x40000000 0x7D000>;
+			ranges;
 
-				/*
-				 * TODO: Update the clocks when the clock framework is
-				 * defined.
-				 */
-				swt0:swt@4000A000 {
-					compatible = "fsl,s32v234-wdt", "fsl,sac58r-wdt";
-					reg = <0x4000A000 0x1000>;
-					clocks = <&v2m_oscclk2>;
-					clock-names = "swt";
-					status = "disabled";
-				};
+			/*
+			 * TODO: Update the clocks when the clock framework is
+			 * defined.
+			 */
+			swt0:swt@4000A000 {
+				compatible = "fsl,s32v234-wdt", "fsl,sac58r-wdt";
+				reg = <0x4000A000 0x1000>;
+				clocks = <&v2m_oscclk2>;
+				clock-names = "swt";
+				status = "disabled";
+			};
 
-				uart0:serial@40053000 {
-					compatible = "fsl,s32v234-linflexuart";
-					reg = <0x40053000 0x1000>;
-					interrupts = <0 59 4>;
-					clocks = <&v2m_oscclk2>, <&p9_smbclk>;
-					clock-names = "uartclk", "apb_pclk";
-				};
+			uart0:serial@40053000 {
+				compatible = "fsl,s32v234-linflexuart";
+				reg = <0x40053000 0x1000>;
+				interrupts = <0 59 4>;
+				clocks = <&v2m_oscclk2>, <&p9_smbclk>;
+				clock-names = "uartclk", "apb_pclk";
+			};
 		};
 	};
 
