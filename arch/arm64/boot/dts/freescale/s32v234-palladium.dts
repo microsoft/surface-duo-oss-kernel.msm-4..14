@@ -22,9 +22,9 @@
 
 };
 
-&uart0 {
+&swt0 {
 	status = "okay";
 };
-&swt0 {
+&uart0 {
 	status = "okay";
 };
