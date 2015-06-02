@@ -100,7 +100,7 @@ int get_temp_common(struct tsens_device *tmdev, int id, long *temp)
 	code = readl_relaxed(sensor_addr);
 	last_temp = code & SN_ST_TEMP_MASK;
 
-	*temp = code_to_degc(last_temp, s);
+	*temp = code_to_degc(last_temp, s) * 1000;
 
 	return 0;
 }
