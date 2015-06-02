@@ -14,6 +14,7 @@
 #include <dt-bindings/clock/qcom,gcc-msm8916.h>
 #include <dt-bindings/reset/qcom,gcc-msm8916.h>
 #include <dt-bindings/clock/qcom,rpmcc-msm8916.h>
+#include <dt-bindings/thermal/thermal.h>
 #include <dt-bindings/arm/qcom-ids.h>
 
 / {
@@ -98,6 +99,10 @@
 			clocks = <&a53cc 1>;
 			clock-latency = <200000>;
 			cpu-supply = <&pm8916_s2>;
+			/* cooling options */
+			cooling-min-level = <0>;
+			cooling-max-level = <7>;
+			#cooling-cells = <2>;
 			L2_0: l2-cache {
 			      compatible = "arm,arch-cache";
 			      cache-level = <2>;
@@ -115,6 +120,10 @@
 			clocks = <&a53cc 1>;
 			clock-latency = <200000>;
 			cpu-supply = <&pm8916_s2>;
+			/* cooling options */
+			cooling-min-level = <0>;
+			cooling-max-level = <7>;
+			#cooling-cells = <2>;
 		};
 
 		CPU2: cpu@2 {
@@ -127,6 +136,10 @@
 			clocks = <&a53cc 1>;
 			clock-latency = <200000>;
 			cpu-supply = <&pm8916_s2>;
+			/* cooling options */
+			cooling-min-level = <0>;
+			cooling-max-level = <7>;
+			#cooling-cells = <2>;
 		};
 
 		CPU3: cpu@3 {
@@ -139,6 +152,10 @@
 			clocks = <&a53cc 1>;
 			clock-latency = <200000>;
 			cpu-supply = <&pm8916_s2>;
+			/* cooling options */
+			cooling-min-level = <0>;
+			cooling-max-level = <7>;
+			#cooling-cells = <2>;
 		};
 	};
 
@@ -151,14 +168,21 @@
 
 			trips {
 				cpu_alert0: trip@0 {
-					temperature = <100000>;
+					temperature = <75000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
 				cpu_crit0: trip@1 {
-					temperature = <125000>;
+					temperature = <95000>;
 					hysteresis = <2000>;
 					type = "critical";
+				};
+			};
+
+			cooling-maps {
+				map0 {
+					trip = <&cpu_alert0>;
+					cooling-device = <&CPU0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 				};
 			};
 		};
@@ -170,19 +194,25 @@
 			thermal-sensors = <&tsens 3>;
 
 			trips {
-				cpu_alert2: trip@0 {
-					temperature = <100000>;
+				cpu_alert1: trip@0 {
+					temperature = <75000>;
 					hysteresis = <2000>;
 					type = "passive";
 				};
-				cpu_crit2: trip@1 {
-					temperature = <125000>;
+				cpu_crit1: trip@1 {
+					temperature = <95000>;
 					hysteresis = <2000>;
 					type = "critical";
 				};
 			};
-		};
 
+			cooling-maps {
+				map0 {
+					trip = <&cpu_alert1>;
+					cooling-device = <&CPU0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
+		};
 	};
 
 	cpu-pmu {
