@@ -33,9 +33,10 @@ static LIST_HEAD(opp_tables);
 /* Lock to allow exclusive modification to the device and opp lists */
 DEFINE_MUTEX(opp_table_lock);
 
-#define opp_rcu_lockdep_assert()					\
+#define opp_rcu_lockdep_assert(s)					\
 do {									\
 	RCU_LOCKDEP_WARN(!rcu_read_lock_held() &&			\
+			 !(s && srcu_read_lock_held(s)) &&		\
 			 !lockdep_is_held(&opp_table_lock),		\
 			 "Missing rcu_read_lock() or "			\
 			 "opp_table_lock protection");			\
@@ -93,7 +94,7 @@ struct opp_table *_find_opp_table(struct device *dev)
 {
 	struct opp_table *opp_table;
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	if (IS_ERR_OR_NULL(dev)) {
 		pr_err("%s: Invalid parameters\n", __func__);
@@ -127,7 +128,7 @@ unsigned long dev_pm_opp_get_voltage(struct dev_pm_opp *opp)
 	struct dev_pm_opp *tmp_opp;
 	unsigned long v = 0;
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	tmp_opp = rcu_dereference(opp);
 	if (IS_ERR_OR_NULL(tmp_opp))
@@ -159,7 +160,7 @@ unsigned long dev_pm_opp_get_freq(struct dev_pm_opp *opp)
 	struct dev_pm_opp *tmp_opp;
 	unsigned long f = 0;
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	tmp_opp = rcu_dereference(opp);
 	if (IS_ERR_OR_NULL(tmp_opp) || !tmp_opp->available)
@@ -193,7 +194,7 @@ bool dev_pm_opp_is_turbo(struct dev_pm_opp *opp)
 {
 	struct dev_pm_opp *tmp_opp;
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	tmp_opp = rcu_dereference(opp);
 	if (IS_ERR_OR_NULL(tmp_opp) || !tmp_opp->available) {
@@ -321,7 +322,7 @@ struct dev_pm_opp *dev_pm_opp_get_suspend_opp(struct device *dev)
 {
 	struct opp_table *opp_table;
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	opp_table = _find_opp_table(dev);
 	if (IS_ERR(opp_table) || !opp_table->suspend_opp ||
@@ -401,7 +402,7 @@ struct dev_pm_opp *dev_pm_opp_find_freq_exact(struct device *dev,
 	struct opp_table *opp_table;
 	struct dev_pm_opp *temp_opp, *opp = ERR_PTR(-ERANGE);
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	opp_table = _find_opp_table(dev);
 	if (IS_ERR(opp_table)) {
@@ -450,7 +451,7 @@ struct dev_pm_opp *dev_pm_opp_find_freq_ceil(struct device *dev,
 	struct opp_table *opp_table;
 	struct dev_pm_opp *temp_opp, *opp = ERR_PTR(-ERANGE);
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	if (!dev || !freq) {
 		dev_err(dev, "%s: Invalid argument freq=%p\n", __func__, freq);
@@ -500,7 +501,7 @@ struct dev_pm_opp *dev_pm_opp_find_freq_floor(struct device *dev,
 	struct opp_table *opp_table;
 	struct dev_pm_opp *temp_opp, *opp = ERR_PTR(-ERANGE);
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	if (!dev || !freq) {
 		dev_err(dev, "%s: Invalid argument freq=%p\n", __func__, freq);
