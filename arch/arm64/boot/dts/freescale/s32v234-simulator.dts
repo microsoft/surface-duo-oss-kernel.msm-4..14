@@ -1,8 +1,17 @@
+/*
+ * Copyright 2015 Freescale Semiconductor, Inc.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ */
+
 /dts-v1/;
 #include "s32v234.dtsi"
 / {
-	model = "Freescale Treerunner S32V234";
-	compatible = "arm,vexpress,v2p-aarch64", "arm,vexpress";
+	model = "Freescale S32V234";
+	compatible = "fsl,s32v234", "arm,vexpress,v2p-aarch64", "arm,vexpress";
 
 	chosen {
 		bootargs = "console=ttyAMA0";
@@ -10,16 +19,18 @@
 		linux,initrd-start = <0x90000000>;
 		linux,initrd-end   = <0x900E3C95>;
 	};
+
 	imx_serial0: uart@3b000000 {
-				 compatible = "arm,pl011", "arm,primecell";
-				 reg = <0x0 0x3b000000 0x0 0x1000>;
-				 interrupts = <0 5 4>;
-				 clocks = <&v2m_oscclk2>, <&p9_smbclk>;
-				 clock-names = "uartclk", "apb_pclk";
-				 status = "okey";
+		compatible = "arm,pl011", "arm,primecell";
+		reg = <0x0 0x3b000000 0x0 0x1000>;
+		interrupts = <0 5 4>;
+		clocks = <&v2m_oscclk2>, <&p9_smbclk>;
+		clock-names = "uartclk", "apb_pclk";
+		status = "okey";
 	 };
 
 };
+
 &swt0 {
 	status = "okay";
 };
