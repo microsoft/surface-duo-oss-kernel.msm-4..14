@@ -476,7 +476,7 @@ static int adv7511_irq_process(struct adv7511 *adv7511)
 	if (irq0 & ADV7511_INT0_EDID_READY || irq1 & ADV7511_INT1_DDC_ERROR) {
 		adv7511->edid_read = true;
 
-		if (adv7511->i2c_main->irq)
+		if (adv7511->irq)
 			wake_up_all(&adv7511->wq);
 	}
 
@@ -500,7 +500,7 @@ static int adv7511_wait_for_edid(struct adv7511 *adv7511, int timeout)
 {
 	int ret;
 
-	if (adv7511->i2c_main->irq) {
+	if (adv7511->irq) {
 		ret = wait_event_interruptible_timeout(adv7511->wq,
 				adv7511->edid_read, msecs_to_jiffies(timeout));
 	} else {
@@ -1181,6 +1181,8 @@ static int adv7511_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 						adv7511);
 		if (ret)
 			goto err_i2c_unregister_cec;
+
+		adv7511->irq = i2c->irq;
 	}
 
 	/* CEC is unused for now */
@@ -1379,6 +1381,8 @@ static int adv7533_probe(struct mipi_dsi_device *dsi)
 					adv);
 		if (ret)
 			goto err_i2c_unregister_cec;
+
+		adv->irq = irq;
 	}
 
 	/* CEC is unused for now */
