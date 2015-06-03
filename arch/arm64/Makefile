@@ -42,6 +42,8 @@ endif
 
 export	TEXT_OFFSET GZFLAGS
 
+machine-$(CONFIG_ARCH_S32X)		+= s32x
+
 core-y		+= arch/arm64/kernel/ arch/arm64/mm/
 core-$(CONFIG_NET) += arch/arm64/net/
 core-$(CONFIG_KVM) += arch/arm64/kvm/
@@ -49,6 +51,16 @@ core-$(CONFIG_XEN) += arch/arm64/xen/
 core-$(CONFIG_CRYPTO) += arch/arm64/crypto/
 libs-y		:= arch/arm64/lib/ $(libs-y)
 core-$(CONFIG_EFI_STUB) += $(objtree)/drivers/firmware/efi/libstub/lib.a
+
+# The first directory contains additional information for the boot setup code
+ifneq ($(machine-y),)
+MACHINE  := arch/arm/mach-$(word 1,$(machine-y))/
+else
+MACHINE  :=
+endif
+
+machdirs	:= $(patsubst %,arch/arm64/mach-%/,$(machine-y))
+core-y		+= $(machdirs)
 
 # Default target when executing plain make
 KBUILD_IMAGE	:= Image.gz

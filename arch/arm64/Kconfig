@@ -245,6 +245,7 @@ config ARCH_VEXPRESS
 	  This enables support for the ARMv8 software model (Versatile
 	  Express).
 
+
 config ARCH_XGENE
 	bool "AppliedMicro X-Gene SOC Family"
 	help
@@ -256,6 +257,8 @@ config ARCH_ZYNQMP
 	  This enables support for Xilinx ZynqMP Family
 
 endmenu
+
+source "arch/arm64/mach-s32x/Kconfig"
 
 menu "Bus support"
 
