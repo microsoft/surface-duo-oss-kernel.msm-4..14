@@ -12,11 +12,140 @@
 #include "wcn36xx.h"
 #include "wcnss_core.h"
 
+#define VREG_NULL_CONFIG            0x0000
+#define VREG_GET_REGULATOR_MASK     0x0001
+#define VREG_SET_VOLTAGE_MASK       0x0002
+#define VREG_OPTIMUM_MODE_MASK      0x0004
+#define VREG_ENABLE_MASK            0x0008
+
+#define WCNSS_INVALID_IRIS_REG      0xbaadbaad
+
+struct vregs_info {
+	const char * const name;
+	int state;
+	const int nominal_min;
+	const int low_power_min;
+	const int max_voltage;
+	const int uA_load;
+	struct regulator *regulator;
+};
+
+/* IRIS regulators for Pronto v2 hardware */
+static struct vregs_info iris_vregs_pronto_v2[] = {
+	{"qcom,iris-vddxo",  VREG_NULL_CONFIG, 1800000, 0,
+		1800000, 10000,  NULL},
+	{"qcom,iris-vddrfa", VREG_NULL_CONFIG, 1300000, 0,
+		1300000, 100000, NULL},
+	{"qcom,iris-vddpa",  VREG_NULL_CONFIG, 3300000, 0,
+		3300000, 515000, NULL},
+	{"qcom,iris-vdddig", VREG_NULL_CONFIG, 1800000, 0,
+		1800000, 10000,  NULL},
+};
+
+/* WCNSS regulators for Pronto v2 hardware */
+static struct vregs_info pronto_vregs_pronto_v2[] = {
+	{"qcom,pronto-vddmx",  VREG_NULL_CONFIG, 1287500,  0,
+		1287500, 0,    NULL},
+	{"qcom,pronto-vddcx",  VREG_NULL_CONFIG, RPM_REGULATOR_CORNER_NORMAL,
+		RPM_REGULATOR_CORNER_NONE, RPM_REGULATOR_CORNER_SUPER_TURBO,
+		0,             NULL},
+	{"qcom,pronto-vddpx",  VREG_NULL_CONFIG, 1800000, 0,
+		1800000, 0,    NULL},
+};
+
+/* Common helper routine to turn on all WCNSS & IRIS vregs */
+static int wcnss_vregs_on(struct device *dev,
+		struct vregs_info regulators[], uint size)
+{
+	int i, rc = 0, reg_cnt;
+
+	for (i = 0; i < size; i++) {
+			/* Get regulator source */
+		regulators[i].regulator =
+			regulator_get(dev, regulators[i].name);
+		if (IS_ERR(regulators[i].regulator)) {
+			rc = PTR_ERR(regulators[i].regulator);
+				pr_err("regulator get of %s failed (%d)\n",
+					regulators[i].name, rc);
+				goto fail;
+		}
+		regulators[i].state |= VREG_GET_REGULATOR_MASK;
+		reg_cnt = regulator_count_voltages(regulators[i].regulator);
+		/* Set voltage to nominal. Exclude swtiches e.g. LVS */
+		if ((regulators[i].nominal_min || regulators[i].max_voltage)
+				&& (reg_cnt > 0)) {
+			rc = regulator_set_voltage(regulators[i].regulator,
+					regulators[i].nominal_min,
+					regulators[i].max_voltage);
+			if (rc) {
+				pr_err("regulator_set_voltage(%s) failed (%d)\n",
+						regulators[i].name, rc);
+				goto fail;
+			}
+			regulators[i].state |= VREG_SET_VOLTAGE_MASK;
+		}
+
+		/* Vote for PWM/PFM mode if needed */
+		if (regulators[i].uA_load && (reg_cnt > 0)) {
+			rc = regulator_set_optimum_mode(regulators[i].regulator,
+					regulators[i].uA_load);
+			if (rc < 0) {
+				pr_err("regulator_set_optimum_mode(%s) failed (%d)\n",
+						regulators[i].name, rc);
+				goto fail;
+			}
+			regulators[i].state |= VREG_OPTIMUM_MODE_MASK;
+		}
+
+		/* Enable the regulator */
+		rc = regulator_enable(regulators[i].regulator);
+		if (rc) {
+			pr_err("vreg %s enable failed (%d)\n",
+				regulators[i].name, rc);
+			goto fail;
+		}
+		regulators[i].state |= VREG_ENABLE_MASK;
+	}
+
+	return rc;
+
+fail:
+	return rc;
+
+}
+
 static int wcnss_core_config(struct platform_device *pdev, void __iomem *base)
 {
 	int ret = 0;
 	u32 value, iris_read_v = INVALID_IRIS_REG;
+	struct clk *clk_rf = NULL;
+	struct clk *clk_xo = NULL;
 	int clk_48m = 0;
+
+	clk_xo = clk_get(&pdev->dev, "xo");
+	if (IS_ERR(clk_xo)) {
+		pr_err("Couldn't get xo clock\n");
+		return PTR_ERR(clk_xo);
+	}
+	ret = clk_prepare_enable(clk_xo);
+	if (ret) {
+		pr_err("xo clk enable failed\n");
+		return ret;
+	}
+
+	ret = wcnss_vregs_on(&pdev->dev, pronto_vregs_pronto_v2,
+			ARRAY_SIZE(pronto_vregs_pronto_v2));
+	if (ret) {
+		pr_info("pronto_vreg turn on failed\n");
+		return ret;
+	}
+
+	ret = wcnss_vregs_on(&pdev->dev, iris_vregs_pronto_v2,
+			ARRAY_SIZE(iris_vregs_pronto_v2));
+	if (ret) {
+		pr_info("iris_vreg turn on failed\n");
+		return ret;
+	}
 
 	value = readl_relaxed(base + SPARE_OFFSET);
 	value |= WCNSS_FW_DOWNLOAD_ENABLE;
@@ -82,7 +211,21 @@ static int wcnss_core_config(struct platform_device *pdev, void __iomem *base)
 			WCNSS_PMU_CFG_IRIS_XO_CFG);
 	writel_relaxed(value, base + PMU_OFFSET);
 
-        msleep(1000);
+	if (!clk_48m) {
+		clk_rf = clk_get(&pdev->dev, "rf_clk");
+		if (IS_ERR(clk_rf)) {
+			pr_err("couldn't get rf_clk\n");
+			return -1;
+		}
+
+		ret = clk_prepare_enable(clk_rf);
+		if (ret) {
+			pr_err("clk_rf enable failed\n");
+		}
+		clk_put(clk_rf);
+	}
+
+        msleep(20);
 
 	return ret;
 }

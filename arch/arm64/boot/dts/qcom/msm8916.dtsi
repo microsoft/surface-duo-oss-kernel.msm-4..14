@@ -1409,6 +1409,9 @@
 	//			 <&clock_debug clk_gcc_debug_mux>,
 	//			 <&clock_gcc clk_wcnss_m_clk>;
 	//		clock-names = "xo", "rf_clk", "measure", "wcnss_debug";
+			clocks = <&rpmcc RPM_XO_CLK_SRC>,
+				 <&rpmcc RPM_RF_CLK2>;
+			clock-names = "xo", "rf_clk";
 
 			qcom,has-autodetect-xo;
 			qcom,wlan-rx-buff-count = <512>;
