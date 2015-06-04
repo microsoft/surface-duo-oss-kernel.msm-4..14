@@ -157,6 +157,10 @@ static struct esdhc_soc_data usdhc_sac58r_data = {
 	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MULTIBLK_READ_ACMD12,
 };
 
+static struct esdhc_soc_data usdhc_s32v234_data = {
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MULTIBLK_READ_ACMD12,
+};
+
 struct pltfm_imx_data {
 	u32 scratchpad;
 	struct pinctrl *pinctrl;
@@ -201,6 +205,7 @@ static const struct of_device_id imx_esdhc_dt_ids[] = {
 	{ .compatible = "fsl,imx6q-usdhc", .data = &usdhc_imx6q_data, },
 	{ .compatible = "fsl,vf610-esdhc", .data = &esdhc_vf610_data, },
 	{ .compatible = "fsl,sac58r-usdhc", .data = &usdhc_sac58r_data, },
+	{ .compatible = "fsl,s32v234-usdhc", .data = &usdhc_s32v234_data,},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, imx_esdhc_dt_ids);
@@ -223,6 +228,11 @@ static inline int is_imx6q_usdhc(struct pltfm_imx_data *data)
 static inline int is_sac58r_usdhc(struct pltfm_imx_data *data)
 {
 	return data->socdata == &usdhc_sac58r_data;
+}
+
+static inline int is_s32v234_usdhc(struct pltfm_imx_data *data)
+{
+	return data->socdata == &usdhc_s32v234_data;
 }
 
 
@@ -279,11 +289,11 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 				val = readl(host->ioaddr + SDHCI_CAPABILITIES) & 0xFFFF;
 			}
 			else {
-				if (is_sac58r_usdhc(imx_data)) {
+				if (is_sac58r_usdhc(imx_data) || is_s32v234_usdhc(imx_data)) {
 					/*
-					 * sac58r HOST_CTRL_CAP register
+					 * sac58r and s32v234 HOST_CTRL_CAP register
 					 * does not provide speed info .
-					 * sac58r does not support DDR50, but this is needed
+					 * __Only__ sac58r does not support DDR50, but this is needed
 					 * to support DDR50 SD cards. If this is not enabled,
 					 * a lot of TIMEOUT errors get returned when trying to
 					 * access SD card.
