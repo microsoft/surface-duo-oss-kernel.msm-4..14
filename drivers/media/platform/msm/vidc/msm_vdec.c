@@ -113,6 +113,22 @@ static const char *const vp8_profile_level[] = {
 	"3.0",
 };
 
+static const char *const mpeg2_profile[] = {
+	"Simple",
+	"Main",
+	"422",
+	"SNR scalable",
+	"Spatial scalable",
+	"High",
+};
+
+static const char *const mpeg2_level[] = {
+	"Level 0",
+	"Level 1",
+	"Level 2",
+	"Level 3",
+};
+
 static const char *const mpeg_vidc_video_h264_mvc_layout[] = {
 	"Frame packing arrangement sequential",
 	"Frame packing arrangement top-bottom",
@@ -444,6 +460,7 @@ static struct msm_vidc_ctrl msm_vdec_ctrls[] = {
 		.maximum = V4L2_MPEG_VIDC_VIDEO_MPEG2_PROFILE_HIGH,
 		.default_value = V4L2_MPEG_VIDC_VIDEO_MPEG2_PROFILE_SIMPLE,
 		.menu_skip_mask = 0,
+		.qmenu = mpeg2_profile,
 		.flags = V4L2_CTRL_FLAG_VOLATILE,
 	},
 	{
@@ -454,6 +471,7 @@ static struct msm_vidc_ctrl msm_vdec_ctrls[] = {
 		.maximum = V4L2_MPEG_VIDC_VIDEO_MPEG2_LEVEL_3,
 		.default_value = V4L2_MPEG_VIDC_VIDEO_MPEG2_LEVEL_0,
 		.menu_skip_mask = 0,
+		.qmenu = mpeg2_level,
 		.flags = V4L2_CTRL_FLAG_VOLATILE,
 	},
 	{
