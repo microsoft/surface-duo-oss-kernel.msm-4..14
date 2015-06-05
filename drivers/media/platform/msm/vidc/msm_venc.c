@@ -3073,7 +3073,9 @@ int msm_venc_querycap(struct msm_vidc_inst *inst, struct v4l2_capability *cap)
 	cap->version = MSM_VIDC_VERSION;
 	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE_MPLANE |
 						V4L2_CAP_VIDEO_OUTPUT_MPLANE |
-						V4L2_CAP_STREAMING;
+						V4L2_CAP_STREAMING |
+						V4L2_CAP_DEVICE_CAPS;
+	cap->device_caps |= V4L2_CAP_EXT_PIX_FORMAT;
 	memset(cap->reserved, 0, sizeof(cap->reserved));
 	return 0;
 }
