@@ -322,6 +322,14 @@ void kbase_disjoint_state_down(struct kbase_device *kbdev);
  */
 #define KBASE_DISJOINT_STATE_INTERLEAVED_CONTEXT_COUNT_THRESHOLD 2
 
+/**
+ * Platform-specific function to setup the OPPs for Mali
+ *
+ * Platform's can define this function if they need to setup the OPPs
+ * in a platform-specific way
+ */
+int setup_opps(void);
+
 #if KBASE_TRACE_ENABLE
 void kbasep_trace_debugfs_init(struct kbase_device *kbdev);
 
