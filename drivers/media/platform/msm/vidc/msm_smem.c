@@ -574,7 +574,7 @@ int msm_smem_cache_operations(void *clt, struct msm_smem *mem,
 		break;
 #endif
 	case SMEM_DMA:
-		dprintk(VIDC_ERR,
+		dprintk(VIDC_DBG,
 			"Ignore dma cache operations: %d\n", rc);
 		break;
 	default:
