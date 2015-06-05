@@ -6218,6 +6218,10 @@ sd_init(struct sched_domain_topology_level *tl, int cpu)
 #endif
 	} else {
 		sd->flags |= SD_PREFER_SIBLING;
+#ifdef CONFIG_SCHED_HMP
+		/* Disable load balance on DIE level */
+		sd->flags &= ~SD_LOAD_BALANCE;
+#endif
 		sd->cache_nice_tries = 1;
 		sd->busy_idx = 2;
 		sd->idle_idx = 1;
