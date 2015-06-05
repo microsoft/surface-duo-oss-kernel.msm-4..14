@@ -125,9 +125,12 @@
 				compatible = "fsl,s32v234-usdhc", "fsl,sac85r-usdhc";
 				reg = <0x0 0x4005D000 0x0 0x1000>;
 				interrupts = <0 28 4>;
-				/* clocks = <&v2m_oscclk2 S32V234_CLK_SDHC>; */
-				clocks = <&v2m_oscclk2>;
-				clock-names = "usdhcclk";
+				/* Uncomment the bellow definition after clocks
+				 * framework is updated */
+				/* clocks = <&clks S32V234_CLK_SYS6>,
+						<&clks S32V234_CLK_SYS6>,
+						<&clks S32V234_CLK_SDHC>; */
+				clock-names = "ipg", "ahb", "per";
 				status = "disabled";
 			};
 		};
