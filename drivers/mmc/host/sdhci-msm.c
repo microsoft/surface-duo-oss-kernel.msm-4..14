@@ -522,6 +522,7 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	/* Set HC_MODE_EN bit in HC_MODE register */
 	writel_relaxed(HC_MODE_EN, (msm_host->core_mem + CORE_HC_MODE));
 
+	host->quirks |= SDHCI_QUIRK_NO_CARD_NO_RESET;
 	host->quirks |= SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 	host->quirks |= SDHCI_QUIRK_SINGLE_POWER_WRITE;
 
