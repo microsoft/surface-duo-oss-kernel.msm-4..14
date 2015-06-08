@@ -8,6 +8,9 @@ if ARCH_S32
 config ARCH_S32_IOMUX
 	bool "Enable S32 IOMUX"
 
+config ARCH_S32_CLK
+	bool "Enable S32 CLK Framework"
+
 config GALCORE_ANON_INODES
 	bool "Support for anonymous inodes"
 	select ANON_INODES
