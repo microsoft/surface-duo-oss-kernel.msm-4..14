@@ -140,7 +140,7 @@
 	interrupt-names = "hc_irq", "pwr_irq", "status_irq";
 	cd-gpios = <&msm_gpio 38 0x1>;
 
-	//status = "okay";
+	status = "okay";
 };
 
 &usb_dev {
