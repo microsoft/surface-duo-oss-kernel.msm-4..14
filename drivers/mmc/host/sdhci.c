@@ -1621,10 +1621,6 @@ static int sdhci_do_get_cd(struct sdhci_host *host)
 	if (host->flags & SDHCI_DEVICE_DEAD)
 		return 0;
 
-	/* If nonremovable, assume that the card is always present. */
-	if (host->mmc->caps & MMC_CAP_NONREMOVABLE)
-		return 1;
-
 	/*
 	 * Try slot gpio detect, if defined it take precedence
 	 * over build in controller functionality
@@ -1632,8 +1628,9 @@ static int sdhci_do_get_cd(struct sdhci_host *host)
 	if (!IS_ERR_VALUE(gpio_cd))
 		return !!gpio_cd;
 
-	/* If polling, assume that the card is always present. */
-	if (host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION)
+	/* If polling/nonremovable, assume that the card is always present. */
+	if ((host->quirks & SDHCI_QUIRK_BROKEN_CARD_DETECTION) ||
+	    (host->mmc->caps & MMC_CAP_NONREMOVABLE))
 		return 1;
 
 	/* Host native card detect */
