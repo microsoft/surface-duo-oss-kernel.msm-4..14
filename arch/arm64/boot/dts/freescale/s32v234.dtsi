@@ -6,8 +6,9 @@
  * the Free Software Foundation; either version 2 of the License, or
  * (at your option) any later version.
  */
+#include <dt-bindings/clock/s32v234-clock.h>
 
-/ {
+ / {
 	compatible = "fsl,s32v234", "arm,vexpress,v2p-aarch64", "arm,vexpress";
 	interrupt-parent = <&gic>;
 	#address-cells = <2>;
@@ -113,6 +114,33 @@
 				status = "disabled";
 			};
 
+			clks: mc_cgm0@4003C000 {
+				compatible = "fsl,s32v234-mc_cgm0";
+				reg = <0x0 0x4003C000 0x0 0x1000>;
+				#clock-cells = <1>;
+
+			};
+
+			mc_cgm1: mc_cgm1@4003F000 {
+				compatible = "fsl,s32v234-mc_cgm1";
+				reg = <0x0 0x4003F000 0x0 0x1000>;
+			};
+
+			mc_cgm2: mc_cgm2@40042000 {
+				compatible = "fsl,s32v234-mc_cgm2";
+				reg = <0x0 0x40042000 0x0 0x1000>;
+			};
+
+			mc_cgm3: mc_cgm3@40045000 {
+				compatible = "fsl,s32v234-mc_cgm3";
+				reg = <0x0 0x40045000 0x0 0x1000>;
+			};
+
+			mc_me: mc_me@4004A000 {
+				compatible = "fsl,s32v234-mc_me";
+				reg = <0x0 0x4004A000 0x0 0x1000>;
+			};
+
 			uart0:serial@40053000 {
 				compatible = "fsl,s32v234-linflexuart";
 				reg = <0x0 0x40053000 0x0 0x1000>;
@@ -133,6 +161,12 @@
 				clock-names = "ipg", "ahb", "per";
 				status = "disabled";
 			};
+
+			src: src@4007C000 {
+				compatible = "fsl,s32v234-src";
+				reg = <0x0 0x4007C000 0x0 0x1000>;
+			};
+
 		};
 
 	};
