@@ -43,7 +43,7 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 
-			pm8916_s1: s1@1400 {
+			s1@1400 {
 				reg = <0x1400 0x300>;
 				status = "disabled";
 			};
@@ -55,102 +55,102 @@
 				regulator-max-microvolt = <1350000>;
 			};
 
-			pm8916_s3: s3@1a00 {
+			s3@1a00 {
 				reg = <0x1a00 0x300>;
 				status = "disabled";
 			};
 
-			pm8916_s4: s4@1d00 {
+			s4@1d00 {
 				reg = <0x1d00 0x300>;
 				status = "disabled";
 			};
 
-			pm8916_l1: l1@4000 {
+			l1@4000 {
 				reg = <0x4000 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l2: l2@4100 {
+			l2@4100 {
 				reg = <0x4100 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l3: l3@4200 {
+			l3@4200 {
 				reg = <0x4200 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l4: l4@4300 {
+			l4@4300 {
 				reg = <0x4300 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l5: l5@4400 {
+			l5@4400 {
 				reg = <0x4400 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l6: l6@4500 {
+			l6@4500 {
 				reg = <0x4500 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l7: l7@4600 {
+			l7@4600 {
 				reg = <0x4600 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l8: l8@4700 {
+			l8@4700 {
 				reg = <0x4700 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l9: l9@4800 {
+			l9@4800 {
 				reg = <0x4800 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l10: l10@4900 {
+			l10@4900 {
 				reg = <0x4900 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l11: l11@4a00 {
+			l11@4a00 {
 				reg = <0x4a00 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l12: l12@4b00 {
+			l12@4b00 {
 				reg = <0x4b00 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l13: l13@4c00 {
+			l13@4c00 {
 				reg = <0x4c00 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l14: l14@4d00 {
+			l14@4d00 {
 				reg = <0x4d00 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l15: l15@4e00 {
+			l15@4e00 {
 				reg = <0x4e00 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l16: l16@4f00 {
+			l16@4f00 {
 				reg = <0x4f00 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l17: l17@5000 {
+			l17@5000 {
 				reg = <0x5000 0x100>;
 				status = "disabled";
 			};
 
-			pm8916_l18: l18@5100 {
+			l18@5100 {
 				reg = <0x5100 0x100>;
 				status = "disabled";
 			};
