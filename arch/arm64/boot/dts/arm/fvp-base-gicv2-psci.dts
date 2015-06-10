@@ -37,7 +37,7 @@
 
 / {
 	model = "FVP Base";
-	compatible = "arm,vfp-base", "arm,vexpress";
+	compatible = "arm,fvp-base", "arm,vexpress";
 	interrupt-parent = <&gic>;
 	#address-cells = <2>;
 	#size-cells = <2>;
