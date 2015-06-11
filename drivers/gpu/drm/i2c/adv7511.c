@@ -453,6 +453,10 @@ static void adv7511_power_on(struct adv7511 *adv7511)
 	 */
 	regcache_sync(adv7511->regmap);
 
+	if (adv7511->type == ADV7533)
+		regmap_register_patch(adv7511->regmap_cec,
+				      adv7533_cec_fixed_registers,
+				      ARRAY_SIZE(adv7533_cec_fixed_registers));
 	adv7511->powered = true;
 
 	adv7511_dsi_receiver_dpms(adv7511);
