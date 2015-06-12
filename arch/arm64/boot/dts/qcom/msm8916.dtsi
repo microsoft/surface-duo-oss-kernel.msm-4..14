@@ -63,7 +63,7 @@
 			alloc-ranges = <0 0x80000000 0 0x10000000>;
                         reusable;
 			alignment = <0 0x400000>;
-			size = <0 0x1400000>;
+			size = <0 0x800000>;
 		};
 
 		audio_mem: audio_region {
