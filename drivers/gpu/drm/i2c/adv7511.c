@@ -367,22 +367,66 @@ static void adv7511_set_link_config(struct adv7511 *adv7511,
 	adv7511->vsync_polarity = config->vsync_polarity;
 }
 
+static void adv7511_dsi_config_tgen(struct adv7511 *adv7511)
+{
+	struct drm_display_mode *mode = adv7511->curr_mode;
+	unsigned int hsw, hfp, hbp, vsw, vfp, vbp;
+
+	hsw = mode->hsync_end - mode->hsync_start;
+	hfp = mode->hsync_start - mode->hdisplay;
+	hbp = mode->htotal - mode->hsync_end;
+	vsw = mode->vsync_end - mode->vsync_start;
+	vfp = mode->vsync_start - mode->vdisplay;
+	vbp = mode->vtotal - mode->vsync_end;
+
+	/* set pixel clock divider mode to auto */
+	regmap_write(adv7511->regmap_cec, 0x16, 0x00);
+
+	/* horizontal porch params */
+	regmap_write(adv7511->regmap_cec, 0x28, mode->htotal >> 4);
+	regmap_write(adv7511->regmap_cec, 0x29, (mode->htotal << 4) & 0xff);
+	regmap_write(adv7511->regmap_cec, 0x2a, hsw >> 4);
+	regmap_write(adv7511->regmap_cec, 0x2b, (hsw << 4) & 0xff);
+	regmap_write(adv7511->regmap_cec, 0x2c, hfp >> 4);
+	regmap_write(adv7511->regmap_cec, 0x2d, (hfp << 4) & 0xff);
+	regmap_write(adv7511->regmap_cec, 0x2e, hbp >> 4);
+	regmap_write(adv7511->regmap_cec, 0x2f, (hbp << 4) & 0xff);
+
+	/* vertical porch params */
+	regmap_write(adv7511->regmap_cec, 0x30, mode->vtotal >> 4);
+	regmap_write(adv7511->regmap_cec, 0x31, (mode->vtotal << 4) & 0xff);
+	regmap_write(adv7511->regmap_cec, 0x32, vsw >> 4);
+	regmap_write(adv7511->regmap_cec, 0x33, (vsw << 4) & 0xff);
+	regmap_write(adv7511->regmap_cec, 0x34, vfp >> 4);
+	regmap_write(adv7511->regmap_cec, 0x35, (vfp << 4) & 0xff);
+	regmap_write(adv7511->regmap_cec, 0x36, vbp >> 4);
+	regmap_write(adv7511->regmap_cec, 0x37, (vbp << 4) & 0xff);
+}
+
 static void adv7511_dsi_receiver_dpms(struct adv7511 *adv7511)
 {
 	if (adv7511->type != ADV7533)
 		return;
 
 	if (adv7511->powered) {
+		adv7511_dsi_config_tgen(adv7511);
+
 		/* set number of dsi lanes */
 		regmap_write(adv7511->regmap_cec, 0x1c, adv7511->num_dsi_lanes << 4);
-		/* disable internal timing generator */
-		regmap_write(adv7511->regmap_cec, 0x27, 0x0b);
+
+		/* reset internal timing generator */
+		regmap_write(adv7511->regmap_cec, 0x27, 0xcb);
+		regmap_write(adv7511->regmap_cec, 0x27, 0x8b);
+		regmap_write(adv7511->regmap_cec, 0x27, 0xcb);
+
 		/* enable hdmi */
 		regmap_write(adv7511->regmap_cec, 0x03, 0x89);
+
 		/* explicitly disable test mode */
 		regmap_write(adv7511->regmap_cec, 0x55, 0x00);
 	} else {
 		regmap_write(adv7511->regmap_cec, 0x03, 0x0b);
+		regmap_write(adv7511->regmap_cec, 0x27, 0x0b);
 	}
 }
 
@@ -769,6 +813,7 @@ static void adv7511_mode_set(struct adv7511 *adv7511,
 	regmap_update_bits(adv7511->regmap, 0x17,
 		0x60, (vsync_polarity << 6) | (hsync_polarity << 5));
 
+	adv7511->curr_mode = adj_mode;
 	/*
 	 * TODO Test first order 4:2:2 to 4:4:4 up conversion method, which is
 	 * supposed to give better results.
