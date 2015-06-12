@@ -58,13 +58,6 @@
 			reg = <0x0 0x8b600000 0x0 0x0600000>;
 		};
 
-		secure_mem: secure_region {
-                        compatible = "shared-dma-pool";
-                        reusable;
-			alignment = <0 0x400000>;
-			size = <0 0x7000000>;
-		};
-
 		venus_qseecom_mem: venus_qseecom_region {
                         compatible = "shared-dma-pool";
 			alloc-ranges = <0 0x80000000 0 0x10000000>;
