@@ -2117,6 +2117,7 @@ static int msm_vidc_deinit_core(struct msm_vidc_inst *inst)
 		 * will have a burst of back to back video playback sessions
 		 * e.g. thumbnail generation.
 		 */
+#if 0
 		schedule_delayed_work(&core->fw_unload_work,
 			msecs_to_jiffies(core->state == VIDC_CORE_INVALID ?
 					0 : msm_vidc_firmware_unload_delay));
@@ -2124,6 +2125,7 @@ static int msm_vidc_deinit_core(struct msm_vidc_inst *inst)
 		dprintk(VIDC_DBG, "firmware unload delayed by %u ms\n",
 			core->state == VIDC_CORE_INVALID ?
 			0 : msm_vidc_firmware_unload_delay);
+#endif
 	}
 
 core_already_uninited:
