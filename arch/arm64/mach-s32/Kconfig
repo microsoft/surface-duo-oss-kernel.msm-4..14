@@ -15,13 +15,13 @@ endmenu
 
 if SOC_S32V234
 menu "S32V234 execution target"
-	config ARCH_S32V234_EVB
+	config S32V234_EVB
 		bool "S32V234 evb"
 
-	config ARCH_S32V234_PALLADIUM
+	config S32V234_PALLADIUM
 		bool "S32V234 Palladium"
 
-	config ARCH_S32V234_SIMULATOR
+	config S32V234_SIMULATOR
 		bool "S32V234 Synopsis Simulator"
 endmenu
 endif
