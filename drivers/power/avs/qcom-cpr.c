@@ -1815,6 +1815,7 @@ static int cpr_probe(struct platform_device *pdev)
 	u32 cpr_rev = FUSE_REVISION_UNKNOWN;
 	u32 speed_bin = SPEED_BIN_NONE;
 	u32 pvs_version = 0;
+	struct platform_device_info devinfo = { .name = "cpufreq-dt", };
 
 	np = of_parse_phandle(dev->of_node, "eeprom", 0);
 	if (!np)
@@ -1950,7 +1951,7 @@ static int cpr_probe(struct platform_device *pdev)
 
 	platform_set_drvdata(pdev, drv);
 
-	return 0;
+	return PTR_ERR_OR_ZERO(platform_device_register_full(&devinfo));
 }
 
 static int cpr_remove(struct platform_device *pdev)
