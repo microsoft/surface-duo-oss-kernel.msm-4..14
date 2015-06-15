@@ -33,6 +33,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/reboot.h>
 #include <linux/reset.h>
 
 #include <linux/usb.h>
@@ -1617,6 +1618,19 @@ static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 	return 0;
 }
 
+static int msm_otg_reboot_notify(struct notifier_block *this,
+					unsigned long code, void *unused)
+{
+	struct msm_otg *motg = container_of(this, struct msm_otg, reboot);
+
+	/*
+	 * Ensure that D+/D- lines are routed to uB connector, so
+	 * we could load bootloader/kernel at next reboot
+	 */
+	gpiod_set_value_cansleep(motg->switch_gpio, 0);
+	return NOTIFY_DONE;
+}
+
 static int msm_otg_probe(struct platform_device *pdev)
 {
 	struct regulator_bulk_data regs[3];
@@ -1781,6 +1795,8 @@ static int msm_otg_probe(struct platform_device *pdev)
 			dev_dbg(&pdev->dev, "Can not create mode change file\n");
 	}
 
+	motg->reboot.notifier_call = msm_otg_reboot_notify;
+	register_reboot_notifier(&motg->reboot);
 	pm_runtime_set_active(&pdev->dev);
 
 	return 0;
@@ -1811,6 +1827,8 @@ static int msm_otg_remove(struct platform_device *pdev)
 
 	if (phy->otg->host || phy->otg->gadget)
 		return -EBUSY;
+
+	unregister_reboot_notifier(&motg->reboot);
 
 	if (motg->id_cable.edev)
 		extcon_unregister_interest(&motg->id_cable);

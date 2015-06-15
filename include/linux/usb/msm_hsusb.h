@@ -173,6 +173,7 @@ struct msm_otg {
 	struct notifier_block		id_nb;
 
 	struct gpio_desc *switch_gpio;
+	struct notifier_block reboot;
 };
 
 #endif
