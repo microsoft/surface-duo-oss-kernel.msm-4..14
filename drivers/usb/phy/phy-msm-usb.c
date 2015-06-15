@@ -1817,6 +1817,12 @@ static int msm_otg_remove(struct platform_device *pdev)
 	if (motg->vbus_cable.edev)
 		extcon_unregister_interest(&motg->vbus_cable);
 
+	/*
+	 * Ensure that D+/D- lines are routed to uB connector, so
+	 * we could load bootloader/kernel at next reboot
+	 */
+	gpiod_set_value_cansleep(motg->switch_gpio, 0);
+
 	msm_otg_debugfs_cleanup();
 	cancel_delayed_work_sync(&motg->chg_work);
 	cancel_work_sync(&motg->sm_work);
