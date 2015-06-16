@@ -1564,10 +1564,15 @@ static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 				return ret;
 			} else {
 				ret = extcon_get_cable_state(ext_vbus, "USB");
-				if (ret)
+				if (ret) {
 					set_bit(B_SESS_VLD, &motg->inputs);
-				else
+					/* Switch D+/D- lines to Device connector */
+					gpiod_set_value_cansleep(motg->switch_gpio, 0);
+				} else {
 					clear_bit(B_SESS_VLD, &motg->inputs);
+					/* Switch D+/D- lines to Host connectors */
+					gpiod_set_value_cansleep(motg->switch_gpio, 1);
+				}
 			}
 		}
 
