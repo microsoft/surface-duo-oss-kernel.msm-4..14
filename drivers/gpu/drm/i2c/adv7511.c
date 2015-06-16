@@ -909,9 +909,20 @@ static struct drm_encoder *adv7511_connector_best_encoder(struct drm_connector *
 	return adv7511->bridge.encoder;
 }
 
+static enum drm_mode_status
+adv7511_connector_mode_valid(struct drm_connector *connector,
+					struct drm_display_mode *mode)
+{
+	if (mode->clock > 165000)
+		return MODE_CLOCK_HIGH;
+
+	return MODE_OK;
+}
+
 static struct drm_connector_helper_funcs adv7511_connector_helper_funcs = {
 	.get_modes = adv7511_connector_get_modes,
 	.best_encoder = adv7511_connector_best_encoder,
+	.mode_valid = adv7511_connector_mode_valid,
 };
 
 static enum drm_connector_status
