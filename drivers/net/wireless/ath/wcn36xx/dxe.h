@@ -34,6 +34,9 @@ H2H_TEST_RX_TX = DMA2
 #define WCN36XX_DXE_REG_CCU_INT_3660		0x200b10
 #define WCN36XX_DXE_REG_CCU_INT_3680		0x2050dc
 
+#define	WCN36XX_DEX_CCU_SOFT_RESET		0x204010
+#define	WCN36XX_DEX_CCU_SOFT_RESET_MASK		0x4
+
 /* TODO This must calculated properly but not hardcoded */
 #define WCN36XX_DXE_CTRL_TX_L			0x328a44
 #define WCN36XX_DXE_CTRL_TX_H			0x32ce44
@@ -243,6 +246,7 @@ struct wcn36xx_dxe_ctl {
 };
 
 struct wcn36xx_dxe_ch {
+	spinlock_t			lock;
 	enum wcn36xx_dxe_ch_type	ch_type;
 	void				*cpu_addr;
 	dma_addr_t			dma_addr;

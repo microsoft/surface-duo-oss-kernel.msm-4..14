@@ -54,8 +54,16 @@
 #ifdef __KERNEL__
 
 #include <linux/device.h>
+#include <linux/slab.h>
 
-struct cma;
+/* copied exactly from cma.c */
+struct cma {
+	unsigned long	base_pfn;
+	unsigned long	count;
+	unsigned long	*bitmap;
+	unsigned int order_per_bit; /* Order of pages represented by one bit */
+	struct mutex	lock;
+};
 struct page;
 
 #ifdef CONFIG_DMA_CMA
@@ -116,6 +124,10 @@ struct page *dma_alloc_from_contiguous(struct device *dev, int count,
 bool dma_release_from_contiguous(struct device *dev, struct page *pages,
 				 int count);
 
+unsigned long dma_alloc_from_contiguous_nomap(struct device *dev, int count,
+				       unsigned int order);
+bool dma_release_from_contiguous_nomap(struct device *dev, unsigned long pfn,
+				 int count);
 #else
 
 static inline struct cma *dev_get_cma_area(struct device *dev)
@@ -152,6 +164,20 @@ struct page *dma_alloc_from_contiguous(struct device *dev, int count,
 
 static inline
 bool dma_release_from_contiguous(struct device *dev, struct page *pages,
+				 int count)
+{
+	return false;
+}
+
+static inline
+unsigned long dma_alloc_from_contiguous_nomap(struct device *dev, int count,
+				       unsigned int order)
+{
+	return 0L;
+}
+
+static inline
+bool dma_release_from_contiguous_nomap(struct device *dev, unsigned long pfn,
 				 int count)
 {
 	return false;
