@@ -367,22 +367,66 @@ static void adv7511_set_link_config(struct adv7511 *adv7511,
 	adv7511->vsync_polarity = config->vsync_polarity;
 }
 
+static void adv7511_dsi_config_tgen(struct adv7511 *adv7511)
+{
+	struct drm_display_mode *mode = adv7511->curr_mode;
+	unsigned int hsw, hfp, hbp, vsw, vfp, vbp;
+
+	hsw = mode->hsync_end - mode->hsync_start;
+	hfp = mode->hsync_start - mode->hdisplay;
+	hbp = mode->htotal - mode->hsync_end;
+	vsw = mode->vsync_end - mode->vsync_start;
+	vfp = mode->vsync_start - mode->vdisplay;
+	vbp = mode->vtotal - mode->vsync_end;
+
+	/* set pixel clock divider mode to auto */
+	regmap_write(adv7511->regmap_cec, 0x16, 0x00);
+
+	/* horizontal porch params */
+	regmap_write(adv7511->regmap_cec, 0x28, mode->htotal >> 4);
+	regmap_write(adv7511->regmap_cec, 0x29, (mode->htotal << 4) & 0xff);
+	regmap_write(adv7511->regmap_cec, 0x2a, hsw >> 4);
+	regmap_write(adv7511->regmap_cec, 0x2b, (hsw << 4) & 0xff);
+	regmap_write(adv7511->regmap_cec, 0x2c, hfp >> 4);
+	regmap_write(adv7511->regmap_cec, 0x2d, (hfp << 4) & 0xff);
+	regmap_write(adv7511->regmap_cec, 0x2e, hbp >> 4);
+	regmap_write(adv7511->regmap_cec, 0x2f, (hbp << 4) & 0xff);
+
+	/* vertical porch params */
+	regmap_write(adv7511->regmap_cec, 0x30, mode->vtotal >> 4);
+	regmap_write(adv7511->regmap_cec, 0x31, (mode->vtotal << 4) & 0xff);
+	regmap_write(adv7511->regmap_cec, 0x32, vsw >> 4);
+	regmap_write(adv7511->regmap_cec, 0x33, (vsw << 4) & 0xff);
+	regmap_write(adv7511->regmap_cec, 0x34, vfp >> 4);
+	regmap_write(adv7511->regmap_cec, 0x35, (vfp << 4) & 0xff);
+	regmap_write(adv7511->regmap_cec, 0x36, vbp >> 4);
+	regmap_write(adv7511->regmap_cec, 0x37, (vbp << 4) & 0xff);
+}
+
 static void adv7511_dsi_receiver_dpms(struct adv7511 *adv7511)
 {
 	if (adv7511->type != ADV7533)
 		return;
 
 	if (adv7511->powered) {
+		adv7511_dsi_config_tgen(adv7511);
+
 		/* set number of dsi lanes */
 		regmap_write(adv7511->regmap_cec, 0x1c, adv7511->num_dsi_lanes << 4);
-		/* disable internal timing generator */
-		regmap_write(adv7511->regmap_cec, 0x27, 0x0b);
+
+		/* reset internal timing generator */
+		regmap_write(adv7511->regmap_cec, 0x27, 0xcb);
+		regmap_write(adv7511->regmap_cec, 0x27, 0x8b);
+		regmap_write(adv7511->regmap_cec, 0x27, 0xcb);
+
 		/* enable hdmi */
 		regmap_write(adv7511->regmap_cec, 0x03, 0x89);
+
 		/* explicitly disable test mode */
 		regmap_write(adv7511->regmap_cec, 0x55, 0x00);
 	} else {
 		regmap_write(adv7511->regmap_cec, 0x03, 0x0b);
+		regmap_write(adv7511->regmap_cec, 0x27, 0x0b);
 	}
 }
 
@@ -470,13 +514,13 @@ static int adv7511_irq_process(struct adv7511 *adv7511)
 	regmap_write(adv7511->regmap, ADV7511_REG_INT(0), irq0);
 	regmap_write(adv7511->regmap, ADV7511_REG_INT(1), irq1);
 
-	if (adv7511->encoder && (irq0 & ADV7511_INT0_HDP))
-		drm_helper_hpd_irq_event(adv7511->encoder->dev);
+	//if (adv7511->encoder && (irq0 & ADV7511_INT0_HDP))
+		//drm_helper_hpd_irq_event(adv7511->encoder->dev);
 
 	if (irq0 & ADV7511_INT0_EDID_READY || irq1 & ADV7511_INT1_DDC_ERROR) {
 		adv7511->edid_read = true;
 
-		if (adv7511->i2c_main->irq)
+		if (adv7511->irq)
 			wake_up_all(&adv7511->wq);
 	}
 
@@ -500,7 +544,7 @@ static int adv7511_wait_for_edid(struct adv7511 *adv7511, int timeout)
 {
 	int ret;
 
-	if (adv7511->i2c_main->irq) {
+	if (adv7511->irq) {
 		ret = wait_event_interruptible_timeout(adv7511->wq,
 				adv7511->edid_read, msecs_to_jiffies(timeout));
 	} else {
@@ -659,7 +703,7 @@ adv7511_detect(struct adv7511 *adv7511,
 		status = connector_status_connected;
 	else
 		status = connector_status_disconnected;
-
+#if 0
 	hpd = adv7511_hpd(adv7511);
 
 	/* The chip resets itself when the cable is disconnected, so in case
@@ -678,8 +722,9 @@ adv7511_detect(struct adv7511 *adv7511,
 				   ADV7511_REG_POWER2_HDP_SRC_MASK,
 				   ADV7511_REG_POWER2_HDP_SRC_BOTH);
 	}
-
+#endif
 	adv7511->status = status;
+
 	return status;
 }
 
@@ -769,6 +814,7 @@ static void adv7511_mode_set(struct adv7511 *adv7511,
 	regmap_update_bits(adv7511->regmap, 0x17,
 		0x60, (vsync_polarity << 6) | (hsync_polarity << 5));
 
+	adv7511->curr_mode = adj_mode;
 	/*
 	 * TODO Test first order 4:2:2 to 4:4:4 up conversion method, which is
 	 * supposed to give better results.
@@ -864,9 +910,20 @@ static struct drm_encoder *adv7511_connector_best_encoder(struct drm_connector *
 	return adv7511->bridge.encoder;
 }
 
+static enum drm_mode_status
+adv7511_connector_mode_valid(struct drm_connector *connector,
+					struct drm_display_mode *mode)
+{
+	if (mode->clock > 165000)
+		return MODE_CLOCK_HIGH;
+
+	return MODE_OK;
+}
+
 static struct drm_connector_helper_funcs adv7511_connector_helper_funcs = {
 	.get_modes = adv7511_connector_get_modes,
 	.best_encoder = adv7511_connector_best_encoder,
+	.mode_valid = adv7511_connector_mode_valid,
 };
 
 static enum drm_connector_status
@@ -904,6 +961,9 @@ static void adv7511_bridge_post_disable(struct drm_bridge *bridge)
 {
 	struct adv7511 *adv7511 = bridge_to_adv7511(bridge);
 
+	if (!adv7511->powered)
+		return;
+
 	adv7511_power_off(adv7511);
 }
 
@@ -936,7 +996,7 @@ static int adv7511_bridge_attach(struct drm_bridge *bridge)
 		return -ENODEV;
 	}
 
-	adv7511->connector.polled = DRM_CONNECTOR_POLL_HPD;
+	//adv7511->connector.polled = DRM_CONNECTOR_POLL_HPD;
 	ret = drm_connector_init(bridge->dev, &adv7511->connector,
 			&adv7511_connector_funcs, DRM_MODE_CONNECTOR_HDMIA);
 	if (ret) {
@@ -948,7 +1008,7 @@ static int adv7511_bridge_attach(struct drm_bridge *bridge)
 	drm_connector_register(&adv7511->connector);
 	drm_mode_connector_attach_encoder(&adv7511->connector, adv7511->encoder);
 
-	drm_helper_hpd_irq_event(adv7511->connector.dev);
+	//drm_helper_hpd_irq_event(adv7511->connector.dev);
 
 	return ret;
 }
@@ -1181,6 +1241,8 @@ static int adv7511_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 						adv7511);
 		if (ret)
 			goto err_i2c_unregister_cec;
+
+		adv7511->irq = i2c->irq;
 	}
 
 	/* CEC is unused for now */
@@ -1379,6 +1441,8 @@ static int adv7533_probe(struct mipi_dsi_device *dsi)
 					adv);
 		if (ret)
 			goto err_i2c_unregister_cec;
+
+		adv->irq = irq;
 	}
 
 	/* CEC is unused for now */

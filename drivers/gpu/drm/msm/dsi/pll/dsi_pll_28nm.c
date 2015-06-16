@@ -197,13 +197,13 @@ static int dsi_pll_28nm_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 	DBG("Generated VCO Clock: %lld", gen_vco_clk);
 	rem = 0;
 	if (frac_n_mode) {
-		sdm_cfg0 = (0x0 << 5);
+		sdm_cfg0 = (0x0 << 6);
 		sdm_cfg0 |= (0x0 & 0x3f);
 		sdm_cfg1 = (div_s64(div_fbx1000, 1000) & 0x3f) - 1;
 		sdm_cfg3 = div_s64_rem(frac_n_value, 256, &rem);
 		sdm_cfg2 = rem;
 	} else {
-		sdm_cfg0 = (0x1 << 5);
+		sdm_cfg0 = (0x1 << 6);
 		sdm_cfg0 |= (div_s64(div_fbx1000, 1000) & 0x3f) - 1;
 		sdm_cfg1 = (0x0 & 0x3f);
 		sdm_cfg2 = 0;

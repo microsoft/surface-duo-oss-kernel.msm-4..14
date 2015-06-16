@@ -249,10 +249,14 @@ struct adv7511 {
 	struct i2c_client *i2c_edid;
 	struct i2c_client *i2c_cec;
 
+	int irq;
+
 	struct regmap *regmap;
 	struct regmap *regmap_cec;
 	enum drm_connector_status status;
 	bool powered;
+
+	struct drm_display_mode *curr_mode;
 
 	unsigned int f_tmds;
 	unsigned int f_audio;
