@@ -136,9 +136,14 @@ static int rpm_clk_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
-	clk_set_rate(bimc_a_clk.hw.clk, 800000000);
+	clk_set_rate(bimc_a_clk.hw.clk, 0x7fffffff);
 	clk_prepare_enable(bimc_a_clk.hw.clk);
 
+	clk_set_rate(bimc_clk.hw.clk, 0x7fffffff);
+	clk_prepare_enable(bimc_clk.hw.clk);
+
+	clk_set_rate(snoc_clk.hw.clk, 0x7fffffff);
+	clk_prepare_enable(snoc_clk.hw.clk);
 	return 0;
 }
 
