@@ -309,9 +309,16 @@ static int wcn36xx_msm_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	platform_device_add(wmsm.core);
-	wcnss_core_init();
+	/* wcnss_core_init return 0 means we got the expected echo from
+	 * firmware and we could continue.
+	 */
+	ret = wcnss_core_init();
+	if (ret) {
+		platform_device_put(wmsm.core);
+		return ret;
+	}
 
+	platform_device_add(wmsm.core);
 	dev_info(&pdev->dev, "%s initialized\n", __func__);
 
 	return 0;

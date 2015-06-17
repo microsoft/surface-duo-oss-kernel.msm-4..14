@@ -33,12 +33,17 @@
 
 #define	WCNSS_NV_DOWNLOAD_REQ	0x01000002
 #define	WCNSS_NV_DOWNLOAD_RSP	0x01000003
+#define WCNSS_CBC_COMPLETE_IND  0x0100000C
+
+/*time out 10s for the firmware status ready indicator */
+#define	FW_READY_TIMEOUT	(10000)
 
 struct wcn36xx_ctrl_nv_data {
 	struct workqueue_struct *wq;
 	struct work_struct	rx_work;
 	struct work_struct	download_work;
-	struct completion	smd_open_compl;
+	struct completion	wcnss_fw_ready_compl;
+	struct completion	wlan_ctrl_compl;
 	smd_channel_t		*smd_ch;
 	struct platform_device	*pdev;
 };
@@ -96,7 +101,7 @@ struct wcnss_version {
 
 
 int wcnss_core_prepare(struct platform_device *pdev);
-void wcnss_core_init(void);
+int wcnss_core_init(void);
 void wcnss_core_deinit(void);
 
 #endif

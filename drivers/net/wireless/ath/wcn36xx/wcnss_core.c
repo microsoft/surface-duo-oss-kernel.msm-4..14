@@ -261,7 +261,6 @@ static void wcn36xx_download_notify(void *data, unsigned int event)
 
 	switch (event) {
 	case SMD_EVENT_OPEN:
-		complete(&ctrl_nv_data->smd_open_compl);
 		schedule_work(&ctrl_nv_data->download_work);
 		break;
 	case SMD_EVENT_DATA:
@@ -326,6 +325,12 @@ static void wcn36xx_nv_rx_work(struct work_struct *worker)
 	phdr = (struct smd_msg_hdr *)buf;
 
 	switch (phdr->msg_type) {
+	/* CBC COMPLETE means firmware ready for go */
+        case WCNSS_CBC_COMPLETE_IND:
+		complete(&data->wcnss_fw_ready_compl);
+                pr_info("wcnss: received WCNSS_CBC_COMPLETE_IND from FW\n");
+                break;
+
 	case WCNSS_NV_DOWNLOAD_RSP:
 		pr_info("fw_status: %d\n", wcnss_fw_status(data));
 		break;
@@ -445,7 +450,6 @@ static int wcnss_ctrl_probe(struct platform_device *pdev)
 
 	INIT_WORK(&ctrl_nv_data.rx_work, wcn36xx_nv_rx_work);
 	INIT_WORK(&ctrl_nv_data.download_work, wcn36xx_nv_download_work);
-	init_completion(&ctrl_nv_data.smd_open_compl);
 	ctrl_nv_data.pdev = pdev;
 
 	ret = smd_named_open_on_edge("WCNSS_CTRL", SMD_APPS_WCNSS,
@@ -468,9 +472,59 @@ static struct platform_driver wcnss_ctrl_driver = {
 	.remove	= wcnss_ctrl_remove,
 };
 
-void wcnss_core_init(void)
+static int wlan_ctrl_remove(struct platform_device *pdev)
 {
+	return 0;
+}
+
+static int wlan_ctrl_probe(struct platform_device *pdev)
+{
+	complete(&ctrl_nv_data.wlan_ctrl_compl);
+	return 0;
+}
+
+/* platform device for WLAN_CTRL SMD channel */
+static struct platform_driver wlan_ctrl_driver = {
+	.driver = {
+		.name	= "WLAN_CTRL",
+		.owner	= THIS_MODULE,
+	},
+	.probe	= wlan_ctrl_probe,
+	.remove	= wlan_ctrl_remove,
+};
+
+int wcnss_core_init(void)
+{
+	int ret = 0;
+
+	/* We wait two things here:
+	 * - WCNSS_CBC_COMPLETE_IND from fw. Which means fw are fully ready.
+	 * - "WLAN_CTRL" channel used by wcn36xx platform driver todownload
+	 *   NV file.
+	 */
+	init_completion(&ctrl_nv_data.wcnss_fw_ready_compl);
 	platform_driver_register(&wcnss_ctrl_driver);
+
+	ret = wait_for_completion_interruptible_timeout(
+		&ctrl_nv_data.wcnss_fw_ready_compl,
+		msecs_to_jiffies(FW_READY_TIMEOUT));
+	if (ret <= 0) {
+		pr_err("timeout waiting for wcnss firmware ready indicator\n");
+		return -EAGAIN;
+	}
+
+	init_completion(&ctrl_nv_data.wlan_ctrl_compl);
+	platform_driver_register(&wlan_ctrl_driver);
+
+	ret = wait_for_completion_interruptible_timeout(
+		&ctrl_nv_data.wlan_ctrl_compl,
+		msecs_to_jiffies(FW_READY_TIMEOUT));
+	if (ret <= 0) {
+		platform_driver_unregister(&wcnss_ctrl_driver);
+		pr_err("timeout waiting for wcnss firmware ready indicator\n");
+		return -EAGAIN;
+	}
+	return 0;
 }
 
 void wcnss_core_deinit(void)
