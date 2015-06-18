@@ -13,8 +13,6 @@
 #ifndef MSM_IOMMU_PRIV_H
 #define MSM_IOMMU_PRIV_H
 
-#define CONFIG_MSM_IOMMU_TLBINVAL_ON_MAP 1
-
 /**
  * struct msm_iommu_pt - Container for first level page table and its
  * attributes.
