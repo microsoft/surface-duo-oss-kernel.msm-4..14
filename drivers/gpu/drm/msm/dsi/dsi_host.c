@@ -1885,7 +1885,7 @@ int msm_dsi_host_power_on(struct mipi_dsi_host *host)
 	dsi_phy_sw_reset(msm_host);
 	ret = msm_dsi_manager_phy_enable(msm_host->id,
 					msm_host->byte_clk_rate * 8,
-					clk_get_rate(msm_host->esc_clk),
+					19200000,/*clk_get_rate(msm_host->esc_clk),*/
 					&clk_pre, &clk_post);
 	dsi_bus_clk_disable(msm_host);
 	if (ret) {
