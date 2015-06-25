@@ -301,6 +301,13 @@ const struct clk_ops clk_rcg2_ops = {
 };
 EXPORT_SYMBOL_GPL(clk_rcg2_ops);
 
+const struct clk_ops clk_rcg2_ro_ops = {
+	.is_enabled = clk_rcg2_is_enabled,
+	.get_parent = clk_rcg2_get_parent,
+	.recalc_rate = clk_rcg2_recalc_rate,
+};
+EXPORT_SYMBOL_GPL(clk_rcg2_ro_ops);
+
 struct frac_entry {
 	int num;
 	int den;
