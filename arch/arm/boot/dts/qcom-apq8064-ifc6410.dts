@@ -240,6 +240,19 @@
 			reset-gpio = <&tlmm_pinmux 27 GPIO_ACTIVE_LOW>;
 		};
 
+		leds {
+			compatible = "gpio-leds";
+			pinctrl-names = "default";
+			pinctrl-0 = <&notify_led>;
+
+			led@1 {
+				label = "apq8064:green:user1";
+				gpios = <&pm8921_gpio 18 GPIO_ACTIVE_HIGH>;
+				linux,default-trigger = "heartbeat";
+				default-state = "on";
+			};
+		};
+
 		qcom,ssbi@500000 {
 			pmicintc: pmic@0 {
 				pm8921_gpio: gpio@150 {
@@ -257,6 +270,15 @@
 					bt_gpios: bt-gpio {
 						pios {
 							pins = "gpio44";
+							function = "normal";
+							bias-disable;
+							power-source = <PM8921_GPIO_S4>;
+						};
+					};
+
+					notify_led: nled {
+						pios {
+							pins = "gpio18";
 							function = "normal";
 							bias-disable;
 							power-source = <PM8921_GPIO_S4>;
