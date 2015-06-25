@@ -1534,7 +1534,8 @@ static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 		motg->vdd_levels[VDD_LEVEL_MAX] = tmp[VDD_LEVEL_MAX];
 	}
 
-	motg->switch_gpio = devm_gpiod_get(&pdev->dev, "switch", GPIOD_OUT_LOW);
+	motg->switch_gpio = devm_gpiod_get_optional(&pdev->dev,
+						    "switch", GPIOD_OUT_LOW);
 	if (IS_ERR(motg->switch_gpio)) {
 		ret = PTR_ERR(motg->switch_gpio);
 		if (ret != -ENODEV)
