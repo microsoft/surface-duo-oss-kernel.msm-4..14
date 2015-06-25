@@ -13,6 +13,7 @@
 #ifndef __DRIVERS_USB_CHIPIDEA_CI_H
 #define __DRIVERS_USB_CHIPIDEA_CI_H
 
+#include <linux/extcon.h>
 #include <linux/list.h>
 #include <linux/irqreturn.h>
 #include <linux/usb.h>
@@ -197,6 +198,8 @@ struct hw_bank {
  * @in_lpm: if the core in low power mode
  * @wakeup_int: if wakeup interrupt occur
  * @rev: The revision number for controller
+ * @edev_vbus: extcon device. Used to read VBUS signal state
+ * @edev_id: extcon device. Used to read ID signal state
  */
 struct ci_hdrc {
 	struct device			*dev;
@@ -246,6 +249,9 @@ struct ci_hdrc {
 	bool				in_lpm;
 	bool				wakeup_int;
 	enum ci_revision		rev;
+
+	struct extcon_dev 		*edev_vbus;
+	struct extcon_dev 		*edev_id;
 };
 
 static inline struct ci_role_driver *ci_role(struct ci_hdrc *ci)

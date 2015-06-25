@@ -18,6 +18,7 @@
 
 #include <linux/module.h>
 #include <linux/device.h>
+#include <linux/gpio/consumer.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/slab.h>
@@ -32,6 +33,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/reboot.h>
 #include <linux/reset.h>
 
 #include <linux/usb.h>
@@ -422,6 +424,27 @@ static int msm_phy_init(struct usb_phy *phy)
 		ulpi_write(phy, ulpi_val, ULPI_USB_INT_EN_FALL);
 	}
 
+	/* workaround for rx buffer collision issue */
+	val = readl(USB_GENCONFIG);
+	val &= ~GENCONFIG_TXFIFO_IDLE_FORCE_DISABLE;
+	writel(val, USB_GENCONFIG);
+
+ 	val = ULPI_MISC_A_VBUSVLDEXTSEL | ULPI_MISC_A_VBUSVLDEXT;
+	ulpi_write(phy, val, ULPI_SET(ULPI_MISC_A));
+
+ 	val = readl(USB_GENCONFIG_2);
+	val |= GEN2_SESS_VLD_CTRL_EN;
+ 	writel(val, USB_GENCONFIG_2);
+
+ 	val = readl(USB_USBCMD);
+ 	val |= USBCMD_SESS_VLD_CTRL;
+ 	writel(val, USB_USBCMD);
+
+	val = ulpi_read(phy, ULPI_FUNC_CTRL);
+	val &= ~ULPI_FUNC_CTRL_OPMODE_MASK;
+	val |= ULPI_FUNC_CTRL_OPMODE_NORMAL;
+	ulpi_write(phy, val, ULPI_FUNC_CTRL);
+
 	if (motg->phy_number)
 		writel(readl(USB_PHY_CTRL2) | BIT(16), USB_PHY_CTRL2);
 
@@ -680,6 +703,7 @@ static void msm_otg_start_host(struct usb_phy *phy, int on)
 		 */
 		if (pdata->setup_gpio)
 			pdata->setup_gpio(OTG_STATE_A_HOST);
+		gpiod_set_value_cansleep(motg->switch_gpio, 1);
 #ifdef CONFIG_USB
 		usb_add_hcd(hcd, hcd->irq, IRQF_SHARED);
 		device_wakeup_enable(hcd->self.controller);
@@ -731,14 +755,8 @@ static int msm_otg_set_host(struct usb_otg *otg, struct usb_bus *host)
 	otg->host = host;
 	dev_dbg(otg->usb_phy->dev, "host driver registered w/ tranceiver\n");
 
-	/*
-	 * Kick the state machine work, if peripheral is not supported
-	 * or peripheral is already registered with us.
-	 */
-	if (motg->pdata->mode == USB_DR_MODE_HOST || otg->gadget) {
-		pm_runtime_get_sync(otg->usb_phy->dev);
-		schedule_work(&motg->sm_work);
-	}
+	pm_runtime_get_sync(otg->usb_phy->dev);
+	schedule_work(&motg->sm_work);
 
 	return 0;
 }
@@ -760,6 +778,7 @@ static void msm_otg_start_peripheral(struct usb_phy *phy, int on)
 		 */
 		if (pdata->setup_gpio)
 			pdata->setup_gpio(OTG_STATE_B_PERIPHERAL);
+		gpiod_set_value_cansleep(motg->switch_gpio, 0);
 		usb_gadget_vbus_connect(phy->otg->gadget);
 	} else {
 		dev_dbg(phy->dev, "gadget off\n");
@@ -801,14 +820,8 @@ static int msm_otg_set_peripheral(struct usb_otg *otg,
 	dev_dbg(otg->usb_phy->dev,
 		"peripheral driver registered w/ tranceiver\n");
 
-	/*
-	 * Kick the state machine work, if host is not supported
-	 * or host is already registered with us.
-	 */
-	if (motg->pdata->mode == USB_DR_MODE_PERIPHERAL || otg->host) {
-		pm_runtime_get_sync(otg->usb_phy->dev);
-		schedule_work(&motg->sm_work);
-	}
+	pm_runtime_get_sync(otg->usb_phy->dev);
+	schedule_work(&motg->sm_work);
 
 	return 0;
 }
@@ -1436,6 +1449,40 @@ static const struct of_device_id msm_otg_dt_match[] = {
 };
 MODULE_DEVICE_TABLE(of, msm_otg_dt_match);
 
+static int msm_otg_vbus_notifier(struct notifier_block *nb, unsigned long event,
+				void *ptr)
+{
+	struct msm_otg *motg = container_of(nb, struct msm_otg, vbus_nb);
+
+	dev_dbg(motg->phy.dev, "USB/VBUS is %d\n", (int)event);
+
+	if (event)
+		set_bit(B_SESS_VLD, &motg->inputs);
+	else
+		clear_bit(B_SESS_VLD, &motg->inputs);
+
+	schedule_work(&motg->sm_work);
+
+	return NOTIFY_DONE;
+}
+
+static int msm_otg_id_notifier(struct notifier_block *nb, unsigned long event,
+				void *ptr)
+{
+	struct msm_otg *motg = container_of(nb, struct msm_otg, id_nb);
+
+	dev_dbg(motg->phy.dev, "USB-HOST/ID is %d\n", (int)event);
+
+	if (event)
+		clear_bit(ID, &motg->inputs);
+	else
+		set_bit(ID, &motg->inputs);
+
+	schedule_work(&motg->sm_work);
+
+	return NOTIFY_DONE;
+}
+
 static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 {
 	struct msm_otg_platform_data *pdata;
@@ -1487,6 +1534,68 @@ static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 		motg->vdd_levels[VDD_LEVEL_MAX] = tmp[VDD_LEVEL_MAX];
 	}
 
+	motg->switch_gpio = devm_gpiod_get_optional(&pdev->dev,
+						    "switch", GPIOD_OUT_LOW);
+	if (IS_ERR(motg->switch_gpio)) {
+		ret = PTR_ERR(motg->switch_gpio);
+		if (ret != -ENODEV)
+			return ret;
+	}
+
+	if (of_property_read_bool(node, "extcon")) {
+		struct extcon_dev *ext_id, *ext_vbus;
+
+		/* Each one of them is not mandatory */
+		ext_vbus = extcon_get_edev_by_phandle(&pdev->dev, 0);
+		if (IS_ERR(ext_vbus) && PTR_ERR(ext_vbus) != -ENODEV)
+			return PTR_ERR(ext_vbus);
+
+		ext_id = extcon_get_edev_by_phandle(&pdev->dev, 1);
+		if (IS_ERR(ext_id) && PTR_ERR(ext_id) != -ENODEV)
+			return PTR_ERR(ext_id);
+
+		if (IS_ERR(ext_vbus)) {
+			dev_dbg(&pdev->dev, "no VBUS extcon\n");
+		} else {
+			motg->vbus_nb.notifier_call = msm_otg_vbus_notifier;
+			ret = extcon_register_interest(&motg->vbus_cable, ext_vbus->name,
+						       "USB", &motg->vbus_nb);
+			if (ret < 0) {
+				dev_err(&pdev->dev, "register VBUS notifier failed\n");
+				return ret;
+			} else {
+				ret = extcon_get_cable_state(ext_vbus, "USB");
+				if (ret) {
+					set_bit(B_SESS_VLD, &motg->inputs);
+					/* Switch D+/D- lines to Device connector */
+					gpiod_set_value_cansleep(motg->switch_gpio, 0);
+				} else {
+					clear_bit(B_SESS_VLD, &motg->inputs);
+					/* Switch D+/D- lines to Host connectors */
+					gpiod_set_value_cansleep(motg->switch_gpio, 1);
+				}
+			}
+		}
+
+		if (IS_ERR(ext_id)) {
+			dev_dbg(&pdev->dev, "no ID extcon\n");
+		} else {
+			motg->id_nb.notifier_call = msm_otg_id_notifier;
+			ret = extcon_register_interest(&motg->id_cable, ext_id->name,
+						       "USB-HOST", &motg->id_nb);
+			if (ret < 0) {
+				dev_err(&pdev->dev, "register ID notifier failed\n");
+				return ret;
+			} else {
+				ret = extcon_get_cable_state(ext_id, "USB-HOST");
+				if (ret)
+					clear_bit(ID, &motg->inputs);
+				else
+					set_bit(ID, &motg->inputs);
+			}
+		}
+	}
+
 	prop = of_find_property(node, "qcom,phy-init-sequence", &len);
 	if (!prop || !len)
 		return 0;
@@ -1510,6 +1619,19 @@ static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 	return 0;
 }
 
+static int msm_otg_reboot_notify(struct notifier_block *this,
+					unsigned long code, void *unused)
+{
+	struct msm_otg *motg = container_of(this, struct msm_otg, reboot);
+
+	/*
+	 * Ensure that D+/D- lines are routed to uB connector, so
+	 * we could load bootloader/kernel at next reboot
+	 */
+	gpiod_set_value_cansleep(motg->switch_gpio, 0);
+	return NOTIFY_DONE;
+}
+
 static int msm_otg_probe(struct platform_device *pdev)
 {
 	struct regulator_bulk_data regs[3];
@@ -1525,15 +1647,6 @@ static int msm_otg_probe(struct platform_device *pdev)
 	if (!motg)
 		return -ENOMEM;
 
-	pdata = dev_get_platdata(&pdev->dev);
-	if (!pdata) {
-		if (!np)
-			return -ENXIO;
-		ret = msm_otg_read_dt(pdev, motg);
-		if (ret)
-			return ret;
-	}
-
 	motg->phy.otg = devm_kzalloc(&pdev->dev, sizeof(struct usb_otg),
 				     GFP_KERNEL);
 	if (!motg->phy.otg)
@@ -1541,6 +1654,8 @@ static int msm_otg_probe(struct platform_device *pdev)
 
 	phy = &motg->phy;
 	phy->dev = &pdev->dev;
+	INIT_WORK(&motg->sm_work, msm_otg_sm_work);
+	INIT_DELAYED_WORK(&motg->chg_work, msm_chg_detect_work);
 
 	motg->clk = devm_clk_get(&pdev->dev, np ? "core" : "usb_hs_clk");
 	if (IS_ERR(motg->clk)) {
@@ -1604,6 +1719,15 @@ static int msm_otg_probe(struct platform_device *pdev)
 	if (ret)
 		return ret;
 
+	pdata = dev_get_platdata(&pdev->dev);
+	if (!pdata) {
+		if (!np)
+			return -ENXIO;
+		ret = msm_otg_read_dt(pdev, motg);
+		if (ret)
+			return ret;
+	}
+
 	motg->vddcx = regs[0].consumer;
 	motg->v3p3  = regs[1].consumer;
 	motg->v1p8  = regs[2].consumer;
@@ -1617,10 +1741,8 @@ static int msm_otg_probe(struct platform_device *pdev)
 		clk_prepare_enable(motg->core_clk);
 
 	ret = msm_hsusb_init_vddcx(motg, 1);
-	if (ret) {
-		dev_err(&pdev->dev, "hsusb vddcx configuration failed\n");
-		goto disable_clks;
-	}
+	if (ret)
+		dev_err(&pdev->dev, "hsusb vddcx configuration failed - nevermind\n");
 
 	ret = msm_hsusb_ldo_init(motg, 1);
 	if (ret) {
@@ -1636,8 +1758,6 @@ static int msm_otg_probe(struct platform_device *pdev)
 	writel(0, USB_USBINTR);
 	writel(0, USB_OTGSC);
 
-	INIT_WORK(&motg->sm_work, msm_otg_sm_work);
-	INIT_DELAYED_WORK(&motg->chg_work, msm_chg_detect_work);
 	ret = devm_request_irq(&pdev->dev, motg->irq, msm_otg_irq, IRQF_SHARED,
 					"msm_otg", motg);
 	if (ret) {
@@ -1674,8 +1794,9 @@ static int msm_otg_probe(struct platform_device *pdev)
 			dev_dbg(&pdev->dev, "Can not create mode change file\n");
 	}
 
+	motg->reboot.notifier_call = msm_otg_reboot_notify;
+	register_reboot_notifier(&motg->reboot);
 	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
 
 	return 0;
 
@@ -1683,11 +1804,16 @@ disable_ldo:
 	msm_hsusb_ldo_init(motg, 0);
 disable_vddcx:
 	msm_hsusb_init_vddcx(motg, 0);
-disable_clks:
 	clk_disable_unprepare(motg->pclk);
 	clk_disable_unprepare(motg->clk);
 	if (!IS_ERR(motg->core_clk))
 		clk_disable_unprepare(motg->core_clk);
+
+	if (motg->id_cable.edev)
+		extcon_unregister_interest(&motg->id_cable);
+	if (motg->vbus_cable.edev)
+		extcon_unregister_interest(&motg->vbus_cable);
+
 	return ret;
 }
 
@@ -1699,6 +1825,19 @@ static int msm_otg_remove(struct platform_device *pdev)
 
 	if (phy->otg->host || phy->otg->gadget)
 		return -EBUSY;
+
+	unregister_reboot_notifier(&motg->reboot);
+
+	if (motg->id_cable.edev)
+		extcon_unregister_interest(&motg->id_cable);
+	if (motg->vbus_cable.edev)
+		extcon_unregister_interest(&motg->vbus_cable);
+
+	/*
+	 * Ensure that D+/D- lines are routed to uB connector, so
+	 * we could load bootloader/kernel at next reboot
+	 */
+	gpiod_set_value_cansleep(motg->switch_gpio, 0);
 
 	msm_otg_debugfs_cleanup();
 	cancel_delayed_work_sync(&motg->chg_work);
