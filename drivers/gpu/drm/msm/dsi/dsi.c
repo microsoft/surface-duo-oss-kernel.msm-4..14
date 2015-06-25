@@ -23,12 +23,47 @@ struct drm_encoder *msm_dsi_get_encoder(struct msm_dsi *msm_dsi)
 		msm_dsi->encoders[MSM_DSI_CMD_ENCODER_ID];
 }
 
+static int dsi_get_phy(struct msm_dsi *msm_dsi)
+{
+	struct platform_device *pdev = msm_dsi->pdev;
+	struct platform_device *phy_pdev;
+	struct device_node *phy_node;
+
+	phy_node = of_parse_phandle(pdev->dev.of_node, "qcom,dsi-phy", 0);
+	if (!phy_node) {
+		dev_err(&pdev->dev, "cannot find phy device\n");
+		return -ENXIO;
+	}
+
+	phy_pdev = of_find_device_by_node(phy_node);
+	if (phy_pdev)
+		msm_dsi->phy = platform_get_drvdata(phy_pdev);
+
+	of_node_put(phy_node);
+
+	if (!phy_pdev || !msm_dsi->phy) {
+		dev_err(&pdev->dev, "%s: phy driver is not ready\n", __func__);
+		return -EPROBE_DEFER;
+	}
+
+	msm_dsi->phy_dev = get_device(&phy_pdev->dev);
+
+	return 0;
+}
+
 static void dsi_destroy(struct msm_dsi *msm_dsi)
 {
 	if (!msm_dsi)
 		return;
 
 	msm_dsi_manager_unregister(msm_dsi);
+
+	if (msm_dsi->phy_dev) {
+		put_device(msm_dsi->phy_dev);
+		msm_dsi->phy = NULL;
+		msm_dsi->phy_dev = NULL;
+	}
+
 	if (msm_dsi->host) {
 		msm_dsi_host_destroy(msm_dsi->host);
 		msm_dsi->host = NULL;
@@ -43,7 +78,6 @@ static struct msm_dsi *dsi_init(struct platform_device *pdev)
 	int ret;
 
 	if (!pdev) {
-		dev_err(&pdev->dev, "no dsi device\n");
 		ret = -ENXIO;
 		goto fail;
 	}
@@ -60,6 +94,11 @@ static struct msm_dsi *dsi_init(struct platform_device *pdev)
 
 	/* Init dsi host */
 	ret = msm_dsi_host_init(msm_dsi);
+	if (ret)
+		goto fail;
+
+	/* GET dsi PHY */
+	ret = dsi_get_phy(msm_dsi);
 	if (ret)
 		goto fail;
 
@@ -142,12 +181,14 @@ static struct platform_driver dsi_driver = {
 void __init msm_dsi_register(void)
 {
 	DBG("");
+	msm_dsi_phy_driver_register();
 	platform_driver_register(&dsi_driver);
 }
 
 void __exit msm_dsi_unregister(void)
 {
 	DBG("");
+	msm_dsi_phy_driver_unregister();
 	platform_driver_unregister(&dsi_driver);
 }
 
@@ -182,12 +223,38 @@ int msm_dsi_modeset_init(struct msm_dsi *msm_dsi, struct drm_device *dev,
 		msm_dsi->encoders[i] = encoders[i];
 	}
 
-	msm_dsi->connector = msm_dsi_manager_connector_init(msm_dsi->id);
-	if (IS_ERR(msm_dsi->connector)) {
-		ret = PTR_ERR(msm_dsi->connector);
-		dev_err(dev->dev, "failed to create dsi connector: %d\n", ret);
-		msm_dsi->connector = NULL;
-		goto fail;
+	msm_dsi->ext_bridge = msm_dsi_host_get_ext_bridge(msm_dsi->host);
+
+	/*
+	 * skip making connector if we have a bridge. the bridge driver will take
+	 * care of creating a connector
+	 */
+	if (msm_dsi->ext_bridge) {
+		struct drm_encoder *encoder = encoders[MSM_DSI_VIDEO_ENCODER_ID];
+		struct drm_connector *connector;
+		struct drm_bridge *int_bridge = msm_dsi->bridge;
+		struct drm_bridge *ext_bridge = msm_dsi->ext_bridge;
+
+		int_bridge->next = ext_bridge;
+		ext_bridge->encoder = encoder;
+
+		drm_bridge_attach(msm_dsi->dev, ext_bridge);
+
+		/* TODO: don't just pick up the first connector, pick the one the bridge
+		 * driver just created
+		 */
+		list_for_each_entry(connector, &dev->mode_config.connector_list, head) {
+			if (connector)
+				msm_dsi->connector = connector;
+		}
+	} else {
+		msm_dsi->connector = msm_dsi_manager_connector_init(msm_dsi->id);
+		if (IS_ERR(msm_dsi->connector)) {
+			ret = PTR_ERR(msm_dsi->connector);
+			dev_err(dev->dev, "failed to create dsi connector: %d\n", ret);
+			msm_dsi->connector = NULL;
+			goto fail;
+		}
 	}
 
 	priv->bridges[priv->num_bridges++]       = msm_dsi->bridge;
