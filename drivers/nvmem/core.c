@@ -613,7 +613,7 @@ struct nvmem_cell *of_nvmem_cell_get(struct device_node *np,
 	if (!cell_np)
 		return ERR_PTR(-EINVAL);
 
-	nvmem_np = of_get_next_parent(cell_np);
+	nvmem_np = of_get_parent(cell_np);
 	if (!nvmem_np)
 		return ERR_PTR(-EINVAL);
 
@@ -816,7 +816,7 @@ static int __nvmem_cell_read(struct nvmem_device *nvmem,
 
 	*len = cell->bytes;
 
-	return *len;
+	return cell->bytes;
 }
 /**
  * nvmem_cell_read() - Read a given nvmem cell
