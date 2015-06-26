@@ -442,7 +442,7 @@ static void dsi_pll_28nm_disable_seq(struct msm_dsi_pll *pll)
 	pll_write(pll_28nm->mmio + REG_DSI_28nm_PHY_PLL_GLB_CFG, 0x00);
 }
 
-static void dsi_pll_28nm_save_state(struct msm_dsi_pll *pll)
+static int dsi_pll_28nm_save_state(struct msm_dsi_pll *pll)
 {
 	struct dsi_pll_28nm *pll_28nm = to_pll_28nm(pll);
 	struct pll_28nm_cached_state *cached_state = &pll_28nm->cached_state;
@@ -454,6 +454,8 @@ static void dsi_pll_28nm_save_state(struct msm_dsi_pll *pll)
 			pll_read(base + REG_DSI_28nm_PHY_PLL_POSTDIV1_CFG);
 	cached_state->byte_mux = pll_read(base + REG_DSI_28nm_PHY_PLL_VREG_CFG);
 	cached_state->vco_rate = __clk_get_rate(pll->clk_hw.clk);
+
+	return 0;
 }
 
 static int dsi_pll_28nm_restore_state(struct msm_dsi_pll *pll)
@@ -463,25 +465,20 @@ static int dsi_pll_28nm_restore_state(struct msm_dsi_pll *pll)
 	void __iomem *base = pll_28nm->mmio;
 	int ret;
 
-	if ((cached_state->vco_rate != 0) &&
-		(cached_state->vco_rate == __clk_get_rate(pll->clk_hw.clk))) {
-		ret = dsi_pll_28nm_clk_set_rate(&pll->clk_hw,
-						cached_state->vco_rate, 0);
-		if (ret) {
-			dev_err(&pll_28nm->pdev->dev,
-				"restore vco rate failed. ret=%d\n", ret);
-			return ret;
-		}
-
-		pll_write(base + REG_DSI_28nm_PHY_PLL_POSTDIV3_CFG,
-				cached_state->postdiv3);
-		pll_write(base + REG_DSI_28nm_PHY_PLL_POSTDIV1_CFG,
-				cached_state->postdiv1);
-		pll_write(base + REG_DSI_28nm_PHY_PLL_VREG_CFG,
-				cached_state->byte_mux);
-
-		cached_state->vco_rate = 0;
+	ret = dsi_pll_28nm_clk_set_rate(&pll->clk_hw,
+					cached_state->vco_rate, 0);
+	if (ret) {
+		dev_err(&pll_28nm->pdev->dev,
+			"restore vco rate failed. ret=%d\n", ret);
+		return ret;
 	}
+
+	pll_write(base + REG_DSI_28nm_PHY_PLL_POSTDIV3_CFG,
+			cached_state->postdiv3);
+	pll_write(base + REG_DSI_28nm_PHY_PLL_POSTDIV1_CFG,
+			cached_state->postdiv1);
+	pll_write(base + REG_DSI_28nm_PHY_PLL_VREG_CFG,
+			cached_state->byte_mux);
 
 	return 0;
 }

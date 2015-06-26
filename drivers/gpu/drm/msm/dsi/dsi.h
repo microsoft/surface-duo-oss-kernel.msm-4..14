@@ -111,6 +111,8 @@ struct msm_dsi_pll *msm_dsi_pll_init(struct platform_device *pdev,
 void msm_dsi_pll_destroy(struct msm_dsi_pll *pll);
 int msm_dsi_pll_get_clk_provider(struct msm_dsi_pll *pll,
 	struct clk **byte_clk_provider, struct clk **pixel_clk_provider);
+int msm_dsi_pll_save_state(struct msm_dsi_pll *pll);
+int msm_dsi_pll_restore_state(struct msm_dsi_pll *pll);
 #else
 static inline struct msm_dsi_pll *msm_dsi_pll_init(struct platform_device *pdev,
 			 enum msm_dsi_phy_type type, int id) {
@@ -123,6 +125,14 @@ static inline int msm_dsi_pll_get_clk_provider(struct msm_dsi_pll *pll,
 	struct clk **byte_clk_provider, struct clk **pixel_clk_provider)
 {
 	return -ENODEV;
+}
+static inline int msm_dsi_pll_save_state(struct msm_dsi_pll *pll)
+{
+	return 0;
+}
+static inline int msm_dsi_pll_restore_state(struct msm_dsi_pll *pll)
+{
+	return 0;
 }
 #endif
 
