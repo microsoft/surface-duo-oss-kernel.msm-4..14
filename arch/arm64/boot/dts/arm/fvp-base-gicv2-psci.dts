@@ -201,7 +201,7 @@
 		      <0x0 0x2c000000 0 0x2000>,
 		      <0x0 0x2c010000 0 0x2000>,
 		      <0x0 0x2c02F000 0 0x2000>;
-		interrupts = <1 9 0xf04>;
+		interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)>;
 	};
 
 	timer {
@@ -222,17 +222,17 @@
 			ranges;
 			frame@2a830000 {
 				frame-number = <1>;
-				interrupts = <0 26 4>;
+				interrupts = <GIC_SPI 26 IRQ_TYPE_LEVEL_HIGH>;
 				reg = <0x0 0x2a830000 0x0 0x10000>;
 			};
 	};
 
 	pmu {
 		compatible = "arm,armv8-pmuv3";
-		interrupts = <0 60 4>,
-			     <0 61 4>,
-			     <0 62 4>,
-			     <0 63 4>;
+		interrupts = <GIC_SPI 60 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 61 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 62 IRQ_TYPE_LEVEL_HIGH>,
+			     <GIC_SPI 63 IRQ_TYPE_LEVEL_HIGH>;
 	};
 
 	smb {
