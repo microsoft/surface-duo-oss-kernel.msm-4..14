@@ -28,13 +28,10 @@
 #include <linux/clk.h>
 #include <linux/slab.h>
 #include <linux/regulator/consumer.h>
+#include <linux/qcom_scm.h>
 #include <linux/soc/qcom/smem.h>
 
 #include "remoteproc_internal.h"
-
-#include "../../arch/arm/mach-qcom/scm.h"
-
-extern int scm_is_call_available(u32 svc_id, u32 cmd_id);
 
 #define PAS_INIT_IMAGE_CMD      1
 #define PAS_MEM_SETUP_CMD       2
@@ -72,102 +69,6 @@ struct qproc {
 	unsigned crash_reason;
 	struct device_node *smd_edge_node;
 };
-
-static int pas_supported(int id)
-{
-	u32 periph = id;
-	u32 ret_val;
-	int ret;
-
-	ret = scm_is_call_available(SCM_SVC_PIL, PAS_IS_SUPPORTED_CMD);
-	if (ret <= 0)
-		return 0;
-
-        ret = scm_call(SCM_SVC_PIL, PAS_IS_SUPPORTED_CMD,
-		       &periph, sizeof(periph),
-		       &ret_val, sizeof(ret_val));
-
-	return ret ? : ret_val;
-}
-
-static int pas_init_image(int id, const char *metadata, size_t size)
-{
-	dma_addr_t mdata_phys;
-	void *mdata_buf;
-	u32 scm_ret;
-	int ret;
-	struct pas_init_image_req {
-		u32 proc;
-		u32 image_addr;
-	} request;
-
-	mdata_buf = dma_alloc_coherent(NULL, size, &mdata_phys, GFP_KERNEL);
-	if (!mdata_buf) {
-		pr_err("Allocation for metadata failed.\n");
-		return -ENOMEM;
-	}
-
-	memcpy(mdata_buf, metadata, size);
-	outer_flush_range(request.image_addr, request.image_addr + size);
-
-	request.proc = id;
-	request.image_addr = mdata_phys;
-
-	ret = scm_call(SCM_SVC_PIL, PAS_INIT_IMAGE_CMD,
-		       &request, sizeof(request),
-		       &scm_ret, sizeof(scm_ret));
-
-	dma_free_coherent(NULL, size, mdata_buf, mdata_phys);
-
-	return ret ? : scm_ret;
-}
-
-static int pas_mem_setup(int id, phys_addr_t start_addr, phys_addr_t size)
-{
-	u32 scm_ret;
-	int ret;
-	struct pas_init_image_req {
-		u32 proc;
-		u32 start_addr;
-		u32 len;
-	} request;
-
-	request.proc = id;
-	request.start_addr = start_addr;
-	request.len = size;
-
-	ret = scm_call(SCM_SVC_PIL, PAS_MEM_SETUP_CMD,
-		       &request, sizeof(request),
-		       &scm_ret, sizeof(scm_ret));
-
-	return ret ? : scm_ret;
-}
-
-static int pas_auth_and_reset(int id)
-{
-	u32 proc = id;
-	u32 scm_ret;
-	int ret;
-
-	ret = scm_call(SCM_SVC_PIL, PAS_AUTH_AND_RESET_CMD,
-		       &proc, sizeof(proc),
-		       &scm_ret, sizeof(scm_ret));
-
-	return ret ? : scm_ret;
-}
-
-static int pas_shutdown(int id)
-{
-	u32 scm_ret;
-	u32 proc = id;
-	int ret;
-
-	ret = scm_call(SCM_SVC_PIL, PAS_SHUTDOWN_CMD,
-		       &proc, sizeof(proc),
-		       &scm_ret, sizeof(scm_ret));
-
-	return ret ? : scm_ret;
-}
 
 static int qproc_scm_clk_enable(struct qproc *qproc)
 {
@@ -346,7 +247,7 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 			max_addr = round_up(phdr->p_paddr + phdr->p_memsz, SZ_4K);
 	}
 
-	ret = pas_init_image(qproc->pas_id, fw->data, fw->size);
+	ret = qcom_scm_pas_init_image(qproc->pas_id, fw->data, fw->size);
 	if (ret) {
 		dev_err(qproc->dev, "Invalid firmware metadata\n");
 		return -EINVAL;
@@ -354,7 +255,7 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 
 	dev_dbg(qproc->dev, "pas_mem_setup(0x%x, 0x%x)\n", min_addr, max_addr - min_addr);
 
-	ret = pas_mem_setup(qproc->pas_id, min_addr, max_addr - min_addr);
+	ret = qcom_scm_pas_mem_setup(qproc->pas_id, min_addr, max_addr - min_addr);
 	if (ret) {
 		dev_err(qproc->dev, "unable to setup memory for image\n");
 		return -EINVAL;
@@ -404,7 +305,7 @@ static int qproc_start(struct rproc *rproc)
 	if (ret)
 		goto disable_regulator;
 
-	ret = pas_auth_and_reset(qproc->pas_id);
+	ret = qcom_scm_pas_auth_and_reset(qproc->pas_id);
 	if (ret) {
 		dev_err(qproc->dev,
 				"failed to authenticate image and release reset\n");
@@ -415,7 +316,7 @@ static int qproc_start(struct rproc *rproc)
 	if (ret == 0) {
 		dev_err(qproc->dev, "start timed out\n");
 
-		pas_shutdown(qproc->pas_id);
+		qcom_scm_pas_shutdown(qproc->pas_id);
 		goto unroll_clocks;
 	}
 
@@ -443,7 +344,7 @@ static int qproc_stop(struct rproc *rproc)
 
 	gpiod_set_value(qproc->stop_gpio, 0);
 
-	ret = pas_shutdown(qproc->pas_id);
+	ret = qcom_scm_pas_shutdown(qproc->pas_id);
 	if (ret)
 		dev_err(qproc->dev, "failed to shutdown: %d\n", ret);
 
@@ -546,7 +447,7 @@ static int qproc_init_pas(struct qproc *qproc)
 		return -EINVAL;
 	}
 
-	if (!pas_supported(qproc->pas_id)) {
+	if (!qcom_scm_pas_supported(qproc->pas_id)) {
 		dev_err(qproc->dev, "PAS is not available for %d\n", qproc->pas_id);
 		return -EIO;
 	}
@@ -613,7 +514,7 @@ static int qproc_init_regulators(struct qproc *qproc)
 	if (ret)
 		dev_warn(qproc->dev, "failed to read qcom,pll_uA, skipping\n");
 	else
-		regulator_set_optimum_mode(qproc->pll, uA);
+		regulator_set_load(qproc->pll, uA);
 
 	return 0;
 }
@@ -660,8 +561,10 @@ static int qproc_probe(struct platform_device *pdev)
 
 	rproc = rproc_alloc(&pdev->dev, pdev->name, &qproc_ops,
 			    fw_name, sizeof(*qproc));
-	if (!rproc)
+	if (!rproc) {
+		dev_err(&pdev->dev, "unable to allocate remoteproc\n");
 		return -ENOMEM;
+	}
 
 	rproc->fw_ops = &qproc_fw_ops;
 
@@ -774,7 +677,6 @@ static struct platform_driver qproc_driver = {
 	.remove = qproc_remove,
 	.driver = {
 		.name = "qcom-tz-pil",
-		.owner = THIS_MODULE,
 		.of_match_table = qproc_of_match,
 	},
 };
