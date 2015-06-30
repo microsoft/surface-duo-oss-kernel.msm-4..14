@@ -94,3 +94,81 @@ int qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt, u32 *resp)
 	return __qcom_scm_hdcp_req(req, req_cnt, resp);
 }
 EXPORT_SYMBOL(qcom_scm_hdcp_req);
+
+/**
+ * qcom_scm_pas_supported() - Check if the peripheral authentication service is
+ *			      available for the given peripherial
+ * @peripheral:	peripheral id
+ *
+ * Returns true if PAS is supported for this peripheral, otherwise false.
+ */
+bool qcom_scm_pas_supported(u32 peripheral)
+{
+	int ret;
+
+	ret = __qcom_scm_is_call_available(QCOM_SCM_SVC_PIL,
+					   QCOM_SCM_PAS_IS_SUPPORTED_CMD);
+	if (ret <= 0)
+		return false;
+
+	return __qcom_scm_pas_supported(peripheral);
+}
+EXPORT_SYMBOL(qcom_scm_pas_supported);
+
+/**
+ * qcom_scm_pas_init_image() - Initialize peripheral authentication service
+ *			       state machine for a given peripheral, using the
+ *			       metadata
+ * @peripheral: peripheral id
+ * @metadata:	pointer to memory containing ELF header, program header table
+ *		and optional blob of data used for authenticating the metadata
+ *		and the rest of the firmware
+ * @size:	size of the metadata
+ *
+ * Returns 0 on success.
+ */
+int qcom_scm_pas_init_image(u32 peripheral, const void *metadata, size_t size)
+{
+	return __qcom_scm_pas_init_image(peripheral, metadata, size);
+}
+EXPORT_SYMBOL(qcom_scm_pas_init_image);
+
+/**
+ * qcom_scm_pas_mem_setup() - Prepare the memory related to a given peripheral
+ *			      for firmware loading
+ * @peripheral:	peripheral id
+ * @addr:	start address of memory area to prepare
+ * @size:	size of the memory area to prepare
+ *
+ * Returns 0 on success.
+ */
+int qcom_scm_pas_mem_setup(u32 peripheral, phys_addr_t addr, phys_addr_t size)
+{
+	return __qcom_scm_pas_mem_setup(peripheral, addr, size);
+}
+EXPORT_SYMBOL(qcom_scm_pas_mem_setup);
+
+/**
+ * qcom_scm_pas_auth_and_reset() - Authenticate the given peripheral firmware
+ *				   and reset the remote processor
+ * @peripheral:	peripheral id
+ *
+ * Return 0 on success.
+ */
+int qcom_scm_pas_auth_and_reset(u32 peripheral)
+{
+	return __qcom_scm_pas_auth_and_reset(peripheral);
+}
+EXPORT_SYMBOL(qcom_scm_pas_auth_and_reset);
+
+/**
+ * qcom_scm_pas_shutdown() - Shut down the remote processor
+ * @peripheral: peripheral id
+ *
+ * Returns 0 on success.
+ */
+int qcom_scm_pas_shutdown(u32 peripheral)
+{
+	return __qcom_scm_pas_shutdown(peripheral);
+}
+EXPORT_SYMBOL(qcom_scm_pas_shutdown);
