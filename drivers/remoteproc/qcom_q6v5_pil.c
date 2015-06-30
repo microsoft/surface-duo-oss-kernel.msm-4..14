@@ -34,7 +34,9 @@
 
 #include "remoteproc_internal.h"
 
-#include "../../arch/arm/mach-qcom/scm.h"
+#include <linux/qcom_scm.h>
+
+#define SCM_SVC_PIL                    0x2
 
 struct qproc {
 	struct device *dev;
@@ -893,7 +895,7 @@ static int qproc_init_regulators(struct qproc *qproc)
 		return PTR_ERR(qproc->vdd);
 
 	regulator_set_voltage(qproc->vdd, VDD_MSS_UV, VDD_MSS_UV_MAX);
-	regulator_set_optimum_mode(qproc->vdd, VDD_MSS_UA);
+	regulator_set_load(qproc->vdd, VDD_MSS_UA);
 
 	qproc->cx = devm_regulator_get(qproc->dev, "qcom,cx");
 	if (IS_ERR(qproc->cx))
@@ -1066,7 +1068,6 @@ static struct platform_driver qproc_driver = {
 	.remove = qproc_remove,
 	.driver = {
 		.name = "qcom-q6v5-pil",
-		.owner = THIS_MODULE,
 		.of_match_table = qproc_of_match,
 	},
 };
