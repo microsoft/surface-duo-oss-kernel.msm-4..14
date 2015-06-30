@@ -23,6 +23,7 @@
 #include <linux/errno.h>
 #include <linux/err.h>
 #include <linux/qcom_scm.h>
+#include <linux/dma-mapping.h>
 
 #include <asm/cacheflush.h>
 
@@ -481,4 +482,96 @@ int __qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt, u32 *resp)
 
 	return qcom_scm_call(QCOM_SCM_SVC_HDCP, QCOM_SCM_CMD_HDCP,
 		req, req_cnt * sizeof(*req), resp, sizeof(*resp));
+}
+
+bool __qcom_scm_pas_supported(u32 peripheral)
+{
+	u32 ret_val;
+	int ret;
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_IS_SUPPORTED_CMD,
+			    &peripheral, sizeof(peripheral),
+			    &ret_val, sizeof(ret_val));
+
+	return ret ? false : !!ret_val;
+}
+
+int __qcom_scm_pas_init_image(u32 peripheral, const void *metadata, size_t size)
+{
+	dma_addr_t mdata_phys;
+	void *mdata_buf;
+	u32 scm_ret;
+	int ret;
+	struct pas_init_image_req {
+		u32 proc;
+		u32 image_addr;
+	} request;
+
+	/*
+	 * During the scm call memory protection will be enabled for the meta
+	 * data blob, so make sure it's physically contiguous, 4K aligned and
+	 * non-cachable to avoid XPU violations.
+	 */
+	mdata_buf = dma_alloc_coherent(NULL, size, &mdata_phys, GFP_KERNEL);
+	if (!mdata_buf) {
+		pr_err("Allocation of metadata buffer failed.\n");
+		return -ENOMEM;
+	}
+	memcpy(mdata_buf, metadata, size);
+
+	request.proc = peripheral;
+	request.image_addr = mdata_phys;
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_INIT_IMAGE_CMD,
+			    &request, sizeof(request),
+			    &scm_ret, sizeof(scm_ret));
+
+	dma_free_coherent(NULL, size, mdata_buf, mdata_phys);
+
+	return ret ? : scm_ret;
+}
+
+int __qcom_scm_pas_mem_setup(u32 peripheral, phys_addr_t addr, phys_addr_t size)
+{
+	u32 scm_ret;
+	int ret;
+	struct pas_init_image_req {
+		u32 proc;
+		u32 addr;
+		u32 len;
+	} request;
+
+	request.proc = peripheral;
+	request.addr = addr;
+	request.len = size;
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_MEM_SETUP_CMD,
+			    &request, sizeof(request),
+			    &scm_ret, sizeof(scm_ret));
+
+	return ret ? : scm_ret;
+}
+
+int __qcom_scm_pas_auth_and_reset(u32 peripheral)
+{
+	u32 scm_ret;
+	int ret;
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_AUTH_AND_RESET_CMD,
+			    &peripheral, sizeof(peripheral),
+			    &scm_ret, sizeof(scm_ret));
+
+	return ret ? : scm_ret;
+}
+
+int __qcom_scm_pas_shutdown(u32 peripheral)
+{
+	u32 scm_ret;
+	int ret;
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_SHUTDOWN_CMD,
+			    &peripheral, sizeof(peripheral),
+			    &scm_ret, sizeof(scm_ret));
+
+	return ret ? : scm_ret;
 }
