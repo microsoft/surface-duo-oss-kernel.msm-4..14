@@ -756,7 +756,9 @@ static void dsi_sw_reset(struct msm_dsi_host *msm_host)
 
 	dsi_write(msm_host, REG_DSI_RESET, 1);
 	wmb(); /* make sure reset happen */
+	mdelay(100);
 	dsi_write(msm_host, REG_DSI_RESET, 0);
+	wmb();
 }
 
 static void dsi_op_mode_config(struct msm_dsi_host *msm_host,
