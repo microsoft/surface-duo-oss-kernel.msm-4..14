@@ -618,7 +618,11 @@ static int clk_pixel_set_rate(struct clk_hw *hw, unsigned long rate,
 	for (; frac->num; frac++) {
 		request = (rate * frac->den) / frac->num;
 
-		src_rate = __clk_round_rate(parent, request);
+		if (parent_rate)
+			src_rate = parent_rate;
+		else
+			src_rate = __clk_round_rate(parent, request);
+
 		if ((src_rate < (request - delta)) ||
 			(src_rate > (request + delta)))
 			continue;
