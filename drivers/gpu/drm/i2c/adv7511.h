@@ -249,6 +249,7 @@ struct adv7511 {
 	struct i2c_client *i2c_edid;
 	struct i2c_client *i2c_cec;
 
+	struct mipi_dsi_device *dsi;
 	int irq;
 
 	struct regmap *regmap;
