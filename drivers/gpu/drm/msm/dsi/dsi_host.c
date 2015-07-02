@@ -783,10 +783,14 @@ static void dsi_ctrl_config(struct msm_dsi_host *msm_host, bool enable,
 		dsi_write(msm_host, REG_DSI_LANE_SWAP_CTRL,
 			DSI_LANE_SWAP_CTRL_DLN_SWAP_SEL(LANE_SWAP_1230));
 	} else {
-		/* Take 4 lanes as default */
-		data |= DSI_CTRL_LANE0 | DSI_CTRL_LANE1 | DSI_CTRL_LANE2 |
-			DSI_CTRL_LANE3;
-		/* Do not swap lanes for 4-lane panel */
+		if (msm_host->lanes == 3)
+			data |= DSI_CTRL_LANE0 | DSI_CTRL_LANE1 |
+				DSI_CTRL_LANE2;
+		else
+			data |= DSI_CTRL_LANE0 | DSI_CTRL_LANE1 |
+				DSI_CTRL_LANE2 | DSI_CTRL_LANE3;
+
+		/* Do not swap lanes for 3/4-lane panel */
 		dsi_write(msm_host, REG_DSI_LANE_SWAP_CTRL,
 			DSI_LANE_SWAP_CTRL_DLN_SWAP_SEL(LANE_SWAP_0123));
 	}
