@@ -55,6 +55,9 @@ extern int  __qcom_scm_pas_shutdown(u32 peripheral);
 #define QCOM_SCM_EINVAL_ARG	-2
 #define QCOM_SCM_ERROR		-1
 #define QCOM_SCM_INTERRUPTED	1
+#define QCOM_SCM_EBUSY         -55
+#define QCOM_SCM_V2_EBUSY      -12
+
 
 static inline int qcom_scm_remap_error(int err)
 {
@@ -68,6 +71,10 @@ static inline int qcom_scm_remap_error(int err)
 		return -EOPNOTSUPP;
 	case QCOM_SCM_ENOMEM:
 		return -ENOMEM;
+	case QCOM_SCM_EBUSY:
+		return QCOM_SCM_EBUSY;
+	case QCOM_SCM_V2_EBUSY:
+		return QCOM_SCM_V2_EBUSY;
 	}
 	return -EINVAL;
 }
