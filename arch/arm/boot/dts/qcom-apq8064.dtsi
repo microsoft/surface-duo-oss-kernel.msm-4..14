@@ -590,6 +590,7 @@
 			reg = <0x16200000 0x100>;
 			clocks = <&gcc GSBI3_H_CLK>;
 			clock-names = "iface";
+			cell-index = <3>;
 			#address-cells = <1>;
 			#size-cells = <1>;
 			ranges;
@@ -609,6 +610,7 @@
 			reg = <0x16500000 0x03>;
 			clocks = <&gcc GSBI6_H_CLK>;
 			clock-names = "iface";
+			cell-index = <6>;
 			#address-cells = <1>;
 			#size-cells = <1>;
 			ranges;
