@@ -1428,6 +1428,9 @@ static int dsi_host_detach(struct mipi_dsi_host *host,
 {
 	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
 
+	if (msm_host->ext_bridge_node)
+		return 0;
+
 	msm_host->panel_node = NULL;
 
 	DBG("id=%d", msm_host->id);
