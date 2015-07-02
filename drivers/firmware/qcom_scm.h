@@ -43,6 +43,9 @@ extern int __qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt,
 #define QCOM_SCM_EINVAL_ARG	-2
 #define QCOM_SCM_ERROR		-1
 #define QCOM_SCM_INTERRUPTED	1
+#define QCOM_SCM_EBUSY         -55
+#define QCOM_SCM_V2_EBUSY      -12
+
 
 static inline int qcom_scm_remap_error(int err)
 {
@@ -56,6 +59,10 @@ static inline int qcom_scm_remap_error(int err)
 		return -EOPNOTSUPP;
 	case QCOM_SCM_ENOMEM:
 		return -ENOMEM;
+	case QCOM_SCM_EBUSY:
+		return QCOM_SCM_EBUSY;
+	case QCOM_SCM_V2_EBUSY:
+		return QCOM_SCM_V2_EBUSY;
 	}
 	return -EINVAL;
 }
