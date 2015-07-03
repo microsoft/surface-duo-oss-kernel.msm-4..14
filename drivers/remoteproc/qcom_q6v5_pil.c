@@ -450,7 +450,7 @@ static int qproc_verify_segments(struct qproc *qproc, const struct firmware *fw)
 	struct elf32_phdr *phdr;
 	const u8 *elf_data = fw->data;
 	unsigned long timeout;
-	u32 min_addr = (phys_addr_t)ULLONG_MAX;
+	phys_addr_t min_addr = (phys_addr_t)ULLONG_MAX;
 	u32 size = 0;
 	s32 val;
 	int ret;
@@ -470,7 +470,7 @@ static int qproc_verify_segments(struct qproc *qproc, const struct firmware *fw)
 
 #if 1
 	for (i = 0; i < ehdr->e_phnum; i++, phdr++) {
-		u32 da = phdr->p_paddr;
+		phys_addr_t da = phdr->p_paddr;
 		u32 memsz = phdr->p_memsz;
 
 		if (phdr->p_type != PT_LOAD)
