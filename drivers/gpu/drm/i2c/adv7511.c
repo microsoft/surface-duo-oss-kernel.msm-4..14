@@ -17,6 +17,8 @@
 #include <drm/drm_crtc_helper.h>
 #include <drm/drm_edid.h>
 #include <drm/drm_encoder_slave.h>
+#include <drm/drm_atomic.h>
+#include <drm/drm_atomic_helper.h>
 
 #include "adv7511.h"
 
@@ -43,6 +45,9 @@ struct adv7511 {
 
 	wait_queue_head_t wq;
 	struct drm_encoder *encoder;
+
+	struct drm_connector connector;
+	struct drm_bridge bridge;
 
 	bool embedded_sync;
 	enum adv7511_sync_polarity vsync_polarity;
@@ -855,6 +860,139 @@ static struct drm_encoder_slave_funcs adv7511_encoder_funcs = {
 };
 
 /* -----------------------------------------------------------------------------
+ * Bridge and connector functions
+ */
+
+static struct adv7511 *connector_to_adv7511(struct drm_connector *connector)
+{
+	return container_of(connector, struct adv7511, connector);
+}
+
+/* Connector helper functions */
+static int adv7533_connector_get_modes(struct drm_connector *connector)
+{
+	struct adv7511 *adv = connector_to_adv7511(connector);
+
+	return adv7511_get_modes(adv, connector);
+}
+
+static struct drm_encoder *
+adv7533_connector_best_encoder(struct drm_connector *connector)
+{
+	struct adv7511 *adv = connector_to_adv7511(connector);
+
+	return adv->bridge.encoder;
+}
+
+static enum drm_mode_status
+adv7533_connector_mode_valid(struct drm_connector *connector,
+				struct drm_display_mode *mode)
+{
+	struct adv7511 *adv = connector_to_adv7511(connector);
+
+	return adv7511_mode_valid(adv, mode);
+}
+
+static struct drm_connector_helper_funcs adv7533_connector_helper_funcs = {
+	.get_modes = adv7533_connector_get_modes,
+	.best_encoder = adv7533_connector_best_encoder,
+	.mode_valid = adv7533_connector_mode_valid,
+};
+
+static enum drm_connector_status
+adv7533_connector_detect(struct drm_connector *connector, bool force)
+{
+	struct adv7511 *adv = connector_to_adv7511(connector);
+
+	return adv7511_detect(adv, connector);
+}
+
+static struct drm_connector_funcs adv7533_connector_funcs = {
+	.dpms = drm_atomic_helper_connector_dpms,
+	.fill_modes = drm_helper_probe_single_connector_modes,
+	.detect = adv7533_connector_detect,
+	.destroy = drm_connector_cleanup,
+	.reset = drm_atomic_helper_connector_reset,
+	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
+	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
+};
+
+/* Bridge funcs */
+static struct adv7511 *bridge_to_adv7511(struct drm_bridge *bridge)
+{
+	return container_of(bridge, struct adv7511, bridge);
+}
+
+static void adv7533_bridge_pre_enable(struct drm_bridge *bridge)
+{
+	struct adv7511 *adv = bridge_to_adv7511(bridge);
+
+	adv7511_power_on(adv);
+}
+
+static void adv7533_bridge_post_disable(struct drm_bridge *bridge)
+{
+	struct adv7511 *adv = bridge_to_adv7511(bridge);
+
+	adv7511_power_off(adv);
+}
+
+static void adv7533_bridge_enable(struct drm_bridge *bridge)
+{
+}
+
+static void adv7533_bridge_disable(struct drm_bridge *bridge)
+{
+}
+
+static void adv7533_bridge_mode_set(struct drm_bridge *bridge,
+				     struct drm_display_mode *mode,
+				     struct drm_display_mode *adj_mode)
+{
+	struct adv7511 *adv = bridge_to_adv7511(bridge);
+
+	adv7511_mode_set(adv, mode, adj_mode);
+}
+
+static int adv7533_bridge_attach(struct drm_bridge *bridge)
+{
+	struct adv7511 *adv = bridge_to_adv7511(bridge);
+	int ret;
+
+	adv->encoder = bridge->encoder;
+
+	if (!bridge->encoder) {
+		DRM_ERROR("Parent encoder object not found");
+		return -ENODEV;
+	}
+
+	adv->connector.polled = DRM_CONNECTOR_POLL_HPD;
+	ret = drm_connector_init(bridge->dev, &adv->connector,
+			&adv7533_connector_funcs, DRM_MODE_CONNECTOR_HDMIA);
+	if (ret) {
+		DRM_ERROR("Failed to initialize connector with drm\n");
+		return ret;
+	}
+	drm_connector_helper_add(&adv->connector,
+					&adv7533_connector_helper_funcs);
+	drm_connector_register(&adv->connector);
+	drm_mode_connector_attach_encoder(&adv->connector, adv->encoder);
+
+	drm_helper_hpd_irq_event(adv->connector.dev);
+
+	return ret;
+}
+
+static struct drm_bridge_funcs adv7533_bridge_funcs = {
+	.pre_enable = adv7533_bridge_pre_enable,
+	.enable = adv7533_bridge_enable,
+	.disable = adv7533_bridge_disable,
+	.post_disable = adv7533_bridge_post_disable,
+	.mode_set = adv7533_bridge_mode_set,
+	.attach = adv7533_bridge_attach,
+};
+
+/* -----------------------------------------------------------------------------
  * Probe & remove
  */
 
@@ -1079,6 +1217,17 @@ static int adv7511_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	if (adv7511->type == ADV7511)
 		adv7511_set_link_config(adv7511, &link_config);
 
+	if (adv7511->type == ADV7533) {
+		adv7511->bridge.funcs = &adv7533_bridge_funcs;
+		adv7511->bridge.of_node = dev->of_node;
+
+		ret = drm_bridge_add(&adv7511->bridge);
+		if (ret) {
+			dev_err(dev, "failed to add adv7533 bridge\n");
+			goto err_i2c_unregister_cec;
+		}
+	}
+
 	return 0;
 
 err_i2c_unregister_cec:
@@ -1098,6 +1247,9 @@ static int adv7511_remove(struct i2c_client *i2c)
 
 	kfree(adv7511->edid);
 
+	if (adv7511->type == ADV7533)
+		drm_bridge_remove(&adv7511->bridge);
+
 	return 0;
 }
 
@@ -1106,6 +1258,9 @@ static int adv7511_encoder_init(struct i2c_client *i2c, struct drm_device *dev,
 {
 
 	struct adv7511 *adv7511 = i2c_get_clientdata(i2c);
+
+	if (adv7511->type == ADV7533)
+		return -ENODEV;
 
 	encoder->slave_priv = adv7511;
 	encoder->slave_funcs = &adv7511_encoder_funcs;
