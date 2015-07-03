@@ -217,6 +217,7 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 	const struct mdt_hdr *mdt;
 	phys_addr_t min_addr = (phys_addr_t)ULLONG_MAX;
 	phys_addr_t max_addr = 0;
+	phys_addr_t diff_addr;
 	struct qproc *qproc = rproc->priv;
 	char *fw_name;
 	int ret;
@@ -253,7 +254,8 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 		return -EINVAL;
 	}
 
-	dev_dbg(qproc->dev, "pas_mem_setup(0x%x, 0x%x)\n", min_addr, max_addr - min_addr);
+	diff_addr = max_addr - min_addr;
+	dev_dbg(qproc->dev, "pas_mem_setup %pa, %pa\n", &min_addr, &diff_addr);
 
 	ret = qcom_scm_pas_mem_setup(qproc->pas_id, min_addr, max_addr - min_addr);
 	if (ret) {
