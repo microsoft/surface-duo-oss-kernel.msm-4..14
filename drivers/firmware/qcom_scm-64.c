@@ -21,6 +21,7 @@
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/qcom_scm.h>
+#include <linux/dma-mapping.h>
 
 #include <asm/cacheflush.h>
 #include <asm/compiler.h>
@@ -32,6 +33,13 @@
 
 #define MAX_QCOM_SCM_ARGS 10
 #define MAX_QCOM_SCM_RETS 3
+
+enum qcom_scm_arg_types {
+	QCOM_SCM_VAL,
+	QCOM_SCM_RO,
+	QCOM_SCM_RW,
+	QCOM_SCM_BUFVAL,
+};
 
 #define QCOM_SCM_ARGS_IMPL(num, a, b, c, d, e, f, g, h, i, j, ...) (\
 			(((a) & 0xff) << 4) | \
@@ -440,27 +448,83 @@ int __qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt, u32 *resp)
 
 bool __qcom_scm_pas_supported(u32 peripheral)
 {
-	return false;
+	int ret;
+	struct qcom_scm_desc desc = {0};
+
+	desc.args[0] = peripheral;
+	desc.arginfo = QCOM_SCM_ARGS(1);
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_IS_SUPPORTED_CMD,
+				&desc);
+
+	return ret ? false : !!desc.ret[0];
 }
 
 int __qcom_scm_pas_init_image(u32 peripheral, dma_addr_t metadata_phys)
 {
-	return -ENOTSUPP;
+	struct qcom_scm_desc desc = {0};
+	u32 scm_ret;
+	int ret;
+
+	desc.args[0] = peripheral;
+	desc.args[1] = metadata_phys;
+	desc.arginfo = QCOM_SCM_ARGS(2, QCOM_SCM_VAL, QCOM_SCM_RW);
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_INIT_IMAGE_CMD,
+				&desc);
+	scm_ret = desc.ret[0];
+
+	return ret ? : scm_ret;
 }
 
 int __qcom_scm_pas_mem_setup(u32 peripheral, phys_addr_t addr, phys_addr_t size)
 {
-	return -ENOTSUPP;
+	int ret;
+	struct qcom_scm_desc desc = {0};
+	u32 scm_ret;
+
+	desc.args[0] = peripheral;
+	desc.args[1] = addr;
+	desc.args[2] = size;
+	desc.arginfo = QCOM_SCM_ARGS(3);
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_MEM_SETUP_CMD,
+				&desc);
+	scm_ret = desc.ret[0];
+
+	return ret ? : scm_ret;
 }
 
 int __qcom_scm_pas_auth_and_reset(u32 peripheral)
 {
-	return -ENOTSUPP;
+	int ret;
+	struct qcom_scm_desc desc = {0};
+	u32 scm_ret;
+
+	desc.args[0] = peripheral;
+	desc.arginfo = QCOM_SCM_ARGS(1);
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_AUTH_AND_RESET_CMD,
+				&desc);
+	scm_ret = desc.ret[0];
+
+	return ret ? : scm_ret;
 }
 
 int __qcom_scm_pas_shutdown(u32 peripheral)
 {
-	return -ENOTSUPP;
+	int ret;
+	struct qcom_scm_desc desc = {0};
+	u32 scm_ret;
+
+	desc.args[0] = peripheral;
+	desc.arginfo = QCOM_SCM_ARGS(1);
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_SHUTDOWN_CMD,
+			&desc);
+	scm_ret = desc.ret[0];
+
+	return ret ? : scm_ret;
 }
 
 #define QCOM_SCM_SVC_INFO              0x6
