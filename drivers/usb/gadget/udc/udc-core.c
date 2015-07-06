@@ -150,9 +150,17 @@ EXPORT_SYMBOL_GPL(usb_gadget_set_state);
 
 static void usb_udc_connect_control(struct usb_udc *udc)
 {
-	if (udc->vbus)
-		usb_gadget_connect(udc->gadget);
-	else
+	if (udc->vbus) {
+		/*
+		 * HACK: The Android gadget driver disconnects the gadget
+		 * on bind and expects the gadget to stay disconnected until
+		 * it calls usb_gadget_connect when userspace is ready. Remove
+		 * the call to usb_gadget_connect bellow to avoid enabling the
+		 * pullup before userspace is ready.
+		 *
+		 * usb_gadget_connect(udc->gadget);
+		 */
+	} else
 		usb_gadget_disconnect(udc->gadget);
 }
 
