@@ -435,6 +435,41 @@ void __qcom_scm_cpu_power_down(u32 flags)
 	qcom_scm_call_atomic(QCOM_SCM_SVC_BOOT, QCOM_SCM_CMD_TERMINATE_PC, &desc);
 }
 
+int __qcom_scm_is_call_available(u32 svc_id, u32 cmd_id)
+{
+	int ret;
+	struct qcom_scm_desc desc = {0};
+
+	desc.arginfo = QCOM_SCM_ARGS(1);
+	desc.args[0] = QCOM_SCM_SIP_FNID(svc_id, cmd_id);
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_INFO, QCOM_IS_CALL_AVAIL_CMD, &desc);
+
+	if (ret)
+		return ret;
+
+	return desc.ret[0];
+}
+
+int __qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt, u32 *resp)
+{
+	int ret, i, j;
+	struct qcom_scm_desc desc = {0};
+
+	if (req_cnt > QCOM_SCM_HDCP_MAX_REQ_CNT)
+		return -ERANGE;
+
+	for (i = 0, j = 0; i < req_cnt; i++) {
+		desc.args[j++] = req[i].addr;
+		desc.args[j++] = req[i].val;
+	}
+	desc.arginfo = QCOM_SCM_ARGS(j);
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_HDCP, QCOM_SCM_CMD_HDCP, &desc);
+	*resp = desc.ret[0];
+
+	return ret;
+}
 #define QCOM_SCM_SVC_INFO              0x6
 static int __init qcom_scm_init(void)
 {
