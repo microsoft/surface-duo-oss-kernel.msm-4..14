@@ -379,9 +379,6 @@ static void adv7511_dsi_config_tgen(struct adv7511 *adv7511)
 	vfp = mode->vsync_start - mode->vdisplay;
 	vbp = mode->vtotal - mode->vsync_end;
 
-	/* set pixel clock divider mode to auto */
-	regmap_write(adv7511->regmap_cec, 0x16, 0x00);
-
 	/* horizontal porch params */
 	regmap_write(adv7511->regmap_cec, 0x28, mode->htotal >> 4);
 	regmap_write(adv7511->regmap_cec, 0x29, (mode->htotal << 4) & 0xff);
@@ -409,10 +406,16 @@ static void adv7511_dsi_receiver_dpms(struct adv7511 *adv7511)
 		return;
 
 	if (adv7511->powered) {
+		struct mipi_dsi_device *dsi = adv7511->dsi;
+		u8 clock_div_by_lanes[] = { 6, 4, 3 }; /* 2, 3, 4 lanes */
+		int ret;
+
 		adv7511_dsi_config_tgen(adv7511);
 
 		/* set number of dsi lanes */
-		regmap_write(adv7511->regmap_cec, 0x1c, adv7511->num_dsi_lanes << 4);
+		regmap_write(adv7511->regmap_cec, 0x1c, dsi->lanes << 4);
+		regmap_write(adv7511->regmap_cec, 0x16,
+			clock_div_by_lanes[dsi->lanes - 2] << 3);
 
 		/* reset internal timing generator */
 		regmap_write(adv7511->regmap_cec, 0x27, 0xcb);
@@ -813,6 +816,26 @@ static void adv7511_mode_set(struct adv7511 *adv7511,
 		0x6, low_refresh_rate << 1);
 	regmap_update_bits(adv7511->regmap, 0x17,
 		0x60, (vsync_polarity << 6) | (hsync_polarity << 5));
+
+	if (adv7511->type == ADV7533 && adv7511->num_dsi_lanes == 4) {
+		struct mipi_dsi_device *dsi = adv7511->dsi;
+		int lanes, ret;
+
+		if (adj_mode->clock > 80000)
+			lanes = 4;
+		else
+			lanes = 3;
+
+		if (lanes != dsi->lanes) {
+			mipi_dsi_detach(dsi);
+			dsi->lanes = lanes;
+			ret = mipi_dsi_attach(dsi);
+			if (ret) {
+				DRM_ERROR("Failed to change lanes\n");
+				return;
+			}
+		}
+	}
 
 	adv7511->curr_mode = adj_mode;
 	/*
@@ -1347,7 +1370,6 @@ static int adv7533_probe(struct mipi_dsi_device *dsi)
 
 	mipi_dsi_set_drvdata(dsi, adv);
 
-	dsi->lanes = 4;
 	dsi->format = MIPI_DSI_FMT_RGB888;
 	dsi->mode_flags = MIPI_DSI_MODE_VIDEO | MIPI_DSI_MODE_VIDEO_SYNC_PULSE
 		| MIPI_DSI_MODE_EOT_PACKET | MIPI_DSI_MODE_VIDEO_HSE;
@@ -1355,6 +1377,7 @@ static int adv7533_probe(struct mipi_dsi_device *dsi)
 	adv->type = ADV7533;
 	adv->powered = false;
 	adv->status = connector_status_disconnected;
+	adv->dsi = dsi;
 
 	memset(&link_config, 0, sizeof(link_config));
 
@@ -1463,6 +1486,8 @@ static int adv7533_probe(struct mipi_dsi_device *dsi)
 		DRM_ERROR("Failed to add adv7533 bridge\n");
 		return ret;
 	}
+
+	dsi->lanes = adv->num_dsi_lanes;
 
 	ret = mipi_dsi_attach(dsi);
 	if (ret < 0)

@@ -27,6 +27,7 @@ struct msm_dsi_pll {
 
 	struct clk_hw	clk_hw;
 	bool		pll_on;
+	bool		state_saved;
 
 	unsigned long	min_rate;
 	unsigned long	max_rate;
@@ -38,7 +39,7 @@ struct msm_dsi_pll {
 			struct clk **byte_clk_provider,
 			struct clk **pixel_clk_provider);
 	void (*destroy)(struct msm_dsi_pll *pll);
-	void (*save_state)(struct msm_dsi_pll *pll);
+	int (*save_state)(struct msm_dsi_pll *pll);
 	int (*restore_state)(struct msm_dsi_pll *pll);
 };
 
