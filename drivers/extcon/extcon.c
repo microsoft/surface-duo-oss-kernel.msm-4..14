@@ -124,21 +124,33 @@ static int find_cable_index_by_id(struct extcon_dev *edev, const unsigned int id
 	return -EINVAL;
 }
 
-static int find_cable_index_by_name(struct extcon_dev *edev, const char *name)
+static int find_cable_id_by_name(struct extcon_dev *edev, const char *name)
 {
-	unsigned int id = EXTCON_NONE;
+	unsigned int id = -EINVAL;
 	int i = 0;
 
-	if (edev->max_supported == 0)
-		return -EINVAL;
-
-	/* Find the the number of extcon cable */
+	/* Find the id of extcon cable */
 	while (extcon_name[i]) {
 		if (!strncmp(extcon_name[i], name, CABLE_NAME_MAX)) {
 			id = i;
 			break;
 		}
+
+		i++;
 	}
+
+	return id;
+};
+
+static int find_cable_index_by_name(struct extcon_dev *edev, const char *name)
+{
+	unsigned int id = EXTCON_NONE;
+
+	if (edev->max_supported == 0)
+		return -EINVAL;
+
+	/* Find the the number of extcon cable */
+	id = find_cable_id_by_name(edev, name);
 
 	if (id == EXTCON_NONE)
 		return -EINVAL;
@@ -228,9 +240,11 @@ static ssize_t cable_state_show(struct device *dev,
 	struct extcon_cable *cable = container_of(attr, struct extcon_cable,
 						  attr_state);
 
+	int i = cable->cable_index;
+
 	return sprintf(buf, "%d\n",
 		       extcon_get_cable_state_(cable->edev,
-					       cable->cable_index));
+					       cable->edev->supported_cable[i]));
 }
 
 /**
@@ -341,6 +355,9 @@ int extcon_get_cable_state_(struct extcon_dev *edev, const unsigned int id)
 {
 	int index;
 
+	if (id == EXTCON_NONE)
+		return -EINVAL;
+
 	index = find_cable_index_by_id(edev, id);
 	if (index < 0)
 		return index;
@@ -361,7 +378,7 @@ EXPORT_SYMBOL_GPL(extcon_get_cable_state_);
  */
 int extcon_get_cable_state(struct extcon_dev *edev, const char *cable_name)
 {
-	return extcon_get_cable_state_(edev, find_cable_index_by_name
+	return extcon_get_cable_state_(edev, find_cable_id_by_name
 						(edev, cable_name));
 }
 EXPORT_SYMBOL_GPL(extcon_get_cable_state);
@@ -379,6 +396,9 @@ int extcon_set_cable_state_(struct extcon_dev *edev, unsigned int id,
 {
 	u32 state;
 	int index;
+
+	if (id == EXTCON_NONE)
+		return -EINVAL;
 
 	index = find_cable_index_by_id(edev, id);
 	if (index < 0)
@@ -404,7 +424,7 @@ EXPORT_SYMBOL_GPL(extcon_set_cable_state_);
 int extcon_set_cable_state(struct extcon_dev *edev,
 			const char *cable_name, bool cable_state)
 {
-	return extcon_set_cable_state_(edev, find_cable_index_by_name
+	return extcon_set_cable_state_(edev, find_cable_id_by_name
 					(edev, cable_name), cable_state);
 }
 EXPORT_SYMBOL_GPL(extcon_set_cable_state);
