@@ -8,6 +8,10 @@ if ARCH_S32
 config ARCH_S32_IOMUX
 	bool "Enable S32 IOMUX"
 
+config GALCORE_ANON_INODES
+	bool "Support for anonymous inodes"
+	select ANON_INODES
+
 menu "S32 SOC selection"
 	config SOC_S32V234
 		bool "S32V234 SOC"
