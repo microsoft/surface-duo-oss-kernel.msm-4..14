@@ -33,8 +33,8 @@
 	pm8916_mpps_leds: pm8916_mpps_leds {
 		pinconf {
 			pins = "mpp2", "mpp3";
-			function = PMIC_GPIO_FUNC_NORMAL;
-			output-low;
+			function = "digital";
+			output-low;	// USB device mode
 		};
 	};
 };
