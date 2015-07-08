@@ -30,7 +30,41 @@
  */
 u32 hw_read_otgsc(struct ci_hdrc *ci, u32 mask)
 {
-	return hw_read(ci, OP_OTGSC, mask);
+	struct ci_hdrc_cable *cable;
+	u32 val = hw_read(ci, OP_OTGSC, mask);
+
+	/*
+	 * If using extcon framework for VBUS and/or ID signal
+	 * detection overwrite OTGSC resiter value
+	 */
+	cable = &ci->platdata->vbus_extcon;
+	if (!IS_ERR(cable->edev)) {
+		if (cable->changed)
+			val |= OTGSC_BSVIS;
+		else
+			val &= ~OTGSC_BSVIS;
+
+		if (cable->state)
+			val |= OTGSC_BSV;
+		else
+			val &= ~OTGSC_BSV;
+	}
+
+	cable = &ci->platdata->id_extcon;
+	if (!IS_ERR(cable->edev)) {
+		if (cable->changed)
+			val |= OTGSC_IDIS;
+		else
+			val &= ~OTGSC_IDIS;
+
+		if (cable->state)
+			val |= OTGSC_ID;
+		else
+			val &= ~OTGSC_ID;
+	}
+
+	val &= mask;
+	return val;
 }
 
 /**
@@ -40,7 +74,24 @@ u32 hw_read_otgsc(struct ci_hdrc *ci, u32 mask)
  */
 void hw_write_otgsc(struct ci_hdrc *ci, u32 mask, u32 data)
 {
-	hw_write(ci, OP_OTGSC, mask | OTGSC_INT_STATUS_BITS, data);
+	struct ci_hdrc_cable *cable;
+
+	mask |= OTGSC_INT_STATUS_BITS;
+
+	/* clear artificial bits */
+	cable = &ci->platdata->vbus_extcon;
+	if (!IS_ERR(cable->edev)) {
+		if (data & OTGSC_BSVIS)
+			cable->changed = false;
+	}
+
+	cable = &ci->platdata->id_extcon;
+	if (!IS_ERR(cable->edev)) {
+		if (data & OTGSC_IDIS)
+			cable->changed = false;
+	}
+
+	hw_write(ci, OP_OTGSC, mask, data);
 }
 
 /**
