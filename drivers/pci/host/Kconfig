@@ -30,6 +30,11 @@ config PCI_IMX6
 	select PCIEPORTBUS
 	select PCIE_DW
 
+config PCI_QCOM
+	bool "Qualcomm PCIe controller"
+	default y
+	depends on ARCH_QCOM && !ARM64
+
 config PCI_TEGRA
 	bool "NVIDIA Tegra PCIe controller"
 	depends on ARCH_TEGRA && !ARM64
