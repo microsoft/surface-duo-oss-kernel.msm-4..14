@@ -71,6 +71,7 @@ static SIMPLE_DEV_PM_OPS(tsens_pm_ops, tsens_suspend, tsens_resume);
 static const struct of_device_id tsens_table[] = {
 	{
 		.compatible = "qcom,msm8960-tsens",
+		.data = &ops_8960,
 	}, {
 		.compatible = "qcom,msm8916-tsens",
 		.data = &ops_8916,
