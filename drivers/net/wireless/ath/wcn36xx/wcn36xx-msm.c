@@ -17,6 +17,7 @@
 
 #include <linux/completion.h>
 #include <linux/firmware.h>
+#include <linux/kthread.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
@@ -33,8 +34,10 @@
 #include <soc/qcom/subsystem_notif.h>
 
 #define MAC_ADDR_0 "wlan/macaddr0"
+#define	WCNSS_SUBSYS_NAME "wcnss"
 
 static void *pil;
+static char fw_name[30];
 
 struct wcn36xx_msm {
 	struct wcn36xx_platform_ctrl_ops ctrl_ops;
@@ -248,7 +251,7 @@ static struct wcn36xx_msm wmsm = {
 	},
 };
 
-static int wcn36xx_msm_probe(struct platform_device *pdev)
+static void wcn36xx_msm_probe_cb(const struct firmware *fw, void *context)
 {
 	int ret;
 	const struct of_device_id *of_id;
@@ -261,30 +264,34 @@ static int wcn36xx_msm_probe(struct platform_device *pdev)
 		IORESOURCE_MEM, IORESOURCE_IRQ, IORESOURCE_IRQ };
 	int n;
 
+	struct platform_device *pdev = (struct platform_device *)context;
+
+	release_firmware(fw);
+
 	of_id = of_match_node(wcn36xx_msm_match_table, pdev->dev.of_node);
 	if (!of_id)
-		return -EINVAL;
+		return;
 
 	wmsm.chip_type = (enum wcn36xx_chip_type)of_id->data;
 
 	wmsm.pinctrl = devm_pinctrl_get(&pdev->dev);
 	if (IS_ERR_OR_NULL(wmsm.pinctrl))
-		return PTR_ERR(wmsm.pinctrl);
+		return;
 
 	ps = pinctrl_lookup_state(wmsm.pinctrl, "wcnss_default");
 	if (IS_ERR_OR_NULL(ps))
-			return PTR_ERR(ps);
+			return;
 
 	ret = pinctrl_select_state(wmsm.pinctrl, ps);
 	if (ret)
-		return ret;
+		return;
 
 	wcnss_core_prepare(pdev);
 
 	if (IS_ERR_OR_NULL(pil))
-		pil = subsystem_get("wcnss");
+		pil = subsystem_get(WCNSS_SUBSYS_NAME);
 	if (IS_ERR_OR_NULL(pil))
-		return PTR_ERR(pil);
+		return;
 
 	wmsm.core = platform_device_alloc("wcn36xx", -1);
 
@@ -293,8 +300,7 @@ static int wcn36xx_msm_probe(struct platform_device *pdev)
 		if (!r) {
 			dev_err(&wmsm.core->dev,
 				"Missing resource %s'\n", rnames[n]);
-			ret = -ENOMEM;
-			return ret;
+			return;
 		}
 		res[n] = *r;
 	}
@@ -305,8 +311,7 @@ static int wcn36xx_msm_probe(struct platform_device *pdev)
 				       sizeof(wmsm.ctrl_ops));
 	if (ret) {
 		dev_err(&wmsm.core->dev, "Can't add platform data\n");
-		ret = -ENOMEM;
-		return ret;
+		return;
 	}
 
 	/* wcnss_core_init return 0 means we got the expected echo from
@@ -315,13 +320,21 @@ static int wcn36xx_msm_probe(struct platform_device *pdev)
 	ret = wcnss_core_init();
 	if (ret) {
 		platform_device_put(wmsm.core);
-		return ret;
+		return;
 	}
 
 	platform_device_add(wmsm.core);
 	dev_info(&pdev->dev, "%s initialized\n", __func__);
 
-	return 0;
+	return;
+}
+
+static int wcn36xx_msm_probe(struct platform_device *pdev)
+{
+	snprintf(fw_name, sizeof(fw_name), "%s.mdt", WCNSS_SUBSYS_NAME);
+
+	return request_firmware_nowait(THIS_MODULE, true, fw_name, &pdev->dev,
+		GFP_KERNEL, pdev, wcn36xx_msm_probe_cb);
 }
 
 static int wcn36xx_msm_remove(struct platform_device *pdev)
@@ -359,6 +372,7 @@ static int __init wcn36xx_msm_init(void)
 {
 	return platform_driver_register(&wcn36xx_msm_driver);
 }
+
 module_init(wcn36xx_msm_init);
 
 static void __exit wcn36xx_msm_exit(void)
