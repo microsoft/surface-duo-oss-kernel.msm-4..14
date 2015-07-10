@@ -20,6 +20,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/soc/qcom/smem.h>
+#include <linux/debugfs.h>
 
 /*
  * The Qualcomm shared memory system is a allocate only heap structure that
@@ -84,6 +85,8 @@
 
 /* Max number of processors/hosts in a system */
 #define SMEM_HOST_COUNT		9
+
+#define SMEM_HEAP_INFO	1
 
 /**
   * struct smem_proc_comm - proc_comm communication struct (legacy)
@@ -239,6 +242,9 @@ struct qcom_smem {
 	struct hwspinlock *hwlock;
 
 	struct smem_partition_header *partitions[SMEM_HOST_COUNT];
+
+	struct dentry *dent;
+	u32 version;
 
 	unsigned num_regions;
 	struct smem_region regions[0];
@@ -692,6 +698,104 @@ static int qcom_smem_map_memory(struct qcom_smem *smem, struct device *dev,
 	return 0;
 }
 
+static void smem_debug_read_mem(struct seq_file *s)
+{
+	u32 *info;
+	size_t size;
+	int ret, i;
+	long flags;
+
+	ret = qcom_smem_get(QCOM_SMEM_HOST_ANY, SMEM_HEAP_INFO,
+				(void **)&info, &size);
+
+	if (ret < 0)
+		seq_printf(s, "Can't get global heap information pool\n");
+	else {
+		seq_printf(s, "global heap\n");
+		seq_printf(s, "   initialized: %d offset: %08x avail: %08x\n",
+				info[0], info[1], info[2]);
+
+		for (i = 0; i < 512; i++) {
+			ret = qcom_smem_get(QCOM_SMEM_HOST_ANY, i,
+						(void **)&info, &size);
+			if (ret < 0)
+				continue;
+
+			seq_printf(s, "      [%d]: p: %p s: %li\n", i, info,
+					size);
+		}
+	}
+
+	seq_printf(s, "\nSecure partitions accessible from APPS:\n");
+
+	ret = hwspin_lock_timeout_irqsave(__smem->hwlock,
+					  HWSPINLOCK_TIMEOUT,
+					  &flags);
+
+	for (i = 0; i < SMEM_HOST_COUNT; i++) {
+		struct smem_partition_header *part_hdr = __smem->partitions[i];
+		void *p;
+
+		if (!part_hdr)
+			continue;
+
+		if (part_hdr->magic != SMEM_PART_MAGIC) {
+			seq_printf(s, "   part[%d]: incorrect magic\n", i);
+			continue;
+		}
+
+		seq_printf(s, "   part[%d]: (%d <-> %d) size: %d off: %08x\n",
+			i, part_hdr->host0, part_hdr->host1, part_hdr->size,
+			part_hdr->offset_free_uncached);
+
+		p = (void *)part_hdr + sizeof(*part_hdr);
+		while (p < (void *)part_hdr + part_hdr->offset_free_uncached) {
+			struct smem_private_entry *entry = p;
+
+			seq_printf(s,
+				"          [%d]: %s size: %d pd: %d\n",
+				entry->item,
+				(entry->canary == SMEM_PRIVATE_CANARY) ?
+					"valid" : "invalid",
+				entry->size,
+				entry->padding_data);
+
+			p += sizeof(*entry) + entry->padding_hdr + entry->size;
+		}
+	}
+
+	hwspin_unlock_irqrestore(__smem->hwlock, &flags);
+}
+
+static void smem_debug_read_version(struct seq_file *s)
+{
+	seq_printf(s, "SBL version: %08x\n", __smem->version >> 16);
+}
+
+static int debugfs_show(struct seq_file *s, void *data)
+{
+	void (*show)(struct seq_file *) = s->private;
+
+	show(s);
+
+	return 0;
+}
+
+static int smem_debug_open(struct inode *inode, struct file *file)
+{
+	return single_open(file, debugfs_show, inode->i_private);
+}
+
+
+static const struct file_operations smem_debug_ops = {
+	.open = smem_debug_open,
+	.release = single_release,
+	.read = seq_read,
+	.llseek = seq_lseek,
+};
+
+
+
 static int qcom_smem_probe(struct platform_device *pdev)
 {
 	struct smem_header *header;
@@ -699,7 +803,6 @@ static int qcom_smem_probe(struct platform_device *pdev)
 	size_t array_size;
 	int num_regions;
 	int hwlock_id;
-	u32 version;
 	int ret;
 
 	num_regions = 1;
@@ -729,9 +832,9 @@ static int qcom_smem_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	version = qcom_smem_get_sbl_version(smem);
-	if (version >> 16 != SMEM_EXPECTED_VERSION) {
-		dev_err(&pdev->dev, "Unsupported SMEM version 0x%x\n", version);
+	smem->version = qcom_smem_get_sbl_version(smem);
+	if (smem->version >> 16 != SMEM_EXPECTED_VERSION) {
+		dev_err(&pdev->dev, "Unsupported SMEM version 0x%x\n", smem->version);
 		return -EINVAL;
 	}
 
@@ -750,6 +853,17 @@ static int qcom_smem_probe(struct platform_device *pdev)
 		return -ENXIO;
 
 	__smem = smem;
+
+	/* setup debugfs information */
+	__smem->dent = debugfs_create_dir("smem", 0);
+	if (IS_ERR(__smem->dent))
+		dev_info(smem->dev, "unable to create debugfs\n");
+
+	if (!debugfs_create_file("mem", 0444, __smem->dent, smem_debug_read_mem, &smem_debug_ops))
+		dev_err(smem->dev, "couldnt create mem file\n");
+	if (!debugfs_create_file("version", 0444, __smem->dent, smem_debug_read_version,
+					&smem_debug_ops))
+		dev_err(smem->dev, "couldnt create mem file\n");
 
 	return 0;
 }
