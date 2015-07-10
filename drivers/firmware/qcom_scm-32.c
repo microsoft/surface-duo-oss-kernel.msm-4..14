@@ -496,7 +496,7 @@ bool __qcom_scm_pas_supported(u32 peripheral)
 	return ret ? false : !!ret_val;
 }
 
-int __qcom_scm_pas_init_image(u32 peripheral, const void *metadata, size_t size)
+int __qcom_scm_pas_init_image(struct device *dev, u32 peripheral, const void *metadata, size_t size)
 {
 	dma_addr_t mdata_phys;
 	void *mdata_buf;
@@ -512,7 +512,7 @@ int __qcom_scm_pas_init_image(u32 peripheral, const void *metadata, size_t size)
 	 * data blob, so make sure it's physically contiguous, 4K aligned and
 	 * non-cachable to avoid XPU violations.
 	 */
-	mdata_buf = dma_alloc_coherent(NULL, size, &mdata_phys, GFP_KERNEL);
+	mdata_buf = dma_alloc_coherent(dev, size, &mdata_phys, GFP_KERNEL);
 	if (!mdata_buf) {
 		pr_err("Allocation of metadata buffer failed.\n");
 		return -ENOMEM;
@@ -526,7 +526,7 @@ int __qcom_scm_pas_init_image(u32 peripheral, const void *metadata, size_t size)
 			    &request, sizeof(request),
 			    &scm_ret, sizeof(scm_ret));
 
-	dma_free_coherent(NULL, size, mdata_buf, mdata_phys);
+	dma_free_coherent(dev, size, mdata_buf, mdata_phys);
 
 	return ret ? : scm_ret;
 }
