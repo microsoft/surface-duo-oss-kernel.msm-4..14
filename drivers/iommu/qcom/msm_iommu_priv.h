@@ -59,7 +59,13 @@ struct msm_iommu_pt {
 struct msm_iommu_priv {
 	struct msm_iommu_pt pt;
 	struct list_head list_attached;
+	struct iommu_domain domain;
 	const char *client_name;
 };
+
+static inline struct msm_iommu_priv *to_msm_priv(struct iommu_domain *dom)
+{
+	return container_of(dom, struct msm_iommu_priv, domain);
+}
 
 #endif
