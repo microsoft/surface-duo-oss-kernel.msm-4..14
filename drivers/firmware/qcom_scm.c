@@ -16,6 +16,7 @@
  * 02110-1301, USA.
  */
 
+#include <linux/platform_device.h>
 #include <linux/cpumask.h>
 #include <linux/export.h>
 #include <linux/types.h>
@@ -127,9 +128,9 @@ EXPORT_SYMBOL(qcom_scm_pas_supported);
  *
  * Returns 0 on success.
  */
-int qcom_scm_pas_init_image(u32 peripheral, const void *metadata, size_t size)
+int qcom_scm_pas_init_image(struct device *dev, u32 peripheral, const void *metadata, size_t size)
 {
-	return __qcom_scm_pas_init_image(peripheral, metadata, size);
+	return __qcom_scm_pas_init_image(dev, peripheral, metadata, size);
 }
 EXPORT_SYMBOL(qcom_scm_pas_init_image);
 

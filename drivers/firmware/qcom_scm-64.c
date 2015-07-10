@@ -15,6 +15,7 @@
  * 02110-1301, USA.
  */
 
+#include <linux/platform_device.h>
 #include <linux/cpumask.h>
 #include <linux/delay.h>
 #include <linux/mutex.h>
@@ -460,7 +461,7 @@ bool __qcom_scm_pas_supported(u32 peripheral)
 	return ret ? false : !!desc.ret[0];
 }
 
-int __qcom_scm_pas_init_image(u32 peripheral, const void *metadata, size_t size)
+int __qcom_scm_pas_init_image(struct device *dev, u32 peripheral, const void *metadata, size_t size)
 {
 	int ret;
 	struct qcom_scm_desc desc = {0};
@@ -468,12 +469,14 @@ int __qcom_scm_pas_init_image(u32 peripheral, const void *metadata, size_t size)
 	dma_addr_t mdata_phys;
 	void *mdata_buf;
 
+dev->coherent_dma_mask = DMA_BIT_MASK(sizeof(dma_addr_t) * 8);
+
 	/*
 	 * During the scm call memory protection will be enabled for the meta
 	 * data blob, so make sure it's physically contiguous, 4K aligned and
 	 * non-cachable to avoid XPU violations.
 	 */
-	mdata_buf = dma_alloc_coherent(NULL, size, &mdata_phys, GFP_KERNEL);
+	mdata_buf = dma_alloc_coherent(dev, size, &mdata_phys, GFP_KERNEL);
 	if (!mdata_buf) {
 		pr_err("Allocation of metadata buffer failed.\n");
 		return -ENOMEM;
@@ -488,7 +491,7 @@ int __qcom_scm_pas_init_image(u32 peripheral, const void *metadata, size_t size)
 				&desc);
 	scm_ret = desc.ret[0];
 
-	dma_free_coherent(NULL, size, mdata_buf, mdata_phys);
+	dma_free_coherent(dev, size, mdata_buf, mdata_phys);
 	return ret ? : scm_ret;
 }
 
