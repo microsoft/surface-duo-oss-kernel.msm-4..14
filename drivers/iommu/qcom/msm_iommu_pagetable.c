@@ -563,7 +563,7 @@ void msm_iommu_pagetable_unmap_range(struct msm_iommu_pt *pt, unsigned int va,
 phys_addr_t msm_iommu_iova_to_phys_soft(struct iommu_domain *domain,
 					  phys_addr_t va)
 {
-	struct msm_iommu_priv *priv = domain->priv;
+	struct msm_iommu_priv *priv = to_msm_priv(domain);
 	struct msm_iommu_pt *pt = &priv->pt;
 	u32 *fl_pte;
 	u32 fl_offset;
