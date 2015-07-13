@@ -1160,7 +1160,11 @@ static int qcom_smd_parse_edge(struct device *dev,
 
 	edge->remote_pid = QCOM_SMEM_HOST_ANY;
 	key = "qcom,remote-pid";
-	of_property_read_u32(node, key, &edge->remote_pid);
+	ret = of_property_read_u32(node, key, &edge->remote_pid);
+	if (ret) {
+		dev_err(dev, "edge missing %s property\n", key);
+		return -EINVAL;
+	}
 
 	syscon_np = of_parse_phandle(node, "qcom,ipc", 0);
 	if (!syscon_np) {
