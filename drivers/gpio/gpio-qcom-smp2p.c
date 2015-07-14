@@ -171,15 +171,16 @@ static irqreturn_t qcom_smp2p_intr(int irq, void *data)
 	u32 val;
 	int ret;
 	int i;
+	u8 tmp_name[SMP2P_MAX_ENTRY_NAME];
 
 	in = smp2p->in;
 
 	/* Acquire smem item, if not already found */
 	if (!in) {
 		ret = qcom_smem_get(pid, smem_id, (void **)&in, &size);
-		if (ret < 0 || size != ALIGN(sizeof(*in), 8)) {
+		if (ret < 0) {
 			dev_err(smp2p->dev,
-				"Unable to acquire remote smp2p item\n");
+					"Unable to acquire remote smp2p item\n");
 			return IRQ_HANDLED;
 		}
 
@@ -189,7 +190,9 @@ static irqreturn_t qcom_smp2p_intr(int irq, void *data)
 	/* Match newly created entries */
 	for (i = smp2p->valid_entries; i < in->valid_entries; i++) {
 		list_for_each_entry(entry, &smp2p->inbound, node) {
-			if (!strcmp(in->entries[i].name, entry->name)) {
+			memcpy_fromio(tmp_name, in->entries[i].name,
+					SMP2P_MAX_ENTRY_NAME);
+			if (!strcmp(tmp_name, entry->name)) {
 				entry->value = &in->entries[i].value;
 				break;
 			}
@@ -288,7 +291,7 @@ static int smp2p_irq_map(struct irq_domain *d,
 	irq_set_chip_data(irq, entry);
 	irq_set_nested_thread(irq, 1);
 
-#ifdef CONFIG_ARM64
+#if defined(CONFIG_ARM64) || defined(CONFIG_ARM)
 	set_irq_flags(irq, IRQF_VALID);
 #else
 	irq_set_noprobe(virq);
