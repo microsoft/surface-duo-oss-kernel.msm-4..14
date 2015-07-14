@@ -59,6 +59,16 @@
 			reg = <0x0 0x86300000 0x0 0x0100000>;
 			no-map;
 		};
+
+                modem_adsp_mem: modem_adsp_region@86400000 {
+                        no-map;
+                        reg = <0x0 0x86400000 0x0 0x05200000>;
+                };
+
+                peripheral_mem: peripheral_region@8b600000 {
+                        no-map;
+                        reg = <0x0 0x8b600000 0x0 0x0600000>;
+                };
 	};
 
 	cpus {
@@ -259,6 +269,7 @@
 				interrupts = <0 168 1>;
 				qcom,ipc = <&apcs 8 0>;
 				qcom,smd-edge = <15>;
+				qcom,remote-pid = <0xffffffff>;
 
 				rpm_requests {
 					compatible = "qcom,rpm-msm8916";
@@ -290,8 +301,10 @@
 							regulator-max-microvolt = <1562000>;
 						};
 						pm8916_s4: s4 {
-							regulator-min-microvolt = <1550000>;
-							regulator-max-microvolt = <2325000>;
+							regulator-min-microvolt = <1800000>;
+							regulator-max-microvolt = <1800000>;
+							regulator-always-on;
+							regulator-boot-on;
 						};
 
 						pm8916_l1: l1 {
@@ -368,6 +381,47 @@
 						};
 					};
 				};
+			};
+
+			pronto_smd_edge: pronto {
+				interrupts = <0 142 1>;
+
+				qcom,ipc = <&apcs 8 17>;
+				qcom,smd-edge = <6>;
+				qcom,remote-pid = <4>;
+
+#if 0
+				bt {
+					compatible = "qcom,hci-smd";
+					qcom,smd-channels = "APPS_RIVA_BT_CMD", "APPS_RIVA_BT_ACL";
+					qcom,smd-channel-names = "event", "data";
+				};
+
+				ipcrtr {
+					compatible = "qcom,ipcrtr";
+					qcom,smd-channels = "IPCRTR";
+				};
+
+				wifi {
+					compatible = "qcom,wcn3680";
+					qcom,smd-channels = "WLAN_CTRL";
+
+					interrupts = <0 145 0>, <0 146 0>;
+					interrupt-names = "wcnss_wlantx_irq", "wcnss_wlanrx_irq";
+
+					qcom,wcnss_mmio = <0xfb000000 0x21b000>;
+
+					qcom,tx-enable-gpios = <&apps_smsm 10 0>;
+					qcom,tx-rings-empty-gpios = <&apps_smsm 9 0>;
+				};
+
+				wcnss_ctrl {
+					compatible = "qcom,wcnss-ctrl";
+					qcom,smd-channels = "WCNSS_CTRL";
+
+					qcom,wcnss_mmio = <0xfb21b000 0x3000>;
+				};
+#endif
 			};
 		};
 
@@ -792,6 +846,68 @@
 			qcom,tsens-slopes = <3200 3200 3200 3200 3200>;
 			qcom,sensor-id = <0 1 2 4 5>;
 			#thermal-sensor-cells = <1>;
+		};
+
+		wcnss-smp2p {
+			compatible = "qcom,smp2p";
+			qcom,smem = <451>, <431>;
+
+			interrupts = <0 143 1>;
+
+			qcom,ipc = <&apcs 8 18>;
+
+			qcom,local-pid = <0>;
+			qcom,remote-pid = <4>;
+
+			wcnss_smp2p_out: master-kernel {
+				qcom,entry-name = "master-kernel";
+				qcom,outbound;
+
+				gpio-controller;
+				#gpio-cells = <2>;
+			};
+
+			wcnss_smp2p_in: slave-kernel {
+				qcom,entry-name = "slave-kernel";
+				qcom,inbound;
+
+				interrupt-controller;
+				#interrupt-cells = <2>;
+			};
+		};
+
+		pronto_rproc {
+			compatible = "qcom,tz-pil";
+
+			interrupts-extended = <&intc 0 149 1>,
+					      <&wcnss_smp2p_in 0 0>,
+					      <&wcnss_smp2p_in 1 0>,
+					      <&wcnss_smp2p_in 2 0>,
+					      <&wcnss_smp2p_in 3 0>;
+			interrupt-names = "wdog", "fatal", "ready", "handover", "stop-ack";
+
+			clocks = <&gcc GCC_CRYPTO_CLK>,
+				 <&gcc GCC_CRYPTO_AHB_CLK>,
+				 <&gcc GCC_CRYPTO_AXI_CLK>,
+				 <&gcc CRYPTO_CLK_SRC>;
+			clock-names = "scm_core_clk", "scm_iface_clk", "scm_bus_clk", "scm_src_clk";
+
+			qcom,firmware-name = "wcnss";
+			qcom,pas-id = <6>;
+
+			qcom,crash-reason = <422>;
+			qcom,smd-edges = <&pronto_smd_edge>;
+
+			qcom,pll-supply = <&pm8916_l7>;
+			qcom,pll-uV = <1800000>;
+			qcom,pll-uA = <18000>;
+
+			qcom,stop-gpio = <&wcnss_smp2p_out 0 0>;
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&wcnss_default>;
+
+			memory-region = <&peripheral_mem>;
 		};
 	};
 };
