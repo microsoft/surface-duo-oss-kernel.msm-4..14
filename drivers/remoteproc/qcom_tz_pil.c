@@ -30,6 +30,10 @@
 #include <linux/regulator/consumer.h>
 #include <linux/qcom_scm.h>
 #include <linux/soc/qcom/smem.h>
+#include <linux/of.h>
+#include <linux/of_address.h>
+#include <linux/delay.h>
+#include <linux/soc/qcom/smd.h>
 
 #include "remoteproc_internal.h"
 
@@ -60,6 +64,7 @@ struct qproc {
 	struct clk *scm_core_clk;
 	struct clk *scm_iface_clk;
 	struct clk *scm_bus_clk;
+	struct clk *scm_src_clk;
 
 	struct clk **proxy_clks;
 
@@ -68,6 +73,9 @@ struct qproc {
 
 	unsigned crash_reason;
 	struct device_node *smd_edge_node;
+
+	phys_addr_t reloc_phys;
+	size_t reloc_size;
 };
 
 static int qproc_scm_clk_enable(struct qproc *qproc)
@@ -84,8 +92,14 @@ static int qproc_scm_clk_enable(struct qproc *qproc)
 	if (ret)
 		goto disable_iface;
 
+	ret = clk_prepare_enable(qproc->scm_src_clk);
+	if (ret)
+		goto disable_bus;
+
 	return 0;
 
+disable_bus:
+	clk_disable_unprepare(qproc->scm_bus_clk);
 disable_iface:
 	clk_disable_unprepare(qproc->scm_iface_clk);
 disable_core:
@@ -99,6 +113,7 @@ static void qproc_scm_clk_disable(struct qproc *qproc)
 	clk_disable_unprepare(qproc->scm_core_clk);
 	clk_disable_unprepare(qproc->scm_iface_clk);
 	clk_disable_unprepare(qproc->scm_bus_clk);
+	clk_disable_unprepare(qproc->scm_src_clk);
 }
 
 /**
@@ -178,15 +193,16 @@ static struct resource_table * qproc_find_rsc_table(struct rproc *rproc,
 	return &table;
 }
 
-static int qproc_load_segment(struct rproc *rproc, const char *fw_name, const struct elf32_phdr *phdr)
+static int qproc_load_segment(struct rproc *rproc, const char *fw_name,
+				const struct elf32_phdr *phdr, phys_addr_t paddr)
 {
 	const struct firmware *fw;
 	void *ptr;
 	int ret = 0;
 
-	ptr = ioremap(phdr->p_paddr, phdr->p_memsz);
+	ptr = ioremap_nocache(paddr, phdr->p_memsz);
 	if (!ptr) {
-		dev_err(&rproc->dev, "failed to ioremap segment area (0x%x+0x%x)\n", phdr->p_paddr, phdr->p_memsz);
+		dev_err(&rproc->dev, "failed to ioremap segment area (%pa+0x%x)\n", &paddr, phdr->p_memsz);
 		return -EBUSY;
 	}
 
@@ -197,13 +213,14 @@ static int qproc_load_segment(struct rproc *rproc, const char *fw_name, const st
 			goto out;
 		}
 
-		memcpy(ptr, fw->data, fw->size);
+		memcpy_toio(ptr, fw->data, fw->size);
 
 		release_firmware(fw);
 	}
 
 	if (phdr->p_memsz > phdr->p_filesz)
-		memset(ptr + phdr->p_filesz, 0, phdr->p_memsz - phdr->p_filesz);
+		memset_io(ptr + phdr->p_filesz, 0,
+			  phdr->p_memsz - phdr->p_filesz);
 
 out:
 	iounmap(ptr);
@@ -222,6 +239,10 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 	char *fw_name;
 	int ret;
 	int i;
+	size_t align = 0;
+	bool relocatable = false;
+	phys_addr_t paddr;
+
 
 	ret = qproc_scm_clk_enable(qproc);
 	if (ret)
@@ -236,19 +257,21 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 		if (!segment_is_loadable(phdr))
 			continue;
 
-		if (segment_is_relocatable(phdr)) {
-			dev_err(&rproc->dev, "relocation unsupported\n");
-			return -EINVAL;
-		}
-
-		if (phdr->p_paddr < min_addr)
+		if (phdr->p_paddr < min_addr) {
 			min_addr = phdr->p_paddr;
+
+			if (segment_is_relocatable(phdr)) {
+				align = phdr->p_align;
+				relocatable = true;
+			}
+		}
 
 		if (phdr->p_paddr + phdr->p_memsz > max_addr)
 			max_addr = round_up(phdr->p_paddr + phdr->p_memsz, SZ_4K);
 	}
 
-	ret = qcom_scm_pas_init_image(qproc->pas_id, fw->data, fw->size);
+	ret = qcom_scm_pas_init_image(qproc->dev,
+				qproc->pas_id, fw->data, fw->size);
 	if (ret) {
 		dev_err(qproc->dev, "Invalid firmware metadata\n");
 		return -EINVAL;
@@ -273,8 +296,11 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 		if (!segment_is_loadable(phdr))
 			continue;
 
+		paddr = relocatable ?
+				(phdr->p_paddr - min_addr + qproc->reloc_phys) :
+				phdr->p_paddr;
 		sprintf(fw_name, "%s.b%02d", qproc->name, i);
-		ret = qproc_load_segment(rproc, fw_name, phdr);
+		ret = qproc_load_segment(rproc, fw_name, phdr, paddr);
 		if (ret)
 			break;
 	}
@@ -322,6 +348,9 @@ static int qproc_start(struct rproc *rproc)
 		goto unroll_clocks;
 	}
 
+
+	dev_err(qproc->dev, "start successful\n");
+
 	return 0;
 
 unroll_clocks:
@@ -335,22 +364,7 @@ disable_regulator:
 
 static int qproc_stop(struct rproc *rproc)
 {
-	struct qproc *qproc = (struct qproc *)rproc->priv;
-	int ret;
-
-	gpiod_set_value(qproc->stop_gpio, 1);
-
-	ret = wait_for_completion_timeout(&qproc->stop_done, msecs_to_jiffies(1000));
-	if (ret == 0)
-		dev_err(qproc->dev, "timed out on wait\n");
-
-	gpiod_set_value(qproc->stop_gpio, 0);
-
-	ret = qcom_scm_pas_shutdown(qproc->pas_id);
-	if (ret)
-		dev_err(qproc->dev, "failed to shutdown: %d\n", ret);
-
-	return ret;
+	return 0;
 }
 
 static const struct rproc_ops qproc_ops = {
@@ -483,8 +497,21 @@ static int qproc_init_clocks(struct qproc *qproc)
 		return PTR_ERR(qproc->scm_bus_clk);
 	}
 
-	rate = clk_round_rate(qproc->scm_core_clk, 50000000);
-	ret = clk_set_rate(qproc->scm_core_clk, rate);
+	qproc->scm_src_clk = devm_clk_get(qproc->dev, "scm_src_clk");
+	if (IS_ERR(qproc->scm_src_clk)) {
+		if (PTR_ERR(qproc->scm_src_clk) != -EPROBE_DEFER)
+			dev_err(qproc->dev, "failed to acquire scm_src_clk\n");
+		return PTR_ERR(qproc->scm_src_clk);
+	}
+
+	ret = clk_set_rate(qproc->scm_core_clk,
+clk_round_rate(qproc->scm_core_clk, 19200000));
+	ret = clk_set_rate(qproc->scm_bus_clk,
+clk_round_rate(qproc->scm_bus_clk, 19200000));
+	ret = clk_set_rate(qproc->scm_iface_clk,
+clk_round_rate(qproc->scm_iface_clk, 19200000));
+	rate = clk_round_rate(qproc->scm_core_clk, 80000000);
+	ret = clk_set_rate(qproc->scm_src_clk, rate);
 	if (ret) {
 		dev_err(qproc->dev, "failed to set rate of scm_core_clk\n");
 		return ret;
@@ -549,6 +576,9 @@ static int qproc_probe(struct platform_device *pdev)
 	const char *key;
 	int ret;
 	int i;
+	struct device_node *np;
+	struct resource r;
+
 
 	key = "qcom,firmware-name";
 	ret = of_property_read_string(pdev->dev.of_node, key, &name);
@@ -626,18 +656,29 @@ static int qproc_probe(struct platform_device *pdev)
 		goto free_rproc;
 	qproc->stop_ack_irq = ret;
 
-	qproc->stop_gpio = devm_gpiod_get(&pdev->dev, "qcom,stop", GPIOD_OUT_LOW);
-	if (IS_ERR(qproc->stop_gpio)) {
-		dev_err(&pdev->dev, "failed to acquire stop gpio\n");
-		return PTR_ERR(qproc->stop_gpio);
-	}
-
 	for (i = 0; i < ARRAY_SIZE(qproc_attrs); i++) {
 		ret = device_create_file(&pdev->dev, &qproc_attrs[i]);
 		if (ret) {
 			dev_err(&pdev->dev, "unable to create sysfs file\n");
 			goto remove_device_files;
 		}
+	}
+
+	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
+	if (!np) {
+		dev_err(&pdev->dev, "No memory region specified\n");
+	} else {
+
+		ret = of_address_to_resource(np, 0, &r);
+		of_node_put(np);
+		if (ret)
+			return ret;
+
+		qproc->reloc_phys = r.start;
+		qproc->reloc_size = resource_size(&r);
+
+		dev_err(&pdev->dev, "Found relocation area %lu@%pad\n",
+				qproc->reloc_size, &qproc->reloc_phys);
 	}
 
 	ret = rproc_add(rproc);
