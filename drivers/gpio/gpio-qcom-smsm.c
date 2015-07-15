@@ -234,7 +234,7 @@ static int qcom_smsm_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	dev_err(smsm->dev, "SMEM_SMSM_SHARED_STATE: %d, %d\n", ret, smsm->shared_state_size);
+	dev_err(smsm->dev, "SMEM_SMSM_SHARED_STATE: %d, %zu\n", ret, smsm->shared_state_size);
 	print_hex_dump(KERN_DEBUG, "raw data: ", DUMP_PREFIX_OFFSET, 16, 1, smsm->shared_state, smsm->shared_state_size, true);
 
 	for_each_child_of_node(pdev->dev.of_node, node) {
