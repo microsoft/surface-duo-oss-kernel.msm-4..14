@@ -22,6 +22,14 @@
 #define MAX_MSI_IRQS			32
 #define MAX_MSI_CTRLS			(MAX_MSI_IRQS / 32)
 
+enum ATU_TYPE {
+	ATU_TYPE_CFG0,
+	ATU_TYPE_CFG1,
+	ATU_TYPE_MEM,
+	ATU_TYPE_IO,
+	ATU_TYPE_MAX
+};
+
 struct pcie_port {
 	struct device		*dev;
 	u8			root_bus_nr;
@@ -53,6 +61,7 @@ struct pcie_port {
 	struct irq_domain	*irq_domain;
 	unsigned long		msi_data;
 	DECLARE_BITMAP(msi_irq_in_use, MAX_MSI_IRQS);
+	u8			atu_idx[ATU_TYPE_MAX];
 };
 
 struct pcie_host_ops {
