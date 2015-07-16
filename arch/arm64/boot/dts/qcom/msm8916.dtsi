@@ -250,7 +250,7 @@
 							regulator-min-microvolt = <375000>;
 							regulator-max-microvolt = <1562000>;
 						};
-						pm8916_s2: s2 {
+						s2 {
 							regulator-min-microvolt = <375000>;
 							regulator-max-microvolt = <1562000>;
 						};
