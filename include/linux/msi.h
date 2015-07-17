@@ -3,6 +3,7 @@
 
 #include <linux/kobject.h>
 #include <linux/list.h>
+#include <linux/pci.h>
 
 struct msi_msg {
 	u32	address_lo;	/* low 32 bits of msi message address */
@@ -37,7 +38,7 @@ struct msi_desc {
 		void __iomem *mask_base;
 		u8 mask_pos;
 	};
-	struct pci_dev *dev;
+	struct device *dev;
 
 	/* Last set MSI message */
 	struct msi_msg msg;
