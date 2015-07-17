@@ -31,6 +31,20 @@
 		};
 	};
 
+clocks {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	fxosc {
+		compatible = "fixed-clock";
+		clock-frequency = <40000000>;
+	};
+	firc {
+		compatible = "fixed-clock";
+		clock-frequency = <48000000>;
+	};
+};
+
 	memory_DDR0@80000000 {
 		device_type = "memory";
 		reg = <0 0x80000000 0 0x30000000>;
@@ -63,22 +77,6 @@
 			     <0 105 4>;
 	};
 
-	p9_smbclk: smbclk {
-		/* Static memory controller clock */
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-frequency = <24000000>;
-		clock-output-names = "p9:smbclk";
-	};
-
-	v2m_oscclk2: oscclk2 {
-		/* IO FPGA peripheral clock */
-		compatible = "fixed-clock";
-		#clock-cells = <0>;
-		clock-frequency = <24000000>;
-		clock-output-names = "v2m:oscclk2";
-	};
-
 	timer {
 		compatible = "arm,armv8-timer";
 		interrupts = <1 13 0xf08>,
@@ -109,8 +107,10 @@
 			swt0:swt@4000A000 {
 				compatible = "fsl,s32v234-wdt", "fsl,sac58r-wdt";
 				reg = <0x0 0x4000A000 0x0 0x1000>;
+				/*
 				clocks = <&v2m_oscclk2>;
 				clock-names = "swt";
+				*/
 				status = "disabled";
 			};
 
@@ -145,19 +145,17 @@
 				compatible = "fsl,s32v234-linflexuart";
 				reg = <0x0 0x40053000 0x0 0x1000>;
 				interrupts = <0 59 4>;
-				clocks = <&v2m_oscclk2>, <&p9_smbclk>;
-				clock-names = "uartclk", "apb_pclk";
+				clocks = <&clks S32V234_CLK_LIN>;
+				clock-names = "lin";
 			};
 
 			usdhc0: usdhc@4005D000 {
 				compatible = "fsl,s32v234-usdhc", "fsl,sac85r-usdhc";
 				reg = <0x0 0x4005D000 0x0 0x1000>;
 				interrupts = <0 28 4>;
-				/* Uncomment the bellow definition after clocks
-				 * framework is updated */
-				/* clocks = <&clks S32V234_CLK_SYS6>,
-						<&clks S32V234_CLK_SYS6>,
-						<&clks S32V234_CLK_SDHC>; */
+				clocks = <&clks S32V234_CLK_SDHC>,
+						 <&clks S32V234_CLK_SDHC>,
+						 <&clks S32V234_CLK_SDHC>;
 				clock-names = "ipg", "ahb", "per";
 				status = "disabled";
 			};
