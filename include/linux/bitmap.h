@@ -37,7 +37,7 @@
  * bitmap_andnot(dst, src1, src2, nbits)	*dst = *src1 & ~(*src2)
  * bitmap_complement(dst, src, nbits)		*dst = ~(*src)
  * bitmap_equal(src1, src2, nbits)		Are *src1 and *src2 equal?
- * bitmap_intersects(src1, src2, nbits) 	Do *src1 and *src2 overlap?
+ * bitmap_intersects(src1, src2, nbits)		Do *src1 and *src2 overlap?
  * bitmap_subset(src1, src2, nbits)		Is *src1 a subset of *src2?
  * bitmap_empty(src, nbits)			Are all bits zero in *src?
  * bitmap_full(src, nbits)			Are all bits set in *src?
