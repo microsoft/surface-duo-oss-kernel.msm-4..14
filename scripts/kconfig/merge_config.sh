@@ -28,6 +28,7 @@ trap clean_up HUP INT TERM
 
 usage() {
 	echo "Usage: $0 [OPTIONS] [CONFIG [...]]"
+	echo "  -a    arguments to make command. ex: ARCH=arm"
 	echo "  -h    display this help text"
 	echo "  -m    only merge the fragments, do not execute the make command"
 	echo "  -n    use allnoconfig instead of alldefconfig"
@@ -39,6 +40,7 @@ RUNMAKE=true
 ALLTARGET=alldefconfig
 WARNREDUN=false
 OUTPUT=.
+MAKE_ARGS=""
 
 while true; do
 	case $1 in
@@ -59,6 +61,11 @@ while true; do
 	"-r")
 		WARNREDUN=true
 		shift
+		continue
+		;;
+	"-a")
+		MAKE_ARGS=$2
+		shift 2
 		continue
 		;;
 	"-O")
@@ -139,7 +146,7 @@ fi
 # Use the merged file as the starting point for:
 # alldefconfig: Fills in any missing symbols with Kconfig default
 # allnoconfig: Fills in any missing symbols with # CONFIG_* is not set
-make KCONFIG_ALLCONFIG=$TMP_FILE $OUTPUT_ARG $ALLTARGET
+make $MAKE_ARGS KCONFIG_ALLCONFIG=$TMP_FILE $OUTPUT_ARG $ALLTARGET
 
 
 # Check all specified config values took (might have missed-dependency issues)
