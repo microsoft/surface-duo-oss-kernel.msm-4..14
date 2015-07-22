@@ -186,7 +186,6 @@ static struct platform_driver qcom_a53_driver = {
 };
 
 module_platform_driver(qcom_a53_driver);
-arch_initcall(qcom_a53_driver_init);
 
 MODULE_DESCRIPTION("Qualcomm A53 Clock Driver");
 MODULE_LICENSE("GPL v2");
