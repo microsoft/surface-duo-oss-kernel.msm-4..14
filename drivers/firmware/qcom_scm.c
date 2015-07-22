@@ -16,6 +16,7 @@
  * 02110-1301, USA.
  */
 
+#include <linux/platform_device.h>
 #include <linux/cpumask.h>
 #include <linux/export.h>
 #include <linux/types.h>
@@ -94,3 +95,177 @@ int qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt, u32 *resp)
 	return __qcom_scm_hdcp_req(req, req_cnt, resp);
 }
 EXPORT_SYMBOL(qcom_scm_hdcp_req);
+
+/**
+ * qcom_scm_pas_supported() - Check if the peripheral authentication service is
+ *			      available for the given peripherial
+ * @peripheral:	peripheral id
+ *
+ * Returns true if PAS is supported for this peripheral, otherwise false.
+ */
+bool qcom_scm_pas_supported(u32 peripheral)
+{
+	int ret;
+
+	ret = __qcom_scm_is_call_available(QCOM_SCM_SVC_PIL,
+					   QCOM_SCM_PAS_IS_SUPPORTED_CMD);
+	if (ret <= 0)
+		return false;
+
+	return __qcom_scm_pas_supported(peripheral);
+}
+EXPORT_SYMBOL(qcom_scm_pas_supported);
+
+/**
+ * qcom_scm_pas_init_image() - Initialize peripheral authentication service
+ *			       state machine for a given peripheral, using the
+ *			       metadata
+ * @peripheral: peripheral id
+ * @metadata:	pointer to memory containing ELF header, program header table
+ *		and optional blob of data used for authenticating the metadata
+ *		and the rest of the firmware
+ * @size:	size of the metadata
+ *
+ * Returns 0 on success.
+ */
+int qcom_scm_pas_init_image(struct device *dev, u32 peripheral, const void *metadata, size_t size)
+{
+	return __qcom_scm_pas_init_image(dev, peripheral, metadata, size);
+}
+EXPORT_SYMBOL(qcom_scm_pas_init_image);
+
+/**
+ * qcom_scm_pas_mem_setup() - Prepare the memory related to a given peripheral
+ *			      for firmware loading
+ * @peripheral:	peripheral id
+ * @addr:	start address of memory area to prepare
+ * @size:	size of the memory area to prepare
+ *
+ * Returns 0 on success.
+ */
+int qcom_scm_pas_mem_setup(u32 peripheral, phys_addr_t addr, phys_addr_t size)
+{
+	return __qcom_scm_pas_mem_setup(peripheral, addr, size);
+}
+EXPORT_SYMBOL(qcom_scm_pas_mem_setup);
+
+/**
+ * qcom_scm_pas_auth_and_reset() - Authenticate the given peripheral firmware
+ *				   and reset the remote processor
+ * @peripheral:	peripheral id
+ *
+ * Return 0 on success.
+ */
+int qcom_scm_pas_auth_and_reset(u32 peripheral)
+{
+	return __qcom_scm_pas_auth_and_reset(peripheral);
+}
+EXPORT_SYMBOL(qcom_scm_pas_auth_and_reset);
+
+/**
+ * qcom_scm_pas_shutdown() - Shut down the remote processor
+ * @peripheral: peripheral id
+ *
+ * Returns 0 on success.
+ */
+int qcom_scm_pas_shutdown(u32 peripheral)
+{
+	return __qcom_scm_pas_shutdown(peripheral);
+}
+EXPORT_SYMBOL(qcom_scm_pas_shutdown);
+
+int qcom_scm_pil_init_image_cmd(u32 proc, u64 image_addr)
+{
+	return __qcom_scm_pil_init_image_cmd(proc, image_addr);
+}
+EXPORT_SYMBOL(qcom_scm_pil_init_image_cmd);
+
+int qcom_scm_pil_mem_setup_cmd(u32 proc, u64 start_addr, u32 len)
+{
+	return __qcom_scm_pil_mem_setup_cmd(proc, start_addr, len);
+}
+EXPORT_SYMBOL(qcom_scm_pil_mem_setup_cmd);
+
+int qcom_scm_pil_auth_and_reset_cmd(u32 proc)
+{
+	return __qcom_scm_pil_auth_and_reset_cmd(proc);
+}
+EXPORT_SYMBOL(qcom_scm_pil_auth_and_reset_cmd);
+
+int qcom_scm_pil_shutdown_cmd(u32 proc)
+{
+	return __qcom_scm_pil_shutdown_cmd(proc);
+}
+EXPORT_SYMBOL(qcom_scm_pil_shutdown_cmd);
+
+int qcom_scm_iommu_dump_fault_regs(u32 id, u32 context, u64 addr, u32 len)
+{
+	return __qcom_scm_iommu_dump_fault_regs(id, context, addr, len);
+}
+EXPORT_SYMBOL(qcom_scm_iommu_dump_fault_regs);
+
+int qcom_scm_iommu_set_cp_pool_size(u32 size, u32 spare)
+{
+	return __qcom_scm_iommu_set_cp_pool_size(size, spare);
+}
+EXPORT_SYMBOL(qcom_scm_iommu_set_cp_pool_size);
+
+int qcom_scm_iommu_secure_ptbl_size(u32 spare, int psize[2])
+{
+	return __qcom_scm_iommu_secure_ptbl_size(spare, psize);
+}
+EXPORT_SYMBOL(qcom_scm_iommu_secure_ptbl_size);
+
+int qcom_scm_iommu_secure_ptbl_init(u64 addr, u32 size, u32 spare)
+{
+	return __qcom_scm_iommu_secure_ptbl_init(addr, size, spare);
+}
+EXPORT_SYMBOL(qcom_scm_iommu_secure_ptbl_init);
+
+int qcom_scm_iommu_secure_map(u64 list, u32 list_size, u32 size,
+			      u32 id, u32 ctx_id, u64 va, u32 info_size,
+			      u32 flags)
+{
+	return __qcom_scm_iommu_secure_map(list, list_size, size, id,
+					   ctx_id, va, info_size, flags);
+}
+EXPORT_SYMBOL(qcom_scm_iommu_secure_map);
+
+int qcom_scm_iommu_secure_unmap(u32 id, u32 ctx_id, u64 va, u32 size, u32 flags)
+{
+	return __qcom_scm_iommu_secure_unmap(id, ctx_id, va, size, flags);
+}
+EXPORT_SYMBOL(qcom_scm_iommu_secure_unmap);
+
+int qcom_scm_is_call_available(u32 svc_id, u32 cmd_id)
+{
+	return __qcom_scm_is_call_available(svc_id, cmd_id);
+}
+EXPORT_SYMBOL(qcom_scm_is_call_available);
+
+int qcom_scm_get_feat_version(u32 feat)
+{
+	return __qcom_scm_get_feat_version(feat);
+}
+EXPORT_SYMBOL(qcom_scm_get_feat_version);
+
+int qcom_scm_restore_sec_cfg(u32 device_id, u32 spare)
+{
+	return __qcom_scm_restore_sec_cfg(device_id, spare);
+}
+EXPORT_SYMBOL(qcom_scm_restore_sec_cfg);
+
+int qcom_scm_set_video_state(u32 state, u32 spare)
+{
+	return __qcom_scm_set_video_state(state, spare);
+}
+EXPORT_SYMBOL(qcom_scm_set_video_state);
+
+int qcom_scm_mem_protect_video_var(u32 start, u32 size,
+				   u32 nonpixel_start,
+				   u32 nonpixel_size)
+{
+	return __qcom_scm_mem_protect_video_var(start, size, nonpixel_start,
+						nonpixel_size);
+}
+EXPORT_SYMBOL(qcom_scm_mem_protect_video_var);
