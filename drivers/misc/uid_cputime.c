@@ -108,9 +108,11 @@ static int uid_stat_show(struct seq_file *m, void *v)
 							uid_entry->active_utime;
 		cputime_t total_stime = uid_entry->stime +
 							uid_entry->active_stime;
-		seq_printf(m, "%d: %u %u\n", uid_entry->uid,
-						cputime_to_usecs(total_utime),
-						cputime_to_usecs(total_stime));
+		seq_printf(m, "%d: %llu %llu\n", uid_entry->uid,
+			(unsigned long long)jiffies_to_msecs(
+				cputime_to_jiffies(total_utime)) * USEC_PER_MSEC,
+			(unsigned long long)jiffies_to_msecs(
+				cputime_to_jiffies(total_stime)) * USEC_PER_MSEC);
 	}
 
 	mutex_unlock(&uid_lock);
