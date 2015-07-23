@@ -18,6 +18,8 @@
 #include "msm_drv.h"
 #include "msm_mmu.h"
 
+#define DUMMY_CONTEXT 0x1
+
 struct msm_iommu {
 	struct msm_mmu base;
 	struct iommu_domain *domain;
@@ -44,7 +46,13 @@ static int msm_iommu_attach(struct msm_mmu *mmu, const char **names, int cnt)
 			dev_warn(dev, "couldn't get %s context", names[i]);
 			continue;
 		}
-		ret = iommu_attach_device(iommu->domain, ctx);
+
+		if (ctx == (struct device *)DUMMY_CONTEXT) {
+			return iommu_attach_device(iommu->domain, mmu->dev);
+		} else {
+			ret = iommu_attach_device(iommu->domain, ctx);
+		}
+
 		if (ret) {
 			dev_warn(dev, "could not attach iommu to %s", names[i]);
 			return ret;
@@ -64,7 +72,13 @@ static void msm_iommu_detach(struct msm_mmu *mmu, const char **names, int cnt)
 		struct device *ctx = msm_iommu_get_ctx(names[i]);
 		if (IS_ERR_OR_NULL(ctx))
 			continue;
-		iommu_detach_device(iommu->domain, ctx);
+
+		if (ctx == (struct device *)DUMMY_CONTEXT) {
+			iommu_detach_device(iommu->domain, mmu->dev);
+			break;
+		} else {
+			iommu_detach_device(iommu->domain, ctx);
+		}
 	}
 }
 
