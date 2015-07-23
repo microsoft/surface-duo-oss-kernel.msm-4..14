@@ -44,6 +44,8 @@
 #include "msm_iommu_hw-8xxx.h"
 #include "qcom_iommu_v0.h"
 
+#define DUMMY_CONTEXT 0x1
+
 #define MRC(reg, processor, op1, crn, crm, op2)				\
 __asm__ __volatile__ (							\
 "   mrc   "   #processor "," #op1 ", %0,"  #crn "," #crm "," #op2 "\n"  \
@@ -72,6 +74,12 @@ struct qcom_domain_priv {
 	struct iommu_domain domain;
 	struct list_head iommu_list;  /* list of attached 'struct qcom_iommu' */
 };
+
+struct device *msm_iommu_get_ctx(const char *ctx_name)
+{
+	return (struct device *) DUMMY_CONTEXT;
+}
+EXPORT_SYMBOL(msm_iommu_get_ctx);
 
 static struct qcom_domain_priv *to_qcom_domain(struct iommu_domain *dom)
 {
