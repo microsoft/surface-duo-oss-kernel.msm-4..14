@@ -9,6 +9,7 @@
 #include <linux/cpu.h>
 #include <linux/delay.h>
 #include <linux/reboot.h>
+#include <linux/console.h>
 
 #include <asm/cacheflush.h>
 #include <asm/idmap.h>
@@ -23,6 +24,29 @@ typedef void (*phys_reset_t)(unsigned long);
 void (*arm_pm_restart)(enum reboot_mode reboot_mode, const char *cmd);
 void (*pm_power_off)(void);
 EXPORT_SYMBOL(pm_power_off);
+
+#ifdef CONFIG_ARM_FLUSH_CONSOLE_ON_RESTART
+void arm_machine_flush_console(void)
+{
+	printk("\n");
+	pr_emerg("Restarting %s\n", linux_banner);
+	if (console_trylock()) {
+		console_unlock();
+		return;
+	}
+
+	mdelay(50);
+
+	local_irq_disable();
+	if (!console_trylock())
+		pr_emerg("arm_restart: Console was locked! Busting\n");
+	else
+		pr_emerg("arm_restart: Console was locked!\n");
+	console_unlock();
+}
+#else
+void arm_machine_flush_console(void) {}
+#endif
 
 /*
  * A temporary stack to use for CPU reset. This is static so that we
@@ -92,6 +116,16 @@ void soft_restart(unsigned long addr)
  */
 void machine_shutdown(void)
 {
+#ifdef CONFIG_SMP
+	/*
+	 * Disable preemption so we're guaranteed to
+	 * run to power off or reboot and prevent
+	 * the possibility of switching to another
+	 * thread that might wind up blocking on
+	 * one of the stopped CPUs.
+	 */
+	preempt_disable();
+#endif
 	disable_nonboot_cpus();
 }
 
@@ -139,6 +173,10 @@ void machine_restart(char *cmd)
 {
 	local_irq_disable();
 	smp_send_stop();
+
+	/* Flush the console to make sure all the relevant messages make it
+	 * out to the console drivers */
+	arm_machine_flush_console();
 
 	if (arm_pm_restart)
 		arm_pm_restart(reboot_mode, cmd);

@@ -43,6 +43,7 @@ struct pptp_opt {
 	u32 seq_sent, seq_recv;
 	int ppp_flags;
 };
+
 #include <net/sock.h>
 
 struct pppox_sock {
