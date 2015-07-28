@@ -33,15 +33,11 @@
 
 #define	WCNSS_NV_DOWNLOAD_REQ	0x01000002
 #define	WCNSS_NV_DOWNLOAD_RSP	0x01000003
+#define WCNSS_CBC_COMPLETE_IND  0x0100000C
 
-struct wcn36xx_ctrl_nv_data {
-	struct workqueue_struct *wq;
-	struct work_struct	rx_work;
-	struct work_struct	download_work;
-	struct completion	smd_open_compl;
-	smd_channel_t		*smd_ch;
-	struct platform_device	*pdev;
-};
+/*time out 10s for the firmware status ready indicator */
+#define FW_READY_TIMEOUT        (10000)
+
 
 struct smd_msg_hdr {
 	unsigned int msg_type;
