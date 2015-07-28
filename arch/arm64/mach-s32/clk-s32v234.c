@@ -13,55 +13,56 @@
 #include <dt-bindings/clock/s32v234-clock.h>
 
 #include "clk.h"
+
 /* Source Reset Control: General Purpose Register 1 */
-#define SRC_GPR1				(src_base + 0x100)
-#define SRC_GPR1_ARMPLL_SRC_SEL_OFFSET		(27)
-#define SRC_GPR1_ENETPLL_SRC_SEL_OFFSET		(28)
-#define SRC_GPR1_DDRPLL_SRC_SEL_OFFSET		(29)
+#define SRC_GPR1			(src_base + 0x100)
+#define SRC_GPR1_ARMPLL_SRC_SEL_OFFSET	(27)
+#define SRC_GPR1_ENETPLL_SRC_SEL_OFFSET	(28)
+#define SRC_GPR1_DDRPLL_SRC_SEL_OFFSET	(29)
 #define SRC_GPR1_PERIPHPLL_SRC_SEL_OFFSET	(30)
 #define SRC_GPR1_VIDEOPLL_SRC_SEL_OFFSET	(31)
 #define SRC_GPR1_XPLL_SRC_SEL_SIZE		(1)
 
 /* Clock Generation Module 0 (CGM0) */
-#define ARMPLL_PLLDIG(mc_cgm)				(mc_cgm)
-#define ARMPLL_PLLDIG_DFS(mc_cgm)			((mc_cgm) + 0x40)
+#define ARMPLL_PLLDIG(mc_cgm)			(mc_cgm)
+#define ARMPLL_PLLDIG_DFS(mc_cgm)		((mc_cgm) + 0x40)
 /* TODO: Update these values when SOC is available */
-#define ARMPLL_PLLDIG_PLLDV_MFD			(50)
-#define ARMPLL_PLLDIG_PLLDV_MFN			(0)
-#define ARMPLL_PLLDIG_PLLDV_RFDPHI0		(1)
-#define ARMPLL_PLLDIG_PLLDV_RFDPHI1		(1)
+#define ARMPLL_PLLDIG_PLLDV_MFD		(50)
+#define ARMPLL_PLLDIG_PLLDV_MFN		(0)
+#define ARMPLL_PLLDIG_PLLDV_RFDPHI0	(1)
+#define ARMPLL_PLLDIG_PLLDV_RFDPHI1	(1)
 #define ARMPLL_PLLDIG_DFS0_MFN		(194)
 #define ARMPLL_PLLDIG_DFS1_MFN		(170)
 #define ARMPLL_PLLDIG_DFS2_MFN		(170)
-#define PERIPHPLL_PLLDIG(mc_cgm)			((mc_cgm) + 0x80)
-#define PERIPHPLL_PLLDIG_PLLDV_MFD		(30)
-#define PERIPHPLL_PLLDIG_PLLDV_MFN		(0)
-#define PERIPHPLL_PLLDIG_PLLDV_RFDPHI0		(0x1)
-#define PERIPHPLL_PLLDIG_PLLDV_RFDPHI1		(0x1)
-#define ENETPLL_PLLDIG(mc_cgm)				((mc_cgm) + 0x100)
-#define ENETPLL_PLLDIG_DFS(mc_cgm)				((mc_cgm) + 0x100 + 0x40)
-#define ENETPLL_PLLDIG_PLLDV_MFD			(50)
-#define ENETPLL_PLLDIG_PLLDV_MFN			(0)
-#define ENETPLL_PLLDIG_PLLDV_RFDPHI0		(0x1)
-#define ENETPLL_PLLDIG_PLLDV_RFDPHI1		(0x1)
+#define PERIPHPLL_PLLDIG(mc_cgm)	((mc_cgm) + 0x80)
+#define PERIPHPLL_PLLDIG_PLLDV_MFD	(30)
+#define PERIPHPLL_PLLDIG_PLLDV_MFN	(0)
+#define PERIPHPLL_PLLDIG_PLLDV_RFDPHI0	(0x1)
+#define PERIPHPLL_PLLDIG_PLLDV_RFDPHI1	(0x1)
+#define ENETPLL_PLLDIG(mc_cgm)		((mc_cgm) + 0x100)
+#define ENETPLL_PLLDIG_DFS(mc_cgm)	((mc_cgm) + 0x100 + 0x40)
+#define ENETPLL_PLLDIG_PLLDV_MFD	(50)
+#define ENETPLL_PLLDIG_PLLDV_MFN	(0)
+#define ENETPLL_PLLDIG_PLLDV_RFDPHI0	(0x1)
+#define ENETPLL_PLLDIG_PLLDV_RFDPHI1	(0x1)
 #define ENETPLL_PLLDIG_DFS0_MFN		(219)
 #define ENETPLL_PLLDIG_DFS1_MFN		(219)
 #define ENETPLL_PLLDIG_DFS2_MFN		(32)
 #define ENETPLL_PLLDIG_DFS3_MFN		(0)
-#define DDRPLL_PLLDIG(mc_cgm)				((mc_cgm) + 0x180)
-#define DDRPLL_PLLDIG_DFS(mc_cgm)			((mc_cgm) + 0x180 + 0x40)
+#define DDRPLL_PLLDIG(mc_cgm)		((mc_cgm) + 0x180)
+#define DDRPLL_PLLDIG_DFS(mc_cgm)	((mc_cgm) + 0x180 + 0x40)
 #define DDRPLL_PLLDIG_PLLDV_MFD		(53)
 #define DDRPLL_PLLDIG_PLLDV_MFN		(6144)
-#define DDRPLL_PLLDIG_PLLDV_RFDPHI0		(0x1)
-#define DDRPLL_PLLDIG_PLLDV_RFDPHI1		(0x1)
+#define DDRPLL_PLLDIG_PLLDV_RFDPHI0	(0x1)
+#define DDRPLL_PLLDIG_PLLDV_RFDPHI1	(0x1)
 #define DDRPLL_PLLDIG_DFS0_MFN		(33)
 #define DDRPLL_PLLDIG_DFS1_MFN		(33)
 #define DDRPLL_PLLDIG_DFS2_MFN		(11)
-#define VIDEOPLL_PLLDIG(mc_cgm)				((mc_cgm)+ 0x200)
-#define VIDEOPLL_PLLDIG_PLLDV_MFD		(30)
-#define VIDEOPLL_PLLDIG_PLLDV_MFN		(0)
-#define VIDEOPLL_PLLDIG_PLLDV_RFDPHI0		(0x1)
-#define VIDEOPLL_PLLDIG_PLLDV_RFDPHI1		(0x1)
+#define VIDEOPLL_PLLDIG(mc_cgm)		((mc_cgm)+ 0x200)
+#define VIDEOPLL_PLLDIG_PLLDV_MFD	(30)
+#define VIDEOPLL_PLLDIG_PLLDV_MFN	(0)
+#define VIDEOPLL_PLLDIG_PLLDV_RFDPHI0	(0x1)
+#define VIDEOPLL_PLLDIG_PLLDV_RFDPHI1	(0x1)
 
 /* MC_CGM_SC_SS */
 #define CGM_SC_SS(mc_cgm)		(((mc_cgm) + 0x7E4))
@@ -84,9 +85,9 @@
 #define MC_CGM_ACn_DCm_PREDIV_OFFSET	(16)
 #define MC_CGM_ACn_DCm_PREDIV_SIZE	(5)
 #define MC_CGM_ACn_DCm_DE		(1 << 31)
- 
+
  /*
-  *  MC_CGM_ACn_SC/MC_CGM_ACn_SS
+  * MC_CGM_ACn_SC/MC_CGM_ACn_SS
   */
  #define CGM_ACn_SC(mc_cgm,ac)		(((mc_cgm) + 0x800) + ((ac) * 0x20))
  #define CGM_ACn_SS(mc_cgm,ac)		(((mc_cgm) + 0x804) + ((ac) * 0x24))
@@ -99,20 +100,20 @@
 /* TODO: Implement a specific driver only for MC_ME register when
  * current clock framework is stable.
  */
- 
+
 /* MC_ME registers definitions */
 /* MC_ME_GS */
- #define MC_ME_GS(mc_me)			((mc_me) + 0x00000000)
- 
+ #define MC_ME_GS(mc_me)		((mc_me) + 0x00000000)
+
 /* MC_ME_MCTL */
-#define MC_ME_MCTL(mc_me)			((mc_me) + 0x00000004)
-#define MC_ME_MCTL_RESET			(0x0 << 28)
-#define MC_ME_MCTL_TEST				(0x1 << 28)
-#define MC_ME_MCTL_DRUN				(0x3 << 28)
-#define MC_ME_MCTL_RUN0				(0x4 << 28)
-#define MC_ME_MCTL_RUN1				(0x5 << 28)
-#define MC_ME_MCTL_RUN2				(0x6 << 28)
-#define MC_ME_MCTL_RUN3				(0x7 << 28)
+#define MC_ME_MCTL(mc_me)		((mc_me) + 0x00000004)
+#define MC_ME_MCTL_RESET		(0x0 << 28)
+#define MC_ME_MCTL_TEST			(0x1 << 28)
+#define MC_ME_MCTL_DRUN			(0x3 << 28)
+#define MC_ME_MCTL_RUN0			(0x4 << 28)
+#define MC_ME_MCTL_RUN1			(0x5 << 28)
+#define MC_ME_MCTL_RUN2			(0x6 << 28)
+#define MC_ME_MCTL_RUN3			(0x7 << 28)
 
 #define MC_ME_GS_S_MTRANS		(1 << 27)
 
@@ -124,22 +125,22 @@
  * MC_ME_DRUN_MC
  * MC_ME_RUNn_MC
  */
-#define MC_ME_RESET_MC(mc_me)			((mc_me) + 0x00000020)
-#define MC_ME_TEST_MC(mc_me)			((mc_me) + 0x00000024)
-#define MC_ME_DRUN_MC(mc_me)			((mc_me) + 0x0000002C)
-#define MC_ME_RUNn_MC(mc_me,n)			((mc_me) + 0x00000030 + 0x4 * (n))
-#define MC_ME_MODE_MC_SYSCLK_OFFSET		(0)
-#define MC_ME_MODE_MC_SYSCLK_SIZE		(0x3)
-#define MC_ME_MODE_MC_SYSCLK(val)		(MC_ME_MODE_MC_SYSCLK_MASK& (val))
-#define MC_ME_MODE_MC_SYSCLK_MASK		(0x0000000F)
-#define MC_ME_MODE_MC_FIRCON			(1 << 4)
-#define MC_ME_MODE_MC_XOSCON			(1 << 5)
-#define MC_ME_MODE_MC_ARMPLL			(1 << 6)
-#define MC_ME_MODE_MC_PERIPHPLL			(1 << 7)
-#define MC_ME_MODE_MC_ENETPLL			(1 << 8)
-#define MC_ME_MODE_MC_DDRPLL			(1 << 9)
-#define MC_ME_MODE_MC_VIDEOPLL			(1 << 10)
-#define MC_ME_MODE_MC_MVRON				(1 << 20)
+#define MC_ME_RESET_MC(mc_me)		((mc_me) + 0x00000020)
+#define MC_ME_TEST_MC(mc_me)		((mc_me) + 0x00000024)
+#define MC_ME_DRUN_MC(mc_me)		((mc_me) + 0x0000002C)
+#define MC_ME_RUNn_MC(mc_me,n)		((mc_me) + 0x00000030 + 0x4 * (n))
+#define MC_ME_MODE_MC_SYSCLK_OFFSET	(0)
+#define MC_ME_MODE_MC_SYSCLK_SIZE	(0x3)
+#define MC_ME_MODE_MC_SYSCLK(val)	(MC_ME_MODE_MC_SYSCLK_MASK& (val))
+#define MC_ME_MODE_MC_SYSCLK_MASK	(0x0000000F)
+#define MC_ME_MODE_MC_FIRCON		(1 << 4)
+#define MC_ME_MODE_MC_XOSCON		(1 << 5)
+#define MC_ME_MODE_MC_ARMPLL		(1 << 6)
+#define MC_ME_MODE_MC_PERIPHPLL		(1 << 7)
+#define MC_ME_MODE_MC_ENETPLL		(1 << 8)
+#define MC_ME_MODE_MC_DDRPLL		(1 << 9)
+#define MC_ME_MODE_MC_VIDEOPLL		(1 << 10)
+#define MC_ME_MODE_MC_MVRON		(1 << 20)
 
 /* MC_ME_DRUN_SEC_CC_I */
 #define MC_ME_DRUN_SEC_CC_I(mc_me)		((mc_me) + 0x260)
@@ -154,17 +155,17 @@
 #define MC_ME_MODE_SEC_CC_I_SYSCLK3_SIZE	(0x3)
 
 /* MC_ME_RUN_PCn */
-#define MC_ME_RUN_PCn(mc_me,n)			(mc_me + 0x00000080 + 0x4 * (n))
+#define MC_ME_RUN_PCn(mc_me,n)		(mc_me + 0x00000080 + 0x4 * (n))
 
-#define MC_ME_RUN_PCn_MIN_IDX			(0)
-#define MC_ME_RUN_PCn_MAX_IDX			(7)
-#define MC_ME_RUN_PCn_RESET			(1 << 0)
-#define MC_ME_RUN_PCn_TEST			(1 << 1)
-#define MC_ME_RUN_PCn_DRUN			(1 << 3)
-#define MC_ME_RUN_PCn_RUN0			(1 << 4)
-#define MC_ME_RUN_PCn_RUN1			(1 << 5)
-#define MC_ME_RUN_PCn_RUN2			(1 << 6)
-#define MC_ME_RUN_PCn_RUN3			(1 << 7)
+#define MC_ME_RUN_PCn_MIN_IDX		(0)
+#define MC_ME_RUN_PCn_MAX_IDX		(7)
+#define MC_ME_RUN_PCn_RESET		(1 << 0)
+#define MC_ME_RUN_PCn_TEST		(1 << 1)
+#define MC_ME_RUN_PCn_DRUN		(1 << 3)
+#define MC_ME_RUN_PCn_RUN0		(1 << 4)
+#define MC_ME_RUN_PCn_RUN1		(1 << 5)
+#define MC_ME_RUN_PCn_RUN2		(1 << 6)
+#define MC_ME_RUN_PCn_RUN3		(1 << 7)
 
 static void entry_to_target_mode( void __iomem * mc_me, u32 mode )
 {
@@ -317,15 +318,15 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 
 	clk[S32V234_CLK_CORE] = s32_clk_divider("core", "cores_sels",
 		CGM_SC_DCn(mc_cgm1_base,0), MC_CGM_SC_DCn_PREDIV_OFFSET,
-		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE, MC_CGM_ACn_DCm_PREDIV(0));
+		MC_CGM_SC_DCn_PREDIV_SIZE);
 
 	clk[S32V234_CLK_CORE2] = s32_clk_divider("core2", "cores_sels",
 		CGM_SC_DCn(mc_cgm1_base,1), MC_CGM_SC_DCn_PREDIV_OFFSET,
-		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE, MC_CGM_ACn_DCm_PREDIV(1));
+		MC_CGM_SC_DCn_PREDIV_SIZE);
 
 	clk[S32V234_CLK_COREDBG] = s32_clk_divider("coredbgcoredbg", "cores_sels",
 		CGM_SC_DCn(mc_cgm1_base,2), MC_CGM_SC_DCn_PREDIV_OFFSET,
-		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE, MC_CGM_ACn_DCm_PREDIV(1));
+		MC_CGM_SC_DCn_PREDIV_SIZE);
 
 	clk[S32V234_CLK_SYS_SEL] = s32_clk_mux("sys_sel",
 		MC_ME_RUNn_MC(mc_me_base, 0),
@@ -335,15 +336,15 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 
 	clk[S32V234_CLK_SYS3] = s32_clk_divider("sys3", "sys_sel",
 		CGM_SC_DCn(mc_cgm0_base, 0), MC_CGM_SC_DCn_PREDIV_OFFSET,
-		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE, MC_CGM_ACn_DCm_PREDIV(0));
+		MC_CGM_SC_DCn_PREDIV_SIZE);
 
 	clk[S32V234_CLK_SYS6] = s32_clk_divider("sys6", "sys_sel",
 		CGM_SC_DCn(mc_cgm0_base, 1), MC_CGM_SC_DCn_PREDIV_OFFSET,
-		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE, MC_CGM_ACn_DCm_PREDIV(1));
+		MC_CGM_SC_DCn_PREDIV_SIZE);
 
 	clk[S32V234_CLK_SYS6_DIV2] = s32_clk_divider("sys6_div2", "sys_sel",
 		CGM_SC_DCn(mc_cgm0_base, 2), MC_CGM_SC_DCn_PREDIV_OFFSET,
-		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE, MC_CGM_ACn_DCm_PREDIV(1));
+		MC_CGM_SC_DCn_PREDIV_SIZE);
 
 	/* enable ARMPLL */
 	enable_clocks_sources( 0, MC_ME_MODE_MC_ARMPLL, MC_ME_RUNn_MC(mc_me_base, 0) );
@@ -375,11 +376,11 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 
 	clk[S32V234_CLK_PERI] = s32_clk_divider("peri", "perifray_sel",
 		CGM_ACn_DCm(mc_cgm0_base,5,0), MC_CGM_ACn_DCm_PREDIV_OFFSET,
-		MC_CGM_ACn_DCm_PREDIV_SIZE, MC_CGM_ACn_DCm_DE, MC_CGM_ACn_DCm_PREDIV(0));
+		MC_CGM_ACn_DCm_PREDIV_SIZE);
 
 	clk[S32V234_CLK_PERI_FRAY_PLL] = s32_clk_divider("perifray", "perifray_sel",
 		CGM_ACn_DCm(mc_cgm0_base,5,1), MC_CGM_SC_DCn_PREDIV_OFFSET,
-		MC_CGM_ACn_DCm_PREDIV_SIZE, MC_CGM_ACn_DCm_DE, MC_CGM_ACn_DCm_PREDIV(0));
+		MC_CGM_ACn_DCm_PREDIV_SIZE);
 
 	/* Lin Clock */
 	clk[S32V234_CLK_LIN_SEL] = s32_clk_mux("lin_sel",
@@ -390,7 +391,7 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 
 	clk[S32V234_CLK_LIN] = s32_clk_divider("lin", "lin_sel",
 		CGM_ACn_DCm(mc_cgm0_base,3,0), MC_CGM_ACn_DCm_PREDIV_OFFSET,
-		MC_CGM_ACn_DCm_PREDIV_SIZE, MC_CGM_ACn_DCm_DE,  MC_CGM_ACn_DCm_PREDIV(1));
+		MC_CGM_ACn_DCm_PREDIV_SIZE);
 
 	clk[S32V234_CLK_LIN_IPG] = s32_clk_fixed_factor("lin_ipg",
 		"lin", 1, 2);
@@ -405,7 +406,7 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 		ENETPLL_PLLDIG_PLLDV_RFDPHI0, ENETPLL_PLLDIG_PLLDV_RFDPHI1);
 
 	clk[S32V234_CLK_ENETPLL_PHI0] = s32_clk_plldig_phi(S32_PLLDIG_ENET,
-		"enetpll_phi0", "enetphpll_vco", PERIPHPLL_PLLDIG(mc_cgm0_base), 0);
+		"enetpll_phi0", "enetphpll_vco", ENETPLL_PLLDIG(mc_cgm0_base), 0);
 
 	clk[S32V234_CLK_ENETPLL_PHI1] = s32_clk_plldig_phi(S32_PLLDIG_ENET,
 		"enetpll_phi1", "enetpll_vco", ENETPLL_PLLDIG(mc_cgm0_base), 1);
@@ -429,12 +430,9 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 		MC_CGM_ACn_SEL_SIZE,
 		sdhc_sels, ARRAY_SIZE(sdhc_sels));
 
-/*
 	clk[S32V234_CLK_SDHC] = s32_clk_divider("sdhc", "sdhc_sel",
 		CGM_ACn_DCm(mc_cgm0_base, 15, 0), MC_CGM_ACn_DCm_PREDIV_OFFSET,
-		MC_CGM_ACn_DCm_PREDIV_SIZE, MC_CGM_ACn_DCm_DE, MC_CGM_ACn_DCm_PREDIV(9));
-*/
-	clk[S32V234_CLK_SDHC] = s32_clk_fixed("sdhc", 25000000);
+		MC_CGM_ACn_DCm_PREDIV_SIZE);
 
 	/* enable ENETPLL */
 	enable_clocks_sources( 0, MC_ME_MODE_MC_ENETPLL, MC_ME_RUNn_MC(mc_me_base, 0) );
