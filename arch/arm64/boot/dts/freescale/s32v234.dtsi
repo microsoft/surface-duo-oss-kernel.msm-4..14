@@ -31,19 +31,19 @@
 		};
 	};
 
-clocks {
-	#address-cells = <1>;
-	#size-cells = <0>;
+	clocks {
+		#address-cells = <1>;
+		#size-cells = <0>;
 
-	fxosc {
-		compatible = "fixed-clock";
-		clock-frequency = <40000000>;
+		fxosc {
+			compatible = "fixed-clock";
+			clock-frequency = <40000000>;
+		};
+		firc {
+			compatible = "fixed-clock";
+			clock-frequency = <48000000>;
+		};
 	};
-	firc {
-		compatible = "fixed-clock";
-		clock-frequency = <48000000>;
-	};
-};
 
 	memory_DDR0@80000000 {
 		device_type = "memory";
@@ -141,6 +141,22 @@ clocks {
 				reg = <0x0 0x4004A000 0x0 0x1000>;
 			};
 
+			i2c0: i2c@40051000 {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				compatible = "fsl,s32v234-i2c";
+				reg = <0x0 0x40051000 0x0 0x1000>;
+				interrupts =<0 67 4>;
+				clocks = <&clks S32V234_CLK_SYS6>;
+				clock-names = "ipg";
+				/* TODO: Update the dma when edma ip is activated
+				dmas = <&edma0 0 50>,
+				<&edma0 0 51>;
+				dma-names = "rx","tx";
+				*/
+				status = "disabled";
+			};
+		
 			uart0:serial@40053000 {
 				compatible = "fsl,s32v234-linflexuart";
 				reg = <0x0 0x40053000 0x0 0x1000>;
@@ -154,8 +170,8 @@ clocks {
 				reg = <0x0 0x4005D000 0x0 0x1000>;
 				interrupts = <0 28 4>;
 				clocks = <&clks S32V234_CLK_SDHC>,
-						 <&clks S32V234_CLK_SDHC>,
-						 <&clks S32V234_CLK_SDHC>;
+					 <&clks S32V234_CLK_SDHC>,
+					 <&clks S32V234_CLK_SDHC>;
 				clock-names = "ipg", "ahb", "per";
 				status = "disabled";
 			};
@@ -168,23 +184,62 @@ clocks {
 		};
 
 	};
-		pcie: pcie@0x72000000 {
-			compatible = "fsl,s32v234-pcie";
-			reg = <0 0x72ffc000 0 0x4000>, <0 0x72f00000 0 0x80000>;
-			reg-names = "dbi", "config";
-			#address-cells = <3>;
-			#size-cells = <2>;
-			device_type = "pci";
-			ranges = <0x81000000 0 0          0 0x72f80000 0 0x00010000 /* downstream I/O */
-				  0x82000000 0 0x72000000 0 0x72000000 0 0x00f00000>; /* non-prefetchable memory */
-			num-lanes = <1>;
-			bus-range = <0x0 0xff>;
-			interrupts = <0 120 4>;
-			interrupt-names = "msi";
-			#interrupt-cells = <1>;
-			interrupt-map-mask = <0 0 0 0x7>;
-			interrupt-map = <0 0 0 1 &gic 0 123 4>,	<0 0 0 2 &gic 0 122 4>,	<0 0 0 3 &gic 0 121 4>,	<0 0 0 4 &gic 0 120 4>;
-			status = "okay";
+	aips1: aips-bus@40080000 {
+		compatible = "fsl,aips-bus", "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		interrupt-parent = <&gic>;
+		reg = <0x0 0x40080000 0x0 0x70000>;
+		ranges;
+	
+		i2c1: i2c@400b8000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "fsl,s32v234-i2c";
+			reg = <0x0 0x400b8000 0x0 0x1000>;
+			interrupts =<0 68 4>;
+			clocks = <&clks S32V234_CLK_SYS6>;
+			clock-names = "ipg";
+			/* TODO: Update the dma when edma ip is activated
+			dmas = <&edma0 0 50>,
+			<&edma0 0 51>;
+			dma-names = "rx","tx";
+			*/
+			status = "disabled";
 		};
+		i2c2: i2c@400ba000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			compatible = "fsl,s32v234-i2c";
+			reg = <0x0 0x400ba000 0x0 0x1000>;
+			interrupts =<0 69 4>;
+			clocks = <&clks S32V234_CLK_SYS6>;
+			clock-names = "ipg";
+			/* TODO: Update the dma when edma ip is activated
+			dmas = <&edma0 0 50>,
+			<&edma0 0 51>;
+			dma-names = "rx","tx";
+			*/
+			status = "disabled";
+		};
+	};
+	pcie: pcie@0x72000000 {
+		compatible = "fsl,s32v234-pcie";
+		reg = <0 0x72ffc000 0 0x4000>, <0 0x72f00000 0 0x80000>;
+		reg-names = "dbi", "config";
+		#address-cells = <3>;
+		#size-cells = <2>;
+		device_type = "pci";
+		ranges = <0x81000000 0 0          0 0x72f80000 0 0x00010000 /* downstream I/O */
+			  0x82000000 0 0x72000000 0 0x72000000 0 0x00f00000>; /* non-prefetchable memory */
+		num-lanes = <1>;
+		bus-range = <0x0 0xff>;
+		interrupts = <0 120 4>;
+		interrupt-names = "msi";
+		#interrupt-cells = <1>;
+		interrupt-map-mask = <0 0 0 0x7>;
+		interrupt-map = <0 0 0 1 &gic 0 123 4>,	<0 0 0 2 &gic 0 122 4>,	<0 0 0 3 &gic 0 121 4>,	<0 0 0 4 &gic 0 120 4>;
+		status = "okay";
+	};
 };
 
