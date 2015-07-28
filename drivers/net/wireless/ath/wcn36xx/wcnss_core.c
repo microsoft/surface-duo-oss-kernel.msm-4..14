@@ -3,19 +3,20 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
-#include <linux/regulator/rpm-smd-regulator.h>
 #include <linux/workqueue.h>
 #include <linux/of.h>
+#include <linux/of_platform.h>
 #include <linux/clk.h>
-#include <soc/qcom/smd.h>
-#include <soc/qcom/smsm.h>
+#include <linux/soc/qcom/smd.h>
 #include "wcn36xx.h"
 #include "wcnss_core.h"
+
+#define	WCNSS_CTRL_TIMEOUT	(msecs_to_jiffies(500))
 
 static int wcnss_core_config(struct platform_device *pdev, void __iomem *base)
 {
 	int ret = 0;
-	u32 value, iris_read = INVALID_IRIS_REG;
+	u32 value, iris_read_v = INVALID_IRIS_REG;
 	int clk_48m = 0;
 
 	value = readl_relaxed(base + SPARE_OFFSET);
@@ -111,111 +112,27 @@ int wcnss_core_prepare(struct platform_device *pdev)
 	return ret;
 }
 
-static struct wcn36xx_ctrl_nv_data ctrl_nv_data;
-static void wcn36xx_download_notify(void *data, unsigned int event)
-{
-	struct wcn36xx_ctrl_nv_data *ctrl_nv_data = data;
+struct wcnss_platform_data {
+        struct qcom_smd_channel	*channel;
+        struct completion	ack;
+        struct mutex		lock;
 
-	switch (event) {
-	case SMD_EVENT_OPEN:
-		complete(&ctrl_nv_data->smd_open_compl);
-		schedule_work(&ctrl_nv_data->download_work);
-		break;
-	case SMD_EVENT_DATA:
-		schedule_work(&ctrl_nv_data->rx_work);
-		break;
-	case SMD_EVENT_CLOSE:
-	case SMD_EVENT_STATUS:
-	case SMD_EVENT_REOPEN_READY:
-		break;
-	default:
-		pr_err("%s: SMD_EVENT (%d) not supported\n",
-			__func__, event);
-		break;
-	}
-}
+	struct work_struct	rx_work;
+	struct work_struct	download_work;
 
-static unsigned char wcnss_fw_status(struct wcn36xx_ctrl_nv_data *data)
-{
-	int len = 0;
-	int rc = 0;
+	struct qcom_smd_device	*sdev;
+};
 
-	unsigned char fw_status = 0xFF;
-
-	len = smd_read_avail(data->smd_ch);
-	if (len < 1) {
-		pr_err("%s: invalid firmware status", __func__);
-		return fw_status;
-	}
-
-	rc = smd_read(data->smd_ch, &fw_status, 1);
-	if (rc < 0) {
-		pr_err("%s: incomplete data read from smd\n", __func__);
-		return fw_status;
-	}
-	return fw_status;
-}
-
-static void wcn36xx_nv_rx_work(struct work_struct *worker)
-{
-	struct wcn36xx_ctrl_nv_data *data =
-		container_of(worker, struct wcn36xx_ctrl_nv_data, rx_work);
-	int len = 0, ret = 0;
-	unsigned char buf[sizeof(struct wcnss_version)];
-	struct smd_msg_hdr *phdr;
-
-	len = smd_read_avail(data->smd_ch);
-	if (len > 4096) {
-		pr_err("%s: frame larger than allowed size\n", __func__);
-		smd_read(data->smd_ch, NULL, len);
-		return;
-	}
-
-	if (len < sizeof(struct smd_msg_hdr))
-		return;
-
-	ret = smd_read(data->smd_ch, buf, sizeof(struct smd_msg_hdr));
-	if (ret < sizeof(struct smd_msg_hdr)) {
-		pr_err("%s: incomplete header from smd\n", __func__);
-		return;
-	}
-
-	phdr = (struct smd_msg_hdr *)buf;
-
-	switch (phdr->msg_type) {
-	case WCNSS_NV_DOWNLOAD_RSP:
-		pr_info("fw_status: %d\n", wcnss_fw_status(data));
-		break;
-	}
-	return;
-}
-
-static int wcn36xx_nv_smd_tx(struct wcn36xx_ctrl_nv_data *nv_data, void *buf, int len)
-{
-	int ret = 0;
-
-	ret = smd_write_avail(nv_data->smd_ch);
-	if (ret < len) {
-		pr_err("wcnss: no space available. %d needed. Just %d avail\n",
-			len, ret);
-		return -ENOSPC;
-	}
-	ret = smd_write(nv_data->smd_ch, buf, len);
-	if (ret < len) {
-		pr_err("wcnss: failed to write Command %d", len);
-		ret = -ENODEV;
-	}
-	return ret;
-}
-
+static struct completion fw_ready_compl;
 #define	NV_FILE_NAME	"wlan/prima/WCNSS_qcom_wlan_nv.bin"
 static void wcn36xx_nv_download_work(struct work_struct *worker)
 {
-	int ret = 0, i, retry = 3;
+	int ret = 0, i;
 	const struct firmware *nv = NULL;
-	struct wcn36xx_ctrl_nv_data *data =
-		container_of(worker, struct wcn36xx_ctrl_nv_data, download_work);
-	struct device *dev = &data->pdev->dev;
+	struct wcnss_platform_data *wcnss_data =
+		container_of(worker, struct wcnss_platform_data, download_work);
+	struct device *dev = &wcnss_data->sdev->dev;
+
 	struct nvbin_dnld_req_msg *msg;
 	const void *nv_blob_start;
 	char *pkt = NULL;
@@ -266,18 +183,12 @@ static void wcn36xx_nv_download_work(struct work_struct *worker)
 		memcpy(pkt + sizeof(struct nvbin_dnld_req_msg),
 			nv_blob_start + i * NV_FRAGMENT_SIZE, pkt_len);
 
-		ret = wcn36xx_nv_smd_tx(data, pkt, msg->hdr.msg_len);
-
-		while ((ret == -ENOSPC) && (retry++ <= 3)) {
-			dev_err(dev, "smd_tx failed, %d times retry\n", retry);
-			msleep(100);
-			ret = wcn36xx_nv_smd_tx(data, pkt, msg->hdr.msg_len);
-		}
-
-		if (ret < 0) {
+		ret = qcom_smd_send(wcnss_data->channel, pkt, msg->hdr.msg_len);
+		if (ret) {
 			dev_err(dev, "nv download failed\n");
 			goto out;
 		}
+
 		i++;
 		nv_blob_size -= NV_FRAGMENT_SIZE;
 		msleep(100);
@@ -289,49 +200,97 @@ out:
 	return;
 }
 
-static int wcnss_ctrl_remove(struct platform_device *pdev)
+static int qcom_smd_wcnss_ctrl_callback(struct qcom_smd_device *qsdev,
+                                 const void *data,
+                                 size_t count)
 {
-	smd_close(ctrl_nv_data.smd_ch);
+	struct wcnss_platform_data *wcnss_data = dev_get_drvdata(&qsdev->dev);
+	struct smd_msg_hdr phdr;
+	const unsigned char *tmp = data;
 
+	memcpy_fromio(&phdr, data, sizeof(struct smd_msg_hdr));
+
+	switch (phdr.msg_type) {
+       /* CBC COMPLETE means firmware ready for go */
+        case WCNSS_CBC_COMPLETE_IND:
+                complete(&fw_ready_compl);
+                pr_info("wcnss: received WCNSS_CBC_COMPLETE_IND from FW\n");
+                break;
+
+	case WCNSS_NV_DOWNLOAD_RSP:
+		pr_info("fw_status: %d\n", tmp[sizeof(struct smd_msg_hdr)]);
+		break;
+	}
+
+	complete(&wcnss_data->ack);
 	return 0;
 }
 
-static int wcnss_ctrl_probe(struct platform_device *pdev)
+static int qcom_smd_wcnss_ctrl_probe(struct qcom_smd_device *sdev)
 {
-	int ret = 0;
+	struct wcnss_platform_data *wcnss_data;
 
-	INIT_WORK(&ctrl_nv_data.rx_work, wcn36xx_nv_rx_work);
-	INIT_WORK(&ctrl_nv_data.download_work, wcn36xx_nv_download_work);
-	init_completion(&ctrl_nv_data.smd_open_compl);
-	ctrl_nv_data.pdev = pdev;
+        wcnss_data = devm_kzalloc(&sdev->dev, sizeof(*wcnss_data), GFP_KERNEL);
+        if (!wcnss_data)
+                return -ENOMEM;
 
-	ret = smd_named_open_on_edge("WCNSS_CTRL", SMD_APPS_WCNSS,
-		&ctrl_nv_data.smd_ch, &ctrl_nv_data, wcn36xx_download_notify);
-	if (ret) {
-		dev_err(&pdev->dev, "wcnss_ctrl open failed\n");
-		return ret;
-	}
-	smd_disable_read_intr(ctrl_nv_data.smd_ch);
-	return ret;
+        mutex_init(&wcnss_data->lock);
+        init_completion(&wcnss_data->ack);
+
+	wcnss_data->sdev = sdev;
+
+        dev_set_drvdata(&sdev->dev, wcnss_data);
+	wcnss_data->channel = sdev->channel;
+
+	INIT_WORK(&wcnss_data->download_work, wcn36xx_nv_download_work);
+
+	of_platform_populate(sdev->dev.of_node, NULL, NULL, &sdev->dev);
+
+	/* We are ready for download here */
+	schedule_work(&wcnss_data->download_work);
+        return 0;
 }
 
-/* platform device for WCNSS_CTRL SMD channel */
-static struct platform_driver wcnss_ctrl_driver = {
-	.driver = {
-		.name	= "WCNSS_CTRL",
-		.owner	= THIS_MODULE,
+static void qcom_smd_wcnss_ctrl_remove(struct qcom_smd_device *sdev)
+{
+        of_platform_depopulate(&sdev->dev);
+}
+
+static const struct of_device_id qcom_smd_wcnss_ctrl_of_match[] = {
+	{ .compatible = "qcom,wcnss-ctrl" },
+	{}
+};
+MODULE_DEVICE_TABLE(of, qcom_smd_wcnss_ctrl_of_match);
+
+static struct qcom_smd_driver qcom_smd_wcnss_ctrl_driver = {
+	.probe = qcom_smd_wcnss_ctrl_probe,
+	.remove = qcom_smd_wcnss_ctrl_remove,
+	.callback = qcom_smd_wcnss_ctrl_callback,
+	.driver  = {
+		.name  = "qcom_smd_wcnss_ctrl",
+		.owner = THIS_MODULE,
+		.of_match_table = qcom_smd_wcnss_ctrl_of_match,
 	},
-	.probe	= wcnss_ctrl_probe,
-	.remove	= wcnss_ctrl_remove,
 };
 
 void wcnss_core_init(void)
 {
-	platform_driver_register(&wcnss_ctrl_driver);
+	int ret = 0;
+
+	init_completion(&fw_ready_compl);
+	qcom_smd_driver_register(&qcom_smd_wcnss_ctrl_driver);
+
+	ret = wait_for_completion_interruptible_timeout(
+		&fw_ready_compl, msecs_to_jiffies(FW_READY_TIMEOUT));
+	if (ret <= 0) {
+                pr_err("timeout waiting for wcnss firmware ready indicator\n");
+		return;
+        }
+
+	return;
 }
 
 void wcnss_core_deinit(void)
 {
-	platform_driver_unregister(&wcnss_ctrl_driver);
+	qcom_smd_driver_unregister(&qcom_smd_wcnss_ctrl_driver);
 }
-
