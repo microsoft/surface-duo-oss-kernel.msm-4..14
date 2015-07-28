@@ -253,7 +253,7 @@ static int wcn36xx_smd_send_and_wait(struct wcn36xx *wcn, size_t len)
 
 	init_completion(&wcn->hal_rsp_compl);
 	start = jiffies;
-	ret = wcn->ctrl_ops->tx(wcn->hal_buf, len);
+	ret = wcn->ctrl_ops->tx(wcn, wcn->hal_buf, len);
 	if (ret) {
 		wcn36xx_err("HAL TX failed\n");
 		goto out;
@@ -2251,7 +2251,7 @@ out:
 
 void wcn36xx_smd_close(struct wcn36xx *wcn)
 {
-	wcn->ctrl_ops->close();
+	wcn->ctrl_ops->close(wcn);
 	destroy_workqueue(wcn->hal_ind_wq);
 	mutex_destroy(&wcn->hal_ind_mutex);
 }
