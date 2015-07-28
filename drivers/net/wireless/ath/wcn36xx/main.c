@@ -954,7 +954,7 @@ static int wcn36xx_init_ieee80211(struct wcn36xx *wcn)
 
 	/* 3620 powersaving currently unstable */
 	if (wcn->chip_version == WCN36XX_CHIP_3620)
-		wcn->hw->flags &= ~IEEE80211_HW_SUPPORTS_PS;
+		__clear_bit(IEEE80211_HW_SUPPORTS_PS, wcn->hw->flags);
 
 	wcn->hw->wiphy->interface_modes = BIT(NL80211_IFTYPE_STATION) |
 		BIT(NL80211_IFTYPE_AP) |
@@ -1047,17 +1047,19 @@ static int wcn36xx_probe(struct platform_device *pdev)
 		goto dma_mask_err;
 	}
 	dma_set_mask_and_coherent(wcn->dev, DMA_BIT_MASK(32));
-	wcn->ctrl_ops = pdev->dev.platform_data;
+	wcn->wcn36xx_data = pdev->dev.platform_data;
+	wcn->ctrl_ops = &wcn->wcn36xx_data->ctrl_ops;
+	wcn->wcn36xx_data->wcn = wcn;
 	if (!wcn->ctrl_ops->get_chip_type) {
 		dev_err(&pdev->dev, "Missing ops->get_chip_type\n");
 		ret = -EINVAL;
 		goto out_wq;
 	}
-	wcn->chip_version = wcn->ctrl_ops->get_chip_type();
+	wcn->chip_version = wcn->ctrl_ops->get_chip_type(wcn);
 
 	mutex_init(&wcn->hal_mutex);
 
-	if (!wcn->ctrl_ops->get_hw_mac(addr)) {
+	if (!wcn->ctrl_ops->get_hw_mac(wcn, addr)) {
 		wcn36xx_info("mac address: %pM\n", addr);
 		SET_IEEE80211_PERM_ADDR(wcn->hw, addr);
 	}
