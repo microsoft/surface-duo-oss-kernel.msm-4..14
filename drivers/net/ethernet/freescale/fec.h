@@ -7,6 +7,7 @@
  *
  *	(C) Copyright 2000-2005, Greg Ungerer (gerg@snapgear.com)
  *	(C) Copyright 2000-2001, Lineo (www.lineo.com)
+ *	(C) Copyright 2015 Freescale Semiconductor, Inc.
  */
 
 /****************************************************************************/
@@ -20,7 +21,8 @@
 #include <linux/timecounter.h>
 
 #if defined(CONFIG_M523x) || defined(CONFIG_M527x) || defined(CONFIG_M528x) || \
-    defined(CONFIG_M520x) || defined(CONFIG_M532x) || defined(CONFIG_ARM)
+	defined(CONFIG_M520x) || defined(CONFIG_M532x) || \
+	defined(CONFIG_ARM) || defined(CONFIG_ARCH_S32)
 /*
  *	Just figures, Motorola would have to change the offsets for
  *	registers in the same peripheral device on different models
@@ -195,7 +197,7 @@
  *	Evidently, ARM SoCs have the FEC block generated in a
  *	little endian mode so adjust endianness accordingly.
  */
-#if defined(CONFIG_ARM)
+#if defined(CONFIG_ARM) || defined(CONFIG_ARCH_S32)
 #define fec32_to_cpu le32_to_cpu
 #define fec16_to_cpu le16_to_cpu
 #define cpu_to_fec32 cpu_to_le32
