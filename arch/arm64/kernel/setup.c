@@ -64,7 +64,6 @@
 #include <asm/traps.h>
 #include <asm/memblock.h>
 #include <asm/efi.h>
-#include <asm/virt.h>
 
 unsigned long elf_hwcap __read_mostly;
 EXPORT_SYMBOL_GPL(elf_hwcap);
@@ -197,30 +196,6 @@ static void __init smp_build_mpidr_hash(void)
 	if (mpidr_hash_size() > 4 * num_possible_cpus())
 		pr_warn("Large number of MPIDR hash buckets detected\n");
 }
-
-static void __init hyp_mode_check(void)
-{
-	if (is_hyp_mode_available())
-		pr_info("CPU: All CPU(s) started at EL2\n");
-	else if (is_hyp_mode_mismatched())
-		WARN_TAINT(1, TAINT_CPU_OUT_OF_SPEC,
-			   "CPU: CPUs started in inconsistent modes");
-	else
-		pr_info("CPU: All CPU(s) started at EL1\n");
-}
-
-void __init do_post_cpus_up_work(void)
-{
-	hyp_mode_check();
-	apply_alternatives_all();
-}
-
-#ifdef CONFIG_UP_LATE_INIT
-void __init up_late_init(void)
-{
-	do_post_cpus_up_work();
-}
-#endif /* CONFIG_UP_LATE_INIT */
 
 static void __init setup_processor(void)
 {
