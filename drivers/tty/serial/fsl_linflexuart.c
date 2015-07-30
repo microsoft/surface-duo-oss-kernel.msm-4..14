@@ -30,7 +30,7 @@
 
 /* All registers are 32-bit width */
 
-#define LINCR1	0x0000 /* LIN control register 				*/
+#define LINCR1	0x0000 /* LIN control register				*/
 #define LINIER	0x0004 /* LIN interrupt enable register			*/
 #define LINSR	0x0008 /* LIN status register				*/
 #define LINESR	0x000C /* LIN error status register			*/
@@ -97,7 +97,7 @@
 #define LINFLEXD_UARTCR_RDFLRFC_MASK	(0xc00)
 #else
 #define LINFLEXD_UARTCR_TDFLTFC_MASK	(0xe000)
-#define LINFLEXD_UARTCR_RDFLRFC_MASK	()0x1c00)
+#define LINFLEXD_UARTCR_RDFLRFC_MASK	(0x1c00)
 #endif
 
 #define LINFLEXD_UARTCR_TDFLTFC_SHIFT	(13)
