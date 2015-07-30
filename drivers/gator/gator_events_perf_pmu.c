@@ -136,6 +136,7 @@ static int gator_events_perf_pmu_online(int **buffer, bool migrate)
 static void __online_dispatch(int cpu, bool migrate, struct gator_attr *const attr, struct gator_event *const event)
 {
 	perf_overflow_handler_t handler;
+	struct perf_event *pevent;
 
 	event->zero = true;
 
@@ -148,22 +149,22 @@ static void __online_dispatch(int cpu, bool migrate, struct gator_attr *const at
 		handler = dummy_handler;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0)
-	event->pevent = perf_event_create_kernel_counter(event->pevent_attr, cpu, 0, handler);
+	pevent = perf_event_create_kernel_counter(event->pevent_attr, cpu, 0, handler);
 #else
-	event->pevent = perf_event_create_kernel_counter(event->pevent_attr, cpu, 0, handler, 0);
+	pevent = perf_event_create_kernel_counter(event->pevent_attr, cpu, 0, handler, 0);
 #endif
-	if (IS_ERR(event->pevent)) {
+	if (IS_ERR(pevent)) {
 		pr_err("gator: unable to online a counter on cpu %d\n", cpu);
-		event->pevent = NULL;
 		return;
 	}
 
-	if (event->pevent->state != PERF_EVENT_STATE_ACTIVE) {
+	if (pevent->state != PERF_EVENT_STATE_ACTIVE) {
 		pr_err("gator: inactive counter on cpu %d\n", cpu);
-		perf_event_release_kernel(event->pevent);
-		event->pevent = NULL;
+		perf_event_release_kernel(pevent);
 		return;
 	}
+
+	event->pevent = pevent;
 }
 
 static void gator_events_perf_pmu_online_dispatch(int cpu, bool migrate)
