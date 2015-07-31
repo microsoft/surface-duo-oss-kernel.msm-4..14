@@ -850,7 +850,7 @@ static int linflex_probe(struct platform_device *pdev)
 	sport->port.ops = &linflex_pops;
 	sport->port.flags = UPF_BOOT_AUTOCONF;
 #ifndef CONFIG_S32V234_PALLADIUM
-	sport->clk = devm_clk_get(&pdev->dev, "ipg");
+	sport->clk = devm_clk_get(&pdev->dev, "lin");
 	if (IS_ERR(sport->clk)) {
 		ret = PTR_ERR(sport->clk);
 		dev_err(&pdev->dev, "failed to get uart clk: %d\n", ret);
