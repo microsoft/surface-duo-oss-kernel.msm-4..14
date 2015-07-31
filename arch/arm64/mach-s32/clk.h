@@ -28,14 +28,14 @@ enum s32_plldig_type {
 
 struct clk *s32_clk_plldig(enum s32_plldig_type type, const char *name,
 			       const char *parent_name, void __iomem *base,
-			       u32 plldv_mfd, u32 plldv_rfdphi,
-			       u32 plldv_rfdphi1);
+			       u32 plldv_mfd, u32 plldv_mfn,
+				   u32 plldv_rfdphi, u32 plldv_rfdphi1);
 
 struct clk *s32_clk_plldig_phi(enum s32_plldig_type type, const char *name,
 			       const char *parent, void __iomem *base,
 			       u32 phi);
 struct clk *s32_clk_dfs(enum s32_plldig_type type, const char *name, const char *parent_name,
-			void __iomem *reg, u8 idx);
+			void __iomem *reg, u8 idx, u32 mfn);
 
 struct clk *clk_register_gate2(struct device *dev, const char *name,
 		const char *parent_name, unsigned long flags,
@@ -86,19 +86,24 @@ static inline struct clk *s32_clk_fixed(const char *name, int rate)
 }
 
 static inline struct clk *s32_clk_divider(const char *name, const char *parent,
-		void __iomem *reg, u8 shift, u8 width, u32 enable_val)
+		void __iomem *reg, u8 shift, u8 width, u32 enable_val, u32 divider)
 {
 	struct clk * tmp_clk = clk_register_divider(NULL, name, parent, CLK_SET_RATE_PARENT,
 			reg, shift, width, 0, &s32_cgm_lock);
-	if( !tmp_clk )
+	
+	if( tmp_clk )
 	{
+		unsigned long parent_rate = clk_get_rate(tmp_clk);
+		long divn = divider >> 16;
 		#if 0
 		/* enable the clock divider */
 		if (!mutex_trylock(&s32_cgm_lock)) {
 			mutex_lock(&s32_cgm_lock);
 		}
 		#endif
-		writel_relaxed( readl_relaxed(reg) | enable_val , reg);
+		printk("[Divider]  Parent rate %ld - divider value %ld -div rate %ld \n", parent_rate, divn, parent_rate / (divn + 1));
+		clk_set_rate(tmp_clk, parent_rate / (divn + 1));
+		writel_relaxed( readl_relaxed(reg) | enable_val | divider , reg);
 		#if 0
 		mutex_unlock(&s32_cgm_lock);
 		#endif

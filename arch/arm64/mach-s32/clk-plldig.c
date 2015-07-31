@@ -96,6 +96,7 @@ struct clk_plldig {
 	void __iomem	*base;
 	enum s32_plldig_type type;
 	u32		plldv_mfd;
+	u32		pllfd_mfn;
 	u32		plldv_rfdphi;
 	u32		plldv_rfdphi1;
 };
@@ -242,8 +243,10 @@ static unsigned long clk_plldig_recalc_rate(struct clk_hw *hw,
 	if( prediv == 0 )
 		prediv = 1;
 
-	/* The formula for VCO is from TR manual, rev. D */
-	vco = (parent_rate / prediv) * (mfd + mfn/20481);
+	/*
+	 * This formula is from platform reference manual (Rev. 1, 6/2015), PLLDIG chapter.
+	 */
+	vco = (parent_rate / prediv) * (mfd + mfn/20480);
 
 	return vco;
 }
@@ -266,11 +269,7 @@ static int clk_plldig_set_rate(struct clk_hw *hw, unsigned long rate,
 		unsigned long parent_rate)
 {
 	struct clk_plldig *pll = to_clk_plldig(hw);
-	u32 plldv, pllfd, prediv, mfn = 0;
-	/*
-	 * MFN from PLLFD is considered 0.
-	 * rate(VCO) = (parent_rate / PREDIV)*MFD.
-	 */
+	u32 plldv, pllfd, prediv;
 
 	unsigned long max_allowed_rate = get_pllx_max_vco_rate(pll->type);
 	unsigned long phi0_max_rate =  get_pllx_phiy_max_rate(pll->type,0);
@@ -285,15 +284,15 @@ static int clk_plldig_set_rate(struct clk_hw *hw, unsigned long rate,
 
 	plldv = readl_relaxed(PLLDIG_PLLDV(pll->base));
 	pllfd = readl_relaxed(PLLDIG_PLLFD(pll->base));
-	prediv = (parent_rate / rate) * pll->plldv_mfd;
+	prediv = (parent_rate / rate) * (pll->plldv_mfd + pll->pllfd_mfn/20480);
 
 	writel_relaxed( PLLDIG_PLLDV_RFDPHI1_SET(pll->plldv_rfdphi1) |
 			PLLDIG_PLLDV_RFDPHI_SET(pll->plldv_rfdphi) |
 			PLLDIG_PLLDV_PREDIV_SET(prediv) |
 			PLLDIG_PLLDV_MFD_SET(pll->plldv_mfd),
-			PLLDIG_PLLDV(pll->base) );
+			PLLDIG_PLLDV(pll->base));
 
-	writel_relaxed( pllfd | PLLDIG_PLLFD_MFN_SET(mfn),
+	writel_relaxed( pllfd | PLLDIG_PLLFD_MFN_SET(pll->pllfd_mfn),
 			PLLDIG_PLLFD(pll->base) );
 
 	/*
@@ -326,12 +325,12 @@ struct clk *s32_clk_plldig_phi(enum s32_plldig_type type, const char *name,
 	{
 		/* PHI0 */
 		case 0:
-			rfd_phi = plldv & PLLDIG_PLLDV_RFDPHI_MASK \
+			rfd_phi = (plldv & PLLDIG_PLLDV_RFDPHI_MASK) \
 				  >> PLLDIG_PLLDV_RFDPHI_OFFSET;
 			break;
 		/* PHI1 */
 		case 1:
-			rfd_phi = plldv & PLLDIG_PLLDV_RFDPHI1_MASK \
+			rfd_phi = (plldv & PLLDIG_PLLDV_RFDPHI1_MASK) \
 				  >> PLLDIG_PLLDV_RFDPHI1_OFFSET;
 
 			if( rfd_phi == 0 )
@@ -348,8 +347,8 @@ struct clk *s32_clk_plldig_phi(enum s32_plldig_type type, const char *name,
 
 struct clk *s32_clk_plldig(enum s32_plldig_type type, const char *name,
 			       const char *parent_name, void __iomem *base,
-			       u32 plldv_mfd, u32 plldv_rfdphi,
-			       u32 plldv_rfdphi1)
+			       u32 plldv_mfd, u32 pllfd_mfn,
+			       u32 plldv_rfdphi, u32 plldv_rfdphi1)
 {
 	struct clk_plldig *pll;
 	const struct clk_ops *ops;
@@ -373,6 +372,9 @@ struct clk *s32_clk_plldig(enum s32_plldig_type type, const char *name,
 	pll->base = base;
 	pll->type = type;
 	pll->plldv_mfd = plldv_mfd;
+	pll->pllfd_mfn = pllfd_mfn;
+	pll->plldv_rfdphi = plldv_rfdphi;
+	pll->plldv_rfdphi1 = plldv_rfdphi1;
 
 	init.name = name;
 	init.ops = ops;
