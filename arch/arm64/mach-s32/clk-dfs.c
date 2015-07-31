@@ -91,6 +91,8 @@ struct clk_dfs {
 	void __iomem	*reg;
 	enum s32_plldig_type plltype;
 	u8		idx;
+	u32		mfn;
+	u32		plldv_rfdphi1;
 };
 
 #define to_clk_dfs(_hw) container_of(_hw, struct clk_dfs, hw)
@@ -189,8 +191,9 @@ static unsigned long clk_dfs_recalc_rate(struct clk_hw *hw,
 
 	mfn = (dvport & DFS_DVPORTn_MFN_MASK) >> DFS_DVPORTn_MFN_OFFSET;
 	mfi = (dvport & DFS_DVPORTn_MFI_MASK) >> DFS_DVPORTn_MFI_OFFSET;
-
-	rate = parent_rate / (mfi + mfn/256);
+	mfi <<= 8;
+	rate = parent_rate / (mfi + mfn);
+	rate <<= 8;
 
 	return rate;
 }
@@ -213,7 +216,7 @@ static int clk_dfs_set_rate(struct clk_hw *hw, unsigned long rate,
 		unsigned long parent_rate)
 {
 	struct clk_dfs *dfs = to_clk_dfs(hw);
-	u32 mfn = 0, mfi;
+	u32 mfi;
 	u32 portreset = readl_relaxed(DFS_PORTRESET(dfs->reg));
 
 	writel_relaxed( DFS_CTRL_DLL_RESET, DFS_CTRL(dfs->reg) );
@@ -221,7 +224,7 @@ static int clk_dfs_set_rate(struct clk_hw *hw, unsigned long rate,
 			DFS_PORTRESET(dfs->reg) );
 
 	mfi = parent_rate/rate;
-	writel_relaxed( DFS_DVPORTn_MFI_SET(mfi) | DFS_DVPORTn_MFN_SET(mfn),
+	writel_relaxed( DFS_DVPORTn_MFI_SET(mfi) | DFS_DVPORTn_MFN_SET(dfs->mfn),
 			DFS_DVPORTn(dfs->reg,dfs->idx) );
 
 	writel_relaxed( ~DFS_CTRL_DLL_RESET, DFS_CTRL(dfs->reg) );
@@ -252,7 +255,7 @@ static const struct clk_ops clk_dfs_ops = {
 };
 
 struct clk *s32_clk_dfs(enum s32_plldig_type type, const char *name, const char *parent_name,
-			void __iomem *reg, u8 idx)
+			void __iomem *reg, u8 idx, u32 mfn )
 {
 	struct clk_dfs *dfs;
 	struct clk *clk;
@@ -272,6 +275,7 @@ struct clk *s32_clk_dfs(enum s32_plldig_type type, const char *name, const char 
 
 	dfs->reg = reg;
 	dfs->idx = idx;
+	dfs->mfn = mfn;
 	dfs->plltype = type;
 
 	init.name = name;

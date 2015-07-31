@@ -26,25 +26,40 @@
 #define ARMPLL_PLLDIG(mc_cgm)				(mc_cgm)
 #define ARMPLL_PLLDIG_DFS(mc_cgm)			((mc_cgm) + 0x40)
 /* TODO: Update these values when SOC is available */
-#define ARMPLL_PLLDIG_PLLDV_MFD			(0x1)
-#define ARMPLL_PLLDIG_PLLDV_RFDPHI0		(0x1)
-#define ARMPLL_PLLDIG_PLLDV_RFDPHI1		(0x1)
+#define ARMPLL_PLLDIG_PLLDV_MFD			(50)
+#define ARMPLL_PLLDIG_PLLDV_MFN			(0)
+#define ARMPLL_PLLDIG_PLLDV_RFDPHI0		(1)
+#define ARMPLL_PLLDIG_PLLDV_RFDPHI1		(1)
+#define ARMPLL_PLLDIG_DFS0_MFN		(194)
+#define ARMPLL_PLLDIG_DFS1_MFN		(170)
+#define ARMPLL_PLLDIG_DFS2_MFN		(170)
 #define PERIPHPLL_PLLDIG(mc_cgm)			((mc_cgm) + 0x80)
-#define PERIPHPLL_PLLDIG_PLLDV_MFD		(	0x1)
+#define PERIPHPLL_PLLDIG_PLLDV_MFD		(30)
+#define PERIPHPLL_PLLDIG_PLLDV_MFN		(0)
 #define PERIPHPLL_PLLDIG_PLLDV_RFDPHI0		(0x1)
 #define PERIPHPLL_PLLDIG_PLLDV_RFDPHI1		(0x1)
 #define ENETPLL_PLLDIG(mc_cgm)				((mc_cgm) + 0x100)
 #define ENETPLL_PLLDIG_DFS(mc_cgm)				((mc_cgm) + 0x100 + 0x40)
-#define ENETPLL_PLLDIG_PLLDV_MFD			(0x1)
+#define ENETPLL_PLLDIG_PLLDV_MFD			(50)
+#define ENETPLL_PLLDIG_PLLDV_MFN			(0)
 #define ENETPLL_PLLDIG_PLLDV_RFDPHI0		(0x1)
 #define ENETPLL_PLLDIG_PLLDV_RFDPHI1		(0x1)
+#define ENETPLL_PLLDIG_DFS0_MFN		(219)
+#define ENETPLL_PLLDIG_DFS1_MFN		(219)
+#define ENETPLL_PLLDIG_DFS2_MFN		(32)
+#define ENETPLL_PLLDIG_DFS3_MFN		(0)
 #define DDRPLL_PLLDIG(mc_cgm)				((mc_cgm) + 0x180)
 #define DDRPLL_PLLDIG_DFS(mc_cgm)			((mc_cgm) + 0x180 + 0x40)
-#define DDRPLL_PLLDIG_PLLDV_MFD		(0x1)
+#define DDRPLL_PLLDIG_PLLDV_MFD		(53)
+#define DDRPLL_PLLDIG_PLLDV_MFN		(6144)
 #define DDRPLL_PLLDIG_PLLDV_RFDPHI0		(0x1)
 #define DDRPLL_PLLDIG_PLLDV_RFDPHI1		(0x1)
+#define DDRPLL_PLLDIG_DFS0_MFN		(33)
+#define DDRPLL_PLLDIG_DFS1_MFN		(33)
+#define DDRPLL_PLLDIG_DFS2_MFN		(11)
 #define VIDEOPLL_PLLDIG(mc_cgm)				((mc_cgm)+ 0x200)
-#define VIDEOPLL_PLLDIG_PLLDV_MFD		(0x1)
+#define VIDEOPLL_PLLDIG_PLLDV_MFD		(30)
+#define VIDEOPLL_PLLDIG_PLLDV_MFN		(0)
 #define VIDEOPLL_PLLDIG_PLLDV_RFDPHI0		(0x1)
 #define VIDEOPLL_PLLDIG_PLLDV_RFDPHI1		(0x1)
 
@@ -64,10 +79,11 @@
 #define CGM_ACn_DCm(mc_cgm,ac,dc)	( ((mc_cgm) + 0x808) + ((ac) * 0x20)\
 					+ ((dc) * 0x4) )
 
- #define MC_CGM_ACn_DCm_PREDIV_MASK	(0x001F0000)
- #define MC_CGM_ACn_DCm_PREDIV_OFFSET	(16)
- #define MC_CGM_ACn_DCm_PREDIV_SIZE	(5)
- #define MC_CGM_ACn_DCm_DE		(1 << 31)
+#define MC_CGM_ACn_DCm_PREDIV(val)		(MC_CGM_ACn_DCm_PREDIV_MASK & ((val) << MC_CGM_ACn_DCm_PREDIV_OFFSET))
+#define MC_CGM_ACn_DCm_PREDIV_MASK	(0x001F0000)
+#define MC_CGM_ACn_DCm_PREDIV_OFFSET	(16)
+#define MC_CGM_ACn_DCm_PREDIV_SIZE	(5)
+#define MC_CGM_ACn_DCm_DE		(1 << 31)
  
  /*
   *  MC_CGM_ACn_SC/MC_CGM_ACn_SS
@@ -159,7 +175,7 @@ static void entry_to_target_mode( void __iomem * mc_me, u32 mode )
 
 static void enable_cpumodes_onperipheralconfig(void __iomem * mc_me, u32 modes, u32 run_pc_idx)
 {
-	BUG_ON( run_pc_idx < MC_ME_RUN_PCn_MIN_IDX || 
+	BUG_ON( run_pc_idx < MC_ME_RUN_PCn_MIN_IDX ||
 		run_pc_idx >= MC_ME_RUN_PCn_MAX_IDX );
 
 	writel_relaxed( modes , MC_ME_RUN_PCn(mc_me,run_pc_idx) );
@@ -191,17 +207,17 @@ static void __iomem * mc_me_base;
 static void __iomem * src_base;
 
 /* sources for multiplexer clocks, this is used multiple times */
-static const char const * osc_sels[]	= { "firc", "xosc_40m", };
+static const char const * osc_sels[]	= { "firc", "fxosc", };
 
-static const char const * cores_sels[]	= { "firc", "xosc_40m", "armpll_phi0", };
+static const char const * cores_sels[]	= { "firc", "fxosc", "armpll_phi0", };
 
-static const char const * sys_sels[]	= { "firc", "xosc_40m", "armpll_dfs0", };
+static const char const * sys_sels[]	= { "firc", "fxosc", "armpll_dfs0", };
 
-static const char const * perifray_sels[] = { "firc", "xosc_40m", "dummy", "periphpll_phi0_div5", };
+static const char const * perifray_sels[] = { "firc", "fxosc", "dummy", "periphpll_phi0_div5", };
 
-static const char const * lin_sels[]	= { "firc", "xosc_40m", "dummy", "periphpll_phi0_div3", "dummy", "dummy", "dummy", "dummy", "sys6",};
+static const char const * lin_sels[]	= { "firc", "fxosc", "dummy", "periphpll_phi0_div3", "dummy", "dummy", "dummy", "dummy", "sys6",};
 
-static const char const * sdhc_sels[]	= { "firc", "xosc_40m", "dummy", "dummy", "enetpll_dfs3",};
+static const char const * sdhc_sels[]	= { "firc", "fxosc", "dummy", "dummy", "enetpll_dfs3",};
 
 static struct clk *clk[S32V234_CLK_END];
 static struct clk_onecell_data clk_data;
@@ -210,11 +226,9 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 {
 	struct device_node *np;
 
-	printk("Clock initialization \n");
 	clk[S32V234_CLK_DUMMY] = s32_clk_fixed("dummy", 0);
-	clk[S32V234_CLK_FXOSC_24M] = s32_clk_fixed("xosc_24m", 24000000);
-	clk[S32V234_CLK_FXOSC_40M] = s32_clk_fixed("xosc_40m", 40000000);
-	clk[S32V234_CLK_FIRC] = s32_clk_fixed("firc", 48000000);
+	clk[S32V234_CLK_FXOSC] = s32_obtain_fixed_clock("fxosc", 0);
+	clk[S32V234_CLK_FIRC] = s32_obtain_fixed_clock("firc", 0);
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,s32v234-mc_me");
 	mc_me_base = of_iomap(np, 0);
@@ -223,10 +237,6 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 	np = of_find_compatible_node(NULL, NULL, "fsl,s32v234-src");
 	src_base = of_iomap(np, 0);
 	BUG_ON(!src_base);
-
-	np = mc_cgm0_node;
-	mc_cgm0_base = of_iomap(np, 0);
-	BUG_ON(!mc_cgm0_base);
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,s32v234-mc_cgm1");
 	mc_cgm1_base = of_iomap(np, 0);
@@ -239,6 +249,10 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 	np = of_find_compatible_node(NULL, NULL, "fsl,s32v234-mc_cgm3");
 	mc_cgm3_base = of_iomap(np, 0);
 	BUG_ON(!mc_cgm3_base);
+
+	np = mc_cgm0_node;
+	mc_cgm0_base = of_iomap(np, 0);
+	BUG_ON(!mc_cgm0_base);
 
 	enable_cpumodes_onperipheralconfig( mc_me_base, MC_ME_RUN_PCn_DRUN |
 					    MC_ME_RUN_PCn_RUN0 |
@@ -277,8 +291,8 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 	/* ARM_PLL */
 	clk[S32V234_CLK_ARMPLL_VCO] = s32_clk_plldig(S32_PLLDIG_ARM,
 		"armpll_vco", "armpll_sel", ARMPLL_PLLDIG(mc_cgm0_base),
-		ARMPLL_PLLDIG_PLLDV_MFD, ARMPLL_PLLDIG_PLLDV_RFDPHI0,
-		ARMPLL_PLLDIG_PLLDV_RFDPHI1);
+		ARMPLL_PLLDIG_PLLDV_MFD, ARMPLL_PLLDIG_PLLDV_MFN,
+		ARMPLL_PLLDIG_PLLDV_RFDPHI0, ARMPLL_PLLDIG_PLLDV_RFDPHI1);
 
 	clk[S32V234_CLK_ARMPLL_PHI0] = s32_clk_plldig_phi(S32_PLLDIG_ARM,
 		"armpll_phi0", "armpll_vco", ARMPLL_PLLDIG(mc_cgm0_base), 0);
@@ -287,11 +301,13 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 		"armpll_phi1", "armpll_vco", ARMPLL_PLLDIG(mc_cgm0_base), 1);
 
 	clk[S32V234_CLK_ARMPLL_DFS0] = s32_clk_dfs(S32_PLLDIG_ARM,
-		 "armpll_dfs0", "armpll_phi1", ARMPLL_PLLDIG_DFS(mc_cgm0_base), 0);
+		 "armpll_dfs0", "armpll_phi1", ARMPLL_PLLDIG_DFS(mc_cgm0_base), 0, ARMPLL_PLLDIG_DFS0_MFN);
+
 	clk[S32V234_CLK_ARMPLL_DFS1] = s32_clk_dfs(S32_PLLDIG_ARM,
-		 "armpll_dfs1", "armpll_phi1", ARMPLL_PLLDIG_DFS(mc_cgm0_base), 1);
+		 "armpll_dfs1", "armpll_phi1", ARMPLL_PLLDIG_DFS(mc_cgm0_base), 1, ARMPLL_PLLDIG_DFS1_MFN);
+
 	clk[S32V234_CLK_ARMPLL_DFS2] = s32_clk_dfs(S32_PLLDIG_ARM,
-		 "armpll_dfs2", "armpll_phi1", ARMPLL_PLLDIG_DFS(mc_cgm0_base), 2);
+		 "armpll_dfs2", "armpll_phi1", ARMPLL_PLLDIG_DFS(mc_cgm0_base), 2, ARMPLL_PLLDIG_DFS2_MFN);
 
 	clk[S32V234_CLK_CORES_SEL] = s32_clk_mux("cores_sels",
 		MC_ME_RUNn_SEC_CC_I(mc_me_base,0),
@@ -301,33 +317,33 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 
 	clk[S32V234_CLK_CORE] = s32_clk_divider("core", "cores_sels",
 		CGM_SC_DCn(mc_cgm1_base,0), MC_CGM_SC_DCn_PREDIV_OFFSET,
-		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE);
+		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE, MC_CGM_ACn_DCm_PREDIV(0));
+
 	clk[S32V234_CLK_CORE2] = s32_clk_divider("core2", "cores_sels",
 		CGM_SC_DCn(mc_cgm1_base,1), MC_CGM_SC_DCn_PREDIV_OFFSET,
-		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE);
+		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE, MC_CGM_ACn_DCm_PREDIV(1));
+
 	clk[S32V234_CLK_COREDBG] = s32_clk_divider("coredbgcoredbg", "cores_sels",
 		CGM_SC_DCn(mc_cgm1_base,2), MC_CGM_SC_DCn_PREDIV_OFFSET,
-		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE);
-	clk[S32V234_CLK_CORES_SEL] = s32_clk_mux("cores_sels",
-		MC_ME_RUNn_SEC_CC_I(mc_me_base,0),
-		MC_ME_MODE_SEC_CC_I_SYSCLK1_OFFSET,
-		MC_ME_MODE_SEC_CC_I_SYSCLK1_SIZE,
-		cores_sels, ARRAY_SIZE(cores_sels));
+		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE, MC_CGM_ACn_DCm_PREDIV(1));
 
 	clk[S32V234_CLK_SYS_SEL] = s32_clk_mux("sys_sel",
 		MC_ME_RUNn_MC(mc_me_base, 0),
 		MC_ME_MODE_MC_SYSCLK_OFFSET,
 		MC_ME_MODE_MC_SYSCLK_SIZE,
 		sys_sels, ARRAY_SIZE(sys_sels));
+
 	clk[S32V234_CLK_SYS3] = s32_clk_divider("sys3", "sys_sel",
 		CGM_SC_DCn(mc_cgm0_base, 0), MC_CGM_SC_DCn_PREDIV_OFFSET,
-		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE);
+		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE, MC_CGM_ACn_DCm_PREDIV(0));
+
 	clk[S32V234_CLK_SYS6] = s32_clk_divider("sys6", "sys_sel",
 		CGM_SC_DCn(mc_cgm0_base, 1), MC_CGM_SC_DCn_PREDIV_OFFSET,
-		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE);
+		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE, MC_CGM_ACn_DCm_PREDIV(1));
+
 	clk[S32V234_CLK_SYS6_DIV2] = s32_clk_divider("sys6_div2", "sys_sel",
 		CGM_SC_DCn(mc_cgm0_base, 2), MC_CGM_SC_DCn_PREDIV_OFFSET,
-		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE);
+		MC_CGM_SC_DCn_PREDIV_SIZE, MC_CGM_SC_DCn_DE, MC_CGM_ACn_DCm_PREDIV(1));
 
 	/* enable ARMPLL */
 	enable_clocks_sources( 0, MC_ME_MODE_MC_ARMPLL, MC_ME_RUNn_MC(mc_me_base, 0) );
@@ -335,8 +351,8 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 	/* PERIPH_PLL */
 	clk[S32V234_CLK_PERIPHPLL_VCO] = s32_clk_plldig(S32_PLLDIG_PERIPH,
 		"periphpll_vco", "periphpll_sel", PERIPHPLL_PLLDIG(mc_cgm0_base),
-		PERIPHPLL_PLLDIG_PLLDV_MFD, PERIPHPLL_PLLDIG_PLLDV_RFDPHI0,
-		PERIPHPLL_PLLDIG_PLLDV_RFDPHI1);
+		PERIPHPLL_PLLDIG_PLLDV_MFD, PERIPHPLL_PLLDIG_PLLDV_MFN,
+		PERIPHPLL_PLLDIG_PLLDV_RFDPHI0, PERIPHPLL_PLLDIG_PLLDV_RFDPHI1);
 
 	clk[S32V234_CLK_PERIPHPLL_PHI0] = s32_clk_plldig_phi(S32_PLLDIG_PERIPH,
 		"periphpll_phi0", "periphpll_vco", PERIPHPLL_PLLDIG(mc_cgm0_base), 0);
@@ -359,10 +375,11 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 
 	clk[S32V234_CLK_PERI] = s32_clk_divider("peri", "perifray_sel",
 		CGM_ACn_DCm(mc_cgm0_base,5,0), MC_CGM_ACn_DCm_PREDIV_OFFSET,
-		MC_CGM_ACn_DCm_PREDIV_SIZE, MC_CGM_ACn_DCm_DE);
+		MC_CGM_ACn_DCm_PREDIV_SIZE, MC_CGM_ACn_DCm_DE, MC_CGM_ACn_DCm_PREDIV(0));
+
 	clk[S32V234_CLK_PERI_FRAY_PLL] = s32_clk_divider("perifray", "perifray_sel",
 		CGM_ACn_DCm(mc_cgm0_base,5,1), MC_CGM_SC_DCn_PREDIV_OFFSET,
-		MC_CGM_ACn_DCm_PREDIV_SIZE, MC_CGM_ACn_DCm_DE);
+		MC_CGM_ACn_DCm_PREDIV_SIZE, MC_CGM_ACn_DCm_DE, MC_CGM_ACn_DCm_PREDIV(0));
 
 	/* Lin Clock */
 	clk[S32V234_CLK_LIN_SEL] = s32_clk_mux("lin_sel",
@@ -373,9 +390,10 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 
 	clk[S32V234_CLK_LIN] = s32_clk_divider("lin", "lin_sel",
 		CGM_ACn_DCm(mc_cgm0_base,3,0), MC_CGM_ACn_DCm_PREDIV_OFFSET,
-		MC_CGM_ACn_DCm_PREDIV_SIZE, MC_CGM_ACn_DCm_DE);
+		MC_CGM_ACn_DCm_PREDIV_SIZE, MC_CGM_ACn_DCm_DE,  MC_CGM_ACn_DCm_PREDIV(1));
+
 	clk[S32V234_CLK_LIN_IPG] = s32_clk_fixed_factor("lin_ipg",
-		"perifray_sel", 1, 2);
+		"lin", 1, 2);
 
 	/* enable PERIPHPLL */
 	enable_clocks_sources( 0, MC_ME_MODE_MC_PERIPHPLL, MC_ME_RUNn_MC(mc_me_base, 0) );
@@ -383,8 +401,8 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 	/* ENET_PLL */
 	clk[S32V234_CLK_ENETPLL_VCO] = s32_clk_plldig(S32_PLLDIG_ENET,
 		"enetpll_vco", "enetpll_sel", ENETPLL_PLLDIG(mc_cgm0_base),
-		ENETPLL_PLLDIG_PLLDV_MFD, ENETPLL_PLLDIG_PLLDV_RFDPHI0,
-		ENETPLL_PLLDIG_PLLDV_RFDPHI1);
+		ENETPLL_PLLDIG_PLLDV_MFD, ENETPLL_PLLDIG_PLLDV_MFN,
+		ENETPLL_PLLDIG_PLLDV_RFDPHI0, ENETPLL_PLLDIG_PLLDV_RFDPHI1);
 
 	clk[S32V234_CLK_ENETPLL_PHI0] = s32_clk_plldig_phi(S32_PLLDIG_ENET,
 		"enetpll_phi0", "enetphpll_vco", PERIPHPLL_PLLDIG(mc_cgm0_base), 0);
@@ -393,13 +411,16 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 		"enetpll_phi1", "enetpll_vco", ENETPLL_PLLDIG(mc_cgm0_base), 1);
 
 	clk[S32V234_CLK_ENETPLL_DFS0] = s32_clk_dfs(S32_PLLDIG_ENET,
-		 "enetpll_dfs0", "enetpll_phi1", ENETPLL_PLLDIG_DFS(mc_cgm0_base), 0);
+		 "enetpll_dfs0", "enetpll_phi1", ENETPLL_PLLDIG_DFS(mc_cgm0_base), 0, ENETPLL_PLLDIG_DFS0_MFN);
+
 	clk[S32V234_CLK_ENETPLL_DFS1] = s32_clk_dfs(S32_PLLDIG_ENET,
-		 "enetpll_dfs1", "enetpll_phi1", ENETPLL_PLLDIG_DFS(mc_cgm0_base), 1);
+		 "enetpll_dfs1", "enetpll_phi1", ENETPLL_PLLDIG_DFS(mc_cgm0_base), 1, ENETPLL_PLLDIG_DFS1_MFN);
+
 	clk[S32V234_CLK_ENETPLL_DFS2] = s32_clk_dfs(S32_PLLDIG_ENET,
-		 "enetpll_dfs2", "enetpll_phi1", ENETPLL_PLLDIG_DFS(mc_cgm0_base), 2);
+		 "enetpll_dfs2", "enetpll_phi1", ENETPLL_PLLDIG_DFS(mc_cgm0_base), 2, ENETPLL_PLLDIG_DFS2_MFN);
+
 	clk[S32V234_CLK_ENETPLL_DFS3] = s32_clk_dfs(S32_PLLDIG_ENET,
-		 "enetpll_dfs2", "enetpll_phi1", ENETPLL_PLLDIG_DFS(mc_cgm0_base), 3);
+		 "enetpll_dfs3", "enetpll_phi1", ENETPLL_PLLDIG_DFS(mc_cgm0_base), 3, ENETPLL_PLLDIG_DFS3_MFN);
 
 	/* SDHC Clock */
 	clk[S32V234_CLK_SDHC_SEL] = s32_clk_mux("sdhc_sel",
@@ -408,9 +429,12 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 		MC_CGM_ACn_SEL_SIZE,
 		sdhc_sels, ARRAY_SIZE(sdhc_sels));
 
+/*
 	clk[S32V234_CLK_SDHC] = s32_clk_divider("sdhc", "sdhc_sel",
 		CGM_ACn_DCm(mc_cgm0_base, 15, 0), MC_CGM_ACn_DCm_PREDIV_OFFSET,
-		MC_CGM_ACn_DCm_PREDIV_SIZE, MC_CGM_ACn_DCm_DE);
+		MC_CGM_ACn_DCm_PREDIV_SIZE, MC_CGM_ACn_DCm_DE, MC_CGM_ACn_DCm_PREDIV(9));
+*/
+	clk[S32V234_CLK_SDHC] = s32_clk_fixed("sdhc", 25000000);
 
 	/* enable ENETPLL */
 	enable_clocks_sources( 0, MC_ME_MODE_MC_ENETPLL, MC_ME_RUNn_MC(mc_me_base, 0) );
