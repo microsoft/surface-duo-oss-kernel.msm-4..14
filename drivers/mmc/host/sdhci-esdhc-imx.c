@@ -1058,12 +1058,14 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 		writel(0x08100810, host->ioaddr + ESDHC_WTMK_LVL);
 		host->quirks2 |= SDHCI_QUIRK2_PRESET_VALUE_BROKEN;
 		host->mmc->caps |= MMC_CAP_1_8V_DDR;
-
-		/*
-		 * errata ESDHC_FLAG_ERR004536 fix for MX6Q TO1.2 and MX6DL
-		 * TO1.1, it's harmless for MX6SL
-		 */
-		writel(readl(host->ioaddr + 0x6c) | BIT(7), host->ioaddr + 0x6c);
+		if( !is_s32v234_usdhc(imx_data) )
+		{
+			/*
+			 * errata ESDHC_FLAG_ERR004536 fix for MX6Q TO1.2 and MX6DL
+			 * TO1.1, it's harmless for MX6SL
+			 */
+			writel(readl(host->ioaddr + 0x6c) | BIT(7), host->ioaddr + 0x6c);
+		}
 	}
 
 	if (imx_data->socdata->flags & ESDHC_FLAG_MAN_TUNING)
