@@ -1191,7 +1191,7 @@ sdhci_esdhc_imx_probe_dt(struct platform_device *pdev,
 	 * So, ignore the pinctrl lookup.
 	 * FIXME: there must be a better way to handle this!
 	 */
-	if (!is_sac58r_usdhc(imx_data)) {
+	if (!is_sac58r_usdhc(imx_data) && !is_s32v234_usdhc(imx_data)) {
 		/* sdr50 and sdr104 need work on 1.8v signal voltage */
 		if ((boarddata->support_vsel) && esdhc_is_usdhc(imx_data) &&
 		    !IS_ERR(imx_data->pins_default)) {
