@@ -5,6 +5,13 @@ config COMMON_CLK_QCOM
 	select REGMAP_MMIO
 	select RESET_CONTROLLER
 
+config QCOM_CLK_SMD_RPM
+	tristate "Qualcomm SMD based RPM clock driver"
+	depends on QCOM_SMD_RPM && COMMON_CLK_QCOM
+	help
+	  Support for the clocks exposed by the Resource Power Manager
+	  processor found in Qualcomm based devices like apq8016.
+
 config APQ_GCC_8084
 	tristate "APQ8084 Global Clock Controller"
 	select QCOM_GDSC
