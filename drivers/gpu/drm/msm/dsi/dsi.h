@@ -27,18 +27,6 @@
 #define DSI_1	1
 #define DSI_MAX	2
 
-#define DSI_CLOCK_MASTER	DSI_0
-#define DSI_CLOCK_SLAVE		DSI_1
-
-#define DSI_LEFT		DSI_0
-#define DSI_RIGHT		DSI_1
-
-/* According to the current drm framework sequence, take the encoder of
- * DSI_1 as master encoder
- */
-#define DSI_ENCODER_MASTER	DSI_1
-#define DSI_ENCODER_SLAVE	DSI_0
-
 enum msm_dsi_phy_type {
 	MSM_DSI_PHY_28NM_HPM,
 	MSM_DSI_PHY_28NM_LP,
@@ -66,6 +54,7 @@ struct msm_dsi {
 	struct platform_device *pdev;
 
 	struct drm_connector *connector;
+	/* internal bridge to link to mdp5 encoder */
 	struct drm_bridge *bridge;
 
 	struct mipi_dsi_host *host;
@@ -73,7 +62,11 @@ struct msm_dsi {
 	struct drm_panel *panel;
 	unsigned long panel_flags;
 
+	/* dsi host is connected to a bridge/encoder chip */
+	struct drm_bridge *ext_bridge;
+
 	struct device *phy_dev;
+
 	bool phy_enabled;
 
 	/* the encoders we are hooked to (outside of dsi block) */
@@ -140,6 +133,7 @@ int msm_dsi_host_set_display_mode(struct mipi_dsi_host *host,
 					struct drm_display_mode *mode);
 struct drm_panel *msm_dsi_host_get_panel(struct mipi_dsi_host *host,
 					unsigned long *panel_flags);
+struct drm_bridge *msm_dsi_host_get_ext_bridge(struct mipi_dsi_host *host);
 int msm_dsi_host_register(struct mipi_dsi_host *host, bool check_defer);
 void msm_dsi_host_unregister(struct mipi_dsi_host *host);
 int msm_dsi_host_set_src_pll(struct mipi_dsi_host *host,
@@ -153,7 +147,7 @@ int msm_dsi_host_init(struct msm_dsi *msm_dsi);
 struct msm_dsi_phy;
 void msm_dsi_phy_driver_register(void);
 void msm_dsi_phy_driver_unregister(void);
-int msm_dsi_phy_enable(struct msm_dsi_phy *phy, bool is_dual_panel,
+int msm_dsi_phy_enable(struct msm_dsi_phy *phy, int src_pll_id,
 	const unsigned long bit_rate, const unsigned long esc_rate);
 int msm_dsi_phy_disable(struct msm_dsi_phy *phy);
 void msm_dsi_phy_get_clk_pre_post(struct msm_dsi_phy *phy,
