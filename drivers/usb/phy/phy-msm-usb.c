@@ -18,6 +18,7 @@
 
 #include <linux/module.h>
 #include <linux/device.h>
+#include <linux/gpio/consumer.h>
 #include <linux/platform_device.h>
 #include <linux/clk.h>
 #include <linux/slab.h>
@@ -32,6 +33,7 @@
 #include <linux/pm_runtime.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/reboot.h>
 #include <linux/reset.h>
 
 #include <linux/usb.h>
@@ -73,6 +75,9 @@ enum vdd_levels {
 static int msm_hsusb_init_vddcx(struct msm_otg *motg, int init)
 {
 	int ret = 0;
+
+	if (IS_ERR(motg->vddcx))
+		return 0;
 
 	if (init) {
 		ret = regulator_set_voltage(motg->vddcx,
@@ -755,14 +760,8 @@ static int msm_otg_set_host(struct usb_otg *otg, struct usb_bus *host)
 	otg->host = host;
 	dev_dbg(otg->usb_phy->dev, "host driver registered w/ tranceiver\n");
 
-	/*
-	 * Kick the state machine work, if peripheral is not supported
-	 * or peripheral is already registered with us.
-	 */
-	if (motg->pdata->mode == USB_DR_MODE_HOST || otg->gadget) {
-		pm_runtime_get_sync(otg->usb_phy->dev);
-		schedule_work(&motg->sm_work);
-	}
+	pm_runtime_get_sync(otg->usb_phy->dev);
+	schedule_work(&motg->sm_work);
 
 	return 0;
 }
@@ -825,14 +824,8 @@ static int msm_otg_set_peripheral(struct usb_otg *otg,
 	dev_dbg(otg->usb_phy->dev,
 		"peripheral driver registered w/ tranceiver\n");
 
-	/*
-	 * Kick the state machine work, if host is not supported
-	 * or host is already registered with us.
-	 */
-	if (motg->pdata->mode == USB_DR_MODE_PERIPHERAL || otg->host) {
-		pm_runtime_get_sync(otg->usb_phy->dev);
-		schedule_work(&motg->sm_work);
-	}
+	pm_runtime_get_sync(otg->usb_phy->dev);
+	schedule_work(&motg->sm_work);
 
 	return 0;
 }
@@ -1471,6 +1464,14 @@ static int msm_otg_vbus_notifier(struct notifier_block *nb, unsigned long event,
 	else
 		clear_bit(B_SESS_VLD, &motg->inputs);
 
+	if (test_bit(B_SESS_VLD, &motg->inputs)) {
+		/* Switch D+/D- lines to Device connector */
+		gpiod_set_value_cansleep(motg->switch_gpio, 0);
+	} else {
+		/* Switch D+/D- lines to Hub */
+		gpiod_set_value_cansleep(motg->switch_gpio, 1);
+	}
+
 	schedule_work(&motg->sm_work);
 
 	return NOTIFY_DONE;
@@ -1546,6 +1547,11 @@ static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 
 	motg->manual_pullup = of_property_read_bool(node, "qcom,manual-pullup");
 
+	motg->switch_gpio = devm_gpiod_get_optional(&pdev->dev, "switch",
+						    GPIOD_OUT_LOW);
+	if (IS_ERR(motg->switch_gpio))
+		return PTR_ERR(motg->switch_gpio);
+
 	ext_id = ERR_PTR(-ENODEV);
 	ext_vbus = ERR_PTR(-ENODEV);
 	if (of_property_read_bool(node, "extcon")) {
@@ -1615,9 +1621,22 @@ static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 	return 0;
 }
 
+static int msm_otg_reboot_notify(struct notifier_block *this,
+				 unsigned long code, void *unused)
+{
+	struct msm_otg *motg = container_of(this, struct msm_otg, reboot);
+
+	/*
+	 * Ensure that D+/D- lines are routed to uB connector, so
+	 * we could load bootloader/kernel at next reboot
+	 */
+	gpiod_set_value_cansleep(motg->switch_gpio, 0);
+	return NOTIFY_DONE;
+}
+
 static int msm_otg_probe(struct platform_device *pdev)
 {
-	struct regulator_bulk_data regs[3];
+	struct regulator_bulk_data regs[2];
 	int ret = 0;
 	struct device_node *np = pdev->dev.of_node;
 	struct msm_otg_platform_data *pdata;
@@ -1646,6 +1665,8 @@ static int msm_otg_probe(struct platform_device *pdev)
 
 	phy = &motg->phy;
 	phy->dev = &pdev->dev;
+	INIT_WORK(&motg->sm_work, msm_otg_sm_work);
+	INIT_DELAYED_WORK(&motg->chg_work, msm_chg_detect_work);
 
 	motg->clk = devm_clk_get(&pdev->dev, np ? "core" : "usb_hs_clk");
 	if (IS_ERR(motg->clk)) {
@@ -1701,17 +1722,21 @@ static int msm_otg_probe(struct platform_device *pdev)
 		return motg->irq;
 	}
 
-	regs[0].supply = "vddcx";
-	regs[1].supply = "v3p3";
-	regs[2].supply = "v1p8";
+	regs[0].supply = "v3p3";
+	regs[1].supply = "v1p8";
 
 	ret = devm_regulator_bulk_get(motg->phy.dev, ARRAY_SIZE(regs), regs);
-	if (ret)
+	if (ret) {
+		dev_err(&pdev->dev, "no v3p3 or v1p8\n");
 		return ret;
+	}
 
-	motg->vddcx = regs[0].consumer;
-	motg->v3p3  = regs[1].consumer;
-	motg->v1p8  = regs[2].consumer;
+	motg->v3p3  = regs[0].consumer;
+	motg->v1p8  = regs[1].consumer;
+
+	motg->vddcx = devm_regulator_get_optional(motg->phy.dev, "vddcx");
+	if (IS_ERR(motg->vddcx))
+		dev_info(&pdev->dev, "no vddcx\n");
 
 	clk_set_rate(motg->clk, 60000000);
 
@@ -1741,8 +1766,6 @@ static int msm_otg_probe(struct platform_device *pdev)
 	writel(0, USB_USBINTR);
 	writel(0, USB_OTGSC);
 
-	INIT_WORK(&motg->sm_work, msm_otg_sm_work);
-	INIT_DELAYED_WORK(&motg->chg_work, msm_chg_detect_work);
 	ret = devm_request_irq(&pdev->dev, motg->irq, msm_otg_irq, IRQF_SHARED,
 					"msm_otg", motg);
 	if (ret) {
@@ -1779,8 +1802,18 @@ static int msm_otg_probe(struct platform_device *pdev)
 			dev_dbg(&pdev->dev, "Can not create mode change file\n");
 	}
 
+	if (test_bit(B_SESS_VLD, &motg->inputs)) {
+		/* Switch D+/D- lines to Device connector */
+		gpiod_set_value_cansleep(motg->switch_gpio, 0);
+	} else {
+		/* Switch D+/D- lines to Hub */
+		gpiod_set_value_cansleep(motg->switch_gpio, 1);
+	}
+
+	motg->reboot.notifier_call = msm_otg_reboot_notify;
+	register_reboot_notifier(&motg->reboot);
+
 	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
 
 	return 0;
 
@@ -1805,10 +1838,18 @@ static int msm_otg_remove(struct platform_device *pdev)
 	if (phy->otg->host || phy->otg->gadget)
 		return -EBUSY;
 
+	unregister_reboot_notifier(&motg->reboot);
+
 	if (motg->id.conn.edev)
 		extcon_unregister_interest(&motg->id.conn);
 	if (motg->vbus.conn.edev)
 		extcon_unregister_interest(&motg->vbus.conn);
+
+	/*
+	 * Ensure that D+/D- lines are routed to uB connector, so
+	 * we could load bootloader/kernel at next reboot
+	 */
+	gpiod_set_value_cansleep(motg->switch_gpio, 0);
 
 	msm_otg_debugfs_cleanup();
 	cancel_delayed_work_sync(&motg->chg_work);
