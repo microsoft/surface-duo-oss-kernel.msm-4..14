@@ -1272,7 +1272,7 @@ static void clk_calc_subtree(struct clk_core *core, unsigned long new_rate,
 {
 	struct clk_core *child, *parent;
 	struct clk_hw *parent_hw;
-	unsigned long safe_freq;
+	unsigned long safe_freq = 0;
 
 	core->new_rate = new_rate;
 	core->new_parent = new_parent;
