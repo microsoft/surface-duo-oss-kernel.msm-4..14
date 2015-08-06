@@ -3064,6 +3064,7 @@ static struct gdsc oxili_gdsc = {
 		.name = "oxili",
 	},
 	.pwrsts = PWRSTS_OFF_ON,
+	.root_clock = GFX3D_CLK_SRC,
 };
 
 static struct clk_regmap *gcc_msm8916_clocks[] = {
