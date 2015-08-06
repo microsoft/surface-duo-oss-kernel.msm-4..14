@@ -17,6 +17,7 @@
 #include <linux/err.h>
 #include <linux/pm_domain.h>
 
+struct clk;
 struct regmap;
 struct reset_controller_dev;
 
@@ -38,6 +39,9 @@ struct reset_controller_dev;
  * @resets: ids of resets associated with this gdsc
  * @reset_count: number of @resets
  * @rcdev: reset controller
+ * @clocks: ids of clocks associated with the gdsc
+ * @clock_count: number of @clocks
+ * @clks: clock pointers to gdsc clocks
  */
 struct gdsc {
 	struct generic_pm_domain	pd;
@@ -49,6 +53,9 @@ struct gdsc {
 	struct reset_controller_dev	*rcdev;
 	unsigned int			*resets;
 	unsigned int			reset_count;
+	unsigned int			*clocks;
+	unsigned int			clock_count;
+	struct clk			**clks;
 };
 
 #ifdef CONFIG_QCOM_GDSC
