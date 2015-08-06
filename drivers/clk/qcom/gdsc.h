@@ -86,4 +86,12 @@ static inline int gdsc_register(struct gdsc_desc *desc,
 
 static inline void gdsc_unregister(struct gdsc_desc *desc) {};
 #endif /* CONFIG_QCOM_GDSC */
+#ifndef CONFIG_PM
+struct gdsc_notifier_block {
+	struct notifier_block nb;
+	unsigned int	*clocks;
+	unsigned int	clock_count;
+};
+void qcom_pm_add_notifier(struct gdsc_notifier_block *);
+#endif /* !CONFIG_PM */
 #endif /* __QCOM_GDSC_H__ */
