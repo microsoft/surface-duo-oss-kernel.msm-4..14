@@ -129,10 +129,6 @@ kbase_devfreq_status(struct device *dev, struct devfreq_dev_status *stat)
 
 	stat->private_data = NULL;
 
-#ifdef CONFIG_DEVFREQ_THERMAL
-	memcpy(&kbdev->devfreq_cooling->last_status, stat, sizeof(*stat));
-#endif
-
 	return 0;
 }
 
