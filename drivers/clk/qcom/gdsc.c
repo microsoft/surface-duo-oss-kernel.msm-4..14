@@ -12,10 +12,12 @@
  */
 
 #include <linux/bitops.h>
+#include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/jiffies.h>
 #include <linux/kernel.h>
+#include <linux/pm_clock.h>
 #include <linux/pm_domain.h>
 #include <linux/regmap.h>
 #include <linux/reset-controller.h>
@@ -161,6 +163,59 @@ static int gdsc_disable(struct generic_pm_domain *domain)
 	return gdsc_toggle_logic(sc, false);
 }
 
+static inline bool match(unsigned int id, unsigned int *ids, unsigned int count)
+{
+	int i;
+
+	for (i = 0; i < count; i++)
+		if (id == ids[i])
+			return true;
+	return false;
+}
+
+static int gdsc_attach(struct generic_pm_domain *domain, struct device *dev)
+{
+	int ret, i = 0, j = 0;
+	struct gdsc *sc = domain_to_gdsc(domain);
+	struct of_phandle_args clkspec;
+	struct device_node *np = dev->of_node;
+
+	if (!sc->clock_count)
+		return 0;
+
+	ret = pm_clk_create(dev);
+	if (ret) {
+		dev_dbg(dev, "pm_clk_create failed %d\n", ret);
+		return ret;
+	}
+
+	sc->clks = devm_kcalloc(dev, sc->clock_count, sizeof(sc->clks),
+				       GFP_KERNEL);
+	if (!sc->clks)
+		return -ENOMEM;
+
+	while (!of_parse_phandle_with_args(np, "clocks", "#clock-cells", i,
+					   &clkspec)) {
+		if (match(clkspec.args[0], sc->clocks, sc->clock_count)) {
+			sc->clks[j] = of_clk_get_from_provider(&clkspec);
+			pm_clk_add_clk(dev, sc->clks[j]);
+			j++;
+		}
+		i++;
+	}
+	return 0;
+};
+
+static void gdsc_detach(struct generic_pm_domain *domain, struct device *dev)
+{
+	struct gdsc *sc = domain_to_gdsc(domain);
+
+	if (!sc->clock_count)
+		return;
+
+	pm_clk_destroy(dev);
+};
+
 static int gdsc_init(struct gdsc *sc)
 {
 	u32 mask, val;
@@ -196,6 +251,9 @@ static int gdsc_init(struct gdsc *sc)
 
 	sc->pd.power_off = gdsc_disable;
 	sc->pd.power_on = gdsc_enable;
+	sc->pd.attach_dev = gdsc_attach;
+	sc->pd.detach_dev = gdsc_detach;
+	sc->pd.flags = GENPD_FLAG_PM_CLK;
 	pm_genpd_init(&sc->pd, NULL, !on);
 
 	return 0;
