@@ -150,6 +150,9 @@ static int gdsc_enable(struct generic_pm_domain *domain)
 	if (sc->pwrsts == PWRSTS_ON)
 		return gdsc_deassert_reset(sc);
 
+	if (sc->root_clk)
+		clk_prepare_enable(sc->root_clk);
+
 	ret = gdsc_toggle_logic(sc, true);
 	if (ret)
 		return ret;
@@ -171,6 +174,7 @@ static int gdsc_enable(struct generic_pm_domain *domain)
 
 static int gdsc_disable(struct generic_pm_domain *domain)
 {
+	int ret;
 	struct gdsc *sc = domain_to_gdsc(domain);
 
 	if (sc->pwrsts == PWRSTS_ON)
@@ -179,7 +183,12 @@ static int gdsc_disable(struct generic_pm_domain *domain)
 	if (sc->pwrsts & PWRSTS_OFF)
 		gdsc_clear_mem_on(sc);
 
-	return gdsc_toggle_logic(sc, false);
+	ret = gdsc_toggle_logic(sc, false);
+
+	if (sc->root_clk)
+		clk_disable_unprepare(sc->root_clk);
+
+	return ret;
 }
 
 static inline bool match(unsigned int id, unsigned int *ids, unsigned int count)
@@ -219,7 +228,8 @@ static int gdsc_attach(struct generic_pm_domain *domain, struct device *dev)
 			sc->clks[j] = of_clk_get_from_provider(&clkspec);
 			pm_clk_add_clk(dev, sc->clks[j]);
 			j++;
-		}
+		} else if (clkspec.args[0] == sc->root_clock)
+			sc->root_clk = of_clk_get_from_provider(&clkspec);
 		i++;
 	}
 	return 0;
