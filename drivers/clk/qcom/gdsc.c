@@ -17,6 +17,7 @@
 #include <linux/err.h>
 #include <linux/jiffies.h>
 #include <linux/kernel.h>
+#include <linux/platform_device.h>
 #include <linux/pm_clock.h>
 #include <linux/pm_domain.h>
 #include <linux/regmap.h>
@@ -303,3 +304,76 @@ void gdsc_unregister(struct device *dev)
 {
 	of_genpd_del_provider(dev->of_node);
 }
+
+#ifndef CONFIG_PM
+static void enable_clock(struct of_phandle_args *clkspec)
+{
+	struct clk *clk;
+
+	clk = of_clk_get_from_provider(clkspec);
+	if (!IS_ERR(clk)) {
+		clk_prepare_enable(clk);
+		clk_put(clk);
+	}
+}
+
+static void disable_clock(struct of_phandle_args *clkspec)
+{
+	struct clk *clk;
+
+	clk = of_clk_get_from_provider(clkspec);
+	if (!IS_ERR(clk)) {
+		clk_disable_unprepare(clk);
+		clk_put(clk);
+	}
+}
+
+static int clk_notify(struct notifier_block *nb, unsigned long action,
+		      void *data)
+{
+	int sz, i = 0;
+	struct device *dev = data;
+	struct gdsc_notifier_block *gdsc_nb;
+	struct of_phandle_args clkspec;
+	struct device_node *np = dev->of_node;
+
+	if (!of_find_property(dev->of_node, "power-domains", &sz))
+		return 0;
+
+	gdsc_nb = container_of(nb, struct gdsc_notifier_block, nb);
+
+	if (!gdsc_nb->clock_count)
+		return 0;
+
+	switch (action) {
+	case BUS_NOTIFY_BIND_DRIVER:
+		while (!of_parse_phandle_with_args(np, "clocks", "#clock-cells",
+						   i, &clkspec)) {
+			if (match(clkspec.args[0], gdsc_nb->clocks,
+				  gdsc_nb->clock_count))
+				enable_clock(&clkspec);
+			i++;
+		}
+		break;
+	case BUS_NOTIFY_UNBOUND_DRIVER:
+		while (!of_parse_phandle_with_args(np, "clocks", "#clock-cells",
+						   i, &clkspec)) {
+			if (match(clkspec.args[0], gdsc_nb->clocks,
+				  gdsc_nb->clock_count))
+				disable_clock(&clkspec);
+			i++;
+		}
+		break;
+	}
+	return 0;
+}
+
+void qcom_pm_add_notifier(struct gdsc_notifier_block *gdsc_nb)
+{
+	if (!gdsc_nb)
+		return;
+
+	gdsc_nb->nb.notifier_call = clk_notify,
+	bus_register_notifier(&platform_bus_type, &gdsc_nb->nb);
+}
+#endif
