@@ -42,6 +42,8 @@ struct reset_controller_dev;
  * @clocks: ids of clocks associated with the gdsc
  * @clock_count: number of @clocks
  * @clks: clock pointers to gdsc clocks
+ * @root_clock: id of the root clock to be enabled
+ * @root_clk: root clk pointer
  */
 struct gdsc {
 	struct generic_pm_domain	pd;
@@ -56,6 +58,8 @@ struct gdsc {
 	unsigned int			*clocks;
 	unsigned int			clock_count;
 	struct clk			**clks;
+	unsigned int			root_clock;
+	struct clk			*root_clk;
 };
 
 #ifdef CONFIG_QCOM_GDSC
