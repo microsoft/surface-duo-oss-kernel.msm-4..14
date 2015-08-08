@@ -44,6 +44,7 @@ __asm__ __volatile__ (							\
 
 /* bitmap of the page sizes currently supported */
 #define MSM_IOMMU_PGSIZES	(SZ_4K | SZ_64K | SZ_1M | SZ_16M)
+#define DUMMY_CONTEXT	1
 
 DEFINE_SPINLOCK(msm_iommu_lock);
 static LIST_HEAD(qcom_iommu_devices);
@@ -57,6 +58,12 @@ struct msm_priv {
 	struct device		*dev;
 	spinlock_t		pgtlock; /* pagetable lock */
 };
+
+struct device *msm_iommu_get_ctx(const char *ctx_name)
+{
+	return (struct device *) DUMMY_CONTEXT;
+}
+EXPORT_SYMBOL(msm_iommu_get_ctx);
 
 static struct msm_priv *to_msm_priv(struct iommu_domain *dom)
 {
