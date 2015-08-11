@@ -20,11 +20,14 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
+#include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/platform_device.h>
 #include <linux/cpuidle.h>
 #include <linux/cpu_pm.h>
 #include <linux/qcom_scm.h>
+#include <linux/regulator/driver.h>
+#include <linux/regulator/of_regulator.h>
 
 #include <asm/cpuidle.h>
 #include <asm/proc-fns.h>
@@ -35,6 +38,9 @@
 #define SPM_CTL_INDEX		0x7f
 #define SPM_CTL_INDEX_SHIFT	4
 #define SPM_CTL_EN		BIT(0)
+
+/* Specifies the PMIC internal slew rate in uV/us. */
+#define REGULATOR_SLEW_RATE		1250
 
 enum pm_sleep_mode {
 	PM_SLEEP_MODE_STBY,
@@ -51,6 +57,8 @@ enum spm_reg {
 	SPM_REG_PMIC_DLY,
 	SPM_REG_PMIC_DATA_0,
 	SPM_REG_PMIC_DATA_1,
+	SPM_REG_RST,
+	SPM_REG_STS_1,
 	SPM_REG_VCTL,
 	SPM_REG_SEQ_ENTRY,
 	SPM_REG_SPM_STS,
@@ -68,9 +76,23 @@ struct spm_reg_data {
 	u8 start_index[PM_SLEEP_MODE_NR];
 };
 
+struct spm_vlevel_data {
+	struct spm_driver_data *drv;
+	unsigned selector;
+};
+
+struct saw2_vreg {
+	struct regulator_desc	rdesc;
+	struct regulator_dev	*rdev;
+	unsigned int		uV;
+	u32			vlevel;
+	struct spm_driver_data	*drv;
+};
+
 struct spm_driver_data {
 	void __iomem *reg_base;
 	const struct spm_reg_data *reg_data;
+	struct saw2_vreg *vreg;
 };
 
 static const u8 spm_reg_offset_v2_1[SPM_REG_NR] = {
@@ -94,10 +116,13 @@ static const struct spm_reg_data spm_reg_8974_8084_cpu  = {
 
 static const u8 spm_reg_offset_v1_1[SPM_REG_NR] = {
 	[SPM_REG_CFG]		= 0x08,
+	[SPM_REG_STS_1]		= 0x10,
+	[SPM_REG_VCTL]		= 0x14,
 	[SPM_REG_SPM_CTL]	= 0x20,
 	[SPM_REG_PMIC_DLY]	= 0x24,
 	[SPM_REG_PMIC_DATA_0]	= 0x28,
 	[SPM_REG_PMIC_DATA_1]	= 0x2C,
+	[SPM_REG_RST]		= 0x30,
 	[SPM_REG_SEQ_ENTRY]	= 0x80,
 };
 
@@ -282,6 +307,146 @@ static struct cpuidle_ops qcom_cpuidle_ops __initdata = {
 CPUIDLE_METHOD_OF_DECLARE(qcom_idle_v1, "qcom,kpss-acc-v1", &qcom_cpuidle_ops);
 CPUIDLE_METHOD_OF_DECLARE(qcom_idle_v2, "qcom,kpss-acc-v2", &qcom_cpuidle_ops);
 
+static const unsigned int saw2_volt_table[] = {
+	850000, 862500, 875000, 887500, 900000, 912500,
+	925000, 937500, 950000, 962500, 975000, 987500,
+	1000000, 1012500, 1025000, 1037500, 1050000, 1062500,
+	1075000, 1087500, 1100000, 1112500, 1125000, 1137000,
+	1137500, 1150000, 1162500, 1175000, 1187500, 1200000,
+	1212500, 1225000, 1237500, 1250000, 1287500
+};
+
+static const u32 vlevels[] = {
+	0x94, 0x94, 0x94, 0x94, 0x94, 0x94,
+	0x94, 0x96, 0x96, 0x96, 0x98, 0x98,
+	0x98, 0x9a, 0x9a, 0x9e, 0xa0, 0xa0,
+	0xa2, 0xa6, 0xa8, 0xa8, 0xaa, 0xaa,
+	0xac, 0xac, 0xac, 0xac, 0xac, 0xac,
+	0xac, 0xac, 0xac, 0xac, 0xac
+};
+
+static int saw2_regulator_get_voltage(struct regulator_dev *rdev)
+{
+	struct spm_driver_data *drv = rdev_get_drvdata(rdev);
+
+	return drv->vreg->uV;
+}
+
+static void spm_smp_set_vdd(void *data)
+{
+	struct spm_vlevel_data *vdata = (struct spm_vlevel_data *)data;
+	struct spm_driver_data *drv = vdata->drv;
+	struct saw2_vreg *vreg = drv->vreg;
+	unsigned long sel = vdata->selector;
+	u32 new_vlevel;
+	u32 vctl, data0, data1;
+	int timeout_us = 50;
+
+	if (vreg->vlevel == vlevels[sel])
+		return;
+
+	vctl = spm_register_read(drv, SPM_REG_VCTL);
+	data0 = spm_register_read(drv, SPM_REG_PMIC_DATA_0);
+	data1 = spm_register_read(drv, SPM_REG_PMIC_DATA_1);
+
+	vctl &= ~0xff;
+	vctl |= vlevels[sel];
+
+	data0 &= ~0xff;
+	data0 |= vlevels[sel];
+
+	data1 &= ~0x3f;
+	data1 |= (vlevels[sel] & 0x3f);
+	data1 &= ~0x3F0000;
+	data1 |= ((vlevels[sel] & 0x3f) << 16);
+
+	spm_register_write(drv, SPM_REG_RST, 1);
+	spm_register_write(drv, SPM_REG_VCTL, vctl);
+	spm_register_write(drv, SPM_REG_PMIC_DATA_0, data0);
+	spm_register_write(drv, SPM_REG_PMIC_DATA_1, data1);
+
+	do {
+		new_vlevel = spm_register_read(drv, SPM_REG_STS_1) & 0xff;
+		if (new_vlevel == vlevels[sel])
+			break;
+		udelay(1);
+	} while (--timeout_us);
+
+	if (!timeout_us) {
+		pr_info("%s: Voltage not changed %#x\n", __func__, new_vlevel);
+		return;
+	}
+
+	if (saw2_volt_table[sel] > vreg->uV) {
+		/* Wait for voltage to stabalize. */
+		udelay((saw2_volt_table[sel] - vreg->uV) / REGULATOR_SLEW_RATE);
+	}
+
+	vreg->uV = saw2_volt_table[sel];
+	vreg->vlevel = vlevels[sel];
+}
+
+static int saw2_regulator_set_voltage_sel(struct regulator_dev *rdev,
+					  unsigned selector)
+{
+	struct spm_driver_data *drv = rdev_get_drvdata(rdev);
+	struct spm_vlevel_data data;
+	int ret;
+	int cpu = rdev_get_id(rdev);
+
+	data.drv = drv;
+	data.selector = selector;
+
+	ret = smp_call_function_single(cpu, spm_smp_set_vdd, &data, true);
+
+	return ret;
+}
+
+static struct regulator_ops saw2_regulator_ops = {
+	.list_voltage = regulator_list_voltage_table,
+	.map_voltage = regulator_map_voltage_iterate,
+	.get_voltage = saw2_regulator_get_voltage,
+	.set_voltage_sel = saw2_regulator_set_voltage_sel,
+};
+
+static struct regulator_desc saw2_regulator = {
+	.owner = THIS_MODULE,
+	.type = REGULATOR_VOLTAGE,
+	.ops  = &saw2_regulator_ops,
+	.volt_table = saw2_volt_table,
+	.n_voltages = ARRAY_SIZE(saw2_volt_table),
+};
+
+static int register_saw2_regulator(struct spm_driver_data *drv,
+				   struct platform_device *pdev, int cpu)
+{
+	struct device_node *np = pdev->dev.of_node;
+	struct saw2_vreg *vreg;
+	struct regulator_config config = { };
+
+	vreg = devm_kzalloc(&pdev->dev, sizeof(*vreg), GFP_KERNEL);
+	if (!vreg)
+		return -ENOMEM;
+
+	drv->vreg = vreg;
+	config.driver_data = drv;
+	config.dev = &pdev->dev;
+	config.of_node = np;
+
+	vreg->rdesc = saw2_regulator;
+	vreg->rdesc.id = cpu;
+	vreg->rdesc.name = of_get_property(np, "regulator-name", NULL);
+	config.init_data = of_get_regulator_init_data(&pdev->dev,
+						      pdev->dev.of_node,
+						      &vreg->rdesc);
+
+	vreg->rdev = devm_regulator_register(&pdev->dev, &vreg->rdesc, &config);
+	if (IS_ERR(vreg->rdev))
+		return PTR_ERR(vreg->rdev);
+
+	return 0;
+}
+
 static struct spm_driver_data *spm_get_drv(struct platform_device *pdev,
 		int *spm_cpu)
 {
@@ -327,7 +492,7 @@ static int spm_dev_probe(struct platform_device *pdev)
 	struct resource *res;
 	const struct of_device_id *match_id;
 	void __iomem *addr;
-	int cpu;
+	int cpu, ret;
 
 	drv = spm_get_drv(pdev, &cpu);
 	if (!drv)
@@ -356,6 +521,7 @@ static int spm_dev_probe(struct platform_device *pdev)
 	 * machine, before the sequences are completely written.
 	 */
 	spm_register_write(drv, SPM_REG_CFG, drv->reg_data->spm_cfg);
+
 	spm_register_write(drv, SPM_REG_DLY, drv->reg_data->spm_dly);
 	spm_register_write(drv, SPM_REG_PMIC_DLY, drv->reg_data->pmic_dly);
 	spm_register_write(drv, SPM_REG_PMIC_DATA_0,
@@ -367,6 +533,10 @@ static int spm_dev_probe(struct platform_device *pdev)
 	spm_set_low_power_mode(drv, PM_SLEEP_MODE_STBY);
 
 	per_cpu(cpu_spm_drv, cpu) = drv;
+
+	ret = register_saw2_regulator(drv, pdev, cpu);
+	if (ret)
+		dev_err(&pdev->dev, "error registering SAW2 regulator\n");
 
 	return 0;
 }
