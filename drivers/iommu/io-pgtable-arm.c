@@ -266,6 +266,10 @@ static void __arm_lpae_set_pte(arm_lpae_iopte *ptep, arm_lpae_iopte pte,
 					   sizeof(pte), DMA_TO_DEVICE);
 }
 
+static int __arm_lpae_unmap(struct arm_lpae_io_pgtable *data,
+			    unsigned long iova, size_t size, int lvl,
+			    arm_lpae_iopte *ptep);
+
 static int arm_lpae_init_pte(struct arm_lpae_io_pgtable *data,
 			     unsigned long iova, phys_addr_t paddr,
 			     arm_lpae_iopte prot, int lvl,
