@@ -1388,6 +1388,14 @@ struct edid *drm_get_edid(struct drm_connector *connector,
 }
 EXPORT_SYMBOL(drm_get_edid);
 
+struct edid *drm_get_edid_early(struct i2c_adapter *adapter)
+{
+	struct drm_connector dummy_connector;
+
+	return drm_get_edid(&dummy_connector, adapter);
+}
+EXPORT_SYMBOL(drm_get_edid_early);
+
 /**
  * drm_edid_duplicate - duplicate an EDID and the extensions
  * @edid: EDID to duplicate
