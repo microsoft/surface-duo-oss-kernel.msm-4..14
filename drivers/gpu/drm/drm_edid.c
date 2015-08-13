@@ -1417,7 +1417,7 @@ EXPORT_SYMBOL(drm_edid_duplicate);
  *
  * Returns true if @vendor is in @edid, false otherwise
  */
-static bool edid_vendor(struct edid *edid, char *vendor)
+bool edid_vendor(struct edid *edid, char *vendor)
 {
 	char edid_vendor[3];
 
@@ -1428,7 +1428,7 @@ static bool edid_vendor(struct edid *edid, char *vendor)
 
 	return !strncmp(edid_vendor, vendor, 3);
 }
-
+EXPORT_SYMBOL(edid_vendor);
 /**
  * edid_get_quirks - return quirk flags for a given EDID
  * @edid: EDID to process
