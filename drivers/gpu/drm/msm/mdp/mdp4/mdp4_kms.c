@@ -262,6 +262,11 @@ static struct drm_panel *detect_panel(struct drm_device *dev)
 
 	of_node_put(endpoint);
 
+	if (!of_device_is_available(panel_node)) {
+		dev_err(dev->dev, "panel is not enabled in DT\n");
+		return ERR_PTR(-ENODEV);
+	}
+
 	panel = of_drm_find_panel(panel_node);
 	if (!panel) {
 		of_node_put(panel_node);
