@@ -313,44 +313,54 @@ static int modeset_init(struct mdp4_kms *mdp4_kms)
 	if (IS_ERR(panel)) {
 		ret = PTR_ERR(panel);
 		dev_err(dev->dev, "failed to detect LVDS panel: %d\n", ret);
-		goto fail;
+		/**
+		 * Only fail if there is panel but not ready yet
+		 * continue with other stuff if there is no panel connected.
+		 */
+		if (ret == -EPROBE_DEFER)
+			goto fail;
+	} else {
+		plane = mdp4_plane_init(dev, RGB2, true);
+		if (IS_ERR(plane)) {
+			dev_err(dev->dev,
+				"failed to construct plane for RGB2\n");
+			ret = PTR_ERR(plane);
+			goto fail;
+		}
+
+		crtc  = mdp4_crtc_init(dev, plane, priv->num_crtcs, 0, DMA_P);
+		if (IS_ERR(crtc)) {
+			dev_err(dev->dev,
+				"failed to construct crtc for DMA_P\n");
+			ret = PTR_ERR(crtc);
+			goto fail;
+		}
+
+		encoder = mdp4_lcdc_encoder_init(dev, panel);
+		if (IS_ERR(encoder)) {
+			dev_err(dev->dev,
+				"failed to construct LCDC encoder\n");
+			ret = PTR_ERR(encoder);
+			goto fail;
+		}
+
+		/* LCDC can be hooked to DMA_P: */
+		encoder->possible_crtcs = 1 << priv->num_crtcs;
+
+		priv->crtcs[priv->num_crtcs++] = crtc;
+		priv->encoders[priv->num_encoders++] = encoder;
+
+		connector = mdp4_lvds_connector_init(dev, panel, encoder);
+		if (IS_ERR(connector)) {
+			ret = PTR_ERR(connector);
+			dev_err(dev->dev,
+				"failed to initialize LVDS connector: %d\n",
+				ret);
+			goto fail;
+		}
+
+		priv->connectors[priv->num_connectors++] = connector;
 	}
-
-	plane = mdp4_plane_init(dev, RGB2, true);
-	if (IS_ERR(plane)) {
-		dev_err(dev->dev, "failed to construct plane for RGB2\n");
-		ret = PTR_ERR(plane);
-		goto fail;
-	}
-
-	crtc  = mdp4_crtc_init(dev, plane, priv->num_crtcs, 0, DMA_P);
-	if (IS_ERR(crtc)) {
-		dev_err(dev->dev, "failed to construct crtc for DMA_P\n");
-		ret = PTR_ERR(crtc);
-		goto fail;
-	}
-
-	encoder = mdp4_lcdc_encoder_init(dev, panel);
-	if (IS_ERR(encoder)) {
-		dev_err(dev->dev, "failed to construct LCDC encoder\n");
-		ret = PTR_ERR(encoder);
-		goto fail;
-	}
-
-	/* LCDC can be hooked to DMA_P: */
-	encoder->possible_crtcs = 1 << priv->num_crtcs;
-
-	priv->crtcs[priv->num_crtcs++] = crtc;
-	priv->encoders[priv->num_encoders++] = encoder;
-
-	connector = mdp4_lvds_connector_init(dev, panel, encoder);
-	if (IS_ERR(connector)) {
-		ret = PTR_ERR(connector);
-		dev_err(dev->dev, "failed to initialize LVDS connector: %d\n", ret);
-		goto fail;
-	}
-
-	priv->connectors[priv->num_connectors++] = connector;
 
 	/*
 	 * Setup DTV/HDMI path: RGB1 -> DMA_E -> DTV -> HDMI:
