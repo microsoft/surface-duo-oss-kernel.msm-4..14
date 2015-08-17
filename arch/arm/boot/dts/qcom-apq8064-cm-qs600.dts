@@ -29,15 +29,6 @@
 	};
 
 	soc {
-		pinctrl@800000 {
-			i2c1_pins: i2c1 {
-				mux {
-					pins = "gpio20", "gpio21";
-					function = "gsbi1";
-				};
-			};
-		};
-
 		rpm@108000 {
 			regulators {
 				vin_lvs1_3_6-supply = <&pm8921_s4>;
