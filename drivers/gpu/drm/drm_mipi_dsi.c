@@ -108,6 +108,22 @@ struct mipi_dsi_device_info {
 	struct device_node *node;
 };
 
+static int __dsi_check_chan_busy(struct device *dev, void *data)
+{
+	struct mipi_dsi_device *dsi = to_mipi_dsi_device(dev);
+	u32 reg = *(u32 *) data;
+
+	if (dsi && dsi->channel == reg)
+		return -EBUSY;
+
+	return 0;
+}
+
+static int mipi_dsi_check_chan_busy(struct mipi_dsi_host *host, u32 reg)
+{
+	return device_for_each_child(&host->dev, &reg, __dsi_check_chan_busy);
+}
+
 static struct mipi_dsi_device *
 mipi_dsi_device_new(struct mipi_dsi_host *host,
 		    struct mipi_dsi_device_info *info)
@@ -136,13 +152,18 @@ mipi_dsi_device_new(struct mipi_dsi_host *host,
 
 	dev_set_name(&dsi->dev, "%s.%d", dev_name(host->dev), info->reg);
 
+	r = mipi_dsi_check_chan_busy(host, info->reg);
+	if (r)
+		goto err;
+
 	r = device_register(&dsi->dev);
-	if (r) {
-		kfree(dsi);
-		return ERR_PTR(r);
-	}
+	if (r)
+		goto err;
 
 	return dsi;
+err:
+	kfree(dsi);
+	return ERR_PTR(r);
 }
 
 static struct mipi_dsi_device *
