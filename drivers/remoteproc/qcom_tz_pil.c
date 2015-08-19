@@ -611,10 +611,8 @@ static int qproc_probe(struct platform_device *pdev)
 
 	ret = of_property_read_u32(pdev->dev.of_node, "qcom,crash-reason",
 				   &qproc->crash_reason);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to read crash reason id\n");
-		goto free_rproc;
-	}
+	if (ret)
+		dev_info(&pdev->dev, "no crash reason id\n");
 
 	qproc->smd_edge_node = of_parse_phandle(pdev->dev.of_node,
 						"qcom,smd-edges", 0);
@@ -632,28 +630,18 @@ static int qproc_probe(struct platform_device *pdev)
 		goto free_rproc;
 
 	ret = qproc_request_irq(qproc, pdev, "wdog", qproc_wdog_interrupt);
-	if (ret < 0)
-		goto free_rproc;
 	qproc->wdog_irq = ret;
 
 	ret = qproc_request_irq(qproc, pdev, "fatal", qproc_fatal_interrupt);
-	if (ret < 0)
-		goto free_rproc;
 	qproc->fatal_irq = ret;
 
 	ret = qproc_request_irq(qproc, pdev, "ready", qproc_ready_interrupt);
-	if (ret < 0)
-		goto free_rproc;
 	qproc->ready_irq = ret;
 
 	ret = qproc_request_irq(qproc, pdev, "handover", qproc_handover_interrupt);
-	if (ret < 0)
-		goto free_rproc;
 	qproc->handover_irq = ret;
 
 	ret = qproc_request_irq(qproc, pdev, "stop-ack", qproc_stop_ack_interrupt);
-	if (ret < 0)
-		goto free_rproc;
 	qproc->stop_ack_irq = ret;
 
 	for (i = 0; i < ARRAY_SIZE(qproc_attrs); i++) {
@@ -677,7 +665,7 @@ static int qproc_probe(struct platform_device *pdev)
 		qproc->reloc_phys = r.start;
 		qproc->reloc_size = resource_size(&r);
 
-		dev_err(&pdev->dev, "Found relocation area %lu@%pad\n",
+		dev_info(&pdev->dev, "Found relocation area %lu@%pad\n",
 				qproc->reloc_size, &qproc->reloc_phys);
 	}
 
