@@ -243,7 +243,6 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 	bool relocatable = false;
 	phys_addr_t paddr;
 
-
 	ret = qproc_scm_clk_enable(qproc);
 	if (ret)
 		return ret;
@@ -341,6 +340,10 @@ static int qproc_start(struct rproc *rproc)
 		goto unroll_clocks;
 	}
 
+	/* if ready irq not provided skip waiting */
+	if (qproc->ready_irq < 0)
+		goto done;
+
 	ret = wait_for_completion_timeout(&qproc->start_done, msecs_to_jiffies(10000));
 	if (ret == 0) {
 		dev_err(qproc->dev, "start timed out\n");
@@ -349,8 +352,8 @@ static int qproc_start(struct rproc *rproc)
 		goto unroll_clocks;
 	}
 
-
-	dev_err(qproc->dev, "start successful\n");
+done:
+	dev_info(qproc->dev, "start successful\n");
 
 	return 0;
 
