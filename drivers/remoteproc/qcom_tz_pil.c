@@ -280,7 +280,8 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 	diff_addr = max_addr - min_addr;
 	dev_dbg(qproc->dev, "pas_mem_setup %pa, %pa\n", &min_addr, &diff_addr);
 
-	ret = qcom_scm_pas_mem_setup(qproc->pas_id, min_addr, max_addr - min_addr);
+	ret = qcom_scm_pas_mem_setup(qproc->pas_id,
+		relocatable ? qproc->reloc_phys : min_addr, max_addr - min_addr);
 	if (ret) {
 		dev_err(qproc->dev, "unable to setup memory for image\n");
 		return -EINVAL;
