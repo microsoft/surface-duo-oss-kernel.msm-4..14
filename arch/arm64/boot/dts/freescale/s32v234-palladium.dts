@@ -22,6 +22,29 @@
 
 };
 
+&dcu0 {
+	display = <&display>;
+	status = "okay";
+	display: display@0 {
+		bits-per-pixel = <32>;
+
+		display-timings {
+			native-mode = <&timing0>;
+
+			timing0: nl4827hc19 {
+				clock-frequency = <56000000>;
+				hactive = <1920>;
+				vactive = <1080>;
+				hback-porch = <30>;
+				hfront-porch = <60>;
+				vback-porch = <30>;
+				vfront-porch = <3>;
+				hsync-len = <60>;
+				vsync-len = <3>;
+			};
+		};
+	};
+};
 &fec {
 	status = "okay";
 };
@@ -33,6 +56,9 @@
 };
 &i2c2 {
 	status = "okay";
+};
+&siul2 {
+        status = "okay";
 };
 &swt0 {
 	status = "okay";
