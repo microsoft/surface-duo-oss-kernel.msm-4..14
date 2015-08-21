@@ -1073,10 +1073,14 @@
 				qcom,smd-edge = <6>;
 				qcom,remote-pid = <4>;
 
-                               bt {
-					compatible = "qcom,hci-smd";
-					qcom,smd-channels = "APPS_RIVA_BT_CMD", "APPS_RIVA_BT_ACL";
-					qcom,smd-channel-names = "event", "data";
+				bt_cmd {
+					compatible = "qcom,hci-smd-bt-cmd";
+					qcom,smd-channels = "APPS_RIVA_BT_CMD";
+				};
+
+				bt_acl {
+					compatible = "qcom,hci-smd-bt-acl";
+					qcom,smd-channels = "APPS_RIVA_BT_ACL";
 				};
 
 				ipcrtr {
