@@ -221,3 +221,11 @@
 		};
 	};
 };
+
+&vidc_rproc {
+	status = "okay";
+};
+
+&vidc {
+	status = "okay";
+};
