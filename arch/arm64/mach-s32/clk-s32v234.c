@@ -220,6 +220,9 @@ static const char const * lin_sels[]	= { "firc", "fxosc", "dummy", "periphpll_ph
 
 static const char const * sdhc_sels[]	= { "firc", "fxosc", "dummy", "dummy", "enetpll_dfs3",};
 
+static const char const * dcu_sels[]	= { "firc", "fxosc", "dummy", "dummy", "dummy", "dummy", "dummy", "dummy", "dummy", "sys6",};
+
+
 static struct clk *clk[S32V234_CLK_END];
 static struct clk_onecell_data clk_data;
 
@@ -395,6 +398,17 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 
 	clk[S32V234_CLK_LIN_IPG] = s32_clk_fixed_factor("lin_ipg",
 		"lin", 1, 2);
+
+	/* enable DCU */
+	clk[S32V234_CLK_DCU_SEL] = s32_clk_mux("videopll_sel",
+		CGM_ACn_SC(mc_cgm0_base,9),
+		MC_CGM_ACn_SEL_OFFSET,
+		MC_CGM_ACn_SEL_SIZE,
+		dcu_sels, ARRAY_SIZE(dcu_sels));
+
+	clk[S32V234_CLK_VIDEOPLL_DIV2] = s32_clk_divider("videopll_div", "videopll_sel",
+		CGM_ACn_DCm(mc_cgm0_base, 9, 0), MC_CGM_ACn_DCm_PREDIV_OFFSET,
+		MC_CGM_ACn_DCm_PREDIV_SIZE);
 
 	/* enable PERIPHPLL */
 	enable_clocks_sources( 0, MC_ME_MODE_MC_PERIPHPLL, MC_ME_RUNn_MC(mc_me_base, 0) );
