@@ -67,5 +67,6 @@
 	status = "okay";
 };
 &usdhc0 {
+	no-1-8-V;
 	status = "okay";
 };
