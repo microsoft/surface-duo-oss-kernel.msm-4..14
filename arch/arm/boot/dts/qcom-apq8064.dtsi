@@ -828,24 +828,40 @@
 			compatible = "qcom,apq8064-saw2-v1.1-cpu", "qcom,saw2";
 			reg = <0x02089000 0x1000>, <0x02009000 0x1000>;
 			regulator;
+			regulator-name = "krait0";
+			regulator-always-on;
+			regulator-min-microvolt = <825000>;
+			regulator-max-microvolt = <1250000>;
 		};
 
 		saw1: power-controller@2099000 {
 			compatible = "qcom,apq8064-saw2-v1.1-cpu", "qcom,saw2";
 			reg = <0x02099000 0x1000>, <0x02009000 0x1000>;
 			regulator;
+			regulator-name = "krait1";
+			regulator-always-on;
+			regulator-min-microvolt = <825000>;
+			regulator-max-microvolt = <1250000>;
 		};
 
 		saw2: power-controller@20a9000 {
 			compatible = "qcom,apq8064-saw2-v1.1-cpu", "qcom,saw2";
 			reg = <0x020a9000 0x1000>, <0x02009000 0x1000>;
 			regulator;
+			regulator-name = "krait2";
+			regulator-always-on;
+			regulator-min-microvolt = <825000>;
+			regulator-max-microvolt = <1250000>;
 		};
 
 		saw3: power-controller@20b9000 {
 			compatible = "qcom,apq8064-saw2-v1.1-cpu", "qcom,saw2";
 			reg = <0x020b9000 0x1000>, <0x02009000 0x1000>;
 			regulator;
+			regulator-name = "krait3";
+			regulator-always-on;
+			regulator-min-microvolt = <825000>;
+			regulator-max-microvolt = <1250000>;
 		};
 
 		gsbi1: gsbi@12440000 {
