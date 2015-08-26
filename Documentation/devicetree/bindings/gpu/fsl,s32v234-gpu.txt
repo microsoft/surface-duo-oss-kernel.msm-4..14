@@ -1,0 +1,35 @@
+Vivante GC3000 Graphics Processing Unit
+
+Required properties:
+- compatible: "fsl,s32v234-gpu"
+- reg: Physical base address and length of the controller's registers,
+       then the start of physical RAM addresses to be used by the GPU.
+- interrupts: Must contain an entry for the GPU interrupt
+- pu-supply: regulator for supply voltage.
+- clocks: Must contain an entry for each entry in clock-names.
+  See ../clocks/clock-bindings.txt for details.
+- clock-names: Must include the following entries:
+  - gpu3d_clk
+  - gpu3d_shader_clk
+- resets: Must contain an entry for each entry in reset-names.
+  See ../reset/reset.txt for details.
+- reset-names: Must include the following entries:
+  - gpu3d
+
+Example:
+
+	gpu: gpu@40020000 {
+		compatible = "fsl,s32v234-gpu";
+		reg = <0x0 0x40020000 0x0 0x1000>,
+			  <0x0 0xC0000000 0x0 0x0>;
+		reg-names = "iobase_3d", "phys_baseaddr";
+		interrupts = <0 101 0x04>;
+		interrupt-names = "irq_3d";
+		clocks = <&clks S32V234_CLK_GPU>,
+				 <&clks S32V234_CLK_GPU_SHD>;
+		clock-names = "gpu3d_clk", "gpu3d_shader_clk";
+		resets = <&src 0>;
+		reset-names = "gpu3d";
+		pu-supply = <&pu_dummy>; /* ldo-bypass:use pu_dummy
+							  if VDDSOC share with VDDPU */
+	};
