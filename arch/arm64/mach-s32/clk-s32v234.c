@@ -222,6 +222,9 @@ static const char const * sdhc_sels[]	= { "firc", "fxosc", "dummy", "dummy", "en
 
 static const char const * dcu_sels[]	= { "firc", "fxosc", "dummy", "dummy", "dummy", "dummy", "dummy", "dummy", "dummy", "sys6",};
 
+static const char const * gpu_sels[]	= { "firc", "fxosc", "armpll_dfs1", };
+
+static const char const * gpu_shdmipi_sels[]	= { "firc", "fxosc", "armpll_dfs2", };
 
 static struct clk *clk[S32V234_CLK_END];
 static struct clk_onecell_data clk_data;
@@ -447,6 +450,27 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 	clk[S32V234_CLK_SDHC] = s32_clk_divider("sdhc", "sdhc_sel",
 		CGM_ACn_DCm(mc_cgm0_base, 15, 0), MC_CGM_ACn_DCm_PREDIV_OFFSET,
 		MC_CGM_ACn_DCm_PREDIV_SIZE);
+
+	/* GPU Clocks */
+	clk[S32V234_CLK_GPU_SEL] = s32_clk_mux("gpu_sels",
+		MC_ME_RUNn_SEC_CC_I(mc_me_base, 0),
+		MC_ME_MODE_SEC_CC_I_SYSCLK2_OFFSET,
+		MC_ME_MODE_SEC_CC_I_SYSCLK2_SIZE,
+		gpu_sels, ARRAY_SIZE(gpu_sels));
+
+	clk[S32V234_CLK_GPUSHD_MIPI_SEL] = s32_clk_mux("gpu_shdmipi_sels",
+		MC_ME_RUNn_SEC_CC_I(mc_me_base, 0),
+		MC_ME_MODE_SEC_CC_I_SYSCLK3_OFFSET,
+		MC_ME_MODE_SEC_CC_I_SYSCLK3_SIZE,
+		gpu_shdmipi_sels, ARRAY_SIZE(gpu_shdmipi_sels));
+
+	clk[S32V234_CLK_GPU] = s32_clk_divider("gpu", "gpu_sels",
+		CGM_SC_DCn(mc_cgm2_base, 0), MC_CGM_SC_DCn_PREDIV_OFFSET,
+		MC_CGM_SC_DCn_PREDIV_SIZE);
+
+	clk[S32V234_CLK_GPU_SHD] = s32_clk_divider("gpu_shd", "gpu_shdmipi_sels",
+		CGM_SC_DCn(mc_cgm3_base, 0), MC_CGM_SC_DCn_PREDIV_OFFSET,
+		MC_CGM_SC_DCn_PREDIV_SIZE);
 
 	/* enable ENETPLL */
 	enable_clocks_sources( 0, MC_ME_MODE_MC_ENETPLL, MC_ME_RUNn_MC(mc_me_base, 0) );
