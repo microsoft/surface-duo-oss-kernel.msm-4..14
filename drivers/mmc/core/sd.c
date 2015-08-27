@@ -971,8 +971,7 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 		goto free_card;
 
 	/* Initialization sequence for UHS-I cards */
-	/* TODO: Cleanup to use device tree instead of CONFIG_SOC_S32V234 */
-	if ((rocr & SD_ROCR_S18A) && !CONFIG_SOC_S32V234) {
+	if (rocr & SD_ROCR_S18A) {
 		err = mmc_sd_init_uhs_card(card);
 		if (err)
 			goto free_card;
