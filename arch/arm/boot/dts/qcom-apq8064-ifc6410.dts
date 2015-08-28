@@ -395,3 +395,19 @@
 		};
 	};
 };
+
+&CPU0 {
+	cpu-supply = <&saw0>;
+};
+
+&CPU1 {
+	cpu-supply = <&saw1>;
+};
+
+&CPU2 {
+	cpu-supply = <&saw2>;
+};
+
+&CPU3 {
+	cpu-supply = <&saw3>;
+};
