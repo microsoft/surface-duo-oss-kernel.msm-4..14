@@ -164,6 +164,41 @@ unsigned long dev_pm_opp_get_voltage(struct dev_pm_opp *opp)
 EXPORT_SYMBOL_GPL(dev_pm_opp_get_voltage);
 
 /**
+ * dev_pm_opp_get_voltage_always() - Gets the voltage corresponding to an opp
+ * @opp:	opp for which voltage has to be returned for
+ *
+ * This function is similar to dev_pm_opp_get_voltage() except that it
+ * works for disabled opps as well.  In most cases, you want to
+ * operate only on available opps so you should use
+ * dev_pm_opp_get_voltage() instead.
+ *
+ * Return: voltage in micro volt corresponding to the opp, else
+ * return 0
+ *
+ * Locking: This function must be called under rcu_read_lock(). opp is a rcu
+ * protected pointer. This means that opp which could have been fetched by
+ * opp_find_freq_{exact,ceil,floor} functions is valid as long as we are
+ * under RCU lock. The pointer returned by the opp_find_freq family must be
+ * used in the same section as the usage of this function with the pointer
+ * prior to unlocking with rcu_read_unlock() to maintain the integrity of the
+ * pointer.
+ */
+unsigned long dev_pm_opp_get_voltage_always(struct dev_pm_opp *opp)
+{
+	struct dev_pm_opp *tmp_opp;
+	unsigned long v = 0;
+
+	tmp_opp = rcu_dereference(opp);
+	if (unlikely(IS_ERR_OR_NULL(tmp_opp)))
+		pr_err("%s: Invalid parameters\n", __func__);
+	else
+		v = tmp_opp->u_volt;
+
+	return v;
+}
+EXPORT_SYMBOL_GPL(dev_pm_opp_get_voltage_always);
+
+/**
  * dev_pm_opp_get_freq() - Gets the frequency corresponding to an available opp
  * @opp:	opp for which frequency has to be returned for
  *
