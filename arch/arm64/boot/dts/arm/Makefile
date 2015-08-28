@@ -1,6 +1,4 @@
-dts-dirs += apm
-dts-dirs += arm
-dts-dirs += cavium
+dtb-$(CONFIG_ARCH_VEXPRESS) += juno.dtb juno-r1.dtb
 
 always		:= $(dtb-y)
 subdir-y	:= $(dts-dirs)
