@@ -489,6 +489,11 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 		goto pclk_disable;
 	}
 
+	/* Vote for maximum clock rate for maximum performance */
+	ret = clk_set_rate(msm_host->clk, INT_MAX);
+	if (ret)
+		dev_warn(&pdev->dev, "core clock boost falied\n");
+
 	ret = clk_prepare_enable(msm_host->clk);
 	if (ret)
 		goto pclk_disable;
@@ -517,6 +522,7 @@ static int sdhci_msm_probe(struct platform_device *pdev)
 	/* Set HC_MODE_EN bit in HC_MODE register */
 	writel_relaxed(HC_MODE_EN, (msm_host->core_mem + CORE_HC_MODE));
 
+	host->quirks |= SDHCI_QUIRK_NO_CARD_NO_RESET;
 	host->quirks |= SDHCI_QUIRK_BROKEN_CARD_DETECTION;
 	host->quirks |= SDHCI_QUIRK_SINGLE_POWER_WRITE;
 
