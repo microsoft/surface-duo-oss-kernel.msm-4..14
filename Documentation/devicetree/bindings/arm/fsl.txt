@@ -132,3 +132,13 @@ LS2085A ARMv8 based Simulator model
 Required root node properties:
     - compatible = "fsl,ls2085a-simu", "fsl,ls2085a";
 
+Freescale S32V boards
+---------------------
+
+S32V234 Customer Evaluation Board
+Required root node properties:
+    - compatible = "fsl,s32v234-evb", "fsl,s32v234";
+
+S32V234 TMDP board (aka Delphi board)
+Required root node properties:
+    - compatible = "fsl,s32v234-tmdp", "fsl,s32v234";
