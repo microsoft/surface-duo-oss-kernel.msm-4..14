@@ -182,9 +182,20 @@ static void mdp4_preclose(struct msm_kms *kms, struct drm_file *file)
 		mdp4_crtc_cancel_pending_flip(priv->crtcs[i], file);
 }
 
+static const char *iommu_ports[] = {
+	"mdp_port0_cb0", "mdp_port1_cb0",
+};
+
 static void mdp4_destroy(struct msm_kms *kms)
 {
 	struct mdp4_kms *mdp4_kms = to_mdp4_kms(to_mdp_kms(kms));
+	struct msm_mmu *mmu = mdp4_kms->mmu;
+
+        if (mmu) {
+                mmu->funcs->detach(mmu, iommu_ports, ARRAY_SIZE(iommu_ports));
+                mmu->funcs->destroy(mmu);
+        }
+
 	if (mdp4_kms->blank_cursor_iova)
 		msm_gem_put_iova(mdp4_kms->blank_cursor_bo, mdp4_kms->id);
 	if (mdp4_kms->blank_cursor_bo)
@@ -241,22 +252,37 @@ int mdp4_enable(struct mdp4_kms *mdp4_kms)
 }
 
 #ifdef CONFIG_OF
-static struct drm_panel *detect_panel(struct drm_device *dev, const char *name)
+static struct drm_panel *detect_panel(struct drm_device *dev)
 {
-	struct device_node *n;
+	struct device_node *endpoint, *panel_node;
+	struct device_node *np = dev->dev->of_node;
 	struct drm_panel *panel = NULL;
 
-	n = of_parse_phandle(dev->dev->of_node, name, 0);
-	if (n) {
-		panel = of_drm_find_panel(n);
-		if (!panel)
-			panel = ERR_PTR(-EPROBE_DEFER);
+	endpoint = of_graph_get_next_endpoint(np, NULL);
+	if (!endpoint) {
+		dev_err(dev->dev, "no valid endpoint\n");
+		return ERR_CAST(endpoint);
+	}
+
+	panel_node = of_graph_get_remote_port_parent(endpoint);
+	if (!panel_node) {
+		dev_err(dev->dev, "no valid panel node\n");
+		of_node_put(endpoint);
+		return ERR_CAST(panel_node);
+	}
+	of_node_put(endpoint);
+
+	panel = of_drm_find_panel(panel_node);
+	if (!panel) {
+		dev_err(dev->dev, "Failed to lookup panel\n");
+		of_node_put(panel_node);
+		return ERR_PTR(-EPROBE_DEFER);
 	}
 
 	return panel;
 }
 #else
-static struct drm_panel *detect_panel(struct drm_device *dev, const char *name)
+static struct drm_panel *detect_panel(struct drm_device *dev)
 {
 	// ??? maybe use a module param to specify which panel is attached?
 }
@@ -294,7 +320,7 @@ static int modeset_init(struct mdp4_kms *mdp4_kms)
 	 * Setup the LCDC/LVDS path: RGB2 -> DMA_P -> LCDC -> LVDS:
 	 */
 
-	panel = detect_panel(dev, "qcom,lvds-panel");
+	panel = detect_panel(dev);
 	if (IS_ERR(panel)) {
 		ret = PTR_ERR(panel);
 		dev_err(dev->dev, "failed to detect LVDS panel: %d\n", ret);
@@ -382,10 +408,6 @@ static int modeset_init(struct mdp4_kms *mdp4_kms)
 fail:
 	return ret;
 }
-
-static const char *iommu_ports[] = {
-		"mdp_port0_cb0", "mdp_port1_cb0",
-};
 
 struct msm_kms *mdp4_kms_init(struct drm_device *dev)
 {
@@ -491,6 +513,8 @@ struct msm_kms *mdp4_kms_init(struct drm_device *dev)
 				ARRAY_SIZE(iommu_ports));
 		if (ret)
 			goto fail;
+
+		mdp4_kms->mmu = mmu;
 	} else {
 		dev_info(dev->dev, "no iommu, fallback to phys "
 				"contig buffers for scanout\n");
