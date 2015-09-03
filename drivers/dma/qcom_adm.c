@@ -466,7 +466,7 @@ static int adm_terminate_all(struct dma_chan *chan)
 	vchan_get_all_descriptors(&achan->vc, &head);
 
 	/* send flush command to terminate current transaction */
-	writel_relaxed(0x0,
+	writel_relaxed(BIT(31),
 		adev->regs + ADM_CH_FLUSH_STATE0(achan->id, adev->ee));
 
 	spin_unlock_irqrestore(&achan->vc.lock, flags);
