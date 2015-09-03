@@ -614,7 +614,6 @@
 			#address-cells = <1>;
 			#size-cells = <1>;
 			ranges;
-			syscon-tcsr = <&tcsr>;
 
 			gsbi6_serial: serial@16540000 {
 				compatible = "qcom,msm-uartdm-v1.3", "qcom,msm-uartdm";
