@@ -131,6 +131,7 @@ struct msm_dsi_host {
 	enum mipi_dsi_pixel_format format;
 	unsigned long mode_flags;
 
+	u32 dlane_swap;
 	u32 dma_cmd_ctrl_restore;
 
 	bool registered;
@@ -684,19 +685,9 @@ static void dsi_ctrl_config(struct msm_dsi_host *msm_host, bool enable,
 	data = DSI_CTRL_CLK_EN;
 
 	DBG("lane number=%d", msm_host->lanes);
-	if (msm_host->lanes == 2) {
-		data |= DSI_CTRL_LANE1 | DSI_CTRL_LANE2;
-		/* swap lanes for 2-lane panel for better performance */
-		dsi_write(msm_host, REG_DSI_LANE_SWAP_CTRL,
-			DSI_LANE_SWAP_CTRL_DLN_SWAP_SEL(LANE_SWAP_1230));
-	} else {
-		/* Take 4 lanes as default */
-		data |= DSI_CTRL_LANE0 | DSI_CTRL_LANE1 | DSI_CTRL_LANE2 |
-			DSI_CTRL_LANE3;
-		/* Do not swap lanes for 4-lane panel */
-		dsi_write(msm_host, REG_DSI_LANE_SWAP_CTRL,
-			DSI_LANE_SWAP_CTRL_DLN_SWAP_SEL(LANE_SWAP_0123));
-	}
+	data |= ((DSI_CTRL_LANE0 << msm_host->lanes) - DSI_CTRL_LANE0);
+	dsi_write(msm_host, REG_DSI_LANE_SWAP_CTRL,
+		DSI_LANE_SWAP_CTRL_DLN_SWAP_SEL(msm_host->dlane_swap));
 
 	if (!(flags & MIPI_DSI_CLOCK_NON_CONTINUOUS))
 		dsi_write(msm_host, REG_DSI_LANE_CTRL,
@@ -1289,6 +1280,9 @@ static int dsi_host_attach(struct mipi_dsi_host *host,
 	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
 	int ret;
 
+	if (dsi->lanes > 4 || dsi->channel > 3)
+		return -EINVAL;
+
 	msm_host->channel = dsi->channel;
 	msm_host->lanes = dsi->lanes;
 	msm_host->format = dsi->format;
@@ -1344,6 +1338,33 @@ static struct mipi_dsi_host_ops dsi_host_ops = {
 	.transfer = dsi_host_transfer,
 };
 
+static void dsi_parse_dlane_swap(struct msm_dsi_host *msm_host,
+				struct device_node *np)
+{
+	const char *lane_swap;
+
+	lane_swap = of_get_property(np, "qcom,dsi-logical-lane-swap", NULL);
+
+	if (!lane_swap)
+		msm_host->dlane_swap = LANE_SWAP_0123;
+	else if (!strncmp(lane_swap, "3012", 5))
+		msm_host->dlane_swap = LANE_SWAP_3012;
+	else if (!strncmp(lane_swap, "2301", 5))
+		msm_host->dlane_swap = LANE_SWAP_2301;
+	else if (!strncmp(lane_swap, "1230", 5))
+		msm_host->dlane_swap = LANE_SWAP_1230;
+	else if (!strncmp(lane_swap, "0321", 5))
+		msm_host->dlane_swap = LANE_SWAP_0321;
+	else if (!strncmp(lane_swap, "1032", 5))
+		msm_host->dlane_swap = LANE_SWAP_1032;
+	else if (!strncmp(lane_swap, "2103", 5))
+		msm_host->dlane_swap = LANE_SWAP_2103;
+	else if (!strncmp(lane_swap, "3210", 5))
+		msm_host->dlane_swap = LANE_SWAP_3210;
+	else
+		msm_host->dlane_swap = LANE_SWAP_0123;
+}
+
 static int dsi_host_parse_dt(struct msm_dsi_host *msm_host)
 {
 	struct device *dev = &msm_host->pdev->dev;
@@ -1357,6 +1378,8 @@ static int dsi_host_parse_dt(struct msm_dsi_host *msm_host)
 			__func__, ret);
 		return ret;
 	}
+
+	dsi_parse_dlane_swap(msm_host, np);
 
 	/*
 	 * Get the first endpoint node. In our case, dsi has one output port
