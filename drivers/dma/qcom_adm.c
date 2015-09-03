@@ -26,7 +26,6 @@
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/of_dma.h>
-#include <linux/reset.h>
 #include <linux/clk.h>
 #include <linux/dmaengine.h>
 
@@ -171,10 +170,6 @@ struct adm_device {
 	struct clk *core_clk;
 	struct clk *iface_clk;
 
-	struct reset_control *clk_reset;
-	struct reset_control *c0_reset;
-	struct reset_control *c1_reset;
-	struct reset_control *c2_reset;
 	int irq;
 };
 
@@ -733,44 +728,6 @@ static int adm_dma_probe(struct platform_device *pdev)
 		dev_err(adev->dev, "failed to prepare/enable iface clock\n");
 		goto err_disable_core_clk;
 	}
-
-	adev->clk_reset = devm_reset_control_get(&pdev->dev, "clk");
-	if (IS_ERR(adev->clk_reset)) {
-		dev_err(adev->dev, "failed to get ADM0 reset\n");
-		ret = PTR_ERR(adev->clk_reset);
-		goto err_disable_clks;
-	}
-
-	adev->c0_reset = devm_reset_control_get(&pdev->dev, "c0");
-	if (IS_ERR(adev->c0_reset)) {
-		dev_err(adev->dev, "failed to get ADM0 C0 reset\n");
-		ret = PTR_ERR(adev->c0_reset);
-		goto err_disable_clks;
-	}
-
-	adev->c1_reset = devm_reset_control_get(&pdev->dev, "c1");
-	if (IS_ERR(adev->c1_reset)) {
-		dev_err(adev->dev, "failed to get ADM0 C1 reset\n");
-		ret = PTR_ERR(adev->c1_reset);
-		goto err_disable_clks;
-	}
-
-	adev->c2_reset = devm_reset_control_get(&pdev->dev, "c2");
-	if (IS_ERR(adev->c2_reset)) {
-		dev_err(adev->dev, "failed to get ADM0 C2 reset\n");
-		ret = PTR_ERR(adev->c2_reset);
-		goto err_disable_clks;
-	}
-
-	reset_control_assert(adev->clk_reset);
-	reset_control_assert(adev->c0_reset);
-	reset_control_assert(adev->c1_reset);
-	reset_control_assert(adev->c2_reset);
-
-	reset_control_deassert(adev->clk_reset);
-	reset_control_deassert(adev->c0_reset);
-	reset_control_deassert(adev->c1_reset);
-	reset_control_deassert(adev->c2_reset);
 
 	adev->channels = devm_kcalloc(adev->dev, ADM_MAX_CHANNELS,
 				sizeof(*adev->channels), GFP_KERNEL);
