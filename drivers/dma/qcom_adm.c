@@ -580,12 +580,11 @@ static irqreturn_t adm_dma_irq(int irq, void *data)
 
 			achan->curr_txd = NULL;
 
-			if (async_desc) {
+			if (async_desc)
 				vchan_cookie_complete(&async_desc->vd);
 
-				/* kick off next DMA */
-				adm_start_dma(achan);
-			}
+			/* kick off next DMA */
+			adm_start_dma(achan);
 
 			spin_unlock_irqrestore(&achan->vc.lock, flags);
 		}
