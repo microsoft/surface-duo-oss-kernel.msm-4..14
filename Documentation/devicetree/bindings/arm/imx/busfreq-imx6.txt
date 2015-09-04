@@ -53,7 +53,7 @@ int ipu_runtime_suspend(struct device *dev)
 int ipu_runtime_resume(struct device *dev)
 {
 	request_bus_freq(BUS_FREQ_HIGH);
-	dev_dbg(dev, "ipu busfreq high requst.\n");
+	dev_dbg(dev, "ipu busfreq high request.\n");
 
 	return 0;
 }
