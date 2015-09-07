@@ -101,7 +101,6 @@ int qcom_rpm_set_corner(struct regulator *regulator, int corner)
 	if (corner < RPM_MIN_FLOOR_CORNER || corner > RPM_MAX_FLOOR_CORNER)
 		return -EINVAL;
 
-	pr_info("Set corner to %d\n", corner);
 	ret = rpm_reg_write_active(vreg, &req, sizeof(req));
 	if (ret)
 		dev_err(rdev_get_dev(rdev), "Failed to set corner %d\n", corner);
