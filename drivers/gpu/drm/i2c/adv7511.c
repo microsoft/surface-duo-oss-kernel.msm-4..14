@@ -856,6 +856,26 @@ static void adv7511_mode_set(struct adv7511 *adv7511,
 	regmap_update_bits(adv7511->regmap, 0x17,
 		0x60, (vsync_polarity << 6) | (hsync_polarity << 5));
 
+	if (adv7511->type == ADV7533 && adv7511->num_dsi_lanes == 4) {
+		struct mipi_dsi_device *dsi = adv7511->dsi;
+		int lanes, ret;
+
+		if (adj_mode->clock > 80000)
+			lanes = 4;
+		else
+			lanes = 3;
+
+		if (lanes != dsi->lanes) {
+			mipi_dsi_detach(dsi);
+			dsi->lanes = lanes;
+			ret = mipi_dsi_attach(dsi);
+			if (ret) {
+				DRM_ERROR("Failed to change host lanes\n");
+				return;
+			}
+		}
+	}
+
 	drm_mode_copy(&adv7511->curr_mode, adj_mode);
 
 	/*
