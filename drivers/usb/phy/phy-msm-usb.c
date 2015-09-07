@@ -1601,6 +1601,8 @@ static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 		ret = extcon_register_notifier(ext_id, EXTCON_USB_HOST,
 						&motg->id.nb);
 		if (ret < 0) {
+			extcon_unregister_notifier(motg->vbus.extcon,
+						   EXTCON_USB, &motg->vbus.nb);
 			dev_err(&pdev->dev, "register ID notifier failed\n");
 			return ret;
 		}
@@ -1662,15 +1664,6 @@ static int msm_otg_probe(struct platform_device *pdev)
 	motg = devm_kzalloc(&pdev->dev, sizeof(struct msm_otg), GFP_KERNEL);
 	if (!motg)
 		return -ENOMEM;
-
-	pdata = dev_get_platdata(&pdev->dev);
-	if (!pdata) {
-		if (!np)
-			return -ENXIO;
-		ret = msm_otg_read_dt(pdev, motg);
-		if (ret)
-			return ret;
-	}
 
 	motg->phy.otg = devm_kzalloc(&pdev->dev, sizeof(struct usb_otg),
 				     GFP_KERNEL);
@@ -1738,6 +1731,14 @@ static int msm_otg_probe(struct platform_device *pdev)
 
 	regs[0].supply = "v3p3";
 	regs[1].supply = "v1p8";
+	pdata = dev_get_platdata(&pdev->dev);
+	if (!pdata) {
+		if (!np)
+			return -ENXIO;
+		ret = msm_otg_read_dt(pdev, motg);
+		if (ret)
+			return ret;
+	}
 
 	ret = devm_regulator_bulk_get(motg->phy.dev, ARRAY_SIZE(regs), regs);
 	if (ret) {
@@ -1840,6 +1841,11 @@ disable_clks:
 	clk_disable_unprepare(motg->clk);
 	if (!IS_ERR(motg->core_clk))
 		clk_disable_unprepare(motg->core_clk);
+
+	extcon_unregister_notifier(motg->id.extcon,
+				   EXTCON_USB_HOST, &motg->id.nb);
+	extcon_unregister_notifier(motg->vbus.extcon,
+				   EXTCON_USB, &motg->vbus.nb);
 	return ret;
 }
 
