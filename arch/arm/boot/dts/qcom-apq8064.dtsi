@@ -38,8 +38,8 @@
 			qcom,acc = <&acc0>;
 			qcom,saw = <&saw0>;
 			cpu-idle-states = <&CPU_SPC>;
-			clocks = <&kraitcc 0>;
-			clock-names = "cpu";
+			clocks = <&kraitcc 0>, <&kraitcc 4>;
+			clock-names = "cpu", "l2";
 			clock-latency = <100000>;
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
@@ -55,8 +55,8 @@
 			qcom,acc = <&acc1>;
 			qcom,saw = <&saw1>;
 			cpu-idle-states = <&CPU_SPC>;
-			clocks = <&kraitcc 1>;
-			clock-names = "cpu";
+			clocks = <&kraitcc 1>, <&kraitcc 4>;
+			clock-names = "cpu", "l2";
 			clock-latency = <100000>;
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
@@ -72,8 +72,8 @@
 			qcom,acc = <&acc2>;
 			qcom,saw = <&saw2>;
 			cpu-idle-states = <&CPU_SPC>;
-			clocks = <&kraitcc 2>;
-			clock-names = "cpu";
+			clocks = <&kraitcc 2>, <&kraitcc 4>;
+			clock-names = "cpu", "l2";
 			clock-latency = <100000>;
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
@@ -89,8 +89,8 @@
 			qcom,acc = <&acc3>;
 			qcom,saw = <&saw3>;
 			cpu-idle-states = <&CPU_SPC>;
-			clocks = <&kraitcc 3>;
-			clock-names = "cpu";
+			clocks = <&kraitcc 3>, <&kraitcc 4>;
+			clock-names = "cpu", "l2";
 			clock-latency = <100000>;
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
