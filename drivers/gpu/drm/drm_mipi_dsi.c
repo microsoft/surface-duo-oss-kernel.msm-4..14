@@ -45,9 +45,26 @@
  * subset of the MIPI DCS command set.
  */
 
+static const struct device_type mipi_dsi_device_type;
+
 static int mipi_dsi_device_match(struct device *dev, struct device_driver *drv)
 {
-	return of_driver_match_device(dev, drv);
+	struct mipi_dsi_device *dsi;
+
+	dsi = dev->type == &mipi_dsi_device_type ?
+		to_mipi_dsi_device(dev) : NULL;
+
+	if (!dsi)
+		return 0;
+
+	if (of_driver_match_device(dev, drv))
+		return 1;
+
+	if (!strcmp(drv->name, "mipi_dsi_dummy") &&
+			!strcmp(dsi->name, "dummy"))
+		return 1;
+
+	return 0;
 }
 
 static const struct dev_pm_ops mipi_dsi_device_pm_ops = {
@@ -121,7 +138,7 @@ static int __dsi_check_chan_busy(struct device *dev, void *data)
 
 static int mipi_dsi_check_chan_busy(struct mipi_dsi_host *host, u32 reg)
 {
-	return device_for_each_child(&host->dev, &reg, __dsi_check_chan_busy);
+	return device_for_each_child(host->dev, &reg, __dsi_check_chan_busy);
 }
 
 static struct mipi_dsi_device *
@@ -189,6 +206,25 @@ of_mipi_dsi_device_add(struct mipi_dsi_host *host, struct device_node *node)
 
 	return mipi_dsi_device_new(host, &info);
 }
+
+static struct mipi_dsi_driver dummy_dsi_driver = {
+	.driver.name = "mipi_dsi_dummy",
+};
+
+struct mipi_dsi_device *mipi_dsi_new_dummy(struct mipi_dsi_host *host, u32 reg)
+{
+	struct mipi_dsi_device_info info = { "dummy", reg, NULL, };
+
+	return mipi_dsi_device_new(host, &info);
+}
+EXPORT_SYMBOL(mipi_dsi_new_dummy);
+
+void mipi_dsi_unregister_device(struct mipi_dsi_device *dsi)
+{
+	if (dsi)
+		device_unregister(&dsi->dev);
+}
+EXPORT_SYMBOL(mipi_dsi_unregister_device);
 
 int mipi_dsi_host_register(struct mipi_dsi_host *host)
 {
@@ -943,7 +979,13 @@ EXPORT_SYMBOL(mipi_dsi_driver_unregister);
 
 static int __init mipi_dsi_bus_init(void)
 {
-	return bus_register(&mipi_dsi_bus_type);
+	int ret;
+
+	ret = bus_register(&mipi_dsi_bus_type);
+	if (ret < 0)
+		return ret;
+
+	return mipi_dsi_driver_register(&dummy_dsi_driver);
 }
 postcore_initcall(mipi_dsi_bus_init);
 
