@@ -78,6 +78,9 @@ static int hdlcd_unload(struct drm_device *dev)
 	return 0;
 }
 
+/* Use colour depth that Android user-side is hard-coded to expect */
+static const int preferred_bpp = config_enabled(CONFIG_ARM) ? 16 : 32;
+
 static int hdlcd_load(struct drm_device *dev, unsigned long flags)
 {
 	struct platform_device *pdev = dev->platformdev;
@@ -174,7 +177,7 @@ static int hdlcd_load(struct drm_device *dev, unsigned long flags)
 	
 	init_completion(&hdlcd->frame_completion);
 
-	hdlcd->fbdev = drm_fbdev_cma_init(dev, 32,
+	hdlcd->fbdev = drm_fbdev_cma_init(dev, preferred_bpp,
 					dev->mode_config.num_crtc,
 					dev->mode_config.num_connector);
 
