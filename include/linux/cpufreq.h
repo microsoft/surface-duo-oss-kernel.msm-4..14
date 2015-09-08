@@ -73,6 +73,11 @@ struct cpufreq_policy {
 	unsigned int		cpu;    /* cpu managing this policy, must be online */
 
 	struct clk		*clk;
+	struct clk		*l2_clk; /* L2 clock */
+	unsigned int		l2_cur; /* current L2 clock rate in Hz */
+	unsigned int		l2_num_freqs; /* number of available L2 rates */
+	unsigned int		*l2_freqs; /* L2 rates in Hz */
+
 	struct cpufreq_cpuinfo	cpuinfo;/* see above */
 
 	unsigned int		min;    /* in kHz */

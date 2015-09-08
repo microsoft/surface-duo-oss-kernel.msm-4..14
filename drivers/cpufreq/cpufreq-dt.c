@@ -43,9 +43,39 @@ static struct freq_attr *cpufreq_dt_attr[] = {
 static int set_target(struct cpufreq_policy *policy, unsigned int index)
 {
 	struct private_data *priv = policy->driver_data;
+	struct clk *l2_clk = policy->l2_clk;
+	unsigned int l2_num_freqs = policy->l2_num_freqs;
+	int ret;
 
-	return dev_pm_opp_set_rate(priv->cpu_dev,
+	ret = dev_pm_opp_set_rate(priv->cpu_dev,
 				   policy->freq_table[index].frequency * 1000);
+	if (ret)
+		return ret;
+
+	if (!IS_ERR(l2_clk) && l2_num_freqs) {
+		unsigned long target_freq = policy->freq_table[index].frequency * 1000;
+		static unsigned int l2[CONFIG_NR_CPUS] = { };
+		unsigned int *l2_freqs = policy->l2_freqs;
+		unsigned int new_l2_freq;
+		int cpu, i;
+
+		for (i = 0; i < l2_num_freqs; i++) {
+			if (target_freq >= l2_freqs[i])
+				new_l2_freq = l2_freqs[i];
+		}
+
+		l2[policy->cpu] = new_l2_freq;
+		for_each_present_cpu(cpu)
+			new_l2_freq = max(new_l2_freq, l2[cpu]);
+
+		if (policy->l2_cur != new_l2_freq) {
+			/* scale l2 with the core */
+			ret = clk_set_rate(l2_clk, new_l2_freq);
+			policy->l2_cur = new_l2_freq;
+		}
+	}
+
+	return ret;
 }
 
 /*
@@ -152,6 +182,8 @@ static int cpufreq_init(struct cpufreq_policy *policy)
 	bool fallback = false;
 	const char *name;
 	int ret;
+	struct device_node *l2_np;
+	struct clk *l2_clk = NULL;
 
 	cpu_dev = get_cpu_device(policy->cpu);
 	if (!cpu_dev) {
@@ -252,6 +284,29 @@ static int cpufreq_init(struct cpufreq_policy *policy)
 	policy->clk = cpu_clk;
 
 	policy->suspend_freq = dev_pm_opp_get_suspend_opp_freq(cpu_dev) / 1000;
+
+	l2_clk = clk_get(cpu_dev, "l2");
+	if (!IS_ERR(l2_clk)) {
+		policy->l2_clk = l2_clk;
+		l2_np = of_find_node_by_name(NULL, "l2-clock");
+		if (l2_np) {
+			unsigned int *l2_freqs;
+			int count;
+
+			count = of_property_count_u32_elems(l2_np, "l2-rates");
+
+			l2_freqs = kcalloc(count, sizeof(*l2_freqs), GFP_KERNEL);
+			if (!l2_freqs) {
+				ret = -ENOMEM;
+				goto out_free_priv;
+			}
+
+			of_property_read_u32_array(l2_np, "l2-rates", l2_freqs, count);
+
+			policy->l2_freqs = l2_freqs;
+			policy->l2_num_freqs = count;
+		}
+	}
 
 	ret = cpufreq_table_validate_and_show(policy, freq_table);
 	if (ret) {
