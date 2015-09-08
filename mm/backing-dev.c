@@ -837,24 +837,7 @@ static void bdi_remove_from_list(struct backing_dev_info *bdi)
 	synchronize_rcu_expedited();
 }
 
-/*
- * Called when the device behind @bdi has been removed or ejected.
- *
- * We can't really do much here except for reducing the dirty ratio at
- * the moment.  In the future we should be able to set a flag so that
- * the filesystem can handle errors at mark_inode_dirty time instead
- * of only at writeback time.
- */
 void bdi_unregister(struct backing_dev_info *bdi)
-{
-	if (WARN_ON_ONCE(!bdi->dev))
-		return;
-
-	bdi_set_min_ratio(bdi, 0);
-}
-EXPORT_SYMBOL(bdi_unregister);
-
-void bdi_destroy(struct backing_dev_info *bdi)
 {
 	/* make sure nobody finds us on the bdi_list anymore */
 	bdi_remove_from_list(bdi);
@@ -866,8 +849,18 @@ void bdi_destroy(struct backing_dev_info *bdi)
 		device_unregister(bdi->dev);
 		bdi->dev = NULL;
 	}
+}
 
+void bdi_exit(struct backing_dev_info *bdi)
+{
+	WARN_ON_ONCE(bdi->dev);
 	wb_exit(&bdi->wb);
+}
+
+void bdi_destroy(struct backing_dev_info *bdi)
+{
+	bdi_unregister(bdi);
+	bdi_exit(bdi);
 }
 EXPORT_SYMBOL(bdi_destroy);
 
