@@ -81,11 +81,13 @@ static int set_target(struct cpufreq_policy *policy, unsigned int index)
 	struct dev_pm_opp *opp;
 	struct cpufreq_frequency_table *freq_table = policy->freq_table;
 	struct clk *cpu_clk = policy->clk;
+	struct clk *l2_clk = policy->l2_clk;
 	struct private_data *priv = policy->driver_data;
 	struct device *cpu_dev = priv->cpu_dev;
 	struct regulator *cpu_reg = priv->cpu_reg;
 	unsigned long volt = 0, volt_old = 0, tol = 0;
-	unsigned int old_freq, new_freq;
+	unsigned int old_freq, new_freq, l2_freq;
+	unsigned long new_l2_freq = 0;
 	long freq_Hz, freq_exact;
 	unsigned long opp_freq = 0;
 	int ret;
@@ -141,6 +143,30 @@ static int set_target(struct cpufreq_policy *policy, unsigned int index)
 		goto out;
 	}
 
+	if (!IS_ERR(l2_clk) && policy->l2_rate[0] && policy->l2_rate[1] &&
+	    policy->l2_rate[2]) {
+		static unsigned long krait_l2[CONFIG_NR_CPUS] = { };
+		int cpu, ret = 0;
+
+		if (freq_exact >= policy->l2_rate[2])
+			new_l2_freq = policy->l2_rate[2];
+		else if (freq_exact >= policy->l2_rate[1])
+			new_l2_freq = policy->l2_rate[1];
+		else
+			new_l2_freq = policy->l2_rate[0];
+
+		krait_l2[policy->cpu] = new_l2_freq;
+		for_each_present_cpu(cpu)
+			new_l2_freq = max(new_l2_freq, krait_l2[cpu]);
+
+		l2_freq = clk_get_rate(l2_clk);
+
+		if (l2_freq != new_l2_freq) {
+			/* scale l2 with the core */
+			ret = clk_set_rate(l2_clk, new_l2_freq);
+		}
+	}
+
 	/* scaling down?  scale voltage after frequency */
 	if (!IS_ERR(cpu_reg) && new_freq < old_freq) {
 		ret = regulator_set_voltage_tol(cpu_reg, volt, tol);
@@ -152,17 +178,19 @@ static int set_target(struct cpufreq_policy *policy, unsigned int index)
 		}
 	}
 	priv->opp_freq = opp_freq;
+
 out:
 	mutex_unlock(&priv->lock);
 	return ret;
 }
 
 static int allocate_resources(int cpu, struct device **cdev,
-			      struct regulator **creg, struct clk **cclk)
+			      struct regulator **creg, struct clk **cclk,
+			      struct clk **l2)
 {
 	struct device *cpu_dev;
 	struct regulator *cpu_reg;
-	struct clk *cpu_clk;
+	struct clk *cpu_clk, *l2_clk = NULL;
 	int ret = 0;
 	char *reg_cpu0 = "cpu0", *reg_cpu = "cpu", *reg;
 
@@ -222,6 +250,10 @@ try_again:
 		*cdev = cpu_dev;
 		*creg = cpu_reg;
 		*cclk = cpu_clk;
+
+		l2_clk = clk_get(cpu_dev, "l2");
+		if (!IS_ERR(l2_clk))
+			*l2 = l2_clk;
 	}
 
 	return ret;
@@ -232,16 +264,18 @@ static int cpufreq_init(struct cpufreq_policy *policy)
 	struct cpufreq_dt_platform_data *pd;
 	struct cpufreq_frequency_table *freq_table;
 	struct device_node *np;
+	struct device_node *l2_np;
 	struct private_data *priv;
 	struct device *cpu_dev;
 	struct regulator *cpu_reg;
-	struct clk *cpu_clk;
+	struct clk *cpu_clk, *l2_clk;
 	unsigned long min_uV = ~0, max_uV = 0;
 	unsigned int transition_latency;
 	int ret;
 	struct srcu_notifier_head *opp_srcu_head;
 
-	ret = allocate_resources(policy->cpu, &cpu_dev, &cpu_reg, &cpu_clk);
+	ret = allocate_resources(policy->cpu, &cpu_dev, &cpu_reg, &cpu_clk,
+				 &l2_clk);
 	if (ret) {
 		pr_err("%s: Failed to allocate resources: %d\n", __func__, ret);
 		return ret;
@@ -343,6 +377,12 @@ static int cpufreq_init(struct cpufreq_policy *policy)
 	policy->driver_data = priv;
 
 	policy->clk = cpu_clk;
+	policy->l2_clk = l2_clk;
+
+	l2_np = of_find_node_by_name(NULL, "qcom,l2");
+	if (l2_np)
+		of_property_read_u32_array(l2_np, "qcom,l2-rates", policy->l2_rate, 3);
+
 	ret = cpufreq_table_validate_and_show(policy, freq_table);
 	if (ret) {
 		dev_err(cpu_dev, "%s: invalid frequency table: %d\n", __func__,
@@ -435,7 +475,7 @@ static int dt_cpufreq_probe(struct platform_device *pdev)
 {
 	struct device *cpu_dev;
 	struct regulator *cpu_reg;
-	struct clk *cpu_clk;
+	struct clk *cpu_clk, *l2_clk;
 	int ret;
 
 	/*
@@ -445,7 +485,7 @@ static int dt_cpufreq_probe(struct platform_device *pdev)
 	 *
 	 * FIXME: Is checking this only for CPU0 sufficient ?
 	 */
-	ret = allocate_resources(0, &cpu_dev, &cpu_reg, &cpu_clk);
+	ret = allocate_resources(0, &cpu_dev, &cpu_reg, &cpu_clk, &l2_clk);
 	if (ret)
 		return ret;
 
