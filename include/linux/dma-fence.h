@@ -171,6 +171,15 @@ struct dma_fence_ops {
 	bool (*enable_signaling)(struct dma_fence *fence);
 
 	/**
+	 * @disable_signaling:
+	 *
+	 * Disable software signaling of fence.
+	 *
+	 * This callback is optional.
+	 */
+	void (*disable_signaling)(struct dma_fence *fence);
+
+	/**
 	 * @signaled:
 	 *
 	 * Peek whether the fence is signaled, as a fastpath optimization for
