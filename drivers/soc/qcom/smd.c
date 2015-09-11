@@ -364,27 +364,35 @@ static void qcom_smd_channel_set_state(struct qcom_smd_channel *channel,
 /*
  * Copy count bytes of data from memory to device memory using 32bit accesses
  */
-static void smd_copy_to_fifo(void __iomem *dst, const void *src, size_t count)
+static void smd_copy_to_fifo(void __iomem *_dst, const void *_src, size_t count, bool word_aligned)
 {
-        while (count) {
-                __raw_writel(*(u32 *)src, dst);
-		dst += sizeof(u32);
-		src += sizeof(u32);
-		count -= sizeof(u32);
-	}
+        u32 *dst = (u32 *)_dst;
+        u32 *src = (u32 *)_src;
+
+        if (word_aligned) {
+                count /= sizeof(u32);
+                while (count--)
+                        writel_relaxed(*src++, dst++);
+        } else {
+                memcpy_toio(_dst, _src, count);
+        }
 }
 
 /*
  * Copy count bytes of data from device memory to memory using 32bit accesses
  */
-static void smd_copy_from_fifo(void *dst, const void __iomem *src, size_t count)
+static void smd_copy_from_fifo(void *_dst, const void __iomem *_src, size_t count, bool word_aligned)
 {
-        while (count) {
-                *(u32 *)dst = __raw_readl(src);
-		src += sizeof(u32);
-		dst += sizeof(u32);
-		count -= sizeof(u32);
-	}
+        u32 *dst = (u32 *)_dst;
+        u32 *src = (u32 *)_src;
+
+        if (word_aligned) {
+                count /= sizeof(u32);
+                while (count--)
+                        *dst++ = readl_relaxed(src++);
+        } else {
+                memcpy_fromio(_dst, _src, count);
+        }
 }
 
 /*
@@ -403,10 +411,10 @@ static size_t qcom_smd_channel_peek(struct qcom_smd_channel *channel,
 
 	len = min_t(size_t, count, channel->fifo_size - tail);
 	if (len)
-		smd_copy_from_fifo(buf, channel->rx_fifo + tail, len);
+		smd_copy_from_fifo(buf, channel->rx_fifo + tail, len, word_aligned);
 
 	if (len != count)
-		smd_copy_from_fifo(buf + len, channel->rx_fifo, count - len);
+		smd_copy_from_fifo(buf + len, channel->rx_fifo, count - len, word_aligned);
 
 	return count;
 }
@@ -610,10 +618,10 @@ static int qcom_smd_write_fifo(struct qcom_smd_channel *channel,
 
 	len = min_t(size_t, count, channel->fifo_size - head);
 	if (len)
-		smd_copy_to_fifo(channel->tx_fifo + head, data, len);
+		smd_copy_to_fifo(channel->tx_fifo + head, data, len, word_aligned);
 
 	if (len != count)
-		smd_copy_to_fifo(channel->tx_fifo, data + len, count - len);
+		smd_copy_to_fifo(channel->tx_fifo, data + len, count - len, word_aligned);
 
 	head += count;
 	head &= (channel->fifo_size - 1);
