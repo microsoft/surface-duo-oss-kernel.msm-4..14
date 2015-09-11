@@ -1774,3 +1774,5 @@
 		};
 	};
 };
+
+#include "qcom-apq8064-coresight.dtsi"
