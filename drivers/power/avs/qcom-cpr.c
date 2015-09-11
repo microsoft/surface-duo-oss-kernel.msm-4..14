@@ -1279,14 +1279,6 @@ static int cpr_populate_opps(struct device_node *of_node, struct cpr_drv *drv,
 		if (!cpu_dev)
 			return -EINVAL;
 
-		for (j = 0, corner = drv->corners; plan[j]; j++, corner++) {
-			p = plan[j];
-			ret = dev_pm_opp_add(cpu_dev, p->freq, corner->uV);
-			if (ret)
-				return ret;
-			corner->freq = p->freq;
-		}
-
 		/*
 		 * Keep cpu_dev and its regulator and clock for monitoring
 		 * voltage changes and updating OPPs later.
@@ -1299,6 +1291,14 @@ static int cpr_populate_opps(struct device_node *of_node, struct cpr_drv *drv,
 			drv->cpu_clk = devm_clk_get(cpu_dev, NULL);
 			if (IS_ERR(drv->cpu_clk))
 				return PTR_ERR(drv->cpu_clk);
+		}
+
+		for (j = 0, corner = drv->corners; plan[j]; j++, corner++) {
+			p = plan[j];
+			ret = dev_pm_opp_add(cpu_dev, p->freq, corner->uV);
+			if (ret)
+				return ret;
+			corner->freq = p->freq;
 		}
 	}
 
