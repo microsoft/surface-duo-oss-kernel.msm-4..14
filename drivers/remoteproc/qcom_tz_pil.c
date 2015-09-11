@@ -243,7 +243,6 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 	bool relocatable = false;
 	phys_addr_t paddr;
 
-
 	ret = qproc_scm_clk_enable(qproc);
 	if (ret)
 		return ret;
@@ -280,7 +279,8 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 	diff_addr = max_addr - min_addr;
 	dev_dbg(qproc->dev, "pas_mem_setup %pa, %pa\n", &min_addr, &diff_addr);
 
-	ret = qcom_scm_pas_mem_setup(qproc->pas_id, min_addr, max_addr - min_addr);
+	ret = qcom_scm_pas_mem_setup(qproc->pas_id,
+		relocatable ? qproc->reloc_phys : min_addr, max_addr - min_addr);
 	if (ret) {
 		dev_err(qproc->dev, "unable to setup memory for image\n");
 		return -EINVAL;
@@ -340,6 +340,10 @@ static int qproc_start(struct rproc *rproc)
 		goto unroll_clocks;
 	}
 
+	/* if ready irq not provided skip waiting */
+	if (qproc->ready_irq < 0)
+		goto done;
+
 	ret = wait_for_completion_timeout(&qproc->start_done, msecs_to_jiffies(10000));
 	if (ret == 0) {
 		dev_err(qproc->dev, "start timed out\n");
@@ -348,8 +352,8 @@ static int qproc_start(struct rproc *rproc)
 		goto unroll_clocks;
 	}
 
-
-	dev_err(qproc->dev, "start successful\n");
+done:
+	dev_info(qproc->dev, "start successful\n");
 
 	return 0;
 
@@ -611,10 +615,8 @@ static int qproc_probe(struct platform_device *pdev)
 
 	ret = of_property_read_u32(pdev->dev.of_node, "qcom,crash-reason",
 				   &qproc->crash_reason);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to read crash reason id\n");
-		goto free_rproc;
-	}
+	if (ret)
+		dev_info(&pdev->dev, "no crash reason id\n");
 
 	qproc->smd_edge_node = of_parse_phandle(pdev->dev.of_node,
 						"qcom,smd-edges", 0);
@@ -632,28 +634,18 @@ static int qproc_probe(struct platform_device *pdev)
 		goto free_rproc;
 
 	ret = qproc_request_irq(qproc, pdev, "wdog", qproc_wdog_interrupt);
-	if (ret < 0)
-		goto free_rproc;
 	qproc->wdog_irq = ret;
 
 	ret = qproc_request_irq(qproc, pdev, "fatal", qproc_fatal_interrupt);
-	if (ret < 0)
-		goto free_rproc;
 	qproc->fatal_irq = ret;
 
 	ret = qproc_request_irq(qproc, pdev, "ready", qproc_ready_interrupt);
-	if (ret < 0)
-		goto free_rproc;
 	qproc->ready_irq = ret;
 
 	ret = qproc_request_irq(qproc, pdev, "handover", qproc_handover_interrupt);
-	if (ret < 0)
-		goto free_rproc;
 	qproc->handover_irq = ret;
 
 	ret = qproc_request_irq(qproc, pdev, "stop-ack", qproc_stop_ack_interrupt);
-	if (ret < 0)
-		goto free_rproc;
 	qproc->stop_ack_irq = ret;
 
 	for (i = 0; i < ARRAY_SIZE(qproc_attrs); i++) {
@@ -677,7 +669,7 @@ static int qproc_probe(struct platform_device *pdev)
 		qproc->reloc_phys = r.start;
 		qproc->reloc_size = resource_size(&r);
 
-		dev_err(&pdev->dev, "Found relocation area %lu@%pad\n",
+		dev_info(&pdev->dev, "Found relocation area %lu@%pad\n",
 				qproc->reloc_size, &qproc->reloc_phys);
 	}
 

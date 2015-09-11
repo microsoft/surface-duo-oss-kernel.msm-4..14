@@ -1,0 +1,9 @@
+#
+# VIDEO CORE
+#
+
+menuconfig MSM_VIDC_V4L2
+	tristate "Qualcomm MSM V4L2 based video driver"
+	depends on ARCH_QCOM && VIDEO_V4L2
+	select ARM64_DMA_USE_IOMMU
+	select VIDEOBUF2_DMA_CONTIG
