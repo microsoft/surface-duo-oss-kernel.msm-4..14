@@ -69,14 +69,14 @@ static int __enable_clocks(struct msm_iommu_dev *iommu)
 {
 	int ret;
 
-	ret = clk_prepare_enable(iommu->pclk);
+	ret = clk_enable(iommu->pclk);
 	if (ret)
 		goto fail;
 
 	if (iommu->clk) {
-		ret = clk_prepare_enable(iommu->clk);
+		ret = clk_enable(iommu->clk);
 		if (ret)
-			clk_disable_unprepare(iommu->pclk);
+			clk_disable(iommu->pclk);
 	}
 fail:
 	return ret;
@@ -85,8 +85,8 @@ fail:
 static void __disable_clocks(struct msm_iommu_dev *iommu)
 {
 	if (iommu->clk)
-		clk_disable_unprepare(iommu->clk);
-	clk_disable_unprepare(iommu->pclk);
+		clk_disable(iommu->clk);
+	clk_disable(iommu->pclk);
 }
 
 static void msm_iommu_reset(void __iomem *base, int ncb)
@@ -785,10 +785,8 @@ static int msm_iommu_probe(struct platform_device *pdev)
 	int ret, par, val;
 
 	iommu = devm_kzalloc(&pdev->dev, sizeof(*iommu), GFP_KERNEL);
-	if (!iommu) {
-		ret = -ENODEV;
-		goto fail;
-	}
+	if (!iommu)
+		return -ENODEV;
 
 	iommu->dev = &pdev->dev;
 	INIT_LIST_HEAD(&iommu->ctx_list);
@@ -796,16 +794,25 @@ static int msm_iommu_probe(struct platform_device *pdev)
 	iommu->pclk = devm_clk_get(iommu->dev, "smmu_pclk");
 	if (IS_ERR(iommu->pclk)) {
 		dev_err(iommu->dev, "could not get smmu_pclk\n");
-		ret = PTR_ERR(iommu->pclk);
-		goto fail;
+		return PTR_ERR(iommu->pclk);
+	}
+	ret = clk_prepare(iommu->pclk);
+	if (ret) {
+		dev_err(iommu->dev, "could not prepare smmu_pclk\n");
+		return ret;
 	}
 
 	iommu->clk = devm_clk_get(iommu->dev, "iommu_clk");
 	if (IS_ERR(iommu->clk)) {
 		dev_err(iommu->dev, "could not get iommu_clk\n");
-		ret = PTR_ERR(iommu->clk);
-		iommu->pclk = NULL;
-		goto fail;
+		clk_unprepare(iommu->pclk);
+		return PTR_ERR(iommu->clk);
+	}
+	ret = clk_prepare(iommu->clk);
+	if (ret) {
+		dev_err(iommu->dev, "could not prepare iommu_clk\n");
+		clk_unprepare(iommu->pclk);
+		return ret;
 	}
 
 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -830,8 +837,6 @@ static int msm_iommu_probe(struct platform_device *pdev)
 	}
 	iommu->ncb = val;
 
-	__enable_clocks(iommu);
-
 	msm_iommu_reset(iommu->base, iommu->ncb);
 	SET_M(iommu->base, 0, 1);
 	SET_PAR(iommu->base, 0, 0);
@@ -840,8 +845,6 @@ static int msm_iommu_probe(struct platform_device *pdev)
 	par = GET_PAR(iommu->base, 0);
 	SET_V2PCFG(iommu->base, 0, 0);
 	SET_M(iommu->base, 0, 0);
-
-	__disable_clocks(iommu);
 
 	if (!par) {
 		pr_err("Invalid PAR value detected\n");
@@ -862,9 +865,15 @@ static int msm_iommu_probe(struct platform_device *pdev)
 	list_add(&iommu->dev_node, &qcom_iommu_devices);
 	of_iommu_set_ops(pdev->dev.of_node, &msm_iommu_ops);
 
+	platform_set_drvdata(pdev, iommu);
+
 	pr_info("device mapped at %p, irq %d with %d ctx banks\n",
 		iommu->base, iommu->irq, iommu->ncb);
+
+	return 0;
 fail:
+	clk_unprepare(iommu->clk);
+	clk_unprepare(iommu->pclk);
 	return ret;
 }
 
@@ -873,12 +882,22 @@ static const struct of_device_id msm_iommu_dt_match[] = {
 	{}
 };
 
+static int msm_iommu_remove(struct platform_device *pdev)
+{
+	struct msm_iommu_dev *iommu = platform_get_drvdata(pdev);
+
+	clk_unprepare(iommu->clk);
+	clk_unprepare(iommu->pclk);
+	return 0;
+}
+
 static struct platform_driver msm_iommu_driver = {
 	.driver = {
 		.name	= "msm_iommu",
 		.of_match_table = msm_iommu_dt_match,
 	},
 	.probe		= msm_iommu_probe,
+	.remove		= msm_iommu_remove,
 };
 
 static int __init msm_iommu_driver_init(void)
