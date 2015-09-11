@@ -1813,3 +1813,4 @@
 	};
 };
 #include "qcom-apq8064-pins.dtsi"
+#include "qcom-apq8064-coresight.dtsi"
