@@ -115,6 +115,9 @@ static void __init hi6220_clk_ao_init(struct device_node *np)
 		pr_info("SYSPLL: ERROR: read returns misterious value.\n");
 		freq = 1200000000;
 	}
+
+	/* mask off freq */
+	freq -= (freq % 100000);
 	pr_info("SYSPLL: set syspll medpll: %d\n", freq);
 
 	for (i = 0; i < ARRAY_SIZE(hi6220_fixed_rate_clks); i++) {
