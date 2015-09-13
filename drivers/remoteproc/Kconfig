@@ -86,4 +86,16 @@ config ST_REMOTEPROC
 	  processor framework.
 	  This can be either built-in or a loadable module.
 
+config QCOM_MDT_LOADER
+	tristate
+
+config QCOM_WCNSS_PIL
+	tristate "Qualcomm WCNSS Peripheral Image Loader"
+	depends on OF && ARCH_QCOM
+	select REMOTEPROC
+	select QCOM_MDT_LOADER
+	select QCOM_SCM
+	help
+	  Peripherial Image Loader for the WCNSS block.
+
 endmenu
