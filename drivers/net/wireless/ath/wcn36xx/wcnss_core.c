@@ -15,7 +15,8 @@
 static int wcnss_core_config(struct platform_device *pdev, void __iomem *base)
 {
 	int ret = 0;
-	u32 value;
+	u32 value, iris_read = INVALID_IRIS_REG;
+	int clk_48m = 0;
 
 	value = readl_relaxed(base + SPARE_OFFSET);
 	value |= WCNSS_FW_DOWNLOAD_ENABLE;
@@ -24,11 +25,34 @@ static int wcnss_core_config(struct platform_device *pdev, void __iomem *base)
 	writel_relaxed(0, base + PMU_OFFSET);
 	value = readl_relaxed(base + PMU_OFFSET);
 	value |= WCNSS_PMU_CFG_GC_BUS_MUX_SEL_TOP |
-			WCNSS_PMU_CFG_IRIS_XO_EN;
+		WCNSS_PMU_CFG_IRIS_XO_EN;
 	writel_relaxed(value, base + PMU_OFFSET);
 
-	value &= ~(WCNSS_PMU_CFG_IRIS_XO_MODE);
-	value |= WCNSS_PMU_CFG_IRIS_XO_MODE_48;
+	iris_read_v = readl_relaxed(base + IRIS_REG_OFFSET);
+	pr_info("iris_read_v: 0x%x\n", iris_read_v);
+
+	iris_read_v &= 0xffff;
+	iris_read_v |= 0x04;
+	writel_relaxed(iris_read_v, base + IRIS_REG_OFFSET);
+
+	value = readl_relaxed(base + PMU_OFFSET);
+	value |= WCNSS_PMU_CFG_IRIS_XO_READ;
+	writel_relaxed(value, base + PMU_OFFSET);
+
+	while (readl_relaxed(base + PMU_OFFSET) &
+			WCNSS_PMU_CFG_IRIS_XO_READ_STS)
+		cpu_relax();
+
+	iris_read_v = readl_relaxed(base + 0x1134);
+	pr_info("wcnss: IRIS Reg: 0x%08x\n", iris_read_v);
+	clk_48m = (iris_read_v >> 30) ? 0 : 1;
+	value &= ~WCNSS_PMU_CFG_IRIS_XO_READ;
+
+	/* XO_MODE[b2:b1]. Clear implies 19.2MHz */
+	value &= ~WCNSS_PMU_CFG_IRIS_XO_MODE;
+
+	if (clk_48m)
+		value |= WCNSS_PMU_CFG_IRIS_XO_MODE_48;
 
 	writel_relaxed(value, base + PMU_OFFSET);
 
