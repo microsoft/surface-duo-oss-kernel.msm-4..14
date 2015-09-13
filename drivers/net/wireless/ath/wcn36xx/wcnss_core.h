@@ -3,6 +3,9 @@
 
 #define	PMU_OFFSET	0x1004
 #define	SPARE_OFFSET	0x1088
+#define IRIS_REG_OFFSET 0x1134
+
+#define INVALID_IRIS_REG        0xbaadbaad
 
 #define WCNSS_PMU_CFG_IRIS_XO_CFG          BIT(3)
 #define WCNSS_PMU_CFG_IRIS_XO_EN           BIT(4)
