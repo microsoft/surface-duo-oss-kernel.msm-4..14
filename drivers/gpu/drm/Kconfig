@@ -140,6 +140,14 @@ config DRM_VM
 	bool
 	depends on DRM && MMU
 
+config DRM_CMA_FBDEV_BUFFER_NUM
+	int "Cma Fbdev Buffer Number"
+	depends on DRM_KMS_CMA_HELPER
+	default 1
+	help
+	  Defines the buffer number of cma fbdev.  Default is one buffer.
+	  For double buffer please set to 2 and 3 for triple buffer.
+
 source "drivers/gpu/drm/i2c/Kconfig"
 
 source "drivers/gpu/drm/arm/Kconfig"
