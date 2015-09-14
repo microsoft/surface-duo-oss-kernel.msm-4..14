@@ -784,7 +784,11 @@ static int bL_switcher_hotplug_callback(struct notifier_block *nfb,
 	return NOTIFY_DONE;
 }
 
+#ifdef CONFIG_SCHED_HMP
+static bool no_bL_switcher = true;
+#else
 static bool no_bL_switcher;
+#endif
 core_param(no_bL_switcher, no_bL_switcher, bool, 0644);
 
 static int __init bL_switcher_init(void)
