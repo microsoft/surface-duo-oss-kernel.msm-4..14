@@ -1,0 +1,51 @@
+/* Foundation model is Base model with bits removed */
+
+#include "fvp-base-gicv2-psci.dts"
+
+&CPU4 {
+	status = "disabled";
+};
+
+&CPU5 {
+	status = "disabled";
+};
+
+&CPU6 {
+	status = "disabled";
+};
+
+&CPU7 {
+	status = "disabled";
+};
+
+&flash {
+	status = "disabled";
+};
+
+&v2m_video_ram {
+	status = "disabled";
+};
+
+&aaci {
+	status = "disabled";
+};
+
+&mmci {
+	status = "disabled";
+};
+
+&kmi0 {
+	status = "disabled";
+};
+
+&kmi1 {
+	status = "disabled";
+};
+
+&clcd {
+	status = "disabled";
+};
+
+&v2m_oscclk1 {
+	status = "disabled";
+};
