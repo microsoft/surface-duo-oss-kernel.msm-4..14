@@ -89,6 +89,7 @@
 			enable-method = "psci";
 			next-level-cache = <&A57_L2>;
 			cpu-idle-states = <&CPU_SLEEP_0 &CLUSTER_SLEEP_0>;
+			clocks = <&scpi_dvfs 0>;
 		};
 
 		A57_1: cpu@1 {
@@ -98,6 +99,7 @@
 			enable-method = "psci";
 			next-level-cache = <&A57_L2>;
 			cpu-idle-states = <&CPU_SLEEP_0 &CLUSTER_SLEEP_0>;
+			clocks = <&scpi_dvfs 0>;
 		};
 
 		A53_0: cpu@100 {
@@ -107,6 +109,7 @@
 			enable-method = "psci";
 			next-level-cache = <&A53_L2>;
 			cpu-idle-states = <&CPU_SLEEP_0 &CLUSTER_SLEEP_0>;
+			clocks = <&scpi_dvfs 1>;
 		};
 
 		A53_1: cpu@101 {
@@ -116,6 +119,7 @@
 			enable-method = "psci";
 			next-level-cache = <&A53_L2>;
 			cpu-idle-states = <&CPU_SLEEP_0 &CLUSTER_SLEEP_0>;
+			clocks = <&scpi_dvfs 1>;
 		};
 
 		A53_2: cpu@102 {
@@ -125,6 +129,7 @@
 			enable-method = "psci";
 			next-level-cache = <&A53_L2>;
 			cpu-idle-states = <&CPU_SLEEP_0 &CLUSTER_SLEEP_0>;
+			clocks = <&scpi_dvfs 1>;
 		};
 
 		A53_3: cpu@103 {
@@ -134,6 +139,7 @@
 			enable-method = "psci";
 			next-level-cache = <&A53_L2>;
 			cpu-idle-states = <&CPU_SLEEP_0 &CLUSTER_SLEEP_0>;
+			clocks = <&scpi_dvfs 1>;
 		};
 
 		A57_L2: l2-cache0 {
