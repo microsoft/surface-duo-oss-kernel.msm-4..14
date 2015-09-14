@@ -73,7 +73,7 @@ static int set_internal_buf_on_fw(struct vidc_inst *inst,
 	bai.buffer_size = mem->size;
 	bai.buffer_type = buffer_type;
 	bai.num_buffers = 1;
-	bai.align_device_addr = mem->da;
+	bai.device_addr = mem->da;
 
 	ret = call_hfi_op(hdev, session_set_buffers, inst->session, &bai);
 	if (ret) {
@@ -242,7 +242,7 @@ int release_scratch_buffers(struct vidc_inst *inst, bool reuse)
 		bai.buffer_size = smem->size;
 		bai.buffer_type = buf->type;
 		bai.num_buffers = 1;
-		bai.align_device_addr = smem->da;
+		bai.device_addr = smem->da;
 		bai.response_required = true;
 
 		mutex_unlock(&inst->scratchbufs.lock);
@@ -281,7 +281,7 @@ int release_persist_buffers(struct vidc_inst *inst)
 		bai.buffer_size = smem->size;
 		bai.buffer_type = buf->type;
 		bai.num_buffers = 1;
-		bai.align_device_addr = smem->da;
+		bai.device_addr = smem->da;
 		bai.response_required = true;
 
 		mutex_unlock(&inst->persistbufs.lock);

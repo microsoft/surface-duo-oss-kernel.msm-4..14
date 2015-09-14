@@ -97,11 +97,6 @@ static void event_seq_changed(u32 device_id, struct hal_session *session,
 	u8 *data_ptr;
 	u32 prop_id;
 
-	if (pkt->size < sizeof(*pkt)) {
-		dprintk(VIDC_ERR, "%s: bad packet size\n", __func__);
-		return;
-	}
-
 	switch (pkt->event_data1) {
 	case HFI_EVENT_DATA_SEQUENCE_CHANGED_SUFFICIENT_BUFFER_RESOURCES:
 		event.hal_event_type =
@@ -187,7 +182,7 @@ static void event_sys_error(u32 device_id, u32 event)
 	if (!core->event_notify)
 		return;
 
-	core->event_notify(device_id, event);
+	core->event_notify(core, device_id, event);
 }
 
 static void event_session_error(u32 device_id, struct hal_session *session,
@@ -220,11 +215,6 @@ static void hfi_event_notify(u32 device_id, void *sess, void *packet)
 {
 	struct hal_session *session = sess;
 	struct hfi_msg_event_notify_pkt *pkt = packet;
-
-	if (pkt->size < sizeof(*pkt)) {
-		dprintk(VIDC_ERR, "%s: bad packet size\n", __func__);
-		return;
-	}
 
 	switch (pkt->event_id) {
 	case HFI_EVENT_SYS_ERROR:
@@ -478,8 +468,7 @@ session_get_prop_profile_level(struct hfi_msg_session_property_info_packet *pkt,
 	struct hfi_profile_level *hfi_profile_level;
 	u32 req_bytes;
 
-	req_bytes =
-		pkt->size - sizeof(struct hfi_msg_session_property_info_packet);
+	req_bytes = pkt->size - sizeof(*pkt);
 
 	if (!req_bytes || req_bytes % sizeof(struct hfi_profile_level)) {
 		dprintk(VIDC_ERR, "%s: bad packet\n", __func__);
@@ -504,7 +493,7 @@ session_get_prop_buf_req(struct hfi_msg_session_property_info_packet *pkt,
 
 	req_bytes = pkt->size - sizeof(*pkt);
 
-	if (!req_bytes || req_bytes % sizeof(struct hfi_buffer_requirements) ||
+	if (!req_bytes || req_bytes % sizeof(*buf_req) ||
 	    !pkt->rg_property_data[1]) {
 		dprintk(VIDC_ERR, "%s: bad packet\n", __func__);
 		return;
@@ -518,73 +507,61 @@ session_get_prop_buf_req(struct hfi_msg_session_property_info_packet *pkt,
 	}
 
 	while (req_bytes) {
-		if (buf_req->buffer_size &&
-		    buf_req->buffer_count_min > buf_req->buffer_count_actual)
+		if (buf_req->size && buf_req->count_min > buf_req->count_actual)
 			dprintk(VIDC_WARN, "%s: bad req buffer\n", __func__);
 
 		dprintk(VIDC_DBG, "got buffer requirements for: %x\n",
-			buf_req->buffer_type);
+			buf_req->type);
 
-		switch (buf_req->buffer_type) {
+		switch (buf_req->type) {
 		case HFI_BUFFER_INPUT:
-			memcpy(&buffreq->buffer[0], buf_req,
-				sizeof(struct hfi_buffer_requirements));
+			memcpy(&buffreq->buffer[0], buf_req, sizeof(*buf_req));
 			buffreq->buffer[0].type = HAL_BUFFER_INPUT;
 			break;
 		case HFI_BUFFER_OUTPUT:
-			memcpy(&buffreq->buffer[1], buf_req,
-			sizeof(struct hfi_buffer_requirements));
+			memcpy(&buffreq->buffer[1], buf_req, sizeof(*buf_req));
 			buffreq->buffer[1].type = HAL_BUFFER_OUTPUT;
 			break;
 		case HFI_BUFFER_OUTPUT2:
-			memcpy(&buffreq->buffer[2], buf_req,
-				sizeof(struct hfi_buffer_requirements));
+			memcpy(&buffreq->buffer[2], buf_req, sizeof(*buf_req));
 			buffreq->buffer[2].type = HAL_BUFFER_OUTPUT2;
 			break;
 		case HFI_BUFFER_EXTRADATA_INPUT:
-			memcpy(&buffreq->buffer[3], buf_req,
-				sizeof(struct hfi_buffer_requirements));
+			memcpy(&buffreq->buffer[3], buf_req, sizeof(*buf_req));
 			buffreq->buffer[3].type = HAL_BUFFER_EXTRADATA_INPUT;
 			break;
 		case HFI_BUFFER_EXTRADATA_OUTPUT:
-			memcpy(&buffreq->buffer[4], buf_req,
-				sizeof(struct hfi_buffer_requirements));
+			memcpy(&buffreq->buffer[4], buf_req, sizeof(*buf_req));
 			buffreq->buffer[4].type = HAL_BUFFER_EXTRADATA_OUTPUT;
 			break;
 		case HFI_BUFFER_EXTRADATA_OUTPUT2:
-			memcpy(&buffreq->buffer[5], buf_req,
-				sizeof(struct hfi_buffer_requirements));
+			memcpy(&buffreq->buffer[5], buf_req, sizeof(*buf_req));
 			buffreq->buffer[5].type = HAL_BUFFER_EXTRADATA_OUTPUT2;
 			break;
 		case HFI_BUFFER_INTERNAL_SCRATCH:
-			memcpy(&buffreq->buffer[6], buf_req,
-				sizeof(struct hfi_buffer_requirements));
+			memcpy(&buffreq->buffer[6], buf_req, sizeof(*buf_req));
 			buffreq->buffer[6].type = HAL_BUFFER_INTERNAL_SCRATCH;
 			break;
 		case HFI_BUFFER_INTERNAL_SCRATCH_1:
-			memcpy(&buffreq->buffer[7], buf_req,
-				sizeof(struct hfi_buffer_requirements));
+			memcpy(&buffreq->buffer[7], buf_req, sizeof(*buf_req));
 			buffreq->buffer[7].type = HAL_BUFFER_INTERNAL_SCRATCH_1;
 			break;
 		case HFI_BUFFER_INTERNAL_SCRATCH_2:
-			memcpy(&buffreq->buffer[8], buf_req,
-				sizeof(struct hfi_buffer_requirements));
+			memcpy(&buffreq->buffer[8], buf_req, sizeof(*buf_req));
 			buffreq->buffer[8].type = HAL_BUFFER_INTERNAL_SCRATCH_2;
 			break;
 		case HFI_BUFFER_INTERNAL_PERSIST:
-			memcpy(&buffreq->buffer[9], buf_req,
-				sizeof(struct hfi_buffer_requirements));
+			memcpy(&buffreq->buffer[9], buf_req, sizeof(*buf_req));
 			buffreq->buffer[9].type = HAL_BUFFER_INTERNAL_PERSIST;
 			break;
 		case HFI_BUFFER_INTERNAL_PERSIST_1:
-			memcpy(&buffreq->buffer[10], buf_req,
-				sizeof(struct hfi_buffer_requirements));
+			memcpy(&buffreq->buffer[10], buf_req, sizeof(*buf_req));
 			buffreq->buffer[10].type =
 				HAL_BUFFER_INTERNAL_PERSIST_1;
 			break;
 		default:
 			dprintk(VIDC_ERR, "%s: bad buffer type: %d\n", __func__,
-				buf_req->buffer_type);
+				buf_req->type);
 			break;
 		}
 
@@ -598,34 +575,30 @@ static void hfi_session_prop_info(u32 device_id, void *sess, void *packet)
 	struct hal_session *session = sess;
 	struct vidc_inst *inst = session->session_id;
 	struct hfi_msg_session_property_info_packet *pkt = packet;
-	struct vidc_cb_cmd_done cmd = {0};
 	struct hfi_profile_level profile_level = {0};
 	struct buffer_requirements bufreq;
 	struct getprop_buf *getprop;
+	void *data;
+	size_t len;
+
+	inst->error = VIDC_ERR_NONE;
 
 	if (!pkt->num_properties) {
 		dprintk(VIDC_ERR, "%s: no properties\n", __func__);
 		return;
 	}
 
-	memset(&bufreq, 0, sizeof(bufreq));
-
 	switch (pkt->rg_property_data[0]) {
 	case HFI_PROPERTY_CONFIG_BUFFER_REQUIREMENTS:
+		memset(&bufreq, 0, sizeof(bufreq));
 		session_get_prop_buf_req(pkt, &bufreq);
-		cmd.device_id = device_id;
-		cmd.session_id = session->session_id;
-		cmd.error = VIDC_ERR_NONE;
-		cmd.data = &bufreq;
-		cmd.size = sizeof(bufreq);
+		data = &bufreq;
+		len = sizeof(bufreq);
 		break;
 	case HFI_PROPERTY_PARAM_PROFILE_LEVEL_CURRENT:
 		session_get_prop_profile_level(pkt, &profile_level);
-		cmd.device_id = device_id;
-		cmd.session_id = session->session_id;
-		cmd.error = VIDC_ERR_NONE;
-		cmd.data = &profile_level;
-		cmd.size = sizeof(profile_level);
+		data = &profile_level;
+		len = sizeof(profile_level);
 		break;
 	default:
 		dprintk(VIDC_DBG, "%s: unknown property id:%x\n", __func__,
@@ -639,7 +612,7 @@ static void hfi_session_prop_info(u32 device_id, void *sess, void *packet)
 		return;
 	}
 
-	getprop->data = kmemdup(cmd.data, cmd.size, GFP_KERNEL);
+	getprop->data = kmemdup(data, len, GFP_KERNEL);
 	if (!getprop->data) {
 		dprintk(VIDC_ERR, "%s: kmemdup failed\n", __func__);
 		kfree(getprop);
@@ -1155,6 +1128,7 @@ struct hfi_done_handler {
 	const char *name;
 	u32 packet;
 	u32 packet_sz;
+	u32 packet_sz2;
 	done_handler done;
 	bool is_sys_pkt;
 };
@@ -1222,6 +1196,7 @@ static const struct hfi_done_handler handlers[] = {
 	 .packet = HFI_MSG_SESSION_FILL_BUFFER_DONE,
 	 .packet_sz =
 	 	sizeof(struct hfi_msg_session_fbd_uncompressed_plane0_packet),
+	 .packet_sz2 = sizeof(struct hfi_msg_session_fbd_compressed_packet),
 	 .done = hfi_session_ftb_done,
 	},
 	{.name = "session_flush_done",
@@ -1280,8 +1255,11 @@ u32 hfi_process_msg_packet(u32 device_id, struct vidc_hal_msg_pkt_hdr *hdr,
 	if (found == false)
 		return hdr->packet;
 
-	if (hdr->size < handler->packet_sz) {
-		pr_err("%s: bad packet size\n", __func__);
+	if (hdr->size && hdr->size < handler->packet_sz &&
+	    hdr->size < handler->packet_sz2) {
+		pr_err("%s: bad packet size (%d should be %d, pkt type:%x)\n",
+			__func__, hdr->size, handler->packet_sz, hdr->packet);
+
 		return hdr->packet;
 	}
 

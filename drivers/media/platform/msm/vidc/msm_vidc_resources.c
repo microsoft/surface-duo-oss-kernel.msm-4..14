@@ -17,39 +17,13 @@
 #include <linux/of.h>
 #include <linux/slab.h>
 
-#include "msm_vidc_debug.h"
+#include "msm_vidc_internal.h"
 #include "msm_vidc_resources.h"
 
-static int get_hfi_type(struct platform_device *pdev)
-{
-	struct device_node *np = pdev->dev.of_node;
-	const char *hfi_name = NULL;
-	int ret;
-
-	ret = of_property_read_string(np, "qcom,hfi", &hfi_name);
-	if (ret) {
-		dprintk(VIDC_ERR, "Failed to read hfi from device tree\n");
-		return ret;
-	}
-
-	if (!strcasecmp(hfi_name, "venus"))
-		ret = VIDC_HFI_VENUS;
-	else if (!strcasecmp(hfi_name, "q6"))
-		ret = VIDC_HFI_Q6;
-	else
-		/* default to venus */
-		ret = VIDC_HFI_VENUS;
-
-	return ret;
-}
-
 static const struct load_freq_table freq_table_8916[] = {
-	{ 352800, 228570000, 0xffffffff },
-	{ 352800, 228570000, 0x55555555 },
-	{ 244800, 160000000, 0xffffffff },
-	{ 244800, 160000000, 0x55555555 },
-	{ 108000, 100000000, 0xffffffff },
-	{ 108000, 100000000, 0x55555555 },
+	{ 352800, 228570000 },	/* 1920x1088 @ 30 + 1280x720 @ 30 */
+	{ 244800, 160000000 },	/* 1920x1088 @ 30 */
+	{ 108000, 100000000 },	/* 1280x720 @ 30 */
 };
 
 static const struct reg_value_pair reg_preset_8916[] = {
@@ -130,26 +104,20 @@ static void iommu_ctx_banks_detach(struct vidc_resources *res)
 static int iommu_ctx_bank_attach(struct context_bank_info *cb)
 {
 	struct bus_type *bus = &platform_bus_type;
+	struct addr_range *range = &cb->addr_range;
 	int ret;
 
 	if (cb->is_secure)
 		bus = &msm_iommu_sec_bus_type;
 
-	cb->mapping = arm_iommu_create_mapping(bus, cb->addr_range.start,
-					       cb->addr_range.size, 0);
-	if (IS_ERR_OR_NULL(cb->mapping)) {
-		dprintk(VIDC_ERR, "failed to create iommu mapping\n");
+	cb->mapping = arm_iommu_create_mapping(bus, range->start,
+					       range->size, 0);
+	if (IS_ERR_OR_NULL(cb->mapping))
 		return PTR_ERR(cb->mapping) ?: -ENODEV;
-	}
 
 	ret = arm_iommu_attach_device(cb->dev, cb->mapping);
-	if (ret) {
-		dprintk(VIDC_ERR, "could not attach iommu device\n");
+	if (ret)
 		goto release_mapping;
-	}
-
-	dprintk(VIDC_DBG, "Attached %s and created mapping\n",
-		dev_name(cb->dev));
 
 	return 0;
 
@@ -231,35 +199,39 @@ static int iommu_ctx_bank(struct vidc_resources *res, struct device_node *np,
 	return 0;
 }
 
-static int iommu_ctx_banks(struct vidc_core *core)
+static int iommu_ctx_banks(struct vidc_resources *res)
 {
-	struct device_node *np = core->res.pdev->dev.of_node, *cb;
+	struct device_node *np = res->pdev->dev.of_node, *cb;
 	int ret = 0, i;
+
+	INIT_LIST_HEAD(&res->context_banks);
 
 	for (i = 0; i < ARRAY_SIZE(iommu_ctxs); i++) {
 		cb = of_parse_phandle(np, "qcom,iommu-cb", i);
 		if (!cb)
 			continue;
 
-		ret = iommu_ctx_bank(&core->res, cb, &iommu_ctxs[i]);
+		ret = iommu_ctx_bank(res, cb, &iommu_ctxs[i]);
 		if (ret)
 			break;
 	}
 
 	if (ret) {
-		iommu_ctx_banks_detach(&core->res);
+		iommu_ctx_banks_detach(res);
 		return ret;
 	}
 
 	return 0;
 }
 
-int get_platform_resources_from_dt(struct vidc_core *core)
+int get_platform_resources(struct vidc_core *core)
 {
 	struct vidc_resources *res = &core->res;
 	struct platform_device *pdev = res->pdev;
+	struct device *dev = &pdev->dev;
 	struct device_node *np = pdev->dev.of_node;
-	int ret = 0;
+	const char *hfi_name = NULL, *propname;
+	int ret;
 
 	res->load_freq_tbl = freq_table_8916;
 	res->load_freq_tbl_size = ARRAY_SIZE(freq_table_8916);
@@ -267,37 +239,45 @@ int get_platform_resources_from_dt(struct vidc_core *core)
 	res->reg_set.reg_tbl = reg_preset_8916;
 	res->reg_set.count = ARRAY_SIZE(reg_preset_8916);
 
-	core->hfi_type = get_hfi_type(pdev);
+	ret = of_property_read_string(np, "qcom,hfi", &hfi_name);
+	if (ret) {
+		dev_err(dev, "reading hfi type failed\n");
+		return ret;
+	}
 
-	INIT_LIST_HEAD(&res->context_banks);
+	if (!strcasecmp(hfi_name, "venus"))
+		core->hfi_type = VIDC_HFI_VENUS;
+	else if (!strcasecmp(hfi_name, "q6"))
+		core->hfi_type = VIDC_HFI_Q6;
+	else
+		return -EINVAL;
 
-	ret = iommu_ctx_banks(core);
+	ret = iommu_ctx_banks(&core->res);
 	if (ret)
 		return ret;
 
-	res->sys_idle_indicator =
-			of_property_read_bool(np, "qcom,enable-idle-indicator");
+	propname = "qcom,enable-idle-indicator";
+	res->sys_idle_indicator = of_property_read_bool(np, propname);
 
-	ret = of_property_read_string(np, "qcom,hfi-version",
-				      &res->hfi_version);
+	propname = "qcom,hfi-version";
+	ret = of_property_read_string(np, propname, &res->hfi_version);
 	if (ret)
-		dprintk(VIDC_DBG, "legacy HFI packetization\n");
+		dev_dbg(&pdev->dev, "legacy HFI packetization\n");
 
 	ret = get_clock_table(res);
 	if (ret) {
-		dprintk(VIDC_ERR, "load clock table failed (%d)\n", ret);
+		dev_err(dev, "load clock table failed (%d)\n", ret);
 		return ret;
 	}
 
 	ret = of_property_read_u32(np, "qcom,max-hw-load", &res->max_load);
 	if (ret) {
-		dprintk(VIDC_ERR,
-			"determine max load supported failed (%d)\n", ret);
+		dev_err(dev, "determine max load supported failed (%d)\n", ret);
 		return ret;
 	}
 
-	res->sw_power_collapsible =
-			of_property_read_bool(np, "qcom,sw-power-collapse");
+	propname = "qcom,sw-power-collapse";
+	res->sw_power_collapsible = of_property_read_bool(np, propname);
 
 	return 0;
 }

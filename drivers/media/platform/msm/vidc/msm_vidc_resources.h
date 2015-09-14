@@ -18,8 +18,7 @@
 
 struct load_freq_table {
 	u32 load;
-	u32 freq;
-	u32 supported_codecs;
+	unsigned long freq;
 };
 
 struct reg_value_pair {
@@ -37,11 +36,6 @@ struct addr_range {
 	u32 size;
 };
 
-struct addr_set {
-	struct addr_range *addr_tbl;
-	int count;
-};
-
 struct context_bank_info {
 	struct list_head list;
 	const char *name;
@@ -57,7 +51,6 @@ struct clock_info {
 	struct clk *clk;
 	const struct load_freq_table *load_freq_tbl;
 	u32 count; /* == has_scaling iff count != 0 */
-	bool has_gating;
 };
 
 struct clock_set {
@@ -83,7 +76,7 @@ struct vidc_resources {
 extern unsigned int vidc_pwr_collapse_delay;
 struct vidc_core;
 
-int get_platform_resources_from_dt(struct vidc_core *);
+int get_platform_resources(struct vidc_core *);
 void put_platform_resources(struct vidc_core *);
 
 int enable_clocks(struct vidc_resources *);

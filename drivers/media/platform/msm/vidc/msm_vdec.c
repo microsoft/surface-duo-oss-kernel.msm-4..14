@@ -49,123 +49,110 @@ static inline struct vidc_inst *to_inst(struct file *filp, void *fh)
 	return container_of(filp->private_data, struct vidc_inst, fh);
 }
 
-static u32 get_frame_size_nv12(int plane, u32 height, u32 width)
+static u32 get_framesize_nv12(int plane, u32 height, u32 width)
 {
-	return VENUS_BUFFER_SIZE(COLOR_FMT_NV12, width, height);
+	u32 y_stride, uv_stride, y_plane;
+	u32 y_sclines, uv_sclines, uv_plane;
+	u32 size;
+
+	y_stride = ALIGN(width, 128);
+	uv_stride = ALIGN(width, 128);
+	y_sclines = ALIGN(height, 32);
+	uv_sclines = ALIGN(((height + 1) >> 1), 16);
+
+	y_plane = y_stride * y_sclines;
+	uv_plane = uv_stride * uv_sclines + SZ_4K;
+	size = y_plane + uv_plane + SZ_8K;
+	size = ALIGN(size, SZ_4K);
+
+	return size;
 }
 
-static u32 get_frame_size_compressed(int plane, u32 max_mbs_per_frame,
+static u32 get_framesize_compressed(int plane, u32 mbs_per_frame,
 				     u32 size_per_mb)
 {
-	return (max_mbs_per_frame * size_per_mb * 3 / 2) / 2;
+	return (mbs_per_frame * size_per_mb * 3 / 2) / 2;
 }
 
-static u32 get_frame_size(struct vidc_inst *inst, const struct vidc_format *fmt,
-			  int fmt_type, int plane)
+static u32 get_framesize(struct vidc_inst *inst, const struct vidc_format *fmt,
+			 u32 fmt_type, u32 plane)
 {
-	u32 frame_size = 0;
+	struct vidc_core_capability *cap = &inst->capability;
 
-	if (fmt_type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
-		frame_size = fmt->get_frame_size(plane,
-					inst->capability.mbs_per_frame.max,
-					MB_SIZE_IN_PIXEL);
-		if (inst->capability.buffer_size_limit &&
-		    inst->capability.buffer_size_limit < frame_size) {
-			frame_size = inst->capability.buffer_size_limit;
-			dprintk(VIDC_DBG, "input buffer size limited to %d\n",
-				frame_size);
-		} else {
-			dprintk(VIDC_DBG, "set input buffer size to %d\n",
-				frame_size);
-		}
-	} else if (fmt_type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-		frame_size = fmt->get_frame_size(plane,
-					inst->capability.height.max,
-					inst->capability.width.max);
-		dprintk(VIDC_DBG, "set output buffer size to %d\n",
-			frame_size);
-	} else {
-		dprintk(VIDC_WARN, "Wrong format type\n");
-	}
+	if (fmt_type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+		return fmt->get_framesize(plane, cap->mbs_per_frame.max,
+					  MB_SIZE_IN_PIXEL);
+	else if (fmt_type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+		return fmt->get_framesize(plane, inst->height, inst->width);
 
-	return frame_size;
+	return 0;
 }
 
 static const struct vidc_format vdec_formats[] = {
 	{
-		.name = "YCbCr Semiplanar 4:2:0",
-		.description = "Y/CbCr 4:2:0",
-		.fourcc = V4L2_PIX_FMT_NV12,
-		.num_planes = 1, /* TODO: was 2 */
-		.get_frame_size = get_frame_size_nv12,
-		.type = CAPTURE_PORT,
+		.pixfmt = V4L2_PIX_FMT_NV12,
+		.num_planes = 1,
+		.get_framesize = get_framesize_nv12,
+		.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE,
 	},
 	{
-		.name = "Mpeg4",
-		.description = "Mpeg4 compressed format",
-		.fourcc = V4L2_PIX_FMT_MPEG4,
+		.pixfmt = V4L2_PIX_FMT_NV21,
 		.num_planes = 1,
-		.get_frame_size = get_frame_size_compressed,
-		.type = OUTPUT_PORT,
+		.get_framesize = get_framesize_nv12,
+		.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE,
 	},
 	{
-		.name = "Mpeg2",
-		.description = "Mpeg2 compressed format",
-		.fourcc = V4L2_PIX_FMT_MPEG2,
+		.pixfmt = V4L2_PIX_FMT_MPEG4,
 		.num_planes = 1,
-		.get_frame_size = get_frame_size_compressed,
-		.type = OUTPUT_PORT,
+		.get_framesize = get_framesize_compressed,
+		.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
 	},
 	{
-		.name = "H263",
-		.description = "H263 compressed format",
-		.fourcc = V4L2_PIX_FMT_H263,
+		.pixfmt = V4L2_PIX_FMT_MPEG2,
 		.num_planes = 1,
-		.get_frame_size = get_frame_size_compressed,
-		.type = OUTPUT_PORT,
+		.get_framesize = get_framesize_compressed,
+		.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
 	},
 	{
-		.name = "VC1",
-		.description = "VC-1 compressed format",
-		.fourcc = V4L2_PIX_FMT_VC1_ANNEX_G,
+		.pixfmt = V4L2_PIX_FMT_H263,
 		.num_planes = 1,
-		.get_frame_size = get_frame_size_compressed,
-		.type = OUTPUT_PORT,
+		.get_framesize = get_framesize_compressed,
+		.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
 	},
 	{
-		.name = "VC1 SP",
-		.description = "VC-1 compressed format G",
-		.fourcc = V4L2_PIX_FMT_VC1_ANNEX_L,
+		.pixfmt = V4L2_PIX_FMT_VC1_ANNEX_G,
 		.num_planes = 1,
-		.get_frame_size = get_frame_size_compressed,
-		.type = OUTPUT_PORT,
+		.get_framesize = get_framesize_compressed,
+		.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
 	},
 	{
-		.name = "H264",
-		.description = "H264 compressed format",
-		.fourcc = V4L2_PIX_FMT_H264,
+		.pixfmt = V4L2_PIX_FMT_VC1_ANNEX_L,
 		.num_planes = 1,
-		.get_frame_size = get_frame_size_compressed,
-		.type = OUTPUT_PORT,
+		.get_framesize = get_framesize_compressed,
+		.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
 	},
 	{
-		.name = "VP8",
-		.description = "VP8 compressed format",
-		.fourcc = V4L2_PIX_FMT_VP8,
+		.pixfmt = V4L2_PIX_FMT_H264,
 		.num_planes = 1,
-		.get_frame_size = get_frame_size_compressed,
-		.type = OUTPUT_PORT,
+		.get_framesize = get_framesize_compressed,
+		.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
+	},
+	{
+		.pixfmt = V4L2_PIX_FMT_VP8,
+		.num_planes = 1,
+		.get_framesize = get_framesize_compressed,
+		.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
 	},
 };
 
-static const struct vidc_format *find_format(u32 fourcc, int type)
+static const struct vidc_format *find_format(u32 pixfmt, u32 type)
 {
 	const struct vidc_format *fmt = vdec_formats;
 	unsigned int size = ARRAY_SIZE(vdec_formats);
 	unsigned int i;
 
 	for (i = 0; i < size; i++) {
-		if (fmt[i].fourcc == fourcc)
+		if (fmt[i].pixfmt == pixfmt)
 			break;
 	}
 
@@ -176,7 +163,7 @@ static const struct vidc_format *find_format(u32 fourcc, int type)
 }
 
 
-static const struct vidc_format *find_format_by_index(int index, int type)
+static const struct vidc_format *find_format_by_index(int index, u32 type)
 {
 	const struct vidc_format *fmt = vdec_formats;
 	unsigned int size = ARRAY_SIZE(vdec_formats);
@@ -210,28 +197,402 @@ vdec_to_vb2q(struct vidc_inst *inst, enum v4l2_buf_type type)
 	return NULL;
 }
 
-static int vdec_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
+static int vdec_try_fmt(struct file *file, void *fh, struct v4l2_format *f)
 {
 	struct vidc_inst *inst = to_inst(file, fh);
-	struct vb2_queue *queue;
+	struct v4l2_pix_format_mplane *pixmp = &f->fmt.pix_mp;
+	const struct vidc_format *fmt;
+	struct vidc_core_capability *cap = &inst->capability;
+	struct hfi_device *hdev = inst->core->hfidev;
+	int ret, i;
 
-	queue = vdec_to_vb2q(inst, type);
-	if (!queue)
+	fmt = find_format(pixmp->pixelformat, f->type);
+	if (!fmt)
 		return -EINVAL;
 
-	return vb2_streamon(queue, type);
+	ret = hfi_session_init(inst, inst->fmt_out->pixfmt);
+	if (ret)
+		return ret;
+
+	pixmp->width = clamp(pixmp->width, cap->width.min, cap->width.max);
+	pixmp->height = clamp(pixmp->height, cap->height.min, cap->height.max);
+	pixmp->field = V4L2_FIELD_NONE;
+	pixmp->colorspace = V4L2_COLORSPACE_DEFAULT;
+	pixmp->num_planes = fmt->num_planes;
+	pixmp->flags = 0;
+
+	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+		enum color_fmts cfmt;
+		u32 *bytesperline = &pixmp->plane_fmt[0].bytesperline;
+
+		switch (fmt->pixfmt) {
+		case V4L2_PIX_FMT_NV12:
+			cfmt = COLOR_FMT_NV12;
+		case V4L2_PIX_FMT_NV21:
+			cfmt =  COLOR_FMT_NV21;
+			break;
+		default:
+			return -EINVAL;
+		}
+
+		call_hfi_op(hdev, get_stride_scanline, cfmt, pixmp->width,
+			    pixmp->height, bytesperline, NULL);
+
+		for (i = 0; i < pixmp->num_planes; i++)
+			pixmp->plane_fmt[i].sizeimage =
+					get_framesize_nv12(i, pixmp->height,
+							   pixmp->width);
+	} else {
+		pixmp->plane_fmt[0].sizeimage =
+					get_framesize(inst, fmt, f->type, 0);
+		pixmp->plane_fmt[0].bytesperline = 0;
+	}
+
+	ret = hfi_session_deinit(inst);
+
+	inst->session = NULL;
+	vidc_inst_set_state(inst, INST_UNINIT);
+
+	if (ret)
+		return ret;
+
+	return 0;
 }
 
-static int vdec_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
+static int vdec_g_fmt(struct file *file, void *fh, struct v4l2_format *f)
+{
+	struct vidc_inst *inst = to_inst(file, fh);
+	struct device *dev = &inst->core->res.pdev->dev;
+	struct hfi_device *hdev = inst->core->hfidev;
+	const struct vidc_format *fmt;
+	struct v4l2_pix_format_mplane *pixmp = &f->fmt.pix_mp;
+	struct hal_buffer_requirements bufreq = {0};
+	int ret, i;
+
+	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+		fmt = inst->fmt_cap;
+	else if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+		fmt = inst->fmt_out;
+	else
+		return -EINVAL;
+
+	pixmp->pixelformat = fmt->pixfmt;
+	pixmp->num_planes = fmt->num_planes;
+
+	if (inst->in_reconfig) {
+		if (vidc_comm_get_stream_output_mode(inst) ==
+		    HAL_VIDEO_DECODER_PRIMARY) {
+			inst->height = inst->reconfig_height;
+			inst->width = inst->reconfig_width;
+		}
+
+		ret = vidc_check_session_supported(inst);
+		if (ret) {
+			dev_err(dev, "%s: unsupported session\n", __func__);
+			goto exit;
+		}
+	}
+
+	pixmp->width = inst->width;
+	pixmp->height = inst->height;
+
+	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
+		for (i = 0; i < fmt->num_planes; ++i) {
+			pixmp->plane_fmt[i].sizeimage =
+					get_framesize(inst, fmt, f->type, i);
+			pixmp->plane_fmt[i].bytesperline = 0;
+		}
+	} else {
+		enum color_fmts cfmt;
+		u32 bytesperline = 0;
+
+		switch (fmt->pixfmt) {
+		case V4L2_PIX_FMT_NV12:
+			cfmt = COLOR_FMT_NV12;
+		case V4L2_PIX_FMT_NV21:
+			cfmt =  COLOR_FMT_NV21;
+			break;
+		default:
+			return -EINVAL;
+		}
+
+		call_hfi_op(hdev, get_stride_scanline, cfmt, inst->width,
+			    inst->height, &bytesperline, NULL);
+
+		ret = vidc_comm_bufrequirements(inst, HAL_BUFFER_OUTPUT,
+						&bufreq);
+		if (ret)
+			return ret;
+
+		dev_dbg(dev, "buf requirements output: size:%d\n", bufreq.size);
+
+		pixmp->plane_fmt[0].sizeimage = bufreq.size;
+		pixmp->plane_fmt[0].bytesperline = bytesperline;
+	}
+
+exit:
+	return ret;
+}
+
+static int vdec_set_buffer_size(struct vidc_inst *inst, u32 buffer_size,
+				enum hal_buffer buffer_type)
+{
+	struct device *dev = &inst->core->res.pdev->dev;
+	struct hal_buffer_size_actual buf_size_actual;
+	int ret;
+
+	dev_dbg(dev, "set actual buffer_size: %d for buffer type %d to fw\n",
+		buffer_size, buffer_type);
+
+	buf_size_actual.type = buffer_type;
+	buf_size_actual.size = buffer_size;
+
+	ret = hfi_session_set_property(inst, HAL_PARAM_BUFFER_SIZE_ACTUAL,
+				       &buf_size_actual);
+	if (ret) {
+		dev_err(dev, "%s: failed to set actual buffer size %u\n",
+			__func__, buffer_size);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int vdec_update_out_buf_size(struct vidc_inst *inst,
+				    struct v4l2_format *f, int nplanes)
+{
+	struct device *dev = &inst->core->res.pdev->dev;
+	struct v4l2_plane_pix_format *fmt = f->fmt.pix_mp.plane_fmt;
+	struct hal_buffer_requirements *bufreq;
+	int ret, i;
+
+	/*
+	 * Compare set buffer size and update to firmware if it's bigger
+	 * then firmware returned buffer size.
+	 */
+	for (i = 0; i < nplanes; ++i) {
+		enum hal_buffer type = vidc_comm_get_hal_output_buffer(inst);
+
+		if (EXTRADATA_IDX(nplanes) && i == EXTRADATA_IDX(nplanes))
+			type = HAL_BUFFER_EXTRADATA_OUTPUT;
+
+		bufreq = get_buff_req_buffer(inst, type);
+		if (!bufreq)
+			return -EINVAL;
+
+		if (fmt[i].sizeimage > bufreq->size) {
+			ret = vdec_set_buffer_size(inst, fmt[i].sizeimage,
+						   type);
+			if (ret)
+				return ret;
+		}
+	}
+
+	/* Query buffer requirements from firmware */
+	ret = vidc_comm_get_bufreqs(inst);
+	if (ret) {
+		dev_err(dev, "Failed to get buf req, %d\n", ret);
+		return ret;
+	}
+
+	/* Read back updated firmware size */
+	for (i = 0; i < nplanes; ++i) {
+		enum hal_buffer type = vidc_comm_get_hal_output_buffer(inst);
+
+		if (EXTRADATA_IDX(nplanes) && i == EXTRADATA_IDX(nplanes))
+			type = HAL_BUFFER_EXTRADATA_OUTPUT;
+
+		bufreq = get_buff_req_buffer(inst, type);
+		fmt[i].sizeimage = bufreq ? bufreq->size : 0;
+
+		dev_dbg(dev, "updated buffer size for plane[%d] = %d\n",
+			i, fmt[i].sizeimage);
+	}
+
+	return 0;
+}
+
+static int vdec_set_properties(struct vidc_inst *inst)
+{
+	struct device *dev = &inst->core->res.pdev->dev;
+	struct hfi_device *hdev = inst->core->hfidev;
+	enum hal_default_properties defaults;
+	int ret;
+
+	defaults = call_hfi_op(hdev, get_default_properties,
+			       hdev->hfi_device_data);
+	if (defaults < 0)
+		return defaults;
+
+	if (defaults & HAL_VIDEO_DYNAMIC_BUF_MODE) {
+		dev_dbg(dev, "Enable dynamic buffer mode\n");
+
+		inst->buffer_mode[CAPTURE_PORT] = HAL_VIDEO_DYNAMIC_BUF_MODE;
+	}
+
+	if (defaults & HAL_VIDEO_CONTINUE_DATA_TRANSFER) {
+		struct hal_enable prop = { 1 };
+		u32 prop_id = HAL_PARAM_VDEC_CONTINUE_DATA_TRANSFER;
+
+		dev_dbg(dev, "Enable continue data transfer\n");
+
+		ret = hfi_session_set_property(inst, prop_id, &prop);
+		if (ret)
+			return ret;
+	}
+
+	return 0;
+}
+
+static int vdec_s_fmt_cap(struct file *file, void *fh, struct v4l2_format *f)
+{
+	struct vidc_inst *inst = to_inst(file, fh);
+	struct device *dev = &inst->core->res.pdev->dev;
+	const struct vidc_format *fmt;
+	struct v4l2_pix_format_mplane *pixmp = &f->fmt.pix_mp;
+	u32 pixfmt = pixmp->pixelformat;
+	int ret, i;
+
+	fmt = find_format(pixfmt, f->type);
+	if (!fmt)
+		return -EINVAL;
+
+	ret = vidc_comm_set_color_format(inst, HAL_BUFFER_OUTPUT, pixfmt);
+	if (ret)
+		return ret;
+
+	ret = vidc_comm_get_bufreqs(inst);
+	if (ret) {
+		for (i = 0; i < fmt->num_planes; ++i)
+			pixmp->plane_fmt[i].sizeimage =
+				get_framesize(inst, fmt, f->type, i);
+	} else {
+		ret = vdec_update_out_buf_size(inst, f, fmt->num_planes);
+		if (ret) {
+			dev_err(dev, "%s: failed to update buffer size: %d\n",
+				__func__, ret);
+			return ret;
+		}
+	}
+
+	inst->width = pixmp->width;
+	inst->height = pixmp->height;
+	inst->fmt_cap = fmt;
+
+	pixmp->num_planes = fmt->num_planes;
+
+	return 0;
+}
+
+static int vdec_s_fmt_out(struct file *file, void *fh, struct v4l2_format *f)
+{
+	struct vidc_inst *inst = to_inst(file, fh);
+	struct device *dev = &inst->core->res.pdev->dev;
+	struct hal_frame_size fs;
+	const struct vidc_format *fmt;
+	struct v4l2_pix_format_mplane *pixmp = &f->fmt.pix_mp;
+	u32 pixfmt = pixmp->pixelformat;
+	struct vidc_core_capability *cap = &inst->capability;
+	int ret, i;
+
+	fmt = find_format(pixfmt, f->type);
+	if (!fmt)
+		return -EINVAL;
+
+	if (!(vidc_comm_hal_codec_type(fmt->pixfmt) & inst->core->dec_codecs)) {
+		dev_err(dev, "codec (%x) is not supported\n", fmt->pixfmt);
+		return -ENOTSUPP;
+	}
+
+	inst->width = pixmp->width;
+	inst->height = pixmp->height;
+	inst->fmt_out = fmt;
+
+	ret = hfi_session_init(inst, fmt->pixfmt);
+	if (ret) {
+		dev_err(dev, "%s: session init failed (%d)\n", __func__, ret);
+		return ret;
+	}
+
+	ret = vidc_check_session_supported(inst);
+	if (ret) {
+		dev_err(dev, "%s: session not supported\n", __func__);
+		goto err;
+	}
+
+	fs.buffer_type = HAL_BUFFER_INPUT;
+	fs.width = inst->width;
+	fs.height = inst->height;
+
+	ret = hfi_session_set_property(inst, HAL_PARAM_FRAME_SIZE, &fs);
+	if (ret)
+		goto err;
+
+	for (i = 0; i < fmt->num_planes; i++) {
+		pixmp->plane_fmt[i].sizeimage =
+			fmt->get_framesize(i, cap->mbs_per_frame.max,
+					   MB_SIZE_IN_PIXEL);
+		pixmp->plane_fmt[i].bytesperline = 0;
+	}
+
+	pixmp->num_planes = fmt->num_planes;
+
+	return 0;
+
+err:
+	hfi_session_deinit(inst);
+	inst->session = NULL;
+	vidc_inst_set_state(inst, INST_UNINIT);
+
+	return ret;
+}
+
+static int
+vdec_reqbufs(struct file *file, void *fh, struct v4l2_requestbuffers *b)
 {
 	struct vidc_inst *inst = to_inst(file, fh);
 	struct vb2_queue *queue;
 
-	queue = vdec_to_vb2q(inst, type);
+	queue = vdec_to_vb2q(inst, b->type);
 	if (!queue)
 		return -EINVAL;
 
-	return vb2_streamoff(queue, type);
+	return vb2_reqbufs(queue, b);
+}
+
+static int
+vdec_querycap(struct file *file, void *fh, struct v4l2_capability *cap)
+{
+	strlcpy(cap->driver, VIDC_DRV_NAME, sizeof(cap->driver));
+	strlcpy(cap->card, "video decoder", sizeof(cap->card));
+	strlcpy(cap->bus_info, "media", sizeof(cap->bus_info));
+	cap->version = VIDC_VERSION;
+
+	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE_MPLANE |
+			    V4L2_CAP_VIDEO_OUTPUT_MPLANE |
+			    V4L2_CAP_STREAMING |
+			    V4L2_CAP_DEVICE_CAPS;
+	cap->device_caps = V4L2_CAP_VIDEO_CAPTURE_MPLANE |
+			   V4L2_CAP_VIDEO_OUTPUT_MPLANE |
+			   V4L2_CAP_STREAMING;
+
+	return 0;
+}
+
+static int vdec_enum_fmt(struct file *file, void *fh, struct v4l2_fmtdesc *f)
+{
+	const struct vidc_format *fmt;
+
+	fmt = find_format_by_index(f->index, f->type);
+
+	memset(f->reserved, 0 , sizeof(f->reserved));
+
+	if (!fmt)
+		return -EINVAL;
+
+	f->pixelformat = fmt->pixfmt;
+
+	return 0;
 }
 
 static int vdec_querybuf(struct file *file, void *fh, struct v4l2_buffer *b)
@@ -259,19 +620,6 @@ static int vdec_querybuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	}
 
 	return 0;
-}
-
-static int
-vdec_exportbuf(struct file *file, void *fh, struct v4l2_exportbuffer *b)
-{
-	struct vidc_inst *inst = to_inst(file, fh);
-	struct vb2_queue *queue;
-
-	queue = vdec_to_vb2q(inst, b->type);
-	if (!queue)
-		return -EINVAL;
-
-	return vb2_expbuf(queue, b);
 }
 
 static int vdec_prepare_buf(struct file *file, void *fh, struct v4l2_buffer *b)
@@ -311,6 +659,19 @@ static int vdec_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	return vb2_qbuf(queue, b);
 }
 
+static int
+vdec_exportbuf(struct file *file, void *fh, struct v4l2_exportbuffer *b)
+{
+	struct vidc_inst *inst = to_inst(file, fh);
+	struct vb2_queue *queue;
+
+	queue = vdec_to_vb2q(inst, b->type);
+	if (!queue)
+		return -EINVAL;
+
+	return vb2_expbuf(queue, b);
+}
+
 static int vdec_dqbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 {
 	struct vidc_inst *inst = to_inst(file, fh);
@@ -323,212 +684,80 @@ static int vdec_dqbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 	return vb2_dqbuf(queue, b, file->f_flags & O_NONBLOCK);
 }
 
-static int
-vdec_reqbufs(struct file *file, void *fh, struct v4l2_requestbuffers *b)
+static int vdec_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 {
 	struct vidc_inst *inst = to_inst(file, fh);
 	struct vb2_queue *queue;
 
-	queue = vdec_to_vb2q(inst, b->type);
+	queue = vdec_to_vb2q(inst, type);
 	if (!queue)
 		return -EINVAL;
 
-	return vb2_reqbufs(queue, b);
+	return vb2_streamon(queue, type);
 }
 
-static int vdec_g_fmt(struct file *file, void *fh, struct v4l2_format *f)
+static int vdec_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
 {
 	struct vidc_inst *inst = to_inst(file, fh);
-	struct device *dev = &inst->core->res.pdev->dev;
-	const struct vidc_format *fmt = NULL;
-	struct hfi_device *hdev;
-	int i = 0, stride = 0, scanlines = 0;
-	unsigned int *plane_sizes = NULL, extra_idx = 0;
-	struct hal_buffer_requirements *bufreq;
-	int ret;
+	struct vb2_queue *queue;
 
-	if (!inst || !f || !inst->core || !inst->core->hfidev)
+	queue = vdec_to_vb2q(inst, type);
+	if (!queue)
 		return -EINVAL;
 
-	ret = vidc_comm_get_bufreqs(inst);
-	if (ret) {
-		dev_err(dev, "getting buffer requirements failed (%d)\n", ret);
-		return ret;
-	}
-
-	hdev = inst->core->hfidev;
-
-	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
-		fmt = inst->fmts[CAPTURE_PORT];
-	else if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
-		fmt = inst->fmts[OUTPUT_PORT];
-	else
-		return -EINVAL;
-
-	f->fmt.pix_mp.pixelformat = fmt->fourcc;
-	f->fmt.pix_mp.num_planes = fmt->num_planes;
-
-	if (inst->in_reconfig) {
-		if (vidc_comm_get_stream_output_mode(inst) ==
-		    HAL_VIDEO_DECODER_PRIMARY) {
-			inst->prop.height_cap = inst->reconfig_height;
-			inst->prop.width_cap = inst->reconfig_width;
-			inst->prop.height_out = inst->reconfig_height;
-			inst->prop.width_out = inst->reconfig_width;
-		} else {
-			inst->prop.height_out = inst->reconfig_height;
-			inst->prop.width_out = inst->reconfig_width;
-		}
-
-		ret = vidc_check_session_supported(inst);
-		if (ret) {
-			dev_err(dev, "%s: unsupported session\n", __func__);
-			goto exit;
-		}
-	}
-
-	f->fmt.pix_mp.height = inst->prop.height_cap;
-	f->fmt.pix_mp.width = inst->prop.width_cap;
-	stride = inst->prop.width_cap;
-	scanlines = inst->prop.height_cap;
-
-	ret = vidc_comm_get_bufreqs(inst);
-	if (ret) {
-		dev_err(dev, "%s: buffer requirements failed\n", __func__);
-		goto exit;
-	}
-
-	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
-		plane_sizes = &inst->bufq_out.plane_sizes[0];
-		for (i = 0; i < fmt->num_planes; ++i) {
-			if (!plane_sizes[i]) {
-				f->fmt.pix_mp.plane_fmt[i].sizeimage =
-					get_frame_size(inst, fmt, f->type, i);
-				plane_sizes[i] =
-					f->fmt.pix_mp.plane_fmt[i].sizeimage;
-			} else {
-				f->fmt.pix_mp.plane_fmt[i].sizeimage =
-					plane_sizes[i];
-			}
-		}
-	} else {
-		switch (fmt->fourcc) {
-		case V4L2_PIX_FMT_NV12:
-		case V4L2_PIX_FMT_NV21:
-			call_hfi_op(hdev, get_stride_scanline, COLOR_FMT_NV12,
-				    inst->prop.width_cap, inst->prop.height_cap,
-				    &stride, &scanlines);
-			break;
-		default:
-			dev_warn(dev, "color format not recognized\n");
-			break;
-		}
-
-		bufreq = get_buff_req_buffer(inst,
-					vidc_comm_get_hal_output_buffer(inst));
-		f->fmt.pix_mp.plane_fmt[0].sizeimage =
-					bufreq ? bufreq->size : 0;
-
-		extra_idx = EXTRADATA_IDX(fmt->num_planes);
-		if (extra_idx && extra_idx < VIDEO_MAX_PLANES) {
-			bufreq = get_buff_req_buffer(inst,
-						HAL_BUFFER_EXTRADATA_OUTPUT);
-			f->fmt.pix_mp.plane_fmt[extra_idx].sizeimage =
-					bufreq ? bufreq->size : 0;
-		}
-
-		for (i = 0; i < fmt->num_planes; ++i)
-			inst->bufq_cap.plane_sizes[i] =
-					f->fmt.pix_mp.plane_fmt[i].sizeimage;
-	}
-
-	if (stride && scanlines) {
-		f->fmt.pix_mp.plane_fmt[0].bytesperline = (__u16)stride;
-		f->fmt.pix_mp.plane_fmt[0].reserved[0] = (__u16)scanlines;
-	} else {
-		f->fmt.pix_mp.plane_fmt[0].bytesperline =
-			(__u16)inst->prop.width_cap;
-		f->fmt.pix_mp.plane_fmt[0].reserved[0] =
-			(__u16)inst->prop.height_cap;
-	}
-
-	if (vidc_comm_get_stream_output_mode(inst) ==
-	    HAL_VIDEO_DECODER_SECONDARY) {
-		if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
-			f->fmt.pix_mp.height = inst->prop.height_cap;
-			f->fmt.pix_mp.width = inst->prop.width_cap;
-		} else if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
-			f->fmt.pix_mp.height = inst->prop.height_out;
-			f->fmt.pix_mp.width = inst->prop.width_out;
-			f->fmt.pix_mp.plane_fmt[0].bytesperline =
-				(__u16)inst->prop.width_out;
-			f->fmt.pix_mp.plane_fmt[0].reserved[0] =
-				(__u16)inst->prop.height_out;
-		}
-	}
-exit:
-	return ret;
+	return vb2_streamoff(queue, type);
 }
 
 static int vdec_s_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
 {
 	struct vidc_inst *inst = to_inst(file, fh);
 	struct device *dev = &inst->core->res.pdev->dev;
-	u64 us_per_frame = 0;
-	int ret = 0, fps = 0;
+	struct v4l2_fract *timeperframe = &a->parm.output.timeperframe;
+	u64 us_per_frame, fps;
 
-	if (a->parm.output.timeperframe.denominator) {
-		switch (a->type) {
-		case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
-		case V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE:
-			us_per_frame = a->parm.output.timeperframe.numerator *
-				(u64)USEC_PER_SEC;
-			do_div(us_per_frame,
-			       a->parm.output.timeperframe.denominator);
-			break;
-		default:
-			dev_err(dev, "scale clocks: nnknown buffer type %d\n",
-				a->type);
-			break;
-		}
-	}
+	if (!timeperframe->denominator ||
+	    a->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+		return -EINVAL;
 
-	if (!us_per_frame) {
-		dev_err(dev, "scale clocks: time between frames is 0\n");
-		ret = -EINVAL;
-		goto exit;
-	}
+	us_per_frame = timeperframe->numerator * (u64)USEC_PER_SEC;
+	do_div(us_per_frame, timeperframe->denominator);
 
-	fps = USEC_PER_SEC;
+	if (!us_per_frame)
+		return -EINVAL;
+
+	fps = (u64)USEC_PER_SEC;
 	do_div(fps, us_per_frame);
 
-	if (fps % 15 == 14 || fps % 24 == 23)
-		fps = fps + 1;
-	else if (fps % 24 == 1 || fps % 15 == 1)
-		fps = fps - 1;
+	dev_dbg(dev, "%s: num:%d, denom:%d\n", __func__,
+		timeperframe->numerator, timeperframe->denominator);
 
-	if (inst->prop.fps != fps) {
-		dev_dbg(dev, "reported fps changed for %p: %d->%d\n",
-			inst, inst->prop.fps, fps);
-		inst->prop.fps = fps;
-		msm_comm_scale_clocks(inst->core);
-	}
-exit:
-	return ret;
+	inst->fps = fps;
+	inst->timeperframe = *timeperframe;
+
+	return 0;
 }
 
 static int vdec_g_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
 {
-	return -ENOTSUPP;
+	struct vidc_inst *inst = to_inst(file, fh);
+
+	if (a->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+		return -EINVAL;
+
+	memset(a, 0, sizeof(*a));
+	a->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	a->parm.capture.capability = V4L2_CAP_TIMEPERFRAME;
+	a->parm.capture.timeperframe = inst->timeperframe;
+
+	return 0;
 }
 
 static int vdec_enum_framesizes(struct file *file, void *fh,
 				struct v4l2_frmsizeenum *fsize)
 {
 	struct vidc_inst *inst = to_inst(file, fh);
-	struct vidc_core_capability *capability;
+	struct vidc_core_capability *capability = &inst->capability;
 
-	capability = &inst->capability;
 	fsize->type = V4L2_FRMSIZE_TYPE_STEPWISE;
 	fsize->stepwise.min_width = capability->width.min;
 	fsize->stepwise.max_width = capability->width.max;
@@ -540,352 +769,111 @@ static int vdec_enum_framesizes(struct file *file, void *fh,
 	return 0;
 }
 
-static int vdec_set_buffer_size(struct vidc_inst *inst, u32 buffer_size,
-				enum hal_buffer buffer_type)
+static int vdec_subscribe_event(struct v4l2_fh *fh,
+				const struct  v4l2_event_subscription *sub)
 {
-	struct device *dev = &inst->core->res.pdev->dev;
-	struct hal_buffer_size_actual buffer_size_actual;
-	struct hfi_device *hdev = inst->core->hfidev;
-	int ret;
-
-	dev_dbg(dev, "set actual buffer_size: %d for buffer type %d to fw\n",
-		buffer_size, buffer_type);
-
-	buffer_size_actual.buffer_type = buffer_type;
-	buffer_size_actual.buffer_size = buffer_size;
-
-	ret = call_hfi_op(hdev, session_set_property, inst->session,
-			  HAL_PARAM_BUFFER_SIZE_ACTUAL, &buffer_size_actual);
-	if (ret) {
-		dev_err(dev, "%s: failed to set actual buffer size %u\n",
-			__func__, buffer_size);
-		return ret;
+	switch (sub->type) {
+	case V4L2_EVENT_EOS:
+		return v4l2_event_subscribe(fh, sub, 2, NULL);
+	case V4L2_EVENT_SOURCE_CHANGE:
+		return v4l2_src_change_event_subscribe(fh, sub);
+	default:
+		return -EINVAL;
 	}
-
-	return 0;
 }
 
-static int vdec_update_out_buf_size(struct vidc_inst *inst,
-				    struct v4l2_format *f, int num_planes)
+static int vdec_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *dec)
 {
-	struct device *dev = &inst->core->res.pdev->dev;
-	struct hal_buffer_requirements *bufreq;
-	int ret = 0, i;
+	struct vidc_inst *inst = to_inst(file, fh);
+	struct vidc_core *core = inst->core;
+	int ret = 0;
 
-	/*
-	 * Compare set buffer size and update to firmware if it's bigger
-	 * then firmware returned buffer size.
-	 */
-	for (i = 0; i < num_planes; ++i) {
-		enum hal_buffer type = vidc_comm_get_hal_output_buffer(inst);
+	return 0;
 
-		if (EXTRADATA_IDX(num_planes) &&
-		    i == EXTRADATA_IDX(num_planes))
-			type = HAL_BUFFER_EXTRADATA_OUTPUT;
-
-		bufreq = get_buff_req_buffer(inst, type);
-		if (!bufreq)
-			goto exit;
-
-		if (f->fmt.pix_mp.plane_fmt[i].sizeimage > bufreq->size) {
-			ret = vdec_set_buffer_size(inst,
-				f->fmt.pix_mp.plane_fmt[i].sizeimage, type);
+	switch (dec->cmd) {
+	case V4L2_DEC_QCOM_CMD_FLUSH:
+		if (core->state != CORE_INVALID &&
+		    inst->state == INST_INVALID) {
+			ret = vidc_comm_kill_session(inst);
 			if (ret)
-				goto exit;
+				dprintk(VIDC_ERR, "session kill (%d)\n", ret);
 		}
-	}
 
-	/* Query buffer requirements from firmware */
-	ret = vidc_comm_get_bufreqs(inst);
-	if (ret) {
-		dev_err(dev, "Failed to get buf req, %d\n", ret);
-		return ret;
-	}
+		ret = vidc_comm_session_flush(inst, dec->flags);
+		if (ret)
+			dprintk(VIDC_ERR, "Failed to flush buffers: %d\n", ret);
+		break;
+	case V4L2_DEC_CMD_STOP:
+		if (core->state != CORE_INVALID &&
+		    inst->state == INST_INVALID) {
+			ret = vidc_comm_kill_session(inst);
+			if (ret)
+				dprintk(VIDC_ERR, "session kill (%d)\n", ret);
+		}
 
-	/* Read back updated firmware size */
-	for (i = 0; i < num_planes; ++i) {
-		enum hal_buffer type = vidc_comm_get_hal_output_buffer(inst);
+		ret = release_scratch_buffers(inst, false);
+		if (ret)
+			dprintk(VIDC_ERR,
+				"release scratch buffers (%d)\n", ret);
 
-		if (EXTRADATA_IDX(num_planes) &&
-		    i == EXTRADATA_IDX(num_planes))
-			type = HAL_BUFFER_EXTRADATA_OUTPUT;
+		ret = release_persist_buffers(inst);
+		if (ret)
+			dprintk(VIDC_ERR,
+				"release persist buffers (%d)\n", ret);
 
-		bufreq = get_buff_req_buffer(inst, type);
-		f->fmt.pix_mp.plane_fmt[i].sizeimage = bufreq ?
-					bufreq->size : 0;
-		dev_dbg(dev, "updated buffer size for plane[%d] = %d\n",
-			i, f->fmt.pix_mp.plane_fmt[i].sizeimage);
+		if (inst->state == INST_INVALID ||
+		    core->state == CORE_INVALID) {
+			dprintk(VIDC_ERR,
+				"core and/or instance are in invalid state\n");
+			vidc_queue_v4l2_event(inst,
+					      V4L2_EVENT_MSM_VIDC_CLOSE_DONE);
+			goto exit;
+		}
+
+		ret = hfi_session_deinit(inst);
+
+		inst->session = NULL;
+		vidc_inst_set_state(inst, INST_UNINIT);
+
+		/* Clients rely on this event for joining poll thread.
+		 * This event should be returned even if firmware has
+		 * failed to respond
+		 */
+		vidc_queue_v4l2_event(inst, V4L2_EVENT_MSM_VIDC_CLOSE_DONE);
+		break;
+	default:
+		return -ENOTSUPP;
 	}
 
 exit:
 	return ret;
 }
 
-static int vdec_set_default_properties(struct vidc_inst *inst)
-{
-	struct device *dev = &inst->core->res.pdev->dev;
-	struct hfi_device *hdev = inst->core->hfidev;
-	struct v4l2_control ctrl = {0};
-	enum hal_default_properties defaults;
-	int ret = 0;
-
-	defaults = call_hfi_op(hdev, get_default_properties,
-			       hdev->hfi_device_data);
-	if (defaults < 0)
-		return defaults;
-
-	if (defaults & HAL_VIDEO_DYNAMIC_BUF_MODE) {
-		dev_dbg(dev, "Enable dynamic buffer mode\n");
-		ctrl.id = V4L2_CID_MPEG_VIDC_VIDEO_ALLOC_MODE_OUTPUT;
-		ctrl.value = V4L2_MPEG_VIDC_VIDEO_DYNAMIC;
-
-		ret = v4l2_s_ctrl(NULL, &inst->ctrl_handler, &ctrl);
-		if (ret)
-			dev_err(dev, "set alloc_mode failed\n");
-	}
-
-	if (defaults & HAL_VIDEO_CONTINUE_DATA_TRANSFER) {
-		dev_dbg(dev, "Enable continue_data_transfer\n");
-		ctrl.id = V4L2_CID_MPEG_VIDC_VIDEO_CONTINUE_DATA_TRANSFER;
-		ctrl.value = true;
-
-		ret = v4l2_s_ctrl(NULL, &inst->ctrl_handler, &ctrl);
-		if (ret)
-			dev_err(dev, "set cont_data_transfer failed\n");
-	}
-
-	return ret;
-}
-
-static int vdec_s_fmt_cap(struct file *file, void *fh, struct v4l2_format *f)
-{
-	struct vidc_inst *inst = to_inst(file, fh);
-	struct device *dev = &inst->core->res.pdev->dev;
-	struct hal_frame_size frame_sz;
-	const struct vidc_format *fmt;
-	u32 pixelformat = f->fmt.pix_mp.pixelformat;
-	int ret, i;
-
-	dev_dbg(dev, "%s: enter\n", __func__);
-
-	fmt = find_format(pixelformat, CAPTURE_PORT);
-	if (!fmt)
-		return -EINVAL;
-
-	inst->prop.width_cap = f->fmt.pix_mp.width;
-	inst->prop.height_cap = f->fmt.pix_mp.height;
-
-	if (vidc_comm_get_stream_output_mode(inst) ==
-	    HAL_VIDEO_DECODER_PRIMARY) {
-		inst->prop.width_out = f->fmt.pix_mp.width;
-		inst->prop.height_out = f->fmt.pix_mp.height;
-		ret = vidc_comm_set_color_format(inst, HAL_BUFFER_OUTPUT,
-						 pixelformat);
-		if (ret)
-			return ret;
-	}
-
-	inst->fmts[fmt->type] = fmt;
-
-	if (vidc_comm_get_stream_output_mode(inst) ==
-	    HAL_VIDEO_DECODER_SECONDARY) {
-		frame_sz.buffer_type = HAL_BUFFER_OUTPUT2;
-		frame_sz.width = inst->prop.width_cap;
-		frame_sz.height = inst->prop.height_cap;
-		vidc_comm_set_color_format(inst, HAL_BUFFER_OUTPUT,
-					   pixelformat);
-		vidc_comm_set_color_format(inst, HAL_BUFFER_OUTPUT2,
-					   pixelformat);
-		dev_dbg(dev, "buffer type:%d, width:%d, height:%d\n",
-			frame_sz.buffer_type, frame_sz.width,
-			frame_sz.height);
-		ret = hfi_session_set_property(inst, HAL_PARAM_FRAME_SIZE,
-					       &frame_sz);
-		if (ret)
-			return ret;
-	}
-
-	ret = vidc_comm_get_bufreqs(inst);
-	if (ret) {
-		for (i = 0; i < fmt->num_planes; ++i) {
-			f->fmt.pix_mp.plane_fmt[i].sizeimage =
-				get_frame_size(inst, fmt, f->type, i);
-		}
-	} else {
-		ret = vdec_update_out_buf_size(inst, f, fmt->num_planes);
-		if (ret) {
-			dev_err(dev, "%s: failed to update buffer size: %d\n",
-				__func__, ret);
-			return ret;
-		}
-	}
-
-	f->fmt.pix_mp.num_planes = fmt->num_planes;
-
-	for (i = 0; i < fmt->num_planes; ++i)
-		inst->bufq_cap.plane_sizes[i] =
-			f->fmt.pix_mp.plane_fmt[i].sizeimage;
-
-	return 0;
-}
-
-static int vdec_s_fmt_out(struct file *file, void *fh, struct v4l2_format *f)
-{
-	struct vidc_inst *inst = to_inst(file, fh);
-	struct device *dev = &inst->core->res.pdev->dev;
-	struct hal_frame_size frame_sz;
-	const struct vidc_format *fmt;
-	u32 pixelformat = f->fmt.pix_mp.pixelformat;
-	int max_input_size = 0;
-	int ret, i;
-
-	dev_dbg(dev, "%s: enter\n", __func__);
-
-	inst->prop.width_out = f->fmt.pix_mp.width;
-	inst->prop.height_out = f->fmt.pix_mp.height;
-
-	if (vidc_comm_get_stream_output_mode(inst) ==
-	    HAL_VIDEO_DECODER_PRIMARY) {
-		inst->prop.width_cap = f->fmt.pix_mp.width;
-		inst->prop.height_cap = f->fmt.pix_mp.height;
-	}
-
-	fmt = find_format(pixelformat, OUTPUT_PORT);
-	if (!fmt) {
-		dev_err(dev, "Format: %d not supported on OUTPUT port\n",
-			pixelformat);
-		return -EINVAL;
-	}
-
-	if (!(vidc_comm_hal_codec_type(fmt->fourcc) & inst->core->dec_codecs)) {
-		dev_err(dev, "codec (%x) is not supported\n", fmt->fourcc);
-		return -EINVAL;
-	}
-
-	inst->fmts[fmt->type] = fmt;
-
-	ret = hfi_session_init(inst);
-	if (ret)
-		return ret;
-
-	ret = vidc_check_session_supported(inst);
-	if (ret) {
-		dev_err(dev, "%s: session not supported\n", __func__);
-		goto err;
-	}
-
-	frame_sz.buffer_type = HAL_BUFFER_INPUT;
-	frame_sz.width = inst->prop.width_out;
-	frame_sz.height = inst->prop.height_out;
-
-	dev_dbg(dev, "buffer type = %d width = %d, height = %d\n",
-		frame_sz.buffer_type, frame_sz.width, frame_sz.height);
-
-	ret = hfi_session_set_property(inst, HAL_PARAM_FRAME_SIZE, &frame_sz);
-	if (ret)
-		goto err;
-
-	max_input_size = get_frame_size(inst, fmt, f->type, 0);
-	if (f->fmt.pix_mp.plane_fmt[0].sizeimage > max_input_size ||
-	    !f->fmt.pix_mp.plane_fmt[0].sizeimage)
-		f->fmt.pix_mp.plane_fmt[0].sizeimage = max_input_size;
-
-	f->fmt.pix_mp.num_planes = fmt->num_planes;
-	for (i = 0; i < fmt->num_planes; ++i) {
-		inst->bufq_out.plane_sizes[i] =
-				f->fmt.pix_mp.plane_fmt[i].sizeimage;
-	}
-
-	ret = vdec_set_default_properties(inst);
-	if (ret)
-		goto err;
-
-	return 0;
-
-err:
-	hfi_session_deinit(inst);
-	return ret;
-}
-
-static int
-vdec_querycap(struct file *file, void *fh, struct v4l2_capability *cap)
-{
-	strlcpy(cap->driver, VIDC_DRV_NAME, sizeof(cap->driver));
-	strlcpy(cap->card, "video decoder", sizeof(cap->card));
-	strlcpy(cap->bus_info, "platform", sizeof(cap->bus_info));
-	cap->version = VIDC_VERSION;
-
-	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE_MPLANE |
-			    V4L2_CAP_VIDEO_OUTPUT_MPLANE |
-			    V4L2_CAP_STREAMING |
-			    V4L2_CAP_DEVICE_CAPS;
-	cap->device_caps |= V4L2_CAP_EXT_PIX_FORMAT;
-
-	memset(cap->reserved, 0, sizeof(cap->reserved));
-
-	return 0;
-}
-
-static int
-vdec_enum_fmt_cap(struct file *file, void *fh, struct v4l2_fmtdesc *f)
-{
-	const struct vidc_format *fmt;
-
-	fmt = find_format_by_index(f->index, CAPTURE_PORT);
-
-	memset(f->reserved, 0 , sizeof(f->reserved));
-
-	/* no more formats */
-	if (!fmt)
-		return -EINVAL;
-
-	strlcpy(f->description, fmt->description, sizeof(f->description));
-	f->pixelformat = fmt->fourcc;
-
-	return 0;
-}
-
-static int
-vdec_enum_fmt_out(struct file *file, void *fh, struct v4l2_fmtdesc *f)
-{
-	const struct vidc_format *fmt;
-
-	fmt = find_format_by_index(f->index, OUTPUT_PORT);
-
-	f->flags = V4L2_FMT_FLAG_COMPRESSED;
-
-	memset(f->reserved, 0 , sizeof(f->reserved));
-
-	/* no more formats */
-	if (!fmt)
-		return -EINVAL;
-
-	strlcpy(f->description, fmt->description, sizeof(f->description));
-	f->pixelformat = fmt->fourcc;
-
-	return 0;
-}
-
-static int vdec_set_display_hold_count(struct vidc_inst *inst,
-				       unsigned int display_count)
-{
-	struct hal_buffer_display_hold_count_actual display;
-	struct device *dev = &inst->core->res.pdev->dev;
-	struct hfi_device *hdev = inst->core->hfidev;
-	int ret;
-
-	display.buffer_type = vidc_comm_get_hal_output_buffer(inst);
-	display.hold_count = display_count;
-
-	ret = call_hfi_op(hdev, session_set_property, inst->session,
-			  HAL_PARAM_BUFFER_DISPLAY_HOLD_COUNT_ACTUAL, &display);
-	if (ret) {
-		dev_err(dev, "failed to set display hold count %d\n", ret);
-		return ret;
-	}
-
-	return 0;
-}
+static const struct v4l2_ioctl_ops vdec_ioctl_ops = {
+	.vidioc_querycap = vdec_querycap,
+	.vidioc_enum_fmt_vid_cap_mplane = vdec_enum_fmt,
+	.vidioc_enum_fmt_vid_out_mplane = vdec_enum_fmt,
+	.vidioc_s_fmt_vid_cap_mplane = vdec_s_fmt_cap,
+	.vidioc_s_fmt_vid_out_mplane = vdec_s_fmt_out,
+	.vidioc_g_fmt_vid_cap_mplane = vdec_g_fmt,
+	.vidioc_g_fmt_vid_out_mplane = vdec_g_fmt,
+	.vidioc_try_fmt_vid_cap_mplane = vdec_try_fmt,
+	.vidioc_try_fmt_vid_out_mplane = vdec_try_fmt,
+	.vidioc_reqbufs = vdec_reqbufs,
+	.vidioc_querybuf = vdec_querybuf,
+	.vidioc_prepare_buf = vdec_prepare_buf,
+	.vidioc_qbuf = vdec_qbuf,
+	.vidioc_expbuf = vdec_exportbuf,
+	.vidioc_dqbuf = vdec_dqbuf,
+	.vidioc_streamon = vdec_streamon,
+	.vidioc_streamoff = vdec_streamoff,
+	.vidioc_s_parm = vdec_s_parm,
+	.vidioc_g_parm = vdec_g_parm,
+	.vidioc_enum_framesizes = vdec_enum_framesizes,
+	.vidioc_subscribe_event = vdec_subscribe_event,
+	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
+	.vidioc_decoder_cmd = vdec_cmd,
+};
 
 static int vdec_queue_setup(struct vb2_queue *q, const struct v4l2_format *fmt,
 			    unsigned int *num_buffers,
@@ -894,94 +882,73 @@ static int vdec_queue_setup(struct vb2_queue *q, const struct v4l2_format *fmt,
 {
 	struct vidc_inst *inst = vb2_get_drv_priv(q);
 	struct device *dev = &inst->core->res.pdev->dev;
-	struct hfi_device *hdev = inst->core->hfidev;
-	struct hal_buffer_requirements *bufreq;
-	struct hal_buffer_count_actual new_buf_count;
-	enum hal_property property_id;
+	struct hal_buffer_requirements bufreq;
+	struct hal_buffer_count_actual buf_count;
+	enum hal_property prop_id;
 	int i, ret = 0;
 
 	switch (q->type) {
 	case V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE:
-		*num_planes = inst->fmts[OUTPUT_PORT]->num_planes;
+		*num_planes = inst->fmt_out->num_planes;
 
-		if (*num_buffers < MIN_NUM_OUTPUT_BUFFERS ||
-		    *num_buffers > MAX_NUM_OUTPUT_BUFFERS)
-			*num_buffers = MIN_NUM_OUTPUT_BUFFERS;
+		*num_buffers = clamp_val(*num_buffers, MIN_NUM_OUTPUT_BUFFERS,
+					 MAX_NUM_OUTPUT_BUFFERS);
 
 		for (i = 0; i < *num_planes; i++) {
-			sizes[i] = get_frame_size(inst, inst->fmts[OUTPUT_PORT],
-						  q->type, i);
+			sizes[i] =
+				get_framesize(inst, inst->fmt_out, q->type, i);
 			alloc_ctxs[i] = inst->vb2_ctx_out;
 		}
 
-		property_id = HAL_PARAM_BUFFER_COUNT_ACTUAL;
-		new_buf_count.buffer_type = HAL_BUFFER_INPUT;
-		new_buf_count.buffer_count_actual = *num_buffers;
+		prop_id = HAL_PARAM_BUFFER_COUNT_ACTUAL;
+		buf_count.type = HAL_BUFFER_INPUT;
+		buf_count.count_actual = *num_buffers;
 
-		ret = call_hfi_op(hdev, session_set_property,
-				  inst->session, property_id, &new_buf_count);
+		ret = hfi_session_set_property(inst, prop_id, &buf_count);
 		if (ret) {
 			dev_err(dev, "set buffer count %d failed (%d)\n",
-				new_buf_count.buffer_count_actual, ret);
+				buf_count.count_actual, ret);
+			return ret;
 		}
 		break;
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
-		*num_planes = inst->fmts[CAPTURE_PORT]->num_planes;
+		*num_planes = inst->fmt_cap->num_planes;
 
-		ret = vidc_comm_get_bufreqs(inst);
-		if (ret) {
-			dev_err(dev, "get buffer requirements failed (%d)\n",
-				ret);
-			break;
-		}
+		ret = vidc_comm_bufrequirements(inst, HAL_BUFFER_OUTPUT,
+						&bufreq);
+		if (ret)
+			return ret;
 
-		bufreq = get_buff_req_buffer(inst,
-					vidc_comm_get_hal_output_buffer(inst));
-		if (!bufreq) {
-			dev_err(dev, "cannot get buffer requirements\n");
-			ret = -EINVAL;
-			break;
-		}
+		*num_buffers = max(*num_buffers, bufreq.count_min);
 
-		*num_buffers = max(*num_buffers, bufreq->count_min);
+		if (*num_buffers != bufreq.count_actual) {
+			struct hal_buffer_display_hold_count_actual display;
 
-		if (*num_buffers != bufreq->count_actual) {
-			property_id = HAL_PARAM_BUFFER_COUNT_ACTUAL;
-			new_buf_count.buffer_type =
-				vidc_comm_get_hal_output_buffer(inst);
-			new_buf_count.buffer_count_actual = *num_buffers;
-			ret = call_hfi_op(hdev, session_set_property,
-					  inst->session, property_id,
-					  &new_buf_count);
+			prop_id = HAL_PARAM_BUFFER_COUNT_ACTUAL;
+			buf_count.type = HAL_BUFFER_OUTPUT;
+			buf_count.count_actual = *num_buffers;
+
+			ret = hfi_session_set_property(inst, prop_id,
+						       &buf_count);
 			if (ret) {
 				dev_err(dev, "set buf count failed (%d)", ret);
 				break;
 			}
 
-			ret = vdec_set_display_hold_count(inst,
-					*num_buffers - bufreq->count_actual);
+			prop_id = HAL_PARAM_BUFFER_DISPLAY_HOLD_COUNT_ACTUAL;
+			display.buffer_type = HAL_BUFFER_OUTPUT;
+			display.hold_count =
+					*num_buffers - bufreq.count_actual;
+
+			ret = hfi_session_set_property(inst, prop_id, &display);
 			if (ret) {
-				dev_err(dev, "set display hold count failed (%d)",
+				dev_err(dev, "display hold count failed (%d)",
 					ret);
 				break;
 			}
 		}
 
-		if (*num_buffers != bufreq->count_actual) {
-			ret = vidc_comm_get_bufreqs(inst);
-			if (ret) {
-				dev_err(dev, "failed to get buf req, %d\n",
-					ret);
-				break;
-			}
-		}
-
-		dev_dbg(dev, "count =  %d, size = %d, alignment = %d\n",
-			inst->buff_req.buffer[1].count_actual,
-			inst->buff_req.buffer[1].size,
-			inst->buff_req.buffer[1].alignment);
-
-		sizes[0] = bufreq->size;
+		sizes[0] = bufreq.size;
 		alloc_ctxs[0] = inst->vb2_ctx_cap;
 
 		break;
@@ -1004,8 +971,6 @@ static int vdec_buf_init(struct vb2_buffer *vb)
 	struct buffer_info *bi;
 	int ret;
 
-	dev_dbg(dev, "buf_init %p (length: %ld)\n", vb, vb2_plane_size(vb, 0));
-
 	bi = &buf->bi;
 	bai = &bi->bai;
 
@@ -1017,10 +982,7 @@ static int vdec_buf_init(struct vb2_buffer *vb)
 	bai->buffer_size = vb2_plane_size(vb, 0);
 	bai->buffer_type = vidc_comm_get_hal_output_buffer(inst);
 	bai->num_buffers = 1;
-	bai->align_device_addr = vb2_dma_contig_plane_dma_addr(vb, 0);
-
-	dev_dbg(dev, "%s: session: set buffer: vb: %p (size:%d, addr:%pa)\n",
-		__func__, vb, bai->buffer_size, &bai->align_device_addr);
+	bai->device_addr = vb2_dma_contig_plane_dma_addr(vb, 0);
 
 	ret = call_hfi_op(hdev, session_set_buffers, inst->session, bai);
 	if (ret) {
@@ -1079,16 +1041,13 @@ static int vdec_set_session_buf(struct vb2_buffer *vb)
 	struct hfi_device *hdev = core->hfidev;
 	struct vdec_buffer *buf = to_vdec_buffer(vb);
 	struct vidc_frame_data fdata;
-	int64_t time_usec;
+	s64 time_usec;
 	int ret;
 
 	if (inst->state == INST_INVALID || core->state == CORE_INVALID) {
 		dev_err(dev, "core id:%d is in bad state\n", core->id);
 		return -EINVAL;
 	}
-
-	dev_dbg(dev, "%s: vb:%p, type:%d, addr:%pa\n", __func__, vb,
-		vb->vb2_queue->type, &buf->dma_addr);
 
 	time_usec = timeval_to_ns(&vb->v4l2_buf.timestamp);
 	do_div(time_usec, NSEC_PER_USEC);
@@ -1159,6 +1118,10 @@ static int start_streaming(struct vidc_inst *inst)
 	int ret;
 
 	inst->in_reconfig = false;
+
+	ret = vdec_set_properties(inst);
+	if (ret)
+		return ret;
 
 	ret = set_scratch_buffers(inst);
 	if (ret) {
@@ -1279,6 +1242,9 @@ abort:
 	if (ret)
 		hfi_session_abort(inst);
 
+	inst->session = NULL;
+	vidc_inst_set_state(inst, INST_UNINIT);
+
 	return ret;
 }
 
@@ -1324,10 +1290,10 @@ static void vdec_buf_queue(struct vb2_buffer *vb)
 		return;
 
 	ret = vdec_set_session_buf(vb);
-	if (ret)
+	if (ret) {
+		vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
 		dev_err(dev, "cannot set session buffer\n");
-
-	return;
+	}
 }
 
 static const struct vb2_ops vdec_vb2_ops = {
@@ -1366,20 +1332,20 @@ static int vdec_empty_buf_done(struct vidc_inst *inst, u32 addr,
 			       u32 bytesused, u32 data_offset, u32 flags)
 {
 	struct device *dev = &inst->core->res.pdev->dev;
-	struct vb2_buffer *buf;
+	struct vb2_buffer *vb;
 
-	buf = vdec_get_vb2buffer(inst, addr);
-	if (!buf)
+	vb = vdec_get_vb2buffer(inst, addr);
+	if (!vb)
 		return -EFAULT;
 
-	buf->v4l2_planes[0].bytesused = bytesused;
-	buf->v4l2_planes[0].data_offset = data_offset;
-	buf->v4l2_buf.flags = flags;
+	vb->v4l2_planes[0].bytesused = bytesused;
+	vb->v4l2_planes[0].data_offset = data_offset;
+	vb->v4l2_buf.flags = flags;
 
-	if (buf->v4l2_planes[0].data_offset > buf->v4l2_planes[0].length)
+	if (vb->v4l2_planes[0].data_offset > vb->v4l2_planes[0].length)
 		dev_dbg(dev, "data_offset overflow length\n");
 
-	if (buf->v4l2_planes[0].bytesused > buf->v4l2_planes[0].length)
+	if (vb->v4l2_planes[0].bytesused > vb->v4l2_planes[0].length)
 		dev_dbg(dev, "bytesused overflow length\n");
 
 	if (flags & V4L2_QCOM_BUF_INPUT_UNSUPPORTED)
@@ -1393,7 +1359,7 @@ static int vdec_empty_buf_done(struct vidc_inst *inst, u32 addr,
 
 	inst->count.ebd++;
 
-	vb2_buffer_done(buf, VB2_BUF_STATE_DONE);
+	vb2_buffer_done(vb, VB2_BUF_STATE_DONE);
 
 	return 0;
 }
@@ -1403,30 +1369,30 @@ static int vdec_fill_buf_done(struct vidc_inst *inst, u32 addr,
 			      struct timeval *timestamp)
 {
 	struct device *dev = &inst->core->res.pdev->dev;
-	struct vb2_buffer *buf;
+	struct vb2_buffer *vb;
 
-	buf = vdec_get_vb2buffer(inst, addr);
-	if (!buf)
+	vb = vdec_get_vb2buffer(inst, addr);
+	if (!vb)
 		return -EFAULT;
 
-	buf->v4l2_planes[0].bytesused = bytesused;
-	buf->v4l2_planes[0].data_offset = data_offset;
-	buf->v4l2_buf.flags = flags;
-	buf->v4l2_buf.timestamp = *timestamp;
+	vb->v4l2_planes[0].bytesused = bytesused;
+	vb->v4l2_planes[0].data_offset = data_offset;
+	vb->v4l2_buf.flags = flags;
+	vb->v4l2_buf.timestamp = *timestamp;
 
-	if (buf->v4l2_planes[0].data_offset > buf->v4l2_planes[0].length)
+	if (vb->v4l2_planes[0].data_offset > vb->v4l2_planes[0].length)
 		dev_warn(dev, "overflow data_offset:%d, length:%d\n",
-			 buf->v4l2_planes[0].data_offset,
-			 buf->v4l2_planes[0].length);
+			 vb->v4l2_planes[0].data_offset,
+			 vb->v4l2_planes[0].length);
 
-	if (buf->v4l2_planes[0].bytesused > buf->v4l2_planes[0].length)
+	if (vb->v4l2_planes[0].bytesused > vb->v4l2_planes[0].length)
 		dev_warn(dev, "overflow bytesused:%d, length:%d\n",
-			 buf->v4l2_planes[0].bytesused,
-			 buf->v4l2_planes[0].length);
+			 vb->v4l2_planes[0].bytesused,
+			 vb->v4l2_planes[0].length);
 
 	inst->count.fbd++;
 
-	vb2_buffer_done(buf, VB2_BUF_STATE_DONE);
+	vb2_buffer_done(vb, VB2_BUF_STATE_DONE);
 
 	return 0;
 }
@@ -1434,16 +1400,21 @@ static int vdec_fill_buf_done(struct vidc_inst *inst, u32 addr,
 static int vdec_event_notify(struct vidc_inst *inst, u32 event,
 			     struct vidc_cb_event *data)
 {
+	struct device *dev = &inst->core->res.pdev->dev;
+
 	switch (event) {
 	case SESSION_ERROR:
 		/* the instance lock is already taken just change the state */
 		inst->state = INST_INVALID;
+		dev_warn(dev, "event session error\n");
 		break;
 	case SYS_EVENT_CHANGE:
 		switch (data->hal_event_type) {
 		case HAL_EVENT_SEQ_CHANGED_SUFFICIENT_RESOURCES:
+			dev_dbg(dev, "event sufficient resources\n");
 			break;
 		case HAL_EVENT_SEQ_CHANGED_INSUFFICIENT_RESOURCES:
+			dev_dbg(dev, "event not sufficient resources\n");
 			inst->reconfig_height = data->height;
 			inst->reconfig_width = data->width;
 			inst->in_reconfig = true;
@@ -1459,78 +1430,12 @@ static int vdec_event_notify(struct vidc_inst *inst, u32 event,
 	return 0;
 }
 
-static int vdec_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *dec)
-{
-	struct vidc_inst *inst = to_inst(file, fh);
-	struct vidc_core *core = inst->core;
-	int ret = 0;
-
-	return 0;
-
-	switch (dec->cmd) {
-	case V4L2_DEC_QCOM_CMD_FLUSH:
-		if (core->state != CORE_INVALID &&
-		    inst->state == INST_INVALID) {
-			ret = vidc_comm_kill_session(inst);
-			if (ret)
-				dprintk(VIDC_ERR, "session kill (%d)\n", ret);
-		}
-
-		ret = vidc_comm_session_flush(inst, dec->flags);
-		if (ret)
-			dprintk(VIDC_ERR, "Failed to flush buffers: %d\n", ret);
-		break;
-	case V4L2_DEC_CMD_STOP:
-		if (core->state != CORE_INVALID &&
-		    inst->state == INST_INVALID) {
-			ret = vidc_comm_kill_session(inst);
-			if (ret)
-				dprintk(VIDC_ERR, "session kill (%d)\n", ret);
-		}
-
-		ret = release_scratch_buffers(inst, false);
-		if (ret)
-			dprintk(VIDC_ERR,
-				"release scratch buffers (%d)\n", ret);
-
-		ret = release_persist_buffers(inst);
-		if (ret)
-			dprintk(VIDC_ERR,
-				"release persist buffers (%d)\n", ret);
-
-		if (inst->state == INST_INVALID ||
-		    core->state == CORE_INVALID) {
-			dprintk(VIDC_ERR,
-				"core and/or instance are in invalid state\n");
-			vidc_queue_v4l2_event(inst,
-					      V4L2_EVENT_MSM_VIDC_CLOSE_DONE);
-			goto exit;
-		}
-
-		ret = hfi_session_deinit(inst);
-
-		/* Clients rely on this event for joining poll thread.
-		 * This event should be returned even if firmware has
-		 * failed to respond
-		 */
-		vidc_queue_v4l2_event(inst, V4L2_EVENT_MSM_VIDC_CLOSE_DONE);
-		break;
-	default:
-		return -ENOTSUPP;
-	}
-
-exit:
-	return ret;
-}
-
 static void vdec_inst_init(struct vidc_inst *inst)
 {
-	inst->fmts[OUTPUT_PORT] = &vdec_formats[2];
-	inst->fmts[CAPTURE_PORT] = &vdec_formats[0];
-	inst->prop.height_cap = DEFAULT_HEIGHT;
-	inst->prop.width_cap = DEFAULT_WIDTH;
-	inst->prop.height_out = DEFAULT_HEIGHT;
-	inst->prop.width_out = DEFAULT_WIDTH;
+	inst->fmt_out = &vdec_formats[2];
+	inst->fmt_cap = &vdec_formats[0];
+	inst->height = DEFAULT_HEIGHT;
+	inst->width = DEFAULT_WIDTH;
 	inst->capability.height.min = MIN_SUPPORTED_HEIGHT;
 	inst->capability.height.max = DEFAULT_HEIGHT;
 	inst->capability.width.min = MIN_SUPPORTED_WIDTH;
@@ -1539,49 +1444,10 @@ static void vdec_inst_init(struct vidc_inst *inst)
 	inst->capability.buffer_mode[CAPTURE_PORT] = HAL_BUFFER_MODE_STATIC;
 	inst->capability.secure_output2_threshold.min = 0;
 	inst->capability.secure_output2_threshold.max = 0;
-	inst->buffer_mode_set[OUTPUT_PORT] = HAL_BUFFER_MODE_STATIC;
-	inst->buffer_mode_set[CAPTURE_PORT] = HAL_BUFFER_MODE_STATIC;
-	inst->prop.fps = 30;
+	inst->buffer_mode[OUTPUT_PORT] = HAL_BUFFER_MODE_STATIC;
+	inst->buffer_mode[CAPTURE_PORT] = HAL_BUFFER_MODE_STATIC;
+	inst->fps = 30;
 }
-
-static int vdec_subscribe_event(struct v4l2_fh *fh,
-				const struct  v4l2_event_subscription *sub)
-{
-	switch (sub->type) {
-	case V4L2_EVENT_EOS:
-		return v4l2_event_subscribe(fh, sub, 2, NULL);
-	case V4L2_EVENT_SOURCE_CHANGE:
-		return v4l2_src_change_event_subscribe(fh, sub);
-	default:
-		return -EINVAL;
-	}
-}
-
-static const struct v4l2_ioctl_ops vdec_ioctl_ops = {
-	.vidioc_querycap = vdec_querycap,
-	.vidioc_enum_fmt_vid_cap_mplane = vdec_enum_fmt_cap,
-	.vidioc_enum_fmt_vid_out_mplane = vdec_enum_fmt_out,
-	.vidioc_s_fmt_vid_cap_mplane = vdec_s_fmt_cap,
-	.vidioc_s_fmt_vid_out_mplane = vdec_s_fmt_out,
-	.vidioc_g_fmt_vid_cap_mplane = vdec_g_fmt,
-	.vidioc_g_fmt_vid_out_mplane = vdec_g_fmt,
-	.vidioc_reqbufs = vdec_reqbufs,
-	.vidioc_querybuf = vdec_querybuf,
-	.vidioc_prepare_buf = vdec_prepare_buf,
-	.vidioc_qbuf = vdec_qbuf,
-	.vidioc_expbuf = vdec_exportbuf,
-	.vidioc_dqbuf = vdec_dqbuf,
-	.vidioc_streamon = vdec_streamon,
-	.vidioc_streamoff = vdec_streamoff,
-	.vidioc_s_ctrl = vdec_s_ctrl,
-	.vidioc_g_ctrl = vdec_g_ctrl,
-	.vidioc_s_parm = vdec_s_parm,
-	.vidioc_g_parm = vdec_g_parm,
-	.vidioc_enum_framesizes = vdec_enum_framesizes,
-	.vidioc_subscribe_event = vdec_subscribe_event,
-	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
-	.vidioc_decoder_cmd = vdec_cmd,
-};
 
 static void vdec_release_video_device(struct video_device *pvdev)
 {
@@ -1630,6 +1496,12 @@ int vdec_open(struct vidc_inst *inst)
 		return PTR_ERR(iommu_dev);
 	}
 
+	vdec_inst_init(inst);
+
+	ret = vdec_ctrl_init(inst);
+	if (ret)
+		return ret;
+
 	inst->vb2_ctx_cap = vb2_dma_contig_init_ctx(iommu_dev);
 	if (IS_ERR(inst->vb2_ctx_cap))
 		return PTR_ERR(inst->vb2_ctx_cap);
@@ -1640,13 +1512,6 @@ int vdec_open(struct vidc_inst *inst)
 		goto err_cleanup_cap;
 	}
 
-	if (inst->session_type == VIDC_DECODER) {
-		vdec_inst_init(inst);
-		ret = vdec_ctrl_init(inst);
-		if (ret)
-			goto err_cleanup_out;
-	}
-
 	q = &inst->bufq_cap;
 	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	q->io_modes = VB2_MMAP | VB2_DMABUF;
@@ -1655,9 +1520,10 @@ int vdec_open(struct vidc_inst *inst)
 	q->mem_ops = &vb2_dma_contig_memops;
 	q->drv_priv = inst;
 	q->buf_struct_size = sizeof(struct vdec_buffer);
+	q->allow_zero_bytesused = 1;
 	ret = vb2_queue_init(q);
 	if (ret)
-		goto err_ctrl_deinit;
+		goto err_cleanup_out;
 
 	q = &inst->bufq_out;
 	q->type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
@@ -1667,6 +1533,7 @@ int vdec_open(struct vidc_inst *inst)
 	q->mem_ops = &vb2_dma_contig_memops;
 	q->drv_priv = inst;
 	q->buf_struct_size = sizeof(struct vdec_buffer);
+	q->allow_zero_bytesused = 1;
 	ret = vb2_queue_init(q);
 	if (ret)
 		goto err_cap_queue_release;
@@ -1679,8 +1546,6 @@ int vdec_open(struct vidc_inst *inst)
 
 err_cap_queue_release:
 	vb2_queue_release(&inst->bufq_cap);
-err_ctrl_deinit:
-	vdec_ctrl_deinit(inst);
 err_cleanup_out:
 	vb2_dma_contig_cleanup_ctx(inst->vb2_ctx_out);
 err_cleanup_cap:

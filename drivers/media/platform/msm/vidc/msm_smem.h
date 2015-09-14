@@ -21,6 +21,7 @@
 
 #include "msm_vidc_resources.h"
 #include "msm_vidc.h"
+#include "hfi/vidc_hfi_api.h"
 
 enum smem_prop {
 	SMEM_CACHED = BIT(0),

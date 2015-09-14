@@ -23,7 +23,6 @@
 
 #include "hfi/vidc_hfi_api.h"
 #include "hfi/vidc_hfi_helper.h"
-//#include "hfi/vidc_hfi.h"
 #include "hfi/hfi_packetization.h"
 
 #define HFI_MASK_QHDR_TX_TYPE			0xFF000000
@@ -106,46 +105,6 @@ struct iface_queue {
 	struct mem_desc qarray;
 };
 
-/*
- * These are helper macros to iterate over various lists within
- * venus_hfi_device->res.  The intention is to cut down on a lot of boiler-plate
- * code
- */
-
-/* Read as "for each 'thing' in a set of 'thingies'" */
-#define venus_hfi_for_each_thing(__device, __thing, __thingy) \
-	venus_hfi_for_each_thing_continue(__device, __thing, __thingy, 0)
-
-#define venus_hfi_for_each_thing_reverse(__device, __thing, __thingy) \
-	venus_hfi_for_each_thing_reverse_continue(__device, __thing, __thingy, \
-			(__device)->res->__thingy##_set.count - 1)
-
-/* TODO: the __from parameter technically not required since we can figure it
- * out with some pointer magic (i.e. __thing - __thing##_tbl[0]).  If this macro
- * sees extensive use, probably worth cleaning it up but for now omitting it
- * since it introduces unneccessary complexity.
- */
-#define venus_hfi_for_each_thing_continue(__device, __thing, __thingy, __from) \
-	for (__thing = &(__device)->res->\
-			__thingy##_set.__thingy##_tbl[__from]; \
-		__thing < &(__device)->res->__thingy##_set.__thingy##_tbl[0] + \
-			((__device)->res->__thingy##_set.count - __from); \
-		++__thing)
-
-#define venus_hfi_for_each_thing_reverse_continue(__device, __thing, __thingy, \
-		__from) \
-	for (__thing = &(__device)->res->\
-			__thingy##_set.__thingy##_tbl[__from]; \
-		__thing >= &(__device)->res->__thingy##_set.__thingy##_tbl[0]; \
-		--__thing)
-
-/* Clock set helpers */
-#define venus_hfi_for_each_clock(__device, __cinfo) \
-	venus_hfi_for_each_thing(__device, __cinfo, clock)
-
-#define venus_hfi_for_each_clock_reverse(__device, __cinfo) \
-	venus_hfi_for_each_thing_reverse(__device, __cinfo, clock)
-
 /* Internal data used in vidc_hal not exposed to msm_vidc*/
 struct hal_data {
 	u32 irq;
@@ -166,8 +125,7 @@ struct venus_hfi_device {
 	u32 codecs_enabled;
 	u32 last_packet_type;
 	bool power_enabled;
-	struct mutex read_lock;
-	struct mutex write_lock;
+	struct mutex lock;
 	struct mutex session_lock;
 	struct mem_desc ifaceq_table;
 	struct mem_desc sfr;

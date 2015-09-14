@@ -1,4 +1,6 @@
-/* Copyright (c) 2012-2014, The Linux Foundation. All rights reserved.
+/*
+ * Copyright (c) 2012-2015, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2015 Linaro Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -10,10 +12,10 @@
  * GNU General Public License for more details.
  *
  */
+#ifndef _MSM_VENC_CTRLS_H_
+#define _MSM_VENC_CTRLS_H_
 
-#ifndef _MSM_VIDC_H_
-#define _MSM_VIDC_H_
+int venc_ctrl_init(struct vidc_inst *inst);
+void venc_ctrl_deinit(struct vidc_inst *inst);
 
-
-
-#endif
+#endif /* _MSM_VENC_CTRLS_H_ */

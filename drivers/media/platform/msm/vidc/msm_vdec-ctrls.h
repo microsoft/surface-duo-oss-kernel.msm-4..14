@@ -18,7 +18,4 @@
 int vdec_ctrl_init(struct vidc_inst *inst);
 void vdec_ctrl_deinit(struct vidc_inst *inst);
 
-int vdec_s_ctrl(struct file *file, void *fh, struct v4l2_control *ctrl);
-int vdec_g_ctrl(struct file *file, void *fh, struct v4l2_control *ctrl);
-
 #endif /* _MSM_VDEC_CTRLS_H_ */

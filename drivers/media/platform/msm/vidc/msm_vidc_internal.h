@@ -69,20 +69,14 @@ enum vidc_ports {
 #define CORE_INVALID	2
 
 /* define instance states */
-#define INST_UNINIT			1
-#define INST_OPEN			2
-#define INST_OPEN_DONE			3
+#define INST_INVALID			1
+#define INST_UNINIT			2
+#define INST_OPEN			3
 #define INST_LOAD_RESOURCES		4
-#define INST_LOAD_RESOURCES_DONE	5
-#define INST_START			6
-#define INST_START_DONE			7
-#define INST_STOP			8
-#define INST_STOP_DONE			9
-#define INST_RELEASE_RESOURCES		10
-#define INST_RELEASE_RESOURCES_DONE	11
-#define INST_CLOSE			12
-#define INST_CLOSE_DONE			13
-#define INST_INVALID			14
+#define INST_START			5
+#define INST_STOP			6
+#define INST_RELEASE_RESOURCES		7
+#define INST_CLOSE			8
 
 struct vidc_list {
 	struct list_head list;
@@ -102,12 +96,10 @@ struct vidc_internal_buf {
 };
 
 struct vidc_format {
-	char name[MAX_NAME_LENGTH];
-	u8 description[32];
-	u32 fourcc;
+	u32 pixfmt;
 	int num_planes;
-	int type;
-	u32 (*get_frame_size)(int plane, u32 height, u32 width);
+	u32 type;
+	u32 (*get_framesize)(int plane, u32 height, u32 width);
 };
 
 struct vidc_drv {
@@ -116,20 +108,6 @@ struct vidc_drv {
 	int num_cores;
 	struct dentry *debugfs_root;
 	int thermal_level;
-};
-
-struct vidc_session_prop {
-	u32 width_cap;
-	u32 height_cap;
-	u32 width_out;
-	u32 height_out;
-	u32 fps;
-	u32 bitrate;
-};
-
-struct buf_queue {
-	struct vb2_queue vb2_bufq;
-	struct mutex lock;
 };
 
 enum profiling_points {
@@ -192,6 +170,18 @@ enum vidc_modes {
 	VIDC_NOMINAL	= 1 << 3,
 };
 
+enum core_id {
+	VIDC_CORE_VENUS = 0,
+	VIDC_CORE_Q6,
+	VIDC_CORES_MAX,
+};
+
+enum session_type {
+	VIDC_ENCODER = 0,
+	VIDC_DECODER,
+	VIDC_MAX_DEVICES,
+};
+
 struct vidc_core_capability {
 	struct hal_capability_supported width;
 	struct hal_capability_supported height;
@@ -205,7 +195,6 @@ struct vidc_core_capability {
 	struct hal_capability_supported secure_output2_threshold;
 	u32 capability_set;
 	enum hal_buffer_mode_type buffer_mode[MAX_PORT_NUM];
-	u32 buffer_size_limit;
 };
 
 struct vidc_core {
@@ -214,6 +203,7 @@ struct vidc_core {
 	int id;
 	void *hfidev;
 	struct video_device vdev_dec;
+	struct video_device vdev_enc;
 	struct v4l2_device v4l2_dev;
 	struct list_head instances;
 	struct dentry *debugfs_root;
@@ -227,7 +217,7 @@ struct vidc_core {
 	struct rproc *rproc;
 	bool rproc_booted;
 
-	int (*event_notify)(u32 device_id, u32 event);
+	int (*event_notify)(struct vidc_core *core, u32 device_id, u32 event);
 };
 
 struct vidc_inst {
@@ -268,17 +258,24 @@ struct vidc_inst {
 	enum session_type session_type;
 	unsigned int state;
 	void *session;
-	struct vidc_session_prop prop;
-	const struct vidc_format *fmts[MAX_PORT_NUM];
+	u32 width;
+	u32 height;
+	u64 fps;
+	struct v4l2_fract timeperframe;
+	const struct vidc_format *fmt_out;
+	const struct vidc_format *fmt_cap;
 	struct completion done;
 	unsigned int error;
 	struct vidc_core_capability capability;
-	enum hal_buffer_mode_type buffer_mode_set[MAX_PORT_NUM];
+	enum hal_buffer_mode_type buffer_mode[MAX_PORT_NUM];
 	enum vidc_modes flags;
 	struct buf_count count;
 	bool in_reconfig;
 	u32 reconfig_width;
 	u32 reconfig_height;
+
+	/* encoder fields */
+	atomic_t seq_hdr_reqs;
 
 	struct dentry *debugfs_root;
 	struct vidc_debug debug;
@@ -306,8 +303,6 @@ struct buffer_info {
 
 int vidc_trigger_ssr(struct vidc_core *core, enum hal_ssr_trigger_type type);
 int vidc_check_session_supported(struct vidc_inst *inst);
-int vidc_check_scaling_supported(struct vidc_inst *inst);
 void vidc_queue_v4l2_event(struct vidc_inst *inst, int event_type);
-void vidc_fw_unload_handler(struct work_struct *work);
 
 #endif

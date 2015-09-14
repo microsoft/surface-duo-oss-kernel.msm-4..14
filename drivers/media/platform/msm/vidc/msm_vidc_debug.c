@@ -83,15 +83,6 @@ static ssize_t core_info_read(struct file *file, char __user *buf,
 	write_str(&dbg_buf, "CORE %d: %p\n", core->id, core);
 	write_str(&dbg_buf, "===============================\n");
 	write_str(&dbg_buf, "state: %d\n", core->state);
-	write_str(&dbg_buf, "register_base: %#x\n",
-		call_hfi_op(hdev, get_fw_info, hdev->hfi_device_data,
-					FW_REGISTER_BASE));
-	write_str(&dbg_buf, "register_size: %u\n",
-		call_hfi_op(hdev, get_fw_info, hdev->hfi_device_data,
-					FW_REGISTER_SIZE));
-	write_str(&dbg_buf, "irq: %u\n",
-		call_hfi_op(hdev, get_fw_info, hdev->hfi_device_data,
-					FW_IRQ));
 	for (i = SYS_MSG_START; i < SYS_MSG_END; i++) {
 		write_str(&dbg_buf, "completions[%d]: %s\n", i,
 			completion_done(&core->done) ?
@@ -237,21 +228,27 @@ static ssize_t inst_info_read(struct file *file, char __user *buf,
 		inst->session_type == VIDC_ENCODER ? "Encoder" : "Decoder");
 	write_str(&dbg_buf, "===============================\n");
 	write_str(&dbg_buf, "core: %p\n", inst->core);
-	write_str(&dbg_buf, "height: %d\n", inst->prop.height_cap);
-	write_str(&dbg_buf, "width: %d\n", inst->prop.width_cap);
-	write_str(&dbg_buf, "fps: %d\n", inst->prop.fps);
+	write_str(&dbg_buf, "height: %d\n", inst->height);
+	write_str(&dbg_buf, "width: %d\n", inst->width);
+	write_str(&dbg_buf, "fps: %d\n", inst->fps);
 	write_str(&dbg_buf, "state: %d\n", inst->state);
 	write_str(&dbg_buf, "secure: %d\n", !!(inst->flags & VIDC_SECURE));
 	write_str(&dbg_buf, "-----------Formats-------------\n");
 	for (i = 0; i < MAX_PORT_NUM; i++) {
+		const struct vidc_format *fmt;
+
+		if (i == OUTPUT_PORT)
+			fmt = inst->fmt_out;
+		else
+			fmt = inst->fmt_cap;
+
 		write_str(&dbg_buf, "capability: %s\n", i == OUTPUT_PORT ?
 			"Output" : "Capture");
-		write_str(&dbg_buf, "name : %s\n", inst->fmts[i]->name);
-		write_str(&dbg_buf, "planes : %d\n", inst->fmts[i]->num_planes);
-		write_str(
-		&dbg_buf, "type: %s\n", inst->fmts[i]->type == OUTPUT_PORT ?
-		"Output" : "Capture");
-		switch (inst->buffer_mode_set[i]) {
+		write_str(&dbg_buf, "pixformat : %x\n", fmt->pixfmt);
+		write_str(&dbg_buf, "planes : %d\n", fmt->num_planes);
+		write_str(&dbg_buf, "type: %s\n", fmt->type == OUTPUT_PORT ?
+			"Output" : "Capture");
+		switch (inst->buffer_mode[i]) {
 		case HAL_BUFFER_MODE_STATIC:
 			write_str(&dbg_buf, "buffer mode : %s\n", "static");
 			break;
@@ -272,7 +269,7 @@ static ssize_t inst_info_read(struct file *file, char __user *buf,
 			write_str(&dbg_buf, "count: %u\n",
 				  inst->bufq_cap.num_buffers);
 
-		for (j = 0; j < inst->fmts[i]->num_planes; j++)
+		for (j = 0; j < fmt->num_planes; j++)
 			write_str(&dbg_buf, "size for plane %d: %u\n", j,
 				i == 0 ? inst->bufq_out.plane_sizes[j] :
 					 inst->bufq_cap.plane_sizes[j]);

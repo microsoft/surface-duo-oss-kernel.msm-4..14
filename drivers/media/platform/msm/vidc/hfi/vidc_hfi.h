@@ -13,7 +13,6 @@
 #ifndef __H_VIDC_HFI_H__
 #define __H_VIDC_HFI_H__
 
-#include "../msm_media_info.h"
 #include "vidc_hfi_api.h"
 
 #define HFI_EVENT_DATA_SEQUENCE_CHANGED_SUFFICIENT_BUFFER_RESOURCES	\
@@ -37,7 +36,7 @@
 #define HFI_BUFFERFLAG_READONLY				0x00000200
 #define HFI_BUFFERFLAG_ENDOFSUBFRAME			0x00000400
 #define HFI_BUFFERFLAG_EOSEQ				0x00200000
-#define HFI_BUFFER_FLAG_MBAFF				0x08000000
+#define HFI_BUFFERFLAG_MBAFF				0x08000000
 #define HFI_BUFFERFLAG_VPE_YUV_601_709_CSC_CLAMP	0x10000000
 #define HFI_BUFFERFLAG_DROP_FRAME			0x20000000
 #define HFI_BUFFERFLAG_TEI				0x40000000
@@ -93,10 +92,9 @@
 #define HFI_INDEX_EXTRADATA_ASPECT_RATIO	0x7F100003
 
 struct hfi_buffer_alloc_mode {
-	u32 buffer_type;
-	u32 buffer_mode;
+	u32 type;
+	u32 mode;
 };
-
 
 struct hfi_index_extradata_config {
 	int enable;
@@ -120,6 +118,7 @@ struct hfi_extradata_header {
 
 #define HFI_PROPERTY_SYS_OX_START	\
 	(HFI_DOMAIN_BASE_COMMON + HFI_ARCH_OX_OFFSET + 0x0000)
+
 #define HFI_PROPERTY_PARAM_OX_START	\
 	(HFI_DOMAIN_BASE_COMMON + HFI_ARCH_OX_OFFSET + 0x1000)
 #define HFI_PROPERTY_PARAM_BUFFER_COUNT_ACTUAL	\
@@ -188,7 +187,6 @@ struct hfi_extradata_header {
 	(HFI_PROPERTY_PARAM_VDEC_OX_START + 0x00C)
 #define HFI_PROPERTY_PARAM_VDEC_THUMBNAIL_MODE   \
 	(HFI_PROPERTY_PARAM_VDEC_OX_START + 0x00D)
-
 #define HFI_PROPERTY_PARAM_VDEC_FRAME_ASSEMBLY		\
 	(HFI_PROPERTY_PARAM_VDEC_OX_START + 0x00E)
 #define HFI_PROPERTY_PARAM_VDEC_VC1_FRAMEDISP_EXTRADATA		\
@@ -251,29 +249,29 @@ struct hfi_batch_info {
 };
 
 struct hfi_buffer_count_actual {
-	u32 buffer_type;
-	u32 buffer_count_actual;
+	u32 type;
+	u32 count_actual;
 };
 
 struct hfi_buffer_size_actual {
-	u32 buffer_type;
-	u32 buffer_size;
+	u32 type;
+	u32 size;
 };
 
 struct hfi_buffer_display_hold_count_actual {
-	u32 buffer_type;
+	u32 type;
 	u32 hold_count;
 };
 
 struct hfi_buffer_requirements {
-	u32 buffer_type;
-	u32 buffer_size;
-	u32 buffer_region_size;
-	u32 buffer_hold_count;
-	u32 buffer_count_min;
-	u32 buffer_count_actual;
+	u32 type;
+	u32 size;
+	u32 region_size;
+	u32 hold_count;
+	u32 count_min;
+	u32 count_actual;
 	u32 contiguous;
-	u32 buffer_alignment;
+	u32 alignment;
 };
 
 #define HFI_CHROMA_SITE_0	(HFI_OX_BASE + 0x1)
@@ -399,7 +397,7 @@ struct hfi_uncompressed_plane_actual_constraints_info {
 #define HFI_MSG_SESSION_RELEASE_RESOURCES_DONE	(HFI_MSG_SESSION_OX_START + 0xA)
 #define HFI_MSG_SESSION_PARSE_SEQUENCE_HEADER_DONE		\
 						(HFI_MSG_SESSION_OX_START + 0xB)
-#define  HFI_MSG_SESSION_RELEASE_BUFFERS_DONE			\
+#define HFI_MSG_SESSION_RELEASE_BUFFERS_DONE			\
 						(HFI_MSG_SESSION_OX_START + 0xC)
 
 #define VIDC_IFACEQ_MAX_PKT_SIZE	1024
@@ -778,10 +776,9 @@ struct hfi_extradata_vc1_seqdisp_payload {
 };
 
 struct hfi_extradata_timestamp_payload {
-	u32 time_stamp_low;
-	u32 time_stamp_high;
+	u32 timestamp_low;
+	u32 timestamp_high;
 };
-
 
 struct hfi_extradata_s3d_frame_packing_payload {
 	u32 fpa_id;
@@ -847,6 +844,7 @@ struct hfi_index_extradata_aspect_ratio_payload {
 	u32 aspect_width;
 	u32 aspect_height;
 };
+
 struct hfi_extradata_panscan_wndw_payload {
 	u32 num_window;
 	struct hfi_extradata_vc1_pswnd wnd[1];

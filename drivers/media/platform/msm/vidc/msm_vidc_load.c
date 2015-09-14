@@ -13,6 +13,8 @@
  *
  */
 
+#include <linux/clk.h>
+
 #include "msm_vidc_internal.h"
 #include "msm_vidc_common.h"
 #include "msm_vidc_debug.h"
@@ -40,24 +42,20 @@ static inline bool is_nominal_session(struct vidc_inst *inst)
 
 static u32 get_mbs_per_sec(struct vidc_inst *inst)
 {
-	int output_mbs, capture_mbs;
-	u32 w = inst->prop.width_out;
-	u32 h = inst->prop.height_out;
+	int mbs;
+	u32 w = inst->width;
+	u32 h = inst->height;
 
-	output_mbs = (ALIGN(w, 16) / 16) * (ALIGN(h, 16) / 16);
+	mbs = (ALIGN(w, 16) / 16) * (ALIGN(h, 16) / 16);
 
-	w = inst->prop.width_cap;
-	h = inst->prop.height_cap;
-	capture_mbs = (ALIGN(w, 16) / 16) * (ALIGN(h, 16) / 16);
-
-	return max(output_mbs, capture_mbs) * inst->prop.fps;
+	return mbs * inst->fps;
 }
 
 static u32 get_inst_load(struct vidc_inst *inst, enum load_quirks quirks)
 {
 	u32 load;
 
-	if (!(inst->state >= INST_OPEN_DONE && inst->state < INST_STOP_DONE))
+	if (!(inst->state >= INST_OPEN && inst->state < INST_STOP))
 		return 0;
 
 	load = get_mbs_per_sec(inst);
@@ -89,63 +87,35 @@ static u32 get_load(struct vidc_core *core, enum session_type type,
 	return mbs_per_sec;
 }
 
-static int scale_clocks_load(struct vidc_core *core, int mbs_per_sec)
+static int scale_clocks_load(struct vidc_core *core, u32 mbs_per_sec)
 {
-	struct vidc_resources *res = &core->res;
-	struct hfi_device *hdev = core->hfidev;
-	struct vidc_inst *inst = NULL;
-	u32 codecs_enabled = 0;
-	bool is_nominal = false;
-	int ret;
+	struct clock_info *ci = &core->res.clock_set.clock_tbl[0];
+	const struct load_freq_table *table = ci->load_freq_tbl;
+	unsigned long freq = table[0].freq;
+	int num_rows = ci->count;
+	int ret, i;
 
-	mutex_lock(&core->lock);
-	list_for_each_entry(inst, &core->instances, list) {
-		int codec = 0;
-
-		codec = inst->session_type == VIDC_DECODER ?
-			inst->fmts[OUTPUT_PORT]->fourcc :
-			inst->fmts[CAPTURE_PORT]->fourcc;
-
-		codecs_enabled |= VIDC_VOTE_DATA_SESSION_VAL(
-				vidc_comm_hal_codec_type(codec),
-				vidc_comm_get_hal_domain(inst->session_type));
-
-		if (is_nominal_session(inst))
-			is_nominal = true;
-	}
-	mutex_unlock(&core->lock);
-
-	dprintk(VIDC_DBG, "mbs_per_sec = %d codecs_enabled %#x\n",
-		mbs_per_sec, codecs_enabled);
-
-	if (is_nominal && mbs_per_sec) {
-		const struct load_freq_table *table = res->load_freq_tbl;
-		u32 table_size = res->load_freq_tbl_size;
-		u32 low_freq = table[table_size - 1].freq;
-		int i;
-
-		/*
-		 * Parse the load frequency table from highest index and
-		 * whenever there is a change in frequency detected, it is
-		 * assumed as nominal frequency  Check the current load
-		 * against the load corresponding to nominal frequency and
-		 * update mbs_per_sec accordingly.
-		 */
-		for (i = table_size - 1; i >= 0; i--) {
-			if (table[i].freq > low_freq) {
-				if (mbs_per_sec < table[i].load)
-					mbs_per_sec = table[i].load;
-				break;
-			}
-		}
+	if (!mbs_per_sec && num_rows > 1) {
+		freq = table[num_rows - 1].freq;
+		goto set_freq;
 	}
 
-	ret = call_hfi_op(hdev, scale_clocks, hdev->hfi_device_data,
-			  mbs_per_sec, codecs_enabled);
-	if (ret)
-		dprintk(VIDC_ERR, "Failed to set clock rate: %d\n", ret);
+	for (i = 0; i < num_rows; i++) {
+		if (mbs_per_sec > table[i].load)
+			break;
+		freq = table[i].freq;
+	}
 
-	return ret;
+set_freq:
+
+	ret = clk_set_rate(ci->clk, freq);
+	if (ret) {
+		dprintk(VIDC_ERR, "Failed to set clock rate %lu (%d)\n",
+			freq, ret);
+		return ret;
+	}
+
+	return 0;
 }
 
 static u32 scale_clocks(struct vidc_core *core)

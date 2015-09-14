@@ -7,6 +7,8 @@ vidc-objs += \
 		msm_vidc_common.o \
 		msm_vdec.o \
 		msm_vdec-ctrls.o \
+		msm_venc.o \
+		msm_venc-ctrls.o \
 		msm_smem.o \
 		msm_vidc_debug.o \
 		msm_vidc_resources.o \

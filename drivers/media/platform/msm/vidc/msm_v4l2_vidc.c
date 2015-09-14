@@ -25,6 +25,7 @@
 #include "msm_vidc_common.h"
 #include "msm_smem.h"
 #include "msm_vdec.h"
+#include "msm_venc.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_internal.h"
 #include "msm_vidc_resources.h"
@@ -41,6 +42,25 @@ unsigned int vidc_pwr_collapse_delay = 2000;
 static inline struct vidc_inst *vidc_to_inst(struct file *file)
 {
 	return container_of(file->private_data, struct vidc_inst, fh);
+}
+
+static void vidc_add_inst(struct vidc_core *core, struct vidc_inst *inst)
+{
+	mutex_lock(&core->lock);
+	list_add_tail(&inst->list, &core->instances);
+	mutex_unlock(&core->lock);
+}
+
+static void vidc_del_inst(struct vidc_core *core, struct vidc_inst *inst)
+{
+	struct vidc_inst *pos, *n;
+
+	mutex_lock(&core->lock);
+	list_for_each_entry_safe(pos, n, &core->instances, list) {
+		if (pos == inst)
+			list_del(&inst->list);
+	}
+	mutex_unlock(&core->lock);
 }
 
 static int vidc_firmware_load(struct vidc_core *core)
@@ -65,6 +85,7 @@ static void vidc_firmware_unload(struct vidc_core *core)
 		return;
 
 	rproc_shutdown(core->rproc);
+	core->rproc_booted = false;
 }
 
 struct vidc_sys_error {
@@ -111,11 +132,10 @@ exit:
 	kfree(handler);
 }
 
-static int vidc_event_notify(u32 device_id, u32 event)
+static int vidc_event_notify(struct vidc_core *core, u32 device_id, u32 event)
 {
 	struct vidc_sys_error *handler;
 	struct vidc_inst *inst = NULL;
-	struct vidc_core *core;
 
 	switch (event) {
 	case SYS_WATCHDOG_TIMEOUT:
@@ -125,16 +145,12 @@ static int vidc_event_notify(u32 device_id, u32 event)
 		return -EINVAL;
 	}
 
-	core = vidc_get_core(device_id);
-	if (IS_ERR(core))
-		return PTR_ERR(core);
-
 	mutex_lock(&core->lock);
 
 	core->state = CORE_INVALID;
 
 	list_for_each_entry(inst, &core->instances, list)
-		vidc_change_inst_state(inst, INST_INVALID);
+		vidc_inst_set_state(inst, INST_INVALID);
 
 	mutex_unlock(&core->lock);
 
@@ -163,9 +179,6 @@ static int vidc_open(struct file *file)
 	struct device *dev = &core->res.pdev->dev;
 	struct vidc_inst *inst;
 	int ret = 0;
-
-	if (core->id >= VIDC_CORES_MAX)
-		return -EINVAL;
 
 	inst = kzalloc(sizeof(*inst), GFP_KERNEL);
 	if (!inst)
@@ -196,16 +209,10 @@ static int vidc_open(struct file *file)
 		goto err_free_inst;
 	}
 
-	if (inst->session_type == VIDC_DECODER)
-		ret = vdec_open(inst);
-
-	if (ret)
-		goto err_del_mem_clnt;
-
 	ret = enable_clocks(&core->res);
 	if (ret) {
 		dev_err(dev, "enable clocks\n");
-		goto err_close;
+		goto err_del_mem_clnt;
 	}
 
 	ret = vidc_firmware_load(core);
@@ -218,24 +225,35 @@ static int vidc_open(struct file *file)
 
 	inst->debugfs_root = vidc_debugfs_init_inst(inst, core->debugfs_root);
 
-	v4l2_fh_init(&inst->fh, &core->vdev_dec);
+	if (inst->session_type == VIDC_DECODER)
+		ret = vdec_open(inst);
+	else
+		ret = venc_open(inst);
+
+	if (ret)
+		goto err_core_deinit;
+
+	if (inst->session_type == VIDC_DECODER)
+		v4l2_fh_init(&inst->fh, &core->vdev_dec);
+	else
+		v4l2_fh_init(&inst->fh, &core->vdev_enc);
+
+	inst->fh.ctrl_handler = &inst->ctrl_handler;
+
 	v4l2_fh_add(&inst->fh);
 
 	file->private_data = &inst->fh;
 
-	mutex_lock(&core->lock);
-	list_add_tail(&inst->list, &core->instances);
-	mutex_unlock(&core->lock);
+	vidc_add_inst(core, inst);
 
 	return 0;
 
+err_core_deinit:
+	hfi_core_deinit(core);
 err_fw_unload:
 	vidc_firmware_unload(core);
 err_dis_clks:
 	disable_clocks(&core->res);
-err_close:
-	if (inst->session_type == VIDC_DECODER)
-		vdec_close(inst);
 err_del_mem_clnt:
 	smem_delete_client(inst->mem_client);
 err_free_inst:
@@ -248,18 +266,14 @@ static int vidc_close(struct file *file)
 	struct vidc_inst *inst = vidc_to_inst(file);
 	struct vidc_core *core = inst->core;
 	struct device *dev = &core->res.pdev->dev;
-	struct vidc_inst *temp, *inst_dummy;
 	int ret;
 
 	if (inst->session_type == VIDC_DECODER)
 		vdec_close(inst);
+	else
+		venc_close(inst);
 
-	mutex_lock(&core->lock);
-	list_for_each_entry_safe(temp, inst_dummy, &core->instances, list) {
-		if (temp == inst)
-			list_del(&inst->list);
-	}
-	mutex_unlock(&core->lock);
+	vidc_del_inst(core, inst);
 
 	debugfs_remove_recursive(inst->debugfs_root);
 
@@ -267,17 +281,21 @@ static int vidc_close(struct file *file)
 	WARN_ON(!list_empty(&inst->pending_getpropq.list));
 	mutex_unlock(&inst->pending_getpropq.lock);
 
+	hfi_session_clean(inst);
+
 	ret = hfi_core_deinit(core);
 	if (ret)
 		dev_err(dev, "core: deinit failed (%d)\n", ret);
-
-	hfi_session_clean(inst);
 
 	disable_clocks(&core->res);
 
 	smem_delete_client(inst->mem_client);
 
 	mutex_destroy(&inst->bufqueue_lock);
+	mutex_destroy(&inst->scratchbufs.lock);
+	mutex_destroy(&inst->persistbufs.lock);
+	mutex_destroy(&inst->pending_getpropq.lock);
+	mutex_destroy(&inst->registeredbufs.lock);
 
 	v4l2_fh_del(&inst->fh);
 	v4l2_fh_exit(&inst->fh);
@@ -429,7 +447,7 @@ static int vidc_probe(struct platform_device *pdev)
 	if (IS_ERR_VALUE(res->irq))
 		return res->irq;
 
-	ret = get_platform_resources_from_dt(core);
+	ret = get_platform_resources(core);
 	if (ret)
 		return ret;
 
@@ -450,6 +468,10 @@ static int vidc_probe(struct platform_device *pdev)
 	if (ret)
 		goto err_dev_unregister;
 
+	ret = venc_init(core, &core->vdev_enc);
+	if (ret)
+		goto err_vdec_deinit;
+
 	core->hfidev = vidc_hfi_init(core->hfi_type, core->id, &core->res);
 	if (IS_ERR(core->hfidev)) {
 		mutex_lock(&vidc_driver->lock);
@@ -457,7 +479,7 @@ static int vidc_probe(struct platform_device *pdev)
 		mutex_unlock(&vidc_driver->lock);
 
 		ret = PTR_ERR(core->hfidev);
-		goto err_vdec_deinit;
+		goto err_venc_deinit;
 	}
 
 	core->event_notify = vidc_event_notify;
@@ -471,6 +493,8 @@ static int vidc_probe(struct platform_device *pdev)
 
 	return 0;
 
+err_venc_deinit:
+	venc_deinit(core, &core->vdev_enc);
 err_vdec_deinit:
 	vdec_deinit(core, &core->vdev_dec);
 err_dev_unregister:
@@ -489,6 +513,7 @@ static int vidc_remove(struct platform_device *pdev)
 
 	vidc_hfi_deinit(core->hfi_type, core->hfidev);
 	vdec_deinit(core, &core->vdev_dec);
+	venc_deinit(core, &core->vdev_enc);
 	v4l2_device_unregister(&core->v4l2_dev);
 
 	put_platform_resources(core);
@@ -517,7 +542,7 @@ static int vidc_pm_suspend(struct device *dev)
 	if (!core)
 		return -EINVAL;
 
-	return vidc_comm_suspend(core);
+	return hfi_core_suspend(core);
 }
 
 static int vidc_pm_resume(struct device *dev)

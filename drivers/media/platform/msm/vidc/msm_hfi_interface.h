@@ -21,7 +21,7 @@ struct vidc_buffer_addr_info;
 int hfi_core_init(struct vidc_core *core);
 int hfi_core_deinit(struct vidc_core *core);
 
-int hfi_session_init(struct vidc_inst *inst);
+int hfi_session_init(struct vidc_inst *inst, u32 pixfmt);
 int hfi_session_deinit(struct vidc_inst *inst);
 int hfi_session_start(struct vidc_inst *inst);
 int hfi_session_stop(struct vidc_inst *inst);
@@ -31,4 +31,10 @@ int hfi_session_release_res(struct vidc_inst *inst);
 int hfi_session_flush(struct vidc_inst *inst);
 int hfi_session_release_buffers(struct vidc_inst *inst,
 				struct vidc_buffer_addr_info *bai);
+int hfi_session_set_property(struct vidc_inst *inst, enum hal_property ptype,
+			     void *pdata);
+int hfi_session_get_property(struct vidc_inst *inst, enum hal_property ptype,
+			     union hal_get_property *hprop);
+void hfi_session_clean(struct vidc_inst *inst);
+
 #endif /* _MSM_HFI_INTERFACE_H_ */

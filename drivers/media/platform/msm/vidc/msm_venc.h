@@ -10,10 +10,18 @@
  * GNU General Public License for more details.
  *
  */
+#ifndef _MSM_VENC_H_
+#define _MSM_VENC_H_
 
-#ifndef _MSM_VIDC_H_
-#define _MSM_VIDC_H_
+#include "msm_vidc_internal.h"
 
+int venc_init(struct vidc_core *core, struct video_device *enc);
+void venc_deinit(struct vidc_core *core, struct video_device *enc);
+int venc_open(struct vidc_inst *inst);
+void venc_close(struct vidc_inst *inst);
 
+int venc_set_bitrate_for_each_layer(struct vidc_inst *inst, u32 num_enh_layers,
+				    u32 total_bitrate);
+int venc_toggle_hier_p(struct vidc_inst *inst, int layers);
 
 #endif

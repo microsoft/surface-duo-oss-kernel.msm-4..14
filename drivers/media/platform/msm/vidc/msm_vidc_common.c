@@ -25,21 +25,10 @@
 #include "msm_vidc_debug.h"
 #include "msm_vidc_load.h"
 
-#define TOUT	msecs_to_jiffies(vidc_hw_rsp_timeout)
+#define TIMEOUT		msecs_to_jiffies(vidc_hw_rsp_timeout)
 
 enum multi_stream vidc_comm_get_stream_output_mode(struct vidc_inst *inst)
 {
-	if (inst->session_type == VIDC_DECODER) {
-		int rc = 0;
-		struct v4l2_control ctrl = {
-			.id = V4L2_CID_MPEG_VIDC_VIDEO_STREAM_OUTPUT_MODE
-		};
-		rc = v4l2_g_ctrl(&inst->ctrl_handler, &ctrl);
-		if (!rc && ctrl.value ==
-		    V4L2_CID_MPEG_VIDC_VIDEO_STREAM_OUTPUT_SECONDARY)
-			return HAL_VIDEO_DECODER_SECONDARY;
-	}
-
 	return HAL_VIDEO_DECODER_PRIMARY;
 }
 
@@ -56,11 +45,11 @@ enum hal_domain vidc_comm_get_hal_domain(int session_type)
 	}
 }
 
-enum hal_video_codec vidc_comm_hal_codec_type(int fourcc)
+enum hal_video_codec vidc_comm_hal_codec_type(u32 pixfmt)
 {
-	dprintk(VIDC_DBG, "codec is %#x\n", fourcc);
+	dprintk(VIDC_DBG, "codec is %#x\n", pixfmt);
 
-	switch (fourcc) {
+	switch (pixfmt) {
 	case V4L2_PIX_FMT_H264:
 	case V4L2_PIX_FMT_H264_NO_SC:
 		return HAL_VIDEO_CODEC_H264;
@@ -80,7 +69,7 @@ enum hal_video_codec vidc_comm_hal_codec_type(int fourcc)
 	case V4L2_PIX_FMT_VP8:
 		return HAL_VIDEO_CODEC_VP8;
 	default:
-		dprintk(VIDC_ERR, "Wrong codec: %d\n", fourcc);
+		dprintk(VIDC_ERR, "Wrong codec: %d\n", pixfmt);
 		return HAL_UNUSED_CODEC;
 	}
 }
@@ -108,7 +97,7 @@ struct vidc_core *vidc_get_core(int core_id)
 	return ERR_PTR(-ENOENT);
 }
 
-void vidc_change_inst_state(struct vidc_inst *inst, u32 state)
+void vidc_inst_set_state(struct vidc_inst *inst, u32 state)
 {
 	mutex_lock(&inst->lock);
 	if (inst->state == INST_INVALID) {
@@ -126,7 +115,7 @@ exit:
 	mutex_unlock(&inst->lock);
 }
 
-static unsigned int get_inst_state(struct vidc_inst *inst)
+static unsigned int vidc_inst_get_state(struct vidc_inst *inst)
 {
 	unsigned int state;
 
@@ -155,20 +144,6 @@ enum hal_buffer vidc_comm_get_hal_output_buffer(struct vidc_inst *inst)
 		return HAL_BUFFER_OUTPUT;
 }
 
-int vidc_comm_suspend(struct vidc_core *core)
-{
-	struct hfi_device *hdev = core->hfidev;
-	int ret;
-
-	ret = call_hfi_op(hdev, suspend, hdev->hfi_device_data);
-	if (ret) {
-		dprintk(VIDC_WARN, "suspend failed (%d)\n", ret);
-		return ret;
-	}
-
-	return 0;
-}
-
 struct hal_buffer_requirements *
 get_buff_req_buffer(struct vidc_inst *inst, enum hal_buffer type)
 {
@@ -193,8 +168,6 @@ int hfi_core_init(struct vidc_core *core)
 
 	if (core->state >= CORE_INIT) {
 		mutex_unlock(&core->lock);
-		dprintk(VIDC_INFO, "core id:%d is already in state: %d\n",
-			core->id, core->state);
 		return 0;
 	}
 
@@ -202,13 +175,11 @@ int hfi_core_init(struct vidc_core *core)
 
 	ret = call_hfi_op(hdev, core_init, hdev->hfi_device_data);
 	if (ret) {
-		core->state = CORE_UNINIT;
 		mutex_unlock(&core->lock);
-		dprintk(VIDC_ERR, "failed to init core id:%d\n", core->id);
 		return ret;
 	}
 
-	ret = wait_for_completion_timeout(&core->done, TOUT);
+	ret = wait_for_completion_timeout(&core->done, TIMEOUT);
 	if (!ret) {
 		mutex_unlock(&core->lock);
 		return -ETIMEDOUT;
@@ -246,59 +217,39 @@ int hfi_core_deinit(struct vidc_core *core)
 	return 0;
 }
 
-int hfi_session_init(struct vidc_inst *inst)
+int hfi_core_suspend(struct vidc_core *core)
 {
-	struct vidc_core *core = inst->core;
+	struct hfi_device *hdev = core->hfidev;
+
+	return call_hfi_op(hdev, suspend, hdev->hfi_device_data);
+}
+
+int hfi_session_init(struct vidc_inst *inst, u32 pixfmt)
+{
 	struct hfi_device *hdev = inst->core->hfidev;
-	unsigned int core_state;
-	unsigned int inst_state = get_inst_state(inst);
+	unsigned int state = vidc_inst_get_state(inst);
 	enum hal_domain domain;
 	enum hal_video_codec codec;
-	u32 fourcc;
 	int ret;
 
-	mutex_lock(&core->lock);
-	core_state = core->state;
-	mutex_unlock(&core->lock);
-
-	if (inst_state == INST_OPEN_DONE)
-		return 0;
-
-	if (inst_state != INST_UNINIT || core_state != CORE_INIT) {
-		dprintk(VIDC_ERR, "%s: invalid state (core:%d, inst:%d)\n",
-			__func__, core_state, inst_state);
-		return -EINVAL;
-	}
-
-	if (inst->session_type == VIDC_DECODER)
-		fourcc = inst->fmts[OUTPUT_PORT]->fourcc;
-	else if (inst->session_type == VIDC_ENCODER)
-		fourcc = inst->fmts[CAPTURE_PORT]->fourcc;
-	else
+	if (state != INST_UNINIT)
 		return -EINVAL;
 
 	init_completion(&inst->done);
 
 	domain = vidc_comm_get_hal_domain(inst->session_type);
-	codec = vidc_comm_hal_codec_type(fourcc);
+	codec = vidc_comm_hal_codec_type(pixfmt);
 
 	inst->session = call_hfi_op(hdev, session_init, hdev->hfi_device_data,
 				    inst, domain, codec);
-	if (!inst->session) {
-		dprintk(VIDC_ERR, "%s: session: init failed\n", __func__);
-		return -EINVAL;
-	}
+	if (IS_ERR(inst->session))
+		return PTR_ERR(inst->session);
 
-	vidc_change_inst_state(inst, INST_OPEN);
-
-	ret = wait_for_completion_timeout(&inst->done, TOUT);
-	if (!ret) {
-		dprintk(VIDC_ERR, "%s: wait interrupted or timedout\n",
-			__func__);
+	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
+	if (!ret)
 		return -ETIMEDOUT;
-	}
 
-	vidc_change_inst_state(inst, INST_OPEN_DONE);
+	vidc_inst_set_state(inst, INST_OPEN);
 
 	return 0;
 }
@@ -306,37 +257,26 @@ int hfi_session_init(struct vidc_inst *inst)
 int hfi_session_deinit(struct vidc_inst *inst)
 {
 	struct hfi_device *hdev = inst->core->hfidev;
-	unsigned int state = get_inst_state(inst);
+	unsigned int state = vidc_inst_get_state(inst);
 	int ret;
 
-	if (state == INST_CLOSE_DONE)
+	if (state == INST_CLOSE)
 		return 0;
 
-	if (state != INST_RELEASE_RESOURCES_DONE) {
-		dprintk(VIDC_ERR, "%s: invalid instance state (%d)\n",
-			__func__, inst->state);
+	if (state < INST_OPEN)
 		return -EINVAL;
-	}
 
 	init_completion(&inst->done);
 
 	ret = call_hfi_op(hdev, session_end, inst->session);
-	if (ret) {
-		dprintk(VIDC_ERR, "%s: session: end failed (%d)\n", __func__,
-			ret);
+	if (ret)
 		return ret;
-	}
 
-	vidc_change_inst_state(inst, INST_CLOSE);
-
-	ret = wait_for_completion_timeout(&inst->done, TOUT);
-	if (!ret) {
-		dprintk(VIDC_ERR, "%s: wait interrupted or timedout\n",
-			__func__);
+	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
+	if (!ret)
 		return -ETIMEDOUT;
-	}
 
-	vidc_change_inst_state(inst, INST_CLOSE_DONE);
+	vidc_inst_set_state(inst, INST_CLOSE);
 
 	return 0;
 }
@@ -344,37 +284,23 @@ int hfi_session_deinit(struct vidc_inst *inst)
 int hfi_session_start(struct vidc_inst *inst)
 {
 	struct hfi_device *hdev = inst->core->hfidev;
-	unsigned int state = get_inst_state(inst);
+	unsigned int state = vidc_inst_get_state(inst);
 	int ret;
 
-	if (state == INST_START_DONE)
-		return 0;
-
-	if (state != INST_LOAD_RESOURCES_DONE) {
-		dprintk(VIDC_ERR, "%s: invalid instance state (%d)\n",
-			__func__, inst->state);
+	if (state != INST_LOAD_RESOURCES)
 		return -EINVAL;
-	}
 
 	init_completion(&inst->done);
 
 	ret = call_hfi_op(hdev, session_start, inst->session);
-	if (ret) {
-		dprintk(VIDC_ERR, "%s: session: start failed (%d)\n", __func__,
-			ret);
+	if (ret)
 		return ret;
-	}
 
-	vidc_change_inst_state(inst, INST_START);
-
-	ret = wait_for_completion_timeout(&inst->done, TOUT);
-	if (!ret) {
-		dprintk(VIDC_ERR, "%s: wait interrupted or timedout\n",
-			__func__);
+	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
+	if (!ret)
 		return -ETIMEDOUT;
-	}
 
-	vidc_change_inst_state(inst, INST_START_DONE);
+	vidc_inst_set_state(inst, INST_START);
 
 	return 0;
 }
@@ -382,37 +308,23 @@ int hfi_session_start(struct vidc_inst *inst)
 int hfi_session_stop(struct vidc_inst *inst)
 {
 	struct hfi_device *hdev = inst->core->hfidev;
-	unsigned int state = get_inst_state(inst);
+	unsigned int state = vidc_inst_get_state(inst);
 	int ret;
 
-	if (state == INST_STOP_DONE)
-		return 0;
-
-	if (state != INST_START_DONE) {
-		dprintk(VIDC_ERR, "%s: invalid instance state (%d)\n",
-			__func__, inst->state);
+	if (state != INST_START)
 		return -EINVAL;
-	}
 
 	init_completion(&inst->done);
 
 	ret = call_hfi_op(hdev, session_stop, inst->session);
-	if (ret) {
-		dprintk(VIDC_ERR, "%s: session: stop failed (%d)\n",
-			__func__, ret);
+	if (ret)
 		return ret;
-	}
 
-	vidc_change_inst_state(inst, INST_STOP);
-
-	ret = wait_for_completion_timeout(&inst->done, TOUT);
-	if (!ret) {
-		dprintk(VIDC_ERR, "%s: wait interrupted or timedout\n",
-			__func__);
+	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
+	if (!ret)
 		return -ETIMEDOUT;
-	}
 
-	vidc_change_inst_state(inst, INST_STOP_DONE);
+	vidc_inst_set_state(inst, INST_STOP);
 
 	return 0;
 }
@@ -425,22 +337,14 @@ int hfi_session_abort(struct vidc_inst *inst)
 	init_completion(&inst->done);
 
 	ret = call_hfi_op(hdev, session_abort, inst->session);
-	if (ret) {
-		dprintk(VIDC_ERR, "%s: session: abort failed (%d)\n",
-			__func__, ret);
+	if (ret)
 		return ret;
-	}
 
-	vidc_change_inst_state(inst, INST_STOP);
-
-	ret = wait_for_completion_timeout(&inst->done, TOUT);
-	if (!ret) {
-		dprintk(VIDC_ERR, "%s: wait interrupted or timedout\n",
-			__func__);
+	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
+	if (!ret)
 		return -ETIMEDOUT;
-	}
 
-	vidc_change_inst_state(inst, INST_CLOSE_DONE);
+	vidc_inst_set_state(inst, INST_CLOSE);
 
 	return 0;
 }
@@ -449,17 +353,11 @@ int hfi_session_load_res(struct vidc_inst *inst)
 {
 	struct vidc_core *core = inst->core;
 	struct hfi_device *hdev = core->hfidev;
-	unsigned int state = get_inst_state(inst);
+	unsigned int state = vidc_inst_get_state(inst);
 	int ret;
 
-	if (state == INST_LOAD_RESOURCES_DONE)
-		return 0;
-
-	if (state != INST_OPEN_DONE) {
-		dprintk(VIDC_ERR, "%s: invalid instance state (%d)\n",
-			__func__, inst->state);
+	if (state != INST_OPEN)
 		return -EINVAL;
-	}
 
 	ret = msm_comm_check_overloaded(core);
 	if (ret)
@@ -468,22 +366,14 @@ int hfi_session_load_res(struct vidc_inst *inst)
 	init_completion(&inst->done);
 
 	ret = call_hfi_op(hdev, session_load_res, inst->session);
-	if (ret) {
-		dprintk(VIDC_ERR, "%s: session: load resources failed (%d)\n",
-			__func__, ret);
+	if (ret)
 		return ret;
-	}
 
-	vidc_change_inst_state(inst, INST_LOAD_RESOURCES);
-
-	ret = wait_for_completion_timeout(&inst->done, TOUT);
-	if (!ret) {
-		dprintk(VIDC_ERR, "%s: wait interrupted or timedout\n",
-			__func__);
+	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
+	if (!ret)
 		return -ETIMEDOUT;
-	}
 
-	vidc_change_inst_state(inst, INST_LOAD_RESOURCES_DONE);
+	vidc_inst_set_state(inst, INST_LOAD_RESOURCES);
 
 	return 0;
 }
@@ -491,38 +381,23 @@ int hfi_session_load_res(struct vidc_inst *inst)
 int hfi_session_release_res(struct vidc_inst *inst)
 {
 	struct hfi_device *hdev = inst->core->hfidev;
-	unsigned int state = get_inst_state(inst);
+	unsigned int state = vidc_inst_get_state(inst);
 	int ret;
 
-	if (state == INST_RELEASE_RESOURCES_DONE)
-		return 0;
-
-	if (state != INST_STOP_DONE) {
-		dprintk(VIDC_ERR, "%s: invalid instance state (%d)\n",
-			__func__, inst->state);
+	if (state != INST_STOP)
 		return -EINVAL;
-	}
 
 	init_completion(&inst->done);
 
 	ret = call_hfi_op(hdev, session_release_res, inst->session);
-	if (ret) {
-		dprintk(VIDC_ERR,
-			"%s: session: release resources failed (%d)\n",
-			__func__, ret);
+	if (ret)
 		return ret;
-	}
 
-	vidc_change_inst_state(inst, INST_RELEASE_RESOURCES);
-
-	ret = wait_for_completion_timeout(&inst->done, TOUT);
-	if (!ret) {
-		dprintk(VIDC_ERR, "%s: wait interrupted or timedout\n",
-			__func__);
+	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
+	if (!ret)
 		return -ETIMEDOUT;
-	}
 
-	vidc_change_inst_state(inst, INST_RELEASE_RESOURCES_DONE);
+	vidc_inst_set_state(inst, INST_RELEASE_RESOURCES);
 
 	return 0;
 }
@@ -535,18 +410,12 @@ int hfi_session_flush(struct vidc_inst *inst)
 	init_completion(&inst->done);
 
 	ret = call_hfi_op(hdev, session_flush, inst->session, HAL_FLUSH_ALL);
-	if (ret) {
-		dprintk(VIDC_ERR, "%s: session: flush failed (%d)\n",
-			__func__, ret);
+	if (ret)
 		return ret;
-	}
 
-	ret = wait_for_completion_timeout(&inst->done, TOUT);
-	if (!ret) {
-		dprintk(VIDC_ERR, "%s: wait interrupted or timedout\n",
-			__func__);
+	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
+	if (!ret)
 		return -ETIMEDOUT;
-	}
 
 	return 0;
 }
@@ -576,21 +445,15 @@ int hfi_session_release_buffers(struct vidc_inst *inst,
 	init_completion(&inst->done);
 
 	ret = call_hfi_op(hdev, session_release_buffers, inst->session, bai);
-	if (ret) {
-		dprintk(VIDC_ERR, "%s: session: release buffers failed (%d)\n",
-			__func__, ret);
+	if (ret)
 		return ret;
-	}
 
 	if (!bai->response_required)
 		return 0;
 
-	ret = wait_for_completion_timeout(&inst->done, TOUT);
-	if (!ret) {
-		dprintk(VIDC_ERR, "%s: wait interrupted or timedout\n",
-			__func__);
+	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
+	if (!ret)
 		return -ETIMEDOUT;
-	}
 
 	if (inst->error != VIDC_ERR_NONE)
 		return -EIO;
@@ -602,20 +465,15 @@ int hfi_session_get_property(struct vidc_inst *inst, enum hal_property ptype,
 			     union hal_get_property *hprop)
 {
 	struct hfi_device *hdev = inst->core->hfidev;
-	unsigned int inst_state = get_inst_state(inst);
+	unsigned int state = vidc_inst_get_state(inst);
 	struct getprop_buf *buf;
-	int ret = 0;
+	int ret;
 
-	if (inst_state == INST_INVALID || inst->core->state == CORE_INVALID) {
-		dprintk(VIDC_ERR,
-			"%s: invalid states for core and/or instance\n",
-			__func__);
+	if (state == INST_INVALID)
 		return -EINVAL;
-	}
 
 	mutex_lock(&inst->sync_lock);
-	if (inst_state < INST_OPEN_DONE || inst_state >= INST_CLOSE) {
-		dprintk(VIDC_ERR, "%s: not in proper state\n", __func__);
+	if (state < INST_OPEN || state >= INST_CLOSE) {
 		ret = -EINVAL;
 		goto exit;
 	}
@@ -631,16 +489,11 @@ int hfi_session_get_property(struct vidc_inst *inst, enum hal_property ptype,
 	init_completion(&inst->done);
 
 	ret = call_hfi_op(hdev, session_get_property, inst->session, ptype);
-	if (ret) {
-		dprintk(VIDC_ERR, "get property (%x) failed (%d)\n",
-			ptype, ret);
+	if (ret)
 		goto exit;
-	}
 
-	ret = wait_for_completion_timeout(&inst->done, TOUT);
+	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
 	if (!ret) {
-		dprintk(VIDC_ERR, "%s: wait interrupted or timedout\n",
-			__func__);
 		inst->state = INST_INVALID;
 		vidc_comm_kill_session(inst);
 		ret = -ETIMEDOUT;
@@ -657,7 +510,7 @@ int hfi_session_get_property(struct vidc_inst *inst, enum hal_property ptype,
 		kfree(buf);
 		ret = 0;
 	} else {
-		dprintk(VIDC_ERR, "%s getprop list is empty\n", __func__);
+		/* getprop list is empty */
 		ret = -EINVAL;
 	}
 	mutex_unlock(&inst->pending_getpropq.lock);
@@ -670,21 +523,17 @@ int hfi_session_set_property(struct vidc_inst *inst, enum hal_property ptype,
 			     void *pdata)
 {
 	struct hfi_device *hdev = inst->core->hfidev;
-	unsigned int state = get_inst_state(inst);
+	unsigned int state = vidc_inst_get_state(inst);
 	int ret = 0;
 
 	mutex_lock(&inst->sync_lock);
-	if (state < INST_OPEN_DONE || state >= INST_CLOSE) {
-		dprintk(VIDC_ERR, "state is invalid to set property\n");
+	if (state < INST_OPEN || state >= INST_CLOSE) {
 		ret = -EINVAL;
 		goto exit;
 	}
 
 	ret = call_hfi_op(hdev, session_set_property, inst->session, ptype,
 			  pdata);
-	if (ret)
-		dprintk(VIDC_ERR, "set property failed (%x)\n", ptype);
-
 exit:
 	mutex_unlock(&inst->sync_lock);
 
@@ -725,6 +574,32 @@ int vidc_comm_get_bufreqs(struct vidc_inst *inst)
 	return 0;
 }
 
+int vidc_comm_bufrequirements(struct vidc_inst *inst, enum hal_buffer type,
+			      struct hal_buffer_requirements *out)
+{
+	enum hal_property ptype = HAL_PARAM_GET_BUFFER_REQUIREMENTS;
+	union hal_get_property hprop;
+	int ret, i;
+
+	ret = hfi_session_get_property(inst, ptype, &hprop);
+	if (ret)
+		return ret;
+
+	ret = -EINVAL;
+
+	for (i = 0; i < HAL_BUFFER_MAX; i++) {
+		if (hprop.buf_req.buffer[i].type != type)
+			continue;
+
+		if (out)
+			memcpy(out, &hprop.buf_req.buffer[i], sizeof(*out));
+		ret = 0;
+		break;
+	}
+
+	return ret;
+}
+
 int vidc_comm_session_flush(struct vidc_inst *inst, u32 flags)
 {
 	struct vidc_core *core = inst->core;
@@ -750,10 +625,6 @@ int vidc_comm_session_flush(struct vidc_inst *inst, u32 flags)
 	if (inst->in_reconfig && !ip_flush && op_flush) {
 		ret = call_hfi_op(hdev, session_flush, inst->session,
 				  HAL_FLUSH_OUTPUT);
-		if (!ret && vidc_comm_get_stream_output_mode(inst) ==
-		    HAL_VIDEO_DECODER_SECONDARY)
-			ret = call_hfi_op(hdev, session_flush, inst->session,
-					  HAL_FLUSH_OUTPUT2);
 	} else {
 		/*
 		 * If flush is called after queueing buffers but before
@@ -819,8 +690,7 @@ vidc_comm_get_hal_extradata_index(enum v4l2_mpeg_vidc_extradata index)
 	case V4L2_MPEG_VIDC_EXTRADATA_METADATA_MBI:
 		return HAL_EXTRADATA_METADATA_MBI;
 	default:
-		dprintk(VIDC_WARN, "Extradata not found: %d\n", index);
-		break;
+		return V4L2_MPEG_VIDC_EXTRADATA_NONE;
 	}
 
 	return 0;
@@ -861,135 +731,40 @@ int vidc_trigger_ssr(struct vidc_core *core, enum hal_ssr_trigger_type type)
 	return 0;
 }
 
-int vidc_check_scaling_supported(struct vidc_inst *inst)
-{
-	u32 x_min, x_max, y_min, y_max;
-	u32 input_height, input_width, output_height, output_width;
-
-	input_height = inst->prop.height_out;
-	input_width = inst->prop.width_out;
-	output_height = inst->prop.height_cap;
-	output_width = inst->prop.width_cap;
-
-	if (!input_height || !input_width || !output_height || !output_width) {
-		dprintk(VIDC_ERR, "invalid input or output resolution\n");
-		return -EINVAL;
-	}
-
-	if (!inst->capability.scale_x.min || !inst->capability.scale_x.max ||
-	    !inst->capability.scale_y.min || !inst->capability.scale_y.max) {
-		if (input_width * input_height != output_width * output_height) {
-			dprintk(VIDC_ERR,
-				"scaling is not supported (%dx%d != %dx%d)\n",
-				input_width, input_height,
-				output_width, output_height);
-			return -ENOTSUPP;
-		} else {
-			dprintk(VIDC_DBG, "supported: %dx%d\n",
-				input_width, input_height);
-			return 0;
-		}
-	}
-
-	x_min = (1 << 16) / inst->capability.scale_x.min;
-	y_min = (1 << 16) / inst->capability.scale_y.min;
-	x_max = inst->capability.scale_x.max >> 16;
-	y_max = inst->capability.scale_y.max >> 16;
-
-	if (input_height > output_height) {
-		if (input_height / output_height > x_min) {
-			dprintk(VIDC_ERR,
-				"unsupported height downscale ratio %d vs %d\n",
-				input_height/output_height, x_min);
-			return -ENOTSUPP;
-		}
-	} else {
-		if (input_height / output_height > x_max) {
-			dprintk(VIDC_ERR,
-				"unsupported height upscale ratio %d vs %d\n",
-				input_height/output_height, x_max);
-			return -ENOTSUPP;
-		}
-	}
-	if (input_width > output_width) {
-		if (input_width / output_width > y_min) {
-			dprintk(VIDC_ERR,
-				"unsupported width downscale ratio %d vs %d\n",
-				input_width/output_width, y_min);
-			return -ENOTSUPP;
-		}
-	} else {
-		if (input_width / output_width > y_max) {
-			dprintk(VIDC_ERR,
-				"unsupported width upscale ratio %d vs %d\n",
-				input_width/output_width, y_max);
-			return -ENOTSUPP;
-		}
-	}
-
-	return 0;
-}
-
 int vidc_check_session_supported(struct vidc_inst *inst)
 {
-	struct vidc_core_capability *capability;
-	struct vidc_session_prop *prop;
-	struct hfi_device *hdev;
-	struct vidc_core *core;
+	struct vidc_core *core =inst->core;
+	struct vidc_core_capability *cap = &inst->capability;
 	int ret = 0;
 
-	if (!inst || !inst->core || !inst->core->hfidev)
-		return -EINVAL;
-
-	capability = &inst->capability;
-	hdev = inst->core->hfidev;
-	core = inst->core;
-	prop = &inst->prop;
-
-	if (inst->state == INST_OPEN_DONE) {
+	if (inst->state == INST_OPEN) {
 		ret = msm_comm_check_overloaded(core);
-		if (ret) {
-			vidc_change_inst_state(inst, INST_INVALID);
+		if (ret)
 			return ret;
-		}
 	}
 
-	if (capability->capability_set) {
-		if (prop->width_cap < capability->width.min ||
-		    prop->height_cap < capability->height.min) {
-			dprintk(VIDC_ERR, "unsupported:%ux%u, min: %ux%u\n",
-				prop->width_cap, prop->height_cap,
-				capability->width.min, capability->height.min);
-			ret = -ENOTSUPP;
-		}
+	if (!cap->capability_set)
+		return 0;
 
-		if (!ret &&
-		    prop->width_cap > capability->width.max) {
-			dprintk(VIDC_ERR, "unsupported width:%u, max width:%u",
-				prop->width_cap, capability->width.max);
-			ret = -ENOTSUPP;
-		}
+	ret = -ENOTSUPP;
 
-		if (!ret && prop->height_cap * prop->width_cap >
-		    capability->width.max * capability->height.max) {
-			dprintk(VIDC_ERR, "unsupported:%ux%u, max:%ux%u\n",
-			prop->width_cap, prop->height_cap,
-			capability->width.max, capability->height.max);
-			ret = -ENOTSUPP;
-		}
-	}
+	if (inst->width < cap->width.min || inst->height < cap->height.min)
+		goto err;
 
-	if (ret) {
-		vidc_change_inst_state(inst, INST_INVALID);
-		dprintk(VIDC_ERR, "resolution unsupported\n");
-		return ret;
-	}
+	if (inst->width > cap->width.max)
+		goto err;
+
+	if (inst->height * inst->width > cap->width.max * cap->height.max)
+		goto err;
 
 	return 0;
+err:
+	dprintk(VIDC_ERR, "resolution not supported\n");
+	return ret;
 }
 
 int vidc_comm_set_color_format(struct vidc_inst *inst,
-			       enum hal_buffer buffer_type, u32 fourcc)
+			       enum hal_buffer buffer_type, u32 pixfmt)
 {
 	struct hal_uncompressed_format_select hal_fmt;
 	struct hfi_device *hdev = inst->core->hfidev;
@@ -997,7 +772,7 @@ int vidc_comm_set_color_format(struct vidc_inst *inst,
 
 	hal_fmt.buffer_type = buffer_type;
 
-	switch (fourcc) {
+	switch (pixfmt) {
 	case V4L2_PIX_FMT_NV12:
 		dprintk(VIDC_DBG, "set color format: nv12\n");
 		hal_fmt.format = HAL_COLOR_FORMAT_NV12;
@@ -1038,7 +813,7 @@ int vidc_comm_kill_session(struct vidc_inst *inst)
 	 * the session send session_abort to firmware to clean up and release
 	 * the session, else just kill the session inside the driver.
 	 */
-	if ((inst->state >= INST_OPEN_DONE && inst->state < INST_CLOSE_DONE) ||
+	if ((inst->state >= INST_OPEN && inst->state < INST_CLOSE) ||
 	     inst->state == INST_INVALID) {
 		ret = hfi_session_abort(inst);
 		if (ret == -EBUSY) {
@@ -1047,7 +822,7 @@ int vidc_comm_kill_session(struct vidc_inst *inst)
 		} else if (ret) {
 			return ret;
 		}
-		vidc_change_inst_state(inst, INST_CLOSE_DONE);
+		vidc_inst_set_state(inst, INST_CLOSE);
 	} else {
 		inst->event_notify(inst, SESSION_ERROR, NULL);
 	}
