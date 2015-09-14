@@ -3172,7 +3172,7 @@ int tcp_nuke_addr(struct net *net, struct sockaddr *addr)
 	int family = addr->sa_family;
 	unsigned int bucket;
 
-	struct in_addr *in;
+	struct in_addr *in = NULL;
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	struct in6_addr *in6 = NULL;
 #endif
@@ -3197,6 +3197,8 @@ restart:
 			struct inet_sock *inet = inet_sk(sk);
 
 			if (sysctl_ip_dynaddr && sk->sk_state == TCP_SYN_SENT)
+				continue;
+			if (sk->sk_state == TCP_TIME_WAIT)
 				continue;
 			if (sock_flag(sk, SOCK_DEAD))
 				continue;
