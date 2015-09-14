@@ -257,6 +257,7 @@ drm_fbdev_cma_create(struct drm_fb_helper *helper,
 
 	bytes_per_pixel = DIV_ROUND_UP(sizes->surface_bpp, 8);
 	size = sizes->surface_width * sizes->surface_height * bytes_per_pixel;
+	size *= FBDEV_BUFFER_NUM;
 	obj = drm_gem_cma_create(dev, size);
 	if (IS_ERR(obj))
 		return -ENOMEM;

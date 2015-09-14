@@ -34,4 +34,9 @@ drm_gem_fbdev_fb_create(struct drm_device *dev,
 			unsigned int pitch_align, struct drm_gem_object *obj,
 			const struct drm_framebuffer_funcs *funcs);
 
+#ifdef CONFIG_DRM_GEM_FBDEV_BUFFER_NUM
+#define FBDEV_BUFFER_NUM CONFIG_DRM_GEM_FBDEV_BUFFER_NUM
+#else
+#define FBDEV_BUFFER_NUM 1
+#endif
 #endif

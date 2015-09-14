@@ -289,7 +289,7 @@ drm_gem_fbdev_fb_create(struct drm_device *dev,
 	struct drm_mode_fb_cmd2 mode_cmd = { 0 };
 
 	mode_cmd.width = sizes->surface_width;
-	mode_cmd.height = sizes->surface_height;
+	mode_cmd.height = sizes->surface_height * FBDEV_BUFFER_NUM;
 	mode_cmd.pitches[0] = sizes->surface_width *
 			      DIV_ROUND_UP(sizes->surface_bpp, 8);
 	if (pitch_align)
