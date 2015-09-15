@@ -153,6 +153,24 @@
 				pu-supply = <&pu_dummy>;
 			};
 
+			fec: ethernet@40032000 {
+				compatible = "fsl,s32v234-fec";
+				reg = <0x0 0x40032000 0x0 0x1000>;
+				interrupts = <0 36 4>,
+							 <0 37 4>;
+				clocks = <&clks S32V234_CLK_SYS6>,
+						 <&clks S32V234_CLK_SYS3>,
+						 <&clks S32V234_CLK_ENET_TIME>,
+						 <&clks S32V234_CLK_ENET>,
+						 <&clks S32V234_CLK_ENET_TIME>;
+				clock-names = "ipg", "ahb", "ptp",
+							  "enet_clk_ref",
+							  "enet_out";
+				fsl,num-tx-queues=<3>;
+				fsl,num-rx-queues=<3>;
+				status = "disabled";
+			};
+
 			clks: mc_cgm0@4003C000 {
 				compatible = "fsl,s32v234-mc_cgm0";
 				reg = <0x0 0x4003C000 0x0 0x1000>;
@@ -231,16 +249,6 @@
 		reg = <0x0 0x40080000 0x0 0x70000>;
 		ranges;
 
-		fec: ethernet@40032000 {
-			compatible = "fsl,s32v234-fec";
-			reg = <0x0 0x40032000 0x0 0x4000>;
-			interrupts = <0 35 4>;
-			clocks = <&clks S32V234_CLK_ENET_TIME>,
-				<&clks S32V234_CLK_SYS6>,
-				<&clks S32V234_CLK_SYS3>;
-			clock-names = "ipg", "ahb", "ptp";
-			status = "disabled";
-		};	
 		i2c1: i2c@400b8000 {
 			#address-cells = <1>;
 			#size-cells = <0>;
