@@ -1047,4 +1047,8 @@
 #define USB_DEVICE_ID_RAPHNET_2NES2SNES	0x0002
 #define USB_DEVICE_ID_RAPHNET_4NES4SNES	0x0003
 
+/* Lilliput Capacitive TouchScreen */
+#define USB_VENDOR_ID_LILLIPUT  0x1391
+#define USB_PROD_ID_LILLIPUT    0x2112
+
 #endif
