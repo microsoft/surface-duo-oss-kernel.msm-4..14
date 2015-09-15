@@ -1028,4 +1028,8 @@
 #define USB_VENDOR_ID_RISO_KAGAKU	0x1294	/* Riso Kagaku Corp. */
 #define USB_DEVICE_ID_RI_KA_WEBMAIL	0x1320	/* Webmail Notifier */
 
+/* Lilliput Capacitive TouchScreen */
+#define USB_VENDOR_ID_LILLIPUT  0x1391
+#define USB_PROD_ID_LILLIPUT    0x2112
+
 #endif
