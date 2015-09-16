@@ -198,6 +198,7 @@ static int adv7511_set_bias_level(struct snd_soc_codec *codec,
 				  enum snd_soc_bias_level level)
 {
 	struct adv7511 *adv7511 = snd_soc_codec_get_drvdata(codec);
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 
 	switch (level) {
 	case SND_SOC_BIAS_ON:
@@ -212,7 +213,7 @@ static int adv7511_set_bias_level(struct snd_soc_codec *codec,
 		}
 		break;
 	case SND_SOC_BIAS_PREPARE:
-		if (codec->dapm.bias_level == SND_SOC_BIAS_STANDBY) {
+		if (dapm->bias_level == SND_SOC_BIAS_STANDBY) {
 			adv7511_packet_enable(adv7511,
 					ADV7511_PACKET_ENABLE_AUDIO_SAMPLE);
 			adv7511_packet_enable(adv7511,
@@ -235,7 +236,7 @@ static int adv7511_set_bias_level(struct snd_soc_codec *codec,
 	case SND_SOC_BIAS_OFF:
 		break;
 	}
-	codec->dapm.bias_level = level;
+	dapm->bias_level = level;
 	return 0;
 }
 
