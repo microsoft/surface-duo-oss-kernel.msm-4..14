@@ -2101,6 +2101,7 @@ out:
 	mutex_unlock(&wcn->hal_mutex);
 	return ret;
 }
+
 static void wcn36xx_smd_rsp_process(struct wcn36xx *wcn, void *buf, size_t len)
 {
 	struct wcn36xx_hal_msg_header *msg_header = buf;
