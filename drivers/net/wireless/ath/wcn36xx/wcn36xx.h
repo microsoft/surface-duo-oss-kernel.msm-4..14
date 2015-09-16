@@ -140,6 +140,10 @@ struct wcn36xx_platform_data {
 
 	void (*cb)(struct wcn36xx *wcn, void *buf, size_t len);
 	struct wcn36xx_platform_ctrl_ops ctrl_ops;
+
+	struct work_struct packet_process_work;
+	spinlock_t packet_lock;
+	struct list_head packet_list;
 };
 
 /**

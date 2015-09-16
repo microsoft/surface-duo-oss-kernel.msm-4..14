@@ -31,6 +31,12 @@
 
 #define MAC_ADDR_0 "wlan/macaddr0"
 
+struct smd_packet_item {
+	struct list_head list;
+	void *buf;
+	size_t count;
+};
+
 static int wcn36xx_msm_smsm_change_state(u32 clear_mask, u32 set_mask)
 {
 	return 0;
@@ -115,6 +121,28 @@ static struct wcn36xx_platform_data wcn36xx_data = {
 	},
 };
 
+static void wlan_ctrl_smd_process(struct work_struct *worker)
+{
+	unsigned long flags;
+	struct wcn36xx_platform_data *pdata =
+		container_of(worker,
+			struct wcn36xx_platform_data, packet_process_work);
+
+	spin_lock_irqsave(&pdata->packet_lock, flags);
+	while (!list_empty(&pdata->packet_list)) {
+		struct smd_packet_item *packet;
+
+		packet = list_first_entry(&pdata->packet_list,
+				struct smd_packet_item, list);
+		list_del(&packet->list);
+		spin_unlock_irqrestore(&pdata->packet_lock, flags);
+		pdata->cb(pdata->wcn, packet->buf, packet->count);
+		kfree(packet->buf);
+		spin_lock_irqsave(&pdata->packet_lock, flags);
+	}
+	spin_unlock_irqrestore(&pdata->packet_lock, flags);
+}
+
 static int qcom_smd_wlan_ctrl_probe(struct qcom_smd_device *sdev)
 {
 	pr_info("%s: enter\n", __func__);
@@ -122,6 +150,9 @@ static int qcom_smd_wlan_ctrl_probe(struct qcom_smd_device *sdev)
         init_completion(&wcn36xx_data.wlan_ctrl_ack);
 
 	wcn36xx_data.sdev = sdev;
+	spin_lock_init(&wcn36xx_data.packet_lock);
+	INIT_LIST_HEAD(&wcn36xx_data.packet_list);
+	INIT_WORK(&wcn36xx_data.packet_process_work, wlan_ctrl_smd_process);
 
         dev_set_drvdata(&sdev->dev, &wcn36xx_data);
 	wcn36xx_data.wlan_ctrl_channel = sdev->channel;
@@ -140,16 +171,27 @@ static int qcom_smd_wlan_ctrl_callback(struct qcom_smd_device *qsdev,
                                  const void *data,
                                  size_t count)
 {
+	unsigned long flags;
+	struct smd_packet_item *packet = NULL;
 	struct wcn36xx_platform_data *pdata = dev_get_drvdata(&qsdev->dev);
-	void *buf = kzalloc(count, GFP_ATOMIC);
+	void *buf = kzalloc(count + sizeof(struct smd_packet_item),
+				GFP_ATOMIC);
 	if (!buf) {
 		dev_err(&pdata->core->dev, "can't allocate buffer\n");
 		return -ENOMEM;
 	}
 
 	memcpy_fromio(buf, data, count);
-	pdata->cb(pdata->wcn, buf, count);
-	kfree(buf);
+	packet = buf + count;
+	packet->buf = buf;
+	packet->count = count;
+
+	spin_lock_irqsave(&pdata->packet_lock, flags);
+	list_add_tail(&packet->list, &pdata->packet_list);
+	spin_unlock_irqrestore(&pdata->packet_lock, flags);
+	schedule_work(&pdata->packet_process_work);
+
+	/* buf will be freed in workqueue */
 
 	return 0;
 }
