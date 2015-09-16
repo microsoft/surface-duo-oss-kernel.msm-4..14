@@ -45,7 +45,7 @@ static const struct reg_sequence adv7511_fixed_registers[] = {
 };
 
 /* ADI recommended values for proper operation. */
-static const struct reg_default adv7533_fixed_registers[] = {
+static const struct reg_sequence adv7533_fixed_registers[] = {
 	{ 0x16, 0x20 },
 	{ 0x9a, 0xe0 },
 	{ 0xba, 0x70 },
@@ -54,7 +54,7 @@ static const struct reg_default adv7533_fixed_registers[] = {
 	{ 0xe5, 0x80 },
 };
 
-static const struct reg_default adv7533_cec_fixed_registers[] = {
+static const struct reg_sequence adv7533_cec_fixed_registers[] = {
 	{ 0x15, 0xd0 },
 	{ 0x17, 0xd0 },
 	{ 0x24, 0x20 },
