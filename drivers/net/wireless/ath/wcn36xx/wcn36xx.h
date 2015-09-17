@@ -103,17 +103,43 @@ struct nv_data {
 	u8	table;
 };
 
+enum wcn36xx_chip_type {
+	WCN36XX_CHIP_UNKNOWN,
+	WCN36XX_CHIP_3660,
+	WCN36XX_CHIP_3680,
+	WCN36XX_CHIP_3620,
+};
+
 /* Interface for platform control path
  *
  * @open: hook must be called when wcn36xx wants to open control channel.
  * @tx: sends a buffer.
  */
 struct wcn36xx_platform_ctrl_ops {
-	int (*open)(void *drv_priv, void *rsp_cb);
-	void (*close)(void);
-	int (*tx)(char *buf, size_t len);
-	int (*get_hw_mac)(u8 *addr);
+	int (*open)(struct wcn36xx *wcn, void *rsp_cb);
+	void (*close)(struct wcn36xx *wcn);
+	int (*tx)(struct wcn36xx *wcn, char *buf, size_t len);
+	int (*get_hw_mac)(struct wcn36xx *wcn, u8 *addr);
+	int (*get_chip_type)(struct wcn36xx *wcn);
 	int (*smsm_change_state)(u32 clear_mask, u32 set_mask);
+};
+
+struct wcn36xx_platform_data {
+	enum wcn36xx_chip_type chip_type;
+
+	struct platform_device *core;
+
+	struct qcom_smd_device *sdev;
+        struct qcom_smd_channel *wlan_ctrl_channel;
+        struct completion wlan_ctrl_ack;
+        struct mutex wlan_ctrl_lock;
+
+	struct pinctrl *pinctrl;
+
+	struct wcn36xx *wcn;
+
+	void (*cb)(struct wcn36xx *wcn, void *buf, size_t len);
+	struct wcn36xx_platform_ctrl_ops ctrl_ops;
 };
 
 /**
@@ -193,7 +219,7 @@ struct wcn36xx {
 	u8			fw_minor;
 	u8			fw_major;
 	u32			fw_feat_caps[WCN36XX_HAL_CAPS_SIZE];
-	u32			chip_version;
+	enum wcn36xx_chip_type	chip_version;
 
 	/* extra byte for the NULL termination */
 	u8			crm_version[WCN36XX_HAL_VERSION_LENGTH + 1];
@@ -204,6 +230,7 @@ struct wcn36xx {
 	int			rx_irq;
 	void __iomem		*mmio;
 
+	struct wcn36xx_platform_data *wcn36xx_data;
 	struct wcn36xx_platform_ctrl_ops *ctrl_ops;
 	/*
 	 * smd_buf must be protected with smd_mutex to garantee
@@ -240,9 +267,6 @@ struct wcn36xx {
 #endif /* CONFIG_WCN36XX_DEBUGFS */
 
 };
-
-#define WCN36XX_CHIP_3660	0
-#define WCN36XX_CHIP_3680	1
 
 static inline bool wcn36xx_is_fw_version(struct wcn36xx *wcn,
 					 u8 major,
