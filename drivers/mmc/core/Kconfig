@@ -11,3 +11,11 @@ config MMC_CLKGATE
 	  support handling this in order for it to be of any use.
 
 	  If unsure, say N.
+
+config PWRSEQ_EMMC
+	tristate "PwrSeq EMMC"
+	depends on OF
+
+config PWRSEQ_SIMPLE
+	tristate "PwrSeq Simple"
+	depends on OF
