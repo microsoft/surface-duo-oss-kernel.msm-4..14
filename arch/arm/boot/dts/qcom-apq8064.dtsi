@@ -122,7 +122,7 @@
 					type = "passive";
 				};
 				cpu_crit0: trip@1 {
-					temperature = <95000>;
+					temperature = <110000>;
 					hysteresis = <2000>;
 					type = "critical";
 				};
@@ -149,7 +149,7 @@
 					type = "passive";
 				};
 				cpu_crit1: trip@1 {
-					temperature = <95000>;
+					temperature = <110000>;
 					hysteresis = <2000>;
 					type = "critical";
 				};
@@ -176,7 +176,7 @@
 					type = "passive";
 				};
 				cpu_crit2: trip@1 {
-					temperature = <95000>;
+					temperature = <110000>;
 					hysteresis = <2000>;
 					type = "critical";
 				};
@@ -203,7 +203,7 @@
 					type = "passive";
 				};
 				cpu_crit3: trip@1 {
-					temperature = <95000>;
+					temperature = <110000>;
 					hysteresis = <2000>;
 					type = "critical";
 				};
