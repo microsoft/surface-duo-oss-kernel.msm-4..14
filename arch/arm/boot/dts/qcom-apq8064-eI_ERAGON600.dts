@@ -3,28 +3,12 @@
 #include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
 
 / {
-	model = "Qualcomm APQ8064/IFC6410";
-	compatible = "qcom,apq8064-ifc6410", "qcom,apq8064";
+	model = "Qualcomm APQ8064/ERAGON600";
+	compatible = "qcom,apq8064-eragon600", "qcom,apq8064";
 
 	aliases {
 		serial0 = &gsbi7_serial;
 		serial1 = &gsbi6_serial;
-	};
-
-	chosen {
-		stdout-path = "serial0:115200n8";
-	};
-
-	pwrseq {
-		compatible = "simple-bus";
-
-		sdcc4_pwrseq: sdcc4_pwrseq {
-			pinctrl-names = "default";
-			pinctrl-0 = <&wlan_default_gpios &bt_gpios>;
-			compatible = "mmc-pwrseq-simple";
-			reset-gpios = <&pm8921_gpio 43 GPIO_ACTIVE_LOW>,
-				      <&pm8921_gpio 44 GPIO_ACTIVE_LOW>;
-		};
 	};
 
 	soc {
@@ -71,6 +55,7 @@
 					regulator-min-microvolt	= <1800000>;
 					regulator-max-microvolt	= <1800000>;
 					qcom,switch-mode-frequency = <3200000>;
+					qcom,force-mode = <3>;
 				};
 
 				pm8921_s7: s7 {
@@ -155,15 +140,15 @@
 			
         		port {
 				lvds_out: endpoint {
-					remote-endpoint = <&auo_in>;
+					remote-endpoint = <&data_image_in>;
 				};
 			}; 
 		};
 
 		panel_3p3v: panel_3p3v {
-			compatible = "regulator-fixed";
-			pinctrl-0 = <&disp_en_gpios>;
+			pinctrl-0 = <&pwm_en_gpios>;
 			pinctrl-names = "default";
+			compatible = "regulator-fixed";
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
 			regulator-name = "panel_en_3p3v";
@@ -182,19 +167,28 @@
 			default-on;
 		};
 
-		panel: auo,b101xtn01 {
-			status = "okay";
-			compatible = "auo,b101xtn01";
-
-			ddc-i2c-bus = <&i2c3>;
-			backlight = <&backlight>;
-			power-supply = <&panel_3p3v>;
-			port {
-                		auo_in: endpoint {
-                    			remote-endpoint = <&lvds_out>;
-                		};
-            		};
+		levelshifter: levelshifter{
+			pinctrl-0 = <&pwm_bl_gpios>;
+			pinctrl-names = "default";
+			compatible = "gpio-backlight";
+			gpios = <&tlmm_pinmux 85 GPIO_ACTIVE_HIGH>;
+			startup-delay-us = <2000>;
+			default-on;
 		};
+
+		panel: data_image,scf0700C48ggu21 {
+            status = "okay";
+            compatible = "data_image,scf0700C48ggu21";
+
+            ddc-i2c-bus = <&i2c3>;
+            backlight = <&backlight>;
+            power-supply = <&panel_3p3v>;
+            port {
+                        data_image_in: endpoint {
+                                remote-endpoint = <&lvds_out>;
+                        };
+                    };
+        };
 
 		gsbi3: gsbi@16200000 {
 			status = "okay";
@@ -323,32 +317,33 @@
 			led@1 {
 				label = "apq8064:green:user1";
 				gpios = <&pm8921_gpio 18 GPIO_ACTIVE_HIGH>;
+				linux,default-trigger = "heartbeat";
 				default-state = "on";
 			};
 		};
 
 		qcom,ssbi@500000 {
-			pmic@0 {
-				gpio@150 {
+			pmicintc: pmic@0 {
+				pm8921_gpio: gpio@150 {
 					pinctrl-names = "default";
-					pinctrl-0 = <&wlan_default_gpios>;
+					pinctrl-0 = <&wlan_default_gpios &bt_gpios>;
 
 					pwm_bl_gpios: pwm-bl-gpios {
 						pios {
 							pins = "gpio26";
 							bias-disable;
 							function = "normal";
-							qcom,drive-strength = <PMIC_GPIO_STRENGTH_HIGH>;
+							qcom,drive-strength = <1>;
 							power-source = <PM8921_GPIO_S4>;
 						};
 					};
 
-					disp_en_gpios: disp-en-gpios {
+					pwm_en_gpios: pwm-en-gpios {
 						pios {
 							pins = "gpio36";
 							bias-disable;
 							function = "normal";
-							qcom,drive-strength = <PMIC_GPIO_STRENGTH_HIGH>;
+							qcom,drive-strength = <1>;
 							power-source = <PM8921_GPIO_S4>;
 						};
 					};
@@ -381,6 +376,11 @@
 					};
 				};
 			};
+		};
+		sdcc4_pwrseq:pwrseq {
+			compatible = "mmc-pwrseq-simple";
+			reset-gpios = <&pm8921_gpio 43 GPIO_ACTIVE_LOW>,
+				      <&pm8921_gpio 44 GPIO_ACTIVE_LOW>;
 		};
 
 		amba {
