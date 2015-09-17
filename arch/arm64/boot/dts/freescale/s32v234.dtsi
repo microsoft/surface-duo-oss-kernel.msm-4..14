@@ -7,6 +7,7 @@
  * (at your option) any later version.
  */
 #include <dt-bindings/clock/s32v234-clock.h>
+#include <dt-bindings/pinctrl/s32v234-pinctrl.h>
 
  / {
 	compatible = "fsl,s32v234", "arm,vexpress,v2p-aarch64", "arm,vexpress";
@@ -122,9 +123,9 @@
 				status = "disabled";
 			};
 
-			siul2: siul2@4006C000 {
+			siul2: siul@4006C000 {
 				compatible = "fsl,s32v234-siul2";
-				reg = <0x0 0x4006C000 0x0 0x1000>;
+				reg = <0x0 0x4006C000 0x0 0x1794>;
 				status = "disabled";
 			};
 
@@ -153,7 +154,6 @@
 				if VDDSOC share with VDDPU */
 				pu-supply = <&pu_dummy>;
 			};
-
 			fec: ethernet@40032000 {
 				compatible = "fsl,s32v234-fec";
 				reg = <0x0 0x40032000 0x0 0x1000>;

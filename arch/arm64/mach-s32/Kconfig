@@ -1,12 +1,10 @@
 menuconfig ARCH_S32
 	bool "Freescale S32 family" if ARCH_VEXPRESS
+	select PINCTRL
 	help
 	  Support for Freescale S32 family of processors
 
 if ARCH_S32
-
-config ARCH_S32_IOMUX
-	bool "Enable S32 IOMUX"
 
 config ARCH_S32_CLK
 	bool "Enable S32 CLK Framework"
