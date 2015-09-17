@@ -1,3 +1,10 @@
 #
 # MMC core configuration
 #
+config PWRSEQ_EMMC
+	tristate "PwrSeq EMMC"
+	depends on OF
+
+config PWRSEQ_SIMPLE
+	tristate "PwrSeq Simple"
+	depends on OF
