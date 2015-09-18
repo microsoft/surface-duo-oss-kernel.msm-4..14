@@ -348,9 +348,7 @@ struct cgroup_subsys_state *mem_cgroup_css_from_page(struct page *page);
 
 static inline bool mem_cgroup_disabled(void)
 {
-	if (memory_cgrp_subsys.disabled)
-		return true;
-	return false;
+	return !cgroup_subsys_enabled(memory_cgrp_subsys);
 }
 
 /*
