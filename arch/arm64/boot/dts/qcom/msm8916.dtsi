@@ -57,6 +57,11 @@
 			no-map;
 		};
 
+                modem_adsp_mem: modem_adsp_region@86400000 {
+                        no-map;
+                        reg = <0x0 0x86400000 0x0 0x05200000>;
+                };
+
                 peripheral_mem: peripheral_region@8b600000 {
                         no-map;
                         reg = <0x0 0x8b600000 0x0 0x0600000>;
