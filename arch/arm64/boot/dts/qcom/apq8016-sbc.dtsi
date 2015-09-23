@@ -189,7 +189,15 @@
 	pinctrl-0 = <&usb_sw_sel_pm_default>;
 };
 
+&blsp_i2c0 {
+	status = "ok";
+};
+
 &blsp_i2c4 {
+	status = "ok";
+};
+
+&blsp_i2c6 {
 	status = "ok";
 };
 
