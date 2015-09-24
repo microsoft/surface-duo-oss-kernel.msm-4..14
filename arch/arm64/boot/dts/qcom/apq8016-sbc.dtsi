@@ -218,6 +218,10 @@
 	pinctrl-0 = <&usb_sw_sel_pm>;
 };
 
+&blsp_i2c0 {
+	status = "okay";
+};
+
 &blsp_i2c4 {
 	status = "ok";
 
@@ -241,6 +245,10 @@
 		};
 
 	};
+};
+
+&blsp_i2c6 {
+	status = "okay";
 };
 
 &mdss_dsi0 {
