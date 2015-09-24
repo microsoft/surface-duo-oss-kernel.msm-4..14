@@ -61,7 +61,7 @@
 			no-map;
 		};
 
-                modem_adsp_mem: modem_adsp_region@86400000 {
+                hypervisor_mem: hypervisor_region@86400000 {
                         no-map;
                         reg = <0x0 0x86400000 0x0 0x05200000>;
                 };
