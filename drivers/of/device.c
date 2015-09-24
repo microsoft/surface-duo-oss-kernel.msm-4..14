@@ -70,7 +70,7 @@ int of_device_add(struct platform_device *ofdev)
 }
 
 /**
- * of_dma_configure - Setup DMA configuration
+ * of_dma_configure - Setup DMA masks and offset
  * @dev:	Device to apply DMA configuration
  * @np:		Pointer to OF node having DMA configuration
  *
@@ -81,13 +81,11 @@ int of_device_add(struct platform_device *ofdev)
  * can use a platform bus notifier and handle BUS_NOTIFY_ADD_DEVICE events
  * to fix up DMA configuration.
  */
-void of_dma_configure(struct device *dev, struct device_node *np)
+void of_dma_configure_masks(struct device *dev, struct device_node *np)
 {
-	u64 dma_addr, paddr, size;
-	int ret;
-	bool coherent;
+	u64 dma_addr, paddr, size, range_mask;
 	unsigned long offset;
-	struct iommu_ops *iommu;
+	int ret;
 
 	/*
 	 * Set default coherent_dma_mask to 32 bit.  Drivers are expected to
@@ -105,25 +103,11 @@ void of_dma_configure(struct device *dev, struct device_node *np)
 
 	ret = of_dma_get_range(np, &dma_addr, &paddr, &size);
 	if (ret < 0) {
-		dma_addr = offset = 0;
-		size = dev->coherent_dma_mask + 1;
+		range_mask = dev->coherent_dma_mask + 1;
+		offset = 0;
 	} else {
+		range_mask = DMA_BIT_MASK(ilog2(dma_addr + size));
 		offset = PFN_DOWN(paddr - dma_addr);
-
-		/*
-		 * Add a work around to treat the size as mask + 1 in case
-		 * it is defined in DT as a mask.
-		 */
-		if (size & 1) {
-			dev_warn(dev, "Invalid size 0x%llx for dma-range\n",
-				 size);
-			size = size + 1;
-		}
-
-		if (!size) {
-			dev_err(dev, "Adjusted size 0x%llx invalid\n", size);
-			return;
-		}
 		dev_dbg(dev, "dma_pfn_offset(%#08lx)\n", offset);
 	}
 
@@ -133,22 +117,59 @@ void of_dma_configure(struct device *dev, struct device_node *np)
 	 * Limit coherent and dma mask based on size and default mask
 	 * set by the driver.
 	 */
-	dev->coherent_dma_mask = min(dev->coherent_dma_mask,
-				     DMA_BIT_MASK(ilog2(dma_addr + size)));
-	*dev->dma_mask = min((*dev->dma_mask),
-			     DMA_BIT_MASK(ilog2(dma_addr + size)));
+	dev->coherent_dma_mask = min(dev->coherent_dma_mask, range_mask);
+	*dev->dma_mask = min((*dev->dma_mask), range_mask);
+}
+EXPORT_SYMBOL_GPL(of_dma_configure_masks);
+
+/**
+ * of_dma_configure_ops - Setup DMA operations
+ * @dev:	Device to apply DMA configuration
+ * @np:		Pointer to OF node having DMA configuration
+ *
+ * Try to get devices's DMA configuration from DT and update it
+ * accordingly.
+ */
+int of_dma_configure_ops(struct device *dev, struct device_node *np)
+{
+	u64 dma_addr, paddr, size;
+	struct iommu_ops *iommu;
+	bool coherent;
+	int ret;
+
+	ret = of_dma_get_range(np, &dma_addr, &paddr, &size);
+	if (ret < 0) {
+		dma_addr = 0;
+		size = dev->coherent_dma_mask + 1;
+	}
 
 	coherent = of_dma_is_coherent(np);
 	dev_dbg(dev, "device is%sdma coherent\n",
 		coherent ? " " : " not ");
 
 	iommu = of_iommu_configure(dev, np);
+	if (IS_ERR(iommu))
+		return PTR_ERR(iommu);
 	dev_dbg(dev, "device is%sbehind an iommu\n",
 		iommu ? " " : " not ");
 
 	arch_setup_dma_ops(dev, dma_addr, size, iommu, coherent);
+
+	return 0;
 }
-EXPORT_SYMBOL_GPL(of_dma_configure);
+EXPORT_SYMBOL_GPL(of_dma_configure_ops);
+
+/**
+ * of_dma_deconfigure - Clean up DMA configuration
+ * @dev:	Device for which to clean up DMA configuration
+ *
+ * Clean up all configuration performed by of_dma_configure_ops() and free all
+ * resources that have been allocated.
+ */
+void of_dma_deconfigure(struct device *dev)
+{
+	arch_teardown_dma_ops(dev);
+}
 
 int of_device_register(struct platform_device *pdev)
 {
