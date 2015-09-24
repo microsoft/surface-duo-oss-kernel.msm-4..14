@@ -207,7 +207,8 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
  * account when setting it.
  */
 #if defined(CONFIG_M523x) || defined(CONFIG_M527x) || defined(CONFIG_M528x) || \
-    defined(CONFIG_M520x) || defined(CONFIG_M532x) || defined(CONFIG_ARM)
+	defined(CONFIG_M520x) || defined(CONFIG_M532x) || \
+	defined(CONFIG_ARM) || defined(CONFIG_ARM64)
 #define	OPT_FRAME_SIZE	(PKT_MAXBUF_SIZE << 16)
 #else
 #define	OPT_FRAME_SIZE	0
@@ -3135,7 +3136,7 @@ static int fec_enet_init(struct net_device *ndev)
 	unsigned dsize_log2 = __fls(dsize);
 
 	WARN_ON(dsize != (1 << dsize_log2));
-#if defined(CONFIG_ARM)
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
 	fep->rx_align = 0xf;
 	fep->tx_align = 0xf;
 #else
