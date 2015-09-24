@@ -291,11 +291,7 @@ static int smp2p_irq_map(struct irq_domain *d,
 	irq_set_chip_data(irq, entry);
 	irq_set_nested_thread(irq, 1);
 
-#if defined(CONFIG_ARM64) || defined(CONFIG_ARM)
-	set_irq_flags(irq, IRQF_VALID);
-#else
-	irq_set_noprobe(virq);
-#endif
+	irq_set_noprobe(irq);
 
 	return 0;
 }
