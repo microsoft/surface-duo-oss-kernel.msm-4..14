@@ -46,7 +46,21 @@
 	};
 };
 &fec {
+	phy-mode = "rgmii";
+	phydev = <&phy1>;
 	status = "okay";
+	mdio {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		/*
+		phy0: ethernet-phy@1 {
+			reg = <1>;
+		};
+		*/
+		phy1: ethernet-phy@7 {
+			reg = <7>;
+		};
+	};
 };
 &i2c0 {
 	status = "okay";
