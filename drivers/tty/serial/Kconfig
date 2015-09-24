@@ -1047,6 +1047,14 @@ config SERIAL_MSM
 	depends on ARCH_QCOM
 	select SERIAL_CORE
 
+config SERIAL_MSM_SMD
+        bool "Enable tty device interface for some SMD ports"
+        default n
+        depends on ARCH_QCOM && QCOM_SMD
+        help
+          Enables userspace clients to read and write to some streaming SMD
+          ports via tty device interface for MSM chipset.
+
 config SERIAL_MSM_CONSOLE
 	bool "MSM serial console support"
 	depends on SERIAL_MSM=y
