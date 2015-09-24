@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2014-2015, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
  * License version 2, as published by the Free Software Foundation, and
@@ -26,6 +26,7 @@
 #include "clk-rcg.h"
 #include "clk-branch.h"
 #include "reset.h"
+#include "gdsc.h"
 
 enum {
 	P_XO,
@@ -571,17 +572,11 @@ static struct clk_rcg2 jpeg2_clk_src = {
 	},
 };
 
-static struct freq_tbl pixel_freq_tbl[] = {
-	{ .src = P_DSI0PLL },
-	{ }
-};
-
 static struct clk_rcg2 pclk0_clk_src = {
 	.cmd_rcgr = 0x2000,
 	.mnd_width = 8,
 	.hid_width = 5,
 	.parent_map = mmcc_xo_dsi_hdmi_edp_gpll0_map,
-	.freq_tbl = pixel_freq_tbl,
 	.clkr.hw.init = &(struct clk_init_data){
 		.name = "pclk0_clk_src",
 		.parent_names = mmcc_xo_dsi_hdmi_edp_gpll0,
@@ -596,7 +591,6 @@ static struct clk_rcg2 pclk1_clk_src = {
 	.mnd_width = 8,
 	.hid_width = 5,
 	.parent_map = mmcc_xo_dsi_hdmi_edp_gpll0_map,
-	.freq_tbl = pixel_freq_tbl,
 	.clkr.hw.init = &(struct clk_init_data){
 		.name = "pclk1_clk_src",
 		.parent_names = mmcc_xo_dsi_hdmi_edp_gpll0,
@@ -844,21 +838,15 @@ static struct clk_rcg2 cpp_clk_src = {
 	},
 };
 
-static struct freq_tbl byte_freq_tbl[] = {
-	{ .src = P_DSI0PLL_BYTE },
-	{ }
-};
-
 static struct clk_rcg2 byte0_clk_src = {
 	.cmd_rcgr = 0x2120,
 	.hid_width = 5,
 	.parent_map = mmcc_xo_dsibyte_hdmi_edp_gpll0_map,
-	.freq_tbl = byte_freq_tbl,
 	.clkr.hw.init = &(struct clk_init_data){
 		.name = "byte0_clk_src",
 		.parent_names = mmcc_xo_dsibyte_hdmi_edp_gpll0,
 		.num_parents = 6,
-		.ops = &clk_byte_ops,
+		.ops = &clk_byte2_ops,
 		.flags = CLK_SET_RATE_PARENT,
 	},
 };
@@ -867,12 +855,11 @@ static struct clk_rcg2 byte1_clk_src = {
 	.cmd_rcgr = 0x2140,
 	.hid_width = 5,
 	.parent_map = mmcc_xo_dsibyte_hdmi_edp_gpll0_map,
-	.freq_tbl = byte_freq_tbl,
 	.clkr.hw.init = &(struct clk_init_data){
 		.name = "byte1_clk_src",
 		.parent_names = mmcc_xo_dsibyte_hdmi_edp_gpll0,
 		.num_parents = 6,
-		.ops = &clk_byte_ops,
+		.ops = &clk_byte2_ops,
 		.flags = CLK_SET_RATE_PARENT,
 	},
 };
@@ -3077,6 +3064,48 @@ static const struct pll_config mmpll3_config = {
 	.aux_output_mask = BIT(1),
 };
 
+static struct gdsc venus0_gdsc = {
+	.gdscr = 0x1024,
+	.pd = {
+		.name = "venus0",
+	},
+};
+
+static struct gdsc mdss_gdsc = {
+	.gdscr = 0x2304,
+	.pd = {
+		.name = "mdss",
+	},
+};
+
+static struct gdsc camss_jpeg_gdsc = {
+	.gdscr = 0x35a4,
+	.pd = {
+		.name = "camss_jpeg",
+	},
+};
+
+static struct gdsc camss_vfe_gdsc = {
+	.gdscr = 0x36a4,
+	.pd = {
+		.name = "camss_vfe",
+	},
+};
+
+static struct gdsc oxili_gdsc = {
+	.gdscr = 0x4024,
+	.pd = {
+		.name = "oxili",
+	},
+};
+
+static struct gdsc oxilicx_gdsc = {
+	.gdscr = 0x4034,
+	.pd = {
+		.name = "oxilicx",
+	},
+};
+
 static struct clk_regmap *mmcc_apq8084_clocks[] = {
 	[MMSS_AHB_CLK_SRC] = &mmss_ahb_clk_src.clkr,
 	[MMSS_AXI_CLK_SRC] = &mmss_axi_clk_src.clkr,
@@ -3294,6 +3323,15 @@ static const struct qcom_reset_map mmcc_apq8084_resets[] = {
 	[MMSSNOCAXI_RESET] = { 0x5060 },
 };
 
+static struct gdsc *mmcc_apq8084_gdscs[] = {
+	[VENUS0_GDSC] = &venus0_gdsc,
+	[MDSS_GDSC] = &mdss_gdsc,
+	[CAMSS_JPEG_GDSC] = &camss_jpeg_gdsc,
+	[CAMSS_VFE_GDSC] = &camss_vfe_gdsc,
+	[OXILI_GDSC] = &oxili_gdsc,
+	[OXILICX_GDSC] = &oxilicx_gdsc,
+};
+
 static const struct regmap_config mmcc_apq8084_regmap_config = {
 	.reg_bits	= 32,
 	.reg_stride	= 4,
@@ -3308,6 +3346,8 @@ static const struct qcom_cc_desc mmcc_apq8084_desc = {
 	.num_clks = ARRAY_SIZE(mmcc_apq8084_clocks),
 	.resets = mmcc_apq8084_resets,
 	.num_resets = ARRAY_SIZE(mmcc_apq8084_resets),
+	.gdscs = mmcc_apq8084_gdscs,
+	.num_gdscs = ARRAY_SIZE(mmcc_apq8084_gdscs),
 };
 
 static const struct of_device_id mmcc_apq8084_match_table[] = {
