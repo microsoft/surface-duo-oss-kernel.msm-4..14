@@ -48,14 +48,20 @@
 		#size-cells = <2>;
 		ranges;
 
-		stuff: stuff@0x86000000 {	/* fill in the gap */
+		reserve_aligned@86000000 {
 			reg = <0x0 0x86000000 0x0 0x0300000>;
 			no-map;
 		};
+
 		smem_mem: smem_region@86300000 {
 			reg = <0x0 0x86300000 0x0 0x0100000>;
 			no-map;
 		};
+
+                hypervisor_mem: hypervisor_region@86400000 {
+                        no-map;
+                        reg = <0x0 0x86400000 0x0 0x0400000>;
+                };
 
                 peripheral_mem: peripheral_region@8b600000 {
                         no-map;
