@@ -459,4 +459,12 @@ config CRYPTO_DEV_IMGTEC_HASH
 	  hardware hash accelerator. Supporting MD5/SHA1/SHA224/SHA256
 	  hashing algorithms.
 
+config CRYPTO_DEV_FSL_CSE3
+	tristate "Freescale CSE3 driver backend"
+	depends on SOC_S32V234
+	help
+	 Enables the driver module for Freescale's CSE3
+	 To compile this driver as a module, choose M here: the module
+	 will be called cse3.
+
 endif # CRYPTO_HW
