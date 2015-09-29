@@ -420,7 +420,9 @@ static void msm_complete_rx_dma(void *args)
 		if (!(port->read_status_mask & UART_SR_RX_BREAK))
 			flag = TTY_NORMAL;
 
+		spin_unlock_irqrestore(&port->lock, flags);
 		sysrq = uart_handle_sysrq_char(port, dma->virt[i]);
+		spin_lock_irqsave(&port->lock, flags);
 		if (!sysrq)
 			tty_insert_flip_char(tport, dma->virt[i], flag);
 	}
