@@ -220,6 +220,7 @@
 				interrupts = <0 59 4>;
 				clocks = <&clks S32V234_CLK_LIN>;
 				clock-names = "lin";
+				status = "disabled";
 			};
 
 			usdhc0: usdhc@4005D000 {
