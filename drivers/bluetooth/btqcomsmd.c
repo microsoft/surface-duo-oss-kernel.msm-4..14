@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2016, Linaro Ltd.
  * Copyright (c) 2015, Sony Mobile Communications Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -14,56 +15,55 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/soc/qcom/smd.h>
+#include <linux/soc/qcom/wcnss_ctrl.h>
+#include <linux/platform_device.h>
 #include <net/bluetooth/bluetooth.h>
 #include <net/bluetooth/hci_core.h>
 #include <net/bluetooth/hci.h>
-
-#define EDL_NVM_ACCESS_SET_REQ_CMD	0x01
-#define EDL_NVM_ACCESS_OPCODE		0xfc0b
+#include "btqca.h"
 
 struct btqcomsmd {
+	struct hci_dev *hdev;
+
 	struct qcom_smd_channel *acl_channel;
 	struct qcom_smd_channel *cmd_channel;
 };
 
-static int btqcomsmd_recv(struct hci_dev *hdev,
-			  unsigned type,
-			  const void *data,
+static int btqcomsmd_recv(struct hci_dev *hdev, unsigned type, const void *data,
 			  size_t count)
 {
 	struct sk_buff *skb;
-	void *buf;
 
 	/* Use GFP_ATOMIC as we're in IRQ context */
 	skb = bt_skb_alloc(count, GFP_ATOMIC);
-	if (!skb)
+	if (!skb) {
+		hdev->stat.err_rx++;
 		return -ENOMEM;
+	}
 
 	bt_cb(skb)->pkt_type = type;
-
-	/* Use io accessor as data might be ioremapped */
-	buf = skb_put(skb, count);
-	memcpy_fromio(buf, data, count);
+	memcpy(skb_put(skb, count), data, count);
 
 	return hci_recv_frame(hdev, skb);
 }
 
-static int btqcomsmd_acl_callback(struct qcom_smd_device *qsdev,
+static int btqcomsmd_acl_callback(struct qcom_smd_channel *channel,
 				  const void *data,
 				  size_t count)
 {
-	struct hci_dev *hdev = dev_get_drvdata(&qsdev->dev);
+	struct btqcomsmd *btq = qcom_smd_get_drvdata(channel);
 
-	return btqcomsmd_recv(hdev, HCI_ACLDATA_PKT, data, count);
+	btq->hdev->stat.byte_rx += count;
+	return btqcomsmd_recv(btq->hdev, HCI_ACLDATA_PKT, data, count);
 }
 
-static int btqcomsmd_cmd_callback(struct qcom_smd_device *qsdev,
+static int btqcomsmd_cmd_callback(struct qcom_smd_channel *channel,
 				  const void *data,
 				  size_t count)
 {
-	struct hci_dev *hdev = dev_get_drvdata(&qsdev->dev);
+	struct btqcomsmd *btq = qcom_smd_get_drvdata(channel);
 
-	return btqcomsmd_recv(hdev, HCI_EVENT_PKT, data, count);
+	return btqcomsmd_recv(btq->hdev, HCI_EVENT_PKT, data, count);
 }
 
 static int btqcomsmd_send(struct hci_dev *hdev, struct sk_buff *skb)
@@ -73,14 +73,16 @@ static int btqcomsmd_send(struct hci_dev *hdev, struct sk_buff *skb)
 
 	switch (bt_cb(skb)->pkt_type) {
 	case HCI_ACLDATA_PKT:
-	case HCI_SCODATA_PKT:
 		ret = qcom_smd_send(btq->acl_channel, skb->data, skb->len);
+		hdev->stat.acl_tx++;
+		hdev->stat.byte_tx += skb->len;
 		break;
 	case HCI_COMMAND_PKT:
 		ret = qcom_smd_send(btq->cmd_channel, skb->data, skb->len);
+		hdev->stat.cmd_tx++;
 		break;
 	default:
-		ret = -ENODEV;
+		ret = -EILSEQ;
 		break;
 	}
 
@@ -89,72 +91,53 @@ static int btqcomsmd_send(struct hci_dev *hdev, struct sk_buff *skb)
 
 static int btqcomsmd_open(struct hci_dev *hdev)
 {
-	set_bit(HCI_RUNNING, &hdev->flags);
 	return 0;
 }
 
 static int btqcomsmd_close(struct hci_dev *hdev)
 {
-	clear_bit(HCI_RUNNING, &hdev->flags);
 	return 0;
 }
 
-static int btqcomsmd_set_bdaddr(struct hci_dev *hdev,
-			      const bdaddr_t *bdaddr)
+static int btqcomsmd_probe(struct platform_device *pdev)
 {
-	struct sk_buff *skb;
-	u8 cmd[9];
-	int err;
-
-	cmd[0] = EDL_NVM_ACCESS_SET_REQ_CMD;
-	cmd[1] = 0x02;			/* TAG ID */
-	cmd[2] = sizeof(bdaddr_t);	/* size */
-	memcpy(cmd + 3, bdaddr, sizeof(bdaddr_t));
-	skb = __hci_cmd_sync_ev(hdev,
-				EDL_NVM_ACCESS_OPCODE,
-				sizeof(cmd), cmd,
-				HCI_VENDOR_PKT, HCI_INIT_TIMEOUT);
-	if (IS_ERR(skb)) {
-		err = PTR_ERR(skb);
-		BT_ERR("%s: Change address command failed (%d)",
-		       hdev->name, err);
-		return err;
-	}
-
-	kfree_skb(skb);
-
-	return 0;
-}
-
-static int btqcomsmd_probe(struct qcom_smd_device *sdev)
-{
-	struct qcom_smd_channel *acl;
 	struct btqcomsmd *btq;
 	struct hci_dev *hdev;
+	void *wcnss;
 	int ret;
 
-	acl = qcom_smd_open_channel(sdev,
-				    "APPS_RIVA_BT_ACL",
-				    btqcomsmd_acl_callback);
-	if (IS_ERR(acl))
-		return PTR_ERR(acl);
-
-	btq = devm_kzalloc(&sdev->dev, sizeof(*btq), GFP_KERNEL);
+	btq = devm_kzalloc(&pdev->dev, sizeof(*btq), GFP_KERNEL);
 	if (!btq)
 		return -ENOMEM;
 
-	btq->acl_channel = acl;
-	btq->cmd_channel = sdev->channel;
+	wcnss = dev_get_drvdata(pdev->dev.parent);
+
+	btq->acl_channel = qcom_wcnss_open_channel(wcnss, "APPS_RIVA_BT_ACL",
+						   btqcomsmd_acl_callback);
+	if (IS_ERR(btq->acl_channel))
+		return PTR_ERR(btq->acl_channel);
+
+	btq->cmd_channel = qcom_wcnss_open_channel(wcnss, "APPS_RIVA_BT_CMD",
+						   btqcomsmd_cmd_callback);
+	if (IS_ERR(btq->cmd_channel))
+		return PTR_ERR(btq->cmd_channel);
+
+	qcom_smd_set_drvdata(btq->acl_channel, btq);
+	qcom_smd_set_drvdata(btq->cmd_channel, btq);
 
 	hdev = hci_alloc_dev();
 	if (!hdev)
 		return -ENOMEM;
 
+	hci_set_drvdata(hdev, btq);
+	btq->hdev = hdev;
+	SET_HCIDEV_DEV(hdev, &pdev->dev);
+
 	hdev->bus = HCI_SMD;
 	hdev->open = btqcomsmd_open;
 	hdev->close = btqcomsmd_close;
 	hdev->send = btqcomsmd_send;
-	hdev->set_bdaddr = btqcomsmd_set_bdaddr;
+	hdev->set_bdaddr = qca_set_bdaddr_rome;
 
 	ret = hci_register_dev(hdev);
 	if (ret < 0) {
@@ -162,37 +145,37 @@ static int btqcomsmd_probe(struct qcom_smd_device *sdev)
 		return ret;
 	}
 
-	hci_set_drvdata(hdev, btq);
-	dev_set_drvdata(&sdev->dev, hdev);
+	platform_set_drvdata(pdev, btq);
 
 	return 0;
 }
 
-static void btqcomsmd_remove(struct qcom_smd_device *sdev)
+static int btqcomsmd_remove(struct platform_device *pdev)
 {
-	struct hci_dev *hdev = dev_get_drvdata(&sdev->dev);;
+	struct btqcomsmd *btq = platform_get_drvdata(pdev);
 
-	hci_unregister_dev(hdev);
-	hci_free_dev(hdev);
+	hci_unregister_dev(btq->hdev);
+	hci_free_dev(btq->hdev);
+
+	return 0;
 }
 
-static const struct qcom_smd_id btqcomsmd_match[] = {
-	{ .name = "APPS_RIVA_BT_CMD" },
-	{}
+static const struct of_device_id btqcomsmd_of_match[] = {
+	{ .compatible = "qcom,btqcomsmd", },
+	{ },
 };
 
-static struct qcom_smd_driver btqcomsmd_cmd_driver = {
+static struct platform_driver btqcomsmd_driver = {
 	.probe = btqcomsmd_probe,
 	.remove = btqcomsmd_remove,
-	.callback = btqcomsmd_cmd_callback,
-	.smd_match_table = btqcomsmd_match,
 	.driver  = {
 		.name  = "btqcomsmd",
-		.owner = THIS_MODULE,
+		.of_match_table = btqcomsmd_of_match,
 	},
 };
 
-module_qcom_smd_driver(btqcomsmd_cmd_driver);
+module_platform_driver(btqcomsmd_driver);
 
+MODULE_AUTHOR("Bjorn Andersson <bjorn.andersson@sonymobile.com>");
 MODULE_DESCRIPTION("Qualcomm SMD HCI driver");
 MODULE_LICENSE("GPL v2");
