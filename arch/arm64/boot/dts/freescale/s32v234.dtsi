@@ -85,6 +85,7 @@
 			     <1 14 0xf08>,
 			     <1 11 0xf08>,
 			     <1 10 0xf08>;
+		clock-frequency = <12000000>;
 	};
 
 	pu_dummy: pudummy_reg {
