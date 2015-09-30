@@ -80,6 +80,9 @@
 &uart0 {
 	status = "okay";
 };
+&uart1 {
+	status = "okay";
+};
 &usdhc0 {
 	no-1-8-V;
 	status = "okay";
