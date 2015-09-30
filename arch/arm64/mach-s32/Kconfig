@@ -36,6 +36,10 @@ menu "S32V234 execution target"
 
 	config S32V234_SIMULATOR
 		bool "S32V234 Synopsis Simulator"
+
+	config S32V234_TMDP
+		bool "S32V234 tmdp"
+
 endmenu
 endif
 
