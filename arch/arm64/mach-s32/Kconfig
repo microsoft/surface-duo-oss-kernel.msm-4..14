@@ -20,11 +20,19 @@ endmenu
 
 if SOC_S32V234
 menu "S32V234 execution target"
+
 	config S32V234_EVB
 		bool "S32V234 evb"
 
 	config S32V234_PALLADIUM
 		bool "S32V234 Palladium"
+
+	config S32V234_PCIE
+		bool "S32V234 pcie"
+		help
+			S32V234 pcie is a derivate of S32V234 platform which
+			is designed to be connected to master board via PCI
+			Express.
 
 	config S32V234_SIMULATOR
 		bool "S32V234 Synopsis Simulator"

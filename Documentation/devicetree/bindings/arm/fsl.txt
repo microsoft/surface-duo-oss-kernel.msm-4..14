@@ -142,3 +142,7 @@ Required root node properties:
 S32V234 TMDP board (aka Delphi board)
 Required root node properties:
     - compatible = "fsl,s32v234-tmdp", "fsl,s32v234";
+
+S32V234 PCIE board
+Required root node properties:
+    - compatible = "fsl,s32v234-pcie", "fsl,s32v234";
