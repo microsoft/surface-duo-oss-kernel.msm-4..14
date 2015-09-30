@@ -146,7 +146,7 @@
 
 #define DRIVER_NAME	"fsl-linflexuart"
 #define DEV_NAME	"ttyLF"
-#define UART_NR		1
+#define UART_NR		2
 
 #define prd_info(a)	;//pr_info(a);
 

@@ -16,6 +16,7 @@
 
 	aliases {
 		serial0 = &uart0;
+		serial1 = &uart1;
 	};
 
 	cpus {
@@ -278,6 +279,14 @@
 			dma-names = "rx","tx";
 			*/
 			status = "disabled";
+		};
+		uart1:serial@400bc000 {
+				compatible = "fsl,s32v234-linflexuart";
+				reg = <0x0 0x400bc000 0x0 0x1000>;
+				interrupts = <0 60 4>;
+				clocks = <&clks S32V234_CLK_LIN>;
+				clock-names = "lin";
+				status = "disabled";
 		};
 	};
 	pcie: pcie@0x72000000 {
