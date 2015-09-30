@@ -112,12 +112,14 @@
 #include <net/raw.h>
 #include <net/icmp.h>
 #include <net/inet_common.h>
+#include <net/ip_tunnels.h>
 #include <net/xfrm.h>
 #include <net/net_namespace.h>
 #include <net/secure_seq.h>
 #ifdef CONFIG_IP_MROUTE
 #include <linux/mroute.h>
 #endif
+#include <net/vrf.h>
 
 #ifdef CONFIG_ANDROID_PARANOID_NETWORK
 #include <linux/android_aid.h>
@@ -441,6 +443,7 @@ int inet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 	struct net *net = sock_net(sk);
 	unsigned short snum;
 	int chk_addr_ret;
+	u32 tb_id = RT_TABLE_LOCAL;
 	int err;
 
 	/* If the socket has its own bind function then use it. (RAW) */
@@ -462,7 +465,8 @@ int inet_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len)
 			goto out;
 	}
 
-	chk_addr_ret = inet_addr_type(net, addr->sin_addr.s_addr);
+	tb_id = vrf_dev_table_ifindex(net, sk->sk_bound_dev_if) ? : tb_id;
+	chk_addr_ret = inet_addr_type_table(net, addr->sin_addr.s_addr, tb_id);
 
 	/* Not specified by any standard per-se, however it breaks too
 	 * many applications when removed.  It is unfortunate since
@@ -1464,18 +1468,43 @@ int inet_ctl_sock_create(struct sock **sk, unsigned short family,
 }
 EXPORT_SYMBOL_GPL(inet_ctl_sock_create);
 
+u64 snmp_get_cpu_field(void __percpu *mib, int cpu, int offt)
+{
+	return  *(((unsigned long *)per_cpu_ptr(mib, cpu)) + offt);
+}
+EXPORT_SYMBOL_GPL(snmp_get_cpu_field);
+
 unsigned long snmp_fold_field(void __percpu *mib, int offt)
 {
 	unsigned long res = 0;
 	int i;
 
 	for_each_possible_cpu(i)
-		res += *(((unsigned long *) per_cpu_ptr(mib, i)) + offt);
+		res += snmp_get_cpu_field(mib, i, offt);
 	return res;
 }
 EXPORT_SYMBOL_GPL(snmp_fold_field);
 
 #if BITS_PER_LONG==32
+
+u64 snmp_get_cpu_field64(void __percpu *mib, int cpu, int offt,
+			 size_t syncp_offset)
+{
+	void *bhptr;
+	struct u64_stats_sync *syncp;
+	u64 v;
+	unsigned int start;
+
+	bhptr = per_cpu_ptr(mib, cpu);
+	syncp = (struct u64_stats_sync *)(bhptr + syncp_offset);
+	do {
+		start = u64_stats_fetch_begin_irq(syncp);
+		v = *(((u64 *)bhptr) + offt);
+	} while (u64_stats_fetch_retry_irq(syncp, start));
+
+	return v;
+}
+EXPORT_SYMBOL_GPL(snmp_get_cpu_field64);
 
 u64 snmp_fold_field64(void __percpu *mib, int offt, size_t syncp_offset)
 {
@@ -1483,19 +1512,7 @@ u64 snmp_fold_field64(void __percpu *mib, int offt, size_t syncp_offset)
 	int cpu;
 
 	for_each_possible_cpu(cpu) {
-		void *bhptr;
-		struct u64_stats_sync *syncp;
-		u64 v;
-		unsigned int start;
-
-		bhptr = per_cpu_ptr(mib, cpu);
-		syncp = (struct u64_stats_sync *)(bhptr + syncp_offset);
-		do {
-			start = u64_stats_fetch_begin_irq(syncp);
-			v = *(((u64 *) bhptr) + offt);
-		} while (u64_stats_fetch_retry_irq(syncp, start));
-
-		res += v;
+		res += snmp_get_cpu_field64(mib, cpu, offt, syncp_offset);
 	}
 	return res;
 }
@@ -1795,6 +1812,8 @@ static int __init inet_init(void)
 	ipfrag_init();
 
 	dev_add_pack(&ip_packet_type);
+
+	ip_tunnel_core_init();
 
 	rc = 0;
 out:

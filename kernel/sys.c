@@ -1671,8 +1671,7 @@ static int prctl_set_mm_exe_file(struct mm_struct *mm, unsigned int fd)
 	 * overall picture.
 	 */
 	err = -EACCES;
-	if (!S_ISREG(inode->i_mode)	||
-	    exe.file->f_path.mnt->mnt_flags & MNT_NOEXEC)
+	if (!S_ISREG(inode->i_mode) || path_noexec(&exe.file->f_path))
 		goto exit;
 
 	err = inode_permission(inode, MAY_EXEC);
@@ -2094,7 +2093,7 @@ static int prctl_update_vma_anon_name(struct vm_area_struct *vma,
 	pgoff = vma->vm_pgoff + ((start - vma->vm_start) >> PAGE_SHIFT);
 	*prev = vma_merge(mm, *prev, start, end, vma->vm_flags, vma->anon_vma,
 				vma->vm_file, pgoff, vma_policy(vma),
-				name_addr);
+				vma->vm_userfaultfd_ctx, name_addr);
 	if (*prev) {
 		vma = *prev;
 		goto success;

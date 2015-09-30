@@ -105,7 +105,6 @@ static const struct dev_pm_ops ds2482_pm_ops = {
 
 static struct i2c_driver ds2482_driver = {
 	.driver = {
-		.owner	= THIS_MODULE,
 		.name	= "ds2482",
 		.pm = &ds2482_pm_ops,
 	},
