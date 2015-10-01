@@ -109,27 +109,6 @@
 			reg = <0x0 0x40000000 0x0 0x7D000>;
 			ranges;
 
-
-			/*
-			 * TODO: Update the clocks when the clock framework is
-			 * defined.
-			 */
-			 
-			dcu0: dcu@40140000 {
-				compatible = "fsl,s32v234-dcu";
-				reg = <0x0 0x40028000 0x0 0x0200>;
-				clocks = <&clks S32V234_CLK_SYS6>;
-                clock-names = "dcu";
-				siul2-controller = <&siul2>;
-				status = "disabled";
-			};
-
-			siul2: siul@4006C000 {
-				compatible = "fsl,s32v234-siul2";
-				reg = <0x0 0x4006C000 0x0 0x1794>;
-				status = "disabled";
-			};
-
 			swt0:swt@4000A000 {
 				compatible = "fsl,s32v234-wdt", "fsl,sac58r-wdt";
 				reg = <0x0 0x4000A000 0x0 0x1000>;
@@ -235,10 +214,25 @@
 				status = "disabled";
 			};
 
+			siul2: siul@4006C000 {
+				compatible = "fsl,s32v234-siul2";
+				reg = <0x0 0x4006C000 0x0 0x1794>;
+				status = "disabled";
+			};
+
 			src: src@4007C000 {
 				compatible = "fsl,s32v234-src";
 				reg = <0x0 0x4007C000 0x0 0x1000>;
 				#reset-cells = <1>;
+			};
+
+			dcu0: dcu@40140000 {
+				compatible = "fsl,s32v234-dcu";
+				reg = <0x0 0x40028000 0x0 0x0200>;
+				clocks = <&clks S32V234_CLK_SYS6>;
+				clock-names = "dcu";
+				siul2-controller = <&siul2>;
+				status = "disabled";
 			};
 
 		};
