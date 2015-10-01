@@ -339,7 +339,7 @@ static void fec_dump(struct net_device *ndev)
 	bdp = txq->tx_bd_base;
 
 	do {
-		pr_info("%3u %c%c 0x%04x 0x%08lx %4u %p\n",
+		pr_info("%3u %c%c 0x%04x 0x%08u %4u %p\n",
 			index,
 			bdp == txq->cur_tx ? 'S' : ' ',
 			bdp == txq->dirty_tx ? 'H' : ' ',
