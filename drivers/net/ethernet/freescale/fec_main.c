@@ -109,13 +109,13 @@ static struct platform_device_id fec_devtype[] = {
 				FEC_QUIRK_ERR007885 | FEC_QUIRK_BUG_CAPTURE,
 	}, {
 		.name = "s32v234-fec",
-		.driver_data = FEC_QUIRK_ENET_MAC |
-				/* TODO: Temporary disable until the
-				 * pinmuxing and clocks will be set for
-				 * 1GB. FEC_QUIRK_HAS_GBIT | */
+		.driver_data = FEC_QUIRK_ENET_MAC
+				/*
+				| FEC_QUIRK_HAS_GBIT |
 				FEC_QUIRK_HAS_BUFDESC_EX | FEC_QUIRK_HAS_CSUM |
 				FEC_QUIRK_HAS_VLAN | FEC_QUIRK_HAS_AVB |
 				FEC_QUIRK_ERR007885 | FEC_QUIRK_BUG_CAPTURE,
+				*/
 	}, {
 		/* sentinel */
 	}
