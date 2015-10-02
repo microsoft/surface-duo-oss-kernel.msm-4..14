@@ -1,0 +1,16 @@
+Freescale CSE3 Cryptographic Services Engine included in some chips.
+Currently only S32V234 is supported.
+
+Required properties:
+- compatible : Should be "fsl,<soc>-cse3"
+- reg : Should contain CSE3 registers location and length
+- interrupts : Should contain CSE3 interrupt number
+
+Example:
+
+cse3: crypto@40001000 {
+	compatible = "fsl,s32v234-cse3";
+	reg = <0x0 0x40001000 0x0 0x1000>;
+	interrupts = <0 18 4>;
+	status = "disabled";
+};
