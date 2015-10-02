@@ -115,11 +115,10 @@ static int s32v_dt_node_to_map(struct pinctrl_dev *pctldev,
 		return -EINVAL;
 	}
 
-	for (i = 0; i < grp->npins; i++) {
+	for (i = 0; i < grp->npins; i++)
 		map_num++;
-	}
 
-	new_map = kmalloc(sizeof(struct pinctrl_map) * map_num, GFP_KERNEL);
+	new_map = kmalloc_array(map_num, sizeof(struct pinctrl_map), GFP_KERNEL);
 	if (!new_map)
 		return -ENOMEM;
 
@@ -191,6 +190,7 @@ static int s32v_pmx_set(struct pinctrl_dev *pctldev, unsigned selector,
 
 	for (i = 0; i < npins; i++) {
 		struct s32v_pin *pin = &grp->pins[i];
+
 		pin_id = pin->pin_id;
 
 		writel(pin->config, ipctl->base + S32V_PAD_CONFIG(pin_id));
@@ -295,6 +295,7 @@ static void s32v_pinconf_group_dbg_show(struct pinctrl_dev *pctldev,
 	grp = &info->groups[group];
 	for (i = 0; i < grp->npins; i++) {
 		struct s32v_pin *pin = &grp->pins[i];
+
 		name = pin_get_name(pctldev, pin->pin_id);
 		ret = s32v_pinconf_get(pctldev, pin->pin_id, &config);
 		if (ret)
@@ -343,22 +344,26 @@ static int s32v_pinctrl_parse_groups(struct device_node *np,
 	 */
 	list = of_get_property(np, "fsl,pins", &size);
 	if (!list) {
-		dev_err(info->dev, "no fsl,pins property in node %s\n", np->full_name);
+		dev_err(info->dev, "no fsl,pins property in node %s\n",
+				np->full_name);
 		return -EINVAL;
 	}
 
 	/* we do not check return since it's safe node passed down */
 	if (!size || size % S32V_PIN_SIZE) {
-		dev_err(info->dev, "Invalid fsl,pins property in node %s\n", np->full_name);
+		dev_err(info->dev, "Invalid fsl,pins property in node %s\n",
+				np->full_name);
 		return -EINVAL;
 	}
 
 	grp->npins = size / S32V_PIN_SIZE;
-	grp->pins = devm_kzalloc(info->dev, grp->npins * sizeof(struct s32v_pin),
-				GFP_KERNEL);
-	grp->pin_ids = devm_kzalloc(info->dev, grp->npins * sizeof(unsigned int),
-				GFP_KERNEL);
-	if (!grp->pins || ! grp->pin_ids)
+	grp->pins = devm_kzalloc(info->dev,
+							grp->npins * sizeof(struct s32v_pin),
+							GFP_KERNEL);
+	grp->pin_ids = devm_kzalloc(info->dev,
+								grp->npins * sizeof(unsigned int),
+								GFP_KERNEL);
+	if (!grp->pins || !grp->pin_ids)
 		return -ENOMEM;
 
 	for (i = 0; i < grp->npins; i++) {
@@ -426,16 +431,18 @@ static int s32v_pinctrl_probe_dt(struct platform_device *pdev,
 	}
 
 	info->nfunctions = nfuncs;
-	info->functions = devm_kzalloc(&pdev->dev, nfuncs * sizeof(struct s32v_pmx_func),
-					GFP_KERNEL);
+	info->functions = devm_kzalloc(&pdev->dev,
+								nfuncs * sizeof(struct s32v_pmx_func),
+								GFP_KERNEL);
 	if (!info->functions)
 		return -ENOMEM;
 
 	info->ngroups = 0;
 	for_each_child_of_node(np, child)
 		info->ngroups += of_get_child_count(child);
-	info->groups = devm_kzalloc(&pdev->dev, info->ngroups * sizeof(struct s32v_pin_group),
-					GFP_KERNEL);
+	info->groups = devm_kzalloc(&pdev->dev,
+								info->ngroups * sizeof(struct s32v_pin_group),
+								GFP_KERNEL);
 	if (!info->groups)
 		return -ENOMEM;
 
