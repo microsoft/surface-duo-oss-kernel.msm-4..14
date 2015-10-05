@@ -511,7 +511,6 @@ static int insert_smmu_master(struct arm_smmu_device *smmu,
 }
 
 static int register_smmu_master(struct arm_smmu_device *smmu,
-				struct device *dev,
 				struct arm_smmu_phandle_args *masterspec)
 {
 	int i;
@@ -519,20 +518,20 @@ static int register_smmu_master(struct arm_smmu_device *smmu,
 
 	master = find_smmu_master(smmu, masterspec->np);
 	if (master) {
-		dev_err(dev,
+		dev_err(smmu->dev,
 			"rejecting multiple registrations for master device %s\n",
 			masterspec->np->name);
 		return -EBUSY;
 	}
 
 	if (masterspec->args_count > MAX_MASTER_STREAMIDS) {
-		dev_err(dev,
+		dev_err(smmu->dev,
 			"reached maximum number (%d) of stream IDs for master device %s\n",
 			MAX_MASTER_STREAMIDS, masterspec->np->name);
 		return -ENOSPC;
 	}
 
-	master = devm_kzalloc(dev, sizeof(*master), GFP_KERNEL);
+	master = devm_kzalloc(smmu->dev, sizeof(*master), GFP_KERNEL);
 	if (!master)
 		return -ENOMEM;
 
@@ -544,7 +543,7 @@ static int register_smmu_master(struct arm_smmu_device *smmu,
 
 		if (!(smmu->features & ARM_SMMU_FEAT_STREAM_MATCH) &&
 		     (streamid >= smmu->num_mapping_groups)) {
-			dev_err(dev,
+			dev_err(smmu->dev,
 				"stream ID for master device %s greater than maximum allowed (%d)\n",
 				masterspec->np->name, smmu->num_mapping_groups);
 			return -ERANGE;
@@ -1873,6 +1872,54 @@ static const struct of_device_id arm_smmu_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, arm_smmu_of_match);
 
+static void arm_smmu_remove_mmu_masters(struct arm_smmu_device *smmu)
+{
+	struct arm_smmu_master *master;
+	struct rb_node *node, *tmp;
+
+	node = rb_first(&smmu->masters);
+	while (node) {
+		tmp = node;
+		node = rb_next(node);
+		master = container_of(tmp, struct arm_smmu_master, node);
+
+		rb_erase(tmp, &smmu->masters);
+		of_node_put(master->of_node);
+		devm_kfree(smmu->dev, master);
+	}
+}
+
+static int arm_smmu_probe_mmu_masters(struct arm_smmu_device *smmu)
+{
+	struct of_phandle_iterator it;
+	struct arm_smmu_phandle_args *masterspec;
+	int err = 0, i = 0;
+
+	/* No need to zero the memory for masterspec */
+	masterspec = kmalloc(sizeof(*masterspec), GFP_KERNEL);
+	if (!masterspec)
+		return -ENOMEM;
+
+	of_for_each_phandle(&it, err, dev->of_node,
+			"mmu-masters", "#stream-id-cells", 0) {
+		int count = of_phandle_iterator_args(&it, masterspec->args,
+						     MAX_MASTER_STREAMIDS);
+		masterspec->np = of_node_get(it.node);
+		masterspec->args_count  = count;
+
+		err = register_smmu_master(smmu, dev, masterspec);
+
+		if (err) {
+			dev_err(smmu->dev, "failed to register mmu-masters\n");
+			arm_smmu_remove_mmu_masters(smmu);
+		} else if (i) {
+			dev_info(smmu->dev, "registered %d mmu-masters\n", i);
+		}
+	}
+
+	return err;
+}
+
 static int arm_smmu_device_dt_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *of_id;
@@ -1880,9 +1927,6 @@ static int arm_smmu_device_dt_probe(struct platform_device *pdev)
 	struct resource *res;
 	struct arm_smmu_device *smmu;
 	struct device *dev = &pdev->dev;
-	struct rb_node *node;
-	struct of_phandle_iterator it;
-	struct arm_smmu_phandle_args *masterspec;
 	int num_irqs, i, err;
 
 	smmu = devm_kzalloc(dev, sizeof(*smmu), GFP_KERNEL);
@@ -1943,37 +1987,6 @@ static int arm_smmu_device_dt_probe(struct platform_device *pdev)
 	if (err)
 		return err;
 
-	i = 0;
-	smmu->masters = RB_ROOT;
-
-	err = -ENOMEM;
-	/* No need to zero the memory for masterspec */
-	masterspec = kmalloc(sizeof(*masterspec), GFP_KERNEL);
-	if (!masterspec)
-		goto out_put_masters;
-
-	of_for_each_phandle(&it, err, dev->of_node,
-			    "mmu-masters", "#stream-id-cells", 0) {
-		int count = of_phandle_iterator_args(&it, masterspec->args,
-						     MAX_MASTER_STREAMIDS);
-		masterspec->np		= of_node_get(it.node);
-		masterspec->args_count	= count;
-
-		err = register_smmu_master(smmu, dev, masterspec);
-		if (err) {
-			dev_err(dev, "failed to add master %s\n",
-				masterspec->np->name);
-			kfree(masterspec);
-			goto out_put_masters;
-		}
-
-		i++;
-	}
-
-	dev_notice(dev, "registered %d master devices\n", i);
-
-	kfree(masterspec);
-
 	parse_driver_options(smmu);
 
 	if (smmu->version == ARM_SMMU_V2 &&
@@ -1981,8 +1994,7 @@ static int arm_smmu_device_dt_probe(struct platform_device *pdev)
 		dev_err(dev,
 			"found only %d context interrupt(s) but %d required\n",
 			smmu->num_context_irqs, smmu->num_context_banks);
-		err = -ENODEV;
-		goto out_put_masters;
+		return -ENODEV;
 	}
 
 	for (i = 0; i < smmu->num_global_irqs; ++i) {
@@ -1999,6 +2011,7 @@ static int arm_smmu_device_dt_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, smmu);
+	arm_smmu_probe_mmu_masters(smmu);
 	INIT_LIST_HEAD(&smmu->list);
 	spin_lock(&arm_smmu_devices_lock);
 	list_add(&smmu->list, &arm_smmu_devices);
@@ -2010,14 +2023,6 @@ static int arm_smmu_device_dt_probe(struct platform_device *pdev)
 out_free_irqs:
 	while (i--)
 		free_irq(smmu->irqs[i], smmu);
-
-out_put_masters:
-	for (node = rb_first(&smmu->masters); node; node = rb_next(node)) {
-		struct arm_smmu_master *master
-			= container_of(node, struct arm_smmu_master, node);
-		of_node_put(master->of_node);
-	}
-
 	return err;
 }
 
@@ -2025,20 +2030,14 @@ static int arm_smmu_device_remove(struct platform_device *pdev)
 {
 	struct arm_smmu_device *smmu = platform_get_drvdata(pdev);
 	int i;
-	struct rb_node *node;
 
 	if (!smmu)
 		return -ENODEV;
 
+	arm_smmu_remove_mmu_masters(smmu);
 	spin_lock(&arm_smmu_devices_lock);
 	list_del(&smmu->list);
 	spin_unlock(&arm_smmu_devices_lock);
-
-	for (node = rb_first(&smmu->masters); node; node = rb_next(node)) {
-		struct arm_smmu_master *master
-			= container_of(node, struct arm_smmu_master, node);
-		of_node_put(master->of_node);
-	}
 
 	if (!bitmap_empty(smmu->context_map, ARM_SMMU_MAX_CBS))
 		dev_err(&pdev->dev, "removing device with active domains!\n");
