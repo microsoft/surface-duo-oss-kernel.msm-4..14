@@ -97,12 +97,12 @@ int cpu_suspend(unsigned long arg, int (*fn)(unsigned long))
 		 * them back to complete the address space configuration
 		 * restoration before returning.
 		 */
-		cpu_set_reserved_ttbr0();
-		flush_tlb_all();
-		cpu_set_default_tcr_t0sz();
-
-		if (mm != &init_mm)
+		if (mm == &init_mm)
+			cpu_set_reserved_ttbr0();
+		else
 			cpu_switch_mm(mm->pgd, mm);
+
+		local_flush_tlb_all();
 
 		/*
 		 * Restore per-cpu offset before any kernel
