@@ -136,7 +136,7 @@
 	pinctrl-1 = <&blsp1_uart1_sleep>;
 };
 
-&blsp_spi3 {
+&blsp_spi5 {
 	status = "okay";
 };
 
