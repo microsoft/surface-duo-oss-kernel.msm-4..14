@@ -21,7 +21,7 @@
 
 	msm_gpios_leds_default: msm_gpios_leds_default {
 		pinconf {
-			pins = "gpio21", "gpio10";
+			pins = "gpio21", "gpio120";
 			function = "gpio";
 			output-low;
 		};
