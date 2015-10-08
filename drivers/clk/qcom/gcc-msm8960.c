@@ -3671,6 +3671,8 @@ MODULE_DEVICE_TABLE(of, gcc_msm8960_match_table);
 static int gcc_msm8960_probe(struct platform_device *pdev)
 {
 	const struct of_device_id *match;
+	struct platform_device *tsens;
+	int ret;
 
 	match = of_match_device(gcc_msm8960_match_table, &pdev->dev);
 	if (!match)
@@ -3681,11 +3683,26 @@ static int gcc_msm8960_probe(struct platform_device *pdev)
 		hfpll_l2.d = &hfpll_l2_8064_data;
 	}
 
-	return qcom_cc_probe(pdev, match->data);
+	ret = qcom_cc_probe(pdev, match->data);
+	if (ret)
+		return ret;
+
+	tsens = platform_device_register_data(&pdev->dev, "qcom-tsens", -1,
+					      NULL, 0);
+	if (IS_ERR(tsens)) {
+		qcom_cc_remove(pdev);
+		return PTR_ERR(tsens);
+	}
+	platform_set_drvdata(pdev, tsens);
+
+	return 0;
 }
 
 static int gcc_msm8960_remove(struct platform_device *pdev)
 {
+	struct platform_device *tsens = platform_get_drvdata(pdev);
+
+	platform_device_unregister(tsens);
 	qcom_cc_remove(pdev);
 	return 0;
 }
