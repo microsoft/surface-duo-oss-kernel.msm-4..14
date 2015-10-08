@@ -1,5 +1,6 @@
 # Makefile for Qualcomm vidc driver
 
+ccflags-y += -Idrivers/media/platform/msm/vidc
 vidc-objs += \
 		msm_v4l2_vidc.o \
 		msm_internal-buffers.o \
