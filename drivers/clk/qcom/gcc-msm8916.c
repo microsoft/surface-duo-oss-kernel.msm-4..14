@@ -3355,7 +3355,7 @@ static int gcc_msm8916_probe(struct platform_device *pdev)
 	struct device *dev = &pdev->dev;
 
 	/* Temporary until RPM clocks supported */
-	clk = clk_register_fixed_rate(dev, "xo", NULL, CLK_IS_ROOT, 19200000);
+	clk = clk_register_fixed_factor(dev, "xo", "xo_board", 0, 1, 1);
 	if (IS_ERR(clk))
 		return PTR_ERR(clk);
 
