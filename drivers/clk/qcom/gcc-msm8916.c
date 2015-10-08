@@ -3359,10 +3359,8 @@ static int gcc_msm8916_probe(struct platform_device *pdev)
 	if (IS_ERR(clk))
 		return PTR_ERR(clk);
 
-	clk = clk_register_fixed_rate(dev, "sleep_clk_src", NULL,
-				      CLK_IS_ROOT, 32768);
-	if (IS_ERR(clk))
-		return PTR_ERR(clk);
+	clk_register_fixed_rate(dev, "sleep_clk_src", NULL,
+				CLK_IS_ROOT, 32768);
 
 	return qcom_cc_probe(pdev, &gcc_msm8916_desc);
 }
