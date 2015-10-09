@@ -1,0 +1,33 @@
+* QCOM SoC Temperature Sensor (TSENS)
+
+Required properties:
+- compatible :
+ - "qcom,msm8916-tsens" : For 8916 Family of SoCs
+ - "qcom,msm8974-tsens" : For 8974 Family of SoCs
+
+- reg: Address range of the thermal registers
+- qcom,tsens-slopes : Must contain slope value for each of the sensors controlled
+			by this device
+- #thermal-sensor-cells : Should be 1. See ./thermal.txt for a description.
+- Refer to Documentation/devicetree/bindings/nvmem/nvmem.txt to know how to specify
+nvmem cells
+
+Optional properties:
+- qcom,sensor-id: List of sensor instances used in a given SoC. A TSENS IP can
+		  have a fixed number of sensors (like 11) but a given SoC can
+		  use only 5 of these and they might not always the first 5. They
+		  could be sensors 0, 1, 4, 8 and 9. This property is used to
+		  describe the subset of the sensors used. If this property is
+		  missing they are assumed to be the first 'n' sensors numbered
+		  sequentially in which case the number of sensors defaults to
+		  the number of slope values.
+
+Example:
+tsens: thermal-sensor@900000 {
+		compatible = "qcom,msm8916-tsens";
+		nvmem-cells = <&tsens_caldata>, <&tsens_calsel>;
+		nvmem-cell-names = "caldata", "calsel";
+		qcom,tsens-slopes = <3200 3200 3200 3200 3200>;
+		qcom,sensor-id = <0 1 2 4 5>;
+		#thermal-sensor-cells = <1>;
+	};
