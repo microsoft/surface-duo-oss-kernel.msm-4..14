@@ -119,7 +119,11 @@ static int tsens_probe(struct platform_device *pdev)
 	struct tsens_device *tmdev;
 	const struct of_device_id *id;
 
-	dev = &pdev->dev;
+	if (pdev->dev.of_node)
+		dev = &pdev->dev;
+	else
+		dev = pdev->dev.parent;
+
 	np = dev->of_node;
 
 	num = of_property_count_u32_elems(np, "qcom,tsens-slopes");
@@ -141,10 +145,11 @@ static int tsens_probe(struct platform_device *pdev)
 					   &s->slope);
 
 	id = of_match_node(tsens_table, np);
-	if (!id)
-		return -ENODEV;
+	if (id)
+		tmdev->ops = id->data;
+	else
+		tmdev->ops = &ops_8960;
 
-	tmdev->ops = id->data;
 	if (!tmdev->ops || !tmdev->ops->init || !tmdev->ops->calibrate ||
 	    !tmdev->ops->get_temp)
 		return -EINVAL;
