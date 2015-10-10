@@ -11,6 +11,9 @@
 #define __HISI_DRM_DRV_H__
 
 struct hisi_drm_private {
+#ifdef CONFIG_DRM_FBDEV_EMULATION
+	struct drm_fbdev_cma *fbdev;
+#endif
 };
 
 #endif /* __HISI_DRM_DRV_H__ */
