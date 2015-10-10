@@ -268,7 +268,80 @@ static void ade_power_down(struct ade_hw_ctx *ctx)
 	ctx->power_on = false;
 }
 
+static struct drm_crtc *hisi_get_crtc_from_index(struct drm_device *dev,
+						 unsigned int index)
+{
+	unsigned int index_tmp = 0;
+	struct drm_crtc *crtc;
 
+	list_for_each_entry(crtc, &dev->mode_config.crtc_list, head) {
+		if (index_tmp == index)
+			return crtc;
+
+		index_tmp++;
+	}
+
+	WARN_ON(true);
+	return NULL;
+}
+
+int ade_enable_vblank(struct drm_device *dev, unsigned int pipe)
+{
+	struct drm_crtc *crtc = hisi_get_crtc_from_index(dev, pipe);
+	struct ade_crtc *acrtc = to_ade_crtc(crtc);
+	struct ade_hw_ctx *ctx = acrtc->ctx;
+	void __iomem *base = ctx->base;
+	u32 intr_en;
+
+	DRM_INFO("enable_vblank enter.\n");
+	if (!ctx->power_on)
+		(void)ade_power_up(ctx);
+
+	intr_en = readl(base + LDI_INT_EN);
+	intr_en |= LDI_ISR_FRAME_END_INT;
+	writel(intr_en, base + LDI_INT_EN);
+
+	return 0;
+}
+
+void ade_disable_vblank(struct drm_device *dev, unsigned int pipe)
+{
+	struct drm_crtc *crtc = hisi_get_crtc_from_index(dev, pipe);
+	struct ade_crtc *acrtc = to_ade_crtc(crtc);
+	struct ade_hw_ctx *ctx = acrtc->ctx;
+	void __iomem *base = ctx->base;
+	u32 intr_en;
+
+	DRM_INFO("disable_vblank enter.\n");
+	if (!ctx->power_on) {
+		DRM_ERROR("power is down! vblank disable fail\n");
+		return;
+	}
+	intr_en = readl(base + LDI_INT_EN);
+	intr_en &= ~LDI_ISR_FRAME_END_INT;
+	writel(intr_en, base + LDI_INT_EN);
+}
+
+static irqreturn_t ade_irq_handler(int irq, void *data)
+{
+	struct ade_crtc *acrtc = data;
+	struct ade_hw_ctx *ctx = acrtc->ctx;
+	struct drm_crtc *crtc = &acrtc->base;
+	struct drm_device *dev = crtc->dev;
+	void __iomem *base = ctx->base;
+	u32 status;
+
+	status = readl(base + LDI_MSK_INT);
+	/* DRM_INFO("LDI IRQ: status=0x%X\n",status); */
+
+	/* vblank irq */
+	if (status & LDI_ISR_FRAME_END_INT) {
+		writel(LDI_ISR_FRAME_END_INT, base + LDI_INT_CLR);
+		drm_handle_vblank(dev, drm_crtc_index(crtc));
+	}
+
+	return IRQ_HANDLED;
+}
 
 /*
  * set modules' reset mode: by software or hardware
@@ -879,6 +952,12 @@ static int ade_bind(struct device *dev, struct device *master, void *data)
 	acrtc->ctx = ctx;
 	ret = ade_crtc_init(drm_dev, &acrtc->base,
 			    &ade->aplane[PRIMARY_CH].base);
+	if (ret)
+		return ret;
+
+	/* vblank irq init */
+	ret = request_irq(ctx->irq, ade_irq_handler, DRIVER_IRQ_SHARED,
+			  drm_dev->driver->name, acrtc);
 	if (ret)
 		return ret;
 
