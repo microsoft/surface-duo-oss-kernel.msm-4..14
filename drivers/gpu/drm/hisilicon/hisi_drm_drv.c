@@ -21,6 +21,7 @@
 #include <drm/drm_fb_cma_helper.h>
 #include <drm/drm_atomic_helper.h>
 
+#include "hisi_drm_ade.h"
 #include "hisi_drm_drv.h"
 
 #define DRIVER_NAME	"hisi-drm"
@@ -29,6 +30,7 @@ static int hisi_drm_unload(struct drm_device *dev)
 {
 	struct hisi_drm_private *priv = dev->dev_private;
 
+	drm_vblank_cleanup(dev);
 	drm_mode_config_cleanup(dev);
 	devm_kfree(dev->dev, priv);
 	dev->dev_private = NULL;
@@ -76,11 +78,22 @@ static int hisi_drm_load(struct drm_device *dev, unsigned long flags)
 		goto err_mode_config_cleanup;
 	}
 
+	/* vblank init */
+	ret = drm_vblank_init(dev, dev->mode_config.num_crtc);
+	if (ret) {
+		DRM_ERROR("failed to initialize vblank.\n");
+		goto err_unbind_all;
+	}
+	/* with irq_enabled = true, we can use the vblank feature. */
+	dev->irq_enabled = true;
+
 	/* reset all the states of crtc/plane/encoder/connector */
 	drm_mode_config_reset(dev);
 
 	return 0;
 
+err_unbind_all:
+	component_unbind_all(dev->dev, dev);
 err_mode_config_cleanup:
 	drm_mode_config_cleanup(dev);
 	devm_kfree(dev->dev, priv);
@@ -126,7 +139,7 @@ static int hisi_gem_cma_dumb_create(struct drm_file *file,
 
 static struct drm_driver hisi_drm_driver = {
 	.driver_features	= DRIVER_GEM | DRIVER_MODESET | DRIVER_PRIME |
-				  DRIVER_ATOMIC,
+				  DRIVER_ATOMIC | DRIVER_HAVE_IRQ,
 	.load			= hisi_drm_load,
 	.unload                 = hisi_drm_unload,
 	.fops			= &hisi_drm_fops,
@@ -147,6 +160,10 @@ static struct drm_driver hisi_drm_driver = {
 	.gem_prime_vmap		= drm_gem_cma_prime_vmap,
 	.gem_prime_vunmap	= drm_gem_cma_prime_vunmap,
 	.gem_prime_mmap		= drm_gem_cma_prime_mmap,
+
+	.get_vblank_counter	= drm_vblank_count,
+	.enable_vblank		= ade_enable_vblank,
+	.disable_vblank		= ade_disable_vblank,
 
 	.name			= "hisi",
 	.desc			= "Hisilicon SoCs' DRM Driver",
