@@ -21,11 +21,18 @@
 #include <drm/drm_fb_cma_helper.h>
 #include <drm/drm_atomic_helper.h>
 
+#include "hisi_drm_drv.h"
+
 #define DRIVER_NAME	"hisi-drm"
 
 static int hisi_drm_unload(struct drm_device *dev)
 {
+	struct hisi_drm_private *priv = dev->dev_private;
+
 	drm_mode_config_cleanup(dev);
+	devm_kfree(dev->dev, priv);
+	dev->dev_private = NULL;
+
 	return 0;
 }
 
@@ -48,8 +55,14 @@ static void hisi_drm_mode_config_init(struct drm_device *dev)
 
 static int hisi_drm_load(struct drm_device *dev, unsigned long flags)
 {
+	struct hisi_drm_private *priv;
 	int ret;
 
+	priv = devm_kzalloc(dev->dev, sizeof(*priv), GFP_KERNEL);
+	if (!priv)
+		return -ENOMEM;
+
+	dev->dev_private = priv;
 	dev_set_drvdata(dev->dev, dev);
 
 	/* dev->mode_config initialization */
@@ -70,6 +83,8 @@ static int hisi_drm_load(struct drm_device *dev, unsigned long flags)
 
 err_mode_config_cleanup:
 	drm_mode_config_cleanup(dev);
+	devm_kfree(dev->dev, priv);
+	dev->dev_private = NULL;
 
 	return ret;
 }
