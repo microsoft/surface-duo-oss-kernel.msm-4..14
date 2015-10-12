@@ -54,6 +54,9 @@
 &i2c2 {
 	status = "okay";
 };
+&pcie {
+	status = "okay";
+};
 &siul2 {
 	status = "okay";
 };

@@ -62,6 +62,9 @@ struct pcie_port {
 	unsigned long		msi_data;
 	DECLARE_BITMAP(msi_irq_in_use, MAX_MSI_IRQS);
 	u8			atu_idx[ATU_TYPE_MAX];
+	#ifdef CONFIG_PCI_S32V234_EP
+	struct dentry		*dir;
+	#endif
 };
 
 struct pcie_host_ops {
