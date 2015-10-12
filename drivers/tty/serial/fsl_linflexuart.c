@@ -373,7 +373,7 @@ static void linflex_setup_watermark(struct linflex_port *sport)
 
 	cr1 |= LINFLEXD_LINCR1_INIT;
 
-		writel(cr1, sport->port.membase + LINCR1);
+	writel(cr1, sport->port.membase + LINCR1);
 
 	/* determine FIFO size and enable FIFO mode from UARTCR */
 	/* TO BE DONE
@@ -403,11 +403,16 @@ static void linflex_setup_watermark(struct linflex_port *sport)
 		PCE = 0x0;		- No parity
 	*/
 
+	/* Disable FIFO mode set by u-boot until UART FIFO mode support is
+	implemented by the current driver */
+	cr_saved &= ~(LINFLEXD_UARTCR_RFBM | LINFLEXD_UARTCR_TFBM);
+
 	cr_saved |= (LINFLEXD_UARTCR_UART|LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN|
 				LINFLEXD_UARTCR_PCE|LINFLEXD_UARTCR_WL0);
 
+
 	/* Restore cr2 */
-	writeb(cr_saved, sport->port.membase + UARTCR);
+	writel(cr_saved, sport->port.membase + UARTCR);
 
 	cr1 &= ~(LINFLEXD_LINCR1_INIT);
 
