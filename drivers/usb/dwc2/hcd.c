@@ -54,6 +54,19 @@
 #include "core.h"
 #include "hcd.h"
 
+struct wrapper_priv_data {
+	struct dwc2_hsotg *hsotg;
+};
+
+/* Gets the dwc2_hsotg from a usb_hcd */
+static struct dwc2_hsotg *dwc2_hcd_to_hsotg(struct usb_hcd *hcd)
+{
+	struct wrapper_priv_data *p;
+
+	p = (struct wrapper_priv_data *) &hcd->hcd_priv;
+	return p->hsotg;
+}
+
 /**
  * dwc2_dump_channel_info() - Prints the state of a host channel
  *
@@ -1349,6 +1362,20 @@ void dwc2_hcd_queue_transactions(struct dwc2_hsotg *hsotg,
 		}
 	}
 }
+/*
+ * 0: high speed
+ * 1: full speed
+ */
+static void dwc2_change_bus_speed(struct usb_hcd* hcd, int speed)
+{
+	struct dwc2_hsotg *hsotg = dwc2_hcd_to_hsotg(hcd);
+
+	if (hsotg->core_params->speed == speed)
+		return;
+
+	hsotg->core_params->speed = speed;
+	queue_work(hsotg->wq_otg, &hsotg->wf_otg);
+}
 
 static void dwc2_conn_id_status_change(struct work_struct *work)
 {
@@ -2121,18 +2148,6 @@ void dwc2_hcd_dump_frrem(struct dwc2_hsotg *hsotg)
 #endif
 }
 
-struct wrapper_priv_data {
-	struct dwc2_hsotg *hsotg;
-};
-
-/* Gets the dwc2_hsotg from a usb_hcd */
-static struct dwc2_hsotg *dwc2_hcd_to_hsotg(struct usb_hcd *hcd)
-{
-	struct wrapper_priv_data *p;
-
-	p = (struct wrapper_priv_data *) &hcd->hcd_priv;
-	return p->hsotg;
-}
 
 static int _dwc2_hcd_start(struct usb_hcd *hcd);
 
@@ -2905,6 +2920,7 @@ static struct hc_driver dwc2_hc_driver = {
 
 	.bus_suspend = _dwc2_hcd_suspend,
 	.bus_resume = _dwc2_hcd_resume,
+	.change_bus_speed = dwc2_change_bus_speed,
 };
 
 /*
