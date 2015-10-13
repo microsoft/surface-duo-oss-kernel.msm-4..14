@@ -45,6 +45,7 @@
 #include <linux/usb/msm_hsusb.h>
 #include <linux/usb/msm_hsusb_hw.h>
 #include <linux/regulator/consumer.h>
+#include <linux/msm-bus.h>
 
 #define MSM_USB_BASE	(motg->regs)
 #define DRIVER_NAME	"msm_otg"
@@ -1650,6 +1651,19 @@ static int msm_otg_reboot_notify(struct notifier_block *this,
 	return NOTIFY_DONE;
 }
 
+static void msm_otg_bus_vote(struct msm_otg *motg, enum usb_bus_vote vote)
+{
+	int ret;
+
+	if (motg->bus_perf_client) {
+		ret = msm_bus_scale_client_update_request(
+				motg->bus_perf_client, vote);
+		if (ret)
+			dev_err(motg->phy.dev, "%s: Failed to vote (%d)\n"
+					"for bus bw %d\n", __func__, vote, ret);
+	}
+}
+
 static int msm_otg_probe(struct platform_device *pdev)
 {
 	struct regulator_bulk_data regs[2];
@@ -1811,6 +1825,19 @@ static int msm_otg_probe(struct platform_device *pdev)
 		goto disable_ldo;
 	}
 
+	motg->pdata->bus_scale_table = msm_bus_cl_get_pdata(pdev);
+	if (!motg->pdata->bus_scale_table)
+		dev_dbg(&pdev->dev, "bus scaling is disabled\n");
+	else {
+		motg->bus_perf_client =
+			msm_bus_scale_register_client(motg->pdata->bus_scale_table);
+		if (!motg->bus_perf_client)
+			dev_err(motg->phy.dev, "%s: Failed to register BUS\n"
+					"scaling client!!\n", __func__);
+	}
+	/* Hack to max out usb performace */
+	msm_otg_bus_vote(motg, USB_MAX_PERF_VOTE);
+
 	platform_set_drvdata(pdev, motg);
 	device_init_wakeup(&pdev->dev, 1);
 
@@ -1885,6 +1912,7 @@ static int msm_otg_remove(struct platform_device *pdev)
 
 	usb_remove_phy(phy);
 	disable_irq(motg->irq);
+	msm_bus_scale_unregister_client(motg->bus_perf_client);
 
 	/*
 	 * Put PHY in low power mode.
