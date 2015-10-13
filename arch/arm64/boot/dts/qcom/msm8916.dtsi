@@ -974,6 +974,9 @@
 					#clock-cells = <1>;
 				};
 
+				msm-bus {
+						compatible = "qcom,rpm-msm-bus";
+				};
 				pm8916-regulators {
 					compatible = "qcom,rpm-pm8916-regulators";
 
@@ -1059,3 +1062,4 @@
 #include "msm8916-pins.dtsi"
 #include "msm8916-iommu.dtsi"
 #include "msm8916-coresight.dtsi"
+#include "msm8916-bus.dtsi"
