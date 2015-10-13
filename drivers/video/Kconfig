@@ -16,11 +16,10 @@ config SH_LCD_MIPI_DSI
 	bool
 
 source "drivers/char/agp/Kconfig"
-
 source "drivers/gpu/vga/Kconfig"
-
 source "drivers/gpu/host1x/Kconfig"
 source "drivers/gpu/ipu-v3/Kconfig"
+source "drivers/video/mxc/Kconfig"
 
 menu "Direct Rendering Manager"
 source "drivers/gpu/drm/Kconfig"
@@ -84,6 +83,28 @@ menuconfig FB
 	  running graphical applications that directly touch the hardware
 	  (e.g. an accelerated X server) and that are not frame buffer
 	  device-aware may cause unexpected results. If unsure, say N.
+
+config FB_MODE_HELPERS
+        bool "Enable Video Mode Handling Helpers"
+        depends on FB
+	default n
+	---help---
+	  This enables functions for handling video modes using the
+	  Generalized Timing Formula and the EDID parser. A few drivers rely
+          on this feature such as the radeonfb, rivafb, and the i810fb. If
+	  your driver does not take advantage of this feature, choosing Y will
+	  just increase the kernel size by about 5K.
+
+config FB_MXS
+	tristate "MXS LCD framebuffer support"
+	depends on FB
+	select FB_CFB_FILLRECT
+	select FB_CFB_COPYAREA
+	select FB_CFB_IMAGEBLIT
+	select FB_MODE_HELPERS
+	select VIDEOMODE_HELPERS
+	help
+	  Framebuffer support for the MXS SoC.
 
 config FB_FSL
 	tristate "Freescale FB support"
