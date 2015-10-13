@@ -121,7 +121,7 @@ int qcom_rpm_smd_write(struct qcom_smd_rpm *rpm,
 	pkt.hdr.length = sizeof(struct qcom_rpm_request) + count;
 
 	pkt.req.msg_id = msg_id++;
-	pkt.req.flags = BIT(state);
+	pkt.req.flags = state;
 	pkt.req.type = type;
 	pkt.req.id = id;
 	pkt.req.data_len = count;
