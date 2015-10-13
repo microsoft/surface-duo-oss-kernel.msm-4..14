@@ -1,0 +1,24 @@
+* Freescale Video Interface Unit Lite (VIULite)
+
+Required properties:
+- compatible: Should be "fsl,s32v234-viulite0" or "fsl,s32v234-viulite1".
+- reg: Address and length of the register set for VIULite.
+- interrupts: Should contain VIULite interrupts.
+
+
+Examples:
+
+viulite0: viulite0@40064000 {
+ 	compatible = "fsl,s32v234-viulite0";
+ 	reg = <0x0 0x40064000 0x0 0x1000>;
+ 	interrupts = <0 96 4>;
+ 	status = "disabled";
+ };
+
+viulite1: viulite1@400D0000 {
+ 	compatible = "fsl,s32v234-viulite1";
+ 	reg = <0x0 0x400D0000 0x0 0x1000>;
+ 	interrupts = <0 100 4>;
+ 	status = "disabled";
+ };
+
