@@ -176,7 +176,17 @@ static struct platform_driver rpmcc_msm8916_driver = {
 	.remove = rpmcc_msm8916_remove,
 };
 
-module_platform_driver(rpmcc_msm8916_driver);
+static int __init rpmcc_msm8916_init(void)
+{
+	return platform_driver_register(&rpmcc_msm8916_driver);
+}
+core_initcall(rpmcc_msm8916_init);
+
+static void __exit rpmcc_msm8916_exit(void)
+{
+	platform_driver_unregister(&rpmcc_msm8916_driver);
+}
+module_exit(rpmcc_msm8916_exit);
 
 MODULE_LICENSE("GPL v2");
 MODULE_DESCRIPTION("Qualcomm MSM8916 RPM Clock Controller Driver");

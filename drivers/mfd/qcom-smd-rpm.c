@@ -228,7 +228,17 @@ static struct qcom_smd_driver qcom_smd_rpm_driver = {
 	},
 };
 
-module_qcom_smd_driver(qcom_smd_rpm_driver);
+static int __init qcom_smd_rpm_init(void)
+{
+	return qcom_smd_driver_register(&qcom_smd_rpm_driver);
+}
+core_initcall(qcom_smd_rpm_init);
+
+static void __exit qcom_smd_rpm_exit(void)
+{
+	qcom_smd_driver_unregister(&qcom_smd_rpm_driver);
+}
+module_exit(qcom_smd_rpm_exit);
 
 MODULE_AUTHOR("Bjorn Andersson <bjorn.andersson@sonymobile.com>");
 MODULE_DESCRIPTION("Qualcomm SMD backed RPM driver");

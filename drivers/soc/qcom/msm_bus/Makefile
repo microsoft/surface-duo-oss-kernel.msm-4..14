@@ -1,7 +1,7 @@
 #
 # Makefile for msm-bus driver specific files
 #
-obj-y += msm_bus_bimc.o msm_bus_noc.o msm_bus_core.o msm_bus_client_api.o
+obj-y += msm_bus_bimc.o msm_bus_noc.o msm_bus_core.o msm_bus_client_api.o qcom_rpm_msm_bus.o
 obj-$(CONFIG_OF) += msm_bus_of.o
 obj-$(CONFIG_QCOM_SMD_RPM) += msm_bus_rpm_smd.o
 obj-$(CONFIG_QCOM_SMD_RPM) += qcom_rpm_msm_bus.o
