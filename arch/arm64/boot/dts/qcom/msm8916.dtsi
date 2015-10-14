@@ -778,6 +778,11 @@
 
 		/* Audio */
 
+		wcd_digital: codec-digital{
+			compatible = "syscon", "qcom,apq8016-wcd-digital-codec";
+			reg = <0x0771c000 0x400>;
+		};
+
 		lpass: lpass-cpu@07700000 {
 			status = "disabled";
 			compatible = "qcom,lpass-cpu-apq8016";
