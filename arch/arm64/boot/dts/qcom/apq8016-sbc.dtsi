@@ -256,6 +256,13 @@
 &lpass {
 	status = "okay";
 };
+
+&wcd_codec {
+	status = "okay";
+	clocks = <&gcc GCC_CODEC_DIGCODEC_CLK>;
+	clock-names = "mclk";
+	digital = <&wcd_digital>;
+};
 	/*
 	Internal Codec
 		playback - Primary MI2S
@@ -277,6 +284,16 @@
 	pinctrl-names = "default", "sleep";
 	qcom,model = "DB410c";
 
+
+	internal-codec-playback-dai-link@0 {		/* I2S - Internal codec */
+		link-name = "WCD";
+		cpu { /* PRIMARY */
+			sound-dai = <&lpass MI2S_PRIMARY>;
+		};
+		codec {
+			sound-dai = <&wcd_codec 0>;
+		};
+	};
 
 	/* External Primary or External Secondary -ADV7533 HDMI */
 	external-dai-link@0 {
