@@ -2147,6 +2147,8 @@ static void wcn36xx_smd_rsp_process(struct wcn36xx *wcn, void *buf, size_t len)
 		complete(&wcn->hal_rsp_compl);
 		break;
 
+	case WCN36XX_HAL_DEL_BA_IND:
+	case WCN36XX_HAL_PRINT_REG_INFO_IND:
 	case WCN36XX_HAL_COEX_IND:
 	case WCN36XX_HAL_AVOID_FREQ_RANGE_IND:
 	case WCN36XX_HAL_OTA_TX_COMPL_IND:
@@ -2195,6 +2197,8 @@ static void wcn36xx_ind_smd_work(struct work_struct *work)
 	msg_header = (struct wcn36xx_hal_msg_header *)hal_ind_msg->msg;
 
 	switch (msg_header->msg_type) {
+	case WCN36XX_HAL_DEL_BA_IND:
+	case WCN36XX_HAL_PRINT_REG_INFO_IND:
 	case WCN36XX_HAL_COEX_IND:
 	case WCN36XX_HAL_AVOID_FREQ_RANGE_IND:
 		break;
