@@ -502,6 +502,10 @@ config SND_SOC_MAX98925
 config SND_SOC_MAX9850
 	tristate
 
+config SND_SOC_MSM8x16_WCD
+	tristate "Qualcomm MSM8x16 WCD"
+	depends on SPMI && MFD_SYSCON
+
 config SND_SOC_PCM1681
 	tristate "Texas Instruments PCM1681 CODEC"
 	depends on I2C
