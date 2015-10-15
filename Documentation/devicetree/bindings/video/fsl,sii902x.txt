@@ -1,0 +1,14 @@
+Silicon Image HDMI transceiver as integrated on some Freescale boards
+
+Describes HDMI transceiver configuration.
+
+Required properties:
+- compatible: "fsl,sii902x"
+- reg: address of the device on i2c bus (without r/w bit)
+
+Example:
+
+hdmi: sii9022a@39 {
+	compatible = "fsl,sii902x";
+	reg = <0x39>;
+};
