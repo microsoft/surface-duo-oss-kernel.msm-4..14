@@ -362,43 +362,37 @@ static void qcom_smd_channel_set_state(struct qcom_smd_channel *channel,
 }
 
 /*
- * Copy count bytes of data using 32bit accesses, if that's required.
+ * Copy count bytes of data from memory to device memory using 32bit accesses
  */
-static void smd_copy_to_fifo(void __iomem *_dst,
-			     const void *_src,
-			     size_t count,
-			     bool word_aligned)
+static void smd_copy_to_fifo(void __iomem *_dst, const void *_src, size_t count, bool word_aligned)
 {
-	u32 *dst = (u32 *)_dst;
-	u32 *src = (u32 *)_src;
+        u32 *dst = (u32 *)_dst;
+        u32 *src = (u32 *)_src;
 
-	if (word_aligned) {
-		count /= sizeof(u32);
-		while (count--)
-			writel_relaxed(*src++, dst++);
-	} else {
-		memcpy_toio(_dst, _src, count);
-	}
+        if (word_aligned) {
+                count /= sizeof(u32);
+                while (count--)
+                        writel_relaxed(*src++, dst++);
+        } else {
+                memcpy_toio(_dst, _src, count);
+        }
 }
 
 /*
- * Copy count bytes of data using 32bit accesses, if that is required.
+ * Copy count bytes of data from device memory to memory using 32bit accesses
  */
-static void smd_copy_from_fifo(void *_dst,
-			       const void __iomem *_src,
-			       size_t count,
-			       bool word_aligned)
+static void smd_copy_from_fifo(void *_dst, const void __iomem *_src, size_t count, bool word_aligned)
 {
-	u32 *dst = (u32 *)_dst;
-	u32 *src = (u32 *)_src;
+        u32 *dst = (u32 *)_dst;
+        u32 *src = (u32 *)_src;
 
-	if (word_aligned) {
-		count /= sizeof(u32);
-		while (count--)
-			*dst++ = readl_relaxed(src++);
-	} else {
-		memcpy_fromio(_dst, _src, count);
-	}
+        if (word_aligned) {
+                count /= sizeof(u32);
+                while (count--)
+                        *dst++ = readl_relaxed(src++);
+        } else {
+                memcpy_fromio(_dst, _src, count);
+        }
 }
 
 /*
@@ -416,19 +410,11 @@ static size_t qcom_smd_channel_peek(struct qcom_smd_channel *channel,
 	tail = GET_RX_CHANNEL_INFO(channel, tail);
 
 	len = min_t(size_t, count, channel->fifo_size - tail);
-	if (len) {
-		smd_copy_from_fifo(buf,
-				   channel->rx_fifo + tail,
-				   len,
-				   word_aligned);
-	}
+	if (len)
+		smd_copy_from_fifo(buf, channel->rx_fifo + tail, len, word_aligned);
 
-	if (len != count) {
-		smd_copy_from_fifo(buf + len,
-				   channel->rx_fifo,
-				   count - len,
-				   word_aligned);
-	}
+	if (len != count)
+		smd_copy_from_fifo(buf + len, channel->rx_fifo, count - len, word_aligned);
 
 	return count;
 }
@@ -631,19 +617,11 @@ static int qcom_smd_write_fifo(struct qcom_smd_channel *channel,
 	head = GET_TX_CHANNEL_INFO(channel, head);
 
 	len = min_t(size_t, count, channel->fifo_size - head);
-	if (len) {
-		smd_copy_to_fifo(channel->tx_fifo + head,
-				 data,
-				 len,
-				 word_aligned);
-	}
+	if (len)
+		smd_copy_to_fifo(channel->tx_fifo + head, data, len, word_aligned);
 
-	if (len != count) {
-		smd_copy_to_fifo(channel->tx_fifo,
-				 data + len,
-				 count - len,
-				 word_aligned);
-	}
+	if (len != count)
+		smd_copy_to_fifo(channel->tx_fifo, data + len, count - len, word_aligned);
 
 	head += count;
 	head &= (channel->fifo_size - 1);
@@ -1008,7 +986,7 @@ static struct qcom_smd_channel *qcom_smd_create_channel(struct qcom_smd_edge *ed
 	/* The channel consist of a rx and tx fifo of equal size */
 	fifo_size /= 2;
 
-	dev_dbg(smd->dev, "new channel '%s' info-size: %zu fifo-size: %zu\n",
+	dev_err(smd->dev, "new channel '%s' info-size: %zu fifo-size: %zu\n",
 			  name, info_size, fifo_size);
 
 	channel->tx_fifo = fifo_base;
@@ -1190,7 +1168,11 @@ static int qcom_smd_parse_edge(struct device *dev,
 
 	edge->remote_pid = QCOM_SMEM_HOST_ANY;
 	key = "qcom,remote-pid";
-	of_property_read_u32(node, key, &edge->remote_pid);
+	ret = of_property_read_u32(node, key, &edge->remote_pid);
+	if (ret) {
+		dev_err(dev, "edge missing %s property\n", key);
+		return -EINVAL;
+	}
 
 	syscon_np = of_parse_phandle(node, "qcom,ipc", 0);
 	if (!syscon_np) {
