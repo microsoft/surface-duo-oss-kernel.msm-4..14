@@ -149,8 +149,12 @@ static int rpmcc_msm8916_probe(struct platform_device *pdev)
 	clk_prepare_enable(bimc_a_clk.hw.clk);
 	clk_set_rate(bimc_clk.hw.clk, INT_MAX);
 	clk_prepare_enable(bimc_clk.hw.clk);
+	clk_set_rate(snoc_a_clk.hw.clk, INT_MAX);
+	clk_prepare_enable(snoc_a_clk.hw.clk);
 	clk_set_rate(snoc_clk.hw.clk, INT_MAX);
 	clk_prepare_enable(snoc_clk.hw.clk);
+	clk_set_rate(pcnoc_a_clk.hw.clk, INT_MAX);
+	clk_prepare_enable(pcnoc_a_clk.hw.clk);
 	clk_set_rate(pcnoc_clk.hw.clk, INT_MAX);
 	clk_prepare_enable(pcnoc_clk.hw.clk);
 	clk_prepare_enable(xo.hw.clk);
