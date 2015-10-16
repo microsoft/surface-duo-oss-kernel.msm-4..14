@@ -68,6 +68,8 @@ struct cpufreq_policy {
 	unsigned int		kobj_cpu; /* cpu managing sysfs files, can be offline */
 
 	struct clk		*clk;
+	struct clk		*l2_clk; /* L2 clock */
+	unsigned int		l2_rate[3]; /* L2 bus clock rate thresholds */
 	struct cpufreq_cpuinfo	cpuinfo;/* see above */
 
 	unsigned int		min;    /* in kHz */
