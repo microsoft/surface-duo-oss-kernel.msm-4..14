@@ -201,7 +201,21 @@ static const char * const wcn36xx_caps_names[] = {
 	"BCN_FILTER",			/* 19 */
 	"RTT",				/* 20 */
 	"RATECTRL",			/* 21 */
-	"WOW"				/* 22 */
+	"WOW",				/* 22 */
+	"WLAN_ROAM_SCAN_OFFLOAD",	/* 23 */
+	"SPECULATIVE_PS_POLL",		/* 24 */
+	"SCAN_SCH",			/* 25 */
+	"IBSS_HEARTBEAT_OFFLOAD",	/* 26 */
+	"WLAN_SCAN_OFFLOAD",		/* 27 */
+	"WLAN_PERIODIC_TX_PTRN",	/* 28 */
+	"ADVANCE_TDLS",			/* 29 */
+	"BATCH_SCAN",			/* 30 */
+	"FW_IN_TX_PATH",		/* 31 */
+	"EXTENDED_NSOFFLOAD_SLOT",	/* 32 */
+	"CH_SWITCH_V1",			/* 33 */
+	"HT40_OBSS_SCAN",		/* 34 */
+	"UPDATE_CHANNEL_LIST",		/* 35 */
+
 };
 
 static const char *wcn36xx_get_cap_name(enum place_holder_in_cap_bitmap x)
@@ -218,17 +232,6 @@ static void wcn36xx_feat_caps_info(struct wcn36xx *wcn)
 	for (i = 0; i < MAX_FEATURE_SUPPORTED; i++) {
 		if (get_feat_caps(wcn->fw_feat_caps, i))
 			wcn36xx_info("FW Cap %s\n", wcn36xx_get_cap_name(i));
-	}
-}
-
-static void wcn36xx_detect_chip_version(struct wcn36xx *wcn)
-{
-	if (get_feat_caps(wcn->fw_feat_caps, DOT11AC)) {
-		wcn36xx_info("Chip is 3680\n");
-		wcn->chip_version = WCN36XX_CHIP_3680;
-	} else {
-		wcn36xx_info("Chip is 3660\n");
-		wcn->chip_version = WCN36XX_CHIP_3660;
 	}
 }
 
@@ -285,8 +288,6 @@ static int wcn36xx_start(struct ieee80211_hw *hw)
 		else
 			wcn36xx_feat_caps_info(wcn);
 	}
-
-	wcn36xx_detect_chip_version(wcn);
 
 	/* DMA channel initialization */
 	ret = wcn36xx_dxe_init(wcn);
@@ -951,6 +952,10 @@ static int wcn36xx_init_ieee80211(struct wcn36xx *wcn)
 	ieee80211_hw_set(wcn->hw, SIGNAL_DBM);
 	ieee80211_hw_set(wcn->hw, HAS_RATE_CONTROL);
 
+	/* 3620 powersaving currently unstable */
+	if (wcn->chip_version == WCN36XX_CHIP_3620)
+		__clear_bit(IEEE80211_HW_SUPPORTS_PS, wcn->hw->flags);
+
 	wcn->hw->wiphy->interface_modes = BIT(NL80211_IFTYPE_STATION) |
 		BIT(NL80211_IFTYPE_AP) |
 		BIT(NL80211_IFTYPE_ADHOC) |
@@ -1036,11 +1041,25 @@ static int wcn36xx_probe(struct platform_device *pdev)
 	wcn = hw->priv;
 	wcn->hw = hw;
 	wcn->dev = &pdev->dev;
-	wcn->ctrl_ops = pdev->dev.platform_data;
+	wcn->dev->dma_mask = kzalloc(sizeof(*wcn->dev->dma_mask), GFP_KERNEL);
+	if (!wcn->dev->dma_mask) {
+		ret = -ENOMEM;
+		goto dma_mask_err;
+	}
+	dma_set_mask_and_coherent(wcn->dev, DMA_BIT_MASK(32));
+	wcn->wcn36xx_data = pdev->dev.platform_data;
+	wcn->ctrl_ops = &wcn->wcn36xx_data->ctrl_ops;
+	wcn->wcn36xx_data->wcn = wcn;
+	if (!wcn->ctrl_ops->get_chip_type) {
+		dev_err(&pdev->dev, "Missing ops->get_chip_type\n");
+		ret = -EINVAL;
+		goto out_wq;
+	}
+	wcn->chip_version = wcn->ctrl_ops->get_chip_type(wcn);
 
 	mutex_init(&wcn->hal_mutex);
 
-	if (!wcn->ctrl_ops->get_hw_mac(addr)) {
+	if (!wcn->ctrl_ops->get_hw_mac(wcn, addr)) {
 		wcn36xx_info("mac address: %pM\n", addr);
 		SET_IEEE80211_PERM_ADDR(wcn->hw, addr);
 	}
@@ -1059,6 +1078,8 @@ static int wcn36xx_probe(struct platform_device *pdev)
 out_unmap:
 	iounmap(wcn->mmio);
 out_wq:
+	kfree(wcn->dev->dma_mask);
+dma_mask_err:
 	ieee80211_free_hw(hw);
 out_err:
 	return ret;
