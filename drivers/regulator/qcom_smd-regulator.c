@@ -21,7 +21,6 @@
 #include <linux/regulator/of_regulator.h>
 #include <linux/soc/qcom/smd-rpm.h>
 #include <linux/regulator/qcom_smd-regulator.h>
-#include <linux/mfd/qcom-smd-rpm.h>
 
 #include "internal.h"
 
