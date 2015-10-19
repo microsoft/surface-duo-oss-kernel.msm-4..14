@@ -5,3 +5,4 @@
 obj-$(CONFIG_KVM_ARM_HOST) += vgic-v2-sr.o
 obj-$(CONFIG_KVM_ARM_HOST) += timer-sr.o
 obj-$(CONFIG_KVM_ARM_HOST) += sysreg-sr.o
+obj-$(CONFIG_KVM_ARM_HOST) += debug-sr.o
