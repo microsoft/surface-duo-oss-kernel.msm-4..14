@@ -85,6 +85,7 @@ struct arm64_cpu_capabilities {
 		};
 
 		struct {	/* Feature register checking */
+			u32 sys_reg;
 			int field_pos;
 			int min_field_value;
 			u64 register_mask;
