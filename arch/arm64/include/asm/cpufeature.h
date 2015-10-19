@@ -88,6 +88,8 @@ struct arm64_cpu_capabilities {
 			u32 sys_reg;
 			int field_pos;
 			int min_field_value;
+			int hwcap_type;
+			unsigned long hwcap;
 			u64 register_mask;
 			u64 register_value;
 		};
