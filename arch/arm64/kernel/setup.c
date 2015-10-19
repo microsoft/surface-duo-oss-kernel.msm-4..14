@@ -274,13 +274,6 @@ void __init setup_cpu_features(void)
 #endif
 }
 
-static void __init setup_processor(void)
-{
-	pr_info("Boot CPU: AArch64 Processor [%08x]\n", read_cpuid_id());
-	sprintf(init_utsname()->machine, ELF_PLATFORM);
-	cpuinfo_store_boot_cpu();
-}
-
 static void __init setup_machine_fdt(phys_addr_t dt_phys)
 {
 	void *dt_virt = fixmap_remap_fdt(dt_phys);
@@ -394,7 +387,7 @@ u64 __cpu_logical_map[NR_CPUS] = { [0 ... NR_CPUS-1] = INVALID_HWID };
 
 void __init setup_arch(char **cmdline_p)
 {
-	setup_processor();
+	pr_info("Boot CPU: AArch64 Processor [%08x]\n", read_cpuid_id());
 
 	init_mm.start_code = (unsigned long) _text;
 	init_mm.end_code   = (unsigned long) _etext;
@@ -407,6 +400,7 @@ void __init setup_arch(char **cmdline_p)
 	early_ioremap_init();
 
 	setup_machine_fdt(__fdt_pointer);
+	sprintf(init_utsname()->machine, ELF_PLATFORM);
 
 	parse_early_param();
 
