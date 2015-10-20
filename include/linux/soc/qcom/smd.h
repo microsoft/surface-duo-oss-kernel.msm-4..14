@@ -71,6 +71,7 @@ struct qcom_smd_channel {
 	int pkt_size;
 
 	struct list_head list;
+	struct list_head dev_list;
 };
 
 /**
