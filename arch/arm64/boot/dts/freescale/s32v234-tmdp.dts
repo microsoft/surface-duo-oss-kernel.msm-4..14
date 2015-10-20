@@ -20,6 +20,8 @@
 };
 
 &fec {
+	phy-mode = "rgmii";
+	fixed-link = <1 1 100 0 0>;
 	status = "okay";
 };
 &i2c0 {
