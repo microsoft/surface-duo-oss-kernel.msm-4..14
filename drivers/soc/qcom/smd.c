@@ -814,6 +814,11 @@ err:
 	dev_err(&qsdev->dev, "probe failed\n");
 
 	qcom_smd_channel_close(channel);
+	qcom_smd_channel_set_callback(channel, NULL);
+	kfree(channel->bounce_buffer);
+	channel->bounce_buffer = NULL;
+
+	qcom_smd_channel_set_state(channel, SMD_CHANNEL_CLOSED);
 	return ret;
 }
 
