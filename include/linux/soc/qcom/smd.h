@@ -6,7 +6,9 @@
 
 struct qcom_smd;
 struct qcom_smd_lookup;
+struct qcom_smd_device;
 
+typedef int (*qcom_smd_cb_t)(struct qcom_smd_device *, const void *, size_t);
 
 /*
  * SMD channel states.
@@ -62,7 +64,7 @@ struct qcom_smd_channel {
 	int fifo_size;
 
 	void *bounce_buffer;
-	int (*cb)(struct qcom_smd_device *, const void *, size_t);
+	qcom_smd_cb_t cb;
 
 	spinlock_t recv_lock;
 
@@ -105,7 +107,7 @@ struct qcom_smd_driver {
 
 	int (*probe)(struct qcom_smd_device *dev);
 	void (*remove)(struct qcom_smd_device *dev);
-	int (*callback)(struct qcom_smd_device *, const void *, size_t);
+	qcom_smd_cb_t callback;
 };
 
 int qcom_smd_driver_register(struct qcom_smd_driver *drv);
