@@ -106,9 +106,9 @@ static const struct {
  * @channels:		list of all channels detected on this edge
  * @channels_lock:	guard for modifications of @channels
  * @allocated:		array of bitmaps representing already allocated channels
- * @need_rescan:	flag that the @work needs to scan smem for new channels
  * @smem_available:	last available amount of smem triggering a channel scan
- * @work:		work item for edge house keeping
+ * @scan_work:		work item for discovering new channels
+ * @state_work:		work item for edge state changes
  */
 struct qcom_smd_edge {
 	struct qcom_smd *smd;
@@ -123,14 +123,14 @@ struct qcom_smd_edge {
 	int ipc_bit;
 
 	struct list_head channels;
-	spinlock_t channels_lock;
+	rwlock_t channels_lock;
 
 	DECLARE_BITMAP(allocated[SMD_ALLOC_TBL_COUNT], SMD_ALLOC_TBL_SIZE);
 
-	bool need_rescan;
 	unsigned smem_available;
 
-	struct work_struct work;
+	struct work_struct scan_work;
+	struct work_struct state_work;
 };
 
 
@@ -558,13 +558,13 @@ static irqreturn_t qcom_smd_edge_intr(int irq, void *data)
 	/*
 	 * Handle state changes or data on each of the channels on this edge
 	 */
-	spin_lock(&edge->channels_lock);
+	read_lock(&edge->channels_lock);
 	list_for_each_entry(channel, &edge->channels, list) {
 		spin_lock(&channel->recv_lock);
 		kick_worker |= qcom_smd_channel_intr(channel);
 		spin_unlock(&channel->recv_lock);
 	}
-	spin_unlock(&edge->channels_lock);
+	read_unlock(&edge->channels_lock);
 
 	/*
 	 * Creating a new channel requires allocating an smem entry, so we only
@@ -574,12 +574,11 @@ static irqreturn_t qcom_smd_edge_intr(int irq, void *data)
 	available = qcom_smem_get_free_space(edge->remote_pid);
 	if (available != edge->smem_available) {
 		edge->smem_available = available;
-		edge->need_rescan = true;
 		kick_worker = true;
 	}
 
 	if (kick_worker)
-		schedule_work(&edge->work);
+		schedule_work(&edge->scan_work);
 
 	return IRQ_HANDLED;
 }
@@ -1041,8 +1040,9 @@ free_name_and_channel:
  * qcom_smd_create_channel() to create representations of these and add
  * them to the edge's list of channels.
  */
-static void qcom_discover_channels(struct qcom_smd_edge *edge)
+static void qcom_channel_scan_worker(struct work_struct *work)
 {
+	struct qcom_smd_edge *edge = container_of(work, struct qcom_smd_edge, scan_work);
 	struct qcom_smd_alloc_entry *alloc_tbl;
 	struct qcom_smd_alloc_entry *entry;
 	struct qcom_smd_channel *channel;
@@ -1086,16 +1086,16 @@ static void qcom_discover_channels(struct qcom_smd_edge *edge)
 			if (IS_ERR(channel))
 				continue;
 
-			spin_lock_irqsave(&edge->channels_lock, flags);
+			write_lock_irqsave(&edge->channels_lock, flags);
 			list_add(&channel->list, &edge->channels);
-			spin_unlock_irqrestore(&edge->channels_lock, flags);
+			write_unlock_irqrestore(&edge->channels_lock, flags);
 
 			dev_dbg(smd->dev, "new channel found: '%s'\n", channel->name);
 			set_bit(i, edge->allocated[tbl]);
 		}
 	}
 
-	schedule_work(&edge->work);
+	schedule_work(&edge->state_work);
 }
 
 /*
@@ -1103,29 +1103,22 @@ static void qcom_discover_channels(struct qcom_smd_edge *edge)
  * then scans all registered channels for state changes that should be handled
  * by creating or destroying smd client devices for the registered channels.
  *
- * LOCKING: edge->channels_lock is not needed to be held during the traversal
- * of the channels list as it's done synchronously with the only writer.
+ * LOCKING: edge->channels_lock only needs to cover the list operations, as the
+ * worker is killed before any channels are deallocated
  */
 static void qcom_channel_state_worker(struct work_struct *work)
 {
 	struct qcom_smd_channel *channel;
 	struct qcom_smd_edge *edge = container_of(work,
 						  struct qcom_smd_edge,
-						  work);
+						  state_work);
 	unsigned remote_state;
-
-	/*
-	 * Rescan smem if we have reason to belive that there are new channels.
-	 */
-	if (edge->need_rescan) {
-		edge->need_rescan = false;
-		qcom_discover_channels(edge);
-	}
 
 	/*
 	 * Register a device for any closed channel where the remote processor
 	 * is showing interest in opening the channel.
 	 */
+	read_lock(&edge->channels_lock);
 	list_for_each_entry(channel, &edge->channels, list) {
 		if (channel->state != SMD_CHANNEL_CLOSED)
 			continue;
@@ -1135,7 +1128,9 @@ static void qcom_channel_state_worker(struct work_struct *work)
 		    remote_state != SMD_CHANNEL_OPENED)
 			continue;
 
+		read_unlock(&edge->channels_lock);
 		qcom_smd_create_device(channel);
+		read_lock(&edge->channels_lock);
 	}
 
 	/*
@@ -1152,8 +1147,11 @@ static void qcom_channel_state_worker(struct work_struct *work)
 		    remote_state == SMD_CHANNEL_OPENED)
 			continue;
 
+		read_unlock(&edge->channels_lock);
 		qcom_smd_destroy_device(channel);
+		read_lock(&edge->channels_lock);
 	}
+	read_unlock(&edge->channels_lock);
 }
 
 /*
@@ -1169,9 +1167,10 @@ static int qcom_smd_parse_edge(struct device *dev,
 	int ret;
 
 	INIT_LIST_HEAD(&edge->channels);
-	spin_lock_init(&edge->channels_lock);
+	rwlock_init(&edge->channels_lock);
 
-	INIT_WORK(&edge->work, qcom_channel_state_worker);
+	INIT_WORK(&edge->scan_work, qcom_channel_scan_worker);
+	INIT_WORK(&edge->state_work, qcom_channel_state_worker);
 
 	edge->of_node = of_node_get(node);
 
@@ -1264,8 +1263,7 @@ static int qcom_smd_probe(struct platform_device *pdev)
 		if (ret)
 			continue;
 
-		edge->need_rescan = true;
-		schedule_work(&edge->work);
+		schedule_work(&edge->scan_work);
 	}
 
 	platform_set_drvdata(pdev, smd);
@@ -1288,8 +1286,10 @@ static int qcom_smd_remove(struct platform_device *pdev)
 		edge = &smd->edges[i];
 
 		disable_irq(edge->irq);
-		cancel_work_sync(&edge->work);
+		cancel_work_sync(&edge->scan_work);
+		cancel_work_sync(&edge->state_work);
 
+		/* No need to lock here, because the writer is gone */
 		list_for_each_entry(channel, &edge->channels, list) {
 			if (!channel->qsdev)
 				continue;
