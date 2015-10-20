@@ -130,7 +130,6 @@ struct qcom_smd_edge {
 	unsigned smem_available;
 
 	wait_queue_head_t new_channel_event;
-
 	struct work_struct scan_work;
 	struct work_struct state_work;
 };
