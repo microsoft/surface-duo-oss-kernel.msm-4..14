@@ -424,7 +424,16 @@ static void free_msi_irqs(struct pci_dev *dev)
 	}
 }
 
+static struct msi_desc *alloc_msi_entry(struct device *dev)
+{
+	struct msi_desc *desc = kzalloc(sizeof(*desc), GFP_KERNEL);
+		if (!desc)
+			return NULL;
 
+	INIT_LIST_HEAD(&desc->list);
+	desc->dev = dev;
+	return desc;
+}
 static void pci_intx_for_msi(struct pci_dev *dev, int enable)
 {
 	if (!(dev->dev_flags & PCI_DEV_FLAGS_MSI_INTX_DISABLE_BUG))
@@ -906,7 +915,7 @@ void pci_msi_shutdown(struct pci_dev *dev)
 	if (!pci_msi_enable || !dev || !dev->msi_enabled)
 		return;
 
-	BUG_ON(dev_to_msi_list(&dev->dev));
+	BUG_ON(list_empty(dev_to_msi_list(&dev->dev)));
 	desc = first_msi_entry(&dev->dev);
 
 	msi_set_enable(dev, 0);

@@ -59,6 +59,7 @@ struct pcie_port {
 	struct pcie_host_ops	*ops;
 	int			msi_irq;
 	struct irq_domain	*irq_domain;
+	struct msi_controller	*msi_chip;
 	unsigned long		msi_data;
 	DECLARE_BITMAP(msi_irq_in_use, MAX_MSI_IRQS);
 	u8			atu_idx[ATU_TYPE_MAX];
