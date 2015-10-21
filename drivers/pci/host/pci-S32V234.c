@@ -122,7 +122,7 @@ struct s32v234_pcie {
 
 #ifdef CONFIG_PCI_S32V234_EP
 /* MSI base region  */
-#define MSI_REGION		0x72FB0000
+#define MSI_REGION			0x72FB0000
 #define PCI_BASE_ADDR		0x72000000
 #define PCI_BASE_DBI		0x72FFC000
 #define MSI_REGION_NR	3
@@ -178,7 +178,6 @@ struct s32v_outbound_region {
 	u32 region;
 	u32 region_type;
 };
-
 static int s32v_setup_MSI(struct pcie_port *pp, void __user *argp)
 {
 	int rc = 0;
@@ -608,7 +607,7 @@ static int s32v234_pcie_init_phy(struct pcie_port *pp)
 #ifndef CONFIG_PCI_S32V234_EP
 static int s32v234_pcie_wait_for_link(struct pcie_port *pp)
 {
-	int count	= 200;
+	int count	= 1000;
 
 	while (!dw_pcie_link_up(pp)) {
 		udelay(100);
@@ -673,13 +672,13 @@ static int s32v234_pcie_start_link(struct pcie_port *pp)
 	tmp |= PORT_LOGIC_SPEED_CHANGE;
 	writel(tmp, pp->dbi_base + PCIE_LINK_WIDTH_SPEED_CONTROL);
 
-	count = 200;
+	count = 1000;
 	while (count--) {
 		tmp = readl(pp->dbi_base + PCIE_LINK_WIDTH_SPEED_CONTROL);
 		/* Test if the speed change finished. */
 		if (!(tmp & PORT_LOGIC_SPEED_CHANGE))
 			break;
-		udelay(100);
+		udelay(150);
 	}
 
 	/* Make sure link training is finished as well! */
@@ -815,8 +814,24 @@ static int __init s32v234_add_pcie_port(struct pcie_port *pp,
 			struct platform_device *pdev)
 {
 	int ret;
+	#ifdef CONFIG_PCI_MSI
+	if (IS_ENABLED(CONFIG_PCI_MSI)) {
+		pp->msi_irq = platform_get_irq_byname(pdev, "msi");
+		if (pp->msi_irq <= 0) {
+			dev_err(&pdev->dev, "failed to get MSI irq\n");
+			return -ENODEV;
+		}
 
-	pp->root_bus_nr = 0;
+		ret = devm_request_irq(&pdev->dev, pp->msi_irq ,
+			s32v234_pcie_msi_handler,
+			IRQF_SHARED, "s32v-pcie-msi", pp);
+		if (ret) {
+			dev_err(&pdev->dev, "failed to request MSI irq\n");
+			return -ENODEV;
+		}
+	}
+	#endif
+	pp->root_bus_nr = -1;
 	pp->ops = &s32v234_pcie_host_ops;
 
 	ret = dw_pcie_host_init(pp);
@@ -926,7 +941,9 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 	struct pcie_port *pp;
 	struct resource *dbi_base;
 	int ret;
+	#ifdef CONFIG_PCI_S32V234_EP
 	struct dentry *pfile;
+	#endif
 
 	s32v234_pcie = devm_kzalloc(&pdev->dev, sizeof(*s32v234_pcie)
 					, GFP_KERNEL);
@@ -935,7 +952,6 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 
 	pp = &s32v234_pcie->pp;
 	pp->dev = &pdev->dev;
-
 
 	/* Added for PCI abort handling */
 	dbi_base = platform_get_resource(pdev, IORESOURCE_MEM, 0);

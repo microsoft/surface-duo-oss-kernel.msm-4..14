@@ -241,7 +241,8 @@ static void dw_pcie_msi_set_irq(struct pcie_port *pp, int irq)
 static int assign_irq(int no_irqs, struct msi_desc *desc, int *pos)
 {
 	int irq, pos0, i;
-	struct pcie_port *pp = sys_to_pcie(desc->dev->bus->sysdata);
+	struct pci_dev *dev = to_pci_dev(desc->dev);
+	struct pcie_port *pp = sys_to_pcie(dev->bus->sysdata);
 
 	pos0 = bitmap_find_free_region(pp->msi_irq_in_use, MAX_MSI_IRQS,
 				       order_base_2(no_irqs));
@@ -313,7 +314,8 @@ static void dw_msi_teardown_irq(struct msi_controller *chip, unsigned int irq)
 {
 	struct irq_data *data = irq_get_irq_data(irq);
 	struct msi_desc *msi = irq_data_get_msi(data);
-	struct pcie_port *pp = sys_to_pcie(msi->dev->bus->sysdata);
+	struct pci_dev *dev = to_pci_dev(msi->dev);
+	struct pcie_port *pp = sys_to_pcie(dev->bus->sysdata);
 
 	clear_irq_range(pp, irq, 1, data->hwirq);
 }
@@ -522,8 +524,12 @@ int dw_pcie_host_init(struct pcie_port *pp)
 	dw_pcie_wr_own_conf(pp, PCIE_LINK_WIDTH_SPEED_CONTROL, 4, val);
 
 #ifdef CONFIG_PCI_MSI
-	dw_pcie_msi_chip.dev = pp->dev;
-	dw_pci.msi_ctrl = &dw_pcie_msi_chip;
+	if (!pp->msi_chip) {
+		dw_pcie_msi_chip.dev = pp->dev;
+		dw_pci.msi_ctrl = &dw_pcie_msi_chip;
+	} else {
+		dw_pci.msi_ctrl = pp->msi_chip;
+	}
 #endif
 
 	dw_pci.nr_controllers = 1;
@@ -759,6 +765,9 @@ static struct pci_bus *dw_pcie_scan_bus(int nr, struct pci_sys_data *sys)
 				  &dw_pcie_ops, sys, &sys->resources);
 	if (!bus)
 		return NULL;
+	#ifdef CONFIG_PCI_MSI
+	bus->msi = &dw_pcie_msi_chip;
+	#endif
 
 	pci_scan_child_bus(bus);
 
