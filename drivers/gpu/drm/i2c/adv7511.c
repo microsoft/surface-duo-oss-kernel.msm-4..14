@@ -24,7 +24,7 @@
 
 #include "adv7511.h"
 
-#define HPD_ENABLE	0
+#define HPD_ENABLE	1
 
 static struct adv7511 *encoder_to_adv7511(struct drm_encoder *encoder)
 {
@@ -981,7 +981,7 @@ static void adv7533_bridge_post_disable(struct drm_bridge *bridge)
 	struct adv7511 *adv = bridge_to_adv7511(bridge);
 
 #if HPD_ENABLE
-	if (!adv7511->powered)
+	if (!adv->powered)
 		return;
 #endif
 
