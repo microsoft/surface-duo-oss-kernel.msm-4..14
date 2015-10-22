@@ -49,5 +49,7 @@ void __debug_restore_state(struct kvm_vcpu *vcpu,
 void __debug_cond_save_host_state(struct kvm_vcpu *vcpu);
 void __debug_cond_restore_host_state(struct kvm_vcpu *vcpu);
 
+u64 __guest_enter(struct kvm_vcpu *vcpu, struct kvm_cpu_context *host_ctxt);
+
 #endif /* __ARM64_KVM_HYP_H__ */
 
