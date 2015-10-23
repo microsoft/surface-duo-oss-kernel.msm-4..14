@@ -154,20 +154,19 @@ static int qcom_smd_wlan_ctrl_callback(struct qcom_smd_device *qsdev,
 	return 0;
 }
 
-static const struct of_device_id qcom_smd_wlan_ctrl_of_match[] = {
-	{ .compatible = "qcom,wlan-ctrl" },
+static const struct qcom_smd_id qcom_smd_wlan_ctrl_match[] = {
+	{ .name = "WLAN_CTRL" },
 	{}
 };
-MODULE_DEVICE_TABLE(of, qcom_smd_wlan_ctrl_of_match);
 
 static struct qcom_smd_driver qcom_smd_wlan_ctrl_driver = {
 	.probe = qcom_smd_wlan_ctrl_probe,
 	.remove = qcom_smd_wlan_ctrl_remove,
 	.callback = qcom_smd_wlan_ctrl_callback,
+	.smd_match_table = qcom_smd_wlan_ctrl_match,
 	.driver  = {
 		.name  = "qcom_smd_wlan_ctrl",
 		.owner = THIS_MODULE,
-		.of_match_table = qcom_smd_wlan_ctrl_of_match,
 	},
 };
 

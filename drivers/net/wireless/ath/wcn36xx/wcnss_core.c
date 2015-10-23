@@ -256,20 +256,19 @@ static void qcom_smd_wcnss_ctrl_remove(struct qcom_smd_device *sdev)
         of_platform_depopulate(&sdev->dev);
 }
 
-static const struct of_device_id qcom_smd_wcnss_ctrl_of_match[] = {
-	{ .compatible = "qcom,wcnss-ctrl" },
+static const struct qcom_smd_id qcom_smd_wcnss_ctrl_match[] = {
+	{ .name = "WCNSS_CTRL" },
 	{}
 };
-MODULE_DEVICE_TABLE(of, qcom_smd_wcnss_ctrl_of_match);
 
 static struct qcom_smd_driver qcom_smd_wcnss_ctrl_driver = {
 	.probe = qcom_smd_wcnss_ctrl_probe,
 	.remove = qcom_smd_wcnss_ctrl_remove,
 	.callback = qcom_smd_wcnss_ctrl_callback,
+	.smd_match_table = qcom_smd_wcnss_ctrl_match,
 	.driver  = {
 		.name  = "qcom_smd_wcnss_ctrl",
 		.owner = THIS_MODULE,
-		.of_match_table = qcom_smd_wcnss_ctrl_of_match,
 	},
 };
 
