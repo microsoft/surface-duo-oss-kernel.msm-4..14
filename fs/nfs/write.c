@@ -768,6 +768,28 @@ nfs_page_search_commits_for_head_request_locked(struct nfs_inode *nfsi,
 }
 
 /**
+ * nfs_request_add_commit_list_locked - add request to a commit list
+ * @req: pointer to a struct nfs_page
+ * @dst: commit list head
+ * @cinfo: holds list lock and accounting info
+ *
+ * This sets the PG_CLEAN bit, updates the cinfo count of
+ * number of outstanding requests requiring a commit as well as
+ * the MM page stats.
+ *
+ * The caller must hold the cinfo->lock, and the nfs_page lock.
+ */
+void
+nfs_request_add_commit_list_locked(struct nfs_page *req, struct list_head *dst,
+			    struct nfs_commit_info *cinfo)
+{
+	set_bit(PG_CLEAN, &req->wb_flags);
+	nfs_list_add_request(req, dst);
+	cinfo->mds->ncommit++;
+}
+EXPORT_SYMBOL_GPL(nfs_request_add_commit_list_locked);
+
+/**
  * nfs_request_add_commit_list - add request to a commit list
  * @req: pointer to a struct nfs_page
  * @dst: commit list head
@@ -784,13 +806,10 @@ void
 nfs_request_add_commit_list(struct nfs_page *req, struct list_head *dst,
 			    struct nfs_commit_info *cinfo)
 {
-	set_bit(PG_CLEAN, &(req)->wb_flags);
 	spin_lock(cinfo->lock);
-	nfs_list_add_request(req, dst);
-	cinfo->mds->ncommit++;
+	nfs_request_add_commit_list_locked(req, dst, cinfo);
 	spin_unlock(cinfo->lock);
-	if (!cinfo->dreq)
-		nfs_mark_page_unstable(req->wb_page);
+	nfs_mark_page_unstable(req->wb_page, cinfo);
 }
 EXPORT_SYMBOL_GPL(nfs_request_add_commit_list);
 
@@ -1204,7 +1223,7 @@ static int nfs_can_extend_write(struct file *file, struct page *page, struct ino
 		return 1;
 	if (!flctx || (list_empty_careful(&flctx->flc_flock) &&
 		       list_empty_careful(&flctx->flc_posix)))
-		return 0;
+		return 1;
 
 	/* Check to see if there are whole file write locks */
 	ret = 0;
@@ -1331,6 +1350,9 @@ EXPORT_SYMBOL_GPL(nfs_pageio_init_write);
 void nfs_pageio_reset_write_mds(struct nfs_pageio_descriptor *pgio)
 {
 	struct nfs_pgio_mirror *mirror;
+
+	if (pgio->pg_ops && pgio->pg_ops->pg_cleanup)
+		pgio->pg_ops->pg_cleanup(pgio);
 
 	pgio->pg_ops = &nfs_pgio_rw_ops;
 

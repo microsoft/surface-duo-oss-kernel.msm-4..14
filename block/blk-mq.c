@@ -559,23 +559,9 @@ void blk_mq_abort_requeue_list(struct request_queue *q)
 }
 EXPORT_SYMBOL(blk_mq_abort_requeue_list);
 
-static inline bool is_flush_request(struct request *rq,
-		struct blk_flush_queue *fq, unsigned int tag)
-{
-	return ((rq->cmd_flags & REQ_FLUSH_SEQ) &&
-			fq->flush_rq->tag == tag);
-}
-
 struct request *blk_mq_tag_to_rq(struct blk_mq_tags *tags, unsigned int tag)
 {
-	struct request *rq = tags->rqs[tag];
-	/* mq_ctx of flush rq is always cloned from the corresponding req */
-	struct blk_flush_queue *fq = blk_get_flush_queue(rq->q, rq->mq_ctx);
-
-	if (!is_flush_request(rq, fq, tag))
-		return rq;
-
-	return fq->flush_rq;
+	return tags->rqs[tag];
 }
 EXPORT_SYMBOL(blk_mq_tag_to_rq);
 
@@ -1821,7 +1807,6 @@ static void blk_mq_map_swqueue(struct request_queue *q)
 
 		hctx = q->mq_ops->map_queue(q, i);
 		cpumask_set_cpu(i, hctx->cpumask);
-		cpumask_set_cpu(i, hctx->tags->cpumask);
 		ctx->index_hw = hctx->nr_ctx;
 		hctx->ctxs[hctx->nr_ctx++] = ctx;
 	}
@@ -1860,6 +1845,14 @@ static void blk_mq_map_swqueue(struct request_queue *q)
 		 */
 		hctx->next_cpu = cpumask_first(hctx->cpumask);
 		hctx->next_cpu_batch = BLK_MQ_CPU_WORK_BATCH;
+	}
+
+	queue_for_each_ctx(q, ctx, i) {
+		if (!cpu_online(i))
+			continue;
+
+		hctx = q->mq_ops->map_queue(q, i);
+		cpumask_set_cpu(i, hctx->tags->cpumask);
 	}
 }
 
