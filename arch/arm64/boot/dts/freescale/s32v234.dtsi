@@ -9,6 +9,8 @@
 #include <dt-bindings/clock/s32v234-clock.h>
 #include <dt-bindings/pinctrl/s32v234-pinctrl.h>
 
+/memreserve/ 0xC0000000 0x00000100;
+
  / {
 	compatible = "fsl,s32v234", "arm,vexpress,v2p-aarch64", "arm,vexpress";
 	interrupt-parent = <&gic>;
@@ -31,7 +33,28 @@
 			compatible = "arm,arm-v8";
 			reg = <0x0 0x0>;
 			enable-method = "spin-table";
-			cpu-release-addr = <0x0 0x8000fff8>;
+			cpu-release-addr = <0x0 0xC0000000>;
+		};
+		cpu@1 {
+			device_type = "cpu";
+			compatible = "arm,arm-v8";
+			reg = <0x0 0x1>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0xC0000000>;
+		};
+		cpu@100 {
+			device_type = "cpu";
+			compatible = "arm,arm-v8";
+			reg = <0x0 0x100>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0xC0000000>;
+		};
+		cpu@101 {
+			device_type = "cpu";
+			compatible = "arm,arm-v8";
+			reg = <0x0 0x101>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0xC0000000>;
 		};
 	};
 
@@ -53,12 +76,12 @@
 		device_type = "memory";
 		reg = <0 0x80000000 0 0x30000000>;
 	};
-/*
+
 	memory_DDR1@c0000000 {
 		device_type = "memory";
-		reg = <0 0xc0000000 0 0x40000000>;
+		reg = <0 0xc0000000 0 0x10000000>;
 	};
-*/
+
 	gic: interrupt-controller@7d001000 {
 		compatible = "arm,cortex-a15-gic", "arm,cortex-a9-gic";
 		#interrupt-cells = <3>;
