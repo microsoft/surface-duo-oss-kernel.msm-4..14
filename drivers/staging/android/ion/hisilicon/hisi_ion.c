@@ -18,6 +18,7 @@
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/of.h>
+#include <linux/dma-mapping.h>
 #include "../ion_priv.h"
 
 struct hisi_ion_name_id_table {
@@ -33,6 +34,7 @@ static struct hisi_ion_name_id_table name_id_table[] __initdata = {
 	{"overlay", ION_OVERLAY_HEAP_ID},
 	{"sys_user", ION_SYSTEM_HEAP_ID},
 	{"sys_contig", ION_SYSTEM_CONTIG_HEAP_ID},
+	{"cma", ION_HEAP_TYPE_DMA},
 };
 
 struct hisi_ion_type_id_table {
@@ -47,6 +49,7 @@ static struct hisi_ion_type_id_table type_id_table[] = {
 	{"ion_chunk", ION_HEAP_TYPE_CHUNK},
 	{"ion_dma", ION_HEAP_TYPE_DMA},
 	{"ion_custom", ION_HEAP_TYPE_CUSTOM},
+	{"ion_cma", ION_HEAP_TYPE_DMA},
 };
 
 #define HISI_ION_HEAP_NUM 16
@@ -116,6 +119,17 @@ static int __init get_type_by_name(const char *name, enum ion_heap_type *type)
 	return -1;
 }
 
+static u64 hisi_dmamask = DMA_BIT_MASK(32);
+
+static struct platform_device ion_cma_device = {
+	.name = "ion-cma-device",
+	.id = -1,
+	.dev = {
+		.dma_mask = &hisi_dmamask,
+		.coherent_dma_mask = DMA_BIT_MASK(32),
+	}
+};
+
 static int __init hisi_ion_setup_platform_data(struct platform_device *dev)
 {
 	struct device_node *node, *np;
@@ -165,7 +179,11 @@ static int __init hisi_ion_setup_platform_data(struct platform_device *dev)
 		hisi_ion_platform_heap[index].size = range[1];
 		hisi_ion_platform_heap[index].id = id;
 		hisi_ion_platform_heap[index].type = type;
-
+		if (type == ION_HEAP_TYPE_DMA) {
+		//	ion_cma_device.dev.archdata.dma_ops = swiotlb_dma_ops;
+			hisi_ion_platform_heap[index].priv =
+				(void *)&ion_cma_device.dev;
+		}
 		index++;
 	}
 
