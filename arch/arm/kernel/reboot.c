@@ -93,16 +93,6 @@ void soft_restart(unsigned long addr)
  */
 void machine_shutdown(void)
 {
-#ifdef CONFIG_SMP
-	/*
-	 * Disable preemption so we're guaranteed to
-	 * run to power off or reboot and prevent
-	 * the possibility of switching to another
-	 * thread that might wind up blocking on
-	 * one of the stopped CPUs.
-	 */
-	preempt_disable();
-#endif
 	disable_nonboot_cpus();
 }
 
