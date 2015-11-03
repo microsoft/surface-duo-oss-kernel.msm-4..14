@@ -216,6 +216,8 @@ static const char const * sys_sels[]	= { "firc", "fxosc", "armpll_dfs0", };
 
 static const char const * perifray_sels[] = { "firc", "fxosc", "dummy", "periphpll_phi0_div5", };
 
+static const char const *can_sels[] = { "firc", "fxosc", "dummy", "periphpll_phi0_div5", };
+
 static const char const * lin_sels[]	= { "firc", "fxosc", "dummy", "periphpll_phi0_div3", "dummy", "dummy", "dummy", "dummy", "sys6",};
 
 static const char const * sdhc_sels[]	= { "firc", "fxosc", "dummy", "dummy", "enetpll_dfs3",};
@@ -380,12 +382,23 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 		MC_CGM_ACn_SEL_SIZE,
 		perifray_sels, ARRAY_SIZE(perifray_sels));
 
+	clk[S32V234_CLK_CAN_SEL] = s32_clk_mux("can_sel",
+		CGM_ACn_SC(mc_cgm0_base, 6),
+		MC_CGM_ACn_SEL_OFFSET,
+		MC_CGM_ACn_SEL_SIZE,
+		can_sels, ARRAY_SIZE(can_sels));
+
 	clk[S32V234_CLK_PERI] = s32_clk_divider("peri", "perifray_sel",
 		CGM_ACn_DCm(mc_cgm0_base,5,0), MC_CGM_ACn_DCm_PREDIV_OFFSET,
 		MC_CGM_ACn_DCm_PREDIV_SIZE);
 
 	clk[S32V234_CLK_PERI_FRAY_PLL] = s32_clk_divider("perifray", "perifray_sel",
 		CGM_ACn_DCm(mc_cgm0_base,5,1), MC_CGM_SC_DCn_PREDIV_OFFSET,
+		MC_CGM_ACn_DCm_PREDIV_SIZE);
+
+	/* Can Clock */
+	clk[S32V234_CLK_CAN] = s32_clk_divider("can", "can_sel",
+		CGM_ACn_DCm(mc_cgm0_base, 6, 0), MC_CGM_ACn_DCm_PREDIV_OFFSET,
 		MC_CGM_ACn_DCm_PREDIV_SIZE);
 
 	/* Lin Clock */
