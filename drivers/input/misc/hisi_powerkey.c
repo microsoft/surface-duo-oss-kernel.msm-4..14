@@ -136,9 +136,8 @@ static int hi65xx_powerkey_probe(struct platform_device *pdev)
 	priv->idev->phys = "hisi_on/input0";
 	priv->idev->name = "hisi_on";
 
-	__set_bit(pkey_report[id_released].code, priv->idev->keybit);
-	__set_bit(pkey_report[id_pressed].code, priv->idev->keybit);
-	__set_bit(pkey_report[id_held].code, priv->idev->keybit);
+	for (i = 0; i < ARRAY_SIZE(pkey_report); i++)
+		input_set_capability(priv->idev, EV_KEY, pkey_report[i].code);
 
 	for (i = 0; i < ARRAY_SIZE(irq_info); i++) {
 
