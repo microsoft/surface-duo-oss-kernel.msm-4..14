@@ -192,7 +192,7 @@ enum msm_bus_rpm_mas_field_type {
 	RPM_MASTER_FIELD_BW_T2 =	0x32747762,
 };
 
-#include <dt-bindings/msm/msm-bus-ids.h>
+#include <dt-bindings/soc/msm-bus-ids.h>
 
 
 #endif /*__ASM_ARCH_MSM_BUS_BOARD_H */
