@@ -124,4 +124,6 @@ void __init kasan_init(void)
 	load_cr3(init_level4_pgt);
 	__flush_tlb_all();
 	init_task.kasan_depth = 0;
+
+	pr_info("KernelAddressSanitizer initialized\n");
 }
