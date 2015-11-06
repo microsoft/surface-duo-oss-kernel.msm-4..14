@@ -9,3 +9,38 @@ config QCOM_GSBI
           functions for connecting the underlying serial UART, SPI, and I2C
           devices to the output pins.
 
+config QCOM_SCM
+	bool
+
+config QCOM_PM
+	bool "Qualcomm Power Management"
+	depends on ARCH_QCOM
+	help
+	  QCOM Platform specific power driver to manage cores and L2 low power
+	  modes. It interface with various system drivers to put the cores in
+	  low power modes.
+
+config QCOM_SMD
+	tristate "Shared Memory device"
+	---help---
+          Supports the Shared memory device
+
+config MSM_PIL
+        tristate "MSM Periphera Loader"
+        depends on ARCH_QCOM
+        help
+          Say y here to enable Periphera loader support.  The PIL provides support
+          to download firmware securely and reset peripherials.
+
+config MSM_PIL_Q6V4
+        tristate "MSM Periphera Loader for QDSP 6V4"
+        depends on MSM_PIL
+        help
+          Say y here to enable Periphera loader support for QDSP.
+
+config MSM_REMOTE_SPINLOCKS
+        tristate "MSM Remote Spinlocks"
+        depends on ARCH_QCOM
+        help
+          Say y here to enable Remote Spinlock support.
+

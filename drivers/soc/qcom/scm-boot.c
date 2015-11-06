@@ -18,8 +18,25 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 
-#include "scm.h"
-#include "scm-boot.h"
+#include <soc/qcom/scm.h>
+#include <soc/qcom/scm-boot.h>
+
+#define SCM_FLAG_WARMBOOT_CPU0		0x04
+#define SCM_FLAG_WARMBOOT_CPU1		0x02
+#define SCM_FLAG_WARMBOOT_CPU2		0x10
+#define SCM_FLAG_WARMBOOT_CPU3		0x40
+
+struct scm_warmboot {
+	int flag;
+	void *entry;
+};
+
+static struct scm_warmboot scm_flags[] = {
+	{ .flag = SCM_FLAG_WARMBOOT_CPU0 },
+	{ .flag = SCM_FLAG_WARMBOOT_CPU1 },
+	{ .flag = SCM_FLAG_WARMBOOT_CPU2 },
+	{ .flag = SCM_FLAG_WARMBOOT_CPU3 },
+};
 
 /*
  * Set the cold/warm boot address for one of the CPU cores.
@@ -37,3 +54,21 @@ int scm_set_boot_addr(phys_addr_t addr, int flags)
 			&cmd, sizeof(cmd), NULL, 0);
 }
 EXPORT_SYMBOL(scm_set_boot_addr);
+
+int scm_set_warm_boot_addr(void *entry, int cpu)
+{
+	int ret;
+
+	/*
+	 * Reassign only if we are switching from hotplug entry point
+	 * to cpuidle entry point or vice versa.
+	 */
+	if (entry == scm_flags[cpu].entry)
+		return 0;
+
+	ret = scm_set_boot_addr(virt_to_phys(entry), scm_flags[cpu].flag);
+	if (!ret)
+		scm_flags[cpu].entry  = entry;
+
+	return ret;
+}

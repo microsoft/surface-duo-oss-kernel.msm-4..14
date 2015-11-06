@@ -1,4 +1,5 @@
 #include "qcom-apq8064-v2.0.dtsi"
+#include <dt-bindings/gpio/gpio.h>
 
 / {
 	model = "CompuLab CM-QS600";
@@ -10,6 +11,14 @@
 				mux {
 					pins = "gpio20", "gpio21";
 					function = "gsbi1";
+				};
+			};
+
+			card_detect: card_detect {
+				mux {
+					pins = "gpio26";
+					function = "gpio";
+					bias-disable;
 				};
 			};
 		};
@@ -27,7 +36,7 @@
 				eeprom: eeprom@50 {
 					compatible = "24c02";
 					reg = <0x50>;
-					pagesize = <32>;
+					pagesize = <16>;
 				};
 			};
 		};
@@ -40,6 +49,60 @@
 			};
 		};
 
+		/* OTG */
+		usb1_phy:phy@12500000 {
+			status = "ok";
+		};
+
+		usb3_phy:phy@12520000 {
+			status = "ok";
+		};
+
+		usb4_phy:phy@12530000 {
+			status = "ok";
+		};
+
+		gadget1:gadget@12500000 {
+			status = "ok";
+		};
+
+		/* OTG */
+		usb1: usb@12500000 {
+			status = "ok";
+		};
+
+		usb3: usb@12520000 {
+			status = "ok";
+		};
+
+		usb4: usb@12530000 {
+			status = "ok";
+		};
+
+		/* on board fixed 3.3v supply */
+		v3p3_pcieclk: v3p3-pcieclk {
+			compatible = "regulator-fixed";
+			regulator-name = "PCIE V3P3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+		};
+
+		pci@1b500000 {
+			status = "ok";
+			pcie-clk-supply	= <&v3p3_pcieclk>;
+			avdd-supply	= <&pm8921_s3>;
+			vdd-supply	= <&pm8921_lvs6>;
+			ext-3p3v-supply = <&ext_3p3v>;
+			qcom,external-phy-refclk;
+			reset-gpio = <&tlmm_pinmux 27 GPIO_ACTIVE_LOW>;
+		};
+
+		wlan0 {
+			compatible = "atheros,ath6kl";
+			reset-gpio = <&pm8921_gpio 42 GPIO_ACTIVE_LOW>;
+		};
+
 		amba {
 			/* eMMC */
 			sdcc1: sdcc@12400000 {
@@ -49,6 +112,9 @@
 			/* External micro SD card */
 			sdcc3: sdcc@12180000 {
 				status = "okay";
+				pinctrl-names	= "default";
+				pinctrl-0	= <&card_detect>;
+				cd-gpios	= <&tlmm_pinmux 26 GPIO_ACTIVE_LOW>;
 			};
 			/* WLAN */
 			sdcc4: sdcc@121c0000 {
