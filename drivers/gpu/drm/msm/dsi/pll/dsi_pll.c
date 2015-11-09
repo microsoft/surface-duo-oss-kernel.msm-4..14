@@ -72,32 +72,41 @@ long msm_dsi_pll_helper_clk_round_rate(struct clk_hw *hw,
 int msm_dsi_pll_helper_clk_prepare(struct clk_hw *hw)
 {
 	struct msm_dsi_pll *pll = hw_clk_to_pll(hw);
-	int ret;
 
-	/*
-	 * Certain PLLs need to update the same VCO rate and registers
-	 * after resume in suspend/resume scenario.
-	 */
-	if (pll->restore_state) {
-		ret = pll->restore_state(pll);
-		if (ret)
-			goto error;
-	}
-
-	ret = dsi_pll_enable(pll);
-
-error:
-	return ret;
+	return dsi_pll_enable(pll);
 }
 
 void msm_dsi_pll_helper_clk_unprepare(struct clk_hw *hw)
 {
 	struct msm_dsi_pll *pll = hw_clk_to_pll(hw);
 
-	if (pll->save_state)
+	dsi_pll_disable(pll);
+}
+
+int msm_dsi_pll_save_state(struct msm_dsi_pll *pll)
+{
+	if (pll->save_state) {
 		pll->save_state(pll);
 
-	dsi_pll_disable(pll);
+		pll->state_saved = true;
+	}
+
+	return 0;
+}
+
+int msm_dsi_pll_restore_state(struct msm_dsi_pll *pll)
+{
+	if (pll->restore_state && pll->state_saved) {
+		int ret;
+
+		ret = pll->restore_state(pll);
+		if (ret)
+			return ret;
+
+		pll->state_saved = false;
+	}
+
+	return 0;
 }
 
 void msm_dsi_pll_helper_unregister_clks(struct platform_device *pdev,
