@@ -300,3 +300,11 @@
 &pm8916_l15 {
 	regulator-always-on;
 };
+
+&vidc_rproc {
+	status = "okay";
+};
+
+&vidc {
+	status = "okay";
+};
