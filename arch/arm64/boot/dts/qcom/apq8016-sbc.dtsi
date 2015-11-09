@@ -471,3 +471,15 @@
 	clock-names = "mclk";
 	qcom,lpass-codec-core = <&wcd_digital>;
 };
+/* default regulators required for mezzanine boards */
+&pm8916_l15 {
+	regulator-always-on;
+};
+
+&vidc_rproc {
+	status = "okay";
+};
+
+&vidc {
+	status = "okay";
+};
