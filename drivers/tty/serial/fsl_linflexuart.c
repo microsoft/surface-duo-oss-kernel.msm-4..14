@@ -432,11 +432,10 @@ static int linflex_startup(struct uart_port *port)
 
 	/* No support for dma in the current driver */
 	sport->linflex_dma_use = false;
-/*
+
 	ret = devm_request_irq(port->dev, port->irq, linflex_int, 0,
 				DRIVER_NAME, sport);
-*/
-	ret = request_irq(port->irq, linflex_int, 0, DRIVER_NAME, sport);
+
 	if (ret)
 		return ret;
 
