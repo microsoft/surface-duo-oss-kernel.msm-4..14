@@ -47,6 +47,7 @@ struct reset_controller_dev;
  */
 struct gdsc {
 	struct generic_pm_domain	pd;
+	struct generic_pm_domain	*parent;
 	struct regmap			*regmap;
 	unsigned int			gdscr;
 	unsigned int			*cxcs;
@@ -62,19 +63,25 @@ struct gdsc {
 	struct clk			*root_clk;
 };
 
+struct gdsc_desc {
+	struct device *dev;
+	struct gdsc **scs;
+	size_t num;
+};
+
 #ifdef CONFIG_QCOM_GDSC
-int gdsc_register(struct device *, struct gdsc **, size_t n,
-		  struct reset_controller_dev *, struct regmap *);
-void gdsc_unregister(struct device *);
+int gdsc_register(struct gdsc_desc *desc, struct reset_controller_dev *,
+		  struct regmap *);
+void gdsc_unregister(struct gdsc_desc *desc);
 #else
-static inline int gdsc_register(struct device *d, struct gdsc **g, size_t n,
+static inline int gdsc_register(struct gdsc_desc *desc,
 				struct reset_controller_dev *rcdev,
 				struct regmap *r)
 {
 	return -ENOSYS;
 }
 
-static inline void gdsc_unregister(struct device *d) {};
+static inline void gdsc_unregister(struct gdsc_desc *desc) {};
 #endif /* CONFIG_QCOM_GDSC */
 #ifndef CONFIG_PM
 struct gdsc_notifier_block {
