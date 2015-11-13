@@ -78,6 +78,19 @@
 &i2c2 {
 	status = "okay";
 };
+&fec {
+	phy-mode = "rgmii";
+		phy-handle = <&phy0>;
+		status = "okay";
+		mdio {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			phy0: ethernet-phy@1 {
+				reg = <1>;
+			};
+		};
+};
+
 &pcie {
 	status = "okay";
 };
