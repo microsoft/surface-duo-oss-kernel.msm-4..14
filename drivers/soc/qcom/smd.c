@@ -135,69 +135,6 @@ struct qcom_smd_edge {
 	struct work_struct state_work;
 };
 
-/*
- * SMD channel states.
- */
-enum smd_channel_state {
-	SMD_CHANNEL_CLOSED,
-	SMD_CHANNEL_OPENING,
-	SMD_CHANNEL_OPENED,
-	SMD_CHANNEL_FLUSHING,
-	SMD_CHANNEL_CLOSING,
-	SMD_CHANNEL_RESET,
-	SMD_CHANNEL_RESET_OPENING
-};
-
-/**
- * struct qcom_smd_channel - smd channel struct
- * @edge:		qcom_smd_edge this channel is living on
- * @qsdev:		reference to a associated smd client device
- * @name:		name of the channel
- * @state:		local state of the channel
- * @remote_state:	remote state of the channel
- * @info:		byte aligned outgoing/incoming channel info
- * @info_word:		word aligned outgoing/incoming channel info
- * @tx_lock:		lock to make writes to the channel mutually exclusive
- * @fblockread_event:	wakeup event tied to tx fBLOCKREADINTR
- * @tx_fifo:		pointer to the outgoing ring buffer
- * @rx_fifo:		pointer to the incoming ring buffer
- * @fifo_size:		size of each ring buffer
- * @bounce_buffer:	bounce buffer for reading wrapped packets
- * @cb:			callback function registered for this channel
- * @recv_lock:		guard for rx info modifications and cb pointer
- * @pkt_size:		size of the currently handled packet
- * @list:		lite entry for @channels in qcom_smd_edge
- */
-struct qcom_smd_channel {
-	struct qcom_smd_edge *edge;
-
-	struct qcom_smd_device *qsdev;
-
-	char *name;
-	enum smd_channel_state state;
-	enum smd_channel_state remote_state;
-
-	struct smd_channel_info_pair *info;
-	struct smd_channel_info_word_pair *info_word;
-
-	struct mutex tx_lock;
-	wait_queue_head_t fblockread_event;
-
-	void *tx_fifo;
-	void *rx_fifo;
-	int fifo_size;
-
-	void *bounce_buffer;
-	qcom_smd_cb_t cb;
-
-	spinlock_t recv_lock;
-
-	int pkt_size;
-
-	struct list_head list;
-	struct list_head dev_list;
-};
-
 /**
  * struct qcom_smd - smd struct
  * @dev:	device struct
@@ -727,7 +664,7 @@ int qcom_smd_send(struct qcom_smd_channel *channel, const void *data, int len)
 {
 	__le32 hdr[5] = { cpu_to_le32(len), };
 	int tlen = sizeof(hdr) + len;
-	int ret;
+	int ret, length;
 
 	/* Word aligned channels only accept word size aligned data */
 	if (channel->info_word && len % 4)
@@ -737,10 +674,13 @@ int qcom_smd_send(struct qcom_smd_channel *channel, const void *data, int len)
 	if (tlen >= channel->fifo_size)
 		return -EINVAL;
 
+	length = qcom_smd_get_tx_avail(channel);
+
 	ret = mutex_lock_interruptible(&channel->tx_lock);
 	if (ret)
 		return ret;
 
+	length = qcom_smd_get_tx_avail(channel);
 	while (qcom_smd_get_tx_avail(channel) < tlen) {
 		if (channel->state != SMD_CHANNEL_OPENED) {
 			ret = -EPIPE;
@@ -760,6 +700,7 @@ int qcom_smd_send(struct qcom_smd_channel *channel, const void *data, int len)
 
 	SET_TX_CHANNEL_FLAG(channel, fTAIL, 0);
 
+	length = qcom_smd_get_tx_avail(channel);
 	qcom_smd_write_fifo(channel, hdr, sizeof(hdr));
 	qcom_smd_write_fifo(channel, data, len);
 
