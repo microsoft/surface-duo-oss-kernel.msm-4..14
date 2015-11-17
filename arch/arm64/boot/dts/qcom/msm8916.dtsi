@@ -877,7 +877,6 @@
 			qcom,smd-edge = <6>;
 			qcom,remote-pid = <4>;
 
-#if 0
 			bt {
 				compatible = "qcom,hci-smd";
 				qcom,smd-channels = "APPS_RIVA_BT_CMD", "APPS_RIVA_BT_ACL";
@@ -908,7 +907,6 @@
 
 				qcom,wcnss_mmio = <0xfb21b000 0x3000>;
 			};
-#endif
 		};
 	};
 };
