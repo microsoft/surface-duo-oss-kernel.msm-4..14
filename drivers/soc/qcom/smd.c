@@ -131,18 +131,6 @@ struct qcom_smd_edge {
 	struct work_struct work;
 };
 
-/*
- * SMD channel states.
- */
-enum smd_channel_state {
-	SMD_CHANNEL_CLOSED,
-	SMD_CHANNEL_OPENING,
-	SMD_CHANNEL_OPENED,
-	SMD_CHANNEL_FLUSHING,
-	SMD_CHANNEL_CLOSING,
-	SMD_CHANNEL_RESET,
-	SMD_CHANNEL_RESET_OPENING
-};
 
 /**
  * struct qcom_smd_channel - smd channel struct
@@ -166,38 +154,6 @@ enum smd_channel_state {
  * @pkt_size:		size of the currently handled packet
  * @list:		lite entry for @channels in qcom_smd_edge
  */
-struct qcom_smd_channel {
-	struct qcom_smd_edge *edge;
-
-	struct qcom_smd_device *qsdev;
-
-	char *name;
-	enum smd_channel_state state;
-	enum smd_channel_state remote_state;
-
-	struct smd_channel_info *tx_info;
-	struct smd_channel_info *rx_info;
-
-	struct smd_channel_info_word *tx_info_word;
-	struct smd_channel_info_word *rx_info_word;
-
-	struct mutex tx_lock;
-	wait_queue_head_t fblockread_event;
-
-	void *tx_fifo;
-	void *rx_fifo;
-	int fifo_size;
-
-	void *bounce_buffer;
-	int (*cb)(struct qcom_smd_device *, const void *, size_t);
-
-	spinlock_t recv_lock;
-
-	int pkt_size;
-
-	struct list_head list;
-};
-
 /**
  * struct qcom_smd - smd struct
  * @dev:	device struct
@@ -645,16 +601,19 @@ int qcom_smd_send(struct qcom_smd_channel *channel, const void *data, int len)
 {
 	u32 hdr[5] = {len,};
 	int tlen = sizeof(hdr) + len;
-	int ret;
+	int ret, length;
 
 	/* Word aligned channels only accept word size aligned data */
 	if (channel->rx_info_word != NULL && len % 4)
 		return -EINVAL;
 
+	length = qcom_smd_get_tx_avail(channel);
+
 	ret = mutex_lock_interruptible(&channel->tx_lock);
 	if (ret)
 		return ret;
 
+	length = qcom_smd_get_tx_avail(channel);
 	while (qcom_smd_get_tx_avail(channel) < tlen) {
 		if (channel->state != SMD_CHANNEL_OPENED) {
 			ret = -EPIPE;
@@ -674,8 +633,11 @@ int qcom_smd_send(struct qcom_smd_channel *channel, const void *data, int len)
 
 	SET_TX_CHANNEL_INFO(channel, fTAIL, 0);
 
+	length = qcom_smd_get_tx_avail(channel);
 	qcom_smd_write_fifo(channel, hdr, sizeof(hdr));
 	qcom_smd_write_fifo(channel, data, len);
+
+	length = qcom_smd_get_tx_avail(channel);
 
 	SET_TX_CHANNEL_INFO(channel, fHEAD, 1);
 
