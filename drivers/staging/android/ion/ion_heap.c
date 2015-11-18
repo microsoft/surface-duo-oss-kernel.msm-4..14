@@ -322,6 +322,9 @@ struct ion_heap *ion_heap_create(struct ion_platform_heap *heap_data)
 	case ION_HEAP_TYPE_DMA:
 		heap = ion_cma_heap_create(heap_data);
 		break;
+	case ION_HEAP_TYPE_COMPOUND_PAGE:
+		heap = ion_compound_page_pool_create(heap_data);
+		break;
 	default:
 		pr_err("%s: Invalid heap type %d\n", __func__,
 		       heap_data->type);
@@ -360,6 +363,9 @@ void ion_heap_destroy(struct ion_heap *heap)
 		break;
 	case ION_HEAP_TYPE_DMA:
 		ion_cma_heap_destroy(heap);
+		break;
+	case ION_HEAP_TYPE_COMPOUND_PAGE:
+		ion_compound_page_pool_destroy(heap);
 		break;
 	default:
 		pr_err("%s: Invalid heap type %d\n", __func__,

@@ -326,6 +326,9 @@ struct ion_heap *ion_chunk_heap_create(struct ion_platform_heap *);
 void ion_chunk_heap_destroy(struct ion_heap *);
 struct ion_heap *ion_cma_heap_create(struct ion_platform_heap *);
 void ion_cma_heap_destroy(struct ion_heap *);
+struct ion_heap *ion_compound_page_pool_create(struct ion_platform_heap *);
+void ion_compound_page_pool_destroy(struct ion_heap *);
+
 
 /**
  * kernel api to allocate/free from carveout -- used when carveout is
