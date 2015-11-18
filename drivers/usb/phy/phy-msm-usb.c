@@ -76,6 +76,9 @@ static int msm_hsusb_init_vddcx(struct msm_otg *motg, int init)
 {
 	int ret = 0;
 
+	if (IS_ERR(motg->vddcx))
+		return 0;
+
 	if (init) {
 		ret = regulator_set_voltage(motg->vddcx,
 				motg->vdd_levels[VDD_LEVEL_MIN],
@@ -1598,6 +1601,8 @@ static int msm_otg_read_dt(struct platform_device *pdev, struct msm_otg *motg)
 		ret = extcon_register_notifier(ext_id, EXTCON_USB_HOST,
 						&motg->id.nb);
 		if (ret < 0) {
+			extcon_unregister_notifier(motg->vbus.extcon,
+						   EXTCON_USB, &motg->vbus.nb);
 			dev_err(&pdev->dev, "register ID notifier failed\n");
 			return ret;
 		}
@@ -1647,7 +1652,7 @@ static int msm_otg_reboot_notify(struct notifier_block *this,
 
 static int msm_otg_probe(struct platform_device *pdev)
 {
-	struct regulator_bulk_data regs[3];
+	struct regulator_bulk_data regs[2];
 	int ret = 0;
 	struct device_node *np = pdev->dev.of_node;
 	struct msm_otg_platform_data *pdata;
@@ -1660,15 +1665,6 @@ static int msm_otg_probe(struct platform_device *pdev)
 	if (!motg)
 		return -ENOMEM;
 
-	pdata = dev_get_platdata(&pdev->dev);
-	if (!pdata) {
-		if (!np)
-			return -ENXIO;
-		ret = msm_otg_read_dt(pdev, motg);
-		if (ret)
-			return ret;
-	}
-
 	motg->phy.otg = devm_kzalloc(&pdev->dev, sizeof(struct usb_otg),
 				     GFP_KERNEL);
 	if (!motg->phy.otg)
@@ -1676,6 +1672,8 @@ static int msm_otg_probe(struct platform_device *pdev)
 
 	phy = &motg->phy;
 	phy->dev = &pdev->dev;
+	INIT_WORK(&motg->sm_work, msm_otg_sm_work);
+	INIT_DELAYED_WORK(&motg->chg_work, msm_chg_detect_work);
 
 	motg->clk = devm_clk_get(&pdev->dev, np ? "core" : "usb_hs_clk");
 	if (IS_ERR(motg->clk)) {
@@ -1731,17 +1729,29 @@ static int msm_otg_probe(struct platform_device *pdev)
 		return motg->irq;
 	}
 
-	regs[0].supply = "vddcx";
-	regs[1].supply = "v3p3";
-	regs[2].supply = "v1p8";
+	regs[0].supply = "v3p3";
+	regs[1].supply = "v1p8";
+	pdata = dev_get_platdata(&pdev->dev);
+	if (!pdata) {
+		if (!np)
+			return -ENXIO;
+		ret = msm_otg_read_dt(pdev, motg);
+		if (ret)
+			return ret;
+	}
 
 	ret = devm_regulator_bulk_get(motg->phy.dev, ARRAY_SIZE(regs), regs);
-	if (ret)
+	if (ret) {
+		dev_err(&pdev->dev, "no v3p3 or v1p8\n");
 		return ret;
+	}
 
-	motg->vddcx = regs[0].consumer;
-	motg->v3p3  = regs[1].consumer;
-	motg->v1p8  = regs[2].consumer;
+	motg->v3p3  = regs[0].consumer;
+	motg->v1p8  = regs[1].consumer;
+
+	motg->vddcx = devm_regulator_get_optional(motg->phy.dev, "vddcx");
+	if (IS_ERR(motg->vddcx))
+		dev_info(&pdev->dev, "no vddcx\n");
 
 	clk_set_rate(motg->clk, 60000000);
 
@@ -1771,8 +1781,6 @@ static int msm_otg_probe(struct platform_device *pdev)
 	writel(0, USB_USBINTR);
 	writel(0, USB_OTGSC);
 
-	INIT_WORK(&motg->sm_work, msm_otg_sm_work);
-	INIT_DELAYED_WORK(&motg->chg_work, msm_chg_detect_work);
 	ret = devm_request_irq(&pdev->dev, motg->irq, msm_otg_irq, IRQF_SHARED,
 					"msm_otg", motg);
 	if (ret) {
@@ -1821,7 +1829,6 @@ static int msm_otg_probe(struct platform_device *pdev)
 	register_reboot_notifier(&motg->reboot);
 
 	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
 
 	return 0;
 
@@ -1834,6 +1841,11 @@ disable_clks:
 	clk_disable_unprepare(motg->clk);
 	if (!IS_ERR(motg->core_clk))
 		clk_disable_unprepare(motg->core_clk);
+
+	extcon_unregister_notifier(motg->id.extcon,
+				   EXTCON_USB_HOST, &motg->id.nb);
+	extcon_unregister_notifier(motg->vbus.extcon,
+				   EXTCON_USB, &motg->vbus.nb);
 	return ret;
 }
 
