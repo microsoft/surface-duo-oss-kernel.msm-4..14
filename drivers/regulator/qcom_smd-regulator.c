@@ -20,6 +20,9 @@
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
 #include <linux/soc/qcom/smd-rpm.h>
+#include <linux/regulator/qcom_smd-regulator.h>
+
+#include "internal.h"
 
 struct qcom_rpm_reg {
 	struct device *dev;
@@ -44,6 +47,11 @@ struct rpm_regulator_req {
 #define RPM_KEY_SWEN	0x6e657773 /* "swen" */
 #define RPM_KEY_UV	0x00007675 /* "uv" */
 #define RPM_KEY_MA	0x0000616d /* "ma" */
+#define RPM_KEY_FLOOR	0x00636676 /* "vfc" */
+#define RPM_KEY_CORNER	0x6e726f63 /* "corn" */
+
+#define RPM_MIN_FLOOR_CORNER	0
+#define RPM_MAX_FLOOR_CORNER	6
 
 static int rpm_reg_write_active(struct qcom_rpm_reg *vreg,
 				struct rpm_regulator_req *req,
@@ -55,6 +63,50 @@ static int rpm_reg_write_active(struct qcom_rpm_reg *vreg,
 				  vreg->id,
 				  req, size);
 }
+
+int qcom_rpm_set_floor(struct regulator *regulator, int floor)
+{
+	struct regulator_dev *rdev = regulator->rdev;
+	struct qcom_rpm_reg *vreg = rdev_get_drvdata(rdev);
+	struct rpm_regulator_req req;
+	int ret;
+
+	req.key = RPM_KEY_FLOOR;
+	req.nbytes = sizeof(u32);
+	req.value = floor;
+
+	if (floor < RPM_MIN_FLOOR_CORNER || floor > RPM_MAX_FLOOR_CORNER)
+		return -EINVAL;
+
+	ret = rpm_reg_write_active(vreg, &req, sizeof(req));
+	if (ret)
+		dev_err(rdev_get_dev(rdev), "Failed to set floor %d\n", floor);
+
+	return ret;
+}
+EXPORT_SYMBOL(qcom_rpm_set_floor);
+
+int qcom_rpm_set_corner(struct regulator *regulator, int corner)
+{
+	struct regulator_dev *rdev = regulator->rdev;
+	struct qcom_rpm_reg *vreg = rdev_get_drvdata(rdev);
+	struct rpm_regulator_req req;
+	int ret;
+
+	req.key = RPM_KEY_CORNER;
+	req.nbytes = sizeof(u32);
+	req.value = corner;
+
+	if (corner < RPM_MIN_FLOOR_CORNER || corner > RPM_MAX_FLOOR_CORNER)
+		return -EINVAL;
+
+	ret = rpm_reg_write_active(vreg, &req, sizeof(req));
+	if (ret)
+		dev_err(rdev_get_dev(rdev), "Failed to set corner %d\n", corner);
+
+	return ret;
+}
+EXPORT_SYMBOL(qcom_rpm_set_corner);
 
 static int rpm_reg_enable(struct regulator_dev *rdev)
 {
@@ -211,6 +263,43 @@ static const struct regulator_desc pm8941_switch = {
 	.ops = &rpm_switch_ops,
 };
 
+static const struct regulator_desc pm8916_pldo = {
+	.linear_ranges = (struct regulator_linear_range[]) {
+		REGULATOR_LINEAR_RANGE(750000, 0, 208, 12500),
+	},
+	.n_linear_ranges = 1,
+	.n_voltages = 209,
+	.ops = &rpm_smps_ldo_ops,
+};
+
+static const struct regulator_desc pm8916_nldo = {
+	.linear_ranges = (struct regulator_linear_range[]) {
+		REGULATOR_LINEAR_RANGE(375000, 0, 93, 12500),
+	},
+	.n_linear_ranges = 1,
+	.n_voltages = 94,
+	.ops = &rpm_smps_ldo_ops,
+};
+
+static const struct regulator_desc pm8916_buck_lvo_smps = {
+	.linear_ranges = (struct regulator_linear_range[]) {
+		REGULATOR_LINEAR_RANGE(375000, 0, 95, 12500),
+		REGULATOR_LINEAR_RANGE(750000, 96, 127, 25000),
+	},
+	.n_linear_ranges = 2,
+	.n_voltages = 128,
+	.ops = &rpm_smps_ldo_ops,
+};
+
+static const struct regulator_desc pm8916_buck_hvo_smps = {
+	.linear_ranges = (struct regulator_linear_range[]) {
+		REGULATOR_LINEAR_RANGE(1550000, 0, 31, 25000),
+	},
+	.n_linear_ranges = 1,
+	.n_voltages = 32,
+	.ops = &rpm_smps_ldo_ops,
+};
+
 struct rpm_regulator_data {
 	const char *name;
 	u32 type;
@@ -272,9 +361,36 @@ static const struct rpm_regulator_data rpm_pm8941_regulators[] = {
 	{}
 };
 
+static const struct rpm_regulator_data rpm_pm8916_regulators[] = {
+	{ "s1", QCOM_SMD_RPM_SMPA, 1, &pm8916_buck_lvo_smps, "vdd_s1" },
+	{ "s2", QCOM_SMD_RPM_SMPA, 2, &pm8916_buck_lvo_smps, "vdd_s2" },
+	{ "s3", QCOM_SMD_RPM_SMPA, 3, &pm8916_buck_lvo_smps, "vdd_s3" },
+	{ "s4", QCOM_SMD_RPM_SMPA, 4, &pm8916_buck_hvo_smps, "vdd_s4" },
+	{ "l1", QCOM_SMD_RPM_LDOA, 1, &pm8916_nldo, "vdd_l1_l2_l3" },
+	{ "l2", QCOM_SMD_RPM_LDOA, 2, &pm8916_nldo, "vdd_l1_l2_l3" },
+	{ "l3", QCOM_SMD_RPM_LDOA, 3, &pm8916_nldo, "vdd_l1_l2_l3" },
+	{ "l4", QCOM_SMD_RPM_LDOA, 4, &pm8916_pldo, "vdd_l4_l5_l6" },
+	{ "l5", QCOM_SMD_RPM_LDOA, 5, &pm8916_pldo, "vdd_l4_l5_l6" },
+	{ "l6", QCOM_SMD_RPM_LDOA, 6, &pm8916_pldo, "vdd_l4_l5_l6" },
+	{ "l7", QCOM_SMD_RPM_LDOA, 7, &pm8916_pldo, "vdd_l7" },
+	{ "l8", QCOM_SMD_RPM_LDOA, 8, &pm8916_pldo, "vdd_l8_l9_l10_l11_l12_l13_l14_l15_l16_l17_l18" },
+	{ "l9", QCOM_SMD_RPM_LDOA, 9, &pm8916_pldo, "vdd_l8_l9_l10_l11_l12_l13_l14_l15_l16_l17_l18" },
+	{ "l10", QCOM_SMD_RPM_LDOA, 10, &pm8916_pldo, "vdd_l8_l9_l10_l11_l12_l13_l14_l15_l16_l17_l18"},
+	{ "l11", QCOM_SMD_RPM_LDOA, 11, &pm8916_pldo, "vdd_l8_l9_l10_l11_l12_l13_l14_l15_l16_l17_l18"},
+	{ "l12", QCOM_SMD_RPM_LDOA, 12, &pm8916_pldo, "vdd_l8_l9_l10_l11_l12_l13_l14_l15_l16_l17_l18"},
+	{ "l13", QCOM_SMD_RPM_LDOA, 13, &pm8916_pldo, "vdd_l8_l9_l10_l11_l12_l13_l14_l15_l16_l17_l18"},
+	{ "l14", QCOM_SMD_RPM_LDOA, 14, &pm8916_pldo, "vdd_l8_l9_l10_l11_l12_l13_l14_l15_l16_l17_l18"},
+	{ "l15", QCOM_SMD_RPM_LDOA, 15, &pm8916_pldo, "vdd_l8_l9_l10_l11_l12_l13_l14_l15_l16_l17_l18"},
+	{ "l16", QCOM_SMD_RPM_LDOA, 16, &pm8916_pldo, "vdd_l8_l9_l10_l11_l12_l13_l14_l15_l16_l17_l18"},
+	{ "l17", QCOM_SMD_RPM_LDOA, 17, &pm8916_pldo, "vdd_l8_l9_l10_l11_l12_l13_l14_l15_l16_l17_l18"},
+	{ "l18", QCOM_SMD_RPM_LDOA, 18, &pm8916_pldo, "vdd_l8_l9_l10_l11_l12_l13_l14_l15_l16_l17_l18"},
+	{}
+};
+
 static const struct of_device_id rpm_of_match[] = {
 	{ .compatible = "qcom,rpm-pm8841-regulators", .data = &rpm_pm8841_regulators },
 	{ .compatible = "qcom,rpm-pm8941-regulators", .data = &rpm_pm8941_regulators },
+	{ .compatible = "qcom,rpm-pm8916-regulators", .data = &rpm_pm8916_regulators },
 	{}
 };
 MODULE_DEVICE_TABLE(of, rpm_of_match);
