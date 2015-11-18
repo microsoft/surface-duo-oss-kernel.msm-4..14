@@ -1,4 +1,6 @@
 #include "qcom-apq8064-v2.0.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
 
 / {
 	model = "CompuLab CM-QS600";
@@ -12,12 +14,27 @@
 		stdout-path = "serial0:115200n8";
 	};
 
+	pwrseq {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+		compatible = "simple-bus";
+
+		sdcc4_pwrseq: sdcc4_pwrseq {
+			pinctrl-names = "default";
+			pinctrl-0 = <&wlan_default_gpios>;
+			compatible = "mmc-pwrseq-simple";
+			reset-gpios = <&pm8921_gpio 43 GPIO_ACTIVE_LOW>;
+		};
+	};
+
 	soc {
 		pinctrl@800000 {
-			i2c1_pins: i2c1 {
+			card_detect: card_detect {
 				mux {
-					pins = "gpio20", "gpio21";
-					function = "gsbi1";
+					pins = "gpio26";
+					function = "gpio";
+					bias-disable;
 				};
 			};
 		};
@@ -86,7 +103,22 @@
 					regulator-max-microvolt = <1900000>;
 					bias-pull-down;
 				};
+
+				pm8921_lvs6: lvs6 {
+					bias-pull-down;
+				};
+
 			};
+		};
+
+		hdmi: qcom,hdmi-tx@4a00000 {
+			status = "okay";
+			core-vdda-supply = <&pm8921_hdmi_switch>;
+			hdmi-mux-supply = <&v3p3_fixed>;
+		};
+
+		mdp: qcom,mdp@5100000 {
+			status = "okay";
 		};
 
 		gsbi@12440000 {
@@ -163,6 +195,30 @@
 			regulator-always-on;
 		};
 
+		qcom,ssbi@500000 {
+			pmic@0 {
+				gpio@150 {
+					wlan_default_gpios: wlan-gpios {
+						pios {
+							pins = "gpio43";
+							function = "normal";
+							bias-disable;
+							power-source = <PM8921_GPIO_S4>;
+						};
+					};
+				};
+			};
+		};
+
+		pci@1b500000 {
+			status = "ok";
+			pcie-clk-supply	= <&v3p3_fixed>;
+			avdd-supply	= <&pm8921_s3>;
+			vdd-supply	= <&pm8921_lvs6>;
+			qcom,external-phy-refclk;
+			reset-gpio = <&tlmm_pinmux 27 GPIO_ACTIVE_LOW>;
+		};
+
 		amba {
 			/* eMMC */
 			sdcc1: sdcc@12400000 {
@@ -175,12 +231,16 @@
 			sdcc3: sdcc@12180000 {
 				status = "okay";
 				vmmc-supply = <&v3p3_fixed>;
+				pinctrl-names	= "default";
+				pinctrl-0	= <&card_detect>;
+				cd-gpios	= <&tlmm_pinmux 26 GPIO_ACTIVE_LOW>;
 			};
 			/* WLAN */
 			sdcc4: sdcc@121c0000 {
 				status = "okay";
 				vmmc-supply = <&v3p3_fixed>;
 				vqmmc-supply = <&v3p3_fixed>;
+				mmc-pwrseq = <&sdcc4_pwrseq>;
 			};
 		};
 	};
