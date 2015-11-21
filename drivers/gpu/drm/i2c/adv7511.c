@@ -162,6 +162,14 @@ static const struct regmap_config adv7533_cec_regmap_config = {
 	.cache_type = REGCACHE_RBTREE,
 };
 
+static const struct regmap_config adv7533_packet_regmap_config = {
+	.reg_bits = 8,
+	.val_bits = 8,
+
+	.max_register = 0xff,
+	.cache_type = REGCACHE_RBTREE,
+};
+
 
 /* -----------------------------------------------------------------------------
  * Hardware configuration
@@ -424,6 +432,71 @@ static void adv7511_dsi_receiver_dpms(struct adv7511 *adv7511)
 		regmap_write(adv7511->regmap_cec, 0x03, 0x89);
 		/* disable test mode */
 		regmap_write(adv7511->regmap_cec, 0x55, 0x00);
+		/* SPD */
+		{
+			static const unsigned char spd_if[] = {
+				0x83, 0x01, 25, 0x00,
+				'L', 'i', 'n', 'a', 'r', 'o', 0, 0,
+				'9', '6', 'b', 'o', 'a', 'r', 'd', 's',
+				':', 'H', 'i', 'k', 'e', 'y', 0, 0,
+			};
+			int n;
+
+			for (n = 0; n < sizeof(spd_if); n++)
+				regmap_write(adv7511->regmap_packet, n, spd_if[n]);
+
+			/* enable send SPD */
+			regmap_update_bits(adv7511->regmap, 0x40, BIT(6), BIT(6));
+		}
+
+		/* force audio */
+		/* hide Audio infoframe updates */
+		regmap_update_bits(adv7511->regmap, 0x4a, BIT(5), BIT(5));
+
+		/* i2s, internal mclk, mclk-256 */
+		regmap_update_bits(adv7511->regmap, 0x0a, 0x1f, 1);
+		regmap_update_bits(adv7511->regmap, 0x0b, 0xe0, 0);
+		/* enable i2s, use i2s format, sample rate from i2s */
+		regmap_update_bits(adv7511->regmap, 0x0c, 0xc7, BIT(2));
+		/* 16 bit audio */
+		regmap_update_bits(adv7511->regmap, 0x0d, 0xff, 16);
+		/* 16-bit audio */
+		regmap_update_bits(adv7511->regmap, 0x14, 0x0f, 2 << 4);
+		/* 48kHz */
+		regmap_update_bits(adv7511->regmap, 0x15, 0xf0, 2 << 4);
+		/* enable N/CTS, enable Audio sample packets */
+		regmap_update_bits(adv7511->regmap, 0x44, BIT(5), BIT(5));
+		/* N = 6144 */
+		regmap_write(adv7511->regmap, 1, (6144 >> 16) & 0xf);
+		regmap_write(adv7511->regmap, 2, (6144 >> 8) & 0xff);
+		regmap_write(adv7511->regmap, 3, (6144) & 0xff);
+		/* automatic cts */
+		regmap_update_bits(adv7511->regmap, 0x0a, BIT(7), 0);
+		/* enable N/CTS */
+		regmap_update_bits(adv7511->regmap, 0x44, BIT(6), BIT(6));
+		/* not copyrighted */
+		regmap_update_bits(adv7511->regmap, 0x12, BIT(5), BIT(5));
+
+		/* left source */
+		regmap_update_bits(adv7511->regmap, 0x0e, 7 << 3, 0);
+		/* right source */
+		regmap_update_bits(adv7511->regmap, 0x0e, 7 << 0, 1);
+		/* number of channels: sect 4.5.4: set to 0 */
+		regmap_update_bits(adv7511->regmap, 0x73, 7, 1);
+		/* number of channels: sect 4.5.4: set to 0 */
+		regmap_update_bits(adv7511->regmap, 0x73, 0xf0, 1 << 4);
+		/* sample rate: 48kHz */
+		regmap_update_bits(adv7511->regmap, 0x74, 7 << 2, 3 << 2);
+		/* channel allocation reg: sect 4.5.4: set to 0 */
+		regmap_update_bits(adv7511->regmap, 0x76, 0xff, 0);
+		/* enable audio infoframes */
+		regmap_update_bits(adv7511->regmap, 0x44, BIT(3), BIT(3));
+
+		/* AV mute disable */
+		regmap_update_bits(adv7511->regmap, 0x4b, BIT(7) | BIT(6), BIT(7));
+
+		/* use Audio infoframe updated info */
+		regmap_update_bits(adv7511->regmap, 0x4a, BIT(5), 0);
 	} else {
 		regmap_write(adv7511->regmap_cec, 0x03, 0x0b);
 		regmap_write(adv7511->regmap_cec, 0x27, 0x0b);
@@ -1308,9 +1381,14 @@ static int adv7511_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	adv7511_packet_disable(adv7511, 0xffff);
 
 	adv7511->i2c_main = i2c;
+
+	adv7511->i2c_packet = i2c_new_dummy(i2c->adapter, packet_i2c_addr >> 1);
+	if (!adv7511->i2c_packet)
+		return -ENOMEM;
+
 	adv7511->i2c_edid = i2c_new_dummy(i2c->adapter, edid_i2c_addr >> 1);
 	if (!adv7511->i2c_edid)
-		return -ENOMEM;
+		goto err_i2c_unregister_packet;
 
 	adv7511->i2c_cec = i2c_new_dummy(i2c->adapter, cec_i2c_addr >> 1);
 	if (!adv7511->i2c_cec) {
@@ -1322,6 +1400,13 @@ static int adv7511_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 					&adv7533_cec_regmap_config);
 	if (IS_ERR(adv7511->regmap_cec)) {
 		ret = PTR_ERR(adv7511->regmap_cec);
+		goto err_i2c_unregister_cec;
+	}
+
+	adv7511->regmap_packet = devm_regmap_init_i2c(adv7511->i2c_packet,
+		&adv7533_packet_regmap_config);
+	if (IS_ERR(adv7511->regmap_packet)) {
+		ret = PTR_ERR(adv7511->regmap_packet);
 		goto err_i2c_unregister_cec;
 	}
 
@@ -1374,6 +1459,8 @@ err_i2c_unregister_cec:
 	i2c_unregister_device(adv7511->i2c_cec);
 err_i2c_unregister_edid:
 	i2c_unregister_device(adv7511->i2c_edid);
+err_i2c_unregister_packet:
+	i2c_unregister_device(adv7511->i2c_packet);
 
 	return ret;
 }
