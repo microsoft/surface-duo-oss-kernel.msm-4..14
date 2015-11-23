@@ -1,6 +1,8 @@
 #ifndef ARCH_X86_KVM_CPUID_H
 #define ARCH_X86_KVM_CPUID_H
 
+#include <asm/microcode.h>
+
 #include "x86.h"
 
 int kvm_update_cpuid(struct kvm_vcpu *vcpu);
@@ -117,6 +119,28 @@ static inline bool guest_cpuid_is_amd(struct kvm_vcpu *vcpu)
 
 	best = kvm_find_cpuid_entry(vcpu, 0, 0);
 	return best && best->ebx == X86EMUL_CPUID_VENDOR_AuthenticAMD_ebx;
+}
+
+static inline int guest_cpuid_family(struct kvm_vcpu *vcpu)
+{
+	struct kvm_cpuid_entry2 *best;
+
+	best = kvm_find_cpuid_entry(vcpu, 0x1, 0);
+	if (!best)
+		return -1;
+
+	return __x86_family(best->eax);
+}
+
+static inline int guest_cpuid_model(struct kvm_vcpu *vcpu)
+{
+	struct kvm_cpuid_entry2 *best;
+
+	best = kvm_find_cpuid_entry(vcpu, 0x1, 0);
+	if (!best)
+		return -1;
+
+	return x86_model(best->eax);
 }
 
 static inline bool guest_cpuid_has_gbpages(struct kvm_vcpu *vcpu)
