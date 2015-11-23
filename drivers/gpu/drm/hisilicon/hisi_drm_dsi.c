@@ -78,6 +78,7 @@ struct dsi_hw_ctx {
 
 struct hisi_dsi {
 	struct drm_encoder encoder;
+	struct mipi_dsi_host host;
 	struct drm_display_mode cur_mode;
 	struct dsi_hw_ctx *ctx;
 	struct mipi_phy_register phy;
@@ -628,6 +629,51 @@ static int hisi_drm_encoder_init(struct drm_device *dev,
 	return 0;
 }
 
+static int dsi_host_attach(struct mipi_dsi_host *host,
+			   struct mipi_dsi_device *mdsi)
+{
+	struct hisi_dsi *dsi = host_to_dsi(host);
+
+	if (mdsi->lanes < 1 || mdsi->lanes > 4) {
+		DRM_ERROR("dsi device params invalid\n");
+		return -EINVAL;
+	}
+
+	dsi->lanes = mdsi->lanes;
+	dsi->format = mdsi->format;
+	dsi->mode_flags = mdsi->mode_flags;
+
+	return 0;
+}
+
+static int dsi_host_detach(struct mipi_dsi_host *host,
+			   struct mipi_dsi_device *mdsi)
+{
+	/* do nothing */
+	return 0;
+}
+
+static struct mipi_dsi_host_ops dsi_host_ops = {
+	.attach = dsi_host_attach,
+	.detach = dsi_host_detach,
+};
+
+static int dsi_host_init(struct device *dev, struct hisi_dsi *dsi)
+{
+	struct mipi_dsi_host *host = &dsi->host;
+	int ret;
+
+	host->dev = dev;
+	host->ops = &dsi_host_ops;
+	ret = mipi_dsi_host_register(host);
+	if (ret) {
+		DRM_ERROR("failed to register dsi host\n");
+		return ret;
+	}
+
+	return 0;
+}
+
 static int dsi_bind(struct device *dev, struct device *master, void *data)
 {
 	struct dsi_data *ddata = dev_get_drvdata(dev);
@@ -636,6 +682,10 @@ static int dsi_bind(struct device *dev, struct device *master, void *data)
 	int ret;
 
 	ret = hisi_drm_encoder_init(drm_dev, &dsi->encoder);
+	if (ret)
+		return ret;
+
+	ret = dsi_host_init(dev, dsi);
 	if (ret)
 		return ret;
 
