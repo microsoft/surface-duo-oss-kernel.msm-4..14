@@ -32,6 +32,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/soc/qcom/smem.h>
 #include <linux/reset.h>
+#include <linux/qcom_scm.h>
 
 #include "remoteproc_internal.h"
 
@@ -562,6 +563,17 @@ static int qproc_load_modem(struct qproc *qproc)
 
 out:
 	release_firmware(fw);
+
+	return ret;
+}
+
+static int pil_mss_restart_reg(struct qproc *qproc, int mss_restart)
+{
+	int ret = 0;
+	unsigned int resp;
+	ret = qcom_scm_restart_proc(MSS_RESTART_ID, mss_restart, &resp);
+	if (ret || resp)
+		pr_err("Secure MSS restart failed\n");
 
 	return ret;
 }
