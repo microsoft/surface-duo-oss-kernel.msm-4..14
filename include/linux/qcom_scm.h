@@ -32,6 +32,7 @@ extern int qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt,
 		u32 *resp);
 
 extern bool qcom_scm_pas_supported(u32 peripheral);
+extern int qcom_scm_restart_proc(u32 pid, int restart, u32 *resp);
 extern int qcom_scm_pas_init_image(struct device *dev, u32 peripheral, const void *metadata, size_t size);
 extern int qcom_scm_pas_mem_setup(u32 peripheral, phys_addr_t addr, phys_addr_t size);
 extern int qcom_scm_pas_auth_and_reset(u32 peripheral);
