@@ -164,6 +164,18 @@ struct qproc {
 
 #define QDSP6SS_ACC_OVERRIDE_VAL        0x20
 
+static int segment_is_loadable(const struct elf32_phdr *p)
+{
+	return (p->p_type == PT_LOAD) &&
+	       !segment_is_hash(p->p_flags) &&
+	       p->p_memsz;
+}
+
+static bool segment_is_relocatable(const struct elf32_phdr *p)
+{
+	return !!(p->p_flags & BIT(27));
+}
+
 static int qproc_sanity_check(struct rproc *rproc,
 				  const struct firmware *fw)
 {
@@ -473,16 +485,11 @@ static int qproc_verify_segments(struct qproc *qproc, const struct firmware *fw)
 		phys_addr_t da = phdr->p_paddr;
 		u32 memsz = phdr->p_memsz;
 
-		if (phdr->p_type != PT_LOAD)
+		if (!segment_is_loadable(phdr))
 			continue;
 
 		dev_err(qproc->dev, "0x%x %d %d\n", phdr->p_paddr, segment_is_hash(phdr->p_flags), !!(phdr->p_flags & BIT(27)));
 
-		if (segment_is_hash(phdr->p_flags))
-			continue;
-
-		if (memsz == 0)
-			continue;
 
 		if (da < min_addr)
 			min_addr = da;
