@@ -24,6 +24,7 @@
 #include <linux/memblock.h>
 #include <linux/gpio/consumer.h>
 #include <linux/of.h>
+#include <linux/of_address.h>
 #include <linux/elf.h>
 #include <linux/delay.h>
 #include <linux/clk.h>
@@ -71,6 +72,9 @@ struct qproc {
 	dma_addr_t		mba_da;
 	size_t			mba_size;
 	struct dma_attrs	mba_attrs;
+
+	phys_addr_t reloc_phys;
+	size_t reloc_size;
 };
 
 #define VDD_MSS_UV	1000000
@@ -873,6 +877,8 @@ static int qproc_probe(struct platform_device *pdev)
 	struct rproc *rproc;
 	int ret;
 	int i;
+	struct device_node *np;
+	struct resource r;
 
 	rproc = rproc_alloc(&pdev->dev, pdev->name, &qproc_ops,
 			    "mba.b00", sizeof(*qproc));
@@ -942,6 +948,24 @@ static int qproc_probe(struct platform_device *pdev)
 			goto remove_device_files;
 		}
 	}
+
+	np = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
+	if (!np) {
+		dev_err(&pdev->dev, "No memory region specified\n");
+	} else {
+
+		ret = of_address_to_resource(np, 0, &r);
+		of_node_put(np);
+		if (ret)
+			return ret;
+
+		qproc->reloc_phys = r.start;
+		qproc->reloc_size = resource_size(&r);
+
+		dev_info(&pdev->dev, "Found relocation area %lu@%pad\n",
+				qproc->reloc_size, &qproc->reloc_phys);
+	}
+
 
 	ret = rproc_add(rproc);
 	if (ret)
