@@ -472,6 +472,22 @@ int __qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt, u32 *resp)
 	return ret;
 }
 
+int __qcom_scm_restart_proc(u32 proc_id, int restart, u32 *resp)
+{
+	int ret;
+	struct qcom_scm_desc desc = {0};
+
+	desc.args[0] = restart;
+	desc.args[1] = 0;
+	desc.arginfo = QCOM_SCM_ARGS(2);
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, proc_id,
+				&desc);
+	*resp = desc.ret[0];
+
+	return ret;
+}
+
 bool __qcom_scm_pas_supported(u32 peripheral)
 {
 	int ret;

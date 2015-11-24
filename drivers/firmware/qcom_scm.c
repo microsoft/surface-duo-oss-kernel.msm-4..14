@@ -96,6 +96,11 @@ int qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt, u32 *resp)
 }
 EXPORT_SYMBOL(qcom_scm_hdcp_req);
 
+int qcom_scm_restart_proc(u32 pid, int restart, u32 *resp)
+{
+	return __qcom_scm_restart_proc(pid, restart, resp);
+}
+EXPORT_SYMBOL(qcom_scm_restart_proc);
 /**
  * qcom_scm_pas_supported() - Check if the peripheral authentication service is
  *			      available for the given peripherial
