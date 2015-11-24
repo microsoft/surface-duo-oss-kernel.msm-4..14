@@ -2598,7 +2598,7 @@ static struct clk_branch gcc_mss_q6_bimc_axi_clk = {
 		.hw.init = &(struct clk_init_data){
 			.name = "gcc_mss_q6_bimc_axi_clk",
 			.parent_names = (const char *[]){
-				"bimc_ddr_clk_src",
+				"pcnoc_bfdcd_clk_src",
 			},
 			.num_parents = 1,
 			.flags = CLK_SET_RATE_PARENT,
