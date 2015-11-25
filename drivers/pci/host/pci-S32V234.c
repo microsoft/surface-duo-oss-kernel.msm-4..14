@@ -34,6 +34,7 @@
 #include <linux/fs.h>
 #include <linux/sizes.h>
 #include <linux/of_platform.h>
+#include <linux/rcupdate.h>
 
 #include <linux/regulator/consumer.h>
 
@@ -56,6 +57,13 @@ struct s32v234_pcie {
 #define SETUP_INBOUND		_IOWR('S', 2, struct s32v_inbound_region)
 #define SEND_MSI			_IOWR('S', 3, u64)
 #define GET_BAR_INFO		_IOWR('S', 4, struct s32v_bar)
+#define SEND_SINGLE_DMA		_IOWR('S', 6, struct dma_data_elem)
+#define STORE_PID			_IOR('S', 7,  s32)
+#define SEND_SIGNAL			_IOR('S', 8,  int)
+#define GET_DMA_CH_ERRORS		_IOR('S', 9,  u32)
+#define RESET_DMA_WRITE			_IOW('S', 10,  u32)
+#define RESET_DMA_READ			_IOW('S', 11,  u32)
+
 #endif
 #define PCIE_MSI_CAP			0x50
 #define PCIE_MSI_ADDR_LOWER		0x54
@@ -159,7 +167,7 @@ struct s32v234_pcie {
 		PCI_REGION_NON_PREFETCH)
 #define PCIE_BAR4_INIT	0
 #define PCIE_BAR5_INIT	0
-
+struct task_struct *task;
 struct s32v_bar {
 	u32 bar_nr;
 	u32 size;
@@ -178,9 +186,72 @@ struct s32v_outbound_region {
 	u32 region;
 	u32 region_type;
 };
+#endif
+#ifdef CONFIG_PCI_S32V234_EP
+static int send_dma_errors(struct pcie_port *pp, void __user *argp)
+{
+	int ret = 0;
+	u32 dma_errors;
+
+	dma_errors = ((pp->wr_ch.errors) << 16) | pp->rd_ch.errors;
+
+	if (copy_to_user((unsigned int *)argp, &dma_errors, sizeof(u32)))
+		return -EFAULT;
+	return ret;
+}
+static int s32v_send_dma_single(struct pcie_port *pp, void __user *argp)
+{
+	int ret = 0;
+	struct dma_data_elem dma_elem_local;
+
+	if (argp) {
+		if (copy_from_user(&dma_elem_local, argp,
+			sizeof(struct dma_data_elem)))
+			return -EFAULT;
+	} else
+		return -EFAULT;
+	ret = dw_pcie_dma_single_rw(pp, &dma_elem_local);
+	return ret;
+}
+#endif
+#ifdef CONFIG_PCI_S32V234_EP
+void reset_dma_write(struct pcie_port *pp)
+{
+	dw_pcie_dma_write_soft_reset(pp);
+}
+void reset_dma_read(struct pcie_port *pp)
+{
+	dw_pcie_dma_read_soft_reset(pp);
+}
+int send_signal_to_user(struct pcie_port *pp)
+{
+	int ret = 0;
+
+	rcu_read_lock();
+	task = pid_task(find_pid_ns(pp->user_pid, &init_pid_ns), PIDTYPE_PID);
+	rcu_read_unlock();
+
+	ret = send_sig_info(SIGUSR1, &pp->info, task);
+	if (ret < 0)
+		ret = -EFAULT;
+
+	return ret;
+}
+
+int s32v_store_pid(struct pcie_port *pp, void __user *argp)
+{
+	int ret = 0;
+
+	if (argp) {
+		if (copy_from_user(&pp->user_pid, argp, sizeof(pp->user_pid)))
+			return -EFAULT;
+	}
+	return ret;
+}
+
 static int s32v_setup_MSI(struct pcie_port *pp, void __user *argp)
 {
-	int rc = 0;
+	int ret = 0;
 	u32 *ptr;
 	u64 msi_addr;
 
@@ -214,12 +285,12 @@ static int s32v_setup_MSI(struct pcie_port *pp, void __user *argp)
 		ptr = (u32 *)ioremap(msi_addr, SZ_4K);
 		*ptr = 0;
 	}
-	return rc;
+	return ret;
 }
 static int s32v_pcie_iatu_outbound_set(struct pcie_port *pp,
 		struct s32v_outbound_region *ptrOutb)
 {
-	int rc = 0;
+	int ret = 0;
 
 	if ((ptrOutb->size < (64 * SZ_1K)) ||
 		(ptrOutb->region > NR_REGIONS - 1))
@@ -240,13 +311,13 @@ static int s32v_pcie_iatu_outbound_set(struct pcie_port *pp,
 	writel(ptrOutb->region_type, pp->dbi_base + PCIE_ATU_CR1);
 	writel(PCIE_ATU_ENABLE, pp->dbi_base + PCIE_ATU_CR2);
 
-	return rc;
+	return ret;
 }
 
 static int s32v_pcie_iatu_inbound_set(struct pcie_port *pp,
 		struct s32v_inbound_region *ptrInb)
 {
-	int rc = 0;
+	int ret = 0;
 
 	if (ptrInb->region > NR_REGIONS - 1)
 		return -EINVAL;
@@ -261,7 +332,7 @@ static int s32v_pcie_iatu_inbound_set(struct pcie_port *pp,
 	writel(PCIE_ATU_ENABLE | PCIE_ATU_BAR_MODE_ENABLE |
 		PCIE_ATU_BAR_NUM(ptrInb->bar_nr), pp->dbi_base + PCIE_ATU_CR2);
 
-	return rc;
+	return ret;
 }
 
 static int s32v_get_bar_info(struct pcie_port *pp, void __user *argp)
@@ -269,7 +340,7 @@ static int s32v_get_bar_info(struct pcie_port *pp, void __user *argp)
 	struct s32v_bar bar_info;
 	u8	bar_nr = 0;
 	u32 addr = 0;
-	int rc = 0;
+	int ret = 0;
 
 	if (copy_from_user(&bar_info, argp, sizeof(bar_info))) {
 		dev_err(pp->dev, "Error while copying from user");
@@ -291,13 +362,13 @@ static int s32v_get_bar_info(struct pcie_port *pp, void __user *argp)
 	if (copy_to_user(argp, &bar_info, sizeof(bar_info)))
 		return -EFAULT;
 
-	return rc;
+	return ret;
 }
 
 static ssize_t s32v_ioctl(struct file *filp, u32 cmd,
 		unsigned long data)
 {
-	int rc = 0;
+	int ret = 0;
 	void __user *argp = (void __user *)data;
 	struct pcie_port *pp = (struct pcie_port *)(filp->private_data);
 	struct s32v_inbound_region	inbStr;
@@ -306,28 +377,46 @@ static ssize_t s32v_ioctl(struct file *filp, u32 cmd,
 	switch (cmd) {
 		/* Call to retrieve BAR setup*/
 	case GET_BAR_INFO:
-		rc = s32v_get_bar_info(pp, argp);
+		ret = s32v_get_bar_info(pp, argp);
 		break;
 	case SETUP_OUTBOUND:
 		/* Call to setup outbound region */
 		if (copy_from_user(&outbStr, argp, sizeof(outbStr)))
 			return -EFAULT;
-		rc = s32v_pcie_iatu_outbound_set(pp, &outbStr);
-		return rc;
+		ret = s32v_pcie_iatu_outbound_set(pp, &outbStr);
+		return ret;
 	case SETUP_INBOUND:
 		/* Call to setup inbound region */
 		if (copy_from_user(&inbStr, argp, sizeof(inbStr)))
 			return -EFAULT;
-		rc = s32v_pcie_iatu_inbound_set(pp, &inbStr);
-		return rc;
+		ret = s32v_pcie_iatu_inbound_set(pp, &inbStr);
+		return ret;
 	case SEND_MSI:
 		/* Send MSI */
-		rc = s32v_setup_MSI(pp, argp);
-		return rc;
+		ret = s32v_setup_MSI(pp, argp);
+		return ret;
+	case SEND_SINGLE_DMA:
+		ret = s32v_send_dma_single(pp, argp);
+		return ret;
+	case STORE_PID:
+		ret = s32v_store_pid(pp, argp);
+		return ret;
+	case SEND_SIGNAL:
+		ret = send_signal_to_user(pp);
+		return ret;
+	case GET_DMA_CH_ERRORS:
+		ret = send_dma_errors(pp, argp);
+		return ret;
+	case RESET_DMA_WRITE:
+		reset_dma_write(pp);
+		return ret;
+	case RESET_DMA_READ:
+		reset_dma_read(pp);
+		return ret;
 	default:
 		return -EINVAL;
 	}
-	return rc;
+	return ret;
 }
 static const struct file_operations s32v_pcie_ep_dbgfs_fops = {
 	.owner = THIS_MODULE,
@@ -565,7 +654,7 @@ static int s32v234_pcie_assert_core_reset(struct pcie_port *pp)
 
 	return 0;
 }
-
+#ifndef CONFIG_PCI_S32V234_EP
 static int s32v234_pcie_deassert_core_reset(struct pcie_port *pp)
 {
 	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
@@ -604,6 +693,16 @@ static int s32v234_pcie_init_phy(struct pcie_port *pp)
 			SRC_GPR5_PCIE_PHY_LOS_LEVEL_MASK, (0x9 << 22));
 	return 0;
 }
+#endif
+
+#ifdef CONFIG_PCI_DW_DMA
+static irqreturn_t s32v234_pcie_dma_handler(int irq, void *arg)
+{
+	struct pcie_port *pp = arg;
+
+	return dw_handle_dma_irq(pp);
+}
+#endif
 #ifndef CONFIG_PCI_S32V234_EP
 static int s32v234_pcie_wait_for_link(struct pcie_port *pp)
 {
@@ -724,7 +823,6 @@ static int s32v234_pcie_host_init(struct pcie_port *pp)
 	if (IS_ENABLED(CONFIG_PCI_MSI))
 		dw_pcie_msi_init(pp);
 	#endif
-
 	return 0;
 }
 
@@ -831,6 +929,7 @@ static int __init s32v234_add_pcie_port(struct pcie_port *pp,
 		}
 	}
 	#endif
+
 	pp->root_bus_nr = -1;
 	pp->ops = &s32v234_pcie_host_ops;
 
@@ -972,25 +1071,7 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 		return ret;
 		platform_set_drvdata(pdev, s32v234_pcie);
 	#else
-		s32v234_pcie_assert_core_reset(pp);
-		ret = s32v234_pcie_init_phy(pp);
-		ret |= s32v234_pcie_deassert_core_reset(pp);
-		if (ret < 0) {
-			dev_err(&pdev->dev, "unable to init pcie ep.\n");
-			return ret;
-		}
-
-		regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
-		SRC_GPR5_PCIE_APP_LTSSM_ENABLE,
-		SRC_GPR5_PCIE_APP_LTSSM_ENABLE);
-		platform_set_drvdata(pdev, s32v234_pcie);
-
-		regmap_update_bits(s32v234_pcie->src, SRC_GPR11,
-				SRC_GPR11_PCIE_PCIE_CFG_READY,
-				SRC_GPR11_PCIE_PCIE_CFG_READY);
-
 		s32v234_pcie_setup_ep(pp);
-
 		pp->dir = debugfs_create_dir("ep_dbgfs", NULL);
 		if (!pp->dir)
 			dev_info(pp->dev, "Creating debugfs dir failed\n");
@@ -1001,6 +1082,21 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 
 		writel((readl(pp->dbi_base + PCIE_MSI_CAP) | 0x10000),
 		pp->dbi_base +  PCIE_MSI_CAP);
+
+		if (IS_ENABLED(CONFIG_PCI_DW_DMA)) {
+			ret = devm_request_irq(&pdev->dev, 136,
+				s32v234_pcie_dma_handler,
+				IRQF_SHARED, "s32v-pcie-dma", pp);
+			if (ret) {
+				dev_err(&pdev->dev, "failed to request MSI irq\n");
+				return -ENODEV;
+			}
+			dw_pcie_dma_clear_regs(pp);
+			memset(&pp->info, 0, sizeof(struct siginfo));
+			pp->info.si_signo = SIGUSR1;
+			pp->info.si_code = SI_USER;
+			pp->info.si_int = 0;
+		}
 
 	#endif
 	return 0;

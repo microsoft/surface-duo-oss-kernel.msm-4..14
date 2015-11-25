@@ -22,6 +22,21 @@
 #define MAX_MSI_IRQS			32
 #define MAX_MSI_CTRLS			(MAX_MSI_IRQS / 32)
 
+#ifdef CONFIG_PCI_DW_DMA
+/* DW DMA Internal flags */
+#define S32V_PCIE_DMA_NR_CH		1
+#define S32V_PCIE_DMA_MAX_SIZE	(4 * 1024 * 1024)  /* 4G bytes */
+#define DMA_FLAG_LIE         (1 << 0)
+#define DMA_FLAG_RIE         (1 << 1)
+#define DMA_FLAG_LLP         (1 << 2)
+#define DMA_FLAG_WRITE_ELEM			(1 << 3)
+#define DMA_FLAG_READ_ELEM			(1 << 4)
+#define DMA_FLAG_EN_DONE_INT		(1 << 5)
+#define DMA_FLAG_EN_ABORT_INT		(1 << 6)
+#define DMA_FLAG_EN_REMOTE_DONE_INT			(1 << 7)
+#define DMA_FLAG_EN_REMOTE_ABORT_INT		(1 << 8)
+#endif
+
 enum ATU_TYPE {
 	ATU_TYPE_CFG0,
 	ATU_TYPE_CFG1,
@@ -29,7 +44,42 @@ enum ATU_TYPE {
 	ATU_TYPE_IO,
 	ATU_TYPE_MAX
 };
-
+#ifdef CONFIG_PCI_DW_DMA
+enum DMA_CH_FLAGS {
+	DMA_CH_STOPPED,
+	DMA_CH_RUNNING,
+	DMA_CH_STOPPED_FATAL,
+};
+enum DMA_ERROR {
+	DMA_ERR_NONE,
+	DMA_ERR_WR,
+	DMA_ERR_RD,
+	DMA_ERR_FETCH_LL,
+	DMA_ERR_UNSUPPORTED_REQ,
+	DMA_ERR_CPL_ABORT,
+	DMA_ERR_CPL_TIMEOUT,
+	DMA_ERR_DATA_POISIONING
+};
+struct dma_ch_info {
+	u32 direction;
+	u32	status;
+	u32 errors;
+	u32 int_type;
+};
+struct dma_data_elem {
+	u64 sar;
+	u64 dar;
+	u32 size;
+	u32 flags;
+	u32 ch_num;
+	u64 imwr;
+};
+struct dma_list {
+	u32 size;
+	u64 sar;
+	u64 dar;
+};
+#endif
 struct pcie_port {
 	struct device		*dev;
 	u8			root_bus_nr;
@@ -66,6 +116,15 @@ struct pcie_port {
 	#ifdef CONFIG_PCI_S32V234_EP
 	struct dentry		*dir;
 	#endif
+	#ifdef CONFIG_PCI_DW_DMA
+	int			user_pid;
+	struct dma_ch_info	wr_ch;
+	struct dma_ch_info	rd_ch;
+	int (*ptr_func)(u32 arg);
+	#ifdef CONFIG_PCI_S32V234_EP
+	struct siginfo	info;    /* signal information */
+	#endif
+	#endif
 };
 
 struct pcie_host_ops {
@@ -96,5 +155,23 @@ void dw_pcie_msi_init(struct pcie_port *pp);
 int dw_pcie_link_up(struct pcie_port *pp);
 void dw_pcie_setup_rc(struct pcie_port *pp);
 int dw_pcie_host_init(struct pcie_port *pp);
-
+#ifdef CONFIG_PCI_DW_DMA
+int dw_pcie_dma_write_en(struct pcie_port *pp);
+int dw_pcie_dma_read_en(struct pcie_port *pp);
+int dw_pcie_dma_write_soft_reset(struct pcie_port *pp);
+int dw_pcie_dma_read_soft_reset(struct pcie_port *pp);
+irqreturn_t dw_handle_dma_irq(struct pcie_port *pp);
+void dw_pcie_dma_set_wr_remote_done_int(struct pcie_port *pp, u64 val);
+void dw_pcie_dma_set_wr_remote_abort_int(struct pcie_port *pp, u64 val);
+void dw_pcie_dma_en_local_int(struct pcie_port *pp/* , u64 val */);
+void dw_pcie_dma_set_sar(struct pcie_port *pp, u64 val);
+void dw_pcie_dma_set_dar(struct pcie_port *pp, u64 val);
+void dw_pcie_dma_set_transfer_size(struct pcie_port *pp, u32 val);
+void dw_pcie_dma_set_rd_viewport(struct pcie_port *pp, u8 ch_nr);
+void dw_pcie_dma_set_wr_viewport(struct pcie_port *pp, u8 ch_nr);
+void dw_pcie_dma_clear_regs(struct pcie_port *pp);
+int dw_pcie_dma_single_rw(struct pcie_port *pp,
+	struct dma_data_elem *dma_single_rw);
+int send_signal_to_user(struct pcie_port *pp);
+#endif
 #endif /* _PCIE_DESIGNWARE_H */
