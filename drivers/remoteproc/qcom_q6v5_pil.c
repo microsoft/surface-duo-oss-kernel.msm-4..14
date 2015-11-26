@@ -40,13 +40,22 @@
 
 #define SCM_SVC_PIL                    0x2
 
+struct mdt_hdr {
+	struct elf32_hdr hdr;
+	struct elf32_phdr phdr[];
+};
+
 struct qproc {
 	struct device *dev;
 	struct rproc *rproc;
 
 	void __iomem *reg_base;
 	void __iomem *halt_base;
+	void __iomem *halt_q6;
+	void __iomem *halt_modem;
+	void __iomem *halt_nc;
 	void __iomem *rmb_base;
+	void __iomem *restart_sec_base;
 
 	struct reset_control *mss_restart;
 
@@ -169,6 +178,7 @@ struct qproc {
 
 #define QDSP6SS_ACC_OVERRIDE_VAL        0x20
 
+#define segment_is_hash(flag) (((flag) & (0x7 << 24)) == (0x2 << 24))
 static int segment_is_loadable(const struct elf32_phdr *p)
 {
 	return (p->p_type == PT_LOAD) &&
@@ -291,10 +301,10 @@ static void q6v5proc_reset(struct qproc *qproc)
 		val |= Q6SS_CLK_SRC_SEL_C;
 	}
 
-	/* force clock on during source switch */
-	if (qproc->qdsp6v56)
-		val |= Q6SS_CLK_SRC_SWITCH_CLK_OVR;
 #endif
+	/* force clock on during source switch */
+//	if (qproc->qdsp6v56)
+		val |= Q6SS_CLK_SRC_SWITCH_CLK_OVR;
 
 	writel_relaxed(val, qproc->reg_base + QDSP6SS_GFMUX_CTL);
 
@@ -389,10 +399,9 @@ out:
 	return ret;
 }
 
-#define segment_is_hash(flag) (((flag) & (0x7 << 24)) == (0x2 << 24))
 
 static int
-qproc_load_segments(struct qproc *qproc, const struct firmware *fw)
+old_qproc_load_segments(struct qproc *qproc, const struct firmware *fw)
 {
 	struct device *dev = qproc->dev;
 	struct elf32_hdr *ehdr;
@@ -405,6 +414,8 @@ qproc_load_segments(struct qproc *qproc, const struct firmware *fw)
 	ehdr = (struct elf32_hdr *)elf_data;
 	phdr = (struct elf32_phdr *)(elf_data + ehdr->e_phoff);
 
+
+
 	/* go through the available ELF segments */
 	for (i = 0; i < ehdr->e_phnum; i++, phdr++) {
 		u32 da = phdr->p_paddr;
@@ -412,6 +423,9 @@ qproc_load_segments(struct qproc *qproc, const struct firmware *fw)
 		u32 filesz = phdr->p_filesz;
 		void *ptr;
 
+		if (!segment_is_loadable(phdr))
+			continue;
+		/*
 		if (phdr->p_type != PT_LOAD)
 			continue;
 
@@ -420,9 +434,10 @@ qproc_load_segments(struct qproc *qproc, const struct firmware *fw)
 
 		if (filesz == 0)
 			continue;
-
-		dev_dbg(dev, "phdr: type %d da 0x%x memsz 0x%x filesz 0x%x\n",
-					phdr->p_type, da, memsz, filesz);
+*/
+		//dev_dbg(dev, "phdr: type %d da 0x%x memsz 0x%x filesz 0x%x\n",
+		pr_emerg("phdr(%d): type %d da 0x%x memsz 0x%x filesz 0x%x\n",
+					i, phdr->p_type, da, memsz, filesz);
 
 		if (filesz > memsz) {
 			dev_err(dev, "bad phdr filesz 0x%x memsz 0x%x\n",
@@ -454,8 +469,205 @@ qproc_load_segments(struct qproc *qproc, const struct firmware *fw)
 		if (memsz > filesz)
 			memset(ptr + filesz, 0, memsz - filesz);
 
+
+
 		wmb();
 		iounmap(ptr);
+	}
+
+	return ret;
+}
+
+static int qproc_verify_segment(struct qproc *qproc, phys_addr_t paddr, size_t size)
+{
+	s32 status;
+	u32 img_length;
+
+	img_length = readl_relaxed(qproc->rmb_base + RMB_PMI_CODE_LENGTH);
+	dev_err(qproc->dev, "RMB_PMI_CODE_LENGTH: %x\n", img_length);
+
+	msleep(1);
+	img_length = readl_relaxed(qproc->rmb_base + RMB_PMI_CODE_LENGTH);
+	dev_err(qproc->dev, "RMB_PMI_CODE_LENGTH: %x\n", img_length);
+
+
+	if (img_length == 0) {
+		writel_relaxed(paddr, qproc->rmb_base + RMB_PMI_CODE_START);
+		writel(CMD_LOAD_READY, qproc->rmb_base + RMB_MBA_COMMAND);
+	}
+	img_length += size;
+	writel(img_length, qproc->rmb_base + RMB_PMI_CODE_LENGTH);
+
+	img_length = readl_relaxed(qproc->rmb_base + RMB_PMI_CODE_LENGTH);
+	dev_err(qproc->dev, "RMB_PMI_CODE_LENGTH: %x\n", img_length);
+	
+	status = readl_relaxed(qproc->rmb_base + RMB_MBA_STATUS);
+
+
+	if (status < 0) {
+		dev_err(qproc->dev, "MBA returned error %d\n", status);
+	}
+
+	printk("DEBUG:pil: status... %08x\n", readl_relaxed(qproc->rmb_base + RMB_MBA_STATUS));
+
+	return 0;
+}
+
+static int qproc_load_segment(struct qproc *rproc, const char *fw_name,
+				const struct elf32_phdr *phdr, phys_addr_t paddr)
+{
+	const struct firmware *fw;
+	void *ptr;
+	int ret = 0;
+
+	ptr = ioremap_nocache(paddr, phdr->p_memsz);
+	if (!ptr) {
+		dev_err(rproc->dev, "failed to ioremap segment area (%pa+0x%x)\n", &paddr, phdr->p_memsz);
+		return -EBUSY;
+	}
+
+	if (phdr->p_filesz) {
+		ret = request_firmware(&fw, fw_name, rproc->dev);
+		if (ret) {
+			dev_err(rproc->dev, "failed to load %s\n", fw_name);
+			goto out;
+		}
+
+		memcpy_toio(ptr, fw->data, fw->size);
+
+		release_firmware(fw);
+	}
+
+	if (phdr->p_memsz > phdr->p_filesz)
+		memset_io(ptr + phdr->p_filesz, 0,
+			  phdr->p_memsz - phdr->p_filesz);
+
+	printk("DEBUG:pil: verifing %s size: %x\n",fw_name, phdr->p_memsz);
+	qproc_verify_segment(rproc, paddr, phdr->p_memsz);
+
+out:
+	iounmap(ptr);
+	return ret;
+}
+
+static int
+qproc_load_segments(struct qproc *qproc, const struct firmware *fw)
+{
+	struct device *dev = qproc->dev;
+	struct elf32_hdr *ehdr;
+	struct elf32_phdr *phdr;
+	int i, ret = 0;
+	const u8 *elf_data = fw->data;
+	const struct firmware *seg_fw;
+	char fw_name[20];
+
+	const struct mdt_hdr *mdt;
+	phys_addr_t min_addr = (phys_addr_t)ULLONG_MAX;
+	phys_addr_t max_addr = 0;
+	size_t align = 0;
+	bool relocatable = false;
+	phys_addr_t paddr;
+
+
+	ehdr = (struct elf32_hdr *)elf_data;
+	phdr = (struct elf32_phdr *)(elf_data + ehdr->e_phoff);
+
+
+	mdt = (struct mdt_hdr *)fw->data;
+	ehdr = &mdt->hdr;
+
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		phdr = &mdt->phdr[i];
+
+		if (!segment_is_loadable(phdr))
+			continue;
+
+		if (phdr->p_paddr < min_addr) {
+			min_addr = phdr->p_paddr;
+
+			if (segment_is_relocatable(phdr)) {
+				align = phdr->p_align;
+				relocatable = true;
+			}
+		}
+
+		if (phdr->p_paddr + phdr->p_memsz > max_addr)
+			max_addr = round_up(phdr->p_paddr + phdr->p_memsz, SZ_4K);
+	}
+
+	ehdr = (struct elf32_hdr *)elf_data;
+	phdr = (struct elf32_phdr *)(elf_data + ehdr->e_phoff);
+	/* go through the available ELF segments */
+	for (i = 0; i < ehdr->e_phnum; i++, phdr++) {
+		u32 da = phdr->p_paddr;
+		u32 paddr = phdr->p_paddr;
+		u32 memsz = phdr->p_memsz;
+		u32 filesz = phdr->p_filesz;
+		void *ptr;
+
+		if (!segment_is_loadable(phdr))
+			continue;
+		/*
+		if (phdr->p_type != PT_LOAD)
+			continue;
+
+		if (segment_is_hash(phdr->p_flags))
+			continue;
+
+		if (filesz == 0)
+			continue;
+*/
+		//dev_dbg(dev, "phdr: type %d da 0x%x memsz 0x%x filesz 0x%x\n",
+		pr_emerg("phdr(%d): type %d paddr 0x%x memsz 0x%x filesz 0x%x\n",
+					i, phdr->p_type, paddr, memsz, filesz);
+
+		if (filesz > memsz) {
+			dev_err(dev, "bad phdr filesz 0x%x memsz 0x%x\n",
+							filesz, memsz);
+			ret = -EINVAL;
+			break;
+		}
+
+		paddr = relocatable ?
+				(phdr->p_paddr - min_addr + qproc->reloc_phys) :
+				phdr->p_paddr;
+
+		pr_emerg("Relocated-phdr(%d): type %d paddr 0x%x memsz 0x%x filesz 0x%x\n",
+					i, phdr->p_type, paddr, memsz, filesz);
+//		if (filesz) {
+			snprintf(fw_name, sizeof(fw_name), "modem.b%02d", i);
+			ret = qproc_load_segment(qproc, fw_name, phdr, paddr);
+//		}
+#if 0
+
+		ptr = ioremap(da, memsz);
+		if (!ptr) {
+			dev_err(qproc->dev, "failed to allocate mba metadata buffer\n");
+			ret = -ENOMEM;
+			break;
+		}
+
+		if (filesz) {
+			snprintf(fw_name, sizeof(fw_name), "modem.b%02d", i);
+			ret = request_firmware(&seg_fw, fw_name, qproc->dev);
+			if (ret) {
+				iounmap(ptr);
+				break;
+			}
+
+			memcpy(ptr, seg_fw->data, filesz);
+
+			release_firmware(seg_fw);
+		}
+
+		if (memsz > filesz)
+			memset(ptr + filesz, 0, memsz - filesz);
+
+
+
+		wmb();
+		iounmap(ptr);
+#endif
 	}
 
 	return ret;
@@ -482,20 +694,28 @@ static int qproc_verify_segments(struct qproc *qproc, const struct firmware *fw)
 
 	msleep(1);
 
-	v = readl_relaxed(qproc->rmb_base + RMB_PMI_CODE_LENGTH);
-	dev_err(qproc->dev, "RMB_PMI_CODE_LENGTH: %pa\n", &v);
 
 #if 1
 	for (i = 0; i < ehdr->e_phnum; i++, phdr++) {
 		phys_addr_t da = phdr->p_paddr;
 		u32 memsz = phdr->p_memsz;
 
+
 		if (!segment_is_loadable(phdr))
 			continue;
-
+		/*
+		if (phdr->p_type != PT_LOAD)
+			continue;
+*/
 		dev_err(qproc->dev, "0x%x %d %d\n", phdr->p_paddr, segment_is_hash(phdr->p_flags), !!(phdr->p_flags & BIT(27)));
 
+		/*
+		if (segment_is_hash(phdr->p_flags))
+			continue;
 
+		if (memsz == 0)
+			continue;
+		*/
 		if (da < min_addr)
 			min_addr = da;
 
@@ -503,14 +723,21 @@ static int qproc_verify_segments(struct qproc *qproc, const struct firmware *fw)
 	}
 
 	dev_err(qproc->dev, "verify: %pa:%pa\n", &min_addr, &size);
-
+	v = readl_relaxed(qproc->rmb_base + RMB_PMI_CODE_LENGTH);
+	dev_err(qproc->dev, "RMB_PMI_CODE_LENGTH: %pa\n", &v);
+#if 0
+if (v == 0) {
 	writel_relaxed(min_addr, qproc->rmb_base + RMB_PMI_CODE_START);
 	writel(CMD_LOAD_READY, qproc->rmb_base + RMB_MBA_COMMAND);
+}
 	writel(size, qproc->rmb_base + RMB_PMI_CODE_LENGTH);
+#endif
 #endif
 
 	v = readl_relaxed(qproc->rmb_base + RMB_PMI_CODE_LENGTH);
 	dev_err(qproc->dev, "RMB_PMI_CODE_LENGTH: %pa\n", &v);
+	
+	printk("DEBUG:pil: status... %08x\n", readl_relaxed(qproc->rmb_base + RMB_MBA_STATUS));
 
 	timeout = jiffies + 10 * HZ;
 	for (;;) {
@@ -536,6 +763,41 @@ static int qproc_verify_segments(struct qproc *qproc, const struct firmware *fw)
 	ret = 0;
 out:
 	return ret;
+
+
+}
+
+static int qproc_msa_mba_auth(struct qproc *qproc)
+{
+	unsigned long timeout;
+	s32 val;
+	int ret;
+	int i;
+	u32 v;
+
+	timeout = jiffies + 10 * HZ;
+	for (;;) {
+		msleep(1);
+
+		val = readl(qproc->rmb_base + RMB_MBA_STATUS);
+		if (val == STATUS_AUTH_COMPLETE || val < 0)
+			break;
+
+		if (time_after(jiffies, timeout))
+			break;
+	}
+	if (val == 0) {
+		dev_err(qproc->dev, "MBA authentication of headers timed out\n");
+		ret = -ETIMEDOUT;
+//		goto out;
+	} else if (val < 0) {
+		dev_err(qproc->dev, "MBA returned error %d for segments\n", val);
+		ret = -EINVAL;
+//		goto out;
+	}
+	printk("DEBUG:pil: status auth... %08x\n", readl_relaxed(qproc->rmb_base + RMB_MBA_STATUS));
+
+	return 0;
 }
 
 static int qproc_load_modem(struct qproc *qproc)
@@ -549,18 +811,22 @@ static int qproc_load_modem(struct qproc *qproc)
 		return ret;
 	}
 
+	dev_err(qproc->dev, "Loading mba\n");
 	ret = qproc_mba_load_mdt(qproc, fw);
 	if (ret)
 		goto out;
 
+	dev_err(qproc->dev, "Loading segments\n");
 	ret = qproc_load_segments(qproc, fw);
 	if (ret)
 		goto out;
 
-	ret = qproc_verify_segments(qproc, fw);
-	if (ret)
-		goto out;
-
+	ret = qproc_msa_mba_auth(qproc);
+//	dev_err(qproc->dev, "Verifying segments\n");
+//	ret = qproc_verify_segments(qproc, fw);
+//	if (ret)
+//		goto out;
+	return 0;
 out:
 	release_firmware(fw);
 
@@ -585,13 +851,23 @@ static int qproc_start(struct rproc *rproc)
 	int ret;
 	u32 val;
 
-	ret = regulator_enable(qproc->vdd);
+	printk("DEBUG::: pill................... %s \n", __func__);
+//	ret = regulator_enable(qproc->vdd);
+//	if (ret) {
+//		dev_err(qproc->dev, "failed to enable mss vdd\n");
+//		return ret;
+//	}
+
+	ret = regulator_enable(qproc->pll);
 	if (ret) {
-		dev_err(qproc->dev, "failed to enable mss vdd\n");
+		dev_err(qproc->dev, "failed to enable mss vdd pll\n");
 		return ret;
 	}
 
-	ret = reset_control_deassert(qproc->mss_restart);
+
+	ret = pil_mss_restart_reg(qproc, 0);
+	//FIXME
+	//ret = reset_control_deassert(qproc->mss_restart);
 	if (ret) {
 		dev_err(qproc->dev, "failed to deassert mss restart\n");
 		goto disable_vdd;
@@ -671,7 +947,7 @@ disable_ahb_clk:
 assert_reset:
 	reset_control_assert(qproc->mss_restart);
 disable_vdd:
-	regulator_disable(qproc->vdd);
+//	regulator_disable(qproc->vdd);
 
 	dma_free_attrs(qproc->dev, qproc->mba_size, qproc->mba_va, qproc->mba_da, &qproc->mba_attrs);
 	return ret;
@@ -688,7 +964,7 @@ static int qproc_stop(struct rproc *rproc)
 	reset_control_assert(qproc->mss_restart);
 	clk_disable_unprepare(qproc->axi_clk);
 	clk_disable_unprepare(qproc->ahb_clk);
-	regulator_disable(qproc->vdd);
+//	regulator_disable(qproc->vdd);
 
 	dma_free_attrs(qproc->dev, qproc->mba_size, qproc->mba_va, qproc->mba_da, &qproc->mba_attrs);
 
@@ -787,13 +1063,38 @@ static int qproc_init_mem(struct qproc *qproc, struct platform_device *pdev)
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "halt_base");
 	qproc->halt_base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(qproc->halt_base))
-		return PTR_ERR(qproc->halt_base);
+	if (IS_ERR(qproc->halt_base)) {
+#if 0
+		//return PTR_ERR(qproc->halt_base);
 
+		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "halt_q6");
+		qproc->halt_q6 = devm_ioremap_resource(&pdev->dev, res);
+		if (IS_ERR(qproc->halt_q6))
+			return PTR_ERR(qproc->halt_q6);
+
+
+		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "halt_modem");
+		qproc->halt_modem = devm_ioremap_resource(&pdev->dev, res);
+		if (IS_ERR(qproc->halt_modem))
+			return PTR_ERR(qproc->halt_modem);
+
+		res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "halt_nc");
+		qproc->halt_nc = devm_ioremap_resource(&pdev->dev, res);
+		if (IS_ERR(qproc->halt_nc))
+			return PTR_ERR(qproc->halt_nc);
+#endif
+
+	}
+//Only required if self auth is set???
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "rmb_base");
 	qproc->rmb_base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(qproc->rmb_base))
 		return PTR_ERR(qproc->rmb_base);
+
+//	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "restart_reg_sec");
+//	qproc->restart_sec_base = devm_ioremap_resource(&pdev->dev, res);
+//	if (IS_ERR(qproc->restart_sec_base))
+//		return PTR_ERR(qproc->restart_sec_base);
 
 	return 0;
 }
@@ -820,16 +1121,18 @@ static int qproc_init_regulators(struct qproc *qproc)
 	int ret;
 	u32 uV;
 
-	qproc->vdd = devm_regulator_get(qproc->dev, "qcom,vdd");
-	if (IS_ERR(qproc->vdd))
-		return PTR_ERR(qproc->vdd);
+	printk("DEBUG:pil: starting vdd\n");
+//	qproc->vdd = devm_regulator_get_optional(qproc->dev, "qcom,vdd");
+//	if (IS_ERR(qproc->vdd))
+//		return PTR_ERR(qproc->vdd);
 
-	regulator_set_voltage(qproc->vdd, VDD_MSS_UV, VDD_MSS_UV_MAX);
-	regulator_set_load(qproc->vdd, VDD_MSS_UA);
+//	regulator_set_voltage(qproc->vdd, VDD_MSS_UV, VDD_MSS_UV_MAX);
+//	regulator_set_load(qproc->vdd, VDD_MSS_UA);
 
-	qproc->cx = devm_regulator_get(qproc->dev, "qcom,cx");
-	if (IS_ERR(qproc->cx))
-		return PTR_ERR(qproc->cx);
+	printk("DEBUG:pil: done vdd\n");
+//	qproc->cx = devm_regulator_get(qproc->dev, "qcom,cx");
+//	if (IS_ERR(qproc->cx))
+//		return PTR_ERR(qproc->cx);
 
 	qproc->mx = devm_regulator_get(qproc->dev, "qcom,mx");
 	if (IS_ERR(qproc->mx))
@@ -852,6 +1155,7 @@ static int qproc_init_regulators(struct qproc *qproc)
 
 static int qproc_init_reset(struct qproc *qproc)
 {
+	//FIXME 
 	qproc->mss_restart = devm_reset_control_get(qproc->dev, NULL);
 	if (IS_ERR(qproc->mss_restart)) {
 		dev_err(qproc->dev, "failed to acquire mss restart\n");
@@ -893,7 +1197,7 @@ static int qproc_probe(struct platform_device *pdev)
 	struct resource r;
 
 	rproc = rproc_alloc(&pdev->dev, pdev->name, &qproc_ops,
-			    "mba.b00", sizeof(*qproc));
+			    "mba.mbn", sizeof(*qproc));
 	if (!rproc)
 		return -ENOMEM;
 
@@ -918,9 +1222,10 @@ static int qproc_probe(struct platform_device *pdev)
 	if (ret)
 		goto free_rproc;
 
-	ret = qproc_init_reset(qproc);
-	if (ret)
-		goto free_rproc;
+	//FIXME need to convert this to a proper reset... 
+//	ret = qproc_init_reset(qproc);
+//	if (ret)
+//		goto free_rproc;
 
 	ret = qproc_request_irq(qproc, pdev, "wdog", qproc_wdog_interrupt);
 	if (ret < 0)
