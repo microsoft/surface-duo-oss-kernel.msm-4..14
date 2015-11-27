@@ -9,7 +9,7 @@
 #include <dt-bindings/clock/s32v234-clock.h>
 #include <dt-bindings/pinctrl/s32v234-pinctrl.h>
 
-/memreserve/ 0xC0000000 0x00000100;
+/memreserve/ 0xC0000000 0x00010000;
 
  / {
 	compatible = "fsl,s32v234", "arm,vexpress,v2p-aarch64", "arm,vexpress";
