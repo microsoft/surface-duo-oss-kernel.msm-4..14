@@ -702,6 +702,12 @@
 			qcom,smd-edge = <1>;
 
 			status = "disabled";
+
+			apr {
+				compatible = "qcom,apr";
+				qcom,smd-channels = "apr_audio_svc";
+				rproc = <&pil_q6v4>;
+			};
 		};
 
 		dsps@3 {
@@ -721,6 +727,7 @@
 
 			status = "disabled";
 		};
+
 	};
 
 	smsm {
