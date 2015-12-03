@@ -1420,6 +1420,17 @@
 			status = "disabled";
 		};
 
+		sfpb_syscon:syscon@01200600 {
+			compatible = "syscon";
+			reg = <0x01200600 0x100>;
+		};
+
+		sfpb_mutex: hwlock {
+			compatible = "qcom,sfpb-mutex";
+			syscon = <&sfpb_syscon 0x4 0x4>;
+			#hwlock-cells = <1>;
+		};
+
 		hdmi: qcom,hdmi-tx@4a00000 {
 			compatible = "qcom,hdmi-tx-8960";
 			reg-names = "core_physical";
