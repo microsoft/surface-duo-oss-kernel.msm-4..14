@@ -1,11 +1,11 @@
 repo_list=(
-	"http://archive.ubuntu.com/ubuntu/pool/main/l/linux"
-	"http://ports.ubuntu.com/ubuntu-ports/pool/main/l/linux"
-	"http://archive.ubuntu.com/ubuntu/pool/universe/l/linux"
-	"http://ports.ubuntu.com/ubuntu-ports/pool/universe/l/linux"
-	"http://ppa.launchpad.net/canonical-kernel-team/ppa/ubuntu/pool/main/l/linux"
+	"http://archive.ubuntu.com/ubuntu/pool/main/l/linux-dragon410c"
+	"http://ports.ubuntu.com/ubuntu-ports/pool/main/l/linux-dragon410c"
+	"http://archive.ubuntu.com/ubuntu/pool/universe/l/linux-dragon410c"
+	"http://ports.ubuntu.com/ubuntu-ports/pool/universe/l/linux-dragon410c"
+	"http://ppa.launchpad.net/canonical-kernel-team/ppa/ubuntu/pool/main/l/linux-dragon410c"
 )
 
-package_prefixes linux-image linux-image-extra
+package_prefixes linux-image
 
 getall arm64 generic-dragon410c
