@@ -47,7 +47,7 @@ XS-Testsuite: autopkgtest
 
 Package: SRCPKGNAME-source-PKGVER
 Build-Profiles: <!stage1>
-Architecture: all
+Architecture: arm64
 Section: devel
 Priority: optional
 Provides: SRCPKGNAME-source, SRCPKGNAME-source-3
@@ -71,7 +71,7 @@ Description: Linux kernel source for version PKGVER with Ubuntu patches
 
 Package: SRCPKGNAME-doc
 Build-Profiles: <!stage1>
-Architecture: all
+Architecture: arm64
 Section: doc
 Priority: optional
 Depends: ${misc:Depends}
@@ -86,7 +86,7 @@ Description: Linux kernel specific documentation for version PKGVER
 
 Package: SRCPKGNAME-headers-PKGVER-ABINUM
 Build-Profiles: <!stage1>
-Architecture: all
+Architecture: arm64
 Multi-Arch: foreign
 Section: devel
 Priority: optional
@@ -97,7 +97,7 @@ Description: Header files related to Linux kernel version PKGVER
  /usr/share/doc/SRCPKGNAME-headers-PKGVER-ABINUM/debian.README.gz for details
 
 Package: SRCPKGNAME-libc-dev
-Architecture: i386 amd64 armhf arm64 x32 powerpc ppc64el s390x
+Architecture: arm64
 Depends: ${misc:Depends}
 Conflicts: libc6-dev (<< 2.3.2.ds1-6), libc6.1-dev (<< 2.3.2.ds1-6), dvb-dev (<< 1.0.1-6), amd64-libs-dev (<= 1.1), SRCPKGNAME-kernel-headers
 Replaces: libc6-dev (<< 2.3.2.ds1-6), libc6.1-dev (<< 2.3.2.ds1-6), dvb-dev (<< 1.0.1-6), SRCPKGNAME-kernel-headers, libdrm-dev
@@ -111,7 +111,7 @@ Description: Linux Kernel Headers for development
 
 Package: SRCPKGNAME-tools-common
 Build-Profiles: <!stage1>
-Architecture: all
+Architecture: arm64
 Multi-Arch: foreign
 Section: kernel
 Priority: optional
@@ -124,7 +124,7 @@ Description: Linux kernel version specific tools for version PKGVER
 
 Package: SRCPKGNAME-tools-PKGVER-ABINUM
 Build-Profiles: <!stage1>
-Architecture: i386 amd64 armhf arm64 powerpc ppc64el
+Architecture: arm64
 Section: devel
 Priority: optional
 Depends: ${misc:Depends}, ${shlibs:Depends}, SRCPKGNAME-tools-common
@@ -137,7 +137,7 @@ Description: Linux kernel version specific tools for version PKGVER-ABINUM
 
 Package: SRCPKGNAME-cloud-tools-common
 Build-Profiles: <!stage1>
-Architecture: all
+Architecture: arm64
 Multi-Arch: foreign
 Section: kernel
 Priority: optional
@@ -150,7 +150,7 @@ Description: Linux kernel version specific cloud tools for version PKGVER
 
 Package: SRCPKGNAME-cloud-tools-PKGVER-ABINUM
 Build-Profiles: <!stage1>
-Architecture: i386 amd64 armhf
+Architecture: arm64
 Section: devel
 Priority: optional
 Depends: ${misc:Depends}, ${shlibs:Depends}, SRCPKGNAME-cloud-tools-common
