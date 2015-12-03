@@ -1573,6 +1573,36 @@
 			};
 		};
 
+		dai_fe: dai_fe {
+			compatible	= "qcom,msm-dai-fe";
+			#sound-dai-cells = <0>;
+		};
+
+		hdmi_dai: dai_hdmi {
+			compatible = "qcom,msm-dai-q6-hdmi";
+			#sound-dai-cells = <0>;
+		};
+
+		hdmi_codec: codec_hdmi {
+			compatible = "linux,hdmi-audio";
+			#sound-dai-cells = <0>;
+		};
+
+		q6_pcm: msm_pcm {
+			compatible = "qcom,msm-pcm-dsp";
+			#sound-dai-cells = <0>;
+		};
+
+		q6_route: msm_pcm_routing {
+			compatible = "qcom,msm-pcm-routing";
+			#sound-dai-cells = <0>;
+		};
+
+		snd {
+			compatible	= "qcom,snd-apq8064";
+		};
+
+
 		hdmi: qcom,hdmi-tx@4a00000 {
 			compatible = "qcom,hdmi-tx-8960";
 			reg-names = "core_physical";
