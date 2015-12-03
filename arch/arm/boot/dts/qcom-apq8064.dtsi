@@ -1431,6 +1431,12 @@
 			#hwlock-cells = <1>;
 		};
 
+		smem {
+			compatible = "qcom,smem";
+			memory-region = <&smem>;
+			hwlocks = <&sfpb_mutex 3>;
+		};
+
 		hdmi: qcom,hdmi-tx@4a00000 {
 			compatible = "qcom,hdmi-tx-8960";
 			reg-names = "core_physical";
