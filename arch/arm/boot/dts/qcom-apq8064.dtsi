@@ -1596,6 +1596,21 @@
 			qcom,pas-id		= <1>; /* PAS_Q6 */
 		};
 
+		smd {
+			compatible = "qcom,smd";
+			adsp_a11 {
+				interrupts = <0 90 IRQ_TYPE_EDGE_RISING>;
+				qcom,ipc = <&l2cc 8 15>;
+				qcom,smd-edge = <1>;
+				qcom,remote-pid = <0x2>;
+				q6_requests {
+					compatible	= "qcom,apr";
+					qcom,smd-channels = "apr_audio_svc";
+					rproc = <&pil_q6v4>;
+				};
+			};
+		};
+
 		hdmi: qcom,hdmi-tx@4a00000 {
 			compatible = "qcom,hdmi-tx-8960";
 			reg-names = "core_physical";
