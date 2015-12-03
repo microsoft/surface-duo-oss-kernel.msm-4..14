@@ -139,15 +139,21 @@
 					bias-pull-down;
 				};
 
+				l26 {
+					regulator-min-microvolt = < 375000>;
+					regulator-max-microvolt = <1050000>;
+					bias-pull-down;
+				};
+
 				lvs1 {
 					bias-pull-down;
 				};
 
-				pm8921_lvs6: lvs6 {
+				lvs6 {
 					bias-pull-down;
 				};
 
-				pm8921_lvs7: lvs7 {
+				lvs7 {
 					bias-pull-down;
 				};
 			};
@@ -163,6 +169,11 @@
 			gpio = <&tlmm_pinmux 77 GPIO_ACTIVE_HIGH>;
 			enable-active-high;
 			regulator-boot-on;
+		};
+
+		pil_q6v4: pil@28800000 {
+			qcom,pll-supply = <&pm8921_l26>;
+			qcom,pll-uV = <1050000>;
 		};
 
 		hdmi: qcom,hdmi-tx@4a00000 {
