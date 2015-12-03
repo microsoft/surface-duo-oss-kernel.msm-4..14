@@ -1,4 +1,4 @@
-arch="i386 amd64 armhf arm64 ppc64el"
+arch="arm64"
 supported="Generic"
 target="Geared toward desktop and server systems."
 desc="=HUMAN= SMP"
