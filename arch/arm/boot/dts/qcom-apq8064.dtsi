@@ -1550,6 +1550,14 @@
 			status = "disabled";
 		};
 
+		pil_q6v4: pil@28800000 {
+			compatible	= "qcom,tz-pil", "qcom,apq8064-tz-pil";
+			qcom,firmware-name = "q6";
+			reg		= <0x28800000 0x100>;
+			reg-names	= "qdsp6_base";
+			qcom,pas-id		= <1>; /* PAS_Q6 */
+		};
+
 		hdmi: qcom,hdmi-tx@4a00000 {
 			compatible = "qcom,hdmi-tx-8960";
 			reg-names = "core_physical";
