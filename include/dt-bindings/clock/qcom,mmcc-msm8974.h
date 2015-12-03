@@ -29,7 +29,6 @@
 #define VFE0_CLK_SRC					12
 #define VFE1_CLK_SRC					13
 #define MDP_CLK_SRC					14
-#define GFX3D_CLK_SRC					15
 #define JPEG0_CLK_SRC					16
 #define JPEG1_CLK_SRC					17
 #define JPEG2_CLK_SRC					18
