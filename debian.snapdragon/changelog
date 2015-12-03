@@ -1,0 +1,160 @@
+linux-snapdragon (4.2.0-2012.12) xenial; urgency=low
+
+  [ Tim Gardner ]
+
+  * [Config] renamed to snapdragon
+  * Rebased on Ubuntu-4.2.0-25.30
+
+ -- Tim Gardner <tim.gardner@canonical.com>  Tue, 26 Jan 2016 15:04:16 -0700
+
+linux-snapdragon (4.2.0-2011.11) xenial; urgency=low
+
+  [ Upstream Kernel Changes ]
+
+  * arm64: errata: Add -mpc-relative-literal-loads to erratum #843419 build
+    flags
+    - LP: #1533009
+
+ -- Paolo Pisati <paolo.pisati@canonical.com>  Mon, 25 Jan 2016 11:51:37 +0100
+
+linux-snapdragon (4.2.0-2010.10) xenial; urgency=low
+
+  [ Paolo Pisati ]
+
+  * [Config] DEBUG_MEMORY_INIT=y
+  * [Config] DEBUG_MUTEXES=y && DEBUG_SPINLOCK=y
+
+ -- Paolo Pisati <paolo.pisati@canonical.com>  Thu, 21 Jan 2016 09:30:55 +0100
+
+linux-dragon410c (4.2.0-2009.9) xenial; urgency=low
+
+  [ Paolo Pisati ]
+
+  * [Config] USB_HSIC_USB3503=y
+  * [Config] USB_MSM_OTG=y
+  * [Config] USB_GADGET=y
+  * [Config] USB_CHIPIDEA=y
+
+ -- Paolo Pisati <paolo.pisati@canonical.com>  Tue, 19 Jan 2016 11:39:28 +0100
+
+linux-dragon410c (4.2.0-2008.8) xenial; urgency=low
+
+  [ Paolo Pisati ]
+
+  * rebased on Ubuntu-4.2.0-24.29
+  * update Linaro BSP qcomlt-4.2 @ f1bd413
+  * [Config] disable QCOM_[CPUFREQ|CPUIDLE], use the DT generic
+  * [Config] BUS_TOPOLOGY_ADHOC=y
+  * [Config] disable MMC_CLKGATE
+  * [Config] MSM_BUS_SCALING=y
+  * [Config] disable NO_HZ
+  * [Config] disable PM_DEVFREQ
+  * [Config] disable PM_WAKELOCKS
+  * [Config] USB_OHCI_HCD_PLATFORM=y
+  * [Config] disable USB_UHCI_HCD
+  * [Config] disable USB_XHCI_HCD
+
+ -- Paolo Pisati <paolo.pisati@canonical.com>  Mon, 18 Jan 2016 11:43:16 +0100
+
+linux-dragon410c (4.2.0-2007.7) xenial; urgency=low
+
+  [ Paolo Pisati ]
+
+  * [Config] disable all arm64 SOCs but QCOM
+  * [Config] REGULATOR_FAN53555=y
+  * [Config] MMC_CLKGATE=y
+  * [Config] USB_EHCI_HCD_PLATFORM=y && USB_EHCI_MSM=y
+  * [Config] annotations: enable EHCI platform on arm64
+  * [Config] DMA_CMA=y
+  * [Config] I2C_QUP=y
+  * [Config] HW_RANDOM_MSM=y && HW_RANDOM_TPM=y
+  * [Config] INPUT_PM8941_PWRKEY=y
+  * [Config] LEDS_GPIO=y && LEDS_TRIGGER*=y
+  * [Config] AUTOFS4_FS=y
+  * [Config] SPMI=y, REGULATOR_QCOM_SPMI=y, PINCTRL_QCOM_SPMI_PMIC
+  * [Config] MMC_QCOM_DML=y
+  * [Config] MSM_RPMCC_8064=y
+  * [Config] QCOM_QFPROM=y && QCOM_TSENS=y
+
+ -- Paolo Pisati <paolo.pisati@canonical.com>  Wed, 13 Jan 2016 21:56:58 +0100
+
+linux-dragon410c (4.2.0-2006.6) xenial; urgency=low
+
+  [ Paolo Pisati ]
+
+  * [Config] NLS_ISO8859_1=y
+
+ -- Paolo Pisati <paolo.pisati@canonical.com>  Mon, 04 Jan 2016 15:51:22 +0100
+
+linux-dragon410c (4.2.0-2005.5) xenial; urgency=low
+
+  [ Paolo Pisati ]
+
+  * Revert "[Config] FTBFS: disable ARM64_CRYPTO"
+  * [Config] REGULATOR_FIXED_VOLTAGE=y
+  * [Config] QCOM_A53=y
+  * [Config] MFD_QCOM_RPM=y
+  * [Config] MMC_SDHCI=y && MMC_SDHCI_MSM=y
+  * [Config] PINCTRL_MSM8916=y
+  * [Config] QCOM_BAM_DMA && QCOM_GSBI=y
+  * [Config] REGULATOR_QCOM_RPM=y
+  * [Config] MMC_BLOCK_MINORS=32
+  * [Config] CRYPTO_DRBG=y
+
+ -- Paolo Pisati <paolo.pisati@canonical.com>  Mon, 04 Jan 2016 11:11:59 +0100
+
+linux-dragon410c (4.2.0-2004.4) xenial; urgency=low
+
+  [ Paolo Pisati ]
+
+  * [Config] FTBFS: disable ARM64_CRYPTO
+
+ -- Paolo Pisati <paolo.pisati@canonical.com>  Wed, 09 Dec 2015 14:12:54 +0100
+
+linux-dragon410c (4.2.0-2003.3) xenial; urgency=low
+
+  [ Paolo Pisati ]
+
+  * [Config] COMMON_CLK_QCOM=y && HWSPINLOCK_QCOM=y
+  * [Config] QCOM_SMD=y (fix FTBFS SERIAL_MSM_SMD)
+  * [Config] MFD_QCOM_SMD_RPM=y && REGULATOR_QCOM_SMD_RPM=y
+  * [Config] VIDEO_V4L2=y
+  * [Config] MSM_VIDC_V4L2=y
+  * [Config] QCOM_Q6V5_PIL=y && QCOM_TZ_PIL=y
+  * [Config] DRM_MSM=y && DRM_I2C_ADV7511=y
+  * [Config] SND_SOC_QCOM=y
+  * [Config] MSM_GCC_8916=y
+  * [Config] DRM_PANEL_SIMPLE=y
+
+ -- Paolo Pisati <paolo.pisati@canonical.com>  Wed, 09 Dec 2015 11:33:29 +0100
+
+linux-dragon410c (4.2.0-2002.2) xenial; urgency=low
+
+  [ Paolo Pisati ]
+
+  * [Config] snappy config fragments: generic, systemd, lxc, security and
+    snappy
+  * [Config] snappy/security: CC_STACKPROTECTOR_REGULAR=y
+  * [Config] snappy/snappy: RFKILL_REGULATOR depends on REGULATOR=y
+  * [Config] snappy/generic: CRASH_DUMP=y
+  * [Config] snappy/generic: NVRAM=m
+  * [Config] snappy/generic: INPUT_UINPUT=y
+  * [Config] snappy/generic: SYSVIPC=y && SYSVIPC_SYSCTL=y
+  * [Config] snappy/generic: LOCALVERSION= to avoid packaging failure
+  * [Config] updateconfigs
+
+  [ Upstream Kernel Changes ]
+
+  * media: vidc: fix compile error
+
+ -- Paolo Pisati <paolo.pisati@canonical.com>  Fri, 04 Dec 2015 15:24:16 +0100
+
+linux-dragon410c (4.2.0-2001.1) xenial; urgency=low
+
+  [ Paolo Pisati ]
+
+  * import http://git.linaro.org/landing-teams/working/qualcomm/kernel.git @
+    ubuntu-qcom-dragonboard410c-15.09
+  * rebased on Ubuntu-4.2.0-19.23
+
+ --  Paolo Pisati <paolo.pisati@canonical.com>  Thu, 03 Dec 2015 17:18:07 +0200
