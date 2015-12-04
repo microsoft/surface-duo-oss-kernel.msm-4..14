@@ -13,6 +13,7 @@
 #include <linux/of_device.h>
 #include <linux/of_graph.h>
 #include <linux/regmap.h>
+#include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 
 #include <drm/drmP.h>
@@ -65,6 +66,9 @@ struct adv7511 {
 	struct mipi_dsi_device *dsi;
 	u8 num_dsi_lanes;
 	bool use_timing_gen;
+
+	struct regulator *avdd;
+	struct regulator *v3p3;
 
 	enum adv7511_type type;
 };
@@ -1076,6 +1080,77 @@ static struct drm_bridge_funcs adv7511_bridge_funcs = {
  * Probe & remove
  */
 
+static int adv7533_init_regulators(struct adv7511 *adv)
+{
+	int ret;
+	struct device *dev = &adv->i2c_main->dev;
+
+	adv->avdd = devm_regulator_get(dev, "avdd");
+	if (IS_ERR(adv->avdd)) {
+		ret = PTR_ERR(adv->avdd);
+		dev_err(dev, "failed to get avdd regulator %d\n", ret);
+		return ret;
+	}
+
+	adv->v3p3 = devm_regulator_get(dev, "v3p3");
+	if (IS_ERR(adv->v3p3)) {
+		ret = PTR_ERR(adv->v3p3);
+		dev_err(dev, "failed to get v3p3 regulator %d\n", ret);
+		return ret;
+	}
+
+	if (regulator_can_change_voltage(adv->avdd)) {
+		ret = regulator_set_voltage(adv->avdd, 1800000, 1800000);
+		if (ret) {
+			dev_err(dev, "failed to set avdd voltage %d\n", ret);
+			return ret;
+		}
+	}
+
+	if (regulator_can_change_voltage(adv->v3p3)) {
+		ret = regulator_set_voltage(adv->v3p3, 3300000, 3300000);
+		if (ret) {
+			dev_err(dev, "failed to set v3p3 voltage %d\n", ret);
+			return ret;
+		}
+	}
+
+	/* keep the regulators always on */
+	ret = regulator_enable(adv->avdd);
+	if (ret) {
+		dev_err(dev, "failed to enable avdd %d\n", ret);
+		return ret;
+	}
+
+	ret = regulator_enable(adv->v3p3);
+	if (ret) {
+		dev_err(dev, "failed to enable v3p3 %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
+static int adv7533_uninit_regulators(struct adv7511 *adv)
+{
+	int ret;
+	struct device *dev = &adv->i2c_main->dev;
+
+	ret = regulator_disable(adv->avdd);
+	if (ret) {
+		dev_err(dev, "failed to disable avdd %d\n", ret);
+		return ret;
+	}
+
+	ret = regulator_disable(adv->v3p3);
+	if (ret) {
+		dev_err(dev, "failed to disable v3p3 %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
 static int adv7511_parse_dt(struct device_node *np,
 			    struct adv7511_link_config *config)
 {
@@ -1233,6 +1308,14 @@ static int adv7511_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	if (ret)
 		return ret;
 
+	adv7511->i2c_main = i2c;
+
+	if (adv7511->type == ADV7533) {
+		ret = adv7533_init_regulators(adv7511);
+		if (ret)
+			return ret;
+	}
+
 	/*
 	 * The power down GPIO is optional. If present, toggle it from active to
 	 * inactive to wake up the encoder.
@@ -1275,7 +1358,6 @@ static int adv7511_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	regmap_write(adv7511->regmap, ADV7511_REG_CEC_I2C_ADDR, cec_i2c_addr);
 	adv7511_packet_disable(adv7511, 0xffff);
 
-	adv7511->i2c_main = i2c;
 	adv7511->i2c_edid = i2c_new_dummy(i2c->adapter, edid_i2c_addr >> 1);
 	if (!adv7511->i2c_edid)
 		return -ENOMEM;
@@ -1349,6 +1431,7 @@ static int adv7511_remove(struct i2c_client *i2c)
 	if (adv7511->type == ADV7533) {
 		mipi_dsi_detach(adv7511->dsi);
 		mipi_dsi_device_unregister(adv7511->dsi);
+		adv7533_uninit_regulators(adv7511);
 	}
 
 	drm_bridge_remove(&adv7511->bridge);
