@@ -403,9 +403,91 @@ static const struct rpm_smd_clk_desc rpm_clk_msm8974 = {
 	.num_clks = ARRAY_SIZE(msm8974_clks),
 };
 
+/* apq8084 */
+DEFINE_CLK_SMD_RPM(apq8084, pnoc_clk, pnoc_a_clk, QCOM_SMD_RPM_BUS_CLK, 0);
+DEFINE_CLK_SMD_RPM(apq8084, snoc_clk, snoc_a_clk, QCOM_SMD_RPM_BUS_CLK, 1);
+DEFINE_CLK_SMD_RPM(apq8084, cnoc_clk, cnoc_a_clk, QCOM_SMD_RPM_BUS_CLK, 2);
+DEFINE_CLK_SMD_RPM(apq8084, mmssnoc_ahb_clk, mmssnoc_ahb_a_clk, QCOM_SMD_RPM_BUS_CLK, 3);
+DEFINE_CLK_SMD_RPM(apq8084, bimc_clk, bimc_a_clk, QCOM_SMD_RPM_MEM_CLK, 0);
+DEFINE_CLK_SMD_RPM(apq8084, ocmemgx_clk, ocmemgx_a_clk, QCOM_SMD_RPM_MEM_CLK, 2);
+DEFINE_CLK_SMD_RPM(apq8084, gfx3d_clk_src, gfx3d_a_clk_src, QCOM_SMD_RPM_MEM_CLK, 1);
+DEFINE_CLK_SMD_RPM_BRANCH(apq8084, xo_clk_src, xo_a_clk_src, QCOM_SMD_RPM_MISC_CLK, 0, 19200000);
+DEFINE_CLK_SMD_RPM_QDSS(apq8084, qdss_clk, qdss_a_clk, QCOM_SMD_RPM_MISC_CLK, 1);
+
+DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, bb_clk1, bb_clk1_a, 1);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, bb_clk2, bb_clk2_a, 2);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, rf_clk1, rf_clk1_a, 4);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, rf_clk2, rf_clk2_a, 5);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, rf_clk3, rf_clk3_a, 6);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, diff_clk1, diff_clk1_a, 7);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, div_clk1, div_clk1_a, 11);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, div_clk2, div_clk2_a, 12);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, div_clk3, div_clk3_a, 13);
+
+DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(apq8084, bb_clk1_pin, bb_clk1_a_pin, 1);
+DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(apq8084, bb_clk2_pin, bb_clk2_a_pin, 2);
+DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(apq8084, rf_clk1_pin, rf_clk1_a_pin, 4);
+DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(apq8084, rf_clk2_pin, rf_clk2_a_pin, 5);
+DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(apq8084, rf_clk3_pin, rf_clk3_a_pin, 6);
+
+static struct clk_smd_rpm *apq8084_clks[] = {
+	[RPM_XO_CLK_SRC]	= &apq8084_xo_clk_src,
+	[RPM_XO_A_CLK_SRC]	= &apq8084_xo_a_clk_src,
+	[RPM_PNOC_CLK]          = &apq8084_pnoc_clk,
+	[RPM_PNOC_A_CLK]        = &apq8084_pnoc_a_clk,
+	[RPM_SNOC_CLK]          = &apq8084_snoc_clk,
+	[RPM_SNOC_A_CLK]        = &apq8084_snoc_a_clk,
+	[RPM_BIMC_CLK]          = &apq8084_bimc_clk,
+	[RPM_BIMC_A_CLK]        = &apq8084_bimc_a_clk,
+	[RPM_QDSS_CLK]          = &apq8084_qdss_clk,
+	[RPM_QDSS_A_CLK]        = &apq8084_qdss_a_clk,
+	[RPM_CNOC_CLK]          = &apq8084_cnoc_clk,
+	[RPM_CNOC_A_CLK]        = &apq8084_cnoc_a_clk,
+	[RPM_MMSSNOC_AHB_CLK]   = &apq8084_mmssnoc_ahb_clk,
+	[RPM_MMSSNOC_AHB_A_CLK] = &apq8084_mmssnoc_ahb_a_clk,
+	[RPM_OCMEMGX_CLK]       = &apq8084_ocmemgx_clk,
+	[RPM_OCMEMGX_A_CLK]     = &apq8084_ocmemgx_a_clk,
+	[RPM_GFX3D_CLK_SRC]     = &apq8084_gfx3d_clk_src,
+	[RPM_GFX3D_A_CLK_SRC]   = &apq8084_gfx3d_a_clk_src,
+	[RPM_BB_CLK1]		= &apq8084_bb_clk1,
+	[RPM_BB_CLK1_A]		= &apq8084_bb_clk1_a,
+	[RPM_BB_CLK2]		= &apq8084_bb_clk2,
+	[RPM_BB_CLK2_A]		= &apq8084_bb_clk2_a,
+	[RPM_RF_CLK1]		= &apq8084_rf_clk1,
+	[RPM_RF_CLK1_A]		= &apq8084_rf_clk1_a,
+	[RPM_RF_CLK2]		= &apq8084_rf_clk2,
+	[RPM_RF_CLK2_A]		= &apq8084_rf_clk2_a,
+	[RPM_RF_CLK3]		= &apq8084_rf_clk3,
+	[RPM_RF_CLK3_A]		= &apq8084_rf_clk3_a,
+	[RPM_DIFF_CLK1]		= &apq8084_diff_clk1,
+	[RPM_DIFF_CLK1_A]	= &apq8084_diff_clk1_a,
+	[RPM_DIV_CLK1]          = &apq8084_div_clk1,
+	[RPM_DIV_CLK1_A]        = &apq8084_div_clk1_a,
+	[RPM_DIV_CLK2]          = &apq8084_div_clk2,
+	[RPM_DIV_CLK2_A]        = &apq8084_div_clk2_a,
+	[RPM_DIV_CLK3]          = &apq8084_div_clk3,
+	[RPM_DIV_CLK3_A]        = &apq8084_div_clk3_a,
+	[RPM_BB_CLK1_PIN]	= &apq8084_bb_clk1_pin,
+	[RPM_BB_CLK1_A_PIN]	= &apq8084_bb_clk1_a_pin,
+	[RPM_BB_CLK2_PIN]	= &apq8084_bb_clk2_pin,
+	[RPM_BB_CLK2_A_PIN]	= &apq8084_bb_clk2_a_pin,
+	[RPM_RF_CLK1_PIN]	= &apq8084_rf_clk1_pin,
+	[RPM_RF_CLK1_A_PIN]	= &apq8084_rf_clk1_a_pin,
+	[RPM_RF_CLK2_PIN]	= &apq8084_rf_clk2_pin,
+	[RPM_RF_CLK2_A_PIN]	= &apq8084_rf_clk2_a_pin,
+	[RPM_RF_CLK3_PIN]	= &apq8084_rf_clk3_pin,
+	[RPM_RF_CLK3_A_PIN]	= &apq8084_rf_clk3_a_pin,
+};
+
+static const struct rpm_smd_clk_desc rpm_clk_apq8084 = {
+	.clks = apq8084_clks,
+	.num_clks = ARRAY_SIZE(apq8084_clks),
+};
+
 static const struct of_device_id rpm_smd_clk_match_table[] = {
 	{ .compatible = "qcom,rpmcc-msm8916", .data = &rpm_clk_msm8916},
 	{ .compatible = "qcom,rpmcc-msm8974", .data = &rpm_clk_msm8974},
+	{ .compatible = "qcom,rpmcc-apq8084", .data = &rpm_clk_apq8084},
 	{ }
 };
 MODULE_DEVICE_TABLE(of, rpm_smd_clk_match_table);
