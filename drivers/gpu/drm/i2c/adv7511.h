@@ -279,6 +279,9 @@ struct adv7511 {
 
 	struct gpio_desc *gpio_pd;
 
+	struct regulator *avdd;
+	struct regulator *v3p3;
+
 	/* ADV7533 DSI RX related params */
 	struct device_node *host_node;
 	struct mipi_dsi_device *dsi;
