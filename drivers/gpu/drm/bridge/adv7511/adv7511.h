@@ -335,6 +335,9 @@ struct adv7511 {
 	u8 num_dsi_lanes;
 	bool use_timing_gen;
 
+	struct regulator *avdd;
+	struct regulator *v3p3;
+
 	enum adv7511_type type;
 	struct platform_device *audio_pdev;
 };
