@@ -12,6 +12,7 @@
 #include <linux/module.h>
 #include <linux/regmap.h>
 #include <linux/slab.h>
+#include <linux/regulator/consumer.h>
 
 #include <drm/drmP.h>
 #include <drm/drm_crtc_helper.h>
@@ -1353,6 +1354,57 @@ static void __exit adv7511_exit(void)
 module_exit(adv7511_exit);
 #else
 
+static int adv7533_init_regulators(struct adv7511 *adv)
+{
+	struct device *dev = &adv->dsi->dev;
+	int ret;
+
+	adv->avdd = devm_regulator_get(dev, "avdd");
+	if (IS_ERR(adv->avdd)) {
+		ret = PTR_ERR(adv->avdd);
+		dev_err(dev, "failed to get avdd regulator %d\n", ret);
+		return ret;
+	}
+
+	adv->v3p3 = devm_regulator_get(dev, "v3p3");
+	if (IS_ERR(adv->v3p3)) {
+		ret = PTR_ERR(adv->v3p3);
+		dev_err(dev, "failed to get v3p3 regulator %d\n", ret);
+		return ret;
+	}
+
+	if (regulator_can_change_voltage(adv->avdd)) {
+		ret = regulator_set_voltage(adv->avdd, 1800000, 1800000);
+		if (ret) {
+			dev_err(dev, "failed to set avdd voltage %d\n", ret);
+			return ret;
+		}
+	}
+
+	if (regulator_can_change_voltage(adv->v3p3)) {
+		ret = regulator_set_voltage(adv->v3p3, 3300000, 3300000);
+		if (ret) {
+			dev_err(dev, "failed to set v3p3 voltage %d\n", ret);
+			return ret;
+		}
+	}
+
+	/* keep the regulators always on */
+	ret = regulator_enable(adv->avdd);
+	if (ret) {
+		dev_err(dev, "failed to enable avdd %d\n", ret);
+		return ret;
+	}
+
+	ret = regulator_enable(adv->v3p3);
+	if (ret) {
+		dev_err(dev, "failed to enable v3p3 %d\n", ret);
+		return ret;
+	}
+
+	return 0;
+}
+
 static int adv7533_probe(struct mipi_dsi_device *dsi)
 {
 	struct device *dev = &dsi->dev;
@@ -1382,6 +1434,10 @@ static int adv7533_probe(struct mipi_dsi_device *dsi)
 	memset(&link_config, 0, sizeof(link_config));
 
 	ret = adv7511_parse_dt(adv, dev->of_node, &link_config);
+	if (ret)
+		return ret;
+
+	ret = adv7533_init_regulators(adv);
 	if (ret)
 		return ret;
 
@@ -1519,6 +1575,10 @@ static int adv7533_remove(struct mipi_dsi_device *dsi)
 
 	mipi_dsi_detach(dsi);
 	drm_bridge_remove(&adv->bridge);
+
+	regulator_disable(adv->avdd);
+	regulator_disable(adv->v3p3);
+
 	kfree(adv->edid);
 
 	return 0;
