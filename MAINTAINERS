@@ -8347,6 +8347,13 @@ S:	Supported
 F:	Documentation/devicetree/bindings/pci/pci-thunder-*
 F:	drivers/pci/host/pci-thunder-*
 
+PCIE DRIVER FOR QUALCOMM MSM
+M:     Stanimir Varbanov <svarbanov@mm-sol.com>
+L:     linux-pci@vger.kernel.org
+L:     linux-arm-msm@vger.kernel.org
+S:     Maintained
+F:     drivers/pci/host/*qcom*
+
 PCMCIA SUBSYSTEM
 P:	Linux PCMCIA Team
 L:	linux-pcmcia@lists.infradead.org
