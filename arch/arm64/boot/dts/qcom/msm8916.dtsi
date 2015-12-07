@@ -76,6 +76,10 @@
                         reg = <0x0 0x8b600000 0x0 0x0600000>;
                 };
 
+		vidc_mem: vidc_region@8f800000 {
+			no-map;
+			reg = <0 0x8f800000 0 0x800000>;
+		};
 	};
 
 	cpus {
@@ -975,6 +979,40 @@
 			qcom,offset-log-len = <40>;
 			qcom,offset-log-len-mask = <44>;
 			qcom,offset-page-indices = <56>;
+		};
+
+		vidc_rproc: vidc_tzpil@0 {
+			compatible = "qcom,tz-pil";
+			clocks = <&gcc GCC_CRYPTO_CLK>,
+				 <&gcc GCC_CRYPTO_AHB_CLK>,
+				 <&gcc GCC_CRYPTO_AXI_CLK>,
+				 <&gcc CRYPTO_CLK_SRC>;
+			clock-names = "scm_core_clk", "scm_iface_clk",
+				      "scm_bus_clk", "scm_src_clk";
+			qcom,firmware-name = "venus";
+			qcom,pas-id = <9>;
+			memory-region = <&vidc_mem>;
+			status = "disabled";
+		};
+
+		vidc: qcom,vidc@1d00000 {
+			compatible = "qcom,msm-vidc";
+			reg = <0x01d00000 0xff000>;
+			interrupts = <GIC_SPI 44 0>;
+			power-domains = <&gcc VENUS_GDSC>;
+			clocks = <&gcc GCC_VENUS0_VCODEC0_CLK>,
+				 <&gcc GCC_VENUS0_AHB_CLK>,
+				 <&gcc GCC_VENUS0_AXI_CLK>;
+			clock-names = "core_clk", "iface_clk", "bus_clk";
+			qcom,hfi = "venus";
+			qcom,max-hw-load = <352800>; /* 720p @ 30 + 1080p @ 30 */
+			qcom,enable-idle-indicator;
+			rproc = <&vidc_rproc>;
+			qcom,iommu-cb = <&venus_ns>,
+					<&venus_sec_bitstream>,
+					<&venus_sec_pixel>,
+					<&venus_sec_non_pixel>;
+			status = "disabled";
 		};
 	};
 
