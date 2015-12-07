@@ -61,6 +61,7 @@ struct qproc {
 	struct regulator *pll;
 
 	unsigned proxy_clk_count;
+	bool	no_scm_clks;
 	struct clk *scm_core_clk;
 	struct clk *scm_iface_clk;
 	struct clk *scm_bus_clk;
@@ -81,6 +82,9 @@ struct qproc {
 static int qproc_scm_clk_enable(struct qproc *qproc)
 {
 	int ret;
+
+	if (qproc->no_scm_clks)
+		return 0;
 
 	ret = clk_prepare_enable(qproc->scm_core_clk);
 	if (ret)
@@ -110,6 +114,9 @@ bail:
 
 static void qproc_scm_clk_disable(struct qproc *qproc)
 {
+	if (qproc->no_scm_clks)
+		return;
+
 	clk_disable_unprepare(qproc->scm_core_clk);
 	clk_disable_unprepare(qproc->scm_iface_clk);
 	clk_disable_unprepare(qproc->scm_bus_clk);
@@ -480,6 +487,9 @@ static int qproc_init_clocks(struct qproc *qproc)
 	long rate;
 	int ret;
 
+	if (qproc->no_scm_clks)
+		return 0;
+
 	qproc->scm_core_clk = devm_clk_get(qproc->dev, "scm_core_clk");
 	if (IS_ERR(qproc->scm_core_clk)) {
 		if (PTR_ERR(qproc->scm_core_clk) != -EPROBE_DEFER)
@@ -620,6 +630,9 @@ static int qproc_probe(struct platform_device *pdev)
 
 	qproc->smd_edge_node = of_parse_phandle(pdev->dev.of_node,
 						"qcom,smd-edges", 0);
+
+	qproc->no_scm_clks = of_device_is_compatible(pdev->dev.of_node,
+						     "qcom,apq8064-tz-pil");
 
 	ret = qproc_init_pas(qproc);
 	if (ret)
