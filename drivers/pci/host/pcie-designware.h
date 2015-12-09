@@ -46,12 +46,17 @@ enum ATU_TYPE {
 };
 #ifdef CONFIG_PCI_DW_DMA
 enum DMA_CH_FLAGS {
-	DMA_CH_STOPPED,
+	DMA_CH_STOPPED = 0,
 	DMA_CH_RUNNING,
+	DMA_CH_HALTED,
 	DMA_CH_STOPPED_FATAL,
 };
+enum DMA_CH_DIR {
+	DMA_CH_WRITE = 0,
+	DMA_CH_READ
+};
 enum DMA_ERROR {
-	DMA_ERR_NONE,
+	DMA_ERR_NONE = 0,
 	DMA_ERR_WR,
 	DMA_ERR_RD,
 	DMA_ERR_FETCH_LL,
@@ -60,24 +65,41 @@ enum DMA_ERROR {
 	DMA_ERR_CPL_TIMEOUT,
 	DMA_ERR_DATA_POISIONING
 };
+/* Linked list mode struct */
+struct dma_ll_info {
+	u32 direction;
+	u32 ch_num;
+	u32 nr_elem;
+	u32 phy_list_addr;
+	u32 next_phy_list_addr;
+};
+/* Channel info struct */
 struct dma_ch_info {
 	u32 direction;
 	u32	status;
 	u32 errors;
-	u32 int_type;
+	u32 phy_list_addr;
+	u32 current_sar;
+	u32 current_dar;
+	u32 current_size;
+	u32 *virt_addr;
+	u8 current_elem_idx;
+	u8 current_list_size;
 };
+/* Single block DMA transfer struct */
 struct dma_data_elem {
 	u64 sar;
 	u64 dar;
+	u64 imwr;
 	u32 size;
 	u32 flags;
 	u32 ch_num;
-	u64 imwr;
 };
+/* Type of array of structures for passing linked list  */
 struct dma_list {
-	u32 size;
 	u64 sar;
 	u64 dar;
+	u32 size;
 };
 #endif
 struct pcie_port {
@@ -117,13 +139,16 @@ struct pcie_port {
 	struct dentry		*dir;
 	#endif
 	#ifdef CONFIG_PCI_DW_DMA
-	int			user_pid;
 	struct dma_ch_info	wr_ch;
 	struct dma_ch_info	rd_ch;
+	struct dma_ll_info	ll_info;
+	struct dma_list(*dma_linked_list)[];
 	int (*ptr_func)(u32 arg);
 	#ifdef CONFIG_PCI_S32V234_EP
+	int			user_pid;
 	struct siginfo	info;    /* signal information */
 	#endif
+
 	#endif
 };
 
@@ -173,5 +198,11 @@ void dw_pcie_dma_clear_regs(struct pcie_port *pp);
 int dw_pcie_dma_single_rw(struct pcie_port *pp,
 	struct dma_data_elem *dma_single_rw);
 int send_signal_to_user(struct pcie_port *pp);
+int dw_pcie_dma_load_linked_list(struct pcie_port *pp,
+	struct dma_list (*arr_ll)[], u8 arr_sz, u32 phy_list_addr,
+	u32 next_phy_list_addr, u8 direction);
+int dw_pcie_dma_start_linked_list(struct pcie_port *pp,
+	u32 phy_list_addr,
+	u8 direction);
 #endif
 #endif /* _PCIE_DESIGNWARE_H */

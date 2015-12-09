@@ -63,6 +63,9 @@ struct s32v234_pcie {
 #define GET_DMA_CH_ERRORS		_IOR('S', 9,  u32)
 #define RESET_DMA_WRITE			_IOW('S', 10,  u32)
 #define RESET_DMA_READ			_IOW('S', 11,  u32)
+#define STORE_LL_INFO		_IOR('S', 12,  struct dma_ll_info)
+#define SEND_LL				_IOWR('S', 13, struct dma_list(*)[])
+#define START_LL				_IOWR('S', 14, u32)
 
 #endif
 #define PCIE_MSI_CAP			0x50
@@ -187,8 +190,65 @@ struct s32v_outbound_region {
 	u32 region_type;
 };
 #endif
-#ifdef CONFIG_PCI_S32V234_EP
-static int send_dma_errors(struct pcie_port *pp, void __user *argp)
+static int s32v_store_ll_array(struct pcie_port *pp, void __user *argp)
+{
+	int ret = 0;
+	u32 ll_nr_elem = pp->ll_info.nr_elem;
+
+	if (argp) {
+		if (copy_from_user(pp->dma_linked_list, argp,
+			sizeof(struct dma_list) * ll_nr_elem))
+			return -EFAULT;
+	} else {/* Null argument */
+		return -EFAULT;
+	}
+	ret = dw_pcie_dma_load_linked_list(pp, pp->dma_linked_list,
+		ll_nr_elem, pp->ll_info.phy_list_addr,
+		pp->ll_info.next_phy_list_addr,
+		pp->ll_info.direction);
+
+	return ret;
+}
+int s32v_start_dma_ll(struct pcie_port *pp, void __user *argp)
+{
+	int ret = 0;
+	u32 phy_addr;
+
+	if (argp) {
+		if (copy_from_user(&phy_addr, argp, sizeof(phy_addr)))
+			return -EFAULT;
+	} else {/* Null argument */
+		return -EFAULT;
+	}
+	ret = dw_pcie_dma_start_linked_list(pp,
+		 phy_addr,
+		pp->ll_info.direction);
+	return ret;
+}
+int s32v_store_ll_array_info(struct pcie_port *pp, void __user *argp)
+{
+	int ret = 0;
+
+	if (argp) {
+		if (copy_from_user(&pp->ll_info, argp,
+			sizeof(struct dma_ll_info)))
+			return -EFAULT;
+	} else {/* Null argument */
+		return -EFAULT;
+	}
+	/* Alloc here space for pointer to array of structs */
+	/* Make sure it is null before allocating space */
+	if (!pp->dma_linked_list) {
+		pp->dma_linked_list =
+			(struct dma_list(*)[])kzalloc(sizeof(struct dma_list) *
+			pp->ll_info.nr_elem, GFP_KERNEL);
+	}
+
+	return ret;
+}
+#ifdef CONFIG_PCI_DW_DMA
+
+static int s32v_send_dma_errors(struct pcie_port *pp, void __user *argp)
 {
 	int ret = 0;
 	u32 dma_errors;
@@ -213,16 +273,18 @@ static int s32v_send_dma_single(struct pcie_port *pp, void __user *argp)
 	ret = dw_pcie_dma_single_rw(pp, &dma_elem_local);
 	return ret;
 }
-#endif
-#ifdef CONFIG_PCI_S32V234_EP
+
 void reset_dma_write(struct pcie_port *pp)
 {
 	dw_pcie_dma_write_soft_reset(pp);
+	dw_pcie_dma_read_soft_reset(pp);
 }
 void reset_dma_read(struct pcie_port *pp)
 {
 	dw_pcie_dma_read_soft_reset(pp);
 }
+#endif
+#ifdef CONFIG_PCI_S32V234_EP
 int send_signal_to_user(struct pcie_port *pp)
 {
 	int ret = 0;
@@ -405,13 +467,22 @@ static ssize_t s32v_ioctl(struct file *filp, u32 cmd,
 		ret = send_signal_to_user(pp);
 		return ret;
 	case GET_DMA_CH_ERRORS:
-		ret = send_dma_errors(pp, argp);
+		ret = s32v_send_dma_errors(pp, argp);
 		return ret;
 	case RESET_DMA_WRITE:
 		reset_dma_write(pp);
 		return ret;
 	case RESET_DMA_READ:
 		reset_dma_read(pp);
+		return ret;
+	case STORE_LL_INFO:
+		ret = s32v_store_ll_array_info(pp, argp);
+		return ret;
+	case SEND_LL:
+		ret = s32v_store_ll_array(pp, argp);
+		return ret;
+	case START_LL:
+		ret = s32v_start_dma_ll(pp, argp);
 		return ret;
 	default:
 		return -EINVAL;
@@ -1072,33 +1143,34 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 		platform_set_drvdata(pdev, s32v234_pcie);
 	#else
 		s32v234_pcie_setup_ep(pp);
-		pp->dir = debugfs_create_dir("ep_dbgfs", NULL);
-		if (!pp->dir)
-			dev_info(pp->dev, "Creating debugfs dir failed\n");
-		pfile = debugfs_create_file("ep_file", 0666, pp->dir,
-			(void *)pp, &s32v_pcie_ep_dbgfs_fops);
-		if (!pfile)
-			dev_info(pp->dev, "debugfs regs for failed\n");
+	pp->dir = debugfs_create_dir("ep_dbgfs", NULL);
+	if (!pp->dir)
+		dev_info(pp->dev, "Creating debugfs dir failed\n");
+	pfile = debugfs_create_file("ep_file", 0666, pp->dir,
+		(void *)pp, &s32v_pcie_ep_dbgfs_fops);
+	if (!pfile)
+		dev_info(pp->dev, "debugfs regs for failed\n");
 
-		writel((readl(pp->dbi_base + PCIE_MSI_CAP) | 0x10000),
-		pp->dbi_base +  PCIE_MSI_CAP);
+	writel((readl(pp->dbi_base + PCIE_MSI_CAP) | 0x10000),
+	pp->dbi_base +  PCIE_MSI_CAP);
 
-		if (IS_ENABLED(CONFIG_PCI_DW_DMA)) {
-			ret = devm_request_irq(&pdev->dev, 136,
-				s32v234_pcie_dma_handler,
-				IRQF_SHARED, "s32v-pcie-dma", pp);
-			if (ret) {
-				dev_err(&pdev->dev, "failed to request MSI irq\n");
-				return -ENODEV;
-			}
-			dw_pcie_dma_clear_regs(pp);
-			memset(&pp->info, 0, sizeof(struct siginfo));
-			pp->info.si_signo = SIGUSR1;
-			pp->info.si_code = SI_USER;
-			pp->info.si_int = 0;
-		}
+	if (IS_ENABLED(CONFIG_PCI_DW_DMA)) {
 
+		memset(&pp->info, 0, sizeof(struct siginfo));
+		pp->info.si_signo = SIGUSR1;
+		pp->info.si_code = SI_USER;
+		pp->info.si_int = 0;
+	}
 	#endif
+
+	ret = devm_request_irq(&pdev->dev, 136,
+		s32v234_pcie_dma_handler,
+		IRQF_SHARED, "s32v-pcie-dma", pp);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to request MSI irq\n");
+		return -ENODEV;
+	}
+	dw_pcie_dma_clear_regs(pp);
 	return 0;
 }
 
