@@ -18,7 +18,6 @@ struct alt_instr {
 
 void apply_alternatives_all(void);
 void apply_alternatives(void *start, size_t length);
-void free_alternatives_memory(void);
 
 #define ALTINSTR_ENTRY(feature)						      \
 	" .word 661b - .\n"				/* label           */ \
