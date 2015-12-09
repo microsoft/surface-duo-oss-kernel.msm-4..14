@@ -449,7 +449,7 @@ static int qup_i2c_send_data(struct qup_i2c_dev *qup, int tlen, u8 *tbuf,
 		ret = qup_i2c_wait_ready(qup, QUP_OUT_FULL,
 					 RESET_BIT, 4 * ONE_BYTE);
 		if (ret) {
-			dev_err(qup->dev, "timeout for fifo out full");
+			dev_dbg(qup->dev, "timeout for fifo out full");
 			return ret;
 		}
 
@@ -565,7 +565,7 @@ static int qup_i2c_wait_for_complete(struct qup_i2c_dev *qup,
 
 	if (qup->bus_err || qup->qup_err) {
 		if (qup->bus_err & QUP_I2C_NACK_FLAG) {
-			dev_err(qup->dev, "NACK from %x\n", msg->addr);
+			dev_dbg(qup->dev, "NACK from %x\n", msg->addr);
 			ret = -EIO;
 		}
 	}
@@ -721,7 +721,7 @@ static int qup_i2c_read_fifo_v2(struct qup_i2c_dev *qup,
 		ret = qup_i2c_wait_ready(qup, QUP_IN_NOT_EMPTY,
 					 SET_BIT, 4 * ONE_BYTE);
 		if (ret) {
-			dev_err(qup->dev, "timeout for fifo not empty");
+			dev_dbg(qup->dev, "timeout for fifo not empty");
 			return ret;
 		}
 		val = readl(qup->base + QUP_IN_FIFO_BASE);
@@ -1012,7 +1012,7 @@ static int bam_do_xfer(struct qup_i2c_dev *qup, struct i2c_msg *msg)
 	if (ret || qup->bus_err || qup->qup_err) {
 		if (qup->bus_err & QUP_I2C_NACK_FLAG) {
 			msg--;
-			dev_err(qup->dev, "NACK from %x\n", msg->addr);
+			dev_dbg(qup->dev, "NACK from %x\n", msg->addr);
 			ret = -EIO;
 
 			if (qup_i2c_change_state(qup, QUP_RUN_STATE)) {
