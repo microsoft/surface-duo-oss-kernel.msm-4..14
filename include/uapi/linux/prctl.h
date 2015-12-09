@@ -190,4 +190,13 @@ struct prctl_mm_map {
 # define PR_FP_MODE_FR		(1 << 0)	/* 64b FP registers */
 # define PR_FP_MODE_FRE		(1 << 1)	/* 32b compatibility */
 
+/* Sets the timerslack for arbitrary threads
+ * arg2 slack value, 0 means "use default"
+ * arg3 pid of the thread whose timer slack needs to be set
+ */
+#define PR_SET_TIMERSLACK_PID	127
+
+#define PR_SET_VMA		0x53564d41
+# define PR_SET_VMA_ANON_NAME		0
+
 #endif /* _LINUX_PRCTL_H */
