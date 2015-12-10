@@ -32,39 +32,23 @@ static struct mdp5_kms *get_kms(struct drm_encoder *encoder)
 	return to_mdp5_kms(to_mdp_kms(priv->kms));
 }
 
-#ifdef DOWNSTREAM_CONFIG_MSM_BUS_SCALING
-#include <mach/board.h>
+#ifdef CONFIG_MSM_BUS_SCALING
 #include <linux/msm-bus.h>
-#include <linux/msm-bus-board.h>
-#define MDP_BUS_VECTOR_ENTRY(ab_val, ib_val)		\
-	{						\
-		.src = MSM_BUS_MASTER_MDP_PORT0,	\
-		.dst = MSM_BUS_SLAVE_EBI_CH0,		\
-		.ab = (ab_val),				\
-		.ib = (ib_val),				\
-	}
-
-static struct msm_bus_vectors mdp_bus_vectors[] = {
-	MDP_BUS_VECTOR_ENTRY(0, 0),
-	MDP_BUS_VECTOR_ENTRY(2000000000, 2000000000),
-};
-static struct msm_bus_paths mdp_bus_usecases[] = { {
-		.num_paths = 1,
-		.vectors = &mdp_bus_vectors[0],
-}, {
-		.num_paths = 1,
-		.vectors = &mdp_bus_vectors[1],
-} };
-static struct msm_bus_scale_pdata mdp_bus_scale_table = {
-	.usecase = mdp_bus_usecases,
-	.num_usecases = ARRAY_SIZE(mdp_bus_usecases),
-	.name = "mdss_mdp",
-};
 
 static void bs_init(struct mdp5_cmd_encoder *mdp5_cmd_enc)
 {
-	mdp5_cmd_enc->bsc = msm_bus_scale_register_client(
-			&mdp_bus_scale_table);
+	struct drm_encoder *encoder = &mdp5_cmd_enc->base;
+	struct platform_device *pdev = encoder->dev->platformdev;
+	struct msm_bus_scale_pdata *bus_scale_table;
+
+	bus_scale_table = msm_bus_cl_get_pdata(pdev);
+	if (!bus_scale_table) {
+		DBG("bus scaling is disabled\n");
+	} else {
+		mdp5_cmd_enc->bsc = msm_bus_scale_register_client(
+					bus_scale_table);
+	}
+
 	DBG("bus scale client: %08x", mdp5_cmd_enc->bsc);
 }
 
