@@ -10,6 +10,14 @@
 		};
 	};
 
+	pm8916_gpios_default: default {
+		usb_hub_reset_pm {
+			pins = "gpio1";
+			function = PMIC_GPIO_FUNC_NORMAL;
+			output-low;
+		};
+	};
+
 	usb_sw_sel_pm: usb_sw_sel_pm {
 		pinconf {
 			pins = "gpio4";
@@ -34,6 +42,25 @@
 		pinconf {
 			pins = "mpp2", "mpp3";
 			function = PMIC_GPIO_FUNC_NORMAL;
+			power-source = <PM8916_GPIO_VPH>;
+			output-low;	// USB device mode
+		};
+	};
+
+	pm8916_gpios_leds_default: pm8916_gpios_leds_default {
+		pinconf {
+			pins = "gpio1", "gpio2";
+			function = PMIC_GPIO_FUNC_NORMAL;
+			output-low;
+		};
+	};
+};
+
+&pm8916_mpps {
+	pm8916_mpps_leds_default: pm8916_mpps_leds_default {
+		pinconf {
+			pins = "mpp2", "mpp3";
+			function = "digital";
 			output-low;
 		};
 	};
