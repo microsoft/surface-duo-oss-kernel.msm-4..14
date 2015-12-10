@@ -183,6 +183,7 @@ err:
 	return ERR_PTR(r);
 }
 
+#if IS_ENABLED(CONFIG_OF)
 static struct mipi_dsi_device *
 of_mipi_dsi_device_add(struct mipi_dsi_host *host, struct device_node *node)
 {
@@ -206,6 +207,13 @@ of_mipi_dsi_device_add(struct mipi_dsi_host *host, struct device_node *node)
 
 	return mipi_dsi_device_new(host, &info);
 }
+#else
+static struct mipi_dsi_device *
+of_mipi_dsi_device_add(struct mipi_dsi_host *host, struct device_node *node)
+{
+	return NULL;
+}
+#endif
 
 static struct mipi_dsi_driver dummy_dsi_driver = {
 	.driver.name = "mipi_dsi_dummy",
