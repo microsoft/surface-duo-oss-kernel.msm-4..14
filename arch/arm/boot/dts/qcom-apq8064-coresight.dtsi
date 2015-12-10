@@ -11,13 +11,14 @@
  * GNU General Public License for more details.
  */
 
+#include <dt-bindings/clock/qcom,rpmcc.h>
 &soc {
 
 	etb@1a01000 {
 		compatible = "coresight-etb10", "arm,primecell";
 		reg = <0x1a01000 0x1000>;
 
-		clocks = <&rpmcc QCOM_RPM_QDSS_CLK>;
+		clocks = <&rpmcc RPM_QDSS_CLK>;
 		clock-names = "apb_pclk";
 
 		port {
@@ -32,7 +33,7 @@
 		compatible = "arm,coresight-tpiu", "arm,primecell";
 		reg = <0x1a03000 0x1000>;
 
-		clocks = <&rpmcc QCOM_RPM_QDSS_CLK>;
+		clocks = <&rpmcc RPM_QDSS_CLK>;
 		clock-names = "apb_pclk";
 
 		port {
@@ -46,7 +47,7 @@
 	replicator {
 		compatible = "arm,coresight-replicator";
 
-		clocks = <&rpmcc QCOM_RPM_QDSS_CLK>;
+		clocks = <&rpmcc RPM_QDSS_CLK>;
 		clock-names = "apb_pclk";
 
 		ports {
@@ -79,7 +80,7 @@
 		compatible = "arm,coresight-funnel", "arm,primecell";
 		reg = <0x1a04000 0x1000>;
 
-		clocks = <&rpmcc QCOM_RPM_QDSS_CLK>;
+		clocks = <&rpmcc RPM_QDSS_CLK>;
 		clock-names = "apb_pclk";
 
 		ports {
@@ -134,7 +135,7 @@
 		compatible = "arm,coresight-etm3x", "arm,primecell";
 		reg = <0x1a1c000 0x1000>;
 
-		clocks = <&rpmcc QCOM_RPM_QDSS_CLK>;
+		clocks = <&rpmcc RPM_QDSS_CLK>;
 		clock-names = "apb_pclk";
 
 		cpu = <&CPU0>;
@@ -150,7 +151,7 @@
 		compatible = "arm,coresight-etm3x", "arm,primecell";
 		reg = <0x1a1d000 0x1000>;
 
-		clocks = <&rpmcc QCOM_RPM_QDSS_CLK>;
+		clocks = <&rpmcc RPM_QDSS_CLK>;
 		clock-names = "apb_pclk";
 
 		cpu = <&CPU1>;
@@ -166,7 +167,7 @@
 		compatible = "arm,coresight-etm3x", "arm,primecell";
 		reg = <0x1a1e000 0x1000>;
 
-		clocks = <&rpmcc QCOM_RPM_QDSS_CLK>;
+		clocks = <&rpmcc RPM_QDSS_CLK>;
 		clock-names = "apb_pclk";
 
 		cpu = <&CPU2>;
@@ -182,7 +183,7 @@
 		compatible = "arm,coresight-etm3x", "arm,primecell";
 		reg = <0x1a1f000 0x1000>;
 
-		clocks = <&rpmcc QCOM_RPM_QDSS_CLK>;
+		clocks = <&rpmcc RPM_QDSS_CLK>;
 		clock-names = "apb_pclk";
 
 		cpu = <&CPU3>;
