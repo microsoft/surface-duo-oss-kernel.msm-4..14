@@ -32,6 +32,7 @@ static int mdp5_hw_init(struct msm_kms *kms)
 	unsigned long flags;
 
 	pm_runtime_get_sync(dev->dev);
+	mdp5_enable(mdp5_kms);
 
 	/* Magic unknown register writes:
 	 *
@@ -63,7 +64,8 @@ static int mdp5_hw_init(struct msm_kms *kms)
 
 	mdp5_ctlm_hw_reset(mdp5_kms->ctlm);
 
-	pm_runtime_put_sync(dev->dev);
+	mdp5_disable(mdp5_kms);
+	//pm_runtime_put_sync(dev->dev);
 
 	return 0;
 }
@@ -578,7 +580,8 @@ struct msm_kms *mdp5_kms_init(struct drm_device *dev)
 			continue;
 		mdp5_write(mdp5_kms, REG_MDP5_INTF_TIMING_ENGINE_EN(i), 0);
 	}
-	mdp5_disable(mdp5_kms);
+	/* TODO: Remove this after runtime pm adaptation */
+	//mdp5_disable(mdp5_kms);
 	mdelay(16);
 
 	if (config->platform.iommu) {

@@ -44,6 +44,17 @@ Optional properties:
 - port: DSI controller output port. This contains one endpoint subnode, with its
   remote-endpoint set to the phandle of the connected panel's endpoint.
   See Documentation/devicetree/bindings/graph.txt for device graph info.
+- qcom,dsi-logical-lane-swap: Character string to swap logical lane to physical
+  lane mapping. Supported lane mappings:
+  "0123": Logic 0->Phys 0; Logic 1->Phys 1; Logic 2->Phys 2; Logic 3->Phys 3;
+  "3012": Logic 3->Phys 0; Logic 0->Phys 1; Logic 1->Phys 2; Logic 2->Phys 3;
+  "2301": Logic 2->Phys 0; Logic 3->Phys 1; Logic 0->Phys 2; Logic 1->Phys 3;
+  "1230": Logic 1->Phys 0; Logic 2->Phys 1; Logic 3->Phys 2; Logic 0->Phys 3;
+  "0321": Logic 0->Phys 0; Logic 3->Phys 1; Logic 2->Phys 2; Logic 1->Phys 3;
+  "1032": Logic 1->Phys 0; Logic 0->Phys 1; Logic 3->Phys 2; Logic 2->Phys 3;
+  "2103": Logic 2->Phys 0; Logic 1->Phys 1; Logic 0->Phys 2; Logic 3->Phys 3;
+  "3210": Logic 3->Phys 0; Logic 2->Phys 1; Logic 1->Phys 2; Logic 0->Phys 3;
+  Default value is "0123", which means no lane swap.
 
 DSI PHY:
 Required properties:
@@ -129,6 +140,8 @@ Example:
 				remote-endpoint = <&panel_in>;
 			};
 		};
+
+		qcom,dsi-logical-lane-swap = "0123";
 	};
 
 	mdss_dsi_phy0: qcom,mdss_dsi_phy@fd922a00 {
