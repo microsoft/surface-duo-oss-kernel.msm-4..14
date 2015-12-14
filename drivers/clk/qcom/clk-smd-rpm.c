@@ -541,9 +541,84 @@ static const struct rpm_smd_clk_desc rpm_clk_msm8974 = {
        .num_clks = ARRAY_SIZE(msm8974_clks),
 };
 
+/* msm8996 */
+DEFINE_CLK_SMD_RPM(msm8996, pcnoc_clk, pcnoc_a_clk, QCOM_SMD_RPM_BUS_CLK, 0);
+DEFINE_CLK_SMD_RPM(msm8996, snoc_clk, snoc_a_clk, QCOM_SMD_RPM_BUS_CLK, 1);
+DEFINE_CLK_SMD_RPM(msm8996, cnoc_clk, cnoc_a_clk, QCOM_SMD_RPM_BUS_CLK, 2);
+DEFINE_CLK_SMD_RPM(msm8996, bimc_clk, bimc_a_clk, QCOM_SMD_RPM_MEM_CLK, 0);
+DEFINE_CLK_SMD_RPM(msm8996, mmssnoc_axi_rpm_clk, mmssnoc_axi_rpm_a_clk,
+		   QCOM_SMD_RPM_MMAXI_CLK, 0);
+DEFINE_CLK_SMD_RPM(msm8996, ipa_clk, ipa_a_clk, QCOM_SMD_RPM_IPA_CLK, 0);
+DEFINE_CLK_SMD_RPM(msm8996, ce1_clk, ce1_a_clk, QCOM_SMD_RPM_CE_CLK, 0);
+DEFINE_CLK_SMD_RPM_BRANCH(msm8996, cxo, cxo_a, QCOM_SMD_RPM_MISC_CLK, 0, 19200000);
+DEFINE_CLK_SMD_RPM_BRANCH(msm8996, aggre1_noc_clk, aggre1_noc_a_clk,
+			  QCOM_SMD_RPM_AGGR_CLK, 0, 1000);
+DEFINE_CLK_SMD_RPM_BRANCH(msm8996, aggre2_noc_clk, aggre2_noc_a_clk,
+			  QCOM_SMD_RPM_AGGR_CLK, 1, 1000);
+DEFINE_CLK_SMD_RPM_QDSS(msm8996, qdss_clk, qdss_a_clk, QCOM_SMD_RPM_MISC_CLK, 1);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, bb_clk1, bb_clk1_a, 1);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, bb_clk2, bb_clk2_a, 2);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, rf_clk1, rf_clk1_a, 4);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, rf_clk2, rf_clk2_a, 5);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, ln_bb_clk, ln_bb_a_clk, 8);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, div_clk1, div_clk1_ao, 0xb);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, div_clk2, div_clk2_ao, 0xc);
+DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8996, div_clk3, div_clk3_ao, 0xc);
+DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(msm8996, bb_clk1_pin, bb_clk1_a_pin, 1);
+DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(msm8996, bb_clk2_pin, bb_clk2_a_pin, 2);
+DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(msm8996, rf_clk1_pin, rf_clk1_a_pin, 4);
+DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(msm8996, rf_clk2_pin, rf_clk2_a_pin, 5);
+
+static struct clk_smd_rpm *msm8996_clks[] = {
+	[MSM8996_RPM_SMD_XO_CLK_SRC] = &msm8996_cxo,
+	[MSM8996_RPM_SMD_XO_A_CLK_SRC] = &msm8996_cxo_a,
+	[MSM8996_RPM_SMD_AGGR1_NOC_CLK] = &msm8996_aggre1_noc_clk,
+	[MSM8996_RPM_SMD_AGGR1_NOC_A_CLK] = &msm8996_aggre1_noc_a_clk,
+	[MSM8996_RPM_SMD_AGGR2_NOC_CLK] = &msm8996_aggre2_noc_clk,
+	[MSM8996_RPM_SMD_AGGR2_NOC_A_CLK] = &msm8996_aggre2_noc_a_clk,
+	[MSM8996_RPM_SMD_PCNOC_CLK] = &msm8996_pcnoc_clk,
+	[MSM8996_RPM_SMD_PCNOC_A_CLK] = &msm8996_pcnoc_a_clk,
+	[MSM8996_RPM_SMD_SNOC_CLK] = &msm8996_snoc_clk,
+	[MSM8996_RPM_SMD_SNOC_A_CLK] = &msm8996_snoc_a_clk,
+	[MSM8996_RPM_SMD_CNOC_CLK] = &msm8996_cnoc_clk,
+	[MSM8996_RPM_SMD_CNOC_A_CLK] = &msm8996_cnoc_a_clk,
+	[MSM8996_RPM_SMD_BIMC_CLK] = &msm8996_bimc_clk,
+	[MSM8996_RPM_SMD_BIMC_A_CLK] = &msm8996_bimc_a_clk,
+	[MSM8996_RPM_SMD_MMAXI_CLK] = &msm8996_mmssnoc_axi_rpm_clk,
+	[MSM8996_RPM_SMD_MMAXI_A_CLK] = &msm8996_mmssnoc_axi_rpm_a_clk,
+	[MSM8996_RPM_SMD_IPA_CLK] = &msm8996_ipa_clk,
+	[MSM8996_RPM_SMD_IPA_A_CLK] = &msm8996_ipa_a_clk,
+	[MSM8996_RPM_SMD_CE1_CLK] = &msm8996_ce1_clk,
+	[MSM8996_RPM_SMD_CE1_A_CLK] = &msm8996_ce1_a_clk,
+	[MSM8996_RPM_SMD_QDSS_CLK] = &msm8996_qdss_clk,
+	[MSM8996_RPM_SMD_QDSS_A_CLK] = &msm8996_qdss_a_clk,
+	[MSM8996_RPM_SMD_LN_BB_CLK] = &msm8996_ln_bb_clk,
+	[MSM8996_RPM_SMD_LN_BB_A_CLK] = &msm8996_ln_bb_a_clk,
+	[MSM8996_RPM_SMD_DIV_CLK1] = &msm8996_div_clk1,
+	[MSM8996_RPM_SMD_DIV_CLK1_AO] = &msm8996_div_clk1_ao,
+	[MSM8996_RPM_SMD_DIV_CLK2] = &msm8996_div_clk2,
+	[MSM8996_RPM_SMD_DIV_CLK2_AO] = &msm8996_div_clk2_ao,
+	[MSM8996_RPM_SMD_DIV_CLK3] = &msm8996_div_clk3,
+	[MSM8996_RPM_SMD_DIV_CLK3_AO] = &msm8996_div_clk3_ao,
+	[MSM8996_RPM_SMD_BB_CLK1_PIN] = &msm8996_bb_clk1_pin,
+	[MSM8996_RPM_SMD_BB_CLK1_A_PIN] = &msm8996_bb_clk1_a_pin,
+	[MSM8996_RPM_SMD_BB_CLK2_PIN] = &msm8996_bb_clk2_pin,
+	[MSM8996_RPM_SMD_BB_CLK2_A_PIN] = &msm8996_bb_clk2_a_pin,
+	[MSM8996_RPM_SMD_RF_CLK1_PIN] = &msm8996_rf_clk1_pin,
+	[MSM8996_RPM_SMD_RF_CLK1_A_PIN] = &msm8996_rf_clk1_a_pin,
+	[MSM8996_RPM_SMD_RF_CLK2_PIN] = &msm8996_rf_clk2_pin,
+	[MSM8996_RPM_SMD_RF_CLK2_A_PIN] = &msm8996_rf_clk2_a_pin,
+};
+
+static const struct rpm_smd_clk_desc rpm_clk_msm8996 = {
+	.clks = msm8996_clks,
+	.num_clks = ARRAY_SIZE(msm8996_clks),
+};
+
 static const struct of_device_id rpm_smd_clk_match_table[] = {
 	{ .compatible = "qcom,rpmcc-msm8916", .data = &rpm_clk_msm8916 },
 	{ .compatible = "qcom,rpmcc-msm8974", .data = &rpm_clk_msm8974 },
+	{ .compatible = "qcom,rpmcc-msm8996", .data = &rpm_clk_msm8996},
 	{ }
 };
 MODULE_DEVICE_TABLE(of, rpm_smd_clk_match_table);
