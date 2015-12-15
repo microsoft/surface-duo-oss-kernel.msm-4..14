@@ -29,7 +29,6 @@
 #define VFE0_CLK_SRC					12
 #define VFE1_CLK_SRC					13
 #define MDP_CLK_SRC					14
-#define GFX3D_CLK_SRC					15
 #define JPEG0_CLK_SRC					16
 #define JPEG1_CLK_SRC					17
 #define JPEG2_CLK_SRC					18
@@ -157,5 +156,13 @@
 #define SPDM_CSI0					140
 #define SPDM_RM_AXI					141
 #define SPDM_RM_OCMEMNOC				142
+
+/* gdscs */
+#define VENUS0_GDSC					0
+#define MDSS_GDSC					1
+#define CAMSS_JPEG_GDSC					2
+#define CAMSS_VFE_GDSC					3
+#define OXILI_GDSC					4
+#define OXILICX_GDSC					5
 
 #endif
