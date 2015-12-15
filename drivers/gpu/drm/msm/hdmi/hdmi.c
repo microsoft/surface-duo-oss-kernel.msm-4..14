@@ -387,6 +387,9 @@ static const struct of_device_id dt_match[] = {
 	{}
 };
 
+// TODO sane interface between audio and display..
+static struct platform_device *hdmi_pdev_hack;
+
 #ifdef CONFIG_OF
 static int get_gpio(struct device *dev, struct device_node *of_node, const char *name)
 {
@@ -487,6 +490,7 @@ static int hdmi_bind(struct device *dev, struct device *master, void *data)
 	if (IS_ERR(hdmi))
 		return PTR_ERR(hdmi);
 	priv->hdmi = hdmi;
+	hdmi_pdev_hack = to_platform_device(dev);
 
 	return 0;
 }
@@ -517,6 +521,35 @@ static int hdmi_dev_remove(struct platform_device *pdev)
 	component_del(&pdev->dev, &hdmi_ops);
 	return 0;
 }
+
+static struct hdmi *find_hdmi(void)
+{
+	return hdmi_pdev_hack ? platform_get_drvdata(hdmi_pdev_hack) : NULL;
+}
+
+int hdmi_msm_audio_info_setup(bool enabled, u32 num_of_channels,
+	u32 channel_allocation, u32 level_shift, bool down_mix)
+{
+	struct hdmi *hdmi = find_hdmi();
+	printk("DEBUG::: %s \n", __func__);
+	if (!hdmi)
+		return -EINVAL;
+	printk("DEBUG:::1 %s \n", __func__);
+	return hdmi_audio_info_setup(hdmi, enabled, num_of_channels,
+			channel_allocation, level_shift, down_mix);
+}
+EXPORT_SYMBOL(hdmi_msm_audio_info_setup);
+
+void hdmi_msm_audio_sample_rate_reset(int rate)
+{
+	struct hdmi *hdmi = find_hdmi();
+	if (!hdmi)
+		return;
+	printk("DEBUG::: %s \n", __func__);
+	hdmi_audio_set_sample_rate(hdmi, rate);
+}
+EXPORT_SYMBOL(hdmi_msm_audio_sample_rate_reset);
+
 
 static struct platform_driver hdmi_driver = {
 	.probe = hdmi_dev_probe,
