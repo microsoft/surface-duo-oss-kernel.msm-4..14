@@ -104,9 +104,9 @@ static const struct {
  * @channels:		list of all channels detected on this edge
  * @channels_lock:	guard for modifications of @channels
  * @allocated:		array of bitmaps representing already allocated channels
- * @need_rescan:	flag that the @work needs to scan smem for new channels
  * @smem_available:	last available amount of smem triggering a channel scan
- * @work:		work item for edge house keeping
+ * @scan_work:		work item for discovering new channels
+ * @state_work:		work item for edge state changes
  */
 struct qcom_smd_edge {
 	struct qcom_smd *smd;
@@ -121,28 +121,18 @@ struct qcom_smd_edge {
 	int ipc_bit;
 
 	struct list_head channels;
-	spinlock_t channels_lock;
+	rwlock_t channels_lock;
 
 	DECLARE_BITMAP(allocated[SMD_ALLOC_TBL_COUNT], SMD_ALLOC_TBL_SIZE);
 
-	bool need_rescan;
 	unsigned smem_available;
 
-	struct work_struct work;
+	wait_queue_head_t new_channel_event;
+
+	struct work_struct scan_work;
+	struct work_struct state_work;
 };
 
-/*
- * SMD channel states.
- */
-enum smd_channel_state {
-	SMD_CHANNEL_CLOSED,
-	SMD_CHANNEL_OPENING,
-	SMD_CHANNEL_OPENED,
-	SMD_CHANNEL_FLUSHING,
-	SMD_CHANNEL_CLOSING,
-	SMD_CHANNEL_RESET,
-	SMD_CHANNEL_RESET_OPENING
-};
 
 /**
  * struct qcom_smd_channel - smd channel struct
@@ -166,38 +156,6 @@ enum smd_channel_state {
  * @pkt_size:		size of the currently handled packet
  * @list:		lite entry for @channels in qcom_smd_edge
  */
-struct qcom_smd_channel {
-	struct qcom_smd_edge *edge;
-
-	struct qcom_smd_device *qsdev;
-
-	char *name;
-	enum smd_channel_state state;
-	enum smd_channel_state remote_state;
-
-	struct smd_channel_info *tx_info;
-	struct smd_channel_info *rx_info;
-
-	struct smd_channel_info_word *tx_info_word;
-	struct smd_channel_info_word *rx_info_word;
-
-	struct mutex tx_lock;
-	wait_queue_head_t fblockread_event;
-
-	void *tx_fifo;
-	void *rx_fifo;
-	int fifo_size;
-
-	void *bounce_buffer;
-	int (*cb)(struct qcom_smd_device *, const void *, size_t);
-
-	spinlock_t recv_lock;
-
-	int pkt_size;
-
-	struct list_head list;
-};
-
 /**
  * struct qcom_smd - smd struct
  * @dev:	device struct
@@ -323,6 +281,19 @@ static void qcom_smd_channel_reset(struct qcom_smd_channel *channel)
 }
 
 /*
+ * Set the callback for a channel, with appropriate locking
+ */
+static void qcom_smd_channel_set_callback(struct qcom_smd_channel *channel,
+					  qcom_smd_cb_t cb)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&channel->recv_lock, flags);
+	channel->cb = cb;
+	spin_unlock_irqrestore(&channel->recv_lock, flags);
+};
+
+/*
  * Calculate the amount of data available in the rx fifo
  */
 static size_t qcom_smd_channel_get_rx_avail(struct qcom_smd_channel *channel)
@@ -362,43 +333,37 @@ static void qcom_smd_channel_set_state(struct qcom_smd_channel *channel,
 }
 
 /*
- * Copy count bytes of data using 32bit accesses, if that's required.
+ * Copy count bytes of data from memory to device memory using 32bit accesses
  */
-static void smd_copy_to_fifo(void __iomem *_dst,
-			     const void *_src,
-			     size_t count,
-			     bool word_aligned)
+static void smd_copy_to_fifo(void __iomem *_dst, const void *_src, size_t count, bool word_aligned)
 {
-	u32 *dst = (u32 *)_dst;
-	u32 *src = (u32 *)_src;
+        u32 *dst = (u32 *)_dst;
+        u32 *src = (u32 *)_src;
 
-	if (word_aligned) {
-		count /= sizeof(u32);
-		while (count--)
-			writel_relaxed(*src++, dst++);
-	} else {
-		memcpy_toio(_dst, _src, count);
-	}
+        if (word_aligned) {
+                count /= sizeof(u32);
+                while (count--)
+                        writel_relaxed(*src++, dst++);
+        } else {
+                memcpy_toio(_dst, _src, count);
+        }
 }
 
 /*
- * Copy count bytes of data using 32bit accesses, if that is required.
+ * Copy count bytes of data from device memory to memory using 32bit accesses
  */
-static void smd_copy_from_fifo(void *_dst,
-			       const void __iomem *_src,
-			       size_t count,
-			       bool word_aligned)
+static void smd_copy_from_fifo(void *_dst, const void __iomem *_src, size_t count, bool word_aligned)
 {
-	u32 *dst = (u32 *)_dst;
-	u32 *src = (u32 *)_src;
+        u32 *dst = (u32 *)_dst;
+        u32 *src = (u32 *)_src;
 
-	if (word_aligned) {
-		count /= sizeof(u32);
-		while (count--)
-			*dst++ = readl_relaxed(src++);
-	} else {
-		memcpy_fromio(_dst, _src, count);
-	}
+        if (word_aligned) {
+                count /= sizeof(u32);
+                while (count--)
+                        *dst++ = readl_relaxed(src++);
+        } else {
+                memcpy_fromio(_dst, _src, count);
+        }
 }
 
 /*
@@ -416,19 +381,11 @@ static size_t qcom_smd_channel_peek(struct qcom_smd_channel *channel,
 	tail = GET_RX_CHANNEL_INFO(channel, tail);
 
 	len = min_t(size_t, count, channel->fifo_size - tail);
-	if (len) {
-		smd_copy_from_fifo(buf,
-				   channel->rx_fifo + tail,
-				   len,
-				   word_aligned);
-	}
+	if (len)
+		smd_copy_from_fifo(buf, channel->rx_fifo + tail, len, word_aligned);
 
-	if (len != count) {
-		smd_copy_from_fifo(buf + len,
-				   channel->rx_fifo,
-				   count - len,
-				   word_aligned);
-	}
+	if (len != count)
+		smd_copy_from_fifo(buf + len, channel->rx_fifo, count - len, word_aligned);
 
 	return count;
 }
@@ -561,13 +518,13 @@ static irqreturn_t qcom_smd_edge_intr(int irq, void *data)
 	/*
 	 * Handle state changes or data on each of the channels on this edge
 	 */
-	spin_lock(&edge->channels_lock);
+	read_lock(&edge->channels_lock);
 	list_for_each_entry(channel, &edge->channels, list) {
 		spin_lock(&channel->recv_lock);
 		kick_worker |= qcom_smd_channel_intr(channel);
 		spin_unlock(&channel->recv_lock);
 	}
-	spin_unlock(&edge->channels_lock);
+	read_unlock(&edge->channels_lock);
 
 	/*
 	 * Creating a new channel requires allocating an smem entry, so we only
@@ -577,12 +534,11 @@ static irqreturn_t qcom_smd_edge_intr(int irq, void *data)
 	available = qcom_smem_get_free_space(edge->remote_pid);
 	if (available != edge->smem_available) {
 		edge->smem_available = available;
-		edge->need_rescan = true;
 		kick_worker = true;
 	}
 
 	if (kick_worker)
-		schedule_work(&edge->work);
+		schedule_work(&edge->scan_work);
 
 	return IRQ_HANDLED;
 }
@@ -631,19 +587,11 @@ static int qcom_smd_write_fifo(struct qcom_smd_channel *channel,
 	head = GET_TX_CHANNEL_INFO(channel, head);
 
 	len = min_t(size_t, count, channel->fifo_size - head);
-	if (len) {
-		smd_copy_to_fifo(channel->tx_fifo + head,
-				 data,
-				 len,
-				 word_aligned);
-	}
+	if (len)
+		smd_copy_to_fifo(channel->tx_fifo + head, data, len, word_aligned);
 
-	if (len != count) {
-		smd_copy_to_fifo(channel->tx_fifo,
-				 data + len,
-				 count - len,
-				 word_aligned);
-	}
+	if (len != count)
+		smd_copy_to_fifo(channel->tx_fifo, data + len, count - len, word_aligned);
 
 	head += count;
 	head &= (channel->fifo_size - 1);
@@ -667,16 +615,19 @@ int qcom_smd_send(struct qcom_smd_channel *channel, const void *data, int len)
 {
 	u32 hdr[5] = {len,};
 	int tlen = sizeof(hdr) + len;
-	int ret;
+	int ret, length;
 
 	/* Word aligned channels only accept word size aligned data */
 	if (channel->rx_info_word != NULL && len % 4)
 		return -EINVAL;
 
+	length = qcom_smd_get_tx_avail(channel);
+
 	ret = mutex_lock_interruptible(&channel->tx_lock);
 	if (ret)
 		return ret;
 
+	length = qcom_smd_get_tx_avail(channel);
 	while (qcom_smd_get_tx_avail(channel) < tlen) {
 		if (channel->state != SMD_CHANNEL_OPENED) {
 			ret = -EPIPE;
@@ -696,8 +647,11 @@ int qcom_smd_send(struct qcom_smd_channel *channel, const void *data, int len)
 
 	SET_TX_CHANNEL_INFO(channel, fTAIL, 0);
 
+	length = qcom_smd_get_tx_avail(channel);
 	qcom_smd_write_fifo(channel, hdr, sizeof(hdr));
 	qcom_smd_write_fifo(channel, data, len);
+
+	length = qcom_smd_get_tx_avail(channel);
 
 	SET_TX_CHANNEL_INFO(channel, fHEAD, 1);
 
@@ -727,7 +681,57 @@ static struct qcom_smd_driver *to_smd_driver(struct device *dev)
 
 static int qcom_smd_dev_match(struct device *dev, struct device_driver *drv)
 {
+	struct qcom_smd_device *qsdev = to_smd_device(dev);
+	struct qcom_smd_driver *qsdrv = container_of(drv, struct qcom_smd_driver, driver);
+	const struct qcom_smd_id *match = qsdrv->smd_match_table;
+	const char *name = qsdev->channel->name;
+
+	if (match) {
+		while (match->name[0]) {
+			if (!strcmp(match->name, name))
+				return 1;
+			match++;
+		}
+	}
+
 	return of_driver_match_device(dev, drv);
+}
+
+/*
+ * Helper for opening a channel
+ */
+static int qcom_smd_channel_open(struct qcom_smd_channel *channel,
+				 qcom_smd_cb_t cb)
+{
+	size_t bb_size;
+
+	/*
+	 * Packets are maximum 4k, but reduce if the fifo is smaller
+	 */
+	bb_size = min(channel->fifo_size, SZ_4K);
+	channel->bounce_buffer = kmalloc(bb_size, GFP_KERNEL);
+	if (!channel->bounce_buffer)
+		return -ENOMEM;
+
+	qcom_smd_channel_set_callback(channel, cb);
+	qcom_smd_channel_set_state(channel, SMD_CHANNEL_OPENING);
+	qcom_smd_channel_set_state(channel, SMD_CHANNEL_OPENED);
+
+	return 0;
+}
+
+/*
+ * Helper for closing and resetting a channel
+ */
+static void qcom_smd_channel_close(struct qcom_smd_channel *channel)
+{
+	qcom_smd_channel_set_callback(channel, NULL);
+
+	kfree(channel->bounce_buffer);
+	channel->bounce_buffer = NULL;
+
+	qcom_smd_channel_set_state(channel, SMD_CHANNEL_CLOSED);
+	qcom_smd_channel_reset(channel);
 }
 
 /*
@@ -741,22 +745,11 @@ static int qcom_smd_dev_probe(struct device *dev)
 	struct qcom_smd_device *qsdev = to_smd_device(dev);
 	struct qcom_smd_driver *qsdrv = to_smd_driver(dev);
 	struct qcom_smd_channel *channel = qsdev->channel;
-	size_t bb_size;
 	int ret;
 
-	/*
-	 * Packets are maximum 4k, but reduce if the fifo is smaller
-	 */
-	bb_size = min(channel->fifo_size, SZ_4K);
-	channel->bounce_buffer = kmalloc(bb_size, GFP_KERNEL);
-	if (!channel->bounce_buffer)
-		return -ENOMEM;
-
-	channel->cb = qsdrv->callback;
-
-	qcom_smd_channel_set_state(channel, SMD_CHANNEL_OPENING);
-
-	qcom_smd_channel_set_state(channel, SMD_CHANNEL_OPENED);
+	ret = qcom_smd_channel_open(channel, qsdrv->callback);
+	if (ret)
+		return ret;
 
 	ret = qsdrv->probe(qsdev);
 	if (ret)
@@ -769,11 +762,7 @@ static int qcom_smd_dev_probe(struct device *dev)
 err:
 	dev_err(&qsdev->dev, "probe failed\n");
 
-	channel->cb = NULL;
-	kfree(channel->bounce_buffer);
-	channel->bounce_buffer = NULL;
-
-	qcom_smd_channel_set_state(channel, SMD_CHANNEL_CLOSED);
+	qcom_smd_channel_close(channel);
 	return ret;
 }
 
@@ -788,16 +777,15 @@ static int qcom_smd_dev_remove(struct device *dev)
 	struct qcom_smd_device *qsdev = to_smd_device(dev);
 	struct qcom_smd_driver *qsdrv = to_smd_driver(dev);
 	struct qcom_smd_channel *channel = qsdev->channel;
-	unsigned long flags;
+	struct qcom_smd_channel *tmp;
+	struct qcom_smd_channel *ch;
 
 	qcom_smd_channel_set_state(channel, SMD_CHANNEL_CLOSING);
 
 	/*
 	 * Make sure we don't race with the code receiving data.
 	 */
-	spin_lock_irqsave(&channel->recv_lock, flags);
-	channel->cb = NULL;
-	spin_unlock_irqrestore(&channel->recv_lock, flags);
+	qcom_smd_channel_set_callback(channel, NULL);
 
 	/* Wake up any sleepers in qcom_smd_send() */
 	wake_up_interruptible(&channel->fblockread_event);
@@ -810,15 +798,14 @@ static int qcom_smd_dev_remove(struct device *dev)
 		qsdrv->remove(qsdev);
 
 	/*
-	 * The client is now gone, cleanup and reset the channel state.
+	 * The client is now gone, close and release all channels associated
+	 * with this sdev
 	 */
-	channel->qsdev = NULL;
-	kfree(channel->bounce_buffer);
-	channel->bounce_buffer = NULL;
-
-	qcom_smd_channel_set_state(channel, SMD_CHANNEL_CLOSED);
-
-	qcom_smd_channel_reset(channel);
+	list_for_each_entry_safe(ch, tmp, &channel->dev_list, dev_list) {
+		qcom_smd_channel_close(ch);
+		list_del(&ch->dev_list);
+		ch->qsdev = NULL;
+	}
 
 	return 0;
 }
@@ -880,19 +867,17 @@ static int qcom_smd_create_device(struct qcom_smd_channel *channel)
 	if (channel->qsdev)
 		return -EEXIST;
 
-	node = qcom_smd_match_channel(edge->of_node, channel->name);
-	if (!node) {
-		dev_dbg(smd->dev, "no match for '%s'\n", channel->name);
-		return -ENXIO;
-	}
-
 	dev_dbg(smd->dev, "registering '%s'\n", channel->name);
 
 	qsdev = kzalloc(sizeof(*qsdev), GFP_KERNEL);
 	if (!qsdev)
 		return -ENOMEM;
 
-	dev_set_name(&qsdev->dev, "%s.%s", edge->of_node->name, node->name);
+	node = qcom_smd_match_channel(edge->of_node, channel->name);
+	dev_set_name(&qsdev->dev, "%s.%s",
+		     edge->of_node->name,
+		     node ? node->name : channel->name);
+
 	qsdev->dev.parent = smd->dev;
 	qsdev->dev.bus = &qcom_smd_bus;
 	qsdev->dev.release = qcom_smd_release_device;
@@ -948,6 +933,76 @@ void qcom_smd_driver_unregister(struct qcom_smd_driver *qsdrv)
 }
 EXPORT_SYMBOL(qcom_smd_driver_unregister);
 
+static struct qcom_smd_channel *
+qcom_smd_find_channel(struct qcom_smd_edge *edge, const char *name)
+{
+	struct qcom_smd_channel *channel;
+	struct qcom_smd_channel *ret = NULL;
+	unsigned state;
+
+	read_lock(&edge->channels_lock);
+	list_for_each_entry(channel, &edge->channels, list) {
+		if (strcmp(channel->name, name))
+			continue;
+
+		state = GET_RX_CHANNEL_INFO(channel, state);
+		if (state != SMD_CHANNEL_OPENING &&
+		    state != SMD_CHANNEL_OPENED)
+			continue;
+
+		ret = channel;
+		break;
+	}
+	read_unlock(&edge->channels_lock);
+
+	return ret;
+}
+
+/**
+ * qcom_smd_open_channel() - claim additional channels on the same edge
+ * @sdev:	smd_device handle
+ * @name:	channel name
+ * @cb:		callback method to use for incoming data
+ *
+ * Returns a channel handle on success, or -EPROBE_DEFER if the channel isn't
+ * ready.
+ */
+struct qcom_smd_channel *qcom_smd_open_channel(struct qcom_smd_device *sdev,
+					       const char *name,
+					       qcom_smd_cb_t cb)
+{
+	struct qcom_smd_channel *channel;
+	struct qcom_smd_edge *edge = sdev->channel->edge;
+	int ret;
+
+	/* Wait up to HZ for the channel to appear */
+	ret = wait_event_interruptible_timeout(edge->new_channel_event,
+			(channel = qcom_smd_find_channel(edge, name)) != NULL,
+			HZ);
+	if (!ret)
+		return ERR_PTR(-ETIMEDOUT);
+
+	if (channel->state != SMD_CHANNEL_CLOSED) {
+		dev_err(&sdev->dev, "channel %s is busy\n", channel->name);
+		return ERR_PTR(-EBUSY);
+	}
+
+	channel->qsdev = sdev;
+	ret = qcom_smd_channel_open(channel, cb);
+	if (ret) {
+		channel->qsdev = NULL;
+		return ERR_PTR(ret);
+	}
+
+	/*
+	 * Append the list of channel to the channels associated with the sdev
+	 */
+	list_add_tail(&channel->dev_list, &sdev->channel->dev_list);
+
+	return channel;
+}
+EXPORT_SYMBOL(qcom_smd_open_channel);
+
 /*
  * Allocate the qcom_smd_channel object for a newly found smd channel,
  * retrieving and validating the smem items involved.
@@ -969,6 +1024,7 @@ static struct qcom_smd_channel *qcom_smd_create_channel(struct qcom_smd_edge *ed
 	if (!channel)
 		return ERR_PTR(-ENOMEM);
 
+	INIT_LIST_HEAD(&channel->dev_list);
 	channel->edge = edge;
 	channel->name = devm_kstrdup(smd->dev, name, GFP_KERNEL);
 	if (!channel->name)
@@ -1008,7 +1064,7 @@ static struct qcom_smd_channel *qcom_smd_create_channel(struct qcom_smd_edge *ed
 	/* The channel consist of a rx and tx fifo of equal size */
 	fifo_size /= 2;
 
-	dev_dbg(smd->dev, "new channel '%s' info-size: %zu fifo-size: %zu\n",
+	dev_err(smd->dev, "new channel '%s' info-size: %zu fifo-size: %zu\n",
 			  name, info_size, fifo_size);
 
 	channel->tx_fifo = fifo_base;
@@ -1031,8 +1087,9 @@ free_name_and_channel:
  * qcom_smd_create_channel() to create representations of these and add
  * them to the edge's list of channels.
  */
-static void qcom_discover_channels(struct qcom_smd_edge *edge)
+static void qcom_channel_scan_worker(struct work_struct *work)
 {
+	struct qcom_smd_edge *edge = container_of(work, struct qcom_smd_edge, scan_work);
 	struct qcom_smd_alloc_entry *alloc_tbl;
 	struct qcom_smd_alloc_entry *entry;
 	struct qcom_smd_channel *channel;
@@ -1076,16 +1133,18 @@ static void qcom_discover_channels(struct qcom_smd_edge *edge)
 			if (IS_ERR(channel))
 				continue;
 
-			spin_lock_irqsave(&edge->channels_lock, flags);
+			write_lock_irqsave(&edge->channels_lock, flags);
 			list_add(&channel->list, &edge->channels);
-			spin_unlock_irqrestore(&edge->channels_lock, flags);
+			write_unlock_irqrestore(&edge->channels_lock, flags);
 
 			dev_dbg(smd->dev, "new channel found: '%s'\n", channel->name);
 			set_bit(i, edge->allocated[tbl]);
+
+			wake_up_interruptible(&edge->new_channel_event);
 		}
 	}
 
-	schedule_work(&edge->work);
+	schedule_work(&edge->state_work);
 }
 
 /*
@@ -1093,29 +1152,22 @@ static void qcom_discover_channels(struct qcom_smd_edge *edge)
  * then scans all registered channels for state changes that should be handled
  * by creating or destroying smd client devices for the registered channels.
  *
- * LOCKING: edge->channels_lock is not needed to be held during the traversal
- * of the channels list as it's done synchronously with the only writer.
+ * LOCKING: edge->channels_lock only needs to cover the list operations, as the
+ * worker is killed before any channels are deallocated
  */
 static void qcom_channel_state_worker(struct work_struct *work)
 {
 	struct qcom_smd_channel *channel;
 	struct qcom_smd_edge *edge = container_of(work,
 						  struct qcom_smd_edge,
-						  work);
+						  state_work);
 	unsigned remote_state;
-
-	/*
-	 * Rescan smem if we have reason to belive that there are new channels.
-	 */
-	if (edge->need_rescan) {
-		edge->need_rescan = false;
-		qcom_discover_channels(edge);
-	}
 
 	/*
 	 * Register a device for any closed channel where the remote processor
 	 * is showing interest in opening the channel.
 	 */
+	read_lock(&edge->channels_lock);
 	list_for_each_entry(channel, &edge->channels, list) {
 		if (channel->state != SMD_CHANNEL_CLOSED)
 			continue;
@@ -1125,7 +1177,9 @@ static void qcom_channel_state_worker(struct work_struct *work)
 		    remote_state != SMD_CHANNEL_OPENED)
 			continue;
 
+		read_unlock(&edge->channels_lock);
 		qcom_smd_create_device(channel);
+		read_lock(&edge->channels_lock);
 	}
 
 	/*
@@ -1142,8 +1196,11 @@ static void qcom_channel_state_worker(struct work_struct *work)
 		    remote_state == SMD_CHANNEL_OPENED)
 			continue;
 
+		read_unlock(&edge->channels_lock);
 		qcom_smd_destroy_device(channel);
+		read_lock(&edge->channels_lock);
 	}
+	read_unlock(&edge->channels_lock);
 }
 
 /*
@@ -1159,9 +1216,10 @@ static int qcom_smd_parse_edge(struct device *dev,
 	int ret;
 
 	INIT_LIST_HEAD(&edge->channels);
-	spin_lock_init(&edge->channels_lock);
+	rwlock_init(&edge->channels_lock);
 
-	INIT_WORK(&edge->work, qcom_channel_state_worker);
+	INIT_WORK(&edge->scan_work, qcom_channel_scan_worker);
+	INIT_WORK(&edge->state_work, qcom_channel_state_worker);
 
 	edge->of_node = of_node_get(node);
 
@@ -1190,7 +1248,11 @@ static int qcom_smd_parse_edge(struct device *dev,
 
 	edge->remote_pid = QCOM_SMEM_HOST_ANY;
 	key = "qcom,remote-pid";
-	of_property_read_u32(node, key, &edge->remote_pid);
+	ret = of_property_read_u32(node, key, &edge->remote_pid);
+	if (ret) {
+		dev_err(dev, "edge missing %s property\n", key);
+		return -EINVAL;
+	}
 
 	syscon_np = of_parse_phandle(node, "qcom,ipc", 0);
 	if (!syscon_np) {
@@ -1244,13 +1306,13 @@ static int qcom_smd_probe(struct platform_device *pdev)
 	for_each_available_child_of_node(pdev->dev.of_node, node) {
 		edge = &smd->edges[i++];
 		edge->smd = smd;
+		init_waitqueue_head(&edge->new_channel_event);
 
 		ret = qcom_smd_parse_edge(&pdev->dev, node, edge);
 		if (ret)
 			continue;
 
-		edge->need_rescan = true;
-		schedule_work(&edge->work);
+		schedule_work(&edge->scan_work);
 	}
 
 	platform_set_drvdata(pdev, smd);
@@ -1273,8 +1335,10 @@ static int qcom_smd_remove(struct platform_device *pdev)
 		edge = &smd->edges[i];
 
 		disable_irq(edge->irq);
-		cancel_work_sync(&edge->work);
+		cancel_work_sync(&edge->scan_work);
+		cancel_work_sync(&edge->state_work);
 
+		/* No need to lock here, because the writer is gone */
 		list_for_each_entry(channel, &edge->channels, list) {
 			if (!channel->qsdev)
 				continue;

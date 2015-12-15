@@ -121,7 +121,7 @@ int qcom_rpm_smd_write(struct qcom_smd_rpm *rpm,
 	pkt.hdr.length = sizeof(struct qcom_rpm_request) + count;
 
 	pkt.req.msg_id = msg_id++;
-	pkt.req.flags = BIT(state);
+	pkt.req.flags = state;
 	pkt.req.type = type;
 	pkt.req.id = id;
 	pkt.req.data_len = count;
@@ -212,6 +212,7 @@ static void qcom_smd_rpm_remove(struct qcom_smd_device *sdev)
 
 static const struct of_device_id qcom_smd_rpm_of_match[] = {
 	{ .compatible = "qcom,rpm-msm8974" },
+	{ .compatible = "qcom,rpm-msm8916" },
 	{}
 };
 MODULE_DEVICE_TABLE(of, qcom_smd_rpm_of_match);
