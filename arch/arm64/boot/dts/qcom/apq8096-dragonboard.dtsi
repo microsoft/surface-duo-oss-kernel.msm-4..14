@@ -40,6 +40,14 @@
 			core-vdda-supply = <&pm8994_l12>;
 			core-vcc-supply = <&pm8994_s4>;
 		};
+
+		ufsphy@627000 {
+			status = "okay";
+		};
+
+		ufshc@624000 {
+			status = "okay";
+		};
 	};
 
 	glink {
