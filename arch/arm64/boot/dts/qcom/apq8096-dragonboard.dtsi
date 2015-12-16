@@ -26,6 +26,14 @@
 		serial@75b0000 {
 			status = "okay";
 		};
+
+		ufsphy@627000 {
+			status = "okay";
+		};
+
+		ufshc@624000 {
+			status = "okay";
+		};
 	};
 
 	glink {
