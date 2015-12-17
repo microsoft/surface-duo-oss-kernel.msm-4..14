@@ -1,0 +1,6 @@
+config SIL164_SIMPLE
+	tristate "Silicon Image sil164 TMDS transmitter simple"
+	depends on I2C
+	help
+	  Support for sil164 simple used in some cl-sb-som boards.
+
