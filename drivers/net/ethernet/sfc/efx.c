@@ -2059,7 +2059,6 @@ static void efx_init_napi_channel(struct efx_channel *channel)
 	channel->napi_dev = efx->net_dev;
 	netif_napi_add(channel->napi_dev, &channel->napi_str,
 		       efx_poll, napi_weight);
-	napi_hash_add(&channel->napi_str);
 	efx_channel_busy_poll_init(channel);
 }
 
@@ -2785,6 +2784,12 @@ static const struct pci_device_id efx_pci_table[] = {
 	 .driver_data = (unsigned long) &efx_hunt_a0_vf_nic_type},
 	{PCI_DEVICE(PCI_VENDOR_ID_SOLARFLARE, 0x0923),  /* SFC9140 PF */
 	 .driver_data = (unsigned long) &efx_hunt_a0_nic_type},
+	{PCI_DEVICE(PCI_VENDOR_ID_SOLARFLARE, 0x1923),  /* SFC9140 VF */
+	 .driver_data = (unsigned long) &efx_hunt_a0_vf_nic_type},
+	{PCI_DEVICE(PCI_VENDOR_ID_SOLARFLARE, 0x0a03),  /* SFC9220 PF */
+	 .driver_data = (unsigned long) &efx_hunt_a0_nic_type},
+	{PCI_DEVICE(PCI_VENDOR_ID_SOLARFLARE, 0x1a03),  /* SFC9220 VF */
+	 .driver_data = (unsigned long) &efx_hunt_a0_vf_nic_type},
 	{0}			/* end of list */
 };
 

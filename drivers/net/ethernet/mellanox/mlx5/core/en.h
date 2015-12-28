@@ -465,6 +465,7 @@ enum {
 };
 
 struct mlx5e_vlan_db {
+	unsigned long active_vlans[BITS_TO_LONGS(VLAN_N_VID)];
 	u32           active_vlans_ft_ix[VLAN_N_VID];
 	u32           untagged_rule_ft_ix;
 	u32           any_vlan_rule_ft_ix;
@@ -564,7 +565,7 @@ void mlx5e_completion_event(struct mlx5_core_cq *mcq);
 void mlx5e_cq_error_event(struct mlx5_core_cq *mcq, enum mlx5_event event);
 int mlx5e_napi_poll(struct napi_struct *napi, int budget);
 bool mlx5e_poll_tx_cq(struct mlx5e_cq *cq);
-bool mlx5e_poll_rx_cq(struct mlx5e_cq *cq, int budget);
+int mlx5e_poll_rx_cq(struct mlx5e_cq *cq, int budget);
 bool mlx5e_post_rx_wqes(struct mlx5e_rq *rq);
 struct mlx5_cqe64 *mlx5e_get_cqe(struct mlx5e_cq *cq);
 
