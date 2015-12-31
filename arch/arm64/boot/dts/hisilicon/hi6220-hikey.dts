@@ -19,6 +19,7 @@
 		serial1 = &uart1; /* BT UART */
 		serial2 = &uart2; /* LS Expansion UART0 */
 		serial3 = &uart3; /* LS Expansion UART1 */
+		spi0	= &spi0;
 	};
 
 	chosen {
@@ -542,5 +543,18 @@
 				dai-format = "i2s";
 			};
 		};
+	};
+ };
+
+&spi0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "ok";
+
+	spidev@0 {
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <500000>;
+		reg = <0>;
+		status = "disabled";
 	};
 };
