@@ -11,13 +11,33 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 
+#define reset_offset 0x334
+#define pclk_offset 0x230
 #define PMUSSI_REG_EX(pmu_base, reg_addr) (((reg_addr) << 2) + (char *)pmu_base)
 
 static int __init hi6220_sysconf(void)
 {
+        static void __iomem *base = NULL;
+        struct device_node *node;
         static void __iomem *base1 = NULL;
         struct device_node *node1;
 	unsigned char ret;
+
+        node = of_find_compatible_node(NULL, NULL, "hisilicon,hi6220-sysctrl");
+        if (!node)
+                return -ENOENT;
+
+        base = of_iomap(node, 0);
+        if (base == NULL) {
+                printk(KERN_ERR "hi6220: sysctrl reg iomap failed!\n");
+                return -ENOMEM;
+        }
+
+        /*Disable UART1 reset and set pclk*/
+        writel(BIT(5), base + reset_offset);
+        writel(BIT(5), base + pclk_offset);
+
+        iounmap(base);
 
         node1 = of_find_compatible_node(NULL, NULL, "hisilicon,hi655x-pmic");
         if (!node1)
