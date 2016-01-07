@@ -125,5 +125,10 @@
 					clocks = <&soc_smc50mhz>;
 					clock-names = "apb_pclk";
 				};
+
+				v2m_sysreg: sysreg@010000 {
+					compatible = "arm,vexpress-sysreg";
+					reg = <0x010000 0x1000>;
+				};
 			};
 		};

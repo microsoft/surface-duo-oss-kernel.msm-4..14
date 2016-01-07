@@ -1,0 +1,160 @@
+/*
+ * ARM Ltd. Juno
+ *
+ * Juno platform with dual DP-550 in Virtex7 FPGA LogicTile
+ *
+ */
+
+
+#include "juno.dts"
+
+/ {
+
+	aliases {
+		malidp0 = &dp0;
+		malidp1 = &dp1;
+	};
+
+	fpgaosc0: fpgaosc@0 {
+		/* Internal FPGA 77 MHz clock */
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <77000000>;
+		clock-output-names = "fpga:osc0";
+	};
+
+	fpgaosc1: fpgaosc@1 {
+		/* Internal FPGA 67 MHz clock */
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <67000000>;
+		clock-output-names = "fpga:osc1";
+	};
+
+	fpgaosc2: fpgaosc@2 {
+		/* Internal FPGA 23.75 MHz clock */
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <23750000>;
+		clock-output-names = "fpga:osc2";
+	};
+
+	dcc_lt {
+		compatible = "arm,vexpress,config-bus";
+		arm,vexpress,site = <2>;
+		arm,vexpress,config-bridge = <&v2m_sysreg>;
+
+		db2oscclk2: osc@2 {
+			compatible = "arm,vexpress-osc";
+			arm,vexpress-sysreg,func = <1 2>;
+			freq-range = <2000000 230000000>;
+			#clock-cells = <0>;
+			clock-output-names = "db2:osc2";
+		};
+	};
+
+	i2c@0x6f190000 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		compatible = "arm,versatile-i2c";
+		reg = <0x0 0x6f190000 0x0 0x1000>;
+
+		dvi2: dvi-transmitter@70 {
+			compatible = "nxp,tda998x";
+			reg = <0x70>;
+			video-ports = <0x234501>;
+		};
+
+		dvi3: dvi-transmitter@71 {
+			compatible = "nxp,tda998x";
+			reg = <0x71>;
+			video-ports = <0x234501>;
+		};
+	};
+
+	dp0: display@6f200000 {
+		compatible = "arm,mali-dp550";
+		reg = <0 0x6f200000 0 0x20000>;
+		interrupts = <0 168 4>, <0 168 4>;
+		interrupt-names = "DE", "SE";
+		clocks = <&db2oscclk2>, <&fpgaosc0>, <&fpgaosc1>, <&fpgaosc1>;
+		clock-names = "pxclk", "mclk", "aclk", "pclk";
+		de-axi-burst-length = <32>;
+		de-axi-outstanding-transactions = <15>;
+		se-axi-burst-length = <32>;
+		se-axi-outstanding-transactions = <15>;
+		se-axi-awqos = <0>;
+		se-axi-awcache = <0>;
+		#stream-id-cells = <5>;
+		port {
+			dp0_out: endpoint {
+				remote-endpoint = <&tx0_in>;
+			};
+		};
+	};
+	dp1: display@6f220000 {
+		compatible = "arm,mali-dp550";
+		reg = <0 0x6f220000 0 0x20000>;
+		interrupts = <0 168 4>, <0 168 4>;
+		interrupt-names = "DE", "SE";
+		clocks = <&db2oscclk2>, <&fpgaosc0>, <&fpgaosc1>, <&fpgaosc1>;
+		clock-names = "pxclk", "mclk", "aclk", "pclk";
+		de-axi-burst-length = <32>;
+		de-axi-outstanding-transactions = <15>;
+		se-axi-burst-length = <32>;
+		se-axi-outstanding-transactions = <15>;
+		se-axi-awqos = <0>;
+		se-axi-awcache = <0>;
+		#stream-id-cells = <5>;
+		port {
+			dp1_out: endpoint {
+				remote-endpoint = <&tx1_in>;
+			};
+		};
+	};
+
+	test-transmitters {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		tx0: video_tx@0 {
+			compatible = "generic,slave_enc_video_tx";
+			reg = <0>;
+			i2c-slave = <&dvi2>;
+			type = "HDMI";
+			type-idx = <0>;
+			port {
+				tx0_in: endpoint {
+					remote-endpoint = <&dp0_out>;
+				};
+			};
+		};
+		tx1: video_tx@1 {
+			compatible = "generic,slave_enc_video_tx";
+			reg = <1>;
+			i2c-slave = <&dvi3>;
+			type = "HDMI";
+			type-idx = <1>;
+			port {
+				tx1_in: endpoint {
+					remote-endpoint = <&dp1_out>;
+				};
+			};
+		};
+	};
+	smmu@6f300000 {
+		compatible = "arm,mmu-500";
+		reg = <0 0x6f300000 0 0x10000>;
+		#global-interrupts = <1>;
+		interrupts = <0 168 4>, <0 168 4>, <0 168 4>;
+		mmu-masters = <&dp0 0x008 0x09 0x0a 0xb 0xc>,
+					<&dp1 0x408 0x409 0x40a 0x40b 0x40c>;
+		status = "disabled";
+	};
+};
+
+
+
+
+
