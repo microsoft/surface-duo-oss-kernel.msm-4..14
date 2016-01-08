@@ -226,12 +226,11 @@ static int qcom_smsm_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	ret = qcom_smem_get(-1, SMEM_SMSM_SHARED_STATE,
-			    (void**)&smsm->shared_state,
+	smsm->shared_state = qcom_smem_get(-1, SMEM_SMSM_SHARED_STATE,
 			    &smsm->shared_state_size);
-	if (ret < 0) {
+	if (IS_ERR(smsm->shared_state)) {
 		dev_err(&pdev->dev, "Unable to acquire shared state entry\n");
-		return ret;
+		return PTR_ERR(smsm->shared_state);
 	}
 
 	dev_err(smsm->dev, "SMEM_SMSM_SHARED_STATE: %d, %zu\n", ret, smsm->shared_state_size);

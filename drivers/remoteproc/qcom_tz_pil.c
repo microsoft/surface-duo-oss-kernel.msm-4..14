@@ -398,8 +398,8 @@ static irqreturn_t qproc_fatal_interrupt(int irq, void *dev)
 	char *msg;
 	int ret;
 
-	ret = qcom_smem_get(-1, qproc->crash_reason, (void**)&msg, &len);
-	if (!ret && len > 0 && msg[0])
+	msg = qcom_smem_get(-1, qproc->crash_reason, &len);
+	if (IS_ERR(msg) && len > 0 && msg[0])
 		dev_err(qproc->dev, "fatal error received: %s\n", msg);
 
 	rproc_report_crash(qproc->rproc, RPROC_FATAL_ERROR);
