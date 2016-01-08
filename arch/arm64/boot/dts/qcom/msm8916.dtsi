@@ -95,7 +95,7 @@
 			next-level-cache = <&L2_0>;
 			clocks = <&a53cc 1>;
 			clock-latency = <200000>;
-			cpu-supply = <&pm8916_s2>;
+			cpu-supply = <&pm8916_spmi_s2>;
 			/* cooling options */
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
@@ -116,7 +116,7 @@
 			next-level-cache = <&L2_0>;
 			clocks = <&a53cc 1>;
 			clock-latency = <200000>;
-			cpu-supply = <&pm8916_s2>;
+			cpu-supply = <&pm8916_spmi_s2>;
 			/* cooling options */
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
@@ -132,7 +132,7 @@
 			next-level-cache = <&L2_0>;
 			clocks = <&a53cc 1>;
 			clock-latency = <200000>;
-			cpu-supply = <&pm8916_s2>;
+			cpu-supply = <&pm8916_spmi_s2>;
 			/* cooling options */
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
@@ -148,7 +148,7 @@
 			next-level-cache = <&L2_0>;
 			clocks = <&a53cc 1>;
 			clock-latency = <200000>;
-			cpu-supply = <&pm8916_s2>;
+			cpu-supply = <&pm8916_spmi_s2>;
 			/* cooling options */
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
