@@ -169,7 +169,6 @@ static irqreturn_t qcom_smp2p_intr(int irq, void *data)
 	int irq_pin;
 	u32 status;
 	u32 val;
-	int ret;
 	int i;
 	u8 tmp_name[SMP2P_MAX_ENTRY_NAME];
 
@@ -177,8 +176,8 @@ static irqreturn_t qcom_smp2p_intr(int irq, void *data)
 
 	/* Acquire smem item, if not already found */
 	if (!in) {
-		ret = qcom_smem_get(pid, smem_id, (void **)&in, &size);
-		if (ret < 0) {
+		in = qcom_smem_get(pid, smem_id, &size);
+		if (IS_ERR(in)) {
 			dev_err(smp2p->dev,
 					"Unable to acquire remote smp2p item\n");
 			return IRQ_HANDLED;
@@ -383,10 +382,10 @@ static int qcom_smp2p_alloc_outbound_item(struct qcom_smp2p *smp2p)
 		return ret;
 	}
 
-	ret = qcom_smem_get(pid, smem_id, (void **)&out, NULL);
-	if (ret < 0) {
+	out = qcom_smem_get(pid, smem_id, NULL);
+	if (IS_ERR(out)) {
 		dev_err(smp2p->dev, "Unable to acquire local smp2p item\n");
-		return ret;
+		return PTR_ERR(out);
 	}
 
 	memset_io(out, 0, sizeof(*out));

@@ -705,10 +705,9 @@ static void smem_debug_read_mem(struct seq_file *s)
 	int ret, i;
 	long flags;
 
-	ret = qcom_smem_get(QCOM_SMEM_HOST_ANY, SMEM_HEAP_INFO,
-				(void **)&info, &size);
+	info = qcom_smem_get(QCOM_SMEM_HOST_ANY, SMEM_HEAP_INFO, &size);
 
-	if (ret < 0)
+	if (IS_ERR(info))
 		seq_printf(s, "Can't get global heap information pool\n");
 	else {
 		seq_printf(s, "global heap\n");
@@ -716,9 +715,8 @@ static void smem_debug_read_mem(struct seq_file *s)
 				info[0], info[1], info[2]);
 
 		for (i = 0; i < 512; i++) {
-			ret = qcom_smem_get(QCOM_SMEM_HOST_ANY, i,
-						(void **)&info, &size);
-			if (ret < 0)
+			info = qcom_smem_get(QCOM_SMEM_HOST_ANY, i, &size);
+			if (IS_ERR(info))
 				continue;
 
 			seq_printf(s, "      [%d]: p: %p s: %li\n", i, info,
