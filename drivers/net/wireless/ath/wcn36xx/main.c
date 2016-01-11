@@ -1016,6 +1016,9 @@ static int wcn36xx_init_ieee80211(struct wcn36xx *wcn)
 
 	wcn->hw->wiphy->flags |= WIPHY_FLAG_AP_PROBE_RESP_OFFLOAD;
 
+	/* TODO: Figure out why this is necessary */
+	wcn->hw->wiphy->flags &= ~WIPHY_FLAG_PS_ON_BY_DEFAULT;
+
 #ifdef CONFIG_PM
 	wcn->hw->wiphy->wowlan = &wowlan_support;
 #endif
