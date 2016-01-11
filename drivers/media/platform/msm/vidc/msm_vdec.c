@@ -14,6 +14,7 @@
 #include <linux/slab.h>
 #include <linux/qcom_scm.h>
 #include <linux/qcom_iommu.h>
+#include <media/videobuf2-v4l2.h>
 #include <media/videobuf2-dma-contig.h>
 
 #include "msm_vdec.h"
@@ -36,7 +37,7 @@
 #define DST_QUEUE_OFF_BASE	(1 << 30)
 
 struct vdec_buffer {
-	struct vb2_buffer vb;
+	struct vb2_v4l2_buffer vb;
 	struct list_head list;
 	dma_addr_t dma_addr;
 	struct buffer_info bi;
@@ -875,7 +876,7 @@ static const struct v4l2_ioctl_ops vdec_ioctl_ops = {
 	.vidioc_decoder_cmd = vdec_cmd,
 };
 
-static int vdec_queue_setup(struct vb2_queue *q, const struct v4l2_format *fmt,
+static int vdec_queue_setup(struct vb2_queue *q, const void *parg,
 			    unsigned int *num_buffers,
 			    unsigned int *num_planes, unsigned int sizes[],
 			    void *alloc_ctxs[])
@@ -962,11 +963,12 @@ static int vdec_queue_setup(struct vb2_queue *q, const struct v4l2_format *fmt,
 
 static int vdec_buf_init(struct vb2_buffer *vb)
 {
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct vb2_queue *q = vb->vb2_queue;
 	struct vidc_inst *inst = vb2_get_drv_priv(q);
 	struct device *dev = &inst->core->res.pdev->dev;
 	struct hfi_device *hdev = inst->core->hfidev;
-	struct vdec_buffer *buf = to_vdec_buffer(vb);
+	struct vdec_buffer *buf = to_vdec_buffer(vbuf);
 	struct vidc_buffer_addr_info *bai;
 	struct buffer_info *bi;
 	int ret;
@@ -999,7 +1001,8 @@ static int vdec_buf_init(struct vb2_buffer *vb)
 
 static int vdec_buf_prepare(struct vb2_buffer *vb)
 {
-	struct vdec_buffer *buf = to_vdec_buffer(vb);
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+	struct vdec_buffer *buf = to_vdec_buffer(vbuf);
 
 	buf->dma_addr = vb2_dma_contig_plane_dma_addr(vb, 0);
 
@@ -1034,12 +1037,13 @@ static void __fill_flags(struct vidc_frame_data *frame_data, __u32 vb_flags)
 
 static int vdec_set_session_buf(struct vb2_buffer *vb)
 {
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct vb2_queue *q = vb->vb2_queue;
 	struct vidc_inst *inst = vb2_get_drv_priv(q);
 	struct vidc_core *core = inst->core;
 	struct device *dev = &core->res.pdev->dev;
 	struct hfi_device *hdev = core->hfidev;
-	struct vdec_buffer *buf = to_vdec_buffer(vb);
+	struct vdec_buffer *buf = to_vdec_buffer(vbuf);
 	struct vidc_frame_data fdata;
 	s64 time_usec;
 	int ret;
@@ -1049,7 +1053,7 @@ static int vdec_set_session_buf(struct vb2_buffer *vb)
 		return -EINVAL;
 	}
 
-	time_usec = timeval_to_ns(&vb->v4l2_buf.timestamp);
+	time_usec = timeval_to_ns(&vbuf->timestamp);
 	do_div(time_usec, NSEC_PER_USEC);
 
 	memset(&fdata, 0 , sizeof(fdata));
@@ -1063,9 +1067,9 @@ static int vdec_set_session_buf(struct vb2_buffer *vb)
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		fdata.buffer_type = HAL_BUFFER_INPUT;
 		fdata.filled_len = vb2_get_plane_payload(vb, 0);
-		fdata.offset = vb->v4l2_planes[0].data_offset;
+		fdata.offset = vb->planes[0].data_offset;
 
-		__fill_flags(&fdata, vb->v4l2_buf.flags);
+		__fill_flags(&fdata, vbuf->flags);
 
 		ret = call_hfi_op(hdev, session_etb, inst->session, &fdata);
 	} else if (q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
@@ -1079,7 +1083,7 @@ static int vdec_set_session_buf(struct vb2_buffer *vb)
 	}
 
 	if (ret) {
-		dev_err(dev, "failed to set session buffer\n");
+		dev_err(dev, "failed to set session buffer (%d)\n", ret);
 		return ret;
 	}
 
@@ -1149,7 +1153,7 @@ static int start_streaming(struct vidc_inst *inst)
 	list_for_each_safe(ptr, next, &inst->bufqueue) {
 		buf = list_entry(ptr, struct vdec_buffer, list);
 
-		ret = vdec_set_session_buf(&buf->vb);
+		ret = vdec_set_session_buf(&buf->vb.vb2_buf);
 		if (ret)
 			break;
 	}
@@ -1267,10 +1271,11 @@ static void vdec_stop_streaming(struct vb2_queue *q)
 
 static void vdec_buf_queue(struct vb2_buffer *vb)
 {
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct vidc_inst *inst = vb2_get_drv_priv(vb->vb2_queue);
 	struct vidc_core *core = inst->core;
 	struct device *dev = &core->res.pdev->dev;
-	struct vdec_buffer *buf = to_vdec_buffer(vb);
+	struct vdec_buffer *buf = to_vdec_buffer(vbuf);
 	int ret;
 
 	if (inst->state == INST_INVALID || core->state == CORE_INVALID) {
@@ -1305,11 +1310,11 @@ static const struct vb2_ops vdec_vb2_ops = {
 	.buf_queue = vdec_buf_queue,
 };
 
-static struct vb2_buffer *
+static struct vb2_v4l2_buffer *
 vdec_get_vb2buffer(struct vidc_inst *inst, dma_addr_t addr)
 {
 	struct vdec_buffer *buf;
-	struct vb2_buffer *vb = NULL;
+	struct vb2_v4l2_buffer *vb = NULL;
 
 	mutex_lock(&inst->bufqueue_lock);
 
@@ -1332,20 +1337,22 @@ static int vdec_empty_buf_done(struct vidc_inst *inst, u32 addr,
 			       u32 bytesused, u32 data_offset, u32 flags)
 {
 	struct device *dev = &inst->core->res.pdev->dev;
+	struct vb2_v4l2_buffer *vbuf;
 	struct vb2_buffer *vb;
 
-	vb = vdec_get_vb2buffer(inst, addr);
-	if (!vb)
+	vbuf = vdec_get_vb2buffer(inst, addr);
+	if (!vbuf)
 		return -EFAULT;
 
-	vb->v4l2_planes[0].bytesused = bytesused;
-	vb->v4l2_planes[0].data_offset = data_offset;
-	vb->v4l2_buf.flags = flags;
+	vb = &vbuf->vb2_buf;
+	vb->planes[0].bytesused = bytesused;
+	vb->planes[0].data_offset = data_offset;
+	vbuf->flags = flags;
 
-	if (vb->v4l2_planes[0].data_offset > vb->v4l2_planes[0].length)
+	if (vb->planes[0].data_offset > vb->planes[0].length)
 		dev_dbg(dev, "data_offset overflow length\n");
 
-	if (vb->v4l2_planes[0].bytesused > vb->v4l2_planes[0].length)
+	if (vb->planes[0].bytesused > vb->planes[0].length)
 		dev_dbg(dev, "bytesused overflow length\n");
 
 	if (flags & V4L2_QCOM_BUF_INPUT_UNSUPPORTED)
@@ -1369,26 +1376,26 @@ static int vdec_fill_buf_done(struct vidc_inst *inst, u32 addr,
 			      struct timeval *timestamp)
 {
 	struct device *dev = &inst->core->res.pdev->dev;
+	struct vb2_v4l2_buffer *vbuf;
 	struct vb2_buffer *vb;
 
-	vb = vdec_get_vb2buffer(inst, addr);
-	if (!vb)
+	vbuf = vdec_get_vb2buffer(inst, addr);
+	if (!vbuf)
 		return -EFAULT;
 
-	vb->v4l2_planes[0].bytesused = bytesused;
-	vb->v4l2_planes[0].data_offset = data_offset;
-	vb->v4l2_buf.flags = flags;
-	vb->v4l2_buf.timestamp = *timestamp;
+	vb = &vbuf->vb2_buf;
+	vb->planes[0].bytesused = bytesused;
+	vb->planes[0].data_offset = data_offset;
+	vbuf->flags = flags;
+	vbuf->timestamp = *timestamp;
 
-	if (vb->v4l2_planes[0].data_offset > vb->v4l2_planes[0].length)
+	if (vb->planes[0].data_offset > vb->planes[0].length)
 		dev_warn(dev, "overflow data_offset:%d, length:%d\n",
-			 vb->v4l2_planes[0].data_offset,
-			 vb->v4l2_planes[0].length);
+			 vb->planes[0].data_offset, vb->planes[0].length);
 
-	if (vb->v4l2_planes[0].bytesused > vb->v4l2_planes[0].length)
+	if (vb->planes[0].bytesused > vb->planes[0].length)
 		dev_warn(dev, "overflow bytesused:%d, length:%d\n",
-			 vb->v4l2_planes[0].bytesused,
-			 vb->v4l2_planes[0].length);
+			 vb->planes[0].bytesused, vb->planes[0].length);
 
 	inst->count.fbd++;
 
