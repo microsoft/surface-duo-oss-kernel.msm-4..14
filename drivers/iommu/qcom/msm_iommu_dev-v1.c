@@ -29,6 +29,7 @@
 #include "msm_iommu_hw-v1.h"
 #include <linux/qcom_iommu.h>
 #include "msm_iommu_perfmon.h"
+#include <linux/qcom_scm.h>
 
 static const struct of_device_id msm_iommu_ctx_match_table[];
 
@@ -263,6 +264,75 @@ static int msm_iommu_pmon_parse_dt(struct platform_device *pdev,
 	return 0;
 }
 
+#define SCM_SVC_MP		0xc
+#define MAXIMUM_VIRT_SIZE	(300 * SZ_1M)
+#define MAKE_VERSION(major, minor, patch) \
+	(((major & 0x3FF) << 22) | ((minor & 0x3FF) << 12) | (patch & 0xFFF))
+
+static int msm_iommu_sec_ptbl_init(struct device *dev)
+{
+	int psize[2] = {0, 0};
+	unsigned int spare = 0;
+	int ret;
+	int version;
+	void *cpu_addr;
+	dma_addr_t paddr;
+	DEFINE_DMA_ATTRS(attrs);
+	static bool allocated = false;
+
+	if (allocated)
+		return 0;
+
+	version = qcom_scm_get_feat_version(SCM_SVC_MP);
+
+	if (version >= MAKE_VERSION(1, 1, 1)) {
+		ret = qcom_scm_iommu_set_cp_pool_size(MAXIMUM_VIRT_SIZE, 0);
+		if (ret) {
+			dev_err(dev, "failed setting max virtual size (%d)\n",
+				ret);
+			return ret;
+		}
+	}
+
+	ret = qcom_scm_iommu_secure_ptbl_size(spare, psize);
+	if (ret) {
+		dev_err(dev, "failed to get iommu secure pgtable size (%d)\n",
+			ret);
+		return ret;
+	}
+
+	if (psize[1]) {
+		dev_err(dev, "failed to get iommu secure pgtable size (%d)\n",
+			ret);
+		return psize[1];
+	}
+
+	dev_info(dev, "iommu sec: pgtable size: %d\n", psize[0]);
+
+	dma_set_attr(DMA_ATTR_NO_KERNEL_MAPPING, &attrs);
+
+	cpu_addr = dma_alloc_attrs(dev, psize[0], &paddr, GFP_KERNEL, &attrs);
+	if (!cpu_addr) {
+		dev_err(dev, "failed to allocate %d bytes for pgtable\n",
+			psize[0]);
+		return -ENOMEM;
+	}
+
+	ret = qcom_scm_iommu_secure_ptbl_init(paddr, psize[0], spare);
+	if (ret) {
+		dev_err(dev, "failed to init iommu pgtable (%d)\n", ret);
+		goto free_mem;
+	}
+
+	allocated = true;
+
+	return 0;
+
+free_mem:
+	dma_free_attrs(dev, psize[0], cpu_addr, paddr, &attrs);
+	return ret;
+}
+
 static int msm_iommu_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
@@ -327,6 +397,12 @@ static int msm_iommu_probe(struct platform_device *pdev)
 
 	dev_info(dev, "device %s (model: %d) mapped at %p, with %d ctx banks\n",
 		 drvdata->name, drvdata->model, drvdata->base, drvdata->ncb);
+
+	if (drvdata->sec_id != -1) {
+		ret = msm_iommu_sec_ptbl_init(dev);
+		if (ret)
+			return ret;
+	}
 
 	platform_set_drvdata(pdev, drvdata);
 
