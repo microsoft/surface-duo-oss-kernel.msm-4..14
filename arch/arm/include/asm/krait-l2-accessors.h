@@ -1,4 +1,5 @@
-/* Copyright (c) 2010, Code Aurora Forum. All rights reserved.
+/*
+ * Copyright (c) 2011-2013, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -9,17 +10,11 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
-#ifndef __MACH_SCM_H
-#define __MACH_SCM_H
 
-#define SCM_SVC_BOOT			0x1
-#define SCM_SVC_PIL			0x2
+#ifndef __ASMARM_KRAIT_L2_ACCESSORS_H
+#define __ASMARM_KRAIT_L2_ACCESSORS_H
 
-extern int scm_call(u32 svc_id, u32 cmd_id, const void *cmd_buf, size_t cmd_len,
-		void *resp_buf, size_t resp_len);
-
-#define SCM_VERSION(major, minor) (((major) << 16) | ((minor) & 0xFF))
-
-extern u32 scm_get_version(void);
+extern void krait_set_l2_indirect_reg(u32 addr, u32 val);
+extern u32 krait_get_l2_indirect_reg(u32 addr);
 
 #endif
