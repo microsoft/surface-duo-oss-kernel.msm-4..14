@@ -56,12 +56,7 @@
 
 /* commands for SCM_SVC_UTIL */
 #define IOMMU_DUMP_SMMU_FAULT_REGS 0X0C
-#define MAXIMUM_VIRT_SIZE	(300*SZ_1M)
-
-
-#define MAKE_VERSION(major, minor, patch) \
-	(((major & 0x3FF) << 22) | ((minor & 0x3FF) << 12) | (patch & 0xFFF))
-
+#define SCM_SVC_MP		0xc
 
 static struct iommu_access_ops *iommu_access_ops;
 static int is_secure;
@@ -319,80 +314,6 @@ free_regs:
 	kfree(regs);
 lock_release:
 	iommu_access_ops->iommu_lock_release(0);
-	return ret;
-}
-
-#define SCM_SVC_MP			0xc
-
-static int msm_iommu_sec_ptbl_init(void)
-{
-	struct device_node *np;
-	int psize[2] = {0, 0};
-	unsigned int spare = 0;
-	int ret;
-	int version;
-	/* Use a dummy device for dma_alloc_attrs allocation */
-	struct device dev = { 0 };
-	void *cpu_addr;
-	dma_addr_t paddr;
-	DEFINE_DMA_ATTRS(attrs);
-
-	for_each_matching_node(np, msm_smmu_list)
-		if (of_find_property(np, "qcom,iommu-secure-id", NULL) &&
-				of_device_is_available(np))
-			break;
-
-	if (!np)
-		return 0;
-
-	of_node_put(np);
-
-	version = qcom_scm_get_feat_version(SCM_SVC_MP);
-
-	if (version >= MAKE_VERSION(1, 1, 1)) {
-		ret = qcom_scm_iommu_set_cp_pool_size(MAXIMUM_VIRT_SIZE, 0);
-		if (ret) {
-			pr_err("scm call IOMMU_SET_CP_POOL_SIZE failed\n");
-			goto fail;
-		}
-	}
-
-	ret = qcom_scm_iommu_secure_ptbl_size(spare, psize);
-	if (ret) {
-		pr_err("scm call IOMMU_SECURE_PTBL_SIZE failed\n");
-		goto fail;
-	}
-
-	pr_err("iommu sec: psize[0]: %d, psize[1]: %d\n", psize[0], psize[1]);
-
-	if (psize[1]) {
-		pr_err("scm call IOMMU_SECURE_PTBL_SIZE failed\n");
-		goto fail;
-	}
-
-	dma_set_attr(DMA_ATTR_NO_KERNEL_MAPPING, &attrs);
-	dev.coherent_dma_mask = DMA_BIT_MASK(sizeof(dma_addr_t) * 8);
-
-	cpu_addr = dma_alloc_attrs(&dev, psize[0], &paddr, GFP_KERNEL, &attrs);
-	if (!cpu_addr) {
-		pr_err("%s: Failed to allocate %d bytes for PTBL\n",
-			__func__, psize[0]);
-		ret = -ENOMEM;
-		goto fail;
-	}
-
-	ret = qcom_scm_iommu_secure_ptbl_init(paddr, psize[0], spare);
-
-	if (ret) {
-		pr_err("scm call IOMMU_SECURE_PTBL_INIT failed (%d)\n", ret);
-		goto fail_mem;
-	}
-
-	return 0;
-
-fail_mem:
-	dma_free_attrs(&dev, psize[0], cpu_addr, paddr, &attrs);
-fail:
 	return ret;
 }
 
@@ -865,9 +786,7 @@ static int __init msm_iommu_sec_init(void)
 		return ret;
 	}
 
-	ret = msm_iommu_sec_ptbl_init();
-
-	return ret;
+	return 0;
 }
 
 subsys_initcall(msm_iommu_sec_init);
