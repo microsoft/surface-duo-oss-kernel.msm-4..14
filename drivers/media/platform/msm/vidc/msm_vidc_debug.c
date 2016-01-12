@@ -22,13 +22,13 @@ int vidc_fw_debug = 0x18;
 int vidc_fw_debug_mode = 1;
 int vidc_fw_low_power_mode = 1;
 int vidc_hw_rsp_timeout = 1000;
-int vidc_fw_coverage = 0;
-int vidc_vpe_csc_601_to_709 = 0;
-int vidc_dec_dcvs_mode = 1;
-int vidc_enc_dcvs_mode = 1;
-int vidc_sys_idle_indicator = 0;
+bool vidc_fw_coverage = 0;
+bool vidc_vpe_csc_601_to_709 = 0;
+bool vidc_dec_dcvs_mode = 1;
+bool vidc_enc_dcvs_mode = 1;
+bool vidc_sys_idle_indicator = 0;
 int vidc_firmware_unload_delay = 15000;
-int vidc_thermal_mitigation_disabled = 0;
+bool vidc_thermal_mitigation_disabled = 0;
 
 #define MAX_DBG_BUF_SIZE 4096
 
