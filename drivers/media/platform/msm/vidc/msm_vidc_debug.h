@@ -59,13 +59,13 @@ extern int vidc_fw_debug;
 extern int vidc_fw_debug_mode;
 extern int vidc_fw_low_power_mode;
 extern int vidc_hw_rsp_timeout;
-extern int vidc_fw_coverage;
-extern int vidc_vpe_csc_601_to_709;
-extern int vidc_dec_dcvs_mode;
-extern int vidc_enc_dcvs_mode;
-extern int vidc_sys_idle_indicator;
+extern bool vidc_fw_coverage;
+extern bool vidc_vpe_csc_601_to_709;
+extern bool vidc_dec_dcvs_mode;
+extern bool vidc_enc_dcvs_mode;
+extern bool vidc_sys_idle_indicator;
 extern int vidc_firmware_unload_delay;
-extern int vidc_thermal_mitigation_disabled;
+extern bool vidc_thermal_mitigation_disabled;
 
 #define VIDC_MSG_PRIO2STRING(__level) ({ \
 	char *__str; \
