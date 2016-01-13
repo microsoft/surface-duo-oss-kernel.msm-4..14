@@ -42,11 +42,17 @@ struct ion_platform_heap juno_heaps[] = {
 			.type 	= ION_HEAP_TYPE_DMA,
 			.name	= "ion_dma_heap-3",
 			.priv	= &juno_device_ion.dev,
+		},
+		{
+			.id = ION_HEAP_TYPE_COMPOUND_PAGE,
+			.type = ION_HEAP_TYPE_COMPOUND_PAGE,
+			.name = "compound_page",
 		}
+
 };
 
 struct ion_platform_data juno_ion_pdata = {
-	.nr = 3,
+	.nr = ARRAY_SIZE(juno_heaps),
 	.heaps = juno_heaps,
 };
 
