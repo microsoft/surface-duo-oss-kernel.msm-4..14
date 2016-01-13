@@ -28,14 +28,13 @@ int capi_aes_cbc_encrypt(struct ablkcipher_request *req);
 int capi_aes_cbc_decrypt(struct ablkcipher_request *req);
 int capi_aes_setkey(struct crypto_ablkcipher *tfm, const u8 *key,
 		unsigned int keylen);
-int capi_aes_cra_init(struct crypto_tfm *tfm);
-void capi_aes_cra_exit(struct crypto_tfm *tfm);
 
 int capi_cmac_finup(struct ahash_request *req);
 int capi_cmac_digest(struct ahash_request *req);
 int capi_cmac_init(struct ahash_request *req);
 int capi_cmac_setkey(struct crypto_ahash *tfm, const u8 *key,
 		unsigned int keylen);
-int capi_cmac_cra_init(struct crypto_tfm *tfm);
 
+int capi_cra_init(struct crypto_tfm *tfm);
+void capi_cra_exit(struct crypto_tfm *tfm);
 #endif /* _CSE_CAPI_H */
