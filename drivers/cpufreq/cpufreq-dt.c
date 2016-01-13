@@ -359,14 +359,17 @@ static int cpufreq_init(struct cpufreq_policy *policy)
 
 	mutex_init(&priv->lock);
 
+	rcu_read_lock();
 	opp_srcu_head = dev_pm_opp_get_notifier(cpu_dev);
 	if (IS_ERR(opp_srcu_head)) {
 		ret = PTR_ERR(opp_srcu_head);
+		rcu_read_unlock();
 		goto out_free_priv;
 	}
 
 	priv->opp_nb.notifier_call = opp_notifier;
 	ret = srcu_notifier_chain_register(opp_srcu_head, &priv->opp_nb);
+	rcu_read_unlock();
 	if (ret)
 		goto out_free_priv;
 
