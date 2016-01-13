@@ -9,14 +9,12 @@
 / {
 	aliases {
 		malidp0 = &dp0;
-		malidp1 = &dp1;
 	};
 
-	gpu: gpu@0x2d000000 {
+	gpu: gpu@0x6f010000 {
 		compatible = "arm,malit6xx", "arm,mali";
-		#cooling-cells = <2>; /* min followed by max */
-		reg = <0x0 0x2d000000 0x0 0x4000>;
-		interrupts = <0 33 4>, <0 34 4>, <0 32 4>;
+		reg = <0x0 0x6f010000 0x0 0x4000>;
+		interrupts = <0 168 4>, <0 168 4>, <0 168 4>;
 		interrupt-names = "JOB", "MMU", "GPU";
 		clocks = <&scpi_dvfs 2>;
 		clock-names = "clk_mali";
@@ -24,7 +22,7 @@
 
 	dp0: display@6f200000 {
 		compatible = "arm,mali-dp550";
-		reg = <0 0x6f200000 0 0x20000>;
+		reg = <0 0x6f200000 0 0x40000>;
 		interrupts = <0 168 4>, <0 168 4>;
 		interrupt-names = "DE", "SE";
 		clocks = <&db2oscclk2>, <&fpgaosc0>, <&fpgaosc1>, <&fpgaosc1>;
@@ -35,31 +33,10 @@
 		se-axi-outstanding-transactions = <15>;
 		se-axi-awqos = <0>;
 		se-axi-awcache = <0>;
-		#stream-id-cells = <1>;
+		#stream-id-cells = <5>;
 		port {
 			dp0_out: endpoint {
 				remote-endpoint = <&tx0_in>;
-			};
-		};
-	};
-
-	dp1: display@6f220000 {
-		compatible = "arm,mali-dp550";
-		reg = <0 0x6f220000 0 0x20000>;
-		interrupts = <0 168 4>, <0 168 4>;
-		interrupt-names = "DE", "SE";
-		clocks = <&db2oscclk2>, <&fpgaosc0>, <&fpgaosc1>, <&fpgaosc1>;
-		clock-names = "pxclk", "mclk", "aclk", "pclk";
-		de-axi-burst-length = <32>;
-		de-axi-outstanding-transactions = <15>;
-		se-axi-burst-length = <32>;
-		se-axi-outstanding-transactions = <15>;
-		se-axi-awqos = <0>;
-		se-axi-awcache = <0>;
-		#stream-id-cells = <1>;
-		port {
-			dp1_out: endpoint {
-				remote-endpoint = <&tx1_in>;
 			};
 		};
 	};
@@ -81,17 +58,13 @@
 				};
 			};
 		};
-		tx1: video_tx@1 {
-			compatible = "generic,slave_enc_video_tx";
-			reg = <1>;
-			i2c-slave = <&dvi3>;
-			type = "HDMI";
-			type-idx = <1>;
-			port {
-				tx1_in: endpoint {
-					remote-endpoint = <&dp1_out>;
-				};
-			};
-		};
+	};
+
+	smmu@6f300000 {
+		compatible = "arm,mmu-500";
+		reg = <0 0x6f300000 0 0x10000>;
+		#global-interrupts = <1>;
+		interrupts = <0 168 4>, <0 168 4>, <0 168 4>;
+		mmu-masters = <&dp0 0x008 0x009 0x00a 0x00b 0x00c>;
 	};
 };
