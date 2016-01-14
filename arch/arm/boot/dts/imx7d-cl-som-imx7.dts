@@ -40,6 +40,16 @@
 		enable-active-high;
 		regulator-always-on;
 	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		onboard-led {
+			label = "Heartbeat";
+			gpios = <&gpio6 14 GPIO_ACTIVE_HIGH>;
+			linux,default-trigger = "heartbeat";
+		};
+	};
 };
 
 &cpu0 {
@@ -227,6 +237,15 @@
 };
 
 &iomuxc {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hog>;
+
+	pinctrl_hog: hoggrp {
+		fsl,pins = <
+			MX7D_PAD_SAI1_TX_SYNC__GPIO6_IO14		0x34 /* Onboard LED */
+		>;
+	};
+
 	pinctrl_enet1: enet1grp {
 		fsl,pins = <
 			MX7D_PAD_SD2_CD_B__ENET1_MDIO			0x30
