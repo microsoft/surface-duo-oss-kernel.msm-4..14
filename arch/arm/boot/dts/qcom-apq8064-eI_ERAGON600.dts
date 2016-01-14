@@ -3,40 +3,12 @@
 #include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
 
 / {
-	model = "Qualcomm APQ8064/IFC6410";
-	compatible = "qcom,apq8064-ifc6410", "qcom,apq8064";
+	model = "Qualcomm APQ8064/ERAGON600";
+	compatible = "qcom,apq8064-eragon600", "qcom,apq8064";
 
 	aliases {
 		serial0 = &gsbi7_serial;
 		serial1 = &gsbi6_serial;
-	};
-
-	chosen {
-		stdout-path = "serial0:115200n8";
-	};
-
-	pwrseq {
-		compatible = "simple-bus";
-
-		sdcc4_pwrseq: sdcc4_pwrseq {
-			pinctrl-names = "default";
-			pinctrl-0 = <&wlan_default_gpios &bt_gpios>;
-			compatible = "mmc-pwrseq-simple";
-			reset-gpios = <&pm8921_gpio 43 GPIO_ACTIVE_LOW>,
-				      <&pm8921_gpio 44 GPIO_ACTIVE_LOW>;
-		};
-	};
-
-	leds {
-		compatible = "gpio-leds";
-		pinctrl-names = "default";
-		pinctrl-0 = <&notify_led>;
-
-		led@1 {
-			label = "apq8064:green:user1";
-			gpios = <&pm8921_gpio 18 GPIO_ACTIVE_HIGH>;
-			default-state = "on";
-		};
 	};
 
 	soc {
@@ -45,18 +17,6 @@
 				mux {
 					pins = "gpio26";
 					function = "gpio";
-					bias-disable;
-				};
-			};
-
-			pcie_pins: pcie_pinmux {
-				mux {
-					pins = "gpio27";
-					function = "gpio";
-				};
-				conf {
-					pins = "gpio27";
-					drive-strength = <12>;
 					bias-disable;
 				};
 			};
@@ -77,7 +37,7 @@
 
 
 				/* Buck SMPS */
-				s1 {
+				pm8921_s1: s1 {
 					regulator-always-on;
 					regulator-min-microvolt = <1225000>;
 					regulator-max-microvolt = <1225000>;
@@ -85,75 +45,70 @@
 					bias-pull-down;
 				};
 
-				s3 {
+				pm8921_s3: s3 {
 					regulator-min-microvolt = <1000000>;
 					regulator-max-microvolt = <1400000>;
 					qcom,switch-mode-frequency = <4800000>;
 				};
 
-				s4 {
+				pm8921_s4: s4 {
 					regulator-min-microvolt	= <1800000>;
 					regulator-max-microvolt	= <1800000>;
 					qcom,switch-mode-frequency = <3200000>;
+					qcom,force-mode = <3>;
 				};
 
-				s7 {
+				pm8921_s7: s7 {
 					regulator-min-microvolt = <1300000>;
 					regulator-max-microvolt = <1300000>;
 					qcom,switch-mode-frequency = <3200000>;
 				};
 
-				l2 {
+				pm8921_l2: l2 {
 					regulator-min-microvolt = <1200000>;
 					regulator-max-microvolt = <1200000>;
 					bias-pull-down;
 				};
 
-				l3 {
+				pm8921_l3: l3 {
 					regulator-min-microvolt = <3050000>;
 					regulator-max-microvolt = <3300000>;
 					bias-pull-down;
 				};
 
-				l4 {
+				pm8921_l4: l4 {
 					regulator-min-microvolt = <1000000>;
 					regulator-max-microvolt = <1800000>;
 					bias-pull-down;
 				};
 
-				l5 {
+				pm8921_l5: l5 {
 					regulator-min-microvolt = <2750000>;
 					regulator-max-microvolt = <3000000>;
 					bias-pull-down;
 				};
 
-				l6 {
+				pm8921_l6: l6 {
 					regulator-min-microvolt = <2950000>;
 					regulator-max-microvolt = <2950000>;
 					bias-pull-down;
 				};
 
-				l23 {
+				pm8921_l23: l23 {
 					regulator-min-microvolt = <1700000>;
 					regulator-max-microvolt = <1900000>;
 					bias-pull-down;
 				};
 
-				l26 {
-					regulator-min-microvolt = < 375000>;
-					regulator-max-microvolt = <1050000>;
+				pm8921_lvs1: lvs1 {
 					bias-pull-down;
 				};
 
-				lvs1 {
+				pm8921_lvs6: lvs6 {
 					bias-pull-down;
 				};
 
-				lvs6 {
-					bias-pull-down;
-				};
-
-				lvs7 {
+				pm8921_lvs7: lvs7 {
 					bias-pull-down;
 				};
 			};
@@ -171,11 +126,6 @@
 			regulator-boot-on;
 		};
 
-		pil_q6v4: pil@28800000 {
-			qcom,pll-supply = <&pm8921_l26>;
-			qcom,pll-uV = <1050000>;
-		};
-
 		hdmi: qcom,hdmi-tx@4a00000 {
 			status = "okay";
 			core-vdda-supply = <&pm8921_hdmi_switch>;
@@ -190,15 +140,15 @@
 			
         		port {
 				lvds_out: endpoint {
-					remote-endpoint = <&auo_in>;
+					remote-endpoint = <&data_image_in>;
 				};
 			}; 
 		};
 
 		panel_3p3v: panel_3p3v {
-			compatible = "regulator-fixed";
-			pinctrl-0 = <&disp_en_gpios>;
+			pinctrl-0 = <&pwm_en_gpios>;
 			pinctrl-names = "default";
+			compatible = "regulator-fixed";
 			regulator-min-microvolt = <3300000>;
 			regulator-max-microvolt = <3300000>;
 			regulator-name = "panel_en_3p3v";
@@ -217,25 +167,36 @@
 			default-on;
 		};
 
-		panel: auo,b101xtn01 {
-			status = "okay";
-			compatible = "auo,b101xtn01";
-
-			ddc-i2c-bus = <&i2c3>;
-			backlight = <&backlight>;
-			power-supply = <&panel_3p3v>;
-			port {
-                		auo_in: endpoint {
-                    			remote-endpoint = <&lvds_out>;
-                		};
-            		};
+		levelshifter: levelshifter{
+			pinctrl-0 = <&pwm_bl_gpios>;
+			pinctrl-names = "default";
+			compatible = "gpio-backlight";
+			gpios = <&tlmm_pinmux 85 GPIO_ACTIVE_HIGH>;
+			startup-delay-us = <2000>;
+			default-on;
 		};
+
+		panel: data_image,scf0700C48ggu21 {
+            status = "okay";
+            compatible = "data_image,scf0700C48ggu21";
+
+            ddc-i2c-bus = <&i2c3>;
+            backlight = <&backlight>;
+            power-supply = <&panel_3p3v>;
+            port {
+                        data_image_in: endpoint {
+                                remote-endpoint = <&lvds_out>;
+                        };
+                    };
+        };
 
 		gsbi3: gsbi@16200000 {
 			status = "okay";
 			qcom,mode = <GSBI_PROT_I2C>;
 			i2c3: i2c@16280000 {
 				status = "okay";
+				pinctrl-0 = <&i2c3_pins>;
+				pinctrl-names = "default";
 			};
 		};
 
@@ -246,8 +207,10 @@
 			i2c@12460000 {
 				status = "okay";
 				clock-frequency = <200000>;
+				pinctrl-0 = <&i2c1_pins>;
+				pinctrl-names = "default";
 
-				eeprom@52 {
+				eeprom: eeprom@52 {
 					compatible = "atmel,24c128";
 					reg = <0x52>;
 					pagesize = <32>;
@@ -261,6 +224,7 @@
 
 			serial@16540000 {
 				status = "ok";
+
 				pinctrl-names = "default";
 				pinctrl-0 = <&gsbi6_uart_4pins>;
 			};
@@ -271,8 +235,6 @@
 			qcom,mode = <GSBI_PROT_I2C_UART>;
 			serial@16640000 {
 				status = "ok";
-				pinctrl-names = "default";
-				pinctrl-0 = <&gsbi7_uart_2pins>;
 			};
 		};
 
@@ -327,39 +289,61 @@
 		usb4: usb@12530000 {
 			status = "okay";
 		};
+		
+		/* on board fixed 3.3v supply */
+		v3p3_pcieclk: v3p3-pcieclk {
+			compatible = "regulator-fixed";
+			regulator-name = "PCIE V3P3";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-always-on;
+		};
 
 		pci@1b500000 {
 			status = "ok";
-			vdda-supply = <&pm8921_s3>;
-			vdda_phy-supply = <&pm8921_lvs6>;
-			vdda_refclk-supply = <&ext_3p3v>;
-			pinctrl-0 = <&pcie_pins>;
+			pcie-clk-supply	= <&v3p3_pcieclk>;
+			avdd-supply	= <&pm8921_s3>;
+			vdd-supply	= <&pm8921_lvs6>;
+			ext-3p3v-supply = <&ext_3p3v>;
+			qcom,external-phy-refclk;
+			reset-gpio = <&tlmm_pinmux 27 GPIO_ACTIVE_LOW>;
+		};
+
+		leds {
+			compatible = "gpio-leds";
 			pinctrl-names = "default";
-			perst-gpio = <&tlmm_pinmux 27 GPIO_ACTIVE_LOW>;
+			pinctrl-0 = <&notify_led>;
+
+			led@1 {
+				label = "apq8064:green:user1";
+				gpios = <&pm8921_gpio 18 GPIO_ACTIVE_HIGH>;
+				linux,default-trigger = "heartbeat";
+				default-state = "on";
+			};
 		};
 
 		qcom,ssbi@500000 {
-			pmic@0 {
-				gpio@150 {
+			pmicintc: pmic@0 {
+				pm8921_gpio: gpio@150 {
 					pinctrl-names = "default";
-					pinctrl-0 = <&wlan_default_gpios>;
+					pinctrl-0 = <&wlan_default_gpios &bt_gpios>;
 
 					pwm_bl_gpios: pwm-bl-gpios {
 						pios {
 							pins = "gpio26";
 							bias-disable;
 							function = "normal";
-							qcom,drive-strength = <PMIC_GPIO_STRENGTH_HIGH>;
+							qcom,drive-strength = <1>;
 							power-source = <PM8921_GPIO_S4>;
 						};
 					};
 
-					disp_en_gpios: disp-en-gpios {
+					pwm_en_gpios: pwm-en-gpios {
 						pios {
 							pins = "gpio36";
 							bias-disable;
 							function = "normal";
-							qcom,drive-strength = <PMIC_GPIO_STRENGTH_HIGH>;
+							qcom,drive-strength = <1>;
 							power-source = <PM8921_GPIO_S4>;
 						};
 					};
@@ -392,6 +376,11 @@
 					};
 				};
 			};
+		};
+		sdcc4_pwrseq:pwrseq {
+			compatible = "mmc-pwrseq-simple";
+			reset-gpios = <&pm8921_gpio 43 GPIO_ACTIVE_LOW>,
+				      <&pm8921_gpio 44 GPIO_ACTIVE_LOW>;
 		};
 
 		amba {
