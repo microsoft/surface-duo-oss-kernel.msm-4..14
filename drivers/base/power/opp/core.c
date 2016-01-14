@@ -31,9 +31,10 @@ static LIST_HEAD(dev_opp_list);
 /* Lock to allow exclusive modification to the device and opp lists */
 DEFINE_MUTEX(dev_opp_list_lock);
 
-#define opp_rcu_lockdep_assert()					\
+#define opp_rcu_lockdep_assert(s)					\
 do {									\
 	RCU_LOCKDEP_WARN(!rcu_read_lock_held() &&			\
+				!(s && srcu_read_lock_held(s)) &&	\
 				!lockdep_is_held(&dev_opp_list_lock),	\
 			   "Missing rcu_read_lock() or "		\
 			   "dev_opp_list_lock protection");		\
@@ -91,7 +92,7 @@ struct device_opp *_find_device_opp(struct device *dev)
 {
 	struct device_opp *dev_opp;
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	if (IS_ERR_OR_NULL(dev)) {
 		pr_err("%s: Invalid parameters\n", __func__);
@@ -125,10 +126,11 @@ unsigned long dev_pm_opp_get_voltage(struct dev_pm_opp *opp)
 	struct dev_pm_opp *tmp_opp;
 	unsigned long v = 0;
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(&opp->dev_opp->srcu_head.srcu);
 
-	tmp_opp = rcu_dereference(opp);
-	if (IS_ERR_OR_NULL(tmp_opp))
+	tmp_opp = srcu_dereference_check(opp, &opp->dev_opp->srcu_head.srcu,
+					 rcu_read_lock_held());
+	if (IS_ERR_OR_NULL(tmp_opp) || !tmp_opp->available)
 		pr_err("%s: Invalid parameters\n", __func__);
 	else
 		v = tmp_opp->u_volt;
@@ -157,9 +159,10 @@ unsigned long dev_pm_opp_get_freq(struct dev_pm_opp *opp)
 	struct dev_pm_opp *tmp_opp;
 	unsigned long f = 0;
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(&opp->dev_opp->srcu_head.srcu);
 
-	tmp_opp = rcu_dereference(opp);
+	tmp_opp = srcu_dereference_check(opp, &opp->dev_opp->srcu_head.srcu,
+					 rcu_read_lock_held());
 	if (IS_ERR_OR_NULL(tmp_opp) || !tmp_opp->available)
 		pr_err("%s: Invalid parameters\n", __func__);
 	else
@@ -191,7 +194,7 @@ bool dev_pm_opp_is_turbo(struct dev_pm_opp *opp)
 {
 	struct dev_pm_opp *tmp_opp;
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(&opp->dev_opp->srcu_head.srcu);
 
 	tmp_opp = rcu_dereference(opp);
 	if (IS_ERR_OR_NULL(tmp_opp) || !tmp_opp->available) {
@@ -246,7 +249,7 @@ struct dev_pm_opp *dev_pm_opp_get_suspend_opp(struct device *dev)
 {
 	struct device_opp *dev_opp;
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	dev_opp = _find_device_opp(dev);
 	if (IS_ERR(dev_opp) || !dev_opp->suspend_opp ||
@@ -326,7 +329,7 @@ struct dev_pm_opp *dev_pm_opp_find_freq_exact(struct device *dev,
 	struct device_opp *dev_opp;
 	struct dev_pm_opp *temp_opp, *opp = ERR_PTR(-ERANGE);
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	dev_opp = _find_device_opp(dev);
 	if (IS_ERR(dev_opp)) {
@@ -374,7 +377,7 @@ struct dev_pm_opp *dev_pm_opp_find_freq_ceil(struct device *dev,
 	struct device_opp *dev_opp;
 	struct dev_pm_opp *temp_opp, *opp = ERR_PTR(-ERANGE);
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	if (!dev || !freq) {
 		dev_err(dev, "%s: Invalid argument freq=%p\n", __func__, freq);
@@ -424,7 +427,7 @@ struct dev_pm_opp *dev_pm_opp_find_freq_floor(struct device *dev,
 	struct device_opp *dev_opp;
 	struct dev_pm_opp *temp_opp, *opp = ERR_PTR(-ERANGE);
 
-	opp_rcu_lockdep_assert();
+	opp_rcu_lockdep_assert(NULL);
 
 	if (!dev || !freq) {
 		dev_err(dev, "%s: Invalid argument freq=%p\n", __func__, freq);
@@ -1023,6 +1026,83 @@ static int _opp_set_availability(struct device *dev, unsigned long freq,
 	else
 		srcu_notifier_call_chain(&dev_opp->srcu_head, OPP_EVENT_DISABLE,
 					 new_opp);
+
+	return 0;
+
+unlock:
+	mutex_unlock(&dev_opp_list_lock);
+	kfree(new_opp);
+	return r;
+}
+
+/**
+ * dev_pm_opp_adjust_voltage() - helper to change the voltage of an opp
+ * @dev:		device for which we do this operation
+ * @freq:		OPP frequency to adjust voltage of
+ * @u_volt:		new OPP voltage
+ *
+ * Change the voltage of an OPP with an RCU operation.
+ *
+ * Return: -EINVAL for bad pointers, -ENOMEM if no memory available for the
+ * copy operation, returns 0 if no modifcation was done OR modification was
+ * successful.
+ *
+ * Locking: The internal device_opp and opp structures are RCU protected.
+ * Hence this function internally uses RCU updater strategy with mutex locks to
+ * keep the integrity of the internal data structures. Callers should ensure
+ * that this function is *NOT* called under RCU protection or in contexts where
+ * mutex locking or synchronize_rcu() blocking calls cannot be used.
+ */
+int dev_pm_opp_adjust_voltage(struct device *dev, unsigned long freq,
+				 unsigned long u_volt)
+{
+	struct device_opp *dev_opp;
+	struct dev_pm_opp *new_opp, *tmp_opp, *opp = ERR_PTR(-ENODEV);
+	int r = 0;
+
+	/* keep the node allocated */
+	new_opp = kmalloc(sizeof(*new_opp), GFP_KERNEL);
+	if (!new_opp)
+		return -ENOMEM;
+
+	mutex_lock(&dev_opp_list_lock);
+
+	/* Find the device_opp */
+	dev_opp = _find_device_opp(dev);
+	if (IS_ERR(dev_opp)) {
+		r = PTR_ERR(dev_opp);
+		dev_warn(dev, "%s: Device OPP not found (%d)\n", __func__, r);
+		goto unlock;
+	}
+
+	/* Do we have the frequency? */
+	list_for_each_entry(tmp_opp, &dev_opp->opp_list, node) {
+		if (tmp_opp->rate == freq) {
+			opp = tmp_opp;
+			break;
+		}
+	}
+	if (IS_ERR(opp)) {
+		r = PTR_ERR(opp);
+		goto unlock;
+	}
+
+	/* Is update really needed? */
+	if (opp->u_volt == u_volt)
+		goto unlock;
+	/* copy the old data over */
+	*new_opp = *opp;
+
+	/* plug in new node */
+	new_opp->u_volt = u_volt;
+
+	list_replace_rcu(&opp->node, &new_opp->node);
+	mutex_unlock(&dev_opp_list_lock);
+	call_srcu(&dev_opp->srcu_head.srcu, &opp->rcu_head, _kfree_opp_rcu);
+
+	/* Notify the change of the OPP */
+	srcu_notifier_call_chain(&dev_opp->srcu_head, OPP_EVENT_ADJUST_VOLTAGE,
+				 new_opp);
 
 	return 0;
 
