@@ -512,6 +512,10 @@ static int platform_drv_probe(struct device *_dev)
 	if (ret < 0)
 		return ret;
 
+	ret = of_dma_configure_ops(_dev, _dev->of_node);
+	if (ret < 0)
+		goto done;
+
 	ret = dev_pm_domain_attach(_dev, true);
 	if (ret != -EPROBE_DEFER && drv->probe) {
 		ret = drv->probe(dev);
@@ -519,6 +523,10 @@ static int platform_drv_probe(struct device *_dev)
 			dev_pm_domain_detach(_dev, true);
 	}
 
+	if (ret)
+		of_dma_deconfigure(_dev);
+
+done:
 	if (drv->prevent_deferred_probe && ret == -EPROBE_DEFER) {
 		dev_warn(_dev, "probe deferral not supported\n");
 		ret = -ENXIO;
@@ -541,6 +549,7 @@ static int platform_drv_remove(struct device *_dev)
 	if (drv->remove)
 		ret = drv->remove(dev);
 	dev_pm_domain_detach(_dev, true);
+	of_dma_deconfigure(_dev);
 
 	return ret;
 }
