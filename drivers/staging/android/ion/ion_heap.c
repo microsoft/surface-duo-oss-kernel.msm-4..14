@@ -47,7 +47,7 @@ void *ion_heap_map_kernel(struct ion_heap *heap,
 
 	for_each_sg(table->sgl, sg, table->nents, i) {
 		int npages_this_entry = PAGE_ALIGN(sg->length) / PAGE_SIZE;
-		struct page *page = sg_page(sg);
+		struct page *page = pfn_to_page(PFN_DOWN(sg_phys(sg)));
 		BUG_ON(i >= npages);
 		for (j = 0; j < npages_this_entry; j++)
 			*(tmp++) = page++;
@@ -78,7 +78,6 @@ int ion_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 	int ret;
 
 	for_each_sg(table->sgl, sg, table->nents, i) {
-		struct page *page = sg_page(sg);
 		unsigned long remainder = vma->vm_end - addr;
 		unsigned long len = sg->length;
 
@@ -86,18 +85,18 @@ int ion_heap_map_user(struct ion_heap *heap, struct ion_buffer *buffer,
 			offset -= sg->length;
 			continue;
 		} else if (offset) {
-			page += offset / PAGE_SIZE;
 			len = sg->length - offset;
-			offset = 0;
 		}
 		len = min(len, remainder);
-		ret = remap_pfn_range(vma, addr, page_to_pfn(page), len,
-				vma->vm_page_prot);
+		ret = remap_pfn_range(vma, addr, PFN_DOWN(sg_phys(sg) + offset),
+				      len, vma->vm_page_prot);
 		if (ret)
 			return ret;
 		addr += len;
 		if (addr >= vma->vm_end)
 			return 0;
+
+		offset = 0;
 	}
 	return 0;
 }
