@@ -55,6 +55,7 @@ int __vfs_setxattr_locked(struct dentry *, const char *, const void *, size_t, i
 int vfs_setxattr(struct dentry *, const char *, const void *, size_t, int);
 int __vfs_removexattr(struct dentry *, const char *);
 int __vfs_removexattr_locked(struct dentry *, const char *, struct inode **);
+int __vfs_removexattr_noperm(struct dentry *dentry, const char *name);
 int vfs_removexattr(struct dentry *, const char *);
 
 ssize_t generic_listxattr(struct dentry *dentry, char *buffer, size_t buffer_size);
