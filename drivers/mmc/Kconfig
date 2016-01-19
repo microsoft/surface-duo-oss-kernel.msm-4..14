@@ -5,6 +5,8 @@
 menuconfig MMC
 	tristate "MMC/SD/SDIO card support"
 	depends on HAS_IOMEM
+	select PWRSEQ_SIMPLE if OF
+	select PWRSEQ_EMMC if OF
 	help
 	  This selects MultiMediaCard, Secure Digital and Secure
 	  Digital I/O support.

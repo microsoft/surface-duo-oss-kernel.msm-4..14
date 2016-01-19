@@ -8,7 +8,10 @@
  *  Simple MMC power sequence management
  */
 #include <linux/clk.h>
+#include <linux/init.h>
 #include <linux/kernel.h>
+#include <linux/platform_device.h>
+#include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/device.h>
 #include <linux/err.h>
@@ -86,31 +89,19 @@ static void mmc_pwrseq_simple_free(struct mmc_host *host)
 	if (!IS_ERR(pwrseq->ext_clk))
 		clk_put(pwrseq->ext_clk);
 
-	kfree(pwrseq);
 }
 
-static const struct mmc_pwrseq_ops mmc_pwrseq_simple_ops = {
-	.pre_power_on = mmc_pwrseq_simple_pre_power_on,
-	.post_power_on = mmc_pwrseq_simple_post_power_on,
-	.power_off = mmc_pwrseq_simple_power_off,
-	.free = mmc_pwrseq_simple_free,
-};
-
-struct mmc_pwrseq *mmc_pwrseq_simple_alloc(struct mmc_host *host,
-					   struct device *dev)
+int mmc_pwrseq_simple_alloc(struct mmc_host *host)
 {
-	struct mmc_pwrseq_simple *pwrseq;
+	struct mmc_pwrseq_simple *pwrseq = to_pwrseq_simple(host->pwrseq);
+	struct device *dev = host->pwrseq->dev;
 	int ret = 0;
-
-	pwrseq = kzalloc(sizeof(*pwrseq), GFP_KERNEL);
-	if (!pwrseq)
-		return ERR_PTR(-ENOMEM);
 
 	pwrseq->ext_clk = clk_get(dev, "ext_clock");
 	if (IS_ERR(pwrseq->ext_clk) &&
 	    PTR_ERR(pwrseq->ext_clk) != -ENOENT) {
-		ret = PTR_ERR(pwrseq->ext_clk);
-		goto free;
+		return PTR_ERR(pwrseq->ext_clk);
+
 	}
 
 	pwrseq->reset_gpios = gpiod_get_array(dev, "reset", GPIOD_OUT_HIGH);
@@ -118,16 +109,60 @@ struct mmc_pwrseq *mmc_pwrseq_simple_alloc(struct mmc_host *host,
 	    PTR_ERR(pwrseq->reset_gpios) != -ENOENT &&
 	    PTR_ERR(pwrseq->reset_gpios) != -ENOSYS) {
 		ret = PTR_ERR(pwrseq->reset_gpios);
-		goto clk_put;
+		clk_put(pwrseq->ext_clk);
+		return ret;
 	}
 
-	pwrseq->pwrseq.ops = &mmc_pwrseq_simple_ops;
-
-	return &pwrseq->pwrseq;
-clk_put:
-	if (!IS_ERR(pwrseq->ext_clk))
-		clk_put(pwrseq->ext_clk);
-free:
-	kfree(pwrseq);
-	return ERR_PTR(ret);
+	return 0;
 }
+
+static const struct mmc_pwrseq_ops mmc_pwrseq_simple_ops = {
+	.alloc = mmc_pwrseq_simple_alloc,
+	.pre_power_on = mmc_pwrseq_simple_pre_power_on,
+	.post_power_on = mmc_pwrseq_simple_post_power_on,
+	.power_off = mmc_pwrseq_simple_power_off,
+	.free = mmc_pwrseq_simple_free,
+};
+
+static const struct of_device_id mmc_pwrseq_simple_of_match[] = {
+	{ .compatible = "mmc-pwrseq-simple",},
+	{/* sentinel */},
+};
+MODULE_DEVICE_TABLE(of, mmc_pwrseq_simple_of_match);
+
+static int mmc_pwrseq_simple_probe(struct platform_device *pdev)
+{
+	struct mmc_pwrseq_simple *pwrseq;
+	struct device *dev = &pdev->dev;
+
+	pwrseq = devm_kzalloc(dev, sizeof(*pwrseq), GFP_KERNEL);
+	if (!pwrseq)
+		return -ENOMEM;
+
+	pwrseq->pwrseq.dev = dev;
+	pwrseq->pwrseq.ops = &mmc_pwrseq_simple_ops;
+	pwrseq->pwrseq.owner = THIS_MODULE;
+
+	return mmc_pwrseq_register(&pwrseq->pwrseq);
+}
+
+static int mmc_pwrseq_simple_remove(struct platform_device *pdev)
+{
+	struct mmc_pwrseq_simple *spwrseq = platform_get_drvdata(pdev);
+
+	mmc_pwrseq_unregister(&spwrseq->pwrseq);
+
+	return 0;
+}
+
+static struct platform_driver mmc_pwrseq_simple_driver = {
+	.probe = mmc_pwrseq_simple_probe,
+	.remove = mmc_pwrseq_simple_remove,
+	.driver = {
+		.name = "pwrseq_simple",
+		.of_match_table = mmc_pwrseq_simple_of_match,
+	},
+};
+
+module_platform_driver(mmc_pwrseq_simple_driver);
+MODULE_LICENSE("GPL v2");
