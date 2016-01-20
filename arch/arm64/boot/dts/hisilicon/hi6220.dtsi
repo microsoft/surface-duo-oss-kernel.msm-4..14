@@ -794,5 +794,26 @@
 			pinctrl-0 = <&sdio_pmx_func &sdio_clk_cfg_func &sdio_cfg_func>;
 			pinctrl-1 = <&sdio_pmx_idle &sdio_clk_cfg_idle &sdio_cfg_idle>;
 		};
+
+		mtcmos {
+			compatible = "hisilicon,hi6220-mtcmos-driver";
+			hisilicon,mtcmos-steady-us = <10>;
+			hisilicon,mtcmos-sc-on-base  = <0xf7800000>;
+			hisilicon,mtcmos-acpu-on-base = <0xf65a0000>;
+
+			g3d_vdd: regulator@a1{
+				regulator-name = "G3D_PD_VDD";
+				regulator-compatible = "mtcmos1";
+				hisilicon,ctrl-regs = <0x830 0x834 0x83c>;
+				hisilicon,ctrl-data = <1 0x1>;
+			};
+
+			soc_med: regulator@a2{
+				regulator-name = "SOC_MED";
+				regulator-compatible = "mtcmos2";
+				hisilicon,ctrl-regs = <0x830 0x834 0x83c>;
+				hisilicon,ctrl-data = <2 0x1>;
+			};
+		};
 	};
 };
