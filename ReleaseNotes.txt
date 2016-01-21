@@ -1,0 +1,237 @@
+//
+//  Synaptics DSX Driver
+///////////////////////////////////////////////////////////
+
+v2.6.5 Jan 11, 2016 scott.lin@tw.synaptics.com
+   - Parse presence of F54_ANALOG_Ctrl166 with query bit in test reporting module
+   - Handle preservation of F51 discrete force calibration data when updating UI config only
+   - Skip saving of F51 discrete force calibration data for BL mode devices
+   - Prevent firmware update with incompatible partition tables
+
+v2.6.4 Jan 04, 2016 scott.lin@tw.synaptics.com
+   - Fix handling of BL mode device during firmware update for F51 discrete force devices
+
+v2.6.3 Dec 30, 2015 scott.lin@tw.synaptics.com
+   - Add device ID table in SPI module
+   - Adjust calling of reset and rebuild in firmware update module
+
+v2.6.2 Dec 27, 2015 scott.lin@tw.synaptics.com
+   - Use 5 bits for error code in F35_UBOOT_Data0
+   - Add dtsi file for SPI
+   - Replace local memory allocation in read/write functions with global memory allocation in SPI module
+   - Add mutex for enabling/disabling interrupt
+   - Fix potential buffer overflow bug when reading F12_2D_Query8
+   - Add support for UPP and bootloader update in firmware update module
+   - Remove redundant BL mode operation and resets in firmware update module
+   - Add option to set maximum write size during firmware update based on v7 and v8 bootloaders
+   - Fix potential mutex lock-up between rmi4_reset_mutex and rmi4_irq_enable_mutex
+   - Add option to support F51 discrete force reporting and preservation of calibration data
+
+
+v2.6.1 Oct 08, 2015 scott.lin@tw.synaptics.com
+   - Add option to support concurrent operation between RED Remote and Android UI
+   - Add 0D button support in RT83 in test reporting module
+   - Prevent reporting of spurious stylus events
+   - Update parsing of dtsi files
+
+v2.6 Sep 08, 2015 scott.lin@tw.synaptics.com
+   - Add support for 32-byte config ID in v7 bootloader
+   - Force dynamic sense display ratio to 1:1 when retrieving test reports
+   - Allocate buffer from heap when doing I2C writes
+   - Add device tree support in HID over I2C module
+   - Skip preparation procedures when retrieving test reports for TDDI
+   - Add gesture module for supporting user defined gesture functionalities
+   - Do F$34 query again after entering flash programming mode during re-flash
+   - Handle swap_axes option during RMI query
+   - Centralize allocation of read config buffer in firmware update module
+   - Use dedicated buffer for reading partition table in firmware update module
+   - Retain config area selection after entering flash programming mode in firmware update module
+   - Reset after doing lockdown in firmware update module
+   - Wait for completion of CRC check before detecting spontaneous reset
+   - Reduce stack usage during query
+   - Add option to do reset when resuming from suspend
+   - Skip use of CONFIG_PM if CONFIG_FB defined
+   - Keep gesture engine enabled after resuming from suspend
+   - Re-enable gesture engine after reset and reinit events
+   - Add option to report pressure data from F12_2D_Data23
+   - Use umode_t instead of mode_t in rmidev module
+   - Use read-modify-write when turning off CDM in test reporting module
+   - Add checking of presence of rmidev device class in rmidev module
+   - Add support for RT59 RT63 RT83 in test reporting module
+   - Add support for v8 bootloader in firmware update module
+   - Add support for writing permanent config data in firmware update module
+   - Add support for doing lockdown based on v7 and v8 bootloaders
+   - Add option to store runtime gesture data in gesture module
+   - Use KEY_WAKEUP and enable_irq_wake() for LPWG and UDG
+   - Add sysfs attribute for doing AFE calibration in test reporting module
+   - Add stylus and eraser support
+
+v2.5 Jan 19, 2015 scott.lin@tw.synaptics.com
+   - Add support for v6.11 image file format for TD4191
+   - Allocate buffer from heap instead of using stack in rmidev module
+   - Add video module for TDDI
+   - Add support for F$35 microbootloader mode recovery operation for TDDI
+   - Re-register input device after re-flash/recovery
+   - Add framebuffer notifier client support for power management
+   - Add IRQF_ONESHOT flag for IRQ request in rmidev module
+   - Add support for RT78 in test reporting module for AMP sensors
+   - Add option to start start-up firmware update process only after display has entered UNBLANK state
+   - Add checking of presence of handle in init functions of expansion modules
+   - Add mutex control between initialization of expansion modules and re-flash
+   - Add mutex control between initialization of expansion modules and device reset
+   - Add option to reset device after display has entered UNBLANK state
+   - Add device tree support in RMI over SPI module
+
+v2.4 Sep 17, 2014 scott.lin@tw.synaptics.com
+   - Add support to retrieve custom product ID information from image header
+   - Add F$12 control register support for wedge sensor
+   - Add support for retrieving F$12 palm data
+   - Add printing of flash status when F$34 operation fails
+   - Add support for reporting passive pen events
+   - Clear interrupt status register without processing residual events when enabling interrupt
+   - Add option to support I2C burst read limit in RMI over I2C
+   - Treat in-range state (no valid X/Y data) of active pen as pen lift event
+   - Properly clean up resources in reset callback of optional test reporting module
+   - Increase watchdog timeout for reading test reports in option test reporting module to 3s
+   - Add support for v7 bootloader in firmware update module
+   - Give unique input driver names to active pen and proximity modules
+   - Turn off transcap global CBC in optional test reporting module when reading test reports
+   - Adjust handling of status and report size data elements in optional test reporting module
+   - Add security check for kmalloc and memcpy operations
+   - Remove redundant power management operations
+   - Use low level trigger for attention interrupt
+
+v2.3 May 22, 2014 scott.lin@tw.synaptics.com
+   - Add support for retrieving battery state and pen ID information in active pen module
+   - Add support for virtual buttons
+   - Disable all interrupt sources explicitly before entering bootloader mode
+   - Add IRQF_ONESHOT interrupt flag
+   - Add sysfs attribute for specifying and reading test reports in optional test reporting module
+   - Add support for wakeup gestures
+   - Add support for new image file format (0x10 header version)
+   - Add synaptics,irq-on-state device tree property
+   - Keep touch controller awake during RED Remote sessions
+
+v2.2 Feb 19, 2014 scott.lin@tw.synaptics.com
+   - Remove touch_stopped flag to fix no touch issue caused by touching sensor during reset
+   - Add support for gloved finger reporting
+   - Add support for optional debug module
+   - Refactor optional test reporting module
+   - Add sysfs entries in optional test reporting module to show Tx and Rx mappings
+   - Correct report sizes of RT38 and RT40 in optional test reporting module
+   - Handle test reports of more than 4096 bytes in optional test reporting module
+   - Add support for HID over I2C (RMI mode) interface
+   - Add support for Device Tree hardware description
+   - Add support for RMI data logging based on any interrupt source in rmidev module
+   - Use mutex to prevent overlapping of finger reporting and finger freeing in core driver
+
+v2.1 Nov 01, 2013 scott.lin@tw.synaptics.com
+   - Add bus abstraction layer
+   - Add support for SPI
+   - Add support for active pen module
+   - Update proximity module to utilize generic F$12 registers
+   - Add support for updating display configuration in firmware update module
+   - Fix bug in PDT scanning logic to operate for loop correctly on each page
+
+v2.0 Sep 24, 2013 scott.lin@tw.synaptics.com
+   - Update registration interface for expansion modules
+   - Add support for proximity module and optional test reporting module
+   - Add workaround for using F12_2D_Data15
+
+v1.23 Sep 06, 2013 scott.lin@tw.synaptics.com
+   - Add GPIO control for power and reset
+   - Use correct F$01 address when doing soft reset in bootloader mode
+   - Allow handling of F$01 interrupt
+
+v1.22 Jul 16, 2013 scott.lin@tw.synaptics.com
+   - Use list_for_each_entry_safe when deleting entries in linked lists
+   - Jump to config area of image file if given packrat image for doing write UI config
+   - Do reset at end of RMI Dev session
+   - Mask use of F12_2D_Data15 until firmware reports finger lift events properly
+   - Store command in fwu data structure first before issuing command to avoid race condition
+
+v1.21 Jun 20, 2013 scott.lin@tw.synaptics.com
+   - Add support for doing lockdown during re-flash
+   - Wrap #ifdef CONFIG_HAS_EARLYSUSPEND around early_suspend (struct early_suspend)
+   - Re-register number of fingers for TYPE_B_PROTOCOL after doing reset
+
+v1.20 May 13, 2013 scott.lin@tw.synaptics.com
+   - Rescan PDT after device finishes CRC checking and enters UI mode during device query
+   - Add version checking mechanism in re-flash process
+   - Add support for using firmware ID in updated image header format to do version checking
+   - Add option to do firmware update using built-in image at end of initialization
+
+v1.19 Apr 26, 2013 scott.lin@tw.synaptics.com
+   - Add sysfs entry for triggering suspend and resume functions (1 = suspend ; 0 = resume)
+   - Use default setting of No Sleep bit in F01_RMI_CTRL00 when resuming from suspend
+   - Correct placement of workqueue removal in error exit sequence of probe
+
+v1.18 Apr 23, 2013 scott.lin@tw.synaptics.com
+   - Use one-shot mechanism for queuing work to add/remove expansion modules
+
+v1.17 Apr 20, 2013 scott.lin@tw.synaptics.com
+   - Add support to do re-flash based on DS4 (V5 bootloader) firmware
+   - Fix conflicts in completion object names when building driver as one single module
+
+v1.16 Apr 19, 2013 scott.lin@tw.synaptics.com
+   - Clean up init and remove procedures of expansion modules
+   - Allow expansion modules to be built as individual loadable kernel modules
+
+v1.15 Apr 18, 2013 scott.lin@tw.synaptics.com
+   - Move setting of delay time after reset to platform data
+   - Add delay time after powering on device during initialization and resume
+   - Clear storage of current RMI page after powering on device during resume
+   - Add support for swapping of axes
+
+v1.14 Apr 15, 2013 scott.lin@tw.synaptics.com
+   - Move instances of omap_mux_init_signal to appropriate __init section in board file
+   - Add unregistering of early suspend handler upon driver removal
+
+v1.13 Apr 13, 2013 scott.lin@tw.synaptics.com
+   - Set up Tx/Rx electrode mapping of 0D buttons for testing purposes
+
+v1.12 Apr 11, 2013 scott.lin@tw.synaptics.com
+   - Add support for configuring hardware reset GPIO
+   - Add option to ignore init failure of functions such as 0D buttons
+   - Do device reset at beginning of device query PDT scanning
+
+v1.11 Apr 06, 2013 scott.lin@tw.synaptics.com
+   - Remove direct interaction between core driver and expansion modules through rmi4_data
+   - Set up interrupt enable/disable mechanism in rmidev module for sysfs interface usage
+
+v1.10 Apr 02, 2013 scott.lin@tw.synaptics.com
+   - Enable user space to poll attn_state sysfs entry for interrupt triggering of both edges
+
+v1.9 Apr 01, 2013 scott.lin@tw.synaptics.com
+   - Fix bug in clearing interrupt status register during PDT scanning
+
+v1.8 Apr 01, 2013 scott.lin@tw.synaptics.com
+   - Restructure rmidev sysfs interface to reduce time of register access
+   - New rmidev sysfs interface works with reg_access v1.2
+
+v1.7 Mar 31, 2013 scott.lin@tw.synaptics.com
+   - Fix bug in clearing interrupt status register during PDT scanning
+
+v1.6 Mar 29, 2013 scott.lin@tw.synaptics.com
+   - Clear interrupt status register during PDT scanning
+
+v1.5 Mar 29, 2013 scott.lin@tw.synaptics.com
+   - Add handling of BTN_TOUCH and BTN_TOOL_FINGER events upon finger release
+
+v1.4 Mar 21, 2013 scott.lin@tw.synaptics.com
+   - Change file permissions of sysfs entries to allow writing without root privileges
+
+v1.3 Mar 18, 2013 scott.lin@tw.synaptics.com
+   - Use appropriate (BL or UI mode) F01_RMI_CMD00 address when doing reset
+   - Limit write privileges of sysfs entries to user and group classes
+   - Release all fingers when F12_2D_DATA15 reports all zero's
+   - Check device status when scanning F01 PDT to ensure CRC testing in BL mode is done
+
+v1.2 Feb 07, 2013 alexandra.chin@tw.synaptics.com
+   - Add F12_2D_DATA15 support
+
+v1.0 Dec 27, 2012 scott.lin@tw.synaptics.com
+   - 2D touch
+   - 0D buttons
+   - RMI Dev (char device & sysfs)
+   - Firmware update
