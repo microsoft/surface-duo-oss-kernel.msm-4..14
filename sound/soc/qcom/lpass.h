@@ -71,6 +71,9 @@ struct lpass_variant {
 	u32	rdma_reg_base;
 	u32	rdma_reg_stride;
 	u32	rdma_channels;
+	u32	wrdma_reg_base;
+	u32	wrdma_reg_stride;
+	u32	wrdma_channels;
 
 	/**
 	 * on SOCs like APQ8016 the channel control bits start
