@@ -80,6 +80,7 @@ struct lpass_variant {
 	 * at different offset to ipq806x
 	 **/
 	u32	dmactl_audif_start;
+	u32	wrdma_channel_start;
 	/* SOC specific intialization like clocks */
 	int (*init)(struct platform_device *pdev);
 	int (*exit)(struct platform_device *pdev);
