@@ -64,7 +64,6 @@ static void __init sac58r_init_machine(void)
 {
 	of_platform_populate(NULL, of_default_bus_match_table, NULL, NULL);
 	mxc_set_cpu_type(MXC_CPU_SAC58R);
-	mxc_arch_reset_init_dt();
 }
 
 static void __init sac58r_init_time(void)
