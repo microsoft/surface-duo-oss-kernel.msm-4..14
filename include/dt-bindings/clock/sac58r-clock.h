@@ -222,6 +222,7 @@
 #define SAC58R_CLK_SWT1				207
 #define SAC58R_CLK_SWT2				208
 #define SAC58R_CLK_SNVS_WDOG		209
+#define SAC58R_CLK_GPIO				210
 
-#define SAC58R_CLK_END				210
+#define SAC58R_CLK_END				211
 #endif /* __DT_BINDINGS_CLOCK_SAC58R_H */
