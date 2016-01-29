@@ -395,6 +395,7 @@ struct hc_driver {
 	int	(*find_raw_port_number)(struct usb_hcd *, int);
 	/* Call for power on/off the port if necessary */
 	int	(*port_power)(struct usb_hcd *hcd, int portnum, bool enable);
+	void	(*change_bus_speed)(struct usb_hcd*, int);
 
 };
 
