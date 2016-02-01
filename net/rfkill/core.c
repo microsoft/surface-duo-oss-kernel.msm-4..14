@@ -57,6 +57,8 @@ struct rfkill {
 
 	bool			registered;
 	bool			persistent;
+	bool			polling_paused;
+	bool			suspended;
 
 	const struct rfkill_ops	*ops;
 	void			*data;
@@ -233,29 +235,6 @@ static void rfkill_event(struct rfkill *rfkill)
 	rfkill_send_events(rfkill, RFKILL_OP_CHANGE);
 }
 
-static bool __rfkill_set_hw_state(struct rfkill *rfkill,
-				  bool blocked, bool *change)
-{
-	unsigned long flags;
-	bool prev, any;
-
-	BUG_ON(!rfkill);
-
-	spin_lock_irqsave(&rfkill->lock, flags);
-	prev = !!(rfkill->state & RFKILL_BLOCK_HW);
-	if (blocked)
-		rfkill->state |= RFKILL_BLOCK_HW;
-	else
-		rfkill->state &= ~RFKILL_BLOCK_HW;
-	*change = prev != blocked;
-	any = !!(rfkill->state & RFKILL_BLOCK_ANY);
-	spin_unlock_irqrestore(&rfkill->lock, flags);
-
-	rfkill_led_trigger_event(rfkill);
-
-	return any;
-}
-
 /**
  * rfkill_set_block - wrapper for set_block method
  *
@@ -285,7 +264,7 @@ static void rfkill_set_block(struct rfkill *rfkill, bool blocked)
 	spin_lock_irqsave(&rfkill->lock, flags);
 	prev = rfkill->state & RFKILL_BLOCK_SW;
 
-	if (rfkill->state & RFKILL_BLOCK_SW)
+	if (prev)
 		rfkill->state |= RFKILL_BLOCK_SW_PREV;
 	else
 		rfkill->state &= ~RFKILL_BLOCK_SW_PREV;
@@ -332,8 +311,7 @@ static atomic_t rfkill_input_disabled = ATOMIC_INIT(0);
  * @blocked: the new state
  *
  * This function sets the state of all switches of given type,
- * unless a specific switch is claimed by userspace (in which case,
- * that switch is left alone) or suspended.
+ * unless a specific switch is suspended.
  *
  * Caller must have acquired rfkill_global_mutex.
  */
@@ -480,14 +458,26 @@ bool rfkill_get_global_sw_state(const enum rfkill_type type)
 
 bool rfkill_set_hw_state(struct rfkill *rfkill, bool blocked)
 {
-	bool ret, change;
+	unsigned long flags;
+	bool ret, prev;
 
-	ret = __rfkill_set_hw_state(rfkill, blocked, &change);
+	BUG_ON(!rfkill);
+
+	spin_lock_irqsave(&rfkill->lock, flags);
+	prev = !!(rfkill->state & RFKILL_BLOCK_HW);
+	if (blocked)
+		rfkill->state |= RFKILL_BLOCK_HW;
+	else
+		rfkill->state &= ~RFKILL_BLOCK_HW;
+	ret = !!(rfkill->state & RFKILL_BLOCK_ANY);
+	spin_unlock_irqrestore(&rfkill->lock, flags);
+
+	rfkill_led_trigger_event(rfkill);
 
 	if (!rfkill->registered)
 		return ret;
 
-	if (change)
+	if (prev != blocked)
 		schedule_work(&rfkill->uevent_work);
 
 	return ret;
@@ -730,20 +720,12 @@ static ssize_t state_store(struct device *dev, struct device_attribute *attr,
 }
 static DEVICE_ATTR_RW(state);
 
-static ssize_t claim_show(struct device *dev, struct device_attribute *attr,
-			  char *buf)
-{
-	return sprintf(buf, "%d\n", 0);
-}
-static DEVICE_ATTR_RO(claim);
-
 static struct attribute *rfkill_dev_attrs[] = {
 	&dev_attr_name.attr,
 	&dev_attr_type.attr,
 	&dev_attr_index.attr,
 	&dev_attr_persistent.attr,
 	&dev_attr_state.attr,
-	&dev_attr_claim.attr,
 	&dev_attr_soft.attr,
 	&dev_attr_hard.attr,
 	NULL,
@@ -786,6 +768,7 @@ void rfkill_pause_polling(struct rfkill *rfkill)
 	if (!rfkill->ops->poll)
 		return;
 
+	rfkill->polling_paused = true;
 	cancel_delayed_work_sync(&rfkill->poll_work);
 }
 EXPORT_SYMBOL(rfkill_pause_polling);
@@ -795,6 +778,11 @@ void rfkill_resume_polling(struct rfkill *rfkill)
 	BUG_ON(!rfkill);
 
 	if (!rfkill->ops->poll)
+		return;
+
+	rfkill->polling_paused = false;
+
+	if (rfkill->suspended)
 		return;
 
 	queue_delayed_work(system_power_efficient_wq,
@@ -807,7 +795,8 @@ static int rfkill_suspend(struct device *dev)
 {
 	struct rfkill *rfkill = to_rfkill(dev);
 
-	rfkill_pause_polling(rfkill);
+	rfkill->suspended = true;
+	cancel_delayed_work_sync(&rfkill->poll_work);
 
 	return 0;
 }
@@ -817,12 +806,16 @@ static int rfkill_resume(struct device *dev)
 	struct rfkill *rfkill = to_rfkill(dev);
 	bool cur;
 
+	rfkill->suspended = false;
+
 	if (!rfkill->persistent) {
 		cur = !!(rfkill->state & RFKILL_BLOCK_SW);
 		rfkill_set_block(rfkill, cur);
 	}
 
-	rfkill_resume_polling(rfkill);
+	if (rfkill->ops->poll && !rfkill->polling_paused)
+		queue_delayed_work(system_power_efficient_wq,
+				   &rfkill->poll_work, 0);
 
 	return 0;
 }
