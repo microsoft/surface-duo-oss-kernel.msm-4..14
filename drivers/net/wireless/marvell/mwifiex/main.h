@@ -198,6 +198,11 @@ do {								\
 			       buf, len, false);		\
 } while (0)
 
+/** Min BGSCAN interval 15 second */
+#define MWIFIEX_BGSCAN_INTERVAL 15000
+/** default repeat count */
+#define MWIFIEX_BGSCAN_REPEAT_COUNT 6
+
 struct mwifiex_dbg {
 	u32 num_cmd_host_to_card_failure;
 	u32 num_cmd_sleep_cfm_host_to_card_failure;
@@ -616,6 +621,7 @@ struct mwifiex_private {
 	spinlock_t curr_bcn_buf_lock;
 	struct wireless_dev wdev;
 	struct mwifiex_chan_freq_power cfp;
+	u32 versionstrsel;
 	char version_str[128];
 #ifdef CONFIG_DEBUG_FS
 	struct dentry *dfs_dev_dir;
@@ -640,6 +646,7 @@ struct mwifiex_private {
 	u32 mgmt_frame_mask;
 	struct mwifiex_roc_cfg roc_cfg;
 	bool scan_aborting;
+	u8 sched_scanning;
 	u8 csa_chan;
 	unsigned long csa_expire_time;
 	u8 del_list_idx;
@@ -791,6 +798,7 @@ struct mwifiex_if_ops {
 	int (*init_if) (struct mwifiex_adapter *);
 	void (*cleanup_if) (struct mwifiex_adapter *);
 	int (*check_fw_status) (struct mwifiex_adapter *, u32);
+	int (*check_winner_status)(struct mwifiex_adapter *);
 	int (*prog_fw) (struct mwifiex_adapter *, struct mwifiex_fw_image *);
 	int (*register_dev) (struct mwifiex_adapter *);
 	void (*unregister_dev) (struct mwifiex_adapter *);
@@ -994,6 +1002,7 @@ struct mwifiex_adapter {
 	u8 active_scan_triggered;
 	bool usb_mc_status;
 	bool usb_mc_setup;
+	struct cfg80211_wowlan_nd_info *nd_info;
 };
 
 void mwifiex_process_tx_queue(struct mwifiex_adapter *adapter);
@@ -1196,6 +1205,10 @@ int mwifiex_ret_802_11_scan_ext(struct mwifiex_private *priv,
 				struct host_cmd_ds_command *resp);
 int mwifiex_handle_event_ext_scan_report(struct mwifiex_private *priv,
 					 void *buf);
+int mwifiex_cmd_802_11_bg_scan_config(struct mwifiex_private *priv,
+				      struct host_cmd_ds_command *cmd,
+				      void *data_buf);
+int mwifiex_stop_bg_scan(struct mwifiex_private *priv);
 
 /*
  * This function checks if the queuing is RA based or not.
@@ -1417,7 +1430,7 @@ int mwifiex_set_encode(struct mwifiex_private *priv, struct key_params *kp,
 
 int mwifiex_set_gen_ie(struct mwifiex_private *priv, const u8 *ie, int ie_len);
 
-int mwifiex_get_ver_ext(struct mwifiex_private *priv);
+int mwifiex_get_ver_ext(struct mwifiex_private *priv, u32 version_str_sel);
 
 int mwifiex_remain_on_chan_cfg(struct mwifiex_private *priv, u16 action,
 			       struct ieee80211_channel *chan,
@@ -1586,6 +1599,12 @@ void mwifiex_drv_info_dump(struct mwifiex_adapter *adapter);
 void mwifiex_upload_device_dump(struct mwifiex_adapter *adapter);
 void *mwifiex_alloc_dma_align_buf(int rx_len, gfp_t flags);
 void mwifiex_queue_main_work(struct mwifiex_adapter *adapter);
+int mwifiex_get_wakeup_reason(struct mwifiex_private *priv, u16 action,
+			      int cmd_type,
+			      struct mwifiex_ds_wakeup_reason *wakeup_reason);
+int mwifiex_ret_wakeup_reason(struct mwifiex_private *priv,
+			      struct host_cmd_ds_command *resp,
+			      struct host_cmd_ds_wakeup_reason *wakeup_reason);
 void mwifiex_coex_ampdu_rxwinsize(struct mwifiex_adapter *adapter);
 void mwifiex_11n_delba(struct mwifiex_private *priv, int tid);
 int mwifiex_send_domain_info_cmd_fw(struct wiphy *wiphy);
