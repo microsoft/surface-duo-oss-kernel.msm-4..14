@@ -18,6 +18,8 @@
 #include <linux/clk.h>
 #include <linux/component.h>
 #include <linux/of_graph.h>
+#include <linux/iopoll.h>
+#include <video/mipi_display.h>
 
 #include <drm/drm_of.h>
 #include <drm/drm_crtc_helper.h>
@@ -680,9 +682,114 @@ static int dsi_host_detach(struct mipi_dsi_host *host,
 	return 0;
 }
 
+static int dsi_gen_pkt_hdr_write(void __iomem *base, u32 val)
+{
+	u32 status;
+	int ret;
+
+	ret = readx_poll_timeout(readl, base + CMD_PKT_STATUS, status,
+				 !(status & GEN_CMD_FULL), 1000,
+				 CMD_PKT_STATUS_TIMEOUT_US);
+	if (ret < 0) {
+		DRM_ERROR("failed to get available command FIFO\n");
+		return ret;
+	}
+
+	writel(val, base + GEN_HDR);
+
+	ret = readx_poll_timeout(readl, base + CMD_PKT_STATUS, status,
+				 status & (GEN_CMD_EMPTY | GEN_PLD_W_EMPTY),
+				 1000, CMD_PKT_STATUS_TIMEOUT_US);
+	if (ret < 0) {
+		DRM_ERROR("failed to write command FIFO\n");
+		return ret;
+	}
+
+	return 0;
+}
+
+static int dsi_dcs_short_write(void __iomem *base,
+			       const struct mipi_dsi_msg *msg)
+{
+	const u16 *tx_buf = msg->tx_buf;
+	u32 val = GEN_HDATA(*tx_buf) | GEN_HTYPE(msg->type);
+
+	if (msg->tx_len > 2) {
+		DRM_ERROR("too long tx buf length %zu for short write\n",
+			  msg->tx_len);
+		return -EINVAL;
+	}
+
+	return dsi_gen_pkt_hdr_write(base, val);
+}
+
+static int dsi_dcs_long_write(void __iomem *base,
+			      const struct mipi_dsi_msg *msg)
+{
+	const u32 *tx_buf = msg->tx_buf;
+	int len = msg->tx_len, pld_data_bytes = sizeof(*tx_buf), ret;
+	u32 val = GEN_HDATA(msg->tx_len) | GEN_HTYPE(msg->type);
+	u32 remainder = 0;
+	u32 status;
+
+	if (msg->tx_len < 3) {
+		DRM_ERROR("wrong tx buf length %zu for long write\n",
+			  msg->tx_len);
+		return -EINVAL;
+	}
+
+	while (DIV_ROUND_UP(len, pld_data_bytes)) {
+		if (len < pld_data_bytes) {
+			memcpy(&remainder, tx_buf, len);
+			writel(remainder, base + GEN_PLD_DATA);
+			len = 0;
+		} else {
+			writel(*tx_buf, base + GEN_PLD_DATA);
+			tx_buf++;
+			len -= pld_data_bytes;
+		}
+
+		ret = readx_poll_timeout(readl, base + CMD_PKT_STATUS,
+					 status, !(status & GEN_PLD_W_FULL), 1000,
+					 CMD_PKT_STATUS_TIMEOUT_US);
+		if (ret < 0) {
+			DRM_ERROR("failed to get available write payload FIFO\n");
+			return ret;
+		}
+	}
+
+	return dsi_gen_pkt_hdr_write(base, val);
+}
+
+static ssize_t dsi_host_transfer(struct mipi_dsi_host *host,
+				    const struct mipi_dsi_msg *msg)
+{
+	struct dw_dsi *dsi = host_to_dsi(host);
+	struct dsi_hw_ctx *ctx = dsi->ctx;
+	void __iomem *base = ctx->base;
+	int ret;
+
+	switch (msg->type) {
+	case MIPI_DSI_DCS_SHORT_WRITE:
+	case MIPI_DSI_DCS_SHORT_WRITE_PARAM:
+	case MIPI_DSI_SET_MAXIMUM_RETURN_PACKET_SIZE:
+		ret = dsi_dcs_short_write(base, msg);
+		break;
+	case MIPI_DSI_DCS_LONG_WRITE:
+		ret = dsi_dcs_long_write(base, msg);
+		break;
+	default:
+		DRM_ERROR("unsupported message type\n");
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
 static const struct mipi_dsi_host_ops dsi_host_ops = {
 	.attach = dsi_host_attach,
 	.detach = dsi_host_detach,
+	.transfer = dsi_host_transfer,
 };
 
 static int dsi_host_init(struct device *dev, struct dw_dsi *dsi)
