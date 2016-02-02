@@ -142,6 +142,7 @@ struct spi_qup {
 
 	struct spi_transfer	*xfer;
 	struct completion	done;
+	struct completion	dma_tx_done;
 	int			error;
 	int			w_size;	/* bytes per SPI word */
 	int			n_words;
@@ -276,16 +277,16 @@ static void spi_qup_fifo_write(struct spi_qup *controller,
 
 static void spi_qup_dma_done(void *data)
 {
-	struct spi_qup *qup = data;
+	struct completion *done = data;
 
-	complete(&qup->done);
+	complete(done);
 }
 
 static int spi_qup_prep_sg(struct spi_master *master, struct spi_transfer *xfer,
 			   enum dma_transfer_direction dir,
-			   dma_async_tx_callback callback)
+			   dma_async_tx_callback callback,
+			   void *data)
 {
-	struct spi_qup *qup = spi_master_get_devdata(master);
 	unsigned long flags = DMA_PREP_INTERRUPT | DMA_PREP_FENCE;
 	struct dma_async_tx_descriptor *desc;
 	struct scatterlist *sgl;
@@ -308,7 +309,7 @@ static int spi_qup_prep_sg(struct spi_master *master, struct spi_transfer *xfer,
 		return -EINVAL;
 
 	desc->callback = callback;
-	desc->callback_param = qup;
+	desc->callback_param = data;
 
 	cookie = dmaengine_submit(desc);
 
@@ -324,18 +325,29 @@ static void spi_qup_dma_terminate(struct spi_master *master,
 		dmaengine_terminate_all(master->dma_rx);
 }
 
-static int spi_qup_do_dma(struct spi_master *master, struct spi_transfer *xfer)
+static int spi_qup_do_dma(struct spi_master *master, struct spi_transfer *xfer,
+unsigned long timeout)
 {
+	struct spi_qup *qup = spi_master_get_devdata(master);
 	dma_async_tx_callback rx_done = NULL, tx_done = NULL;
 	int ret;
 
+	/* before issuing the descriptors, set the QUP to run */
+	ret = spi_qup_set_state(qup, QUP_STATE_RUN);
+	if (ret) {
+		dev_warn(qup->dev, "cannot set RUN state\n");
+		return ret;
+	}
+
 	if (xfer->rx_buf)
 		rx_done = spi_qup_dma_done;
-	else if (xfer->tx_buf)
+
+	if (xfer->tx_buf)
 		tx_done = spi_qup_dma_done;
 
 	if (xfer->rx_buf) {
-		ret = spi_qup_prep_sg(master, xfer, DMA_DEV_TO_MEM, rx_done);
+		ret = spi_qup_prep_sg(master, xfer, DMA_DEV_TO_MEM, rx_done,
+				      &qup->done);
 		if (ret)
 			return ret;
 
@@ -343,17 +355,25 @@ static int spi_qup_do_dma(struct spi_master *master, struct spi_transfer *xfer)
 	}
 
 	if (xfer->tx_buf) {
-		ret = spi_qup_prep_sg(master, xfer, DMA_MEM_TO_DEV, tx_done);
+		ret = spi_qup_prep_sg(master, xfer, DMA_MEM_TO_DEV, tx_done,
+				      &qup->dma_tx_done);
 		if (ret)
 			return ret;
 
 		dma_async_issue_pending(master->dma_tx);
 	}
 
-	return 0;
+	if (xfer->rx_buf && !wait_for_completion_timeout(&qup->done, timeout))
+		return -ETIMEDOUT;
+
+	if (xfer->tx_buf && !wait_for_completion_timeout(&qup->dma_tx_done, timeout))
+		ret = -ETIMEDOUT;
+
+	return ret;
 }
 
-static int spi_qup_do_pio(struct spi_master *master, struct spi_transfer *xfer)
+static int spi_qup_do_pio(struct spi_master *master, struct spi_transfer *xfer,
+			  unsigned long timeout)
 {
 	struct spi_qup *qup = spi_master_get_devdata(master);
 	int ret;
@@ -371,6 +391,15 @@ static int spi_qup_do_pio(struct spi_master *master, struct spi_transfer *xfer)
 	}
 
 	spi_qup_fifo_write(qup, xfer);
+
+	ret = spi_qup_set_state(qup, QUP_STATE_RUN);
+	if (ret) {
+		dev_warn(qup->dev, "cannot set RUN state\n");
+		return ret;
+	}
+
+	if (!wait_for_completion_timeout(&qup->done, timeout))
+		return -ETIMEDOUT;
 
 	return 0;
 }
@@ -420,7 +449,6 @@ static irqreturn_t spi_qup_qup_irq(int irq, void *dev_id)
 			dev_warn(controller->dev, "CLK_OVER_RUN\n");
 		if (spi_err & SPI_ERROR_CLK_UNDER_RUN)
 			dev_warn(controller->dev, "CLK_UNDER_RUN\n");
-
 		error = -EIO;
 	}
 
@@ -626,6 +654,7 @@ static int spi_qup_transfer_one(struct spi_master *master,
 	timeout = 100 * msecs_to_jiffies(timeout);
 
 	reinit_completion(&controller->done);
+	reinit_completion(&controller->dma_tx_done);
 
 	spin_lock_irqsave(&controller->lock, flags);
 	controller->xfer     = xfer;
@@ -635,20 +664,12 @@ static int spi_qup_transfer_one(struct spi_master *master,
 	spin_unlock_irqrestore(&controller->lock, flags);
 
 	if (controller->use_dma)
-		ret = spi_qup_do_dma(master, xfer);
+		ret = spi_qup_do_dma(master, xfer, timeout);
 	else
-		ret = spi_qup_do_pio(master, xfer);
+		ret = spi_qup_do_pio(master, xfer, timeout);
 
 	if (ret)
 		goto exit;
-
-	if (spi_qup_set_state(controller, QUP_STATE_RUN)) {
-		dev_warn(controller->dev, "cannot set EXECUTE state\n");
-		goto exit;
-	}
-
-	if (!wait_for_completion_timeout(&controller->done, timeout))
-		ret = -ETIMEDOUT;
 
 exit:
 	spi_qup_set_state(controller, QUP_STATE_RESET);
@@ -673,15 +694,23 @@ static bool spi_qup_can_dma(struct spi_master *master, struct spi_device *spi,
 
 	qup->use_dma = 0;
 
-	if (xfer->rx_buf && (xfer->len % qup->in_blk_sz ||
-	    IS_ERR_OR_NULL(master->dma_rx) ||
-	    !IS_ALIGNED((size_t)xfer->rx_buf, dma_align)))
-		return false;
+	if (xfer->rx_buf) {
+		if (!IS_ALIGNED((size_t)xfer->rx_buf, dma_align) ||
+		    IS_ERR_OR_NULL(master->dma_rx))
+			return false;
 
-	if (xfer->tx_buf && (xfer->len % qup->out_blk_sz ||
-	    IS_ERR_OR_NULL(master->dma_tx) ||
-	    !IS_ALIGNED((size_t)xfer->tx_buf, dma_align)))
-		return false;
+		if (qup->qup_v1 && (xfer->len % qup->in_blk_sz))
+			return false;
+	}
+
+	if (xfer->tx_buf) {
+		if (!IS_ALIGNED((size_t)xfer->tx_buf, dma_align) ||
+		    IS_ERR_OR_NULL(master->dma_tx))
+			return false;
+
+		if (qup->qup_v1 && (xfer->len % qup->out_blk_sz))
+			return false;
+	}
 
 	mode = spi_qup_get_mode(master, xfer);
 	if (mode == QUP_IO_M_MODE_FIFO)
@@ -849,6 +878,7 @@ static int spi_qup_probe(struct platform_device *pdev)
 
 	spin_lock_init(&controller->lock);
 	init_completion(&controller->done);
+	init_completion(&controller->dma_tx_done);
 
 	iomode = readl_relaxed(base + QUP_IO_M_MODES);
 
