@@ -217,6 +217,7 @@ static const char *const ath10k_core_fw_feature_str[] = {
 	[ATH10K_FW_FEATURE_RAW_MODE_SUPPORT] = "raw-mode",
 	[ATH10K_FW_FEATURE_SUPPORTS_ADAPTIVE_CCA] = "adaptive-cca",
 	[ATH10K_FW_FEATURE_MFP_SUPPORT] = "mfp",
+	[ATH10K_FW_FEATURE_PEER_FLOW_CONTROL] = "peer-flow-ctrl",
 };
 
 static unsigned int ath10k_core_get_fw_feature_str(char *buf,
@@ -1978,6 +1979,10 @@ struct ath10k *ath10k_core_create(size_t priv_size, struct device *dev,
 	case ATH10K_HW_QCA99X0:
 		ar->regs = &qca99x0_regs;
 		ar->hw_values = &qca99x0_values;
+		break;
+	case ATH10K_HW_QCA4019:
+		ar->regs = &qca4019_regs;
+		ar->hw_values = &qca4019_values;
 		break;
 	default:
 		ath10k_err(ar, "unsupported core hardware revision %d\n",

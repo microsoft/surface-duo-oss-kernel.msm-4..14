@@ -2123,10 +2123,12 @@ void ath10k_htt_t2h_msg_handler(struct ath10k *ar, struct sk_buff *skb)
 		break;
 	case HTT_T2H_MSG_TYPE_AGGR_CONF:
 		break;
-	case HTT_T2H_MSG_TYPE_EN_STATS:
 	case HTT_T2H_MSG_TYPE_TX_FETCH_IND:
-	case HTT_T2H_MSG_TYPE_TX_FETCH_CONF:
-	case HTT_T2H_MSG_TYPE_TX_LOW_LATENCY_IND:
+	case HTT_T2H_MSG_TYPE_TX_FETCH_CONFIRM:
+	case HTT_T2H_MSG_TYPE_TX_MODE_SWITCH_IND:
+		/* TODO: Implement pull-push logic */
+		break;
+	case HTT_T2H_MSG_TYPE_EN_STATS:
 	default:
 		ath10k_warn(ar, "htt event (%d) not handled\n",
 			    resp->hdr.msg_type);
@@ -2156,10 +2158,18 @@ static void ath10k_htt_txrx_compl_task(unsigned long ptr)
 {
 	struct ath10k_htt *htt = (struct ath10k_htt *)ptr;
 	struct ath10k *ar = htt->ar;
+	struct sk_buff_head tx_q;
 	struct htt_resp *resp;
 	struct sk_buff *skb;
+	unsigned long flags;
 
-	while ((skb = skb_dequeue(&htt->tx_compl_q))) {
+	__skb_queue_head_init(&tx_q);
+
+	spin_lock_irqsave(&htt->tx_compl_q.lock, flags);
+	skb_queue_splice_init(&htt->tx_compl_q, &tx_q);
+	spin_unlock_irqrestore(&htt->tx_compl_q.lock, flags);
+
+	while ((skb = __skb_dequeue(&tx_q))) {
 		ath10k_htt_rx_frm_tx_compl(htt->ar, skb);
 		dev_kfree_skb_any(skb);
 	}
