@@ -320,6 +320,14 @@
 			clock-names = "timer1", "timer2", "apb_pclk";
 		};
 
+		rtc0: rtc@170000 {
+			compatible = "arm,pl031", "arm,primecell";
+			reg = <0x0 0xf8003000 0x0 0x1000>;
+			interrupts = <0 12 4>;
+			clocks = <&ao_ctrl HI6220_RTC0_PCLK>;
+			clock-names = "apb_pclk";
+		};
+
 		pmx0: pinmux@f7010000 {
 			compatible = "pinctrl-single";
 			reg = <0x0 0xf7010000  0x0 0x27c>;
