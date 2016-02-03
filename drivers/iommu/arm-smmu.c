@@ -362,6 +362,7 @@ struct arm_smmu_device {
 
 	u32				num_mapping_groups;
 	DECLARE_BITMAP(smr_map, ARM_SMMU_MAX_SMRS);
+	struct iommu_group		**group_lut;
 
 	unsigned long			va_size;
 	unsigned long			ipa_size;
@@ -1339,11 +1340,6 @@ static int arm_smmu_add_device(struct device *dev)
 			return ret;
 	}
 
-	/*
-	 * For now, assume that the default group allocators suffice.
-	 * We might have to do some preparatory work here to properly
-	 * handle multiple devices sharing stream IDs.
-	 */
 	group = iommu_group_get_for_dev(dev);
 	if (IS_ERR(group))
 		return PTR_ERR(group);
@@ -1364,6 +1360,45 @@ static void __arm_smmu_release_iommudata(void *data)
 	kfree(data);
 }
 
+static struct iommu_group *arm_smmu_group_lookup(struct device *dev)
+{
+	struct arm_smmu_master_cfg *cfg = dev->archdata.iommu;
+	struct arm_smmu_device *smmu = cfg->smmu;
+	struct iommu_group **lut = smmu->group_lut;
+	struct iommu_group *group = NULL;
+	int i;
+
+	if (!lut) {
+		/*
+		 * Unfortunately this has to be sized for the worst-case until
+		 * we get even cleverer with stream ID management.
+		 */
+		lut = devm_kcalloc(smmu->dev, SMR_ID_MASK + 1,
+				   sizeof(*lut), GFP_KERNEL);
+		if (lut)
+			smmu->group_lut = lut;
+		else
+			group = ERR_PTR(-ENOMEM);
+	} else {
+		/* Check for platform or cross-bus aliases */
+		for (i = 0; i < cfg->num_streamids; i++) {
+			struct iommu_group *tmp = lut[cfg->streamids[i].id];
+
+			if (!tmp)
+				continue;
+
+			if (group && tmp != group) {
+				dev_err(smmu->dev,
+					"Cannot handle master %s aliasing multiple groups\n",
+					dev_name(dev));
+				return ERR_PTR(-EBUSY);
+			}
+			group = tmp;
+		}
+	}
+	return group;
+}
+
 static inline bool __streamid_match_sme(struct arm_smmu_streamid *sid,
 					struct arm_smmu_stream_map_entry *sme)
 {
@@ -1373,22 +1408,24 @@ static inline bool __streamid_match_sme(struct arm_smmu_streamid *sid,
 
 static struct iommu_group *arm_smmu_device_group(struct device *dev)
 {
-	struct arm_smmu_master_cfg *master_cfg;
+	struct arm_smmu_master_cfg *master_cfg = dev->archdata.iommu;
 	struct arm_smmu_group_cfg *group_cfg;
 	struct arm_smmu_streamid *sids;
 	struct arm_smmu_stream_map_entry *smes;
 	struct iommu_group *group;
 	int i, j;
 
-	if (dev_is_pci(dev))
-		group = pci_device_group(dev);
-	else
-		group = generic_device_group(dev);
+	group = arm_smmu_group_lookup(dev);
+	if (!group) {
+		if (dev_is_pci(dev))
+			group = pci_device_group(dev);
+		else
+			group = generic_device_group(dev);
+	}
 
 	if (IS_ERR(group))
 		return group;
 
-	master_cfg = dev->archdata.iommu;
 	group_cfg = iommu_group_get_iommudata(group);
 	if (!group_cfg) {
 		group_cfg = kzalloc(sizeof(*group_cfg), GFP_KERNEL);
@@ -1403,6 +1440,8 @@ static struct iommu_group *arm_smmu_device_group(struct device *dev)
 	sids = master_cfg->streamids;
 	smes = group_cfg->smes;
 	for (i = 0; i < master_cfg->num_streamids; i++) {
+		master_cfg->smmu->group_lut[sids[i].id] = group;
+
 		for (j = 0; j < group_cfg->num_smes; j++) {
 			if (__streamid_match_sme(&sids[i], &smes[j])) {
 				sids[i].s2cr_idx = STREAM_MULTIPLE;
@@ -1917,14 +1956,14 @@ static int arm_smmu_probe_mmu_masters(struct arm_smmu_device *smmu)
 	if (!masterspec)
 		return -ENOMEM;
 
-	of_for_each_phandle(&it, err, dev->of_node,
+	of_for_each_phandle(&it, err, smmu->dev->of_node,
 			"mmu-masters", "#stream-id-cells", 0) {
 		int count = of_phandle_iterator_args(&it, masterspec->args,
 						     MAX_MASTER_STREAMIDS);
 		masterspec->np = of_node_get(it.node);
 		masterspec->args_count  = count;
 
-		err = register_smmu_master(smmu, dev, masterspec);
+		err = register_smmu_master(smmu, masterspec);
 
 		if (err) {
 			dev_err(smmu->dev, "failed to register mmu-masters\n");
