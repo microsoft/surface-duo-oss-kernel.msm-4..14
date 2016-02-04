@@ -33,7 +33,6 @@ struct hi655x_regulator {
 	struct regulator_desc rdesc;
 };
 
-/* LDO7 & LDO10 */
 static const unsigned int ldo7_voltages[] = {
 	1800000, 1850000, 2850000, 2900000,
 	3000000, 3100000, 3200000, 3300000,
@@ -129,7 +128,7 @@ static struct regulator_ops hi655x_ldo_linear_ops = {
 		.vsel_reg        = HI655X_BUS_ADDR(vreg),        \
 		.vsel_mask       = vmask,                        \
 		.enable_reg      = HI655X_BUS_ADDR(ereg),        \
-		.enable_mask     = cmask,                        \
+		.enable_mask     = BIT(cmask),                   \
 	},                                                       \
 	.disable_reg = HI655X_BUS_ADDR(dreg),                    \
 	.status_reg = HI655X_BUS_ADDR(sreg),                     \
@@ -149,11 +148,10 @@ static struct regulator_ops hi655x_ldo_linear_ops = {
 		.min_uV          = minv,                         \
 		.n_voltages      = nvolt,                        \
 		.uV_step         = vstep,                        \
-		.uV_step         = vstep,                        \
 		.vsel_reg        = HI655X_BUS_ADDR(vreg),        \
 		.vsel_mask       = vmask,                        \
 		.enable_reg      = HI655X_BUS_ADDR(ereg),        \
-		.enable_mask     = cmask,                        \
+		.enable_mask     = BIT(cmask),                   \
 	},                                                       \
 	.disable_reg = HI655X_BUS_ADDR(dreg),                    \
 	.status_reg = HI655X_BUS_ADDR(sreg),                     \
