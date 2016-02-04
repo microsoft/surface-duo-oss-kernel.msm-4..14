@@ -470,6 +470,9 @@ struct ufs_hba {
 
 	unsigned int quirks;	/* Deviations from standard UFSHCI spec. */
 
+	/* Device deviations from standard UFS device spec. */
+	unsigned int dev_quirks;
+
 	wait_queue_head_t tm_wq;
 	wait_queue_head_t tm_tag_wq;
 	unsigned long tm_condition;
@@ -677,6 +680,13 @@ static inline int ufshcd_dme_peer_get(struct ufs_hba *hba,
 {
 	return ufshcd_dme_get_attr(hba, attr_sel, mib_val, DME_PEER);
 }
+
+int ufshcd_read_device_desc(struct ufs_hba *hba, u8 *buf, u32 size);
+
+#define ASCII_STD true
+
+int ufshcd_read_string_desc(struct ufs_hba *hba, int desc_index, u8 *buf,
+				u32 size, bool ascii);
 
 /* Expose Query-Request API */
 int ufshcd_query_flag(struct ufs_hba *hba, enum query_opcode opcode,
