@@ -221,9 +221,10 @@
 		wcd_codec: codec@f000 {
 			compatible = "qcom,apq8016-wcd-codec";
 			reg = <0xf000 0x200>;
-			#sound-dai-cells = <0>;
+			#sound-dai-cells = <1>;
 			vddio-supply = <&pm8916_l5>;
 			vdd-pa-supply = <&pm8916_s4>;
+			vdd-mic-bias-supply = <&pm8916_l13>;
 		};
 	};
 };
