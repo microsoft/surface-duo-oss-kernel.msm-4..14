@@ -52,10 +52,10 @@ static int pool_page_fillmark = CONFIG_ION_COMPOUND_PAGE_FILLMARK;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 static const gfp_t gfp_flags = (GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN |
-		__GFP_NORETRY | __GFP_COMP) & ~__GFP_WAIT;
+		__GFP_NORETRY | __GFP_COMP);
 #else
 static const gfp_t gfp_flags = (GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN |
-		__GFP_NORETRY | __GFP_COMP) & ~__GFP_RECLAIM;
+		__GFP_NORETRY | __GFP_COMP);
 #endif
 
 #ifdef CPP_STATS
