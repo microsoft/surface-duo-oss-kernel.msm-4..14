@@ -373,7 +373,7 @@
 		pinctrl-names = "default","sleep";
 		pinctrl-0 = <&adv7533_int_active &adv7533_switch_active>;
 		pinctrl-1 = <&adv7533_int_suspend &adv7533_switch_suspend>;
-		#sound-dai-cells = <0>;
+		#sound-dai-cells = <1>;
 
 		port {
 			adv_in: endpoint {
@@ -420,21 +420,21 @@
 	*/
 &sound {
 	status = "okay";
-	pinctrl-0 = <&cdc_pdm_lines_act &ext_sec_tlmm_lines_act &ext_mclk_tlmm_lines_act>;
-	pinctrl-1 = <&cdc_pdm_lines_sus &ext_sec_tlmm_lines_sus &ext_mclk_tlmm_lines_sus>;
+	pinctrl-0 = <&cdc_pdm_lines_act &ext_sec_tlmm_lines_act &ext_mclk_tlmm_lines_act &cdc_dmic_lines_act>;
+	pinctrl-1 = <&cdc_pdm_lines_sus &ext_sec_tlmm_lines_sus &ext_mclk_tlmm_lines_sus &cdc_dmic_lines_sus>;
 	pinctrl-names = "default", "sleep";
 	qcom,model = "DB410c";
-
-
-	internal-codec-playback-dai-link@0 {		/* I2S - Internal codec */
-		link-name = "WCD";
-		cpu { /* PRIMARY */
-			sound-dai = <&lpass MI2S_PRIMARY>;
-		};
-		codec {
-			sound-dai = <&wcd_codec 0>;
-		};
-	};
+	qcom,audio-routing =
+		"MIC BIAS External", "Handset Mic",
+		"MIC BIAS Internal2", "Headset Mic",
+		"MIC BIAS External", "Secondary Mic",
+		"AMIC1", "MIC BIAS External",
+		"AMIC2", "MIC BIAS Internal2",
+		"AMIC3", "MIC BIAS External",
+		"DMIC1", "MIC BIAS Internal1",
+		"MIC BIAS Internal1", "Digital Mic1",
+		"DMIC2", "MIC BIAS Internal1",
+		"MIC BIAS Internal1", "Digital Mic2";
 
 	/* External Primary or External Secondary -ADV7533 HDMI */
 	external-dai-link@0 {
@@ -447,6 +447,27 @@
 			sound-dai = <&adv_bridge 0>;
 		};
 	};
+
+	internal-codec-playback-dai-link@0 {		/* I2S - Internal codec */
+		link-name = "WCD";
+		cpu { /* PRIMARY */
+			sound-dai = <&lpass MI2S_PRIMARY>;
+		};
+		codec {
+			sound-dai = <&wcd_codec 0>;
+		};
+	};
+
+	internal-codec-capture-dai-link@0 {		/* I2S - Internal codec */
+		link-name = "WCD-Capture";
+		cpu { /* PRIMARY */
+			sound-dai = <&lpass MI2S_TERTIARY>;
+		};
+		codec {
+			sound-dai = <&wcd_codec 1>;
+		};
+	};
+
 };
 
 /* default regulators required for mezzanine boards */
