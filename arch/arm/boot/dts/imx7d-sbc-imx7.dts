@@ -15,6 +15,20 @@
 / {
 	model = "CompuLab CL-SOM-iMX7 on SB-SOM";
 	compatible = "compulab,sbc-imx7", "compulab,cl-som-imx7", "fsl,imx7d";
+
+	backlight {
+		compatible = "pwm-backlight";
+		pwms = <&pwm2 0 5000000>;
+		brightness-levels = <0 4 8 16 32 64 128 255>;
+		default-brightness-level = <6>;
+		status = "okay";
+	};
+};
+
+&pwm2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_pwm2>;
+	status = "okay";
 };
 
 &usdhc1 {
@@ -37,6 +51,14 @@
 			MX7D_PAD_SD1_DATA3__SD1_DATA3		0x59
 			MX7D_PAD_SD1_CD_B__GPIO5_IO0		0x59 /* CD */
 			MX7D_PAD_SD1_WP__GPIO5_IO1		0x59 /* WP */
+		>;
+	};
+};
+
+&iomuxc_lpsr {
+	pinctrl_pwm2: pwm2grp {
+		fsl,pins = <
+			MX7D_PAD_GPIO1_IO02__PWM2_OUT		0x110b0
 		>;
 	};
 };
