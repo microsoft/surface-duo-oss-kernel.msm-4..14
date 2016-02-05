@@ -4,13 +4,24 @@
 &msmgpio {
 
 	msmgpio_leds: msmgpio_leds {
+		pinmux {
+			function = "gpio";
+			pins = "gpio21", "gpio120";
+		};
 		pinconf {
 			pins = "gpio21", "gpio120";
-			function = "gpio";
+			drive-strength = <16>;
 			output-low;
 		};
+	};
 
-		usb_id_default: usb_id_default {
+	usb_id_default: usb_id_default {
+		pinmux {
+			function = "gpio";
+			pins = "gpio121";
+		};
+
+		pinconf {
 			pins = "gpio121";
 			function = "gpio";
 			drive-strength = <8>;
