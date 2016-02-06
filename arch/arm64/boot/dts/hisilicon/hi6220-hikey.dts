@@ -218,3 +218,11 @@
 		};
 	};
 };
+
+&ade {
+	status = "ok";
+};
+
+&dsi {
+	status = "ok";
+};
