@@ -770,6 +770,9 @@
 		        compatible = "hisilicon,hi6220-dw-mshc";
 		        num-slots = <0x1>;
 			cap-mmc-highspeed;
+			sd-uhs-sdr12;
+			sd-uhs-sdr25;
+			sd-uhs-sdr50;
 			non-removable;
 		        reg = <0x0 0xf723d000 0x0 0x1000>;
 		        interrupts = <0x0 0x48 0x4>;
