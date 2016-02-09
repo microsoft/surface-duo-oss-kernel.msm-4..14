@@ -5,6 +5,7 @@ config QCOM_IOMMU_V1
 	bool "Qualcomm IOMMUv1 Support"
 	depends on ARCH_QCOM
 	select IOMMU_API
+	select QCOM_SCM
 	select ARM_DMA_USE_IOMMU if ARM
 	select ARM64_DMA_USE_IOMMU if ARM64
 	help
