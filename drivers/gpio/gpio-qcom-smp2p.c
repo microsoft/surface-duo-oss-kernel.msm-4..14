@@ -353,7 +353,6 @@ static int qcom_smp2p_outbound_entry(struct qcom_smp2p *smp2p,
 	chip->base = -1;
 	chip->ngpio = 32;
 	chip->label = entry->name;
-	chip->dev = smp2p->dev;
 	chip->owner = THIS_MODULE;
 	chip->of_node = node;
 

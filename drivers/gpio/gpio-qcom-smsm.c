@@ -248,7 +248,6 @@ static int qcom_smsm_probe(struct platform_device *pdev)
 
 		state->chip = smsm_gpio_template;
 		state->chip.base = -1;
-		state->chip.dev = &pdev->dev;
 		state->chip.of_node = node;
 		state->chip.label = node->name;
 		state->chip.ngpio = 8 * sizeof(u32);
