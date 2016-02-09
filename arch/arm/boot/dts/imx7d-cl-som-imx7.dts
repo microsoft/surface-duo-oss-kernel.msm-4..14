@@ -41,6 +41,14 @@
 		regulator-always-on;
 	};
 
+	tsc2046reg: regulator-tsc {
+		compatible = "regulator-fixed";
+		regulator-name = "tsc2046-reg";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-always-on;
+	};
+
 	leds {
 		compatible = "gpio-leds";
 
@@ -54,6 +62,44 @@
 
 &cpu0 {
 	arm-supply = <&sw1a_reg>;
+};
+
+&ecspi1 {
+	fsl,spi-num-chipselects = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_ecspi1 &pinctrl_ecspi1_cs>;
+	cs-gpios = <&gpio4 2 0>;
+	status = "okay";
+
+	/* touch controller */
+	touch:	tsc2046@0 {
+		pinctrl-names = "default";
+		pinctrl-0 = <&pinctrl_tsc2046>;
+
+		compatible = "ti,tsc2046";
+		vcc-supply = <&tsc2046reg>;
+
+		reg = <0>;
+		spi-max-frequency = <1500000>;
+
+		interrupt-parent = <&gpio1>;
+		interrupts = <14 0>;
+		pendown-gpio = <&gpio1 14 0>;
+
+		ti,x-min = /bits/ 16 <0x0>;
+		ti,x-max = /bits/ 16 <0x0fff>;
+		ti,y-min = /bits/ 16 <0x0>;
+		ti,y-max = /bits/ 16 <0x0fff>;
+
+		ti,x-plate-ohms = /bits/ 16 <180>;
+		ti,pressure-max = /bits/ 16 <255>;
+
+		ti,debounce-max = /bits/ 16 <30>;
+		ti,debounce-tol = /bits/ 16 <10>;
+		ti,debounce-rep = /bits/ 16 <1>;
+
+		linux,wakeup;
+	};
 };
 
 &fec1 {
@@ -246,6 +292,21 @@
 		>;
 	};
 
+	pinctrl_ecspi1: ecspi1grp {
+		fsl,pins = <
+			MX7D_PAD_ECSPI1_MOSI__ECSPI1_MOSI		0xf
+			MX7D_PAD_ECSPI1_MISO__ECSPI1_MISO		0xf
+			MX7D_PAD_ECSPI1_SCLK__ECSPI1_SCLK		0xf
+		>;
+	};
+
+	pinctrl_ecspi1_cs: ecspi1_cs_grp {
+		fsl,pins = <
+			/* Touchscreen chipselect */
+			MX7D_PAD_UART2_RX_DATA__GPIO4_IO2		0x34
+		>;
+	};
+
 	pinctrl_enet1: enet1grp {
 		fsl,pins = <
 			MX7D_PAD_SD2_CD_B__ENET1_MDIO			0x30
@@ -279,6 +340,12 @@
 			MX7D_PAD_EPDC_SDOE__ENET2_RGMII_RD2		0x1
 			MX7D_PAD_EPDC_SDSHR__ENET2_RGMII_RD3		0x1
 			MX7D_PAD_EPDC_SDCE0__ENET2_RGMII_RX_CTL		0x1
+		>;
+	};
+
+	pinctrl_tsc2046: tsc2046grp {
+		fsl,pins = <
+			MX7D_PAD_GPIO1_IO14__GPIO1_IO14			0x34 /* PENDOWN */
 		>;
 	};
 
