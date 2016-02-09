@@ -65,10 +65,10 @@
 };
 
 &ecspi1 {
-	fsl,spi-num-chipselects = <1>;
+	fsl,spi-num-chipselects = <2>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_ecspi1 &pinctrl_ecspi1_cs>;
-	cs-gpios = <&gpio4 2 0>;
+	cs-gpios = <&gpio4 2 0>, <&gpio4 19 0>;
 	status = "okay";
 
 	/* touch controller */
@@ -99,6 +99,29 @@
 		ti,debounce-rep = /bits/ 16 <1>;
 
 		linux,wakeup;
+	};
+
+	m25px16@0 {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		compatible = "m25p16-nonjedec";
+		spi-max-frequency = <20000000>;
+		reg = <1>;
+
+		partition@0 {
+			label = "uboot";
+			reg = <0x0 0xc0000>;
+		};
+
+		partition@c0000 {
+			label = "uboot environment";
+			reg = <0xc0000 0x40000>;
+		};
+
+		partition@100000 {
+			label = "splash";
+			reg = <0x100000 0x100000>;
+		};
 	};
 };
 
@@ -304,6 +327,8 @@
 		fsl,pins = <
 			/* Touchscreen chipselect */
 			MX7D_PAD_UART2_RX_DATA__GPIO4_IO2		0x34
+			/* SPI flash chipselect */
+			MX7D_PAD_ECSPI1_SS0__GPIO4_IO19			0x34
 		>;
 	};
 
