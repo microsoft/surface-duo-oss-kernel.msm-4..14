@@ -304,8 +304,7 @@ static void qrtr_node_rx_work(struct work_struct *work)
 		dst_port = le32_to_cpu(phdr->dst_port_id);
 		confirm = !!phdr->confirm_rx;
 
-		if (src_node != 0)
-			qrtr_node_assign(node, src_node);
+		qrtr_node_assign(node, src_node);
 
 		ipc = qrtr_port_lookup(dst_port);
 		if (!ipc) {
@@ -505,7 +504,7 @@ static int qrtr_autobind(struct socket *sock)
 		return 0;
 
 	addr.sq_family = AF_QIPCRTR;
-	addr.sq_node = 0;
+	addr.sq_node = qrtr_local_nid;
 	addr.sq_port = 0;
 
 	return __qrtr_bind(sock, &addr, 1);
@@ -522,7 +521,7 @@ static int qrtr_bind(struct socket *sock, struct sockaddr *saddr, int len)
 	if (len < sizeof(*addr) || addr->sq_family != AF_QIPCRTR)
 		return -EINVAL;
 
-	if (addr->sq_node != 0 && addr->sq_node != ipc->us.sq_node)
+	if (addr->sq_node != ipc->us.sq_node)
 		return -EINVAL;
 
 	lock_sock(sk);
@@ -623,7 +622,7 @@ static int qrtr_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 	node = NULL;
 	if (addr->sq_node == QRTR_NODE_BCAST) {
 		enqueue_fn = qrtr_bcast_enqueue;
-	} else if (addr->sq_node == 0 || addr->sq_node == ipc->us.sq_node) {
+	} else if (addr->sq_node == ipc->us.sq_node) {
 		enqueue_fn = qrtr_local_enqueue;
 	} else {
 		enqueue_fn = qrtr_node_enqueue;
