@@ -39,6 +39,16 @@ static const struct regmap_irq hi655x_irqs[] = {
 	{ .reg_offset = 0, .mask = RESERVE_INT },
 };
 
+static struct of_device_id of_hi655x_pmic_child_match_tbl[] = {
+	{ .compatible = "hisilicon,hi6552-regulator-pmic", },
+	{ .compatible = "hisilicon,hi6552-powerkey", },
+	{ .compatible = "hisilicon,hi6552-usbvbus", },
+	{ .compatible = "hisilicon,hi6552-coul", },
+	{ .compatible = "hisilicon,hi6552-pmu-rtc", },
+	{ .compatible = "hisilicon,hi6552-pmic-mntn", },
+	{ /* end */ }
+};
+
 static const struct regmap_irq_chip hi655x_irq_chip = {
 	.name = "hi655x-pmic",
 	.irqs = hi655x_irqs,
@@ -121,6 +131,9 @@ static int hi655x_pmic_probe(struct platform_device *pdev)
 	}
 
 	platform_set_drvdata(pdev, pmic);
+
+	/* populate sub nodes */
+	of_platform_populate(np, of_hi655x_pmic_child_match_tbl, NULL, dev);
 
 	ret = mfd_add_devices(dev, PLATFORM_DEVID_AUTO, hi655x_pmic_devs,
 			      ARRAY_SIZE(hi655x_pmic_devs), NULL, 0, NULL);
