@@ -169,8 +169,8 @@ static int hi65xx_powerkey_probe(struct platform_device *pdev)
 			goto err_irq;
 		}
 
-		ret = devm_request_irq(dev, irq, irq_info[i].handler,
-			IRQF_NO_SUSPEND, irq_info[i].name, priv);
+		ret = devm_request_threaded_irq(dev, irq, NULL, irq_info[i].handler,
+			IRQF_ONESHOT, irq_info[i].name, priv);
 		if (ret < 0) {
 			dev_err(dev, "couldn't get irq %s\n", irq_info[i].name);
 			goto err_irq;
