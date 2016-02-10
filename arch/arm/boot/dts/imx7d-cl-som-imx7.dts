@@ -294,6 +294,11 @@
 	status = "okay";
 };
 
+&usbotg2 {
+	dr_mode = "host";
+	status = "okay";
+};
+
 &usdhc3 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_usdhc3>;
