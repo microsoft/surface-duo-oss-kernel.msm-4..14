@@ -55,6 +55,7 @@ static const struct regmap_irq_chip hi655x_irq_chip = {
 	.num_regs = 1,
 	.num_irqs = ARRAY_SIZE(hi655x_irqs),
 	.status_base = HI655X_IRQ_STAT_BASE,
+	.ack_base = HI655X_IRQ_STAT_BASE,
 	.mask_base = HI655X_IRQ_MASK_BASE,
 };
 
