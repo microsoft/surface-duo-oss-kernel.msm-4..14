@@ -18,6 +18,10 @@
 	model = "CompuLab CL-SOM-iMX7";
 	compatible = "compulab,cl-som-imx7", "fsl,imx7d";
 
+	aliases {
+		gpmi = &gpmi;
+	};
+
 	memory {
 		reg = <0x80000000 0x10000000>; /* 256 MB - minimal configuration */
 	};
@@ -175,6 +179,27 @@
 	phy-handle = <&ethphy1>;
 	fsl,magic-packet;
 	status = "okay";
+};
+
+&gpmi {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_gpmi_nand>;
+	status = "disabled";
+	nand-on-flash-bbt;
+
+	/* MTD partition table */
+	partition@0 {
+		label = "kernel";
+		reg = <0x00000000 0x00980000>;
+	};
+	partition@980000 {
+		label = "dtb";
+		reg = <0x00980000 0x00080000>;
+	};
+	partition@a00000 {
+		label = "rootfs";
+		reg = <0x00a00000 0x0>;
+	};
 };
 
 &i2c2 {
@@ -393,6 +418,26 @@
 			MX7D_PAD_EPDC_SDOE__ENET2_RGMII_RD2		0x1
 			MX7D_PAD_EPDC_SDSHR__ENET2_RGMII_RD3		0x1
 			MX7D_PAD_EPDC_SDCE0__ENET2_RGMII_RX_CTL		0x1
+		>;
+	};
+
+	pinctrl_gpmi_nand: gpmi-nand {
+		fsl,pins = <
+			MX7D_PAD_SD3_CLK__NAND_CLE			0x71
+			MX7D_PAD_SD3_CMD__NAND_ALE			0x71
+			MX7D_PAD_SD3_DATA0__NAND_DATA00			0x71
+			MX7D_PAD_SD3_DATA1__NAND_DATA01			0x71
+			MX7D_PAD_SD3_DATA2__NAND_DATA02			0x71
+			MX7D_PAD_SD3_DATA3__NAND_DATA03			0x71
+			MX7D_PAD_SD3_DATA4__NAND_DATA04			0x71
+			MX7D_PAD_SD3_DATA5__NAND_DATA05			0x71
+			MX7D_PAD_SD3_DATA6__NAND_DATA06			0x71
+			MX7D_PAD_SD3_DATA7__NAND_DATA07			0x71
+			MX7D_PAD_SD3_STROBE__NAND_RE_B			0x71
+			MX7D_PAD_SD3_RESET_B__NAND_WE_B			0x71
+			MX7D_PAD_SAI1_TX_BCLK__NAND_CE0_B		0x71
+			MX7D_PAD_SAI1_TX_DATA__NAND_READY_B		0x74
+			MX7D_PAD_SAI1_MCLK__NAND_WP_B			0x71
 		>;
 	};
 
