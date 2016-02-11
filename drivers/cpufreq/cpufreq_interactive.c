@@ -116,6 +116,28 @@ struct cpufreq_interactive_tunables {
 	bool io_is_busy;
 };
 
+/*
+ * HACK: FIXME: Bring back cpufreq_{get,put}_global_kobject()
+ * definition removed by upstream commit 8eec1020f0c0 "cpufreq:
+ * create cpu/cpufreq at boot time" to fix build failures.
+ */
+static int cpufreq_global_kobject_usage;
+
+int cpufreq_get_global_kobject(void)
+{
+	if (!cpufreq_global_kobject_usage++)
+		return kobject_add(cpufreq_global_kobject,
+				&cpu_subsys.dev_root->kobj, "%s", "cpufreq");
+
+	return 0;
+}
+
+void cpufreq_put_global_kobject(void)
+{
+	if (!--cpufreq_global_kobject_usage)
+		kobject_del(cpufreq_global_kobject);
+}
+
 /* For cases where we have single governor instance for system */
 static struct cpufreq_interactive_tunables *common_tunables;
 
@@ -702,7 +724,7 @@ static ssize_t show_target_loads(
 		ret += sprintf(buf + ret, "%u%s", tunables->target_loads[i],
 			       i & 0x1 ? ":" : " ");
 
-	ret += sprintf(buf + --ret, "\n");
+	sprintf(buf + ret - 1, "\n");
 	spin_unlock_irqrestore(&tunables->target_loads_lock, flags);
 	return ret;
 }
@@ -742,7 +764,7 @@ static ssize_t show_above_hispeed_delay(
 			       tunables->above_hispeed_delay[i],
 			       i & 0x1 ? ":" : " ");
 
-	ret += sprintf(buf + --ret, "\n");
+	sprintf(buf + ret - 1, "\n");
 	spin_unlock_irqrestore(&tunables->above_hispeed_delay_lock, flags);
 	return ret;
 }
@@ -781,7 +803,7 @@ static ssize_t store_hispeed_freq(struct cpufreq_interactive_tunables *tunables,
 	int ret;
 	long unsigned int val;
 
-	ret = strict_strtoul(buf, 0, &val);
+	ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 	tunables->hispeed_freq = val;
@@ -800,7 +822,7 @@ static ssize_t store_go_hispeed_load(struct cpufreq_interactive_tunables
 	int ret;
 	unsigned long val;
 
-	ret = strict_strtoul(buf, 0, &val);
+	ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 	tunables->go_hispeed_load = val;
@@ -819,7 +841,7 @@ static ssize_t store_min_sample_time(struct cpufreq_interactive_tunables
 	int ret;
 	unsigned long val;
 
-	ret = strict_strtoul(buf, 0, &val);
+	ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 	tunables->min_sample_time = val;
@@ -838,7 +860,7 @@ static ssize_t store_timer_rate(struct cpufreq_interactive_tunables *tunables,
 	int ret;
 	unsigned long val, val_round;
 
-	ret = strict_strtoul(buf, 0, &val);
+	ret = kstrtoul(buf, 0, &val);
 	if (ret < 0)
 		return ret;
 
