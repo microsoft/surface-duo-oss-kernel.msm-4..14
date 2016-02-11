@@ -1289,8 +1289,7 @@ out_nopush:
 	release_sock(sk);
 
 	if (copied + copied_syn)
-		uid_stat_tcp_snd(from_kuid(&init_user_ns, current_uid()),
-				 copied + copied_syn);
+		uid_stat_tcp_snd(current_uid(), copied + copied_syn);
 	return copied + copied_syn;
 
 do_fault:
@@ -1565,8 +1564,7 @@ int tcp_read_sock(struct sock *sk, read_descriptor_t *desc,
 	if (copied > 0) {
 		tcp_recv_skb(sk, seq, &offset);
 		tcp_cleanup_rbuf(sk, copied);
-		uid_stat_tcp_rcv(from_kuid(&init_user_ns, current_uid()),
-				 copied);
+		uid_stat_tcp_rcv(current_uid(), copied);
 	}
 	return copied;
 }
@@ -1902,8 +1900,7 @@ skip_copy:
 	release_sock(sk);
 
 	if (copied > 0)
-		uid_stat_tcp_rcv(from_kuid(&init_user_ns, current_uid()),
-				 copied);
+		uid_stat_tcp_rcv(current_uid(), copied);
 	return copied;
 
 out:
@@ -1913,8 +1910,7 @@ out:
 recv_urg:
 	err = tcp_recv_urg(sk, msg, len, flags);
 	if (err > 0)
-		uid_stat_tcp_rcv(from_kuid(&init_user_ns, current_uid()),
-				 err);
+		uid_stat_tcp_rcv(current_uid(), err);
 	goto out;
 
 recv_sndq:
@@ -3233,7 +3229,7 @@ int tcp_nuke_addr(struct net *net, struct sockaddr *addr)
 
 	struct in_addr *in;
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
-	struct in6_addr *in6 = NULL;
+	struct in6_addr *in6;
 #endif
 	if (family == AF_INET) {
 		in = &((struct sockaddr_in *)addr)->sin_addr;
@@ -3288,7 +3284,7 @@ restart:
 				if (!inet->pinet6)
 					continue;
 
-				s6 = &sk->sk_v6_rcv_saddr;
+				s6 = &inet->pinet6->rcv_saddr;
 				if (ipv6_addr_type(s6) == IPV6_ADDR_MAPPED)
 					continue;
 
