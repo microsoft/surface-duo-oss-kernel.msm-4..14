@@ -83,6 +83,13 @@ void msm_dsi_pll_helper_clk_unprepare(struct clk_hw *hw)
 	dsi_pll_disable(pll);
 }
 
+int msm_dsi_pll_helper_clk_is_enabled(struct clk_hw *hw)
+{
+	struct msm_dsi_pll *pll = hw_clk_to_pll(hw);
+
+	return pll->pll_on;
+}
+
 void msm_dsi_pll_helper_unregister_clks(struct platform_device *pdev,
 					struct clk **clks, u32 num_clks)
 {
