@@ -229,6 +229,54 @@ enum adv7511_sync_polarity {
 	ADV7511_SYNC_POLARITY_HIGH,
 };
 
+enum adv7511_type {
+	ADV7511,
+	ADV7533,
+};
+
+struct adv7511 {
+	struct i2c_client *i2c_main;
+	struct i2c_client *i2c_edid;
+	struct i2c_client *i2c_cec;
+
+	struct regmap *regmap;
+	struct regmap *regmap_cec;
+	enum drm_connector_status status;
+	bool powered;
+
+	struct drm_display_mode curr_mode;
+
+	unsigned int f_tmds;
+
+	unsigned int current_edid_segment;
+	uint8_t edid_buf[256];
+	bool edid_read;
+
+	wait_queue_head_t wq;
+	struct drm_bridge bridge;
+	struct drm_connector connector;
+
+	bool embedded_sync;
+	enum adv7511_sync_polarity vsync_polarity;
+	enum adv7511_sync_polarity hsync_polarity;
+	bool rgb;
+
+	struct edid *edid;
+
+	struct gpio_desc *gpio_pd;
+
+	/* ADV7533 DSI RX related params */
+	struct device_node *host_node;
+	struct mipi_dsi_device *dsi;
+	u8 num_dsi_lanes;
+	bool use_timing_gen;
+
+	struct regulator *avdd;
+	struct regulator *v3p3;
+
+	enum adv7511_type type;
+};
+
 /**
  * struct adv7511_link_config - Describes adv7511 hardware configuration
  * @input_color_depth:		Number of bits per color component (8, 10 or 12)
