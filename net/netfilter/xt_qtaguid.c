@@ -1376,7 +1376,7 @@ unlock:
 
 static int iface_netdev_event_handler(struct notifier_block *nb,
 				      unsigned long event, void *ptr) {
-	struct net_device *dev = netdev_notifier_info_to_dev(ptr);
+	struct net_device *dev = ptr;
 
 	if (unlikely(module_passive))
 		return NOTIFY_DONE;
