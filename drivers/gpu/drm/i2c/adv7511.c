@@ -191,7 +191,7 @@ static void adv7511_set_colormap(struct adv7511 *adv7511, bool enable,
 			   ADV7511_CSC_UPDATE_MODE, 0);
 }
 
-static int adv7511_packet_enable(struct adv7511 *adv7511, unsigned int packet)
+int adv7511_packet_enable(struct adv7511 *adv7511, unsigned int packet)
 {
 	if (packet & 0xff)
 		regmap_update_bits(adv7511->regmap, ADV7511_REG_PACKET_ENABLE0,
@@ -206,7 +206,7 @@ static int adv7511_packet_enable(struct adv7511 *adv7511, unsigned int packet)
 	return 0;
 }
 
-static int adv7511_packet_disable(struct adv7511 *adv7511, unsigned int packet)
+int adv7511_packet_disable(struct adv7511 *adv7511, unsigned int packet)
 {
 	if (packet & 0xff)
 		regmap_update_bits(adv7511->regmap, ADV7511_REG_PACKET_ENABLE0,
