@@ -211,7 +211,7 @@ static void pppolac_xmit_core(struct work_struct *delivery_work)
 			.msg_iovlen = 1,
 			.msg_flags = MSG_NOSIGNAL | MSG_DONTWAIT,
 		};
-		sk_udp->sk_prot->sendmsg(NULL, sk_udp, &msg, skb->len);
+		sk_udp->sk_prot->sendmsg(sk_udp, &msg, skb->len);
 		kfree_skb(skb);
 	}
 	set_fs(old_fs);
@@ -396,11 +396,11 @@ static struct proto_ops pppolac_proto_ops = {
 	.mmap = sock_no_mmap,
 };
 
-static int pppolac_create(struct net *net, struct socket *sock)
+static int pppolac_create(struct net *net, struct socket *sock, int kern)
 {
 	struct sock *sk;
 
-	sk = sk_alloc(net, PF_PPPOX, GFP_KERNEL, &pppolac_proto);
+	sk = sk_alloc(net, PF_PPPOX, GFP_KERNEL, &pppolac_proto, kern);
 	if (!sk)
 		return -ENOMEM;
 
