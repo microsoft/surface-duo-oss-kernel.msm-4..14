@@ -35,16 +35,6 @@
 #include <net/netfilter/nf_conntrack.h>
 #endif
 
-void
-xt_socket_put_sk(struct sock *sk)
-{
-	if (sk->sk_state == TCP_TIME_WAIT)
-		inet_twsk_put(inet_twsk(sk));
-	else
-		sock_put(sk);
-}
-EXPORT_SYMBOL(xt_socket_put_sk);
-
 static int
 extract_icmp4_fields(const struct sk_buff *skb,
 		    u8 *protocol,
@@ -153,7 +143,7 @@ static bool xt_socket_sk_is_transparent(struct sock *sk)
 	}
 }
 
-struct sock *xt_socket_lookup_slow_v4(struct net *net,
+static struct sock *xt_socket_lookup_slow_v4(struct net *net,
 					     const struct sk_buff *skb,
 					     const struct net_device *indev)
 {
@@ -218,7 +208,6 @@ struct sock *xt_socket_lookup_slow_v4(struct net *net,
 
 	return sk;
 }
-EXPORT_SYMBOL(xt_socket_lookup_slow_v4);
 
 static bool
 socket_match(const struct sk_buff *skb, struct xt_action_param *par,
@@ -353,7 +342,7 @@ xt_socket_get_sock_v6(struct net *net, const u8 protocol,
 	return NULL;
 }
 
-struct sock *xt_socket_lookup_slow_v6(struct net *net,
+static struct sock *xt_socket_lookup_slow_v6(struct net *net,
 					     const struct sk_buff *skb,
 					     const struct net_device *indev)
 {
@@ -400,7 +389,6 @@ struct sock *xt_socket_lookup_slow_v6(struct net *net,
 
 	return sk;
 }
-EXPORT_SYMBOL(xt_socket_lookup_slow_v6);
 
 static bool
 socket_mt6_v1_v2_v3(const struct sk_buff *skb, struct xt_action_param *par)
