@@ -375,11 +375,11 @@ static struct proto_ops pppopns_proto_ops = {
 	.mmap = sock_no_mmap,
 };
 
-static int pppopns_create(struct net *net, struct socket *sock, int kern)
+static int pppopns_create(struct net *net, struct socket *sock)
 {
 	struct sock *sk;
 
-	sk = sk_alloc(net, PF_PPPOX, GFP_KERNEL, &pppopns_proto, kern);
+	sk = sk_alloc(net, PF_PPPOX, GFP_KERNEL, &pppopns_proto);
 	if (!sk)
 		return -ENOMEM;
 

@@ -396,11 +396,11 @@ static struct proto_ops pppolac_proto_ops = {
 	.mmap = sock_no_mmap,
 };
 
-static int pppolac_create(struct net *net, struct socket *sock, int kern)
+static int pppolac_create(struct net *net, struct socket *sock)
 {
 	struct sock *sk;
 
-	sk = sk_alloc(net, PF_PPPOX, GFP_KERNEL, &pppolac_proto, kern);
+	sk = sk_alloc(net, PF_PPPOX, GFP_KERNEL, &pppolac_proto);
 	if (!sk)
 		return -ENOMEM;
 
