@@ -495,7 +495,7 @@ static int acc_unregister_hid(struct acc_dev *dev, int id)
 	return 0;
 }
 
-static int __init create_bulk_endpoints(struct acc_dev *dev,
+static int create_bulk_endpoints(struct acc_dev *dev,
 				struct usb_endpoint_descriptor *in_desc,
 				struct usb_endpoint_descriptor *out_desc)
 {
@@ -565,10 +565,11 @@ static ssize_t acc_read(struct file *fp, char __user *buf,
 {
 	struct acc_dev *dev = fp->private_data;
 	struct usb_request *req;
-	int r = count, xfer;
+	ssize_t r = count;
+	unsigned xfer;
 	int ret = 0;
 
-	pr_debug("acc_read(%d)\n", count);
+	pr_debug("acc_read(%zu)\n", count);
 
 	if (dev->disconnected) {
 		pr_debug("acc_read disconnected");
@@ -625,7 +626,7 @@ copy_data:
 		if (req->actual == 0)
 			goto requeue_req;
 
-		pr_debug("rx %p %d\n", req, req->actual);
+		pr_debug("rx %p %u\n", req, req->actual);
 		xfer = (req->actual < count) ? req->actual : count;
 		r = xfer;
 		if (copy_to_user(buf, req->buf, xfer))
@@ -634,7 +635,7 @@ copy_data:
 		r = -EIO;
 
 done:
-	pr_debug("acc_read returning %d\n", r);
+	pr_debug("acc_read returning %zd\n", r);
 	return r;
 }
 
@@ -643,10 +644,11 @@ static ssize_t acc_write(struct file *fp, const char __user *buf,
 {
 	struct acc_dev *dev = fp->private_data;
 	struct usb_request *req = 0;
-	int r = count, xfer;
+	ssize_t r = count;
+	unsigned xfer;
 	int ret;
 
-	pr_debug("acc_write(%d)\n", count);
+	pr_debug("acc_write(%zu)\n", count);
 
 	if (!dev->online || dev->disconnected) {
 		pr_debug("acc_write disconnected or not online");
@@ -703,7 +705,7 @@ static ssize_t acc_write(struct file *fp, const char __user *buf,
 	if (req)
 		req_put(dev, &dev->tx_idle, req);
 
-	pr_debug("acc_write returning %d\n", r);
+	pr_debug("acc_write returning %zd\n", r);
 	return r;
 }
 
@@ -964,11 +966,6 @@ __acc_function_bind(struct usb_configuration *c,
 }
 
 static int
-acc_function_bind(struct usb_configuration *c, struct usb_function *f) {
-	return __acc_function_bind(c, f, false);
-}
-
-static int
 acc_function_bind_configfs(struct usb_configuration *c,
 			struct usb_function *f) {
 	return __acc_function_bind(c, f, true);
@@ -1165,35 +1162,6 @@ static void acc_function_disable(struct usb_function *f)
 	wake_up(&dev->read_wq);
 
 	VDBG(cdev, "%s disabled\n", dev->function.name);
-}
-
-static int acc_bind_config(struct usb_configuration *c)
-{
-	struct acc_dev *dev = _acc_dev;
-	int ret;
-
-	printk(KERN_INFO "acc_bind_config\n");
-
-	/* allocate a string ID for our interface */
-	if (acc_string_defs[INTERFACE_STRING_INDEX].id == 0) {
-		ret = usb_string_id(c->cdev);
-		if (ret < 0)
-			return ret;
-		acc_string_defs[INTERFACE_STRING_INDEX].id = ret;
-		acc_interface_desc.iInterface = ret;
-	}
-
-	dev->cdev = c->cdev;
-	dev->function.name = "accessory";
-	dev->function.strings = acc_strings,
-	dev->function.descriptors = fs_acc_descs;
-	dev->function.hs_descriptors = hs_acc_descs;
-	dev->function.bind = acc_function_bind;
-	dev->function.unbind = acc_function_unbind;
-	dev->function.set_alt = acc_function_set_alt;
-	dev->function.disable = acc_function_disable;
-
-	return usb_add_function(c, &dev->function);
 }
 
 static int acc_setup(void)
