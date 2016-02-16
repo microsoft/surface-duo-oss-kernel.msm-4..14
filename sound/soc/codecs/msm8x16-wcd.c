@@ -2216,6 +2216,7 @@ static int wcd_probe(struct platform_device *pdev)
 {
 	struct wcd_chip *chip;
 	struct device *dev = &pdev->dev;
+	int ret;
 
 	chip = devm_kzalloc(dev, sizeof(*chip), GFP_KERNEL);
 	if (!chip)
@@ -2225,7 +2226,9 @@ static int wcd_probe(struct platform_device *pdev)
 	if (!chip->analog_map)
 		return -ENXIO;
 
-	msm8x16_wcd_codec_parse_dt(pdev, chip);
+	ret = msm8x16_wcd_codec_parse_dt(pdev, chip);
+	if (IS_ERR_VALUE(ret))
+		return ret;
 
 	clk_set_rate(chip->mclk, 9600000);
 	clk_prepare_enable(chip->mclk);
