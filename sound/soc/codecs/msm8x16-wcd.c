@@ -344,19 +344,6 @@ static int msm8x16_wcd_codec_probe(struct snd_soc_codec *codec)
 	int err;
 
 	snd_soc_codec_set_drvdata(codec, chip);
-	chip->pmic_rev = snd_soc_read(codec, MSM8X16_WCD_A_DIGITAL_REVISION1);
-	dev_info(codec->dev, "%s :PMIC REV: %d", __func__,
-					chip->pmic_rev);
-
-	chip->codec_version = snd_soc_read(codec,
-			MSM8X16_WCD_A_DIGITAL_PERPH_SUBTYPE);
-	dev_info(codec->dev, "%s :CODEC Version: %d", __func__,
-				chip->codec_version);
-
-	msm8x16_wcd_device_up(codec);
-
-	/* Set initial cap mode */
-	msm8x16_wcd_configure_cap(codec, false, false);
 
 	regulator_set_voltage(chip->vddio, 1800000, 1800000);
 	err = regulator_enable(chip->vddio);
@@ -377,6 +364,21 @@ static int msm8x16_wcd_codec_probe(struct snd_soc_codec *codec)
 		dev_err(codec->dev, "failed to enable micbias regulator\n");
 		return err;
 	}
+
+	chip->pmic_rev = snd_soc_read(codec, MSM8X16_WCD_A_DIGITAL_REVISION1);
+	dev_info(codec->dev, "%s :PMIC REV: %d", __func__,
+					chip->pmic_rev);
+
+	chip->codec_version = snd_soc_read(codec,
+			MSM8X16_WCD_A_DIGITAL_PERPH_SUBTYPE);
+	dev_info(codec->dev, "%s :CODEC Version: %d", __func__,
+				chip->codec_version);
+
+	msm8x16_wcd_device_up(codec);
+
+	/* Set initial cap mode */
+	msm8x16_wcd_configure_cap(codec, false, false);
+
 	msm8x16_wcd_codec_enable_clock_block(codec, 1);
 
 	return 0;
