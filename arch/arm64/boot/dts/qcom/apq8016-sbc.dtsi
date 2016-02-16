@@ -365,7 +365,7 @@
 		compatible = "adi,adv7533";
 		reg = <0x39>;
 		interrupt-parent = <&msmgpio>;
-		//interrupts = <31 2>;
+		interrupts = <31 2>;
 		avdd-supply = <&pm8916_l6>;
 		v3p3-supply = <&pm8916_l17>;
 		adi,dsi-lanes = <4>;

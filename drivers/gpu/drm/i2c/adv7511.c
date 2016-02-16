@@ -25,8 +25,6 @@
 
 #include "adv7511.h"
 
-#define HPD_ENABLE	0
-
 static struct adv7511 *encoder_to_adv7511(struct drm_encoder *encoder)
 {
 	return to_encoder_slave(encoder)->slave_priv;
@@ -435,12 +433,14 @@ static void adv7511_power_on(struct adv7511 *adv7511)
 {
 	adv7511->current_edid_segment = -1;
 
-	regmap_write(adv7511->regmap, ADV7511_REG_INT(0),
-		     ADV7511_INT0_EDID_READY);
-	regmap_write(adv7511->regmap, ADV7511_REG_INT(1),
-		     ADV7511_INT1_DDC_ERROR);
 	regmap_update_bits(adv7511->regmap, ADV7511_REG_POWER,
 			   ADV7511_POWER_POWER_DOWN, 0);
+	if (adv7511->i2c_main->irq) {
+		regmap_write(adv7511->regmap, ADV7511_REG_INT_ENABLE(0),
+			     ADV7511_INT0_EDID_READY | ADV7511_INT0_HDP);
+		regmap_write(adv7511->regmap, ADV7511_REG_INT_ENABLE(1),
+			     ADV7511_INT1_DDC_ERROR);
+	}
 
 	/*
 	 * Per spec it is allowed to pulse the HDP signal to indicate that the
@@ -485,7 +485,6 @@ static void adv7511_power_off(struct adv7511 *adv7511)
  * Interrupt and hotplug detection
  */
 
-#if HPD_ENABLE
 static bool adv7511_hpd(struct adv7511 *adv7511)
 {
 	unsigned int irq0;
@@ -503,7 +502,6 @@ static bool adv7511_hpd(struct adv7511 *adv7511)
 
 	return false;
 }
-#endif
 
 static int adv7511_irq_process(struct adv7511 *adv7511, bool process_hpd)
 {
@@ -518,11 +516,11 @@ static int adv7511_irq_process(struct adv7511 *adv7511, bool process_hpd)
 	if (ret < 0)
 		return ret;
 
-	regmap_write(adv7511->regmap, ADV7511_REG_INT(0), irq0);
-	regmap_write(adv7511->regmap, ADV7511_REG_INT(1), irq1);
-
 	if (process_hpd && irq0 & ADV7511_INT0_HDP && adv7511->encoder)
 		drm_helper_hpd_irq_event(adv7511->encoder->dev);
+
+	regmap_write(adv7511->regmap, ADV7511_REG_INT(0), irq0);
+	regmap_write(adv7511->regmap, ADV7511_REG_INT(1), irq1);
 
 	if (irq0 & ADV7511_INT0_EDID_READY || irq1 & ADV7511_INT1_DDC_ERROR) {
 		adv7511->edid_read = true;
@@ -651,13 +649,16 @@ static int adv7511_get_modes(struct adv7511 *adv7511,
 		regmap_update_bits(adv7511->regmap, ADV7511_REG_POWER2,
 				   ADV7511_REG_POWER2_HDP_SRC_MASK,
 				   ADV7511_REG_POWER2_HDP_SRC_NONE);
-		regmap_write(adv7511->regmap, ADV7511_REG_INT(0),
-			     ADV7511_INT0_EDID_READY);
-		regmap_write(adv7511->regmap, ADV7511_REG_INT(1),
-			     ADV7511_INT1_DDC_ERROR);
 		regmap_update_bits(adv7511->regmap, ADV7511_REG_POWER,
 				   ADV7511_POWER_POWER_DOWN, 0);
+		if (adv7511->i2c_main->irq) {
+			regmap_write(adv7511->regmap, ADV7511_REG_INT_ENABLE(0),
+				     ADV7511_INT0_EDID_READY | ADV7511_INT0_HDP);
+			regmap_write(adv7511->regmap, ADV7511_REG_INT_ENABLE(1),
+				     ADV7511_INT1_DDC_ERROR);
+		}
 		adv7511->current_edid_segment = -1;
+		msleep(200);
 	}
 
 	edid = drm_do_get_edid(connector, adv7511_get_edid_block, adv7511);
@@ -686,9 +687,7 @@ adv7511_detect(struct adv7511 *adv7511,
 {
 	enum drm_connector_status status;
 	unsigned int val;
-#if HPD_ENABLE
 	bool hpd;
-#endif
 	int ret;
 
 	ret = regmap_read(adv7511->regmap, ADV7511_REG_STATUS, &val);
@@ -700,7 +699,6 @@ adv7511_detect(struct adv7511 *adv7511,
 	else
 		status = connector_status_disconnected;
 
-#if HPD_ENABLE
 	hpd = adv7511_hpd(adv7511);
 
 	/* The chip resets itself when the cable is disconnected, so in case
@@ -719,7 +717,6 @@ adv7511_detect(struct adv7511 *adv7511,
 				   ADV7511_REG_POWER2_HDP_SRC_MASK,
 				   ADV7511_REG_POWER2_HDP_SRC_BOTH);
 	}
-#endif
 
 	adv7511->status = status;
 	return status;
@@ -981,11 +978,6 @@ static void adv7533_bridge_post_disable(struct drm_bridge *bridge)
 {
 	struct adv7511 *adv = bridge_to_adv7511(bridge);
 
-#if HPD_ENABLE
-	if (!adv7511->powered)
-		return;
-#endif
-
 	adv7511_power_off(adv);
 }
 
@@ -1060,9 +1052,7 @@ static int adv7533_bridge_attach(struct drm_bridge *bridge)
 		return -ENODEV;
 	}
 
-#if HPD_ENABLE
 	adv->connector.polled = DRM_CONNECTOR_POLL_HPD;
-#endif
 
 	ret = drm_connector_init(bridge->dev, &adv->connector,
 			&adv7533_connector_funcs, DRM_MODE_CONNECTOR_HDMIA);
@@ -1075,12 +1065,14 @@ static int adv7533_bridge_attach(struct drm_bridge *bridge)
 	drm_connector_register(&adv->connector);
 	drm_mode_connector_attach_encoder(&adv->connector, adv->encoder);
 
-#if HPD_ENABLE
 	drm_helper_hpd_irq_event(adv->connector.dev);
-#endif
 
 	adv7533_attach_dsi(adv);
 
+	/* enable HPD */
+	if (adv->i2c_main->irq)
+		regmap_write(adv->regmap, ADV7511_REG_INT_ENABLE(0),
+			     ADV7511_INT0_HDP);
 	return ret;
 }
 
