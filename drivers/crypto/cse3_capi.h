@@ -22,6 +22,17 @@
 #include <crypto/algapi.h>
 #include <crypto/aes.h>
 
+/* Crypto API algorithms wrappers */
+struct cse_cipher_alg {
+	struct crypto_alg alg;
+	u8 registered;
+};
+
+struct cse_ahash_alg {
+	struct ahash_alg alg;
+	u8 registered;
+};
+
 int capi_aes_ecb_encrypt(struct ablkcipher_request *req);
 int capi_aes_ecb_decrypt(struct ablkcipher_request *req);
 int capi_aes_cbc_encrypt(struct ablkcipher_request *req);

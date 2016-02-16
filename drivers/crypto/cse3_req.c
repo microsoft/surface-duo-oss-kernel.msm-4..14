@@ -144,7 +144,7 @@ static void cse_ioctl_free_extra(struct cse_request *req)
 	}
 }
 
-static void init_ops(struct cse_request *req)
+static void cse_ioctl_init_ops(struct cse_request *req)
 {
 	req->copy_output = cse_ioctl_copy_output;
 	req->copy_input = cse_ioctl_copy_input;
@@ -165,7 +165,7 @@ int cse_ioctl_rnd(cse_ctx_t *ctx, unsigned int cmd, unsigned long arg)
 	new_req->base.ctx = ctx;
 	new_req->base.phase = 0;
 	new_req->base.flags = FLAG_RND;
-	init_ops(&new_req->base);
+	cse_ioctl_init_ops(&new_req->base);
 	init_completion(&new_req->base.complete);
 	ret = cse_handle_request(ctx->dev, (cse_req_t *)new_req);
 
@@ -203,7 +203,7 @@ int cse_ioctl_load_plkey(cse_ctx_t *ctx, unsigned int cmd, unsigned long arg)
 	new_req->ctx = ctx;
 	new_req->phase = 0;
 	new_req->flags = FLAG_LOAD_PLKEY;
-	init_ops(new_req);
+	cse_ioctl_init_ops(new_req);
 	init_completion(&new_req->complete);
 	ret = cse_handle_request(ctx->dev, new_req);
 
@@ -254,7 +254,7 @@ int cse_ioctl_load_key(cse_ctx_t *ctx, unsigned int cmd, unsigned long arg)
 		return -EFAULT;
 	}
 
-	init_ops(&new_req->base);
+	cse_ioctl_init_ops(&new_req->base);
 	init_completion(&new_req->base.complete);
 	ret = cse_handle_request(ctx->dev, (cse_req_t *)new_req);
 
@@ -305,7 +305,7 @@ int cse_ioctl_comp(cse_ctx_t *ctx, unsigned int cmd, unsigned long arg)
 		kfree(new_req);
 		return -EFAULT;
 	}
-	init_ops(&new_req->base);
+	cse_ioctl_init_ops(&new_req->base);
 	init_completion(&new_req->base.complete);
 	ret = cse_handle_request(ctx->dev, (cse_req_t *)new_req);
 
@@ -394,7 +394,7 @@ int cse_ioctl_cmac(cse_ctx_t *ctx, unsigned int cmd, unsigned long arg,
 			return -EFAULT;
 		}
 	}
-	init_ops(&new_req->base);
+	cse_ioctl_init_ops(&new_req->base);
 	init_completion(&new_req->base.complete);
 	ret = cse_handle_request(ctx->dev, (cse_req_t *)new_req);
 
@@ -487,7 +487,7 @@ int cse_ioctl_crypt(cse_ctx_t *ctx, unsigned int cmd,
 		kfree(new_req);
 		return -EFAULT;
 	}
-	init_ops(&new_req->base);
+	cse_ioctl_init_ops(&new_req->base);
 	init_completion(&new_req->base.complete);
 	ret = cse_handle_request(ctx->dev, (cse_req_t *)new_req);
 
