@@ -37,6 +37,18 @@ static int __init hi6220_sysconf(void)
         writel(BIT(5), base + reset_offset);
         writel(BIT(5), base + pclk_offset);
 
+        /*Disable UART2 reset and set pclk*/
+        writel(BIT(6), base + reset_offset);
+        writel(BIT(6), base + pclk_offset);
+
+        /*Disable UART3 reset and set pclk*/
+        writel(BIT(7), base + reset_offset);
+        writel(BIT(7), base + pclk_offset);
+
+        /*Disable UART4 reset and set pclk*/
+        writel(BIT(8), base + reset_offset);
+        writel(BIT(8), base + pclk_offset);
+
         iounmap(base);
 
         node1 = of_find_compatible_node(NULL, NULL, "hisilicon,hi655x-pmic");
