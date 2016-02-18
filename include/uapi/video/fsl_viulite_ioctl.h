@@ -4,9 +4,10 @@
 /************************************************
     VARIOUS TYPES
 *************************************************/
+
 typedef enum {
-	VIU_ON,
 	VIU_OFF,
+	VIU_ON,
 } VIU_BOOL;
 
 typedef struct {
@@ -35,10 +36,16 @@ typedef enum {
 	WIDE_20_BITS = 6,
 } in_width_t;
 
+typedef enum {
+	CPP_1_PP = 0,
+	CPP_2_PP,
+	CPP_3_PP,
+} in_cpp_t;
+
 typedef struct {
 	in_mode_t  mode;
 	in_width_t width;
-	uint8_t    clocks_per_pixell;
+	in_cpp_t   clocks_per_pixell;
 } VIU_INPUT_FORMAT;
 
 typedef struct {
@@ -98,7 +105,7 @@ typedef struct {
 #define VIULITE_IOCTL_DMA_CONFIG                1
 
 /********   DMA Start         *******************/
-#define VIULITE_IOCTL_DMA_START                 2
+#define VIULITE_IOCTL_DMA_START                13
 
 /********   DMA Get Status    *******************/
 #define VIULITE_IOCTL_DMA_GET_STATUS            4
@@ -110,7 +117,7 @@ typedef struct {
 #define VIULITE_IOCTL_RESET_IRQSTATUS          14
 
 /********   Set ITU Error Code    ***************/
-#define VIULITE_IOCTL_SET_ITU_ERRCODE           5
+#define VIULITE_IOCTL_EN_ITU_ERRCODE            5
 
 /********   Get ITU Error Code    ***************/
 #define VIULITE_IOCTL_GET_ITU_ERRCODE           9
@@ -137,15 +144,16 @@ typedef struct {
 /************************************************
     VIULITE Registers Offset
 *************************************************/
-#define SCR_OFFSET                      (0x00)
-#define INTR_OFFSET                     (0x04)
-#define DMA_SIZE_OFFSET                 (0x10)
-#define DMA_ADDR_OFFSET                 (0x14)
-#define DMA_INC_OFFSET                  (0x18)
-#define INVSZ_OFFSET                    (0x1C)
-#define ALPHA_OFFSET                    (0x24)
-#define ACTORG_OFFSET                   (0x28)
-#define ACTSIZE_OFFSET                  (0x2C)
+#define SCR_OFFSET                      (0x00000000)
+#define INTR_OFFSET                     (0x00000004)
+#define DINVSZ_OFFSET                   (0x00000008)
+#define DMA_SIZE_OFFSET                 (0x00000010)
+#define DMA_ADDR_OFFSET                 (0x00000014)
+#define DMA_INC_OFFSET                  (0x00000018)
+#define INVSZ_OFFSET                    (0x0000001C)
+#define ALPHA_OFFSET                    (0x00000024)
+#define ACTORG_OFFSET                   (0x00000028)
+#define ACTSIZE_OFFSET                  (0x0000002C)
 
 #define SCR_VSYNC_OFFSET                  30
 #define SCR_VSYNC_MASK          (uint32_t)(1 << SCR_VSYNC_OFFSET)
@@ -156,7 +164,7 @@ typedef struct {
 #define SCR_ACT_OFFSET                    27
 #define SCR_DMA_ACT_MASK        (uint32_t)(1 << SCR_ACT_OFFSET)
 #define SCR_ITUMODE_OFFSET                13
-#define SCR_ITU_MODE_MASK       (uint32_t)(1 << SCR_ITUMODE_OFFSET)
+#define SCR_ITUMODE_MASK        (uint32_t)(1 << SCR_ITUMODE_OFFSET)
 #define SCR_CPP_OFFSET                    11
 #define SCR_CPP_MASK            (uint32_t)(3 << SCR_CPP_OFFSET)
 #define SCR_INWIDTH_OFFSET                 8
@@ -170,8 +178,11 @@ typedef struct {
 #define SCR_ECCEN_OFFSET                   2
 #define SCR_ECCEN_MASK          (uint32_t)(1 << SCR_ECCEN_OFFSET)
 #define SCR_ENDIANNESS_OFFSET               1
-#define SCR_ENDIANNESS_MASK      (uint32_t)(1 << SCR_ENDIANNESS_OFFSET)
+#define SCR_ENDIANNESS_MASK     (uint32_t)(1 << SCR_ENDIANNESS_OFFSET)
 #define SCR_SWRESET_MASK        ((uint32_t)1)
+#define SCR_VIDEOIN_MASK        (SCR_INWIDTH_MASK | SCR_ITUMODE_MASK | \
+				 SCR_CPP_MASK)
+
 
 #define INTR_ITUERR_OFFSET                28
 #define INTR_ITUERR_MASK        (uint32_t)(0x0F << INTR_ITUERR_OFFSET)
@@ -186,8 +197,9 @@ typedef struct {
 #define INTR_LINE_END_BIT       (uint32_t)(0x40)
 #define INTR_FRAME_END_BIT      (uint32_t)(0x80)
 
-#define MAX_ALPHA_VAL                  (0x0100)
-#define CLIPP_HIGH16_MASK          (0xFFFF0000)
-#define CLIPP_LOW16_MASK           (0x0000FFFF)
+#define MAX_ALPHA_VAL           (0x00000100)
+#define VIU_HIGH16_MASK         (0xFFFF0000)
+#define VIU_LOW16_MASK          (0x0000FFFF)
+#define VIU_LOW8_MASK           (0x000000FF)
 
 #endif /* FSL_VIULITE_IOCTL_H */
