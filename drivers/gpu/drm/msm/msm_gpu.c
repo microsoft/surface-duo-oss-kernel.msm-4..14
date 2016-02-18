@@ -627,6 +627,14 @@ int msm_gpu_init(struct drm_device *drm, struct platform_device *pdev,
 			gpu->grp_clks[i] = NULL;
 	}
 
+
+	/* HACK: Boost the GPU clock on msm8916 for better performance.
+	 * This should be removed when we have proper support for msm_bus
+	 * and QoS.
+	 */
+	if (gpu->grp_clks[4] && gpu->grp_clks[5])
+		clk_set_rate(gpu->grp_clks[4], INT_MAX);
+
 	gpu->ebi1_clk = devm_clk_get(&pdev->dev, "bus_clk");
 	DBG("ebi1_clk: %p", gpu->ebi1_clk);
 	if (IS_ERR(gpu->ebi1_clk))
