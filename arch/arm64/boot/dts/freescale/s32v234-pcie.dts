@@ -71,6 +71,10 @@
 	};
 };
 
+&fdma {
+	status = "okay";
+};
+
 &i2c0 {
 	status = "okay";
 };
@@ -87,6 +91,15 @@
 &i2c2 {
 	status = "okay";
 };
+
+&mipicsi0 {
+	status = "okay";
+};
+
+&mipicsi1 {
+	status = "okay";
+};
+
 &fec {
 	phy-mode = "rgmii";
 		phy-handle = <&phy0>;
@@ -157,5 +170,9 @@
 };
 &usdhc0 {
 	no-1-8-V;
+	status = "okay";
+};
+
+&vseq {
 	status = "okay";
 };
