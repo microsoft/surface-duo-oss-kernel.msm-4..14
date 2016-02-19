@@ -43,6 +43,7 @@
 /**********************************************************
  * VIULite defines
  **********************************************************/
+
 #define DRIVER_NAME	"fsl_viulite"
 
 /* number of VIULite units */
@@ -72,7 +73,7 @@ struct viulite_data {
 	void __iomem	*reg_base;
 	unsigned int	irq;
 	struct clk		*clk;
-	atomic_t			access;
+	atomic_t		access;
 };
 
 const char *device_name[VIULITE_DEV_COUNT] = {
@@ -84,10 +85,10 @@ static struct class	*viulite_class;
 static dev_t		viulite_devn; /*__u32 */
 static struct cdev	*viulite_cdev;
 
-/*KK*/
 struct viulite_data *vdata;
 /**********************************************************
- * FUNCTION: fsl_viulite_getviudata  DE MODIFICAT ptr 2 device
+ * FUNCTION: fsl_viulite_getviudata
+ * To be developed
  **********************************************************/
 struct viulite_data *fsl_viulite_getviudata(void)
 {
@@ -95,50 +96,50 @@ struct viulite_data *fsl_viulite_getviudata(void)
 	return vdata;
 }
 
+
 /**********************************************************
  * FUNCTION: fsl_viulite_regs
- **********************************************************/
-void fsl_viulite_regs(void)
+void fsl_viulite_regs(base_address)
 {
-	struct viulite_data *viudata = fsl_viulite_getviudata();
-
 	printk(VIULite_INFO "-----------VIULite REGS ----------\n");
+
 	printk(VIULite_INFO "[REG : VIULite_SCR]\t : %02x => %08x\n",
 		0x0,
-		readl(viudata->reg_base));
+		readl(base_address));
 	printk(VIULite_INFO "[REG : VIULite_INTR  ]\t : %02x => %08x\n",
 		0x04,
-		readl(viudata->reg_base + 0x04));
+		readl(base_address + INTR_OFFSET));
 	printk(VIULite_INFO "[REG : VIULite_DINVSZ]\t : %02x => %08x\n",
 		0x08,
-		readl(viudata->reg_base + 0x08));
+		readl(base_address + DINVSZ_OFFSET));
 	printk(VIULite_INFO "[REG : VIULite_DINVFL]\t : %02x => %08x\n",
 		0x0C,
-		readl(viudata->reg_base + 0x0C));
+		readl(base_address + DINVFL_OFFSET));
 	printk(VIULite_INFO "[REG : VIULite_DMA_SIZE]\t : %02x => %08x\n",
 		0x10,
-		readl(viudata->reg_base + 0x10));
+		readl(base_address + DMA_SIZE_OFFSET));
 	printk(VIULite_INFO "[REG : VIULite_DMA_ADDR]\t : %02x => %08x\n",
 		0x14,
-		readl(viudata->reg_base + 0x14));
+		readl(base_address + DMA_ADDR_OFFSET));
 	printk(VIULite_INFO "[REG : VIULite_DMA_INC]\t : %02x => %08x\n",
 		0x18,
-		readl(viudata->reg_base + 0x18));
+		readl(base_address + DMA_INC_OFFSET));
 	printk(VIULite_INFO "[REG : VIULite_INVSZ]\t : %02x => %08x\n",
 		0x1C,
-		readl(viudata->reg_base + 0x1C));
+		readl(base_address + INVSZ_OFFSET));
 	printk(VIULite_INFO "[REG : VIULite_ALPHA]\t : %02x => %08x\n",
 		0x24,
-		readl(viudata->reg_base + 0x24));
+		readl(base_address + ALPHA_OFFSET));
 	printk(VIULite_INFO "[REG : VIULite_ACT_ORG]\t : %02x => %08x\n",
 		0x28,
-		readl(viudata->reg_base + 0x28));
+		readl(base_address + ACTORG_OFFSET));
 	printk(VIULite_INFO "[REG : VIULite_ACT_SIZE]\t : %02x => %08x\n",
 		0x2C,
-		readl(viudata->reg_base + 0x2C));
+		readl(base_address + ACTSIZE_OFFSET));
 	printk(VIULite_INFO "-------------------------------\n");
 
 }
+ **********************************************************/
 
 /**********************************************************
  * FUNCTION: fsl_viulite_irq
@@ -151,18 +152,17 @@ irqreturn_t fsl_viulite_irq(int irq, void *dev_id)
 
 /**********************************************************
  * FUNCTION: fsl_viulite_remove
+ * to be modified for 2 VIUs
  **********************************************************/
 int fsl_viulite_remove(struct platform_device *pdev)
 {
 	__TRACE__();
 
-/* KK2 */
 	cdev_del(viulite_cdev);
 
 	device_destroy(viulite_class, viulite_devn);
 	class_destroy(viulite_class);
 	unregister_chrdev_region(viulite_devn, 2);
-/* KK2 */
 
 	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
@@ -251,31 +251,6 @@ void viulite_get_datainterface(void __iomem *reg_base,
 			>> SCR_ENDIANNESS_OFFSET);
 }
 
-/*void viulite_dma_config(uint64_t *reg_base, DMA_CONFIG *dmaconfig)
-{
-	uint32_t *reg_address;
-	uint32_t  reg_value;
-	uint64_t  reg_base32 = (uint64_t)reg_base;
-
-	reg_address = (uint32_t *)(reg_base32 + DMA_ADDR_OFFSET);
-	writel(dmaconfig->buff_addr, reg_address);
-
-	reg_address = (uint32_t *)(reg_base32 + DMA_SIZE_OFFSET);
-	writel(dmaconfig->tx_size, reg_address);
-
-	reg_address = (uint32_t *)(reg_base32 + INVSZ_OFFSET);
-	reg_value = (uint32_t) (((uint32_t)(dmaconfig->nmb_lines)) << 16)
-			| (uint32_t)(dmaconfig->nmb_pixells);
-	writel(reg_value, reg_address);
-
-	reg_address = (uint32_t *)(reg_base32 + DMA_INC_OFFSET);
-	writel(dmaconfig->frame_inc, reg_address);
-
-	if (MAX_ALPHA_VAL > dmaconfig->alpha_val) {
-		reg_address = (uint32_t *)(reg_base32 + ALPHA_OFFSET);
-		writel(dmaconfig->alpha_val, reg_address);
-	}
-}*/
 void viulite_dma_config(void __iomem *reg_base, DMA_CONFIG *dmaconfig)
 {
 	uint32_t  reg_value;
@@ -325,22 +300,7 @@ void viulite_dma_getstatus(void __iomem *reg_base, VIU_BOOL *dmastatus)
 		*dmastatus = VIU_OFF;
 	else
 		*dmastatus = VIU_ON;
-
 }
-
-/*void viulite_sw_reset(void __iomem *reg_base, VIU_BOOL res_status)
-{
-	uint32_t  reg_value;
-	void __iomem *reg_address = reg_base + SCR_OFFSET;
-
-	reg_value = readl(reg_address);
-	reg_value &= ~SCR_SWRESET_MASK;
-	if (VIU_ON == res_status) {
-		reg_value |= SCR_SWRESET_MASK;
-	}
-
-	writel(reg_value, reg_address);
-}*/
 
 void viulite_sw_reset(void __iomem *reg_base)
 {
@@ -357,7 +317,6 @@ void viulite_sw_reset(void __iomem *reg_base)
 	reg_value &= ~SCR_SWRESET_MASK;
 	writel(reg_value, reg_address);
 }
-
 
 void viulite_enable_ituerror(void __iomem *reg_base, VIU_BOOL itu_errset)
 {
@@ -485,7 +444,7 @@ void viulite_get_clippingdata(void __iomem *reg_base,
  * VIULite Linux IOCTL operations
  **********************************************************/
 long fsl_viulite_ioctl(struct file *pfile, unsigned int ioctl_cmd,
-		unsigned long arg)
+		       unsigned long arg)
 {
 	int ret;
 	struct inode *pnode = pfile->f_inode;
@@ -527,14 +486,6 @@ long fsl_viulite_ioctl(struct file *pfile, unsigned int ioctl_cmd,
 
 	case VIULITE_IOCTL_SW_RESET:
 	{
-		VIU_BOOL res_status;
-
-		/* copy data from user space */
-/*		ret = copy_from_user(&res_status, (VIU_BOOL *)arg,
-				sizeof(res_status));
-
-		viulite_sw_reset(viulite_baseloc, res_status);
-*/
 		viulite_sw_reset(viulite_baseloc);
 	}
 	break;
@@ -764,8 +715,8 @@ int fsl_viulite_dev_create(struct platform_device *pdev)
 		/* Alloc MAJOR number for the character and
 		* the 1st minor device in dev
 		*/
-		ret = alloc_chrdev_region(&viulite_devn, 0, VIULITE_DEV_COUNT,
-					  DRIVER_NAME);
+		ret = alloc_chrdev_region(&viulite_devn, 0,
+					VIULITE_DEV_COUNT, DRIVER_NAME);
 		if (ret < 0) {
 			printk(VIULite_INFO "alloc_region failed: %d\n", ret);
 			return ret;
@@ -777,8 +728,10 @@ int fsl_viulite_dev_create(struct platform_device *pdev)
 			return -1;
 		}
 	}
+
 	index = MINOR(viulite_devn);
 
+	/* Device is created and registered in sysfs */
 	if (!(device_create(viulite_class, NULL,
 			viulite_devn, NULL, device_name[index]))) {
 		printk(VIULite_INFO "device_create 0 failed %d\n", ret);
