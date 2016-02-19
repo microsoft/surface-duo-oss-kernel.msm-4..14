@@ -80,11 +80,16 @@
 	};
 };
 
+&fdma {
+	status = "okay";
+};
+
 &fec {
 	phy-mode = "rgmii";
 	fixed-link = <1 1 100 0 0>;
 	status = "okay";
 };
+
 &i2c0 {
 	status = "okay";
 };
@@ -100,6 +105,15 @@
 &i2c2 {
 	status = "okay";
 };
+
+&mipicsi0 {
+	status = "okay";
+};
+
+&mipicsi1 {
+	status = "okay";
+};
+
 &siul2 {
 	status = "okay";
 	s32v234-evb {
@@ -154,5 +168,9 @@
 };
 &usdhc0 {
 	no-1-8-V;
+	status = "okay";
+};
+
+&vseq {
 	status = "okay";
 };
