@@ -3,9 +3,10 @@ Freescale MIPI-CSI2 interface
 Describes camera serial interface configuration.
 
 Required properties:
-- compatible : "fsl,<chip>-mipicsi2", chip should be s32v234
-- reg : Should contain the mipicsi2 register range (address and length - both
+- compatible: "fsl,<chip>-mipicsi2-<I/F ID>", chip should be s32v234
+- reg: Should contain the mipicsi2 register range (address and length - both
 		64bit)
+- interrupts: Should enumerate MIPICSI2 NVIC interrupt IDs.
 
 Required nodes:
 - sensor: Phandle to a sensor node placed in corresponding I2C bus.
@@ -31,10 +32,12 @@ aips0: aips-bus@40000000 {
 
 	...
 
-	mipicsi0: mipicsi2@40030000{
-		compatible = "fsl,s32v234-mipicsi2";
+	mipicsi0: mipicsi2_0@40030000{
+		compatible = "fsl,s32v234-mipicsi2-0";
 		reg = <0x0 0x40030000 0x0 0x1000>;
-		sensor = <0x0>; //<&sony_cam>;
+		interrupts =  <0 91 1>,
+		<0 93 1>;
+		sensor = <0x0>; // nothing connected
 		clocks = <&clks S32V234_CLK_SYS6>;
 		clock-names = "mipicsi2";
 
@@ -51,4 +54,32 @@ aips0: aips-bus@40000000 {
 			init_mode = "1280x720xRAW12";
 		};
 	};
+};
+
+aips1: aips-bus@40080000 {
+
+	...
+
+	mipicsi1: mipicsi2_1@400A0000{
+		compatible = "fsl,s32v234-mipicsi2-1";
+		reg = <0x0 0x400A0000 0x0 0x1000>;
+		interrupts = 	<0 92 1>,
+		<0 94 1>;
+		sensor = <0x0>;   // nothing connected
+		clocks = <&clks S32V234_CLK_SYS6>;
+		clock-names = "mipicsi2";
+
+		status = "disabled";
+	};
+
+	...
+
+};
+
+&mipicsi0 {
+	status = "okay";
+};
+
+&mipicsi1 {
+	status = "okay";
 };

@@ -1,0 +1,21 @@
+Freescale Fast DMA
+
+Describes Fast DMA configuration.
+
+Required properties:
+- compatible: "fsl,<chip>-fdma", chip should be s32v234
+- reg: Should contain the FDMA register range (address and length - both 64bit)
+- interrupts: Should enumerate FDMA NVIC interrupt IDs.
+
+Example:
+fdma: fast_dma@7C040000 {
+		compatible = "fsl,s32v234-fdma";
+		reg = <0x0 0x7C040000 0x0 0x1000>;
+		interrupts = 	<0 83 1>,
+		<0 84 1>;
+		status = "disabled";
+};
+
+&fdma {
+	status = "okay";
+};
