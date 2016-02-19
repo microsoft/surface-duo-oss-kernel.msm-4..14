@@ -197,7 +197,7 @@ static int hisi_thermal_get_temp(void *_sensor, int *temp)
 		return 0;
 	}
 
-	if (max_temp < sensor->thres_temp) {
+	if (!data->irq_enabled && max_temp < sensor->thres_temp) {
 		data->irq_enabled = true;
 		hisi_thermal_enable_bind_irq_sensor(data);
 		enable_irq(data->irq);
