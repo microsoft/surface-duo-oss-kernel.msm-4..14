@@ -147,6 +147,7 @@ typedef struct {
 #define SCR_OFFSET                      (0x00000000)
 #define INTR_OFFSET                     (0x00000004)
 #define DINVSZ_OFFSET                   (0x00000008)
+#define DINVFL_OFFSET                   (0x0000000C)
 #define DMA_SIZE_OFFSET                 (0x00000010)
 #define DMA_ADDR_OFFSET                 (0x00000014)
 #define DMA_INC_OFFSET                  (0x00000018)
@@ -180,7 +181,7 @@ typedef struct {
 #define SCR_ENDIANNESS_OFFSET               1
 #define SCR_ENDIANNESS_MASK     (uint32_t)(1 << SCR_ENDIANNESS_OFFSET)
 #define SCR_SWRESET_MASK        ((uint32_t)1)
-#define SCR_VIDEOIN_MASK        (SCR_INWIDTH_MASK | SCR_ITUMODE_MASK | \
+#define SCR_VIDEOIN_MASK	(SCR_INWIDTH_MASK | SCR_ITUMODE_MASK | \
 				 SCR_CPP_MASK)
 
 
