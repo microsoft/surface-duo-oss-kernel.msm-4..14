@@ -891,3 +891,8 @@ int __qcom_scm_mem_protect_video_var(u32 start, u32 size, u32 nonpixel_start,
 
 	return 0;
 }
+
+int __qcom_scm_init(void)
+{
+	return 0;
+}

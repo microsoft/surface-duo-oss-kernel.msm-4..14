@@ -862,7 +862,7 @@ int __qcom_scm_mem_protect_video_var(u32 start, u32 size, u32 nonpixel_start,
 }
 
 #define QCOM_SCM_SVC_INFO              0x6
-static int __init qcom_scm_init(void)
+int __qcom_scm_init(void)
 {
 	int ret;
 	u64 ret1 = 0, x0;
@@ -889,4 +889,3 @@ static int __init qcom_scm_init(void)
 
 	return 0;
 }
-early_initcall(qcom_scm_init);

@@ -117,4 +117,5 @@ extern int __qcom_scm_set_video_state(u32 state, u32 spare);
 extern int __qcom_scm_mem_protect_video_var(u32 start, u32 size,
 					    u32 nonpixel_start,
 					    u32 nonpixel_size);
+extern int __qcom_scm_init(void);
 #endif
