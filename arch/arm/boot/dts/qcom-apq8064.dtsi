@@ -791,6 +791,17 @@
 		};
 	};
 
+	firmware {
+		compatible = "simple-bus";
+
+		scm {
+			compatible = "qcom,scm";
+			clocks = <&gcc CE3_CORE_CLK> , <&gcc CE3_H_CLK>;
+			clock-names = "core", "iface";
+		};
+	};
+
+
 	soc: soc {
 		#address-cells = <1>;
 		#size-cells = <1>;
