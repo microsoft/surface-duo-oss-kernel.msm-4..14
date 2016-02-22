@@ -133,5 +133,8 @@ applications to take control. Changes to the airplane-mode indicator state can
 be made using RFKILL_OP_AIRPLANE_MODE_INDICATOR_CHANGE, passing the new value
 in the 'soft' field of 'struct rfkill_event'.
 
+This same API is also used to provide userspace with notifications of changes
+to airplane-mode indicator state.
+
 
 For further details consult Documentation/ABI/stable/sysfs-class-rfkill.

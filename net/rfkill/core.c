@@ -131,7 +131,20 @@ static struct led_trigger rfkill_apm_led_trigger;
 
 static void rfkill_apm_led_trigger_event(bool state)
 {
+	struct rfkill_data *data;
+	struct rfkill_int_event *ev;
+
 	led_trigger_event(&rfkill_apm_led_trigger, state ? LED_FULL : LED_OFF);
+
+	list_for_each_entry(data, &rfkill_fds, list) {
+		ev = kzalloc(sizeof(*ev), GFP_KERNEL);
+		if (!ev)
+			continue;
+		ev->ev.op = RFKILL_OP_AIRPLANE_MODE_INDICATOR_CHANGE;
+		ev->ev.soft = state;
+		list_add_tail(&ev->list, &data->events);
+		wake_up_interruptible(&data->read_wait);
+	}
 }
 
 static void rfkill_apm_led_trigger_activate(struct led_classdev *led)
