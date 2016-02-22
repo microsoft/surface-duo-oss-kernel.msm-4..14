@@ -34,31 +34,44 @@ static int qcom_scm_clk_enable(void)
 {
 	int ret;
 
-	ret = clk_prepare_enable(__scm->core_clk);
-	if (ret)
-		goto bail;
-	ret = clk_prepare_enable(__scm->iface_clk);
-	if (ret)
-		goto disable_core;
-	ret = clk_prepare_enable(__scm->bus_clk);
-	if (ret)
-		goto disable_iface;
+	if(__scm->core_clk) {
+		ret = clk_prepare_enable(__scm->core_clk);
+		if (ret)
+			goto bail;
+	}
+
+	if(__scm->iface_clk) {
+		ret = clk_prepare_enable(__scm->iface_clk);
+		if (ret)
+			goto disable_core;
+	}
+
+	if(__scm->bus_clk) {
+		ret = clk_prepare_enable(__scm->bus_clk);
+		if (ret)
+			goto disable_iface;
+	}
 
 	return 0;
 
 disable_iface:
-	clk_disable_unprepare(__scm->iface_clk);
+	if(__scm->iface_clk)
+		clk_disable_unprepare(__scm->iface_clk);
 disable_core:
-	clk_disable_unprepare(__scm->core_clk);
+	if(__scm->core_clk)
+		clk_disable_unprepare(__scm->core_clk);
 bail:
 	return ret;
 }
 
 static void qcom_scm_clk_disable(void)
 {
-	clk_disable_unprepare(__scm->core_clk);
-	clk_disable_unprepare(__scm->iface_clk);
-	clk_disable_unprepare(__scm->bus_clk);
+	if(__scm->core_clk)
+		clk_disable_unprepare(__scm->core_clk);
+	if(__scm->iface_clk)
+		clk_disable_unprepare(__scm->iface_clk);
+	if(__scm->bus_clk)
+		clk_disable_unprepare(__scm->bus_clk);
 }
 
 /**
@@ -356,28 +369,31 @@ static int qcom_scm_probe(struct platform_device *pdev)
 	if (IS_ERR(scm->core_clk)) {
 		if (PTR_ERR(scm->core_clk) != -EPROBE_DEFER)
 			dev_err(&pdev->dev, "failed to acquire core clk\n");
-		return PTR_ERR(scm->core_clk);
+		scm->core_clk = NULL;
 	}
 
 	scm->iface_clk = devm_clk_get(&pdev->dev, "iface");
 	if (IS_ERR(scm->iface_clk)) {
 		if (PTR_ERR(scm->iface_clk) != -EPROBE_DEFER)
 			dev_err(&pdev->dev, "failed to acquire iface clk\n");
-		return PTR_ERR(scm->iface_clk);
+		scm->iface_clk = NULL;
 	}
 
 	scm->bus_clk = devm_clk_get(&pdev->dev, "bus");
 	if (IS_ERR(scm->bus_clk)) {
 		if (PTR_ERR(scm->bus_clk) != -EPROBE_DEFER)
 			dev_err(&pdev->dev, "failed to acquire bus clk\n");
-		return PTR_ERR(scm->bus_clk);
+
+		scm->bus_clk = NULL;
 	}
 
+	if (scm->core_clk) {
 	/* vote for max clk rate for highest performance */
-	rate = clk_round_rate(scm->core_clk, INT_MAX);
-	ret = clk_set_rate(scm->core_clk, rate);
-	if (ret)
-		return ret;
+		rate = clk_round_rate(scm->core_clk, INT_MAX);
+		ret = clk_set_rate(scm->core_clk, rate);
+		if (ret)
+			return ret;
+	}
 
 	__scm = scm;
 
