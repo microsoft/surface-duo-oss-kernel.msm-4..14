@@ -333,11 +333,20 @@ bool qcom_scm_is_available(void)
 }
 EXPORT_SYMBOL(qcom_scm_is_available);
 
+static int __init qcom_scm_init(void)
+{
+	return __qcom_scm_init();
+}
+
 static int qcom_scm_probe(struct platform_device *pdev)
 {
 	struct qcom_scm *scm;
 	long rate;
 	int ret;
+
+	ret = qcom_scm_init();
+	if (IS_ERR_VALUE(ret))
+		return ret;
 
 	scm = devm_kzalloc(&pdev->dev, sizeof(*scm), GFP_KERNEL);
 	if (!scm)
