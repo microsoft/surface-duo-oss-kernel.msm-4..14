@@ -63,8 +63,8 @@ enum rfkill_type {
  *	are hot-plugged later.
  * @RFKILL_OP_AIRPLANE_MODE_INDICATOR_ACQUIRE: userspace acquires control of
  * 	the airplane-mode indicator.
- * @RFKILL_OP_AIRPLANE_MODE_INDICATOR_CHANGE: userspace changes the
- * 	airplane-mode indicator state.
+ * @RFKILL_OP_AIRPLANE_MODE_INDICATOR_CHANGE: the airplane-mode indicator state
+ * 	changed -- userspace changes the airplane-mode indicator state.
  */
 enum rfkill_operation {
 	RFKILL_OP_ADD = 0,
