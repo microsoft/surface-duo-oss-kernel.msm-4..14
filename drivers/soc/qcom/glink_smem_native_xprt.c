@@ -56,6 +56,8 @@
 
 static struct device *glink_dev;
 static struct completion glink_ack;
+static struct bus_type *ipc_bus;
+
 #define GLINK_RPM_REQUEST_TIMEOUT 5*HZ
 
 /**
@@ -1910,16 +1912,16 @@ static void init_xprt_if(struct edge_info *einfo)
 	einfo->xprt_if.power_unvote = power_unvote;
 }
 
-static struct qcom_ipc_device *to_ipc_device(struct device *dev)
+static struct qcom_smd_device *to_ipc_device(struct device *dev)
 {
-	return container_of(dev, struct qcom_ipc_device, dev);
+	return container_of(dev, struct qcom_smd_device, dev);
 }
 
-static struct qcom_ipc_driver *to_ipc_driver(struct device *dev)
+static struct qcom_smd_driver *to_ipc_driver(struct device *dev)
 {
-	struct qcom_ipc_device *qidev = to_ipc_device(dev);
+	struct qcom_smd_device *qidev = to_ipc_device(dev);
 
-	return container_of(qidev->dev.driver, struct qcom_ipc_driver, driver);
+	return container_of(qidev->dev.driver, struct qcom_smd_driver, driver);
 }
 
 static int qcom_ipc_dev_match(struct device *dev, struct device_driver *drv)
@@ -1955,8 +1957,8 @@ static void msm_rpm_trans_notify_state(void *handle, const void *priv,
  */
 static int qcom_ipc_dev_probe(struct device *dev)
 {
-	struct qcom_ipc_device *qidev = to_ipc_device(dev);
-	struct qcom_ipc_driver *qidrv = to_ipc_driver(dev);
+	struct qcom_smd_device *qidev = to_ipc_device(dev);
+	struct qcom_smd_driver *qidrv = to_ipc_driver(dev);
 	struct glink_open_config *open_config;
 	const char *channel_name, *key;
 	int ret;
@@ -1999,8 +2001,8 @@ err:
 
 static int qcom_ipc_dev_remove(struct device *dev)
 {
-	struct qcom_ipc_device *qidev = to_ipc_device(dev);
-	struct qcom_ipc_driver *qidrv = to_ipc_driver(dev);
+	struct qcom_smd_device *qidev = to_ipc_device(dev);
+	struct qcom_smd_driver *qidrv = to_ipc_driver(dev);
 	int ret;
 
 	ret = glink_close(qidev->channel);
@@ -2024,7 +2026,7 @@ static struct bus_type qcom_ipc_bus = {
  */
 static void qcom_ipc_release_device(struct device *dev)
 {
-	struct qcom_ipc_device *qidev = to_ipc_device(dev);
+	struct qcom_smd_device *qidev = to_ipc_device(dev);
 
 	kfree(qidev);
 }
@@ -2035,7 +2037,7 @@ static void qcom_ipc_release_device(struct device *dev)
 static int qcom_ipc_create_device(struct device_node *node,
 				  const void *edge_name)
 {
-	struct qcom_ipc_device *qidev;
+	struct qcom_smd_device *qidev;
 	const char *name = edge_name;
 	int ret;
 
@@ -2048,7 +2050,8 @@ static int qcom_ipc_create_device(struct device_node *node,
 	qidev->dev.bus = &qcom_ipc_bus;
 	qidev->dev.release = qcom_ipc_release_device;
 	qidev->dev.of_node = node;
-	dev_set_drvdata(&qidev->dev, edge_name);
+
+	dev_set_drvdata(&qidev->dev, (void *)edge_name);
 
 	ret = device_register(&qidev->dev);
 	if (ret) {
@@ -2310,7 +2313,6 @@ static int glink_native_probe(struct platform_device *pdev)
 	glink_dev = &pdev->dev;
 
 	init_completion(&glink_ack);
-	qcom_ipc_bus_register(&qcom_ipc_bus);
 
 	for_each_available_child_of_node(pdev->dev.of_node, node) {
 		key = "qcom,glink-edge";
@@ -2433,20 +2435,66 @@ static struct platform_driver glink_rpm_native_driver = {
 	},
 };
 
+static const struct of_device_id glink_of_device_ids[] __initconst = {
+	{ .compatible = "qcom,glink" },
+	{}
+};
+
 static int __init glink_smem_native_xprt_init(void)
 {
-	int rc;
+	int rc = 0;
+	struct device_node *np;
 
-	rc = platform_driver_register(&glink_rpm_native_driver);
-	if (rc) {
-		pr_err("%s: glink_rpm_native_driver register failed %d\n",
-								__func__, rc);
-		return rc;
+	np = of_find_matching_node(NULL, glink_of_device_ids);
+	if (np) {
+		rc = bus_register(&qcom_ipc_bus);
+		if (rc) {
+			pr_err("failed to register smd bus: %d\n", rc);
+			return rc;
+		}
+		ipc_bus = &qcom_ipc_bus;
+
+		rc = platform_driver_register(&glink_rpm_native_driver);
+		if (rc) {
+			pr_err("%s: glink_rpm_native_driver register failed %d\n",
+			       __func__, rc);
+			return rc;
+		}
 	}
 
 	return 0;
 }
 postcore_initcall(glink_smem_native_xprt_init);
 
+/**
+ * qcom_smd_driver_register - register a smd driver
+ * @qidrv:      qcom_smd_driver struct
+ */
+int qcom_glink_driver_register(void *drv)
+{
+	struct qcom_smd_driver *qidrv = drv;
+
+	if (!ipc_bus)
+		return 0;
+
+        qidrv->driver.bus = ipc_bus;
+        return driver_register(&qidrv->driver);
+}
+EXPORT_SYMBOL(qcom_glink_driver_register);
+
+/**
+ * qcom_smd_driver_register - register a smd driver
+ * @qidrv:      qcom_smd_driver struct
+ */
+void qcom_glink_driver_unregister(void *drv)
+{
+	struct qcom_smd_driver *qidrv = drv;
+
+	if (!ipc_bus)
+		return;
+
+	driver_unregister(&qidrv->driver);
+}
+EXPORT_SYMBOL(qcom_glink_driver_unregister);
 MODULE_DESCRIPTION("MSM G-Link SMEM Native Transport");
 MODULE_LICENSE("GPL v2");
