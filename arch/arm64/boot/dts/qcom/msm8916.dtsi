@@ -256,15 +256,6 @@
 		};
 	};
 
-	smem {
-		compatible = "qcom,smem";
-
-		memory-region = <&smem_mem>;
-		qcom,rpm-msg-ram = <&rpm_msg_ram>;
-
-		hwlocks = <&tcsr_mutex 3>;
-	};
-
 	firmware {
 		scm {
 			compatible = "qcom,scm";
@@ -1169,6 +1160,16 @@
 			#thermal-sensor-cells = <1>;
 		};
 	};
+
+	smem {
+		compatible = "qcom,smem";
+
+		memory-region = <&smem_mem>;
+		qcom,rpm-msg-ram = <&rpm_msg_ram>;
+
+		hwlocks = <&tcsr_mutex 3>;
+	};
+
 
 	smd {
 		compatible = "qcom,smd";
