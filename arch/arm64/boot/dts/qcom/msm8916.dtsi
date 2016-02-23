@@ -225,15 +225,6 @@
 		};
 	};
 
-	smem {
-		compatible = "qcom,smem";
-
-		memory-region = <&smem_mem>;
-		qcom,rpm-msg-ram = <&rpm_msg_ram>;
-
-		hwlocks = <&tcsr_mutex 3>;
-	};
-
 	firmware {
 		scm: scm {
 			compatible = "qcom,scm";
@@ -883,6 +874,16 @@
 			qcom,cpr-cpus = <&CPU0 &CPU1 &CPU2 &CPU3>;
 		};
 	};
+
+	smem {
+		compatible = "qcom,smem";
+
+		memory-region = <&smem_mem>;
+		qcom,rpm-msg-ram = <&rpm_msg_ram>;
+
+		hwlocks = <&tcsr_mutex 3>;
+	};
+
 
 	smd {
 		compatible = "qcom,smd";
