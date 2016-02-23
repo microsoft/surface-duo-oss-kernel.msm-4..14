@@ -83,6 +83,11 @@ rfkill drivers that control devices that can be hard-blocked unless they also
 assign the poll_hw_block() callback (then the rfkill core will poll the
 device). Don't do this unless you cannot get the event in any other way.
 
+RFKill provides per-switch LED triggers, which can be used to drive LEDs
+according to the switch state (LED_FULL when blocked, LED_OFF otherwise).
+An airplane-mode indicator LED trigger is also available, which triggers
+LED_FULL when all radios known by RFKill are blocked, and LED_OFF otherwise.
+The airplane-mode indicator LED trigger policy can be overridden by userspace.
 
 
 5. Userspace support
@@ -118,6 +123,18 @@ RFKILL_TYPE
 
 The contents of these variables corresponds to the "name", "state" and
 "type" sysfs files explained above.
+
+Userspace can also override the default airplane-mode indicator policy through
+/dev/rfkill. Control of the airplane mode indicator has to be acquired first,
+using RFKILL_OP_AIRPLANE_MODE_INDICATOR_ACQUIRE, and is only available for one
+userspace application at a time. Closing the fd reverts the airplane-mode
+indicator back to the default kernel policy and makes it available for other
+applications to take control. Changes to the airplane-mode indicator state can
+be made using RFKILL_OP_AIRPLANE_MODE_INDICATOR_CHANGE, passing the new value
+in the 'soft' field of 'struct rfkill_event'.
+
+This same API is also used to provide userspace with notifications of changes
+to airplane-mode indicator state.
 
 
 For further details consult Documentation/ABI/stable/sysfs-class-rfkill.
