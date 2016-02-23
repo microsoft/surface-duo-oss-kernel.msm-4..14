@@ -178,6 +178,15 @@
 			};
 		};
 
+		gsbi@12480000 {
+			status = "okay";
+			qcom,mode = <GSBI_PROT_I2C>;
+			/* EXPANSION CONNECTOR */
+			i2c@124a0000 {
+				status = "okay";
+			};
+		};
+
 		gsbi@1a200000 {
 			qcom,mode = <GSBI_PROT_SPI>;
 			status = "okay";
