@@ -1,7 +1,8 @@
 dtb-$(CONFIG_ARCH_VEXPRESS) += rtsm_ve-aemv8a.dtb foundation-v8.dtb \
 				fvp-base-gicv2-psci.dtb
 dtb-$(CONFIG_ARCH_VEXPRESS) += juno.dtb \
-				juno_mali_fpga_T860_VP550_DP550_SMMU550.dtb
+				juno_mali_fpga_T860_VP550_DP550_SMMU550.dtb \
+				juno_mali_fpga_TMIM_VP550_DP650_SMMU550.dtb
 dtb-$(CONFIG_ARCH_XGENE) += apm-mustang.dtb
 
 targets += dtbs

@@ -1,0 +1,71 @@
+/*
+ * ARM Ltd. Juno Plaform
+ *
+ * Fast Models FVP v2 support
+ */
+
+#include "juno-common.dtsi"
+
+/ {
+	aliases {
+		malidp0 = &dp0;
+	};
+
+	gpu: gpu@0x6e000000 {
+		compatible = "arm,mali-midgard", "arm,mali";
+		reg = <0x0 0x6e000000 0x0 0x4000>;
+		interrupts = <0 168 4>, <0 168 4>, <0 168 4>;
+		interrupt-names = "JOB", "MMU", "GPU";
+                snoop_enable_smc = <0x8200ff04>;
+                snoop_disable_smc = <0x8200ff05>;
+	};
+
+	dp0: display@6f200000 {
+		compatible = "arm,mali-dp650";
+		reg = <0 0x6f200000 0 0x40000>;
+		interrupts = <0 168 4>, <0 168 4>;
+		interrupt-names = "DE", "SE";
+		clocks = <&db2oscclk2>, <&fpgaosc0>, <&fpgaosc1>, <&fpgaosc1>;
+		clock-names = "pxclk", "mclk", "aclk", "pclk";
+		de-axi-burst-length = <32>;
+		de-axi-outstanding-transactions = <15>;
+		se-axi-burst-length = <32>;
+		se-axi-outstanding-transactions = <15>;
+		se-axi-awqos = <0>;
+		se-axi-awcache = <0>;
+		#stream-id-cells = <5>;
+		port {
+			dp0_out: endpoint {
+				remote-endpoint = <&tx0_in>;
+			};
+		};
+	};
+
+	test-transmitters {
+		compatible = "simple-bus";
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		tx0: video_tx@0 {
+			compatible = "generic,slave_enc_video_tx";
+			reg = <0>;
+			i2c-slave = <&dvi2>;
+			type = "HDMI";
+			type-idx = <0>;
+			port {
+				tx0_in: endpoint {
+					remote-endpoint = <&dp0_out>;
+				};
+			};
+		};
+	};
+
+	smmu0: smmu@6f300000 {
+		compatible = "arm,mmu-500";
+		reg = <0 0x6f300000 0 0x10000>;
+		#global-interrupts = <1>;
+		interrupts = <0 168 4>, <0 168 4>, <0 168 4>;
+		mmu-masters = <&dp0 0x000 0x400 0x800 0xc00 0x1000>;
+		status = "okay";
+	};
+};
