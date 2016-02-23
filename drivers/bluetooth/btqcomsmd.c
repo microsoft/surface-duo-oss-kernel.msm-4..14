@@ -48,16 +48,17 @@ static int btqcomsmd_recv(struct hci_dev *hdev,
 	return hci_recv_frame(hdev, skb);
 }
 
-static int btqcomsmd_acl_callback(struct qcom_smd_device *qsdev,
+static int btqcomsmd_acl_callback(void *idev,
 				  const void *data,
 				  size_t count)
 {
+	struct qcom_ipc_device *qsdev = idev;
 	struct hci_dev *hdev = dev_get_drvdata(&qsdev->dev);
 
 	return btqcomsmd_recv(hdev, HCI_ACLDATA_PKT, data, count);
 }
 
-static int btqcomsmd_cmd_callback(struct qcom_smd_device *qsdev,
+static int btqcomsmd_cmd_callback(struct qcom_ipc_device *qsdev,
 				  const void *data,
 				  size_t count)
 {
@@ -126,7 +127,7 @@ static int btqcomsmd_set_bdaddr(struct hci_dev *hdev,
 	return 0;
 }
 
-static int btqcomsmd_probe(struct qcom_smd_device *sdev)
+static int btqcomsmd_probe(struct qcom_ipc_device *sdev)
 {
 	struct qcom_smd_channel *acl;
 	struct btqcomsmd *btq;
@@ -168,7 +169,7 @@ static int btqcomsmd_probe(struct qcom_smd_device *sdev)
 	return 0;
 }
 
-static void btqcomsmd_remove(struct qcom_smd_device *sdev)
+static void btqcomsmd_remove(struct qcom_ipc_device *sdev)
 {
 	struct hci_dev *hdev = dev_get_drvdata(&sdev->dev);;
 
@@ -181,7 +182,7 @@ static const struct qcom_smd_id btqcomsmd_match[] = {
 	{}
 };
 
-static struct qcom_smd_driver btqcomsmd_cmd_driver = {
+static struct qcom_ipc_driver btqcomsmd_cmd_driver = {
 	.probe = btqcomsmd_probe,
 	.remove = btqcomsmd_remove,
 	.callback = btqcomsmd_cmd_callback,
@@ -192,7 +193,7 @@ static struct qcom_smd_driver btqcomsmd_cmd_driver = {
 	},
 };
 
-module_qcom_smd_driver(btqcomsmd_cmd_driver);
+module_qcom_ipc_driver(btqcomsmd_cmd_driver);
 
 MODULE_DESCRIPTION("Qualcomm SMD HCI driver");
 MODULE_LICENSE("GPL v2");
