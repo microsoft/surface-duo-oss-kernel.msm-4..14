@@ -345,6 +345,13 @@ static int msm_iommu_probe(struct platform_device *pdev)
 	u32 temp;
 	unsigned long rate;
 
+	if (!qcom_scm_is_available())
+		return -EPROBE_DEFER;
+
+	msm_iommu_check_scm_call_avail();
+	msm_set_iommu_access_ops(&iommu_access_ops_v1);
+	msm_iommu_sec_set_access_ops(&iommu_access_ops_v1);
+
 	drvdata = devm_kzalloc(dev, sizeof(*drvdata), GFP_KERNEL);
 	if (!drvdata)
 		return -ENOMEM;
@@ -607,6 +614,9 @@ static int msm_iommu_ctx_probe(struct platform_device *pdev)
 	struct msm_iommu_ctx_drvdata *ctx_drvdata;
 	int ret;
 
+	if (!qcom_scm_is_available())
+		return -EPROBE_DEFER;
+
 	if (!pdev->dev.parent)
 		return -EINVAL;
 
@@ -671,10 +681,6 @@ static int __init msm_iommu_driver_init(void)
 {
 	int ret;
 
-	msm_iommu_check_scm_call_avail();
-	msm_set_iommu_access_ops(&iommu_access_ops_v1);
-	msm_iommu_sec_set_access_ops(&iommu_access_ops_v1);
-
 	ret = platform_driver_register(&msm_iommu_driver);
 	if (ret) {
 		pr_err("Failed to register IOMMU driver\n");
@@ -696,7 +702,6 @@ static void __exit msm_iommu_driver_exit(void)
 	platform_driver_unregister(&msm_iommu_ctx_driver);
 	platform_driver_unregister(&msm_iommu_driver);
 }
-
 subsys_initcall(msm_iommu_driver_init);
 module_exit(msm_iommu_driver_exit);
 
