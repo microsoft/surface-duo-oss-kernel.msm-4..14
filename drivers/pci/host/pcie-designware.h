@@ -130,13 +130,18 @@ struct pcie_port {
 	u32			lanes;
 	struct pcie_host_ops	*ops;
 	int			msi_irq;
+	int			dma_irq;
+	#ifdef CONFIG_PCI_S32V234_EP
+	int			link_req_rst_not_irq;
+	#endif
 	struct irq_domain	*irq_domain;
-	struct msi_controller	*msi_chip;
 	unsigned long		msi_data;
 	DECLARE_BITMAP(msi_irq_in_use, MAX_MSI_IRQS);
 	u8			atu_idx[ATU_TYPE_MAX];
 	#ifdef CONFIG_PCI_S32V234_EP
 	struct dentry		*dir;
+	int			user_pid;
+	struct siginfo	info;    /* signal information */
 	#endif
 	#ifdef CONFIG_PCI_DW_DMA
 	struct dma_ch_info	wr_ch;
@@ -144,12 +149,8 @@ struct pcie_port {
 	struct dma_ll_info	ll_info;
 	struct dma_list(*dma_linked_list)[];
 	int (*ptr_func)(u32 arg);
-	#ifdef CONFIG_PCI_S32V234_EP
-	int			user_pid;
-	struct siginfo	info;    /* signal information */
 	#endif
 
-	#endif
 };
 
 struct pcie_host_ops {

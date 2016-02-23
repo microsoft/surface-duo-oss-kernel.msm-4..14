@@ -46,11 +46,22 @@ config PCI_S32V234_EP
 	help
 	If you're using a S32V234 based board and want to use it in PCIe
 	EndPoint mode, you want this enabled.
+	For proper functionality the EP mode should also be enabled in
+	the U-Boot build configuration.
+	Otherwise you should set it to 'no'
+config PCI_S32V234_ERR009852
+	bool "Freescale S32V234 ERR009852 ignore"
+	depends on OF && (ARM || ARM64) && PCI_S32V234_EP
+	help
+	If you're using a S32V234 based board and want to use the PCIe
+	EndPoint mode with enabled memory access from RC,
+	you want this enabled.
+	Be advised that enabling this ignores errata ERR009852
 	Otherwise you should set it to 'no'
 
 config PCI_DW_DMA
 	bool "Freescale S32V234 PCIe DW DMA"
-	depends on OF && (ARM || ARM64)
+	depends on OF && (ARM || ARM64) && PCI_S32V234_EP
 	help
 	If you're using a S32V234 based board and want to use Internal DMA
 	engine in PCIe mode, you want this enabled.
