@@ -1,7 +1,7 @@
 /*******************************************************************************
  *
  * Intel Ethernet Controller XL710 Family Linux Driver
- * Copyright(c) 2013 - 2015 Intel Corporation.
+ * Copyright(c) 2013 - 2016 Intel Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -64,9 +64,6 @@
 #include "i40e_dcb.h"
 
 /* Useful i40e defaults */
-#define I40E_BASE_PF_SEID     16
-#define I40E_BASE_VSI_SEID    512
-#define I40E_BASE_VEB_SEID    288
 #define I40E_MAX_VEB          16
 
 #define I40E_MAX_NUM_DESCRIPTORS      4096
@@ -104,6 +101,7 @@
 #define I40E_PRIV_FLAGS_FD_ATR		BIT(2)
 #define I40E_PRIV_FLAGS_VEB_STATS	BIT(3)
 #define I40E_PRIV_FLAGS_PS		BIT(4)
+#define I40E_PRIV_FLAGS_HW_ATR_EVICT	BIT(5)
 
 #define I40E_NVM_VERSION_LO_SHIFT  0
 #define I40E_NVM_VERSION_LO_MASK   (0xff << I40E_NVM_VERSION_LO_SHIFT)
@@ -136,6 +134,19 @@
 
 /* default to trying for four seconds */
 #define I40E_TRY_LINK_TIMEOUT (4 * HZ)
+
+/**
+ * i40e_is_mac_710 - Return true if MAC is X710/XL710
+ * @hw: ptr to the hardware info
+ **/
+static inline bool i40e_is_mac_710(struct i40e_hw *hw)
+{
+	if ((hw->mac.type == I40E_MAC_X710) ||
+	    (hw->mac.type == I40E_MAC_XL710))
+		return true;
+
+	return false;
+}
 
 /* driver state flags */
 enum i40e_state_t {
@@ -339,6 +350,11 @@ struct i40e_pf {
 #define I40E_FLAG_VEB_MODE_ENABLED		BIT_ULL(40)
 #define I40E_FLAG_GENEVE_OFFLOAD_CAPABLE	BIT_ULL(41)
 #define I40E_FLAG_NO_PCI_LINK_CHECK		BIT_ULL(42)
+#define I40E_FLAG_100M_SGMII_CAPABLE		BIT_ULL(43)
+#define I40E_FLAG_RESTART_AUTONEG		BIT_ULL(44)
+#define I40E_FLAG_NO_DCB_SUPPORT		BIT_ULL(45)
+#define I40E_FLAG_USE_SET_LLDP_MIB		BIT_ULL(46)
+#define I40E_FLAG_STOP_FW_LLDP			BIT_ULL(47)
 #define I40E_FLAG_PF_MAC			BIT_ULL(50)
 
 	/* tracks features that get auto disabled by errors */
@@ -391,6 +407,7 @@ struct i40e_pf {
 	struct i40e_vf *vf;
 	int num_alloc_vfs;	/* actual number of VFs allocated */
 	u32 vf_aq_requests;
+	u32 arq_overflows;	/* Not fatal, possibly indicative of problems */
 
 	/* DCBx/DCBNL capability for PF that indicates
 	 * whether DCBx is managed by firmware or host
@@ -492,6 +509,7 @@ struct i40e_vsi {
 	u32 tx_busy;
 	u64 tx_linearize;
 	u64 tx_force_wb;
+	u64 tx_lost_interrupt;
 	u32 rx_buf_failed;
 	u32 rx_page_failed;
 
@@ -747,6 +765,9 @@ static inline void i40e_irq_dynamic_enable(struct i40e_vsi *vsi, int vector)
 	struct i40e_hw *hw = &pf->hw;
 	u32 val;
 
+	/* definitely clear the PBA here, as this function is meant to
+	 * clean out all previous interrupts AND enable the interrupt
+	 */
 	val = I40E_PFINT_DYN_CTLN_INTENA_MASK |
 	      I40E_PFINT_DYN_CTLN_CLEARPBA_MASK |
 	      (I40E_ITR_NONE << I40E_PFINT_DYN_CTLN_ITR_INDX_SHIFT);
@@ -754,9 +775,8 @@ static inline void i40e_irq_dynamic_enable(struct i40e_vsi *vsi, int vector)
 	/* skip the flush */
 }
 
-void i40e_irq_dynamic_disable(struct i40e_vsi *vsi, int vector);
 void i40e_irq_dynamic_disable_icr0(struct i40e_pf *pf);
-void i40e_irq_dynamic_enable_icr0(struct i40e_pf *pf);
+void i40e_irq_dynamic_enable_icr0(struct i40e_pf *pf, bool clearpba);
 #ifdef I40E_FCOE
 struct rtnl_link_stats64 *i40e_get_netdev_stats_struct(
 					     struct net_device *netdev,
@@ -786,7 +806,8 @@ struct i40e_mac_filter *i40e_find_mac(struct i40e_vsi *vsi, u8 *macaddr,
 				      bool is_vf, bool is_netdev);
 #ifdef I40E_FCOE
 int i40e_close(struct net_device *netdev);
-int i40e_setup_tc(struct net_device *netdev, u8 tc);
+int __i40e_setup_tc(struct net_device *netdev, u32 handle, __be16 proto,
+		    struct tc_to_netdev *tc);
 void i40e_netpoll(struct net_device *netdev);
 int i40e_fcoe_enable(struct net_device *netdev);
 int i40e_fcoe_disable(struct net_device *netdev);

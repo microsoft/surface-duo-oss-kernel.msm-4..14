@@ -1,7 +1,7 @@
 /*******************************************************************************
  *
  * Intel Ethernet Controller XL710 Family Linux Driver
- * Copyright(c) 2013 - 2015 Intel Corporation.
+ * Copyright(c) 2013 - 2016 Intel Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -89,6 +89,9 @@ static const struct i40e_stats i40e_gstrings_misc_stats[] = {
 	I40E_VSI_STAT("rx_unknown_protocol", eth_stats.rx_unknown_protocol),
 	I40E_VSI_STAT("tx_linearize", tx_linearize),
 	I40E_VSI_STAT("tx_force_wb", tx_force_wb),
+	I40E_VSI_STAT("tx_lost_interrupt", tx_lost_interrupt),
+	I40E_VSI_STAT("rx_alloc_fail", rx_buf_failed),
+	I40E_VSI_STAT("rx_pg_alloc_fail", rx_page_failed),
 };
 
 /* These PF_STATs might look like duplicates of some NETDEV_STATs,
@@ -143,6 +146,7 @@ static struct i40e_stats i40e_gstrings_stats[] = {
 	I40E_PF_STAT("rx_oversize", stats.rx_oversize),
 	I40E_PF_STAT("rx_jabber", stats.rx_jabber),
 	I40E_PF_STAT("VF_admin_queue_requests", vf_aq_requests),
+	I40E_PF_STAT("arq_overflows", arq_overflows),
 	I40E_PF_STAT("rx_hwtstamp_cleared", rx_hwtstamp_cleared),
 	I40E_PF_STAT("fdir_flush_cnt", fd_flush_cnt),
 	I40E_PF_STAT("fdir_atr_match", stats.fd_atr_match),
@@ -232,6 +236,7 @@ static const char i40e_priv_flags_strings[][ETH_GSTRING_LEN] = {
 	"flow-director-atr",
 	"veb-stats",
 	"packet-split",
+	"hw-atr-eviction",
 };
 
 #define I40E_PRIV_FLAGS_STR_LEN ARRAY_SIZE(i40e_priv_flags_strings)
@@ -340,7 +345,7 @@ static void i40e_get_settings_link_up(struct i40e_hw *hw,
 				  SUPPORTED_1000baseT_Full;
 		if (hw_link_info->requested_speeds & I40E_LINK_SPEED_1GB)
 			ecmd->advertising |= ADVERTISED_1000baseT_Full;
-		if (pf->hw.mac.type == I40E_MAC_X722) {
+		if (pf->flags & I40E_FLAG_100M_SGMII_CAPABLE) {
 			ecmd->supported |= SUPPORTED_100baseT_Full;
 			if (hw_link_info->requested_speeds &
 			    I40E_LINK_SPEED_100MB)
@@ -411,6 +416,10 @@ static void i40e_get_settings_link_down(struct i40e_hw *hw,
 		if (pf->hw.mac.type == I40E_MAC_X722) {
 			ecmd->supported |= SUPPORTED_100baseT_Full;
 			ecmd->advertising |= ADVERTISED_100baseT_Full;
+			if (pf->flags & I40E_FLAG_100M_SGMII_CAPABLE) {
+				ecmd->supported |= SUPPORTED_100baseT_Full;
+				ecmd->advertising |= ADVERTISED_100baseT_Full;
+			}
 		}
 	}
 	if (phy_types & I40E_CAP_PHY_TYPE_XAUI ||
@@ -996,16 +1005,19 @@ static int i40e_get_eeprom(struct net_device *netdev,
 	/* check for NVMUpdate access method */
 	magic = hw->vendor_id | (hw->device_id << 16);
 	if (eeprom->magic && eeprom->magic != magic) {
-		struct i40e_nvm_access *cmd;
-		int errno;
+		struct i40e_nvm_access *cmd = (struct i40e_nvm_access *)eeprom;
+		int errno = 0;
 
 		/* make sure it is the right magic for NVMUpdate */
 		if ((eeprom->magic >> 16) != hw->device_id)
-			return -EINVAL;
+			errno = -EINVAL;
+		else if (test_bit(__I40E_RESET_RECOVERY_PENDING, &pf->state) ||
+			 test_bit(__I40E_RESET_INTR_RECEIVED, &pf->state))
+			errno = -EBUSY;
+		else
+			ret_val = i40e_nvmupd_command(hw, cmd, bytes, &errno);
 
-		cmd = (struct i40e_nvm_access *)eeprom;
-		ret_val = i40e_nvmupd_command(hw, cmd, bytes, &errno);
-		if (ret_val && (hw->debug_mask & I40E_DEBUG_NVM))
+		if ((errno || ret_val) && (hw->debug_mask & I40E_DEBUG_NVM))
 			dev_info(&pf->pdev->dev,
 				 "NVMUpdate read failed err=%d status=0x%x errno=%d module=%d offset=0x%x size=%d\n",
 				 ret_val, hw->aq.asq_last_status, errno,
@@ -1089,27 +1101,25 @@ static int i40e_set_eeprom(struct net_device *netdev,
 	struct i40e_netdev_priv *np = netdev_priv(netdev);
 	struct i40e_hw *hw = &np->vsi->back->hw;
 	struct i40e_pf *pf = np->vsi->back;
-	struct i40e_nvm_access *cmd;
+	struct i40e_nvm_access *cmd = (struct i40e_nvm_access *)eeprom;
 	int ret_val = 0;
-	int errno;
+	int errno = 0;
 	u32 magic;
 
 	/* normal ethtool set_eeprom is not supported */
 	magic = hw->vendor_id | (hw->device_id << 16);
 	if (eeprom->magic == magic)
-		return -EOPNOTSUPP;
-
+		errno = -EOPNOTSUPP;
 	/* check for NVMUpdate access method */
-	if (!eeprom->magic || (eeprom->magic >> 16) != hw->device_id)
-		return -EINVAL;
+	else if (!eeprom->magic || (eeprom->magic >> 16) != hw->device_id)
+		errno = -EINVAL;
+	else if (test_bit(__I40E_RESET_RECOVERY_PENDING, &pf->state) ||
+		 test_bit(__I40E_RESET_INTR_RECEIVED, &pf->state))
+		errno = -EBUSY;
+	else
+		ret_val = i40e_nvmupd_command(hw, cmd, bytes, &errno);
 
-	if (test_bit(__I40E_RESET_RECOVERY_PENDING, &pf->state) ||
-	    test_bit(__I40E_RESET_INTR_RECEIVED, &pf->state))
-		return -EBUSY;
-
-	cmd = (struct i40e_nvm_access *)eeprom;
-	ret_val = i40e_nvmupd_command(hw, cmd, bytes, &errno);
-	if (ret_val && (hw->debug_mask & I40E_DEBUG_NVM))
+	if ((errno || ret_val) && (hw->debug_mask & I40E_DEBUG_NVM))
 		dev_info(&pf->pdev->dev,
 			 "NVMUpdate write failed err=%d status=0x%x errno=%d module=%d offset=0x%x size=%d\n",
 			 ret_val, hw->aq.asq_last_status, errno,
@@ -2166,9 +2176,12 @@ static int i40e_set_rss_hash_opt(struct i40e_pf *pf, struct ethtool_rxnfc *nfc)
 	case TCP_V4_FLOW:
 		switch (nfc->data & (RXH_L4_B_0_1 | RXH_L4_B_2_3)) {
 		case 0:
-			hena &= ~BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV4_TCP);
-			break;
+			return -EINVAL;
 		case (RXH_L4_B_0_1 | RXH_L4_B_2_3):
+			if (pf->flags & I40E_FLAG_MULTIPLE_TCP_UDP_RSS_PCTYPE)
+				hena |=
+			   BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV4_TCP_SYN_NO_ACK);
+
 			hena |= BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV4_TCP);
 			break;
 		default:
@@ -2178,9 +2191,12 @@ static int i40e_set_rss_hash_opt(struct i40e_pf *pf, struct ethtool_rxnfc *nfc)
 	case TCP_V6_FLOW:
 		switch (nfc->data & (RXH_L4_B_0_1 | RXH_L4_B_2_3)) {
 		case 0:
-			hena &= ~BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV6_TCP);
-			break;
+			return -EINVAL;
 		case (RXH_L4_B_0_1 | RXH_L4_B_2_3):
+			if (pf->flags & I40E_FLAG_MULTIPLE_TCP_UDP_RSS_PCTYPE)
+				hena |=
+			   BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV6_TCP_SYN_NO_ACK);
+
 			hena |= BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV6_TCP);
 			break;
 		default:
@@ -2190,10 +2206,13 @@ static int i40e_set_rss_hash_opt(struct i40e_pf *pf, struct ethtool_rxnfc *nfc)
 	case UDP_V4_FLOW:
 		switch (nfc->data & (RXH_L4_B_0_1 | RXH_L4_B_2_3)) {
 		case 0:
-			hena &= ~(BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV4_UDP) |
-				  BIT_ULL(I40E_FILTER_PCTYPE_FRAG_IPV4));
-			break;
+			return -EINVAL;
 		case (RXH_L4_B_0_1 | RXH_L4_B_2_3):
+			if (pf->flags & I40E_FLAG_MULTIPLE_TCP_UDP_RSS_PCTYPE)
+				hena |=
+			    BIT_ULL(I40E_FILTER_PCTYPE_NONF_UNICAST_IPV4_UDP) |
+			    BIT_ULL(I40E_FILTER_PCTYPE_NONF_MULTICAST_IPV4_UDP);
+
 			hena |= (BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV4_UDP) |
 				 BIT_ULL(I40E_FILTER_PCTYPE_FRAG_IPV4));
 			break;
@@ -2204,10 +2223,13 @@ static int i40e_set_rss_hash_opt(struct i40e_pf *pf, struct ethtool_rxnfc *nfc)
 	case UDP_V6_FLOW:
 		switch (nfc->data & (RXH_L4_B_0_1 | RXH_L4_B_2_3)) {
 		case 0:
-			hena &= ~(BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV6_UDP) |
-				  BIT_ULL(I40E_FILTER_PCTYPE_FRAG_IPV6));
-			break;
+			return -EINVAL;
 		case (RXH_L4_B_0_1 | RXH_L4_B_2_3):
+			if (pf->flags & I40E_FLAG_MULTIPLE_TCP_UDP_RSS_PCTYPE)
+				hena |=
+			    BIT_ULL(I40E_FILTER_PCTYPE_NONF_UNICAST_IPV6_UDP) |
+			    BIT_ULL(I40E_FILTER_PCTYPE_NONF_MULTICAST_IPV6_UDP);
+
 			hena |= (BIT_ULL(I40E_FILTER_PCTYPE_NONF_IPV6_UDP) |
 				 BIT_ULL(I40E_FILTER_PCTYPE_FRAG_IPV6));
 			break;
@@ -2712,6 +2734,8 @@ static u32 i40e_get_priv_flags(struct net_device *dev)
 		I40E_PRIV_FLAGS_VEB_STATS : 0;
 	ret_flags |= pf->flags & I40E_FLAG_RX_PS_ENABLED ?
 		I40E_PRIV_FLAGS_PS : 0;
+	ret_flags |= pf->auto_disable_flags & I40E_FLAG_HW_ATR_EVICT_CAPABLE ?
+		0 : I40E_PRIV_FLAGS_HW_ATR_EVICT;
 
 	return ret_flags;
 }
@@ -2763,10 +2787,21 @@ static int i40e_set_priv_flags(struct net_device *dev, u32 flags)
 		pf->auto_disable_flags |= I40E_FLAG_FD_ATR_ENABLED;
 	}
 
-	if (flags & I40E_PRIV_FLAGS_VEB_STATS)
+	if ((flags & I40E_PRIV_FLAGS_VEB_STATS) &&
+	    !(pf->flags & I40E_FLAG_VEB_STATS_ENABLED)) {
 		pf->flags |= I40E_FLAG_VEB_STATS_ENABLED;
-	else
+		reset_required = true;
+	} else if (!(flags & I40E_PRIV_FLAGS_VEB_STATS) &&
+		   (pf->flags & I40E_FLAG_VEB_STATS_ENABLED)) {
 		pf->flags &= ~I40E_FLAG_VEB_STATS_ENABLED;
+		reset_required = true;
+	}
+
+	if ((flags & I40E_PRIV_FLAGS_HW_ATR_EVICT) &&
+	    (pf->flags & I40E_FLAG_HW_ATR_EVICT_CAPABLE))
+		pf->auto_disable_flags &= ~I40E_FLAG_HW_ATR_EVICT_CAPABLE;
+	else
+		pf->auto_disable_flags |= I40E_FLAG_HW_ATR_EVICT_CAPABLE;
 
 	/* if needed, issue reset to cause things to take effect */
 	if (reset_required)
