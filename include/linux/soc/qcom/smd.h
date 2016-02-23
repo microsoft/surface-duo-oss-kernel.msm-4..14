@@ -6,9 +6,9 @@
 
 struct qcom_smd;
 struct qcom_smd_lookup;
-struct qcom_smd_device;
+struct qcom_ipc_device;
 
-typedef int (*qcom_smd_cb_t)(struct qcom_smd_device *, const void *, size_t);
+typedef int (*qcom_smd_cb_t)(void *, const void *, size_t);
 
 /*
  * SMD channel states.
@@ -26,7 +26,7 @@ enum smd_channel_state {
 /**
  * struct qcom_smd_channel - smd channel struct
  * @edge:		qcom_smd_edge this channel is living on
- * @qsdev:		reference to a associated smd client device
+ * @qidev:		reference to a associated smd client device
  * @name:		name of the channel
  * @state:		local state of the channel
  * @remote_state:	remote state of the channel
@@ -47,7 +47,7 @@ enum smd_channel_state {
 struct qcom_smd_channel {
 	struct qcom_smd_edge *edge;
 
-	struct qcom_smd_device *qsdev;
+	struct qcom_ipc_device *qidev;
 
 	char *name;
 	enum smd_channel_state state;
@@ -83,16 +83,16 @@ struct qcom_smd_id {
 };
 
 /**
- * struct qcom_smd_device - smd device struct
+ * struct qcom_ipc_device - smd device struct
  * @dev:	the device struct
  * @channel:	handle to the smd channel for this device
  */
-struct qcom_smd_device {
+struct qcom_ipc_device {
 	struct device dev;
 	struct qcom_smd_channel *channel;
 };
 
-typedef int (*qcom_smd_cb_t)(struct qcom_smd_device *, const void *, size_t);
+typedef int (*qcom_smd_cb_t)(void *, const void *, size_t);
 
 /**
  * struct qcom_smd_driver - smd driver struct
@@ -104,25 +104,26 @@ typedef int (*qcom_smd_cb_t)(struct qcom_smd_device *, const void *, size_t);
  *		should return 0 on success or -EBUSY if the data cannot be
  *		consumed at this time
  */
-struct qcom_smd_driver {
+struct qcom_ipc_driver {
 	struct device_driver driver;
 	const struct qcom_smd_id *smd_match_table;
 
-	int (*probe)(struct qcom_smd_device *dev);
-	void (*remove)(struct qcom_smd_device *dev);
+	int (*probe)(struct qcom_ipc_device *dev);
+	void (*remove)(struct qcom_ipc_device *dev);
 	qcom_smd_cb_t callback;
 };
 
-int qcom_smd_driver_register(struct qcom_smd_driver *drv);
-void qcom_smd_driver_unregister(struct qcom_smd_driver *drv);
+int qcom_ipc_driver_register(struct qcom_ipc_driver *drv);
+void qcom_ipc_driver_unregister(struct qcom_ipc_driver *drv);
+void qcom_ipc_bus_register(struct bus_type *bus);
 
-#define module_qcom_smd_driver(__smd_driver) \
-	module_driver(__smd_driver, qcom_smd_driver_register, \
-		      qcom_smd_driver_unregister)
+#define module_qcom_ipc_driver(__ipc_driver) \
+	module_driver(__ipc_driver, qcom_ipc_driver_register, \
+		      qcom_ipc_driver_unregister)
 
 int qcom_smd_send(struct qcom_smd_channel *channel, const void *data, int len);
 
-struct qcom_smd_channel *qcom_smd_open_channel(struct qcom_smd_device *sdev,
+struct qcom_smd_channel *qcom_smd_open_channel(struct qcom_ipc_device *sdev,
 					       const char *name,
 					       qcom_smd_cb_t cb);
 
