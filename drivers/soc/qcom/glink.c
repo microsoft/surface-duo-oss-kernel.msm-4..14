@@ -282,6 +282,7 @@ struct channel_ctx {
 	unsigned long req_rate_kBps;
 	uint32_t tx_intent_cnt;
 	uint32_t tx_cnt;
+	void *drvdata;
 };
 
 static struct glink_core_if core_impl;
@@ -5123,10 +5124,10 @@ static void tx_work_func(struct work_struct *work)
 	struct channel_ctx *ch_ptr;
 	uint32_t prio;
 	uint32_t tx_ready_head_prio = 0;
-	int ret = 0;
 	struct channel_ctx *tx_ready_head = NULL;
 	bool transmitted_successfully = true;
 	unsigned long flags;
+	int ret = 0;
 
 	GLINK_PERF("%s: worker starting\n", __func__);
 
@@ -5764,6 +5765,22 @@ void *glink_get_xprt_log_ctx(struct glink_core_xprt_ctx *xprt)
 		return NULL;
 }
 EXPORT_SYMBOL(glink_get_xprt_log_ctx);
+
+void *qcom_glink_get_drvdata(void *ch)
+{
+	struct channel_ctx *channel = ch;
+
+	return channel->drvdata;
+}
+EXPORT_SYMBOL(qcom_glink_get_drvdata);
+
+void qcom_glink_set_drvdata(void *ch, void *data)
+{
+	struct channel_ctx *channel = ch;
+
+	channel->drvdata = data;
+}
+EXPORT_SYMBOL(qcom_glink_set_drvdata);
 
 static int glink_init(void)
 {

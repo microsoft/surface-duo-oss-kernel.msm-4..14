@@ -71,7 +71,7 @@ struct glink_open_config {
 	const char *name;
 	unsigned int rx_intent_req_timeout_ms;
 
-	void (*notify_rx)(void *handle, const void *ptr, size_t size);
+	int (*notify_rx)(void *handle, const void *ptr, size_t size);
 	void (*notify_tx_done)(void *handle, const void *priv,
 			const void *pkt_priv, const void *ptr);
 	void (*notify_state)(void *handle, const void *priv, unsigned event);
@@ -338,6 +338,10 @@ int glink_qos_start(void *handle);
  */
 unsigned long glink_qos_get_ramp_time(void *handle, size_t pkt_size);
 
+void *qcom_glink_get_drvdata(void *ch);
+void qcom_glink_set_drvdata(void *ch, void *data);
+int qcom_glink_driver_register(void *drv);
+void qcom_glink_driver_unregister(void *drv);
 #else /* CONFIG_MSM_GLINK */
 static inline void *glink_open(const struct glink_open_config *cfg_ptr)
 {
@@ -426,5 +430,14 @@ static inline unsigned long glink_qos_get_ramp_time(void *handle,
 {
 	return 0;
 }
+
+void *qcom_glink_get_drvdata(void *ch)
+{
+        return NULL;
+}
+
+void qcom_glink_set_drvdata(void *ch, void *data) {}
+int qcom_glink_driver_register(void *drv) {}
+void qcom_glink_driver_unregister(void *drv) {}
 #endif /* CONFIG_MSM_GLINK */
 #endif /* _SOC_QCOM_GLINK_H_ */
