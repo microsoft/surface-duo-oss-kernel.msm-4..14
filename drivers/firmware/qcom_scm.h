@@ -29,6 +29,8 @@ extern void __qcom_scm_cpu_power_down(u32 flags);
 
 #define QCOM_SCM_SVC_INFO		0x6
 #define QCOM_IS_CALL_AVAIL_CMD		0x1
+#define QCOM_GET_FEAT_VERSION_CMD	0x3
+
 extern int __qcom_scm_is_call_available(u32 svc_id, u32 cmd_id);
 
 #define QCOM_SCM_SVC_HDCP		0x11
