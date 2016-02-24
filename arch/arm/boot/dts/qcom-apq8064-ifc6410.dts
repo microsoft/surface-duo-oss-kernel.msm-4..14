@@ -341,8 +341,6 @@
 		qcom,ssbi@500000 {
 			pmic@0 {
 				gpio@150 {
-					pinctrl-names = "default";
-					pinctrl-0 = <&wlan_default_gpios>;
 
 					pwm_bl_gpios: pwm-bl-gpios {
 						pios {
