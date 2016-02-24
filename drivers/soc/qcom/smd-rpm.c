@@ -220,8 +220,7 @@ static int qcom_ipc_rpm_probe(struct qcom_ipc_device *idev)
 		rpm->flag |= GLINK_RPM;
 		rpm->glink_channel = idev->channel;
 
-	} else if (of_device_is_compatible(idev->dev.of_node,
-						"qcom,rpm-msm8974")) {
+	} else { /* default behaviour */
 		rpm->flag |= SMD_RPM;
 		rpm->smd_channel = idev->channel;
 	}
