@@ -936,7 +936,7 @@ static int qcom_ipc_create_device(struct qcom_smd_channel *channel)
 		     node ? node->name : channel->name);
 
 	qidev->dev.parent = smd->dev;
-	qidev->dev.bus = &qcom_smd_bus;
+	qidev->dev.bus = &qcom_ipc_bus;
 	qidev->dev.release = qcom_ipc_release_device;
 	qidev->dev.of_node = node;
 
@@ -1431,7 +1431,7 @@ void  qcom_ipc_bus_register(struct bus_type *bus)
 	ret = bus_register(bus);
 	if (ret) {
 		pr_err("failed to register smd bus: %d\n", ret);
-		return ret;
+		return;
 	}
 	ipc_bus = bus;
 }
