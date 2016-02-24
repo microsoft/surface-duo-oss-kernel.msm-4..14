@@ -2310,7 +2310,6 @@ static int glink_native_probe(struct platform_device *pdev)
 	glink_dev = &pdev->dev;
 
 	init_completion(&glink_ack);
-	qcom_ipc_bus_register(&qcom_ipc_bus);
 
 	for_each_available_child_of_node(pdev->dev.of_node, node) {
 		key = "qcom,glink-edge";
@@ -2433,15 +2432,25 @@ static struct platform_driver glink_rpm_native_driver = {
 	},
 };
 
+static const struct of_device_id glink_of_device_ids[] __initconst = {
+	{ .compatible = "qcom,glink" },
+	{}
+};
+
 static int __init glink_smem_native_xprt_init(void)
 {
 	int rc;
+	struct device_node *np;
 
-	rc = platform_driver_register(&glink_rpm_native_driver);
-	if (rc) {
-		pr_err("%s: glink_rpm_native_driver register failed %d\n",
-								__func__, rc);
-		return rc;
+	np = of_find_matching_node(NULL, glink_of_device_ids);
+	if (np) {
+		qcom_ipc_bus_register(&qcom_ipc_bus);
+		rc = platform_driver_register(&glink_rpm_native_driver);
+		if (rc) {
+			pr_err("%s: glink_rpm_native_driver register failed %d\n",
+			       __func__, rc);
+			return rc;
+		}
 	}
 
 	return 0;
