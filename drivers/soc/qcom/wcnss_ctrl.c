@@ -23,6 +23,9 @@
 #define WCNSS_REQUEST_TIMEOUT	(5 * HZ)
 #define WCNSS_CBC_TIMEOUT	(10 * HZ)
 
+#define WCNSS_ACK_DONE_BOOTING	1
+#define WCNSS_ACK_COLD_BOOTING	2
+
 #define NV_FRAGMENT_SIZE	3072
 #define NVBIN_FILE		"wlan/prima/WCNSS_qcom_wlan_nv.bin"
 
@@ -155,7 +158,7 @@ static int wcnss_ctrl_smd_callback(struct qcom_smd_channel *channel,
 		complete(&wcnss->ack);
 		break;
 	case WCNSS_CBC_COMPLETE_IND:
-		dev_dbg(wcnss->dev, "WCNSS booted\n");
+		dev_dbg(wcnss->dev, "cold boot complete\n");
 		complete(&wcnss->cbc);
 		break;
 	default:
@@ -192,9 +195,12 @@ static int wcnss_request_version(struct wcnss_ctrl *wcnss)
 
 /**
  * wcnss_download_nv() - send nv binary to WCNSS
- * @work:	work struct to acquire wcnss context
+ * @wcnss:	wcnss_ctrl state handle
+ * @expect_cbc:	indicator to caller that an cbc event is expected
+ *
+ * Returns 0 on success. Negative errno on failure.
  */
-static int wcnss_download_nv(struct wcnss_ctrl *wcnss)
+static int wcnss_download_nv(struct wcnss_ctrl *wcnss, bool *expect_cbc)
 {
 	struct wcnss_download_nv_req *req;
 	const struct firmware *fw;
@@ -207,7 +213,7 @@ static int wcnss_download_nv(struct wcnss_ctrl *wcnss)
 		return -ENOMEM;
 
 	ret = request_firmware(&fw, NVBIN_FILE, wcnss->dev);
-	if (ret) {
+	if (ret < 0) {
 		dev_err(wcnss->dev, "Failed to load nv file %s: %d\n",
 			NVBIN_FILE, ret);
 		goto free_req;
@@ -233,7 +239,7 @@ static int wcnss_download_nv(struct wcnss_ctrl *wcnss)
 		memcpy(req->fragment, data, req->frag_size);
 
 		ret = qcom_smd_send(wcnss->channel, req, req->hdr.len);
-		if (ret) {
+		if (ret < 0) {
 			dev_err(wcnss->dev, "failed to send smd packet\n");
 			goto release_fw;
 		}
@@ -250,7 +256,8 @@ static int wcnss_download_nv(struct wcnss_ctrl *wcnss)
 		dev_err(wcnss->dev, "timeout waiting for nv upload ack\n");
 		ret = -ETIMEDOUT;
 	} else {
-		ret = wcnss->ack_status;
+		*expect_cbc = wcnss->ack_status == WCNSS_ACK_COLD_BOOTING;
+		ret = 0;
 	}
 
 release_fw:
@@ -264,23 +271,39 @@ free_req:
 int wcnss_ctrl_done_loading_nv;
 EXPORT_SYMBOL(wcnss_ctrl_done_loading_nv);
 
+/**
+ * qcom_wcnss_open_channel() - open additional SMD channel to WCNSS
+ * @wcnss:	wcnss handle, retrieved from drvdata
+ * @name:	SMD channel name
+ * @cb:		callback to handle incoming data on the channel
+ */
+struct qcom_smd_channel *qcom_wcnss_open_channel(void *wcnss, const char *name, qcom_smd_cb_t cb)
+{
+	struct wcnss_ctrl *_wcnss = wcnss;
+
+	return qcom_smd_open_channel(_wcnss->channel, name, cb);
+}
+EXPORT_SYMBOL(qcom_wcnss_open_channel);
+
 static void wcnss_async_probe(struct work_struct *work)
 {
 	struct wcnss_ctrl *wcnss = container_of(work, struct wcnss_ctrl, probe_work);
+	bool expect_cbc;
 	int ret;
 
 	ret = wcnss_request_version(wcnss);
 	if (ret < 0)
 		return;
 
-	ret = wcnss_download_nv(wcnss);
+	ret = wcnss_download_nv(wcnss, &expect_cbc);
 	if (ret < 0)
 		return;
 
-	if (ret == 2) {
+	/* Wait for pending cold boot completion if indicated by the nv downloader */
+	if (expect_cbc) {
 		ret = wait_for_completion_timeout(&wcnss->cbc, WCNSS_REQUEST_TIMEOUT);
 		if (!ret)
-			dev_err(wcnss->dev, "expected cbc completion\n");
+			dev_err(wcnss->dev, "expected cold boot completion\n");
 	}
 
 	wcnss_ctrl_done_loading_nv = 1;
@@ -304,6 +327,9 @@ static int wcnss_ctrl_probe(struct qcom_smd_device *sdev)
 	INIT_WORK(&wcnss->probe_work, wcnss_async_probe);
 
 	qcom_smd_set_drvdata(sdev->channel, wcnss);
+	dev_set_drvdata(&sdev->dev, wcnss);
+
+	qcom_smd_set_drvdata(sdev->channel, wcnss);
 
 	schedule_work(&wcnss->probe_work);
 
@@ -312,7 +338,7 @@ static int wcnss_ctrl_probe(struct qcom_smd_device *sdev)
 
 static void wcnss_ctrl_remove(struct qcom_smd_device *sdev)
 {
-	struct wcnss_ctrl *wcnss = dev_get_drvdata(&sdev->dev);
+	struct wcnss_ctrl *wcnss = qcom_smd_get_drvdata(sdev->channel);
 
 	cancel_work_sync(&wcnss->probe_work);
 	of_platform_depopulate(&sdev->dev);
