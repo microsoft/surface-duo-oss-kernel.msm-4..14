@@ -1,4 +1,5 @@
 /*
+ * Copyright (c) 2016, Linaro Ltd.
  * Copyright (c) 2015, Sony Mobile Communications Inc.
  *
  * This program is free software; you can redistribute it and/or modify
@@ -14,8 +15,13 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/soc/qcom/smd.h>
+#include <linux/io.h>
+#include <linux/of_platform.h>
+#include <linux/platform_device.h>
+#include <linux/soc/qcom/wcnss_ctrl.h>
 
 #define WCNSS_REQUEST_TIMEOUT	(5 * HZ)
+#define WCNSS_CBC_TIMEOUT	(10 * HZ)
 
 #define NV_FRAGMENT_SIZE	3072
 #define NVBIN_FILE		"wlan/prima/WCNSS_qcom_wlan_nv.bin"
@@ -25,17 +31,19 @@
  * @dev:	device handle
  * @channel:	SMD channel handle
  * @ack:	completion for outstanding requests
+ * @cbc:	completion for cbc complete indication
  * @ack_status:	status of the outstanding request
- * @download_nv_work: worker for uploading nv binary
+ * @probe_work: worker for uploading nv binary
  */
 struct wcnss_ctrl {
 	struct device *dev;
 	struct qcom_smd_channel *channel;
 
 	struct completion ack;
+	struct completion cbc;
 	int ack_status;
 
-	struct work_struct download_nv_work;
+	struct work_struct probe_work;
 };
 
 /* message types */
@@ -48,6 +56,11 @@ enum {
 	WCNSS_UPLOAD_CAL_RESP,
 	WCNSS_DOWNLOAD_CAL_REQ,
 	WCNSS_DOWNLOAD_CAL_RESP,
+	WCNSS_VBAT_LEVEL_IND,
+	WCNSS_BUILD_VERSION_REQ,
+	WCNSS_BUILD_VERSION_RESP,
+	WCNSS_PM_CONFIG_REQ,
+	WCNSS_CBC_COMPLETE_IND,
 };
 
 /**
@@ -128,7 +141,7 @@ static int wcnss_ctrl_smd_callback(struct qcom_smd_device *qsdev,
 			 version->major, version->minor,
 			 version->version, version->revision);
 
-		schedule_work(&wcnss->download_nv_work);
+		complete(&wcnss->ack);
 		break;
 	case WCNSS_DOWNLOAD_NV_RESP:
 		if (count != sizeof(*nvresp)) {
@@ -140,6 +153,10 @@ static int wcnss_ctrl_smd_callback(struct qcom_smd_device *qsdev,
 		nvresp = data;
 		wcnss->ack_status = nvresp->status;
 		complete(&wcnss->ack);
+		break;
+	case WCNSS_CBC_COMPLETE_IND:
+		dev_dbg(wcnss->dev, "WCNSS booted\n");
+		complete(&wcnss->cbc);
 		break;
 	default:
 		dev_info(wcnss->dev, "unknown message type %d\n", hdr->type);
@@ -156,20 +173,29 @@ static int wcnss_ctrl_smd_callback(struct qcom_smd_device *qsdev,
 static int wcnss_request_version(struct wcnss_ctrl *wcnss)
 {
 	struct wcnss_msg_hdr msg;
+	int ret;
 
 	msg.type = WCNSS_VERSION_REQ;
 	msg.len = sizeof(msg);
+	ret = qcom_smd_send(wcnss->channel, &msg, sizeof(msg));
+	if (ret < 0)
+		return ret;
 
-	return qcom_smd_send(wcnss->channel, &msg, sizeof(msg));
+	ret = wait_for_completion_timeout(&wcnss->ack, WCNSS_CBC_TIMEOUT);
+	if (!ret) {
+		dev_err(wcnss->dev, "timeout waiting for version response\n");
+		return -ETIMEDOUT;
+	}
+
+	return 0;
 }
 
 /**
  * wcnss_download_nv() - send nv binary to WCNSS
  * @work:	work struct to acquire wcnss context
  */
-static void wcnss_download_nv(struct work_struct *work)
+static int wcnss_download_nv(struct wcnss_ctrl *wcnss)
 {
-	struct wcnss_ctrl *wcnss = container_of(work, struct wcnss_ctrl, download_nv_work);
 	struct wcnss_download_nv_req *req;
 	const struct firmware *fw;
 	const void *data;
@@ -178,7 +204,7 @@ static void wcnss_download_nv(struct work_struct *work)
 
 	req = kzalloc(sizeof(*req) + NV_FRAGMENT_SIZE, GFP_KERNEL);
 	if (!req)
-		return;
+		return -ENOMEM;
 
 	ret = request_firmware(&fw, NVBIN_FILE, wcnss->dev);
 	if (ret) {
@@ -220,16 +246,41 @@ static void wcnss_download_nv(struct work_struct *work)
 	} while (left > 0);
 
 	ret = wait_for_completion_timeout(&wcnss->ack, WCNSS_REQUEST_TIMEOUT);
-	if (!ret)
+	if (!ret) {
 		dev_err(wcnss->dev, "timeout waiting for nv upload ack\n");
-	else if (wcnss->ack_status != 1)
-		dev_err(wcnss->dev, "nv upload response failed err: %d\n",
-			wcnss->ack_status);
+		ret = -ETIMEDOUT;
+	} else {
+		ret = wcnss->ack_status;
+	}
 
 release_fw:
 	release_firmware(fw);
 free_req:
 	kfree(req);
+
+	return ret;
+}
+
+static void wcnss_async_probe(struct work_struct *work)
+{
+	struct wcnss_ctrl *wcnss = container_of(work, struct wcnss_ctrl, probe_work);
+	int ret;
+
+	ret = wcnss_request_version(wcnss);
+	if (ret < 0)
+		return;
+
+	ret = wcnss_download_nv(wcnss);
+	if (ret < 0)
+		return;
+
+	if (ret == 2) {
+		ret = wait_for_completion_timeout(&wcnss->cbc, WCNSS_REQUEST_TIMEOUT);
+		if (!ret)
+			dev_err(wcnss->dev, "expected cbc completion\n");
+	}
+
+	of_platform_populate(wcnss->dev->of_node, NULL, NULL, wcnss->dev);
 }
 
 static int wcnss_ctrl_probe(struct qcom_smd_device *sdev)
@@ -244,25 +295,37 @@ static int wcnss_ctrl_probe(struct qcom_smd_device *sdev)
 	wcnss->channel = sdev->channel;
 
 	init_completion(&wcnss->ack);
-	INIT_WORK(&wcnss->download_nv_work, wcnss_download_nv);
+	init_completion(&wcnss->cbc);
+	INIT_WORK(&wcnss->probe_work, wcnss_async_probe);
 
 	dev_set_drvdata(&sdev->dev, wcnss);
 
-	return wcnss_request_version(wcnss);
+	schedule_work(&wcnss->probe_work);
+
+	return 0;
 }
 
-static const struct qcom_smd_id wcnss_ctrl_smd_match[] = {
-	{ .name = "WCNSS_CTRL" },
+static void wcnss_ctrl_remove(struct qcom_smd_device *sdev)
+{
+	struct wcnss_ctrl *wcnss = dev_get_drvdata(&sdev->dev);
+
+	cancel_work_sync(&wcnss->probe_work);
+	of_platform_depopulate(&sdev->dev);
+}
+
+static const struct of_device_id wcnss_ctrl_of_match[] = {
+	{ .compatible = "qcom,wcnss", },
 	{}
 };
 
 static struct qcom_smd_driver wcnss_ctrl_driver = {
 	.probe = wcnss_ctrl_probe,
+	.remove = wcnss_ctrl_remove,
 	.callback = wcnss_ctrl_smd_callback,
-	.smd_match_table = wcnss_ctrl_smd_match,
 	.driver  = {
 		.name  = "qcom_wcnss_ctrl",
 		.owner = THIS_MODULE,
+		.of_match_table = wcnss_ctrl_of_match,
 	},
 };
 
