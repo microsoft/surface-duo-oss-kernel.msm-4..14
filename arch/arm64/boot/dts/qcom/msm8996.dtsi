@@ -296,6 +296,7 @@
 			clock-names = "ref_clk_src", "ref_clk";
 			clocks = <&rpmcc RPM_LN_BB_CLK>,
 				 <&gcc GCC_UFS_CLKREF_CLK>;
+			power-domains = <&gcc UFS_GDSC>;
 			status = "disabled";
 		};
 
