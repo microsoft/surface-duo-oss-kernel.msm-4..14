@@ -133,6 +133,19 @@ struct iommu_ops *of_iommu_get_ops(struct device_node *np)
 	return ops;
 }
 
+/**
+ * of_iommu_configure - Configure and return the IOMMU for a device
+ * @dev: device for which to configure the IOMMU
+ * @master_np: device node of the bus master connected to the IOMMU
+ *
+ * The master_np parameter specifies the device node of the bus master seen by
+ * the IOMMU. This is usually the device node of the dev device, but can be the
+ * device node of a bridge when the device is dynamically discovered and
+ * instantiated and thus has no device node (such as PCI devices for instance).
+ *
+ * Return a pointer to the iommu_ops for the device, NULL if the device isn't
+ * connected to an IOMMU, or a negative value if an error occurs.
+ */
 struct iommu_ops *of_iommu_configure(struct device *dev,
 				     struct device_node *master_np)
 {
@@ -159,8 +172,18 @@ struct iommu_ops *of_iommu_configure(struct device *dev,
 		np = iommu_spec.np;
 		ops = of_iommu_get_ops(np);
 
-		if (!ops || !ops->of_xlate || ops->of_xlate(dev, &iommu_spec))
+		if (!ops) {
+			const struct of_device_id *oid;
+
+			oid = of_match_node(&__iommu_of_table, np);
+			ops = oid ? ERR_PTR(-EPROBE_DEFER) : NULL;
 			goto err_put_node;
+		}
+
+		if (!ops->of_xlate || ops->of_xlate(dev, &iommu_spec)) {
+			ops = NULL;
+			goto err_put_node;
+		}
 
 		of_node_put(np);
 		idx++;
@@ -170,7 +193,7 @@ struct iommu_ops *of_iommu_configure(struct device *dev,
 
 err_put_node:
 	of_node_put(np);
-	return NULL;
+	return ops;
 }
 
 void __init of_iommu_init(void)
@@ -181,7 +204,7 @@ void __init of_iommu_init(void)
 	for_each_matching_node_and_match(np, matches, &match) {
 		const of_iommu_init_fn init_fn = match->data;
 
-		if (init_fn(np))
+		if (init_fn && init_fn(np))
 			pr_err("Failed to initialise IOMMU %s\n",
 				of_node_full_name(np));
 	}
