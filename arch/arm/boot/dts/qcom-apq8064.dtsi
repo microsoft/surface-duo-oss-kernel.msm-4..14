@@ -758,6 +758,29 @@
 			qcom,smd-edge = <6>;
 
 			status = "disabled";
+
+			wcnss {
+				compatible = "qcom,wcnss";
+				qcom,smd-channels = "WCNSS_CTRL";
+
+				bt {
+					compatible = "qcom,btqcomsmd";
+				};
+
+				wifi {
+					compatible = "qcom,wcn3660-wlan";
+
+					interrupts = <0 203 0>, <0 202 0>;
+					interrupt-names = "tx", "rx";
+
+					qcom,wcnss-mmio = <0x03000000 0x204000>;
+
+					qcom,state = <&apps_smsm 10>, <&apps_smsm 9>;
+					qcom,state-names = "tx-enable", "tx-rings-empty";
+
+					local-mac-address = [ 18 00 2d 88 9c a9 ];
+				};
+			};
 		};
 	};
 
