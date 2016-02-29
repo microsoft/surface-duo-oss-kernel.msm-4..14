@@ -356,6 +356,7 @@
 
 				lvs7 {
 					bias-pull-down;
+					regulator-always-on;
 				};
 
 				usb-switch {};

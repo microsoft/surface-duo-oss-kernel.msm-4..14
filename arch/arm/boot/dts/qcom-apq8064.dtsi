@@ -262,8 +262,6 @@
 
 		scm {
 			compatible = "qcom,scm";
-			clocks = <&gcc CE3_CORE_CLK>, <&gcc CE3_SRC>, <&gcc CE3_H_CLK>;
-			clock-names = "core", "bus", "iface";
 		};
 	};
 
