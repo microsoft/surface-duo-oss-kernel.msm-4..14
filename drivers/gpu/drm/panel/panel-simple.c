@@ -32,6 +32,7 @@
 #include <drm/drm_crtc.h>
 #include <drm/drm_mipi_dsi.h>
 #include <drm/drm_panel.h>
+#include <drm/drm_edid.h>
 
 #include <video/display_timing.h>
 #include <video/videomode.h>
@@ -74,6 +75,18 @@ struct panel_desc {
 	u32 bus_format;
 };
 
+#define PANEL_PICKER_ENTRY(vend, pid, pdesc) \
+		.vendor = vend, \
+		.product_id = (pid), \
+		.data = (pdesc)
+
+/* Panel picker entry with vendor and product id */
+struct panel_picker_entry {
+	char vendor[4]; /* Vendor string */
+	int product_id; /* product id field */
+	const struct panel_desc *data;
+};
+
 struct panel_simple {
 	struct drm_panel base;
 	bool prepared;
@@ -87,6 +100,8 @@ struct panel_simple {
 
 	struct gpio_desc *enable_gpio;
 };
+
+static const struct panel_desc *panel_picker_find_panel(struct edid *edid);
 
 static inline struct panel_simple *to_panel_simple(struct drm_panel *panel)
 {
@@ -280,11 +295,51 @@ static const struct drm_panel_funcs panel_simple_funcs = {
 	.get_timings = panel_simple_get_timings,
 };
 
+static void __init simple_panel_node_disable(struct device_node *node)
+{
+	struct property *prop;
+
+	prop = kzalloc(sizeof(*prop), GFP_KERNEL);
+	if (!prop)
+		return;
+
+	prop->name = "status";
+	prop->value = "disabled";
+	prop->length = strlen((char *)prop->value)+1;
+
+	of_update_property(node, prop);
+}
+
+static int panel_read_edid(struct device *dev, struct i2c_adapter *adapter,
+			   unsigned char *buf)
+{
+	unsigned char start = 0x0;
+	struct i2c_msg msgs[] = {
+		{
+			.addr	= DDC_ADDR,
+			.flags	= 0,
+			.len	= 1,
+			.buf	= &start,
+		}, {
+			.addr	= DDC_ADDR,
+			.flags	= I2C_M_RD,
+			.len	= EDID_LENGTH,
+			.buf	= buf,
+		}
+	};
+
+	if (i2c_transfer(adapter, msgs, 2) == 2)
+		return 0;
+
+	return -1;
+}
+
 static int panel_simple_probe(struct device *dev, const struct panel_desc *desc)
 {
 	struct device_node *backlight, *ddc;
 	struct panel_simple *panel;
 	int err;
+	struct edid edid;
 
 	panel = devm_kzalloc(dev, sizeof(*panel), GFP_KERNEL);
 	if (!panel)
@@ -292,7 +347,6 @@ static int panel_simple_probe(struct device *dev, const struct panel_desc *desc)
 
 	panel->enabled = false;
 	panel->prepared = false;
-	panel->desc = desc;
 
 	panel->supply = devm_regulator_get(dev, "power");
 	if (IS_ERR(panel->supply))
@@ -320,7 +374,25 @@ static int panel_simple_probe(struct device *dev, const struct panel_desc *desc)
 		panel->ddc = of_find_i2c_adapter_by_node(ddc);
 		of_node_put(ddc);
 
-		if (!panel->ddc) {
+		if (panel->ddc) {
+			/* detect panel presence */
+			if (!drm_probe_ddc(panel->ddc)) {
+				err = -ENODEV;
+				goto nodev;
+			}
+
+			/* get panel from edid */
+			if (of_device_is_compatible(dev->of_node,
+						"panel-simple")) {
+				err = panel_read_edid(dev, panel->ddc, (unsigned char *)&edid);
+				if (!err) {
+					desc = panel_picker_find_panel(&edid);
+				} else {
+					err = -ENODEV;
+					goto nodev;
+				}
+			}
+		} else {
 			err = -EPROBE_DEFER;
 			goto free_backlight;
 		}
@@ -329,6 +401,7 @@ static int panel_simple_probe(struct device *dev, const struct panel_desc *desc)
 	drm_panel_init(&panel->base);
 	panel->base.dev = dev;
 	panel->base.funcs = &panel_simple_funcs;
+	panel->desc = desc;
 
 	err = drm_panel_add(&panel->base);
 	if (err < 0)
@@ -337,6 +410,10 @@ static int panel_simple_probe(struct device *dev, const struct panel_desc *desc)
 	dev_set_drvdata(dev, panel);
 
 	return 0;
+
+nodev:
+	/* mark the dt as disabled */
+	simple_panel_node_disable(dev->of_node);
 
 free_ddc:
 	if (panel->ddc)
@@ -1176,6 +1253,10 @@ static const struct panel_desc shelly_sca07010_bfn_lnn = {
 	.bus_format = MEDIA_BUS_FMT_RGB666_1X18,
 };
 
+static const struct panel_picker_entry panel_picker_list[] = {
+	{ PANEL_PICKER_ENTRY("AUO", 0x10dc, &auo_b101xtn01) },
+};
+
 static const struct of_device_id platform_of_match[] = {
 	{
 		.compatible = "ampire,am800480r3tmqwa1h",
@@ -1280,10 +1361,31 @@ static const struct of_device_id platform_of_match[] = {
 		.compatible = "shelly,sca07010-bfn-lnn",
 		.data = &shelly_sca07010_bfn_lnn,
 	}, {
+		/* Panel Picker Vendor ID and Product ID based Lookup */
+		.compatible = "panel-simple",
+	}, {
 		/* sentinel */
 	}
 };
 MODULE_DEVICE_TABLE(of, platform_of_match);
+
+static const struct panel_desc *panel_picker_find_panel(struct edid *edid)
+{
+	int i;
+	const struct panel_desc *desc = NULL;
+
+	for (i = 0; i < ARRAY_SIZE(panel_picker_list); i++) {
+		const struct panel_picker_entry *vp = &panel_picker_list[i];
+
+		if (edid_vendor(edid, (char *)vp->vendor) &&
+				(EDID_PRODUCT_ID(edid) == vp->product_id)) {
+			desc = vp->data;
+			break;
+		}
+	}
+
+	return desc;
+}
 
 static int panel_simple_platform_probe(struct platform_device *pdev)
 {
