@@ -13,6 +13,7 @@
  */
 
 #include <linux/clk-provider.h>
+#include <linux/clk.h>
 #include <linux/err.h>
 #include <linux/export.h>
 #include <linux/init.h>
@@ -435,6 +436,8 @@ static int rpm_clk_probe(struct platform_device *pdev)
 				  data);
 	if (ret)
 		goto err;
+
+	clk_prepare_enable(apq8064_afab_clk.hw.clk);
 
 	return 0;
 err:
