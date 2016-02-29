@@ -99,7 +99,7 @@ int apr_tal_close(struct apr_svc_ch_dev *apr_ch)
 }
 
 
-static int qcom_smd_q6_callback(struct qcom_smd_device *sdev,
+static int qcom_smd_q6_callback(struct qcom_ipc_device *sdev,
 				 const void *data,
 				 size_t count)
 {
@@ -113,7 +113,7 @@ static int qcom_smd_q6_callback(struct qcom_smd_device *sdev,
 	return 0;
 }
 
-static int qcom_smd_q6_probe(struct qcom_smd_device *sdev)
+static int qcom_smd_q6_probe(struct qcom_ipc_device *sdev)
 {
 	int dest = APR_DEST_QDSP6;
 	int clnt = APR_CLIENT_AUDIO;
@@ -129,7 +129,7 @@ static int qcom_smd_q6_probe(struct qcom_smd_device *sdev)
 	return 0;
 }
 
-static void qcom_smd_q6_remove(struct qcom_smd_device *sdev)
+static void qcom_smd_q6_remove(struct qcom_ipc_device *sdev)
 {
 }
 
@@ -139,7 +139,7 @@ static const struct of_device_id qcom_smd_q6_of_match[] = {
 	{}
 };
 
-static struct qcom_smd_driver qcom_smd_q6_driver = {
+static struct qcom_ipc_driver qcom_smd_q6_driver = {
 	.probe = qcom_smd_q6_probe,
 	.remove = qcom_smd_q6_remove,
 	.callback = qcom_smd_q6_callback,
@@ -152,7 +152,7 @@ static struct qcom_smd_driver qcom_smd_q6_driver = {
 
 static void __exit qcom_smd_q6_exit(void)
 {
-	qcom_smd_driver_unregister(&qcom_smd_q6_driver);
+	qcom_ipc_driver_unregister(&qcom_smd_q6_driver);
 }
 module_exit(qcom_smd_q6_exit);
 
@@ -167,7 +167,7 @@ static int __init apr_tal_init(void)
 				init_waitqueue_head(&apr_svc_ch[i][j][k].wait);
 				init_waitqueue_head(&apr_svc_ch[i][j][k].dest);
 			}
-	qcom_smd_driver_register(&qcom_smd_q6_driver);
+	qcom_ipc_driver_register(&qcom_smd_q6_driver);
 	return 0;
 }
 device_initcall(apr_tal_init);
