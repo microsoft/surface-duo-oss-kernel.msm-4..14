@@ -257,6 +257,16 @@
 		};
 	};
 
+	firmware {
+		compatible = "simple-bus";
+
+		scm {
+			compatible = "qcom,scm";
+			clocks = <&gcc CE3_CORE_CLK>, <&gcc CE3_SRC>, <&gcc CE3_H_CLK>;
+			clock-names = "core", "bus", "iface";
+		};
+	};
+
 	sfpb_mutex: hwmutex {
 		compatible = "qcom,sfpb-mutex";
 		syscon = <&sfpb_wrapper_mutex 0x604 0x4>;
