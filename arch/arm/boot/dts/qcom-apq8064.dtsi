@@ -240,6 +240,55 @@
 		hwlocks = <&sfpb_mutex 3>;
 	};
 
+	smsm {
+		compatible = "qcom,smsm";
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,ipc-1 = <&l2cc 8 4>;
+		qcom,ipc-2 = <&l2cc 8 14>;
+		qcom,ipc-3 = <&l2cc 8 23>;
+		qcom,ipc-4 = <&sps_sic_non_secure 0x4094 0>;
+
+		apps_smsm: apps@0 {
+			reg = <0>;
+			#qcom,smem-state-cells = <1>;
+		};
+
+		modem_smsm: modem@1 {
+			reg = <1>;
+			interrupts = <0 38 IRQ_TYPE_EDGE_RISING>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		q6_smsm: q6@2 {
+			reg = <2>;
+			interrupts = <0 89 IRQ_TYPE_EDGE_RISING>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		wcnss_smsm: wcnss@3 {
+			reg = <3>;
+			interrupts = <0 204 IRQ_TYPE_EDGE_RISING>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		dsps_smsm: dsps@4 {
+			reg = <4>;
+			interrupts = <0 137 IRQ_TYPE_EDGE_RISING>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+	};
+
 	qcom,pvs {
 		qcom,pvs-format-a;
 		qcom,speed0-pvs0-bin-v0 =
@@ -687,6 +736,29 @@
 			qcom,smd-edge = <6>;
 
 			status = "disabled";
+
+			wcnss {
+				compatible = "qcom,wcnss";
+				qcom,smd-channels = "WCNSS_CTRL";
+
+				bt {
+					compatible = "qcom,btqcomsmd";
+				};
+
+				wifi {
+					compatible = "qcom,wcn3660-wlan";
+
+					interrupts = <0 203 0>, <0 202 0>;
+					interrupt-names = "tx", "rx";
+
+					qcom,wcnss-mmio = <0x03000000 0x204000>;
+
+					qcom,state = <&apps_smsm 10>, <&apps_smsm 9>;
+					qcom,state-names = "tx-enable", "tx-rings-empty";
+
+					local-mac-address = [ 18 00 2d 88 9c a9 ];
+				};
+			};
 		};
 
 	};
