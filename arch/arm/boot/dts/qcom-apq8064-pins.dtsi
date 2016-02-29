@@ -259,4 +259,25 @@
 			bias-disable = <0>;
 		};
 	};
+
+	wcnss_pin_a: wcnss-pins-active {
+		fm {
+			pins = "gpio14", "gpio15";
+			function = "riva_fm";
+		};
+
+		bt {
+			pins = "gpio16", "gpio17";
+			function = "riva_bt";
+		};
+
+		wlan {
+			pins = "gpio64", "gpio65", "gpio66", "gpio67", "gpio68";
+			function = "riva_wlan";
+
+			drive-strength = <6>;
+			bias-pull-down;
+		};
+	};
+
 };
