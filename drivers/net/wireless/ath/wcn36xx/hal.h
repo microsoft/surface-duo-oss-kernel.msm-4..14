@@ -48,11 +48,14 @@
 
 #define WCN36XX_HAL_IPV4_ADDR_LEN       4
 
-#define WALN_HAL_STA_INVALID_IDX 0xFF
+#define WCN36XX_HAL_STA_INVALID_IDX 0xFF
 #define WCN36XX_HAL_BSS_INVALID_IDX 0xFF
 
-/* Default Beacon template size */
-#define BEACON_TEMPLATE_SIZE 0x180
+/* Default Beacon template size. */
+#define BEACON_TEMPLATE_SIZE 0x17C
+
+/* Minimum PVM size that the FW expects. See comment in smd.c for details. */
+#define TIM_MIN_PVM_SIZE 6
 
 /* Param Change Bitmap sent to HAL */
 #define PARAM_BCN_INTERVAL_CHANGED                      (1 << 0)
@@ -346,6 +349,8 @@ enum wcn36xx_hal_host_msg_type {
 	WCN36XX_HAL_DHCP_STOP_IND = 190,
 
 	WCN36XX_HAL_AVOID_FREQ_RANGE_IND = 233,
+
+	WCN36XX_HAL_PRINT_REG_INFO_IND = 259,
 
 	WCN36XX_HAL_MSG_MAX = WCN36XX_HAL_MSG_TYPE_MAX_ENUM_SIZE
 };
@@ -2884,6 +2889,9 @@ struct update_beacon_rsp_msg {
 struct wcn36xx_hal_send_beacon_req_msg {
 	struct wcn36xx_hal_msg_header header;
 
+	/* length of the template + 6. Only qcom knows why */
+	u32 beacon_length6;
+
 	/* length of the template. */
 	u32 beacon_length;
 
@@ -4261,9 +4269,9 @@ struct wcn36xx_hal_rcv_flt_mc_addr_list_type {
 	u8 data_offset;
 
 	u32 mc_addr_count;
-	u8 mc_addr[ETH_ALEN][WCN36XX_HAL_MAX_NUM_MULTICAST_ADDRESS];
+	u8 mc_addr[WCN36XX_HAL_MAX_NUM_MULTICAST_ADDRESS][ETH_ALEN];
 	u8 bss_index;
-};
+} __packed;
 
 struct wcn36xx_hal_set_pkt_filter_rsp_msg {
 	struct wcn36xx_hal_msg_header header;
@@ -4317,7 +4325,7 @@ struct wcn36xx_hal_rcv_flt_pkt_clear_rsp_msg {
 struct wcn36xx_hal_rcv_flt_pkt_set_mc_list_req_msg {
 	struct wcn36xx_hal_msg_header header;
 	struct wcn36xx_hal_rcv_flt_mc_addr_list_type mc_addr_list;
-};
+} __packed;
 
 struct wcn36xx_hal_rcv_flt_pkt_set_mc_list_rsp_msg {
 	struct wcn36xx_hal_msg_header header;
@@ -4383,6 +4391,20 @@ enum place_holder_in_cap_bitmap {
 	RTT = 20,
 	RATECTRL = 21,
 	WOW = 22,
+	WLAN_ROAM_SCAN_OFFLOAD = 23,
+	SPECULATIVE_PS_POLL = 24,
+	SCAN_SCH = 25,
+	IBSS_HEARTBEAT_OFFLOAD = 26,
+	WLAN_SCAN_OFFLOAD = 27,
+	WLAN_PERIODIC_TX_PTRN = 28,
+	ADVANCE_TDLS = 29,
+	BATCH_SCAN = 30,
+	FW_IN_TX_PATH = 31,
+	EXTENDED_NSOFFLOAD_SLOT = 32,
+	CH_SWITCH_V1 = 33,
+	HT40_OBSS_SCAN = 34,
+	UPDATE_CHANNEL_LIST = 35,
+
 	MAX_FEATURE_SUPPORTED = 128,
 };
 

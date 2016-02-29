@@ -46,7 +46,7 @@ static void wcn36xx_dxe_write_register(struct wcn36xx *wcn, int addr, int data)
 
 #define wcn36xx_dxe_write_register_x(wcn, reg, reg_data)		 \
 do {									 \
-	if (wcn->chip_version == WCN36XX_CHIP_3680)			 \
+	if (wcn->chip_version != WCN36XX_CHIP_3660)			 \
 		wcn36xx_dxe_write_register(wcn, reg ## _3680, reg_data); \
 	else								 \
 		wcn36xx_dxe_write_register(wcn, reg ## _3660, reg_data); \
