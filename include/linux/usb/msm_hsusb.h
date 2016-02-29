@@ -99,6 +99,20 @@ enum usb_chg_type {
 };
 
 /**
+ * Requested USB votes for BUS bandwidth
+ *
+ * USB_NO_PERF_VOTE     BUS Vote for inactive USB session or disconnect
+ * USB_MAX_PERF_VOTE    Maximum BUS bandwidth vote
+ * USB_MIN_PERF_VOTE    Minimum BUS bandwidth vote (for some hw same as NO_PERF)
+ *
+ */
+enum usb_bus_vote {
+	USB_NO_PERF_VOTE = 0,
+	USB_MAX_PERF_VOTE,
+	USB_MIN_PERF_VOTE,
+};
+
+/**
  * struct msm_otg_platform_data - platform device data
  *              for msm_otg driver.
  * @phy_init_seq: PHY configuration sequence values. Value of -1 is reserved as
@@ -114,6 +128,7 @@ struct msm_otg_platform_data {
 	int phy_init_sz;
 	void (*vbus_power)(bool on);
 	unsigned power_budget;
+	struct msm_bus_scale_pdata *bus_scale_table;
 	enum usb_dr_mode mode;
 	enum otg_control_type otg_control;
 	enum msm_usb_phy_type phy_type;
@@ -195,6 +210,7 @@ struct msm_otg {
 
 	struct gpio_desc *switch_gpio;
 	struct notifier_block reboot;
+	uint32_t bus_perf_client;
 };
 
 #endif
