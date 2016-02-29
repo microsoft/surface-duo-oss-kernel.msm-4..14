@@ -23,6 +23,11 @@
 			reg = <0x80000000 0x200000>;
 			no-map;
 		};
+
+		wcnss_mem: wcnss@8f000000 {
+			reg = <0x8f000000 0x700000>;
+			no-map;
+		};
 	};
 
 	cpus {
@@ -1345,6 +1350,37 @@
 				pm8921_ncp: ncp {};
 			};
 		};
+
+		wcnss-rproc@3204000 {
+			compatible = "qcom,riva-pil";
+			reg = <0x03204000 0x100>;
+
+			interrupts-extended = <&intc 0 199 IRQ_TYPE_EDGE_RISING>,
+					      <&wcnss_smsm 6 IRQ_TYPE_EDGE_RISING>;
+			interrupt-names = "wdog", "fatal";
+
+			memory-region = <&wcnss_mem>;
+
+			vddcx-supply = <&pm8921_s3>;
+			vddmx-supply = <&pm8921_l24>;
+			vddpx-supply = <&pm8921_s4>;
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&wcnss_pin_a>;
+
+			iris {
+				compatible = "qcom,wcn3660";
+
+				clocks = <&rpmcc 9>;
+				clock-names = "xo";
+
+				vddxo-supply = <&pm8921_l4>;
+				vddrfa-supply = <&pm8921_s2>;
+				vddpa-supply = <&pm8921_l10>;
+				vdddig-supply = <&pm8921_lvs2>;
+			};
+		};
+
 
 		usb1_phy: phy@12500000 {
 			compatible	= "qcom,usb-otg-ci";
