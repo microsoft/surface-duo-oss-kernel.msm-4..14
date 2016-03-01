@@ -24,6 +24,7 @@
 #include <linux/slab.h>
 #include <linux/init.h>
 #include <linux/blkdev.h>
+#include <linux/backing-dev.h>
 #include <linux/parser.h>
 #include <linux/buffer_head.h>
 #include <linux/exportfs.h>
@@ -3649,6 +3650,8 @@ static int ext4_fill_super(struct super_block *sb, void *data, int silent)
 		}
 		if (test_opt(sb, DELALLOC))
 			clear_opt(sb, DELALLOC);
+	} else {
+		sb->s_iflags |= SB_I_CGROUPWB;
 	}
 
 	sb->s_flags = (sb->s_flags & ~MS_POSIXACL) |
