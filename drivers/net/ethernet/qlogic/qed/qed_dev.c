@@ -134,17 +134,17 @@ static int qed_init_qm_info(struct qed_hwfn *p_hwfn)
 	/* PQs will be arranged as follows: First per-TC PQ then pure-LB quete.
 	 */
 	qm_info->qm_pq_params = kzalloc(sizeof(*qm_info->qm_pq_params) *
-					num_pqs, GFP_ATOMIC);
+					num_pqs, GFP_KERNEL);
 	if (!qm_info->qm_pq_params)
 		goto alloc_err;
 
 	qm_info->qm_vport_params = kzalloc(sizeof(*qm_info->qm_vport_params) *
-					   num_vports, GFP_ATOMIC);
+					   num_vports, GFP_KERNEL);
 	if (!qm_info->qm_vport_params)
 		goto alloc_err;
 
 	qm_info->qm_port_params = kzalloc(sizeof(*qm_info->qm_port_params) *
-					  MAX_NUM_PORTS, GFP_ATOMIC);
+					  MAX_NUM_PORTS, GFP_KERNEL);
 	if (!qm_info->qm_port_params)
 		goto alloc_err;
 
@@ -1011,13 +1011,17 @@ static void qed_hw_get_resc(struct qed_hwfn *p_hwfn)
 {
 	u32 *resc_start = p_hwfn->hw_info.resc_start;
 	u32 *resc_num = p_hwfn->hw_info.resc_num;
+	struct qed_sb_cnt_info sb_cnt_info;
 	int num_funcs, i;
 
 	num_funcs = MAX_NUM_PFS_BB;
 
+	memset(&sb_cnt_info, 0, sizeof(sb_cnt_info));
+	qed_int_get_num_sbs(p_hwfn, &sb_cnt_info);
+
 	resc_num[QED_SB] = min_t(u32,
 				 (MAX_SB_PER_PATH_BB / num_funcs),
-				 qed_int_get_num_sbs(p_hwfn, NULL));
+				 sb_cnt_info.sb_cnt);
 	resc_num[QED_L2_QUEUE] = MAX_NUM_L2_QUEUES_BB / num_funcs;
 	resc_num[QED_VPORT] = MAX_NUM_VPORTS_BB / num_funcs;
 	resc_num[QED_RSS_ENG] = ETH_RSS_ENGINE_NUM_BB / num_funcs;

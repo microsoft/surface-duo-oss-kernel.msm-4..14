@@ -59,12 +59,20 @@ enum rfkill_type {
  * @RFKILL_OP_DEL: a device was removed
  * @RFKILL_OP_CHANGE: a device's state changed -- userspace changes one device
  * @RFKILL_OP_CHANGE_ALL: userspace changes all devices (of a type, or all)
+ *	into a state, also updating the default state used for devices that
+ *	are hot-plugged later.
+ * @RFKILL_OP_AIRPLANE_MODE_INDICATOR_ACQUIRE: userspace acquires control of
+ * 	the airplane-mode indicator.
+ * @RFKILL_OP_AIRPLANE_MODE_INDICATOR_CHANGE: the airplane-mode indicator state
+ * 	changed -- userspace changes the airplane-mode indicator state.
  */
 enum rfkill_operation {
 	RFKILL_OP_ADD = 0,
 	RFKILL_OP_DEL,
 	RFKILL_OP_CHANGE,
 	RFKILL_OP_CHANGE_ALL,
+	RFKILL_OP_AIRPLANE_MODE_INDICATOR_ACQUIRE,
+	RFKILL_OP_AIRPLANE_MODE_INDICATOR_CHANGE,
 };
 
 /**
