@@ -39,6 +39,10 @@ Required Properties:
 
 Optional properties:
 
+* resets: phandle + reset specifier pair, intended to represent hardware
+  reset signal present internally in some host controller IC designs.
+  See Documentation/devicetree/bindings/reset/reset.txt for details.
+
 * clocks: from common clock binding: handle to biu and ciu clocks for the
   bus interface unit clock and the card interface unit clock.
 
@@ -48,7 +52,7 @@ Optional properties:
   clock-frequency.  It is an error to omit both the ciu clock and the
   clock-frequency.
 
-* clock-frequency: should be the frequency (in Hz) of the ciu clock.  If this
+* clock-frequency: should be tke frequency (in Hz) of the ciu clock.  If this
   is specified and the ciu clock is specified then we'll try to set the ciu
   clock to this at probe time.
 
