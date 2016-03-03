@@ -232,8 +232,16 @@
 		pmic-gpios = <&gpio1 2 GPIO_ACTIVE_HIGH>;
 		status = "okay";
 
+		ponkey:ponkey@b1{
+			compatible = "hisilicon,hi6552-powerkey";
+			interrupt-parent = <&pmic>;
+			interrupts = <6 0>, <5 0>, <4 0>;
+			interrupt-names = "down", "up", "hold 4s";
+		};
+
 		regulators {
 			ldo2: LDO2@a21 {
+
 				regulator-name = "LDO2_2V8";
 				regulator-min-microvolt = <2500000>;
 				regulator-max-microvolt = <3200000>;
