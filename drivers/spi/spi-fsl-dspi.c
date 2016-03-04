@@ -481,6 +481,7 @@ static irqreturn_t dspi_interrupt(int irq, void *dev_id)
 
 static const struct of_device_id fsl_dspi_dt_ids[] = {
 	{ .compatible = "fsl,vf610-dspi", .data = NULL, },
+	{ .compatible = "fsl,s32v234-dspi", .data = NULL, },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, fsl_dspi_dt_ids);
