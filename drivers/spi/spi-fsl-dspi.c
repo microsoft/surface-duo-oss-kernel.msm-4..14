@@ -151,6 +151,11 @@ static const struct fsl_dspi_devtype_data ls2085a_data = {
 	.max_clock_factor = 8,
 };
 
+static const struct fsl_dspi_devtype_data s32v234_data = {
+	.trans_mode = DSPI_EOQ_MODE,
+	.max_clock_factor = 1,
+};
+
 struct fsl_dspi_dma {
 	/* Length of transfer in words of DSPI_FIFO_SIZE */
 	u32 curr_xfer_len;
@@ -893,6 +898,7 @@ static const struct of_device_id fsl_dspi_dt_ids[] = {
 	{ .compatible = "fsl,ls1021a-v1.0-dspi",
 		.data = (void *)&ls1021a_v1_data, },
 	{ .compatible = "fsl,ls2085a-dspi", .data = (void *)&ls2085a_data, },
+	{ .compatible = "fsl,s32v234-dspi", .data = (void *)&s32v234_data, },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, fsl_dspi_dt_ids);
