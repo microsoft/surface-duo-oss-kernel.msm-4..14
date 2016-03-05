@@ -1,7 +1,7 @@
 /*******************************************************************************
  *
  * Intel Ethernet Controller XL710 Family Linux Virtual Function Driver
- * Copyright(c) 2013 - 2014 Intel Corporation.
+ * Copyright(c) 2013 - 2016 Intel Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -153,7 +153,6 @@ enum i40e_dyn_idx_t {
 #define DESC_NEEDED (MAX_SKB_FRAGS + 4)
 #define I40E_MIN_DESC_PENDING	4
 
-#define I40E_TX_FLAGS_CSUM		BIT(0)
 #define I40E_TX_FLAGS_HW_VLAN		BIT(1)
 #define I40E_TX_FLAGS_SW_VLAN		BIT(2)
 #define I40E_TX_FLAGS_TSO		BIT(3)
@@ -202,12 +201,15 @@ struct i40e_tx_queue_stats {
 	u64 tx_done_old;
 	u64 tx_linearize;
 	u64 tx_force_wb;
+	u64 tx_lost_interrupt;
 };
 
 struct i40e_rx_queue_stats {
 	u64 non_eop_descs;
 	u64 alloc_page_failed;
 	u64 alloc_buff_failed;
+	u64 page_reuse_count;
+	u64 realloc_count;
 };
 
 enum i40e_ring_state_t {
@@ -253,7 +255,6 @@ struct i40e_ring {
 #define I40E_RX_DTYPE_NO_SPLIT      0
 #define I40E_RX_DTYPE_HEADER_SPLIT  1
 #define I40E_RX_DTYPE_SPLIT_ALWAYS  2
-	u8  hsplit;
 #define I40E_RX_SPLIT_L2      0x1
 #define I40E_RX_SPLIT_IP      0x2
 #define I40E_RX_SPLIT_TCP_UDP 0x4
@@ -273,7 +274,6 @@ struct i40e_ring {
 
 	u16 flags;
 #define I40E_TXR_FLAGS_WB_ON_ITR	BIT(0)
-#define I40E_TXR_FLAGS_OUTER_UDP_CSUM	BIT(1)
 
 	/* stats structs */
 	struct i40e_queue_stats	stats;
@@ -313,8 +313,8 @@ struct i40e_ring_container {
 #define i40e_for_each_ring(pos, head) \
 	for (pos = (head).ring; pos != NULL; pos = pos->next)
 
-void i40evf_alloc_rx_buffers_ps(struct i40e_ring *rxr, u16 cleaned_count);
-void i40evf_alloc_rx_buffers_1buf(struct i40e_ring *rxr, u16 cleaned_count);
+bool i40evf_alloc_rx_buffers_ps(struct i40e_ring *rxr, u16 cleaned_count);
+bool i40evf_alloc_rx_buffers_1buf(struct i40e_ring *rxr, u16 cleaned_count);
 void i40evf_alloc_rx_headers(struct i40e_ring *rxr);
 netdev_tx_t i40evf_xmit_frame(struct sk_buff *skb, struct net_device *netdev);
 void i40evf_clean_tx_ring(struct i40e_ring *tx_ring);
@@ -324,7 +324,8 @@ int i40evf_setup_rx_descriptors(struct i40e_ring *rx_ring);
 void i40evf_free_tx_resources(struct i40e_ring *tx_ring);
 void i40evf_free_rx_resources(struct i40e_ring *rx_ring);
 int i40evf_napi_poll(struct napi_struct *napi, int budget);
-u32 i40evf_get_tx_pending(struct i40e_ring *ring);
+void i40evf_force_wb(struct i40e_vsi *vsi, struct i40e_q_vector *q_vector);
+u32 i40evf_get_tx_pending(struct i40e_ring *ring, bool in_sw);
 
 /**
  * i40e_get_head - Retrieve head from head writeback
