@@ -69,6 +69,7 @@ struct ath10k;
 
 enum ath10k_bus {
 	ATH10K_BUS_PCI,
+	ATH10K_BUS_AHB,
 };
 
 static inline const char *ath10k_bus_str(enum ath10k_bus bus)
@@ -76,6 +77,8 @@ static inline const char *ath10k_bus_str(enum ath10k_bus bus)
 	switch (bus) {
 	case ATH10K_BUS_PCI:
 		return "pci";
+	case ATH10K_BUS_AHB:
+		return "ahb";
 	}
 
 	return "unknown";
@@ -95,6 +98,7 @@ struct ath10k_skb_cb {
 	u8 eid;
 	u16 msdu_id;
 	struct ieee80211_vif *vif;
+	struct ieee80211_txq *txq;
 } __packed;
 
 struct ath10k_skb_rxcb {
@@ -159,6 +163,7 @@ struct ath10k_fw_stats_peer {
 	u32 peer_rssi;
 	u32 peer_tx_rate;
 	u32 peer_rx_rate; /* 10x only */
+	u32 rx_duration;
 };
 
 struct ath10k_fw_stats_vdev {
@@ -293,12 +298,21 @@ struct ath10k_dfs_stats {
 
 struct ath10k_peer {
 	struct list_head list;
+	struct ieee80211_vif *vif;
+	struct ieee80211_sta *sta;
+
 	int vdev_id;
 	u8 addr[ETH_ALEN];
 	DECLARE_BITMAP(peer_ids, ATH10K_MAX_NUM_PEER_IDS);
 
 	/* protected by ar->data_lock */
 	struct ieee80211_key_conf *keys[WMI_MAX_KEY_INDEX + 1];
+};
+
+struct ath10k_txq {
+	struct list_head list;
+	unsigned long num_fw_queued;
+	unsigned long num_push_allowed;
 };
 
 struct ath10k_sta {
@@ -309,12 +323,14 @@ struct ath10k_sta {
 	u32 bw;
 	u32 nss;
 	u32 smps;
+	u16 peer_id;
 
 	struct work_struct update_wk;
 
 #ifdef CONFIG_MAC80211_DEBUGFS
 	/* protected by conf_mutex */
 	bool aggr_mode;
+	u64 rx_duration;
 #endif
 };
 
@@ -330,6 +346,7 @@ struct ath10k_vif {
 	struct list_head list;
 
 	u32 vdev_id;
+	u16 peer_id;
 	enum wmi_vdev_type vdev_type;
 	enum wmi_vdev_subtype vdev_subtype;
 	u32 beacon_interval;
@@ -510,6 +527,15 @@ enum ath10k_fw_features {
 	/* Firmware supports management frame protection */
 	ATH10K_FW_FEATURE_MFP_SUPPORT = 12,
 
+	/* Firmware supports pull-push model where host shares it's software
+	 * queue state with firmware and firmware generates fetch requests
+	 * telling host which queues to dequeue tx from.
+	 *
+	 * Primary function of this is improved MU-MIMO performance with
+	 * multiple clients.
+	 */
+	ATH10K_FW_FEATURE_PEER_FLOW_CONTROL = 13,
+
 	/* keep last */
 	ATH10K_FW_FEATURE_COUNT,
 };
@@ -666,6 +692,10 @@ struct ath10k {
 		/* The padding bytes's location is different on various chips */
 		enum ath10k_hw_4addr_pad hw_4addr_pad;
 
+		u32 tx_chain_mask;
+		u32 rx_chain_mask;
+		u32 max_spatial_stream;
+
 		struct ath10k_hw_params_fw {
 			const char *dir;
 			const char *fw;
@@ -766,9 +796,13 @@ struct ath10k {
 
 	/* protects shared structure data */
 	spinlock_t data_lock;
+	/* protects: ar->txqs, artxq->list */
+	spinlock_t txqs_lock;
 
+	struct list_head txqs;
 	struct list_head arvifs;
 	struct list_head peers;
+	struct ath10k_peer *peer_map[ATH10K_MAX_NUM_PEER_IDS];
 	wait_queue_head_t peer_mapping_wq;
 
 	/* protected by conf_mutex */
