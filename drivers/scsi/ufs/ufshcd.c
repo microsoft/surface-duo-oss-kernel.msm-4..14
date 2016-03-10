@@ -41,6 +41,7 @@
 #include <linux/devfreq.h>
 #include <linux/blkdev.h>
 
+#include <linux/of.h>
 #include "ufshcd.h"
 #include "unipro.h"
 
