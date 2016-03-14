@@ -69,11 +69,11 @@
  * GLOBAL configuration registers
  **********************************************************/
 struct viulite_data {
-	struct cdev		chdev;
+	struct cdev	chdev;
 	void __iomem	*reg_base;
 	unsigned int	irq;
-	struct clk		*clk;
-	atomic_t		access;
+	struct clk	*clk;
+	atomic_t	access;
 };
 
 const char *device_name[VIULITE_DEV_COUNT] = {
@@ -289,6 +289,36 @@ void viulite_dma_start(void __iomem *reg_base)
 	}
 }
 
+void viulite_dma_stop(void __iomem *reg_base)
+{
+
+	uint32_t  reg_value;
+	void __iomem *reg_address;
+
+	/* Clear pending interrupts */
+	reg_address = reg_base + INTR_OFFSET;
+	reg_value = readl(reg_address);
+	reg_value |= INTR_STATUS_MASK;
+	writel(reg_value, reg_address);
+
+	reg_address = reg_base + SCR_OFFSET;
+	reg_value = readl(reg_address);
+
+	/* DMA already stopped ? */
+	if (0 == (reg_value & SCR_DMA_ACT_MASK))
+		return;
+
+	reg_value &= ~SCR_DMA_ACT_MASK;
+	writel(reg_value, reg_address);
+
+	/* Soft reset */
+	reg_value |= SCR_SWRESET_MASK;
+	writel(reg_value, reg_address);
+
+	reg_value &= ~SCR_SWRESET_MASK;
+	writel(reg_value, reg_address);
+}
+
 void viulite_dma_getstatus(void __iomem *reg_base, VIU_BOOL *dmastatus)
 {
 	uint32_t  reg_value;
@@ -340,6 +370,18 @@ void viulite_get_ituerror(void __iomem *reg_base, VIU_ITU_ERR *itu_errcode)
 
 	*itu_errcode = (VIU_ITU_ERR)((reg_value & INTR_ITUERR_MASK)
 			>> INTR_ITUERR_OFFSET);
+}
+
+void viulite_enable_irqs(void __iomem *reg_base, uint8_t irq_mask)
+{
+	uint32_t  reg_value;
+	void __iomem *reg_address = reg_base + INTR_OFFSET;
+
+	reg_value = readl(reg_address);
+	reg_value &= ~INTR_ENABLE_MASK;
+	reg_value |= ((uint32_t)irq_mask << INTR_ENABLE_OFFSET);
+
+	writel(reg_value, reg_address);
 }
 
 void viulite_get_irqstatus(void __iomem *reg_base, uint8_t *intr_status)
@@ -451,6 +493,7 @@ long fsl_viulite_ioctl(struct file *pfile, unsigned int ioctl_cmd,
 	struct viulite_data *viu_data =
 		container_of(pnode->i_cdev, struct viulite_data, chdev);
 	uint64_t *viulite_baseloc = (uint64_t *)(viu_data->reg_base);
+	uint32_t irq = (uint32_t)(viu_data->irq);
 
 	__TRACE__();
 
@@ -469,7 +512,16 @@ long fsl_viulite_ioctl(struct file *pfile, unsigned int ioctl_cmd,
 
 	case VIULITE_IOCTL_DMA_START:
 	{
+		disable_irq(irq);
 		viulite_dma_start(viulite_baseloc);
+		enable_irq(irq);
+	}
+	break;
+
+	case VIULITE_IOCTL_DMA_STOP:
+	{
+		disable_irq(irq);
+		viulite_dma_stop(viulite_baseloc);
 	}
 	break;
 
@@ -540,6 +592,18 @@ long fsl_viulite_ioctl(struct file *pfile, unsigned int ioctl_cmd,
 	}
 	break;
 
+	case VIULITE_IOCTL_CONFIG_IRQS:
+	{
+		uint8_t irq_mask;
+
+		/* copy data from user space */
+		ret = copy_from_user(&irq_mask, (uint8_t *)arg,
+				sizeof(irq_mask));
+
+		viulite_enable_irqs(viulite_baseloc, irq_mask);
+	}
+	break;
+
 	case VIULITE_IOCTL_EN_ITU_ERRCODE:
 	{
 		VIU_BOOL itu_errset;
@@ -549,7 +613,6 @@ long fsl_viulite_ioctl(struct file *pfile, unsigned int ioctl_cmd,
 				sizeof(itu_errset));
 
 		viulite_enable_ituerror(viulite_baseloc, itu_errset);
-
 	}
 	break;
 
@@ -562,7 +625,6 @@ long fsl_viulite_ioctl(struct file *pfile, unsigned int ioctl_cmd,
 				sizeof(irq_status));
 
 		viulite_reset_irqstatus(viulite_baseloc, irq_status);
-
 	}
 	break;
 
@@ -681,14 +743,73 @@ int fsl_viulite_open(struct inode *inod, struct file *pfile)
  **********************************************************/
 static int fsl_viulite_close(struct inode *inod, struct file *pfile)
 {
-	struct viulite_data *data;
+	struct viulite_data *viu_data;
+	uint32_t irq;
 
 	__TRACE__();
 
-	data = container_of(inod->i_cdev, struct viulite_data, chdev);
+	viu_data = container_of(inod->i_cdev, struct viulite_data, chdev);
+	irq = (uint32_t)(viu_data->irq);
+	disable_irq(irq);
 
-/*	atomic_inc(&data->access);
+/*	atomic_inc(&viu_data->access);
 */	return 0;
+}
+
+/**********************************************************
+ * FUNCTION: viulite_intr
+ **********************************************************/
+irqreturn_t viulite_intr(int irq, void *dev_id)
+{
+	struct viulite_data *viu_data = (struct viulite_data *)dev_id;
+	uintptr_t viulite_regbase = (uintptr_t)(viu_data->reg_base);
+/*	void __iomem *viulite_regbase = (void __iomem *)(viu_data->reg_base);
+*/
+	uint32_t  int_status, reg_value;
+	void __iomem *reg_address;
+	void __iomem *int_address;
+
+	int_address = (void __iomem *)(viulite_regbase + INTR_OFFSET);
+/*	int_address = viulite_regbase + INTR_OFFSET;
+*/	int_status = readl(int_address);
+
+	if (int_status & (INTR_VSYNC_MASK | INTR_VSYNC_EN)) {
+		/* start a new frame transfer */
+		reg_address = (void __iomem *)(viulite_regbase + SCR_OFFSET);
+/*		reg_address = viulite_regbase + SCR_OFFSET;
+*/
+		reg_value = readl(reg_address);
+		reg_value |= SCR_DMA_ACT_MASK;
+		writel(reg_value, reg_address);
+
+		int_status |= INTR_VSYNC_MASK;
+	}
+
+	if (int_status & (INTR_DMA_END_MASK | INTR_DMA_END_EN))
+		int_status |= INTR_DMA_END_MASK;
+
+	if (int_status & (INTR_ERR_MASK | INTR_ERR_EN))
+		int_status |= INTR_ERR_MASK;
+
+	if (int_status & (INTR_HSYNC_MASK | INTR_HSYNC_EN))
+		int_status |= INTR_HSYNC_MASK;
+
+	if (int_status & (INTR_LINE_END_MASK | INTR_LINE_END_EN))
+		int_status |= INTR_LINE_END_MASK;
+
+	if (int_status & (INTR_FRAME_END_MASK | INTR_FRAME_END_EN))
+		int_status |= INTR_FRAME_END_MASK;
+
+	if (int_status & (INTR_FIELD_MASK | INTR_FIELD_EN))
+		int_status |= INTR_FIELD_MASK;
+
+	if (int_status & (INTR_VSTART_MASK | INTR_VSTART_EN))
+		int_status |= INTR_VSTART_MASK;
+
+	/* clear all pending irqs */
+	writel(int_status, int_address);
+
+	return IRQ_HANDLED;
 }
 
 /**********************************************************
@@ -751,6 +872,7 @@ int fsl_viulite_probe(struct platform_device *pdev)
 	struct viulite_data *viudata;
 	void __iomem *viulite_reg_base;
 	struct clk *viulite_clk;
+	uint32_t viulite_irq;
 
 	uint32_t index;
 	int ret = 0;
@@ -802,6 +924,21 @@ int fsl_viulite_probe(struct platform_device *pdev)
 	pm_runtime_enable(&pdev->dev);
 	pm_runtime_get_sync(&pdev->dev);
 
+	viulite_irq = platform_get_irq(pdev, 0);
+	if (viulite_irq == 0) {
+		dev_err(&pdev->dev, "Error while mapping the irq\n");
+		return -EINVAL;
+	}
+	viudata->irq = viulite_irq;
+
+	/* install interrupt handler */
+	if (request_irq(viudata->irq, viulite_intr, 0,
+			device_name[index], (void *)viudata)) {
+		dev_err(&pdev->dev, "Request VIULite IRQ failed.\n");
+		ret = -ENODEV;
+		goto failed_reqirq;
+	}
+
 	viulite_devn++;
 
 	__TRACE__();
@@ -810,6 +947,7 @@ int fsl_viulite_probe(struct platform_device *pdev)
 
 failed_alloc_base:
 failed_getclock:
+failed_reqirq:
 	return ret;
 }
 

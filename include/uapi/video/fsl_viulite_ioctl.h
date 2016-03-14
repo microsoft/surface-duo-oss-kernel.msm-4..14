@@ -107,6 +107,9 @@ typedef struct {
 /********   DMA Start         *******************/
 #define VIULITE_IOCTL_DMA_START                13
 
+/********   DMA Stop         *******************/
+#define VIULITE_IOCTL_DMA_STOP                 19
+
 /********   DMA Get Status    *******************/
 #define VIULITE_IOCTL_DMA_GET_STATUS            4
 
@@ -115,6 +118,9 @@ typedef struct {
 
 /*******   Reset Interrupt Status Flags    ******/
 #define VIULITE_IOCTL_RESET_IRQSTATUS          14
+
+/*******   Reset Interrupt Status Flags    ******/
+#define VIULITE_IOCTL_CONFIG_IRQS              20
 
 /********   Set ITU Error Code    ***************/
 #define VIULITE_IOCTL_EN_ITU_ERRCODE            5
@@ -189,14 +195,25 @@ typedef struct {
 #define INTR_ITUERR_MASK        (uint32_t)(0x0F << INTR_ITUERR_OFFSET)
 #define INTR_STATUS_OFFSET                16
 #define INTR_STATUS_MASK        (uint32_t)(0xFF << INTR_STATUS_OFFSET)
-#define INTR_FIELD_BIT          (uint32_t)(0x01)
-#define INTR_VSYNC_BIT          (uint32_t)(0x02)
-#define INTR_HSYNC_BIT          (uint32_t)(0x04)
-#define INTR_VSTART_BIT         (uint32_t)(0x08)
-#define INTR_DMA_END_BIT        (uint32_t)(0x10)
-#define INTR_ERR_BIT            (uint32_t)(0x20)
-#define INTR_LINE_END_BIT       (uint32_t)(0x40)
-#define INTR_FRAME_END_BIT      (uint32_t)(0x80)
+#define INTR_FIELD_MASK         (uint32_t)(0x00010000)
+#define INTR_VSYNC_MASK         (uint32_t)(0x00020000)
+#define INTR_HSYNC_MASK         (uint32_t)(0x00040000)
+#define INTR_VSTART_MASK        (uint32_t)(0x00080000)
+#define INTR_DMA_END_MASK       (uint32_t)(0x00100000)
+#define INTR_ERR_MASK           (uint32_t)(0x00200000)
+#define INTR_LINE_END_MASK      (uint32_t)(0x00400000)
+#define INTR_FRAME_END_MASK     (uint32_t)(0x00800000)
+
+#define INTR_ENABLE_OFFSET                0
+#define INTR_ENABLE_MASK        (uint32_t)(0xFF << INTR_ENABLE_OFFSET)
+#define INTR_FIELD_EN           (uint32_t)(0x01)
+#define INTR_VSYNC_EN           (uint32_t)(0x02)
+#define INTR_HSYNC_EN           (uint32_t)(0x04)
+#define INTR_VSTART_EN          (uint32_t)(0x08)
+#define INTR_DMA_END_EN         (uint32_t)(0x10)
+#define INTR_ERR_EN             (uint32_t)(0x20)
+#define INTR_LINE_END_EN        (uint32_t)(0x40)
+#define INTR_FRAME_END_EN       (uint32_t)(0x80)
 
 #define MAX_ALPHA_VAL           (0x00000100)
 #define VIU_HIGH16_MASK         (0xFFFF0000)
