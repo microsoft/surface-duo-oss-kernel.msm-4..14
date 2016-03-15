@@ -90,6 +90,8 @@
 		};
 
 		dwmmc_2: dwmmc2@f723f000 {
+			ti,non-removable;
+			non-removable;
 			/* WL_EN */
 			vmmc-supply = <&wlan_en_reg>;
 
