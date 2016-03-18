@@ -147,6 +147,7 @@ enum mipi_dsi_pixel_format {
  * @format: pixel format for video mode
  * @lanes: number of active data lanes
  * @mode_flags: DSI operation mode related flags
+ * @phy_clock: phy clock assigned to this peripheral in kHz
  */
 struct mipi_dsi_device {
 	struct mipi_dsi_host *host;
@@ -156,6 +157,7 @@ struct mipi_dsi_device {
 	unsigned int lanes;
 	enum mipi_dsi_pixel_format format;
 	unsigned long mode_flags;
+	u32 phy_clock; /* in kHz */
 };
 
 static inline struct mipi_dsi_device *to_mipi_dsi_device(struct device *dev)
