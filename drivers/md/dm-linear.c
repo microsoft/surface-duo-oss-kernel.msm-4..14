@@ -159,7 +159,7 @@ static long linear_dax_direct_access(struct dm_target *ti, pgoff_t pgoff,
 	return dax_direct_access(dax_dev, pgoff, nr_pages, kaddr, pfn);
 }
 
-static struct target_type linear_target = {
+struct target_type linear_target = {
 	.name   = "linear",
 	.version = {1, 3, 0},
 	.features = DM_TARGET_PASSES_INTEGRITY,
