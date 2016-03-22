@@ -406,6 +406,21 @@
 			};
 		};
 	};
+
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "hikey-hdmi";
+
+		simple-audio-card,dai-link@0 {          /* I2S - HDMI */
+			format = "i2s";
+			cpu {
+				sound-dai = <&i2s0 0>;
+			};
+			codec {
+				sound-dai = <&adv7533>;
+			};
+		};
+	};
 };
 
 &uart2 {
@@ -446,6 +461,7 @@
 		interrupts = <1 2>;
 		pd-gpio = <&gpio0 4 0>;
 		adi,dsi-lanes = <4>;
+		#sound-dai-cells = <0>;
 
 		port {
 			adv7533_in: endpoint {
