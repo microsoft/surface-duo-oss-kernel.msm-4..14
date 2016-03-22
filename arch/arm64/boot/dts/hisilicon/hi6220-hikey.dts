@@ -221,6 +221,28 @@
 			};
 		};
 	};
+
+	hi6210_hdmi_codec: hi6210_hdmi_codec {
+		compatible = "hisilicon,hi6210-hdmi-audio-codec";
+		#sound-dai-cells = <0>;
+	};
+
+	sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "hikey-hdmi";
+		simple-audio-card,format = "i2s";
+
+		simple-audio-card,bitclock-master = <&sound_master>;
+		simple-audio-card,frame-master = <&sound_master>;
+
+		sound_master: simple-audio-card,cpu {
+			sound-dai = <&i2s0>;
+		};
+
+		simple-audio-card,codec {
+			sound-dai = <&hi6210_hdmi_codec>;
+		};
+	};
 };
 
 &uart2 {
