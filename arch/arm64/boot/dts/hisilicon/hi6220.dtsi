@@ -334,6 +334,19 @@
 			status = "disabled";
 		};
 
+		dma0: dma@f7370000 {
+			compatible = "hisilicon,k3-dma-1.0";
+			reg = <0x0 0xf7370000 0x0 0x1000>;
+			#dma-cells = <1>;
+			dma-channels = <15>;
+			dma-requests = <32>;
+			interrupts = <0 84 4>;
+			clocks = <&sys_ctrl HI6220_EDMAC_ACLK>;
+			dma-no-cci;
+			dma-type = "hi6220_dma";
+			status = "ok";
+		};
+
 		dual_timer0: dual_timer@f8008000 {
 			compatible = "arm,sp804", "arm,primecell";
 			reg = <0x0 0xf8008000 0x0 0x1000>;
