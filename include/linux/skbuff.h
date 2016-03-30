@@ -203,6 +203,7 @@ struct sk_buff;
 #else
 #define MAX_SKB_FRAGS (65536/PAGE_SIZE + 1)
 #endif
+extern int sysctl_max_skb_frags;
 
 typedef struct skb_frag_struct skb_frag_t;
 
@@ -2588,6 +2589,9 @@ static inline void skb_postpull_rcsum(struct sk_buff *skb,
 {
 	if (skb->ip_summed == CHECKSUM_COMPLETE)
 		skb->csum = csum_sub(skb->csum, csum_partial(start, len, 0));
+	else if (skb->ip_summed == CHECKSUM_PARTIAL &&
+		 skb_checksum_start_offset(skb) < 0)
+		skb->ip_summed = CHECKSUM_NONE;
 }
 
 unsigned char *skb_pull_rcsum(struct sk_buff *skb, unsigned int len);
@@ -3317,7 +3321,8 @@ struct skb_gso_cb {
 	int	encap_level;
 	__u16	csum_start;
 };
-#define SKB_GSO_CB(skb) ((struct skb_gso_cb *)(skb)->cb)
+#define SKB_SGO_CB_OFFSET	32
+#define SKB_GSO_CB(skb) ((struct skb_gso_cb *)((skb)->cb + SKB_SGO_CB_OFFSET))
 
 static inline int skb_tnl_header_len(const struct sk_buff *inner_skb)
 {

@@ -1284,6 +1284,7 @@ static void __update_open_stateid(struct nfs4_state *state, nfs4_stateid *open_s
 	 * Protect the call to nfs4_state_set_mode_locked and
 	 * serialise the stateid update
 	 */
+	spin_lock(&state->owner->so_lock);
 	write_seqlock(&state->seqlock);
 	if (deleg_stateid != NULL) {
 		nfs4_stateid_copy(&state->stateid, deleg_stateid);
@@ -1292,7 +1293,6 @@ static void __update_open_stateid(struct nfs4_state *state, nfs4_stateid *open_s
 	if (open_stateid != NULL)
 		nfs_set_open_stateid_locked(state, open_stateid, fmode);
 	write_sequnlock(&state->seqlock);
-	spin_lock(&state->owner->so_lock);
 	update_open_stateflags(state, fmode);
 	spin_unlock(&state->owner->so_lock);
 }
@@ -2331,9 +2331,9 @@ static int _nfs4_open_and_get_state(struct nfs4_opendata *opendata,
 		dentry = d_add_unique(dentry, igrab(state->inode));
 		if (dentry == NULL) {
 			dentry = opendata->dentry;
-		} else if (dentry != ctx->dentry) {
+		} else {
 			dput(ctx->dentry);
-			ctx->dentry = dget(dentry);
+			ctx->dentry = dentry;
 		}
 		nfs_set_verifier(dentry,
 				nfs_save_change_attribute(d_inode(opendata->dir)));
@@ -5367,15 +5367,15 @@ static int nfs4_proc_getlk(struct nfs4_state *state, int cmd, struct file_lock *
 	return err;
 }
 
-static int do_vfs_lock(struct file *file, struct file_lock *fl)
+static int do_vfs_lock(struct inode *inode, struct file_lock *fl)
 {
 	int res = 0;
 	switch (fl->fl_flags & (FL_POSIX|FL_FLOCK)) {
 		case FL_POSIX:
-			res = posix_lock_file_wait(file, fl);
+			res = posix_lock_inode_wait(inode, fl);
 			break;
 		case FL_FLOCK:
-			res = flock_lock_file_wait(file, fl);
+			res = flock_lock_inode_wait(inode, fl);
 			break;
 		default:
 			BUG();
@@ -5435,7 +5435,7 @@ static void nfs4_locku_done(struct rpc_task *task, void *data)
 	switch (task->tk_status) {
 		case 0:
 			renew_lease(calldata->server, calldata->timestamp);
-			do_vfs_lock(calldata->fl.fl_file, &calldata->fl);
+			do_vfs_lock(calldata->lsp->ls_state->inode, &calldata->fl);
 			if (nfs4_update_lock_stateid(calldata->lsp,
 					&calldata->res.stateid))
 				break;
@@ -5543,7 +5543,7 @@ static int nfs4_proc_unlck(struct nfs4_state *state, int cmd, struct file_lock *
 	mutex_lock(&sp->so_delegreturn_mutex);
 	/* Exclude nfs4_reclaim_open_stateid() - note nesting! */
 	down_read(&nfsi->rwsem);
-	if (do_vfs_lock(request->fl_file, request) == -ENOENT) {
+	if (do_vfs_lock(inode, request) == -ENOENT) {
 		up_read(&nfsi->rwsem);
 		mutex_unlock(&sp->so_delegreturn_mutex);
 		goto out;
@@ -5684,7 +5684,7 @@ static void nfs4_lock_done(struct rpc_task *task, void *calldata)
 				data->timestamp);
 		if (data->arg.new_lock) {
 			data->fl.fl_flags &= ~(FL_SLEEP | FL_ACCESS);
-			if (do_vfs_lock(data->fl.fl_file, &data->fl) < 0) {
+			if (do_vfs_lock(lsp->ls_state->inode, &data->fl) < 0) {
 				rpc_restart_call_prepare(task);
 				break;
 			}
@@ -5926,7 +5926,7 @@ static int _nfs4_proc_setlk(struct nfs4_state *state, int cmd, struct file_lock 
 	if (status != 0)
 		goto out;
 	request->fl_flags |= FL_ACCESS;
-	status = do_vfs_lock(request->fl_file, request);
+	status = do_vfs_lock(state->inode, request);
 	if (status < 0)
 		goto out;
 	down_read(&nfsi->rwsem);
@@ -5934,7 +5934,7 @@ static int _nfs4_proc_setlk(struct nfs4_state *state, int cmd, struct file_lock 
 		/* Yes: cache locks! */
 		/* ...but avoid races with delegation recall... */
 		request->fl_flags = fl_flags & ~FL_SLEEP;
-		status = do_vfs_lock(request->fl_file, request);
+		status = do_vfs_lock(state->inode, request);
 		up_read(&nfsi->rwsem);
 		goto out;
 	}
@@ -8512,7 +8512,6 @@ static const struct nfs4_minor_version_ops nfs_v4_0_minor_ops = {
 	.minor_version = 0,
 	.init_caps = NFS_CAP_READDIRPLUS
 		| NFS_CAP_ATOMIC_OPEN
-		| NFS_CAP_CHANGE_ATTR
 		| NFS_CAP_POSIX_LOCK,
 	.init_client = nfs40_init_client,
 	.shutdown_client = nfs40_shutdown_client,
@@ -8538,7 +8537,6 @@ static const struct nfs4_minor_version_ops nfs_v4_1_minor_ops = {
 	.minor_version = 1,
 	.init_caps = NFS_CAP_READDIRPLUS
 		| NFS_CAP_ATOMIC_OPEN
-		| NFS_CAP_CHANGE_ATTR
 		| NFS_CAP_POSIX_LOCK
 		| NFS_CAP_STATEID_NFSV41
 		| NFS_CAP_ATOMIC_OPEN_V1,
@@ -8561,7 +8559,6 @@ static const struct nfs4_minor_version_ops nfs_v4_2_minor_ops = {
 	.minor_version = 2,
 	.init_caps = NFS_CAP_READDIRPLUS
 		| NFS_CAP_ATOMIC_OPEN
-		| NFS_CAP_CHANGE_ATTR
 		| NFS_CAP_POSIX_LOCK
 		| NFS_CAP_STATEID_NFSV41
 		| NFS_CAP_ATOMIC_OPEN_V1
