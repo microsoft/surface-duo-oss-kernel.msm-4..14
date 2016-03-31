@@ -34,7 +34,7 @@
 #define MSM_CCI_DRV_NAME "msm_cci"
 
 #undef CDBG
-#define CDBG(fmt, args...) pr_err(fmt, ##args)
+#define CDBG(fmt, args...) pr_debug(fmt, ##args)
 
 /* Max bytes that can be read per CCI read transaction */
 #define CCI_READ_MAX 12
@@ -1116,6 +1116,117 @@ static int32_t msm_cci_config(struct v4l2_subdev *sd,
 	}
 	CDBG("%s line %d rc %d\n", __func__, __LINE__, rc);
 	cci_ctrl->status = rc;
+	return rc;
+}
+
+int32_t msm_cci_ctrl_init(void)
+{
+	struct v4l2_subdev *sd = msm_cci_get_subdev();
+	struct msm_camera_cci_ctrl cci_ctrl = { 0 };
+	struct msm_camera_cci_client cci_info = { 0 };
+	int rc;
+
+	CDBG("%s: Enter\n", __func__);
+
+	if (!sd) {
+		return -EPROBE_DEFER;
+	}
+
+	cci_ctrl.cci_info = &cci_info;
+	cci_ctrl.cci_info->cci_i2c_master = MASTER_0;
+	cci_ctrl.cci_info->i2c_freq_mode = I2C_STANDARD_MODE;
+	cci_ctrl.cmd = MSM_CCI_INIT;
+
+	rc = msm_cci_config(sd, &cci_ctrl);
+
+	CDBG("%s: Exit rc = %d", __func__, rc);
+	return rc;
+}
+
+int32_t msm_cci_ctrl_release(void)
+{
+	struct v4l2_subdev *sd = msm_cci_get_subdev();
+	struct msm_camera_cci_ctrl cci_ctrl = { 0 };
+	struct msm_camera_cci_client cci_info = { 0 };
+	int rc;
+
+	CDBG("%s: Enter\n", __func__);
+
+	cci_ctrl.cci_info = &cci_info;
+	cci_ctrl.cmd = MSM_CCI_RELEASE;
+
+	rc = msm_cci_config(sd, &cci_ctrl);
+
+	CDBG("%s: Exit rc = %d", __func__, rc);
+	return rc;
+}
+
+int32_t msm_cci_ctrl_read(u16 addr, const char *buf, int count)
+{
+	struct v4l2_subdev *sd = msm_cci_get_subdev();
+	struct msm_camera_cci_ctrl cci_ctrl = { 0 };
+	struct msm_camera_cci_client cci_info = { 0 };
+	struct msm_camera_cci_i2c_read_cfg *read_cfg;
+	int rc;
+
+	CDBG("%s: Enter\n", __func__);
+
+	cci_ctrl.cci_info = &cci_info;
+	cci_ctrl.cci_info->cci_i2c_master = MASTER_0;
+	cci_ctrl.cci_info->sid = 0x78 >> 1;
+	cci_ctrl.cci_info->retries = 3;
+	cci_ctrl.cci_info->id_map = 0;
+	cci_ctrl.cci_info->i2c_freq_mode = I2C_STANDARD_MODE;
+
+	read_cfg = &cci_ctrl.cfg.cci_i2c_read_cfg;
+	read_cfg->addr = addr;
+	read_cfg->addr_type = MSM_CAMERA_I2C_WORD_ADDR;
+	read_cfg->data = (uint8_t *) buf;
+	read_cfg->num_byte = count;
+
+	cci_ctrl.cmd = MSM_CCI_I2C_READ;
+
+	rc = msm_cci_config(sd, &cci_ctrl);
+
+	CDBG("%s: Exit rc = %d, reg = 0x%04x, data = 0x%02x",
+	     __func__, rc, addr, *((uint8_t *)buf) );
+	return rc;
+}
+
+int32_t msm_cci_ctrl_write(u16 addr, const char *buf, int count)
+{
+	struct v4l2_subdev *sd = msm_cci_get_subdev();
+	struct msm_camera_cci_ctrl cci_ctrl = { 0 };
+	struct msm_camera_cci_client cci_info = { 0 };
+	struct msm_camera_i2c_reg_setting *i2c_msg;
+	struct msm_camera_i2c_reg_array i2c_cmd = { 0 };
+	int rc;
+
+	CDBG("%s: Enter\n", __func__);
+
+	cci_ctrl.cci_info = &cci_info;
+	cci_ctrl.cci_info->cci_i2c_master = MASTER_0;
+	cci_ctrl.cci_info->sid = 0x78 >> 1;
+	cci_ctrl.cci_info->retries = 3;
+	cci_ctrl.cci_info->id_map = 0;
+
+	i2c_msg = &cci_ctrl.cfg.cci_i2c_write_cfg;
+	i2c_msg->reg_setting = &i2c_cmd;
+
+	i2c_msg->size = 1;
+	i2c_msg->addr_type = MSM_CAMERA_I2C_WORD_ADDR;
+	i2c_msg->data_type = MSM_CAMERA_I2C_BYTE_DATA;
+
+	i2c_cmd.reg_addr = addr;
+	i2c_cmd.reg_data = *((uint8_t *) buf);
+	i2c_cmd.delay = 0;
+
+	cci_ctrl.cmd = MSM_CCI_I2C_WRITE;
+
+	rc = msm_cci_config(sd, &cci_ctrl);
+
+	CDBG("%s: Exit rc = %d, reg = 0x%04x, data = 0x%02x",
+	     __func__, rc, addr, *((uint8_t *)buf) );
 	return rc;
 }
 
