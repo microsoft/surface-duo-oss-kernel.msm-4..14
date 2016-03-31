@@ -246,6 +246,7 @@ enum spmi_common_control_register_index {
 
 /* Minimum voltage stepper delay for each step. */
 #define SPMI_FTSMPS_STEP_DELAY		8
+#define SPMI_DEFAULT_STEP_DELAY		20
 
 /*
  * The ratio SPMI_FTSMPS_STEP_MARGIN_NUM/SPMI_FTSMPS_STEP_MARGIN_DEN is used to
@@ -1008,6 +1009,7 @@ static struct regulator_ops spmi_smps_ops = {
 	.disable		= spmi_regulator_common_disable,
 	.is_enabled		= spmi_regulator_common_is_enabled,
 	.set_voltage		= spmi_regulator_common_set_voltage,
+	.set_voltage_time_sel	= spmi_regulator_set_voltage_time_sel,
 	.get_voltage		= spmi_regulator_common_get_voltage,
 	.list_voltage		= spmi_regulator_common_list_voltage,
 	.set_mode		= spmi_regulator_common_set_mode,
@@ -1083,6 +1085,7 @@ static struct regulator_ops spmi_ult_lo_smps_ops = {
 	.disable		= spmi_regulator_common_disable,
 	.is_enabled		= spmi_regulator_common_is_enabled,
 	.set_voltage		= spmi_regulator_ult_lo_smps_set_voltage,
+	.set_voltage_time_sel	= spmi_regulator_set_voltage_time_sel,
 	.get_voltage		= spmi_regulator_ult_lo_smps_get_voltage,
 	.list_voltage		= spmi_regulator_common_list_voltage,
 	.set_mode		= spmi_regulator_common_set_mode,
@@ -1096,6 +1099,7 @@ static struct regulator_ops spmi_ult_ho_smps_ops = {
 	.disable		= spmi_regulator_common_disable,
 	.is_enabled		= spmi_regulator_common_is_enabled,
 	.set_voltage		= spmi_regulator_single_range_set_voltage,
+	.set_voltage_time_sel	= spmi_regulator_set_voltage_time_sel,
 	.get_voltage		= spmi_regulator_single_range_get_voltage,
 	.list_voltage		= spmi_regulator_common_list_voltage,
 	.set_mode		= spmi_regulator_common_set_mode,
@@ -1247,11 +1251,11 @@ found:
 	return 0;
 }
 
-static int spmi_regulator_ftsmps_init_slew_rate(struct spmi_regulator *vreg)
+static int spmi_regulator_init_slew_rate(struct spmi_regulator *vreg)
 {
 	int ret;
 	u8 reg = 0;
-	int step, delay, slew_rate;
+	int step, delay, slew_rate, step_delay;
 	const struct spmi_voltage_range *range;
 
 	ret = spmi_vreg_read(vreg, SPMI_COMMON_REG_STEP_CTRL, &reg, 1);
@@ -1264,6 +1268,15 @@ static int spmi_regulator_ftsmps_init_slew_rate(struct spmi_regulator *vreg)
 	if (!range)
 		return -EINVAL;
 
+	switch (vreg->logical_type) {
+	case SPMI_REGULATOR_LOGICAL_TYPE_FTSMPS:
+		step_delay = SPMI_FTSMPS_STEP_DELAY;
+		break;
+	default:
+		step_delay = SPMI_DEFAULT_STEP_DELAY;
+		break;
+	}
+
 	step = reg & SPMI_FTSMPS_STEP_CTRL_STEP_MASK;
 	step >>= SPMI_FTSMPS_STEP_CTRL_STEP_SHIFT;
 
@@ -1272,7 +1285,7 @@ static int spmi_regulator_ftsmps_init_slew_rate(struct spmi_regulator *vreg)
 
 	/* slew_rate has units of uV/us */
 	slew_rate = SPMI_FTSMPS_CLOCK_RATE * range->step_uV * (1 << step);
-	slew_rate /= 1000 * (SPMI_FTSMPS_STEP_DELAY << delay);
+	slew_rate /= 1000 * (step_delay << delay);
 	slew_rate *= SPMI_FTSMPS_STEP_MARGIN_NUM;
 	slew_rate /= SPMI_FTSMPS_STEP_MARGIN_DEN;
 
@@ -1413,10 +1426,16 @@ static int spmi_regulator_of_parse(struct device_node *node,
 		return ret;
 	}
 
-	if (vreg->logical_type == SPMI_REGULATOR_LOGICAL_TYPE_FTSMPS) {
-		ret = spmi_regulator_ftsmps_init_slew_rate(vreg);
+	switch (vreg->logical_type) {
+	case SPMI_REGULATOR_LOGICAL_TYPE_FTSMPS:
+	case SPMI_REGULATOR_LOGICAL_TYPE_ULT_LO_SMPS:
+	case SPMI_REGULATOR_LOGICAL_TYPE_ULT_HO_SMPS:
+	case SPMI_REGULATOR_LOGICAL_TYPE_SMPS:
+		ret = spmi_regulator_init_slew_rate(vreg);
 		if (ret)
 			return ret;
+	default:
+		break;
 	}
 
 	if (vreg->logical_type != SPMI_REGULATOR_LOGICAL_TYPE_VS)
