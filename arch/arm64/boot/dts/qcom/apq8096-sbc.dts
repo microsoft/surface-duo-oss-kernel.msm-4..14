@@ -16,8 +16,8 @@
 #include "apq8096-dragonboard.dtsi"
 
 / {
-	model = "Qualcomm Technologies, Inc. APQ 8096 DragonBoard";
-	compatible = "qcom,apq8096-dragonboard";
-	qcom,pmic-id = <0x20009 0x2000A 0x0 0x0>;
-	qcom,board-id = <10 0>;
+	model = "Qualcomm Technologies, Inc. APQ 8096 SBC";
+	compatible = "qcom,apq8096-sbc";
+	qcom,pmic-id = <0x20009 0x10013 0x0 0x0>;
+	qcom,board-id = <24 0>;
 };
