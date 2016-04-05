@@ -185,9 +185,7 @@ static bool android_fence_enable_signaling(struct fence *fence)
 
 static void android_fence_disable_signaling(struct fence *fence)
 {
-	struct sync_pt *pt = container_of(fence, struct sync_pt, base);
-
-	list_del_init(&pt->active_list);
+	list_del_init(&fence->active_list);
 }
 
 static void android_fence_value_str(struct fence *fence,
