@@ -64,6 +64,7 @@
 #define MCI_ST_CE_ATACMD	(1 << 14)
 
 /* Modified on Qualcomm Integrations */
+#define MCI_QCOM_CSPM_PROGENA		BIT(11)
 #define MCI_QCOM_CSPM_DATCMD		BIT(12)
 #define MCI_QCOM_CSPM_MCIABORT		BIT(13)
 #define MCI_QCOM_CSPM_CCSENABLE		BIT(14)
@@ -95,6 +96,9 @@
 #define MCI_ST_DPSM_BUSYMODE	(1 << 14)
 #define MCI_ST_DPSM_DDRMODE	(1 << 15)
 
+#define MCI_QCOM_DATA_PEND	(1 << 17)
+#define MCI_QCOM_RX_DATA_PEND	(1 << 20)
+
 #define MMCIDATACNT		0x030
 #define MMCISTATUS		0x034
 #define MCI_CMDCRCFAIL		(1 << 0)
@@ -123,6 +127,9 @@
 #define MCI_ST_SDIOIT		(1 << 22)
 #define MCI_ST_CEATAEND		(1 << 23)
 #define MCI_ST_CARDBUSY		(1 << 24)
+
+/* Extended status bits for the QCOM variants */
+#define MCI_QCOM_PROGDONE	(1 << 23)
 
 #define MMCICLEAR		0x038
 #define MCI_CMDCRCFAILCLR	(1 << 0)
@@ -169,6 +176,7 @@
 #define MCI_ST_CEATAENDMASK	(1 << 23)
 #define MCI_ST_BUSYEND		(1 << 24)
 
+#define MCI_QCOM_PROGDONEMASK	(1 << 23)
 #define MMCIMASK1		0x040
 #define MMCIFIFOCNT		0x048
 #define MMCIFIFO		0x080 /* to 0x0bc */
@@ -176,7 +184,7 @@
 #define MCI_IRQENABLE	\
 	(MCI_CMDCRCFAILMASK|MCI_DATACRCFAILMASK|MCI_CMDTIMEOUTMASK|	\
 	MCI_DATATIMEOUTMASK|MCI_TXUNDERRUNMASK|MCI_RXOVERRUNMASK|	\
-	MCI_CMDRESPENDMASK|MCI_CMDSENTMASK|MCI_STARTBITERRMASK)
+	MCI_CMDRESPENDMASK| MCI_QCOM_PROGDONEMASK |MCI_CMDSENTMASK|MCI_STARTBITERRMASK)
 
 /* These interrupts are directed to IRQ1 when two IRQ lines are available */
 #define MCI_IRQ1MASK \
@@ -204,6 +212,7 @@ struct mmci_host {
 	struct mmc_host		*mmc;
 	struct clk		*clk;
 	bool			singleirq;
+	bool			prog_enable;
 
 	spinlock_t		lock;
 

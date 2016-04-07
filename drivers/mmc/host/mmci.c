@@ -900,6 +900,11 @@ mmci_start_command(struct mmci_host *host, struct mmc_command *cmd, u32 c)
 	if (/*interrupt*/0)
 		c |= MCI_CPSM_INTERRUPT;
 
+	if ((cmd->flags & MMC_RSP_R1B) == MMC_RSP_R1B) {
+		c |= MCI_QCOM_CSPM_PROGENA;
+		host->prog_enable = true;
+	}
+
 	if (mmc_cmd_type(cmd) == MMC_CMD_ADTC)
 		c |= host->variant->data_cmd_enable;
 
@@ -994,8 +999,16 @@ mmci_cmd_irq(struct mmci_host *host, struct mmc_command *cmd,
 	busy_resp = host->variant->busy_detect && (cmd->flags & MMC_RSP_BUSY);
 
 	if (!((status|host->busy_status) & (MCI_CMDCRCFAIL|MCI_CMDTIMEOUT|
-		MCI_CMDSENT|MCI_CMDRESPEND)))
+		MCI_CMDSENT|MCI_CMDRESPEND | MCI_QCOM_PROGDONE)))
 		return;
+
+	if (host->prog_enable) {
+		if(status & MCI_QCOM_PROGDONE) {
+			host->prog_enable = false;
+		} else {
+			return;
+		}
+	}
 
 	/* Check if we need to wait for busy completion. */
 	if (host->busy_status && (status & MCI_ST_CARDBUSY))
