@@ -816,6 +816,7 @@ enum station_parameters_apply_mask {
  * @supported_oper_classes_len: number of supported operating classes
  * @opmode_notif: operating mode field from Operating Mode Notification
  * @opmode_notif_used: information if operating mode field is used
+ * @support_p2p_ps: information if station supports P2P PS mechanism
  */
 struct station_parameters {
 	const u8 *supported_rates;
@@ -841,6 +842,7 @@ struct station_parameters {
 	u8 supported_oper_classes_len;
 	u8 opmode_notif;
 	bool opmode_notif_used;
+	int support_p2p_ps;
 };
 
 /**
@@ -1455,6 +1457,7 @@ struct cfg80211_ssid {
  * @mac_addr_mask: MAC address mask used with randomisation, bits that
  *	are 0 in the mask should be randomised, bits that are 1 should
  *	be taken from the @mac_addr
+ * @bssid: BSSID to scan for (most commonly, the wildcard BSSID)
  */
 struct cfg80211_scan_request {
 	struct cfg80211_ssid *ssids;
@@ -1471,6 +1474,7 @@ struct cfg80211_scan_request {
 
 	u8 mac_addr[ETH_ALEN] __aligned(2);
 	u8 mac_addr_mask[ETH_ALEN] __aligned(2);
+	u8 bssid[ETH_ALEN] __aligned(2);
 
 	/* internal */
 	struct wiphy *wiphy;
@@ -1617,7 +1621,7 @@ struct cfg80211_inform_bss {
 };
 
 /**
- * struct cfg80211_bss_ie_data - BSS entry IE data
+ * struct cfg80211_bss_ies - BSS entry IE data
  * @tsf: TSF contained in the frame that carried these IEs
  * @rcu_head: internal use, for freeing
  * @len: length of the IEs
@@ -1746,7 +1750,12 @@ enum cfg80211_assoc_req_flags {
  * @ie_len: Length of ie buffer in octets
  * @use_mfp: Use management frame protection (IEEE 802.11w) in this association
  * @crypto: crypto settings
- * @prev_bssid: previous BSSID, if not %NULL use reassociate frame
+ * @prev_bssid: previous BSSID, if not %NULL use reassociate frame. This is used
+ *	to indicate a request to reassociate within the ESS instead of a request
+ *	do the initial association with the ESS. When included, this is set to
+ *	the BSSID of the current association, i.e., to the value that is
+ *	included in the Current AP address field of the Reassociation Request
+ *	frame.
  * @flags:  See &enum cfg80211_assoc_req_flags
  * @ht_capa:  HT Capabilities over-rides.  Values set in ht_capa_mask
  *	will be used in ht_capa.  Un-supported values will be ignored.
@@ -1857,6 +1866,33 @@ struct cfg80211_ibss_params {
 };
 
 /**
+ * struct cfg80211_bss_select_adjust - BSS selection with RSSI adjustment.
+ *
+ * @band: band of BSS which should match for RSSI level adjustment.
+ * @delta: value of RSSI level adjustment.
+ */
+struct cfg80211_bss_select_adjust {
+	enum ieee80211_band band;
+	s8 delta;
+};
+
+/**
+ * struct cfg80211_bss_selection - connection parameters for BSS selection.
+ *
+ * @behaviour: requested BSS selection behaviour.
+ * @param: parameters for requestion behaviour.
+ * @band_pref: preferred band for %NL80211_BSS_SELECT_ATTR_BAND_PREF.
+ * @adjust: parameters for %NL80211_BSS_SELECT_ATTR_RSSI_ADJUST.
+ */
+struct cfg80211_bss_selection {
+	enum nl80211_bss_select_attr behaviour;
+	union {
+		enum ieee80211_band band_pref;
+		struct cfg80211_bss_select_adjust adjust;
+	} param;
+};
+
+/**
  * struct cfg80211_connect_params - Connection parameters
  *
  * This structure provides information needed to complete IEEE 802.11
@@ -1893,6 +1929,13 @@ struct cfg80211_ibss_params {
  * @vht_capa_mask: The bits of vht_capa which are to be used.
  * @pbss: if set, connect to a PCP instead of AP. Valid for DMG
  *	networks.
+ * @bss_select: criteria to be used for BSS selection.
+ * @prev_bssid: previous BSSID, if not %NULL use reassociate frame. This is used
+ *	to indicate a request to reassociate within the ESS instead of a request
+ *	do the initial association with the ESS. When included, this is set to
+ *	the BSSID of the current association, i.e., to the value that is
+ *	included in the Current AP address field of the Reassociation Request
+ *	frame.
  */
 struct cfg80211_connect_params {
 	struct ieee80211_channel *channel;
@@ -1916,6 +1959,8 @@ struct cfg80211_connect_params {
 	struct ieee80211_vht_cap vht_capa;
 	struct ieee80211_vht_cap vht_capa_mask;
 	bool pbss;
+	struct cfg80211_bss_selection bss_select;
+	const u8 *prev_bssid;
 };
 
 /**
@@ -2342,7 +2387,17 @@ struct cfg80211_qos_map {
  * @connect: Connect to the ESS with the specified parameters. When connected,
  *	call cfg80211_connect_result() with status code %WLAN_STATUS_SUCCESS.
  *	If the connection fails for some reason, call cfg80211_connect_result()
- *	with the status from the AP.
+ *	with the status from the AP. The driver is allowed to roam to other
+ *	BSSes within the ESS when the other BSS matches the connect parameters.
+ *	When such roaming is initiated by the driver, the driver is expected to
+ *	verify that the target matches the configured security parameters and
+ *	to use Reassociation Request frame instead of Association Request frame.
+ *	The connect function can also be used to request the driver to perform
+ *	a specific roam when connected to an ESS. In that case, the prev_bssid
+ *	parameter is set to the BSSID of the currently associated BSS as an
+ *	indication of requesting reassociation. In both the driver-initiated and
+ *	new connect() call initiated roaming cases, the result of roaming is
+ *	indicated with a call to cfg80211_roamed() or cfg80211_roamed_bss().
  *	(invoked with the wireless_dev mutex held)
  * @disconnect: Disconnect from the BSS/ESS.
  *	(invoked with the wireless_dev mutex held)
@@ -3184,6 +3239,9 @@ struct wiphy_vendor_command {
  *	low rssi when a frame is heard on different channel, then it should set
  *	this variable to the maximal offset for which it can compensate.
  *	This value should be set in MHz.
+ * @bss_select_support: bitmask indicating the BSS selection criteria supported
+ *	by the driver in the .connect() callback. The bit position maps to the
+ *	attribute indices defined in &enum nl80211_bss_select_attr.
  */
 struct wiphy {
 	/* assign these fields before you register the wiphy */
@@ -3305,6 +3363,8 @@ struct wiphy {
 
 	u8 max_num_csa_counters;
 	u8 max_adj_channel_rssi_comp;
+
+	u32 bss_select_support;
 
 	char priv[0] __aligned(NETDEV_ALIGN);
 };
