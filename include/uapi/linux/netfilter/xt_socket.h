@@ -18,4 +18,9 @@ struct xt_socket_mtinfo2 {
 };
 #define XT_SOCKET_FLAGS_V2 (XT_SOCKET_TRANSPARENT | XT_SOCKET_NOWILDCARD)
 
+struct sock *xt_socket_lookup_slow_v4(const struct sk_buff *skb,
+				const struct net_device *indev);
+struct sock *xt_socket_lookup_slow_v6(const struct sk_buff *skb,
+				const struct net_device *indev);
+
 #endif /* _XT_SOCKET_H */
