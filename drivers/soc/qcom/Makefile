@@ -10,3 +10,4 @@ obj-$(CONFIG_QCOM_WCNSS_CTRL) += wcnss_ctrl.o
 
 obj-$(CONFIG_MSM_BUS_SCALING) += msm_bus/
 obj-$(CONFIG_BUS_TOPOLOGY_ADHOC) += msm_bus/
+obj-$(CONFIG_QTI_LNX_GPS_PROXY) += gps_proxy.o
