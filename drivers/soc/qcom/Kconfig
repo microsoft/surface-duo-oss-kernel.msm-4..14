@@ -83,6 +83,15 @@ config QCOM_WCNSS_CTRL
 config MSM_BUS_SCALING
 	bool "Bus scaling driver"
 	default n
+
+config QTI_LNX_GPS_PROXY
+	tristate "User mode QTI_LNX_GPS_PROXY device driver support"
+	help
+	  This supports user mode QTI_LNX_GPS_PROXY
+
+	  Note that this application programming interface is EXPERIMENTAL
+	  and hence SUBJECT TO CHANGE WITHOUT NOTICE while it stabilizes.
+
 	help
 		This option enables bus scaling on MSM devices.  Bus scaling
 		allows devices to request the clocks be set to rates sufficient
