@@ -1009,7 +1009,6 @@ static int adv7511_bridge_attach(struct drm_bridge *bridge)
 	}
 	drm_connector_helper_add(&adv->connector,
 					&adv7511_connector_helper_funcs);
-	drm_connector_register(&adv->connector);
 	drm_mode_connector_attach_encoder(&adv->connector, bridge->encoder);
 
 	drm_helper_hpd_irq_event(adv->connector.dev);
