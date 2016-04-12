@@ -328,6 +328,16 @@
 			status = "okay";
 		};
 
+		hdmi: qcom,hdmi-tx@4a00000 {
+			status = "okay";
+			core-vdda-supply = <&pm8921_hdmi_switch>;
+			hdmi-mux-supply = <&vcc3v3>;
+		};
+
+		mdp: qcom,mdp@5100000 {
+			status = "okay";
+		};
+
 		amba {
 			/* eMMC */
 			sdcc@12400000 {
