@@ -1940,6 +1940,11 @@ static struct amba_id etm_ids[] = {
 		.mask	= 0x0003ffff,
 		.data	= "PTM 1.1",
 	},
+	{	/* PTM 1.1 Qualcomm */
+		.id	= 0x0003006f,
+		.mask	= 0x0003ffff,
+		.data	= "PTM 1.1",
+	},
 	{ 0, 0},
 };
 

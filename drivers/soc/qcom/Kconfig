@@ -13,6 +13,7 @@ config QCOM_GSBI
 config QCOM_PM
 	bool "Qualcomm Power Management"
 	depends on ARCH_QCOM && !ARM64
+	select ARM_CPU_SUSPEND
 	select QCOM_SCM
 	help
 	  QCOM Platform specific power driver to manage cores and L2 low power
@@ -49,3 +50,66 @@ config QCOM_SMD_RPM
 
 	  Say M here if you want to include support for the Qualcomm RPM as a
 	  module. This will build a module called "qcom-smd-rpm".
+
+config QCOM_SMEM_STATE
+	bool
+
+config QCOM_SMP2P
+	tristate "Qualcomm Shared Memory Point to Point support"
+	depends on QCOM_SMEM
+	select QCOM_SMEM_STATE
+	help
+	  Say yes here to support the Qualcomm Shared Memory Point to Point
+	  protocol.
+
+config QCOM_SMSM
+	tristate "Qualcomm Shared Memory State Machine"
+	depends on QCOM_SMEM
+	select QCOM_SMEM_STATE
+	help
+	  Say yes here to support the Qualcomm Shared Memory State Machine.
+	  The state machine is represented by bits in shared memory.
+
+config QCOM_WCNSS_CTRL
+	tristate "Qualcomm WCNSS control driver"
+	depends on QCOM_SMD
+	help
+	  Client driver for the WCNSS_CTRL SMD channel, used to download nv
+	  firmware to a newly booted WCNSS chip.
+	  Say y here to enable support for the Qualcomm Shared Memory Manager.
+	  The driver provides an interface to items in a heap shared among all
+	  processors in a Qualcomm platform.
+
+config MSM_BUS_SCALING
+	bool "Bus scaling driver"
+	default n
+	help
+		This option enables bus scaling on MSM devices.  Bus scaling
+		allows devices to request the clocks be set to rates sufficient
+		for the active devices needs without keeping the clocks at max
+		frequency when a slower speed is sufficient.
+
+config MSM_BUSPM_DEV
+	tristate "MSM Bus Performance Monitor Kernel Module"
+	depends on MSM_BUS_SCALING
+	default n
+	help
+	  This kernel module is used to mmap() hardware registers for the
+	  performance monitors, counters, etc. The module can also be used to
+	  allocate physical memory which is used by bus performance hardware to
+	  dump performance data
+
+config BUS_TOPOLOGY_ADHOC
+	bool "ad-hoc bus scaling topology"
+	default n
+	help
+		This option enables a driver that can handle adhoc bus topologies.
+		Adhoc bus topology driver allows one to many connections and maintains
+		directionality of connections by explicitly listing device connections
+		thus avoiding illegal routes.
+
+config QCOM_IPCRTR_STUB
+	tristate "Qualcomm IPCRTR stub driver"
+	depends on QCOM_SMD
+	help
+	  Stub driver to bring the IPCRTR channel up.

@@ -391,4 +391,9 @@ config QCOM_SPMI_TEMP_ALARM
 	  real time die temperature if an ADC is present or an estimate of the
 	  temperature based upon the over temperature stage value.
 
+menu "Qualcomm thermal drivers"
+depends on ARCH_QCOM && OF
+source "drivers/thermal/qcom/Kconfig"
+endmenu
+
 endif

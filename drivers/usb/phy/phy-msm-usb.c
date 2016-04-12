@@ -45,6 +45,7 @@
 #include <linux/usb/msm_hsusb.h>
 #include <linux/usb/msm_hsusb_hw.h>
 #include <linux/regulator/consumer.h>
+#include <linux/msm-bus.h>
 
 #define MSM_USB_BASE	(motg->regs)
 #define DRIVER_NAME	"msm_otg"
@@ -75,6 +76,9 @@ enum vdd_levels {
 static int msm_hsusb_init_vddcx(struct msm_otg *motg, int init)
 {
 	int ret = 0;
+
+	if (IS_ERR(motg->vddcx))
+		return 0;
 
 	if (init) {
 		ret = regulator_set_voltage(motg->vddcx,
@@ -761,7 +765,8 @@ static int msm_otg_set_host(struct usb_otg *otg, struct usb_bus *host)
 	 * Kick the state machine work, if peripheral is not supported
 	 * or peripheral is already registered with us.
 	 */
-	if (motg->pdata->mode == USB_DR_MODE_HOST || otg->gadget) {
+	if (motg->pdata->mode == USB_DR_MODE_HOST ||
+			motg->pdata->mode == USB_DR_MODE_OTG || otg->gadget) {
 		pm_runtime_get_sync(otg->usb_phy->dev);
 		schedule_work(&motg->sm_work);
 	}
@@ -831,7 +836,8 @@ static int msm_otg_set_peripheral(struct usb_otg *otg,
 	 * Kick the state machine work, if host is not supported
 	 * or host is already registered with us.
 	 */
-	if (motg->pdata->mode == USB_DR_MODE_PERIPHERAL || otg->host) {
+	if (motg->pdata->mode == USB_DR_MODE_PERIPHERAL ||
+		motg->pdata->mode == USB_DR_MODE_OTG || otg->host) {
 		pm_runtime_get_sync(otg->usb_phy->dev);
 		schedule_work(&motg->sm_work);
 	}
@@ -1647,9 +1653,22 @@ static int msm_otg_reboot_notify(struct notifier_block *this,
 	return NOTIFY_DONE;
 }
 
+static void msm_otg_bus_vote(struct msm_otg *motg, enum usb_bus_vote vote)
+{
+	int ret;
+
+	if (motg->bus_perf_client) {
+		ret = msm_bus_scale_client_update_request(
+				motg->bus_perf_client, vote);
+		if (ret)
+			dev_err(motg->phy.dev, "%s: Failed to vote (%d)\n"
+					"for bus bw %d\n", __func__, vote, ret);
+	}
+}
+
 static int msm_otg_probe(struct platform_device *pdev)
 {
-	struct regulator_bulk_data regs[3];
+	struct regulator_bulk_data regs[2];
 	int ret = 0;
 	struct device_node *np = pdev->dev.of_node;
 	struct msm_otg_platform_data *pdata;
@@ -1669,6 +1688,8 @@ static int msm_otg_probe(struct platform_device *pdev)
 
 	phy = &motg->phy;
 	phy->dev = &pdev->dev;
+	INIT_WORK(&motg->sm_work, msm_otg_sm_work);
+	INIT_DELAYED_WORK(&motg->chg_work, msm_chg_detect_work);
 
 	motg->clk = devm_clk_get(&pdev->dev, np ? "core" : "usb_hs_clk");
 	if (IS_ERR(motg->clk)) {
@@ -1736,17 +1757,21 @@ static int msm_otg_probe(struct platform_device *pdev)
 		goto unregister_extcon;
 	}
 
-	regs[0].supply = "vddcx";
-	regs[1].supply = "v3p3";
-	regs[2].supply = "v1p8";
+	regs[0].supply = "v3p3";
+	regs[1].supply = "v1p8";
 
 	ret = devm_regulator_bulk_get(motg->phy.dev, ARRAY_SIZE(regs), regs);
-	if (ret)
+	if (ret) {
+		dev_err(&pdev->dev, "no v3p3 or v1p8\n");
 		goto unregister_extcon;
+	}
 
-	motg->vddcx = regs[0].consumer;
-	motg->v3p3  = regs[1].consumer;
-	motg->v1p8  = regs[2].consumer;
+	motg->v3p3  = regs[0].consumer;
+	motg->v1p8  = regs[1].consumer;
+
+	motg->vddcx = devm_regulator_get_optional(motg->phy.dev, "vddcx");
+	if (IS_ERR(motg->vddcx))
+		dev_info(&pdev->dev, "no vddcx\n");
 
 	clk_set_rate(motg->clk, 60000000);
 
@@ -1776,8 +1801,6 @@ static int msm_otg_probe(struct platform_device *pdev)
 	writel(0, USB_USBINTR);
 	writel(0, USB_OTGSC);
 
-	INIT_WORK(&motg->sm_work, msm_otg_sm_work);
-	INIT_DELAYED_WORK(&motg->chg_work, msm_chg_detect_work);
 	ret = devm_request_irq(&pdev->dev, motg->irq, msm_otg_irq, IRQF_SHARED,
 					"msm_otg", motg);
 	if (ret) {
@@ -1804,6 +1827,19 @@ static int msm_otg_probe(struct platform_device *pdev)
 		goto disable_ldo;
 	}
 
+	motg->pdata->bus_scale_table = msm_bus_cl_get_pdata(pdev);
+	if (!motg->pdata->bus_scale_table)
+		dev_dbg(&pdev->dev, "bus scaling is disabled\n");
+	else {
+		motg->bus_perf_client =
+			msm_bus_scale_register_client(motg->pdata->bus_scale_table);
+		if (!motg->bus_perf_client)
+			dev_err(motg->phy.dev, "%s: Failed to register BUS\n"
+					"scaling client!!\n", __func__);
+	}
+	/* Hack to max out usb performace */
+	msm_otg_bus_vote(motg, USB_MAX_PERF_VOTE);
+
 	platform_set_drvdata(pdev, motg);
 	device_init_wakeup(&pdev->dev, 1);
 
@@ -1826,7 +1862,6 @@ static int msm_otg_probe(struct platform_device *pdev)
 	register_reboot_notifier(&motg->reboot);
 
 	pm_runtime_set_active(&pdev->dev);
-	pm_runtime_enable(&pdev->dev);
 
 	return 0;
 
@@ -1879,6 +1914,7 @@ static int msm_otg_remove(struct platform_device *pdev)
 
 	usb_remove_phy(phy);
 	disable_irq(motg->irq);
+	msm_bus_scale_unregister_client(motg->bus_perf_client);
 
 	/*
 	 * Put PHY in low power mode.

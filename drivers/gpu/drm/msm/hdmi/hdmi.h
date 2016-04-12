@@ -42,6 +42,7 @@ struct hdmi_hdcp_ctrl;
 struct hdmi {
 	struct drm_device *dev;
 	struct platform_device *pdev;
+	struct platform_device *audio_pdev;
 
 	const struct hdmi_platform_config *config;
 
