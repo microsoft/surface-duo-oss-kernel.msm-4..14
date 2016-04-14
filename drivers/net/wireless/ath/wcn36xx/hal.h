@@ -52,7 +52,7 @@
 #define WCN36XX_HAL_BSS_INVALID_IDX 0xFF
 
 /* Default Beacon template size. */
-#define BEACON_TEMPLATE_SIZE 0x17C
+#define BEACON_TEMPLATE_SIZE 0x180
 
 /* Minimum PVM size that the FW expects. See comment in smd.c for details. */
 #define TIM_MIN_PVM_SIZE 6
@@ -2889,14 +2889,12 @@ struct update_beacon_rsp_msg {
 struct wcn36xx_hal_send_beacon_req_msg {
 	struct wcn36xx_hal_msg_header header;
 
-	/* length of the template + 6. Only qcom knows why */
-	u32 beacon_length6;
-
-	/* length of the template. */
-	u32 beacon_length;
+	/* length of the template + sizeof(beacon_length) */
+	u32 template_length;
 
 	/* Beacon data. */
-	u8 beacon[BEACON_TEMPLATE_SIZE];
+	u32 beacon_length;
+	u8 beacon[BEACON_TEMPLATE_SIZE - sizeof(u32)];
 
 	u8 bssid[ETH_ALEN];
 
