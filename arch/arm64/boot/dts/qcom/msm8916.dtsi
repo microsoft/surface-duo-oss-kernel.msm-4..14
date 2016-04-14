@@ -935,7 +935,7 @@
 				compatible = "qcom,rpm-msm8916";
 				qcom,smd-channels = "rpm_requests";
 				rpmcc: qcom,rpmcc {
-					compatible = "qcom,rpmcc-msm8916", "qcom,rpmcc";
+					compatible = "qcom,rpmcc-msm8916";
 					#clock-cells = <1>;
 				};
 
