@@ -1,3 +1,17 @@
+linux-raspi2 (4.4.0-1008.9) xenial; urgency=low
+
+  [ Tim Gardner ]
+
+  * Release Tracking Bug
+    - LP: #1570575
+
+  * Miscellaneous Ubuntu changes
+    - [Config] CONFIG_VXLAN=m, CONFIG_OPENVSWITCH_VXLAN=m
+
+  * Rebase against Ubuntu-4.4.0-19.35
+
+ -- Tim Gardner <tim.gardner@canonical.com>  Thu, 14 Apr 2016 14:06:32 -0600
+
 linux-raspi2 (4.4.0-1007.8) xenial; urgency=low
 
   [ Tim Gardner ]
