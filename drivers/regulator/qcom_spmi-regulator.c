@@ -1625,6 +1625,14 @@ static const struct of_device_id qcom_spmi_regulator_match[] = {
 };
 MODULE_DEVICE_TABLE(of, qcom_spmi_regulator_match);
 
+extern int _regulator_get_voltage(struct regulator_dev *rdev);
+char name[] = "s11";
+struct platform_device_info devinfo = {
+	.name = "reg-virt-consumer",
+	.id = 0, /* if registering more than a single regulator, increment the ID */
+	.data = name,
+	.size_data = sizeof(name),
+};
 static int qcom_spmi_regulator_probe(struct platform_device *pdev)
 {
 	const struct spmi_regulator_data *reg;
@@ -1695,6 +1703,7 @@ static int qcom_spmi_regulator_probe(struct platform_device *pdev)
 		list_add(&vreg->node, vreg_list);
 	}
 
+	platform_device_register_full(&devinfo);
 	return 0;
 
 err:
