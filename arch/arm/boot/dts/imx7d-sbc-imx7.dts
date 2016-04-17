@@ -29,6 +29,14 @@
 	};
 
 	/* Regulators */
+	reg_dvi_en_3v3: dvi_en_3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "dvi_en_3v3";
+		gpio = <&pca9555_sb 13 0>;
+		enable-active-high;
+		regulator-always-on;
+	};
+
 	reg_lcd_nstby_3v3: lcd_nstby_3v3 {
 		compatible = "regulator-fixed";
 		regulator-name = "lcd_nstby_3v3";
@@ -36,6 +44,7 @@
 		enable-active-high;
 		regulator-always-on;
 	};
+	/* Regulators - end */
 };
 
 &i2c4 {
@@ -55,6 +64,11 @@
 		compatible = "atmel,24c08";
 		reg = <0x54>;
 		pagesize = <16>;
+	};
+
+	dvicape@39 {
+		compatible = "sil164_simple";
+		reg = <0x39>;
 	};
 };
 
@@ -81,6 +95,24 @@
 				vback-porch = <13>;
 				vfront-porch = <16>;
 				vsync-len = <16>;
+
+				hsync-active = <0>;
+				vsync-active = <0>;
+				de-active = <1>;
+				pixelclk-active = <0>;
+			};
+
+			timing1: dvi {
+				/* 1024x768p60 */
+				clock-frequency = <65000000>;
+				hactive = <1024>;
+				vactive = <768>;
+				hback-porch = <220>;
+				hfront-porch = <40>;
+				vback-porch = <21>;
+				vfront-porch = <7>;
+				hsync-len = <60>;
+				vsync-len = <10>;
 
 				hsync-active = <0>;
 				vsync-active = <0>;
