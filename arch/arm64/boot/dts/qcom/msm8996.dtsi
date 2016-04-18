@@ -41,6 +41,7 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x0>;
 			enable-method = "psci";
+			cpu-supply = <&pm8994_s11>;
 			next-level-cache = <&L2_0>;
 			L2_0: l2-cache {
 			      compatible = "cache";
@@ -53,6 +54,7 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x1>;
 			enable-method = "psci";
+			cpu-supply = <&pm8994_s11>;
 			next-level-cache = <&L2_0>;
 		};
 
@@ -61,6 +63,7 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x100>;
 			enable-method = "psci";
+			cpu-supply = <&pm8994_s11>;
 			next-level-cache = <&L2_1>;
 			L2_1: l2-cache {
 			      compatible = "cache";
@@ -73,6 +76,7 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x101>;
 			enable-method = "psci";
+			cpu-supply = <&pm8994_s11>;
 			next-level-cache = <&L2_1>;
 		};
 
@@ -388,7 +392,6 @@
 					pm8994_s8: s8 {};
 					pm8994_s9: s9 {};
 					pm8994_s10: s10 {};
-					pm8994_s11: s11 {};
 					pm8994_s12: s12 {};
 
 					pm8994_l1: l1 {};
