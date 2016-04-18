@@ -1586,8 +1586,6 @@ enum netdev_priv_flags {
  *	@gso_max_size:	Maximum size of generic segmentation offload
  *	@gso_max_segs:	Maximum number of segments that can be passed to the
  *			NIC for GSO
- *	@gso_min_segs:	Minimum number of segments that can be passed to the
- *			NIC for GSO
  *
  *	@dcbnl_ops:	Data Center Bridging netlink ops
  *	@num_tc:	Number of traffic classes in the net device
@@ -1858,7 +1856,7 @@ struct net_device {
 	unsigned int		gso_max_size;
 #define GSO_MAX_SEGS		65535
 	u16			gso_max_segs;
-	u16			gso_min_segs;
+
 #ifdef CONFIG_DCB
 	const struct dcbnl_rtnl_ops *dcbnl_ops;
 #endif
@@ -2160,23 +2158,6 @@ struct packet_offload {
 	u16			 priority;
 	struct offload_callbacks callbacks;
 	struct list_head	 list;
-};
-
-struct udp_offload;
-
-struct udp_offload_callbacks {
-	struct sk_buff		**(*gro_receive)(struct sk_buff **head,
-						 struct sk_buff *skb,
-						 struct udp_offload *uoff);
-	int			(*gro_complete)(struct sk_buff *skb,
-						int nhoff,
-						struct udp_offload *uoff);
-};
-
-struct udp_offload {
-	__be16			 port;
-	u8			 ipproto;
-	struct udp_offload_callbacks callbacks;
 };
 
 /* often modified stats are per-CPU, other are shared (netdev->stats) */
@@ -2804,7 +2785,7 @@ static inline void netif_tx_schedule_all(struct net_device *dev)
 		netif_schedule_queue(netdev_get_tx_queue(dev, i));
 }
 
-static inline void netif_tx_start_queue(struct netdev_queue *dev_queue)
+static __always_inline void netif_tx_start_queue(struct netdev_queue *dev_queue)
 {
 	clear_bit(__QUEUE_STATE_DRV_XOFF, &dev_queue->state);
 }
@@ -2854,7 +2835,7 @@ static inline void netif_tx_wake_all_queues(struct net_device *dev)
 	}
 }
 
-static inline void netif_tx_stop_queue(struct netdev_queue *dev_queue)
+static __always_inline void netif_tx_stop_queue(struct netdev_queue *dev_queue)
 {
 	set_bit(__QUEUE_STATE_DRV_XOFF, &dev_queue->state);
 }

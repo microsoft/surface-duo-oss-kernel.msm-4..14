@@ -397,11 +397,20 @@ struct mv88e6xxx_priv_port {
 };
 
 struct mv88e6xxx_priv_state {
+	/* The dsa_switch this private structure is related to */
+	struct dsa_switch *ds;
+
 	/* When using multi-chip addressing, this mutex protects
 	 * access to the indirect access registers.  (In single-chip
 	 * mode, this mutex is effectively useless.)
 	 */
 	struct mutex	smi_mutex;
+
+	/* The MII bus and the address on the bus that is used to
+	 * communication with the switch
+	 */
+	struct mii_bus *bus;
+	int sw_addr;
 
 #ifdef CONFIG_NET_DSA_MV88E6XXX_NEED_PPU
 	/* Handles automatic disabling and re-enabling of the PHY
@@ -453,9 +462,11 @@ struct mv88e6xxx_hw_stat {
 };
 
 int mv88e6xxx_switch_reset(struct dsa_switch *ds, bool ppu_active);
-char *mv88e6xxx_lookup_name(struct device *host_dev, int sw_addr,
-			    const struct mv88e6xxx_switch_id *table,
-			    unsigned int num);
+char *mv88e6xxx_drv_probe(struct device *dsa_dev, struct device *host_dev,
+			  int sw_addr, void **priv,
+			  const struct mv88e6xxx_switch_id *table,
+			  unsigned int num);
+
 int mv88e6xxx_setup_ports(struct dsa_switch *ds);
 int mv88e6xxx_setup_common(struct dsa_switch *ds);
 int mv88e6xxx_setup_global(struct dsa_switch *ds);
@@ -497,15 +508,15 @@ int mv88e6xxx_set_eee(struct dsa_switch *ds, int port,
 int mv88e6xxx_port_bridge_join(struct dsa_switch *ds, int port,
 			       struct net_device *bridge);
 void mv88e6xxx_port_bridge_leave(struct dsa_switch *ds, int port);
-int mv88e6xxx_port_stp_update(struct dsa_switch *ds, int port, u8 state);
+void mv88e6xxx_port_stp_state_set(struct dsa_switch *ds, int port, u8 state);
 int mv88e6xxx_port_vlan_filtering(struct dsa_switch *ds, int port,
 				  bool vlan_filtering);
 int mv88e6xxx_port_vlan_prepare(struct dsa_switch *ds, int port,
 				const struct switchdev_obj_port_vlan *vlan,
 				struct switchdev_trans *trans);
-int mv88e6xxx_port_vlan_add(struct dsa_switch *ds, int port,
-			    const struct switchdev_obj_port_vlan *vlan,
-			    struct switchdev_trans *trans);
+void mv88e6xxx_port_vlan_add(struct dsa_switch *ds, int port,
+			     const struct switchdev_obj_port_vlan *vlan,
+			     struct switchdev_trans *trans);
 int mv88e6xxx_port_vlan_del(struct dsa_switch *ds, int port,
 			    const struct switchdev_obj_port_vlan *vlan);
 int mv88e6xxx_port_vlan_dump(struct dsa_switch *ds, int port,
@@ -514,9 +525,9 @@ int mv88e6xxx_port_vlan_dump(struct dsa_switch *ds, int port,
 int mv88e6xxx_port_fdb_prepare(struct dsa_switch *ds, int port,
 			       const struct switchdev_obj_port_fdb *fdb,
 			       struct switchdev_trans *trans);
-int mv88e6xxx_port_fdb_add(struct dsa_switch *ds, int port,
-			   const struct switchdev_obj_port_fdb *fdb,
-			   struct switchdev_trans *trans);
+void mv88e6xxx_port_fdb_add(struct dsa_switch *ds, int port,
+			    const struct switchdev_obj_port_fdb *fdb,
+			    struct switchdev_trans *trans);
 int mv88e6xxx_port_fdb_del(struct dsa_switch *ds, int port,
 			   const struct switchdev_obj_port_fdb *fdb);
 int mv88e6xxx_port_fdb_dump(struct dsa_switch *ds, int port,
