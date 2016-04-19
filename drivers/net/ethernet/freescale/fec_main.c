@@ -62,7 +62,8 @@
 #include <asm/cacheflush.h>
 
 #include "fec.h"
-
+#define ENET_ALIGN_FRAME_PAYLOAD
+#define FEC_RACC_SHIFT16 0x80
 static void set_multicast_list(struct net_device *ndev);
 static void fec_enet_itr_coal_init(struct net_device *ndev);
 
@@ -987,7 +988,11 @@ fec_restart(struct net_device *ndev)
 		val &= ~FEC_RACC_OPTIONS;
 	writel(val, fep->hwp + FEC_RACC);
 #endif
-
+#ifdef ENET_ALIGN_FRAME_PAYLOAD
+	val = readl(fep->hwp + FEC_RACC);
+	val |= FEC_RACC_SHIFT16;
+	writel(val, fep->hwp + FEC_RACC);
+#endif
 	/*
 	 * The phy interface and speed need to get configured
 	 * differently on enet-mac.
@@ -1342,13 +1347,29 @@ static bool fec_enet_copybreak(struct net_device *ndev, struct sk_buff **skb,
 	if (length > fep->rx_copybreak)
 		return false;
 
+	#ifdef ENET_ALIGN_FRAME_PAYLOAD
+	/* Reserve 2 bytes more for alignment */
+	new_skb = netdev_alloc_skb(ndev, length + 2);
+	#else
 	new_skb = netdev_alloc_skb(ndev, length);
+	#endif
 	if (!new_skb)
 		return false;
-
 	dma_sync_single_for_cpu(&fep->pdev->dev, bdp->cbd_bufaddr,
 				FEC_ENET_RX_FRSIZE - fep->rx_align,
 				DMA_FROM_DEVICE);
+	#ifdef ENET_ALIGN_FRAME_PAYLOAD
+	/* The ENET was configured to insert two dummy bytes
+	in front of the received frame to make the frame
+	payload aligned on 32-bit boundary, now we must
+	remove these bytes to copy only the data. */
+	skb_reserve(*skb, 2);
+	/* Make also data after copy aligned on 32-bit boundary
+	by reserving two bytes at the beginning. */
+	skb_reserve(new_skb, 2);
+
+	#endif
+
 	if (!swap)
 		memcpy(new_skb->data, (*skb)->data, length);
 	else
@@ -1456,6 +1477,17 @@ fec_enet_rx_queue(struct net_device *ndev, int budget, u16 queue_id)
 			dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
 					 FEC_ENET_RX_FRSIZE - fep->rx_align,
 					 DMA_FROM_DEVICE);
+			#ifdef ENET_ALIGN_FRAME_PAYLOAD
+			/* The ENET was configured to insert two dummy bytes
+			   in front of the received frame to make the frame
+			   payload aligned on 32-bit boundary, now we must
+			   remove these bytes */
+			skb_reserve(skb, 2);
+			/* Make also data after copy aligned on 32-bit boundary
+			by reserving two bytes at the beginning. */
+			skb_reserve(skb_new, 2);
+
+			#endif
 		}
 
 		prefetch(skb->data - NET_IP_ALIGN);
