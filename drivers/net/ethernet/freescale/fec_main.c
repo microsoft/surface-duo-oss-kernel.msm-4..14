@@ -166,13 +166,13 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
 #endif
 #endif /* CONFIG_M5272 */
 
-/* The FEC stores dest/src/type/vlan, data, and checksum for receive packets.
- */
-#define PKT_MAXBUF_SIZE		1522
+/* The FEC stores dest/src/type/one or two vlans, data, and checksum for
+*  receive packets. */
+#define PKT_MAXBUF_SIZE		1526
 #define PKT_MINBUF_SIZE		64
 #define PKT_MAXBLR_SIZE		1536
 
-/* FEC receive acceleration */
+/* ENET receive acceleration (not available on FEC) */
 #define FEC_RACC_IPDIS		(1 << 1)
 #define FEC_RACC_PRODIS		(1 << 2)
 #define FEC_RACC_OPTIONS	(FEC_RACC_IPDIS | FEC_RACC_PRODIS)
@@ -1338,47 +1338,6 @@ fec_enet_new_rxbdp(struct net_device *ndev, struct bufdesc *bdp, struct sk_buff 
 	return 0;
 }
 
-static bool fec_enet_copybreak(struct net_device *ndev, struct sk_buff **skb,
-			       struct bufdesc *bdp, u32 length, bool swap)
-{
-	struct  fec_enet_private *fep = netdev_priv(ndev);
-	struct sk_buff *new_skb;
-
-	if (length > fep->rx_copybreak)
-		return false;
-
-	#ifdef ENET_ALIGN_FRAME_PAYLOAD
-	/* Reserve 2 bytes more for alignment */
-	new_skb = netdev_alloc_skb(ndev, length + 2);
-	#else
-	new_skb = netdev_alloc_skb(ndev, length);
-	#endif
-	if (!new_skb)
-		return false;
-	dma_sync_single_for_cpu(&fep->pdev->dev, bdp->cbd_bufaddr,
-				FEC_ENET_RX_FRSIZE - fep->rx_align,
-				DMA_FROM_DEVICE);
-	#ifdef ENET_ALIGN_FRAME_PAYLOAD
-	/* The ENET was configured to insert two dummy bytes
-	in front of the received frame to make the frame
-	payload aligned on 32-bit boundary, now we must
-	remove these bytes to copy only the data. */
-	skb_reserve(*skb, 2);
-	/* Make also data after copy aligned on 32-bit boundary
-	by reserving two bytes at the beginning. */
-	skb_reserve(new_skb, 2);
-
-	#endif
-
-	if (!swap)
-		memcpy(new_skb->data, (*skb)->data, length);
-	else
-		swap_buffer2(new_skb->data, (*skb)->data, length);
-	*skb = new_skb;
-
-	return true;
-}
-
 /* During a receive, the cur_rx points to the current incoming buffer.
  * When we update through the ring, if the next incoming buffer has
  * not been given to the system, we just set the empty indicator,
@@ -1400,7 +1359,8 @@ fec_enet_rx_queue(struct net_device *ndev, int budget, u16 queue_id)
 	bool	vlan_packet_rcvd = false;
 	u16	vlan_tag;
 	int	index = 0;
-	bool	is_copybreak;
+	/* TODO need_swap will be set only on one device -
+		 make the code conditionally compiled */
 	bool	need_swap = fep->quirks & FEC_QUIRK_SWAP_FRAME;
 
 #ifdef CONFIG_M532x
@@ -1409,7 +1369,7 @@ fec_enet_rx_queue(struct net_device *ndev, int budget, u16 queue_id)
 	queue_id = FEC_ENET_GET_QUQUE(queue_id);
 	rxq = fep->rx_queue[queue_id];
 
-	/* First, grab all of the stats for the incoming packet.
+	/* First, grab all of the statistics for the incoming packet.
 	 * These get messed up if we get called due to a busy condition.
 	 */
 	bdp = rxq->cur_rx;
@@ -1462,39 +1422,64 @@ fec_enet_rx_queue(struct net_device *ndev, int budget, u16 queue_id)
 		index = fec_enet_get_bd_index(rxq->rx_bd_base, bdp, fep);
 		skb = rxq->rx_skbuff[index];
 
-		/* The packet length includes FCS, but we don't want to
-		 * include that when passing upstream as it messes up
-		 * bridging applications.
-		 */
-		is_copybreak = fec_enet_copybreak(ndev, &skb, bdp, pkt_len - 4,
-						  need_swap);
-		if (!is_copybreak) {
-			skb_new = netdev_alloc_skb(ndev, FEC_ENET_RX_FRSIZE);
+		/* Get the data into the final buffer */
+		/* If we are going to swap bytes we will always do some copy, so
+		   lets allocate only needed memory. The other possibility is
+		   that the frame is shorter than configured limit and we shall
+		   copy this frame */
+		if ((pkt_len <= fep->rx_copybreak) || (need_swap)) {
+			/* Allocate a new buffer with size exactly for
+			   the received frame */
+			skb_new = netdev_alloc_skb(ndev, pkt_len);
 			if (unlikely(!skb_new)) {
 				ndev->stats.rx_dropped++;
 				goto rx_processing_done;
 			}
-			dma_unmap_single(&fep->pdev->dev, bdp->cbd_bufaddr,
-					 FEC_ENET_RX_FRSIZE - fep->rx_align,
-					 DMA_FROM_DEVICE);
+			dma_sync_single_for_cpu(&fep->pdev->dev,
+						bdp->cbd_bufaddr,
+						FEC_ENET_RX_FRSIZE -
+						fep->rx_align,
+						DMA_FROM_DEVICE);
 			#ifdef ENET_ALIGN_FRAME_PAYLOAD
 			/* The ENET was configured to insert two dummy bytes
 			   in front of the received frame to make the frame
 			   payload aligned on 32-bit boundary, now we must
 			   remove these bytes */
 			skb_reserve(skb, 2);
-			/* Make also data after copy aligned on 32-bit boundary
-			by reserving two bytes at the beginning. */
-			skb_reserve(skb_new, 2);
-
 			#endif
+			if (!need_swap)
+				memcpy(skb_new->data, (skb)->data, pkt_len);
+			else
+				swap_buffer2(skb_new->data, (skb)->data,
+					     pkt_len);
+			skb = skb_new;
+		} else {
+			/* Allocate a replacement for the receive buffer */
+			skb_new = netdev_alloc_skb(ndev, FEC_ENET_RX_FRSIZE);
+			if (unlikely(!skb_new)) {
+				ndev->stats.rx_dropped++;
+				goto rx_processing_done;
+			}
+			dma_sync_single_for_cpu(&fep->pdev->dev,
+						bdp->cbd_bufaddr,
+						FEC_ENET_RX_FRSIZE -
+						fep->rx_align,
+						DMA_FROM_DEVICE);
+			#ifdef ENET_ALIGN_FRAME_PAYLOAD
+			/* The ENET was configured to insert two dummy bytes
+			   in front of the received frame to make the frame
+			   payload aligned on 32-bit boundary, now we must
+			   remove these bytes */
+			skb_reserve(skb, 2);
+			#endif
+			/* Use new receive buffer instead of the old one */
+			rxq->rx_skbuff[index] = skb_new;
+			fec_enet_new_rxbdp(ndev, bdp, skb_new);
 		}
 
 		prefetch(skb->data - NET_IP_ALIGN);
 		skb_put(skb, pkt_len - 4);
 		data = skb->data;
-		if (!is_copybreak && need_swap)
-			swap_buffer(data, pkt_len);
 
 		/* Extract the enhanced buffer descriptor */
 		ebdp = NULL;
@@ -1541,14 +1526,9 @@ fec_enet_rx_queue(struct net_device *ndev, int budget, u16 queue_id)
 
 		napi_gro_receive(&fep->napi, skb);
 
-		if (is_copybreak) {
-			dma_sync_single_for_device(&fep->pdev->dev, bdp->cbd_bufaddr,
-						   FEC_ENET_RX_FRSIZE - fep->rx_align,
-						   DMA_FROM_DEVICE);
-		} else {
-			rxq->rx_skbuff[index] = skb_new;
-			fec_enet_new_rxbdp(ndev, bdp, skb_new);
-		}
+		dma_sync_single_for_device(&fep->pdev->dev, bdp->cbd_bufaddr,
+					   FEC_ENET_RX_FRSIZE - fep->rx_align,
+					   DMA_FROM_DEVICE);
 
 rx_processing_done:
 		/* Clear the status flags for this buffer */
