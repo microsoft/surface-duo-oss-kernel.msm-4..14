@@ -71,6 +71,11 @@
 			reg = <0x0 0x86800000 0x0 0x04800000>;
 		};
 
+		rmtfs@86700000 {
+			reg = <0x0 0x86700000 0x0 0xe0000>;
+			no-map;
+		};
+
                 peripheral_mem: peripheral_region@8b600000 {
                         no-map;
                         reg = <0x0 0x8b600000 0x0 0x0600000>;
