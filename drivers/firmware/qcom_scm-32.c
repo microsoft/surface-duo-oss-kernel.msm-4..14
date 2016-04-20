@@ -521,39 +521,23 @@ bool __qcom_scm_pas_supported(u32 peripheral)
 	return ret ? false : !!ret_val;
 }
 
-int __qcom_scm_pas_init_image(struct device *dev, u32 peripheral, const void *metadata, size_t size)
+int __qcom_scm_pas_init_image(u32 peripheral, dma_addr_t metadata_phys)
 {
-	dma_addr_t mdata_phys;
-	void *mdata_buf;
-	u32 scm_ret;
+	__le32 scm_ret;
 	int ret;
-	struct pas_init_image_req {
-		u32 proc;
-		u32 image_addr;
+	struct {
+		__le32 proc;
+		__le32 image_addr;
 	} request;
 
-	/*
-	 * During the scm call memory protection will be enabled for the meta
-	 * data blob, so make sure it's physically contiguous, 4K aligned and
-	 * non-cachable to avoid XPU violations.
-	 */
-	mdata_buf = dma_alloc_coherent(dev, size, &mdata_phys, GFP_KERNEL);
-	if (!mdata_buf) {
-		pr_err("Allocation of metadata buffer failed.\n");
-		return -ENOMEM;
-	}
-	memcpy(mdata_buf, metadata, size);
-
-	request.proc = peripheral;
-	request.image_addr = mdata_phys;
+	request.proc = cpu_to_le32(peripheral);
+	request.image_addr = cpu_to_le32(metadata_phys);
 
 	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_INIT_IMAGE_CMD,
 			    &request, sizeof(request),
 			    &scm_ret, sizeof(scm_ret));
 
-	dma_free_coherent(dev, size, mdata_buf, mdata_phys);
-
-	return ret ? : scm_ret;
+	return ret ? : le32_to_cpu(scm_ret);
 }
 
 int __qcom_scm_pas_mem_setup(u32 peripheral, phys_addr_t addr, phys_addr_t size)
