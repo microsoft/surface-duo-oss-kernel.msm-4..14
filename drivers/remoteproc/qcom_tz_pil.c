@@ -276,8 +276,7 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 			max_addr = round_up(phdr->p_paddr + phdr->p_memsz, SZ_4K);
 	}
 
-	ret = qcom_scm_pas_init_image(qproc->dev,
-				qproc->pas_id, fw->data, fw->size);
+	ret = qcom_scm_pas_init_image(qproc->pas_id, fw->data, fw->size);
 	if (ret) {
 		dev_err(qproc->dev, "Invalid firmware metadata\n");
 		return -EINVAL;
