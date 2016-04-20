@@ -6,5 +6,4 @@ wcn36xx-y +=   main.o \
                pmc.o \
                debug.o
 
-wcn36xx-platform-y	+= wcn36xx-msm.o\
-	wcnss_core.o
+wcn36xx-platform-y	+= wcn36xx-msm.o

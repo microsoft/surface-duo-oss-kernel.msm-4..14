@@ -27,7 +27,6 @@
 #include <linux/remoteproc.h>
 #include <linux/soc/qcom/smd.h>
 #include "wcn36xx.h"
-#include "wcnss_core.h"
 
 #define MAC_ADDR_0 "wlan/macaddr0"
 
@@ -157,6 +156,13 @@ static int qcom_smd_wlan_ctrl_probe(struct qcom_smd_device *sdev)
         dev_set_drvdata(&sdev->dev, &wcn36xx_data);
 	wcn36xx_data.wlan_ctrl_channel = sdev->channel;
 
+	wcn36xx_data.chip_type = (enum wcn36xx_chip_type)of_device_get_match_data(&sdev->dev);
+	wcn36xx_data.core = platform_device_alloc("wcn36xx", -1);
+	wcn36xx_data.core->dev.parent = &sdev->dev;
+	wcn36xx_data.core->dev.platform_data = &wcn36xx_data;
+
+	platform_device_add(wcn36xx_data.core);
+
 	of_platform_populate(sdev->dev.of_node, NULL, NULL, &sdev->dev);
 
         return 0;
@@ -165,6 +171,8 @@ static int qcom_smd_wlan_ctrl_probe(struct qcom_smd_device *sdev)
 static void qcom_smd_wlan_ctrl_remove(struct qcom_smd_device *sdev)
 {
         of_platform_depopulate(&sdev->dev);
+	platform_device_del(wcn36xx_data.core);
+	platform_device_put(wcn36xx_data.core);
 }
 
 static int qcom_smd_wlan_ctrl_callback(struct qcom_smd_device *qsdev,
@@ -196,115 +204,33 @@ static int qcom_smd_wlan_ctrl_callback(struct qcom_smd_device *qsdev,
 	return 0;
 }
 
-static const struct qcom_smd_id qcom_smd_wlan_ctrl_match[] = {
-	{ .name = "WLAN_CTRL" },
-	{}
+static const struct of_device_id wcn36xx_msm_match_table[] = {
+	{ .compatible = "qcom,wcn3660-wlan", .data = (void *)WCN36XX_CHIP_3660 },
+	{ .compatible = "qcom,wcn3680-wlan", .data = (void *)WCN36XX_CHIP_3680 },
+	{ .compatible = "qcom,wcn3620-wlan", .data = (void *)WCN36XX_CHIP_3620 },
+	{ }
 };
+MODULE_DEVICE_TABLE(of, wcn36xx_msm_match_table);
 
 static struct qcom_smd_driver qcom_smd_wlan_ctrl_driver = {
 	.probe = qcom_smd_wlan_ctrl_probe,
 	.remove = qcom_smd_wlan_ctrl_remove,
 	.callback = qcom_smd_wlan_ctrl_callback,
-	.smd_match_table = qcom_smd_wlan_ctrl_match,
 	.driver  = {
 		.name  = "qcom_smd_wlan_ctrl",
 		.owner = THIS_MODULE,
-	},
-};
-
-static const struct of_device_id wcn36xx_msm_match_table[] = {
-	{ .compatible = "qcom,wcn3660", .data = (void *)WCN36XX_CHIP_3660 },
-	{ .compatible = "qcom,wcn3680", .data = (void *)WCN36XX_CHIP_3680 },
-	{ .compatible = "qcom,wcn3620", .data = (void *)WCN36XX_CHIP_3620 },
-	{ }
-};
-MODULE_DEVICE_TABLE(of, wcn36xx_msm_match_table);
-
-static int wcn36xx_msm_probe(struct platform_device *pdev)
-{
-	int ret;
-	const struct of_device_id *of_id;
-	struct resource *r;
-	struct resource res[3];
-	static const char const *rnames[] = {
-		"wcnss_mmio", "wcnss_wlantx_irq", "wcnss_wlanrx_irq" };
-	static const int rtype[] = {
-		IORESOURCE_MEM, IORESOURCE_IRQ, IORESOURCE_IRQ };
-	struct device_node *dn;
-	int n;
-
-	wcnss_core_prepare(pdev);
-
-	dn = of_parse_phandle(pdev->dev.of_node, "rproc", 0);
-	if (!dn) {
-		dev_err(&pdev->dev, "No rproc specified in DT\n");
-	} else {
-		struct rproc *rproc= rproc_get_by_phandle(dn->phandle);
-		if (rproc)
-			rproc_boot(rproc);
-		else {
-			dev_err(&pdev->dev, "No rproc registered\n");
-		}
-	}
-
-	qcom_smd_driver_register(&qcom_smd_wlan_ctrl_driver);
-	wcnss_core_init();
-
-	of_id = of_match_node(wcn36xx_msm_match_table, pdev->dev.of_node);
-	if (!of_id)
-		return -EINVAL;
-
-	wcn36xx_data.chip_type = (enum wcn36xx_chip_type)of_id->data;
-
-	wcn36xx_data.core = platform_device_alloc("wcn36xx", -1);
-
-	for (n = 0; n < ARRAY_SIZE(rnames); n++) {
-		r = platform_get_resource_byname(pdev, rtype[n], rnames[n]);
-		if (!r) {
-			dev_err(&wcn36xx_data.core->dev,
-				"Missing resource %s'\n", rnames[n]);
-			ret = -ENOMEM;
-			return ret;
-		}
-		res[n] = *r;
-	}
-
-	platform_device_add_resources(wcn36xx_data.core, res, n);
-	wcn36xx_data.core->dev.platform_data = &wcn36xx_data;
-
-	platform_device_add(wcn36xx_data.core);
-
-	dev_info(&pdev->dev, "%s initialized\n", __func__);
-
-	return 0;
-}
-
-static int wcn36xx_msm_remove(struct platform_device *pdev)
-{
-	platform_device_del(wcn36xx_data.core);
-	platform_device_put(wcn36xx_data.core);
-	return 0;
-}
-
-static struct platform_driver wcn36xx_msm_driver = {
-	.probe		= wcn36xx_msm_probe,
-	.remove		= wcn36xx_msm_remove,
-	.driver		= {
-		.name	= "wcn36xx-msm",
-		.owner	= THIS_MODULE,
 		.of_match_table = wcn36xx_msm_match_table,
 	},
 };
 
 static int __init wcn36xx_msm_init(void)
 {
-	return platform_driver_register(&wcn36xx_msm_driver);
+	return qcom_smd_driver_register(&qcom_smd_wlan_ctrl_driver);
 }
 module_init(wcn36xx_msm_init);
 
 static void __exit wcn36xx_msm_exit(void)
 {
-	platform_driver_unregister(&wcn36xx_msm_driver);
 }
 module_exit(wcn36xx_msm_exit);
 

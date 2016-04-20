@@ -19,6 +19,7 @@
 #include <linux/module.h>
 #include <linux/firmware.h>
 #include <linux/platform_device.h>
+#include <linux/of_irq.h>
 #include "wcn36xx.h"
 
 unsigned int wcn36xx_dbg_mask;
@@ -1059,33 +1060,31 @@ static int wcn36xx_init_ieee80211(struct wcn36xx *wcn)
 static int wcn36xx_platform_get_resources(struct wcn36xx *wcn,
 					  struct platform_device *pdev)
 {
-	struct resource *res;
+	u32 mmio[2];
+	int ret;
+
 	/* Set TX IRQ */
-	res = platform_get_resource_byname(pdev, IORESOURCE_IRQ,
-					   "wcnss_wlantx_irq");
-	if (!res) {
+	wcn->tx_irq = irq_of_parse_and_map(pdev->dev.parent->of_node, 0);
+	if (!wcn->tx_irq) {
 		wcn36xx_err("failed to get tx_irq\n");
 		return -ENOENT;
 	}
-	wcn->tx_irq = res->start;
 
 	/* Set RX IRQ */
-	res = platform_get_resource_byname(pdev, IORESOURCE_IRQ,
-					   "wcnss_wlanrx_irq");
-	if (!res) {
+	wcn->rx_irq = irq_of_parse_and_map(pdev->dev.parent->of_node, 1);
+	if (!wcn->rx_irq) {
 		wcn36xx_err("failed to get rx_irq\n");
 		return -ENOENT;
 	}
-	wcn->rx_irq = res->start;
 
 	/* Map the memory */
-	res = platform_get_resource_byname(pdev, IORESOURCE_MEM,
-						 "wcnss_mmio");
-	if (!res) {
-		wcn36xx_err("failed to get mmio\n");
+	ret = of_property_read_u32_array(pdev->dev.parent->of_node, "qcom,wcnss-mmio", mmio, 2);
+	if (ret) {
+		wcn36xx_err("failed to get qcom,wcnss-mmio\n");
 		return -ENOENT;
 	}
-	wcn->mmio = ioremap(res->start, resource_size(res));
+
+	wcn->mmio = ioremap(mmio[0], mmio[1]);
 	if (!wcn->mmio) {
 		wcn36xx_err("failed to map io memory\n");
 		return -ENOMEM;
