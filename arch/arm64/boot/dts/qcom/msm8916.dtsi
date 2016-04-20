@@ -81,6 +81,11 @@
                         reg = <0x0 0x8b600000 0x0 0x0600000>;
                 };
 
+		wcnss_mem: wcnss@89300000 {
+			reg = <0x0 0x89300000 0x0 0x600000>;
+			no-map;
+		};
+
 		vidc_mem: vidc_region@8f800000 {
 			no-map;
 			reg = <0 0x8f800000 0 0x800000>;
@@ -885,96 +890,41 @@
 			memory-region = <&modem_adsp_mem>;
 		};
 
-		pronto_rproc:pronto_rproc {
-			compatible = "qcom,tz-pil";
+		wcnss@a21b000 {
+			compatible = "qcom,pronto-v2-pil";
+			reg = <0x0a21b000 0x3000>;
+			reg-names = "pmu";
 
-			interrupts-extended = <&intc 0 149 1>,
-					      <&wcnss_smp2p_in 0 0>,
-					      <&wcnss_smp2p_in 1 0>,
-					      <&wcnss_smp2p_in 2 0>,
-					      <&wcnss_smp2p_in 3 0>;
+			memory-region = <&wcnss_mem>;
+
+			interrupts-extended = <&intc 0 149 IRQ_TYPE_EDGE_RISING>,
+				<&wcnss_smp2p_in 0 IRQ_TYPE_EDGE_RISING>,
+				<&wcnss_smp2p_in 1 IRQ_TYPE_EDGE_RISING>,
+				<&wcnss_smp2p_in 2 IRQ_TYPE_EDGE_RISING>,
+				<&wcnss_smp2p_in 3 IRQ_TYPE_EDGE_RISING>;
 			interrupt-names = "wdog", "fatal", "ready", "handover", "stop-ack";
 
-			clocks = <&gcc GCC_CRYPTO_CLK>,
-				 <&gcc GCC_CRYPTO_AHB_CLK>,
-				 <&gcc GCC_CRYPTO_AXI_CLK>,
-				 <&gcc CRYPTO_CLK_SRC>;
-			clock-names = "scm_core_clk", "scm_iface_clk", "scm_bus_clk", "scm_src_clk";
+			vddmx-supply = <&pm8916_l3>;
+			vddpx-supply = <&pm8916_l7>;
 
-			qcom,firmware-name = "wcnss";
-			qcom,pas-id = <6>;
-
-			qcom,crash-reason = <422>;
-			qcom,smd-edges = <&pronto_smd_edge>;
-
-			qcom,pll-supply = <&pm8916_l7>;
-			qcom,pll-uV = <1800000>;
-			qcom,pll-uA = <18000>;
-
-			qcom,stop-gpio = <&wcnss_smp2p_out 0 0>;
+			qcom,state = <&wcnss_smp2p_out 0>;
+			qcom,state-names = "stop";
 
 			pinctrl-names = "default";
 			pinctrl-0 = <&wcnss_default>;
 
-			memory-region = <&peripheral_mem>;
+			iris {
+				compatible = "qcom,wcn3620";
+
+				clocks = <&rpmcc RPM_RF_CLK2>;
+				clock-names = "xo";
+
+				vddxo-supply = <&pm8916_l7>;
+				vddrfa-supply = <&pm8916_s3>;
+				vddpa-supply = <&pm8916_l9>;
+				vdddig-supply = <&pm8916_l5>;
+			};
 		};
-
-                qcom,wcn36xx@0a000000 {
-                        compatible = "qcom,wcn3620";
-                        reg = <0x0a000000 0x280000>,
-                                <0xb011008 0x04>,
-                                <0x0a21b000 0x3000>,
-                                <0x03204000 0x00000100>,
-                                <0x03200800 0x00000200>,
-                                <0x0A100400 0x00000200>,
-                                <0x0A205050 0x00000200>,
-                                <0x0A219000 0x00000020>,
-                                <0x0A080488 0x00000008>,
-                                <0x0A080fb0 0x00000008>,
-                                <0x0A08040c 0x00000008>,
-                                <0x0A0120a8 0x00000008>,
-                                <0x0A012448 0x00000008>,
-                                <0x0A080c00 0x00000001>;
-
-                        reg-names = "wcnss_mmio", "wcnss_fiq",
-                                    "pronto_phy_base", "riva_phy_base",
-                                    "riva_ccu_base", "pronto_a2xb_base",
-                                    "pronto_ccpu_base", "pronto_saw2_base",
-                                    "wlan_tx_phy_aborts","wlan_brdg_err_source",
-                                    "wlan_tx_status", "alarms_txctl",
-                                    "alarms_tactl", "pronto_mcu_base";
-
-                        interrupts = <0 145 0 0 146 0>;
-                        interrupt-names = "wcnss_wlantx_irq", "wcnss_wlanrx_irq";
-
-                        // qcom,pronto-vddmx-supply = <&pm8916_l3>;
-                        // qcom,pronto-vddcx-supply = <&pm8916_s1_corner>;
-                        // qcom,pronto-vddpx-supply = <&pm8916_l7>;
-                        // qcom,iris-vddxo-supply   = <&pm8916_l7>;
-                        // qcom,iris-vddrfa-supply  = <&pm8916_s3>;
-                        // qcom,iris-vddpa-supply   = <&pm8916_l9>;
-                        // qcom,iris-vdddig-supply  = <&pm8916_l5>;
-
-                        pinctrl-names = "wcnss_default";
-                        // pinctrl-names = "wcnss_default", "wcnss_sleep",
-                        //                                "wcnss_gpio_default";
-                        pinctrl-0 = <&wcnss_default>;
-                        // pinctrl-1 = <&wcnss_sleep>;
-                        // pinctrl-2 = <&wcnss_gpio_default>;
-
-                        // clocks = <&rpmcc RPM_XO_CLK_SRC>,
-                        //         <&rpmcc RPM_RF_CLK2>;
-                        //clock-names = "xo", "rf_clk";
-
-			rproc = <&pronto_rproc>;
-                        qcom,has-autodetect-xo;
-                        qcom,wlan-rx-buff-count = <512>;
-                        qcom,is-pronto-vt;
-                        qcom,has-pronto-hw;
-                        // qcom,wcnss-adc_tm = <&pm8916_adc_tm>;
-                };
-
-
 
 		qcom,rpm-log@29dc00 {
 			compatible = "qcom,rpm-log";
@@ -1110,23 +1060,21 @@
 			};
 
 			wifi {
-				compatible = "qcom,wlan-ctrl";
+				compatible = "qcom,wcn3620-wlan";
 				qcom,smd-channels = "WLAN_CTRL";
 
 				interrupts = <0 145 0>, <0 146 0>;
 				interrupt-names = "wcnss_wlantx_irq", "wcnss_wlanrx_irq";
 
-				qcom,wcnss_mmio = <0xfb000000 0x21b000>;
+				qcom,wcnss-mmio = <0x0a000000 0x21b000>;
 
 				// qcom,tx-enable-gpios = <&apps_smsm 10 0>;
 				// qcom,tx-rings-empty-gpios = <&apps_smsm 9 0>;
 			};
 
 			wcnss_ctrl {
-				compatible = "qcom,wcnss-ctrl";
+				compatible = "qcom,wcnss";
 				qcom,smd-channels = "WCNSS_CTRL";
-
-				qcom,wcnss_mmio = <0xfb21b000 0x3000>;
 			};
 		};
 	};
