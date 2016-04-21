@@ -269,6 +269,7 @@ struct device *iommu_device_create(struct device *parent, void *drvdata,
 void iommu_device_destroy(struct device *dev);
 int iommu_device_link(struct device *dev, struct device *link);
 void iommu_device_unlink(struct device *dev, struct device *link);
+int iommu_bus_add_dev(struct device *dev);
 
 /* Window handling function prototypes */
 extern int iommu_domain_window_enable(struct iommu_domain *domain, u32 wnd_nr,
