@@ -432,14 +432,18 @@ struct bufdesc_ex {
 /* Controller has only one MDIO bus */
 #define FEC_QUIRK_SINGLE_MDIO		(1 << 11)
 
-struct fec_enet_priv_tx_q {
+/* This structure groups common FEC/ENET queue params
+   to allow reuse of functions for both TX and RX queues */
+struct fec_priv_common_q {
 	int index;
+	dma_addr_t bd_dma;
+	struct bufdesc *bd_base;
+	uint ring_size;
+};
+struct fec_enet_priv_tx_q {
+	struct fec_priv_common_q q;
 	unsigned char *tx_bounce[TX_RING_SIZE];
 	struct  sk_buff *tx_skbuff[TX_RING_SIZE];
-
-	dma_addr_t	bd_dma;
-	struct bufdesc	*tx_bd_base;
-	uint tx_ring_size;
 
 	unsigned short tx_stop_threshold;
 	unsigned short tx_wake_threshold;
@@ -451,12 +455,8 @@ struct fec_enet_priv_tx_q {
 };
 
 struct fec_enet_priv_rx_q {
-	int index;
+	struct fec_priv_common_q q;
 	struct  sk_buff *rx_skbuff[RX_RING_SIZE];
-
-	dma_addr_t	bd_dma;
-	struct bufdesc	*rx_bd_base;
-	uint rx_ring_size;
 
 	struct bufdesc	*cur_rx;
 };
