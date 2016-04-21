@@ -1002,5 +1002,26 @@
 					"IRQPP2", "IRQPPMMU2","IRQPP4", "IRQPPMMU4",
 					"IRQPP5", "IRQPPMMU5", "IRQPP6", "IRQPPMMU6";
 		};
+
+		mtcmos {
+			compatible = "hisilicon,hi6220-mtcmos-driver";
+			hisilicon,mtcmos-steady-us = <10>;
+			hisilicon,mtcmos-sc-on-base  = <0xf7800000>;
+			hisilicon,mtcmos-acpu-on-base = <0xf65a0000>;
+
+			g3d_vdd: regulator@a1{
+				regulator-name = "G3D_PD_VDD";
+				regulator-compatible = "mtcmos1";
+				hisilicon,ctrl-regs = <0x830 0x834 0x83c>;
+				hisilicon,ctrl-data = <1 0x1>;
+			};
+
+			soc_med: regulator@a2{
+				regulator-name = "SOC_MED";
+				regulator-compatible = "mtcmos2";
+				hisilicon,ctrl-regs = <0x830 0x834 0x83c>;
+				hisilicon,ctrl-data = <2 0x1>;
+			};
+		};
 	};
 };
