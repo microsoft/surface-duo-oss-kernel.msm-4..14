@@ -3028,8 +3028,11 @@ int dw_mci_probe(struct dw_mci *host)
 		}
 	}
 
-	if (host->pdata->rstc != NULL)
+	if (host->pdata->rstc != NULL) {
+		reset_control_assert(host->pdata->rstc);
+		usleep_range(100, 200);
 		reset_control_deassert(host->pdata->rstc);
+	}
 
 	setup_timer(&host->cmd11_timer,
 		    dw_mci_cmd11_timer, (unsigned long)host);
