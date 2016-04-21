@@ -16,7 +16,6 @@
 
 #include <linux/platform_device.h>
 #include <linux/interrupt.h>
-#include <linux/wakelock.h>
 #include <linux/reboot.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
@@ -25,7 +24,7 @@
 #include <linux/slab.h>
 
 /* the above held interrupt will trigger after 4 seconds */
-#define MAX_HELD_TIME	(4 * HZ)
+#define MAX_HELD_TIME	(4 * MSEC_PER_SEC)
 
 #define irq_handler_id(x) button_irq_##x
 #define irq_handler_declaration(x) 						\
@@ -86,7 +85,7 @@ static struct key_report_pairs {
 
 struct hi65xx_priv {
 	struct input_dev *input;
-	struct wake_lock wlock;
+	struct wakeup_source wlock;
 };
 
 static inline void report_key(struct input_dev *dev, int id_action)
@@ -115,7 +114,7 @@ irq_handler_declaration(action)					\
 	if (irq != irq_info[id_##action].irq)			\
 		return IRQ_NONE;				\
 								\
-	wake_lock_timeout(&p->wlock, MAX_HELD_TIME);		\
+	__pm_wakeup_event(&p->wlock, MAX_HELD_TIME);		\
 								\
 	report_key(p->input, id_##action);			\
 	input_sync(p->input);					\
@@ -179,7 +178,7 @@ static int hi65xx_powerkey_probe(struct platform_device *pdev)
 		irq_info[i].irq = irq;
 	}
 
-	wake_lock_init(&priv->wlock, WAKE_LOCK_SUSPEND, "hisi-powerkey");
+	wakeup_source_init(&priv->wlock, "hisi-powerkey");
 
 	ret = input_register_device(priv->input);
 	if (ret) {
@@ -194,7 +193,7 @@ static int hi65xx_powerkey_probe(struct platform_device *pdev)
 	return 0;
 
 err_register:
-	wake_lock_destroy(&priv->wlock);
+	wakeup_source_trash(&priv->wlock);
 err_irq:
 	input_free_device(priv->input);
 
@@ -205,7 +204,7 @@ static int hi65xx_powerkey_remove(struct platform_device *pdev)
 {
 	struct hi65xx_priv *priv = platform_get_drvdata(pdev);
 
-	wake_lock_destroy(&priv->wlock);
+	wakeup_source_trash(&priv->wlock);
 	input_unregister_device(priv->input);
 
 	return 0;
