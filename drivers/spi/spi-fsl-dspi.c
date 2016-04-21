@@ -1,7 +1,7 @@
 /*
  * drivers/spi/spi-fsl-dspi.c
  *
- * Copyright 2013 Freescale Semiconductor, Inc.
+ * Copyright 2013-2016 Freescale Semiconductor, Inc.
  *
  * Freescale DSPI driver
  * This file contains a driver for the Freescale DSPI
@@ -41,7 +41,12 @@
 #define TRAN_STATE_TX_VOID		0x02
 #define TRAN_STATE_WORD_ODD_NUM	0x04
 
+#if defined(CONFIG_SOC_S32V234)
+#define DSPI_FIFO_SIZE			5
+#else
 #define DSPI_FIFO_SIZE			4
+#endif
+
 #define DSPI_DMA_BUFSIZE		(DSPI_FIFO_SIZE * 1024)
 
 #define SPI_MCR		0x00
