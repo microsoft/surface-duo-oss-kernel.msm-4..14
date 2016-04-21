@@ -134,7 +134,7 @@ EXPORT_SYMBOL_GPL(of_dma_configure_masks);
 int of_dma_configure_ops(struct device *dev, struct device_node *np)
 {
 	u64 dma_addr, paddr, size;
-	consy struct iommu_ops *iommu;
+	const struct iommu_ops *iommu;
 	bool coherent;
 	int ret;
 
