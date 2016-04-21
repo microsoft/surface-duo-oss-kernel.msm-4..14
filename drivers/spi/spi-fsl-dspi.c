@@ -38,20 +38,27 @@
 #define TRAN_STATE_TX_VOID		0x02
 #define TRAN_STATE_WORD_ODD_NUM	0x04
 
-#if CONFIG_SOC_S32V234
+#if defined(CONFIG_SOC_S32V234)
 #define DSPI_FIFO_SIZE			5
 #else
 #define DSPI_FIFO_SIZE			4
 #endif
 
-#define SPI_MCR		0x00
+/* Module Configuration Register (SPI_MCR) */
+#define SPI_MCR			0x00
 #define SPI_MCR_MASTER		(1 << 31)
+#if defined(CONFIG_SOC_S32V234)
+#define SPI_MCR_PCSIS		(0xFF << 16)
+#else
 #define SPI_MCR_PCSIS		(0x3F << 16)
-#define SPI_MCR_CLR_TXF	(1 << 11)
-#define SPI_MCR_CLR_RXF	(1 << 10)
+#endif
+#define SPI_MCR_CLR_TXF		(1 << 11)
+#define SPI_MCR_CLR_RXF		(1 << 10)
 
+/* Transfer Count Register (SPI_TCR) */
 #define SPI_TCR			0x08
 
+/* Clock and Transfer Attribute Register (SPI_CTARn) - Master Mode */
 #define SPI_CTAR(x)		(0x0c + (((x) & 0x3) * 4))
 #define SPI_CTAR_FMSZ(x)	(((x) & 0x0000000f) << 27)
 #define SPI_CTAR_CPOL(x)	((x) << 26)
@@ -67,35 +74,53 @@
 #define SPI_CTAR_BR(x)		((x) & 0x0000000f)
 #define SPI_CTAR_SCALE_BITS	0xf
 
-#define SPI_CTAR0_SLAVE	0x0c
+#define SPI_CTAR0_SLAVE		0x0c
 
+/* Status Register (SPI_SR) */
 #define SPI_SR			0x2c
 #define SPI_SR_EOQF		0x10000000
 
+/* DMA/Interrupts Request Select and Enable Register (SPI_RSER) */
 #define SPI_RSER		0x30
 #define SPI_RSER_EOQFE		0x10000000
 
+/* PUSH TX FIFO Register in Master Mode (SPI_PUSHR) */
 #define SPI_PUSHR		0x34
 #define SPI_PUSHR_CONT		(1 << 31)
 #define SPI_PUSHR_CTAS(x)	(((x) & 0x00000003) << 28)
 #define SPI_PUSHR_EOQ		(1 << 27)
-#define SPI_PUSHR_CTCNT	(1 << 26)
+#define SPI_PUSHR_CTCNT		(1 << 26)
+#if defined(CONFIG_SOC_S32V234)
+#define SPI_PUSHR_PCS(x)	(((1 << x) & 0x000000ff) << 16)
+#else
 #define SPI_PUSHR_PCS(x)	(((1 << x) & 0x0000003f) << 16)
+#endif
 #define SPI_PUSHR_TXDATA(x)	((x) & 0x0000ffff)
 
-#define SPI_PUSHR_SLAVE	0x34
+#define SPI_PUSHR_SLAVE		0x34
 
+/* POP RX FIFO Register (SPI_POPR) */
 #define SPI_POPR		0x38
 #define SPI_POPR_RXDATA(x)	((x) & 0x0000ffff)
 
+
+/* Transmit FIFO Registers (SPI_TXFRn) */
 #define SPI_TXFR0		0x3c
 #define SPI_TXFR1		0x40
 #define SPI_TXFR2		0x44
 #define SPI_TXFR3		0x48
+#if defined(CONFIG_SOC_S32V234)
+#define SPI_TXFR4		0x4C
+#endif
+
+/* Receive FIFO Registers (SPI_RXFRn) */
 #define SPI_RXFR0		0x7c
 #define SPI_RXFR1		0x80
 #define SPI_RXFR2		0x84
 #define SPI_RXFR3		0x88
+#if defined(CONFIG_SOC_S32V234)
+#define SPI_RXFR4		0x8C
+#endif
 
 #define SPI_FRAME_BITS(bits)	SPI_CTAR_FMSZ((bits) - 1)
 #define SPI_FRAME_BITS_MASK	SPI_CTAR_FMSZ(0xf)
