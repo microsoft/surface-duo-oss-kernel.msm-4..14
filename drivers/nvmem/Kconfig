@@ -48,7 +48,7 @@ config NVMEM_MXS_OCOTP
 config MTK_EFUSE
 	tristate "Mediatek SoCs EFUSE support"
 	depends on ARCH_MEDIATEK || COMPILE_TEST
-	select REGMAP_MMIO
+	depends on HAS_IOMEM
 	help
 	  This is a driver to access hardware related data like sensor
 	  calibration, HDMI impedance etc.
