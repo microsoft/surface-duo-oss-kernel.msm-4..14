@@ -237,18 +237,15 @@ static void mali_timeline_destroy(struct mali_timeline *timeline)
 		MALI_DEBUG_ASSERT(NULL != timeline->system);
 		MALI_DEBUG_ASSERT(MALI_TIMELINE_MAX > timeline->id);
 
-#if defined(CONFIG_SYNC)
-		if (NULL != timeline->sync_tl) {
-			sync_timeline_destroy(timeline->sync_tl);
-		}
-#endif /* defined(CONFIG_SYNC) */
-
 		if (NULL != timeline->delayed_work) {
 			_mali_osk_wq_delayed_cancel_work_sync(timeline->delayed_work);
 			_mali_osk_wq_delayed_delete_work_nonflush(timeline->delayed_work);
 		}
-
-#ifndef CONFIG_SYNC
+#if defined(CONFIG_SYNC)
+		if (NULL != timeline->sync_tl) {
+			sync_timeline_destroy(timeline->sync_tl);
+		}
+#else
 		_mali_osk_free(timeline);
 #endif
 	}
@@ -947,15 +944,20 @@ void mali_timeline_system_destroy(struct mali_timeline_system *system)
 				mali_spinlock_reentrant_wait(system->timelines[i]->spinlock, tid);
 				system->timelines[i]->destroyed = MALI_TRUE;
 				mali_spinlock_reentrant_signal(system->timelines[i]->spinlock, tid);
+				if (NULL != system->timelines[i]->sync_tl) {
+					sync_timeline_destroy(system->timelines[i]->sync_tl);
+				}
 			}
 		}
-#endif /* defined(CONFIG_SYNC) */
-
+#else
 		for (i = 0; i < MALI_TIMELINE_MAX; ++i) {
 			if (NULL != system->timelines[i]) {
 				mali_timeline_destroy(system->timelines[i]);
 			}
 		}
+
+#endif /* defined(CONFIG_SYNC) */
+
 
 		if (NULL != system->spinlock) {
 			mali_spinlock_reentrant_term(system->spinlock);
