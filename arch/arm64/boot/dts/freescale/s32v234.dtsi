@@ -391,6 +391,7 @@
 				clock-names = "fsl_viulite1";
 				status = "disabled";
 		};
+
 		jpegdecoder: jpegdecoder@400D4000 {
 				compatible = "fsl,s32v234-jpegdcd";
 				reg = <0x0 0x400D4000 0x0 0x1000>;
@@ -405,6 +406,20 @@
 				clocks = <&clks S32V234_CLK_MJPEG>,
 					 <&clks S32V234_CLK_SYS6>;
 				clock-names = "fsl_jpegdcd", "bclock";
+				status = "disabled";
+		};
+
+		h264_encoder: h264_encoder@400DC000 {
+				compatible = "fsl,s32v234-h264_encoder";
+				reg = <0x0 0x400dc000 0x0 0x1000>;
+				interrupts = <0 150 1>,
+					<0 151 1>,
+					<0 152 1>,
+					<0 153 1>,
+					<0 154 1>,
+					<0 155 1>,
+					<0 156 1>,
+					<0 157 1>;
 				status = "disabled";
 		};
 	};
@@ -447,4 +462,3 @@
 			status = "disabled";
 	};
 };
-
