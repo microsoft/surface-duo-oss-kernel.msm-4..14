@@ -52,7 +52,7 @@
 #define WCN36XX_HAL_BSS_INVALID_IDX 0xFF
 
 /* Default Beacon template size. */
-#define BEACON_TEMPLATE_SIZE 0x17C
+#define BEACON_TEMPLATE_SIZE 0x180
 
 /* Minimum PVM size that the FW expects. See comment in smd.c for details. */
 #define TIM_MIN_PVM_SIZE 6
@@ -2889,14 +2889,12 @@ struct update_beacon_rsp_msg {
 struct wcn36xx_hal_send_beacon_req_msg {
 	struct wcn36xx_hal_msg_header header;
 
-	/* length of the template + 6. Only qcom knows why */
-	u32 beacon_length6;
-
-	/* length of the template. */
-	u32 beacon_length;
+	/* length of the template + sizeof(beacon_length) */
+	u32 template_length;
 
 	/* Beacon data. */
-	u8 beacon[BEACON_TEMPLATE_SIZE];
+	u32 beacon_length;
+	u8 beacon[BEACON_TEMPLATE_SIZE - sizeof(u32)];
 
 	u8 bssid[ETH_ALEN];
 
@@ -4404,6 +4402,31 @@ enum place_holder_in_cap_bitmap {
 	CH_SWITCH_V1 = 33,
 	HT40_OBSS_SCAN = 34,
 	UPDATE_CHANNEL_LIST = 35,
+	WLAN_MCADDR_FLT = 36,
+	WLAN_CH144 = 37,
+	NAN = 38,
+	TDLS_SCAN_COEXISTENCE = 39,
+	LINK_LAYER_STATS_MEAS = 40,
+	MU_MIMO = 41,
+	EXTENDED_SCAN = 42,
+	DYNAMIC_WMM_PS = 43,
+	MAC_SPOOFED_SCAN = 44,
+	BMU_ERROR_GENERIC_RECOVERY = 45,
+	DISA = 46,
+	FW_STATS = 47,
+	WPS_PRBRSP_TMPL = 48,
+	BCN_IE_FLT_DELTA = 49,
+	TDLS_OFF_CHANNEL = 51,
+	RTT3 = 52,
+	MGMT_FRAME_LOGGING = 53,
+	ENHANCED_TXBD_COMPLETION = 54,
+	LOGGING_ENHANCEMENT = 55,
+	EXT_SCAN_ENHANCED = 56,
+	MEMORY_DUMP_SUPPORTED = 57,
+	PER_PKT_STATS_SUPPORTED = 58,
+	EXT_LL_STAT = 60,
+	WIFI_CONFIG = 61,
+	ANTENNA_DIVERSITY_SELECTION = 62,
 
 	MAX_FEATURE_SUPPORTED = 128,
 };

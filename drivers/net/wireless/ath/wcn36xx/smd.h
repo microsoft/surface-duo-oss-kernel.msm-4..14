@@ -24,7 +24,7 @@
 
 #define WCN36XX_HAL_BUF_SIZE				4096
 
-#define HAL_MSG_TIMEOUT 500
+#define HAL_MSG_TIMEOUT 10000
 #define WCN36XX_SMSM_WLAN_TX_ENABLE			0x00000400
 #define WCN36XX_SMSM_WLAN_TX_RINGS_EMPTY		0x00000200
 /* The PNO version info be contained in the rsp msg */
@@ -43,15 +43,6 @@ enum wcn36xx_fw_msg_result {
 struct wcn36xx_fw_msg_status_rsp {
 	u32	status;
 } __packed;
-
-/* wcn3620 returns this for tigger_ba */
-
-struct wcn36xx_fw_msg_status_rsp_v2 {
-	u8	bss_id[6];
-	u32	status __packed;
-	u16	count_following_candidates __packed;
-	/* candidate list follows */
-};
 
 struct wcn36xx_hal_ind_msg {
 	struct list_head list;

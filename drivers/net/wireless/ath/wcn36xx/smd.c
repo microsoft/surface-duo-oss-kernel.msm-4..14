@@ -312,23 +312,6 @@ static int wcn36xx_smd_rsp_status_check(void *buf, size_t len)
 	return 0;
 }
 
-static int wcn36xx_smd_rsp_status_check_v2(struct wcn36xx *wcn, void *buf,
-					     size_t len)
-{
-	struct wcn36xx_fw_msg_status_rsp_v2 *rsp;
-
-	if (wcn->chip_version != WCN36XX_CHIP_3620 ||
-	    len < sizeof(struct wcn36xx_hal_msg_header) + sizeof(*rsp))
-		return wcn36xx_smd_rsp_status_check(buf, len);
-
-	rsp = buf + sizeof(struct wcn36xx_hal_msg_header);
-
-	if (WCN36XX_FW_MSG_RESULT_SUCCESS != rsp->status)
-		return rsp->status;
-
-	return 0;
-}
-
 int wcn36xx_smd_load_nv(struct wcn36xx *wcn)
 {
 	struct nv_data *nv_d;
@@ -1405,6 +1388,7 @@ int wcn36xx_smd_send_beacon(struct wcn36xx *wcn, struct ieee80211_vif *vif,
 {
 	struct wcn36xx_hal_send_beacon_req_msg msg_body;
 	int ret = 0, pad, pvm_len;
+	u32 beacon_length;
 
 	mutex_lock(&wcn->hal_mutex);
 	INIT_HAL_MSG(msg_body, WCN36XX_HAL_SEND_BEACON_REQ);
@@ -1416,16 +1400,16 @@ int wcn36xx_smd_send_beacon(struct wcn36xx *wcn, struct ieee80211_vif *vif,
 	if (vif->type == NL80211_IFTYPE_MESH_POINT)
 		pad = 0;
 
-	msg_body.beacon_length = skb_beacon->len + pad;
-	/* TODO need to find out why + 6 is needed */
-	msg_body.beacon_length6 = msg_body.beacon_length + 6;
+	beacon_length = skb_beacon->len + pad;
+	msg_body.template_length = beacon_length + sizeof(beacon_length);
 
-	if (msg_body.beacon_length > BEACON_TEMPLATE_SIZE) {
+	if (msg_body.template_length > BEACON_TEMPLATE_SIZE) {
 		wcn36xx_err("Beacon is to big: beacon size=%d\n",
-			      msg_body.beacon_length);
+			      msg_body.template_length);
 		ret = -ENOMEM;
 		goto out;
 	}
+	msg_body.beacon_length = beacon_length;
 	memcpy(msg_body.beacon, skb_beacon->data, skb_beacon->len);
 	memcpy(msg_body.bssid, vif->addr, ETH_ALEN);
 
@@ -1648,8 +1632,7 @@ int wcn36xx_smd_remove_bsskey(struct wcn36xx *wcn,
 		wcn36xx_err("Sending hal_remove_bsskey failed\n");
 		goto out;
 	}
-	ret = wcn36xx_smd_rsp_status_check_v2(wcn, wcn->hal_buf,
-					      wcn->hal_rsp_len);
+	ret = wcn36xx_smd_rsp_status_check(wcn->hal_buf, wcn->hal_rsp_len);
 	if (ret) {
 		wcn36xx_err("hal_remove_bsskey response failed err=%d\n", ret);
 		goto out;
