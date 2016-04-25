@@ -1019,6 +1019,8 @@ int mwifiex_shutdown_fw_complete(struct mwifiex_adapter *adapter);
 int mwifiex_dnld_fw(struct mwifiex_adapter *, struct mwifiex_fw_image *);
 
 int mwifiex_recv_packet(struct mwifiex_private *priv, struct sk_buff *skb);
+int mwifiex_uap_recv_packet(struct mwifiex_private *priv,
+			    struct sk_buff *skb);
 
 int mwifiex_process_mgmt_packet(struct mwifiex_private *priv,
 				struct sk_buff *skb);
@@ -1040,9 +1042,8 @@ int mwifiex_alloc_cmd_buffer(struct mwifiex_adapter *adapter);
 int mwifiex_free_cmd_buffer(struct mwifiex_adapter *adapter);
 void mwifiex_cancel_all_pending_cmd(struct mwifiex_adapter *adapter);
 void mwifiex_cancel_pending_ioctl(struct mwifiex_adapter *adapter);
+void mwifiex_cancel_pending_scan_cmd(struct mwifiex_adapter *adapter);
 
-void mwifiex_insert_cmd_to_free_q(struct mwifiex_adapter *adapter,
-				  struct cmd_ctrl_node *cmd_node);
 void mwifiex_recycle_cmd_node(struct mwifiex_adapter *adapter,
 			      struct cmd_ctrl_node *cmd_node);
 
