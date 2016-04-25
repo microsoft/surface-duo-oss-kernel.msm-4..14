@@ -53,8 +53,8 @@
  * Macros for tracing
  **********************************************************/
 #define VIULite_INFO	KERN_INFO
-/*#define __LOG_TRACE__	1
-*/
+#define __LOG_TRACE__	0
+
 #if __LOG_TRACE__
 	#define __TRACE__() printk(VIULite_INFO "[ fsl-VIU ] %s\n", __func__)
 	#define __MSG_TRACE__(string, args...) printk(VIULite_INFO \
@@ -70,6 +70,7 @@
  **********************************************************/
 struct viulite_data {
 	struct cdev	chdev;
+	dev_t		dev_num;
 	void __iomem	*reg_base;
 	unsigned int	irq;
 	struct clk	*clk;
@@ -83,93 +84,7 @@ const char *device_name[VIULITE_DEV_COUNT] = {
 
 static struct class	*viulite_class;
 static dev_t		viulite_devn; /*__u32 */
-static struct cdev	*viulite_cdev;
-
-struct viulite_data *vdata;
-/**********************************************************
- * FUNCTION: fsl_viulite_getviudata
- * To be developed
- **********************************************************/
-struct viulite_data *fsl_viulite_getviudata(void)
-{
-	__TRACE__();
-	return vdata;
-}
-
-
-/**********************************************************
- * FUNCTION: fsl_viulite_regs
-void fsl_viulite_regs(base_address)
-{
-	printk(VIULite_INFO "-----------VIULite REGS ----------\n");
-
-	printk(VIULite_INFO "[REG : VIULite_SCR]\t : %02x => %08x\n",
-		0x0,
-		readl(base_address));
-	printk(VIULite_INFO "[REG : VIULite_INTR  ]\t : %02x => %08x\n",
-		0x04,
-		readl(base_address + INTR_OFFSET));
-	printk(VIULite_INFO "[REG : VIULite_DINVSZ]\t : %02x => %08x\n",
-		0x08,
-		readl(base_address + DINVSZ_OFFSET));
-	printk(VIULite_INFO "[REG : VIULite_DINVFL]\t : %02x => %08x\n",
-		0x0C,
-		readl(base_address + DINVFL_OFFSET));
-	printk(VIULite_INFO "[REG : VIULite_DMA_SIZE]\t : %02x => %08x\n",
-		0x10,
-		readl(base_address + DMA_SIZE_OFFSET));
-	printk(VIULite_INFO "[REG : VIULite_DMA_ADDR]\t : %02x => %08x\n",
-		0x14,
-		readl(base_address + DMA_ADDR_OFFSET));
-	printk(VIULite_INFO "[REG : VIULite_DMA_INC]\t : %02x => %08x\n",
-		0x18,
-		readl(base_address + DMA_INC_OFFSET));
-	printk(VIULite_INFO "[REG : VIULite_INVSZ]\t : %02x => %08x\n",
-		0x1C,
-		readl(base_address + INVSZ_OFFSET));
-	printk(VIULite_INFO "[REG : VIULite_ALPHA]\t : %02x => %08x\n",
-		0x24,
-		readl(base_address + ALPHA_OFFSET));
-	printk(VIULite_INFO "[REG : VIULite_ACT_ORG]\t : %02x => %08x\n",
-		0x28,
-		readl(base_address + ACTORG_OFFSET));
-	printk(VIULite_INFO "[REG : VIULite_ACT_SIZE]\t : %02x => %08x\n",
-		0x2C,
-		readl(base_address + ACTSIZE_OFFSET));
-	printk(VIULite_INFO "-------------------------------\n");
-
-}
- **********************************************************/
-
-/**********************************************************
- * FUNCTION: fsl_viulite_irq
- **********************************************************/
-irqreturn_t fsl_viulite_irq(int irq, void *dev_id)
-{
-	__TRACE__();
-	return IRQ_HANDLED;
-}
-
-/**********************************************************
- * FUNCTION: fsl_viulite_remove
- * to be modified for 2 VIUs
- **********************************************************/
-int fsl_viulite_remove(struct platform_device *pdev)
-{
-	__TRACE__();
-
-	cdev_del(viulite_cdev);
-
-	device_destroy(viulite_class, viulite_devn);
-	class_destroy(viulite_class);
-	unregister_chrdev_region(viulite_devn, 2);
-
-	pm_runtime_put_sync(&pdev->dev);
-	pm_runtime_disable(&pdev->dev);
-
-	return 0;
-}
-
+static uint8_t		viu_devices;
 /**********************************************************
  * FUNCTIONS: fsl_viulite_ioctl set of functions
  **********************************************************/
@@ -194,7 +109,7 @@ void viulite_set_videoinputformat(void __iomem *reg_base,
 }
 
 void viulite_get_videoinputformat(void __iomem *reg_base,
-				  VIU_INPUT_FORMAT *in_format)
+					VIU_INPUT_FORMAT *in_format)
 {
 	uint32_t reg_value;
 	void __iomem *reg_address = reg_base + SCR_OFFSET;
@@ -234,7 +149,7 @@ void viulite_set_datainterface(void __iomem *reg_base,
 }
 
 void viulite_get_datainterface(void __iomem *reg_base,
-			       VIU_DATA_INTERFACE *data_interface)
+				VIU_DATA_INTERFACE *data_interface)
 {
 	uint32_t  reg_value;
 	void __iomem *reg_address = reg_base + SCR_OFFSET;
@@ -520,7 +435,6 @@ long fsl_viulite_ioctl(struct file *pfile, unsigned int ioctl_cmd,
 
 	case VIULITE_IOCTL_DMA_STOP:
 	{
-		disable_irq(irq);
 		viulite_dma_stop(viulite_baseloc);
 	}
 	break;
@@ -721,42 +635,6 @@ long fsl_viulite_ioctl(struct file *pfile, unsigned int ioctl_cmd,
 }
 
 /**********************************************************
- * FUNCTION: fsl_viulite_open
- **********************************************************/
-int fsl_viulite_open(struct inode *inod, struct file *pfile)
-{
-	struct viulite_data *data;
-
-	__TRACE__();
-
-	data = container_of(inod->i_cdev, struct viulite_data, chdev);
-	pfile->private_data = data;
-
-/*	if (atomic_cmpxchg(&data->access, 1, 0) != 1)
-		return -EBUSY;
-*/
-	return 0;
-}
-
-/**********************************************************
- * FUNCTION: fsl_viulite_close
- **********************************************************/
-static int fsl_viulite_close(struct inode *inod, struct file *pfile)
-{
-	struct viulite_data *viu_data;
-	uint32_t irq;
-
-	__TRACE__();
-
-	viu_data = container_of(inod->i_cdev, struct viulite_data, chdev);
-	irq = (uint32_t)(viu_data->irq);
-	disable_irq(irq);
-
-/*	atomic_inc(&viu_data->access);
-*/	return 0;
-}
-
-/**********************************************************
  * FUNCTION: viulite_intr
  **********************************************************/
 irqreturn_t viulite_intr(int irq, void *dev_id)
@@ -813,6 +691,42 @@ irqreturn_t viulite_intr(int irq, void *dev_id)
 }
 
 /**********************************************************
+ * FUNCTION: fsl_viulite_open
+ **********************************************************/
+int fsl_viulite_open(struct inode *inod, struct file *pfile)
+{
+	struct viulite_data *data;
+
+	__TRACE__();
+
+	data = container_of(inod->i_cdev, struct viulite_data, chdev);
+	pfile->private_data = data;
+
+/*	if (atomic_cmpxchg(&data->access, 1, 0) != 1)
+		return -EBUSY;
+*/
+	return 0;
+}
+
+/**********************************************************
+ * FUNCTION: fsl_viulite_close
+ **********************************************************/
+static int fsl_viulite_close(struct inode *inod, struct file *pfile)
+{
+	struct viulite_data *viu_data;
+	uint32_t irq;
+
+	__TRACE__();
+
+	viu_data = container_of(inod->i_cdev, struct viulite_data, chdev);
+	irq = (uint32_t)(viu_data->irq);
+	disable_irq(irq);
+
+/*	atomic_inc(&viu_data->access);
+*/	return 0;
+}
+
+/**********************************************************
  * STRUCT operations
  **********************************************************/
 const struct file_operations viulite_fops = {
@@ -825,10 +739,9 @@ const struct file_operations viulite_fops = {
 /**********************************************************
  * FUNCTION: fsl_viulite_dev_create
  **********************************************************/
-int fsl_viulite_dev_create(struct platform_device *pdev)
+dev_t fsl_viulite_dev_create(struct platform_device *pdev, uint8_t viu_id)
 {
 	int ret = 0;
-	uint32_t index;
 
 	__TRACE__();
 
@@ -850,16 +763,14 @@ int fsl_viulite_dev_create(struct platform_device *pdev)
 		}
 	}
 
-	index = MINOR(viulite_devn);
-
 	/* Device is created and registered in sysfs */
 	if (!(device_create(viulite_class, NULL,
-			viulite_devn, NULL, device_name[index]))) {
+			viulite_devn, NULL, device_name[viu_id]))) {
 		printk(VIULite_INFO "device_create 0 failed %d\n", ret);
 		return -1;
 	}
 
-	return 0;
+	return viulite_devn;
 }
 
 
@@ -869,19 +780,27 @@ int fsl_viulite_dev_create(struct platform_device *pdev)
 int fsl_viulite_probe(struct platform_device *pdev)
 {
 	struct resource *res;
-	struct viulite_data *viudata;
+	struct device_node *viu_n = pdev->dev.of_node;
+	struct viulite_data *viudata, *v_data;
 	void __iomem *viulite_reg_base;
 	struct clk *viulite_clk;
 	uint32_t viulite_irq;
+	dev_t devn_temp;
 
-	uint32_t index;
+	uint8_t viu_num;
 	int ret = 0;
 
 	__TRACE__();
 
+	ret = of_alias_get_id(viu_n, "viu");
+	if (ret < 0) {
+		dev_err(&pdev->dev, "failed to get alias id, errno %d\n", ret);
+		return ret;
+	}
+	viu_num = ret;
+
 	/* create device and register it in /dev through sysfs */
-	fsl_viulite_dev_create(pdev);
-	index = MINOR(viulite_devn);
+	devn_temp = fsl_viulite_dev_create(pdev, viu_num);
 
 	/* map register space */
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
@@ -892,7 +811,6 @@ int fsl_viulite_probe(struct platform_device *pdev)
 
 	viudata = devm_kzalloc(&pdev->dev,
 			sizeof(struct viulite_data), GFP_KERNEL);
-	dev_set_drvdata(&pdev->dev, viudata);
 
 	/* setup file operations */
 	cdev_init(&(viudata->chdev), &viulite_fops);
@@ -910,9 +828,10 @@ int fsl_viulite_probe(struct platform_device *pdev)
 		goto failed_alloc_base;
 	}
 	viudata->reg_base = viulite_reg_base;
+	viudata->dev_num = devn_temp;
 
 	/* enable clocks for VIU */
-	viulite_clk = devm_clk_get(&pdev->dev, device_name[index]);
+	viulite_clk = devm_clk_get(&pdev->dev, device_name[viu_num]);
 	if (IS_ERR(viulite_clk)) {
 		ret = PTR_ERR(viulite_clk);
 		dev_err(&pdev->dev, "could not get clock\n");
@@ -933,13 +852,15 @@ int fsl_viulite_probe(struct platform_device *pdev)
 
 	/* install interrupt handler */
 	if (request_irq(viudata->irq, viulite_intr, 0,
-			device_name[index], (void *)viudata)) {
+			device_name[viu_num], (void *)viudata)) {
 		dev_err(&pdev->dev, "Request VIULite IRQ failed.\n");
 		ret = -ENODEV;
 		goto failed_reqirq;
 	}
 
+	dev_set_drvdata(&pdev->dev, viudata);
 	viulite_devn++;
+	viu_devices++;
 
 	__TRACE__();
 
@@ -949,6 +870,32 @@ failed_alloc_base:
 failed_getclock:
 failed_reqirq:
 	return ret;
+}
+
+
+/**********************************************************
+ * FUNCTION: fsl_viulite_remove
+ * to be modified for 2 VIUs
+ **********************************************************/
+int fsl_viulite_remove(struct platform_device *pdev)
+{
+	struct viulite_data *v_data = dev_get_drvdata(&pdev->dev);
+
+	__TRACE__();
+
+	cdev_del(&v_data->chdev);
+	device_destroy(viulite_class, v_data->dev_num);
+
+	viu_devices--;
+	if (0 == viu_devices) {
+		class_destroy(viulite_class);
+		unregister_chrdev_region(v_data->dev_num, 2);
+	}
+
+	pm_runtime_put_sync(&pdev->dev);
+	pm_runtime_disable(&pdev->dev);
+
+	return 0;
 }
 
 /**********************************************************
