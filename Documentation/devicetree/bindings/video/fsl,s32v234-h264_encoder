@@ -1,0 +1,28 @@
+Freescale H264 Encoder
+
+Describes H264 Encoder HW configuration.
+
+Required properties:
+- compatible: "fsl,<chip>-h264_encoder", chip should be s32v234
+- reg: Should contain the H264 Encoder control block
+    register ranges (address and length - both 64bit)
+- interrupts: Should enumerate H264 Encoder interrupt IDs.
+
+Example:
+h264_encoder: h264_encoder@400dc000 {
+      compatible = "fsl,s32v234-h264_encoder";
+      reg = <0x0 0x400dc000 0x0 0x1000>;
+      interrupts = <0 150 1>,
+                   <0 151 1>,
+                   <0 152 1>,
+                   <0 153 1>,
+                   <0 154 1>,
+                   <0 155 1>,
+                   <0 156 1>,
+                   <0 157 1>;
+      status = "disabled";
+  };
+
+&h264_encoder {
+  status = "okay";
+};
