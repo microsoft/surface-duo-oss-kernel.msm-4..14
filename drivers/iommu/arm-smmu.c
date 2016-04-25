@@ -2071,6 +2071,7 @@ static int arm_smmu_device_dt_probe(struct platform_device *pdev)
 	if (of_property_read_bool(dev->of_node, "mmu-masters"))
 		arm_smmu_probe_mmu_masters(smmu);
 	arm_smmu_device_reset(smmu);
+	of_iommu_set_ops(dev->of_node, &arm_smmu_ops);
 	return 0;
 
 out_free_irqs:
@@ -2160,21 +2161,7 @@ module_exit(arm_smmu_exit);
 
 static int __init arm_smmu_of_init(struct device_node *np)
 {
-	struct arm_smmu_device *smmu;
-	struct platform_device *pdev;
-	int ret = arm_smmu_init();
-
-	if (ret)
-		return ret;
-
-	pdev = of_platform_device_create(np, NULL, platform_bus_type.dev_root);
-	if (!pdev)
-		return -ENODEV;
-
-	smmu = platform_get_drvdata(pdev);
-	of_iommu_set_ops(np, &arm_smmu_ops);
-
-	return 0;
+	return arm_smmu_init();
 }
 IOMMU_OF_DECLARE(arm_smmuv1, "arm,smmu-v1", arm_smmu_of_init);
 IOMMU_OF_DECLARE(arm_smmuv2, "arm,smmu-v2", arm_smmu_of_init);
