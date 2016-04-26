@@ -180,28 +180,44 @@ int mv88e6xxx_reg_write(struct dsa_switch *ds, int addr, int reg, u16 val)
 
 int mv88e6xxx_set_addr_direct(struct dsa_switch *ds, u8 *addr)
 {
-	REG_WRITE(REG_GLOBAL, GLOBAL_MAC_01, (addr[0] << 8) | addr[1]);
-	REG_WRITE(REG_GLOBAL, GLOBAL_MAC_23, (addr[2] << 8) | addr[3]);
-	REG_WRITE(REG_GLOBAL, GLOBAL_MAC_45, (addr[4] << 8) | addr[5]);
+	int err;
 
-	return 0;
+	err = mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_MAC_01,
+				  (addr[0] << 8) | addr[1]);
+	if (err)
+		return err;
+
+	err = mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_MAC_23,
+				  (addr[2] << 8) | addr[3]);
+	if (err)
+		return err;
+
+	return mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_MAC_45,
+				   (addr[4] << 8) | addr[5]);
 }
 
 int mv88e6xxx_set_addr_indirect(struct dsa_switch *ds, u8 *addr)
 {
-	int i;
 	int ret;
+	int i;
 
 	for (i = 0; i < 6; i++) {
 		int j;
 
 		/* Write the MAC address byte. */
-		REG_WRITE(REG_GLOBAL2, GLOBAL2_SWITCH_MAC,
-			  GLOBAL2_SWITCH_MAC_BUSY | (i << 8) | addr[i]);
+		ret = mv88e6xxx_reg_write(ds, REG_GLOBAL2, GLOBAL2_SWITCH_MAC,
+					  GLOBAL2_SWITCH_MAC_BUSY |
+					  (i << 8) | addr[i]);
+		if (ret)
+			return ret;
 
 		/* Wait for the write to complete. */
 		for (j = 0; j < 16; j++) {
-			ret = REG_READ(REG_GLOBAL2, GLOBAL2_SWITCH_MAC);
+			ret = mv88e6xxx_reg_read(ds, REG_GLOBAL2,
+						 GLOBAL2_SWITCH_MAC);
+			if (ret < 0)
+				return ret;
+
 			if ((ret & GLOBAL2_SWITCH_MAC_BUSY) == 0)
 				break;
 		}
@@ -233,13 +249,21 @@ static int mv88e6xxx_ppu_disable(struct dsa_switch *ds)
 	int ret;
 	unsigned long timeout;
 
-	ret = REG_READ(REG_GLOBAL, GLOBAL_CONTROL);
-	REG_WRITE(REG_GLOBAL, GLOBAL_CONTROL,
-		  ret & ~GLOBAL_CONTROL_PPU_ENABLE);
+	ret = mv88e6xxx_reg_read(ds, REG_GLOBAL, GLOBAL_CONTROL);
+	if (ret < 0)
+		return ret;
+
+	ret = mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_CONTROL,
+				  ret & ~GLOBAL_CONTROL_PPU_ENABLE);
+	if (ret)
+		return ret;
 
 	timeout = jiffies + 1 * HZ;
 	while (time_before(jiffies, timeout)) {
-		ret = REG_READ(REG_GLOBAL, GLOBAL_STATUS);
+		ret = mv88e6xxx_reg_read(ds, REG_GLOBAL, GLOBAL_STATUS);
+		if (ret < 0)
+			return ret;
+
 		usleep_range(1000, 2000);
 		if ((ret & GLOBAL_STATUS_PPU_MASK) !=
 		    GLOBAL_STATUS_PPU_POLLING)
@@ -251,15 +275,24 @@ static int mv88e6xxx_ppu_disable(struct dsa_switch *ds)
 
 static int mv88e6xxx_ppu_enable(struct dsa_switch *ds)
 {
-	int ret;
+	int ret, err;
 	unsigned long timeout;
 
-	ret = REG_READ(REG_GLOBAL, GLOBAL_CONTROL);
-	REG_WRITE(REG_GLOBAL, GLOBAL_CONTROL, ret | GLOBAL_CONTROL_PPU_ENABLE);
+	ret = mv88e6xxx_reg_read(ds, REG_GLOBAL, GLOBAL_CONTROL);
+	if (ret < 0)
+		return ret;
+
+	err = mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_CONTROL,
+				  ret | GLOBAL_CONTROL_PPU_ENABLE);
+	if (err)
+		return err;
 
 	timeout = jiffies + 1 * HZ;
 	while (time_before(jiffies, timeout)) {
-		ret = REG_READ(REG_GLOBAL, GLOBAL_STATUS);
+		ret = mv88e6xxx_reg_read(ds, REG_GLOBAL, GLOBAL_STATUS);
+		if (ret < 0)
+			return ret;
+
 		usleep_range(1000, 2000);
 		if ((ret & GLOBAL_STATUS_PPU_MASK) ==
 		    GLOBAL_STATUS_PPU_POLLING)
@@ -369,135 +402,63 @@ static bool mv88e6xxx_6065_family(struct dsa_switch *ds)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 
-	switch (ps->id) {
-	case PORT_SWITCH_ID_6031:
-	case PORT_SWITCH_ID_6061:
-	case PORT_SWITCH_ID_6035:
-	case PORT_SWITCH_ID_6065:
-		return true;
-	}
-	return false;
+	return ps->info->family == MV88E6XXX_FAMILY_6065;
 }
 
 static bool mv88e6xxx_6095_family(struct dsa_switch *ds)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 
-	switch (ps->id) {
-	case PORT_SWITCH_ID_6092:
-	case PORT_SWITCH_ID_6095:
-		return true;
-	}
-	return false;
+	return ps->info->family == MV88E6XXX_FAMILY_6095;
 }
 
 static bool mv88e6xxx_6097_family(struct dsa_switch *ds)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 
-	switch (ps->id) {
-	case PORT_SWITCH_ID_6046:
-	case PORT_SWITCH_ID_6085:
-	case PORT_SWITCH_ID_6096:
-	case PORT_SWITCH_ID_6097:
-		return true;
-	}
-	return false;
+	return ps->info->family == MV88E6XXX_FAMILY_6097;
 }
 
 static bool mv88e6xxx_6165_family(struct dsa_switch *ds)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 
-	switch (ps->id) {
-	case PORT_SWITCH_ID_6123:
-	case PORT_SWITCH_ID_6161:
-	case PORT_SWITCH_ID_6165:
-		return true;
-	}
-	return false;
+	return ps->info->family == MV88E6XXX_FAMILY_6165;
 }
 
 static bool mv88e6xxx_6185_family(struct dsa_switch *ds)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 
-	switch (ps->id) {
-	case PORT_SWITCH_ID_6121:
-	case PORT_SWITCH_ID_6122:
-	case PORT_SWITCH_ID_6152:
-	case PORT_SWITCH_ID_6155:
-	case PORT_SWITCH_ID_6182:
-	case PORT_SWITCH_ID_6185:
-	case PORT_SWITCH_ID_6108:
-	case PORT_SWITCH_ID_6131:
-		return true;
-	}
-	return false;
+	return ps->info->family == MV88E6XXX_FAMILY_6185;
 }
 
 static bool mv88e6xxx_6320_family(struct dsa_switch *ds)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 
-	switch (ps->id) {
-	case PORT_SWITCH_ID_6320:
-	case PORT_SWITCH_ID_6321:
-		return true;
-	}
-	return false;
+	return ps->info->family == MV88E6XXX_FAMILY_6320;
 }
 
 static bool mv88e6xxx_6351_family(struct dsa_switch *ds)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 
-	switch (ps->id) {
-	case PORT_SWITCH_ID_6171:
-	case PORT_SWITCH_ID_6175:
-	case PORT_SWITCH_ID_6350:
-	case PORT_SWITCH_ID_6351:
-		return true;
-	}
-	return false;
+	return ps->info->family == MV88E6XXX_FAMILY_6351;
 }
 
 static bool mv88e6xxx_6352_family(struct dsa_switch *ds)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 
-	switch (ps->id) {
-	case PORT_SWITCH_ID_6172:
-	case PORT_SWITCH_ID_6176:
-	case PORT_SWITCH_ID_6240:
-	case PORT_SWITCH_ID_6352:
-		return true;
-	}
-	return false;
+	return ps->info->family == MV88E6XXX_FAMILY_6352;
 }
 
 static unsigned int mv88e6xxx_num_databases(struct dsa_switch *ds)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 
-	/* The following devices have 4-bit identifiers for 16 databases */
-	if (ps->id == PORT_SWITCH_ID_6061)
-		return 16;
-
-	/* The following devices have 6-bit identifiers for 64 databases */
-	if (ps->id == PORT_SWITCH_ID_6065)
-		return 64;
-
-	/* The following devices have 8-bit identifiers for 256 databases */
-	if (mv88e6xxx_6095_family(ds) || mv88e6xxx_6185_family(ds))
-		return 256;
-
-	/* The following devices have 12-bit identifiers for 4096 databases */
-	if (mv88e6xxx_6097_family(ds) || mv88e6xxx_6165_family(ds) ||
-	    mv88e6xxx_6351_family(ds) || mv88e6xxx_6352_family(ds))
-		return 4096;
-
-	return 0;
+	return ps->info->num_databases;
 }
 
 static bool mv88e6xxx_has_fid_reg(struct dsa_switch *ds)
@@ -573,7 +534,7 @@ void mv88e6xxx_adjust_link(struct dsa_switch *ds, int port,
 		reg |= PORT_PCS_CTRL_DUPLEX_FULL;
 
 	if ((mv88e6xxx_6352_family(ds) || mv88e6xxx_6351_family(ds)) &&
-	    (port >= ps->num_ports - 2)) {
+	    (port >= ps->info->num_ports - 2)) {
 		if (phydev->interface == PHY_INTERFACE_MODE_RGMII_RXID)
 			reg |= PORT_PCS_CTRL_RGMII_DELAY_RXCLK;
 		if (phydev->interface == PHY_INTERFACE_MODE_RGMII_TXID)
@@ -1154,7 +1115,7 @@ static int _mv88e6xxx_port_based_vlan_map(struct dsa_switch *ds, int port)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 	struct net_device *bridge = ps->ports[port].bridge_dev;
-	const u16 mask = (1 << ps->num_ports) - 1;
+	const u16 mask = (1 << ps->info->num_ports) - 1;
 	u16 output_ports = 0;
 	int reg;
 	int i;
@@ -1163,7 +1124,7 @@ static int _mv88e6xxx_port_based_vlan_map(struct dsa_switch *ds, int port)
 	if (dsa_is_cpu_port(ds, port) || dsa_is_dsa_port(ds, port)) {
 		output_ports = mask;
 	} else {
-		for (i = 0; i < ps->num_ports; ++i) {
+		for (i = 0; i < ps->info->num_ports; ++i) {
 			/* allow sending frames to every group member */
 			if (bridge && ps->ports[i].bridge_dev == bridge)
 				output_ports |= BIT(i);
@@ -1304,7 +1265,7 @@ static int _mv88e6xxx_vtu_stu_data_read(struct dsa_switch *ds,
 		regs[i] = ret;
 	}
 
-	for (i = 0; i < ps->num_ports; ++i) {
+	for (i = 0; i < ps->info->num_ports; ++i) {
 		unsigned int shift = (i % 4) * 4 + nibble_offset;
 		u16 reg = regs[i / 4];
 
@@ -1323,7 +1284,7 @@ static int _mv88e6xxx_vtu_stu_data_write(struct dsa_switch *ds,
 	int i;
 	int ret;
 
-	for (i = 0; i < ps->num_ports; ++i) {
+	for (i = 0; i < ps->info->num_ports; ++i) {
 		unsigned int shift = (i % 4) * 4 + nibble_offset;
 		u8 data = entry->data[i];
 
@@ -1655,7 +1616,7 @@ static int _mv88e6xxx_fid_new(struct dsa_switch *ds, u16 *fid)
 	bitmap_zero(fid_bitmap, MV88E6XXX_N_FID);
 
 	/* Set every FID bit used by the (un)bridged ports */
-	for (i = 0; i < ps->num_ports; ++i) {
+	for (i = 0; i < ps->info->num_ports; ++i) {
 		err = _mv88e6xxx_port_fid_get(ds, i, fid);
 		if (err)
 			return err;
@@ -1705,7 +1666,7 @@ static int _mv88e6xxx_vtu_new(struct dsa_switch *ds, u16 vid,
 		return err;
 
 	/* exclude all ports except the CPU and DSA ports */
-	for (i = 0; i < ps->num_ports; ++i)
+	for (i = 0; i < ps->info->num_ports; ++i)
 		vlan.data[i] = dsa_is_cpu_port(ds, i) || dsa_is_dsa_port(ds, i)
 			? GLOBAL_VTU_DATA_MEMBER_TAG_UNMODIFIED
 			: GLOBAL_VTU_DATA_MEMBER_TAG_NON_MEMBER;
@@ -1794,7 +1755,7 @@ static int mv88e6xxx_port_check_hw_vlan(struct dsa_switch *ds, int port,
 		if (vlan.vid > vid_end)
 			break;
 
-		for (i = 0; i < ps->num_ports; ++i) {
+		for (i = 0; i < ps->info->num_ports; ++i) {
 			if (dsa_is_dsa_port(ds, i) || dsa_is_cpu_port(ds, i))
 				continue;
 
@@ -1943,7 +1904,7 @@ static int _mv88e6xxx_port_vlan_del(struct dsa_switch *ds, int port, u16 vid)
 
 	/* keep the VLAN unless all ports are excluded */
 	vlan.valid = false;
-	for (i = 0; i < ps->num_ports; ++i) {
+	for (i = 0; i < ps->info->num_ports; ++i) {
 		if (dsa_is_cpu_port(ds, i) || dsa_is_dsa_port(ds, i))
 			continue;
 
@@ -2253,7 +2214,7 @@ int mv88e6xxx_port_bridge_join(struct dsa_switch *ds, int port,
 	/* Assign the bridge and remap each port's VLANTable */
 	ps->ports[port].bridge_dev = bridge;
 
-	for (i = 0; i < ps->num_ports; ++i) {
+	for (i = 0; i < ps->info->num_ports; ++i) {
 		if (ps->ports[i].bridge_dev == bridge) {
 			err = _mv88e6xxx_port_based_vlan_map(ds, i);
 			if (err)
@@ -2277,7 +2238,7 @@ void mv88e6xxx_port_bridge_leave(struct dsa_switch *ds, int port)
 	/* Unassign the bridge and remap each port's VLANTable */
 	ps->ports[port].bridge_dev = NULL;
 
-	for (i = 0; i < ps->num_ports; ++i)
+	for (i = 0; i < ps->info->num_ports; ++i)
 		if (i == port || ps->ports[i].bridge_dev == bridge)
 			if (_mv88e6xxx_port_based_vlan_map(ds, i))
 				netdev_warn(ds->ports[i], "failed to remap\n");
@@ -2296,7 +2257,7 @@ static void mv88e6xxx_bridge_work(struct work_struct *work)
 
 	mutex_lock(&ps->smi_mutex);
 
-	for (port = 0; port < ps->num_ports; ++port)
+	for (port = 0; port < ps->info->num_ports; ++port)
 		if (test_and_clear_bit(port, ps->port_state_update_mask) &&
 		    _mv88e6xxx_port_state(ds, port, ps->ports[port].state))
 			netdev_warn(ds->ports[port], "failed to update state to %s\n",
@@ -2628,7 +2589,7 @@ int mv88e6xxx_setup_ports(struct dsa_switch *ds)
 	int ret;
 	int i;
 
-	for (i = 0; i < ps->num_ports; i++) {
+	for (i = 0; i < ps->info->num_ports; i++) {
 		ret = mv88e6xxx_setup_port(ds, i);
 		if (ret < 0)
 			return ret;
@@ -2643,8 +2604,6 @@ int mv88e6xxx_setup_common(struct dsa_switch *ds)
 	ps->ds = ds;
 	mutex_init(&ps->smi_mutex);
 
-	ps->id = REG_READ(REG_PORT(0), PORT_SWITCH_ID) & 0xfff0;
-
 	INIT_WORK(&ps->bridge_work, mv88e6xxx_bridge_work);
 
 	return 0;
@@ -2653,42 +2612,67 @@ int mv88e6xxx_setup_common(struct dsa_switch *ds)
 int mv88e6xxx_setup_global(struct dsa_switch *ds)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
-	int ret;
+	int err;
 	int i;
 
+	mutex_lock(&ps->smi_mutex);
 	/* Set the default address aging time to 5 minutes, and
 	 * enable address learn messages to be sent to all message
 	 * ports.
 	 */
-	REG_WRITE(REG_GLOBAL, GLOBAL_ATU_CONTROL,
-		  0x0140 | GLOBAL_ATU_CONTROL_LEARN2ALL);
+	err = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_ATU_CONTROL,
+				   0x0140 | GLOBAL_ATU_CONTROL_LEARN2ALL);
+	if (err)
+		goto unlock;
 
 	/* Configure the IP ToS mapping registers. */
-	REG_WRITE(REG_GLOBAL, GLOBAL_IP_PRI_0, 0x0000);
-	REG_WRITE(REG_GLOBAL, GLOBAL_IP_PRI_1, 0x0000);
-	REG_WRITE(REG_GLOBAL, GLOBAL_IP_PRI_2, 0x5555);
-	REG_WRITE(REG_GLOBAL, GLOBAL_IP_PRI_3, 0x5555);
-	REG_WRITE(REG_GLOBAL, GLOBAL_IP_PRI_4, 0xaaaa);
-	REG_WRITE(REG_GLOBAL, GLOBAL_IP_PRI_5, 0xaaaa);
-	REG_WRITE(REG_GLOBAL, GLOBAL_IP_PRI_6, 0xffff);
-	REG_WRITE(REG_GLOBAL, GLOBAL_IP_PRI_7, 0xffff);
+	err = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_IP_PRI_0, 0x0000);
+	if (err)
+		goto unlock;
+	err = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_IP_PRI_1, 0x0000);
+	if (err)
+		goto unlock;
+	err = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_IP_PRI_2, 0x5555);
+	if (err)
+		goto unlock;
+	err = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_IP_PRI_3, 0x5555);
+	if (err)
+		goto unlock;
+	err = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_IP_PRI_4, 0xaaaa);
+	if (err)
+		goto unlock;
+	err = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_IP_PRI_5, 0xaaaa);
+	if (err)
+		goto unlock;
+	err = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_IP_PRI_6, 0xffff);
+	if (err)
+		goto unlock;
+	err = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_IP_PRI_7, 0xffff);
+	if (err)
+		goto unlock;
 
 	/* Configure the IEEE 802.1p priority mapping register. */
-	REG_WRITE(REG_GLOBAL, GLOBAL_IEEE_PRI, 0xfa41);
+	err = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_IEEE_PRI, 0xfa41);
+	if (err)
+		goto unlock;
 
 	/* Send all frames with destination addresses matching
 	 * 01:80:c2:00:00:0x to the CPU port.
 	 */
-	REG_WRITE(REG_GLOBAL2, GLOBAL2_MGMT_EN_0X, 0xffff);
+	err = _mv88e6xxx_reg_write(ds, REG_GLOBAL2, GLOBAL2_MGMT_EN_0X, 0xffff);
+	if (err)
+		goto unlock;
 
 	/* Ignore removed tag data on doubly tagged packets, disable
 	 * flow control messages, force flow control priority to the
 	 * highest, and send all special multicast frames to the CPU
 	 * port at the highest priority.
 	 */
-	REG_WRITE(REG_GLOBAL2, GLOBAL2_SWITCH_MGMT,
-		  0x7 | GLOBAL2_SWITCH_MGMT_RSVD2CPU | 0x70 |
-		  GLOBAL2_SWITCH_MGMT_FORCE_FLOW_CTRL_PRI);
+	err = _mv88e6xxx_reg_write(ds, REG_GLOBAL2, GLOBAL2_SWITCH_MGMT,
+				   0x7 | GLOBAL2_SWITCH_MGMT_RSVD2CPU | 0x70 |
+				   GLOBAL2_SWITCH_MGMT_FORCE_FLOW_CTRL_PRI);
+	if (err)
+		goto unlock;
 
 	/* Program the DSA routing table. */
 	for (i = 0; i < 32; i++) {
@@ -2698,23 +2682,35 @@ int mv88e6xxx_setup_global(struct dsa_switch *ds)
 		    i != ds->index && i < ds->dst->pd->nr_chips)
 			nexthop = ds->pd->rtable[i] & 0x1f;
 
-		REG_WRITE(REG_GLOBAL2, GLOBAL2_DEVICE_MAPPING,
-			  GLOBAL2_DEVICE_MAPPING_UPDATE |
-			  (i << GLOBAL2_DEVICE_MAPPING_TARGET_SHIFT) |
-			  nexthop);
+		err = _mv88e6xxx_reg_write(
+			ds, REG_GLOBAL2,
+			GLOBAL2_DEVICE_MAPPING,
+			GLOBAL2_DEVICE_MAPPING_UPDATE |
+			(i << GLOBAL2_DEVICE_MAPPING_TARGET_SHIFT) | nexthop);
+		if (err)
+			goto unlock;
 	}
 
 	/* Clear all trunk masks. */
-	for (i = 0; i < 8; i++)
-		REG_WRITE(REG_GLOBAL2, GLOBAL2_TRUNK_MASK,
-			  0x8000 | (i << GLOBAL2_TRUNK_MASK_NUM_SHIFT) |
-			  ((1 << ps->num_ports) - 1));
+	for (i = 0; i < 8; i++) {
+		err = _mv88e6xxx_reg_write(ds, REG_GLOBAL2, GLOBAL2_TRUNK_MASK,
+					   0x8000 |
+					   (i << GLOBAL2_TRUNK_MASK_NUM_SHIFT) |
+					   ((1 << ps->info->num_ports) - 1));
+		if (err)
+			goto unlock;
+	}
 
 	/* Clear all trunk mappings. */
-	for (i = 0; i < 16; i++)
-		REG_WRITE(REG_GLOBAL2, GLOBAL2_TRUNK_MAPPING,
-			  GLOBAL2_TRUNK_MAPPING_UPDATE |
-			  (i << GLOBAL2_TRUNK_MAPPING_ID_SHIFT));
+	for (i = 0; i < 16; i++) {
+		err = _mv88e6xxx_reg_write(
+			ds, REG_GLOBAL2,
+			GLOBAL2_TRUNK_MAPPING,
+			GLOBAL2_TRUNK_MAPPING_UPDATE |
+			(i << GLOBAL2_TRUNK_MAPPING_ID_SHIFT));
+		if (err)
+			goto unlock;
+	}
 
 	if (mv88e6xxx_6352_family(ds) || mv88e6xxx_6351_family(ds) ||
 	    mv88e6xxx_6165_family(ds) || mv88e6xxx_6097_family(ds) ||
@@ -2722,17 +2718,27 @@ int mv88e6xxx_setup_global(struct dsa_switch *ds)
 		/* Send all frames with destination addresses matching
 		 * 01:80:c2:00:00:2x to the CPU port.
 		 */
-		REG_WRITE(REG_GLOBAL2, GLOBAL2_MGMT_EN_2X, 0xffff);
+		err = _mv88e6xxx_reg_write(ds, REG_GLOBAL2,
+					   GLOBAL2_MGMT_EN_2X, 0xffff);
+		if (err)
+			goto unlock;
 
 		/* Initialise cross-chip port VLAN table to reset
 		 * defaults.
 		 */
-		REG_WRITE(REG_GLOBAL2, GLOBAL2_PVT_ADDR, 0x9000);
+		err = _mv88e6xxx_reg_write(ds, REG_GLOBAL2,
+					   GLOBAL2_PVT_ADDR, 0x9000);
+		if (err)
+			goto unlock;
 
 		/* Clear the priority override table. */
-		for (i = 0; i < 16; i++)
-			REG_WRITE(REG_GLOBAL2, GLOBAL2_PRIO_OVERRIDE,
-				  0x8000 | (i << 8));
+		for (i = 0; i < 16; i++) {
+			err = _mv88e6xxx_reg_write(ds, REG_GLOBAL2,
+						   GLOBAL2_PRIO_OVERRIDE,
+						   0x8000 | (i << 8));
+			if (err)
+				goto unlock;
+		}
 	}
 
 	if (mv88e6xxx_6352_family(ds) || mv88e6xxx_6351_family(ds) ||
@@ -2743,31 +2749,37 @@ int mv88e6xxx_setup_global(struct dsa_switch *ds)
 		 * ingress rate limit registers to their initial
 		 * state.
 		 */
-		for (i = 0; i < ps->num_ports; i++)
-			REG_WRITE(REG_GLOBAL2, GLOBAL2_INGRESS_OP,
-				  0x9000 | (i << 8));
+		for (i = 0; i < ps->info->num_ports; i++) {
+			err = _mv88e6xxx_reg_write(ds, REG_GLOBAL2,
+						   GLOBAL2_INGRESS_OP,
+						   0x9000 | (i << 8));
+			if (err)
+				goto unlock;
+		}
 	}
 
 	/* Clear the statistics counters for all ports */
-	REG_WRITE(REG_GLOBAL, GLOBAL_STATS_OP, GLOBAL_STATS_OP_FLUSH_ALL);
+	err = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_STATS_OP,
+				   GLOBAL_STATS_OP_FLUSH_ALL);
+	if (err)
+		goto unlock;
 
 	/* Wait for the flush to complete. */
-	mutex_lock(&ps->smi_mutex);
-	ret = _mv88e6xxx_stats_wait(ds);
-	if (ret < 0)
+	err = _mv88e6xxx_stats_wait(ds);
+	if (err < 0)
 		goto unlock;
 
 	/* Clear all ATU entries */
-	ret = _mv88e6xxx_atu_flush(ds, 0, true);
-	if (ret < 0)
+	err = _mv88e6xxx_atu_flush(ds, 0, true);
+	if (err < 0)
 		goto unlock;
 
 	/* Clear all the VTU and STU entries */
-	ret = _mv88e6xxx_vtu_stu_flush(ds);
+	err = _mv88e6xxx_vtu_stu_flush(ds);
 unlock:
 	mutex_unlock(&ps->smi_mutex);
 
-	return ret;
+	return err;
 }
 
 int mv88e6xxx_switch_reset(struct dsa_switch *ds, bool ppu_active)
@@ -2779,10 +2791,18 @@ int mv88e6xxx_switch_reset(struct dsa_switch *ds, bool ppu_active)
 	int ret;
 	int i;
 
+	mutex_lock(&ps->smi_mutex);
+
 	/* Set all ports to the disabled state. */
-	for (i = 0; i < ps->num_ports; i++) {
-		ret = REG_READ(REG_PORT(i), PORT_CONTROL);
-		REG_WRITE(REG_PORT(i), PORT_CONTROL, ret & 0xfffc);
+	for (i = 0; i < ps->info->num_ports; i++) {
+		ret = _mv88e6xxx_reg_read(ds, REG_PORT(i), PORT_CONTROL);
+		if (ret < 0)
+			goto unlock;
+
+		ret = _mv88e6xxx_reg_write(ds, REG_PORT(i), PORT_CONTROL,
+					   ret & 0xfffc);
+		if (ret)
+			goto unlock;
 	}
 
 	/* Wait for transmit queues to drain. */
@@ -2801,22 +2821,31 @@ int mv88e6xxx_switch_reset(struct dsa_switch *ds, bool ppu_active)
 	 * through global registers 0x18 and 0x19.
 	 */
 	if (ppu_active)
-		REG_WRITE(REG_GLOBAL, 0x04, 0xc000);
+		ret = _mv88e6xxx_reg_write(ds, REG_GLOBAL, 0x04, 0xc000);
 	else
-		REG_WRITE(REG_GLOBAL, 0x04, 0xc400);
+		ret = _mv88e6xxx_reg_write(ds, REG_GLOBAL, 0x04, 0xc400);
+	if (ret)
+		goto unlock;
 
 	/* Wait up to one second for reset to complete. */
 	timeout = jiffies + 1 * HZ;
 	while (time_before(jiffies, timeout)) {
-		ret = REG_READ(REG_GLOBAL, 0x00);
+		ret = _mv88e6xxx_reg_read(ds, REG_GLOBAL, 0x00);
+		if (ret < 0)
+			goto unlock;
+
 		if ((ret & is_reset) == is_reset)
 			break;
 		usleep_range(1000, 2000);
 	}
 	if (time_after(jiffies, timeout))
-		return -ETIMEDOUT;
+		ret = -ETIMEDOUT;
+	else
+		ret = 0;
+unlock:
+	mutex_unlock(&ps->smi_mutex);
 
-	return 0;
+	return ret;
 }
 
 int mv88e6xxx_phy_page_read(struct dsa_switch *ds, int port, int page, int reg)
@@ -2848,7 +2877,7 @@ static int mv88e6xxx_port_to_phy_addr(struct dsa_switch *ds, int port)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 
-	if (port >= 0 && port < ps->num_ports)
+	if (port >= 0 && port < ps->info->num_ports)
 		return port;
 	return -EINVAL;
 }
@@ -3044,61 +3073,60 @@ int mv88e6xxx_get_temp_alarm(struct dsa_switch *ds, bool *alarm)
 }
 #endif /* CONFIG_NET_DSA_HWMON */
 
-static char *mv88e6xxx_lookup_name(struct mii_bus *bus, int sw_addr,
-				   const struct mv88e6xxx_switch_id *table,
-				   unsigned int num)
+static const struct mv88e6xxx_info *
+mv88e6xxx_lookup_info(unsigned int prod_num, const struct mv88e6xxx_info *table,
+		      unsigned int num)
 {
-	int i, ret;
+	int i;
 
-	if (!bus)
-		return NULL;
-
-	ret = __mv88e6xxx_reg_read(bus, sw_addr, REG_PORT(0), PORT_SWITCH_ID);
-	if (ret < 0)
-		return NULL;
-
-	/* Look up the exact switch ID */
 	for (i = 0; i < num; ++i)
-		if (table[i].id == ret)
-			return table[i].name;
-
-	/* Look up only the product number */
-	for (i = 0; i < num; ++i) {
-		if (table[i].id == (ret & PORT_SWITCH_ID_PROD_NUM_MASK)) {
-			dev_warn(&bus->dev,
-				 "unknown revision %d, using base switch 0x%x\n",
-				 ret & PORT_SWITCH_ID_REV_MASK,
-				 ret & PORT_SWITCH_ID_PROD_NUM_MASK);
-			return table[i].name;
-		}
-	}
+		if (table[i].prod_num == prod_num)
+			return &table[i];
 
 	return NULL;
 }
 
-char *mv88e6xxx_drv_probe(struct device *dsa_dev, struct device *host_dev,
-			  int sw_addr, void **priv,
-			  const struct mv88e6xxx_switch_id *table,
-			  unsigned int num)
+const char *mv88e6xxx_drv_probe(struct device *dsa_dev, struct device *host_dev,
+				int sw_addr, void **priv,
+				const struct mv88e6xxx_info *table,
+				unsigned int num)
 {
+	const struct mv88e6xxx_info *info;
 	struct mv88e6xxx_priv_state *ps;
-	struct mii_bus *bus = dsa_host_dev_to_mii_bus(host_dev);
-	char *name;
+	struct mii_bus *bus;
+	const char *name;
+	int id, prod_num, rev;
 
+	bus = dsa_host_dev_to_mii_bus(host_dev);
 	if (!bus)
 		return NULL;
 
-	name = mv88e6xxx_lookup_name(bus, sw_addr, table, num);
-	if (name) {
-		ps = devm_kzalloc(dsa_dev, sizeof(*ps), GFP_KERNEL);
-		if (!ps)
-			return NULL;
-		*priv = ps;
-		ps->bus = dsa_host_dev_to_mii_bus(host_dev);
-		if (!ps->bus)
-			return NULL;
-		ps->sw_addr = sw_addr;
-	}
+	id = __mv88e6xxx_reg_read(bus, sw_addr, REG_PORT(0), PORT_SWITCH_ID);
+	if (id < 0)
+		return NULL;
+
+	prod_num = (id & 0xfff0) >> 4;
+	rev = id & 0x000f;
+
+	info = mv88e6xxx_lookup_info(prod_num, table, num);
+	if (!info)
+		return NULL;
+
+	name = info->name;
+
+	ps = devm_kzalloc(dsa_dev, sizeof(*ps), GFP_KERNEL);
+	if (!ps)
+		return NULL;
+
+	ps->bus = bus;
+	ps->sw_addr = sw_addr;
+	ps->info = info;
+
+	*priv = ps;
+
+	dev_info(&ps->bus->dev, "switch 0x%x probed: %s, revision %u\n",
+		 prod_num, name, rev);
+
 	return name;
 }
 

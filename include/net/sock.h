@@ -630,7 +630,11 @@ static inline void sk_add_node(struct sock *sk, struct hlist_head *list)
 static inline void sk_add_node_rcu(struct sock *sk, struct hlist_head *list)
 {
 	sock_hold(sk);
-	hlist_add_head_rcu(&sk->sk_node, list);
+	if (IS_ENABLED(CONFIG_IPV6) && sk->sk_reuseport &&
+	    sk->sk_family == AF_INET6)
+		hlist_add_tail_rcu(&sk->sk_node, list);
+	else
+		hlist_add_head_rcu(&sk->sk_node, list);
 }
 
 static inline void __sk_nulls_add_node_rcu(struct sock *sk, struct hlist_nulls_head *list)
@@ -1409,7 +1413,7 @@ static inline void unlock_sock_fast(struct sock *sk, bool slow)
 static inline bool sock_owned_by_user(const struct sock *sk)
 {
 #ifdef CONFIG_LOCKDEP
-	WARN_ON(!lockdep_sock_is_held(sk));
+	WARN_ON_ONCE(!lockdep_sock_is_held(sk) && debug_locks);
 #endif
 	return sk->sk_lock.owned;
 }

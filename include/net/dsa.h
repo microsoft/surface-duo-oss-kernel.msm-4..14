@@ -136,11 +136,6 @@ struct dsa_switch {
 	void *priv;
 
 	/*
-	 * Tagging protocol understood by this switch
-	 */
-	enum dsa_tag_protocol	tag_protocol;
-
-	/*
 	 * Configuration data for this switch.
 	 */
 	struct dsa_chip_data	*pd;
@@ -217,8 +212,9 @@ struct dsa_switch_driver {
 	/*
 	 * Probing and setup.
 	 */
-	char	*(*probe)(struct device *dsa_dev, struct device *host_dev,
-			  int sw_addr, void **priv);
+	const char	*(*probe)(struct device *dsa_dev,
+				  struct device *host_dev, int sw_addr,
+				  void **priv);
 	int	(*setup)(struct dsa_switch *ds);
 	int	(*set_addr)(struct dsa_switch *ds, u8 *addr);
 	u32	(*get_phy_flags)(struct dsa_switch *ds, int port);

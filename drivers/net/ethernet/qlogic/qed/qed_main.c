@@ -744,6 +744,7 @@ static void qed_update_pf_params(struct qed_dev *cdev,
 static int qed_slowpath_start(struct qed_dev *cdev,
 			      struct qed_slowpath_params *params)
 {
+	struct qed_tunn_start_params tunn_info;
 	struct qed_mcp_drv_version drv_version;
 	const u8 *data = NULL;
 	struct qed_hwfn *hwfn;
@@ -776,7 +777,19 @@ static int qed_slowpath_start(struct qed_dev *cdev,
 	/* Start the slowpath */
 	data = cdev->firmware->data;
 
-	rc = qed_hw_init(cdev, true, cdev->int_params.out.int_mode,
+	memset(&tunn_info, 0, sizeof(tunn_info));
+	tunn_info.tunn_mode |=  1 << QED_MODE_VXLAN_TUNN |
+				1 << QED_MODE_L2GRE_TUNN |
+				1 << QED_MODE_IPGRE_TUNN |
+				1 << QED_MODE_L2GENEVE_TUNN |
+				1 << QED_MODE_IPGENEVE_TUNN;
+
+	tunn_info.tunn_clss_vxlan = QED_TUNN_CLSS_MAC_VLAN;
+	tunn_info.tunn_clss_l2gre = QED_TUNN_CLSS_MAC_VLAN;
+	tunn_info.tunn_clss_ipgre = QED_TUNN_CLSS_MAC_VLAN;
+
+	rc = qed_hw_init(cdev, &tunn_info, true,
+			 cdev->int_params.out.int_mode,
 			 true, data);
 	if (rc)
 		goto err2;
@@ -902,6 +915,11 @@ static u32 qed_sb_release(struct qed_dev *cdev,
 	return rc;
 }
 
+static bool qed_can_link_change(struct qed_dev *cdev)
+{
+	return true;
+}
+
 static int qed_set_link(struct qed_dev *cdev,
 			struct qed_link_params *params)
 {
@@ -944,6 +962,20 @@ static int qed_set_link(struct qed_dev *cdev,
 	}
 	if (params->override_flags & QED_LINK_OVERRIDE_SPEED_FORCED_SPEED)
 		link_params->speed.forced_speed = params->forced_speed;
+	if (params->override_flags & QED_LINK_OVERRIDE_PAUSE_CONFIG) {
+		if (params->pause_config & QED_LINK_PAUSE_AUTONEG_ENABLE)
+			link_params->pause.autoneg = true;
+		else
+			link_params->pause.autoneg = false;
+		if (params->pause_config & QED_LINK_PAUSE_RX_ENABLE)
+			link_params->pause.forced_rx = true;
+		else
+			link_params->pause.forced_rx = false;
+		if (params->pause_config & QED_LINK_PAUSE_TX_ENABLE)
+			link_params->pause.forced_tx = true;
+		else
+			link_params->pause.forced_tx = false;
+	}
 
 	rc = qed_mcp_set_link(hwfn, ptt, params->link_up);
 
@@ -1164,6 +1196,7 @@ const struct qed_common_ops qed_common_ops_pass = {
 	.sb_release = &qed_sb_release,
 	.simd_handler_config = &qed_simd_handler_config,
 	.simd_handler_clean = &qed_simd_handler_clean,
+	.can_link_change = &qed_can_link_change,
 	.set_link = &qed_set_link,
 	.get_link = &qed_get_current_link,
 	.drain = &qed_drain,
