@@ -94,15 +94,12 @@ static int __mv88e6xxx_reg_read(struct mii_bus *bus, int sw_addr, int addr,
 
 static int _mv88e6xxx_reg_read(struct dsa_switch *ds, int addr, int reg)
 {
-	struct mii_bus *bus = dsa_host_dev_to_mii_bus(ds->master_dev);
+	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 	int ret;
 
 	assert_smi_lock(ds);
 
-	if (bus == NULL)
-		return -EINVAL;
-
-	ret = __mv88e6xxx_reg_read(bus, ds->pd->sw_addr, addr, reg);
+	ret = __mv88e6xxx_reg_read(ps->bus, ps->sw_addr, addr, reg);
 	if (ret < 0)
 		return ret;
 
@@ -159,17 +156,14 @@ static int __mv88e6xxx_reg_write(struct mii_bus *bus, int sw_addr, int addr,
 static int _mv88e6xxx_reg_write(struct dsa_switch *ds, int addr, int reg,
 				u16 val)
 {
-	struct mii_bus *bus = dsa_host_dev_to_mii_bus(ds->master_dev);
+	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 
 	assert_smi_lock(ds);
-
-	if (bus == NULL)
-		return -EINVAL;
 
 	dev_dbg(ds->master_dev, "-> addr: 0x%.2x reg: 0x%.2x val: 0x%.4x\n",
 		addr, reg, val);
 
-	return __mv88e6xxx_reg_write(bus, ds->pd->sw_addr, addr, reg, val);
+	return __mv88e6xxx_reg_write(ps->bus, ps->sw_addr, addr, reg, val);
 }
 
 int mv88e6xxx_reg_write(struct dsa_switch *ds, int addr, int reg, u16 val)
@@ -281,7 +275,7 @@ static void mv88e6xxx_ppu_reenable_work(struct work_struct *ugly)
 
 	ps = container_of(ugly, struct mv88e6xxx_priv_state, ppu_work);
 	if (mutex_trylock(&ps->ppu_mutex)) {
-		struct dsa_switch *ds = ((struct dsa_switch *)ps) - 1;
+		struct dsa_switch *ds = ps->ds;
 
 		if (mv88e6xxx_ppu_enable(ds) == 0)
 			ps->ppu_disabled = 0;
@@ -479,6 +473,50 @@ static bool mv88e6xxx_6352_family(struct dsa_switch *ds)
 	case PORT_SWITCH_ID_6352:
 		return true;
 	}
+	return false;
+}
+
+static unsigned int mv88e6xxx_num_databases(struct dsa_switch *ds)
+{
+	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
+
+	/* The following devices have 4-bit identifiers for 16 databases */
+	if (ps->id == PORT_SWITCH_ID_6061)
+		return 16;
+
+	/* The following devices have 6-bit identifiers for 64 databases */
+	if (ps->id == PORT_SWITCH_ID_6065)
+		return 64;
+
+	/* The following devices have 8-bit identifiers for 256 databases */
+	if (mv88e6xxx_6095_family(ds) || mv88e6xxx_6185_family(ds))
+		return 256;
+
+	/* The following devices have 12-bit identifiers for 4096 databases */
+	if (mv88e6xxx_6097_family(ds) || mv88e6xxx_6165_family(ds) ||
+	    mv88e6xxx_6351_family(ds) || mv88e6xxx_6352_family(ds))
+		return 4096;
+
+	return 0;
+}
+
+static bool mv88e6xxx_has_fid_reg(struct dsa_switch *ds)
+{
+	/* Does the device have dedicated FID registers for ATU and VTU ops? */
+	if (mv88e6xxx_6097_family(ds) || mv88e6xxx_6165_family(ds) ||
+	    mv88e6xxx_6351_family(ds) || mv88e6xxx_6352_family(ds))
+		return true;
+
+	return false;
+}
+
+static bool mv88e6xxx_has_stu(struct dsa_switch *ds)
+{
+	/* Does the device have STU and dedicated SID registers for VTU ops? */
+	if (mv88e6xxx_6097_family(ds) || mv88e6xxx_6165_family(ds) ||
+	    mv88e6xxx_6351_family(ds) || mv88e6xxx_6352_family(ds))
+		return true;
+
 	return false;
 }
 
@@ -951,9 +989,29 @@ out:
 	return ret;
 }
 
-static int _mv88e6xxx_atu_cmd(struct dsa_switch *ds, u16 cmd)
+static int _mv88e6xxx_atu_cmd(struct dsa_switch *ds, u16 fid, u16 cmd)
 {
 	int ret;
+
+	if (mv88e6xxx_has_fid_reg(ds)) {
+		ret = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_ATU_FID, fid);
+		if (ret < 0)
+			return ret;
+	} else if (mv88e6xxx_num_databases(ds) == 256) {
+		/* ATU DBNum[7:4] are located in ATU Control 15:12 */
+		ret = _mv88e6xxx_reg_read(ds, REG_GLOBAL, GLOBAL_ATU_CONTROL);
+		if (ret < 0)
+			return ret;
+
+		ret = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_ATU_CONTROL,
+					   (ret & 0xfff) |
+					   ((fid << 8) & 0xf000));
+		if (ret < 0)
+			return ret;
+
+		/* ATU DBNum[3:0] are located in ATU Operation 3:0 */
+		cmd |= fid & 0xf;
+	}
 
 	ret = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_ATU_OP, cmd);
 	if (ret < 0)
@@ -1001,11 +1059,6 @@ static int _mv88e6xxx_atu_flush_move(struct dsa_switch *ds,
 		return err;
 
 	if (entry->fid) {
-		err = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_ATU_FID,
-					   entry->fid);
-		if (err)
-			return err;
-
 		op = static_too ? GLOBAL_ATU_OP_FLUSH_MOVE_ALL_DB :
 			GLOBAL_ATU_OP_FLUSH_MOVE_NON_STATIC_DB;
 	} else {
@@ -1013,7 +1066,7 @@ static int _mv88e6xxx_atu_flush_move(struct dsa_switch *ds,
 			GLOBAL_ATU_OP_FLUSH_MOVE_NON_STATIC;
 	}
 
-	return _mv88e6xxx_atu_cmd(ds, op);
+	return _mv88e6xxx_atu_cmd(ds, entry->fid, op);
 }
 
 static int _mv88e6xxx_atu_flush(struct dsa_switch *ds, u16 fid, bool static_too)
@@ -1134,7 +1187,7 @@ static int _mv88e6xxx_port_based_vlan_map(struct dsa_switch *ds, int port)
 	return _mv88e6xxx_reg_write(ds, REG_PORT(port), PORT_BASE_VLAN, reg);
 }
 
-int mv88e6xxx_port_stp_update(struct dsa_switch *ds, int port, u8 state)
+void mv88e6xxx_port_stp_state_set(struct dsa_switch *ds, int port, u8 state)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 	int stp_state;
@@ -1156,14 +1209,12 @@ int mv88e6xxx_port_stp_update(struct dsa_switch *ds, int port, u8 state)
 		break;
 	}
 
-	/* mv88e6xxx_port_stp_update may be called with softirqs disabled,
+	/* mv88e6xxx_port_stp_state_set may be called with softirqs disabled,
 	 * so we can not update the port state directly but need to schedule it.
 	 */
 	ps->ports[port].state = stp_state;
 	set_bit(port, ps->port_state_update_mask);
 	schedule_work(&ps->bridge_work);
-
-	return 0;
 }
 
 static int _mv88e6xxx_port_pvid(struct dsa_switch *ds, int port, u16 *new,
@@ -1321,15 +1372,27 @@ static int _mv88e6xxx_vtu_getnext(struct dsa_switch *ds,
 		if (ret < 0)
 			return ret;
 
-		if (mv88e6xxx_6097_family(ds) || mv88e6xxx_6165_family(ds) ||
-		    mv88e6xxx_6351_family(ds) || mv88e6xxx_6352_family(ds)) {
+		if (mv88e6xxx_has_fid_reg(ds)) {
 			ret = _mv88e6xxx_reg_read(ds, REG_GLOBAL,
 						  GLOBAL_VTU_FID);
 			if (ret < 0)
 				return ret;
 
 			next.fid = ret & GLOBAL_VTU_FID_MASK;
+		} else if (mv88e6xxx_num_databases(ds) == 256) {
+			/* VTU DBNum[7:4] are located in VTU Operation 11:8, and
+			 * VTU DBNum[3:0] are located in VTU Operation 3:0
+			 */
+			ret = _mv88e6xxx_reg_read(ds, REG_GLOBAL,
+						  GLOBAL_VTU_OP);
+			if (ret < 0)
+				return ret;
 
+			next.fid = (ret & 0xf00) >> 4;
+			next.fid |= ret & 0xf;
+		}
+
+		if (mv88e6xxx_has_stu(ds)) {
 			ret = _mv88e6xxx_reg_read(ds, REG_GLOBAL,
 						  GLOBAL_VTU_SID);
 			if (ret < 0)
@@ -1397,6 +1460,7 @@ unlock:
 static int _mv88e6xxx_vtu_loadpurge(struct dsa_switch *ds,
 				    struct mv88e6xxx_vtu_stu_entry *entry)
 {
+	u16 op = GLOBAL_VTU_OP_VTU_LOAD_PURGE;
 	u16 reg = 0;
 	int ret;
 
@@ -1412,17 +1476,24 @@ static int _mv88e6xxx_vtu_loadpurge(struct dsa_switch *ds,
 	if (ret < 0)
 		return ret;
 
-	if (mv88e6xxx_6097_family(ds) || mv88e6xxx_6165_family(ds) ||
-	    mv88e6xxx_6351_family(ds) || mv88e6xxx_6352_family(ds)) {
+	if (mv88e6xxx_has_stu(ds)) {
 		reg = entry->sid & GLOBAL_VTU_SID_MASK;
 		ret = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_VTU_SID, reg);
 		if (ret < 0)
 			return ret;
+	}
 
+	if (mv88e6xxx_has_fid_reg(ds)) {
 		reg = entry->fid & GLOBAL_VTU_FID_MASK;
 		ret = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_VTU_FID, reg);
 		if (ret < 0)
 			return ret;
+	} else if (mv88e6xxx_num_databases(ds) == 256) {
+		/* VTU DBNum[7:4] are located in VTU Operation 11:8, and
+		 * VTU DBNum[3:0] are located in VTU Operation 3:0
+		 */
+		op |= (entry->fid & 0xf0) << 8;
+		op |= entry->fid & 0xf;
 	}
 
 	reg = GLOBAL_VTU_VID_VALID;
@@ -1432,7 +1503,7 @@ loadpurge:
 	if (ret < 0)
 		return ret;
 
-	return _mv88e6xxx_vtu_cmd(ds, GLOBAL_VTU_OP_VTU_LOAD_PURGE);
+	return _mv88e6xxx_vtu_cmd(ds, op);
 }
 
 static int _mv88e6xxx_stu_getnext(struct dsa_switch *ds, u8 sid,
@@ -1511,8 +1582,16 @@ loadpurge:
 static int _mv88e6xxx_port_fid(struct dsa_switch *ds, int port, u16 *new,
 			       u16 *old)
 {
+	u16 upper_mask;
 	u16 fid;
 	int ret;
+
+	if (mv88e6xxx_num_databases(ds) == 4096)
+		upper_mask = 0xff;
+	else if (mv88e6xxx_num_databases(ds) == 256)
+		upper_mask = 0xf;
+	else
+		return -EOPNOTSUPP;
 
 	/* Port's default FID bits 3:0 are located in reg 0x06, offset 12 */
 	ret = _mv88e6xxx_reg_read(ds, REG_PORT(port), PORT_BASE_VLAN);
@@ -1536,11 +1615,11 @@ static int _mv88e6xxx_port_fid(struct dsa_switch *ds, int port, u16 *new,
 	if (ret < 0)
 		return ret;
 
-	fid |= (ret & PORT_CONTROL_1_FID_11_4_MASK) << 4;
+	fid |= (ret & upper_mask) << 4;
 
 	if (new) {
-		ret &= ~PORT_CONTROL_1_FID_11_4_MASK;
-		ret |= (*new >> 4) & PORT_CONTROL_1_FID_11_4_MASK;
+		ret &= ~upper_mask;
+		ret |= (*new >> 4) & upper_mask;
 
 		ret = _mv88e6xxx_reg_write(ds, REG_PORT(port), PORT_CONTROL_1,
 					   ret);
@@ -1604,7 +1683,7 @@ static int _mv88e6xxx_fid_new(struct dsa_switch *ds, u16 *fid)
 	 * databases are not needed. Return the next positive available.
 	 */
 	*fid = find_next_zero_bit(fid_bitmap, MV88E6XXX_N_FID, 1);
-	if (unlikely(*fid == MV88E6XXX_N_FID))
+	if (unlikely(*fid >= mv88e6xxx_num_databases(ds)))
 		return -ENOSPC;
 
 	/* Clear the database */
@@ -1823,31 +1902,27 @@ static int _mv88e6xxx_port_vlan_add(struct dsa_switch *ds, int port, u16 vid,
 	return _mv88e6xxx_vtu_loadpurge(ds, &vlan);
 }
 
-int mv88e6xxx_port_vlan_add(struct dsa_switch *ds, int port,
-			    const struct switchdev_obj_port_vlan *vlan,
-			    struct switchdev_trans *trans)
+void mv88e6xxx_port_vlan_add(struct dsa_switch *ds, int port,
+			     const struct switchdev_obj_port_vlan *vlan,
+			     struct switchdev_trans *trans)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 	bool untagged = vlan->flags & BRIDGE_VLAN_INFO_UNTAGGED;
 	bool pvid = vlan->flags & BRIDGE_VLAN_INFO_PVID;
 	u16 vid;
-	int err = 0;
 
 	mutex_lock(&ps->smi_mutex);
 
-	for (vid = vlan->vid_begin; vid <= vlan->vid_end; ++vid) {
-		err = _mv88e6xxx_port_vlan_add(ds, port, vid, untagged);
-		if (err)
-			goto unlock;
-	}
+	for (vid = vlan->vid_begin; vid <= vlan->vid_end; ++vid)
+		if (_mv88e6xxx_port_vlan_add(ds, port, vid, untagged))
+			netdev_err(ds->ports[port], "failed to add VLAN %d%c\n",
+				   vid, untagged ? 'u' : 't');
 
-	/* no PVID with ranges, otherwise it's a bug */
-	if (pvid)
-		err = _mv88e6xxx_port_pvid_set(ds, port, vlan->vid_end);
-unlock:
+	if (pvid && _mv88e6xxx_port_pvid_set(ds, port, vlan->vid_end))
+		netdev_err(ds->ports[port], "failed to set PVID %d\n",
+			   vlan->vid_end);
+
 	mutex_unlock(&ps->smi_mutex);
-
-	return err;
 }
 
 static int _mv88e6xxx_port_vlan_del(struct dsa_switch *ds, int port, u16 vid)
@@ -1965,11 +2040,7 @@ static int _mv88e6xxx_atu_load(struct dsa_switch *ds,
 	if (ret < 0)
 		return ret;
 
-	ret = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_ATU_FID, entry->fid);
-	if (ret < 0)
-		return ret;
-
-	return _mv88e6xxx_atu_cmd(ds, GLOBAL_ATU_OP_LOAD_DB);
+	return _mv88e6xxx_atu_cmd(ds, entry->fid, GLOBAL_ATU_OP_LOAD_DB);
 }
 
 static int _mv88e6xxx_port_fdb_load(struct dsa_switch *ds, int port,
@@ -2009,21 +2080,19 @@ int mv88e6xxx_port_fdb_prepare(struct dsa_switch *ds, int port,
 	return 0;
 }
 
-int mv88e6xxx_port_fdb_add(struct dsa_switch *ds, int port,
-			   const struct switchdev_obj_port_fdb *fdb,
-			   struct switchdev_trans *trans)
+void mv88e6xxx_port_fdb_add(struct dsa_switch *ds, int port,
+			    const struct switchdev_obj_port_fdb *fdb,
+			    struct switchdev_trans *trans)
 {
 	int state = is_multicast_ether_addr(fdb->addr) ?
 		GLOBAL_ATU_DATA_STATE_MC_STATIC :
 		GLOBAL_ATU_DATA_STATE_UC_STATIC;
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
-	int ret;
 
 	mutex_lock(&ps->smi_mutex);
-	ret = _mv88e6xxx_port_fdb_load(ds, port, fdb->addr, fdb->vid, state);
+	if (_mv88e6xxx_port_fdb_load(ds, port, fdb->addr, fdb->vid, state))
+		netdev_err(ds->ports[port], "failed to load MAC address\n");
 	mutex_unlock(&ps->smi_mutex);
-
-	return ret;
 }
 
 int mv88e6xxx_port_fdb_del(struct dsa_switch *ds, int port,
@@ -2052,11 +2121,7 @@ static int _mv88e6xxx_atu_getnext(struct dsa_switch *ds, u16 fid,
 	if (ret < 0)
 		return ret;
 
-	ret = _mv88e6xxx_reg_write(ds, REG_GLOBAL, GLOBAL_ATU_FID, fid);
-	if (ret < 0)
-		return ret;
-
-	ret = _mv88e6xxx_atu_cmd(ds, GLOBAL_ATU_OP_GET_NEXT_DB);
+	ret = _mv88e6xxx_atu_cmd(ds, fid, GLOBAL_ATU_OP_GET_NEXT_DB);
 	if (ret < 0)
 		return ret;
 
@@ -2227,7 +2292,7 @@ static void mv88e6xxx_bridge_work(struct work_struct *work)
 	int port;
 
 	ps = container_of(work, struct mv88e6xxx_priv_state, bridge_work);
-	ds = ((struct dsa_switch *)ps) - 1;
+	ds = ps->ds;
 
 	mutex_lock(&ps->smi_mutex);
 
@@ -2420,7 +2485,8 @@ static int mv88e6xxx_setup_port(struct dsa_switch *ds, int port)
 	reg = 0;
 	if (mv88e6xxx_6352_family(ds) || mv88e6xxx_6351_family(ds) ||
 	    mv88e6xxx_6165_family(ds) || mv88e6xxx_6097_family(ds) ||
-	    mv88e6xxx_6095_family(ds) || mv88e6xxx_6320_family(ds))
+	    mv88e6xxx_6095_family(ds) || mv88e6xxx_6320_family(ds) ||
+	    mv88e6xxx_6185_family(ds))
 		reg = PORT_CONTROL_2_MAP_DA;
 
 	if (mv88e6xxx_6352_family(ds) || mv88e6xxx_6351_family(ds) ||
@@ -2574,6 +2640,7 @@ int mv88e6xxx_setup_common(struct dsa_switch *ds)
 {
 	struct mv88e6xxx_priv_state *ps = ds_to_priv(ds);
 
+	ps->ds = ds;
 	mutex_init(&ps->smi_mutex);
 
 	ps->id = REG_READ(REG_PORT(0), PORT_SWITCH_ID) & 0xfff0;
@@ -2977,11 +3044,10 @@ int mv88e6xxx_get_temp_alarm(struct dsa_switch *ds, bool *alarm)
 }
 #endif /* CONFIG_NET_DSA_HWMON */
 
-char *mv88e6xxx_lookup_name(struct device *host_dev, int sw_addr,
-			    const struct mv88e6xxx_switch_id *table,
-			    unsigned int num)
+static char *mv88e6xxx_lookup_name(struct mii_bus *bus, int sw_addr,
+				   const struct mv88e6xxx_switch_id *table,
+				   unsigned int num)
 {
-	struct mii_bus *bus = dsa_host_dev_to_mii_bus(host_dev);
 	int i, ret;
 
 	if (!bus)
@@ -2999,7 +3065,8 @@ char *mv88e6xxx_lookup_name(struct device *host_dev, int sw_addr,
 	/* Look up only the product number */
 	for (i = 0; i < num; ++i) {
 		if (table[i].id == (ret & PORT_SWITCH_ID_PROD_NUM_MASK)) {
-			dev_warn(host_dev, "unknown revision %d, using base switch 0x%x\n",
+			dev_warn(&bus->dev,
+				 "unknown revision %d, using base switch 0x%x\n",
 				 ret & PORT_SWITCH_ID_REV_MASK,
 				 ret & PORT_SWITCH_ID_PROD_NUM_MASK);
 			return table[i].name;
@@ -3007,6 +3074,32 @@ char *mv88e6xxx_lookup_name(struct device *host_dev, int sw_addr,
 	}
 
 	return NULL;
+}
+
+char *mv88e6xxx_drv_probe(struct device *dsa_dev, struct device *host_dev,
+			  int sw_addr, void **priv,
+			  const struct mv88e6xxx_switch_id *table,
+			  unsigned int num)
+{
+	struct mv88e6xxx_priv_state *ps;
+	struct mii_bus *bus = dsa_host_dev_to_mii_bus(host_dev);
+	char *name;
+
+	if (!bus)
+		return NULL;
+
+	name = mv88e6xxx_lookup_name(bus, sw_addr, table, num);
+	if (name) {
+		ps = devm_kzalloc(dsa_dev, sizeof(*ps), GFP_KERNEL);
+		if (!ps)
+			return NULL;
+		*priv = ps;
+		ps->bus = dsa_host_dev_to_mii_bus(host_dev);
+		if (!ps->bus)
+			return NULL;
+		ps->sw_addr = sw_addr;
+	}
+	return name;
 }
 
 static int __init mv88e6xxx_init(void)
