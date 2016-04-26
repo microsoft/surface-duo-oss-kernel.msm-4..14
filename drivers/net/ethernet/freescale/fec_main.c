@@ -168,7 +168,12 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
 
 /* The FEC stores dest/src/type/one or two vlans, data, and checksum for
 *  receive packets. */
+#ifndef ENET_ALIGN_FRAME_PAYLOAD
 #define PKT_MAXBUF_SIZE		1526
+#else
+/* Two bytes more for the alignment */
+#define PKT_MAXBUF_SIZE		1528
+#endif
 #define PKT_MINBUF_SIZE		64
 #define PKT_MAXBLR_SIZE		1536
 
@@ -1314,7 +1319,12 @@ fec_enet_rx_queue(struct net_device *ndev, int budget, u16 queue_id)
 
 		/* Process the incoming frame. */
 		ndev->stats.rx_packets++;
+		#ifdef ENET_ALIGN_FRAME_PAYLOAD
+		/* Remove two bytes of padding from the length*/
+		pkt_len = bdp->cbd_datlen - 2U;
+		#else
 		pkt_len = bdp->cbd_datlen;
+		#endif
 		ndev->stats.rx_bytes += pkt_len;
 
 		index = fec_enet_get_bd_index(rxq->q.bd_base, bdp, fep);
@@ -1343,13 +1353,18 @@ fec_enet_rx_queue(struct net_device *ndev, int budget, u16 queue_id)
 			   in front of the received frame to make the frame
 			   payload aligned on 32-bit boundary, now we must
 			   remove these bytes */
-			skb_reserve(skb, 2);
-			#endif
+			if (!need_swap)
+				memcpy(skb_new->data, (skb)->data + 2, pkt_len);
+			else
+				swap_buffer2(skb_new->data, (skb)->data + 2,
+					     pkt_len);
+			#else
 			if (!need_swap)
 				memcpy(skb_new->data, (skb)->data, pkt_len);
 			else
 				swap_buffer2(skb_new->data, (skb)->data,
 					     pkt_len);
+			#endif
 			skb = skb_new;
 		} else {
 			/* Allocate a replacement for the receive buffer */
