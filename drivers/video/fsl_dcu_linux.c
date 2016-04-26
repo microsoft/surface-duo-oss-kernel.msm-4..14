@@ -14,6 +14,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/interrupt.h>
 #include <linux/fb.h>
+#include <linux/io.h>
 #include <linux/clk.h>
 #include <linux/of_platform.h>
 #include <linux/uaccess.h>
@@ -35,6 +36,7 @@
 #include <linux/of_gpio.h>
 #include <linux/of_net.h>
 #include <linux/cdev.h>
+#include <linux/videodev2.h>
 #include <asm/current.h>
 #include <asm/segment.h>
 #include <asm/uaccess.h>
@@ -42,6 +44,7 @@
 #include "fsl_dcu_regs.h"
 #include "fsl_dcu_regmacros.h"
 #include "fsl_dcu.h"
+#include "fsl_dcu_linux.h"
 #include "fsl_fb.h"
 
 #include <uapi/video/fsl_dcu_ioctl.h>
@@ -87,17 +90,9 @@ unsigned long wb_phys_ptr;
 #define LDB_CH0MOD_EN		(1 << 0)
 
 /**********************************************************
- * External function definitions
- **********************************************************/
-extern void __iomem *devm_ioremap(struct device *dev, resource_size_t offset,
-		resource_size_t size);
-extern void __iomem *devm_ioremap_nocache(struct device *dev,
-		resource_size_t offset, resource_size_t size);
-
-/**********************************************************
  * Macros for tracing
  **********************************************************/
-//#define __LOG_TRACE__ 1
+/* #define __LOG_TRACE__ 1 */
 
 #ifdef __LOG_TRACE__
 	#define __TRACE__ printk(KERN_INFO "[ fsl-DCU ] %s\n", __func__);
@@ -272,20 +267,28 @@ int fsl_dcu_config_layer(struct fb_info *info)
 	DCU_SetLayerPosition(0, mfbi->index, &layer_pos);
 	DCU_SetLayerBuffAddr(0, mfbi->index, info->fix.smem_start);
 
-	switch (var->bits_per_pixel) {
-	case 16:
-		DCU_SetLayerBPP(0, mfbi->index, DCU_BPP_16);
-		break;
-	case 24:
-		DCU_SetLayerBPP(0, mfbi->index, DCU_BPP_24);
-		break;
-	case 32:
-		DCU_SetLayerBPP(0, mfbi->index, DCU_BPP_32);
-		break;
-	default:
-		dev_err(dcufb->dev, "unsupported color depth: %u\n",
-			var->bits_per_pixel);
-		return -EINVAL;
+	if ((info->fix.capabilities & FB_CAP_FOURCC) &&
+		(var->grayscale == V4L2_PIX_FMT_UYVY)) {
+		DCU_SetLayerBPP(0, mfbi->index, DCU_BPP_YCbCr422);
+	} else {
+		switch (var->bits_per_pixel) {
+		case 16:
+			DCU_SetLayerBPP(0, mfbi->index, DCU_BPP_16);
+			break;
+
+		case 24:
+			DCU_SetLayerBPP(0, mfbi->index, DCU_BPP_24);
+			break;
+
+		case 32:
+			DCU_SetLayerBPP(0, mfbi->index, DCU_BPP_32);
+			break;
+
+		default:
+			dev_err(dcufb->dev, "unsupported color depth: %u\n",
+				var->bits_per_pixel);
+			return -EINVAL;
+		}
 	}
 
 	DCU_SetLayerAlphaVal(0, mfbi->index, mfbi->alpha);
@@ -382,7 +385,6 @@ int fsl_dcu_map_vram(struct fb_info *info)
 	return 0;
 }
 EXPORT_SYMBOL_GPL(fsl_dcu_map_vram);
-
 
 /**********************************************************
  * FUNCTION: fsl_dcu_unmap_vram
@@ -507,7 +509,8 @@ int fsl_init_ldb(struct device_node *np, DCU_DISPLAY_TYPE display_type)
 /**********************************************************
  * FUNCTION: fsl_turn_panel_on
  **********************************************************/
-int fsl_turn_panel_on(struct device_node *np, DCU_DISPLAY_TYPE display_type)
+int fsl_turn_panel_on(struct device_node *np,
+	DCU_DISPLAY_TYPE display_type)
 {
 	int err = 0;
 	int panel_data_gpio;
@@ -600,6 +603,62 @@ void print_display_modes(struct fb_monspecs monspecs)
 }
 
 /**********************************************************
+ * FUNCTION: fsl_dcu_configure_display
+ * Set the parameters of a DCU-managed display
+ **********************************************************/
+void fsl_dcu_configure_display(struct IOCTL_DISPLAY_CFG *display_cfg)
+{
+	Dcu_LCD_Para_t dcu_lcd_timings;
+	struct fb_monspecs monspecs;
+	int i;
+
+	/* set configuration specific settings */
+	dcu_lcd_timings.mDeltaX = display_cfg->hactive;
+	dcu_lcd_timings.mDeltaY = display_cfg->vactive;
+	dcu_lcd_timings.mHorzBP = display_cfg->hback_porch;
+	dcu_lcd_timings.mHorzFP = display_cfg->hfront_porch;
+	dcu_lcd_timings.mHorzPW = display_cfg->hsync_len;
+	dcu_lcd_timings.mVertBP = display_cfg->vback_porch;
+	dcu_lcd_timings.mVertPW = display_cfg->vsync_len;
+	dcu_lcd_timings.mVertFP = display_cfg->vfront_porch;
+	dcu_lcd_timings.mSyncPol = 3;
+	dcu_lcd_timings.mVertFq = 60;
+	dcu_lcd_timings.mDivFactor = dcu_clk_val / display_cfg->clock_freq;
+
+	if (((display_cfg->hsync_len + display_cfg->vsync_len) == 0) &&
+		(display_cfg->disp_type == IOCTL_DISPLAY_HDMI)) {
+		/* set hdmi state */
+		enable_hdmi_display("");
+
+		/* query HDMI IP for monitor specs through DDC/EDID */
+		/* FIXME: avoid getting EDID info through HDMI direct call*/
+		monspecs = sii902x_get_monspecs();
+
+		/* search mode and set */
+		for (i = 0; i < monspecs.modedb_len; i++) {
+			if ((monspecs.modedb[i].xres == dcu_lcd_timings.mDeltaX) &&
+			    (monspecs.modedb[i].yres == dcu_lcd_timings.mDeltaY)) {
+				dcu_lcd_timings.mHorzBP = monspecs.modedb[i].left_margin;
+				dcu_lcd_timings.mHorzFP = monspecs.modedb[i].right_margin;
+				dcu_lcd_timings.mHorzPW = monspecs.modedb[i].hsync_len;
+				dcu_lcd_timings.mVertBP = monspecs.modedb[i].upper_margin;
+				dcu_lcd_timings.mVertPW = monspecs.modedb[i].vsync_len;
+				dcu_lcd_timings.mVertFP = monspecs.modedb[i].lower_margin;
+				dcu_lcd_timings.mSyncPol = 3;
+				dcu_lcd_timings.mVertFq = monspecs.modedb[i].refresh;
+				break;
+			}
+		}
+		if ((dcu_lcd_timings.mHorzPW + dcu_lcd_timings.mVertPW) == 0)
+			dev_warn(&dcu_pdev->dev, "no match for requested resolution in EDID\n");
+	}
+
+	/* set display configuration */
+	fsl_dcu_display(display_cfg->disp_type, dcu_lcd_timings);
+}
+EXPORT_SYMBOL_GPL(fsl_dcu_configure_display);
+
+/**********************************************************
  * FUNCTION: device_ioctl
  * DCU Linux IOCTL operations
  **********************************************************/
@@ -607,8 +666,7 @@ long device_ioctl(struct file *filp,
 		unsigned int ioctl_cmd,
 		unsigned long arg)
 {
-	int ret, i;
-	Dcu_LCD_Para_t dcu_lcd_timings;
+	int ret;
 	struct fb_monspecs monspecs;
 
 	struct IOCTL_LAYER_POS layer_pos;
@@ -754,51 +812,7 @@ long device_ioctl(struct file *filp,
 				(struct IOCTL_DISPLAY_CFG*)arg,
 				sizeof(display_cfg));
 
-			/* set configuration specific settings */
-			dcu_lcd_timings.mDeltaX = display_cfg.hactive;
-			dcu_lcd_timings.mDeltaY = display_cfg.vactive;
-			dcu_lcd_timings.mHorzBP = display_cfg.hback_porch;
-			dcu_lcd_timings.mHorzFP = display_cfg.hfront_porch;
-			dcu_lcd_timings.mHorzPW = display_cfg.hsync_len;
-			dcu_lcd_timings.mVertBP = display_cfg.vback_porch;
-			dcu_lcd_timings.mVertPW = display_cfg.vsync_len;
-			dcu_lcd_timings.mVertFP = display_cfg.vfront_porch;
-			dcu_lcd_timings.mSyncPol= 3;
-			dcu_lcd_timings.mVertFq = 60;
-			dcu_lcd_timings.mDivFactor = dcu_clk_val / display_cfg.clock_freq;
-
-			if(((display_cfg.hsync_len + display_cfg.vsync_len) == 0) &&
-					(display_cfg.disp_type == IOCTL_DISPLAY_HDMI))
-			{
-				/* set hdmi state */
-				enable_hdmi_display("");
-
-				/* query HDMI IP for monitor specs through DDC/EDID */
-				/* FIXME: avoid getting EDID info through HDMI direct call*/ 
-				monspecs = sii902x_get_monspecs();
-
-				/* search mode and set */
-				for(i=0; i<monspecs.modedb_len; i++)
-					if((monspecs.modedb[i].xres == dcu_lcd_timings.mDeltaX) &&
-							(monspecs.modedb[i].yres == dcu_lcd_timings.mDeltaY))
-					{
-						dcu_lcd_timings.mHorzBP = monspecs.modedb[i].left_margin;
-						dcu_lcd_timings.mHorzFP = monspecs.modedb[i].right_margin;
-						dcu_lcd_timings.mHorzPW = monspecs.modedb[i].hsync_len;
-						dcu_lcd_timings.mVertBP = monspecs.modedb[i].upper_margin;
-						dcu_lcd_timings.mVertPW = monspecs.modedb[i].vsync_len;
-						dcu_lcd_timings.mVertFP = monspecs.modedb[i].lower_margin;
-						dcu_lcd_timings.mSyncPol= 3;
-						dcu_lcd_timings.mVertFq = monspecs.modedb[i].refresh;
-						break;
-					}
-				if((dcu_lcd_timings.mHorzPW + dcu_lcd_timings.mVertPW) == 0)
-					printk(KERN_INFO "no match for requested resolution in EDID\n");
-
-			}
-
-			/* set display configuration */
-			fsl_dcu_display(display_cfg.disp_type, dcu_lcd_timings);
+			fsl_dcu_configure_display(&display_cfg);
 		}
 		break;
 	}
@@ -837,7 +851,8 @@ static ssize_t fsl_dcu_read(struct file *fil, char* buff,
 	else
 		bytes_read = max_bytes;
 
-	bytes_read = bytes_read - copy_to_user(buff, wb_vir_ptr + (*off), bytes_read);
+	bytes_read = bytes_read -
+		     copy_to_user(buff, wb_vir_ptr + (*off), bytes_read);
 	*off = *off + bytes_read;
 
 	return bytes_read;

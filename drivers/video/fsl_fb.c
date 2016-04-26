@@ -21,8 +21,10 @@
 #include <video/of_display_timing.h>
 #include <video/videomode.h>
 #include <linux/pm_runtime.h>
+#include <linux/videodev2.h>
 
 #include "fsl_dcu.h"
+#include "fsl_dcu_linux.h"
 #include "fsl_fb.h"
 
 #define DRIVER_NAME	"fsl_fb"
@@ -30,19 +32,6 @@
 #ifndef __linux__
 	#error "Error! Not a Linux platform!".
 #endif
-
-/**********************************************************
- * External routines defined in fsl-DCU driver
- **********************************************************/
-extern int fsl_dcu_config_layer(struct fb_info *info);
-extern int fsl_dcu_reset_layer(struct fb_info *info);
-extern int fsl_dcu_map_vram(struct fb_info *info);
-extern void fsl_dcu_unmap_vram(struct fb_info *info);
-extern int fsl_dcu_set_layer(struct fb_info *info);
-extern struct dcu_fb_data * fsl_dcu_get_dcufb(void);
-extern struct platform_device* fsl_dcu_get_pdev(void);
-extern int fsl_dcu_num_layers(void);
-extern int fsl_dcu_init_status(void);
 
 /**********************************************************
  * Various color formats
@@ -59,7 +48,7 @@ extern int fsl_dcu_init_status(void);
 /**********************************************************
  * Macros for tracing
  **********************************************************/
-//#define __LOG_TRACE__ 1
+/* #define __LOG_TRACE__ 1 */
 
 #ifdef __LOG_TRACE__
 #define __TRACE__ printk(KERN_INFO "[ fsl-FB ] %s\n", __func__);
@@ -86,6 +75,20 @@ static int fsl_fb_check_var(struct fb_var_screeninfo *var,
 
 	__TRACE__;
 
+	/* Check display configuration parameters */
+	if ((var->pixclock == info->var.pixclock) &&
+		(var->upper_margin == info->var.upper_margin) &&
+		(var->lower_margin == info->var.lower_margin) &&
+		(var->left_margin == info->var.left_margin) &&
+		(var->right_margin == info->var.right_margin) &&
+		(var->hsync_len == info->var.hsync_len) &&
+		(var->vsync_len == info->var.vsync_len)) {
+		/* Ensure display configuration will not be changed */
+		var->pixclock = var->upper_margin = var->lower_margin =
+		var->left_margin = var->right_margin = var->hsync_len =
+		var->vsync_len = 0;
+	}
+
 	if (var->xres_virtual < var->xres)
 		var->xres_virtual = var->xres;
 	if (var->yres_virtual < var->yres)
@@ -97,62 +100,82 @@ static int fsl_fb_check_var(struct fb_var_screeninfo *var,
 	if (var->yoffset + info->var.yres > info->var.yres_virtual)
 		var->yoffset = info->var.yres_virtual - info->var.yres;
 
-	switch (var->bits_per_pixel) {
-	case 16:
-		var->red.length = 5;
-		var->red.offset = 11;
-		var->red.msb_right = 0;
+	/* Check FOURCC */
+	if ((info->fix.capabilities & FB_CAP_FOURCC) &&
+		(var->grayscale > 1)) {
+		switch (var->grayscale) {
+		case V4L2_PIX_FMT_UYVY:
+			dev_info(dcufb->dev, "switch to UYVY format\n");
+			break;
 
-		var->green.length = 6;
-		var->green.offset = 5;
-		var->green.msb_right = 0;
+		default:
+			dev_err(dcufb->dev,
+				"unsupported FOURCC color format: %u\n",
+				var->grayscale);
+			return -EINVAL;
+		}
+	} else {
+		switch (var->bits_per_pixel) {
+		case 16:
+			var->red.length = 5;
+			var->red.offset = 11;
+			var->red.msb_right = 0;
 
-		var->blue.length = 5;
-		var->blue.offset = 0;
-		var->blue.msb_right = 0;
+			var->green.length = 6;
+			var->green.offset = 5;
+			var->green.msb_right = 0;
 
-		var->transp.length = 0;
-		var->transp.offset = 0;
-		var->transp.msb_right = 0;
-		break;
-	case 24:
-		var->red.length = 8;
-		var->red.offset = 16;
-		var->red.msb_right = 0;
+			var->blue.length = 5;
+			var->blue.offset = 0;
+			var->blue.msb_right = 0;
 
-		var->green.length = 8;
-		var->green.offset = 8;
-		var->green.msb_right = 0;
+			var->transp.length = 0;
+			var->transp.offset = 0;
+			var->transp.msb_right = 0;
+			break;
 
-		var->blue.length = 8;
-		var->blue.offset = 0;
-		var->blue.msb_right = 0;
+		case 24:
+			var->red.length = 8;
+			var->red.offset = 16;
+			var->red.msb_right = 0;
 
-		var->transp.length = 0;
-		var->transp.offset = 0;
-		var->transp.msb_right = 0;
-		break;
-	case 32:
-		var->red.length = 8;
-		var->red.offset = 16;
-		var->red.msb_right = 0;
+			var->green.length = 8;
+			var->green.offset = 8;
+			var->green.msb_right = 0;
 
-		var->green.length = 8;
-		var->green.offset = 8;
-		var->green.msb_right = 0;
+			var->blue.length = 8;
+			var->blue.offset = 0;
+			var->blue.msb_right = 0;
 
-		var->blue.length = 8;
-		var->blue.offset = 0;
-		var->blue.msb_right = 0;
+			var->transp.length = 0;
+			var->transp.offset = 0;
+			var->transp.msb_right = 0;
+			break;
 
-		var->transp.length = 8;
-		var->transp.offset = 24;
-		var->transp.msb_right = 0;
-		break;
-	default:
-		dev_err(dcufb->dev, "unsupported color depth: %u\n",
-			var->bits_per_pixel);
-		return -EINVAL;
+		case 32:
+			var->red.length = 8;
+			var->red.offset = 16;
+			var->red.msb_right = 0;
+
+			var->green.length = 8;
+			var->green.offset = 8;
+			var->green.msb_right = 0;
+
+			var->blue.length = 8;
+			var->blue.offset = 0;
+			var->blue.msb_right = 0;
+
+			var->transp.length = 8;
+			var->transp.offset = 24;
+			var->transp.msb_right = 0;
+			break;
+
+		default:
+			dev_err(dcufb->dev,
+				"unsupported color depth: %u\n",
+				var->bits_per_pixel);
+			return -EINVAL;
+		}
 	}
 
 	return 0;
@@ -170,8 +193,13 @@ static int fsl_fb_set_par(struct fb_info *info)
 	struct fb_fix_screeninfo *fix = &info->fix;
 	struct mfb_info *mfbi = info->par;
 	struct dcu_fb_data *dcufb = mfbi->parent;
+	struct IOCTL_DISPLAY_CFG ioctl_display_cfg;
 
 	__TRACE__;
+
+	if ((fix->capabilities & FB_CAP_FOURCC) &&
+		(var->grayscale == V4L2_PIX_FMT_UYVY))
+		var->bits_per_pixel = 16;
 
 	fix->line_length = var->xres_virtual * var->bits_per_pixel / 8;
 	fix->type = FB_TYPE_PACKED_PIXELS;
@@ -193,6 +221,25 @@ static int fsl_fb_set_par(struct fb_info *info)
 			dev_err(dcufb->dev, "unable to allocate fb memory\n");
 			return -ENOMEM;
 		}
+	}
+
+	/* Configure display properties, valid only for HDMI */
+	if ((var->pixclock     != 0) && (var->upper_margin != 0) &&
+		(var->lower_margin != 0) && (var->left_margin  != 0) &&
+		(var->right_margin != 0) && (var->hsync_len    != 0) &&
+		(var->vsync_len    != 0)) {
+		ioctl_display_cfg.disp_type = IOCTL_DISPLAY_HDMI;
+		ioctl_display_cfg.clock_freq = var->pixclock * 1000;
+		ioctl_display_cfg.hactive = var->xres_virtual;
+		ioctl_display_cfg.vactive = var->yres_virtual;
+		ioctl_display_cfg.hback_porch = var->upper_margin;
+		ioctl_display_cfg.hfront_porch = var->lower_margin;
+		ioctl_display_cfg.vback_porch = var->left_margin;
+		ioctl_display_cfg.vfront_porch = var->right_margin;
+		ioctl_display_cfg.hsync_len = var->hsync_len;
+		ioctl_display_cfg.vsync_len = var->vsync_len;
+
+		fsl_dcu_configure_display(&ioctl_display_cfg);
 	}
 
 	fsl_dcu_config_layer(info);
@@ -590,6 +637,7 @@ static int r_init(void)
 		}
 
 		dcufb->fsl_dcu_info[i]->fix.smem_start = 0;
+		dcufb->fsl_dcu_info[i]->fix.capabilities |= FB_CAP_FOURCC;
 
 		mfbi = dcufb->fsl_dcu_info[i]->par;
 
@@ -598,8 +646,8 @@ static int r_init(void)
 		mfbi->alpha = 0xFF;
 		mfbi->blend = 0;
 		mfbi->count = 0;
-		mfbi->x_layer_d = i*20;
-		mfbi->y_layer_d = i*20;
+		mfbi->x_layer_d = 0;
+		mfbi->y_layer_d = 0;
 		mfbi->parent = dcufb;
 
 		ret = fsl_fb_install(dcufb->fsl_dcu_info[i]);
@@ -639,7 +687,7 @@ static void r_cleanup(void)
 	dcufb = fsl_dcu_get_dcufb();
 	dcu_num_layers = fsl_dcu_num_layers();
 
-	if(dcu_num_layers < 1){
+	if (dcu_num_layers < 1) {
 		dev_err(&pdev->dev, "invalid number layers %d",
 				dcu_num_layers);
 		return;
@@ -663,4 +711,3 @@ static void r_cleanup(void)
 MODULE_AUTHOR("Lupescu Grigore");
 MODULE_DESCRIPTION("Freescale fsl-FB driver");
 MODULE_LICENSE("GPL");
-
