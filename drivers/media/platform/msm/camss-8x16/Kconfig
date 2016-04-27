@@ -1,0 +1,9 @@
+#
+# CAMERA SUB-SYTEM
+#
+
+menuconfig MSM_CAMSS_V4L2
+	tristate "Qualcomm MSM 8x16 V4L2 based camera sub-system driver"
+	depends on ARCH_QCOM && VIDEO_V4L2
+#	select ARM64_DMA_USE_IOMMU
+	select VIDEOBUF2_DMA_CONTIG
