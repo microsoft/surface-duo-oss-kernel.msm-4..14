@@ -131,6 +131,7 @@
 		L2_0: l2-cache {
 		      compatible = "cache";
 		      cache-level = <2>;
+		      power-domain = <&l2ccc_0>;
 		};
 
 		idle-states {
