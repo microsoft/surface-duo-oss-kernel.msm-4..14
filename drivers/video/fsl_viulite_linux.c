@@ -781,7 +781,7 @@ int fsl_viulite_probe(struct platform_device *pdev)
 {
 	struct resource *res;
 	struct device_node *viu_n = pdev->dev.of_node;
-	struct viulite_data *viudata, *v_data;
+	struct viulite_data *viudata;
 	void __iomem *viulite_reg_base;
 	struct clk *viulite_clk;
 	uint32_t viulite_irq;
@@ -840,8 +840,6 @@ int fsl_viulite_probe(struct platform_device *pdev)
 	clk_prepare_enable(viulite_clk);
 
 	viudata->clk = viulite_clk;
-	pm_runtime_enable(&pdev->dev);
-	pm_runtime_get_sync(&pdev->dev);
 
 	viulite_irq = platform_get_irq(pdev, 0);
 	if (viulite_irq == 0) {
