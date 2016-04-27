@@ -197,6 +197,16 @@ config HAVE_ARM_SMCCC
 	bool
 
 source "drivers/firmware/broadcom/Kconfig"
+
+config REBOOT_REASON_SRAM
+	bool "Pass reboot reason to bootloader via SRAM"
+	default n
+	help
+	  On many systems there is a desire to provide a reboot reason to
+	  the bootloader, so that the bootloader can boot into a desired
+	  mode on the next boot. This option enables support for communicating
+	  this reason to the bootloader via SRAM
+
 source "drivers/firmware/google/Kconfig"
 source "drivers/firmware/efi/Kconfig"
 
