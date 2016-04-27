@@ -28,7 +28,9 @@
 #include <asm/cputype.h>
 #include <asm/ptrace.h>
 #include <asm/kvm_arm.h>
+#include <asm/kvm_asm.h>
 #include <asm/kvm_coproc.h>
+#include <asm/kvm_mmu.h>
 
 /*
  * ARMv8 Reset Values
@@ -108,4 +110,16 @@ int kvm_reset_vcpu(struct kvm_vcpu *vcpu)
 	kvm_timer_vcpu_reset(vcpu, cpu_vtimer_irq);
 
 	return 0;
+}
+
+extern char __hyp_idmap_text_start[];
+
+phys_addr_t kvm_hyp_reset_entry(void)
+{
+	unsigned long offset;
+
+	offset = (unsigned long)__kvm_hyp_reset
+		 - ((unsigned long)__hyp_idmap_text_start & PAGE_MASK);
+
+	return TRAMPOLINE_VA + offset;
 }
