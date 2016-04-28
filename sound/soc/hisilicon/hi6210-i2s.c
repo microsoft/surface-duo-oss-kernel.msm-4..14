@@ -530,9 +530,9 @@ static int hi6210_i2s_probe(struct platform_device *pdev)
 	dev_set_drvdata(&pdev->dev, i2s);
 
 	i2s->base = devm_ioremap_resource(dev, res);
-	if (i2s->base == NULL) {
+	if (IS_ERR(i2s->base)) {
 		dev_err(&pdev->dev, "ioremap failed\n");
-		ret = -ENOMEM;
+		ret = PTR_ERR(i2s->base);
 		goto err2;
 	}
 
@@ -541,10 +541,10 @@ static int hi6210_i2s_probe(struct platform_device *pdev)
 		ret = -ENODEV;
 		goto err2;
 	}
-	i2s->base_syscon = devm_ioremap_resource(dev, res);
-	if (i2s->base_syscon == NULL) {
+	i2s->base_syscon = devm_ioremap(dev, res->start, resource_size(res));
+	if (IS_ERR(i2s->base_syscon)) {
 		dev_err(&pdev->dev, "ioremap failed\n");
-		ret = -ENOMEM;
+		ret = PTR_ERR(i2s->base_syscon);
 		goto err2;
 	}
 
@@ -554,9 +554,9 @@ static int hi6210_i2s_probe(struct platform_device *pdev)
 		goto err2;
 	}
 	i2s->base_pmctrl = devm_ioremap_resource(dev, res);
-	if (i2s->base_pmctrl == NULL) {
+	if (IS_ERR(i2s->base_pmctrl)) {
 		dev_err(&pdev->dev, "ioremap failed\n");
-		ret = -ENOMEM;
+		ret = PTR_ERR(i2s->base_pmctrl);
 		goto err2;
 	}
 
