@@ -162,6 +162,7 @@ static int mali_clock_on(void)
 static void mali_clock_off(void)
 {
 	clk_disable_unprepare(mali_clk_g3d);
+	clk_disable_unprepare(mali_pclk_g3d);
 }
 
 static int mali_domain_powerup_finish(void)
@@ -216,10 +217,8 @@ static int mali_regulator_enable(void)
 		return stat;
 
 	for (i = 0; i < 50; i++) {
-		unsigned int res = mali_reg_readl(
-			mali_soc_addr_table->soc_ao_sctrl_base_addr,
-			SOC_AO_SCTRL_SC_PW_MTCMOS_STAT0_ADDR(0), 1, 1);
-		if (res)
+		stat = regulator_is_enabled(mali_regulator);
+		if (stat > 0)
 			break;
 		udelay(1);
 	}
@@ -260,8 +259,6 @@ static int mali_regulator_disable(void)
 {
 	mali_reg_writel(mali_soc_addr_table->soc_media_sctrl_base_addr,
 			SOC_MEDIA_SCTRL_SC_MEDIA_RSTEN_ADDR(0), 0, 0, 1);
-	mali_reg_writel(mali_soc_addr_table->soc_media_sctrl_base_addr,
-			SOC_MEDIA_SCTRL_SC_MEDIA_CLKDIS_ADDR(0), 1, 1, 1);
 	mali_reg_writel(mali_soc_addr_table->soc_ao_sctrl_base_addr,
 			SOC_AO_SCTRL_SC_PW_CLKDIS0_ADDR(0), 1, 1, 1);
 	mali_reg_writel(mali_soc_addr_table->soc_ao_sctrl_base_addr,
