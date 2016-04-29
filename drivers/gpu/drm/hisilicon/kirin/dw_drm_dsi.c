@@ -26,6 +26,7 @@
 #include <drm/drm_mipi_dsi.h>
 #include <drm/drm_encoder_slave.h>
 #include <drm/drm_atomic_helper.h>
+#include <drm/drm_panel.h>
 
 #include "dw_dsi_reg.h"
 
@@ -39,6 +40,12 @@
 	container_of(encoder, struct dw_dsi, encoder)
 #define host_to_dsi(host) \
 	container_of(host, struct dw_dsi, host)
+
+enum dsi_output_client {
+	OUT_HDMI = 0,
+	OUT_PANEL,
+	OUT_MAX
+};
 
 struct mipi_phy_params {
 	u32 clk_t_lpx;
@@ -83,6 +90,7 @@ struct dsi_hw_ctx {
 struct dw_dsi {
 	struct drm_encoder encoder;
 	struct drm_bridge *bridge;
+	struct drm_panel *panel;
 	struct mipi_dsi_host host;
 	struct drm_display_mode cur_mode;
 	struct dsi_hw_ctx *ctx;
@@ -838,13 +846,11 @@ static int dsi_bind(struct device *dev, struct device *master, void *data)
 	if (ret)
 		return ret;
 
-	ret = dsi_host_init(dev, dsi);
-	if (ret)
-		return ret;
-
-	ret = dsi_bridge_init(drm_dev, dsi);
-	if (ret)
-		return ret;
+	if (dsi->bridge) {
+		ret = dsi_bridge_init(drm_dev, dsi);
+		if (ret)
+			return ret;
+	}
 
 	return 0;
 }
@@ -859,24 +865,11 @@ static const struct component_ops dsi_ops = {
 	.unbind	= dsi_unbind,
 };
 
-static int dsi_parse_dt(struct platform_device *pdev, struct dw_dsi *dsi)
+static int dsi_parse_bridge_endpoint(struct dw_dsi *dsi,
+				     struct device_node *endpoint)
 {
-	struct dsi_hw_ctx *ctx = dsi->ctx;
-	struct device_node *np = pdev->dev.of_node;
-	struct device_node *endpoint, *bridge_node;
+	struct device_node *bridge_node;
 	struct drm_bridge *bridge;
-	struct resource *res;
-
-	/*
-	 * Get the endpoint node. In our case, dsi has one output port1
-	 * to which the external HDMI bridge is connected.
-	 */
-	endpoint = of_graph_get_endpoint_by_regs(np, 1, -1);
-	if (!endpoint) {
-		DRM_ERROR("no valid endpoint node\n");
-		return -ENODEV;
-	}
-	of_node_put(endpoint);
 
 	bridge_node = of_graph_get_remote_port_parent(endpoint);
 	if (!bridge_node) {
@@ -891,6 +884,88 @@ static int dsi_parse_dt(struct platform_device *pdev, struct dw_dsi *dsi)
 		return -EPROBE_DEFER;
 	}
 	dsi->bridge = bridge;
+
+	return 0;
+}
+
+static int dsi_parse_panel_endpoint(struct dw_dsi *dsi,
+				    struct device_node *endpoint)
+{
+	struct device_node *panel_node;
+	struct drm_panel *panel;
+
+	panel_node = of_graph_get_remote_port_parent(endpoint);
+	if (!panel_node) {
+		DRM_ERROR("no valid panel node\n");
+		return -ENODEV;
+	}
+	of_node_put(panel_node);
+
+	panel = of_drm_find_panel(panel_node);
+	if (!panel) {
+		DRM_DEBUG_DRIVER("skip this panel endpoint.\n");
+		return 0;
+	}
+	dsi->panel = panel;
+
+	return 0;
+}
+
+static int dsi_parse_endpoint(struct dw_dsi *dsi,
+			      struct device_node *np,
+			      enum dsi_output_client client)
+{
+	struct device_node *ep_node;
+	struct of_endpoint ep;
+	int ret = 0;
+
+	if (client == OUT_MAX)
+		return -EINVAL;
+
+	for_each_endpoint_of_node(np, ep_node) {
+		ret = of_graph_parse_endpoint(ep_node, &ep);
+		if (ret) {
+			of_node_put(ep_node);
+			return ret;
+		}
+
+		/* skip dsi input port, port == 0 is input port */
+		if (ep.port == 0)
+			continue;
+
+		/* parse bridge endpoint */
+		if (client == OUT_HDMI) {
+			if (ep.id == 0) {
+				ret = dsi_parse_bridge_endpoint(dsi, ep_node);
+				if (dsi->bridge)
+					break;
+			}
+		} else { /* parse panel endpoint */
+			if (ep.id > 0) {
+				ret = dsi_parse_panel_endpoint(dsi, ep_node);
+				if (dsi->panel)
+					break;
+			}
+		}
+
+		if (ret) {
+			of_node_put(ep_node);
+			return ret;
+		}
+	}
+
+	if (!dsi->bridge && !dsi->panel) {
+		DRM_ERROR("at least one bridge or panel node is required\n");
+		return -ENODEV;
+	}
+
+	return 0;
+}
+
+static int dsi_parse_dt(struct platform_device *pdev, struct dw_dsi *dsi)
+{
+	struct dsi_hw_ctx *ctx = dsi->ctx;
+	struct resource *res;
 
 	ctx->pclk = devm_clk_get(&pdev->dev, "pclk");
 	if (IS_ERR(ctx->pclk)) {
@@ -910,12 +985,14 @@ static int dsi_parse_dt(struct platform_device *pdev, struct dw_dsi *dsi)
 
 static int dsi_probe(struct platform_device *pdev)
 {
+	struct device_node *np = pdev->dev.of_node;
+	struct device *dev = &pdev->dev;
 	struct dsi_data *data;
 	struct dw_dsi *dsi;
 	struct dsi_hw_ctx *ctx;
 	int ret;
 
-	data = devm_kzalloc(&pdev->dev, sizeof(*data), GFP_KERNEL);
+	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
 	if (!data) {
 		DRM_ERROR("failed to allocate dsi data.\n");
 		return -ENOMEM;
@@ -924,13 +1001,35 @@ static int dsi_probe(struct platform_device *pdev)
 	ctx = &data->ctx;
 	dsi->ctx = ctx;
 
-	ret = dsi_parse_dt(pdev, dsi);
+	/* parse HDMI bridge endpoint */
+	ret = dsi_parse_endpoint(dsi, np, OUT_HDMI);
 	if (ret)
 		return ret;
 
+	ret = dsi_host_init(dev, dsi);
+	if (ret)
+		return ret;
+
+	/* parse panel endpoint */
+	ret = dsi_parse_endpoint(dsi, np, OUT_PANEL);
+	if (ret)
+		goto err_host_unregister;
+
+	ret = dsi_parse_dt(pdev, dsi);
+	if (ret)
+		goto err_host_unregister;
+
 	platform_set_drvdata(pdev, data);
 
-	return component_add(&pdev->dev, &dsi_ops);
+	ret = component_add(dev, &dsi_ops);
+	if (ret)
+		goto err_host_unregister;
+
+	return 0;
+
+err_host_unregister:
+	mipi_dsi_host_unregister(&dsi->host);
+	return ret;
 }
 
 static int dsi_remove(struct platform_device *pdev)
