@@ -49,11 +49,15 @@ static int kirin_drm_kms_cleanup(struct drm_device *dev)
 	return 0;
 }
 
-#ifdef CONFIG_DRM_FBDEV_EMULATION
 static void kirin_fbdev_output_poll_changed(struct drm_device *dev)
 {
+#ifdef CONFIG_DRM_FBDEV_EMULATION
 	struct kirin_drm_private *priv = dev->dev_private;
+#endif
 
+	dsi_set_output_client(dev);
+
+#ifdef CONFIG_DRM_FBDEV_EMULATION
 	if (priv->fbdev) {
 		drm_fbdev_cma_hotplug_event(priv->fbdev);
 	} else {
@@ -63,14 +67,12 @@ static void kirin_fbdev_output_poll_changed(struct drm_device *dev)
 		if (IS_ERR(priv->fbdev))
 			priv->fbdev = NULL;
 	}
-}
 #endif
+}
 
 static const struct drm_mode_config_funcs kirin_drm_mode_config_funcs = {
 	.fb_create = drm_fb_cma_create,
-#ifdef CONFIG_DRM_FBDEV_EMULATION
 	.output_poll_changed = kirin_fbdev_output_poll_changed,
-#endif
 	.atomic_check = drm_atomic_helper_check,
 	.atomic_commit = drm_atomic_helper_commit,
 };

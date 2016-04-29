@@ -27,5 +27,6 @@ struct kirin_drm_private {
 };
 
 extern const struct kirin_dc_ops ade_dc_ops;
+extern void dsi_set_output_client(struct drm_device *dev);
 
 #endif /* __KIRIN_DRM_DRV_H__ */

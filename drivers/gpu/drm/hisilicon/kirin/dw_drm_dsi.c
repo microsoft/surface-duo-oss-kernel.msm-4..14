@@ -20,6 +20,7 @@
 #include <linux/of_graph.h>
 #include <linux/iopoll.h>
 #include <video/mipi_display.h>
+#include <linux/gpio/consumer.h>
 
 #include <drm/drm_of.h>
 #include <drm/drm_crtc_helper.h>
@@ -99,6 +100,8 @@ struct dw_dsi {
 	u32 lanes;
 	enum mipi_dsi_pixel_format format;
 	unsigned long mode_flags;
+	struct gpio_desc *gpio_mux;
+	enum dsi_output_client cur_client;
 	bool enable;
 };
 
@@ -126,6 +129,50 @@ static const struct dsi_phy_range dphy_range_info[] = {
 	{  750000,  1000000,   1,    0 },
 	{ 1000000,  1500000,   0,    0 }
 };
+
+void dsi_set_output_client(struct drm_device *dev)
+{
+	enum dsi_output_client client;
+	struct drm_connector *connector;
+	struct drm_encoder *encoder;
+	struct dw_dsi *dsi;
+
+
+	mutex_lock(&dev->mode_config.mutex);
+
+	/* find dsi encoder */
+	drm_for_each_encoder(encoder, dev)
+		if (encoder->encoder_type == DRM_MODE_ENCODER_DSI)
+			break;
+	dsi = encoder_to_dsi(encoder);
+
+	/* find HDMI connector */
+	drm_for_each_connector(connector, dev)
+		if (connector->connector_type == DRM_MODE_CONNECTOR_HDMIA)
+			break;
+
+	/*
+	 * set the proper dsi output client
+	 */
+	client = connector->status == connector_status_connected ?
+		OUT_HDMI : OUT_PANEL;
+	if (client != dsi->cur_client) {
+		/* associate bridge and dsi encoder */
+		if (client == OUT_HDMI)
+			encoder->bridge = dsi->bridge;
+		else
+			encoder->bridge = NULL;
+
+		gpiod_set_value_cansleep(dsi->gpio_mux, client);
+		dsi->cur_client = client;
+		/* let the userspace know panel connector status has changed */
+		drm_sysfs_hotplug_event(dev);
+		DRM_INFO("client change to %s\n", client == OUT_HDMI ?
+				 "HDMI" : "panel");
+	}
+
+	mutex_unlock(&dev->mode_config.mutex);
+}
 
 static u32 dsi_calc_phy_rate(u32 req_kHz, struct mipi_phy_params *phy)
 {
@@ -823,7 +870,6 @@ static int dsi_bridge_init(struct drm_device *dev, struct dw_dsi *dsi)
 	int ret;
 
 	/* associate the bridge to dsi encoder */
-	encoder->bridge = bridge;
 	bridge->encoder = encoder;
 
 	ret = drm_bridge_attach(dev, bridge);
@@ -979,6 +1025,12 @@ static int dsi_parse_dt(struct platform_device *pdev, struct dw_dsi *dsi)
 		DRM_ERROR("failed to remap dsi io region\n");
 		return PTR_ERR(ctx->base);
 	}
+
+	dsi->gpio_mux = devm_gpiod_get(&pdev->dev, "mux", GPIOD_OUT_HIGH);
+	if (IS_ERR(dsi->gpio_mux))
+		return PTR_ERR(dsi->gpio_mux);
+	/* set dsi default output to panel */
+	dsi->cur_client = OUT_PANEL;
 
 	return 0;
 }
