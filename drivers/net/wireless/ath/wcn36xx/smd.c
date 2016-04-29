@@ -528,7 +528,7 @@ out:
 	return ret;
 }
 
-int wcn36xx_smd_start_scan(struct wcn36xx *wcn)
+int wcn36xx_smd_start_scan(struct wcn36xx *wcn, u8 scan_channel)
 {
 	struct wcn36xx_hal_start_scan_req_msg msg_body;
 	int ret = 0;
@@ -536,7 +536,7 @@ int wcn36xx_smd_start_scan(struct wcn36xx *wcn)
 	mutex_lock(&wcn->hal_mutex);
 	INIT_HAL_MSG(msg_body, WCN36XX_HAL_START_SCAN_REQ);
 
-	msg_body.scan_channel = WCN36XX_HW_CHANNEL(wcn);
+	msg_body.scan_channel = scan_channel;
 
 	PREPARE_HAL_BUF(wcn->hal_buf, msg_body);
 
@@ -558,7 +558,7 @@ out:
 	return ret;
 }
 
-int wcn36xx_smd_end_scan(struct wcn36xx *wcn)
+int wcn36xx_smd_end_scan(struct wcn36xx *wcn, u8 scan_channel)
 {
 	struct wcn36xx_hal_end_scan_req_msg msg_body;
 	int ret = 0;
@@ -566,7 +566,7 @@ int wcn36xx_smd_end_scan(struct wcn36xx *wcn)
 	mutex_lock(&wcn->hal_mutex);
 	INIT_HAL_MSG(msg_body, WCN36XX_HAL_END_SCAN_REQ);
 
-	msg_body.scan_channel = WCN36XX_HW_CHANNEL(wcn);
+	msg_body.scan_channel = scan_channel;
 
 	PREPARE_HAL_BUF(wcn->hal_buf, msg_body);
 
