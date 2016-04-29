@@ -41,6 +41,8 @@
 	container_of(encoder, struct dw_dsi, encoder)
 #define host_to_dsi(host) \
 	container_of(host, struct dw_dsi, host)
+#define connector_to_dsi(connector) \
+	container_of(connector, struct dw_dsi, connector)
 
 enum dsi_output_client {
 	OUT_HDMI = 0,
@@ -93,6 +95,7 @@ struct dw_dsi {
 	struct drm_bridge *bridge;
 	struct drm_panel *panel;
 	struct mipi_dsi_host host;
+	struct drm_connector connector; /* connector for panel */
 	struct drm_display_mode cur_mode;
 	struct dsi_hw_ctx *ctx;
 	struct mipi_phy_params phy;
@@ -881,6 +884,91 @@ static int dsi_bridge_init(struct drm_device *dev, struct dw_dsi *dsi)
 	return 0;
 }
 
+static int dsi_connector_get_modes(struct drm_connector *connector)
+{
+	struct dw_dsi *dsi = connector_to_dsi(connector);
+
+	return drm_panel_get_modes(dsi->panel);
+}
+
+static enum drm_mode_status
+dsi_connector_mode_valid(struct drm_connector *connector,
+			 struct drm_display_mode *mode)
+{
+	enum drm_mode_status mode_status = MODE_OK;
+
+	return mode_status;
+}
+
+static struct drm_encoder *
+dsi_connector_best_encoder(struct drm_connector *connector)
+{
+	struct dw_dsi *dsi = connector_to_dsi(connector);
+
+	return &dsi->encoder;
+}
+
+static struct drm_connector_helper_funcs dsi_connector_helper_funcs = {
+	.get_modes = dsi_connector_get_modes,
+	.mode_valid = dsi_connector_mode_valid,
+	.best_encoder = dsi_connector_best_encoder,
+};
+
+static enum drm_connector_status
+dsi_connector_detect(struct drm_connector *connector, bool force)
+{
+	struct dw_dsi *dsi = connector_to_dsi(connector);
+	enum drm_connector_status status;
+
+	status = dsi->cur_client == OUT_PANEL ?	connector_status_connected :
+		connector_status_disconnected;
+
+	return status;
+}
+
+static void dsi_connector_destroy(struct drm_connector *connector)
+{
+	drm_connector_unregister(connector);
+	drm_connector_cleanup(connector);
+}
+
+static struct drm_connector_funcs dsi_atomic_connector_funcs = {
+	.dpms = drm_atomic_helper_connector_dpms,
+	.fill_modes = drm_helper_probe_single_connector_modes,
+	.detect = dsi_connector_detect,
+	.destroy = dsi_connector_destroy,
+	.reset = drm_atomic_helper_connector_reset,
+	.atomic_duplicate_state = drm_atomic_helper_connector_duplicate_state,
+	.atomic_destroy_state = drm_atomic_helper_connector_destroy_state,
+};
+
+static int dsi_connector_init(struct drm_device *dev, struct dw_dsi *dsi)
+{
+	struct drm_encoder *encoder = &dsi->encoder;
+	struct drm_connector *connector = &dsi->connector;
+	int ret;
+
+	connector->polled = DRM_CONNECTOR_POLL_HPD;
+	drm_connector_helper_add(connector,
+				 &dsi_connector_helper_funcs);
+
+	ret = drm_connector_init(dev, &dsi->connector,
+				 &dsi_atomic_connector_funcs,
+				 DRM_MODE_CONNECTOR_DSI);
+	if (ret)
+		return ret;
+
+	ret = drm_mode_connector_attach_encoder(connector, encoder);
+	if (ret)
+		return ret;
+
+	ret = drm_panel_attach(dsi->panel, connector);
+	if (ret)
+		return ret;
+
+	DRM_INFO("connector init\n");
+	return 0;
+}
 static int dsi_bind(struct device *dev, struct device *master, void *data)
 {
 	struct dsi_data *ddata = dev_get_drvdata(dev);
@@ -894,6 +982,12 @@ static int dsi_bind(struct device *dev, struct device *master, void *data)
 
 	if (dsi->bridge) {
 		ret = dsi_bridge_init(drm_dev, dsi);
+		if (ret)
+			return ret;
+	}
+
+	if (dsi->panel) {
+		ret = dsi_connector_init(drm_dev, dsi);
 		if (ret)
 			return ret;
 	}
