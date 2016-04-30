@@ -24,10 +24,10 @@
 #define GET_CTX_REG(reg, base, ctx) \
 				(readl((base) + (reg) + ((ctx) << CTX_SHIFT)))
 
-#define SET_GLOBAL_REG(reg, base, val)	writel((val), ((base) + (reg)))
+#define SET_GLOBAL_REG(reg, base, val)	writel_relaxed((val), ((base) + (reg)))
 
 #define SET_CTX_REG(reg, base, ctx, val) \
-			writel((val), ((base) + (reg) + ((ctx) << CTX_SHIFT)))
+		writel_relaxed((val), ((base) + (reg) + ((ctx) << CTX_SHIFT)))
 
 /* Wrappers for numbered registers */
 #define SET_GLOBAL_REG_N(b, n, r, v) SET_GLOBAL_REG(b, ((r) + (n << 2)), (v))
@@ -48,7 +48,8 @@
 #define SET_FIELD(addr, mask, shift, v) \
 do { \
 	int t = readl(addr); \
-	writel((t & ~((mask) << (shift))) + (((v) & (mask)) << (shift)), addr);\
+	writel_relaxed((t & ~((mask) << (shift))) + \
+		       (((v) & (mask)) << (shift)), addr);\
 } while (0)
 
 

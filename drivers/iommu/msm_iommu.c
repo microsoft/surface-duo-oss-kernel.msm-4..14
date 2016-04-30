@@ -124,6 +124,7 @@ static void msm_iommu_reset(void __iomem *base, int ncb)
 		SET_TLBLKCR(base, ctx, 0);
 		SET_CONTEXTIDR(base, ctx, 0);
 	}
+	mb(); /* sync */
 }
 
 static void __flush_iotlb(void *cookie)
@@ -143,6 +144,7 @@ static void __flush_iotlb(void *cookie)
 
 		__disable_clocks(iommu);
 	}
+	mb(); /* sync */
 fail:
 	return;
 }
@@ -181,7 +183,7 @@ fail:
 
 static void __flush_iotlb_sync(void *cookie)
 {
-	/* To avoid a null function pointer */
+	mb(); /* sync */
 }
 
 static const struct iommu_gather_ops msm_iommu_gather_ops = {
@@ -235,6 +237,7 @@ static void config_mids(struct msm_iommu_dev *iommu,
 		/* Set security bit override to be Non-secure */
 		SET_NSCFG(iommu->base, mid, 3);
 	}
+	mb(); /* sync */
 }
 
 static void __reset_context(void __iomem *base, int ctx)
@@ -257,6 +260,7 @@ static void __reset_context(void __iomem *base, int ctx)
 	SET_TLBFLPTER(base, ctx, 0);
 	SET_TLBSLPTER(base, ctx, 0);
 	SET_TLBLKCR(base, ctx, 0);
+	mb(); /* sync */
 }
 
 static void __program_context(void __iomem *base, int ctx,
@@ -305,6 +309,7 @@ static void __program_context(void __iomem *base, int ctx,
 
 	/* Enable the MMU */
 	SET_M(base, ctx, 1);
+	mb(); /* sync */
 }
 
 static struct iommu_domain *msm_iommu_domain_alloc(unsigned type)
@@ -500,7 +505,7 @@ static phys_addr_t msm_iommu_iova_to_phys(struct iommu_domain *domain,
 	/* Invalidate context TLB */
 	SET_CTX_TLBIALL(iommu->base, master->num, 0);
 	SET_V2PPR(iommu->base, master->num, va & V2Pxx_VA);
-
+	mb(); /* sync */
 	par = GET_PAR(iommu->base, master->num);
 
 	/* We are dealing with a supersection */
@@ -714,7 +719,7 @@ static int msm_iommu_probe(struct platform_device *pdev)
 	par = GET_PAR(iommu->base, 0);
 	SET_V2PCFG(iommu->base, 0, 0);
 	SET_M(iommu->base, 0, 0);
-
+	mb(); /* sync */
 	if (!par) {
 		pr_err("Invalid PAR value detected\n");
 		ret = -ENODEV;
