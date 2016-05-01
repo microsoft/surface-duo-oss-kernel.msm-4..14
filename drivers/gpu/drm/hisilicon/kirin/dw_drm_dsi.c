@@ -90,6 +90,13 @@ struct dsi_hw_ctx {
 	struct clk *pclk;
 };
 
+struct dw_dsi_client {
+	u32 lanes;
+	u32 phy_clock; /* in kHz */
+	enum mipi_dsi_pixel_format format;
+	unsigned long mode_flags;
+};
+
 struct dw_dsi {
 	struct drm_encoder encoder;
 	struct drm_bridge *bridge;
@@ -104,6 +111,7 @@ struct dw_dsi {
 	enum mipi_dsi_pixel_format format;
 	unsigned long mode_flags;
 	struct gpio_desc *gpio_mux;
+	struct dw_dsi_client client[OUT_MAX];
 	enum dsi_output_client cur_client;
 	bool enable;
 };
@@ -585,45 +593,71 @@ static void dsi_set_video_mode(void __iomem *base, unsigned long flags)
 	else if ((flags & mode_mask) == non_burst_sync_event)
 		val = DSI_NON_BURST_SYNC_EVENTS;
 	else
-		val = DSI_BURST_SYNC_PULSES_1;
-	writel(val, base + VID_MODE_CFG);
+		val = DSI_BURST_SYNC_PULSES_1 | (0x3f << 8);
 
+	writel(val, base + VID_MODE_CFG);
 	writel(PHY_TXREQUESTCLKHS, base + LPCLK_CTRL);
-	writel(DSI_VIDEO_MODE, base + MODE_CFG);
 }
 
+static void dsi_set_command_mode(void __iomem *base)
+{
+	writel(CMD_MODE_ALL_LP, base + CMD_MODE_CFG);
+	writel(DSI_COMMAND_MODE, base + MODE_CFG);
+}
+
+static void dw_dsi_set_mode(struct dw_dsi *dsi, enum dsi_work_mode mode)
+{
+	struct dsi_hw_ctx *ctx = dsi->ctx;
+	void __iomem *base = ctx->base;
+
+	writel(RESET, base + PWR_UP);
+	writel(mode, base + MODE_CFG);
+	writel(POWERUP, base + PWR_UP);
+}
 static void dsi_mipi_init(struct dw_dsi *dsi)
 {
 	struct dsi_hw_ctx *ctx = dsi->ctx;
 	struct mipi_phy_params *phy = &dsi->phy;
 	struct drm_display_mode *mode = &dsi->cur_mode;
-	u32 bpp = mipi_dsi_pixel_format_to_bpp(dsi->format);
 	void __iomem *base = ctx->base;
+	u32 id = dsi->cur_client;
 	u32 dphy_req_kHz;
+	int bpp;
 
 	/*
 	 * count phy params
 	 */
-	dphy_req_kHz = mode->clock * bpp / dsi->lanes;
+	bpp = mipi_dsi_pixel_format_to_bpp(dsi->client[id].format);
+	if (bpp < 0)
+		return;
+	if (dsi->client[id].phy_clock)
+		dphy_req_kHz = dsi->client[id].phy_clock;
+	else
+		dphy_req_kHz = mode->clock * bpp / dsi->client[id].lanes;
 	dsi_get_phy_params(dphy_req_kHz, phy);
 
 	/* reset Core */
 	writel(RESET, base + PWR_UP);
 
 	/* set dsi phy params */
-	dsi_set_mipi_phy(base, phy, dsi->lanes);
+	dsi_set_mipi_phy(base, phy, dsi->client[id].lanes);
 
 	/* set dsi mode timing */
-	dsi_set_mode_timing(base, phy->lane_byte_clk_kHz, mode, dsi->format);
+	dsi_set_mode_timing(base, phy->lane_byte_clk_kHz, mode,
+			    dsi->client[id].format);
 
 	/* set dsi video mode */
-	dsi_set_video_mode(base, dsi->mode_flags);
+	dsi_set_video_mode(base, dsi->client[id].mode_flags);
+
+	/* set command mode */
+	dsi_set_command_mode(base);
 
 	/* dsi wake up */
 	writel(POWERUP, base + PWR_UP);
 
 	DRM_DEBUG_DRIVER("lanes=%d, pixel_clk=%d kHz, bytes_freq=%d kHz\n",
-			 dsi->lanes, mode->clock, phy->lane_byte_clk_kHz);
+			 dsi->client[id].lanes, mode->clock,
+			 phy->lane_byte_clk_kHz);
 }
 
 static void dsi_encoder_disable(struct drm_encoder *encoder)
@@ -634,6 +668,15 @@ static void dsi_encoder_disable(struct drm_encoder *encoder)
 
 	if (!dsi->enable)
 		return;
+
+	dw_dsi_set_mode(dsi, DSI_COMMAND_MODE);
+	/* turn off panel's backlight */
+	if (dsi->panel && drm_panel_disable(dsi->panel))
+		DRM_ERROR("failed to disaable panel\n");
+
+	/* turn off panel */
+	if (dsi->panel && drm_panel_unprepare(dsi->panel))
+		DRM_ERROR("failed to unprepare panel\n");
 
 	writel(0, base + PWR_UP);
 	writel(0, base + LPCLK_CTRL);
@@ -659,6 +702,16 @@ static void dsi_encoder_enable(struct drm_encoder *encoder)
 	}
 
 	dsi_mipi_init(dsi);
+
+	/* turn on panel */
+	if (dsi->panel && drm_panel_prepare(dsi->panel))
+		DRM_ERROR("failed to prepare panel\n");
+
+	dw_dsi_set_mode(dsi, DSI_VIDEO_MODE);
+
+	/* turn on panel's back light */
+	if (dsi->panel && drm_panel_enable(dsi->panel))
+		DRM_ERROR("failed to enable panel\n");
 
 	dsi->enable = true;
 }
@@ -720,15 +773,19 @@ static int dsi_host_attach(struct mipi_dsi_host *host,
 			   struct mipi_dsi_device *mdsi)
 {
 	struct dw_dsi *dsi = host_to_dsi(host);
+	u32 id = mdsi->channel >= 1 ? OUT_PANEL : OUT_HDMI;
 
 	if (mdsi->lanes < 1 || mdsi->lanes > 4) {
 		DRM_ERROR("dsi device params invalid\n");
 		return -EINVAL;
 	}
 
-	dsi->lanes = mdsi->lanes;
-	dsi->format = mdsi->format;
-	dsi->mode_flags = mdsi->mode_flags;
+	dsi->client[id].lanes = mdsi->lanes;
+	dsi->client[id].format = mdsi->format;
+	dsi->client[id].mode_flags = mdsi->mode_flags;
+	dsi->client[id].phy_clock = mdsi->phy_clock;
+
+	DRM_INFO("host attach, client name=[%s], id=%d\n", mdsi->name, id);
 
 	return 0;
 }
