@@ -12,6 +12,7 @@ config HISI_KIRIN_DW_DSI
 	tristate "HiSilicon Kirin specific extensions for Synopsys DW MIPI DSI"
 	depends on DRM_HISI_KIRIN
 	select DRM_MIPI_DSI
+	select DRM_PANEL
 	help
 	 This selects support for HiSilicon Kirin SoC specific extensions for
 	 the Synopsys DesignWare DSI driver. If you want to enable MIPI DSI on
