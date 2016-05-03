@@ -758,7 +758,7 @@ static int dw_drm_encoder_init(struct device *dev,
 
 	encoder->possible_crtcs = crtc_mask;
 	ret = drm_encoder_init(drm_dev, encoder, &dw_encoder_funcs,
-			       DRM_MODE_ENCODER_DSI, NULL);
+			       DRM_MODE_ENCODER_DSI);
 	if (ret) {
 		DRM_ERROR("failed to init dsi encoder\n");
 		return ret;
