@@ -2935,6 +2935,19 @@ static int fec_alloc_tx_queue(struct net_device *ndev, unsigned int qnum)
 	memset(txq->q.bd_base, 0,
 	       fep->bufdesc_size * txq->q.ring_size);
 
+	/* Allocate memory for TSO headers */
+	txq->tso_hdrs = dma_alloc_coherent(&fep->pdev->dev,
+		txq->q.ring_size * TSO_HEADER_SIZE,
+		&txq->tso_hdrs_dma,
+	GFP_KERNEL);
+	if (!txq->tso_hdrs) {
+		dma_free_coherent(&fep->pdev->dev,
+				  fep->bufdesc_size * txq->q.ring_size,
+				  txq->q.bd_base,
+				  txq->q.bd_dma);
+		kfree(txq);
+		return -ENOMEM;
+	}
 	return 0;
 }
 /* To frees memory used for the queue and descriptors */
@@ -2955,10 +2968,15 @@ static void fec_free_tx_queue(struct net_device *ndev, unsigned int qnum)
 	struct fec_enet_private *fep = netdev_priv(ndev);
 	struct fec_enet_priv_tx_q *txq = fep->tx_queue[qnum];
 
-	dma_free_coherent(&fep->pdev->dev, fep->bufdesc_size *
-		txq->q.ring_size,
-		txq->q.bd_base,
-		txq->q.bd_dma);
+	dma_free_coherent(&fep->pdev->dev,
+			  txq->q.ring_size * TSO_HEADER_SIZE,
+			  txq->tso_hdrs,
+			  txq->tso_hdrs_dma);
+
+	dma_free_coherent(&fep->pdev->dev,
+			  fep->bufdesc_size * txq->q.ring_size,
+			  txq->q.bd_base,
+			  txq->q.bd_dma);
 	kfree(txq);
 }
 /* The following function initializes buffer descriptors of the given queue */
