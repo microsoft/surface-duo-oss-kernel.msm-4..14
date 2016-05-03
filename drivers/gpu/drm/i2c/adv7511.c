@@ -1168,7 +1168,6 @@ static int adv7533_bridge_attach(struct drm_bridge *bridge)
 	}
 	drm_connector_helper_add(&adv->connector,
 					&adv7533_connector_helper_funcs);
-	drm_connector_register(&adv->connector);
 	drm_mode_connector_attach_encoder(&adv->connector, adv->encoder);
 
 #if HPD_ENABLE
