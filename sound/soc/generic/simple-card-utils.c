@@ -116,6 +116,15 @@ int asoc_simple_card_parse_clk(struct device_node *node,
 			return -EINVAL;
 	}
 
+	if (!of_property_read_string(node, "system-clock-type", &str)) {
+		if (!strcmp(str, "xtal"))
+			simple_dai->sysclk_id = 1;
+		else if (!strcmp(str, "mclk"))
+			simple_dai->sysclk_id = 2;
+		else
+			return -EINVAL;
+	}
+
 	/*
 	 * Parse dai->sysclk come from "clocks = <&xxx>"
 	 * (if system has common clock)
@@ -181,7 +190,8 @@ int asoc_simple_card_init_dai(struct snd_soc_dai *dai,
 	int ret;
 
 	if (simple_dai->sysclk) {
-		ret = snd_soc_dai_set_sysclk(dai, 0, simple_dai->sysclk,
+		ret = snd_soc_dai_set_sysclk(dai, simple_dai->sysclk_id,
+					     simple_dai->sysclk,
 					     simple_dai->sysclk_dir);
 		if (ret && ret != -ENOTSUPP) {
 			dev_err(dai->dev, "simple-card: set_sysclk error\n");
