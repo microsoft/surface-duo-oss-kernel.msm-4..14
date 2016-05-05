@@ -122,7 +122,7 @@
 			polling-delay-passive = <250>;
 			polling-delay = <1000>;
 
-			thermal-sensors = <&tsens 7>;
+			thermal-sensors = <&gcc 7>;
 
 			trips {
 				cpu_alert0: trip@0 {
@@ -149,7 +149,7 @@
 			polling-delay-passive = <250>;
 			polling-delay = <1000>;
 
-			thermal-sensors = <&tsens 8>;
+			thermal-sensors = <&gcc 8>;
 
 			trips {
 				cpu_alert1: trip@0 {
@@ -176,7 +176,7 @@
 			polling-delay-passive = <250>;
 			polling-delay = <1000>;
 
-			thermal-sensors = <&tsens 9>;
+			thermal-sensors = <&gcc 9>;
 
 			trips {
 				cpu_alert2: trip@0 {
@@ -203,7 +203,7 @@
 			polling-delay-passive = <250>;
 			polling-delay = <1000>;
 
-			thermal-sensors = <&tsens 10>;
+			thermal-sensors = <&gcc 10>;
 
 			trips {
 				cpu_alert3: trip@0 {
@@ -222,88 +222,6 @@
 				map0 {
 					trip = <&cpu_alert3>;
 					cooling-device = <&CPU3 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
-				};
-			};
-		};
-	};
-
-	thermal-zones {
-		cpu-thermal0 {
-			polling-delay-passive = <250>;
-			polling-delay = <1000>;
-
-			thermal-sensors = <&gcc 7>;
-
-			trips {
-				cpu_alert0: trip@0 {
-					temperature = <75000>;
-					hysteresis = <2000>;
-					type = "passive";
-				};
-				cpu_crit0: trip@1 {
-					temperature = <95000>;
-					hysteresis = <2000>;
-					type = "critical";
-				};
-			};
-		};
-
-		cpu-thermal1 {
-			polling-delay-passive = <250>;
-			polling-delay = <1000>;
-
-			thermal-sensors = <&gcc 8>;
-
-			trips {
-				cpu_alert1: trip@0 {
-					temperature = <75000>;
-					hysteresis = <2000>;
-					type = "passive";
-				};
-				cpu_crit1: trip@1 {
-					temperature = <95000>;
-					hysteresis = <2000>;
-					type = "critical";
-				};
-			};
-		};
-
-		cpu-thermal2 {
-			polling-delay-passive = <250>;
-			polling-delay = <1000>;
-
-			thermal-sensors = <&gcc 9>;
-
-			trips {
-				cpu_alert2: trip@0 {
-					temperature = <75000>;
-					hysteresis = <2000>;
-					type = "passive";
-				};
-				cpu_crit2: trip@1 {
-					temperature = <95000>;
-					hysteresis = <2000>;
-					type = "critical";
-				};
-			};
-		};
-
-		cpu-thermal3 {
-			polling-delay-passive = <250>;
-			polling-delay = <1000>;
-
-			thermal-sensors = <&gcc 10>;
-
-			trips {
-				cpu_alert3: trip@0 {
-					temperature = <75000>;
-					hysteresis = <2000>;
-					type = "passive";
-				};
-				cpu_crit3: trip@1 {
-					temperature = <95000>;
-					hysteresis = <2000>;
-					type = "critical";
 				};
 			};
 		};
