@@ -2887,7 +2887,6 @@ rpcrdma
 rpcsec_gss_krb5
 rpr0521
 rrpc
-rsa_generic
 rsi_91x
 rsi_sdio
 rsi_usb
