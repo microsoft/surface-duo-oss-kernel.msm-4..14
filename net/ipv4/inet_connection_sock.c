@@ -427,7 +427,7 @@ struct dst_entry *inet_csk_route_req(const struct sock *sk,
 route_err:
 	ip_rt_put(rt);
 no_route:
-	IP_INC_STATS_BH(net, IPSTATS_MIB_OUTNOROUTES);
+	__IP_INC_STATS(net, IPSTATS_MIB_OUTNOROUTES);
 	return NULL;
 }
 EXPORT_SYMBOL_GPL(inet_csk_route_req);
@@ -466,7 +466,7 @@ route_err:
 	ip_rt_put(rt);
 no_route:
 	rcu_read_unlock();
-	IP_INC_STATS_BH(net, IPSTATS_MIB_OUTNOROUTES);
+	__IP_INC_STATS(net, IPSTATS_MIB_OUTNOROUTES);
 	return NULL;
 }
 EXPORT_SYMBOL_GPL(inet_csk_route_child_sock);
@@ -660,6 +660,9 @@ struct sock *inet_csk_clone_lock(const struct sock *sk,
 		inet_sk(newsk)->inet_num = inet_rsk(req)->ir_num;
 		inet_sk(newsk)->inet_sport = htons(inet_rsk(req)->ir_num);
 		newsk->sk_write_space = sk_stream_write_space;
+
+		/* listeners have SOCK_RCU_FREE, not the children */
+		sock_reset_flag(newsk, SOCK_RCU_FREE);
 
 		newsk->sk_mark = inet_rsk(req)->ir_mark;
 		atomic64_set(&newsk->sk_cookie,

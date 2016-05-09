@@ -142,7 +142,7 @@ struct reg_state {
 	enum bpf_reg_type type;
 	union {
 		/* valid when type == CONST_IMM | PTR_TO_STACK */
-		int imm;
+		long imm;
 
 		/* valid when type == CONST_PTR_TO_MAP | PTR_TO_MAP_VALUE |
 		 *   PTR_TO_MAP_VALUE_OR_NULL
@@ -202,6 +202,16 @@ struct verifier_env {
 	bool allow_ptr_leaks;
 };
 
+#define BPF_COMPLEXITY_LIMIT_INSNS	65536
+#define BPF_COMPLEXITY_LIMIT_STACK	1024
+
+struct bpf_call_arg_meta {
+	struct bpf_map *map_ptr;
+	bool raw_mode;
+	int regno;
+	int access_size;
+};
+
 /* verbose verifier prints what it's seeing
  * bpf_check() is called under lock, so no race to access these global vars
  */
@@ -250,7 +260,7 @@ static void print_verifier_state(struct verifier_env *env)
 			continue;
 		verbose(" R%d=%s", i, reg_type_str[t]);
 		if (t == CONST_IMM || t == PTR_TO_STACK)
-			verbose("%d", env->cur_state.regs[i].imm);
+			verbose("%ld", env->cur_state.regs[i].imm);
 		else if (t == CONST_PTR_TO_MAP || t == PTR_TO_MAP_VALUE ||
 			 t == PTR_TO_MAP_VALUE_OR_NULL)
 			verbose("(ks=%d,vs=%d)",
@@ -444,7 +454,7 @@ static struct verifier_state *push_stack(struct verifier_env *env, int insn_idx,
 	elem->next = env->head;
 	env->head = elem;
 	env->stack_size++;
-	if (env->stack_size > 1024) {
+	if (env->stack_size > BPF_COMPLEXITY_LIMIT_STACK) {
 		verbose("BPF program is too complex\n");
 		goto err;
 	}
@@ -467,7 +477,6 @@ static void init_reg_state(struct reg_state *regs)
 	for (i = 0; i < MAX_BPF_REG; i++) {
 		regs[i].type = NOT_INIT;
 		regs[i].imm = 0;
-		regs[i].map_ptr = NULL;
 	}
 
 	/* frame pointer */
@@ -482,7 +491,6 @@ static void mark_reg_unknown_value(struct reg_state *regs, u32 regno)
 	BUG_ON(regno >= MAX_BPF_REG);
 	regs[regno].type = UNKNOWN_VALUE;
 	regs[regno].imm = 0;
-	regs[regno].map_ptr = NULL;
 }
 
 enum reg_arg_type {
@@ -642,8 +650,12 @@ static int check_ctx_access(struct verifier_env *env, int off, int size,
 			    enum bpf_access_type t)
 {
 	if (env->prog->aux->ops->is_valid_access &&
-	    env->prog->aux->ops->is_valid_access(off, size, t))
+	    env->prog->aux->ops->is_valid_access(off, size, t)) {
+		/* remember the offset of last byte accessed in ctx */
+		if (env->prog->aux->max_ctx_offset < off + size)
+			env->prog->aux->max_ctx_offset = off + size;
 		return 0;
+	}
 
 	verbose("invalid bpf_context access off=%d size=%d\n", off, size);
 	return -EACCES;
@@ -770,7 +782,8 @@ static int check_xadd(struct verifier_env *env, struct bpf_insn *insn)
  * and all elements of stack are initialized
  */
 static int check_stack_boundary(struct verifier_env *env, int regno,
-				int access_size, bool zero_size_allowed)
+				int access_size, bool zero_size_allowed,
+				struct bpf_call_arg_meta *meta)
 {
 	struct verifier_state *state = &env->cur_state;
 	struct reg_state *regs = state->regs;
@@ -796,6 +809,12 @@ static int check_stack_boundary(struct verifier_env *env, int regno,
 		return -EACCES;
 	}
 
+	if (meta && meta->raw_mode) {
+		meta->access_size = access_size;
+		meta->regno = regno;
+		return 0;
+	}
+
 	for (i = 0; i < access_size; i++) {
 		if (state->stack_slot_type[MAX_BPF_STACK + off + i] != STACK_MISC) {
 			verbose("invalid indirect read from stack off %d+%d size %d\n",
@@ -807,7 +826,8 @@ static int check_stack_boundary(struct verifier_env *env, int regno,
 }
 
 static int check_func_arg(struct verifier_env *env, u32 regno,
-			  enum bpf_arg_type arg_type, struct bpf_map **mapp)
+			  enum bpf_arg_type arg_type,
+			  struct bpf_call_arg_meta *meta)
 {
 	struct reg_state *reg = env->cur_state.regs + regno;
 	enum bpf_reg_type expected_type;
@@ -839,7 +859,8 @@ static int check_func_arg(struct verifier_env *env, u32 regno,
 		expected_type = CONST_PTR_TO_MAP;
 	} else if (arg_type == ARG_PTR_TO_CTX) {
 		expected_type = PTR_TO_CTX;
-	} else if (arg_type == ARG_PTR_TO_STACK) {
+	} else if (arg_type == ARG_PTR_TO_STACK ||
+		   arg_type == ARG_PTR_TO_RAW_STACK) {
 		expected_type = PTR_TO_STACK;
 		/* One exception here. In case function allows for NULL to be
 		 * passed in as argument, it's a CONST_IMM type. Final test
@@ -847,6 +868,7 @@ static int check_func_arg(struct verifier_env *env, u32 regno,
 		 */
 		if (reg->type == CONST_IMM && reg->imm == 0)
 			expected_type = CONST_IMM;
+		meta->raw_mode = arg_type == ARG_PTR_TO_RAW_STACK;
 	} else {
 		verbose("unsupported arg_type %d\n", arg_type);
 		return -EFAULT;
@@ -860,14 +882,13 @@ static int check_func_arg(struct verifier_env *env, u32 regno,
 
 	if (arg_type == ARG_CONST_MAP_PTR) {
 		/* bpf_map_xxx(map_ptr) call: remember that map_ptr */
-		*mapp = reg->map_ptr;
-
+		meta->map_ptr = reg->map_ptr;
 	} else if (arg_type == ARG_PTR_TO_MAP_KEY) {
 		/* bpf_map_xxx(..., map_ptr, ..., key) call:
 		 * check that [key, key + map->key_size) are within
 		 * stack limits and initialized
 		 */
-		if (!*mapp) {
+		if (!meta->map_ptr) {
 			/* in function declaration map_ptr must come before
 			 * map_key, so that it's verified and known before
 			 * we have to check map_key here. Otherwise it means
@@ -876,19 +897,20 @@ static int check_func_arg(struct verifier_env *env, u32 regno,
 			verbose("invalid map_ptr to access map->key\n");
 			return -EACCES;
 		}
-		err = check_stack_boundary(env, regno, (*mapp)->key_size,
-					   false);
+		err = check_stack_boundary(env, regno, meta->map_ptr->key_size,
+					   false, NULL);
 	} else if (arg_type == ARG_PTR_TO_MAP_VALUE) {
 		/* bpf_map_xxx(..., map_ptr, ..., value) call:
 		 * check [value, value + map->value_size) validity
 		 */
-		if (!*mapp) {
+		if (!meta->map_ptr) {
 			/* kernel subsystem misconfigured verifier */
 			verbose("invalid map_ptr to access map->value\n");
 			return -EACCES;
 		}
-		err = check_stack_boundary(env, regno, (*mapp)->value_size,
-					   false);
+		err = check_stack_boundary(env, regno,
+					   meta->map_ptr->value_size,
+					   false, NULL);
 	} else if (arg_type == ARG_CONST_STACK_SIZE ||
 		   arg_type == ARG_CONST_STACK_SIZE_OR_ZERO) {
 		bool zero_size_allowed = (arg_type == ARG_CONST_STACK_SIZE_OR_ZERO);
@@ -903,7 +925,7 @@ static int check_func_arg(struct verifier_env *env, u32 regno,
 			return -EACCES;
 		}
 		err = check_stack_boundary(env, regno - 1, reg->imm,
-					   zero_size_allowed);
+					   zero_size_allowed, meta);
 	}
 
 	return err;
@@ -959,13 +981,31 @@ error:
 	return -EINVAL;
 }
 
+static int check_raw_mode(const struct bpf_func_proto *fn)
+{
+	int count = 0;
+
+	if (fn->arg1_type == ARG_PTR_TO_RAW_STACK)
+		count++;
+	if (fn->arg2_type == ARG_PTR_TO_RAW_STACK)
+		count++;
+	if (fn->arg3_type == ARG_PTR_TO_RAW_STACK)
+		count++;
+	if (fn->arg4_type == ARG_PTR_TO_RAW_STACK)
+		count++;
+	if (fn->arg5_type == ARG_PTR_TO_RAW_STACK)
+		count++;
+
+	return count > 1 ? -EINVAL : 0;
+}
+
 static int check_call(struct verifier_env *env, int func_id)
 {
 	struct verifier_state *state = &env->cur_state;
 	const struct bpf_func_proto *fn = NULL;
 	struct reg_state *regs = state->regs;
-	struct bpf_map *map = NULL;
 	struct reg_state *reg;
+	struct bpf_call_arg_meta meta;
 	int i, err;
 
 	/* find function prototype */
@@ -988,22 +1028,42 @@ static int check_call(struct verifier_env *env, int func_id)
 		return -EINVAL;
 	}
 
+	memset(&meta, 0, sizeof(meta));
+
+	/* We only support one arg being in raw mode at the moment, which
+	 * is sufficient for the helper functions we have right now.
+	 */
+	err = check_raw_mode(fn);
+	if (err) {
+		verbose("kernel subsystem misconfigured func %d\n", func_id);
+		return err;
+	}
+
 	/* check args */
-	err = check_func_arg(env, BPF_REG_1, fn->arg1_type, &map);
+	err = check_func_arg(env, BPF_REG_1, fn->arg1_type, &meta);
 	if (err)
 		return err;
-	err = check_func_arg(env, BPF_REG_2, fn->arg2_type, &map);
+	err = check_func_arg(env, BPF_REG_2, fn->arg2_type, &meta);
 	if (err)
 		return err;
-	err = check_func_arg(env, BPF_REG_3, fn->arg3_type, &map);
+	err = check_func_arg(env, BPF_REG_3, fn->arg3_type, &meta);
 	if (err)
 		return err;
-	err = check_func_arg(env, BPF_REG_4, fn->arg4_type, &map);
+	err = check_func_arg(env, BPF_REG_4, fn->arg4_type, &meta);
 	if (err)
 		return err;
-	err = check_func_arg(env, BPF_REG_5, fn->arg5_type, &map);
+	err = check_func_arg(env, BPF_REG_5, fn->arg5_type, &meta);
 	if (err)
 		return err;
+
+	/* Mark slots with STACK_MISC in case of raw mode, stack offset
+	 * is inferred from register state.
+	 */
+	for (i = 0; i < meta.access_size; i++) {
+		err = check_mem_access(env, meta.regno, i, BPF_B, BPF_WRITE, -1);
+		if (err)
+			return err;
+	}
 
 	/* reset caller saved regs */
 	for (i = 0; i < CALLER_SAVED_REGS; i++) {
@@ -1023,18 +1083,18 @@ static int check_call(struct verifier_env *env, int func_id)
 		 * can check 'value_size' boundary of memory access
 		 * to map element returned from bpf_map_lookup_elem()
 		 */
-		if (map == NULL) {
+		if (meta.map_ptr == NULL) {
 			verbose("kernel subsystem misconfigured verifier\n");
 			return -EINVAL;
 		}
-		regs[BPF_REG_0].map_ptr = map;
+		regs[BPF_REG_0].map_ptr = meta.map_ptr;
 	} else {
 		verbose("unknown return type %d of func %d\n",
 			fn->ret_type, func_id);
 		return -EINVAL;
 	}
 
-	err = check_map_func_compatibility(map, func_id);
+	err = check_map_func_compatibility(meta.map_ptr, func_id);
 	if (err)
 		return err;
 
@@ -1555,6 +1615,8 @@ peek_stack:
 				goto peek_stack;
 			else if (ret < 0)
 				goto err_free;
+			if (t + 1 < insn_cnt)
+				env->explored_states[t + 1] = STATE_LIST_MARK;
 		} else if (opcode == BPF_JA) {
 			if (BPF_SRC(insns[t].code) != BPF_K) {
 				ret = -EINVAL;
@@ -1759,7 +1821,7 @@ static int do_check(struct verifier_env *env)
 		insn = &insns[insn_idx];
 		class = BPF_CLASS(insn->code);
 
-		if (++insn_processed > 32768) {
+		if (++insn_processed > BPF_COMPLEXITY_LIMIT_INSNS) {
 			verbose("BPF program is too large. Proccessed %d insn\n",
 				insn_processed);
 			return -E2BIG;

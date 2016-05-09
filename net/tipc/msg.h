@@ -715,6 +715,16 @@ static inline void msg_set_redundant_link(struct tipc_msg *m, u32 r)
 	msg_set_bits(m, 5, 12, 0x1, r);
 }
 
+static inline u32 msg_peer_stopping(struct tipc_msg *m)
+{
+	return msg_bits(m, 5, 13, 0x1);
+}
+
+static inline void msg_set_peer_stopping(struct tipc_msg *m, u32 s)
+{
+	msg_set_bits(m, 5, 13, 0x1, s);
+}
+
 static inline char *msg_media_addr(struct tipc_msg *m)
 {
 	return (char *)&m->hdr[TIPC_MEDIA_INFO_OFFSET];
@@ -777,6 +787,11 @@ static inline bool msg_peer_node_is_up(struct tipc_msg *m)
 	if (msg_peer_link_is_up(m))
 		return true;
 	return msg_redundant_link(m);
+}
+
+static inline bool msg_is_reset(struct tipc_msg *hdr)
+{
+	return (msg_user(hdr) == LINK_PROTOCOL) && (msg_type(hdr) == RESET_MSG);
 }
 
 struct sk_buff *tipc_buf_acquire(u32 size);

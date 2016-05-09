@@ -341,11 +341,15 @@ static void gre_err(struct sk_buff *skb, u32 info)
 	const int code = icmp_hdr(skb)->code;
 	struct tnl_ptk_info tpi;
 	bool csum_err = false;
+	int hdr_len;
 
-	if (parse_gre_header(skb, &tpi, &csum_err) < 0) {
+	if (gre_parse_header(skb, &tpi, &csum_err, &hdr_len)) {
 		if (!csum_err)		/* ignore csum errors. */
 			return;
 	}
+
+	if (iptunnel_pull_header(skb, hdr_len, tpi.proto, false))
+		return;
 
 	if (type == ICMP_DEST_UNREACH && code == ICMP_FRAG_NEEDED) {
 		ipv4_update_pmtu(skb, dev_net(skb->dev), info,
@@ -430,10 +434,10 @@ static int gre_rcv(struct sk_buff *skb)
 	}
 #endif
 
-	hdr_len = parse_gre_header(skb, &tpi, &csum_err);
-	if (hdr_len < 0)
+	if (gre_parse_header(skb, &tpi, &csum_err, &hdr_len) < 0)
 		goto drop;
-	if (iptunnel_pull_header(skb, hdr_len, tpi.proto, false) < 0)
+
+	if (iptunnel_pull_header(skb, hdr_len, tpi.proto, false))
 		goto drop;
 
 	if (ipgre_rcv(skb, &tpi) == PACKET_RCVD)
@@ -443,49 +447,6 @@ static int gre_rcv(struct sk_buff *skb)
 drop:
 	kfree_skb(skb);
 	return 0;
-}
-
-static __sum16 gre_checksum(struct sk_buff *skb)
-{
-	__wsum csum;
-
-	if (skb->ip_summed == CHECKSUM_PARTIAL)
-		csum = lco_csum(skb);
-	else
-		csum = skb_checksum(skb, 0, skb->len, 0);
-	return csum_fold(csum);
-}
-
-static void build_header(struct sk_buff *skb, int hdr_len, __be16 flags,
-			 __be16 proto, __be32 key, __be32 seq)
-{
-	struct gre_base_hdr *greh;
-
-	skb_push(skb, hdr_len);
-
-	skb_reset_transport_header(skb);
-	greh = (struct gre_base_hdr *)skb->data;
-	greh->flags = tnl_flags_to_gre_flags(flags);
-	greh->protocol = proto;
-
-	if (flags & (TUNNEL_KEY | TUNNEL_CSUM | TUNNEL_SEQ)) {
-		__be32 *ptr = (__be32 *)(((u8 *)greh) + hdr_len - 4);
-
-		if (flags & TUNNEL_SEQ) {
-			*ptr = seq;
-			ptr--;
-		}
-		if (flags & TUNNEL_KEY) {
-			*ptr = key;
-			ptr--;
-		}
-		if (flags & TUNNEL_CSUM &&
-		    !(skb_shinfo(skb)->gso_type &
-		      (SKB_GSO_GRE | SKB_GSO_GRE_CSUM))) {
-			*ptr = 0;
-			*(__sum16 *)ptr = gre_checksum(skb);
-		}
-	}
 }
 
 static void __gre_xmit(struct sk_buff *skb, struct net_device *dev,
@@ -498,15 +459,15 @@ static void __gre_xmit(struct sk_buff *skb, struct net_device *dev,
 		tunnel->o_seqno++;
 
 	/* Push GRE header. */
-	build_header(skb, tunnel->tun_hlen, tunnel->parms.o_flags,
-		     proto, tunnel->parms.o_key, htonl(tunnel->o_seqno));
+	gre_build_header(skb, tunnel->tun_hlen,
+			 tunnel->parms.o_flags, proto, tunnel->parms.o_key,
+			 htonl(tunnel->o_seqno));
 
 	skb_set_inner_protocol(skb, proto);
 	ip_tunnel_xmit(skb, dev, tnl_params, tnl_params->protocol);
 }
 
-static struct sk_buff *gre_handle_offloads(struct sk_buff *skb,
-					   bool csum)
+static int gre_handle_offloads(struct sk_buff *skb, bool csum)
 {
 	return iptunnel_handle_offloads(skb, csum ? SKB_GSO_GRE_CSUM : SKB_GSO_GRE);
 }
@@ -559,7 +520,7 @@ static void gre_fb_xmit(struct sk_buff *skb, struct net_device *dev,
 					  fl.saddr);
 	}
 
-	tunnel_hlen = ip_gre_calc_hlen(key->tun_flags);
+	tunnel_hlen = gre_calc_hlen(key->tun_flags);
 
 	min_headroom = LL_RESERVED_SPACE(rt->dst.dev) + rt->dst.header_len
 			+ tunnel_hlen + sizeof(struct iphdr);
@@ -574,15 +535,12 @@ static void gre_fb_xmit(struct sk_buff *skb, struct net_device *dev,
 	}
 
 	/* Push Tunnel header. */
-	skb = gre_handle_offloads(skb, !!(tun_info->key.tun_flags & TUNNEL_CSUM));
-	if (IS_ERR(skb)) {
-		skb = NULL;
+	if (gre_handle_offloads(skb, !!(tun_info->key.tun_flags & TUNNEL_CSUM)))
 		goto err_free_rt;
-	}
 
 	flags = tun_info->key.tun_flags & (TUNNEL_CSUM | TUNNEL_KEY);
-	build_header(skb, tunnel_hlen, flags, proto,
-		     tunnel_id_to_key(tun_info->key.tun_id), 0);
+	gre_build_header(skb, tunnel_hlen, flags, htons(ETH_P_TEB),
+			 tunnel_id_to_key(tun_info->key.tun_id), 0);
 
 	df = key->tun_flags & TUNNEL_DONT_FRAGMENT ?  htons(IP_DF) : 0;
 
@@ -646,16 +604,14 @@ static netdev_tx_t ipgre_xmit(struct sk_buff *skb,
 		tnl_params = &tunnel->parms.iph;
 	}
 
-	skb = gre_handle_offloads(skb, !!(tunnel->parms.o_flags&TUNNEL_CSUM));
-	if (IS_ERR(skb))
-		goto out;
+	if (gre_handle_offloads(skb, !!(tunnel->parms.o_flags & TUNNEL_CSUM)))
+		goto free_skb;
 
 	__gre_xmit(skb, dev, tnl_params, skb->protocol);
 	return NETDEV_TX_OK;
 
 free_skb:
 	kfree_skb(skb);
-out:
 	dev->stats.tx_dropped++;
 	return NETDEV_TX_OK;
 }
@@ -670,9 +626,8 @@ static netdev_tx_t gre_tap_xmit(struct sk_buff *skb,
 		return NETDEV_TX_OK;
 	}
 
-	skb = gre_handle_offloads(skb, !!(tunnel->parms.o_flags&TUNNEL_CSUM));
-	if (IS_ERR(skb))
-		goto out;
+	if (gre_handle_offloads(skb, !!(tunnel->parms.o_flags & TUNNEL_CSUM)))
+		goto free_skb;
 
 	if (skb_cow_head(skb, dev->needed_headroom))
 		goto free_skb;
@@ -682,7 +637,6 @@ static netdev_tx_t gre_tap_xmit(struct sk_buff *skb,
 
 free_skb:
 	kfree_skb(skb);
-out:
 	dev->stats.tx_dropped++;
 	return NETDEV_TX_OK;
 }
@@ -708,8 +662,8 @@ static int ipgre_tunnel_ioctl(struct net_device *dev,
 	if (err)
 		return err;
 
-	p.i_flags = tnl_flags_to_gre_flags(p.i_flags);
-	p.o_flags = tnl_flags_to_gre_flags(p.o_flags);
+	p.i_flags = gre_tnl_flags_to_gre_flags(p.i_flags);
+	p.o_flags = gre_tnl_flags_to_gre_flags(p.o_flags);
 
 	if (copy_to_user(ifr->ifr_ifru.ifru_data, &p, sizeof(p)))
 		return -EFAULT;
@@ -753,7 +707,7 @@ static int ipgre_header(struct sk_buff *skb, struct net_device *dev,
 
 	iph = (struct iphdr *)skb_push(skb, t->hlen + sizeof(*iph));
 	greh = (struct gre_base_hdr *)(iph+1);
-	greh->flags = tnl_flags_to_gre_flags(t->parms.o_flags);
+	greh->flags = gre_tnl_flags_to_gre_flags(t->parms.o_flags);
 	greh->protocol = htons(type);
 
 	memcpy(iph, &t->parms.iph, sizeof(struct iphdr));
@@ -854,7 +808,7 @@ static void __gre_tunnel_init(struct net_device *dev)
 	int t_hlen;
 
 	tunnel = netdev_priv(dev);
-	tunnel->tun_hlen = ip_gre_calc_hlen(tunnel->parms.o_flags);
+	tunnel->tun_hlen = gre_calc_hlen(tunnel->parms.o_flags);
 	tunnel->parms.iph.protocol = IPPROTO_GRE;
 
 	tunnel->hlen = tunnel->tun_hlen + tunnel->encap_hlen;
@@ -1175,8 +1129,10 @@ static int ipgre_fill_info(struct sk_buff *skb, const struct net_device *dev)
 	struct ip_tunnel_parm *p = &t->parms;
 
 	if (nla_put_u32(skb, IFLA_GRE_LINK, p->link) ||
-	    nla_put_be16(skb, IFLA_GRE_IFLAGS, tnl_flags_to_gre_flags(p->i_flags)) ||
-	    nla_put_be16(skb, IFLA_GRE_OFLAGS, tnl_flags_to_gre_flags(p->o_flags)) ||
+	    nla_put_be16(skb, IFLA_GRE_IFLAGS,
+			 gre_tnl_flags_to_gre_flags(p->i_flags)) ||
+	    nla_put_be16(skb, IFLA_GRE_OFLAGS,
+			 gre_tnl_flags_to_gre_flags(p->o_flags)) ||
 	    nla_put_be32(skb, IFLA_GRE_IKEY, p->i_key) ||
 	    nla_put_be32(skb, IFLA_GRE_OKEY, p->o_key) ||
 	    nla_put_in_addr(skb, IFLA_GRE_LOCAL, p->iph.saddr) ||

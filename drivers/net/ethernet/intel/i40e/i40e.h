@@ -202,6 +202,7 @@ struct i40e_lump_tracking {
 
 #define I40E_HKEY_ARRAY_SIZE ((I40E_PFQF_HKEY_MAX_INDEX + 1) * 4)
 #define I40E_HLUT_ARRAY_SIZE ((I40E_PFQF_HLUT_MAX_INDEX + 1) * 4)
+#define I40E_VF_HLUT_ARRAY_SIZE ((I40E_VFQF_HLUT1_MAX_INDEX + 1) * 4)
 
 enum i40e_fd_stat_idx {
 	I40E_FD_STAT_ATR,
@@ -244,7 +245,6 @@ struct i40e_fdir_filter {
 #define I40E_DCB_PRIO_TYPE_STRICT	0
 #define I40E_DCB_PRIO_TYPE_ETS		1
 #define I40E_DCB_STRICT_PRIO_CREDITS	127
-#define I40E_MAX_USER_PRIORITY	8
 /* DCB per TC information data structure */
 struct i40e_tc_info {
 	u16	qoffset;	/* Queue offset from base queue */
@@ -554,7 +554,7 @@ struct i40e_vsi {
 	u16 num_queue_pairs; /* Used tx and rx pairs */
 	u16 num_desc;
 	enum i40e_vsi_type type;  /* VSI type, e.g., LAN, FCoE, etc */
-	u16 vf_id;		/* Virtual function ID for SRIOV VSIs */
+	s16 vf_id;		/* Virtual function ID for SRIOV VSIs */
 
 	struct i40e_tc_configuration tc_config;
 	struct i40e_aqc_vsi_properties_data info;
@@ -811,6 +811,7 @@ int i40e_vlan_rx_kill_vid(struct net_device *netdev,
 			  __always_unused __be16 proto, u16 vid);
 #endif
 int i40e_open(struct net_device *netdev);
+int i40e_close(struct net_device *netdev);
 int i40e_vsi_open(struct i40e_vsi *vsi);
 void i40e_vlan_stripping_disable(struct i40e_vsi *vsi);
 int i40e_vsi_add_vlan(struct i40e_vsi *vsi, s16 vid);
@@ -823,7 +824,6 @@ bool i40e_is_vsi_in_vlan(struct i40e_vsi *vsi);
 struct i40e_mac_filter *i40e_find_mac(struct i40e_vsi *vsi, u8 *macaddr,
 				      bool is_vf, bool is_netdev);
 #ifdef I40E_FCOE
-int i40e_close(struct net_device *netdev);
 int __i40e_setup_tc(struct net_device *netdev, u32 handle, __be16 proto,
 		    struct tc_to_netdev *tc);
 void i40e_netpoll(struct net_device *netdev);
