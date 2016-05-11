@@ -40,6 +40,7 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x0>;
 			enable-method = "psci";
+			clocks = <&kryocc 0>;
 			next-level-cache = <&L2_0>;
 			L2_0: l2-cache {
 			      compatible = "cache";
@@ -52,6 +53,7 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x1>;
 			enable-method = "psci";
+			clocks = <&kryocc 0>;
 			next-level-cache = <&L2_0>;
 		};
 
@@ -60,6 +62,8 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x100>;
 			enable-method = "psci";
+
+			clocks = <&kryocc 1>;
 			next-level-cache = <&L2_1>;
 			L2_1: l2-cache {
 			      compatible = "cache";
@@ -72,6 +76,7 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x101>;
 			enable-method = "psci";
+			clocks = <&kryocc 1>;
 			next-level-cache = <&L2_1>;
 		};
 
@@ -237,6 +242,18 @@
 			#reset-cells = <1>;
 			#power-domain-cells = <1>;
 			reg = <0x300000 0x90000>;
+		};
+
+		cbfcc: syscon@9a20000 {
+			compatible = "syscon";
+			reg = <0x9a20000 0x10000>;
+		};
+
+		kryocc: clock-controller@6400000 {
+			compatible = "qcom,cpu-clk-msm8996";
+			reg = <0x6400000 0x90000>;
+			#clock-cells = <1>;
+			qcom,cbf = <&cbfcc>;
 		};
 
 		blsp1_spi0: spi@07575000 {
