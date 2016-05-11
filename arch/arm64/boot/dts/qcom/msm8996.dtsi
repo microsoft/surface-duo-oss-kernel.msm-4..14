@@ -41,6 +41,7 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x0>;
 			enable-method = "psci";
+			clocks = <&kryocc 0>;
 			cpu-supply = <&pm8994_s11>;
 			next-level-cache = <&L2_0>;
 			L2_0: l2-cache {
@@ -54,6 +55,7 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x1>;
 			enable-method = "psci";
+			clocks = <&kryocc 0>;
 			cpu-supply = <&pm8994_s11>;
 			next-level-cache = <&L2_0>;
 		};
@@ -63,6 +65,7 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x100>;
 			enable-method = "psci";
+			clocks = <&kryocc 1>;
 			cpu-supply = <&pm8994_s11>;
 			next-level-cache = <&L2_1>;
 			L2_1: l2-cache {
@@ -76,6 +79,7 @@
 			compatible = "qcom,kryo";
 			reg = <0x0 0x101>;
 			enable-method = "psci";
+			clocks = <&kryocc 1>;
 			cpu-supply = <&pm8994_s11>;
 			next-level-cache = <&L2_1>;
 		};
@@ -156,6 +160,24 @@
 			#reset-cells = <1>;
 			#power-domain-cells = <1>;
 			reg = <0x300000 0x90000>;
+		};
+
+		cbfcc: syscon@9a20000 {
+			compatible = "syscon";
+			reg = <0x9a20000 0x10000>;
+		};
+
+		kryocc: clock-controller@6400000 {
+			compatible = "qcom,cpu-clk-msm8996";
+			reg = <0x6400000 0x90000>;
+			#clock-cells = <1>;
+			qcom,cbf = <&cbfcc>;
+		};
+
+		tsens0: thermal-sensor@4a8000 {
+			compatible = "qcom,msm8996-tsens";
+			reg = <0x4a8000 0x2000>;
+			#thermal-sensor-cells = <1>;
 		};
 
 		blsp2_uart1: serial@75b0000 {
