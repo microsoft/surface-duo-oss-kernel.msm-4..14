@@ -355,6 +355,32 @@
 					       <825000000>;
 		};
 
+		mdp_smmu: arm,smmu@d00000 {
+			compatible = "arm,smmu-v2";
+			reg = <0xd00000 0x10000>;
+
+			#global-interrupts = <1>;
+			interrupts = <0 73 0>,
+				     <0 320 0>,
+				     <0 321 0>;
+			#iommu-cells = <1>;
+
+			clocks = <&mmcc MMSS_MMAGIC_AHB_CLK>,
+				 <&mmcc MMSS_MMAGIC_CFG_AHB_CLK>,
+				 <&mmcc SMMU_MDP_AHB_CLK>,
+				 <&mmcc SMMU_MDP_AXI_CLK>,
+				 <&mmcc MMAGIC_MDSS_AXI_CLK>,
+				 <&mmcc MMSS_MISC_AHB_CLK>;
+			clock-names = "mmagic_iface_clk",
+				"mmagic_cfg_iface_clk",
+				"smmu_iface_clk",
+				"smmu_bus_clk",
+				"mmagic_mdss_bus_clk",
+				"mmss_misc_bus_clk";
+
+			status = "okay";
+		};
+
 		mdp: mdp@900000 {
 			compatible = "qcom,mdp5";
 			reg = <0x900000 0x90000>,
@@ -392,6 +418,7 @@
 				      "vsync_clk",
 				      "mmagic_mdss_bus_clk",
 				      "rpm_mmaxi_clk";
+			iommus = <&mdp_smmu 0>;
 		};
 
 		hdmi: hdmi-tx@9a0000 {
