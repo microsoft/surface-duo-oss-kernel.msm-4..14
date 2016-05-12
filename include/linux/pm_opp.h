@@ -30,6 +30,7 @@ enum dev_pm_opp_event {
 unsigned long dev_pm_opp_get_voltage(struct dev_pm_opp *opp);
 
 unsigned long dev_pm_opp_get_freq(struct dev_pm_opp *opp);
+struct regulator *dev_pm_opp_get_regulator(struct device *dev);
 
 bool dev_pm_opp_is_turbo(struct dev_pm_opp *opp);
 
