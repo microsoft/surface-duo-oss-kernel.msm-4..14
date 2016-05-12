@@ -7,6 +7,21 @@
 		};
 	};
 
+	hdmi_pinctrl: hdmi-pinctrl {
+		mux1 {
+			pins = "gpio69", "gpio70", "gpio71";
+			function = "hdmi";
+			bias-pull-up;
+			drive-strength = <2>;
+		};
+		mux2 {
+			pins = "gpio72";
+			function = "hdmi";
+			bias-pull-down;
+			drive-strength = <16>;
+		};
+	};
+
 	ps_hold: ps_hold {
 		mux {
 			pins = "gpio78";
