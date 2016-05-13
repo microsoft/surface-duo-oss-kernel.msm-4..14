@@ -22,7 +22,9 @@
 #include <linux/mutex.h>
 #include <linux/slab.h>
 #include <linux/iommu.h>
+#ifdef CONFIG_MSM_BUS_SCALING
 #include <linux/msm-bus.h>
+#endif
 #include <linux/clk.h>
 #include <linux/scatterlist.h>
 #include <linux/of.h>
@@ -67,7 +69,7 @@ static void __disable_regulators(struct msm_iommu_drvdata *drvdata)
 static int apply_bus_vote(struct msm_iommu_drvdata *drvdata, unsigned int vote)
 {
 	int ret = 0;
-
+#ifdef CONFIG_MSM_BUS_SCALING
 	if (drvdata->bus_client) {
 		ret = msm_bus_scale_client_update_request(drvdata->bus_client,
 							  vote);
@@ -75,7 +77,7 @@ static int apply_bus_vote(struct msm_iommu_drvdata *drvdata, unsigned int vote)
 			pr_err("%s: Failed to vote for bus: %d\n", __func__,
 				vote);
 	}
-
+#endif
 	return ret;
 }
 

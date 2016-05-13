@@ -19,7 +19,9 @@
 #include <linux/clk.h>
 #include <linux/iommu.h>
 #include <linux/interrupt.h>
+#ifdef CONFIG_MSM_BUS_SCALING
 #include <linux/msm-bus.h>
+#endif
 #include <linux/err.h>
 #include <linux/slab.h>
 #include <linux/of.h>
@@ -101,6 +103,7 @@ static int __get_bus_vote_client(struct platform_device *pdev,
 				 struct msm_iommu_drvdata *drvdata)
 {
 	int ret = 0;
+#ifdef CONFIG_MSM_BUS_SCALING
 	struct msm_bus_scale_pdata *bs_table;
 	const char *dummy;
 
@@ -118,14 +121,16 @@ static int __get_bus_vote_client(struct platform_device *pdev,
 			ret = -EINVAL;
 		}
 	}
-
+#endif
 	return ret;
 }
 
 static void __put_bus_vote_client(struct msm_iommu_drvdata *drvdata)
 {
+#ifdef CONFIG_MSM_BUS_SCALING
 	msm_bus_scale_unregister_client(drvdata->bus_client);
 	drvdata->bus_client = 0;
+#endif
 }
 
 /*
