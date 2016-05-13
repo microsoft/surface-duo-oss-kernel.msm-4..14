@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Freescale Semiconductor, Inc.
+ * Copyright 2015-2016 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -229,6 +229,15 @@
 							  "enet_out";
 				fsl,num-tx-queues=<3>;
 				fsl,num-rx-queues=<3>;
+				status = "disabled";
+			};
+
+			pit0: pit@4003A000{
+			    compatible = "fsl,s32v234-pit";
+			    reg = <0x0 0x4003A000 0x0 0x1000>;
+			    interrupts= <0 31 0xf08>;
+			    clocks = <&clks S32V234_CLK_SYS6>;
+			    clock-names = "pit";
 				status = "disabled";
 			};
 
