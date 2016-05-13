@@ -345,7 +345,18 @@ static struct platform_driver krait_cc_driver = {
 		.of_match_table = krait_cc_match_table,
 	},
 };
-module_platform_driver(krait_cc_driver);
+
+static int __init krait_cc_init(void)
+{
+	return platform_driver_register(&krait_cc_driver);
+}
+subsys_initcall(krait_cc_init);
+
+static void __exit krait_cc_exit(void)
+{
+	platform_driver_unregister(&krait_cc_driver);
+}
+module_exit(krait_cc_exit);
 
 MODULE_DESCRIPTION("Krait CPU Clock Driver");
 MODULE_LICENSE("GPL v2");
