@@ -33,6 +33,14 @@
 
 #define PITTFLG_TIF	0x1
 
+#if !defined(CONFIG_PIT_CLKSRC_RATE)
+#define CONFIG_PIT_CLKSRC_RATE	300
+#endif
+
+#if !defined(CONFIG_PIT_CLKEVT_RATE)
+#define CONFIG_PIT_CLKEVT_RATE	300
+#endif
+
 static void __iomem *clksrc_base;
 static void __iomem *clkevt_base;
 static unsigned long cycle_per_jiffy;
@@ -66,7 +74,8 @@ static int __init pit_clocksource_init(unsigned long rate)
 
 	sched_clock_register(pit_read_sched_clock, 32, rate);
 	return clocksource_mmio_init(clksrc_base + PITCVAL, "vf-pit", rate,
-			300, 32, clocksource_mmio_readl_down);
+			CONFIG_PIT_CLKSRC_RATE, 32,
+			clocksource_mmio_readl_down);
 }
 
 static int pit_set_next_event(unsigned long delta,
@@ -127,7 +136,7 @@ static struct clock_event_device clockevent_pit = {
 	.features	= CLOCK_EVT_FEAT_PERIODIC | CLOCK_EVT_FEAT_ONESHOT,
 	.set_mode	= pit_set_mode,
 	.set_next_event	= pit_set_next_event,
-	.rating		= 300,
+	.rating		= CONFIG_PIT_CLKEVT_RATE,
 };
 
 static struct irqaction pit_timer_irq = {
@@ -144,7 +153,7 @@ static int __init pit_clockevent_init(unsigned long rate, int irq)
 
 	BUG_ON(setup_irq(irq, &pit_timer_irq));
 
-	clockevent_pit.cpumask = cpu_possible_mask;
+	clockevent_pit.cpumask = cpumask_of(smp_processor_id());
 	clockevent_pit.irq = irq;
 	/*
 	 * The value for the LDVAL register trigger is calculated as:
@@ -195,4 +204,5 @@ static void __init pit_timer_init(struct device_node *np)
 
 	pit_clockevent_init(clk_rate, irq);
 }
+CLOCKSOURCE_OF_DECLARE(s32v234, "fsl,s32v234-pit", pit_timer_init);
 CLOCKSOURCE_OF_DECLARE(vf610, "fsl,vf610-pit", pit_timer_init);
