@@ -130,6 +130,10 @@
 	status = "okay";
 };
 
+&pit1 {
+	status = "okay";
+};
+
 &siul2 {
 	status = "okay";
 	s32v234-evb {
