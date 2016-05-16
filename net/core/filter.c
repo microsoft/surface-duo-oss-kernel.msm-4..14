@@ -1149,8 +1149,7 @@ void bpf_prog_destroy(struct bpf_prog *fp)
 }
 EXPORT_SYMBOL_GPL(bpf_prog_destroy);
 
-static int __sk_attach_prog(struct bpf_prog *prog, struct sock *sk,
-			    bool locked)
+static int __sk_attach_prog(struct bpf_prog *prog, struct sock *sk)
 {
 	struct sk_filter *fp, *old_fp;
 
@@ -1166,8 +1165,10 @@ static int __sk_attach_prog(struct bpf_prog *prog, struct sock *sk,
 		return -ENOMEM;
 	}
 
-	old_fp = rcu_dereference_protected(sk->sk_filter, locked);
+	old_fp = rcu_dereference_protected(sk->sk_filter,
+					   lockdep_sock_is_held(sk));
 	rcu_assign_pointer(sk->sk_filter, fp);
+
 	if (old_fp)
 		sk_filter_uncharge(sk, old_fp);
 
@@ -1246,8 +1247,7 @@ struct bpf_prog *__get_filter(struct sock_fprog *fprog, struct sock *sk)
  * occurs or there is insufficient memory for the filter a negative
  * errno code is returned. On success the return is zero.
  */
-int __sk_attach_filter(struct sock_fprog *fprog, struct sock *sk,
-		       bool locked)
+int sk_attach_filter(struct sock_fprog *fprog, struct sock *sk)
 {
 	struct bpf_prog *prog = __get_filter(fprog, sk);
 	int err;
@@ -1255,7 +1255,7 @@ int __sk_attach_filter(struct sock_fprog *fprog, struct sock *sk,
 	if (IS_ERR(prog))
 		return PTR_ERR(prog);
 
-	err = __sk_attach_prog(prog, sk, locked);
+	err = __sk_attach_prog(prog, sk);
 	if (err < 0) {
 		__bpf_prog_release(prog);
 		return err;
@@ -1263,12 +1263,7 @@ int __sk_attach_filter(struct sock_fprog *fprog, struct sock *sk,
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(__sk_attach_filter);
-
-int sk_attach_filter(struct sock_fprog *fprog, struct sock *sk)
-{
-	return __sk_attach_filter(fprog, sk, sock_owned_by_user(sk));
-}
+EXPORT_SYMBOL_GPL(sk_attach_filter);
 
 int sk_reuseport_attach_filter(struct sock_fprog *fprog, struct sock *sk)
 {
@@ -1314,7 +1309,7 @@ int sk_attach_bpf(u32 ufd, struct sock *sk)
 	if (IS_ERR(prog))
 		return PTR_ERR(prog);
 
-	err = __sk_attach_prog(prog, sk, sock_owned_by_user(sk));
+	err = __sk_attach_prog(prog, sk);
 	if (err < 0) {
 		bpf_prog_put(prog);
 		return err;
@@ -1414,16 +1409,19 @@ static u64 bpf_skb_load_bytes(u64 r1, u64 r2, u64 r3, u64 r4, u64 r5)
 	unsigned int len = (unsigned int) r4;
 	void *ptr;
 
-	if (unlikely((u32) offset > 0xffff || len > MAX_BPF_STACK))
-		return -EFAULT;
+	if (unlikely((u32) offset > 0xffff))
+		goto err_clear;
 
 	ptr = skb_header_pointer(skb, offset, len, to);
 	if (unlikely(!ptr))
-		return -EFAULT;
+		goto err_clear;
 	if (ptr != to)
 		memcpy(to, ptr, len);
 
 	return 0;
+err_clear:
+	memset(to, 0, len);
+	return -EFAULT;
 }
 
 static const struct bpf_func_proto bpf_skb_load_bytes_proto = {
@@ -1432,7 +1430,7 @@ static const struct bpf_func_proto bpf_skb_load_bytes_proto = {
 	.ret_type	= RET_INTEGER,
 	.arg1_type	= ARG_PTR_TO_CTX,
 	.arg2_type	= ARG_ANYTHING,
-	.arg3_type	= ARG_PTR_TO_STACK,
+	.arg3_type	= ARG_PTR_TO_RAW_STACK,
 	.arg4_type	= ARG_CONST_STACK_SIZE,
 };
 
@@ -1761,12 +1759,19 @@ static u64 bpf_skb_get_tunnel_key(u64 r1, u64 r2, u64 size, u64 flags, u64 r5)
 	struct bpf_tunnel_key *to = (struct bpf_tunnel_key *) (long) r2;
 	const struct ip_tunnel_info *info = skb_tunnel_info(skb);
 	u8 compat[sizeof(struct bpf_tunnel_key)];
+	void *to_orig = to;
+	int err;
 
-	if (unlikely(!info || (flags & ~(BPF_F_TUNINFO_IPV6))))
-		return -EINVAL;
-	if (ip_tunnel_info_af(info) != bpf_tunnel_key_af(flags))
-		return -EPROTO;
+	if (unlikely(!info || (flags & ~(BPF_F_TUNINFO_IPV6)))) {
+		err = -EINVAL;
+		goto err_clear;
+	}
+	if (ip_tunnel_info_af(info) != bpf_tunnel_key_af(flags)) {
+		err = -EPROTO;
+		goto err_clear;
+	}
 	if (unlikely(size != sizeof(struct bpf_tunnel_key))) {
+		err = -EINVAL;
 		switch (size) {
 		case offsetof(struct bpf_tunnel_key, tunnel_label):
 		case offsetof(struct bpf_tunnel_key, tunnel_ext):
@@ -1776,12 +1781,12 @@ static u64 bpf_skb_get_tunnel_key(u64 r1, u64 r2, u64 size, u64 flags, u64 r5)
 			 * a common path later on.
 			 */
 			if (ip_tunnel_info_af(info) != AF_INET)
-				return -EINVAL;
+				goto err_clear;
 set_compat:
 			to = (struct bpf_tunnel_key *)compat;
 			break;
 		default:
-			return -EINVAL;
+			goto err_clear;
 		}
 	}
 
@@ -1798,9 +1803,12 @@ set_compat:
 	}
 
 	if (unlikely(size != sizeof(struct bpf_tunnel_key)))
-		memcpy((void *)(long) r2, to, size);
+		memcpy(to_orig, to, size);
 
 	return 0;
+err_clear:
+	memset(to_orig, 0, size);
+	return err;
 }
 
 static const struct bpf_func_proto bpf_skb_get_tunnel_key_proto = {
@@ -1808,7 +1816,7 @@ static const struct bpf_func_proto bpf_skb_get_tunnel_key_proto = {
 	.gpl_only	= false,
 	.ret_type	= RET_INTEGER,
 	.arg1_type	= ARG_PTR_TO_CTX,
-	.arg2_type	= ARG_PTR_TO_STACK,
+	.arg2_type	= ARG_PTR_TO_RAW_STACK,
 	.arg3_type	= ARG_CONST_STACK_SIZE,
 	.arg4_type	= ARG_ANYTHING,
 };
@@ -1818,16 +1826,26 @@ static u64 bpf_skb_get_tunnel_opt(u64 r1, u64 r2, u64 size, u64 r4, u64 r5)
 	struct sk_buff *skb = (struct sk_buff *) (long) r1;
 	u8 *to = (u8 *) (long) r2;
 	const struct ip_tunnel_info *info = skb_tunnel_info(skb);
+	int err;
 
 	if (unlikely(!info ||
-		     !(info->key.tun_flags & TUNNEL_OPTIONS_PRESENT)))
-		return -ENOENT;
-	if (unlikely(size < info->options_len))
-		return -ENOMEM;
+		     !(info->key.tun_flags & TUNNEL_OPTIONS_PRESENT))) {
+		err = -ENOENT;
+		goto err_clear;
+	}
+	if (unlikely(size < info->options_len)) {
+		err = -ENOMEM;
+		goto err_clear;
+	}
 
 	ip_tunnel_info_opts_get(to, info);
+	if (size > info->options_len)
+		memset(to + info->options_len, 0, size - info->options_len);
 
 	return info->options_len;
+err_clear:
+	memset(to, 0, size);
+	return err;
 }
 
 static const struct bpf_func_proto bpf_skb_get_tunnel_opt_proto = {
@@ -1835,7 +1853,7 @@ static const struct bpf_func_proto bpf_skb_get_tunnel_opt_proto = {
 	.gpl_only	= false,
 	.ret_type	= RET_INTEGER,
 	.arg1_type	= ARG_PTR_TO_CTX,
-	.arg2_type	= ARG_PTR_TO_STACK,
+	.arg2_type	= ARG_PTR_TO_RAW_STACK,
 	.arg3_type	= ARG_CONST_STACK_SIZE,
 };
 
@@ -2021,6 +2039,8 @@ tc_cls_act_func_proto(enum bpf_func_id func_id)
 		return &bpf_redirect_proto;
 	case BPF_FUNC_get_route_realm:
 		return &bpf_get_route_realm_proto;
+	case BPF_FUNC_perf_event_output:
+		return bpf_get_event_output_proto();
 	default:
 		return sk_filter_func_proto(func_id);
 	}
@@ -2255,7 +2275,7 @@ static int __init register_sk_filter_ops(void)
 }
 late_initcall(register_sk_filter_ops);
 
-int __sk_detach_filter(struct sock *sk, bool locked)
+int sk_detach_filter(struct sock *sk)
 {
 	int ret = -ENOENT;
 	struct sk_filter *filter;
@@ -2263,7 +2283,8 @@ int __sk_detach_filter(struct sock *sk, bool locked)
 	if (sock_flag(sk, SOCK_FILTER_LOCKED))
 		return -EPERM;
 
-	filter = rcu_dereference_protected(sk->sk_filter, locked);
+	filter = rcu_dereference_protected(sk->sk_filter,
+					   lockdep_sock_is_held(sk));
 	if (filter) {
 		RCU_INIT_POINTER(sk->sk_filter, NULL);
 		sk_filter_uncharge(sk, filter);
@@ -2272,12 +2293,7 @@ int __sk_detach_filter(struct sock *sk, bool locked)
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(__sk_detach_filter);
-
-int sk_detach_filter(struct sock *sk)
-{
-	return __sk_detach_filter(sk, sock_owned_by_user(sk));
-}
+EXPORT_SYMBOL_GPL(sk_detach_filter);
 
 int sk_get_filter(struct sock *sk, struct sock_filter __user *ubuf,
 		  unsigned int len)
@@ -2288,7 +2304,7 @@ int sk_get_filter(struct sock *sk, struct sock_filter __user *ubuf,
 
 	lock_sock(sk);
 	filter = rcu_dereference_protected(sk->sk_filter,
-					   sock_owned_by_user(sk));
+					   lockdep_sock_is_held(sk));
 	if (!filter)
 		goto out;
 

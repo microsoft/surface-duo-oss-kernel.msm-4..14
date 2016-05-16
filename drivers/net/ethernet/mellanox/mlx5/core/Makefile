@@ -10,3 +10,4 @@ mlx5_core-$(CONFIG_MLX5_CORE_EN) += wq.o eswitch.o \
 
 mlx5_core-$(CONFIG_MLX5_CORE_EN_VXLAN) += vxlan.o
 mlx5_core-$(CONFIG_MLX5_CORE_EN_DCB) +=  en_dcbnl.o
+mlx5_core-$(CONFIG_RFS_ACCEL) +=  en_arfs.o
