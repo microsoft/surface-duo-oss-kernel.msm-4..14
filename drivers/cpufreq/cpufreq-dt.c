@@ -139,10 +139,12 @@ static int opp_notifier(struct notifier_block *nb, unsigned long event,
 		cpu_reg = dev_pm_opp_get_regulator(cpu_dev);
 		if (IS_ERR(cpu_reg)) {
 			ret = PTR_ERR(cpu_reg);
-		goto out;
-	}
+			goto out;
+		}
+		rcu_read_lock();
 		volt = dev_pm_opp_get_voltage(opp);
 		freq = dev_pm_opp_get_freq(opp);
+		rcu_read_unlock();
 
 		mutex_lock(&priv->lock);
 		if (freq == priv->opp_freq) {
