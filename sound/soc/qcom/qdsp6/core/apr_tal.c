@@ -32,7 +32,7 @@ int apr_tal_write(struct apr_svc_ch_dev *apr_ch, void *data, int len)
 {
 	int ret;
 	ret = qcom_smd_send(apr_ch->ch, data, len);
-	if (ret) { 
+	if (ret) {
 		pr_err("apr_tal: Error in write %d\n", ret);
 		return ret;;
 	}
@@ -67,6 +67,7 @@ struct apr_svc_ch_dev *apr_tal_open(uint32_t svc, uint32_t dest,
 		apr_svc_ch[dl][dest][svc].dest_state = 0;
 	}
 
+#if 0
 	rc = wait_event_timeout(apr_svc_ch[dl][dest][svc].wait,
 		(apr_svc_ch[dl][dest][svc].ch->state == SMD_CHANNEL_OPENED), 5 * HZ);
 	if (rc == 0) {
@@ -74,6 +75,7 @@ struct apr_svc_ch_dev *apr_tal_open(uint32_t svc, uint32_t dest,
 		apr_tal_close(&apr_svc_ch[dl][dest][svc]);
 		return NULL;
 	}
+#endif
 	if (!apr_svc_ch[dl][dest][svc].dest_state) {
 		apr_svc_ch[dl][dest][svc].dest_state = 1;
 		pr_info("apr_tal:Waiting for apr svc init\n");
@@ -99,11 +101,11 @@ int apr_tal_close(struct apr_svc_ch_dev *apr_ch)
 }
 
 
-static int qcom_smd_q6_callback(struct qcom_smd_device *sdev,
+static int qcom_smd_q6_callback(struct qcom_smd_channel *channel,
 				 const void *data,
 				 size_t count)
 {
-	struct apr_svc_ch_dev *apr_ch = dev_get_drvdata(&sdev->dev);
+	struct apr_svc_ch_dev *apr_ch = qcom_smd_get_drvdata(channel);
 
 	memcpy_fromio(apr_ch->data, data, count);
 
@@ -125,6 +127,7 @@ static int qcom_smd_q6_probe(struct qcom_smd_device *sdev)
 	wake_up(&apr_svc_ch[APR_DL_SMD][dest][clnt].dest);
 
 	dev_set_drvdata(&sdev->dev, &apr_svc_ch[APR_DL_SMD][APR_DEST_QDSP6][APR_CLIENT_AUDIO]);
+	qcom_smd_set_drvdata(&sdev->channel, &apr_svc_ch[APR_DL_SMD][APR_DEST_QDSP6][APR_CLIENT_AUDIO]);
 
 	return 0;
 }
