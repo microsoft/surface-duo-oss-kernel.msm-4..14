@@ -259,7 +259,7 @@ ssize_t hci_tty_read(struct file *file, char __user *data, size_t size,
 	struct sk_buff *skb = NULL, *rskb = NULL;
 	struct ti_st	*hst;
 
-	pr_debug("inside %s (%p, %p, %u, %p)\n",
+	pr_debug("inside %s (%p, %p, %zu, %p)\n",
 		 __func__, file, data, size, offset);
 
 	/* Validate input parameters */
@@ -342,7 +342,7 @@ ssize_t hci_tty_write(struct file *file, const char __user *data,
 	struct ti_st *hst = file->private_data;
 	struct	sk_buff *skb;
 
-	pr_debug("inside %s (%p, %p, %u, %p)\n",
+	pr_debug("inside %s (%p, %p, %zu, %p)\n",
 		 __func__, file, data, size, offset);
 
 	if (!hst->st_write) {
