@@ -233,7 +233,7 @@ static u32 dw_mci_prepare_command(struct mmc_host *mmc, struct mmc_command *cmd)
 {
 	struct mmc_data	*data;
 	struct dw_mci_slot *slot = mmc_priv(mmc);
-	struct dw_mci *host = slot->host;
+	/* struct dw_mci *host = slot->host; */
 	const struct dw_mci_drv_data *drv_data = slot->host->drv_data;
 	u32 cmdr;
 
