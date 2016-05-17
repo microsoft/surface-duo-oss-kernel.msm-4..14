@@ -95,8 +95,8 @@
 		qcom,qos-off = <0x1000>;
 		qcom,bus-type = <1>;
 		clock-names = "bus_clk", "bus_a_clk";
-		clocks = <&rpmcc  RPM_SNOC_CLK>,
-                      <&rpmcc  RPM_SNOC_A_CLK>;
+		clocks = <&rpmcc  RPM_SMD_SNOC_CLK>,
+                      <&rpmcc  RPM_SMD_SNOC_A_CLK>;
 	};
 
 	fab_bimc: fab-bimc {
@@ -106,8 +106,8 @@
 		qcom,base-name = "bimc-base";
 		qcom,bus-type = <2>;
 		clock-names = "bus_clk", "bus_a_clk";
-		clocks = <&rpmcc  RPM_BIMC_CLK>,
-                      <&rpmcc  RPM_BIMC_A_CLK>;
+		clocks = <&rpmcc  RPM_SMD_BIMC_CLK>,
+                      <&rpmcc  RPM_SMD_BIMC_A_CLK>;
 	};
 
 	fab_pnoc: fab-pnoc {
@@ -119,8 +119,8 @@
 		qcom,qos-delta = <0x1000>;
 		qcom,bus-type = <1>;
 		clock-names = "bus_clk", "bus_a_clk";
-		clocks = <&rpmcc  RPM_PCNOC_CLK>,
-                      <&rpmcc  RPM_PCNOC_A_CLK>;
+		clocks = <&rpmcc  RPM_SMD_PCNOC_CLK>,
+                      <&rpmcc  RPM_SMD_PCNOC_A_CLK>;
 	};
 
 	/* SNOC Devices */
