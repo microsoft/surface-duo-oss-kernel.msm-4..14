@@ -133,7 +133,7 @@ enum tx_flags {
 	GLINK_TX_ATOMIC = 0x8,
 };
 
-#ifdef CONFIG_MSM_GLINK
+#if IS_ENABLED(CONFIG_MSM_GLINK)
 /**
  * Open GLINK channel.
  *
