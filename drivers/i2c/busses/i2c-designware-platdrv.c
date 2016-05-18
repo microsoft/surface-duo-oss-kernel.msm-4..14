@@ -236,6 +236,7 @@ static int dw_i2c_plat_probe(struct platform_device *pdev)
 	ACPI_COMPANION_SET(&adap->dev, ACPI_COMPANION(&pdev->dev));
 	adap->dev.of_node = pdev->dev.of_node;
 
+	pm_runtime_get_noresume(&pdev->dev);
 	if (dev->pm_runtime_disabled) {
 		pm_runtime_forbid(&pdev->dev);
 	} else {
@@ -246,8 +247,13 @@ static int dw_i2c_plat_probe(struct platform_device *pdev)
 	}
 
 	r = i2c_dw_probe(dev);
-	if (r && !dev->pm_runtime_disabled)
-		pm_runtime_disable(&pdev->dev);
+	if (r) {
+		if (!IS_ERR(dev->clk))
+			clk_disable_unprepare(dev->clk);
+		if (!dev->pm_runtime_disabled)
+			pm_runtime_disable(&pdev->dev);
+	}
+	pm_runtime_put(&pdev->dev);
 
 	return r;
 }
