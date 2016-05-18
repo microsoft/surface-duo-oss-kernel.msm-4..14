@@ -29,8 +29,8 @@
 #include <linux/clk.h>
 #include <linux/dmaengine.h>
 
-#include "dmaengine.h"
-#include "virt-dma.h"
+#include "../dmaengine.h"
+#include "../virt-dma.h"
 
 /* ADM registers - calculated from channel number and security domain */
 #define ADM_CHAN_MULTI			0x4
