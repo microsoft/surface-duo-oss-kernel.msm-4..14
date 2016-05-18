@@ -250,6 +250,7 @@ static int dw_i2c_plat_probe(struct platform_device *pdev)
 		if (!IS_ERR(dev->clk))
 			clk_disable_unprepare(dev->clk);
 		pm_runtime_disable(&pdev->dev);
+		pm_runtime_dont_use_autosuspend(&pdev->dev);
 		if (dev->pm_runtime_disabled)
 			pm_runtime_put_noidle(&pdev->dev);
 	}
