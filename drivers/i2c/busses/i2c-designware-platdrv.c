@@ -254,6 +254,7 @@ static int dw_i2c_plat_probe(struct platform_device *pdev)
 		if (dev->pm_runtime_disabled)
 			pm_runtime_put_noidle(&pdev->dev);
 	}
+	pm_runtime_mark_last_busy(&pdev->dev);
 	pm_runtime_put(&pdev->dev);
 
 	return r;
