@@ -237,21 +237,21 @@ static int dw_i2c_plat_probe(struct platform_device *pdev)
 	adap->dev.of_node = pdev->dev.of_node;
 
 	pm_runtime_get_noresume(&pdev->dev);
-	if (dev->pm_runtime_disabled) {
-		pm_runtime_forbid(&pdev->dev);
-	} else {
-		pm_runtime_set_autosuspend_delay(&pdev->dev, 1000);
-		pm_runtime_use_autosuspend(&pdev->dev);
-		pm_runtime_set_active(&pdev->dev);
-		pm_runtime_enable(&pdev->dev);
-	}
+	pm_runtime_set_autosuspend_delay(&pdev->dev, 1000);
+	pm_runtime_use_autosuspend(&pdev->dev);
+	pm_runtime_set_active(&pdev->dev);
+	pm_runtime_enable(&pdev->dev);
+
+	if (dev->pm_runtime_disabled)
+		pm_runtime_get_noresume(&pdev->dev);
 
 	r = i2c_dw_probe(dev);
 	if (r) {
 		if (!IS_ERR(dev->clk))
 			clk_disable_unprepare(dev->clk);
-		if (!dev->pm_runtime_disabled)
-			pm_runtime_disable(&pdev->dev);
+		pm_runtime_disable(&pdev->dev);
+		if (dev->pm_runtime_disabled)
+			pm_runtime_put_noidle(&pdev->dev);
 	}
 	pm_runtime_put(&pdev->dev);
 
@@ -268,10 +268,11 @@ static int dw_i2c_plat_remove(struct platform_device *pdev)
 
 	i2c_dw_disable(dev);
 
+	if (dev->pm_runtime_disabled)
+		pm_runtime_put_noidle(&pdev->dev);
 	pm_runtime_dont_use_autosuspend(&pdev->dev);
 	pm_runtime_put_sync(&pdev->dev);
-	if (!dev->pm_runtime_disabled)
-		pm_runtime_disable(&pdev->dev);
+	pm_runtime_disable(&pdev->dev);
 
 	return 0;
 }
