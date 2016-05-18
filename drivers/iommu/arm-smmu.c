@@ -1065,10 +1065,6 @@ static int arm_smmu_domain_add_master(struct arm_smmu_domain *smmu_domain,
 	int i, ret;
 	void __iomem *gr0_base = ARM_SMMU_GR0(cfg->smmu);
 
-	ret = arm_smmu_master_configure_smrs(cfg);
-	if (ret)
-		return ret;
-
 	/*
 	 * FIXME: This won't be needed once we have IOMMU-backed DMA ops
 	 * for all devices behind the SMMU. Note that we need to take
@@ -1079,7 +1075,7 @@ static int arm_smmu_domain_add_master(struct arm_smmu_domain *smmu_domain,
 		return 0;
 
 	/* Devices in an IOMMU group may already be configured */
-	ret = arm_smmu_master_configure_smrs(smmu, cfg);
+	ret = arm_smmu_master_configure_smrs(cfg);
 	if (ret)
 		return ret == -EEXIST ? 0 : ret;
 
