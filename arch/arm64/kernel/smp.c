@@ -65,6 +65,7 @@
 struct secondary_data secondary_data;
 /* Number of CPUs which aren't online, but looping in kernel text. */
 int cpus_stuck_in_kernel;
+volatile unsigned long secondary_holding_pen_release = INVALID_HWID;
 
 enum ipi_msg_type {
 	IPI_RESCHEDULE,

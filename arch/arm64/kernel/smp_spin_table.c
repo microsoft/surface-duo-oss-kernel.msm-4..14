@@ -28,9 +28,6 @@
 #include <asm/io.h>
 #include <asm/smp_plat.h>
 
-extern void secondary_holding_pen(void);
-volatile unsigned long secondary_holding_pen_release = INVALID_HWID;
-
 static phys_addr_t cpu_release_addr[NR_CPUS];
 
 /*
@@ -132,3 +129,4 @@ const struct cpu_operations smp_spin_table_ops = {
 	.cpu_prepare	= smp_spin_table_cpu_prepare,
 	.cpu_boot	= smp_spin_table_cpu_boot,
 };
+CPU_METHOD_OF_DECLARE(spin_table, &smp_spin_table_ops);
