@@ -901,6 +901,18 @@ static int remove_iommu_group(struct device *dev, void *data)
 	return 0;
 }
 
+int iommu_bus_add_dev(struct device *dev)
+{
+	const struct iommu_ops *ops = dev->bus->iommu_ops;
+	int ret = -ENODEV;
+
+	if (ops->add_device)
+		ret = ops->add_device(dev);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(iommu_bus_add_dev);
+
 static int iommu_bus_notifier(struct notifier_block *nb,
 			      unsigned long action, void *data)
 {

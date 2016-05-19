@@ -448,6 +448,10 @@ int iommu_dma_map_sg(struct device *dev, struct scatterlist *sg,
 	size_t iova_len = 0;
 	int i;
 
+	if (!iovad) {
+		iommu_get_dma_cookie(domain);
+		iovad = domain->iova_cookie;
+	}
 	/*
 	 * Work out how much IOVA space we need, and align the segments to
 	 * IOVA granules for the IOMMU driver to handle. With some clever
