@@ -818,7 +818,7 @@ static int __init dm_android_verity_init(void)
 	}
 
 	file = debugfs_create_bool("target_added", S_IRUGO, debug_dir,
-				(u32 *)&target_added);
+				&target_added);
 
 	if (IS_ERR_OR_NULL(file)) {
 		DMERR("Cannot create android_verity debugfs directory: %ld",
@@ -828,7 +828,7 @@ static int __init dm_android_verity_init(void)
 	}
 
 	file = debugfs_create_bool("verity_enabled", S_IRUGO, debug_dir,
-				(u32 *)&verity_enabled);
+				&verity_enabled);
 
 	if (IS_ERR_OR_NULL(file)) {
 		DMERR("Cannot create android_verity debugfs directory: %ld",
