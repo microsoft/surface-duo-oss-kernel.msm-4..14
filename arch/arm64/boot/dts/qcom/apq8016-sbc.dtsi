@@ -11,10 +11,14 @@
  * GNU General Public License for more details.
  */
 
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/sound/apq8016-lpass.h>
 #include "msm8916.dtsi"
 #include "pm8916.dtsi"
 #include "apq8016-sbc-soc-pins.dtsi"
 #include "apq8016-sbc-pmic-pins.dtsi"
+#include "msm8916-mdss.dtsi"
 
 / {
 	aliases {
@@ -28,6 +32,10 @@
 	};
 
 	soc {
+		dma@7884000 {
+			status = "okay";
+		};
+
 		serial@78af000 {
 			label = "LS-UART0";
 			status = "okay";
@@ -54,6 +62,29 @@
 		/* On High speed expansion */
 			label = "HS-I2C2";
 			status = "okay";
+
+			adv_bridge: bridge@39 {
+				status = "okay";
+				compatible = "adi,adv7533";
+				reg = <0x39>;
+				interrupt-parent = <&msmgpio>;
+				interrupts = <31 2>;
+				avdd-supply = <&pm8916_l6>;
+				v3p3-supply = <&pm8916_l17>;
+				adi,dsi-lanes = <4>;
+				pd-gpios = <&msmgpio 32 0>;
+				pinctrl-names = "default","sleep";
+				pinctrl-0 = <&adv7533_int_active &adv7533_switch_active>;
+				pinctrl-1 = <&adv7533_int_suspend &adv7533_switch_suspend>;
+				#sound-dai-cells = <1>;
+
+				port {
+					adv_in: endpoint {
+						remote-endpoint = <&dsi_out>;
+					};
+				};
+
+			};
 		};
 
 		i2c@78ba000 {
@@ -135,6 +166,83 @@
 			status = "okay";
 		};
 
+		sdhci@07864000 {
+			vmmc-supply = <&pm8916_l11>;
+			vqmmc-supply = <&pm8916_l12>;
+
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&sdc2_clk_on &sdc2_cmd_on &sdc2_data_on &sdc2_cd_on>;
+			pinctrl-1 = <&sdc2_clk_off &sdc2_cmd_off &sdc2_data_off &sdc2_cd_off>;
+
+			cd-gpios = <&msmgpio 38 0x1>;
+			status = "okay";
+		};
+
+		/*
+		Internal Codec
+			playback - Primary MI2S
+			capture - Ter MI2S
+
+		External Primary:
+			playback - secondary MI2S
+			capture - Quat MI2S
+
+		External Secondary:
+			playback - Quat MI2S
+			capture - Quat MI2S
+
+		*/
+		sound {
+			status = "okay";
+			pinctrl-0 = <&cdc_pdm_lines_act &ext_sec_tlmm_lines_act &ext_mclk_tlmm_lines_act>;
+			pinctrl-1 = <&cdc_pdm_lines_sus &ext_sec_tlmm_lines_sus &ext_mclk_tlmm_lines_sus>;
+			pinctrl-names = "default", "sleep";
+			qcom,model = "DB410c";
+			qcom,audio-routing =
+				"MIC BIAS External", "Handset Mic",
+				"MIC BIAS Internal2", "Headset Mic",
+				"MIC BIAS External", "Secondary Mic",
+				"AMIC1", "MIC BIAS External",
+				"AMIC2", "MIC BIAS Internal2",
+				"AMIC3", "MIC BIAS External",
+				"DMIC1", "MIC BIAS Internal1",
+				"MIC BIAS Internal1", "Digital Mic1",
+				"DMIC2", "MIC BIAS Internal1",
+				"MIC BIAS Internal1", "Digital Mic2";
+
+			/* External Primary or External Secondary -ADV7533 HDMI */
+			external-dai-link@0 {
+				link-name = "ADV7533";
+
+				cpu { /* QUAT */
+					sound-dai = <&lpass MI2S_QUATERNARY>;
+				};
+				codec {
+					sound-dai = <&adv_bridge 0>;
+				};
+			};
+
+			internal-codec-playback-dai-link@0 {		/* I2S - Internal codec */
+				link-name = "WCD";
+				cpu { /* PRIMARY */
+					sound-dai = <&lpass MI2S_PRIMARY>;
+				};
+				codec {
+					sound-dai = <&wcd_codec 0>;
+				};
+			};
+
+			internal-codec-capture-dai-link@0 {		/* I2S - Internal codec */
+				link-name = "WCD-Capture";
+				cpu { /* PRIMARY */
+					sound-dai = <&lpass MI2S_TERTIARY>;
+				};
+				codec {
+					sound-dai = <&wcd_codec 1>;
+				};
+			};
+		};
+
 		usb@78d9000 {
 			extcon = <&usb_id>, <&usb_id>;
 			status = "okay";
@@ -159,6 +267,26 @@
 		lpass@07708000 {
 			status = "okay";
 		};
+
+		dsi@1a98000 {
+			status = "okay";
+
+			vdda-supply = <&pm8916_l2>;
+			vddio-supply = <&pm8916_l6>;
+
+			port {
+				dsi_out: endpoint {
+					remote-endpoint = <&adv_in>;
+					qcom,data-lane-map = <0 1 2 3>;
+				};
+			};
+		};
+
+		dsi-phy@1a98300 {
+			status = "okay";
+
+			vddio-supply = <&pm8916_l6>;
+		};
 	};
 
 	usb2513 {
@@ -173,6 +301,27 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&usb_id_default>;
 	};
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		autorepeat;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&msm_key_volp_n_default>;
+
+		button@0 {
+			label = "Volume Up";
+			linux,code = <KEY_VOLUMEUP>;
+			gpios = <&msmgpio 107 GPIO_ACTIVE_LOW>;
+		};
+	};
+};
+
+&spmi_pon {
+	// Overwrite RESETIN_N keyboard scan code
+	linux,code = <KEY_VOLUMEDOWN>;
 };
 
 &smd_rpm_regulators {
@@ -293,4 +442,23 @@
 		regulator-min-microvolt = <1750000>;
 		regulator-max-microvolt = <3337000>;
 	};
+};
+
+&wcd_codec {
+	status = "okay";
+	clocks = <&gcc GCC_CODEC_DIGCODEC_CLK>;
+	clock-names = "mclk";
+	digital = <&wcd_digital>;
+};
+/* default regulators required for mezzanine boards */
+&pm8916_l15 {
+	regulator-always-on;
+};
+
+&vidc_rproc {
+	status = "okay";
+};
+
+&vidc {
+	status = "okay";
 };
