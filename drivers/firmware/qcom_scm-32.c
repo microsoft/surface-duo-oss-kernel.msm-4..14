@@ -28,6 +28,13 @@
 
 #include "qcom_scm.h"
 
+#define QCOM_SCM_ENOMEM		-5
+#define QCOM_SCM_EOPNOTSUPP	-4
+#define QCOM_SCM_EINVAL_ADDR	-3
+#define QCOM_SCM_EINVAL_ARG	-2
+#define QCOM_SCM_ERROR		-1
+#define QCOM_SCM_INTERRUPTED	1
+
 #define QCOM_SCM_FLAG_COLDBOOT_CPU0	0x00
 #define QCOM_SCM_FLAG_COLDBOOT_CPU1	0x01
 #define QCOM_SCM_FLAG_COLDBOOT_CPU2	0x08
@@ -37,6 +44,15 @@
 #define QCOM_SCM_FLAG_WARMBOOT_CPU1	0x02
 #define QCOM_SCM_FLAG_WARMBOOT_CPU2	0x10
 #define QCOM_SCM_FLAG_WARMBOOT_CPU3	0x40
+
+#define IOMMU_SECURE_PTBL_SIZE		3
+#define IOMMU_SECURE_PTBL_INIT		4
+#define IOMMU_SET_CP_POOL_SIZE		5
+#define IOMMU_SECURE_MAP		6
+#define IOMMU_SECURE_UNMAP		7
+#define IOMMU_SECURE_MAP2		0xb
+#define IOMMU_SECURE_MAP2_FLAT		0x12
+#define IOMMU_SECURE_UNMAP2		0xc
 
 struct qcom_scm_entry {
 	int flag;
@@ -166,23 +182,6 @@ static inline void *qcom_scm_get_command_buffer(const struct qcom_scm_command *c
 static inline void *qcom_scm_get_response_buffer(const struct qcom_scm_response *rsp)
 {
 	return (void *)rsp + le32_to_cpu(rsp->buf_offset);
-}
-
-static int qcom_scm_remap_error(int err)
-{
-	pr_err("qcom_scm_call failed with error code %d\n", err);
-	switch (err) {
-	case QCOM_SCM_ERROR:
-		return -EIO;
-	case QCOM_SCM_EINVAL_ADDR:
-	case QCOM_SCM_EINVAL_ARG:
-		return -EINVAL;
-	case QCOM_SCM_EOPNOTSUPP:
-		return -EOPNOTSUPP;
-	case QCOM_SCM_ENOMEM:
-		return -ENOMEM;
-	}
-	return -EINVAL;
 }
 
 static u32 smc(u32 cmd_addr)
@@ -498,4 +497,315 @@ int __qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt, u32 *resp)
 
 	return qcom_scm_call(QCOM_SCM_SVC_HDCP, QCOM_SCM_CMD_HDCP,
 		req, req_cnt * sizeof(*req), resp, sizeof(*resp));
+}
+
+int __qcom_scm_restart_proc(u32 proc_id, int restart, u32 *resp)
+{
+
+	return qcom_scm_call(QCOM_SCM_SVC_PIL, proc_id,
+				&restart, sizeof(restart),
+			    	&resp, sizeof(resp));
+}
+
+bool __qcom_scm_pas_supported(u32 peripheral)
+{
+	__le32 out;
+	__le32 in;
+	int ret;
+
+	in = cpu_to_le32(peripheral);
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_IS_SUPPORTED_CMD,
+			    &in, sizeof(in),
+			    &out, sizeof(out));
+
+	return ret ? false : !!out;
+}
+
+int __qcom_scm_pas_init_image(u32 peripheral, dma_addr_t metadata_phys)
+{
+	__le32 scm_ret;
+	int ret;
+	struct {
+		__le32 proc;
+		__le32 image_addr;
+	} request;
+
+	request.proc = cpu_to_le32(peripheral);
+	request.image_addr = cpu_to_le32(metadata_phys);
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_INIT_IMAGE_CMD,
+			    &request, sizeof(request),
+			    &scm_ret, sizeof(scm_ret));
+
+	return ret ? : le32_to_cpu(scm_ret);
+}
+
+int __qcom_scm_pas_mem_setup(u32 peripheral, phys_addr_t addr, phys_addr_t size)
+{
+	__le32 scm_ret;
+	int ret;
+	struct {
+		__le32 proc;
+		__le32 addr;
+		__le32 len;
+	} request;
+
+	request.proc = cpu_to_le32(peripheral);
+	request.addr = cpu_to_le32(addr);
+	request.len = cpu_to_le32(size);
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_MEM_SETUP_CMD,
+			    &request, sizeof(request),
+			    &scm_ret, sizeof(scm_ret));
+
+	return ret ? : le32_to_cpu(scm_ret);
+}
+
+int __qcom_scm_pas_auth_and_reset(u32 peripheral)
+{
+	__le32 out;
+	__le32 in;
+	int ret;
+
+	in = cpu_to_le32(peripheral);
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_AUTH_AND_RESET_CMD,
+			    &in, sizeof(in),
+			    &out, sizeof(out));
+
+	return ret ? : le32_to_cpu(out);
+}
+
+int __qcom_scm_pas_shutdown(u32 peripheral)
+{
+	__le32 out;
+	__le32 in;
+	int ret;
+
+	in = cpu_to_le32(peripheral);
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_SHUTDOWN_CMD,
+			    &in, sizeof(in),
+			    &out, sizeof(out));
+
+	return ret ? : le32_to_cpu(out);
+}
+
+#define SCM_SVC_UTIL			0x3
+#define SCM_SVC_MP			0xc
+#define IOMMU_DUMP_SMMU_FAULT_REGS	0x0c
+
+int __qcom_scm_iommu_dump_fault_regs(u32 id, u32 context, u64 addr, u32 len)
+{
+	struct {
+		u32 id;
+		u32 cb_num;
+		u32 buff;
+		u32 len;
+	} req;
+	int resp = 0;
+
+	return qcom_scm_call(SCM_SVC_UTIL, IOMMU_DUMP_SMMU_FAULT_REGS,
+		       &req, sizeof(req), &resp, 1);
+}
+
+int __qcom_scm_iommu_set_cp_pool_size(u32 size, u32 spare)
+{
+	struct {
+		u32 size;
+		u32 spare;
+	} req;
+	int retval;
+
+	req.size = size;
+	req.spare = spare;
+
+	return qcom_scm_call(SCM_SVC_MP, IOMMU_SET_CP_POOL_SIZE,
+			     &req, sizeof(req), &retval, sizeof(retval));
+}
+
+int __qcom_scm_iommu_secure_ptbl_size(u32 spare, int psize[2])
+{
+	struct {
+		u32 spare;
+	} req;
+
+	req.spare = spare;
+
+	return qcom_scm_call(SCM_SVC_MP, IOMMU_SECURE_PTBL_SIZE, &req,
+			     sizeof(req), psize, sizeof(psize));
+}
+
+int __qcom_scm_iommu_secure_ptbl_init(u64 addr, u32 size, u32 spare)
+{
+	struct {
+		u32 addr;
+		u32 size;
+		u32 spare;
+	} req = {0};
+	int ret, ptbl_ret = 0;
+
+	req.addr = addr;
+	req.size = size;
+	req.spare = spare;
+
+	ret = qcom_scm_call(SCM_SVC_MP, IOMMU_SECURE_PTBL_INIT, &req,
+			    sizeof(req), &ptbl_ret, sizeof(ptbl_ret));
+
+	if (ret)
+		return ret;
+
+	if (ptbl_ret)
+		return ptbl_ret;
+
+	return 0;
+}
+
+int __qcom_scm_iommu_secure_map(u64 list, u32 list_size, u32 size,
+				u32 id, u32 ctx_id, u64 va, u32 info_size,
+				u32 flags)
+{
+	struct {
+		struct {
+			unsigned int list;
+			unsigned int list_size;
+			unsigned int size;
+		} plist;
+		struct {
+			unsigned int id;
+			unsigned int ctx_id;
+			unsigned int va;
+			unsigned int size;
+		} info;
+		unsigned int flags;
+	} req;
+	u32 resp;
+	int ret;
+
+	req.plist.list = list;
+	req.plist.list_size = list_size;
+	req.plist.size = size;
+	req.info.id = id;
+	req.info.ctx_id = ctx_id;
+	req.info.va = va;
+	req.info.size = info_size;
+	req.flags = flags;
+
+	ret = qcom_scm_call(SCM_SVC_MP, IOMMU_SECURE_MAP2, &req, sizeof(req),
+			    &resp, sizeof(resp));
+
+	if (ret || resp)
+		return -EINVAL;
+
+	return 0;
+}
+
+int __qcom_scm_iommu_secure_unmap(u32 id, u32 ctx_id, u64 va,
+				  u32 size, u32 flags)
+{
+	struct {
+		struct {
+			unsigned int id;
+			unsigned int ctx_id;
+			unsigned int va;
+			unsigned int size;
+		} info;
+		unsigned int flags;
+	} req;
+	int ret, scm_ret;
+
+	req.info.id = id;
+	req.info.ctx_id = ctx_id;
+	req.info.va = va;
+	req.info.size = size;
+	req.flags = flags;
+
+	return qcom_scm_call(SCM_SVC_MP, IOMMU_SECURE_UNMAP2, &req,
+			     sizeof(req), &scm_ret, sizeof(scm_ret));
+}
+
+int __qcom_scm_get_feat_version(u32 feat)
+{
+	int ret;
+
+	if (__qcom_scm_is_call_available(SCM_SVC_INFO, GET_FEAT_VERSION_CMD)) {
+		u32 version;
+
+		if (!qcom_scm_call(SCM_SVC_INFO, GET_FEAT_VERSION_CMD, &feat,
+				   sizeof(feat), &version, sizeof(version)))
+			return version;
+	}
+
+	return 0;
+}
+
+#define RESTORE_SEC_CFG		2
+int __qcom_scm_restore_sec_cfg(u32 device_id, u32 spare)
+{
+	struct {
+		u32 device_id;
+		u32 spare;
+	} req;
+	int ret, scm_ret = 0;
+
+	req.device_id = device_id;
+	req.spare = spare;
+
+	ret = qcom_scm_call(SCM_SVC_MP, RESTORE_SEC_CFG, &req, sizeof(req),
+			    scm_ret, sizeof(scm_ret));
+	if (ret || scm_ret)
+		return ret ? ret : -EINVAL;
+
+	return 0;
+}
+
+#define TZBSP_VIDEO_SET_STATE	0xa
+int __qcom_scm_set_video_state(u32 state, u32 spare)
+{
+	struct {
+		u32 state;
+		u32 spare;
+	} req;
+	int scm_ret = 0;
+	int ret;
+
+	req.state = state;
+	req.spare = spare;
+
+	ret = qcom_scm_call(SCM_SVC_BOOT, TZBSP_VIDEO_SET_STATE, &req,
+			    sizeof(req), &scm_ret, sizeof(scm_ret));
+	if (ret || scm_ret)
+			return ret ? ret : -EINVAL;
+
+	return 0;
+}
+
+#define TZBSP_MEM_PROTECT_VIDEO_VAR	0x8
+
+int __qcom_scm_mem_protect_video_var(u32 start, u32 size, u32 nonpixel_start,
+				     u32 nonpixel_size)
+{
+	struct {
+		u32 cp_start;
+		u32 cp_size;
+		u32 cp_nonpixel_start;
+		u32 cp_nonpixel_size;
+	} req;
+	int ret, scm_ret;
+
+	req.cp_start = start;
+	req.cp_size = size;
+	req.cp_nonpixel_start = nonpixel_start;
+	req.cp_nonpixel_size = nonpixel_size;
+
+	ret = qcom_scm_call(SCM_SVC_MP, TZBSP_MEM_PROTECT_VIDEO_VAR, &req,
+			    sizeof(req), &scm_ret, sizeof(scm_ret));
+
+	if (ret || scm_ret)
+			return ret ? ret : -EINVAL;
+
+	return 0;
+}
+
+int __qcom_scm_init(void)
+{
+	return 0;
 }
