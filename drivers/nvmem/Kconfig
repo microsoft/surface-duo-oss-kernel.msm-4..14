@@ -1,6 +1,5 @@
 menuconfig NVMEM
 	tristate "NVMEM Support"
-	select REGMAP
 	help
 	  Support for NVMEM(Non Volatile Memory) devices like EEPROM, EFUSES...
 
@@ -49,7 +48,7 @@ config NVMEM_MXS_OCOTP
 config MTK_EFUSE
 	tristate "Mediatek SoCs EFUSE support"
 	depends on ARCH_MEDIATEK || COMPILE_TEST
-	select REGMAP_MMIO
+	depends on HAS_IOMEM
 	help
 	  This is a driver to access hardware related data like sensor
 	  calibration, HDMI impedance etc.
@@ -61,7 +60,6 @@ config QCOM_QFPROM
 	tristate "QCOM QFPROM Support"
 	depends on ARCH_QCOM || COMPILE_TEST
 	depends on HAS_IOMEM
-	select REGMAP_MMIO
 	help
 	  Say y here to enable QFPROM support. The QFPROM provides access
 	  functions for QFPROM data to rest of the drivers via nvmem interface.
@@ -83,7 +81,6 @@ config ROCKCHIP_EFUSE
 config NVMEM_SUNXI_SID
 	tristate "Allwinner SoCs SID support"
 	depends on ARCH_SUNXI
-	select REGMAP_MMIO
 	help
 	  This is a driver for the 'security ID' available on various Allwinner
 	  devices.
