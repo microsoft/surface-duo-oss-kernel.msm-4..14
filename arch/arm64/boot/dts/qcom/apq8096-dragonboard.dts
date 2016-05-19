@@ -13,13 +13,11 @@
 
 /dts-v1/;
 
-#include <dt-bindings/arm/qcom-ids.h>
-#include "msm8916-mtp.dtsi"
+#include "apq8096-dragonboard.dtsi"
 
 / {
-	model = "Qualcomm Technologies, Inc. MSM 8916 MTP";
-	compatible = "qcom,msm8916-mtp", "qcom,msm8916-mtp/1",
-			"qcom,msm8916", "qcom,mtp";
-	qcom,board-id = <QCOM_BRD_ID(MTP, 1, 0) QCOM_BRD_SUBTYPE_DEFAULT>,
-			<QCOM_BRD_ID(MTP, 1, 0) QCOM_BRD_SUBTYPE_MTP8916_SMB1360>;
+	model = "Qualcomm Technologies, Inc. APQ 8096 DragonBoard";
+	compatible = "qcom,apq8096-dragonboard";
+	qcom,pmic-id = <0x20009 0x2000A 0x0 0x0>;
+	qcom,board-id = <10 0>;
 };

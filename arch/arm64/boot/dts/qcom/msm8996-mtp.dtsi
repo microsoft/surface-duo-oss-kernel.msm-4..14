@@ -12,6 +12,7 @@
  */
 
 #include "msm8996.dtsi"
+#include "pm8994.dtsi"
 
 / {
 	aliases {

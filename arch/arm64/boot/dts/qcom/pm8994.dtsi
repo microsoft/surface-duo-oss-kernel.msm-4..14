@@ -58,5 +58,19 @@
 		reg = <0x1 SPMI_USID>;
 		#address-cells = <1>;
 		#size-cells = <0>;
+
+		regulators {
+			compatible = "qcom,pm8994-regulators";
+			#address-cells = <1>;
+			#size-cells = <1>;
+
+			pm8994_s11: s11@3200 {
+				reg = <0x3200 0x100>;
+				status = "ok";
+				regulator-min-microvolt = <520000>;
+				regulator-max-microvolt = <1140000>;
+				regulator-always-on;
+			};
+		};
 	};
 };
