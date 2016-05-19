@@ -19,6 +19,8 @@
 #include <linux/of_irq.h>
 #include <linux/of_gpio.h>
 
+#include <sound/hdmi-codec.h>
+#include <sound/msm_hdmi_audio.h>
 #include "hdmi.h"
 
 void msm_hdmi_set_mode(struct hdmi *hdmi, bool power_on)
@@ -434,6 +436,7 @@ static int msm_hdmi_get_gpio(struct device_node *of_node, const char *name)
 	return gpio;
 }
 
+static void msm_hdmi_register_audio_driver(struct hdmi *hdmi, struct device *dev);
 static int msm_hdmi_bind(struct device *dev, struct device *master, void *data)
 {
 	struct drm_device *drm = dev_get_drvdata(master);
@@ -467,6 +470,7 @@ static int msm_hdmi_bind(struct device *dev, struct device *master, void *data)
 	if (IS_ERR(hdmi))
 		return PTR_ERR(hdmi);
 	priv->hdmi = hdmi;
+	msm_hdmi_register_audio_driver(hdmi, dev);
 
 	return 0;
 }
@@ -477,6 +481,7 @@ static void msm_hdmi_unbind(struct device *dev, struct device *master,
 	struct drm_device *drm = dev_get_drvdata(master);
 	struct msm_drm_private *priv = drm->dev_private;
 	if (priv->hdmi) {
+		platform_device_unregister(priv->hdmi->audio_pdev);
 		msm_hdmi_destroy(priv->hdmi);
 		priv->hdmi = NULL;
 	}
@@ -486,6 +491,124 @@ static const struct component_ops msm_hdmi_ops = {
 		.bind   = msm_hdmi_bind,
 		.unbind = msm_hdmi_unbind,
 };
+/*
+ * HDMI audio codec callbacks
+ */
+
+static int msm_hdmi_audio_hw_params(struct device *dev,
+				    struct hdmi_codec_daifmt *daifmt,
+				    struct hdmi_codec_params *params)
+{
+	struct hdmi *hdmi = dev_get_drvdata(dev);
+	unsigned int chan;// = params->cea.channels;
+	unsigned int channel_allocation = 0;
+	unsigned int rate;//
+	unsigned int level_shift  = 0; /* 0dB */
+	bool down_mix = false;
+	dev_dbg(dev, "%s: %u Hz, %d bit, %d channels\n", __func__,
+		params->sample_rate, params->sample_width, chan);
+
+	switch (params->cea.channels) {
+	case 2:
+		channel_allocation  = 0;
+		chan = MSM_HDMI_AUDIO_CHANNEL_2;
+		break;
+	case 4:
+		channel_allocation  = 0;
+		chan = MSM_HDMI_AUDIO_CHANNEL_4;
+		break;
+	case 6:
+		channel_allocation  = 0x0B;
+		chan = MSM_HDMI_AUDIO_CHANNEL_6;
+		break;
+	case 8:
+		channel_allocation  = 0x1F;
+		chan = MSM_HDMI_AUDIO_CHANNEL_8;
+		break;
+	default:
+		//dev_err(hdmi->dev, "channel[%d] not supported!\n", chan);
+		return -EINVAL;
+	}
+
+	switch (params->sample_rate) {
+	case 32000:
+		rate = HDMI_SAMPLE_RATE_32KHZ;
+	case 44100:
+		rate = HDMI_SAMPLE_RATE_48KHZ;
+	case 48000:
+		rate = HDMI_SAMPLE_RATE_48KHZ;
+	case 88200:
+		rate = HDMI_SAMPLE_RATE_88_2KHZ;
+	case 96000:
+		rate = HDMI_SAMPLE_RATE_96KHZ;
+	case 176400:
+		rate = HDMI_SAMPLE_RATE_176_4KHZ;
+	case 192000:
+		rate = HDMI_SAMPLE_RATE_192KHZ;
+		break;
+	default:
+		dev_err(dev, "rate[%d] not supported!\n",
+			params->sample_rate);
+		return -EINVAL;
+	}
+		rate = HDMI_SAMPLE_RATE_48KHZ;
+		channel_allocation  = 0;
+
+	//FIXME..
+	msm_hdmi_audio_set_sample_rate(hdmi, rate);
+
+	msm_hdmi_audio_info_setup(hdmi, 1, chan,
+			channel_allocation, level_shift, down_mix);
+
+
+
+	return 0;
+}
+
+static int msm_hdmi_audio_startup(struct device *dev,
+				  void (*abort_cb)(struct device *dev))
+{
+	struct hdmi *hdmi = dev_get_drvdata(dev);
+
+	dev_dbg(dev, "%s\n", __func__);
+
+	//msm_hdmi_audio_enable(hdmi);
+
+	return 0;
+}
+
+static void msm_hdmi_audio_shutdown(struct device *dev)
+{
+	struct hdmi *hdmi = dev_get_drvdata(dev);
+
+	dev_dbg(dev, "%s\n", __func__);
+
+	msm_hdmi_audio_info_setup(hdmi, 0, 0, 0, 0, 0);
+}
+
+static const struct hdmi_codec_ops msm_hdmi_audio_codec_ops = {
+	.hw_params = msm_hdmi_audio_hw_params,
+	.audio_startup = msm_hdmi_audio_startup,
+	.audio_shutdown = msm_hdmi_audio_shutdown,
+};
+
+static void msm_hdmi_register_audio_driver(struct hdmi *hdmi, struct device *dev)
+{
+	struct hdmi_codec_pdata codec_data = {
+		.ops = &msm_hdmi_audio_codec_ops,
+		.max_i2s_channels = 2,
+		.i2s = 1,
+	};
+	//struct platform_device *pdev;
+
+	hdmi->audio_pdev = platform_device_register_data(dev, HDMI_CODEC_DRV_NAME,
+					     PLATFORM_DEVID_AUTO, &codec_data,
+					     sizeof(codec_data));
+	if (IS_ERR(hdmi->audio_pdev))
+		return;
+
+	DRM_INFO("%s driver bound to HDMI\n", HDMI_CODEC_DRV_NAME);
+}
 
 static int msm_hdmi_dev_probe(struct platform_device *pdev)
 {
