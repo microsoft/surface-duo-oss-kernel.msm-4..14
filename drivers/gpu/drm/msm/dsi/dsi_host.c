@@ -921,7 +921,9 @@ static void dsi_sw_reset(struct msm_dsi_host *msm_host)
 
 	dsi_write(msm_host, REG_DSI_RESET, 1);
 	wmb(); /* make sure reset happen */
+	mdelay(100);
 	dsi_write(msm_host, REG_DSI_RESET, 0);
+	wmb();
 }
 
 static void dsi_op_mode_config(struct msm_dsi_host *msm_host,
@@ -1488,7 +1490,7 @@ static int dsi_host_attach(struct mipi_dsi_host *host,
 		return ret;
 
 	DBG("id=%d", msm_host->id);
-	if (msm_host->dev)
+	if (msm_host->dev && of_drm_find_panel(msm_host->device_node))
 		drm_helper_hpd_irq_event(msm_host->dev);
 
 	return 0;
@@ -1502,7 +1504,7 @@ static int dsi_host_detach(struct mipi_dsi_host *host,
 	msm_host->device_node = NULL;
 
 	DBG("id=%d", msm_host->id);
-	if (msm_host->dev)
+	if (msm_host->dev && of_drm_find_panel(msm_host->device_node))
 		drm_helper_hpd_irq_event(msm_host->dev);
 
 	return 0;
