@@ -230,6 +230,16 @@
 					0x1ac  MUX_M1	/* SPI0_CLK	(IOMG107) */
 				>;
 			};
+
+			modem_pcm_pmx_func: modem_pcm_pmx_func {
+				pinctrl-single,pins = <
+					0x198  MUX_M3	/* MODEM_PCM_XCLK  (IOMG102) */
+					0x19c  MUX_M3	/* MODEM_PCM_XFS  (IOMG103) */
+					0x1d0  MUX_M3	/* MODEM_PCM_DI  (IOMG116) */
+					0x1d4  MUX_M3	/* MODEM_PCM_DO  (IOMG117) */
+				>;
+			};
+
 		};
 
 		pmx1: pinmux@f7010800 {
@@ -645,6 +655,18 @@
 				pinctrl-single,bias-pulldown  = <PULL_DIS  PULL_DOWN PULL_DIS PULL_DOWN>;
 				pinctrl-single,bias-pullup    = <PULL_DIS  PULL_UP   PULL_DIS PULL_UP>;
 				pinctrl-single,drive-strength = <DRIVE1_02MA DRIVE_MASK>;
+			};
+
+			modem_pcm_cfg_func: modem_pcm_cfg_func {
+				pinctrl-single,pins = <
+					0x1a8  0x0	/* MODEM_PCM_XCLK  (IOCFG106) */
+					0x1ac  0x0	/* MODEM_PCM_XFS  (IOCFG107) */
+					0x1e0  0x0	/* MODEM_PCM_DI  (IOCFG120) */
+					0x1e4  0x0	/* MODEM_PCM_DO  (IOCFG121) */
+				>;
+				pinctrl-single,bias-pulldown  = <PULL_DOWN  PULL_DOWN PULL_DIS  PULL_DOWN>;
+				pinctrl-single,bias-pullup    = <PULL_DIS  PULL_UP   PULL_DIS  PULL_UP>;
+				pinctrl-single,drive-strength = <DRIVE2_02MA DRIVE_MASK>;
 			};
 		};
 
