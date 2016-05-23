@@ -184,6 +184,7 @@ void dsi_set_output_client(struct drm_device *dev)
 
 	mutex_unlock(&dev->mode_config.mutex);
 }
+EXPORT_SYMBOL(dsi_set_output_client);
 
 static u32 dsi_calc_phy_rate(u32 req_kHz, struct mipi_phy_params *phy)
 {
