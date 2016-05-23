@@ -46,6 +46,7 @@
 #include <linux/of_platform.h>
 #include <linux/efi.h>
 #include <linux/personality.h>
+#include <linux/psci.h>
 
 #include <asm/acpi.h>
 #include <asm/fixmap.h>
@@ -61,7 +62,6 @@
 #include <asm/tlbflush.h>
 #include <asm/traps.h>
 #include <asm/memblock.h>
-#include <asm/psci.h>
 #include <asm/efi.h>
 #include <asm/virt.h>
 
@@ -130,7 +130,6 @@ bool arch_match_cpu_phys_id(int cpu, u64 phys_id)
 }
 
 struct mpidr_hash mpidr_hash;
-#ifdef CONFIG_SMP
 /**
  * smp_build_mpidr_hash - Pre-compute shifts required at each affinity
  *			  level in order to build a linear index from an
@@ -196,7 +195,6 @@ static void __init smp_build_mpidr_hash(void)
 		pr_warn("Large number of MPIDR hash buckets detected\n");
 	__flush_dcache_area(&mpidr_hash, sizeof(struct mpidr_hash));
 }
-#endif
 
 static void __init hyp_mode_check(void)
 {
@@ -398,18 +396,13 @@ void __init setup_arch(char **cmdline_p)
 	if (acpi_disabled) {
 		unflatten_device_tree();
 		psci_dt_init();
-		cpu_read_bootcpu_ops();
-#ifdef CONFIG_SMP
-		of_smp_init_cpus();
-#endif
 	} else {
 		psci_acpi_init();
-		acpi_init_cpus();
 	}
 
-#ifdef CONFIG_SMP
+	cpu_read_bootcpu_ops();
+	smp_init_cpus();
 	smp_build_mpidr_hash();
-#endif
 
 #ifdef CONFIG_VT
 #if defined(CONFIG_VGA_CONSOLE)
@@ -509,9 +502,7 @@ static int c_show(struct seq_file *m, void *v)
 		 * online processors, looking for lines beginning with
 		 * "processor".  Give glibc what it expects.
 		 */
-#ifdef CONFIG_SMP
 		seq_printf(m, "processor\t: %d\n", i);
-#endif
 
 		seq_printf(m, "BogoMIPS\t: %lu.%02lu\n",
 			   loops_per_jiffy / (500000UL/HZ),
