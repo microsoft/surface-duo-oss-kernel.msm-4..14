@@ -21,6 +21,7 @@
 #include <linux/types.h>
 #include <asm/cpu.h>
 #include <asm/cpufeature.h>
+#include <asm/virt.h>
 
 static bool
 has_id_aa64pfr0_feature(const struct arm64_cpu_capabilities *entry)
@@ -31,6 +32,11 @@ has_id_aa64pfr0_feature(const struct arm64_cpu_capabilities *entry)
 	return (val & entry->register_mask) == entry->register_value;
 }
 
+static bool runs_at_el2(const struct arm64_cpu_capabilities *entry)
+{
+	return is_kernel_in_hyp_mode();
+}
+
 static const struct arm64_cpu_capabilities arm64_features[] = {
 	{
 		.desc = "GIC system register CPU interface",
@@ -38,6 +44,11 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.matches = has_id_aa64pfr0_feature,
 		.register_mask = (0xf << 24),
 		.register_value = (1 << 24),
+	},
+	{
+		.desc = "Virtualization Host Extensions",
+		.capability = ARM64_HAS_VIRT_HOST_EXTN,
+		.matches = runs_at_el2,
 	},
 	{},
 };
