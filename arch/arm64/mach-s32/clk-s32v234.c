@@ -222,6 +222,10 @@ static const char const * lin_sels[]	= { "firc", "fxosc", "dummy", "periphpll_ph
 
 static const char const * sdhc_sels[]	= { "firc", "fxosc", "dummy", "dummy", "enetpll_dfs3",};
 
+static const char const * enet_sels[]	= { "firc", "fxosc", "dummy", "dummy", "enetpll_phi0",};
+
+static const char const * enet_time_sels[]	= { "firc", "fxosc", "dummy", "dummy", "enetpll_phi0",};
+
 static const char const * dcu_sels[]	= { "firc", "fxosc", "dummy", "dummy", "dummy", "dummy", "dummy", "dummy", "dummy", "sys6",};
 
 static const char const * gpu_sels[]	= { "firc", "fxosc", "armpll_dfs1", };
@@ -436,7 +440,7 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 		ENETPLL_PLLDIG_PLLDV_RFDPHI0, ENETPLL_PLLDIG_PLLDV_RFDPHI1);
 
 	clk[S32V234_CLK_ENETPLL_PHI0] = s32_clk_plldig_phi(S32_PLLDIG_ENET,
-		"enetpll_phi0", "enetphpll_vco", ENETPLL_PLLDIG(mc_cgm0_base), 0);
+		"enetpll_phi0", "enetpll_vco", ENETPLL_PLLDIG(mc_cgm0_base), 0);
 
 	clk[S32V234_CLK_ENETPLL_PHI1] = s32_clk_plldig_phi(S32_PLLDIG_ENET,
 		"enetpll_phi1", "enetpll_vco", ENETPLL_PLLDIG(mc_cgm0_base), 1);
@@ -452,6 +456,26 @@ static void __init s32v234_clocks_init(struct device_node * mc_cgm0_node)
 
 	clk[S32V234_CLK_ENETPLL_DFS3] = s32_clk_dfs(S32_PLLDIG_ENET,
 		 "enetpll_dfs3", "enetpll_phi1", ENETPLL_PLLDIG_DFS(mc_cgm0_base), 3, ENETPLL_PLLDIG_DFS3_MFN);
+
+	/* ENET Clock */
+	clk[S32V234_CLK_ENET_SEL] = s32_clk_mux("enet_sel",
+		CGM_ACn_SC(mc_cgm2_base, 2),
+		MC_CGM_ACn_SEL_OFFSET,
+		MC_CGM_ACn_SEL_SIZE,
+		enet_sels, ARRAY_SIZE(enet_sels));
+	clk[S32V234_CLK_ENET_TIME_SEL] = s32_clk_mux("enet_time_sel",
+		CGM_ACn_SC(mc_cgm0_base, 7),
+		MC_CGM_ACn_SEL_OFFSET,
+		MC_CGM_ACn_SEL_SIZE,
+		enet_time_sels, ARRAY_SIZE(enet_time_sels));
+
+	clk[S32V234_CLK_ENET] = s32_clk_divider("enet", "enet_sel",
+			CGM_ACn_DCm(mc_cgm2_base, 2, 0), MC_CGM_ACn_DCm_PREDIV_OFFSET,
+			MC_CGM_ACn_DCm_PREDIV_SIZE);
+
+	clk[S32V234_CLK_ENET_TIME] = s32_clk_divider("enet_time", "enet_time_sel",
+			CGM_ACn_DCm(mc_cgm0_base, 7, 1), MC_CGM_ACn_DCm_PREDIV_OFFSET,
+			MC_CGM_ACn_DCm_PREDIV_SIZE);
 
 	/* SDHC Clock */
 	clk[S32V234_CLK_SDHC_SEL] = s32_clk_mux("sdhc_sel",
