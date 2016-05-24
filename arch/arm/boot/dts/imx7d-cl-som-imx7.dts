@@ -22,6 +22,7 @@
 		reg = <0x80000000 0x10000000>; /* 256 MB - minimal configuration */
 	};
 
+	/* Regulators */
 	reg_usb_otg1_vbus: regulator-vbus {
 		compatible = "regulator-fixed";
 		regulator-name = "usb_otg1_vbus";
@@ -48,6 +49,17 @@
 		regulator-max-microvolt = <3300000>;
 		regulator-always-on;
 	};
+
+	reg_usbh_nreset: regulator-usbh-nrst {
+		compatible = "regulator-fixed";
+		regulator-name = "usb_host_nreset";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&pca9555 6 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-always-on;
+	};
+	/* Regulators - end */
 
 	leds {
 		compatible = "gpio-leds";
@@ -296,6 +308,11 @@
 
 &usbotg2 {
 	dr_mode = "host";
+	status = "okay";
+};
+
+&usbh {
+	vbus-supply = <&reg_usbh_nreset>;
 	status = "okay";
 };
 
