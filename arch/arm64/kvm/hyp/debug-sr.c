@@ -19,6 +19,7 @@
 #include <linux/kvm_host.h>
 
 #include <asm/kvm_mmu.h>
+#include <asm/debug-monitors.h>
 
 #include "hyp.h"
 
