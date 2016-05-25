@@ -285,7 +285,7 @@ static int secondary_pen_release(unsigned int cpu)
 	return secondary_holding_pen_release != INVALID_HWID ? -ENOSYS : 0;
 }
 
-static int __init msm_cpu_init(struct device_node *dn, unsigned int cpu)
+static int __init msm_cpu_init(unsigned int cpu)
 {
 	/* Mark CPU0 cold boot flag as done */
 	if (!cpu && !per_cpu(cold_boot_done, cpu))
