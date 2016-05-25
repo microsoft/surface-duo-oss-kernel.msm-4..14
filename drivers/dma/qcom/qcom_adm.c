@@ -232,9 +232,9 @@ static void *adm_process_fc_descriptors(struct adm_chan *achan,
 	struct adm_desc_hw_single *single_desc;
 	u32 remainder = sg_dma_len(sg);
 	u32 rows, row_offset, crci_cmd;
-	u32 mem_addr = sg_dma_address(sg);
-	u32 *incr_addr = &mem_addr;
-	u32 *src, *dst;
+	phys_addr_t mem_addr = sg_dma_address(sg);
+	phys_addr_t *incr_addr = &mem_addr;
+	phys_addr_t *src, *dst;
 
 	if (direction == DMA_DEV_TO_MEM) {
 		crci_cmd = ADM_CMD_SRC_CRCI(crci);
@@ -298,9 +298,9 @@ static void *adm_process_non_fc_descriptors(struct adm_chan *achan,
 {
 	struct adm_desc_hw_single *single_desc;
 	u32 remainder = sg_dma_len(sg);
-	u32 mem_addr = sg_dma_address(sg);
-	u32 *incr_addr = &mem_addr;
-	u32 *src, *dst;
+	phys_addr_t mem_addr = sg_dma_address(sg);
+	phys_addr_t *incr_addr = &mem_addr;
+	phys_addr_t *src, *dst;
 
 	if (direction == DMA_DEV_TO_MEM) {
 		src = &achan->slave.src_addr;
