@@ -86,6 +86,9 @@
 #define	__phys_to_pfn(paddr)	((unsigned long)((paddr) >> PAGE_SHIFT))
 #define	__pfn_to_phys(pfn)	((phys_addr_t)(pfn) << PAGE_SHIFT)
 
+#define KERNEL_START      _text
+#define KERNEL_END        _end
+
 /*
  * Convert a page to/from a physical address
  */
