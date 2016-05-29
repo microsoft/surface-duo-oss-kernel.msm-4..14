@@ -87,6 +87,18 @@
 	};
 	/* Regulators - end */
 
+	kim {
+		compatible = "kim";
+		nshutdown_gpio = <&pca9555 1 GPIO_ACTIVE_HIGH>;
+		dev_name = "/dev/ttymxc2";
+		flow_cntrl = <1>;
+		baud_rate = <3000000>;
+	};
+
+	btwilink {
+		compatible = "btwilink";
+	};
+
 	leds {
 		compatible = "gpio-leds";
 
@@ -346,6 +358,15 @@
 	status = "okay";
 };
 
+&uart3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart3>;
+	assigned-clocks = <&clks IMX7D_UART3_ROOT_SRC>;
+	assigned-clock-parents = <&clks IMX7D_PLL_SYS_MAIN_240M_CLK>;
+	status = "okay";
+	fsl,uart-has-rtscts;
+};
+
 &usbotg1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_usbotg1>;
@@ -496,6 +517,15 @@
 		fsl,pins = <
 			MX7D_PAD_UART1_TX_DATA__UART1_DCE_TX		0x79
 			MX7D_PAD_UART1_RX_DATA__UART1_DCE_RX		0x79
+		>;
+	};
+
+	pinctrl_uart3: uart3grp {
+		fsl,pins = <
+			MX7D_PAD_UART3_TX_DATA__UART3_DCE_TX		0x79
+			MX7D_PAD_UART3_RX_DATA__UART3_DCE_RX		0x79
+			MX7D_PAD_UART3_CTS_B__UART3_DCE_CTS		0x79
+			MX7D_PAD_UART3_RTS_B__UART3_DCE_RTS		0x79
 		>;
 	};
 
