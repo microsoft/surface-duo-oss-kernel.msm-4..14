@@ -16,6 +16,7 @@
  */
 
 #include <linux/compiler.h>
+#include <linux/of.h>
 #include <linux/irqchip/arm-gic-v3.h>
 #include <linux/kvm_host.h>
 
