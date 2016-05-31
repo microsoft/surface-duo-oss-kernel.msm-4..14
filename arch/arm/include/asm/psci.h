@@ -17,6 +17,7 @@
 extern struct smp_operations psci_smp_ops;
 
 #if defined(CONFIG_SMP) && defined(CONFIG_ARM_PSCI)
+int psci_init(void);
 bool psci_smp_available(void);
 #else
 static inline bool psci_smp_available(void) { return false; }

@@ -46,24 +46,16 @@
 #define	CNTKCTL_EL1	20	/* Timer Control Register (EL1) */
 #define	PAR_EL1		21	/* Physical Address Register */
 #define MDSCR_EL1	22	/* Monitor Debug System Control Register */
-#define DBGBCR0_EL1	23	/* Debug Breakpoint Control Registers (0-15) */
-#define DBGBCR15_EL1	38
-#define DBGBVR0_EL1	39	/* Debug Breakpoint Value Registers (0-15) */
-#define DBGBVR15_EL1	54
-#define DBGWCR0_EL1	55	/* Debug Watchpoint Control Registers (0-15) */
-#define DBGWCR15_EL1	70
-#define DBGWVR0_EL1	71	/* Debug Watchpoint Value Registers (0-15) */
-#define DBGWVR15_EL1	86
-#define MDCCINT_EL1	87	/* Monitor Debug Comms Channel Interrupt Enable Reg */
+#define MDCCINT_EL1	23	/* Monitor Debug Comms Channel Interrupt Enable Reg */
 
 /* 32bit specific registers. Keep them at the end of the range */
-#define	DACR32_EL2	88	/* Domain Access Control Register */
-#define	IFSR32_EL2	89	/* Instruction Fault Status Register */
-#define	FPEXC32_EL2	90	/* Floating-Point Exception Control Register */
-#define	DBGVCR32_EL2	91	/* Debug Vector Catch Register */
-#define	TEECR32_EL1	92	/* ThumbEE Configuration Register */
-#define	TEEHBR32_EL1	93	/* ThumbEE Handler Base Register */
-#define	NR_SYS_REGS	94
+#define	DACR32_EL2	24	/* Domain Access Control Register */
+#define	IFSR32_EL2	25	/* Instruction Fault Status Register */
+#define	FPEXC32_EL2	26	/* Floating-Point Exception Control Register */
+#define	DBGVCR32_EL2	27	/* Debug Vector Catch Register */
+#define	TEECR32_EL1	28	/* ThumbEE Configuration Register */
+#define	TEEHBR32_EL1	29	/* ThumbEE Handler Base Register */
+#define	NR_SYS_REGS	30
 
 /* 32bit mapping */
 #define c0_MPIDR	(MPIDR_EL1 * 2)	/* MultiProcessor ID Register */
@@ -108,21 +100,38 @@
 
 #define ARM_EXCEPTION_IRQ	  0
 #define ARM_EXCEPTION_TRAP	  1
+/* The hyp-stub will return this for any kvm_call_hyp() call */
+#define ARM_EXCEPTION_HYP_GONE	  2
 
 #define KVM_ARM64_DEBUG_DIRTY_SHIFT	0
 #define KVM_ARM64_DEBUG_DIRTY		(1 << KVM_ARM64_DEBUG_DIRTY_SHIFT)
 
+#define kvm_ksym_ref(sym)		((void *)&sym + kvm_ksym_shift)
+
 #ifndef __ASSEMBLY__
+#if __GNUC__ > 4
+#define kvm_ksym_shift			(PAGE_OFFSET - KIMAGE_VADDR)
+#else
+/*
+ * GCC versions 4.9 and older will fold the constant below into the addend of
+ * the reference to 'sym' above if kvm_ksym_shift is declared static or if the
+ * constant is used directly. However, since we use the small code model for
+ * the core kernel, the reference to 'sym' will be emitted as a adrp/add pair,
+ * with a +/- 4 GB range, resulting in linker relocation errors if the shift
+ * is sufficiently large. So prevent the compiler from folding the shift into
+ * the addend, by making the shift a variable with external linkage.
+ */
+__weak u64 kvm_ksym_shift = PAGE_OFFSET - KIMAGE_VADDR;
+#endif
+
 struct kvm;
 struct kvm_vcpu;
 
 extern char __kvm_hyp_init[];
 extern char __kvm_hyp_init_end[];
+extern char __kvm_hyp_reset[];
 
 extern char __kvm_hyp_vector[];
-
-#define	__kvm_hyp_code_start	__hyp_text_start
-#define	__kvm_hyp_code_end	__hyp_text_end
 
 extern void __kvm_flush_vm_context(void);
 extern void __kvm_tlb_flush_vmid_ipa(struct kvm *kvm, phys_addr_t ipa);
@@ -132,10 +141,7 @@ extern int __kvm_vcpu_run(struct kvm_vcpu *vcpu);
 
 extern u64 __vgic_v3_get_ich_vtr_el2(void);
 
-extern char __save_vgic_v2_state[];
-extern char __restore_vgic_v2_state[];
-extern char __save_vgic_v3_state[];
-extern char __restore_vgic_v3_state[];
+extern u32 __kvm_get_mdcr_el2(void);
 
 #endif
 

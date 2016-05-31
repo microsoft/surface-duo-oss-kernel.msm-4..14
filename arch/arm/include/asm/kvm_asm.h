@@ -19,6 +19,8 @@
 #ifndef __ARM_KVM_ASM_H__
 #define __ARM_KVM_ASM_H__
 
+#include <asm/virt.h>
+
 /* 0 is reserved as an invalid value. */
 #define c0_MPIDR	1	/* MultiProcessor ID Register */
 #define c0_CSSELR	2	/* Cache Size Selection Register */
@@ -79,6 +81,8 @@
 #define rr_lo_hi(a1, a2) a1, a2
 #endif
 
+#define kvm_ksym_ref(kva)	(kva)
+
 #ifndef __ASSEMBLY__
 struct kvm;
 struct kvm_vcpu;
@@ -90,9 +94,6 @@ extern char __kvm_hyp_exit[];
 extern char __kvm_hyp_exit_end[];
 
 extern char __kvm_hyp_vector[];
-
-extern char __kvm_hyp_code_start[];
-extern char __kvm_hyp_code_end[];
 
 extern void __kvm_flush_vm_context(void);
 extern void __kvm_tlb_flush_vmid_ipa(struct kvm *kvm, phys_addr_t ipa);

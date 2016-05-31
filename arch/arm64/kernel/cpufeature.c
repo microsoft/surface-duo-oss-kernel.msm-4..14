@@ -30,6 +30,7 @@ feature_matches(u64 reg, const struct arm64_cpu_capabilities *entry)
 
 	return val >= entry->min_field_value;
 }
+#include <asm/virt.h>
 
 static bool
 has_id_aa64pfr0_feature(const struct arm64_cpu_capabilities *entry)
@@ -47,6 +48,11 @@ has_id_aa64mmfr1_feature(const struct arm64_cpu_capabilities *entry)
 
 	val = read_cpuid(id_aa64mmfr1_el1);
 	return feature_matches(val, entry);
+}
+
+static bool runs_at_el2(const struct arm64_cpu_capabilities *entry)
+{
+	return is_kernel_in_hyp_mode();
 }
 
 static const struct arm64_cpu_capabilities arm64_features[] = {
@@ -67,6 +73,11 @@ static const struct arm64_cpu_capabilities arm64_features[] = {
 		.enable = cpu_enable_pan,
 	},
 #endif /* CONFIG_ARM64_PAN */
+	{
+		.desc = "Virtualization Host Extensions",
+		.capability = ARM64_HAS_VIRT_HOST_EXTN,
+		.matches = runs_at_el2,
+	},
 	{},
 };
 

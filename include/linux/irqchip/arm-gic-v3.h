@@ -19,7 +19,7 @@
 #define __LINUX_IRQCHIP_ARM_GIC_V3_H
 
 #include <asm/sysreg.h>
-
+#include <asm/barrier.h>
 /*
  * Distributor registers. We assume we're running non-secure, with ARE
  * being set. Secure-only and non-ARE registers are not described.

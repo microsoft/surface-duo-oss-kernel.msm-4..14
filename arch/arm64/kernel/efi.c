@@ -48,7 +48,6 @@ static struct mm_struct efi_mm = {
 	.mmap_sem		= __RWSEM_INITIALIZER(efi_mm.mmap_sem),
 	.page_table_lock	= __SPIN_LOCK_UNLOCKED(efi_mm.page_table_lock),
 	.mmlist			= LIST_HEAD_INIT(efi_mm.mmlist),
-	INIT_MM_CONTEXT(efi_mm)
 };
 
 static int uefi_debug __initdata;
@@ -233,6 +232,8 @@ static bool __init efi_virtmap_init(void)
 {
 	efi_memory_desc_t *md;
 
+	init_new_context(NULL, &efi_mm);
+
 	for_each_efi_memory_desc(&memmap, md) {
 		u64 paddr, npages, size;
 		pgprot_t prot;
@@ -263,7 +264,8 @@ static bool __init efi_virtmap_init(void)
 		else
 			prot = PAGE_KERNEL;
 
-		create_pgd_mapping(&efi_mm, paddr, md->virt_addr, size, prot);
+		create_pgd_mapping(&efi_mm, paddr, md->virt_addr, size,
+				   __pgprot(pgprot_val(prot) | PTE_NG));
 	}
 	return true;
 }
@@ -338,14 +340,7 @@ core_initcall(arm64_dmi_init);
 
 static void efi_set_pgd(struct mm_struct *mm)
 {
-	if (mm == &init_mm)
-		cpu_set_reserved_ttbr0();
-	else
-		cpu_switch_mm(mm->pgd, mm);
-
-	flush_tlb_all();
-	if (icache_is_aivivt())
-		__flush_icache_all();
+	switch_mm(NULL, mm, NULL);
 }
 
 void efi_virtmap_load(void)

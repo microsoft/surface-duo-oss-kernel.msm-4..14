@@ -48,6 +48,8 @@
 int __attribute_const__ kvm_target_cpu(void);
 int kvm_reset_vcpu(struct kvm_vcpu *vcpu);
 int kvm_arch_dev_ioctl_check_extension(long ext);
+unsigned long kvm_hyp_reset_entry(void);
+void __extended_idmap_trampoline(phys_addr_t boot_pgd, phys_addr_t idmap_start);
 
 struct kvm_arch {
 	/* The VMID generation used for the virt. memory system */
@@ -103,15 +105,30 @@ struct kvm_vcpu_arch {
 
 	/* HYP configuration */
 	u64 hcr_el2;
+	u32 mdcr_el2;
 
 	/* Exception Information */
 	struct kvm_vcpu_fault_info fault;
 
-	/* Debug state */
+	/* Guest debug state */
 	u64 debug_flags;
+
+	/*
+	 * We maintain more than a single set of debug registers to support
+	 * debugging the guest from the host and to maintain separate host and
+	 * guest state during world switches. vcpu_debug_state are the debug
+	 * registers of the vcpu as the guest sees them.  host_debug_state are
+	 * the host registers which are saved and restored during world switches.
+	 *
+	 * debug_ptr points to the set of debug registers that should be loaded
+	 * onto the hardware when running the guest.
+	 */
+	struct kvm_guest_debug_arch *debug_ptr;
+	struct kvm_guest_debug_arch vcpu_debug_state;
 
 	/* Pointer to host CPU context */
 	kvm_cpu_context_t *host_cpu_context;
+	struct kvm_guest_debug_arch host_debug_state;
 
 	/* VGIC state */
 	struct vgic_cpu vgic_cpu;
@@ -216,38 +233,29 @@ static inline void __cpu_init_hyp_mode(phys_addr_t boot_pgd_ptr,
 		     hyp_stack_ptr, vector_ptr);
 }
 
-struct vgic_sr_vectors {
-	void	*save_vgic;
-	void	*restore_vgic;
-};
-
-static inline void vgic_arch_setup(const struct vgic_params *vgic)
+static inline void __cpu_init_stage2(void)
 {
-	extern struct vgic_sr_vectors __vgic_sr_vectors;
-
-	switch(vgic->type)
-	{
-	case VGIC_V2:
-		__vgic_sr_vectors.save_vgic	= __save_vgic_v2_state;
-		__vgic_sr_vectors.restore_vgic	= __restore_vgic_v2_state;
-		break;
-
-#ifdef CONFIG_ARM_GIC_V3
-	case VGIC_V3:
-		__vgic_sr_vectors.save_vgic	= __save_vgic_v3_state;
-		__vgic_sr_vectors.restore_vgic	= __restore_vgic_v3_state;
-		break;
-#endif
-
-	default:
-		BUG();
-	}
 }
 
-static inline void kvm_arch_hardware_disable(void) {}
+static inline void __cpu_reset_hyp_mode(phys_addr_t boot_pgd_ptr,
+					phys_addr_t phys_idmap_start)
+{
+	/*
+	 * Call reset code, and switch back to stub hyp vectors.
+	 * Uses kvm_call_hyp() to avoid kaslr's kvm_ksym_ref() translation.
+	 */
+	kvm_call_hyp((void *)kvm_hyp_reset_entry(),
+		       boot_pgd_ptr, phys_idmap_start);
+}
+
 static inline void kvm_arch_hardware_unsetup(void) {}
 static inline void kvm_arch_sync_events(struct kvm *kvm) {}
 static inline void kvm_arch_vcpu_uninit(struct kvm_vcpu *vcpu) {}
 static inline void kvm_arch_sched_in(struct kvm_vcpu *vcpu, int cpu) {}
+
+void kvm_arm_init_debug(void);
+void kvm_arm_setup_debug(struct kvm_vcpu *vcpu);
+void kvm_arm_clear_debug(struct kvm_vcpu *vcpu);
+void kvm_arm_reset_debug_ptr(struct kvm_vcpu *vcpu);
 
 #endif /* __ARM64_KVM_HOST_H__ */
