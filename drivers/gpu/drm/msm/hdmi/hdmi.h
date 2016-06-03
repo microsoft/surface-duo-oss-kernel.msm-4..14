@@ -42,6 +42,7 @@ struct hdmi_hdcp_ctrl;
 struct hdmi {
 	struct drm_device *dev;
 	struct platform_device *pdev;
+	struct platform_device *audio_pdev;
 
 	const struct hdmi_platform_config *config;
 
@@ -154,6 +155,19 @@ struct hdmi_phy *hdmi_phy_8x74_init(struct hdmi *hdmi);
 /*
  * audio:
  */
+/* Supported HDMI Audio channels and rates */
+#define	MSM_HDMI_AUDIO_CHANNEL_2	0
+#define	MSM_HDMI_AUDIO_CHANNEL_4	1
+#define	MSM_HDMI_AUDIO_CHANNEL_6	2
+#define	MSM_HDMI_AUDIO_CHANNEL_8	3
+
+#define	HDMI_SAMPLE_RATE_32KHZ		0
+#define	HDMI_SAMPLE_RATE_44_1KHZ	1
+#define	HDMI_SAMPLE_RATE_48KHZ		2
+#define	HDMI_SAMPLE_RATE_88_2KHZ	3
+#define	HDMI_SAMPLE_RATE_96KHZ		4
+#define	HDMI_SAMPLE_RATE_176_4KHZ	5
+#define	HDMI_SAMPLE_RATE_192KHZ		6
 
 int hdmi_audio_update(struct hdmi *hdmi);
 int hdmi_audio_info_setup(struct hdmi *hdmi, bool enabled,
