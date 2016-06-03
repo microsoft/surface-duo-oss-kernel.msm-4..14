@@ -477,7 +477,7 @@ static int video_open(struct file *file)
 	struct vb2_queue *q;
 	int ret;
 
-	video->alloc_ctx = vb2_dma_contig_init_ctx(video->camss->iommu_dev);
+	video->alloc_ctx = vb2_dma_contig_init_ctx(video->camss->dev);
 	if (IS_ERR(video->alloc_ctx)) {
 		dev_err(&vdev->dev, "Failed to init vb2 dma ctx\n");
 		return PTR_ERR(video->alloc_ctx);
