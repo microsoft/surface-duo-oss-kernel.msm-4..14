@@ -118,11 +118,15 @@ static int exynos_drm_load(struct drm_device *dev, unsigned long flags)
 	/* init kms poll for handling hpd */
 	drm_kms_helper_poll_init(dev);
 
-	/* force connectors detection */
-	drm_helper_hpd_irq_event(dev);
+	ret = exynos_drm_fbdev_init(dev);
+	if (ret)
+		goto err_cleanup_poll;
 
 	return 0;
 
+err_cleanup_poll:
+	drm_kms_helper_poll_fini(dev);
+	exynos_drm_device_subdrv_remove(dev);
 err_cleanup_vblank:
 	drm_vblank_cleanup(dev);
 err_unbind_all:
