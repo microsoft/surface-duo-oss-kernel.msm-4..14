@@ -504,6 +504,9 @@ int drm_fb_helper_restore_fbdev_mode_unlocked(struct drm_fb_helper *fb_helper)
 	if (!drm_fbdev_emulation)
 		return -ENODEV;
 
+	if (fb_helper->deferred_setup)
+		return 0;
+
 	mutex_lock(&fb_helper->lock);
 	drm_modeset_lock_all(dev);
 
@@ -1525,6 +1528,23 @@ unlock:
 }
 EXPORT_SYMBOL(drm_fb_helper_pan_display);
 
+static bool drm_fb_helper_maybe_connected(struct drm_fb_helper *helper)
+{
+	bool connected = false;
+	unsigned int i;
+
+	for (i = 0; i < helper->connector_count; i++) {
+		struct drm_fb_helper_connector *fb = helper->connector_info[i];
+
+		if (fb->connector->status != connector_status_disconnected) {
+			connected = true;
+			break;
+		}
+	}
+
+	return connected;
+}
+
 /*
  * Allocates the backing storage and sets up the fbdev info structure through
  * the ->fb_probe callback and then registers the fbdev and sets up the panic
@@ -2178,8 +2198,6 @@ static void drm_setup_crtcs(struct drm_fb_helper *fb_helper,
 	int i;
 
 	DRM_DEBUG_KMS("\n");
-	if (drm_fb_helper_probe_connector_modes(fb_helper, width, height) == 0)
-		DRM_DEBUG_KMS("No connectors reported connected with modes\n");
 
 	/* prevent concurrent modification of connector_count by hotplug */
 	lockdep_assert_held(&fb_helper->dev->mode_config.mutex);
@@ -2302,6 +2320,7 @@ out:
 int drm_fb_helper_initial_config(struct drm_fb_helper *fb_helper, int bpp_sel)
 {
 	struct drm_device *dev = fb_helper->dev;
+	unsigned int width, height;
 	struct fb_info *info;
 	int ret;
 
@@ -2309,13 +2328,33 @@ int drm_fb_helper_initial_config(struct drm_fb_helper *fb_helper, int bpp_sel)
 		return 0;
 
 	mutex_lock(&dev->mode_config.mutex);
-	drm_setup_crtcs(fb_helper,
-			dev->mode_config.max_width,
-			dev->mode_config.max_height);
+
+	width = dev->mode_config.max_width;
+	height = dev->mode_config.max_height;
+
+	if (drm_fb_helper_probe_connector_modes(fb_helper, width, height) == 0)
+		DRM_DEBUG_KMS("No connectors reported connected with modes\n");
+
+	/*
+	 * If everything's disconnected, there's no use in attempting to set
+	 * up fbdev.
+	 */
+	if (!drm_fb_helper_maybe_connected(fb_helper)) {
+		DRM_INFO("No outputs connected, deferring setup\n");
+		fb_helper->preferred_bpp = bpp_sel;
+		fb_helper->deferred_setup = true;
+		mutex_unlock(&dev->mode_config.mutex);
+		return 0;
+	}
+
+	drm_setup_crtcs(fb_helper, width, height);
+
 	ret = drm_fb_helper_single_fb_probe(fb_helper, bpp_sel);
 	mutex_unlock(&dev->mode_config.mutex);
 	if (ret)
 		return ret;
+
+	fb_helper->deferred_setup = false;
 
 	info = fb_helper->fbdev;
 	info->var.pixclock = 0;
@@ -2361,10 +2400,15 @@ EXPORT_SYMBOL(drm_fb_helper_initial_config);
 int drm_fb_helper_hotplug_event(struct drm_fb_helper *fb_helper)
 {
 	struct drm_device *dev = fb_helper->dev;
+	unsigned int width, height;
 	int err = 0;
 
 	if (!drm_fbdev_emulation)
 		return 0;
+
+	if (fb_helper->deferred_setup)
+		return drm_fb_helper_initial_config(fb_helper,
+						    fb_helper->preferred_bpp);
 
 	mutex_lock(&fb_helper->lock);
 	mutex_lock(&dev->mode_config.mutex);
@@ -2376,6 +2420,12 @@ int drm_fb_helper_hotplug_event(struct drm_fb_helper *fb_helper)
 	}
 
 	DRM_DEBUG_KMS("\n");
+
+	width = dev->mode_config.max_width;
+	height = dev->mode_config.max_height;
+
+	if (drm_fb_helper_probe_connector_modes(fb_helper, width, height) == 0)
+		DRM_DEBUG_KMS("No connectors reported connected with modes\n");
 
 	drm_setup_crtcs(fb_helper, fb_helper->fb->width, fb_helper->fb->height);
 
