@@ -418,6 +418,7 @@ bmc150_magn
 bmg160_core
 bmg160_i2c
 bmg160_spi
+bmp085
 bmp085-i2c
 bmp085-spi
 bmp280
