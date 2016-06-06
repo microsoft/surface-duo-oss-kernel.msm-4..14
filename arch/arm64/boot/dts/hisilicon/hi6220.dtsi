@@ -939,7 +939,6 @@
 			assigned-clocks = <&media_ctrl HI6220_ADE_CORE>,
 				<&media_ctrl HI6220_CODEC_JPEG>;
 			assigned-clock-rates = <360000000>, <288000000>;
-			dma-coherent;
 			status = "disabled";
 
 			port {
