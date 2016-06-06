@@ -112,6 +112,7 @@ static int __drm_fb_helper_add_one_connector(struct drm_fb_helper *fb_helper,
 	if (!drm_fbdev_emulation)
 		return 0;
 
+	WARN_ON(!mutex_is_locked(&fb_helper->lock));
 	WARN_ON(!mutex_is_locked(&fb_helper->dev->mode_config.mutex));
 
 	count = fb_helper->connector_count + 1;
@@ -134,6 +135,7 @@ static int __drm_fb_helper_add_one_connector(struct drm_fb_helper *fb_helper,
 	drm_connector_reference(connector);
 	conn->connector = connector;
 	fb_helper->connector_info[fb_helper->connector_count++] = conn;
+
 	return 0;
 }
 
@@ -142,11 +144,13 @@ int drm_fb_helper_add_one_connector(struct drm_fb_helper *fb_helper,
 {
 	int err;
 
+	mutex_lock(&fb_helper->lock);
 	mutex_lock(&fb_helper->dev->mode_config.mutex);
 
 	err = __drm_fb_helper_add_one_connector(fb_helper, connector);
 
 	mutex_unlock(&fb_helper->dev->mode_config.mutex);
+	mutex_unlock(&fb_helper->lock);
 
 	return err;
 }
@@ -176,6 +180,7 @@ int drm_fb_helper_single_add_all_connectors(struct drm_fb_helper *fb_helper)
 	if (!drm_fbdev_emulation)
 		return 0;
 
+	mutex_lock(&fb_helper->lock);
 	mutex_lock(&dev->mode_config.mutex);
 	drm_connector_list_iter_get(dev, &conn_iter);
 	drm_for_each_connector_iter(connector, &conn_iter) {
@@ -199,6 +204,7 @@ fail:
 out:
 	drm_connector_list_iter_put(&conn_iter);
 	mutex_unlock(&dev->mode_config.mutex);
+	mutex_unlock(&fb_helper->lock);
 
 	return ret;
 }
@@ -213,6 +219,7 @@ static int __drm_fb_helper_remove_one_connector(struct drm_fb_helper *fb_helper,
 	if (!drm_fbdev_emulation)
 		return 0;
 
+	WARN_ON(!mutex_is_locked(&fb_helper->lock));
 	WARN_ON(!mutex_is_locked(&fb_helper->dev->mode_config.mutex));
 
 	for (i = 0; i < fb_helper->connector_count; i++) {
@@ -239,11 +246,13 @@ int drm_fb_helper_remove_one_connector(struct drm_fb_helper *fb_helper,
 {
 	int err;
 
+	mutex_lock(&fb_helper->lock);
 	mutex_lock(&fb_helper->dev->mode_config.mutex);
 
 	err = __drm_fb_helper_remove_one_connector(fb_helper, connector);
 
 	mutex_unlock(&fb_helper->dev->mode_config.mutex);
+	mutex_unlock(&fb_helper->lock);
 
 	return err;
 }
@@ -495,16 +504,21 @@ int drm_fb_helper_restore_fbdev_mode_unlocked(struct drm_fb_helper *fb_helper)
 	if (!drm_fbdev_emulation)
 		return -ENODEV;
 
+	mutex_lock(&fb_helper->lock);
 	drm_modeset_lock_all(dev);
+
 	ret = restore_fbdev_mode(fb_helper);
 
 	do_delayed = fb_helper->delayed_hotplug;
 	if (do_delayed)
 		fb_helper->delayed_hotplug = false;
+
 	drm_modeset_unlock_all(dev);
+	mutex_unlock(&fb_helper->lock);
 
 	if (do_delayed)
 		drm_fb_helper_hotplug_event(fb_helper);
+
 	return ret;
 }
 EXPORT_SYMBOL(drm_fb_helper_restore_fbdev_mode_unlocked);
@@ -740,6 +754,7 @@ void drm_fb_helper_prepare(struct drm_device *dev, struct drm_fb_helper *helper,
 	INIT_WORK(&helper->resume_work, drm_fb_helper_resume_worker);
 	INIT_WORK(&helper->dirty_work, drm_fb_helper_dirty_work);
 	helper->dirty_clip.x1 = helper->dirty_clip.y1 = ~0;
+	mutex_init(&helper->lock);
 	helper->funcs = funcs;
 	helper->dev = dev;
 }
@@ -908,6 +923,7 @@ void drm_fb_helper_fini(struct drm_fb_helper *fb_helper)
 	}
 	mutex_unlock(&kernel_fb_helper_lock);
 
+	mutex_destroy(&fb_helper->lock);
 	drm_fb_helper_crtc_free(fb_helper);
 
 }
@@ -2345,25 +2361,34 @@ EXPORT_SYMBOL(drm_fb_helper_initial_config);
 int drm_fb_helper_hotplug_event(struct drm_fb_helper *fb_helper)
 {
 	struct drm_device *dev = fb_helper->dev;
+	int err = 0;
 
 	if (!drm_fbdev_emulation)
 		return 0;
 
+	mutex_lock(&fb_helper->lock);
 	mutex_lock(&dev->mode_config.mutex);
+
 	if (!fb_helper->fb || !drm_fb_helper_is_bound(fb_helper)) {
 		fb_helper->delayed_hotplug = true;
 		mutex_unlock(&dev->mode_config.mutex);
-		return 0;
+		goto unlock;
 	}
+
 	DRM_DEBUG_KMS("\n");
 
 	drm_setup_crtcs(fb_helper, fb_helper->fb->width, fb_helper->fb->height);
 
 	mutex_unlock(&dev->mode_config.mutex);
+	mutex_unlock(&fb_helper->lock);
 
 	drm_fb_helper_set_par(fb_helper->fbdev);
 
 	return 0;
+
+unlock:
+	mutex_unlock(&fb_helper->lock);
+	return err;
 }
 EXPORT_SYMBOL(drm_fb_helper_hotplug_event);
 
