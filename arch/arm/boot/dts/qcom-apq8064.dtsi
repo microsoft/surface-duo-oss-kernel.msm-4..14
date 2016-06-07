@@ -763,17 +763,17 @@
 				compatible = "qcom,wcnss";
 				qcom,smd-channels = "WCNSS_CTRL";
 
+				qcom,mmio = <&riva>;
+
 				bt {
-					compatible = "qcom,btqcomsmd";
+					compatible = "qcom,wcnss-bt";
 				};
 
 				wifi {
-					compatible = "qcom,wcn3660-wlan";
+					compatible = "qcom,wcnss-wlan";
 
 					interrupts = <0 203 0>, <0 202 0>;
 					interrupt-names = "tx", "rx";
-
-					qcom,wcnss-mmio = <0x03000000 0x204000>;
 
 					qcom,state = <&apps_smsm 10>, <&apps_smsm 9>;
 					qcom,state-names = "tx-enable", "tx-rings-empty";
@@ -1374,9 +1374,10 @@
 			};
 		};
 
-		wcnss-rproc@3204000 {
-			compatible = "qcom,riva-pil";
-			reg = <0x03204000 0x100>;
+		riva: wcnss-rproc@3204000 {
+			compatible = "qcom,riva-pil", "qcom,riva";
+			reg = <0x03200800 0x1000>, <0x03202000 0x2000>, <0x03204000 0x100>;
+			reg-names = "ccu", "dxe", "pmu";
 
 			interrupts-extended = <&intc 0 199 IRQ_TYPE_EDGE_RISING>,
 					      <&wcnss_smsm 6 IRQ_TYPE_EDGE_RISING>;
