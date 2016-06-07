@@ -35,6 +35,9 @@
 /* How many frames until we start a-mpdu TX session */
 #define WCN36XX_AMPDU_START_THRESH	20
 
+#define WCN36XX_MAX_SCAN_SSIDS		9
+#define WCN36XX_MAX_SCAN_IE_LEN		500
+
 extern unsigned int wcn36xx_dbg_mask;
 
 enum wcn36xx_debug_mask {
@@ -101,49 +104,6 @@ static inline void buff_to_be(u32 *buf, size_t len)
 struct nv_data {
 	int	is_valid;
 	u8	table;
-};
-
-enum wcn36xx_chip_type {
-	WCN36XX_CHIP_UNKNOWN,
-	WCN36XX_CHIP_3660,
-	WCN36XX_CHIP_3680,
-	WCN36XX_CHIP_3620,
-};
-
-/* Interface for platform control path
- *
- * @open: hook must be called when wcn36xx wants to open control channel.
- * @tx: sends a buffer.
- */
-struct wcn36xx_platform_ctrl_ops {
-	int (*open)(struct wcn36xx *wcn, void *rsp_cb);
-	void (*close)(struct wcn36xx *wcn);
-	int (*tx)(struct wcn36xx *wcn, char *buf, size_t len);
-	int (*get_hw_mac)(struct wcn36xx *wcn, u8 *addr);
-	int (*get_chip_type)(struct wcn36xx *wcn);
-	int (*smsm_change_state)(u32 clear_mask, u32 set_mask);
-};
-
-struct wcn36xx_platform_data {
-	enum wcn36xx_chip_type chip_type;
-
-	struct platform_device *core;
-
-	struct qcom_smd_device *sdev;
-        struct qcom_smd_channel *wlan_ctrl_channel;
-        struct completion wlan_ctrl_ack;
-        struct mutex wlan_ctrl_lock;
-
-	struct pinctrl *pinctrl;
-
-	struct wcn36xx *wcn;
-
-	void (*cb)(struct wcn36xx *wcn, void *buf, size_t len);
-	struct wcn36xx_platform_ctrl_ops ctrl_ops;
-
-	struct work_struct packet_process_work;
-	spinlock_t packet_lock;
-	struct list_head packet_list;
 };
 
 /**
@@ -223,7 +183,7 @@ struct wcn36xx {
 	u8			fw_minor;
 	u8			fw_major;
 	u32			fw_feat_caps[WCN36XX_HAL_CAPS_SIZE];
-	enum wcn36xx_chip_type	chip_version;
+	bool			is_pronto;
 
 	/* extra byte for the NULL termination */
 	u8			crm_version[WCN36XX_HAL_VERSION_LENGTH + 1];
@@ -232,10 +192,16 @@ struct wcn36xx {
 	/* IRQs */
 	int			tx_irq;
 	int			rx_irq;
-	void __iomem		*mmio;
+	void __iomem		*ccu_base;
+	void __iomem		*dxe_base;
 
-	struct wcn36xx_platform_data *wcn36xx_data;
-	struct wcn36xx_platform_ctrl_ops *ctrl_ops;
+	struct qcom_smd_channel *smd_channel;
+
+	struct qcom_smem_state  *tx_enable_state;
+	unsigned		tx_enable_state_bit;
+	struct qcom_smem_state	*tx_rings_empty_state;
+	unsigned		tx_rings_empty_state_bit;
+
 	/*
 	 * smd_buf must be protected with smd_mutex to garantee
 	 * that all messages are sent one after another
@@ -246,8 +212,14 @@ struct wcn36xx {
 	struct completion	hal_rsp_compl;
 	struct workqueue_struct	*hal_ind_wq;
 	struct work_struct	hal_ind_work;
-	struct mutex		hal_ind_mutex;
+	spinlock_t		hal_ind_lock;
 	struct list_head	hal_ind_queue;
+
+	struct work_struct	scan_work;
+	struct cfg80211_scan_request *scan_req;
+	int			scan_freq;
+	int			scan_band;
+	struct mutex		scan_lock;
 
 	/* DXE channels */
 	struct wcn36xx_dxe_ch	dxe_tx_l_ch;	/* TX low */
