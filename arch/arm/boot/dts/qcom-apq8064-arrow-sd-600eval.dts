@@ -290,6 +290,13 @@
 			target-supply	= <&pm8921_lvs7>;
 		};
 
+		wcnss-rproc@3204000 {
+			status = "ok";
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&wcnss_pin_a>;
+		};
+
 		/* OTG */
 		phy@12500000 {
 			status		= "okay";

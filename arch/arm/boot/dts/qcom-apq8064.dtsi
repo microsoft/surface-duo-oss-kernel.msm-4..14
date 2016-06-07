@@ -1388,8 +1388,7 @@
 			vddmx-supply = <&pm8921_l24>;
 			vddpx-supply = <&pm8921_s4>;
 
-			pinctrl-names = "default";
-			pinctrl-0 = <&wcnss_pin_a>;
+			status = "disabled";
 
 			iris {
 				compatible = "qcom,wcn3660";
