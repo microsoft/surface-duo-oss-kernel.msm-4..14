@@ -246,6 +246,8 @@ struct vm_operations_struct {
 	void (*open)(struct vm_area_struct * area);
 	void (*close)(struct vm_area_struct * area);
 	int (*fault)(struct vm_area_struct *vma, struct vm_fault *vmf);
+	int (*pmd_fault)(struct vm_area_struct *, unsigned long address,
+						pmd_t *, unsigned int flags);
 	void (*map_pages)(struct vm_area_struct *vma, struct vm_fault *vmf);
 
 	/* notification that a previously read-only page is about to become
@@ -915,6 +917,27 @@ static inline void set_page_links(struct page *page, enum zone_type zone,
 	set_page_section(page, pfn_to_section_nr(pfn));
 #endif
 }
+
+#ifdef CONFIG_MEMCG
+static inline struct mem_cgroup *page_memcg(struct page *page)
+{
+	return page->mem_cgroup;
+}
+
+static inline void set_page_memcg(struct page *page, struct mem_cgroup *memcg)
+{
+	page->mem_cgroup = memcg;
+}
+#else
+static inline struct mem_cgroup *page_memcg(struct page *page)
+{
+	return NULL;
+}
+
+static inline void set_page_memcg(struct page *page, struct mem_cgroup *memcg)
+{
+}
+#endif
 
 /*
  * Some inline functions in vmstat.h depend on page_zone()
