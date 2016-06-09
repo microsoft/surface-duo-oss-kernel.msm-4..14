@@ -90,6 +90,11 @@
 			no-map;
 			reg = <0 0x8f800000 0 0x800000>;
 		};
+
+		mba_mem: mba@8ea00000 {
+			no-map;
+			reg = <0 0x8ea00000 0 0x100000>;
+		};
 	};
 
 	cpus {
@@ -253,10 +258,11 @@
 	firmware {
 		compatible = "simple-bus";
 
-		scm {
+		scm: scm {
 			compatible = "qcom,scm";
 			clocks = <&gcc GCC_CRYPTO_CLK> , <&gcc GCC_CRYPTO_AXI_CLK>, <&gcc GCC_CRYPTO_AHB_CLK>;
 			clock-names = "core", "bus", "iface";
+			#reset-cells = <1>;
 		};
 	};
 
@@ -843,51 +849,41 @@
 			};
 		};
 
-		qcom,mss@4080000 {
+		hexagon@4080000 {
 			compatible = "qcom,pil-q6v56-mss", "qcom,q6v5-pil";
 			reg = <0x04080000 0x100>,
 			      <0x04020000 0x040>,
 			      <0x01810000 0x004>,
-			      <0x01810000 0x004>,
 			      <0x0194f000 0x010>,
 			      <0x01950000 0x008>,
 			      <0x01951000 0x008>;
-	
+
 			reg-names = "qdsp6_base", "rmb_base", "restart_reg_sec",
-					"halt_q6", "halt_modem", "halt_nc";
-	
+					"halt_base", "halt_modem", "halt_nc";
+
 			interrupts-extended = <&intc 0 24 1>,
-					      <&q6_smp2p_in 0 0>,
-					      <&q6_smp2p_in 1 0>,
-					      <&q6_smp2p_in 2 0>,
-					      <&q6_smp2p_in 3 0>;
+					      <&hexagon_smp2p_in 0 0>,
+					      <&hexagon_smp2p_in 1 0>,
+					      <&hexagon_smp2p_in 2 0>,
+					      <&hexagon_smp2p_in 3 0>;
 			interrupt-names = "wdog", "fatal", "ready", "handover", "stop-ack";
-	
+
 			clocks = <&gcc GCC_MSS_CFG_AHB_CLK>, <&gcc GCC_MSS_Q6_BIMC_AXI_CLK>, <&gcc GCC_BOOT_ROM_AHB_CLK>;
-			
 			clock-names = "iface", "bus", "mem";
 
-			qcom,mx-supply = <&pm8916_l3>;
-			qcom,mx-uV = <1050000>;
-			qcom,pll-supply = <&pm8916_l7>;
-			qcom,pll-uV = <1800000>;
-			qcom,proxy-clock-names = "xo";
-			qcom,active-clock-names = "iface_clk", "bus_clk", "mem_clk";
-			qcom,is-loadable;
-			qcom,firmware-name = "modem";
-			qcom,pil-self-auth;
-			
-	
-			/* GPIO inputs from mss */
-			qcom,gpio-err-fatal = <&q6_smp2p_in 0 0>;
-			qcom,gpio-err-ready = <&q6_smp2p_in 1 0>;
-			qcom,gpio-proxy-unvote = <&q6_smp2p_in 2 0>;
-			qcom,gpio-stop-ack = <&q6_smp2p_in 3 0>;
-			qcom,gpio-ramdump-disable = <&q6_smp2p_in 15 0>;
-			/* GPIO output to mss */
-			qcom,gpio-force-stop = <&q6_smp2p_out 0 0>;
-			qcom,stop-gpio = <&q6_smp2p_out 0 0>;
-			memory-region = <&modem_adsp_mem>;
+			qcom,state = <&hexagon_smp2p_out 0>;
+			qcom,state-names = "stop";
+
+			resets = <&scm 0>;
+			reset-names = "mss_restart";
+
+			mba {
+				memory-region = <&mba_mem>;
+			};
+
+			mpss {
+				memory-region = <&modem_adsp_mem>;
+			};
 		};
 
 		wcnss@a21b000 {
