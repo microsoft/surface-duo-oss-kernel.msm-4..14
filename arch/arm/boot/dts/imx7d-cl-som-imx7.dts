@@ -108,6 +108,48 @@
 			linux,default-trigger = "heartbeat";
 		};
 	};
+
+        sound {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "cl-som-imx7";
+		simple-audio-card,widgets =
+			"Headphone", "Headphone Jack",
+			"Line", "Line Out",
+			"Microphone", "Mic Jack",
+			"Line", "Line In";
+		simple-audio-card,routing =
+			"Headphone Jack", "RHPOUT",
+			"Headphone Jack", "LHPOUT",
+			"LLINEIN", "Line Jack",
+			"RLINEIN", "Line Jack",
+			"MICIN", "Mic Bias",
+			"Mic Bias", "Mic Jack";
+		simple-audio-card,format = "i2s";
+		simple-audio-card,bitclock-master = <&sound_master>;
+		simple-audio-card,frame-master = <&sound_master>;
+
+		assigned-clocks = <&clks IMX7D_AUDIO_MCLK_ROOT_SRC>,
+			          <&clks IMX7D_AUDIO_MCLK_ROOT_CLK>;
+		assigned-clock-parents = <&clks IMX7D_PLL_AUDIO_POST_DIV>;
+		assigned-clock-rates = <0>, <12288000>;
+
+		sound_master: simple-audio-card,cpu {
+			sound-dai = <&sai1 0>;
+			system-clock-direction = "out";
+		};
+
+		simple-audio-card,codec {
+			sound-dai = <&wm8731>;
+			system-clock-type = "mclk";
+			system-clock-frequency = <12288000>;
+			system-clock-direction = "in";
+		};
+	};
+};
+
+&clks {
+	assigned-clocks = <&clks IMX7D_PLL_AUDIO_POST_DIV>;
+	assigned-clock-rates = <884736000>;
 };
 
 &cpu0 {
@@ -331,6 +373,15 @@
 		};
 	};
 
+	wm8731: wm8731@1a {
+		#sound-dai-cells = <0>;
+		compatible = "wlf,wm8731";
+		reg = <0x1a>;
+		clocks = <&clks IMX7D_AUDIO_MCLK_ROOT_CLK>;
+		clock-names = "mclk";
+		status = "okay";
+	};
+
 	pca9555: pca9555@20 {
 		compatible = "nxp,pca9555";
 		gpio-controller;
@@ -348,6 +399,17 @@
 		compatible = "emmicro,em3027";
 		reg = <0x56>;
 	};
+};
+
+&sai1 {
+	#sound-dai-cells = <1>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_sai1 &pinctrl_sai1_lpsr>;
+	assigned-clocks = <&clks IMX7D_SAI1_ROOT_SRC>,
+			  <&clks IMX7D_SAI1_ROOT_CLK>;
+	assigned-clock-parents = <&clks IMX7D_PLL_AUDIO_POST_DIV>;
+	assigned-clock-rates = <0>, <36864000>;
+	status = "okay";
 };
 
 &uart1 {
@@ -507,6 +569,15 @@
 		>;
 	};
 
+	pinctrl_sai1: sai1grp {
+		fsl,pins = <
+			MX7D_PAD_ENET1_RX_CLK__SAI1_TX_BCLK		0x1f
+			MX7D_PAD_ENET1_CRS__SAI1_TX_SYNC		0x1f
+			MX7D_PAD_ENET1_COL__SAI1_TX_DATA0		0x30
+			MX7D_PAD_ENET1_TX_CLK__SAI1_RX_DATA0		0x1f
+		>;
+	};
+
 	pinctrl_tsc2046: tsc2046grp {
 		fsl,pins = <
 			MX7D_PAD_GPIO1_IO14__GPIO1_IO14			0x34 /* PENDOWN */
@@ -571,6 +642,12 @@
 		fsl,pins = <
 			MX7D_PAD_GPIO1_IO07__I2C2_SDA			0x4000000f
 			MX7D_PAD_GPIO1_IO06__I2C2_SCL			0x4000000f
+		>;
+	};
+
+	pinctrl_sai1_lpsr: sai1grp_lpsr {
+		fsl,pins = <
+			MX7D_PAD_GPIO1_IO01__SAI1_MCLK			0x14
 		>;
 	};
 
