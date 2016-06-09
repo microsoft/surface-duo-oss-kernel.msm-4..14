@@ -219,12 +219,43 @@
 		};
 
 		wcd_codec: codec@f000 {
-			compatible = "qcom,apq8016-wcd-codec";
+			compatible = "qcom,msm8916-wcd-codec";
 			reg = <0xf000 0x200>;
-			#sound-dai-cells = <1>;
+			reg-names = "pmic-codec-core";
+			interrupt-parent = <&spmi_bus>;
+			interrupts = <0x1 0xf0 0x0 IRQ_TYPE_NONE>,
+				     <0x1 0xf0 0x1 IRQ_TYPE_NONE>,
+				     <0x1 0xf0 0x2 IRQ_TYPE_NONE>,
+				     <0x1 0xf0 0x3 IRQ_TYPE_NONE>,
+				     <0x1 0xf0 0x4 IRQ_TYPE_NONE>,
+				     <0x1 0xf0 0x5 IRQ_TYPE_NONE>,
+				     <0x1 0xf0 0x6 IRQ_TYPE_NONE>,
+				     <0x1 0xf0 0x7 IRQ_TYPE_NONE>,
+				     <0x1 0xf1 0x0 IRQ_TYPE_NONE>,
+				     <0x1 0xf1 0x1 IRQ_TYPE_NONE>,
+				     <0x1 0xf1 0x2 IRQ_TYPE_NONE>,
+				     <0x1 0xf1 0x3 IRQ_TYPE_NONE>,
+				     <0x1 0xf1 0x4 IRQ_TYPE_NONE>,
+				     <0x1 0xf1 0x5 IRQ_TYPE_NONE>;
+			interrupt-names = "spk_cnp_int",
+					  "spk_clip_int",
+					  "spk_ocp_int",
+					  "ins_rem_det1",
+					  "but_rel_det",
+					  "but_press_det",
+					  "ins_rem_det",
+					  "mbhc_int",
+					  "ear_ocp_int",
+					  "hphr_ocp_int",
+					  "hphl_ocp_det",
+					  "ear_cnp_int",
+					  "hphr_cnp_int",
+					  "hphl_cnp_int";
+
 			vddio-supply = <&pm8916_l5>;
-			vdd-pa-supply = <&pm8916_s4>;
-			vdd-mic-bias-supply = <&pm8916_l13>;
+			vdd-tx-rx-supply = <&pm8916_l5>;
+			vdd-micbias-supply = <&pm8916_l13>;
+			#sound-dai-cells = <1>;
 		};
 	};
 };

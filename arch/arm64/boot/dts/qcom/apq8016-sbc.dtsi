@@ -48,22 +48,22 @@
 					s1 {
 						regulator-min-microvolt = <375000>;
 						regulator-max-microvolt = <1562000>;
-						
+
 					};
 					s2 {
 						regulator-min-microvolt = <375000>;
 						regulator-max-microvolt = <1562000>;
-						
+
 					};
 					s3 {
 						regulator-min-microvolt = <375000>;
 						regulator-max-microvolt = <1562000>;
-						
+
 					};
 					s4 {
 						regulator-min-microvolt = <1800000>;
 						regulator-max-microvolt = <1800000>;
-						
+
 						regulator-always-on;
 						regulator-boot-on;
 					};
@@ -71,92 +71,92 @@
 					l1 {
 						regulator-min-microvolt = <375000>;
 						regulator-max-microvolt = <1525000>;
-						
+
 					};
 					l2 {
 						regulator-min-microvolt = <375000>;
 						regulator-max-microvolt = <1525000>;
-						
+
 					};
 					l3 {
 						regulator-min-microvolt = <375000>;
 						regulator-max-microvolt = <1525000>;
-						
+
 					};
 					l4 {
 						regulator-min-microvolt = <1750000>;
 						regulator-max-microvolt = <3337000>;
-						
+
 					};
 					l5 {
 						regulator-min-microvolt = <1750000>;
 						regulator-max-microvolt = <3337000>;
-						
+
 					};
 					l6 {
 						regulator-min-microvolt = <1750000>;
 						regulator-max-microvolt = <3337000>;
-						
+
 					};
 					l7 {
 						regulator-min-microvolt = <1750000>;
 						regulator-max-microvolt = <3337000>;
-						
+
 					};
 					l8 {
 						regulator-min-microvolt = <1750000>;
 						regulator-max-microvolt = <3337000>;
-						
+
 					};
 					l9 {
 						regulator-min-microvolt = <1750000>;
 						regulator-max-microvolt = <3337000>;
-						
+
 					};
 					l10 {
 						regulator-min-microvolt = <1750000>;
 						regulator-max-microvolt = <3337000>;
-						
+
 					};
 					l11 {
 						regulator-min-microvolt = <1750000>;
 						regulator-max-microvolt = <3337000>;
-						
+
 					};
 					l12 {
 						regulator-min-microvolt = <1750000>;
 						regulator-max-microvolt = <3337000>;
-						
+
 					};
 					l13 {
 						regulator-min-microvolt = <1750000>;
 						regulator-max-microvolt = <3337000>;
-						
+
 					};
 					l14 {
 						regulator-min-microvolt = <1750000>;
 						regulator-max-microvolt = <3337000>;
-						
+
 					};
 					l15 {
 						regulator-min-microvolt = <1750000>;
 						regulator-max-microvolt = <3337000>;
-						
+
 					};
 					l16 {
 						regulator-min-microvolt = <1750000>;
 						regulator-max-microvolt = <3337000>;
-						
+
 					};
 					l17 {
 						regulator-min-microvolt = <1750000>;
 						regulator-max-microvolt = <3337000>;
-						
+
 					};
 					l18 {
 						regulator-min-microvolt = <1750000>;
 						regulator-max-microvolt = <3337000>;
-						
+
 					};
 				};
 			};
@@ -404,7 +404,7 @@
 	status = "okay";
 	clocks = <&gcc GCC_CODEC_DIGCODEC_CLK>;
 	clock-names = "mclk";
-	digital = <&wcd_digital>;
+	qcom,lpass-codec-core = <&lpass_codec_core>;
 };
 	/*
 	Internal Codec
@@ -426,16 +426,10 @@
 	pinctrl-names = "default", "sleep";
 	qcom,model = "DB410c";
 	qcom,audio-routing =
-		"MIC BIAS External", "Handset Mic",
-		"MIC BIAS Internal2", "Headset Mic",
-		"MIC BIAS External", "Secondary Mic",
 		"AMIC1", "MIC BIAS External",
 		"AMIC2", "MIC BIAS Internal2",
 		"AMIC3", "MIC BIAS External",
-		"DMIC1", "MIC BIAS Internal1",
-		"MIC BIAS Internal1", "Digital Mic1",
-		"DMIC2", "MIC BIAS Internal1",
-		"MIC BIAS Internal1", "Digital Mic2";
+		"DMIC1", "MIC BIAS Internal1";
 
 	/* External Primary or External Secondary -ADV7533 HDMI */
 	external-dai-link@0 {

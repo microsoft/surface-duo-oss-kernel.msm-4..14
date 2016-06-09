@@ -703,8 +703,8 @@
 
 		/* Audio */
 
-		wcd_digital: codec-digital{
-			compatible = "syscon", "qcom,apq8016-wcd-digital-codec";
+		lpass_codec_core: lpass-codec{
+			compatible = "syscon", "qcom,msm8916-lpass-codec";
 			reg = <0x0771c000 0x400>;
 		};
 
