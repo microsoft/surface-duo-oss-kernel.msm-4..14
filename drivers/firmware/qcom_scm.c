@@ -20,6 +20,7 @@
 #include <linux/qcom_scm.h>
 #include <linux/of.h>
 #include <linux/clk.h>
+#include <linux/reset-controller.h>
 
 #include "qcom_scm.h"
 
@@ -28,6 +29,8 @@ struct qcom_scm {
 	struct clk *core_clk;
 	struct clk *iface_clk;
 	struct clk *bus_clk;
+
+	struct reset_controller_dev reset;
 };
 
 static struct qcom_scm *__scm;
@@ -148,19 +151,6 @@ int qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt, u32 *resp)
 }
 EXPORT_SYMBOL(qcom_scm_hdcp_req);
 
-int qcom_scm_restart_proc(u32 pid, int restart, u32 *resp)
-{
-	int ret;
-
-	ret = qcom_scm_clk_enable();
-	if (ret)
-		return ret;
-
-	ret = __qcom_scm_restart_proc(pid, restart, resp);
-	qcom_scm_clk_disable();
-	return ret;
-}
-EXPORT_SYMBOL(qcom_scm_restart_proc);
 /**
  * qcom_scm_pas_supported() - Check if the peripheral authentication service is
  *			      available for the given peripherial
@@ -402,6 +392,21 @@ static int __init qcom_scm_init(void)
 	return __qcom_scm_init();
 }
 
+static int qcom_scm_reset_assert(struct reset_controller_dev *rcdev, unsigned long idx)
+{
+	return __qcom_scm_pas_mss_reset(1);
+}
+
+static int qcom_scm_reset_deassert(struct reset_controller_dev *rcdev, unsigned long idx)
+{
+	return __qcom_scm_pas_mss_reset(0);
+}
+
+static struct reset_control_ops scm_reset_ops = {
+	.assert = qcom_scm_reset_assert,
+	.deassert = qcom_scm_reset_deassert,
+};
+
 static int qcom_scm_probe(struct platform_device *pdev)
 {
 	struct qcom_scm *scm;
@@ -444,6 +449,11 @@ static int qcom_scm_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to acquire bus clk\n");
 		scm->bus_clk = NULL;
 	}
+
+	scm->reset.ops = &scm_reset_ops;
+	scm->reset.nr_resets = 1;
+	scm->reset.of_node = pdev->dev.of_node;
+	reset_controller_register(&scm->reset);
 
 	/* vote for max clk rate for highest performance */
 	rate = clk_round_rate(scm->core_clk, INT_MAX);

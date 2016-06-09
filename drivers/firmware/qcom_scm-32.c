@@ -501,11 +501,13 @@ int __qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt, u32 *resp)
 		req, req_cnt * sizeof(*req), resp, sizeof(*resp));
 }
 
-int __qcom_scm_restart_proc(u32 proc_id, int restart, u32 *resp)
+int __qcom_scm_pas_mss_reset(bool reset)
 {
+	__le32 val = cpu_to_le32(reset);
+	__le32 resp;
 
-	return qcom_scm_call(QCOM_SCM_SVC_PIL, proc_id,
-				&restart, sizeof(restart),
+	return qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_MSS_RESET,
+				&val, sizeof(val),
 			    	&resp, sizeof(resp));
 }
 
