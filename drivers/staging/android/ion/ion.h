@@ -71,6 +71,25 @@ struct ion_platform_data {
 };
 
 /**
+ * struct ion_cpa_platform_data - settings for a cpa heap instance
+ * @lowmark:		Lowest number of items on free list before refill is
+ *			triggered
+ * @highmark:		Maximum number of item on free list
+ * @fillmark:		Number of items to target during a refill
+ * @align_order:	Order to round-up allocation sizes to
+ * @order:		Order of the compound pages to break allocations into
+ *
+ * Provided as the priv data for a cpa heap
+ */
+struct ion_cpa_platform_data {
+	int lowmark;
+	int highmark;
+	int fillmark;
+	int align_order;
+	int order;
+};
+
+/**
  * ion_reserve() - reserve memory for ion heaps if applicable
  * @data:	platform data specifying starting physical address and
  *		size

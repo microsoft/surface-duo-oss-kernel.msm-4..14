@@ -43,48 +43,13 @@ config ION_COMPOUND_PAGE
 	bool "Ion compound page system pool"
 	depends on ION
 	help
-	 Enable use of compound pages (default to 2MB) system memory pool.
-	 Backs a buffer with large and aligned pages where possible,
-	 to ease TLB pressure and lessen memory fragmentation.
-
-config ION_COMPOUND_PAGE_SIZE
-	int "Compound page size, shift amount (9 => 2MB, 10 => 4MB)"
-	depends on ION_COMPOUND_PAGE
-	range 1 20
-	default 9
-	help
-	 Size of the compound pages to use, when possible.
-	 Typically this is set to match the size needed by IOMMUs on the system.
-	 The number is the page shift amount, so 1 means shift by one,
-	 aka 2 times the page size.
-
-config ION_COMPOUND_PAGE_LOWMARK
-	int "Compound page lowmark"
-	depends on ION_COMPOUND_PAGE
-	range 2 256
-	default 16
-	help
-	 Memory refill will be triggered if the number of pages in the free pool goes below this
-
-config ION_COMPOUND_PAGE_FILLMARK
-	int "Compound page fillmark"
-	depends on ION_COMPOUND_PAGE
-	range 2 512
-	default 32
-	help
-	 Amount of pages memory refill will target
-
-config ION_COMPOUND_PAGE_HIGHMARK
-	int "Compound page highmark"
-	depends on ION_COMPOUND_PAGE
-	range 2 1024
-	default 128
-	help
-	 Maximum number of pages to keep in the free pool
+	  Enable use of compound pages (default to 2MB) system memory pool.
+	  Backs a buffer with large and aligned pages where possible,
+	  to ease TLB pressure and lessen memory fragmentation.
 
 config ION_COMPOUND_PAGE_STATS
 	bool "Collect statistics for the compound page pool"
 	depends on ION_COMPOUND_PAGE && DEBUG_FS
 	help
-	 Collect extra usage statistics for the compound page pool.
-	 Available via ion's debugfs entry for the pool.
+	  Collect extra usage statistics for the compound page pool.
+	  Available via ion's debugfs entry for the pool.

@@ -35,31 +35,14 @@
 #include <linux/wait.h>
 #include "ion_priv.h"
 
-#define CPP_ORDER CONFIG_ION_COMPOUND_PAGE_SIZE
 #ifdef CONFIG_ION_COMPOUND_PAGE_STATS
-	#define CPP_STATS
-#endif
-/* # histogram bins */
-#define CPP_HISTOGRAM_BINS 16
-/* size in bytes of a compound page */
-#define CPP_PAGE_SIZE (PAGE_SIZE << CPP_ORDER)
-/* number of PAGE_SIZE pages in the compound page */
-#define CPP_SUB_PAGES (CPP_PAGE_SIZE >> PAGE_SHIFT)
-
-static int pool_page_lowmark = CONFIG_ION_COMPOUND_PAGE_LOWMARK;
-static int pool_page_highmark = CONFIG_ION_COMPOUND_PAGE_HIGHMARK;
-static int pool_page_fillmark = CONFIG_ION_COMPOUND_PAGE_FILLMARK;
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
-static const gfp_t gfp_flags = (GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN |
-		__GFP_NORETRY | __GFP_COMP);
-#else
-static const gfp_t gfp_flags = (GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN |
-		__GFP_NORETRY | __GFP_COMP);
+	#define CPA_STATS
 #endif
 
-#ifdef CPP_STATS
-/** struct cpp_stats - usage tracking.
+#define CPA_HISTOGRAM_BINS 16
+
+#ifdef CPA_STATS
+/** struct cpa_stats - usage tracking.
  * @bytes_requested: accumulated bytes request
  * @bytes_committed: accumulated bytes actually committed
  * @num_allocs: Accumulated number of allocations
@@ -67,7 +50,7 @@ static const gfp_t gfp_flags = (GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN |
  * @live_requested: bytes request for current allocations
  * @live_committed: bytes committed for current allocations
  */
-struct cpp_stats {
+struct cpa_stats {
 	atomic64_t bytes_requested;
 	atomic64_t bytes_committed;
 	atomic_t num_allocs;
@@ -78,27 +61,29 @@ struct cpp_stats {
 #endif
 
 /**
- * struct cpp_sub_alloc - tracks usage of a sub-allocate compound page.
- * @link: to be tracked on struct @cpp_alloc's @partials.
+ * struct cpa_sub_alloc - tracks usage of a sub-allocate compound page.
+ * @link: to be tracked on struct @cpa_alloc's @partials.
  * @page: The compound page which has been sub-allocated
  * @sub_pages: Bitmap to track use of PAGE_SIZE chunks of the compound page
  */
-struct cpp_sub_alloc {
+struct cpa_sub_alloc {
 	struct list_head link;
 	struct page *page;
-	DECLARE_BITMAP(sub_pages, CPP_SUB_PAGES);
+	unsigned long sub_pages[];
 };
 
 /**
- * struct cpp_pool - the main compound page pool structure
+ * struct cpa_pool - the main compound page pool structure
  * @heap:                    Embedded @ion_heap as requested by the ion API.
  * @lock:                    Lock protecting access to:
  *                             - @pages
  *                             - @partials
  *                             - @free_queue
+ * @order:                   Compound page order
  * @lowmark:                 Refill if count of free pages drop below this
  * @fillmark:                Refill to this
  * @highmark:                Free directly to kernel above this
+ * @align_size:              Size to align allocations to, in bytes
  * @count:                   Number of free pages on the @pages list
  * @pages:                   List of free pages
  * @num_partials:            Number of partials in use
@@ -108,8 +93,8 @@ struct cpp_sub_alloc {
  * @worker_wait:             Wait object for worker thread
  * @free_queue:              List of pages to free (drain)
  * @shrinker:                Allow Linux to reclaim memory on our free list
- * @overall:                 Overall @cpp_stats object
- * @histogram:               @cpp_stats per number of compound pages
+ * @overall:                 Overall @cpa_stats object
+ * @histogram:               @cpa_stats per number of compound pages
  * @max_alloc_time:          Max time to allocate for a buffer
  * @max_cp_alloc_time:       Max time to allocate a single page from the kernel
  * @num_soft_alloc_failures: Number of times a kernel allocation has failed
@@ -127,15 +112,17 @@ struct cpp_sub_alloc {
  * Atomics is used when possible/needed to allow debugfs without locks.
  * Optionally tracks usage statistics.
  */
-struct cpp_pool {
+struct cpa_pool {
 	struct ion_heap heap;
 
 	/* lock protecting the pool */
 	struct mutex lock;
 
+	unsigned int order;
 	unsigned int lowmark;
 	unsigned int fillmark;
-	unsigned int  highmark;
+	unsigned int highmark;
+	unsigned int align_size;
 	atomic_t count;
 	struct list_head pages;
 
@@ -149,11 +136,11 @@ struct cpp_pool {
 	struct shrinker shrinker;
 
 	/* statistics */
-#ifdef CPP_STATS
+#ifdef CPA_STATS
 	atomic_t num_partials;
 	atomic_t free_bytes_in_partials;
-	struct cpp_stats overall;
-	struct cpp_stats histogram[CPP_HISTOGRAM_BINS];
+	struct cpa_stats overall;
+	struct cpa_stats histogram[CPA_HISTOGRAM_BINS];
 	atomic_t max_alloc_time;
 	atomic_t max_cp_alloc_time;
 	atomic_t num_soft_alloc_failures;
@@ -164,56 +151,82 @@ struct cpp_pool {
 #endif
 };
 
-#ifdef CPP_STATS
-/** cpp_stats_update() - Helper to update a @cpp_stats object.
- * @stats: The @cpp_stats object to update.
+/**
+ * cpa_sub_pages() - The number of sub-pages in a pool's compound page.
+ * @pool: The pool to query.
+ *
+ * Returns the number of sub-pages in a pool's compound page.
+ */
+static unsigned long cpa_sub_pages(struct cpa_pool *pool)
+{
+	return 1u << pool->order;
+}
+
+/**
+ * cpa_page_size() - Size, in bytes, for a pool's compound page.
+ * @pool: The pool to query.
+ *
+ * Returns, in bytes, the size of a pool's compound page.
+ */
+static unsigned long cpa_page_size(struct cpa_pool *pool)
+{
+	return PAGE_SIZE << pool->order;
+}
+
+#ifdef CPA_STATS
+/**
+ * cpa_stats_update() - Helper to update a @cpa_stats object.
+ * @stats: The @cpa_stats object to update.
  * @requested: The number of bytes requested.
  * @committed: The number of bytes committed.
  */
-static void cpp_stats_update(struct cpp_stats *stats, unsigned long requested,
-			     unsigned long committed)
+static void cpa_stats_update(struct cpa_stats *stats, unsigned long requested,
+		unsigned long committed)
 {
 	atomic_inc(&stats->num_allocs);
 	atomic64_add(requested, &stats->bytes_requested);
 	atomic64_add(committed, &stats->bytes_committed);
 }
 
-/** cpp_histogram_index() - Find the histogram index to use.
+/**
+ * cpa_histogram_index() - Find the histogram index to use.
+ * @pool:      Pool to query the histogram index for.
  * @committed: Bytes to find the histogram index for.
  *
  * Returns the histogram index to use based on the number of whole compound
  * pages.
  */
-static unsigned int cpp_histogram_index(unsigned long committed)
+static unsigned int cpa_histogram_index(struct cpa_pool *pool,
+					unsigned long committed)
 {
-	int pages = committed >> (PAGE_SHIFT + CPP_ORDER);
+	int pages = committed >> (PAGE_SHIFT + pool->order);
 
-	if (pages >= CPP_HISTOGRAM_BINS)
-		return CPP_HISTOGRAM_BINS - 1;
+	if (pages >= CPA_HISTOGRAM_BINS)
+		return CPA_HISTOGRAM_BINS - 1;
 	else
 		return pages;
 }
 
-static void cpp_log_shrink(struct cpp_pool *pool, unsigned long count)
+static void cpa_log_shrink(struct cpa_pool *pool, unsigned long count)
 {
 	atomic_inc(&pool->shrinks);
 	atomic_add(count, &pool->pages_shrunk);
 }
 
-/** cpp_log_alloc() - Track allocation.
+/** cpa_log_alloc() - Track allocation.
  * @pool: The pool to update the statistics for.
  * @requested: bytes requested.
  * @committed: bytes actually committed.
  *
  * Updates the histogram and overall stats.
  */
-static void cpp_log_alloc(struct cpp_pool *pool, unsigned long requested,
-			  unsigned long committed)
+static void cpa_log_alloc(struct cpa_pool *pool, unsigned long requested,
+		unsigned long committed)
 {
-	unsigned int hidx = cpp_histogram_index(committed);
+	unsigned int hidx = cpa_histogram_index(pool, committed);
 
-	cpp_stats_update(&pool->overall, requested, committed);
-	cpp_stats_update(&pool->histogram[hidx], requested, committed);
+	cpa_stats_update(&pool->overall, requested, committed);
+	cpa_stats_update(&pool->histogram[hidx], requested, committed);
 
 	atomic_inc(&pool->overall.live_allocs);
 	atomic_add(committed, &pool->overall.live_committed);
@@ -224,17 +237,17 @@ static void cpp_log_alloc(struct cpp_pool *pool, unsigned long requested,
 	atomic_add(requested, &pool->histogram[hidx].live_requested);
 }
 
-/** cpp_log_dealloc() - Track allocation free.
+/** cpa_log_dealloc() - Track allocation free.
  * @pool: The pool to update the statistics for.
  * @requested: bytes requested.
  * @committed: bytes actually committed.
  *
  * Updates the histogram and overall stats.
  */
-static void cpp_log_dealloc(struct cpp_pool *pool, unsigned long requested,
-			    unsigned long committed)
+static void cpa_log_dealloc(struct cpa_pool *pool, unsigned long requested,
+		unsigned long committed)
 {
-	unsigned int hidx = cpp_histogram_index(committed);
+	unsigned int hidx = cpa_histogram_index(pool, committed);
 
 	atomic_sub(committed, &pool->overall.live_committed);
 	atomic_sub(requested, &pool->overall.live_requested);
@@ -245,64 +258,90 @@ static void cpp_log_dealloc(struct cpp_pool *pool, unsigned long requested,
 	atomic_dec(&pool->histogram[hidx].live_allocs);
 }
 
-/** cpp_stats_debug_print_helper() - Pretty-print bytes.
+/** cpa_stats_debug_print_helper() - Pretty-print bytes.
  * @s: Sequence file to output to.
  * @val: Value to pretty-print.
  *
  * Pretty-prints the value @val with base2 units to the sequence file.
  */
-static void cpp_stats_debug_print_helper(struct seq_file *s, u64 val)
+static void cpa_stats_debug_print_helper(struct seq_file *s, u64 val)
 {
 	char cap_str[24];
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 1, 0)
 	string_get_size(val, STRING_UNITS_2, cap_str, sizeof(cap_str));
-#else
-	string_get_size(val, 1, STRING_UNITS_2, cap_str, sizeof(cap_str));
-#endif
 	seq_printf(s, "%s (%llu)\n", cap_str, val);
 }
 
 /**
- * cpp_stats_debug_show() - Display a @cpp_stats object.
- * @stats: The @cpp_stats object to display stats for.
+ * cpa_stats_debug_show() - Display a @cpa_stats object.
+ * @stats: The @cpa_stats object to display stats for.
  * @s: The sequence file to use for output.
  */
-static void cpp_stats_debug_show(struct cpp_stats *stats, struct seq_file *s)
+static void cpa_stats_debug_show(struct cpa_stats *stats, struct seq_file *s)
 {
 	seq_printf(s, "\t\tTotal number of allocs seen: %u\n",
-		   atomic_read(&stats->num_allocs));
+			atomic_read(&stats->num_allocs));
 	seq_printf(s, "\t\tLive allocations: %u\n",
-		   atomic_read(&stats->live_allocs));
+			atomic_read(&stats->live_allocs));
 
 	seq_puts(s, "\t\tAccumulated bytes requested: ");
-	cpp_stats_debug_print_helper(s, atomic64_read(&stats->bytes_requested));
+	cpa_stats_debug_print_helper(s, atomic64_read(&stats->bytes_requested));
 
 	seq_puts(s, "\t\tAccumulated bytes committed: ");
-	cpp_stats_debug_print_helper(s, atomic64_read(&stats->bytes_committed));
+	cpa_stats_debug_print_helper(s, atomic64_read(&stats->bytes_committed));
 
 	seq_puts(s, "\t\tLive bytes requested: ");
-	cpp_stats_debug_print_helper(s, atomic_read(&stats->live_requested));
+	cpa_stats_debug_print_helper(s, atomic_read(&stats->live_requested));
 
 	seq_puts(s, "\t\tLive bytes committed: ");
-	cpp_stats_debug_print_helper(s, atomic_read(&stats->live_committed));
+	cpa_stats_debug_print_helper(s, atomic_read(&stats->live_committed));
 }
 
 /**
- * cpp_debug_show() - Display pool statistics.
- * @heap: Pointer to the embedded @ion_heap in the @cpp_pool.
+ * cpa_stats_debug_partials_dump() - Dump a pool's partials bitmaps.
+ * @s: seq_file to dump to.
+ * @pool: Pool to dump.
+ */
+static void cpa_stats_debug_partials_dump(struct seq_file *s,
+					  struct cpa_pool *pool)
+{
+	struct cpa_sub_alloc *sub_alloc;
+	int cnt = 0;
+
+	mutex_lock(&pool->lock);
+	seq_puts(s, "\tPartial bitmaps:\n");
+	list_for_each_entry(sub_alloc, &pool->partials, link) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
+		unsigned char bitmap_str[160] = {0};
+		bitmap_scnprintf(bitmap_str, sizeof(bitmap_str),
+				sub_alloc->sub_pages, cpa_sub_pages(pool));
+		seq_printf(s, "\t\t- %2d: %s\n", cnt, bitmap_str);
+#else
+		seq_printf(s, "\t\t- %2d: %*pb\n", cnt, cpa_sub_pages(pool),
+			   sub_alloc->sub_pages);
+#endif
+		cnt++;
+	}
+
+
+	mutex_unlock(&pool->lock);
+}
+
+/**
+ * cpa_debug_show() - Display pool statistics.
+ * @heap: Pointer to the embedded @ion_heap in the @cpa_pool.
  * @s: sequence file to use for output.
  * @unused: Optional payload, not used.
  *
  * Called by the ion core to display pool statistics.
  * Always returns 0.
  */
-static int cpp_debug_show(struct ion_heap *heap, struct seq_file *s,
-			  void *unused)
+static int cpa_debug_show(struct ion_heap *heap, struct seq_file *s,
+				      void *unused)
 {
-	struct cpp_pool *pool = container_of(heap,
-					     struct cpp_pool,
-					     heap);
+	struct cpa_pool *pool = container_of(heap,
+			struct cpa_pool,
+			heap);
 	int i;
 	int count;
 
@@ -310,52 +349,54 @@ static int cpp_debug_show(struct ion_heap *heap, struct seq_file *s,
 
 	seq_puts(s, "Free pool:\n");
 	seq_printf(s, "\t%u times depleted\n",
-		   atomic_read(&pool->depleted));
+			atomic_read(&pool->depleted));
 	seq_printf(s, "\t%u page(s) in pool - ", count);
-	cpp_stats_debug_print_helper(s, count << (PAGE_SHIFT + CPP_ORDER));
+	cpa_stats_debug_print_helper(s, count << (PAGE_SHIFT + pool->order));
 	seq_printf(s, "\t%u partial(s) in use\n",
-		   atomic_read(&pool->num_partials));
+			atomic_read(&pool->num_partials));
 	seq_puts(s, "\tUnused in partials - ");
-	cpp_stats_debug_print_helper(s,
-				     atomic_read(&pool->free_bytes_in_partials));
+	cpa_stats_debug_print_helper(s,
+			atomic_read(&pool->free_bytes_in_partials));
+	cpa_stats_debug_partials_dump(s, pool);
 	seq_puts(s, "Shrink info:\n");
 	seq_printf(s, "\tShrunk performed %u time(s)\n",
-		   atomic_read(&pool->shrinks));
+			atomic_read(&pool->shrinks));
 	seq_printf(s, "\t%u page(s) shrunk in total\n",
-		   atomic_read(&pool->pages_shrunk));
+			atomic_read(&pool->pages_shrunk));
 
 	seq_puts(s, "Usage stats:\n");
 	seq_printf(s, "\tMax time spent to perform an allocation: %u ns\n",
-		   atomic_read(&pool->max_alloc_time));
+			atomic_read(&pool->max_alloc_time));
 	seq_printf(s, "\tMax time spent to allocate a single page from kernel: %u ns\n",
-		   atomic_read(&pool->max_cp_alloc_time));
+			atomic_read(&pool->max_cp_alloc_time));
 	seq_printf(s, "\tSoft alloc failures: %u\n",
-		   atomic_read(&pool->num_soft_alloc_failures));
+			atomic_read(&pool->num_soft_alloc_failures));
 	seq_printf(s, "\tHard alloc failures: %u\n",
-		   atomic_read(&pool->num_hard_alloc_failures));
+			atomic_read(&pool->num_hard_alloc_failures));
 
 	seq_puts(s, "\tAllocations:\n");
-	cpp_stats_debug_show(&pool->overall, s);
+	cpa_stats_debug_show(&pool->overall, s);
 
 	seq_puts(s, "\tDistribution:\n");
 
-	for (i = 0; i < CPP_HISTOGRAM_BINS; i++) {
+	for (i = 0; i < CPA_HISTOGRAM_BINS; i++) {
 		if (!atomic_read(&pool->histogram[i].num_allocs))
 			continue;
 		seq_printf(s, "\t%d page(s):\n", i);
-		cpp_stats_debug_show(&pool->histogram[i], s);
+		cpa_stats_debug_show(&pool->histogram[i], s);
 	}
 
 	return 0;
 }
 
-#else /* CPP_STATS */
-#define cpp_log_alloc(a, b, c)
-#define cpp_log_dealloc(a, b, c)
-#define cpp_log_shrink(a, b)
+#else /* CPA_STATS */
+#define cpa_log_alloc(a, b, c)
+#define cpa_log_dealloc(a, b, c)
+#define cpa_log_shrink(a, b)
 #endif
 
-/** cpp_drain_pages() - Drain pages
+/**
+ * cpa_drain_pages() - Drain pages
  * @pool: The pool to drain into.
  * @pages: list head for the pages to drain.
  *
@@ -366,7 +407,7 @@ static int cpp_debug_show(struct ion_heap *heap, struct seq_file *s,
  * The lock is retaken before the just-cleared pages are exposed for reuse.
  * The lock is held on exit.
  */
-static void cpp_drain_pages(struct cpp_pool *pool, struct list_head *pages)
+static void cpa_drain_pages(struct cpa_pool *pool, struct list_head *pages)
 {
 	struct page *page, *tmp_page;
 
@@ -388,15 +429,15 @@ static void cpp_drain_pages(struct cpp_pool *pool, struct list_head *pages)
 
 		if (++count > max) {
 			list_del(&page->lru);
-			__free_pages(page, CPP_ORDER);
+			__free_pages(page, pool->order);
 			continue;
 		}
 
-		for (i = 0; i < CPP_SUB_PAGES; i++)
+		for (i = 0; i < cpa_sub_pages(pool); i++)
 			clear_highpage(page + i);
 
-		ion_pages_sync_for_device(NULL, page, CPP_PAGE_SIZE,
-					  DMA_BIDIRECTIONAL);
+		ion_pages_sync_for_device(NULL, page, cpa_page_size(pool),
+				DMA_BIDIRECTIONAL);
 
 		count_for_pool++;
 	}
@@ -408,32 +449,43 @@ static void cpp_drain_pages(struct cpp_pool *pool, struct list_head *pages)
 	/* keep the pool locked on exit */
 }
 
-/** cpp_alloc_page() - Allocate a compound page from the kernel.
+/**
+ * cpa_alloc_page() - Allocate a compound page from the kernel.
  * @pool: The pool to allocate for.
+ * @retry: Flag to indicate that we should try harder to allocate the page.
  *
  * Allocates a compound page and uses the ion API to prepare it for use.
  * If requested the time spent is recorded.
  */
-static struct page *cpp_alloc_page(struct cpp_pool *pool)
+static struct page *cpa_alloc_page(struct cpa_pool *pool, bool retry)
 {
 	struct page *page;
-#ifdef CPP_STATS
+	gfp_t gfp_flags = GFP_HIGHUSER | __GFP_ZERO | __GFP_NOWARN |
+			  __GFP_NORETRY | __GFP_COMP;
+#ifdef CPA_STATS
 	unsigned long nv;
 	unsigned long long start_cycles = sched_clock();
 #endif
 
-	page = alloc_pages(gfp_flags, CPP_ORDER);
+	if (retry)
+		gfp_flags &= ~__GFP_NORETRY;
+
+	page = alloc_pages(gfp_flags, pool->order);
 	if (!page) {
-#ifdef CPP_STATS
-		atomic_inc(&pool->num_soft_alloc_failures);
+#ifdef CPA_STATS
+		if (retry)
+			atomic_inc(&pool->num_hard_alloc_failures);
+		else
+			atomic_inc(&pool->num_soft_alloc_failures);
 #endif
 		return NULL;
 	}
 
 	INIT_LIST_HEAD(&page->lru);
-	ion_pages_sync_for_device(NULL, page, CPP_PAGE_SIZE, DMA_BIDIRECTIONAL);
+	ion_pages_sync_for_device(NULL, page, cpa_page_size(pool),
+				  DMA_BIDIRECTIONAL);
 
-#ifdef CPP_STATS
+#ifdef CPA_STATS
 	nv = (unsigned long)(sched_clock() - start_cycles);
 	while (true) {
 		unsigned long ov;
@@ -451,14 +503,15 @@ static struct page *cpp_alloc_page(struct cpp_pool *pool)
 	return page;
 }
 
-/** cpp_refill_pool() - Refill a @cpp_pool.
+/**
+ * cpa_refill_pool() - Refill a @cpa_pool.
  * @pool: The pool to refill.
  *
  * Adds new pages to the pool to reach the fill-mark.
  * Called with the lock held, but drops the lock while allocating physical
  * pages.  Retakes the lock again before exposing the pages and returning.
  */
-static void cpp_refill_pool(struct cpp_pool *pool)
+static void cpa_refill_pool(struct cpa_pool *pool)
 {
 	ssize_t pages_wanted = pool->fillmark - atomic_read(&pool->count);
 	size_t i;
@@ -469,7 +522,7 @@ static void cpp_refill_pool(struct cpp_pool *pool)
 	/* drop the lock while allocating */
 	mutex_unlock(&pool->lock);
 
-#ifdef CPP_STATS
+#ifdef CPA_STATS
 	if (pool->fillmark == pages_wanted)
 		atomic_inc(&pool->depleted);
 #endif
@@ -477,7 +530,7 @@ static void cpp_refill_pool(struct cpp_pool *pool)
 	for (i = 0; i < pages_wanted; i++) {
 		struct page *page;
 
-		page = cpp_alloc_page(pool);
+		page = cpa_alloc_page(pool, false);
 		if (!page)
 			break; /* non-fatal */
 		list_add_tail(&page->lru, &pages);
@@ -493,14 +546,15 @@ static void cpp_refill_pool(struct cpp_pool *pool)
 	/* keep the pool locked on exit */
 }
 
-/** cpp_worker() - Worker thread to refill the pool and drain the free queue.
- * @data: The @cpp_pool to operate on.
+/**
+ * cpa_worker() - Worker thread to refill the pool and drain the free queue.
+ * @data: The @cpa_pool to operate on.
  *
- * Thread which drives @cpp_refill_pool and @cpp_drain_pages.
+ * Thread which drives @cpa_refill_pool and @cpa_drain_pages.
  */
-static int cpp_worker(void *data)
+static int cpa_worker(void *data)
 {
-	struct cpp_pool *pool = (struct cpp_pool *)data;
+	struct cpa_pool *pool = (struct cpa_pool *)data;
 	DECLARE_WAITQUEUE(wait, current);
 
 	mutex_lock(&pool->lock);
@@ -510,11 +564,11 @@ static int cpp_worker(void *data)
 			LIST_HEAD(pages);
 
 			list_splice_init(&pool->free_queue, &pages);
-			cpp_drain_pages(pool, &pages);
+			cpa_drain_pages(pool, &pages);
 		}
 
 		if (atomic_read(&pool->count) < pool->lowmark)
-			cpp_refill_pool(pool);
+			cpa_refill_pool(pool);
 
 		__set_current_state(TASK_INTERRUPTIBLE);
 		__add_wait_queue(&pool->worker_wait, &wait);
@@ -532,37 +586,36 @@ static int cpp_worker(void *data)
 		set_task_state(current, TASK_RUNNING);
 		mutex_lock(&pool->lock);
 		__remove_wait_queue(&pool->worker_wait, &wait);
+
 	}
 
 	return 0;
 }
 
 /**
- * cpp_align_size() - Align requested size.
+ * cpa_align_size() - Align requested size.
+ * @pool: The pool to align for.
  * @size: Requested size.
  *
- * If the requested size is less than the compound page size the return value
- * is aligned up to the next page size.
- * For other requests the size is rounded up to be a multiple of the compound
- * page size.
+ * Aligns size to the internal minimum allocation size.
+ *
+ * Returns the aligned size to use for allocations.
  */
-static unsigned long cpp_align_size(unsigned long size)
+static unsigned long cpa_align_size(struct cpa_pool *pool, unsigned long size)
 {
-	if (size < CPP_PAGE_SIZE)
-		return ALIGN(size, PAGE_SIZE);
-	else
-		return ALIGN(size, CPP_PAGE_SIZE);
+	return ALIGN(size, pool->align_size);
 }
 
-/** cpp_get_page_from_pool() - get a page from a @cpp_pool
- * @pool: The @cpp_pool to request a page from.
+/**
+ * cpa_get_page_from_pool() - get a page from a @cpa_pool
+ * @pool: The @cpa_pool to request a page from.
  *
  * Helper to get the first page in the free pool.
  * Caller must verify that the pool is not empty before calling.
  *
  * Returns the page taken from the pool.
  */
-static struct page *cpp_get_page_from_pool(struct cpp_pool *pool)
+static struct page *cpa_get_page_from_pool(struct cpa_pool *pool)
 {
 	struct page *page;
 
@@ -573,113 +626,133 @@ static struct page *cpp_get_page_from_pool(struct cpp_pool *pool)
 }
 
 /**
- * cpp_partial_alloc() - Allocate a partial compound page
- * @pool: the pool to allocated from
- * @bytes: Number of bytes. Must be aligned on a power-of-two boundary
- * @ppage: Where to store a pointer to the compound page allocated
+ * cpa_remap_pos() - Remap between page range and bitmap range.
+ * @pool: The pool to remap for.
+ * @pos: The index of the start of the range to remap.
+ * @pages: Size of the range to remap.
  *
- * Free a partial allocation within a compound page.
- * The arguments must match what was passed to @cpp_partial_alloc.
+ * As our bitmaps represent the pages in reverse order, this function maps
+ * between the two domains.
+ *
+ * Returns the remapped position.
+ */
+static int cpa_remap_pos(struct cpa_pool *pool, int pos, int pages)
+{
+	return cpa_sub_pages(pool) - pos - pages;
+}
+
+/**
+ * cpa_partial_alloc() - Allocate a partial compound page
+ * @pool: the pool to allocated from
+ * @pages: Number of pages to allocate
+ * @atstart : If the partial must be from the beginning of a 2MB allocation
  *
  * Return:
- * The byte offset within the returned compound page, zero or greater or
- * -errno on failure.
+ * struct page pointer on success, NULL on error
  */
-static int cpp_partial_alloc(struct cpp_pool *pool, unsigned long bytes,
-			     struct page **ppage)
+static struct page *
+cpa_partial_alloc(struct cpa_pool *pool, unsigned long pages, bool atstart)
 {
-	int order;
 	struct page *new_page = NULL;
-	struct cpp_sub_alloc *sub_alloc;
+	struct cpa_sub_alloc *sub_alloc;
+	int start;
 
 	lockdep_assert_held(&pool->lock);
 
-	order = ilog2(bytes) - PAGE_SHIFT;
+	start = atstart ? cpa_remap_pos(pool, 0, pages) : 0;
 
 	list_for_each_entry(sub_alloc, &pool->partials, link) {
-		int pos = bitmap_find_free_region(sub_alloc->sub_pages,
-						  CPP_SUB_PAGES, order);
+		int pos = bitmap_find_next_zero_area(sub_alloc->sub_pages,
+						     cpa_sub_pages(pool),
+						     start,
+						     pages,
+						     0);
 
-		if (pos >= 0) {
-#ifdef CPP_STATS
-			atomic_sub(bytes, &pool->free_bytes_in_partials);
+		if (pos < cpa_sub_pages(pool)) {
+			bitmap_set(sub_alloc->sub_pages, pos, pages);
+#ifdef CPA_STATS
+			atomic_sub(pages << PAGE_SHIFT,
+				   &pool->free_bytes_in_partials);
+
 #endif
-			*ppage = sub_alloc->page;
-			return pos << PAGE_SHIFT;
+			pos = cpa_remap_pos(pool, pos, pages);
+			return sub_alloc->page + pos;
 		}
 	}
 
 	/* no existing partial found, try to allocate a new one */
 	if (!list_empty(&pool->pages)) {
-		new_page = cpp_get_page_from_pool(pool);
+		new_page = cpa_get_page_from_pool(pool);
 		if (atomic_dec_return(&pool->count) < pool->lowmark)
 			wake_up(&pool->worker_wait);
 	}
 
 	if (!new_page) {
-		new_page = cpp_alloc_page(pool);
+		new_page = cpa_alloc_page(pool, true);
 		wake_up(&pool->worker_wait);
 	}
 
 	if (!new_page)
-		return -ENOMEM;
+		return NULL;
 
-	sub_alloc = kzalloc(sizeof(*sub_alloc), GFP_KERNEL);
+	sub_alloc = kzalloc(sizeof(*sub_alloc) +
+			    sizeof(long) * BITS_TO_LONGS(cpa_sub_pages(pool)),
+			    GFP_KERNEL);
 	if (!sub_alloc)
 		goto no_sub_alloc;
 
-	bitmap_allocate_region(sub_alloc->sub_pages, 0, order);
+	bitmap_set(sub_alloc->sub_pages, start, pages);
 
 	INIT_LIST_HEAD(&sub_alloc->link);
 	sub_alloc->page = new_page;
 	set_page_private(new_page, (unsigned long)sub_alloc);
 
-#ifdef CPP_STATS
-	atomic_add(CPP_PAGE_SIZE - bytes, &pool->free_bytes_in_partials);
+#ifdef CPA_STATS
+	atomic_add(cpa_page_size(pool) - (pages << PAGE_SHIFT),
+			&pool->free_bytes_in_partials);
 	atomic_inc(&pool->num_partials);
 #endif
 
 	list_add(&sub_alloc->link, &pool->partials);
 
-	*ppage = new_page;
-
-	return 0;
+	return new_page + (cpa_sub_pages(pool) - start - pages);
 
 no_sub_alloc:
 	/* as we failed to allocate memory, let's free directly
 	 * back to the kernel
 	 */
-	__free_pages(new_page, CPP_ORDER);
-	return -ENOMEM;
+	__free_pages(new_page, pool->order);
+	return NULL;
 }
 
+
 /**
- * cpp_partial_free() - free a partial compound page allocation
+ * cpa_partial_free() - free a partial compound page allocation
  * @pool: the pool the partial was allocated from
- * @page: compound page previously returned from @cpp_partial_alloc
- * @bytes: Number of bytes. Must match the argument to @cpp_partial_alloc
- * @offset: Offset in bytes. Must match the argument to @cpp_partial_alloc
+ * @page: compound page previously returned from @cpa_partial_alloc
+ * @pages: Number of pages to free. Must match the argument to @cpa_partial_alloc
  *
  * Free a partial allocation within a compound page.
- * The arguments must match what was passed to @cpp_partial_alloc.
+ * The arguments must match what was passed to @cpa_partial_alloc.
  */
-static void cpp_partial_free(struct cpp_pool *pool, struct page *page,
-			     unsigned long bytes, int offset)
+static void cpa_partial_free(struct cpa_pool *pool, struct page *page,
+			     unsigned long pages)
 {
-	struct cpp_sub_alloc *sub_alloc;
-	int order;
+	struct cpa_sub_alloc *sub_alloc;
+	int pos;
 
 	lockdep_assert_held(&pool->lock);
 
-	sub_alloc = (struct cpp_sub_alloc *)page_private(page);
-	order = ilog2(bytes) - PAGE_SHIFT;
-	bitmap_release_region(sub_alloc->sub_pages, offset >> PAGE_SHIFT,
-			      order);
-	if (bitmap_empty(sub_alloc->sub_pages, CPP_SUB_PAGES)) {
+	sub_alloc = (struct cpa_sub_alloc *)page_private(compound_head(page));
+	pos = cpa_remap_pos(pool, page - compound_head(page), pages);
+
+	bitmap_clear(sub_alloc->sub_pages, pos, pages);
+
+	if (bitmap_empty(sub_alloc->sub_pages, cpa_sub_pages(pool))) {
 		/* partial has no clients, freeing */
-#ifdef CPP_STATS
+#ifdef CPA_STATS
 		atomic_dec(&pool->num_partials);
-		atomic_sub(CPP_PAGE_SIZE - bytes,
+		atomic_sub(cpa_page_size(pool) - (pages << PAGE_SHIFT),
 			   &pool->free_bytes_in_partials);
 #endif
 		list_del(&sub_alloc->link);
@@ -687,32 +760,31 @@ static void cpp_partial_free(struct cpp_pool *pool, struct page *page,
 		wake_up(&pool->worker_wait);
 		kfree(sub_alloc);
 	} else {
-		/* need to zero pages before */
-		int i;
-		int range_start = offset >> PAGE_SHIFT;
-		int range_end = range_start + (bytes >> PAGE_SHIFT);
+		/* need to zero pages before exposing them again */
+		struct page *p;
 
-		for (i = range_start; i < range_end; i++)
-			clear_highpage(sub_alloc->page + i);
-#ifdef CPP_STATS
-		atomic_add(bytes, &pool->free_bytes_in_partials);
+		for (p = page; p < page + pages; p++)
+			clear_highpage(p);
+#ifdef CPA_STATS
+		atomic_add(pages << PAGE_SHIFT, &pool->free_bytes_in_partials);
 #endif
 	}
 }
 
-/** cpp_alloc() - ion API entry-point to allocate for a new buffer.
- * @heap: Pointer to the embedded @ion_heap in the @cpp_pool.
+/**
+ * cpa_alloc() - ion API entry-point to allocate for a new buffer.
+ * @heap: Pointer to the embedded @ion_heap in the @cpa_pool.
  * @buffer: The buffer to allocate for
  * @size: Requested length
  * @align: Requested alignment
  * @flags: Flags to control the allocation
  *
- * Rounds up the requested size using @cpp_align_size to better fit the pool.
+ * Rounds up the requested size using @cpa_align_size to better fit the pool.
  * Flags is not used. Alignment is always set to the compound page size, so the
  * requested alignment is not honored.
  *
  * Pages are taken from the pool. If the pool is exhausted then direct kernel
- * allocations is attempted. If @cpp_align_size made the buffer not a multiple
+ * allocations is attempted. If @cpa_align_size made the buffer not a multiple
  * of the compound page size, a partial compound page is added as the last page.
  *
  * If the free pool is detected to go below the low-mark then the worker thread
@@ -720,24 +792,24 @@ static void cpp_partial_free(struct cpp_pool *pool, struct page *page,
  *
  * Returns 0 on success, -errno on failure.
  */
-static int cpp_alloc(struct ion_heap *heap,
-		     struct ion_buffer *buffer, unsigned long size,
-		     unsigned long align, unsigned long flags)
+static int cpa_alloc(struct ion_heap *heap,
+		struct ion_buffer *buffer, unsigned long size,
+		unsigned long align, unsigned long flags)
 {
 	struct sg_table *table;
 	struct scatterlist *sg;
 	LIST_HEAD(pages);
 	struct page *page, *tmp_page;
-	unsigned long committed_size = cpp_align_size(size);
+	struct cpa_pool *pool = container_of(heap,
+			struct cpa_pool,
+			heap);
+	unsigned long committed_size = cpa_align_size(pool, size);
 	unsigned long size_remaining = committed_size;
-	unsigned int nents = ALIGN(size_remaining, CPP_PAGE_SIZE) >>
-		(CPP_ORDER + PAGE_SHIFT);
-	struct cpp_pool *pool = container_of(heap,
-					     struct cpp_pool,
-					     heap);
+	unsigned int nents = ALIGN(size_remaining, cpa_page_size(pool))
+				   >> (pool->order + PAGE_SHIFT);
 
 	int err;
-#ifdef CPP_STATS
+#ifdef CPA_STATS
 	unsigned long long start_time;
 	unsigned long nv;
 
@@ -763,48 +835,47 @@ static int cpp_alloc(struct ion_heap *heap,
 	mutex_lock(&pool->lock);
 
 	/* pull from our pool first */
-	while ((roundup_pow_of_two(size_remaining) >= CPP_PAGE_SIZE) &&
-	       !list_empty(&pool->pages)) {
+	while ((size_remaining >= cpa_page_size(pool))
+			&& !list_empty(&pool->pages)) {
 		struct page *page;
 
-		page = cpp_get_page_from_pool(pool);
+		page = cpa_get_page_from_pool(pool);
 		list_add_tail(&page->lru, &pages);
-		size_remaining -= min(size_remaining, CPP_PAGE_SIZE);
+		size_remaining -= min(size_remaining, cpa_page_size(pool));
 		atomic_dec(&pool->count);
 
-		sg_set_page(sg, page, CPP_PAGE_SIZE, 0);
+		sg_set_page(sg, page, cpa_page_size(pool), 0);
 		sg = sg_next(sg);
 	}
 
 	mutex_unlock(&pool->lock);
 
 	/* do we need to pull in from the kernel? */
-	while (roundup_pow_of_two(size_remaining) >= CPP_PAGE_SIZE) {
-		struct page *page = cpp_alloc_page(pool);
+	while (size_remaining >= cpa_page_size(pool)) {
+		struct page *page = cpa_alloc_page(pool, true);
 
 		if (!page)
 			goto rollback; /* fatal error */
 
 		list_add_tail(&page->lru, &pages);
 
-		sg_set_page(sg, page, min(CPP_PAGE_SIZE, size_remaining), 0);
+		sg_set_page(sg, page, min(cpa_page_size(pool), size_remaining),
+			    0);
 		sg = sg_next(sg);
-		size_remaining -= min(CPP_PAGE_SIZE, size_remaining);
+
+		size_remaining -= min(cpa_page_size(pool), size_remaining);
 	}
 
 	/* add a partial if anything left */
 	if (size_remaining) {
 		struct page *page;
-		int offset;
-		int tail_size = roundup_pow_of_two(size_remaining);
 
 		mutex_lock(&pool->lock);
-		offset = cpp_partial_alloc(pool, tail_size, &page);
+		page = cpa_partial_alloc(pool, PFN_UP(size_remaining),
+					 size_remaining < committed_size);
 		mutex_unlock(&pool->lock);
-		if (offset >= 0) {
-			sg_set_page(sg, page, size_remaining, offset);
-			/* account for the pow2 alignment */
-			committed_size += (tail_size - size_remaining);
+		if (page) {
+			sg_set_page(sg, page, size_remaining, 0);
 			size_remaining = 0;
 		}
 	}
@@ -817,7 +888,7 @@ static int cpp_alloc(struct ion_heap *heap,
 	list_del(&pages);
 
 	buffer->priv_virt = table;
-#ifdef CPP_STATS
+#ifdef CPA_STATS
 	nv = sched_clock() - start_time;
 	while (true) {
 		unsigned long ov = atomic_read(&pool->max_alloc_time);
@@ -830,19 +901,16 @@ static int cpp_alloc(struct ion_heap *heap,
 	}
 #endif
 
-	cpp_log_alloc(pool, size, committed_size);
+	cpa_log_alloc(pool, size, committed_size);
 
 	return 0;
 
 rollback:
-#ifdef CPP_STATS
-	atomic_inc(&pool->num_hard_alloc_failures);
-#endif
 	/* as we failed to allocate memory, let's free directly
 	 * back to the kernel
 	 */
 	list_for_each_entry_safe(page, tmp_page, &pages, lru) {
-		__free_pages(page, CPP_ORDER);
+		__free_pages(page, pool->order);
 	}
 	sg_free_table(table);
 no_sg_alloc:
@@ -851,28 +919,29 @@ no_sg_table:
 	return -ENOMEM;
 }
 
-/** cpp_free() - ion API entry-point to free a buffer.
+/**
+ * cpa_free() - ion API entry-point to free a buffer.
  * @buffer: The buffer to free
  */
-static void cpp_free(struct ion_buffer *buffer)
+static void cpa_free(struct ion_buffer *buffer)
 {
 	struct sg_table *table = buffer->priv_virt;
-	struct cpp_pool *pool = container_of(buffer->heap,
-			struct cpp_pool,
+	struct cpa_pool *pool = container_of(buffer->heap,
+			struct cpa_pool,
 			heap);
 	struct scatterlist *sg;
 	struct page *head;
-	unsigned int tail_extra = 0;
 
 	head = sg_page(table->sgl);
 	sg = sg_last(table->sgl, table->nents);
 
 	mutex_lock(&pool->lock);
 
-	/* have a chain only if buffer is backed with >= CPP_PAGE_SIZE.
-	 * As each sg is max CPP_PAGE_SIZE we can do a simple check.
+	/* We have a chain only if buffer is backed with >= cpa_sub_pages()
+	 * pages. As each sg is max cpa_sub_pages() pages, we can do a simple
+	 * check.
 	 */
-	if (table->sgl->length == CPP_PAGE_SIZE) {
+	if (table->sgl->length == cpa_page_size(pool)) {
 		/* move 1..N */
 		list_splice(&head->lru, &pool->free_queue);
 		/* move 0 */
@@ -881,15 +950,12 @@ static void cpp_free(struct ion_buffer *buffer)
 	}
 
 	/* any tail sub-allocated page? */
-	if (sg->length & (CPP_PAGE_SIZE - 1)) {
-		unsigned long len = roundup_pow_of_two(sg->length);
-
-		tail_extra = len - sg->length;
-		cpp_partial_free(pool, sg_page(sg), len, sg->offset);
+	if (sg->length & (cpa_page_size(pool) - 1)) {
+		unsigned long pages = PFN_UP(sg->length);
+		cpa_partial_free(pool, sg_page(sg), pages);
 	}
 
-	cpp_log_dealloc(pool, buffer->size, cpp_align_size(buffer->size) +
-			tail_extra);
+	cpa_log_dealloc(pool, buffer->size, cpa_align_size(pool, buffer->size));
 
 	mutex_unlock(&pool->lock);
 
@@ -897,33 +963,35 @@ static void cpp_free(struct ion_buffer *buffer)
 	kfree(table);
 }
 
-/** cpp_map_dma() - ion API entry-point for DMA map.
+/**
+ * cpa_map_dma() - ion API entry-point for DMA map.
  * @heap: The ion heap the buffer belongs to.
  * @buffer: The buffer to map.
  *
  * Just returns the already mapped sg_table stored in the buffer.
  */
-static struct sg_table *cpp_map_dma(struct ion_heap *heap,
-				    struct ion_buffer *buffer)
+static struct sg_table *cpa_map_dma(struct ion_heap *heap,
+		struct ion_buffer *buffer)
 {
 	return buffer->priv_virt;
 }
 
-/** cpp_unmap_dma() - ion API entry-point for DMA unmap.
+/**
+ * cpa_unmap_dma() - ion API entry-point for DMA unmap.
  * @heap: The ion heap the buffer belongs to
  * @buffer: The buffer to unmap.
  *
  * A no-op for us.
  */
-static void cpp_unmap_dma(struct ion_heap *heap, struct ion_buffer *buffer)
+static void cpa_unmap_dma(struct ion_heap *heap, struct ion_buffer *buffer)
 {
 }
 
-static struct ion_heap_ops cpp_ops = {
-	.allocate = cpp_alloc,
-	.free = cpp_free,
-	.map_dma = cpp_map_dma,
-	.unmap_dma = cpp_unmap_dma,
+static struct ion_heap_ops cpa_ops = {
+	.allocate = cpa_alloc,
+	.free = cpa_free,
+	.map_dma = cpa_map_dma,
+	.unmap_dma = cpa_unmap_dma,
 
 	/* use default heap functions for the kernel/user map functions */
 	.map_kernel = ion_heap_map_kernel,
@@ -931,34 +999,36 @@ static struct ion_heap_ops cpp_ops = {
 	.map_user = ion_heap_map_user,
 };
 
-/** cpp_shrink_count() - Query the number of objects we can free.
- * @shrinker: The @shrinker object embedded in a @cpp_pool.
+/**
+ * cpa_shrink_count() - Query the number of objects we can free.
+ * @shrinker: The @shrinker object embedded in a @cpa_pool.
  * @sc: Not used.
  *
  * Returns the number of elements in the free list.
  */
-static unsigned long cpp_shrink_count(struct shrinker *shrinker,
-				      struct shrink_control *sc)
+static unsigned long cpa_shrink_count(struct shrinker *shrinker,
+						struct shrink_control *sc)
 {
-	struct cpp_pool *pool = container_of(shrinker,
-			struct cpp_pool, shrinker);
+	struct cpa_pool *pool = container_of(shrinker,
+			struct cpa_pool, shrinker);
 
 	/* return the number of compound pages we have */
 	return atomic_read(&pool->count);
 }
 
-/** cpp_shrink_scan() - Free objects on the free list.
- * @shrinker: The @shrinker object embedded in a @cpp_pool.
+/**
+ * cpa_shrink_scan() - Free objects on the free list.
+ * @shrinker: The @shrinker object embedded in a @cpa_pool.
  * @sc: Information about how many objects to try to free.
  *
  * Returns how many objects we could free, or @SHRINK_STOP
  * if none could be freed.
  */
-static unsigned long cpp_shrink_scan(struct shrinker *shrinker,
-				     struct shrink_control *sc)
+static unsigned long cpa_shrink_scan(struct shrinker *shrinker,
+						struct shrink_control *sc)
 {
-	struct cpp_pool *pool = container_of(shrinker,
-			struct cpp_pool, shrinker);
+	struct cpa_pool *pool = container_of(shrinker,
+			struct cpa_pool, shrinker);
 
 	unsigned long freed = 0;
 	unsigned long to_scan = sc->nr_to_scan;
@@ -973,8 +1043,8 @@ static unsigned long cpp_shrink_scan(struct shrinker *shrinker,
 	while (to_scan && !list_empty(&pool->pages)) {
 		struct page *page;
 
-		page = cpp_get_page_from_pool(pool);
-		__free_pages(page, CPP_ORDER);
+		page = cpa_get_page_from_pool(pool);
+		__free_pages(page, pool->order);
 		freed++;
 		to_scan--;
 	}
@@ -983,7 +1053,7 @@ static unsigned long cpp_shrink_scan(struct shrinker *shrinker,
 
 	mutex_unlock(&pool->lock);
 	if (freed) {
-		cpp_log_shrink(pool, freed);
+		cpa_log_shrink(pool, freed);
 		return freed;
 	}
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
@@ -995,21 +1065,21 @@ static unsigned long cpp_shrink_scan(struct shrinker *shrinker,
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
 /**
- * cpp_shrink_wrapper() - Shrinker API wrapper for pre 3.12 kernels.
- * @shrinker: The shrinker object embedded in a @cpp_pool.
+ * cpa_shrink_wrapper() - Shrinker API wrapper for pre 3.12 kernels.
+ * @shrinker: The shrinker object embedded in a @cpa_pool.
  * @sc: Describes the operation to perform.
  *
  * Wraps the pre 3.12 API which had a single entry-point for both
  * count and scan.
  * Returns what the respective back-end functions return.
  */
-static int cpp_shrink_wrapper(struct shrinker *shrinker,
-			      struct shrink_control *sc)
+static int cpa_shrink_wrapper(struct shrinker *shrinker,
+		struct shrink_control *sc)
 {
 	if (sc->nr_to_scan == 0)
-		return cpp_shrink_count(shrinker, sc);
+		return cpa_shrink_count(shrinker, sc);
 	else
-		return cpp_shrink_scan(shrinker, sc);
+		return cpa_shrink_scan(shrinker, sc);
 }
 #endif
 
@@ -1021,39 +1091,44 @@ static int cpp_shrink_wrapper(struct shrinker *shrinker,
  * On success a pointer to the embedded @ion_heap object is returned,
  * -errno on failure.
  */
-struct ion_heap *ion_compound_page_pool_create(struct ion_platform_heap *unused)
+struct ion_heap *ion_compound_page_pool_create(struct ion_platform_heap *pheap)
 {
-	struct cpp_pool *pool;
+	struct cpa_pool *pool;
 	static int pools;
 	int err = 0;
+	struct ion_cpa_platform_data *heap_data;
+
 
 	pool = kzalloc(sizeof(*pool), GFP_KERNEL);
-
 	if (!pool)
 		return ERR_PTR(-ENOMEM);
 
 	mutex_init(&pool->lock);
 
-	pool->lowmark = pool_page_lowmark;
-	pool->highmark = pool_page_highmark;
-	pool->fillmark = pool_page_fillmark;
+	heap_data = (struct ion_cpa_platform_data *)pheap->priv;
+
+	pool->lowmark = heap_data->lowmark;
+	pool->highmark = heap_data->highmark;
+	pool->fillmark = heap_data->fillmark;
+	pool->align_size = PAGE_SIZE << heap_data->align_order;
+	pool->order = heap_data->order;
 
 	INIT_LIST_HEAD(&pool->pages);
 	INIT_LIST_HEAD(&pool->free_queue);
 	INIT_LIST_HEAD(&pool->partials);
 
-	pool->heap.ops = &cpp_ops;
+	pool->heap.ops = &cpa_ops;
 	pool->heap.type = ION_HEAP_TYPE_COMPOUND_PAGE;
-#ifdef CPP_STATS
-	pool->heap.debug_show = cpp_debug_show;
+#ifdef CPA_STATS
+	pool->heap.debug_show = cpa_debug_show;
 #endif
 
 	/* our shrinker */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
-	pool->shrinker.shrink = cpp_shrink_wrapper;
+	pool->shrinker.shrink = cpa_shrink_wrapper;
 #else
-	pool->shrinker.count_objects = cpp_shrink_count;
-	pool->shrinker.scan_objects = cpp_shrink_scan;
+	pool->shrinker.count_objects = cpa_shrink_count;
+	pool->shrinker.scan_objects = cpa_shrink_scan;
 #endif
 	pool->shrinker.seeks = DEFAULT_SEEKS;
 	pool->shrinker.batch = 2;
@@ -1068,7 +1143,7 @@ struct ion_heap *ion_compound_page_pool_create(struct ion_platform_heap *unused)
 
 	init_waitqueue_head(&pool->worker_wait);
 
-	pool->worker = kthread_run(cpp_worker, pool,
+	pool->worker = kthread_run(cpa_worker, pool,
 			"ion-compound-pool-worker-%d", pools++);
 	if (IS_ERR(pool->worker)) {
 		err = PTR_ERR(pool->worker);
@@ -1095,11 +1170,11 @@ no_shrinker:
  */
 void ion_compound_page_pool_destroy(struct ion_heap *heap)
 {
-	struct cpp_pool *pool = container_of(heap,
-			struct cpp_pool,
+	struct cpa_pool *pool = container_of(heap,
+			struct cpa_pool,
 			heap);
 	struct page *page, *tmp_page;
-	struct cpp_sub_alloc *sub_alloc, *tmp_sub_alloc;
+	struct cpa_sub_alloc *sub_alloc, *tmp_sub_alloc;
 
 	/* signal worker to stop */
 	kthread_stop(pool->worker);
@@ -1109,13 +1184,13 @@ void ion_compound_page_pool_destroy(struct ion_heap *heap)
 	/* cleanup */
 	list_for_each_entry_safe(page, tmp_page, &pool->pages, lru) {
 		list_del(&page->lru);
-		__free_pages(page, CPP_ORDER);
+		__free_pages(page, pool->order);
 	}
 
 	list_for_each_entry_safe(sub_alloc, tmp_sub_alloc, &pool->partials,
-				 link) {
+			link) {
 		list_del(&sub_alloc->link);
-		__free_pages(sub_alloc->page, CPP_ORDER);
+		__free_pages(sub_alloc->page, pool->order);
 		kfree(sub_alloc);
 	}
 
