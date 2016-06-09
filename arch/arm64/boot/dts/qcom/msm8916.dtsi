@@ -886,10 +886,10 @@
 			};
 		};
 
-		wcnss@a21b000 {
-			compatible = "qcom,pronto-v2-pil";
-			reg = <0x0a21b000 0x3000>;
-			reg-names = "pmu";
+		pronto: wcnss@a21b000 {
+			compatible = "qcom,pronto-v2-pil", "qcom,pronto";
+			reg = <0x0a204000 0x2000>, <0x0a202000 0x1000>, <0x0a21b000 0x3000>;
+			reg-names = "ccu", "dxe", "pmu";
 
 			memory-region = <&wcnss_mem>;
 
@@ -1037,40 +1037,32 @@
 			};
 		};
 
-		pronto_smd_edge: pronto {
+		pronto {
 			interrupts = <0 142 1>;
 
 			qcom,ipc = <&apcs 8 17>;
 			qcom,smd-edge = <6>;
 			qcom,remote-pid = <4>;
 
-                               bt {
-				compatible = "qcom,hci-smd";
-				qcom,smd-channels = "APPS_RIVA_BT_CMD", "APPS_RIVA_BT_ACL";
-				qcom,smd-channel-names = "event", "data";
-			};
-
-			ipcrtr {
-				compatible = "qcom,ipcrtr";
-				qcom,smd-channels = "IPCRTR";
-			};
-
-			wifi {
-				compatible = "qcom,wcn3620-wlan";
-				qcom,smd-channels = "WLAN_CTRL";
-
-				interrupts = <0 145 0>, <0 146 0>;
-				interrupt-names = "wcnss_wlantx_irq", "wcnss_wlanrx_irq";
-
-				qcom,wcnss-mmio = <0x0a000000 0x21b000>;
-
-				// qcom,tx-enable-gpios = <&apps_smsm 10 0>;
-				// qcom,tx-rings-empty-gpios = <&apps_smsm 9 0>;
-			};
-
-			wcnss_ctrl {
+			wcnss {
 				compatible = "qcom,wcnss";
 				qcom,smd-channels = "WCNSS_CTRL";
+
+				qcom,mmio = <&pronto>;
+
+				bt {
+					compatible = "qcom,btqcomsmd";
+				};
+
+				wifi {
+					compatible = "qcom,wcnss-wlan";
+
+					interrupts = <0 145 0>, <0 146 0>;
+					interrupt-names = "tx", "rx";
+
+					qcom,state = <&apps_smsm 10>, <&apps_smsm 9>;
+					qcom,state-names = "tx-enable", "tx-rings-empty";
+				};
 			};
 		};
 	};
