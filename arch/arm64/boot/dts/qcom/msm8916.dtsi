@@ -795,60 +795,6 @@
 			#thermal-sensor-cells = <1>;
 		};
 
-		q6-smp2p {
-			compatible = "qcom,smp2p";
-			qcom,smem = <435>, <428>;
-			interrupts = <0 27 1>;
-			qcom,ipc = <&apcs 8 14>;
-
-			qcom,local-pid = <0>;
-			qcom,remote-pid = <1>;
-
-			q6_smp2p_out: master-kernel {
-				qcom,entry-name = "master-kernel";
-				qcom,outbound;
-
-				gpio-controller;
-				#gpio-cells = <2>;
-			};
-
-			q6_smp2p_in: slave-kernel {
-				qcom,entry-name = "slave-kernel";
-				qcom,inbound;
-
-				interrupt-controller;
-				#interrupt-cells = <2>;
-			};
-		};
-
-		wcnss-smp2p {
-			compatible = "qcom,smp2p";
-			qcom,smem = <451>, <431>;
-
-			interrupts = <0 143 1>;
-
-			qcom,ipc = <&apcs 8 18>;
-
-			qcom,local-pid = <0>;
-			qcom,remote-pid = <4>;
-
-			wcnss_smp2p_out: master-kernel {
-				qcom,entry-name = "master-kernel";
-				qcom,outbound;
-
-				gpio-controller;
-				#gpio-cells = <2>;
-			};
-
-			wcnss_smp2p_in: slave-kernel {
-				qcom,entry-name = "slave-kernel";
-				qcom,inbound;
-
-				interrupt-controller;
-				#interrupt-cells = <2>;
-			};
-		};
-
 		hexagon@4080000 {
 			compatible = "qcom,pil-q6v56-mss", "qcom,q6v5-pil";
 			reg = <0x04080000 0x100>,
