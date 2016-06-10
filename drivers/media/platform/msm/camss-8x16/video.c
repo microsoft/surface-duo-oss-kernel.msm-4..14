@@ -306,6 +306,9 @@ static int video_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
 	if (type != video->type)
 		return -EINVAL;
 
+	if (!vb2_is_streaming(&video->vb2_q))
+		return 0;
+
 	entity = &video_dev->entity;
 	while (1) {
 		pad = &entity->pads[0];
@@ -399,6 +402,8 @@ static int video_release(struct file *file)
 {
 	struct video_device *video_dev = video_devdata(file);
 	struct camss_video *video = video_drvdata(file);
+
+	video_streamoff(file, &video->fh, video->type);
 
 	vb2_queue_release(&video->vb2_q);
 
