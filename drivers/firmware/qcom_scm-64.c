@@ -565,6 +565,20 @@ int __qcom_scm_pas_shutdown(u32 peripheral)
 	return ret ? : scm_ret;
 }
 
+int __qcom_scm_pas_mss_reset(bool reset)
+{
+	struct qcom_scm_desc desc = {0};
+	int ret;
+
+	desc.args[0] = reset;
+	desc.args[1] = 0;
+	desc.arginfo = QCOM_SCM_ARGS(2);
+
+	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_MSS_RESET, &desc);
+
+	return ret ? : desc.ret[0];
+}
+
 int __qcom_scm_pil_init_image_cmd(u32 proc, u64 image_addr)
 {
 	struct qcom_scm_desc desc = {0};

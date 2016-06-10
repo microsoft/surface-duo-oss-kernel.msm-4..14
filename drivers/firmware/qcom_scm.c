@@ -20,6 +20,7 @@
 #include <linux/qcom_scm.h>
 #include <linux/of.h>
 #include <linux/clk.h>
+#include <linux/reset-controller.h>
 
 #include "qcom_scm.h"
 
@@ -28,6 +29,7 @@ struct qcom_scm {
 	struct clk *core_clk;
 	struct clk *iface_clk;
 	struct clk *bus_clk;
+	struct reset_controller_dev reset;
 };
 
 static struct qcom_scm *__scm;
@@ -280,6 +282,29 @@ int qcom_scm_pas_shutdown(u32 peripheral)
 }
 EXPORT_SYMBOL(qcom_scm_pas_shutdown);
 
+static int qcom_scm_pas_reset_assert(struct reset_controller_dev *rcdev,
+				     unsigned long idx)
+{
+	if (idx != 0)
+		return -EINVAL;
+
+	return __qcom_scm_pas_mss_reset(1);
+}
+
+static int qcom_scm_pas_reset_deassert(struct reset_controller_dev *rcdev,
+				       unsigned long idx)
+{
+	if (idx != 0)
+		return -EINVAL;
+
+	return __qcom_scm_pas_mss_reset(0);
+}
+
+static const struct reset_control_ops qcom_scm_pas_reset_ops = {
+	.assert = qcom_scm_pas_reset_assert,
+	.deassert = qcom_scm_pas_reset_deassert,
+};
+
 /**
  * qcom_scm_is_available() - Checks if SCM is available
  */
@@ -321,6 +346,11 @@ static int qcom_scm_probe(struct platform_device *pdev)
 			dev_err(&pdev->dev, "failed to acquire bus clk\n");
 		return PTR_ERR(scm->bus_clk);
 	}
+
+	scm->reset.ops = &qcom_scm_pas_reset_ops;
+	scm->reset.nr_resets = 1;
+	scm->reset.of_node = pdev->dev.of_node;
+	reset_controller_register(&scm->reset);
 
 	/* vote for max clk rate for highest performance */
 	rate = clk_round_rate(scm->core_clk, INT_MAX);
