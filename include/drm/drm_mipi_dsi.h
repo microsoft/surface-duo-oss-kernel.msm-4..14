@@ -144,6 +144,31 @@ enum mipi_dsi_pixel_format {
 #define DSI_DEV_NAME_SIZE		20
 
 /**
+ * mipi_dsi_pixel_format_to_bpp - obtain the number of bits per pixel for any
+ *                                given pixel format defined by the MIPI DSI
+ *                                specification
+ * @fmt: MIPI DSI pixel format
+ *
+ * Returns: The number of bits per pixel of the given pixel format.
+ */
+static inline int mipi_dsi_pixel_format_to_bpp(enum mipi_dsi_pixel_format fmt)
+{
+	switch (fmt) {
+	case MIPI_DSI_FMT_RGB888:
+	case MIPI_DSI_FMT_RGB666:
+		return 24;
+
+	case MIPI_DSI_FMT_RGB666_PACKED:
+		return 18;
+
+	case MIPI_DSI_FMT_RGB565:
+		return 16;
+	}
+
+	return -EINVAL;
+}
+
+/**
  * struct mipi_dsi_device - DSI peripheral device
  * @host: DSI host for this peripheral
  * @dev: driver model device node for this peripheral
@@ -152,6 +177,7 @@ enum mipi_dsi_pixel_format {
  * @format: pixel format for video mode
  * @lanes: number of active data lanes
  * @mode_flags: DSI operation mode related flags
+ * @phy_clock: phy clock assigned to this peripheral in kHz
  */
 struct mipi_dsi_device {
 	struct mipi_dsi_host *host;
@@ -163,6 +189,7 @@ struct mipi_dsi_device {
 	unsigned int lanes;
 	enum mipi_dsi_pixel_format format;
 	unsigned long mode_flags;
+	u32 phy_clock; /* in kHz */
 };
 
 static inline struct mipi_dsi_device *to_mipi_dsi_device(struct device *dev)

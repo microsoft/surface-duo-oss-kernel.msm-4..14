@@ -1,10 +1,12 @@
 /*
- * Hisilicon SoCs drm master driver
+ * Hisilicon Kirin SoCs drm master driver
  *
- * Copyright (c) 2014-2015 Hisilicon Limited.
+ * Copyright (c) 2016 Linaro Limited.
+ * Copyright (c) 2014-2016 Hisilicon Limited.
+ *
  * Author:
- *	Xinliang Liu <xinliang.liu@linaro.org>
  *	Xinliang Liu <z.liuxinliang@hisilicon.com>
+ *	Xinliang Liu <xinliang.liu@linaro.org>
  *	Xinwei Kong <kong.kongxinwei@hisilicon.com>
  *
  * This program is free software; you can redistribute it and/or modify
@@ -15,6 +17,7 @@
 
 #include <linux/of_platform.h>
 #include <linux/component.h>
+#include <linux/of_graph.h>
 
 #include <drm/drmP.h>
 #include <drm/drm_gem_cma_helper.h>
@@ -22,14 +25,13 @@
 #include <drm/drm_atomic_helper.h>
 #include <drm/drm_crtc_helper.h>
 
-#include "hisi_drm_ade.h"
 #include "kirin_drm_drv.h"
 
-#define DRIVER_NAME	"hisi-drm"
+static struct kirin_dc_ops *dc_ops;
 
-static int hisi_drm_unload(struct drm_device *dev)
+static int kirin_drm_kms_cleanup(struct drm_device *dev)
 {
-	struct hisi_drm_private *priv = dev->dev_private;
+	struct kirin_drm_private *priv = dev->dev_private;
 
 #ifdef CONFIG_DRM_FBDEV_EMULATION
 	if (priv->fbdev) {
@@ -39,6 +41,7 @@ static int hisi_drm_unload(struct drm_device *dev)
 #endif
 	drm_kms_helper_poll_fini(dev);
 	drm_vblank_cleanup(dev);
+	dc_ops->cleanup(dev);
 	drm_mode_config_cleanup(dev);
 	devm_kfree(dev->dev, priv);
 	dev->dev_private = NULL;
@@ -46,11 +49,15 @@ static int hisi_drm_unload(struct drm_device *dev)
 	return 0;
 }
 
-#ifdef CONFIG_DRM_FBDEV_EMULATION
-static void hisi_fbdev_output_poll_changed(struct drm_device *dev)
+static void kirin_fbdev_output_poll_changed(struct drm_device *dev)
 {
-	struct hisi_drm_private *priv = dev->dev_private;
+#ifdef CONFIG_DRM_FBDEV_EMULATION
+	struct kirin_drm_private *priv = dev->dev_private;
+#endif
 
+	dsi_set_output_client(dev);
+
+#ifdef CONFIG_DRM_FBDEV_EMULATION
 	if (priv->fbdev) {
 		drm_fbdev_cma_hotplug_event(priv->fbdev);
 	} else {
@@ -60,19 +67,17 @@ static void hisi_fbdev_output_poll_changed(struct drm_device *dev)
 		if (IS_ERR(priv->fbdev))
 			priv->fbdev = NULL;
 	}
+#endif
 }
-#endif
 
-static const struct drm_mode_config_funcs hisi_drm_mode_config_funcs = {
+static const struct drm_mode_config_funcs kirin_drm_mode_config_funcs = {
 	.fb_create = drm_fb_cma_create,
-#ifdef CONFIG_DRM_FBDEV_EMULATION
-	.output_poll_changed = hisi_fbdev_output_poll_changed,
-#endif
+	.output_poll_changed = kirin_fbdev_output_poll_changed,
 	.atomic_check = drm_atomic_helper_check,
 	.atomic_commit = drm_atomic_helper_commit,
 };
 
-static void hisi_drm_mode_config_init(struct drm_device *dev)
+static void kirin_drm_mode_config_init(struct drm_device *dev)
 {
 	dev->mode_config.min_width = 0;
 	dev->mode_config.min_height = 0;
@@ -80,12 +85,12 @@ static void hisi_drm_mode_config_init(struct drm_device *dev)
 	dev->mode_config.max_width = 2048;
 	dev->mode_config.max_height = 2048;
 
-	dev->mode_config.funcs = &hisi_drm_mode_config_funcs;
+	dev->mode_config.funcs = &kirin_drm_mode_config_funcs;
 }
 
-static int hisi_drm_load(struct drm_device *dev, unsigned long flags)
+static int kirin_drm_kms_init(struct drm_device *dev)
 {
-	struct hisi_drm_private *priv;
+	struct kirin_drm_private *priv;
 	int ret;
 
 	priv = devm_kzalloc(dev->dev, sizeof(*priv), GFP_KERNEL);
@@ -97,13 +102,18 @@ static int hisi_drm_load(struct drm_device *dev, unsigned long flags)
 
 	/* dev->mode_config initialization */
 	drm_mode_config_init(dev);
-	hisi_drm_mode_config_init(dev);
+	kirin_drm_mode_config_init(dev);
+
+	/* display controller init */
+	ret = dc_ops->init(dev);
+	if (ret)
+		goto err_mode_config_cleanup;
 
 	/* bind and init sub drivers */
 	ret = component_bind_all(dev->dev, dev);
 	if (ret) {
 		DRM_ERROR("failed to bind all component.\n");
-		goto err_mode_config_cleanup;
+		goto err_dc_cleanup;
 	}
 
 	/* vblank init */
@@ -128,6 +138,8 @@ static int hisi_drm_load(struct drm_device *dev, unsigned long flags)
 
 err_unbind_all:
 	component_unbind_all(dev->dev, dev);
+err_dc_cleanup:
+	dc_ops->cleanup(dev);
 err_mode_config_cleanup:
 	drm_mode_config_cleanup(dev);
 	devm_kfree(dev->dev, priv);
@@ -136,7 +148,7 @@ err_mode_config_cleanup:
 	return ret;
 }
 
-static const struct file_operations hisi_drm_fops = {
+static const struct file_operations kirin_drm_fops = {
 	.owner		= THIS_MODULE,
 	.open		= drm_open,
 	.release	= drm_release,
@@ -150,44 +162,28 @@ static const struct file_operations hisi_drm_fops = {
 	.mmap		= drm_gem_cma_mmap,
 };
 
-static struct dma_buf *hisi_gem_prime_export(struct drm_device *dev,
-					     struct drm_gem_object *obj,
-					     int flags)
+static int kirin_gem_cma_dumb_create(struct drm_file *file,
+				     struct drm_device *dev,
+				     struct drm_mode_create_dumb *args)
 {
-	/* we want to be able to write in mmapped buffer */
-	flags |= O_RDWR;
-	return drm_gem_prime_export(dev, obj, flags);
-}
-
-static int hisi_gem_cma_dumb_create(struct drm_file *file,
-				    struct drm_device *dev,
-				    struct drm_mode_create_dumb *args)
-{
-	int min_pitch = DIV_ROUND_UP(args->width * args->bpp, 8);
-
-	/* mali gpu need pitch 8 bytes alignment for 32bpp */
-	args->pitch = roundup(min_pitch, 8);
-
 	return drm_gem_cma_dumb_create_internal(file, dev, args);
 }
 
-static struct drm_driver hisi_drm_driver = {
+static struct drm_driver kirin_drm_driver = {
 	.driver_features	= DRIVER_GEM | DRIVER_MODESET | DRIVER_PRIME |
 				  DRIVER_ATOMIC | DRIVER_HAVE_IRQ,
-	.load			= hisi_drm_load,
-	.unload                 = hisi_drm_unload,
-	.fops			= &hisi_drm_fops,
+	.fops			= &kirin_drm_fops,
 	.set_busid		= drm_platform_set_busid,
 
 	.gem_free_object	= drm_gem_cma_free_object,
 	.gem_vm_ops		= &drm_gem_cma_vm_ops,
-	.dumb_create		= hisi_gem_cma_dumb_create,
+	.dumb_create		= kirin_gem_cma_dumb_create,
 	.dumb_map_offset	= drm_gem_cma_dumb_map_offset,
 	.dumb_destroy		= drm_gem_dumb_destroy,
 
 	.prime_handle_to_fd	= drm_gem_prime_handle_to_fd,
 	.prime_fd_to_handle	= drm_gem_prime_fd_to_handle,
-	.gem_prime_export	= hisi_gem_prime_export,
+	.gem_prime_export	= drm_gem_prime_export,
 	.gem_prime_import	= drm_gem_prime_import,
 	.gem_prime_get_sg_table = drm_gem_cma_prime_get_sg_table,
 	.gem_prime_import_sg_table = drm_gem_cma_prime_import_sg_table,
@@ -195,12 +191,8 @@ static struct drm_driver hisi_drm_driver = {
 	.gem_prime_vunmap	= drm_gem_cma_prime_vunmap,
 	.gem_prime_mmap		= drm_gem_cma_prime_mmap,
 
-	.get_vblank_counter	= drm_vblank_count,
-	.enable_vblank		= ade_enable_vblank,
-	.disable_vblank		= ade_disable_vblank,
-
-	.name			= "hisi",
-	.desc			= "Hisilicon SoCs' DRM Driver",
+	.name			= "kirin",
+	.desc			= "Hisilicon Kirin SoCs' DRM Driver",
 	.date			= "20150718",
 	.major			= 1,
 	.minor			= 0,
@@ -211,70 +203,167 @@ static int compare_of(struct device *dev, void *data)
 	return dev->of_node == data;
 }
 
-static int hisi_drm_bind(struct device *dev)
+static int kirin_drm_connectors_register(struct drm_device *dev)
 {
-	dma_set_coherent_mask(dev, DMA_BIT_MASK(32));
-	return drm_platform_init(&hisi_drm_driver, to_platform_device(dev));
+	struct drm_connector *connector;
+	struct drm_connector *failed_connector;
+	int ret;
+
+	mutex_lock(&dev->mode_config.mutex);
+	drm_for_each_connector(connector, dev) {
+		ret = drm_connector_register(connector);
+		if (ret) {
+			failed_connector = connector;
+			goto err;
+		}
+	}
+	mutex_unlock(&dev->mode_config.mutex);
+
+	return 0;
+
+err:
+	drm_for_each_connector(connector, dev) {
+		if (failed_connector == connector)
+			break;
+		drm_connector_unregister(connector);
+	}
+	mutex_unlock(&dev->mode_config.mutex);
+
+	return ret;
 }
 
-static void hisi_drm_unbind(struct device *dev)
+static int kirin_drm_bind(struct device *dev)
+{
+	struct drm_driver *driver = &kirin_drm_driver;
+	struct drm_device *drm_dev;
+	int ret;
+
+	drm_dev = drm_dev_alloc(driver, dev);
+	if (!drm_dev)
+		return -ENOMEM;
+
+	drm_dev->platformdev = to_platform_device(dev);
+
+	ret = kirin_drm_kms_init(drm_dev);
+	if (ret)
+		goto err_drm_dev_unref;
+
+	ret = drm_dev_register(drm_dev, 0);
+	if (ret)
+		goto err_kms_cleanup;
+
+	/* connectors should be registered after drm device register */
+	ret = kirin_drm_connectors_register(drm_dev);
+	if (ret)
+		goto err_drm_dev_unregister;
+
+	DRM_INFO("Initialized %s %d.%d.%d %s on minor %d\n",
+		 driver->name, driver->major, driver->minor, driver->patchlevel,
+		 driver->date, drm_dev->primary->index);
+
+	return 0;
+
+err_drm_dev_unregister:
+	drm_dev_unregister(drm_dev);
+err_kms_cleanup:
+	kirin_drm_kms_cleanup(drm_dev);
+err_drm_dev_unref:
+	drm_dev_unref(drm_dev);
+
+	return ret;
+}
+
+static void kirin_drm_unbind(struct device *dev)
 {
 	drm_put_dev(dev_get_drvdata(dev));
 }
 
-static const struct component_master_ops hisi_drm_ops = {
-	.bind = hisi_drm_bind,
-	.unbind = hisi_drm_unbind,
+static const struct component_master_ops kirin_drm_ops = {
+	.bind = kirin_drm_bind,
+	.unbind = kirin_drm_unbind,
 };
 
-static int hisi_drm_platform_probe(struct platform_device *pdev)
+static struct device_node *kirin_get_remote_node(struct device_node *np)
 {
-	struct device *dev = &pdev->dev;
-	struct device_node *node = dev->of_node;
-	struct device_node *child_np;
-	struct component_match *match = NULL;
+	struct device_node *endpoint, *remote;
 
-	of_platform_populate(node, NULL, NULL, dev);
+	/* get the first endpoint, in our case only one remote node
+	 * is connected to display controller.
+	 */
+	endpoint = of_graph_get_next_endpoint(np, NULL);
+	if (!endpoint) {
+		DRM_ERROR("no valid endpoint node\n");
+		return ERR_PTR(-ENODEV);
+	}
+	of_node_put(endpoint);
 
-	child_np = of_get_next_available_child(node, NULL);
-	while (child_np) {
-		component_match_add(dev, &match, compare_of, child_np);
-		of_node_put(child_np);
-		child_np = of_get_next_available_child(node, child_np);
+	remote = of_graph_get_remote_port_parent(endpoint);
+	if (!remote) {
+		DRM_ERROR("no valid remote node\n");
+		return ERR_PTR(-ENODEV);
+	}
+	of_node_put(remote);
+
+	if (!of_device_is_available(remote)) {
+		DRM_ERROR("not available for remote node\n");
+		return ERR_PTR(-ENODEV);
 	}
 
-	return component_master_add_with_match(dev, &hisi_drm_ops, match);
-
-	return 0;
+	return remote;
 }
 
-static int hisi_drm_platform_remove(struct platform_device *pdev)
+static int kirin_drm_platform_probe(struct platform_device *pdev)
 {
-	component_master_del(&pdev->dev, &hisi_drm_ops);
-	of_platform_depopulate(&pdev->dev);
+	struct device *dev = &pdev->dev;
+	struct device_node *np = dev->of_node;
+	struct component_match *match = NULL;
+	struct device_node *remote;
+
+	dc_ops = (struct kirin_dc_ops *)of_device_get_match_data(dev);
+	if (!dc_ops) {
+		DRM_ERROR("failed to get dt id data\n");
+		return -EINVAL;
+	}
+
+	remote = kirin_get_remote_node(np);
+	if (IS_ERR(remote))
+		return PTR_ERR(remote);
+
+	component_match_add(dev, &match, compare_of, remote);
+
+	return component_master_add_with_match(dev, &kirin_drm_ops, match);
+
 	return 0;
 }
 
-static const struct of_device_id hisi_drm_dt_ids[] = {
-	{ .compatible = "hisilicon,hi6220-dss", },
+static int kirin_drm_platform_remove(struct platform_device *pdev)
+{
+	component_master_del(&pdev->dev, &kirin_drm_ops);
+	dc_ops = NULL;
+	return 0;
+}
+
+static const struct of_device_id kirin_drm_dt_ids[] = {
+	{ .compatible = "hisilicon,hi6220-ade",
+	  .data = &ade_dc_ops,
+	},
 	{ /* end node */ },
 };
-MODULE_DEVICE_TABLE(of, hisi_drm_dt_ids);
+MODULE_DEVICE_TABLE(of, kirin_drm_dt_ids);
 
-static struct platform_driver hisi_drm_platform_driver = {
-	.probe = hisi_drm_platform_probe,
-	.remove = hisi_drm_platform_remove,
+static struct platform_driver kirin_drm_platform_driver = {
+	.probe = kirin_drm_platform_probe,
+	.remove = kirin_drm_platform_remove,
 	.driver = {
-		.owner = THIS_MODULE,
-		.name = DRIVER_NAME,
-		.of_match_table = hisi_drm_dt_ids,
+		.name = "kirin-drm",
+		.of_match_table = kirin_drm_dt_ids,
 	},
 };
 
-module_platform_driver(hisi_drm_platform_driver);
+module_platform_driver(kirin_drm_platform_driver);
 
 MODULE_AUTHOR("Xinliang Liu <xinliang.liu@linaro.org>");
 MODULE_AUTHOR("Xinliang Liu <z.liuxinliang@hisilicon.com>");
 MODULE_AUTHOR("Xinwei Kong <kong.kongxinwei@hisilicon.com>");
-MODULE_DESCRIPTION("hisilicon SoCs' DRM master driver");
+MODULE_DESCRIPTION("hisilicon Kirin SoCs' DRM master driver");
 MODULE_LICENSE("GPL v2");

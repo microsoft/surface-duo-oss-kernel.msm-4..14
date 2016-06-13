@@ -107,15 +107,15 @@
 				interrupts = <1 2>;
 				pd-gpio = <&gpio0 4 0>;
 				adi,dsi-lanes = <4>;
+				adi,disable-timing-generator;
 
 				port {
-					adv_in: endpoint {
-						remote-endpoint = <&dsi_out>;
+					adv7533_in: endpoint {
+						remote-endpoint = <&dsi_out0>;
 					};
 				};
 			};
 		};
-
 		uart1: uart@f7111000 {
 			status = "ok";
 		};
@@ -336,3 +336,55 @@
 		};
 	};
 };
+
+&ade {
+	status = "ok";
+};
+
+&dsi {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	mux-gpio = <&gpio0 1 0>;
+	status = "ok";
+
+	ports {
+		/* 1 for output port */
+		port@1 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg = <1>;
+
+			dsi_out0: endpoint@0 {
+				reg = <0>;
+				remote-endpoint = <&adv7533_in>;
+			};
+
+			dsi_out1: endpoint@1 {
+				reg = <1>;
+				remote-endpoint = <&panel0_in>;
+			};
+		};
+	};
+
+	/* For panel reg's value should >= 1 */
+	panel@1 {
+		compatible = "innolux,n070icn-pb1";
+		reg = <1>;
+		power-on-delay= <50>;
+		reset-delay = <100>;
+		init-delay = <100>;
+		panel-width-mm = <58>;
+		panel-height-mm = <103>;
+		pwr-en-gpio = <&gpio2 1 0>;
+		bl-en-gpio = <&gpio2 3 0>;
+		pwm-gpio = <&gpio12 7 0>;
+
+		port {
+			panel0_in: endpoint {
+				remote-endpoint = <&dsi_out1>;
+			};
+		};
+	};
+};
+
+
