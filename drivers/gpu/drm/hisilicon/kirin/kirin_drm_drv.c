@@ -23,7 +23,7 @@
 #include <drm/drm_crtc_helper.h>
 
 #include "hisi_drm_ade.h"
-#include "hisi_drm_drv.h"
+#include "kirin_drm_drv.h"
 
 #define DRIVER_NAME	"hisi-drm"
 

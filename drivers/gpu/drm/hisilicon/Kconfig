@@ -8,3 +8,8 @@ config DRM_HISI
 	help
 	  Choose this option if you have a hisilicon chipsets(hi6220).
 	  If M is selected the module will be called hisi-drm.
+#
+# hisilicon drm device configuration.
+# Please keep this list sorted alphabetically
+
+source "drivers/gpu/drm/hisilicon/kirin/Kconfig"

@@ -1,5 +1,5 @@
-hisi-drm-y := hisi_drm_drv.o \
-	      hisi_drm_ade.o \
-	      hisi_drm_dsi.o
+#
+# Makefile for hisilicon drm drivers.
+# Please keep this list sorted alphabetically
 
-obj-$(CONFIG_DRM_HISI)	+= hisi-drm.o
+obj-$(CONFIG_DRM_HISI_KIRIN) += kirin/

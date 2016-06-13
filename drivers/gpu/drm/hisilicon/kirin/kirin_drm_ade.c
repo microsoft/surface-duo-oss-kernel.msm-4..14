@@ -27,8 +27,8 @@
 #include <drm/drm_gem_cma_helper.h>
 #include <drm/drm_fb_cma_helper.h>
 
-#include "hisi_drm_drv.h"
-#include "hisi_ade_reg.h"
+#include "kirin_drm_drv.h"
+#include "kirin_ade_reg.h"
 
 #define FORCE_PIXEL_CLOCK_SAME_OR_HIGHER 0
 #define PRIMARY_CH	(ADE_CH1)
