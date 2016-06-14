@@ -535,6 +535,13 @@ enum ath10k_fw_features {
 	 */
 	ATH10K_FW_FEATURE_PEER_FLOW_CONTROL = 13,
 
+	/* Firmware supports BT-Coex without reloading firmware via pdev param.
+	 * To support Bluetooth coexistence pdev param, WMI_COEX_GPIO_SUPPORT of
+	 * extended resource config should be enabled always. This firmware IE
+	 * is used to configure WMI_COEX_GPIO_SUPPORT.
+	 */
+	ATH10K_FW_FEATURE_BTCOEX_PARAM = 14,
+
 	/* keep last */
 	ATH10K_FW_FEATURE_COUNT,
 };
@@ -571,6 +578,7 @@ enum ath10k_cal_mode {
 	ATH10K_CAL_MODE_DT,
 	ATH10K_PRE_CAL_MODE_FILE,
 	ATH10K_PRE_CAL_MODE_DT,
+	ATH10K_CAL_MODE_EEPROM,
 };
 
 enum ath10k_crypt_mode {
@@ -593,6 +601,8 @@ static inline const char *ath10k_cal_mode_str(enum ath10k_cal_mode mode)
 		return "pre-cal-file";
 	case ATH10K_PRE_CAL_MODE_DT:
 		return "pre-cal-dt";
+	case ATH10K_CAL_MODE_EEPROM:
+		return "eeprom";
 	}
 
 	return "unknown";
