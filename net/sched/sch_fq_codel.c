@@ -184,15 +184,6 @@ static unsigned int fq_codel_drop(struct Qdisc *sch, unsigned int max_packets)
 	return idx;
 }
 
-static unsigned int fq_codel_qdisc_drop(struct Qdisc *sch)
-{
-	unsigned int prev_backlog;
-
-	prev_backlog = sch->qstats.backlog;
-	fq_codel_drop(sch, 1U);
-	return prev_backlog - sch->qstats.backlog;
-}
-
 static int fq_codel_enqueue(struct sk_buff *skb, struct Qdisc *sch)
 {
 	struct fq_codel_sched_data *q = qdisc_priv(sch);
@@ -578,11 +569,13 @@ static int fq_codel_dump_stats(struct Qdisc *sch, struct gnet_dump *d)
 	st.qdisc_stats.memory_usage  = q->memory_usage;
 	st.qdisc_stats.drop_overmemory = q->drop_overmemory;
 
+	sch_tree_lock(sch);
 	list_for_each(pos, &q->new_flows)
 		st.qdisc_stats.new_flows_len++;
 
 	list_for_each(pos, &q->old_flows)
 		st.qdisc_stats.old_flows_len++;
+	sch_tree_unlock(sch);
 
 	return gnet_stats_copy_app(d, &st, sizeof(st));
 }
@@ -636,7 +629,7 @@ static int fq_codel_dump_class_stats(struct Qdisc *sch, unsigned long cl,
 
 	if (idx < q->flows_cnt) {
 		const struct fq_codel_flow *flow = &q->flows[idx];
-		const struct sk_buff *skb = flow->head;
+		const struct sk_buff *skb;
 
 		memset(&xstats, 0, sizeof(xstats));
 		xstats.type = TCA_FQ_CODEL_XSTATS_CLASS;
@@ -654,9 +647,14 @@ static int fq_codel_dump_class_stats(struct Qdisc *sch, unsigned long cl,
 				codel_time_to_us(delta) :
 				-codel_time_to_us(-delta);
 		}
-		while (skb) {
-			qs.qlen++;
-			skb = skb->next;
+		if (flow->head) {
+			sch_tree_lock(sch);
+			skb = flow->head;
+			while (skb) {
+				qs.qlen++;
+				skb = skb->next;
+			}
+			sch_tree_unlock(sch);
 		}
 		qs.backlog = q->backlogs[idx];
 		qs.drops = flow->dropped;
@@ -709,7 +707,6 @@ static struct Qdisc_ops fq_codel_qdisc_ops __read_mostly = {
 	.enqueue	=	fq_codel_enqueue,
 	.dequeue	=	fq_codel_dequeue,
 	.peek		=	qdisc_peek_dequeued,
-	.drop		=	fq_codel_qdisc_drop,
 	.init		=	fq_codel_init,
 	.reset		=	fq_codel_reset,
 	.destroy	=	fq_codel_destroy,
