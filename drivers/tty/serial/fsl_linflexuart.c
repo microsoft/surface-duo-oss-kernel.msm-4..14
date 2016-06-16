@@ -1,7 +1,7 @@
 /*
  * Freescale linflexuart serial port driver
  *
- * Copyright 2012-2015 Freescale Semiconductor, Inc.
+ * Copyright 2012-2016 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -30,50 +30,34 @@
 
 /* All registers are 32-bit width */
 
-#define LINCR1	0x0000 /* LIN control register				*/
-#define LINIER	0x0004 /* LIN interrupt enable register			*/
-#define LINSR	0x0008 /* LIN status register				*/
-#define LINESR	0x000C /* LIN error status register			*/
-#define UARTCR	0x0010 /* UART mode control register			*/
-#define UARTSR	0x0014 /* UART mode status register			*/
-#define LINTCSR 0x0018 /* LIN timeout control status register		*/
-#define LINOCR	0x001C /* LIN output compare register			*/
-#define LINTOCR 0x0020 /* LIN timeout control register			*/
-#define LINFBRR 0x0024 /* LIN fractional baud rate register		*/
-#define LINIBRR 0x0028 /* LIN integer baud rate register		*/
-#define LINCFR	0x002C /* LIN checksum field register			*/
-#define LINCR2	0x0030 /* LIN control register 2			*/
-#define BIDR	0x0034 /* Buffer identifier register			*/
-#define BDRL	0x0038 /* Buffer data register least significant	*/
-#define BDRM	0x003C /* Buffer data register most significant		*/
-#define IFER	0x0040 /* Identifier filter enable register		*/
-#define IFMI	0x0044 /* Identifier filter match index			*/
-#define IFMR	0x0048 /* Identifier filter mode register		*/
-#define IFCR0	0x004C /* Identifier filter control register 0		*/
-#define IFCR1	0x0050 /* Identifier filter control register 1		*/
-#define IFCR2	0x0054 /* Identifier filter control register 2		*/
-#define IFCR3	0x0058 /* Identifier filter control register 3		*/
-#define IFCR4	0x005C /* Identifier filter control register 4		*/
-#define IFCR5	0x0060 /* Identifier filter control register 5		*/
-#define IFCR6	0x0064 /* Identifier filter control register 6		*/
-#define IFCR7	0x0068 /* Identifier filter control register 7		*/
-#define IFCR8	0x006C /* Identifier filter control register 8		*/
-#define IFCR9	0x0070 /* Identifier filter control register 9		*/
-#define IFCR10	0x0074 /* Identifier filter control register 10		*/
-#define IFCR11	0x0078 /* Identifier filter control register 11		*/
-#define IFCR12	0x007C /* Identifier filter control register 12		*/
-#define IFCR13	0x0080 /* Identifier filter control register 13		*/
-#define IFCR14	0x0084 /* Identifier filter control register 14		*/
-#define IFCR15	0x0088 /* Identifier filter control register 15		*/
-#define GCR	0x008C /* Global control register			*/
-#define UARTPTO 0x0090 /* UART preset timeout register			*/
-#define UARTCTO 0x0094 /* UART current timeout register			*/
-#define DMATXE	0x0098 /* DMA Tx enable register			*/
-#define DMARXE	0x009C /* DMAx enable register				*/
-
+#define LINCR1	0x0000	/* LIN control register				*/
+#define LINIER	0x0004	/* LIN interrupt enable register		*/
+#define LINSR	0x0008	/* LIN status register				*/
+#define LINESR	0x000C	/* LIN error status register			*/
+#define UARTCR	0x0010	/* UART mode control register			*/
+#define UARTSR	0x0014	/* UART mode status register			*/
+#define LINTCSR	0x0018	/* LIN timeout control status register		*/
+#define LINOCR	0x001C	/* LIN output compare register			*/
+#define LINTOCR	0x0020	/* LIN timeout control register			*/
+#define LINFBRR	0x0024	/* LIN fractional baud rate register		*/
+#define LINIBRR	0x0028	/* LIN integer baud rate register		*/
+#define LINCFR	0x002C	/* LIN checksum field register			*/
+#define LINCR2	0x0030	/* LIN control register 2			*/
+#define BIDR	0x0034	/* Buffer identifier register			*/
+#define BDRL	0x0038	/* Buffer data register least significant	*/
+#define BDRM	0x003C	/* Buffer data register most significant	*/
+#define IFER	0x0040	/* Identifier filter enable register		*/
+#define IFMI	0x0044	/* Identifier filter match index		*/
+#define IFMR	0x0048	/* Identifier filter mode register		*/
+#define GCR	0x004C	/* Global control register			*/
+#define UARTPTO	0x0050	/* UART preset timeout register			*/
+#define UARTCTO	0x0054	/* UART current timeout register		*/
+/* The offsets for DMARXE/DMATXE in master mode only			*/
+#define DMATXE	0x0058	/* DMA Tx enable register			*/
+#define DMARXE	0x005C	/* DMA Rx enable register			*/
 /*
-**	CONSTANT DEFINITIONS
-*/
+ *	CONSTANT DEFINITIONS
+ */
 
 
 #define LINFLEXD_LINCR1_INIT		(1<<0)
