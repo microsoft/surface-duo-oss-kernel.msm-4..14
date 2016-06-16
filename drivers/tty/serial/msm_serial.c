@@ -76,6 +76,7 @@ struct msm_port {
 	bool			break_detected;
 	struct msm_dma		tx_dma;
 	struct msm_dma		rx_dma;
+	unsigned int		last_baud;
 };
 
 static void msm_handle_tx(struct uart_port *port);
@@ -1039,11 +1040,16 @@ static void msm_set_termios(struct uart_port *port, struct ktermios *termios,
 	if (dma->chan) /* Terminate if any */
 		msm_stop_dma(port, dma);
 
-	/* calculate and set baud rate */
+	/* calculate and set baud rate, if changed from last request */
 	baud = uart_get_baud_rate(port, termios, old, 300, 4000000);
-	baud = msm_set_baud_rate(port, baud, &flags);
-	if (tty_termios_baud_rate(termios))
-		tty_termios_encode_baud_rate(termios, baud, baud);
+	if (baud != msm_port->last_baud) {
+		msm_port->last_baud = baud;
+
+		baud = msm_set_baud_rate(port, baud, &flags);
+		if (tty_termios_baud_rate(termios))
+			tty_termios_encode_baud_rate(termios, baud, baud);
+		uart_update_timeout(port, termios->c_cflag, baud);
+	}
 
 	/* calculate parity */
 	mr = msm_read(port, UART_MR2);
@@ -1100,8 +1106,6 @@ static void msm_set_termios(struct uart_port *port, struct ktermios *termios,
 		port->read_status_mask |= UART_SR_PAR_FRAME_ERR;
 	if (termios->c_iflag & (IGNBRK | BRKINT | PARMRK))
 		port->read_status_mask |= UART_SR_RX_BREAK;
-
-	uart_update_timeout(port, termios->c_cflag, baud);
 
 	/* Try to use DMA */
 	msm_start_rx_dma(msm_port);
