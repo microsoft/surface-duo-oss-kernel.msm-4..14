@@ -2433,7 +2433,11 @@ rtl2832
 rtl2832_sdr
 rtl8150
 rtl8187
+rtl8192c-common
+rtl8192cu
 rtl8xxxu
+rtl_usb
+rtlwifi
 rtsx_usb
 rtsx_usb_ms
 rtsx_usb_sdmmc
