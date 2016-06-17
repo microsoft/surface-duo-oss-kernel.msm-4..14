@@ -28,6 +28,7 @@
 #include <linux/namei.h>
 #include <linux/log2.h>
 #include <linux/cleancache.h>
+#include <linux/dax.h>
 #include <asm/uaccess.h>
 #include "internal.h"
 
@@ -49,12 +50,21 @@ inline struct block_device *I_BDEV(struct inode *inode)
 }
 EXPORT_SYMBOL(I_BDEV);
 
-static void bdev_write_inode(struct inode *inode)
+static void bdev_write_inode(struct block_device *bdev)
 {
+	struct inode *inode = bdev->bd_inode;
+	int ret;
+
 	spin_lock(&inode->i_lock);
 	while (inode->i_state & I_DIRTY) {
 		spin_unlock(&inode->i_lock);
-		WARN_ON_ONCE(write_inode_now(inode, true));
+		ret = write_inode_now(inode, true);
+		if (ret) {
+			char name[BDEVNAME_SIZE];
+			pr_warn_ratelimited("VFS: Dirty inode writeback failed "
+					    "for block device %s (err=%d).\n",
+					    bdevname(bdev, name), ret);
+		}
 		spin_lock(&inode->i_lock);
 	}
 	spin_unlock(&inode->i_lock);
@@ -1489,11 +1499,14 @@ static void __blkdev_put(struct block_device *bdev, fmode_t mode, int for_part)
 		WARN_ON_ONCE(bdev->bd_holders);
 		sync_blockdev(bdev);
 		kill_bdev(bdev);
+
+		bdev_write_inode(bdev);
 		/*
-		 * ->release can cause the queue to disappear, so flush all
-		 * dirty data before.
+		 * Detaching bdev inode from its wb in __destroy_inode()
+		 * is too late: the queue which embeds its bdi (along with
+		 * root wb) can be gone as soon as we put_disk() below.
 		 */
-		bdev_write_inode(bdev->bd_inode);
+		inode_detach_wb(bdev->bd_inode);
 	}
 	if (bdev->bd_contains == bdev) {
 		if (disk->fops->release)
