@@ -389,3 +389,14 @@
 		rst-gpio = <&gpio9 1 1>;
 	};
 };
+
+&i2c1 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "ok";
+
+	icn6201: icn6201@5a{
+		compatible = "ChipOne,icn6201";
+		reg = <0x2d>;
+	};
+};
