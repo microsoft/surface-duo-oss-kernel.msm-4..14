@@ -238,6 +238,7 @@ firmware:       rt2870.bin
 firmware:       rt73.bin
 firmware:       rtlwifi/rtl8192cufw_A.bin
 firmware:       rtlwifi/rtl8192cufw_B.bin
+firmware:       rtlwifi/rtl8192cufw.bin
 firmware:       rtlwifi/rtl8192cufw_TMSC.bin
 firmware:       rtlwifi/rtl8712u.bin
 firmware:       rtlwifi/rtl8723aufw_A.bin
