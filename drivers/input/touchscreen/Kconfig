@@ -1106,4 +1106,16 @@ config TOUCHSCREEN_ROHM_BU21023
 	  To compile this driver as a module, choose M here: the
 	  module will be called bu21023_ts.
 
+config TOUCHSCREEN_FT5X0X
+        tristate "FocalTech ft5x0x TouchScreen driver"
+        depends on I2C
+        help
+          Say Y here to support FocalTech ft5x0x TouchScreen on
+          Hikey development board.
+
+          If unsure, say N.
+
+          To compile this driver as a module, choose M here: the
+          module will be called ft5x06_ts.ko.
+
 endif
