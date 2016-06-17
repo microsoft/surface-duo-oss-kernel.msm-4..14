@@ -375,3 +375,17 @@
 		};
 	};
  };
+
+&i2c0 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "ok";
+
+	tp: tp@8{
+		compatible = "FocalTech,ft5506";
+		reg = <0x38>;
+		interrupt-parent = <&gpio2>;
+		interrupts = <7 2>;
+		rst-gpio = <&gpio9 1 1>;
+	};
+};
