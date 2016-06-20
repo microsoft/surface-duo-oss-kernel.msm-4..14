@@ -462,19 +462,15 @@ struct snd_soc_dai_driver hi6210_i2s_dai_init = {
 		.channels_min = 2,
 		.channels_max = 2,
 		.formats = SNDRV_PCM_FMTBIT_S16_LE |
-			   SNDRV_PCM_FMTBIT_U16_LE |
-			   SNDRV_PCM_FMTBIT_S24_LE |
-			   SNDRV_PCM_FMTBIT_U24_LE,
-		.rates = SNDRV_PCM_RATE_8000_192000,
+			   SNDRV_PCM_FMTBIT_U16_LE,
+		.rates = SNDRV_PCM_RATE_48000,
 	},
 	.capture = {
 		.channels_min = 2,
 		.channels_max = 2,
 		.formats = SNDRV_PCM_FMTBIT_S16_LE |
-			   SNDRV_PCM_FMTBIT_U16_LE |
-			   SNDRV_PCM_FMTBIT_S24_LE |
-			   SNDRV_PCM_FMTBIT_U24_LE,
-		.rates = SNDRV_PCM_RATE_8000_192000,
+			   SNDRV_PCM_FMTBIT_U16_LE,
+		.rates = SNDRV_PCM_RATE_48000,
 	},
 	.ops = &hi6210_i2s_dai_ops,
 };

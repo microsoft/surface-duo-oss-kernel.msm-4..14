@@ -17,7 +17,7 @@ static int hdmi_hw_params(struct snd_pcm_substream *substream,
 {
 	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
-	int ret = 0;
+	int ret;
 
 	ret = snd_soc_dai_set_fmt(cpu_dai, SND_SOC_DAIFMT_I2S |
 			SND_SOC_DAIFMT_NB_NF | SND_SOC_DAIFMT_CBS_CFS);
@@ -26,8 +26,8 @@ static int hdmi_hw_params(struct snd_pcm_substream *substream,
 
 	/* set i2s system clock */
 	ret = snd_soc_dai_set_sysclk(cpu_dai, 0, 24576000, SND_SOC_CLOCK_IN);
-//	if (ret)
-//		return ret;
+	if (ret)
+		return ret;
 
 	return 0;
 }
@@ -64,12 +64,8 @@ static struct snd_soc_dai_driver hi6210_hdmi_dai = {
 	.playback = {
 		.channels_min = 2,
 		.channels_max = 2,
-		.rates = SNDRV_PCM_RATE_32000 |
-				SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000 |
-				SNDRV_PCM_RATE_88200 | SNDRV_PCM_RATE_96000 |
-				SNDRV_PCM_RATE_176400 | SNDRV_PCM_RATE_192000,
-		.formats = SNDRV_PCM_FMTBIT_S16_LE |
-				SNDRV_PCM_FMTBIT_S24_LE,
+		.rates = SNDRV_PCM_RATE_48000,
+		.formats = SNDRV_PCM_FMTBIT_S16_LE,
 	},
 	.ops = &hi6210_hdmi_dai_ops,
 };
