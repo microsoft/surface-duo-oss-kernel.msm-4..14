@@ -96,34 +96,34 @@ int ft5x0x_i2c_Read(struct i2c_client *client, char *writebuf,
 	if (writelen > 0) {
 		struct i2c_msg msgs[] = {
 			{
-			 .addr = client->addr,
-			 .flags = 0,
-			 .len = writelen,
-			 .buf = writebuf,
+				 .addr = client->addr,
+				 .flags = 0,
+				 .len = writelen,
+				 .buf = writebuf,
 			 },
 			{
-			 .addr = client->addr,
-			 .flags = I2C_M_RD,
-			 .len = readlen,
-			 .buf = readbuf,
+				 .addr = client->addr,
+				 .flags = I2C_M_RD,
+				 .len = readlen,
+				 .buf = readbuf,
 			 },
 		};
 		ret = i2c_transfer(client->adapter, msgs, 2);
 		if (ret < 0)
-			dev_err(&client->dev, "f%s: i2c read error.\n",
+			dev_err(&client->dev, "%s: i2c read error.\n",
 				__func__);
 	} else {
 		struct i2c_msg msgs[] = {
 			{
-			 .addr = client->addr,
-			 .flags = I2C_M_RD,
-			 .len = readlen,
-			 .buf = readbuf,
+				 .addr = client->addr,
+				 .flags = I2C_M_RD,
+				 .len = readlen,
+				 .buf = readbuf,
 			 },
 		};
 		ret = i2c_transfer(client->adapter, msgs, 1);
 		if (ret < 0)
-			dev_err(&client->dev, "%s:i2c read error\n", __func__);
+			dev_err(&client->dev, "%s:i2c read error.\n", __func__);
 	}
 	return ret;
 }
@@ -132,20 +132,17 @@ int ft5x0x_i2c_Read(struct i2c_client *client, char *writebuf,
 int ft5x0x_i2c_Write(struct i2c_client *client, char *writebuf, int writelen)
 {
 	int ret;
-
-	struct i2c_msg msg[] = {
+	struct i2c_msg msgs[] = {
 		{
-		 .addr = client->addr,
-		 .flags = 0,
-		 .len = writelen,
-		 .buf = writebuf,
+			 .addr = client->addr,
+			 .flags = 0,
+			 .len = writelen,
+			 .buf = writebuf,
 		 },
 	};
-
-	ret = i2c_transfer(client->adapter, msg, 1);
+	ret = i2c_transfer(client->adapter, msgs, 1);
 	if (ret < 0)
-		dev_err(&client->dev, "%s i2c write error.\n", __func__);
-
+		dev_err(&client->dev, "%s: i2c write error.\n", __func__);
 	return ret;
 }
 
@@ -158,47 +155,6 @@ static void ft5x0x_ts_release(struct ft5x0x_ts_data *data)
 	input_report_abs(data->input_dev, ABS_PRESSURE, 0);
 #endif
 	input_sync(data->input_dev);
-}
-
-/*Read touch point information when the interrupt  is asserted.*/
-static int ft5x0x_read_Touchdata(struct ft5x0x_ts_data *data)
-{
-	struct ts_event *event = &data->event;
-	u8 buf[POINT_READ_BUF] = { 0 };
-	int ret = -1;
-	int i = 0;
-	u8 pointid = FT_MAX_ID;
-
-	ret = ft5x0x_i2c_Read(data->client, buf, 1, buf, POINT_READ_BUF);
-	if (ret < 0) {
-		dev_err(&data->client->dev, "%s read touchdata failed.\n",
-			__func__);
-		return ret;
-	}
-	memset(event, 0, sizeof(struct ts_event));
-
-	event->touch_point = 0;
-	for (i = 0; i < CFG_MAX_TOUCH_POINTS; i++) {
-		pointid = (buf[FT_TOUCH_ID_POS + FT_TOUCH_STEP * i]) >> 4;
-		if (pointid < FT_MAX_ID)
-			event->touch_point++;
-		else
-			break;
-		event->au16_x[i] =
-		    (s16)(buf[FT_TOUCH_X_H_POS + FT_TOUCH_STEP * i] & 0x0F)
-			 << 8 | (s16)buf[FT_TOUCH_X_L_POS + FT_TOUCH_STEP * i];
-		event->au16_y[i] =
-		    (s16)(buf[FT_TOUCH_Y_H_POS + FT_TOUCH_STEP * i] & 0x0F)
-			 << 8 | (s16)buf[FT_TOUCH_Y_L_POS + FT_TOUCH_STEP * i];
-		event->au8_touch_event[i] =
-		    buf[FT_TOUCH_EVENT_POS + FT_TOUCH_STEP * i] >> 6;
-		event->au8_finger_id[i] =
-		    (buf[FT_TOUCH_ID_POS + FT_TOUCH_STEP * i]) >> 4;
-	}
-
-	event->pressure = FT_PRESS;
-
-	return 0;
 }
 
 /*
@@ -270,6 +226,48 @@ static void ft5x0x_report_value(struct ft5x0x_ts_data *data)
 		ft5x0x_ts_release(data);
 
 }
+
+/*Read touch point information when the interrupt  is asserted.*/
+static int ft5x0x_read_Touchdata(struct ft5x0x_ts_data *data)
+{
+	struct ts_event *event = &data->event;
+	u8 buf[POINT_READ_BUF] = { 0 };
+	int ret = -1;
+	int i = 0;
+	u8 pointid = FT_MAX_ID;
+
+	ret = ft5x0x_i2c_Read(data->client, buf, 1, buf, POINT_READ_BUF);
+	if (ret < 0) {
+		dev_err(&data->client->dev, "%s read touchdata failed.\n",
+			__func__);
+		return ret;
+	}
+	memset(event, 0, sizeof(struct ts_event));
+
+	event->touch_point = 0;
+	for (i = 0; i < CFG_MAX_TOUCH_POINTS; i++) {
+		pointid = (buf[FT_TOUCH_ID_POS + FT_TOUCH_STEP * i]) >> 4;
+		if (pointid >= FT_MAX_ID)
+			break;
+		else
+			event->touch_point++;
+		event->au16_x[i] =
+		    (s16)(buf[FT_TOUCH_X_H_POS + FT_TOUCH_STEP * i] & 0x0F)
+			 << 8 | (s16)buf[FT_TOUCH_X_L_POS + FT_TOUCH_STEP * i];
+		event->au16_y[i] =
+		    (s16)(buf[FT_TOUCH_Y_H_POS + FT_TOUCH_STEP * i] & 0x0F)
+			 << 8 | (s16)buf[FT_TOUCH_Y_L_POS + FT_TOUCH_STEP * i];
+		event->au8_touch_event[i] =
+		    buf[FT_TOUCH_EVENT_POS + FT_TOUCH_STEP * i] >> 6;
+		event->au8_finger_id[i] =
+		    (buf[FT_TOUCH_ID_POS + FT_TOUCH_STEP * i]) >> 4;
+	}
+
+	event->pressure = FT_PRESS;
+
+	return 0;
+}
+
 
 /*The ft5x0x device will signal the host about TRIGGER_FALLING.
 *Processed when the interrupt is asserted.
