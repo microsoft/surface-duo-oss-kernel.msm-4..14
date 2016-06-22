@@ -62,6 +62,7 @@
 #include <linux/usb/chipidea.h>
 #include <linux/usb/of.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/phy.h>
 #include <linux/regulator/consumer.h>
 #include <linux/usb/ehci_def.h>
@@ -800,6 +801,7 @@ struct platform_device *ci_hdrc_add_device(struct device *dev,
 	}
 
 	pdev->dev.parent = dev;
+	of_dma_configure(&pdev->dev, dev->of_node);
 
 	ret = platform_device_add_resources(pdev, res, nres);
 	if (ret)
