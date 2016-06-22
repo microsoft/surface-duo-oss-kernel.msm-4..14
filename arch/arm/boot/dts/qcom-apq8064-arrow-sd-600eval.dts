@@ -363,7 +363,7 @@
 		};
 
 		mdp: qcom,mdp@5100000 {
-			status = "disabled";
+			status = "okay";
 		};
 
 		amba {
