@@ -475,6 +475,14 @@ static void ci_otg_drv_vbus(struct otg_fsm *fsm, int on)
 				return;
 			}
 		}
+		/*
+		 * Force state machine forward if we use extcon
+		 * to detect vbus state (i.e. simulate AVVIS event)
+		 */
+		if (!IS_ERR(ci->platdata->vbus_extcon.edev)) {
+			fsm->a_vbus_vld = 1;
+			ci_otg_queue_work(ci);
+		}
 		/* Disable data pulse irq */
 		hw_write_otgsc(ci, OTGSC_DPIE, 0);
 
@@ -486,6 +494,15 @@ static void ci_otg_drv_vbus(struct otg_fsm *fsm, int on)
 
 		fsm->a_bus_drop = 1;
 		fsm->a_bus_req = 0;
+		/*
+		 * Force state machine forward if we use extcon
+		 * to detect vbus state (i.e. simulate AVVIS event)
+		 */
+		if (!IS_ERR(ci->platdata->vbus_extcon.edev)) {
+			fsm->a_vbus_vld = 0;
+			fsm->b_conn = 0;
+			ci_otg_queue_work(ci);
+		}
 	}
 }
 
