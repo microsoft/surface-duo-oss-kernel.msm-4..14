@@ -309,7 +309,7 @@
 			target-supply	= <&pm8921_lvs7>;
 		};
 
-		wcnss-rproc@3204000 {
+		wcnss@3204000 {
 			status = "ok";
 
 			pinctrl-names = "default";
