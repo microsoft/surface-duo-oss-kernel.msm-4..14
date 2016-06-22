@@ -145,6 +145,11 @@
 					bias-pull-down;
 				};
 
+				l26 {
+					regulator-min-microvolt = < 375000>;
+					regulator-max-microvolt = <1050000>;
+					bias-pull-down;
+				};
 				lvs6 {
 					bias-pull-down;
 				};
@@ -354,6 +359,10 @@
 
 		usb@12530000 {
 			status = "okay";
+		};
+		pil_q6v4: pil@28800000 {
+			qcom,pll-supply = <&pm8921_l26>;
+			qcom,pll-uV = <1050000>;
 		};
 
 		hdmi: qcom,hdmi-tx@4a00000 {
