@@ -813,7 +813,7 @@ static int adv7511_mode_valid(struct adv7511 *adv7511,
 	/*
 	 * some work well modes which want to put in the front of the mode list.
 	 */
-	DRM_DEBUG("Checking mode %ix%i@%i clock: %i...",
+	printk("Checking mode %ix%i@%i clock: %i...",
 		  mode->hdisplay, mode->vdisplay, drm_mode_vrefresh(mode), mode->clock);
 	if ((mode->hdisplay == 1920 && mode->vdisplay == 1080 && mode->clock == 148500) ||
 	    (mode->hdisplay == 1280 && mode->vdisplay == 800 && mode->clock == 83496) ||
@@ -823,10 +823,10 @@ static int adv7511_mode_valid(struct adv7511 *adv7511,
 	    (mode->hdisplay == 1024 && mode->vdisplay == 768 && mode->clock == 81833) ||
 	    (mode->hdisplay == 800 && mode->vdisplay == 600 && mode->clock == 40000)) {
 		mode->type |= DRM_MODE_TYPE_PREFERRED;
-		DRM_DEBUG("OK\n");
+		printk("OK\n");
 		return MODE_OK;
 	}
-	DRM_DEBUG("BAD\n");
+	printk("BAD\n");
 	return MODE_BAD;
 }
 

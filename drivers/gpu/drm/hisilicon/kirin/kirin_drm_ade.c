@@ -234,6 +234,7 @@ static void ade_ldi_set_mode(struct ade_crtc *acrtc,
 	writel(((width - 1) << OUTPUT_XSIZE_OFST) | (height - 1),
 	       base + ADE_OVLY_OUTPUT_SIZE(OUT_OVLY));
 
+	DRM_INFO("ade_ldi_set_mode: orig_clock: %ld  adj_clock: %ld\n", (long) mode->clock, (long)adj_mode->clock);
 	/* ctran6 setting */
 	writel(CTRAN_BYPASS_ON, base + ADE_CTRAN_DIS(ADE_CTRAN6));
 	 /* the configured value is actual value - 1 */
@@ -242,7 +243,7 @@ static void ade_ldi_set_mode(struct ade_crtc *acrtc,
 
 	ade_set_pix_clk(ctx, mode, adj_mode);
 
-	DRM_DEBUG_DRIVER("set mode: %dx%d\n", width, height);
+	DRM_INFO("set mode: %dx%d\n", width, height);
 }
 
 static int ade_power_up(struct ade_hw_ctx *ctx)

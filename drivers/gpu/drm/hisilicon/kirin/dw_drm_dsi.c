@@ -569,11 +569,11 @@ static void dsi_set_mode_timing(void __iomem *base,
 	writel(mode->vdisplay, base + VID_VACTIVE_LINES);
 	writel(mode->hdisplay, base + VID_PKT_SIZE);
 
-	DRM_DEBUG_DRIVER("htot=%d, hfp=%d, hbp=%d, hsw=%d\n",
+	DRM_INFO("htot=%d, hfp=%d, hbp=%d, hsw=%d\n",
 			 htot, hfp, hbp, hsw);
-	DRM_DEBUG_DRIVER("vtol=%d, vfp=%d, vbp=%d, vsw=%d\n",
+	DRM_INFO("vtol=%d, vfp=%d, vbp=%d, vsw=%d\n",
 			 vtot, vfp, vbp, vsw);
-	DRM_DEBUG_DRIVER("hsa_time=%d, hbp_time=%d, hline_time=%d\n",
+	DRM_INFO("hsa_time=%d, hbp_time=%d, hline_time=%d\n",
 			 hsa_time, hbp_time, hline_time);
 }
 
