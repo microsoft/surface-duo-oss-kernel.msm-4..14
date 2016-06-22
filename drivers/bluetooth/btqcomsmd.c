@@ -161,7 +161,7 @@ static int btqcomsmd_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id btqcomsmd_of_match[] = {
-	{ .compatible = "qcom,btqcomsmd", },
+	{ .compatible = "qcom,wcnss-bt", },
 	{ },
 };
 

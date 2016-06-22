@@ -997,7 +997,7 @@
 				qcom,mmio = <&pronto>;
 
 				bt {
-					compatible = "qcom,btqcomsmd";
+					compatible = "qcom,wcnss-bt";
 				};
 
 				wifi {
