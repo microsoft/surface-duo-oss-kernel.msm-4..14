@@ -11,7 +11,6 @@ Required properties:
 - reg: Physical base address and length of the controller's registers
 - reg-names: "core_physical"
 - interrupts: The interrupt signal from the hdmi block.
-- power-domains: Should be <&mmcc MDSS_GDSC>.
 - clocks: device clocks
   See ../clocks/clock-bindings.txt for details.
 - qcom,hdmi-tx-ddc-clk-gpio: ddc clk pin
@@ -48,7 +47,6 @@ Required properties:
     * "hdmi_tx_l1"
     * "hdmi_tx_l3"
     * "hdmi_tx_l4"
-- power-domains: Should be <&mmcc MDSS_GDSC>.
 - clocks: device clocks
   See Documentation/devicetree/bindings/clocks/clock-bindings.txt for details.
 - core-vdda-supply: phandle to vdda regulator device node
@@ -63,7 +61,6 @@ Example:
 		reg-names = "core_physical";
 		reg = <0x04a00000 0x2f0>;
 		interrupts = <GIC_SPI 79 0>;
-		power-domains = <&mmcc MDSS_GDSC>;
 		clock-names =
 		    "core_clk",
 		    "master_iface_clk",
@@ -92,7 +89,6 @@ Example:
 		reg = <0x4a00400 0x60>,
 		      <0x4a00500 0x100>;
 		#phy-cells = <0>;
-		power-domains = <&mmcc MDSS_GDSC>;
 		clock-names = "slave_iface_clk";
 		clocks = <&mmcc HDMI_S_AHB_CLK>;
 		core-vdda-supply = <&pm8921_hdmi_mvs>;

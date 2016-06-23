@@ -8,7 +8,6 @@ Required properties:
 - reg-names: The names of register regions. The following regions are required:
   * "dsi_ctrl"
 - interrupts: The interrupt signal from the DSI block.
-- power-domains: Should be <&mmcc MDSS_GDSC>.
 - clocks: Phandles to device clocks.
 - clock-names: the following clocks are required:
   * "mdp_core_clk"
@@ -94,7 +93,6 @@ Required properties:
   * "dsi_phy_regulator"
 - clock-cells: Must be 1. The DSI PHY block acts as a clock provider, creating
   2 clocks: A byte clock (index 0), and a pixel clock (index 1).
-- power-domains: Should be <&mmcc MDSS_GDSC>.
 - clocks: Phandles to device clocks. See [1] for details on clock bindings.
 - clock-names: the following clocks are required:
   * "iface_clk"
@@ -116,7 +114,6 @@ Example:
 		interrupts = <4 0>;
 		reg-names = "dsi_ctrl";
 		reg = <0xfd922800 0x200>;
-		power-domains = <&mmcc MDSS_GDSC>;
 		clock-names =
 			"bus_clk",
 			"byte_clk",
