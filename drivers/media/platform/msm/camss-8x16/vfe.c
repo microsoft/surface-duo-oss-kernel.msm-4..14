@@ -17,6 +17,7 @@
  */
 #include <asm/dma-iommu.h>
 #include <linux/clk.h>
+#include <linux/completion.h>
 #include <linux/interrupt.h>
 #include <linux/msm-bus.h>
 #include <linux/mutex.h>
@@ -32,7 +33,7 @@
 #include "vfe.h"
 #include "camss.h"
 
-#define MSM_VFE_DRV_NAME "msm_vfe"
+#define MSM_VFE_NAME "msm_vfe"
 #define MSM_VFE_VIDEO_NAME "msm_vfe_video"
 
 #define VFE_0_HW_VERSION		0x000
@@ -138,13 +139,13 @@
 #define VFE_0_CGC_OVERRIDE_1_IMAGE_M0_CGC_OVERRIDE	1
 
 /* Vfe reset timeout */
-#define MSM_VFE_RESET_TIMEOUT_MS 50
+#define VFE_RESET_TIMEOUT_MS 50
 /* Vfe halt timeout */
-#define MSM_VFE_HALT_TIMEOUT_MS 100
+#define VFE_HALT_TIMEOUT_MS 100
 /* Max number of frame drop updates per frame */
-#define MSM_VFE_FRAME_DROP_UPDATES 5
+#define VFE_FRAME_DROP_UPDATES 5
 /* Frame drop value NOTE it VAL + UPDATES should not exceed 31 */
-#define MSM_VFE_FRAME_DROP_VAL 20
+#define VFE_FRAME_DROP_VAL 20
 
 
 static char *clocks[] = {
@@ -162,23 +163,21 @@ static char *reg_vbif = "vfe0_vbif";
 
 static char *interrupt = "vfe0";
 
-static inline void msm_vfe_reg_clr(struct vfe_device *vfe,
-	u32 reg, u32 clr_bits)
+static inline void vfe_reg_clr(struct vfe_device *vfe, u32 reg, u32 clr_bits)
 {
 	u32 bits = readl(vfe->base + reg);
 
 	writel(bits & ~clr_bits, vfe->base + reg);
 }
 
-static inline void msm_vfe_reg_set(struct vfe_device *vfe,
-	u32 reg, u32 set_bits)
+static inline void vfe_reg_set(struct vfe_device *vfe, u32 reg, u32 set_bits)
 {
 	u32 bits = readl(vfe->base + reg);
 
 	writel(bits | set_bits, vfe->base + reg);
 }
 
-static void msm_vfe_global_reset(struct vfe_device *vfe)
+static void vfe_global_reset(struct vfe_device *vfe)
 {
 	u32 reset_bits = VFE_0_GLOBAL_RESET_CMD_TESTGEN		|
 			 VFE_0_GLOBAL_RESET_CMD_BUS_MISR	|
@@ -193,27 +192,25 @@ static void msm_vfe_global_reset(struct vfe_device *vfe)
 	writel(reset_bits, vfe->base + VFE_0_GLOBAL_RESET_CMD);
 }
 
-static void msm_vfe_wm_enable(struct vfe_device *vfe, u32 wm, u32 enable)
+static void vfe_wm_enable(struct vfe_device *vfe, u32 wm, u32 enable)
 {
 	if (enable)
-		msm_vfe_reg_set(vfe, VFE_0_BUS_IMAGE_MASTER_n_WR_CFG(wm), 1);
+		vfe_reg_set(vfe, VFE_0_BUS_IMAGE_MASTER_n_WR_CFG(wm), 1);
 	else
-		msm_vfe_reg_clr(vfe, VFE_0_BUS_IMAGE_MASTER_n_WR_CFG(wm), 1);
+		vfe_reg_clr(vfe, VFE_0_BUS_IMAGE_MASTER_n_WR_CFG(wm), 1);
 }
 
-static void msm_vfe_wm_frame_based(struct vfe_device *vfe, u32 wm, u32 enable)
+static void vfe_wm_frame_based(struct vfe_device *vfe, u32 wm, u32 enable)
 {
-	if (enable) {
-		msm_vfe_reg_set(vfe, VFE_0_BUS_IMAGE_MASTER_n_WR_CFG(wm),
+	if (enable)
+		vfe_reg_set(vfe, VFE_0_BUS_IMAGE_MASTER_n_WR_CFG(wm),
 			1 << VFE_0_BUS_IMAGE_MASTER_n_WR_CFG_FRM_BASED_SHIFT);
-	} else {
-		msm_vfe_reg_clr(vfe, VFE_0_BUS_IMAGE_MASTER_n_WR_CFG(wm),
+	else
+		vfe_reg_clr(vfe, VFE_0_BUS_IMAGE_MASTER_n_WR_CFG(wm),
 			1 << VFE_0_BUS_IMAGE_MASTER_n_WR_CFG_FRM_BASED_SHIFT);
-	}
 }
 
-static void msm_vfe_wm_set_framedrop_period(struct vfe_device *vfe,
-					    u32 wm, u32 per)
+static void vfe_wm_set_framedrop_period(struct vfe_device *vfe, u32 wm, u32 per)
 {
 	u32 reg;
 
@@ -221,43 +218,45 @@ static void msm_vfe_wm_set_framedrop_period(struct vfe_device *vfe,
 
 	reg &= ~(VFE_0_BUS_IMAGE_MASTER_n_WR_ADDR_CFG_FRM_DROP_PER_MASK);
 
-	reg |= (per << VFE_0_BUS_IMAGE_MASTER_n_WR_ADDR_CFG_FRM_DROP_PER_SHIFT) &
-		VFE_0_BUS_IMAGE_MASTER_n_WR_ADDR_CFG_FRM_DROP_PER_MASK;
+	reg |= (per << VFE_0_BUS_IMAGE_MASTER_n_WR_ADDR_CFG_FRM_DROP_PER_SHIFT)
+		& VFE_0_BUS_IMAGE_MASTER_n_WR_ADDR_CFG_FRM_DROP_PER_MASK;
 
 	writel(reg, vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_ADDR_CFG(wm));
 }
 
-static void msm_vfe_wm_set_framedrop_pattern(struct vfe_device *vfe,
-					     u32 wm, u32 pat)
+static void vfe_wm_set_framedrop_pattern(struct vfe_device *vfe, u32 wm,
+					 u32 pattern)
 {
-	writel(pat, vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_FRAMEDROP_PATTERN(wm));
+	writel(pattern,
+	       vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_FRAMEDROP_PATTERN(wm));
 }
 
-static void msm_vfe_wm_set_ub_cfg(struct vfe_device *vfe, u32 wm,
-				u16 offset, u16 depth)
+static void vfe_wm_set_ub_cfg(struct vfe_device *vfe, u32 wm, u16 offset,
+			      u16 depth)
 {
 	u32 reg;
 
-	reg = (offset << VFE_0_BUS_IMAGE_MASTER_n_WR_UB_CFG_OFFSET_SHIFT) | depth;
+	reg = (offset << VFE_0_BUS_IMAGE_MASTER_n_WR_UB_CFG_OFFSET_SHIFT) |
+		depth;
 	writel(reg, vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_UB_CFG(wm));
 }
 
-static void msm_vfe_bus_reload_wm(struct vfe_device *vfe, u32 wm)
+static void vfe_bus_reload_wm(struct vfe_device *vfe, u32 wm)
 {
 	writel(VFE_0_BUS_CMD_Mx_RLD_CMD(wm), vfe->base + VFE_0_BUS_CMD);
 }
 
-static void msm_vfe_wm_set_ping_addr(struct vfe_device *vfe, u32 wm, u32 addr)
+static void vfe_wm_set_ping_addr(struct vfe_device *vfe, u32 wm, u32 addr)
 {
 	writel(addr, vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_PING_ADDR(wm));
 }
 
-static void msm_vfe_wm_set_pong_addr(struct vfe_device *vfe, u32 wm, u32 addr)
+static void vfe_wm_set_pong_addr(struct vfe_device *vfe, u32 wm, u32 addr)
 {
 	writel(addr, vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_PONG_ADDR(wm));
 }
 
-static int msm_vfe_wm_get_ping_pong_status(struct vfe_device *vfe, u32 wm)
+static int vfe_wm_get_ping_pong_status(struct vfe_device *vfe, u32 wm)
 {
 	u32 reg;
 
@@ -266,7 +265,7 @@ static int msm_vfe_wm_get_ping_pong_status(struct vfe_device *vfe, u32 wm)
 	return (reg >> wm) & 0x1;
 }
 
-static void msm_vfe_bus_enable_wr_if(struct vfe_device *vfe, u32 enable)
+static void vfe_bus_enable_wr_if(struct vfe_device *vfe, u32 enable)
 {
 	if (enable)
 		writel(0x10000009, vfe->base + VFE_0_BUS_CFG);
@@ -274,18 +273,18 @@ static void msm_vfe_bus_enable_wr_if(struct vfe_device *vfe, u32 enable)
 		writel(0, vfe->base + VFE_0_BUS_CFG);
 }
 
-static int msm_vfe_bus_connect_wm_to_rdi(struct vfe_device *vfe, u32 wm, u32 rdi)
+static int vfe_bus_connect_wm_to_rdi(struct vfe_device *vfe, u32 wm, u32 rdi)
 {
 	u32 reg;
 
 	reg = VFE_0_RDI_CFG_x_MIPI_EN_BITS;
 	reg |= VFE_0_RDI_CFG_x_RDI_Mr_FRAME_BASED_EN(rdi);
-	msm_vfe_reg_set(vfe, VFE_0_RDI_CFG_x(0), reg);
+	vfe_reg_set(vfe, VFE_0_RDI_CFG_x(0), reg);
 
 	reg = VFE_0_RDI_CFG_x_RDI_EN_BIT;
 	reg |= (wm << VFE_0_RDI_CFG_x_RDI_STREAM_SEL_SHIFT) &
 		VFE_0_RDI_CFG_x_RDI_STREAM_SEL_MASK;
-	msm_vfe_reg_set(vfe, VFE_0_RDI_CFG_x(rdi), reg);
+	vfe_reg_set(vfe, VFE_0_RDI_CFG_x(rdi), reg);
 
 	switch (rdi) {
 	case 0:
@@ -313,25 +312,23 @@ static int msm_vfe_bus_connect_wm_to_rdi(struct vfe_device *vfe, u32 wm, u32 rdi
 	return 0;
 }
 
-static int msm_vfe_bus_dicconnect_wm_from_rdi(struct vfe_device *vfe, u32 rdi)
+static int vfe_bus_dicconnect_wm_from_rdi(struct vfe_device *vfe, u32 rdi)
 {
 	writel(0x0, vfe->base + VFE_0_RDI_CFG_x(rdi));
 
 	return 0;
 }
 
-static void msm_vfe_set_rdi_cid(struct vfe_device *vfe, u32 rdi_idx, u8 cid)
+static void vfe_set_rdi_cid(struct vfe_device *vfe, u32 rdi_idx, u8 cid)
 {
-	msm_vfe_reg_clr(vfe,
-		VFE_0_RDI_CFG_x(rdi_idx),
-		VFE_0_RDI_CFG_x_RDI_M0_SEL_MASK);
+	vfe_reg_clr(vfe, VFE_0_RDI_CFG_x(rdi_idx),
+		    VFE_0_RDI_CFG_x_RDI_M0_SEL_MASK);
 
-	msm_vfe_reg_set(vfe,
-		VFE_0_RDI_CFG_x(rdi_idx),
-		cid << VFE_0_RDI_CFG_x_RDI_M0_SEL_SHIFT);
+	vfe_reg_set(vfe, VFE_0_RDI_CFG_x(rdi_idx),
+		    cid << VFE_0_RDI_CFG_x_RDI_M0_SEL_SHIFT);
 }
 
-static int msm_vfe_reg_update(struct vfe_device *vfe, int rdi_idx)
+static int vfe_reg_update(struct vfe_device *vfe, int rdi_idx)
 {
 	switch (rdi_idx) {
 	case 0:
@@ -351,7 +348,7 @@ static int msm_vfe_reg_update(struct vfe_device *vfe, int rdi_idx)
 	return 0;
 }
 
-static void msm_vfe_irq_clear(struct vfe_device *vfe, u32 clr_0, u32 clr_1)
+static void vfe_irq_clear(struct vfe_device *vfe, u32 clr_0, u32 clr_1)
 {
 	writel(clr_0, vfe->base + VFE_0_IRQ_CLEAR_0);
 
@@ -362,7 +359,7 @@ static void msm_vfe_irq_clear(struct vfe_device *vfe, u32 clr_0, u32 clr_1)
 	writel(VFE_0_IRQ_CMD_GLOBAL_CLEAR, vfe->base + VFE_0_IRQ_CMD);
 }
 
-static void msm_vfe_enable_irq_0(struct vfe_device *vfe)
+static void vfe_enable_irq_0(struct vfe_device *vfe)
 {
 	u32 irq_en = VFE_0_IRQ_MASK_0_IMAGE_MASTER_0_PING_PONG |
 		     VFE_0_IRQ_MASK_0_IMAGE_MASTER_1_PING_PONG |
@@ -376,7 +373,7 @@ static void msm_vfe_enable_irq_0(struct vfe_device *vfe)
 	writel(irq_en, vfe->base + VFE_0_IRQ_MASK_0);
 }
 
-static void msm_vfe_enable_irq_1(struct vfe_device *vfe)
+static void vfe_enable_irq_1(struct vfe_device *vfe)
 {
 	u32 irq_en = VFE_0_IRQ_MASK_1_VIOLATION |
 		     VFE_0_IRQ_MASK_1_BUS_BDG_HALT_ACK |
@@ -387,24 +384,24 @@ static void msm_vfe_enable_irq_1(struct vfe_device *vfe)
 	writel(irq_en, vfe->base + VFE_0_IRQ_MASK_1);
 }
 
-static void msm_vfe_enable_irq_all(struct vfe_device *vfe)
+static void vfe_enable_irq_all(struct vfe_device *vfe)
 {
-	msm_vfe_irq_clear(vfe, VFE_0_IRQ_CLEAR_0_ALL, VFE_0_IRQ_CLEAR_1_ALL);
-	msm_vfe_enable_irq_0(vfe);
-	msm_vfe_enable_irq_1(vfe);
+	vfe_irq_clear(vfe, VFE_0_IRQ_CLEAR_0_ALL, VFE_0_IRQ_CLEAR_1_ALL);
+	vfe_enable_irq_0(vfe);
+	vfe_enable_irq_1(vfe);
 }
 
-static void msm_vfe_disable_irq_all(struct vfe_device *vfe)
+static void vfe_disable_irq_all(struct vfe_device *vfe)
 {
 
 	writel(0x0, vfe->base + VFE_0_IRQ_MASK_0);
 	writel(0x0, vfe->base + VFE_0_IRQ_MASK_1);
-	msm_vfe_irq_clear(vfe, VFE_0_IRQ_CLEAR_0_ALL, VFE_0_IRQ_CLEAR_1_ALL);
+	vfe_irq_clear(vfe, VFE_0_IRQ_CLEAR_0_ALL, VFE_0_IRQ_CLEAR_1_ALL);
 }
 
-static void msm_vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx);
+static void vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx);
 
-static irqreturn_t msm_vfe_subdev_isr(int irq, void *dev)
+static irqreturn_t vfe_subdev_isr(int irq, void *dev)
 {
 	struct vfe_device *vfe = dev;
 	u32 value0, value1;
@@ -425,21 +422,21 @@ static irqreturn_t msm_vfe_subdev_isr(int irq, void *dev)
 		complete_all(&vfe->halt_completion);
 
 	if (value0 & VFE_0_IRQ_STATUS_0_IMAGE_MASTER_0_PING_PONG)
-		msm_vfe_isr_wm_done(vfe, 0);
+		vfe_isr_wm_done(vfe, 0);
 
 	return IRQ_HANDLED;
 }
 
-static int msm_vfe_reset(struct vfe_device *vfe)
+static int vfe_reset(struct vfe_device *vfe)
 {
 	unsigned long time;
 
 	init_completion(&vfe->reset_completion);
 
-	msm_vfe_global_reset(vfe);
+	vfe_global_reset(vfe);
 
 	time = wait_for_completion_timeout(&vfe->reset_completion,
-		msecs_to_jiffies(MSM_VFE_RESET_TIMEOUT_MS));
+		msecs_to_jiffies(VFE_RESET_TIMEOUT_MS));
 	if (!time) {
 		dev_err(vfe->camss->dev, "Vfe reset timeout\n");
 		return -EIO;
@@ -448,7 +445,7 @@ static int msm_vfe_reset(struct vfe_device *vfe)
 	return 0;
 }
 
-static int msm_vfe_halt(struct vfe_device *vfe)
+static int vfe_halt(struct vfe_device *vfe)
 {
 	unsigned long time;
 
@@ -457,7 +454,7 @@ static int msm_vfe_halt(struct vfe_device *vfe)
 	writel(VFE_0_BUS_BDG_CMD_HALT_REQ, vfe->base + VFE_0_BUS_BDG_CMD);
 
 	time = wait_for_completion_timeout(&vfe->halt_completion,
-		msecs_to_jiffies(MSM_VFE_HALT_TIMEOUT_MS));
+		msecs_to_jiffies(VFE_HALT_TIMEOUT_MS));
 	if (!time) {
 		dev_err(vfe->camss->dev, "Vfe halt timeout\n");
 		return -EIO;
@@ -466,7 +463,7 @@ static int msm_vfe_halt(struct vfe_device *vfe)
 	return 0;
 }
 
-static void msm_vfe_init_outputs(struct vfe_device *vfe)
+static void vfe_init_outputs(struct vfe_device *vfe)
 {
 	int i;
 
@@ -479,7 +476,7 @@ static void msm_vfe_init_outputs(struct vfe_device *vfe)
 	}
 }
 
-static void msm_vfe_reset_output_maps(struct vfe_device *vfe)
+static void vfe_reset_output_maps(struct vfe_device *vfe)
 {
 	unsigned long flags;
 	int i;
@@ -498,7 +495,7 @@ static void msm_vfe_reset_output_maps(struct vfe_device *vfe)
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
 }
 
-static void msm_vfe_set_qos(struct vfe_device *vfe)
+static void vfe_set_qos(struct vfe_device *vfe)
 {
 	u32 val = 0xaaa5aaa5;
 	u32 val7 = 0x0001aaa5;
@@ -513,16 +510,16 @@ static void msm_vfe_set_qos(struct vfe_device *vfe)
 	writel(val7, vfe->base + VFE_0_BUS_BDG_QOS_CFG_7);
 }
 
-static void msm_vfe_im_cgc_override(struct vfe_device *vfe)
+static void vfe_im_cgc_override(struct vfe_device *vfe)
 {
 	u32 val = VFE_0_CGC_OVERRIDE_1_IMAGE_M0_CGC_OVERRIDE;
 
 	writel(val, vfe->base + VFE_0_CGC_OVERRIDE_1);
 }
 
-static void msm_vfe_output_init_addrs(struct vfe_device *vfe,
-				      struct msm_vfe_output *output,
-				      int sync)
+static void vfe_output_init_addrs(struct vfe_device *vfe,
+				  struct msm_vfe_output *output,
+				  int sync)
 {
 	u32 ping_addr = 0;
 	u32 pong_addr = 0;
@@ -541,27 +538,27 @@ static void msm_vfe_output_init_addrs(struct vfe_device *vfe,
 	for (i = 0; i < output->active_wm; i++) {
 		dev_err(vfe->camss->dev, "init_addrs: wm[%d], ping = 0x%08x, pong = 0x%08x\n",
 			i, ping_addr, pong_addr);
-		msm_vfe_wm_set_ping_addr(vfe, output->wm[i].wm_idx, ping_addr);
-		msm_vfe_wm_set_pong_addr(vfe, output->wm[i].wm_idx, pong_addr);
+		vfe_wm_set_ping_addr(vfe, output->wm[i].wm_idx, ping_addr);
+		vfe_wm_set_pong_addr(vfe, output->wm[i].wm_idx, pong_addr);
 		if (sync)
-			msm_vfe_bus_reload_wm(vfe, output->wm[i].wm_idx);
+			vfe_bus_reload_wm(vfe, output->wm[i].wm_idx);
 	}
 }
 
-static void msm_vfe_output_reset_addrs(struct vfe_device *vfe,
+static void vfe_output_reset_addrs(struct vfe_device *vfe,
 				       struct msm_vfe_output *output)
 {
 	int i;
 
 	for (i = 0; i < output->active_wm; i++) {
-		msm_vfe_wm_set_ping_addr(vfe, output->wm[i].wm_idx, 0x00);
-		msm_vfe_wm_set_pong_addr(vfe, output->wm[i].wm_idx, 0x00);
+		vfe_wm_set_ping_addr(vfe, output->wm[i].wm_idx, 0x00);
+		vfe_wm_set_pong_addr(vfe, output->wm[i].wm_idx, 0x00);
 	}
 }
 
-static void msm_vfe_output_update_ping_addr(struct vfe_device *vfe,
-					    struct msm_vfe_output *output,
-					    int sync)
+static void vfe_output_update_ping_addr(struct vfe_device *vfe,
+					struct msm_vfe_output *output,
+					int sync)
 {
 	u32 addr = 0;
 	int i;
@@ -570,15 +567,15 @@ static void msm_vfe_output_update_ping_addr(struct vfe_device *vfe,
 		addr = output->buf[0]->addr;
 
 	for (i = 0; i < output->active_wm; i++) {
-		msm_vfe_wm_set_ping_addr(vfe, output->wm[i].wm_idx, addr);
+		vfe_wm_set_ping_addr(vfe, output->wm[i].wm_idx, addr);
 		if (sync)
-			msm_vfe_bus_reload_wm(vfe, output->wm[i].wm_idx);
+			vfe_bus_reload_wm(vfe, output->wm[i].wm_idx);
 	}
 }
 
-static void msm_vfe_output_update_pong_addr(struct vfe_device *vfe,
-					    struct msm_vfe_output *output,
-					    int sync)
+static void vfe_output_update_pong_addr(struct vfe_device *vfe,
+					struct msm_vfe_output *output,
+					int sync)
 {
 	u32 addr = 0;
 	int i;
@@ -587,13 +584,13 @@ static void msm_vfe_output_update_pong_addr(struct vfe_device *vfe,
 		addr = output->buf[1]->addr;
 
 	for (i = 0; i < output->active_wm; i++) {
-		msm_vfe_wm_set_pong_addr(vfe, output->wm[i].wm_idx, addr);
+		vfe_wm_set_pong_addr(vfe, output->wm[i].wm_idx, addr);
 		if (sync)
-			msm_vfe_bus_reload_wm(vfe, output->wm[i].wm_idx);
+			vfe_bus_reload_wm(vfe, output->wm[i].wm_idx);
 	}
 }
 
-static int __msm_vfe_reserve_rdi(struct vfe_device *vfe, u32 output_idx)
+static int __vfe_reserve_rdi(struct vfe_device *vfe, u32 output_idx)
 {
 	int ret = -EBUSY;
 	int i;
@@ -608,7 +605,7 @@ static int __msm_vfe_reserve_rdi(struct vfe_device *vfe, u32 output_idx)
 	return ret;
 }
 
-static int __msm_vfe_release_rdi(struct vfe_device *vfe, u32 rdi_idx)
+static int __vfe_release_rdi(struct vfe_device *vfe, u32 rdi_idx)
 {
 	if (rdi_idx > ARRAY_SIZE(vfe->rdi_output_map))
 		return -EINVAL;
@@ -618,7 +615,7 @@ static int __msm_vfe_release_rdi(struct vfe_device *vfe, u32 rdi_idx)
 	return 0;
 }
 
-static int __msm_vfe_reserve_wm(struct vfe_device *vfe, u32 output_idx)
+static int __vfe_reserve_wm(struct vfe_device *vfe, u32 output_idx)
 {
 	int ret = -EBUSY;
 	int i;
@@ -634,7 +631,7 @@ static int __msm_vfe_reserve_wm(struct vfe_device *vfe, u32 output_idx)
 	return ret;
 }
 
-static int __msm_vfe_release_wm(struct vfe_device *vfe, u32 wm_idx)
+static int __vfe_release_wm(struct vfe_device *vfe, u32 wm_idx)
 {
 	if (wm_idx > ARRAY_SIZE(vfe->wm_output_map))
 		return -EINVAL;
@@ -646,7 +643,7 @@ static int __msm_vfe_release_wm(struct vfe_device *vfe, u32 wm_idx)
 
 /* Vfe hw buffer operations */
 static struct msm_video_buffer *
-__msm_vfe_get_next_output_buf(struct msm_vfe_output *output)
+__vfe_get_next_output_buf(struct msm_vfe_output *output)
 {
 	struct msm_video_buffer *buffer = NULL;
 
@@ -661,56 +658,56 @@ __msm_vfe_get_next_output_buf(struct msm_vfe_output *output)
 }
 
 /*
- * msm_vfe_output_frame_drop - Set frame drop pattern per given output
+ * vfe_output_frame_drop - Set frame drop pattern per given output
  * @vfe: Pointer to vfe device.
  * @output: Pointer to vfe output.
  * @drop_pattern: Kept (1) or dropped (0). The pattern starts from bit 0
  *   and progresses to bit 31.
  */
-static void msm_vfe_output_frame_drop(struct vfe_device *vfe,
-				      struct msm_vfe_output *output,
-				      u32 drop_pattern)
+static void vfe_output_frame_drop(struct vfe_device *vfe,
+				  struct msm_vfe_output *output,
+				  u32 drop_pattern)
 {
 	u32 drop_period;
 	int i;
 
 	/* We need to toggle update period to be valid on next frame */
 	output->drop_update_idx++;
-	output->drop_update_idx %= MSM_VFE_FRAME_DROP_UPDATES;
-	drop_period = MSM_VFE_FRAME_DROP_VAL + output->drop_update_idx;
+	output->drop_update_idx %= VFE_FRAME_DROP_UPDATES;
+	drop_period = VFE_FRAME_DROP_VAL + output->drop_update_idx;
 
 	for (i = 0; i < output->active_wm; i++) {
-		msm_vfe_wm_set_framedrop_period(vfe, output->wm[i].wm_idx,
-						drop_period);
+		vfe_wm_set_framedrop_period(vfe, output->wm[i].wm_idx,
+					    drop_period);
 		wmb();
-		msm_vfe_wm_set_framedrop_pattern(vfe, output->wm[i].wm_idx,
-						drop_pattern);
+		vfe_wm_set_framedrop_pattern(vfe, output->wm[i].wm_idx,
+					     drop_pattern);
 		wmb();
-		msm_vfe_reg_update(vfe, output->wm[i].rdi_idx);
+		vfe_reg_update(vfe, output->wm[i].rdi_idx);
 	}
 }
 
 /*
- * __msm_vfe_add_output_buf - Add output buffer to vfe output
+ * __vfe_add_output_buf - Add output buffer to vfe output
  * @output: Pointer to vfe output.
  * @buffer: Pointer to video buffer.
  *
  * NOTE: Should be called with vfe locked.
  */
-void __msm_vfe_add_output_buf(struct msm_vfe_output *output,
-	struct msm_video_buffer *buffer)
+static void __vfe_add_output_buf(struct msm_vfe_output *output,
+				 struct msm_video_buffer *buffer)
 {
 	INIT_LIST_HEAD(&buffer->dma_queue);
 	list_add_tail(&buffer->dma_queue, &output->pending_bufs);
 }
 
 /*
- * __msm_vfe_flush_output_bufs - Flush all pending out buffers.
+ * __vfe_flush_output_bufs - Flush all pending out buffers.
  * @output: Pointer to vfe output.
  *
  * NOTE: Should be called with vfe locked.
  */
-void __msm_vfe_flush_output_bufs(struct msm_vfe_output *output)
+static void __vfe_flush_output_bufs(struct msm_vfe_output *output)
 {
 	struct msm_video_buffer *buf;
 	struct msm_video_buffer *t;
@@ -721,12 +718,12 @@ void __msm_vfe_flush_output_bufs(struct msm_vfe_output *output)
 	}
 }
 
-static void __msm_vfe_update_wm_on_next_buf(struct vfe_device *vfe,
-					    struct msm_vfe_output *output)
+static void __vfe_update_wm_on_next_buf(struct vfe_device *vfe,
+					struct msm_vfe_output *output)
 {
 	switch (output->state) {
 	case MSM_VFE_OUTPUT_CONTINUOUS:
-		msm_vfe_output_frame_drop(vfe, output, 3);
+		vfe_output_frame_drop(vfe, output, 3);
 		break;
 	case MSM_VFE_OUTPUT_SINGLE:
 		dev_err_ratelimited(vfe->camss->dev,
@@ -737,18 +734,18 @@ static void __msm_vfe_update_wm_on_next_buf(struct vfe_device *vfe,
 	}
 }
 
-static void __msm_vfe_update_wm_on_last_buf(struct vfe_device *vfe,
-					    struct msm_vfe_output *output)
+static void __vfe_update_wm_on_last_buf(struct vfe_device *vfe,
+					struct msm_vfe_output *output)
 {
 	switch (output->state) {
 	case MSM_VFE_OUTPUT_CONTINUOUS:
 		output->state = MSM_VFE_OUTPUT_SINGLE;
-		msm_vfe_output_frame_drop(vfe, output, 1);
+		vfe_output_frame_drop(vfe, output, 1);
 		break;
 	case MSM_VFE_OUTPUT_SINGLE:
 		output->state = MSM_VFE_OUTPUT_IDLE;
-		msm_vfe_output_frame_drop(vfe, output, 0);
-		msm_vfe_output_reset_addrs(vfe, output);
+		vfe_output_frame_drop(vfe, output, 0);
+		vfe_output_reset_addrs(vfe, output);
 		break;
 	default:
 		dev_err_ratelimited(vfe->camss->dev,
@@ -758,9 +755,9 @@ static void __msm_vfe_update_wm_on_last_buf(struct vfe_device *vfe,
 	}
 }
 
-static void __msm_vfe_update_wm_on_new_buf(struct vfe_device *vfe,
-					   struct msm_vfe_output *output,
-					   struct msm_video_buffer *new_buf)
+static void __vfe_update_wm_on_new_buf(struct vfe_device *vfe,
+				       struct msm_vfe_output *output,
+				       struct msm_video_buffer *new_buf)
 {
 	int inactive_idx;
 
@@ -773,16 +770,14 @@ static void __msm_vfe_update_wm_on_new_buf(struct vfe_device *vfe,
 			output->buf[inactive_idx] = new_buf;
 
 			if (inactive_idx)
-				msm_vfe_output_update_pong_addr(vfe,
-								output, 0);
+				vfe_output_update_pong_addr(vfe, output, 0);
 			else
-				msm_vfe_output_update_ping_addr(vfe,
-								output, 0);
+				vfe_output_update_ping_addr(vfe, output, 0);
 
-			msm_vfe_output_frame_drop(vfe, output, 3);
+			vfe_output_frame_drop(vfe, output, 3);
 			output->state = MSM_VFE_OUTPUT_CONTINUOUS;
 		} else {
-			__msm_vfe_add_output_buf(output, new_buf);
+			__vfe_add_output_buf(output, new_buf);
 			dev_err_ratelimited(vfe->camss->dev,
 					    "Inactive buffer is busy\n");
 		}
@@ -792,14 +787,14 @@ static void __msm_vfe_update_wm_on_new_buf(struct vfe_device *vfe,
 		if (!output->buf[0]) {
 			output->buf[0] = new_buf;
 
-			msm_vfe_output_init_addrs(vfe, output, 1);
+			vfe_output_init_addrs(vfe, output, 1);
 
 			/* After wm reload we can not skip second frame.
 			 * Capture only second frame to avoid iommu fault */
-			msm_vfe_output_frame_drop(vfe, output, 2);
+			vfe_output_frame_drop(vfe, output, 2);
 			output->state = MSM_VFE_OUTPUT_SINGLE;
 		} else {
-			__msm_vfe_add_output_buf(output, new_buf);
+			__vfe_add_output_buf(output, new_buf);
 			dev_err_ratelimited(vfe->camss->dev,
 					    "Output idle with buffer set!\n");
 		}
@@ -808,13 +803,13 @@ static void __msm_vfe_update_wm_on_new_buf(struct vfe_device *vfe,
 	case MSM_VFE_OUTPUT_CONTINUOUS:
 
 	default:
-		__msm_vfe_add_output_buf(output, new_buf);
+		__vfe_add_output_buf(output, new_buf);
 		return;
 	}
 }
 
-static struct msm_vfe_output* msm_vfe_get_output(struct vfe_device *vfe,
-						 u32 output_idx)
+static struct msm_vfe_output* vfe_get_output(struct vfe_device *vfe,
+					     u32 output_idx)
 {
 	struct msm_vfe_output *output;
 	unsigned long flags;
@@ -835,14 +830,14 @@ static struct msm_vfe_output* msm_vfe_get_output(struct vfe_device *vfe,
 
 	output->active_buf = 0;
 
-	rdi_idx = __msm_vfe_reserve_rdi(vfe, output_idx);
+	rdi_idx = __vfe_reserve_rdi(vfe, output_idx);
 	if (rdi_idx < 0) {
 		dev_err(vfe->camss->dev, "Can not reserve rdi\n");
 		goto error_get_rdi;
 	}
 
 	/* We will use only one wm per output for now */
-	wm_idx = __msm_vfe_reserve_wm(vfe, output_idx);
+	wm_idx = __vfe_reserve_wm(vfe, output_idx);
 	if (wm_idx < 0) {
 		dev_err(vfe->camss->dev, "Can not reserve wm\n");
 		goto error_get_wm;
@@ -857,7 +852,7 @@ static struct msm_vfe_output* msm_vfe_get_output(struct vfe_device *vfe,
 	return output;
 
 error_get_wm:
-	__msm_vfe_release_rdi(vfe, rdi_idx);
+	__vfe_release_rdi(vfe, rdi_idx);
 error_get_rdi:
 	output->state = MSM_VFE_OUTPUT_OFF;
 error:
@@ -866,8 +861,8 @@ error:
 	return ERR_PTR(-EINVAL);
 }
 
-static int msm_vfe_put_output(struct vfe_device *vfe,
-			      struct msm_vfe_output *output)
+static int vfe_put_output(struct vfe_device *vfe,
+			  struct msm_vfe_output *output)
 {
 	struct msm_vfe_wm *wm;
 	unsigned long flags;
@@ -879,11 +874,11 @@ static int msm_vfe_put_output(struct vfe_device *vfe,
 	for (i = 0; i < output->active_wm; i++) {
 		wm = &output->wm[i];
 
-		ret = __msm_vfe_release_wm(vfe, wm->wm_idx);
+		ret = __vfe_release_wm(vfe, wm->wm_idx);
 		if (ret < 0)
 			goto out;
 
-		ret = __msm_vfe_release_rdi(vfe, wm->rdi_idx);
+		ret = __vfe_release_rdi(vfe, wm->rdi_idx);
 		if (ret < 0)
 			goto out;
 	}
@@ -896,9 +891,9 @@ out:
 	return ret;
 }
 
-static int msm_vfe_enable_output(struct vfe_device *vfe,
-				 struct msm_vfe_output *output,
-				 u32 ub_size)
+static int vfe_enable_output(struct vfe_device *vfe,
+			     struct msm_vfe_output *output,
+			     u32 ub_size)
 {
 	struct msm_vfe_wm *wm;
 	unsigned long flags;
@@ -914,50 +909,50 @@ static int msm_vfe_enable_output(struct vfe_device *vfe,
 	}
 	output->state = MSM_VFE_OUTPUT_IDLE;
 
-	output->buf[0] = __msm_vfe_get_next_output_buf(output);
+	output->buf[0] = __vfe_get_next_output_buf(output);
 	if (output->buf[0])
 		output->state = MSM_VFE_OUTPUT_SINGLE;
 
-	output->buf[1] = __msm_vfe_get_next_output_buf(output);
+	output->buf[1] = __vfe_get_next_output_buf(output);
 	if (output->buf[1])
 		output->state = MSM_VFE_OUTPUT_CONTINUOUS;
 
-	msm_vfe_set_qos(vfe);
+	vfe_set_qos(vfe);
 
 	switch (output->state) {
 	case MSM_VFE_OUTPUT_SINGLE:
 		/* After wm reload we can not skip second frame.
 		 * Capture only second frame to avoid iommu fault */
 		/* Skip 4 bad frames from sensor TODO: get number from sensor */
-		msm_vfe_output_frame_drop(vfe, output, 2 << 4);
+		vfe_output_frame_drop(vfe, output, 2 << 4);
 		break;
 	case MSM_VFE_OUTPUT_CONTINUOUS:
 		/* Skip 4 bad frames from sensor TODO: get number from sensor */
-		msm_vfe_output_frame_drop(vfe, output, 3 << 4);
+		vfe_output_frame_drop(vfe, output, 3 << 4);
 		break;
 	default:
-		msm_vfe_output_frame_drop(vfe, output, 0);
+		vfe_output_frame_drop(vfe, output, 0);
 		break;
 	}
 
-	msm_vfe_output_init_addrs(vfe, output, 0);
+	vfe_output_init_addrs(vfe, output, 0);
 
 	for (i = 0; i < output->active_wm; i++) {
 		wm = &output->wm[i];
 
-		msm_vfe_bus_connect_wm_to_rdi(vfe, wm->wm_idx, wm->rdi_idx);
+		vfe_bus_connect_wm_to_rdi(vfe, wm->wm_idx, wm->rdi_idx);
 
-		msm_vfe_set_rdi_cid(vfe, wm->rdi_idx, wm->rdi_idx);
+		vfe_set_rdi_cid(vfe, wm->rdi_idx, wm->rdi_idx);
 
-		msm_vfe_wm_set_ub_cfg(vfe, wm->wm_idx,
-			(ub_size * wm->wm_idx), ub_size);
+		vfe_wm_set_ub_cfg(vfe, wm->wm_idx, ub_size * wm->wm_idx,
+				  ub_size);
 
-		msm_vfe_wm_frame_based(vfe, wm->wm_idx, 1);
-		msm_vfe_wm_enable(vfe, wm->wm_idx, 1);
+		vfe_wm_frame_based(vfe, wm->wm_idx, 1);
+		vfe_wm_enable(vfe, wm->wm_idx, 1);
 
-		msm_vfe_bus_reload_wm(vfe, output->wm[i].wm_idx);
+		vfe_bus_reload_wm(vfe, output->wm[i].wm_idx);
 
-		msm_vfe_reg_update(vfe, wm->rdi_idx);
+		vfe_reg_update(vfe, wm->rdi_idx);
 	}
 
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
@@ -965,23 +960,23 @@ static int msm_vfe_enable_output(struct vfe_device *vfe,
 	return 0;
 }
 
-static int msm_vfe_disable_output(struct vfe_device *vfe,
-				  struct msm_vfe_output *output)
+static int vfe_disable_output(struct vfe_device *vfe,
+			      struct msm_vfe_output *output)
 {
 	struct msm_vfe_wm *wm;
 	int i;
 
 	for (i = 0; i <  output->active_wm; i++) {
 		wm = &output->wm[i];
-		msm_vfe_wm_enable(vfe, wm->wm_idx, 0);
-		msm_vfe_bus_dicconnect_wm_from_rdi(vfe, wm->rdi_idx);
-		msm_vfe_reg_update(vfe, wm->rdi_idx);
+		vfe_wm_enable(vfe, wm->wm_idx, 0);
+		vfe_bus_dicconnect_wm_from_rdi(vfe, wm->rdi_idx);
+		vfe_reg_update(vfe, wm->rdi_idx);
 	}
 
 	return 0;
 }
 
-static int msm_vfe_enable_all_outputs(struct vfe_device *vfe)
+static int vfe_enable_all_outputs(struct vfe_device *vfe)
 {
 	struct msm_vfe_output *output;
 	u32 ub_size;
@@ -1005,18 +1000,18 @@ static int msm_vfe_enable_all_outputs(struct vfe_device *vfe)
 	}
 	ub_size /= vfe->stream_cnt;
 
-	msm_vfe_im_cgc_override(vfe);
+	vfe_im_cgc_override(vfe);
 	wmb();
 
 	/* Bus interface should be enabled first */
-	msm_vfe_bus_enable_wr_if(vfe, 1);
+	vfe_bus_enable_wr_if(vfe, 1);
 
 	for (i = 0; i < vfe->stream_cnt; i++) {
-		output = msm_vfe_get_output(vfe, i);
+		output = vfe_get_output(vfe, i);
 		if (IS_ERR_OR_NULL(output))
 			goto error;
 
-		ret = msm_vfe_enable_output(vfe, output, ub_size);
+		ret = vfe_enable_output(vfe, output, ub_size);
 		if (ret < 0)
 			goto error;
 	}
@@ -1027,30 +1022,30 @@ static int msm_vfe_enable_all_outputs(struct vfe_device *vfe)
 	return 0;
 
 error:
-	msm_vfe_bus_enable_wr_if(vfe, 0);
+	vfe_bus_enable_wr_if(vfe, 0);
 
 	for (; i > 0; i--)
-		msm_vfe_put_output(vfe, &vfe->output[i - 1]);
+		vfe_put_output(vfe, &vfe->output[i - 1]);
 
 	mutex_unlock(&vfe->mutex);
 
 	return ret;
 }
 
-static int msm_vfe_disable_all_outputs(struct vfe_device *vfe)
+static int vfe_disable_all_outputs(struct vfe_device *vfe)
 {
 	int i;
 
 	mutex_lock(&vfe->mutex);
 
-	msm_vfe_bus_enable_wr_if(vfe, 0);
+	vfe_bus_enable_wr_if(vfe, 0);
 
 	for (i = 0; i < vfe->active_outputs; i++) {
-		msm_vfe_disable_output(vfe, &vfe->output[i]);
-		msm_vfe_put_output(vfe, &vfe->output[i]);
+		vfe_disable_output(vfe, &vfe->output[i]);
+		vfe_put_output(vfe, &vfe->output[i]);
 	}
 
-	msm_vfe_halt(vfe);
+	vfe_halt(vfe);
 
 	vfe->active_outputs = 0;
 
@@ -1059,7 +1054,7 @@ static int msm_vfe_disable_all_outputs(struct vfe_device *vfe)
 	return 0;
 }
 
-static void msm_vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx)
+static void vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx)
 {
 	struct msm_video_buffer *ready_buf;
 	struct msm_vfe_output *output;
@@ -1067,7 +1062,7 @@ static void msm_vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx)
 	unsigned long flags;
 	u32 active_index;
 
-	active_index = msm_vfe_wm_get_ping_pong_status(vfe, wm_idx);
+	active_index = vfe_wm_get_ping_pong_status(vfe, wm_idx);
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
@@ -1094,19 +1089,19 @@ static void msm_vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx)
 	}
 
 	/* Get next buffer */
-	output->buf[!active_index] = __msm_vfe_get_next_output_buf(output);
+	output->buf[!active_index] = __vfe_get_next_output_buf(output);
 	if (!output->buf[!active_index]) {
 		new_addr = 0;
-		__msm_vfe_update_wm_on_last_buf(vfe, output);
+		__vfe_update_wm_on_last_buf(vfe, output);
 	} else {
 		new_addr = output->buf[!active_index]->addr;
-		__msm_vfe_update_wm_on_next_buf(vfe, output);
+		__vfe_update_wm_on_next_buf(vfe, output);
 	}
 
 	if (active_index)
-		msm_vfe_wm_set_ping_addr(vfe, wm_idx, new_addr);
+		vfe_wm_set_ping_addr(vfe, wm_idx, new_addr);
 	else
-		msm_vfe_wm_set_pong_addr(vfe, wm_idx, new_addr);
+		vfe_wm_set_pong_addr(vfe, wm_idx, new_addr);
 
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
 
@@ -1122,7 +1117,7 @@ out_unlock:
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
 }
 
-static int msm_vfe_bus_request(struct vfe_device *vfe)
+static int vfe_bus_request(struct vfe_device *vfe)
 {
 	int ret;
 
@@ -1141,7 +1136,7 @@ static int msm_vfe_bus_request(struct vfe_device *vfe)
 	return 0;
 }
 
-static void msm_vfe_bus_release(struct vfe_device *vfe)
+static void vfe_bus_release(struct vfe_device *vfe)
 {
 	if (vfe->bus_client) {
 		msm_bus_scale_unregister_client(vfe->bus_client);
@@ -1149,7 +1144,7 @@ static void msm_vfe_bus_release(struct vfe_device *vfe)
 	}
 }
 
-static int msm_vfe_set_clock_rate(struct vfe_device *vfe)
+static int vfe_set_clock_rate(struct vfe_device *vfe)
 {
 	int ret;
 	long clk_rate;
@@ -1169,7 +1164,7 @@ static int msm_vfe_set_clock_rate(struct vfe_device *vfe)
 	return 0;
 }
 
-static int msm_vfe_enable_clocks(struct vfe_device *vfe)
+static int vfe_enable_clocks(struct vfe_device *vfe)
 {
 	int i;
 	int ret;
@@ -1192,7 +1187,7 @@ error:
 	return ret;
 }
 
-static void msm_vfe_disable_clocks(struct vfe_device *vfe)
+static void vfe_disable_clocks(struct vfe_device *vfe)
 {
 	int i;
 
@@ -1200,28 +1195,28 @@ static void msm_vfe_disable_clocks(struct vfe_device *vfe)
 		clk_disable_unprepare(vfe->clocks[i].clk);
 }
 
-static int msm_vfe_get(struct vfe_device *vfe)
+static int vfe_get(struct vfe_device *vfe)
 {
 	int ret;
 
 	mutex_lock(&vfe->mutex);
 
 	if (vfe->ref_count == 0) {
-		msm_vfe_reset_output_maps(vfe);
+		vfe_reset_output_maps(vfe);
 
-		ret = msm_vfe_bus_request(vfe);
+		ret = vfe_bus_request(vfe);
 		if (ret < 0) {
 			dev_err(vfe->camss->dev, "Fail bus request\n");
 			goto error_clocks;
 		}
 
-		ret = msm_vfe_set_clock_rate(vfe);
+		ret = vfe_set_clock_rate(vfe);
 		if (ret < 0) {
 			dev_err(vfe->camss->dev, "Fail to set clocks rate\n");
 			goto error_clocks;
 		}
 
-		ret = msm_vfe_enable_clocks(vfe);
+		ret = vfe_enable_clocks(vfe);
 		if (ret < 0) {
 			dev_err(vfe->camss->dev, "Fail to enable clocks\n");
 			goto error_clocks;
@@ -1238,22 +1233,22 @@ error_clocks:
 	return ret;
 }
 
-static void msm_vfe_put(struct vfe_device *vfe)
+static void vfe_put(struct vfe_device *vfe)
 {
 	mutex_lock(&vfe->mutex);
 	BUG_ON(vfe->ref_count == 0);
 
 	if (--vfe->ref_count == 0) {
-		msm_vfe_disable_irq_all(vfe);
-		msm_vfe_init_outputs(vfe);
-		msm_vfe_bus_release(vfe);
-		msm_vfe_disable_clocks(vfe);
+		vfe_disable_irq_all(vfe);
+		vfe_init_outputs(vfe);
+		vfe_bus_release(vfe);
+		vfe_disable_clocks(vfe);
 	}
 	mutex_unlock(&vfe->mutex);
 }
 
-static int msm_vfe_queue_dmabuf(struct camss_video *vid,
-				struct msm_video_buffer *buf)
+static int vfe_queue_dmabuf(struct camss_video *vid,
+			    struct msm_video_buffer *buf)
 {
 	struct vfe_device *vfe = &vid->camss->vfe;
 	struct msm_vfe_output *output;
@@ -1270,14 +1265,14 @@ static int msm_vfe_queue_dmabuf(struct camss_video *vid,
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
-	__msm_vfe_update_wm_on_new_buf(vfe, output, buf);
+	__vfe_update_wm_on_new_buf(vfe, output, buf);
 
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
 
 	return 0;
 }
 
-static int msm_vfe_flush_dmabufs(struct camss_video *vid)
+static int vfe_flush_dmabufs(struct camss_video *vid)
 {
 	struct vfe_device *vfe = &vid->camss->vfe;
 	struct msm_vfe_output *output;
@@ -1294,7 +1289,7 @@ static int msm_vfe_flush_dmabufs(struct camss_video *vid)
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
-	__msm_vfe_flush_output_bufs(output);
+	__vfe_flush_output_bufs(output);
 
 	if (output->buf[0])
 		vb2_buffer_done(&output->buf[0]->vb, VB2_BUF_STATE_ERROR);
@@ -1307,7 +1302,7 @@ static int msm_vfe_flush_dmabufs(struct camss_video *vid)
 	return 0;
 }
 
-static int msm_vfe_subdev_set_power(struct v4l2_subdev *sd, int on)
+static int vfe_subdev_set_power(struct v4l2_subdev *sd, int on)
 {
 	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
 	int ret;
@@ -1318,7 +1313,7 @@ static int msm_vfe_subdev_set_power(struct v4l2_subdev *sd, int on)
 	if (on) {
 		u32 hw_version;
 
-		ret = msm_vfe_get(vfe);
+		ret = vfe_get(vfe);
 		if (ret < 0)
 			return ret;
 
@@ -1327,7 +1322,7 @@ static int msm_vfe_subdev_set_power(struct v4l2_subdev *sd, int on)
 		dev_err(vfe->camss->dev,
 			"VFE HW Version = 0x%08x\n", hw_version);
 	} else {
-		msm_vfe_put(vfe);
+		vfe_put(vfe);
 	}
 
 	dev_err(vfe->camss->dev, "%s: Exit, on = %d\n",
@@ -1336,7 +1331,7 @@ static int msm_vfe_subdev_set_power(struct v4l2_subdev *sd, int on)
 	return 0;
 }
 
-static int msm_vfe_subdev_set_stream(struct v4l2_subdev *sd, int enable)
+static int vfe_subdev_set_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
 	int ret = 0;
@@ -1347,22 +1342,22 @@ static int msm_vfe_subdev_set_stream(struct v4l2_subdev *sd, int enable)
 	if (enable) {
 		mutex_lock(&vfe->mutex);
 
-		ret = msm_vfe_reset(vfe);
+		ret = vfe_reset(vfe);
 		if (ret < 0) {
 			dev_err(vfe->camss->dev, "Fail to reset vfe\n");
 			return ret;
 		}
 
-		msm_vfe_enable_irq_all(vfe);
+		vfe_enable_irq_all(vfe);
 
 		mutex_unlock(&vfe->mutex);
 
-		ret = msm_vfe_enable_all_outputs(vfe);
+		ret = vfe_enable_all_outputs(vfe);
 		if (ret < 0)
 			dev_err(vfe->camss->dev,
 				"Fail to enable vfe outputs\n");
 	} else {
-		ret = msm_vfe_disable_all_outputs(vfe);
+		ret = vfe_disable_all_outputs(vfe);
 		if (ret < 0)
 			dev_err(vfe->camss->dev,
 				"Fail to disable vfe outputs\n");
@@ -1467,7 +1462,7 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
 	if (IS_ERR_VALUE(vfe->irq))
 		return vfe->irq;
 
-	ret = devm_request_irq(dev, vfe->irq, msm_vfe_subdev_isr,
+	ret = devm_request_irq(dev, vfe->irq, vfe_subdev_isr,
 			       IRQF_TRIGGER_RISING, "vfe", vfe);
 	if (ret < 0) {
 		dev_err(dev, "request_irq failed\n");
@@ -1482,34 +1477,33 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
 		return -1;
 	}
 
-	msm_vfe_init_outputs(vfe);
+	vfe_init_outputs(vfe);
 
 	return 0;
 }
 
-static const struct v4l2_subdev_core_ops msm_vfe_core_ops = {
-	.s_power = msm_vfe_subdev_set_power,
+static const struct v4l2_subdev_core_ops vfe_core_ops = {
+	.s_power = vfe_subdev_set_power,
 };
 
-static const struct v4l2_subdev_video_ops msm_vfe_video_ops = {
-	.s_stream = msm_vfe_subdev_set_stream,
+static const struct v4l2_subdev_video_ops vfe_video_ops = {
+	.s_stream = vfe_subdev_set_stream,
 };
 
-static const struct v4l2_subdev_pad_ops msm_vfe_pad_ops;
+static const struct v4l2_subdev_pad_ops vfe_pad_ops;
 
-static const struct v4l2_subdev_ops msm_vfe_ops = {
-	.core = &msm_vfe_core_ops,
-	.video = &msm_vfe_video_ops,
-	.pad = &msm_vfe_pad_ops,
+static const struct v4l2_subdev_ops vfe_v4l2_ops = {
+	.core = &vfe_core_ops,
+	.video = &vfe_video_ops,
+	.pad = &vfe_pad_ops,
 };
 
-static const struct v4l2_subdev_internal_ops msm_vfe_internal_ops;
+static const struct v4l2_subdev_internal_ops vfe_v4l2_internal_ops;
 
 static struct msm_video_ops rdi_video_ops = {
-	.queue_dmabuf = msm_vfe_queue_dmabuf,
-	.flush_dmabufs = msm_vfe_flush_dmabufs,
+	.queue_dmabuf = vfe_queue_dmabuf,
+	.flush_dmabufs = vfe_flush_dmabufs,
 };
-
 
 int msm_vfe_register_entities(struct vfe_device *vfe,
 			      struct v4l2_device *v4l2_dev)
@@ -1518,10 +1512,10 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 	struct media_pad *pads = vfe->pads;
 	int ret;
 
-	v4l2_subdev_init(sd, &msm_vfe_ops);
-	sd->internal_ops = &msm_vfe_internal_ops;
+	v4l2_subdev_init(sd, &vfe_v4l2_ops);
+	sd->internal_ops = &vfe_v4l2_internal_ops;
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
-	snprintf(sd->name, ARRAY_SIZE(sd->name), MSM_VFE_DRV_NAME);
+	snprintf(sd->name, ARRAY_SIZE(sd->name), MSM_VFE_NAME);
 	v4l2_set_subdevdata(sd, vfe);
 
 	pads[MSM_VFE_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
