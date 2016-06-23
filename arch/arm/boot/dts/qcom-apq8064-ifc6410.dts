@@ -39,6 +39,12 @@
 		};
 	};
 
+	smd {
+		q6@1 {
+			status = "okay";
+		};
+	};
+
 	soc {
 		pinctrl@800000 {
 			card_detect: card_detect {

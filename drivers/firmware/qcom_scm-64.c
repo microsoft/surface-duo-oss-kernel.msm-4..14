@@ -472,20 +472,15 @@ int __qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt, u32 *resp)
 	return ret;
 }
 
-int __qcom_scm_restart_proc(u32 proc_id, int restart, u32 *resp)
+int __qcom_scm_pas_mss_reset(bool reset)
 {
-	int ret;
 	struct qcom_scm_desc desc = {0};
 
-	desc.args[0] = restart;
+	desc.args[0] = reset;
 	desc.args[1] = 0;
 	desc.arginfo = QCOM_SCM_ARGS(2);
 
-	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, proc_id,
-				&desc);
-	*resp = desc.ret[0];
-
-	return ret;
+	return qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_MSS_RESET, &desc);
 }
 
 bool __qcom_scm_pas_supported(u32 peripheral)
@@ -502,37 +497,20 @@ bool __qcom_scm_pas_supported(u32 peripheral)
 	return ret ? false : !!desc.ret[0];
 }
 
-int __qcom_scm_pas_init_image(struct device *dev, u32 peripheral, const void *metadata, size_t size)
+int __qcom_scm_pas_init_image(u32 peripheral, dma_addr_t metadata_phys)
 {
 	int ret;
 	struct qcom_scm_desc desc = {0};
 	u32 scm_ret;
-	dma_addr_t mdata_phys;
-	void *mdata_buf;
-
-dev->coherent_dma_mask = DMA_BIT_MASK(sizeof(dma_addr_t) * 8);
-
-	/*
-	 * During the scm call memory protection will be enabled for the meta
-	 * data blob, so make sure it's physically contiguous, 4K aligned and
-	 * non-cachable to avoid XPU violations.
-	 */
-	mdata_buf = dma_alloc_coherent(dev, size, &mdata_phys, GFP_KERNEL);
-	if (!mdata_buf) {
-		pr_err("Allocation of metadata buffer failed.\n");
-		return -ENOMEM;
-	}
-	memcpy(mdata_buf, metadata, size);
 
 	desc.args[0] = peripheral;
-	desc.args[1] = mdata_phys;
+	desc.args[1] = metadata_phys;
 	desc.arginfo = QCOM_SCM_ARGS(2, QCOM_SCM_VAL, QCOM_SCM_RW);
 
 	ret = qcom_scm_call(QCOM_SCM_SVC_PIL, QCOM_SCM_PAS_INIT_IMAGE_CMD,
 				&desc);
 	scm_ret = desc.ret[0];
 
-	dma_free_coherent(dev, size, mdata_buf, mdata_phys);
 	return ret ? : scm_ret;
 }
 

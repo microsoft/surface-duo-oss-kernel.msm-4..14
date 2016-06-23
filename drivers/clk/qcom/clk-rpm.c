@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Linaro Limited
+ * Copyright (c) 2016, Linaro Limited
  * Copyright (c) 2014, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
@@ -12,7 +12,6 @@
  * GNU General Public License for more details.
  */
 
-#include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/err.h>
 #include <linux/export.h>
@@ -25,12 +24,136 @@
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 
-#include "clk-rpm.h"
 #include <dt-bindings/mfd/qcom-rpm.h>
+#include <dt-bindings/clock/qcom,rpmcc.h>
+
+#define QCOM_RPM_MISC_CLK_TYPE				0x306b6c63
+#define QCOM_RPM_SCALING_ENABLE_ID			0x2
+
+#define DEFINE_CLK_RPM(_platform, _name, _active, r_id)			      \
+	static struct clk_rpm _platform##_##_active;			      \
+	static struct clk_rpm _platform##_##_name = {			      \
+		.rpm_clk_id = (r_id),					      \
+		.peer = &_platform##_##_active,				      \
+		.rate = INT_MAX,					      \
+		.hw.init = &(struct clk_init_data){			      \
+			.ops = &clk_rpm_ops,				      \
+			.name = #_name,					      \
+			.parent_names = (const char *[]){ "pxo_board" },      \
+			.num_parents = 1,				      \
+		},							      \
+	};								      \
+	static struct clk_rpm _platform##_##_active = {			      \
+		.rpm_clk_id = (r_id),					      \
+		.peer = &_platform##_##_name,				      \
+		.active_only = true,					      \
+		.rate = INT_MAX,					      \
+		.hw.init = &(struct clk_init_data){			      \
+			.ops = &clk_rpm_ops,				      \
+			.name = #_active,				      \
+			.parent_names = (const char *[]){ "pxo_board" },      \
+			.num_parents = 1,				      \
+		},							      \
+	}
+
+#define DEFINE_CLK_RPM_PXO_BRANCH(_platform, _name, _active, r_id, r)	      \
+	static struct clk_rpm _platform##_##_active;			      \
+	static struct clk_rpm _platform##_##_name = {			      \
+		.rpm_clk_id = (r_id),					      \
+		.active_only = true,					      \
+		.peer = &_platform##_##_active,				      \
+		.rate = (r),						      \
+		.branch = true,						      \
+		.hw.init = &(struct clk_init_data){			      \
+			.ops = &clk_rpm_branch_ops,			      \
+			.name = #_name,					      \
+			.parent_names = (const char *[]){ "pxo_board" },      \
+			.num_parents = 1,				      \
+		},							      \
+	};								      \
+	static struct clk_rpm _platform##_##_active = {			      \
+		.rpm_clk_id = (r_id),					      \
+		.peer = &_platform##_##_name,				      \
+		.rate = (r),						      \
+		.branch = true,						      \
+		.hw.init = &(struct clk_init_data){			      \
+			.ops = &clk_rpm_branch_ops,			      \
+			.name = #_active,				      \
+			.parent_names = (const char *[]){ "pxo_board" },      \
+			.num_parents = 1,				      \
+		},							      \
+	}
+
+#define DEFINE_CLK_RPM_CXO_BRANCH(_platform, _name, _active, r_id, r)	      \
+	static struct clk_rpm _platform##_##_active;			      \
+	static struct clk_rpm _platform##_##_name = {			      \
+		.rpm_clk_id = (r_id),					      \
+		.peer = &_platform##_##_active,				      \
+		.rate = (r),						      \
+		.branch = true,						      \
+		.hw.init = &(struct clk_init_data){			      \
+			.ops = &clk_rpm_branch_ops,			      \
+			.name = #_name,					      \
+			.parent_names = (const char *[]){ "cxo_board" },      \
+			.num_parents = 1,				      \
+		},							      \
+	};								      \
+	static struct clk_rpm _platform##_##_active = {			      \
+		.rpm_clk_id = (r_id),					      \
+		.active_only = true,					      \
+		.peer = &_platform##_##_name,				      \
+		.rate = (r),						      \
+		.branch = true,						      \
+		.hw.init = &(struct clk_init_data){			      \
+			.ops = &clk_rpm_branch_ops,			      \
+			.name = #_active,				      \
+			.parent_names = (const char *[]){ "cxo_board" },      \
+			.num_parents = 1,				      \
+		},							      \
+	}
 
 #define to_clk_rpm(_hw) container_of(_hw, struct clk_rpm, hw)
 
+struct clk_rpm {
+	const int rpm_clk_id;
+	const bool active_only;
+	unsigned long rate;
+	bool enabled;
+	bool branch;
+	struct clk_rpm *peer;
+	struct clk_hw hw;
+	struct qcom_rpm *rpm;
+};
+
+struct rpm_cc {
+	struct qcom_rpm *rpm;
+	struct clk_onecell_data data;
+	struct clk *clks[];
+};
+
+struct rpm_clk_desc {
+	struct clk_rpm **clks;
+	size_t num_clks;
+};
+
 static DEFINE_MUTEX(rpm_clk_lock);
+
+static int clk_rpm_handoff(struct clk_rpm *r)
+{
+	int ret;
+	u32 value = INT_MAX;
+
+	ret = qcom_rpm_write(r->rpm, QCOM_RPM_ACTIVE_STATE,
+			     r->rpm_clk_id, &value, 1);
+	if (ret)
+		return ret;
+	ret = qcom_rpm_write(r->rpm, QCOM_RPM_SLEEP_STATE,
+			     r->rpm_clk_id, &value, 1);
+	if (ret)
+		return ret;
+
+	return 0;
+}
 
 static int clk_rpm_set_rate_active(struct clk_rpm *r, unsigned long rate)
 {
@@ -40,24 +163,68 @@ static int clk_rpm_set_rate_active(struct clk_rpm *r, unsigned long rate)
 			      r->rpm_clk_id, &value, 1);
 }
 
+static int clk_rpm_set_rate_sleep(struct clk_rpm *r, unsigned long rate)
+{
+	u32 value = DIV_ROUND_UP(rate, 1000); /* to kHz */
+
+	return qcom_rpm_write(r->rpm, QCOM_RPM_SLEEP_STATE,
+			      r->rpm_clk_id, &value, 1);
+}
+
+static void to_active_sleep(struct clk_rpm *r, unsigned long rate,
+			    unsigned long *active, unsigned long *sleep)
+{
+	*active = rate;
+
+	/*
+	 * Active-only clocks don't care what the rate is during sleep. So,
+	 * they vote for zero.
+	 */
+	if (r->active_only)
+		*sleep = 0;
+	else
+		*sleep = *active;
+}
+
 static int clk_rpm_prepare(struct clk_hw *hw)
 {
 	struct clk_rpm *r = to_clk_rpm(hw);
-	unsigned long rate = r->rate;
+	struct clk_rpm *peer = r->peer;
+	unsigned long this_rate = 0, this_sleep_rate = 0;
+	unsigned long peer_rate = 0, peer_sleep_rate = 0;
+	unsigned long active_rate, sleep_rate;
 	int ret = 0;
 
 	mutex_lock(&rpm_clk_lock);
 
-	if (!rate)
+	/* Don't send requests to the RPM if the rate has not been set. */
+	if (!r->rate)
 		goto out;
+
+	to_active_sleep(r, r->rate, &this_rate, &this_sleep_rate);
+
+	/* Take peer clock's rate into account only if it's enabled. */
+	if (peer->enabled)
+		to_active_sleep(peer, peer->rate,
+				&peer_rate, &peer_sleep_rate);
+
+	active_rate = max(this_rate, peer_rate);
 
 	if (r->branch)
-		rate = !!rate;
+		active_rate = !!active_rate;
 
-	ret = clk_rpm_set_rate_active(r, rate);
-
+	ret = clk_rpm_set_rate_active(r, active_rate);
 	if (ret)
 		goto out;
+
+	sleep_rate = max(this_sleep_rate, peer_sleep_rate);
+	if (r->branch)
+		sleep_rate = !!sleep_rate;
+
+	ret = clk_rpm_set_rate_sleep(r, sleep_rate);
+	if (ret)
+		/* Undo the active set vote and restore it */
+		ret = clk_rpm_set_rate_active(r, peer_rate);
 
 out:
 	if (!ret)
@@ -71,6 +238,9 @@ out:
 static void clk_rpm_unprepare(struct clk_hw *hw)
 {
 	struct clk_rpm *r = to_clk_rpm(hw);
+	struct clk_rpm *peer = r->peer;
+	unsigned long peer_rate = 0, peer_sleep_rate = 0;
+	unsigned long active_rate, sleep_rate;
 	int ret;
 
 	mutex_lock(&rpm_clk_lock);
@@ -78,7 +248,18 @@ static void clk_rpm_unprepare(struct clk_hw *hw)
 	if (!r->rate)
 		goto out;
 
-	ret = clk_rpm_set_rate_active(r, r->rate);
+	/* Take peer clock's rate into account only if it's enabled. */
+	if (peer->enabled)
+		to_active_sleep(peer, peer->rate, &peer_rate,
+				&peer_sleep_rate);
+
+	active_rate = r->branch ? !!peer_rate : peer_rate;
+	ret = clk_rpm_set_rate_active(r, active_rate);
+	if (ret)
+		goto out;
+
+	sleep_rate = r->branch ? !!peer_sleep_rate : peer_sleep_rate;
+	ret = clk_rpm_set_rate_sleep(r, sleep_rate);
 	if (ret)
 		goto out;
 
@@ -89,23 +270,45 @@ out:
 }
 
 static int clk_rpm_set_rate(struct clk_hw *hw,
-		     unsigned long rate, unsigned long parent_rate)
+			    unsigned long rate, unsigned long parent_rate)
 {
 	struct clk_rpm *r = to_clk_rpm(hw);
+	struct clk_rpm *peer = r->peer;
+	unsigned long active_rate, sleep_rate;
+	unsigned long this_rate = 0, this_sleep_rate = 0;
+	unsigned long peer_rate = 0, peer_sleep_rate = 0;
 	int ret = 0;
 
 	mutex_lock(&rpm_clk_lock);
 
-	if (r->enabled)
-		ret = clk_rpm_set_rate_active(r, rate);
+	if (!r->enabled)
+		goto out;
 
-	if (!ret)
-		r->rate = rate;
+	to_active_sleep(r, rate, &this_rate, &this_sleep_rate);
 
+	/* Take peer clock's rate into account only if it's enabled. */
+	if (peer->enabled)
+		to_active_sleep(peer, peer->rate,
+				&peer_rate, &peer_sleep_rate);
+
+	active_rate = max(this_rate, peer_rate);
+	ret = clk_rpm_set_rate_active(r, active_rate);
+	if (ret)
+		goto out;
+
+	sleep_rate = max(this_sleep_rate, peer_sleep_rate);
+	ret = clk_rpm_set_rate_sleep(r, sleep_rate);
+	if (ret)
+		goto out;
+
+	r->rate = rate;
+
+out:
 	mutex_unlock(&rpm_clk_lock);
 
 	return ret;
 }
+
 static long clk_rpm_round_rate(struct clk_hw *hw, unsigned long rate,
 			       unsigned long *parent_rate)
 {
@@ -130,59 +333,57 @@ static unsigned long clk_rpm_recalc_rate(struct clk_hw *hw,
 	return r->rate;
 }
 
-const struct clk_ops clk_rpm_ops = {
+static const struct clk_ops clk_rpm_ops = {
 	.prepare	= clk_rpm_prepare,
 	.unprepare	= clk_rpm_unprepare,
 	.set_rate	= clk_rpm_set_rate,
 	.round_rate	= clk_rpm_round_rate,
 	.recalc_rate	= clk_rpm_recalc_rate,
 };
-EXPORT_SYMBOL_GPL(clk_rpm_ops);
 
-const struct clk_ops clk_rpm_branch_ops = {
+static const struct clk_ops clk_rpm_branch_ops = {
 	.prepare	= clk_rpm_prepare,
 	.unprepare	= clk_rpm_unprepare,
 	.round_rate	= clk_rpm_round_rate,
 	.recalc_rate	= clk_rpm_recalc_rate,
 };
-EXPORT_SYMBOL_GPL(clk_rpm_branch_ops);
-
-struct rpm_cc {
-	struct qcom_rpm *rpm;
-	struct clk_onecell_data data;
-	struct clk *clks[];
-};
-
-struct rpm_clk_desc {
-	struct clk_rpm **clks;
-	size_t num_clks;
-};
 
 /* apq8064 */
-DEFINE_CLK_RPM_PXO_BRANCH(apq8064, pxo, QCOM_RPM_PXO_CLK, 27000000);
-DEFINE_CLK_RPM_CXO_BRANCH(apq8064, cxo, QCOM_RPM_CXO_CLK, 19200000);
-DEFINE_CLK_RPM(apq8064, afab_clk, QCOM_RPM_APPS_FABRIC_CLK);
-DEFINE_CLK_RPM(apq8064, cfpb_clk, QCOM_RPM_CFPB_CLK);
-DEFINE_CLK_RPM(apq8064, daytona_clk, QCOM_RPM_DAYTONA_FABRIC_CLK);
-DEFINE_CLK_RPM(apq8064, ebi1_clk, QCOM_RPM_EBI1_CLK);
-DEFINE_CLK_RPM(apq8064, mmfab_clk, QCOM_RPM_MM_FABRIC_CLK);
-DEFINE_CLK_RPM(apq8064, mmfpb_clk, QCOM_RPM_MMFPB_CLK);
-DEFINE_CLK_RPM(apq8064, sfab_clk, QCOM_RPM_SYS_FABRIC_CLK);
-DEFINE_CLK_RPM(apq8064, sfpb_clk, QCOM_RPM_SFPB_CLK);
-DEFINE_CLK_RPM(apq8064, qdss_clk, QCOM_RPM_QDSS_CLK);
+DEFINE_CLK_RPM_PXO_BRANCH(apq8064, pxo, pxo_a_clk, QCOM_RPM_PXO_CLK, 27000000);
+DEFINE_CLK_RPM_CXO_BRANCH(apq8064, cxo, cxo_a_clk, QCOM_RPM_CXO_CLK, 19200000);
+DEFINE_CLK_RPM(apq8064, afab_clk, afab_a_clk, QCOM_RPM_APPS_FABRIC_CLK);
+DEFINE_CLK_RPM(apq8064, cfpb_clk, cfpb_a_clk, QCOM_RPM_CFPB_CLK);
+DEFINE_CLK_RPM(apq8064, daytona_clk, daytona_a_clk, QCOM_RPM_DAYTONA_FABRIC_CLK);
+DEFINE_CLK_RPM(apq8064, ebi1_clk, ebi1_a_clk, QCOM_RPM_EBI1_CLK);
+DEFINE_CLK_RPM(apq8064, mmfab_clk, mmfab_a_clk, QCOM_RPM_MM_FABRIC_CLK);
+DEFINE_CLK_RPM(apq8064, mmfpb_clk, mmfpb_a_clk, QCOM_RPM_MMFPB_CLK);
+DEFINE_CLK_RPM(apq8064, sfab_clk, sfab_a_clk, QCOM_RPM_SYS_FABRIC_CLK);
+DEFINE_CLK_RPM(apq8064, sfpb_clk, sfpb_a_clk, QCOM_RPM_SFPB_CLK);
+DEFINE_CLK_RPM(apq8064, qdss_clk, qdss_a_clk, QCOM_RPM_QDSS_CLK);
 
 static struct clk_rpm *apq8064_clks[] = {
-	[QCOM_RPM_PXO_CLK] = &apq8064_pxo,
-	[QCOM_RPM_CXO_CLK] = &apq8064_cxo,
-	[QCOM_RPM_APPS_FABRIC_CLK] = &apq8064_afab_clk,
-	[QCOM_RPM_CFPB_CLK] = &apq8064_cfpb_clk,
-	[QCOM_RPM_DAYTONA_FABRIC_CLK] = &apq8064_daytona_clk,
-	[QCOM_RPM_EBI1_CLK] = &apq8064_ebi1_clk,
-	[QCOM_RPM_MM_FABRIC_CLK] = &apq8064_mmfab_clk,
-	[QCOM_RPM_MMFPB_CLK] = &apq8064_mmfpb_clk,
-	[QCOM_RPM_SYS_FABRIC_CLK] = &apq8064_sfab_clk,
-	[QCOM_RPM_SFPB_CLK] = &apq8064_sfpb_clk,
-	[QCOM_RPM_QDSS_CLK] = &apq8064_qdss_clk,
+	[RPM_PXO_CLK] = &apq8064_pxo,
+	[RPM_PXO_A_CLK] = &apq8064_pxo_a_clk,
+	[RPM_CXO_CLK] = &apq8064_cxo,
+	[RPM_CXO_A_CLK] = &apq8064_cxo_a_clk,
+	[RPM_APPS_FABRIC_CLK] = &apq8064_afab_clk,
+	[RPM_APPS_FABRIC_A_CLK] = &apq8064_afab_a_clk,
+	[RPM_CFPB_CLK] = &apq8064_cfpb_clk,
+	[RPM_CFPB_A_CLK] = &apq8064_cfpb_a_clk,
+	[RPM_DAYTONA_FABRIC_CLK] = &apq8064_daytona_clk,
+	[RPM_DAYTONA_FABRIC_A_CLK] = &apq8064_daytona_a_clk,
+	[RPM_EBI1_CLK] = &apq8064_ebi1_clk,
+	[RPM_EBI1_A_CLK] = &apq8064_ebi1_a_clk,
+	[RPM_MM_FABRIC_CLK] = &apq8064_mmfab_clk,
+	[RPM_MM_FABRIC_A_CLK] = &apq8064_mmfab_a_clk,
+	[RPM_MMFPB_CLK] = &apq8064_mmfpb_clk,
+	[RPM_MMFPB_A_CLK] = &apq8064_mmfpb_a_clk,
+	[RPM_SYS_FABRIC_CLK] = &apq8064_sfab_clk,
+	[RPM_SYS_FABRIC_A_CLK] = &apq8064_sfab_a_clk,
+	[RPM_SFPB_CLK] = &apq8064_sfpb_clk,
+	[RPM_SFPB_A_CLK] = &apq8064_sfpb_a_clk,
+	[RPM_QDSS_CLK] = &apq8064_qdss_clk,
+	[RPM_QDSS_A_CLK] = &apq8064_qdss_a_clk,
 };
 
 static const struct rpm_clk_desc rpm_clk_apq8064 = {
@@ -202,10 +403,10 @@ static int rpm_clk_probe(struct platform_device *pdev)
 	struct clk *clk;
 	struct rpm_cc *rcc;
 	struct clk_onecell_data *data;
-	int ret, i;
-	size_t num_clks;
+	int ret;
+	size_t num_clks, i;
 	struct qcom_rpm *rpm;
-	struct clk_rpm  **rpm_clks;
+	struct clk_rpm **rpm_clks;
 	const struct rpm_clk_desc *desc;
 
 	rpm = dev_get_drvdata(pdev->dev.parent);
@@ -238,6 +439,18 @@ static int rpm_clk_probe(struct platform_device *pdev)
 		}
 
 		rpm_clks[i]->rpm = rpm;
+
+		ret = clk_rpm_handoff(rpm_clks[i]);
+		if (ret)
+			goto err;
+	}
+
+	for (i = 0; i < num_clks; i++) {
+		if (!rpm_clks[i]) {
+			clks[i] = ERR_PTR(-ENOENT);
+			continue;
+		}
+
 		clk = devm_clk_register(&pdev->dev, &rpm_clks[i]->hw);
 		if (IS_ERR(clk)) {
 			ret = PTR_ERR(clk);
@@ -252,10 +465,7 @@ static int rpm_clk_probe(struct platform_device *pdev)
 	if (ret)
 		goto err;
 
-	clk_prepare_enable(apq8064_afab_clk.hw.clk);
-
 	return 0;
-
 err:
 	dev_err(&pdev->dev, "Error registering RPM Clock driver (%d)\n", ret);
 	return ret;

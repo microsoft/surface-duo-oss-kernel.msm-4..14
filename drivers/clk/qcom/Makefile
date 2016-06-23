@@ -12,8 +12,6 @@ clk-qcom-y += clk-regmap-mux-div.o
 clk-qcom-$(CONFIG_KRAIT_CLOCKS) += clk-krait.o
 clk-qcom-y += clk-hfpll.o
 clk-qcom-y += reset.o
-clk-qcom-$(CONFIG_QCOM_CLK_RPM) += clk-rpm.o
-clk-qcom-$(CONFIG_QCOM_CLK_SMD_RPM) += clk-smd-rpm.o
 clk-qcom-$(CONFIG_QCOM_GDSC) += gdsc.o
 
 obj-$(CONFIG_APQ_GCC_8084) += gcc-apq8084.o
@@ -31,3 +29,6 @@ obj-$(CONFIG_KPSS_XCC) += kpss-xcc.o
 obj-$(CONFIG_QCOM_HFPLL) += hfpll.o
 obj-$(CONFIG_KRAITCC) += krait-cc.o
 obj-$(CONFIG_QCOM_A53) += clk-a53.o
+obj-$(CONFIG_MSM_MMCC_8996) += mmcc-msm8996.o
+obj-$(CONFIG_QCOM_CLK_RPM) += clk-rpm.o
+obj-$(CONFIG_QCOM_CLK_SMD_RPM) += clk-smd-rpm.o

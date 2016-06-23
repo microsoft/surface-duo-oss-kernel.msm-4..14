@@ -15,17 +15,22 @@
 #include <linux/module.h>
 #include <linux/cpumask.h>
 #include <linux/export.h>
+#include <linux/dma-mapping.h>
 #include <linux/types.h>
 #include <linux/qcom_scm.h>
 #include <linux/of.h>
 #include <linux/clk.h>
+#include <linux/reset-controller.h>
 
 #include "qcom_scm.h"
 
 struct qcom_scm {
+	struct device *dev;
 	struct clk *core_clk;
 	struct clk *iface_clk;
 	struct clk *bus_clk;
+
+	struct reset_controller_dev reset;
 };
 
 static struct qcom_scm *__scm;
@@ -34,44 +39,31 @@ static int qcom_scm_clk_enable(void)
 {
 	int ret;
 
-	if(__scm->core_clk) {
-		ret = clk_prepare_enable(__scm->core_clk);
-		if (ret)
-			goto bail;
-	}
-
-	if(__scm->iface_clk) {
-		ret = clk_prepare_enable(__scm->iface_clk);
-		if (ret)
-			goto disable_core;
-	}
-
-	if(__scm->bus_clk) {
-		ret = clk_prepare_enable(__scm->bus_clk);
-		if (ret)
-			goto disable_iface;
-	}
+	ret = clk_prepare_enable(__scm->core_clk);
+	if (ret)
+		goto bail;
+	ret = clk_prepare_enable(__scm->iface_clk);
+	if (ret)
+		goto disable_core;
+	ret = clk_prepare_enable(__scm->bus_clk);
+	if (ret)
+		goto disable_iface;
 
 	return 0;
 
 disable_iface:
-	if(__scm->iface_clk)
-		clk_disable_unprepare(__scm->iface_clk);
+	clk_disable_unprepare(__scm->iface_clk);
 disable_core:
-	if(__scm->core_clk)
-		clk_disable_unprepare(__scm->core_clk);
+	clk_disable_unprepare(__scm->core_clk);
 bail:
 	return ret;
 }
 
 static void qcom_scm_clk_disable(void)
 {
-	if(__scm->core_clk)
-		clk_disable_unprepare(__scm->core_clk);
-	if(__scm->iface_clk)
-		clk_disable_unprepare(__scm->iface_clk);
-	if(__scm->bus_clk)
-		clk_disable_unprepare(__scm->bus_clk);
+	clk_disable_unprepare(__scm->core_clk);
+	clk_disable_unprepare(__scm->iface_clk);
+	clk_disable_unprepare(__scm->bus_clk);
 }
 
 /**
@@ -159,11 +151,6 @@ int qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt, u32 *resp)
 }
 EXPORT_SYMBOL(qcom_scm_hdcp_req);
 
-int qcom_scm_restart_proc(u32 pid, int restart, u32 *resp)
-{
-	return __qcom_scm_restart_proc(pid, restart, resp);
-}
-EXPORT_SYMBOL(qcom_scm_restart_proc);
 /**
  * qcom_scm_pas_supported() - Check if the peripheral authentication service is
  *			      available for the given peripherial
@@ -196,9 +183,36 @@ EXPORT_SYMBOL(qcom_scm_pas_supported);
  *
  * Returns 0 on success.
  */
-int qcom_scm_pas_init_image(struct device *dev, u32 peripheral, const void *metadata, size_t size)
+int qcom_scm_pas_init_image(u32 peripheral, const void *metadata, size_t size)
 {
-	return __qcom_scm_pas_init_image(dev, peripheral, metadata, size);
+	dma_addr_t mdata_phys;
+	void *mdata_buf;
+	int ret;
+
+	/*
+	 * During the scm call memory protection will be enabled for the meta
+	 * data blob, so make sure it's physically contiguous, 4K aligned and
+	 * non-cachable to avoid XPU violations.
+	 */
+	mdata_buf = dma_alloc_coherent(__scm->dev, size, &mdata_phys, GFP_KERNEL);
+	if (!mdata_buf) {
+		dev_err(__scm->dev, "Allocation of metadata buffer failed.\n");
+		return -ENOMEM;
+	}
+	memcpy(mdata_buf, metadata, size);
+
+	ret = qcom_scm_clk_enable();
+	if (ret)
+		goto free_metadata;
+
+	ret = __qcom_scm_pas_init_image(peripheral, mdata_phys);
+
+	qcom_scm_clk_disable();
+
+free_metadata:
+	dma_free_coherent(__scm->dev, size, mdata_buf, mdata_phys);
+
+	return ret;
 }
 EXPORT_SYMBOL(qcom_scm_pas_init_image);
 
@@ -213,7 +227,16 @@ EXPORT_SYMBOL(qcom_scm_pas_init_image);
  */
 int qcom_scm_pas_mem_setup(u32 peripheral, phys_addr_t addr, phys_addr_t size)
 {
-	return __qcom_scm_pas_mem_setup(peripheral, addr, size);
+	int ret;
+
+	ret = qcom_scm_clk_enable();
+	if (ret)
+		return ret;
+
+	ret = __qcom_scm_pas_mem_setup(peripheral, addr, size);
+	qcom_scm_clk_disable();
+
+	return ret;
 }
 EXPORT_SYMBOL(qcom_scm_pas_mem_setup);
 
@@ -226,7 +249,16 @@ EXPORT_SYMBOL(qcom_scm_pas_mem_setup);
  */
 int qcom_scm_pas_auth_and_reset(u32 peripheral)
 {
-	return __qcom_scm_pas_auth_and_reset(peripheral);
+	int ret;
+
+	ret = qcom_scm_clk_enable();
+	if (ret)
+		return ret;
+
+	ret = __qcom_scm_pas_auth_and_reset(peripheral);
+	qcom_scm_clk_disable();
+
+	return ret;
 }
 EXPORT_SYMBOL(qcom_scm_pas_auth_and_reset);
 
@@ -238,7 +270,16 @@ EXPORT_SYMBOL(qcom_scm_pas_auth_and_reset);
  */
 int qcom_scm_pas_shutdown(u32 peripheral)
 {
-	return __qcom_scm_pas_shutdown(peripheral);
+	int ret;
+
+	ret = qcom_scm_clk_enable();
+	if (ret)
+		return ret;
+
+	ret = __qcom_scm_pas_shutdown(peripheral);
+	qcom_scm_clk_disable();
+
+	return ret;
 }
 EXPORT_SYMBOL(qcom_scm_pas_shutdown);
 
@@ -351,6 +392,21 @@ static int __init qcom_scm_init(void)
 	return __qcom_scm_init();
 }
 
+static int qcom_scm_reset_assert(struct reset_controller_dev *rcdev, unsigned long idx)
+{
+	return __qcom_scm_pas_mss_reset(1);
+}
+
+static int qcom_scm_reset_deassert(struct reset_controller_dev *rcdev, unsigned long idx)
+{
+	return __qcom_scm_pas_mss_reset(0);
+}
+
+static struct reset_control_ops scm_reset_ops = {
+	.assert = qcom_scm_reset_assert,
+	.deassert = qcom_scm_reset_deassert,
+};
+
 static int qcom_scm_probe(struct platform_device *pdev)
 {
 	struct qcom_scm *scm;
@@ -365,35 +421,45 @@ static int qcom_scm_probe(struct platform_device *pdev)
 	if (!scm)
 		return -ENOMEM;
 
+	scm->dev = &pdev->dev;
+
 	scm->core_clk = devm_clk_get(&pdev->dev, "core");
 	if (IS_ERR(scm->core_clk)) {
-		if (PTR_ERR(scm->core_clk) != -EPROBE_DEFER)
-			dev_err(&pdev->dev, "failed to acquire core clk\n");
+		if (PTR_ERR(scm->core_clk) == -EPROBE_DEFER)
+			return -EPROBE_DEFER;
+
+		dev_err(&pdev->dev, "failed to acquire core clk\n");
 		scm->core_clk = NULL;
 	}
 
 	scm->iface_clk = devm_clk_get(&pdev->dev, "iface");
 	if (IS_ERR(scm->iface_clk)) {
-		if (PTR_ERR(scm->iface_clk) != -EPROBE_DEFER)
-			dev_err(&pdev->dev, "failed to acquire iface clk\n");
+		if (PTR_ERR(scm->iface_clk) == -EPROBE_DEFER)
+			return -EPROBE_DEFER;
+
+		dev_err(&pdev->dev, "failed to acquire iface clk\n");
 		scm->iface_clk = NULL;
 	}
 
 	scm->bus_clk = devm_clk_get(&pdev->dev, "bus");
 	if (IS_ERR(scm->bus_clk)) {
-		if (PTR_ERR(scm->bus_clk) != -EPROBE_DEFER)
-			dev_err(&pdev->dev, "failed to acquire bus clk\n");
+		if (PTR_ERR(scm->bus_clk) == -EPROBE_DEFER)
+			return -EPROBE_DEFER;
 
+		dev_err(&pdev->dev, "failed to acquire bus clk\n");
 		scm->bus_clk = NULL;
 	}
 
-	if (scm->core_clk) {
+	scm->reset.ops = &scm_reset_ops;
+	scm->reset.nr_resets = 1;
+	scm->reset.of_node = pdev->dev.of_node;
+	reset_controller_register(&scm->reset);
+
 	/* vote for max clk rate for highest performance */
-		rate = clk_round_rate(scm->core_clk, INT_MAX);
-		ret = clk_set_rate(scm->core_clk, rate);
-		if (ret)
-			return ret;
-	}
+	rate = clk_round_rate(scm->core_clk, INT_MAX);
+	ret = clk_set_rate(scm->core_clk, rate);
+	if (ret)
+		return ret;
 
 	__scm = scm;
 

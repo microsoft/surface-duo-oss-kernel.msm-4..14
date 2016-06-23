@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015, Linaro Limited
+ * Copyright (c) 2016, Linaro Limited
  * Copyright (c) 2014, The Linux Foundation. All rights reserved.
  *
  * This software is licensed under the terms of the GNU General Public
@@ -24,12 +24,163 @@
 #include <linux/platform_device.h>
 #include <linux/soc/qcom/smd-rpm.h>
 
-#include "clk-smd-rpm.h"
 #include <dt-bindings/clock/qcom,rpmcc.h>
+#include <dt-bindings/mfd/qcom-rpm.h>
+
+#define QCOM_RPM_KEY_SOFTWARE_ENABLE			0x6e657773
+#define QCOM_RPM_KEY_PIN_CTRL_CLK_BUFFER_ENABLE_KEY	0x62636370
+#define QCOM_RPM_SMD_KEY_RATE				0x007a484b
+#define QCOM_RPM_SMD_KEY_ENABLE				0x62616e45
+#define QCOM_RPM_SMD_KEY_STATE				0x54415453
+#define QCOM_RPM_SCALING_ENABLE_ID			0x2
+
+#define __DEFINE_CLK_SMD_RPM(_platform, _name, _active, type, r_id, stat_id,  \
+			     key)					      \
+	static struct clk_smd_rpm _platform##_##_active;		      \
+	static struct clk_smd_rpm _platform##_##_name = {		      \
+		.rpm_res_type = (type),					      \
+		.rpm_clk_id = (r_id),					      \
+		.rpm_status_id = (stat_id),				      \
+		.rpm_key = (key),					      \
+		.peer = &_platform##_##_active,				      \
+		.rate = INT_MAX,					      \
+		.hw.init = &(struct clk_init_data){			      \
+			.ops = &clk_smd_rpm_ops,			      \
+			.name = #_name,					      \
+			.parent_names = (const char *[]){ "xo_board" },       \
+			.num_parents = 1,				      \
+		},							      \
+	};								      \
+	static struct clk_smd_rpm _platform##_##_active = {		      \
+		.rpm_res_type = (type),					      \
+		.rpm_clk_id = (r_id),					      \
+		.rpm_status_id = (stat_id),				      \
+		.active_only = true,					      \
+		.rpm_key = (key),					      \
+		.peer = &_platform##_##_name,				      \
+		.rate = INT_MAX,					      \
+		.hw.init = &(struct clk_init_data){			      \
+			.ops = &clk_smd_rpm_ops,			      \
+			.name = #_active,				      \
+			.parent_names = (const char *[]){ "xo_board" },	      \
+			.num_parents = 1,				      \
+		},							      \
+	}
+
+#define __DEFINE_CLK_SMD_RPM_BRANCH(_platform, _name, _active, type, r_id,    \
+				    stat_id, r, key)			      \
+	static struct clk_smd_rpm _platform##_##_active;		      \
+	static struct clk_smd_rpm _platform##_##_name = {		      \
+		.rpm_res_type = (type),					      \
+		.rpm_clk_id = (r_id),					      \
+		.rpm_status_id = (stat_id),				      \
+		.rpm_key = (key),					      \
+		.branch = true,						      \
+		.peer = &_platform##_##_active,				      \
+		.rate = (r),						      \
+		.hw.init = &(struct clk_init_data){			      \
+			.ops = &clk_smd_rpm_branch_ops,			      \
+			.name = #_name,					      \
+			.parent_names = (const char *[]){ "xo_board" },	      \
+			.num_parents = 1,				      \
+		},							      \
+	};								      \
+	static struct clk_smd_rpm _platform##_##_active = {		      \
+		.rpm_res_type = (type),					      \
+		.rpm_clk_id = (r_id),					      \
+		.rpm_status_id = (stat_id),				      \
+		.active_only = true,					      \
+		.rpm_key = (key),					      \
+		.branch = true,						      \
+		.peer = &_platform##_##_name,				      \
+		.rate = (r),						      \
+		.hw.init = &(struct clk_init_data){			      \
+			.ops = &clk_smd_rpm_branch_ops,			      \
+			.name = #_active,				      \
+			.parent_names = (const char *[]){ "xo_board" },	      \
+			.num_parents = 1,				      \
+		},							      \
+	}
+
+#define DEFINE_CLK_SMD_RPM(_platform, _name, _active, type, r_id)	      \
+		__DEFINE_CLK_SMD_RPM(_platform, _name, _active, type, r_id,   \
+		0, QCOM_RPM_SMD_KEY_RATE)
+
+#define DEFINE_CLK_SMD_RPM_BRANCH(_platform, _name, _active, type, r_id, r)   \
+		__DEFINE_CLK_SMD_RPM_BRANCH(_platform, _name, _active, type,  \
+		r_id, 0, r, QCOM_RPM_SMD_KEY_ENABLE)
+
+#define DEFINE_CLK_SMD_RPM_QDSS(_platform, _name, _active, type, r_id)	      \
+		__DEFINE_CLK_SMD_RPM(_platform, _name, _active, type, r_id,   \
+		0, QCOM_RPM_SMD_KEY_STATE)
+
+#define DEFINE_CLK_SMD_RPM_XO_BUFFER(_platform, _name, _active, r_id)	      \
+		__DEFINE_CLK_SMD_RPM_BRANCH(_platform, _name, _active,	      \
+		QCOM_SMD_RPM_CLK_BUF_A, r_id, 0, 1000,			      \
+		QCOM_RPM_KEY_SOFTWARE_ENABLE)
+
+#define DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(_platform, _name, _active, r_id) \
+		__DEFINE_CLK_SMD_RPM_BRANCH(_platform, _name, _active,	      \
+		QCOM_SMD_RPM_CLK_BUF_A, r_id, 0, 1000,			      \
+		QCOM_RPM_KEY_PIN_CTRL_CLK_BUFFER_ENABLE_KEY)
 
 #define to_clk_smd_rpm(_hw) container_of(_hw, struct clk_smd_rpm, hw)
 
+struct clk_smd_rpm {
+	const int rpm_res_type;
+	const int rpm_key;
+	const int rpm_clk_id;
+	const int rpm_status_id;
+	const bool active_only;
+	bool enabled;
+	bool branch;
+	struct clk_smd_rpm *peer;
+	struct clk_hw hw;
+	unsigned long rate;
+	struct qcom_smd_rpm *rpm;
+};
+
+struct clk_smd_rpm_req {
+	__le32 key;
+	__le32 nbytes;
+	__le32 value;
+};
+
+struct rpm_cc {
+	struct qcom_rpm *rpm;
+	struct clk_onecell_data data;
+	struct clk *clks[];
+};
+
+struct rpm_smd_clk_desc {
+	struct clk_smd_rpm **clks;
+	size_t num_clks;
+};
+
 static DEFINE_MUTEX(rpm_smd_clk_lock);
+
+static int clk_smd_rpm_handoff(struct clk_smd_rpm *r)
+{
+	int ret;
+	struct clk_smd_rpm_req req = {
+		.key = cpu_to_le32(r->rpm_key),
+		.nbytes = cpu_to_le32(sizeof(u32)),
+		.value = cpu_to_le32(INT_MAX),
+	};
+
+	ret = qcom_rpm_smd_write(r->rpm, QCOM_SMD_RPM_ACTIVE_STATE,
+				 r->rpm_res_type, r->rpm_clk_id, &req,
+				 sizeof(req));
+	if (ret)
+		return ret;
+	ret = qcom_rpm_smd_write(r->rpm, QCOM_SMD_RPM_SLEEP_STATE,
+				 r->rpm_res_type, r->rpm_clk_id, &req,
+				 sizeof(req));
+	if (ret)
+		return ret;
+
+	return 0;
+}
 
 static int clk_smd_rpm_set_rate_active(struct clk_smd_rpm *r,
 				       unsigned long rate)
@@ -250,39 +401,25 @@ static int clk_smd_rpm_enable_scaling(struct qcom_smd_rpm *rpm)
 	return 0;
 }
 
-const struct clk_ops clk_smd_rpm_ops = {
+static const struct clk_ops clk_smd_rpm_ops = {
 	.prepare	= clk_smd_rpm_prepare,
 	.unprepare	= clk_smd_rpm_unprepare,
 	.set_rate	= clk_smd_rpm_set_rate,
 	.round_rate	= clk_smd_rpm_round_rate,
 	.recalc_rate	= clk_smd_rpm_recalc_rate,
 };
-EXPORT_SYMBOL_GPL(clk_smd_rpm_ops);
 
-const struct clk_ops clk_smd_rpm_branch_ops = {
+static const struct clk_ops clk_smd_rpm_branch_ops = {
 	.prepare	= clk_smd_rpm_prepare,
 	.unprepare	= clk_smd_rpm_unprepare,
 	.round_rate	= clk_smd_rpm_round_rate,
 	.recalc_rate	= clk_smd_rpm_recalc_rate,
-};
-EXPORT_SYMBOL_GPL(clk_smd_rpm_branch_ops);
-
-struct rpm_cc {
-	struct qcom_rpm *rpm;
-	struct clk_onecell_data data;
-	struct clk *clks[];
-};
-
-struct rpm_smd_clk_desc {
-	struct clk_smd_rpm **clks;
-	size_t num_clks;
 };
 
 /* msm8916 */
 DEFINE_CLK_SMD_RPM(msm8916, pcnoc_clk, pcnoc_a_clk, QCOM_SMD_RPM_BUS_CLK, 0);
 DEFINE_CLK_SMD_RPM(msm8916, snoc_clk, snoc_a_clk, QCOM_SMD_RPM_BUS_CLK, 1);
 DEFINE_CLK_SMD_RPM(msm8916, bimc_clk, bimc_a_clk, QCOM_SMD_RPM_MEM_CLK, 0);
-DEFINE_CLK_SMD_RPM_BRANCH(msm8916, xo, xo_a, QCOM_SMD_RPM_MISC_CLK, 0, 19200000);
 DEFINE_CLK_SMD_RPM_QDSS(msm8916, qdss_clk, qdss_a_clk, QCOM_SMD_RPM_MISC_CLK, 1);
 DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8916, bb_clk1, bb_clk1_a, 1);
 DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8916, bb_clk2, bb_clk2_a, 2);
@@ -294,32 +431,30 @@ DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(msm8916, rf_clk1_pin, rf_clk1_a_pin, 4);
 DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(msm8916, rf_clk2_pin, rf_clk2_a_pin, 5);
 
 static struct clk_smd_rpm *msm8916_clks[] = {
-	[RPM_XO_CLK_SRC]	= &msm8916_xo,
-	[RPM_XO_A_CLK_SRC]	= &msm8916_xo_a,
-	[RPM_PCNOC_CLK]		= &msm8916_pcnoc_clk,
-	[RPM_PCNOC_A_CLK]	= &msm8916_pcnoc_a_clk,
-	[RPM_SNOC_CLK]		= &msm8916_snoc_clk,
-	[RPM_SNOC_A_CLK]	= &msm8916_snoc_a_clk,
-	[RPM_BIMC_CLK]		= &msm8916_bimc_clk,
-	[RPM_BIMC_A_CLK]	= &msm8916_bimc_a_clk,
-	[RPM_QDSS_CLK]		= &msm8916_qdss_clk,
-	[RPM_QDSS_A_CLK]	= &msm8916_qdss_a_clk,
-	[RPM_BB_CLK1]		= &msm8916_bb_clk1,
-	[RPM_BB_CLK1_A]		= &msm8916_bb_clk1_a,
-	[RPM_BB_CLK2]		= &msm8916_bb_clk2,
-	[RPM_BB_CLK2_A]		= &msm8916_bb_clk2_a,
-	[RPM_RF_CLK1]		= &msm8916_rf_clk1,
-	[RPM_RF_CLK1_A]		= &msm8916_rf_clk1_a,
-	[RPM_RF_CLK2]		= &msm8916_rf_clk2,
-	[RPM_RF_CLK2_A]		= &msm8916_rf_clk2_a,
-	[RPM_BB_CLK1_PIN]	= &msm8916_bb_clk1_pin,
-	[RPM_BB_CLK1_A_PIN]	= &msm8916_bb_clk1_a_pin,
-	[RPM_BB_CLK2_PIN]	= &msm8916_bb_clk2_pin,
-	[RPM_BB_CLK2_A_PIN]	= &msm8916_bb_clk2_a_pin,
-	[RPM_RF_CLK1_PIN]	= &msm8916_rf_clk1_pin,
-	[RPM_RF_CLK1_A_PIN]	= &msm8916_rf_clk1_a_pin,
-	[RPM_RF_CLK2_PIN]	= &msm8916_rf_clk2_pin,
-	[RPM_RF_CLK2_A_PIN]	= &msm8916_rf_clk2_a_pin,
+	[RPM_SMD_PCNOC_CLK]		= &msm8916_pcnoc_clk,
+	[RPM_SMD_PCNOC_A_CLK]		= &msm8916_pcnoc_a_clk,
+	[RPM_SMD_SNOC_CLK]		= &msm8916_snoc_clk,
+	[RPM_SMD_SNOC_A_CLK]		= &msm8916_snoc_a_clk,
+	[RPM_SMD_BIMC_CLK]		= &msm8916_bimc_clk,
+	[RPM_SMD_BIMC_A_CLK]		= &msm8916_bimc_a_clk,
+	[RPM_SMD_QDSS_CLK]		= &msm8916_qdss_clk,
+	[RPM_SMD_QDSS_A_CLK]		= &msm8916_qdss_a_clk,
+	[RPM_SMD_BB_CLK1]		= &msm8916_bb_clk1,
+	[RPM_SMD_BB_CLK1_A]		= &msm8916_bb_clk1_a,
+	[RPM_SMD_BB_CLK2]		= &msm8916_bb_clk2,
+	[RPM_SMD_BB_CLK2_A]		= &msm8916_bb_clk2_a,
+	[RPM_SMD_RF_CLK1]		= &msm8916_rf_clk1,
+	[RPM_SMD_RF_CLK1_A]		= &msm8916_rf_clk1_a,
+	[RPM_SMD_RF_CLK2]		= &msm8916_rf_clk2,
+	[RPM_SMD_RF_CLK2_A]		= &msm8916_rf_clk2_a,
+	[RPM_SMD_BB_CLK1_PIN]		= &msm8916_bb_clk1_pin,
+	[RPM_SMD_BB_CLK1_A_PIN]		= &msm8916_bb_clk1_a_pin,
+	[RPM_SMD_BB_CLK2_PIN]		= &msm8916_bb_clk2_pin,
+	[RPM_SMD_BB_CLK2_A_PIN]		= &msm8916_bb_clk2_a_pin,
+	[RPM_SMD_RF_CLK1_PIN]		= &msm8916_rf_clk1_pin,
+	[RPM_SMD_RF_CLK1_A_PIN]		= &msm8916_rf_clk1_a_pin,
+	[RPM_SMD_RF_CLK2_PIN]		= &msm8916_rf_clk2_pin,
+	[RPM_SMD_RF_CLK2_A_PIN]		= &msm8916_rf_clk2_a_pin,
 };
 
 static const struct rpm_smd_clk_desc rpm_clk_msm8916 = {
@@ -327,167 +462,8 @@ static const struct rpm_smd_clk_desc rpm_clk_msm8916 = {
 	.num_clks = ARRAY_SIZE(msm8916_clks),
 };
 
-/* msm8974 */
-DEFINE_CLK_SMD_RPM(msm8974, pnoc_clk, pnoc_a_clk, QCOM_SMD_RPM_BUS_CLK, 0);
-DEFINE_CLK_SMD_RPM(msm8974, snoc_clk, snoc_a_clk, QCOM_SMD_RPM_BUS_CLK, 1);
-DEFINE_CLK_SMD_RPM(msm8974, cnoc_clk, cnoc_a_clk, QCOM_SMD_RPM_BUS_CLK, 2);
-DEFINE_CLK_SMD_RPM(msm8974, mmssnoc_ahb_clk, mmssnoc_ahb_a_clk, QCOM_SMD_RPM_BUS_CLK, 3);
-DEFINE_CLK_SMD_RPM(msm8974, bimc_clk, bimc_a_clk, QCOM_SMD_RPM_MEM_CLK, 0);
-DEFINE_CLK_SMD_RPM(msm8974, ocmemgx_clk, ocmemgx_a_clk, QCOM_SMD_RPM_MEM_CLK, 2);
-DEFINE_CLK_SMD_RPM(msm8974, gfx3d_clk_src, gfx3d_a_clk_src, QCOM_SMD_RPM_MEM_CLK, 1);
-DEFINE_CLK_SMD_RPM_BRANCH(msm8974, cxo_clk_src, cxo_a_clk_src, QCOM_SMD_RPM_MISC_CLK, 0, 19200000);
-DEFINE_CLK_SMD_RPM_QDSS(msm8974, qdss_clk, qdss_a_clk, QCOM_SMD_RPM_MISC_CLK, 1);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8974, cxo_d0, cxo_d0_a, 1);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8974, cxo_d1, cxo_d1_a, 2);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8974, cxo_a0, cxo_a0_a, 4);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8974, cxo_a1, cxo_a1_a, 5);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8974, cxo_a2, cxo_a2_a, 6);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8974, div_clk1, div_a_clk1, 11);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8974, div_clk2, div_a_clk2, 12);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(msm8974, diff_clk, diff_a_clk, 7);
-DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(msm8974, cxo_d0_pin, cxo_d0_a_pin, 1);
-DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(msm8974, cxo_d1_pin, cxo_d1_a_pin, 2);
-DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(msm8974, cxo_a0_pin, cxo_a0_a_pin, 4);
-DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(msm8974, cxo_a1_pin, cxo_a1_a_pin, 5);
-DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(msm8974, cxo_a2_pin, cxo_a2_a_pin, 6);
-
-static struct clk_smd_rpm *msm8974_clks[] = {
-	[RPM_CXO_CLK_SRC]	= &msm8974_cxo_clk_src,
-	[RPM_CXO_A_CLK_SRC]	= &msm8974_cxo_a_clk_src,
-	[RPM_PNOC_CLK]		= &msm8974_pnoc_clk,
-	[RPM_PNOC_A_CLK]	= &msm8974_pnoc_a_clk,
-	[RPM_SNOC_CLK]		= &msm8974_snoc_clk,
-	[RPM_SNOC_A_CLK]	= &msm8974_snoc_a_clk,
-	[RPM_BIMC_CLK]		= &msm8974_bimc_clk,
-	[RPM_BIMC_A_CLK]	= &msm8974_bimc_a_clk,
-	[RPM_QDSS_CLK]		= &msm8974_qdss_clk,
-	[RPM_QDSS_A_CLK]	= &msm8974_qdss_a_clk,
-	[RPM_CNOC_CLK]		= &msm8974_cnoc_clk,
-	[RPM_CNOC_A_CLK]	= &msm8974_cnoc_a_clk,
-	[RPM_MMSSNOC_AHB_CLK]	= &msm8974_mmssnoc_ahb_clk,
-	[RPM_MMSSNOC_AHB_A_CLK]	= &msm8974_mmssnoc_ahb_a_clk,
-	[RPM_OCMEMGX_CLK]	= &msm8974_ocmemgx_clk,
-	[RPM_OCMEMGX_A_CLK]	= &msm8974_ocmemgx_a_clk,
-	[RPM_GFX3D_CLK_SRC]	= &msm8974_gfx3d_clk_src,
-	[RPM_GFX3D_A_CLK_SRC]	= &msm8974_gfx3d_a_clk_src,
-	[RPM_CXO_D0]		= &msm8974_cxo_d0,
-	[RPM_CXO_D0_A]		= &msm8974_cxo_d0_a,
-	[RPM_CXO_D1]		= &msm8974_cxo_d1,
-	[RPM_CXO_D1_A]		= &msm8974_cxo_d1_a,
-	[RPM_CXO_A0]		= &msm8974_cxo_a0,
-	[RPM_CXO_A0_A]		= &msm8974_cxo_a0_a,
-	[RPM_CXO_A1]		= &msm8974_cxo_a1,
-	[RPM_CXO_A1_A]		= &msm8974_cxo_a1_a,
-	[RPM_CXO_A2]		= &msm8974_cxo_a2,
-	[RPM_CXO_A2_A]		= &msm8974_cxo_a2_a,
-	[RPM_DIV_CLK1]		= &msm8974_div_clk1,
-	[RPM_DIV_A_CLK1]	= &msm8974_div_a_clk1,
-	[RPM_DIV_CLK2]		= &msm8974_div_clk2,
-	[RPM_DIV_A_CLK2]	= &msm8974_div_a_clk2,
-	[RPM_DIFF_CLK]		= &msm8974_diff_clk,
-	[RPM_DIFF_A_CLK]	= &msm8974_diff_a_clk,
-	[RPM_CXO_D0_PIN]	= &msm8974_cxo_d0_pin,
-	[RPM_CXO_D0_A_PIN]	= &msm8974_cxo_d0_a_pin,
-	[RPM_CXO_D1_PIN]	= &msm8974_cxo_d1_pin,
-	[RPM_CXO_D1_A_PIN]	= &msm8974_cxo_d1_a_pin,
-	[RPM_CXO_A0_PIN]	= &msm8974_cxo_a0_pin,
-	[RPM_CXO_A0_A_PIN]	= &msm8974_cxo_a0_a_pin,
-	[RPM_CXO_A1_PIN]	= &msm8974_cxo_a1_pin,
-	[RPM_CXO_A1_A_PIN]	= &msm8974_cxo_a1_a_pin,
-	[RPM_CXO_A2_PIN]	= &msm8974_cxo_a2_pin,
-	[RPM_CXO_A2_A_PIN]	= &msm8974_cxo_a2_a_pin,
-};
-
-static const struct rpm_smd_clk_desc rpm_clk_msm8974 = {
-	.clks = msm8974_clks,
-	.num_clks = ARRAY_SIZE(msm8974_clks),
-};
-
-/* apq8084 */
-DEFINE_CLK_SMD_RPM(apq8084, pnoc_clk, pnoc_a_clk, QCOM_SMD_RPM_BUS_CLK, 0);
-DEFINE_CLK_SMD_RPM(apq8084, snoc_clk, snoc_a_clk, QCOM_SMD_RPM_BUS_CLK, 1);
-DEFINE_CLK_SMD_RPM(apq8084, cnoc_clk, cnoc_a_clk, QCOM_SMD_RPM_BUS_CLK, 2);
-DEFINE_CLK_SMD_RPM(apq8084, mmssnoc_ahb_clk, mmssnoc_ahb_a_clk, QCOM_SMD_RPM_BUS_CLK, 3);
-DEFINE_CLK_SMD_RPM(apq8084, bimc_clk, bimc_a_clk, QCOM_SMD_RPM_MEM_CLK, 0);
-DEFINE_CLK_SMD_RPM(apq8084, ocmemgx_clk, ocmemgx_a_clk, QCOM_SMD_RPM_MEM_CLK, 2);
-DEFINE_CLK_SMD_RPM(apq8084, gfx3d_clk_src, gfx3d_a_clk_src, QCOM_SMD_RPM_MEM_CLK, 1);
-DEFINE_CLK_SMD_RPM_BRANCH(apq8084, xo_clk_src, xo_a_clk_src, QCOM_SMD_RPM_MISC_CLK, 0, 19200000);
-DEFINE_CLK_SMD_RPM_QDSS(apq8084, qdss_clk, qdss_a_clk, QCOM_SMD_RPM_MISC_CLK, 1);
-
-DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, bb_clk1, bb_clk1_a, 1);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, bb_clk2, bb_clk2_a, 2);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, rf_clk1, rf_clk1_a, 4);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, rf_clk2, rf_clk2_a, 5);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, rf_clk3, rf_clk3_a, 6);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, diff_clk1, diff_clk1_a, 7);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, div_clk1, div_clk1_a, 11);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, div_clk2, div_clk2_a, 12);
-DEFINE_CLK_SMD_RPM_XO_BUFFER(apq8084, div_clk3, div_clk3_a, 13);
-
-DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(apq8084, bb_clk1_pin, bb_clk1_a_pin, 1);
-DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(apq8084, bb_clk2_pin, bb_clk2_a_pin, 2);
-DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(apq8084, rf_clk1_pin, rf_clk1_a_pin, 4);
-DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(apq8084, rf_clk2_pin, rf_clk2_a_pin, 5);
-DEFINE_CLK_SMD_RPM_XO_BUFFER_PINCTRL(apq8084, rf_clk3_pin, rf_clk3_a_pin, 6);
-
-static struct clk_smd_rpm *apq8084_clks[] = {
-	[RPM_XO_CLK_SRC]	= &apq8084_xo_clk_src,
-	[RPM_XO_A_CLK_SRC]	= &apq8084_xo_a_clk_src,
-	[RPM_PNOC_CLK]          = &apq8084_pnoc_clk,
-	[RPM_PNOC_A_CLK]        = &apq8084_pnoc_a_clk,
-	[RPM_SNOC_CLK]          = &apq8084_snoc_clk,
-	[RPM_SNOC_A_CLK]        = &apq8084_snoc_a_clk,
-	[RPM_BIMC_CLK]          = &apq8084_bimc_clk,
-	[RPM_BIMC_A_CLK]        = &apq8084_bimc_a_clk,
-	[RPM_QDSS_CLK]          = &apq8084_qdss_clk,
-	[RPM_QDSS_A_CLK]        = &apq8084_qdss_a_clk,
-	[RPM_CNOC_CLK]          = &apq8084_cnoc_clk,
-	[RPM_CNOC_A_CLK]        = &apq8084_cnoc_a_clk,
-	[RPM_MMSSNOC_AHB_CLK]   = &apq8084_mmssnoc_ahb_clk,
-	[RPM_MMSSNOC_AHB_A_CLK] = &apq8084_mmssnoc_ahb_a_clk,
-	[RPM_OCMEMGX_CLK]       = &apq8084_ocmemgx_clk,
-	[RPM_OCMEMGX_A_CLK]     = &apq8084_ocmemgx_a_clk,
-	[RPM_GFX3D_CLK_SRC]     = &apq8084_gfx3d_clk_src,
-	[RPM_GFX3D_A_CLK_SRC]   = &apq8084_gfx3d_a_clk_src,
-	[RPM_BB_CLK1]		= &apq8084_bb_clk1,
-	[RPM_BB_CLK1_A]		= &apq8084_bb_clk1_a,
-	[RPM_BB_CLK2]		= &apq8084_bb_clk2,
-	[RPM_BB_CLK2_A]		= &apq8084_bb_clk2_a,
-	[RPM_RF_CLK1]		= &apq8084_rf_clk1,
-	[RPM_RF_CLK1_A]		= &apq8084_rf_clk1_a,
-	[RPM_RF_CLK2]		= &apq8084_rf_clk2,
-	[RPM_RF_CLK2_A]		= &apq8084_rf_clk2_a,
-	[RPM_RF_CLK3]		= &apq8084_rf_clk3,
-	[RPM_RF_CLK3_A]		= &apq8084_rf_clk3_a,
-	[RPM_DIFF_CLK1]		= &apq8084_diff_clk1,
-	[RPM_DIFF_CLK1_A]	= &apq8084_diff_clk1_a,
-	[RPM_DIV_CLK1]          = &apq8084_div_clk1,
-	[RPM_DIV_CLK1_A]        = &apq8084_div_clk1_a,
-	[RPM_DIV_CLK2]          = &apq8084_div_clk2,
-	[RPM_DIV_CLK2_A]        = &apq8084_div_clk2_a,
-	[RPM_DIV_CLK3]          = &apq8084_div_clk3,
-	[RPM_DIV_CLK3_A]        = &apq8084_div_clk3_a,
-	[RPM_BB_CLK1_PIN]	= &apq8084_bb_clk1_pin,
-	[RPM_BB_CLK1_A_PIN]	= &apq8084_bb_clk1_a_pin,
-	[RPM_BB_CLK2_PIN]	= &apq8084_bb_clk2_pin,
-	[RPM_BB_CLK2_A_PIN]	= &apq8084_bb_clk2_a_pin,
-	[RPM_RF_CLK1_PIN]	= &apq8084_rf_clk1_pin,
-	[RPM_RF_CLK1_A_PIN]	= &apq8084_rf_clk1_a_pin,
-	[RPM_RF_CLK2_PIN]	= &apq8084_rf_clk2_pin,
-	[RPM_RF_CLK2_A_PIN]	= &apq8084_rf_clk2_a_pin,
-	[RPM_RF_CLK3_PIN]	= &apq8084_rf_clk3_pin,
-	[RPM_RF_CLK3_A_PIN]	= &apq8084_rf_clk3_a_pin,
-};
-
-static const struct rpm_smd_clk_desc rpm_clk_apq8084 = {
-	.clks = apq8084_clks,
-	.num_clks = ARRAY_SIZE(apq8084_clks),
-};
-
 static const struct of_device_id rpm_smd_clk_match_table[] = {
 	{ .compatible = "qcom,rpmcc-msm8916", .data = &rpm_clk_msm8916},
-	{ .compatible = "qcom,rpmcc-msm8974", .data = &rpm_clk_msm8974},
-	{ .compatible = "qcom,rpmcc-apq8084", .data = &rpm_clk_apq8084},
 	{ }
 };
 MODULE_DEVICE_TABLE(of, rpm_smd_clk_match_table);
@@ -498,8 +474,8 @@ static int rpm_smd_clk_probe(struct platform_device *pdev)
 	struct clk *clk;
 	struct rpm_cc *rcc;
 	struct clk_onecell_data *data;
-	int ret, i;
-	size_t num_clks;
+	int ret;
+	size_t num_clks, i;
 	struct qcom_smd_rpm *rpm;
 	struct clk_smd_rpm **rpm_smd_clks;
 	const struct rpm_smd_clk_desc *desc;
@@ -534,6 +510,22 @@ static int rpm_smd_clk_probe(struct platform_device *pdev)
 		}
 
 		rpm_smd_clks[i]->rpm = rpm;
+
+		ret = clk_smd_rpm_handoff(rpm_smd_clks[i]);
+		if (ret)
+			goto err;
+	}
+
+	ret = clk_smd_rpm_enable_scaling(rpm);
+	if (ret)
+		goto err;
+
+	for (i = 0; i < num_clks; i++) {
+		if (!rpm_smd_clks[i]) {
+			clks[i] = ERR_PTR(-ENOENT);
+			continue;
+		}
+
 		clk = devm_clk_register(&pdev->dev, &rpm_smd_clks[i]->hw);
 		if (IS_ERR(clk)) {
 			ret = PTR_ERR(clk);
@@ -547,12 +539,6 @@ static int rpm_smd_clk_probe(struct platform_device *pdev)
 				  data);
 	if (ret)
 		goto err;
-
-	ret = clk_smd_rpm_enable_scaling(rpm);
-	if (ret) {
-		of_clk_del_provider(pdev->dev.of_node);
-		goto err;
-	}
 
 	return 0;
 err:

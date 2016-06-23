@@ -42,11 +42,13 @@ extern int __qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt,
 #define QCOM_SCM_PAS_AUTH_AND_RESET_CMD	0x5
 #define QCOM_SCM_PAS_SHUTDOWN_CMD	0x6
 #define QCOM_SCM_PAS_IS_SUPPORTED_CMD	0x7
+#define QCOM_SCM_PAS_MSS_RESET		0xa
 extern bool __qcom_scm_pas_supported(u32 peripheral);
-extern int  __qcom_scm_pas_init_image(struct device *dev, u32 peripheral, const void *metadata, size_t size);
+extern int  __qcom_scm_pas_init_image(u32 peripheral, dma_addr_t metadata_phys);
 extern int  __qcom_scm_pas_mem_setup(u32 peripheral, phys_addr_t addr, phys_addr_t size);
 extern int  __qcom_scm_pas_auth_and_reset(u32 peripheral);
 extern int  __qcom_scm_pas_shutdown(u32 peripheral);
+extern int  __qcom_scm_pas_mss_reset(bool reset);
 
 /* common error codes */
 #define QCOM_SCM_ENOMEM		-5
@@ -111,7 +113,6 @@ extern int __qcom_scm_iommu_secure_unmap(u32 id, u32 ctx_id, u64 va,
 extern int __qcom_scm_is_call_available(u32 svc_id, u32 cmd_id);
 extern int __qcom_scm_get_feat_version(u32 feat);
 extern int __qcom_scm_restore_sec_cfg(u32 device_id, u32 spare);
-extern int __qcom_scm_restart_proc(u32 proc_id, int restart, u32 *resp);
 
 extern int __qcom_scm_set_video_state(u32 state, u32 spare);
 extern int __qcom_scm_mem_protect_video_var(u32 start, u32 size,

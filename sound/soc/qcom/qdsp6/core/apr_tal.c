@@ -64,25 +64,11 @@ struct apr_svc_ch_dev *apr_tal_open(uint32_t svc, uint32_t dest,
 			return NULL;
 		}
 		pr_info("apr_tal:Wakeup done\n");
-		apr_svc_ch[dl][dest][svc].dest_state = 0;
-	}
-
-	rc = wait_event_timeout(apr_svc_ch[dl][dest][svc].wait,
-		(apr_svc_ch[dl][dest][svc].ch->state == SMD_CHANNEL_OPENED), 5 * HZ);
-	if (rc == 0) {
-		pr_err("apr_tal:TIMEOUT for OPEN event\n");
-		apr_tal_close(&apr_svc_ch[dl][dest][svc]);
-		return NULL;
-	}
-	if (!apr_svc_ch[dl][dest][svc].dest_state) {
-		apr_svc_ch[dl][dest][svc].dest_state = 1;
-		pr_info("apr_tal:Waiting for apr svc init\n");
-		msleep(200);
-		pr_info("apr_tal:apr svc init done\n");
 	}
 	apr_svc_ch[dl][dest][svc].func = func;
 	apr_svc_ch[dl][dest][svc].priv = priv;
 
+	pr_info("apr_tal:apr svc init done\n");
 
 	return &apr_svc_ch[dl][dest][svc];
 }
@@ -99,13 +85,13 @@ int apr_tal_close(struct apr_svc_ch_dev *apr_ch)
 }
 
 
-static int qcom_smd_q6_callback(struct qcom_smd_device *sdev,
+static int qcom_smd_q6_callback(struct qcom_smd_channel *channel,
 				 const void *data,
 				 size_t count)
 {
-	struct apr_svc_ch_dev *apr_ch = dev_get_drvdata(&sdev->dev);
+	struct apr_svc_ch_dev *apr_ch = qcom_smd_get_drvdata(channel);
 
-	memcpy_fromio(apr_ch->data, data, count);
+	memcpy(apr_ch->data, data, count);
 
 	if (apr_ch->func)
 		apr_ch->func(apr_ch->data, count, apr_ch->priv);
@@ -115,22 +101,25 @@ static int qcom_smd_q6_callback(struct qcom_smd_device *sdev,
 
 static int qcom_smd_q6_probe(struct qcom_smd_device *sdev)
 {
-	int dest = APR_DEST_QDSP6;
-	int clnt = APR_CLIENT_AUDIO;
-
-	apr_svc_ch[APR_DL_SMD][APR_DEST_QDSP6][APR_CLIENT_AUDIO].ch = sdev->channel;
+	struct apr_svc_ch_dev *apr = &apr_svc_ch[APR_DL_SMD][APR_DEST_QDSP6][APR_CLIENT_AUDIO];
 
 	pr_info("apr_tal:Q6 Is Up\n");
-	apr_svc_ch[APR_DL_SMD][dest][clnt].dest_state = 1;
-	wake_up(&apr_svc_ch[APR_DL_SMD][dest][clnt].dest);
 
-	dev_set_drvdata(&sdev->dev, &apr_svc_ch[APR_DL_SMD][APR_DEST_QDSP6][APR_CLIENT_AUDIO]);
+	qcom_smd_set_drvdata(sdev->channel, apr);
+
+	apr->ch = sdev->channel;
+	apr->dest_state = 1;
+	wake_up(&apr->dest);
 
 	return 0;
 }
 
 static void qcom_smd_q6_remove(struct qcom_smd_device *sdev)
 {
+	struct apr_svc_ch_dev *apr = &apr_svc_ch[APR_DL_SMD][APR_DEST_QDSP6][APR_CLIENT_AUDIO];
+
+	apr->ch = NULL;
+	apr->dest_state = 0;
 }
 
 

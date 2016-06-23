@@ -39,6 +39,16 @@
 
 	};
 
+	smd {
+		q6@1 {
+			status = "ok";
+		};
+
+		riva@6 {
+			status = "ok";
+		};
+	};
+
 	soc {
 		rpm@108000 {
 			regulators {
@@ -72,6 +82,14 @@
 					regulator-max-microvolt = <1225000>;
 					qcom,switch-mode-frequency = <3200000>;
 					bias-pull-down;
+				};
+
+				s2 {
+					regulator-min-microvolt = <1300000>;
+					regulator-max-microvolt = <1300000>;
+					qcom,switch-mode-frequency = <1600000>;
+					bias-pull-down;
+					regulator-always-on;
 				};
 
 				s3 {
@@ -127,12 +145,18 @@
 					bias-pull-down;
 				};
 
+				l26 {
+					regulator-min-microvolt = < 375000>;
+					regulator-max-microvolt = <1050000>;
+					bias-pull-down;
+				};
 				lvs6 {
 					bias-pull-down;
 				};
 
 				lvs7 {
 					bias-pull-down;
+					regulator-always-on;
 				};
 			};
 		};
@@ -290,6 +314,13 @@
 			target-supply	= <&pm8921_lvs7>;
 		};
 
+		wcnss@3204000 {
+			status = "ok";
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&wcnss_pin_a>;
+		};
+
 		/* OTG */
 		phy@12500000 {
 			status		= "okay";
@@ -328,6 +359,10 @@
 
 		usb@12530000 {
 			status = "okay";
+		};
+		pil_q6v4: pil@28800000 {
+			qcom,pll-supply = <&pm8921_l26>;
+			qcom,pll-uV = <1050000>;
 		};
 
 		hdmi: qcom,hdmi-tx@4a00000 {

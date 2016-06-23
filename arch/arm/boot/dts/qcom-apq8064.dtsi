@@ -23,6 +23,11 @@
 			reg = <0x80000000 0x200000>;
 			no-map;
 		};
+
+		wcnss_mem: wcnss@8f000000 {
+			reg = <0x8f000000 0x700000>;
+			no-map;
+		};
 	};
 
 	cpus {
@@ -710,6 +715,124 @@
 		};
 	};
 
+	smd {
+		compatible = "qcom,smd";
+
+		modem@0 {
+			interrupts = <0 37 IRQ_TYPE_EDGE_RISING>;
+
+			qcom,ipc = <&l2cc 8 3>;
+			qcom,smd-edge = <0>;
+
+			status = "disabled";
+		};
+
+		q6@1 {
+			interrupts = <0 90 IRQ_TYPE_EDGE_RISING>;
+
+			qcom,ipc = <&l2cc 8 15>;
+			qcom,smd-edge = <1>;
+
+			status = "disabled";
+
+			apr {
+				compatible = "qcom,apr";
+				qcom,smd-channels = "apr_audio_svc";
+				rproc = <&pil_q6v4>;
+			};
+		};
+
+		dsps@3 {
+			interrupts = <0 138 IRQ_TYPE_EDGE_RISING>;
+
+			qcom,ipc = <&sps_sic_non_secure 0x4080 0>;
+			qcom,smd-edge = <3>;
+
+			status = "disabled";
+		};
+
+		riva@6 {
+			interrupts = <0 198 IRQ_TYPE_EDGE_RISING>;
+
+			qcom,ipc = <&l2cc 8 25>;
+			qcom,smd-edge = <6>;
+
+			status = "disabled";
+
+			wcnss {
+				compatible = "qcom,wcnss";
+				qcom,smd-channels = "WCNSS_CTRL";
+
+				qcom,mmio = <&riva>;
+
+				bt {
+					compatible = "qcom,wcnss-bt";
+				};
+
+				wifi {
+					compatible = "qcom,wcnss-wlan";
+
+					interrupts = <0 203 0>, <0 202 0>;
+					interrupt-names = "tx", "rx";
+
+					qcom,state = <&apps_smsm 10>, <&apps_smsm 9>;
+					qcom,state-names = "tx-enable", "tx-rings-empty";
+
+					local-mac-address = [ 18 00 2d 88 9c a9 ];
+				};
+			};
+		};
+	};
+
+	smsm {
+		compatible = "qcom,smsm";
+
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		qcom,ipc-1 = <&l2cc 8 4>;
+		qcom,ipc-2 = <&l2cc 8 14>;
+		qcom,ipc-3 = <&l2cc 8 23>;
+		qcom,ipc-4 = <&sps_sic_non_secure 0x4094 0>;
+
+		apps_smsm: apps@0 {
+			reg = <0>;
+			#qcom,state-cells = <1>;
+		};
+
+		modem_smsm: modem@1 {
+			reg = <1>;
+			interrupts = <0 38 IRQ_TYPE_EDGE_RISING>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		q6_smsm: q6@2 {
+			reg = <2>;
+			interrupts = <0 89 IRQ_TYPE_EDGE_RISING>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		wcnss_smsm: wcnss@3 {
+			reg = <3>;
+			interrupts = <0 204 IRQ_TYPE_EDGE_RISING>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+
+		dsps_smsm: dsps@4 {
+			reg = <4>;
+			interrupts = <0 137 IRQ_TYPE_EDGE_RISING>;
+
+			interrupt-controller;
+			#interrupt-cells = <2>;
+		};
+	};
+
 	soc: soc {
 		#address-cells = <1>;
 		#size-cells = <1>;
@@ -823,6 +946,11 @@
 			regulator-always-on;
 			regulator-min-microvolt = <825000>;
 			regulator-max-microvolt = <1250000>;
+		};
+
+		sps_sic_non_secure: sps-sic-non-secure@12100000 {
+			compatible	= "syscon";
+			reg		= <0x12100000 0x10000>;
 		};
 
 		gsbi1: gsbi@12440000 {
@@ -1246,6 +1374,37 @@
 			};
 		};
 
+		riva: wcnss@3204000 {
+			compatible = "qcom,riva-pil", "qcom,riva";
+			reg = <0x03200800 0x1000>, <0x03202000 0x2000>, <0x03204000 0x100>;
+			reg-names = "ccu", "dxe", "pmu";
+
+			interrupts-extended = <&intc 0 199 IRQ_TYPE_EDGE_RISING>,
+					      <&wcnss_smsm 6 IRQ_TYPE_EDGE_RISING>;
+			interrupt-names = "wdog", "fatal";
+
+			memory-region = <&wcnss_mem>;
+
+			vddcx-supply = <&pm8921_s3>;
+			vddmx-supply = <&pm8921_l24>;
+			vddpx-supply = <&pm8921_s4>;
+
+			status = "disabled";
+
+			iris {
+				compatible = "qcom,wcn3660";
+
+				clocks = <&rpmcc 9>;
+				clock-names = "xo";
+
+				vddxo-supply = <&pm8921_l4>;
+				vddrfa-supply = <&pm8921_s2>;
+				vddpa-supply = <&pm8921_l10>;
+				vdddig-supply = <&pm8921_lvs2>;
+			};
+		};
+
+
 		usb1_phy: phy@12500000 {
 			compatible	= "qcom,usb-otg-ci";
 			reg		= <0x12500000 0x400>;
@@ -1519,21 +1678,6 @@
 			reg		= <0x28800000 0x100>;
 			reg-names	= "qdsp6_base";
 			qcom,pas-id		= <1>; /* PAS_Q6 */
-		};
-
-		smd {
-			compatible = "qcom,smd";
-			adsp_a11 {
-				interrupts = <0 90 IRQ_TYPE_EDGE_RISING>;
-				qcom,ipc = <&l2cc 8 15>;
-				qcom,smd-edge = <1>;
-				qcom,remote-pid = <0x2>;
-				q6_requests {
-					compatible	= "qcom,apr";
-					qcom,smd-channels = "apr_audio_svc";
-					rproc = <&pil_q6v4>;
-				};
-			};
 		};
 
 		dai_fe: dai_fe {

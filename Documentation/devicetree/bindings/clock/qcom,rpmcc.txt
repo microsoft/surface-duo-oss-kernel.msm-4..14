@@ -11,9 +11,7 @@ Required properties :
                compatible "qcom,rpmcc" should be also included.
 
 			"qcom,rpmcc-msm8916", "qcom,rpmcc"
-			"qcom,rpmcc-msm8974", "qcom,rpmcc"
 			"qcom,rpmcc-apq8064", "qcom,rpmcc"
-			"qcom,rpmcc-apq8084", "qcom,rpmcc"
 
 - #clock-cells : shall contain 1
 
@@ -30,7 +28,7 @@ Example:
 				compatible = "qcom,rpm-msm8916";
 				qcom,smd-channels = "rpm_requests";
 
-				rpmcc: qcom,rpmcc {
+				rpmcc: clock-controller {
 					compatible = "qcom,rpmcc-msm8916", "qcom,rpmcc";
 					#clock-cells = <1>;
 				};
