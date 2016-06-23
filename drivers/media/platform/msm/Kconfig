@@ -1,7 +1,9 @@
-#
+
 # MSM camera configuration
 #
 
 comment "Qualcomm MSM Camera And Video"
 
+source "drivers/media/platform/msm/camss-8x16/Kconfig"
+source "drivers/media/platform/msm/cci/Kconfig"
 source "drivers/media/platform/msm/vidc/Kconfig"

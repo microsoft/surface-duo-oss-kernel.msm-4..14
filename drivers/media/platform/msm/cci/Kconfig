@@ -1,0 +1,7 @@
+#
+# CAMERA CONTROL INTERFACE
+#
+
+menuconfig MSM_CCI
+	tristate "Qualcomm MSM camera control interface driver"
+	depends on ARCH_QCOM
