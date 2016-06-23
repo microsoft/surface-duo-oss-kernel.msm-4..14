@@ -858,7 +858,7 @@
 			iris {
 				compatible = "qcom,wcn3620";
 
-				clocks = <&rpmcc RPM_RF_CLK2>;
+				clocks = <&rpmcc RPM_SMD_RF_CLK2>;
 				clock-names = "xo";
 
 				vddxo-supply = <&pm8916_l7>;
