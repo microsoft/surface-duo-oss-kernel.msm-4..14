@@ -1069,6 +1069,8 @@ static int ov5645_set_format(struct v4l2_subdev *sd,
 	__format->width = __crop->width;
 	__format->height = __crop->height;
 
+	format->format = *__format;
+
 	return 0;
 }
 
