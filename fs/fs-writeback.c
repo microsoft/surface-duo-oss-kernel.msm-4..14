@@ -278,13 +278,15 @@ locked_inode_to_wb_and_lock_list(struct inode *inode)
 		wb_get(wb);
 		spin_unlock(&inode->i_lock);
 		spin_lock(&wb->list_lock);
-		wb_put(wb);		/* not gonna deref it anymore */
 
 		/* i_wb may have changed inbetween, can't use inode_to_wb() */
-		if (likely(wb == inode->i_wb))
-			return wb;	/* @inode already has ref */
+		if (likely(wb == inode->i_wb)) {
+			wb_put(wb);	/* @inode already has ref */
+			return wb;
+		}
 
 		spin_unlock(&wb->list_lock);
+		wb_put(wb);
 		cpu_relax();
 		spin_lock(&inode->i_lock);
 	}
@@ -1311,10 +1313,10 @@ __writeback_single_inode(struct inode *inode, struct writeback_control *wbc)
  * we go e.g. from filesystem. Flusher thread uses __writeback_single_inode()
  * and does more profound writeback list handling in writeback_sb_inodes().
  */
-static int
-writeback_single_inode(struct inode *inode, struct bdi_writeback *wb,
-		       struct writeback_control *wbc)
+static int writeback_single_inode(struct inode *inode,
+				  struct writeback_control *wbc)
 {
+	struct bdi_writeback *wb;
 	int ret = 0;
 
 	spin_lock(&inode->i_lock);
@@ -1352,7 +1354,8 @@ writeback_single_inode(struct inode *inode, struct bdi_writeback *wb,
 	ret = __writeback_single_inode(inode, wbc);
 
 	wbc_detach_inode(wbc);
-	spin_lock(&wb->list_lock);
+
+	wb = inode_to_wb_and_lock_list(inode);
 	spin_lock(&inode->i_lock);
 	/*
 	 * If inode is clean, remove it from writeback lists. Otherwise don't
@@ -1402,6 +1405,10 @@ static long writeback_chunk_size(struct bdi_writeback *wb,
  * Write a portion of b_io inodes which belong to @sb.
  *
  * Return the number of pages and/or inodes written.
+ *
+ * NOTE! This is called with wb->list_lock held, and will
+ * unlock and relock that for each inode it ends up doing
+ * IO for.
  */
 static long writeback_sb_inodes(struct super_block *sb,
 				struct bdi_writeback *wb,
@@ -1420,11 +1427,10 @@ static long writeback_sb_inodes(struct super_block *sb,
 	unsigned long start_time = jiffies;
 	long write_chunk;
 	long wrote = 0;  /* count both pages and inodes */
-	struct blk_plug plug;
 
-	blk_start_plug(&plug);
 	while (!list_empty(&wb->b_io)) {
 		struct inode *inode = wb_inode(wb->b_io.prev);
+		struct bdi_writeback *tmp_wb;
 
 		if (inode->i_sb != sb) {
 			if (work->sb) {
@@ -1515,14 +1521,22 @@ static long writeback_sb_inodes(struct super_block *sb,
 			cond_resched();
 		}
 
-
-		spin_lock(&wb->list_lock);
+		/*
+		 * Requeue @inode if still dirty.  Be careful as @inode may
+		 * have been switched to another wb in the meantime.
+		 */
+		tmp_wb = inode_to_wb_and_lock_list(inode);
 		spin_lock(&inode->i_lock);
 		if (!(inode->i_state & I_DIRTY_ALL))
 			wrote++;
-		requeue_inode(inode, wb, &wbc);
+		requeue_inode(inode, tmp_wb, &wbc);
 		inode_sync_complete(inode);
 		spin_unlock(&inode->i_lock);
+
+		if (unlikely(tmp_wb != wb)) {
+			spin_unlock(&tmp_wb->list_lock);
+			spin_lock(&wb->list_lock);
+		}
 
 		/*
 		 * bail out to wb_writeback() often enough to check
@@ -1535,7 +1549,6 @@ static long writeback_sb_inodes(struct super_block *sb,
 				break;
 		}
 	}
-	blk_finish_plug(&plug);
 	return wrote;
 }
 
@@ -2294,7 +2307,6 @@ EXPORT_SYMBOL(sync_inodes_sb);
  */
 int write_inode_now(struct inode *inode, int sync)
 {
-	struct bdi_writeback *wb = &inode_to_bdi(inode)->wb;
 	struct writeback_control wbc = {
 		.nr_to_write = LONG_MAX,
 		.sync_mode = sync ? WB_SYNC_ALL : WB_SYNC_NONE,
@@ -2306,7 +2318,7 @@ int write_inode_now(struct inode *inode, int sync)
 		wbc.nr_to_write = 0;
 
 	might_sleep();
-	return writeback_single_inode(inode, wb, &wbc);
+	return writeback_single_inode(inode, &wbc);
 }
 EXPORT_SYMBOL(write_inode_now);
 
@@ -2323,7 +2335,7 @@ EXPORT_SYMBOL(write_inode_now);
  */
 int sync_inode(struct inode *inode, struct writeback_control *wbc)
 {
-	return writeback_single_inode(inode, &inode_to_bdi(inode)->wb, wbc);
+	return writeback_single_inode(inode, wbc);
 }
 EXPORT_SYMBOL(sync_inode);
 
