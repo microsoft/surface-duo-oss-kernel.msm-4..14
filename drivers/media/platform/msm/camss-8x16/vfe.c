@@ -1150,7 +1150,7 @@ static int vfe_set_clock_rate(struct vfe_device *vfe)
 	long clk_rate;
 
 	// TODO
-	clk_rate = clk_round_rate(vfe->clocks[1].clk, 465000000);
+	clk_rate = clk_round_rate(vfe->clocks[1].clk, 320000000);
 	if (clk_rate < 0) {
 		dev_err(vfe->camss->dev, "clk round failed\n");
 		return -EINVAL;
