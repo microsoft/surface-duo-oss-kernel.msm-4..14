@@ -485,7 +485,7 @@ static int st_sensors_read_axis_data(struct iio_dev *indio_dev,
 	int err;
 	u8 *outdata;
 	struct st_sensor_data *sdata = iio_priv(indio_dev);
-	unsigned int byte_for_channel;
+	unsigned int byte_for_channel = ch->scan_type.realbits >> 3;
 
 	byte_for_channel = DIV_ROUND_UP(ch->scan_type.realbits +
 					ch->scan_type.shift, 8);
