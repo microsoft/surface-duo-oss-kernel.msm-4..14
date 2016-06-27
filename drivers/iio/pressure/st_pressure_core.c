@@ -222,7 +222,6 @@
 static const struct iio_chan_spec st_press_1_channels[] = {
 	{
 		.type = IIO_PRESSURE,
-		.channel2 = IIO_NO_MOD,
 		.address = ST_PRESS_1_OUT_XL_ADDR,
 		.scan_index = 0,
 		.scan_type = {
@@ -233,11 +232,9 @@ static const struct iio_chan_spec st_press_1_channels[] = {
 		},
 		.info_mask_separate =
 			BIT(IIO_CHAN_INFO_RAW) | BIT(IIO_CHAN_INFO_SCALE),
-		.modified = 0,
 	},
 	{
 		.type = IIO_TEMP,
-		.channel2 = IIO_NO_MOD,
 		.address = ST_TEMP_1_OUT_L_ADDR,
 		.scan_index = 1,
 		.scan_type = {
@@ -250,7 +247,6 @@ static const struct iio_chan_spec st_press_1_channels[] = {
 			BIT(IIO_CHAN_INFO_RAW) |
 			BIT(IIO_CHAN_INFO_SCALE) |
 			BIT(IIO_CHAN_INFO_OFFSET),
-		.modified = 0,
 	},
 	IIO_CHAN_SOFT_TIMESTAMP(2)
 };
@@ -258,7 +254,6 @@ static const struct iio_chan_spec st_press_1_channels[] = {
 static const struct iio_chan_spec st_press_lps001wp_channels[] = {
 	{
 		.type = IIO_PRESSURE,
-		.channel2 = IIO_NO_MOD,
 		.address = ST_PRESS_LPS001WP_OUT_L_ADDR,
 		.scan_index = 0,
 		.scan_type = {
@@ -270,11 +265,9 @@ static const struct iio_chan_spec st_press_lps001wp_channels[] = {
 		.info_mask_separate =
 			BIT(IIO_CHAN_INFO_RAW) |
 			BIT(IIO_CHAN_INFO_SCALE),
-		.modified = 0,
 	},
 	{
 		.type = IIO_TEMP,
-		.channel2 = IIO_NO_MOD,
 		.address = ST_TEMP_LPS001WP_OUT_L_ADDR,
 		.scan_index = 1,
 		.scan_type = {
@@ -286,7 +279,6 @@ static const struct iio_chan_spec st_press_lps001wp_channels[] = {
 		.info_mask_separate =
 			BIT(IIO_CHAN_INFO_RAW) |
 			BIT(IIO_CHAN_INFO_SCALE),
-		.modified = 0,
 	},
 	IIO_CHAN_SOFT_TIMESTAMP(2)
 };
@@ -294,7 +286,6 @@ static const struct iio_chan_spec st_press_lps001wp_channels[] = {
 static const struct iio_chan_spec st_press_lps22hb_channels[] = {
 	{
 		.type = IIO_PRESSURE,
-		.channel2 = IIO_NO_MOD,
 		.address = ST_PRESS_1_OUT_XL_ADDR,
 		.scan_index = 0,
 		.scan_type = {
@@ -307,7 +298,6 @@ static const struct iio_chan_spec st_press_lps22hb_channels[] = {
 			BIT(IIO_CHAN_INFO_RAW) |
 			BIT(IIO_CHAN_INFO_SCALE),
 		.info_mask_shared_by_all = BIT(IIO_CHAN_INFO_SAMP_FREQ),
-		.modified = 0,
 	},
 	{
 		.type = IIO_TEMP,
