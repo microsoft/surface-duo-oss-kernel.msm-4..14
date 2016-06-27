@@ -171,6 +171,7 @@ struct fsl_edma_irq {
 struct fsl_edma_soc_data {
 	int n_irqs;
 	struct fsl_edma_irq	*irqs;
+	unsigned (*mux_channel_mapping)(u32 channel_id);
 };
 
 struct fsl_edma_engine {
@@ -263,9 +264,11 @@ static void fsl_edma_chan_mux(struct fsl_edma_chan *fsl_chan,
 	u32 ch = fsl_chan->vchan.chan.chan_id;
 	void __iomem *muxaddr;
 	unsigned chans_per_mux, ch_off;
+	const struct fsl_edma_soc_data *socdata = fsl_chan->edma->socdata;
+
 
 	chans_per_mux = fsl_chan->edma->n_chans / DMAMUX_NR;
-	ch_off = fsl_chan->vchan.chan.chan_id % chans_per_mux;
+	ch_off = socdata->mux_channel_mapping(ch % chans_per_mux);
 	muxaddr = fsl_chan->edma->muxbase[ch / chans_per_mux];
 	slot = EDMAMUX_CHCFG_SOURCE(slot);
 
@@ -857,6 +860,16 @@ fsl_edma_irq_init(struct platform_device *pdev, struct fsl_edma_engine *fsl_edma
 	return 0;
 }
 
+static unsigned s32v234_mux_channel_mapping(u32 channel_id)
+{
+	return 4 * (channel_id/4) + ((4 - channel_id % 4) - 1);
+}
+
+static unsigned vf610_mux_channel_mapping(u32 channel_id)
+{
+	return channel_id;
+}
+
 static struct fsl_edma_irq s32v234_edma_irqs[] = {
 	{"edma-err", fsl_edma_irq_handler, },
 	{"edma-tx_0-15", fsl_edma_tx_handler, },
@@ -870,11 +883,13 @@ static struct fsl_edma_irq vf610_edma_irqs[] = {
 static struct fsl_edma_soc_data fsl_edma_s32v234_data = {
 	.n_irqs = ARRAY_SIZE(s32v234_edma_irqs),
 	.irqs = s32v234_edma_irqs,
+	.mux_channel_mapping = s32v234_mux_channel_mapping,
 };
 
 static struct fsl_edma_soc_data fsl_edma_vf610_data = {
 	.n_irqs = ARRAY_SIZE(vf610_edma_irqs),
 	.irqs = vf610_edma_irqs,
+	.mux_channel_mapping = vf610_mux_channel_mapping,
 };
 
 static const struct of_device_id fsl_edma_dt_ids[] = {
