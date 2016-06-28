@@ -155,6 +155,25 @@
 				status = "disabled";
 			};
 
+			edma: dma-controller@40002000 {
+				#dma-cells = <2>;
+				compatible = "fsl,s32v234-edma";
+				reg = <0x0 0x40002000 0x0 0x2000>,
+				      <0x0 0x40031000 0x0 0x1000>,
+				      <0x0 0x400A1000 0x0 0x1000>;
+				dma-channels = <32>;
+				interrupts = <0 8 4>,
+					     <0 9 4>,
+					     <0 10 4>;
+				interrupt-names = "edma-tx_0-15",
+						  "edma-tx_16-31",
+						  "edma-err";
+				clock-names = "dmamux0", "dmamux1";
+				clocks = <&clks S32V234_CLK_SYS6>,
+					 <&clks S32V234_CLK_SYS6>;
+				status = "disabled";
+			};
+
 			swt0:swt@4000A000 {
 				compatible = "fsl,s32v234-wdt", "fsl,sac58r-wdt";
 				reg = <0x0 0x4000A000 0x0 0x1000>;
@@ -248,11 +267,9 @@
 				interrupts =<0 67 4>;
 				clocks = <&clks S32V234_CLK_SYS6>;
 				clock-names = "ipg";
-				/* TODO: Update the dma when edma ip is activated
-				dmas = <&edma0 0 50>,
-				<&edma0 0 51>;
+				dmas = <&edma 0 5>,
+				       <&edma 0 6>;
 				dma-names = "rx","tx";
-				*/
 				status = "disabled";
 			};
 
@@ -365,11 +382,9 @@
 			interrupts =<0 68 4>;
 			clocks = <&clks S32V234_CLK_SYS6>;
 			clock-names = "ipg";
-			/* TODO: Update the dma when edma ip is activated
-			dmas = <&edma0 0 50>,
-			<&edma0 0 51>;
+			dmas = <&edma 1 14>,
+			       <&edma 1 15>;
 			dma-names = "rx","tx";
-			*/
 			status = "disabled";
 		};
 
@@ -381,11 +396,9 @@
 			interrupts =<0 69 4>;
 			clocks = <&clks S32V234_CLK_SYS6>;
 			clock-names = "ipg";
-			/* TODO: Update the dma when edma ip is activated
-			dmas = <&edma0 0 50>,
-			<&edma0 0 51>;
+			dmas = <&edma 1 16>,
+			       <&edma 1 17>;
 			dma-names = "rx","tx";
-			*/
 			status = "disabled";
 		};
 
