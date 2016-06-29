@@ -352,6 +352,9 @@ static int csiphy_set_format(struct v4l2_subdev *sd,
 		if (format == NULL)
 			return -EINVAL;
 
+		if (fmt->format.field == V4L2_FIELD_ANY)
+			fmt->format.field = V4L2_FIELD_NONE;
+
 		*format = fmt->format;
 
 		/* Reset format on source pad */

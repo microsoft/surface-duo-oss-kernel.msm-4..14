@@ -380,6 +380,9 @@ static int csid_set_format(struct v4l2_subdev *sd,
 		if (format == NULL)
 			return -EINVAL;
 
+		if (fmt->format.field == V4L2_FIELD_ANY)
+			fmt->format.field = V4L2_FIELD_NONE;
+
 		*format = fmt->format;
 
 		/* Reset format on source pad */
@@ -419,6 +422,8 @@ static int csid_set_format(struct v4l2_subdev *sd,
 
 			/* Accept only YUV422 format */
 			fmt->format.code = MEDIA_BUS_FMT_UYVY8_2X8;
+			fmt->format.field = V4L2_FIELD_NONE;
+
 			*format = fmt->format;
 		}
 	}
