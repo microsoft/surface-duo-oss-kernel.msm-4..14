@@ -308,6 +308,9 @@
 				clocks = <&clks S32V234_CLK_SYS6>;
 				clock-names = "dspi";
 				spi-num-chipselects = <8>;
+				bus-num = <0>;
+				spi-cpol;
+				spi-cpha;
 				status = "disabled";
 			};
 
@@ -318,6 +321,9 @@
 				clocks = <&clks S32V234_CLK_SYS6>;
 				clock-names = "dspi";
 				spi-num-chipselects = <4>;
+				bus-num = <2>;
+				spi-cpol;
+				spi-cpha;
 				status = "disabled";
 			};
 
@@ -447,6 +453,9 @@
 				clocks = <&clks S32V234_CLK_SYS6>;
 				clock-names = "dspi";
 				spi-num-chipselects = <4>;
+				bus-num = <1>;
+				spi-cpol;
+				spi-cpha;
 				status = "disabled";
 		};
 
@@ -457,6 +466,9 @@
 				clocks = <&clks S32V234_CLK_SYS6>;
 				clock-names = "dspi";
 				spi-num-chipselects = <4>;
+				bus-num = <3>;
+				spi-cpol;
+				spi-cpha;
 				status = "disabled";
 		};
 
