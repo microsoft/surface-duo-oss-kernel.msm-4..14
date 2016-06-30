@@ -46,6 +46,8 @@ static const struct of_device_id machines[] __initconst = {
 	{ .compatible = "samsung,exynos5800", },
 #endif
 
+	{ .compatible = "qcom,apq8016", },
+
 	{ .compatible = "renesas,emev2", },
 	{ .compatible = "renesas,r7s72100", },
 	{ .compatible = "renesas,r8a73a4", },
