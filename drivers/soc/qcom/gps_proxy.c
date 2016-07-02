@@ -156,11 +156,15 @@ long gps_proxy_chdev_ioctl(struct file *filp, unsigned int opt, unsigned long ar
 	{
 		case QGPS_REGISTER_HANDLE:
 			/* DOWN is necessary to make client wait till port is open */
-			down(&g_port_sem);
+			if (!down_killable(&g_port_sem)) {
 			/* UP to semaphore is necessary here for close or
 			next register handle (for parity) */
-			up(&g_port_sem);
-			rc = 0;
+				up(&g_port_sem);
+				rc = 0;
+			}
+			else {
+				rc = -EFAULT;
+			}
 			break;
 		case QGPS_SEND_NMEA:
 			pr_debug(KERN_INFO "Received string: %s\n", 
