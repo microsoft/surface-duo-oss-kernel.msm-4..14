@@ -54,6 +54,20 @@ conditions.
                   SMMU configuration registers. In this case non-secure
                   aliases of secure registers have to be used during
                   SMMU configuration.
+- qcom,skip-init : Disable resetting configuration for all context banks
+                  during device reset.  This is useful for targets where
+                  some context banks are dedicated to other execution
+                  environments outside of Linux and those other EEs are
+                  programming their own stream match tables, SCTLR, etc.
+                  Without setting this option we will trample on their
+                  configuration.
+- qcom,no-smr-check : Usually when an SMMU probes we do a sanity check on
+                  the SMR registers to make sure they can fully support all
+                  of the mask bits.  This check can cause problems for use
+                  cases where the SMMU is already in use when the SMMU
+                  probes.  For example, for continuous splash screen
+                  support, the stream matching table is programmed before
+                  control is even turned over to Linux.
 
 ** Deprecated properties:
 

@@ -352,6 +352,8 @@ struct arm_smmu_device {
 	u32				features;
 
 #define ARM_SMMU_OPT_SECURE_CFG_ACCESS (1 << 0)
+#define ARM_SMMU_OPT_SKIP_INIT	       (1 << 1)
+#define ARM_SMMU_OPT_NO_SMR_CHECK      (1 << 2)
 	u32				options;
 	enum arm_smmu_arch_version	version;
 	enum arm_smmu_implementation	model;
@@ -435,6 +437,8 @@ static atomic_t cavium_smmu_context_count = ATOMIC_INIT(0);
 
 static struct arm_smmu_option_prop arm_smmu_options[] = {
 	{ ARM_SMMU_OPT_SECURE_CFG_ACCESS, "calxeda,smmu-secure-config-access" },
+	{ ARM_SMMU_OPT_SKIP_INIT, "qcom,skip-init" },
+	{ ARM_SMMU_OPT_NO_SMR_CHECK, "qcom,no-smr-check" },
 	{ 0, NULL},
 };
 
@@ -1597,11 +1601,13 @@ static void arm_smmu_device_reset(struct arm_smmu_device *smmu)
 	reg = readl_relaxed(ARM_SMMU_GR0_NS(smmu) + ARM_SMMU_GR0_sGFSR);
 	writel(reg, ARM_SMMU_GR0_NS(smmu) + ARM_SMMU_GR0_sGFSR);
 
-	/* Mark all SMRn as invalid and all S2CRn as bypass unless overridden */
-	reg = disable_bypass ? S2CR_TYPE_FAULT : S2CR_TYPE_BYPASS;
-	for (i = 0; i < smmu->num_mapping_groups; ++i) {
-		writel_relaxed(0, gr0_base + ARM_SMMU_GR0_SMR(i));
-		writel_relaxed(reg, gr0_base + ARM_SMMU_GR0_S2CR(i));
+	if (!(smmu->options & ARM_SMMU_OPT_SKIP_INIT)) {
+		/* Mark all SMRn as invalid and all S2CRn as bypass unless overridden */
+		reg = disable_bypass ? S2CR_TYPE_FAULT : S2CR_TYPE_BYPASS;
+		for (i = 0; i < smmu->num_mapping_groups; ++i) {
+			writel_relaxed(0, gr0_base + ARM_SMMU_GR0_SMR(i));
+			writel_relaxed(reg, gr0_base + ARM_SMMU_GR0_S2CR(i));
+		}
 	}
 
 	/*
@@ -1617,19 +1623,21 @@ static void arm_smmu_device_reset(struct arm_smmu_device *smmu)
 		writel_relaxed(reg, gr0_base + ARM_SMMU_GR0_sACR);
 	}
 
-	/* Make sure all context banks are disabled and clear CB_FSR  */
-	for (i = 0; i < smmu->num_context_banks; ++i) {
-		cb_base = ARM_SMMU_CB_BASE(smmu) + ARM_SMMU_CB(smmu, i);
-		writel_relaxed(0, cb_base + ARM_SMMU_CB_SCTLR);
-		writel_relaxed(FSR_FAULT, cb_base + ARM_SMMU_CB_FSR);
-		/*
-		 * Disable MMU-500's not-particularly-beneficial next-page
-		 * prefetcher for the sake of errata #841119 and #826419.
-		 */
-		if (smmu->model == ARM_MMU500) {
-			reg = readl_relaxed(cb_base + ARM_SMMU_CB_ACTLR);
-			reg &= ~ARM_MMU500_ACTLR_CPRE;
-			writel_relaxed(reg, cb_base + ARM_SMMU_CB_ACTLR);
+	if (!(smmu->options & ARM_SMMU_OPT_SKIP_INIT)) {
+		/* Make sure all context banks are disabled and clear CB_FSR  */
+		for (i = 0; i < smmu->num_context_banks; ++i) {
+			cb_base = ARM_SMMU_CB_BASE(smmu) + ARM_SMMU_CB(smmu, i);
+			writel_relaxed(0, cb_base + ARM_SMMU_CB_SCTLR);
+			writel_relaxed(FSR_FAULT, cb_base + ARM_SMMU_CB_FSR);
+			/*
+			 * Disable MMU-500's not-particularly-beneficial next-page
+			 * prefetcher for the sake of errata #841119 and #826419.
+			 */
+			if (smmu->model == ARM_MMU500) {
+				reg = readl_relaxed(cb_base + ARM_SMMU_CB_ACTLR);
+				reg &= ~ARM_MMU500_ACTLR_CPRE;
+				writel_relaxed(reg, cb_base + ARM_SMMU_CB_ACTLR);
+			}
 		}
 	}
 
@@ -1805,8 +1813,6 @@ static int arm_smmu_device_cfg_probe(struct arm_smmu_device *smmu)
 			   "\t(IDR0.CTTW overridden by dma-coherent property)\n");
 
 	if (id & ID0_SMS) {
-		u32 smr, sid, mask;
-
 		smmu->features |= ARM_SMMU_FEAT_STREAM_MATCH;
 		smmu->num_mapping_groups = (id >> ID0_NUMSMRG_SHIFT) &
 					   ID0_NUMSMRG_MASK;
@@ -1816,23 +1822,27 @@ static int arm_smmu_device_cfg_probe(struct arm_smmu_device *smmu)
 			return -ENODEV;
 		}
 
-		smr = SMR_MASK_MASK << SMR_MASK_SHIFT;
-		smr |= (SMR_ID_MASK << SMR_ID_SHIFT);
-		writel_relaxed(smr, gr0_base + ARM_SMMU_GR0_SMR(0));
-		smr = readl_relaxed(gr0_base + ARM_SMMU_GR0_SMR(0));
+		if (!(smmu->options & ARM_SMMU_OPT_NO_SMR_CHECK)) {
+			u32 smr, sid, mask;
 
-		mask = (smr >> SMR_MASK_SHIFT) & SMR_MASK_MASK;
-		sid = (smr >> SMR_ID_SHIFT) & SMR_ID_MASK;
-		if ((mask & sid) != sid) {
-			dev_err(smmu->dev,
-				"SMR mask bits (0x%x) insufficient for ID field (0x%x)\n",
-				mask, sid);
-			return -ENODEV;
+			smr = SMR_MASK_MASK << SMR_MASK_SHIFT;
+			smr |= (SMR_ID_MASK << SMR_ID_SHIFT);
+			writel_relaxed(smr, gr0_base + ARM_SMMU_GR0_SMR(0));
+			smr = readl_relaxed(gr0_base + ARM_SMMU_GR0_SMR(0));
+
+			mask = (smr >> SMR_MASK_SHIFT) & SMR_MASK_MASK;
+			sid = (smr >> SMR_ID_SHIFT) & SMR_ID_MASK;
+			if ((mask & sid) != sid) {
+				dev_err(smmu->dev,
+					"SMR mask bits (0x%x) insufficient for ID field (0x%x)\n",
+					mask, sid);
+				return -ENODEV;
+			}
+
+			dev_notice(smmu->dev,
+				   "\tstream matching with %u register groups, mask 0x%x",
+				   smmu->num_mapping_groups, mask);
 		}
-
-		dev_notice(smmu->dev,
-			   "\tstream matching with %u register groups, mask 0x%x",
-			   smmu->num_mapping_groups, mask);
 	} else {
 		smmu->num_mapping_groups = (id >> ID0_NUMSIDB_SHIFT) &
 					   ID0_NUMSIDB_MASK;
@@ -2163,11 +2173,11 @@ static int arm_smmu_device_dt_probe(struct platform_device *pdev)
        if (err)
                goto out_disable_regulators;
 
+	parse_driver_options(smmu);
+
 	err = arm_smmu_device_cfg_probe(smmu);
 	if (err)
 		goto out_disable_clocks;
-
-	parse_driver_options(smmu);
 
 	if (smmu->version == ARM_SMMU_V2 &&
 	    smmu->num_context_banks != smmu->num_context_irqs) {
