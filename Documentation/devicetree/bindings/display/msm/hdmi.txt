@@ -22,8 +22,10 @@ Required properties:
 - phy-names: the name of the corresponding PHY device
 
 Optional properties:
-- qcom,hdmi-tx-mux-en-gpio: hdmi mux enable pin
-- qcom,hdmi-tx-mux-sel-gpio: hdmi mux select pin
+- hpd-gpio: hdmi hpd pin
+- mux-en-gpio: hdmi mux enable pin
+- mux-sel-gpio: hdmi mux select pin
+- mux-lpm-gpio: hdmi mux lpm pin
 - power-domains: reference to the power domain(s), if available.
 - pinctrl-names: the pin control state names; should contain "default"
 - pinctrl-0: the default pinctrl state (active)
