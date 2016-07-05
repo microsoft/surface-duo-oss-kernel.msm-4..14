@@ -976,7 +976,7 @@ static int ov5645_enum_frame_size(struct v4l2_subdev *subdev,
 				  struct v4l2_subdev_pad_config *cfg,
 				  struct v4l2_subdev_frame_size_enum *fse)
 {
-	if (fse->index >= OV5645_MODE_MAX)
+	if (fse->index > OV5645_MODE_MAX)
 		return -EINVAL;
 
 	fse->min_width = ov5645_mode_info_data[fse->index].width;
