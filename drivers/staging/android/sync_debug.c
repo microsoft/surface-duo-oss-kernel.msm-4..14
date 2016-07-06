@@ -156,6 +156,8 @@ static void sync_print_obj(struct seq_file *s, struct sync_timeline *obj)
 static void sync_print_sync_file(struct seq_file *s,
 				  struct sync_file *sync_file)
 {
+	wait_queue_t *pos;
+	unsigned long flags;
 	int i;
 
 	seq_printf(s, "[%p] %s: %s\n", sync_file, sync_file->name,
@@ -163,6 +165,19 @@ static void sync_print_sync_file(struct seq_file *s,
 
 	for (i = 0; i < sync_file->num_fences; ++i)
 		sync_print_fence(s, sync_file->cbs[i].fence, true);
+
+	spin_lock_irqsave(&fence->wq.lock, flags);
+	list_for_each_entry(pos, &fence->wq.task_list, task_list) {
+		struct sync_fence_waiter *waiter;
+
+		if (pos->func != &sync_fence_wake_up_wq)
+			continue;
+
+		waiter = container_of(pos, struct sync_fence_waiter, work);
+
+		seq_printf(s, "waiter %pF\n", waiter->callback);
+	}
+	spin_unlock_irqrestore(&fence->wq.lock, flags);
 }
 
 static int sync_debugfs_show(struct seq_file *s, void *unused)
