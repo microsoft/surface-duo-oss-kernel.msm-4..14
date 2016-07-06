@@ -75,7 +75,13 @@
 **	CONSTANT DEFINITIONS
 */
 
+
 #define LINFLEXD_LINCR1_INIT		(1<<0)
+#define LINFLEXD_LINCR1_MME		(1<<4)
+#define LINFLEXD_LINCR1_BF		(1<<7)
+
+#define LINFLEXD_LINSR_LINS_INITMODE	(1<<12)
+#define LINFLEXD_LINSR_LINS_MASK	(0xF<<12)
 
 #define LINFLEXD_LINIER_SZIE		(1<<15)
 #define LINFLEXD_LINIER_OCIE		(1<<14)
@@ -358,42 +364,25 @@ static void linflex_break_ctl(struct uart_port *port, int break_state)
 static void linflex_setup_watermark(struct linflex_port *sport)
 {
 	unsigned long cr, ier, cr1;
-	unsigned long cr_saved ;
 
 	cr = readl(sport->port.membase + UARTCR);
-	cr_saved = cr;
-
 	/* Disable transmission/reception */
 	cr &= ~(LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN);
 
 	writel(cr, sport->port.membase + UARTCR);
 
 	/* Enter initialization mode by setting INIT bit */
-	cr1=readl(sport->port.membase + LINCR1);
 
-	cr1 |= LINFLEXD_LINCR1_INIT;
-
+	/* set the Linflex in master mode amd activate by-pass filter */
+	cr1 = LINFLEXD_LINCR1_BF | LINFLEXD_LINCR1_MME
+	      | LINFLEXD_LINCR1_INIT;
 	writel(cr1, sport->port.membase + LINCR1);
 
-	/* determine FIFO size and enable FIFO mode from UARTCR */
-	/* TO BE DONE
-
-	sport->txfifo_size = 0x1 << (((val >> UARTPFIFO_TXSIZE_OFF) &
-		UARTPFIFO_FIFOSIZE_MASK) + 1);
-
-	sport->rxfifo_size = 0x1 << (((val >> UARTPFIFO_RXSIZE_OFF) &
-		UARTPFIFO_FIFOSIZE_MASK) + 1);
-
-	writeb(val | UARTPFIFO_TXFE | UARTPFIFO_RXFE,
-			sport->port.membase + UARTPFIFO);
-
-	// flush Tx and Rx FIFO
-	writeb(UARTCFIFO_TXFLUSH | UARTCFIFO_RXFLUSH,
-			sport->port.membase + UARTCFIFO);
-
-	writeb(0, sport->port.membase + UARTTWFIFO);
-	writeb(1, sport->port.membase + UARTRWFIFO);
-	*/
+	/* wait for init mode entry */
+	while ((readl(sport->port.membase + LINSR)
+		& LINFLEXD_LINSR_LINS_MASK)
+		!= LINFLEXD_LINSR_LINS_INITMODE)
+		;
 
 	/*
 		UART = 0x1;		- Linflex working in UART mode
@@ -403,15 +392,14 @@ static void linflex_setup_watermark(struct linflex_port *sport)
 		PCE = 0x0;		- No parity
 	*/
 
-	/* Disable FIFO mode set by u-boot until UART FIFO mode support is
-	implemented by the current driver */
-	cr_saved &= ~(LINFLEXD_UARTCR_RFBM | LINFLEXD_UARTCR_TFBM);
 
-	cr_saved |= (LINFLEXD_UARTCR_UART | LINFLEXD_UARTCR_RXEN |
-		     LINFLEXD_UARTCR_TXEN | LINFLEXD_UARTCR_WL0);
+	/* set UART bit to allow writing other bits */
+	writel(LINFLEXD_UARTCR_UART, sport->port.membase + UARTCR);
 
-	/* Restore cr2 */
-	writel(cr_saved, sport->port.membase + UARTCR);
+	cr = (LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN |
+	      LINFLEXD_UARTCR_WL0 | LINFLEXD_UARTCR_UART);
+
+	writel(cr, sport->port.membase + UARTCR);
 
 	cr1 &= ~(LINFLEXD_LINCR1_INIT);
 
@@ -478,7 +466,6 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 	/*on Palladium we trust the configuration provided by u-boot*/
 	struct linflex_port *sport = container_of(port, struct linflex_port, port);
 	unsigned long flags;
-	/*unsigned char cr1, old_cr1, old_cr2, cr4, bdh, modem;*/
 	unsigned long cr, old_cr, cr1;
 	unsigned int  baud;
 	unsigned int old_csize = old ? old->c_cflag & CSIZE : CS8;
@@ -492,6 +479,12 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 	cr1 |= LINFLEXD_LINCR1_INIT;
 
 	writel(cr1, sport->port.membase + LINCR1);
+
+	/* wait for init mode entry */
+	while ((readl(sport->port.membase + LINSR)
+		& LINFLEXD_LINSR_LINS_MASK)
+		!= LINFLEXD_LINSR_LINS_INITMODE)
+		;
 
 	/*
 	 * only support CS8 and CS7, and for CS7 must enable PE.
@@ -695,20 +688,14 @@ linflex_console_write(struct console *co, const char *s, unsigned int count)
 	ier = old_ier = readl(sport->port.membase + LINIER);
 
 	cr = readl(sport->port.membase + UARTCR);
-	cr |= (LINFLEXD_UARTCR_RXEN |  LINFLEXD_UARTCR_TXEN);
-	ier &= ~(LINFLEXD_LINIER_DTIE | LINFLEXD_LINIER_DRIE);
+	cr |= (LINFLEXD_UARTCR_TXEN);
+	ier &= ~(LINFLEXD_LINIER_DTIE);
 
 	writeb(ier, sport->port.membase + LINIER);
 	writeb(cr, sport->port.membase + UARTCR);
 
 	uart_console_write(&sport->port, s, count, linflex_console_putchar);
 
-	/* wait for transmitter finish complete and restore CR2 */
-	/*
-	while(!( readl(sport->port.membase + UARTSR) & LINFLEXD_UARTSR_DTFTFF))
-		barrier();
-	*/
-	//writeb(old_cr2, sport->port.membase + UARTCR2);
 	writeb(old_ier, sport->port.membase + LINIER);
 
 }
