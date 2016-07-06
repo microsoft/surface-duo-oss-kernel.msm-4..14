@@ -261,13 +261,12 @@ static irqreturn_t linflex_rxint(int irq, void *dev_id)
 	spin_lock_irqsave(&sport->port.lock, flags);
 
 	status = readl(sport->port.membase + UARTSR);
-	while (status & LINFLEXD_UARTSR_DRFRFE) {
+	while (status & LINFLEXD_UARTSR_RMB) {
 
-		status = readl(sport->port.membase + UARTSR);
-		status = status | LINFLEXD_UARTSR_DRFRFE;
-		writel(status, sport->port.membase + UARTSR);
+		rx = readb(sport->port.membase + BDRM);
+		flg = TTY_NORMAL;
+		sport->port.icount.rx++;
 
-		status = readl(sport->port.membase + UARTSR);
 		if (status & (LINFLEXD_UARTSR_BOF|LINFLEXD_UARTSR_SZF|LINFLEXD_UARTSR_FEF|LINFLEXD_UARTSR_PE)) {
 
 			if (status & LINFLEXD_UARTSR_SZF) {
@@ -284,12 +283,10 @@ static irqreturn_t linflex_rxint(int irq, void *dev_id)
 			}
 		}
 
-		rx = readl(sport->port.membase + BDRM);
 
-		writel( readl(sport->port.membase + UARTSR)|LINFLEXD_UARTSR_RMB, sport->port.membase + UARTSR);
-
-		flg = TTY_NORMAL;
-		sport->port.icount.rx++;
+		writel(status | LINFLEXD_UARTSR_RMB | LINFLEXD_UARTSR_DRFRFE,
+				sport->port.membase + UARTSR);
+		status = readl(sport->port.membase + UARTSR);
 
 		if (uart_handle_sysrq_char(&sport->port, (unsigned char)rx))
 			continue;
@@ -297,8 +294,7 @@ static irqreturn_t linflex_rxint(int irq, void *dev_id)
 		#ifdef SUPPORT_SYSRQ
 			sport->port.sysrq = 0;
 		#endif
-			tty_insert_flip_char(port, rx, flg);
-		status = readl(sport->port.membase + UARTSR);
+		tty_insert_flip_char(port, rx, flg);
 	}
 
 	spin_unlock_irqrestore(&sport->port.lock, flags);
