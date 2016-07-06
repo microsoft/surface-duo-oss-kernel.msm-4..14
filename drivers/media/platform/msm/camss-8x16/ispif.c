@@ -19,6 +19,7 @@
 #include <linux/completion.h>
 #include <linux/interrupt.h>
 #include <linux/iopoll.h>
+#include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <media/media-entity.h>
 #include <media/v4l2-device.h>
@@ -72,6 +73,25 @@ enum ispif_intf_cmd {
 	CMD_DISABLE_IMMEDIATELY = 0x2,
 	CMD_ALL_DISABLE_IMMEDIATELY = 0xaaaaaaaa,
 	CMD_ALL_NO_CHANGE = 0xffffffff,
+};
+
+static const u32 ispif_formats[] = {
+	MEDIA_BUS_FMT_UYVY8_2X8,
+	MEDIA_BUS_FMT_VYUY8_2X8,
+	MEDIA_BUS_FMT_YUYV8_2X8,
+	MEDIA_BUS_FMT_YVYU8_2X8,
+	MEDIA_BUS_FMT_SBGGR8_1X8,
+	MEDIA_BUS_FMT_SGBRG8_1X8,
+	MEDIA_BUS_FMT_SGRBG8_1X8,
+	MEDIA_BUS_FMT_SRGGB8_1X8,
+	MEDIA_BUS_FMT_SBGGR10_1X10,
+	MEDIA_BUS_FMT_SGBRG10_1X10,
+	MEDIA_BUS_FMT_SGRBG10_1X10,
+	MEDIA_BUS_FMT_SRGGB10_1X10,
+	MEDIA_BUS_FMT_SBGGR12_1X12,
+	MEDIA_BUS_FMT_SGBRG12_1X12,
+	MEDIA_BUS_FMT_SGRBG12_1X12,
+	MEDIA_BUS_FMT_SRGGB12_1X12,
 };
 
 /*
@@ -489,6 +509,224 @@ static int ispif_set_stream(struct v4l2_subdev *sd, int enable)
 }
 
 /*
+ * __ispif_get_format - Get pointer to format structure
+ * @ispif: ISPIF device
+ * @cfg: V4L2 subdev pad configuration
+ * @pad: pad from which format is requested
+ * @which: TRY or ACTIVE format
+ *
+ * Return pointer to TRY or ACTIVE format structure
+ */
+static struct v4l2_mbus_framefmt *
+__ispif_get_format(struct ispif_device *ispif,
+		   struct v4l2_subdev_pad_config *cfg,
+		   unsigned int pad,
+		   enum v4l2_subdev_format_whence which)
+{
+	if (which == V4L2_SUBDEV_FORMAT_TRY)
+		return v4l2_subdev_get_try_format(&ispif->subdev, cfg, pad);
+
+	return &ispif->fmt[pad];
+}
+
+/*
+ * ispif_try_format - Handle try format by pad subdev method
+ * @ispif: ISPIF device
+ * @cfg: V4L2 subdev pad configuration
+ * @pad: pad on which format is requested
+ * @fmt: pointer to v4l2 format structure
+ * @which: wanted subdev format
+ */
+static void ispif_try_format(struct ispif_device *ispif,
+			     struct v4l2_subdev_pad_config *cfg,
+			     unsigned int pad,
+			     struct v4l2_mbus_framefmt *fmt,
+			     enum v4l2_subdev_format_whence which)
+{
+	unsigned int i;
+
+	switch (pad) {
+	case MSM_ISPIF_PAD_SINK:
+		/* Set format on sink pad */
+
+		for (i = 0; i < ARRAY_SIZE(ispif_formats); i++)
+			if (fmt->code == ispif_formats[i])
+				break;
+
+		/* If not found, use UYVY as default */
+		if (i >= ARRAY_SIZE(ispif_formats))
+			fmt->code = MEDIA_BUS_FMT_UYVY8_2X8;
+
+		fmt->width = clamp_t(u32, fmt->width, 1, 8191);
+		fmt->height = clamp_t(u32, fmt->height, 1, 8191);
+
+		if (fmt->field == V4L2_FIELD_ANY)
+			fmt->field = V4L2_FIELD_NONE;
+
+		break;
+
+	case MSM_ISPIF_PAD_SRC:
+		/* Set and return a format same as sink pad */
+
+		*fmt = *__ispif_get_format(ispif, cfg, MSM_ISPIF_PAD_SINK,
+					   which);
+
+		break;
+	}
+
+	fmt->colorspace = V4L2_COLORSPACE_SRGB;
+}
+
+/*
+ * ispif_enum_mbus_code - Handle pixel format enumeration
+ * @sd: ISPIF V4L2 subdevice
+ * @cfg: V4L2 subdev pad configuration
+ * @code: pointer to v4l2_subdev_mbus_code_enum structure
+ * return -EINVAL or zero on success
+ */
+static int ispif_enum_mbus_code(struct v4l2_subdev *sd,
+				struct v4l2_subdev_pad_config *cfg,
+				struct v4l2_subdev_mbus_code_enum *code)
+{
+	struct ispif_device *ispif = v4l2_get_subdevdata(sd);
+	struct v4l2_mbus_framefmt *format;
+
+	if (code->pad == MSM_ISPIF_PAD_SINK) {
+		if (code->index >= ARRAY_SIZE(ispif_formats))
+			return -EINVAL;
+
+		code->code = ispif_formats[code->index];
+	} else {
+		if (code->index > 0)
+			return -EINVAL;
+
+		format = __ispif_get_format(ispif, cfg, MSM_ISPIF_PAD_SINK,
+					    code->which);
+
+		code->code = format->code;
+	}
+
+	return 0;
+}
+
+/*
+ * ispif_enum_frame_size - Handle frame size enumeration
+ * @sd: ISPIF V4L2 subdevice
+ * @cfg: V4L2 subdev pad configuration
+ * @fse: pointer to v4l2_subdev_frame_size_enum structure
+ * return -EINVAL or zero on success
+ */
+static int ispif_enum_frame_size(struct v4l2_subdev *sd,
+				 struct v4l2_subdev_pad_config *cfg,
+				 struct v4l2_subdev_frame_size_enum *fse)
+{
+	struct ispif_device *ispif = v4l2_get_subdevdata(sd);
+	struct v4l2_mbus_framefmt format;
+
+	if (fse->index != 0)
+		return -EINVAL;
+
+	format.code = fse->code;
+	format.width = 1;
+	format.height = 1;
+	ispif_try_format(ispif, cfg, fse->pad, &format, fse->which);
+	fse->min_width = format.width;
+	fse->min_height = format.height;
+
+	if (format.code != fse->code)
+		return -EINVAL;
+
+	format.code = fse->code;
+	format.width = -1;
+	format.height = -1;
+	ispif_try_format(ispif, cfg, fse->pad, &format, fse->which);
+	fse->max_width = format.width;
+	fse->max_height = format.height;
+
+	return 0;
+}
+
+/*
+ * ispif_get_format - Handle get format by pads subdev method
+ * @sd: ISPIF V4L2 subdevice
+ * @cfg: V4L2 subdev pad configuration
+ * @fmt: pointer to v4l2 subdev format structure
+ *
+ * Return -EINVAL or zero on success
+ */
+static int ispif_get_format(struct v4l2_subdev *sd,
+			    struct v4l2_subdev_pad_config *cfg,
+			    struct v4l2_subdev_format *fmt)
+{
+	struct ispif_device *ispif = v4l2_get_subdevdata(sd);
+	struct v4l2_mbus_framefmt *format;
+
+	format = __ispif_get_format(ispif, cfg, fmt->pad, fmt->which);
+	if (format == NULL)
+		return -EINVAL;
+
+	fmt->format = *format;
+
+	return 0;
+}
+
+/*
+ * ispif_set_format - Handle set format by pads subdev method
+ * @sd: ISPIF V4L2 subdevice
+ * @cfg: V4L2 subdev pad configuration
+ * @fmt: pointer to v4l2 subdev format structure
+ *
+ * Return -EINVAL or zero on success
+ */
+static int ispif_set_format(struct v4l2_subdev *sd,
+			    struct v4l2_subdev_pad_config *cfg,
+			    struct v4l2_subdev_format *fmt)
+{
+	struct ispif_device *ispif = v4l2_get_subdevdata(sd);
+	struct v4l2_mbus_framefmt *format;
+
+	format = __ispif_get_format(ispif, cfg, fmt->pad, fmt->which);
+	if (format == NULL)
+		return -EINVAL;
+
+	ispif_try_format(ispif, cfg, fmt->pad, &fmt->format, fmt->which);
+	*format = fmt->format;
+
+	/* Propagate the format from sink to source */
+	if (fmt->pad == MSM_ISPIF_PAD_SINK) {
+		format = __ispif_get_format(ispif, cfg, MSM_ISPIF_PAD_SRC,
+					    fmt->which);
+
+		*format = fmt->format;
+		ispif_try_format(ispif, cfg, MSM_ISPIF_PAD_SRC, format,
+				 fmt->which);
+	}
+
+	return 0;
+}
+
+/*
+ * ispif_init_formats - Initialize formats on all pads
+ * @sd: ISPIF V4L2 subdevice
+ *
+ * Initialize all pad formats with default values.
+ */
+static int ispif_init_formats(struct v4l2_subdev *sd)
+{
+	struct v4l2_subdev_format format;
+
+	memset(&format, 0, sizeof(format));
+	format.pad = MSM_ISPIF_PAD_SINK;
+	format.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+	format.format.code = MEDIA_BUS_FMT_UYVY8_2X8;
+	format.format.width = 1920;
+	format.format.height = 1080;
+	ispif_set_format(sd, NULL, &format);
+
+	return 0;
+}
+
+/*
  * msm_ispif_subdev_init - Initialize ISPIF device structure and resources
  * @ispif: ISPIF device
  * @camss: Camera sub-system structure
@@ -600,7 +838,12 @@ static const struct v4l2_subdev_video_ops ispif_video_ops = {
 	.s_stream = ispif_set_stream,
 };
 
-static const struct v4l2_subdev_pad_ops ispif_pad_ops;
+static const struct v4l2_subdev_pad_ops ispif_pad_ops = {
+	.enum_mbus_code = ispif_enum_mbus_code,
+	.enum_frame_size = ispif_enum_frame_size,
+	.get_fmt = ispif_get_format,
+	.set_fmt = ispif_set_format,
+};
 
 static const struct v4l2_subdev_ops ispif_v4l2_ops = {
 	.core = &ispif_core_ops,
@@ -612,6 +855,7 @@ static const struct v4l2_subdev_internal_ops ispif_v4l2_internal_ops;
 
 static const struct media_entity_operations ispif_media_ops = {
 	.link_setup = ispif_link_setup,
+	.link_validate = v4l2_subdev_link_validate,
 };
 
 /*
@@ -633,6 +877,8 @@ int msm_ispif_register_entities(struct ispif_device *ispif,
 	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	snprintf(sd->name, ARRAY_SIZE(sd->name), MSM_ISPIF_NAME);
 	v4l2_set_subdevdata(sd, ispif);
+
+	ispif_init_formats(sd);
 
 	pads[MSM_ISPIF_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
 	pads[MSM_ISPIF_PAD_SRC].flags = MEDIA_PAD_FL_SOURCE;

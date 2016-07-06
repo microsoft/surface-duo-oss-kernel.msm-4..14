@@ -106,6 +106,7 @@ struct vfe_device {
 	struct msm_vfe_output output[MSM_VFE_MAX_OUTPUTS];
 	struct msm_bus_scale_pdata *bus_scale_table;
 	uint32_t bus_client;
+	struct v4l2_mbus_framefmt fmt[MSM_VFE_PADS_NUM];
 };
 
 int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,

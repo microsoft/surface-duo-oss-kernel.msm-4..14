@@ -23,7 +23,20 @@
 #include <media/v4l2-dev.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-fh.h>
+#include <media/v4l2-mediabus.h>
 #include <media/videobuf2-core.h>
+
+/*
+ * struct format_info - ISP media bus format information
+ * @code: V4L2 media bus format code
+ * @pixelformat: V4L2 pixel format FCC identifier
+ * @bpp: Bits per pixel when stored in memory
+ */
+struct format_info {
+	u32 code;
+	u32 pixelformat;
+	unsigned int bpp;
+};
 
 struct msm_video_buffer {
 	struct vb2_buffer vb;

@@ -41,6 +41,7 @@ struct ispif_device {
 	int nclocks;
 	struct completion reset_complete;
 	u8 csid_id;
+	struct v4l2_mbus_framefmt fmt[MSM_ISPIF_PADS_NUM];
 };
 
 struct resources_ispif;

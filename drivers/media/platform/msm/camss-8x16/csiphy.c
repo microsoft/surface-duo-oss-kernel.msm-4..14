@@ -18,6 +18,7 @@
 #include <linux/clk.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
+#include <linux/kernel.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <media/media-entity.h>
@@ -42,6 +43,29 @@
 #define CAMSS_CSI_PHY_INTERRUPT_CLEARn(n)	(0x1cc + 0x4 * (n))
 #define CAMSS_CSI_PHY_GLBL_T_INIT_CFG0		0x1ec
 #define CAMSS_CSI_PHY_T_WAKEUP_CFG0		0x1f4
+
+static const u32 csiphy_formats[] = {
+	MEDIA_BUS_FMT_UYVY8_2X8,
+	MEDIA_BUS_FMT_VYUY8_2X8,
+	MEDIA_BUS_FMT_YUYV8_2X8,
+	MEDIA_BUS_FMT_YVYU8_2X8,
+	MEDIA_BUS_FMT_SBGGR8_1X8,
+	MEDIA_BUS_FMT_SGBRG8_1X8,
+	MEDIA_BUS_FMT_SGRBG8_1X8,
+	MEDIA_BUS_FMT_SRGGB8_1X8,
+	MEDIA_BUS_FMT_SBGGR10_1X10,
+	MEDIA_BUS_FMT_SGBRG10_1X10,
+	MEDIA_BUS_FMT_SGRBG10_1X10,
+	MEDIA_BUS_FMT_SRGGB10_1X10,
+	MEDIA_BUS_FMT_SBGGR12_1X12,
+	MEDIA_BUS_FMT_SGBRG12_1X12,
+	MEDIA_BUS_FMT_SGRBG12_1X12,
+	MEDIA_BUS_FMT_SRGGB12_1X12,
+	MEDIA_BUS_FMT_SBGGR10_DPCM8_1X8,
+	MEDIA_BUS_FMT_SGBRG10_DPCM8_1X8,
+	MEDIA_BUS_FMT_SGRBG10_DPCM8_1X8,
+	MEDIA_BUS_FMT_SRGGB10_DPCM8_1X8
+};
 
 /*
  * csiphy_isr - CSIPHY module interrupt handler
@@ -307,6 +331,123 @@ __csiphy_get_format(struct csiphy_device *csiphy,
 }
 
 /*
+ * csiphy_try_format - Handle try format by pad subdev method
+ * @csiphy: CSIPHY device
+ * @cfg: V4L2 subdev pad configuration
+ * @pad: pad on which format is requested
+ * @fmt: pointer to v4l2 format structure
+ * @which: wanted subdev format
+ */
+static void csiphy_try_format(struct csiphy_device *csiphy,
+			      struct v4l2_subdev_pad_config *cfg,
+			      unsigned int pad,
+			      struct v4l2_mbus_framefmt *fmt,
+			      enum v4l2_subdev_format_whence which)
+{
+	unsigned int i;
+
+	switch (pad) {
+	case MSM_CSIPHY_PAD_SINK:
+		/* Set format on sink pad */
+
+		for (i = 0; i < ARRAY_SIZE(csiphy_formats); i++)
+			if (fmt->code == csiphy_formats[i])
+				break;
+
+		/* If not found, use UYVY as default */
+		if (i >= ARRAY_SIZE(csiphy_formats))
+			fmt->code = MEDIA_BUS_FMT_UYVY8_2X8;
+
+		fmt->width = clamp_t(u32, fmt->width, 1, 8191);
+		fmt->height = clamp_t(u32, fmt->height, 1, 8191);
+
+		if (fmt->field == V4L2_FIELD_ANY)
+			fmt->field = V4L2_FIELD_NONE;
+
+		break;
+
+	case MSM_CSIPHY_PAD_SRC:
+		/* Set and return a format same as sink pad */
+
+		*fmt = *__csiphy_get_format(csiphy, cfg, MSM_CSID_PAD_SINK,
+					    which);
+
+		break;
+	}
+
+	fmt->colorspace = V4L2_COLORSPACE_SRGB;
+}
+
+/*
+ * csiphy_enum_mbus_code - Handle pixel format enumeration
+ * @sd: CSIPHY V4L2 subdevice
+ * @cfg: V4L2 subdev pad configuration
+ * @code: pointer to v4l2_subdev_mbus_code_enum structure
+ * return -EINVAL or zero on success
+ */
+static int csiphy_enum_mbus_code(struct v4l2_subdev *sd,
+				 struct v4l2_subdev_pad_config *cfg,
+				 struct v4l2_subdev_mbus_code_enum *code)
+{
+	struct csiphy_device *csiphy = v4l2_get_subdevdata(sd);
+	struct v4l2_mbus_framefmt *format;
+
+	if (code->pad == MSM_CSIPHY_PAD_SINK) {
+		if (code->index >= ARRAY_SIZE(csiphy_formats))
+			return -EINVAL;
+
+		code->code = csiphy_formats[code->index];
+	} else {
+		if (code->index > 0)
+			return -EINVAL;
+
+		format = __csiphy_get_format(csiphy, cfg, MSM_CSIPHY_PAD_SINK,
+					     code->which);
+
+		code->code = format->code;
+	}
+
+	return 0;
+}
+
+/*
+ * csiphy_enum_frame_size - Handle frame size enumeration
+ * @sd: CSIPHY V4L2 subdevice
+ * @cfg: V4L2 subdev pad configuration
+ * @fse: pointer to v4l2_subdev_frame_size_enum structure
+ * return -EINVAL or zero on success
+ */
+static int csiphy_enum_frame_size(struct v4l2_subdev *sd,
+				  struct v4l2_subdev_pad_config *cfg,
+				  struct v4l2_subdev_frame_size_enum *fse)
+{
+	struct csiphy_device *csiphy = v4l2_get_subdevdata(sd);
+	struct v4l2_mbus_framefmt format;
+
+	if (fse->index != 0)
+		return -EINVAL;
+
+	format.code = fse->code;
+	format.width = 1;
+	format.height = 1;
+	csiphy_try_format(csiphy, cfg, fse->pad, &format, fse->which);
+	fse->min_width = format.width;
+	fse->min_height = format.height;
+
+	if (format.code != fse->code)
+		return -EINVAL;
+
+	format.code = fse->code;
+	format.width = -1;
+	format.height = -1;
+	csiphy_try_format(csiphy, cfg, fse->pad, &format, fse->which);
+	fse->max_width = format.width;
+	fse->max_height = format.height;
+
+	return 0;
+}
+
+/*
  * csiphy_get_format - Handle get format by pads subdev method
  * @sd: CSIPHY V4L2 subdevice
  * @cfg: V4L2 subdev pad configuration
@@ -345,34 +486,43 @@ static int csiphy_set_format(struct v4l2_subdev *sd,
 	struct csiphy_device *csiphy = v4l2_get_subdevdata(sd);
 	struct v4l2_mbus_framefmt *format;
 
+	format = __csiphy_get_format(csiphy, cfg, fmt->pad, fmt->which);
+	if (format == NULL)
+		return -EINVAL;
+
+	csiphy_try_format(csiphy, cfg, fmt->pad, &fmt->format, fmt->which);
+	*format = fmt->format;
+
+	/* Propagate the format from sink to source */
 	if (fmt->pad == MSM_CSIPHY_PAD_SINK) {
-		/* Set format on sink pad */
-		format = __csiphy_get_format(csiphy, cfg, fmt->pad,
-					     fmt->which);
-		if (format == NULL)
-			return -EINVAL;
-
-		if (fmt->format.field == V4L2_FIELD_ANY)
-			fmt->format.field = V4L2_FIELD_NONE;
-
-		*format = fmt->format;
-
-		/* Reset format on source pad */
 		format = __csiphy_get_format(csiphy, cfg, MSM_CSIPHY_PAD_SRC,
 					     fmt->which);
-		if (format == NULL)
-			return -EINVAL;
 
 		*format = fmt->format;
-	} else {
-		/* Source pad format must be same as sink pad format, */
-		/* so just return source pad format */
-		format = __csiphy_get_format(csiphy, cfg, fmt->pad, fmt->which);
-		if (format == NULL)
-			return -EINVAL;
-
-		fmt->format = *format;
+		csiphy_try_format(csiphy, cfg, MSM_CSIPHY_PAD_SRC, format,
+				  fmt->which);
 	}
+
+	return 0;
+}
+
+/*
+ * csiphy_init_formats - Initialize formats on all pads
+ * @sd: CSIPHY V4L2 subdevice
+ *
+ * Initialize all pad formats with default values.
+ */
+static int csiphy_init_formats(struct v4l2_subdev *sd)
+{
+	struct v4l2_subdev_format format;
+
+	memset(&format, 0, sizeof(format));
+	format.pad = MSM_CSIPHY_PAD_SINK;
+	format.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+	format.format.code = MEDIA_BUS_FMT_UYVY8_2X8;
+	format.format.width = 1920;
+	format.format.height = 1080;
+	csiphy_set_format(sd, NULL, &format);
 
 	return 0;
 }
@@ -508,6 +658,8 @@ static const struct v4l2_subdev_video_ops csiphy_video_ops = {
 };
 
 static const struct v4l2_subdev_pad_ops csiphy_pad_ops = {
+	.enum_mbus_code = csiphy_enum_mbus_code,
+	.enum_frame_size = csiphy_enum_frame_size,
 	.get_fmt = csiphy_get_format,
 	.set_fmt = csiphy_set_format,
 };
@@ -545,6 +697,8 @@ int msm_csiphy_register_entities(struct csiphy_device *csiphy,
 	snprintf(sd->name, ARRAY_SIZE(sd->name), "%s%d",
 		 MSM_CSIPHY_NAME, csiphy->id);
 	v4l2_set_subdevdata(sd, csiphy);
+
+	csiphy_init_formats(sd);
 
 	pads[MSM_CSIPHY_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
 	pads[MSM_CSIPHY_PAD_SRC].flags = MEDIA_PAD_FL_SOURCE;

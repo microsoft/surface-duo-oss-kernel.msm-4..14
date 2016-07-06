@@ -147,6 +147,24 @@
 /* Frame drop value NOTE it VAL + UPDATES should not exceed 31 */
 #define VFE_FRAME_DROP_VAL 20
 
+static const u32 vfe_formats[] = {
+	MEDIA_BUS_FMT_UYVY8_2X8,
+	MEDIA_BUS_FMT_VYUY8_2X8,
+	MEDIA_BUS_FMT_YUYV8_2X8,
+	MEDIA_BUS_FMT_YVYU8_2X8,
+	MEDIA_BUS_FMT_SBGGR8_1X8,
+	MEDIA_BUS_FMT_SGBRG8_1X8,
+	MEDIA_BUS_FMT_SGRBG8_1X8,
+	MEDIA_BUS_FMT_SRGGB8_1X8,
+	MEDIA_BUS_FMT_SBGGR10_1X10,
+	MEDIA_BUS_FMT_SGBRG10_1X10,
+	MEDIA_BUS_FMT_SGRBG10_1X10,
+	MEDIA_BUS_FMT_SRGGB10_1X10,
+	MEDIA_BUS_FMT_SBGGR12_1X12,
+	MEDIA_BUS_FMT_SGBRG12_1X12,
+	MEDIA_BUS_FMT_SGRBG12_1X12,
+	MEDIA_BUS_FMT_SRGGB12_1X12,
+};
 
 static char *clocks[] = {
 	"camss_top_ahb_clk",
@@ -1366,6 +1384,225 @@ static int vfe_subdev_set_stream(struct v4l2_subdev *sd, int enable)
 	return 0;
 }
 
+/*
+ * __vfe_get_format - Get pointer to format structure
+ * @vfe: VFE device
+ * @cfg: V4L2 subdev pad configuration
+ * @pad: pad from which format is requested
+ * @which: TRY or ACTIVE format
+ *
+ * Return pointer to TRY or ACTIVE format structure
+ */
+static struct v4l2_mbus_framefmt *
+__vfe_get_format(struct vfe_device *vfe,
+		 struct v4l2_subdev_pad_config *cfg,
+		 unsigned int pad,
+		 enum v4l2_subdev_format_whence which)
+{
+	if (which == V4L2_SUBDEV_FORMAT_TRY)
+		return v4l2_subdev_get_try_format(&vfe->subdev, cfg, pad);
+
+	return &vfe->fmt[pad];
+}
+
+
+/*
+ * vfe_try_format - Handle try format by pad subdev method
+ * @vfe: VFE device
+ * @cfg: V4L2 subdev pad configuration
+ * @pad: pad on which format is requested
+ * @fmt: pointer to v4l2 format structure
+ * @which: wanted subdev format
+ */
+static void vfe_try_format(struct vfe_device *vfe,
+			   struct v4l2_subdev_pad_config *cfg,
+			   unsigned int pad,
+			   struct v4l2_mbus_framefmt *fmt,
+			   enum v4l2_subdev_format_whence which)
+{
+	unsigned int i;
+
+	switch (pad) {
+	case MSM_VFE_PAD_SINK:
+		/* Set format on sink pad */
+
+		for (i = 0; i < ARRAY_SIZE(vfe_formats); i++)
+			if (fmt->code == vfe_formats[i])
+				break;
+
+		/* If not found, use UYVY as default */
+		if (i >= ARRAY_SIZE(vfe_formats))
+			fmt->code = MEDIA_BUS_FMT_UYVY8_2X8;
+
+		fmt->width = clamp_t(u32, fmt->width, 1, 8191);
+		fmt->height = clamp_t(u32, fmt->height, 1, 8191);
+
+		if (fmt->field == V4L2_FIELD_ANY)
+			fmt->field = V4L2_FIELD_NONE;
+
+		break;
+
+	case MSM_VFE_PAD_SRC:
+		/* Set and return a format same as sink pad */
+
+		*fmt = *__vfe_get_format(vfe, cfg, MSM_VFE_PAD_SINK,
+					 which);
+
+		break;
+	}
+
+	fmt->colorspace = V4L2_COLORSPACE_SRGB;
+}
+
+/*
+ * vfe_enum_mbus_code - Handle pixel format enumeration
+ * @sd: VFE V4L2 subdevice
+ * @cfg: V4L2 subdev pad configuration
+ * @code: pointer to v4l2_subdev_mbus_code_enum structure
+ * return -EINVAL or zero on success
+ */
+static int vfe_enum_mbus_code(struct v4l2_subdev *sd,
+			      struct v4l2_subdev_pad_config *cfg,
+			      struct v4l2_subdev_mbus_code_enum *code)
+{
+	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
+	struct v4l2_mbus_framefmt *format;
+
+	if (code->pad == MSM_VFE_PAD_SINK) {
+		if (code->index >= ARRAY_SIZE(vfe_formats))
+			return -EINVAL;
+
+		code->code = vfe_formats[code->index];
+	} else {
+		if (code->index > 0)
+			return -EINVAL;
+
+		format = __vfe_get_format(vfe, cfg, MSM_VFE_PAD_SINK,
+					  code->which);
+
+		code->code = format->code;
+	}
+
+	return 0;
+}
+
+/*
+ * vfe_enum_frame_size - Handle frame size enumeration
+ * @sd: VFE V4L2 subdevice
+ * @cfg: V4L2 subdev pad configuration
+ * @fse: pointer to v4l2_subdev_frame_size_enum structure
+ * return -EINVAL or zero on success
+ */
+static int vfe_enum_frame_size(struct v4l2_subdev *sd,
+			       struct v4l2_subdev_pad_config *cfg,
+			       struct v4l2_subdev_frame_size_enum *fse)
+{
+	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
+	struct v4l2_mbus_framefmt format;
+
+	if (fse->index != 0)
+		return -EINVAL;
+
+	format.code = fse->code;
+	format.width = 1;
+	format.height = 1;
+	vfe_try_format(vfe, cfg, fse->pad, &format, fse->which);
+	fse->min_width = format.width;
+	fse->min_height = format.height;
+
+	if (format.code != fse->code)
+		return -EINVAL;
+
+	format.code = fse->code;
+	format.width = -1;
+	format.height = -1;
+	vfe_try_format(vfe, cfg, fse->pad, &format, fse->which);
+	fse->max_width = format.width;
+	fse->max_height = format.height;
+
+	return 0;
+}
+
+/*
+ * vfe_get_format - Handle get format by pads subdev method
+ * @sd: VFE V4L2 subdevice
+ * @cfg: V4L2 subdev pad configuration
+ * @fmt: pointer to v4l2 subdev format structure
+ *
+ * Return -EINVAL or zero on success
+ */
+static int vfe_get_format(struct v4l2_subdev *sd,
+			  struct v4l2_subdev_pad_config *cfg,
+			  struct v4l2_subdev_format *fmt)
+{
+	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
+	struct v4l2_mbus_framefmt *format;
+
+	format = __vfe_get_format(vfe, cfg, fmt->pad, fmt->which);
+	if (format == NULL)
+		return -EINVAL;
+
+	fmt->format = *format;
+
+	return 0;
+}
+
+/*
+ * vfe_set_format - Handle set format by pads subdev method
+ * @sd: VFE V4L2 subdevice
+ * @cfg: V4L2 subdev pad configuration
+ * @fmt: pointer to v4l2 subdev format structure
+ *
+ * Return -EINVAL or zero on success
+ */
+static int vfe_set_format(struct v4l2_subdev *sd,
+			  struct v4l2_subdev_pad_config *cfg,
+			  struct v4l2_subdev_format *fmt)
+{
+	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
+	struct v4l2_mbus_framefmt *format;
+
+	format = __vfe_get_format(vfe, cfg, fmt->pad, fmt->which);
+	if (format == NULL)
+		return -EINVAL;
+
+	vfe_try_format(vfe, cfg, fmt->pad, &fmt->format, fmt->which);
+	*format = fmt->format;
+
+	/* Propagate the format from sink to source */
+	if (fmt->pad == MSM_VFE_PAD_SINK) {
+		format = __vfe_get_format(vfe, cfg, MSM_VFE_PAD_SRC,
+					  fmt->which);
+
+		*format = fmt->format;
+		vfe_try_format(vfe, cfg, MSM_VFE_PAD_SRC, format,
+			       fmt->which);
+	}
+
+	return 0;
+}
+
+/*
+ * vfe_init_formats - Initialize formats on all pads
+ * @sd: VFE V4L2 subdevice
+ *
+ * Initialize all pad formats with default values.
+ */
+static int vfe_init_formats(struct v4l2_subdev *sd)
+{
+	struct v4l2_subdev_format format;
+
+	memset(&format, 0, sizeof(format));
+	format.pad = MSM_VFE_PAD_SINK;
+	format.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+	format.format.code = MEDIA_BUS_FMT_UYVY8_2X8;
+	format.format.width = 1920;
+	format.format.height = 1080;
+	vfe_set_format(sd, NULL, &format);
+
+	return 0;
+}
+
 int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
 			struct vfe_init *init)
 {
@@ -1389,18 +1626,7 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
 	vfe->video_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	vfe->video_out.camss = camss;
 
-	// Temp:
-#define FMT_WIDTH 1920
-#define FMT_HEIGHT 1080
 	vfe->stream_cnt = 1;
-	vfe->video_out.active_fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	vfe->video_out.active_fmt.fmt.pix.pixelformat = V4L2_PIX_FMT_UYVY;
-	vfe->video_out.active_fmt.fmt.pix.width = FMT_WIDTH;
-	vfe->video_out.active_fmt.fmt.pix.height = FMT_HEIGHT;
-	vfe->video_out.active_fmt.fmt.pix.bytesperline = FMT_WIDTH * 2;
-	vfe->video_out.active_fmt.fmt.pix.sizeimage = FMT_WIDTH * FMT_HEIGHT * 2;
-	vfe->video_out.active_fmt.fmt.pix.field = V4L2_FIELD_NONE;
-	vfe->video_out.active_fmt.fmt.pix.colorspace = V4L2_COLORSPACE_JPEG;
 
 	/* Memory */
 
@@ -1490,7 +1716,12 @@ static const struct v4l2_subdev_video_ops vfe_video_ops = {
 	.s_stream = vfe_subdev_set_stream,
 };
 
-static const struct v4l2_subdev_pad_ops vfe_pad_ops;
+static const struct v4l2_subdev_pad_ops vfe_pad_ops = {
+	.enum_mbus_code = vfe_enum_mbus_code,
+	.enum_frame_size = vfe_enum_frame_size,
+	.get_fmt = vfe_get_format,
+	.set_fmt = vfe_set_format,
+};
 
 static const struct v4l2_subdev_ops vfe_v4l2_ops = {
 	.core = &vfe_core_ops,
@@ -1499,6 +1730,10 @@ static const struct v4l2_subdev_ops vfe_v4l2_ops = {
 };
 
 static const struct v4l2_subdev_internal_ops vfe_v4l2_internal_ops;
+
+static const struct media_entity_operations vfe_media_ops = {
+	.link_validate = v4l2_subdev_link_validate,
+};
 
 static struct msm_video_ops rdi_video_ops = {
 	.queue_dmabuf = vfe_queue_dmabuf,
@@ -1518,9 +1753,12 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 	snprintf(sd->name, ARRAY_SIZE(sd->name), MSM_VFE_NAME);
 	v4l2_set_subdevdata(sd, vfe);
 
+	vfe_init_formats(sd);
+
 	pads[MSM_VFE_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
 	pads[MSM_VFE_PAD_SRC].flags = MEDIA_PAD_FL_SOURCE;
 
+	sd->entity.ops = &vfe_media_ops;
 	ret = media_entity_init(&sd->entity, MSM_VFE_PADS_NUM, pads, 0);
 	if (ret < 0) {
 		pr_err("Fail to init media entity");
