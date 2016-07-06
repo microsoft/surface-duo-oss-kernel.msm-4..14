@@ -8,6 +8,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
 
+#include <linux/file.h>
 #include "mali_timeline.h"
 #include "mali_kernel_common.h"
 #include "mali_scheduler.h"
@@ -41,7 +42,7 @@ static mali_scheduler_mask mali_timeline_system_release_waiter(struct mali_timel
 
 struct mali_deferred_fence_put_entry {
 	struct hlist_node list;
-	struct sync_fence *fence;
+	struct sync_file *fence;
 };
 
 static HLIST_HEAD(mali_timeline_sync_fence_to_free_list);
@@ -59,7 +60,7 @@ static void put_sync_fences(struct work_struct *ignore)
 	spin_unlock_irqrestore(&mali_timeline_sync_fence_to_free_lock, flags);
 
 	hlist_for_each_entry_safe(o, pos, tmp, &list, list) {
-		sync_fence_put(o->fence);
+		fput(o->fence->file);
 		kfree(o);
 	}
 }
@@ -68,7 +69,7 @@ static DECLARE_DELAYED_WORK(delayed_sync_fence_put, put_sync_fences);
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0) */
 
 /* Callback that is called when a sync fence a tracker is waiting on is signaled. */
-static void mali_timeline_sync_fence_callback(struct sync_fence *sync_fence, struct sync_fence_waiter *sync_fence_waiter)
+static void mali_timeline_sync_fence_callback(struct sync_file *sync_fence, struct sync_fence_waiter *sync_fence_waiter)
 {
 	struct mali_timeline_system  *system;
 	struct mali_timeline_waiter  *waiter;
@@ -142,7 +143,7 @@ static void mali_timeline_sync_fence_callback(struct sync_fence *sync_fence, str
 		}
 	}
 #else
-	sync_fence_put(sync_fence);
+	fput(sync_fence->file);
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3,5,0) */
 
 	if (!is_aborting) {
@@ -1071,7 +1072,7 @@ static void mali_timeline_system_create_waiters_and_unlock(struct mali_timeline_
 	u32 tid = _mali_osk_get_tid();
 	mali_scheduler_mask schedule_mask = MALI_SCHEDULER_MASK_EMPTY;
 #if defined(CONFIG_SYNC)
-	struct sync_fence *sync_fence = NULL;
+	struct sync_file *sync_fence = NULL;
 #endif /* defined(CONFIG_SYNC) */
 
 	MALI_DEBUG_ASSERT_POINTER(system);
@@ -1149,7 +1150,7 @@ static void mali_timeline_system_create_waiters_and_unlock(struct mali_timeline_
 		int ret;
 		struct mali_timeline_waiter *waiter;
 
-		sync_fence = sync_fence_fdget(tracker->fence.sync_fd);
+		sync_fence = sync_file_fdget(tracker->fence.sync_fd);
 		if (unlikely(NULL == sync_fence)) {
 			MALI_PRINT_ERROR(("Mali Timeline: failed to get sync fence from fd %d\n", tracker->fence.sync_fd));
 			goto exit;
@@ -1221,7 +1222,7 @@ exit:
 
 #if defined(CONFIG_SYNC)
 	if (NULL != sync_fence) {
-		sync_fence_put(sync_fence);
+		fput(sync_fence->file);
 	}
 #endif /* defined(CONFIG_SYNC) */
 

@@ -48,7 +48,7 @@ struct sync_timeline *mali_sync_timeline_create(struct mali_timeline *timeline, 
  * @param sync_fence Sync fence.
  * @return File descriptor representing sync fence if successful, or -1 if not.
  */
-s32 mali_sync_fence_fd_alloc(struct sync_fence *sync_fence);
+s32 mali_sync_fence_fd_alloc(struct sync_file *sync_fence);
 
 /**
  * Merges two sync fences.  Both input sync fences will be released.
@@ -57,7 +57,7 @@ s32 mali_sync_fence_fd_alloc(struct sync_fence *sync_fence);
  * @param sync_fence2 Second sync fence.
  * @return New sync fence that is the result of the merger if successful, or NULL if not.
  */
-struct sync_fence *mali_sync_fence_merge(struct sync_fence *sync_fence1, struct sync_fence *sync_fence2);
+struct sync_file *mali_sync_fence_merge(struct sync_file *sync_fence1, struct sync_file *sync_fence2);
 
 /**
  * Create a sync fence that is already signaled.
@@ -65,7 +65,7 @@ struct sync_fence *mali_sync_fence_merge(struct sync_fence *sync_fence1, struct 
  * @param tl Sync timeline.
  * @return New signaled sync fence if successful, NULL if not.
  */
-struct sync_fence *mali_sync_timeline_create_signaled_fence(struct sync_timeline *sync_tl);
+struct sync_file *mali_sync_timeline_create_signaled_fence(struct sync_timeline *sync_tl);
 
 /**
  * Create a sync flag.
@@ -104,7 +104,7 @@ void mali_sync_flag_signal(struct mali_sync_flag *flag, int error);
  * @param flag Sync flag.
  * @return New sync fence if successful, NULL if not.
  */
-struct sync_fence *mali_sync_flag_create_fence(struct mali_sync_flag *flag);
+struct sync_file *mali_sync_flag_create_fence(struct mali_sync_flag *flag);
 
 #endif /* defined(CONFIG_SYNC) */
 

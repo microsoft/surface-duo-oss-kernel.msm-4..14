@@ -21,7 +21,7 @@
 #include <linux/fcntl.h>
 
 struct mali_sync_pt {
-	struct sync_pt         sync_pt;
+	struct fence  sync_pt;
 	struct mali_sync_flag *flag;
 	struct sync_timeline *sync_tl;  /**< Sync timeline this pt is connected to. */
 };
@@ -46,7 +46,7 @@ struct mali_sync_timeline_container {
 	struct mali_timeline *timeline;
 };
 
-MALI_STATIC_INLINE struct mali_sync_pt *to_mali_sync_pt(struct sync_pt *pt)
+MALI_STATIC_INLINE struct mali_sync_pt *to_mali_sync_pt(struct fence *pt)
 {
 	return container_of(pt, struct mali_sync_pt, sync_pt);
 }
@@ -56,10 +56,10 @@ MALI_STATIC_INLINE struct mali_sync_timeline_container *to_mali_sync_tl_containe
 	return container_of(sync_tl, struct mali_sync_timeline_container, sync_timeline);
 }
 
-static struct sync_pt *timeline_dup(struct sync_pt *pt)
+static struct fence *timeline_dup(struct fence *pt)
 {
 	struct mali_sync_pt *mpt, *new_mpt;
-	struct sync_pt *new_pt;
+	struct fence *new_pt;
 
 	MALI_DEBUG_ASSERT_POINTER(pt);
 	mpt = to_mali_sync_pt(pt);
@@ -76,7 +76,7 @@ static struct sync_pt *timeline_dup(struct sync_pt *pt)
 	return new_pt;
 }
 
-static int timeline_has_signaled(struct sync_pt *pt)
+static int timeline_has_signaled(struct fence *pt)
 {
 	struct mali_sync_pt *mpt;
 
@@ -88,7 +88,7 @@ static int timeline_has_signaled(struct sync_pt *pt)
 	return mpt->flag->status;
 }
 
-static int timeline_compare(struct sync_pt *pta, struct sync_pt *ptb)
+static int timeline_compare(struct fence *pta, struct fence *ptb)
 {
 	struct mali_sync_pt *mpta;
 	struct mali_sync_pt *mptb;
@@ -110,7 +110,7 @@ static int timeline_compare(struct sync_pt *pta, struct sync_pt *ptb)
 	return ((b - a) < (a - b) ? -1 : 1);
 }
 
-static void timeline_free_pt(struct sync_pt *pt)
+static void timeline_free_pt(struct fence *pt)
 {
 	struct mali_sync_pt *mpt;
 
@@ -144,7 +144,7 @@ static void timeline_release(struct sync_timeline *sync_timeline)
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
-static void timeline_print_pt(struct seq_file *s, struct sync_pt *sync_pt)
+static void timeline_print_pt(struct seq_file *s, struct fence *sync_pt)
 {
 	struct mali_sync_pt *mpt;
 
@@ -200,7 +200,7 @@ static void timeline_print_obj(struct seq_file *s, struct sync_timeline *sync_tl
 	}
 }
 #else
-static void timeline_pt_value_str(struct sync_pt *pt, char *str, int size)
+static void timeline_pt_value_str(struct fence *pt, char *str, int size)
 {
 	struct mali_sync_pt *mpt;
 
@@ -260,16 +260,16 @@ static void timeline_value_str(struct sync_timeline *timeline, char *str, int si
 
 static struct sync_timeline_ops mali_timeline_ops = {
 	.driver_name    = "Mali",
-	.dup            = timeline_dup,
+//	.dup            = timeline_dup,
 	.has_signaled   = timeline_has_signaled,
-	.compare        = timeline_compare,
-	.free_pt        = timeline_free_pt,
-	.release_obj    = timeline_release,
+//	.compare        = timeline_compare,
+//	.free_pt        = timeline_free_pt,
+//	.release_obj    = timeline_release,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
 	.print_pt       = timeline_print_pt,
 	.print_obj      = timeline_print_obj,
 #else
-	.pt_value_str = timeline_pt_value_str,
+//	.pt_value_str = timeline_pt_value_str,
 	.timeline_value_str = timeline_value_str,
 #endif
 };
@@ -295,38 +295,37 @@ struct sync_timeline *mali_sync_timeline_create(struct mali_timeline *timeline, 
 	return sync_tl;
 }
 
-s32 mali_sync_fence_fd_alloc(struct sync_fence *sync_fence)
+s32 mali_sync_fence_fd_alloc(struct sync_file *sync_fence)
 {
 	s32 fd = -1;
 
 	fd = get_unused_fd_flags(O_CLOEXEC);
 	if (fd < 0) {
-		sync_fence_put(sync_fence);
+		fput(sync_fence->file);
 		return -1;
 	}
-	sync_fence_install(sync_fence, fd);
-
+	fd_install(fd, sync_fence->file);
 	return fd;
 }
 
-struct sync_fence *mali_sync_fence_merge(struct sync_fence *sync_fence1, struct sync_fence *sync_fence2)
+struct sync_file *mali_sync_fence_merge(struct sync_file *sync_fence1, struct sync_file *sync_fence2)
 {
-	struct sync_fence *sync_fence;
+	struct sync_file *sync_fence;
 
 	MALI_DEBUG_ASSERT_POINTER(sync_fence1);
 	MALI_DEBUG_ASSERT_POINTER(sync_fence1);
 
-	sync_fence = sync_fence_merge("mali_merge_fence", sync_fence1, sync_fence2);
-	sync_fence_put(sync_fence1);
-	sync_fence_put(sync_fence2);
+	sync_fence = sync_file_merge("mali_merge_fence", sync_fence1, sync_fence2);
+	fput(sync_fence1->file);
+	fput(sync_fence2->file);
 
 	return sync_fence;
 }
 
-struct sync_fence *mali_sync_timeline_create_signaled_fence(struct sync_timeline *sync_tl)
+struct sync_file *mali_sync_timeline_create_signaled_fence(struct sync_timeline *sync_tl)
 {
 	struct mali_sync_flag *flag;
-	struct sync_fence *sync_fence;
+	struct sync_file *sync_fence;
 
 	MALI_DEBUG_ASSERT_POINTER(sync_tl);
 
@@ -406,9 +405,9 @@ void mali_sync_flag_signal(struct mali_sync_flag *flag, int error)
  * @param flag Sync flag.
  * @return New sync point if successful, NULL if not.
  */
-static struct sync_pt *mali_sync_flag_create_pt(struct mali_sync_flag *flag)
+static struct fence *mali_sync_flag_create_pt(struct mali_sync_flag *flag)
 {
-	struct sync_pt *pt;
+	struct fence *pt;
 	struct mali_sync_pt *mpt;
 
 	MALI_DEBUG_ASSERT_POINTER(flag);
@@ -426,10 +425,10 @@ static struct sync_pt *mali_sync_flag_create_pt(struct mali_sync_flag *flag)
 	return pt;
 }
 
-struct sync_fence *mali_sync_flag_create_fence(struct mali_sync_flag *flag)
+struct sync_file *mali_sync_flag_create_fence(struct mali_sync_flag *flag)
 {
-	struct sync_pt    *sync_pt;
-	struct sync_fence *sync_fence;
+	struct fence *sync_pt;
+	struct sync_file  *sync_fence;
 
 	MALI_DEBUG_ASSERT_POINTER(flag);
 	MALI_DEBUG_ASSERT_POINTER(flag->sync_tl);
@@ -437,9 +436,9 @@ struct sync_fence *mali_sync_flag_create_fence(struct mali_sync_flag *flag)
 	sync_pt = mali_sync_flag_create_pt(flag);
 	if (NULL == sync_pt) return NULL;
 
-	sync_fence = sync_fence_create("mali_flag_fence", sync_pt);
+	sync_fence = sync_file_create(sync_pt);
 	if (NULL == sync_fence) {
-		sync_pt_free(sync_pt);
+		fence_free(sync_pt);
 		return NULL;
 	}
 

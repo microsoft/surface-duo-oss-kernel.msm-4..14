@@ -7,7 +7,7 @@
  * A copy of the licence is included with the program, and can also be obtained from Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-
+#include <linux/file.h>
 #include "mali_timeline_sync_fence.h"
 
 #include "mali_osk.h"
@@ -24,10 +24,10 @@
  * @param point Point on timeline.
  * @return Sync fence that will be signaled when tracker is activated.
  */
-static struct sync_fence *mali_timeline_sync_fence_create_and_add_tracker(struct mali_timeline *timeline, mali_timeline_point point)
+static struct sync_file *mali_timeline_sync_fence_create_and_add_tracker(struct mali_timeline *timeline, mali_timeline_point point)
 {
 	struct mali_timeline_sync_fence_tracker *sync_fence_tracker;
-	struct sync_fence                       *sync_fence;
+	struct sync_file                        *sync_fence;
 	struct mali_timeline_fence               fence;
 
 	MALI_DEBUG_ASSERT_POINTER(timeline);
@@ -74,14 +74,15 @@ static struct sync_fence *mali_timeline_sync_fence_create_and_add_tracker(struct
 s32 mali_timeline_sync_fence_create(struct mali_timeline_system *system, struct mali_timeline_fence *fence)
 {
 	u32 i;
-	struct sync_fence *sync_fence_acc = NULL;
+	struct sync_file *sync_fence_acc = NULL;
+
 
 	MALI_DEBUG_ASSERT_POINTER(system);
 	MALI_DEBUG_ASSERT_POINTER(fence);
 
 	for (i = 0; i < MALI_TIMELINE_MAX; ++i) {
 		struct mali_timeline *timeline;
-		struct sync_fence *sync_fence;
+		struct sync_file *sync_fence;
 
 		if (MALI_TIMELINE_NO_POINT == fence->points[i]) continue;
 
@@ -102,9 +103,9 @@ s32 mali_timeline_sync_fence_create(struct mali_timeline_system *system, struct 
 	}
 
 	if (-1 != fence->sync_fd) {
-		struct sync_fence *sync_fence;
+		struct sync_file *sync_fence;
 
-		sync_fence = sync_fence_fdget(fence->sync_fd);
+		sync_fence = sync_file_fdget(fence->sync_fd);
 		if (NULL == sync_fence) goto error;
 
 		if (NULL != sync_fence_acc) {
@@ -129,7 +130,7 @@ s32 mali_timeline_sync_fence_create(struct mali_timeline_system *system, struct 
 
 error:
 	if (NULL != sync_fence_acc) {
-		sync_fence_put(sync_fence_acc);
+		fput(sync_fence_acc->file);
 	}
 
 	return -1;

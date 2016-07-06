@@ -187,7 +187,7 @@ struct mali_timeline_tracker {
 	/* These are only used if the tracker is waiting on a sync fence. */
 	struct mali_timeline_waiter   *waiter_sync; /**< A direct pointer to timeline waiter representing sync fence. */
 	struct sync_fence_waiter       sync_fence_waiter; /**< Used to connect sync fence and tracker in sync fence wait callback. */
-	struct sync_fence             *sync_fence;   /**< The sync fence this tracker is waiting on. */
+	struct sync_file              *sync_fence;   /**< The sync fence this tracker is waiting on. */
 	_mali_osk_list_t               sync_fence_cancel_list; /**< List node used to cancel sync fence waiters. */
 #endif /* defined(CONFIG_SYNC) */
 
