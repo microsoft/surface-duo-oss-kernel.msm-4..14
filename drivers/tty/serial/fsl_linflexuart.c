@@ -407,9 +407,8 @@ static void linflex_setup_watermark(struct linflex_port *sport)
 	implemented by the current driver */
 	cr_saved &= ~(LINFLEXD_UARTCR_RFBM | LINFLEXD_UARTCR_TFBM);
 
-	cr_saved |= (LINFLEXD_UARTCR_UART|LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN|
-				LINFLEXD_UARTCR_PCE|LINFLEXD_UARTCR_WL0);
-
+	cr_saved |= (LINFLEXD_UARTCR_UART | LINFLEXD_UARTCR_RXEN |
+		     LINFLEXD_UARTCR_TXEN | LINFLEXD_UARTCR_WL0);
 
 	/* Restore cr2 */
 	writel(cr_saved, sport->port.membase + UARTCR);
