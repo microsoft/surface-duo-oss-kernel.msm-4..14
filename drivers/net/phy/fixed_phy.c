@@ -23,8 +23,8 @@
 #include <linux/slab.h>
 #include <linux/of.h>
 #include <linux/gpio.h>
-#include <linux/idr.h>
 #include <linux/seqlock.h>
+#include <linux/idr.h>
 
 #include "swphy.h"
 
