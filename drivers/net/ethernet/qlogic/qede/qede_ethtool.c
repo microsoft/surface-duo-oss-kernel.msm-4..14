@@ -426,6 +426,57 @@ static u32 qede_get_link(struct net_device *dev)
 	return current_link.link_up;
 }
 
+static int qede_get_coalesce(struct net_device *dev,
+			     struct ethtool_coalesce *coal)
+{
+	struct qede_dev *edev = netdev_priv(dev);
+
+	memset(coal, 0, sizeof(struct ethtool_coalesce));
+	edev->ops->common->get_coalesce(edev->cdev,
+					(u16 *)&coal->rx_coalesce_usecs,
+					(u16 *)&coal->tx_coalesce_usecs);
+
+	return 0;
+}
+
+static int qede_set_coalesce(struct net_device *dev,
+			     struct ethtool_coalesce *coal)
+{
+	struct qede_dev *edev = netdev_priv(dev);
+	int i, rc = 0;
+	u16 rxc, txc;
+	u8 sb_id;
+
+	if (!netif_running(dev)) {
+		DP_INFO(edev, "Interface is down\n");
+		return -EINVAL;
+	}
+
+	if (coal->rx_coalesce_usecs > QED_COALESCE_MAX ||
+	    coal->tx_coalesce_usecs > QED_COALESCE_MAX) {
+		DP_INFO(edev,
+			"Can't support requested %s coalesce value [max supported value %d]\n",
+			coal->rx_coalesce_usecs > QED_COALESCE_MAX ? "rx"
+								   : "tx",
+			QED_COALESCE_MAX);
+		return -EINVAL;
+	}
+
+	rxc = (u16)coal->rx_coalesce_usecs;
+	txc = (u16)coal->tx_coalesce_usecs;
+	for_each_rss(i) {
+		sb_id = edev->fp_array[i].sb_info->igu_sb_id;
+		rc = edev->ops->common->set_coalesce(edev->cdev, rxc, txc,
+						     (u8)i, sb_id);
+		if (rc) {
+			DP_INFO(edev, "Set coalesce error, rc = %d\n", rc);
+			return rc;
+		}
+	}
+
+	return rc;
+}
+
 static void qede_get_ringparam(struct net_device *dev,
 			       struct ethtool_ringparam *ering)
 {
@@ -910,6 +961,8 @@ static int qede_selftest_transmit_traffic(struct qede_dev *edev,
 	memset(first_bd, 0, sizeof(*first_bd));
 	val = 1 << ETH_TX_1ST_BD_FLAGS_START_BD_SHIFT;
 	first_bd->data.bd_flags.bitfields = val;
+	val = skb->len & ETH_TX_DATA_1ST_BD_PKT_LEN_MASK;
+	first_bd->data.bitfields |= (val << ETH_TX_DATA_1ST_BD_PKT_LEN_SHIFT);
 
 	/* Map skb linear data for DMA and set in the first BD */
 	mapping = dma_map_single(&edev->pdev->dev, skb->data,
@@ -1137,6 +1190,8 @@ static const struct ethtool_ops qede_ethtool_ops = {
 	.set_msglevel = qede_set_msglevel,
 	.nway_reset = qede_nway_reset,
 	.get_link = qede_get_link,
+	.get_coalesce = qede_get_coalesce,
+	.set_coalesce = qede_set_coalesce,
 	.get_ringparam = qede_get_ringparam,
 	.set_ringparam = qede_set_ringparam,
 	.get_pauseparam = qede_get_pauseparam,
