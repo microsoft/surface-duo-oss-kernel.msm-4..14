@@ -53,5 +53,7 @@ struct sync_file {
 };
 
 struct sync_file *sync_file_create(struct fence *fence);
-
+struct sync_file *sync_file_fdget(int fd);
+struct sync_file *sync_file_merge(const char *name, struct sync_file *a,
+                                         struct sync_file *b);
 #endif /* _LINUX_SYNC_H */
