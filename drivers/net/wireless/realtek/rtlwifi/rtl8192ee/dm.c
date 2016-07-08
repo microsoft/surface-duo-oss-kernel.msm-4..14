@@ -983,7 +983,7 @@ static bool _rtl92ee_dm_ra_state_check(struct ieee80211_hw *hw,
 		break;
 	default:
 		RT_TRACE(rtlpriv, COMP_RATR, DBG_DMESG,
-			 "wrong rssi level setting %d !", *ratr_state);
+			 "wrong rssi level setting %d !\n", *ratr_state);
 		break;
 	}
 
@@ -1219,6 +1219,7 @@ void rtl92ee_dm_watchdog(struct ieee80211_hw *hw)
 	if (ppsc->p2p_ps_info.p2p_ps_mode)
 		fw_ps_awake = false;
 
+	spin_lock(&rtlpriv->locks.rf_ps_lock);
 	if ((ppsc->rfpwr_state == ERFON) &&
 	    ((!fw_current_inpsmode) && fw_ps_awake) &&
 	    (!ppsc->rfchange_inprogress)) {
@@ -1233,4 +1234,5 @@ void rtl92ee_dm_watchdog(struct ieee80211_hw *hw)
 		rtl92ee_dm_dynamic_atc_switch(hw);
 		rtl92ee_dm_dynamic_primary_cca_ckeck(hw);
 	}
+	spin_unlock(&rtlpriv->locks.rf_ps_lock);
 }
