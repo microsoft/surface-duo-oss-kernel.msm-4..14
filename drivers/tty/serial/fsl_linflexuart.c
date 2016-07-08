@@ -176,18 +176,21 @@ static void linflex_stop_tx(struct uart_port *port)
 }
 static inline void linflex_transmit_buffer(struct linflex_port *sport)
 {
-	//volatile unsigned int i;
 	struct circ_buf *xmit = &sport->port.state->xmit;
-	unsigned char c;
+	unsigned char c, status;
 
 	while (!uart_circ_empty(xmit)) {
 		c = xmit->buf[xmit->tail];
 		writeb(c, sport->port.membase + BDRL);
-		while(( readb(sport->port.membase + UARTSR) & LINFLEXD_UARTSR_DTFTFF)!=LINFLEXD_UARTSR_DTFTFF){
-		 //for (i = 0; i < 100000; i++);
-		}
-		/* waiting for data transmission completed - TODO: add a timeout */
-		writeb( (readb(sport->port.membase + UARTSR)|LINFLEXD_UARTSR_DTFTFF), sport->port.membase + UARTSR);
+
+		/* waiting for data transmission completed */
+		while (((status = readb(sport->port.membase + UARTSR)) &
+			LINFLEXD_UARTSR_DTFTFF) != LINFLEXD_UARTSR_DTFTFF)
+			;
+
+		writeb(status | LINFLEXD_UARTSR_DTFTFF,
+		       sport->port.membase + UARTSR);
+
 		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
 	}
 
@@ -210,11 +213,12 @@ static void linflex_start_tx(struct uart_port *port)
 			struct linflex_port, port);
 	unsigned int temp;
 
+	linflex_transmit_buffer(sport);
+
 	temp = readl(port->membase + LINIER);
 
 	writel(temp | LINFLEXD_LINIER_DTIE, port->membase + LINIER);
 
-	linflex_transmit_buffer(sport);
 }
 
 
@@ -222,15 +226,23 @@ static irqreturn_t linflex_txint(int irq, void *dev_id)
 {
 	struct linflex_port *sport = dev_id;
 	struct circ_buf *xmit = &sport->port.state->xmit;
-	unsigned long flags, status;
+	unsigned long flags;
+	unsigned char status;
 
-	status = readl(sport->port.membase + UARTSR);
-	status = status | LINFLEXD_UARTSR_DTFTFF;
-	writel(status, sport->port.membase + UARTSR);
 	spin_lock_irqsave(&sport->port.lock, flags);
 
 	if (sport->port.x_char) {
+
 		writeb(sport->port.x_char, sport->port.membase + BDRL);
+
+		/* waiting for data transmission completed */
+		while (((status = readb(sport->port.membase + UARTSR)) &
+			LINFLEXD_UARTSR_DTFTFF) != LINFLEXD_UARTSR_DTFTFF)
+			;
+
+		writeb(status | LINFLEXD_UARTSR_DTFTFF,
+			sport->port.membase + UARTSR);
+
 		goto out;
 	}
 
