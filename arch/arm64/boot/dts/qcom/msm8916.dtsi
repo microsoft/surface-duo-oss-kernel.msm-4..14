@@ -748,6 +748,40 @@
 			#thermal-sensor-cells = <1>;
 		};
 
+		adreno-3xx@01c00000 {
+			compatible = "qcom,adreno-3xx";
+			#stream-id-cells = <16>;
+			reg = <0x01c00000 0x20000>;
+			reg-names = "kgsl_3d0_reg_memory";
+			interrupts = <0 33 0>;
+			interrupt-names = "kgsl_3d0_irq";
+			clock-names =
+			    "core_clk",
+			    "iface_clk",
+			    "mem_clk",
+			    "mem_iface_clk",
+			    "alt_mem_iface_clk",
+			    "gfx3d_clk_src";
+			clocks =
+			    <&gcc GCC_OXILI_GFX3D_CLK>,
+			    <&gcc GCC_OXILI_AHB_CLK>,
+			    <&gcc GCC_OXILI_GMEM_CLK>,
+			    <&gcc GCC_BIMC_GFX_CLK>,
+			    <&gcc GCC_BIMC_GPU_CLK>,
+			    <&gcc GFX3D_CLK_SRC>;
+			power-domains = <&gcc OXILI_GDSC>;
+			qcom,chipid = <0x03000600>;
+			qcom,gpu-pwrlevels {
+				compatible = "qcom,gpu-pwrlevels";
+				qcom,gpu-pwrlevel@0 {
+					qcom,gpu-freq = <400000000>;
+				};
+				qcom,gpu-pwrlevel@1 {
+					qcom,gpu-freq = <19200000>;
+				};
+			};
+		};
+
 		mdss: mdss@1a00000 {
 			compatible = "qcom,mdss";
 			reg = <0x1a00000 0x1000>,
