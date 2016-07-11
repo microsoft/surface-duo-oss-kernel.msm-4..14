@@ -1019,6 +1019,11 @@
 				      "hdmi_clk",
 				      "tv_clk";
 
+			iommus = <&mdp_port0 0
+				  &mdp_port0 2
+				  &mdp_port1 0
+				  &mdp_port1 2>;
+
 			ports {
 				#address-cells = <1>;
 				#size-cells = <0>;
@@ -1047,6 +1052,34 @@
 					};
 				};
 			};
+		};
+
+		mdp_port0: iommu@7500000 {
+			compatible = "qcom,apq8064-iommu";
+			#iommu-cells = <1>;
+			clock-names =
+			    "smmu_pclk",
+			    "iommu_clk";
+			clocks =
+			    <&mmcc SMMU_AHB_CLK>,
+			    <&mmcc MDP_AXI_CLK>;
+			reg = <0x07500000 0x100000>;
+			interrupts = <GIC_SPI 64 0>;
+			qcom,ncb = <2>;
+		};
+
+		mdp_port1: iommu@7600000 {
+			compatible = "qcom,apq8064-iommu";
+			#iommu-cells = <1>;
+			clock-names =
+			    "smmu_pclk",
+			    "iommu_clk";
+			clocks =
+			    <&mmcc SMMU_AHB_CLK>,
+			    <&mmcc MDP_AXI_CLK>;
+			reg = <0x07600000 0x100000>;
+			interrupts = <GIC_SPI 62 0>;
+			qcom,ncb = <2>;
 		};
 	};
 };
