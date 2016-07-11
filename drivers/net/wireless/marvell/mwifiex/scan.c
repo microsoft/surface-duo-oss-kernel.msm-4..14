@@ -1957,9 +1957,13 @@ static void mwifiex_check_next_scan_command(struct mwifiex_private *priv)
 			mwifiex_complete_scan(priv);
 
 		if (priv->scan_request) {
+			struct cfg80211_scan_info info = {
+				.aborted = false,
+			};
+
 			mwifiex_dbg(adapter, INFO,
 				    "info: notifying scan done\n");
-			cfg80211_scan_done(priv->scan_request, 0);
+			cfg80211_scan_done(priv->scan_request, &info);
 			priv->scan_request = NULL;
 			priv->scan_aborting = false;
 		} else {
@@ -1979,9 +1983,13 @@ static void mwifiex_check_next_scan_command(struct mwifiex_private *priv)
 
 		if (!adapter->active_scan_triggered) {
 			if (priv->scan_request) {
+				struct cfg80211_scan_info info = {
+					.aborted = true,
+				};
+
 				mwifiex_dbg(adapter, INFO,
 					    "info: aborting scan\n");
-				cfg80211_scan_done(priv->scan_request, 1);
+				cfg80211_scan_done(priv->scan_request, &info);
 				priv->scan_request = NULL;
 				priv->scan_aborting = false;
 			} else {
