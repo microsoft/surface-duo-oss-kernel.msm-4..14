@@ -420,6 +420,72 @@ static void adv7533_dsi_power_on(struct adv7511 *adv)
 	regmap_write(adv->regmap_cec, 0x03, 0x89);
 	/* disable test mode */
 	regmap_write(adv->regmap_cec, 0x55, 0x00);
+#if 0
+	/* SPD */
+	{
+	static const unsigned char spd_if[] = {
+			0x83, 0x01, 25, 0x00,
+			'L', 'i', 'n', 'a', 'r', 'o', 0, 0,
+			'9', '6', 'b', 'o', 'a', 'r', 'd', 's',
+			':', 'H', 'i', 'k', 'e', 'y', 0, 0,
+	};
+	int n;
+
+	for (n = 0; n < sizeof(spd_if); n++)
+		regmap_write(adv->regmap_packet, n, spd_if[n]);
+
+	/* enable send SPD */
+	regmap_update_bits(adv->regmap, 0x40, BIT(6), BIT(6));
+	}
+#endif
+	/* force audio */
+	/* hide Audio infoframe updates */
+	regmap_update_bits(adv->regmap, 0x4a, BIT(5), BIT(5));
+
+	/* i2s, internal mclk, mclk-256 */
+	regmap_update_bits(adv->regmap, 0x0a, 0x1f, 1);
+	regmap_update_bits(adv->regmap, 0x0b, 0xe0, 0);
+	/* enable i2s, use i2s format, sample rate from i2s */
+	regmap_update_bits(adv->regmap, 0x0c, 0xc7, BIT(2));
+	/* 16 bit audio */
+	regmap_update_bits(adv->regmap, 0x0d, 0xff, 16);
+	/* 16-bit audio */
+	regmap_update_bits(adv->regmap, 0x14, 0x0f, 2 << 4);
+	/* 48kHz */
+	regmap_update_bits(adv->regmap, 0x15, 0xf0, 2 << 4);
+	/* enable N/CTS, enable Audio sample packets */
+	regmap_update_bits(adv->regmap, 0x44, BIT(5), BIT(5));
+	/* N = 6144 */
+	regmap_write(adv->regmap, 1, (6144 >> 16) & 0xf);
+	regmap_write(adv->regmap, 2, (6144 >> 8) & 0xff);
+	regmap_write(adv->regmap, 3, (6144) & 0xff);
+	/* automatic cts */
+	regmap_update_bits(adv->regmap, 0x0a, BIT(7), 0);
+	/* enable N/CTS */
+	regmap_update_bits(adv->regmap, 0x44, BIT(6), BIT(6));
+	/* not copyrighted */
+	regmap_update_bits(adv->regmap, 0x12, BIT(5), BIT(5));
+
+	/* left source */
+	regmap_update_bits(adv->regmap, 0x0e, 7 << 3, 0);
+	/* right source */
+	regmap_update_bits(adv->regmap, 0x0e, 7 << 0, 1);
+	/* number of channels: sect 4.5.4: set to 0 */
+	regmap_update_bits(adv->regmap, 0x73, 7, 1);
+	/* number of channels: sect 4.5.4: set to 0 */
+	regmap_update_bits(adv->regmap, 0x73, 0xf0, 1 << 4);
+	/* sample rate: 48kHz */
+	regmap_update_bits(adv->regmap, 0x74, 7 << 2, 3 << 2);
+	/* channel allocation reg: sect 4.5.4: set to 0 */
+	regmap_update_bits(adv->regmap, 0x76, 0xff, 0);
+	/* enable audio infoframes */
+	regmap_update_bits(adv->regmap, 0x44, BIT(3), BIT(3));
+
+	/* AV mute disable */
+	regmap_update_bits(adv->regmap, 0x4b, BIT(7) | BIT(6), BIT(7));
+
+	/* use Audio infoframe updated info */
+	regmap_update_bits(adv->regmap, 0x4a, BIT(5), 0);
 
 	regmap_register_patch(adv->regmap_cec, adv7533_cec_fixed_registers,
 			      ARRAY_SIZE(adv7533_cec_fixed_registers));
