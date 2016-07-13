@@ -334,11 +334,12 @@ static const struct regulator_desc pm8994_nldo = {
 
 static const struct regulator_desc pm8994_pldo = {
 	.linear_ranges = (struct regulator_linear_range[]) {
-		REGULATOR_LINEAR_RANGE( 750000,  0,  30, 25000),
-		REGULATOR_LINEAR_RANGE(1500000, 31, 99, 50000),
+		REGULATOR_LINEAR_RANGE( 750000,  0,  63, 12500),
+		REGULATOR_LINEAR_RANGE(1550000, 64, 126, 25000),
+		REGULATOR_LINEAR_RANGE(3100000, 127, 163, 50000),
 	},
-	.n_linear_ranges = 2,
-	.n_voltages = 100,
+	.n_linear_ranges = 3,
+	.n_voltages = 164,
 	.ops = &rpm_smps_ldo_ops,
 };
 
