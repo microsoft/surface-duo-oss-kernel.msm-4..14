@@ -21,6 +21,7 @@ struct clk_regmap_mux {
 	u32			reg;
 	u32			shift;
 	u32			width;
+	u32			*table;
 	struct clk_regmap	clkr;
 };
 
