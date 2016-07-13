@@ -350,7 +350,7 @@ static const struct regulator_desc pm8994_switch = {
 static const struct regulator_desc pm8994_lnldo = {
 	.fixed_uV = 1740000,
 	.n_voltages = 1,
-	.ops = &rpm_smps_ldo_ops,
+	.ops = &rpm_smps_ldo_ops_fixed,
 };
 
 struct rpm_regulator_data {
