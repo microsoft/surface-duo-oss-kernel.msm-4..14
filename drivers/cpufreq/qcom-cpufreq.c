@@ -20,7 +20,6 @@
 #include <linux/platform_device.h>
 #include <linux/pm_opp.h>
 #include <linux/slab.h>
-#include <linux/cpufreq-dt.h>
 
 static void __init get_krait_bin_format_a(int *speed, int *pvs, int *pvs_ver)
 {
@@ -117,6 +116,7 @@ static int __init qcom_cpufreq_populate_opps(void)
 {
 	int len, rows, cols, i, k, speed, pvs, pvs_ver;
 	char table_name[] = "qcom,speedXX-pvsXX-bin-vXX";
+	struct opp_table *opp_table;
 	struct device_node *np;
 	struct device *dev;
 	int cpu = 0;
@@ -147,6 +147,19 @@ static int __init qcom_cpufreq_populate_opps(void)
 
 	rows = len / cols;
 
+	/*
+	 * Recreate OPP tables and replace the data from DT
+	 * with the one from fuses
+	 */
+	for (cpu = 0; cpu < num_possible_cpus(); cpu++) {
+		dev = get_cpu_device(cpu);
+		if (!dev)
+			return -ENODEV;
+
+		dev_pm_opp_remove_table(dev);
+		opp_table = dev_pm_opp_get_opp_table(dev);
+	}
+
 	for (i = 0, k = 0; i < rows; i++) {
 		u32 freq, volt;
 
@@ -168,12 +181,6 @@ static int __init qcom_cpufreq_populate_opps(void)
 
 static int __init qcom_cpufreq_driver_init(void)
 {
-	struct cpufreq_dt_platform_data pdata = { .independent_clocks = true };
-	struct platform_device_info devinfo = {
-		.name = "cpufreq-dt",
-		.data = &pdata,
-		.size_data = sizeof(pdata),
-	};
 	struct device *cpu_dev;
 	struct device_node *np;
 	int ret;
@@ -196,7 +203,7 @@ static int __init qcom_cpufreq_driver_init(void)
 	if (ret)
 		return ret;
 
-	return PTR_ERR_OR_ZERO(platform_device_register_full(&devinfo));
+	return 0;
 }
 module_init(qcom_cpufreq_driver_init);
 
