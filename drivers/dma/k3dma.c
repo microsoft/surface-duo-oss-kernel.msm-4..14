@@ -158,6 +158,11 @@ static void k3_dma_set_desc(struct k3_dma_phy *phy, struct k3_desc_hw *hw)
 	writel_relaxed(hw->daddr, phy->base + CX_DST);
 	writel_relaxed(AXI_CFG_DEFAULT, phy->base + AXI_CFG);
 	writel_relaxed(hw->config, phy->base + CX_CFG);
+	wmb();
+	pr_debug("%s: desc %p: ch idx = %d, lli: 0x%x, count: 0x%x,"
+		" saddr: 0x%x, daddr 0x%x, cfg: 0x%x\n", __func__,
+		(void *) hw, phy->idx, hw->lli,	hw->count, hw->saddr,
+		hw->daddr, hw->config);
 }
 
 static u32 k3_dma_get_curr_cnt(struct k3_dma_dev *d, struct k3_dma_phy *phy)
@@ -282,6 +287,26 @@ static int k3_dma_start_txd(struct k3_dma_chan *c)
 	return -EAGAIN;
 }
 
+/*
+ * XXX This function doesn't seem to actually do much, as the behavior
+ * is the same with or without it. The  1 >> c->phy->idx bit doesn't make
+ * total sense, but for now I'm leaving it as-is until I can better
+ * understand the intent. -jstultz
+ */
+static void
+k3_dma_set_cyclic(struct k3_dma_chan *c, struct k3_dma_dev *d, int cyclic)
+{
+	int mask = 1 << c->phy->idx;
+
+	writel_relaxed(1 >> c->phy->idx, d->base + INT_TC2_RAW);
+	if (cyclic)
+		writel_relaxed(readl(d->base + INT_TC2_MASK) | mask,
+			       d->base + INT_TC2_MASK);
+	else
+		writel_relaxed(readl(d->base + INT_TC2_MASK) & ~mask,
+			       d->base + INT_TC2_MASK);
+}
+
 static void k3_dma_tasklet(unsigned long arg)
 {
 	struct k3_dma_dev *d = (struct k3_dma_dev *)arg;
@@ -297,6 +322,7 @@ static void k3_dma_tasklet(unsigned long arg)
 			if (k3_dma_start_txd(c)) {
 				/* No current txd associated with this channel */
 				dev_dbg(d->slave.dev, "pchan %u: free\n", p->idx);
+				k3_dma_set_cyclic(c, d, 0);
 				/* Mark this channel free */
 				c->phy = NULL;
 				p->vchan = NULL;
@@ -319,6 +345,7 @@ static void k3_dma_tasklet(unsigned long arg)
 			/* Mark this channel allocated */
 			p->vchan = c;
 			c->phy = p;
+			k3_dma_set_cyclic(c, d, c->cyclic);
 			dev_dbg(d->slave.dev, "pchan %u: alloc vchan %p\n", pch, &c->vc);
 		}
 	}
@@ -436,6 +463,13 @@ static void k3_dma_fill_desc(struct k3_dma_desc_sw *ds, dma_addr_t dst,
 	ds->desc_hw[num].saddr = src;
 	ds->desc_hw[num].daddr = dst;
 	ds->desc_hw[num].config = ccfg;
+
+	pr_debug("%s: k3_dma_desc_sw = %p, desc_hw = %p (num = %d) lli: 0x%x,"
+		" count: 0x%x, saddr: 0x%x, daddr 0x%x, cfg: 0x%x\n", __func__,
+		(void *)ds, &ds->desc_hw[num], num,
+		ds->desc_hw[num].lli, ds->desc_hw[num].count,
+		ds->desc_hw[num].saddr, ds->desc_hw[num].daddr,
+		ds->desc_hw[num].config);
 }
 
 static struct k3_dma_desc_sw *k3_dma_alloc_desc_resource(int num,
