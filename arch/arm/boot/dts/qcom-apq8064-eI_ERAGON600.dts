@@ -11,6 +11,17 @@
 		serial1 = &gsbi6_serial;
 	};
 
+	hdmi-out {
+		compatible = "hdmi-connector";
+		type = "d";
+
+		port {
+			hdmi_con: endpoint {
+				remote-endpoint = <&hdmi_out>;
+			};
+		};
+	};
+
 	soc {
 		pinctrl@800000 {
 			card_detect: card_detect {
@@ -126,23 +137,44 @@
 			regulator-boot-on;
 		};
 
-		hdmi: qcom,hdmi-tx@4a00000 {
+		hdmi-tx@4a00000 {
 			status = "okay";
 			core-vdda-supply = <&pm8921_hdmi_switch>;
 			hdmi-mux-supply = <&ext_3p3v>;
+
+			hpd-gpio = <&tlmm_pinmux 72 GPIO_ACTIVE_HIGH>;
+
+			ports {
+				port@0 {
+					endpoint {
+						remote-endpoint = <&mdp_dtv_out>;
+					};
+				};
+
+				port@1 {
+					endpoint {
+						remote-endpoint = <&hdmi_con>;
+					};
+				};
+			};
 		};
 
-		mdp: qcom,mdp@5100000 {
+		hdmi-phy@4a00400 {
+			status = "okay";
+			core-vdda-supply = <&pm8921_hdmi_switch>;
+		};
+
+		mdp@5100000 {
 			status = "okay";
 			lvds-vccs-3p3v-supply = <&ext_3p3v>;
 			lvds-pll-vdda-supply = <&pm8921_l2>;
 			lvds-vdda-supply = <&pm8921_lvs7>;
-			
+
         		port {
 				lvds_out: endpoint {
 					remote-endpoint = <&data_image_in>;
 				};
-			}; 
+			};
 		};
 
 		panel_3p3v: panel_3p3v {
@@ -177,18 +209,17 @@
 		};
 
 		panel: data_image,scf0700C48ggu21 {
-            status = "okay";
-            compatible = "data_image,scf0700C48ggu21";
-
-            ddc-i2c-bus = <&i2c3>;
-            backlight = <&backlight>;
-            power-supply = <&panel_3p3v>;
-            port {
-                        data_image_in: endpoint {
-                                remote-endpoint = <&lvds_out>;
-                        };
-                    };
-        };
+			status = "okay";
+			compatible = "data_image,scf0700C48ggu21";
+			ddc-i2c-bus = <&i2c3>;
+			backlight = <&backlight>;
+			power-supply = <&panel_3p3v>;
+			port {
+                        	data_image_in: endpoint {
+	                                remote-endpoint = <&lvds_out>;
+				};
+			};
+        	};
 
 		gsbi3: gsbi@16200000 {
 			status = "okay";
@@ -289,7 +320,7 @@
 		usb4: usb@12530000 {
 			status = "okay";
 		};
-		
+
 		/* on board fixed 3.3v supply */
 		v3p3_pcieclk: v3p3-pcieclk {
 			compatible = "regulator-fixed";
