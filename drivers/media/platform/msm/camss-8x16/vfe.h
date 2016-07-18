@@ -39,7 +39,6 @@
 /* Hw definitions */
 #define MSM_VFE_NUM_RDI 3
 #define MSM_VFE_IMAGE_MASTERS_NUM 7
-#define MSM_VFE_IMAGE_COMPOSITE_NUM 4
 
 #define MSM_VFE_UB_MAX_SIZE_VFE0 827
 #define MSM_VFE_UB_MAX_SIZE_VFE1 (1535)
@@ -71,27 +70,18 @@ struct msm_vfe_output {
 	enum msm_vfe_output_state state;
 };
 
-struct vfe_init {
-	int num_cids;
-	unsigned int cid[MSM_VFE_MAX_CID_NUM];
-};
-
-struct clock_info {
-	const char *name;
-	struct clk *clk;
-};
+struct camss;
 
 struct vfe_device {
 	int hw_id;
-	struct vfe_init init;
 	struct v4l2_subdev subdev;
 	struct media_pad pads[MSM_VFE_PADS_NUM];
 	struct camss *camss;
 	struct camss_video video_out;
 	void __iomem *base;
-	void __iomem *base_vbif;
 	u32 irq;
-	struct clock_info *clocks;
+	struct clk **clock;
+	s32 *clock_rate;
 	int nclocks;
 	struct completion reset_completion;
 	struct completion halt_completion;
@@ -100,7 +90,6 @@ struct vfe_device {
 	spinlock_t output_lock;
 	int rdi_output_map[MSM_VFE_NUM_RDI];
 	int wm_output_map[MSM_VFE_IMAGE_MASTERS_NUM];
-	int composite_output_map[MSM_VFE_IMAGE_COMPOSITE_NUM];
 	int stream_cnt;
 	int active_outputs;
 	struct msm_vfe_output output[MSM_VFE_MAX_OUTPUTS];
@@ -109,8 +98,10 @@ struct vfe_device {
 	struct v4l2_mbus_framefmt fmt[MSM_VFE_PADS_NUM];
 };
 
+struct resources;
+
 int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
-			struct vfe_init *init);
+			struct resources *res);
 
 int msm_vfe_register_entities(struct vfe_device *vfe,
 			      struct v4l2_device *v4l2_dev);

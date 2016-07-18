@@ -166,21 +166,6 @@ static const u32 vfe_formats[] = {
 	MEDIA_BUS_FMT_SRGGB12_1X12,
 };
 
-static char *clocks[] = {
-	"camss_top_ahb_clk",
-	"vfe_clk_src",
-	"camss_vfe_vfe_clk",
-	"camss_csi_vfe_clk",
-	"iface_clk",
-	"bus_clk",
-	"camss_ahb_clk"
-};
-
-static char *reg = "vfe0";
-static char *reg_vbif = "vfe0_vbif";
-
-static char *interrupt = "vfe0";
-
 static inline void vfe_reg_clr(struct vfe_device *vfe, u32 reg, u32 clr_bits)
 {
 	u32 bits = readl(vfe->base + reg);
@@ -506,9 +491,6 @@ static void vfe_reset_output_maps(struct vfe_device *vfe)
 
 	for (i = 0; i < ARRAY_SIZE(vfe->wm_output_map); i++)
 		vfe->wm_output_map[i] = -1;
-
-	for (i = 0; i < ARRAY_SIZE(vfe->composite_output_map); i++)
-		vfe->composite_output_map[i] = -1;
 
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
 }
@@ -1162,36 +1144,38 @@ static void vfe_bus_release(struct vfe_device *vfe)
 	}
 }
 
-static int vfe_set_clock_rate(struct vfe_device *vfe)
+/*
+ * vfe_enable_clocks - Enable clocks for VFE module and
+ * set clock rates where needed
+ * @nclocks: Number of clocks in clock array
+ * @clock: Clock array
+ * @clock_rate: Clock rates array
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+static int vfe_enable_clocks(int nclocks, struct clk **clock, s32 *clock_rate)
 {
-	int ret;
 	long clk_rate;
-
-	// TODO
-	clk_rate = clk_round_rate(vfe->clocks[1].clk, 320000000);
-	if (clk_rate < 0) {
-		dev_err(vfe->camss->dev, "clk round failed\n");
-		return -EINVAL;
-	}
-	ret = clk_set_rate(vfe->clocks[1].clk, clk_rate);
-	if (ret < 0) {
-		dev_err(vfe->camss->dev, "clk set rate failed\n");
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
-static int vfe_enable_clocks(struct vfe_device *vfe)
-{
 	int i;
 	int ret;
 
-	for (i = 0; i < vfe->nclocks; i++) {
-		ret = clk_prepare_enable(vfe->clocks[i].clk);
-		if (ret < 0) {
-			dev_err(vfe->camss->dev,
-				"clock prepare_enable failed %d\n", i);
+	for (i = 0; i < nclocks; i++) {
+		if (clock_rate[i]) {
+			clk_rate = clk_round_rate(clock[i], clock_rate[i]);
+			if (clk_rate < 0) {
+				pr_err("clock round rate failed\n");
+				ret = clk_rate;
+				goto error;
+			}
+			ret = clk_set_rate(clock[i], clk_rate);
+			if (ret < 0) {
+				pr_err("clock set rate failed\n");
+				goto error;
+			}
+		}
+		ret = clk_prepare_enable(clock[i]);
+		if (ret) {
+			pr_err("clock enable failed\n");
 			goto error;
 		}
 	}
@@ -1199,18 +1183,23 @@ static int vfe_enable_clocks(struct vfe_device *vfe)
 	return 0;
 
 error:
-	for (; i > 0; i--) {
-		clk_disable_unprepare(vfe->clocks[i - 1].clk);
-	}
+	for (i--; i >= 0; i--)
+		clk_disable_unprepare(clock[i]);
+
 	return ret;
 }
 
-static void vfe_disable_clocks(struct vfe_device *vfe)
+/*
+ * vfe_disable_clocks - Disable clocks for VFE module
+ * @nclocks: Number of clocks in clock array
+ * @clock: Clock array
+ */
+static void vfe_disable_clocks(int nclocks, struct clk **clock)
 {
 	int i;
 
-	for (i = vfe->nclocks - 1; i >= 0; i--)
-		clk_disable_unprepare(vfe->clocks[i].clk);
+	for (i = nclocks - 1; i >= 0; i--)
+		clk_disable_unprepare(clock[i]);
 }
 
 static int vfe_get(struct vfe_device *vfe)
@@ -1228,13 +1217,8 @@ static int vfe_get(struct vfe_device *vfe)
 			goto error_clocks;
 		}
 
-		ret = vfe_set_clock_rate(vfe);
-		if (ret < 0) {
-			dev_err(vfe->camss->dev, "Fail to set clocks rate\n");
-			goto error_clocks;
-		}
-
-		ret = vfe_enable_clocks(vfe);
+		ret = vfe_enable_clocks(vfe->nclocks, vfe->clock,
+					vfe->clock_rate);
 		if (ret < 0) {
 			dev_err(vfe->camss->dev, "Fail to enable clocks\n");
 			goto error_clocks;
@@ -1260,7 +1244,7 @@ static void vfe_put(struct vfe_device *vfe)
 		vfe_disable_irq_all(vfe);
 		vfe_init_outputs(vfe);
 		vfe_bus_release(vfe);
-		vfe_disable_clocks(vfe);
+		vfe_disable_clocks(vfe->nclocks, vfe->clock);
 	}
 	mutex_unlock(&vfe->mutex);
 }
@@ -1320,7 +1304,7 @@ static int vfe_flush_dmabufs(struct camss_video *vid)
 	return 0;
 }
 
-static int vfe_subdev_set_power(struct v4l2_subdev *sd, int on)
+static int vfe_set_power(struct v4l2_subdev *sd, int on)
 {
 	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
 	int ret;
@@ -1349,7 +1333,7 @@ static int vfe_subdev_set_power(struct v4l2_subdev *sd, int on)
 	return 0;
 }
 
-static int vfe_subdev_set_stream(struct v4l2_subdev *sd, int enable)
+static int vfe_set_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
 	int ret = 0;
@@ -1604,7 +1588,7 @@ static int vfe_init_formats(struct v4l2_subdev *sd)
 }
 
 int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
-			struct vfe_init *init)
+			struct resources *res)
 {
 	struct device *dev = camss->dev;
 	struct platform_device *pdev = container_of(dev,
@@ -1618,10 +1602,9 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
 	mutex_init(&vfe->mutex);
 	spin_lock_init(&vfe->output_lock);
 
-	vfe->hw_id = 0; // TODO
+	vfe->hw_id = 0;
 
 	vfe->camss = camss;
-	vfe->init = *init;
 
 	vfe->video_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	vfe->video_out.camss = camss;
@@ -1630,38 +1613,53 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
 
 	/* Memory */
 
-	r = platform_get_resource_byname(pdev, IORESOURCE_MEM, reg);
+	r = platform_get_resource_byname(pdev, IORESOURCE_MEM, res->reg[0]);
 	vfe->base = devm_ioremap_resource(dev, r);
 	if (IS_ERR(vfe->base)) {
 		dev_err(dev, "could not map memory\n");
 		return PTR_ERR(vfe->base);
 	}
 
-	r = platform_get_resource_byname(pdev, IORESOURCE_MEM, reg_vbif);
-	vfe->base_vbif = devm_ioremap_resource(dev, r);
-	if (IS_ERR(vfe->base_vbif)) {
-		dev_err(dev, "could not map memory\n");
-		return PTR_ERR(vfe->base_vbif);
+	/* Interrupt */
+
+	r = platform_get_resource_byname(pdev, IORESOURCE_IRQ, res->interrupt[0]);
+	vfe->irq = r->start;
+	if (IS_ERR_VALUE(vfe->irq))
+		return vfe->irq;
+
+	ret = devm_request_irq(dev, vfe->irq, vfe_subdev_isr,
+			       IRQF_TRIGGER_RISING, "vfe", vfe);
+	if (ret < 0) {
+		dev_err(dev, "request_irq failed\n");
+		return ret;
 	}
 
 	/* Clocks */
 
-	vfe->nclocks = ARRAY_SIZE(clocks);
-	vfe->clocks = devm_kzalloc(dev, vfe->nclocks * sizeof(*vfe->clocks),
-				    GFP_KERNEL);
-	if (!vfe->clocks) {
+	i = 0;
+	vfe->nclocks = 0;
+	while (res->clock[i++])
+		vfe->nclocks++;
+
+	vfe->clock = devm_kzalloc(dev, vfe->nclocks * sizeof(*vfe->clock),
+				  GFP_KERNEL);
+	if (!vfe->clock) {
+		dev_err(dev, "could not allocate memory\n");
+		return -ENOMEM;
+	}
+
+	vfe->clock_rate = devm_kzalloc(dev, vfe->nclocks *
+				       sizeof(*vfe->clock_rate), GFP_KERNEL);
+	if (!vfe->clock_rate) {
 		dev_err(dev, "could not allocate memory\n");
 		return -ENOMEM;
 	}
 
 	for (i = 0; i < vfe->nclocks; i++) {
-		vfe->clocks[i].name = clocks[i];
-	}
-
-	for (i = 0; i < vfe->nclocks; i++) {
-		vfe->clocks[i].clk = devm_clk_get(dev, vfe->clocks[i].name);
-		if (IS_ERR(vfe->clocks[i].clk))
-			return PTR_ERR(vfe->clocks[i].clk);
+		vfe->clock[i] = devm_clk_get(dev, res->clock[i]);
+		if (IS_ERR(vfe->clock[i]))
+			return PTR_ERR(vfe->clock[i]);
+		vfe->clock_rate[i] = res->clock_rate[i];
 	}
 
 	/* IOMMU */
@@ -1681,20 +1679,6 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
 	if (ret)
 		return -1;
 
-	/* Interrupt */
-
-	r = platform_get_resource_byname(pdev, IORESOURCE_IRQ, interrupt);
-	vfe->irq = r->start;
-	if (IS_ERR_VALUE(vfe->irq))
-		return vfe->irq;
-
-	ret = devm_request_irq(dev, vfe->irq, vfe_subdev_isr,
-			       IRQF_TRIGGER_RISING, "vfe", vfe);
-	if (ret < 0) {
-		dev_err(dev, "request_irq failed\n");
-		return ret;
-	}
-
 	/* MSM Bus */
 
 	vfe->bus_scale_table = msm_bus_cl_get_pdata(pdev);
@@ -1709,11 +1693,11 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
 }
 
 static const struct v4l2_subdev_core_ops vfe_core_ops = {
-	.s_power = vfe_subdev_set_power,
+	.s_power = vfe_set_power,
 };
 
 static const struct v4l2_subdev_video_ops vfe_video_ops = {
-	.s_stream = vfe_subdev_set_stream,
+	.s_stream = vfe_set_stream,
 };
 
 static const struct v4l2_subdev_pad_ops vfe_pad_ops = {

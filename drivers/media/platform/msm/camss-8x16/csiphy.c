@@ -108,7 +108,9 @@ static void csiphy_reset(struct csiphy_device *csiphy)
 /*
  * csiphy_enable_clocks - Enable clocks for CSIPHY module and
  * set clock rates where needed
- * @csiphy: CSIPHY device
+ * @nclocks: Number of clocks in clock array
+ * @clock: Clock array
+ * @clock_rate: Clock rates array
  *
  * Return 0 on success or a negative error code otherwise
  */
@@ -151,7 +153,8 @@ error:
 
 /*
  * csiphy_disable_clocks - Disable clocks for CSIPHY module
- * @csiphy: CSIPHY device
+ * @nclocks: Number of clocks in clock array
+ * @clock: Clock array
  */
 static void csiphy_disable_clocks(struct csiphy_device *csiphy)
 {

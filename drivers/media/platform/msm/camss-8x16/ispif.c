@@ -126,6 +126,10 @@ static irqreturn_t ispif_isr(int irq, void *dev)
 
 /*
  * ispif_enable_clocks - Enable clocks for ISPIF module
+ * @nclocks: Number of clocks in clock array
+ * @clock: Clock array
+ * @clock_for_reset: Flags array
+ * @reset: Flag to indicate clocks for reset or clocks for processing
  *
  * Return 0 on success or a negative error code otherwise
  */
@@ -157,6 +161,10 @@ error:
 
 /*
  * ispif_disable_clocks - Disable clocks for ISPIF module
+ * @nclocks: Number of clocks in clock array
+ * @clock: Clock array
+ * @clock_for_reset: Flags array
+ * @reset: Flag to indicate clocks for reset or clocks for processing
  */
 static void ispif_disable_clocks(int nclocks, struct clk **clock,
 				 u8 *clock_for_reset, u8 reset)

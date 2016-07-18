@@ -88,6 +88,17 @@ static struct resources_ispif ispif_res = {
 
 };
 
+static struct resources vfe_res = {
+	/* VFE0 */
+	.regulator = { NULL },
+	.clock = { "camss_top_ahb_clk", "vfe_clk_src", "camss_vfe_vfe_clk",
+		   "camss_csi_vfe_clk", "iface_clk", "bus_clk",
+		   "camss_ahb_clk" },
+	.clock_rate = { 0, 320000000, 0, 0, 0, 0, 0, 0, 0 },
+	.reg = { "vfe0", "vfe0_vbif" },
+	.interrupt = { "vfe0" }
+};
+
 /*
  * camss_pipeline_pm_use_count - Count the number of users of a pipeline
  * @entity: The entity
@@ -413,9 +424,7 @@ static int camss_init_subdevices(struct camss *camss)
 		return ret;
 	}
 
-	camss->vfe_init.num_cids = 1;
-	camss->vfe_init.cid[0] = -1;
-	ret = msm_vfe_subdev_init(&camss->vfe, camss, &camss->vfe_init);
+	ret = msm_vfe_subdev_init(&camss->vfe, camss, &vfe_res);
 	if (ret < 0) {
 		dev_err(camss->dev, "Fail to init vfe sub-device\n");
 		return ret;

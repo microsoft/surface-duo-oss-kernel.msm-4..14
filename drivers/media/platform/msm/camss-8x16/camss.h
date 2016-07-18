@@ -59,7 +59,6 @@ struct camss {
 	struct csid_device *csid;
 	struct ispif_device ispif;
 	struct vfe_device vfe;
-	struct vfe_init vfe_init;
 	struct device *iommu_dev;
 };
 

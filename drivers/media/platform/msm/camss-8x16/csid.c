@@ -234,7 +234,9 @@ static irqreturn_t csid_isr(int irq, void *dev)
 /*
  * csid_enable_clocks - Enable clocks for CSID module and
  * set clock rates where needed
- * @csid: CSID device
+ * @nclocks: Number of clocks in clock array
+ * @clock: Clock array
+ * @clock_rate: Clock rates array
  *
  * Return 0 on success or a negative error code otherwise
  */
@@ -276,7 +278,8 @@ error:
 
 /*
  * csid_disable_clocks - Disable clocks for CSID module
- * @csid: CSID device
+ * @nclocks: Number of clocks in clock array
+ * @clock: Clock array
  */
 static void csid_disable_clocks(int nclocks, struct clk **clock)
 {
