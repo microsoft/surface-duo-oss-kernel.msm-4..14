@@ -1,0 +1,12 @@
+Device-Tree bindings for hi6210 HDMI audio codec
+
+Required properties:
+	- compatible: should be "hisilicon,hi6210-hdmi-audio-codec".
+	- #sound-dai-cells: should be <0>.
+
+Example node:
+
+hi6210_hdmi_codec: hi6210_hdmi_codec {
+	compatible = "hisilicon,hi6210-hdmi-audio-codec";
+	#sound-dai-cells = <0>;
+};
