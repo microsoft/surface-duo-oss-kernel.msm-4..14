@@ -1,0 +1,7 @@
+#ifndef __DT_MSM8916_WCD_H
+#define __DT_MSM8916_WCD_H
+
+#define MSM8916_WCD_PLAYBACK_DAI	0
+#define MSM8916_WCD_CAPTURE_DAI		1
+
+#endif /* __DT_MSM8916_WCD_H */
