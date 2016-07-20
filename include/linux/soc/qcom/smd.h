@@ -7,6 +7,7 @@
 struct qcom_smd;
 struct qcom_smd_channel;
 struct qcom_smd_lookup;
+struct qcom_smd_device;
 
 /**
  * struct qcom_smd_id - struct used for matching a smd device
@@ -26,7 +27,7 @@ struct qcom_smd_device {
 	struct qcom_smd_channel *channel;
 };
 
-typedef int (*qcom_smd_cb_t)(struct qcom_smd_channel *, const void *, size_t);
+typedef int (*qcom_smd_cb_t)(void *, const void *, size_t);
 
 /**
  * struct qcom_smd_driver - smd driver struct
@@ -51,12 +52,13 @@ struct qcom_smd_driver {
 
 int qcom_smd_driver_register(struct qcom_smd_driver *drv);
 void qcom_smd_driver_unregister(struct qcom_smd_driver *drv);
+void qcom_ipc_bus_register(struct bus_type *bus);
 
 struct qcom_smd_channel *qcom_smd_open_channel(struct qcom_smd_channel *channel,
 					       const char *name,
 					       qcom_smd_cb_t cb);
-void *qcom_smd_get_drvdata(struct qcom_smd_channel *channel);
-void qcom_smd_set_drvdata(struct qcom_smd_channel *channel, void *data);
+void *qcom_smd_get_drvdata(void *ch);
+void qcom_smd_set_drvdata(void *ch, void *data);
 int qcom_smd_send(struct qcom_smd_channel *channel, const void *data, int len);
 
 
@@ -106,8 +108,8 @@ static inline int qcom_smd_send(struct qcom_smd_channel *channel,
 
 #endif
 
-#define module_qcom_smd_driver(__smd_driver) \
-	module_driver(__smd_driver, qcom_smd_driver_register, \
+#define module_qcom_smd_driver(__ipc_driver) \
+	module_driver(__ipc_driver, qcom_smd_driver_register, \
 		      qcom_smd_driver_unregister)
 
 
