@@ -17,6 +17,8 @@ int of_irq_parse_and_map_pci(const struct pci_dev *dev, u8 slot, u8 pin);
 int of_pci_parse_bus_range(struct device_node *node, struct resource *res);
 int of_get_pci_domain_nr(struct device_node *node);
 void of_pci_check_probe_only(void);
+int of_pci_map_rid(struct device_node *np, const char *map_name, u32 rid_in,
+		   struct device_node **target, u32 *rid_out);
 #else
 static inline int of_irq_parse_pci(const struct pci_dev *pdev, struct of_phandle_args *out_irq)
 {
@@ -50,6 +52,12 @@ static inline int
 of_get_pci_domain_nr(struct device_node *node)
 {
 	return -1;
+}
+
+static inline int of_pci_map_rid(struct device_node *np, const char *map_name,
+			u32 rid_in, struct device_node **target, u32 *rid_out)
+{
+	return -EINVAL;
 }
 
 static inline void of_pci_check_probe_only(void) { }
