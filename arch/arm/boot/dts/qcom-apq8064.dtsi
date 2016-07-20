@@ -813,10 +813,11 @@
 	};
 
 	firmware {
+		compatible = "simple-bus";
 		scm {
-			compatible = "qcom,scm-apq8064";
-			clocks = <&gcc CE3_CORE_CLK> , <&gcc CE3_H_CLK>;
-			clock-names = "core", "iface";
+			compatible = "qcom,scm";
+			clocks = <&gcc CE3_CORE_CLK> , <&gcc CE3_H_CLK>, <&gcc CE3_H_CLK>;
+			clock-names = "core", "iface", "bus";
 		};
 	};
 
