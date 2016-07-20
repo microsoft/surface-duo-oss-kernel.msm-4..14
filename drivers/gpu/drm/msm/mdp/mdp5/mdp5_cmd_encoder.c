@@ -32,39 +32,24 @@ static struct mdp5_kms *get_kms(struct drm_encoder *encoder)
 	return to_mdp5_kms(to_mdp_kms(priv->kms));
 }
 
-#ifdef DOWNSTREAM_CONFIG_MSM_BUS_SCALING
-#include <mach/board.h>
+#ifdef CONFIG_MSM_BUS_SCALING
 #include <linux/msm-bus.h>
-#include <linux/msm-bus-board.h>
-#define MDP_BUS_VECTOR_ENTRY(ab_val, ib_val)		\
-	{						\
-		.src = MSM_BUS_MASTER_MDP_PORT0,	\
-		.dst = MSM_BUS_SLAVE_EBI_CH0,		\
-		.ab = (ab_val),				\
-		.ib = (ib_val),				\
-	}
-
-static struct msm_bus_vectors mdp_bus_vectors[] = {
-	MDP_BUS_VECTOR_ENTRY(0, 0),
-	MDP_BUS_VECTOR_ENTRY(2000000000, 2000000000),
-};
-static struct msm_bus_paths mdp_bus_usecases[] = { {
-		.num_paths = 1,
-		.vectors = &mdp_bus_vectors[0],
-}, {
-		.num_paths = 1,
-		.vectors = &mdp_bus_vectors[1],
-} };
-static struct msm_bus_scale_pdata mdp_bus_scale_table = {
-	.usecase = mdp_bus_usecases,
-	.num_usecases = ARRAY_SIZE(mdp_bus_usecases),
-	.name = "mdss_mdp",
-};
 
 static void bs_init(struct mdp5_cmd_encoder *mdp5_cmd_enc)
 {
-	mdp5_cmd_enc->bsc = msm_bus_scale_register_client(
-			&mdp_bus_scale_table);
+	struct drm_encoder *encoder = &mdp5_cmd_enc->base;
+	struct mdp5_kms *mdp5_kms = get_kms(encoder);
+	struct platform_device *pdev = mdp5_kms->pdev;
+	struct msm_bus_scale_pdata *bus_scale_table;
+
+	bus_scale_table = msm_bus_cl_get_pdata(pdev);
+	if (!bus_scale_table) {
+		DBG("bus scaling is disabled\n");
+	} else {
+		mdp5_cmd_enc->bsc = msm_bus_scale_register_client(
+					bus_scale_table);
+	}
+
 	DBG("bus scale client: %08x", mdp5_cmd_enc->bsc);
 }
 
@@ -272,22 +257,22 @@ int mdp5_cmd_encoder_set_split_display(struct drm_encoder *encoder,
 	 * start signal for the slave encoder
 	 */
 	if (intf_num == 1)
-		data |= MDP5_MDP_SPLIT_DPL_UPPER_INTF2_SW_TRG_MUX;
+		data |= MDP5_SPLIT_DPL_UPPER_INTF2_SW_TRG_MUX;
 	else if (intf_num == 2)
-		data |= MDP5_MDP_SPLIT_DPL_UPPER_INTF1_SW_TRG_MUX;
+		data |= MDP5_SPLIT_DPL_UPPER_INTF1_SW_TRG_MUX;
 	else
 		return -EINVAL;
 
 	/* Smart Panel, Sync mode */
-	data |= MDP5_MDP_SPLIT_DPL_UPPER_SMART_PANEL;
+	data |= MDP5_SPLIT_DPL_UPPER_SMART_PANEL;
 
 	/* Make sure clocks are on when connectors calling this function. */
 	mdp5_enable(mdp5_kms);
-	mdp5_write(mdp5_kms, REG_MDP5_MDP_SPLIT_DPL_UPPER(0), data);
+	mdp5_write(mdp5_kms, REG_MDP5_SPLIT_DPL_UPPER, data);
 
-	mdp5_write(mdp5_kms, REG_MDP5_MDP_SPLIT_DPL_LOWER(0),
-			MDP5_MDP_SPLIT_DPL_LOWER_SMART_PANEL);
-	mdp5_write(mdp5_kms, REG_MDP5_MDP_SPLIT_DPL_EN(0), 1);
+	mdp5_write(mdp5_kms, REG_MDP5_SPLIT_DPL_LOWER,
+		   MDP5_SPLIT_DPL_LOWER_SMART_PANEL);
+	mdp5_write(mdp5_kms, REG_MDP5_SPLIT_DPL_EN, 1);
 	mdp5_disable(mdp5_kms);
 
 	return 0;

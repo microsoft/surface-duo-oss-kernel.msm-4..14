@@ -21,6 +21,7 @@
 struct msm_iommu {
 	struct msm_mmu base;
 	struct iommu_domain *domain;
+	bool has_ctx;
 };
 #define to_msm_iommu(x) container_of(x, struct msm_iommu, base)
 
@@ -35,14 +36,46 @@ static int msm_iommu_attach(struct msm_mmu *mmu, const char * const *names,
 			    int cnt)
 {
 	struct msm_iommu *iommu = to_msm_iommu(mmu);
-	return iommu_attach_device(iommu->domain, mmu->dev);
+	int i, ret;
+
+	if (!iommu->has_ctx)
+		return iommu_attach_device(iommu->domain, mmu->dev);
+
+	for (i = 0; i < cnt; i++) {
+		struct device *ctx = msm_iommu_get_ctx(names[i]);
+
+		if (IS_ERR_OR_NULL(ctx)) {
+			dev_warn(mmu->dev, "couldn't get %s context", names[i]);
+			continue;
+		}
+
+		ret = iommu_attach_device(iommu->domain, ctx);
+		if (ret) {
+			dev_warn(mmu->dev, "could not attach iommu to %s", names[i]);
+			return ret;
+		}
+	}
+
+	return 0;
 }
 
 static void msm_iommu_detach(struct msm_mmu *mmu, const char * const *names,
 			     int cnt)
 {
 	struct msm_iommu *iommu = to_msm_iommu(mmu);
-	iommu_detach_device(iommu->domain, mmu->dev);
+	int i;
+
+	if (!iommu->has_ctx)
+		iommu_detach_device(iommu->domain, mmu->dev);
+
+	for (i = 0; i < cnt; i++) {
+		struct device *ctx = msm_iommu_get_ctx(names[i]);
+
+		if (IS_ERR_OR_NULL(ctx))
+			continue;
+
+		iommu_detach_device(iommu->domain, ctx);
+	}
 }
 
 static int msm_iommu_map(struct msm_mmu *mmu, uint32_t iova,
@@ -59,10 +92,10 @@ static int msm_iommu_map(struct msm_mmu *mmu, uint32_t iova,
 		return -EINVAL;
 
 	for_each_sg(sgt->sgl, sg, sgt->nents, i) {
-		u32 pa = sg_phys(sg) - sg->offset;
+		dma_addr_t pa = sg_phys(sg) - sg->offset;
 		size_t bytes = sg->length + sg->offset;
 
-		VERB("map[%d]: %08x %08x(%zx)", i, iova, pa, bytes);
+		VERB("map[%d]: %08x %08lx(%zx)", i, da, (unsigned long)pa, bytes);
 
 		ret = iommu_map(domain, da, pa, bytes, prot);
 		if (ret)
@@ -101,7 +134,7 @@ static int msm_iommu_unmap(struct msm_mmu *mmu, uint32_t iova,
 		if (unmapped < bytes)
 			return unmapped;
 
-		VERB("unmap[%d]: %08x(%zx)", i, iova, bytes);
+		VERB("unmap[%d]: %08x(%zx)", i, da, bytes);
 
 		BUG_ON(!PAGE_ALIGNED(bytes));
 
@@ -137,6 +170,10 @@ struct msm_mmu *msm_iommu_new(struct device *dev, struct iommu_domain *domain)
 	iommu->domain = domain;
 	msm_mmu_init(&iommu->base, dev, &funcs);
 	iommu_set_fault_handler(domain, msm_fault_handler, dev);
+
+	if (of_find_compatible_node(NULL, NULL, "qcom,msm-smmu-v2") ||
+			of_find_compatible_node(NULL, NULL, "qcom,msm-mmu-500"))
+		iommu->has_ctx = true;
 
 	return &iommu->base;
 }

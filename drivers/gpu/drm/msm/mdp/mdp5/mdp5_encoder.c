@@ -38,39 +38,24 @@ static struct mdp5_kms *get_kms(struct drm_encoder *encoder)
 	return to_mdp5_kms(to_mdp_kms(priv->kms));
 }
 
-#ifdef DOWNSTREAM_CONFIG_MSM_BUS_SCALING
-#include <mach/board.h>
-#include <mach/msm_bus.h>
-#include <mach/msm_bus_board.h>
-#define MDP_BUS_VECTOR_ENTRY(ab_val, ib_val)		\
-	{						\
-		.src = MSM_BUS_MASTER_MDP_PORT0,	\
-		.dst = MSM_BUS_SLAVE_EBI_CH0,		\
-		.ab = (ab_val),				\
-		.ib = (ib_val),				\
-	}
-
-static struct msm_bus_vectors mdp_bus_vectors[] = {
-	MDP_BUS_VECTOR_ENTRY(0, 0),
-	MDP_BUS_VECTOR_ENTRY(2000000000, 2000000000),
-};
-static struct msm_bus_paths mdp_bus_usecases[] = { {
-		.num_paths = 1,
-		.vectors = &mdp_bus_vectors[0],
-}, {
-		.num_paths = 1,
-		.vectors = &mdp_bus_vectors[1],
-} };
-static struct msm_bus_scale_pdata mdp_bus_scale_table = {
-	.usecase = mdp_bus_usecases,
-	.num_usecases = ARRAY_SIZE(mdp_bus_usecases),
-	.name = "mdss_mdp",
-};
+#ifdef CONFIG_MSM_BUS_SCALING
+#include <linux/msm-bus.h>
 
 static void bs_init(struct mdp5_encoder *mdp5_encoder)
 {
-	mdp5_encoder->bsc = msm_bus_scale_register_client(
-			&mdp_bus_scale_table);
+	struct drm_encoder *encoder = &mdp5_encoder->base;
+	struct mdp5_kms *mdp5_kms = get_kms(encoder);
+	struct platform_device *pdev = mdp5_kms->pdev;
+	struct msm_bus_scale_pdata *bus_scale_table;
+
+	bus_scale_table = msm_bus_cl_get_pdata(pdev);
+	if (!bus_scale_table) {
+		DBG("bus scaling is disabled\n");
+	} else {
+		mdp5_encoder->bsc = msm_bus_scale_register_client(
+					bus_scale_table);
+	}
+
 	DBG("bus scale client: %08x", mdp5_encoder->bsc);
 }
 
@@ -322,18 +307,18 @@ int mdp5_encoder_set_split_display(struct drm_encoder *encoder,
 	 * to use the master's enable signal for the slave encoder.
 	 */
 	if (intf_num == 1)
-		data |= MDP5_MDP_SPLIT_DPL_LOWER_INTF2_TG_SYNC;
+		data |= MDP5_SPLIT_DPL_LOWER_INTF2_TG_SYNC;
 	else if (intf_num == 2)
-		data |= MDP5_MDP_SPLIT_DPL_LOWER_INTF1_TG_SYNC;
+		data |= MDP5_SPLIT_DPL_LOWER_INTF1_TG_SYNC;
 	else
 		return -EINVAL;
 
 	/* Make sure clocks are on when connectors calling this function. */
 	mdp5_enable(mdp5_kms);
 	/* Dumb Panel, Sync mode */
-	mdp5_write(mdp5_kms, REG_MDP5_MDP_SPLIT_DPL_UPPER(0), 0);
-	mdp5_write(mdp5_kms, REG_MDP5_MDP_SPLIT_DPL_LOWER(0), data);
-	mdp5_write(mdp5_kms, REG_MDP5_MDP_SPLIT_DPL_EN(0), 1);
+	mdp5_write(mdp5_kms, REG_MDP5_SPLIT_DPL_UPPER, 0);
+	mdp5_write(mdp5_kms, REG_MDP5_SPLIT_DPL_LOWER, data);
+	mdp5_write(mdp5_kms, REG_MDP5_SPLIT_DPL_EN, 1);
 
 	mdp5_ctl_pair(mdp5_encoder->ctl, mdp5_slave_enc->ctl, true);
 

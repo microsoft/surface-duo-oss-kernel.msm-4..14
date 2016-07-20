@@ -248,15 +248,6 @@ static int dsi_pll_28nm_clk_set_rate(struct clk_hw *hw, unsigned long rate,
 	return 0;
 }
 
-static int dsi_pll_28nm_clk_is_enabled(struct clk_hw *hw)
-{
-	struct msm_dsi_pll *pll = hw_clk_to_pll(hw);
-	struct dsi_pll_28nm *pll_28nm = to_pll_28nm(pll);
-
-	return pll_28nm_poll_for_ready(pll_28nm, POLL_MAX_READS,
-					POLL_TIMEOUT_US);
-}
-
 static unsigned long dsi_pll_28nm_clk_recalc_rate(struct clk_hw *hw,
 		unsigned long parent_rate)
 {
@@ -312,7 +303,7 @@ static const struct clk_ops clk_ops_dsi_pll_28nm_vco = {
 	.recalc_rate = dsi_pll_28nm_clk_recalc_rate,
 	.prepare = msm_dsi_pll_helper_clk_prepare,
 	.unprepare = msm_dsi_pll_helper_clk_unprepare,
-	.is_enabled = dsi_pll_28nm_clk_is_enabled,
+	.is_enabled = msm_dsi_pll_helper_clk_is_enabled,
 };
 
 /*
