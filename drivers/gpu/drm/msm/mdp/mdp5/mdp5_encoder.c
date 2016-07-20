@@ -44,7 +44,8 @@ static struct mdp5_kms *get_kms(struct drm_encoder *encoder)
 static void bs_init(struct mdp5_encoder *mdp5_encoder)
 {
 	struct drm_encoder *encoder = &mdp5_encoder->base;
-	struct platform_device *pdev = encoder->dev->platformdev;
+	struct mdp5_kms *mdp5_kms = get_kms(encoder);
+	struct platform_device *pdev = mdp5_kms->pdev;
 	struct msm_bus_scale_pdata *bus_scale_table;
 
 	bus_scale_table = msm_bus_cl_get_pdata(pdev);
