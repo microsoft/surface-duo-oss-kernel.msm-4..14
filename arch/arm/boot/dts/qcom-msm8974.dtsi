@@ -184,7 +184,7 @@
 
 		modem_smp2p_out: master-kernel {
 			qcom,entry-name = "master-kernel";
-			#qcom,state-cells = <1>;
+			#qcom,smem-state-cells = <1>;
 		};
 
 		modem_smp2p_in: slave-kernel {
@@ -210,7 +210,7 @@
 		wcnss_smp2p_out: master-kernel {
 			qcom,entry-name = "master-kernel";
 
-			#qcom,state-cells = <1>;
+			#qcom,smem-state-cells = <1>;
 		};
 
 		wcnss_smp2p_in: slave-kernel {
@@ -234,7 +234,7 @@
 		apps_smsm: apps@0 {
 			reg = <0>;
 
-			#qcom,state-cells = <1>;
+			#qcom,smem-state-cells = <1>;
 		};
 
 		modem_smsm: modem@1 {
@@ -598,3 +598,4 @@
 		};
 	};
 };
+

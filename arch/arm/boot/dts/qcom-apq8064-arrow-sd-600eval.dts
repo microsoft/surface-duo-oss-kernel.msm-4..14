@@ -1,10 +1,11 @@
 #include "qcom-apq8064-v2.0.dtsi"
-#include "qcom-apq8064-arrow-db600c-pins.dtsi"
+#include "qcom-apq8064-arrow-sd-600eval-pins.dtsi"
 #include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/mfd/qcom-rpm.h>
 
 / {
-	model = "Arrow Electronics, APQ8064 DB600c";
-	compatible = "arrow,db600c", "qcom,apq8064";
+	model = "Arrow Electronics, APQ8064 SD_600eval";
+	compatible = "arrow,sd_600eval", "qcom,apq8064";
 
 	aliases {
 		serial0 = &gsbi7_serial;
@@ -36,6 +37,17 @@
 			regulator-always-on;
 		};
 
+	};
+
+	hdmi-out {
+		compatible = "hdmi-connector";
+		type = "a";
+
+		port {
+			hdmi_con: endpoint {
+				remote-endpoint = <&hdmi_out>;
+			};
+		};
 	};
 
 	soc {
@@ -82,7 +94,8 @@
 				s4 {
 					regulator-min-microvolt	= <1800000>;
 					regulator-max-microvolt	= <1800000>;
-					qcom,switch-mode-frequency = <3200000>;
+					qcom,switch-mode-frequency = <1600000>;
+					qcom,force-mode = <QCOM_RPM_FORCE_MODE_AUTO>;
 					bias-pull-down;
 					regulator-always-on;
 				};
@@ -343,6 +356,39 @@
 				pinctrl-names	= "default";
 				pinctrl-0	= <&card_detect>;
 				cd-gpios	= <&tlmm_pinmux 26 GPIO_ACTIVE_HIGH>;
+			};
+		};
+
+		hdmi-tx@4a00000 {
+			status = "okay";
+			core-vdda-supply = <&pm8921_hdmi_switch>;
+			hdmi-mux-supply = <&vcc3v3>;
+
+			hpd-gpio = <&tlmm_pinmux 72 GPIO_ACTIVE_HIGH>;
+
+			ports {
+				port@1 {
+					endpoint {
+						remote-endpoint = <&hdmi_con>;
+					};
+				};
+			};
+		};
+
+		hdmi-phy@4a00400 {
+			status = "okay";
+			core-vdda-supply = <&pm8921_hdmi_switch>;
+		};
+
+		mdp@5100000 {
+			status = "okay";
+
+			ports {
+				port@3 {
+					endpoint {
+						remote-endpoint = <&hdmi_in>;
+					};
+				};
 			};
 		};
 	};
