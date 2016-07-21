@@ -219,6 +219,7 @@ static irqreturn_t k3_dma_int_handler(int irq, void *dev_id)
 				spin_lock_irqsave(&c->vc.lock, flags);
 				vchan_cookie_complete(&p->ds_run->vd);
 				p->ds_done = p->ds_run;
+				p->ds_run = NULL;
 				spin_unlock_irqrestore(&c->vc.lock, flags);
 			}
 			if (c && (tc2 & BIT(i))) {
@@ -266,14 +267,14 @@ static int k3_dma_start_txd(struct k3_dma_chan *c)
 		 * so vc->desc_issued only contains desc pending
 		 */
 		list_del(&ds->vd.node);
+
+		WARN_ON_ONCE(c->phy->ds_run);
+		WARN_ON_ONCE(c->phy->ds_done);
 		c->phy->ds_run = ds;
-		c->phy->ds_done = NULL;
 		/* start dma */
 		k3_dma_set_desc(c->phy, &ds->desc_hw[0]);
 		return 0;
 	}
-	c->phy->ds_done = NULL;
-	c->phy->ds_run = NULL;
 	return -EAGAIN;
 }
 
@@ -659,6 +660,15 @@ static int k3_dma_config(struct dma_chan *chan,
 	return 0;
 }
 
+static void k3_dma_free_desc(struct virt_dma_desc *vd)
+{
+	struct k3_dma_desc_sw *ds =
+		container_of(vd, struct k3_dma_desc_sw, vd);
+
+	kfree(ds);
+}
+
+
 static int k3_dma_terminate_all(struct dma_chan *chan)
 {
 	struct k3_dma_chan *c = to_k3_chan(chan);
@@ -682,7 +692,15 @@ static int k3_dma_terminate_all(struct dma_chan *chan)
 		k3_dma_terminate_chan(p, d);
 		c->phy = NULL;
 		p->vchan = NULL;
-		p->ds_run = p->ds_done = NULL;
+		if (p->ds_run) {
+			k3_dma_free_desc(&p->ds_run->vd);
+			p->ds_run = NULL;
+		}
+		if (p->ds_done) {
+			k3_dma_free_desc(&p->ds_done->vd);
+			p->ds_done = NULL;
+		}
+
 	}
 	spin_unlock_irqrestore(&c->vc.lock, flags);
 	vchan_dma_desc_free_list(&c->vc, &head);
@@ -733,14 +751,6 @@ static int k3_dma_transfer_resume(struct dma_chan *chan)
 	spin_unlock_irqrestore(&c->vc.lock, flags);
 
 	return 0;
-}
-
-static void k3_dma_free_desc(struct virt_dma_desc *vd)
-{
-	struct k3_dma_desc_sw *ds =
-		container_of(vd, struct k3_dma_desc_sw, vd);
-
-	kfree(ds);
 }
 
 static const struct of_device_id k3_pdma_dt_ids[] = {
