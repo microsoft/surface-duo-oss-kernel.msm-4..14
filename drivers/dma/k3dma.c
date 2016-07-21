@@ -8,6 +8,8 @@
  */
 #include <linux/sched.h>
 #include <linux/device.h>
+#include <linux/dma-mapping.h>
+#include <linux/dmapool.h>
 #include <linux/dmaengine.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -26,6 +28,7 @@
 #define DRIVER_NAME		"k3-dma"
 #define DMA_MAX_SIZE		0x1ffc
 #define DMA_CYCLIC_MAX_PERIOD	0x1000
+#define LLI_BLOCK_SIZE		(4 * PAGE_SIZE)
 
 #define INT_STAT		0x00
 #define INT_TC1			0x04
@@ -74,7 +77,7 @@ struct k3_dma_desc_sw {
 	dma_addr_t		desc_hw_lli;
 	size_t			desc_num;
 	size_t			size;
-	struct k3_desc_hw	desc_hw[0];
+	struct k3_desc_hw	*desc_hw;
 };
 
 struct k3_dma_phy;
@@ -107,6 +110,7 @@ struct k3_dma_dev {
 	struct k3_dma_phy	*phy;
 	struct k3_dma_chan	*chans;
 	struct clk		*clk;
+	struct dma_pool		*pool;
 	u32			dma_channels;
 	u32			dma_requests;
 };
@@ -434,6 +438,35 @@ static void k3_dma_fill_desc(struct k3_dma_desc_sw *ds, dma_addr_t dst,
 	ds->desc_hw[num].config = ccfg;
 }
 
+static struct k3_dma_desc_sw *k3_dma_alloc_desc_resource(int num,
+							struct dma_chan *chan)
+{
+	struct k3_dma_chan *c = to_k3_chan(chan);
+	struct k3_dma_desc_sw *ds;
+	struct k3_dma_dev *d = to_k3_dma(chan->device);
+	int lli_limit = LLI_BLOCK_SIZE / sizeof(struct k3_desc_hw);
+
+	if (num > lli_limit) {
+		dev_dbg(chan->device->dev, "vch %p: sg num %d exceed max %d\n",
+			&c->vc, num, lli_limit);
+		return NULL;
+	}
+
+	ds = kzalloc(sizeof(*ds), GFP_ATOMIC);
+	if (!ds)
+		return NULL;
+
+	ds->desc_hw = dma_pool_alloc(d->pool, GFP_NOWAIT, &ds->desc_hw_lli);
+	if (!ds->desc_hw) {
+		dev_dbg(chan->device->dev, "vch %p: dma alloc fail\n", &c->vc);
+		kfree(ds);
+		return NULL;
+	}
+	memset(ds->desc_hw, 0, sizeof(struct k3_desc_hw) * num);
+	ds->desc_num = num;
+	return ds;
+}
+
 static struct dma_async_tx_descriptor *k3_dma_prep_memcpy(
 	struct dma_chan *chan,	dma_addr_t dst, dma_addr_t src,
 	size_t len, unsigned long flags)
@@ -447,15 +480,14 @@ static struct dma_async_tx_descriptor *k3_dma_prep_memcpy(
 		return NULL;
 
 	num = DIV_ROUND_UP(len, DMA_MAX_SIZE);
-	ds = kzalloc(sizeof(*ds) + num * sizeof(ds->desc_hw[0]), GFP_ATOMIC);
+
+	ds = k3_dma_alloc_desc_resource(num, chan);
 	if (!ds) {
 		dev_dbg(chan->device->dev, "vchan %p: kzalloc fail\n", &c->vc);
 		return NULL;
 	}
 	c->cyclic = 0;
-	ds->desc_hw_lli = __virt_to_phys((unsigned long)&ds->desc_hw[0]);
 	ds->size = len;
-	ds->desc_num = num;
 	num = 0;
 
 	if (!c->ccfg) {
@@ -506,12 +538,9 @@ static struct dma_async_tx_descriptor *k3_dma_prep_slave_sg(
 			num += DIV_ROUND_UP(avail, DMA_MAX_SIZE) - 1;
 	}
 
-	ds = kzalloc(sizeof(*ds) + num * sizeof(ds->desc_hw[0]), GFP_ATOMIC);
+	ds = k3_dma_alloc_desc_resource(num, chan);
 	if (!ds)
 		return NULL;
-
-	ds->desc_hw_lli = __virt_to_phys((unsigned long)&ds->desc_hw[0]);
-	ds->desc_num = num;
 	num = 0;
 
 	for_each_sg(sgl, sg, sglen, i) {
@@ -564,12 +593,9 @@ k3_dma_prep_dma_cyclic(struct dma_chan *chan, dma_addr_t buf_addr,
 	if (avail > modulo)
 		num += DIV_ROUND_UP(avail, modulo) - 1;
 
-	ds = kzalloc(sizeof(*ds) + num * sizeof(ds->desc_hw[0]), GFP_ATOMIC);
+	ds = k3_dma_alloc_desc_resource(num, chan);
 	if (!ds)
 		return NULL;
-
-	ds->desc_hw_lli = __virt_to_phys((unsigned long)&ds->desc_hw[0]);
-	ds->desc_num = num;
 
 	c->cyclic = 1;
 	addr = buf_addr;
@@ -664,7 +690,9 @@ static void k3_dma_free_desc(struct virt_dma_desc *vd)
 {
 	struct k3_dma_desc_sw *ds =
 		container_of(vd, struct k3_dma_desc_sw, vd);
+	struct k3_dma_dev *d = to_k3_dma(vd->tx.chan->device);
 
+	dma_pool_free(d->pool, ds->desc_hw, ds->desc_hw_lli);
 	kfree(ds);
 }
 
@@ -809,6 +837,12 @@ static int k3_dma_probe(struct platform_device *op)
 			k3_dma_int_handler, 0, DRIVER_NAME, d);
 	if (ret)
 		return ret;
+
+	/* A DMA memory pool for LLIs, align on 32-byte boundary */
+	d->pool = dmam_pool_create(DRIVER_NAME, &op->dev,
+					LLI_BLOCK_SIZE, 32, 0);
+	if (!d->pool)
+		return -ENOMEM;
 
 	/* init phy channel */
 	d->phy = devm_kzalloc(&op->dev,
