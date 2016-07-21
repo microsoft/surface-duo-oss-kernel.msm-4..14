@@ -55,10 +55,10 @@
 /* The offsets for DMARXE/DMATXE in master mode only			*/
 #define DMATXE	0x0058	/* DMA Tx enable register			*/
 #define DMARXE	0x005C	/* DMA Rx enable register			*/
+
 /*
  *	CONSTANT DEFINITIONS
  */
-
 
 #define LINFLEXD_LINCR1_INIT		(1<<0)
 #define LINFLEXD_LINCR1_MME		(1<<4)
@@ -82,21 +82,7 @@
 #define LINFLEXD_LINIER_DTIE		(1<<1)
 #define LINFLEXD_LINIER_HRIE		(1<<0)
 
-#if defined(PSP_MPXD10)
-#define LINFLEXD_UARTCR_TDFLTFC_MASK	(0x6000)
-#define LINFLEXD_UARTCR_RDFLRFC_MASK	(0xc00)
-#else
-#define LINFLEXD_UARTCR_TDFLTFC_MASK	(0xe000)
-#define LINFLEXD_UARTCR_RDFLRFC_MASK	(0x1c00)
-#endif
-
-#define LINFLEXD_UARTCR_TDFLTFC_SHIFT	(13)
-#define LINFLEXD_UARTCR_RDFLRFC_SHIFT	(10)
-
-#define LINFLEXD_UARTCR_TDFLTFC		(1<<13)
-#define LINFLEXD_UARTCR_RDFLRFC		(1<<10)
-
-#define LINFLEXD_UARTCR_RFBM		(1<<9)
+#define LINFLEXD_UARTCR_RFBM            (1<<9)
 #define LINFLEXD_UARTCR_TFBM		(1<<8)
 #define LINFLEXD_UARTCR_WL1		(1<<7)
 #define LINFLEXD_UARTCR_PC1		(1<<6)
@@ -131,8 +117,10 @@
 
 #define DMA_MAXBURST			(16)
 #define DMA_MAXBURST_MASK		(DMA_MAXBURST - 1)
-#define FSL_UART_RX_DMA_BUFFER_SIZE	(64)
+#define FSL_UART_RX_DMA_BUFFER_SIZE	(PAGE_SIZE)
 
+#define LINFLEXD_UARTCR_TXFIFO_SIZE	(4)
+#define LINFLEXD_UARTCR_RXFIFO_SIZE	(4)
 
 #define DRIVER_NAME	"fsl-linflexuart"
 #define DEV_NAME	"ttyLF"
@@ -145,7 +133,23 @@ struct linflex_port {
 	struct clk		*clk;
 	unsigned int		txfifo_size;
 	unsigned int		rxfifo_size;
-	bool			linflex_dma_use;
+	bool			dma_tx_use;
+	bool			dma_rx_use;
+	struct dma_chan		*dma_tx_chan;
+	struct dma_chan		*dma_rx_chan;
+	struct dma_async_tx_descriptor  *dma_tx_desc;
+	struct dma_async_tx_descriptor  *dma_rx_desc;
+	dma_addr_t		dma_tx_buf_bus;
+	dma_addr_t		dma_rx_buf_bus;
+	dma_cookie_t		dma_tx_cookie;
+	dma_cookie_t		dma_rx_cookie;
+	unsigned char		*dma_tx_buf_virt;
+	unsigned char		*dma_rx_buf_virt;
+	unsigned int		dma_tx_bytes;
+	int			dma_tx_in_progress;
+	int			dma_rx_in_progress;
+	unsigned int		dma_rx_timeout;
+	struct timer_list	timer;
 };
 
 static struct of_device_id linflex_dt_ids[] = {
@@ -156,48 +160,119 @@ static struct of_device_id linflex_dt_ids[] = {
 };
 MODULE_DEVICE_TABLE(of, linflex_dt_ids);
 
+/* Forward declare this for the dma callbacks. */
+static void linflex_dma_tx_complete(void *arg);
+static void linflex_dma_rx_complete(void *arg);
+
+static void linflex_copy_rx_to_tty(struct linflex_port *sport,
+		struct tty_port *tty, int count)
+{
+	int copied;
+
+	sport->port.icount.rx += count;
+
+	if (!tty) {
+		dev_err(sport->port.dev, "No tty port\n");
+		return;
+	}
+
+	dma_sync_single_for_cpu(sport->port.dev, sport->dma_rx_buf_bus,
+			FSL_UART_RX_DMA_BUFFER_SIZE, DMA_FROM_DEVICE);
+	copied = tty_insert_flip_string(tty,
+			((unsigned char *)(sport->dma_rx_buf_virt)), count);
+
+	if (copied != count) {
+		WARN_ON(1);
+		dev_err(sport->port.dev, "RxData copy to tty layer failed\n");
+	}
+
+	dma_sync_single_for_device(sport->port.dev, sport->dma_rx_buf_bus,
+			FSL_UART_RX_DMA_BUFFER_SIZE, DMA_TO_DEVICE);
+}
 
 static void linflex_stop_tx(struct uart_port *port)
 {
-	unsigned int temp;
-	temp = readl(port->membase + LINIER);
-	temp &= ~(LINFLEXD_LINIER_DTIE);
-	writel(temp, port->membase + LINIER);
+	unsigned long temp;
+	unsigned int count;
+	struct dma_tx_state state;
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
+	struct circ_buf *xmit = &sport->port.state->xmit;
+
+	if (!sport->dma_tx_use) {
+		temp = readl(port->membase + LINIER);
+		temp &= ~(LINFLEXD_LINIER_DTIE);
+		writel(temp, port->membase + LINIER);
+	} else if (sport->dma_tx_in_progress) {
+		dmaengine_pause(sport->dma_tx_chan);
+		dmaengine_tx_status(sport->dma_tx_chan,
+				sport->dma_tx_cookie, &state);
+		dmaengine_terminate_all(sport->dma_tx_chan);
+		dma_sync_single_for_cpu(sport->port.dev, sport->dma_tx_buf_bus,
+			sport->dma_tx_bytes, DMA_TO_DEVICE);
+		async_tx_ack(sport->dma_tx_desc);
+		count = sport->dma_tx_bytes - state.residue;
+		xmit->tail = (xmit->tail + count) & (UART_XMIT_SIZE - 1);
+		port->icount.tx += count;
+
+		sport->dma_tx_in_progress = 0;
+	}
 }
 
- static void linflex_stop_rx(struct uart_port *port)
+static void linflex_stop_rx(struct uart_port *port)
 {
-	unsigned int temp;
-	temp = readb(port->membase + LINIER);
-	writeb(temp & ~LINFLEXD_LINIER_DRIE, port->membase + LINIER);
+	unsigned long temp;
+	unsigned int count;
+	struct dma_tx_state state;
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
+
+	if (!sport->dma_rx_use) {
+		temp = readl(port->membase + LINIER);
+		writel(temp & ~LINFLEXD_LINIER_DRIE, port->membase + LINIER);
+	} else if (sport->dma_rx_in_progress) {
+		del_timer(&sport->timer);
+		dmaengine_pause(sport->dma_rx_chan);
+		dmaengine_tx_status(sport->dma_rx_chan,
+				sport->dma_rx_cookie, &state);
+		dmaengine_terminate_all(sport->dma_rx_chan);
+		count = FSL_UART_RX_DMA_BUFFER_SIZE - state.residue;
+		async_tx_ack(sport->dma_rx_desc);
+
+		sport->dma_rx_in_progress = 0;
+		linflex_copy_rx_to_tty(sport, &sport->port.state->port, count);
+		tty_flip_buffer_push(&sport->port.state->port);
+	}
 }
- static void linflex_enable_ms(struct uart_port *port)
-{
-}
+
 static inline void linflex_transmit_buffer(struct linflex_port *sport)
 {
 	struct circ_buf *xmit = &sport->port.state->xmit;
-	unsigned char c, status;
+	unsigned char c;
+	unsigned long status;
 
 	while (!uart_circ_empty(xmit)) {
 		c = xmit->buf[xmit->tail];
 		writeb(c, sport->port.membase + BDRL);
 
-		/* waiting for data transmission completed */
-		while (((status = readb(sport->port.membase + UARTSR)) &
-			LINFLEXD_UARTSR_DTFTFF) != LINFLEXD_UARTSR_DTFTFF)
-			;
+		/* Waiting for data transmission completed. */
+		if (!sport->dma_tx_use) {
+			while (((status = readl(sport->port.membase + UARTSR)) &
+						LINFLEXD_UARTSR_DTFTFF) !=
+						LINFLEXD_UARTSR_DTFTFF)
+				;
+		} else {
+			while (((status = readl(sport->port.membase + UARTSR)) &
+						LINFLEXD_UARTSR_DTFTFF))
+				;
+		}
 
-		writeb(status | LINFLEXD_UARTSR_DTFTFF,
-		       sport->port.membase + UARTSR);
-
-		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
-	}
-
-	while (!uart_circ_empty(xmit)) {
-		writeb(xmit->buf[xmit->tail], sport->port.membase + BDRL);
 		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
 		sport->port.icount.tx++;
+
+		if (!sport->dma_tx_use)
+			writel(status | LINFLEXD_UARTSR_DTFTFF,
+					sport->port.membase + UARTSR);
 	}
 
 	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
@@ -207,27 +282,170 @@ static inline void linflex_transmit_buffer(struct linflex_port *sport)
 		linflex_stop_tx(&sport->port);
 }
 
+static int linflex_dma_tx(struct linflex_port *sport, unsigned long count)
+{
+	struct circ_buf *xmit = &sport->port.state->xmit;
+	dma_addr_t tx_bus_addr;
+
+	while ((readl(sport->port.membase + UARTSR) & LINFLEXD_UARTSR_DTFTFF))
+		;
+
+	dma_sync_single_for_device(sport->port.dev, sport->dma_tx_buf_bus,
+				UART_XMIT_SIZE, DMA_TO_DEVICE);
+	sport->dma_tx_bytes = count;
+	tx_bus_addr = sport->dma_tx_buf_bus + xmit->tail;
+	sport->dma_tx_desc = dmaengine_prep_slave_single(sport->dma_tx_chan,
+					tx_bus_addr, sport->dma_tx_bytes,
+					DMA_MEM_TO_DEV, DMA_PREP_INTERRUPT);
+
+	if (!sport->dma_tx_desc) {
+		dev_err(sport->port.dev, "Not able to get desc for tx\n");
+		return -EIO;
+	}
+
+	sport->dma_tx_desc->callback = linflex_dma_tx_complete;
+	sport->dma_tx_desc->callback_param = sport;
+	sport->dma_tx_in_progress = 1;
+	sport->dma_tx_cookie = dmaengine_submit(sport->dma_tx_desc);
+	dma_async_issue_pending(sport->dma_tx_chan);
+
+	return 0;
+}
+
+static void linflex_prepare_tx(struct linflex_port *sport)
+{
+	struct circ_buf *xmit = &sport->port.state->xmit;
+	unsigned long count =  CIRC_CNT_TO_END(xmit->head,
+					xmit->tail, UART_XMIT_SIZE);
+
+	if (!count || sport->dma_tx_in_progress)
+		return;
+
+	linflex_dma_tx(sport, count);
+}
+
+static void linflex_dma_tx_complete(void *arg)
+{
+	struct linflex_port *sport = arg;
+	struct circ_buf *xmit = &sport->port.state->xmit;
+	unsigned long flags;
+
+	async_tx_ack(sport->dma_tx_desc);
+
+	spin_lock_irqsave(&sport->port.lock, flags);
+
+	xmit->tail = (xmit->tail + sport->dma_tx_bytes) & (UART_XMIT_SIZE - 1);
+	sport->port.icount.tx += sport->dma_tx_bytes;
+	sport->dma_tx_in_progress = 0;
+
+	if (uart_circ_chars_pending(xmit) < WAKEUP_CHARS)
+		uart_write_wakeup(&sport->port);
+
+	linflex_prepare_tx(sport);
+
+	spin_unlock_irqrestore(&sport->port.lock, flags);
+}
+
+static void linflex_flush_buffer(struct uart_port *port)
+{
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
+
+	if (sport->dma_tx_use) {
+		dmaengine_terminate_all(sport->dma_tx_chan);
+		sport->dma_tx_in_progress = 0;
+	}
+}
+
+static int linflex_dma_rx(struct linflex_port *sport)
+{
+	dma_sync_single_for_device(sport->port.dev, sport->dma_rx_buf_bus,
+			FSL_UART_RX_DMA_BUFFER_SIZE, DMA_FROM_DEVICE);
+	sport->dma_rx_desc = dmaengine_prep_slave_single(sport->dma_rx_chan,
+			sport->dma_rx_buf_bus, FSL_UART_RX_DMA_BUFFER_SIZE,
+			DMA_DEV_TO_MEM, DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
+
+	if (!sport->dma_rx_desc) {
+		dev_err(sport->port.dev, "Not able to get desc for rx\n");
+		return -EIO;
+	}
+
+	sport->dma_rx_desc->callback = linflex_dma_rx_complete;
+	sport->dma_rx_desc->callback_param = sport;
+	sport->dma_rx_in_progress = 1;
+	sport->dma_rx_cookie = dmaengine_submit(sport->dma_rx_desc);
+	dma_async_issue_pending(sport->dma_rx_chan);
+
+	return 0;
+}
+
+static void linflex_dma_rx_complete(void *arg)
+{
+	struct linflex_port *sport = arg;
+	struct tty_port *port = &sport->port.state->port;
+	unsigned long flags;
+
+	async_tx_ack(sport->dma_rx_desc);
+	mod_timer(&sport->timer, jiffies + sport->dma_rx_timeout);
+
+	spin_lock_irqsave(&sport->port.lock, flags);
+
+	sport->dma_rx_in_progress = 0;
+	linflex_copy_rx_to_tty(sport, port, FSL_UART_RX_DMA_BUFFER_SIZE);
+	tty_flip_buffer_push(port);
+	linflex_dma_rx(sport);
+
+	spin_unlock_irqrestore(&sport->port.lock, flags);
+}
+
+static void linflex_timer_func(unsigned long data)
+{
+	struct linflex_port *sport = (struct linflex_port *)data;
+	struct tty_port *port = &sport->port.state->port;
+	struct dma_tx_state state;
+	unsigned long flags;
+	int count;
+
+	del_timer(&sport->timer);
+	dmaengine_pause(sport->dma_rx_chan);
+	dmaengine_tx_status(sport->dma_rx_chan, sport->dma_rx_cookie, &state);
+	dmaengine_terminate_all(sport->dma_rx_chan);
+	count = FSL_UART_RX_DMA_BUFFER_SIZE - state.residue;
+	async_tx_ack(sport->dma_rx_desc);
+
+	spin_lock_irqsave(&sport->port.lock, flags);
+
+	sport->dma_rx_in_progress = 0;
+	linflex_copy_rx_to_tty(sport, port, count);
+	tty_flip_buffer_push(port);
+
+	linflex_dma_rx(sport);
+
+	spin_unlock_irqrestore(&sport->port.lock, flags);
+	mod_timer(&sport->timer, jiffies + sport->dma_rx_timeout);
+}
+
 static void linflex_start_tx(struct uart_port *port)
 {
 	struct linflex_port *sport = container_of(port,
-			struct linflex_port, port);
-	unsigned int temp;
+					struct linflex_port, port);
+	unsigned long temp;
 
-	linflex_transmit_buffer(sport);
-
-	temp = readl(port->membase + LINIER);
-
-	writel(temp | LINFLEXD_LINIER_DTIE, port->membase + LINIER);
-
+	if (sport->dma_tx_use) {
+		linflex_prepare_tx(sport);
+	} else {
+		linflex_transmit_buffer(sport);
+		temp = readl(port->membase + LINIER);
+		writel(temp | LINFLEXD_LINIER_DTIE, port->membase + LINIER);
+	}
 }
-
 
 static irqreturn_t linflex_txint(int irq, void *dev_id)
 {
 	struct linflex_port *sport = dev_id;
 	struct circ_buf *xmit = &sport->port.state->xmit;
 	unsigned long flags;
-	unsigned char status;
+	unsigned long status;
 
 	spin_lock_irqsave(&sport->port.lock, flags);
 
@@ -236,12 +454,12 @@ static irqreturn_t linflex_txint(int irq, void *dev_id)
 		writeb(sport->port.x_char, sport->port.membase + BDRL);
 
 		/* waiting for data transmission completed */
-		while (((status = readb(sport->port.membase + UARTSR)) &
+		while (((status = readl(sport->port.membase + UARTSR)) &
 			LINFLEXD_UARTSR_DTFTFF) != LINFLEXD_UARTSR_DTFTFF)
 			;
 
-		writeb(status | LINFLEXD_UARTSR_DTFTFF,
-			sport->port.membase + UARTSR);
+		writel(status | LINFLEXD_UARTSR_DTFTFF,
+				sport->port.membase + UARTSR);
 
 		goto out;
 	}
@@ -266,9 +484,8 @@ static irqreturn_t linflex_rxint(int irq, void *dev_id)
 	struct linflex_port *sport = dev_id;
 	unsigned int flg;
 	struct tty_port *port = &sport->port.state->port;
-	unsigned long flags;
+	unsigned long flags, status;
 	unsigned char rx;
-	unsigned long status;
 
 	spin_lock_irqsave(&sport->port.lock, flags);
 
@@ -295,7 +512,6 @@ static irqreturn_t linflex_rxint(int irq, void *dev_id)
 			}
 		}
 
-
 		writel(status | LINFLEXD_UARTSR_RMB | LINFLEXD_UARTSR_DRFRFE,
 				sport->port.membase + UARTSR);
 		status = readl(sport->port.membase + UARTSR);
@@ -319,17 +535,14 @@ static irqreturn_t linflex_rxint(int irq, void *dev_id)
 static irqreturn_t linflex_int(int irq, void *dev_id)
 {
 	struct linflex_port *sport = dev_id;
-	unsigned int status;
+	unsigned long status;
 
 	status = readl(sport->port.membase + UARTSR);
 
-	if (status & LINFLEXD_UARTSR_DRFRFE) {
-		linflex_rxint(irq, dev_id);
-	}
-	if (status & LINFLEXD_UARTSR_DTFTFF ) {
-		linflex_txint(irq, dev_id);
-	}
-
+	if ((status & LINFLEXD_UARTSR_DRFRFE) && !sport->dma_rx_use)
+			linflex_rxint(irq, dev_id);
+	if ((status & LINFLEXD_UARTSR_DTFTFF) && !sport->dma_tx_use)
+			linflex_txint(irq, dev_id);
 
 	return IRQ_HANDLED;
 }
@@ -337,9 +550,16 @@ static irqreturn_t linflex_int(int irq, void *dev_id)
 /* return TIOCSER_TEMT when transmitter is not busy */
 static unsigned int linflex_tx_empty(struct uart_port *port)
 {
-	return (readb(port->membase + UARTSR) & LINFLEXD_UARTSR_DTFTFF) ?
-		TIOCSER_TEMT : 0;
+	unsigned long status;
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
 
+	status = readl(sport->port.membase + UARTSR) & LINFLEXD_UARTSR_DTFTFF;
+
+	if (!sport->dma_tx_use)
+		return status ? TIOCSER_TEMT : 0;
+	else
+		return status ? 0 : TIOCSER_TEMT;
 }
 
 static unsigned int linflex_get_mctrl(struct uart_port *port)
@@ -391,6 +611,14 @@ static void linflex_setup_watermark(struct linflex_port *sport)
 	cr = (LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN |
 	      LINFLEXD_UARTCR_WL0 | LINFLEXD_UARTCR_UART);
 
+	/* FIFO mode enabled for DMA Rx mode. */
+	if (sport->dma_rx_use)
+		cr |= LINFLEXD_UARTCR_RFBM;
+
+	/* FIFO mode enabled for DMA Tx mode. */
+	if (sport->dma_tx_use)
+		cr |= LINFLEXD_UARTCR_TFBM;
+
 	writel(cr, sport->port.membase + UARTCR);
 
 	cr1 &= ~(LINFLEXD_LINCR1_INIT);
@@ -398,25 +626,160 @@ static void linflex_setup_watermark(struct linflex_port *sport)
 	writel(cr1, sport->port.membase + LINCR1);
 
 	ier = readl(sport->port.membase + LINIER);
-	ier |= (LINFLEXD_LINIER_DTIE | LINFLEXD_LINIER_DRIE);
+	if (!sport->dma_rx_use)
+		ier |= LINFLEXD_LINIER_DRIE;
+
+	if (!sport->dma_tx_use)
+		ier |= LINFLEXD_LINIER_DTIE;
+
 	writel(ier, sport->port.membase + LINIER);
 }
 
 
+static int linflex_dma_tx_request(struct uart_port *port)
+{
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
+	struct dma_slave_config dma_tx_sconfig;
+	dma_addr_t dma_bus;
+	unsigned char *dma_buf;
+	int ret;
+
+	dma_bus = dma_map_single(sport->dma_tx_chan->device->dev,
+				sport->port.state->xmit.buf,
+				UART_XMIT_SIZE, DMA_TO_DEVICE);
+
+	if (dma_mapping_error(sport->dma_tx_chan->device->dev, dma_bus)) {
+		dev_err(sport->port.dev, "dma_map_single tx failed\n");
+		return -ENOMEM;
+	}
+
+	dma_buf = sport->port.state->xmit.buf;
+	dma_tx_sconfig.dst_addr = sport->port.mapbase + BDRL;
+	dma_tx_sconfig.dst_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
+	dma_tx_sconfig.dst_maxburst = 1;
+	dma_tx_sconfig.direction = DMA_MEM_TO_DEV;
+	ret = dmaengine_slave_config(sport->dma_tx_chan, &dma_tx_sconfig);
+
+	if (ret < 0) {
+		dev_err(sport->port.dev,
+				"Dma slave config failed, err = %d\n", ret);
+		return ret;
+	}
+
+	sport->dma_tx_buf_virt = dma_buf;
+	sport->dma_tx_buf_bus = dma_bus;
+	sport->dma_tx_in_progress = 0;
+
+	return 0;
+}
+
+static int linflex_dma_rx_request(struct uart_port *port)
+{
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
+	struct dma_slave_config dma_rx_sconfig;
+	dma_addr_t dma_bus;
+	unsigned char *dma_buf;
+	int ret;
+
+	dma_buf = devm_kzalloc(sport->port.dev,
+				FSL_UART_RX_DMA_BUFFER_SIZE, GFP_KERNEL);
+
+	if (!dma_buf) {
+		dev_err(sport->port.dev, "Dma rx alloc failed\n");
+		return -ENOMEM;
+	}
+
+	dma_bus = dma_map_single(sport->dma_rx_chan->device->dev, dma_buf,
+				FSL_UART_RX_DMA_BUFFER_SIZE, DMA_FROM_DEVICE);
+
+	if (dma_mapping_error(sport->dma_rx_chan->device->dev, dma_bus)) {
+		dev_err(sport->port.dev, "dma_map_single rx failed\n");
+		return -ENOMEM;
+	}
+
+	dma_rx_sconfig.src_addr = sport->port.mapbase + BDRM;
+	dma_rx_sconfig.src_addr_width = DMA_SLAVE_BUSWIDTH_1_BYTE;
+	dma_rx_sconfig.src_maxburst = 1;
+	dma_rx_sconfig.direction = DMA_DEV_TO_MEM;
+	ret = dmaengine_slave_config(sport->dma_rx_chan, &dma_rx_sconfig);
+
+	if (ret < 0) {
+		dev_err(sport->port.dev,
+				"Dma slave config failed, err = %d\n", ret);
+		return ret;
+	}
+
+	sport->dma_rx_buf_virt = dma_buf;
+	sport->dma_rx_buf_bus = dma_bus;
+	sport->dma_rx_in_progress = 0;
+
+	return 0;
+}
+
+static void linflex_dma_tx_free(struct uart_port *port)
+{
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
+
+	dma_unmap_single(sport->port.dev, sport->dma_tx_buf_bus,
+			UART_XMIT_SIZE, DMA_TO_DEVICE);
+
+	sport->dma_tx_buf_bus = 0;
+	sport->dma_tx_buf_virt = NULL;
+}
+
+static void linflex_dma_rx_free(struct uart_port *port)
+{
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
+
+	dma_unmap_single(sport->port.dev, sport->dma_rx_buf_bus,
+			FSL_UART_RX_DMA_BUFFER_SIZE, DMA_FROM_DEVICE);
+
+	sport->dma_rx_buf_bus = 0;
+	sport->dma_rx_buf_virt = NULL;
+}
+
 static int linflex_startup(struct uart_port *port)
 {
-	struct linflex_port *sport = container_of(port, struct linflex_port, port);
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
 	int ret;
-	unsigned long flags;
+	unsigned long flags, temp;
 
-	/* No support for dma in the current driver */
-	sport->linflex_dma_use = false;
+	sport->txfifo_size = LINFLEXD_UARTCR_TXFIFO_SIZE;
+	sport->rxfifo_size = LINFLEXD_UARTCR_RXFIFO_SIZE;
+	sport->port.fifosize = sport->txfifo_size;
 
-	ret = devm_request_irq(port->dev, port->irq, linflex_int, 0,
-				DRIVER_NAME, sport);
+	if (sport->dma_rx_chan && !linflex_dma_rx_request(port)) {
+		sport->dma_rx_use = true;
+		temp = readl(port->membase + DMARXE);
+		writel(temp | 0x1, port->membase + DMARXE);
+		setup_timer(&sport->timer, linflex_timer_func,
+				(unsigned long)sport);
 
-	if (ret)
-		return ret;
+		linflex_dma_rx(sport);
+		sport->timer.expires = jiffies + sport->dma_rx_timeout;
+		add_timer(&sport->timer);
+	} else
+		sport->dma_rx_use = false;
+
+	if (sport->dma_tx_chan && !linflex_dma_tx_request(port)) {
+		sport->dma_tx_use = true;
+		temp = readl(port->membase + DMATXE);
+		writel(temp | 0x1, port->membase + DMATXE);
+
+	} else
+		sport->dma_tx_use = false;
+
+	if (!sport->dma_rx_use || !sport->dma_tx_use) {
+		ret = devm_request_irq(port->dev, port->irq, linflex_int, 0,
+						DRIVER_NAME, sport);
+		if (ret)
+			return ret;
+	}
 
 	spin_lock_irqsave(&sport->port.lock, flags);
 
@@ -428,17 +791,21 @@ static int linflex_startup(struct uart_port *port)
 
 static void linflex_shutdown(struct uart_port *port)
 {
-	struct linflex_port *sport = container_of(port, struct linflex_port, port);
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
 	unsigned long cr, ier;
-	unsigned long flags;
+	unsigned long flags, temp;
+	struct tty_port *porti = &sport->port.state->port;
+	struct dma_tx_state state;
+	int count;
 
 	spin_lock_irqsave(&port->lock, flags);
 
 	/* disable Rx/Tx and interrupts*/
 	ier = readl(port->membase + LINIER);
 
-	ier &= ~(LINFLEXD_LINIER_DTIE | LINFLEXD_LINIER_DRIE );
 	writel(ier, port->membase + LINIER);
+
 	cr = readl(port->membase + UARTCR);
 
 	cr &= ~(LINFLEXD_UARTCR_RXEN |	LINFLEXD_UARTCR_TXEN);
@@ -446,7 +813,37 @@ static void linflex_shutdown(struct uart_port *port)
 
 	spin_unlock_irqrestore(&port->lock, flags);
 
-	devm_free_irq(port->dev, port->irq, sport);
+	if (!sport->dma_rx_use || !sport->dma_tx_use)
+		devm_free_irq(port->dev, port->irq, sport);
+
+	if (sport->dma_rx_use) {
+		del_timer(&sport->timer);
+
+		dmaengine_pause(sport->dma_rx_chan);
+		dmaengine_tx_status(sport->dma_rx_chan,
+				sport->dma_rx_cookie, &state);
+		dmaengine_terminate_all(sport->dma_rx_chan);
+		count = FSL_UART_RX_DMA_BUFFER_SIZE - state.residue;
+		async_tx_ack(sport->dma_rx_desc);
+
+		sport->dma_rx_in_progress = 0;
+		linflex_copy_rx_to_tty(sport, porti, count);
+		tty_flip_buffer_push(porti);
+
+		temp = readl(sport->port.membase + DMARXE);
+		writel(temp & 0xFFFF0000, sport->port.membase + DMARXE);
+
+		linflex_dma_rx_free(&sport->port);
+	}
+
+	if (sport->dma_tx_use) {
+		sport->dma_tx_in_progress = 0;
+		dmaengine_terminate_all(sport->dma_tx_chan);
+		linflex_dma_tx_free(&sport->port);
+
+		temp = readl(sport->port.membase + DMATXE);
+		writel(temp & 0xFFFF0000, sport->port.membase + DMATXE);
+	}
 
 }
 
@@ -456,7 +853,8 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 {
 #ifndef CONFIG_S32V234_PALLADIUM
 	/*on Palladium we trust the configuration provided by u-boot*/
-	struct linflex_port *sport = container_of(port, struct linflex_port, port);
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
 	unsigned long flags;
 	unsigned long cr, old_cr, cr1;
 	unsigned int  baud;
@@ -467,9 +865,7 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 
 	/* Enter initialization mode by setting INIT bit */
 	cr1=readl(sport->port.membase + LINCR1);
-
 	cr1 |= LINFLEXD_LINCR1_INIT;
-
 	writel(cr1, sport->port.membase + LINCR1);
 
 	/* wait for init mode entry */
@@ -495,13 +891,13 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 		old_csize = CS8;
 	}
 
-	if ((termios->c_cflag & CSIZE) == CS7 ){
-	/* Word lenght: WL1WL0:00 */
-	cr = old_cr & ~LINFLEXD_UARTCR_WL1 & ~LINFLEXD_UARTCR_WL0;
+	if ((termios->c_cflag & CSIZE) == CS7) {
+		/* Word length: WL1WL0:00 */
+		cr = old_cr & ~LINFLEXD_UARTCR_WL1 & ~LINFLEXD_UARTCR_WL0;
 	}
 
-	if ((termios->c_cflag & CSIZE) == CS8 ){
-		/* Word lenght: WL1WL0:01 */
+	if ((termios->c_cflag & CSIZE) == CS8) {
+		/* Word length: WL1WL0:01 */
 		cr = (old_cr | LINFLEXD_UARTCR_WL0)& ~LINFLEXD_UARTCR_WL1;
 	}
 
@@ -525,8 +921,7 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 		if (termios->c_cflag & CMSPAR) {
 			cr &= ~LINFLEXD_UARTCR_PCE;
 
-		}
-		else {
+		} else {
 
 			cr |= LINFLEXD_UARTCR_PCE;
 			if ((termios->c_cflag & CSIZE) == CS8)
@@ -568,6 +963,7 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 
 	/* update the per-port timeout */
 	uart_update_timeout(port, termios->c_cflag, baud);
+	sport->dma_rx_timeout = msecs_to_jiffies(20);
 
 	/* disable transmit and receive */
 	writel(old_cr & ~(LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN),
@@ -641,7 +1037,6 @@ static struct uart_ops linflex_pops = {
 	.stop_tx	= linflex_stop_tx,
 	.start_tx	= linflex_start_tx,
 	.stop_rx	= linflex_stop_rx,
-	.enable_ms	= linflex_enable_ms,
 	.break_ctl	= linflex_break_ctl,
 	.startup	= linflex_startup,
 	.shutdown	= linflex_shutdown,
@@ -651,6 +1046,7 @@ static struct uart_ops linflex_pops = {
 	.release_port	= linflex_release_port,
 	.config_port	= linflex_config_port,
 	.verify_port	= linflex_verify_port,
+	.flush_buffer	= linflex_flush_buffer,
 };
 
 static struct linflex_port *linflex_ports[UART_NR];
@@ -658,38 +1054,48 @@ static struct linflex_port *linflex_ports[UART_NR];
 #ifdef CONFIG_SERIAL_FSL_LINFLEXUART_CONSOLE
 static void linflex_console_putchar(struct uart_port *port, int ch)
 {
-	//volatile unsigned int;
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
+
 	writeb(ch, port->membase + BDRL);
 
-	while(( readb(port->membase + UARTSR) & LINFLEXD_UARTSR_DTFTFF)!=LINFLEXD_UARTSR_DTFTFF){
-		//for (i = 0; i < 100000; i++);
+	if (!sport->dma_tx_use)
+		while ((readl(port->membase + UARTSR) &
+					LINFLEXD_UARTSR_DTFTFF)
+				!= LINFLEXD_UARTSR_DTFTFF)
+			;
+	else
+		while (readl(port->membase + UARTSR) &
+					LINFLEXD_UARTSR_DTFTFF)
+			;
+
+	if (!sport->dma_tx_use) {
+		writel((readl(port->membase + UARTSR) |
+					LINFLEXD_UARTSR_DTFTFF),
+					port->membase + UARTSR);
 	}
-	/* waiting for data transmission completed - TODO: add a timeout */
-
-	writeb( (readb(port->membase + UARTSR)|LINFLEXD_UARTSR_DTFTFF), port->membase + UARTSR);
-
 }
 static void
 linflex_console_write(struct console *co, const char *s, unsigned int count)
 {
 	struct linflex_port *sport = linflex_ports[co->index];
-	/*unsigned char	 old_cr2, cr2;*/
 	unsigned long cr, ier, old_ier;
 
-	/* first save CR2 and then disable interrupts */
+	/* First save CR2 and then disable interrupts. */
 	ier = old_ier = readl(sport->port.membase + LINIER);
+	if (!sport->dma_tx_use) {
+		ier &= ~(LINFLEXD_LINIER_DTIE);
+		writel(ier, sport->port.membase + LINIER);
+	}
 
 	cr = readl(sport->port.membase + UARTCR);
 	cr |= (LINFLEXD_UARTCR_TXEN);
-	ier &= ~(LINFLEXD_LINIER_DTIE);
-
-	writeb(ier, sport->port.membase + LINIER);
-	writeb(cr, sport->port.membase + UARTCR);
+	writel(cr, sport->port.membase + UARTCR);
 
 	uart_console_write(&sport->port, s, count, linflex_console_putchar);
 
-	writeb(old_ier, sport->port.membase + LINIER);
-
+	if (!sport->dma_tx_use)
+		writel(old_ier, sport->port.membase + LINIER);
 }
 
 /*
@@ -722,8 +1128,8 @@ linflex_console_get_options(struct linflex_port *sport, int *baud,
 			*parity = 'e';
 	}
 
-	if ( (cr & LINFLEXD_UARTCR_WL0) && ((cr & LINFLEXD_UARTCR_WL1) == 0)){
-		if( cr & LINFLEXD_UARTCR_PCE )
+	if ((cr & LINFLEXD_UARTCR_WL0) && ((cr & LINFLEXD_UARTCR_WL1) == 0)) {
+		if (cr & LINFLEXD_UARTCR_PCE)
 			*bits = 9;
 		else
 			*bits = 8;
@@ -769,8 +1175,6 @@ static int __init linflex_console_setup(struct console *co, char *options)
 
 	linflex_setup_watermark(sport);
 
-	writel( (readl(sport->port.membase + LINIER) | (LINFLEXD_LINIER_DRIE) ), sport->port.membase + LINIER);
-
 	return uart_set_options(&sport->port, co, baud, parity, bits, flow);
 }
 
@@ -808,6 +1212,8 @@ static int linflex_probe(struct platform_device *pdev)
 	sport = devm_kzalloc(&pdev->dev, sizeof(*sport), GFP_KERNEL);
 	if (!sport)
 		return -ENOMEM;
+
+	pdev->dev.coherent_dma_mask = 0;
 
 	ret = of_alias_get_id(np, "serial");
 	if (ret < 0) {
@@ -856,6 +1262,20 @@ static int linflex_probe(struct platform_device *pdev)
 		clk_disable_unprepare(sport->clk);
 		return ret;
 	}
+
+	sport->dma_tx_chan = dma_request_slave_channel(sport->port.dev, "tx");
+	if (!sport->dma_tx_chan)
+		dev_info(sport->port.dev,
+			"DMA tx channel request failed, operating without tx DMA\n");
+
+	sport->dma_rx_chan = dma_request_slave_channel(sport->port.dev, "rx");
+	if (!sport->dma_rx_chan)
+		dev_info(sport->port.dev,
+			"DMA rx channel request failed, operating without rx DMA\n");
+
+	sport->txfifo_size = LINFLEXD_UARTCR_TXFIFO_SIZE;
+	sport->rxfifo_size = LINFLEXD_UARTCR_RXFIFO_SIZE;
+
 	return 0;
 }
 
@@ -865,6 +1285,12 @@ static int linflex_remove(struct platform_device *pdev)
 	uart_remove_one_port(&linflex_reg, &sport->port);
 
 	clk_disable_unprepare(sport->clk);
+
+	if (sport->dma_tx_chan)
+		dma_release_channel(sport->dma_tx_chan);
+
+	if (sport->dma_rx_chan)
+		dma_release_channel(sport->dma_rx_chan);
 
 	return 0;
 }
