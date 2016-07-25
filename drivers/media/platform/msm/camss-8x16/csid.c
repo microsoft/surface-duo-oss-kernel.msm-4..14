@@ -222,8 +222,8 @@ static irqreturn_t csid_isr(int irq, void *dev)
 	struct csid_device *csid = dev;
 	u32 value;
 
-	value = readl(csid->base + CAMSS_CSID_IRQ_STATUS);
-	writel(value, csid->base + CAMSS_CSID_IRQ_CLEAR_CMD);
+	value = readl_relaxed(csid->base + CAMSS_CSID_IRQ_STATUS);
+	writel_relaxed(value, csid->base + CAMSS_CSID_IRQ_CLEAR_CMD);
 
 	if ((value >> 11) & 0x1)
 		complete(&csid->reset_complete);
@@ -318,7 +318,7 @@ static int csid_set_power(struct v4l2_subdev *sd, int on)
 
 		enable_irq(csid->irq);
 
-		hw_version = readl(csid->base + CAMSS_CSID_HW_VERSION);
+		hw_version = readl_relaxed(csid->base + CAMSS_CSID_HW_VERSION);
 		dev_err(csid->camss->dev, "CSID HW Version = 0x%08x\n", hw_version);
 	} else {
 		disable_irq(csid->irq);
@@ -442,7 +442,7 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 		}
 
 		/* Reset */
-		writel(0x7FFF, csid->base + CAMSS_CSID_RST_CMD);
+		writel_relaxed(0x7fff, csid->base + CAMSS_CSID_RST_CMD);
 		wait_for_completion(&csid->reset_complete);
 
 		dt = csid_get_data_type(csid->fmt[MSM_CSID_PAD_SRC].code);
@@ -458,32 +458,37 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 			/* 1:0 VC */
 			val = ((CAMSS_CSID_TG_VC_CFG_V_BLANKING & 0xff) << 24) |
 			      ((CAMSS_CSID_TG_VC_CFG_H_BLANKING & 0x7ff) << 13);
-			writel(val, csid->base + CAMSS_CSID_TG_VC_CFG);
+			writel_relaxed(val, csid->base + CAMSS_CSID_TG_VC_CFG);
 
 			/* 28:16 bytes per lines, 12:0 num of lines */
-			val = ((num_bytes_per_line & 0x1FFF) << 16) |
-			      (num_lines & 0x1FFF);
-			writel(val, csid->base + CAMSS_CSID_TG_DT_n_CGG_0(0));
+			val = ((num_bytes_per_line & 0x1fff) << 16) |
+			      (num_lines & 0x1fff);
+			writel_relaxed(val, csid->base +
+				       CAMSS_CSID_TG_DT_n_CGG_0(0));
 
 			/* 5:0 data type */
 			val = dt;
-			writel(val, csid->base + CAMSS_CSID_TG_DT_n_CGG_1(0));
+			writel_relaxed(val, csid->base +
+				       CAMSS_CSID_TG_DT_n_CGG_1(0));
 
 			/* 2:0 output random */
 			val = tg->payload_mode;
-			writel(val, csid->base + CAMSS_CSID_TG_DT_n_CGG_2(0));
+			writel_relaxed(val, csid->base +
+				       CAMSS_CSID_TG_DT_n_CGG_2(0));
 		} else {
 			struct csid_phy_config *phy = &csid->phy;
 
 			val = phy->lane_cnt - 1;
 			val |= phy->lane_assign << 4;
 
-			writel(val, csid->base + CAMSS_CSID_CORE_CTRL_0);
+			writel_relaxed(val,
+				       csid->base + CAMSS_CSID_CORE_CTRL_0);
 
 			val = phy->csiphy_id << 17;
 			val |= 0x9;
 
-			writel(val, csid->base + CAMSS_CSID_CORE_CTRL_1);
+			writel_relaxed(val,
+				       csid->base + CAMSS_CSID_CORE_CTRL_1);
 		}
 
 		/* Config LUT */
@@ -491,22 +496,22 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 		dt_shift = (cid % 4) * 8;
 		df = csid_get_decode_format(csid->fmt[MSM_CSID_PAD_SINK].code);
 
-		val = readl(csid->base + CAMSS_CSID_CID_LUT_VC_n(vc));
+		val = readl_relaxed(csid->base + CAMSS_CSID_CID_LUT_VC_n(vc));
 		val &= ~(0xff << dt_shift);
 		val |= dt << dt_shift;
-		writel(val, csid->base + CAMSS_CSID_CID_LUT_VC_n(vc));
+		writel_relaxed(val, csid->base + CAMSS_CSID_CID_LUT_VC_n(vc));
 
 		val = (df << 4) | 0x3;
-		writel(val, csid->base + CAMSS_CSID_CID_n_CFG(cid));
+		writel_relaxed(val, csid->base + CAMSS_CSID_CID_n_CFG(cid));
 
 		if (tg->enabled) {
 			val = 0x00a06437;
-			writel(val, csid->base + CAMSS_CSID_TG_CTRL);
+			writel_relaxed(val, csid->base + CAMSS_CSID_TG_CTRL);
 		}
 	} else {
 		if (tg->enabled) {
 			u32 val = 0x00a06436;
-			writel(val, csid->base + CAMSS_CSID_TG_CTRL);
+			writel_relaxed(val, csid->base + CAMSS_CSID_TG_CTRL);
 		}
 	}
 

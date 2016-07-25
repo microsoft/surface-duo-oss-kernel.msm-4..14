@@ -190,7 +190,8 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 
 		csiphy_reset(csiphy);
 
-		hw_version = readl(csiphy->base + CAMSS_CSI_PHY_HW_VERSION);
+		hw_version = readl_relaxed(csiphy->base +
+					   CAMSS_CSI_PHY_HW_VERSION);
 		dev_err(csiphy->camss->dev, "CSIPHY HW Version = 0x%02x\n",
 			hw_version);
 	} else {
@@ -245,7 +246,7 @@ static int csiphy_set_stream(struct v4l2_subdev *sd, int enable)
 		__func__, csiphy->id, enable);
 
 	if (enable) {
-		val = readl(csiphy->base_clk_mux);
+		val = readl_relaxed(csiphy->base_clk_mux);
 		if (cfg->combo_mode && (lane_mask & 0x18) == 0x18) {
 			val &= ~0xf0;
 			val |= cfg->csid_id << 4;

@@ -106,17 +106,15 @@ static irqreturn_t ispif_isr(int irq, void *dev)
 	struct ispif_device *ispif = dev;
 	u32 value0, value1, value2;
 
-	value0 = readl(ispif->base + ISPIF_VFE_m_IRQ_STATUS_0(0));
-	value1 = readl(ispif->base + ISPIF_VFE_m_IRQ_STATUS_1(0));
-	value2 = readl(ispif->base + ISPIF_VFE_m_IRQ_STATUS_2(0));
+	value0 = readl_relaxed(ispif->base + ISPIF_VFE_m_IRQ_STATUS_0(0));
+	value1 = readl_relaxed(ispif->base + ISPIF_VFE_m_IRQ_STATUS_1(0));
+	value2 = readl_relaxed(ispif->base + ISPIF_VFE_m_IRQ_STATUS_2(0));
 
-	writel(value0, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_0(0));
-	writel(value1, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_1(0));
-	writel(value2, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_2(0));
+	writel_relaxed(value0, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_0(0));
+	writel_relaxed(value1, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_1(0));
+	writel_relaxed(value2, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_2(0));
 
-	wmb();
 	writel(0x1, ispif->base + ISPIF_IRQ_GLOBAL_CLEAR_CMD);
-	wmb();
 
 	if ((value0 >> 27) & 0x1)
 		complete(&ispif->reset_complete);
@@ -213,7 +211,7 @@ static int ispif_reset(struct ispif_device *ispif)
 	if (ret < 0)
 		goto exit;
 
-	writel(0xfe0f1fff, ispif->base + ISPIF_RST_CMD_0);
+	writel_relaxed(0xfe0f1fff, ispif->base + ISPIF_RST_CMD_0);
 	wait_for_completion(&ispif->reset_complete);
 
 	ispif_disable_clocks(ispif->nclocks, ispif->clock,
@@ -253,9 +251,7 @@ static void ispif_reset_sw(struct ispif_device *ispif, u8 vfe)
 	writel_relaxed(0,
 		       ispif->base + ISPIF_VFE_m_RDI_INTF_n_CID_MASK(vfe, 2));
 
-	wmb();
-	writel_relaxed(0x1, ispif->base + ISPIF_IRQ_GLOBAL_CLEAR_CMD);
-	wmb();
+	writel(0x1, ispif->base + ISPIF_IRQ_GLOBAL_CLEAR_CMD);
 }
 
 static void ispif_select_clk_mux(struct ispif_device *ispif,
@@ -367,9 +363,7 @@ static void ispif_select_csid(struct ispif_device *ispif,
 		break;
 	}
 
-	wmb();
-	writel_relaxed(val, ispif->base + ISPIF_VFE_m_INTF_INPUT_SEL(vfe));
-	wmb();
+	writel(val, ispif->base + ISPIF_VFE_m_INTF_INPUT_SEL(vfe));
 }
 
 static void ispif_enable_cid(struct ispif_device *ispif, enum ispif_intf intf,
@@ -401,9 +395,7 @@ static void ispif_enable_cid(struct ispif_device *ispif, enum ispif_intf intf,
 	else
 		val &= ~cid_mask;
 
-	wmb();
-	writel_relaxed(val, ispif->base + addr);
-	wmb();
+	writel(val, ispif->base + addr);
 }
 
 static void ispif_config_irq(struct ispif_device *ispif, u8 vfe)
@@ -411,17 +403,15 @@ static void ispif_config_irq(struct ispif_device *ispif, u8 vfe)
 	u32 val;
 
 	val = ISPIF_VFE_m_IRQ_MASK_0_ENABLE;
-	writel(val, ispif->base + ISPIF_VFE_m_IRQ_MASK_0(vfe));
-	writel(val, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_0(vfe));
+	writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_MASK_0(vfe));
+	writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_0(vfe));
 	val = ISPIF_VFE_m_IRQ_MASK_1_ENABLE;
-	writel(val, ispif->base + ISPIF_VFE_m_IRQ_MASK_1(vfe));
-	writel(val, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_1(vfe));
+	writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_MASK_1(vfe));
+	writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_1(vfe));
 	val = ISPIF_VFE_m_IRQ_MASK_2_ENABLE;
-	writel(val, ispif->base + ISPIF_VFE_m_IRQ_MASK_2(vfe));
-	writel(val, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_2(vfe));
-	wmb();
+	writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_MASK_2(vfe));
+	writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_2(vfe));
 	writel(0x1, ispif->base + ISPIF_IRQ_GLOBAL_CLEAR_CMD);
-	wmb();
 }
 
 static void ispif_intf_cmd(struct ispif_device *ispif, u8 cmd,
