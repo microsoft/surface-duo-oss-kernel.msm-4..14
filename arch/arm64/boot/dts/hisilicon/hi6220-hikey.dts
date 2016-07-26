@@ -44,6 +44,26 @@
 		};
 	};
 
+	hw_cfg_mng {
+		compatible = "hw_cfg_manager";
+		hardware_cfg_innolux_panel {
+			overlay_0 {
+				fragment@0 {
+					target-path="/soc/dsi@f4107800";
+					__overlay__ {
+						status = "ok";
+					};
+				};
+			};
+		};
+		hardware_cfg_cs_sd_qb {
+			gpio_sd_sel { /* Select SD from Quick Bus */
+				set-gpio = <&gpio4 4 0>;
+				value = <1>;
+			};
+		};
+	};
+
 	/*
 	 * Reserve below regions from memory node:
 	 *
