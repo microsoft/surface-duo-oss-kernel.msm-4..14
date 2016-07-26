@@ -35,11 +35,18 @@
 #define ISPIF_VFE_m_CTRL_0(m)		(0x200 + 0x200 * (m))
 #define ISPIF_VFE_m_CTRL_0_PIX0_LINE_BUF_EN	(1 << 6)
 #define ISPIF_VFE_m_IRQ_MASK_0(m)	(0x208 + 0x200 * (m))
-#define ISPIF_VFE_m_IRQ_MASK_0_ENABLE   0x0a493249
+#define ISPIF_VFE_m_IRQ_MASK_0_PIX0_ENABLE	0x00001249
+#define ISPIF_VFE_m_IRQ_MASK_0_PIX0_MASK	0x00001fff
+#define ISPIF_VFE_m_IRQ_MASK_0_RDI0_ENABLE	0x02492000
+#define ISPIF_VFE_m_IRQ_MASK_0_RDI0_MASK	0x03ffe000
 #define ISPIF_VFE_m_IRQ_MASK_1(m)	(0x20c + 0x200 * (m))
-#define ISPIF_VFE_m_IRQ_MASK_1_ENABLE   0x02493249
+#define ISPIF_VFE_m_IRQ_MASK_1_PIX1_ENABLE	0x00001249
+#define ISPIF_VFE_m_IRQ_MASK_1_PIX1_MASK	0x00001fff
+#define ISPIF_VFE_m_IRQ_MASK_1_RDI1_ENABLE	0x02492000
+#define ISPIF_VFE_m_IRQ_MASK_1_RDI1_MASK	0x03ffe000
 #define ISPIF_VFE_m_IRQ_MASK_2(m)	(0x210 + 0x200 * (m))
-#define ISPIF_VFE_m_IRQ_MASK_2_ENABLE   0x00001249
+#define ISPIF_VFE_m_IRQ_MASK_2_RDI2_ENABLE	0x00001249
+#define ISPIF_VFE_m_IRQ_MASK_2_RDI2_MASK	0x00001fff
 #define ISPIF_VFE_m_IRQ_STATUS_0(m)	(0x21c + 0x200 * (m))
 #define ISPIF_VFE_m_IRQ_STATUS_1(m)	(0x220 + 0x200 * (m))
 #define ISPIF_VFE_m_IRQ_STATUS_2(m)	(0x224 + 0x200 * (m))
@@ -126,24 +133,19 @@ static irqreturn_t ispif_isr(int irq, void *dev)
  * ispif_enable_clocks - Enable clocks for ISPIF module
  * @nclocks: Number of clocks in clock array
  * @clock: Clock array
- * @clock_for_reset: Flags array
- * @reset: Flag to indicate clocks for reset or clocks for processing
  *
  * Return 0 on success or a negative error code otherwise
  */
-static int ispif_enable_clocks(int nclocks, struct clk **clock,
-			       u8 *clock_for_reset, u8 reset)
+static int ispif_enable_clocks(int nclocks, struct clk **clock)
 {
 	int ret;
 	int i;
 
 	for (i = 0; i < nclocks; i++) {
-		if (clock_for_reset[i] == reset) {
-			ret = clk_prepare_enable(clock[i]);
-			if (ret) {
-				pr_err("clock enable failed\n");
-				goto error;
-			}
+		ret = clk_prepare_enable(clock[i]);
+		if (ret) {
+			pr_err("clock enable failed\n");
+			goto error;
 		}
 	}
 
@@ -151,8 +153,7 @@ static int ispif_enable_clocks(int nclocks, struct clk **clock,
 
 error:
 	for (i--; i >= 0; i--)
-		if (clock_for_reset[i] == reset)
-			clk_disable_unprepare(clock[i]);
+		clk_disable_unprepare(clock[i]);
 
 	return ret;
 }
@@ -161,17 +162,31 @@ error:
  * ispif_disable_clocks - Disable clocks for ISPIF module
  * @nclocks: Number of clocks in clock array
  * @clock: Clock array
- * @clock_for_reset: Flags array
- * @reset: Flag to indicate clocks for reset or clocks for processing
  */
-static void ispif_disable_clocks(int nclocks, struct clk **clock,
-				 u8 *clock_for_reset, u8 reset)
+static void ispif_disable_clocks(int nclocks, struct clk **clock)
 {
 	int i;
 
 	for (i = nclocks - 1; i >= 0; i--)
-		if (clock_for_reset[i] == reset)
-			clk_disable_unprepare(clock[i]);
+		clk_disable_unprepare(clock[i]);
+}
+
+static int ispif_reset(struct ispif_device *ispif)
+{
+	int ret;
+
+	ret = ispif_enable_clocks(ispif->nclocks_for_reset,
+				  ispif->clock_for_reset);
+	if (ret < 0)
+		goto exit;
+
+	writel_relaxed(0x000f1fff, ispif->base + ISPIF_RST_CMD_0);
+	wait_for_completion(&ispif->reset_complete);
+
+	ispif_disable_clocks(ispif->nclocks_for_reset, ispif->clock_for_reset);
+
+exit:
+	return ret;
 }
 
 /*
@@ -189,12 +204,15 @@ static int ispif_set_power(struct v4l2_subdev *sd, int on)
 	dev_err(to_device(ispif), "%s: Enter, on = %d\n",
 		__func__, on);
 
-	if (on)
-		ret = ispif_enable_clocks(ispif->nclocks, ispif->clock,
-					  ispif->clock_for_reset, 0);
-	else
-		ispif_disable_clocks(ispif->nclocks, ispif->clock,
-				     ispif->clock_for_reset, 0);
+	if (on) {
+		ret = ispif_enable_clocks(ispif->nclocks, ispif->clock);
+
+		ret = ispif_reset(ispif);
+		if (ret < 0)
+			return ret;
+	} else {
+		ispif_disable_clocks(ispif->nclocks, ispif->clock);
+	}
 
 	dev_err(to_device(ispif), "%s: Exit, on = %d\n",
 		__func__, on);
@@ -202,60 +220,9 @@ static int ispif_set_power(struct v4l2_subdev *sd, int on)
 	return ret;
 }
 
-static int ispif_reset(struct ispif_device *ispif)
-{
-	int ret;
-
-	ret = ispif_enable_clocks(ispif->nclocks, ispif->clock,
-				  ispif->clock_for_reset, 1);
-	if (ret < 0)
-		goto exit;
-
-	writel_relaxed(0xfe0f1fff, ispif->base + ISPIF_RST_CMD_0);
-	wait_for_completion(&ispif->reset_complete);
-
-	ispif_disable_clocks(ispif->nclocks, ispif->clock,
-			     ispif->clock_for_reset, 1);
-
-exit:
-	return ret;
-}
-
-static void ispif_reset_sw(struct ispif_device *ispif, u8 vfe)
-{
-
-	writel_relaxed(ISPIF_VFE_m_CTRL_0_PIX0_LINE_BUF_EN,
-		       ispif->base + ISPIF_VFE_m_CTRL_0(vfe));
-	writel_relaxed(0, ispif->base + ISPIF_VFE_m_IRQ_MASK_0(vfe));
-	writel_relaxed(0, ispif->base + ISPIF_VFE_m_IRQ_MASK_1(vfe));
-	writel_relaxed(0, ispif->base + ISPIF_VFE_m_IRQ_MASK_2(vfe));
-	writel_relaxed(0xffffffff, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_0(vfe));
-	writel_relaxed(0xffffffff, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_1(vfe));
-	writel_relaxed(0xffffffff, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_2(vfe));
-
-	writel_relaxed(0, ispif->base + ISPIF_VFE_m_INTF_INPUT_SEL(vfe));
-
-	writel_relaxed(CMD_ALL_NO_CHANGE,
-		       ispif->base + ISPIF_VFE_m_INTF_CMD_0(vfe));
-	writel_relaxed(CMD_ALL_NO_CHANGE,
-		       ispif->base + ISPIF_VFE_m_INTF_CMD_1(vfe));
-
-	writel_relaxed(0,
-		       ispif->base + ISPIF_VFE_m_PIX_INTF_n_CID_MASK(vfe, 0));
-	writel_relaxed(0,
-		       ispif->base + ISPIF_VFE_m_PIX_INTF_n_CID_MASK(vfe, 1));
-	writel_relaxed(0,
-		       ispif->base + ISPIF_VFE_m_RDI_INTF_n_CID_MASK(vfe, 0));
-	writel_relaxed(0,
-		       ispif->base + ISPIF_VFE_m_RDI_INTF_n_CID_MASK(vfe, 1));
-	writel_relaxed(0,
-		       ispif->base + ISPIF_VFE_m_RDI_INTF_n_CID_MASK(vfe, 2));
-
-	writel(0x1, ispif->base + ISPIF_IRQ_GLOBAL_CLEAR_CMD);
-}
-
 static void ispif_select_clk_mux(struct ispif_device *ispif,
-				 enum ispif_intf intf, u8 csid, u8 vfe)
+				 enum ispif_intf intf, u8 csid,
+				 u8 vfe, u8 enable)
 {
 	u32 val = 0;
 
@@ -263,35 +230,40 @@ static void ispif_select_clk_mux(struct ispif_device *ispif,
 	case PIX0:
 		val = readl_relaxed(ispif->base_clk_mux);
 		val &= ~(0xf << (vfe * 8));
-		val |= (csid << (vfe * 8));
+		if (enable)
+			val |= (csid << (vfe * 8));
 		writel_relaxed(val, ispif->base_clk_mux);
 		break;
 
 	case RDI0:
 		val = readl_relaxed(ispif->base_clk_mux + CSI_RDI_CLK_MUX_SEL);
 		val &= ~(0xf << (vfe * 12));
-		val |= (csid << (vfe * 12));
+		if (enable)
+			val |= (csid << (vfe * 12));
 		writel_relaxed(val, ispif->base_clk_mux + CSI_RDI_CLK_MUX_SEL);
 		break;
 
 	case PIX1:
 		val = readl_relaxed(ispif->base_clk_mux);
 		val &= ~(0xf << (4 + (vfe * 8)));
-		val |= (csid << (4 + (vfe * 8)));
+		if (enable)
+			val |= (csid << (4 + (vfe * 8)));
 		writel_relaxed(val, ispif->base_clk_mux);
 		break;
 
 	case RDI1:
 		val = readl_relaxed(ispif->base_clk_mux + CSI_RDI_CLK_MUX_SEL);
 		val &= ~(0xf << (4 + (vfe * 12)));
-		val |= (csid << (4 + (vfe * 12)));
+		if (enable)
+			val |= (csid << (4 + (vfe * 12)));
 		writel_relaxed(val, ispif->base_clk_mux + CSI_RDI_CLK_MUX_SEL);
 		break;
 
 	case RDI2:
 		val = readl_relaxed(ispif->base_clk_mux + CSI_RDI_CLK_MUX_SEL);
 		val &= ~(0xf << (8 + (vfe * 12)));
-		val |= (csid << (8 + (vfe * 12)));
+		if (enable)
+			val |= (csid << (8 + (vfe * 12)));
 		writel_relaxed(val, ispif->base_clk_mux + CSI_RDI_CLK_MUX_SEL);
 		break;
 	}
@@ -334,8 +306,42 @@ static int ispif_validate_intf_status(struct ispif_device *ispif,
 	return ret;
 }
 
-static void ispif_select_csid(struct ispif_device *ispif,
-			      enum ispif_intf intf, u8 csid, u8 vfe)
+static int ispif_wait_for_stop(struct ispif_device *ispif,
+			       enum ispif_intf intf, u8 vfe)
+{
+	int ret;
+	u32 addr = 0;
+	u32 stop_flag = 0;
+
+	switch (intf) {
+	case PIX0:
+		addr = ISPIF_VFE_m_PIX_INTF_n_STATUS(vfe, 0);
+		break;
+	case RDI0:
+		addr = ISPIF_VFE_m_RDI_INTF_n_STATUS(vfe, 0);
+		break;
+	case PIX1:
+		addr = ISPIF_VFE_m_PIX_INTF_n_STATUS(vfe, 1);
+		break;
+	case RDI1:
+		addr = ISPIF_VFE_m_RDI_INTF_n_STATUS(vfe, 1);
+		break;
+	case RDI2:
+		addr = ISPIF_VFE_m_RDI_INTF_n_STATUS(vfe, 2);
+		break;
+	}
+
+	ret = readl_poll_timeout(ispif->base + addr,
+				 stop_flag,
+				 (stop_flag & 0xf) == 0xf,
+				 ISPIF_TIMEOUT_SLEEP_US,
+				 ISPIF_TIMEOUT_ALL_US);
+
+	return ret;
+}
+
+static void ispif_select_csid(struct ispif_device *ispif, enum ispif_intf intf,
+			      u8 csid, u8 vfe, u8 enable)
 {
 	u32 val;
 
@@ -343,23 +349,28 @@ static void ispif_select_csid(struct ispif_device *ispif,
 	switch (intf) {
 	case PIX0:
 		val &= ~(BIT(1) | BIT(0));
-		val |= csid;
+		if (enable)
+			val |= csid;
 		break;
 	case RDI0:
 		val &= ~(BIT(5) | BIT(4));
-		val |= (csid << 4);
+		if (enable)
+			val |= (csid << 4);
 		break;
 	case PIX1:
 		val &= ~(BIT(9) | BIT(8));
-		val |= (csid << 8);
+		if (enable)
+			val |= (csid << 8);
 		break;
 	case RDI1:
 		val &= ~(BIT(13) | BIT(12));
-		val |= (csid << 12);
+		if (enable)
+			val |= (csid << 12);
 		break;
 	case RDI2:
 		val &= ~(BIT(21) | BIT(20));
-		val |= (csid << 20);
+		if (enable)
+			val |= (csid << 20);
 		break;
 	}
 
@@ -398,19 +409,59 @@ static void ispif_enable_cid(struct ispif_device *ispif, enum ispif_intf intf,
 	writel(val, ispif->base + addr);
 }
 
-static void ispif_config_irq(struct ispif_device *ispif, u8 vfe)
+static void ispif_config_irq(struct ispif_device *ispif, enum ispif_intf intf,
+			     u8 vfe, u8 enable)
 {
 	u32 val;
 
-	val = ISPIF_VFE_m_IRQ_MASK_0_ENABLE;
-	writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_MASK_0(vfe));
-	writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_0(vfe));
-	val = ISPIF_VFE_m_IRQ_MASK_1_ENABLE;
-	writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_MASK_1(vfe));
-	writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_1(vfe));
-	val = ISPIF_VFE_m_IRQ_MASK_2_ENABLE;
-	writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_MASK_2(vfe));
-	writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_CLEAR_2(vfe));
+	switch (intf) {
+	case PIX0:
+		val = readl_relaxed(ispif->base + ISPIF_VFE_m_IRQ_MASK_0(vfe));
+		val &= ~ISPIF_VFE_m_IRQ_MASK_0_PIX0_MASK;
+		if (enable)
+			val |= ISPIF_VFE_m_IRQ_MASK_0_PIX0_ENABLE;
+		writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_MASK_0(vfe));
+		writel_relaxed(ISPIF_VFE_m_IRQ_MASK_0_PIX0_ENABLE,
+			       ispif->base + ISPIF_VFE_m_IRQ_CLEAR_0(vfe));
+		break;
+	case RDI0:
+		val = readl_relaxed(ispif->base + ISPIF_VFE_m_IRQ_MASK_0(vfe));
+		val &= ~ISPIF_VFE_m_IRQ_MASK_0_RDI0_MASK;
+		if (enable)
+			val |= ISPIF_VFE_m_IRQ_MASK_0_RDI0_ENABLE;
+		writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_MASK_0(vfe));
+		writel_relaxed(ISPIF_VFE_m_IRQ_MASK_0_RDI0_ENABLE,
+			       ispif->base + ISPIF_VFE_m_IRQ_CLEAR_0(vfe));
+		break;
+	case PIX1:
+		val = readl_relaxed(ispif->base + ISPIF_VFE_m_IRQ_MASK_1(vfe));
+		val &= ~ISPIF_VFE_m_IRQ_MASK_1_PIX1_MASK;
+		if (enable)
+			val |= ISPIF_VFE_m_IRQ_MASK_1_PIX1_ENABLE;
+		writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_MASK_1(vfe));
+		writel_relaxed(ISPIF_VFE_m_IRQ_MASK_1_PIX1_ENABLE,
+			       ispif->base + ISPIF_VFE_m_IRQ_CLEAR_1(vfe));
+		break;
+	case RDI1:
+		val = readl_relaxed(ispif->base + ISPIF_VFE_m_IRQ_MASK_1(vfe));
+		val &= ~ISPIF_VFE_m_IRQ_MASK_1_RDI1_MASK;
+		if (enable)
+			val |= ISPIF_VFE_m_IRQ_MASK_1_RDI1_ENABLE;
+		writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_MASK_1(vfe));
+		writel_relaxed(ISPIF_VFE_m_IRQ_MASK_1_RDI1_ENABLE,
+			       ispif->base + ISPIF_VFE_m_IRQ_CLEAR_1(vfe));
+		break;
+	case RDI2:
+		val = readl_relaxed(ispif->base + ISPIF_VFE_m_IRQ_MASK_2(vfe));
+		val &= ~ISPIF_VFE_m_IRQ_MASK_2_RDI2_MASK;
+		if (enable)
+			val |= ISPIF_VFE_m_IRQ_MASK_2_RDI2_ENABLE;
+		writel_relaxed(val, ispif->base + ISPIF_VFE_m_IRQ_MASK_2(vfe));
+		writel_relaxed(ISPIF_VFE_m_IRQ_MASK_2_RDI2_ENABLE,
+			       ispif->base + ISPIF_VFE_m_IRQ_CLEAR_2(vfe));
+		break;
+	}
+
 	writel(0x1, ispif->base + ISPIF_IRQ_GLOBAL_CLEAR_CMD);
 }
 
@@ -447,6 +498,7 @@ static int ispif_set_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct ispif_device *ispif = v4l2_get_subdevdata(sd);
 	enum ispif_intf ispif_intf = RDI0;
+	u8 csid = ispif->csid_id;
 	u8 vfe = 0;
 	u8 vc = 0; /* TODO: How to get this from sensor? */
 	u8 cid = vc * 4;
@@ -457,50 +509,41 @@ static int ispif_set_stream(struct v4l2_subdev *sd, int enable)
 		__func__, enable);
 
 	if (enable) {
-		u8 csid = ispif->csid_id;
-
 		if (!media_entity_remote_pad(
 					&ispif->pads[MSM_ISPIF_PAD_SINK])) {
 			return -ENOLINK;
 		}
 
-		/* Reset */
-
-		ret = ispif_reset(ispif);
-		if (ret < 0)
-			return ret;
 
 		/* Config */
 
-		ispif_reset_sw(ispif, vfe);
-
-		ispif_select_clk_mux(ispif, ispif_intf, csid, vfe);
+		ispif_select_clk_mux(ispif, ispif_intf, csid, vfe, 1);
 
 		ret = ispif_validate_intf_status(ispif, ispif_intf, vfe);
 		if (ret < 0)
 			return ret;
 
-		ispif_select_csid(ispif, ispif_intf, csid, vfe);
+		ispif_select_csid(ispif, ispif_intf, csid, vfe, 1);
 
 		ispif_enable_cid(ispif, ispif_intf, 1 << cid, vfe, 1);
 
-		ispif_config_irq(ispif, vfe);
+		ispif_config_irq(ispif, ispif_intf, vfe, 1);
 
 		ispif_intf_cmd(ispif, CMD_ENABLE_FRAME_BOUNDARY, ispif_intf, vfe, vc);
 	} else {
-		u32 stop_flag = 0;
-
 		ispif_intf_cmd(ispif, CMD_DISABLE_FRAME_BOUNDARY, ispif_intf, vfe, vc);
 
-		ret = readl_poll_timeout(ispif->base + ISPIF_VFE_m_RDI_INTF_n_STATUS(vfe, 0),
-					 stop_flag,
-					 (stop_flag & 0xf) == 0xf,
-					 ISPIF_TIMEOUT_SLEEP_US,
-					 ISPIF_TIMEOUT_ALL_US);
+		ret = ispif_wait_for_stop(ispif, ispif_intf, vfe);
 		if (ret < 0)
 			return ret;
 
+		ispif_config_irq(ispif, ispif_intf, vfe, 0);
+
 		ispif_enable_cid(ispif, ispif_intf, 1 << cid, vfe, 0);
+
+		ispif_select_csid(ispif, ispif_intf, csid, vfe, 0);
+
+		ispif_select_clk_mux(ispif, ispif_intf, csid, vfe, 0);
 	}
 
 	return 0;
@@ -784,18 +827,29 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 		return -ENOMEM;
 	}
 
-	ispif->clock_for_reset = devm_kzalloc(dev, ispif->nclocks *
+	for (i = 0; i < ispif->nclocks; i++) {
+		ispif->clock[i] = devm_clk_get(dev, res->clock[i]);
+		if (IS_ERR(ispif->clock[i]))
+			return PTR_ERR(ispif->clock[i]);
+	}
+
+	ispif->nclocks_for_reset = 0;
+	while (res->clock_for_reset[ispif->nclocks_for_reset])
+		ispif->nclocks_for_reset++;
+
+
+	ispif->clock_for_reset = devm_kzalloc(dev, ispif->nclocks_for_reset *
 			sizeof(*ispif->clock_for_reset), GFP_KERNEL);
 	if (!ispif->clock_for_reset) {
 		dev_err(dev, "could not allocate memory\n");
 		return -ENOMEM;
 	}
 
-	for (i = 0; i < ispif->nclocks; i++) {
-		ispif->clock[i] = devm_clk_get(dev, res->clock[i]);
-		if (IS_ERR(ispif->clock[i]))
-			return PTR_ERR(ispif->clock[i]);
-		ispif->clock_for_reset[i] = res->clock_for_reset[i];
+	for (i = 0; i < ispif->nclocks_for_reset; i++) {
+		ispif->clock_for_reset[i] = devm_clk_get(dev,
+						res->clock_for_reset[i]);
+		if (IS_ERR(ispif->clock_for_reset[i]))
+			return PTR_ERR(ispif->clock_for_reset[i]);
 	}
 
 	init_completion(&ispif->reset_complete);

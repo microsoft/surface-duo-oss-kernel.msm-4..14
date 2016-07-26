@@ -73,13 +73,12 @@ static struct resources csid_res[] = {
 
 static struct resources_ispif ispif_res = {
 	/* ISPIF */
-	.clock = { "camss_ahb_src", "ispif_ahb_clk", "csi0_src_clk",
-		   "csi0_clk", "csi0_pix_clk", "csi0_rdi_clk",
-		   "csi1_src_clk", "csi1_clk", "csi1_pix_clk",
-		   "csi1_rdi_clk", "vfe_clk_src", "camss_vfe_vfe_clk",
-		   "camss_csi_vfe_clk"
-	},
-	.clock_for_reset = { 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
+	.clock = { "camss_ahb_src", "ispif_ahb_clk" },
+	.clock_for_reset = {
+		"csi0_src_clk", "csi0_clk", "csi0_pix_clk", "csi0_rdi_clk",
+		"csi1_src_clk", "csi1_clk", "csi1_pix_clk", "csi1_rdi_clk",
+		"vfe_clk_src", "camss_vfe_vfe_clk", "camss_csi_vfe_clk",
+		"camss_top_ahb_clk", "camss_ahb_clk" },
 	.reg = { "ispif", "csi_clk_mux" },
 	.interrupt = "ispif"
 

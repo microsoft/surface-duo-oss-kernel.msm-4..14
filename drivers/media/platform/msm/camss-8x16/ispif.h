@@ -34,8 +34,9 @@ struct ispif_device {
 	void __iomem *base_clk_mux;
 	u32 irq;
 	struct clk **clock;
-	u8 *clock_for_reset;
 	int nclocks;
+	struct clk **clock_for_reset;
+	int nclocks_for_reset;
 	struct completion reset_complete;
 	u8 csid_id;
 	struct v4l2_mbus_framefmt fmt[MSM_ISPIF_PADS_NUM];

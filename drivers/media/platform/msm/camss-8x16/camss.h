@@ -62,7 +62,7 @@ struct resources {
 
 struct resources_ispif {
 	char *clock[CAMSS_RES_MAX];
-	u8 clock_for_reset[CAMSS_RES_MAX];
+	char *clock_for_reset[CAMSS_RES_MAX];
 	char *reg[CAMSS_RES_MAX];
 	char *interrupt;
 };
