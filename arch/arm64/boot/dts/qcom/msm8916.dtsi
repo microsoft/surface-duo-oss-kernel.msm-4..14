@@ -78,7 +78,7 @@
 			no-map;
 		};
 
-		mpss@86800000 {
+		modem_adsp_mem: mpss@86800000 {
 			reg = <0x0 0x86800000 0x0 0x2b00000>;
 			no-map;
 		};
@@ -86,16 +86,6 @@
 		wcnss@89300000 {
 			reg = <0x0 0x89300000 0x0 0x600000>;
 			no-map;
-		};
-
-                hypervisor_mem: hypervisor_region@86400000 {
-                        no-map;
-                        reg = <0x0 0x86400000 0x0 0x0400000>;
-                };
-
-		modem_adsp_mem: modem_adsp_region@86800000 {
-                        no-map;
-			reg = <0x0 0x86800000 0x0 0x04800000>;
 		};
 
                 peripheral_mem: peripheral_region@8b600000 {
@@ -250,10 +240,6 @@
 			     <GIC_PPI 1 (GIC_CPU_MASK_SIMPLE(4) | IRQ_TYPE_LEVEL_LOW)>;
 	};
 
-	l2ccc_0: clock-controller@b011000 {
-		compatible = "qcom,8916-l2ccc";
-		reg = <0x0b011000 0x1000>;
-	};
 
 	clocks {
 		xo_board: xo_board {
@@ -638,6 +624,11 @@
 				 <&gcc GCC_USB_HS_BCR>;
 			reset-names = "phy", "link";
 			status = "disabled";
+		};
+
+		l2ccc_0: clock-controller@b011000 {
+			compatible = "qcom,8916-l2ccc";
+			reg = <0x0b011000 0x1000>;
 		};
 
 		intc: interrupt-controller@b000000 {
