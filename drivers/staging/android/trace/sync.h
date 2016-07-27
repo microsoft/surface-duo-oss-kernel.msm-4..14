@@ -1,11 +1,11 @@
 #undef TRACE_SYSTEM
-#define TRACE_INCLUDE_PATH ../../drivers/dma-buf
-#define TRACE_SYSTEM sync_trace
+#define TRACE_INCLUDE_PATH ../../drivers/staging/android/trace
+#define TRACE_SYSTEM sync
 
 #if !defined(_TRACE_SYNC_H) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_SYNC_H
 
-#include "sync_debug.h"
+#include "../sync.h"
 #include <linux/tracepoint.h>
 
 TRACE_EVENT(sync_timeline,
@@ -54,7 +54,7 @@ TRACE_EVENT(sync_wait,
 );
 
 TRACE_EVENT(sync_pt,
-	TP_PROTO(struct fence *pt),
+	TP_PROTO(struct dma_fence *pt),
 
 	TP_ARGS(pt),
 

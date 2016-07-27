@@ -1,5 +1,5 @@
 /*
- * Sync File validation framework and debug information
+ * drivers/base/sync.c
  *
  * Copyright (C) 2012 Google, Inc.
  *
@@ -26,7 +26,7 @@
 #include <linux/uaccess.h>
 #include <linux/anon_inodes.h>
 #include <linux/time64.h>
-//#include "sync.h"
+#include "sync.h"
 
 #ifdef CONFIG_DEBUG_FS_XXXBROKEN
 
@@ -82,14 +82,12 @@ static const char *sync_status_str(int status)
 	return "error";
 }
 
-static void sync_print_fence(struct seq_file *s,
-			     struct dma_fence *fence, bool show)
+static void sync_print_pt(struct seq_file *s, struct fence *pt, bool fence)
 {
 	int status = 1;
-	struct sync_timeline *parent = dma_fence_parent(fence);
 
-	if (dma_fence_is_signaled_locked(fence))
-		status = fence->status;
+	if (fence_is_signaled_locked(pt))
+		status = pt->status;
 
 	seq_printf(s, "  %s%spt %s",
 		   fence && pt->ops->get_timeline_name ?
@@ -157,11 +155,19 @@ static void sync_print_fence(struct seq_file *s, struct sync_fence *fence)
 	unsigned long flags;
 	int i;
 
-	seq_printf(s, "[%p] %s: %s\n", sync_file, sync_file->name,
-		   sync_status_str(!dma_fence_is_signaled(sync_file->fence)));
+	seq_printf(s, "[%p] %s: %s\n", fence, fence->name,
+		   sync_status_str(atomic_read(&fence->status)));
 
-	if (dma_fence_is_array(sync_file->fence)) {
-		struct dma_fence_array *array = to_dma_fence_array(sync_file->fence);
+	for (i = 0; i < fence->num_fences; ++i) {
+		sync_print_pt(s, fence->cbs[i].sync_pt, true);
+	}
+
+	spin_lock_irqsave(&fence->wq.lock, flags);
+	list_for_each_entry(pos, &fence->wq.task_list, task_list) {
+		struct sync_fence_waiter *waiter;
+
+		if (pos->func != &sync_fence_wake_up_wq)
+			continue;
 
 		waiter = container_of(pos, struct sync_fence_waiter, work);
 
