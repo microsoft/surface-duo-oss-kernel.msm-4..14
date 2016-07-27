@@ -62,7 +62,7 @@ struct sync_pt {
 	struct list_head active_list;
 };
 
-#ifdef CONFIG_SW_SYNC
+#ifdef CONFIG_SW_SYNC_XXXBROKEN
 
 extern const struct file_operations sw_sync_debugfs_fops;
 
