@@ -104,7 +104,7 @@ EXPORT_SYMBOL(sync_file_create);
  * Ensures @fd references a valid sync_file, increments the refcount of the
  * backing file. Returns the sync_file or NULL in case of error.
  */
-static struct sync_file *sync_file_fdget(int fd)
+struct sync_file *sync_file_fdget(int fd)
 {
 	struct file *file = fget(fd);
 
@@ -120,6 +120,7 @@ err:
 	fput(file);
 	return NULL;
 }
+EXPORT_SYMBOL(sync_file_fdget);
 
 static void sync_file_add_pt(struct sync_file *sync_file, int *i,
 			     struct fence *fence)
@@ -144,7 +145,7 @@ static void sync_file_add_pt(struct sync_file *sync_file, int *i,
  * @a and @b.  @a and @b remain valid, independent sync_file. Returns the
  * new merged sync_file or NULL in case of error.
  */
-static struct sync_file *sync_file_merge(const char *name, struct sync_file *a,
+struct sync_file *sync_file_merge(const char *name, struct sync_file *a,
 					 struct sync_file *b)
 {
 	int num_fences = a->num_fences + b->num_fences;
@@ -201,6 +202,7 @@ static struct sync_file *sync_file_merge(const char *name, struct sync_file *a,
 	strlcpy(sync_file->name, name, sizeof(sync_file->name));
 	return sync_file;
 }
+EXPORT_SYMBOL(sync_file_merge);
 
 static void sync_file_free(struct kref *kref)
 {

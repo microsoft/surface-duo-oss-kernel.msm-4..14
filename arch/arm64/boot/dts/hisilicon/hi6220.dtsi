@@ -8,6 +8,7 @@
 #include <dt-bindings/clock/hi6220-clock.h>
 #include <dt-bindings/pinctrl/hisi.h>
 #include <dt-bindings/thermal/thermal.h>
+#include <dt-bindings/reset/hisi,hi6220-resets.h>
 
 / {
 	compatible = "hisilicon,hi6220";
@@ -228,6 +229,8 @@
 		compatible = "simple-bus";
 		#address-cells = <2>;
 		#size-cells = <2>;
+		#sound-dai-cells = <0>;
+		interrupt-parent = <&gic>;
 		ranges;
 
 		sram: sram@fff80000 {
@@ -252,12 +255,18 @@
 			compatible = "hisilicon,hi6220-mediactrl", "syscon";
 			reg = <0x0 0xf4410000 0x0 0x1000>;
 			#clock-cells = <1>;
+			#reset-cells = <1>;
 		};
 
 		pm_ctrl: pm_ctrl@f7032000 {
 			compatible = "hisilicon,hi6220-pmctrl", "syscon";
 			reg = <0x0 0xf7032000 0x0 0x1000>;
 			#clock-cells = <1>;
+		};
+
+		medianoc_ade: medianoc_ade@f4520000 {
+			compatible = "syscon";
+			reg = <0x0 0xf4520000 0x0 0x4000>;
 		};
 
 		stub_clock: stub_clock {
@@ -325,6 +334,19 @@
 			status = "disabled";
 		};
 
+		dma0: dma@f7370000 {
+			compatible = "hisilicon,k3-dma-1.0";
+			reg = <0x0 0xf7370000 0x0 0x1000>;
+			#dma-cells = <1>;
+			dma-channels = <15>;
+			dma-requests = <32>;
+			interrupts = <0 84 4>;
+			clocks = <&sys_ctrl HI6220_EDMAC_ACLK>;
+			dma-no-cci;
+			dma-type = "hi6220_dma";
+			status = "ok";
+		};
+
 		dual_timer0: timer@f8008000 {
 			compatible = "arm,sp804", "arm,primecell";
 			reg = <0x0 0xf8008000 0x0 0x1000>;
@@ -334,6 +356,22 @@
 				 <&ao_ctrl HI6220_TIMER0_PCLK>,
 				 <&ao_ctrl HI6220_TIMER0_PCLK>;
 			clock-names = "timer1", "timer2", "apb_pclk";
+		};
+
+		rtc0: rtc@f8003000 {
+			compatible = "arm,pl031", "arm,primecell";
+			reg = <0x0 0xf8003000 0x0 0x1000>;
+			interrupts = <0 12 4>;
+			clocks = <&ao_ctrl HI6220_RTC0_PCLK>;
+			clock-names = "apb_pclk";
+		};
+
+		 rtc1: rtc@f8004000 {
+			compatible = "arm,pl031", "arm,primecell";
+			reg = <0x0 0xf8004000 0x0 0x1000>;
+			interrupts = <0 8 4>;
+			clocks = <&ao_ctrl HI6220_RTC1_PCLK>;
+			clock-names = "apb_pclk";
 		};
 
 		pmx0: pinmux@f7010000 {
@@ -748,6 +786,7 @@
 			interrupts = <0x0 0x48 0x4>;
 			clocks = <&sys_ctrl 2>, <&sys_ctrl 1>;
 			clock-names = "ciu", "biu";
+			resets = <&sys_ctrl PERIPH_RSTDIS0_MMC0>;
 			bus-width = <0x8>;
 			vmmc-supply = <&ldo19>;
 			pinctrl-names = "default";
@@ -761,12 +800,16 @@
 			card-detect-delay = <200>;
 			hisilicon,peripheral-syscon = <&ao_ctrl>;
 			cap-sd-highspeed;
+			sd-uhs-sdr12;
+			sd-uhs-sdr25;
+			sd-uhs-sdr50;
 			reg = <0x0 0xf723e000 0x0 0x1000>;
 			interrupts = <0x0 0x49 0x4>;
 			#address-cells = <0x1>;
 			#size-cells = <0x0>;
 			clocks = <&sys_ctrl 4>, <&sys_ctrl 3>;
 			clock-names = "ciu", "biu";
+			resets = <&sys_ctrl PERIPH_RSTDIS0_MMC1>;
 			vqmmc-supply = <&ldo7>;
 			vmmc-supply = <&ldo10>;
 			bus-width = <0x4>;
@@ -784,6 +827,7 @@
 			interrupts = <0x0 0x4a 0x4>;
 			clocks = <&sys_ctrl HI6220_MMC2_CIUCLK>, <&sys_ctrl HI6220_MMC2_CLK>;
 			clock-names = "ciu", "biu";
+			resets = <&sys_ctrl PERIPH_RSTDIS0_MMC2>;
 			bus-width = <0x4>;
 			broken-cd;
 			pinctrl-names = "default", "idle";
@@ -798,6 +842,22 @@
 			clocks = <&sys_ctrl 22>;
 			clock-names = "thermal_clk";
 			#thermal-sensor-cells = <1>;
+		};
+
+		i2s0: hi6210_i2s {
+			compatible = "hisilicon,hi6210-i2s";
+			reg = <0x0 0xf7118000 0x0 0x8000>, /* i2s unit */
+			      <0x0 0xf7030000 0x0 0x400>,  /* syscon */
+			      <0x0 0xf7032000 0x0 0x400>;  /* pmctrl */
+			interrupts = <0 123 0x4>; /* 155 "DigACodec_intr"-32 */
+			pinctrl-names = "default";
+			pinctrl-0 = <&bt_pmx_func &bt_cfg_func>;
+			clocks = <&sys_ctrl HI6220_DACODEC_PCLK>,
+				 <&sys_ctrl HI6220_BBPPLL0_DIV>;
+			clock-names = "dacodec", "i2s-base";
+			dmas = <&dma0 15 &dma0 14>;
+			dma-names = "rx", "tx";
+			#sound-dai-cells = <0>;
 		};
 
 		thermal-zones {
@@ -831,6 +891,94 @@
 					};
 				};
 			};
+		};
+
+		ade: ade@f4100000 {
+			compatible = "hisilicon,hi6220-ade";
+			reg = <0x0 0xf4100000 0x0 0x7800>;
+			reg-names = "ade_base";
+			hisilicon,noc-syscon = <&medianoc_ade>;
+			resets = <&media_ctrl MEDIA_ADE>;
+			interrupts = <0 115 4>; /* ldi interrupt */
+
+			clocks = <&media_ctrl HI6220_ADE_CORE>,
+				 <&media_ctrl HI6220_CODEC_JPEG>,
+				 <&media_ctrl HI6220_ADE_PIX_SRC>;
+			/*clock name*/
+			clock-names  = "clk_ade_core",
+				       "clk_codec_jpeg",
+				       "clk_ade_pix";
+
+			assigned-clocks = <&media_ctrl HI6220_ADE_CORE>,
+				<&media_ctrl HI6220_CODEC_JPEG>;
+			assigned-clock-rates = <360000000>, <288000000>;
+			dma-coherent;
+			status = "disabled";
+
+			port {
+				ade_out: endpoint {
+					remote-endpoint = <&dsi_in>;
+				};
+			};
+		};
+
+		dsi: dsi@f4107800 {
+			compatible = "hisilicon,hi6220-dsi";
+			reg = <0x0 0xf4107800 0x0 0x100>;
+			clocks = <&media_ctrl  HI6220_DSI_PCLK>;
+			clock-names = "pclk";
+			status = "disabled";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+
+				/* 0 for input port */
+				port@0 {
+					reg = <0>;
+					dsi_in: endpoint {
+						remote-endpoint = <&ade_out>;
+					};
+				};
+			};
+		};
+
+		mali:mali@f4080000 {
+			compatible = "arm,mali-450", "arm,mali-utgard";
+			reg = <0x0 0x3f100000 0x0 0x00708000>;
+			clocks = <&media_ctrl HI6220_G3D_CLK>,
+				 <&media_ctrl HI6220_G3D_PCLK>;
+			clock-names = "clk_g3d", "pclk_g3d";
+			mali_def_freq = <500>;
+			pclk_freq = <144>;
+			dfs_steps = <2>;
+			dfs_lockprf = <1>;
+			dfs_limit_max_prf = <1>;
+			dfs_profile_num = <2>;
+			dfs_profiles = <250 3 0>, <500 1 0>;
+			mali_type = <2>;
+
+			interrupt-parent = <&gic>;
+			interrupts =	<1 126 4>, /*gp*/
+					<1 126 4>, /*gp mmu*/
+					<1 126 4>, /*pp bc*/
+					<1 126 4>, /*pmu*/
+					<1 126 4>, /*pp0*/
+					<1 126 4>,
+					<1 126 4>, /*pp1*/
+					<1 126 4>,
+					<1 126 4>, /*pp2*/
+					<1 126 4>,
+					<1 126 4>, /*pp4*/
+					<1 126 4>,
+					<1 126 4>, /*pp5*/
+					<1 126 4>,
+					<1 126 4>, /*pp6*/
+					<1 126 4>;
+			interrupt-names = "IRQGP", "IRQGPMMU", "IRQPP", "IRQPMU",
+					"IRQPP0", "IRQPPMMU0", "IRQPP1", "IRQPPMMU1",
+					"IRQPP2", "IRQPPMMU2","IRQPP4", "IRQPPMMU4",
+					"IRQPP5", "IRQPPMMU5", "IRQPP6", "IRQPPMMU6";
 		};
 	};
 };

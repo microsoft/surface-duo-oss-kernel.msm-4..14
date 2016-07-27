@@ -11,9 +11,12 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/clkdev.h>
+#include <linux/delay.h>
 #include <linux/io.h>
+#include <linux/kernel.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/of_device.h>
@@ -34,8 +37,8 @@ static struct hisi_fixed_rate_clock hi6220_fixed_rate_clks[] __initdata = {
 	{ HI6220_PLL_BBP,	"bbppll0",	NULL, 0, 245760000, },
 	{ HI6220_PLL_GPU,	"gpupll",	NULL, 0, 1000000000,},
 	{ HI6220_PLL1_DDR,	"ddrpll1",	NULL, 0, 1066000000,},
-	{ HI6220_PLL_SYS,	"syspll",	NULL, 0, 1200000000,},
-	{ HI6220_PLL_SYS_MEDIA,	"media_syspll",	NULL, 0, 1200000000,},
+	{ HI6220_PLL_SYS,	"syspll",	NULL, 0, 1190494208,},
+	{ HI6220_PLL_SYS_MEDIA,	"media_syspll",	NULL, 0, 1190494208,},
 	{ HI6220_DDR_SRC,	"ddr_sel_src",  NULL, 0, 1200000000,},
 	{ HI6220_PLL_MEDIA,	"media_pll",    NULL, 0, 1440000000,},
 	{ HI6220_PLL_DDR,	"ddrpll0",      NULL, 0, 1600000000,},
@@ -68,24 +71,76 @@ static struct hisi_gate_clock hi6220_separated_gate_clks_ao[] __initdata = {
 	{ HI6220_TIMER7_PCLK, "timer7_pclk", "clk_tcxo", CLK_SET_RATE_PARENT|CLK_IGNORE_UNUSED, 0x630, 22, 0, },
 	{ HI6220_TIMER8_PCLK, "timer8_pclk", "clk_tcxo", CLK_SET_RATE_PARENT|CLK_IGNORE_UNUSED, 0x630, 23, 0, },
 	{ HI6220_UART0_PCLK,  "uart0_pclk",  "clk_tcxo", CLK_SET_RATE_PARENT|CLK_IGNORE_UNUSED, 0x630, 24, 0, },
+	{ HI6220_RTC0_PCLK,   "rtc0_pclk",   "clk_tcxo", CLK_SET_RATE_PARENT|CLK_IGNORE_UNUSED, 0x630, 25, 0, },
+	{ HI6220_RTC1_PCLK,   "rtc1_pclk",   "clk_tcxo", CLK_SET_RATE_PARENT|CLK_IGNORE_UNUSED, 0x630, 26, 0, },
 };
+
+#define SOC_PERI_SCTRL_BASE_ADDR	0xF7030000 /* peri ctrl base addr */
+#define SC_PERIPH_CTRL14		0x02C
+#define SC_PERIPH_STAT1			0x094
+#define SOC_PMCTRL_BASE_ADDR		0xF7032000 /* pm ctrl base addr*/
+#define SC_PM_DDRPLL_STAT		0x18
+#define SC_PM_SYSPLL_STAT		0x28
+#define SC_PM_MEDPLL_STAT		0x38
+
+static struct hisi_clock_data *clk_data_ao;
 
 static void __init hi6220_clk_ao_init(struct device_node *np)
 {
-	struct hisi_clock_data *clk_data_ao;
+	void __iomem *peri_base, *pm_base;
+	unsigned int freq_u, freq_l, freq, pll_stat;
+	int i;
 
 	clk_data_ao = hisi_clk_init(np, HI6220_AO_NR_CLKS);
 	if (!clk_data_ao)
 		return;
 
+	peri_base = ioremap(SOC_PERI_SCTRL_BASE_ADDR, 0x1000);
+	pm_base = ioremap(SOC_PMCTRL_BASE_ADDR, 0x1000);
+	/* SYSPLL is set by bootloader. Read it */
+	/* check syspll enablement status */
+	pll_stat = readl(pm_base + SC_PM_SYSPLL_STAT);
+	pr_info("SYSPLL: syspll PM status: 0x%x\n", pll_stat);
+	/* 0x2101 means to calculate clk_sys_pll */
+	writew(0x2101, peri_base + SC_PERIPH_CTRL14);
+	mdelay(1);
+	/* read back the calculated value */
+	freq_l = readw(peri_base + SC_PERIPH_STAT1);
+	freq_u = readw(peri_base + SC_PERIPH_STAT1 + 2);
+	mdelay(1);
+	freq = freq_u << 16 | freq_l;
+	pr_info("SYSPLL: syspll is read: l: 0x%04X, u: 0x%04X\n",
+							freq_l, freq_u);
+	pr_info("SYSPLL: syspll is read: 0x%X, %d\n", freq, freq);
+	if (freq == 0x00020000 || freq == 0) {
+		pr_info("SYSPLL: ERROR: read returns misterious value.\n");
+		freq = 1200000000;
+	}
+
+	/* mask off freq */
+	freq -= (freq % 100000);
+	pr_info("SYSPLL: set syspll medpll: %d\n", freq);
+
+	for (i = 0; i < ARRAY_SIZE(hi6220_fixed_rate_clks); i++) {
+		if (hi6220_fixed_rate_clks[i].id == HI6220_PLL_SYS ||
+			hi6220_fixed_rate_clks[i].id == HI6220_PLL_SYS_MEDIA) {
+			hi6220_fixed_rate_clks[i].fixed_rate = freq;
+			pr_info("SYSPLL: modified fix_rate[%d], id=%d, f=%d\n",
+				i, hi6220_fixed_rate_clks[i].id, freq);
+		}
+	}
+
 	hisi_clk_register_fixed_rate(hi6220_fixed_rate_clks,
-				ARRAY_SIZE(hi6220_fixed_rate_clks), clk_data_ao);
+				ARRAY_SIZE(hi6220_fixed_rate_clks),
+				clk_data_ao);
 
 	hisi_clk_register_fixed_factor(hi6220_fixed_factor_clks,
-				ARRAY_SIZE(hi6220_fixed_factor_clks), clk_data_ao);
+				ARRAY_SIZE(hi6220_fixed_factor_clks),
+				clk_data_ao);
 
 	hisi_clk_register_gate_sep(hi6220_separated_gate_clks_ao,
-				ARRAY_SIZE(hi6220_separated_gate_clks_ao), clk_data_ao);
+				ARRAY_SIZE(hi6220_separated_gate_clks_ao),
+				clk_data_ao);
 }
 CLK_OF_DECLARE(hi6220_clk_ao, "hisilicon,hi6220-aoctrl", hi6220_clk_ao_init);
 
@@ -192,6 +247,13 @@ static void __init hi6220_clk_sys_init(struct device_node *np)
 
 	hi6220_clk_register_divider(hi6220_div_clks_sys,
 			ARRAY_SIZE(hi6220_div_clks_sys), clk_data);
+
+	if (!clk_data_ao)
+		return;
+
+	/* enable high speed clock on UART1 mux */
+	clk_set_parent(clk_data->clk_data.clks[HI6220_UART1_SRC],
+			clk_data_ao->clk_data.clks[HI6220_150M]);
 }
 CLK_OF_DECLARE(hi6220_clk_sys, "hisilicon,hi6220-sysctrl", hi6220_clk_sys_init);
 
