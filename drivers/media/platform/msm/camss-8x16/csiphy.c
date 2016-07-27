@@ -591,9 +591,8 @@ int msm_csiphy_subdev_init(struct csiphy_device *csiphy, struct camss *camss,
 
 	/* Clocks */
 
-	i = 0;
 	csiphy->nclocks = 0;
-	while (res->clock[i++])
+	while (res->clock[csiphy->nclocks])
 		csiphy->nclocks++;
 
 	csiphy->clock = devm_kzalloc(dev, csiphy->nclocks *

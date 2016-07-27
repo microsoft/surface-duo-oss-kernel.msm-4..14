@@ -775,9 +775,8 @@ int msm_ispif_subdev_init(struct ispif_device *ispif, struct camss *camss,
 
 	/* Clocks */
 
-	i = 0;
 	ispif->nclocks = 0;
-	while (res->clock[i++])
+	while (res->clock[ispif->nclocks])
 		ispif->nclocks++;
 
 	ispif->clock = devm_kzalloc(dev, ispif->nclocks * sizeof(*ispif->clock),

@@ -1636,9 +1636,8 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
 
 	/* Clocks */
 
-	i = 0;
 	vfe->nclocks = 0;
-	while (res->clock[i++])
+	while (res->clock[vfe->nclocks])
 		vfe->nclocks++;
 
 	vfe->clock = devm_kzalloc(dev, vfe->nclocks * sizeof(*vfe->clock),

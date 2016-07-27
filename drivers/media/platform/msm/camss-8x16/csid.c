@@ -872,9 +872,8 @@ int msm_csid_subdev_init(struct csid_device *csid, struct camss *camss,
 
 	/* Clocks */
 
-	i = 0;
 	csid->nclocks = 0;
-	while (res->clock[i++])
+	while (res->clock[csid->nclocks])
 		csid->nclocks++;
 
 	csid->clock = devm_kzalloc(dev, csid->nclocks * sizeof(*csid->clock),
