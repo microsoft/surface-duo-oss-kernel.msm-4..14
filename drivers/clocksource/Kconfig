@@ -177,6 +177,11 @@ config VF_PIT_TIMER
 	help
 	  Support for Period Interrupt Timer on Freescale Vybrid Family SoCs.
 
+config FSL_STM_TIMER
+	bool
+	help
+	  Support for Freescale System Timer Module.
+
 config SYS_SUPPORTS_SH_CMT
         bool
 
