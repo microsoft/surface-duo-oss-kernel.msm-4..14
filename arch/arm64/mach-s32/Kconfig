@@ -18,6 +18,18 @@ menu "S32 SOC selection"
 		bool "S32V234 SOC"
 endmenu
 
+menu "STM timer used as system timer"
+	config S32V234_STM_SYSTIMER
+		bool "STM used as system timer"
+	select FSL_STM_TIMER if S32V234_STM_SYSTIMER
+	config STM_CLKSRC_RATE
+		int "STM Rating for ClockSource"
+		default 460
+	config STM_CLKEVT_RATE
+		int "STM Rating for ClockEvents"
+		default 460
+endmenu
+
 menu "PIT timer used as system timer"
 	config S32V234_PIT_SYSTIMER
 		bool "PIT used as system timer"
