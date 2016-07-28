@@ -345,7 +345,6 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	mux-gpio = <&gpio0 1 0>;
-	status = "ok";
 
 	ports {
 		/* 1 for output port */
