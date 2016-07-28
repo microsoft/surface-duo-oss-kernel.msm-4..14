@@ -1,7 +1,7 @@
-name: ubuntu-generic-kernel
+name: ubuntu-raspi2-kernel
 version: 4.4.0
-summary: The generic kernel for snappy
-description: This is a generic snapped kernel, based off the xenial src and config
+summary: The Raspberry Pi 2/3 kernel for snappy
+description: This is a snapped kernel, based off the xenial raspi2 branch and config
 type: kernel
 
 parts:
@@ -9,8 +9,8 @@ parts:
     plugin: kernel
     source: .
     source-type: git
-    kdefconfig: ['--makefile=debian/snapcraft.mk', 'branch=master','flavour=generic', 'config']
+    kdefconfig: ['--makefile=debian/snapcraft.mk', 'branch=raspi2','flavour=raspi2', 'config']
     kconfigs:
-      - CONFIG_LOCALVERSION="-xenial_generic"
+      - CONFIG_LOCALVERSION="-xenial_raspi2"
       - CONFIG_DEBUG_INFO=n
-    kernel-image-target: bzImage
+    kernel-image-target: zImage
