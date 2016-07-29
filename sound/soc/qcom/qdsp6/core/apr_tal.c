@@ -85,10 +85,11 @@ int apr_tal_close(struct apr_svc_ch_dev *apr_ch)
 }
 
 
-static int qcom_smd_q6_callback(struct qcom_smd_channel *channel,
+static int qcom_smd_q6_callback(void *_channel,
 				 const void *data,
 				 size_t count)
 {
+	struct qcom_smd_channel *channel = _channel;
 	struct apr_svc_ch_dev *apr_ch = qcom_smd_get_drvdata(channel);
 
 	memcpy(apr_ch->data, data, count);

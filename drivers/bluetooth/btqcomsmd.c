@@ -47,20 +47,22 @@ static int btqcomsmd_recv(struct hci_dev *hdev, unsigned type, const void *data,
 	return hci_recv_frame(hdev, skb);
 }
 
-static int btqcomsmd_acl_callback(struct qcom_smd_channel *channel,
+static int btqcomsmd_acl_callback(void *_channel,
 				  const void *data,
 				  size_t count)
 {
+	struct qcom_smd_channel *channel = _channel;
 	struct btqcomsmd *btq = qcom_smd_get_drvdata(channel);
 
 	btq->hdev->stat.byte_rx += count;
 	return btqcomsmd_recv(btq->hdev, HCI_ACLDATA_PKT, data, count);
 }
 
-static int btqcomsmd_cmd_callback(struct qcom_smd_channel *channel,
+static int btqcomsmd_cmd_callback(void *_channel,
 				  const void *data,
 				  size_t count)
 {
+	struct qcom_smd_channel *channel = _channel;
 	struct btqcomsmd *btq = qcom_smd_get_drvdata(channel);
 
 	return btqcomsmd_recv(btq->hdev, HCI_EVENT_PKT, data, count);
