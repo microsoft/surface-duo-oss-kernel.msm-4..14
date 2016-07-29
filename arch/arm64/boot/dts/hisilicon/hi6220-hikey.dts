@@ -49,7 +49,7 @@
 		hardware_cfg_innolux_panel {
 			overlay_0 {
 				fragment@0 {
-					target-path="/soc/dsi@f4107800";
+					target-path="/soc/dsi@f4107800/panel@1";
 					__overlay__ {
 						status = "ok";
 					};
