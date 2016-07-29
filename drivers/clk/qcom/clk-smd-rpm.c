@@ -12,6 +12,7 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/err.h>
 #include <linux/export.h>
@@ -556,6 +557,7 @@ static struct clk_hw *qcom_smdrpm_clk_hw_get(struct of_phandle_args *clkspec,
 static int rpm_smd_clk_probe(struct platform_device *pdev)
 {
 	struct rpm_cc *rcc;
+	struct clk *clk;
 	int ret;
 	size_t num_clks, i;
 	struct qcom_smd_rpm *rpm;
@@ -601,9 +603,14 @@ static int rpm_smd_clk_probe(struct platform_device *pdev)
 		if (!rpm_smd_clks[i])
 			continue;
 
-		ret = devm_clk_hw_register(&pdev->dev, &rpm_smd_clks[i]->hw);
-		if (ret)
+		clk = devm_clk_register(&pdev->dev, &rpm_smd_clks[i]->hw);
+		if (IS_ERR(clk)) {
+			ret = PTR_ERR(clk);
 			goto err;
+		}
+
+		clk_set_rate(clk, INT_MAX);
+		clk_prepare_enable(clk);
 	}
 
 	ret = of_clk_add_hw_provider(pdev->dev.of_node, qcom_smdrpm_clk_hw_get,
