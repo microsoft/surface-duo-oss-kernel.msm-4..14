@@ -25,9 +25,10 @@ struct qrtr_smd_dev {
 };
 
 /* from smd to qrtr */
-static int qcom_smd_qrtr_callback(struct qcom_smd_channel *channel,
+static int qcom_smd_qrtr_callback(void *arg,
 				  const void *data, size_t len)
 {
+	struct qcom_smd_channel *channel = arg;
 	struct qrtr_smd_dev *qdev = qcom_smd_get_drvdata(channel);
 	int rc;
 
