@@ -365,6 +365,7 @@
 	#address-cells = <1>;
 	#size-cells = <0>;
 	mux-gpio = <&gpio0 1 0>;
+	status = "ok";
 
 	ports {
 		/* 1 for output port */
@@ -388,6 +389,7 @@
 	/* For panel reg's value should >= 1 */
 	panel@1 {
 		compatible = "innolux,n070icn-pb1";
+		status = "disabled";
 		reg = <1>;
 		power-on-delay= <50>;
 		reset-delay = <100>;
