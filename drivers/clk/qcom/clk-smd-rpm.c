@@ -12,6 +12,7 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/err.h>
 #include <linux/export.h>
@@ -693,6 +694,9 @@ static int rpm_smd_clk_probe(struct platform_device *pdev)
 		}
 
 		clks[i] = clk;
+
+		clk_set_rate(clk, INT_MAX);
+		clk_prepare_enable(clk);
 	}
 
 	ret = of_clk_add_provider(pdev->dev.of_node, of_clk_src_onecell_get,
