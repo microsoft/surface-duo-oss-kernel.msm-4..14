@@ -53,26 +53,15 @@
 #define VFE_0_IRQ_CMD_GLOBAL_CLEAR	(1 << 0)
 
 #define VFE_0_IRQ_MASK_0		0x028
-#define VFE_0_IRQ_MASK_0_IMAGE_MASTER_0_PING_PONG	(1 << 8)
-#define VFE_0_IRQ_MASK_0_IMAGE_MASTER_1_PING_PONG	(1 << 9)
-#define VFE_0_IRQ_MASK_0_IMAGE_MASTER_2_PING_PONG	(1 << 10)
-#define VFE_0_IRQ_MASK_0_IMAGE_MASTER_3_PING_PONG	(1 << 11)
-#define VFE_0_IRQ_MASK_0_IMAGE_MASTER_4_PING_PONG	(1 << 12)
-#define VFE_0_IRQ_MASK_0_IMAGE_MASTER_5_PING_PONG	(1 << 13)
-#define VFE_0_IRQ_MASK_0_IMAGE_MASTER_6_PING_PONG	(1 << 14)
+#define VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(n)	(1 << ((n) + 8))
 #define VFE_0_IRQ_MASK_0_RESET_ACK			(1 << 31)
 #define VFE_0_IRQ_MASK_1		0x02c
 #define VFE_0_IRQ_MASK_1_VIOLATION			(1 << 7)
 #define VFE_0_IRQ_MASK_1_BUS_BDG_HALT_ACK		(1 << 8)
-#define VFE_0_IRQ_MASK_1_IMAGE_MASTER_0_BUS_OVERFLOW	(1 << 9)
-#define VFE_0_IRQ_MASK_1_IMAGE_MASTER_1_BUS_OVERFLOW	(1 << 10)
-#define VFE_0_IRQ_MASK_1_IMAGE_MASTER_2_BUS_OVERFLOW	(1 << 11)
+#define VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(n)	(1 << ((n) + 9))
 
 #define VFE_0_IRQ_CLEAR_0		0x030
-#define VFE_0_IRQ_CLEAR_0_ALL		0xffffffff
-
 #define VFE_0_IRQ_CLEAR_1		0x034
-#define VFE_0_IRQ_CLEAR_1_ALL		0xffffffff
 
 #define VFE_0_IRQ_STATUS_0		0x038
 #define VFE_0_IRQ_STATUS_0_IMAGE_MASTER_0_PING_PONG	(1 << 8)
@@ -86,7 +75,7 @@
 
 #define VFE_0_BUS_CFG			0x050
 
-#define VFE_0_BUS_XBAR_CFG_x(x)		(0x58 + 0x4 * (x))
+#define VFE_0_BUS_XBAR_CFG_x(x)		(0x58 + 0x4 * ((x) / 2))
 #define VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT		8
 #define VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI0	5
 #define VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI1	6
@@ -136,7 +125,7 @@
 #define VFE_0_REG_UPDATE_RDI2			(1 << 3)
 
 #define VFE_0_CGC_OVERRIDE_1			0x974
-#define VFE_0_CGC_OVERRIDE_1_IMAGE_M0_CGC_OVERRIDE	1
+#define VFE_0_CGC_OVERRIDE_1_IMAGE_Mx_CGC_OVERRIDE(x)	(1 << (x))
 
 /* Vfe reset timeout */
 #define VFE_RESET_TIMEOUT_MS 50
@@ -285,7 +274,7 @@ static int vfe_bus_connect_wm_to_rdi(struct vfe_device *vfe, u32 wm, u32 rdi)
 	vfe_reg_set(vfe, VFE_0_RDI_CFG_x(0), reg);
 
 	reg = VFE_0_RDI_CFG_x_RDI_EN_BIT;
-	reg |= (wm << VFE_0_RDI_CFG_x_RDI_STREAM_SEL_SHIFT) &
+	reg |= ((wm + 3 * rdi) << VFE_0_RDI_CFG_x_RDI_STREAM_SEL_SHIFT) &
 		VFE_0_RDI_CFG_x_RDI_STREAM_SEL_MASK;
 	vfe_reg_set(vfe, VFE_0_RDI_CFG_x(rdi), reg);
 
@@ -307,7 +296,10 @@ static int vfe_bus_connect_wm_to_rdi(struct vfe_device *vfe, u32 wm, u32 rdi)
 		return -EINVAL;
 	}
 
-	writel(reg, vfe->base + VFE_0_BUS_XBAR_CFG_x(wm));
+	if (wm % 2 == 1)
+		reg <<= 16;
+
+	vfe_reg_set(vfe, VFE_0_BUS_XBAR_CFG_x(wm), reg);
 
 	writel(VFE_0_BUS_IMAGE_MASTER_n_WR_IRQ_SUBSAMPLE_PATTERN_DEF,
 	       vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_IRQ_SUBSAMPLE_PATTERN(wm));
@@ -315,9 +307,15 @@ static int vfe_bus_connect_wm_to_rdi(struct vfe_device *vfe, u32 wm, u32 rdi)
 	return 0;
 }
 
-static int vfe_bus_dicconnect_wm_from_rdi(struct vfe_device *vfe, u32 rdi)
+static int vfe_bus_disconnect_wm_from_rdi(struct vfe_device *vfe, u32 rdi)
 {
-	writel(0x0, vfe->base + VFE_0_RDI_CFG_x(rdi));
+	u32 reg;
+
+	reg = VFE_0_RDI_CFG_x_RDI_Mr_FRAME_BASED_EN(rdi);
+	vfe_reg_clr(vfe, VFE_0_RDI_CFG_x(0), reg);
+
+	reg = VFE_0_RDI_CFG_x_RDI_EN_BIT;
+	vfe_reg_clr(vfe, VFE_0_RDI_CFG_x(rdi), reg);
 
 	return 0;
 }
@@ -351,55 +349,34 @@ static int vfe_reg_update(struct vfe_device *vfe, int rdi_idx)
 	return 0;
 }
 
-static void vfe_irq_clear(struct vfe_device *vfe, u32 clr_0, u32 clr_1)
-{
-	writel(clr_0, vfe->base + VFE_0_IRQ_CLEAR_0);
+static void vfe_enable_irq_wm(struct vfe_device *vfe, u32 wm_idx, u8 enable) {
+	u32 irq_en0 = readl_relaxed(vfe->base + VFE_0_IRQ_MASK_0);
+	u32 irq_en1 = readl_relaxed(vfe->base + VFE_0_IRQ_MASK_1);
 
-	writel(clr_1, vfe->base + VFE_0_IRQ_CLEAR_1);
+	if (enable) {
+		irq_en0 |= VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(wm_idx);
+		irq_en1 |= VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(wm_idx);
+	} else {
+		irq_en0 &= ~VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(wm_idx);
+		irq_en1 &= ~VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(wm_idx);
+	}
 
-	wmb();
-
-	writel(VFE_0_IRQ_CMD_GLOBAL_CLEAR, vfe->base + VFE_0_IRQ_CMD);
+	writel_relaxed(irq_en0, vfe->base + VFE_0_IRQ_MASK_0);
+	writel_relaxed(irq_en1, vfe->base + VFE_0_IRQ_MASK_1);
 }
 
-static void vfe_enable_irq_0(struct vfe_device *vfe)
+static void vfe_enable_irq_common(struct vfe_device *vfe)
 {
-	u32 irq_en = VFE_0_IRQ_MASK_0_IMAGE_MASTER_0_PING_PONG |
-		     VFE_0_IRQ_MASK_0_IMAGE_MASTER_1_PING_PONG |
-		     VFE_0_IRQ_MASK_0_IMAGE_MASTER_2_PING_PONG |
-		     VFE_0_IRQ_MASK_0_IMAGE_MASTER_3_PING_PONG |
-		     VFE_0_IRQ_MASK_0_IMAGE_MASTER_4_PING_PONG |
-		     VFE_0_IRQ_MASK_0_IMAGE_MASTER_5_PING_PONG |
-		     VFE_0_IRQ_MASK_0_IMAGE_MASTER_6_PING_PONG |
-		     VFE_0_IRQ_MASK_0_RESET_ACK;
+	u32 irq_en0 = readl_relaxed(vfe->base + VFE_0_IRQ_MASK_0);
+	u32 irq_en1 = readl_relaxed(vfe->base + VFE_0_IRQ_MASK_1);
 
-	writel(irq_en, vfe->base + VFE_0_IRQ_MASK_0);
-}
+	irq_en0 |= VFE_0_IRQ_MASK_0_RESET_ACK;
 
-static void vfe_enable_irq_1(struct vfe_device *vfe)
-{
-	u32 irq_en = VFE_0_IRQ_MASK_1_VIOLATION |
-		     VFE_0_IRQ_MASK_1_BUS_BDG_HALT_ACK |
-		     VFE_0_IRQ_MASK_1_IMAGE_MASTER_0_BUS_OVERFLOW |
-		     VFE_0_IRQ_MASK_1_IMAGE_MASTER_1_BUS_OVERFLOW |
-		     VFE_0_IRQ_MASK_1_IMAGE_MASTER_2_BUS_OVERFLOW;
+	irq_en1 |= VFE_0_IRQ_MASK_1_VIOLATION;
+	irq_en1 |= VFE_0_IRQ_MASK_1_BUS_BDG_HALT_ACK;
 
-	writel(irq_en, vfe->base + VFE_0_IRQ_MASK_1);
-}
-
-static void vfe_enable_irq_all(struct vfe_device *vfe)
-{
-	vfe_irq_clear(vfe, VFE_0_IRQ_CLEAR_0_ALL, VFE_0_IRQ_CLEAR_1_ALL);
-	vfe_enable_irq_0(vfe);
-	vfe_enable_irq_1(vfe);
-}
-
-static void vfe_disable_irq_all(struct vfe_device *vfe)
-{
-
-	writel(0x0, vfe->base + VFE_0_IRQ_MASK_0);
-	writel(0x0, vfe->base + VFE_0_IRQ_MASK_1);
-	vfe_irq_clear(vfe, VFE_0_IRQ_CLEAR_0_ALL, VFE_0_IRQ_CLEAR_1_ALL);
+	writel(irq_en0, vfe->base + VFE_0_IRQ_MASK_0);
+	writel(irq_en1, vfe->base + VFE_0_IRQ_MASK_1);
 }
 
 static void vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx);
@@ -510,11 +487,16 @@ static void vfe_set_qos(struct vfe_device *vfe)
 	writel(val7, vfe->base + VFE_0_BUS_BDG_QOS_CFG_7);
 }
 
-static void vfe_im_cgc_override(struct vfe_device *vfe)
+static void vfe_set_cgc_override(struct vfe_device *vfe, u32 wm_idx, u8 enable)
 {
-	u32 val = VFE_0_CGC_OVERRIDE_1_IMAGE_M0_CGC_OVERRIDE;
+	u32 val = VFE_0_CGC_OVERRIDE_1_IMAGE_Mx_CGC_OVERRIDE(wm_idx);
 
-	writel(val, vfe->base + VFE_0_CGC_OVERRIDE_1);
+	if (enable)
+		vfe_reg_set(vfe, VFE_0_CGC_OVERRIDE_1, val);
+	else
+		vfe_reg_clr(vfe, VFE_0_CGC_OVERRIDE_1, val);
+
+	wmb();
 }
 
 static void vfe_output_init_addrs(struct vfe_device *vfe,
@@ -892,12 +874,23 @@ out:
 }
 
 static int vfe_enable_output(struct vfe_device *vfe,
-			     struct msm_vfe_output *output,
-			     u32 ub_size)
+			     struct msm_vfe_output *output)
 {
 	struct msm_vfe_wm *wm;
 	unsigned long flags;
+	u32 ub_size;
 	int i;
+
+	switch (vfe->hw_id) {
+	case 0:
+		ub_size = MSM_VFE_VFE0_UB_SIZE_RDI;
+		break;
+	case 1:
+		ub_size = MSM_VFE_VFE1_UB_SIZE_RDI;
+		break;
+	default:
+		return -EINVAL;
+	}
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
@@ -940,9 +933,13 @@ static int vfe_enable_output(struct vfe_device *vfe,
 	for (i = 0; i < output->active_wm; i++) {
 		wm = &output->wm[i];
 
+		vfe_set_cgc_override(vfe, wm->wm_idx, 1);
+
+		vfe_enable_irq_wm(vfe, wm->wm_idx, 1);
+
 		vfe_bus_connect_wm_to_rdi(vfe, wm->wm_idx, wm->rdi_idx);
 
-		vfe_set_rdi_cid(vfe, wm->rdi_idx, wm->rdi_idx);
+		vfe_set_rdi_cid(vfe, wm->rdi_idx, 0);
 
 		vfe_wm_set_ub_cfg(vfe, wm->wm_idx, ub_size * wm->wm_idx,
 				  ub_size);
@@ -969,7 +966,7 @@ static int vfe_disable_output(struct vfe_device *vfe,
 	for (i = 0; i <  output->active_wm; i++) {
 		wm = &output->wm[i];
 		vfe_wm_enable(vfe, wm->wm_idx, 0);
-		vfe_bus_dicconnect_wm_from_rdi(vfe, wm->rdi_idx);
+		vfe_bus_disconnect_wm_from_rdi(vfe, wm->rdi_idx);
 		vfe_reg_update(vfe, wm->rdi_idx);
 	}
 
@@ -979,29 +976,12 @@ static int vfe_disable_output(struct vfe_device *vfe,
 static int vfe_enable_all_outputs(struct vfe_device *vfe)
 {
 	struct msm_vfe_output *output;
-	u32 ub_size;
 	int ret;
 	int i;
 
 	mutex_lock(&vfe->mutex);
 
-	if (!vfe->stream_cnt)
-		return -EINVAL;
-
-	switch (vfe->hw_id) {
-	case 0:
-		ub_size = MSM_VFE_UB_MAX_SIZE_VFE0;
-		break;
-	case 1:
-		ub_size = MSM_VFE_UB_MAX_SIZE_VFE1;
-		break;
-	default:
-		return -EINVAL;
-	}
-	ub_size /= vfe->stream_cnt;
-
-	vfe_im_cgc_override(vfe);
-	wmb();
+	vfe_enable_irq_common(vfe);
 
 	/* Bus interface should be enabled first */
 	vfe_bus_enable_wr_if(vfe, 1);
@@ -1011,7 +991,7 @@ static int vfe_enable_all_outputs(struct vfe_device *vfe)
 		if (IS_ERR_OR_NULL(output))
 			goto error;
 
-		ret = vfe_enable_output(vfe, output, ub_size);
+		ret = vfe_enable_output(vfe, output);
 		if (ret < 0)
 			goto error;
 	}
@@ -1223,12 +1203,21 @@ static int vfe_get(struct vfe_device *vfe)
 			dev_err(to_device(vfe), "Fail to enable clocks\n");
 			goto error_clocks;
 		}
+
+		ret = vfe_reset(vfe);
+		if (ret < 0) {
+			dev_err(to_device(vfe), "Fail to reset vfe\n");
+			goto error_reset;
+		}
 	}
 	vfe->ref_count++;
 
 	mutex_unlock(&vfe->mutex);
 
 	return 0;
+
+error_reset:
+	vfe_disable_clocks(vfe->nclocks, vfe->clock);
 
 error_clocks:
 	mutex_unlock(&vfe->mutex);
@@ -1241,7 +1230,6 @@ static void vfe_put(struct vfe_device *vfe)
 	BUG_ON(vfe->ref_count == 0);
 
 	if (--vfe->ref_count == 0) {
-		vfe_disable_irq_all(vfe);
 		vfe_init_outputs(vfe);
 		vfe_bus_release(vfe);
 		vfe_disable_clocks(vfe->nclocks, vfe->clock);
@@ -1342,18 +1330,6 @@ static int vfe_set_stream(struct v4l2_subdev *sd, int enable)
 		__func__, enable);
 
 	if (enable) {
-		mutex_lock(&vfe->mutex);
-
-		ret = vfe_reset(vfe);
-		if (ret < 0) {
-			dev_err(to_device(vfe), "Fail to reset vfe\n");
-			return ret;
-		}
-
-		vfe_enable_irq_all(vfe);
-
-		mutex_unlock(&vfe->mutex);
-
 		ret = vfe_enable_all_outputs(vfe);
 		if (ret < 0)
 			dev_err(to_device(vfe),
