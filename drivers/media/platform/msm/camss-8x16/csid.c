@@ -908,6 +908,17 @@ int msm_csid_subdev_init(struct csid_device *csid,
 	return 0;
 }
 
+void msm_csid_get_csid_id(struct media_entity *entity, u8 *id)
+{
+	struct v4l2_subdev *sd;
+	struct csid_device *csid;
+
+	sd = container_of(entity, struct v4l2_subdev, entity);
+	csid = v4l2_get_subdevdata(sd);
+
+	*id = csid->id;
+}
+
 /*
  * csid_get_lane_assign - Calculate CSI2 lane assign configuration parameter
  * @lane_cfg - CSI2 lane configuration

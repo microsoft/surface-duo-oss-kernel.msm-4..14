@@ -77,4 +77,6 @@ int msm_csid_register_entities(struct csid_device *csid,
 
 void msm_csid_unregister_entities(struct csid_device *csid);
 
+void msm_csid_get_csid_id(struct media_entity *entity, u8 *id);
+
 #endif /* QC_MSM_CAMSS_CSID_H */
