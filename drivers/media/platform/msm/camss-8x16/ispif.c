@@ -416,7 +416,7 @@ static void ispif_select_csid(struct ispif_device *ispif, enum ispif_intf intf,
 static void ispif_enable_cid(struct ispif_device *ispif, enum ispif_intf intf,
 			     u16 cid_mask, u8 vfe, u8 enable)
 {
-	u32 addr, val;
+	u32 addr = 0, val;
 
 	switch (intf) {
 	case PIX0:
@@ -906,6 +906,20 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 	return 0;
 }
 
+static enum ispif_intf ispif_get_intf(enum vfe_line_id line_id)
+{
+	switch (line_id) {
+	case (VFE_LINE_RDI0):
+		return RDI0;
+	case (VFE_LINE_RDI1):
+		return RDI1;
+	case (VFE_LINE_RDI2):
+		return RDI2;
+	default:
+		return RDI0;
+	}
+}
+
 static int ispif_link_setup(struct media_entity *entity,
 			   const struct media_pad *local,
 			   const struct media_pad *remote, u32 flags)
@@ -919,6 +933,18 @@ static int ispif_link_setup(struct media_entity *entity,
 		line = v4l2_get_subdevdata(sd);
 
 		msm_csid_get_csid_id(remote->entity, &line->csid_id);
+	} else if ((local->flags & MEDIA_PAD_FL_SOURCE) &&
+		   (flags & MEDIA_LNK_FL_ENABLED)) {
+		struct v4l2_subdev *sd;
+		struct ispif_line *line;
+		enum vfe_line_id id;
+
+		sd = container_of(entity, struct v4l2_subdev, entity);
+		line = v4l2_get_subdevdata(sd);
+
+		msm_vfe_get_vfe_id(remote->entity, &line->vfe_id);
+		msm_vfe_get_vfe_line_id(remote->entity, &id);
+		line->interface = ispif_get_intf(id);
 	}
 
 	return 0;

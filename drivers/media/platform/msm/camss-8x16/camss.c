@@ -475,15 +475,20 @@ static int camss_register_entities(struct camss *camss)
 	}
 
 	for (i = 0; i < ARRAY_SIZE(camss->ispif.line); i++) {
-		ret = media_entity_create_link(
-			&camss->ispif.line[i].subdev.entity, MSM_ISPIF_PAD_SRC,
-			&camss->vfe.subdev.entity, MSM_VFE_PAD_SINK,
-			0);
-		if (ret < 0) {
-			dev_err(camss->dev, "Fail to link %s->%s entities\n",
-				camss->ispif.line[i].subdev.entity.name,
-				camss->vfe.subdev.entity.name);
-			goto err_link;
+		for (j = 0; j < ARRAY_SIZE(camss->vfe.line); j++) {
+			ret = media_entity_create_link(
+				&camss->ispif.line[i].subdev.entity,
+				MSM_ISPIF_PAD_SRC,
+				&camss->vfe.line[j].subdev.entity,
+				MSM_VFE_PAD_SINK,
+				0);
+			if (ret < 0) {
+				dev_err(camss->dev,
+					"Fail to link %s->%s entities\n",
+					camss->ispif.line[i].subdev.entity.name,
+					camss->vfe.line[j].subdev.entity.name);
+				goto err_link;
+			}
 		}
 	}
 
@@ -513,6 +518,8 @@ err_reg_csiphy:
 static void camss_unregister_entities(struct camss *camss)
 {
 	int i;
+
+	/* TODO: Remove links? */
 
 	for (i = ARRAY_SIZE(camss->csiphy) - 1; i >= 0; i--)
 		msm_csiphy_unregister_entities(&camss->csiphy[i]);

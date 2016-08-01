@@ -40,7 +40,7 @@
 #define MSM_VFE_NUM_RDI 3
 #define MSM_VFE_IMAGE_MASTERS_NUM 7
 
-#define MSM_VFE_VFE0_UB_SIZE 1024
+#define MSM_VFE_VFE0_UB_SIZE 1023
 #define MSM_VFE_VFE0_UB_SIZE_RDI (MSM_VFE_VFE0_UB_SIZE / 3)
 #define MSM_VFE_VFE1_UB_SIZE 1535
 #define MSM_VFE_VFE1_UB_SIZE_RDI (MSM_VFE_VFE1_UB_SIZE / 3)
@@ -53,15 +53,18 @@ enum msm_vfe_output_state {
 	MSM_VFE_OUTPUT_IDLE,
 };
 
-struct msm_vfe_wm {
-	u8 rdi_idx;
-	u8 wm_idx;
-	u32 bytesperline;
+enum vfe_line_id {
+	VFE_LINE_NONE = -1,
+	VFE_LINE_MIN = 0,
+	VFE_LINE_RDI0 = 0,
+	VFE_LINE_RDI1 = 1,
+	VFE_LINE_RDI2 = 2,
+	VFE_LINE_MAX = VFE_LINE_RDI2,
+	VFE_LINE_PIX /* TODO: implement */
 };
 
 struct msm_vfe_output {
-	u16 active_wm;
-	struct msm_vfe_wm wm[MSM_VFE_MAX_WM_PER_OUTPUT];
+	u8 wm_idx;
 
 	int active_buf;
 	struct msm_video_buffer *buf[2];
@@ -72,12 +75,17 @@ struct msm_vfe_output {
 	enum msm_vfe_output_state state;
 };
 
-struct vfe_device {
-	int hw_id;
+struct vfe_line {
+	enum vfe_line_id id;
 	struct v4l2_subdev subdev;
 	struct media_pad pads[MSM_VFE_PADS_NUM];
-	struct camss *camss;
+	struct v4l2_mbus_framefmt fmt[MSM_VFE_PADS_NUM];
 	struct camss_video video_out;
+	struct msm_vfe_output output;
+};
+
+struct vfe_device {
+	u8 id;
 	void __iomem *base;
 	u32 irq;
 	struct clk **clock;
@@ -85,17 +93,16 @@ struct vfe_device {
 	int nclocks;
 	struct completion reset_completion;
 	struct completion halt_completion;
-	struct mutex mutex;
-	int ref_count;
+	struct mutex power_lock;
+	int power_count;
+	struct mutex stream_lock;
+	int stream_count;
 	spinlock_t output_lock;
-	int rdi_output_map[MSM_VFE_NUM_RDI];
-	int wm_output_map[MSM_VFE_IMAGE_MASTERS_NUM];
-	int stream_cnt;
-	int active_outputs;
-	struct msm_vfe_output output[MSM_VFE_MAX_OUTPUTS];
+	enum vfe_line_id wm_output_map[MSM_VFE_IMAGE_MASTERS_NUM];
 	struct msm_bus_scale_pdata *bus_scale_table;
 	uint32_t bus_client;
-	struct v4l2_mbus_framefmt fmt[MSM_VFE_PADS_NUM];
+	struct vfe_line line[VFE_LINE_MAX + 1];
+	u32 reg_update;
 };
 
 struct resources;
@@ -106,5 +113,8 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 			      struct v4l2_device *v4l2_dev);
 
 void msm_vfe_unregister_entities(struct vfe_device *vfe);
+
+void msm_vfe_get_vfe_id(struct media_entity *entity, u8 *id);
+void msm_vfe_get_vfe_line_id(struct media_entity *entity, enum vfe_line_id *id);
 
 #endif /* QC_MSM_CAMSS_VFE_H */

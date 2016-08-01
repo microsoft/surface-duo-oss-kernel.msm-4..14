@@ -36,6 +36,12 @@
 #define MSM_VFE_NAME "msm_vfe"
 #define MSM_VFE_VIDEO_NAME "msm_vfe_video"
 
+#define vfe_line_array(ptr_line)	\
+	((const struct vfe_line (*)[]) &(ptr_line[-(ptr_line->id)]))
+
+#define to_vfe(ptr_line)	\
+	container_of(vfe_line_array(ptr_line), struct vfe_device, ptr_line)
+
 #define VFE_0_HW_VERSION		0x000
 
 #define VFE_0_GLOBAL_RESET_CMD		0x00c
@@ -64,7 +70,8 @@
 #define VFE_0_IRQ_CLEAR_1		0x034
 
 #define VFE_0_IRQ_STATUS_0		0x038
-#define VFE_0_IRQ_STATUS_0_IMAGE_MASTER_0_PING_PONG	(1 << 8)
+#define VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(n)		(1 << ((n) + 5))
+#define VFE_0_IRQ_STATUS_0_IMAGE_MASTER_n_PING_PONG(n)	(1 << ((n) + 8))
 #define VFE_0_IRQ_STATUS_0_RESET_ACK			(1 << 31)
 #define VFE_0_IRQ_STATUS_1		0x03c
 #define VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK		(1 << 8)
@@ -112,15 +119,15 @@
 
 #define VFE_0_RDI_CFG_x(x)		(0x2e8 + (0x4 * (x)))
 #define VFE_0_RDI_CFG_x_RDI_STREAM_SEL_SHIFT	28
-#define VFE_0_RDI_CFG_x_RDI_STREAM_SEL_MASK	(0xF << 28)
+#define VFE_0_RDI_CFG_x_RDI_STREAM_SEL_MASK	(0xf << 28)
 #define VFE_0_RDI_CFG_x_RDI_M0_SEL_SHIFT	4
-#define VFE_0_RDI_CFG_x_RDI_M0_SEL_MASK		(0xF << 4)
+#define VFE_0_RDI_CFG_x_RDI_M0_SEL_MASK		(0xf << 4)
 #define VFE_0_RDI_CFG_x_RDI_EN_BIT		(1 << 2)
 #define VFE_0_RDI_CFG_x_MIPI_EN_BITS		0x3
 #define VFE_0_RDI_CFG_x_RDI_Mr_FRAME_BASED_EN(r)	(1 << (16 + (r)))
 
 #define VFE_0_REG_UPDATE			0x378
-#define VFE_0_REG_UPDATE_RDI0			(1 << 1)
+#define VFE_0_REG_UPDATE_RDIn(n)		(1 << (1 + (n)))
 #define VFE_0_REG_UPDATE_RDI1			(1 << 2)
 #define VFE_0_REG_UPDATE_RDI2			(1 << 3)
 
@@ -265,34 +272,37 @@ static void vfe_bus_enable_wr_if(struct vfe_device *vfe, u32 enable)
 		writel(0, vfe->base + VFE_0_BUS_CFG);
 }
 
-static int vfe_bus_connect_wm_to_rdi(struct vfe_device *vfe, u32 wm, u32 rdi)
+static int vfe_bus_connect_wm_to_rdi(struct vfe_device *vfe, u32 wm, enum vfe_line_id id)
 {
 	u32 reg;
 
+	if (id != VFE_LINE_RDI0 && id != VFE_LINE_RDI1 && id != VFE_LINE_RDI2)
+		return -EINVAL;
+
 	reg = VFE_0_RDI_CFG_x_MIPI_EN_BITS;
-	reg |= VFE_0_RDI_CFG_x_RDI_Mr_FRAME_BASED_EN(rdi);
+	reg |= VFE_0_RDI_CFG_x_RDI_Mr_FRAME_BASED_EN(id);
 	vfe_reg_set(vfe, VFE_0_RDI_CFG_x(0), reg);
 
 	reg = VFE_0_RDI_CFG_x_RDI_EN_BIT;
-	reg |= ((wm + 3 * rdi) << VFE_0_RDI_CFG_x_RDI_STREAM_SEL_SHIFT) &
+	reg |= ((3 * id) << VFE_0_RDI_CFG_x_RDI_STREAM_SEL_SHIFT) &
 		VFE_0_RDI_CFG_x_RDI_STREAM_SEL_MASK;
-	vfe_reg_set(vfe, VFE_0_RDI_CFG_x(rdi), reg);
+	vfe_reg_set(vfe, VFE_0_RDI_CFG_x(id), reg);
 
-	switch (rdi) {
-	case 0:
+	switch (id) {
+	case VFE_LINE_RDI0:
 		reg = VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI0 <<
 		      VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT;
 		break;
-	case 1:
+	case VFE_LINE_RDI1:
 		reg = VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI1 <<
 		      VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT;
 		break;
-	case 2:
+	case VFE_LINE_RDI2:
 		reg = VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI2 <<
 		      VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT;
 		break;
 	default:
-		dev_err(to_device(vfe), "Invalid rdi %d\n", rdi);
+		dev_err(to_device(vfe), "Invalid rdi %d\n", id);
 		return -EINVAL;
 	}
 
@@ -307,44 +317,63 @@ static int vfe_bus_connect_wm_to_rdi(struct vfe_device *vfe, u32 wm, u32 rdi)
 	return 0;
 }
 
-static int vfe_bus_disconnect_wm_from_rdi(struct vfe_device *vfe, u32 rdi)
+static int vfe_bus_disconnect_wm_from_rdi(struct vfe_device *vfe, u32 wm, enum vfe_line_id id)
 {
 	u32 reg;
 
-	reg = VFE_0_RDI_CFG_x_RDI_Mr_FRAME_BASED_EN(rdi);
+	if (id != VFE_LINE_RDI0 && id != VFE_LINE_RDI1 && id != VFE_LINE_RDI2)
+		return -EINVAL;
+
+	reg = VFE_0_RDI_CFG_x_RDI_Mr_FRAME_BASED_EN(id);
 	vfe_reg_clr(vfe, VFE_0_RDI_CFG_x(0), reg);
 
 	reg = VFE_0_RDI_CFG_x_RDI_EN_BIT;
-	vfe_reg_clr(vfe, VFE_0_RDI_CFG_x(rdi), reg);
+	vfe_reg_clr(vfe, VFE_0_RDI_CFG_x(id), reg);
+
+	switch (id) {
+	case VFE_LINE_RDI0:
+		reg = VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI0 <<
+		      VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT;
+		break;
+	case VFE_LINE_RDI1:
+		reg = VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI1 <<
+		      VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT;
+		break;
+	case VFE_LINE_RDI2:
+		reg = VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI2 <<
+		      VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT;
+		break;
+	default:
+		dev_err(to_device(vfe), "Invalid rdi %d\n", id);
+		return -EINVAL;
+	}
+
+	if (wm % 2 == 1)
+		reg <<= 16;
+
+	vfe_reg_clr(vfe, VFE_0_BUS_XBAR_CFG_x(wm), reg);
 
 	return 0;
 }
 
-static void vfe_set_rdi_cid(struct vfe_device *vfe, u32 rdi_idx, u8 cid)
+static int vfe_set_rdi_cid(struct vfe_device *vfe, enum vfe_line_id id, u8 cid)
 {
-	vfe_reg_clr(vfe, VFE_0_RDI_CFG_x(rdi_idx),
+	if (id != VFE_LINE_RDI0 && id != VFE_LINE_RDI1 && id != VFE_LINE_RDI2)
+		return -EINVAL;
+
+	vfe_reg_clr(vfe, VFE_0_RDI_CFG_x(id),
 		    VFE_0_RDI_CFG_x_RDI_M0_SEL_MASK);
 
-	vfe_reg_set(vfe, VFE_0_RDI_CFG_x(rdi_idx),
+	vfe_reg_set(vfe, VFE_0_RDI_CFG_x(id),
 		    cid << VFE_0_RDI_CFG_x_RDI_M0_SEL_SHIFT);
+
+	return 0;
 }
 
-static int vfe_reg_update(struct vfe_device *vfe, int rdi_idx)
+static int vfe_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
 {
-	switch (rdi_idx) {
-	case 0:
-		writel(VFE_0_REG_UPDATE_RDI0, vfe->base + VFE_0_REG_UPDATE);
-		break;
-	case 1:
-		writel(VFE_0_REG_UPDATE_RDI1, vfe->base + VFE_0_REG_UPDATE);
-		break;
-	case 2:
-		writel(VFE_0_REG_UPDATE_RDI2, vfe->base + VFE_0_REG_UPDATE);
-		break;
-	default:
-		dev_err(to_device(vfe), "Invalid vfe interface %d\n", rdi_idx);
-		return -EINVAL;
-	}
+	vfe->reg_update |= VFE_0_REG_UPDATE_RDIn(line_id);
+	writel(vfe->reg_update, vfe->base + VFE_0_REG_UPDATE);
 
 	return 0;
 }
@@ -379,12 +408,22 @@ static void vfe_enable_irq_common(struct vfe_device *vfe)
 	writel(irq_en1, vfe->base + VFE_0_IRQ_MASK_1);
 }
 
+static void vfe_isr_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&vfe->output_lock, flags);
+	vfe->reg_update &= ~VFE_0_REG_UPDATE_RDIn(line_id);
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
+}
+
 static void vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx);
 
 static irqreturn_t vfe_subdev_isr(int irq, void *dev)
 {
 	struct vfe_device *vfe = dev;
 	u32 value0, value1;
+	int i;
 
 	value0 = readl(vfe->base + VFE_0_IRQ_STATUS_0);
 	value1 = readl(vfe->base + VFE_0_IRQ_STATUS_1);
@@ -398,11 +437,18 @@ static irqreturn_t vfe_subdev_isr(int irq, void *dev)
 	if (value0 & VFE_0_IRQ_STATUS_0_RESET_ACK)
 		complete_all(&vfe->reset_completion);
 
-	if (value1 & VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK)
+	if (value1 & VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK) {
 		complete_all(&vfe->halt_completion);
+		writel(0x0, vfe->base + VFE_0_BUS_BDG_CMD);
+	}
 
-	if (value0 & VFE_0_IRQ_STATUS_0_IMAGE_MASTER_0_PING_PONG)
-		vfe_isr_wm_done(vfe, 0);
+	for (i = VFE_LINE_RDI0; i < VFE_LINE_RDI2 + 1; i++)
+		if (value0 & VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(i))
+			vfe_isr_reg_update(vfe, i);
+
+	for (i = 0; i < 7; i++)
+		if (value0 & VFE_0_IRQ_STATUS_0_IMAGE_MASTER_n_PING_PONG(i))
+			vfe_isr_wm_done(vfe, i);
 
 	return IRQ_HANDLED;
 }
@@ -447,12 +493,13 @@ static void vfe_init_outputs(struct vfe_device *vfe)
 {
 	int i;
 
-	for (i = 0; i < ARRAY_SIZE(vfe->output); i++) {
-		vfe->output[i].active_wm = 0;
-		vfe->output[i].state = MSM_VFE_OUTPUT_OFF;
-		vfe->output[i].buf[0] = NULL;
-		vfe->output[i].buf[1] = NULL;
-		INIT_LIST_HEAD(&vfe->output[i].pending_bufs);
+	for (i = 0; i < ARRAY_SIZE(vfe->line); i++) {
+		struct msm_vfe_output *output = &vfe->line[i].output;
+
+		output->state = MSM_VFE_OUTPUT_OFF;
+		output->buf[0] = NULL;
+		output->buf[1] = NULL;
+		INIT_LIST_HEAD(&output->pending_bufs);
 	}
 }
 
@@ -463,11 +510,8 @@ static void vfe_reset_output_maps(struct vfe_device *vfe)
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
-	for (i = 0; i < ARRAY_SIZE(vfe->rdi_output_map); i++)
-		vfe->rdi_output_map[i] = -1;
-
 	for (i = 0; i < ARRAY_SIZE(vfe->wm_output_map); i++)
-		vfe->wm_output_map[i] = -1;
+		vfe->wm_output_map[i] = VFE_LINE_NONE;
 
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
 }
@@ -505,7 +549,6 @@ static void vfe_output_init_addrs(struct vfe_device *vfe,
 {
 	u32 ping_addr = 0;
 	u32 pong_addr = 0;
-	int i;
 
 	output->active_buf = 0;
 
@@ -517,25 +560,19 @@ static void vfe_output_init_addrs(struct vfe_device *vfe,
 	else
 		pong_addr = ping_addr;
 
-	for (i = 0; i < output->active_wm; i++) {
-		dev_err(to_device(vfe), "init_addrs: wm[%d], ping = 0x%08x, pong = 0x%08x\n",
-			i, ping_addr, pong_addr);
-		vfe_wm_set_ping_addr(vfe, output->wm[i].wm_idx, ping_addr);
-		vfe_wm_set_pong_addr(vfe, output->wm[i].wm_idx, pong_addr);
-		if (sync)
-			vfe_bus_reload_wm(vfe, output->wm[i].wm_idx);
-	}
+	dev_err(to_device(vfe), "init_addrs: wm[%d], ping = 0x%08x, pong = 0x%08x\n",
+		output->wm_idx, ping_addr, pong_addr);
+	vfe_wm_set_ping_addr(vfe, output->wm_idx, ping_addr);
+	vfe_wm_set_pong_addr(vfe, output->wm_idx, pong_addr);
+	if (sync)
+		vfe_bus_reload_wm(vfe, output->wm_idx);
 }
 
 static void vfe_output_reset_addrs(struct vfe_device *vfe,
 				       struct msm_vfe_output *output)
 {
-	int i;
-
-	for (i = 0; i < output->active_wm; i++) {
-		vfe_wm_set_ping_addr(vfe, output->wm[i].wm_idx, 0x00);
-		vfe_wm_set_pong_addr(vfe, output->wm[i].wm_idx, 0x00);
-	}
+	vfe_wm_set_ping_addr(vfe, output->wm_idx, 0x00);
+	vfe_wm_set_pong_addr(vfe, output->wm_idx, 0x00);
 }
 
 static void vfe_output_update_ping_addr(struct vfe_device *vfe,
@@ -543,16 +580,13 @@ static void vfe_output_update_ping_addr(struct vfe_device *vfe,
 					int sync)
 {
 	u32 addr = 0;
-	int i;
 
 	if (output->buf[0])
 		addr = output->buf[0]->addr;
 
-	for (i = 0; i < output->active_wm; i++) {
-		vfe_wm_set_ping_addr(vfe, output->wm[i].wm_idx, addr);
-		if (sync)
-			vfe_bus_reload_wm(vfe, output->wm[i].wm_idx);
-	}
+	vfe_wm_set_ping_addr(vfe, output->wm_idx, addr);
+	if (sync)
+		vfe_bus_reload_wm(vfe, output->wm_idx);
 }
 
 static void vfe_output_update_pong_addr(struct vfe_device *vfe,
@@ -560,51 +594,24 @@ static void vfe_output_update_pong_addr(struct vfe_device *vfe,
 					int sync)
 {
 	u32 addr = 0;
-	int i;
 
 	if (output->buf[1])
 		addr = output->buf[1]->addr;
 
-	for (i = 0; i < output->active_wm; i++) {
-		vfe_wm_set_pong_addr(vfe, output->wm[i].wm_idx, addr);
-		if (sync)
-			vfe_bus_reload_wm(vfe, output->wm[i].wm_idx);
-	}
+	vfe_wm_set_pong_addr(vfe, output->wm_idx, addr);
+	if (sync)
+		vfe_bus_reload_wm(vfe, output->wm_idx);
+
 }
 
-static int __vfe_reserve_rdi(struct vfe_device *vfe, u32 output_idx)
-{
-	int ret = -EBUSY;
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(vfe->rdi_output_map); i++) {
-		if (vfe->rdi_output_map[i] < 0) {
-			vfe->rdi_output_map[i] = output_idx;
-			ret = i;
-			break;
-		}
-	}
-	return ret;
-}
-
-static int __vfe_release_rdi(struct vfe_device *vfe, u32 rdi_idx)
-{
-	if (rdi_idx > ARRAY_SIZE(vfe->rdi_output_map))
-		return -EINVAL;
-
-	vfe->rdi_output_map[rdi_idx] = -1;
-
-	return 0;
-}
-
-static int __vfe_reserve_wm(struct vfe_device *vfe, u32 output_idx)
+static int __vfe_reserve_wm(struct vfe_device *vfe, enum vfe_line_id line_id)
 {
 	int ret = -EBUSY;
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(vfe->wm_output_map); i++) {
-		if (vfe->wm_output_map[i] < 0) {
-			vfe->wm_output_map[i] = output_idx;
+		if (vfe->wm_output_map[i] == VFE_LINE_NONE) {
+			vfe->wm_output_map[i] = line_id;
 			ret = i;
 			break;
 		}
@@ -613,12 +620,12 @@ static int __vfe_reserve_wm(struct vfe_device *vfe, u32 output_idx)
 	return ret;
 }
 
-static int __vfe_release_wm(struct vfe_device *vfe, u32 wm_idx)
+static int __vfe_release_wm(struct vfe_device *vfe, u8 wm_idx)
 {
 	if (wm_idx > ARRAY_SIZE(vfe->wm_output_map))
 		return -EINVAL;
 
-	vfe->wm_output_map[wm_idx] = -1;
+	vfe->wm_output_map[wm_idx] = VFE_LINE_NONE;
 
 	return 0;
 }
@@ -651,22 +658,18 @@ static void vfe_output_frame_drop(struct vfe_device *vfe,
 				  u32 drop_pattern)
 {
 	u32 drop_period;
-	int i;
 
 	/* We need to toggle update period to be valid on next frame */
 	output->drop_update_idx++;
 	output->drop_update_idx %= VFE_FRAME_DROP_UPDATES;
 	drop_period = VFE_FRAME_DROP_VAL + output->drop_update_idx;
 
-	for (i = 0; i < output->active_wm; i++) {
-		vfe_wm_set_framedrop_period(vfe, output->wm[i].wm_idx,
-					    drop_period);
-		wmb();
-		vfe_wm_set_framedrop_pattern(vfe, output->wm[i].wm_idx,
-					     drop_pattern);
-		wmb();
-		vfe_reg_update(vfe, output->wm[i].rdi_idx);
-	}
+	vfe_wm_set_framedrop_period(vfe, output->wm_idx, drop_period);
+	wmb();
+	vfe_wm_set_framedrop_pattern(vfe, output->wm_idx, drop_pattern);
+	wmb();
+	vfe_reg_update(vfe, container_of(output, struct vfe_line, output)->id);
+
 }
 
 /*
@@ -790,20 +793,16 @@ static void __vfe_update_wm_on_new_buf(struct vfe_device *vfe,
 	}
 }
 
-static struct msm_vfe_output* vfe_get_output(struct vfe_device *vfe,
-					     u32 output_idx)
+static int vfe_get_output(struct vfe_line *line)
 {
+	struct vfe_device *vfe = to_vfe(line);
 	struct msm_vfe_output *output;
 	unsigned long flags;
 	int wm_idx;
-	int rdi_idx;
-
-	if (output_idx > ARRAY_SIZE(vfe->output))
-		return ERR_PTR(-EINVAL);
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
-	output = &vfe->output[output_idx];
+	output = &line->output;
 	if (output->state != MSM_VFE_OUTPUT_OFF) {
 		dev_err(to_device(vfe), "Output is running\n");
 		goto error;
@@ -812,76 +811,58 @@ static struct msm_vfe_output* vfe_get_output(struct vfe_device *vfe,
 
 	output->active_buf = 0;
 
-	rdi_idx = __vfe_reserve_rdi(vfe, output_idx);
-	if (rdi_idx < 0) {
-		dev_err(to_device(vfe), "Can not reserve rdi\n");
-		goto error_get_rdi;
-	}
-
 	/* We will use only one wm per output for now */
-	wm_idx = __vfe_reserve_wm(vfe, output_idx);
+	wm_idx = __vfe_reserve_wm(vfe, line->id);
 	if (wm_idx < 0) {
 		dev_err(to_device(vfe), "Can not reserve wm\n");
 		goto error_get_wm;
 	}
-	output->active_wm = 1;
 	output->drop_update_idx = 0;
-	output->wm[0].wm_idx = wm_idx;
-	output->wm[0].rdi_idx = rdi_idx;
+	output->wm_idx = wm_idx;
+
+	dev_err(to_device(vfe), "%s: RDI%d -> WM%d\n",
+		__func__, line->id, wm_idx);
 
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
 
-	return output;
+	return 0;
 
 error_get_wm:
-	__vfe_release_rdi(vfe, rdi_idx);
-error_get_rdi:
 	output->state = MSM_VFE_OUTPUT_OFF;
 error:
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
 
-	return ERR_PTR(-EINVAL);
+	return -EINVAL;
 }
 
-static int vfe_put_output(struct vfe_device *vfe,
-			  struct msm_vfe_output *output)
+static int vfe_put_output(struct vfe_line *line)
 {
-	struct msm_vfe_wm *wm;
+	struct vfe_device *vfe = to_vfe(line);
+	struct msm_vfe_output *output = &line->output;
 	unsigned long flags;
 	int ret;
-	int i;
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
-	for (i = 0; i < output->active_wm; i++) {
-		wm = &output->wm[i];
-
-		ret = __vfe_release_wm(vfe, wm->wm_idx);
-		if (ret < 0)
-			goto out;
-
-		ret = __vfe_release_rdi(vfe, wm->rdi_idx);
-		if (ret < 0)
-			goto out;
-	}
+	ret = __vfe_release_wm(vfe, output->wm_idx);
+	if (ret < 0)
+		goto out;
 
 	output->state = MSM_VFE_OUTPUT_OFF;
-	output->active_wm = 0;
 
 out:
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
 	return ret;
 }
 
-static int vfe_enable_output(struct vfe_device *vfe,
-			     struct msm_vfe_output *output)
+static int vfe_enable_output(struct vfe_line *line)
 {
-	struct msm_vfe_wm *wm;
+	struct vfe_device *vfe = to_vfe(line);
+	struct msm_vfe_output *output = &line->output;
 	unsigned long flags;
 	u32 ub_size;
-	int i;
 
-	switch (vfe->hw_id) {
+	switch (vfe->id) {
 	case 0:
 		ub_size = MSM_VFE_VFE0_UB_SIZE_RDI;
 		break;
@@ -893,6 +874,8 @@ static int vfe_enable_output(struct vfe_device *vfe,
 	}
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
+
+	vfe->reg_update &= ~VFE_0_REG_UPDATE_RDIn(line->id);
 
 	if (output->state != MSM_VFE_OUTPUT_RESERVED) {
 		dev_err(to_device(vfe), "Output is not in reserved state %d\n",
@@ -909,8 +892,6 @@ static int vfe_enable_output(struct vfe_device *vfe,
 	output->buf[1] = __vfe_get_next_output_buf(output);
 	if (output->buf[1])
 		output->state = MSM_VFE_OUTPUT_CONTINUOUS;
-
-	vfe_set_qos(vfe);
 
 	switch (output->state) {
 	case MSM_VFE_OUTPUT_SINGLE:
@@ -930,106 +911,110 @@ static int vfe_enable_output(struct vfe_device *vfe,
 
 	vfe_output_init_addrs(vfe, output, 0);
 
-	for (i = 0; i < output->active_wm; i++) {
-		wm = &output->wm[i];
+	vfe_set_cgc_override(vfe, output->wm_idx, 1);
 
-		vfe_set_cgc_override(vfe, wm->wm_idx, 1);
+	vfe_enable_irq_wm(vfe, output->wm_idx, 1);
 
-		vfe_enable_irq_wm(vfe, wm->wm_idx, 1);
+	vfe_bus_connect_wm_to_rdi(vfe, output->wm_idx, line->id);
 
-		vfe_bus_connect_wm_to_rdi(vfe, wm->wm_idx, wm->rdi_idx);
+	vfe_set_rdi_cid(vfe, line->id, 0);
 
-		vfe_set_rdi_cid(vfe, wm->rdi_idx, 0);
+	vfe_wm_set_ub_cfg(vfe, output->wm_idx,
+			  (ub_size + 1) * output->wm_idx, ub_size);
 
-		vfe_wm_set_ub_cfg(vfe, wm->wm_idx, ub_size * wm->wm_idx,
-				  ub_size);
+	vfe_wm_frame_based(vfe, output->wm_idx, 1);
+	vfe_wm_enable(vfe, output->wm_idx, 1);
 
-		vfe_wm_frame_based(vfe, wm->wm_idx, 1);
-		vfe_wm_enable(vfe, wm->wm_idx, 1);
+	vfe_bus_reload_wm(vfe, output->wm_idx);
 
-		vfe_bus_reload_wm(vfe, output->wm[i].wm_idx);
-
-		vfe_reg_update(vfe, wm->rdi_idx);
-	}
+	vfe_reg_update(vfe, line->id);
 
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
 
 	return 0;
 }
 
-static int vfe_disable_output(struct vfe_device *vfe,
-			      struct msm_vfe_output *output)
+static int vfe_disable_output(struct vfe_line *line)
 {
-	struct msm_vfe_wm *wm;
-	int i;
+	struct vfe_device *vfe = to_vfe(line);
+	struct msm_vfe_output *output = &line->output;
+	unsigned long flags;
 
-	for (i = 0; i <  output->active_wm; i++) {
-		wm = &output->wm[i];
-		vfe_wm_enable(vfe, wm->wm_idx, 0);
-		vfe_bus_disconnect_wm_from_rdi(vfe, wm->rdi_idx);
-		vfe_reg_update(vfe, wm->rdi_idx);
-	}
+	spin_lock_irqsave(&vfe->output_lock, flags);
+
+	vfe_wm_enable(vfe, output->wm_idx, 0);
+	vfe_bus_disconnect_wm_from_rdi(vfe, output->wm_idx, line->id);
+	vfe_reg_update(vfe, line->id);
+
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
 
 	return 0;
 }
 
-static int vfe_enable_all_outputs(struct vfe_device *vfe)
+static int vfe_enable(struct vfe_line *line)
 {
-	struct msm_vfe_output *output;
+	struct vfe_device *vfe = to_vfe(line);
 	int ret;
-	int i;
 
-	mutex_lock(&vfe->mutex);
+	mutex_lock(&vfe->stream_lock);
 
-	vfe_enable_irq_common(vfe);
+	if (!vfe->stream_count) {
+		vfe_enable_irq_common(vfe);
 
-	/* Bus interface should be enabled first */
-	vfe_bus_enable_wr_if(vfe, 1);
+		vfe_bus_enable_wr_if(vfe, 1);
 
-	for (i = 0; i < vfe->stream_cnt; i++) {
-		output = vfe_get_output(vfe, i);
-		if (IS_ERR_OR_NULL(output))
-			goto error;
-
-		ret = vfe_enable_output(vfe, output);
-		if (ret < 0)
-			goto error;
+		vfe_set_qos(vfe);
 	}
-	vfe->active_outputs = i;
 
-	mutex_unlock(&vfe->mutex);
+	vfe->stream_count++;
+
+	mutex_unlock(&vfe->stream_lock);
+
+	ret = vfe_get_output(line);
+	if (ret < 0)
+		goto error_get_output;
+
+	ret = vfe_enable_output(line);
+	if (ret < 0)
+		goto error_enable_output;
 
 	return 0;
 
-error:
-	vfe_bus_enable_wr_if(vfe, 0);
 
-	for (; i > 0; i--)
-		vfe_put_output(vfe, &vfe->output[i - 1]);
+error_enable_output:
+	vfe_put_output(line);
 
-	mutex_unlock(&vfe->mutex);
+error_get_output:
+	mutex_lock(&vfe->stream_lock);
+
+	if (vfe->stream_count == 1)
+		vfe_bus_enable_wr_if(vfe, 0);
+
+	vfe->stream_count--;
+
+	mutex_unlock(&vfe->stream_lock);
 
 	return ret;
 }
 
-static int vfe_disable_all_outputs(struct vfe_device *vfe)
+static int vfe_disable(struct vfe_line *line)
 {
-	int i;
+	struct vfe_device *vfe = to_vfe(line);
 
-	mutex_lock(&vfe->mutex);
+	mutex_lock(&vfe->stream_lock);
 
-	vfe_bus_enable_wr_if(vfe, 0);
+	if (vfe->stream_count == 1) {
+		vfe_bus_enable_wr_if(vfe, 0);
 
-	for (i = 0; i < vfe->active_outputs; i++) {
-		vfe_disable_output(vfe, &vfe->output[i]);
-		vfe_put_output(vfe, &vfe->output[i]);
 	}
 
-	vfe_halt(vfe);
+	vfe->stream_count--;
 
-	vfe->active_outputs = 0;
+	mutex_unlock(&vfe->stream_lock);
 
-	mutex_unlock(&vfe->mutex);
+	vfe_disable_output(line);
+
+	vfe_put_output(line);
 
 	return 0;
 }
@@ -1046,12 +1031,12 @@ static void vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx)
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
-	if (vfe->wm_output_map[wm_idx] < 0) {
+	if (vfe->wm_output_map[wm_idx] == VFE_LINE_NONE) {
 		dev_err_ratelimited(to_device(vfe),
 				    "Received wm done for unmapped index\n");
 		goto out_unlock;
 	}
-	output = &vfe->output[vfe->wm_output_map[wm_idx]];
+	output = &vfe->line[vfe->wm_output_map[wm_idx]].output;
 
 	if (output->active_buf == active_index) {
 		dev_err_ratelimited(to_device(vfe),
@@ -1186,10 +1171,10 @@ static int vfe_get(struct vfe_device *vfe)
 {
 	int ret;
 
-	mutex_lock(&vfe->mutex);
+	mutex_lock(&vfe->power_lock);
 
-	if (vfe->ref_count == 0) {
-		vfe_reset_output_maps(vfe);
+	if (vfe->power_count == 0) {
+		vfe_reset_output_maps(vfe); /* TODO: Move? */
 
 		ret = vfe_bus_request(vfe);
 		if (ret < 0) {
@@ -1210,9 +1195,9 @@ static int vfe_get(struct vfe_device *vfe)
 			goto error_reset;
 		}
 	}
-	vfe->ref_count++;
+	vfe->power_count++;
 
-	mutex_unlock(&vfe->mutex);
+	mutex_unlock(&vfe->power_lock);
 
 	return 0;
 
@@ -1220,38 +1205,53 @@ error_reset:
 	vfe_disable_clocks(vfe->nclocks, vfe->clock);
 
 error_clocks:
-	mutex_unlock(&vfe->mutex);
+	mutex_unlock(&vfe->power_lock);
 	return ret;
 }
 
 static void vfe_put(struct vfe_device *vfe)
 {
-	mutex_lock(&vfe->mutex);
-	BUG_ON(vfe->ref_count == 0);
+	mutex_lock(&vfe->power_lock);
+	BUG_ON(vfe->power_count == 0);
 
-	if (--vfe->ref_count == 0) {
-		vfe_init_outputs(vfe);
+	if (--vfe->power_count == 0) {
+//		vfe_init_outputs(vfe); /* TODO */
+		vfe_halt(vfe);
 		vfe_bus_release(vfe);
 		vfe_disable_clocks(vfe->nclocks, vfe->clock);
 	}
-	mutex_unlock(&vfe->mutex);
+	mutex_unlock(&vfe->power_lock);
+}
+
+static struct vfe_line
+*vfe_video_pad_to_line(struct media_pad *pad)
+{
+	struct media_pad *vfe_pad;
+	struct v4l2_subdev *subdev;
+
+	vfe_pad = media_entity_remote_pad(pad);
+	if (pad == NULL)
+		return NULL;
+
+	subdev = media_entity_to_v4l2_subdev(vfe_pad->entity);
+
+	return container_of(subdev, struct vfe_line, subdev);
 }
 
 static int vfe_queue_dmabuf(struct camss_video *vid,
 			    struct msm_video_buffer *buf)
 {
 	struct vfe_device *vfe = &vid->camss->vfe;
+	struct vfe_line *line;
 	struct msm_vfe_output *output;
 	unsigned long flags;
-	int idx;
 
-	idx = 0; // TODO: msm_vfe_pad_to_output(vfe, vid->pad_idx);
-	if (idx < 0) {
-		dev_err(to_device(vfe),
-			"Can not queue dma buf invalid pad idx\n");
-		return idx;
+	line = vfe_video_pad_to_line(&vid->pad);
+	if (!line) {
+		dev_err(to_device(vfe), "Can not queue dma buf\n");
+		return -1;
 	}
-	output = &vfe->output[idx];
+	output = &line->output;
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
@@ -1265,17 +1265,16 @@ static int vfe_queue_dmabuf(struct camss_video *vid,
 static int vfe_flush_dmabufs(struct camss_video *vid)
 {
 	struct vfe_device *vfe = &vid->camss->vfe;
+	struct vfe_line *line;
 	struct msm_vfe_output *output;
 	unsigned long flags;
-	int idx;
 
-	idx = 0; // TODO: msm_vfe_pad_to_output(vfe, vid->pad_idx);
-	if (idx < 0) {
-		dev_err(to_device(vfe),
-			"Can not flush dma buf invalid pad idx\n");
-		return idx;
+	line = vfe_video_pad_to_line(&vid->pad);
+	if (!line) {
+		dev_err(to_device(vfe),	"Can not flush dma buf\n");
+		return -1;
 	}
-	output = &vfe->output[idx];
+	output = &line->output;
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
@@ -1294,11 +1293,12 @@ static int vfe_flush_dmabufs(struct camss_video *vid)
 
 static int vfe_set_power(struct v4l2_subdev *sd, int on)
 {
-	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
+	struct vfe_device *vfe = to_vfe(line);
 	int ret;
 
-	dev_err(to_device(vfe), "%s: Enter, on = %d\n",
-		__func__, on);
+	dev_err(to_device(vfe), "%s: Enter, rdi%d on = %d\n",
+		__func__, line->id, on);
 
 	if (on) {
 		u32 hw_version;
@@ -1307,7 +1307,6 @@ static int vfe_set_power(struct v4l2_subdev *sd, int on)
 		if (ret < 0)
 			return ret;
 
-
 		hw_version = readl(vfe->base);
 		dev_err(to_device(vfe),
 			"VFE HW Version = 0x%08x\n", hw_version);
@@ -1315,27 +1314,28 @@ static int vfe_set_power(struct v4l2_subdev *sd, int on)
 		vfe_put(vfe);
 	}
 
-	dev_err(to_device(vfe), "%s: Exit, on = %d\n",
-		__func__, on);
+	dev_err(to_device(vfe), "%s: Exit, rdi%d on = %d\n",
+		__func__, line->id, on);
 
 	return 0;
 }
 
 static int vfe_set_stream(struct v4l2_subdev *sd, int enable)
 {
-	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
+	struct vfe_device *vfe = to_vfe(line);
 	int ret = 0;
 
-	dev_err(to_device(vfe), "%s: Enter, enable = %d\n",
-		__func__, enable);
+	dev_err(to_device(vfe), "%s: Enter, rdi%d enable = %d\n",
+		__func__, line->id, enable);
 
 	if (enable) {
-		ret = vfe_enable_all_outputs(vfe);
+		ret = vfe_enable(line);
 		if (ret < 0)
 			dev_err(to_device(vfe),
 				"Fail to enable vfe outputs\n");
 	} else {
-		ret = vfe_disable_all_outputs(vfe);
+		ret = vfe_disable(line);
 		if (ret < 0)
 			dev_err(to_device(vfe),
 				"Fail to disable vfe outputs\n");
@@ -1346,7 +1346,7 @@ static int vfe_set_stream(struct v4l2_subdev *sd, int enable)
 
 /*
  * __vfe_get_format - Get pointer to format structure
- * @vfe: VFE device
+ * @vfe: VFE line
  * @cfg: V4L2 subdev pad configuration
  * @pad: pad from which format is requested
  * @which: TRY or ACTIVE format
@@ -1354,27 +1354,27 @@ static int vfe_set_stream(struct v4l2_subdev *sd, int enable)
  * Return pointer to TRY or ACTIVE format structure
  */
 static struct v4l2_mbus_framefmt *
-__vfe_get_format(struct vfe_device *vfe,
+__vfe_get_format(struct vfe_line *line,
 		 struct v4l2_subdev_pad_config *cfg,
 		 unsigned int pad,
 		 enum v4l2_subdev_format_whence which)
 {
 	if (which == V4L2_SUBDEV_FORMAT_TRY)
-		return v4l2_subdev_get_try_format(&vfe->subdev, cfg, pad);
+		return v4l2_subdev_get_try_format(&line->subdev, cfg, pad);
 
-	return &vfe->fmt[pad];
+	return &line->fmt[pad];
 }
 
 
 /*
  * vfe_try_format - Handle try format by pad subdev method
- * @vfe: VFE device
+ * @vfe: VFE line
  * @cfg: V4L2 subdev pad configuration
  * @pad: pad on which format is requested
  * @fmt: pointer to v4l2 format structure
  * @which: wanted subdev format
  */
-static void vfe_try_format(struct vfe_device *vfe,
+static void vfe_try_format(struct vfe_line *line,
 			   struct v4l2_subdev_pad_config *cfg,
 			   unsigned int pad,
 			   struct v4l2_mbus_framefmt *fmt,
@@ -1405,7 +1405,7 @@ static void vfe_try_format(struct vfe_device *vfe,
 	case MSM_VFE_PAD_SRC:
 		/* Set and return a format same as sink pad */
 
-		*fmt = *__vfe_get_format(vfe, cfg, MSM_VFE_PAD_SINK,
+		*fmt = *__vfe_get_format(line, cfg, MSM_VFE_PAD_SINK,
 					 which);
 
 		break;
@@ -1425,7 +1425,7 @@ static int vfe_enum_mbus_code(struct v4l2_subdev *sd,
 			      struct v4l2_subdev_pad_config *cfg,
 			      struct v4l2_subdev_mbus_code_enum *code)
 {
-	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
 	struct v4l2_mbus_framefmt *format;
 
 	if (code->pad == MSM_VFE_PAD_SINK) {
@@ -1437,7 +1437,7 @@ static int vfe_enum_mbus_code(struct v4l2_subdev *sd,
 		if (code->index > 0)
 			return -EINVAL;
 
-		format = __vfe_get_format(vfe, cfg, MSM_VFE_PAD_SINK,
+		format = __vfe_get_format(line, cfg, MSM_VFE_PAD_SINK,
 					  code->which);
 
 		code->code = format->code;
@@ -1457,7 +1457,7 @@ static int vfe_enum_frame_size(struct v4l2_subdev *sd,
 			       struct v4l2_subdev_pad_config *cfg,
 			       struct v4l2_subdev_frame_size_enum *fse)
 {
-	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
 	struct v4l2_mbus_framefmt format;
 
 	if (fse->index != 0)
@@ -1466,7 +1466,7 @@ static int vfe_enum_frame_size(struct v4l2_subdev *sd,
 	format.code = fse->code;
 	format.width = 1;
 	format.height = 1;
-	vfe_try_format(vfe, cfg, fse->pad, &format, fse->which);
+	vfe_try_format(line, cfg, fse->pad, &format, fse->which);
 	fse->min_width = format.width;
 	fse->min_height = format.height;
 
@@ -1476,7 +1476,7 @@ static int vfe_enum_frame_size(struct v4l2_subdev *sd,
 	format.code = fse->code;
 	format.width = -1;
 	format.height = -1;
-	vfe_try_format(vfe, cfg, fse->pad, &format, fse->which);
+	vfe_try_format(line, cfg, fse->pad, &format, fse->which);
 	fse->max_width = format.width;
 	fse->max_height = format.height;
 
@@ -1495,10 +1495,10 @@ static int vfe_get_format(struct v4l2_subdev *sd,
 			  struct v4l2_subdev_pad_config *cfg,
 			  struct v4l2_subdev_format *fmt)
 {
-	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
 	struct v4l2_mbus_framefmt *format;
 
-	format = __vfe_get_format(vfe, cfg, fmt->pad, fmt->which);
+	format = __vfe_get_format(line, cfg, fmt->pad, fmt->which);
 	if (format == NULL)
 		return -EINVAL;
 
@@ -1519,23 +1519,23 @@ static int vfe_set_format(struct v4l2_subdev *sd,
 			  struct v4l2_subdev_pad_config *cfg,
 			  struct v4l2_subdev_format *fmt)
 {
-	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
+	struct vfe_line *line = v4l2_get_subdevdata(sd);
 	struct v4l2_mbus_framefmt *format;
 
-	format = __vfe_get_format(vfe, cfg, fmt->pad, fmt->which);
+	format = __vfe_get_format(line, cfg, fmt->pad, fmt->which);
 	if (format == NULL)
 		return -EINVAL;
 
-	vfe_try_format(vfe, cfg, fmt->pad, &fmt->format, fmt->which);
+	vfe_try_format(line, cfg, fmt->pad, &fmt->format, fmt->which);
 	*format = fmt->format;
 
 	/* Propagate the format from sink to source */
 	if (fmt->pad == MSM_VFE_PAD_SINK) {
-		format = __vfe_get_format(vfe, cfg, MSM_VFE_PAD_SRC,
+		format = __vfe_get_format(line, cfg, MSM_VFE_PAD_SRC,
 					  fmt->which);
 
 		*format = fmt->format;
-		vfe_try_format(vfe, cfg, MSM_VFE_PAD_SRC, format,
+		vfe_try_format(line, cfg, MSM_VFE_PAD_SRC, format,
 			       fmt->which);
 	}
 
@@ -1575,15 +1575,22 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 	int i;
 	int ret;
 
-	mutex_init(&vfe->mutex);
+	mutex_init(&vfe->power_lock);
+	vfe->power_count = 0;
+
+	mutex_init(&vfe->stream_lock);
+	vfe->stream_count = 0;
+
 	spin_lock_init(&vfe->output_lock);
 
-	vfe->hw_id = 0;
+	vfe->id = 0;
+	vfe->reg_update = 0;
 
-	vfe->video_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	vfe->video_out.camss = camss;
-
-	vfe->stream_cnt = 1;
+	for (i = 0; i < ARRAY_SIZE(vfe->line); i++) {
+		vfe->line[i].video_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		vfe->line[i].video_out.camss = camss;
+		vfe->line[i].id = i;
+	}
 
 	/* Memory */
 
@@ -1665,6 +1672,30 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 	return 0;
 }
 
+void msm_vfe_get_vfe_id(struct media_entity *entity, u8 *id)
+{
+	struct v4l2_subdev *sd;
+	struct vfe_line *line;
+	struct vfe_device *vfe;
+
+	sd = container_of(entity, struct v4l2_subdev, entity);
+	line = v4l2_get_subdevdata(sd);
+	vfe = to_vfe(line);
+
+	*id = vfe->id;
+}
+
+void msm_vfe_get_vfe_line_id(struct media_entity *entity, enum vfe_line_id *id)
+{
+	struct v4l2_subdev *sd;
+	struct vfe_line *line;
+
+	sd = container_of(entity, struct v4l2_subdev, entity);
+	line = v4l2_get_subdevdata(sd);
+
+	*id = line->id;
+}
+
 static const struct v4l2_subdev_core_ops vfe_core_ops = {
 	.s_power = vfe_set_power,
 };
@@ -1700,65 +1731,100 @@ static struct msm_video_ops rdi_video_ops = {
 int msm_vfe_register_entities(struct vfe_device *vfe,
 			      struct v4l2_device *v4l2_dev)
 {
-	struct v4l2_subdev *sd = &vfe->subdev;
-	struct media_pad *pads = vfe->pads;
+	struct v4l2_subdev *sd;
+	struct media_pad *pads;
+	struct camss_video *video_out;
 	int ret;
+	int i;
 
-	v4l2_subdev_init(sd, &vfe_v4l2_ops);
-	sd->internal_ops = &vfe_v4l2_internal_ops;
-	sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
-	snprintf(sd->name, ARRAY_SIZE(sd->name), MSM_VFE_NAME);
-	v4l2_set_subdevdata(sd, vfe);
+	for (i = 0; i < ARRAY_SIZE(vfe->line); i++) {
+		char name[32];
 
-	vfe_init_formats(sd);
+		sd = &vfe->line[i].subdev;
+		pads = vfe->line[i].pads;
+		video_out = &vfe->line[i].video_out;
 
-	pads[MSM_VFE_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
-	pads[MSM_VFE_PAD_SRC].flags = MEDIA_PAD_FL_SOURCE;
 
-	sd->entity.ops = &vfe_media_ops;
-	ret = media_entity_init(&sd->entity, MSM_VFE_PADS_NUM, pads, 0);
-	if (ret < 0) {
-		pr_err("Fail to init media entity");
-		goto error_init_entity;
-	}
+		v4l2_subdev_init(sd, &vfe_v4l2_ops);
+		sd->internal_ops = &vfe_v4l2_internal_ops;
+		sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
+		snprintf(sd->name, ARRAY_SIZE(sd->name), "%s%d_%s%d",
+			 MSM_VFE_NAME, vfe->id, "rdi", i);
+		v4l2_set_subdevdata(sd, &vfe->line[i]);
 
-	ret = v4l2_device_register_subdev(v4l2_dev, sd);
-	if (ret < 0) {
-		pr_err("Fail to register subdev");
-		goto error_reg_subdev;
-	}
+		vfe_init_formats(sd);
 
-	vfe->video_out.ops = &rdi_video_ops;
-	ret = msm_video_register(&vfe->video_out, v4l2_dev, MSM_VFE_VIDEO_NAME);
-	if (ret < 0)
-		goto error_reg_video;
+		pads[MSM_VFE_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
+		pads[MSM_VFE_PAD_SRC].flags = MEDIA_PAD_FL_SOURCE;
 
-	ret = media_entity_create_link(
-			&vfe->subdev.entity, MSM_VFE_PAD_SRC,
-			&vfe->video_out.vdev->entity, 0,
-			MEDIA_LNK_FL_IMMUTABLE | MEDIA_LNK_FL_ENABLED);
-	if (ret < 0) {
-		pr_err("Fail to link %s->%s entities\n",
-			vfe->subdev.entity.name,
-			vfe->video_out.vdev->entity.name);
-		goto error_link;
+		sd->entity.ops = &vfe_media_ops;
+		ret = media_entity_init(&sd->entity, MSM_VFE_PADS_NUM, pads, 0);
+		if (ret < 0) {
+			pr_err("Fail to init media entity");
+			goto error_init_entity;
+		}
+
+		ret = v4l2_device_register_subdev(v4l2_dev, sd);
+		if (ret < 0) {
+			pr_err("Fail to register subdev");
+			goto error_reg_subdev;
+		}
+
+		video_out->ops = &rdi_video_ops;
+		snprintf(name, ARRAY_SIZE(name), "%s%d", MSM_VFE_VIDEO_NAME, i);
+		ret = msm_video_register(video_out, v4l2_dev, name);
+		if (ret < 0) {
+			pr_err("Failed to register video node");
+			goto error_reg_video;
+		}
+
+		ret = media_entity_create_link(
+				&sd->entity, MSM_VFE_PAD_SRC,
+				&video_out->vdev->entity, 0,
+				MEDIA_LNK_FL_IMMUTABLE | MEDIA_LNK_FL_ENABLED);
+		if (ret < 0) {
+			pr_err("Fail to link %s->%s entities\n",
+			       sd->entity.name, video_out->vdev->entity.name);
+			goto error_link;
+		}
 	}
 
 	return 0;
 
 error_link:
-	msm_video_unregister(&vfe->video_out);
+	msm_video_unregister(video_out);
+
 error_reg_video:
 	v4l2_device_unregister_subdev(sd);
+
 error_reg_subdev:
 	media_entity_cleanup(&sd->entity);
+
 error_init_entity:
+	for (i--; i >= 0; i--) {
+		sd = &vfe->line[i].subdev;
+		video_out = &vfe->line[i].video_out;
+
+		media_entity_remove_links(&sd->entity);
+		msm_video_unregister(video_out);
+		v4l2_device_unregister_subdev(sd);
+		media_entity_cleanup(&sd->entity);
+	}
 
 	return ret;
 }
 
 void msm_vfe_unregister_entities(struct vfe_device *vfe)
 {
-	v4l2_device_unregister_subdev(&vfe->subdev);
-	msm_video_unregister(&vfe->video_out);
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(vfe->line); i++) {
+		struct v4l2_subdev *sd = &vfe->line[i].subdev;
+		struct camss_video *video_out = &vfe->line[i].video_out;
+
+		media_entity_remove_links(&sd->entity);
+		msm_video_unregister(video_out);
+		v4l2_device_unregister_subdev(sd);
+		media_entity_cleanup(&sd->entity);
+	}
 }
