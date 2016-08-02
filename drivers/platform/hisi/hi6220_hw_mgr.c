@@ -18,19 +18,22 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/kernel.h>
-#include <linux/gpio.h>
+#include <linux/gpio/consumer.h>
 #include <linux/of.h>
 #include <linux/of_gpio.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 
+struct gpio_desc *of_get_named_gpiod_flags(struct device_node *np,
+		const char *list_name, int index, enum of_gpio_flags *flags);
+
 struct gpio_req {
 	struct delayed_work gpio_work;
 	struct device *dev;
 	const char *name;
 	unsigned long flags;
-	int gpio;
+	struct gpio_desc *gpiod;
 };
 
 static char *hw_dt_entry;
@@ -53,17 +56,18 @@ static int platform_hw_mgr_apply_overlay(struct device_node *onp)
 	return 0;
 }
 
-static int platform_hw_set_gpio(struct device *dev, int gpio,
+static int platform_hw_set_gpio(struct device *dev, struct gpio_desc *gpiod,
                                 unsigned long flags, const char *name)
 {
 	int ret;
 
-	ret = devm_gpio_request_one(dev, gpio, flags, "set-gpio");
+	ret = gpiod_direction_output(gpiod,
+				     flags & GPIOF_OUT_INIT_HIGH ? 1 : 0);
 	if (ret) {
-		pr_err("hw_mgr: error %d requesting gpio\n", ret);
+		pr_err("hw_mgr: %s gpio error %d setting output\n", name, ret);
 		return ret;
 	}
-	devm_gpio_free(dev, gpio);
+	gpiod_put(gpiod);
 	pr_info("hw_mgr: %s gpio set to 0x%lx\n", name, flags);
 	return ret;
 }
@@ -73,7 +77,7 @@ static void hw_mgr_gpio_work_func(struct work_struct *wsp)
 	struct gpio_req *r = container_of(wsp, struct gpio_req,
 					  gpio_work.work);
 
-	platform_hw_set_gpio(r->dev, r->gpio, r->flags, r->name);
+	platform_hw_set_gpio(r->dev, r->gpiod, r->flags, r->name);
 	kfree(r);
 }
 
@@ -81,21 +85,22 @@ static int platform_hw_mgr_set_gpio(struct device *dev, struct device_node *np)
 {
 	unsigned long flags;
 	struct gpio_req *gpioreq;
-	int gpio;
+	struct gpio_desc *gpiod;
 	u32 value = 0;
 	u32 delay = 0;
 
-	gpio = of_get_named_gpio(np, "set-gpio", 0);
-	if (gpio < 0) {
-		pr_err("hw_mgr: error %d in %s gpio\n", gpio, np->name);
-		return gpio;
+	gpiod = of_get_named_gpiod_flags(np, "set-gpio", 0, NULL);
+	if (IS_ERR(gpiod)) {
+		pr_err("hw_mgr: error %ld in %s gpio\n", PTR_ERR(gpiod),
+			np->name);
+		return PTR_ERR(gpiod);
 	}
 	of_property_read_u32_index(np, "value", 0, &value);
 	flags = (value != 0) ? GPIOF_OUT_INIT_HIGH : GPIOF_OUT_INIT_LOW;
 
 	if (of_property_read_u32_index(np, "delay", 0, &delay) ||
 	    !hw_mgr_wq || (delay == 0))
-		return platform_hw_set_gpio(dev, gpio, flags, np->name);
+		return platform_hw_set_gpio(dev, gpiod, flags, np->name);
 
 	gpioreq = kmalloc(sizeof(*gpioreq), GFP_KERNEL);
 	if (!gpioreq) {
@@ -103,7 +108,7 @@ static int platform_hw_mgr_set_gpio(struct device *dev, struct device_node *np)
 		return -ENOMEM;
 	}
 	gpioreq->dev = dev;
-	gpioreq->gpio = gpio;
+	gpioreq->gpiod = gpiod;
 	gpioreq->flags = flags;
 	gpioreq->name = np->name;
 	INIT_DELAYED_WORK(&gpioreq->gpio_work, hw_mgr_gpio_work_func);
