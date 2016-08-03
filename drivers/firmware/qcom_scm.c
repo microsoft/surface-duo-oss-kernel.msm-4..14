@@ -320,6 +320,40 @@ bool qcom_scm_is_available(void)
 }
 EXPORT_SYMBOL(qcom_scm_is_available);
 
+int qcom_scm_video_set_state(u32 state, u32 spare)
+{
+	int ret;
+
+	ret = qcom_scm_clk_enable();
+	if (ret)
+		return ret;
+
+	ret = __qcom_scm_video_set_state(__scm->dev, state, spare);
+
+	qcom_scm_clk_disable();
+
+	return ret;
+}
+EXPORT_SYMBOL(qcom_scm_video_set_state);
+
+int qcom_scm_video_mem_protect(u32 start, u32 size, u32 nonpixel_start,
+			       u32 nonpixel_size)
+{
+	int ret;
+
+	ret = qcom_scm_clk_enable();
+	if (ret)
+		return ret;
+
+	ret = __qcom_scm_video_mem_protect(__scm->dev, start, size,
+					   nonpixel_start, nonpixel_size);
+
+	qcom_scm_clk_disable();
+
+	return ret;
+}
+EXPORT_SYMBOL(qcom_scm_video_mem_protect);
+
 static int qcom_scm_probe(struct platform_device *pdev)
 {
 	struct qcom_scm *scm;
