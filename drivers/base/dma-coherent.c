@@ -17,9 +17,10 @@ struct dma_coherent_mem {
 	spinlock_t	spinlock;
 };
 
-static int dma_init_coherent_memory(phys_addr_t phys_addr, dma_addr_t device_addr,
-			     size_t size, int flags,
-			     struct dma_coherent_mem **mem)
+static int dma_init_coherent_memory(phys_addr_t phys_addr,
+				dma_addr_t device_addr,
+			    size_t size, int flags,
+			    struct dma_coherent_mem **mem)
 {
 	struct dma_coherent_mem *dma_mem = NULL;
 	void __iomem *mem_base = NULL;
@@ -31,7 +32,11 @@ static int dma_init_coherent_memory(phys_addr_t phys_addr, dma_addr_t device_add
 	if (!size)
 		goto out;
 
-	mem_base = ioremap(phys_addr, size);
+	if (flags & DMA_MEMORY_MAP)
+		mem_base = ioremap_wc(phys_addr, size);
+	else
+		mem_base = ioremap(phys_addr, size);
+
 	if (!mem_base)
 		goto out;
 
@@ -181,7 +186,12 @@ int dma_alloc_from_coherent(struct device *dev, ssize_t size,
 	 */
 	*dma_handle = mem->device_base + (pageno << PAGE_SHIFT);
 	*ret = mem->virt_base + (pageno << PAGE_SHIFT);
-	memset(*ret, 0, size);
+
+	if (mem->flags & DMA_MEMORY_MAP)
+		memset(*ret, 0, size);
+	else
+		memset_io(*ret, 0, size);
+
 	spin_unlock_irqrestore(&mem->spinlock, flags);
 
 	return 1;
