@@ -18,4 +18,5 @@ RGB Formats
     pixfmt-srggb10dpcm8
     pixfmt-srggb12
     pixfmt-srggb12p
+    pixfmt-srggb14p
     pixfmt-srggb16
