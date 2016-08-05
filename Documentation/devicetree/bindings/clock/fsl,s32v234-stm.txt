@@ -7,7 +7,7 @@ Required properties:
 - compatible : "fsl,s32v234-stm"
 - reg : Should contain 1 register range(address and length)
 - interrupts : One interrupt for STM timer
-- core: The core which will use the timer as
+- cpu: The virtual cpu id which will use the timer as
 	clockevents generator.
 
 Example:
@@ -18,7 +18,7 @@ stm0: stm@4000D000{
 	interrupts= <0 19 8>;
 	clocks = <&clks S32V234_CLK_SYS6>;
 	clock-names = "stm";
-	core = <0>;
+	cpu = <1>;
 	status = "disabled";
 };
 
