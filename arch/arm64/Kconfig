@@ -258,8 +258,6 @@ config ARCH_ZYNQMP
 
 endmenu
 
-source "arch/arm64/mach-s32/Kconfig"
-
 menu "Bus support"
 
 config PCI
