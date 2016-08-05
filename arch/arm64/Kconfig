@@ -163,8 +163,6 @@ source "kernel/Kconfig.freezer"
 
 source "arch/arm64/Kconfig.platforms"
 
-source "arch/arm64/mach-s32/Kconfig"
-
 menu "Bus support"
 
 config PCI
