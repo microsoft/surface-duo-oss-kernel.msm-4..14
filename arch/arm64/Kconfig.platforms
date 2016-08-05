@@ -43,15 +43,11 @@ config ARCH_QCOM
 config ARCH_S32
 	bool "Freescale S32 family" if ARCH_VEXPRESS
 	select PINCTRL
+	select S32_CLK
 	help
 	  Support for Freescale S32 family of processors.
 
 if ARCH_S32
-
-config ARCH_S32_CLK
-	bool "Enable S32 CLK Framework"
-	help
-	  Support for the Clock Framework on S32 SoCs.
 
 config GALCORE_ANON_INODES
 	bool "Support for anonymous inodes"

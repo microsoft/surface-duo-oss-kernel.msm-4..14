@@ -156,5 +156,5 @@ endmenu
 
 source "drivers/clk/bcm/Kconfig"
 source "drivers/clk/mvebu/Kconfig"
-
+source "drivers/clk/s32/Kconfig"
 source "drivers/clk/samsung/Kconfig"
