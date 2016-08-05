@@ -44,7 +44,7 @@ struct clk *clk_register_gate2(struct device *dev, const char *name,
 		u8 clk_gate_flags, spinlock_t *lock,
 		unsigned int *share_count);
 
-struct clk * s32_obtain_fixed_clock(
+struct clk *s32_obtain_fixed_clock(
 			const char *name, unsigned long rate);
 
 struct clk *s32_clk_gate_exclusive(const char *name, const char *parent,
@@ -89,11 +89,11 @@ static inline struct clk *s32_clk_fixed(const char *name, int rate)
 static inline struct clk *s32_clk_divider(const char *name, const char *parent,
 		void __iomem *reg, u8 shift, u8 width)
 {
-	struct clk * tmp_clk = clk_register_divider(NULL, name, parent, CLK_SET_RATE_PARENT,
-			reg, shift, width, 0, &s32_cgm_lock);
+	struct clk *tmp_clk = clk_register_divider(NULL, name, parent,
+			      CLK_SET_RATE_PARENT,
+			      reg, shift, width, 0, &s32_cgm_lock);
 
 	return tmp_clk;
-
 }
 
 static inline struct clk *s32_clk_divider_flags(const char *name,
