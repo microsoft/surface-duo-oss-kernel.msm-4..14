@@ -10,6 +10,7 @@
 #include <linux/dma-mapping.h>
 #include <linux/export.h>
 #include <linux/gfp.h>
+#include <linux/of_device.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 
@@ -165,6 +166,16 @@ void dmam_free_noncoherent(struct device *dev, size_t size, void *vaddr,
 				&match_data));
 }
 EXPORT_SYMBOL(dmam_free_noncoherent);
+
+int dma_configure(struct device *dev)
+{
+	return of_dma_configure(dev, dev->of_node);
+}
+
+void dma_deconfigure(struct device *dev)
+{
+	of_dma_deconfigure(dev);
+}
 
 #ifdef CONFIG_HAVE_GENERIC_DMA_COHERENT
 
