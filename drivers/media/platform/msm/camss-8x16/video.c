@@ -395,6 +395,7 @@ static int video_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
 	struct media_entity *entity;
 	struct media_pad *pad;
 	struct v4l2_subdev *subdev;
+	struct v4l2_subdev *subdev_vfe = NULL;
 	int ret;
 
 	if (type != video->type)
@@ -417,7 +418,14 @@ static int video_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
 		entity = pad->entity;
 		subdev = media_entity_to_v4l2_subdev(entity);
 
-		v4l2_subdev_call(subdev, video, s_stream, 0);
+		if (strstr(subdev->name, "vfe")) {
+			subdev_vfe = subdev;
+		} else if (strstr(subdev->name, "ispif")) {
+			v4l2_subdev_call(subdev, video, s_stream, 0);
+			v4l2_subdev_call(subdev_vfe, video, s_stream, 0);
+		} else {
+			v4l2_subdev_call(subdev, video, s_stream, 0);
+		}
 	}
 
 	ret = vb2_streamoff(&video->vb2_q, type);
