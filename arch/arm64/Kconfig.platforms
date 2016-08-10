@@ -1,0 +1,182 @@
+menu "Platform selection"
+
+config ARCH_EXYNOS
+	bool
+	help
+	  This enables support for Samsung Exynos SoC family
+
+config ARCH_EXYNOS7
+	bool "ARMv8 based Samsung Exynos7"
+	select ARCH_EXYNOS
+	select COMMON_CLK_SAMSUNG
+	select HAVE_S3C2410_WATCHDOG if WATCHDOG
+	select HAVE_S3C_RTC if RTC_CLASS
+	select PINCTRL
+	select PINCTRL_EXYNOS
+
+	help
+	  This enables support for Samsung Exynos7 SoC family
+
+config ARCH_FSL_LS2085A
+	bool "Freescale LS2085A SOC"
+	help
+	  This enables support for Freescale LS2085A SOC.
+
+config ARCH_HISI
+	bool "Hisilicon SoC Family"
+	help
+	  This enables support for Hisilicon ARMv8 SoC family
+
+config ARCH_MEDIATEK
+	bool "Mediatek MT65xx & MT81xx ARMv8 SoC"
+	select ARM_GIC
+	select PINCTRL
+	help
+	  Support for Mediatek MT65xx & MT81xx ARMv8 SoCs
+
+config ARCH_QCOM
+	bool "Qualcomm Platforms"
+	select PINCTRL
+	help
+	  This enables support for the ARMv8 based Qualcomm chipsets.
+
+config ARCH_S32
+	bool "Freescale S32 family" if ARCH_VEXPRESS
+	select PINCTRL
+	help
+	  Support for Freescale S32 family of processors.
+
+if ARCH_S32
+
+config ARCH_S32_CLK
+	bool "Enable S32 CLK Framework"
+	help
+	  Support for the Clock Framework on S32 SoCs.
+
+config GALCORE_ANON_INODES
+	bool "Support for anonymous inodes"
+	select ANON_INODES
+
+menu "S32 SOC selection"
+	config SOC_S32V234
+		bool "S32V234 SOC"
+endmenu
+
+menu "STM timer used as system timer"
+	config S32V234_STM_SYSTIMER
+		bool "STM used as system timer"
+	select FSL_STM_TIMER if S32V234_STM_SYSTIMER
+	config STM_CLKSRC_RATE
+		int "STM Rating for ClockSource"
+		default 460
+	config STM_CLKEVT_RATE
+		int "STM Rating for ClockEvents"
+		default 460
+endmenu
+
+menu "PIT timer used as system timer"
+	config S32V234_PIT_SYSTIMER
+		bool "PIT used as system timer"
+	select VF_PIT_TIMER if S32V234_PIT_SYSTIMER
+	config PIT_CLKSRC_RATE
+		int "PIT Rating for ClockSource"
+		default 460
+	config PIT_CLKEVT_RATE
+		int "PIT Rating for ClockEvents"
+		default 460
+endmenu
+
+if SOC_S32V234
+menu "S32V234 execution target"
+	config S32V234_EVB
+		bool "S32V234 evb"
+		help
+		  S32V234 evb is a customer evaluation board
+		  of S32V234 platform.
+	config S32V234_PALLADIUM
+		bool "S32V234 Palladium"
+		help
+		  S32V234 Palladium is a presilicon development
+		  platform for S32V234.
+	config S32V234_PCIE
+		bool "S32V234 pcie"
+		help
+		  S32V234 pcie is a derivate of S32V234 platform which
+		  is designed to be connected to master board via PCI
+		  Express.
+	config S32V234_SIMULATOR
+		bool "S32V234 Synopsis Simulator"
+		help
+		  S32V234 Software Simulator from Synopsis is a presilicon
+		  development solution.
+	config S32V234_TMDP
+		bool "S32V234 tmdp"
+		help
+		  S32V234 tmdp is a variation of S32V234 evb.
+endmenu
+endif
+
+endif
+
+config ARCH_SEATTLE
+	bool "AMD Seattle SoC Family"
+	help
+	  This enables support for AMD Seattle SOC Family
+
+config ARCH_TEGRA
+	bool "NVIDIA Tegra SoC Family"
+	select ARCH_HAS_RESET_CONTROLLER
+	select ARCH_REQUIRE_GPIOLIB
+	select CLKDEV_LOOKUP
+	select CLKSRC_MMIO
+	select CLKSRC_OF
+	select GENERIC_CLOCKEVENTS
+	select HAVE_CLK
+	select PINCTRL
+	select RESET_CONTROLLER
+	help
+	  This enables support for the NVIDIA Tegra SoC family.
+
+config ARCH_TEGRA_132_SOC
+	bool "NVIDIA Tegra132 SoC"
+	depends on ARCH_TEGRA
+	select PINCTRL_TEGRA124
+	select USB_ULPI if USB_PHY
+	select USB_ULPI_VIEWPORT if USB_PHY
+	help
+	  Enable support for NVIDIA Tegra132 SoC, based on the Denver
+	  ARMv8 CPU.  The Tegra132 SoC is similar to the Tegra124 SoC,
+	  but contains an NVIDIA Denver CPU complex in place of
+	  Tegra124's "4+1" Cortex-A15 CPU complex.
+
+config ARCH_SPRD
+	bool "Spreadtrum SoC platform"
+	help
+	  Support for Spreadtrum ARM based SoCs
+
+config ARCH_THUNDER
+	bool "Cavium Inc. Thunder SoC Family"
+	help
+	  This enables support for Cavium's Thunder Family of SoCs.
+
+config ARCH_VEXPRESS
+	bool "ARMv8 software model (Versatile Express)"
+	select ARCH_REQUIRE_GPIOLIB
+	select COMMON_CLK_VERSATILE
+	select POWER_RESET_VEXPRESS
+	select VEXPRESS_CONFIG
+	help
+	  This enables support for the ARMv8 software model (Versatile
+	  Express).
+
+config ARCH_XGENE
+	bool "AppliedMicro X-Gene SOC Family"
+	help
+	  This enables support for AppliedMicro X-Gene SOC Family
+
+config ARCH_ZYNQMP
+	bool "Xilinx ZynqMP Family"
+	help
+	  This enables support for Xilinx ZynqMP Family
+
+endmenu
