@@ -102,6 +102,8 @@ config IOMMU_PGTABLES_L2
 	def_bool y
 	depends on MSM_IOMMU && MMU && SMP && CPU_DCACHE_DISABLE=n
 
+source "drivers/iommu/qcom/Kconfig"
+
 # AMD IOMMU support
 config AMD_IOMMU
 	bool "AMD IOMMU support"
