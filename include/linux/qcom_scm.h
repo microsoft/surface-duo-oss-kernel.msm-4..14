@@ -30,8 +30,7 @@ extern int qcom_scm_hdcp_req(struct qcom_scm_hdcp_req *req, u32 req_cnt,
 		u32 *resp);
 
 extern bool qcom_scm_pas_supported(u32 peripheral);
-extern int qcom_scm_pas_init_image(u32 peripheral, const void *metadata,
-		size_t size);
+extern int qcom_scm_pas_init_image(u32 peripheral, u64 metadata, size_t size);
 extern int qcom_scm_pas_mem_setup(u32 peripheral, phys_addr_t addr,
 		phys_addr_t size);
 extern int qcom_scm_pas_auth_and_reset(u32 peripheral);
@@ -49,5 +48,19 @@ extern u32 qcom_scm_get_version(void);
 extern int qcom_scm_video_set_state(u32 state, u32 spare);
 extern int qcom_scm_video_mem_protect(u32 start, u32 size, u32 nonpixel_start,
 				      u32 nonpixel_size);
+
+extern int qcom_scm_get_feat_version(u32 feat);
+extern int qcom_scm_iommu_set_cp_pool_size(u32 size, u32 spare);
+extern int qcom_scm_iommu_secure_ptbl_size(u32 spare, int psize[2]);
+extern int qcom_scm_iommu_secure_ptbl_init(u64 addr, u32 size, u32 spare);
+extern int qcom_scm_iommu_dump_fault_regs(u32 id, u32 context, u64 addr,
+					  u32 len);
+extern int qcom_scm_restore_sec_cfg(u32 device_id, u32 spare);
+extern int qcom_scm_iommu_secure_map(u64 list, u32 list_size, u32 size, u32 id,
+				     u32 ctx_id, u64 va, u32 info_size,
+				     u32 flags);
+extern int qcom_scm_iommu_secure_unmap(u32 id, u32 ctx_id, u64 va, u32 size,
+				       u32 flags);
+extern int qcom_scm_is_call_available(u32 svc_id, u32 cmd_id);
 
 #endif

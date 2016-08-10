@@ -64,6 +64,37 @@ extern int __qcom_scm_video_mem_protect(struct device *dev, u32 start,
 					u32 size, u32 nonpixel_start,
 					u32 nonpixel_size);
 
+#define QCOM_SCM_GET_FEAT_VERSION_CMD	3
+#define QCOM_SCM_IOMMU_SET_CP_POOL_SIZE	5
+#define QCOM_SCM_IOMMU_SECURE_PTBL_SIZE	3
+#define QCOM_SCM_IOMMU_SECURE_PTBL_INIT	4
+
+extern int __qcom_scm_get_feat_version(struct device *dev, u32 feat);
+extern int __qcom_scm_iommu_set_cp_pool_size(struct device *dev, u32 size,
+					     u32 spare);
+extern int __qcom_scm_iommu_secure_ptbl_size(struct device *dev, u32 spare,
+					     int psize[2]);
+extern int __qcom_scm_iommu_secure_ptbl_init(struct device *dev, u64 addr,
+					     u32 size, u32 spare);
+
+#define QCOM_SCM_SVC_UTIL			0x3
+#define QCOM_SCM_IOMMU_DUMP_SMMU_FAULT_REGS	0xc
+extern int __qcom_scm_iommu_dump_fault_regs(struct device *dev, u32 id,
+					    u32 context, u64 addr, u32 len);
+
+#define QCOM_SCM_RESTORE_SEC_CFG		2
+extern int __qcom_scm_restore_sec_cfg(struct device *dev, u32 device_id,
+				      u32 spare);
+
+#define QCOM_SCM_IOMMU_SECURE_MAP2_FLAT		0x12
+extern int __qcom_scm_iommu_secure_map(struct device *dev, u64 list,
+				       u32 list_size, u32 size, u32 id,
+				       u32 ctx_id, u64 va, u32 info_size,
+				       u32 flags);
+#define QCOM_SCM_IOMMU_SECURE_UNMAP2_FLAT	0x13
+extern int __qcom_scm_iommu_secure_unmap(struct device *dev, u32 id, u32 ctx_id,
+					 u64 va, u32 size, u32 flags);
+
 /* common error codes */
 #define QCOM_SCM_V2_EBUSY	-12
 #define QCOM_SCM_ENOMEM		-5
