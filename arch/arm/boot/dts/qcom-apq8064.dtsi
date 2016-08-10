@@ -8,6 +8,8 @@
 #include <dt-bindings/soc/qcom,gsbi.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/thermal/thermal.h>
+
 / {
 	model = "Qualcomm APQ8064";
 	compatible = "qcom,apq8064";
@@ -41,6 +43,9 @@
 			clock-names = "cpu", "l2";
 			clock-latency = <100000>;
 			cpu-supply = <&saw0_regulator>;
+			cooling-min-level = <0>;
+			cooling-max-level = <7>;
+			#cooling-cells = <2>;
 		};
 
 		cpu@1 {
@@ -56,6 +61,9 @@
 			clock-names = "cpu", "l2";
 			clock-latency = <100000>;
 			cpu-supply = <&saw1_regulator>;
+			cooling-min-level = <0>;
+			cooling-max-level = <7>;
+			#cooling-cells = <2>;
 		};
 
 		cpu@2 {
@@ -71,6 +79,9 @@
 			clock-names = "cpu", "l2";
 			clock-latency = <100000>;
 			cpu-supply = <&saw2_regulator>;
+			cooling-min-level = <0>;
+			cooling-max-level = <7>;
+			#cooling-cells = <2>;
 		};
 
 		cpu@3 {
@@ -86,6 +97,9 @@
 			clock-names = "cpu", "l2";
 			clock-latency = <100000>;
 			cpu-supply = <&saw3_regulator>;
+			cooling-min-level = <0>;
+			cooling-max-level = <7>;
+			#cooling-cells = <2>;
 		};
 
 		L2: l2-cache {
@@ -128,6 +142,13 @@
 					type = "critical";
 				};
 			};
+
+			cooling-maps {
+				map0 {
+					trip = <&cpu_alert0>;
+					cooling-device = <&CPU0 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
 		};
 
 		cpu-thermal1 {
@@ -147,6 +168,13 @@
 					temperature = <110000>;
 					hysteresis = <2000>;
 					type = "critical";
+				};
+			};
+
+			cooling-maps {
+				map0 {
+					trip = <&cpu_alert1>;
+					cooling-device = <&CPU1 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 				};
 			};
 		};
@@ -170,6 +198,13 @@
 					type = "critical";
 				};
 			};
+
+			cooling-maps {
+				map0 {
+					trip = <&cpu_alert2>;
+					cooling-device = <&CPU2 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
+				};
+			};
 		};
 
 		cpu-thermal3 {
@@ -189,6 +224,13 @@
 					temperature = <110000>;
 					hysteresis = <2000>;
 					type = "critical";
+				};
+			};
+
+			cooling-maps {
+				map0 {
+					trip = <&cpu_alert3>;
+					cooling-device = <&CPU3 THERMAL_NO_LIMIT THERMAL_NO_LIMIT>;
 				};
 			};
 		};
