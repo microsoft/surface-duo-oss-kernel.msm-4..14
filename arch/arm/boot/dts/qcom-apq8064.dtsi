@@ -2011,9 +2011,7 @@
 			    <&mmcc SMMU_AHB_CLK>,
 			    <&mmcc GFX3D_AXI_CLK>;
 			reg = <0x07c00000 0x100000>;
-			interrupts =
-			    <GIC_SPI 69 0>,
-			    <GIC_SPI 70 0>;
+			interrupts = <GIC_SPI 70 0>;
 			qcom,ncb = <3>;
 		};
 
@@ -2027,9 +2025,7 @@
 			    <&mmcc SMMU_AHB_CLK>,
 			    <&mmcc GFX3D_AXI_CLK>;
 			reg = <0x07d00000 0x100000>;
-			interrupts =
-			    <GIC_SPI 210 0>,
-			    <GIC_SPI 211 0>;
+			interrupts = <GIC_SPI 211 0>;
 			qcom,ncb = <3>;
 		};
 	};
