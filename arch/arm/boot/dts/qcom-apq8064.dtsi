@@ -1983,9 +1983,7 @@
 			    <&mmcc SMMU_AHB_CLK>,
 			    <&mmcc MDP_AXI_CLK>;
 			reg = <0x07500000 0x100000>;
-			interrupts =
-			    <GIC_SPI 63 0>,
-			    <GIC_SPI 64 0>;
+			interrupts = <GIC_SPI 64 0>;
 			qcom,ncb = <2>;
 		};
 
@@ -1999,9 +1997,7 @@
 			    <&mmcc SMMU_AHB_CLK>,
 			    <&mmcc MDP_AXI_CLK>;
 			reg = <0x07600000 0x100000>;
-			interrupts =
-			    <GIC_SPI 61 0>,
-			    <GIC_SPI 62 0>;
+			interrupts = <GIC_SPI 62 0>;
 			qcom,ncb = <2>;
 		};
 
