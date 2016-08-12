@@ -311,6 +311,7 @@ enum rtattr_type_t {
 	RTA_TABLE,
 	RTA_MARK,
 	RTA_MFC_STATS,
+	RTA_ANDROID_COLLISION, /* AOSP adds RTA_UID here, which breaks normal userspace */
 	RTA_VIA,
 	RTA_NEWDST,
 	RTA_PREF,
