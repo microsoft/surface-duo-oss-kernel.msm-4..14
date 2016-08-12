@@ -628,6 +628,7 @@ irqreturn_t msm_iommu_fault_handler(int irq, void *dev_id)
 			pr_err("Interesting registers:\n");
 			print_ctx_regs(iommu->base, i);
 			SET_FSR(iommu->base, i, 0x4000000F);
+			SET_RESUME(iommu->base, i, 1);
 		}
 	}
 	__disable_clocks(iommu);
