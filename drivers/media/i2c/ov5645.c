@@ -606,11 +606,13 @@ static void ov5645_regulators_disable(struct ov5645 *ov5645)
 static int ov5645_write_reg(struct ov5645 *ov5645, u16 reg, u8 val)
 {
 	int ret;
+	u16 i2c_addr = ov5645->i2c_client->addr;
 
-	ret = msm_cci_ctrl_write(reg, &val, 1);
+	ret = msm_cci_ctrl_write(i2c_addr, reg, &val, 1);
 	if (ret < 0)
-		dev_err(ov5645->dev, "%s: write reg error %d: reg=%x, val=%x\n",
-			__func__, ret, reg, val);
+		dev_err(ov5645->dev,
+			"%s: write reg error %d on addr 0x%x: reg=0x%x, val=0x%x\n",
+			__func__, ret, i2c_addr, reg, val);
 
 	return ret;
 }
@@ -619,11 +621,13 @@ static int ov5645_read_reg(struct ov5645 *ov5645, u16 reg, u8 *val)
 {
 	u8 tmpval;
 	int ret;
+	u16 i2c_addr = ov5645->i2c_client->addr;
 
-	ret = msm_cci_ctrl_read(reg, &tmpval, 1);
+	ret = msm_cci_ctrl_read(i2c_addr, reg, &tmpval, 1);
 	if (ret < 0) {
-		dev_err(ov5645->dev, "%s: read reg error %d: reg=%x\n",
-			__func__, ret, reg);
+		dev_err(ov5645->dev,
+			"%s: read reg error %d on addr 0x%x: reg=0x%x\n",
+			__func__, ret, i2c_addr, reg);
 		return ret;
 	}
 

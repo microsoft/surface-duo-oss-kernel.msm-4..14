@@ -1161,7 +1161,7 @@ int32_t msm_cci_ctrl_release(void)
 	return rc;
 }
 
-int32_t msm_cci_ctrl_read(u16 addr, const char *buf, int count)
+int32_t msm_cci_ctrl_read(u16 i2c_addr, u16 addr, const char *buf, int count)
 {
 	struct v4l2_subdev *sd = msm_cci_get_subdev();
 	struct msm_camera_cci_ctrl cci_ctrl = { 0 };
@@ -1173,7 +1173,7 @@ int32_t msm_cci_ctrl_read(u16 addr, const char *buf, int count)
 
 	cci_ctrl.cci_info = &cci_info;
 	cci_ctrl.cci_info->cci_i2c_master = MASTER_0;
-	cci_ctrl.cci_info->sid = 0x78 >> 1;
+	cci_ctrl.cci_info->sid = i2c_addr >> 1;
 	cci_ctrl.cci_info->retries = 3;
 	cci_ctrl.cci_info->id_map = 0;
 	cci_ctrl.cci_info->i2c_freq_mode = I2C_STANDARD_MODE;
@@ -1193,7 +1193,7 @@ int32_t msm_cci_ctrl_read(u16 addr, const char *buf, int count)
 	return rc;
 }
 
-int32_t msm_cci_ctrl_write(u16 addr, const char *buf, int count)
+int32_t msm_cci_ctrl_write(u16 i2c_addr, u16 addr, const char *buf, int count)
 {
 	struct v4l2_subdev *sd = msm_cci_get_subdev();
 	struct msm_camera_cci_ctrl cci_ctrl = { 0 };
@@ -1206,7 +1206,7 @@ int32_t msm_cci_ctrl_write(u16 addr, const char *buf, int count)
 
 	cci_ctrl.cci_info = &cci_info;
 	cci_ctrl.cci_info->cci_i2c_master = MASTER_0;
-	cci_ctrl.cci_info->sid = 0x78 >> 1;
+	cci_ctrl.cci_info->sid = i2c_addr >> 1;
 	cci_ctrl.cci_info->retries = 3;
 	cci_ctrl.cci_info->id_map = 0;
 
