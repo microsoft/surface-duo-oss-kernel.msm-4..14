@@ -186,7 +186,7 @@ static int ispif_set_power(struct v4l2_subdev *sd, int on)
 	struct ispif_device *ispif = v4l2_get_subdevdata(sd);
 	int ret = 0;
 
-	dev_err(ispif->camss->dev, "%s: Enter, on = %d\n",
+	dev_err(to_device(ispif), "%s: Enter, on = %d\n",
 		__func__, on);
 
 	if (on)
@@ -196,7 +196,7 @@ static int ispif_set_power(struct v4l2_subdev *sd, int on)
 		ispif_disable_clocks(ispif->nclocks, ispif->clock,
 				     ispif->clock_for_reset, 0);
 
-	dev_err(ispif->camss->dev, "%s: Exit, on = %d\n",
+	dev_err(to_device(ispif), "%s: Exit, on = %d\n",
 		__func__, on);
 
 	return ret;
@@ -453,7 +453,7 @@ static int ispif_set_stream(struct v4l2_subdev *sd, int enable)
 
 	int ret;
 
-	dev_err(ispif->camss->dev, "%s: Enter, enable = %d\n",
+	dev_err(to_device(ispif), "%s: Enter, enable = %d\n",
 		__func__, enable);
 
 	if (enable) {
@@ -732,16 +732,14 @@ static int ispif_init_formats(struct v4l2_subdev *sd)
  *
  * Return 0 on success or a negative error code otherwise
  */
-int msm_ispif_subdev_init(struct ispif_device *ispif, struct camss *camss,
+int msm_ispif_subdev_init(struct ispif_device *ispif,
 			  struct resources_ispif *res)
 {
-	struct device *dev = camss->dev;
+	struct device *dev = to_device(ispif);
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct resource *r;
 	int i;
 	int ret;
-
-	ispif->camss = camss;
 
 	/* Memory */
 

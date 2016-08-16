@@ -125,19 +125,22 @@ static int csiphy_enable_clocks(struct csiphy_device *csiphy)
 			clk_rate = clk_round_rate(csiphy->clock[i],
 						  csiphy->clock_rate[i]);
 			if (clk_rate < 0) {
-				dev_err(csiphy->camss->dev, "round failed\n");
+				dev_err(to_device_index(csiphy, csiphy->id),
+					"round failed\n");
 				ret = clk_rate;
 				goto error;
 			}
 			ret = clk_set_rate(csiphy->clock[i], clk_rate);
 			if (ret < 0) {
-				dev_err(csiphy->camss->dev, "set rate failed\n");
+				dev_err(to_device_index(csiphy, csiphy->id),
+					"set rate failed\n");
 				goto error;
 			}
 		}
 		ret = clk_prepare_enable(csiphy->clock[i]);
 		if (ret) {
-			dev_err(csiphy->camss->dev, "clk enable failed\n");
+			dev_err(to_device_index(csiphy, csiphy->id),
+				"clk enable failed\n");
 			goto error;
 		}
 	}
@@ -176,7 +179,8 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 	struct csiphy_device *csiphy = v4l2_get_subdevdata(sd);
 	int ret;
 
-	dev_err(csiphy->camss->dev, "%s: Enter, csiphy%d on = %d\n",
+	dev_err(to_device_index(csiphy, csiphy->id),
+		"%s: Enter, csiphy%d on = %d\n",
 		__func__, csiphy->id, on);
 
 	if (on) {
@@ -192,7 +196,8 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 
 		hw_version = readl_relaxed(csiphy->base +
 					   CAMSS_CSI_PHY_HW_VERSION);
-		dev_err(csiphy->camss->dev, "CSIPHY HW Version = 0x%02x\n",
+		dev_err(to_device_index(csiphy, csiphy->id),
+			"CSIPHY HW Version = 0x%02x\n",
 			hw_version);
 	} else {
 		disable_irq(csiphy->irq);
@@ -200,7 +205,8 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 		csiphy_disable_clocks(csiphy);
 	}
 
-	dev_err(csiphy->camss->dev, "%s: Exit csiphy%d on = %d\n",
+	dev_err(to_device_index(csiphy, csiphy->id),
+		"%s: Exit csiphy%d on = %d\n",
 		__func__, csiphy->id, on);
 
 	return 0;
@@ -242,7 +248,8 @@ static int csiphy_set_stream(struct v4l2_subdev *sd, int enable)
 	u8 i;
 	u8 val;
 
-	dev_err(csiphy->camss->dev, "%s: Enter, csiphy%d enable = %d\n",
+	dev_err(to_device_index(csiphy, csiphy->id),
+		"%s: Enter, csiphy%d enable = %d\n",
 		__func__, csiphy->id, enable);
 
 	if (enable) {
@@ -540,18 +547,16 @@ static int csiphy_init_formats(struct v4l2_subdev *sd)
  *
  * Return 0 on success or a negative error code otherwise
  */
-int msm_csiphy_subdev_init(struct csiphy_device *csiphy, struct camss *camss,
+int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
 			   struct resources *res, u8 id)
 {
-	struct device *dev = camss->dev;
+	struct device *dev = to_device_index(csiphy, id);
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct resource *r;
 	int i;
 	int ret;
 
-	csiphy->camss = camss;
-
-	dev_err(csiphy->camss->dev, "%s: Enter\n", __func__);
+	dev_err(dev, "%s: Enter\n", __func__);
 
 	csiphy->id = id;
 
@@ -616,7 +621,7 @@ int msm_csiphy_subdev_init(struct csiphy_device *csiphy, struct camss *camss,
 		csiphy->clock_rate[i] = res->clock_rate[i];
 	}
 
-	dev_err(csiphy->camss->dev, "%s: Exit\n", __func__);
+	dev_err(dev, "%s: Exit\n", __func__);
 
 	return 0;
 }

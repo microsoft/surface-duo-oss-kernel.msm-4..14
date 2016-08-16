@@ -70,8 +70,6 @@ struct msm_vfe_output {
 	enum msm_vfe_output_state state;
 };
 
-struct camss;
-
 struct vfe_device {
 	int hw_id;
 	struct v4l2_subdev subdev;
@@ -100,8 +98,7 @@ struct vfe_device {
 
 struct resources;
 
-int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
-			struct resources *res);
+int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res);
 
 int msm_vfe_register_entities(struct vfe_device *vfe,
 			      struct v4l2_device *v4l2_dev);

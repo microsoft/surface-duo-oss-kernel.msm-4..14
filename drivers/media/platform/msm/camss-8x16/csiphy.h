@@ -36,13 +36,10 @@ struct csiphy_config {
 	struct camss_csi2_cfg *csi2;
 };
 
-struct camss;
-
 struct csiphy_device {
 	u8 id;
 	struct v4l2_subdev subdev;
 	struct media_pad pads[MSM_CSIPHY_PADS_NUM];
-	struct camss *camss;
 	void __iomem *base;
 	void __iomem *base_clk_mux;
 	u32 irq;
@@ -55,7 +52,7 @@ struct csiphy_device {
 
 struct resources;
 
-int msm_csiphy_subdev_init(struct csiphy_device *csiphy, struct camss *camss,
+int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
 			   struct resources *res, u8 id);
 
 int msm_csiphy_register_entities(struct csiphy_device *csiphy,

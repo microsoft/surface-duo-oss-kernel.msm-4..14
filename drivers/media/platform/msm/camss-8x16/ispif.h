@@ -27,12 +27,9 @@
 #define MSM_ISPIF_PAD_SRC 1
 #define MSM_ISPIF_PADS_NUM 2
 
-struct camss;
-
 struct ispif_device {
 	struct v4l2_subdev subdev;
 	struct media_pad pads[MSM_ISPIF_PADS_NUM];
-	struct camss *camss;
 	void __iomem *base;
 	void __iomem *base_clk_mux;
 	u32 irq;
@@ -46,7 +43,7 @@ struct ispif_device {
 
 struct resources_ispif;
 
-int msm_ispif_subdev_init(struct ispif_device *ispif, struct camss *camss,
+int msm_ispif_subdev_init(struct ispif_device *ispif,
 			  struct resources_ispif *res);
 
 int msm_ispif_register_entities(struct ispif_device *ispif,

@@ -303,7 +303,7 @@ static int vfe_bus_connect_wm_to_rdi(struct vfe_device *vfe, u32 wm, u32 rdi)
 		      VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT;
 		break;
 	default:
-		dev_err(vfe->camss->dev, "Invalid rdi %d\n", rdi);
+		dev_err(to_device(vfe), "Invalid rdi %d\n", rdi);
 		return -EINVAL;
 	}
 
@@ -344,7 +344,7 @@ static int vfe_reg_update(struct vfe_device *vfe, int rdi_idx)
 		writel(VFE_0_REG_UPDATE_RDI2, vfe->base + VFE_0_REG_UPDATE);
 		break;
 	default:
-		dev_err(vfe->camss->dev, "Invalid vfe interface %d\n", rdi_idx);
+		dev_err(to_device(vfe), "Invalid vfe interface %d\n", rdi_idx);
 		return -EINVAL;
 	}
 
@@ -441,7 +441,7 @@ static int vfe_reset(struct vfe_device *vfe)
 	time = wait_for_completion_timeout(&vfe->reset_completion,
 		msecs_to_jiffies(VFE_RESET_TIMEOUT_MS));
 	if (!time) {
-		dev_err(vfe->camss->dev, "Vfe reset timeout\n");
+		dev_err(to_device(vfe), "Vfe reset timeout\n");
 		return -EIO;
 	}
 
@@ -459,7 +459,7 @@ static int vfe_halt(struct vfe_device *vfe)
 	time = wait_for_completion_timeout(&vfe->halt_completion,
 		msecs_to_jiffies(VFE_HALT_TIMEOUT_MS));
 	if (!time) {
-		dev_err(vfe->camss->dev, "Vfe halt timeout\n");
+		dev_err(to_device(vfe), "Vfe halt timeout\n");
 		return -EIO;
 	}
 
@@ -536,7 +536,7 @@ static void vfe_output_init_addrs(struct vfe_device *vfe,
 		pong_addr = ping_addr;
 
 	for (i = 0; i < output->active_wm; i++) {
-		dev_err(vfe->camss->dev, "init_addrs: wm[%d], ping = 0x%08x, pong = 0x%08x\n",
+		dev_err(to_device(vfe), "init_addrs: wm[%d], ping = 0x%08x, pong = 0x%08x\n",
 			i, ping_addr, pong_addr);
 		vfe_wm_set_ping_addr(vfe, output->wm[i].wm_idx, ping_addr);
 		vfe_wm_set_pong_addr(vfe, output->wm[i].wm_idx, pong_addr);
@@ -726,7 +726,7 @@ static void __vfe_update_wm_on_next_buf(struct vfe_device *vfe,
 		vfe_output_frame_drop(vfe, output, 3);
 		break;
 	case MSM_VFE_OUTPUT_SINGLE:
-		dev_err_ratelimited(vfe->camss->dev,
+		dev_err_ratelimited(to_device(vfe),
 				    "Next buf in single state!\n");
 		break;
 	default:
@@ -748,7 +748,7 @@ static void __vfe_update_wm_on_last_buf(struct vfe_device *vfe,
 		vfe_output_reset_addrs(vfe, output);
 		break;
 	default:
-		dev_err_ratelimited(vfe->camss->dev,
+		dev_err_ratelimited(to_device(vfe),
 				    "Last buff in wrong state! %d\n",
 				    output->state);
 		return;
@@ -778,7 +778,7 @@ static void __vfe_update_wm_on_new_buf(struct vfe_device *vfe,
 			output->state = MSM_VFE_OUTPUT_CONTINUOUS;
 		} else {
 			__vfe_add_output_buf(output, new_buf);
-			dev_err_ratelimited(vfe->camss->dev,
+			dev_err_ratelimited(to_device(vfe),
 					    "Inactive buffer is busy\n");
 		}
 		break;
@@ -795,7 +795,7 @@ static void __vfe_update_wm_on_new_buf(struct vfe_device *vfe,
 			output->state = MSM_VFE_OUTPUT_SINGLE;
 		} else {
 			__vfe_add_output_buf(output, new_buf);
-			dev_err_ratelimited(vfe->camss->dev,
+			dev_err_ratelimited(to_device(vfe),
 					    "Output idle with buffer set!\n");
 		}
 		break;
@@ -823,7 +823,7 @@ static struct msm_vfe_output* vfe_get_output(struct vfe_device *vfe,
 
 	output = &vfe->output[output_idx];
 	if (output->state != MSM_VFE_OUTPUT_OFF) {
-		dev_err(vfe->camss->dev, "Output is running\n");
+		dev_err(to_device(vfe), "Output is running\n");
 		goto error;
 	}
 	output->state = MSM_VFE_OUTPUT_RESERVED;
@@ -832,14 +832,14 @@ static struct msm_vfe_output* vfe_get_output(struct vfe_device *vfe,
 
 	rdi_idx = __vfe_reserve_rdi(vfe, output_idx);
 	if (rdi_idx < 0) {
-		dev_err(vfe->camss->dev, "Can not reserve rdi\n");
+		dev_err(to_device(vfe), "Can not reserve rdi\n");
 		goto error_get_rdi;
 	}
 
 	/* We will use only one wm per output for now */
 	wm_idx = __vfe_reserve_wm(vfe, output_idx);
 	if (wm_idx < 0) {
-		dev_err(vfe->camss->dev, "Can not reserve wm\n");
+		dev_err(to_device(vfe), "Can not reserve wm\n");
 		goto error_get_wm;
 	}
 	output->active_wm = 1;
@@ -902,7 +902,7 @@ static int vfe_enable_output(struct vfe_device *vfe,
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
 	if (output->state != MSM_VFE_OUTPUT_RESERVED) {
-		dev_err(vfe->camss->dev, "Output is not in reserved state %d\n",
+		dev_err(to_device(vfe), "Output is not in reserved state %d\n",
 			output->state);
 		spin_unlock_irqrestore(&vfe->output_lock, flags);
 		return -EINVAL;
@@ -1067,14 +1067,14 @@ static void vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx)
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
 	if (vfe->wm_output_map[wm_idx] < 0) {
-		dev_err_ratelimited(vfe->camss->dev,
+		dev_err_ratelimited(to_device(vfe),
 				    "Received wm done for unmapped index\n");
 		goto out_unlock;
 	}
 	output = &vfe->output[vfe->wm_output_map[wm_idx]];
 
 	if (output->active_buf == active_index) {
-		dev_err_ratelimited(vfe->camss->dev,
+		dev_err_ratelimited(to_device(vfe),
 				    "Active buffer mismatch!\n");
 		goto out_unlock;
 	}
@@ -1082,7 +1082,7 @@ static void vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx)
 
 	ready_buf = output->buf[!active_index];
 	if (!ready_buf) {
-		dev_err_ratelimited(vfe->camss->dev,
+		dev_err_ratelimited(to_device(vfe),
 				    "Missing ready buf %d %d!\n",
 				    !active_index, output->state);
 		goto out_unlock;
@@ -1108,7 +1108,7 @@ static void vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx)
 	if (ready_buf)
 		vb2_buffer_done(&ready_buf->vb, VB2_BUF_STATE_DONE);
 	else
-		dev_err_ratelimited(vfe->camss->dev,
+		dev_err_ratelimited(to_device(vfe),
 				    "Received wm without buffer\n");
 
 	return;
@@ -1123,13 +1123,13 @@ static int vfe_bus_request(struct vfe_device *vfe)
 
 	vfe->bus_client = msm_bus_scale_register_client(vfe->bus_scale_table);
 	if (!vfe->bus_client) {
-		dev_err(vfe->camss->dev, "Failed to register bus client\n");
+		dev_err(to_device(vfe), "Failed to register bus client\n");
 		return -ENOENT;
 	}
 
 	ret = msm_bus_scale_client_update_request(vfe->bus_client, 1);
 	if (ret < 0) {
-		dev_err(vfe->camss->dev, "Failed bus scale update %d\n", ret);
+		dev_err(to_device(vfe), "Failed bus scale update %d\n", ret);
 		return -EINVAL;
 	}
 
@@ -1213,14 +1213,14 @@ static int vfe_get(struct vfe_device *vfe)
 
 		ret = vfe_bus_request(vfe);
 		if (ret < 0) {
-			dev_err(vfe->camss->dev, "Fail bus request\n");
+			dev_err(to_device(vfe), "Fail bus request\n");
 			goto error_clocks;
 		}
 
 		ret = vfe_enable_clocks(vfe->nclocks, vfe->clock,
 					vfe->clock_rate);
 		if (ret < 0) {
-			dev_err(vfe->camss->dev, "Fail to enable clocks\n");
+			dev_err(to_device(vfe), "Fail to enable clocks\n");
 			goto error_clocks;
 		}
 	}
@@ -1259,7 +1259,7 @@ static int vfe_queue_dmabuf(struct camss_video *vid,
 
 	idx = 0; // TODO: msm_vfe_pad_to_output(vfe, vid->pad_idx);
 	if (idx < 0) {
-		dev_err(vfe->camss->dev,
+		dev_err(to_device(vfe),
 			"Can not queue dma buf invalid pad idx\n");
 		return idx;
 	}
@@ -1283,7 +1283,7 @@ static int vfe_flush_dmabufs(struct camss_video *vid)
 
 	idx = 0; // TODO: msm_vfe_pad_to_output(vfe, vid->pad_idx);
 	if (idx < 0) {
-		dev_err(vfe->camss->dev,
+		dev_err(to_device(vfe),
 			"Can not flush dma buf invalid pad idx\n");
 		return idx;
 	}
@@ -1309,7 +1309,7 @@ static int vfe_set_power(struct v4l2_subdev *sd, int on)
 	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
 	int ret;
 
-	dev_err(vfe->camss->dev, "%s: Enter, on = %d\n",
+	dev_err(to_device(vfe), "%s: Enter, on = %d\n",
 		__func__, on);
 
 	if (on) {
@@ -1321,13 +1321,13 @@ static int vfe_set_power(struct v4l2_subdev *sd, int on)
 
 
 		hw_version = readl(vfe->base);
-		dev_err(vfe->camss->dev,
+		dev_err(to_device(vfe),
 			"VFE HW Version = 0x%08x\n", hw_version);
 	} else {
 		vfe_put(vfe);
 	}
 
-	dev_err(vfe->camss->dev, "%s: Exit, on = %d\n",
+	dev_err(to_device(vfe), "%s: Exit, on = %d\n",
 		__func__, on);
 
 	return 0;
@@ -1338,7 +1338,7 @@ static int vfe_set_stream(struct v4l2_subdev *sd, int enable)
 	struct vfe_device *vfe = v4l2_get_subdevdata(sd);
 	int ret = 0;
 
-	dev_err(vfe->camss->dev, "%s: Enter, enable = %d\n",
+	dev_err(to_device(vfe), "%s: Enter, enable = %d\n",
 		__func__, enable);
 
 	if (enable) {
@@ -1346,7 +1346,7 @@ static int vfe_set_stream(struct v4l2_subdev *sd, int enable)
 
 		ret = vfe_reset(vfe);
 		if (ret < 0) {
-			dev_err(vfe->camss->dev, "Fail to reset vfe\n");
+			dev_err(to_device(vfe), "Fail to reset vfe\n");
 			return ret;
 		}
 
@@ -1356,12 +1356,12 @@ static int vfe_set_stream(struct v4l2_subdev *sd, int enable)
 
 		ret = vfe_enable_all_outputs(vfe);
 		if (ret < 0)
-			dev_err(vfe->camss->dev,
+			dev_err(to_device(vfe),
 				"Fail to enable vfe outputs\n");
 	} else {
 		ret = vfe_disable_all_outputs(vfe);
 		if (ret < 0)
-			dev_err(vfe->camss->dev,
+			dev_err(to_device(vfe),
 				"Fail to disable vfe outputs\n");
 	}
 
@@ -1587,15 +1587,15 @@ static int vfe_init_formats(struct v4l2_subdev *sd)
 	return 0;
 }
 
-int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
-			struct resources *res)
+int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 {
-	struct device *dev = camss->dev;
+	struct device *dev = to_device(vfe);
 	struct platform_device *pdev = container_of(dev,
 						    struct platform_device,
 						    dev);
 	struct resource *r;
 	struct dma_iommu_mapping *mapping;
+	struct camss *camss = to_camss(vfe);
 	int i;
 	int ret;
 
@@ -1603,8 +1603,6 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
 	spin_lock_init(&vfe->output_lock);
 
 	vfe->hw_id = 0;
-
-	vfe->camss = camss;
 
 	vfe->video_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	vfe->video_out.camss = camss;
@@ -1663,10 +1661,10 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
 
 	/* IOMMU */
 
-	vfe->camss->iommu_dev = msm_iommu_get_ctx("vfe");
-	if (IS_ERR(vfe->camss->iommu_dev)) {
+	camss->iommu_dev = msm_iommu_get_ctx("vfe");
+	if (IS_ERR(camss->iommu_dev)) {
 		dev_err(dev, "Cannot find iommu nonsecure ctx\n");
-		return PTR_ERR(vfe->camss->iommu_dev);
+		return PTR_ERR(camss->iommu_dev);
 	}
 
 	mapping = arm_iommu_create_mapping(&platform_bus_type,
@@ -1674,7 +1672,7 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct camss *camss,
 	if (IS_ERR_OR_NULL(mapping))
 		return PTR_ERR(mapping) ?: -ENODEV;
 
-	ret = arm_iommu_attach_device(vfe->camss->iommu_dev, mapping);
+	ret = arm_iommu_attach_device(camss->iommu_dev, mapping);
 	if (ret)
 		return -1;
 

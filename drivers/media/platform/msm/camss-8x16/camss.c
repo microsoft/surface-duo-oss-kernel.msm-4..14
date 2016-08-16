@@ -27,9 +27,6 @@
 
 #include "camss.h"
 
-#define CAMSS_CSIPHY_NUM 2
-#define CAMSS_CSID_NUM 2
-
 static struct resources csiphy_res[] = {
 	/* CSIPHY0 */
 	{
@@ -273,34 +270,6 @@ static int camss_pipeline_link_notify(struct media_link *link, u32 flags,
 	return 0;
 }
 
-static int camss_alloc(struct device *dev, struct camss **c)
-{
-	struct camss *camss;
-
-	*c = devm_kzalloc(dev, sizeof(**c), GFP_KERNEL);
-	if (!*c) {
-		dev_err(dev, "Failed to allocate memory\n");
-		return -ENOMEM;
-	}
-
-	camss = *c;
-	camss->csiphy_num = CAMSS_CSIPHY_NUM;
-	camss->csiphy = devm_kzalloc(dev,
-				     camss->csiphy_num * sizeof(*camss->csiphy),
-				     GFP_KERNEL);
-
-	camss->csid_num = CAMSS_CSID_NUM;
-	camss->csid = devm_kzalloc(dev,
-				   camss->csid_num * sizeof(*camss->csid),
-				   GFP_KERNEL);
-	if (!camss->csiphy || !camss->csid) {
-		dev_err(dev, "Failed to allocate memory\n");
-		return -ENOMEM;
-	}
-
-	return 0;
-}
-
 static int camss_of_parse_node(struct device *dev, struct device_node *node,
 			       struct camss_async_subdev *csd)
 {
@@ -398,8 +367,8 @@ static int camss_init_subdevices(struct camss *camss)
 	int i;
 	int ret;
 
-	for (i = 0; i < camss->csiphy_num; i++) {
-		ret = msm_csiphy_subdev_init(&camss->csiphy[i], camss,
+	for (i = 0; i < ARRAY_SIZE(camss->csiphy); i++) {
+		ret = msm_csiphy_subdev_init(&camss->csiphy[i],
 					     &csiphy_res[i], i);
 		if (ret < 0) {
 			dev_err(camss->dev,
@@ -408,8 +377,8 @@ static int camss_init_subdevices(struct camss *camss)
 		}
 	}
 
-	for (i = 0; i < camss->csid_num; i++) {
-		ret = msm_csid_subdev_init(&camss->csid[i], camss,
+	for (i = 0; i < ARRAY_SIZE(camss->csid); i++) {
+		ret = msm_csid_subdev_init(&camss->csid[i],
 					   &csid_res[i], i);
 		if (ret < 0) {
 			dev_err(camss->dev,
@@ -418,13 +387,13 @@ static int camss_init_subdevices(struct camss *camss)
 		}
 	}
 
-	ret = msm_ispif_subdev_init(&camss->ispif, camss, &ispif_res);
+	ret = msm_ispif_subdev_init(&camss->ispif, &ispif_res);
 	if (ret < 0) {
 		dev_err(camss->dev, "Failed to init ispif sub-device\n");
 		return ret;
 	}
 
-	ret = msm_vfe_subdev_init(&camss->vfe, camss, &vfe_res);
+	ret = msm_vfe_subdev_init(&camss->vfe, &vfe_res);
 	if (ret < 0) {
 		dev_err(camss->dev, "Fail to init vfe sub-device\n");
 		return ret;
@@ -438,7 +407,7 @@ static int camss_register_entities(struct camss *camss)
 	int i, j;
 	int ret;
 
-	for (i = 0; i < camss->csiphy_num; i++) {
+	for (i = 0; i < ARRAY_SIZE(camss->csiphy); i++) {
 		ret = msm_csiphy_register_entities(&camss->csiphy[i],
 						   &camss->v4l2_dev);
 		if (ret < 0) {
@@ -448,7 +417,7 @@ static int camss_register_entities(struct camss *camss)
 		}
 	}
 
-	for (i = 0; i < camss->csiphy_num; i++) {
+	for (i = 0; i < ARRAY_SIZE(camss->csiphy); i++) {
 		ret = msm_csid_register_entities(&camss->csid[i],
 						 &camss->v4l2_dev);
 		if (ret < 0) {
@@ -470,8 +439,8 @@ static int camss_register_entities(struct camss *camss)
 		goto err_reg_vfe;
 	}
 
-	for (i = 0; i < camss->csiphy_num; i++) {
-		for (j = 0; j < camss->csid_num; j++) {
+	for (i = 0; i < ARRAY_SIZE(camss->csiphy); i++) {
+		for (j = 0; j < ARRAY_SIZE(camss->csid); j++) {
 			ret = media_entity_create_link(
 				&camss->csiphy[i].subdev.entity,
 				MSM_CSIPHY_PAD_SRC,
@@ -488,7 +457,7 @@ static int camss_register_entities(struct camss *camss)
 		}
 	}
 
-	for (i = 0; i < camss->csid_num; i++) {
+	for (i = 0; i < ARRAY_SIZE(camss->csid); i++) {
 		ret = media_entity_create_link(
 			&camss->csid[i].subdev.entity, MSM_CSID_PAD_SRC,
 			&camss->ispif.subdev.entity, MSM_ISPIF_PAD_SINK, 0);
@@ -519,13 +488,13 @@ err_reg_vfe:
 	msm_ispif_unregister_entities(&camss->ispif);
 err_reg_ispif:
 
-	i = camss->csid_num;
+	i = ARRAY_SIZE(camss->csid);
 err_reg_csid:
 	for (i--; i >= 0; i--) {
 		msm_csid_unregister_entities(&camss->csid[i]);
 	}
 
-	i = camss->csiphy_num;
+	i = ARRAY_SIZE(camss->csiphy);
 err_reg_csiphy:
 	for (i--; i >= 0; i--) {
 		msm_csiphy_unregister_entities(&camss->csiphy[i]);
@@ -538,10 +507,10 @@ static void camss_unregister_entities(struct camss *camss)
 {
 	int i;
 
-	for (i = camss->csiphy_num - 1; i >= 0; i--)
+	for (i = ARRAY_SIZE(camss->csiphy) - 1; i >= 0; i--)
 		msm_csiphy_unregister_entities(&camss->csiphy[i]);
 
-	for (i = camss->csid_num - 1; i >= 0; i--)
+	for (i = ARRAY_SIZE(camss->csid) - 1; i >= 0; i--)
 		msm_csid_unregister_entities(&camss->csid[i]);
 
 	msm_ispif_unregister_entities(&camss->ispif);
@@ -595,19 +564,22 @@ static int camss_subdev_notifier_complete(struct v4l2_async_notifier *async)
 
 static int camss_probe(struct platform_device *pdev)
 {
+	struct device *dev = &pdev->dev;
 	struct camss *camss;
 	int ret;
 
-	dev_dbg(&pdev->dev, "Enter\n");
+	dev_dbg(dev, "Enter\n");
 
-	ret = camss_alloc(&pdev->dev, &camss);
-	if (ret < 0)
-		return ret;
+	camss = devm_kzalloc(dev, sizeof(*camss), GFP_KERNEL);
+	if (!camss) {
+		dev_err(dev, "Failed to allocate memory\n");
+		return -ENOMEM;
+	}
 
-	camss->dev = &pdev->dev;
+	camss->dev = dev;
 	platform_set_drvdata(pdev, camss);
 
-	ret = camss_of_parse_nodes(&pdev->dev, &camss->notifier);
+	ret = camss_of_parse_nodes(dev, &camss->notifier);
 	if (ret < 0)
 		return ret;
 
@@ -622,8 +594,7 @@ static int camss_probe(struct platform_device *pdev)
 	camss->media_dev.link_notify = camss_pipeline_link_notify;
 	ret = media_device_register(&camss->media_dev);
 	if (ret < 0) {
-		dev_err(&pdev->dev,
-			"%s: Media device registration failed (%d)\n",
+		dev_err(dev, "%s: Media device registration failed (%d)\n",
 			__func__, ret);
 		return ret;
 	}
@@ -631,8 +602,7 @@ static int camss_probe(struct platform_device *pdev)
 	camss->v4l2_dev.mdev = &camss->media_dev;
 	ret = v4l2_device_register(camss->dev, &camss->v4l2_dev);
 	if (ret < 0) {
-		dev_err(&pdev->dev,
-			"%s: V4L2 device registration failed (%d)\n",
+		dev_err(dev, "%s: V4L2 device registration failed (%d)\n",
 			__func__, ret);
 		goto err_register_v4l2;
 	}
@@ -648,7 +618,7 @@ static int camss_probe(struct platform_device *pdev)
 		ret = v4l2_async_notifier_register(&camss->v4l2_dev,
 						   &camss->notifier);
 		if (ret) {
-			dev_err(&pdev->dev,
+			dev_err(dev,
 				"%s: V4L2 async notifier registration failed (%d)\n",
 				__func__, ret);
 			goto err_register_subdevs;
@@ -656,14 +626,14 @@ static int camss_probe(struct platform_device *pdev)
 	} else {
 		ret = v4l2_device_register_subdev_nodes(&camss->v4l2_dev);
 		if (ret < 0) {
-			dev_err(&pdev->dev,
+			dev_err(dev,
 				"%s: V4L2 subdev nodes registration failed (%d)\n",
 				__func__, ret);
 			goto err_register_subdevs;
 		}
 	}
 
-	dev_dbg(&pdev->dev, "camss driver registered successfully!\n");
+	dev_dbg(dev, "camss driver registered successfully!\n");
 
 	return 0;
 

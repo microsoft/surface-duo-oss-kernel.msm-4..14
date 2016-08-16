@@ -301,7 +301,7 @@ static int csid_set_power(struct v4l2_subdev *sd, int on)
 	struct csid_device *csid = v4l2_get_subdevdata(sd);
 	int ret;
 
-	dev_err(csid->camss->dev, "%s: Enter, csid%d on = %d\n",
+	dev_err(to_device_index(csid, csid->id), "%s: Enter, csid%d on = %d\n",
 		__func__, csid->id, on);
 
 	if (on) {
@@ -323,7 +323,7 @@ static int csid_set_power(struct v4l2_subdev *sd, int on)
 		wait_for_completion(&csid->reset_complete);
 
 		hw_version = readl_relaxed(csid->base + CAMSS_CSID_HW_VERSION);
-		dev_err(csid->camss->dev, "CSID HW Version = 0x%08x\n", hw_version);
+		dev_err(to_device_index(csid, csid->id), "CSID HW Version = 0x%08x\n", hw_version);
 	} else {
 		disable_irq(csid->irq);
 
@@ -334,7 +334,7 @@ static int csid_set_power(struct v4l2_subdev *sd, int on)
 			return ret;
 	}
 
-	dev_err(csid->camss->dev, "%s: Exit, csid%d on = %d\n",
+	dev_err(to_device_index(csid, csid->id), "%s: Exit, csid%d on = %d\n",
 		__func__, csid->id, on);
 
 	return 0;
@@ -423,7 +423,7 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 	struct csid_device *csid = v4l2_get_subdevdata(sd);
 	struct csid_testgen_config *tg = &csid->testgen;
 
-	dev_err(csid->camss->dev, "%s: Enter, csid%d enable = %d\n",
+	dev_err(to_device_index(csid, csid->id), "%s: Enter, csid%d enable = %d\n",
 		__func__, csid->id, enable);
 
 	if (enable) {
@@ -435,7 +435,7 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 
 		ret = v4l2_ctrl_handler_setup(&csid->ctrls);
 		if (ret < 0) {
-			dev_err(csid->camss->dev,
+			dev_err(to_device_index(csid, csid->id),
 				"could not sync v4l2 controls\n");
 			return ret;
 		}
@@ -832,16 +832,14 @@ static struct v4l2_ctrl_ops csid_ctrl_ops = {
  *
  * Return 0 on success or a negative error code otherwise
  */
-int msm_csid_subdev_init(struct csid_device *csid, struct camss *camss,
+int msm_csid_subdev_init(struct csid_device *csid,
 			 struct resources *res, u8 id)
 {
-	struct device *dev = camss->dev;
+	struct device *dev = to_device_index(csid, id);
 	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
 	struct resource *r;
 	int i;
 	int ret;
-
-	csid->camss = camss;
 
 	csid->id = id;
 
@@ -1036,7 +1034,7 @@ int msm_csid_register_entities(struct csid_device *csid,
 				csid_test_pattern_menu);
 
 	if (csid->ctrls.error) {
-		dev_err(csid->camss->dev, "failed to init ctrl: %d\n",
+		dev_err(to_device_index(csid, csid->id), "failed to init ctrl: %d\n",
 			csid->ctrls.error);
 		ret = csid->ctrls.error;
 		goto free_ctrl;
@@ -1052,13 +1050,13 @@ int msm_csid_register_entities(struct csid_device *csid,
 	sd->entity.ops = &csid_media_ops;
 	ret = media_entity_init(&sd->entity, MSM_CSID_PADS_NUM, pads, 0);
 	if (ret < 0) {
-		dev_err(csid->camss->dev, "failed to init media entity");
+		dev_err(to_device_index(csid, csid->id), "failed to init media entity");
 		goto free_ctrl;
 	}
 
 	ret = v4l2_device_register_subdev(v4l2_dev, sd);
 	if (ret < 0) {
-		dev_err(csid->camss->dev, "failed to register subdev");
+		dev_err(to_device_index(csid, csid->id), "failed to register subdev");
 		goto media_cleanup;
 	}
 
