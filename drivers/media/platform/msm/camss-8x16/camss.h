@@ -79,30 +79,9 @@ struct camss {
 	struct device *iommu_dev;
 };
 
-enum camss_csiphy {
-	CAMSS_CSIPHY0 = 0,
-	CAMSS_CSIPHY1
-};
-
-struct camss_csiphy_lane {
-	u8 pos;
-	u8 pol;
-};
-
-struct camss_csiphy_lanes_cfg {
-	int num_data;
-	struct camss_csiphy_lane *data;
-	struct camss_csiphy_lane clk;
-};
-
-struct camss_csi2_cfg {
-	int settle_cnt;
-	struct camss_csiphy_lanes_cfg lanecfg;
-};
-
 struct camss_camera_interface {
-	enum camss_csiphy id;
-	struct camss_csi2_cfg csi2;
+	u8 csiphy_id;
+	struct csiphy_csi2_cfg csi2;
 };
 
 struct camss_async_subdev {

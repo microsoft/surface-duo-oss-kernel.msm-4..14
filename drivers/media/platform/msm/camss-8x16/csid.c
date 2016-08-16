@@ -914,13 +914,13 @@ int msm_csid_subdev_init(struct csid_device *csid,
  *
  * Return lane assign
  */
-static u32 csid_get_lane_assign(struct camss_csiphy_lanes_cfg *lanecfg)
+static u32 csid_get_lane_assign(struct csiphy_lanes_cfg *lane_cfg)
 {
 	u32 lane_assign = 0;
 	int i;
 
-	for (i = 0; i < lanecfg->num_data; i++)
-		lane_assign |= lanecfg->data[i].pos << (i * 4);
+	for (i = 0; i < lane_cfg->num_data; i++)
+		lane_assign |= lane_cfg->data[i].pos << (i * 4);
 
 	return lane_assign;
 }
@@ -943,7 +943,7 @@ static int csid_link_setup(struct media_entity *entity,
 		struct v4l2_subdev *sd;
 		struct csid_device *csid;
 		struct csiphy_device *csiphy;
-		struct camss_csiphy_lanes_cfg *lanecfg;
+		struct csiphy_lanes_cfg *lane_cfg;
 		struct v4l2_subdev_format format;
 
 		sd = container_of(entity, struct v4l2_subdev, entity);
@@ -964,9 +964,9 @@ static int csid_link_setup(struct media_entity *entity,
 
 		csid->phy.csiphy_id = csiphy->id;
 
-		lanecfg = &csiphy->cfg.csi2->lanecfg;
-		csid->phy.lane_cnt = lanecfg->num_data;
-		csid->phy.lane_assign = csid_get_lane_assign(lanecfg);
+		lane_cfg = &csiphy->cfg.csi2->lane_cfg;
+		csid->phy.lane_cnt = lane_cfg->num_data;
+		csid->phy.lane_assign = csid_get_lane_assign(lane_cfg);
 
 		// Reset format on source pad to sink pad format
 		memset(&format, 0, sizeof(format));

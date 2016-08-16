@@ -218,7 +218,7 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
  *
  * Return lane mask
  */
-static int csiphy_get_lane_mask(struct camss_csiphy_lanes_cfg *lane_cfg)
+static int csiphy_get_lane_mask(struct csiphy_lanes_cfg *lane_cfg)
 {
 	u16 lane_mask;
 	int i;
@@ -244,7 +244,7 @@ static int csiphy_set_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct csiphy_device *csiphy = v4l2_get_subdevdata(sd);
 	struct csiphy_config *cfg = &csiphy->cfg;
-	u16 lane_mask = csiphy_get_lane_mask(&cfg->csi2->lanecfg);
+	u16 lane_mask = csiphy_get_lane_mask(&cfg->csi2->lane_cfg);
 	u8 i;
 	u8 val;
 

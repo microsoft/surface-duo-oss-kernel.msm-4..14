@@ -273,7 +273,7 @@ static int camss_pipeline_link_notify(struct media_link *link, u32 flags,
 static int camss_of_parse_node(struct device *dev, struct device_node *node,
 			       struct camss_async_subdev *csd)
 {
-	struct camss_csiphy_lanes_cfg *lncfg = &csd->interface.csi2.lanecfg;
+	struct csiphy_lanes_cfg *lncfg = &csd->interface.csi2.lane_cfg;
 	int *settle_cnt = &csd->interface.csi2.settle_cnt;
 	struct v4l2_of_endpoint vep;
 	unsigned int i;
@@ -282,7 +282,7 @@ static int camss_of_parse_node(struct device *dev, struct device_node *node,
 
 	dev_dbg(dev, "parsing endpoint %s\n", node->full_name);
 
-	csd->interface.id = vep.base.port;
+	csd->interface.csiphy_id = vep.base.port;
 
 	lncfg->clk.pos = vep.bus.mipi_csi2.clock_lane;
 	lncfg->clk.pol = vep.bus.mipi_csi2.lane_polarities[0];
@@ -525,7 +525,7 @@ static int camss_subdev_notifier_bound(struct v4l2_async_notifier *async,
 	struct camss *camss = container_of(async, struct camss, notifier);
 	struct camss_async_subdev *csd =
 		container_of(asd, struct camss_async_subdev, asd);
-	enum camss_csiphy id = csd->interface.id;
+	u8 id = csd->interface.csiphy_id;
 	struct csiphy_device *csiphy = &camss->csiphy[id];
 	struct media_entity *input = &csiphy->subdev.entity;
 	unsigned int flags = MEDIA_LNK_FL_IMMUTABLE | MEDIA_LNK_FL_ENABLED;
