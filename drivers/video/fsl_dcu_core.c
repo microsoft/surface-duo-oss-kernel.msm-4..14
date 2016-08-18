@@ -925,26 +925,22 @@ Dcu_Err_t DCU_GetLayerChromaMin(Dcu_Unit_t dcu_id, Dcu_Layer_t layer_id, Dcu_Col
 	return (err);
 }
 
-Dcu_Err_t DCU_SetLayerForeground(Dcu_Unit_t dcu_id,Dcu_Layer_t layer_id, uint32_t value)
+Dcu_Err_t DCU_SetLayerForeground(Dcu_Unit_t dcu_id, Dcu_Layer_t layer_id,
+	uint32_t value)
 {
 	Dcu_Err_t err = DCU_ERR_OK;
 
 #if ((1 == DCU_IRQ_SUPPORT) && (1 == DCU_IRQ_STATEMACHINE))
-	if(DCU_PROG_END!=gDCU_DisplayIStatus[dcu_id])
-	{
-		return(DCU_ERR_CALLTIME);
-	}
+	if (DCU_PROG_END != gDCU_DisplayIStatus[dcu_id])
+		return DCU_ERR_CALLTIME;
 #endif /* DCU_IRQ_SUPPORT && DCU_IRQ_STATEMACHINE */
 
-	if (0x00FFFFFF > value)
-	{
+	if (0x00FFFFFF >= value)
 		REG_WRITE32(DCU_CTRLDESCL8_ADDR32(dcu_id, layer_id), value);
-	}
 	else
-	{
 		err = DCU_ERR_RANGE;
-	}
-	return(err);
+
+	return err;
 }
 
 Dcu_Err_t DCU_GetLayerForeground(Dcu_Unit_t dcu_id, Dcu_Layer_t layer_id, uint32_t* pValue)
@@ -962,26 +958,22 @@ Dcu_Err_t DCU_GetLayerForeground(Dcu_Unit_t dcu_id, Dcu_Layer_t layer_id, uint32
 	return (err);
 }
 
-Dcu_Err_t DCU_SetLayerBackground(Dcu_Unit_t dcu_id, Dcu_Layer_t layer_id, uint32_t value)
+Dcu_Err_t DCU_SetLayerBackground(Dcu_Unit_t dcu_id, Dcu_Layer_t layer_id,
+	uint32_t value)
 {
 	Dcu_Err_t err = DCU_ERR_OK;
 
 #if ((1 == DCU_IRQ_SUPPORT) && (1 == DCU_IRQ_STATEMACHINE))
-	if(DCU_PROG_END!=gDCU_DisplayIStatus[dcu_id])
-	{
-		return(DCU_ERR_CALLTIME);
-	}
+	if (DCU_PROG_END != gDCU_DisplayIStatus[dcu_id])
+		return DCU_ERR_CALLTIME;
 #endif /* DCU_IRQ_SUPPORT && DCU_IRQ_STATEMACHINE */
 
-	if (0x00FFFFFF > value)
-	{
+	if (0x00FFFFFF >= value)
 		REG_WRITE32(DCU_CTRLDESCL9_ADDR32(dcu_id, layer_id), value);
-	}
 	else
-	{
 		err = DCU_ERR_RANGE;
-	}
-	return(err);
+
+	return err;
 }
 
 Dcu_Err_t DCU_GetLayerBackground(Dcu_Unit_t dcu_id, Dcu_Layer_t layer_id, uint32_t* pValue)
