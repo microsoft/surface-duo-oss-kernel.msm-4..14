@@ -506,42 +506,8 @@ int __qcom_scm_video_mem_protect(struct device *dev, u32 start, u32 size,
 	return ret ? : res.a1;
 }
 
-int __qcom_scm_get_feat_version(struct device *dev, u32 feat)
-{
-	struct qcom_scm_desc desc = {0};
-	struct arm_smccc_res res;
-	int ret;
-
-	ret = __qcom_scm_is_call_available(dev, QCOM_SCM_SVC_INFO,
-					   QCOM_SCM_GET_FEAT_VERSION_CMD);
-	if (ret <= 0)
-		return 0;
-
-	desc.args[0] = feat;
-	desc.arginfo = QCOM_SCM_ARGS(1);
-
-	ret = qcom_scm_call(dev, QCOM_SCM_SVC_INFO,
-			    QCOM_SCM_GET_FEAT_VERSION_CMD, &desc, &res);
-	return ret ? : res.a1;
-}
-
-int __qcom_scm_iommu_set_cp_pool_size(struct device *dev, u32 size, u32 spare)
-{
-	struct qcom_scm_desc desc = {0};
-	struct arm_smccc_res res;
-	int ret;
-
-	desc.args[0] = size;
-	desc.args[1] = spare;
-	desc.arginfo = QCOM_SCM_ARGS(2);
-
-	ret = qcom_scm_call(dev, QCOM_SCM_SVC_MP,
-			    QCOM_SCM_IOMMU_SET_CP_POOL_SIZE, &desc, &res);
-	return ret ? : res.a1;
-}
-
 int __qcom_scm_iommu_secure_ptbl_size(struct device *dev, u32 spare,
-				      int psize[2])
+				      size_t *size)
 {
 	struct qcom_scm_desc desc = {0};
 	struct arm_smccc_res res;
@@ -553,10 +519,10 @@ int __qcom_scm_iommu_secure_ptbl_size(struct device *dev, u32 spare,
 	ret = qcom_scm_call(dev, QCOM_SCM_SVC_MP,
 			    QCOM_SCM_IOMMU_SECURE_PTBL_SIZE, &desc, &res);
 
-	psize[0] = res.a1;
-	psize[1] = res.a2;
+	if (size)
+		*size = res.a1;
 
-	return ret;
+	return ret ? : res.a2;
 }
 
 int __qcom_scm_iommu_secure_ptbl_init(struct device *dev, u64 addr, u32 size,
@@ -575,7 +541,11 @@ int __qcom_scm_iommu_secure_ptbl_init(struct device *dev, u64 addr, u32 size,
 	ret = qcom_scm_call(dev, QCOM_SCM_SVC_MP,
 			    QCOM_SCM_IOMMU_SECURE_PTBL_INIT, &desc, &res);
 
-	return ret ? : res.a1;
+	/* the pg table has been initialized already, ignore the error */
+	if (ret == -EPERM)
+		ret = 0;
+
+	return ret;
 }
 
 int __qcom_scm_iommu_dump_fault_regs(struct device *dev, u32 id, u32 context,

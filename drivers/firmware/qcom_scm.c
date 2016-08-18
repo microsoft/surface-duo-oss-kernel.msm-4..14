@@ -187,8 +187,10 @@ EXPORT_SYMBOL(qcom_scm_pas_supported);
  *
  * Returns 0 on success.
  */
-int qcom_scm_pas_init_image(u32 peripheral, u64 metadata, size_t size)
+int qcom_scm_pas_init_image(u32 peripheral, const void *metadata, size_t size)
 {
+	dma_addr_t mdata_phys;
+	void *mdata_buf;
 	int ret;
 
 	/*
@@ -196,15 +198,25 @@ int qcom_scm_pas_init_image(u32 peripheral, u64 metadata, size_t size)
 	 * data blob, so make sure it's physically contiguous, 4K aligned and
 	 * non-cachable to avoid XPU violations.
 	 */
+	mdata_buf = dma_alloc_coherent(__scm->dev, size, &mdata_phys,
+				       GFP_KERNEL);
+	if (!mdata_buf) {
+		dev_err(__scm->dev, "Allocation of metadata buffer failed.\n");
+		return -ENOMEM;
+	}
+	memcpy(mdata_buf, metadata, size);
+
 	ret = qcom_scm_clk_enable();
 	if (ret)
 		goto free_metadata;
 
-	ret = __qcom_scm_pas_init_image(__scm->dev, peripheral, metadata);
+	ret = __qcom_scm_pas_init_image(__scm->dev, peripheral, mdata_phys);
 
 	qcom_scm_clk_disable();
 
 free_metadata:
+	dma_free_coherent(__scm->dev, size, mdata_buf, mdata_phys);
+
 	return ret;
 }
 EXPORT_SYMBOL(qcom_scm_pas_init_image);
@@ -342,21 +354,9 @@ int qcom_scm_video_mem_protect(u32 start, u32 size, u32 nonpixel_start,
 }
 EXPORT_SYMBOL(qcom_scm_video_mem_protect);
 
-int qcom_scm_get_feat_version(u32 feat)
+int qcom_scm_iommu_secure_ptbl_size(u32 spare, size_t *size)
 {
-	return __qcom_scm_get_feat_version(__scm->dev, feat);
-}
-EXPORT_SYMBOL(qcom_scm_get_feat_version);
-
-int qcom_scm_iommu_set_cp_pool_size(u32 size, u32 spare)
-{
-	return __qcom_scm_iommu_set_cp_pool_size(__scm->dev, size, spare);
-}
-EXPORT_SYMBOL(qcom_scm_iommu_set_cp_pool_size);
-
-int qcom_scm_iommu_secure_ptbl_size(u32 spare, int psize[2])
-{
-	return __qcom_scm_iommu_secure_ptbl_size(__scm->dev, spare, psize);
+	return __qcom_scm_iommu_secure_ptbl_size(__scm->dev, spare, size);
 }
 EXPORT_SYMBOL(qcom_scm_iommu_secure_ptbl_size);
 

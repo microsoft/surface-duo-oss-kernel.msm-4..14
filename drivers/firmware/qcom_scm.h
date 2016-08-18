@@ -64,16 +64,10 @@ extern int __qcom_scm_video_mem_protect(struct device *dev, u32 start,
 					u32 size, u32 nonpixel_start,
 					u32 nonpixel_size);
 
-#define QCOM_SCM_GET_FEAT_VERSION_CMD	3
-#define QCOM_SCM_IOMMU_SET_CP_POOL_SIZE	5
 #define QCOM_SCM_IOMMU_SECURE_PTBL_SIZE	3
 #define QCOM_SCM_IOMMU_SECURE_PTBL_INIT	4
-
-extern int __qcom_scm_get_feat_version(struct device *dev, u32 feat);
-extern int __qcom_scm_iommu_set_cp_pool_size(struct device *dev, u32 size,
-					     u32 spare);
 extern int __qcom_scm_iommu_secure_ptbl_size(struct device *dev, u32 spare,
-					     int psize[2]);
+					     size_t *size);
 extern int __qcom_scm_iommu_secure_ptbl_init(struct device *dev, u64 addr,
 					     u32 size, u32 spare);
 
@@ -97,6 +91,7 @@ extern int __qcom_scm_iommu_secure_unmap(struct device *dev, u32 id, u32 ctx_id,
 
 /* common error codes */
 #define QCOM_SCM_V2_EBUSY	-12
+#define QCOM_SCM_NOT_PERMITTED	-8
 #define QCOM_SCM_ENOMEM		-5
 #define QCOM_SCM_EOPNOTSUPP	-4
 #define QCOM_SCM_EINVAL_ADDR	-3
@@ -118,6 +113,8 @@ static inline int qcom_scm_remap_error(int err)
 		return -ENOMEM;
 	case QCOM_SCM_V2_EBUSY:
 		return -EBUSY;
+	case QCOM_SCM_NOT_PERMITTED:
+		return -EPERM;
 	}
 	return -EINVAL;
 }
