@@ -3,7 +3,13 @@
 Based on fsl,imx-pincontrol implementation.
 
 Required properties:
-- compatible: "fsl,siul2-pinctrl"
+- compatible:
+	* "fsl,s32v234-siul2-pinctrl"
+	  Latest version.
+	* "fsl,s32v234-siul2" <DEPRECATED>
+	  Backward compatible string for the use cases
+	  when the user boots kernel with an old device tree. It's not
+	  recommended to use it anymore.
 - fsl,pins: two integers array, represents a group of pins mux and config
   setting. The format is fsl,pins = <PIN_FUNC_ID CONFIG>
   PIN_FUNC_ID - id of MSCR to be modified

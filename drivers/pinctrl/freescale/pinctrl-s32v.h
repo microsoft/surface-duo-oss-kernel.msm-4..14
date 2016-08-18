@@ -13,6 +13,16 @@
 #ifndef __DRIVERS_PINCTRL_S32V_H
 #define __DRIVERS_PINCTRL_S32V_H
 
+/**
+ * Pinctrl driver versions
+ */
+enum s32v_pinctrl_version {
+	/* Pinctrl driver reserves all SIUL2 registers */
+	PINCTRL_V1,
+	/* Pinctrl driver reserves only pinctrl registers */
+	PINCTRL_V2,
+};
+
 struct platform_device;
 
 /**
@@ -68,13 +78,14 @@ struct s32v_pinctrl_soc_info {
 	unsigned int flags;
 };
 
-
-#define S32V_PINCTRL_PIN(pin) PINCTRL_PIN(pin, #pin)
-#define S32V_PAD_CONFIG(idx)	(0x240 + (idx) * 4)
-#define S32V_PIN_SIZE			(8)
+#define S32V_PINCTRL_PIN(pin)	PINCTRL_PIN(pin, #pin)
+#define S32V_MSCR_OFFSET	(0x240)
+#define S32V_PAD_CONFIG(idx)	((idx) * 4)
+#define S32V_PIN_SIZE		(8)
 
 
 int s32v_pinctrl_probe(struct platform_device *pdev,
-			struct s32v_pinctrl_soc_info *info);
+			struct s32v_pinctrl_soc_info *info,
+			enum s32v_pinctrl_version vers);
 int s32v_pinctrl_remove(struct platform_device *pdev);
 #endif /* __DRIVERS_PINCTRL_S32V_H */
