@@ -59,11 +59,6 @@ extern int  __qcom_scm_pas_shutdown(struct device *dev, u32 peripheral);
 extern int  __qcom_scm_pas_mss_reset(struct device *dev, bool reset);
 
 #define QCOM_SCM_SVC_MP			0xc
-#define QCOM_SCM_VIDEO_MEM_PROTECT	0x8
-extern int __qcom_scm_video_mem_protect(struct device *dev, u32 start,
-					u32 size, u32 nonpixel_start,
-					u32 nonpixel_size);
-
 #define QCOM_SCM_IOMMU_SECURE_PTBL_SIZE	3
 #define QCOM_SCM_IOMMU_SECURE_PTBL_INIT	4
 extern int __qcom_scm_iommu_secure_ptbl_size(struct device *dev, u32 spare,

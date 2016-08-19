@@ -487,25 +487,6 @@ int __qcom_scm_video_set_state(struct device *dev, u32 state, u32 spare)
 	return ret ? : res.a1;
 }
 
-int __qcom_scm_video_mem_protect(struct device *dev, u32 start, u32 size,
-				 u32 nonpixel_start, u32 nonpixel_size)
-{
-	struct qcom_scm_desc desc = {0};
-	struct arm_smccc_res res;
-	int ret;
-
-	desc.args[0] = start;
-	desc.args[1] = size;
-	desc.args[2] = nonpixel_start;
-	desc.args[3] = nonpixel_size;
-	desc.arginfo = QCOM_SCM_ARGS(4);
-
-	ret = qcom_scm_call(dev, QCOM_SCM_SVC_MP, QCOM_SCM_VIDEO_MEM_PROTECT,
-			    &desc, &res);
-
-	return ret ? : res.a1;
-}
-
 int __qcom_scm_iommu_secure_ptbl_size(struct device *dev, u32 spare,
 				      size_t *size)
 {
