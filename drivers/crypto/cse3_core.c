@@ -176,9 +176,9 @@ static int cse_cdev_release(struct inode *inode, struct file *file)
 {
 	cse_ctx_t *context = (cse_ctx_t *) file->private_data;
 
-	kfree(context);
 	file->private_data = NULL;
 	up(&context->dev->access);
+	kfree(context);
 
 	return 0;
 }
@@ -442,8 +442,8 @@ static int cse_rng_read(struct hwrng *rng, void *data, size_t max, bool wait)
 
 	cse_finish_req(ctx->dev, (cse_req_t *)new_req);
 out:
-	kfree(ctx);
 	up(&ctx->dev->access);
+	kfree(ctx);
 
 	return size;
 }
