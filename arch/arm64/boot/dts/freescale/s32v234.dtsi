@@ -74,46 +74,6 @@
 		};
 	};
 
-	memory_DDR0@80000000 {
-		device_type = "memory";
-		reg = <0 0x80000000 0 0x40000000>;
-	};
-
-	memory_DDR1@c0000000 {
-		device_type = "memory";
-		reg = <0 0xc0000000 0 0x40000000>;
-	};
-
-	gic: interrupt-controller@7d001000 {
-		compatible = "arm,cortex-a15-gic", "arm,cortex-a9-gic";
-		#interrupt-cells = <3>;
-		#address-cells = <0>;
-		interrupt-controller;
-		reg = <0 0x7d001000 0 0x1000>,
-		      <0 0x7d002000 0 0x1000>,
-		      <0 0x7d004000 0 0x2000>,
-		      <0 0x7d006000 0 0x2000>;
-		interrupts = <1 9 0xf04>;
-	};
-
-	cci@7d090000 {
-		compatible = "arm,cci";
-		reg = <0 0x7d090000 0 0x10000>;
-		interrupts = <0 101 4>,
-			     <0 102 4>,
-			     <0 103 4>,
-			     <0 104 4>,
-			     <0 105 4>;
-	};
-
-	timer {
-		compatible = "arm,armv8-timer";
-		interrupts = <1 13 0xf08>,
-			     <1 14 0xf08>,
-			     <1 11 0xf08>,
-			     <1 10 0xf08>;
-		clock-frequency = <12000000>;
-	};
 	pmu {
 		compatible = "arm,armv8-pmuv3";
 		interrupts = <0 163 0x4>,
@@ -126,6 +86,15 @@
 		/* only used in ldo-bypass */
 		/* used by the gpu driver */
 		compatible = "fsl,s32v234-dummy-pureg";
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupts = <1 13 0xf08>,
+			     <1 14 0xf08>,
+			     <1 11 0xf08>,
+			     <1 10 0xf08>;
+		clock-frequency = <12000000>;
 	};
 
 	soc {
@@ -617,6 +586,7 @@
 				status = "disabled";
 		};
 	};
+
 	pcie: pcie@0x72000000 {
 		compatible = "fsl,s32v234-pcie";
 		reg = <0 0x72ffc000 0 0x4000>, <0 0x72f00000 0 0x80000>;
@@ -640,6 +610,7 @@
 						<0 0 0 4 &gic 0 108 4>;
 		status = "disabled";
 	};
+
 	vseq: vision_sequencer@7C021000 {
 			compatible = "fsl,s32v234-vseq";
 			reg = <0x0 0x7C021000 0x0 0x1000>,
@@ -648,6 +619,7 @@
 				<0 114 1>;
 			status = "disabled";
 	};
+
 	fdma: fast_dma@7C040000 {
 			compatible = "fsl,s32v234-fdma";
 			reg = <0x0 0x7C040000 0x0 0x1000>;
@@ -655,4 +627,37 @@
 				<0 84 1>;
 			status = "disabled";
 	};
+
+	gic: interrupt-controller@7d001000 {
+		compatible = "arm,cortex-a15-gic", "arm,cortex-a9-gic";
+		#interrupt-cells = <3>;
+		#address-cells = <0>;
+		interrupt-controller;
+		reg = <0 0x7d001000 0 0x1000>,
+		      <0 0x7d002000 0 0x1000>,
+		      <0 0x7d004000 0 0x2000>,
+		      <0 0x7d006000 0 0x2000>;
+		interrupts = <1 9 0xf04>;
+	};
+
+	cci@7d090000 {
+		compatible = "arm,cci";
+		reg = <0 0x7d090000 0 0x10000>;
+		interrupts = <0 101 4>,
+			     <0 102 4>,
+			     <0 103 4>,
+			     <0 104 4>,
+			     <0 105 4>;
+	};
+
+	memory_DDR0@80000000 {
+		device_type = "memory";
+		reg = <0 0x80000000 0 0x40000000>;
+	};
+
+	memory_DDR1@c0000000 {
+		device_type = "memory";
+		reg = <0 0xc0000000 0 0x40000000>;
+	};
+
 };
