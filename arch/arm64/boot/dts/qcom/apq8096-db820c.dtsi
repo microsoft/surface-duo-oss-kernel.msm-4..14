@@ -13,6 +13,7 @@
 
 #include "msm8996.dtsi"
 #include "apq8096-db820c-pins.dtsi"
+#include <dt-bindings/gpio/gpio.h>
 
 / {
 	aliases {
@@ -83,6 +84,22 @@
 			pinctrl-1 = <&sdc2_clk_off &sdc2_cmd_off &sdc2_data_off &sdc2_cd_off>;
 			cd-gpios = <&msmgpio 38 0x1>;
 			status = "okay";
+		};
+
+		agnoc@0 {
+			qcom,pcie@00600000 {
+				perst-gpio = <&msmgpio 35 GPIO_ACTIVE_LOW>;
+			};
+
+			qcom,pcie@00608000 {
+				status = "okay";
+				perst-gpio = <&msmgpio 130 GPIO_ACTIVE_LOW>;
+			};
+
+			qcom,pcie@00610000 {
+				status = "okay";
+				perst-gpio = <&msmgpio 114 GPIO_ACTIVE_LOW>;
+			};
 		};
 
 		ufsphy@627000 {
