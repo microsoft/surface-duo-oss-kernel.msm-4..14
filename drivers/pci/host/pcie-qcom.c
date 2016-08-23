@@ -32,11 +32,19 @@
 
 #include "pcie-designware.h"
 
+#define PCIE20_PARF_DBI_BASE_ADDR	0x168
+
+#define PCIE20_PARF_SYS_CTRL			0x00
 #define PCIE20_PARF_PHY_CTRL			0x40
 #define PCIE20_PARF_PHY_REFCLK			0x4C
 #define PCIE20_PARF_DBI_BASE_ADDR		0x168
 #define PCIE20_PARF_SLV_ADDR_SPACE_SIZE		0x16c
+#define PCIE20_PARF_MHI_CLOCK_RESET_CTRL	0x174
 #define PCIE20_PARF_AXI_MSTR_WR_ADDR_HALT	0x178
+#define MSM8996_PCIE20_PARF_AXI_MSTR_WR_ADDR_HALT   0x1A8
+#define PCIE20_PARF_LTSSM              		0x1B0
+#define PCIE20_PARF_SID_OFFSET			0x234
+#define PCIE20_PARF_BDF_TRANSLATE_CFG		0x24C
 
 #define PCIE20_ELBI_SYS_CTRL			0x04
 #define PCIE20_ELBI_SYS_CTRL_LT_ENABLE		BIT(0)
@@ -68,9 +76,25 @@ struct qcom_pcie_resources_v1 {
 	struct regulator *vdda;
 };
 
+struct qcom_pcie_resources_msm8996 {
+	struct clk *ref_clk;
+	struct clk *bus_clk;
+	struct clk *aux_clk;
+	struct clk *cfg_clk;
+	struct clk *master_clk;
+	struct clk *slave_clk;
+	struct clk *axi_clk;
+	struct clk *ahb_clk;
+	struct clk *pipe_clk;
+	struct regulator *vreg_3v3;
+	struct regulator *vreg_1v8;
+	struct regulator *vreg_0v9;
+};
+
 union qcom_pcie_resources {
 	struct qcom_pcie_resources_v0 v0;
 	struct qcom_pcie_resources_v1 v1;
+	struct qcom_pcie_resources_msm8996 msm8996;
 };
 
 struct qcom_pcie;
@@ -78,7 +102,9 @@ struct qcom_pcie;
 struct qcom_pcie_ops {
 	int (*get_resources)(struct qcom_pcie *pcie);
 	int (*init)(struct qcom_pcie *pcie);
+	int (*post_init)(struct qcom_pcie *pcie);
 	void (*deinit)(struct qcom_pcie *pcie);
+	void (*ltssm_enable)(struct qcom_pcie *pcie);
 };
 
 struct qcom_pcie {
@@ -114,17 +140,33 @@ static irqreturn_t qcom_pcie_msi_irq_handler(int irq, void *arg)
 	return dw_handle_msi_irq(pp);
 }
 
-static int qcom_pcie_establish_link(struct qcom_pcie *pcie)
+static void qcom_pcie_v0_v1_ltssm_enable(struct qcom_pcie *pcie)
 {
 	u32 val;
-
-	if (dw_pcie_link_up(&pcie->pp))
-		return 0;
-
 	/* enable link training */
 	val = readl(pcie->elbi + PCIE20_ELBI_SYS_CTRL);
 	val |= PCIE20_ELBI_SYS_CTRL_LT_ENABLE;
 	writel(val, pcie->elbi + PCIE20_ELBI_SYS_CTRL);
+}
+
+static void qcom_pcie_msm8996_ltssm_enable(struct qcom_pcie *pcie)
+{
+	u32 val;
+	/* enable link training */
+	val = readl(pcie->parf + PCIE20_PARF_LTSSM);
+	val |= BIT(8); 
+	writel(val, pcie->parf + PCIE20_PARF_LTSSM);
+}
+
+static int qcom_pcie_establish_link(struct qcom_pcie *pcie)
+{
+
+	if (dw_pcie_link_up(&pcie->pp))
+		return 0;
+
+	/* Enable Link Training state machine */
+	if (pcie->ops->ltssm_enable)
+		pcie->ops->ltssm_enable(pcie);
 
 	return dw_pcie_wait_for_link(&pcie->pp);
 }
@@ -419,12 +461,193 @@ err_res:
 	return ret;
 }
 
+static int qcom_pcie_get_resources_msm8996(struct qcom_pcie *pcie)
+{
+	struct qcom_pcie_resources_msm8996 *res = &pcie->res.msm8996;
+	struct device *dev = pcie->dev;
+
+	res->vreg_1v8 = devm_regulator_get(dev, "vreg-1.8");
+	if (IS_ERR(res->vreg_1v8))
+		return PTR_ERR(res->vreg_1v8);
+
+	res->vreg_0v9 = devm_regulator_get(dev, "vreg-0.9");
+	if (IS_ERR(res->vreg_0v9))
+		return PTR_ERR(res->vreg_0v9);
+
+	res->axi_clk = devm_clk_get(dev, "axi");
+	if (IS_ERR(res->axi_clk))
+		return PTR_ERR(res->axi_clk);
+
+	res->ahb_clk = devm_clk_get(dev, "ahb");
+	if (IS_ERR(res->ahb_clk))
+		return PTR_ERR(res->ahb_clk);
+
+	res->bus_clk = devm_clk_get(dev, "bus");
+	if (IS_ERR(res->bus_clk))
+		return PTR_ERR(res->bus_clk);
+
+	res->ref_clk = devm_clk_get(dev, "ref");
+	if (IS_ERR(res->ref_clk))
+		return PTR_ERR(res->ref_clk);
+
+	res->aux_clk = devm_clk_get(dev, "aux");
+	if (IS_ERR(res->aux_clk))
+		return PTR_ERR(res->aux_clk);
+
+	res->cfg_clk = devm_clk_get(dev, "cfg");
+	if (IS_ERR(res->cfg_clk))
+		return PTR_ERR(res->cfg_clk);
+
+	res->master_clk = devm_clk_get(dev, "master");
+	if (IS_ERR(res->master_clk))
+		return PTR_ERR(res->master_clk);
+
+	res->slave_clk = devm_clk_get(dev, "slave");
+	if (IS_ERR(res->slave_clk))
+		return PTR_ERR(res->slave_clk);
+
+	res->pipe_clk = devm_clk_get(dev, "pipe");
+	if (IS_ERR(res->pipe_clk))
+		return PTR_ERR(res->pipe_clk);
+
+	return 0;
+}
+
+static int qcom_pcie_init_msm8996(struct qcom_pcie *pcie)
+{
+	struct qcom_pcie_resources_msm8996 *res = &pcie->res.msm8996;
+	struct device *dev = pcie->dev;
+	u32 val;
+	int ret = 0;
+
+	ret = regulator_enable(res->vreg_1v8);
+	if (ret) {
+		dev_err(dev, "cannot enable vreg_1v8 regulator\n");
+		return ret;
+	}
+
+	ret = regulator_enable(res->vreg_0v9);
+	if (ret) {
+		dev_err(dev, "cannot enable vreg_0v9 regulator\n");
+		goto err_vreg_0v9;
+	}
+
+	ret = clk_prepare_enable(res->axi_clk);
+	if (ret) {
+		dev_err(dev, "cannot prepare/enable axi clock\n");
+		goto err_axi_clk;
+	}
+
+	ret = clk_prepare_enable(res->ahb_clk);
+	if (ret) {
+		dev_err(dev, "cannot prepare/enable ahb clock\n");
+		goto err_ahb_clk;
+	}
+
+	ret = clk_prepare_enable(res->bus_clk);
+	if (ret) {
+		dev_err(dev, "cannot prepare/enable aux clock\n");
+		goto err_bus_clk;
+	}
+
+	ret = clk_prepare_enable(res->aux_clk);
+	if (ret) {
+		dev_err(dev, "cannot prepare/enable aux clock\n");
+		goto err_aux_clk;
+	}
+
+	ret = clk_prepare_enable(res->cfg_clk);
+	if (ret) {
+		dev_err(dev, "cannot prepare/enable cfg clock\n");
+		goto err_cfg_clk;
+	}
+
+	ret = clk_prepare_enable(res->master_clk);
+	if (ret) {
+		dev_err(dev, "cannot prepare/enable master clock\n");
+		goto err_master_clk;
+	}
+
+	ret = clk_prepare_enable(res->slave_clk);
+	if (ret) {
+		dev_err(dev, "cannot prepare/enable slave clock\n");
+		goto err_slave_clk;
+	}
+
+	ret = clk_prepare_enable(res->ref_clk);
+	if (ret) {
+		dev_err(dev, "cannot prepare/enable aux clock\n");
+		goto err_ref_clk;
+	}
+
+	/* enable PCIe clocks and resets */
+	val = readl(pcie->parf + PCIE20_PARF_PHY_CTRL);
+	val &= ~BIT(0);
+	writel(val, pcie->parf + PCIE20_PARF_PHY_CTRL);
+
+	/* change DBI base address */
+	writel(0, pcie->parf + PCIE20_PARF_DBI_BASE_ADDR);
+	//FIXME should be proper 
+	writel(0x365E, pcie->parf + PCIE20_PARF_SYS_CTRL);
+
+	val = readl(pcie->parf + PCIE20_PARF_MHI_CLOCK_RESET_CTRL);
+	val |= BIT(4);
+	writel(val, pcie->parf + PCIE20_PARF_MHI_CLOCK_RESET_CTRL);
+
+	val = readl(pcie->parf + MSM8996_PCIE20_PARF_AXI_MSTR_WR_ADDR_HALT);
+	val |= BIT(31);
+	writel(val, pcie->parf + MSM8996_PCIE20_PARF_AXI_MSTR_WR_ADDR_HALT);
+
+	return 0;
+
+err_ref_clk:
+	clk_disable_unprepare(res->slave_clk);
+err_slave_clk:
+	clk_disable_unprepare(res->master_clk);
+err_master_clk:
+	clk_disable_unprepare(res->cfg_clk);
+err_cfg_clk:
+	clk_disable_unprepare(res->aux_clk);
+err_aux_clk:
+	clk_disable_unprepare(res->bus_clk);
+err_bus_clk:
+	clk_disable_unprepare(res->ahb_clk);
+err_ahb_clk:
+	clk_disable_unprepare(res->axi_clk);
+err_axi_clk:
+	regulator_disable(res->vreg_0v9);
+err_vreg_0v9:
+	regulator_disable(res->vreg_1v8);
+
+	return ret;
+}
+
+static int qcom_pcie_post_init_msm8996(struct qcom_pcie *pcie)
+{
+	struct qcom_pcie_resources_msm8996 *res = &pcie->res.msm8996;
+	struct device *dev = pcie->dev;
+	int ret;
+	ret = clk_prepare_enable(res->pipe_clk);
+	if (ret) {
+		dev_err(dev, "cannot prepare/enable pipe clock\n");
+		return ret;
+	}
+	/* SMMU specific registers */
+	writel(0, pcie->parf + PCIE20_PARF_BDF_TRANSLATE_CFG);
+	writel(0, pcie->parf +	PCIE20_PARF_SID_OFFSET);
+	return 0;
+}
+
 static int qcom_pcie_link_up(struct pcie_port *pp)
 {
 	struct qcom_pcie *pcie = to_qcom_pcie(pp);
 	u16 val = readw(pcie->dbi + PCIE20_CAP + PCI_EXP_LNKSTA);
 
 	return !!(val & PCI_EXP_LNKSTA_DLLLA);
+}
+
+static void qcom_pcie_deinit_msm8996(struct qcom_pcie *pcie)
+{
 }
 
 static void qcom_pcie_host_init(struct pcie_port *pp)
@@ -437,10 +660,12 @@ static void qcom_pcie_host_init(struct pcie_port *pp)
 	ret = pcie->ops->init(pcie);
 	if (ret)
 		goto err_deinit;
-
 	ret = phy_power_on(pcie->phy);
 	if (ret)
 		goto err_deinit;
+
+	if (pcie->ops->post_init)
+		pcie->ops->post_init(pcie);
 
 	dw_pcie_setup_rc(pp);
 
@@ -485,12 +710,22 @@ static const struct qcom_pcie_ops ops_v0 = {
 	.get_resources = qcom_pcie_get_resources_v0,
 	.init = qcom_pcie_init_v0,
 	.deinit = qcom_pcie_deinit_v0,
+	.ltssm_enable = qcom_pcie_v0_v1_ltssm_enable,
 };
 
 static const struct qcom_pcie_ops ops_v1 = {
 	.get_resources = qcom_pcie_get_resources_v1,
 	.init = qcom_pcie_init_v1,
 	.deinit = qcom_pcie_deinit_v1,
+	.ltssm_enable = qcom_pcie_v0_v1_ltssm_enable,
+};
+
+static const struct qcom_pcie_ops ops_msm8996 = {
+	.get_resources = qcom_pcie_get_resources_msm8996,
+	.init = qcom_pcie_init_msm8996,
+	.post_init = qcom_pcie_post_init_msm8996,
+	.deinit = qcom_pcie_deinit_msm8996,
+	.ltssm_enable = qcom_pcie_msm8996_ltssm_enable,
 };
 
 static int qcom_pcie_probe(struct platform_device *pdev)
@@ -586,6 +821,7 @@ static const struct of_device_id qcom_pcie_match[] = {
 	{ .compatible = "qcom,pcie-ipq8064", .data = &ops_v0 },
 	{ .compatible = "qcom,pcie-apq8064", .data = &ops_v0 },
 	{ .compatible = "qcom,pcie-apq8084", .data = &ops_v1 },
+	{ .compatible = "qcom,pcie-msm8996", .data = &ops_msm8996 },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, qcom_pcie_match);
