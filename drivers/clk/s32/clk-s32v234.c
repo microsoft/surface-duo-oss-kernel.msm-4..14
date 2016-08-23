@@ -194,12 +194,6 @@ static void enable_clocks_sources(u32 flags, u32 clks,
 		       xrun_mc_addr);
 }
 
-static void disable_clocks_sources(u32 clks, void __iomem *xrun_mc_addr)
-{
-	writel_relaxed(readl_relaxed(xrun_mc_addr) & ~clks,
-		       xrun_mc_addr);
-}
-
 static void enable_sysclock(u32 clk, void __iomem *xrun_mc_addr)
 {
 	writel_relaxed(readl_relaxed(xrun_mc_addr) & clk,
@@ -214,38 +208,38 @@ static void __iomem *mc_me_base;
 static void __iomem *src_base;
 
 /* sources for multiplexer clocks, this is used multiple times */
-static const char * const osc_sels[] = {"firc", "fxosc", };
+static const char *osc_sels[] = {"firc", "fxosc", };
 
-static const char * const cores_sels[] = {"firc", "fxosc", "armpll_phi0", };
+static const char *cores_sels[] = {"firc", "fxosc", "armpll_phi0", };
 
-static const char * const sys_sels[] = {"firc", "fxosc", "armpll_dfs0", };
+static const char *sys_sels[] = {"firc", "fxosc", "armpll_dfs0", };
 
-static const char * const perifray_sels[] = {"firc", "fxosc", "dummy",
+static const char *perifray_sels[] = {"firc", "fxosc", "dummy",
 			  "periphpll_phi0_div5", };
 
-static const char * const can_sels[] = {"firc", "fxosc", "dummy",
+static const char *can_sels[] = {"firc", "fxosc", "dummy",
 			  "periphpll_phi0_div5", };
 
-static const char * const lin_sels[] = {"firc", "fxosc", "dummy",
+static const char *lin_sels[] = {"firc", "fxosc", "dummy",
 			  "periphpll_phi0_div3", "dummy", "dummy",
 			  "dummy", "dummy", "sys6",};
 
-static const char * const sdhc_sels[] = {"firc", "fxosc", "dummy",
+static const char *sdhc_sels[] = {"firc", "fxosc", "dummy",
 			  "dummy", "enetpll_dfs3",};
 
-static const char * const enet_sels[] = {"firc", "fxosc", "dummy",
+static const char *enet_sels[] = {"firc", "fxosc", "dummy",
 			  "dummy", "enetpll_phi0",};
 
-static const char * const enet_time_sels[] = {"firc", "fxosc", "dummy",
+static const char *enet_time_sels[] = {"firc", "fxosc", "dummy",
 			  "dummy", "enetpll_phi0",};
 
-static const char * const dcu_sels[] = {"firc", "fxosc", "dummy", "dummy",
+static const char *dcu_sels[] = {"firc", "fxosc", "dummy", "dummy",
 			  "dummy", "dummy", "dummy", "dummy", "dummy",
 			  "sys6",};
 
-static const char * const gpu_sels[] = {"firc", "fxosc", "armpll_dfs1", };
+static const char *gpu_sels[] = {"firc", "fxosc", "armpll_dfs1", };
 
-static const char * const gpu_shdmipi_sels[] = {"firc", "fxosc",
+static const char *gpu_shdmipi_sels[] = {"firc", "fxosc",
 			  "armpll_dfs2", };
 
 static struct clk *clk[S32V234_CLK_END];
