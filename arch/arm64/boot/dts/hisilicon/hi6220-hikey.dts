@@ -56,6 +56,16 @@
 				};
 			};
 		};
+		hardware_cfg_spidev0 {
+			overlay_0 {
+				fragment@0 {
+					target-path="/soc/spi@f7106000/spidev@0";
+					__overlay__ {
+						status = "ok";
+					};
+				};
+			};
+		};
 		hardware_cfg_cs_sd_qb {
 			gpio_sd_sel { /* Select SD from Quick Bus */
 				set-gpio = <&gpio4 4 0>;
@@ -417,5 +427,6 @@
 		compatible = "linux,spidev";
 		spi-max-frequency = <500000>;
 		reg = <0>;
+		status = "disabled";
 	};
 };
