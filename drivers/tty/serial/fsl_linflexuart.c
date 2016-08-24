@@ -210,7 +210,6 @@ static void linflex_stop_tx(struct uart_port *port)
 		dmaengine_terminate_all(sport->dma_tx_chan);
 		dma_sync_single_for_cpu(sport->port.dev, sport->dma_tx_buf_bus,
 			sport->dma_tx_bytes, DMA_TO_DEVICE);
-		async_tx_ack(sport->dma_tx_desc);
 		count = sport->dma_tx_bytes - state.residue;
 		xmit->tail = (xmit->tail + count) & (UART_XMIT_SIZE - 1);
 		port->icount.tx += count;
@@ -237,7 +236,6 @@ static void linflex_stop_rx(struct uart_port *port)
 				sport->dma_rx_cookie, &state);
 		dmaengine_terminate_all(sport->dma_rx_chan);
 		count = FSL_UART_RX_DMA_BUFFER_SIZE - state.residue;
-		async_tx_ack(sport->dma_rx_desc);
 
 		sport->dma_rx_in_progress = 0;
 		linflex_copy_rx_to_tty(sport, &sport->port.state->port, count);
@@ -295,8 +293,8 @@ static int linflex_dma_tx(struct linflex_port *sport, unsigned long count)
 	sport->dma_tx_bytes = count;
 	tx_bus_addr = sport->dma_tx_buf_bus + xmit->tail;
 	sport->dma_tx_desc = dmaengine_prep_slave_single(sport->dma_tx_chan,
-					tx_bus_addr, sport->dma_tx_bytes,
-					DMA_MEM_TO_DEV, DMA_PREP_INTERRUPT);
+			tx_bus_addr, sport->dma_tx_bytes, DMA_MEM_TO_DEV,
+			DMA_PREP_INTERRUPT | DMA_CTRL_ACK);
 
 	if (!sport->dma_tx_desc) {
 		dev_err(sport->port.dev, "Not able to get desc for tx\n");
@@ -329,8 +327,6 @@ static void linflex_dma_tx_complete(void *arg)
 	struct linflex_port *sport = arg;
 	struct circ_buf *xmit = &sport->port.state->xmit;
 	unsigned long flags;
-
-	async_tx_ack(sport->dma_tx_desc);
 
 	spin_lock_irqsave(&sport->port.lock, flags);
 
@@ -385,7 +381,6 @@ static void linflex_dma_rx_complete(void *arg)
 	struct tty_port *port = &sport->port.state->port;
 	unsigned long flags;
 
-	async_tx_ack(sport->dma_rx_desc);
 	mod_timer(&sport->timer, jiffies + sport->dma_rx_timeout);
 
 	spin_lock_irqsave(&sport->port.lock, flags);
@@ -411,7 +406,6 @@ static void linflex_timer_func(unsigned long data)
 	dmaengine_tx_status(sport->dma_rx_chan, sport->dma_rx_cookie, &state);
 	dmaengine_terminate_all(sport->dma_rx_chan);
 	count = FSL_UART_RX_DMA_BUFFER_SIZE - state.residue;
-	async_tx_ack(sport->dma_rx_desc);
 
 	spin_lock_irqsave(&sport->port.lock, flags);
 
@@ -795,9 +789,6 @@ static void linflex_shutdown(struct uart_port *port)
 					struct linflex_port, port);
 	unsigned long cr, ier;
 	unsigned long flags, temp;
-	struct tty_port *porti = &sport->port.state->port;
-	struct dma_tx_state state;
-	int count;
 
 	spin_lock_irqsave(&port->lock, flags);
 
@@ -818,31 +809,23 @@ static void linflex_shutdown(struct uart_port *port)
 
 	if (sport->dma_rx_use) {
 		del_timer(&sport->timer);
-
-		dmaengine_pause(sport->dma_rx_chan);
-		dmaengine_tx_status(sport->dma_rx_chan,
-				sport->dma_rx_cookie, &state);
 		dmaengine_terminate_all(sport->dma_rx_chan);
-		count = FSL_UART_RX_DMA_BUFFER_SIZE - state.residue;
-		async_tx_ack(sport->dma_rx_desc);
-
-		sport->dma_rx_in_progress = 0;
-		linflex_copy_rx_to_tty(sport, porti, count);
-		tty_flip_buffer_push(porti);
 
 		temp = readl(sport->port.membase + DMARXE);
 		writel(temp & 0xFFFF0000, sport->port.membase + DMARXE);
 
 		linflex_dma_rx_free(&sport->port);
+		sport->dma_rx_in_progress = 0;
 	}
 
 	if (sport->dma_tx_use) {
-		sport->dma_tx_in_progress = 0;
 		dmaengine_terminate_all(sport->dma_tx_chan);
-		linflex_dma_tx_free(&sport->port);
 
 		temp = readl(sport->port.membase + DMATXE);
 		writel(temp & 0xFFFF0000, sport->port.membase + DMATXE);
+
+		linflex_dma_tx_free(&sport->port);
+		sport->dma_tx_in_progress = 0;
 	}
 
 }
