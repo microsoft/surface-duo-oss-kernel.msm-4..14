@@ -40,6 +40,7 @@ void swait_prepare_locked(struct swait_head *head, struct swaiter *w)
 	if (list_empty(&w->node))
 		__swait_enqueue(head, w);
 }
+EXPORT_SYMBOL(swait_prepare_locked);
 
 void swait_prepare(struct swait_head *head, struct swaiter *w, int state)
 {
@@ -58,6 +59,7 @@ void swait_finish_locked(struct swait_head *head, struct swaiter *w)
 	if (w->task)
 		__swait_dequeue(w);
 }
+EXPORT_SYMBOL(swait_finish_locked);
 
 void swait_finish(struct swait_head *head, struct swaiter *w)
 {
