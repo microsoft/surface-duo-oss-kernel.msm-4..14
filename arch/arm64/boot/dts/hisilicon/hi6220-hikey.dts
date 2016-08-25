@@ -67,9 +67,18 @@
 			};
 		};
 		hardware_cfg_cs_sd_qb {
-			gpio_sd_sel { /* Select SD from Quick Bus */
-				set-gpio = <&gpio4 4 0>;
-				value = <1>;
+			overlay_0 {
+				fragment@0 { /* Select SD from Quick Bus */
+					target-path="/soc/gpio@f7020000";
+					__overlay__ {
+						sd_sel {
+							gpio-hog;
+							gpios = <4 0>;
+							output-high;
+							line-name = "gpio_sd_sel";
+						};
+					};
+				};
 			};
 		};
 	};
