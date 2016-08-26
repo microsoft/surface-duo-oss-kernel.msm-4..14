@@ -122,8 +122,8 @@ static int video_querycap(struct file *file, void *fh,
 {
 	struct camss_video *video = video_drvdata(file);
 
-	strlcpy(cap->driver, video->video.name, sizeof(cap->driver));
-	strlcpy(cap->card, video->video.name, sizeof(cap->card));
+	strlcpy(cap->driver, video->vdev->name, sizeof(cap->driver));
+	strlcpy(cap->card, video->vdev->name, sizeof(cap->card));
 	strlcpy(cap->bus_info, "media", sizeof(cap->bus_info));
 	cap->version = CAMSS_VERSION;
 	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING |
@@ -337,7 +337,7 @@ static int video_check_format(struct camss_video *video)
 
 static int video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 {
-	struct video_device *video_dev = video_devdata(file);
+	struct video_device *vdev = video_devdata(file);
 	struct camss_video *video = video_drvdata(file);
 	struct media_entity *entity;
 	struct media_pad *pad;
@@ -347,7 +347,7 @@ static int video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 	if (type != video->type)
 		return -EINVAL;
 
-	ret = media_entity_pipeline_start(&video->video.entity, &video->pipe);
+	ret = media_entity_pipeline_start(&vdev->entity, &video->pipe);
 	if (ret < 0)
 		return ret;
 
@@ -359,7 +359,7 @@ static int video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 	if (ret < 0)
 		goto pipeline_stop;
 
-	entity = &video_dev->entity;
+	entity = &vdev->entity;
 	while (1) {
 		pad = &entity->pads[0];
 		if (!(pad->flags & MEDIA_PAD_FL_SINK))
@@ -381,7 +381,7 @@ static int video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 	return 0;
 
 pipeline_stop:
-	media_entity_pipeline_stop(&video->video.entity);
+	media_entity_pipeline_stop(&vdev->entity);
 streamoff:
 	vb2_streamoff(&video->vb2_q, type);
 
@@ -390,7 +390,7 @@ streamoff:
 
 static int video_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
 {
-	struct video_device *video_dev = video_devdata(file);
+	struct video_device *vdev = video_devdata(file);
 	struct camss_video *video = video_drvdata(file);
 	struct media_entity *entity;
 	struct media_pad *pad;
@@ -403,7 +403,7 @@ static int video_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
 	if (!vb2_is_streaming(&video->vb2_q))
 		return 0;
 
-	entity = &video_dev->entity;
+	entity = &vdev->entity;
 	while (1) {
 		pad = &entity->pads[0];
 		if (!(pad->flags & MEDIA_PAD_FL_SINK))
@@ -424,7 +424,7 @@ static int video_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
 	if (ret)
 		return ret;
 
-	media_entity_pipeline_stop(&video->video.entity);
+	media_entity_pipeline_stop(&vdev->entity);
 
 	return 0;
 }
@@ -464,24 +464,24 @@ static int video_init_format(struct file *file, void *fh)
 
 static int video_open(struct file *file)
 {
-	struct video_device *video_dev = video_devdata(file);
+	struct video_device *vdev = video_devdata(file);
 	struct camss_video *video = video_drvdata(file);
 	struct vb2_queue *q;
 	int ret;
 
 	video->alloc_ctx = vb2_dma_contig_init_ctx(video->camss->iommu_dev);
 	if (IS_ERR(video->alloc_ctx)) {
-		dev_err(&video->video.dev, "Failed to init vb2 dma ctx\n");
+		dev_err(&vdev->dev, "Failed to init vb2 dma ctx\n");
 		return PTR_ERR(video->alloc_ctx);
 	}
 
-	v4l2_fh_init(&video->fh, video_dev);
+	v4l2_fh_init(&video->fh, vdev);
 	v4l2_fh_add(&video->fh);
 	file->private_data = &video->fh;
 
-	ret = msm_camss_pipeline_pm_use(&video_dev->entity, 1);
+	ret = msm_camss_pipeline_pm_use(&vdev->entity, 1);
 	if (ret < 0) {
-		dev_err(&video_dev->dev, "pipeline power-up failed\n");
+		dev_err(&vdev->dev, "pipeline power-up failed\n");
 		goto error;
 	}
 
@@ -495,7 +495,7 @@ static int video_open(struct file *file)
 	q->buf_struct_size = sizeof(struct msm_video_buffer);
 	ret = vb2_queue_init(q);
 	if (ret < 0) {
-		dev_err(&video_dev->dev, "vb2 queue init failed\n");
+		dev_err(&vdev->dev, "vb2 queue init failed\n");
 		goto error;
 	}
 
@@ -513,14 +513,14 @@ error:
 
 static int video_release(struct file *file)
 {
-	struct video_device *video_dev = video_devdata(file);
+	struct video_device *vdev = video_devdata(file);
 	struct camss_video *video = video_drvdata(file);
 
 	video_streamoff(file, &video->fh, video->type);
 
 	vb2_queue_release(&video->vb2_q);
 
-	msm_camss_pipeline_pm_use(&video_dev->entity, 0);
+	msm_camss_pipeline_pm_use(&vdev->entity, 0);
 
 	file->private_data = NULL;
 	v4l2_fh_del(&video->fh);
@@ -558,35 +558,43 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 		       const char *name)
 {
 	struct media_pad *pad = &video->pad;
-	struct video_device *video_dev = &video->video;
+	struct video_device *vdev;
 	int ret;
 
+	vdev = video_device_alloc();
+	if (vdev == NULL) {
+		v4l2_err(v4l2_dev, "Failed to allocate video device\n");
+		return -ENOMEM;
+	}
+
+	video->vdev = vdev;
+
 	pad->flags = MEDIA_PAD_FL_SINK;
-	ret = media_entity_init(&video_dev->entity, 1, pad, 0);
+	ret = media_entity_init(&vdev->entity, 1, pad, 0);
 	if (ret < 0) {
 		v4l2_err(v4l2_dev, "Failed to init video entity\n");
 		return ret;
 	}
 
-	video_dev->fops = &msm_vid_fops;
-	video_dev->ioctl_ops = &msm_vid_ioctl_ops;
-	video_dev->release = video_device_release; // TODO: implement
-	video_dev->v4l2_dev = v4l2_dev;
-	video_dev->vfl_dir = VFL_DIR_RX;
-	strlcpy(video_dev->name, name, sizeof(video_dev->name));
+	vdev->fops = &msm_vid_fops;
+	vdev->ioctl_ops = &msm_vid_ioctl_ops;
+	vdev->release = video_device_release;
+	vdev->v4l2_dev = v4l2_dev;
+	vdev->vfl_dir = VFL_DIR_RX;
+	strlcpy(vdev->name, name, sizeof(vdev->name));
 
-	ret = video_register_device(video_dev, VFL_TYPE_GRABBER, -1);
+	ret = video_register_device(vdev, VFL_TYPE_GRABBER, -1);
 	if (ret < 0) {
 		v4l2_err(v4l2_dev, "Failed to register video device\n");
 		return ret;
 	}
 
-	video_set_drvdata(video_dev, video);
+	video_set_drvdata(vdev, video);
 
 	return 0;
 }
 
 void msm_video_unregister(struct camss_video *video)
 {
-	video_unregister_device(&video->video);
+	video_unregister_device(video->vdev);
 }

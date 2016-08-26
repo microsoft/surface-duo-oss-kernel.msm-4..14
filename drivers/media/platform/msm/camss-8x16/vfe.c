@@ -1761,12 +1761,12 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 
 	ret = media_entity_create_link(
 			&vfe->subdev.entity, MSM_VFE_PAD_SRC,
-			&vfe->video_out.video.entity, 0,
+			&vfe->video_out.vdev->entity, 0,
 			MEDIA_LNK_FL_IMMUTABLE | MEDIA_LNK_FL_ENABLED);
 	if (ret < 0) {
 		pr_err("Fail to link %s->%s entities\n",
 			vfe->subdev.entity.name,
-			vfe->video_out.video.entity.name);
+			vfe->video_out.vdev->entity.name);
 		goto error_link;
 	}
 

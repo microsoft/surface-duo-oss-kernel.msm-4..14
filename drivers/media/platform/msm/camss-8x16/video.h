@@ -50,7 +50,7 @@ struct camss_video {
 	struct camss *camss;
 	void *alloc_ctx;
 	struct vb2_queue vb2_q;
-	struct video_device video;
+	struct video_device *vdev;
 	struct media_pad pad;
 	struct v4l2_format active_fmt;
 	enum v4l2_buf_type type;
