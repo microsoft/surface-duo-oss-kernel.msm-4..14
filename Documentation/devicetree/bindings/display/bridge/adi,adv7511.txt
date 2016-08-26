@@ -56,6 +56,20 @@ Optional properties:
 - adi,disable-timing-generator: Only for ADV7533. Disables the internal timing
   generator. The chip will rely on the sync signals in the DSI data lanes,
   rather than generate its own timings for HDMI output.
+- avdd-supply: A 1.8V supply that powers up the AVDD pin on the chip.
+- dvdd-supply: A 1.8V supply that powers up the DVDD pin on the chip.
+- pvdd-supply: A 1.8V supply that powers up the PVDD pin on the chip.
+- v3p3-supply: A 3.3V supply that powers up the pin called DVDD_3V on
+  ADV7511 and V3P3 on ADV7533.
+
+ADV7511 specific supplies:
+- bgvdd-supply: Powers the BGVDD pin. The voltage isn't clear from
+  available datasheets.
+
+ADV7533 specific supplies:
+- a2vdd-supply: 1.8V supply that powers up the A2VDD pin on the chip.
+- v1p2-supply: A supply that powers up the V1P2 pin on the chip. It can be
+  either 1.2V or 1.8V.
 
 Required nodes:
 
