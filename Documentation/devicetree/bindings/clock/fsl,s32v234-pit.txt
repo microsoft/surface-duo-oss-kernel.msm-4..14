@@ -15,7 +15,7 @@ Example:
 pit0: pit@4003A000{
 	compatible = "fsl,s32v234-pit";
 	reg = <0x0 0x4003A000 0x0 0x1000>;
-	interrupts= <0 31 0xf08>;
+	interrupts= <0 31 4>;
 	clocks = <&clks S32V234_CLK_SYS6>;
 	clock-names = "pit";
 	cpu = <0>;

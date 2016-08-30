@@ -15,7 +15,7 @@ Example:
 stm0: stm@4000D000{
 	compatible = "fsl,s32v234-stm";
 	reg = <0x0 0x4000D000 0x0 0x1000>;
-	interrupts= <0 19 8>;
+	interrupts= <0 19 4>;
 	clocks = <&clks S32V234_CLK_SYS6>;
 	clock-names = "stm";
 	cpu = <1>;
