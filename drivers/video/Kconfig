@@ -126,9 +126,4 @@ config DCU_FSL
 	select FB_MODE_HELPERS
 	---help---
 	DCU driver for the Freescale SoC DCU
-
-config VIULITE_FSL
-	tristate "Support for Freescale VIULite"
-	---help---
-	VIULite driver for the Freescale VIULite
 endmenu

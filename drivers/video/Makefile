@@ -13,10 +13,6 @@ fsl_dcu-objs			  := $(fsl_dcu-y)
 obj-$(CONFIG_FB_FSL)		  += fsl_fb.o
 obj-$(CONFIG_FB_MXC)              += mxc/
 
-obj-$(CONFIG_VIULITE_FSL)	  += fsl_viulite.o
-fsl_viulite-y			  := fsl_viulite_linux.o
-fsl_viulite-objs		  := $(fsl_viulite-y)
-
 obj-$(CONFIG_VIDEOMODE_HELPERS) += display_timing.o videomode.o
 ifeq ($(CONFIG_OF),y)
 obj-$(CONFIG_VIDEOMODE_HELPERS) += of_display_timing.o of_videomode.o
