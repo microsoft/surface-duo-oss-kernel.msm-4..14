@@ -84,6 +84,8 @@
 			pinctrl-1 = <&sdc2_clk_off &sdc2_cmd_off &sdc2_data_off &sdc2_cd_off>;
 			cd-gpios = <&msmgpio 38 0x1>;
 			status = "okay";
+			vmmc-supply = <&pm8994_l21>;
+			vqmmc-supply = <&pm8994_l13>;
 		};
 
 		agnoc@0 {
@@ -109,6 +111,16 @@
 		ufshc@624000 {
 			status = "okay";
 		};
+
+		vreg_bb: regulator-fixed@1 {
+			compatible = "regulator-fixed";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-name = "vreg_bb";
+			regulator-type = "voltage";
+			regulator-boot-on;
+		};
+
 	};
 
 	glink {
@@ -123,7 +135,7 @@
 					vdd_l14_l15-supply = <&pm8994_s5>;
 					vdd_l20_l21-supply = <&pm8994_s5>;
 					vdd_l25-supply = <&pm8994_s3>;
-
+					vdd_l13_l19_l23_l24-supply = <&vreg_bb>;
 					s3 {
 						regulator-min-microvolt = <1300000>;
 						regulator-max-microvolt = <1300000>;
