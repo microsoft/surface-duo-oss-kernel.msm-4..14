@@ -17,6 +17,8 @@
 #include <linux/fs.h>
 #include <linux/seq_file.h>
 #include <linux/kernfs.h>
+#include <linux/wait.h>
+#include <linux/work-simple.h>
 
 #include <linux/cgroup-defs.h>
 

@@ -8,6 +8,7 @@
 #include <linux/sched.h>
 #include <linux/smp.h>
 #include <linux/atomic.h>
+#include <linux/locallock.h>
 
 static void __dump_stack(void)
 {
