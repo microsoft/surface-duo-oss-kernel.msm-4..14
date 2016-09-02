@@ -142,6 +142,7 @@ struct ath10k_wmi {
 	enum ath10k_htc_ep_id eid;
 	struct completion service_ready;
 	struct completion unified_ready;
+	struct completion barrier;
 	wait_queue_head_t tx_credits_wq;
 	DECLARE_BITMAP(svc_map, WMI_SERVICE_MAX);
 	struct wmi_cmd_map *cmd;
@@ -440,7 +441,7 @@ struct ath10k_debug {
 	struct completion tpc_complete;
 
 	/* protected by conf_mutex */
-	u32 fw_dbglog_mask;
+	u64 fw_dbglog_mask;
 	u32 fw_dbglog_level;
 	u32 pktlog_filter;
 	u32 reg_addr;
@@ -550,6 +551,13 @@ enum ath10k_fw_features {
 	 * is used to configure WMI_COEX_GPIO_SUPPORT.
 	 */
 	ATH10K_FW_FEATURE_BTCOEX_PARAM = 14,
+
+	/* Older firmware with HTT delivers incorrect tx status for null func
+	 * frames to driver, but this fixed in 10.2 and 10.4 firmware versions.
+	 * Also this workaround results in reporting of incorrect null func
+	 * status for 10.4. This flag is used to skip the workaround.
+	 */
+	ATH10K_FW_FEATURE_SKIP_NULL_FUNC_WAR = 15,
 
 	/* keep last */
 	ATH10K_FW_FEATURE_COUNT,
@@ -663,6 +671,15 @@ struct ath10k_fw_file {
 
 	const void *codeswap_data;
 	size_t codeswap_len;
+
+	/* The original idea of struct ath10k_fw_file was that it only
+	 * contains struct firmware and pointers to various parts (actual
+	 * firmware binary, otp, metadata etc) of the file. This seg_info
+	 * is actually created separate but as this is used similarly as
+	 * the other firmware components it's more convenient to have it
+	 * here.
+	 */
+	struct ath10k_swap_code_seg_info *firmware_swap_code_seg_info;
 };
 
 struct ath10k_fw_components {
@@ -761,6 +778,11 @@ struct ath10k {
 			size_t board_size;
 			size_t board_ext_size;
 		} fw;
+
+		/* qca99x0 family chips deliver broadcast/multicast management
+		 * frames encrypted and expect software do decryption.
+		 */
+		bool sw_decrypt_mcast_mgmt;
 	} hw_params;
 
 	/* contains the firmware images used with ATH10K_FIRMWARE_MODE_NORMAL */
@@ -773,10 +795,6 @@ struct ath10k {
 
 	const struct firmware *pre_cal_file;
 	const struct firmware *cal_file;
-
-	struct {
-		struct ath10k_swap_code_seg_info *firmware_swap_code_seg_info;
-	} swap;
 
 	struct {
 		u32 vendor;
