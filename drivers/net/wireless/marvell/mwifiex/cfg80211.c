@@ -2012,10 +2012,6 @@ mwifiex_cfg80211_disconnect(struct wiphy *wiphy, struct net_device *dev,
 	if (mwifiex_deauthenticate(priv, NULL))
 		return -EFAULT;
 
-	mwifiex_dbg(priv->adapter, MSG,
-		    "info: successfully disconnected from %pM:\t"
-		    "reason code %d\n", priv->cfg_bssid, reason_code);
-
 	eth_zero_addr(priv->cfg_bssid);
 	priv->hs2_enabled = false;
 
@@ -2485,6 +2481,16 @@ mwifiex_cfg80211_scan(struct wiphy *wiphy,
 
 	priv->scan_request = request;
 
+	if (request->flags & NL80211_SCAN_FLAG_RANDOM_ADDR) {
+		ether_addr_copy(priv->random_mac, request->mac_addr);
+		for (i = 0; i < ETH_ALEN; i++) {
+			priv->random_mac[i] &= request->mac_addr_mask[i];
+			priv->random_mac[i] |= get_random_int() &
+					       ~(request->mac_addr_mask[i]);
+		}
+	}
+
+	ether_addr_copy(user_scan_cfg->random_mac, priv->random_mac);
 	user_scan_cfg->num_ssids = request->n_ssids;
 	user_scan_cfg->ssid_list = request->ssids;
 
@@ -4135,9 +4141,12 @@ int mwifiex_register_cfg80211(struct mwifiex_adapter *adapter)
 	wiphy->cipher_suites = mwifiex_cipher_suites;
 	wiphy->n_cipher_suites = ARRAY_SIZE(mwifiex_cipher_suites);
 
-	if (adapter->region_code)
-		wiphy->regulatory_flags |= REGULATORY_DISABLE_BEACON_HINTS |
+	if (adapter->regd) {
+		wiphy->regulatory_flags |= REGULATORY_CUSTOM_REG |
+					   REGULATORY_DISABLE_BEACON_HINTS |
 					   REGULATORY_COUNTRY_IE_IGNORE;
+		wiphy_apply_custom_regulatory(wiphy, adapter->regd);
+	}
 
 	ether_addr_copy(wiphy->perm_addr, adapter->perm_addr);
 	wiphy->signal_type = CFG80211_SIGNAL_TYPE_MBM;
@@ -4173,7 +4182,10 @@ int mwifiex_register_cfg80211(struct mwifiex_adapter *adapter)
 	wiphy->features |= NL80211_FEATURE_HT_IBSS |
 			   NL80211_FEATURE_INACTIVITY_TIMER |
 			   NL80211_FEATURE_LOW_PRIORITY_SCAN |
-			   NL80211_FEATURE_NEED_OBSS_SCAN;
+			   NL80211_FEATURE_NEED_OBSS_SCAN |
+			   NL80211_FEATURE_SCAN_RANDOM_MAC_ADDR |
+			   NL80211_FEATURE_SCHED_SCAN_RANDOM_MAC_ADDR |
+			   NL80211_FEATURE_ND_RANDOM_MAC_ADDR;
 
 	if (ISSUPP_TDLS_ENABLED(adapter->fw_cap_info))
 		wiphy->features |= NL80211_FEATURE_TDLS_CHANNEL_SWITCH;
@@ -4200,19 +4212,27 @@ int mwifiex_register_cfg80211(struct mwifiex_adapter *adapter)
 		return ret;
 	}
 
-	if (reg_alpha2 && mwifiex_is_valid_alpha2(reg_alpha2)) {
-		mwifiex_dbg(adapter, INFO,
-			    "driver hint alpha2: %2.2s\n", reg_alpha2);
-		regulatory_hint(wiphy, reg_alpha2);
-	} else {
-		if (adapter->region_code == 0x00) {
-			mwifiex_dbg(adapter, WARN, "Ignore world regulatory domain\n");
+	if (!adapter->regd) {
+		if (reg_alpha2 && mwifiex_is_valid_alpha2(reg_alpha2)) {
+			mwifiex_dbg(adapter, INFO,
+				    "driver hint alpha2: %2.2s\n", reg_alpha2);
+			regulatory_hint(wiphy, reg_alpha2);
 		} else {
-			country_code =
-				mwifiex_11d_code_2_region(adapter->region_code);
-			if (country_code &&
-			    regulatory_hint(wiphy, country_code))
-				mwifiex_dbg(priv->adapter, ERROR, "regulatory_hint() failed\n");
+			if (adapter->region_code == 0x00) {
+				mwifiex_dbg(adapter, WARN,
+					    "Ignore world regulatory domain\n");
+			} else {
+				wiphy->regulatory_flags |=
+					REGULATORY_DISABLE_BEACON_HINTS |
+					REGULATORY_COUNTRY_IE_IGNORE;
+				country_code =
+					mwifiex_11d_code_2_region(
+						adapter->region_code);
+				if (country_code &&
+				    regulatory_hint(wiphy, country_code))
+					mwifiex_dbg(priv->adapter, ERROR,
+						    "regulatory_hint() failed\n");
+			}
 		}
 	}
 
