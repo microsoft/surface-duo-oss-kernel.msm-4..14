@@ -82,7 +82,13 @@
 #define LINFLEXD_LINIER_DTIE		(1<<1)
 #define LINFLEXD_LINIER_HRIE		(1<<0)
 
-#define LINFLEXD_UARTCR_RFBM            (1<<9)
+#define LINFLEXD_UARTCR_OSR_MASK	(0xF<<24)
+#define LINFLEXD_UARTCR_OSR(uartcr)	(((uartcr) \
+					& LINFLEXD_UARTCR_OSR_MASK) >> 24)
+
+#define LINFLEXD_UARTCR_ROSE		(1<<23)
+
+#define LINFLEXD_UARTCR_RFBM		(1<<9)
 #define LINFLEXD_UARTCR_TFBM		(1<<8)
 #define LINFLEXD_UARTCR_WL1		(1<<7)
 #define LINFLEXD_UARTCR_PC1		(1<<6)
@@ -121,6 +127,8 @@
 
 #define LINFLEXD_UARTCR_TXFIFO_SIZE	(4)
 #define LINFLEXD_UARTCR_RXFIFO_SIZE	(4)
+
+#define LINFLEX_LDIV_MULTIPLIER		(16)
 
 #define DRIVER_NAME	"fsl-linflexuart"
 #define DEV_NAME	"ttyLF"
@@ -830,6 +838,19 @@ static void linflex_shutdown(struct uart_port *port)
 
 }
 
+static int
+linflex_ldiv_multiplier(struct linflex_port *sport)
+{
+	unsigned int mul = LINFLEX_LDIV_MULTIPLIER;
+	unsigned long cr;
+
+	cr = readl(sport->port.membase + UARTCR);
+	if (cr & LINFLEXD_UARTCR_ROSE)
+		mul = LINFLEXD_UARTCR_OSR(cr);
+
+	return mul;
+}
+
 static void
 linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 			struct ktermios *old )
@@ -953,11 +974,10 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 		sport->port.membase + UARTCR);
 
 	divisr = sport->port.uartclk;	//freq in Hz
-	dividr = (baud * 16);
+	dividr = (baud * linflex_ldiv_multiplier(sport));
 
-	ibr = divisr/dividr;
-
-	fbr = (divisr%dividr)*16;
+	ibr = divisr / dividr;
+	fbr = ((divisr % dividr) * 16 / dividr) & 0xF;
 
 	writel(ibr, sport->port.membase + LINIBRR);
 	writel(fbr, sport->port.membase + LINFBRR);
@@ -1124,7 +1144,7 @@ linflex_console_get_options(struct linflex_port *sport, int *baud,
 
 	uartclk = clk_get_rate(sport->clk);
 
-	baud_raw = uartclk / (16 * ibr);
+	baud_raw = uartclk / (linflex_ldiv_multiplier(sport) * ibr);
 
 	if (*baud != baud_raw)
 		printk(KERN_INFO "Serial: Console linflex rounded baud rate"
