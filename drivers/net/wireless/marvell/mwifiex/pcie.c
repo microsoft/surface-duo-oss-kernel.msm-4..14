@@ -1956,8 +1956,6 @@ static int mwifiex_prog_fw_w_helper(struct mwifiex_adapter *adapter,
 			if (firmware_len - offset < txlen)
 				txlen = firmware_len - offset;
 
-			mwifiex_dbg(adapter, INFO, ".");
-
 			tx_blocks = (txlen + card->pcie.blksz_fw_dl - 1) /
 				    card->pcie.blksz_fw_dl;
 
@@ -2043,6 +2041,10 @@ mwifiex_check_fw_status(struct mwifiex_adapter *adapter, u32 poll_num)
 			ret = -1;
 		else
 			ret = 0;
+
+		mwifiex_dbg(adapter, INFO, "Try %d if FW is ready <%d,%#x>",
+			    tries, ret, firmware_stat);
+
 		if (ret)
 			continue;
 		if (firmware_stat == FIRMWARE_READY_PCIE) {
@@ -2074,8 +2076,7 @@ mwifiex_check_winner_status(struct mwifiex_adapter *adapter)
 		adapter->winner = 1;
 	} else {
 		mwifiex_dbg(adapter, ERROR,
-			    "PCI-E is not the winner <%#x,%d>, exit dnld\n",
-			    ret, adapter->winner);
+			    "PCI-E is not the winner <%#x>", winner);
 	}
 
 	return ret;
