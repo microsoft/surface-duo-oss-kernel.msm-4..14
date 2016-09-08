@@ -44,8 +44,8 @@
 		};
 	};
 
-	hw_cfg_mng {
-		compatible = "hw_cfg_manager";
+	overlay_mgr {
+		compatible = "linux,overlay_manager";
 		hardware_cfg_innolux_panel {
 			overlay_0 {
 				fragment@0 {
