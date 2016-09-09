@@ -288,6 +288,12 @@ const char *clk_hw_get_name(const struct clk_hw *hw)
 }
 EXPORT_SYMBOL_GPL(clk_hw_get_name);
 
+struct clk *clk_hw_get_clk(const struct clk_hw *hw)
+{
+	return hw->clk;
+}
+EXPORT_SYMBOL_GPL(clk_hw_get_clk);
+
 struct clk_hw *__clk_get_hw(struct clk *clk)
 {
 	return !clk ? NULL : clk->core->hw;
@@ -363,7 +369,7 @@ static struct clk_core *clk_core_get_parent_by_index(struct clk_core *core,
 }
 
 struct clk_hw *
-clk_hw_get_parent_by_index(const struct clk_hw *hw, unsigned int index)
+clk_hw_get_parent_by_index(const struct clk_hw *hw, u8 index)
 {
 	struct clk_core *parent;
 
@@ -849,7 +855,7 @@ int __clk_determine_rate(struct clk_hw *hw, struct clk_rate_request *req)
 }
 EXPORT_SYMBOL_GPL(__clk_determine_rate);
 
-unsigned long clk_hw_round_rate(struct clk_hw *hw, unsigned long rate)
+long clk_hw_round_rate(struct clk_hw *hw, unsigned long rate)
 {
 	int ret;
 	struct clk_rate_request req;

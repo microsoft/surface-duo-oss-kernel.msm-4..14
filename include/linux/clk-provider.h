@@ -733,11 +733,11 @@ void devm_clk_hw_unregister(struct device *dev, struct clk_hw *hw);
 /* helper functions */
 const char *__clk_get_name(const struct clk *clk);
 const char *clk_hw_get_name(const struct clk_hw *hw);
+struct clk *clk_hw_get_clk(const struct clk_hw *hw);
 struct clk_hw *__clk_get_hw(struct clk *clk);
 unsigned int clk_hw_get_num_parents(const struct clk_hw *hw);
 struct clk_hw *clk_hw_get_parent(const struct clk_hw *hw);
-struct clk_hw *clk_hw_get_parent_by_index(const struct clk_hw *hw,
-					  unsigned int index);
+struct clk_hw *clk_hw_get_parent_by_index(const struct clk_hw *hw, u8 index);
 unsigned int __clk_get_enable_count(struct clk *clk);
 unsigned long clk_hw_get_rate(const struct clk_hw *hw);
 unsigned long __clk_get_flags(struct clk *clk);
@@ -764,7 +764,7 @@ static inline void __clk_hw_set_clk(struct clk_hw *dst, struct clk_hw *src)
 /*
  * FIXME clock api without lock protection
  */
-unsigned long clk_hw_round_rate(struct clk_hw *hw, unsigned long rate);
+long clk_hw_round_rate(struct clk_hw *hw, unsigned long rate);
 
 struct of_device_id;
 

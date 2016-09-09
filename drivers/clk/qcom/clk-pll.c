@@ -255,8 +255,13 @@ static void clk_pll_configure(struct clk_pll *pll, struct regmap *regmap,
 	u32 mask;
 
 	regmap_write(regmap, pll->l_reg, config->l);
-	regmap_write(regmap, pll->m_reg, config->m);
-	regmap_write(regmap, pll->n_reg, config->n);
+
+	if (pll->alpha_reg) {
+		regmap_write(regmap, pll->alpha_reg, config->alpha);
+	} else {
+		regmap_write(regmap, pll->m_reg, config->m);
+		regmap_write(regmap, pll->n_reg, config->n);
+	}
 
 	val = config->vco_val;
 	val |= config->pre_div_val;
@@ -264,6 +269,7 @@ static void clk_pll_configure(struct clk_pll *pll, struct regmap *regmap,
 	val |= config->mn_ena_mask;
 	val |= config->main_output_mask;
 	val |= config->aux_output_mask;
+	val |= config->early_output_mask;
 
 	mask = config->vco_mask;
 	mask |= config->pre_div_mask;
@@ -271,9 +277,24 @@ static void clk_pll_configure(struct clk_pll *pll, struct regmap *regmap,
 	mask |= config->mn_ena_mask;
 	mask |= config->main_output_mask;
 	mask |= config->aux_output_mask;
+	mask |= config->early_output_mask;
 
 	regmap_update_bits(regmap, pll->config_reg, mask, val);
+
 }
+
+void clk_pll_configure_variable_rate(struct clk_pll *pll, struct regmap *regmap,
+				     const struct pll_config *config)
+{
+	clk_pll_configure(pll, regmap, config);
+	regmap_write(regmap, pll->config_ctl_reg, config->config_ctl_val);
+	regmap_write(regmap, pll->config_ctl_reg + 4,
+		     config->config_ctl_hi_val);
+
+	/* Enable FSM mode with bias count as 0x6 */
+	regmap_write(regmap, pll->mode_reg, 0x00118000);
+}
+EXPORT_SYMBOL_GPL(clk_pll_configure_variable_rate);
 
 void clk_pll_configure_sr(struct clk_pll *pll, struct regmap *regmap,
 		const struct pll_config *config, bool fsm_mode)
@@ -367,3 +388,74 @@ const struct clk_ops clk_pll_sr2_ops = {
 	.determine_rate = clk_pll_determine_rate,
 };
 EXPORT_SYMBOL_GPL(clk_pll_sr2_ops);
+
+static int clk_pll_hwfsm_enable(struct clk_hw *hw)
+{
+	struct clk_pll *pll = to_clk_pll(hw);
+
+	/* Wait for 50us explicitly to avoid transient locks */
+	udelay(50);
+	return wait_for_pll(pll);
+};
+
+static void clk_pll_hwfsm_disable(struct clk_hw *hw)
+{
+	/* 8 reference clock cycle delay mandated by the HPG */
+	udelay(1);
+};
+
+static unsigned long
+clk_pll_hwfsm_recalc_rate(struct clk_hw *hw, unsigned long parent_rate)
+{
+	u32 l_val;
+	int ret;
+
+	struct clk_pll *pll = to_clk_pll(hw);
+
+	ret = regmap_read(pll->clkr.regmap, pll->l_reg, &l_val);
+	if (ret)
+		return ret;
+
+	return l_val * parent_rate;
+};
+
+static int
+clk_pll_hwfsm_determine_rate(struct clk_hw *hw, struct clk_rate_request *req)
+{
+	struct clk_pll *pll = to_clk_pll(hw);
+	const struct pll_freq_tbl *f;
+
+	f = find_freq(pll->freq_tbl, req->rate);
+	if (!f)
+		req->rate = DIV_ROUND_UP(req->rate, req->best_parent_rate)
+					* req->best_parent_rate;
+	else
+		req->rate = f->freq;
+
+	return 0;
+}
+
+static int
+clk_pll_hwfsm_set_rate(struct clk_hw *hw, unsigned long rate,
+			       unsigned long prate)
+{
+	u32 l_val;
+	struct clk_pll *pll = to_clk_pll(hw);
+
+	if ((rate < pll->min_rate) || ( rate > pll->max_rate) || !prate)
+		return -EINVAL;
+
+	l_val = rate / prate;
+	regmap_write(pll->clkr.regmap, pll->l_reg, l_val);
+
+	return 0;
+}
+
+const struct clk_ops clk_pll_hwfsm_ops = {
+	.enable = clk_pll_hwfsm_enable,
+	.disable = clk_pll_hwfsm_disable,
+	.set_rate = clk_pll_hwfsm_set_rate,
+	.recalc_rate = clk_pll_hwfsm_recalc_rate,
+	.determine_rate = clk_pll_hwfsm_determine_rate,
+};
+EXPORT_SYMBOL_GPL(clk_pll_hwfsm_ops);
