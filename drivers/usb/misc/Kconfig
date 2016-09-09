@@ -46,6 +46,15 @@ config USB_SEVSEG
 	  To compile this driver as a module, choose M here: the
 	  module will be called usbsevseg.
 
+config USB_TC7USB40MU
+	tristate "TC7USB40MU USB mux support"
+	depends on (GPIOLIB && EXTCON) || COMPILE_TEST
+	help
+	  Say Y here if you have a TC7USB40MU by Toshiba. If a USB ID cable is
+	  present, a gpio will be asserted to mux out "host" D+/D- lines and when
+	  the ID cable is removed, a gpio will be deasserted to mux out "device"
+	  D+/D- lines.
+
 config USB_RIO500
 	tristate "USB Diamond Rio500 support"
 	help

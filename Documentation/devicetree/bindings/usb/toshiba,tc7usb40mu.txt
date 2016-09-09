@@ -1,0 +1,34 @@
+Toshiba TC7USB40MU
+
+This device muxes USB D+/D- lines between two outputs called 1D+/1D- and 2D+/2D-.
+When the switch pin is asserted, we mux out 2D+/2D-, and when it's deasserted we
+select 1D+/1D-.
+
+This can be used to mux USB D+/D- lines between a USB hub and an OTG port.
+
+PROPERTIES
+
+- compatible:
+    Usage: required
+    Value type: <string>
+    Definition: Should contain "toshiba,tc7usb40mu"
+
+- switch-gpios:
+    Usage: required
+    Value type: <prop-encoded-array>
+    Definition: Should contain the gpio used to toggle the switch. Logically
+                asserting the gpio will cause the device to mux the "host"
+                D+/D- lines instead of the "device" lines.
+
+- extcon:
+    Usage: required
+    Value type: <prop-encoded-array>
+    Definition: Should contain the extcon device for USB_HOST cable events
+
+Example:
+
+	usb-switch {
+		compatible = "toshiba,tc7usb40mu";
+		switch-gpios = <&gpio 10 GPIO_ACTIVE_HIGH>;
+		extcon = <&usb_id>;
+	};
