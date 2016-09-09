@@ -2592,9 +2592,9 @@ static struct clk_branch gcc_pcie_2_aux_clk = {
 };
 
 static struct clk_branch gcc_pcie_2_pipe_clk = {
-	.halt_reg = 0x6e108,
+	.halt_reg = 0x6e018,
 	.clkr = {
-		.enable_reg = 0x6e108,
+		.enable_reg = 0x6e018,
 		.enable_mask = BIT(0),
 		.hw.init = &(struct clk_init_data){
 			.name = "gcc_pcie_2_pipe_clk",
@@ -3420,6 +3420,8 @@ static const struct qcom_reset_map gcc_msm8996_resets[] = {
 	[GCC_PCIE_2_BCR] = { 0x6e000 },
 	[GCC_PCIE_2_PHY_BCR] = { 0x6e038 },
 	[GCC_PCIE_PHY_BCR] = { 0x6f000 },
+	[GCC_PCIE_PHY_COM_BCR] = { 0x6f014 },
+	[GCC_PCIE_PHY_COM_NOCSR_BCR] = { 0x6f00c },
 	[GCC_DCD_BCR] = { 0x70000 },
 	[GCC_OBT_ODT_BCR] = { 0x73000 },
 	[GCC_UFS_BCR] = { 0x75000 },
