@@ -16,3 +16,4 @@ obj-$(CONFIG_QCOM_Q6V5_PIL)		+= qcom_q6v5_pil.o
 obj-$(CONFIG_ST_REMOTEPROC)		+= st_remoteproc.o
 obj-$(CONFIG_QCOM_MDT_LOADER)		+= qcom_mdt_loader.o
 obj-$(CONFIG_QCOM_WCNSS_PIL)		+= qcom_wcnss.o qcom_wcnss_iris.o
+obj-$(CONFIG_QCOM_TZ_PIL)		+= qcom_tz_pil.o

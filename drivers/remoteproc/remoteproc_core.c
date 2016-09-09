@@ -791,6 +791,8 @@ static void rproc_resource_cleanup(struct rproc *rproc)
 	}
 }
 
+static int __rproc_fw_config_virtio(struct rproc *rproc, const struct firmware *fw);
+
 /*
  * take a firmware and boot a remote processor with it.
  */
@@ -801,12 +803,15 @@ static int rproc_fw_boot(struct rproc *rproc, const struct firmware *fw)
 	struct resource_table *table, *loaded_table;
 	int ret, tablesz;
 
-	if (!rproc->table_ptr)
-		return -ENOMEM;
-
 	ret = rproc_fw_sanity_check(rproc, fw);
 	if (ret)
 		return ret;
+
+	if (!rproc->table_ptr) {
+		ret = __rproc_fw_config_virtio(rproc, fw);
+		if (ret)
+			return ret;
+	}
 
 	dev_info(dev, "Booting fw image %s, size %zd\n", name, fw->size);
 
@@ -895,19 +900,15 @@ clean_up:
  * to unregister the device. one other option is just to use kref here,
  * that might be cleaner).
  */
-static void rproc_fw_config_virtio(const struct firmware *fw, void *context)
+static int __rproc_fw_config_virtio(struct rproc *rproc, const struct firmware *fw)
 {
-	struct rproc *rproc = context;
 	struct resource_table *table;
 	int ret, tablesz;
-
-	if (rproc_fw_sanity_check(rproc, fw) < 0)
-		goto out;
 
 	/* look for the resource table */
 	table = rproc_find_rsc_table(rproc, fw,  &tablesz);
 	if (!table)
-		goto out;
+		return -EINVAL;
 
 	rproc->table_csum = crc32(0, table, tablesz);
 
@@ -919,7 +920,7 @@ static void rproc_fw_config_virtio(const struct firmware *fw, void *context)
 	 */
 	rproc->cached_table = kmemdup(table, tablesz, GFP_KERNEL);
 	if (!rproc->cached_table)
-		goto out;
+		return -ENOMEM;
 
 	rproc->table_ptr = rproc->cached_table;
 
@@ -928,12 +929,21 @@ static void rproc_fw_config_virtio(const struct firmware *fw, void *context)
 	ret = rproc_handle_resources(rproc, tablesz,
 				     rproc_count_vrings_handler);
 	if (ret)
-		goto out;
+		return ret;
 
 	/* look for virtio devices and register them */
 	ret = rproc_handle_resources(rproc, tablesz, rproc_vdev_handler);
 
-out:
+	return ret;
+}
+
+static void rproc_fw_config_virtio(const struct firmware *fw, void *context)
+{
+	struct rproc *rproc = context;
+
+	if (rproc_fw_sanity_check(rproc, fw) >= 0)
+		__rproc_fw_config_virtio(rproc, fw);
+
 	release_firmware(fw);
 	/* allow rproc_del() contexts, if any, to proceed */
 	complete_all(&rproc->firmware_loading_complete);
