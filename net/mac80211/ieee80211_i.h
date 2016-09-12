@@ -3,7 +3,7 @@
  * Copyright 2005, Devicescape Software, Inc.
  * Copyright 2006-2007	Jiri Benc <jbenc@suse.cz>
  * Copyright 2007-2010	Johannes Berg <johannes@sipsolutions.net>
- * Copyright 2013-2014  Intel Mobile Communications GmbH
+ * Copyright 2013-2015  Intel Mobile Communications GmbH
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -824,6 +824,11 @@ struct txq_info {
 	struct ieee80211_txq txq;
 };
 
+struct ieee80211_if_mntr {
+	u32 flags;
+	u8 mu_follow_addr[ETH_ALEN] __aligned(2);
+};
+
 struct ieee80211_sub_if_data {
 	struct list_head list;
 
@@ -922,7 +927,7 @@ struct ieee80211_sub_if_data {
 		struct ieee80211_if_ibss ibss;
 		struct ieee80211_if_mesh mesh;
 		struct ieee80211_if_ocb ocb;
-		u32 mntr_flags;
+		struct ieee80211_if_mntr mntr;
 	} u;
 
 #ifdef CONFIG_MAC80211_DEBUGFS

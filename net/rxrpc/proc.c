@@ -17,12 +17,12 @@
 static const char *const rxrpc_conn_states[RXRPC_CONN__NR_STATES] = {
 	[RXRPC_CONN_UNUSED]			= "Unused  ",
 	[RXRPC_CONN_CLIENT]			= "Client  ",
+	[RXRPC_CONN_SERVICE_PREALLOC]		= "SvPrealc",
 	[RXRPC_CONN_SERVICE_UNSECURED]		= "SvUnsec ",
 	[RXRPC_CONN_SERVICE_CHALLENGING]	= "SvChall ",
 	[RXRPC_CONN_SERVICE]			= "SvSecure",
 	[RXRPC_CONN_REMOTELY_ABORTED]		= "RmtAbort",
 	[RXRPC_CONN_LOCALLY_ABORTED]		= "LocAbort",
-	[RXRPC_CONN_NETWORK_ERROR]		= "NetError",
 };
 
 /*
@@ -30,6 +30,7 @@ static const char *const rxrpc_conn_states[RXRPC_CONN__NR_STATES] = {
  */
 static void *rxrpc_call_seq_start(struct seq_file *seq, loff_t *_pos)
 {
+	rcu_read_lock();
 	read_lock(&rxrpc_call_lock);
 	return seq_list_start_head(&rxrpc_calls, *_pos);
 }
@@ -42,11 +43,14 @@ static void *rxrpc_call_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 static void rxrpc_call_seq_stop(struct seq_file *seq, void *v)
 {
 	read_unlock(&rxrpc_call_lock);
+	rcu_read_unlock();
 }
 
 static int rxrpc_call_seq_show(struct seq_file *seq, void *v)
 {
-	struct rxrpc_connection *conn;
+	struct rxrpc_local *local;
+	struct rxrpc_sock *rx;
+	struct rxrpc_peer *peer;
 	struct rxrpc_call *call;
 	char lbuff[4 + 4 + 4 + 4 + 5 + 1], rbuff[4 + 4 + 4 + 4 + 5 + 1];
 
@@ -60,15 +64,24 @@ static int rxrpc_call_seq_show(struct seq_file *seq, void *v)
 
 	call = list_entry(v, struct rxrpc_call, link);
 
-	sprintf(lbuff, "%pI4:%u",
-		&call->local->srx.transport.sin.sin_addr,
-		ntohs(call->local->srx.transport.sin.sin_port));
+	rx = rcu_dereference(call->socket);
+	if (rx) {
+		local = READ_ONCE(rx->local);
+		if (local)
+			sprintf(lbuff, "%pI4:%u",
+				&local->srx.transport.sin.sin_addr,
+				ntohs(local->srx.transport.sin.sin_port));
+		else
+			strcpy(lbuff, "no_local");
+	} else {
+		strcpy(lbuff, "no_socket");
+	}
 
-	conn = call->conn;
-	if (conn)
+	peer = call->peer;
+	if (peer)
 		sprintf(rbuff, "%pI4:%u",
-			&conn->params.peer->srx.transport.sin.sin_addr,
-			ntohs(conn->params.peer->srx.transport.sin.sin_port));
+			&peer->srx.transport.sin.sin_addr,
+			ntohs(peer->srx.transport.sin.sin_port));
 	else
 		strcpy(rbuff, "no_connection");
 
@@ -80,10 +93,10 @@ static int rxrpc_call_seq_show(struct seq_file *seq, void *v)
 		   call->service_id,
 		   call->cid,
 		   call->call_id,
-		   call->in_clientflag ? "Svc" : "Clt",
+		   rxrpc_is_service_call(call) ? "Svc" : "Clt",
 		   atomic_read(&call->usage),
 		   rxrpc_call_states[call->state],
-		   call->remote_abort ?: call->local_abort,
+		   call->abort_code,
 		   call->user_call_ID);
 
 	return 0;
@@ -115,13 +128,13 @@ const struct file_operations rxrpc_call_seq_fops = {
 static void *rxrpc_connection_seq_start(struct seq_file *seq, loff_t *_pos)
 {
 	read_lock(&rxrpc_connection_lock);
-	return seq_list_start_head(&rxrpc_connections, *_pos);
+	return seq_list_start_head(&rxrpc_connection_proc_list, *_pos);
 }
 
 static void *rxrpc_connection_seq_next(struct seq_file *seq, void *v,
 				       loff_t *pos)
 {
-	return seq_list_next(v, &rxrpc_connections, pos);
+	return seq_list_next(v, &rxrpc_connection_proc_list, pos);
 }
 
 static void rxrpc_connection_seq_stop(struct seq_file *seq, void *v)
@@ -134,7 +147,7 @@ static int rxrpc_connection_seq_show(struct seq_file *seq, void *v)
 	struct rxrpc_connection *conn;
 	char lbuff[4 + 4 + 4 + 4 + 5 + 1], rbuff[4 + 4 + 4 + 4 + 5 + 1];
 
-	if (v == &rxrpc_connections) {
+	if (v == &rxrpc_connection_proc_list) {
 		seq_puts(seq,
 			 "Proto Local                  Remote                "
 			 " SvID ConnID   End Use State    Key     "
@@ -143,7 +156,12 @@ static int rxrpc_connection_seq_show(struct seq_file *seq, void *v)
 		return 0;
 	}
 
-	conn = list_entry(v, struct rxrpc_connection, link);
+	conn = list_entry(v, struct rxrpc_connection, proc_link);
+	if (conn->state == RXRPC_CONN_SERVICE_PREALLOC) {
+		strcpy(lbuff, "no_local");
+		strcpy(rbuff, "no_connection");
+		goto print;
+	}
 
 	sprintf(lbuff, "%pI4:%u",
 		&conn->params.local->srx.transport.sin.sin_addr,
@@ -152,7 +170,7 @@ static int rxrpc_connection_seq_show(struct seq_file *seq, void *v)
 	sprintf(rbuff, "%pI4:%u",
 		&conn->params.peer->srx.transport.sin.sin_addr,
 		ntohs(conn->params.peer->srx.transport.sin.sin_port));
-
+print:
 	seq_printf(seq,
 		   "UDP   %-22.22s %-22.22s %4x %08x %s %3u"
 		   " %s %08x %08x %08x\n",
@@ -165,7 +183,7 @@ static int rxrpc_connection_seq_show(struct seq_file *seq, void *v)
 		   rxrpc_conn_states[conn->state],
 		   key_serial(conn->params.key),
 		   atomic_read(&conn->serial),
-		   atomic_read(&conn->hi_serial));
+		   conn->hi_serial);
 
 	return 0;
 }

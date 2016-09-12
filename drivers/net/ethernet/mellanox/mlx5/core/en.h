@@ -654,40 +654,6 @@ struct mlx5e_priv {
 	void                      *ppriv;
 };
 
-enum mlx5e_link_mode {
-	MLX5E_1000BASE_CX_SGMII	 = 0,
-	MLX5E_1000BASE_KX	 = 1,
-	MLX5E_10GBASE_CX4	 = 2,
-	MLX5E_10GBASE_KX4	 = 3,
-	MLX5E_10GBASE_KR	 = 4,
-	MLX5E_20GBASE_KR2	 = 5,
-	MLX5E_40GBASE_CR4	 = 6,
-	MLX5E_40GBASE_KR4	 = 7,
-	MLX5E_56GBASE_R4	 = 8,
-	MLX5E_10GBASE_CR	 = 12,
-	MLX5E_10GBASE_SR	 = 13,
-	MLX5E_10GBASE_ER	 = 14,
-	MLX5E_40GBASE_SR4	 = 15,
-	MLX5E_40GBASE_LR4	 = 16,
-	MLX5E_50GBASE_SR2	 = 18,
-	MLX5E_100GBASE_CR4	 = 20,
-	MLX5E_100GBASE_SR4	 = 21,
-	MLX5E_100GBASE_KR4	 = 22,
-	MLX5E_100GBASE_LR4	 = 23,
-	MLX5E_100BASE_TX	 = 24,
-	MLX5E_1000BASE_T	 = 25,
-	MLX5E_10GBASE_T		 = 26,
-	MLX5E_25GBASE_CR	 = 27,
-	MLX5E_25GBASE_KR	 = 28,
-	MLX5E_25GBASE_SR	 = 29,
-	MLX5E_50GBASE_CR2	 = 30,
-	MLX5E_50GBASE_KR2	 = 31,
-	MLX5E_LINK_MODES_NUMBER,
-};
-
-#define MLX5E_PROT_MASK(link_mode) (1 << link_mode)
-
-
 void mlx5e_build_ptys2ethtool_map(void);
 
 void mlx5e_send_nop(struct mlx5e_sq *sq, bool notify_hw);
@@ -878,9 +844,12 @@ void mlx5e_cleanup_nic_tx(struct mlx5e_priv *priv);
 int mlx5e_close(struct net_device *netdev);
 int mlx5e_open(struct net_device *netdev);
 void mlx5e_update_stats_work(struct work_struct *work);
-void *mlx5e_create_netdev(struct mlx5_core_dev *mdev,
-			  const struct mlx5e_profile *profile, void *ppriv);
+struct net_device *mlx5e_create_netdev(struct mlx5_core_dev *mdev,
+				       const struct mlx5e_profile *profile,
+				       void *ppriv);
 void mlx5e_destroy_netdev(struct mlx5_core_dev *mdev, struct mlx5e_priv *priv);
+int mlx5e_attach_netdev(struct mlx5_core_dev *mdev, struct net_device *netdev);
+void mlx5e_detach_netdev(struct mlx5_core_dev *mdev, struct net_device *netdev);
 struct rtnl_link_stats64 *
 mlx5e_get_stats(struct net_device *dev, struct rtnl_link_stats64 *stats);
 

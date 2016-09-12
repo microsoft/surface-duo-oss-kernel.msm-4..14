@@ -162,10 +162,16 @@ static int push_mpls(struct sk_buff *skb, struct sw_flow_key *key,
 	if (skb_cow_head(skb, MPLS_HLEN) < 0)
 		return -ENOMEM;
 
+	if (!skb->inner_protocol) {
+		skb_set_inner_network_header(skb, skb->mac_len);
+		skb_set_inner_protocol(skb, skb->protocol);
+	}
+
 	skb_push(skb, MPLS_HLEN);
 	memmove(skb_mac_header(skb) - MPLS_HLEN, skb_mac_header(skb),
 		skb->mac_len);
 	skb_reset_mac_header(skb);
+	skb_set_network_header(skb, skb->mac_len);
 
 	new_mpls_lse = (__be32 *)skb_mpls_header(skb);
 	*new_mpls_lse = mpls->mpls_lse;
@@ -173,8 +179,6 @@ static int push_mpls(struct sk_buff *skb, struct sw_flow_key *key,
 	skb_postpush_rcsum(skb, new_mpls_lse, MPLS_HLEN);
 
 	update_ethertype(skb, eth_hdr(skb), mpls->mpls_ethertype);
-	if (!skb->inner_protocol)
-		skb_set_inner_protocol(skb, skb->protocol);
 	skb->protocol = mpls->mpls_ethertype;
 
 	invalidate_flow_key(key);
@@ -198,6 +202,7 @@ static int pop_mpls(struct sk_buff *skb, struct sw_flow_key *key,
 
 	__skb_pull(skb, MPLS_HLEN);
 	skb_reset_mac_header(skb);
+	skb_set_network_header(skb, skb->mac_len);
 
 	/* skb_mpls_header() is used to locate the ethertype
 	 * field correctly in the presence of VLAN tags.
@@ -241,20 +246,24 @@ static int pop_vlan(struct sk_buff *skb, struct sw_flow_key *key)
 	int err;
 
 	err = skb_vlan_pop(skb);
-	if (skb_vlan_tag_present(skb))
+	if (skb_vlan_tag_present(skb)) {
 		invalidate_flow_key(key);
-	else
-		key->eth.tci = 0;
+	} else {
+		key->eth.vlan.tci = 0;
+		key->eth.vlan.tpid = 0;
+	}
 	return err;
 }
 
 static int push_vlan(struct sk_buff *skb, struct sw_flow_key *key,
 		     const struct ovs_action_push_vlan *vlan)
 {
-	if (skb_vlan_tag_present(skb))
+	if (skb_vlan_tag_present(skb)) {
 		invalidate_flow_key(key);
-	else
-		key->eth.tci = vlan->vlan_tci;
+	} else {
+		key->eth.vlan.tci = vlan->vlan_tci;
+		key->eth.vlan.tpid = vlan->vlan_tpid;
+	}
 	return skb_vlan_push(skb, vlan->vlan_tpid,
 			     ntohs(vlan->vlan_tci) & ~VLAN_TAG_PRESENT);
 }
