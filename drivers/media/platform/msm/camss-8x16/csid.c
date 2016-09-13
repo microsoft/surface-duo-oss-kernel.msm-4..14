@@ -301,7 +301,7 @@ static int csid_set_power(struct v4l2_subdev *sd, int on)
 	struct csid_device *csid = v4l2_get_subdevdata(sd);
 	int ret;
 
-	dev_err(to_device_index(csid, csid->id), "%s: Enter, csid%d on = %d\n",
+	dev_dbg(to_device_index(csid, csid->id), "%s: Enter, csid%d on = %d\n",
 		__func__, csid->id, on);
 
 	if (on) {
@@ -323,7 +323,7 @@ static int csid_set_power(struct v4l2_subdev *sd, int on)
 		wait_for_completion(&csid->reset_complete);
 
 		hw_version = readl_relaxed(csid->base + CAMSS_CSID_HW_VERSION);
-		dev_err(to_device_index(csid, csid->id), "CSID HW Version = 0x%08x\n", hw_version);
+		dev_dbg(to_device_index(csid, csid->id), "CSID HW Version = 0x%08x\n", hw_version);
 	} else {
 		disable_irq(csid->irq);
 
@@ -334,7 +334,7 @@ static int csid_set_power(struct v4l2_subdev *sd, int on)
 			return ret;
 	}
 
-	dev_err(to_device_index(csid, csid->id), "%s: Exit, csid%d on = %d\n",
+	dev_dbg(to_device_index(csid, csid->id), "%s: Exit, csid%d on = %d\n",
 		__func__, csid->id, on);
 
 	return 0;
@@ -423,7 +423,7 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 	struct csid_device *csid = v4l2_get_subdevdata(sd);
 	struct csid_testgen_config *tg = &csid->testgen;
 
-	dev_err(to_device_index(csid, csid->id), "%s: Enter, csid%d enable = %d\n",
+	dev_dbg(to_device_index(csid, csid->id), "%s: Enter, csid%d enable = %d\n",
 		__func__, csid->id, enable);
 
 	if (enable) {

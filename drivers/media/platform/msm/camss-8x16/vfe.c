@@ -560,8 +560,6 @@ static void vfe_output_init_addrs(struct vfe_device *vfe,
 	else
 		pong_addr = ping_addr;
 
-	dev_err(to_device(vfe), "init_addrs: wm[%d], ping = 0x%08x, pong = 0x%08x\n",
-		output->wm_idx, ping_addr, pong_addr);
 	vfe_wm_set_ping_addr(vfe, output->wm_idx, ping_addr);
 	vfe_wm_set_pong_addr(vfe, output->wm_idx, pong_addr);
 	if (sync)
@@ -820,10 +818,10 @@ static int vfe_get_output(struct vfe_line *line)
 	output->drop_update_idx = 0;
 	output->wm_idx = wm_idx;
 
-	dev_err(to_device(vfe), "%s: RDI%d -> WM%d\n",
-		__func__, line->id, wm_idx);
-
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
+
+	dev_dbg(to_device(vfe), "%s: RDI%d -> WM%d\n",
+		__func__, line->id, wm_idx);
 
 	return 0;
 
@@ -1297,7 +1295,7 @@ static int vfe_set_power(struct v4l2_subdev *sd, int on)
 	struct vfe_device *vfe = to_vfe(line);
 	int ret;
 
-	dev_err(to_device(vfe), "%s: Enter, rdi%d on = %d\n",
+	dev_dbg(to_device(vfe), "%s: Enter, rdi%d on = %d\n",
 		__func__, line->id, on);
 
 	if (on) {
@@ -1308,13 +1306,13 @@ static int vfe_set_power(struct v4l2_subdev *sd, int on)
 			return ret;
 
 		hw_version = readl(vfe->base);
-		dev_err(to_device(vfe),
+		dev_dbg(to_device(vfe),
 			"VFE HW Version = 0x%08x\n", hw_version);
 	} else {
 		vfe_put(vfe);
 	}
 
-	dev_err(to_device(vfe), "%s: Exit, rdi%d on = %d\n",
+	dev_dbg(to_device(vfe), "%s: Exit, rdi%d on = %d\n",
 		__func__, line->id, on);
 
 	return 0;
@@ -1326,7 +1324,7 @@ static int vfe_set_stream(struct v4l2_subdev *sd, int enable)
 	struct vfe_device *vfe = to_vfe(line);
 	int ret = 0;
 
-	dev_err(to_device(vfe), "%s: Enter, rdi%d enable = %d\n",
+	dev_dbg(to_device(vfe), "%s: Enter, rdi%d enable = %d\n",
 		__func__, line->id, enable);
 
 	if (enable) {

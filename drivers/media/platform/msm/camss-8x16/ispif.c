@@ -201,7 +201,7 @@ static int ispif_set_power(struct v4l2_subdev *sd, int on)
 	struct ispif_device *ispif = to_ispif(line);
 	int ret = 0;
 
-	dev_err(to_device(ispif), "%s: Enter, ispif%d on = %d\n",
+	dev_dbg(to_device(ispif), "%s: Enter, ispif%d on = %d\n",
 		__func__, line->id, on);
 
 	if (on) {
@@ -243,7 +243,7 @@ static int ispif_set_power(struct v4l2_subdev *sd, int on)
 exit:
 	mutex_unlock(&ispif->power_lock);
 
-	dev_err(to_device(ispif), "%s: Exit, ispif%d on = %d\n",
+	dev_dbg(to_device(ispif), "%s: Exit, ispif%d on = %d\n",
 		__func__, line->id, on);
 
 	return ret;
@@ -545,7 +545,7 @@ static int ispif_set_stream(struct v4l2_subdev *sd, int enable)
 
 	int ret;
 
-	dev_err(to_device(ispif), "%s: Enter, ispif%d enable = %d\n",
+	dev_dbg(to_device(ispif), "%s: Enter, ispif%d enable = %d\n",
 		__func__, line->id, enable);
 
 	if (enable) {

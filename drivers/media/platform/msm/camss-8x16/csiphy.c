@@ -179,7 +179,7 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 	struct csiphy_device *csiphy = v4l2_get_subdevdata(sd);
 	int ret;
 
-	dev_err(to_device_index(csiphy, csiphy->id),
+	dev_dbg(to_device_index(csiphy, csiphy->id),
 		"%s: Enter, csiphy%d on = %d\n",
 		__func__, csiphy->id, on);
 
@@ -196,7 +196,7 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 
 		hw_version = readl_relaxed(csiphy->base +
 					   CAMSS_CSI_PHY_HW_VERSION);
-		dev_err(to_device_index(csiphy, csiphy->id),
+		dev_dbg(to_device_index(csiphy, csiphy->id),
 			"CSIPHY HW Version = 0x%02x\n",
 			hw_version);
 	} else {
@@ -205,7 +205,7 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 		csiphy_disable_clocks(csiphy);
 	}
 
-	dev_err(to_device_index(csiphy, csiphy->id),
+	dev_dbg(to_device_index(csiphy, csiphy->id),
 		"%s: Exit csiphy%d on = %d\n",
 		__func__, csiphy->id, on);
 
@@ -248,7 +248,7 @@ static int csiphy_set_stream(struct v4l2_subdev *sd, int enable)
 	u8 i;
 	u8 val;
 
-	dev_err(to_device_index(csiphy, csiphy->id),
+	dev_dbg(to_device_index(csiphy, csiphy->id),
 		"%s: Enter, csiphy%d enable = %d\n",
 		__func__, csiphy->id, enable);
 
