@@ -318,6 +318,10 @@ static int csid_set_power(struct v4l2_subdev *sd, int on)
 
 		enable_irq(csid->irq);
 
+		/* Reset */
+		writel_relaxed(0x7fff, csid->base + CAMSS_CSID_RST_CMD);
+		wait_for_completion(&csid->reset_complete);
+
 		hw_version = readl_relaxed(csid->base + CAMSS_CSID_HW_VERSION);
 		dev_err(csid->camss->dev, "CSID HW Version = 0x%08x\n", hw_version);
 	} else {
@@ -440,10 +444,6 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 		    !media_entity_remote_pad(&csid->pads[MSM_CSID_PAD_SINK])) {
 			return -ENOLINK;
 		}
-
-		/* Reset */
-		writel_relaxed(0x7fff, csid->base + CAMSS_CSID_RST_CMD);
-		wait_for_completion(&csid->reset_complete);
 
 		dt = csid_get_data_type(csid->fmt[MSM_CSID_PAD_SRC].code);
 
