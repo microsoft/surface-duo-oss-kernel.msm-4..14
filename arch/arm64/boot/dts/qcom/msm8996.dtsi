@@ -1102,3 +1102,5 @@
 
 };
 #include "msm8996-pins.dtsi"
+#include "pm8994.dtsi"
+#include "pmi8994.dtsi"
