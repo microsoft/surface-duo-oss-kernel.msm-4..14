@@ -681,6 +681,7 @@
 
 				clocks = <&gcc GCC_CAMSS_MCLK0_CLK>;
 				clock-names = "xclk";
+				clock-frequency = <23880000>;
 
 				vdddo-supply = <&camera_vdddo_1v8>;
 				vdda-supply = <&camera_vdda_2v8>;
