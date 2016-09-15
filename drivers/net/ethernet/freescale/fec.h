@@ -454,6 +454,9 @@ struct bufdesc_ex {
  */
 #define FEC_QUIRK_MIB_CLEAR		(1 << 15)
 
+/* Ethernet Control Register */
+#define FEC_ENET_ETHEREN		BIT(1)	/* Ethernet Enable */
+
 struct bufdesc_prop {
 	int qid;
 	/* Address of Rx and Tx buffers */

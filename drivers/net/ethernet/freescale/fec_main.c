@@ -1776,6 +1776,15 @@ static void fec_enet_adjust_link(struct net_device *ndev)
 		phy_print_status(phy_dev);
 }
 
+static void fec_enec_clear_eberr(struct fec_enet_private *fep)
+{
+	u32 ievent = readl(fep->hwp + FEC_IEVENT);
+	u32 ecntrl = readl(fep->hwp + FEC_ECNTRL);
+
+	if ((ievent & FEC_ENET_EBERR) && !(ecntrl & FEC_ENET_ETHEREN))
+		fec_restart(fep->netdev);
+}
+
 static int fec_enet_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 {
 	struct fec_enet_private *fep = bus->priv;
@@ -1801,6 +1810,7 @@ static int fec_enet_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 	if (time_left == 0) {
 		fep->mii_timeout = 1;
 		netdev_err(fep->netdev, "MDIO read timeout\n");
+		fec_enec_clear_eberr(fep);
 		ret = -ETIMEDOUT;
 		goto out;
 	}
@@ -1843,6 +1853,7 @@ static int fec_enet_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
 	if (time_left == 0) {
 		fep->mii_timeout = 1;
 		netdev_err(fep->netdev, "MDIO write timeout\n");
+		fec_enec_clear_eberr(fep);
 		ret  = -ETIMEDOUT;
 	}
 
