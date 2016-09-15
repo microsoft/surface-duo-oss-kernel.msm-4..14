@@ -432,6 +432,9 @@ struct bufdesc_ex {
 /* Controller has only one MDIO bus */
 #define FEC_QUIRK_SINGLE_MDIO		(1 << 11)
 
+/* Ethernet Control Register */
+#define FEC_ENET_ETHEREN		BIT(1) /* Ethernet Enable */
+
 /* This structure groups common FEC/ENET queue params
    to allow reuse of functions for both TX and RX queues */
 struct fec_priv_common_q {
