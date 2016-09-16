@@ -631,7 +631,6 @@
 			vreg-1.8-supply = <&pm8994_l12>;
 			vreg-0.9-supply = <&pm8994_l28>;
 	
-			iommus = <&anoc0_smmu>;
 			linux,pci-domain = <0>;
 	
 			clocks = <&gcc GCC_PCIE_0_PIPE_CLK>,
@@ -695,7 +694,6 @@
 	
 			vreg-1.8-supply = <&pm8994_l12>;
 			vreg-0.9-supply = <&pm8994_l28>;
-			iommus = <&anoc0_smmu>;
 	
 			linux,pci-domain = <1>;
 	
@@ -759,7 +757,6 @@
 	
 			vreg-1.8-supply = <&pm8994_l12>;
 			vreg-0.9-supply = <&pm8994_l28>;
-			iommus = <&anoc0_smmu>;
 	
 			linux,pci-domain = <2>;
 			clocks = <&gcc GCC_PCIE_2_PIPE_CLK>,
