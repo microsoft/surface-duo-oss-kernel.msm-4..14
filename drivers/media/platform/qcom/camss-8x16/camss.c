@@ -199,7 +199,8 @@ static int camss_of_parse_ports(struct device *dev,
 	int ret;
 
 	while ((node = of_graph_get_next_endpoint(dev->of_node, node)))
-		notifier->num_subdevs++;
+		if (of_device_is_available(node))
+			notifier->num_subdevs++;
 
 	size = sizeof(*notifier->subdevs) * notifier->num_subdevs;
 	notifier->subdevs = devm_kzalloc(dev, size, GFP_KERNEL);
@@ -512,6 +513,8 @@ static int camss_probe(struct platform_device *pdev)
 	ret = camss_of_parse_ports(dev, &camss->notifier);
 	if (ret < 0)
 		return ret;
+	else if (ret == 0)
+		return -ENODEV;
 
 	ret = camss_init_subdevices(camss);
 	if (ret < 0)
