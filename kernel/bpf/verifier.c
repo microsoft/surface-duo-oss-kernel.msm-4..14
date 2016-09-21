@@ -188,6 +188,7 @@ struct verifier_stack_elem {
 
 struct bpf_insn_aux_data {
 	bool seen; /* this insn was processed by the verifier */
+	enum bpf_reg_type ptr_type;	/* pointer type for load/store insns */
 };
 
 #define MAX_USED_MAPS 64 /* max number of maps accessed by one eBPF program */
@@ -1804,7 +1805,7 @@ static int do_check(struct verifier_env *env)
 				return err;
 
 		} else if (class == BPF_LDX) {
-			enum bpf_reg_type src_reg_type;
+			enum bpf_reg_type *prev_src_type, src_reg_type;
 
 			/* check for reserved fields is already done */
 
@@ -1834,16 +1835,18 @@ static int do_check(struct verifier_env *env)
 				continue;
 			}
 
-			if (insn->imm == 0) {
+			prev_src_type = &env->insn_aux_data[insn_idx].ptr_type;
+
+			if (*prev_src_type == NOT_INIT) {
 				/* saw a valid insn
 				 * dst_reg = *(u32 *)(src_reg + off)
-				 * use reserved 'imm' field to mark this insn
+				 * save type to validate intersecting paths
 				 */
-				insn->imm = src_reg_type;
+				*prev_src_type = src_reg_type;
 
-			} else if (src_reg_type != insn->imm &&
+			} else if (src_reg_type != *prev_src_type &&
 				   (src_reg_type == PTR_TO_CTX ||
-				    insn->imm == PTR_TO_CTX)) {
+				    *prev_src_type == PTR_TO_CTX)) {
 				/* ABuser program is trying to use the same insn
 				 * dst_reg = *(u32*) (src_reg + off)
 				 * with different pointer types:
@@ -1856,7 +1859,7 @@ static int do_check(struct verifier_env *env)
 			}
 
 		} else if (class == BPF_STX) {
-			enum bpf_reg_type dst_reg_type;
+			enum bpf_reg_type *prev_dst_type, dst_reg_type;
 
 			if (BPF_MODE(insn->code) == BPF_XADD) {
 				err = check_xadd(env, insn);
@@ -1884,11 +1887,13 @@ static int do_check(struct verifier_env *env)
 			if (err)
 				return err;
 
-			if (insn->imm == 0) {
-				insn->imm = dst_reg_type;
-			} else if (dst_reg_type != insn->imm &&
+			prev_dst_type = &env->insn_aux_data[insn_idx].ptr_type;
+
+			if (*prev_dst_type == NOT_INIT) {
+				*prev_dst_type = dst_reg_type;
+			} else if (dst_reg_type != *prev_dst_type &&
 				   (dst_reg_type == PTR_TO_CTX ||
-				    insn->imm == PTR_TO_CTX)) {
+				    *prev_dst_type == PTR_TO_CTX)) {
 				verbose("same insn cannot be used with different pointers\n");
 				return -EINVAL;
 			}
@@ -2144,17 +2149,17 @@ static void sanitize_dead_code(struct verifier_env *env)
 static int convert_ctx_accesses(struct verifier_env *env)
 {
 	struct bpf_insn *insn = env->prog->insnsi;
-	int insn_cnt = env->prog->len;
+	const int insn_cnt = env->prog->len;
 	struct bpf_insn insn_buf[16];
 	struct bpf_prog *new_prog;
 	enum bpf_access_type type;
-	int i;
+	int i, delta = 0;
 
 	if (!env->prog->aux->ops->convert_ctx_access)
 		return 0;
 
 	for (i = 0; i < insn_cnt; i++, insn++) {
-		u32 insn_delta, cnt;
+		u32 cnt;
 
 		if (insn->code == (BPF_LDX | BPF_MEM | BPF_W))
 			type = BPF_READ;
@@ -2163,11 +2168,8 @@ static int convert_ctx_accesses(struct verifier_env *env)
 		else
 			continue;
 
-		if (insn->imm != PTR_TO_CTX) {
-			/* clear internal mark */
-			insn->imm = 0;
+		if (env->insn_aux_data[i].ptr_type != PTR_TO_CTX)
 			continue;
-		}
 
 		cnt = env->prog->aux->ops->
 			convert_ctx_access(type, insn->dst_reg, insn->src_reg,
@@ -2177,18 +2179,16 @@ static int convert_ctx_accesses(struct verifier_env *env)
 			return -EINVAL;
 		}
 
-		new_prog = bpf_patch_insn_single(env->prog, i, insn_buf, cnt);
+		new_prog = bpf_patch_insn_single(env->prog, i + delta, insn_buf,
+						 cnt);
 		if (!new_prog)
 			return -ENOMEM;
 
-		insn_delta = cnt - 1;
+		delta += cnt - 1;
 
 		/* keep walking new program and skip insns we just inserted */
 		env->prog = new_prog;
-		insn      = new_prog->insnsi + i + insn_delta;
-
-		insn_cnt += insn_delta;
-		i        += insn_delta;
+		insn      = new_prog->insnsi + i + delta;
 	}
 
 	return 0;
