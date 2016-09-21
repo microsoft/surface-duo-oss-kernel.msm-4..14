@@ -470,89 +470,13 @@ static struct hwrng cse_rng = {
 };
 #endif
 
-/** Crypto API */
-
-static struct cse_cipher_alg cipher_algs[] = {
-	{
-	.alg = {
-		.cra_name         = "ecb(aes)",
-		.cra_driver_name  = "cse-ecb-aes",
-		.cra_priority     = 100,
-		.cra_flags        = CRYPTO_ALG_TYPE_ABLKCIPHER|CRYPTO_ALG_ASYNC,
-		.cra_blocksize    = AES_BLOCK_SIZE,
-		.cra_ctxsize      = sizeof(cse_ctx_t),
-		.cra_alignmask    = 0x0,
-		.cra_type         = &crypto_ablkcipher_type,
-		.cra_module       = THIS_MODULE,
-		.cra_init         = capi_cra_init,
-		.cra_exit         = capi_cra_exit,
-		.cra_u.ablkcipher = {
-			.min_keysize    = AES_KEYSIZE_128,
-			.max_keysize    = AES_KEYSIZE_128,
-			.setkey         = capi_aes_setkey,
-			.encrypt        = capi_aes_ecb_encrypt,
-			.decrypt        = capi_aes_ecb_decrypt,
-		} },
-	.registered = 0
-	},
-	{
-	.alg = {
-		.cra_name         = "cbc(aes)",
-		.cra_driver_name  = "cse-cbc-aes",
-		.cra_priority     = 100,
-		.cra_flags        = CRYPTO_ALG_TYPE_ABLKCIPHER|CRYPTO_ALG_ASYNC,
-		.cra_blocksize    = AES_BLOCK_SIZE,
-		.cra_ctxsize      = sizeof(cse_ctx_t),
-		.cra_alignmask    = 0x0,
-		.cra_type         = &crypto_ablkcipher_type,
-		.cra_module       = THIS_MODULE,
-		.cra_init         = capi_cra_init,
-		.cra_exit         = capi_cra_exit,
-		.cra_u.ablkcipher = {
-			.min_keysize    = AES_KEYSIZE_128,
-			.max_keysize    = AES_KEYSIZE_128,
-			.ivsize         = AES_BLOCK_SIZE,
-			.setkey         = capi_aes_setkey,
-			.encrypt        = capi_aes_cbc_encrypt,
-			.decrypt        = capi_aes_cbc_decrypt,
-		} },
-	.registered = 0
-	},
-};
-
-static struct cse_ahash_alg hash_algs[] = {
-	{
-	.alg = {
-		.init = capi_cmac_init,
-		/* TODO: implement update
-		 .update = capi_cmac_update,
-		 .final = capi_cmac_final, */
-		.finup = capi_cmac_finup,
-		.digest = capi_cmac_digest,
-		.setkey = capi_cmac_setkey,
-		.halg.digestsize = AES_BLOCK_SIZE,
-		.halg.base = {
-			.cra_name = "cmac(aes)",
-			.cra_driver_name = "cse-cmac-aes",
-			.cra_flags = (CRYPTO_ALG_TYPE_AHASH | CRYPTO_ALG_ASYNC),
-			.cra_blocksize = AES_BLOCK_SIZE,
-			.cra_ctxsize = sizeof(cse_ctx_t),
-			.cra_init = capi_cra_init,
-			.cra_exit = capi_cra_exit,
-			.cra_module = THIS_MODULE,
-		} },
-	.registered = 0
-	}
-};
-
-
-static struct platform_device_id cse3_platform_ids[] = {
+static const struct platform_device_id cse3_platform_ids[] = {
 	{ .name = "cse3-s32v234" },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(platform, cse3_platform_ids);
 
-static struct of_device_id cse3_dt_ids[] = {
+static const struct of_device_id cse3_dt_ids[] = {
 	{ .compatible = "fsl,s32v234-cse3" },
 	{ /* sentinel */ }
 };
@@ -560,7 +484,7 @@ MODULE_DEVICE_TABLE(of, cse3_dt_ids);
 
 static int cse_probe(struct platform_device *pdev)
 {
-	int i, err = 0;
+	int err = 0;
 	struct cse_device_data *cse_dev;
 	struct resource *res;
 
@@ -639,21 +563,7 @@ static int cse_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to register hwrng.\n");
 #endif
 
-	for (i = 0; i < ARRAY_SIZE(cipher_algs); i++) {
-		if (!crypto_register_alg(&cipher_algs[i].alg))
-			cipher_algs[i].registered = 1;
-		else
-			dev_err(&pdev->dev, "failed to register %s algo to crypto API.\n",
-					cipher_algs[i].alg.cra_name);
-	}
-
-	for (i = 0; i < ARRAY_SIZE(hash_algs); i++) {
-		if (!crypto_register_ahash(&hash_algs[i].alg))
-			hash_algs[i].registered = 1;
-		else
-			dev_err(&pdev->dev, "failed to register %s algo to crypto API.\n",
-					hash_algs[i].alg.halg.base.cra_name);
-	}
+	cse_register_crypto_api();
 
 	return 0;
 
@@ -669,20 +579,11 @@ out_irq:
 	return err;
 }
 
-static int cse_remove(struct platform_device *pdev)
+static int __exit cse_remove(struct platform_device *pdev)
 {
-	int i;
 	struct cse_device_data *cse_dev = platform_get_drvdata(pdev);
 
-	for (i = 0; i < ARRAY_SIZE(hash_algs); i++) {
-		if (hash_algs[i].registered)
-			crypto_unregister_ahash(&hash_algs[i].alg);
-	}
-
-	for (i = 0; i < ARRAY_SIZE(cipher_algs); i++) {
-		if (cipher_algs[i].registered)
-			crypto_unregister_alg(&cipher_algs[i].alg);
-	}
+	cse_unregister_crypto_api();
 
 	cdev_del(&cse_dev->cdev);
 	unregister_chrdev_region(MKDEV(CSE3_MAJOR, CSE3_MINOR), NUM_MINORS);
@@ -706,18 +607,7 @@ static struct platform_driver cse_driver = {
 	},
 };
 
-static int __init cse_init(void)
-{
-	return platform_driver_probe(&cse_driver, cse_probe);
-}
-
-static void __exit cse_exit(void)
-{
-	platform_driver_unregister(&cse_driver);
-}
-
-module_init(cse_init);
-module_exit(cse_exit);
+module_platform_driver(cse_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Freescale");

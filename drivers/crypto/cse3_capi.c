@@ -14,13 +14,28 @@
  * GNU General Public License for more details.
  */
 
-#include <linux/scatterlist.h>
+#include <linux/crypto.h>
 #include <linux/cryptohash.h>
+#include <linux/scatterlist.h>
+#include <crypto/aes.h>
+#include <crypto/algapi.h>
+#include <crypto/internal/hash.h>
 #include <crypto/scatterwalk.h>
 
 #include "cse3.h"
-#include "cse3_req.h"
 #include "cse3_capi.h"
+#include "cse3_req.h"
+
+/* Crypto API algorithms wrappers */
+struct cse_cipher_alg {
+	struct crypto_alg alg;
+	u8 registered;
+};
+
+struct cse_ahash_alg {
+	struct ahash_alg alg;
+	u8 registered;
+};
 
 static int capi_copy_output
 (struct cse_device_data *dev, struct cse_request *req)
@@ -115,7 +130,7 @@ static void capi_init_ops(struct cse_request *req)
 	req->free_extra = NULL;
 }
 
-int capi_aes_setkey(struct crypto_ablkcipher *tfm, const u8 *key,
+static int capi_aes_setkey(struct crypto_ablkcipher *tfm, const u8 *key,
 		unsigned int keylen)
 {
 	cse_ctx_t *ctx = crypto_ablkcipher_ctx(tfm);
@@ -157,27 +172,27 @@ static int capi_aes_crypto(struct ablkcipher_request *req, int flags)
 	return ret ? ret : -EINPROGRESS;
 }
 
-int capi_aes_ecb_encrypt(struct ablkcipher_request *req)
+static int capi_aes_ecb_encrypt(struct ablkcipher_request *req)
 {
 	return capi_aes_crypto(req, FLAG_ENC);
 }
 
-int capi_aes_ecb_decrypt(struct ablkcipher_request *req)
+static int capi_aes_ecb_decrypt(struct ablkcipher_request *req)
 {
 	return capi_aes_crypto(req, FLAG_DEC);
 }
 
-int capi_aes_cbc_encrypt(struct ablkcipher_request *req)
+static int capi_aes_cbc_encrypt(struct ablkcipher_request *req)
 {
 	return capi_aes_crypto(req, FLAG_ENC|FLAG_CBC);
 }
 
-int capi_aes_cbc_decrypt(struct ablkcipher_request *req)
+static int capi_aes_cbc_decrypt(struct ablkcipher_request *req)
 {
 	return capi_aes_crypto(req, FLAG_DEC|FLAG_CBC);
 }
 
-int capi_cmac_finup(struct ahash_request *req)
+static int capi_cmac_finup(struct ahash_request *req)
 {
 	int ret;
 	cse_req_t *new_req;
@@ -201,18 +216,18 @@ int capi_cmac_finup(struct ahash_request *req)
 	return ret ? ret : -EINPROGRESS;
 }
 
-int capi_cmac_digest(struct ahash_request *req)
+static int capi_cmac_digest(struct ahash_request *req)
 {
 	return capi_cmac_finup(req);
 }
 
-int capi_cmac_init(struct ahash_request *req)
+static int capi_cmac_init(struct ahash_request *req)
 {
 	/* TODO: init state for update operation */
 	return 0;
 }
 
-int capi_cmac_setkey(struct crypto_ahash *tfm, const u8 *key,
+static int capi_cmac_setkey(struct crypto_ahash *tfm, const u8 *key,
 		unsigned int keylen)
 {
 	cse_ctx_t *ctx = crypto_ahash_ctx(tfm);
@@ -229,7 +244,7 @@ int capi_cmac_setkey(struct crypto_ahash *tfm, const u8 *key,
 /**
  * Called at socket bind
  */
-int capi_cra_init(struct crypto_tfm *tfm)
+static int capi_cra_init(struct crypto_tfm *tfm)
 {
 	cse_ctx_t *ctx;
 
@@ -242,10 +257,120 @@ int capi_cra_init(struct crypto_tfm *tfm)
 	return 0;
 }
 
-void capi_cra_exit(struct crypto_tfm *tfm)
+static void capi_cra_exit(struct crypto_tfm *tfm)
 {
 	cse_ctx_t *ctx = crypto_tfm_ctx(tfm);
 
 	up(&ctx->dev->access);
 }
 
+static struct cse_cipher_alg cipher_algs[] = {
+	{
+	.alg = {
+		.cra_name         = "ecb(aes)",
+		.cra_driver_name  = "cse-ecb-aes",
+		.cra_priority     = 100,
+		.cra_flags        = CRYPTO_ALG_TYPE_ABLKCIPHER|CRYPTO_ALG_ASYNC,
+		.cra_blocksize    = AES_BLOCK_SIZE,
+		.cra_ctxsize      = sizeof(cse_ctx_t),
+		.cra_alignmask    = 0x0,
+		.cra_type         = &crypto_ablkcipher_type,
+		.cra_module       = THIS_MODULE,
+		.cra_init         = capi_cra_init,
+		.cra_exit         = capi_cra_exit,
+		.cra_u.ablkcipher = {
+			.min_keysize    = AES_KEYSIZE_128,
+			.max_keysize    = AES_KEYSIZE_128,
+			.setkey         = capi_aes_setkey,
+			.encrypt        = capi_aes_ecb_encrypt,
+			.decrypt        = capi_aes_ecb_decrypt,
+		} },
+	.registered = 0
+	},
+	{
+	.alg = {
+		.cra_name         = "cbc(aes)",
+		.cra_driver_name  = "cse-cbc-aes",
+		.cra_priority     = 100,
+		.cra_flags        = CRYPTO_ALG_TYPE_ABLKCIPHER|CRYPTO_ALG_ASYNC,
+		.cra_blocksize    = AES_BLOCK_SIZE,
+		.cra_ctxsize      = sizeof(cse_ctx_t),
+		.cra_alignmask    = 0x0,
+		.cra_type         = &crypto_ablkcipher_type,
+		.cra_module       = THIS_MODULE,
+		.cra_init         = capi_cra_init,
+		.cra_exit         = capi_cra_exit,
+		.cra_u.ablkcipher = {
+			.min_keysize    = AES_KEYSIZE_128,
+			.max_keysize    = AES_KEYSIZE_128,
+			.ivsize         = AES_BLOCK_SIZE,
+			.setkey         = capi_aes_setkey,
+			.encrypt        = capi_aes_cbc_encrypt,
+			.decrypt        = capi_aes_cbc_decrypt,
+		} },
+	.registered = 0
+	},
+};
+
+static struct cse_ahash_alg hash_algs[] = {
+	{
+	.alg = {
+		.init = capi_cmac_init,
+		/* TODO: implement update
+		 .update = capi_cmac_update,
+		 .final = capi_cmac_final, */
+		.finup = capi_cmac_finup,
+		.digest = capi_cmac_digest,
+		.setkey = capi_cmac_setkey,
+		.halg.digestsize = AES_BLOCK_SIZE,
+		.halg.base = {
+			.cra_name = "cmac(aes)",
+			.cra_driver_name = "cse-cmac-aes",
+			.cra_flags = (CRYPTO_ALG_TYPE_AHASH | CRYPTO_ALG_ASYNC),
+			.cra_blocksize = AES_BLOCK_SIZE,
+			.cra_ctxsize = sizeof(cse_ctx_t),
+			.cra_init = capi_cra_init,
+			.cra_exit = capi_cra_exit,
+			.cra_module = THIS_MODULE,
+		} },
+	.registered = 0
+	}
+};
+
+void cse_register_crypto_api(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(cipher_algs); i++) {
+		if (!crypto_register_alg(&cipher_algs[i].alg))
+			cipher_algs[i].registered = 1;
+		else
+			dev_err(cse_dev_ptr->device,
+					"failed to register %s algo to crypto API.\n",
+					cipher_algs[i].alg.cra_name);
+	}
+
+	for (i = 0; i < ARRAY_SIZE(hash_algs); i++) {
+		if (!crypto_register_ahash(&hash_algs[i].alg))
+			hash_algs[i].registered = 1;
+		else
+			dev_err(cse_dev_ptr->device,
+					"failed to register %s algo to crypto API.\n",
+					hash_algs[i].alg.halg.base.cra_name);
+	}
+}
+
+void cse_unregister_crypto_api(void)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(hash_algs); i++) {
+		if (hash_algs[i].registered)
+			crypto_unregister_ahash(&hash_algs[i].alg);
+	}
+
+	for (i = 0; i < ARRAY_SIZE(cipher_algs); i++) {
+		if (cipher_algs[i].registered)
+			crypto_unregister_alg(&cipher_algs[i].alg);
+	}
+}
