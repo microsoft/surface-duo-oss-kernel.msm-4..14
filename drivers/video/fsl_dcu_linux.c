@@ -213,6 +213,7 @@ EXPORT_SYMBOL_GPL(fsl_dcu_get_dcufb);
  **********************************************************/
 struct platform_device *fsl_dcu_get_pdev(void)
 {
+	__TRACE__;
 	return dcu_pdev;
 }
 EXPORT_SYMBOL_GPL(fsl_dcu_get_pdev);
@@ -222,6 +223,7 @@ EXPORT_SYMBOL_GPL(fsl_dcu_get_pdev);
  **********************************************************/
 int fsl_dcu_init_status(void)
 {
+	__TRACE__;
 	return dcu_init_status;
 }
 EXPORT_SYMBOL_GPL(fsl_dcu_init_status);
@@ -232,6 +234,7 @@ EXPORT_SYMBOL_GPL(fsl_dcu_init_status);
  **********************************************************/
 int fsl_dcu_num_layers(void)
 {
+	__TRACE__;
 	return DCU_LAYER_NUM_MAX;
 }
 EXPORT_SYMBOL_GPL(fsl_dcu_num_layers);
@@ -341,7 +344,6 @@ EXPORT_SYMBOL_GPL(fsl_dcu_get_color_format_byname);
  **********************************************************/
 int fsl_dcu_set_clut(struct fb_info *info)
 {
-	int ret = 0;
 	struct mfb_info *mfbi = info->par;
 	struct fb_cmap *cmap = &info->cmap;
 	uint32_t clut[256], i;
@@ -360,11 +362,10 @@ int fsl_dcu_set_clut(struct fb_info *info)
 	}
 
 	/* wait vblank, and then write the CLUT */
-	ret = fsl_dcu_wait_for_vblank();
-	if (!ret)
-		DCU_CLUTLoad(0, mfbi->index, clut_offset, cmap->len, clut);
+	fsl_dcu_wait_for_vblank();
+	DCU_CLUTLoad(0, mfbi->index, clut_offset, cmap->len, clut);
 
-	return ret;
+	return 0;
 }
 EXPORT_SYMBOL_GPL(fsl_dcu_set_clut);
 
@@ -429,11 +430,6 @@ int fsl_dcu_config_layer(struct fb_info *info)
 		DCU_SetLayerBPP(0, mfbi->index,
 			DCU_FB_COLOR_BPP[color_format_idx]);
 	}
-
-	if (mfbi->tiled && var->nonstd)
-		DCU_LayerTileEnable(0, mfbi->index);
-	else
-		DCU_LayerTileDisable(0, mfbi->index);
 
 	DCU_SetLayerAlphaVal(0, mfbi->index, mfbi->alpha);
 	DCU_SetLayerAlphaMode(0, mfbi->index, DCU_ALPHAKEY_WHOLEFRAME);
@@ -583,6 +579,7 @@ EXPORT_SYMBOL_GPL(fsl_dcu_set_layer);
  **********************************************************/
 irqreturn_t fsl_dcu_irq(int irq, void *dev_id)
 {
+	__TRACE__;
 	return IRQ_HANDLED;
 }
 
@@ -703,7 +700,6 @@ int fsl_dcu_wait_for_event(uint32_t type)
 {
 	unsigned long flags;
 	int cond_idx;
-	int ret = 0;
 
 	if (type >= DCU_EVENT_TYPE_MAX)
 		return -EINVAL;
@@ -728,15 +724,15 @@ int fsl_dcu_wait_for_event(uint32_t type)
 		return -EBUSY;
 
 	/* Wait until the DCU event occurs */
-	ret = wait_event_interruptible(dcu_event_queue,
+	wait_event(dcu_event_queue,
 		event_condition_list[type][cond_idx] == DCU_STATUS_WAITED);
 
-	/* Release the entry in the waiting PID list even if interrupted */
+	/* Release the entry in the waiting PID list */
 	spin_lock_irqsave(&dcu_event_queue.lock, flags);
 	event_condition_list[type][cond_idx] = EVENT_STATUS_CLEAR;
 	spin_unlock_irqrestore(&dcu_event_queue.lock, flags);
 
-	return !ret ? 0 : -ERESTARTSYS;
+	return 0;
 }
 
 /**********************************************************
@@ -806,7 +802,7 @@ void fsl_dcu_display(DCU_DISPLAY_TYPE display_type,
 	__TRACE__;
 
 	/* DCU set configuration, LVDS has fixed div according to RM - TODO */
-	DCU_Init(0, 150000000, dcu_lcd_timings, DCU_FREQDIV_NORMAL);
+	DCU_Init(0, 150, dcu_lcd_timings, DCU_FREQDIV_NORMAL);
 
 	/* Initialize DCU background color */
 	bkgr_color.Red_Value	= 0x0;
@@ -1300,6 +1296,8 @@ int fsl_dcu_probe(struct platform_device *pdev)
 	struct resource *res;
 	int ret, irq_num, i, j;
 
+	__TRACE__;
+
 	dcu_pdev = pdev;
 	ret = 0;
 
@@ -1387,6 +1385,8 @@ int fsl_dcu_probe(struct platform_device *pdev)
 
 	/* init has finalized */
 	dcu_init_status = DCU_INIT_TRUE;
+
+	__TRACE__;
 
 	return 0;
 
