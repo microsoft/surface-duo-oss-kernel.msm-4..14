@@ -98,7 +98,6 @@ static int cse_rng_data_read(struct hwrng *rng, u32 *data)
 
 static struct hwrng cse_rng = {
 	.name		= "rng-cse",
-	/* .cleanup	= cse_rng_cleanup, */
 	.data_read	= cse_rng_data_read,
 	.read		= cse_rng_read,
 };
