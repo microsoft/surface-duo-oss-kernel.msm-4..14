@@ -343,6 +343,8 @@ int dwc2_core_reset(struct dwc2_hsotg *hsotg)
 
 	/* Core Soft Reset */
 	greset = dwc2_readl(hsotg->regs + GRSTCTL);
+	printk("JDB: starting CRSTCTL=0x%x\n", greset);
+
 	greset |= GRSTCTL_CSFTRST;
 	dwc2_writel(greset, hsotg->regs + GRSTCTL);
 	do {
