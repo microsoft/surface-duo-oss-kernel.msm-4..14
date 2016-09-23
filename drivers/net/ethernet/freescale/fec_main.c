@@ -1776,20 +1776,54 @@ static void fec_enet_adjust_link(struct net_device *ndev)
 		phy_print_status(phy_dev);
 }
 
-static void fec_enec_clear_eberr(struct fec_enet_private *fep)
+#define EBERR 1
+static int fec_enec_clear_eberr(struct fec_enet_private *fep)
 {
 	u32 ievent = readl(fep->hwp + FEC_IEVENT);
 	u32 ecntrl = readl(fep->hwp + FEC_ECNTRL);
 
-	if ((ievent & FEC_ENET_EBERR) && !(ecntrl & FEC_ENET_ETHEREN))
+	if ((ievent & FEC_ENET_EBERR) && !(ecntrl & FEC_ENET_ETHEREN)) {
+		netdev_dbg(fep->netdev, "Ethernet Bus Error\n");
+		napi_disable(&fep->napi);
+		netif_tx_lock_bh(fep->netdev);
 		fec_restart(fep->netdev);
+		netif_wake_queue(fep->netdev);
+		netif_tx_unlock_bh(fep->netdev);
+		napi_enable(&fep->napi);
+
+		return -EBERR;
+	}
+
+	return 0;
+}
+
+/**
+ * Waits for completion of a MDIO read/write operation
+ * @param fep  Driver private data
+ * @return    -EBERR if an ethernet buss error occurred, 0 for success and
+ *            -ETIMEDOUT for any other errors
+ */
+static int fec_enet_wait_transfer(struct fec_enet_private *fep)
+{
+	int ret = 0;
+	unsigned long time_left = wait_for_completion_timeout(&fep->mdio_done,
+			usecs_to_jiffies(FEC_MII_TIMEOUT));
+
+	if (time_left == 0) {
+		fep->mii_timeout = 1;
+		netdev_err(fep->netdev, "MDIO timeout\n");
+		ret = fec_enec_clear_eberr(fep);
+		if (!ret)
+			return -ETIMEDOUT;
+	}
+
+	return ret;
 }
 
 static int fec_enet_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 {
 	struct fec_enet_private *fep = bus->priv;
 	struct device *dev = &fep->pdev->dev;
-	unsigned long time_left;
 	int ret = 0;
 
 	ret = pm_runtime_get_sync(dev);
@@ -1805,15 +1839,23 @@ static int fec_enet_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 		FEC_MMFR_TA, fep->hwp + FEC_MII_DATA);
 
 	/* wait for end of transfer */
-	time_left = wait_for_completion_timeout(&fep->mdio_done,
-			usecs_to_jiffies(FEC_MII_TIMEOUT));
-	if (time_left == 0) {
-		fep->mii_timeout = 1;
-		netdev_err(fep->netdev, "MDIO read timeout\n");
-		fec_enec_clear_eberr(fep);
-		ret = -ETIMEDOUT;
-		goto out;
+	ret = fec_enet_wait_transfer(fep);
+	if (ret == -EBERR) {
+		/* On some platforms the read operation might timeout
+		 * because of an uDMA error. In this case the FEC module must be
+		 * restarted and read operation reinitialized.
+		 */
+
+		/* start a read op */
+		writel(FEC_MMFR_ST | FEC_MMFR_OP_READ |
+			FEC_MMFR_PA(mii_id) | FEC_MMFR_RA(regnum) |
+			FEC_MMFR_TA, fep->hwp + FEC_MII_DATA);
+
+		ret = fec_enet_wait_transfer(fep);
 	}
+
+	if (ret < 0)
+		goto out;
 
 	ret = FEC_MMFR_DATA(readl(fep->hwp + FEC_MII_DATA));
 
@@ -1829,8 +1871,7 @@ static int fec_enet_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
 {
 	struct fec_enet_private *fep = bus->priv;
 	struct device *dev = &fep->pdev->dev;
-	unsigned long time_left;
-	int ret;
+	int ret = 0;
 
 	ret = pm_runtime_get_sync(dev);
 	if (ret < 0)
@@ -1848,13 +1889,19 @@ static int fec_enet_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
 		fep->hwp + FEC_MII_DATA);
 
 	/* wait for end of transfer */
-	time_left = wait_for_completion_timeout(&fep->mdio_done,
-			usecs_to_jiffies(FEC_MII_TIMEOUT));
-	if (time_left == 0) {
-		fep->mii_timeout = 1;
-		netdev_err(fep->netdev, "MDIO write timeout\n");
-		fec_enec_clear_eberr(fep);
-		ret  = -ETIMEDOUT;
+	ret = fec_enet_wait_transfer(fep);
+
+	if (ret == -EBERR) {
+		/* On some platforms the write operation might timeout
+		 * because of an uDMA error. In this case the FEC module must be
+		 * restarted and write operation reinitialized.
+		 */
+		writel(FEC_MMFR_ST | FEC_MMFR_OP_WRITE |
+			FEC_MMFR_PA(mii_id) | FEC_MMFR_RA(regnum) |
+			FEC_MMFR_TA | FEC_MMFR_DATA(value),
+			fep->hwp + FEC_MII_DATA);
+
+		ret = fec_enet_wait_transfer(fep);
 	}
 
 	pm_runtime_mark_last_busy(dev);
