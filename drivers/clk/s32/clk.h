@@ -1,5 +1,5 @@
 /*
- * Copyright 2015 Freescale Semiconductor, Inc.
+ * Copyright 2015-2016 Freescale Semiconductor, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,6 +13,7 @@
 
 #include <linux/spinlock.h>
 #include <linux/clk-provider.h>
+#include "dfs.h"
 
 extern spinlock_t s32_cgm_lock;
 
