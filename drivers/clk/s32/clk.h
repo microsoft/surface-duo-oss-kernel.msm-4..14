@@ -14,6 +14,7 @@
 #include <linux/spinlock.h>
 #include <linux/clk-provider.h>
 #include "dfs.h"
+#include "pll.h"
 
 extern spinlock_t s32_cgm_lock;
 
