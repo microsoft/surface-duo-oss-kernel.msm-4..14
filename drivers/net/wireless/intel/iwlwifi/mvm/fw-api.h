@@ -482,13 +482,17 @@ struct iwl_nvm_access_cmd {
  * @block_size: the block size in powers of 2
  * @block_num: number of blocks specified in the command.
  * @device_phy_addr: virtual addresses from device side
+ *	32 bit address for API version 1, 64 bit address for API version 2.
 */
 struct iwl_fw_paging_cmd {
 	__le32 flags;
 	__le32 block_size;
 	__le32 block_num;
-	__le32 device_phy_addr[NUM_OF_FW_PAGING_BLOCKS];
-} __packed; /* FW_PAGING_BLOCK_CMD_API_S_VER_1 */
+	union {
+		__le32 addr32[NUM_OF_FW_PAGING_BLOCKS];
+		__le64 addr64[NUM_OF_FW_PAGING_BLOCKS];
+	} device_phy_addr;
+} __packed; /* FW_PAGING_BLOCK_CMD_API_S_VER_2 */
 
 /*
  * Fw items ID's
@@ -1973,8 +1977,9 @@ struct iwl_tdls_config_res {
 	struct iwl_tdls_config_sta_info_res sta_info[IWL_MVM_TDLS_STA_COUNT];
 } __packed; /* TDLS_CONFIG_RSP_API_S_VER_1 */
 
-#define TX_FIFO_MAX_NUM		8
-#define RX_FIFO_MAX_NUM		2
+#define TX_FIFO_MAX_NUM_9000		8
+#define TX_FIFO_MAX_NUM			15
+#define RX_FIFO_MAX_NUM			2
 #define TX_FIFO_INTERNAL_MAX_NUM	6
 
 /**
@@ -2000,6 +2005,21 @@ struct iwl_tdls_config_res {
  * NOTE: on firmware that don't have IWL_UCODE_TLV_CAPA_EXTEND_SHARED_MEM_CFG
  *	 set, the last 3 members don't exist.
  */
+struct iwl_shared_mem_cfg_v1 {
+	__le32 shared_mem_addr;
+	__le32 shared_mem_size;
+	__le32 sample_buff_addr;
+	__le32 sample_buff_size;
+	__le32 txfifo_addr;
+	__le32 txfifo_size[TX_FIFO_MAX_NUM_9000];
+	__le32 rxfifo_size[RX_FIFO_MAX_NUM];
+	__le32 page_buff_addr;
+	__le32 page_buff_size;
+	__le32 rxfifo_addr;
+	__le32 internal_txfifo_addr;
+	__le32 internal_txfifo_size[TX_FIFO_INTERNAL_MAX_NUM];
+} __packed; /* SHARED_MEM_ALLOC_API_S_VER_2 */
+
 struct iwl_shared_mem_cfg {
 	__le32 shared_mem_addr;
 	__le32 shared_mem_size;
@@ -2013,7 +2033,7 @@ struct iwl_shared_mem_cfg {
 	__le32 rxfifo_addr;
 	__le32 internal_txfifo_addr;
 	__le32 internal_txfifo_size[TX_FIFO_INTERNAL_MAX_NUM];
-} __packed; /* SHARED_MEM_ALLOC_API_S_VER_2 */
+} __packed; /* SHARED_MEM_ALLOC_API_S_VER_3 */
 
 /**
  * VHT MU-MIMO group configuration
