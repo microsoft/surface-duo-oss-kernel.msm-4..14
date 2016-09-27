@@ -465,7 +465,7 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	hw->uapsd_queues = IWL_MVM_UAPSD_QUEUES;
 	hw->uapsd_max_sp_len = IWL_UAPSD_MAX_SP;
 
-	BUILD_BUG_ON(ARRAY_SIZE(mvm->ciphers) < ARRAY_SIZE(mvm_ciphers) + 4);
+	BUILD_BUG_ON(ARRAY_SIZE(mvm->ciphers) < ARRAY_SIZE(mvm_ciphers) + 6);
 	memcpy(mvm->ciphers, mvm_ciphers, sizeof(mvm_ciphers));
 	hw->wiphy->n_cipher_suites = ARRAY_SIZE(mvm_ciphers);
 	hw->wiphy->cipher_suites = mvm->ciphers;
@@ -490,6 +490,14 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 		mvm->ciphers[hw->wiphy->n_cipher_suites] =
 			WLAN_CIPHER_SUITE_AES_CMAC;
 		hw->wiphy->n_cipher_suites++;
+		if (iwl_mvm_has_new_rx_api(mvm)) {
+			mvm->ciphers[hw->wiphy->n_cipher_suites] =
+				WLAN_CIPHER_SUITE_BIP_GMAC_128;
+			hw->wiphy->n_cipher_suites++;
+			mvm->ciphers[hw->wiphy->n_cipher_suites] =
+				WLAN_CIPHER_SUITE_BIP_GMAC_256;
+			hw->wiphy->n_cipher_suites++;
+		}
 	}
 
 	/* currently FW API supports only one optional cipher scheme */
@@ -645,6 +653,16 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 			IWL_UCODE_TLV_CAPA_WFA_TPC_REP_IE_SUPPORT))
 		hw->wiphy->features |= NL80211_FEATURE_WFA_TPC_IE_IN_PROBES;
 
+	if (fw_has_api(&mvm->fw->ucode_capa,
+		       IWL_UCODE_TLV_API_SCAN_TSF_REPORT)) {
+		wiphy_ext_feature_set(hw->wiphy,
+				      NL80211_EXT_FEATURE_SCAN_START_TIME);
+		wiphy_ext_feature_set(hw->wiphy,
+				      NL80211_EXT_FEATURE_BSS_PARENT_TSF);
+		wiphy_ext_feature_set(hw->wiphy,
+				      NL80211_EXT_FEATURE_SET_SCAN_DWELL);
+	}
+
 	mvm->rts_threshold = IEEE80211_MAX_RTS_THRESHOLD;
 
 #ifdef CONFIG_PM_SLEEP
@@ -711,6 +729,10 @@ int iwl_mvm_mac_setup_register(struct iwl_mvm *mvm)
 	ret = ieee80211_register_hw(mvm->hw);
 	if (ret)
 		iwl_mvm_leds_exit(mvm);
+
+	if (mvm->cfg->vht_mu_mimo_supported)
+		wiphy_ext_feature_set(hw->wiphy,
+				      NL80211_EXT_FEATURE_MU_MIMO_AIR_SNIFFER);
 
 	return ret;
 }
@@ -2221,6 +2243,10 @@ static void iwl_mvm_bss_info_changed(struct ieee80211_hw *hw,
 	case NL80211_IFTYPE_ADHOC:
 		iwl_mvm_bss_info_changed_ap_ibss(mvm, vif, bss_conf, changes);
 		break;
+	case NL80211_IFTYPE_MONITOR:
+		if (changes & BSS_CHANGED_MU_GROUPS)
+			iwl_mvm_update_mu_groups(mvm, vif);
+		break;
 	default:
 		/* shouldn't happen */
 		WARN_ON_ONCE(1);
@@ -2747,6 +2773,8 @@ static int iwl_mvm_mac_set_key(struct ieee80211_hw *hw,
 		key->flags |= IEEE80211_KEY_FLAG_PUT_IV_SPACE;
 		break;
 	case WLAN_CIPHER_SUITE_AES_CMAC:
+	case WLAN_CIPHER_SUITE_BIP_GMAC_128:
+	case WLAN_CIPHER_SUITE_BIP_GMAC_256:
 		WARN_ON_ONCE(!ieee80211_hw_check(hw, MFP_CAPABLE));
 		break;
 	case WLAN_CIPHER_SUITE_WEP40:
@@ -2780,9 +2808,11 @@ static int iwl_mvm_mac_set_key(struct ieee80211_hw *hw,
 			 * GTK on AP interface is a TX-only key, return 0;
 			 * on IBSS they're per-station and because we're lazy
 			 * we don't support them for RX, so do the same.
-			 * CMAC in AP/IBSS modes must be done in software.
+			 * CMAC/GMAC in AP/IBSS modes must be done in software.
 			 */
-			if (key->cipher == WLAN_CIPHER_SUITE_AES_CMAC)
+			if (key->cipher == WLAN_CIPHER_SUITE_AES_CMAC ||
+			    key->cipher == WLAN_CIPHER_SUITE_BIP_GMAC_128 ||
+			    key->cipher == WLAN_CIPHER_SUITE_BIP_GMAC_256)
 				ret = -EOPNOTSUPP;
 			else
 				ret = 0;

@@ -174,7 +174,6 @@ struct xgene_cle_ops {
 struct xgene_enet_pdata {
 	struct net_device *ndev;
 	struct mii_bus *mdio_bus;
-	struct phy_device *phy_dev;
 	int phy_speed;
 	struct clk *clk;
 	struct platform_device *pdev;
@@ -196,6 +195,7 @@ struct xgene_enet_pdata {
 	void __iomem *mcx_mac_addr;
 	void __iomem *mcx_mac_csr_addr;
 	void __iomem *base_addr;
+	void __iomem *pcs_addr;
 	void __iomem *ring_csr_addr;
 	void __iomem *ring_cmd_addr;
 	int phy_mode;
@@ -216,6 +216,7 @@ struct xgene_enet_pdata {
 	u8 tx_delay;
 	u8 rx_delay;
 	bool mdio_driver;
+	struct gpio_desc *sfp_rdy;
 };
 
 struct xgene_indirect_ctl {
