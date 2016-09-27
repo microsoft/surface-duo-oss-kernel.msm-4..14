@@ -14,6 +14,7 @@
 #include <linux/spinlock.h>
 #include <linux/clk-provider.h>
 #include "dfs.h"
+#include "mc_cgm.h"
 #include "mc_me.h"
 #include "pll.h"
 #include "src.h"
@@ -44,7 +45,7 @@ struct clk *s32_clk_dfs(enum s32_plldig_type type, const char *name,
 
 struct clk *clk_register_gate2(struct device *dev, const char *name,
 		const char *parent_name, unsigned long flags,
-		void __iomem *reg, u8 bit_idx,
+		void __iomem *reg, u32 pctln, u8 bit_idx, u8 val,
 		u8 clk_gate_flags, spinlock_t *lock,
 		unsigned int *share_count);
 
@@ -55,18 +56,18 @@ struct clk *s32_clk_gate_exclusive(const char *name, const char *parent,
 	 void __iomem *reg, u8 shift, u32 exclusive_mask);
 
 static inline struct clk *s32_clk_gate2(const char *name, const char *parent,
-		void __iomem *reg, u8 shift)
+		void __iomem *reg, u32 pctln, u8 shift, u8 val)
 {
 	return clk_register_gate2(NULL, name, parent, CLK_SET_RATE_PARENT, reg,
-			shift, 0, &s32_cgm_lock, NULL);
+		pctln, shift, val, 0, &s32_cgm_lock, NULL);
 }
 
 static inline struct clk *s32_clk_gate2_shared(const char *name,
-		const char *parent, void __iomem *reg, u8 shift,
-		unsigned int *share_count)
+		const char *parent, void __iomem *reg, u32 pctln, u8 shift,
+		u8 val, unsigned int *share_count)
 {
 	return clk_register_gate2(NULL, name, parent, CLK_SET_RATE_PARENT, reg,
-			shift, 0, &s32_cgm_lock, share_count);
+			pctln, shift, val, 0, &s32_cgm_lock, share_count);
 }
 
 struct clk *s32_clk_busy_divider(const char *name, const char *parent_name,
