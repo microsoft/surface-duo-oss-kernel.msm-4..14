@@ -932,4 +932,10 @@ static inline struct fwnode_handle *acpi_get_next_subnode(struct device *dev,
 #define acpi_probe_device_table(t)	({ int __r = 0; __r;})
 #endif
 
+#ifdef CONFIG_ACPI_SPCR_TABLE
+int parse_spcr(bool earlycon);
+#else
+static inline int parse_spcr(bool earlycon) { return 0; }
+#endif
+
 #endif	/*_LINUX_ACPI_H*/

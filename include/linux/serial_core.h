@@ -344,7 +344,6 @@ struct earlycon_id {
 	int	(*setup)(struct earlycon_device *, const char *options);
 } __aligned(32);
 
-extern int setup_earlycon(char *buf);
 extern int of_setup_earlycon(unsigned long addr,
 			     int (*setup)(struct earlycon_device *, const char *));
 
@@ -356,6 +355,14 @@ extern int of_setup_earlycon(unsigned long addr,
 
 #define OF_EARLYCON_DECLARE(name, compat, fn)				\
 	_OF_DECLARE(earlycon, name, compat, fn, void *)
+
+#ifdef CONFIG_SERIAL_EARLYCON
+extern bool earlycon_init_is_deferred __initdata;
+int setup_earlycon(char *buf);
+#else
+static const bool earlycon_init_is_deferred;
+static inline int setup_earlycon(char *buf) { return 0; }
+#endif
 
 struct uart_port *uart_get_console(struct uart_port *ports, int nr,
 				   struct console *c);
