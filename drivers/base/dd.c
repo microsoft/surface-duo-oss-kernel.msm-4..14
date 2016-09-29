@@ -520,6 +520,7 @@ int driver_probe_device(struct device_driver *drv, struct device *dev)
 	pr_debug("bus: '%s': %s: matched device %s with driver %s\n",
 		 drv->bus->name, __func__, dev_name(dev), drv->name);
 
+	pm_runtime_get_suppliers(dev);
 	if (dev->parent)
 		pm_runtime_get_sync(dev->parent);
 
@@ -530,6 +531,7 @@ int driver_probe_device(struct device_driver *drv, struct device *dev)
 	if (dev->parent)
 		pm_runtime_put(dev->parent);
 
+	pm_runtime_put_suppliers(dev);
 	return ret;
 }
 
@@ -813,6 +815,7 @@ static void __device_release_driver(struct device *dev, struct device *parent)
 		}
 
 		pm_runtime_get_sync(dev);
+		pm_runtime_clean_up_links(dev);
 
 		driver_sysfs_remove(dev);
 

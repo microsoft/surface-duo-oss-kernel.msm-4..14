@@ -109,8 +109,16 @@ static int device_reorder_to_tail(struct device *dev, void *not_used)
  * @flags: Link flags.
  *
  * If the DEVICE_LINK_STATELESS flag is set, @status is ignored.  Otherwise,
- * the caller is responsible for ensuring that @status reflects the current
- * status of both @consumer and @supplier.
+ * the caller is responsible for ensuring that (a) @status reflects the current
+ * status of both @consumer and @supplier and (b) the creation of the link is
+ * properly synchronized with runtime PM.
+ *
+ * To that end, setting the DEVICE_LINK_PM_RUNTIME flag will cause the runtime
+ * PM framework to take the link into account.  Moreover, if the
+ * DEVICE_LINK_RPM_ACTIVE flag is set in addition to it, the supplier devices
+ * will be forced into the active metastate and reference-counted upon the
+ * creation of the link.  If DEVICE_LINK_PM_RUNTIME is not set,
+ * DEVICE_LINK_RPM_ACTIVE will be ignored.
  *
  * If the DEVICE_LINK_AUTOREMOVE is set, the link will be removed automatically
  * when the consumer device driver unbinds from it.  The combination of both
@@ -154,10 +162,19 @@ struct device_link *device_link_add(struct device *consumer,
 		if (link->consumer == consumer)
 			goto out;
 
-	link = kmalloc(sizeof(*link), GFP_KERNEL);
+	link = kzalloc(sizeof(*link), GFP_KERNEL);
 	if (!link)
 		goto out;
 
+	if ((flags & DEVICE_LINK_PM_RUNTIME) && (flags & DEVICE_LINK_RPM_ACTIVE)) {
+		if (pm_runtime_get_sync(supplier) < 0) {
+			pm_runtime_put_noidle(supplier);
+			kfree(link);
+			link = NULL;
+			goto out;
+		}
+		link->rpm_active = true;
+	}
 	get_device(supplier);
 	link->supplier = supplier;
 	INIT_LIST_HEAD(&link->s_node);
