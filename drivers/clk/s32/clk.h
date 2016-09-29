@@ -16,6 +16,7 @@
 #include "dfs.h"
 #include "mc_me.h"
 #include "pll.h"
+#include "src.h"
 
 extern spinlock_t s32_cgm_lock;
 
