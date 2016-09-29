@@ -166,14 +166,17 @@ struct device_link *device_link_add(struct device *consumer,
 	if (!link)
 		goto out;
 
-	if ((flags & DEVICE_LINK_PM_RUNTIME) && (flags & DEVICE_LINK_RPM_ACTIVE)) {
-		if (pm_runtime_get_sync(supplier) < 0) {
-			pm_runtime_put_noidle(supplier);
-			kfree(link);
-			link = NULL;
-			goto out;
+	if (flags & DEVICE_LINK_PM_RUNTIME) {
+		if (flags & DEVICE_LINK_RPM_ACTIVE) {
+			if (pm_runtime_get_sync(supplier) < 0) {
+				pm_runtime_put_noidle(supplier);
+				kfree(link);
+				link = NULL;
+				goto out;
+			}
+			link->rpm_active = true;
 		}
-		link->rpm_active = true;
+		pm_runtime_new_link(consumer);
 	}
 	get_device(supplier);
 	link->supplier = supplier;
@@ -221,6 +224,9 @@ static void __device_link_del(struct device_link *link)
 {
 	dev_info(link->consumer, "Dropping the link to %s\n",
 		 dev_name(link->supplier));
+
+	if (link->flags & DEVICE_LINK_PM_RUNTIME)
+		pm_runtime_drop_link(link->consumer);
 
 	list_del_rcu(&link->s_node);
 	list_del_rcu(&link->c_node);
