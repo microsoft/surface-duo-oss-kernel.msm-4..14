@@ -14,15 +14,6 @@
 
 #include "clk.h"
 
-/* Source Reset Control: General Purpose Register 1 */
-#define SRC_GPR1			(src_base + 0x100)
-#define SRC_GPR1_ARMPLL_SRC_SEL_OFFSET	(27)
-#define SRC_GPR1_ENETPLL_SRC_SEL_OFFSET	(28)
-#define SRC_GPR1_DDRPLL_SRC_SEL_OFFSET	(29)
-#define SRC_GPR1_PERIPHPLL_SRC_SEL_OFFSET	(30)
-#define SRC_GPR1_VIDEOPLL_SRC_SEL_OFFSET	(31)
-#define SRC_GPR1_XPLL_SRC_SEL_SIZE		(1)
-
 static void __iomem *mc_cgm0_base;
 static void __iomem *mc_cgm1_base;
 static void __iomem *mc_cgm2_base;
