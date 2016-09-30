@@ -139,6 +139,7 @@
 struct linflex_port {
 	struct uart_port	port;
 	struct clk		*clk;
+	struct clk		*clk_ipg;
 	unsigned int		txfifo_size;
 	unsigned int		rxfifo_size;
 	bool			dma_tx_use;
@@ -1254,6 +1255,21 @@ static int linflex_probe(struct platform_device *pdev)
 		return ret;
 	}
 
+	sport->clk_ipg = devm_clk_get(&pdev->dev, "ipg");
+	if (IS_ERR(sport->clk_ipg)) {
+		ret = PTR_ERR(sport->clk_ipg);
+		dev_err(&pdev->dev, "failed to get ipg uart clk: %d\n", ret);
+		clk_disable_unprepare(sport->clk);
+		return ret;
+	}
+
+	ret = clk_prepare_enable(sport->clk_ipg);
+	if (ret) {
+		clk_disable_unprepare(sport->clk);
+		dev_err(&pdev->dev, "failed to enable ipg uart clk: %d\n", ret);
+		return ret;
+	}
+
 	sport->port.uartclk = clk_get_rate(sport->clk);
 #endif
 	linflex_ports[sport->port.line] = sport;
@@ -1263,6 +1279,7 @@ static int linflex_probe(struct platform_device *pdev)
 	ret = uart_add_one_port(&linflex_reg, &sport->port);
 	if (ret) {
 		clk_disable_unprepare(sport->clk);
+		clk_disable_unprepare(sport->clk_ipg);
 		return ret;
 	}
 
@@ -1288,6 +1305,7 @@ static int linflex_remove(struct platform_device *pdev)
 	uart_remove_one_port(&linflex_reg, &sport->port);
 
 	clk_disable_unprepare(sport->clk);
+	clk_disable_unprepare(sport->clk_ipg);
 
 	if (sport->dma_tx_chan)
 		dma_release_channel(sport->dma_tx_chan);
