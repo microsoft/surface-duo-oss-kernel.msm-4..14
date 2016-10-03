@@ -405,8 +405,8 @@ static int mlx5_query_hca_port(struct ib_device *ibdev, u8 port,
 	struct mlx5_ib_dev *dev = to_mdev(ibdev);
 	struct mlx5_core_dev *mdev = dev->mdev;
 	struct mlx5_hca_vport_context *rep;
-	int max_mtu;
-	int oper_mtu;
+	u16 max_mtu;
+	u16 oper_mtu;
 	int err;
 	u8 ib_link_width_oper;
 	u8 vl_hw_cap;
@@ -962,13 +962,10 @@ static void mlx5_ib_event(struct mlx5_core_dev *dev, void *context,
 		break;
 
 	case MLX5_DEV_EVENT_PORT_DOWN:
+	case MLX5_DEV_EVENT_PORT_INITIALIZED:
 		ibev.event = IB_EVENT_PORT_ERR;
 		port = (u8)param;
 		break;
-
-	case MLX5_DEV_EVENT_PORT_INITIALIZED:
-		/* not used by ULPs */
-		return;
 
 	case MLX5_DEV_EVENT_LID_CHANGE:
 		ibev.event = IB_EVENT_LID_CHANGE;

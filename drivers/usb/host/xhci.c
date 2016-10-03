@@ -680,20 +680,23 @@ void xhci_stop(struct usb_hcd *hcd)
 	u32 temp;
 	struct xhci_hcd *xhci = hcd_to_xhci(hcd);
 
-	if (xhci->xhc_state & XHCI_STATE_HALTED)
-		return;
-
 	mutex_lock(&xhci->mutex);
-	spin_lock_irq(&xhci->lock);
-	xhci->xhc_state |= XHCI_STATE_HALTED;
-	xhci->cmd_ring_state = CMD_RING_STATE_STOPPED;
 
-	/* Make sure the xHC is halted for a USB3 roothub
-	 * (xhci_stop() could be called as part of failed init).
-	 */
-	xhci_halt(xhci);
-	xhci_reset(xhci);
-	spin_unlock_irq(&xhci->lock);
+	if (!(xhci->xhc_state & XHCI_STATE_HALTED)) {
+		spin_lock_irq(&xhci->lock);
+
+		xhci->xhc_state |= XHCI_STATE_HALTED;
+		xhci->cmd_ring_state = CMD_RING_STATE_STOPPED;
+		xhci_halt(xhci);
+		xhci_reset(xhci);
+
+		spin_unlock_irq(&xhci->lock);
+	}
+
+	if (!usb_hcd_is_primary_hcd(hcd)) {
+		mutex_unlock(&xhci->mutex);
+		return;
+	}
 
 	xhci_cleanup_msix(xhci);
 
@@ -2070,6 +2073,7 @@ static unsigned int xhci_get_block_size(struct usb_device *udev)
 	case USB_SPEED_HIGH:
 		return HS_BLOCK;
 	case USB_SPEED_SUPER:
+	case USB_SPEED_SUPER_PLUS:
 		return SS_BLOCK;
 	case USB_SPEED_UNKNOWN:
 	case USB_SPEED_WIRELESS:
@@ -2195,7 +2199,7 @@ static int xhci_check_bw_table(struct xhci_hcd *xhci,
 	unsigned int packets_remaining = 0;
 	unsigned int i;
 
-	if (virt_dev->udev->speed == USB_SPEED_SUPER)
+	if (virt_dev->udev->speed >= USB_SPEED_SUPER)
 		return xhci_check_ss_bw(xhci, virt_dev);
 
 	if (virt_dev->udev->speed == USB_SPEED_HIGH) {
@@ -2396,7 +2400,7 @@ void xhci_drop_ep_from_interval_table(struct xhci_hcd *xhci,
 	if (xhci_is_async_ep(ep_bw->type))
 		return;
 
-	if (udev->speed == USB_SPEED_SUPER) {
+	if (udev->speed >= USB_SPEED_SUPER) {
 		if (xhci_is_sync_in_ep(ep_bw->type))
 			xhci->devs[udev->slot_id]->bw_table->ss_bw_in -=
 				xhci_get_ss_bw_consumed(ep_bw);
@@ -2434,6 +2438,7 @@ void xhci_drop_ep_from_interval_table(struct xhci_hcd *xhci,
 		interval_bw->overhead[HS_OVERHEAD_TYPE] -= 1;
 		break;
 	case USB_SPEED_SUPER:
+	case USB_SPEED_SUPER_PLUS:
 	case USB_SPEED_UNKNOWN:
 	case USB_SPEED_WIRELESS:
 		/* Should never happen because only LS/FS/HS endpoints will get
@@ -2493,6 +2498,7 @@ static void xhci_add_ep_to_interval_table(struct xhci_hcd *xhci,
 		interval_bw->overhead[HS_OVERHEAD_TYPE] += 1;
 		break;
 	case USB_SPEED_SUPER:
+	case USB_SPEED_SUPER_PLUS:
 	case USB_SPEED_UNKNOWN:
 	case USB_SPEED_WIRELESS:
 		/* Should never happen because only LS/FS/HS endpoints will get

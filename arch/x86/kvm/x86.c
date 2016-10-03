@@ -2735,7 +2735,6 @@ void kvm_arch_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 	}
 
 	kvm_make_request(KVM_REQ_STEAL_UPDATE, vcpu);
-	vcpu->arch.switch_db_regs |= KVM_DEBUGREG_RELOAD;
 }
 
 void kvm_arch_vcpu_put(struct kvm_vcpu *vcpu)
@@ -3012,6 +3011,11 @@ static int kvm_vcpu_ioctl_x86_set_debugregs(struct kvm_vcpu *vcpu,
 					    struct kvm_debugregs *dbgregs)
 {
 	if (dbgregs->flags)
+		return -EINVAL;
+
+	if (dbgregs->dr6 & ~0xffffffffull)
+		return -EINVAL;
+	if (dbgregs->dr7 & ~0xffffffffull)
 		return -EINVAL;
 
 	memcpy(vcpu->arch.db, dbgregs->db, sizeof(vcpu->arch.db));

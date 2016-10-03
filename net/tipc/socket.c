@@ -2111,7 +2111,8 @@ restart:
 					      TIPC_CONN_MSG, SHORT_H_SIZE,
 					      0, dnode, onode, dport, oport,
 					      TIPC_CONN_SHUTDOWN);
-			tipc_node_xmit_skb(net, skb, dnode, tsk->portid);
+			if (skb)
+				tipc_node_xmit_skb(net, skb, dnode, tsk->portid);
 		}
 		tsk->connected = 0;
 		sock->state = SS_DISCONNECTING;
@@ -2813,6 +2814,9 @@ int tipc_nl_publ_dump(struct sk_buff *skb, struct netlink_callback *cb)
 		err = tipc_nlmsg_parse(cb->nlh, &attrs);
 		if (err)
 			return err;
+
+		if (!attrs[TIPC_NLA_SOCK])
+			return -EINVAL;
 
 		err = nla_parse_nested(sock, TIPC_NLA_SOCK_MAX,
 				       attrs[TIPC_NLA_SOCK],
