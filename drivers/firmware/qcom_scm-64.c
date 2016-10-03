@@ -333,101 +333,18 @@ static int qcom_scm_call(u32 svc_id, u32 cmd_id, struct qcom_scm_desc *desc)
 	return 0;
 }
 
-/**
- * qcom_scm_call_atomic() - Invoke a syscall in the secure world
- *
- * Similar to qcom_scm_call except that this can be invoked in atomic context.
- * There is also no retry mechanism implemented. Please ensure that the
- * secure world syscall can be executed in such a context and can complete
- * in a timely manner.
- */
-static int qcom_scm_call_atomic(u32 s, u32 c, struct qcom_scm_desc *desc)
-{
-	int arglen = desc->arginfo & 0xf;
-	int ret;
-	u32 fn_id = QCOM_SCM_SIP_FNID(s, c);
-	u64 x0;
-
-	ret = allocate_extra_arg_buffer(desc, GFP_ATOMIC);
-	if (ret)
-		return ret;
-
-	x0 = fn_id | BIT(SMC_ATOMIC_SYSCALL) | qcom_scm_version_mask;
-
-	pr_debug("qcom_scm_call: func id %#llx, args: %#x, %#llx, %#llx, %#llx, %#llx\n",
-		x0, desc->arginfo, desc->args[0], desc->args[1],
-		desc->args[2], desc->x5);
-
-	if (qcom_scm_version == QCOM_SCM_ARMV8_64)
-		ret = __qcom_scm_call_armv8_64(x0, desc->arginfo, desc->args[0],
-					  desc->args[1], desc->args[2],
-					  desc->x5, &desc->ret[0],
-					  &desc->ret[1], &desc->ret[2]);
-	else
-		ret = __qcom_scm_call_armv8_32(x0, desc->arginfo, desc->args[0],
-					  desc->args[1], desc->args[2],
-					  desc->x5, &desc->ret[0],
-					  &desc->ret[1], &desc->ret[2]);
-	if (ret < 0)
-		pr_err("qcom_scm_call failed: func id %#llx, arginfo: %#x, args: %#llx, %#llx, %#llx, %#llx, ret: %d, syscall returns: %#llx, %#llx, %#llx\n",
-			x0, desc->arginfo, desc->args[0], desc->args[1],
-			desc->args[2], desc->x5, ret, desc->ret[0],
-			desc->ret[1], desc->ret[2]);
-
-	if (arglen > N_REGISTER_ARGS)
-		kfree(desc->extra_arg_buf);
-	if (ret < 0)
-		return qcom_scm_remap_error(ret);
-	return ret;
-}
-
-static int qcom_scm_set_boot_addr(void *entry, const cpumask_t *cpus, int flags)
-{
-	struct qcom_scm_desc desc = {0};
-	unsigned int cpu = cpumask_first(cpus);
-	u64 mpidr_el1 = cpu_logical_map(cpu);
-
-	/* For now we assume only a single cpu is set in the mask */
-	WARN_ON(cpumask_weight(cpus) != 1);
-
-	if (mpidr_el1 & ~MPIDR_HWID_BITMASK) {
-		pr_err("CPU%d:Failed to set boot address\n", cpu);
-		return -ENOSYS;
-	}
-
-	desc.args[0] = virt_to_phys(entry);
-	desc.args[1] = BIT(MPIDR_AFFINITY_LEVEL(mpidr_el1, 0));
-	desc.args[2] = BIT(MPIDR_AFFINITY_LEVEL(mpidr_el1, 1));
-	desc.args[3] = BIT(MPIDR_AFFINITY_LEVEL(mpidr_el1, 2));
-	desc.args[4] = ~0ULL;
-	desc.args[5] = QCOM_SCM_FLAG_HLOS | flags;
-	desc.arginfo = QCOM_SCM_ARGS(6);
-
-	return qcom_scm_call(QCOM_SCM_SVC_BOOT, QCOM_SCM_BOOT_ADDR_MC, &desc);
-}
-
 int __qcom_scm_set_cold_boot_addr(void *entry, const cpumask_t *cpus)
 {
-	int flags = QCOM_SCM_FLAG_COLDBOOT_MC;
-
-	return qcom_scm_set_boot_addr(entry, cpus, flags);
+	return -EOPNOTSUPP;
 }
 
 int __qcom_scm_set_warm_boot_addr(void *entry, const cpumask_t *cpus)
 {
-	int flags = QCOM_SCM_FLAG_WARMBOOT_MC;
-
-	return qcom_scm_set_boot_addr(entry, cpus, flags);
+	return -EOPNOTSUPP;
 }
 
 void __qcom_scm_cpu_power_down(u32 flags)
 {
-	struct qcom_scm_desc desc = {0};
-	desc.args[0] = QCOM_SCM_CMD_CORE_HOTPLUGGED |
-		       (flags & QCOM_SCM_FLUSH_FLAG_MASK);
-	desc.arginfo = QCOM_SCM_ARGS(1);
-
-	qcom_scm_call_atomic(QCOM_SCM_SVC_BOOT, QCOM_SCM_CMD_TERMINATE_PC, &desc);
 }
 
 int __qcom_scm_is_call_available(u32 svc_id, u32 cmd_id)
