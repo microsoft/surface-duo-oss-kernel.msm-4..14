@@ -28,21 +28,32 @@
 #define MSM_CSIPHY_PAD_SRC 1
 #define MSM_CSIPHY_PADS_NUM 2
 
-struct camss_csi2_cfg;
+struct csiphy_lane {
+	u8 pos;
+	u8 pol;
+};
+
+struct csiphy_lanes_cfg {
+	int num_data;
+	struct csiphy_lane *data;
+	struct csiphy_lane clk;
+};
+
+struct csiphy_csi2_cfg {
+	int settle_cnt;
+	struct csiphy_lanes_cfg lane_cfg;
+};
 
 struct csiphy_config {
 	u8 combo_mode;
-	u32 csid_id;
-	struct camss_csi2_cfg *csi2;
+	u8 csid_id;
+	struct csiphy_csi2_cfg *csi2;
 };
-
-struct camss;
 
 struct csiphy_device {
 	u8 id;
 	struct v4l2_subdev subdev;
 	struct media_pad pads[MSM_CSIPHY_PADS_NUM];
-	struct camss *camss;
 	void __iomem *base;
 	void __iomem *base_clk_mux;
 	u32 irq;
@@ -55,7 +66,7 @@ struct csiphy_device {
 
 struct resources;
 
-int msm_csiphy_subdev_init(struct csiphy_device *csiphy, struct camss *camss,
+int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
 			   struct resources *res, u8 id);
 
 int msm_csiphy_register_entities(struct csiphy_device *csiphy,

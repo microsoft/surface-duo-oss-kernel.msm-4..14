@@ -31,6 +31,25 @@
 
 #define CAMSS_VERSION KERNEL_VERSION(0, 1, 0)
 
+#define CAMSS_CSID_NUM 2
+#define CAMSS_CSIPHY_NUM 2
+
+#define to_camss(ptr_module)	\
+	container_of(ptr_module, struct camss, ptr_module)
+
+#define to_device(ptr_module)	\
+	(to_camss(ptr_module)->dev)
+
+#define module_pointer(ptr_module, index)	\
+	((const struct ptr_module##_device (*)[]) &(ptr_module[-(index)]))
+
+#define to_camss_index(ptr_module, index)	\
+	container_of(module_pointer(ptr_module, index),	\
+		     struct camss, ptr_module)
+
+#define to_device_index(ptr_module, index)	\
+	(to_camss_index(ptr_module, index)->dev)
+
 #define CAMSS_RES_MAX 15
 
 struct resources {
@@ -43,7 +62,7 @@ struct resources {
 
 struct resources_ispif {
 	char *clock[CAMSS_RES_MAX];
-	u8 clock_for_reset[CAMSS_RES_MAX];
+	char *clock_for_reset[CAMSS_RES_MAX];
 	char *reg[CAMSS_RES_MAX];
 	char *interrupt;
 };
@@ -53,40 +72,16 @@ struct camss {
 	struct v4l2_async_notifier notifier;
 	struct media_device media_dev;
 	struct device *dev;
-	int csiphy_num;
-	struct csiphy_device *csiphy;
-	int csid_num;
-	struct csid_device *csid;
+	struct csiphy_device csiphy[CAMSS_CSIPHY_NUM];
+	struct csid_device csid[CAMSS_CSID_NUM];
 	struct ispif_device ispif;
 	struct vfe_device vfe;
-	struct vfe_init vfe_init;
 	struct device *iommu_dev;
 };
 
-enum camss_csiphy {
-	CAMSS_CSIPHY0 = 0,
-	CAMSS_CSIPHY1
-};
-
-struct camss_csiphy_lane {
-	u8 pos;
-	u8 pol;
-};
-
-struct camss_csiphy_lanes_cfg {
-	int num_data;
-	struct camss_csiphy_lane *data;
-	struct camss_csiphy_lane clk;
-};
-
-struct camss_csi2_cfg {
-	int settle_cnt;
-	struct camss_csiphy_lanes_cfg lanecfg;
-};
-
 struct camss_camera_interface {
-	enum camss_csiphy id;
-	struct camss_csi2_cfg csi2;
+	u8 csiphy_id;
+	struct csiphy_csi2_cfg csi2;
 };
 
 struct camss_async_subdev {

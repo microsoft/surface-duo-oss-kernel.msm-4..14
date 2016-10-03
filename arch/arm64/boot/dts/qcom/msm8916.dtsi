@@ -277,7 +277,7 @@
 			reg = <0x4ab000 0x4>;
 		};
 
-		camss@0 {
+		camss: camss@0 {
 			compatible = "qcom,msm-camss";
 
 			reg = <0x1b0ac00 0x200>,
@@ -370,21 +370,12 @@
 			qcom,msm-bus,num-paths = <1>;
 			qcom,msm-bus,vectors-KBps =
 					<29 512 0 0>,
-					<29 512 450000 900000>,
+					<29 512 11000000 11000000>,
 					<29 512 11000 11000>;
 
 			ports {
 				#address-cells = <1>;
 				#size-cells = <0>;
-				port@0 {
-					reg = <0>;
-					csiphy0_ep: endpoint {
-						clock-lanes = <1>;
-						data-lanes = <0 2>;
-						qcom,settle-cnt = <0xe>;
-						remote-endpoint = <&ov5645_ep>;
-					};
-				};
 			};
 		};
 
@@ -633,30 +624,6 @@
 			status = "disabled";
 		};
 
-		camera_vdddo_1v8: fixedregulator@0 {
-			compatible = "regulator-fixed";
-			regulator-name = "camera_vdddo";
-			regulator-min-microvolt = <1800000>;
-			regulator-max-microvolt = <1800000>;
-			regulator-always-on;
-		};
-
-		camera_vdda_2v8: fixedregulator@1 {
-			compatible = "regulator-fixed";
-			regulator-name = "camera_vdda";
-			regulator-min-microvolt = <2800000>;
-			regulator-max-microvolt = <2800000>;
-			regulator-always-on;
-		};
-
-		camera_vddd_1v5: fixedregulator@2 {
-			compatible = "regulator-fixed";
-			regulator-name = "camera_vddd";
-			regulator-min-microvolt = <1500000>;
-			regulator-max-microvolt = <1500000>;
-			regulator-always-on;
-		};
-
 		blsp_i2c6: i2c@78ba000 {
 			compatible = "qcom,i2c-qup-v2.2.1";
 			reg = <0x78ba000 0x1000>;
@@ -670,30 +637,6 @@
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
-			camera@78 {
-				compatible = "ovti,ov5645";
-				reg = <0x78>;
-
-				enable-gpios = <&msmgpio 34 0>;
-				reset-gpios = <&msmgpio 35 1>;
-				pinctrl-names = "default";
-				pinctrl-0 = <&camera_rear_default>;
-
-				clocks = <&gcc GCC_CAMSS_MCLK0_CLK>;
-				clock-names = "xclk";
-
-				vdddo-supply = <&camera_vdddo_1v8>;
-				vdda-supply = <&camera_vdda_2v8>;
-				vddd-supply = <&camera_vddd_1v5>;
-
-				port {
-					ov5645_ep: endpoint {
-						clock-lanes = <1>;
-						data-lanes = <0 2>;
-						remote-endpoint = <&csiphy0_ep>;
-					};
-				};
-			};
 		};
 
 		sdhc_1: sdhci@07824000 {

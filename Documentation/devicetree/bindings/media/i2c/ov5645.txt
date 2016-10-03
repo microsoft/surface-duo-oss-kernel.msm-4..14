@@ -8,6 +8,7 @@ Required Properties:
 - compatible: Value should be "ovti,ov5645".
 - clocks: Reference to the xclk clock.
 - clock-names: Should be "xclk".
+- clock-frequency: Frequency of the xclk clock.
 - enable-gpios: Chip enable GPIO. Polarity is GPIO_ACTIVE_HIGH.
 - reset-gpios: Chip reset GPIO. Polarity is GPIO_ACTIVE_LOW.
 - vdddo-supply: Chip digital IO regulator.
@@ -34,6 +35,7 @@ Example:
 
 			clocks = <&clks 200>;
 			clock-names = "xclk";
+			clock-frequency = <23880000>;
 
 			vdddo-supply = <&camera_dovdd_1v8>;
 			vdda-supply = <&camera_avdd_2v8>;

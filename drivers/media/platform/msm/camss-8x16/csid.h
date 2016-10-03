@@ -49,13 +49,10 @@ struct csid_phy_config {
 	u32 lane_assign;
 };
 
-struct camss;
-
 struct csid_device {
 	u8 id;
 	struct v4l2_subdev subdev;
 	struct media_pad pads[MSM_CSID_PADS_NUM];
-	struct camss *camss;
 	void __iomem *base;
 	u32 irq;
 	struct clk **clock;
@@ -72,12 +69,14 @@ struct csid_device {
 
 struct resources;
 
-int msm_csid_subdev_init(struct csid_device *csid, struct camss *camss,
+int msm_csid_subdev_init(struct csid_device *csid,
 			 struct resources *res, u8 id);
 
 int msm_csid_register_entities(struct csid_device *csid,
 			       struct v4l2_device *v4l2_dev);
 
 void msm_csid_unregister_entities(struct csid_device *csid);
+
+void msm_csid_get_csid_id(struct media_entity *entity, u8 *id);
 
 #endif /* QC_MSM_CAMSS_CSID_H */
