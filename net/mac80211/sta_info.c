@@ -340,6 +340,9 @@ struct sta_info *sta_info_alloc(struct ieee80211_sub_if_data *sdata,
 
 	memcpy(sta->addr, addr, ETH_ALEN);
 	memcpy(sta->sta.addr, addr, ETH_ALEN);
+	sta->sta.max_rx_aggregation_subframes =
+		local->hw.max_rx_aggregation_subframes;
+
 	sta->local = local;
 	sta->sdata = sdata;
 	sta->rx_stats.last_rx = jiffies;
@@ -687,7 +690,7 @@ static void __sta_info_recalc_tim(struct sta_info *sta, bool ignore_pending)
 	}
 
 	/* No need to do anything if the driver does all */
-	if (ieee80211_hw_check(&local->hw, AP_LINK_PS))
+	if (!local->ops->set_tim)
 		return;
 
 	if (sta->dead)
@@ -1209,12 +1212,10 @@ void ieee80211_sta_ps_deliver_wakeup(struct sta_info *sta)
 
 	if (sta->sta.txq[0]) {
 		for (i = 0; i < ARRAY_SIZE(sta->sta.txq); i++) {
-			struct txq_info *txqi = to_txq_info(sta->sta.txq[i]);
-
-			if (!txqi->tin.backlog_packets)
+			if (!txq_has_queue(sta->sta.txq[i]))
 				continue;
 
-			drv_wake_tx_queue(local, txqi);
+			drv_wake_tx_queue(local, to_txq_info(sta->sta.txq[i]));
 		}
 	}
 
@@ -1645,10 +1646,8 @@ ieee80211_sta_ps_deliver_response(struct sta_info *sta,
 			return;
 
 		for (tid = 0; tid < ARRAY_SIZE(sta->sta.txq); tid++) {
-			struct txq_info *txqi = to_txq_info(sta->sta.txq[tid]);
-
 			if (!(driver_release_tids & BIT(tid)) ||
-			    txqi->tin.backlog_packets)
+			    txq_has_queue(sta->sta.txq[tid]))
 				continue;
 
 			sta_info_recalc_tim(sta);
