@@ -54,11 +54,27 @@
 #include "core.h"
 #include "hcd.h"
 
+
+static void dwc2_port_resume(struct dwc2_hsotg *hsotg);
+
 /*
  * =========================================================================
  *  Host Core Layer Functions
  * =========================================================================
  */
+
+struct wrapper_priv_data {
+	struct dwc2_hsotg *hsotg;
+};
+
+/* Gets the dwc2_hsotg from a usb_hcd */
+static struct dwc2_hsotg *dwc2_hcd_to_hsotg(struct usb_hcd *hcd)
+{
+	struct wrapper_priv_data *p;
+
+	p = (struct wrapper_priv_data *) &hcd->hcd_priv;
+	return p->hsotg;
+}
 
 /**
  * dwc2_enable_common_interrupts() - Initializes the commmon interrupts,
@@ -3184,6 +3200,20 @@ void dwc2_hcd_queue_transactions(struct dwc2_hsotg *hsotg,
 		}
 	}
 }
+/*
+ * 0: high speed
+ * 1: full speed
+ */
+static void dwc2_change_bus_speed(struct usb_hcd* hcd, int speed)
+{
+	struct dwc2_hsotg *hsotg = dwc2_hcd_to_hsotg(hcd);
+
+	if (hsotg->core_params->speed == speed)
+		return;
+
+	hsotg->core_params->speed = speed;
+	queue_work(hsotg->wq_otg, &hsotg->wf_otg);
+}
 
 static void dwc2_conn_id_status_change(struct work_struct *work)
 {
@@ -3204,6 +3234,11 @@ static void dwc2_conn_id_status_change(struct work_struct *work)
 	if (gotgctl & GOTGCTL_CONID_B) {
 		/* Wait for switch to device mode */
 		dev_dbg(hsotg->dev, "connId B\n");
+		if (hsotg->bus_suspended) {
+			dev_info(hsotg->dev,
+				"Do port resume before switching to device mode\n");
+			dwc2_port_resume(hsotg);
+		}
 		while (!dwc2_is_device_mode(hsotg)) {
 			dev_info(hsotg->dev,
 				 "Waiting for Peripheral Mode, Mode=%s\n",
@@ -4007,18 +4042,6 @@ void dwc2_hcd_dump_frrem(struct dwc2_hsotg *hsotg)
 #endif
 }
 
-struct wrapper_priv_data {
-	struct dwc2_hsotg *hsotg;
-};
-
-/* Gets the dwc2_hsotg from a usb_hcd */
-static struct dwc2_hsotg *dwc2_hcd_to_hsotg(struct usb_hcd *hcd)
-{
-	struct wrapper_priv_data *p;
-
-	p = (struct wrapper_priv_data *) &hcd->hcd_priv;
-	return p->hsotg;
-}
 
 static int _dwc2_hcd_start(struct usb_hcd *hcd);
 
@@ -4882,6 +4905,7 @@ static struct hc_driver dwc2_hc_driver = {
 
 	.bus_suspend = _dwc2_hcd_suspend,
 	.bus_resume = _dwc2_hcd_resume,
+	.change_bus_speed = dwc2_change_bus_speed,
 
 	.map_urb_for_dma	= dwc2_map_urb_for_dma,
 	.unmap_urb_for_dma	= dwc2_unmap_urb_for_dma,
