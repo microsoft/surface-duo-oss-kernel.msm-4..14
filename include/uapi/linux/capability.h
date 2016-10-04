@@ -349,8 +349,11 @@ struct vfs_cap_data {
 
 #define CAP_AUDIT_READ		37
 
+/* Allow migration of other tasks between cgroups */
 
-#define CAP_LAST_CAP         CAP_AUDIT_READ
+#define CAP_CGROUP		38
+
+#define CAP_LAST_CAP         CAP_CGROUP
 
 #define cap_valid(x) ((x) >= 0 && (x) <= CAP_LAST_CAP)
 
