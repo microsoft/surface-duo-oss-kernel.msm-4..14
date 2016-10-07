@@ -213,7 +213,6 @@ EXPORT_SYMBOL_GPL(fsl_dcu_get_dcufb);
  **********************************************************/
 struct platform_device *fsl_dcu_get_pdev(void)
 {
-	__TRACE__;
 	return dcu_pdev;
 }
 EXPORT_SYMBOL_GPL(fsl_dcu_get_pdev);
@@ -223,7 +222,6 @@ EXPORT_SYMBOL_GPL(fsl_dcu_get_pdev);
  **********************************************************/
 int fsl_dcu_init_status(void)
 {
-	__TRACE__;
 	return dcu_init_status;
 }
 EXPORT_SYMBOL_GPL(fsl_dcu_init_status);
@@ -234,7 +232,6 @@ EXPORT_SYMBOL_GPL(fsl_dcu_init_status);
  **********************************************************/
 int fsl_dcu_num_layers(void)
 {
-	__TRACE__;
 	return DCU_LAYER_NUM_MAX;
 }
 EXPORT_SYMBOL_GPL(fsl_dcu_num_layers);
@@ -579,7 +576,6 @@ EXPORT_SYMBOL_GPL(fsl_dcu_set_layer);
  **********************************************************/
 irqreturn_t fsl_dcu_irq(int irq, void *dev_id)
 {
-	__TRACE__;
 	return IRQ_HANDLED;
 }
 
@@ -802,7 +798,7 @@ void fsl_dcu_display(DCU_DISPLAY_TYPE display_type,
 	__TRACE__;
 
 	/* DCU set configuration, LVDS has fixed div according to RM - TODO */
-	DCU_Init(0, 150, dcu_lcd_timings, DCU_FREQDIV_NORMAL);
+	DCU_Init(0, 150000000, dcu_lcd_timings, DCU_FREQDIV_NORMAL);
 
 	/* Initialize DCU background color */
 	bkgr_color.Red_Value	= 0x0;
@@ -1296,8 +1292,6 @@ int fsl_dcu_probe(struct platform_device *pdev)
 	struct resource *res;
 	int ret, irq_num, i, j;
 
-	__TRACE__;
-
 	dcu_pdev = pdev;
 	ret = 0;
 
@@ -1385,8 +1379,6 @@ int fsl_dcu_probe(struct platform_device *pdev)
 
 	/* init has finalized */
 	dcu_init_status = DCU_INIT_TRUE;
-
-	__TRACE__;
 
 	return 0;
 
