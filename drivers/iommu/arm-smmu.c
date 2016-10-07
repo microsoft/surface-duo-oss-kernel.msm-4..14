@@ -2066,9 +2066,6 @@ static int __init arm_smmu_of_init(struct device_node *np)
 	if (ret)
 		return ret;
 
-	if (!of_platform_device_create(np, NULL, platform_bus_type.dev_root))
-		return -ENODEV;
-
 	return 0;
 }
 IOMMU_OF_DECLARE(arm_smmuv1, "arm,smmu-v1", arm_smmu_of_init);
