@@ -5,7 +5,7 @@
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 or
- * later as publishhed by the Free Software Foundation.
+ * later as published by the Free Software Foundation.
  *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -19,12 +19,12 @@
 #include <linux/ioport.h>
 #include <linux/slab.h>
 #include <linux/of.h>
-#include <linux/hw_random.h>
 #include <linux/io.h>
 
 #include "cse3.h"
 #include "cse3_req.h"
 #include "cse3_capi.h"
+#include "cse3_rng.h"
 #include "cse3_hw.h"
 
 
@@ -37,7 +37,7 @@
 
 struct cse_device_data *cse_dev_ptr;
 
-char *errmsg[35] = {
+static char *errmsg[35] = {
 	"", /* padding */
 	"", /* padding */
 	/* CSE3 error codes, ecr between 0x02-0x0C */
@@ -349,7 +349,7 @@ compl:
 	}
 }
 
-irqreturn_t cse_irq_handler(int irq_no, void *dev_id)
+static irqreturn_t cse_irq_handler(int irq_no, void *dev_id)
 {
 	struct cse_device_data *cse_dev = (struct cse_device_data *) dev_id;
 	uint32_t status = readl(&cse_dev->base->cse_sr);
@@ -375,85 +375,6 @@ irqreturn_t cse_irq_handler(int irq_no, void *dev_id)
 	return IRQ_HANDLED;
 }
 
-#ifdef CONFIG_CRYPTO_DEV_FSL_CSE3_HWRNG
-
-static int cse_rng_copy_output
-(struct cse_device_data *dev, struct cse_request *req)
-{
-	struct cse_rval_request *rval_req = (struct cse_rval_request *)dev->req;
-	cse_desc_t *desc = dev->hw_desc;
-
-	memcpy(rval_req->rval, desc->rval, RND_VAL_SIZE);
-
-	return 0;
-}
-
-static void cse_rng_complete
-(struct cse_device_data *dev, struct cse_request *req)
-{
-	complete(&req->complete);
-}
-
-static void cse_rng_init_ops(struct cse_request *req)
-{
-	req->copy_output = cse_rng_copy_output;
-	req->comp = cse_rng_complete;
-}
-
-static int cse_rng_read(struct hwrng *rng, void *data, size_t max, bool wait)
-{
-	int size = 0;
-	struct cse_rval_request *new_req;
-	cse_ctx_t *ctx;
-
-	if (!wait)
-		return 0;
-
-	if (down_trylock(&cse_dev_ptr->access))
-		return -EBUSY;
-
-	ctx = kzalloc(sizeof(cse_ctx_t), GFP_KERNEL);
-	if (!ctx) {
-		dev_err(cse_dev_ptr->device, "failed to alloc mem for crypto context.\n");
-		up(&cse_dev_ptr->access);
-		return -ENOMEM;
-	}
-	ctx->dev = cse_dev_ptr;
-
-	new_req = kzalloc(sizeof(*new_req), GFP_KERNEL);
-	new_req->base.ctx = ctx;
-	new_req->base.phase = 0;
-	new_req->base.flags = FLAG_RND;
-	cse_rng_init_ops(&new_req->base);
-	init_completion(&new_req->base.complete);
-
-	if (!cse_handle_request(ctx->dev, (cse_req_t *)new_req)) {
-
-		if (wait_for_completion_interruptible(
-					&new_req->base.complete)) {
-			cse_cancel_request((cse_req_t *)new_req);
-			goto out;
-		} else if (!new_req->base.error) {
-			size = max < RND_VAL_SIZE ? max : RND_VAL_SIZE;
-			memcpy(data, new_req->rval, size);
-		}
-
-	}
-
-	cse_finish_req(ctx->dev, (cse_req_t *)new_req);
-out:
-	up(&ctx->dev->access);
-	kfree(ctx);
-
-	return size;
-}
-
-static int cse_rng_data_read(struct hwrng *rng, u32 *data)
-{
-	return cse_rng_read(rng, data, RND_VAL_SIZE, 1);
-}
-#endif
-
 static const struct file_operations cse_fops = {
 	.owner = THIS_MODULE,
 	.open = cse_cdev_open,
@@ -461,98 +382,13 @@ static const struct file_operations cse_fops = {
 	.unlocked_ioctl = cse_cdev_ioctl,
 };
 
-#ifdef CONFIG_CRYPTO_DEV_FSL_CSE3_HWRNG
-static struct hwrng cse_rng = {
-	.name		= "rng-cse",
-	/* .cleanup	= cse_rng_cleanup, */
-	.data_read	= cse_rng_data_read,
-	.read		= cse_rng_read,
-};
-#endif
-
-/** Crypto API */
-
-static struct cse_cipher_alg cipher_algs[] = {
-	{
-	.alg = {
-		.cra_name         = "ecb(aes)",
-		.cra_driver_name  = "cse-ecb-aes",
-		.cra_priority     = 100,
-		.cra_flags        = CRYPTO_ALG_TYPE_ABLKCIPHER|CRYPTO_ALG_ASYNC,
-		.cra_blocksize    = AES_BLOCK_SIZE,
-		.cra_ctxsize      = sizeof(cse_ctx_t),
-		.cra_alignmask    = 0x0,
-		.cra_type         = &crypto_ablkcipher_type,
-		.cra_module       = THIS_MODULE,
-		.cra_init         = capi_cra_init,
-		.cra_exit         = capi_cra_exit,
-		.cra_u.ablkcipher = {
-			.min_keysize    = AES_KEYSIZE_128,
-			.max_keysize    = AES_KEYSIZE_128,
-			.setkey         = capi_aes_setkey,
-			.encrypt        = capi_aes_ecb_encrypt,
-			.decrypt        = capi_aes_ecb_decrypt,
-		} },
-	.registered = 0
-	},
-	{
-	.alg = {
-		.cra_name         = "cbc(aes)",
-		.cra_driver_name  = "cse-cbc-aes",
-		.cra_priority     = 100,
-		.cra_flags        = CRYPTO_ALG_TYPE_ABLKCIPHER|CRYPTO_ALG_ASYNC,
-		.cra_blocksize    = AES_BLOCK_SIZE,
-		.cra_ctxsize      = sizeof(cse_ctx_t),
-		.cra_alignmask    = 0x0,
-		.cra_type         = &crypto_ablkcipher_type,
-		.cra_module       = THIS_MODULE,
-		.cra_init         = capi_cra_init,
-		.cra_exit         = capi_cra_exit,
-		.cra_u.ablkcipher = {
-			.min_keysize    = AES_KEYSIZE_128,
-			.max_keysize    = AES_KEYSIZE_128,
-			.ivsize         = AES_BLOCK_SIZE,
-			.setkey         = capi_aes_setkey,
-			.encrypt        = capi_aes_cbc_encrypt,
-			.decrypt        = capi_aes_cbc_decrypt,
-		} },
-	.registered = 0
-	},
-};
-
-static struct cse_ahash_alg hash_algs[] = {
-	{
-	.alg = {
-		.init = capi_cmac_init,
-		/* TODO: implement update
-		 .update = capi_cmac_update,
-		 .final = capi_cmac_final, */
-		.finup = capi_cmac_finup,
-		.digest = capi_cmac_digest,
-		.setkey = capi_cmac_setkey,
-		.halg.digestsize = AES_BLOCK_SIZE,
-		.halg.base = {
-			.cra_name = "cmac(aes)",
-			.cra_driver_name = "cse-cmac-aes",
-			.cra_flags = (CRYPTO_ALG_TYPE_AHASH | CRYPTO_ALG_ASYNC),
-			.cra_blocksize = AES_BLOCK_SIZE,
-			.cra_ctxsize = sizeof(cse_ctx_t),
-			.cra_init = capi_cra_init,
-			.cra_exit = capi_cra_exit,
-			.cra_module = THIS_MODULE,
-		} },
-	.registered = 0
-	}
-};
-
-
-static struct platform_device_id cse3_platform_ids[] = {
+static const struct platform_device_id cse3_platform_ids[] = {
 	{ .name = "cse3-s32v234" },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(platform, cse3_platform_ids);
 
-static struct of_device_id cse3_dt_ids[] = {
+static const struct of_device_id cse3_dt_ids[] = {
 	{ .compatible = "fsl,s32v234-cse3" },
 	{ /* sentinel */ }
 };
@@ -560,7 +396,7 @@ MODULE_DEVICE_TABLE(of, cse3_dt_ids);
 
 static int cse_probe(struct platform_device *pdev)
 {
-	int i, err = 0;
+	int err = 0;
 	struct cse_device_data *cse_dev;
 	struct resource *res;
 
@@ -633,27 +469,8 @@ static int cse_probe(struct platform_device *pdev)
 	cdev_init(&cse_dev->cdev, &cse_fops);
 	cdev_add(&cse_dev->cdev, MKDEV(CSE3_MAJOR, 0), 1);
 
-#ifdef CONFIG_CRYPTO_DEV_FSL_CSE3_HWRNG
-	/** Register HW Random Number Generator API */
-	if (devm_hwrng_register(cse_dev->device, &cse_rng))
-		dev_err(&pdev->dev, "failed to register hwrng.\n");
-#endif
-
-	for (i = 0; i < ARRAY_SIZE(cipher_algs); i++) {
-		if (!crypto_register_alg(&cipher_algs[i].alg))
-			cipher_algs[i].registered = 1;
-		else
-			dev_err(&pdev->dev, "failed to register %s algo to crypto API.\n",
-					cipher_algs[i].alg.cra_name);
-	}
-
-	for (i = 0; i < ARRAY_SIZE(hash_algs); i++) {
-		if (!crypto_register_ahash(&hash_algs[i].alg))
-			hash_algs[i].registered = 1;
-		else
-			dev_err(&pdev->dev, "failed to register %s algo to crypto API.\n",
-					hash_algs[i].alg.halg.base.cra_name);
-	}
+	cse_register_rng();
+	cse_register_crypto_api();
 
 	return 0;
 
@@ -669,20 +486,11 @@ out_irq:
 	return err;
 }
 
-static int cse_remove(struct platform_device *pdev)
+static int __exit cse_remove(struct platform_device *pdev)
 {
-	int i;
 	struct cse_device_data *cse_dev = platform_get_drvdata(pdev);
 
-	for (i = 0; i < ARRAY_SIZE(hash_algs); i++) {
-		if (hash_algs[i].registered)
-			crypto_unregister_ahash(&hash_algs[i].alg);
-	}
-
-	for (i = 0; i < ARRAY_SIZE(cipher_algs); i++) {
-		if (cipher_algs[i].registered)
-			crypto_unregister_alg(&cipher_algs[i].alg);
-	}
+	cse_unregister_crypto_api();
 
 	cdev_del(&cse_dev->cdev);
 	unregister_chrdev_region(MKDEV(CSE3_MAJOR, CSE3_MINOR), NUM_MINORS);
@@ -706,18 +514,7 @@ static struct platform_driver cse_driver = {
 	},
 };
 
-static int __init cse_init(void)
-{
-	return platform_driver_probe(&cse_driver, cse_probe);
-}
-
-static void __exit cse_exit(void)
-{
-	platform_driver_unregister(&cse_driver);
-}
-
-module_init(cse_init);
-module_exit(cse_exit);
+module_platform_driver(cse_driver);
 
 MODULE_LICENSE("GPL");
 MODULE_AUTHOR("Freescale");

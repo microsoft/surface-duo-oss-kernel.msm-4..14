@@ -27,5 +27,4 @@ obj-$(CONFIG_CRYPTO_DEV_UX500) += ux500/
 obj-$(CONFIG_CRYPTO_DEV_QAT) += qat/
 obj-$(CONFIG_CRYPTO_DEV_QCE) += qce/
 obj-$(CONFIG_CRYPTO_DEV_VMX) += vmx/
-obj-$(CONFIG_CRYPTO_DEV_FSL_CSE3) += cse3.o
-cse3-y := cse3_core.o cse3_hw.o cse3_req.o cse3_capi.o
+obj-$(CONFIG_CRYPTO_DEV_FSL_CSE3) += cse/
