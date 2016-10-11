@@ -1156,6 +1156,15 @@ static int ov5645_s_stream(struct v4l2_subdev *subdev, int enable)
 	return 0;
 }
 
+static int ov5645_open(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
+{
+	struct v4l2_subdev_pad_config cfg;
+
+	memset(&cfg, 0, sizeof(cfg));
+
+	return ov5645_entity_init_cfg(sd, &cfg);
+}
+
 static struct v4l2_subdev_core_ops ov5645_core_ops = {
 	.s_power = ov5645_s_power,
 };
@@ -1179,6 +1188,7 @@ static struct v4l2_subdev_ops ov5645_subdev_ops = {
 };
 
 static const struct v4l2_subdev_internal_ops ov5645_subdev_internal_ops = {
+	.open = ov5645_open
 };
 
 static int ov5645_probe(struct i2c_client *client,
