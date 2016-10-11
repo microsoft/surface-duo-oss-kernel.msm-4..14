@@ -1,0 +1,128 @@
+/*
+ * dts file for Hisilicon Hi3660 SoC
+ *
+ * Copyright (C) 2016, Hisilicon Ltd.
+ */
+
+#include <dt-bindings/interrupt-controller/arm-gic.h>
+
+/ {
+	compatible = "hisilicon,hi3660";
+	interrupt-parent = <&gic>;
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	cpus {
+		#address-cells = <2>;
+		#size-cells = <0>;
+
+		core0 {
+			cpu = <&cpu0>;
+		};
+
+		cpu0: cpu@0 {
+			compatible = "arm,cortex-a53", "arm,armv8";
+			device_type = "cpu";
+			reg = <0x0 0x0>;
+		};
+	};
+
+	gic: interrupt-controller@e82b0000 {
+		compatible = "arm,gic-400";
+		reg = <0x0 0xe82b1000 0 0x1000>, /* GICD */
+		      <0x0 0xe82b2000 0 0x2000>, /* GICC */
+		      <0x0 0xe82b4000 0 0x2000>, /* GICH */
+		      <0x0 0xe82b6000 0 0x2000>; /* GICV */
+		#address-cells = <0>;
+		#interrupt-cells = <3>;
+		interrupt-controller;
+		interrupts = <GIC_PPI 9 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_HIGH)>;
+	};
+
+	timer {
+		compatible = "arm,armv8-timer";
+		interrupt-parent = <&gic>;
+		interrupts = <GIC_PPI 13 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 14 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 11 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)>,
+			     <GIC_PPI 10 (GIC_CPU_MASK_SIMPLE(8) | IRQ_TYPE_LEVEL_LOW)>;
+		clock-frequency = <1920000>;
+	};
+
+	soc {
+		compatible = "simple-bus";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		ranges;
+
+		uart0: uart@fdf02000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x0 0xfdf02000 0x0 0x1000>;
+			interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
+			reset-enable-flag = <0>;
+			reset-reg-base = <0x0 0xFFF35000 0x0 0x1000>; /* PERI_CRG */
+			reset-controller-reg = <0x78 0x7c 0x80 10>;
+			status = "disabled";
+		};
+
+		uart1: uart@fdf00000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x0 0xfdf00000 0x0 0x1000>;
+			interrupts = <GIC_SPI 75 IRQ_TYPE_LEVEL_HIGH>;
+			reset-enable-flag = <0>;
+			reset-reg-base = <0x0 0xFFF35000 0x0 0x1000>; /* PERI_CRG */
+			reset-controller-reg = <0x78 0x7c 0x80 11>;
+			status = "disabled";
+		};
+
+		uart2: uart@fdf03000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x0 0xfdf03000 0x0 0x1000>;
+			interrupts = <GIC_SPI 76 IRQ_TYPE_LEVEL_HIGH>;
+			reset-enable-flag = <0>;
+			reset-reg-base = <0x0 0xFFF35000 0x0 0x1000>; /* PERI_CRG */
+			reset-controller-reg = <0x78 0x7c 0x80 12>;
+			status = "disabled";
+		};
+
+		uart3: uart@ffd74000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x0 0xffd74000 0x0 0x1000>;
+			interrupts = <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
+			reset-enable-flag = <0>;
+			reset-reg-base = <0x0 0xFFD7E000 0x0 0x1000>; /* IOMCU_CONFIG */
+			reset-controller-reg = <0x20 0x24 0x28 11>;
+			status = "disabled";
+	        };
+
+		uart4: uart@fdf01000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x0 0xfdf01000 0x0 0x1000>;
+			interrupts = <GIC_SPI 77 IRQ_TYPE_LEVEL_HIGH>;
+			reset-enable-flag = <0>;
+			reset-reg-base = <0x0 0xFFF35000 0x0 0x1000>; /* PERI_CRG */
+			reset-controller-reg = <0x78 0x7c 0x80 14>;
+			status = "disabled";
+		};
+
+		uart5: uart@fdf05000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x0 0xfdf05000 0x0 0x1000>;
+			interrupts = <GIC_SPI 78 IRQ_TYPE_LEVEL_HIGH>;
+			reset-enable-flag = <0>;
+			reset-reg-base = <0x0 0xFFF35000 0x0 0x1000>; /* PERI_CRG */
+			reset-controller-reg = <0x78 0x7c 0x80 15>;
+			status = "disabled";
+		};
+
+		uart6: uart@fff32000 {
+			compatible = "arm,pl011", "arm,primecell";
+			reg = <0x0 0xfff32000 0x0 0x1000>;
+			interrupts = <GIC_SPI 79 IRQ_TYPE_LEVEL_HIGH>;
+			reset-enable-flag = <0>;
+			reset-reg-base = <0x0 0xFFF0A000 0x0 0x1000>; /* SCTRL */
+			reset-controller-reg = <0x504 0x508 0x50c 9>;
+			status = "disabled";
+		};
+	};
+};
