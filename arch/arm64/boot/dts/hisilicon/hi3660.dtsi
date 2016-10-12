@@ -5,6 +5,7 @@
  */
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/clock/hi3660-clock.h>
 
 / {
 	compatible = "hisilicon,hi3660";
@@ -54,6 +55,12 @@
 		#address-cells = <2>;
 		#size-cells = <2>;
 		ranges;
+
+		crg_ctrl: crg_ctrl@fff35000 {
+			compatible = "hisilicon,hi3660-crgctrl";
+			reg = <0x0 0xfff35000 0x0 0x1000>;
+			#clock-cells = <1>;
+		};
 
 		uart0: uart@fdf02000 {
 			compatible = "arm,pl011", "arm,primecell";
@@ -109,6 +116,9 @@
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0xfdf05000 0x0 0x1000>;
 			interrupts = <GIC_SPI 78 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&crg_ctrl HI3660_UART5_PCLK>,
+			         <&crg_ctrl HI3660_UART5_PCLK>;
+			clock-names = "uartclk", "apb_pclk";
 			reset-enable-flag = <0>;
 			reset-reg-base = <0x0 0xFFF35000 0x0 0x1000>; /* PERI_CRG */
 			reset-controller-reg = <0x78 0x7c 0x80 15>;
