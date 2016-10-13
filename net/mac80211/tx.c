@@ -796,36 +796,6 @@ static __le16 ieee80211_tx_next_seq(struct sta_info *sta, int tid)
 	return ret;
 }
 
-static struct txq_info *ieee80211_get_txq(struct ieee80211_local *local,
-					  struct ieee80211_vif *vif,
-					  struct ieee80211_sta *pubsta,
-					  struct sk_buff *skb)
-{
-	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
-	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
-	struct ieee80211_txq *txq = NULL;
-
-	if ((info->flags & IEEE80211_TX_CTL_SEND_AFTER_DTIM) ||
-	    (info->control.flags & IEEE80211_TX_CTRL_PS_RESPONSE))
-		return NULL;
-
-	if (!ieee80211_is_data(hdr->frame_control))
-		return NULL;
-
-	if (pubsta) {
-		u8 tid = skb->priority & IEEE80211_QOS_CTL_TID_MASK;
-
-		txq = pubsta->txq[tid];
-	} else if (vif) {
-		txq = vif->txq;
-	}
-
-	if (!txq)
-		return NULL;
-
-	return to_txq_info(txq);
-}
-
 static ieee80211_tx_result debug_noinline
 ieee80211_tx_h_sequence(struct ieee80211_tx_data *tx)
 {
@@ -1270,6 +1240,36 @@ ieee80211_tx_prepare(struct ieee80211_sub_if_data *sdata,
 	info->flags |= IEEE80211_TX_CTL_FIRST_FRAGMENT;
 
 	return TX_CONTINUE;
+}
+
+static struct txq_info *ieee80211_get_txq(struct ieee80211_local *local,
+					  struct ieee80211_vif *vif,
+					  struct ieee80211_sta *pubsta,
+					  struct sk_buff *skb)
+{
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
+	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
+	struct ieee80211_txq *txq = NULL;
+
+	if ((info->flags & IEEE80211_TX_CTL_SEND_AFTER_DTIM) ||
+	    (info->control.flags & IEEE80211_TX_CTRL_PS_RESPONSE))
+		return NULL;
+
+	if (!ieee80211_is_data(hdr->frame_control))
+		return NULL;
+
+	if (pubsta) {
+		u8 tid = skb->priority & IEEE80211_QOS_CTL_TID_MASK;
+
+		txq = pubsta->txq[tid];
+	} else if (vif) {
+		txq = vif->txq;
+	}
+
+	if (!txq)
+		return NULL;
+
+	return to_txq_info(txq);
 }
 
 static void ieee80211_set_skb_enqueue_time(struct sk_buff *skb)
