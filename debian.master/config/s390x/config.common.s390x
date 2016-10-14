@@ -138,7 +138,6 @@ CONFIG_KVM=y
 # CONFIG_LAPB is not set
 # CONFIG_LDM_PARTITION is not set
 # CONFIG_LIBNVDIMM is not set
-# CONFIG_LIVEPATCH is not set
 # CONFIG_LLC2 is not set
 CONFIG_LOG_BUF_SHIFT=17
 # CONFIG_LPC_ICH is not set
