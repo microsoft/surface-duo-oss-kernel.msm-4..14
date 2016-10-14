@@ -130,6 +130,7 @@ struct msm_iommu_drvdata {
 	int needs_rem_spinlock;
 	int powered_on;
 	unsigned int model;
+	struct list_head masters;
 };
 
 /**

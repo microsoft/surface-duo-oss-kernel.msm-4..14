@@ -27,11 +27,13 @@
 #include <linux/scatterlist.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/of_iommu.h>
 #include <linux/regulator/consumer.h>
 #include <linux/notifier.h>
 #include <linux/iopoll.h>
 #include <linux/qcom_iommu.h>
 #include <asm/sizes.h>
+#include <linux/dma-iommu.h>
 
 #include "msm_iommu_hw-v1.h"
 #include "msm_iommu_priv.h"
@@ -48,6 +50,16 @@
 
 #define IOMMU_MSEC_STEP		10
 #define IOMMU_MSEC_TIMEOUT	5000
+
+struct msm_iommu_master {
+	struct list_head list;
+	unsigned int ctx_num;
+	struct device *dev;
+	struct msm_iommu_drvdata *iommu_drvdata;
+	struct msm_iommu_ctx_drvdata *ctx_drvdata;
+};
+
+static LIST_HEAD(iommu_masters);
 
 static DEFINE_MUTEX(msm_iommu_lock);
 struct dump_regs_tbl_entry dump_regs_tbl[MAX_DUMP_REGS];
@@ -711,34 +723,65 @@ static void __program_context(struct msm_iommu_drvdata *iommu_drvdata,
 #define INITIAL_REDIRECT_VAL	0
 #endif
 
-static struct iommu_domain * msm_iommu_domain_alloc(unsigned type)
+static struct msm_iommu_master *msm_iommu_find_master(struct device *dev)
+{
+	struct msm_iommu_master *master;
+	bool found = false;
+
+	list_for_each_entry(master, &iommu_masters, list) {
+		if (master && master->dev == dev) {
+			found = true;
+			break;
+		}
+	}
+
+	if (found) {
+		dev_dbg(dev, "found master %s with ctx:%d\n",
+			dev_name(master->dev),
+			master->ctx_num);
+		return master;
+	}
+
+	return ERR_PTR(-ENODEV);
+}
+
+static struct iommu_domain *msm_iommu_domain_alloc(unsigned type)
 {
 	struct msm_iommu_priv *priv;
-	int ret = -ENOMEM;
 	struct iommu_domain *domain;
+	int ret;
 
-	if (type != IOMMU_DOMAIN_UNMANAGED)
-		return NULL;
+	if (type != IOMMU_DOMAIN_UNMANAGED && type != IOMMU_DOMAIN_DMA)
+		return ERR_PTR(-EINVAL);
 
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
 	if (!priv)
-		goto fail_nomem;
+		return ERR_PTR(-ENOMEM);
 
 	priv->pt.redirect = INITIAL_REDIRECT_VAL;
 
 	INIT_LIST_HEAD(&priv->list_attached);
 
 	ret = msm_iommu_pagetable_alloc(&priv->pt);
-	if (ret)
-		goto fail_nomem;
+	if (ret) {
+		kfree(priv);
+		return ERR_PTR(ret);
+	}
 
 	domain = &priv->domain;
 
+	if (type == IOMMU_DOMAIN_DMA) {
+		ret = iommu_get_dma_cookie(domain);
+		if (ret)
+			goto err;
+	}
+
 	return domain;
 
-fail_nomem:
+err:
+	msm_iommu_pagetable_free(&priv->pt);
 	kfree(priv);
-	return 0;
+	return ERR_PTR(ret);
 }
 
 static void msm_iommu_domain_free(struct iommu_domain *domain)
@@ -747,9 +790,11 @@ static void msm_iommu_domain_free(struct iommu_domain *domain)
 
 	mutex_lock(&msm_iommu_lock);
 	priv = to_msm_priv(domain);
-
 	if (priv)
 		msm_iommu_pagetable_free(&priv->pt);
+
+	if (domain->type == IOMMU_DOMAIN_DMA)
+		iommu_put_dma_cookie(domain);
 
 	kfree(priv);
 	mutex_unlock(&msm_iommu_lock);
@@ -761,6 +806,7 @@ static int msm_iommu_attach_dev(struct iommu_domain *domain, struct device *dev)
 	struct msm_iommu_drvdata *iommu_drvdata;
 	struct msm_iommu_ctx_drvdata *ctx_drvdata;
 	struct msm_iommu_ctx_drvdata *tmp_drvdata;
+	struct msm_iommu_master *master;
 	int ret = 0;
 	int is_secure;
 	bool set_m2v = false;
@@ -773,8 +819,16 @@ static int msm_iommu_attach_dev(struct iommu_domain *domain, struct device *dev)
 		goto unlock;
 	}
 
-	iommu_drvdata = dev_get_drvdata(dev->parent);
-	ctx_drvdata = dev_get_drvdata(dev);
+	master = msm_iommu_find_master(dev);
+	if (IS_ERR(master)) {
+		/* if error use legacy api */
+		iommu_drvdata = dev_get_drvdata(dev->parent);
+		ctx_drvdata = dev_get_drvdata(dev);
+	} else {
+		iommu_drvdata = master->iommu_drvdata;
+		ctx_drvdata = master->ctx_drvdata;
+	}
+
 	if (!iommu_drvdata || !ctx_drvdata) {
 		ret = -EINVAL;
 		goto unlock;
@@ -867,6 +921,7 @@ static void msm_iommu_detach_dev(struct iommu_domain *domain,
 	struct msm_iommu_priv *priv;
 	struct msm_iommu_drvdata *iommu_drvdata;
 	struct msm_iommu_ctx_drvdata *ctx_drvdata;
+	struct msm_iommu_master *master;
 	int ret;
 	int is_secure;
 
@@ -880,8 +935,15 @@ static void msm_iommu_detach_dev(struct iommu_domain *domain,
 	if (!priv)
 		goto unlock;
 
-	iommu_drvdata = dev_get_drvdata(dev->parent);
-	ctx_drvdata = dev_get_drvdata(dev);
+	master = msm_iommu_find_master(dev);
+	if (IS_ERR(master)) {
+		ret = PTR_ERR(master);
+		goto unlock;
+	}
+
+	iommu_drvdata = master->iommu_drvdata;
+	ctx_drvdata = master->ctx_drvdata;
+
 	if (!iommu_drvdata || !ctx_drvdata || !ctx_drvdata->attached_domain)
 		goto unlock;
 
@@ -1004,8 +1066,10 @@ static size_t msm_iommu_map_sg(struct iommu_domain *domain, unsigned long iova,
 		len += tmp->length;
 
 	ret = msm_iommu_pagetable_map_range(&priv->pt, iova, sg, len, prot);
-	if (ret)
+	if (ret < 0)
 		goto fail;
+
+	ret = len;
 
 #ifdef CONFIG_MSM_IOMMU_TLBINVAL_ON_MAP
 	__flush_iotlb(domain);
@@ -1141,6 +1205,40 @@ fail:
 	mutex_unlock(&msm_iommu_lock);
 
 	return ret;
+}
+
+static int msm_iommu_add_device(struct device *dev)
+{
+	struct iommu_group *group;
+
+	group = iommu_group_get_for_dev(dev);
+	if (IS_ERR(group))
+		return PTR_ERR(group);
+
+	return 0;
+}
+
+static void msm_iommu_remove_device(struct device *dev)
+{
+	iommu_group_remove_device(dev);
+}
+
+static struct iommu_group *msm_iommu_device_group(struct device *dev)
+{
+	struct msm_iommu_master *master;
+	struct iommu_group *group;
+
+	group = generic_device_group(dev);
+	if (IS_ERR(group))
+		return group;
+
+	master = msm_iommu_find_master(dev);
+	if (IS_ERR(master)) {
+		iommu_group_put(group);
+		return ERR_CAST(master);
+	}
+
+	return group;
 }
 
 #ifdef CONFIG_IOMMU_LPAE
@@ -1501,6 +1599,83 @@ static int msm_iommu_domain_get_attr(struct iommu_domain *domain,
 	return 0;
 }
 
+static int msm_iommu_of_xlate(struct device *dev, struct of_phandle_args *args)
+{
+	struct msm_iommu_drvdata *iommu_drvdata;
+	struct msm_iommu_ctx_drvdata *ctx_drvdata;
+	struct platform_device *pdev, *ctx_pdev;
+	struct msm_iommu_master *master;
+	struct device_node *child;
+	bool found = false;
+	u32 val;
+	int ret;
+
+	if (args->args_count > 2)
+		return -EINVAL;
+
+	dev_dbg(dev, "getting pdev for %s\n", args->np->name);
+
+	pdev = of_find_device_by_node(args->np);
+	if (!pdev) {
+		dev_dbg(dev, "iommu pdev not found\n");
+		return -ENODEV;
+	}
+
+	iommu_drvdata = platform_get_drvdata(pdev);
+	if (!iommu_drvdata)
+		return -ENODEV;
+
+	for_each_child_of_node(args->np, child) {
+		ctx_pdev = of_find_device_by_node(child);
+		if (!ctx_pdev)
+			return -ENODEV;
+
+		ctx_drvdata = platform_get_drvdata(ctx_pdev);
+
+		ret = of_property_read_u32(child, "qcom,ctx-num", &val);
+		if (ret)
+			return ret;
+
+		if (val == args->args[0]) {
+			found = true;
+			break;
+		}
+	}
+
+	if (!found)
+		return -ENODEV;
+
+	dev_dbg(dev, "found ctx data for %s (num:%d)\n",
+		ctx_drvdata->name, ctx_drvdata->num);
+
+	master = kzalloc(sizeof(*master), GFP_KERNEL);
+	if (!master)
+		return -ENOMEM;
+
+	INIT_LIST_HEAD(&master->list);
+	master->ctx_num = args->args[0];
+	master->dev = dev;
+	master->iommu_drvdata = iommu_drvdata;
+	master->ctx_drvdata = ctx_drvdata;
+
+	dev_dbg(dev, "adding master for device %s\n", dev_name(dev));
+
+	list_add_tail(&master->list, &iommu_masters);
+#if 0
+	if (dev->bus && dev->bus->iommu_ops) {
+		ret = dev->bus->iommu_ops->add_device(dev);
+		if (ret) {
+			dev_err(dev, "iommu add_device failed (%d)\n", ret);
+			return ret;
+		}
+	} else {
+		dev_err(dev, "of_xlate missing iommu_ops for bus\n");
+		return -ENODEV;
+	}
+#endif
+	return 0;
+}
+
 static struct iommu_ops msm_iommu_ops = {
 	.domain_alloc = msm_iommu_domain_alloc,
 	.domain_free = msm_iommu_domain_free,
@@ -1508,18 +1683,26 @@ static struct iommu_ops msm_iommu_ops = {
 	.detach_dev = msm_iommu_detach_dev,
 	.map = msm_iommu_map,
 	.unmap = msm_iommu_unmap,
-	.map_sg = msm_iommu_map_sg,
-/*	.unmap_range = msm_iommu_unmap_range,*/
+	.map_sg = default_iommu_map_sg, /*msm_iommu_map_sg,*/
 	.iova_to_phys = msm_iommu_iova_to_phys,
-/*	.get_pt_base_addr = msm_iommu_get_pt_base_addr,*/
+	.add_device = msm_iommu_add_device,
+	.remove_device = msm_iommu_remove_device,
+	.device_group = msm_iommu_device_group,
 	.pgsize_bitmap = MSM_IOMMU_PGSIZES,
 	.domain_set_attr = msm_iommu_domain_set_attr,
 	.domain_get_attr = msm_iommu_domain_get_attr,
+	.of_xlate = msm_iommu_of_xlate,
 };
 
-static int __init msm_iommu_init(void)
+int msm_iommu_init(struct device *dev)
 {
+	static bool done = false;
 	int ret;
+
+	of_iommu_set_ops(dev->of_node, &msm_iommu_ops);
+
+	if (done)
+		return 0;
 
 	msm_iommu_pagetable_init();
 
@@ -1529,10 +1712,7 @@ static int __init msm_iommu_init(void)
 
 	msm_iommu_build_dump_regs_table();
 
+	done = true;
+
 	return 0;
 }
-
-subsys_initcall(msm_iommu_init);
-
-MODULE_LICENSE("GPL v2");
-MODULE_DESCRIPTION("MSM SMMU v2 Driver");
