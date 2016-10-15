@@ -1,0 +1,82 @@
+/*
+ * pinctrl dts fils for Hislicon HiKey960 development board
+ *
+ */
+
+#include <dt-bindings/pinctrl/hisi.h>
+
+/ {
+	soc {
+		/* [IOMG_000, IOMG_123] */
+		range: gpio-range {
+			#pinctrl-single,gpio-range-cells = <3>;
+		};
+		pmx0: pinmux@e896c000 {
+			compatible = "pinctrl-single";
+			reg = <0x0 0xe896c000 0x0 0x1f0>;
+			#gpio-range-cells = <0x3>;
+			pinctrl-single,register-width = <0x20>;
+			pinctrl-single,function-mask = <0x7>;
+			/* pin base, nr pins & gpio function */
+			pinctrl-single,gpio-range = <
+				&range 0 7 0
+				&range 8 116 0>;
+		};
+
+		/* [IOMG_MMC0_000, IOMG_MMC0_005] */
+		pmx1: pinmux@ff37e000 {
+			compatible = "pinctrl-single";
+			reg = <0x0 0xff37e000 0x0 0x18>;
+			#gpio-range-cells = <0x3>;
+			pinctrl-single,register-width = <0x20>;
+			pinctrl-single,function-mask = <0x7>;
+			/* pin base, nr pins & gpio function */
+			pinctrl-single,gpio-range = <&range 0 6 0>;
+
+			sdcard_pmx_func: sdcard_pmx_func {
+				pinctrl-single,pins = <
+					0x000 MUX_M1 /* SD_CLK (IOMG_MMC0_000) */
+					0x004 MUX_M1 /* SD_CMD (IOMG_MMC0_001) */
+					0x008 MUX_M1 /* SD_DATA0 (IOMG_MMC0_002) */
+					0x00c MUX_M1 /* SD_DATA1 (IOMG_MMC0_003) */
+					0x010 MUX_M1 /* SD_DATA2 (IOMG_MMC0_004) */
+					0x014 MUX_M1 /* SD_DATA3 (IOMG_MMC0_005) */
+				>;
+			};
+		};
+
+		/* [IOMG_FIX_000, IOMG_FIX_011] */
+		pmx2: pinmux@ff3b6000 {
+			compatible = "pinctrl-single";
+			reg = <0x0 0xff3b6000 0x0 0x30>;
+			#gpio-range-cells = <0x3>;
+			pinctrl-single,register-width = <0x20>;
+			pinctrl-single,function-mask = <0x7>;
+			/* pin base, nr pins & gpio function */
+			pinctrl-single,gpio-range = <&range 0 12 0>;
+		};
+
+		/* [IOMG_MMC1_000, IOMG_MMC1_005] */
+		pmx3: pinmux@ff3fd000 {
+			compatible = "pinctrl-single";
+			reg = <0x0 0xff3fd000 0x0 0x18>;
+			#gpio-range-cells = <0x3>;
+			pinctrl-single,register-width = <0x20>;
+			pinctrl-single,function-mask = <0x7>;
+			/* pin base, nr pins & gpio function */
+			pinctrl-single,gpio-range = <&range 0 6 0>;
+
+		};
+
+		/* [IOMG_AO_000, IOMG_AO_041] */
+		pmx4: pinmux@fff11000 {
+			compatible = "pinctrl-single";
+			reg = <0x0 0xfff11000 0x0 0xa8>;
+			#gpio-range-cells = <0x3>;
+			pinctrl-single,register-width = <0x20>;
+			pinctrl-single,function-mask = <0x7>;
+			/* pin base in node, nr pins & gpio function */
+			pinctrl-single,gpio-range = <&range 0 42 0>;
+		};
+	};
+};
