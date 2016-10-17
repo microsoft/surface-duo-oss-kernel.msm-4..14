@@ -57,8 +57,26 @@
 		ranges;
 
 		crg_ctrl: crg_ctrl@fff35000 {
-			compatible = "hisilicon,hi3660-crgctrl";
+			compatible = "hisilicon,hi3660-crgctrl", "syscon";
 			reg = <0x0 0xfff35000 0x0 0x1000>;
+			#clock-cells = <1>;
+		};
+
+		pctrl: pctrl@e8a09000 {
+			compatible = "hisilicon,hi3660-pctrl", "syscon";
+			reg = <0x0 0xe8a09000 0x0 0x2000>;
+			#clock-cells = <1>;
+		};
+
+		pmuctrl: crg_ctrl@fff34000 {
+			compatible = "hisilicon,hi3660-pmuctrl", "syscon";
+			reg = <0x0 0xfff34000 0x0 0x1000>;
+			#clock-cells = <1>;
+		};
+
+		sctrl: sctrl@fff0a000 {
+			compatible = "hisilicon,hi3660-sctrl", "syscon";
+			reg = <0x0 0xfff0a000 0x0 0x1000>;
 			#clock-cells = <1>;
 		};
 
@@ -66,6 +84,9 @@
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0xfdf02000 0x0 0x1000>;
 			interrupts = <GIC_SPI 74 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&crg_ctrl HI3660_CLK_MUX_UART0>,
+				 <&crg_ctrl HI3660_PCLK>;
+			clock-names = "uartclk", "apb_pclk";
 			reset-enable-flag = <0>;
 			reset-reg-base = <0x0 0xFFF35000 0x0 0x1000>; /* PERI_CRG */
 			reset-controller-reg = <0x78 0x7c 0x80 10>;
@@ -76,6 +97,9 @@
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0xfdf00000 0x0 0x1000>;
 			interrupts = <GIC_SPI 75 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&crg_ctrl HI3660_CLK_GATE_UART1>,
+				 <&crg_ctrl HI3660_CLK_GATE_UART1>;
+			clock-names = "uartclk", "apb_pclk";
 			reset-enable-flag = <0>;
 			reset-reg-base = <0x0 0xFFF35000 0x0 0x1000>; /* PERI_CRG */
 			reset-controller-reg = <0x78 0x7c 0x80 11>;
@@ -86,6 +110,9 @@
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0xfdf03000 0x0 0x1000>;
 			interrupts = <GIC_SPI 76 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&crg_ctrl HI3660_CLK_GATE_UART2>,
+				 <&crg_ctrl HI3660_PCLK>;
+			clock-names = "uartclk", "apb_pclk";
 			reset-enable-flag = <0>;
 			reset-reg-base = <0x0 0xFFF35000 0x0 0x1000>; /* PERI_CRG */
 			reset-controller-reg = <0x78 0x7c 0x80 12>;
@@ -96,6 +123,9 @@
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0xffd74000 0x0 0x1000>;
 			interrupts = <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&crg_ctrl HI3660_CLK_FACTOR_UART3>,
+				 <&crg_ctrl HI3660_PCLK>;
+			clock-names = "uartclk", "apb_pclk";
 			reset-enable-flag = <0>;
 			reset-reg-base = <0x0 0xFFD7E000 0x0 0x1000>; /* IOMCU_CONFIG */
 			reset-controller-reg = <0x20 0x24 0x28 11>;
@@ -106,6 +136,9 @@
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0xfdf01000 0x0 0x1000>;
 			interrupts = <GIC_SPI 77 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&crg_ctrl HI3660_CLK_GATE_UART4>,
+				 <&crg_ctrl HI3660_CLK_GATE_UART4>;
+			clock-names = "uartclk", "apb_pclk";
 			reset-enable-flag = <0>;
 			reset-reg-base = <0x0 0xFFF35000 0x0 0x1000>; /* PERI_CRG */
 			reset-controller-reg = <0x78 0x7c 0x80 14>;
@@ -116,8 +149,8 @@
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0xfdf05000 0x0 0x1000>;
 			interrupts = <GIC_SPI 78 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&crg_ctrl HI3660_UART5_PCLK>,
-			         <&crg_ctrl HI3660_UART5_PCLK>;
+			clocks = <&crg_ctrl HI3660_CLK_GATE_UART5>,
+				 <&crg_ctrl HI3660_CLK_GATE_UART5>;
 			clock-names = "uartclk", "apb_pclk";
 			reset-enable-flag = <0>;
 			reset-reg-base = <0x0 0xFFF35000 0x0 0x1000>; /* PERI_CRG */
@@ -129,6 +162,9 @@
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0xfff32000 0x0 0x1000>;
 			interrupts = <GIC_SPI 79 IRQ_TYPE_LEVEL_HIGH>;
+			clocks = <&crg_ctrl HI3660_CLK_UART6>,
+				 <&crg_ctrl HI3660_PCLK>;
+			clock-names = "uartclk", "apb_pclk";
 			reset-enable-flag = <0>;
 			reset-reg-base = <0x0 0xFFF0A000 0x0 0x1000>; /* SCTRL */
 			reset-controller-reg = <0x504 0x508 0x50c 9>;
