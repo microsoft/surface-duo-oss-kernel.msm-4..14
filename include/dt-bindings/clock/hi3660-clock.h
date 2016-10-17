@@ -1,24 +1,134 @@
 /*
- * Copyright (c) 2016, Hisilicon Ltd.
+ * Copyright (c) 2016-2017 Linaro Ltd.
+ * Copyright (c) 2016-2017 HiSilicon Technologies Co., Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  */
 
-#ifndef __DT_BINDINGS_CLOCK_HI3660_H
-#define __DT_BINDINGS_CLOCK_HI3660_H
-
-/* clk in Hi3660 CRG controller */
-#define HI3660_NONE_CLOCK	0
+#ifndef __DTS_HI3660_CLOCK_H
+#define __DTS_HI3660_CLOCK_H
 
 /* fixed rate clocks */
-#define HI3660_REF32K		1
-#define HI3660_CLK_TCXO		2
+#define HI3660_CLKIN_SYS		1
+#define HI3660_CLKIN_REF		2
+#define HI3660_CLK_FLL_SRC		3
+#define HI3660_CLK_PPLL0		4
+#define HI3660_CLK_PPLL1		5
+#define HI3660_CLK_PPLL2		6
+#define HI3660_CLK_PPLL3		7
+#define HI3660_CLK_SCPLL		8
+#define HI3660_PCLK			9
+#define HI3660_CLK_UART0_DBG		10
+#define HI3660_CLK_UART6		11
+#define HI3660_OSC32K			12
+#define HI3660_OSC19M			13
+#define HI3660_CLK_480M			14
 
-/* gate clocks */
-#define HI3660_UART5_PCLK	3
+/* clk in crgctrl */
+#define HI3660_CLK_FACTOR_UART3		15
+#define HI3660_CLK_FACTOR_MMC		16
+#define HI3660_CLK_GATE_I2C0		17
+#define HI3660_CLK_GATE_I2C1		18
+#define HI3660_CLK_GATE_I2C2		19
+#define HI3660_CLK_DIV_SYSBUS		20
+#define HI3660_CLK_DIV_320M		21
+#define HI3660_CLK_DIV_A53		22
+#define HI3660_HCLK_GATE_SD		23
+#define HI3660_HCLK_GATE_SDIO0		24
+#define HI3660_PCLK_GPIO0		25
+#define HI3660_PCLK_GPIO1		26
+#define HI3660_PCLK_GPIO2		27
+#define HI3660_PCLK_GPIO3		28
+#define HI3660_PCLK_GPIO4		29
+#define HI3660_PCLK_GPIO5		30
+#define HI3660_PCLK_GPIO6		31
+#define HI3660_PCLK_GPIO7		32
+#define HI3660_PCLK_GPIO8		33
+#define HI3660_PCLK_GPIO9		34
+#define HI3660_PCLK_GPIO10		35
+#define HI3660_PCLK_GPIO11		36
+#define HI3660_PCLK_GPIO12		37
+#define HI3660_PCLK_GPIO13		38
+#define HI3660_PCLK_GPIO14		39
+#define HI3660_PCLK_GPIO15		40
+#define HI3660_PCLK_GPIO16		41
+#define HI3660_PCLK_GPIO17		42
+#define HI3660_PCLK_GPIO18		43
+#define HI3660_PCLK_GPIO19		44
+#define HI3660_PCLK_GPIO20		45
+#define HI3660_PCLK_GPIO21		46
+#define HI3660_CLK_GATE_UART1		47
+#define HI3660_CLK_GATE_UART2		48
+#define HI3660_CLK_GATE_UART4		49
+#define HI3660_CLK_GATE_UART5		50
+#define HI3660_CLK_GATE_DMAC		51
+#define HI3660_CLK_GATE_SD		52
+#define HI3660_CLK_GATE_SDIO0		53
+#define HI3660_ACLK_GATE_USB3OTG	54
+#define HI3660_CLK_GATE_UFS_SUBSYS	55
+#define HI3660_CLK_GATE_UFSPHY_GT	56
+#define HI3660_CLK_ANDGT_MMC		57
+#define HI3660_CLK_ANDGT_SD		58
+#define HI3660_CLK_A53HPM_ANDGT		59
+#define HI3660_CLK_ANDGT_SDIO		60
+#define HI3660_CLK_ANDGT_UART0		61
+#define HI3660_CLK_ANDGT_UART1		62
+#define HI3660_CLK_ANDGT_UARTH		63
+#define HI3660_CLK_320M_PLL_GT		64
+#define HI3660_AUTODIV_EMMC0BUS		65
+#define HI3660_AUTODIV_SYSBUS		66
+#define HI3660_CLK_GATE_UFSPHY_CFG	67
+#define HI3660_CLK_GATE_UFSIO_REF	68
+#define HI3660_CLK_MUX_SYSBUS		69
+#define HI3660_CLK_MUX_UART0		70
+#define HI3660_CLK_MUX_UART1		71
+#define HI3660_CLK_MUX_UARTH		72
+#define HI3660_CLK_MUX_MMC_PLL		73
+#define HI3660_CLK_MUX_SD_PLL		74
+#define HI3660_CLK_MUX_SD_SYS		75
+#define HI3660_CLK_MUX_SDIO_SYS		76
+#define HI3660_CLK_MUX_SDIO_PLL		77
+#define HI3660_CLK_MUX_A53HPM		78
+#define HI3660_CLK_MUX_320M		79
+#define HI3660_CLK_MUX_IOPERI		80
+#define HI3660_CLK_DIV_UART0		81
+#define HI3660_CLK_DIV_UART1		82
+#define HI3660_CLK_DIV_UARTH		83
+#define HI3660_CLK_DIV_MMC		84
+#define HI3660_CLK_DIV_SD		85
+#define HI3660_CLK_DIV_SDIO		86
+#define HI3660_CLK_DIV_UFSPHY		87
+#define HI3660_CLK_DIV_CFGBUS		88
+#define HI3660_CLK_DIV_MMC0BUS		89
+#define HI3660_CLK_DIV_UFSPERI		90
+#define HI3660_CLK_DIV_IOPERI		91
 
-#define HI3660_CRG_NR_CLKS	4
+#define HI3660_CRGCTRL_NR_CLKS		128
 
-#endif /* __DT_BINDINGS_CLOCK_HI3660_H */
+/* clk in pmuctrl */
+#define HI3660_CLK_GATE_ABB_192		1
+
+#define HI3660_PMUCTRL_NR_CLKS		2
+
+/* clk in pctrl */
+#define HI3660_CLK_GATE_UFS_TCXO_EN	1
+#define HI3660_GATE_USB_TCXO_EN		2
+
+#define HI3660_PCTRL_NR_CLKS		3
+
+/* clk in sctrl */
+#define HI3660_PCLK_AO_GPIO0		1
+#define HI3660_PCLK_AO_GPIO1		2
+#define HI3660_PCLK_AO_GPIO2		3
+#define HI3660_PCLK_AO_GPIO3		4
+#define HI3660_PCLK_AO_GPIO4		5
+#define HI3660_PCLK_AO_GPIO5		6
+#define HI3660_PCLK_AO_GPIO6		7
+#define HI3660_CLK_DIV_AOBUS		8
+
+#define HI3660_SCTRL_NR_CLKS		9
+
+#endif	/* __DTS_HI3660_CLOCK_H */
