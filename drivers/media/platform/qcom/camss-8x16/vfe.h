@@ -51,6 +51,7 @@ enum msm_vfe_output_state {
 	MSM_VFE_OUTPUT_SINGLE,
 	MSM_VFE_OUTPUT_CONTINUOUS,
 	MSM_VFE_OUTPUT_IDLE,
+	MSM_VFE_OUTPUT_STOPPING,
 };
 
 enum vfe_line_id {
@@ -68,6 +69,7 @@ struct msm_vfe_output {
 
 	int active_buf;
 	struct msm_video_buffer *buf[2];
+	struct msm_video_buffer *last_buffer;
 	struct list_head pending_bufs;
 
 	int drop_update_idx;

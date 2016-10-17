@@ -58,6 +58,7 @@
 #define VFE_0_IRQ_CMD_GLOBAL_CLEAR	(1 << 0)
 
 #define VFE_0_IRQ_MASK_0		0x028
+#define VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(n)		(1 << ((n) + 5))
 #define VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(n)	(1 << ((n) + 8))
 #define VFE_0_IRQ_MASK_0_RESET_ACK			(1 << 31)
 #define VFE_0_IRQ_MASK_1		0x02c
@@ -377,15 +378,18 @@ static int vfe_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
 	return 0;
 }
 
-static void vfe_enable_irq_wm(struct vfe_device *vfe, u32 wm_idx, u8 enable) {
+static void vfe_enable_irq_wm_line(struct vfe_device *vfe, u32 wm_idx,
+				   enum vfe_line_id line_id, u8 enable) {
 	u32 irq_en0 = readl_relaxed(vfe->base + VFE_0_IRQ_MASK_0);
 	u32 irq_en1 = readl_relaxed(vfe->base + VFE_0_IRQ_MASK_1);
 
 	if (enable) {
 		irq_en0 |= VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(wm_idx);
+		irq_en0 |= VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(line_id);
 		irq_en1 |= VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(wm_idx);
 	} else {
 		irq_en0 &= ~VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(wm_idx);
+		irq_en0 &= ~VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(line_id);
 		irq_en1 &= ~VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(wm_idx);
 	}
 
@@ -680,9 +684,8 @@ static void __vfe_update_wm_on_last_buf(struct vfe_device *vfe,
 		vfe_output_frame_drop(vfe, output, 1);
 		break;
 	case MSM_VFE_OUTPUT_SINGLE:
-		output->state = MSM_VFE_OUTPUT_IDLE;
+		output->state = MSM_VFE_OUTPUT_STOPPING;
 		vfe_output_frame_drop(vfe, output, 0);
-		vfe_output_reset_addrs(vfe, output);
 		break;
 	default:
 		dev_err_ratelimited(to_device(vfe),
@@ -865,7 +868,7 @@ static int vfe_enable_output(struct vfe_line *line)
 
 	vfe_set_cgc_override(vfe, output->wm_idx, 1);
 
-	vfe_enable_irq_wm(vfe, output->wm_idx, 1);
+	vfe_enable_irq_wm_line(vfe, output->wm_idx, line->id, 1);
 
 	vfe_bus_connect_wm_to_rdi(vfe, output->wm_idx, line->id);
 
@@ -973,10 +976,48 @@ static int vfe_disable(struct vfe_line *line)
 
 static void vfe_isr_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
 {
+	struct msm_vfe_output *output;
 	unsigned long flags;
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 	vfe->reg_update &= ~VFE_0_REG_UPDATE_RDIn(line_id);
+
+	output = &vfe->line[line_id].output;
+	if (output->state == MSM_VFE_OUTPUT_STOPPING) {
+		/* Release last buffer when hw is idle */
+		if (output->last_buffer) {
+			vb2_buffer_done(&output->last_buffer->vb,
+					VB2_BUF_STATE_DONE);
+			output->last_buffer = NULL;
+		}
+		output->state = MSM_VFE_OUTPUT_IDLE;
+
+		/* Buffers received in stopping state are queued in
+		 * dma pending queue, start next capture here */
+
+		output->buf[0] = __vfe_get_next_output_buf(output);
+		if (output->buf[0])
+			output->state = MSM_VFE_OUTPUT_SINGLE;
+
+		output->buf[1] = __vfe_get_next_output_buf(output);
+		if (output->buf[1])
+			output->state = MSM_VFE_OUTPUT_CONTINUOUS;
+
+		switch (output->state) {
+		case MSM_VFE_OUTPUT_SINGLE:
+			vfe_output_frame_drop(vfe, output, 2);
+			break;
+		case MSM_VFE_OUTPUT_CONTINUOUS:
+			vfe_output_frame_drop(vfe, output, 3);
+			break;
+		default:
+			vfe_output_frame_drop(vfe, output, 0);
+			break;
+		}
+
+		vfe_output_init_addrs(vfe, output, 1);
+	}
+
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
 }
 
@@ -1017,7 +1058,8 @@ static void vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx)
 	/* Get next buffer */
 	output->buf[!active_index] = __vfe_get_next_output_buf(output);
 	if (!output->buf[!active_index]) {
-		new_addr = 0;
+		/* no next buffer - set same address */
+		new_addr = ready_buf->addr;
 		__vfe_update_wm_on_last_buf(vfe, output);
 	} else {
 		new_addr = output->buf[!active_index]->addr;
@@ -1031,11 +1073,10 @@ static void vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx)
 
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
 
-	if (ready_buf)
-		vb2_buffer_done(&ready_buf->vb, VB2_BUF_STATE_DONE);
+	if (output->state == MSM_VFE_OUTPUT_STOPPING)
+		output->last_buffer = ready_buf;
 	else
-		dev_err_ratelimited(to_device(vfe),
-				    "Received wm without buffer\n");
+		vb2_buffer_done(&ready_buf->vb, VB2_BUF_STATE_DONE);
 
 	return;
 
@@ -1280,6 +1321,12 @@ static int vfe_flush_dmabufs(struct camss_video *vid)
 
 	if (output->buf[1])
 		vb2_buffer_done(&output->buf[1]->vb, VB2_BUF_STATE_ERROR);
+
+	if (output->last_buffer) {
+		vb2_buffer_done(&output->last_buffer->vb,
+				VB2_BUF_STATE_ERROR);
+		output->last_buffer = NULL;
+	}
 
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
 
