@@ -407,51 +407,6 @@ static void vfe_enable_irq_common(struct vfe_device *vfe)
 	writel(irq_en1, vfe->base + VFE_0_IRQ_MASK_1);
 }
 
-static void vfe_isr_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
-{
-	unsigned long flags;
-
-	spin_lock_irqsave(&vfe->output_lock, flags);
-	vfe->reg_update &= ~VFE_0_REG_UPDATE_RDIn(line_id);
-	spin_unlock_irqrestore(&vfe->output_lock, flags);
-}
-
-static void vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx);
-
-static irqreturn_t vfe_subdev_isr(int irq, void *dev)
-{
-	struct vfe_device *vfe = dev;
-	u32 value0, value1;
-	int i;
-
-	value0 = readl(vfe->base + VFE_0_IRQ_STATUS_0);
-	value1 = readl(vfe->base + VFE_0_IRQ_STATUS_1);
-
-	writel(value0, vfe->base + VFE_0_IRQ_CLEAR_0);
-	writel(value1, vfe->base + VFE_0_IRQ_CLEAR_1);
-
-	wmb();
-	writel(0x1, vfe->base + VFE_0_IRQ_CMD); // Apply IRQ Clear[01]
-
-	if (value0 & VFE_0_IRQ_STATUS_0_RESET_ACK)
-		complete_all(&vfe->reset_completion);
-
-	if (value1 & VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK) {
-		complete_all(&vfe->halt_completion);
-		writel(0x0, vfe->base + VFE_0_BUS_BDG_CMD);
-	}
-
-	for (i = VFE_LINE_RDI0; i < VFE_LINE_RDI2 + 1; i++)
-		if (value0 & VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(i))
-			vfe_isr_reg_update(vfe, i);
-
-	for (i = 0; i < 7; i++)
-		if (value0 & VFE_0_IRQ_STATUS_0_IMAGE_MASTER_n_PING_PONG(i))
-			vfe_isr_wm_done(vfe, i);
-
-	return IRQ_HANDLED;
-}
-
 static int vfe_reset(struct vfe_device *vfe)
 {
 	unsigned long time;
@@ -1016,6 +971,15 @@ static int vfe_disable(struct vfe_line *line)
 	return 0;
 }
 
+static void vfe_isr_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
+{
+	unsigned long flags;
+
+	spin_lock_irqsave(&vfe->output_lock, flags);
+	vfe->reg_update &= ~VFE_0_REG_UPDATE_RDIn(line_id);
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
+}
+
 static void vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx)
 {
 	struct msm_video_buffer *ready_buf;
@@ -1077,6 +1041,40 @@ static void vfe_isr_wm_done(struct vfe_device *vfe, u32 wm_idx)
 
 out_unlock:
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
+}
+
+static irqreturn_t vfe_subdev_isr(int irq, void *dev)
+{
+	struct vfe_device *vfe = dev;
+	u32 value0, value1;
+	int i;
+
+	value0 = readl(vfe->base + VFE_0_IRQ_STATUS_0);
+	value1 = readl(vfe->base + VFE_0_IRQ_STATUS_1);
+
+	writel(value0, vfe->base + VFE_0_IRQ_CLEAR_0);
+	writel(value1, vfe->base + VFE_0_IRQ_CLEAR_1);
+
+	wmb();
+	writel(0x1, vfe->base + VFE_0_IRQ_CMD); // Apply IRQ Clear[01]
+
+	if (value0 & VFE_0_IRQ_STATUS_0_RESET_ACK)
+		complete_all(&vfe->reset_completion);
+
+	if (value1 & VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK) {
+		complete_all(&vfe->halt_completion);
+		writel(0x0, vfe->base + VFE_0_BUS_BDG_CMD);
+	}
+
+	for (i = VFE_LINE_RDI0; i < VFE_LINE_RDI2 + 1; i++)
+		if (value0 & VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(i))
+			vfe_isr_reg_update(vfe, i);
+
+	for (i = 0; i < 7; i++)
+		if (value0 & VFE_0_IRQ_STATUS_0_IMAGE_MASTER_n_PING_PONG(i))
+			vfe_isr_wm_done(vfe, i);
+
+	return IRQ_HANDLED;
 }
 
 static int vfe_bus_request(struct vfe_device *vfe)
