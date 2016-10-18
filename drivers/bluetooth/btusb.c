@@ -1036,6 +1036,10 @@ static int btusb_open(struct hci_dev *hdev)
 
 	BT_DBG("%s", hdev->name);
 
+	err = usb_autopm_get_interface(data->intf);
+	if (err < 0)
+		return err;
+
 	/* Patching USB firmware files prior to starting any URBs of HCI path
 	 * It is more safe to use USB bulk channel for downloading USB patch
 	 */
@@ -1044,10 +1048,6 @@ static int btusb_open(struct hci_dev *hdev)
 		if (err < 0)
 			return err;
 	}
-
-	err = usb_autopm_get_interface(data->intf);
-	if (err < 0)
-		return err;
 
 	data->intf->needs_remote_wakeup = 1;
 
