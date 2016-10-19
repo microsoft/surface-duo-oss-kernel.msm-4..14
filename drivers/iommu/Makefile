@@ -26,3 +26,5 @@ obj-$(CONFIG_SHMOBILE_IOMMU) += shmobile-iommu.o
 obj-$(CONFIG_SHMOBILE_IPMMU) += shmobile-ipmmu.o
 obj-$(CONFIG_FSL_PAMU) += fsl_pamu.o fsl_pamu_domain.o
 obj-$(CONFIG_S390_IOMMU) += s390-iommu.o
+obj-$(CONFIG_HISI_IODOMAIN_API) += ion-iommu-map.o
+obj-$(CONFIG_HISI_IOMMU_LPAE) += hisi_smmu_lpae.o

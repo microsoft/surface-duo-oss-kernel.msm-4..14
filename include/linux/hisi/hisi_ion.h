@@ -16,7 +16,6 @@
 #ifndef _LINUX_HISI_ION_H
 #define _LINUX_HISI_ION_H
 
-#include <ion/ion.h>
 #include <linux/ion.h>
 #include <linux/sizes.h>
 

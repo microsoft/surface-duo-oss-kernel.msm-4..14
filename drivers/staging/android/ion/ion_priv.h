@@ -34,6 +34,12 @@
 
 struct ion_buffer *ion_handle_buffer(struct ion_handle *handle);
 
+struct ion_iommu_map {
+	struct ion_buffer *buffer;
+	struct kref ref;
+	struct iommu_map_format format;
+};
+
 /**
  * struct ion_buffer - metadata for a particular buffer
  * @ref:		reference count
@@ -87,6 +93,10 @@ struct ion_buffer {
 	int handle_count;
 	char task_comm[TASK_COMM_LEN];
 	pid_t pid;
+	struct ion_iommu_map *iommu_map;
+	/*use for sync & free when buffer alloc from cpu draw heap*/
+	struct sg_table *cpudraw_sg_table;
+	size_t cpu_buffer_size;
 };
 void ion_buffer_destroy(struct ion_buffer *buffer);
 
@@ -123,6 +133,10 @@ struct ion_heap_ops {
 	void (*unmap_kernel)(struct ion_heap *heap, struct ion_buffer *buffer);
 	int (*map_user)(struct ion_heap *mapper, struct ion_buffer *buffer,
 			struct vm_area_struct *vma);
+	int (*map_iommu)(struct ion_buffer *buffer,
+			struct ion_iommu_map *map_data);
+	void (*unmap_iommu)(struct ion_iommu_map *map_data);
+	void (*buffer_zero)(struct ion_buffer *buffer);
 	int (*shrink)(struct ion_heap *heap, gfp_t gfp_mask, int nr_to_scan);
 };
 
@@ -234,6 +248,10 @@ void *ion_heap_map_kernel(struct ion_heap *, struct ion_buffer *);
 void ion_heap_unmap_kernel(struct ion_heap *, struct ion_buffer *);
 int ion_heap_map_user(struct ion_heap *, struct ion_buffer *,
 			struct vm_area_struct *);
+int ion_heap_map_iommu(struct ion_buffer *buffer,
+			struct ion_iommu_map *map_data);
+void ion_heap_unmap_iommu(struct ion_iommu_map *map_data);
+void ion_flush_all_cpus_caches(void);
 int ion_heap_buffer_zero(struct ion_buffer *buffer);
 int ion_heap_pages_zero(struct page *page, size_t size, pgprot_t pgprot);
 
