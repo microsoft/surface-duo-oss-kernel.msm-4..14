@@ -105,6 +105,7 @@ struct vfe_device {
 	uint32_t bus_client;
 	struct vfe_line line[VFE_LINE_MAX + 1];
 	u32 reg_update;
+	u8 was_streaming;
 };
 
 struct resources;

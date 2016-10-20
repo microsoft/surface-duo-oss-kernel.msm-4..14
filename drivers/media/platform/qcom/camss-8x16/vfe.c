@@ -933,6 +933,8 @@ static int vfe_enable(struct vfe_line *line)
 	if (ret < 0)
 		goto error_enable_output;
 
+	vfe->was_streaming = 1;
+
 	return 0;
 
 
@@ -1252,7 +1254,10 @@ static void vfe_put(struct vfe_device *vfe)
 
 	if (--vfe->power_count == 0) {
 //		vfe_init_outputs(vfe); /* TODO */
-		vfe_halt(vfe);
+		if (vfe->was_streaming) {
+			vfe->was_streaming = 0;
+			vfe_halt(vfe);
+		}
 		vfe_bus_release(vfe);
 		vfe_disable_clocks(vfe->nclocks, vfe->clock);
 	}
