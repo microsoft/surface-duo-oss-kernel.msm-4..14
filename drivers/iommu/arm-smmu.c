@@ -1460,6 +1460,15 @@ static int arm_smmu_add_device(struct device *dev)
 		goto out_free;
 	pm_runtime_put_sync(smmu->dev);
 
+	/*
+	 * Establish the link between smmu and master, so that the
+	 * smmu gets runtime enabled/disabled as per the master's
+	 * needs.
+	 */
+
+	device_link_add(dev, smmu->dev, DEVICE_LINK_AVAILABLE,
+			DEVICE_LINK_PM_RUNTIME);
+
 	return 0;
 
 out_free:
