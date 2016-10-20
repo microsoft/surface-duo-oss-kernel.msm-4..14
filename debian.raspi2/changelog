@@ -1,3 +1,20 @@
+linux-raspi2 (4.4.0-1029.36) xenial; urgency=low
+
+  [ Ubuntu: 4.4.0-45.66 ]
+
+  * CVE-2016-5195
+    - SAUCE: mm: remove gup_flags FOLL_WRITE games from __get_user_pages()
+  * srcname from mount rule corrupted under load (LP: #1634753)
+    - SAUCE: apparmor: fix sleep in critical section
+
+  [ Ubuntu: 4.4.0-43.63 ]
+
+  * kswapd0 100% CPU usage (LP: #1518457)
+    - SAUCE: (no-up) If zone is so small that watermarks are the same, stop zone
+      balance.
+
+ -- Stefan Bader <stefan.bader@canonical.com>  Wed, 19 Oct 2016 13:02:15 +0200
+
 linux-raspi2 (4.4.0-1027.33) xenial; urgency=low
 
   [ Ubuntu: 4.4.0-42.62 ]
