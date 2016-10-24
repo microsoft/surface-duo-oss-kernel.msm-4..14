@@ -1760,6 +1760,7 @@ static struct clk_branch video_ahb_clk = {
 };
 
 static struct clk_branch video_subcore0_clk = {
+	.halt_check = BRANCH_HALT_DELAY,
 	.halt_reg = 0x1048,
 	.clkr = {
 		.enable_reg = 0x1048,
@@ -1775,6 +1776,7 @@ static struct clk_branch video_subcore0_clk = {
 };
 
 static struct clk_branch video_subcore1_clk = {
+	.halt_check = BRANCH_HALT_DELAY,
 	.halt_reg = 0x104c,
 	.clkr = {
 		.enable_reg = 0x104c,
