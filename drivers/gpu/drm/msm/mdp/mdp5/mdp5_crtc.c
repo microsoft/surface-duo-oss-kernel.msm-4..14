@@ -357,6 +357,8 @@ static int pstate_cmp(const void *a, const void *b)
 {
 	struct plane_state *pa = (struct plane_state *)a;
 	struct plane_state *pb = (struct plane_state *)b;
+	if (pa->state->zpos == pb->state->zpos)
+		return pa->plane->base.id - pb->plane->base.id;
 	return pa->state->zpos - pb->state->zpos;
 }
 
