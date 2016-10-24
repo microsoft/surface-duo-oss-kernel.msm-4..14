@@ -259,13 +259,10 @@ static int vdec_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 	format.fmt.pix_mp.width = orig_pixmp.width;
 	format.fmt.pix_mp.height = orig_pixmp.height;
 	vdec_try_fmt_common(inst, &format);
-	inst->out_width = format.fmt.pix_mp.width;
-	inst->out_height = format.fmt.pix_mp.height;
+
 	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
-		inst->colorspace = pixmp->colorspace;
-		inst->ycbcr_enc = pixmp->ycbcr_enc;
-		inst->quantization = pixmp->quantization;
-		inst->xfer_func = pixmp->xfer_func;
+		inst->out_width = format.fmt.pix_mp.width;
+		inst->out_height = format.fmt.pix_mp.height;
 	}
 
 	memset(&format, 0, sizeof(format));
@@ -275,13 +272,21 @@ static int vdec_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 	format.fmt.pix_mp.width = orig_pixmp.width;
 	format.fmt.pix_mp.height = orig_pixmp.height;
 	vdec_try_fmt_common(inst, &format);
-	inst->width = format.fmt.pix_mp.width;
-	inst->height = format.fmt.pix_mp.height;
 
-	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+	if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+		inst->width = format.fmt.pix_mp.width;
+		inst->height = format.fmt.pix_mp.height;
+	}
+
+	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		inst->fmt_out = fmt;
-	else if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+		inst->colorspace = pixmp->colorspace;
+		inst->ycbcr_enc = pixmp->ycbcr_enc;
+		inst->quantization = pixmp->quantization;
+		inst->xfer_func = pixmp->xfer_func;
+	} else if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
 		inst->fmt_cap = fmt;
+	}
 
 	return 0;
 }
@@ -291,15 +296,28 @@ vdec_g_selection(struct file *file, void *priv, struct v4l2_selection *s)
 {
 	struct vidc_inst *inst = to_inst(file);
 
-	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
-		return -EINVAL;
-
 	switch (s->target) {
-	case V4L2_SEL_TGT_COMPOSE_DEFAULT:
-	case V4L2_SEL_TGT_COMPOSE_BOUNDS:
+	case V4L2_SEL_TGT_CROP_DEFAULT:
+	case V4L2_SEL_TGT_CROP_BOUNDS:
+		if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE &&
+		    s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+			return -EINVAL;
 		s->r.width = inst->width;
 		s->r.height = inst->height;
+		break;
+	case V4L2_SEL_TGT_CROP:
+		if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE &&
+		    s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+			return -EINVAL;
+		s->r.width = inst->out_width;
+		s->r.height = inst->out_height;
+		break;
+	case V4L2_SEL_TGT_COMPOSE_DEFAULT:
+	case V4L2_SEL_TGT_COMPOSE_BOUNDS:
 	case V4L2_SEL_TGT_COMPOSE:
+		if (s->type != V4L2_BUF_TYPE_VIDEO_OUTPUT &&
+		    s->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+			return -EINVAL;
 		s->r.width = inst->out_width;
 		s->r.height = inst->out_height;
 		break;
@@ -524,41 +542,6 @@ static int vdec_enum_framesizes(struct file *file, void *fh,
 	return 0;
 }
 
-static int vdec_enum_frameintervals(struct file *file, void *fh,
-				    struct v4l2_frmivalenum *fival)
-{
-	struct vidc_inst *inst = to_inst(file);
-	const struct vidc_format *fmt;
-
-	fival->type = V4L2_FRMIVAL_TYPE_STEPWISE;
-
-	fmt = find_format(fival->pixel_format,
-			  V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
-	if (!fmt)
-		return -EINVAL;
-
-	if (fival->index)
-		return -EINVAL;
-
-	if (!fival->width || !fival->height)
-		return -EINVAL;
-
-	if (fival->width > inst->cap_width.max ||
-	    fival->width < inst->cap_width.min ||
-	    fival->height > inst->cap_height.max ||
-	    fival->height < inst->cap_height.min)
-		return -EINVAL;
-
-	fival->stepwise.min.numerator = inst->cap_framerate.min;
-	fival->stepwise.min.denominator = 1;
-	fival->stepwise.max.numerator = inst->cap_framerate.max;
-	fival->stepwise.max.denominator = 1;
-	fival->stepwise.step.numerator = inst->cap_framerate.step_size;
-	fival->stepwise.step.denominator = 1;
-
-	return 0;
-}
-
 static int vdec_subscribe_event(struct v4l2_fh *fh,
 				const struct v4l2_event_subscription *sub)
 {
@@ -597,7 +580,6 @@ static const struct v4l2_ioctl_ops vdec_ioctl_ops = {
 	.vidioc_s_parm = vdec_s_parm,
 	.vidioc_g_parm = vdec_g_parm,
 	.vidioc_enum_framesizes = vdec_enum_framesizes,
-	.vidioc_enum_frameintervals = vdec_enum_frameintervals,
 	.vidioc_subscribe_event = vdec_subscribe_event,
 	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
 };
@@ -782,8 +764,7 @@ static int vdec_check_configuration(struct vidc_inst *inst)
 static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
 {
 	struct vidc_inst *inst = vb2_get_drv_priv(q);
-	struct vidc_core *core = inst->core;
-	struct device *dev = core->dev;
+	struct device *dev = inst->core->dev;
 	struct hfi_buffer_count_actual buf_count;
 	struct hfi_buffer_size_actual buf_sz;
 	struct vb2_queue *other_queue;
@@ -892,7 +873,7 @@ static int vdec_fill_buf_done(struct vidc_inst *inst, u32 addr, u32 bytesused,
 		return -EINVAL;
 
 	vb = &vbuf->vb2_buf;
-	vb->planes[0].bytesused = bytesused;
+	vb->planes[0].bytesused = inst->output_buf_size;
 	vb->planes[0].data_offset = data_offset;
 	vbuf->timestamp = ns_to_timeval(timestamp_us * NSEC_PER_USEC);
 	vbuf->flags = flags;
@@ -1059,7 +1040,7 @@ int vdec_open(struct vidc_inst *inst)
 	q->drv_priv = inst;
 	q->buf_struct_size = sizeof(struct vidc_buffer);
 	q->allow_zero_bytesused = 1;
-	q->min_buffers_needed = 4;
+	q->min_buffers_needed = 1;
 	ret = vb2_queue_init(q);
 	if (ret)
 		goto err_cap_queue_release;
