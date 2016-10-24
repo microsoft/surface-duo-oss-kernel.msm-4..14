@@ -56,6 +56,13 @@ static int gdsc_is_enabled(struct gdsc *sc, unsigned int reg)
 	return !!(val & PWR_ON_MASK);
 }
 
+static int gdsc_hwctrl(struct gdsc *sc, bool en)
+{
+	u32 val = en ? HW_CONTROL_MASK : 0;
+
+	return regmap_update_bits(sc->regmap, sc->gdscr, HW_CONTROL_MASK, val);
+}
+
 static int gdsc_toggle_logic(struct gdsc *sc, bool en)
 {
 	int ret;
@@ -196,6 +203,10 @@ static int gdsc_enable(struct generic_pm_domain *domain)
 	 */
 	udelay(1);
 
+	/* Turn on HW trigger mode if supported */
+	if (sc->flags & HW_CTRL)
+		gdsc_hwctrl(sc, true);
+
 	return 0;
 }
 
@@ -216,6 +227,11 @@ static int gdsc_disable(struct generic_pm_domain *domain)
 
 	switch (pwrst) {
 	case PWRSTS_OFF:
+	/* Turn off HW trigger mode if supported */
+	if (sc->flags & HW_CTRL)
+		gdsc_hwctrl(sc, false);
+
+	if (sc->pwrsts & PWRSTS_OFF)
 		gdsc_clear_mem_on(sc);
 		break;
 	case PWRSTS_RET:

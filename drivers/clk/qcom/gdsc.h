@@ -57,6 +57,7 @@ struct gdsc {
 	const u8			pwrsts_ret;
 /* supported flags */
 #define VOTABLE				BIT(0)
+#define HW_CTRL		BIT(1)
 	const u8			flags;
 	struct reset_controller_dev	*rcdev;
 	unsigned int			*resets;
