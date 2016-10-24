@@ -460,11 +460,12 @@ static int32_t msm_cci_validate_queue(struct cci_device *cci_dev,
 		msm_camera_io_w_mb(report_val,
 			cci_dev->base + CCI_I2C_M0_Q0_LOAD_DATA_ADDR +
 			reg_offset);
-		read_val++;
-		CDBG("%s:%d CCI_I2C_M0_Q0_EXEC_WORD_CNT_ADDR %d\n",
-			__func__, __LINE__, read_val);
+		read_val = msm_camera_io_r_mb(cci_dev->base +
+			CCI_I2C_M0_Q0_CUR_WORD_CNT_ADDR + reg_offset);
 		msm_camera_io_w_mb(read_val, cci_dev->base +
 			CCI_I2C_M0_Q0_EXEC_WORD_CNT_ADDR + reg_offset);
+		CDBG("%s:%d CCI_I2C_M0_Q0_EXEC_WORD_CNT_ADDR %d\n",
+			__func__, __LINE__, read_val);
 		reg_val = 1 << ((master * 2) + queue);
 		CDBG("%s:%d CCI_QUEUE_START_ADDR\n", __func__, __LINE__);
 		msm_camera_io_w_mb(reg_val, cci_dev->base +
