@@ -36,13 +36,13 @@ config PCI_S32V234
 	select PCIEPORTBUS
 	select PCIE_DW
 	help
-	If you're using a S32V234 based board and want to use it in PCIe
-	RootComplex mode, you want this enabled.
+	If you're using a S32V234 based board, either in Root Complex
+	or EP mode, you should enable this.
 	Otherwise you should set it to 'no'
 
 config PCI_S32V234_EP
 	bool "Freescale S32V234 PCIe EP"
-	depends on OF && (ARM || ARM64)
+	depends on OF && (ARM || ARM64) && PCI_S32V234
 	help
 	If you're using a S32V234 based board and want to use it in PCIe
 	EndPoint mode, you want this enabled.
