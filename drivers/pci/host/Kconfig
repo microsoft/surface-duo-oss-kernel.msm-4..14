@@ -32,7 +32,7 @@ config PCI_IMX6
 
 config PCI_S32V234
 	bool "Freescale S32V234 PCIe Host controller"
-	depends on OF && (ARM || ARM64)
+	depends on OF && (ARM || ARM64) && PCI_MSI
 	select PCIEPORTBUS
 	select PCIE_DW
 	help
