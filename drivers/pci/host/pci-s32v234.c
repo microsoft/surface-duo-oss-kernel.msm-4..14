@@ -426,6 +426,8 @@ static int s32v_pcie_iatu_inbound_set(struct pcie_port *pp,
 
 	return ret;
 }
+
+#ifdef CONFIG_PCI_S32V234_IGNORE_ERR009852
 static void restore_inb_atu(struct pcie_port *pp)
 {
 	int i;
@@ -438,6 +440,7 @@ static void restore_inb_atu(struct pcie_port *pp)
 		s32v_pcie_iatu_inbound_set(pp, ptrInb);
 	}
 }
+
 static void restore_outb_atu(struct pcie_port *pp)
 {
 	int i;
@@ -450,6 +453,8 @@ static void restore_outb_atu(struct pcie_port *pp)
 		s32v_pcie_iatu_outbound_set(pp, ptrOutb);
 	}
 }
+#endif
+
 static int s32v_get_bar_info(struct pcie_port *pp, void __user *argp)
 {
 	struct s32v_bar bar_info;
@@ -579,7 +584,7 @@ static void s32v234_pcie_setup_ep(struct pcie_port *pp)
 		| ((PCI_BASE_CLASS_PROCESSOR << 24) |
 			     (0x80 /* other */ << 16)),
 		pp->dbi_base + PCI_CLASS_REVISION);
-	#ifndef CONFIG_PCI_S32V234_ERR009852
+	#ifndef CONFIG_PCI_S32V234_IGNORE_ERR009852
 	/* Erratum ERR009852 requires us to avoid
 	 * any memory access from the RC! We solve this
 	 * by disabling all BARs and ROM access
@@ -842,8 +847,7 @@ static irqreturn_t s32v234_pcie_link_req_rst_not_handler(int irq, void *arg)
 	regmap_update_bits(s32v234_pcie->src, SRC_GPR11,
 				SRC_GPR11_PCIE_PCIE_CFG_READY,
 				SRC_GPR11_PCIE_PCIE_CFG_READY);
-	/* Ignore errata ERR009852*/
-	#ifdef CONFIG_PCI_S32V234_ERR009852
+	#ifdef CONFIG_PCI_S32V234_IGNORE_ERR009852
 	restore_inb_atu(pp);
 	restore_outb_atu(pp);
 	#endif
