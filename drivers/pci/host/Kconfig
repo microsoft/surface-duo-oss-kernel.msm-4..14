@@ -49,8 +49,8 @@ config PCI_S32V234_EP
 	For proper functionality the EP mode should also be enabled in
 	the U-Boot build configuration.
 	Otherwise you should set it to 'no'
-config PCI_S32V234_ERR009852
-	bool "Ignore Freescale S32V234 ERR009852"
+config PCI_S32V234_IGNORE_ERR009852
+	bool "Ignore Freescale S32V234 erratum ERR009852"
 	depends on OF && (ARM || ARM64) && PCI_S32V234_EP
 	help
 	Erratum ERR009852 limits inbound transactions over PCIe on certain,
