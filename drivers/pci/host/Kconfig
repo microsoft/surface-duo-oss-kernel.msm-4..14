@@ -50,14 +50,19 @@ config PCI_S32V234_EP
 	the U-Boot build configuration.
 	Otherwise you should set it to 'no'
 config PCI_S32V234_ERR009852
-	bool "Freescale S32V234 ERR009852 ignore"
+	bool "Ignore Freescale S32V234 ERR009852"
 	depends on OF && (ARM || ARM64) && PCI_S32V234_EP
 	help
-	If you're using a S32V234 based board and want to use the PCIe
-	EndPoint mode with enabled memory access from RC,
-	you want this enabled.
-	Be advised that enabling this ignores errata ERR009852
-	Otherwise you should set it to 'no'
+	Erratum ERR009852 limits inbound transactions over PCIe on certain,
+	older chipsets having maskset 0N71N. Outbound transactions are not
+	affected.
+	If you are using an affected variant of the SoC, you should leave
+	this option unchecked, unless for development purposes (and if you
+	know what you're doing).
+	On newer chipsets (e.g. maskset 1N71N or newer), it is safe to select
+	this option.
+	Clearing this option will make the EP's BAR registers inaccessible
+	from the RC.
 
 config PCI_DW_DMA
 	bool "Freescale S32V234 PCIe DW DMA"
