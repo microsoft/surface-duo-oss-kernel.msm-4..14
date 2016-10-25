@@ -218,6 +218,11 @@ config MDIO_BCM_UNIMAC
 	  controllers as well as some Broadcom Ethernet switches such as the
 	  Starfighter 2 switches.
 
+config NXP_TJA110X_PHY
+	tristate "Driver for NXP TJA110X PHY"
+	help
+	  Currently supports the TJA110X Ethernet PHYs.
+
 endif # PHYLIB
 
 config MICREL_KS8995MA
