@@ -23,6 +23,7 @@
 #include <linux/pinctrl/pinconf.h>
 #include <linux/pinctrl/pinconf-generic.h>
 
+#include "../core.h"
 #include "pinctrl-intel.h"
 
 /* Offset from regs */
@@ -1049,6 +1050,26 @@ int intel_pinctrl_remove(struct platform_device *pdev)
 EXPORT_SYMBOL_GPL(intel_pinctrl_remove);
 
 #ifdef CONFIG_PM_SLEEP
+static bool intel_pinctrl_should_save(struct intel_pinctrl *pctrl, unsigned pin)
+{
+	const struct pin_desc *pd = pin_desc_get(pctrl->pctldev, pin);
+
+	if (!pd || !intel_pad_usable(pctrl, pin))
+		return false;
+
+	/*
+	 * Only restore the pin if it is actually in use by the kernel (or
+	 * by userspace). It is possible that some pins are used by the
+	 * BIOS during resume and those are not always locked down so leave
+	 * them alone.
+	 */
+	if (pd->mux_owner || pd->gpio_owner ||
+	    gpiochip_line_is_irq(&pctrl->chip, pin))
+		return true;
+
+	return false;
+}
+
 int intel_pinctrl_suspend(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
@@ -1062,7 +1083,7 @@ int intel_pinctrl_suspend(struct device *dev)
 		const struct pinctrl_pin_desc *desc = &pctrl->soc->pins[i];
 		u32 val;
 
-		if (!intel_pad_usable(pctrl, desc->number))
+		if (!intel_pinctrl_should_save(pctrl, desc->number))
 			continue;
 
 		val = readl(intel_get_padcfg(pctrl, desc->number, PADCFG0));
@@ -1123,7 +1144,7 @@ int intel_pinctrl_resume(struct device *dev)
 		void __iomem *padcfg;
 		u32 val;
 
-		if (!intel_pad_usable(pctrl, desc->number))
+		if (!intel_pinctrl_should_save(pctrl, desc->number))
 			continue;
 
 		padcfg = intel_get_padcfg(pctrl, desc->number, PADCFG0);
