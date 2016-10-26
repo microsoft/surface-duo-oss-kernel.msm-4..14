@@ -1244,25 +1244,29 @@ static irqreturn_t msm_cci_irq(int irq_num, void *data)
 		if (cci_dev->cci_master_info[MASTER_0].reset_pending == TRUE) {
 			cci_dev->cci_master_info[MASTER_0].reset_pending =
 				FALSE;
+			cci_dev->cci_master_info[MASTER_0].status = 0;
 			complete(&cci_dev->cci_master_info[MASTER_0].
 				reset_complete);
 		}
 		if (cci_dev->cci_master_info[MASTER_1].reset_pending == TRUE) {
 			cci_dev->cci_master_info[MASTER_1].reset_pending =
 				FALSE;
+			cci_dev->cci_master_info[MASTER_1].status = 0;
 			complete(&cci_dev->cci_master_info[MASTER_1].
 				reset_complete);
 		}
 	}
-	if ((irq & CCI_IRQ_STATUS_0_I2C_M0_RD_DONE_BMSK) ||
+	if (((irq & CCI_IRQ_STATUS_0_I2C_M0_RD_DONE_BMSK) ||
 		(irq & CCI_IRQ_STATUS_0_I2C_M0_Q0_REPORT_BMSK) ||
-		(irq & CCI_IRQ_STATUS_0_I2C_M0_Q1_REPORT_BMSK)) {
+		(irq & CCI_IRQ_STATUS_0_I2C_M0_Q1_REPORT_BMSK)) &&
+			!(irq & CCI_IRQ_STATUS_0_I2C_M0_ERROR_BMSK)) {
 		cci_dev->cci_master_info[MASTER_0].status = 0;
 		complete(&cci_dev->cci_master_info[MASTER_0].reset_complete);
 	}
-	if ((irq & CCI_IRQ_STATUS_0_I2C_M1_RD_DONE_BMSK) ||
+	if (((irq & CCI_IRQ_STATUS_0_I2C_M1_RD_DONE_BMSK) ||
 		(irq & CCI_IRQ_STATUS_0_I2C_M1_Q0_REPORT_BMSK) ||
-		(irq & CCI_IRQ_STATUS_0_I2C_M1_Q1_REPORT_BMSK)) {
+		(irq & CCI_IRQ_STATUS_0_I2C_M1_Q1_REPORT_BMSK)) &&
+			!(irq & CCI_IRQ_STATUS_0_I2C_M1_ERROR_BMSK)) {
 		cci_dev->cci_master_info[MASTER_1].status = 0;
 		complete(&cci_dev->cci_master_info[MASTER_1].reset_complete);
 	}
