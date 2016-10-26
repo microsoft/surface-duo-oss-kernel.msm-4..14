@@ -428,6 +428,37 @@ static int s32v_pcie_iatu_inbound_set(struct pcie_port *pp,
 }
 
 #ifdef CONFIG_PCI_S32V234_IGNORE_ERR009852
+/* User choice: ignore erratum regardless of chip version. */
+static bool s32v234_pcie_ignore_err009852(void)
+{
+	return true;
+}
+#else
+/* It is safe to override Kconfig selection if the chip revision is in fact
+ * not affected by the erratum.
+ * We rely on u-boot passing the chip revision along, via the fdt.
+ */
+static bool s32v234_pcie_ignore_err009852(void)
+{
+	const char *path = "/chosen";
+	struct device_node *node;
+	const u32 *rev;
+	int len;
+	bool ret = false;
+
+	node = of_find_node_by_path(path);
+	if (!node)
+		goto err_find_node;
+
+	rev = of_get_property(node, "soc_revision", &len);
+	if (rev && (len == sizeof(u32)))
+		ret = (*rev > 0);
+
+err_find_node:
+	return ret;
+}
+#endif
+
 static void restore_inb_atu(struct pcie_port *pp)
 {
 	int i;
@@ -453,7 +484,6 @@ static void restore_outb_atu(struct pcie_port *pp)
 		s32v_pcie_iatu_outbound_set(pp, ptrOutb);
 	}
 }
-#endif
 
 static int s32v_get_bar_info(struct pcie_port *pp, void __user *argp)
 {
@@ -584,60 +614,61 @@ static void s32v234_pcie_setup_ep(struct pcie_port *pp)
 		| ((PCI_BASE_CLASS_PROCESSOR << 24) |
 			     (0x80 /* other */ << 16)),
 		pp->dbi_base + PCI_CLASS_REVISION);
-	#ifndef CONFIG_PCI_S32V234_IGNORE_ERR009852
+
 	/* Erratum ERR009852 requires us to avoid
 	 * any memory access from the RC! We solve this
 	 * by disabling all BARs and ROM access
 	 */
-	s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_0, 0, 0, 0);
-	s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_1,
-			     0, 0, 0);
-	s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_2,
-			     0, 0, 0);
-	s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_3,
-			     0, 0, 0);
-	s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_4,
-			     0, 0, 0);
-	s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_5,
-			     0, 0, 0);
-	s32v234_pcie_set_bar(pp, PCI_ROM_ADDRESS,
-			     0, 0, 0);
-	#else
-	s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_0,
-			     PCIE_BAR0_EN_DIS,
-			     PCIE_BAR0_SIZE,
-			     PCIE_BAR0_INIT);
-	s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_1,
-			     PCIE_BAR1_EN_DIS,
-			     PCIE_BAR1_SIZE,
-			     PCIE_BAR1_INIT);
-	s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_2,
-			     PCIE_BAR2_EN_DIS,
-			     PCIE_BAR2_SIZE,
-			     PCIE_BAR2_INIT);
-	s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_3,
-			     PCIE_BAR3_EN_DIS,
-			     PCIE_BAR3_SIZE,
-			     PCIE_BAR3_INIT);
-	s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_4,
-			     PCIE_BAR4_EN_DIS,
-			     PCIE_BAR4_SIZE,
-			     PCIE_BAR4_INIT);
-	s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_5,
-			     PCIE_BAR5_EN_DIS,
-			     PCIE_BAR5_SIZE,
-			     PCIE_BAR5_INIT);
-	s32v234_pcie_set_bar(pp, PCI_ROM_ADDRESS,
-			     PCIE_ROM_EN_DIS,
-			     PCIE_ROM_SIZE,
-			     PCIE_ROM_INIT);
+	if (s32v234_pcie_ignore_err009852()) {
+		s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_0,
+				     PCIE_BAR0_EN_DIS,
+				     PCIE_BAR0_SIZE,
+				     PCIE_BAR0_INIT);
+		s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_1,
+				     PCIE_BAR1_EN_DIS,
+				     PCIE_BAR1_SIZE,
+				     PCIE_BAR1_INIT);
+		s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_2,
+				     PCIE_BAR2_EN_DIS,
+				     PCIE_BAR2_SIZE,
+				     PCIE_BAR2_INIT);
+		s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_3,
+				     PCIE_BAR3_EN_DIS,
+				     PCIE_BAR3_SIZE,
+				     PCIE_BAR3_INIT);
+		s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_4,
+				     PCIE_BAR4_EN_DIS,
+				     PCIE_BAR4_SIZE,
+				     PCIE_BAR4_INIT);
+		s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_5,
+				     PCIE_BAR5_EN_DIS,
+				     PCIE_BAR5_SIZE,
+				     PCIE_BAR5_INIT);
+		s32v234_pcie_set_bar(pp, PCI_ROM_ADDRESS,
+				     PCIE_ROM_EN_DIS,
+				     PCIE_ROM_SIZE,
+				     PCIE_ROM_INIT);
 
-	writel(readl(pp->dbi_base + PCI_COMMAND)
-			| PCI_COMMAND_IO
-			| PCI_COMMAND_MEMORY
-			| PCI_COMMAND_MASTER,
-			pp->dbi_base + PCI_COMMAND);
-	#endif
+		writel(readl(pp->dbi_base + PCI_COMMAND)
+				| PCI_COMMAND_IO
+				| PCI_COMMAND_MEMORY
+				| PCI_COMMAND_MASTER,
+				pp->dbi_base + PCI_COMMAND);
+	} else {
+		s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_0, 0, 0, 0);
+		s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_1,
+				     0, 0, 0);
+		s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_2,
+				     0, 0, 0);
+		s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_3,
+				     0, 0, 0);
+		s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_4,
+				     0, 0, 0);
+		s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_5,
+				     0, 0, 0);
+		s32v234_pcie_set_bar(pp, PCI_ROM_ADDRESS,
+				     0, 0, 0);
+	}
 }
 
 #endif
@@ -847,10 +878,10 @@ static irqreturn_t s32v234_pcie_link_req_rst_not_handler(int irq, void *arg)
 	regmap_update_bits(s32v234_pcie->src, SRC_GPR11,
 				SRC_GPR11_PCIE_PCIE_CFG_READY,
 				SRC_GPR11_PCIE_PCIE_CFG_READY);
-	#ifdef CONFIG_PCI_S32V234_IGNORE_ERR009852
-	restore_inb_atu(pp);
-	restore_outb_atu(pp);
-	#endif
+	if (s32v234_pcie_ignore_err009852()) {
+		restore_inb_atu(pp);
+		restore_outb_atu(pp);
+	}
 	return IRQ_HANDLED;
 }
 #endif
