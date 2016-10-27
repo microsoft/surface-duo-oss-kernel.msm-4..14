@@ -128,61 +128,20 @@ static irqreturn_t ispif_isr(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
-/*
- * ispif_enable_clocks - Enable clocks for ISPIF module
- * @nclocks: Number of clocks in clock array
- * @clock: Clock array
- *
- * Return 0 on success or a negative error code otherwise
- */
-static int ispif_enable_clocks(int nclocks, struct clk **clock)
-{
-	int ret;
-	int i;
-
-	for (i = 0; i < nclocks; i++) {
-		ret = clk_prepare_enable(clock[i]);
-		if (ret) {
-			pr_err("clock enable failed\n");
-			goto error;
-		}
-	}
-
-	return 0;
-
-error:
-	for (i--; i >= 0; i--)
-		clk_disable_unprepare(clock[i]);
-
-	return ret;
-}
-
-/*
- * ispif_disable_clocks - Disable clocks for ISPIF module
- * @nclocks: Number of clocks in clock array
- * @clock: Clock array
- */
-static void ispif_disable_clocks(int nclocks, struct clk **clock)
-{
-	int i;
-
-	for (i = nclocks - 1; i >= 0; i--)
-		clk_disable_unprepare(clock[i]);
-}
-
 static int ispif_reset(struct ispif_device *ispif)
 {
 	int ret;
 
-	ret = ispif_enable_clocks(ispif->nclocks_for_reset,
-				  ispif->clock_for_reset);
+	ret = camss_enable_clocks(ispif->nclocks_for_reset,
+				  ispif->clock_for_reset,
+				  to_device(ispif));
 	if (ret < 0)
 		goto exit;
 
 	writel_relaxed(0x000f1fff, ispif->base + ISPIF_RST_CMD_0);
 	wait_for_completion(&ispif->reset_complete);
 
-	ispif_disable_clocks(ispif->nclocks_for_reset, ispif->clock_for_reset);
+	camss_disable_clocks(ispif->nclocks_for_reset, ispif->clock_for_reset);
 
 exit:
 	return ret;
@@ -212,13 +171,14 @@ static int ispif_set_power(struct v4l2_subdev *sd, int on)
 			goto exit;
 		}
 
-		ret = ispif_enable_clocks(ispif->nclocks, ispif->clock);
+		ret = camss_enable_clocks(ispif->nclocks, ispif->clock,
+					  to_device(ispif));
 		if (ret < 0)
 			goto exit;
 
 		ret = ispif_reset(ispif);
 		if (ret < 0) {
-			ispif_disable_clocks(ispif->nclocks, ispif->clock);
+			camss_disable_clocks(ispif->nclocks, ispif->clock);
 			goto exit;
 		}
 
@@ -234,7 +194,7 @@ static int ispif_set_power(struct v4l2_subdev *sd, int on)
 				__func__);
 			goto exit;
 		} else if (ispif->power_count == 1) {
-			ispif_disable_clocks(ispif->nclocks, ispif->clock);
+			camss_disable_clocks(ispif->nclocks, ispif->clock);
 		}
 
 		ispif->power_count--;

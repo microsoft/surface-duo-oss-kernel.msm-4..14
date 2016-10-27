@@ -1147,64 +1147,6 @@ static void vfe_bus_release(struct vfe_device *vfe)
 	}
 }
 
-/*
- * vfe_enable_clocks - Enable clocks for VFE module and
- * set clock rates where needed
- * @nclocks: Number of clocks in clock array
- * @clock: Clock array
- * @clock_rate: Clock rates array
- *
- * Return 0 on success or a negative error code otherwise
- */
-static int vfe_enable_clocks(int nclocks, struct clk **clock, s32 *clock_rate)
-{
-	long clk_rate;
-	int i;
-	int ret;
-
-	for (i = 0; i < nclocks; i++) {
-		if (clock_rate[i]) {
-			clk_rate = clk_round_rate(clock[i], clock_rate[i]);
-			if (clk_rate < 0) {
-				pr_err("clock round rate failed\n");
-				ret = clk_rate;
-				goto error;
-			}
-			ret = clk_set_rate(clock[i], clk_rate);
-			if (ret < 0) {
-				pr_err("clock set rate failed\n");
-				goto error;
-			}
-		}
-		ret = clk_prepare_enable(clock[i]);
-		if (ret) {
-			pr_err("clock enable failed\n");
-			goto error;
-		}
-	}
-
-	return 0;
-
-error:
-	for (i--; i >= 0; i--)
-		clk_disable_unprepare(clock[i]);
-
-	return ret;
-}
-
-/*
- * vfe_disable_clocks - Disable clocks for VFE module
- * @nclocks: Number of clocks in clock array
- * @clock: Clock array
- */
-static void vfe_disable_clocks(int nclocks, struct clk **clock)
-{
-	int i;
-
-	for (i = nclocks - 1; i >= 0; i--)
-		clk_disable_unprepare(clock[i]);
-}
-
 static int vfe_get(struct vfe_device *vfe)
 {
 	int ret;
@@ -1220,8 +1162,8 @@ static int vfe_get(struct vfe_device *vfe)
 			goto error_clocks;
 		}
 
-		ret = vfe_enable_clocks(vfe->nclocks, vfe->clock,
-					vfe->clock_rate);
+		ret = camss_enable_clocks(vfe->nclocks, vfe->clock,
+					  to_device(vfe));
 		if (ret < 0) {
 			dev_err(to_device(vfe), "Fail to enable clocks\n");
 			goto error_clocks;
@@ -1240,7 +1182,7 @@ static int vfe_get(struct vfe_device *vfe)
 	return 0;
 
 error_reset:
-	vfe_disable_clocks(vfe->nclocks, vfe->clock);
+	camss_disable_clocks(vfe->nclocks, vfe->clock);
 
 error_clocks:
 	mutex_unlock(&vfe->power_lock);
@@ -1259,7 +1201,7 @@ static void vfe_put(struct vfe_device *vfe)
 			vfe_halt(vfe);
 		}
 		vfe_bus_release(vfe);
-		vfe_disable_clocks(vfe->nclocks, vfe->clock);
+		camss_disable_clocks(vfe->nclocks, vfe->clock);
 	}
 	mutex_unlock(&vfe->power_lock);
 }
@@ -1674,18 +1616,25 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 		return -ENOMEM;
 	}
 
-	vfe->clock_rate = devm_kzalloc(dev, vfe->nclocks *
-				       sizeof(*vfe->clock_rate), GFP_KERNEL);
-	if (!vfe->clock_rate) {
-		dev_err(dev, "could not allocate memory\n");
-		return -ENOMEM;
-	}
-
 	for (i = 0; i < vfe->nclocks; i++) {
 		vfe->clock[i] = devm_clk_get(dev, res->clock[i]);
 		if (IS_ERR(vfe->clock[i]))
 			return PTR_ERR(vfe->clock[i]);
-		vfe->clock_rate[i] = res->clock_rate[i];
+
+		if (res->clock_rate[i]) {
+			long clk_rate = clk_round_rate(vfe->clock[i],
+						       res->clock_rate[i]);
+			if (clk_rate < 0) {
+				dev_err(dev, "clk round rate failed\n");
+				return -EINVAL;
+			}
+			ret = clk_set_rate(vfe->clock[i], clk_rate);
+			if (ret < 0) {
+				dev_err(dev, "clk set rate failed\n");
+				return ret;
+			}
+		}
+
 	}
 
 	/* MSM Bus */

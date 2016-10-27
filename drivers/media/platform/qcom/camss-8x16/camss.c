@@ -15,6 +15,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+#include <linux/clk.h>
 #include <linux/media-bus-format.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
@@ -96,6 +97,49 @@ static struct resources vfe_res = {
 	.reg = { "vfe0", "vfe0_vbif" },
 	.interrupt = { "vfe0" }
 };
+
+/*
+ * camss_enable_clocks - Enable multiple clocks
+ * @nclocks: Number of clocks in clock array
+ * @clock: Clock array
+ * @dev: Device
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+int camss_enable_clocks(int nclocks, struct clk **clock, struct device *dev)
+{
+	int ret;
+	int i;
+
+	for (i = 0; i < nclocks; i++) {
+		ret = clk_prepare_enable(clock[i]);
+		if (ret) {
+			dev_err(dev, "clock enable failed\n");
+			goto error;
+		}
+	}
+
+	return 0;
+
+error:
+	for (i--; i >= 0; i--)
+		clk_disable_unprepare(clock[i]);
+
+	return ret;
+}
+
+/*
+ * camss_disable_clocks - Disable multiple clocks
+ * @nclocks: Number of clocks in clock array
+ * @clock: Clock array
+ */
+void camss_disable_clocks(int nclocks, struct clk **clock)
+{
+	int i;
+
+	for (i = nclocks - 1; i >= 0; i--)
+		clk_disable_unprepare(clock[i]);
+}
 
 /*
  * camss_pipeline_pm_use_count - Count the number of users of a pipeline

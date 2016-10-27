@@ -203,64 +203,6 @@ static irqreturn_t csid_isr(int irq, void *dev)
 }
 
 /*
- * csid_enable_clocks - Enable clocks for CSID module and
- * set clock rates where needed
- * @nclocks: Number of clocks in clock array
- * @clock: Clock array
- * @clock_rate: Clock rates array
- *
- * Return 0 on success or a negative error code otherwise
- */
-static int csid_enable_clocks(int nclocks, struct clk **clock, s32 *clock_rate)
-{
-	long clk_rate;
-	int ret;
-	int i;
-
-	for (i = 0; i < nclocks; i++) {
-		if (clock_rate[i]) {
-			clk_rate = clk_round_rate(clock[i], clock_rate[i]);
-			if (clk_rate < 0) {
-				pr_err("clock round rate failed\n");
-				ret = clk_rate;
-				goto error;
-			}
-			ret = clk_set_rate(clock[i], clk_rate);
-			if (ret < 0) {
-				pr_err("clock set rate failed\n");
-				goto error;
-			}
-		}
-		ret = clk_prepare_enable(clock[i]);
-		if (ret) {
-			pr_err("clock enable failed\n");
-			goto error;
-		}
-	}
-
-	return 0;
-
-error:
-	for (i--; i >= 0; i--)
-		clk_disable_unprepare(clock[i]);
-
-	return ret;
-}
-
-/*
- * csid_disable_clocks - Disable clocks for CSID module
- * @nclocks: Number of clocks in clock array
- * @clock: Clock array
- */
-static void csid_disable_clocks(int nclocks, struct clk **clock)
-{
-	int i;
-
-	for (i = nclocks - 1; i >= 0; i--)
-		clk_disable_unprepare(clock[i]);
-}
-
-/*
  * csid_set_power - Power on/off CSID module
  * @sd: CSID V4L2 subdevice
  * @on: Requested power state
@@ -282,8 +224,8 @@ static int csid_set_power(struct v4l2_subdev *sd, int on)
 		if (ret < 0)
 			return ret;
 
-		ret = csid_enable_clocks(csid->nclocks, csid->clock,
-					 csid->clock_rate);
+		ret = camss_enable_clocks(csid->nclocks, csid->clock,
+					  to_device_index(csid, csid->id));
 		if (ret < 0)
 			return ret;
 
@@ -298,7 +240,7 @@ static int csid_set_power(struct v4l2_subdev *sd, int on)
 	} else {
 		disable_irq(csid->irq);
 
-		csid_disable_clocks(csid->nclocks, csid->clock);
+		camss_disable_clocks(csid->nclocks, csid->clock);
 
 		ret = regulator_disable(csid->vdda);
 		if (ret < 0)
@@ -852,18 +794,26 @@ int msm_csid_subdev_init(struct csid_device *csid,
 		return -ENOMEM;
 	}
 
-	csid->clock_rate = devm_kzalloc(dev, csid->nclocks *
-					sizeof(*csid->clock_rate), GFP_KERNEL);
-	if (!csid->clock_rate) {
-		dev_err(dev, "could not allocate memory\n");
-		return -ENOMEM;
-	}
-
 	for (i = 0; i < csid->nclocks; i++) {
 		csid->clock[i] = devm_clk_get(dev, res->clock[i]);
 		if (IS_ERR(csid->clock[i]))
 			return PTR_ERR(csid->clock[i]);
-		csid->clock_rate[i] = res->clock_rate[i];
+
+		if (res->clock_rate[i]) {
+			long clk_rate = clk_round_rate(csid->clock[i],
+						       res->clock_rate[i]);
+			if (clk_rate < 0) {
+				dev_err(to_device_index(csid, csid->id),
+					"clk round rate failed\n");
+				return -EINVAL;
+			}
+			ret = clk_set_rate(csid->clock[i], clk_rate);
+			if (ret < 0) {
+				dev_err(to_device_index(csid, csid->id),
+					"clk set rate failed\n");
+				return ret;
+			}
+		}
 	}
 
 	/* Regulator */

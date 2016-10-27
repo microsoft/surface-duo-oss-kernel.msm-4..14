@@ -88,6 +88,8 @@ struct camss_async_subdev {
 	struct v4l2_async_subdev asd;
 };
 
+int camss_enable_clocks(int nclocks, struct clk **clock, struct device *dev);
+void camss_disable_clocks(int nclocks, struct clk **clock);
 int msm_camss_pipeline_pm_use(struct media_entity *entity, int use);
 
 #endif /* QC_MSM_CAMSS_H */

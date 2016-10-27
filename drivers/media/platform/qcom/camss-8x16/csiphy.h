@@ -58,7 +58,6 @@ struct csiphy_device {
 	void __iomem *base_clk_mux;
 	u32 irq;
 	struct clk **clock;
-	s32 *clock_rate;
 	int nclocks;
 	struct csiphy_config cfg;
 	struct v4l2_mbus_framefmt fmt[MSM_CSIPHY_PADS_NUM];

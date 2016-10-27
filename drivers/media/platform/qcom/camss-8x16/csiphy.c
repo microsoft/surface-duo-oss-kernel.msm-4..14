@@ -102,68 +102,6 @@ static void csiphy_reset(struct csiphy_device *csiphy)
 }
 
 /*
- * csiphy_enable_clocks - Enable clocks for CSIPHY module and
- * set clock rates where needed
- * @nclocks: Number of clocks in clock array
- * @clock: Clock array
- * @clock_rate: Clock rates array
- *
- * Return 0 on success or a negative error code otherwise
- */
-static int csiphy_enable_clocks(struct csiphy_device *csiphy)
-{
-	long clk_rate;
-	int ret;
-	int i;
-
-	for (i = 0; i < csiphy->nclocks; i++) {
-		if (csiphy->clock_rate[i]) {
-			clk_rate = clk_round_rate(csiphy->clock[i],
-						  csiphy->clock_rate[i]);
-			if (clk_rate < 0) {
-				dev_err(to_device_index(csiphy, csiphy->id),
-					"round failed\n");
-				ret = clk_rate;
-				goto error;
-			}
-			ret = clk_set_rate(csiphy->clock[i], clk_rate);
-			if (ret < 0) {
-				dev_err(to_device_index(csiphy, csiphy->id),
-					"set rate failed\n");
-				goto error;
-			}
-		}
-		ret = clk_prepare_enable(csiphy->clock[i]);
-		if (ret) {
-			dev_err(to_device_index(csiphy, csiphy->id),
-				"clk enable failed\n");
-			goto error;
-		}
-	}
-
-	return 0;
-
-error:
-	for (i--; i >= 0; i--)
-		clk_disable_unprepare(csiphy->clock[i]);
-
-	return ret;
-}
-
-/*
- * csiphy_disable_clocks - Disable clocks for CSIPHY module
- * @nclocks: Number of clocks in clock array
- * @clock: Clock array
- */
-static void csiphy_disable_clocks(struct csiphy_device *csiphy)
-{
-	int i;
-
-	for (i = csiphy->nclocks - 1; i >= 0; i--)
-		clk_disable_unprepare(csiphy->clock[i]);
-}
-
-/*
  * csiphy_set_power - Power on/off CSIPHY module
  * @sd: CSIPHY V4L2 subdevice
  * @on: Requested power state
@@ -182,7 +120,8 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 	if (on) {
 		u8 hw_version;
 
-		ret = csiphy_enable_clocks(csiphy);
+		ret = camss_enable_clocks(csiphy->nclocks, csiphy->clock,
+					  to_device_index(csiphy, csiphy->id));
 		if (ret < 0)
 			return ret;
 
@@ -198,7 +137,7 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 	} else {
 		disable_irq(csiphy->irq);
 
-		csiphy_disable_clocks(csiphy);
+		camss_disable_clocks(csiphy->nclocks, csiphy->clock);
 	}
 
 	dev_dbg(to_device_index(csiphy, csiphy->id),
@@ -603,18 +542,26 @@ int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
 		return -ENOMEM;
 	}
 
-	csiphy->clock_rate = devm_kzalloc(dev, csiphy->nclocks *
-					  sizeof(*csiphy->clock_rate), GFP_KERNEL);
-	if (!csiphy->clock_rate) {
-		dev_err(dev, "could not allocate memory\n");
-		return -ENOMEM;
-	}
-
 	for (i = 0; i < csiphy->nclocks; i++) {
 		csiphy->clock[i] = devm_clk_get(dev, res->clock[i]);
 		if (IS_ERR(csiphy->clock[i]))
 			return PTR_ERR(csiphy->clock[i]);
-		csiphy->clock_rate[i] = res->clock_rate[i];
+
+		if (res->clock_rate[i]) {
+			long clk_rate = clk_round_rate(csiphy->clock[i],
+						       res->clock_rate[i]);
+			if (clk_rate < 0) {
+				dev_err(to_device_index(csiphy, csiphy->id),
+					"clk round rate failed\n");
+				return -EINVAL;
+			}
+			ret = clk_set_rate(csiphy->clock[i], clk_rate);
+			if (ret < 0) {
+				dev_err(to_device_index(csiphy, csiphy->id),
+					"clk set rate failed\n");
+				return ret;
+			}
+		}
 	}
 
 	dev_err(dev, "%s: Exit\n", __func__);
