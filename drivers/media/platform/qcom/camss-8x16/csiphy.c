@@ -641,6 +641,9 @@ static int csiphy_link_setup(struct media_entity *entity,
 		struct csiphy_device *csiphy;
 		struct csid_device *csid;
 
+		if (media_entity_remote_pad((struct media_pad *)local))
+			return -EBUSY;
+
 		sd = container_of(entity, struct v4l2_subdev, entity);
 		csiphy = v4l2_get_subdevdata(sd);
 

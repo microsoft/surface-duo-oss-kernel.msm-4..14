@@ -1725,6 +1725,17 @@ void msm_vfe_get_vfe_line_id(struct media_entity *entity, enum vfe_line_id *id)
 	*id = line->id;
 }
 
+static int vfe_link_setup(struct media_entity *entity,
+			  const struct media_pad *local,
+			  const struct media_pad *remote, u32 flags)
+{
+	if (flags & MEDIA_LNK_FL_ENABLED)
+		if (media_entity_remote_pad((struct media_pad *)local))
+			return -EBUSY;
+
+	return 0;
+}
+
 static const struct v4l2_subdev_core_ops vfe_core_ops = {
 	.s_power = vfe_set_power,
 };
@@ -1749,6 +1760,7 @@ static const struct v4l2_subdev_ops vfe_v4l2_ops = {
 static const struct v4l2_subdev_internal_ops vfe_v4l2_internal_ops;
 
 static const struct media_entity_operations vfe_media_ops = {
+	.link_setup = vfe_link_setup,
 	.link_validate = v4l2_subdev_link_validate,
 };
 

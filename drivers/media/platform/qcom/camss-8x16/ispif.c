@@ -921,30 +921,33 @@ static enum ispif_intf ispif_get_intf(enum vfe_line_id line_id)
 }
 
 static int ispif_link_setup(struct media_entity *entity,
-			   const struct media_pad *local,
-			   const struct media_pad *remote, u32 flags)
+			    const struct media_pad *local,
+			    const struct media_pad *remote, u32 flags)
 {
-	if ((local->flags & MEDIA_PAD_FL_SINK) &&
-	    (flags & MEDIA_LNK_FL_ENABLED)) {
-		struct v4l2_subdev *sd;
-		struct ispif_line *line;
+	if (flags & MEDIA_LNK_FL_ENABLED) {
+		if (media_entity_remote_pad((struct media_pad *)local))
+			return -EBUSY;
 
-		sd = container_of(entity, struct v4l2_subdev, entity);
-		line = v4l2_get_subdevdata(sd);
+		if (local->flags & MEDIA_PAD_FL_SINK) {
+			struct v4l2_subdev *sd;
+			struct ispif_line *line;
 
-		msm_csid_get_csid_id(remote->entity, &line->csid_id);
-	} else if ((local->flags & MEDIA_PAD_FL_SOURCE) &&
-		   (flags & MEDIA_LNK_FL_ENABLED)) {
-		struct v4l2_subdev *sd;
-		struct ispif_line *line;
-		enum vfe_line_id id;
+			sd = container_of(entity, struct v4l2_subdev, entity);
+			line = v4l2_get_subdevdata(sd);
 
-		sd = container_of(entity, struct v4l2_subdev, entity);
-		line = v4l2_get_subdevdata(sd);
+			msm_csid_get_csid_id(remote->entity, &line->csid_id);
+		} else { /* MEDIA_PAD_FL_SOURCE */
+			struct v4l2_subdev *sd;
+			struct ispif_line *line;
+			enum vfe_line_id id;
 
-		msm_vfe_get_vfe_id(remote->entity, &line->vfe_id);
-		msm_vfe_get_vfe_line_id(remote->entity, &id);
-		line->interface = ispif_get_intf(id);
+			sd = container_of(entity, struct v4l2_subdev, entity);
+			line = v4l2_get_subdevdata(sd);
+
+			msm_vfe_get_vfe_id(remote->entity, &line->vfe_id);
+			msm_vfe_get_vfe_line_id(remote->entity, &id);
+			line->interface = ispif_get_intf(id);
+		}
 	}
 
 	return 0;
