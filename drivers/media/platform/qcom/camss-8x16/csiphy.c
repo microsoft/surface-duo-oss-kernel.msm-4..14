@@ -32,8 +32,6 @@
 
 #define CAMSS_CSI_PHY_LNn_CFG2(n)		(0x004 + 0x40 * (n))
 #define CAMSS_CSI_PHY_LNn_CFG3(n)		(0x008 + 0x40 * (n))
-#define CAMSS_CSI_PHY_LNn_MISC1(n)		(0x028 + 0x40 * (n))
-#define CAMSS_CSI_PHY_LNn_TEST_IMP(n)		(0x01c + 0x40 * (n))
 #define CAMSS_CSI_PHY_GLBL_RESET		0x140
 #define CAMSS_CSI_PHY_GLBL_PWR_CFG		0x144
 #define CAMSS_CSI_PHY_GLBL_IRQ_CMD		0x164
@@ -73,13 +71,12 @@ static const u32 csiphy_formats[] = {
 static irqreturn_t csiphy_isr(int irq, void *dev)
 {
 	struct csiphy_device *csiphy = dev;
-	u8 val[8];
 	u8 i;
 
 	for (i = 0; i < 8; i++) {
-		val[i] = readl_relaxed(csiphy->base +
+		u8 val = readl_relaxed(csiphy->base +
 				       CAMSS_CSI_PHY_INTERRUPT_STATUSn(i));
-		writel_relaxed(val[i], csiphy->base +
+		writel_relaxed(val, csiphy->base +
 			       CAMSS_CSI_PHY_INTERRUPT_CLEARn(i));
 		writel_relaxed(0x1, csiphy->base + CAMSS_CSI_PHY_GLBL_IRQ_CMD);
 		writel_relaxed(0x0, csiphy->base + CAMSS_CSI_PHY_GLBL_IRQ_CMD);
@@ -111,17 +108,13 @@ static void csiphy_reset(struct csiphy_device *csiphy)
 static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 {
 	struct csiphy_device *csiphy = v4l2_get_subdevdata(sd);
+	struct device *dev = to_device_index(csiphy, csiphy->id);
 	int ret;
-
-	dev_dbg(to_device_index(csiphy, csiphy->id),
-		"%s: Enter, csiphy%d on = %d\n",
-		__func__, csiphy->id, on);
 
 	if (on) {
 		u8 hw_version;
 
-		ret = camss_enable_clocks(csiphy->nclocks, csiphy->clock,
-					  to_device_index(csiphy, csiphy->id));
+		ret = camss_enable_clocks(csiphy->nclocks, csiphy->clock, dev);
 		if (ret < 0)
 			return ret;
 
@@ -131,18 +124,12 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 
 		hw_version = readl_relaxed(csiphy->base +
 					   CAMSS_CSI_PHY_HW_VERSION);
-		dev_dbg(to_device_index(csiphy, csiphy->id),
-			"CSIPHY HW Version = 0x%02x\n",
-			hw_version);
+		dev_dbg(dev, "CSIPHY HW Version = 0x%02x\n", hw_version);
 	} else {
 		disable_irq(csiphy->irq);
 
 		camss_disable_clocks(csiphy->nclocks, csiphy->clock);
 	}
-
-	dev_dbg(to_device_index(csiphy, csiphy->id),
-		"%s: Exit csiphy%d on = %d\n",
-		__func__, csiphy->id, on);
 
 	return 0;
 }
@@ -153,9 +140,9 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
  *
  * Return lane mask
  */
-static int csiphy_get_lane_mask(struct csiphy_lanes_cfg *lane_cfg)
+static u8 csiphy_get_lane_mask(struct csiphy_lanes_cfg *lane_cfg)
 {
-	u16 lane_mask;
+	u8 lane_mask;
 	int i;
 
 	lane_mask = 1 << lane_cfg->clk.pos;
@@ -167,90 +154,97 @@ static int csiphy_get_lane_mask(struct csiphy_lanes_cfg *lane_cfg)
 }
 
 /*
- * csiphy_set_stream - Enable/disable streaming on CSIPHY module
- * @sd: CSIPHY V4L2 subdevice
- * @enable: Requested streaming state
+ * csiphy_stream_on - Enable streaming on CSIPHY module
+ * @csiphy: CSIPHY device
  *
+ * Helper function to enable streaming on CSIPHY module.
  * Main configuration of CSIPHY module is also done here.
- *
- * Return 0 on success or a negative error code otherwise
  */
-static int csiphy_set_stream(struct v4l2_subdev *sd, int enable)
+static void csiphy_stream_on(struct csiphy_device *csiphy)
 {
-	struct csiphy_device *csiphy = v4l2_get_subdevdata(sd);
 	struct csiphy_config *cfg = &csiphy->cfg;
-	u16 lane_mask = csiphy_get_lane_mask(&cfg->csi2->lane_cfg);
-	u8 i;
+	u8 lane_mask = csiphy_get_lane_mask(&cfg->csi2->lane_cfg);
 	u8 val;
+	int i = 0;
 
-	dev_dbg(to_device_index(csiphy, csiphy->id),
-		"%s: Enter, csiphy%d enable = %d\n",
-		__func__, csiphy->id, enable);
+	val = readl_relaxed(csiphy->base_clk_mux);
+	if (cfg->combo_mode && (lane_mask & 0x18) == 0x18) {
+		val &= ~0xf0;
+		val |= cfg->csid_id << 4;
+	} else {
+		val &= ~0xf;
+		val |= cfg->csid_id;
+	}
+	writel_relaxed(val, csiphy->base_clk_mux);
 
-	if (enable) {
-		val = readl_relaxed(csiphy->base_clk_mux);
-		if (cfg->combo_mode && (lane_mask & 0x18) == 0x18) {
-			val &= ~0xf0;
-			val |= cfg->csid_id << 4;
-		} else {
-			val &= ~0xf;
-			val |= cfg->csid_id;
-		}
-		writel_relaxed(val, csiphy->base_clk_mux);
+	writel_relaxed(0x1, csiphy->base +
+		       CAMSS_CSI_PHY_GLBL_T_INIT_CFG0);
+	writel_relaxed(0x1, csiphy->base +
+		       CAMSS_CSI_PHY_T_WAKEUP_CFG0);
 
-		writel_relaxed(0x1, csiphy->base +
-			       CAMSS_CSI_PHY_GLBL_T_INIT_CFG0);
-		writel_relaxed(0x1, csiphy->base +
-			       CAMSS_CSI_PHY_T_WAKEUP_CFG0);
+	val = 0x1;
+	val |= lane_mask << 1;
+	writel_relaxed(val, csiphy->base + CAMSS_CSI_PHY_GLBL_PWR_CFG);
 
-		val = 0x1;
-		val |= lane_mask << 1;
-		writel_relaxed(val, csiphy->base + CAMSS_CSI_PHY_GLBL_PWR_CFG);
+	val = cfg->combo_mode << 4;
+	writel_relaxed(val, csiphy->base + CAMSS_CSI_PHY_GLBL_RESET);
 
-		val = cfg->combo_mode << 4;
-		writel_relaxed(val, csiphy->base + CAMSS_CSI_PHY_GLBL_RESET);
-
-		lane_mask &= 0x1f;
-		i = 0;
-		while (lane_mask & 0x1f) {
-			if (!(lane_mask & 0x1)) {
-				i++;
-				lane_mask >>= 1;
-				continue;
-			}
-
+	while (lane_mask) {
+		if (lane_mask & 0x1) {
 			writel_relaxed(0x10, csiphy->base +
 				       CAMSS_CSI_PHY_LNn_CFG2(i));
 			writel_relaxed(cfg->csi2->settle_cnt, csiphy->base +
 				       CAMSS_CSI_PHY_LNn_CFG3(i));
-
 			writel_relaxed(0x3f, csiphy->base +
 				       CAMSS_CSI_PHY_INTERRUPT_MASKn(i));
 			writel_relaxed(0x3f, csiphy->base +
 				       CAMSS_CSI_PHY_INTERRUPT_CLEARn(i));
-
-			i++;
-			lane_mask >>= 1;
-		}
-	} else {
-		i = 0;
-		while (lane_mask) {
-			if (lane_mask & 0x1) {
-				writel_relaxed(0x0, csiphy->base +
-					       CAMSS_CSI_PHY_LNn_CFG2(i));
-				writel_relaxed(0x0, csiphy->base +
-					       CAMSS_CSI_PHY_LNn_MISC1(i));
-				writel_relaxed(0x0, csiphy->base +
-					       CAMSS_CSI_PHY_LNn_TEST_IMP(i));
-			}
-
-			lane_mask >>= 1;
-			i++;
 		}
 
-		writel_relaxed(0x0, csiphy->base + CAMSS_CSI_PHY_LNn_CFG2(4));
-		writel_relaxed(0x0, csiphy->base + CAMSS_CSI_PHY_GLBL_PWR_CFG);
+		lane_mask >>= 1;
+		i++;
 	}
+}
+
+/*
+ * csiphy_stream_off - Disable streaming on CSIPHY module
+ * @csiphy: CSIPHY device
+ *
+ * Helper function to disable streaming on CSIPHY module
+ */
+static void csiphy_stream_off(struct csiphy_device *csiphy)
+{
+	u8 lane_mask = csiphy_get_lane_mask(&csiphy->cfg.csi2->lane_cfg);
+	int i = 0;
+
+	while (lane_mask) {
+		if (lane_mask & 0x1)
+			writel_relaxed(0x0, csiphy->base +
+				       CAMSS_CSI_PHY_LNn_CFG2(i));
+
+		lane_mask >>= 1;
+		i++;
+	}
+
+	writel_relaxed(0x0, csiphy->base + CAMSS_CSI_PHY_GLBL_PWR_CFG);
+}
+
+
+/*
+ * csiphy_set_stream - Enable/disable streaming on CSIPHY module
+ * @sd: CSIPHY V4L2 subdevice
+ * @enable: Requested streaming state
+ *
+ * Return 0 (awlays succeeds)
+ */
+static int csiphy_set_stream(struct v4l2_subdev *sd, int enable)
+{
+	struct csiphy_device *csiphy = v4l2_get_subdevdata(sd);
+
+	if (enable)
+		csiphy_stream_on(csiphy);
+	else
+		csiphy_stream_off(csiphy);
 
 	return 0;
 }
@@ -310,6 +304,8 @@ static void csiphy_try_format(struct csiphy_device *csiphy,
 		if (fmt->field == V4L2_FIELD_ANY)
 			fmt->field = V4L2_FIELD_NONE;
 
+		fmt->colorspace = V4L2_COLORSPACE_SRGB;
+
 		break;
 
 	case MSM_CSIPHY_PAD_SRC:
@@ -320,8 +316,6 @@ static void csiphy_try_format(struct csiphy_device *csiphy,
 
 		break;
 	}
-
-	fmt->colorspace = V4L2_COLORSPACE_SRGB;
 }
 
 /*
@@ -455,28 +449,30 @@ static int csiphy_set_format(struct v4l2_subdev *sd,
 /*
  * csiphy_init_formats - Initialize formats on all pads
  * @sd: CSIPHY V4L2 subdevice
+ * @fh: V4L2 subdev file handle
  *
  * Initialize all pad formats with default values.
+ *
+ * Return 0 on success or a negative error code otherwise
  */
-static int csiphy_init_formats(struct v4l2_subdev *sd)
+static int csiphy_init_formats(struct v4l2_subdev *sd,
+			       struct v4l2_subdev_fh *fh)
 {
 	struct v4l2_subdev_format format;
 
 	memset(&format, 0, sizeof(format));
 	format.pad = MSM_CSIPHY_PAD_SINK;
-	format.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+	format.which = fh ? V4L2_SUBDEV_FORMAT_TRY : V4L2_SUBDEV_FORMAT_ACTIVE;
 	format.format.code = MEDIA_BUS_FMT_UYVY8_2X8;
 	format.format.width = 1920;
 	format.format.height = 1080;
-	csiphy_set_format(sd, NULL, &format);
 
-	return 0;
+	return csiphy_set_format(sd, fh ? fh->pad : NULL, &format);
 }
 
 /*
  * msm_csiphy_subdev_init - Initialize CSIPHY device structure and resources
  * @csiphy: CSIPHY device
- * @camss: Camera sub-system structure
  * @res: CSIPHY module resources table
  * @id: CSIPHY module id
  *
@@ -486,15 +482,13 @@ int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
 			   struct resources *res, u8 id)
 {
 	struct device *dev = to_device_index(csiphy, id);
-	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct platform_device *pdev = container_of(dev,
+						struct platform_device, dev);
 	struct resource *r;
 	int i;
 	int ret;
 
-	dev_err(dev, "%s: Enter\n", __func__);
-
 	csiphy->id = id;
-
 	csiphy->cfg.combo_mode = 0;
 
 	/* Memory */
@@ -515,13 +509,16 @@ int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
 
 	/* Interrupt */
 
-	r = platform_get_resource_byname(pdev, IORESOURCE_IRQ, res->interrupt[0]);
+	r = platform_get_resource_byname(pdev, IORESOURCE_IRQ,
+					 res->interrupt[0]);
 	csiphy->irq = r->start;
 	if (IS_ERR_VALUE(csiphy->irq))
 		return csiphy->irq;
 
+	snprintf(csiphy->irq_name, sizeof(csiphy->irq_name), "%s_%s%d",
+		 dev_name(dev), MSM_CSIPHY_NAME, csiphy->id);
 	ret = devm_request_irq(dev, csiphy->irq, csiphy_isr,
-		IRQF_TRIGGER_RISING, dev_name(dev), csiphy);
+			       IRQF_TRIGGER_RISING, csiphy->irq_name, csiphy);
 	if (ret < 0) {
 		dev_err(dev, "request_irq failed\n");
 		return ret;
@@ -563,8 +560,6 @@ int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
 			}
 		}
 	}
-
-	dev_err(dev, "%s: Exit\n", __func__);
 
 	return 0;
 }
@@ -624,7 +619,9 @@ static const struct v4l2_subdev_ops csiphy_v4l2_ops = {
 	.pad = &csiphy_pad_ops,
 };
 
-static const struct v4l2_subdev_internal_ops csiphy_v4l2_internal_ops;
+static const struct v4l2_subdev_internal_ops csiphy_v4l2_internal_ops = {
+	.open = csiphy_init_formats,
+};
 
 static const struct media_entity_operations csiphy_media_ops = {
 	.link_setup = csiphy_link_setup,
@@ -643,6 +640,7 @@ int msm_csiphy_register_entities(struct csiphy_device *csiphy,
 {
 	struct v4l2_subdev *sd = &csiphy->subdev;
 	struct media_pad *pads = csiphy->pads;
+	struct device *dev = to_device_index(csiphy, csiphy->id);
 	int ret;
 
 	v4l2_subdev_init(sd, &csiphy_v4l2_ops);
@@ -652,7 +650,11 @@ int msm_csiphy_register_entities(struct csiphy_device *csiphy,
 		 MSM_CSIPHY_NAME, csiphy->id);
 	v4l2_set_subdevdata(sd, csiphy);
 
-	csiphy_init_formats(sd);
+	ret = csiphy_init_formats(sd, NULL);
+	if (ret < 0) {
+		dev_err(dev, "Failed to init format\n");
+		return ret;
+	}
 
 	pads[MSM_CSIPHY_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
 	pads[MSM_CSIPHY_PAD_SRC].flags = MEDIA_PAD_FL_SOURCE;
@@ -660,13 +662,13 @@ int msm_csiphy_register_entities(struct csiphy_device *csiphy,
 	sd->entity.ops = &csiphy_media_ops;
 	ret = media_entity_init(&sd->entity, MSM_CSIPHY_PADS_NUM, pads, 0);
 	if (ret < 0) {
-		pr_err("Fail to init media entity");
+		dev_err(dev, "Failed to init media entity\n");
 		return ret;
 	}
 
 	ret = v4l2_device_register_subdev(v4l2_dev, sd);
 	if (ret < 0) {
-		pr_err("Fail to register subdev");
+		dev_err(dev, "Failed to register subdev\n");
 		media_entity_cleanup(&sd->entity);
 	}
 
