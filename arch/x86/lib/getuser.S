@@ -32,7 +32,6 @@
 #include <asm/thread_info.h>
 #include <asm/asm.h>
 #include <asm/smap.h>
-#include <asm/export.h>
 
 	.text
 ENTRY(__get_user_1)
@@ -45,7 +44,6 @@ ENTRY(__get_user_1)
 	ASM_CLAC
 	ret
 ENDPROC(__get_user_1)
-EXPORT_SYMBOL(__get_user_1)
 
 ENTRY(__get_user_2)
 	add $1,%_ASM_AX
@@ -59,7 +57,6 @@ ENTRY(__get_user_2)
 	ASM_CLAC
 	ret
 ENDPROC(__get_user_2)
-EXPORT_SYMBOL(__get_user_2)
 
 ENTRY(__get_user_4)
 	add $3,%_ASM_AX
@@ -73,7 +70,6 @@ ENTRY(__get_user_4)
 	ASM_CLAC
 	ret
 ENDPROC(__get_user_4)
-EXPORT_SYMBOL(__get_user_4)
 
 ENTRY(__get_user_8)
 #ifdef CONFIG_X86_64
@@ -101,7 +97,6 @@ ENTRY(__get_user_8)
 	ret
 #endif
 ENDPROC(__get_user_8)
-EXPORT_SYMBOL(__get_user_8)
 
 
 bad_get_user:

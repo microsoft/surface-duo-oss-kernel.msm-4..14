@@ -4,7 +4,6 @@
 #include <asm/errno.h>
 #include <asm/cpufeatures.h>
 #include <asm/alternative-asm.h>
-#include <asm/export.h>
 
 /*
  * We build a jump to memcpy_orig by default which gets NOPped out on
@@ -41,8 +40,6 @@ ENTRY(memcpy)
 	ret
 ENDPROC(memcpy)
 ENDPROC(__memcpy)
-EXPORT_SYMBOL(memcpy)
-EXPORT_SYMBOL(__memcpy)
 
 /*
  * memcpy_erms() - enhanced fast string memcpy. This is faster and

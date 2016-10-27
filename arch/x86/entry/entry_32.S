@@ -44,7 +44,6 @@
 #include <asm/alternative-asm.h>
 #include <asm/asm.h>
 #include <asm/smap.h>
-#include <asm/export.h>
 
 	.section .entry.text, "ax"
 
@@ -992,7 +991,6 @@ trace:
 	jmp	ftrace_stub
 END(mcount)
 #endif /* CONFIG_DYNAMIC_FTRACE */
-EXPORT_SYMBOL(mcount)
 #endif /* CONFIG_FUNCTION_TRACER */
 
 #ifdef CONFIG_FUNCTION_GRAPH_TRACER

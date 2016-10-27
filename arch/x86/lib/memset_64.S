@@ -3,7 +3,6 @@
 #include <linux/linkage.h>
 #include <asm/cpufeatures.h>
 #include <asm/alternative-asm.h>
-#include <asm/export.h>
 
 .weak memset
 
@@ -44,8 +43,6 @@ ENTRY(__memset)
 	ret
 ENDPROC(memset)
 ENDPROC(__memset)
-EXPORT_SYMBOL(memset)
-EXPORT_SYMBOL(__memset)
 
 /*
  * ISO C memset - set a memory block to a byte value. This function uses
