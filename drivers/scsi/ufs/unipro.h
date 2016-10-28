@@ -36,6 +36,15 @@
 #define TX_LCC_SEQUENCER			0x0032
 #define TX_MIN_ACTIVATETIME			0x0033
 #define TX_PWM_G6_G7_SYNC_LENGTH		0x0034
+#define MPHY_TX_FSM_STATE                       0x0041
+     #define TX_FSM_DISABLED     0x0
+     #define TX_FSM_HIBERN8      0x1
+     #define TX_FSM_SLEEP        0x2
+     #define TX_FSM_STALL        0x3
+     #define TX_FSM_LS_BURST     0x4
+     #define TX_FSM_HS_BURST     0x5
+     #define TX_FSM_LINE_CFG     0x6
+     #define TX_FSM_LINE_RESET   0x7
 #define TX_REFCLKFREQ				0x00EB
 #define TX_CFGCLKFREQVAL			0x00EC
 #define	CFGEXTRATTR				0x00F0
@@ -101,6 +110,7 @@
 #define PA_MINRXTRAILINGCLOCKS	0x1543
 #define PA_TXPWRSTATUS		0x1567
 #define PA_RXPWRSTATUS		0x1582
+#define PA_SCRAMBLING           0x1585
 #define PA_TXFORCECLOCK		0x1562
 #define PA_TXPWRMODE		0x1563
 #define PA_LEGACYDPHYESCDL	0x1570

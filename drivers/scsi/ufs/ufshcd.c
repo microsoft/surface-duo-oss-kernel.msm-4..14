@@ -2822,8 +2822,9 @@ static int ufshcd_change_power_mode(struct ufs_hba *hba,
 	ufshcd_dme_set(hba, UIC_ARG_MIB(PA_TXGEAR), pwr_mode->gear_tx);
 	ufshcd_dme_set(hba, UIC_ARG_MIB(PA_ACTIVETXDATALANES),
 			pwr_mode->lane_tx);
-	if (pwr_mode->pwr_tx == FASTAUTO_MODE ||
-			pwr_mode->pwr_tx == FAST_MODE)
+	if ((hba->quirks & UFSHCD_QUIRK_UNIPRO_TERMINATION) &&
+			(pwr_mode->pwr_tx == FASTAUTO_MODE ||
+			pwr_mode->pwr_tx == FAST_MODE))
 		ufshcd_dme_set(hba, UIC_ARG_MIB(PA_TXTERMINATION), TRUE);
 	else
 		ufshcd_dme_set(hba, UIC_ARG_MIB(PA_TXTERMINATION), FALSE);
@@ -2831,9 +2832,14 @@ static int ufshcd_change_power_mode(struct ufs_hba *hba,
 	if (pwr_mode->pwr_rx == FASTAUTO_MODE ||
 	    pwr_mode->pwr_tx == FASTAUTO_MODE ||
 	    pwr_mode->pwr_rx == FAST_MODE ||
-	    pwr_mode->pwr_tx == FAST_MODE)
+	    pwr_mode->pwr_tx == FAST_MODE) {
+		if (hba->quirks & UFSHCD_QUIRK_UNIPRO_SCRAMBLING)
+			ufshcd_dme_set(hba, UIC_ARG_MIB(PA_SCRAMBLING), TRUE);
 		ufshcd_dme_set(hba, UIC_ARG_MIB(PA_HSSERIES),
 						pwr_mode->hs_rate);
+	} else {
+		ufshcd_dme_set(hba, UIC_ARG_MIB(PA_SCRAMBLING), FALSE);
+	}
 
 	ret = ufshcd_uic_change_pwr_mode(hba, pwr_mode->pwr_rx << 4
 			| pwr_mode->pwr_tx);

@@ -474,6 +474,9 @@ struct ufs_hba {
 	 */
 	#define UFSHCD_QUIRK_BROKEN_UFS_HCI_VERSION		UFS_BIT(5)
 
+	#define UFSHCD_QUIRK_UNIPRO_TERMINATION			UFS_BIT(30)
+	#define UFSHCD_QUIRK_UNIPRO_SCRAMBLING			UFS_BIT(31)
+
 	unsigned int quirks;	/* Deviations from standard UFSHCI spec. */
 
 	/* Device deviations from standard UFS device spec. */
