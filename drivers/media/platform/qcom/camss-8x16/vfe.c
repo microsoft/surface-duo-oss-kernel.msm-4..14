@@ -411,36 +411,48 @@ static void vfe_enable_irq_common(struct vfe_device *vfe)
 	writel(irq_en1, vfe->base + VFE_0_IRQ_MASK_1);
 }
 
+/*
+ * vfe_reset - Trigger reset on VFE module and wait to complete
+ * @vfe: VFE device
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
 static int vfe_reset(struct vfe_device *vfe)
 {
 	unsigned long time;
 
-	init_completion(&vfe->reset_completion);
+	reinit_completion(&vfe->reset_complete);
 
 	vfe_global_reset(vfe);
 
-	time = wait_for_completion_timeout(&vfe->reset_completion,
+	time = wait_for_completion_timeout(&vfe->reset_complete,
 		msecs_to_jiffies(VFE_RESET_TIMEOUT_MS));
 	if (!time) {
-		dev_err(to_device(vfe), "Vfe reset timeout\n");
+		dev_err(to_device(vfe), "VFE reset timeout\n");
 		return -EIO;
 	}
 
 	return 0;
 }
 
+/*
+ * vfe_halt - Trigger halt on VFE module and wait to complete
+ * @vfe: VFE device
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
 static int vfe_halt(struct vfe_device *vfe)
 {
 	unsigned long time;
 
-	init_completion(&vfe->halt_completion);
+	reinit_completion(&vfe->halt_complete);
 
 	writel(VFE_0_BUS_BDG_CMD_HALT_REQ, vfe->base + VFE_0_BUS_BDG_CMD);
 
-	time = wait_for_completion_timeout(&vfe->halt_completion,
+	time = wait_for_completion_timeout(&vfe->halt_complete,
 		msecs_to_jiffies(VFE_HALT_TIMEOUT_MS));
 	if (!time) {
-		dev_err(to_device(vfe), "Vfe halt timeout\n");
+		dev_err(to_device(vfe), "VFE halt timeout\n");
 		return -EIO;
 	}
 
@@ -1102,10 +1114,10 @@ static irqreturn_t vfe_subdev_isr(int irq, void *dev)
 	writel(0x1, vfe->base + VFE_0_IRQ_CMD); // Apply IRQ Clear[01]
 
 	if (value0 & VFE_0_IRQ_STATUS_0_RESET_ACK)
-		complete_all(&vfe->reset_completion);
+		complete(&vfe->reset_complete);
 
 	if (value1 & VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK) {
-		complete_all(&vfe->halt_completion);
+		complete(&vfe->halt_complete);
 		writel(0x0, vfe->base + VFE_0_BUS_BDG_CMD);
 	}
 
@@ -1646,6 +1658,10 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 	}
 
 	vfe_init_outputs(vfe);
+
+	init_completion(&vfe->reset_complete);
+	init_completion(&vfe->halt_complete);
+
 
 	return 0;
 }

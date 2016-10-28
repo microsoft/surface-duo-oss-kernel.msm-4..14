@@ -92,8 +92,8 @@ struct vfe_device {
 	u32 irq;
 	struct clk **clock;
 	int nclocks;
-	struct completion reset_completion;
-	struct completion halt_completion;
+	struct completion reset_complete;
+	struct completion halt_complete;
 	struct mutex power_lock;
 	int power_count;
 	struct mutex stream_lock;

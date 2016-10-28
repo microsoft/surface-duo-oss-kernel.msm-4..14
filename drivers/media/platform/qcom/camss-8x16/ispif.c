@@ -72,6 +72,7 @@
 
 #define ISPIF_TIMEOUT_SLEEP_US		1000
 #define ISPIF_TIMEOUT_ALL_US		1000000
+#define ISPIF_RESET_TIMEOUT_MS		500
 
 enum ispif_intf_cmd {
 	CMD_DISABLE_FRAME_BOUNDARY = 0x0,
@@ -128,23 +129,37 @@ static irqreturn_t ispif_isr(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
+/*
+ * ispif_reset - Trigger reset on ISPIF module and wait to complete
+ * @ispif: ISPIF device
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
 static int ispif_reset(struct ispif_device *ispif)
 {
+	unsigned long time;
 	int ret;
 
 	ret = camss_enable_clocks(ispif->nclocks_for_reset,
 				  ispif->clock_for_reset,
 				  to_device(ispif));
 	if (ret < 0)
-		goto exit;
+		return ret;
+
+	reinit_completion(&ispif->reset_complete);
 
 	writel_relaxed(0x000f1fff, ispif->base + ISPIF_RST_CMD_0);
-	wait_for_completion(&ispif->reset_complete);
+
+	time = wait_for_completion_timeout(&ispif->reset_complete,
+		msecs_to_jiffies(ISPIF_RESET_TIMEOUT_MS));
+	if (!time) {
+		dev_err(to_device(ispif), "ISPIF reset timeout\n");
+		return -EIO;
+	}
 
 	camss_disable_clocks(ispif->nclocks_for_reset, ispif->clock_for_reset);
 
-exit:
-	return ret;
+	return 0;
 }
 
 /*

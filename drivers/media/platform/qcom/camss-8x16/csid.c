@@ -60,6 +60,8 @@
 #define DECODE_FORMAT_UNCOMPRESSED_10_BIT	0x2
 #define DECODE_FORMAT_UNCOMPRESSED_12_BIT	0x3
 
+#define CSID_RESET_TIMEOUT_MS 500
+
 static const struct {
 	u32 code;
 	u32 uncompressed;
@@ -203,6 +205,31 @@ static irqreturn_t csid_isr(int irq, void *dev)
 }
 
 /*
+ * csid_reset - Trigger reset on CSID module and wait to complete
+ * @csid: CSID device
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+static int csid_reset(struct csid_device *csid)
+{
+	unsigned long time;
+
+	reinit_completion(&csid->reset_complete);
+
+	writel_relaxed(0x7fff, csid->base + CAMSS_CSID_RST_CMD);
+
+	time = wait_for_completion_timeout(&csid->reset_complete,
+		msecs_to_jiffies(CSID_RESET_TIMEOUT_MS));
+	if (!time) {
+		dev_err(to_device_index(csid, csid->id),
+			"CSID reset timeout\n");
+		return -EIO;
+	}
+
+	return 0;
+}
+
+/*
  * csid_set_power - Power on/off CSID module
  * @sd: CSID V4L2 subdevice
  * @on: Requested power state
@@ -212,10 +239,8 @@ static irqreturn_t csid_isr(int irq, void *dev)
 static int csid_set_power(struct v4l2_subdev *sd, int on)
 {
 	struct csid_device *csid = v4l2_get_subdevdata(sd);
+	struct device *dev = to_device_index(csid, csid->id);
 	int ret;
-
-	dev_dbg(to_device_index(csid, csid->id), "%s: Enter, csid%d on = %d\n",
-		__func__, csid->id, on);
 
 	if (on) {
 		u32 hw_version;
@@ -224,33 +249,31 @@ static int csid_set_power(struct v4l2_subdev *sd, int on)
 		if (ret < 0)
 			return ret;
 
-		ret = camss_enable_clocks(csid->nclocks, csid->clock,
-					  to_device_index(csid, csid->id));
-		if (ret < 0)
+		ret = camss_enable_clocks(csid->nclocks, csid->clock, dev);
+		if (ret < 0) {
+			regulator_disable(csid->vdda);
 			return ret;
+		}
 
 		enable_irq(csid->irq);
 
-		/* Reset */
-		writel_relaxed(0x7fff, csid->base + CAMSS_CSID_RST_CMD);
-		wait_for_completion(&csid->reset_complete);
+		ret = csid_reset(csid);
+		if (ret < 0) {
+			disable_irq(csid->irq);
+			camss_disable_clocks(csid->nclocks, csid->clock);
+			regulator_disable(csid->vdda);
+			return ret;
+		}
 
 		hw_version = readl_relaxed(csid->base + CAMSS_CSID_HW_VERSION);
-		dev_dbg(to_device_index(csid, csid->id), "CSID HW Version = 0x%08x\n", hw_version);
+		dev_dbg(dev, "CSID HW Version = 0x%08x\n", hw_version);
 	} else {
 		disable_irq(csid->irq);
-
 		camss_disable_clocks(csid->nclocks, csid->clock);
-
 		ret = regulator_disable(csid->vdda);
-		if (ret < 0)
-			return ret;
 	}
 
-	dev_dbg(to_device_index(csid, csid->id), "%s: Exit, csid%d on = %d\n",
-		__func__, csid->id, on);
-
-	return 0;
+	return ret;
 }
 
 /*
