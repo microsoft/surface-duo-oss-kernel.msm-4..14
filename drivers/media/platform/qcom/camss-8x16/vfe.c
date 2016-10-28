@@ -1608,8 +1608,10 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 	if (IS_ERR_VALUE(vfe->irq))
 		return vfe->irq;
 
+	snprintf(vfe->irq_name, sizeof(vfe->irq_name), "%s_%s%d",
+		 dev_name(dev), MSM_VFE_NAME, vfe->id);
 	ret = devm_request_irq(dev, vfe->irq, vfe_subdev_isr,
-			       IRQF_TRIGGER_RISING, "vfe", vfe);
+			       IRQF_TRIGGER_RISING, vfe->irq_name, vfe);
 	if (ret < 0) {
 		dev_err(dev, "request_irq failed\n");
 		return ret;

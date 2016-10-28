@@ -90,6 +90,7 @@ struct vfe_device {
 	u8 id;
 	void __iomem *base;
 	u32 irq;
+	char irq_name[30];
 	struct clk **clock;
 	int nclocks;
 	struct completion reset_complete;

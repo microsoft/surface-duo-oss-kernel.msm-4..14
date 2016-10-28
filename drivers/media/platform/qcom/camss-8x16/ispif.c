@@ -68,6 +68,7 @@
 #define ISPIF_VFE_m_PIX_INTF_n_STATUS(m, n)	(0x2c0 + 0x200 * (m) + 0x4 * (n))
 #define ISPIF_VFE_m_RDI_INTF_n_STATUS(m, n)	(0x2d0 + 0x200 * (m) + 0x4 * (n))
 
+#define CSI_PIX_CLK_MUX_SEL		0x000
 #define CSI_RDI_CLK_MUX_SEL		0x008
 
 #define ISPIF_TIMEOUT_SLEEP_US		1000
@@ -173,21 +174,19 @@ static int ispif_set_power(struct v4l2_subdev *sd, int on)
 {
 	struct ispif_line *line = v4l2_get_subdevdata(sd);
 	struct ispif_device *ispif = to_ispif(line);
+	struct device *dev = to_device(ispif);
 	int ret = 0;
 
-	dev_dbg(to_device(ispif), "%s: Enter, ispif%d on = %d\n",
-		__func__, line->id, on);
+	mutex_lock(&ispif->power_lock);
 
 	if (on) {
-		mutex_lock(&ispif->power_lock);
 		if (ispif->power_count) {
 			/* Power is already on */
 			ispif->power_count++;
 			goto exit;
 		}
 
-		ret = camss_enable_clocks(ispif->nclocks, ispif->clock,
-					  to_device(ispif));
+		ret = camss_enable_clocks(ispif->nclocks, ispif->clock, dev);
 		if (ret < 0)
 			goto exit;
 
@@ -197,16 +196,13 @@ static int ispif_set_power(struct v4l2_subdev *sd, int on)
 			goto exit;
 		}
 
-		ispif->intf_cmd[0].cmd_0 = CMD_ALL_NO_CHANGE;
-		ispif->intf_cmd[0].cmd_1 = CMD_ALL_NO_CHANGE;
+		ispif->intf_cmd[line->vfe_id].cmd_0 = CMD_ALL_NO_CHANGE;
+		ispif->intf_cmd[line->vfe_id].cmd_1 = CMD_ALL_NO_CHANGE;
 
 		ispif->power_count++;
 	} else {
-		mutex_lock(&ispif->power_lock);
 		if (ispif->power_count == 0) {
-			dev_err(to_device(ispif),
-				"%s: set_power off on power_count == 0 !!!\n",
-				__func__);
+			dev_err(dev, "ispif power off on power_count == 0\n");
 			goto exit;
 		} else if (ispif->power_count == 1) {
 			camss_disable_clocks(ispif->nclocks, ispif->clock);
@@ -218,25 +214,30 @@ static int ispif_set_power(struct v4l2_subdev *sd, int on)
 exit:
 	mutex_unlock(&ispif->power_lock);
 
-	dev_dbg(to_device(ispif), "%s: Exit, ispif%d on = %d\n",
-		__func__, line->id, on);
-
 	return ret;
 }
 
+/*
+ * ispif_select_clk_mux - Select clock for PIX/RDI interface
+ * @ispif: ISPIF device
+ * @intf: VFE interface
+ * @csid: CSID HW module id
+ * @vfe: VFE HW module id
+ * @enable: enable or disable the selected clock
+ */
 static void ispif_select_clk_mux(struct ispif_device *ispif,
 				 enum ispif_intf intf, u8 csid,
 				 u8 vfe, u8 enable)
 {
-	u32 val = 0;
+	u32 val;
 
 	switch (intf) {
 	case PIX0:
-		val = readl_relaxed(ispif->base_clk_mux);
+		val = readl_relaxed(ispif->base_clk_mux + CSI_PIX_CLK_MUX_SEL);
 		val &= ~(0xf << (vfe * 8));
 		if (enable)
 			val |= (csid << (vfe * 8));
-		writel_relaxed(val, ispif->base_clk_mux);
+		writel_relaxed(val, ispif->base_clk_mux + CSI_PIX_CLK_MUX_SEL);
 		break;
 
 	case RDI0:
@@ -248,11 +249,11 @@ static void ispif_select_clk_mux(struct ispif_device *ispif,
 		break;
 
 	case PIX1:
-		val = readl_relaxed(ispif->base_clk_mux);
+		val = readl_relaxed(ispif->base_clk_mux + CSI_PIX_CLK_MUX_SEL);
 		val &= ~(0xf << (4 + (vfe * 8)));
 		if (enable)
 			val |= (csid << (4 + (vfe * 8)));
-		writel_relaxed(val, ispif->base_clk_mux);
+		writel_relaxed(val, ispif->base_clk_mux + CSI_PIX_CLK_MUX_SEL);
 		break;
 
 	case RDI1:
@@ -275,6 +276,14 @@ static void ispif_select_clk_mux(struct ispif_device *ispif,
 	mb();
 }
 
+/*
+ * ispif_validate_intf_status - Validate current status of PIX/RDI interface
+ * @ispif: ISPIF device
+ * @intf: VFE interface
+ * @vfe: VFE HW module id
+ *
+ * Return 0 when interface is idle or -EBUSY otherwise
+ */
 static int ispif_validate_intf_status(struct ispif_device *ispif,
 				      enum ispif_intf intf, u8 vfe)
 {
@@ -313,12 +322,20 @@ static int ispif_validate_intf_status(struct ispif_device *ispif,
 	return ret;
 }
 
+/*
+ * ispif_wait_for_stop - Wait for PIX/RDI interface to stop
+ * @ispif: ISPIF device
+ * @intf: VFE interface
+ * @vfe: VFE HW module id
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
 static int ispif_wait_for_stop(struct ispif_device *ispif,
 			       enum ispif_intf intf, u8 vfe)
 {
-	int ret;
 	u32 addr = 0;
 	u32 stop_flag = 0;
+	int ret;
 
 	switch (intf) {
 	case PIX0:
@@ -343,7 +360,6 @@ static int ispif_wait_for_stop(struct ispif_device *ispif,
 				 (stop_flag & 0xf) == 0xf,
 				 ISPIF_TIMEOUT_SLEEP_US,
 				 ISPIF_TIMEOUT_ALL_US);
-
 	if (ret < 0)
 		dev_err(to_device(ispif), "%s: ispif stop timeout\n",
 			__func__);
@@ -351,6 +367,14 @@ static int ispif_wait_for_stop(struct ispif_device *ispif,
 	return ret;
 }
 
+/*
+ * ispif_select_csid - Select CSID HW module for input from
+ * @ispif: ISPIF device
+ * @intf: VFE interface
+ * @csid: CSID HW module id
+ * @vfe: VFE HW module id
+ * @enable: enable or disable the selected input
+ */
 static void ispif_select_csid(struct ispif_device *ispif, enum ispif_intf intf,
 			      u8 csid, u8 vfe, u8 enable)
 {
@@ -388,17 +412,26 @@ static void ispif_select_csid(struct ispif_device *ispif, enum ispif_intf intf,
 	writel(val, ispif->base + ISPIF_VFE_m_INTF_INPUT_SEL(vfe));
 }
 
-static void ispif_enable_cid(struct ispif_device *ispif, enum ispif_intf intf,
-			     u16 cid_mask, u8 vfe, u8 enable)
+/*
+ * ispif_select_cid - Enable/disable desired CID
+ * @ispif: ISPIF device
+ * @intf: VFE interface
+ * @cid: desired CID to enable/disable
+ * @vfe: VFE HW module id
+ * @enable: enable or disable the desired CID
+ */
+static void ispif_select_cid(struct ispif_device *ispif, enum ispif_intf intf,
+			     u8 cid, u8 vfe, u8 enable)
 {
-	u32 addr = 0, val;
+	u32 cid_mask = 1 << cid;
+	u32 addr = 0;
+	u32 val;
 
 	switch (intf) {
 	case PIX0:
 		addr = ISPIF_VFE_m_PIX_INTF_n_CID_MASK(vfe, 0);
 		break;
 	case RDI0:
-	default:
 		addr = ISPIF_VFE_m_RDI_INTF_n_CID_MASK(vfe, 0);
 		break;
 	case PIX1:
@@ -421,6 +454,13 @@ static void ispif_enable_cid(struct ispif_device *ispif, enum ispif_intf intf,
 	writel(val, ispif->base + addr);
 }
 
+/*
+ * ispif_config_irq - Enable/disable interrupts for PIX/RDI interface
+ * @ispif: ISPIF device
+ * @intf: VFE interface
+ * @vfe: VFE HW module id
+ * @enable: enable or disable
+ */
 static void ispif_config_irq(struct ispif_device *ispif, enum ispif_intf intf,
 			     u8 vfe, u8 enable)
 {
@@ -477,20 +517,28 @@ static void ispif_config_irq(struct ispif_device *ispif, enum ispif_intf intf,
 	writel(0x1, ispif->base + ISPIF_IRQ_GLOBAL_CLEAR_CMD);
 }
 
+/*
+ * ispif_set_intf_cmd - Set command to enable/disable interface
+ * @ispif: ISPIF device
+ * @cmd: interface command
+ * @intf: VFE interface
+ * @vfe: VFE HW module id
+ * @vc: virtual channel
+ */
 static void ispif_set_intf_cmd(struct ispif_device *ispif, u8 cmd,
 			       enum ispif_intf intf, u8 vfe, u8 vc)
 {
 	u32 *val;
 
 	if (intf == RDI2) {
-		val = &ispif->intf_cmd[0].cmd_1;
+		val = &ispif->intf_cmd[vfe].cmd_1;
 		*val &= ~(0x3 << (vc * 2 + 8));
 		*val |= (cmd << (vc * 2 + 8));
 		wmb();
 		writel_relaxed(*val, ispif->base + ISPIF_VFE_m_INTF_CMD_1(vfe));
 		wmb();
 	} else {
-		val = &ispif->intf_cmd[0].cmd_0;
+		val = &ispif->intf_cmd[vfe].cmd_0;
 		*val &= ~(0x3 << (vc * 2 + intf * 8));
 		*val |= (cmd << (vc * 2 + intf * 8));
 		wmb();
@@ -515,13 +563,9 @@ static int ispif_set_stream(struct v4l2_subdev *sd, int enable)
 	enum ispif_intf intf = line->interface;
 	u8 csid = line->csid_id;
 	u8 vfe = line->vfe_id;
-	u8 vc = 0; /* TODO: How to get this from sensor? */
+	u8 vc = 0; /* Virtual Channel 0 */
 	u8 cid = vc * 4;
-
 	int ret;
-
-	dev_dbg(to_device(ispif), "%s: Enter, ispif%d enable = %d\n",
-		__func__, line->id, enable);
 
 	if (enable) {
 		if (!media_entity_remote_pad(
@@ -541,7 +585,7 @@ static int ispif_set_stream(struct v4l2_subdev *sd, int enable)
 		}
 
 		ispif_select_csid(ispif, intf, csid, vfe, 1);
-		ispif_enable_cid(ispif, intf, 1 << cid, vfe, 1);
+		ispif_select_cid(ispif, intf, cid, vfe, 1);
 		ispif_config_irq(ispif, intf, vfe, 1);
 		ispif_set_intf_cmd(ispif, CMD_ENABLE_FRAME_BOUNDARY, intf, vfe, vc);
 	} else {
@@ -555,7 +599,7 @@ static int ispif_set_stream(struct v4l2_subdev *sd, int enable)
 
 		mutex_lock(&ispif->config_lock);
 		ispif_config_irq(ispif, intf, vfe, 0);
-		ispif_enable_cid(ispif, intf, 1 << cid, vfe, 0);
+		ispif_select_cid(ispif, intf, cid, vfe, 0);
 		ispif_select_csid(ispif, intf, csid, vfe, 0);
 		ispif_select_clk_mux(ispif, intf, csid, vfe, 0);
 	}
@@ -765,28 +809,29 @@ static int ispif_set_format(struct v4l2_subdev *sd,
 /*
  * ispif_init_formats - Initialize formats on all pads
  * @sd: ISPIF V4L2 subdevice
+ * @fh: V4L2 subdev file handle
  *
  * Initialize all pad formats with default values.
+ *
+ * Return 0 on success or a negative error code otherwise
  */
-static int ispif_init_formats(struct v4l2_subdev *sd)
+static int ispif_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
 	struct v4l2_subdev_format format;
 
 	memset(&format, 0, sizeof(format));
 	format.pad = MSM_ISPIF_PAD_SINK;
-	format.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+	format.which = fh ? V4L2_SUBDEV_FORMAT_TRY : V4L2_SUBDEV_FORMAT_ACTIVE;
 	format.format.code = MEDIA_BUS_FMT_UYVY8_2X8;
 	format.format.width = 1920;
 	format.format.height = 1080;
-	ispif_set_format(sd, NULL, &format);
 
-	return 0;
+	return ispif_set_format(sd, fh ? fh->pad : NULL, &format);
 }
 
 /*
  * msm_ispif_subdev_init - Initialize ISPIF device structure and resources
  * @ispif: ISPIF device
- * @camss: Camera sub-system structure
  * @res: ISPIF module resources table
  *
  * Return 0 on success or a negative error code otherwise
@@ -795,7 +840,8 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 			  struct resources_ispif *res)
 {
 	struct device *dev = to_device(ispif);
-	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct platform_device *pdev = container_of(dev, struct platform_device,
+						    dev);
 	struct resource *r;
 	int i;
 	int ret;
@@ -831,8 +877,10 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 	if (IS_ERR_VALUE(ispif->irq))
 		return ispif->irq;
 
+	snprintf(ispif->irq_name, sizeof(ispif->irq_name), "%s_%s",
+		 dev_name(dev), MSM_ISPIF_NAME);
 	ret = devm_request_irq(dev, ispif->irq, ispif_isr,
-			       IRQF_TRIGGER_RISING, "ispif", ispif);
+			       IRQF_TRIGGER_RISING, ispif->irq_name, ispif);
 	if (ret < 0) {
 		dev_err(dev, "request_irq failed\n");
 		return ret;
@@ -861,7 +909,6 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 	while (res->clock_for_reset[ispif->nclocks_for_reset])
 		ispif->nclocks_for_reset++;
 
-
 	ispif->clock_for_reset = devm_kzalloc(dev, ispif->nclocks_for_reset *
 			sizeof(*ispif->clock_for_reset), GFP_KERNEL);
 	if (!ispif->clock_for_reset) {
@@ -881,6 +928,12 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 	return 0;
 }
 
+/*
+ * ispif_get_intf - Get ISPIF interface to use by VFE line id
+ * @line_id: VFE line id that the ISPIF line is connected to
+ *
+ * Return ISPIF interface to use
+ */
 static enum ispif_intf ispif_get_intf(enum vfe_line_id line_id)
 {
 	switch (line_id) {
@@ -895,6 +948,15 @@ static enum ispif_intf ispif_get_intf(enum vfe_line_id line_id)
 	}
 }
 
+/*
+ * ispif_link_setup - Setup ISPIF connections
+ * @entity: Pointer to media entity structure
+ * @local: Pointer to local pad
+ * @remote: Pointer to remote pad
+ * @flags: Link flags
+ *
+ * Return 0 on success
+ */
 static int ispif_link_setup(struct media_entity *entity,
 			    const struct media_pad *local,
 			    const struct media_pad *remote, u32 flags)
@@ -949,7 +1011,9 @@ static const struct v4l2_subdev_ops ispif_v4l2_ops = {
 	.pad = &ispif_pad_ops,
 };
 
-static const struct v4l2_subdev_internal_ops ispif_v4l2_internal_ops;
+static const struct v4l2_subdev_internal_ops ispif_v4l2_internal_ops = {
+	.open = ispif_init_formats,
+};
 
 static const struct media_entity_operations ispif_media_ops = {
 	.link_setup = ispif_link_setup,
@@ -966,6 +1030,7 @@ static const struct media_entity_operations ispif_media_ops = {
 int msm_ispif_register_entities(struct ispif_device *ispif,
 				struct v4l2_device *v4l2_dev)
 {
+	struct device *dev = to_device(ispif);
 	int ret;
 	int i;
 
@@ -980,7 +1045,11 @@ int msm_ispif_register_entities(struct ispif_device *ispif,
 			 MSM_ISPIF_NAME, i);
 		v4l2_set_subdevdata(sd, &ispif->line[i]);
 
-		ispif_init_formats(sd);
+		ret = ispif_init_formats(sd, NULL);
+		if (ret < 0) {
+			dev_err(dev, "Failed to init format\n");
+			goto error;
+		}
 
 		pads[MSM_ISPIF_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
 		pads[MSM_ISPIF_PAD_SRC].flags = MEDIA_PAD_FL_SOURCE;
@@ -989,13 +1058,13 @@ int msm_ispif_register_entities(struct ispif_device *ispif,
 		ret = media_entity_init(&sd->entity, MSM_ISPIF_PADS_NUM,
 					pads, 0);
 		if (ret < 0) {
-			pr_err("Fail to init media entity");
+			dev_err(dev, "Failed to init media entity\n");
 			goto error;
 		}
 
 		ret = v4l2_device_register_subdev(v4l2_dev, sd);
 		if (ret < 0) {
-			pr_err("Fail to register subdev");
+			dev_err(dev,"Failed to register subdev\n");
 			media_entity_cleanup(&sd->entity);
 			goto error;
 		}
