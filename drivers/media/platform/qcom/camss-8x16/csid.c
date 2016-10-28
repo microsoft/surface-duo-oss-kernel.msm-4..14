@@ -278,9 +278,9 @@ static int csid_set_power(struct v4l2_subdev *sd, int on)
 
 /*
  * csid_get_uncompressed - map media bus format to uncompressed media bus format
- * @fmt media bus format code
+ * @code: media bus format code
  *
- * Return uncompressed media bus format
+ * Return uncompressed media bus format code
  */
 static u32 csid_get_uncompressed(u32 code)
 {
@@ -295,7 +295,7 @@ static u32 csid_get_uncompressed(u32 code)
 
 /*
  * csid_get_data_type - map media bus format to data type
- * @fmt media bus format code
+ * @code: media bus format code
  *
  * Return data type code
  */
@@ -311,8 +311,8 @@ static u8 csid_get_data_type(u32 code)
 }
 
 /*
- * csid_get_decode_format - map media but format to decode format
- * @fmt media bus format code
+ * csid_get_decode_format - map media bus format to decode format
+ * @code: media bus format code
  *
  * Return decode format code
  */
@@ -329,7 +329,7 @@ static u8 csid_get_decode_format(u32 code)
 
 /*
  * csid_get_bpp - map media bus format to bits per pixel
- * @fmt media bus format code
+ * @code: media bus format code
  *
  * Return number of bits per pixel
  */
@@ -344,7 +344,6 @@ static u8 csid_get_bpp(u32 code)
 	return csid_input_fmts[i].uncompr_bpp;
 }
 
-
 /*
  * csid_set_stream - Enable/disable streaming on CSID module
  * @sd: CSID V4L2 subdevice
@@ -358,15 +357,12 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct csid_device *csid = v4l2_get_subdevdata(sd);
 	struct csid_testgen_config *tg = &csid->testgen;
-
-	dev_dbg(to_device_index(csid, csid->id), "%s: Enter, csid%d enable = %d\n",
-		__func__, csid->id, enable);
+	u32 val;
 
 	if (enable) {
-		u8 vc = 0; /* TODO: How to get this from sensor? */
+		u8 vc = 0; /* Virtual Channel 0 */
 		u8 cid = vc * 4;
 		u8 dt, dt_shift, df;
-		u32 val;
 		int ret;
 
 		ret = v4l2_ctrl_handler_setup(&csid->ctrls);
@@ -387,7 +383,7 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 			/* Config Test Generator */
 			u8 bpp = csid_get_bpp(csid->fmt[MSM_CSID_PAD_SRC].code);
 			u32 num_bytes_per_line =
-					csid->fmt[MSM_CSID_PAD_SRC].width * bpp / 8;
+				csid->fmt[MSM_CSID_PAD_SRC].width * bpp / 8;
 			u32 num_lines = csid->fmt[MSM_CSID_PAD_SRC].height;
 
 			/* 31:24 V blank, 23:13 H blank, 3:2 num of active DT */
@@ -407,7 +403,7 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 			writel_relaxed(val, csid->base +
 				       CAMSS_CSID_TG_DT_n_CGG_1(0));
 
-			/* 2:0 output random */
+			/* 2:0 output test pattern */
 			val = tg->payload_mode;
 			writel_relaxed(val, csid->base +
 				       CAMSS_CSID_TG_DT_n_CGG_2(0));
@@ -446,7 +442,7 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 		}
 	} else {
 		if (tg->enabled) {
-			u32 val = 0x00a06436;
+			val = 0x00a06436;
 			writel_relaxed(val, csid->base + CAMSS_CSID_TG_CTRL);
 		}
 	}
@@ -682,22 +678,24 @@ static int csid_set_format(struct v4l2_subdev *sd,
 /*
  * csid_init_formats - Initialize formats on all pads
  * @sd: CSID V4L2 subdevice
+ * @fh: V4L2 subdev file handle
  *
  * Initialize all pad formats with default values.
+ *
+ * Return 0 on success or a negative error code otherwise
  */
-static int csid_init_formats(struct v4l2_subdev *sd)
+static int csid_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
 	struct v4l2_subdev_format format;
 
 	memset(&format, 0, sizeof(format));
 	format.pad = MSM_CSID_PAD_SINK;
-	format.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+	format.which = fh ? V4L2_SUBDEV_FORMAT_TRY : V4L2_SUBDEV_FORMAT_ACTIVE;
 	format.format.code = MEDIA_BUS_FMT_UYVY8_2X8;
 	format.format.width = 1920;
 	format.format.height = 1080;
-	csid_set_format(sd, NULL, &format);
 
-	return 0;
+	return csid_set_format(sd, fh ? fh->pad : NULL, &format);
 }
 
 static const char * const csid_test_pattern_menu[] = {
@@ -709,6 +707,13 @@ static const char * const csid_test_pattern_menu[] = {
 	"Random Data",
 };
 
+/*
+ * csid_set_test_pattern - Set test generator's pattern mode
+ * @csid: CSID device
+ * @value: desired test pattern mode
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
 static int csid_set_test_pattern(struct csid_device *csid, s32 value)
 {
 	struct csid_testgen_config *tg = &csid->testgen;
@@ -740,6 +745,12 @@ static int csid_set_test_pattern(struct csid_device *csid, s32 value)
 	return 0;
 }
 
+/*
+ * csid_s_ctrl - Handle set control subdev method
+ * @ctrl: pointer to v4l2 control structure
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
 static int csid_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct csid_device *csid = container_of(ctrl->handler,
@@ -762,7 +773,6 @@ static struct v4l2_ctrl_ops csid_ctrl_ops = {
 /*
  * msm_csid_subdev_init - Initialize CSID device structure and resources
  * @csid: CSID device
- * @camss: Camera sub-system structure
  * @res: CSID module resources table
  * @id: CSID module id
  *
@@ -772,7 +782,8 @@ int msm_csid_subdev_init(struct csid_device *csid,
 			 struct resources *res, u8 id)
 {
 	struct device *dev = to_device_index(csid, id);
-	struct platform_device *pdev = container_of(dev, struct platform_device, dev);
+	struct platform_device *pdev = container_of(dev, struct platform_device,
+						    dev);
 	struct resource *r;
 	int i;
 	int ret;
@@ -790,13 +801,16 @@ int msm_csid_subdev_init(struct csid_device *csid,
 
 	/* Interrupt */
 
-	r = platform_get_resource_byname(pdev, IORESOURCE_IRQ, res->interrupt[0]);
+	r = platform_get_resource_byname(pdev, IORESOURCE_IRQ,
+					 res->interrupt[0]);
 	csid->irq = r->start;
 	if (IS_ERR_VALUE(csid->irq))
 		return csid->irq;
 
+	snprintf(csid->irq_name, sizeof(csid->irq_name), "%s_%s%d",
+		 dev_name(dev), MSM_CSID_NAME, csid->id);
 	ret = devm_request_irq(dev, csid->irq, csid_isr,
-		IRQF_TRIGGER_RISING, dev_name(dev), csid);
+		IRQF_TRIGGER_RISING, csid->irq_name, csid);
 	if (ret < 0) {
 		dev_err(dev, "request_irq failed\n");
 		return ret;
@@ -852,6 +866,11 @@ int msm_csid_subdev_init(struct csid_device *csid,
 	return 0;
 }
 
+/*
+ * msm_csid_get_csid_id - Get CSID HW module id
+ * @entity: Pointer to CSID media entity structure
+ * @id: Return CSID HW module id here
+ */
 void msm_csid_get_csid_id(struct media_entity *entity, u8 *id)
 {
 	struct v4l2_subdev *sd;
@@ -887,7 +906,7 @@ static u32 csid_get_lane_assign(struct csiphy_lanes_cfg *lane_cfg)
  * @remote: Pointer to remote pad
  * @flags: Link flags
  *
- * Rreturn 0 on success
+ * Return 0 on success
  */
 static int csid_link_setup(struct media_entity *entity,
 			   const struct media_pad *local,
@@ -927,7 +946,7 @@ static int csid_link_setup(struct media_entity *entity,
 		csid->phy.lane_cnt = lane_cfg->num_data;
 		csid->phy.lane_assign = csid_get_lane_assign(lane_cfg);
 
-		// Reset format on source pad to sink pad format
+		/* Reset format on source pad to sink pad format */
 		memset(&format, 0, sizeof(format));
 		format.pad = MSM_CSID_PAD_SRC;
 		format.which = V4L2_SUBDEV_FORMAT_ACTIVE;
@@ -958,7 +977,9 @@ static const struct v4l2_subdev_ops csid_v4l2_ops = {
 	.pad = &csid_pad_ops,
 };
 
-static const struct v4l2_subdev_internal_ops csid_v4l2_internal_ops;
+static const struct v4l2_subdev_internal_ops csid_v4l2_internal_ops = {
+	.open = csid_init_formats,
+};
 
 static const struct media_entity_operations csid_media_ops = {
 	.link_setup = csid_link_setup,
@@ -977,6 +998,7 @@ int msm_csid_register_entities(struct csid_device *csid,
 {
 	struct v4l2_subdev *sd = &csid->subdev;
 	struct media_pad *pads = csid->pads;
+	struct device *dev = to_device_index(csid, csid->id);
 	int ret;
 
 	v4l2_subdev_init(sd, &csid_v4l2_ops);
@@ -986,22 +1008,30 @@ int msm_csid_register_entities(struct csid_device *csid,
 		 MSM_CSID_NAME, csid->id);
 	v4l2_set_subdevdata(sd, csid);
 
-	v4l2_ctrl_handler_init(&csid->ctrls, 1);
+	ret = v4l2_ctrl_handler_init(&csid->ctrls, 1);
+	if (ret < 0) {
+		dev_err(dev, "Failed to init ctrl handler\n");
+		return ret;
+	}
+
 	csid->testgen_mode = v4l2_ctrl_new_std_menu_items(&csid->ctrls,
 				&csid_ctrl_ops, V4L2_CID_TEST_PATTERN,
 				ARRAY_SIZE(csid_test_pattern_menu) - 1, 0, 0,
 				csid_test_pattern_menu);
 
 	if (csid->ctrls.error) {
-		dev_err(to_device_index(csid, csid->id), "failed to init ctrl: %d\n",
-			csid->ctrls.error);
+		dev_err(dev, "Failed to init ctrl: %d\n", csid->ctrls.error);
 		ret = csid->ctrls.error;
 		goto free_ctrl;
 	}
 
 	csid->subdev.ctrl_handler = &csid->ctrls;
 
-	csid_init_formats(sd);
+	ret = csid_init_formats(sd, NULL);
+	if (ret < 0) {
+		dev_err(dev, "Failed to init format\n");
+		goto free_ctrl;
+	}
 
 	pads[MSM_CSID_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
 	pads[MSM_CSID_PAD_SRC].flags = MEDIA_PAD_FL_SOURCE;
@@ -1009,13 +1039,13 @@ int msm_csid_register_entities(struct csid_device *csid,
 	sd->entity.ops = &csid_media_ops;
 	ret = media_entity_init(&sd->entity, MSM_CSID_PADS_NUM, pads, 0);
 	if (ret < 0) {
-		dev_err(to_device_index(csid, csid->id), "failed to init media entity");
+		dev_err(dev, "Failed to init media entity\n");
 		goto free_ctrl;
 	}
 
 	ret = v4l2_device_register_subdev(v4l2_dev, sd);
 	if (ret < 0) {
-		dev_err(to_device_index(csid, csid->id), "failed to register subdev");
+		dev_err(dev, "Failed to register subdev\n");
 		goto media_cleanup;
 	}
 
