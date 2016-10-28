@@ -80,6 +80,25 @@
 			#clock-cells = <1>;
 		};
 
+		ufs: ufs@ff3b0000 {
+			compatible = "jedec,ufs-1.1", "hisilicon,hi3660-ufs";
+			reg = <0x0 0xff3b0000 0x0 0x1000>,	/* 0: HCI standard */
+			      <0x0 0xff3b1000 0x0 0x1000>;	/* 1: UFS SYS CTRL */
+			interrupt-parent = <&gic>;
+			interrupts = <0 278 4>;
+			clocks = <&crg_ctrl HI3660_CLK_GATE_UFSIO_REF>,
+				 <&crg_ctrl HI3660_CLK_GATE_UFSPHY_CFG>;
+			clock-names = "clk_ref", "clk_phy";
+			freq-table-hz = <0 0>, <0 0>;
+			//vcc-supply = <&ldo15>;
+			ufs-hi3660-use-rate-B;
+			ufs-hi3660-broken-fastauto;
+			ufs-hi3660-use-HS-GEAR3;
+			ufs-hi3660-unipro-termination;
+			ufs-hi3660-broken-clk-gate-bypass;
+			status = "ok";
+		};
+
 		uart0: uart@fdf02000 {
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0xfdf02000 0x0 0x1000>;
