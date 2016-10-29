@@ -564,7 +564,7 @@ static inline int cgroup_init(void) { return 0; }
 static inline int subsys_cgroup_allow_attach(struct cgroup_subsys_state *css,
 					     struct cgroup_taskset *tset)
 {
-	return -EINVAL;
+	return 0;
 }
 #endif /* !CONFIG_CGROUPS */
 
