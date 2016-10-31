@@ -50,4 +50,31 @@
 		compatible = "hisi,hisi-smmu-lpae";
 		status = "ok";
 	};
+
+	/* bluetooth - TI WL1835 */
+	kim {
+		compatible = "kim";
+		pinctrl-names = "default";
+		pinctrl-0 = <>; /* FIXME: add BT PCM pinctrl here */
+		/*
+		 * FIXME: The following is complete CRAP since
+		 * the vendor driver doesn't follow the gpio
+		 * binding. Passing in a magic Linux gpio number
+		 * here until we fix the vendor driver.
+		 */
+		/* BT_EN: GPIO_126_BT_EN */
+		nshutdown_gpio = <390>;
+		dev_name = "/dev/ttyAMA4";
+		flow_cntrl = <1>;
+		/* baud_rate = <3000000>; */
+		baud_rate = <115200>;
+	};
+
+	btwilink {
+		compatible = "btwilink";
+	};
+};
+
+&uart4 {
+	status = "ok";
 };
