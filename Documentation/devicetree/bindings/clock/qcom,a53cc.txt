@@ -1,0 +1,23 @@
+Qualcomm A53 CPU Clock Controller Binding
+------------------------------------------------
+The A53 CPU Clock Controller is hardware, which provides a combined
+mux and divider functionality for the CPU clocks. It can choose between
+a fixed rate clock and the dedicated A53 PLL. This hardware block is used
+on platforms such as msm8916.
+
+Required properties :
+- compatible : shall contain:
+
+			"qcom,a53cc-msm8916"
+
+- reg : shall contain base register location and length
+	of the APCS region
+- #clock-cells : shall contain 1
+
+Example:
+
+	apcs: syscon@b011000 {
+		compatible = "qcom,a53cc-msm8916";
+		reg = <0x0b011000 0x1000>;
+		#clock-cells = <1>;
+	};
