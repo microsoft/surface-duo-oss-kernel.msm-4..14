@@ -1,0 +1,20 @@
+MSM8916 A53 PLL Binding
+---------------
+The A53 PLL on MSM8916 platforms is the main CPU PLL used for frequencies
+above 1GHz.
+
+Required properties :
+- compatible : Shall contain only one of the following:
+
+		"qcom,a53pll-msm8916"
+
+- reg : shall contain base register location and length
+- #clock-cells : must be set to <0>
+
+Example:
+
+	a53pll: a53pll@b016000 {
+		compatible = "qcom,a53pll-msm8916";
+		reg = <0x0b016000 0x40>;
+		#clock-cells = <0>;
+	};

@@ -188,6 +188,15 @@ config MSM_MMCC_8996
 	  Say Y if you want to support multimedia devices such as display,
 	  graphics, video encode/decode, camera, etc.
 
+config QCOM_A53PLL
+	bool "A53 PLL"
+	depends on COMMON_CLK_QCOM
+	help
+	  Support for the A53 PLL on some Qualcomm devices. It provides
+	  support for CPU frequencies above 1GHz.
+	  Say Y if you want to support CPU frequency scaling on devices
+	  such as MSM8916.
+
 config QCOM_HFPLL
 	tristate "High-Frequency PLL (HFPLL) Clock Controller"
 	depends on COMMON_CLK_QCOM
