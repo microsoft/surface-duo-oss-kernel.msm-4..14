@@ -64,6 +64,12 @@ config PCI_S32V234_IGNORE_ERR009852
 	Clearing this option will make the EP's BAR registers inaccessible
 	from the RC.
 
+	If you are using a new enough u-boot, the chipset maskset will be
+	determined automatically, so you would not have to worry
+	about this option anymore.
+
+	If unsure, select 'no'.
+
 config PCI_DW_DMA
 	bool "Freescale S32V234 PCIe DW DMA"
 	depends on OF && (ARM || ARM64) && PCI_S32V234_EP
