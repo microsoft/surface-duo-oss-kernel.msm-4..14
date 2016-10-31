@@ -89,6 +89,47 @@
 		startup-delay-us = <70000>;
 		enable-active-high;
 	};
+
+	leds {
+		compatible = "gpio-leds";
+		user_led1 {
+			label = "user_led1";
+			gpios = <&gpio26 0 0>; /* <&gpio_208_user_led1>; */
+			linux,default-trigger = "heartbeat";
+		};
+
+		user_led2 {
+			label = "user_led2";
+			gpios = <&gpio26 1 0>; /* <&gpio_209_user_led2>; */
+			linux,default-trigger = "mmc0"; /* microSD card */
+		};
+
+		user_led3 {
+			label = "user_led3";
+			gpios = <&gpio26 2 0>; /* <&gpio_210_user_led3>; */
+			default-state = "off";
+		};
+
+		user_led4 {
+			label = "user_led4";
+			gpios = <&gpio26 3 0>; /* <&gpio_211_user_led4>; */
+			linux,default-trigger = "cpu0";
+		};
+
+		wlan_active_led {
+			label = "wifi_active";
+			gpios = <&gpio25 5 0>; /* <&gpio_205_wifi_active>; */
+			linux,default-trigger = "phy0tx";
+			default-state = "off";
+		};
+
+		bt_active_led {
+			label = "bt_active";
+			gpios = <&gpio25 7 0>; /* <&gpio_207_user_led1>; */
+			linux,default-trigger = "hci0rx";
+			default-state = "off";
+		};
+	};
 };
 
 &uart4 {
