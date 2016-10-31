@@ -74,6 +74,21 @@
 	btwilink {
 		compatible = "btwilink";
 	};
+
+	/* power control mechanism for WLAN_EN */
+	wlan_en_reg: fixedregulator@1 {
+		compatible = "regulator-fixed";
+		regulator-name = "wlan-en-regulator";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+
+		/* WLAN_EN GPIO for this board - GPIO_051_WIFI_EN */
+		gpio = <&gpio6 3 0>;
+
+		/* WLAN card specific delay */
+		startup-delay-us = <70000>;
+		enable-active-high;
+	};
 };
 
 &uart4 {
