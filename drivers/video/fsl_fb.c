@@ -179,8 +179,8 @@ static int fsl_fb_check_var(struct fb_var_screeninfo *var,
 }
 
 /**********************************************************
- * FUNCTION: fsl_fb_check_var
- * INFO: map VRAM
+ * FUNCTION: fsl_fb_set_par
+ * INFO: set driver specific parameters
  **********************************************************/
 static int fsl_fb_set_par(struct fb_info *info)
 {
@@ -196,7 +196,12 @@ static int fsl_fb_set_par(struct fb_info *info)
 		(var->grayscale == V4L2_PIX_FMT_UYVY))
 		var->bits_per_pixel = 16;
 
-	var->nonstd = mfbi->tiled ? IPU_PIX_FMT_GPU32_ST : 0;
+	/* Refuse any requests for subformats than the one supported.
+	 * Subformats are taken in account only when in tiled mode
+	 * */
+	if (mfbi->tiled &&
+			var->nonstd != IPU_PIX_FMT_GPU32_ST && var->nonstd != 0)
+			return -EINVAL;
 
 	fix->line_length = var->xres_virtual * var->bits_per_pixel / 8;
 	fix->type = FB_TYPE_PACKED_PIXELS;
@@ -541,6 +546,9 @@ static int fsl_fb_init(struct fb_info *info)
 		dev_err(dcufb->dev, "Failed to get property 'bits-per-pixel'.\n");
 		goto put_display_node;
 	}
+
+	/* default pixel format for tiled rendering */
+	var->nonstd = IPU_PIX_FMT_GPU32_ST;
 
 	timings = of_get_display_timings(display_np);
 	if (!timings) {
