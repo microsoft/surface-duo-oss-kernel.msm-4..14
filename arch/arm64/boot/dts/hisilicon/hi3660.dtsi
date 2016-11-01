@@ -99,6 +99,131 @@
 			status = "ok";
 		};
 
+		iomcu: iomcu@ffd7e000 {
+			compatible = "hisilicon,hi3660-iomcu", "syscon";
+			reg = <0x0 0xffd7e000 0x0 0x1000>;
+			#clock-cells = <1>;
+		};
+
+		i2c0: i2c@FFD71000 {
+			compatible = "snps,designware-i2c";
+			reg = <0x0 0xFFD71000 0x0 0x1000>;
+			interrupts = <0 118 4>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+			clock-frequency = <400000>;
+			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C0>;
+			reset-reg-base = <0x0 0xFFD7E000 0x0 0x1000>;
+			reset-controller-reg = <0x20 0x24 0X28 3>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c0_pmx_func>;
+			status = "ok";
+		};
+
+		i2c1: i2c@FFD72000 {
+			compatible = "snps,designware-i2c";
+			reg = <0x0 0xFFD72000 0x0 0x1000>;
+			interrupts = <0 119 4>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+			clock-frequency = <400000>;
+			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C1>;
+			reset-reg-base = <0x0 0xFFD7E000 0x0 0x1000>;
+			reset-controller-reg = <0x20 0x24 0X28 4>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c1_pmx_func>;
+			status = "ok";
+
+			adv7533: adv7533@39 {
+				status = "ok";
+				compatible = "adi,adv7533";
+				reg = <0x39>;
+				//v1p2-supply = <&ldo1>;
+				//vdd-supply = <&ldo3>;
+				//interrupt-parent = <&gpio1>;
+				//interrupts = <1 2>;
+				//pd-gpio = <&gpio5 1 0>;
+				//sel-gpio = <&gpio2 4 0>;
+				//adi,dsi-lanes = <4>;
+				//adi,disable-timing-generator;
+			};
+		};
+
+		i2c2: i2c@FFD73000 {
+			compatible = "snps,designware-i2c";
+			reg = <0x0 0xFFD73000 0x0 0x1000>;
+			interrupts = <0 120 4>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+			clock-frequency = <400000>;
+			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C2>;
+			reset-reg-base = <0x0 0xFFD7E000 0x0 0x1000>;
+			reset-controller-reg = <0x20 0x24 0X28 5>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c2_pmx_func>;
+			status = "ok";
+		};
+
+		i2c3: i2c@FDF0C000 {
+			compatible = "snps,designware-i2c";
+			reg = <0x0 0xFDF0C000 0x0 0x1000>;
+			interrupts = <0 81 4>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+			clock-frequency = <400000>;
+			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C3>;
+			reset-reg-base = <0x0 0xFFF35000 0x0 0x1000>;
+			reset-controller-reg = <0x78 0x7c 0x80 7>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c3_pmx_func>;
+			status = "ok";
+		};
+
+		i2c4: i2c@FDF0D000 {
+			compatible = "snps,designware-i2c";
+			reg = <0x0 0xFDF0D000 0x0 0x1000>;
+			interrupts = <0 82 4>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+			clock-frequency = <400000>;
+			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C4>;
+			reset-reg-base = <0x0 0xFFF35000 0x0 0x1000>;
+			reset-controller-reg = <0x78 0x7c 0x80 27>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c4_pmx_func>;
+			status = "ok";
+		};
+
+		i2c6: i2c@FFD6A000 {
+			compatible = "snps,designware-i2c";
+			reg = <0x0 0xFFD6A000 0x0 0x1000>;
+			interrupts = <0 117 4>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+			clock-frequency = <400000>;
+			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C6>;
+			reset-reg-base = <0x0 0xFFD7E000 0x0 0x1000>;
+			reset-controller-reg = <0x20 0x24 0X28 27>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c6_pmx_func>;
+			status = "ok";
+		};
+
+		i2c7: i2c@FDF0B000 {
+			compatible = "snps,designware-i2c";
+			reg = <0x0 0xFDF0B000 0x0 0x1000>;
+			interrupts = <0 314 4>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+			clock-frequency = <400000>;
+			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C7>;
+			reset-reg-base = <0x0 0xFFF35000 0x0 0x1000>;
+			reset-controller-reg = <0x60 0x64 0x68 14>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c7_pmx_func>;
+			status = "ok";
+		};
+
 		uart0: uart@fdf02000 {
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0xfdf02000 0x0 0x1000>;
@@ -142,7 +267,7 @@
 			compatible = "arm,pl011", "arm,primecell";
 			reg = <0x0 0xffd74000 0x0 0x1000>;
 			interrupts = <GIC_SPI 114 IRQ_TYPE_LEVEL_HIGH>;
-			clocks = <&crg_ctrl HI3660_CLK_FACTOR_UART3>,
+			clocks = <&crg_ctrl HI3660_FACTOR_UART3>,
 				 <&crg_ctrl HI3660_PCLK>;
 			clock-names = "uartclk", "apb_pclk";
 			reset-enable-flag = <0>;

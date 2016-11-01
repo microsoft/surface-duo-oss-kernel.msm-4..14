@@ -21,6 +21,20 @@
 			pinctrl-single,gpio-range = <
 				&range 0 7 0
 				&range 8 116 0>;
+
+			i2c3_pmx_func: i2c3_pmx_func {
+				pinctrl-single,pins = <
+					0x02C MUX_M1 /* I2C3_SCL (IOMG_011) */
+					0x030 MUX_M1 /* I2C3_SDA (IOMG_012) */
+				>;
+			};
+
+			i2c4_pmx_func: i2c4_pmx_func {
+				pinctrl-single,pins = <
+					0x090 MUX_M1 /* I2C4_SCL (IOMG_036) */
+					0x094 MUX_M1 /* I2C4_SDA (IOMG_037) */
+				>;
+			};
 		};
 
 		/* [IOMG_MMC0_000, IOMG_MMC0_005] */
@@ -77,6 +91,41 @@
 			pinctrl-single,function-mask = <0x7>;
 			/* pin base in node, nr pins & gpio function */
 			pinctrl-single,gpio-range = <&range 0 42 0>;
+
+			i2c0_pmx_func: i2c0_pmx_func {
+				pinctrl-single,pins = <
+					0x014 MUX_M1 /* I2C0_SCL (IOMG_AO_005) */
+					0x018 MUX_M1 /* I2C0_SDA (IOMG_AO_006) */
+				>;
+			};
+
+			i2c1_pmx_func: i2c1_pmx_func {
+				pinctrl-single,pins = <
+					0x01C MUX_M1 /* I2C1_SCL (IOMG_AO_007) */
+					0x020 MUX_M1 /* I2C1_SDA (IOMG_AO_008) */
+				>;
+			};
+
+			i2c2_pmx_func: i2c2_pmx_func {
+				pinctrl-single,pins = <
+					0x024 MUX_M1 /* I2C2_SCL (IOMG_AO_009) */
+					0x028 MUX_M1 /* I2C2_SDA (IOMG_AO_010) */
+				>;
+			};
+
+			i2c6_pmx_func: i2c6_pmx_func {
+				pinctrl-single,pins = <
+					0x048 MUX_M4 /* I2C6_SCL (IOMG_AO_018) */
+					0x044 MUX_M4 /* I2C6_SDA (IOMG_AO_017) */
+				>;
+			};
+
+			i2c7_pmx_func: i2c7_pmx_func {
+				pinctrl-single,pins = <
+					0x024 MUX_M3 /* I2C7_SCL (IOMG_AO_009) */
+					0x028 MUX_M3 /* I2C7_SDA (IOMG_AO_010) */
+				>;
+			};
 		};
 	};
 };
