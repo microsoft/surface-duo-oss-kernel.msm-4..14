@@ -58,6 +58,135 @@
 		status = "ok";
 	};
 
+	pmic: pmic@fff34000 {
+		compatible = "hisilicon,hi6421-pmic";
+		reg = <0x0 0xfff34000 0x0 0x1000>;
+		interrupt-controller;
+		#interrupt-cells = <2>;
+
+		regulators {
+			ldo1: LDO1 {
+				regulator-compatible = "hi6421v530_ldo0_2";
+				regulator-name = "LDO1";
+				regulator-min-microvolt = <1000000>;
+				regulator-max-microvolt = <1500000>;
+				regulator-enable-ramp-delay = <120>;
+			};
+
+			ldo3: LDO3 {
+				regulator-compatible = "hi6421v530_ldo3";
+				regulator-name = "LDO3";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <2200000>;
+				regulator-enable-ramp-delay = <120>;
+			};
+
+			ldo4: LDO4 {
+				regulator-compatible = "hi6421v530_ldo4";
+				regulator-name = "LDO4";
+				regulator-min-microvolt = <1700000>;
+				regulator-max-microvolt = <1900000>;
+				regulator-enable-ramp-delay = <120>;
+			};
+
+			ldo9: LDO9 {
+				regulator-compatible = "hi6421v530_ldo9";
+				regulator-name = "LDO9";
+				regulator-min-microvolt = <1750000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-enable-ramp-delay = <240>;
+			};
+
+			ldo10: LDO10 {
+				regulator-compatible = "hi6421v530_ldo10";
+				regulator-name = "LDO10";
+				regulator-min-microvolt = <3100000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-enable-ramp-delay = <120>;
+			};
+
+			ldo13: LDO13 {
+				regulator-compatible = "hi6421v530_ldo13";
+				regulator-name = "LDO13";
+				regulator-min-microvolt = <1750000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-enable-ramp-delay = <120>;
+			};
+
+			ldo15: LDO15 {
+				regulator-compatible = "hi6421v530_ldo15";
+				regulator-name = "LDO15";
+				regulator-min-microvolt = <1750000>;
+				regulator-max-microvolt = <3000000>;
+				regulator-enable-ramp-delay = <120>;
+			};
+
+			ldo16: LDO16 {
+				regulator-compatible = "hi6421v530_ldo16";
+				regulator-name = "ldo16";
+				regulator-min-microvolt = <1750000>;
+				regulator-max-microvolt = <3000000>;
+				regulator-enable-ramp-delay = <360>;
+			};
+
+			ldo17: LDO17 {
+				regulator-compatible = "hi6421v530_ldo17";
+				regulator-name = "LDO17";
+				regulator-min-microvolt = <2600000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-enable-ramp-delay = <120>;
+			};
+
+			ldo19: LDO19 {
+				regulator-compatible = "hi6421v530_ldo19";
+				regulator-name = "LDO19";
+				regulator-min-microvolt = <1800000>;
+				regulator-max-microvolt = <3000000>;
+				regulator-enable-ramp-delay = <120>;
+			};
+
+			ldo20: LDO20 {
+				regulator-compatible = "hi6421v530_ldo20";
+				regulator-name = "LDO20";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1320000>;
+				regulator-enable-ramp-delay = <120>;
+			};
+
+			ldo24: LDO24 {
+				regulator-compatible = "hi6421v530_ldo24";
+				regulator-name = "LDO24";
+				regulator-min-microvolt = <2600000>;
+				regulator-max-microvolt = <3300000>;
+				regulator-enable-ramp-delay = <120>;
+			};
+
+			ldo25: LDO25 {
+				regulator-compatible = "hi6421v530_ldo25";
+				regulator-name = "LDO25";
+				regulator-min-microvolt = <1500000>;
+				regulator-max-microvolt = <3000000>;
+				regulator-enable-ramp-delay = <120>;
+			};
+
+			ldo31: LDO31 {
+				regulator-compatible = "hi6421v530_ldo31";
+				regulator-name = "LDO31";
+				regulator-min-microvolt = <2500000>;
+				regulator-max-microvolt = <3200000>;
+				regulator-enable-ramp-delay = <120>;
+			};
+
+			ldo32: LDO32 {
+				regulator-compatible = "hi6421v530_ldo32";
+				regulator-name = "LDO32";
+				regulator-min-microvolt = <800000>;
+				regulator-max-microvolt = <1320000>;
+				regulator-enable-ramp-delay = <120>;
+			};
+		};
+	};
+
 	/* bluetooth - TI WL1835 */
 	kim {
 		compatible = "kim";
