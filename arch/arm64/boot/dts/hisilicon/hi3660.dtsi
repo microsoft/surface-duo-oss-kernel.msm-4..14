@@ -723,5 +723,23 @@
 			clock-names = "apb_pclk";
 			status = "ok";
 		};
+
+		/* SDIO */
+		dwmmc2: dwmmc2@FF3FF000 {
+			compatible = "hisilicon,hi3660-dw-mshc";
+			reg = <0x0 0xff3ff000 0x0 0x1000>;
+			interrupts = <0 140 4>;
+			num-slots = <1>;
+			clocks = <&crg_ctrl HI3660_CLK_GATE_SDIO0>,
+				 <&crg_ctrl HI3660_HCLK_GATE_SDIO0>;
+			clock-names = "ciu", "biu";
+			card-detect-delay = <200>;
+			supports-highspeed;
+			keep-power-in-suspend;
+			pinctrl-names = "default";
+			pinctrl-0 = <>;
+			pinctrl-1 = <>;
+			status = "disabled";
+		};
 	};
 };
