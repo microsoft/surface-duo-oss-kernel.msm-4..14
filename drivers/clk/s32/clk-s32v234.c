@@ -14,192 +14,6 @@
 
 #include "clk.h"
 
-/* Source Reset Control: General Purpose Register 1 */
-#define SRC_GPR1			(src_base + 0x100)
-#define SRC_GPR1_ARMPLL_SRC_SEL_OFFSET	(27)
-#define SRC_GPR1_ENETPLL_SRC_SEL_OFFSET	(28)
-#define SRC_GPR1_DDRPLL_SRC_SEL_OFFSET	(29)
-#define SRC_GPR1_PERIPHPLL_SRC_SEL_OFFSET	(30)
-#define SRC_GPR1_VIDEOPLL_SRC_SEL_OFFSET	(31)
-#define SRC_GPR1_XPLL_SRC_SEL_SIZE		(1)
-
-/* Clock Generation Module 0 (CGM0) */
-#define ARMPLL_PLLDIG(mc_cgm)			(mc_cgm)
-#define ARMPLL_PLLDIG_DFS(mc_cgm)		((mc_cgm) + 0x40)
-#define ARMPLL_PLLDIG_PLLDV_MFD		(50)
-#define ARMPLL_PLLDIG_PLLDV_MFN		(0)
-#define ARMPLL_PLLDIG_PLLDV_RFDPHI0	(1)
-#define ARMPLL_PLLDIG_PLLDV_RFDPHI1	(1)
-#define ARMPLL_PLLDIG_DFS0_MFN		(194)
-#define ARMPLL_PLLDIG_DFS1_MFN		(170)
-#define ARMPLL_PLLDIG_DFS2_MFN		(170)
-#define PERIPHPLL_PLLDIG(mc_cgm)	((mc_cgm) + 0x80)
-#define PERIPHPLL_PLLDIG_PLLDV_MFD	(30)
-#define PERIPHPLL_PLLDIG_PLLDV_MFN	(0)
-#define PERIPHPLL_PLLDIG_PLLDV_RFDPHI0	(0x1)
-#define PERIPHPLL_PLLDIG_PLLDV_RFDPHI1	(0x1)
-#define ENETPLL_PLLDIG(mc_cgm)		((mc_cgm) + 0x100)
-#define ENETPLL_PLLDIG_DFS(mc_cgm)	((mc_cgm) + 0x100 + 0x40)
-#define ENETPLL_PLLDIG_PLLDV_MFD	(50)
-#define ENETPLL_PLLDIG_PLLDV_MFN	(0)
-#define ENETPLL_PLLDIG_PLLDV_RFDPHI0	(0x1)
-#define ENETPLL_PLLDIG_PLLDV_RFDPHI1	(0x1)
-#define ENETPLL_PLLDIG_DFS0_MFN		(219)
-#define ENETPLL_PLLDIG_DFS1_MFN		(219)
-#define ENETPLL_PLLDIG_DFS2_MFN		(32)
-#define ENETPLL_PLLDIG_DFS3_MFN		(0)
-#define DDRPLL_PLLDIG(mc_cgm)		((mc_cgm) + 0x180)
-#define DDRPLL_PLLDIG_DFS(mc_cgm)	((mc_cgm) + 0x180 + 0x40)
-#define DDRPLL_PLLDIG_PLLDV_MFD		(53)
-#define DDRPLL_PLLDIG_PLLDV_MFN		(6144)
-#define DDRPLL_PLLDIG_PLLDV_RFDPHI0	(0x1)
-#define DDRPLL_PLLDIG_PLLDV_RFDPHI1	(0x1)
-#define DDRPLL_PLLDIG_DFS0_MFN		(33)
-#define DDRPLL_PLLDIG_DFS1_MFN		(33)
-#define DDRPLL_PLLDIG_DFS2_MFN		(11)
-#define VIDEOPLL_PLLDIG(mc_cgm)		((mc_cgm) + 0x200)
-#define VIDEOPLL_PLLDIG_PLLDV_MFD	(30)
-#define VIDEOPLL_PLLDIG_PLLDV_MFN	(0)
-#define VIDEOPLL_PLLDIG_PLLDV_RFDPHI0	(0x1)
-#define VIDEOPLL_PLLDIG_PLLDV_RFDPHI1	(0x1)
-
-/* MC_CGM_SC_SS */
-#define CGM_SC_SS(mc_cgm)		(((mc_cgm) + 0x7E4))
-
-/* MC_CGM_SC_DCn */
-#define CGM_SC_DCn(mc_cgm, dc)		(((mc_cgm) + 0x7E8) + ((dc) * 0x4))
-
-#define MC_CGM_SC_DCn_PREDIV_OFFSET	(16)
-#define MC_CGM_SC_DCn_PREDIV_SIZE	(3)
-#define MC_CGM_SC_DCn_DE		(1 << 31)
-#define MC_CGM_SC_SEL_OFFSET		(24)
-#define MC_CGM_SC_SEL_SIZE		(4)
-
-/* MC_CGM_ACn_DCm */
-#define CGM_ACn_DCm(mc_cgm, ac, dc)	(((mc_cgm) + 0x808) + ((ac) * 0x20)\
-					+ ((dc) * 0x4))
-
-#define MC_CGM_ACn_DCm_PREDIV(val)	(MC_CGM_ACn_DCm_PREDIV_MASK & \
-					((val) \
-					 << MC_CGM_ACn_DCm_PREDIV_OFFSET))
-#define MC_CGM_ACn_DCm_PREDIV_MASK	(0x001F0000)
-#define MC_CGM_ACn_DCm_PREDIV_OFFSET	(16)
-#define MC_CGM_ACn_DCm_PREDIV_SIZE	(5)
-#define MC_CGM_ACn_DCm_DE		(1 << 31)
-
- /*
-  * MC_CGM_ACn_SC/MC_CGM_ACn_SS
-  */
- #define CGM_ACn_SC(mc_cgm, ac)		(((mc_cgm) + 0x800) + ((ac) * 0x20))
- #define CGM_ACn_SS(mc_cgm, ac)		(((mc_cgm) + 0x804) + ((ac) * 0x24))
- #define MC_CGM_ACn_SEL_MASK		(0x07000000)
- #define MC_CGM_ACn_SEL_SET(source)	(MC_CGM_ACn_SEL_MASK & \
-					(((source) & 0x7) \
-					<< MC_CGM_ACn_SEL_OFFSET))
- #define MC_CGM_ACn_SEL_OFFSET		(24)
- #define MC_CGM_ACn_SEL_SIZE		(4)
-
-/* TODO: Implement a specific driver only for MC_ME register when
- * current clock framework is stable.
- */
-
-/* MC_ME registers definitions */
-/* MC_ME_GS */
- #define MC_ME_GS(mc_me)		((mc_me) + 0x00000000)
-
-/* MC_ME_MCTL */
-#define MC_ME_MCTL(mc_me)		((mc_me) + 0x00000004)
-#define MC_ME_MCTL_RESET		(0x0 << 28)
-#define MC_ME_MCTL_TEST			(0x1 << 28)
-#define MC_ME_MCTL_DRUN			(0x3 << 28)
-#define MC_ME_MCTL_RUN0			(0x4 << 28)
-#define MC_ME_MCTL_RUN1			(0x5 << 28)
-#define MC_ME_MCTL_RUN2			(0x6 << 28)
-#define MC_ME_MCTL_RUN3			(0x7 << 28)
-
-#define MC_ME_GS_S_MTRANS		(1 << 27)
-
-#define MC_ME_MCTL_KEY			(0x00005AF0)
-#define MC_ME_MCTL_INVERTEDKEY		(0x0000A50F)
-
-/*
- * MC_ME_RESET_MC/MC_ME_TEST_MC
- * MC_ME_DRUN_MC
- * MC_ME_RUNn_MC
- */
-#define MC_ME_RESET_MC(mc_me)		((mc_me) + 0x00000020)
-#define MC_ME_TEST_MC(mc_me)		((mc_me) + 0x00000024)
-#define MC_ME_DRUN_MC(mc_me)		((mc_me) + 0x0000002C)
-#define MC_ME_RUNn_MC(mc_me, n)		((mc_me) + 0x00000030 + 0x4 * (n))
-#define MC_ME_MODE_MC_SYSCLK_OFFSET	(0)
-#define MC_ME_MODE_MC_SYSCLK_SIZE	(0x3)
-#define MC_ME_MODE_MC_SYSCLK(val)	(MC_ME_MODE_MC_SYSCLK_MASK & (val))
-#define MC_ME_MODE_MC_SYSCLK_MASK	(0x0000000F)
-#define MC_ME_MODE_MC_FIRCON		(1 << 4)
-#define MC_ME_MODE_MC_XOSCON		(1 << 5)
-#define MC_ME_MODE_MC_ARMPLL		(1 << 6)
-#define MC_ME_MODE_MC_PERIPHPLL		(1 << 7)
-#define MC_ME_MODE_MC_ENETPLL		(1 << 8)
-#define MC_ME_MODE_MC_DDRPLL		(1 << 9)
-#define MC_ME_MODE_MC_VIDEOPLL		(1 << 10)
-#define MC_ME_MODE_MC_MVRON		(1 << 20)
-
-/* MC_ME_DRUN_SEC_CC_I */
-#define MC_ME_DRUN_SEC_CC_I(mc_me)		((mc_me) + 0x260)
-/* MC_ME_RUNn_SEC_CC_I */
-#define MC_ME_RUNn_SEC_CC_I(mc_me, n)		((mc_me) + 0x270 + (n) * 0x10)
-#define MC_ME_MODE_SEC_CC_I_SYSCLK1_OFFSET	(4)
-#define MC_ME_MODE_SEC_CC_I_SYSCLK2_OFFSET	(8)
-#define MC_ME_MODE_SEC_CC_I_SYSCLK3_OFFSET	(12)
-/* Consider only the defined clocks */
-#define MC_ME_MODE_SEC_CC_I_SYSCLK1_SIZE	(0x3)
-#define MC_ME_MODE_SEC_CC_I_SYSCLK2_SIZE	(0x3)
-#define MC_ME_MODE_SEC_CC_I_SYSCLK3_SIZE	(0x3)
-
-/* MC_ME_RUN_PCn */
-#define MC_ME_RUN_PCn(mc_me, n)		(mc_me + 0x00000080 + 0x4 * (n))
-
-#define MC_ME_RUN_PCn_MIN_IDX		(0)
-#define MC_ME_RUN_PCn_MAX_IDX		(7)
-#define MC_ME_RUN_PCn_RESET		(1 << 0)
-#define MC_ME_RUN_PCn_TEST		(1 << 1)
-#define MC_ME_RUN_PCn_DRUN		(1 << 3)
-#define MC_ME_RUN_PCn_RUN0		(1 << 4)
-#define MC_ME_RUN_PCn_RUN1		(1 << 5)
-#define MC_ME_RUN_PCn_RUN2		(1 << 6)
-#define MC_ME_RUN_PCn_RUN3		(1 << 7)
-
-static void entry_to_target_mode(void __iomem *mc_me, u32 mode)
-{
-	writel_relaxed(mode | MC_ME_MCTL_KEY, MC_ME_MCTL(mc_me));
-	writel_relaxed(mode | MC_ME_MCTL_INVERTEDKEY, MC_ME_MCTL(mc_me));
-	while ((readl_relaxed(MC_ME_GS(mc_me)) &
-		MC_ME_GS_S_MTRANS) != 0x00000000)
-		;
-}
-
-static void enable_cpumodes_onperipheralconfig(void __iomem *mc_me,
-			u32 modes, u32 run_pc_idx)
-{
-	BUG_ON(run_pc_idx < MC_ME_RUN_PCn_MIN_IDX ||
-		run_pc_idx >= MC_ME_RUN_PCn_MAX_IDX);
-
-	writel_relaxed(modes, MC_ME_RUN_PCn(mc_me, run_pc_idx));
-}
-
-static void enable_clocks_sources(u32 flags, u32 clks,
-				  void __iomem *xrun_mc_addr)
-{
-	writel_relaxed(readl_relaxed(xrun_mc_addr) | flags | clks,
-		       xrun_mc_addr);
-}
-
-static void enable_sysclock(u32 clk, void __iomem *xrun_mc_addr)
-{
-	writel_relaxed(readl_relaxed(xrun_mc_addr) & clk,
-		       xrun_mc_addr);
-}
-
 static void __iomem *mc_cgm0_base;
 static void __iomem *mc_cgm1_base;
 static void __iomem *mc_cgm2_base;
@@ -208,42 +22,66 @@ static void __iomem *mc_me_base;
 static void __iomem *src_base;
 
 /* sources for multiplexer clocks, this is used multiple times */
-static const char *osc_sels[] = {"firc", "fxosc", };
+PNAME(osc_sels) = {"firc", "fxosc", };
 
-static const char *cores_sels[] = {"firc", "fxosc", "armpll_phi0", };
+PNAME(cores_sels) = {"firc", "fxosc", "armpll_phi0", };
 
-static const char *sys_sels[] = {"firc", "fxosc", "armpll_dfs0", };
+PNAME(sys_sels) = {"firc", "fxosc", "armpll_dfs0", };
 
-static const char *perifray_sels[] = {"firc", "fxosc", "dummy",
-			  "periphpll_phi0_div5", };
+PNAME(perifray_sels) = {"firc", "fxosc", "dummy",
+			"periphpll_phi0_div5", };
 
-static const char *can_sels[] = {"firc", "fxosc", "dummy",
-			  "periphpll_phi0_div5", };
+PNAME(can_sels) = {"firc", "fxosc", "dummy",
+		   "periphpll_phi0_div5", };
 
-static const char *lin_sels[] = {"firc", "fxosc", "dummy",
-			  "periphpll_phi0_div3", "dummy", "dummy",
-			  "dummy", "dummy", "sys6",};
+PNAME(lin_sels) = {"firc", "fxosc", "dummy",
+		   "periphpll_phi0_div3", "dummy", "dummy",
+		   "dummy", "dummy", "sys6",};
 
-static const char *sdhc_sels[] = {"firc", "fxosc", "dummy",
-			  "dummy", "enetpll_dfs3",};
+PNAME(sdhc_sels) = {"firc", "fxosc", "dummy",
+		    "dummy", "enetpll_dfs3",};
 
-static const char *enet_sels[] = {"firc", "fxosc", "dummy",
-			  "dummy", "enetpll_phi0",};
+PNAME(enet_sels) = {"firc", "fxosc", "dummy",
+		    "dummy", "enetpll_phi0",};
 
-static const char *enet_time_sels[] = {"firc", "fxosc", "dummy",
-			  "dummy", "enetpll_phi0",};
+PNAME(enet_time_sels) = {"firc", "fxosc", "dummy",
+			 "dummy", "enetpll_phi0",};
 
-static const char *dcu_sels[] = {"firc", "fxosc", "dummy", "dummy",
-			  "dummy", "dummy", "dummy", "dummy", "dummy",
-			  "sys6",};
+PNAME(dcu_sels) = {"firc", "fxosc", "dummy", "dummy",
+		   "dummy", "dummy", "dummy", "dummy", "dummy",
+		   "sys6",};
 
-static const char *gpu_sels[] = {"firc", "fxosc", "armpll_dfs1", };
+PNAME(gpu_sels) = {"firc", "fxosc", "armpll_dfs1", };
 
-static const char *gpu_shdmipi_sels[] = {"firc", "fxosc",
-			  "armpll_dfs2", };
+PNAME(gpu_shdmipi_sels) = {"firc", "fxosc",
+			   "armpll_dfs2", };
+PNAME(h264dcd_sels) = {"firc", "fxosc", "dummy", "dummy",
+		       "enetpll_dfs0", };
+PNAME(h264enc_sels) = {"firc", "fxosc", "dummy", "dummy",
+		       "enetpll_dfs1", };
+PNAME(jpegdec_sels) = {"firc", "fxosc", "dummy", "dummy",
+		       "dummy", "ddrpll_dfs2", };
 
 static struct clk *clk[S32V234_CLK_END];
 static struct clk_onecell_data clk_data;
+
+static u32 share_count_csi0gate;
+static u32 share_count_csi1gate;
+static u32 share_count_dcugate;
+static u32 share_count_dec200gate;
+static u32 share_count_h264dcdgate;
+static u32 share_count_h264encgate;
+static u32 share_count_jpegdecgate;
+static u32 share_count_linflex0gate;
+static u32 share_count_linflex1gate;
+static u32 share_count_sdhcgate;
+static u32 share_count_viu0gate;
+static u32 share_count_viu1gate;
+
+#if 0
+/* TBD: Enable gating for ENET */
+static u32 share_count_enetgate;
+#endif
 
 static void __init s32v234_clocks_init(struct device_node *mc_cgm0_node)
 {
@@ -282,7 +120,7 @@ static void __init s32v234_clocks_init(struct device_node *mc_cgm0_node)
 					    MC_ME_RUN_PCn_RUN1 |
 					    MC_ME_RUN_PCn_RUN2 |
 					    MC_ME_RUN_PCn_RUN3,
-					    0);
+					    1);
 
 	/* turn on XOSC and FIRC */
 	enable_clocks_sources(MC_ME_MODE_MC_MVRON, MC_ME_MODE_MC_XOSCON |
@@ -383,6 +221,56 @@ static void __init s32v234_clocks_init(struct device_node *mc_cgm0_node)
 		CGM_SC_DCn(mc_cgm0_base, 2), MC_CGM_SC_DCn_PREDIV_OFFSET,
 		MC_CGM_SC_DCn_PREDIV_SIZE);
 
+	clk[S32V234_CLK_IIC0] = s32_clk_gate2("iic0", "sys6",
+		mc_me_base, IIC0_PCTL, 0, 1);
+	clk[S32V234_CLK_IIC1] = s32_clk_gate2("iic1", "sys6",
+		mc_me_base, IIC1_PCTL, 0, 1);
+	clk[S32V234_CLK_IIC2] = s32_clk_gate2("iic2", "sys6",
+		mc_me_base, IIC2_PCTL, 0, 1);
+
+	clk[S32V234_CLK_DEC200_ENC_AHB] = s32_clk_gate2_shared(
+		"dec200_enc_ahb", "sys3", mc_me_base,
+		DEC200_PCTL, 0, 1,
+		&share_count_dec200gate);
+
+	clk[S32V234_CLK_DEC200_ENC_IPS] = s32_clk_gate2_shared(
+		"dec200_enc_ips", "sys6", mc_me_base,
+		DEC200_PCTL, 0, 1,
+		&share_count_dec200gate);
+
+	clk[S32V234_CLK_DMACHMUX0] = s32_clk_gate2("dmachmux0", "sys6",
+		mc_me_base, DMACHMUX0_PCTL, 0, 1);
+	clk[S32V234_CLK_DMACHMUX1] = s32_clk_gate2("dmachmux1", "sys6",
+		mc_me_base, DMACHMUX1_PCTL, 0, 1);
+
+	clk[S32V234_CLK_SPI0] = s32_clk_gate2("spi0", "sys6",
+		mc_me_base, DSPI0_PCTL, 0, 1);
+	clk[S32V234_CLK_SPI1] = s32_clk_gate2("spi1", "sys6",
+		mc_me_base, DSPI1_PCTL, 0, 1);
+	clk[S32V234_CLK_SPI2] = s32_clk_gate2("spi2", "sys6",
+		mc_me_base, DSPI2_PCTL, 0, 1);
+	clk[S32V234_CLK_SPI3] = s32_clk_gate2("spi3", "sys6",
+		mc_me_base, DSPI3_PCTL, 0, 1);
+
+	clk[S32V234_CLK_PIT0] = s32_clk_gate2("pit0", "sys6",
+		 mc_me_base, PIT0_PCTL, 0, 1);
+	clk[S32V234_CLK_PIT1] = s32_clk_gate2("pit1", "sys6",
+		 mc_me_base, PIT1_PCTL, 0, 1);
+
+	clk[S32V234_CLK_VIU0_AHB]  = s32_clk_gate2_shared("viu0_ahb",
+		"sys3",
+		mc_me_base, VIU0_PCTL, 0, 1, &share_count_viu0gate);
+	clk[S32V234_CLK_VIU0_IPS] = s32_clk_gate2_shared("viu0_ips",
+		"sys6", mc_me_base, VIU0_PCTL, 0, 1,
+		&share_count_viu0gate);
+
+	clk[S32V234_CLK_VIU1_AHB]  = s32_clk_gate2_shared("viu1_ahb",
+		"sys3",
+		mc_me_base, VIU1_PCTL, 0, 1, &share_count_viu0gate);
+	clk[S32V234_CLK_VIU1_IPS] = s32_clk_gate2_shared("viu1_ips",
+		"sys6", mc_me_base, VIU1_PCTL, 0, 1,
+		&share_count_viu1gate);
+
 	/* enable ARMPLL */
 	enable_clocks_sources(0, MC_ME_MODE_MC_ARMPLL,
 			      MC_ME_RUNn_MC(mc_me_base, 0));
@@ -436,8 +324,13 @@ static void __init s32v234_clocks_init(struct device_node *mc_cgm0_node)
 		MC_CGM_ACn_DCm_PREDIV_SIZE);
 
 	/* Can Clock */
+	clk[S32V234_CLK_CAN0] = s32_clk_gate2("can0", "sys6",
+		mc_me_base, CANFD0_PCTL, 0, 1);
+	clk[S32V234_CLK_CAN1] = s32_clk_gate2("can1", "sys6",
+		mc_me_base, CANFD1_PCTL, 0, 1);
 	clk[S32V234_CLK_CAN] = s32_clk_divider("can", "can_sel",
-		CGM_ACn_DCm(mc_cgm0_base, 6, 0), MC_CGM_ACn_DCm_PREDIV_OFFSET,
+		CGM_ACn_DCm(mc_cgm0_base, 6, 0),
+		MC_CGM_ACn_DCm_PREDIV_OFFSET,
 		MC_CGM_ACn_DCm_PREDIV_SIZE);
 
 	/* Lin Clock */
@@ -455,6 +348,17 @@ static void __init s32v234_clocks_init(struct device_node *mc_cgm0_node)
 	clk[S32V234_CLK_LIN_IPG] = s32_clk_fixed_factor("lin_ipg",
 		"lin", 1, 2);
 
+	clk[S32V234_CLK_LIN0]  = s32_clk_gate2_shared("lin0", "lin",
+		mc_me_base, LINFLEX0_PCTL, 0, 1, &share_count_linflex0gate);
+	clk[S32V234_CLK_LIN0_IPG] = s32_clk_gate2_shared("lin0_ipg",
+		"lin_ipg", mc_me_base, LINFLEX0_PCTL, 0, 1,
+		&share_count_linflex0gate);
+	clk[S32V234_CLK_LIN1]  = s32_clk_gate2_shared("lin1", "lin",
+		mc_me_base, LINFLEX1_PCTL, 0, 1, &share_count_linflex1gate);
+	clk[S32V234_CLK_LIN1_IPG] = s32_clk_gate2_shared("lin1_ipg",
+		"lin_ipg", mc_me_base, LINFLEX1_PCTL, 0, 1,
+		&share_count_linflex1gate);
+
 	/* enable DCU */
 	clk[S32V234_CLK_DCU_SEL] = s32_clk_mux("videopll_sel",
 		CGM_ACn_SC(mc_cgm0_base, 9),
@@ -462,10 +366,23 @@ static void __init s32v234_clocks_init(struct device_node *mc_cgm0_node)
 		MC_CGM_ACn_SEL_SIZE,
 		dcu_sels, ARRAY_SIZE(dcu_sels));
 
-	clk[S32V234_CLK_VIDEOPLL_DIV2] = s32_clk_divider("videopll_div",
-		"videopll_sel", CGM_ACn_DCm(mc_cgm0_base, 9, 0),
+	clk[S32V234_CLK_DCU_AXI_DIV] = s32_clk_divider("dcu_axi_div",
+		"videopll_sel", CGM_ACn_DCm(mc_cgm0_base, 9, 1),
 		MC_CGM_ACn_DCm_PREDIV_OFFSET,
 		MC_CGM_ACn_DCm_PREDIV_SIZE);
+
+	clk[S32V234_CLK_DCU_PIX_DIV] = s32_clk_divider("dcu_pix_div",
+		"videopll_sel", CGM_ACn_DCm(mc_cgm0_base, 9, 1),
+		MC_CGM_ACn_DCm_PREDIV_OFFSET,
+		MC_CGM_ACn_DCm_PREDIV_SIZE);
+
+	clk[S32V234_CLK_DCU_AXI] = s32_clk_gate2_shared("dcu_axi",
+		"dcu_axi_div", mc_me_base, DCU_PCTL, 0, 1,
+		 &share_count_dcugate);
+
+	clk[S32V234_CLK_DCU_PIX] = s32_clk_gate2_shared("dcu_pix",
+		"dcu_pix_div", mc_me_base, DCU_PCTL, 0, 1,
+		 &share_count_dcugate);
 
 	/* enable PERIPHPLL */
 	enable_clocks_sources(0, MC_ME_MODE_MC_PERIPHPLL,
@@ -511,6 +428,7 @@ static void __init s32v234_clocks_init(struct device_node *mc_cgm0_node)
 		MC_CGM_ACn_SEL_OFFSET,
 		MC_CGM_ACn_SEL_SIZE,
 		enet_sels, ARRAY_SIZE(enet_sels));
+
 	clk[S32V234_CLK_ENET_TIME_SEL] = s32_clk_mux("enet_time_sel",
 		CGM_ACn_SC(mc_cgm0_base, 7),
 		MC_CGM_ACn_SEL_OFFSET,
@@ -527,6 +445,61 @@ static void __init s32v234_clocks_init(struct device_node *mc_cgm0_node)
 		CGM_ACn_DCm(mc_cgm0_base, 7, 1),
 		MC_CGM_ACn_DCm_PREDIV_OFFSET,
 		MC_CGM_ACn_DCm_PREDIV_SIZE);
+#if 0
+	/* Temporarily disabled until we have the clarifications
+	 about ENET clock from Design team */
+	clk[S32V234_CLK_ENET_AHB] = s32_clk_gate2_shared("enet_ahb",
+		"sys3", mc_me_base, ENET_PCTL, 0, 1,
+		&share_count_enetgate);
+	clk[S32V234_CLK_ENET_IPS] = s32_clk_gate2_shared("enet_ips",
+		"sys6", mc_me_base, ENET_PCTL, 0, 1,
+		&share_count_enetgate);
+	clk[S32V234_CLK_ENET_TIME] = s32_clk_gate2_shared("enet_time",
+		"enet_time_div", mc_me_base, ENET_PCTL, 0, 1,
+		&share_count_enetgate);
+#endif
+	/* H264DCD Clock */
+	clk[S32V234_CLK_H264DCD_SEL] = s32_clk_mux("h264dcd_sel",
+		CGM_ACn_SC(mc_cgm0_base, 12),
+		MC_CGM_ACn_SEL_OFFSET,
+		MC_CGM_ACn_SEL_SIZE,
+		h264dcd_sels, ARRAY_SIZE(h264dcd_sels));
+	clk[S32V234_CLK_H264DCD_DIV] = s32_clk_divider("h264dcd_div",
+		"h264dec_sel", CGM_ACn_DCm(mc_cgm0_base, 12, 0),
+		MC_CGM_ACn_DCm_PREDIV_OFFSET,
+		MC_CGM_ACn_DCm_PREDIV_SIZE);
+	clk[S32V234_CLK_H264DCD] = s32_clk_gate2_shared("h264dcd",
+		"h264dec_div", mc_me_base, H264DEC_PCTL, 0, 1,
+		&share_count_h264dcdgate);
+	clk[S32V234_CLK_H264DCD_IPS] = s32_clk_gate2_shared("h264dcd_ips",
+		"sys6", mc_me_base, H264DEC_PCTL, 0, 1,
+		&share_count_h264dcdgate);
+	clk[S32V234_CLK_H264DCD_SRAM_IPS] =
+		s32_clk_gate2_shared("h264dcd_sram_ips",
+		"sys3", mc_me_base, H264DEC_PCTL, 0, 1,
+		&share_count_h264dcdgate);
+
+
+	/* H264ENC Clock */
+	clk[S32V234_CLK_H264ENC_SEL] = s32_clk_mux("h264enc_sel",
+		CGM_ACn_SC(mc_cgm0_base, 13),
+		MC_CGM_ACn_SEL_OFFSET,
+		MC_CGM_ACn_SEL_SIZE,
+		h264enc_sels, ARRAY_SIZE(h264enc_sels));
+	clk[S32V234_CLK_H264ENC_DIV] = s32_clk_divider("h264enc_div",
+		"h264enc_sel", CGM_ACn_DCm(mc_cgm0_base, 13, 0),
+		MC_CGM_ACn_DCm_PREDIV_OFFSET,
+		MC_CGM_ACn_DCm_PREDIV_SIZE);
+	clk[S32V234_CLK_H264ENC] = s32_clk_gate2_shared("h264enc",
+		"h264enc_div", mc_me_base, H264ENC_PCTL, 0, 1,
+		&share_count_h264encgate);
+	clk[S32V234_CLK_H264ENC_IPS] = s32_clk_gate2_shared("h264enc_ips",
+		"sys6", mc_me_base, H264ENC_PCTL, 0, 1,
+		&share_count_h264encgate);
+	clk[S32V234_CLK_H264ENC_SRAM_IPS] =
+		s32_clk_gate2_shared("h264enc_sram_ips",
+		"sys3", mc_me_base, H264ENC_PCTL, 0, 1,
+		&share_count_h264encgate);
 
 	/* SDHC Clock */
 	clk[S32V234_CLK_SDHC_SEL] = s32_clk_mux("sdhc_sel",
@@ -535,10 +508,19 @@ static void __init s32v234_clocks_init(struct device_node *mc_cgm0_node)
 		MC_CGM_ACn_SEL_SIZE,
 		sdhc_sels, ARRAY_SIZE(sdhc_sels));
 
-	clk[S32V234_CLK_SDHC] = s32_clk_divider("sdhc", "sdhc_sel",
+	clk[S32V234_CLK_SDHC_DIV] = s32_clk_divider("sdhc_div", "sdhc_sel",
 		CGM_ACn_DCm(mc_cgm0_base, 15, 0),
 		MC_CGM_ACn_DCm_PREDIV_OFFSET,
 		MC_CGM_ACn_DCm_PREDIV_SIZE);
+	clk[S32V234_CLK_SDHC] = s32_clk_gate2_shared("sdhc",
+		"sdhc_div", mc_me_base, SDHC_PCTL, 0, 1,
+		&share_count_sdhcgate);
+	clk[S32V234_CLK_SDHC_IPS] = s32_clk_gate2_shared("sdhc_ips",
+		"sys6", mc_me_base, SDHC_PCTL, 0, 1,
+		&share_count_sdhcgate);
+	clk[S32V234_CLK_SDHC_AHB] = s32_clk_gate2_shared("sdhc_ahb",
+		"sys6", mc_me_base, SDHC_PCTL, 0, 1,
+		&share_count_sdhcgate);
 
 	/* GPU Clocks */
 	clk[S32V234_CLK_GPU_SEL] = s32_clk_mux("gpu_sels",
@@ -562,8 +544,93 @@ static void __init s32v234_clocks_init(struct device_node *mc_cgm0_node)
 		CGM_SC_DCn(mc_cgm3_base, 0), MC_CGM_SC_DCn_PREDIV_OFFSET,
 		MC_CGM_SC_DCn_PREDIV_SIZE);
 
+	clk[S32V234_CLK_MIPI_LI] = s32_clk_divider("mipi_li",
+		"gpu_shdmipi_sels",
+		CGM_SC_DCn(mc_cgm3_base, 1), MC_CGM_SC_DCn_PREDIV_OFFSET,
+		MC_CGM_SC_DCn_PREDIV_SIZE);
+
+	clk[S32V234_CLK_CSI0] = s32_clk_gate2_shared("csi0",
+		"sys6", mc_me_base, CSI0_PCTL, 0, 1,
+		&share_count_csi0gate);
+	clk[S32V234_CLK_CSI0_CLI] = s32_clk_gate2_shared("csi0_cli",
+		"mipi_li", mc_me_base, CSI0_PCTL, 0, 1,
+		&share_count_csi0gate);
+	clk[S32V234_CLK_CSI0_CUI] = s32_clk_gate2_shared("csi0_cui",
+		"sys3", mc_me_base, CSI0_PCTL, 0, 1,
+		&share_count_csi0gate);
+	clk[S32V234_CLK_CSI0_DPHY] = s32_clk_gate2_shared("csi0_dphy",
+		"sys6_div2", mc_me_base, CSI0_PCTL, 0, 1,
+		&share_count_csi0gate);
+
+	clk[S32V234_CLK_CSI1] = s32_clk_gate2_shared("csi1",
+		"sys6", mc_me_base, CSI1_PCTL, 0, 1,
+		&share_count_csi1gate);
+	clk[S32V234_CLK_CSI1_CLI] = s32_clk_gate2_shared("csi1_cli",
+		"mipi_li", mc_me_base, CSI1_PCTL, 0, 1,
+		&share_count_csi1gate);
+	clk[S32V234_CLK_CSI1_CUI] = s32_clk_gate2_shared("csi1_cui",
+		"sys3", mc_me_base, CSI1_PCTL, 0, 1,
+		&share_count_csi1gate);
+	clk[S32V234_CLK_CSI1_DPHY] = s32_clk_gate2_shared("csi1_dphy",
+		"sys6_div2", mc_me_base, CSI1_PCTL, 0, 1,
+		&share_count_csi1gate);
+
 	/* enable ENETPLL */
 	enable_clocks_sources(0, MC_ME_MODE_MC_ENETPLL,
+			      MC_ME_RUNn_MC(mc_me_base, 0));
+	/* DDR_PLL */
+	clk[S32V234_CLK_DDRPLL_VCO] = s32_clk_plldig(S32_PLLDIG_DDR,
+		"ddrpll_vco", "ddrpll_sel", DDRPLL_PLLDIG(mc_cgm0_base),
+		DDRPLL_PLLDIG_PLLDV_MFD, DDRPLL_PLLDIG_PLLDV_MFN,
+		DDRPLL_PLLDIG_PLLDV_RFDPHI0, DDRPLL_PLLDIG_PLLDV_RFDPHI1);
+
+	clk[S32V234_CLK_DDRPLL_PHI0] = s32_clk_plldig_phi(S32_PLLDIG_DDR,
+		"ddrpll_phi0", "ddrpll_vco",
+		DDRPLL_PLLDIG(mc_cgm0_base), 0);
+
+	clk[S32V234_CLK_DDRPLL_PHI1] = s32_clk_plldig_phi(S32_PLLDIG_DDR,
+		"ddrpll_phi1", "ddrpll_vco",
+		DDRPLL_PLLDIG(mc_cgm0_base), 1);
+
+	clk[S32V234_CLK_DDRPLL_DFS0] = s32_clk_dfs(S32_PLLDIG_DDR,
+		 "ddrpll_dfs0", "ddrpll_phi1",
+		 DDRPLL_PLLDIG_DFS(mc_cgm0_base), 0,
+		 DDRPLL_PLLDIG_DFS0_MFN);
+
+	clk[S32V234_CLK_DDRPLL_DFS1] = s32_clk_dfs(S32_PLLDIG_DDR,
+		 "ddrpll_dfs1", "ddrpll_phi1",
+		 DDRPLL_PLLDIG_DFS(mc_cgm0_base), 1,
+		 DDRPLL_PLLDIG_DFS1_MFN);
+
+	clk[S32V234_CLK_DDRPLL_DFS2] = s32_clk_dfs(S32_PLLDIG_DDR,
+		 "ddrpll_dfs2", "ddrpll_phi1",
+		 DDRPLL_PLLDIG_DFS(mc_cgm0_base), 2,
+		 DDRPLL_PLLDIG_DFS2_MFN);
+
+	/* JPEGDEC Clock */
+	clk[S32V234_CLK_MJPEG_SEL] = s32_clk_mux("mjpeg_sel",
+		CGM_ACn_SC(mc_cgm0_base, 2),
+		MC_CGM_ACn_SEL_OFFSET,
+		MC_CGM_ACn_SEL_SIZE,
+		jpegdec_sels, ARRAY_SIZE(jpegdec_sels));
+
+	clk[S32V234_CLK_MJPEG_DIV] = s32_clk_divider("mjpeg_div",
+		"mjpeg_sel", CGM_ACn_DCm(mc_cgm0_base, 2, 0),
+		MC_CGM_ACn_DCm_PREDIV_OFFSET,
+		MC_CGM_ACn_DCm_PREDIV_SIZE);
+
+	clk[S32V234_CLK_MJPEG] = s32_clk_gate2_shared("mjpeg",
+		"mjpeg_div", mc_me_base, JPEG_PCTL, 0, 1,
+		&share_count_jpegdecgate);
+	clk[S32V234_CLK_JPEG_IPS] = s32_clk_gate2_shared("jpeg_ips",
+		"sys6", mc_me_base, JPEG_PCTL, 0, 1,
+		&share_count_jpegdecgate);
+	clk[S32V234_CLK_JPEG_SRAM_IPS] = s32_clk_gate2_shared("jpeg_sram_ips",
+		"sys3", mc_me_base, JPEG_PCTL, 0, 1,
+		&share_count_jpegdecgate);
+
+	/* enable DDRPLL */
+	enable_clocks_sources(0, MC_ME_MODE_MC_DDRPLL,
 			      MC_ME_RUNn_MC(mc_me_base, 0));
 
 	/* set the system clock */
