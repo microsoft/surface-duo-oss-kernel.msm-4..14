@@ -17,6 +17,7 @@
 	hisi,boardid = <5 3 0 0>;
 
 	aliases {
+		mshc1 = &dwmmc1;
 		mshc2 = &dwmmc2;
 		serial0 = &uart0;
 		serial1 = &uart1;

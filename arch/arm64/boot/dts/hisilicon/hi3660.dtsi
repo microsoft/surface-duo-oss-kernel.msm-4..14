@@ -724,6 +724,34 @@
 			status = "ok";
 		};
 
+		/* SD */
+		dwmmc1: dwmmc1@FF37F000 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+			cd-inverted;
+			compatible = "hisilicon,hi3660-dw-mshc";
+			num-slots = <1>;
+			bus-width = <0x4>;
+			disable-wp;
+			cap-sd-highspeed;
+			supports-highspeed;
+			card-detect-delay = <200>;
+			reg = <0x0 0xff37f000 0x0 0x1000>;
+			interrupts = <0 139 4>;
+			clocks = <&crg_ctrl HI3660_CLK_GATE_SD>,
+				<&crg_ctrl HI3660_HCLK_GATE_SD>;
+			clock-names = "ciu", "biu";
+			clock-frequency = <3200000>;
+			cd-gpios = <&gpio25 3 0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&sdcard_pmx_func>;
+			slot@0 {
+				reg = <0x0>;
+				bus-width = <4>;
+				disable-wp;
+			};
+		};
+
 		/* SDIO */
 		dwmmc2: dwmmc2@FF3FF000 {
 			compatible = "hisilicon,hi3660-dw-mshc";
