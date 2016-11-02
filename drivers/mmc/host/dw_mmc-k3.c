@@ -9,6 +9,7 @@
  */
 
 #include <linux/clk.h>
+#include <linux/io.h>
 #include <linux/mfd/syscon.h>
 #include <linux/mmc/host.h>
 #include <linux/mmc/dw_mmc.h>
@@ -28,6 +29,19 @@
 #define AO_SCTRL_SEL18		BIT(10)
 #define AO_SCTRL_CTRL3		0x40C
 
+#include <linux/delay.h>
+
+#define DWMMC_SD_ID 1
+#define DWMMC_SDIO_ID 2
+
+#define BIT_VOLT_OFFSET         (0x314)
+#define BIT_VOLT_VALUE_18       (0x4)
+
+#define BIT_RST_SD              (1<<18)
+#define PERI_CRG_RSTDIS4  (0x94)
+#define PERI_CRG_RSTEN4   (0x90)
+#define BIT_RST_SDIO    (1<<20)
+
 struct k3_priv {
 	struct regmap	*reg;
 };
@@ -37,6 +51,8 @@ static unsigned long dw_mci_hi6220_caps[] = {
 	MMC_CAP_CMD23,
 	0
 };
+static void __iomem *pericrg_base;
+static void __iomem *sys_base;
 
 static void dw_mci_k3_set_ios(struct dw_mci *host, struct mmc_ios *ios)
 {
@@ -144,7 +160,167 @@ static const struct dw_mci_drv_data hi6220_data = {
 	.prepare_command        = dw_mci_hi6220_prepare_command,
 };
 
+static int dw_mci_hs_get_resource(void)
+{
+	struct device_node *np = NULL;
+
+	if (!pericrg_base) {
+		np = of_find_compatible_node(NULL, NULL, "hisilicon,hi3660-crgctrl");
+		if (!np) {
+			printk("can't find crgctrl!\n");
+			return -1;
+		}
+
+		pericrg_base = of_iomap(np, 0);
+		if (!pericrg_base) {
+			printk("crgctrl iomap error!\n");
+			return -1;
+		}
+	}
+
+	if (!sys_base) {
+		np = of_find_compatible_node(NULL, NULL, "hisilicon,hi3660-sctrl");
+		if (!np) {
+			printk("can't find sysctrl!\n");
+			return -1;
+		}
+
+		sys_base = of_iomap(np, 0);
+		if (!sys_base) {
+			printk("sysctrl iomap error!\n");
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+void sdcard_set_pmic_reg(void)
+{
+	unsigned char data = 0;
+	void __iomem *iomem = ioremap(0xfff34000, 0x1000);
+
+	data = readb(iomem + (0x78 << 2)) | (1 << 1);
+	writeb(data, iomem + (0x78 << 2));
+	data = readb(iomem + (0x79 << 2)) & ~(0x7) | 6;
+	writeb(data, iomem + (0x79 << 2));
+
+	data = readb(iomem + (0x6A << 2)) | (1 << 1);
+	writeb(data, iomem + (0x6A << 2));
+	data = readb(iomem + (0x6B << 2)) & ~(0x7) | 5;
+	writeb(data, iomem + (0x6B << 2));
+	iounmap(iomem);
+}
+
+int dw_mci_hi3660_init(struct dw_mci *host)
+{
+	dw_mci_hs_get_resource();
+	sdcard_set_pmic_reg();
+
+	return 0;
+}
+
+static int dw_mci_hs_set_controller(struct dw_mci *host, bool set)
+{
+	int ctrl_id;
+
+	if (host->dev->of_node) {
+		ctrl_id = of_alias_get_id(host->dev->of_node, "mshc");
+		if (ctrl_id < 0) {
+			dev_err(host->dev, "can't get alias mmc id\n");
+			return ctrl_id;
+		}
+	}
+
+	if (set) {
+		if (DWMMC_SD_ID == ctrl_id) {
+			writel(BIT_RST_SD, pericrg_base + PERI_CRG_RSTEN4);
+			dev_info(host->dev, "rest sd \n");
+		} else if (DWMMC_SDIO_ID == ctrl_id) {
+			writel(BIT_RST_SDIO, pericrg_base + PERI_CRG_RSTEN4);
+			dev_info(host->dev, "rest sdio \n");
+		}
+	} else {
+		if (DWMMC_SD_ID == ctrl_id) {
+			writel(BIT_RST_SD, pericrg_base + PERI_CRG_RSTDIS4);
+			dev_info(host->dev, "unrest sd \n");
+		} else if (DWMMC_SDIO_ID == ctrl_id) {
+			writel(BIT_RST_SDIO, pericrg_base + PERI_CRG_RSTDIS4);
+			dev_info(host->dev, "unrest sdio \n");
+		}
+	}
+
+	return 0;
+}
+
+int dw_mci_hi3660_setup_clock(struct dw_mci *host)
+{
+	int ret;
+	ret = dw_mci_hs_set_controller(host, 0);
+	if (ret < 0)
+		return ret;
+        /* set threshold to 512 bytes */
+        mci_writel(host, CDTHRCTL, 0x02000001);
+	return 0;
+}
+
+static void dw_mci_hi3660_prepare_command(struct dw_mci *host, u32 *cmdr)
+{
+	*cmdr |= SDMMC_CMD_USE_HOLD_REG;
+}
+
+static int dw_mci_set_sel18(bool set)
+{
+	u32 reg;
+
+	reg = readl(sys_base + BIT_VOLT_OFFSET);
+	if (set)
+		reg |= BIT_VOLT_VALUE_18;
+	else
+		reg &= ~BIT_VOLT_VALUE_18;
+	writel(reg, sys_base + BIT_VOLT_OFFSET);
+
+	return 0;
+}
+
+void dw_mci_hi3660_set_ios(struct dw_mci *host, struct mmc_ios *ios)
+{
+	int ret;
+	unsigned int clock;
+	switch (ios->power_mode) {
+		case MMC_POWER_OFF:
+			break;
+		case MMC_POWER_UP:
+			/* for sdcard */
+			dw_mci_set_sel18(0);
+			/* Wait for 5ms */
+			usleep_range(5000, 5500);
+			break;
+		case MMC_POWER_ON:
+			break;
+		default:
+			dev_info(host->dev, "unknown power supply mode\n");
+			break;
+	}
+
+	clock = 50000000;
+
+	ret = clk_set_rate(host->ciu_clk, clock);
+	if (ret)
+		dev_err(host->dev, "failed to set rate %uHz\n", clock);
+
+	host->bus_hz = 50000000;
+}
+
+static const struct dw_mci_drv_data hi3660_data = {
+	.init = dw_mci_hi3660_init,
+	.setup_clock = dw_mci_hi3660_setup_clock,
+	.prepare_command = dw_mci_hi3660_prepare_command,
+	.set_ios = dw_mci_hi3660_set_ios,
+};
+
 static const struct of_device_id dw_mci_k3_match[] = {
+	{ .compatible = "hisilicon,hi3660-dw-mshc", .data = &hi3660_data, },
 	{ .compatible = "hisilicon,hi4511-dw-mshc", .data = &k3_drv_data, },
 	{ .compatible = "hisilicon,hi6220-dw-mshc", .data = &hi6220_data, },
 	{},
