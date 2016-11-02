@@ -595,15 +595,15 @@ static void vfe_output_frame_drop(struct vfe_device *vfe,
 
 }
 
-static struct msm_video_buffer *vfe_buf_get_pending(struct vfe_output *output)
+static struct camss_buffer *vfe_buf_get_pending(struct vfe_output *output)
 {
-	struct msm_video_buffer *buffer = NULL;
+	struct camss_buffer *buffer = NULL;
 
 	if (!list_empty(&output->pending_bufs)) {
 		buffer = list_first_entry(&output->pending_bufs,
-					  struct msm_video_buffer,
-					  dma_queue);
-		list_del(&buffer->dma_queue);
+					  struct camss_buffer,
+					  queue);
+		list_del(&buffer->queue);
 	}
 
 	return buffer;
@@ -615,10 +615,10 @@ static struct msm_video_buffer *vfe_buf_get_pending(struct vfe_output *output)
  * @buffer: Video buffer
  */
 static void vfe_buf_add_pending(struct vfe_output *output,
-				struct msm_video_buffer *buffer)
+				struct camss_buffer *buffer)
 {
-	INIT_LIST_HEAD(&buffer->dma_queue);
-	list_add_tail(&buffer->dma_queue, &output->pending_bufs);
+	INIT_LIST_HEAD(&buffer->queue);
+	list_add_tail(&buffer->queue, &output->pending_bufs);
 }
 
 /*
@@ -627,12 +627,12 @@ static void vfe_buf_add_pending(struct vfe_output *output,
  */
 static void vfe_buf_flush_pending(struct vfe_output *output)
 {
-	struct msm_video_buffer *buf;
-	struct msm_video_buffer *t;
+	struct camss_buffer *buf;
+	struct camss_buffer *t;
 
-	list_for_each_entry_safe(buf, t, &output->pending_bufs, dma_queue) {
+	list_for_each_entry_safe(buf, t, &output->pending_bufs, queue) {
 		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
-		list_del(&buf->dma_queue);
+		list_del(&buf->queue);
 	}
 }
 
@@ -674,7 +674,7 @@ static void vfe_buf_update_wm_on_last(struct vfe_device *vfe,
 
 static void vfe_buf_update_wm_on_new(struct vfe_device *vfe,
 				     struct vfe_output *output,
-				     struct msm_video_buffer *new_buf)
+				     struct camss_buffer *new_buf)
 {
 	int inactive_idx;
 
@@ -1019,7 +1019,7 @@ static void vfe_isr_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
  */
 static void vfe_isr_wm_done(struct vfe_device *vfe, u8 wm)
 {
-	struct msm_video_buffer *ready_buf;
+	struct camss_buffer *ready_buf;
 	struct vfe_output *output;
 	dma_addr_t new_addr;
 	unsigned long flags;
@@ -1250,7 +1250,7 @@ static struct vfe_line *vfe_video_pad_to_line(struct media_pad *pad)
  * Return 0 on success or a negative error code otherwise
  */
 static int vfe_queue_buffer(struct camss_video *vid,
-			    struct msm_video_buffer *buf)
+			    struct camss_buffer *buf)
 {
 	struct vfe_device *vfe = &vid->camss->vfe;
 	struct vfe_line *line;

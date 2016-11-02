@@ -25,7 +25,17 @@
 #include "video.h"
 #include "camss.h"
 
-static struct format_info formats[] = {
+/*
+ * struct format_info - ISP media bus format information
+ * @code: V4L2 media bus format code
+ * @pixelformat: V4L2 pixel format FCC identifier
+ * @bpp: Bits per pixel when stored in memory
+ */
+static const struct format_info {
+	u32 code;
+	u32 pixelformat;
+	unsigned int bpp;
+} formats[] = {
 	{ MEDIA_BUS_FMT_UYVY8_2X8, V4L2_PIX_FMT_UYVY, 16 },
 	{ MEDIA_BUS_FMT_VYUY8_2X8, V4L2_PIX_FMT_VYUY, 16 },
 	{ MEDIA_BUS_FMT_YUYV8_2X8, V4L2_PIX_FMT_YUYV, 16 },
@@ -44,96 +54,9 @@ static struct format_info formats[] = {
 	{ MEDIA_BUS_FMT_SRGGB12_1X12, V4L2_PIX_FMT_SRGGB12P, 12 }
 };
 
-static int video_queue_setup(struct vb2_queue *q, const void *parg,
-	unsigned int *num_buffers, unsigned int *num_planes,
-	unsigned int sizes[], void *alloc_ctxs[])
-{
-	struct camss_video *video = vb2_get_drv_priv(q);
-	const struct v4l2_format *fmt = parg;
-
-	*num_planes = 1;
-
-	if (NULL == fmt)
-		sizes[0] = video->active_fmt.fmt.pix.sizeimage;
-	else
-		sizes[0] = fmt->fmt.pix.sizeimage;
-
-	alloc_ctxs[0] = video->alloc_ctx;
-
-	return 0;
-}
-
-static int video_buf_init(struct vb2_buffer *vb)
-{
-	return 0;
-}
-
-static int video_buf_prepare(struct vb2_buffer *vb)
-{
-	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
-	struct camss_video *video = vb2_get_drv_priv(vb->vb2_queue);
-	struct msm_video_buffer *buffer = container_of(vbuf,
-						struct msm_video_buffer, vb);
-
-	buffer->addr = vb2_dma_contig_plane_dma_addr(vb, 0);
-
-	vb2_set_plane_payload(vb, 0, video->active_fmt.fmt.pix.sizeimage);
-
-	return 0;
-}
-
-static void video_buf_finish(struct vb2_buffer *vb)
-{
-}
-
-static void video_buf_queue(struct vb2_buffer *vb)
-{
-	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
-	struct camss_video *video = vb2_get_drv_priv(vb->vb2_queue);
-	struct msm_video_buffer *buffer = container_of(vbuf,
-						struct msm_video_buffer, vb);
-
-	camss_video_call(video, queue_buffer, buffer);
-}
-
-static int video_start_streaming(struct vb2_queue *q, unsigned int count)
-{
-
-	return 0;
-}
-
-static void video_stop_streaming(struct vb2_queue *q)
-{
-	struct camss_video *video = vb2_get_drv_priv(q);
-
-	camss_video_call(video, flush_buffers);
-}
-
-static struct vb2_ops msm_video_vb2_q_ops = {
-	.queue_setup     = video_queue_setup,
-	.buf_init        = video_buf_init,
-	.buf_prepare     = video_buf_prepare,
-	.buf_finish      = video_buf_finish,
-	.buf_queue       = video_buf_queue,
-	.start_streaming = video_start_streaming,
-	.stop_streaming  = video_stop_streaming,
-};
-
-static int video_querycap(struct file *file, void *fh,
-			  struct v4l2_capability *cap)
-{
-	struct camss_video *video = video_drvdata(file);
-
-	strlcpy(cap->driver, video->vdev->name, sizeof(cap->driver));
-	strlcpy(cap->card, video->vdev->name, sizeof(cap->card));
-	strlcpy(cap->bus_info, "media", sizeof(cap->bus_info));
-	cap->version = CAMSS_VERSION;
-	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING |
-							V4L2_CAP_DEVICE_CAPS;
-	cap->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
-
-	return 0;
-}
+/* -----------------------------------------------------------------------------
+ * Helper functions
+ */
 
 /*
  * video_mbus_to_pix - Convert v4l2_mbus_framefmt to v4l2_pix_format
@@ -142,7 +65,7 @@ static int video_querycap(struct file *file, void *fh,
  *
  * Fill the output pix structure with information from the input mbus format.
  *
- * Return 0 on success.
+ * Return 0 on success or a negative error code otherwise
  */
 static unsigned int video_mbus_to_pix(const struct v4l2_mbus_framefmt *mbus,
 				      struct v4l2_pix_format *pix)
@@ -211,6 +134,90 @@ static int video_get_subdev_format(struct camss_video *video,
 	return video_mbus_to_pix(&fmt.format, &format->fmt.pix);
 }
 
+/* -----------------------------------------------------------------------------
+ * Video queue operations
+ */
+
+static int video_queue_setup(struct vb2_queue *q, const void *parg,
+	unsigned int *num_buffers, unsigned int *num_planes,
+	unsigned int sizes[], void *alloc_ctxs[])
+{
+	struct camss_video *video = vb2_get_drv_priv(q);
+	const struct v4l2_format *fmt = parg;
+
+	*num_planes = 1;
+
+	if (NULL == fmt)
+		sizes[0] = video->active_fmt.fmt.pix.sizeimage;
+	else
+		sizes[0] = fmt->fmt.pix.sizeimage;
+
+	alloc_ctxs[0] = video->alloc_ctx;
+
+	return 0;
+}
+
+static int video_buf_prepare(struct vb2_buffer *vb)
+{
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+	struct camss_video *video = vb2_get_drv_priv(vb->vb2_queue);
+	struct camss_buffer *buffer = container_of(vbuf, struct camss_buffer,
+						   vb);
+
+	buffer->addr = vb2_dma_contig_plane_dma_addr(vb, 0);
+
+	vb2_set_plane_payload(vb, 0, video->active_fmt.fmt.pix.sizeimage);
+
+	return 0;
+}
+
+static void video_buf_queue(struct vb2_buffer *vb)
+{
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+	struct camss_video *video = vb2_get_drv_priv(vb->vb2_queue);
+	struct camss_buffer *buffer = container_of(vbuf, struct camss_buffer,
+						   vb);
+
+	camss_video_call(video, queue_buffer, buffer);
+}
+
+static int video_start_streaming(struct vb2_queue *q, unsigned int count)
+{
+	return 0;
+}
+
+static void video_stop_streaming(struct vb2_queue *q)
+{
+	struct camss_video *video = vb2_get_drv_priv(q);
+
+	camss_video_call(video, flush_buffers);
+}
+
+static struct vb2_ops msm_video_vb2_q_ops = {
+	.queue_setup     = video_queue_setup,
+	.buf_prepare     = video_buf_prepare,
+	.buf_queue       = video_buf_queue,
+	.start_streaming = video_start_streaming,
+	.stop_streaming  = video_stop_streaming,
+};
+
+/* -----------------------------------------------------------------------------
+ * V4L2 ioctls
+ */
+
+static int video_querycap(struct file *file, void *fh,
+			  struct v4l2_capability *cap)
+{
+	strlcpy(cap->driver, "qcom-camss", sizeof(cap->driver));
+	strlcpy(cap->card, "Qualcomm Camera Subsystem", sizeof(cap->card));
+	strlcpy(cap->bus_info, "platform:qcom-camss", sizeof(cap->bus_info));
+	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING |
+							V4L2_CAP_DEVICE_CAPS;
+	cap->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
+
+	return 0;
+}
+
 static int video_enum_fmt(struct file *file, void *fh, struct v4l2_fmtdesc *f)
 {
 	struct camss_video *video = video_drvdata(file);
@@ -264,56 +271,41 @@ static int video_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 static int video_try_fmt(struct file *file, void *fh, struct v4l2_format *f)
 {
 	struct camss_video *video = video_drvdata(file);
-	int ret;
 
 	if (f->type != video->type)
 		return -EINVAL;
 
-	ret = video_get_subdev_format(video, f);
-
-	return ret;
+	return video_get_subdev_format(video, f);
 }
 
 static int video_reqbufs(struct file *file, void *fh,
 			 struct v4l2_requestbuffers *b)
 {
 	struct camss_video *video = video_drvdata(file);
-	int ret;
 
-	ret = vb2_reqbufs(&video->vb2_q, b);
-
-	return ret;
+	return vb2_reqbufs(&video->vb2_q, b);
 }
 
 static int video_querybuf(struct file *file, void *fh,
 			  struct v4l2_buffer *b)
 {
 	struct camss_video *video = video_drvdata(file);
-	int ret;
 
-	ret = vb2_querybuf(&video->vb2_q, b);
-
-	return ret;
+	return vb2_querybuf(&video->vb2_q, b);
 }
 
 static int video_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 {
 	struct camss_video *video = video_drvdata(file);
-	int ret;
 
-	ret = vb2_qbuf(&video->vb2_q, b);
-
-	return ret;
+	return vb2_qbuf(&video->vb2_q, b);
 }
 
 static int video_dqbuf(struct file *file, void *fh, struct v4l2_buffer *b)
 {
 	struct camss_video *video = video_drvdata(file);
-	int ret;
 
-	ret = vb2_dqbuf(&video->vb2_q, b, file->f_flags & O_NONBLOCK);
-
-	return ret;
+	return vb2_dqbuf(&video->vb2_q, b, file->f_flags & O_NONBLOCK);
 }
 
 static int video_check_format(struct camss_video *video)
@@ -355,11 +347,11 @@ static int video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 
 	ret = video_check_format(video);
 	if (ret < 0)
-		goto pipeline_stop;
+		goto error_vb2_streamon;
 
 	ret = vb2_streamon(&video->vb2_q, type);
 	if (ret < 0)
-		goto pipeline_stop;
+		goto error_vb2_streamon;
 
 	entity = &vdev->entity;
 	while (1) {
@@ -377,15 +369,15 @@ static int video_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
 
 		ret = v4l2_subdev_call(subdev, video, s_stream, 1);
 		if (ret < 0 && ret != -ENOIOCTLCMD)
-			goto streamoff;
+			goto error_s_stream;
 	}
 
 	return 0;
 
-pipeline_stop:
-	media_entity_pipeline_stop(&vdev->entity);
-streamoff:
+error_s_stream:
 	vb2_streamoff(&video->vb2_q, type);
+error_vb2_streamon:
+	media_entity_pipeline_stop(&vdev->entity);
 
 	return ret;
 }
@@ -439,6 +431,30 @@ static int video_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
 	return 0;
 }
 
+static int video_enum_input(struct file *file, void *fh,
+			    struct v4l2_input *input)
+{
+	if (input->index > 0)
+		return -EINVAL;
+
+	strlcpy(input->name, "camera", sizeof(input->name));
+	input->type = V4L2_INPUT_TYPE_CAMERA;
+
+	return 0;
+}
+
+static int video_g_input(struct file *file, void *fh, unsigned int *input)
+{
+	*input = 0;
+
+	return 0;
+}
+
+static int video_s_input(struct file *file, void *fh, unsigned int input)
+{
+	return input == 0 ? 0 : -EINVAL;
+}
+
 static const struct v4l2_ioctl_ops msm_vid_ioctl_ops = {
 	.vidioc_querycap          = video_querycap,
 	.vidioc_enum_fmt_vid_cap  = video_enum_fmt,
@@ -451,12 +467,19 @@ static const struct v4l2_ioctl_ops msm_vid_ioctl_ops = {
 	.vidioc_dqbuf             = video_dqbuf,
 	.vidioc_streamon          = video_streamon,
 	.vidioc_streamoff         = video_streamoff,
+	.vidioc_enum_input        = video_enum_input,
+	.vidioc_g_input           = video_g_input,
+	.vidioc_s_input           = video_s_input,
 };
 
 
+
+/* -----------------------------------------------------------------------------
+ * V4L2 file operations
+ */
+
 /*
- * video_init_format - Initialize format
- * @sd: VFE V4L2 subdevice
+ * video_init_format - Helper function to initialize format
  *
  * Initialize all pad formats with default values.
  */
@@ -467,56 +490,46 @@ static int video_init_format(struct file *file, void *fh)
 	memset(&format, 0, sizeof(format));
 	format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 
-	video_s_fmt(file, fh, &format);
-
-	return 0;
+	return video_s_fmt(file, fh, &format);
 }
 
 static int video_open(struct file *file)
 {
 	struct video_device *vdev = video_devdata(file);
 	struct camss_video *video = video_drvdata(file);
-	struct vb2_queue *q;
+	struct camss_video_fh *handle;
 	int ret;
 
-	video->alloc_ctx = vb2_dma_contig_init_ctx(video->camss->dev);
-	if (IS_ERR(video->alloc_ctx)) {
-		dev_err(&vdev->dev, "Failed to init vb2 dma ctx\n");
-		return PTR_ERR(video->alloc_ctx);
-	}
+	handle = kzalloc(sizeof(*handle), GFP_KERNEL);
+	if (handle == NULL)
+		return -ENOMEM;
 
-	v4l2_fh_init(&video->fh, vdev);
-	v4l2_fh_add(&video->fh);
-	file->private_data = &video->fh;
+	v4l2_fh_init(&handle->vfh, video->vdev);
+	v4l2_fh_add(&handle->vfh);
+
+	handle->video = video;
+	file->private_data = &handle->vfh;
 
 	ret = msm_camss_pipeline_pm_use(&vdev->entity, 1);
 	if (ret < 0) {
-		dev_err(&vdev->dev, "pipeline power-up failed\n");
-		goto error;
+		dev_err(video->camss->dev, "Failed to power up pipeline\n");
+		goto error_pm_use;
 	}
 
-	q = &video->vb2_q;
-	q->drv_priv = video;
-	q->mem_ops = &vb2_dma_contig_memops;
-	q->ops = &msm_video_vb2_q_ops;
-	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	q->io_modes = VB2_MMAP;
-	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
-	q->buf_struct_size = sizeof(struct msm_video_buffer);
-	ret = vb2_queue_init(q);
+	ret = video_init_format(file, &handle->vfh);
 	if (ret < 0) {
-		dev_err(&vdev->dev, "vb2 queue init failed\n");
-		goto error;
+		dev_err(video->camss->dev, "Failed to init format\n");
+		goto error_init_format;
 	}
-
-	video_init_format(file, &video->fh);
 
 	return 0;
 
-error:
-	file->private_data = NULL;
-	v4l2_fh_del(&video->fh);
-	vb2_dma_contig_cleanup_ctx(video->alloc_ctx);
+error_init_format:
+	msm_camss_pipeline_pm_use(&vdev->entity, 0);
+
+error_pm_use:
+	v4l2_fh_del(&handle->vfh);
+	kfree(handle);
 
 	return ret;
 }
@@ -525,17 +538,17 @@ static int video_release(struct file *file)
 {
 	struct video_device *vdev = video_devdata(file);
 	struct camss_video *video = video_drvdata(file);
+	struct v4l2_fh *vfh = file->private_data;
+	struct camss_video_fh *handle = container_of(vfh, struct camss_video_fh,
+						     vfh);
 
-	video_streamoff(file, &video->fh, video->type);
-
-	vb2_queue_release(&video->vb2_q);
+	video_streamoff(file, vfh, video->type);
 
 	msm_camss_pipeline_pm_use(&vdev->entity, 0);
 
+	v4l2_fh_del(vfh);
+	kfree(handle);
 	file->private_data = NULL;
-	v4l2_fh_del(&video->fh);
-
-	vb2_dma_contig_cleanup_ctx(video->alloc_ctx);
 
 	return 0;
 }
@@ -564,26 +577,51 @@ static const struct v4l2_file_operations msm_vid_fops = {
 	.mmap		= video_mmap,
 };
 
+/* -----------------------------------------------------------------------------
+ * CAMSS video core
+ */
+
 int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 		       const char *name)
 {
 	struct media_pad *pad = &video->pad;
 	struct video_device *vdev;
+	struct vb2_queue *q;
 	int ret;
 
 	vdev = video_device_alloc();
 	if (vdev == NULL) {
-		v4l2_err(v4l2_dev, "Failed to allocate video device\n");
+		dev_err(v4l2_dev->dev, "Failed to allocate video device\n");
 		return -ENOMEM;
 	}
 
 	video->vdev = vdev;
 
+	video->alloc_ctx = vb2_dma_contig_init_ctx(video->camss->dev);
+	if (IS_ERR(video->alloc_ctx)) {
+		dev_err(v4l2_dev->dev, "Failed to init vb2 dma ctx\n");
+		return PTR_ERR(video->alloc_ctx);
+	}
+
+	q = &video->vb2_q;
+	q->drv_priv = video;
+	q->mem_ops = &vb2_dma_contig_memops;
+	q->ops = &msm_video_vb2_q_ops;
+	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	q->io_modes = VB2_MMAP;
+	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
+	q->buf_struct_size = sizeof(struct camss_buffer);
+	ret = vb2_queue_init(q);
+	if (ret < 0) {
+		dev_err(v4l2_dev->dev, "Failed to init vb2 queue\n");
+		goto error_vb2_init;
+	}
+
 	pad->flags = MEDIA_PAD_FL_SINK;
 	ret = media_entity_init(&vdev->entity, 1, pad, 0);
 	if (ret < 0) {
-		v4l2_err(v4l2_dev, "Failed to init video entity\n");
-		return ret;
+		dev_err(v4l2_dev->dev, "Failed to init video entity\n");
+		goto error_media_init;
 	}
 
 	vdev->fops = &msm_vid_fops;
@@ -591,20 +629,33 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 	vdev->release = video_device_release;
 	vdev->v4l2_dev = v4l2_dev;
 	vdev->vfl_dir = VFL_DIR_RX;
+	vdev->queue = &video->vb2_q;
 	strlcpy(vdev->name, name, sizeof(vdev->name));
 
 	ret = video_register_device(vdev, VFL_TYPE_GRABBER, -1);
 	if (ret < 0) {
-		v4l2_err(v4l2_dev, "Failed to register video device\n");
-		return ret;
+		dev_err(v4l2_dev->dev, "Failed to register video device\n");
+		goto error_video_register;
 	}
 
 	video_set_drvdata(vdev, video);
 
 	return 0;
+
+error_video_register:
+	media_entity_cleanup(&vdev->entity);
+error_media_init:
+	vb2_queue_release(&video->vb2_q);
+error_vb2_init:
+	vb2_dma_contig_cleanup_ctx(video->alloc_ctx);
+
+	return ret;
 }
 
 void msm_video_unregister(struct camss_video *video)
 {
 	video_unregister_device(video->vdev);
+	media_entity_cleanup(&video->vdev->entity);
+	vb2_queue_release(&video->vb2_q);
+	vb2_dma_contig_cleanup_ctx(video->alloc_ctx);
 }

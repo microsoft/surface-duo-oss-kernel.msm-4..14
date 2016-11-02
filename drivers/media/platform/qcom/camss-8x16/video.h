@@ -26,27 +26,24 @@
 #include <media/v4l2-mediabus.h>
 #include <media/videobuf2-v4l2.h>
 
-/*
- * struct format_info - ISP media bus format information
- * @code: V4L2 media bus format code
- * @pixelformat: V4L2 pixel format FCC identifier
- * @bpp: Bits per pixel when stored in memory
- */
-struct format_info {
-	u32 code;
-	u32 pixelformat;
-	unsigned int bpp;
+#define camss_video_call(f, op, args...)			\
+	(!(f) ? -ENODEV : (((f)->ops && (f)->ops->op) ? \
+			    (f)->ops->op((f), ##args) : -ENOIOCTLCMD))
+
+struct camss_buffer {
+	struct vb2_v4l2_buffer vb;
+	dma_addr_t addr;
+	struct list_head queue;
 };
 
-struct msm_video_buffer {
-	struct vb2_v4l2_buffer vb;
-	unsigned long size;
-	dma_addr_t addr;
-	struct list_head dma_queue;
+struct camss_video;
+
+struct camss_video_ops {
+	int (*queue_buffer)(struct camss_video *vid, struct camss_buffer *buf);
+	int (*flush_buffers)(struct camss_video *vid);
 };
 
 struct camss_video {
-	struct v4l2_fh fh;
 	struct camss *camss;
 	void *alloc_ctx;
 	struct vb2_queue vb2_q;
@@ -58,14 +55,10 @@ struct camss_video {
 	struct camss_video_ops *ops;
 };
 
-struct camss_video_ops {
-	int (*queue_buffer)(struct camss_video *vid, struct msm_video_buffer *buf);
-	int (*flush_buffers)(struct camss_video *vid);
+struct camss_video_fh {
+	struct v4l2_fh vfh;
+	struct camss_video *video;
 };
-
-#define camss_video_call(f, op, args...)			\
-	(!(f) ? -ENODEV : (((f)->ops && (f)->ops->op) ? \
-			    (f)->ops->op((f), ##args) : -ENOIOCTLCMD))
 
 int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 		       const char *name);

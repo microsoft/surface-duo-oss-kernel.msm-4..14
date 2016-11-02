@@ -58,8 +58,8 @@ struct vfe_output {
 	u8 wm_idx;
 
 	int active_buf;
-	struct msm_video_buffer *buf[2];
-	struct msm_video_buffer *last_buffer;
+	struct camss_buffer *buf[2];
+	struct camss_buffer *last_buffer;
 	struct list_head pending_bufs;
 
 	unsigned int drop_update_idx;
