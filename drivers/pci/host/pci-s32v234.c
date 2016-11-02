@@ -1223,6 +1223,10 @@ static const struct dev_pm_ops pci_s32v_pm_ops = {
 };
 #endif
 
+#ifdef CONFIG_PCI_S32V234_EP
+static struct pcie_port *pcie_port_ep;
+#endif
+
 static int s32v234_pcie_probe(struct platform_device *pdev)
 {
 	struct s32v234_pcie *s32v234_pcie;
@@ -1260,6 +1264,7 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 		return ret;
 		platform_set_drvdata(pdev, s32v234_pcie);
 	#else
+	pcie_port_ep = pp;
 	pp->link_req_rst_not_irq = platform_get_irq_byname(pdev,
 					"link_req_rst_not");
 	if (pp->link_req_rst_not_irq <= 0) {
@@ -1347,6 +1352,47 @@ static int __init s32v234_pcie_init(void)
 	return platform_driver_probe(&s32v234_pcie_driver, s32v234_pcie_probe);
 }
 module_init(s32v234_pcie_init);
+
+#ifdef CONFIG_PCI_S32V234_EP
+int s32v_pcie_setup_outbound(void *data)
+{
+	int ret = 0;
+	struct s32v_outbound_region *outbStr =
+			(struct s32v_outbound_region *)data;
+
+	if (!pcie_port_ep)
+		return -ENODEV;
+
+	if (!data)
+		return -EINVAL;
+
+	/* Call to setup outbound region */
+	store_outb_atu(outbStr);
+	ret = s32v_pcie_iatu_outbound_set(pcie_port_ep, outbStr);
+
+	return ret;
+}
+EXPORT_SYMBOL(s32v_pcie_setup_outbound);
+
+int s32v_pcie_setup_inbound(void *data)
+{
+	int ret = 0;
+	struct s32v_inbound_region *inbStr =
+			(struct s32v_inbound_region *)data;
+
+	if (!pcie_port_ep)
+		return -ENODEV;
+
+	if (!data)
+		return -EINVAL;
+
+	/* Call to setup inbound region */
+	store_inb_atu(inbStr);
+	ret = s32v_pcie_iatu_inbound_set(pcie_port_ep, inbStr);
+	return ret;
+}
+EXPORT_SYMBOL(s32v_pcie_setup_inbound);
+#endif  /* CONFIG_PCI_S32V234_EP */
 
 MODULE_AUTHOR("Sean Cross <xobs@kosagi.com>");
 MODULE_DESCRIPTION("Freescale S32V PCIe host controller driver");
