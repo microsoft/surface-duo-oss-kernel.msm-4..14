@@ -1447,6 +1447,41 @@ static unsigned int ion_ioctl_dir(unsigned int cmd)
 	}
 }
 
+int ion_sync_for_cpu(struct ion_client *client, int fd)
+{
+	struct dma_buf *dmabuf;
+	struct ion_buffer *buffer;
+
+	dmabuf = dma_buf_get(fd);
+	if (IS_ERR_OR_NULL(dmabuf)) {
+		pr_err("%s: can't get dmabuf!\n", __func__);
+		return PTR_ERR(dmabuf);
+	}
+
+	/* if this memory came from ion */
+	if (dmabuf->ops != &dma_buf_ops) {
+		pr_err("%s: can not sync dmabuf from another exporter\n",
+				__func__);
+		dma_buf_put(dmabuf);
+		return -EINVAL;
+	}
+	buffer = dmabuf->priv;
+
+	if (buffer->cpudraw_sg_table) {
+		dma_sync_sg_for_cpu(NULL,
+				buffer->cpudraw_sg_table->sgl,
+				buffer->cpudraw_sg_table->nents,
+				DMA_FROM_DEVICE);
+	} else {
+		dma_sync_sg_for_cpu(NULL, buffer->sg_table->sgl,
+				buffer->sg_table->nents,
+				DMA_FROM_DEVICE);
+	}
+
+	dma_buf_put(dmabuf);
+	return 0;
+}
+
 static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct ion_client *client = filp->private_data;
@@ -1540,6 +1575,44 @@ static long ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			return -ENOTTY;
 		ret = dev->custom_ioctl(client, data.custom.cmd,
 						data.custom.arg);
+		break;
+	}
+
+	case ION_IOC_INV:
+	{
+		ion_sync_for_cpu(client, data.fd.fd);
+		break;
+	}
+	case ION_IOC_MAP_IOMMU:
+	{
+		struct ion_handle *handle;
+
+		handle = ion_handle_get_by_id(client, data.map_iommu.handle);
+		if (IS_ERR(handle)) {
+			pr_err("%s: map iommu but handle invalid!\n", __func__);
+			return PTR_ERR(handle);
+		}
+
+		ret = ion_map_iommu(client, handle, &data.map_iommu.format);
+
+		ion_handle_put(handle);
+		break;
+	}
+	case ION_IOC_UNMAP_IOMMU:
+	{
+		struct ion_handle *handle;
+
+		handle = ion_handle_get_by_id(client, data.map_iommu.handle);
+		if (IS_ERR(handle)) {
+			pr_err("%s: map iommu but handle invalid!\n", __func__);
+			return PTR_ERR(handle);
+		}
+
+		ion_unmap_iommu(client, handle);
+		data.map_iommu.format.iova_start = 0;
+		data.map_iommu.format.iova_size = 0;
+
+		ion_handle_put(handle);
 		break;
 	}
 	default:

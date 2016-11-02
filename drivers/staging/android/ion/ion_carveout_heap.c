@@ -144,6 +144,8 @@ static struct ion_heap_ops carveout_heap_ops = {
 	.map_user = ion_heap_map_user,
 	.map_kernel = ion_heap_map_kernel,
 	.unmap_kernel = ion_heap_unmap_kernel,
+	.map_iommu = ion_heap_map_iommu,
+	.unmap_iommu = ion_heap_unmap_iommu,
 };
 
 struct ion_heap *ion_carveout_heap_create(struct ion_platform_heap *heap_data)
