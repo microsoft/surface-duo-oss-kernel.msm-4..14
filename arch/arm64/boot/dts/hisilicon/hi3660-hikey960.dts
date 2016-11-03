@@ -41,6 +41,11 @@
 		uart5: uart@fdf05000 {
 			status = "ok";
 		};
+
+		ufs: ufs@ff3b0000 {
+			reset-gpio = <&gpio18 1 0>;
+			//vcc-supply = <&ldo15>;
+		};
 	};
 
 	smmu {

@@ -94,7 +94,6 @@
 			resets = <&crg_rst HI3660_RST_UFS>,
 				 <&crg_rst HI3660_RST_UFS_ASSERT>;
 			reset-names = "rst", "assert";
-			//vcc-supply = <&ldo15>;
 			ufs-hi3660-use-rate-B;
 			ufs-hi3660-broken-fastauto;
 			ufs-hi3660-use-HS-GEAR3;
