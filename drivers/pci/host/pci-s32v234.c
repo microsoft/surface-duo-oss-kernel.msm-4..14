@@ -1010,10 +1010,9 @@ static void s32v234_pcie_host_init(struct pcie_port *pp)
 		return;
 	}
 
-	#ifdef CONFIG_PCI_MSI
-	if (IS_ENABLED(CONFIG_PCI_MSI))
-		dw_pcie_msi_init(pp);
-	#endif
+#ifdef CONFIG_PCI_MSI
+	dw_pcie_msi_init(pp);
+#endif
 }
 
 static void s32v234_pcie_reset_phy(struct pcie_port *pp)
@@ -1101,24 +1100,21 @@ static int __init s32v234_add_pcie_port(struct pcie_port *pp,
 			struct platform_device *pdev)
 {
 	int ret;
-	#ifdef CONFIG_PCI_MSI
-	if (IS_ENABLED(CONFIG_PCI_MSI)) {
-		pp->msi_irq = platform_get_irq_byname(pdev, "msi");
-		if (pp->msi_irq <= 0) {
-			dev_err(&pdev->dev, "failed to get MSI irq\n");
-			return -ENODEV;
-		}
-
-		ret = devm_request_irq(&pdev->dev, pp->msi_irq,
-			s32v234_pcie_msi_handler,
-			IRQF_SHARED, "s32v-pcie-msi", pp);
-		if (ret) {
-			dev_err(&pdev->dev, "failed to request MSI irq\n");
-			return -ENODEV;
-		}
+#ifdef CONFIG_PCI_MSI
+	pp->msi_irq = platform_get_irq_byname(pdev, "msi");
+	if (pp->msi_irq <= 0) {
+		dev_err(&pdev->dev, "failed to get MSI irq\n");
+		return -ENODEV;
 	}
-	#endif
 
+	ret = devm_request_irq(&pdev->dev, pp->msi_irq,
+		s32v234_pcie_msi_handler,
+		IRQF_SHARED, "s32v-pcie-msi", pp);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to request MSI irq\n");
+		return -ENODEV;
+	}
+#endif
 	pp->root_bus_nr = 0;
 	pp->ops = &s32v234_pcie_host_ops;
 

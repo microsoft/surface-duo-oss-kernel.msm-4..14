@@ -1050,23 +1050,21 @@ int __init dw_pcie_host_init(struct pcie_port *pp)
 		return -EINVAL;
 	}
 #ifdef CONFIG_PCI_MSI
-	if (IS_ENABLED(CONFIG_PCI_MSI)) {
-		if (!pp->ops->msi_host_init) {
-			pp->irq_domain = irq_domain_add_linear(pp->dev->of_node,
-						MAX_MSI_IRQS, &msi_domain_ops,
-						&dw_pcie_msi_chip);
-			if (!pp->irq_domain) {
-				dev_err(pp->dev, "irq domain init failed\n");
-				return -ENXIO;
-			}
-
-			for (i = 0; i < MAX_MSI_IRQS; i++)
-				irq_create_mapping(pp->irq_domain, i);
-		} else {
-			ret = pp->ops->msi_host_init(pp, &dw_pcie_msi_chip);
-			if (ret < 0)
-				return ret;
+	if (!pp->ops->msi_host_init) {
+		pp->irq_domain = irq_domain_add_linear(pp->dev->of_node,
+					MAX_MSI_IRQS, &msi_domain_ops,
+					&dw_pcie_msi_chip);
+		if (!pp->irq_domain) {
+			dev_err(pp->dev, "irq domain init failed\n");
+			return -ENXIO;
 		}
+
+		for (i = 0; i < MAX_MSI_IRQS; i++)
+			irq_create_mapping(pp->irq_domain, i);
+	} else {
+		ret = pp->ops->msi_host_init(pp, &dw_pcie_msi_chip);
+		if (ret < 0)
+			return ret;
 	}
 #endif
 	if (pp->ops->host_init)
