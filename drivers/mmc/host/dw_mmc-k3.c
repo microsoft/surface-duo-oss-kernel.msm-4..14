@@ -18,6 +18,7 @@
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
+#include <linux/reset.h>
 
 #include "dw_mmc.h"
 #include "dw_mmc-pltfm.h"
@@ -51,7 +52,6 @@ static unsigned long dw_mci_hi6220_caps[] = {
 	MMC_CAP_CMD23,
 	0
 };
-static void __iomem *pericrg_base;
 static void __iomem *sys_base;
 
 static void dw_mci_k3_set_ios(struct dw_mci *host, struct mmc_ios *ios)
@@ -164,20 +164,6 @@ static int dw_mci_hs_get_resource(void)
 {
 	struct device_node *np = NULL;
 
-	if (!pericrg_base) {
-		np = of_find_compatible_node(NULL, NULL, "hisilicon,hi3660-crgctrl");
-		if (!np) {
-			printk("can't find crgctrl!\n");
-			return -1;
-		}
-
-		pericrg_base = of_iomap(np, 0);
-		if (!pericrg_base) {
-			printk("crgctrl iomap error!\n");
-			return -1;
-		}
-	}
-
 	if (!sys_base) {
 		np = of_find_compatible_node(NULL, NULL, "hisilicon,hi3660-sctrl");
 		if (!np) {
@@ -220,45 +206,8 @@ int dw_mci_hi3660_init(struct dw_mci *host)
 	return 0;
 }
 
-static int dw_mci_hs_set_controller(struct dw_mci *host, bool set)
-{
-	int ctrl_id;
-
-	if (host->dev->of_node) {
-		ctrl_id = of_alias_get_id(host->dev->of_node, "mshc");
-		if (ctrl_id < 0) {
-			dev_err(host->dev, "can't get alias mmc id\n");
-			return ctrl_id;
-		}
-	}
-
-	if (set) {
-		if (DWMMC_SD_ID == ctrl_id) {
-			writel(BIT_RST_SD, pericrg_base + PERI_CRG_RSTEN4);
-			dev_info(host->dev, "rest sd \n");
-		} else if (DWMMC_SDIO_ID == ctrl_id) {
-			writel(BIT_RST_SDIO, pericrg_base + PERI_CRG_RSTEN4);
-			dev_info(host->dev, "rest sdio \n");
-		}
-	} else {
-		if (DWMMC_SD_ID == ctrl_id) {
-			writel(BIT_RST_SD, pericrg_base + PERI_CRG_RSTDIS4);
-			dev_info(host->dev, "unrest sd \n");
-		} else if (DWMMC_SDIO_ID == ctrl_id) {
-			writel(BIT_RST_SDIO, pericrg_base + PERI_CRG_RSTDIS4);
-			dev_info(host->dev, "unrest sdio \n");
-		}
-	}
-
-	return 0;
-}
-
 int dw_mci_hi3660_setup_clock(struct dw_mci *host)
 {
-	int ret;
-	ret = dw_mci_hs_set_controller(host, 0);
-	if (ret < 0)
-		return ret;
         /* set threshold to 512 bytes */
         mci_writel(host, CDTHRCTL, 0x02000001);
 	return 0;
@@ -331,6 +280,11 @@ static int dw_mci_k3_probe(struct platform_device *pdev)
 {
 	const struct dw_mci_drv_data *drv_data;
 	const struct of_device_id *match;
+	struct reset_control	*rst;
+
+	rst = devm_reset_control_get(&pdev->dev, NULL);
+	if (!IS_ERR(rst))
+		reset_control_reset(rst);
 
 	match = of_match_node(dw_mci_k3_match, pdev->dev.of_node);
 	drv_data = match->data;
