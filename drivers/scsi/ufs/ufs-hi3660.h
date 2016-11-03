@@ -123,7 +123,8 @@ enum {
 struct ufs_hi3660_host {
 	struct ufs_hba *hba;
 	void __iomem *ufs_sys_ctrl;
-	void __iomem *pericrg;
+	struct reset_control	*rst;
+	struct reset_control	*assert;
 	uint64_t caps;
 #define hi3660_CAP_RESERVED	UFS_BIT(0)
 #define USE_SNPS_MPHY_TC	UFS_BIT(1)
@@ -158,9 +159,4 @@ struct ufs_hi3660_host {
 	ufs_sys_ctrl_writel((host),                                            \
 			    ((~(mask)) & (ufs_sys_ctrl_readl((host), (reg)))), \
 			    (reg))
-
-#define ufs_pericrg_writel(host, val, reg)                                     \
-	writel((val), (host)->pericrg + (reg))
-#define ufs_pericrg_readl(host, reg) readl((host)->pericrg + (reg))
-
 #endif /* UFS_HI3660_H_ */

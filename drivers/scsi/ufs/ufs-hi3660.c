@@ -15,6 +15,7 @@
 #include <linux/of_gpio.h>
 #include <linux/dma-mapping.h>
 #include <linux/platform_device.h>
+#include <linux/reset.h>
 
 #include "ufshcd.h"
 #include "ufshcd-pltfrm.h"
@@ -112,7 +113,8 @@ static void ufs_hi3660_soc_init(struct ufs_hba *hba)
 	struct ufs_hi3660_host *host = ufshcd_get_variant(hba);
 	u32 reg;
 
-	ufs_pericrg_writel(host, RST_UFS, PERRSTEN3_OFFSET);
+	if (!IS_ERR(host->rst))
+		reset_control_assert(host->rst);
 
 	ufs_sys_ctrl_set_bits(host, BIT_UFS_PSW_MTCMOS_EN, PSW_POWER_CTRL); /* HC_PSW powerup */
 	udelay(10);
@@ -135,7 +137,8 @@ static void ufs_hi3660_soc_init(struct ufs_hba *hba)
 	ufs_sys_ctrl_clr_bits(host, BIT_UFS_PSW_ISO_CTRL, PSW_POWER_CTRL); /* disable ufshc iso */
 	ufs_sys_ctrl_clr_bits(host, BIT_UFS_PHY_ISO_CTRL, PHY_ISO_EN); /* disable phy iso */
 	ufs_sys_ctrl_clr_bits(host, BIT_SYSCTRL_LP_ISOL_EN, HC_LP_CTRL); /* notice iso disable */
-	ufs_pericrg_writel(host, UFS_ARESET, PERRSTDIS3_OFFSET); /* disable aresetn */
+	if (!IS_ERR(host->assert))
+		reset_control_deassert(host->assert);
 	ufs_sys_ctrl_set_bits(host, BIT_SYSCTRL_LP_RESET_N, RESET_CTRL_EN); /* disable lp_reset_n */
 	mdelay(1);
 
@@ -151,9 +154,8 @@ static void ufs_hi3660_soc_init(struct ufs_hba *hba)
 	/* enable ref_clk_en override(bit5) & override value = 1(bit4), with mask */
 	ufs_sys_ctrl_writel(host, 0x03300330, UFS_DEVICE_RESET_CTRL);
 
-	ufs_pericrg_writel(host, RST_UFS, PERRSTDIS3_OFFSET);
-	if (ufs_pericrg_readl(host, PERRSTSTAT3_OFFSET) & RST_UFS)
-		mdelay(1);
+	if (!IS_ERR(host->rst))
+		reset_control_deassert(host->rst);
 }
 
 #if 0
@@ -584,7 +586,6 @@ static int ufs_hi3660_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 static int ufs_hi3660_get_resource(struct ufs_hi3660_host *host)
 {
 	struct resource *mem_res;
-	struct device_node *np = NULL;
 	struct device *dev = host->hba->dev;
 	struct platform_device *pdev = to_platform_device(dev);
 
@@ -593,19 +594,6 @@ static int ufs_hi3660_get_resource(struct ufs_hi3660_host *host)
 	host->ufs_sys_ctrl = devm_ioremap_resource(dev, mem_res);
 	if (!host->ufs_sys_ctrl) {
 		dev_err(dev, "cannot ioremap for ufs sys ctrl register\n");
-		return -ENOMEM;
-	}
-
-	np = of_find_compatible_node(NULL, NULL, "hisilicon,hi3660-crgctrl");
-	if (!np) {
-		dev_err(host->hba->dev,
-			"can't find device node \"hisilicon,crgctrl\"\n");
-		return -ENXIO;
-	}
-
-	host->pericrg = of_iomap(np, 0);
-	if (!host->pericrg) {
-		dev_err(host->hba->dev, "crgctrl iomap error!\n");
 		return -ENOMEM;
 	}
 
@@ -683,6 +671,9 @@ static int ufs_hi3660_init(struct ufs_hba *hba)
 
 	host->hba = hba;
 	ufshcd_set_variant(hba, host);
+
+	host->rst = devm_reset_control_get(dev, "rst");
+	host->assert = devm_reset_control_get(dev, "assert");
 
 	ufs_hi3660_set_pm_lvl(hba);
 
