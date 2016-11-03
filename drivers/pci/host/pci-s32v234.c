@@ -986,34 +986,34 @@ out:
 	return ret;
 }
 
-static int s32v234_pcie_host_init(struct pcie_port *pp)
+static void s32v234_pcie_host_init(struct pcie_port *pp)
 {
-	int ret;
-
 	/* enable disp_mix power domain */
 	pm_runtime_get_sync(pp->dev);
 
 	s32v234_pcie_assert_core_reset(pp);
 
-	ret = s32v234_pcie_init_phy(pp);
-	if (ret < 0)
-		return ret;
+	if (s32v234_pcie_init_phy(pp) < 0) {
+		pr_warn("Error initializing s32v234 pcie phy");
+		return;
+	}
 
-	ret = s32v234_pcie_deassert_core_reset(pp);
-	if (ret < 0)
-		return ret;
+	if (s32v234_pcie_deassert_core_reset(pp) < 0) {
+		pr_warn("Error deasserting core reset");
+		return;
+	}
 
 	dw_pcie_setup_rc(pp);
 
-	ret = s32v234_pcie_start_link(pp);
-	if (ret < 0)
-		return ret;
+	if (s32v234_pcie_start_link(pp) < 0) {
+		pr_warn("Error starting pcie link");
+		return;
+	}
 
 	#ifdef CONFIG_PCI_MSI
 	if (IS_ENABLED(CONFIG_PCI_MSI))
 		dw_pcie_msi_init(pp);
 	#endif
-	return 0;
 }
 
 static void s32v234_pcie_reset_phy(struct pcie_port *pp)
@@ -1094,7 +1094,7 @@ static int s32v234_pcie_link_up(struct pcie_port *pp)
 
 static struct pcie_host_ops s32v234_pcie_host_ops = {
 	.link_up = s32v234_pcie_link_up,
-	.host_init = (void(*)(struct pcie_port *pp))s32v234_pcie_host_init,
+	.host_init = s32v234_pcie_host_init,
 };
 
 static int __init s32v234_add_pcie_port(struct pcie_port *pp,
