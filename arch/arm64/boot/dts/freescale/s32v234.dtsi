@@ -570,8 +570,7 @@
 				clocks = <&clks S32V234_CLK_MJPEG>,
 					 <&clks S32V234_CLK_JPEG_IPS>,
 					 <&clks S32V234_CLK_JPEG_SRAM_IPS>;
-				clock-names = "fsl_jpegdcd", "per",
-					      "bclock";
+				clock-names = "per", "ipg", "bclock";
 				status = "disabled";
 		};
 
