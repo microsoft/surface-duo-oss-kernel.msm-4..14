@@ -631,7 +631,7 @@ static void vfe_buf_flush_pending(struct vfe_output *output)
 	struct msm_video_buffer *t;
 
 	list_for_each_entry_safe(buf, t, &output->pending_bufs, dma_queue) {
-		vb2_buffer_done(&buf->vb, VB2_BUF_STATE_ERROR);
+		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
 		list_del(&buf->dma_queue);
 	}
 }
@@ -977,7 +977,7 @@ static void vfe_isr_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
 	if (output->state == VFE_OUTPUT_STOPPING) {
 		/* Release last buffer when hw is idle */
 		if (output->last_buffer) {
-			vb2_buffer_done(&output->last_buffer->vb,
+			vb2_buffer_done(&output->last_buffer->vb.vb2_buf,
 					VB2_BUF_STATE_DONE);
 			output->last_buffer = NULL;
 		}
@@ -1072,7 +1072,7 @@ static void vfe_isr_wm_done(struct vfe_device *vfe, u8 wm)
 	if (output->state == VFE_OUTPUT_STOPPING)
 		output->last_buffer = ready_buf;
 	else
-		vb2_buffer_done(&ready_buf->vb, VB2_BUF_STATE_DONE);
+		vb2_buffer_done(&ready_buf->vb.vb2_buf, VB2_BUF_STATE_DONE);
 
 	return;
 
@@ -1301,13 +1301,15 @@ static int vfe_flush_buffers(struct camss_video *vid)
 	vfe_buf_flush_pending(output);
 
 	if (output->buf[0])
-		vb2_buffer_done(&output->buf[0]->vb, VB2_BUF_STATE_ERROR);
+		vb2_buffer_done(&output->buf[0]->vb.vb2_buf,
+				VB2_BUF_STATE_ERROR);
 
 	if (output->buf[1])
-		vb2_buffer_done(&output->buf[1]->vb, VB2_BUF_STATE_ERROR);
+		vb2_buffer_done(&output->buf[1]->vb.vb2_buf,
+				VB2_BUF_STATE_ERROR);
 
 	if (output->last_buffer) {
-		vb2_buffer_done(&output->last_buffer->vb,
+		vb2_buffer_done(&output->last_buffer->vb.vb2_buf,
 				VB2_BUF_STATE_ERROR);
 		output->last_buffer = NULL;
 	}

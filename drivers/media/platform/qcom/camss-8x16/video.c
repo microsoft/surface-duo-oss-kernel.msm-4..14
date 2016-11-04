@@ -70,8 +70,9 @@ static int video_buf_init(struct vb2_buffer *vb)
 
 static int video_buf_prepare(struct vb2_buffer *vb)
 {
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct camss_video *video = vb2_get_drv_priv(vb->vb2_queue);
-	struct msm_video_buffer *buffer = container_of(vb,
+	struct msm_video_buffer *buffer = container_of(vbuf,
 						struct msm_video_buffer, vb);
 
 	buffer->addr = vb2_dma_contig_plane_dma_addr(vb, 0);
@@ -87,8 +88,9 @@ static void video_buf_finish(struct vb2_buffer *vb)
 
 static void video_buf_queue(struct vb2_buffer *vb)
 {
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct camss_video *video = vb2_get_drv_priv(vb->vb2_queue);
-	struct msm_video_buffer *buffer = container_of(vb,
+	struct msm_video_buffer *buffer = container_of(vbuf,
 						struct msm_video_buffer, vb);
 
 	camss_video_call(video, queue_buffer, buffer);

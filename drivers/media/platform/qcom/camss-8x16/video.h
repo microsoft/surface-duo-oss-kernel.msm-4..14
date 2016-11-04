@@ -24,7 +24,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-fh.h>
 #include <media/v4l2-mediabus.h>
-#include <media/videobuf2-core.h>
+#include <media/videobuf2-v4l2.h>
 
 /*
  * struct format_info - ISP media bus format information
@@ -39,7 +39,7 @@ struct format_info {
 };
 
 struct msm_video_buffer {
-	struct vb2_buffer vb;
+	struct vb2_v4l2_buffer vb;
 	unsigned long size;
 	dma_addr_t addr;
 	struct list_head dma_queue;
