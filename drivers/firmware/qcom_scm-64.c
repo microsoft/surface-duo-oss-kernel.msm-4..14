@@ -608,3 +608,19 @@ int __qcom_scm_iommu_secure_unmap(struct device *dev, u32 id, u32 ctx_id,
 			    QCOM_SCM_IOMMU_SECURE_UNMAP2_FLAT, &desc, &res);
 	return ret ? : res.a1;
 }
+
+int __qcom_scm_gpu_zap_resume(struct device *dev)
+{
+	struct qcom_scm_desc desc = {0};
+	struct arm_smccc_res res;
+	int ret;
+
+	desc.args[0] = 0;
+	desc.args[1] = 13;
+	desc.arginfo = QCOM_SCM_ARGS(2);
+
+	ret = qcom_scm_call(dev, QCOM_SCM_SVC_BOOT, 0x0A, &desc, &res);
+
+	return ret ? : res.a1;
+}
+
