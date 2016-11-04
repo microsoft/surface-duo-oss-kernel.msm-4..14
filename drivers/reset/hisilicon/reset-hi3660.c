@@ -35,6 +35,14 @@ static const struct hisi_reset_channel_data hi3660_crgctrl_rst[] = {
 	[HI3660_RST_SDIO] = HISI_RST_SEP(0x90, 20),
 	[HI3660_RST_UFS] = HISI_RST_SEP(0x84, 12),
 	[HI3660_RST_UFS_ASSERT] = HISI_RST_SEP(0x84, 7),
+	[HI3660_RST_PCIE_SYS] = HISI_RST_SEP(0x84, 26),
+	[HI3660_RST_PCIE_PHY] = HISI_RST_SEP(0x84, 27),
+	[HI3660_RST_PCIE_BUS] = HISI_RST_SEP(0x84, 31),
+	[HI3660_RST_USB3OTG_PHY] = HISI_RST_SEP(0x90, 3),
+	[HI3660_RST_USB3OTG] = HISI_RST_SEP(0x90, 5),
+	[HI3660_RST_USB3OTG_32K] = HISI_RST_SEP(0x90, 6),
+	[HI3660_RST_USB3OTG_AHB] = HISI_RST_SEP(0x90, 7),
+	[HI3660_RST_USB3OTG_MUX] = HISI_RST_SEP(0x90, 8),
 };
 
 static struct hisi_reset_controller_data hi3660_crgctrl_controller = {

@@ -19,7 +19,7 @@
 
 struct hisi_reset_controller {
 	struct reset_controller_dev rst;
-	struct hisi_reset_channel_data *channels;
+	const struct hisi_reset_channel_data *channels;
 	struct regmap *map;
 };
 
@@ -29,19 +29,19 @@ struct hisi_reset_controller {
 static int hisi_reset_program_hw(struct reset_controller_dev *rcdev,
 				 unsigned long idx, bool assert)
 {
-	struct hisi_reset_controller *rst = to_hisi_reset_controller(rcdev);
+	struct hisi_reset_controller *rc = to_hisi_reset_controller(rcdev);
 	const struct hisi_reset_channel_data *ch;
 
 	if (idx >= rcdev->nr_resets)
 		return -EINVAL;
 
-	ch = &rst->channels[idx];
+	ch = &rc->channels[idx];
 
 	if (assert)
-		return regmap_write(rst->map, ch->enable.reg,
+		return regmap_write(rc->map, ch->enable.reg,
 				    GENMASK(ch->enable.msb, ch->enable.lsb));
 	else
-		return regmap_write(rst->map, ch->disable.reg,
+		return regmap_write(rc->map, ch->disable.reg,
 				    GENMASK(ch->disable.msb, ch->disable.lsb));
 }
 
@@ -82,8 +82,6 @@ int hisi_reset_probe(struct platform_device *pdev)
 	struct hisi_reset_controller_data *d;
 	struct device *dev = &pdev->dev;
 	const struct of_device_id *match;
-	size_t size;
-	int i;
 
 	match = of_match_device(dev->driver->of_match_table, dev);
 	if (!match || !match->data)
@@ -92,11 +90,6 @@ int hisi_reset_probe(struct platform_device *pdev)
 	d = (struct hisi_reset_controller_data *)match->data;
 	rc = devm_kzalloc(dev, sizeof(*rc), GFP_KERNEL);
 	if (!rc)
-		return -ENOMEM;
-
-	size = sizeof(struct hisi_reset_channel_data) * d->nr_channels;
-	rc->channels = devm_kzalloc(dev, size, GFP_KERNEL);
-	if (!rc->channels)
 		return -ENOMEM;
 
 	rc->map = syscon_regmap_lookup_by_phandle(np, "hisi,rst-syscon");
@@ -108,13 +101,7 @@ int hisi_reset_probe(struct platform_device *pdev)
 	rc->rst.ops = &hisi_reset_ops,
 	rc->rst.of_node = np;
 	rc->rst.nr_resets = d->nr_channels;
-	size = sizeof(struct reg_field);
-
-	for (i = 0; i < d->nr_channels; i++) {
-		memcpy(&rc->channels[i].enable, &d->channels[i].enable, size);
-		memcpy(&rc->channels[i].disable, &d->channels[i].disable, size);
-		memcpy(&rc->channels[i].status, &d->channels[i].status, size);
-	}
+	rc->channels = d->channels;
 
 	return reset_controller_register(&rc->rst);
 }
