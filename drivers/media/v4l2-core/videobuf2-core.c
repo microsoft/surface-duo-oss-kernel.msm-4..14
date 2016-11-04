@@ -28,6 +28,8 @@
 
 #include <trace/events/vb2.h>
 
+#include <linux/videodev2.h>
+
 #include "videobuf2-internal.h"
 
 int vb2_debug;
@@ -1397,10 +1399,14 @@ int vb2_core_qbuf(struct vb2_queue *q, unsigned int index, void *pb)
 	if (q->start_streaming_called)
 		__enqueue_in_driver(vb);
 
+	pr_err("%s: 5 pb->flags = 0x%08x\n", __func__, ((struct v4l2_buffer *) pb)->flags);
+
 	/* Fill buffer information for the userspace */
 	ret = call_bufop(q, fill_user_buffer, vb, pb);
 	if (ret)
 		return ret;
+
+	pr_err("%s: 6 pb->flags = 0x%08x\n", __func__, ((struct v4l2_buffer *) pb)->flags);
 
 	/*
 	 * If streamon has been called, and we haven't yet called
