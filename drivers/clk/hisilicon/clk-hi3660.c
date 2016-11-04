@@ -54,6 +54,7 @@ static const struct hisi_fixed_factor_clock hi3660_crg_fixed_factor_clks[] = {
 	{ HI3660_CLK_DIV_A53, "clk_div_a53hpm", "clk_a53hpm_andgt", 1, 2, 0, },
 	{ HI3660_CLK_GATE_SPI0, "clk_gate_spi0", "clk_ppll0", 1, 8, 0, },
 	{ HI3660_CLK_GATE_SPI2, "clk_gate_spi2", "clk_ppll0", 1, 8, 0, },
+	{ HI3660_PCIEPHY_REF, "clk_pciephy_ref", "clk_div_pciephy", 1, 1, 0, },
 };
 
 static const struct hisi_gate_clock hi3660_crgctrl_gate_sep_clks[] = {
@@ -161,6 +162,14 @@ static const struct hisi_gate_clock hi3660_crgctrl_gate_sep_clks[] = {
 	  CLK_SET_RATE_PARENT, 0x50, 28, 0, },
 	{ HI3660_PCLK_GATE_DSI1, "pclk_gate_dsi1", "clk_div_cfgbus",
 	  CLK_SET_RATE_PARENT, 0x50, 29, 0, },
+	{ HI3660_ACLK_GATE_PCIE, "aclk_gate_pcie", "clk_div_mmc1bus",
+	  CLK_SET_RATE_PARENT, 0x420, 5, 0, },
+	{ HI3660_PCLK_GATE_PCIE_SYS, "pclk_gate_pcie_sys", "clk_div_mmc1bus",
+	  CLK_SET_RATE_PARENT, 0x420, 7, 0, },
+	{ HI3660_CLK_GATE_PCIEAUX, "clk_gate_pcieaux", "clkin_sys",
+	  CLK_SET_RATE_PARENT, 0x420, 8, 0, },
+	{ HI3660_PCLK_GATE_PCIE_PHY, "pclk_gate_pcie_phy", "clk_div_mmc1bus",
+	  CLK_SET_RATE_PARENT, 0x420, 9, 0, },
 };
 
 static const struct hisi_gate_clock hi3660_crgctrl_gate_clks[] = {
@@ -327,6 +336,8 @@ static const struct hisi_divider_clock hi3660_crgctrl_divider_clks[] = {
 	  CLK_SET_RATE_PARENT, 0xec, 0, 2, CLK_DIVIDER_HIWORD_MASK, 0, },
 	{ HI3660_CLK_DIV_MMC0BUS, "clk_div_mmc0bus", "autodiv_emmc0bus",
 	  CLK_SET_RATE_PARENT, 0xec, 2, 1, CLK_DIVIDER_HIWORD_MASK, 0, },
+	{ HI3660_CLK_DIV_MMC1BUS, "clk_div_mmc1bus", "clk_div_sysbus",
+	  CLK_SET_RATE_PARENT, 0xec, 3, 1, CLK_DIVIDER_HIWORD_MASK, 0, },
 	{ HI3660_CLK_DIV_UFSPERI, "clk_div_ufsperi", "clk_gate_ufs_subsys",
 	  CLK_SET_RATE_PARENT, 0xec, 14, 1, CLK_DIVIDER_HIWORD_MASK, 0, },
 	{ HI3660_CLK_DIV_AOMM, "clk_div_aomm", "clk_aomm_andgt",
@@ -382,6 +393,8 @@ static const struct hisi_gate_clock hi3660_sctrl_gate_clks[] = {
 	  CLK_SET_RATE_PARENT, 0x260, 12, CLK_DIVIDER_HIWORD_MASK, 0, },
 	{ HI3660_CLK_SYS_MMBUF_ANDGT, "clk_sys_mmbuf_andgt", "clkin_sys",
 	  CLK_SET_RATE_PARENT, 0x260, 13, CLK_DIVIDER_HIWORD_MASK, 0, },
+	{ HI3660_CLK_GATE_PCIEPHY_GT, "clk_gate_pciephy_gt", "clk_ppll0",
+	  CLK_SET_RATE_PARENT, 0x268, 11, CLK_DIVIDER_HIWORD_MASK, 0, },
 };
 
 static const char *const
@@ -406,6 +419,8 @@ static const struct hisi_divider_clock hi3660_sctrl_divider_clks[] = {
 	  CLK_SET_RATE_PARENT, 0x258, 10, 2, CLK_DIVIDER_HIWORD_MASK, 0, },
 	{ HI3660_ACLK_DIV_MMBUF, "aclk_div_mmbuf", "clk_mmbuf_pll_andgt",
 	  CLK_SET_RATE_PARENT, 0x258, 12, 4, CLK_DIVIDER_HIWORD_MASK, 0, },
+	{ HI3660_CLK_DIV_PCIEPHY, "clk_div_pciephy", "clk_gate_pciephy_gt",
+	  CLK_SET_RATE_PARENT, 0x268, 12, 4, CLK_DIVIDER_HIWORD_MASK, 0, },
 };
 
 /* clk_iomcu */
