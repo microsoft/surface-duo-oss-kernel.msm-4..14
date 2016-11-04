@@ -1824,19 +1824,9 @@ static int v4l_qbuf(const struct v4l2_ioctl_ops *ops,
 				struct file *file, void *fh, void *arg)
 {
 	struct v4l2_buffer *p = arg;
-	int ret;
+	int ret = check_fmt(file, p->type);
 
-	pr_err("%s: before vidioc_qbuf p->flags = 0x%08x\n", __func__, p->flags);
-
-	ret = check_fmt(file, p->type);
-	if (ret)
-		return ret;
-
-	ret = ops->vidioc_qbuf(file, fh, p);
-
-	pr_err("%s: after  vidioc_qbuf p->flags = 0x%08x\n", __func__, p->flags);
-
-	return ret;
+	return ret ? ret : ops->vidioc_qbuf(file, fh, p);
 }
 
 static int v4l_dqbuf(const struct v4l2_ioctl_ops *ops,
