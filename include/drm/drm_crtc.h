@@ -52,8 +52,9 @@ struct drm_device;
 struct drm_mode_set;
 struct drm_file;
 struct drm_clip_rect;
+struct drm_printer;
 struct device_node;
-struct fence;
+struct dma_fence;
 struct edid;
 
 static inline int64_t U642I64(uint64_t val)
@@ -564,6 +565,18 @@ struct drm_crtc_funcs {
 	 * before data structures are torndown.
 	 */
 	void (*early_unregister)(struct drm_crtc *crtc);
+
+	/**
+	 * @atomic_print_state:
+	 *
+	 * If driver subclasses struct &drm_crtc_state, it should implement
+	 * this optional hook for printing additional driver specific state.
+	 *
+	 * Do not call this directly, use drm_atomic_crtc_print_state()
+	 * instead.
+	 */
+	void (*atomic_print_state)(struct drm_printer *p,
+				   const struct drm_crtc_state *state);
 };
 
 /**
