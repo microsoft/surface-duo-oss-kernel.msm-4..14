@@ -48,6 +48,7 @@
 #include <linux/seq_file.h>
 #include <linux/string.h>
 
+#include "pci_hw.h"
 #include "pci.h"
 #include "core.h"
 #include "cmd.h"
@@ -56,25 +57,7 @@
 
 static const char mlxsw_pci_driver_name[] = "mlxsw_pci";
 
-static const struct pci_device_id mlxsw_pci_id_table[] = {
-	{PCI_VDEVICE(MELLANOX, PCI_DEVICE_ID_MELLANOX_SWITCHX2), 0},
-	{PCI_VDEVICE(MELLANOX, PCI_DEVICE_ID_MELLANOX_SPECTRUM), 0},
-	{0, }
-};
-
 static struct dentry *mlxsw_pci_dbg_root;
-
-static const char *mlxsw_pci_device_kind_get(const struct pci_device_id *id)
-{
-	switch (id->device) {
-	case PCI_DEVICE_ID_MELLANOX_SWITCHX2:
-		return MLXSW_DEVICE_KIND_SWITCHX2;
-	case PCI_DEVICE_ID_MELLANOX_SPECTRUM:
-		return MLXSW_DEVICE_KIND_SPECTRUM;
-	default:
-		BUG();
-	}
-}
 
 #define mlxsw_pci_write32(mlxsw_pci, reg, val) \
 	iowrite32be(val, (mlxsw_pci)->hw_addr + (MLXSW_PCI_ ## reg))
@@ -1553,7 +1536,7 @@ static int mlxsw_pci_init(void *bus_priv, struct mlxsw_core *mlxsw_core,
 
 	err = request_irq(mlxsw_pci->msix_entry.vector,
 			  mlxsw_pci_eq_irq_handler, 0,
-			  mlxsw_pci_driver_name, mlxsw_pci);
+			  mlxsw_pci->bus_info.device_kind, mlxsw_pci);
 	if (err) {
 		dev_err(&pdev->dev, "IRQ request failed\n");
 		goto err_request_eq_irq;
@@ -1799,6 +1782,7 @@ static int mlxsw_pci_sw_reset(struct mlxsw_pci *mlxsw_pci,
 
 static int mlxsw_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 {
+	const char *driver_name = pdev->driver->name;
 	struct mlxsw_pci *mlxsw_pci;
 	int err;
 
@@ -1812,7 +1796,7 @@ static int mlxsw_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_pci_enable_device;
 	}
 
-	err = pci_request_regions(pdev, mlxsw_pci_driver_name);
+	err = pci_request_regions(pdev, driver_name);
 	if (err) {
 		dev_err(&pdev->dev, "pci_request_regions failed\n");
 		goto err_pci_request_regions;
@@ -1863,7 +1847,7 @@ static int mlxsw_pci_probe(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto err_msix_init;
 	}
 
-	mlxsw_pci->bus_info.device_kind = mlxsw_pci_device_kind_get(id);
+	mlxsw_pci->bus_info.device_kind = driver_name;
 	mlxsw_pci->bus_info.device_name = pci_name(mlxsw_pci->pdev);
 	mlxsw_pci->bus_info.dev = &pdev->dev;
 
@@ -1915,33 +1899,30 @@ static void mlxsw_pci_remove(struct pci_dev *pdev)
 	kfree(mlxsw_pci);
 }
 
-static struct pci_driver mlxsw_pci_driver = {
-	.name		= mlxsw_pci_driver_name,
-	.id_table	= mlxsw_pci_id_table,
-	.probe		= mlxsw_pci_probe,
-	.remove		= mlxsw_pci_remove,
-};
+int mlxsw_pci_driver_register(struct pci_driver *pci_driver)
+{
+	pci_driver->probe = mlxsw_pci_probe;
+	pci_driver->remove = mlxsw_pci_remove;
+	return pci_register_driver(pci_driver);
+}
+EXPORT_SYMBOL(mlxsw_pci_driver_register);
+
+void mlxsw_pci_driver_unregister(struct pci_driver *pci_driver)
+{
+	pci_unregister_driver(pci_driver);
+}
+EXPORT_SYMBOL(mlxsw_pci_driver_unregister);
 
 static int __init mlxsw_pci_module_init(void)
 {
-	int err;
-
 	mlxsw_pci_dbg_root = debugfs_create_dir(mlxsw_pci_driver_name, NULL);
 	if (!mlxsw_pci_dbg_root)
 		return -ENOMEM;
-	err = pci_register_driver(&mlxsw_pci_driver);
-	if (err)
-		goto err_register_driver;
 	return 0;
-
-err_register_driver:
-	debugfs_remove_recursive(mlxsw_pci_dbg_root);
-	return err;
 }
 
 static void __exit mlxsw_pci_module_exit(void)
 {
-	pci_unregister_driver(&mlxsw_pci_driver);
 	debugfs_remove_recursive(mlxsw_pci_dbg_root);
 }
 
@@ -1951,4 +1932,3 @@ module_exit(mlxsw_pci_module_exit);
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Jiri Pirko <jiri@mellanox.com>");
 MODULE_DESCRIPTION("Mellanox switch PCI interface driver");
-MODULE_DEVICE_TABLE(pci, mlxsw_pci_id_table);
