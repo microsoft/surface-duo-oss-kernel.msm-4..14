@@ -690,7 +690,7 @@
 			gpio-controller;
 			#gpio-cells = <2>;
 			/* GPIO216 */
-			gpio-ranges = <&pmx1 0 36 6>;
+			gpio-ranges = <&pmx4 0 36 6>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
 			clocks = <&sctrl HI3660_PCLK_AO_GPIO5>;
