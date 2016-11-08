@@ -987,14 +987,14 @@ static const struct media_entity_operations csid_media_ops = {
 };
 
 /*
- * msm_csid_register_entities - Register subdev node for CSID module
+ * msm_csid_register_entity - Register subdev node for CSID module
  * @csid: CSID device
  * @v4l2_dev: V4L2 device
  *
  * Return 0 on success or a negative error code otherwise
  */
-int msm_csid_register_entities(struct csid_device *csid,
-			       struct v4l2_device *v4l2_dev)
+int msm_csid_register_entity(struct csid_device *csid,
+			     struct v4l2_device *v4l2_dev)
 {
 	struct v4l2_subdev *sd = &csid->subdev;
 	struct media_pad *pads = csid->pads;
@@ -1060,10 +1060,10 @@ free_ctrl:
 }
 
 /*
- * msm_csid_unregister_entities - Unregister CSID module subdev node
+ * msm_csid_unregister_entity - Unregister CSID module subdev node
  * @csid: CSID device
  */
-void msm_csid_unregister_entities(struct csid_device *csid)
+void msm_csid_unregister_entity(struct csid_device *csid)
 {
 	v4l2_device_unregister_subdev(&csid->subdev);
 	v4l2_ctrl_handler_free(&csid->ctrls);

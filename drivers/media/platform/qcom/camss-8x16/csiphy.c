@@ -629,14 +629,14 @@ static const struct media_entity_operations csiphy_media_ops = {
 };
 
 /*
- * msm_csiphy_register_entities - Register subdev node for CSIPHY module
+ * msm_csiphy_register_entity - Register subdev node for CSIPHY module
  * @csiphy: CSIPHY device
  * @v4l2_dev: V4L2 device
  *
  * Return 0 on success or a negative error code otherwise
  */
-int msm_csiphy_register_entities(struct csiphy_device *csiphy,
-				 struct v4l2_device *v4l2_dev)
+int msm_csiphy_register_entity(struct csiphy_device *csiphy,
+			       struct v4l2_device *v4l2_dev)
 {
 	struct v4l2_subdev *sd = &csiphy->subdev;
 	struct media_pad *pads = csiphy->pads;
@@ -676,10 +676,10 @@ int msm_csiphy_register_entities(struct csiphy_device *csiphy,
 }
 
 /*
- * msm_csiphy_unregister_entities - Unregister CSIPHY module subdev node
+ * msm_csiphy_unregister_entity - Unregister CSIPHY module subdev node
  * @csiphy: CSIPHY device
  */
-void msm_csiphy_unregister_entities(struct csiphy_device *csiphy)
+void msm_csiphy_unregister_entity(struct csiphy_device *csiphy)
 {
 	v4l2_device_unregister_subdev(&csiphy->subdev);
 }

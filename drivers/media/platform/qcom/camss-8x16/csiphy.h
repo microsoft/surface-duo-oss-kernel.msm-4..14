@@ -69,9 +69,9 @@ struct resources;
 int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
 			   struct resources *res, u8 id);
 
-int msm_csiphy_register_entities(struct csiphy_device *csiphy,
-				 struct v4l2_device *v4l2_dev);
+int msm_csiphy_register_entity(struct csiphy_device *csiphy,
+			       struct v4l2_device *v4l2_dev);
 
-void msm_csiphy_unregister_entities(struct csiphy_device *csiphy);
+void msm_csiphy_unregister_entity(struct csiphy_device *csiphy);
 
 #endif /* QC_MSM_CAMSS_CSIPHY_H */

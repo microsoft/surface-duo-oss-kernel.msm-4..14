@@ -72,10 +72,10 @@ struct resources;
 int msm_csid_subdev_init(struct csid_device *csid,
 			 struct resources *res, u8 id);
 
-int msm_csid_register_entities(struct csid_device *csid,
-			       struct v4l2_device *v4l2_dev);
+int msm_csid_register_entity(struct csid_device *csid,
+			     struct v4l2_device *v4l2_dev);
 
-void msm_csid_unregister_entities(struct csid_device *csid);
+void msm_csid_unregister_entity(struct csid_device *csid);
 
 void msm_csid_get_csid_id(struct media_entity *entity, u8 *id);
 

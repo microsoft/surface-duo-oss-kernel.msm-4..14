@@ -29,8 +29,6 @@
 #include "ispif.h"
 #include "vfe.h"
 
-#define CAMSS_VERSION KERNEL_VERSION(0, 1, 0)
-
 #define CAMSS_CSID_NUM 2
 #define CAMSS_CSIPHY_NUM 2
 
