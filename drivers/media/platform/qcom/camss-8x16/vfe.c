@@ -161,16 +161,16 @@ static const u32 vfe_formats[] = {
 
 static inline void vfe_reg_clr(struct vfe_device *vfe, u32 reg, u32 clr_bits)
 {
-	u32 bits = readl(vfe->base + reg);
+	u32 bits = readl_relaxed(vfe->base + reg);
 
-	writel(bits & ~clr_bits, vfe->base + reg);
+	writel_relaxed(bits & ~clr_bits, vfe->base + reg);
 }
 
 static inline void vfe_reg_set(struct vfe_device *vfe, u32 reg, u32 set_bits)
 {
-	u32 bits = readl(vfe->base + reg);
+	u32 bits = readl_relaxed(vfe->base + reg);
 
-	writel(bits | set_bits, vfe->base + reg);
+	writel_relaxed(bits | set_bits, vfe->base + reg);
 }
 
 static void vfe_global_reset(struct vfe_device *vfe)
@@ -185,7 +185,7 @@ static void vfe_global_reset(struct vfe_device *vfe)
 			 VFE_0_GLOBAL_RESET_CMD_CAMIF		|
 			 VFE_0_GLOBAL_RESET_CMD_CORE;
 
-	writel(reset_bits, vfe->base + VFE_0_GLOBAL_RESET_CMD);
+	writel_relaxed(reset_bits, vfe->base + VFE_0_GLOBAL_RESET_CMD);
 }
 
 static void vfe_wm_enable(struct vfe_device *vfe, u8 wm, u8 enable)
@@ -212,20 +212,22 @@ static void vfe_wm_set_framedrop_period(struct vfe_device *vfe, u8 wm, u8 per)
 {
 	u32 reg;
 
-	reg = readl(vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_ADDR_CFG(wm));
+	reg = readl_relaxed(vfe->base +
+			    VFE_0_BUS_IMAGE_MASTER_n_WR_ADDR_CFG(wm));
 
 	reg &= ~(VFE_0_BUS_IMAGE_MASTER_n_WR_ADDR_CFG_FRM_DROP_PER_MASK);
 
 	reg |= (per << VFE_0_BUS_IMAGE_MASTER_n_WR_ADDR_CFG_FRM_DROP_PER_SHIFT)
 		& VFE_0_BUS_IMAGE_MASTER_n_WR_ADDR_CFG_FRM_DROP_PER_MASK;
 
-	writel(reg, vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_ADDR_CFG(wm));
+	writel_relaxed(reg,
+		       vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_ADDR_CFG(wm));
 }
 
 static void vfe_wm_set_framedrop_pattern(struct vfe_device *vfe, u8 wm,
 					 u32 pattern)
 {
-	writel(pattern,
+	writel_relaxed(pattern,
 	       vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_FRAMEDROP_PATTERN(wm));
 }
 
@@ -236,29 +238,33 @@ static void vfe_wm_set_ub_cfg(struct vfe_device *vfe, u8 wm, u16 offset,
 
 	reg = (offset << VFE_0_BUS_IMAGE_MASTER_n_WR_UB_CFG_OFFSET_SHIFT) |
 		depth;
-	writel(reg, vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_UB_CFG(wm));
+	writel_relaxed(reg, vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_UB_CFG(wm));
 }
 
 static void vfe_bus_reload_wm(struct vfe_device *vfe, u8 wm)
 {
-	writel(VFE_0_BUS_CMD_Mx_RLD_CMD(wm), vfe->base + VFE_0_BUS_CMD);
+	wmb();
+	writel_relaxed(VFE_0_BUS_CMD_Mx_RLD_CMD(wm), vfe->base + VFE_0_BUS_CMD);
+	wmb();
 }
 
 static void vfe_wm_set_ping_addr(struct vfe_device *vfe, u8 wm, u32 addr)
 {
-	writel(addr, vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_PING_ADDR(wm));
+	writel_relaxed(addr,
+		       vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_PING_ADDR(wm));
 }
 
 static void vfe_wm_set_pong_addr(struct vfe_device *vfe, u8 wm, u32 addr)
 {
-	writel(addr, vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_PONG_ADDR(wm));
+	writel_relaxed(addr,
+		       vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_PONG_ADDR(wm));
 }
 
 static int vfe_wm_get_ping_pong_status(struct vfe_device *vfe, u8 wm)
 {
 	u32 reg;
 
-	reg = readl(vfe->base + VFE_0_BUS_PING_PONG_STATUS);
+	reg = readl_relaxed(vfe->base + VFE_0_BUS_PING_PONG_STATUS);
 
 	return (reg >> wm) & 0x1;
 }
@@ -266,9 +272,9 @@ static int vfe_wm_get_ping_pong_status(struct vfe_device *vfe, u8 wm)
 static void vfe_bus_enable_wr_if(struct vfe_device *vfe, u8 enable)
 {
 	if (enable)
-		writel(0x10000009, vfe->base + VFE_0_BUS_CFG);
+		writel_relaxed(0x10000009, vfe->base + VFE_0_BUS_CFG);
 	else
-		writel(0, vfe->base + VFE_0_BUS_CFG);
+		writel_relaxed(0, vfe->base + VFE_0_BUS_CFG);
 }
 
 static void vfe_bus_connect_wm_to_rdi(struct vfe_device *vfe, u8 wm,
@@ -306,7 +312,7 @@ static void vfe_bus_connect_wm_to_rdi(struct vfe_device *vfe, u8 wm,
 
 	vfe_reg_set(vfe, VFE_0_BUS_XBAR_CFG_x(wm), reg);
 
-	writel(VFE_0_BUS_IMAGE_MASTER_n_WR_IRQ_SUBSAMPLE_PATTERN_DEF,
+	writel_relaxed(VFE_0_BUS_IMAGE_MASTER_n_WR_IRQ_SUBSAMPLE_PATTERN_DEF,
 	       vfe->base +
 	       VFE_0_BUS_IMAGE_MASTER_n_WR_IRQ_SUBSAMPLE_PATTERN(wm));
 }
@@ -356,7 +362,9 @@ static void vfe_set_rdi_cid(struct vfe_device *vfe, enum vfe_line_id id, u8 cid)
 static void vfe_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
 {
 	vfe->reg_update |= VFE_0_REG_UPDATE_RDIn(line_id);
-	writel(vfe->reg_update, vfe->base + VFE_0_REG_UPDATE);
+	wmb();
+	writel_relaxed(vfe->reg_update, vfe->base + VFE_0_REG_UPDATE);
+	wmb();
 }
 
 static void vfe_enable_irq_wm_line(struct vfe_device *vfe, u8 wm,
@@ -428,7 +436,8 @@ static int vfe_halt(struct vfe_device *vfe)
 
 	reinit_completion(&vfe->halt_complete);
 
-	writel(VFE_0_BUS_BDG_CMD_HALT_REQ, vfe->base + VFE_0_BUS_BDG_CMD);
+	writel_relaxed(VFE_0_BUS_BDG_CMD_HALT_REQ,
+		       vfe->base + VFE_0_BUS_BDG_CMD);
 
 	time = wait_for_completion_timeout(&vfe->halt_complete,
 		msecs_to_jiffies(VFE_HALT_TIMEOUT_MS));
@@ -472,14 +481,14 @@ static void vfe_set_qos(struct vfe_device *vfe)
 	u32 val = 0xaaa5aaa5;
 	u32 val7 = 0x0001aaa5;
 
-	writel(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_0);
-	writel(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_1);
-	writel(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_2);
-	writel(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_3);
-	writel(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_4);
-	writel(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_5);
-	writel(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_6);
-	writel(val7, vfe->base + VFE_0_BUS_BDG_QOS_CFG_7);
+	writel_relaxed(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_0);
+	writel_relaxed(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_1);
+	writel_relaxed(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_2);
+	writel_relaxed(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_3);
+	writel_relaxed(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_4);
+	writel_relaxed(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_5);
+	writel_relaxed(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_6);
+	writel_relaxed(val7, vfe->base + VFE_0_BUS_BDG_QOS_CFG_7);
 }
 
 static void vfe_set_cgc_override(struct vfe_device *vfe, u8 wm, u8 enable)
@@ -581,9 +590,7 @@ static void vfe_output_frame_drop(struct vfe_device *vfe,
 	drop_period = VFE_FRAME_DROP_VAL + output->drop_update_idx;
 
 	vfe_wm_set_framedrop_period(vfe, output->wm_idx, drop_period);
-	wmb();
 	vfe_wm_set_framedrop_pattern(vfe, output->wm_idx, drop_pattern);
-	wmb();
 	vfe_reg_update(vfe, container_of(output, struct vfe_line, output)->id);
 
 }
@@ -1086,21 +1093,21 @@ static irqreturn_t vfe_isr(int irq, void *dev)
 	u32 value0, value1;
 	int i;
 
-	value0 = readl(vfe->base + VFE_0_IRQ_STATUS_0);
-	value1 = readl(vfe->base + VFE_0_IRQ_STATUS_1);
+	value0 = readl_relaxed(vfe->base + VFE_0_IRQ_STATUS_0);
+	value1 = readl_relaxed(vfe->base + VFE_0_IRQ_STATUS_1);
 
-	writel(value0, vfe->base + VFE_0_IRQ_CLEAR_0);
-	writel(value1, vfe->base + VFE_0_IRQ_CLEAR_1);
+	writel_relaxed(value0, vfe->base + VFE_0_IRQ_CLEAR_0);
+	writel_relaxed(value1, vfe->base + VFE_0_IRQ_CLEAR_1);
 
 	wmb();
-	writel(VFE_0_IRQ_CMD_GLOBAL_CLEAR, vfe->base + VFE_0_IRQ_CMD);
+	writel_relaxed(VFE_0_IRQ_CMD_GLOBAL_CLEAR, vfe->base + VFE_0_IRQ_CMD);
 
 	if (value0 & VFE_0_IRQ_STATUS_0_RESET_ACK)
 		complete(&vfe->reset_complete);
 
 	if (value1 & VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK) {
 		complete(&vfe->halt_complete);
-		writel(0x0, vfe->base + VFE_0_BUS_BDG_CMD);
+		writel_relaxed(0x0, vfe->base + VFE_0_BUS_BDG_CMD);
 	}
 
 	for (i = VFE_LINE_RDI0; i <= VFE_LINE_RDI2; i++)
@@ -1330,7 +1337,7 @@ static int vfe_set_power(struct v4l2_subdev *sd, int on)
 		if (ret < 0)
 			return ret;
 
-		hw_version = readl(vfe->base + VFE_0_HW_VERSION);
+		hw_version = readl_relaxed(vfe->base + VFE_0_HW_VERSION);
 		dev_dbg(to_device(vfe),
 			"VFE HW Version = 0x%08x\n", hw_version);
 	} else {
