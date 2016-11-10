@@ -287,11 +287,13 @@ void s32v_reset_dma_write(struct pcie_port *pp)
 {
 	dw_pcie_dma_write_soft_reset(pp);
 }
+
 void s32v_reset_dma_read(struct pcie_port *pp)
 {
 	dw_pcie_dma_read_soft_reset(pp);
 }
-#endif
+#endif /* CONFIG_PCI_DW_DMA */
+
 int send_signal_to_user(struct pcie_port *pp)
 {
 	int ret = 0;
@@ -357,7 +359,6 @@ static int s32v_setup_MSI(struct pcie_port *pp, void __user *argp)
 	return ret;
 }
 
-
 static void store_inb_atu(struct s32v_inbound_region *ptrInb)
 {
 	int region_nr;
@@ -379,6 +380,7 @@ static void store_outb_atu(struct s32v_outbound_region *ptrOutb)
 	restore_outb_arr[region_nr].region_type = ptrOutb->region_type;
 	restore_outb_arr[region_nr].region = ptrOutb->region;
 }
+
 static int s32v_pcie_iatu_outbound_set(struct pcie_port *pp,
 		struct s32v_outbound_region *ptrOutb)
 {
@@ -671,7 +673,7 @@ static void s32v234_pcie_setup_ep(struct pcie_port *pp)
 	}
 }
 
-#endif
+#endif /* CONFIG_PCI_S32V234_EP */
 
 static inline bool is_S32V234_pcie(struct s32v234_pcie *s32v234_pcie)
 {
@@ -680,6 +682,7 @@ static inline bool is_S32V234_pcie(struct s32v234_pcie *s32v234_pcie)
 
 	return of_device_is_compatible(np, "fsl,s32v234-pcie");
 }
+
 #ifndef CONFIG_PCI_S32V234_EP
 static int pcie_phy_poll_ack(void __iomem *dbi_base, int exp_val)
 {
@@ -810,8 +813,7 @@ static int pcie_phy_write(void __iomem *dbi_base, int addr, int data)
 
 	return 0;
 }
-#endif
-#ifndef CONFIG_PCI_S32V234_EP
+
 static int s32v234_pcie_assert_core_reset(struct pcie_port *pp)
 {
 	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
@@ -850,22 +852,17 @@ static int s32v234_pcie_init_phy(struct pcie_port *pp)
 	regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
 			SRC_GPR5_PCIE_APP_LTSSM_ENABLE, 0 << 10);
 	mdelay(10);
-	#ifdef CONFIG_PCI_S32V234_EP
 	regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
-				SRC_GPR5_PCIE_DEVICE_TYPE_MASK,
-				PCI_EXP_TYPE_ENDPOINT << 1);
-	#else
-		regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
-				SRC_GPR5_PCIE_DEVICE_TYPE_MASK,
-				PCI_EXP_TYPE_ROOT_PORT << 1);
-	#endif
+			SRC_GPR5_PCIE_DEVICE_TYPE_MASK,
+			PCI_EXP_TYPE_ROOT_PORT << 1);
 	mdelay(10);
 	regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
 			SRC_GPR5_PCIE_PHY_LOS_LEVEL_MASK, (0x9 << 22));
 	mdelay(10);
 	return 0;
 }
-#endif
+#endif /* !CONFIG_PCI_S32V234_EP */
+
 #ifdef CONFIG_PCI_S32V234_EP
 static irqreturn_t s32v234_pcie_link_req_rst_not_handler(int irq, void *arg)
 {
@@ -884,7 +881,6 @@ static irqreturn_t s32v234_pcie_link_req_rst_not_handler(int irq, void *arg)
 	}
 	return IRQ_HANDLED;
 }
-#endif
 #ifdef CONFIG_PCI_DW_DMA
 static irqreturn_t s32v234_pcie_dma_handler(int irq, void *arg)
 {
@@ -893,6 +889,8 @@ static irqreturn_t s32v234_pcie_dma_handler(int irq, void *arg)
 	return dw_handle_dma_irq(pp);
 }
 #endif
+#endif /* CONFIG_PCI_S32V234_EP */
+
 #ifndef CONFIG_PCI_S32V234_EP
 static int s32v234_pcie_wait_for_link(struct pcie_port *pp)
 {
@@ -911,6 +909,7 @@ static int s32v234_pcie_wait_for_link(struct pcie_port *pp)
 
 	return 0;
 }
+
 #ifdef CONFIG_PCI_MSI
 static irqreturn_t s32v234_pcie_msi_handler(int irq, void *arg)
 {
@@ -919,6 +918,7 @@ static irqreturn_t s32v234_pcie_msi_handler(int irq, void *arg)
 	return dw_handle_msi_irq(pp);
 }
 #endif
+
 static int s32v234_pcie_start_link(struct pcie_port *pp)
 {
 	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);

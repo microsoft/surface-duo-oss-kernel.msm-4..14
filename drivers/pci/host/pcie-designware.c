@@ -112,7 +112,7 @@
 #define PCIE_DMA_LLP_LOW						0xA8C
 #define PCIE_DMA_LLP_HIGH						0xA90
 
-#endif
+#endif /* CONFIG_PCI_DW_DMA */
 static struct pci_ops dw_pcie_ops;
 
 static unsigned long global_io_offset;
@@ -629,9 +629,6 @@ int dw_pcie_dma_single_rw(struct pcie_port *pp,
 	return 0;
 }
 
-#endif
-
-#ifdef CONFIG_PCI_DW_DMA
 void dw_pcie_dma_check_errors(struct pcie_port *pp,
 	u32 direction, u32 *error)
 {
@@ -690,6 +687,9 @@ irqreturn_t dw_handle_dma_irq(struct pcie_port *pp)
 			}
 			pp->wr_ch.status = DMA_CH_STOPPED;
 			#ifdef CONFIG_PCI_S32V234_EP
+			/* Note: this is always compiled, since PCI_DW_DMA
+			 * currently depends on PCI_S32V234_EP.
+			 */
 			send_signal_to_user(pp);
 			#endif
 		} else
@@ -714,6 +714,9 @@ irqreturn_t dw_handle_dma_irq(struct pcie_port *pp)
 			}
 			pp->rd_ch.status = DMA_CH_STOPPED;
 			#ifdef CONFIG_PCI_S32V234_EP
+			/* Note: this is always compiled, since PCI_DW_DMA
+			 * currently depends on PCI_S32V234_EP.
+			 */
 			send_signal_to_user(pp);
 			#endif
 		} else
@@ -725,7 +728,7 @@ irqreturn_t dw_handle_dma_irq(struct pcie_port *pp)
 
 	return ret;
 }
-#endif
+#endif /* CONFIG_PCI_DW_DMA */
 
 static struct irq_chip dw_msi_irq_chip = {
 	.name = "PCI-MSI",
