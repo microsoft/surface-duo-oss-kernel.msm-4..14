@@ -68,7 +68,7 @@ struct s32v234_pcie {
 #define SEND_LL				_IOWR('S', 13, struct dma_list(*)[])
 #define START_LL				_IOWR('S', 14, u32)
 #endif
-#endif
+#endif /* CONFIG_PCI_S32V234_EP */
 #define PCIE_MSI_CAP			0x50
 #define PCIE_MSI_ADDR_LOWER		0x54
 #define PCIE_MSI_ADDR_UPPER		0x58
@@ -195,6 +195,7 @@ struct s32v_outbound_region {
 };
 struct s32v_outbound_region restore_outb_arr[4];
 struct s32v_inbound_region restore_inb_arr[4];
+static struct pcie_port *pcie_port_ep;
 
 #ifdef CONFIG_PCI_DW_DMA
 static int s32v_store_ll_array(struct pcie_port *pp, void __user *argp)
@@ -292,6 +293,14 @@ void s32v_reset_dma_read(struct pcie_port *pp)
 {
 	dw_pcie_dma_read_soft_reset(pp);
 }
+
+static irqreturn_t s32v234_pcie_dma_handler(int irq, void *arg)
+{
+	struct pcie_port *pp = arg;
+
+	return dw_handle_dma_irq(pp);
+}
+
 #endif /* CONFIG_PCI_DW_DMA */
 
 int send_signal_to_user(struct pcie_port *pp)
@@ -673,15 +682,63 @@ static void s32v234_pcie_setup_ep(struct pcie_port *pp)
 	}
 }
 
-#endif /* CONFIG_PCI_S32V234_EP */
-
-static inline bool is_S32V234_pcie(struct s32v234_pcie *s32v234_pcie)
+static irqreturn_t s32v234_pcie_link_req_rst_not_handler(int irq, void *arg)
 {
-	struct pcie_port *pp	= &s32v234_pcie->pp;
-	struct device_node *np	= pp->dev->of_node;
+	struct pcie_port *pp = arg;
+	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
 
-	return of_device_is_compatible(np, "fsl,s32v234-pcie");
+	regmap_update_bits(s32v234_pcie->src, SRC_PCIE_CONFIG0,
+		SRC_CONFIG0_PCIE_LNK_REQ_RST_CLR, 1);
+	s32v234_pcie_setup_ep(pp);
+	regmap_update_bits(s32v234_pcie->src, SRC_GPR11,
+				SRC_GPR11_PCIE_PCIE_CFG_READY,
+				SRC_GPR11_PCIE_PCIE_CFG_READY);
+	if (s32v234_pcie_ignore_err009852()) {
+		restore_inb_atu(pp);
+		restore_outb_atu(pp);
+	}
+	return IRQ_HANDLED;
 }
+
+int s32v_pcie_setup_outbound(void *data)
+{
+	int ret = 0;
+	struct s32v_outbound_region *outbStr =
+			(struct s32v_outbound_region *)data;
+
+	if (!pcie_port_ep)
+		return -ENODEV;
+
+	if (!data)
+		return -EINVAL;
+
+	/* Call to setup outbound region */
+	store_outb_atu(outbStr);
+	ret = s32v_pcie_iatu_outbound_set(pcie_port_ep, outbStr);
+
+	return ret;
+}
+EXPORT_SYMBOL(s32v_pcie_setup_outbound);
+
+int s32v_pcie_setup_inbound(void *data)
+{
+	int ret = 0;
+	struct s32v_inbound_region *inbStr =
+			(struct s32v_inbound_region *)data;
+
+	if (!pcie_port_ep)
+		return -ENODEV;
+
+	if (!data)
+		return -EINVAL;
+
+	/* Call to setup inbound region */
+	store_inb_atu(inbStr);
+	ret = s32v_pcie_iatu_inbound_set(pcie_port_ep, inbStr);
+	return ret;
+}
+EXPORT_SYMBOL(s32v_pcie_setup_inbound);
+#endif /* CONFIG_PCI_S32V234_EP */
 
 #ifndef CONFIG_PCI_S32V234_EP
 static int pcie_phy_poll_ack(void __iomem *dbi_base, int exp_val)
@@ -814,6 +871,14 @@ static int pcie_phy_write(void __iomem *dbi_base, int addr, int data)
 	return 0;
 }
 
+static inline bool is_S32V234_pcie(struct s32v234_pcie *s32v234_pcie)
+{
+	struct pcie_port *pp	= &s32v234_pcie->pp;
+	struct device_node *np	= pp->dev->of_node;
+
+	return of_device_is_compatible(np, "fsl,s32v234-pcie");
+}
+
 static int s32v234_pcie_assert_core_reset(struct pcie_port *pp)
 {
 	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
@@ -861,37 +926,7 @@ static int s32v234_pcie_init_phy(struct pcie_port *pp)
 	mdelay(10);
 	return 0;
 }
-#endif /* !CONFIG_PCI_S32V234_EP */
 
-#ifdef CONFIG_PCI_S32V234_EP
-static irqreturn_t s32v234_pcie_link_req_rst_not_handler(int irq, void *arg)
-{
-	struct pcie_port *pp = arg;
-	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
-
-	regmap_update_bits(s32v234_pcie->src, SRC_PCIE_CONFIG0,
-		SRC_CONFIG0_PCIE_LNK_REQ_RST_CLR, 1);
-	s32v234_pcie_setup_ep(pp);
-	regmap_update_bits(s32v234_pcie->src, SRC_GPR11,
-				SRC_GPR11_PCIE_PCIE_CFG_READY,
-				SRC_GPR11_PCIE_PCIE_CFG_READY);
-	if (s32v234_pcie_ignore_err009852()) {
-		restore_inb_atu(pp);
-		restore_outb_atu(pp);
-	}
-	return IRQ_HANDLED;
-}
-#ifdef CONFIG_PCI_DW_DMA
-static irqreturn_t s32v234_pcie_dma_handler(int irq, void *arg)
-{
-	struct pcie_port *pp = arg;
-
-	return dw_handle_dma_irq(pp);
-}
-#endif
-#endif /* CONFIG_PCI_S32V234_EP */
-
-#ifndef CONFIG_PCI_S32V234_EP
 static int s32v234_pcie_wait_for_link(struct pcie_port *pp)
 {
 	int count	= 1000;
@@ -1126,11 +1161,16 @@ static int __init s32v234_add_pcie_port(struct pcie_port *pp,
 
 	return 0;
 }
-#endif
 
-#ifdef CONFIG_PCI_S32V234_EP
-static struct pcie_port *pcie_port_ep;
-#endif
+static void s32v234_pcie_shutdown(struct platform_device *pdev)
+{
+	struct s32v234_pcie *s32v234_pcie = platform_get_drvdata(pdev);
+
+	/* bring down link, so bootloader gets clean state in case of reboot */
+	s32v234_pcie_assert_core_reset(&s32v234_pcie->pp);
+	mdelay(10);
+}
+#endif /* !CONFIG_PCI_S32V234_EP */
 
 static int s32v234_pcie_probe(struct platform_device *pdev)
 {
@@ -1202,7 +1242,7 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 	pp->info.si_signo = SIGUSR1;
 	pp->info.si_code = SI_USER;
 	pp->info.si_int = 0;
-	#endif
+	#endif /* CONFIG_PCI_DW_DMA */
 
 	pp->dir = debugfs_create_dir("ep_dbgfs", NULL);
 	if (!pp->dir)
@@ -1215,20 +1255,11 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 	writel((readl(pp->dbi_base + PCIE_MSI_CAP) | 0x10000),
 	pp->dbi_base +  PCIE_MSI_CAP);
 
-	#endif
+	#endif /* CONFIG_PCI_S32V234_EP */
 
 	return 0;
 }
-#ifndef CONFIG_PCI_S32V234_EP
-static void s32v234_pcie_shutdown(struct platform_device *pdev)
-{
-	struct s32v234_pcie *s32v234_pcie = platform_get_drvdata(pdev);
 
-	/* bring down link, so bootloader gets clean state in case of reboot */
-	s32v234_pcie_assert_core_reset(&s32v234_pcie->pp);
-	mdelay(10);
-}
-#endif
 static const struct of_device_id s32v234_pcie_of_match[] = {
 	{ .compatible = "fsl,s32v234-pcie", },
 	{},
@@ -1254,47 +1285,6 @@ static int __init s32v234_pcie_init(void)
 	return platform_driver_probe(&s32v234_pcie_driver, s32v234_pcie_probe);
 }
 module_init(s32v234_pcie_init);
-
-#ifdef CONFIG_PCI_S32V234_EP
-int s32v_pcie_setup_outbound(void *data)
-{
-	int ret = 0;
-	struct s32v_outbound_region *outbStr =
-			(struct s32v_outbound_region *)data;
-
-	if (!pcie_port_ep)
-		return -ENODEV;
-
-	if (!data)
-		return -EINVAL;
-
-	/* Call to setup outbound region */
-	store_outb_atu(outbStr);
-	ret = s32v_pcie_iatu_outbound_set(pcie_port_ep, outbStr);
-
-	return ret;
-}
-EXPORT_SYMBOL(s32v_pcie_setup_outbound);
-
-int s32v_pcie_setup_inbound(void *data)
-{
-	int ret = 0;
-	struct s32v_inbound_region *inbStr =
-			(struct s32v_inbound_region *)data;
-
-	if (!pcie_port_ep)
-		return -ENODEV;
-
-	if (!data)
-		return -EINVAL;
-
-	/* Call to setup inbound region */
-	store_inb_atu(inbStr);
-	ret = s32v_pcie_iatu_inbound_set(pcie_port_ep, inbStr);
-	return ret;
-}
-EXPORT_SYMBOL(s32v_pcie_setup_inbound);
-#endif  /* CONFIG_PCI_S32V234_EP */
 
 MODULE_AUTHOR("Sean Cross <xobs@kosagi.com>");
 MODULE_DESCRIPTION("Freescale S32V PCIe host controller driver");
