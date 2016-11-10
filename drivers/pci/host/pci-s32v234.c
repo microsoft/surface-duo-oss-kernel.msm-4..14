@@ -1131,97 +1131,6 @@ static int __init s32v234_add_pcie_port(struct pcie_port *pp,
 	return 0;
 }
 #endif
-#ifdef CONFIG_PM_SLEEP
-static int pci_s32v_suspend_noirq(struct device *dev)
-{
-	struct s32v234_pcie *s32v234_pcie = dev_get_drvdata(dev);
-	struct pcie_port *pp = &s32v234_pcie->pp;
-
-	if (is_S32V234_pcie(s32v234_pcie)) {
-		#ifdef CONFIG_PCI_MSI
-		if (IS_ENABLED(CONFIG_PCI_MSI))
-			dw_pcie_msi_cfg_store(pp);
-		#endif
-		if (IS_ENABLED(CONFIG_PCI_S32V234_EXTREMELY_PWR_SAVE)) {
-			/* PM_TURN_OFF */
-			regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
-					SRC_GPR5_PCIE_APPS_PM_XMT_TURNOFF,
-					SRC_GPR5_PCIE_APPS_PM_XMT_TURNOFF);
-			udelay(10);
-			regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
-					SRC_GPR5_PCIE_APPS_PM_XMT_TURNOFF, 0);
-		} else {
-			/* PM_TURN_OFF */
-			regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
-					SRC_GPR5_PCIE_APPS_PM_XMT_TURNOFF,
-					SRC_GPR5_PCIE_APPS_PM_XMT_TURNOFF);
-			udelay(10);
-			regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
-					SRC_GPR5_PCIE_APPS_PM_XMT_TURNOFF, 0);
-		}
-	}
-	return 0;
-}
-
-static int pci_s32v_resume_noirq(struct device *dev)
-{
-	int ret = 0;
-	struct s32v234_pcie *s32v234_pcie = dev_get_drvdata(dev);
-	struct pcie_port *pp = &s32v234_pcie->pp;
-
-	if (is_S32V234_pcie(s32v234_pcie)) {
-		if (IS_ENABLED(CONFIG_PCI_S32V234_EXTREMELY_PWR_SAVE)) {
-			s32v234_pcie_assert_core_reset(pp);
-
-			ret = s32v234_pcie_init_phy(pp);
-			if (ret < 0)
-				return ret;
-
-			ret = s32v234_pcie_deassert_core_reset(pp);
-			if (ret < 0)
-				return ret;
-
-			else
-				dw_pcie_setup_rc(pp);
-
-			#ifdef CONFIG_PCI_MSI
-			if (IS_ENABLED(CONFIG_PCI_MSI))
-				dw_pcie_msi_cfg_restore(pp);
-			#endif
-			/* Start LTSSM. */
-			regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
-					SRC_GPR5_PCIE_APP_LTSSM_ENABLE,
-					SRC_GPR5_PCIE_APP_LTSSM_ENABLE);
-		} else {
-
-			regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
-					SRC_GPR5_GPR_PCIE_PERST_N,
-					SRC_GPR5_GPR_PCIE_PERST_N);
-			regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
-					SRC_GPR5_GPR_PCIE_PERST_N, 0);
-			/*
-			 * controller maybe turn off, re-configure again
-			 */
-			dw_pcie_setup_rc(pp);
-			#ifdef CONFIG_PCI_MSI
-			if (IS_ENABLED(CONFIG_PCI_MSI))
-				dw_pcie_msi_cfg_restore(pp);
-			#endif
-		}
-	}
-
-	return 0;
-}
-
-static const struct dev_pm_ops pci_s32v_pm_ops = {
-	.suspend_noirq = pci_s32v_suspend_noirq,
-	.resume_noirq = pci_s32v_resume_noirq,
-	.freeze_noirq = pci_s32v_suspend_noirq,
-	.thaw_noirq = pci_s32v_resume_noirq,
-	.poweroff_noirq = pci_s32v_suspend_noirq,
-	.restore_noirq = pci_s32v_resume_noirq,
-};
-#endif
 
 #ifdef CONFIG_PCI_S32V234_EP
 static struct pcie_port *pcie_port_ep;
@@ -1335,9 +1244,6 @@ static struct platform_driver s32v234_pcie_driver = {
 		.name	= "s32v234-pcie",
 		.owner	= THIS_MODULE,
 		.of_match_table = s32v234_pcie_of_match,
-		#ifdef CONFIG_PM_SLEEP
-		.pm = &pci_s32v_pm_ops,
-		#endif
 	},
 	.probe = s32v234_pcie_probe,
 	#ifndef CONFIG_PCI_S32V234_EP
