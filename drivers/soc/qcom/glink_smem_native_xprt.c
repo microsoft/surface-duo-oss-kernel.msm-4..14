@@ -713,7 +713,7 @@ static bool queue_cmd(struct edge_info *einfo, void *cmd, void *data)
 	d_cmd->param2 = _cmd->param2;
 	d_cmd->data = data;
 	list_add_tail(&d_cmd->list_node, &einfo->deferred_cmds);
-	queue_kthread_work(&einfo->kworker, &einfo->kwork);
+	kthread_queue_work(&einfo->kworker, &einfo->kwork);
 	return true;
 }
 
@@ -1093,7 +1093,7 @@ irqreturn_t irq_handler(int irq, void *priv)
 	if (einfo->rx_reset_reg)
 		writel_relaxed(einfo->out_irq_mask, einfo->rx_reset_reg);
 
-	queue_kthread_work(&einfo->kworker, &einfo->kwork);
+	kthread_queue_work(&einfo->kworker, &einfo->kwork);
 	einfo->rx_irq_count++;
 
 	return IRQ_HANDLED;
@@ -2136,8 +2136,8 @@ static int glink_edge_parse(struct device_node *node, const char *edge_name)
 	init_xprt_if(einfo);
 	spin_lock_init(&einfo->write_lock);
 	init_waitqueue_head(&einfo->tx_blocked_queue);
-	init_kthread_work(&einfo->kwork, rx_worker);
-	init_kthread_worker(&einfo->kworker);
+	kthread_init_work(&einfo->kwork, rx_worker);
+	kthread_init_worker(&einfo->kworker);
 	einfo->intentless = true;
 	einfo->read_from_fifo = memcpy32_fromio;
 	einfo->write_to_fifo = memcpy32_toio;
@@ -2290,7 +2290,7 @@ request_irq_fail:
 	glink_core_unregister_transport(&einfo->xprt_if);
 reg_xprt_fail:
 toc_init_fail:
-	flush_kthread_worker(&einfo->kworker);
+	kthread_flush_worker(&einfo->kworker);
 	kthread_stop(einfo->task);
 	einfo->task = NULL;
 kthread_fail:
@@ -2327,7 +2327,7 @@ static int glink_native_probe(struct platform_device *pdev)
 
 	return 0;
 }
- 
+
 #if defined(CONFIG_DEBUG_FS)
 /**
  * debug_edge() - generates formatted text output displaying current edge state
