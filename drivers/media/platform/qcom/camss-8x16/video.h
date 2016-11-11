@@ -55,15 +55,15 @@ struct camss_video {
 	struct v4l2_format active_fmt;
 	enum v4l2_buf_type type;
 	struct media_pipeline pipe;
-	struct msm_video_ops *ops;
+	struct camss_video_ops *ops;
 };
 
-struct msm_video_ops {
-	int (*queue_dmabuf)(struct camss_video *vid, struct msm_video_buffer *buf);
-	int (*flush_dmabufs)(struct camss_video *vid);
+struct camss_video_ops {
+	int (*queue_buffer)(struct camss_video *vid, struct msm_video_buffer *buf);
+	int (*flush_buffers)(struct camss_video *vid);
 };
 
-#define msm_video_call(f, op, args...)			\
+#define camss_video_call(f, op, args...)			\
 	(!(f) ? -ENODEV : (((f)->ops && (f)->ops->op) ? \
 			    (f)->ops->op((f), ##args) : -ENOIOCTLCMD))
 

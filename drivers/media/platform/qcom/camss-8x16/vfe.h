@@ -26,18 +26,11 @@
 
 #include "video.h"
 
-#define MSM_VFE_MAX_CID_NUM 4
-
 #define MSM_VFE_PAD_SINK 0
 #define MSM_VFE_PAD_SRC 1
 #define MSM_VFE_PADS_NUM 2
 
-/* Output limitations */
-#define MSM_VFE_MAX_WM_PER_OUTPUT 4
-#define MSM_VFE_MAX_OUTPUTS 1
-
-/* Hw definitions */
-#define MSM_VFE_NUM_RDI 3
+#define MSM_VFE_LINE_NUM 3
 #define MSM_VFE_IMAGE_MASTERS_NUM 7
 
 #define MSM_VFE_VFE0_UB_SIZE 1023
@@ -45,26 +38,23 @@
 #define MSM_VFE_VFE1_UB_SIZE 1535
 #define MSM_VFE_VFE1_UB_SIZE_RDI (MSM_VFE_VFE1_UB_SIZE / 3)
 
-enum msm_vfe_output_state {
-	MSM_VFE_OUTPUT_OFF,
-	MSM_VFE_OUTPUT_RESERVED,
-	MSM_VFE_OUTPUT_SINGLE,
-	MSM_VFE_OUTPUT_CONTINUOUS,
-	MSM_VFE_OUTPUT_IDLE,
-	MSM_VFE_OUTPUT_STOPPING,
+enum vfe_output_state {
+	VFE_OUTPUT_OFF,
+	VFE_OUTPUT_RESERVED,
+	VFE_OUTPUT_SINGLE,
+	VFE_OUTPUT_CONTINUOUS,
+	VFE_OUTPUT_IDLE,
+	VFE_OUTPUT_STOPPING
 };
 
 enum vfe_line_id {
 	VFE_LINE_NONE = -1,
-	VFE_LINE_MIN = 0,
 	VFE_LINE_RDI0 = 0,
 	VFE_LINE_RDI1 = 1,
-	VFE_LINE_RDI2 = 2,
-	VFE_LINE_MAX = VFE_LINE_RDI2,
-	VFE_LINE_PIX /* TODO: implement */
+	VFE_LINE_RDI2 = 2
 };
 
-struct msm_vfe_output {
+struct vfe_output {
 	u8 wm_idx;
 
 	int active_buf;
@@ -72,9 +62,9 @@ struct msm_vfe_output {
 	struct msm_video_buffer *last_buffer;
 	struct list_head pending_bufs;
 
-	int drop_update_idx;
+	unsigned int drop_update_idx;
 
-	enum msm_vfe_output_state state;
+	enum vfe_output_state state;
 };
 
 struct vfe_line {
@@ -83,7 +73,7 @@ struct vfe_line {
 	struct media_pad pads[MSM_VFE_PADS_NUM];
 	struct v4l2_mbus_framefmt fmt[MSM_VFE_PADS_NUM];
 	struct camss_video video_out;
-	struct msm_vfe_output output;
+	struct vfe_output output;
 };
 
 struct vfe_device {
@@ -103,7 +93,7 @@ struct vfe_device {
 	enum vfe_line_id wm_output_map[MSM_VFE_IMAGE_MASTERS_NUM];
 	struct msm_bus_scale_pdata *bus_scale_table;
 	uint32_t bus_client;
-	struct vfe_line line[VFE_LINE_MAX + 1];
+	struct vfe_line line[MSM_VFE_LINE_NUM];
 	u32 reg_update;
 	u8 was_streaming;
 };

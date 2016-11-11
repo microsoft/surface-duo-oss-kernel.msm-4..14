@@ -91,7 +91,7 @@ static void video_buf_queue(struct vb2_buffer *vb)
 	struct msm_video_buffer *buffer = container_of(vb,
 						struct msm_video_buffer, vb);
 
-	msm_video_call(video, queue_dmabuf, buffer);
+	camss_video_call(video, queue_buffer, buffer);
 }
 
 static int video_start_streaming(struct vb2_queue *q, unsigned int count)
@@ -104,7 +104,7 @@ static void video_stop_streaming(struct vb2_queue *q)
 {
 	struct camss_video *video = vb2_get_drv_priv(q);
 
-	msm_video_call(video, flush_dmabufs);
+	camss_video_call(video, flush_buffers);
 }
 
 static struct vb2_ops msm_video_vb2_q_ops = {
