@@ -9,8 +9,10 @@ Required Properties:
 - clocks: Reference to the xclk clock.
 - clock-names: Should be "xclk".
 - clock-frequency: Frequency of the xclk clock.
-- enable-gpios: Chip enable GPIO. Polarity is GPIO_ACTIVE_HIGH.
-- reset-gpios: Chip reset GPIO. Polarity is GPIO_ACTIVE_LOW.
+- enable-gpios: Chip enable GPIO. Polarity is GPIO_ACTIVE_HIGH. This corresponds
+  to the hardware pin PWDNB which is physically active low.
+- reset-gpios: Chip reset GPIO. Polarity is GPIO_ACTIVE_LOW. This corresponds to
+  the hardware pin RESETB.
 - vdddo-supply: Chip digital IO regulator.
 - vdda-supply: Chip analog regulator.
 - vddd-supply: Chip digital core regulator.
