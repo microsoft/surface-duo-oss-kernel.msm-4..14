@@ -583,6 +583,14 @@ int hfi_session_ftb(struct vidc_inst *inst, struct hfi_frame_data *fdata)
 	return call_hfi_op(core, session_ftb, inst, fdata);
 }
 
+int hfi_session_parse_seq(struct vidc_inst *inst, u32 seq_hdr, u32 seq_hdr_len)
+{
+	struct vidc_core *core = inst->core;
+	dev_err(core->dev, "call parse sequence header\n");
+	return call_hfi_op(core, session_parse_seq_hdr, inst, seq_hdr,
+			   seq_hdr_len);
+}
+
 irqreturn_t hfi_isr_thread(struct vidc_core *core)
 {
 	return call_hfi_op(core, isr_thread, core);

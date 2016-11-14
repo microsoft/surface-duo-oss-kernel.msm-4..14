@@ -12,11 +12,14 @@
  * GNU General Public License for more details.
  *
  */
+#define DEBUG
 #include <linux/clk.h>
 #include <linux/list.h>
 #include <linux/mutex.h>
 #include <linux/pm_runtime.h>
 #include <media/videobuf2-dma-sg.h>
+
+#include <linux/delay.h>
 
 #include "helpers.h"
 #include "hfi_helper.h"
@@ -43,6 +46,10 @@ static int intbufs_set_buffer(struct vidc_inst *inst, u32 type)
 	ret = vidc_get_bufreq(inst, type, &bufreq);
 	if (ret)
 		return 0;
+
+	pr_err("%s: type:%u, size:%u, min:%u, actual:%u\n", __func__,
+		bufreq.type, bufreq.size, bufreq.count_min,
+		bufreq.count_actual);
 
 	if (!bufreq.size)
 		return 0;
@@ -220,6 +227,16 @@ set_freq:
 	return 0;
 }
 
+static void print_header(struct vb2_buffer *vb)
+{
+	void *vaddr;
+
+	vaddr = vb2_plane_vaddr(vb, 0);
+
+	if (vaddr)
+		print_hex_dump_bytes("", DUMP_PREFIX_OFFSET, vaddr, 96);
+}
+
 static int session_set_buf(struct vb2_buffer *vb)
 {
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
@@ -247,10 +264,14 @@ static int session_set_buf(struct vb2_buffer *vb)
 		if (vbuf->flags & V4L2_BUF_FLAG_LAST || !fdata.filled_len)
 			fdata.flags |= HFI_BUFFERFLAG_EOS;
 
+//		dev_err(core->dev, "etb: index: %u, filled: %u, off: %u, addr: %x\n", vb->index,
+//			fdata.filled_len, fdata.offset, fdata.device_addr);
+
 		if (inst->codec_cfg == false &&
 		    inst->session_type == VIDC_SESSION_TYPE_DEC) {
 			inst->codec_cfg = true;
 			fdata.flags |= HFI_BUFFERFLAG_CODECCONFIG;
+			print_header(vb);
 		}
 
 		ret = hfi_session_etb(inst, &fdata);
@@ -258,6 +279,9 @@ static int session_set_buf(struct vb2_buffer *vb)
 		fdata.buffer_type = HFI_BUFFER_OUTPUT;
 		fdata.filled_len = 0;
 		fdata.offset = 0;
+
+//		dev_err(core->dev, "ftb: index: %u, addr: %x\n", vb->index,
+//			fdata.device_addr);
 
 		ret = hfi_session_ftb(inst, &fdata);
 	} else {
@@ -305,14 +329,14 @@ static int session_register_bufs(struct vidc_inst *inst)
 	struct vidc_core *core = inst->core;
 	struct device *dev = core->dev;
 	struct hfi_buffer_desc *bd;
-	struct vidc_buffer *buf, *tmp;
+	struct vidc_buffer *buf;
 	int ret = 0;
 
 	if (core->res->hfi_version == HFI_VERSION_3XX)
 		return 0;
 
 	mutex_lock(&inst->registeredbufs_lock);
-	list_for_each_entry_safe(buf, tmp, &inst->registeredbufs, hfi_list) {
+	list_for_each_entry(buf, &inst->registeredbufs, hfi_list) {
 		bd = &buf->bd;
 		ret = hfi_session_set_buffers(inst, bd);
 		if (ret) {
@@ -479,14 +503,24 @@ void vidc_vb2_buf_queue(struct vb2_buffer *vb)
 		vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
 }
 
+void vidc_vb2_buffers_done(struct vidc_inst *inst, enum vb2_buffer_state state)
+{
+	struct vidc_buffer *buf, *n;
+
+	mutex_lock(&inst->bufqueue_lock);
+	list_for_each_entry_safe(buf, n, &inst->bufqueue, list) {
+		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_QUEUED);
+		list_del(&buf->list);
+	}
+	mutex_unlock(&inst->bufqueue_lock);
+}
+
 void vidc_vb2_stop_streaming(struct vb2_queue *q)
 {
 	struct vidc_inst *inst = vb2_get_drv_priv(q);
 	struct vidc_core *core = inst->core;
 	struct device *dev = core->dev;
 	struct vb2_queue *other_queue;
-	struct vidc_buffer *buf, *n;
-	enum vb2_buffer_state state;
 	int ret;
 
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
@@ -528,32 +562,17 @@ abort:
 
 	ret = hfi_session_deinit(inst);
 
+	dev_err(core->dev, "%s: actual stop stream\n", __func__);
+
 	pm_runtime_put_sync(dev);
 
-	mutex_lock(&inst->bufqueue_lock);
-
-	if (list_empty(&inst->bufqueue)) {
-		mutex_unlock(&inst->bufqueue_lock);
-		return;
-	}
-
-	if (ret)
-		state = VB2_BUF_STATE_ERROR;
-	else
-		state = VB2_BUF_STATE_DONE;
-
-	list_for_each_entry_safe(buf, n, &inst->bufqueue, list) {
-		vb2_buffer_done(&buf->vb.vb2_buf, state);
-		list_del(&buf->list);
-	}
-
-	mutex_unlock(&inst->bufqueue_lock);
+	vidc_vb2_buffers_done(inst, VB2_BUF_STATE_ERROR);
 }
 
 int vidc_vb2_start_streaming(struct vidc_inst *inst)
 {
 	struct vidc_core *core = inst->core;
-	struct vidc_buffer *buf, *n;
+	struct vidc_buffer *buf;
 	int ret;
 
 	ret = intbufs_alloc(inst);
@@ -575,7 +594,7 @@ int vidc_vb2_start_streaming(struct vidc_inst *inst)
 		goto err_unload_res;
 
 	mutex_lock(&inst->bufqueue_lock);
-	list_for_each_entry_safe(buf, n, &inst->bufqueue, list) {
+	list_for_each_entry(buf, &inst->bufqueue, list) {
 		ret = session_set_buf(&buf->vb.vb2_buf);
 		if (ret)
 			break;
@@ -595,19 +614,5 @@ err_unreg_bufs:
 	session_unregister_bufs(inst);
 err_bufs_free:
 	intbufs_free(inst);
-
-	mutex_lock(&inst->bufqueue_lock);
-
-	if (list_empty(&inst->bufqueue))
-		goto err_done;
-
-	list_for_each_entry_safe(buf, n, &inst->bufqueue, list) {
-		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_QUEUED);
-		list_del(&buf->list);
-	}
-
-err_done:
-	mutex_unlock(&inst->bufqueue_lock);
-
 	return ret;
 }

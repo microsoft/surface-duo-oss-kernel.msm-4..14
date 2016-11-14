@@ -177,6 +177,8 @@ int hfi_session_get_property(struct vidc_inst *inst, u32 ptype,
 int hfi_session_set_property(struct vidc_inst *inst, u32 ptype, void *pdata);
 int hfi_session_etb(struct vidc_inst *inst, struct hfi_frame_data *fdata);
 int hfi_session_ftb(struct vidc_inst *inst, struct hfi_frame_data *fdata);
+int hfi_session_parse_seq(struct vidc_inst *inst, u32 seq_hdr, u32 seq_hdr_len);
+
 irqreturn_t hfi_isr_thread(struct vidc_core *);
 irqreturn_t hfi_isr(struct vidc_core *);
 

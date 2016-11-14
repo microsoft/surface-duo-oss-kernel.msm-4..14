@@ -983,7 +983,7 @@ static void venus_sfr_print(struct venus_hfi_device *hdev)
 	if (p == NULL)
 		sfr->data[sfr->buf_size - 1] = '\0';
 
-	dev_err(dev, "SFR message from FW: %s\n", sfr->data);
+	dev_warn_ratelimited(dev, "SFR message from FW: %s\n", sfr->data);
 }
 
 static void venus_process_msg_sys_error(struct venus_hfi_device *hdev,

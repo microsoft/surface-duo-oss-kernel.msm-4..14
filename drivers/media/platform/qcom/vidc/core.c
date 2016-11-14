@@ -49,11 +49,15 @@ static void vidc_sys_error_handler(struct work_struct *work)
 
 	mutex_unlock(&core->lock);
 
+	disable_irq(core->irq);
+
 	ret = hfi_core_deinit(core);
 	if (ret)
 		dev_err(dev, "core: deinit failed (%d)\n", ret);
 
 	mutex_lock(&core->lock);
+
+	pm_runtime_get_sync(core->dev);
 
 	rproc_report_crash(core->rproc, RPROC_FATAL_ERROR);
 
@@ -63,11 +67,14 @@ static void vidc_sys_error_handler(struct work_struct *work)
 	if (ret)
 		goto exit;
 
-	core->state = CORE_INIT;
+	hfi_core_init(core);
+
+//	core->state = CORE_INIT;
 
 exit:
 	mutex_unlock(&core->lock);
 	kfree(handler);
+	pm_runtime_put_sync(core->dev);
 }
 
 static int vidc_event_notify(struct vidc_core *core, u32 event)
@@ -293,7 +300,7 @@ static int vidc_probe(struct platform_device *pdev)
 	struct vidc_core *core;
 	struct device_node *rproc;
 	struct resource *r;
-	int ret;
+	int ret, irq;
 
 	core = devm_kzalloc(dev, sizeof(*core), GFP_KERNEL);
 	if (!core)
@@ -303,23 +310,25 @@ static int vidc_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, core);
 
 	rproc = of_parse_phandle(dev->of_node, "rproc", 0);
-	if (IS_ERR(rproc))
-		return PTR_ERR(rproc);
+	if (!rproc)
+		return -ENODEV;
 
 	core->rproc = rproc_get_by_phandle(rproc->phandle);
 	if (IS_ERR(core->rproc))
 		return PTR_ERR(core->rproc);
-	else if (!core->rproc)
-		return -EPROBE_DEFER;
+//	else if (!core->rproc)
+//		return -EPROBE_DEFER;
 
 	r = platform_get_resource_byname(pdev, IORESOURCE_MEM, "venus");
 	core->base = devm_ioremap_resource(dev, r);
 	if (IS_ERR(core->base))
 		return PTR_ERR(core->base);
 
-	core->irq = platform_get_irq_byname(pdev, "venus");
-	if (core->irq < 0)
-		return core->irq;
+	irq = platform_get_irq_byname(pdev, "venus");
+	if (irq < 0)
+		return irq;
+
+	core->irq = irq;
 
 	core->res = of_device_get_match_data(dev);
 	if (!core->res)
@@ -336,8 +345,7 @@ static int vidc_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&core->instances);
 	mutex_init(&core->lock);
 
-	ret = devm_request_threaded_irq(dev, core->irq, vidc_isr,
-					vidc_isr_thread,
+	ret = devm_request_threaded_irq(dev, irq, vidc_isr, vidc_isr_thread,
 					IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
 					"vidc", core);
 	if (ret)
@@ -503,8 +511,38 @@ static const struct vidc_resources msm8916_res = {
 	.dma_mask = 0xddc00000 - 1,
 };
 
+static const struct freq_tbl msm8996_freq_table[] = {
+	{ 1944000, 490000000 },	/* 4k UHD @ 60 */
+	{  972000, 320000000 },	/* 4k UHD @ 30 */
+	{  489600, 150000000 },	/* 1080p @ 60 */
+	{  244800,  75000000 },	/* 1080p @ 30 */
+};
+
+static const struct reg_val msm8996_reg_preset[] = {
+	{ 0x80010, 0xffffffff },
+	{ 0x80018, 0x00001556 },
+	{ 0x8001C, 0x00001556 },
+};
+
+static const struct vidc_resources msm8996_res = {
+	.freq_tbl = msm8996_freq_table,
+	.freq_tbl_size = ARRAY_SIZE(msm8996_freq_table),
+	.reg_tbl = msm8996_reg_preset,
+	.reg_tbl_size = ARRAY_SIZE(msm8996_reg_preset),
+	.clks = { "core", "core0", "core1", "iface", "bus", "rpm_mmaxi",
+		  "mmagic_ahb", "mmagic_maxi", "mmagic_video_axi", "maxi_clk" },
+	.clks_num = 10,
+	.max_load = 2563200,
+	.hfi_version = HFI_VERSION_3XX,
+	.vmem_id = VIDC_RESOURCE_NONE,
+	.vmem_size = 0,
+	.vmem_addr = 0,
+	.dma_mask = 0xddc00000 - 1,
+};
+
 static const struct of_device_id vidc_dt_match[] = {
 	{ .compatible = "qcom,vidc-msm8916", .data = &msm8916_res, },
+	{ .compatible = "qcom,vidc-msm8996", .data = &msm8996_res, },
 	{ }
 };
 
@@ -514,7 +552,7 @@ static struct platform_driver qcom_vidc_driver = {
 	.probe = vidc_probe,
 	.remove = vidc_remove,
 	.driver = {
-		.name = "qcom-vidc",
+		.name = "qcom-venus",
 		.of_match_table = vidc_dt_match,
 		.pm = &vidc_pm_ops,
 	},

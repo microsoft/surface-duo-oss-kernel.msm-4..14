@@ -25,7 +25,7 @@
 #define VIDC_DRV_NAME		"vidc"
 
 /* structures needed to diferenciate resources per version/SoC */
-#define VIDC_CLKS_NUM_MAX	7
+#define VIDC_CLKS_NUM_MAX	12
 
 struct freq_tbl {
 	unsigned int load;

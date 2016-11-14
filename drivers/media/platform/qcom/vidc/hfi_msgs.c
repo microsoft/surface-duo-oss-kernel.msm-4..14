@@ -114,7 +114,7 @@ static void event_session_error(struct vidc_core *core, struct vidc_inst *inst,
 {
 	struct device *dev = core->dev;
 
-	dev_dbg(dev, "session error: event id:%x, session id:%x\n",
+	dev_err(dev, "session error: event id:%x, session id:%x\n",
 		pkt->event_data1, pkt->shdr.session_id);
 
 	if (!inst)
@@ -150,6 +150,8 @@ static void hfi_event_notify(struct vidc_core *core, struct vidc_inst *inst,
 
 	switch (pkt->event_id) {
 	case HFI_EVENT_SYS_ERROR:
+		dev_err(core->dev, "%s: sys error (%u, %u)\n", __func__,
+			pkt->event_data1, pkt->event_data2);
 		event_sys_error(core, EVT_SYS_ERROR);
 		break;
 	case HFI_EVENT_SESSION_ERROR:
@@ -453,9 +455,8 @@ done:
 	complete(&inst->done);
 }
 
-static u32
-session_init_done_read_prop(struct vidc_core *core, struct vidc_inst *inst,
-			    struct hfi_msg_session_init_done_pkt *pkt)
+static u32 init_done_read_prop(struct vidc_core *core, struct vidc_inst *inst,
+			       struct hfi_msg_session_init_done_pkt *pkt)
 {
 	struct device *dev = core->dev;
 	u32 rem_bytes, num_props, codecs = 0, domain = 0;
@@ -691,7 +692,10 @@ static void hfi_session_init_done(struct vidc_core *core,
 	if (error != HFI_ERR_NONE)
 		goto done;
 
-	error = session_init_done_read_prop(core, inst, pkt);
+	if (core->res->hfi_version != HFI_VERSION_LEGACY)
+		goto done;
+
+	error = init_done_read_prop(core, inst, pkt);
 
 done:
 	inst->error = error;
@@ -873,6 +877,12 @@ static void hfi_session_get_seq_hdr_done(struct vidc_core *core,
 	complete(&inst->done);
 }
 
+static void hfi_session_parse_seq_hdr_done(struct vidc_core *core,
+					   struct vidc_inst *inst, void *packet)
+{
+	dev_err(core->dev, "parse sequence header done\n");
+}
+
 struct hfi_done_handler {
 	u32 pkt;
 	u32 pkt_sz;
@@ -968,6 +978,10 @@ static const struct hfi_done_handler handlers[] = {
 	{.pkt = HFI_MSG_SESSION_RELEASE_BUFFERS,
 	 .pkt_sz = sizeof(struct hfi_msg_session_release_buffers_done_pkt),
 	 .done = hfi_session_rel_buf_done,
+	},
+	{.pkt = HFI_MSG_SESSION_PARSE_SEQUENCE_HEADER,
+	 .pkt_sz = sizeof(struct hfi_msg_session_parse_sequence_header_done_pkt),
+	 .done = hfi_session_parse_seq_hdr_done,
 	},
 };
 

@@ -35,6 +35,7 @@ vidc_vb2_find_buf(struct vidc_inst *inst, dma_addr_t addr);
 int vidc_vb2_buf_init(struct vb2_buffer *vb);
 int vidc_vb2_buf_prepare(struct vb2_buffer *vb);
 void vidc_vb2_buf_queue(struct vb2_buffer *vb);
+void vidc_vb2_buffers_done(struct vidc_inst *inst, enum vb2_buffer_state state);
 void vidc_vb2_stop_streaming(struct vb2_queue *q);
 int vidc_vb2_start_streaming(struct vidc_inst *inst);
 int vidc_get_bufreq(struct vidc_inst *inst, u32 type,
