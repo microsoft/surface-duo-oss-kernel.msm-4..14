@@ -509,10 +509,10 @@
 	regulator-always-on;
 };
 
-&vidc_rproc {
+&venus_rproc {
 	status = "okay";
 };
 
-&vidc {
+&venus {
 	status = "okay";
 };

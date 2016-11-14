@@ -86,7 +86,7 @@
 			no-map;
 		};
 
-		vidc_mem: vidc_region@8f800000 {
+		venus_mem: vidc_region@8f800000 {
 			no-map;
 			reg = <0 0x8f800000 0 0x800000>;
 		};
@@ -902,7 +902,7 @@
 		};
 	};
 
-	vidc_rproc: vidc_tzpil@0 {
+	venus_rproc: venus_pil {
 		compatible = "qcom,tz-pil";
 		clocks = <&gcc GCC_CRYPTO_CLK>,
 			 <&gcc GCC_CRYPTO_AHB_CLK>,
@@ -912,7 +912,7 @@
 			      "scm_bus_clk", "scm_src_clk";
 		qcom,firmware-name = "venus";
 		qcom,pas-id = <9>;
-		memory-region = <&vidc_mem>;
+		memory-region = <&venus_mem>;
 		status = "disabled";
 	};
 
@@ -923,8 +923,8 @@
 		ranges = <0 0 0 0xffffffff>;
 		dma-ranges = <0x5dc00000 0 0x5dc00000 0x80000000>;
 
-		vidc: video-codec@1d00000 {
-			compatible = "qcom,vidc-msm8916";
+		venus: video-codec@1d00000 {
+			compatible = "qcom,venus-msm8916";
 			reg = <0x01d00000 0xff000>;
 			reg-names = "venus";
 			interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;
@@ -934,7 +934,7 @@
 				 <&gcc GCC_VENUS0_AXI_CLK>;
 			clock-names = "core", "iface", "bus";
 			power-domains = <&gcc VENUS_GDSC>;
-			rproc = <&vidc_rproc>;
+			rproc = <&venus_rproc>;
 			iommus = <&apps_iommu 5>;
 			status = "disabled";
 		};
