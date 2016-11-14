@@ -12,8 +12,8 @@
  * GNU General Public License for more details.
  *
  */
-#ifndef __HFI_MSGS_H__
-#define __HFI_MSGS_H__
+#ifndef __VENUS_HFI_MSGS_H__
+#define __VENUS_HFI_MSGS_H__
 
 /* message calls */
 #define HFI_MSG_SYS_INIT			0x20001
@@ -274,10 +274,10 @@ struct hfi_msg_sys_coverage_pkt {
 	u8 msg_data[1];
 };
 
-struct vidc_core;
+struct venus_core;
 struct hfi_pkt_hdr;
 
-void hfi_process_watchdog_timeout(struct vidc_core *core);
-u32 hfi_process_msg_packet(struct vidc_core *core, struct hfi_pkt_hdr *hdr);
+void hfi_process_watchdog_timeout(struct venus_core *core);
+u32 hfi_process_msg_packet(struct venus_core *core, struct hfi_pkt_hdr *hdr);
 
 #endif

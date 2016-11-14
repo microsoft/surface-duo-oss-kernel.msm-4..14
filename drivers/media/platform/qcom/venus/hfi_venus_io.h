@@ -12,8 +12,8 @@
  * GNU General Public License for more details.
  *
  */
-#ifndef __VENUS_HFI_IO_H__
-#define __VENUS_HFI_IO_H__
+#ifndef __VENUS_HFI_VENUS_IO_H__
+#define __VENUS_HFI_VENUS_IO_H__
 
 #define VBIF_BASE				0x80000
 
@@ -53,7 +53,7 @@
 /* HFI queue table address */
 #define CPU_CS_SCIACMDARG2			(CPU_CS_BASE + 0x54)
 
-/* vidc cpu */
+/* Venus cpu */
 #define CPU_CS_SCIACMDARG3			(CPU_CS_BASE + 0x58)
 
 #define SFR_ADDR				(CPU_CS_BASE + 0x5c)
@@ -65,7 +65,7 @@
 #define CPU_IC_SOFTINT_H2A_MASK			0x8000
 #define CPU_IC_SOFTINT_H2A_SHIFT		0xf
 
-/* vidc wrapper */
+/* Venus wrapper */
 #define WRAPPER_BASE				0x000e0000
 
 #define WRAPPER_HW_VERSION			(WRAPPER_BASE + 0x00)

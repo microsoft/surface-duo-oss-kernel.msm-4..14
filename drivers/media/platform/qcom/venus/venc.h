@@ -12,18 +12,21 @@
  * GNU General Public License for more details.
  *
  */
-#ifndef __VIDC_VDEC_H__
-#define __VIDC_VDEC_H__
+#ifndef __VENUS_VENC_H__
+#define __VENUS_VENC_H__
 
-struct vidc_core;
+struct venus_core;
 struct video_device;
-struct vidc_inst;
+struct venus_inst;
 struct v4l2_file_operations;
 
-int vdec_init(struct vidc_core *core, struct video_device *dec,
+int venc_init(struct venus_core *core, struct video_device *enc,
 	      const struct v4l2_file_operations *fops);
-void vdec_deinit(struct vidc_core *core, struct video_device *dec);
-int vdec_open(struct vidc_inst *inst);
-void vdec_close(struct vidc_inst *inst);
+void venc_deinit(struct venus_core *core, struct video_device *enc);
+int venc_open(struct venus_inst *inst);
+void venc_close(struct venus_inst *inst);
+
+int venc_ctrl_init(struct venus_inst *inst);
+void venc_ctrl_deinit(struct venus_inst *inst);
 
 #endif

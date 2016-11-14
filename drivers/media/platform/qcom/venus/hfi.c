@@ -52,7 +52,7 @@ static u32 to_codec_type(u32 pixfmt)
 	}
 }
 
-int hfi_core_init(struct vidc_core *core)
+int hfi_core_init(struct venus_core *core)
 {
 	int ret = 0;
 
@@ -63,7 +63,7 @@ int hfi_core_init(struct vidc_core *core)
 
 	init_completion(&core->done);
 
-	ret = call_hfi_op(core, core_init, core);
+	ret = core->ops->core_init(core);
 	if (ret)
 		goto unlock;
 
@@ -86,7 +86,7 @@ unlock:
 	return ret;
 }
 
-int hfi_core_deinit(struct vidc_core *core)
+int hfi_core_deinit(struct venus_core *core)
 {
 	struct device *dev = core->dev;
 	int ret = 0;
@@ -101,7 +101,7 @@ int hfi_core_deinit(struct vidc_core *core)
 		goto unlock;
 	}
 
-	ret = call_hfi_op(core, core_deinit, core);
+	ret = core->ops->core_deinit(core);
 	if (ret)
 		dev_err(dev, "core deinit failed: %d\n", ret);
 
@@ -112,34 +112,28 @@ unlock:
 	return ret;
 }
 
-int hfi_core_suspend(struct vidc_core *core)
+int hfi_core_suspend(struct venus_core *core)
 {
-	return call_hfi_op(core, suspend, core);
+	return core->ops->suspend(core);
 }
 
-int hfi_core_resume(struct vidc_core *core)
+int hfi_core_resume(struct venus_core *core)
 {
-	return call_hfi_op(core, resume, core);
+	return core->ops->resume(core);
 }
 
-int hfi_core_trigger_ssr(struct vidc_core *core, u32 type)
+int hfi_core_trigger_ssr(struct venus_core *core, u32 type)
 {
-	int ret;
-
-	ret = call_hfi_op(core, core_trigger_ssr, core, type);
-	if (ret)
-		return ret;
-
-	return 0;
+	return core->ops->core_trigger_ssr(core, type);
 }
 
-int hfi_core_ping(struct vidc_core *core)
+int hfi_core_ping(struct venus_core *core)
 {
 	int ret;
 
 	mutex_lock(&core->lock);
 
-	ret = call_hfi_op(core, core_ping, core, 0xbeef);
+	ret = core->ops->core_ping(core, 0xbeef);
 	if (ret)
 		return ret;
 
@@ -156,9 +150,9 @@ unlock:
 	return ret;
 }
 
-int hfi_session_create(struct vidc_inst *inst, const struct hfi_inst_ops *ops)
+int hfi_session_create(struct venus_inst *inst, const struct hfi_inst_ops *ops)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 
 	if (!ops)
 		return -EINVAL;
@@ -173,9 +167,9 @@ int hfi_session_create(struct vidc_inst *inst, const struct hfi_inst_ops *ops)
 	return 0;
 }
 
-int hfi_session_init(struct vidc_inst *inst, u32 pixfmt, u32 session_type)
+int hfi_session_init(struct venus_inst *inst, u32 pixfmt, u32 session_type)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	u32 codec;
 	int ret;
 
@@ -185,7 +179,7 @@ int hfi_session_init(struct vidc_inst *inst, u32 pixfmt, u32 session_type)
 
 	mutex_lock(&inst->lock);
 
-	ret = call_hfi_op(core, session_init, core, inst, session_type, codec);
+	ret = core->ops->session_init(core, inst, session_type, codec);
 	if (ret)
 		goto unlock;
 
@@ -211,9 +205,9 @@ unlock:
 	return ret;
 }
 
-void hfi_session_destroy(struct vidc_inst *inst)
+void hfi_session_destroy(struct venus_inst *inst)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 
 	mutex_lock(&core->lock);
 	list_del(&inst->list);
@@ -223,9 +217,9 @@ void hfi_session_destroy(struct vidc_inst *inst)
 		WARN(1, "session destroy");
 }
 
-int hfi_session_deinit(struct vidc_inst *inst)
+int hfi_session_deinit(struct venus_inst *inst)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	int ret;
 
 	mutex_lock(&inst->lock);
@@ -242,7 +236,7 @@ int hfi_session_deinit(struct vidc_inst *inst)
 
 	init_completion(&inst->done);
 
-	ret = call_hfi_op(core, session_end, inst);
+	ret = core->ops->session_end(inst);
 	if (ret)
 		goto unlock;
 
@@ -267,9 +261,9 @@ unlock:
 	return ret;
 }
 
-int hfi_session_start(struct vidc_inst *inst)
+int hfi_session_start(struct venus_inst *inst)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	int ret;
 
 	mutex_lock(&inst->lock);
@@ -281,7 +275,7 @@ int hfi_session_start(struct vidc_inst *inst)
 
 	init_completion(&inst->done);
 
-	ret = call_hfi_op(core, session_start, inst);
+	ret = core->ops->session_start(inst);
 	if (ret)
 		goto unlock;
 
@@ -300,9 +294,9 @@ unlock:
 	return ret;
 }
 
-int hfi_session_stop(struct vidc_inst *inst)
+int hfi_session_stop(struct venus_inst *inst)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	int ret;
 
 	mutex_lock(&inst->lock);
@@ -314,7 +308,7 @@ int hfi_session_stop(struct vidc_inst *inst)
 
 	init_completion(&inst->done);
 
-	ret = call_hfi_op(core, session_stop, inst);
+	ret = core->ops->session_stop(inst);
 	if (ret)
 		goto unlock;
 
@@ -333,26 +327,26 @@ unlock:
 	return ret;
 }
 
-int hfi_session_continue(struct vidc_inst *inst)
+int hfi_session_continue(struct venus_inst *inst)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 
 	if (core->res->hfi_version != HFI_VERSION_3XX)
 		return 0;
 
-	return call_hfi_op(core, session_continue, inst);
+	return core->ops->session_continue(inst);
 }
 
-int hfi_session_abort(struct vidc_inst *inst)
+int hfi_session_abort(struct venus_inst *inst)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	int ret;
 
 	mutex_lock(&inst->lock);
 
 	init_completion(&inst->done);
 
-	ret = call_hfi_op(core, session_abort, inst);
+	ret = core->ops->session_abort(inst);
 	if (ret)
 		goto unlock;
 
@@ -370,9 +364,9 @@ unlock:
 	return ret;
 }
 
-int hfi_session_load_res(struct vidc_inst *inst)
+int hfi_session_load_res(struct venus_inst *inst)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	int ret;
 
 	mutex_lock(&inst->lock);
@@ -384,7 +378,7 @@ int hfi_session_load_res(struct vidc_inst *inst)
 
 	init_completion(&inst->done);
 
-	ret = call_hfi_op(core, session_load_res, inst);
+	ret = core->ops->session_load_res(inst);
 	if (ret)
 		goto unlock;
 
@@ -402,9 +396,9 @@ unlock:
 	return ret;
 }
 
-int hfi_session_unload_res(struct vidc_inst *inst)
+int hfi_session_unload_res(struct venus_inst *inst)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	int ret;
 
 	mutex_lock(&inst->lock);
@@ -416,7 +410,7 @@ int hfi_session_unload_res(struct vidc_inst *inst)
 
 	init_completion(&inst->done);
 
-	ret = call_hfi_op(core, session_release_res, inst);
+	ret = core->ops->session_release_res(inst);
 	if (ret)
 		goto unlock;
 
@@ -434,15 +428,15 @@ unlock:
 	return ret;
 }
 
-int hfi_session_flush(struct vidc_inst *inst)
+int hfi_session_flush(struct venus_inst *inst)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	int ret;
 
 	mutex_lock(&inst->lock);
 	init_completion(&inst->done);
 
-	ret = call_hfi_op(core, session_flush, inst, HFI_FLUSH_ALL);
+	ret = core->ops->session_flush(inst, HFI_FLUSH_ALL);
 	if (ret)
 		goto unlock;
 
@@ -459,29 +453,29 @@ unlock:
 	return ret;
 }
 
-int hfi_session_set_buffers(struct vidc_inst *inst, struct hfi_buffer_desc *bd)
+int hfi_session_set_buffers(struct venus_inst *inst, struct hfi_buffer_desc *bd)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	int ret;
 
 	mutex_lock(&inst->lock);
-	ret = call_hfi_op(core, session_set_buffers, inst, bd);
+	ret = core->ops->session_set_buffers(inst, bd);
 	mutex_unlock(&inst->lock);
 
 	return ret;
 }
 
-int hfi_session_unset_buffers(struct vidc_inst *inst,
+int hfi_session_unset_buffers(struct venus_inst *inst,
 			      struct hfi_buffer_desc *bd)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	int ret;
 
 	mutex_lock(&inst->lock);
 
 	init_completion(&inst->done);
 
-	ret = call_hfi_op(core, session_unset_buffers, inst, bd);
+	ret = core->ops->session_unset_buffers(inst, bd);
 	if (ret)
 		goto unlock;
 
@@ -509,10 +503,10 @@ unlock:
 	return ret;
 }
 
-int hfi_session_get_property(struct vidc_inst *inst, u32 ptype,
+int hfi_session_get_property(struct venus_inst *inst, u32 ptype,
 			     union hfi_get_property *hprop)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	int ret;
 
 	mutex_lock(&inst->lock);
@@ -524,7 +518,7 @@ int hfi_session_get_property(struct vidc_inst *inst, u32 ptype,
 
 	init_completion(&inst->done);
 
-	ret = call_hfi_op(core, session_get_property, inst, ptype);
+	ret = core->ops->session_get_property(inst, ptype);
 	if (ret)
 		goto unlock;
 
@@ -547,9 +541,9 @@ unlock:
 	return ret;
 }
 
-int hfi_session_set_property(struct vidc_inst *inst, u32 ptype, void *pdata)
+int hfi_session_set_property(struct venus_inst *inst, u32 ptype, void *pdata)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	int ret;
 
 	mutex_lock(&inst->lock);
@@ -559,7 +553,7 @@ int hfi_session_set_property(struct vidc_inst *inst, u32 ptype, void *pdata)
 		goto unlock;
 	}
 
-	ret = call_hfi_op(core, session_set_property, inst, ptype, pdata);
+	ret = core->ops->session_set_property(inst, ptype, pdata);
 unlock:
 	mutex_unlock(&inst->lock);
 
@@ -569,39 +563,31 @@ unlock:
 	return ret;
 }
 
-int hfi_session_etb(struct vidc_inst *inst, struct hfi_frame_data *fdata)
+int hfi_session_etb(struct venus_inst *inst, struct hfi_frame_data *fdata)
 {
-	struct vidc_core *core = inst->core;
+	const struct hfi_ops *ops = inst->core->ops;
 
-	return call_hfi_op(core, session_etb, inst, fdata);
+	return ops->session_etb(inst, fdata);
 }
 
-int hfi_session_ftb(struct vidc_inst *inst, struct hfi_frame_data *fdata)
+int hfi_session_ftb(struct venus_inst *inst, struct hfi_frame_data *fdata)
 {
-	struct vidc_core *core = inst->core;
+	const struct hfi_ops *ops = inst->core->ops;
 
-	return call_hfi_op(core, session_ftb, inst, fdata);
+	return ops->session_ftb(inst, fdata);
 }
 
-int hfi_session_parse_seq(struct vidc_inst *inst, u32 seq_hdr, u32 seq_hdr_len)
+irqreturn_t hfi_isr_thread(struct venus_core *core)
 {
-	struct vidc_core *core = inst->core;
-	dev_err(core->dev, "call parse sequence header\n");
-	return call_hfi_op(core, session_parse_seq_hdr, inst, seq_hdr,
-			   seq_hdr_len);
+	return core->ops->isr_thread(core);
 }
 
-irqreturn_t hfi_isr_thread(struct vidc_core *core)
+irqreturn_t hfi_isr(struct venus_core *core)
 {
-	return call_hfi_op(core, isr_thread, core);
+	return core->ops->isr(core);
 }
 
-irqreturn_t hfi_isr(struct vidc_core *core)
-{
-	return call_hfi_op(core, isr, core);
-}
-
-int hfi_create(struct vidc_core *core)
+int hfi_create(struct venus_core *core)
 {
 	if (!core->core_ops || !core->dev)
 		return -EINVAL;
@@ -612,7 +598,7 @@ int hfi_create(struct vidc_core *core)
 	return venus_hfi_create(core);
 }
 
-void hfi_destroy(struct vidc_core *core)
+void hfi_destroy(struct venus_core *core)
 {
 	venus_hfi_destroy(core);
 }

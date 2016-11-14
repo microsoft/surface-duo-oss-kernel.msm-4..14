@@ -17,7 +17,7 @@
 
 #include "core.h"
 
-static struct vidc_ctrl vdec_ctrls[] = {
+static struct venus_ctrl vdec_ctrls[] = {
 	{
 		.id = V4L2_CID_MPEG_VIDEO_MPEG4_PROFILE,
 		.type = V4L2_CTRL_TYPE_MENU,
@@ -77,7 +77,7 @@ static struct vidc_ctrl vdec_ctrls[] = {
 
 static int vdec_op_s_ctrl(struct v4l2_ctrl *ctrl)
 {
-	struct vidc_inst *inst = ctrl_to_inst(ctrl);
+	struct venus_inst *inst = ctrl_to_inst(ctrl);
 	struct vdec_controls *ctr = &inst->controls.dec;
 
 	switch (ctrl->id) {
@@ -102,7 +102,7 @@ static int vdec_op_s_ctrl(struct v4l2_ctrl *ctrl)
 
 static int vdec_op_g_volatile_ctrl(struct v4l2_ctrl *ctrl)
 {
-	struct vidc_inst *inst = ctrl_to_inst(ctrl);
+	struct venus_inst *inst = ctrl_to_inst(ctrl);
 	struct vdec_controls *ctr = &inst->controls.dec;
 	union hfi_get_property hprop;
 	u32 ptype = HFI_PROPERTY_PARAM_PROFILE_LEVEL_CURRENT;
@@ -139,7 +139,7 @@ static const struct v4l2_ctrl_ops vdec_ctrl_ops = {
 	.g_volatile_ctrl = vdec_op_g_volatile_ctrl,
 };
 
-int vdec_ctrl_init(struct vidc_inst *inst)
+int vdec_ctrl_init(struct venus_inst *inst)
 {
 	unsigned int i;
 	int ret;
@@ -191,7 +191,7 @@ int vdec_ctrl_init(struct vidc_inst *inst)
 	return ret;
 }
 
-void vdec_ctrl_deinit(struct vidc_inst *inst)
+void vdec_ctrl_deinit(struct venus_inst *inst)
 {
 	v4l2_ctrl_handler_free(&inst->ctrl_handler);
 }

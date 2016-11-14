@@ -22,7 +22,7 @@
 #include "hfi_helper.h"
 #include "hfi_msgs.h"
 
-static void event_seq_changed(struct vidc_core *core, struct vidc_inst *inst,
+static void event_seq_changed(struct venus_core *core, struct venus_inst *inst,
 			      struct hfi_msg_event_notify_pkt *pkt)
 {
 	struct device *dev = core->dev;
@@ -86,8 +86,8 @@ done:
 	inst->ops->event_notify(inst, EVT_SYS_EVENT_CHANGE, &event);
 }
 
-static void event_release_buffer_ref(struct vidc_core *core,
-				     struct vidc_inst *inst,
+static void event_release_buffer_ref(struct venus_core *core,
+				     struct venus_inst *inst,
 				     struct hfi_msg_event_notify_pkt *pkt)
 {
 	struct hfi_event_data event = {0};
@@ -104,17 +104,18 @@ static void event_release_buffer_ref(struct vidc_core *core,
 	inst->ops->event_notify(inst, EVT_SYS_EVENT_CHANGE, &event);
 }
 
-static void event_sys_error(struct vidc_core *core, u32 event)
+static void event_sys_error(struct venus_core *core, u32 event)
 {
 	core->core_ops->event_notify(core, event);
 }
 
-static void event_session_error(struct vidc_core *core, struct vidc_inst *inst,
-				struct hfi_msg_event_notify_pkt *pkt)
+static void
+event_session_error(struct venus_core *core, struct venus_inst *inst,
+		    struct hfi_msg_event_notify_pkt *pkt)
 {
 	struct device *dev = core->dev;
 
-	dev_err(dev, "session error: event id:%x, session id:%x\n",
+	dev_dbg(dev, "session error: event id:%x, session id:%x\n",
 		pkt->event_data1, pkt->shdr.session_id);
 
 	if (!inst)
@@ -138,7 +139,7 @@ static void event_session_error(struct vidc_core *core, struct vidc_inst *inst,
 	}
 }
 
-static void hfi_event_notify(struct vidc_core *core, struct vidc_inst *inst,
+static void hfi_event_notify(struct venus_core *core, struct venus_inst *inst,
 			     void *packet)
 {
 	struct hfi_msg_event_notify_pkt *pkt = packet;
@@ -150,8 +151,6 @@ static void hfi_event_notify(struct vidc_core *core, struct vidc_inst *inst,
 
 	switch (pkt->event_id) {
 	case HFI_EVENT_SYS_ERROR:
-		dev_err(core->dev, "%s: sys error (%u, %u)\n", __func__,
-			pkt->event_data1, pkt->event_data2);
 		event_sys_error(core, EVT_SYS_ERROR);
 		break;
 	case HFI_EVENT_SESSION_ERROR:
@@ -170,7 +169,7 @@ static void hfi_event_notify(struct vidc_core *core, struct vidc_inst *inst,
 	}
 }
 
-static void hfi_sys_init_done(struct vidc_core *core, struct vidc_inst *inst,
+static void hfi_sys_init_done(struct venus_core *core, struct venus_inst *inst,
 			      void *packet)
 {
 	struct hfi_msg_sys_init_done_pkt *pkt = packet;
@@ -264,8 +263,8 @@ sys_get_prop_image_version(struct device *dev,
 	dev_dbg(dev, "F/W version: %s\n", (u8 *)&pkt->data[1]);
 }
 
-static void hfi_sys_property_info(struct vidc_core *core,
-				  struct vidc_inst *inst, void *packet)
+static void hfi_sys_property_info(struct venus_core *core,
+				  struct venus_inst *inst, void *packet)
 {
 	struct hfi_msg_sys_property_info_pkt *pkt = packet;
 	struct device *dev = core->dev;
@@ -285,8 +284,8 @@ static void hfi_sys_property_info(struct vidc_core *core,
 	}
 }
 
-static void hfi_sys_rel_resource_done(struct vidc_core *core,
-				      struct vidc_inst *inst,
+static void hfi_sys_rel_resource_done(struct venus_core *core,
+				      struct venus_inst *inst,
 				      void *packet)
 {
 	struct hfi_msg_sys_release_resource_done_pkt *pkt = packet;
@@ -295,7 +294,7 @@ static void hfi_sys_rel_resource_done(struct vidc_core *core,
 	complete(&core->done);
 }
 
-static void hfi_sys_ping_done(struct vidc_core *core, struct vidc_inst *inst,
+static void hfi_sys_ping_done(struct venus_core *core, struct venus_inst *inst,
 			      void *packet)
 {
 	struct hfi_msg_sys_ping_ack_pkt *pkt = packet;
@@ -308,21 +307,22 @@ static void hfi_sys_ping_done(struct vidc_core *core, struct vidc_inst *inst,
 	complete(&core->done);
 }
 
-static void hfi_sys_idle_done(struct vidc_core *core, struct vidc_inst *inst,
+static void hfi_sys_idle_done(struct venus_core *core, struct venus_inst *inst,
 			      void *packet)
 {
 	dev_dbg(core->dev, "sys idle\n");
 }
 
-static void hfi_sys_pc_prepare_done(struct vidc_core *core,
-				    struct vidc_inst *inst, void *packet)
+static void hfi_sys_pc_prepare_done(struct venus_core *core,
+				    struct venus_inst *inst, void *packet)
 {
 	struct hfi_msg_sys_pc_prep_done_pkt *pkt = packet;
 
 	dev_dbg(core->dev, "pc prepare done (error %x)\n", pkt->error_type);
 }
 
-static void hfi_copy_cap_prop(struct hfi_capability *in, struct vidc_inst *inst)
+static void
+hfi_copy_cap_prop(struct hfi_capability *in, struct venus_inst *inst)
 {
 	if (!in || !inst)
 		return;
@@ -418,8 +418,8 @@ session_get_prop_buf_req(struct hfi_msg_session_property_info_pkt *pkt,
 	return HFI_ERR_NONE;
 }
 
-static void hfi_session_prop_info(struct vidc_core *core,
-				  struct vidc_inst *inst, void *packet)
+static void hfi_session_prop_info(struct venus_core *core,
+				  struct venus_inst *inst, void *packet)
 {
 	struct hfi_msg_session_property_info_pkt *pkt = packet;
 	struct device *dev = core->dev;
@@ -455,7 +455,7 @@ done:
 	complete(&inst->done);
 }
 
-static u32 init_done_read_prop(struct vidc_core *core, struct vidc_inst *inst,
+static u32 init_done_read_prop(struct venus_core *core, struct venus_inst *inst,
 			       struct hfi_msg_session_init_done_pkt *pkt)
 {
 	struct device *dev = core->dev;
@@ -682,8 +682,8 @@ static u32 init_done_read_prop(struct vidc_core *core, struct vidc_inst *inst,
 	return err;
 }
 
-static void hfi_session_init_done(struct vidc_core *core,
-				  struct vidc_inst *inst, void *packet)
+static void hfi_session_init_done(struct venus_core *core,
+				  struct venus_inst *inst, void *packet)
 {
 	struct hfi_msg_session_init_done_pkt *pkt = packet;
 	unsigned int error;
@@ -702,8 +702,8 @@ done:
 	complete(&inst->done);
 }
 
-static void hfi_session_load_res_done(struct vidc_core *core,
-				      struct vidc_inst *inst, void *packet)
+static void hfi_session_load_res_done(struct venus_core *core,
+				      struct venus_inst *inst, void *packet)
 {
 	struct hfi_msg_session_load_resources_done_pkt *pkt = packet;
 
@@ -711,8 +711,8 @@ static void hfi_session_load_res_done(struct vidc_core *core,
 	complete(&inst->done);
 }
 
-static void hfi_session_flush_done(struct vidc_core *core,
-				   struct vidc_inst *inst, void *packet)
+static void hfi_session_flush_done(struct venus_core *core,
+				   struct venus_inst *inst, void *packet)
 {
 	struct hfi_msg_session_flush_done_pkt *pkt = packet;
 
@@ -720,8 +720,8 @@ static void hfi_session_flush_done(struct vidc_core *core,
 	complete(&inst->done);
 }
 
-static void hfi_session_etb_done(struct vidc_core *core, struct vidc_inst *inst,
-				 void *packet)
+static void hfi_session_etb_done(struct venus_core *core,
+				 struct venus_inst *inst, void *packet)
 {
 	struct hfi_msg_session_empty_buffer_done_pkt *pkt = packet;
 	u32 flags = 0;
@@ -732,8 +732,8 @@ static void hfi_session_etb_done(struct vidc_core *core, struct vidc_inst *inst,
 				  pkt->offset, flags);
 }
 
-static void hfi_session_ftb_done(struct vidc_core *core, struct vidc_inst *inst,
-				 void *packet)
+static void hfi_session_ftb_done(struct venus_core *core,
+				 struct venus_inst *inst, void *packet)
 {
 	u32 session_type = inst->session_type;
 	u64 timestamp_us = 0;
@@ -814,8 +814,8 @@ done:
 				 offset, flags, timestamp_us);
 }
 
-static void hfi_session_start_done(struct vidc_core *core,
-				   struct vidc_inst *inst, void *packet)
+static void hfi_session_start_done(struct venus_core *core,
+				   struct venus_inst *inst, void *packet)
 {
 	struct hfi_msg_session_start_done_pkt *pkt = packet;
 
@@ -823,8 +823,8 @@ static void hfi_session_start_done(struct vidc_core *core,
 	complete(&inst->done);
 }
 
-static void hfi_session_stop_done(struct vidc_core *core,
-				  struct vidc_inst *inst, void *packet)
+static void hfi_session_stop_done(struct venus_core *core,
+				  struct venus_inst *inst, void *packet)
 {
 	struct hfi_msg_session_stop_done_pkt *pkt = packet;
 
@@ -832,8 +832,8 @@ static void hfi_session_stop_done(struct vidc_core *core,
 	complete(&inst->done);
 }
 
-static void hfi_session_rel_res_done(struct vidc_core *core,
-				     struct vidc_inst *inst, void *packet)
+static void hfi_session_rel_res_done(struct venus_core *core,
+				     struct venus_inst *inst, void *packet)
 {
 	struct hfi_msg_session_release_resources_done_pkt *pkt = packet;
 
@@ -841,8 +841,8 @@ static void hfi_session_rel_res_done(struct vidc_core *core,
 	complete(&inst->done);
 }
 
-static void hfi_session_rel_buf_done(struct vidc_core *core,
-				     struct vidc_inst *inst, void *packet)
+static void hfi_session_rel_buf_done(struct venus_core *core,
+				     struct venus_inst *inst, void *packet)
 {
 	struct hfi_msg_session_release_buffers_done_pkt *pkt = packet;
 
@@ -850,8 +850,8 @@ static void hfi_session_rel_buf_done(struct vidc_core *core,
 	complete(&inst->done);
 }
 
-static void hfi_session_end_done(struct vidc_core *core, struct vidc_inst *inst,
-				 void *packet)
+static void hfi_session_end_done(struct venus_core *core,
+				 struct venus_inst *inst, void *packet)
 {
 	struct hfi_msg_session_end_done_pkt *pkt = packet;
 
@@ -859,8 +859,8 @@ static void hfi_session_end_done(struct vidc_core *core, struct vidc_inst *inst,
 	complete(&inst->done);
 }
 
-static void hfi_session_abort_done(struct vidc_core *core,
-				   struct vidc_inst *inst, void *packet)
+static void hfi_session_abort_done(struct venus_core *core,
+				   struct venus_inst *inst, void *packet)
 {
 	struct hfi_msg_sys_session_abort_done_pkt *pkt = packet;
 
@@ -868,8 +868,8 @@ static void hfi_session_abort_done(struct vidc_core *core,
 	complete(&inst->done);
 }
 
-static void hfi_session_get_seq_hdr_done(struct vidc_core *core,
-					 struct vidc_inst *inst, void *packet)
+static void hfi_session_get_seq_hdr_done(struct venus_core *core,
+					 struct venus_inst *inst, void *packet)
 {
 	struct hfi_msg_session_get_sequence_hdr_done_pkt *pkt = packet;
 
@@ -877,17 +877,11 @@ static void hfi_session_get_seq_hdr_done(struct vidc_core *core,
 	complete(&inst->done);
 }
 
-static void hfi_session_parse_seq_hdr_done(struct vidc_core *core,
-					   struct vidc_inst *inst, void *packet)
-{
-	dev_err(core->dev, "parse sequence header done\n");
-}
-
 struct hfi_done_handler {
 	u32 pkt;
 	u32 pkt_sz;
 	u32 pkt_sz2;
-	void (*done)(struct vidc_core *, struct vidc_inst *, void *);
+	void (*done)(struct venus_core *, struct venus_inst *, void *);
 	bool is_sys_pkt;
 };
 
@@ -979,20 +973,16 @@ static const struct hfi_done_handler handlers[] = {
 	 .pkt_sz = sizeof(struct hfi_msg_session_release_buffers_done_pkt),
 	 .done = hfi_session_rel_buf_done,
 	},
-	{.pkt = HFI_MSG_SESSION_PARSE_SEQUENCE_HEADER,
-	 .pkt_sz = sizeof(struct hfi_msg_session_parse_sequence_header_done_pkt),
-	 .done = hfi_session_parse_seq_hdr_done,
-	},
 };
 
-void hfi_process_watchdog_timeout(struct vidc_core *core)
+void hfi_process_watchdog_timeout(struct venus_core *core)
 {
 	event_sys_error(core, EVT_SYS_WATCHDOG_TIMEOUT);
 }
 
-static struct vidc_inst *to_instance(struct vidc_core *core, u32 session_id)
+static struct venus_inst *to_instance(struct venus_core *core, u32 session_id)
 {
-	struct vidc_inst *inst;
+	struct venus_inst *inst;
 
 	mutex_lock(&core->lock);
 	list_for_each_entry(inst, &core->instances, list)
@@ -1005,11 +995,11 @@ static struct vidc_inst *to_instance(struct vidc_core *core, u32 session_id)
 	return NULL;
 }
 
-u32 hfi_process_msg_packet(struct vidc_core *core, struct hfi_pkt_hdr *hdr)
+u32 hfi_process_msg_packet(struct venus_core *core, struct hfi_pkt_hdr *hdr)
 {
 	const struct hfi_done_handler *handler;
 	struct device *dev = core->dev;
-	struct vidc_inst *inst;
+	struct venus_inst *inst;
 	bool found = false;
 	unsigned int i;
 

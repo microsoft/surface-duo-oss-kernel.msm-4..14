@@ -13,7 +13,6 @@
  *
  */
 #include <linux/errno.h>
-#include <linux/log2.h>
 #include <linux/hash.h>
 
 #include "hfi_cmds.h"
@@ -33,8 +32,7 @@ void pkt_sys_pc_prep(struct hfi_sys_pc_prep_pkt *pkt)
 	pkt->hdr.pkt_type = HFI_CMD_SYS_PC_PREP;
 }
 
-void pkt_sys_idle_indicator(struct hfi_sys_set_property_pkt *pkt,
-				   u32 enable)
+void pkt_sys_idle_indicator(struct hfi_sys_set_property_pkt *pkt, u32 enable)
 {
 	struct hfi_enable *hfi = (struct hfi_enable *) &pkt->data[1];
 

@@ -28,7 +28,7 @@
 #define INTRA_REFRESH_MBS_MAX	300
 #define AT_SLICE_BOUNDARY	\
 	V4L2_MPEG_VIDEO_H264_LOOP_FILTER_MODE_DISABLED_AT_SLICE_BOUNDARY
-static struct vidc_ctrl venc_ctrls[] = {
+static struct venus_ctrl venc_ctrls[] = {
 	{
 		.id = V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
 		.type = V4L2_CTRL_TYPE_MENU,
@@ -259,7 +259,7 @@ static struct vidc_ctrl venc_ctrls[] = {
 
 static int venc_op_s_ctrl(struct v4l2_ctrl *ctrl)
 {
-	struct vidc_inst *inst = ctrl_to_inst(ctrl);
+	struct venus_inst *inst = ctrl_to_inst(ctrl);
 	struct venc_controls *ctr = &inst->controls.enc;
 
 	switch (ctrl->id) {
@@ -353,7 +353,7 @@ static const struct v4l2_ctrl_ops venc_ctrl_ops = {
 	.s_ctrl = venc_op_s_ctrl,
 };
 
-int venc_ctrl_init(struct vidc_inst *inst)
+int venc_ctrl_init(struct venus_inst *inst)
 {
 	unsigned int i;
 	int ret;
@@ -390,7 +390,7 @@ int venc_ctrl_init(struct vidc_inst *inst)
 	return 0;
 }
 
-void venc_ctrl_deinit(struct vidc_inst *inst)
+void venc_ctrl_deinit(struct venus_inst *inst)
 {
 	v4l2_ctrl_handler_free(&inst->ctrl_handler);
 }

@@ -12,14 +12,11 @@
  * GNU General Public License for more details.
  *
  */
-#define DEBUG
 #include <linux/clk.h>
 #include <linux/list.h>
 #include <linux/mutex.h>
 #include <linux/pm_runtime.h>
 #include <media/videobuf2-dma-sg.h>
-
-#include <linux/delay.h>
 
 #include "helpers.h"
 #include "hfi_helper.h"
@@ -33,9 +30,9 @@ struct intbuf {
 	struct dma_attrs attrs;
 };
 
-static int intbufs_set_buffer(struct vidc_inst *inst, u32 type)
+static int intbufs_set_buffer(struct venus_inst *inst, u32 type)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	struct device *dev = core->dev;
 	struct hfi_buffer_requirements bufreq;
 	struct hfi_buffer_desc bd;
@@ -46,10 +43,6 @@ static int intbufs_set_buffer(struct vidc_inst *inst, u32 type)
 	ret = vidc_get_bufreq(inst, type, &bufreq);
 	if (ret)
 		return 0;
-
-	pr_err("%s: type:%u, size:%u, min:%u, actual:%u\n", __func__,
-		bufreq.type, bufreq.size, bufreq.count_min,
-		bufreq.count_actual);
 
 	if (!bufreq.size)
 		return 0;
@@ -97,7 +90,7 @@ fail:
 	return ret;
 }
 
-static int intbufs_unset_buffers(struct vidc_inst *inst)
+static int intbufs_unset_buffers(struct venus_inst *inst)
 {
 	struct hfi_buffer_desc bd = {0};
 	struct intbuf *buf, *n;
@@ -131,7 +124,7 @@ static const unsigned int intbuf_types[] = {
 	HFI_BUFFER_INTERNAL_PERSIST_1,
 };
 
-static int intbufs_alloc(struct vidc_inst *inst)
+static int intbufs_alloc(struct venus_inst *inst)
 {
 	unsigned int i;
 	int ret;
@@ -149,12 +142,12 @@ error:
 	return ret;
 }
 
-static int intbufs_free(struct vidc_inst *inst)
+static int intbufs_free(struct venus_inst *inst)
 {
 	return intbufs_unset_buffers(inst);
 }
 
-static u32 load_per_instance(struct vidc_inst *inst)
+static u32 load_per_instance(struct venus_inst *inst)
 {
 	u32 w = inst->width;
 	u32 h = inst->height;
@@ -168,9 +161,9 @@ static u32 load_per_instance(struct vidc_inst *inst)
 	return mbs * inst->fps;
 }
 
-static u32 load_per_type(struct vidc_core *core, u32 session_type)
+static u32 load_per_type(struct venus_core *core, u32 session_type)
 {
-	struct vidc_inst *inst = NULL;
+	struct venus_inst *inst = NULL;
 	u32 mbs_per_sec = 0;
 
 	mutex_lock(&core->lock);
@@ -185,7 +178,7 @@ static u32 load_per_type(struct vidc_core *core, u32 session_type)
 	return mbs_per_sec;
 }
 
-static int load_scale_clocks(struct vidc_core *core)
+static int load_scale_clocks(struct venus_core *core)
 {
 	const struct freq_tbl *table = core->res->freq_tbl;
 	unsigned int num_rows = core->res->freq_tbl_size;
@@ -241,8 +234,8 @@ static int session_set_buf(struct vb2_buffer *vb)
 {
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct vb2_queue *q = vb->vb2_queue;
-	struct vidc_inst *inst = vb2_get_drv_priv(q);
-	struct vidc_core *core = inst->core;
+	struct venus_inst *inst = vb2_get_drv_priv(q);
+	struct venus_core *core = inst->core;
 	struct device *dev = core->dev;
 	struct vidc_buffer *buf = to_vidc_buffer(vbuf);
 	struct hfi_frame_data fdata;
@@ -296,9 +289,9 @@ static int session_set_buf(struct vb2_buffer *vb)
 	return 0;
 }
 
-static int session_unregister_bufs(struct vidc_inst *inst)
+static int session_unregister_bufs(struct venus_inst *inst)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	struct device *dev = core->dev;
 	struct hfi_buffer_desc *bd;
 	struct vidc_buffer *buf, *tmp;
@@ -324,9 +317,9 @@ static int session_unregister_bufs(struct vidc_inst *inst)
 	return ret;
 }
 
-static int session_register_bufs(struct vidc_inst *inst)
+static int session_register_bufs(struct venus_inst *inst)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	struct device *dev = core->dev;
 	struct hfi_buffer_desc *bd;
 	struct vidc_buffer *buf;
@@ -350,7 +343,7 @@ static int session_register_bufs(struct vidc_inst *inst)
 	return ret;
 }
 
-int vidc_get_bufreq(struct vidc_inst *inst, u32 type,
+int vidc_get_bufreq(struct venus_inst *inst, u32 type,
 		    struct hfi_buffer_requirements *out)
 {
 	u32 ptype = HFI_PROPERTY_CONFIG_BUFFER_REQUIREMENTS;
@@ -379,7 +372,7 @@ int vidc_get_bufreq(struct vidc_inst *inst, u32 type,
 	return ret;
 }
 
-int vidc_set_color_format(struct vidc_inst *inst, u32 type, u32 pixfmt)
+int vidc_set_color_format(struct venus_inst *inst, u32 type, u32 pixfmt)
 {
 	struct hfi_uncompressed_format_select fmt;
 	u32 ptype = HFI_PROPERTY_PARAM_UNCOMPRESSED_FORMAT_SELECT;
@@ -406,7 +399,7 @@ int vidc_set_color_format(struct vidc_inst *inst, u32 type, u32 pixfmt)
 }
 
 struct vb2_v4l2_buffer *
-vidc_vb2_find_buf(struct vidc_inst *inst, dma_addr_t addr)
+vidc_vb2_find_buf(struct venus_inst *inst, dma_addr_t addr)
 {
 	struct vidc_buffer *buf;
 	struct vb2_v4l2_buffer *vb = NULL;
@@ -432,7 +425,7 @@ int vidc_vb2_buf_init(struct vb2_buffer *vb)
 {
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct vb2_queue *q = vb->vb2_queue;
-	struct vidc_inst *inst = vb2_get_drv_priv(q);
+	struct venus_inst *inst = vb2_get_drv_priv(q);
 	struct vidc_buffer *buf = to_vidc_buffer(vbuf);
 	struct hfi_buffer_desc *bd = &buf->bd;
 	struct sg_table *sgt;
@@ -476,7 +469,7 @@ int vidc_vb2_buf_prepare(struct vb2_buffer *vb)
 void vidc_vb2_buf_queue(struct vb2_buffer *vb)
 {
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
-	struct vidc_inst *inst = vb2_get_drv_priv(vb->vb2_queue);
+	struct venus_inst *inst = vb2_get_drv_priv(vb->vb2_queue);
 	struct vidc_buffer *buf = to_vidc_buffer(vbuf);
 	unsigned int state;
 	int ret;
@@ -503,7 +496,7 @@ void vidc_vb2_buf_queue(struct vb2_buffer *vb)
 		vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
 }
 
-void vidc_vb2_buffers_done(struct vidc_inst *inst, enum vb2_buffer_state state)
+void vidc_vb2_buffers_done(struct venus_inst *inst, enum vb2_buffer_state state)
 {
 	struct vidc_buffer *buf, *n;
 
@@ -517,8 +510,8 @@ void vidc_vb2_buffers_done(struct vidc_inst *inst, enum vb2_buffer_state state)
 
 void vidc_vb2_stop_streaming(struct vb2_queue *q)
 {
-	struct vidc_inst *inst = vb2_get_drv_priv(q);
-	struct vidc_core *core = inst->core;
+	struct venus_inst *inst = vb2_get_drv_priv(q);
+	struct venus_core *core = inst->core;
 	struct device *dev = core->dev;
 	struct vb2_queue *other_queue;
 	int ret;
@@ -569,9 +562,9 @@ abort:
 	vidc_vb2_buffers_done(inst, VB2_BUF_STATE_ERROR);
 }
 
-int vidc_vb2_start_streaming(struct vidc_inst *inst)
+int vidc_vb2_start_streaming(struct venus_inst *inst)
 {
-	struct vidc_core *core = inst->core;
+	struct venus_core *core = inst->core;
 	struct vidc_buffer *buf;
 	int ret;
 

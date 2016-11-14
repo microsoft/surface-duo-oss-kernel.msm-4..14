@@ -13,8 +13,8 @@
  *
  */
 
-#ifndef __VIDC_CORE_H_
-#define __VIDC_CORE_H_
+#ifndef __VENUS_CORE_H_
+#define __VENUS_CORE_H_
 
 #include <media/v4l2-device.h>
 #include <media/v4l2-ctrls.h>
@@ -22,9 +22,6 @@
 
 #include "hfi.h"
 
-#define VIDC_DRV_NAME		"vidc"
-
-/* structures needed to diferenciate resources per version/SoC */
 #define VIDC_CLKS_NUM_MAX	12
 
 struct freq_tbl {
@@ -37,7 +34,7 @@ struct reg_val {
 	u32 value;
 };
 
-struct vidc_resources {
+struct venus_resources {
 	u64 dma_mask;
 	const struct freq_tbl *freq_tbl;
 	unsigned int freq_tbl_size;
@@ -52,20 +49,43 @@ struct vidc_resources {
 	u32 vmem_addr;
 };
 
-struct vidc_format {
+struct venus_format {
 	u32 pixfmt;
 	int num_planes;
 	u32 type;
 };
 
-struct vidc_core {
+/**
+ * struct venus_core -
+ *
+ * @base:
+ * @clks:
+ * @vdev_dec:
+ * @vdev_enc:
+ * @v4l2_dev:
+ * @res:
+ * @rproc:
+ * @dev:
+ * @lock:
+ * @instances:
+ * @state:
+ * @done:
+ * @error:
+ * @core_ops:
+ * @enc_codecs:
+ * @dec_codecs:
+ * @max_sessions_supported:
+ * @core_caps:
+ * @priv:
+ * @ops:
+ */
+struct venus_core {
 	void __iomem *base;
-	int irq;
 	struct clk *clks[VIDC_CLKS_NUM_MAX];
 	struct video_device *vdev_dec;
 	struct video_device *vdev_enc;
 	struct v4l2_device v4l2_dev;
-	const struct vidc_resources *res;
+	const struct venus_resources *res;
 	struct rproc *rproc;
 	struct device *dev;
 	struct mutex lock;
@@ -96,12 +116,48 @@ struct vidc_core {
 	const struct hfi_ops *ops;
 };
 
+/**
+ * struct vdec_controls -
+ *
+ * @post_loop_deb_mode:
+ * @profile:
+ * @level:
+ */
 struct vdec_controls {
 	u32 post_loop_deb_mode;
 	u32 profile;
 	u32 level;
 };
 
+/**
+ * struct venc_controls -
+ *
+ * @gop_size:
+ * @idr_period:
+ * @num_p_frames:
+ * @num_b_frames:
+ * @bitrate_mode:
+ * @bitrate:
+ * @bitrate_peak:
+ * @h264_i_period:
+ * @h264_entropy_mode:
+ * @h264_i_qp:
+ * @h264_p_qp:
+ * @h264_b_qp:
+ * @h264_min_qp:
+ * @h264_max_qp:
+ * @h264_loop_filter_mode:
+ * @h264_loop_filter_alpha:
+ * @h264_loop_filter_beta:
+ * @vp8_min_qp:
+ * @vp8_max_qp:
+ * @multi_slice_mode:
+ * @multi_slice_max_bytes:
+ * @multi_slice_max_mb:
+ * @header_mode:
+ * @profile:
+ * @level:
+ */
 struct venc_controls {
 	u16 gop_size;
 	u32 idr_period;
@@ -135,11 +191,72 @@ struct venc_controls {
 	u32 level;
 };
 
-struct vidc_inst {
+/**
+ * struct venus_inst -
+ *
+ * @list:
+ * @lock:
+ * @core:
+ * @internalbufs:
+ * @internalbufs_lock:
+ * @registeredbufs:
+ * @registeredbufs_lock:
+ * @bufqueue:
+ * @bufqueue_lock:
+ * @bufq_out:
+ * @bufq_cap:
+ * @ctrl_handler:
+ * @controls:
+ * @fh:
+ * @width:
+ * @height:
+ * @out_width:
+ * @out_height:
+ * @colorspace:
+ * @quantization:
+ * @xfer_func:
+ * @fps:
+ * @timeperframe:
+ * @fmt_out:
+ * @fmt_cap:
+ * @num_input_bufs:
+ * @num_output_bufs:
+ * @output_buf_size:
+ * @in_reconfig:
+ * @in_reconfig:
+ * @reconfig_width:
+ * @reconfig_height:
+ * @sequence:
+ * @codec_cfg:
+ * @state:
+ * @done:
+ * @error:
+ * @ops:
+ * @priv:
+ * @session_type:
+ * @hprop:
+ * @cap_width:
+ * @cap_height:
+ * @cap_mbs_per_frame:
+ * @cap_mbs_per_sec:
+ * @cap_framerate:
+ * @cap_scale_x:
+ * @cap_scale_y:
+ * @cap_bitrate:
+ * @cap_hier_p:
+ * @cap_ltr_count:
+ * @cap_secure_output2_threshold:
+ * @cap_bufs_mode_static:
+ * @cap_bufs_mode_dynamic:
+ * @pl_count:
+ * @pl:
+ * @bufreq:
+ */
+struct venus_inst {
 	struct list_head list;
 	struct mutex lock;
 
-	struct vidc_core *core;
+	struct venus_core *core;
 
 	struct list_head internalbufs;
 	struct mutex internalbufs_lock;
@@ -174,8 +291,8 @@ struct vidc_inst {
 	u8 xfer_func;
 	u64 fps;
 	struct v4l2_fract timeperframe;
-	const struct vidc_format *fmt_out;
-	const struct vidc_format *fmt_cap;
+	const struct venus_format *fmt_out;
+	const struct venus_format *fmt_cap;
 	unsigned int num_input_bufs;
 	unsigned int num_output_bufs;
 	unsigned int output_buf_size;
@@ -192,7 +309,6 @@ struct vidc_inst {
 
 	/* instance operations passed by outside world */
 	const struct hfi_inst_ops *ops;
-	void *priv;
 	u32 session_type;
 	union hfi_get_property hprop;
 
@@ -220,9 +336,9 @@ struct vidc_inst {
 };
 
 #define ctrl_to_inst(ctrl)	\
-	container_of(ctrl->handler, struct vidc_inst, ctrl_handler)
+	container_of(ctrl->handler, struct venus_inst, ctrl_handler)
 
-struct vidc_ctrl {
+struct venus_ctrl {
 	u32 id;
 	enum v4l2_ctrl_type type;
 	s32 min;
@@ -241,20 +357,20 @@ struct vidc_ctrl {
  */
 #define DST_QUEUE_OFF_BASE	(1 << 30)
 
-static inline struct vidc_inst *to_inst(struct file *filp)
+static inline struct venus_inst *to_inst(struct file *filp)
 {
-	return container_of(filp->private_data, struct vidc_inst, fh);
+	return container_of(filp->private_data, struct venus_inst, fh);
 }
 
-static inline void *to_hfi_priv(struct vidc_core *core)
+static inline void *to_hfi_priv(struct venus_core *core)
 {
 	return core->priv;
 }
 
 static inline struct vb2_queue *
-vidc_to_vb2q(struct file *file, enum v4l2_buf_type type)
+to_vb2q(struct file *file, enum v4l2_buf_type type)
 {
-	struct vidc_inst *inst = to_inst(file);
+	struct venus_inst *inst = to_inst(file);
 
 	if (type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 		return &inst->bufq_cap;

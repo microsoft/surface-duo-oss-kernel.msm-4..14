@@ -126,7 +126,7 @@ enum venus_state {
 };
 
 struct venus_hfi_device {
-	struct vidc_core *core;
+	struct venus_core *core;
 	u32 irq_status;
 	u32 last_packet_type;
 	bool power_enabled;
@@ -383,10 +383,10 @@ static u32 venus_readl(struct venus_hfi_device *hdev, u32 reg)
 
 static void venus_set_registers(struct venus_hfi_device *hdev)
 {
-	const struct vidc_resources *res = hdev->core->res;
+	const struct venus_resources *res = hdev->core->res;
 	const struct reg_val *tbl = res->reg_tbl;
 	unsigned int count = res->reg_tbl_size;
-	int i;
+	unsigned int i;
 
 	for (i = 0; i < count; i++)
 		venus_writel(hdev, tbl[i].reg, tbl[i].value);
@@ -439,8 +439,8 @@ static int venus_iface_cmdq_write(struct venus_hfi_device *hdev, void *pkt)
 	return ret;
 }
 
-static int venus_hfi_core_set_resource(struct vidc_core *core, u32 id, u32 size,
-				       u32 addr, void *cookie)
+static int venus_hfi_core_set_resource(struct venus_core *core, u32 id,
+				       u32 size, u32 addr, void *cookie)
 {
 	struct venus_hfi_device *hdev = to_hfi_priv(core);
 	struct hfi_sys_set_resource_pkt *pkt;
@@ -468,11 +468,13 @@ static int venus_tzbsp_set_video_state(enum tzbsp_video_state state)
 	return qcom_scm_set_video_state(state, 0);
 }
 
-static int venus_reset_core(struct venus_hfi_device *hdev)
+static int venus_boot_core(struct venus_hfi_device *hdev)
 {
 	struct device *dev = hdev->core->dev;
-	u32 ctrl_status = 0, count = 0;
-	int max_tries = 100, ret = 0;
+	static const unsigned int max_tries = 100;
+	u32 ctrl_status = 0;
+	unsigned int count = 0;
+	int ret = 0;
 
 	venus_writel(hdev, VIDC_CTRL_INIT, BIT(VIDC_CTRL_INIT_CTRL_SHIFT));
 	venus_writel(hdev, WRAPPER_INTR_MASK, WRAPPER_INTR_MASK_A2HVCODEC_MASK);
@@ -480,7 +482,7 @@ static int venus_reset_core(struct venus_hfi_device *hdev)
 
 	while (!ctrl_status && count < max_tries) {
 		ctrl_status = venus_readl(hdev, CPU_CS_SCIACMDARG0);
-		if ((ctrl_status & 0xfe) == 0x4) {
+		if ((ctrl_status & CPU_CS_SCIACMDARG0_ERROR_STATUS_MASK) == 4) {
 			dev_err(dev, "invalid setting for UC_REGION\n");
 			ret = -EINVAL;
 			break;
@@ -531,7 +533,7 @@ static int venus_run(struct venus_hfi_device *hdev)
 	if (hdev->sfr.da)
 		venus_writel(hdev, SFR_ADDR, hdev->sfr.da);
 
-	ret = venus_reset_core(hdev);
+	ret = venus_boot_core(hdev);
 	if (ret) {
 		dev_err(dev, "failed to reset venus core\n");
 		return ret;
@@ -894,9 +896,9 @@ static int venus_sys_set_default_properties(struct venus_hfi_device *hdev)
 	return ret;
 }
 
-static int venus_session_cmd(struct vidc_inst *inst, u32 pkt_type)
+static int venus_session_cmd(struct venus_inst *inst, u32 pkt_type)
 {
-	struct venus_hfi_device *hdev = inst->priv;
+	struct venus_hfi_device *hdev = to_hfi_priv(inst->core);
 	struct hfi_session_pkt pkt;
 	int ret;
 
@@ -1006,10 +1008,10 @@ static void venus_process_msg_sys_error(struct venus_hfi_device *hdev,
 	venus_sfr_print(hdev);
 }
 
-static irqreturn_t venus_isr_thread(struct vidc_core *core)
+static irqreturn_t venus_isr_thread(struct venus_core *core)
 {
 	struct venus_hfi_device *hdev = to_hfi_priv(core);
-	const struct vidc_resources *res = hdev->core->res;
+	const struct venus_resources *res = hdev->core->res;
 	void *pkt;
 	u32 msg_ret;
 
@@ -1051,7 +1053,7 @@ static irqreturn_t venus_isr_thread(struct vidc_core *core)
 	return IRQ_HANDLED;
 }
 
-static irqreturn_t venus_isr(struct vidc_core *core)
+static irqreturn_t venus_isr(struct venus_core *core)
 {
 	struct venus_hfi_device *hdev = to_hfi_priv(core);
 	u32 status;
@@ -1072,7 +1074,7 @@ static irqreturn_t venus_isr(struct vidc_core *core)
 	return IRQ_WAKE_THREAD;
 }
 
-static int venus_hfi_core_init(struct vidc_core *core)
+static int venus_hfi_core_init(struct venus_core *core)
 {
 	struct venus_hfi_device *hdev = to_hfi_priv(core);
 	struct device *dev = core->dev;
@@ -1097,7 +1099,7 @@ static int venus_hfi_core_init(struct vidc_core *core)
 	return 0;
 }
 
-static int venus_hfi_core_deinit(struct vidc_core *core)
+static int venus_hfi_core_deinit(struct venus_core *core)
 {
 	struct venus_hfi_device *hdev = to_hfi_priv(core);
 
@@ -1107,7 +1109,7 @@ static int venus_hfi_core_deinit(struct vidc_core *core)
 	return 0;
 }
 
-static int venus_hfi_core_ping(struct vidc_core *core, u32 cookie)
+static int venus_hfi_core_ping(struct venus_core *core, u32 cookie)
 {
 	struct venus_hfi_device *hdev = to_hfi_priv(core);
 	struct hfi_sys_ping_pkt pkt;
@@ -1117,7 +1119,7 @@ static int venus_hfi_core_ping(struct vidc_core *core, u32 cookie)
 	return venus_iface_cmdq_write(hdev, &pkt);
 }
 
-static int venus_hfi_core_trigger_ssr(struct vidc_core *core, u32 trigger_type)
+static int venus_hfi_core_trigger_ssr(struct venus_core *core, u32 trigger_type)
 {
 	struct venus_hfi_device *hdev = to_hfi_priv(core);
 	struct hfi_sys_test_ssr_pkt pkt;
@@ -1130,15 +1132,13 @@ static int venus_hfi_core_trigger_ssr(struct vidc_core *core, u32 trigger_type)
 	return venus_iface_cmdq_write(hdev, &pkt);
 }
 
-static int venus_hfi_session_init(struct vidc_core *core,
-				  struct vidc_inst *inst,
+static int venus_hfi_session_init(struct venus_core *core,
+				  struct venus_inst *inst,
 				  u32 session_type, u32 codec)
 {
 	struct venus_hfi_device *hdev = to_hfi_priv(core);
 	struct hfi_session_init_pkt pkt;
 	int ret;
-
-	inst->priv = hdev;
 
 	ret = venus_sys_set_default_properties(hdev);
 	if (ret)
@@ -1159,9 +1159,9 @@ err:
 	return ret;
 }
 
-static int venus_hfi_session_end(struct vidc_inst *inst)
+static int venus_hfi_session_end(struct venus_inst *inst)
 {
-	struct venus_hfi_device *hdev = inst->priv;
+	struct venus_hfi_device *hdev = to_hfi_priv(inst->core);
 	struct device *dev = hdev->core->dev;
 
 	if (venus_fw_coverage) {
@@ -1172,18 +1172,18 @@ static int venus_hfi_session_end(struct vidc_inst *inst)
 	return venus_session_cmd(inst, HFI_CMD_SYS_SESSION_END);
 }
 
-static int venus_hfi_session_abort(struct vidc_inst *inst)
+static int venus_hfi_session_abort(struct venus_inst *inst)
 {
-	struct venus_hfi_device *hdev = inst->priv;
+	struct venus_hfi_device *hdev = to_hfi_priv(inst->core);
 
 	venus_flush_debug_queue(hdev);
 
 	return venus_session_cmd(inst, HFI_CMD_SYS_SESSION_ABORT);
 }
 
-static int venus_hfi_session_flush(struct vidc_inst *inst, u32 flush_mode)
+static int venus_hfi_session_flush(struct venus_inst *inst, u32 flush_mode)
 {
-	struct venus_hfi_device *hdev = inst->priv;
+	struct venus_hfi_device *hdev = to_hfi_priv(inst->core);
 	struct hfi_session_flush_pkt pkt;
 	int ret;
 
@@ -1194,25 +1194,25 @@ static int venus_hfi_session_flush(struct vidc_inst *inst, u32 flush_mode)
 	return venus_iface_cmdq_write(hdev, &pkt);
 }
 
-static int venus_hfi_session_start(struct vidc_inst *inst)
+static int venus_hfi_session_start(struct venus_inst *inst)
 {
 	return venus_session_cmd(inst, HFI_CMD_SESSION_START);
 }
 
-static int venus_hfi_session_stop(struct vidc_inst *inst)
+static int venus_hfi_session_stop(struct venus_inst *inst)
 {
 	return venus_session_cmd(inst, HFI_CMD_SESSION_STOP);
 }
 
-static int venus_hfi_session_continue(struct vidc_inst *inst)
+static int venus_hfi_session_continue(struct venus_inst *inst)
 {
 	return venus_session_cmd(inst, HFI_CMD_SESSION_CONTINUE);
 }
 
-static int venus_hfi_session_etb(struct vidc_inst *inst,
+static int venus_hfi_session_etb(struct venus_inst *inst,
 				 struct hfi_frame_data *in_frame)
 {
-	struct venus_hfi_device *hdev = inst->priv;
+	struct venus_hfi_device *hdev = to_hfi_priv(inst->core);
 	u32 session_type = inst->session_type;
 	int ret;
 
@@ -1239,10 +1239,10 @@ static int venus_hfi_session_etb(struct vidc_inst *inst,
 	return ret;
 }
 
-static int venus_hfi_session_ftb(struct vidc_inst *inst,
+static int venus_hfi_session_ftb(struct venus_inst *inst,
 				 struct hfi_frame_data *out_frame)
 {
-	struct venus_hfi_device *hdev = inst->priv;
+	struct venus_hfi_device *hdev = to_hfi_priv(inst->core);
 	struct hfi_session_fill_buffer_pkt pkt;
 	int ret;
 
@@ -1253,10 +1253,10 @@ static int venus_hfi_session_ftb(struct vidc_inst *inst,
 	return venus_iface_cmdq_write(hdev, &pkt);
 }
 
-static int venus_hfi_session_set_buffers(struct vidc_inst *inst,
+static int venus_hfi_session_set_buffers(struct venus_inst *inst,
 					 struct hfi_buffer_desc *bd)
 {
-	struct venus_hfi_device *hdev = inst->priv;
+	struct venus_hfi_device *hdev = to_hfi_priv(inst->core);
 	struct hfi_session_set_buffers_pkt *pkt;
 	u8 packet[IFACEQ_VAR_LARGE_PKT_SIZE];
 	int ret;
@@ -1273,10 +1273,10 @@ static int venus_hfi_session_set_buffers(struct vidc_inst *inst,
 	return venus_iface_cmdq_write(hdev, pkt);
 }
 
-static int venus_hfi_session_unset_buffers(struct vidc_inst *inst,
+static int venus_hfi_session_unset_buffers(struct venus_inst *inst,
 					   struct hfi_buffer_desc *bd)
 {
-	struct venus_hfi_device *hdev = inst->priv;
+	struct venus_hfi_device *hdev = to_hfi_priv(inst->core);
 	struct hfi_session_release_buffer_pkt *pkt;
 	u8 packet[IFACEQ_VAR_LARGE_PKT_SIZE];
 	int ret;
@@ -1293,20 +1293,20 @@ static int venus_hfi_session_unset_buffers(struct vidc_inst *inst,
 	return venus_iface_cmdq_write(hdev, pkt);
 }
 
-static int venus_hfi_session_load_res(struct vidc_inst *inst)
+static int venus_hfi_session_load_res(struct venus_inst *inst)
 {
 	return venus_session_cmd(inst, HFI_CMD_SESSION_LOAD_RESOURCES);
 }
 
-static int venus_hfi_session_release_res(struct vidc_inst *inst)
+static int venus_hfi_session_release_res(struct venus_inst *inst)
 {
 	return venus_session_cmd(inst, HFI_CMD_SESSION_RELEASE_RESOURCES);
 }
 
-static int venus_hfi_session_parse_seq_hdr(struct vidc_inst *inst,
+static int venus_hfi_session_parse_seq_hdr(struct venus_inst *inst,
 					   u32 seq_hdr, u32 seq_hdr_len)
 {
-	struct venus_hfi_device *hdev = inst->priv;
+	struct venus_hfi_device *hdev = to_hfi_priv(inst->core);
 	struct hfi_session_parse_sequence_header_pkt *pkt;
 	u8 packet[IFACEQ_VAR_SMALL_PKT_SIZE];
 	int ret;
@@ -1324,10 +1324,10 @@ static int venus_hfi_session_parse_seq_hdr(struct vidc_inst *inst,
 	return 0;
 }
 
-static int venus_hfi_session_get_seq_hdr(struct vidc_inst *inst,
+static int venus_hfi_session_get_seq_hdr(struct venus_inst *inst,
 					 u32 seq_hdr, u32 seq_hdr_len)
 {
-	struct venus_hfi_device *hdev = inst->priv;
+	struct venus_hfi_device *hdev = to_hfi_priv(inst->core);
 	struct hfi_session_get_sequence_header_pkt *pkt;
 	u8 packet[IFACEQ_VAR_SMALL_PKT_SIZE];
 	int ret;
@@ -1341,10 +1341,10 @@ static int venus_hfi_session_get_seq_hdr(struct vidc_inst *inst,
 	return venus_iface_cmdq_write(hdev, pkt);
 }
 
-static int venus_hfi_session_set_property(struct vidc_inst *inst, u32 ptype,
+static int venus_hfi_session_set_property(struct venus_inst *inst, u32 ptype,
 					  void *pdata)
 {
-	struct venus_hfi_device *hdev = inst->priv;
+	struct venus_hfi_device *hdev = to_hfi_priv(inst->core);
 	struct hfi_session_set_property_pkt *pkt;
 	u8 packet[IFACEQ_VAR_LARGE_PKT_SIZE];
 	int ret;
@@ -1358,9 +1358,9 @@ static int venus_hfi_session_set_property(struct vidc_inst *inst, u32 ptype,
 	return venus_iface_cmdq_write(hdev, pkt);
 }
 
-static int venus_hfi_session_get_property(struct vidc_inst *inst, u32 ptype)
+static int venus_hfi_session_get_property(struct venus_inst *inst, u32 ptype)
 {
-	struct venus_hfi_device *hdev = inst->priv;
+	struct venus_hfi_device *hdev = to_hfi_priv(inst->core);
 	struct hfi_session_get_property_pkt pkt;
 	int ret;
 
@@ -1371,7 +1371,7 @@ static int venus_hfi_session_get_property(struct vidc_inst *inst, u32 ptype)
 	return venus_iface_cmdq_write(hdev, &pkt);
 }
 
-static int venus_hfi_resume(struct vidc_core *core)
+static int venus_hfi_resume(struct venus_core *core)
 {
 	struct venus_hfi_device *hdev = to_hfi_priv(core);
 	int ret = 0;
@@ -1392,7 +1392,7 @@ unlock:
 	return ret;
 }
 
-static int venus_hfi_suspend(struct vidc_core *core)
+static int venus_hfi_suspend(struct venus_core *core)
 {
 	struct venus_hfi_device *hdev = to_hfi_priv(core);
 	struct device *dev = core->dev;
@@ -1480,7 +1480,7 @@ static const struct hfi_ops venus_hfi_ops = {
 	.isr_thread			= venus_isr_thread,
 };
 
-void venus_hfi_destroy(struct vidc_core *core)
+void venus_hfi_destroy(struct venus_core *core)
 {
 	struct venus_hfi_device *hdev = to_hfi_priv(core);
 
@@ -1489,7 +1489,7 @@ void venus_hfi_destroy(struct vidc_core *core)
 	kfree(hdev);
 }
 
-int venus_hfi_create(struct vidc_core *core)
+int venus_hfi_create(struct venus_core *core)
 {
 	struct venus_hfi_device *hdev;
 	int ret;
