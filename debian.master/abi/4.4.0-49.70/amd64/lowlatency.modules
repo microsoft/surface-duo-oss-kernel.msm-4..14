@@ -1538,6 +1538,7 @@ htu21
 huawei_cdc_ncm
 hv_balloon
 hv_netvsc
+hv_network_direct
 hv_storvsc
 hv_utils
 hv_vmbus
@@ -1617,7 +1618,6 @@ i7300_edac
 i7300_idle
 i740fb
 i7core_edac
-i810
 i82092
 i82975x_edac
 i915
