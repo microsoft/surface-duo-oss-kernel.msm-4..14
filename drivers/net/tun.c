@@ -1985,7 +1985,7 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 	int le;
 	int ret;
 
-	if (cmd == TUNSETIFF || cmd == TUNSETQUEUE || _IOC_TYPE(cmd) == 0x89) {
+	if (cmd == TUNSETIFF || cmd == TUNSETQUEUE || _IOC_TYPE(cmd) == SOCK_IOC_TYPE) {
 		if (copy_from_user(&ifr, argp, ifreq_len))
 			return -EFAULT;
 	} else {
@@ -2005,7 +2005,11 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 	rtnl_lock();
 
 	tun = __tun_get(tfile);
-	if (cmd == TUNSETIFF && !tun) {
+	if (cmd == TUNSETIFF) {
+		ret = -EEXIST;
+		if (tun)
+			goto unlock;
+
 		ifr.ifr_name[IFNAMSIZ-1] = '\0';
 
 		ret = tun_set_iff(sock_net(&tfile->sk), file, &ifr);
