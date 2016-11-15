@@ -57,18 +57,23 @@
 		};
 
 		smem_mem: smem_region@86300000 {
-			reg = <0x0 0x86300000 0x0 0x0100000>;
+			reg = <0x0 0x86300000 0x0 0x100000>;
 			no-map;
 		};
 
-                hypervisor_mem: hypervisor_region@86400000 {
-                        no-map;
-                        reg = <0x0 0x86400000 0x0 0x0400000>;
-                };
+		hypervisor_mem: hypervisor_region@86400000 {
+			reg = <0x0 0x86400000 0x0 0x100000>;
+			no-map;
+		};
 
-		modem_adsp_mem: modem_adsp_region@86800000 {
-                        no-map;
-			reg = <0x0 0x86800000 0x0 0x04800000>;
+		tz@86500000 {
+			reg = <0x0 0x86500000 0x0 0x180000>;
+			no-map;
+		};
+
+		reserved@8668000 {
+			reg = <0x0 0x86680000 0x0 0x80000>;
+			no-map;
 		};
 
 		rmtfs@86700000 {
@@ -76,10 +81,15 @@
 			no-map;
 		};
 
-                peripheral_mem: peripheral_region@8b600000 {
-                        no-map;
-                        reg = <0x0 0x8b600000 0x0 0x0600000>;
-                };
+		rfsa@867e00000 {
+			reg = <0x0 0x867e0000 0x0 0x20000>;
+			no-map;
+		};
+
+		modem_adsp_mem: modem_adsp_region@86800000 {
+			reg = <0x0 0x86800000 0x0 0x2b00000>;
+			no-map;
+		};
 
 		wcnss_mem: wcnss@89300000 {
 			reg = <0x0 0x89300000 0x0 0x600000>;
