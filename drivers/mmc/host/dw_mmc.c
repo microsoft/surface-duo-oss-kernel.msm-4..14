@@ -234,6 +234,7 @@ static u32 dw_mci_prepare_command(struct mmc_host *mmc, struct mmc_command *cmd)
 	struct mmc_data	*data;
 	struct dw_mci_slot *slot = mmc_priv(mmc);
 	struct dw_mci *host = slot->host;
+	const struct dw_mci_drv_data *drv_data = slot->host->drv_data;
 	u32 cmdr;
 
 	cmd->error = -EINPROGRESS;
@@ -249,7 +250,7 @@ static u32 dw_mci_prepare_command(struct mmc_host *mmc, struct mmc_command *cmd)
 		cmdr |= SDMMC_CMD_PRV_DAT_WAIT;
 
 	if (cmd->opcode == SD_SWITCH_VOLTAGE) {
-		u32 clk_en_a;
+		/*u32 clk_en_a;*/
 
 		/* Special bit makes CMD11 not die */
 		cmdr |= SDMMC_CMD_VOLT_SWITCH;
@@ -269,11 +270,11 @@ static u32 dw_mci_prepare_command(struct mmc_host *mmc, struct mmc_command *cmd)
 		 * ever called with a non-zero clock.  That shouldn't happen
 		 * until the voltage change is all done.
 		 */
-		clk_en_a = mci_readl(host, CLKENA);
-		clk_en_a &= ~(SDMMC_CLKEN_LOW_PWR << slot->id);
-		mci_writel(host, CLKENA, clk_en_a);
-		mci_send_cmd(slot, SDMMC_CMD_UPD_CLK |
-			     SDMMC_CMD_PRV_DAT_WAIT, 0);
+		/*clk_en_a = mci_readl(host, CLKENA);*/
+		/*clk_en_a &= ~(SDMMC_CLKEN_LOW_PWR << slot->id);*/
+		/*mci_writel(host, CLKENA, clk_en_a);*/
+		/*mci_send_cmd(slot, SDMMC_CMD_UPD_CLK |*/
+			     /*SDMMC_CMD_PRV_DAT_WAIT, 0);*/
 	}
 
 	if (cmd->flags & MMC_RSP_PRESENT) {
@@ -293,8 +294,8 @@ static u32 dw_mci_prepare_command(struct mmc_host *mmc, struct mmc_command *cmd)
 			cmdr |= SDMMC_CMD_DAT_WR;
 	}
 
-	if (!test_bit(DW_MMC_CARD_NO_USE_HOLD, &slot->flags))
-		cmdr |= SDMMC_CMD_USE_HOLD_REG;
+	if (drv_data && drv_data->prepare_command)
+		drv_data->prepare_command(slot->host, &cmdr);
 
 	return cmdr;
 }
@@ -1121,7 +1122,7 @@ static void dw_mci_setup_bus(struct dw_mci_slot *slot, bool force_clkinit)
 
 		/* enable clock; only low power if no SDIO */
 		clk_en_a = SDMMC_CLKEN_ENABLE << slot->id;
-		if (!test_bit(DW_MMC_CARD_NO_LOW_PWR, &slot->flags))
+		if (!test_bit(DW_MMC_CARD_NO_LOW_PWR, &slot->flags) && (slot->mmc->index != 1))
 			clk_en_a |= SDMMC_CLKEN_LOW_PWR << slot->id;
 		mci_writel(host, CLKENA, clk_en_a);
 
@@ -1295,6 +1296,8 @@ static void dw_mci_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 		regs |= ((0x1 << slot->id) << 16);
 	else
 		regs &= ~((0x1 << slot->id) << 16);
+	if (mmc->index == 1)
+		regs |= (0x1 << slot->id);
 
 	mci_writel(slot->host, UHS_REG, regs);
 	slot->host->timing = ios->timing;
@@ -1564,6 +1567,8 @@ static int dw_mci_execute_tuning(struct mmc_host *mmc, u32 opcode)
 
 	if (drv_data && drv_data->execute_tuning)
 		err = drv_data->execute_tuning(slot, opcode);
+	else
+		err = 0;
 	return err;
 }
 
@@ -2878,6 +2883,15 @@ static struct dw_mci_board *dw_mci_parse_dt(struct dw_mci *host)
 	if (!pdata)
 		return ERR_PTR(-ENOMEM);
 
+	/* find reset controller when exist */
+	pdata->rstc = devm_reset_control_get_optional(dev, NULL);
+	if (IS_ERR(pdata->rstc)) {
+		if (PTR_ERR(pdata->rstc) == -EPROBE_DEFER)
+			return ERR_PTR(-EPROBE_DEFER);
+		else
+			pdata->rstc = NULL;
+	}
+
 	/* find out number of slots supported */
 	of_property_read_u32(np, "num-slots", &pdata->num_slots);
 
@@ -2949,7 +2963,9 @@ int dw_mci_probe(struct dw_mci *host)
 
 	if (!host->pdata) {
 		host->pdata = dw_mci_parse_dt(host);
-		if (IS_ERR(host->pdata)) {
+		if (PTR_ERR(host->pdata) == -EPROBE_DEFER)
+			return -EPROBE_DEFER;
+		else if (IS_ERR(host->pdata)) {
 			dev_err(host->dev, "platform data not available\n");
 			return -EINVAL;
 		}
@@ -3010,6 +3026,12 @@ int dw_mci_probe(struct dw_mci *host)
 				"implementation specific clock setup failed\n");
 			goto err_clk_ciu;
 		}
+	}
+
+	if (host->pdata->rstc != NULL) {
+		reset_control_assert(host->pdata->rstc);
+		usleep_range(100, 200);
+		reset_control_deassert(host->pdata->rstc);
 	}
 
 	setup_timer(&host->cmd11_timer,
@@ -3164,6 +3186,9 @@ err_dmaunmap:
 	if (host->use_dma && host->dma_ops->exit)
 		host->dma_ops->exit(host);
 
+	if (host->pdata->rstc != NULL)
+		reset_control_assert(host->pdata->rstc);
+
 err_clk_ciu:
 	if (!IS_ERR(host->ciu_clk))
 		clk_disable_unprepare(host->ciu_clk);
@@ -3196,11 +3221,15 @@ void dw_mci_remove(struct dw_mci *host)
 	if (host->use_dma && host->dma_ops->exit)
 		host->dma_ops->exit(host);
 
+	if (host->pdata->rstc != NULL)
+		reset_control_assert(host->pdata->rstc);
+
 	if (!IS_ERR(host->ciu_clk))
 		clk_disable_unprepare(host->ciu_clk);
 
 	if (!IS_ERR(host->biu_clk))
 		clk_disable_unprepare(host->biu_clk);
+
 }
 EXPORT_SYMBOL(dw_mci_remove);
 

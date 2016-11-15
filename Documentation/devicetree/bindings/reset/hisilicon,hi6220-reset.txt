@@ -8,7 +8,7 @@ The reset controller registers are part of the system-ctl block on
 hi6220 SoC.
 
 Required properties:
-- compatible: may be "hisilicon,hi6220-sysctrl"
+- compatible: must contain "syscon"
 - reg: should be register base and length as documented in the
   datasheet
 - #reset-cells: 1, see below
