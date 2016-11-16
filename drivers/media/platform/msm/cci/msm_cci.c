@@ -88,9 +88,6 @@ static int msm_probe(struct platform_device *pdev,
 	if (WARN_ON((rc == media_entity_init(&pvdev->vdev->entity,
 					     0, NULL)) < 0))
 		goto entity_fail;
-
-	pvdev->vdev->entity.type = MEDIA_ENT_T_DEVNODE_V4L;
-	pvdev->vdev->entity.group_id = 2;
 #endif
 
 //	msm_v4l2_dev->notify = msm_sd_notify;
