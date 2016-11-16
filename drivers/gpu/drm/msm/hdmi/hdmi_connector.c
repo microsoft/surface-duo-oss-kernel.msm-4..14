@@ -403,6 +403,10 @@ static int msm_hdmi_connector_mode_valid(struct drm_connector *connector,
 	if (actual != requested)
 		return MODE_CLOCK_RANGE;
 
+	/* don't go beyond max layer mixer widths right now */
+	if (mode->hdisplay > 2560)
+		return MODE_VIRTUAL_X;
+
 	return 0;
 }
 
