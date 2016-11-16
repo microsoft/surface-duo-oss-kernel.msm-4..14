@@ -259,13 +259,13 @@ struct venus_inst {
 	struct venus_core *core;
 
 	struct list_head internalbufs;
-	struct mutex internalbufs_lock;
+//	struct mutex internalbufs_lock;
 
 	struct list_head registeredbufs;
-	struct mutex registeredbufs_lock;
+//	struct mutex registeredbufs_lock;
 
 	struct list_head bufqueue;
-	struct mutex bufqueue_lock;
+//	struct mutex bufqueue_lock;
 
 	struct vb2_queue bufq_out;
 	struct vb2_queue bufq_cap;
@@ -281,6 +281,7 @@ struct venus_inst {
 	void *alloc_ctx_out;
 
 	/* v4l2 fields */
+	int streamon;
 	u32 width;
 	u32 height;
 	u32 out_width;

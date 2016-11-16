@@ -129,14 +129,8 @@ static int venus_open(struct file *file)
 		return -ENOMEM;
 
 	INIT_LIST_HEAD(&inst->registeredbufs);
-	mutex_init(&inst->registeredbufs_lock);
-
 	INIT_LIST_HEAD(&inst->internalbufs);
-	mutex_init(&inst->internalbufs_lock);
-
 	INIT_LIST_HEAD(&inst->bufqueue);
-	mutex_init(&inst->bufqueue_lock);
-
 	INIT_LIST_HEAD(&inst->list);
 	mutex_init(&inst->lock);
 
@@ -176,9 +170,6 @@ static int venus_close(struct file *file)
 	else
 		venc_close(inst);
 
-	mutex_destroy(&inst->bufqueue_lock);
-	mutex_destroy(&inst->registeredbufs_lock);
-	mutex_destroy(&inst->internalbufs_lock);
 	mutex_destroy(&inst->lock);
 
 	v4l2_fh_del(&inst->fh);

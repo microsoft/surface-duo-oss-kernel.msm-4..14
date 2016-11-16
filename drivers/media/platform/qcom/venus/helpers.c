@@ -78,9 +78,9 @@ static int intbufs_set_buffer(struct venus_inst *inst, u32 type)
 			goto fail;
 		}
 
-		mutex_lock(&inst->internalbufs_lock);
+//		mutex_lock(&inst->lock);
 		list_add_tail(&buf->list, &inst->internalbufs);
-		mutex_unlock(&inst->internalbufs_lock);
+//		mutex_unlock(&inst->lock);
 	}
 
 	return 0;
@@ -96,7 +96,7 @@ static int intbufs_unset_buffers(struct venus_inst *inst)
 	struct intbuf *buf, *n;
 	int ret = 0;
 
-	mutex_lock(&inst->internalbufs_lock);
+//	mutex_lock(&inst->lock);
 	list_for_each_entry_safe(buf, n, &inst->internalbufs, list) {
 		bd.buffer_size = buf->size;
 		bd.buffer_type = buf->type;
@@ -111,7 +111,7 @@ static int intbufs_unset_buffers(struct venus_inst *inst)
 			       &buf->attrs);
 		kfree(buf);
 	}
-	mutex_unlock(&inst->internalbufs_lock);
+//	mutex_unlock(&inst->lock);
 
 	return ret;
 }
@@ -300,7 +300,7 @@ static int session_unregister_bufs(struct venus_inst *inst)
 	if (core->res->hfi_version == HFI_VERSION_3XX)
 		return 0;
 
-	mutex_lock(&inst->registeredbufs_lock);
+//	mutex_lock(&inst->lock);
 	list_for_each_entry_safe(buf, tmp, &inst->registeredbufs, hfi_list) {
 		list_del(&buf->hfi_list);
 		bd = &buf->bd;
@@ -312,7 +312,7 @@ static int session_unregister_bufs(struct venus_inst *inst)
 			break;
 		}
 	}
-	mutex_unlock(&inst->registeredbufs_lock);
+//	mutex_unlock(&inst->lock);
 
 	return ret;
 }
@@ -328,7 +328,7 @@ static int session_register_bufs(struct venus_inst *inst)
 	if (core->res->hfi_version == HFI_VERSION_3XX)
 		return 0;
 
-	mutex_lock(&inst->registeredbufs_lock);
+//	mutex_lock(&inst->lock);
 	list_for_each_entry(buf, &inst->registeredbufs, hfi_list) {
 		bd = &buf->bd;
 		ret = hfi_session_set_buffers(inst, bd);
@@ -338,7 +338,7 @@ static int session_register_bufs(struct venus_inst *inst)
 			break;
 		}
 	}
-	mutex_unlock(&inst->registeredbufs_lock);
+//	mutex_unlock(&inst->lock);
 
 	return ret;
 }
@@ -404,7 +404,7 @@ vidc_vb2_find_buf(struct venus_inst *inst, dma_addr_t addr)
 	struct vidc_buffer *buf;
 	struct vb2_v4l2_buffer *vb = NULL;
 
-	mutex_lock(&inst->bufqueue_lock);
+//	mutex_lock(&inst->lock);
 
 	list_for_each_entry(buf, &inst->bufqueue, list) {
 		if (buf->dma_addr == addr) {
@@ -416,7 +416,7 @@ vidc_vb2_find_buf(struct venus_inst *inst, dma_addr_t addr)
 	if (vb)
 		list_del(&buf->list);
 
-	mutex_unlock(&inst->bufqueue_lock);
+//	mutex_unlock(&inst->lock);
 
 	return vb;
 }
@@ -432,37 +432,46 @@ int vidc_vb2_buf_init(struct vb2_buffer *vb)
 
 	memset(bd, 0, sizeof(*bd));
 
-	if (q->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
-		return 0;
-
-	sgt = vb2_dma_sg_plane_desc(vb, 0);
-	if (!sgt)
-		return -EINVAL;
-
-	bd->buffer_size = vb2_plane_size(vb, 0);
-	bd->buffer_type = HFI_BUFFER_OUTPUT;
-	bd->num_buffers = 1;
-	bd->device_addr = sg_dma_address(sgt->sgl);
-
-	mutex_lock(&inst->registeredbufs_lock);
-	list_add_tail(&buf->hfi_list, &inst->registeredbufs);
-	mutex_unlock(&inst->registeredbufs_lock);
-
-	return 0;
-}
-
-int vidc_vb2_buf_prepare(struct vb2_buffer *vb)
-{
-	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
-	struct vidc_buffer *buf = to_vidc_buffer(vbuf);
-	struct sg_table *sgt;
-
 	sgt = vb2_dma_sg_plane_desc(vb, 0);
 	if (!sgt)
 		return -EINVAL;
 
 	buf->dma_addr = sg_dma_address(sgt->sgl);
 
+	if (q->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+		return 0;
+
+	bd->buffer_size = vb2_plane_size(vb, 0);
+	bd->buffer_type = HFI_BUFFER_OUTPUT;
+	bd->num_buffers = 1;
+	bd->device_addr = buf->dma_addr;
+
+//	mutex_lock(&inst->lock);
+	list_add_tail(&buf->hfi_list, &inst->registeredbufs);
+//	mutex_unlock(&inst->lock);
+
+//	dev_err(inst->core->dev, "%s: index:%u, type:%u\n", __func__, vb->index,
+//		vb->type);
+
+	return 0;
+}
+
+int vidc_vb2_buf_prepare(struct vb2_buffer *vb)
+{
+	struct venus_inst *inst = vb2_get_drv_priv(vb->vb2_queue);
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+	struct vidc_buffer *buf = to_vidc_buffer(vbuf);
+	struct sg_table *sgt;
+#if 0
+	sgt = vb2_dma_sg_plane_desc(vb, 0);
+	if (!sgt)
+		return -EINVAL;
+
+	buf->dma_addr = sg_dma_address(sgt->sgl);
+
+	dev_err(inst->core->dev, "%s: index:%u, type:%u\n", __func__, vb->index,
+		vb->type);
+#endif
 	return 0;
 }
 
@@ -474,22 +483,29 @@ void vidc_vb2_buf_queue(struct vb2_buffer *vb)
 	unsigned int state;
 	int ret;
 
-	mutex_lock(&inst->lock);
+//	mutex_lock(&inst->lock);
 	state = inst->state;
-	mutex_unlock(&inst->lock);
+//	mutex_unlock(&inst->lock);
 
 	if (state == INST_INVALID || state >= INST_STOP) {
 		vb2_buffer_done(vb, VB2_BUF_STATE_ERROR);
 		return;
 	}
 
-	mutex_lock(&inst->bufqueue_lock);
+//	mutex_lock(&inst->lock);
 	list_add_tail(&buf->list, &inst->bufqueue);
-	mutex_unlock(&inst->bufqueue_lock);
+//	mutex_unlock(&inst->lock);
 
+//	dev_err(inst->core->dev, "%s: index:%u, type:%u\n", __func__, vb->index,
+//		vb->type);
+#if 0
 	if (!vb2_is_streaming(&inst->bufq_cap) ||
 	    !vb2_is_streaming(&inst->bufq_out))
 		return;
+#else
+	if (!inst->streamon)
+		return;
+#endif
 
 	ret = session_set_buf(vb);
 	if (ret)
@@ -500,12 +516,12 @@ void vidc_vb2_buffers_done(struct venus_inst *inst, enum vb2_buffer_state state)
 {
 	struct vidc_buffer *buf, *n;
 
-	mutex_lock(&inst->bufqueue_lock);
+//	mutex_lock(&inst->lock);
 	list_for_each_entry_safe(buf, n, &inst->bufqueue, list) {
 		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_QUEUED);
 		list_del(&buf->list);
 	}
-	mutex_unlock(&inst->bufqueue_lock);
+//	mutex_unlock(&inst->lock);
 }
 
 void vidc_vb2_stop_streaming(struct vb2_queue *q)
@@ -516,19 +532,27 @@ void vidc_vb2_stop_streaming(struct vb2_queue *q)
 	struct vb2_queue *other_queue;
 	int ret;
 
+	mutex_lock(&inst->lock);
+
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		other_queue = &inst->bufq_cap;
 	else
 		other_queue = &inst->bufq_out;
 
-	if (!vb2_is_streaming(other_queue))
+	if (!vb2_is_streaming(other_queue)) {
+		mutex_unlock(&inst->lock);
 		return;
+	}
+
+	dev_err(core->dev, "%s: session stopping\n", __func__);
 
 	ret = hfi_session_stop(inst);
 	if (ret) {
 		dev_err(dev, "session: stop failed (%d)\n", ret);
 		goto abort;
 	}
+
+	dev_err(core->dev, "%s: session stopped\n", __func__);
 
 	ret = hfi_session_unload_res(inst);
 	if (ret) {
@@ -553,13 +577,15 @@ abort:
 
 	load_scale_clocks(core);
 
-	ret = hfi_session_deinit(inst);
+	hfi_session_deinit(inst);
 
 	dev_err(core->dev, "%s: actual stop stream\n", __func__);
 
 	pm_runtime_put_sync(dev);
 
 	vidc_vb2_buffers_done(inst, VB2_BUF_STATE_ERROR);
+
+	mutex_unlock(&inst->lock);
 }
 
 int vidc_vb2_start_streaming(struct venus_inst *inst)
@@ -586,13 +612,13 @@ int vidc_vb2_start_streaming(struct venus_inst *inst)
 	if (ret)
 		goto err_unload_res;
 
-	mutex_lock(&inst->bufqueue_lock);
+//	mutex_lock(&inst->lock);
 	list_for_each_entry(buf, &inst->bufqueue, list) {
 		ret = session_set_buf(&buf->vb.vb2_buf);
 		if (ret)
 			break;
 	}
-	mutex_unlock(&inst->bufqueue_lock);
+//	mutex_unlock(&inst->lock);
 
 	if (ret)
 		goto err_session_stop;

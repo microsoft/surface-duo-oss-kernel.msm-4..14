@@ -891,6 +891,9 @@ static int vdec_check_configuration(struct venus_inst *inst)
 	struct hfi_buffer_requirements bufreq;
 	int ret;
 
+	if (!inst->num_input_bufs || !inst->num_output_bufs)
+		return -EINVAL;
+
 	ret = vidc_get_bufreq(inst, HFI_BUFFER_OUTPUT, &bufreq);
 	if (ret)
 		return ret;
@@ -927,16 +930,29 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
 	u32 ptype;
 	int ret;
 
+	mutex_lock(&inst->lock);
+
+	dev_err(core->dev, "%s: enter type:%u\n", __func__, q->type);
+
+	if (inst->streamon) {
+		mutex_unlock(&inst->lock);
+		return 0;
+	}
+
+#if 0
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		other_queue = &inst->bufq_cap;
 	else
 		other_queue = &inst->bufq_out;
 
-	if (!vb2_is_streaming(other_queue))
+	if (!vb2_is_streaming(other_queue)) {
+		mutex_unlock(&inst->lock);
 		return 0;
+	}
 
 //	if (vb2_start_streaming_called(other_queue))
 //		return 0;
+#endif
 
 	dev_err(core->dev, "%s: actual start stream (type:%u)\n", __func__,
 		q->type);
@@ -969,6 +985,13 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
 			goto deinit_sess;
 	}
 
+	dev_err(dev, "%s: num bufs: input: %u, output: %u\n", __func__,
+		inst->num_input_bufs, inst->num_output_bufs);
+
+	ret = vdec_check_configuration(inst);
+	if (ret)
+		goto deinit_sess;
+
 	ptype = HFI_PROPERTY_PARAM_BUFFER_COUNT_ACTUAL;
 	buf_count.type = HFI_BUFFER_INPUT;
 	buf_count.count_actual = inst->num_input_bufs;
@@ -985,13 +1008,13 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (ret)
 		goto deinit_sess;
 
-	ret = vdec_check_configuration(inst);
-	if (ret)
-		goto deinit_sess;
-
 	ret = vidc_vb2_start_streaming(inst);
 	if (ret)
 		goto deinit_sess;
+
+	inst->streamon = 1;
+
+	mutex_unlock(&inst->lock);
 
 	return 0;
 
@@ -1000,6 +1023,9 @@ deinit_sess:
 put_sync:
 	pm_runtime_put_sync(dev);
 	vidc_vb2_buffers_done(inst, VB2_BUF_STATE_QUEUED);
+	mutex_unlock(&inst->lock);
+	dev_err(core->dev, "%s: exit type:%u error: %d\n", __func__, q->type,
+		ret);
 	return ret;
 }
 
@@ -1010,6 +1036,8 @@ static const struct vb2_ops vdec_vb2_ops = {
 	.start_streaming = vdec_start_streaming,
 	.stop_streaming = vidc_vb2_stop_streaming,
 	.buf_queue = vidc_vb2_buf_queue,
+	.wait_prepare = vb2_ops_wait_prepare,
+	.wait_finish = vb2_ops_wait_finish,
 };
 
 static int vdec_empty_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
@@ -1199,6 +1227,8 @@ int vdec_open(struct venus_inst *inst)
 	q->drv_priv = inst;
 	q->buf_struct_size = sizeof(struct vidc_buffer);
 	q->allow_zero_bytesused = 1;
+	q->min_buffers_needed = 1;
+	q->lock = &inst->lock;
 	ret = vb2_queue_init(q);
 	if (ret)
 		goto err_session_destroy;
@@ -1213,6 +1243,7 @@ int vdec_open(struct venus_inst *inst)
 	q->buf_struct_size = sizeof(struct vidc_buffer);
 	q->allow_zero_bytesused = 1;
 	q->min_buffers_needed = 1;
+	q->lock = &inst->lock;
 	ret = vb2_queue_init(q);
 	if (ret)
 		goto err_cap_queue_release;
