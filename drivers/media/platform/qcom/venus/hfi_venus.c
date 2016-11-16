@@ -162,27 +162,15 @@ static bool venus_is_valid_state(struct venus_hfi_device *hdev)
 	return hdev->state != VENUS_STATE_DEINIT;
 }
 
-static void venus_dump_packet(struct venus_hfi_device *hdev, u8 *packet)
+static void venus_dump_packet(struct venus_hfi_device *hdev, const void *packet)
 {
-	struct device *dev = hdev->core->dev;
-	u32 c = 0, pkt_size = *(u32 *)packet;
-	const int row_size = 32;
-	/*
-	 * row must contain enough for 0xdeadbaad * 8 to be converted into
-	 * "de ad ba ab " * 8 + '\0'
-	 */
-	char row[3 * row_size];
+	size_t pkt_size = *(u32 *)packet;
 
 	if (!venus_pkt_debug)
 		return;
 
-	for (c = 0; c * row_size < pkt_size; ++c) {
-		int bytes_to_read = ((c + 1) * row_size > pkt_size) ?
-			pkt_size % row_size : row_size;
-		hex_dump_to_buffer(packet + c * row_size, bytes_to_read,
-				   row_size, 4, row, sizeof(row), false);
-		dev_dbg(dev, "%s\n", row);
-	}
+	print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1, packet,
+		       pkt_size, true);
 }
 
 static int venus_write_queue(struct venus_hfi_device *hdev,
