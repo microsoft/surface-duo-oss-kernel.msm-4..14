@@ -734,7 +734,7 @@ CIFSSMBEcho(struct TCP_Server_Info *server)
 	iov[1].iov_len = get_rfc1002_length(smb);
 	iov[1].iov_base = (char *)smb + 4;
 
-	rc = cifs_call_async(server, &rqst, NULL, cifs_echo_callback,
+	rc = cifs_call_async(server, &rqst, NULL, cifs_echo_callback, NULL,
 			     server, CIFS_ASYNC_OP | CIFS_ECHO_OP);
 	if (rc)
 		cifs_dbg(FYI, "Echo request failed: %d\n", rc);
@@ -1658,7 +1658,7 @@ cifs_async_readv(struct cifs_readdata *rdata)
 
 	kref_get(&rdata->refcount);
 	rc = cifs_call_async(tcon->ses->server, &rqst, cifs_readv_receive,
-			     cifs_readv_callback, rdata, 0);
+			     cifs_readv_callback, NULL, rdata, 0);
 
 	if (rc == 0)
 		cifs_stats_inc(&tcon->stats.cifs_stats.num_reads);
@@ -2178,7 +2178,7 @@ cifs_async_writev(struct cifs_writedata *wdata,
 
 	kref_get(&wdata->refcount);
 	rc = cifs_call_async(tcon->ses->server, &rqst, NULL,
-				cifs_writev_callback, wdata, 0);
+				cifs_writev_callback, NULL, wdata, 0);
 
 	if (rc == 0)
 		cifs_stats_inc(&tcon->stats.cifs_stats.num_writes);
