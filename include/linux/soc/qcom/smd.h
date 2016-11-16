@@ -55,7 +55,6 @@ void qcom_smd_driver_unregister(struct qcom_smd_driver *drv);
 struct qcom_smd_channel *qcom_smd_open_channel(struct qcom_smd_channel *channel,
 					       const char *name,
 					       qcom_smd_cb_t cb);
-void qcom_smd_close_channel(struct qcom_smd_channel *channel);
 void *qcom_smd_get_drvdata(struct qcom_smd_channel *channel);
 void qcom_smd_set_drvdata(struct qcom_smd_channel *channel, void *data);
 int qcom_smd_send(struct qcom_smd_channel *channel, const void *data, int len);
@@ -82,12 +81,6 @@ qcom_smd_open_channel(struct qcom_smd_channel *channel,
 	/* This shouldn't be possible */
 	WARN_ON(1);
 	return NULL;
-}
-
-static inline void qcom_smd_close_channel(struct qcom_smd_channel *channel)
-{
-	/* This shouldn't be possible */
-	WARN_ON(1);
 }
 
 static inline void *qcom_smd_get_drvdata(struct qcom_smd_channel *channel)
