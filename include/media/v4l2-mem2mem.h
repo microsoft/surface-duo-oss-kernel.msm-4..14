@@ -211,6 +211,12 @@ static inline void *v4l2_m2m_next_dst_buf(struct v4l2_m2m_ctx *m2m_ctx)
 	return v4l2_m2m_next_buf(&m2m_ctx->cap_q_ctx);
 }
 
+#define v4l2_m2m_for_each_dst_buf(q_ctx, b)	\
+	list_for_each_entry(b, &q_ctx->cap_q_ctx.rdy_queue, list)
+
+#define v4l2_m2m_for_each_src_buf(q_ctx, b)	\
+	list_for_each_entry(b, &q_ctx->out_q_ctx.rdy_queue, list)
+
 /**
  * v4l2_m2m_get_src_vq() - return vb2_queue for source buffers
  *
