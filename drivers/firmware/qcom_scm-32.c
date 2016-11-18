@@ -578,3 +578,41 @@ int __qcom_scm_video_set_state(struct device *dev, u32 state, u32 spare)
 
 	return ret ? : le32_to_cpu(scm_ret);
 }
+
+int __qcom_scm_iommu_secure_ptbl_size(struct device *dev, u32 spare,
+					     size_t *size)
+{
+	return -ENODEV;
+}
+int __qcom_scm_iommu_secure_ptbl_init(struct device *dev, u64 addr,
+					     u32 size, u32 spare)
+{
+	return -ENODEV;
+}
+int __qcom_scm_iommu_dump_fault_regs(struct device *dev, u32 id,
+					    u32 context, u64 addr, u32 len)
+{
+	return -ENODEV;
+}
+
+int __qcom_scm_iommu_secure_map(struct device *dev, u64 list,
+				       u32 list_size, u32 size, u32 id,
+				       u32 ctx_id, u64 va, u32 info_size,
+				       u32 flags)
+
+{
+	return -ENODEV;
+}
+
+int __qcom_scm_restore_sec_cfg(struct device *dev, u32 device_id,
+				      u32 spare)
+{
+	return -ENODEV;
+}
+
+
+int __qcom_scm_iommu_secure_unmap(struct device *dev, u32 id, u32 ctx_id,
+					 u64 va, u32 size, u32 flags)
+{
+	return -ENODEV;
+}
