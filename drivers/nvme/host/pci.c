@@ -579,8 +579,8 @@ static int nvme_map_data(struct nvme_dev *dev, struct request *req,
 			goto out_unmap;
 	}
 
-	cmnd->rw.prp1 = cpu_to_le64(sg_dma_address(iod->sg));
-	cmnd->rw.prp2 = cpu_to_le64(iod->first_dma);
+	cmnd->rw.dptr.prp1 = cpu_to_le64(sg_dma_address(iod->sg));
+	cmnd->rw.dptr.prp2 = cpu_to_le64(iod->first_dma);
 	if (blk_integrity_rq(req))
 		cmnd->rw.metadata = cpu_to_le64(sg_dma_address(&iod->meta_sg));
 	return BLK_MQ_RQ_QUEUE_OK;
@@ -634,7 +634,7 @@ static int nvme_setup_discard(struct nvme_queue *nvmeq, struct nvme_ns *ns,
 	memset(cmnd, 0, sizeof(*cmnd));
 	cmnd->dsm.opcode = nvme_cmd_dsm;
 	cmnd->dsm.nsid = cpu_to_le32(ns->ns_id);
-	cmnd->dsm.prp1 = cpu_to_le64(iod->first_dma);
+	cmnd->dsm.dptr.prp1 = cpu_to_le64(iod->first_dma);
 	cmnd->dsm.nr = 0;
 	cmnd->dsm.attributes = cpu_to_le32(NVME_DSMGMT_AD);
 	return BLK_MQ_RQ_QUEUE_OK;
