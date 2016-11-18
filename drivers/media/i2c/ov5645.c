@@ -33,6 +33,7 @@
 #include <linux/i2c.h>
 #include <linux/init.h>
 #include <linux/module.h>
+#include <linux/mutex.h>
 #include <linux/of.h>
 #include <linux/of_graph.h>
 #include <linux/regulator/consumer.h>
@@ -41,6 +42,8 @@
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-of.h>
 #include <media/v4l2-subdev.h>
+
+static DEFINE_MUTEX(ov5645_lock);
 
 /* HACKs here! */
 
@@ -586,6 +589,19 @@ static void ov5645_regulators_disable(struct ov5645 *ov5645)
 		dev_err(ov5645->dev, "io regulator disable failed\n");
 }
 
+static int ov5645_write_reg_to(struct ov5645 *ov5645, u16 reg, u8 val, u16 i2c_addr)
+{
+	int ret;
+
+	ret = msm_cci_ctrl_write(i2c_addr, reg, &val, 1);
+	if (ret < 0)
+		dev_err(ov5645->dev,
+			"%s: write reg error %d on addr 0x%x: reg=0x%x, val=0x%x\n",
+			__func__, ret, i2c_addr, reg, val);
+
+	return ret;
+}
+
 static int ov5645_write_reg(struct ov5645 *ov5645, u16 reg, u8 val)
 {
 	u16 i2c_addr = ov5645->i2c_client->addr;
@@ -719,9 +735,23 @@ static int ov5645_s_power(struct v4l2_subdev *sd, int on)
 	 */
 	if (ov5645->power_count == !on) {
 		if (on) {
+			mutex_lock(&ov5645_lock);
+
 			ret = ov5645_set_power_on(ov5645);
 			if (ret < 0)
 				goto exit;
+
+			ret = ov5645_write_reg_to(ov5645, 0x3100,
+					       ov5645->i2c_client->addr, 0x78);
+			if (ret < 0) {
+				dev_err(ov5645->dev,
+					"could not change i2c address\n");
+				ov5645_set_power_off(ov5645);
+				mutex_unlock(&ov5645_lock);
+				goto exit;
+			}
+
+			mutex_unlock(&ov5645_lock);
 
 			ret = ov5645_set_register_array(ov5645,
 					ov5645_global_init_setting,
