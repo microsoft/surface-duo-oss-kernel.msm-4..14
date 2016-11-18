@@ -114,6 +114,10 @@ struct venus_core {
 	/* internal hfi operations */
 	void *priv;
 	const struct hfi_ops *ops;
+
+	/* mem2mem fields */
+	struct v4l2_m2m_dev *m2m_dev_dec;
+	struct v4l2_m2m_dev *m2m_dev_enc;
 };
 
 /**
@@ -189,6 +193,13 @@ struct venc_controls {
 
 	u32 profile;
 	u32 level;
+};
+
+struct vidc_buffer {
+	struct vb2_v4l2_buffer *vb;
+	struct list_head list;
+	u32 dma_addr;
+	u32 buffer_size;
 };
 
 /**
@@ -281,7 +292,10 @@ struct venus_inst {
 	void *alloc_ctx_out;
 
 	/* v4l2 fields */
-	int streamon;
+#define STREAMON_CAP	BIT(0)
+#define STREAMON_OUT	BIT(1)
+#define STREAMON_BOTH	(STREAMON_OUT | STREAMON_CAP)
+	int streamon, streamon_cap, streamon_out;
 	u32 width;
 	u32 height;
 	u32 out_width;
@@ -334,6 +348,9 @@ struct venus_inst {
 
 	/* buffer requirements */
 	struct hfi_buffer_requirements bufreq[HFI_BUFFER_TYPE_MAX];
+
+	/* mem2mem fields */
+	struct v4l2_m2m_ctx *m2m_ctx;
 };
 
 #define ctrl_to_inst(ctrl)	\

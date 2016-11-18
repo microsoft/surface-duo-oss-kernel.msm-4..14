@@ -61,7 +61,7 @@ int hfi_core_init(struct venus_core *core)
 	if (core->state >= CORE_INIT)
 		goto unlock;
 
-	init_completion(&core->done);
+	reinit_completion(&core->done);
 
 	ret = core->ops->core_init(core);
 	if (ret)
@@ -158,6 +158,7 @@ int hfi_session_create(struct venus_inst *inst, const struct hfi_inst_ops *ops)
 		return -EINVAL;
 
 	inst->state = INST_UNINIT;
+	init_completion(&inst->done);
 	inst->ops = ops;
 
 	mutex_lock(&core->lock);
@@ -175,7 +176,7 @@ int hfi_session_init(struct venus_inst *inst, u32 pixfmt, u32 session_type)
 
 	codec = to_codec_type(pixfmt);
 	inst->session_type = session_type;
-	init_completion(&inst->done);
+	reinit_completion(&inst->done);
 
 //	mutex_lock(&inst->lock);
 
@@ -234,7 +235,7 @@ int hfi_session_deinit(struct venus_inst *inst)
 		goto unlock;
 	}
 
-	init_completion(&inst->done);
+	reinit_completion(&inst->done);
 
 	ret = core->ops->session_end(inst);
 	if (ret)
@@ -273,7 +274,7 @@ int hfi_session_start(struct venus_inst *inst)
 		goto unlock;
 	}
 
-	init_completion(&inst->done);
+	reinit_completion(&inst->done);
 
 	ret = core->ops->session_start(inst);
 	if (ret)
@@ -306,7 +307,7 @@ int hfi_session_stop(struct venus_inst *inst)
 		goto unlock;
 	}
 
-	init_completion(&inst->done);
+	reinit_completion(&inst->done);
 
 	ret = core->ops->session_stop(inst);
 	if (ret)
@@ -344,7 +345,7 @@ int hfi_session_abort(struct venus_inst *inst)
 
 //	mutex_lock(&inst->lock);
 
-	init_completion(&inst->done);
+	reinit_completion(&inst->done);
 
 	ret = core->ops->session_abort(inst);
 	if (ret)
@@ -376,7 +377,7 @@ int hfi_session_load_res(struct venus_inst *inst)
 		goto unlock;
 	}
 
-	init_completion(&inst->done);
+	reinit_completion(&inst->done);
 
 	ret = core->ops->session_load_res(inst);
 	if (ret)
@@ -408,7 +409,7 @@ int hfi_session_unload_res(struct venus_inst *inst)
 		goto unlock;
 	}
 
-	init_completion(&inst->done);
+	reinit_completion(&inst->done);
 
 	ret = core->ops->session_release_res(inst);
 	if (ret)
@@ -434,7 +435,7 @@ int hfi_session_flush(struct venus_inst *inst)
 	int ret;
 
 //	mutex_lock(&inst->lock);
-	init_completion(&inst->done);
+	reinit_completion(&inst->done);
 
 	ret = core->ops->session_flush(inst, HFI_FLUSH_ALL);
 	if (ret)
@@ -468,7 +469,7 @@ int hfi_session_unset_buffers(struct venus_inst *inst,
 
 //	mutex_lock(&inst->lock);
 
-	init_completion(&inst->done);
+	reinit_completion(&inst->done);
 
 	ret = core->ops->session_unset_buffers(inst, bd);
 	if (ret)
@@ -511,7 +512,7 @@ int hfi_session_get_property(struct venus_inst *inst, u32 ptype,
 		goto unlock;
 	}
 
-	init_completion(&inst->done);
+	reinit_completion(&inst->done);
 
 	ret = core->ops->session_get_property(inst, ptype);
 	if (ret)
@@ -588,6 +589,7 @@ int hfi_create(struct venus_core *core)
 		return -EINVAL;
 
 	core->state = CORE_UNINIT;
+	init_completion(&core->done);
 	pkt_set_version(core->res->hfi_version);
 
 	return venus_hfi_create(core);

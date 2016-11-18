@@ -273,6 +273,16 @@ config VIDEO_TI_VPE_DEBUG
 	---help---
 	  Enable debug messages on VPE driver.
 
+config VIDEO_QCOM_VENUS
+        tristate "Qualcomm Venus V4L2 encoder/decoder driver"
+        depends on ARCH_QCOM && VIDEO_V4L2
+        depends on IOMMU_DMA
+        depends on QCOM_VENUS_PIL || QCOM_TZ_PIL
+        select VIDEOBUF2_DMA_SG
+        select V4L2_MEM2MEM_DEV
+	---help---
+	  This is a V4L2 driver for Qualcomm Venus video accelerator
+
 endif # V4L_MEM2MEM_DRIVERS
 
 menuconfig V4L_TEST_DRIVERS

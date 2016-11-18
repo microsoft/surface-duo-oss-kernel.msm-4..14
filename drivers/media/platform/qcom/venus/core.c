@@ -24,6 +24,7 @@
 #include <linux/remoteproc.h>
 #include <linux/pm_runtime.h>
 #include <media/videobuf2-v4l2.h>
+#include <media/v4l2-mem2mem.h>
 #include <media/v4l2-ioctl.h>
 
 #include "core.h"
@@ -152,6 +153,7 @@ static int venus_open(struct file *file)
 
 	inst->fh.ctrl_handler = &inst->ctrl_handler;
 	v4l2_fh_add(&inst->fh);
+	inst->fh.m2m_ctx = inst->m2m_ctx;
 	file->private_data = &inst->fh;
 
 	return 0;
@@ -179,42 +181,13 @@ static int venus_close(struct file *file)
 	return 0;
 }
 
-static unsigned int venus_poll(struct file *file, struct poll_table_struct *pt)
-{
-	struct venus_inst *inst = to_inst(file);
-	struct vb2_queue *outq = &inst->bufq_out;
-	struct vb2_queue *capq = &inst->bufq_cap;
-	unsigned int ret;
-
-	ret = vb2_poll(outq, file, pt);
-	ret |= vb2_poll(capq, file, pt);
-
-	return ret;
-}
-
-static int venus_mmap(struct file *file, struct vm_area_struct *vma)
-{
-	struct venus_inst *inst = to_inst(file);
-	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
-	int ret;
-
-	if (offset < DST_QUEUE_OFF_BASE) {
-		ret = vb2_mmap(&inst->bufq_out, vma);
-	} else {
-		vma->vm_pgoff -= DST_QUEUE_OFF_BASE >> PAGE_SHIFT;
-		ret = vb2_mmap(&inst->bufq_cap, vma);
-	}
-
-	return ret;
-}
-
 static const struct v4l2_file_operations venus_fops = {
 	.owner = THIS_MODULE,
 	.open = venus_open,
 	.release = venus_close,
 	.unlocked_ioctl = video_ioctl2,
-	.poll = venus_poll,
-	.mmap = venus_mmap,
+	.poll = v4l2_m2m_fop_poll,
+	.mmap = v4l2_m2m_fop_mmap,
 #ifdef CONFIG_COMPAT
 	.compat_ioctl32 = v4l2_compat_ioctl32,
 #endif

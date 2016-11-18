@@ -15,6 +15,7 @@
 
 #include <linux/slab.h>
 #include <linux/pm_runtime.h>
+#include <media/v4l2-mem2mem.h>
 #include <media/videobuf2-dma-sg.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-event.h>
@@ -449,108 +450,6 @@ venc_s_selection(struct file *file, void *fh, struct v4l2_selection *s)
 	return 0;
 }
 
-static int
-venc_reqbufs(struct file *file, void *fh, struct v4l2_requestbuffers *b)
-{
-	struct vb2_queue *queue = to_vb2q(file, b->type);
-
-	if (!queue)
-		return -EINVAL;
-
-	return vb2_reqbufs(queue, b);
-}
-
-static int venc_querybuf(struct file *file, void *fh, struct v4l2_buffer *b)
-{
-	struct vb2_queue *queue = to_vb2q(file, b->type);
-	unsigned int p;
-	int ret;
-
-	ret = vb2_querybuf(queue, b);
-	if (ret)
-		return ret;
-
-	if (b->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE &&
-	    b->memory == V4L2_MEMORY_MMAP) {
-		for (p = 0; p < b->length; p++)
-			b->m.planes[p].m.mem_offset += DST_QUEUE_OFF_BASE;
-	}
-
-	return 0;
-}
-
-static int venc_create_bufs(struct file *file, void *fh,
-			    struct v4l2_create_buffers *b)
-{
-	struct vb2_queue *queue = to_vb2q(file, b->format.type);
-
-	if (!queue)
-		return -EINVAL;
-
-	return vb2_create_bufs(queue, b);
-}
-
-static int venc_prepare_buf(struct file *file, void *fh, struct v4l2_buffer *b)
-{
-	struct vb2_queue *queue = to_vb2q(file, b->type);
-
-	if (!queue)
-		return -EINVAL;
-
-	return vb2_prepare_buf(queue, b);
-}
-
-static int venc_qbuf(struct file *file, void *fh, struct v4l2_buffer *b)
-{
-	struct vb2_queue *queue = to_vb2q(file, b->type);
-
-	if (!queue)
-		return -EINVAL;
-
-	return vb2_qbuf(queue, b);
-}
-
-static int
-venc_exportbuf(struct file *file, void *fh, struct v4l2_exportbuffer *b)
-{
-	struct vb2_queue *queue = to_vb2q(file, b->type);
-
-	if (!queue)
-		return -EINVAL;
-
-	return vb2_expbuf(queue, b);
-}
-
-static int venc_dqbuf(struct file *file, void *fh, struct v4l2_buffer *b)
-{
-	struct vb2_queue *queue = to_vb2q(file, b->type);
-
-	if (!queue)
-		return -EINVAL;
-
-	return vb2_dqbuf(queue, b, file->f_flags & O_NONBLOCK);
-}
-
-static int venc_streamon(struct file *file, void *fh, enum v4l2_buf_type type)
-{
-	struct vb2_queue *queue = to_vb2q(file, type);
-
-	if (!queue)
-		return -EINVAL;
-
-	return vb2_streamon(queue, type);
-}
-
-static int venc_streamoff(struct file *file, void *fh, enum v4l2_buf_type type)
-{
-	struct vb2_queue *queue = to_vb2q(file, type);
-
-	if (!queue)
-		return -EINVAL;
-
-	return vb2_streamoff(queue, type);
-}
-
 static int venc_s_parm(struct file *file, void *fh, struct v4l2_streamparm *a)
 {
 	struct venus_inst *inst = to_inst(file);
@@ -681,15 +580,15 @@ static const struct v4l2_ioctl_ops venc_ioctl_ops = {
 	.vidioc_try_fmt_vid_out_mplane = venc_try_fmt,
 	.vidioc_g_selection = venc_g_selection,
 	.vidioc_s_selection = venc_s_selection,
-	.vidioc_reqbufs = venc_reqbufs,
-	.vidioc_querybuf = venc_querybuf,
-	.vidioc_create_bufs = venc_create_bufs,
-	.vidioc_prepare_buf = venc_prepare_buf,
-	.vidioc_qbuf = venc_qbuf,
-	.vidioc_expbuf = venc_exportbuf,
-	.vidioc_dqbuf = venc_dqbuf,
-	.vidioc_streamon = venc_streamon,
-	.vidioc_streamoff = venc_streamoff,
+	.vidioc_reqbufs = v4l2_m2m_ioctl_reqbufs,
+	.vidioc_querybuf = v4l2_m2m_ioctl_querybuf,
+	.vidioc_create_bufs = v4l2_m2m_ioctl_create_bufs,
+	.vidioc_prepare_buf = v4l2_m2m_ioctl_prepare_buf,
+	.vidioc_qbuf = v4l2_m2m_ioctl_qbuf,
+	.vidioc_expbuf = v4l2_m2m_ioctl_expbuf,
+	.vidioc_dqbuf = v4l2_m2m_ioctl_dqbuf,
+	.vidioc_streamon = v4l2_m2m_ioctl_streamon,
+	.vidioc_streamoff = v4l2_m2m_ioctl_streamoff,
 	.vidioc_s_parm = venc_s_parm,
 	.vidioc_g_parm = venc_g_parm,
 	.vidioc_enum_framesizes = venc_enum_framesizes,
@@ -1030,7 +929,7 @@ static int venc_empty_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
 	enum vb2_buffer_state state;
 	struct vb2_buffer *vb;
 
-	vbuf = vidc_vb2_find_buf(inst, addr);
+	vbuf = vidc_vb2_find_buf(inst, addr, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
 	if (!vbuf)
 		return -EINVAL;
 
@@ -1056,7 +955,8 @@ static int venc_fill_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
 	enum vb2_buffer_state state;
 	struct vb2_buffer *vb;
 
-	vbuf = vidc_vb2_find_buf(inst, addr);
+	vbuf = vidc_vb2_find_buf(inst, addr,
+				 V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 	if (!vbuf)
 		return -EINVAL;
 
@@ -1104,6 +1004,63 @@ static const struct hfi_inst_ops venc_hfi_ops = {
 	.event_notify = venc_event_notify,
 };
 
+static void venc_m2m_device_run(void *priv)
+{
+}
+
+static int venc_m2m_job_ready(void *priv)
+{
+	return 1;
+}
+
+static void venc_m2m_job_abort(void *priv)
+{
+}
+
+static const struct v4l2_m2m_ops venc_m2m_ops = {
+	.device_run = venc_m2m_device_run,
+	.job_ready = venc_m2m_job_ready,
+	.job_abort = venc_m2m_job_abort,
+};
+
+static int venc_m2m_queue_init(void *priv, struct vb2_queue *src_vq,
+			       struct vb2_queue *dst_vq)
+{
+	struct venus_inst *inst = priv;
+	int ret;
+
+	src_vq->type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+	src_vq->io_modes = VB2_MMAP | VB2_DMABUF;
+	src_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
+	src_vq->ops = &venc_vb2_ops;
+	src_vq->mem_ops = &vb2_dma_sg_memops;
+	src_vq->drv_priv = inst;
+	src_vq->buf_struct_size = sizeof(struct vidc_buffer);
+	src_vq->allow_zero_bytesused = 1;
+	src_vq->lock = &inst->lock;
+	ret = vb2_queue_init(src_vq);
+	if (ret)
+		return ret;
+
+	dst_vq->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	dst_vq->io_modes = VB2_MMAP | VB2_DMABUF;
+	dst_vq->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
+	dst_vq->ops = &venc_vb2_ops;
+	dst_vq->mem_ops = &vb2_dma_sg_memops;
+	dst_vq->drv_priv = inst;
+	dst_vq->buf_struct_size = sizeof(struct vidc_buffer);
+	dst_vq->allow_zero_bytesused = 1;
+	dst_vq->min_buffers_needed = 2;
+	dst_vq->lock = &inst->lock;
+	ret = vb2_queue_init(dst_vq);
+	if (ret) {
+		vb2_queue_release(src_vq);
+		return ret;
+	}
+
+	return 0;
+}
+
 static void venc_inst_init(struct venus_inst *inst)
 {
 	inst->fmt_cap = &venc_formats[2];
@@ -1132,6 +1089,12 @@ int venc_init(struct venus_core *core, struct video_device *enc,
 {
 	int ret;
 
+	core->m2m_dev_enc = v4l2_m2m_init(&venc_m2m_ops);
+	if (IS_ERR(core->m2m_dev_dec)) {
+		dev_err(core->dev, "enc: m2m init failed\n");
+		return PTR_ERR(core->m2m_dev_dec);
+	}
+
 	enc->release = video_device_release;
 	enc->fops = fops;
 	enc->ioctl_ops = &venc_ioctl_ops;
@@ -1150,11 +1113,12 @@ int venc_init(struct venus_core *core, struct video_device *enc,
 void venc_deinit(struct venus_core *core, struct video_device *enc)
 {
 	video_unregister_device(enc);
+	v4l2_m2m_release(core->m2m_dev_enc);
 }
 
 int venc_open(struct venus_inst *inst)
 {
-	struct vb2_queue *q;
+	struct venus_core *core = inst->core;
 	int ret;
 
 	inst->alloc_ctx_cap = vb2_dma_sg_init_ctx(inst->core->dev);
@@ -1177,37 +1141,15 @@ int venc_open(struct venus_inst *inst)
 
 	venc_inst_init(inst);
 
-	q = &inst->bufq_cap;
-	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
-	q->io_modes = VB2_MMAP | VB2_DMABUF;
-	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
-	q->ops = &venc_vb2_ops;
-	q->mem_ops = &vb2_dma_sg_memops;
-	q->drv_priv = inst;
-	q->buf_struct_size = sizeof(struct vidc_buffer);
-	q->allow_zero_bytesused = 1;
-	q->min_buffers_needed = 2;
-	ret = vb2_queue_init(q);
-	if (ret)
+	inst->m2m_ctx = v4l2_m2m_ctx_init(core->m2m_dev_dec, inst,
+					  venc_m2m_queue_init);
+	if (IS_ERR(inst->m2m_ctx)) {
+		ret = PTR_ERR(inst->m2m_ctx);
 		goto err_session_destroy;
-
-	q = &inst->bufq_out;
-	q->type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
-	q->io_modes = VB2_MMAP | VB2_DMABUF;
-	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_COPY;
-	q->ops = &venc_vb2_ops;
-	q->mem_ops = &vb2_dma_sg_memops;
-	q->drv_priv = inst;
-	q->buf_struct_size = sizeof(struct vidc_buffer);
-	q->allow_zero_bytesused = 1;
-	ret = vb2_queue_init(q);
-	if (ret)
-		goto err_cap_queue_release;
+	}
 
 	return 0;
 
-err_cap_queue_release:
-	vb2_queue_release(&inst->bufq_cap);
 err_session_destroy:
 	hfi_session_destroy(inst);
 err_ctrl_deinit:
@@ -1220,8 +1162,7 @@ err_alloc_ctx:
 
 void venc_close(struct venus_inst *inst)
 {
-	vb2_queue_release(&inst->bufq_out);
-	vb2_queue_release(&inst->bufq_cap);
+	v4l2_m2m_ctx_release(inst->m2m_ctx);
 	venc_ctrl_deinit(inst);
 	hfi_session_destroy(inst);
 	vb2_dma_sg_cleanup_ctx(inst->alloc_ctx_cap);

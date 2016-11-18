@@ -20,18 +20,8 @@
 
 #include "core.h"
 
-struct vidc_buffer {
-	struct vb2_v4l2_buffer vb;
-	struct list_head list;
-	dma_addr_t dma_addr;
-	struct list_head hfi_list;
-	struct hfi_buffer_desc bd;
-};
-
-#define to_vidc_buffer(buf)	container_of(buf, struct vidc_buffer, vb)
-
 struct vb2_v4l2_buffer *
-vidc_vb2_find_buf(struct venus_inst *inst, dma_addr_t addr);
+vidc_vb2_find_buf(struct venus_inst *inst, dma_addr_t addr, unsigned int type);
 int vidc_vb2_buf_init(struct vb2_buffer *vb);
 int vidc_vb2_buf_prepare(struct vb2_buffer *vb);
 void vidc_vb2_buf_queue(struct vb2_buffer *vb);
