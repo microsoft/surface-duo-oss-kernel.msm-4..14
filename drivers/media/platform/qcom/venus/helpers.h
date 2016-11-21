@@ -15,10 +15,9 @@
 #ifndef __VENUS_HELPERS_H__
 #define __VENUS_HELPERS_H__
 
-#include <linux/list.h>
 #include <media/videobuf2-v4l2.h>
 
-#include "core.h"
+struct venus_inst;
 
 struct vb2_v4l2_buffer *
 vidc_vb2_find_buf(struct venus_inst *inst, dma_addr_t addr, unsigned int type);

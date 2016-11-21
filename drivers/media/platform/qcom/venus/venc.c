@@ -855,17 +855,20 @@ static int venc_start_streaming(struct vb2_queue *q, unsigned int count)
 	struct venus_inst *inst = vb2_get_drv_priv(q);
 	struct device *dev = inst->core->dev;
 	struct hfi_buffer_count_actual buf_count;
-	struct vb2_queue *other_queue;
 	u32 ptype;
 	int ret;
 
-	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
-		other_queue = &inst->bufq_cap;
-	else
-		other_queue = &inst->bufq_out;
+	mutex_lock(&inst->lock);
 
-	if (!vb2_is_streaming(other_queue))
+	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+		inst->streamon_out = 1;
+	else
+		inst->streamon_cap = 1;
+
+	if (!(inst->streamon_out & inst->streamon_cap)) {
+		mutex_unlock(&inst->lock);
 		return 0;
+	}
 
 	inst->sequence = 0;
 
@@ -900,9 +903,9 @@ static int venc_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (ret)
 		goto deinit_sess;
 
-	ret = vidc_vb2_start_streaming(inst);
-	if (ret)
-		goto deinit_sess;
+	inst->streamon = 1;
+
+	mutex_unlock(&inst->lock);
 
 	return 0;
 
@@ -910,6 +913,8 @@ deinit_sess:
 	hfi_session_deinit(inst);
 put_sync:
 	pm_runtime_put_sync(dev);
+	vidc_vb2_buffers_done(inst, VB2_BUF_STATE_QUEUED);
+	mutex_unlock(&inst->lock);
 	return ret;
 }
 
@@ -984,11 +989,8 @@ static int venc_event_notify(struct venus_inst *inst, u32 event,
 
 	switch (event) {
 	case EVT_SESSION_ERROR:
-		if (inst) {
-			mutex_lock(&inst->lock);
+		if (inst)
 			inst->state = INST_INVALID;
-			mutex_unlock(&inst->lock);
-		}
 		dev_err(dev, "enc: event session error (inst:%p)\n", inst);
 		break;
 	default:
@@ -1006,6 +1008,16 @@ static const struct hfi_inst_ops venc_hfi_ops = {
 
 static void venc_m2m_device_run(void *priv)
 {
+	struct venus_inst *inst = priv;
+	struct device *dev = inst->core->dev;
+	int ret;
+
+	dev_err(dev, "%s: enter\n", __func__);
+
+	ret = vidc_vb2_start_streaming(inst);
+	if (ret)
+		dev_err(dev, "enc: start streaming failed %d\n", ret);
+
 }
 
 static int venc_m2m_job_ready(void *priv)
@@ -1015,6 +1027,12 @@ static int venc_m2m_job_ready(void *priv)
 
 static void venc_m2m_job_abort(void *priv)
 {
+	struct venus_inst *inst = priv;
+	struct device *dev = inst->core->dev;
+
+	dev_err(dev, "%s: enter\n", __func__);
+
+	v4l2_m2m_job_finish(inst->core->m2m_dev_enc, inst->m2m_ctx);
 }
 
 static const struct v4l2_m2m_ops venc_m2m_ops = {
@@ -1035,7 +1053,7 @@ static int venc_m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 	src_vq->ops = &venc_vb2_ops;
 	src_vq->mem_ops = &vb2_dma_sg_memops;
 	src_vq->drv_priv = inst;
-	src_vq->buf_struct_size = sizeof(struct vidc_buffer);
+	src_vq->buf_struct_size = sizeof(struct venus_buffer);
 	src_vq->allow_zero_bytesused = 1;
 	src_vq->lock = &inst->lock;
 	ret = vb2_queue_init(src_vq);
@@ -1048,7 +1066,7 @@ static int venc_m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 	dst_vq->ops = &venc_vb2_ops;
 	dst_vq->mem_ops = &vb2_dma_sg_memops;
 	dst_vq->drv_priv = inst;
-	dst_vq->buf_struct_size = sizeof(struct vidc_buffer);
+	dst_vq->buf_struct_size = sizeof(struct venus_buffer);
 	dst_vq->allow_zero_bytesused = 1;
 	dst_vq->min_buffers_needed = 2;
 	dst_vq->lock = &inst->lock;
@@ -1090,10 +1108,8 @@ int venc_init(struct venus_core *core, struct video_device *enc,
 	int ret;
 
 	core->m2m_dev_enc = v4l2_m2m_init(&venc_m2m_ops);
-	if (IS_ERR(core->m2m_dev_dec)) {
-		dev_err(core->dev, "enc: m2m init failed\n");
-		return PTR_ERR(core->m2m_dev_dec);
-	}
+	if (IS_ERR(core->m2m_dev_enc))
+		return PTR_ERR(core->m2m_dev_enc);
 
 	enc->release = video_device_release;
 	enc->fops = fops;
@@ -1103,11 +1119,14 @@ int venc_init(struct venus_core *core, struct video_device *enc,
 
 	ret = video_register_device(enc, VFL_TYPE_GRABBER, -1);
 	if (ret)
-		return ret;
+		goto m2m_release;
 
 	video_set_drvdata(enc, core);
 
 	return 0;
+m2m_release:
+	v4l2_m2m_release(core->m2m_dev_enc);
+	return ret;
 }
 
 void venc_deinit(struct venus_core *core, struct video_device *enc)
@@ -1141,7 +1160,7 @@ int venc_open(struct venus_inst *inst)
 
 	venc_inst_init(inst);
 
-	inst->m2m_ctx = v4l2_m2m_ctx_init(core->m2m_dev_dec, inst,
+	inst->m2m_ctx = v4l2_m2m_ctx_init(core->m2m_dev_enc, inst,
 					  venc_m2m_queue_init);
 	if (IS_ERR(inst->m2m_ctx)) {
 		ret = PTR_ERR(inst->m2m_ctx);

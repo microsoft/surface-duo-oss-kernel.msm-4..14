@@ -16,9 +16,11 @@
 #ifndef __VENUS_CORE_H_
 #define __VENUS_CORE_H_
 
-#include <media/v4l2-device.h>
-#include <media/v4l2-ctrls.h>
+#include <linux/list.h>
 #include <media/videobuf2-core.h>
+#include <media/videobuf2-v4l2.h>
+#include <media/v4l2-ctrls.h>
+#include <media/v4l2-device.h>
 
 #include "hfi.h"
 
@@ -195,12 +197,15 @@ struct venc_controls {
 	u32 level;
 };
 
-struct vidc_buffer {
-	struct vb2_v4l2_buffer *vb;
+struct venus_buffer {
+	struct vb2_v4l2_buffer vb;
 	struct list_head list;
-	u32 dma_addr;
-	u32 buffer_size;
+	dma_addr_t dma_addr;
+	u32 size;
+	struct list_head reg_list;
 };
+
+#define to_venus_buffer(ptr)	container_of(ptr, struct venus_buffer, vb)
 
 /**
  * struct venus_inst -
@@ -209,13 +214,7 @@ struct vidc_buffer {
  * @lock:
  * @core:
  * @internalbufs:
- * @internalbufs_lock:
  * @registeredbufs:
- * @registeredbufs_lock:
- * @bufqueue:
- * @bufqueue_lock:
- * @bufq_out:
- * @bufq_cap:
  * @ctrl_handler:
  * @controls:
  * @fh:
@@ -266,20 +265,9 @@ struct vidc_buffer {
 struct venus_inst {
 	struct list_head list;
 	struct mutex lock;
-
 	struct venus_core *core;
-
 	struct list_head internalbufs;
-//	struct mutex internalbufs_lock;
-
 	struct list_head registeredbufs;
-//	struct mutex registeredbufs_lock;
-
-	struct list_head bufqueue;
-//	struct mutex bufqueue_lock;
-
-	struct vb2_queue bufq_out;
-	struct vb2_queue bufq_cap;
 
 	struct v4l2_ctrl_handler ctrl_handler;
 	union {
@@ -292,9 +280,6 @@ struct venus_inst {
 	void *alloc_ctx_out;
 
 	/* v4l2 fields */
-#define STREAMON_CAP	BIT(0)
-#define STREAMON_OUT	BIT(1)
-#define STREAMON_BOTH	(STREAMON_OUT | STREAMON_CAP)
 	int streamon, streamon_cap, streamon_out;
 	u32 width;
 	u32 height;
@@ -350,6 +335,7 @@ struct venus_inst {
 	struct hfi_buffer_requirements bufreq[HFI_BUFFER_TYPE_MAX];
 
 	/* mem2mem fields */
+	struct v4l2_m2m_dev *m2m_dev;
 	struct v4l2_m2m_ctx *m2m_ctx;
 };
 
@@ -368,13 +354,6 @@ struct venus_ctrl {
 	const char * const *qmenu;
 };
 
-/*
- * Offset base for buffers on the destination queue - used to distinguish
- * between source and destination buffers when mmapping - they receive the same
- * offsets but for different queues
- */
-#define DST_QUEUE_OFF_BASE	(1 << 30)
-
 static inline struct venus_inst *to_inst(struct file *filp)
 {
 	return container_of(filp->private_data, struct venus_inst, fh);
@@ -383,19 +362,6 @@ static inline struct venus_inst *to_inst(struct file *filp)
 static inline void *to_hfi_priv(struct venus_core *core)
 {
 	return core->priv;
-}
-
-static inline struct vb2_queue *
-to_vb2q(struct file *file, enum v4l2_buf_type type)
-{
-	struct venus_inst *inst = to_inst(file);
-
-	if (type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
-		return &inst->bufq_cap;
-	else if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
-		return &inst->bufq_out;
-
-	return NULL;
 }
 
 #endif

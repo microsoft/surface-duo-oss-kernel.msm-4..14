@@ -792,13 +792,12 @@ put_sync:
 	pm_runtime_put_sync(dev);
 	vidc_vb2_buffers_done(inst, VB2_BUF_STATE_QUEUED);
 	mutex_unlock(&inst->lock);
-	dev_err(core->dev, "%s: exit type:%u error: %d\n", __func__, q->type,
-		ret);
 	return ret;
 }
 
 static const struct vb2_ops vdec_vb2_ops = {
 	.queue_setup = vdec_queue_setup,
+	.buf_init = vidc_vb2_buf_init,
 	.start_streaming = vdec_start_streaming,
 	.stop_streaming = vidc_vb2_stop_streaming,
 	.buf_queue = vidc_vb2_buf_queue,
@@ -868,11 +867,8 @@ static int vdec_event_notify(struct venus_inst *inst, u32 event,
 
 	switch (event) {
 	case EVT_SESSION_ERROR:
-		if (inst) {
-			mutex_lock(&inst->lock);
+		if (inst)
 			inst->state = INST_INVALID;
-			mutex_unlock(&inst->lock);
-		}
 		dev_err(dev, "dec: event session error (inst:%p)\n", inst);
 		break;
 	case EVT_SYS_EVENT_CHANGE:
@@ -941,9 +937,13 @@ static void vdec_m2m_device_run(void *priv)
 
 	dev_err(dev, "%s: enter\n", __func__);
 
+	mutex_lock(&inst->lock);
+
 	ret = vidc_vb2_start_streaming(inst);
 	if (ret)
-		dev_err(dev, "start streaming failed %d\n", ret);
+		dev_err(dev, "dec: start streaming failed %d\n", ret);
+
+	mutex_unlock(&inst->lock);
 }
 
 static int vdec_m2m_job_ready(void *priv)
@@ -962,9 +962,9 @@ static int vdec_m2m_job_ready(void *priv)
 		num_src, num_dst,
 		inst->num_input_bufs, inst->num_output_bufs);
 
-//	if (inst->num_input_bufs > num_src ||
-//	    inst->num_output_bufs > num_dst)
-//		return 0;
+	if (/*inst->num_input_bufs > num_src ||*/
+	    inst->num_output_bufs > num_dst)
+		return 0;
 
 	return 1;
 }
@@ -976,7 +976,7 @@ static void vdec_m2m_job_abort(void *priv)
 
 	dev_err(dev, "%s: enter\n", __func__);
 
-	v4l2_m2m_job_finish(inst->core->m2m_dev_dec, inst->m2m_ctx);
+	v4l2_m2m_job_finish(inst->m2m_dev, inst->m2m_ctx);
 }
 
 static const struct v4l2_m2m_ops vdec_m2m_ops = {
@@ -997,7 +997,7 @@ static int vdec_m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 	src_vq->ops = &vdec_vb2_ops;
 	src_vq->mem_ops = &vb2_dma_sg_memops;
 	src_vq->drv_priv = inst;
-	src_vq->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
+	src_vq->buf_struct_size = sizeof(struct venus_buffer);
 	src_vq->allow_zero_bytesused = 1;
 	src_vq->min_buffers_needed = 1;
 	src_vq->lock = &inst->lock;
@@ -1011,7 +1011,7 @@ static int vdec_m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 	dst_vq->ops = &vdec_vb2_ops;
 	dst_vq->mem_ops = &vb2_dma_sg_memops;
 	dst_vq->drv_priv = inst;
-	dst_vq->buf_struct_size = sizeof(struct v4l2_m2m_buffer);
+	dst_vq->buf_struct_size = sizeof(struct venus_buffer);
 	dst_vq->allow_zero_bytesused = 1;
 	dst_vq->min_buffers_needed = 1;
 	dst_vq->lock = &inst->lock;
@@ -1028,10 +1028,6 @@ int vdec_init(struct venus_core *core, struct video_device *dec,
 	      const struct v4l2_file_operations *fops)
 {
 	int ret;
-
-	core->m2m_dev_dec = v4l2_m2m_init(&vdec_m2m_ops);
-	if (IS_ERR(core->m2m_dev_dec))
-		return PTR_ERR(core->m2m_dev_dec);
 
 	dec->release = video_device_release;
 	dec->fops = fops;
@@ -1051,7 +1047,6 @@ int vdec_init(struct venus_core *core, struct video_device *dec,
 void vdec_deinit(struct venus_core *core, struct video_device *dec)
 {
 	video_unregister_device(dec);
-	v4l2_m2m_release(core->m2m_dev_dec);
 }
 
 int vdec_open(struct venus_inst *inst)
@@ -1079,7 +1074,13 @@ int vdec_open(struct venus_inst *inst)
 
 	vdec_inst_init(inst);
 
-	inst->m2m_ctx = v4l2_m2m_ctx_init(core->m2m_dev_dec, inst,
+	inst->m2m_dev = v4l2_m2m_init(&vdec_m2m_ops);
+	if (IS_ERR(inst->m2m_dev)) {
+		ret = PTR_ERR(inst->m2m_dev);
+		goto err_session_destroy;
+	}
+
+	inst->m2m_ctx = v4l2_m2m_ctx_init(inst->m2m_dev, inst,
 					  vdec_m2m_queue_init);
 	if (IS_ERR(inst->m2m_ctx)) {
 		ret = PTR_ERR(inst->m2m_ctx);
@@ -1100,6 +1101,7 @@ err_alloc_ctx:
 void vdec_close(struct venus_inst *inst)
 {
 	v4l2_m2m_ctx_release(inst->m2m_ctx);
+	v4l2_m2m_release(inst->m2m_dev);
 	vdec_ctrl_deinit(inst);
 	hfi_session_destroy(inst);
 	vb2_dma_sg_cleanup_ctx(inst->alloc_ctx_cap);

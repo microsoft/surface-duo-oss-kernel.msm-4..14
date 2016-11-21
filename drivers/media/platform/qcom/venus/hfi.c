@@ -150,6 +150,20 @@ unlock:
 	return ret;
 }
 
+static int wait_session_msg(struct venus_inst *inst)
+{
+	int ret;
+
+	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
+	if (!ret)
+		return -ETIMEDOUT;
+
+	if (inst->error != HFI_ERR_NONE)
+		return -EIO;
+
+	return 0;
+}
+
 int hfi_session_create(struct venus_inst *inst, const struct hfi_inst_ops *ops)
 {
 	struct venus_core *core = inst->core;
@@ -171,6 +185,7 @@ int hfi_session_create(struct venus_inst *inst, const struct hfi_inst_ops *ops)
 int hfi_session_init(struct venus_inst *inst, u32 pixfmt, u32 session_type)
 {
 	struct venus_core *core = inst->core;
+	const struct hfi_ops *ops = core->ops;
 	u32 codec;
 	int ret;
 
@@ -178,32 +193,17 @@ int hfi_session_init(struct venus_inst *inst, u32 pixfmt, u32 session_type)
 	inst->session_type = session_type;
 	reinit_completion(&inst->done);
 
-//	mutex_lock(&inst->lock);
-
-	ret = core->ops->session_init(core, inst, session_type, codec);
+	ret = ops->session_init(core, inst, session_type, codec);
 	if (ret)
-		goto unlock;
+		return ret;
 
-	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
-	if (!ret) {
-		ret = -ETIMEDOUT;
-		goto unlock;
-	}
+	ret = wait_session_msg(inst);
+	if (ret)
+		return ret;
 
-	if (inst->error != HFI_ERR_NONE) {
-		dev_err(core->dev, "%s: session init failed (%x)\n", __func__,
-			inst->error);
-		ret = -EIO;
-		goto unlock;
-	}
-
-	ret = 0;
 	inst->state = INST_INIT;
 
-unlock:
-//	mutex_unlock(&inst->lock);
-
-	return ret;
+	return 0;
 }
 
 void hfi_session_destroy(struct venus_inst *inst)
@@ -213,119 +213,78 @@ void hfi_session_destroy(struct venus_inst *inst)
 	mutex_lock(&core->lock);
 	list_del(&inst->list);
 	mutex_unlock(&core->lock);
-
-	if (mutex_is_locked(&inst->lock))
-		WARN(1, "session destroy");
 }
 
 int hfi_session_deinit(struct venus_inst *inst)
 {
-	struct venus_core *core = inst->core;
+	const struct hfi_ops *ops = inst->core->ops;
 	int ret;
 
-//	mutex_lock(&inst->lock);
+	if (inst->state == INST_UNINIT)
+		return 0;
 
-	if (inst->state == INST_UNINIT) {
-		ret = 0;
-		goto unlock;
-	}
-
-	if (inst->state < INST_INIT) {
-		ret = -EINVAL;
-		goto unlock;
-	}
+	if (inst->state < INST_INIT)
+		return -EINVAL;
 
 	reinit_completion(&inst->done);
 
-	ret = core->ops->session_end(inst);
+	ret = ops->session_end(inst);
 	if (ret)
-		goto unlock;
+		return ret;
 
-	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
-	if (!ret) {
-		ret = -ETIMEDOUT;
-		goto unlock;
-	}
+	ret = wait_session_msg(inst);
+	if (ret)
+		return ret;
 
-	if (inst->error != HFI_ERR_NONE) {
-		dev_err(core->dev, "session deinit error (%x)\n", inst->error);
-		ret = -EIO;
-		goto unlock;
-	}
-
-	ret = 0;
 	inst->state = INST_UNINIT;
 
-unlock:
-//	mutex_unlock(&inst->lock);
-
-	return ret;
+	return 0;
 }
 
 int hfi_session_start(struct venus_inst *inst)
 {
-	struct venus_core *core = inst->core;
+	const struct hfi_ops *ops = inst->core->ops;
 	int ret;
 
-//	mutex_lock(&inst->lock);
-
-	if (inst->state != INST_LOAD_RESOURCES) {
-		ret = -EINVAL;
-		goto unlock;
-	}
+	if (inst->state != INST_LOAD_RESOURCES)
+		return -EINVAL;
 
 	reinit_completion(&inst->done);
 
-	ret = core->ops->session_start(inst);
+	ret = ops->session_start(inst);
 	if (ret)
-		goto unlock;
+		return ret;
 
-	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
-	if (!ret) {
-		ret = -ETIMEDOUT;
-		goto unlock;
-	}
-
-	ret = 0;
+	ret = wait_session_msg(inst);
+	if (ret)
+		return ret;
 
 	inst->state = INST_START;
-unlock:
-//	mutex_unlock(&inst->lock);
 
-	return ret;
+	return 0;
 }
 
 int hfi_session_stop(struct venus_inst *inst)
 {
-	struct venus_core *core = inst->core;
+	const struct hfi_ops *ops = inst->core->ops;
 	int ret;
 
-//	mutex_lock(&inst->lock);
-
-	if (inst->state != INST_START) {
-		ret = -EINVAL;
-		goto unlock;
-	}
+	if (inst->state != INST_START)
+		return -EINVAL;
 
 	reinit_completion(&inst->done);
 
-	ret = core->ops->session_stop(inst);
+	ret = ops->session_stop(inst);
 	if (ret)
-		goto unlock;
+		return ret;
 
-	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
-	if (!ret) {
-		ret = -ETIMEDOUT;
-		goto unlock;
-	}
-
-	ret = 0;
+	ret = wait_session_msg(inst);
+	if (ret)
+		return ret;
 
 	inst->state = INST_STOP;
-unlock:
-//	mutex_unlock(&inst->lock);
 
-	return ret;
+	return 0;
 }
 
 int hfi_session_continue(struct venus_inst *inst)
@@ -340,118 +299,84 @@ int hfi_session_continue(struct venus_inst *inst)
 
 int hfi_session_abort(struct venus_inst *inst)
 {
-	struct venus_core *core = inst->core;
+	const struct hfi_ops *ops = inst->core->ops;
 	int ret;
-
-//	mutex_lock(&inst->lock);
 
 	reinit_completion(&inst->done);
 
-	ret = core->ops->session_abort(inst);
+	ret = ops->session_abort(inst);
 	if (ret)
-		goto unlock;
+		return ret;
 
-	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
-	if (!ret) {
-		ret = -ETIMEDOUT;
-		goto unlock;
-	}
+	ret = wait_session_msg(inst);
+	if (ret)
+		return ret;
 
-	ret = 0;
-
-unlock:
-//	mutex_unlock(&inst->lock);
-
-	return ret;
+	return 0;
 }
 
 int hfi_session_load_res(struct venus_inst *inst)
 {
-	struct venus_core *core = inst->core;
+	const struct hfi_ops *ops = inst->core->ops;
 	int ret;
 
-//	mutex_lock(&inst->lock);
-
-	if (inst->state != INST_INIT) {
-		ret = -EINVAL;
-		goto unlock;
-	}
+	if (inst->state != INST_INIT)
+		return -EINVAL;
 
 	reinit_completion(&inst->done);
 
-	ret = core->ops->session_load_res(inst);
+	ret = ops->session_load_res(inst);
 	if (ret)
-		goto unlock;
+		return ret;
 
-	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
-	if (!ret) {
-		ret = -ETIMEDOUT;
-		goto unlock;
-	}
+	ret = wait_session_msg(inst);
+	if (ret)
+		return ret;
 
-	ret = 0;
 	inst->state = INST_LOAD_RESOURCES;
-unlock:
-//	mutex_unlock(&inst->lock);
 
-	return ret;
+	return 0;
 }
 
 int hfi_session_unload_res(struct venus_inst *inst)
 {
-	struct venus_core *core = inst->core;
+	const struct hfi_ops *ops = inst->core->ops;
 	int ret;
 
-//	mutex_lock(&inst->lock);
-
-	if (inst->state != INST_STOP) {
-		ret = -EINVAL;
-		goto unlock;
-	}
+	if (inst->state != INST_STOP)
+		return -EINVAL;
 
 	reinit_completion(&inst->done);
 
-	ret = core->ops->session_release_res(inst);
+	ret = ops->session_release_res(inst);
 	if (ret)
-		goto unlock;
+		return ret;
 
-	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
-	if (!ret) {
-		ret = -ETIMEDOUT;
-		goto unlock;
-	}
+	ret = wait_session_msg(inst);
+	if (ret)
+		return ret;
 
-	ret = 0;
 	inst->state = INST_RELEASE_RESOURCES;
-unlock:
-//	mutex_unlock(&inst->lock);
 
-	return ret;
+	return 0;
 }
 
 int hfi_session_flush(struct venus_inst *inst)
 {
-	struct venus_core *core = inst->core;
+	const struct hfi_ops *ops = inst->core->ops;
 	int ret;
 
-//	mutex_lock(&inst->lock);
 	reinit_completion(&inst->done);
 
-	ret = core->ops->session_flush(inst, HFI_FLUSH_ALL);
+	ret = ops->session_flush(inst, HFI_FLUSH_ALL);
 	if (ret)
-		goto unlock;
+		return ret;
 
-	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
-	if (!ret) {
-		ret = -ETIMEDOUT;
-		goto unlock;
-	}
+	ret = wait_session_msg(inst);
+	if (ret)
+		return ret;
 
-	ret = 0;
-unlock:
-//	mutex_unlock(&inst->lock);
-
-	return ret;
+	return 0;
 }
 
 int hfi_session_set_buffers(struct venus_inst *inst, struct hfi_buffer_desc *bd)
@@ -464,99 +389,57 @@ int hfi_session_set_buffers(struct venus_inst *inst, struct hfi_buffer_desc *bd)
 int hfi_session_unset_buffers(struct venus_inst *inst,
 			      struct hfi_buffer_desc *bd)
 {
-	struct venus_core *core = inst->core;
+	const struct hfi_ops *ops = inst->core->ops;
 	int ret;
-
-//	mutex_lock(&inst->lock);
 
 	reinit_completion(&inst->done);
 
-	ret = core->ops->session_unset_buffers(inst, bd);
+	ret = ops->session_unset_buffers(inst, bd);
 	if (ret)
-		goto unlock;
+		return ret;
 
-	if (!bd->response_required) {
-		ret = 0;
-		goto unlock;
-	}
+	if (!bd->response_required)
+		return 0;
 
-	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
-	if (!ret) {
-		ret = -ETIMEDOUT;
-		goto unlock;
-	}
+	ret = wait_session_msg(inst);
+	if (ret)
+		return ret;
 
-	ret = 0;
-
-	if (inst->error != HFI_ERR_NONE) {
-		dev_dbg(core->dev, "unset buffers error (%x)\n", inst->error);
-		ret = -EIO;
-	}
-
-unlock:
-//	mutex_unlock(&inst->lock);
-
-	return ret;
+	return 0;
 }
 
 int hfi_session_get_property(struct venus_inst *inst, u32 ptype,
 			     union hfi_get_property *hprop)
 {
-	struct venus_core *core = inst->core;
+	const struct hfi_ops *ops = inst->core->ops;
 	int ret;
 
-//	mutex_lock(&inst->lock);
-
-	if (inst->state < INST_INIT || inst->state >= INST_STOP) {
-		ret = -EINVAL;
-		goto unlock;
-	}
+	if (inst->state < INST_INIT || inst->state >= INST_STOP)
+		return -EINVAL;
 
 	reinit_completion(&inst->done);
 
-	ret = core->ops->session_get_property(inst, ptype);
+	ret = ops->session_get_property(inst, ptype);
 	if (ret)
-		goto unlock;
+		return ret;
 
-	ret = wait_for_completion_timeout(&inst->done, TIMEOUT);
-	if (!ret) {
-		ret = -ETIMEDOUT;
-		goto unlock;
-	}
+	ret = wait_session_msg(inst);
+	if (ret)
+		return ret;
 
-	if (inst->error != HFI_ERR_NONE) {
-		ret = -EINVAL;
-		goto unlock;
-	}
-
-	ret = 0;
 	*hprop = inst->hprop;
-unlock:
-//	mutex_unlock(&inst->lock);
 
-	return ret;
+	return 0;
 }
 
 int hfi_session_set_property(struct venus_inst *inst, u32 ptype, void *pdata)
 {
-	struct venus_core *core = inst->core;
-	int ret;
+	const struct hfi_ops *ops = inst->core->ops;
 
-//	mutex_lock(&inst->lock);
+	if (inst->state < INST_INIT || inst->state >= INST_STOP)
+		return -EINVAL;
 
-	if (inst->state < INST_INIT || inst->state >= INST_STOP) {
-		ret = -EINVAL;
-		goto unlock;
-	}
-
-	ret = core->ops->session_set_property(inst, ptype, pdata);
-unlock:
-//	mutex_unlock(&inst->lock);
-
-	if (ret)
-		dev_err(core->dev, "set property %x failed (%d)\n", ptype, ret);
-
-	return ret;
+	return ops->session_set_property(inst, ptype, pdata);
 }
 
 int hfi_session_etb(struct venus_inst *inst, struct hfi_frame_data *fdata)
@@ -585,17 +468,24 @@ irqreturn_t hfi_isr(struct venus_core *core)
 
 int hfi_create(struct venus_core *core)
 {
-	if (!core->core_ops || !core->dev)
+	int ret;
+
+	if (!core->core_ops)
 		return -EINVAL;
 
+	mutex_lock(&core->lock);
 	core->state = CORE_UNINIT;
 	init_completion(&core->done);
 	pkt_set_version(core->res->hfi_version);
+	ret = venus_hfi_create(core);
+	mutex_unlock(&core->lock);
 
-	return venus_hfi_create(core);
+	return ret;
 }
 
 void hfi_destroy(struct venus_core *core)
 {
+	mutex_lock(&core->lock);
 	venus_hfi_destroy(core);
+	mutex_unlock(&core->lock);
 }

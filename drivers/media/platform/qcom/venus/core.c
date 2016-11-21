@@ -131,7 +131,6 @@ static int venus_open(struct file *file)
 
 	INIT_LIST_HEAD(&inst->registeredbufs);
 	INIT_LIST_HEAD(&inst->internalbufs);
-	INIT_LIST_HEAD(&inst->bufqueue);
 	INIT_LIST_HEAD(&inst->list);
 	mutex_init(&inst->lock);
 
