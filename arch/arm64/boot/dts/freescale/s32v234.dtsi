@@ -339,7 +339,7 @@
 				reg = <0x0 0x40064000 0x0 0x1000>;
 				interrupts = <0 96 1>;
 				clocks = <&clks S32V234_CLK_SYS6>;
-				clock-names = "fsl_viulite0";
+				clock-names = "viulite0";
 				status = "disabled";
 			};
 
@@ -545,7 +545,7 @@
 				reg = <0x0 0x400D0000 0x0 0x1000>;
 				interrupts = <0 100 1>;
 				clocks = <&clks S32V234_CLK_SYS6>;
-				clock-names = "fsl_viulite1";
+				clock-names = "viulite1";
 				status = "disabled";
 		};
 
