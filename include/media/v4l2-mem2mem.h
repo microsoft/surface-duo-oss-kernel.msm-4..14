@@ -263,6 +263,24 @@ static inline void *v4l2_m2m_dst_buf_remove(struct v4l2_m2m_ctx *m2m_ctx)
 	return v4l2_m2m_buf_remove(&m2m_ctx->cap_q_ctx);
 }
 
+struct vb2_v4l2_buffer *
+v4l2_m2m_buf_remove_match(struct v4l2_m2m_queue_ctx *q_ctx, void *priv,
+			int (*match)(void *priv, struct vb2_v4l2_buffer *vb));
+
+static inline struct vb2_v4l2_buffer *
+v4l2_m2m_src_buf_remove_match(struct v4l2_m2m_ctx *m2m_ctx, void *priv,
+			int (*match)(void *priv, struct vb2_v4l2_buffer *vb))
+{
+	return v4l2_m2m_buf_remove_match(&m2m_ctx->out_q_ctx, priv, match);
+}
+
+static inline struct vb2_v4l2_buffer *
+v4l2_m2m_dst_buf_remove_match(struct v4l2_m2m_ctx *m2m_ctx, void *priv,
+			int (*match)(void *priv, struct vb2_v4l2_buffer *vb))
+{
+	return v4l2_m2m_buf_remove_match(&m2m_ctx->cap_q_ctx, priv, match);
+}
+
 /* v4l2 ioctl helpers */
 
 int v4l2_m2m_ioctl_reqbufs(struct file *file, void *priv,

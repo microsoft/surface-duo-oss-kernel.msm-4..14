@@ -136,6 +136,28 @@ void *v4l2_m2m_buf_remove(struct v4l2_m2m_queue_ctx *q_ctx)
 }
 EXPORT_SYMBOL_GPL(v4l2_m2m_buf_remove);
 
+struct vb2_v4l2_buffer *
+v4l2_m2m_buf_remove_match(struct v4l2_m2m_queue_ctx *q_ctx, void *priv,
+			   int (*match)(void *priv, struct vb2_v4l2_buffer *vb))
+{
+	struct v4l2_m2m_buffer *b, *tmp;
+	struct vb2_v4l2_buffer *ret = NULL;
+	unsigned long flags;
+
+	spin_lock_irqsave(&q_ctx->rdy_spinlock, flags);
+	list_for_each_entry_safe(b, tmp, &q_ctx->rdy_queue, list) {
+		if (match(priv, &b->vb)) {
+			list_del(&b->list);
+			ret = &b->vb;
+			break;
+		}
+	}
+	spin_unlock_irqrestore(&q_ctx->rdy_spinlock, flags);
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(v4l2_m2m_buf_remove_match);
+
 /*
  * Scheduling handlers
  */
