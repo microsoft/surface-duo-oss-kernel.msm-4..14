@@ -63,10 +63,14 @@
 #define ISPIF_VFE_m_INTF_INPUT_SEL(m)	(0x244 + 0x200 * (m))
 #define ISPIF_VFE_m_INTF_CMD_0(m)	(0x248 + 0x200 * (m))
 #define ISPIF_VFE_m_INTF_CMD_1(m)	(0x24c + 0x200 * (m))
-#define ISPIF_VFE_m_PIX_INTF_n_CID_MASK(m, n)	(0x254 + 0x200 * (m) + 0x4 * (n))
-#define ISPIF_VFE_m_RDI_INTF_n_CID_MASK(m, n)	(0x264 + 0x200 * (m) + 0x4 * (n))
-#define ISPIF_VFE_m_PIX_INTF_n_STATUS(m, n)	(0x2c0 + 0x200 * (m) + 0x4 * (n))
-#define ISPIF_VFE_m_RDI_INTF_n_STATUS(m, n)	(0x2d0 + 0x200 * (m) + 0x4 * (n))
+#define ISPIF_VFE_m_PIX_INTF_n_CID_MASK(m, n)	\
+					(0x254 + 0x200 * (m) + 0x4 * (n))
+#define ISPIF_VFE_m_RDI_INTF_n_CID_MASK(m, n)	\
+					(0x264 + 0x200 * (m) + 0x4 * (n))
+#define ISPIF_VFE_m_PIX_INTF_n_STATUS(m, n)	\
+					(0x2c0 + 0x200 * (m) + 0x4 * (n))
+#define ISPIF_VFE_m_RDI_INTF_n_STATUS(m, n)	\
+					(0x2d0 + 0x200 * (m) + 0x4 * (n))
 
 #define CSI_PIX_CLK_MUX_SEL		0x000
 #define CSI_RDI_CLK_MUX_SEL		0x008
@@ -587,10 +591,12 @@ static int ispif_set_stream(struct v4l2_subdev *sd, int enable)
 		ispif_select_csid(ispif, intf, csid, vfe, 1);
 		ispif_select_cid(ispif, intf, cid, vfe, 1);
 		ispif_config_irq(ispif, intf, vfe, 1);
-		ispif_set_intf_cmd(ispif, CMD_ENABLE_FRAME_BOUNDARY, intf, vfe, vc);
+		ispif_set_intf_cmd(ispif, CMD_ENABLE_FRAME_BOUNDARY,
+				   intf, vfe, vc);
 	} else {
 		mutex_lock(&ispif->config_lock);
-		ispif_set_intf_cmd(ispif, CMD_DISABLE_FRAME_BOUNDARY, intf, vfe, vc);
+		ispif_set_intf_cmd(ispif, CMD_DISABLE_FRAME_BOUNDARY,
+				   intf, vfe, vc);
 		mutex_unlock(&ispif->config_lock);
 
 		ret = ispif_wait_for_stop(ispif, intf, vfe);
@@ -894,10 +900,8 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 
 	ispif->clock = devm_kzalloc(dev, ispif->nclocks * sizeof(*ispif->clock),
 				    GFP_KERNEL);
-	if (!ispif->clock) {
-		dev_err(dev, "could not allocate memory\n");
+	if (!ispif->clock)
 		return -ENOMEM;
-	}
 
 	for (i = 0; i < ispif->nclocks; i++) {
 		ispif->clock[i] = devm_clk_get(dev, res->clock[i]);
@@ -911,10 +915,8 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 
 	ispif->clock_for_reset = devm_kzalloc(dev, ispif->nclocks_for_reset *
 			sizeof(*ispif->clock_for_reset), GFP_KERNEL);
-	if (!ispif->clock_for_reset) {
-		dev_err(dev, "could not allocate memory\n");
+	if (!ispif->clock_for_reset)
 		return -ENOMEM;
-	}
 
 	for (i = 0; i < ispif->nclocks_for_reset; i++) {
 		ispif->clock_for_reset[i] = devm_clk_get(dev,
@@ -1064,7 +1066,7 @@ int msm_ispif_register_entities(struct ispif_device *ispif,
 
 		ret = v4l2_device_register_subdev(v4l2_dev, sd);
 		if (ret < 0) {
-			dev_err(dev,"Failed to register subdev\n");
+			dev_err(dev, "Failed to register subdev\n");
 			media_entity_cleanup(&sd->entity);
 			goto error;
 		}

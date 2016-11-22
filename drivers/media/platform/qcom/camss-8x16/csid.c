@@ -518,11 +518,12 @@ static void csid_try_format(struct csid_device *csid,
 			format.code = csid_get_uncompressed(format.code);
 			*fmt = format;
 		} else {
-			/* Test generator is enabled, set format on source pad */
-			/* to allow test generator usage */
+			/* Test generator is enabled, set format on source*/
+			/* pad to allow test generator usage */
 
 			for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
-				if (fmt->code == csid_input_fmts[i].uncompressed)
+				if (csid_input_fmts[i].uncompressed ==
+								fmt->code)
 					break;
 
 			/* If not found, use UYVY as default */
@@ -766,7 +767,7 @@ static int csid_s_ctrl(struct v4l2_ctrl *ctrl)
 	return ret;
 }
 
-static struct v4l2_ctrl_ops csid_ctrl_ops = {
+static const struct v4l2_ctrl_ops csid_ctrl_ops = {
 	.s_ctrl = csid_s_ctrl,
 };
 
@@ -826,10 +827,8 @@ int msm_csid_subdev_init(struct csid_device *csid,
 
 	csid->clock = devm_kzalloc(dev, csid->nclocks * sizeof(*csid->clock),
 				    GFP_KERNEL);
-	if (!csid->clock) {
-		dev_err(dev, "could not allocate memory\n");
+	if (!csid->clock)
 		return -ENOMEM;
-	}
 
 	for (i = 0; i < csid->nclocks; i++) {
 		csid->clock[i] = devm_clk_get(dev, res->clock[i]);
@@ -927,16 +926,16 @@ static int csid_link_setup(struct media_entity *entity,
 		sd = container_of(entity, struct v4l2_subdev, entity);
 		csid = v4l2_get_subdevdata(sd);
 
-		/* If test generator is enabled
-		 * do not allow a link from CSIPHY to CSID */
+		/* If test generator is enabled */
+		/* do not allow a link from CSIPHY to CSID */
 		if (csid->testgen_mode->cur.val != 0)
 			return -EBUSY;
 
 		sd = container_of(remote->entity, struct v4l2_subdev, entity);
 		csiphy = v4l2_get_subdevdata(sd);
 
-		/* If a sensor is not linked to CSIPHY
-		 * do no allow a link from CSIPHY to CSID */
+		/* If a sensor is not linked to CSIPHY */
+		/* do no allow a link from CSIPHY to CSID */
 		if (!csiphy->cfg.csi2)
 			return -EPERM;
 

@@ -534,10 +534,8 @@ int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
 
 	csiphy->clock = devm_kzalloc(dev, csiphy->nclocks *
 				     sizeof(*csiphy->clock), GFP_KERNEL);
-	if (!csiphy->clock) {
-		dev_err(dev, "could not allocate memory\n");
+	if (!csiphy->clock)
 		return -ENOMEM;
-	}
 
 	for (i = 0; i < csiphy->nclocks; i++) {
 		csiphy->clock[i] = devm_clk_get(dev, res->clock[i]);

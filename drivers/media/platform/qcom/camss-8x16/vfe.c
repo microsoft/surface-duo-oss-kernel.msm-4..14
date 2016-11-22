@@ -98,8 +98,10 @@
 
 #define VFE_0_BUS_IMAGE_MASTER_n_WR_UB_CFG(n)		(0x07c + 0x24 * (n))
 #define VFE_0_BUS_IMAGE_MASTER_n_WR_UB_CFG_OFFSET_SHIFT	16
-#define VFE_0_BUS_IMAGE_MASTER_n_WR_FRAMEDROP_PATTERN(n)	(0x088 + 0x24 * (n))
-#define VFE_0_BUS_IMAGE_MASTER_n_WR_IRQ_SUBSAMPLE_PATTERN(n)	(0x08c + 0x24 * (n))
+#define VFE_0_BUS_IMAGE_MASTER_n_WR_FRAMEDROP_PATTERN(n)	\
+							(0x088 + 0x24 * (n))
+#define VFE_0_BUS_IMAGE_MASTER_n_WR_IRQ_SUBSAMPLE_PATTERN(n)	\
+							(0x08c + 0x24 * (n))
 #define VFE_0_BUS_IMAGE_MASTER_n_WR_IRQ_SUBSAMPLE_PATTERN_DEF	0xffffffff
 
 #define VFE_0_BUS_PING_PONG_STATUS	0x268
@@ -942,10 +944,8 @@ static int vfe_disable(struct vfe_line *line)
 
 	mutex_lock(&vfe->stream_lock);
 
-	if (vfe->stream_count == 1) {
+	if (vfe->stream_count == 1)
 		vfe_bus_enable_wr_if(vfe, 0);
-
-	}
 
 	vfe->stream_count--;
 
@@ -981,8 +981,8 @@ static void vfe_isr_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
 		}
 		output->state = VFE_OUTPUT_IDLE;
 
-		/* Buffers received in stopping state are queued in
-		 * dma pending queue, start next capture here */
+		/* Buffers received in stopping state are queued in */
+		/* dma pending queue, start next capture here */
 
 		output->buf[0] = vfe_buf_get_pending(output);
 		if (output->buf[0])
@@ -1672,10 +1672,8 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 
 	vfe->clock = devm_kzalloc(dev, vfe->nclocks * sizeof(*vfe->clock),
 				  GFP_KERNEL);
-	if (!vfe->clock) {
-		dev_err(dev, "could not allocate memory\n");
+	if (!vfe->clock)
 		return -ENOMEM;
-	}
 
 	for (i = 0; i < vfe->nclocks; i++) {
 		vfe->clock[i] = devm_clk_get(dev, res->clock[i]);

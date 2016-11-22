@@ -344,10 +344,8 @@ static int camss_of_parse_endpoint_node(struct device *dev,
 
 	lncfg->data = devm_kzalloc(dev, lncfg->num_data * sizeof(*lncfg->data),
 				   GFP_KERNEL);
-	if (!lncfg->data) {
-		dev_err(dev, "Failed to allocate memory\n");
+	if (!lncfg->data)
 		return -ENOMEM;
-	}
 
 	for (i = 0; i < lncfg->num_data; i++) {
 		lncfg->data[i].pos = mipi_csi2->data_lanes[i];
@@ -536,7 +534,8 @@ static int camss_register_entities(struct camss *camss)
 				dev_err(camss->dev,
 					"Failed to link %s->%s entities\n",
 					camss->csid[i].subdev.entity.name,
-					camss->ispif.line[j].subdev.entity.name);
+					camss->ispif.line[j].subdev.entity.name
+					);
 				goto err_link;
 			}
 		}
@@ -570,15 +569,13 @@ err_reg_ispif:
 
 	i = ARRAY_SIZE(camss->csid);
 err_reg_csid:
-	for (i--; i >= 0; i--) {
+	for (i--; i >= 0; i--)
 		msm_csid_unregister_entity(&camss->csid[i]);
-	}
 
 	i = ARRAY_SIZE(camss->csiphy);
 err_reg_csiphy:
-	for (i--; i >= 0; i--) {
+	for (i--; i >= 0; i--)
 		msm_csiphy_unregister_entity(&camss->csiphy[i]);
-	}
 
 	return ret;
 }
@@ -672,10 +669,8 @@ static int camss_probe(struct platform_device *pdev)
 	int ret;
 
 	camss = devm_kzalloc(dev, sizeof(*camss), GFP_KERNEL);
-	if (!camss) {
-		dev_err(dev, "Failed to allocate memory\n");
+	if (!camss)
 		return -ENOMEM;
-	}
 
 	camss->dev = dev;
 	platform_set_drvdata(pdev, camss);
