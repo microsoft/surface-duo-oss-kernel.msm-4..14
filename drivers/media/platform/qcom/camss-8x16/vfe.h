@@ -65,6 +65,7 @@ struct vfe_output {
 	unsigned int drop_update_idx;
 
 	enum vfe_output_state state;
+	unsigned int sequence;
 };
 
 struct vfe_line {

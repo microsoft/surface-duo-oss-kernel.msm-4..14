@@ -836,6 +836,8 @@ static int vfe_enable_output(struct vfe_line *line)
 		break;
 	}
 
+	output->sequence = 0;
+
 	vfe_output_init_addrs(vfe, output, 0);
 
 	vfe_set_cgc_override(vfe, output->wm_idx, 1);
@@ -1050,6 +1052,9 @@ static void vfe_isr_wm_done(struct vfe_device *vfe, u8 wm)
 				    !active_index, output->state);
 		goto out_unlock;
 	}
+
+	v4l2_get_timestamp(&ready_buf->vb.timestamp);
+	ready_buf->vb.sequence = output->sequence++;
 
 	/* Get next buffer */
 	output->buf[!active_index] = vfe_buf_get_pending(output);

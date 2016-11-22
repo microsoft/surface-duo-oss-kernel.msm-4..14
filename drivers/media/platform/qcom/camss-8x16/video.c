@@ -168,6 +168,8 @@ static int video_buf_prepare(struct vb2_buffer *vb)
 	if (vb2_get_plane_payload(vb, 0) > vb2_plane_size(vb, 0))
 		return -EINVAL;
 
+	vbuf->field = V4L2_FIELD_NONE;
+
 	buffer->addr = vb2_dma_contig_plane_dma_addr(vb, 0);
 
 	return 0;
