@@ -164,9 +164,11 @@ static int video_buf_prepare(struct vb2_buffer *vb)
 	struct camss_buffer *buffer = container_of(vbuf, struct camss_buffer,
 						   vb);
 
-	buffer->addr = vb2_dma_contig_plane_dma_addr(vb, 0);
-
 	vb2_set_plane_payload(vb, 0, video->active_fmt.fmt.pix.sizeimage);
+	if (vb2_get_plane_payload(vb, 0) > vb2_plane_size(vb, 0))
+		return -EINVAL;
+
+	buffer->addr = vb2_dma_contig_plane_dma_addr(vb, 0);
 
 	return 0;
 }
