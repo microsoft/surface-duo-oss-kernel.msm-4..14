@@ -705,9 +705,7 @@ static void vfe_buf_update_wm_on_new(struct vfe_device *vfe,
 
 			vfe_output_init_addrs(vfe, output, 1);
 
-			/* After wm reload we can not skip second frame.
-			 * Capture only second frame to avoid iommu fault */
-			vfe_output_frame_drop(vfe, output, 2);
+			vfe_output_frame_drop(vfe, output, 1);
 			output->state = VFE_OUTPUT_SINGLE;
 		} else {
 			vfe_buf_add_pending(output, new_buf);
@@ -822,10 +820,8 @@ static int vfe_enable_output(struct vfe_line *line)
 
 	switch (output->state) {
 	case VFE_OUTPUT_SINGLE:
-		/* After wm reload we can not skip second frame.
-		 * Capture only second frame to avoid iommu fault */
 		/* Skip 4 bad frames from sensor TODO: get number from sensor */
-		vfe_output_frame_drop(vfe, output, 2 << 4);
+		vfe_output_frame_drop(vfe, output, 1 << 4);
 		break;
 	case VFE_OUTPUT_CONTINUOUS:
 		/* Skip 4 bad frames from sensor TODO: get number from sensor */
