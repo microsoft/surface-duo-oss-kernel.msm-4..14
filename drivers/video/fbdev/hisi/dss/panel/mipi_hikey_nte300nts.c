@@ -95,7 +95,7 @@ static struct dsi_cmd_desc hikey_display_off_cmds[] = {
 		sizeof(hikey_enter_sleep), hikey_enter_sleep},
 };
 
-/*short or long packet */
+/*short or long packet*/
 static struct dsi_cmd_desc hikey_display_on_cmds[] = {
 	{DTYPE_DCS_WRITE, 0, 5, WAIT_TYPE_MS,
 		sizeof(hikey_power_on_param1), hikey_power_on_param1},
@@ -139,13 +139,10 @@ static uint32_t gpio_lcd_pwr_enable;
 static uint32_t gpio_lcd_bl_enable;
 static uint32_t gpio_lcd_pwm;
 static uint32_t gpio_switch_dsi_hdmi;
-struct regulator *vdd;
 
 static struct gpio_desc hikey_lcd_gpio_request_cmds[] = {
-	/*
 	{DTYPE_GPIO_REQUEST, WAIT_TYPE_MS, 0,
 		GPIO_LCD_PWR_ENABLE_NAME, &gpio_lcd_pwr_enable, 0},
-	*/
 	{DTYPE_GPIO_REQUEST, WAIT_TYPE_MS, 0,
 		GPIO_LCD_BL_ENABLE_NAME, &gpio_lcd_bl_enable, 0},
 	{DTYPE_GPIO_REQUEST, WAIT_TYPE_MS, 0,
@@ -155,10 +152,8 @@ static struct gpio_desc hikey_lcd_gpio_request_cmds[] = {
 };
 
 static struct gpio_desc hikey_lcd_gpio_free_cmds[] = {
-	/*
 	{DTYPE_GPIO_FREE, WAIT_TYPE_MS, 0,
 		GPIO_LCD_PWR_ENABLE_NAME, &gpio_lcd_pwr_enable, 0},
-	*/
 	{DTYPE_GPIO_FREE, WAIT_TYPE_MS, 0,
 		GPIO_LCD_BL_ENABLE_NAME, &gpio_lcd_bl_enable, 0},
 	{DTYPE_GPIO_FREE, WAIT_TYPE_MS, 0,
@@ -168,19 +163,15 @@ static struct gpio_desc hikey_lcd_gpio_free_cmds[] = {
 };
 
 static struct gpio_desc hikey_lcd_gpio_normal_cmds[] = {
-	/*
 	{DTYPE_GPIO_OUTPUT, WAIT_TYPE_MS, 0,
 		GPIO_LCD_PWR_ENABLE_NAME, &gpio_lcd_pwr_enable, 1},
-	*/
 	{DTYPE_GPIO_OUTPUT, WAIT_TYPE_MS, 0,
 		GPIO_SWITCH_DSI_HDMI, &gpio_switch_dsi_hdmi, 1},
 };
 
 static struct gpio_desc hikey_lcd_gpio_off_cmds[] = {
-	/*
         {DTYPE_GPIO_OUTPUT, WAIT_TYPE_MS, 0,
                 GPIO_LCD_PWR_ENABLE_NAME, &gpio_lcd_pwr_enable, 0},
-	*/
         {DTYPE_GPIO_OUTPUT, WAIT_TYPE_MS, 0,
                 GPIO_SWITCH_DSI_HDMI, &gpio_switch_dsi_hdmi, 0},
 };
@@ -225,12 +216,6 @@ static int hikey_panel_set_fastboot(struct platform_device *pdev)
 	BUG_ON(hisifd == NULL);
 
 	HISI_FB_DEBUG("fb%d, +.\n", hisifd->index);
-	printk(KERN_ERR "super-shi hikey_panel_set_fastboot\n");
-
-	// lcd gpio requesti
-	//gpio_cmds_tx(hikey_lcd_gpio_request_cmds, \
-		ARRAY_SIZE(hikey_lcd_gpio_request_cmds));
-
 	HISI_FB_DEBUG("fb%d, -.\n", hisifd->index);
 
 	return 0;
@@ -255,37 +240,16 @@ static int hikey_panel_on(struct platform_device *pdev)
 	if (pinfo->lcd_init_step == LCD_INIT_POWER_ON) {
 		pinfo->lcd_init_step = LCD_INIT_MIPI_LP_SEND_SEQUENCE;
 	} else if (pinfo->lcd_init_step == LCD_INIT_MIPI_LP_SEND_SEQUENCE) {
-		// lcd gpio request
-		//gpio_cmds_tx(hikey_lcd_gpio_request_cmds, \
+		/*lcd gpio request*/
+		gpio_cmds_tx(hikey_lcd_gpio_request_cmds, \
 			ARRAY_SIZE(hikey_lcd_gpio_request_cmds));
-
-		// lcd gpio normal
-		//gpio_cmds_tx(hikey_lcd_gpio_normal_cmds, \
+		/*lcd gpio normal*/
+		gpio_cmds_tx(hikey_lcd_gpio_normal_cmds, \
 			ARRAY_SIZE(hikey_lcd_gpio_normal_cmds));
-
-		// lcd display on sequence
+		/*lcd display on sequence*/
 		msleep(250);
 		mipi_dsi_cmds_tx(hikey_display_on_cmds, \
 			ARRAY_SIZE(hikey_display_on_cmds), mipi_dsi0_base);
-
-
-		uint32_t status = 0;
-		uint32_t try_times = 0;
-		outp32(mipi_dsi0_base + MIPIDSI_GEN_HDR_OFFSET, 0x0A06);
-		status = inp32(mipi_dsi0_base + MIPIDSI_CMD_PKT_STATUS_OFFSET);
-		while (status & 0x10) {
-			udelay(50);
-			if (++try_times > 100) {
-					try_times = 0;
-				HISI_FB_ERR("Read lcd power status timeout!\n");
-				break;
-			}
-
-			status = inp32(mipi_dsi0_base + MIPIDSI_CMD_PKT_STATUS_OFFSET);
-		}
-		status = inp32(mipi_dsi0_base + MIPIDSI_GEN_PLD_DATA_OFFSET);
-		printk(KERN_ERR "LCD Power State = 0x%x.\n", status);
-
 
 		pinfo->lcd_init_step = LCD_INIT_MIPI_HS_SEND_SEQUENCE;
 	} else if (pinfo->lcd_init_step == LCD_INIT_MIPI_HS_SEND_SEQUENCE) {
@@ -295,7 +259,6 @@ static int hikey_panel_on(struct platform_device *pdev)
 	}
 
 	HISI_FB_DEBUG("fb%d, -.\n", hisifd->index);
-	printk(KERN_ERR "super-shi hikey_panel_on end\n");
 
 	return 0;
 }
@@ -313,10 +276,8 @@ static int hikey_panel_off(struct platform_device *pdev)
 	BUG_ON(pinfo == NULL);
 
 	HISI_FB_DEBUG("fb%d, +.\n", hisifd->index);
-	printk(KERN_ERR "super-shi hikey_panel_off\n");
-
 	mipi_dsi0_base = hisifd->mipi_dsi0_base;
-	// lcd enter sleep
+	/*lcd enter sleep*/
 	mipi_dsi_cmds_tx(hikey_display_off_cmds, \
 			ARRAY_SIZE(hikey_display_off_cmds), mipi_dsi0_base);
 	gpio_cmds_tx(hikey_lcd_gpio_off_cmds, \
@@ -352,15 +313,13 @@ static int hikey_panel_set_backlight(struct platform_device *pdev, uint32_t bl_l
 	BUG_ON(hisifd == NULL);
 
 	HISI_FB_DEBUG("fb%d, +.\n", hisifd->index);
-	printk(KERN_ERR "super-shi hikey_panel_set_backlight\n");
 
-	/*
 	if(bl_level == 0){
 		hikey_set_backlight_off();
 	}else{
 		hikey_set_backlight_on();
 	}
-	*/
+
 	HISI_FB_DEBUG("fb%d, -.\n", hisifd->index);
 
 	return ret;
@@ -430,27 +389,21 @@ static int hikey_probe(struct platform_device *pdev)
 		lcd_ifbc_type = IFBC_TYPE_NONE;
 	}
 
-	//GPIO_26_8 //GPIO_216
-	gpio_lcd_pwr_enable = 216;
-	//GPIO_27_2 //GPIO_218
-	//gpio_lcd_bl_enable = of_get_named_gpio(np, "gpios", 1);
-	gpio_lcd_bl_enable = 218;
-	printk(KERN_ERR "super-shi 121212 gpio_lcd_bl_enable = %u\n", gpio_lcd_bl_enable);
-	//GPIO_22_6 //GPIO_182
-	//gpio_lcd_pwm = of_get_named_gpio(np, "gpios", 2);
-	gpio_lcd_pwm = 182;
-	printk(KERN_ERR "super-shi 121212 gpio_lcd_pwm = %u\n", gpio_lcd_pwm);
-	//GPIO_2_4 // GPIO_020
-	//gpio_switch_dsi_hdmi = of_get_named_gpio(np, "gpios", 3);
-	gpio_switch_dsi_hdmi = 20;
-	printk(KERN_ERR "super-shi 121212 gpio_switch_dsi_hdmi = %u\n", gpio_switch_dsi_hdmi);
+	/*GPIO_26_8 GPIO_216*/
+	gpio_lcd_pwr_enable = of_get_named_gpio(np, "gpios", 0);
+	/*GPIO_27_2 GPIO_218*/
+	gpio_lcd_bl_enable = of_get_named_gpio(np, "gpios", 1);
+	/*GPIO_22_6 GPIO_182*/
+	gpio_lcd_pwm = of_get_named_gpio(np, "gpios", 2);
+	/*GPIO_2_4 GPIO_020*/
+	gpio_switch_dsi_hdmi = of_get_named_gpio(np, "gpios", 3);
 
 	if (hisi_fb_device_probe_defer(lcd_display_type, bl_type)) {
 		goto err_probe_defer;
 	}
 
 	pdev->id = 1;
-	/* init lcd panel info */
+	/*init lcd panel info*/
 	pinfo = g_panel_data.panel_info;
 	memset(pinfo, 0, sizeof(struct hisi_panel_info));
 	pinfo->xres = 1200;
@@ -473,7 +426,7 @@ static int hikey_probe(struct platform_device *pdev)
 	pinfo->bl_default = 102;
 	pinfo->esd_enable = 0;
 
-	//ldi
+	/*ldi*/
 	pinfo->ldi.h_back_porch = 60;
 	pinfo->ldi.h_front_porch = 200;
 	pinfo->ldi.h_pulse_width = 12;
@@ -488,7 +441,7 @@ static int hikey_probe(struct platform_device *pdev)
 	pinfo->ldi.data_en_plr = 0;
 	*/
 
-	//mipi
+	/*mipi*/
 	pinfo->mipi.lane_nums = DSI_4_LANES;
 	pinfo->mipi.color_mode = DSI_24BITS_1;
 	pinfo->mipi.vc = 0;
@@ -505,9 +458,8 @@ static int hikey_probe(struct platform_device *pdev)
 	pinfo->vsync_ctrl_type = 0;
 	pinfo->dirty_region_updt_support = 0;
 	pinfo->dsi_bit_clk_upt_support = 0;
-	pinfo->mipi.non_continue_en = 0;
 
-	// alloc panel device data
+	/*alloc panel device data*/
 	ret = platform_device_add_data(pdev, &g_panel_data,
 		sizeof(struct hisi_fb_panel_data));
 	if (ret) {

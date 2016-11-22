@@ -3570,192 +3570,6 @@ void hisi_dss_post_clip_set_reg(struct hisi_fb_data_type *hisifd,
 	hisifd->set_reg(hisifd, post_clip_base + POST_CLIP_EN, s_post_clip->ctl_clip_en, 32, 0);
 }
 
-
-/*******************************************************************************
-** DSS CE
-*/
-static void hisi_dss_dpp_acm_gm_set_reg(struct hisi_fb_data_type *hisifd) {
-	struct hisi_panel_info *pinfo = NULL;
-	char __iomem *dpp_base = NULL;
-	char __iomem *lcp_base = NULL;
-	char __iomem *acm_base = NULL;
-	char __iomem *gamma_base = NULL;
-	char __iomem *gamma_lut_base = NULL;
-	char __iomem *acm_lut_base = NULL;
-	static uint8_t last_gamma_type=0;
-	static uint32_t gamma_config_flag = 0;
-	uint32_t index = 0;
-	uint32_t i = 0;
-
-	uint32_t *local_gamma_lut_table_R = NULL;
-	uint32_t *local_gamma_lut_table_G = NULL;
-	uint32_t *local_gamma_lut_table_B = NULL;
-
-	uint32_t *local_acm_lut_hue_table = NULL;
-	uint32_t *local_acm_lut_sata_table = NULL;
-	uint32_t *local_acm_lut_satr0_table = NULL;
-	uint32_t *local_acm_lut_satr1_table = NULL;
-	uint32_t *local_acm_lut_satr2_table = NULL;
-	uint32_t *local_acm_lut_satr3_table = NULL;
-	uint32_t *local_acm_lut_satr4_table = NULL;
-	uint32_t *local_acm_lut_satr5_table = NULL;
-	uint32_t *local_acm_lut_satr6_table = NULL;
-	uint32_t *local_acm_lut_satr7_table = NULL;
-
-	if (NULL == hisifd) {
-		HISI_FB_ERR("hisifd, NUll pointer warning.\n");
-		goto func_exit;
-	}
-
-	pinfo = &(hisifd->panel_info);
-
-	if (0 == pinfo->gamma_support || 0 == pinfo->acm_support) {
-		goto func_exit;
-	}
-
-	if (!HISI_DSS_SUPPORT_DPP_MODULE_BIT(DPP_MODULE_GAMA) || !HISI_DSS_SUPPORT_DPP_MODULE_BIT(DPP_MODULE_ACM)) {
-		HISI_FB_DEBUG("gamma or acm are not suppportted in this platform.\n");
-		goto func_exit;
-	}
-
-	if (PRIMARY_PANEL_IDX == hisifd->index) {
-		dpp_base = hisifd->dss_base + DSS_DPP_OFFSET;
-		lcp_base = hisifd->dss_base + DSS_DPP_LCP_OFFSET;
-		acm_base = hisifd->dss_base + DSS_DPP_ACM_OFFSET;
-		gamma_base = hisifd->dss_base + DSS_DPP_GAMA_OFFSET;
-		gamma_lut_base = hisifd->dss_base + DSS_DPP_GAMA_LUT_OFFSET;
-		acm_lut_base = hisifd->dss_base + DSS_DPP_ACM_LUT_OFFSET;
-	} else {
-		HISI_FB_ERR("fb%d, not support!\n", hisifd->index);
-		goto func_exit;
-	}
-
-	if (0 == gamma_config_flag) {
-		if (last_gamma_type != hisifd->panel_info.gamma_type) {
-			//disable acm
-			set_reg(acm_base + ACM_EN, 0x0, 1, 0);
-			//disable gamma
-			set_reg(gamma_base + GAMA_EN, 0x0, 1, 0);
-			//disable gmp
-			set_reg(lcp_base + LCP_GMP_BYPASS_EN, 0x1, 1, 0);
-			//disable xcc
-			set_reg(lcp_base + LCP_XCC_BYPASS_EN, 0x1, 1, 0);
-			gamma_config_flag = 1;
-			last_gamma_type = hisifd->panel_info.gamma_type;
-		}
-		goto func_exit;
-	}
-
-	if (1 == gamma_config_flag) {
-		if (1 == last_gamma_type) {
-			//set gamma cinema parameter
-			if (pinfo->cinema_gamma_lut_table_len > 0 && pinfo->cinema_gamma_lut_table_R
-				&& pinfo->cinema_gamma_lut_table_G && pinfo->cinema_gamma_lut_table_B) {
-					local_gamma_lut_table_R = pinfo->cinema_gamma_lut_table_R;
-					local_gamma_lut_table_G = pinfo->cinema_gamma_lut_table_G;
-					local_gamma_lut_table_B = pinfo->cinema_gamma_lut_table_B;
-			} else {
-				HISI_FB_ERR("can't get gamma cinema paramter from pinfo.\n");
-				goto func_exit;
-			}
-
-			//set acm cinema parameter
-			if (pinfo->acm_lut_hue_table_len > 0 && pinfo->cinema_acm_lut_hue_table
-				&& pinfo->acm_lut_sata_table_len > 0 && pinfo->cinema_acm_lut_sata_table
-				&& pinfo->acm_lut_satr0_table_len > 0 && pinfo->cinema_acm_lut_satr0_table
-				&& pinfo->acm_lut_satr1_table_len > 0 && pinfo->cinema_acm_lut_satr1_table
-				&& pinfo->acm_lut_satr2_table_len > 0 && pinfo->cinema_acm_lut_satr2_table
-				&& pinfo->acm_lut_satr3_table_len > 0 && pinfo->cinema_acm_lut_satr3_table
-				&& pinfo->acm_lut_satr4_table_len > 0 && pinfo->cinema_acm_lut_satr4_table
-				&& pinfo->acm_lut_satr5_table_len > 0 && pinfo->cinema_acm_lut_satr5_table
-				&& pinfo->acm_lut_satr7_table_len > 0 && pinfo->cinema_acm_lut_satr6_table
-				&& pinfo->acm_lut_satr6_table_len > 0 && pinfo->cinema_acm_lut_satr7_table) {
-				local_acm_lut_hue_table = pinfo->cinema_acm_lut_hue_table;
-				local_acm_lut_sata_table = pinfo->cinema_acm_lut_sata_table;
-				local_acm_lut_satr0_table = pinfo->cinema_acm_lut_satr0_table;
-				local_acm_lut_satr1_table = pinfo->cinema_acm_lut_satr1_table;
-				local_acm_lut_satr2_table = pinfo->cinema_acm_lut_satr2_table;
-				local_acm_lut_satr3_table = pinfo->cinema_acm_lut_satr3_table;
-				local_acm_lut_satr4_table = pinfo->cinema_acm_lut_satr4_table;
-				local_acm_lut_satr5_table = pinfo->cinema_acm_lut_satr5_table;
-				local_acm_lut_satr6_table = pinfo->cinema_acm_lut_satr6_table;
-				local_acm_lut_satr7_table = pinfo->cinema_acm_lut_satr7_table;
-			} else {
-				HISI_FB_ERR("can't get acm cinema paramter from pinfo.\n");
-				goto func_exit;
-			}
-		} else {
-			if (pinfo->gamma_lut_table_len > 0 && pinfo->gamma_lut_table_R
-				&& pinfo->gamma_lut_table_G && pinfo->gamma_lut_table_B) {
-				local_gamma_lut_table_R = pinfo->gamma_lut_table_R;
-				local_gamma_lut_table_G = pinfo->gamma_lut_table_G;
-				local_gamma_lut_table_B = pinfo->gamma_lut_table_B;
-			} else {
-				HISI_FB_ERR("can't get gamma normal parameter from pinfo.\n");
-				goto func_exit;
-			}
-
-			if (pinfo->acm_lut_hue_table_len > 0 && pinfo->acm_lut_hue_table
-				&& pinfo->acm_lut_sata_table_len > 0 && pinfo->acm_lut_sata_table
-				&& pinfo->acm_lut_satr0_table_len > 0 && pinfo->acm_lut_satr0_table
-				&& pinfo->acm_lut_satr1_table_len > 0 && pinfo->acm_lut_satr1_table
-				&& pinfo->acm_lut_satr2_table_len > 0 && pinfo->acm_lut_satr2_table
-				&& pinfo->acm_lut_satr3_table_len > 0 && pinfo->acm_lut_satr3_table
-				&& pinfo->acm_lut_satr4_table_len > 0 && pinfo->acm_lut_satr4_table
-				&& pinfo->acm_lut_satr5_table_len > 0 && pinfo->acm_lut_satr5_table
-				&& pinfo->acm_lut_satr6_table_len > 0 && pinfo->acm_lut_satr6_table
-				&& pinfo->acm_lut_satr7_table_len > 0 && pinfo->acm_lut_satr7_table) {
-				local_acm_lut_hue_table = pinfo->acm_lut_hue_table;
-				local_acm_lut_sata_table = pinfo->acm_lut_sata_table;
-				local_acm_lut_satr0_table = pinfo->acm_lut_satr0_table;
-				local_acm_lut_satr1_table = pinfo->acm_lut_satr1_table;
-				local_acm_lut_satr2_table = pinfo->acm_lut_satr2_table;
-				local_acm_lut_satr3_table = pinfo->acm_lut_satr3_table;
-				local_acm_lut_satr4_table = pinfo->acm_lut_satr4_table;
-				local_acm_lut_satr5_table = pinfo->acm_lut_satr5_table;
-				local_acm_lut_satr6_table = pinfo->acm_lut_satr6_table;
-				local_acm_lut_satr7_table = pinfo->acm_lut_satr7_table;
-			} else {
-				HISI_FB_ERR("can't get acm normal parameter from pinfo.\n");
-				goto func_exit;
-			}
-		}
-		//config regsiter use default or cinema parameter
-		for (index = 0; index < pinfo->gamma_lut_table_len / 2; index++) {
-			i = index << 1;
-			outp32(gamma_lut_base + (U_GAMA_R_COEF + index * 4), (local_gamma_lut_table_R[i] | (local_gamma_lut_table_R[i+1] << 16)));
-			outp32(gamma_lut_base + (U_GAMA_G_COEF + index * 4), (local_gamma_lut_table_G[i] | (local_gamma_lut_table_G[i+1] << 16)));
-			outp32(gamma_lut_base + (U_GAMA_B_COEF + index * 4), (local_gamma_lut_table_B[i] | (local_gamma_lut_table_B[i+1] << 16)));
-		}
-		outp32(gamma_lut_base + U_GAMA_R_LAST_COEF, local_gamma_lut_table_R[pinfo->gamma_lut_table_len - 1]);
-		outp32(gamma_lut_base + U_GAMA_G_LAST_COEF, local_gamma_lut_table_G[pinfo->gamma_lut_table_len - 1]);
-		outp32(gamma_lut_base + U_GAMA_B_LAST_COEF, local_gamma_lut_table_B[pinfo->gamma_lut_table_len - 1]);
-
-		acm_set_lut_hue(acm_lut_base + ACM_U_H_COEF, local_acm_lut_hue_table, pinfo->acm_lut_hue_table_len);
-		acm_set_lut(acm_lut_base + ACM_U_SATA_COEF, local_acm_lut_sata_table, pinfo->acm_lut_sata_table_len);
-		acm_set_lut(acm_lut_base + ACM_U_SATR0_COEF, local_acm_lut_satr0_table, pinfo->acm_lut_satr0_table_len);
-		acm_set_lut(acm_lut_base + ACM_U_SATR1_COEF, local_acm_lut_satr1_table, pinfo->acm_lut_satr1_table_len);
-		acm_set_lut(acm_lut_base + ACM_U_SATR2_COEF, local_acm_lut_satr2_table, pinfo->acm_lut_satr2_table_len);
-		acm_set_lut(acm_lut_base + ACM_U_SATR3_COEF, local_acm_lut_satr3_table, pinfo->acm_lut_satr3_table_len);
-		acm_set_lut(acm_lut_base + ACM_U_SATR4_COEF, local_acm_lut_satr4_table, pinfo->acm_lut_satr4_table_len);
-		acm_set_lut(acm_lut_base + ACM_U_SATR5_COEF, local_acm_lut_satr5_table, pinfo->acm_lut_satr5_table_len);
-		acm_set_lut(acm_lut_base + ACM_U_SATR6_COEF, local_acm_lut_satr6_table, pinfo->acm_lut_satr6_table_len);
-		acm_set_lut(acm_lut_base + ACM_U_SATR7_COEF, local_acm_lut_satr7_table, pinfo->acm_lut_satr7_table_len);
-	}
-	//enable gamma
-	set_reg(gamma_base + GAMA_EN, 0x0, 1, 0);
-	//enable gmp
-	set_reg(dpp_base + LCP_GMP_BYPASS_EN, 0x0, 1, 0);
-	//enable xcc
-	set_reg(lcp_base + LCP_XCC_BYPASS_EN, 0x0, 1, 0);
-
-	//enable acm
-	set_reg(acm_base + ACM_EN, 0x1, 1, 0);
-	gamma_config_flag = 0;
-func_exit:
-	return;
-}
-
 /*******************************************************************************
 ** DSS MCTL
 */
@@ -5820,12 +5634,6 @@ int hisi_dss_ov_module_set_regs(struct hisi_fb_data_type *hisifd, dss_overlay_t 
 		hisi_dss_mctl_sys_set_reg(hisifd, dss_module->mctl_sys_base, &(dss_module->mctl_sys), ovl_idx);
 	}
 
-	if (is_first_ov_block) {
-		/*
-		hisi_dss_dpp_acm_gm_set_reg(hisifd);
-		*/
-	}
-
 	return 0;
 
 err_return:
@@ -7259,7 +7067,7 @@ int hisi_overlay_init(struct hisi_fb_data_type *hisifd)
 
 	if (hisifd->index == PRIMARY_PANEL_IDX) {
 		hisifd->set_reg = hisi_cmdlist_set_reg;
-		hisifd->ov_online_play = hisi_super;//hisi_ov_online_play;
+		hisifd->ov_online_play = hisi_single_layer_ov_online_play;
 		hisifd->ov_wb_isr_handler = NULL;
 		hisifd->ov_vactive0_start_isr_handler = hisi_vactive0_start_isr_handler;
 
@@ -7267,7 +7075,7 @@ int hisi_overlay_init(struct hisi_fb_data_type *hisifd)
 
 	} else if (hisifd->index == EXTERNAL_PANEL_IDX) {
 		hisifd->set_reg = hisifb_set_reg;
-		hisifd->ov_online_play = hisi_super;//hisi_ov_online_play;
+		hisifd->ov_online_play = hisi_single_layer_ov_online_play;
 		hisifd->ov_wb_isr_handler = NULL;
 		hisifd->ov_vactive0_start_isr_handler = hisi_vactive0_start_isr_handler;
 

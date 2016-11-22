@@ -157,8 +157,8 @@ int dpe_regulator_enable(struct hisi_fb_data_type *hisifd)
 
 	down(&hisi_fb_dss_regulator_sem);
 
-	/*
-	ret = regulator_bulk_enable(1, hisifd->dpe_regulator);
+	/*DSS regulator are already enabled in fastboot, kernel don't care*/
+	/*ret = regulator_bulk_enable(1, hisifd->dpe_regulator);
 	if (ret) {
 		HISI_FB_ERR("fb%d dpe regulator_enable failed, error=%d!\n", hisifd->index, ret);
 		goto regulator_sem;
@@ -180,7 +180,6 @@ int dpe_regulator_enable(struct hisi_fb_data_type *hisifd)
 	#endif
 	}
 
-regulator_sem:
 	up(&hisi_fb_dss_regulator_sem);
 
 	return ret;
@@ -194,8 +193,8 @@ int dpe_regulator_disable(struct hisi_fb_data_type *hisifd)
 
 	down(&hisi_fb_dss_regulator_sem);
 
-	/*
-	ret = regulator_bulk_disable(1, hisifd->dpe_regulator);
+	/*this android version not support low power mode , kernel don't care regulator disabled*/
+	/*ret = regulator_bulk_disable(1, hisifd->dpe_regulator);
 	if (ret != 0) {
 		HISI_FB_ERR("fb%d dpe regulator_disable failed, error=%d!\n", hisifd->index, ret);
 		goto regulator_sem;
@@ -221,7 +220,7 @@ int dpe_regulator_disable(struct hisi_fb_data_type *hisifd)
 	}
 	*/
 
-regulator_sem:
+	dss_regulator_refcount--;
 	up(&hisi_fb_dss_regulator_sem);
 
 	return ret;
@@ -1728,7 +1727,6 @@ static ssize_t dpe_alpm_setting_store(struct platform_device *pdev,
 {
 	struct hisi_fb_data_type *hisifd = NULL;
 	struct hisi_panel_info *pinfo = NULL;
-	unsigned int val = 0;
 
 	if (NULL == pdev) {
 		HISI_FB_ERR("NULL Pointer!\n");
@@ -1900,99 +1898,44 @@ static int dpe_regulator_clk_irq_setup(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-#ifdef CONFIG_DSS_MMBUF_CLK_USED
-	//hisifd->dss_mmbuf_clk = devm_clk_get(&pdev->dev, hisifd->dss_mmbuf_clk_name);
-	//if (IS_ERR(hisifd->dss_mmbuf_clk)) {
-	//	ret = PTR_ERR(hisifd->dss_mmbuf_clk);
-	//	HISI_FB_ERR("dss_mmbuf_clk error, ret = %d", ret);
-	//	return ret;
-	//}
+	HISI_FB_INFO("dss_pclk_dss_clk:[%llu]->[%llu].\n",
+		pdss_clk_rate->dss_pclk_dss_rate, (uint64_t)clk_get_rate(hisifd->dss_pclk_dss_clk));
 
-	//hisifd->dss_pclk_mmbuf_clk = devm_clk_get(&pdev->dev, hisifd->dss_pclk_mmbuf_name);
-	//if (IS_ERR(hisifd->dss_pclk_mmbuf_clk)) {
-	//	ret = PTR_ERR(hisifd->dss_pclk_mmbuf_clk);
-	//	HISI_FB_ERR("dss_pclk_mmbuf_clk error, ret = %d", ret);
-	//	return ret;
-	//}
-#endif
-
-	//hisifd->dss_axi_clk = devm_clk_get(&pdev->dev, hisifd->dss_axi_clk_name);
-	//if (IS_ERR(hisifd->dss_axi_clk)) {
-	//	ret = PTR_ERR(hisifd->dss_axi_clk);
-	//	HISI_FB_ERR("dss_axi_clk error, ret = %d", ret);
-	//	return ret;
-	//}
-
-	//hisifd->dss_pclk_dss_clk = devm_clk_get(&pdev->dev, hisifd->dss_pclk_dss_name);
-	//if (IS_ERR(hisifd->dss_pclk_dss_clk)) {
-	//	ret = PTR_ERR(hisifd->dss_pclk_dss_clk);
-	//	HISI_FB_ERR("dss_pclk_dss_clk error, ret = %d", ret);
-	//	return ret;
-	//} else {
-		HISI_FB_INFO("dss_pclk_dss_clk:[%llu]->[%llu].\n",
-			pdss_clk_rate->dss_pclk_dss_rate, (uint64_t)clk_get_rate(hisifd->dss_pclk_dss_clk));
-	//}
-
-	//hisifd->dss_pri_clk = devm_clk_get(&pdev->dev, hisifd->dss_pri_clk_name);
-	//if (IS_ERR(hisifd->dss_pri_clk)) {
-	//	ret = PTR_ERR(hisifd->dss_pri_clk);
-	//	HISI_FB_ERR("dss_pri_clk error, ret = %d", ret);
-	//	return ret;
-	//} else {
-		ret = clk_set_rate(hisifd->dss_pri_clk, pdss_clk_rate->dss_pri_clk_rate);
-		if (ret < 0) {
-			HISI_FB_ERR("fb%d dss_pri_clk clk_set_rate(%llu) failed, error=%d!\n",
-				hisifd->index, pdss_clk_rate->dss_pri_clk_rate, ret);
-			return -EINVAL;
-		}
-
-		HISI_FB_INFO("dss_pri_clk:[%llu]->[%llu].\n",
+	ret = clk_set_rate(hisifd->dss_pri_clk, pdss_clk_rate->dss_pri_clk_rate);
+	if (ret < 0) {
+		HISI_FB_ERR("fb%d dss_pri_clk clk_set_rate(%llu) failed, error=%d!\n",
+			hisifd->index, pdss_clk_rate->dss_pri_clk_rate, ret);
+		return -EINVAL;
+	}
+	HISI_FB_INFO("dss_pri_clk:[%llu]->[%llu].\n",
 			pdss_clk_rate->dss_pri_clk_rate, (uint64_t)clk_get_rate(hisifd->dss_pri_clk));
-	//}
 
 	if (hisifd->index == PRIMARY_PANEL_IDX) {
-		//hisifd->dss_pxl0_clk = devm_clk_get(&pdev->dev, hisifd->dss_pxl0_clk_name);
-		//if (IS_ERR(hisifd->dss_pxl0_clk)) {
-		//	ret = PTR_ERR(hisifd->dss_pxl0_clk);
-		//	HISI_FB_ERR("dss_pxl0_clk error, ret = %d", ret);
-		//	return ret;
-		//} else {
-			pxl_clk_rate = (pinfo->pxl_clk_rate > DSS_MAX_PXL0_CLK_288M) ? DSS_MAX_PXL0_CLK_288M : pinfo->pxl_clk_rate;
-			if (pinfo->pxl_clk_rate_adjust > 0) {
-				ret = clk_set_rate(hisifd->dss_pxl0_clk, pinfo->pxl_clk_rate_adjust);
-			} else {
-				ret = clk_set_rate(hisifd->dss_pxl0_clk, pxl_clk_rate);
-			}
+		pxl_clk_rate = (pinfo->pxl_clk_rate > DSS_MAX_PXL0_CLK_288M) ? DSS_MAX_PXL0_CLK_288M : pinfo->pxl_clk_rate;
+		if (pinfo->pxl_clk_rate_adjust > 0) {
+			ret = clk_set_rate(hisifd->dss_pxl0_clk, pinfo->pxl_clk_rate_adjust);
+		} else {
+			ret = clk_set_rate(hisifd->dss_pxl0_clk, pxl_clk_rate);
+		}
 
-			if (ret < 0) {
-				HISI_FB_ERR("fb%d dss_pxl0_clk clk_set_rate(%llu) failed, error=%d!\n",
-					hisifd->index, pinfo->pxl_clk_rate, ret);
-				if (g_fpga_flag == 0)
-					return -EINVAL;
-			}
-
-			HISI_FB_INFO("dss_pxl0_clk:[%llu]->[%llu].\n",
+		if (ret < 0) {
+			HISI_FB_ERR("fb%d dss_pxl0_clk clk_set_rate(%llu) failed, error=%d!\n",
+				hisifd->index, pinfo->pxl_clk_rate, ret);
+			if (g_fpga_flag == 0)
+				return -EINVAL;
+		}
+		HISI_FB_INFO("dss_pxl0_clk:[%llu]->[%llu].\n",
 				pinfo->pxl_clk_rate, (uint64_t)clk_get_rate(hisifd->dss_pxl0_clk));
-		//}
 	} else if ((hisifd->index == EXTERNAL_PANEL_IDX) && !hisifd->panel_info.fake_hdmi) {
-		//hisifd->dss_pxl1_clk = devm_clk_get(&pdev->dev, hisifd->dss_pxl1_clk_name);
-		//if (IS_ERR(hisifd->dss_pxl1_clk)) {
-		//	ret = PTR_ERR(hisifd->dss_pxl1_clk);
-		//	HISI_FB_ERR("dss_pxl1_clk error, ret = %d, hisifd->dss_pxl1_clk_name=%s, hisifd->panel_info.fake_hdmi=%d", ret, hisifd->dss_pxl1_clk_name, hisifd->panel_info.fake_hdmi);
-		//	return ret;
-		//} else {
-			ret = clk_set_rate(hisifd->dss_pxl1_clk, pinfo->pxl_clk_rate);
-			if (ret < 0) {
-				HISI_FB_ERR("fb%d dss_pxl1_clk clk_set_rate(%llu) failed, error=%d!\n",
-					hisifd->index, pinfo->pxl_clk_rate, ret);
-
-				if (g_fpga_flag == 0)
+		ret = clk_set_rate(hisifd->dss_pxl1_clk, pinfo->pxl_clk_rate);
+		if (ret < 0) {
+			HISI_FB_ERR("fb%d dss_pxl1_clk clk_set_rate(%llu) failed, error=%d!\n",
+				hisifd->index, pinfo->pxl_clk_rate, ret);
+			if (g_fpga_flag == 0)
 					return -EINVAL;
-			}
-
-			HISI_FB_INFO("dss_pxl1_clk:[%llu]->[%llu].\n",
-				pinfo->pxl_clk_rate, (uint64_t)clk_get_rate(hisifd->dss_pxl1_clk));
-		//}
+		}
+		HISI_FB_INFO("dss_pxl1_clk:[%llu]->[%llu].\n",
+			pinfo->pxl_clk_rate, (uint64_t)clk_get_rate(hisifd->dss_pxl1_clk));
 	} else {
 		;
 	}
@@ -2001,10 +1944,8 @@ static int dpe_regulator_clk_irq_setup(struct platform_device *pdev)
 		ret = request_irq(hisifd->dpe_irq, isr_fnc, 0, irq_name, (void *)hisifd);
 		if (ret != 0) {
 			HISI_FB_ERR("fb%d request_irq failed, irq_no=%d error=%d!\n", hisifd->index, hisifd->dpe_irq, ret);
-			printk(KERN_ERR "super-shi wwwwwwwwwwwwwwwww request_irq dpe_irq failed\n");
 			return ret;
 		} else {
-			printk(KERN_ERR "super-shi wwwwwwwwwwwwwwwww request_irq dpe_irq success\n");
 			disable_irq(hisifd->dpe_irq);
 		}
 	}
@@ -2018,8 +1959,6 @@ static int dpe_regulator_clk_irq_setup(struct platform_device *pdev)
 			} else {
 				disable_irq(hisifd->mmbuf_asc0_irq);
 			}
-		}else{
-			printk(KERN_ERR "super-shi mmbuf_asc0_irq is null\n");
 		}
 	}
 

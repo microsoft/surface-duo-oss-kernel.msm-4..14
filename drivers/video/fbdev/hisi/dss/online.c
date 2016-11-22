@@ -82,7 +82,7 @@ int hisi_overlay_pan_display(struct hisi_fb_data_type *hisifd)
 	int enable_cmdlist = 0;
 	bool has_base = false;
 
-	printk(KERN_ERR "super-shi aaaaaaaaaaaaa hisi_overlay_pan_display\n");
+	HISI_FB_DEBUG("hisi_overlay_pan_display\n");
 
 	if (NULL == hisifd) {
 		HISI_FB_ERR("hisi fd is invalid\n");
@@ -337,7 +337,7 @@ err_return:
 	return ret;
 }
 
-int hisi_super(struct hisi_fb_data_type *hisifd, void __user *argp)
+int hisi_single_layer_ov_online_play(struct hisi_fb_data_type *hisifd, void __user *argp)
 {
 	static int dss_free_buffer_refcount = 0;
 	dss_overlay_t *pov_req = NULL;
@@ -365,8 +365,6 @@ int hisi_super(struct hisi_fb_data_type *hisifd, void __user *argp)
 	struct timeval tv1;
 	struct timeval tv2;
 	struct timeval tv3;
-
-	printk(KERN_ERR "super-shi hisi_super1 111111222111111 start\n");
 	
 	if (NULL == hisifd) {
 		HISI_FB_ERR("NULL Pointer!\n");
@@ -651,7 +649,6 @@ int hisi_super(struct hisi_fb_data_type *hisifd, void __user *argp)
 	}
 	up(&hisifd->blank_sem0);
 
-	printk(KERN_ERR "super-shi hisi_super end\n");
 	return 0;
 
 err_return:
@@ -666,7 +663,7 @@ err_return:
 	return ret;
 }
 
-int hisi_ov_online_play1(struct hisi_fb_data_type *hisifd, void __user *argp)
+int hisi_ov_online_play(struct hisi_fb_data_type *hisifd, void __user *argp)
 {
 	static int dss_free_buffer_refcount = 0;
 	dss_overlay_t *pov_req = NULL;

@@ -68,39 +68,26 @@ static uint32_t hisifd_irq_dsi0;
 static uint32_t hisifd_irq_dsi1;
 static uint32_t hisifd_irq_mmbuf_asc0;
 
+/*DSS regulators are already enabled in fastboot, so kernel don't care*/
 /*
 #define MAX_DPE_NUM	(2)
 static struct regulator_bulk_data g_dpe_regulator[MAX_DPE_NUM] =
 	{{0}, {0}};
 */
 
-static const char *g_dss_axi_clk_name;
-static const char *g_dss_pclk_dss_name;
-static const char *g_dss_pri_clk_name;
-static const char *g_dss_pxl0_clk_name;
-static const char *g_dss_pxl1_clk_name;
-static const char *g_dss_mmbuf_clk_name;
-static const char *g_dss_pclk_mmbuf_clk_name;
-static const char *g_dss_dphy0_ref_clk_name;
-static const char *g_dss_dphy1_ref_clk_name;
-static const char *g_dss_dphy0_cfg_clk_name;
-static const char *g_dss_dphy1_cfg_clk_name;
-static const char *g_dss_pclk_dsi0_name;
-static const char *g_dss_pclk_dsi1_name;
-static const char *g_dss_pclk_pctrl_name;
-static const struct clk* dss_aclk_dss;
-static const struct clk* dss_pclk_dss;
-static const struct clk* dss_clk_edc0;
-static const struct clk* dss_clk_ldi0;
-static const struct clk* dss_clk_ldi1;
-static const struct clk* dss_clk_dss_axi_mm;
-static const struct clk* dss_pclk_mmbuf;
-static const struct clk* dss_clk_txdphy0_ref;
-static const struct clk* dss_clk_txdphy1_ref;
-static const struct clk* dss_clk_txdphy0_cfg;
-static const struct clk* dss_clk_txdphy1_cfg;
-static const struct clk* dss_pclk_dsi0;
-static const struct clk* dss_pclk_dsi1;
+static struct clk* dss_aclk_dss;
+static struct clk* dss_pclk_dss;
+static struct clk* dss_clk_edc0;
+static struct clk* dss_clk_ldi0;
+static struct clk* dss_clk_ldi1;
+static struct clk* dss_clk_dss_axi_mm;
+static struct clk* dss_pclk_mmbuf;
+static struct clk* dss_clk_txdphy0_ref;
+static struct clk* dss_clk_txdphy1_ref;
+static struct clk* dss_clk_txdphy0_cfg;
+static struct clk* dss_clk_txdphy1_cfg;
+static struct clk* dss_pclk_dsi0;
+static struct clk* dss_pclk_dsi1;
 
 
 int g_primary_lcd_xres = 0;
@@ -375,25 +362,7 @@ struct platform_device *hisi_fb_add_device(struct platform_device *pdev)
 #endif
 	hisifd->mipi_dsi0_base = hisifd->dss_base + DSS_MIPI_DSI0_OFFSET;
 	hisifd->mipi_dsi1_base = hisifd->dss_base + DSS_MIPI_DSI1_OFFSET;
-
 	hisifd->dss_base_phy = g_dss_base_phy;
-
-	/*
-	hisifd->dss_axi_clk_name = g_dss_axi_clk_name;
-	hisifd->dss_pclk_dss_name = g_dss_pclk_dss_name;
-	hisifd->dss_pri_clk_name = g_dss_pri_clk_name;
-	hisifd->dss_pxl0_clk_name = g_dss_pxl0_clk_name;
-	hisifd->dss_pxl1_clk_name = g_dss_pxl1_clk_name;
-	hisifd->dss_mmbuf_clk_name = g_dss_mmbuf_clk_name;
-	hisifd->dss_pclk_mmbuf_name = g_dss_pclk_mmbuf_clk_name;
-	hisifd->dss_dphy0_ref_clk_name = g_dss_dphy0_ref_clk_name;
-	hisifd->dss_dphy1_ref_clk_name = g_dss_dphy1_ref_clk_name;
-	hisifd->dss_dphy0_cfg_clk_name = g_dss_dphy0_cfg_clk_name;
-	hisifd->dss_dphy1_cfg_clk_name = g_dss_dphy1_cfg_clk_name;
-	hisifd->dss_pclk_dsi0_name = g_dss_pclk_dsi0_name;
-	hisifd->dss_pclk_dsi1_name = g_dss_pclk_dsi1_name;
-	hisifd->dss_pclk_pctrl_name = g_dss_pclk_pctrl_name;
-	*/
 
 	hisifd->dss_axi_clk = dss_aclk_dss;
         hisifd->dss_pclk_dss_clk = dss_pclk_dss;
@@ -415,18 +384,24 @@ struct platform_device *hisi_fb_add_device(struct platform_device *pdev)
 	if (hisifd->index == PRIMARY_PANEL_IDX) {
 		hisifd->fb_num = HISI_FB0_NUM;
 		hisifd->dpe_irq = hisifd_irq_pdp;
-		//hisifd->dpe_regulator = &(g_dpe_regulator[0]);
-		//hisifd->mmbuf_regulator = &(g_dpe_regulator[1]);
+		/*DSS regulators are already enabled in fastboot ,kernel don't care*/
+		/*hisifd->dpe_regulator = &(g_dpe_regulator[0]);
+		hisifd->mmbuf_regulator = &(g_dpe_regulator[1]);
+		*/
 	} else if (hisifd->index == EXTERNAL_PANEL_IDX) {
 		hisifd->fb_num = HISI_FB1_NUM;
 		hisifd->dpe_irq = hisifd_irq_sdp;
-		//hisifd->dpe_regulator = &(g_dpe_regulator[0]);
-		//hisifd->mmbuf_regulator = &(g_dpe_regulator[1]);
+		/*DSS regulators are already enabled in fastboot ,kernel don't care*/
+		/*hisifd->dpe_regulator = &(g_dpe_regulator[0]);
+		hisifd->mmbuf_regulator = &(g_dpe_regulator[1]);
+		*/
 	} else if (hisifd->index == AUXILIARY_PANEL_IDX) {
 		hisifd->fb_num = HISI_FB2_NUM;
 		hisifd->dpe_irq = hisifd_irq_adp;
-		//hisifd->dpe_regulator = &(g_dpe_regulator[0]);
-		//hisifd->mmbuf_regulator = &(g_dpe_regulator[1]);
+		/*DSS regulators are already enabled in fastboot ,kernel don't care*/
+		/*hisifd->dpe_regulator = &(g_dpe_regulator[0]);
+		hisifd->mmbuf_regulator = &(g_dpe_regulator[1]);
+		*/
 	} else {
 		HISI_FB_ERR("fb%d not support now!\n", hisifd->index);
 		platform_device_put(this_dev);
@@ -1986,31 +1961,83 @@ static int hisi_fb_probe(struct platform_device *pdev)
 		}
 
 		dss_aclk_dss = devm_clk_get(&pdev->dev, "aclk_dss");
-		printk(KERN_ERR "dev->clk=0x%x\n\n", dss_aclk_dss);
+		if (IS_ERR(dss_aclk_dss)) {
+			ret = PTR_ERR(dss_aclk_dss);
+			HISI_FB_ERR("dss_aclk_dss error, ret = %d", ret);
+			return ret;
+		}
 		dss_pclk_dss = devm_clk_get(&pdev->dev, "pclk_dss");
-		printk(KERN_ERR	"dev->clk=0x%x\n\n", dss_pclk_dss);
+		if (IS_ERR(dss_pclk_dss)) {
+			ret = PTR_ERR(dss_pclk_dss);
+			HISI_FB_ERR("dss_pclk_dss error, ret = %d", ret);
+			return ret;
+		}
 		dss_clk_edc0 = devm_clk_get(&pdev->dev, "clk_edc0");
-		printk(KERN_ERR "dev->clk=0x%x\n\n", dss_clk_edc0);
+		if (IS_ERR(dss_clk_edc0)) {
+			ret = PTR_ERR(dss_clk_edc0);
+			HISI_FB_ERR("dss_clk_edc0 error, ret = %d", ret);
+			return ret;
+		}
 		dss_clk_ldi0 = devm_clk_get(&pdev->dev, "clk_ldi0");
-		printk(KERN_ERR "dev->clk=0x%x\n\n", dss_clk_ldi0);
+		if (IS_ERR(dss_clk_ldi0)) {
+			ret = PTR_ERR(dss_clk_ldi0);
+			HISI_FB_ERR("dss_clk_ldi0 error, ret = %d", ret);
+			return ret;
+		}
 		dss_clk_ldi1 = devm_clk_get(&pdev->dev, "clk_ldi1");
-		printk(KERN_ERR "dev->clk=0x%x\n\n", dss_clk_ldi1);
+		if (IS_ERR(dss_clk_ldi1)) {
+			ret = PTR_ERR(dss_clk_ldi1);
+			HISI_FB_ERR("dss_clk_ldi1 error, ret = %d", ret);
+			return ret;
+		}
 		dss_clk_dss_axi_mm = devm_clk_get(&pdev->dev, "clk_dss_axi_mm");
-		printk(KERN_ERR "dev->clk=0x%x\n\n", dss_clk_dss_axi_mm);
+		if (IS_ERR(dss_clk_dss_axi_mm)) {
+			ret = PTR_ERR(dss_clk_dss_axi_mm);
+			HISI_FB_ERR("dss_clk_dss_axi_mm error, ret = %d", ret);
+			return ret;
+		}
 		dss_pclk_mmbuf = devm_clk_get(&pdev->dev, "pclk_mmbuf");
-		printk(KERN_ERR "dev->clk=0x%x\n\n", dss_pclk_mmbuf);
+		if (IS_ERR(dss_pclk_mmbuf)) {
+			ret = PTR_ERR(dss_pclk_mmbuf);
+			HISI_FB_ERR("dss_pclk_mmbuf error, ret = %d", ret);
+			return ret;
+		}
 		dss_clk_txdphy0_ref = devm_clk_get(&pdev->dev, "clk_txdphy0_ref");
-		printk(KERN_ERR "dev->clk=0x%x\n\n", dss_clk_txdphy0_ref);
+		if (IS_ERR(dss_clk_txdphy0_ref)) {
+			ret = PTR_ERR(dss_clk_txdphy0_ref);
+			HISI_FB_ERR("dss_clk_txdphy0_ref error, ret = %d", ret);
+			return ret;
+		}
 		dss_clk_txdphy1_ref = devm_clk_get(&pdev->dev, "clk_txdphy1_ref");
-		printk(KERN_ERR "dev->clk=0x%x\n\n", dss_clk_txdphy1_ref);
+		if (IS_ERR(dss_clk_txdphy1_ref)) {
+			ret = PTR_ERR(dss_clk_txdphy1_ref);
+			HISI_FB_ERR("dss_clk_txdphy1_ref error, ret = %d", ret);
+			return ret;
+		}
 		dss_clk_txdphy0_cfg = devm_clk_get(&pdev->dev, "clk_txdphy0_cfg");
-		printk(KERN_ERR "dev->clk=0x%x\n\n", dss_clk_txdphy0_cfg);
+		if (IS_ERR(dss_clk_txdphy0_cfg)) {
+			ret = PTR_ERR(dss_clk_txdphy0_cfg);
+			HISI_FB_ERR("dss_clk_txdphy0_cfg error, ret = %d", ret);
+			return ret;
+		}
 		dss_clk_txdphy1_cfg = devm_clk_get(&pdev->dev, "clk_txdphy1_cfg");
-		printk(KERN_ERR "dev->clk=0x%x\n\n", dss_clk_txdphy1_cfg);
+		if (IS_ERR(dss_clk_txdphy1_cfg)) {
+			ret = PTR_ERR(dss_clk_txdphy1_cfg);
+			HISI_FB_ERR("dss_clk_txdphy1_cfg error, ret = %d", ret);
+			return ret;
+		}
 		dss_pclk_dsi0 = devm_clk_get(&pdev->dev, "pclk_dsi0");
-		printk(KERN_ERR "dev->clk=0x%x\n\n", dss_pclk_dsi0);
+		if (IS_ERR(dss_pclk_dsi0)) {
+			ret = PTR_ERR(dss_pclk_dsi0);
+			HISI_FB_ERR("dss_pclk_dsi0 error, ret = %d", ret);
+			return ret;
+		}
 		dss_pclk_dsi1 = devm_clk_get(&pdev->dev, "pclk_dsi1");
-		printk(KERN_ERR "dev->clk=0x%x\n\n", dss_pclk_dsi1);
+		if (IS_ERR(dss_pclk_dsi1)) {
+			ret = PTR_ERR(dss_pclk_dsi1);
+			HISI_FB_ERR("dss_pclk_dsi1 error, ret = %d", ret);
+			return ret;
+		}
 
 		ret = of_property_read_u32(np, "fpga_flag", &g_fpga_flag);
 		if (ret) {
@@ -2043,35 +2070,30 @@ static int hisi_fb_probe(struct platform_device *pdev)
 
 		/* get irq no */
 		hisifd_irq_pdp = irq_of_parse_and_map(np, 0);
-		printk(KERN_ERR "super-shi hisifb -> 245 hisifd_irq_pdp = %u\n", hisifd_irq_pdp);
 		if (!hisifd_irq_pdp) {
 			HISI_FB_ERR("failed to get hisifd_irq_pdp resource.\n");
 			return -ENXIO;
 		}
 
 		hisifd_irq_sdp = irq_of_parse_and_map(np, 1);
-		printk(KERN_ERR "super-shi hisifb -> 246 hisifd_irq_sdp = %u\n", hisifd_irq_sdp);
 		if (!hisifd_irq_sdp) {
 			HISI_FB_ERR("failed to get hisifd_irq_sdp resource.\n");
 			return -ENXIO;
 		}
 
 		hisifd_irq_adp = irq_of_parse_and_map(np, 2);
-		printk(KERN_ERR "super-shi hisifb -> 247 hisifd_irq_adp = %u\n", hisifd_irq_adp);
 		if (!hisifd_irq_sdp) {
 			HISI_FB_ERR("failed to get hisifd_irq_sdp resource.\n");
 			return -ENXIO;
 		}
 
 		hisifd_irq_dsi0 = irq_of_parse_and_map(np, 3);
-		printk(KERN_ERR "super-shi hisifb -> 251 hisifd_irq_dsi0 = %u\n", hisifd_irq_dsi0);
 		if (!hisifd_irq_dsi0) {
 			HISI_FB_ERR("failed to get hisifd_irq_dsi0 resource.\n");
 			return -ENXIO;
 		}
 
 		hisifd_irq_dsi1 = irq_of_parse_and_map(np, 4);
-		printk(KERN_ERR "super-shi hisifb -> 252 hisifd_irq_dsi0 = %u\n", hisifd_irq_dsi1);
 		if (!hisifd_irq_dsi1) {
 			HISI_FB_ERR("failed to get hisifd_irq_dsi1 resource.\n");
 			return -ENXIO;
@@ -2120,7 +2142,7 @@ static int hisi_fb_probe(struct platform_device *pdev)
 			return -ENXIO;
 		}
 
-		/* get regulator resource */
+		/* get regulator resource, DSS regulator is already enabled in fastboot, so kernel dont care*/
 		/*
 		g_dpe_regulator[0].supply = REGULATOR_PDP_NAME;
 		g_dpe_regulator[1].supply = REGULATOR_MMBUF;
@@ -2128,84 +2150,6 @@ static int hisi_fb_probe(struct platform_device *pdev)
 			ARRAY_SIZE(g_dpe_regulator), g_dpe_regulator);
 		if (ret) {
 			HISI_FB_ERR("failed to get regulator resource! ret=%d.\n", ret);
-			return -ENXIO;
-		}
-		*/
-
-		/* get dss clk resource */
-		/*
-		ret = of_property_read_string_index(np, "clock-names", 0, &g_dss_axi_clk_name);
-		if (ret != 0) {
-			HISI_FB_ERR("failed to get axi_clk resource! ret=%d.\n", ret);
-			return -ENXIO;
-		}
-		ret = of_property_read_string_index(np, "clock-names", 1, &g_dss_pclk_dss_name);
-		if (ret != 0) {
-			HISI_FB_ERR("failed to get pclk_clk resource! ret=%d.\n", ret);
-			return -ENXIO;
-		}
-		ret = of_property_read_string_index(np, "clock-names", 2, &g_dss_pri_clk_name);
-		if (ret != 0) {
-			HISI_FB_ERR("failed to get pri_clk resource! ret=%d.\n", ret);
-			return -ENXIO;
-		}
-		ret = of_property_read_string_index(np, "clock-names", 3, &g_dss_pxl0_clk_name);
-		if (ret != 0) {
-			HISI_FB_ERR("failed to get pxl0_clk resource! ret=%d.\n", ret);
-			return -ENXIO;
-		}
-		ret = of_property_read_string_index(np, "clock-names", 4, &g_dss_pxl1_clk_name);
-		if (ret != 0) {
-			HISI_FB_ERR("failed to get pxl1_clk resource! ret=%d.\n", ret);
-			return -ENXIO;
-		}
-
-		ret = of_property_read_string_index(np, "clock-names", 5, &g_dss_mmbuf_clk_name);
-		if (ret != 0) {
-			HISI_FB_ERR("failed to get mmbuf_clk resource! ret=%d.\n", ret);
-			return -ENXIO;
-		}
-		ret = of_property_read_string_index(np, "clock-names", 6, &g_dss_pclk_mmbuf_clk_name);
-		if (ret != 0) {
-			HISI_FB_ERR("failed to get pclk_mmbuf_clk resource! ret=%d.\n", ret);
-			return -ENXIO;
-		}
-
-		ret = of_property_read_string_index(np, "clock-names", 7, &g_dss_dphy0_ref_clk_name);
-		if (ret != 0) {
-			HISI_FB_ERR("failed to get dphy0_ref_clk resource! ret=%d.\n", ret);
-			return -ENXIO;
-		}
-		ret = of_property_read_string_index(np, "clock-names", 8, &g_dss_dphy1_ref_clk_name);
-		if (ret != 0) {
-			HISI_FB_ERR("failed to get dphy1_ref_clk resource! ret=%d.\n", ret);
-			return -ENXIO;
-		}
-		ret = of_property_read_string_index(np, "clock-names", 9, &g_dss_dphy0_cfg_clk_name);
-		if (ret != 0) {
-			HISI_FB_ERR("failed to get dphy0_cfg_clk resource! ret=%d.\n", ret);
-			return -ENXIO;
-		}
-		ret = of_property_read_string_index(np, "clock-names", 10, &g_dss_dphy1_cfg_clk_name);
-		if (ret != 0) {
-			HISI_FB_ERR("failed to get dphy1_cfg_clk resource! ret=%d.\n", ret);
-			return -ENXIO;
-		}
-		ret = of_property_read_string_index(np, "clock-names", 11, &g_dss_pclk_dsi0_name);
-		if (ret != 0) {
-			HISI_FB_ERR("failed to get dss_pclk_dsi0 resource! ret=%d.\n", ret);
-			return -ENXIO;
-		}
-		ret = of_property_read_string_index(np, "clock-names", 12, &g_dss_pclk_dsi1_name);
-		if (ret != 0) {
-			HISI_FB_ERR("failed to get dss_pclk_dsi1 resource! ret=%d.\n", ret);
-			return -ENXIO;
-		}
-		*/
-		/*
-		ret = of_property_read_string_index(np, "clock-names", 13, &g_dss_pclk_pctrl_name);
-		if (ret != 0) {
-			HISI_FB_ERR("failed to get dss_pclk_pctrl resource! ret=%d.\n", ret);
 			return -ENXIO;
 		}
 		*/

@@ -1862,7 +1862,6 @@ void init_igm_gmp_xcc_gm(struct hisi_fb_data_type *hisifd)
 	char __iomem *gamma_lut_base = NULL;
 	uint32_t i = 0, j = 0, k = 0;
 	uint32_t pos0 = 0, pos1 = 0;
-	uint32_t index = 0;
 	uint32_t color_temp_rectify_R = 32768, color_temp_rectify_G = 32768, color_temp_rectify_B = 32768;
 	if (hisifd == NULL)	{
 		HISI_FB_ERR("init_degmma_xcc_gmp hisifd is NULL!\n");

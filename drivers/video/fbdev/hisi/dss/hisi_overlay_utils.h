@@ -97,8 +97,8 @@ void hisi_dss_smmu_ov_set_reg(struct hisi_fb_data_type *hisifd,
 int hisi_dss_scl_coef_on(struct hisi_fb_data_type *hisifd, bool enable_cmdlist, int coef_lut_idx);
 
 int hisi_overlay_pan_display(struct hisi_fb_data_type *hisifd);
-int hisi_super(struct hisi_fb_data_type *hisifd, void __user *argp);
-int hisi_ov_online_play1(struct hisi_fb_data_type *hisifd, void __user *argp);
+int hisi_single_layer_ov_online_play(struct hisi_fb_data_type *hisifd, void __user *argp);
+int hisi_ov_online_play(struct hisi_fb_data_type *hisifd, void __user *argp);
 int hisi_overlay_ioctl_handler(struct hisi_fb_data_type *hisifd,
 	uint32_t cmd, void __user *argp);
 

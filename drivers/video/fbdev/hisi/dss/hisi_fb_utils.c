@@ -4023,10 +4023,8 @@ err_out:
 static ssize_t hisifb_gamma_dynamic_store(struct device *dev,
 	struct device_attribute *attr, const char *buf, size_t count)
 {
-	ssize_t ret = 0;
 	struct fb_info *fbi = NULL;
 	struct hisi_fb_data_type *hisifd = NULL;
-	struct hisi_fb_panel_data *pdata = NULL;
 
 	if (NULL == dev) {
 		HISI_FB_ERR("NULL Pointer!\n");
@@ -4093,7 +4091,7 @@ static ssize_t hisi_alpm_function_store(struct device *dev,
 
 	ret = sscanf(buf, "%u", &hisifd->aod_function);
 	if (!ret) {
-		HISI_FB_ERR("sscanf return invaild:%d\n", ret);
+		HISI_FB_ERR("sscanf return invaild\n");
 		return -1;
 	}
 

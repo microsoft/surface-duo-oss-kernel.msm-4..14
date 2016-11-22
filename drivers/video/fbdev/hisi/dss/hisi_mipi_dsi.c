@@ -2831,109 +2831,58 @@ static int mipi_dsi_clk_irq_setup(struct platform_device *pdev)
 	BUG_ON(hisifd == NULL);
 
 	if (hisifd->index == PRIMARY_PANEL_IDX) {
-		//hisifd->dss_dphy0_ref_clk = devm_clk_get(&pdev->dev, hisifd->dss_dphy0_ref_clk_name);
-		//printk(KERN_ERR "super-shi dss_dphy0_ref_clk %p\n", hisifd->dss_dphy0_ref_clk);
-		//if (IS_ERR(hisifd->dss_dphy0_ref_clk)) {
-		//	printk(KERN_ERR "mipi_dsi_clk_irq_setup 111111\n");
-		//	ret = PTR_ERR(hisifd->dss_dphy0_ref_clk);
-		//	return ret;
-		//} else {
-			ret = clk_set_rate(hisifd->dss_dphy0_ref_clk, DEFAULT_MIPI_CLK_RATE);
-			if (ret < 0) {
-				HISI_FB_ERR("fb%d dss_dphy0_ref_clk clk_set_rate(%lu) failed, error=%d!\n",
-					hisifd->index, DEFAULT_MIPI_CLK_RATE, ret);
-				return -EINVAL;
-			}
+		ret = clk_set_rate(hisifd->dss_dphy0_ref_clk, DEFAULT_MIPI_CLK_RATE);
+		if (ret < 0) {
+			HISI_FB_ERR("fb%d dss_dphy0_ref_clk clk_set_rate(%lu) failed, error=%d!\n",
+				hisifd->index, DEFAULT_MIPI_CLK_RATE, ret);
+			return -EINVAL;
+		}
+		HISI_FB_INFO("dss_dphy0_ref_clk:[%lu]->[%lu].\n",
+			DEFAULT_MIPI_CLK_RATE, clk_get_rate(hisifd->dss_dphy0_ref_clk));
 
-			HISI_FB_INFO("dss_dphy0_ref_clk:[%lu]->[%lu].\n",
-				DEFAULT_MIPI_CLK_RATE, clk_get_rate(hisifd->dss_dphy0_ref_clk));
-		//}
-
-		//hisifd->dss_dphy0_cfg_clk = devm_clk_get(&pdev->dev, hisifd->dss_dphy0_cfg_clk_name);
-		//if (IS_ERR(hisifd->dss_dphy0_cfg_clk)) {
-		//	ret = PTR_ERR(hisifd->dss_dphy0_cfg_clk);
-		//	return ret;
-		//} else {
-			ret = clk_set_rate(hisifd->dss_dphy0_cfg_clk, DEFAULT_MIPI_CLK_RATE);
-			if (ret < 0) {
-				HISI_FB_ERR("fb%d dss_dphy0_cfg_clk clk_set_rate(%lu) failed, error=%d!\n",
-					hisifd->index, DEFAULT_MIPI_CLK_RATE, ret);
-				return -EINVAL;
-			}
-
-			HISI_FB_INFO("dss_dphy0_cfg_clk:[%lu]->[%lu].\n",
-				DEFAULT_MIPI_CLK_RATE, clk_get_rate(hisifd->dss_dphy0_cfg_clk));
-		//}
-
-		//hisifd->dss_pclk_dsi0_clk = devm_clk_get(&pdev->dev, hisifd->dss_pclk_dsi0_name);
-		//if (IS_ERR(hisifd->dss_pclk_dsi0_clk)) {
-		//	ret = PTR_ERR(hisifd->dss_pclk_dsi0_clk);
-		//	return ret;
-		//} else {
-			HISI_FB_INFO("dss_pclk_dsi0_clk:[%lu]->[%lu].\n",
-				DEFAULT_PCLK_DSI_RATE, clk_get_rate(hisifd->dss_pclk_dsi0_clk));
-		//}
+		ret = clk_set_rate(hisifd->dss_dphy0_cfg_clk, DEFAULT_MIPI_CLK_RATE);
+		if (ret < 0) {
+			HISI_FB_ERR("fb%d dss_dphy0_cfg_clk clk_set_rate(%lu) failed, error=%d!\n",
+				hisifd->index, DEFAULT_MIPI_CLK_RATE, ret);
+			return -EINVAL;
+		}
+		HISI_FB_INFO("dss_dphy0_cfg_clk:[%lu]->[%lu].\n",
+			DEFAULT_MIPI_CLK_RATE, clk_get_rate(hisifd->dss_dphy0_cfg_clk));
+		HISI_FB_INFO("dss_pclk_dsi0_clk:[%lu]->[%lu].\n",
+			DEFAULT_PCLK_DSI_RATE, clk_get_rate(hisifd->dss_pclk_dsi0_clk));
 	}
 
 #ifdef CONFIG_PCLK_PCTRL_USED
-	//hisifd->dss_pclk_pctrl_clk = devm_clk_get(&pdev->dev, hisifd->dss_pclk_pctrl_name);
-	//if (IS_ERR(hisifd->dss_pclk_pctrl_clk)) {
-	//	ret = PTR_ERR(hisifd->dss_pclk_pctrl_clk);
-	//	return ret;
-	//} else {
-		ret = clk_set_rate(hisifd->dss_pclk_pctrl_clk, DEFAULT_PCLK_PCTRL_RATE);
-		if (ret < 0) {
-			HISI_FB_ERR("fb%d dss_pclk_pctrl clk_set_rate(%lu) failed, error=%d!\n",
-				hisifd->index, DEFAULT_PCLK_PCTRL_RATE, ret);
-			return -EINVAL;
-		}
-
-		HISI_FB_INFO("dss_pclk_pctrl_clk:[%lu]->[%lu].\n",
-			DEFAULT_PCLK_PCTRL_RATE, clk_get_rate(hisifd->dss_pclk_pctrl_clk));
-	//}
+	ret = clk_set_rate(hisifd->dss_pclk_pctrl_clk, DEFAULT_PCLK_PCTRL_RATE);
+	if (ret < 0) {
+		HISI_FB_ERR("fb%d dss_pclk_pctrl clk_set_rate(%lu) failed, error=%d!\n",
+			hisifd->index, DEFAULT_PCLK_PCTRL_RATE, ret);
+		return -EINVAL;
+	}
+	HISI_FB_INFO("dss_pclk_pctrl_clk:[%lu]->[%lu].\n",
+		DEFAULT_PCLK_PCTRL_RATE, clk_get_rate(hisifd->dss_pclk_pctrl_clk));
 #endif
 
 	if (is_dual_mipi_panel(hisifd) || (hisifd->index == EXTERNAL_PANEL_IDX)) {
-		//hisifd->dss_dphy1_ref_clk = devm_clk_get(&pdev->dev, hisifd->dss_dphy1_ref_clk_name);
-		//if (IS_ERR(hisifd->dss_dphy1_ref_clk)) {
-		//	ret = PTR_ERR(hisifd->dss_dphy1_ref_clk);
-		//	return ret;
-		//} else {
-			ret = clk_set_rate(hisifd->dss_dphy1_ref_clk, DEFAULT_MIPI_CLK_RATE);
-			if (ret < 0) {
-				HISI_FB_ERR("fb%d dss_dphy1_ref_clk clk_set_rate(%lu) failed, error=%d!\n",
-					hisifd->index, DEFAULT_MIPI_CLK_RATE, ret);
-				return -EINVAL;
-			}
+		ret = clk_set_rate(hisifd->dss_dphy1_ref_clk, DEFAULT_MIPI_CLK_RATE);
+		if (ret < 0) {
+			HISI_FB_ERR("fb%d dss_dphy1_ref_clk clk_set_rate(%lu) failed, error=%d!\n",
+				hisifd->index, DEFAULT_MIPI_CLK_RATE, ret);
+			return -EINVAL;
+		}
+		HISI_FB_INFO("dss_dphy1_ref_clk:[%lu]->[%lu].\n",
+			DEFAULT_MIPI_CLK_RATE, clk_get_rate(hisifd->dss_dphy1_ref_clk));
 
-			HISI_FB_INFO("dss_dphy1_ref_clk:[%lu]->[%lu].\n",
-				DEFAULT_MIPI_CLK_RATE, clk_get_rate(hisifd->dss_dphy1_ref_clk));
-		//}
-
-		//hisifd->dss_dphy1_cfg_clk = devm_clk_get(&pdev->dev, hisifd->dss_dphy1_cfg_clk_name);
-		//if (IS_ERR(hisifd->dss_dphy1_cfg_clk)) {
-		//	ret = PTR_ERR(hisifd->dss_dphy1_cfg_clk);
-		//	return ret;
-		//} else {
-			ret = clk_set_rate(hisifd->dss_dphy1_cfg_clk, DEFAULT_MIPI_CLK_RATE);
-			if (ret < 0) {
-				HISI_FB_ERR("fb%d dss_dphy1_cfg_clk clk_set_rate(%lu) failed, error=%d!\n",
-					hisifd->index, DEFAULT_MIPI_CLK_RATE, ret);
-				return -EINVAL;
-			}
-
-			HISI_FB_INFO("dss_dphy1_cfg_clk:[%lu]->[%lu].\n",
-				DEFAULT_MIPI_CLK_RATE, clk_get_rate(hisifd->dss_dphy1_cfg_clk));
-		//}
-
-		//hisifd->dss_pclk_dsi1_clk = devm_clk_get(&pdev->dev, hisifd->dss_pclk_dsi1_name);
-		//if (IS_ERR(hisifd->dss_pclk_dsi1_clk)) {
-		//	ret = PTR_ERR(hisifd->dss_pclk_dsi1_clk);
-		//	return ret;
-		//} else {
-			HISI_FB_INFO("dss_pclk_dsi1_clk:[%lu]->[%lu].\n",
-				DEFAULT_PCLK_DSI_RATE, clk_get_rate(hisifd->dss_pclk_dsi1_clk));
-		//}
+		ret = clk_set_rate(hisifd->dss_dphy1_cfg_clk, DEFAULT_MIPI_CLK_RATE);
+		if (ret < 0) {
+			HISI_FB_ERR("fb%d dss_dphy1_cfg_clk clk_set_rate(%lu) failed, error=%d!\n",
+				hisifd->index, DEFAULT_MIPI_CLK_RATE, ret);
+			return -EINVAL;
+		}
+		HISI_FB_INFO("dss_dphy1_cfg_clk:[%lu]->[%lu].\n",
+			DEFAULT_MIPI_CLK_RATE, clk_get_rate(hisifd->dss_dphy1_cfg_clk));
+		HISI_FB_INFO("dss_pclk_dsi1_clk:[%lu]->[%lu].\n",
+			DEFAULT_PCLK_DSI_RATE, clk_get_rate(hisifd->dss_pclk_dsi1_clk));
 	}
 
 	return ret;
