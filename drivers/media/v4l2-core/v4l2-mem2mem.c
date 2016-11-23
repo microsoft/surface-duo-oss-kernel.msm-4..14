@@ -148,6 +148,7 @@ v4l2_m2m_buf_remove_match(struct v4l2_m2m_queue_ctx *q_ctx, void *priv,
 	list_for_each_entry_safe(b, tmp, &q_ctx->rdy_queue, list) {
 		if (match(priv, &b->vb)) {
 			list_del(&b->list);
+			q_ctx->num_rdy--;
 			ret = &b->vb;
 			break;
 		}
