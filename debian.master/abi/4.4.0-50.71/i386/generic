@@ -3537,11 +3537,11 @@ EXPORT_SYMBOL fs/fscache/fscache 0xe6eb918e	fscache_init_cache
 EXPORT_SYMBOL fs/fscache/fscache 0xe7486606	fscache_enqueue_operation
 EXPORT_SYMBOL fs/fscache/fscache 0xe74b2bc1	fscache_object_init
 EXPORT_SYMBOL fs/ocfs2/cluster/ocfs2_nodemanager 0xbfd7d7a2	o2hb_global_heartbeat_active
-EXPORT_SYMBOL fs/quota/quota_tree 0x1e150059	qtree_write_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x363f4c0a	qtree_read_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x71f06480	qtree_delete_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x75095157	qtree_entry_unused
-EXPORT_SYMBOL fs/quota/quota_tree 0x9c09905c	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x3e14135f	qtree_entry_unused
+EXPORT_SYMBOL fs/quota/quota_tree 0x4c22a259	qtree_read_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xac49fdd6	qtree_delete_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xba570461	qtree_write_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xdfcf1d7d	qtree_release_dquot
 EXPORT_SYMBOL lib/cordic 0x434bfd07	cordic_calc_iq
 EXPORT_SYMBOL lib/crc-ccitt 0x3771b461	crc_ccitt
 EXPORT_SYMBOL lib/crc-ccitt 0x75811312	crc_ccitt_table
@@ -6434,7 +6434,6 @@ EXPORT_SYMBOL vmlinux 0x4b5fd49e	dm_kcopyd_do_callback
 EXPORT_SYMBOL vmlinux 0x4b667176	lg_local_lock_cpu
 EXPORT_SYMBOL vmlinux 0x4b764325	input_event
 EXPORT_SYMBOL vmlinux 0x4b7908bd	blk_mq_can_queue
-EXPORT_SYMBOL vmlinux 0x4b7e2560	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x4b9b4998	drop_nlink
 EXPORT_SYMBOL vmlinux 0x4b9dfb04	_raw_spin_trylock_bh
 EXPORT_SYMBOL vmlinux 0x4bada2c4	pcibios_bus_to_resource
@@ -7342,6 +7341,7 @@ EXPORT_SYMBOL vmlinux 0x7ac9ea98	noop_qdisc
 EXPORT_SYMBOL vmlinux 0x7accce24	kobject_del
 EXPORT_SYMBOL vmlinux 0x7acdbc9a	truncate_inode_pages
 EXPORT_SYMBOL vmlinux 0x7ad050b9	qid_lt
+EXPORT_SYMBOL vmlinux 0x7add44b5	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x7aec2882	sk_stream_wait_connect
 EXPORT_SYMBOL vmlinux 0x7aec9089	clear_user
 EXPORT_SYMBOL vmlinux 0x7af73ee3	cpufreq_get_policy
@@ -9438,7 +9438,6 @@ EXPORT_SYMBOL vmlinux 0xf11543ff	find_first_zero_bit
 EXPORT_SYMBOL vmlinux 0xf13470b4	sock_queue_err_skb
 EXPORT_SYMBOL vmlinux 0xf1398e2e	lg_local_unlock_cpu
 EXPORT_SYMBOL vmlinux 0xf13d618a	pnp_device_attach
-EXPORT_SYMBOL vmlinux 0xf1403011	posix_acl_fix_xattr_userns
 EXPORT_SYMBOL vmlinux 0xf147dcb2	hdmi_spd_infoframe_init
 EXPORT_SYMBOL vmlinux 0xf15f6136	proc_remove
 EXPORT_SYMBOL vmlinux 0xf16cc506	generic_write_end

@@ -3461,11 +3461,11 @@ EXPORT_SYMBOL fs/fscache/fscache 0xe7def4e6	__fscache_disable_cookie
 EXPORT_SYMBOL fs/fscache/fscache 0xeb463d69	fscache_object_init
 EXPORT_SYMBOL fs/fscache/fscache 0xec6ac0e9	__fscache_invalidate
 EXPORT_SYMBOL fs/ocfs2/cluster/ocfs2_nodemanager 0xbfd7d7a2	o2hb_global_heartbeat_active
-EXPORT_SYMBOL fs/quota/quota_tree 0x03c2e3e2	qtree_release_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x0c150062	qtree_entry_unused
-EXPORT_SYMBOL fs/quota/quota_tree 0x25821b0d	qtree_read_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x66b93e5d	qtree_delete_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x851199bc	qtree_write_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x38144bfd	qtree_read_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x518c11fe	qtree_write_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x6de9b720	qtree_entry_unused
+EXPORT_SYMBOL fs/quota/quota_tree 0x9ccc154e	qtree_delete_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xf906c1fe	qtree_release_dquot
 EXPORT_SYMBOL lib/cordic 0x434bfd07	cordic_calc_iq
 EXPORT_SYMBOL lib/crc-ccitt 0x1a703ba1	crc_ccitt
 EXPORT_SYMBOL lib/crc-ccitt 0x75811312	crc_ccitt_table
@@ -5201,7 +5201,6 @@ EXPORT_SYMBOL vmlinux 0x1d4cc948	rfkill_alloc
 EXPORT_SYMBOL vmlinux 0x1d548226	security_path_chmod
 EXPORT_SYMBOL vmlinux 0x1d64fd19	seq_write
 EXPORT_SYMBOL vmlinux 0x1d67bf9a	may_umount
-EXPORT_SYMBOL vmlinux 0x1d6ac50a	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x1d6fdc46	dev_uc_del
 EXPORT_SYMBOL vmlinux 0x1d74dca2	uart_register_driver
 EXPORT_SYMBOL vmlinux 0x1d78588c	macio_request_resources
@@ -6886,6 +6885,7 @@ EXPORT_SYMBOL vmlinux 0x7aba6009	__netdev_alloc_skb
 EXPORT_SYMBOL vmlinux 0x7ad050b9	qid_lt
 EXPORT_SYMBOL vmlinux 0x7ad30ee2	unregister_md_personality
 EXPORT_SYMBOL vmlinux 0x7ada275c	path_put
+EXPORT_SYMBOL vmlinux 0x7add44b5	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x7b16235f	hdmi_vendor_infoframe_pack
 EXPORT_SYMBOL vmlinux 0x7b167909	bitmap_from_u32array
 EXPORT_SYMBOL vmlinux 0x7b19c568	nobh_truncate_page
@@ -7792,7 +7792,6 @@ EXPORT_SYMBOL vmlinux 0xad50cebb	i8253_lock
 EXPORT_SYMBOL vmlinux 0xad5a61d1	blk_peek_request
 EXPORT_SYMBOL vmlinux 0xad638bcc	tty_unlock
 EXPORT_SYMBOL vmlinux 0xad65615c	dquot_alloc_inode
-EXPORT_SYMBOL vmlinux 0xad699c35	posix_acl_fix_xattr_userns
 EXPORT_SYMBOL vmlinux 0xad84bef8	dm_table_event
 EXPORT_SYMBOL vmlinux 0xad85a27b	hdmi_infoframe_log
 EXPORT_SYMBOL vmlinux 0xad9607b2	i8042_install_filter

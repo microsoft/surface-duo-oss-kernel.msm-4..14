@@ -3464,11 +3464,11 @@ EXPORT_SYMBOL fs/fscache/fscache 0xf96a0c09	__fscache_write_page
 EXPORT_SYMBOL fs/fscache/fscache 0xf97a0155	fscache_fsdef_index
 EXPORT_SYMBOL fs/fscache/fscache 0xfba6ccc9	fscache_enqueue_operation
 EXPORT_SYMBOL fs/ocfs2/cluster/ocfs2_nodemanager 0xbfd7d7a2	o2hb_global_heartbeat_active
-EXPORT_SYMBOL fs/quota/quota_tree 0x05c689d7	qtree_entry_unused
-EXPORT_SYMBOL fs/quota/quota_tree 0x22310255	qtree_write_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x742a61f0	qtree_delete_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x78ea707e	qtree_read_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0xa9cd32c7	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x18ae7d78	qtree_entry_unused
+EXPORT_SYMBOL fs/quota/quota_tree 0x4865b1fd	qtree_read_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x5ecb8a10	qtree_write_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x642bbc39	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x9e92eabd	qtree_delete_dquot
 EXPORT_SYMBOL lib/cordic 0x434bfd07	cordic_calc_iq
 EXPORT_SYMBOL lib/crc-ccitt 0x3771b461	crc_ccitt
 EXPORT_SYMBOL lib/crc-ccitt 0x75811312	crc_ccitt_table
@@ -6559,7 +6559,6 @@ EXPORT_SYMBOL vmlinux 0x70c2ccf2	blk_mq_kick_requeue_list
 EXPORT_SYMBOL vmlinux 0x70d888b7	__debugger_fault_handler
 EXPORT_SYMBOL vmlinux 0x70e28227	free_netdev
 EXPORT_SYMBOL vmlinux 0x70ebfcfe	mmc_gpio_get_ro
-EXPORT_SYMBOL vmlinux 0x70ed23d8	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x70f304d0	jbd2_trans_will_send_data_barrier
 EXPORT_SYMBOL vmlinux 0x70f96f88	glob_match
 EXPORT_SYMBOL vmlinux 0x711b34af	blk_integrity_compare
@@ -6716,6 +6715,7 @@ EXPORT_SYMBOL vmlinux 0x7ab94aa7	keyring_clear
 EXPORT_SYMBOL vmlinux 0x7ac8c4ee	inet_shutdown
 EXPORT_SYMBOL vmlinux 0x7acb2c63	dev_uc_del
 EXPORT_SYMBOL vmlinux 0x7ad050b9	qid_lt
+EXPORT_SYMBOL vmlinux 0x7add44b5	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x7aec667a	netlink_ns_capable
 EXPORT_SYMBOL vmlinux 0x7afa89fc	vsnprintf
 EXPORT_SYMBOL vmlinux 0x7b01b103	scsi_track_queue_full
@@ -8256,7 +8256,6 @@ EXPORT_SYMBOL vmlinux 0xd4ce4a9a	__hw_addr_sync_dev
 EXPORT_SYMBOL vmlinux 0xd4d0449e	ppp_register_net_channel
 EXPORT_SYMBOL vmlinux 0xd4e975fa	pci_read_vpd
 EXPORT_SYMBOL vmlinux 0xd509d1d2	filemap_flush
-EXPORT_SYMBOL vmlinux 0xd522604a	posix_acl_fix_xattr_userns
 EXPORT_SYMBOL vmlinux 0xd54942f3	__dquot_transfer
 EXPORT_SYMBOL vmlinux 0xd54f41ce	try_to_del_timer_sync
 EXPORT_SYMBOL vmlinux 0xd594c904	get_vaddr_frames

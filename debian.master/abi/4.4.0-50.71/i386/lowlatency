@@ -3537,11 +3537,11 @@ EXPORT_SYMBOL fs/fscache/fscache 0xd5b534c9	fscache_object_init
 EXPORT_SYMBOL fs/fscache/fscache 0xd7f5f7e7	__fscache_readpages_cancel
 EXPORT_SYMBOL fs/fscache/fscache 0xf7922af9	__fscache_acquire_cookie
 EXPORT_SYMBOL fs/ocfs2/cluster/ocfs2_nodemanager 0xbfd7d7a2	o2hb_global_heartbeat_active
-EXPORT_SYMBOL fs/quota/quota_tree 0x1e150059	qtree_write_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x363f4c0a	qtree_read_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x71f06480	qtree_delete_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x75095157	qtree_entry_unused
-EXPORT_SYMBOL fs/quota/quota_tree 0x9c09905c	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x3e14135f	qtree_entry_unused
+EXPORT_SYMBOL fs/quota/quota_tree 0x4c22a259	qtree_read_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xac49fdd6	qtree_delete_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xba570461	qtree_write_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xdfcf1d7d	qtree_release_dquot
 EXPORT_SYMBOL lib/cordic 0x434bfd07	cordic_calc_iq
 EXPORT_SYMBOL lib/crc-ccitt 0x3771b461	crc_ccitt
 EXPORT_SYMBOL lib/crc-ccitt 0x75811312	crc_ccitt_table
@@ -7330,6 +7330,7 @@ EXPORT_SYMBOL vmlinux 0x7ab2e194	register_md_personality
 EXPORT_SYMBOL vmlinux 0x7ab88a45	system_freezing_cnt
 EXPORT_SYMBOL vmlinux 0x7accce24	kobject_del
 EXPORT_SYMBOL vmlinux 0x7ad050b9	qid_lt
+EXPORT_SYMBOL vmlinux 0x7add44b5	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x7adf61c2	simple_write_begin
 EXPORT_SYMBOL vmlinux 0x7ae1f06e	agp_unbind_memory
 EXPORT_SYMBOL vmlinux 0x7aec9089	clear_user
@@ -7445,7 +7446,6 @@ EXPORT_SYMBOL vmlinux 0x80eb423b	acpi_get_object_info
 EXPORT_SYMBOL vmlinux 0x80f7a048	dm_unregister_target
 EXPORT_SYMBOL vmlinux 0x81144f9d	idr_find_slowpath
 EXPORT_SYMBOL vmlinux 0x81191596	textsearch_prepare
-EXPORT_SYMBOL vmlinux 0x81201b6b	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x81472677	acpi_get_table
 EXPORT_SYMBOL vmlinux 0x814e7730	nf_ct_destroy
 EXPORT_SYMBOL vmlinux 0x815b5dd4	match_octal
@@ -7921,7 +7921,6 @@ EXPORT_SYMBOL vmlinux 0x9ae4abe0	bdi_setup_and_register
 EXPORT_SYMBOL vmlinux 0x9aeb07e8	vme_lm_attach
 EXPORT_SYMBOL vmlinux 0x9af91a1c	mmc_unregister_driver
 EXPORT_SYMBOL vmlinux 0x9b0b8a02	pnp_unregister_driver
-EXPORT_SYMBOL vmlinux 0x9b148cc9	posix_acl_fix_xattr_userns
 EXPORT_SYMBOL vmlinux 0x9b3320be	dump_align
 EXPORT_SYMBOL vmlinux 0x9b33e0d7	unregister_dcbevent_notifier
 EXPORT_SYMBOL vmlinux 0x9b388444	get_zeroed_page

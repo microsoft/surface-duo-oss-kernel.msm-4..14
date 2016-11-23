@@ -924,11 +924,11 @@ EXPORT_SYMBOL fs/fscache/fscache 0xf94c6ee3	fscache_object_destroy
 EXPORT_SYMBOL fs/fscache/fscache 0xfbba0442	fscache_operation_init
 EXPORT_SYMBOL fs/fscache/fscache 0xfd181d75	fscache_object_mark_killed
 EXPORT_SYMBOL fs/ocfs2/cluster/ocfs2_nodemanager 0xbfd7d7a2	o2hb_global_heartbeat_active
-EXPORT_SYMBOL fs/quota/quota_tree 0x5bc7a97a	qtree_entry_unused
-EXPORT_SYMBOL fs/quota/quota_tree 0x80a875b5	qtree_read_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x83196689	qtree_delete_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x90b51927	qtree_release_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0xd1a8e6ad	qtree_write_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x10b6448c	qtree_delete_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x4d22f1f3	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x8c42df88	qtree_read_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xa1e2c6d4	qtree_entry_unused
+EXPORT_SYMBOL fs/quota/quota_tree 0xa4fe2b65	qtree_write_dquot
 EXPORT_SYMBOL lib/cordic 0x434bfd07	cordic_calc_iq
 EXPORT_SYMBOL lib/crc-ccitt 0x651c2313	crc_ccitt
 EXPORT_SYMBOL lib/crc-ccitt 0x75811312	crc_ccitt_table
@@ -1386,7 +1386,6 @@ EXPORT_SYMBOL vmlinux 0x09d44df9	in_lock_functions
 EXPORT_SYMBOL vmlinux 0x09ed2e28	nvm_erase_ppa
 EXPORT_SYMBOL vmlinux 0x0a042537	blk_queue_physical_block_size
 EXPORT_SYMBOL vmlinux 0x0a08519e	fsnotify_put_mark
-EXPORT_SYMBOL vmlinux 0x0a1c95ee	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x0a210f22	gnet_stats_finish_copy
 EXPORT_SYMBOL vmlinux 0x0a57863e	cancel_delayed_work_sync
 EXPORT_SYMBOL vmlinux 0x0a770832	register_memory_notifier
@@ -3005,6 +3004,7 @@ EXPORT_SYMBOL vmlinux 0x7aae5654	nf_register_net_hook
 EXPORT_SYMBOL vmlinux 0x7ab09173	sk_capable
 EXPORT_SYMBOL vmlinux 0x7ab88a45	system_freezing_cnt
 EXPORT_SYMBOL vmlinux 0x7ad050b9	qid_lt
+EXPORT_SYMBOL vmlinux 0x7add44b5	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x7ae73de1	alloc_pages_exact
 EXPORT_SYMBOL vmlinux 0x7ae8d3ba	vlan_vid_add
 EXPORT_SYMBOL vmlinux 0x7aeb93d5	__register_nls
@@ -3359,7 +3359,6 @@ EXPORT_SYMBOL vmlinux 0x9446b5ee	init_task
 EXPORT_SYMBOL vmlinux 0x944ad164	tty_free_termios
 EXPORT_SYMBOL vmlinux 0x945775a5	segment_save
 EXPORT_SYMBOL vmlinux 0x945b4346	parent_mem_cgroup
-EXPORT_SYMBOL vmlinux 0x9486dbba	posix_acl_fix_xattr_userns
 EXPORT_SYMBOL vmlinux 0x94961283	vunmap
 EXPORT_SYMBOL vmlinux 0x94aed330	end_buffer_read_sync
 EXPORT_SYMBOL vmlinux 0x94dcf586	__getblk_slow

@@ -3462,11 +3462,11 @@ EXPORT_SYMBOL fs/fscache/fscache 0xf0b73f45	fscache_obtained_object
 EXPORT_SYMBOL fs/fscache/fscache 0xf0ce05bd	__fscache_uncache_all_inode_pages
 EXPORT_SYMBOL fs/fscache/fscache 0xf4e3f7e1	__fscache_enable_cookie
 EXPORT_SYMBOL fs/ocfs2/cluster/ocfs2_nodemanager 0xbfd7d7a2	o2hb_global_heartbeat_active
-EXPORT_SYMBOL fs/quota/quota_tree 0x0c8cfbac	qtree_delete_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x22d7ae66	qtree_write_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x3f85c392	qtree_read_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x4bcaa5a2	qtree_entry_unused
-EXPORT_SYMBOL fs/quota/quota_tree 0x5ceae69e	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x1cffdc1c	qtree_delete_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x398a9692	qtree_read_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x769d7501	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x91a48b5f	qtree_write_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xdab2b235	qtree_entry_unused
 EXPORT_SYMBOL lib/cordic 0x434bfd07	cordic_calc_iq
 EXPORT_SYMBOL lib/crc-ccitt 0x3771b461	crc_ccitt
 EXPORT_SYMBOL lib/crc-ccitt 0x75811312	crc_ccitt_table
@@ -5633,7 +5633,6 @@ EXPORT_SYMBOL vmlinux 0x40ed524a	_raw_read_lock_irq
 EXPORT_SYMBOL vmlinux 0x40f07981	__ashldi3
 EXPORT_SYMBOL vmlinux 0x40f79d53	tty_register_driver
 EXPORT_SYMBOL vmlinux 0x4116fac6	neigh_for_each
-EXPORT_SYMBOL vmlinux 0x411e7d25	posix_acl_fix_xattr_userns
 EXPORT_SYMBOL vmlinux 0x4137d3e4	__skb_tx_hash
 EXPORT_SYMBOL vmlinux 0x41482d8b	strndup_user
 EXPORT_SYMBOL vmlinux 0x4157109d	bio_add_pc_page
@@ -6344,7 +6343,6 @@ EXPORT_SYMBOL vmlinux 0x65aba6fc	jbd2_journal_revoke
 EXPORT_SYMBOL vmlinux 0x65bf3f42	cdrom_mode_sense
 EXPORT_SYMBOL vmlinux 0x65c0e903	vme_irq_handler
 EXPORT_SYMBOL vmlinux 0x65c8b236	fbcon_rotate_ud
-EXPORT_SYMBOL vmlinux 0x65d91a39	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x65d9e877	cpufreq_register_notifier
 EXPORT_SYMBOL vmlinux 0x65dccf13	xz_dec_end
 EXPORT_SYMBOL vmlinux 0x65e03acf	seq_read
@@ -6732,6 +6730,7 @@ EXPORT_SYMBOL vmlinux 0x7ab88a45	system_freezing_cnt
 EXPORT_SYMBOL vmlinux 0x7ab9c421	nvm_erase_blk
 EXPORT_SYMBOL vmlinux 0x7acb64e0	noop_fsync
 EXPORT_SYMBOL vmlinux 0x7ad050b9	qid_lt
+EXPORT_SYMBOL vmlinux 0x7add44b5	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x7af09398	fsnotify_get_group
 EXPORT_SYMBOL vmlinux 0x7afa89fc	vsnprintf
 EXPORT_SYMBOL vmlinux 0x7afc9d8a	unregister_sound_mixer

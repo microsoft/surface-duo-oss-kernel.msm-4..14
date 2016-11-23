@@ -3510,11 +3510,11 @@ EXPORT_SYMBOL fs/fscache/fscache 0xf441eac4	fscache_put_operation
 EXPORT_SYMBOL fs/fscache/fscache 0xf8ff819c	__fscache_maybe_release_page
 EXPORT_SYMBOL fs/fscache/fscache 0xfefd0d2a	__fscache_read_or_alloc_pages
 EXPORT_SYMBOL fs/ocfs2/cluster/ocfs2_nodemanager 0xbfd7d7a2	o2hb_global_heartbeat_active
-EXPORT_SYMBOL fs/quota/quota_tree 0x14326bcd	qtree_read_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x44219170	qtree_entry_unused
-EXPORT_SYMBOL fs/quota/quota_tree 0x4fc19871	qtree_write_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x559a1052	qtree_delete_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0xc47d8337	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x1962c4f0	qtree_entry_unused
+EXPORT_SYMBOL fs/quota/quota_tree 0x22eb12ef	qtree_write_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x7da52010	qtree_read_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xc0a3cb3b	qtree_delete_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xecd4422c	qtree_release_dquot
 EXPORT_SYMBOL lib/cordic 0x434bfd07	cordic_calc_iq
 EXPORT_SYMBOL lib/crc-ccitt 0x1a703ba1	crc_ccitt
 EXPORT_SYMBOL lib/crc-ccitt 0x75811312	crc_ccitt_table
@@ -7214,6 +7214,7 @@ EXPORT_SYMBOL vmlinux 0x7aa1756e	kvfree
 EXPORT_SYMBOL vmlinux 0x7ab88a45	system_freezing_cnt
 EXPORT_SYMBOL vmlinux 0x7ac627d5	blk_queue_bounce_limit
 EXPORT_SYMBOL vmlinux 0x7ad050b9	qid_lt
+EXPORT_SYMBOL vmlinux 0x7add44b5	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x7aec9089	clear_user
 EXPORT_SYMBOL vmlinux 0x7b01fcd6	dma_find_channel
 EXPORT_SYMBOL vmlinux 0x7b16235f	hdmi_vendor_infoframe_pack
@@ -7600,7 +7601,6 @@ EXPORT_SYMBOL vmlinux 0x8f7797c0	sget_userns
 EXPORT_SYMBOL vmlinux 0x8f8d7498	dentry_needs_remove_privs
 EXPORT_SYMBOL vmlinux 0x8f9c199c	__get_user_2
 EXPORT_SYMBOL vmlinux 0x8f9f689f	mipi_dsi_dcs_set_pixel_format
-EXPORT_SYMBOL vmlinux 0x8fa4fc60	posix_acl_fix_xattr_userns
 EXPORT_SYMBOL vmlinux 0x8fae3edd	dst_destroy
 EXPORT_SYMBOL vmlinux 0x8fc94000	pfifo_qdisc_ops
 EXPORT_SYMBOL vmlinux 0x8fd1152e	_raw_write_unlock
@@ -8742,7 +8742,6 @@ EXPORT_SYMBOL vmlinux 0xcfad6dc6	iov_iter_zero
 EXPORT_SYMBOL vmlinux 0xcfb4a296	trace_print_array_seq
 EXPORT_SYMBOL vmlinux 0xcfb5f575	__devm_request_region
 EXPORT_SYMBOL vmlinux 0xcfd51d6c	xfrm_input_register_afinfo
-EXPORT_SYMBOL vmlinux 0xcfde36ce	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0xcfdf3c82	bdget_disk
 EXPORT_SYMBOL vmlinux 0xcfe1565f	key_instantiate_and_link
 EXPORT_SYMBOL vmlinux 0xcfe19040	mipi_dsi_driver_unregister

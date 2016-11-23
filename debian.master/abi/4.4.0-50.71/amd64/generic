@@ -3510,11 +3510,11 @@ EXPORT_SYMBOL fs/fscache/fscache 0xe0fe805f	__fscache_disable_cookie
 EXPORT_SYMBOL fs/fscache/fscache 0xece01f2f	fscache_enqueue_operation
 EXPORT_SYMBOL fs/fscache/fscache 0xff629915	__fscache_relinquish_cookie
 EXPORT_SYMBOL fs/ocfs2/cluster/ocfs2_nodemanager 0xbfd7d7a2	o2hb_global_heartbeat_active
-EXPORT_SYMBOL fs/quota/quota_tree 0x14326bcd	qtree_read_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x44219170	qtree_entry_unused
-EXPORT_SYMBOL fs/quota/quota_tree 0x4fc19871	qtree_write_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x559a1052	qtree_delete_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0xc47d8337	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x1962c4f0	qtree_entry_unused
+EXPORT_SYMBOL fs/quota/quota_tree 0x22eb12ef	qtree_write_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x7da52010	qtree_read_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xc0a3cb3b	qtree_delete_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xecd4422c	qtree_release_dquot
 EXPORT_SYMBOL lib/cordic 0x434bfd07	cordic_calc_iq
 EXPORT_SYMBOL lib/crc-ccitt 0x1a703ba1	crc_ccitt
 EXPORT_SYMBOL lib/crc-ccitt 0x75811312	crc_ccitt_table
@@ -7231,6 +7231,7 @@ EXPORT_SYMBOL vmlinux 0x7ab88a45	system_freezing_cnt
 EXPORT_SYMBOL vmlinux 0x7ab89691	tcp_read_sock
 EXPORT_SYMBOL vmlinux 0x7acbae3a	jbd2_journal_ack_err
 EXPORT_SYMBOL vmlinux 0x7ad050b9	qid_lt
+EXPORT_SYMBOL vmlinux 0x7add44b5	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x7ae7d5c9	jbd2_journal_update_sb_errno
 EXPORT_SYMBOL vmlinux 0x7aec9089	clear_user
 EXPORT_SYMBOL vmlinux 0x7b1409d5	netif_napi_del
@@ -7959,7 +7960,6 @@ EXPORT_SYMBOL vmlinux 0xa31bdf07	vme_master_set
 EXPORT_SYMBOL vmlinux 0xa34fcb2d	mempool_create_node
 EXPORT_SYMBOL vmlinux 0xa350a8f8	set_memory_array_uc
 EXPORT_SYMBOL vmlinux 0xa3681785	sk_stream_write_space
-EXPORT_SYMBOL vmlinux 0xa36f1498	posix_acl_fix_xattr_userns
 EXPORT_SYMBOL vmlinux 0xa37e78b6	flex_array_get
 EXPORT_SYMBOL vmlinux 0xa3949ded	dev_graft_qdisc
 EXPORT_SYMBOL vmlinux 0xa3aecc2c	__brelse
@@ -9494,7 +9494,6 @@ EXPORT_SYMBOL vmlinux 0xfa5176b4	scsi_set_sense_information
 EXPORT_SYMBOL vmlinux 0xfa599bb2	netlink_register_notifier
 EXPORT_SYMBOL vmlinux 0xfa71d7e3	sock_kzfree_s
 EXPORT_SYMBOL vmlinux 0xfa94fbf2	tty_wait_until_sent
-EXPORT_SYMBOL vmlinux 0xfab919cc	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0xfabdf781	posix_acl_update_mode
 EXPORT_SYMBOL vmlinux 0xfac4b905	blk_rq_map_sg
 EXPORT_SYMBOL vmlinux 0xfac8865f	sysctl_wmem_max

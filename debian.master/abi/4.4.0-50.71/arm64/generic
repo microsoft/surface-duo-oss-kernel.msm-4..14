@@ -3426,11 +3426,11 @@ EXPORT_SYMBOL fs/fscache/fscache 0xf8148181	__fscache_maybe_release_page
 EXPORT_SYMBOL fs/fscache/fscache 0xfa0c131c	fscache_init_cache
 EXPORT_SYMBOL fs/fscache/fscache 0xfa64c501	fscache_op_complete
 EXPORT_SYMBOL fs/ocfs2/cluster/ocfs2_nodemanager 0xbfd7d7a2	o2hb_global_heartbeat_active
-EXPORT_SYMBOL fs/quota/quota_tree 0x1e069cf8	qtree_release_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x49e36743	qtree_read_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x6b55347a	qtree_delete_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x817893e4	qtree_entry_unused
-EXPORT_SYMBOL fs/quota/quota_tree 0x9197654e	qtree_write_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x0cfdd366	qtree_read_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x42c3529a	qtree_delete_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x43436e78	qtree_entry_unused
+EXPORT_SYMBOL fs/quota/quota_tree 0x4a6e5279	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xf992df6f	qtree_write_dquot
 EXPORT_SYMBOL lib/cordic 0x434bfd07	cordic_calc_iq
 EXPORT_SYMBOL lib/crc-ccitt 0x1a703ba1	crc_ccitt
 EXPORT_SYMBOL lib/crc-ccitt 0x75811312	crc_ccitt_table
@@ -5452,7 +5452,6 @@ EXPORT_SYMBOL vmlinux 0x31d54ebf	bio_copy_data
 EXPORT_SYMBOL vmlinux 0x31e96028	sock_alloc_file
 EXPORT_SYMBOL vmlinux 0x31f03a51	pci_reenable_device
 EXPORT_SYMBOL vmlinux 0x31fc3f84	vme_unregister_driver
-EXPORT_SYMBOL vmlinux 0x3203e154	posix_acl_fix_xattr_userns
 EXPORT_SYMBOL vmlinux 0x3205d199	compat_sock_common_getsockopt
 EXPORT_SYMBOL vmlinux 0x3209411f	block_read_full_page
 EXPORT_SYMBOL vmlinux 0x320d1042	inet_select_addr
@@ -6702,6 +6701,7 @@ EXPORT_SYMBOL vmlinux 0x7aa1756e	kvfree
 EXPORT_SYMBOL vmlinux 0x7aadb72b	sk_filter
 EXPORT_SYMBOL vmlinux 0x7ab88a45	system_freezing_cnt
 EXPORT_SYMBOL vmlinux 0x7ad050b9	qid_lt
+EXPORT_SYMBOL vmlinux 0x7add44b5	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x7aed8e0a	devm_gpiod_get_array
 EXPORT_SYMBOL vmlinux 0x7afafc8d	vme_dma_list_exec
 EXPORT_SYMBOL vmlinux 0x7b0b7278	inode_owner_or_capable
@@ -7330,7 +7330,6 @@ EXPORT_SYMBOL vmlinux 0x9eecf4a1	compat_sock_common_setsockopt
 EXPORT_SYMBOL vmlinux 0x9ef6e92f	__dev_get_by_name
 EXPORT_SYMBOL vmlinux 0x9eff9f68	generic_block_fiemap
 EXPORT_SYMBOL vmlinux 0x9f11be7e	down_killable
-EXPORT_SYMBOL vmlinux 0x9f302a0b	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x9f3306ab	jbd2_complete_transaction
 EXPORT_SYMBOL vmlinux 0x9f3aa5de	revalidate_disk
 EXPORT_SYMBOL vmlinux 0x9f46ced8	__sw_hweight64

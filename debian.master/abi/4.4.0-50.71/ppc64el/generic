@@ -3406,11 +3406,11 @@ EXPORT_SYMBOL fs/fscache/fscache 0xd55907cc	fscache_mark_page_cached
 EXPORT_SYMBOL fs/fscache/fscache 0xdda51aef	fscache_object_lookup_negative
 EXPORT_SYMBOL fs/fscache/fscache 0xe009519a	__fscache_disable_cookie
 EXPORT_SYMBOL fs/ocfs2/cluster/ocfs2_nodemanager 0xbfd7d7a2	o2hb_global_heartbeat_active
-EXPORT_SYMBOL fs/quota/quota_tree 0x2d30921a	qtree_read_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x3faeb2f6	qtree_entry_unused
-EXPORT_SYMBOL fs/quota/quota_tree 0x5e28f05a	qtree_write_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x858297cb	qtree_delete_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x9e05fc00	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x4b660da3	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x56048c73	qtree_delete_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x7f3dd517	qtree_entry_unused
+EXPORT_SYMBOL fs/quota/quota_tree 0xecc1c551	qtree_read_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xf948faa8	qtree_write_dquot
 EXPORT_SYMBOL lib/cordic 0x434bfd07	cordic_calc_iq
 EXPORT_SYMBOL lib/crc-ccitt 0x1a703ba1	crc_ccitt
 EXPORT_SYMBOL lib/crc-ccitt 0x75811312	crc_ccitt_table
@@ -6716,6 +6716,7 @@ EXPORT_SYMBOL vmlinux 0x7aa2cb8c	fsnotify_add_mark
 EXPORT_SYMBOL vmlinux 0x7ab88a45	system_freezing_cnt
 EXPORT_SYMBOL vmlinux 0x7acebb10	dev_get_iflink
 EXPORT_SYMBOL vmlinux 0x7ad050b9	qid_lt
+EXPORT_SYMBOL vmlinux 0x7add44b5	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x7addb428	nf_register_hooks
 EXPORT_SYMBOL vmlinux 0x7aefe9ec	nd_region_to_nstype
 EXPORT_SYMBOL vmlinux 0x7b137c4d	__task_pid_nr_ns
@@ -7764,7 +7765,6 @@ EXPORT_SYMBOL vmlinux 0xb7a808b7	netif_set_real_num_rx_queues
 EXPORT_SYMBOL vmlinux 0xb7c6db70	sysctl_max_skb_frags
 EXPORT_SYMBOL vmlinux 0xb7d9ddf0	sock_recvmsg
 EXPORT_SYMBOL vmlinux 0xb7eb8fd8	pci_get_slot
-EXPORT_SYMBOL vmlinux 0xb80e963a	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0xb8269c8e	gen_pool_destroy
 EXPORT_SYMBOL vmlinux 0xb8500c13	nvdimm_revalidate_disk
 EXPORT_SYMBOL vmlinux 0xb858f321	crypto_sha1_update
@@ -8748,7 +8748,6 @@ EXPORT_SYMBOL vmlinux 0xf1a0e039	phy_device_remove
 EXPORT_SYMBOL vmlinux 0xf1ac546f	security_inode_permission
 EXPORT_SYMBOL vmlinux 0xf1d68c7f	neigh_destroy
 EXPORT_SYMBOL vmlinux 0xf1db1704	nla_memcpy
-EXPORT_SYMBOL vmlinux 0xf1de49e8	posix_acl_fix_xattr_userns
 EXPORT_SYMBOL vmlinux 0xf1df2790	pci_disable_link_state
 EXPORT_SYMBOL vmlinux 0xf1e98c74	avenrun
 EXPORT_SYMBOL vmlinux 0xf1f7af45	udp6_set_csum

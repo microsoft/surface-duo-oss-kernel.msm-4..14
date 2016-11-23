@@ -3469,11 +3469,11 @@ EXPORT_SYMBOL fs/fscache/fscache 0xf5015498	fscache_object_init
 EXPORT_SYMBOL fs/fscache/fscache 0xfb211630	fscache_fsdef_index
 EXPORT_SYMBOL fs/fscache/fscache 0xfb6e7c1e	fscache_init_cache
 EXPORT_SYMBOL fs/ocfs2/cluster/ocfs2_nodemanager 0xbfd7d7a2	o2hb_global_heartbeat_active
-EXPORT_SYMBOL fs/quota/quota_tree 0x1758e7ef	qtree_write_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x297380a4	qtree_read_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x507bfc1f	qtree_entry_unused
-EXPORT_SYMBOL fs/quota/quota_tree 0x5aa55d98	qtree_delete_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x78a6d84f	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x0a4aff13	qtree_read_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x8944efdc	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xc15b5f9d	qtree_delete_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xc5866d3e	qtree_write_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xf6ecc54f	qtree_entry_unused
 EXPORT_SYMBOL lib/cordic 0x434bfd07	cordic_calc_iq
 EXPORT_SYMBOL lib/crc-ccitt 0x1a703ba1	crc_ccitt
 EXPORT_SYMBOL lib/crc-ccitt 0x75811312	crc_ccitt_table
@@ -4951,7 +4951,6 @@ EXPORT_SYMBOL vmlinux 0x1284decd	register_qdisc
 EXPORT_SYMBOL vmlinux 0x128c7aca	input_reset_device
 EXPORT_SYMBOL vmlinux 0x12a35cfb	key_validate
 EXPORT_SYMBOL vmlinux 0x12a38747	usleep_range
-EXPORT_SYMBOL vmlinux 0x12a77b08	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x12b3ede8	init_buffer
 EXPORT_SYMBOL vmlinux 0x12b4b10c	generic_shutdown_super
 EXPORT_SYMBOL vmlinux 0x12cb4116	dqget
@@ -6706,6 +6705,7 @@ EXPORT_SYMBOL vmlinux 0x7a78d96d	get_thermal_instance
 EXPORT_SYMBOL vmlinux 0x7aa1756e	kvfree
 EXPORT_SYMBOL vmlinux 0x7ab88a45	system_freezing_cnt
 EXPORT_SYMBOL vmlinux 0x7ad050b9	qid_lt
+EXPORT_SYMBOL vmlinux 0x7add44b5	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x7ae08bea	vme_register_bridge
 EXPORT_SYMBOL vmlinux 0x7ae40003	netpoll_print_options
 EXPORT_SYMBOL vmlinux 0x7af71f38	udp6_set_csum
@@ -6821,7 +6821,6 @@ EXPORT_SYMBOL vmlinux 0x80f95905	__starget_for_each_device
 EXPORT_SYMBOL vmlinux 0x810c430c	blk_queue_update_dma_alignment
 EXPORT_SYMBOL vmlinux 0x81331be8	memory_cgrp_subsys
 EXPORT_SYMBOL vmlinux 0x814e7730	nf_ct_destroy
-EXPORT_SYMBOL vmlinux 0x814ee54b	posix_acl_fix_xattr_userns
 EXPORT_SYMBOL vmlinux 0x81533963	sysfs_format_mac
 EXPORT_SYMBOL vmlinux 0x815b5dd4	match_octal
 EXPORT_SYMBOL vmlinux 0x815c56d0	cpu_present_mask

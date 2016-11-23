@@ -3455,11 +3455,11 @@ EXPORT_SYMBOL fs/fscache/fscache 0xebdfb942	fscache_init_cache
 EXPORT_SYMBOL fs/fscache/fscache 0xf7851fcf	__fscache_write_page
 EXPORT_SYMBOL fs/fscache/fscache 0xfd2e362e	__fscache_attr_changed
 EXPORT_SYMBOL fs/ocfs2/cluster/ocfs2_nodemanager 0xbfd7d7a2	o2hb_global_heartbeat_active
-EXPORT_SYMBOL fs/quota/quota_tree 0x28f51fb7	qtree_delete_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x4b6fed0a	qtree_release_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0xb363c300	qtree_entry_unused
-EXPORT_SYMBOL fs/quota/quota_tree 0xb3dd9d89	qtree_read_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0xf2972e89	qtree_write_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x1b26082d	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x6839dd2a	qtree_write_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x73cae385	qtree_entry_unused
+EXPORT_SYMBOL fs/quota/quota_tree 0x8c44bce9	qtree_delete_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xa5da22c8	qtree_read_dquot
 EXPORT_SYMBOL lib/cordic 0x434bfd07	cordic_calc_iq
 EXPORT_SYMBOL lib/crc-ccitt 0x3771b461	crc_ccitt
 EXPORT_SYMBOL lib/crc-ccitt 0x75811312	crc_ccitt_table
@@ -5533,7 +5533,6 @@ EXPORT_SYMBOL vmlinux 0x33c0080e	mb_cache_shrink
 EXPORT_SYMBOL vmlinux 0x33c7435c	prandom_u32_state
 EXPORT_SYMBOL vmlinux 0x33cf4054	pci_find_parent_resource
 EXPORT_SYMBOL vmlinux 0x33dbfd93	tcp_memory_allocated
-EXPORT_SYMBOL vmlinux 0x33dcf12a	posix_acl_fix_xattr_userns
 EXPORT_SYMBOL vmlinux 0x33f0768c	cpufreq_quick_get_max
 EXPORT_SYMBOL vmlinux 0x340b8397	agp_generic_create_gatt_table
 EXPORT_SYMBOL vmlinux 0x340bf70f	scsi_block_requests
@@ -6751,6 +6750,7 @@ EXPORT_SYMBOL vmlinux 0x7ac98e3a	frontswap_register_ops
 EXPORT_SYMBOL vmlinux 0x7acdd95e	i2c_smbus_write_word_data
 EXPORT_SYMBOL vmlinux 0x7ad050b9	qid_lt
 EXPORT_SYMBOL vmlinux 0x7ad34df2	irq_set_chip
+EXPORT_SYMBOL vmlinux 0x7add44b5	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x7afa89fc	vsnprintf
 EXPORT_SYMBOL vmlinux 0x7b167909	bitmap_from_u32array
 EXPORT_SYMBOL vmlinux 0x7b1ade38	lz4_decompress
@@ -7826,7 +7826,6 @@ EXPORT_SYMBOL vmlinux 0xbb496fd8	scsi_eh_prep_cmnd
 EXPORT_SYMBOL vmlinux 0xbb51a87a	blk_execute_rq
 EXPORT_SYMBOL vmlinux 0xbb52b4e0	__tracepoint_kmem_cache_alloc_node
 EXPORT_SYMBOL vmlinux 0xbb5d343d	xfrm_get_acqseq
-EXPORT_SYMBOL vmlinux 0xbb5d9cf3	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0xbb6597b1	xfrm_lookup
 EXPORT_SYMBOL vmlinux 0xbb7d597d	passthru_features_check
 EXPORT_SYMBOL vmlinux 0xbb822d5e	netlink_ack

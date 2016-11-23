@@ -3417,11 +3417,11 @@ EXPORT_SYMBOL fs/fscache/fscache 0xf37748b1	__fscache_wait_on_page_write
 EXPORT_SYMBOL fs/fscache/fscache 0xfe3b0b8a	__fscache_wait_on_invalidate
 EXPORT_SYMBOL fs/fscache/fscache 0xfe95a03c	fscache_operation_init
 EXPORT_SYMBOL fs/ocfs2/cluster/ocfs2_nodemanager 0xbfd7d7a2	o2hb_global_heartbeat_active
-EXPORT_SYMBOL fs/quota/quota_tree 0x0c8cfbac	qtree_delete_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x22d7ae66	qtree_write_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x3f85c392	qtree_read_dquot
-EXPORT_SYMBOL fs/quota/quota_tree 0x4bcaa5a2	qtree_entry_unused
-EXPORT_SYMBOL fs/quota/quota_tree 0x5ceae69e	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x1cffdc1c	qtree_delete_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x398a9692	qtree_read_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x769d7501	qtree_release_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0x91a48b5f	qtree_write_dquot
+EXPORT_SYMBOL fs/quota/quota_tree 0xdab2b235	qtree_entry_unused
 EXPORT_SYMBOL lib/cordic 0x434bfd07	cordic_calc_iq
 EXPORT_SYMBOL lib/crc-ccitt 0x3771b461	crc_ccitt
 EXPORT_SYMBOL lib/crc-ccitt 0x75811312	crc_ccitt_table
@@ -4982,7 +4982,6 @@ EXPORT_SYMBOL vmlinux 0x1fe0fa9b	tty_port_hangup
 EXPORT_SYMBOL vmlinux 0x1fe912f1	netdev_alloc_frag
 EXPORT_SYMBOL vmlinux 0x1fe9f800	unregister_cpu_notifier
 EXPORT_SYMBOL vmlinux 0x1fedf0f4	__request_region
-EXPORT_SYMBOL vmlinux 0x1ff6d97c	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x1ff7a7ce	xfrm4_rcv_cb
 EXPORT_SYMBOL vmlinux 0x1ffe2470	generic_start_io_acct
 EXPORT_SYMBOL vmlinux 0x20000329	simple_strtoul
@@ -6671,6 +6670,7 @@ EXPORT_SYMBOL vmlinux 0x7abd0f8e	lwtunnel_cmp_encap
 EXPORT_SYMBOL vmlinux 0x7ad050b9	qid_lt
 EXPORT_SYMBOL vmlinux 0x7ad6c18f	ptp_clock_register
 EXPORT_SYMBOL vmlinux 0x7adcf8dd	snd_pcm_hw_constraint_integer
+EXPORT_SYMBOL vmlinux 0x7add44b5	posix_acl_valid
 EXPORT_SYMBOL vmlinux 0x7ade6476	twl6040_clear_bits
 EXPORT_SYMBOL vmlinux 0x7aeba8a2	path_nosuid
 EXPORT_SYMBOL vmlinux 0x7afa89fc	vsnprintf
@@ -7418,7 +7418,6 @@ EXPORT_SYMBOL vmlinux 0xa38b4ad5	cros_ec_check_result
 EXPORT_SYMBOL vmlinux 0xa399e01a	snd_pcm_lib_malloc_pages
 EXPORT_SYMBOL vmlinux 0xa39a123a	fence_add_callback
 EXPORT_SYMBOL vmlinux 0xa39be4b0	d_instantiate_no_diralias
-EXPORT_SYMBOL vmlinux 0xa3b71202	posix_acl_fix_xattr_userns
 EXPORT_SYMBOL vmlinux 0xa3e7c9da	thermal_cdev_update
 EXPORT_SYMBOL vmlinux 0xa3f7e3d8	dev_add_offload
 EXPORT_SYMBOL vmlinux 0xa3fe8317	scsicam_bios_param
