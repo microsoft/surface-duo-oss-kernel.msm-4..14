@@ -4,8 +4,8 @@
 	Usage: required
 	Value type: <stringlist>
 	Definition: Value should contain one of:
-		- "qcom,venus-msm8916"
-		- "qcom,venus-msm8996"
+		- "qcom,msm8916-venus"
+		- "qcom,msm8996-venus"
 - reg:
 	Usage: required
 	Value type: <prop-encoded-array>
@@ -83,7 +83,7 @@
 
 * An Example
 	video-codec@1d00000 {
-		compatible = "qcom,venus-msm8916";
+		compatible = "qcom,msm8916-venus";
 		reg = <0x01d00000 0xff000>;
 		reg-names = "venus";
 		interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;
