@@ -48,7 +48,7 @@ MODULE_PARM_DESC(max_user_congthresh,
  "Global limit for the maximum congestion threshold an "
  "unprivileged user can set");
 
-static bool userns_mounts = true;
+static bool userns_mounts;
 module_param(userns_mounts, bool, 0644);
 MODULE_PARM_DESC(userns_mounts, "Allow mounts from unprivileged user namespaces");
 
