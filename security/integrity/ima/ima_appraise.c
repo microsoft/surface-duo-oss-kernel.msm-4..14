@@ -147,8 +147,6 @@ void ima_get_hash_algo(struct evm_ima_xattr_data *xattr_value, int xattr_len,
 		break;
 	case IMA_XATTR_DIGEST_NG:
 		hash->algo = xattr_value->digest[0];
-		if (hash->algo >= HASH_ALGO__LAST)
-			hash->algo = ima_hash_algo;
 		break;
 	case IMA_XATTR_DIGEST:
 		/* this is for backward compatibility */
