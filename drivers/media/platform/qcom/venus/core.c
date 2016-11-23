@@ -44,12 +44,6 @@ static void venus_sys_error_handler(struct work_struct *work)
 	struct device *dev = core->dev;
 	int ret;
 
-	mutex_lock(&core->lock);
-	if (core->state != CORE_INVALID)
-		goto exit;
-
-	mutex_unlock(&core->lock);
-
 	ret = hfi_core_deinit(core);
 	if (ret)
 		dev_err(dev, "core: deinit failed (%d)\n", ret);
@@ -71,7 +65,7 @@ exit:
 	kfree(handler);
 }
 
-static int venus_event_notify(struct venus_core *core, u32 event)
+static void venus_event_notify(struct venus_core *core, u32 event)
 {
 	struct venus_sys_error *handler;
 	struct venus_inst *inst;
@@ -81,7 +75,7 @@ static int venus_event_notify(struct venus_core *core, u32 event)
 	case EVT_SYS_ERROR:
 		break;
 	default:
-		return -EINVAL;
+		return;
 	}
 
 	mutex_lock(&core->lock);
@@ -98,7 +92,7 @@ static int venus_event_notify(struct venus_core *core, u32 event)
 
 	handler = kzalloc(sizeof(*handler), GFP_KERNEL);
 	if (!handler)
-		return -ENOMEM;
+		return;
 
 	handler->core = core;
 	INIT_DELAYED_WORK(&handler->work, venus_sys_error_handler);
@@ -110,8 +104,6 @@ static int venus_event_notify(struct venus_core *core, u32 event)
 	 * error.
 	 */
 	schedule_delayed_work(&handler->work, msecs_to_jiffies(5000));
-
-	return 0;
 }
 
 static const struct hfi_core_ops venus_core_ops = {

@@ -824,8 +824,8 @@ static const struct vb2_ops vdec_vb2_ops = {
 	.wait_finish = vb2_ops_wait_finish,
 };
 
-static int vdec_empty_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
-			       u32 data_offset, u32 flags)
+static void vdec_empty_buf_done(struct venus_inst *inst, u32 addr,
+				u32 bytesused, u32 data_offset, u32 flags)
 {
 	struct vb2_v4l2_buffer *vbuf;
 
@@ -839,12 +839,10 @@ static int vdec_empty_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
 	v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_DONE);
 
 //	dev_err(inst->core->dev, "ebd: addr: %08x, flags: %x\n", addr, flags);
-
-	return 0;
 }
 
-static int vdec_fill_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
-			      u32 data_offset, u32 flags, u64 timestamp_us)
+static void vdec_fill_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
+			       u32 data_offset, u32 flags, u64 timestamp_us)
 {
 	struct vb2_v4l2_buffer *vbuf;
 	struct vb2_buffer *vb;
@@ -872,12 +870,10 @@ static int vdec_fill_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
 
 //	dev_err(inst->core->dev, "fbd: addr: %08x, flags: %x, ts:%lld\n",
 //		addr, flags, timestamp_us);
-
-	return 0;
 }
 
-static int vdec_event_notify(struct venus_inst *inst, u32 event,
-			     struct hfi_event_data *data)
+static void vdec_event_notify(struct venus_inst *inst, u32 event,
+			      struct hfi_event_data *data)
 {
 	struct venus_core *core = inst->core;
 	struct device *dev = core->dev;
@@ -887,15 +883,14 @@ static int vdec_event_notify(struct venus_inst *inst, u32 event,
 
 	switch (event) {
 	case EVT_SESSION_ERROR:
-		if (inst)
-			inst->state = INST_INVALID;
-		dev_err(dev, "dec: event session error (inst:%p)\n", inst);
+		inst->state = INST_INVALID;
+		dev_err(dev, "dec: event session error %x\n", inst->error);
 		break;
 	case EVT_SYS_EVENT_CHANGE:
 		switch (data->event_type) {
 		case HFI_EVENT_DATA_SEQUENCE_CHANGED_SUFFICIENT_BUF_RESOURCES:
 			hfi_session_continue(inst);
-			dev_err(dev, "event sufficient resources\n");
+			dev_dbg(dev, "event sufficient resources\n");
 			break;
 		case HFI_EVENT_DATA_SEQUENCE_CHANGED_INSUFFICIENT_BUF_RESOURCES:
 			inst->reconfig_height = data->height;
@@ -904,7 +899,7 @@ static int vdec_event_notify(struct venus_inst *inst, u32 event,
 
 			v4l2_event_queue_fh(&inst->fh, &ev);
 
-			dev_err(dev, "event not sufficient resources (%ux%u)\n",
+			dev_dbg(dev, "event not sufficient resources (%ux%u)\n",
 				data->width, data->height);
 			break;
 		default:
@@ -914,8 +909,6 @@ static int vdec_event_notify(struct venus_inst *inst, u32 event,
 	default:
 		break;
 	}
-
-	return 0;
 }
 
 static const struct hfi_inst_ops vdec_hfi_ops = {

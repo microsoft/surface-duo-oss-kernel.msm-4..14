@@ -932,8 +932,8 @@ static const struct vb2_ops venc_vb2_ops = {
 	.buf_queue = helper_vb2_buf_queue,
 };
 
-static int venc_empty_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
-			       u32 data_offset, u32 flags)
+static void venc_empty_buf_done(struct venus_inst *inst, u32 addr,
+				u32 bytesused, u32 data_offset, u32 flags)
 {
 	struct vb2_v4l2_buffer *vbuf;
 	enum vb2_buffer_state state;
@@ -942,7 +942,7 @@ static int venc_empty_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
 	vbuf = helper_vb2_find_buf(inst, addr,
 				   V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
 	if (!vbuf)
-		return -EINVAL;
+		return;
 
 	vb = &vbuf->vb2_buf;
 	vb->planes[0].bytesused = bytesused;
@@ -955,12 +955,10 @@ static int venc_empty_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
 		state = VB2_BUF_STATE_ERROR;
 
 	v4l2_m2m_buf_done(vbuf, state);
-
-	return 0;
 }
 
-static int venc_fill_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
-			      u32 data_offset, u32 flags, u64 timestamp_us)
+static void venc_fill_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
+			       u32 data_offset, u32 flags, u64 timestamp_us)
 {
 	struct vb2_v4l2_buffer *vbuf;
 	enum vb2_buffer_state state;
@@ -969,7 +967,7 @@ static int venc_fill_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
 	vbuf = helper_vb2_find_buf(inst, addr,
 				   V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 	if (!vbuf)
-		return -EINVAL;
+		return;
 
 	vb = &vbuf->vb2_buf;
 	vb->planes[0].bytesused = bytesused;
@@ -984,26 +982,17 @@ static int venc_fill_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
 		state = VB2_BUF_STATE_ERROR;
 
 	v4l2_m2m_buf_done(vbuf, state);
-
-	return 0;
 }
 
-static int venc_event_notify(struct venus_inst *inst, u32 event,
-			     struct hfi_event_data *data)
+static void venc_event_notify(struct venus_inst *inst, u32 event,
+			      struct hfi_event_data *data)
 {
 	struct device *dev = inst->core->dev;
 
-	switch (event) {
-	case EVT_SESSION_ERROR:
-		if (inst)
-			inst->state = INST_INVALID;
-		dev_err(dev, "enc: event session error (inst:%p)\n", inst);
-		break;
-	default:
-		break;
+	if (event == EVT_SESSION_ERROR) {
+		inst->state = INST_INVALID;
+		dev_err(dev, "enc: event session error %x)\n", inst->error);
 	}
-
-	return 0;
 }
 
 static const struct hfi_inst_ops venc_hfi_ops = {

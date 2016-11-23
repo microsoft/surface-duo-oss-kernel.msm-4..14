@@ -93,16 +93,16 @@ struct venus_core;
 struct venus_inst;
 
 struct hfi_core_ops {
-	int (*event_notify)(struct venus_core *core, u32 event);
+	void (*event_notify)(struct venus_core *core, u32 event);
 };
 
 struct hfi_inst_ops {
-	int (*empty_buf_done)(struct venus_inst *inst, u32 addr, u32 bytesused,
-			      u32 data_offset, u32 flags);
-	int (*fill_buf_done)(struct venus_inst *inst, u32 addr, u32 bytesused,
-			     u32 data_offset, u32 flags, u64 timestamp_us);
-	int (*event_notify)(struct venus_inst *inst, u32 event,
-			    struct hfi_event_data *data);
+	void (*empty_buf_done)(struct venus_inst *inst, u32 addr, u32 bytesused,
+			       u32 data_offset, u32 flags);
+	void (*fill_buf_done)(struct venus_inst *inst, u32 addr, u32 bytesused,
+			      u32 data_offset, u32 flags, u64 timestamp_us);
+	void (*event_notify)(struct venus_inst *inst, u32 event,
+			     struct hfi_event_data *data);
 };
 
 struct hfi_ops {

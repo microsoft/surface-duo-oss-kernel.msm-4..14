@@ -240,7 +240,6 @@ session_process_buf(struct venus_inst *inst, struct vb2_v4l2_buffer *vbuf)
 	struct venus_core *core = inst->core;
 	struct device *dev = core->dev;
 	unsigned int type = vb->type;
-
 	struct hfi_frame_data fdata;
 	int ret;
 

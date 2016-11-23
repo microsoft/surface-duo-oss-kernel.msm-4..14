@@ -1005,10 +1005,8 @@ u32 hfi_process_msg_packet(struct venus_core *core, struct hfi_pkt_hdr *hdr)
 
 	for (i = 0; i < ARRAY_SIZE(handlers); i++) {
 		handler = &handlers[i];
-
 		if (handler->pkt != hdr->pkt_type)
 			continue;
-
 		found = true;
 		break;
 	}
