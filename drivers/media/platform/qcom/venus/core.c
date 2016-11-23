@@ -192,20 +192,6 @@ static const struct v4l2_file_operations venus_fops = {
 #endif
 };
 
-static irqreturn_t venus_isr_thread(int irq, void *dev_id)
-{
-	struct venus_core *core = dev_id;
-
-	return hfi_isr_thread(core);
-}
-
-static irqreturn_t venus_isr(int irq, void *dev)
-{
-	struct venus_core *core = dev;
-
-	return hfi_isr(core);
-}
-
 static int venus_clks_get(struct venus_core *core)
 {
 	const struct venus_resources *res = core->res;
@@ -299,7 +285,7 @@ static int venus_probe(struct platform_device *pdev)
 	INIT_LIST_HEAD(&core->instances);
 	mutex_init(&core->lock);
 
-	ret = devm_request_threaded_irq(dev, irq, venus_isr, venus_isr_thread,
+	ret = devm_request_threaded_irq(dev, irq, hfi_isr, hfi_isr_thread,
 					IRQF_TRIGGER_HIGH | IRQF_ONESHOT,
 					"venus", core);
 	if (ret)
@@ -495,8 +481,8 @@ static const struct venus_resources msm8996_res = {
 };
 
 static const struct of_device_id venus_dt_match[] = {
-	{ .compatible = "qcom,venus-msm8916", .data = &msm8916_res, },
-	{ .compatible = "qcom,venus-msm8996", .data = &msm8996_res, },
+	{ .compatible = "qcom,msm8916-venus", .data = &msm8916_res, },
+	{ .compatible = "qcom,msm8996-venus", .data = &msm8996_res, },
 	{ }
 };
 

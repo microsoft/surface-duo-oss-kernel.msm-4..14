@@ -19,15 +19,16 @@
 
 struct venus_inst;
 
-struct vb2_v4l2_buffer *
-vidc_vb2_find_buf(struct venus_inst *inst, dma_addr_t addr, unsigned int type);
-int vidc_vb2_buf_init(struct vb2_buffer *vb);
-int vidc_vb2_buf_prepare(struct vb2_buffer *vb);
-void vidc_vb2_buf_queue(struct vb2_buffer *vb);
-void vidc_vb2_buffers_done(struct venus_inst *inst, enum vb2_buffer_state state);
-void vidc_vb2_stop_streaming(struct vb2_queue *q);
-int vidc_vb2_start_streaming(struct venus_inst *inst);
-int vidc_get_bufreq(struct venus_inst *inst, u32 type,
-		    struct hfi_buffer_requirements *out);
-int vidc_set_color_format(struct venus_inst *inst, u32 type, u32 fmt);
+struct vb2_v4l2_buffer *helper_vb2_find_buf(struct venus_inst *inst,
+					    dma_addr_t addr, unsigned int type);
+int helper_vb2_buf_init(struct vb2_buffer *vb);
+int helper_vb2_buf_prepare(struct vb2_buffer *vb);
+void helper_vb2_buf_queue(struct vb2_buffer *vb);
+void helper_vb2_buffers_done(struct venus_inst *inst,
+			     enum vb2_buffer_state state);
+void helper_vb2_stop_streaming(struct vb2_queue *q);
+int helper_vb2_start_streaming(struct venus_inst *inst);
+int helper_get_bufreq(struct venus_inst *inst, u32 type,
+		      struct hfi_buffer_requirements *out);
+int helper_set_color_format(struct venus_inst *inst, u32 type, u32 fmt);
 #endif

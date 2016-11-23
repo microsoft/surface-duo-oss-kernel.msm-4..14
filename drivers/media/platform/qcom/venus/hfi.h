@@ -172,9 +172,8 @@ int hfi_session_unset_buffers(struct venus_inst *inst,
 int hfi_session_get_property(struct venus_inst *inst, u32 ptype,
 			     union hfi_get_property *hprop);
 int hfi_session_set_property(struct venus_inst *inst, u32 ptype, void *pdata);
-int hfi_session_etb(struct venus_inst *inst, struct hfi_frame_data *fdata);
-int hfi_session_ftb(struct venus_inst *inst, struct hfi_frame_data *fdata);
-irqreturn_t hfi_isr_thread(struct venus_core *core);
-irqreturn_t hfi_isr(struct venus_core *core);
+int hfi_session_process_buf(struct venus_inst *inst, struct hfi_frame_data *f);
+irqreturn_t hfi_isr_thread(int irq, void *dev_id);
+irqreturn_t hfi_isr(int irq, void *dev);
 
 #endif

@@ -17,7 +17,6 @@
 #define __VENUS_CORE_H_
 
 #include <linux/list.h>
-#include <media/videobuf2-core.h>
 #include <media/videobuf2-v4l2.h>
 #include <media/v4l2-ctrls.h>
 #include <media/v4l2-device.h>
@@ -97,11 +96,9 @@ struct venus_core {
 	unsigned int state;
 	struct completion done;
 	unsigned int error;
-
-	/* core operations passed by outside world */
 	const struct hfi_core_ops *core_ops;
 
-	/* filled by sys core init */
+	/* filled by core init */
 	u32 enc_codecs;
 	u32 dec_codecs;
 	unsigned int max_sessions_supported;
@@ -116,10 +113,6 @@ struct venus_core {
 	/* internal hfi operations */
 	void *priv;
 	const struct hfi_ops *ops;
-
-	/* mem2mem fields */
-	struct v4l2_m2m_dev *m2m_dev_dec;
-	struct v4l2_m2m_dev *m2m_dev_enc;
 };
 
 /**
@@ -231,9 +224,9 @@ struct venus_buffer {
  * @fmt_cap:
  * @num_input_bufs:
  * @num_output_bufs:
+ * @input_buf_size
  * @output_buf_size:
- * @in_reconfig:
- * @in_reconfig:
+ * @reconfig:
  * @reconfig_width:
  * @reconfig_height:
  * @sequence:
@@ -280,7 +273,7 @@ struct venus_inst {
 	void *alloc_ctx_out;
 
 	/* v4l2 fields */
-	int streamon, streamon_cap, streamon_out;
+	unsigned streamon_cap, streamon_out;
 	u32 width;
 	u32 height;
 	u32 out_width;
@@ -295,19 +288,21 @@ struct venus_inst {
 	const struct venus_format *fmt_cap;
 	unsigned int num_input_bufs;
 	unsigned int num_output_bufs;
+	unsigned int input_buf_size;
 	unsigned int output_buf_size;
-	bool in_reconfig;
+	bool reconfig;
 	u32 reconfig_width;
 	u32 reconfig_height;
 	u64 sequence;
 	bool codec_cfg;
+	/* v4l2 mem2mem fields */
+	struct v4l2_m2m_dev *m2m_dev;
+	struct v4l2_m2m_ctx *m2m_ctx;
 
 	/* HFI instance fields */
 	unsigned int state;
 	struct completion done;
 	unsigned int error;
-
-	/* instance operations passed by outside world */
 	const struct hfi_inst_ops *ops;
 	u32 session_type;
 	union hfi_get_property hprop;
@@ -333,10 +328,6 @@ struct venus_inst {
 
 	/* buffer requirements */
 	struct hfi_buffer_requirements bufreq[HFI_BUFFER_TYPE_MAX];
-
-	/* mem2mem fields */
-	struct v4l2_m2m_dev *m2m_dev;
-	struct v4l2_m2m_ctx *m2m_ctx;
 };
 
 #define ctrl_to_inst(ctrl)	\

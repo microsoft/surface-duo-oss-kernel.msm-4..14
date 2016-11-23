@@ -752,7 +752,7 @@ static int venc_init_session(struct venus_inst *inst)
 
 	pixfmt = inst->fmt_out->pixfmt;
 
-	ret = vidc_set_color_format(inst, HFI_BUFFER_INPUT, pixfmt);
+	ret = helper_set_color_format(inst, HFI_BUFFER_INPUT, pixfmt);
 	if (ret)
 		goto err;
 
@@ -776,7 +776,7 @@ static int venc_out_num_buffers(struct venus_inst *inst, unsigned int *num)
 	if (ret)
 		goto put_sync;
 
-	ret = vidc_get_bufreq(inst, HFI_BUFFER_INPUT, &bufreq);
+	ret = helper_get_bufreq(inst, HFI_BUFFER_INPUT, &bufreq);
 
 	*num = bufreq.count_actual;
 
@@ -831,7 +831,10 @@ static int venc_check_configuration(struct venus_inst *inst)
 	struct hfi_buffer_requirements bufreq;
 	int ret;
 
-	ret = vidc_get_bufreq(inst, HFI_BUFFER_OUTPUT, &bufreq);
+	if (!inst->num_input_bufs || !inst->num_output_bufs)
+		return -EINVAL;
+
+	ret = helper_get_bufreq(inst, HFI_BUFFER_OUTPUT, &bufreq);
 	if (ret)
 		return ret;
 
@@ -839,7 +842,7 @@ static int venc_check_configuration(struct venus_inst *inst)
 	    inst->num_output_bufs < bufreq.count_min)
 		return -EINVAL;
 
-	ret = vidc_get_bufreq(inst, HFI_BUFFER_INPUT, &bufreq);
+	ret = helper_get_bufreq(inst, HFI_BUFFER_INPUT, &bufreq);
 	if (ret)
 		return ret;
 
@@ -903,8 +906,6 @@ static int venc_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (ret)
 		goto deinit_sess;
 
-	inst->streamon = 1;
-
 	mutex_unlock(&inst->lock);
 
 	return 0;
@@ -913,18 +914,22 @@ deinit_sess:
 	hfi_session_deinit(inst);
 put_sync:
 	pm_runtime_put_sync(dev);
-	vidc_vb2_buffers_done(inst, VB2_BUF_STATE_QUEUED);
+	helper_vb2_buffers_done(inst, VB2_BUF_STATE_QUEUED);
+	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+		inst->streamon_out = 0;
+	else
+		inst->streamon_cap = 0;
 	mutex_unlock(&inst->lock);
 	return ret;
 }
 
 static const struct vb2_ops venc_vb2_ops = {
 	.queue_setup = venc_queue_setup,
-	.buf_init = vidc_vb2_buf_init,
-	.buf_prepare = vidc_vb2_buf_prepare,
+	.buf_init = helper_vb2_buf_init,
+	.buf_prepare = helper_vb2_buf_prepare,
 	.start_streaming = venc_start_streaming,
-	.stop_streaming = vidc_vb2_stop_streaming,
-	.buf_queue = vidc_vb2_buf_queue,
+	.stop_streaming = helper_vb2_stop_streaming,
+	.buf_queue = helper_vb2_buf_queue,
 };
 
 static int venc_empty_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
@@ -934,7 +939,8 @@ static int venc_empty_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
 	enum vb2_buffer_state state;
 	struct vb2_buffer *vb;
 
-	vbuf = vidc_vb2_find_buf(inst, addr, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+	vbuf = helper_vb2_find_buf(inst, addr,
+				   V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
 	if (!vbuf)
 		return -EINVAL;
 
@@ -948,7 +954,7 @@ static int venc_empty_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
 	    bytesused > vb->planes[0].length)
 		state = VB2_BUF_STATE_ERROR;
 
-	vb2_buffer_done(vb, state);
+	v4l2_m2m_buf_done(vbuf, state);
 
 	return 0;
 }
@@ -960,8 +966,8 @@ static int venc_fill_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
 	enum vb2_buffer_state state;
 	struct vb2_buffer *vb;
 
-	vbuf = vidc_vb2_find_buf(inst, addr,
-				 V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
+	vbuf = helper_vb2_find_buf(inst, addr,
+				   V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
 	if (!vbuf)
 		return -EINVAL;
 
@@ -977,7 +983,7 @@ static int venc_fill_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
 	    bytesused > vb->planes[0].length)
 		state = VB2_BUF_STATE_ERROR;
 
-	vb2_buffer_done(vb, state);
+	v4l2_m2m_buf_done(vbuf, state);
 
 	return 0;
 }
@@ -1014,15 +1020,9 @@ static void venc_m2m_device_run(void *priv)
 
 	dev_err(dev, "%s: enter\n", __func__);
 
-	ret = vidc_vb2_start_streaming(inst);
+	ret = helper_vb2_start_streaming(inst);
 	if (ret)
 		dev_err(dev, "enc: start streaming failed %d\n", ret);
-
-}
-
-static int venc_m2m_job_ready(void *priv)
-{
-	return 1;
 }
 
 static void venc_m2m_job_abort(void *priv)
@@ -1032,17 +1032,16 @@ static void venc_m2m_job_abort(void *priv)
 
 	dev_err(dev, "%s: enter\n", __func__);
 
-	v4l2_m2m_job_finish(inst->core->m2m_dev_enc, inst->m2m_ctx);
+	v4l2_m2m_job_finish(inst->m2m_dev, inst->m2m_ctx);
 }
 
 static const struct v4l2_m2m_ops venc_m2m_ops = {
 	.device_run = venc_m2m_device_run,
-	.job_ready = venc_m2m_job_ready,
 	.job_abort = venc_m2m_job_abort,
 };
 
-static int venc_m2m_queue_init(void *priv, struct vb2_queue *src_vq,
-			       struct vb2_queue *dst_vq)
+static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
+			  struct vb2_queue *dst_vq)
 {
 	struct venus_inst *inst = priv;
 	int ret;
@@ -1107,10 +1106,6 @@ int venc_init(struct venus_core *core, struct video_device *enc,
 {
 	int ret;
 
-	core->m2m_dev_enc = v4l2_m2m_init(&venc_m2m_ops);
-	if (IS_ERR(core->m2m_dev_enc))
-		return PTR_ERR(core->m2m_dev_enc);
-
 	enc->release = video_device_release;
 	enc->fops = fops;
 	enc->ioctl_ops = &venc_ioctl_ops;
@@ -1119,25 +1114,20 @@ int venc_init(struct venus_core *core, struct video_device *enc,
 
 	ret = video_register_device(enc, VFL_TYPE_GRABBER, -1);
 	if (ret)
-		goto m2m_release;
+		return ret;
 
 	video_set_drvdata(enc, core);
 
 	return 0;
-m2m_release:
-	v4l2_m2m_release(core->m2m_dev_enc);
-	return ret;
 }
 
 void venc_deinit(struct venus_core *core, struct video_device *enc)
 {
 	video_unregister_device(enc);
-	v4l2_m2m_release(core->m2m_dev_enc);
 }
 
 int venc_open(struct venus_inst *inst)
 {
-	struct venus_core *core = inst->core;
 	int ret;
 
 	inst->alloc_ctx_cap = vb2_dma_sg_init_ctx(inst->core->dev);
@@ -1160,15 +1150,22 @@ int venc_open(struct venus_inst *inst)
 
 	venc_inst_init(inst);
 
-	inst->m2m_ctx = v4l2_m2m_ctx_init(core->m2m_dev_enc, inst,
-					  venc_m2m_queue_init);
+	inst->m2m_dev = v4l2_m2m_init(&venc_m2m_ops);
+	if (IS_ERR(inst->m2m_dev)) {
+		ret = PTR_ERR(inst->m2m_dev);
+		goto err_session_destroy;
+	}
+
+	inst->m2m_ctx = v4l2_m2m_ctx_init(inst->m2m_dev, inst, m2m_queue_init);
 	if (IS_ERR(inst->m2m_ctx)) {
 		ret = PTR_ERR(inst->m2m_ctx);
-		goto err_session_destroy;
+		goto err_m2m_release;
 	}
 
 	return 0;
 
+err_m2m_release:
+	v4l2_m2m_release(inst->m2m_dev);
 err_session_destroy:
 	hfi_session_destroy(inst);
 err_ctrl_deinit:
@@ -1182,6 +1179,7 @@ err_alloc_ctx:
 void venc_close(struct venus_inst *inst)
 {
 	v4l2_m2m_ctx_release(inst->m2m_ctx);
+	v4l2_m2m_release(inst->m2m_dev);
 	venc_ctrl_deinit(inst);
 	hfi_session_destroy(inst);
 	vb2_dma_sg_cleanup_ctx(inst->alloc_ctx_cap);

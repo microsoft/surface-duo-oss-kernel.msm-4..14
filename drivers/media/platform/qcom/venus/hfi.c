@@ -442,27 +442,29 @@ int hfi_session_set_property(struct venus_inst *inst, u32 ptype, void *pdata)
 	return ops->session_set_property(inst, ptype, pdata);
 }
 
-int hfi_session_etb(struct venus_inst *inst, struct hfi_frame_data *fdata)
+int hfi_session_process_buf(struct venus_inst *inst, struct hfi_frame_data *f)
 {
 	const struct hfi_ops *ops = inst->core->ops;
 
-	return ops->session_etb(inst, fdata);
+	if (f->buffer_type == HFI_BUFFER_INPUT)
+		return ops->session_etb(inst, f);
+	else if (f->buffer_type == HFI_BUFFER_OUTPUT)
+		return ops->session_ftb(inst, f);
+
+	return -EINVAL;
 }
 
-int hfi_session_ftb(struct venus_inst *inst, struct hfi_frame_data *fdata)
+irqreturn_t hfi_isr_thread(int irq, void *dev_id)
 {
-	const struct hfi_ops *ops = inst->core->ops;
+	struct venus_core *core = dev_id;
 
-	return ops->session_ftb(inst, fdata);
-}
-
-irqreturn_t hfi_isr_thread(struct venus_core *core)
-{
 	return core->ops->isr_thread(core);
 }
 
-irqreturn_t hfi_isr(struct venus_core *core)
+irqreturn_t hfi_isr(int irq, void *dev)
 {
+	struct venus_core *core = dev;
+
 	return core->ops->isr(core);
 }
 
