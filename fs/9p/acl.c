@@ -272,7 +272,7 @@ static int v9fs_xattr_set_acl(const struct xattr_handler *handler,
 		if (IS_ERR(acl))
 			return PTR_ERR(acl);
 		else if (acl) {
-			retval = posix_acl_valid(inode->i_sb->s_user_ns, acl);
+			retval = posix_acl_valid(acl);
 			if (retval)
 				goto err_out;
 		}
