@@ -8,59 +8,6 @@
 #include <linux/dma-attrs.h>
 #include <linux/dma-direction.h>
 #include <linux/scatterlist.h>
-#include <linux/kmemcheck.h>
-#include <linux/bug.h>
-
-/**
- * List of possible attributes associated with a DMA mapping. The semantics
- * of each attribute should be defined in Documentation/DMA-attributes.txt.
- *
- * DMA_ATTR_WRITE_BARRIER: DMA to a memory region with this attribute
- * forces all pending DMA writes to complete.
- */
-#define DMA_ATTR_WRITE_BARRIER		(1UL << 0)
-/*
- * DMA_ATTR_WEAK_ORDERING: Specifies that reads and writes to the mapping
- * may be weakly ordered, that is that reads and writes may pass each other.
- */
-#define DMA_ATTR_WEAK_ORDERING		(1UL << 1)
-/*
- * DMA_ATTR_WRITE_COMBINE: Specifies that writes to the mapping may be
- * buffered to improve performance.
- */
-#define DMA_ATTR_WRITE_COMBINE		(1UL << 2)
-/*
- * DMA_ATTR_NON_CONSISTENT: Lets the platform to choose to return either
- * consistent or non-consistent memory as it sees fit.
- */
-#define DMA_ATTR_NON_CONSISTENT		(1UL << 3)
-/*
- * DMA_ATTR_NO_KERNEL_MAPPING: Lets the platform to avoid creating a kernel
- * virtual mapping for the allocated buffer.
- */
-#define DMA_ATTR_NO_KERNEL_MAPPING	(1UL << 4)
-/*
- * DMA_ATTR_SKIP_CPU_SYNC: Allows platform code to skip synchronization of
- * the CPU cache for the given buffer assuming that it has been already
- * transferred to 'device' domain.
- */
-#define DMA_ATTR_SKIP_CPU_SYNC		(1UL << 5)
-/*
- * DMA_ATTR_FORCE_CONTIGUOUS: Forces contiguous allocation of the buffer
- * in physical memory.
- */
-#define DMA_ATTR_FORCE_CONTIGUOUS	(1UL << 6)
-/*
- * DMA_ATTR_ALLOC_SINGLE_PAGES: This is a hint to the DMA-mapping subsystem
- * that it's probably not worth the time to try to allocate memory to in a way
- * that gives better TLB efficiency.
- */
-#define DMA_ATTR_ALLOC_SINGLE_PAGES	(1UL << 7)
-/*
- * DMA_ATTR_NO_WARN: This tells the DMA-mapping subsystem to suppress
- * allocation failure reports (similarly to __GFP_NOWARN).
- */
-#define DMA_ATTR_NO_WARN	(1UL << 8)
 
 /*
  * A dma_addr_t can hold any valid DMA or bus address for the platform.
