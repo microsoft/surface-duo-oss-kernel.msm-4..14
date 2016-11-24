@@ -96,6 +96,7 @@ struct venus_core {
 	unsigned int state;
 	struct completion done;
 	unsigned int error;
+	bool sys_error;
 	const struct hfi_core_ops *core_ops;
 
 	/* filled by core init */
@@ -303,6 +304,7 @@ struct venus_inst {
 	unsigned int state;
 	struct completion done;
 	unsigned int error;
+	bool session_error;
 	const struct hfi_inst_ops *ops;
 	u32 session_type;
 	union hfi_get_property hprop;

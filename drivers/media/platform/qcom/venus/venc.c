@@ -48,7 +48,7 @@ static u32 get_framesize_uncompressed(unsigned int plane, u32 width, u32 height)
 
 static u32 get_framesize_compressed(u32 width, u32 height)
 {
-	u32 sz = ALIGN(height, 32) * ALIGN(width, 32) * 3 / 2;
+	u32 sz = ALIGN(height, 32) * ALIGN(width, 32) * 3 / 2 / 2;
 
 	return ALIGN(sz, SZ_4K);
 }
@@ -304,11 +304,8 @@ venc_try_fmt_common(struct venus_inst *inst, struct v4l2_format *f)
 static int venc_try_fmt(struct file *file, void *fh, struct v4l2_format *f)
 {
 	struct venus_inst *inst = to_inst(file);
-	const struct venus_format *fmt;
 
-	fmt = venc_try_fmt_common(inst, f);
-	if (!fmt)
-		return -EINVAL;
+	venc_try_fmt_common(inst, f);
 
 	return 0;
 }
@@ -343,12 +340,15 @@ static int venc_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 	format.fmt.pix_mp.width = orig_pixmp.width;
 	format.fmt.pix_mp.height = orig_pixmp.height;
 	venc_try_fmt_common(inst, &format);
-	inst->out_width = format.fmt.pix_mp.width;
-	inst->out_height = format.fmt.pix_mp.height;
-	inst->colorspace = pixmp->colorspace;
-	inst->ycbcr_enc = pixmp->ycbcr_enc;
-	inst->quantization = pixmp->quantization;
-	inst->xfer_func = pixmp->xfer_func;
+
+	if (f->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
+		inst->out_width = format.fmt.pix_mp.width;
+		inst->out_height = format.fmt.pix_mp.height;
+		inst->colorspace = pixmp->colorspace;
+		inst->ycbcr_enc = pixmp->ycbcr_enc;
+		inst->quantization = pixmp->quantization;
+		inst->xfer_func = pixmp->xfer_func;
+	}
 
 	memset(&format, 0, sizeof(format));
 
@@ -357,6 +357,7 @@ static int venc_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 	format.fmt.pix_mp.width = orig_pixmp.width;
 	format.fmt.pix_mp.height = orig_pixmp.height;
 	venc_try_fmt_common(inst, &format);
+
 	inst->width = format.fmt.pix_mp.width;
 	inst->height = format.fmt.pix_mp.height;
 
@@ -793,7 +794,7 @@ static int venc_queue_setup(struct vb2_queue *q, const void *parg,
 			    unsigned int sizes[], void *alloc_ctxs[])
 {
 	struct venus_inst *inst = vb2_get_drv_priv(q);
-	unsigned int p, num;
+	unsigned int p, num, min = 4;
 	int ret = 0;
 
 	switch (q->type) {
@@ -804,16 +805,18 @@ static int venc_queue_setup(struct vb2_queue *q, const void *parg,
 		if (ret)
 			break;
 
+		num = max(num, min);
 		*num_buffers = max(*num_buffers, num);
 		inst->num_input_bufs = *num_buffers;
 
 		for (p = 0; p < *num_planes; ++p)
-			sizes[p] = get_framesize_uncompressed(p, inst->width,
-							      inst->height);
+			sizes[p] = get_framesize_uncompressed(p,
+					inst->out_width, inst->out_height);
 		alloc_ctxs[0] = inst->alloc_ctx_out;
 		break;
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
 		*num_planes = inst->fmt_cap->num_planes;
+		*num_buffers = max(*num_buffers, min);
 		inst->num_output_bufs = *num_buffers;
 		sizes[0] = get_framesize_compressed(inst->width, inst->height);
 		alloc_ctxs[0] = inst->alloc_ctx_cap;
@@ -932,56 +935,35 @@ static const struct vb2_ops venc_vb2_ops = {
 	.buf_queue = helper_vb2_buf_queue,
 };
 
-static void venc_empty_buf_done(struct venus_inst *inst, u32 addr,
-				u32 bytesused, u32 data_offset, u32 flags)
+static void venc_buf_done(struct venus_inst *inst, unsigned int buf_type,
+			  u32 addr, u32 bytesused, u32 data_offset, u32 flags,
+			  u64 timestamp_us)
 {
 	struct vb2_v4l2_buffer *vbuf;
-	enum vb2_buffer_state state;
 	struct vb2_buffer *vb;
+	unsigned int type;
 
-	vbuf = helper_vb2_find_buf(inst, addr,
-				   V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE);
+	if (buf_type == HFI_BUFFER_INPUT)
+		type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE;
+	else
+		type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+
+	vbuf = helper_vb2_find_buf(inst, addr, type);
 	if (!vbuf)
 		return;
 
 	vb = &vbuf->vb2_buf;
 	vb->planes[0].bytesused = bytesused;
 	vb->planes[0].data_offset = data_offset;
+
 	vbuf->flags = flags;
-	state = VB2_BUF_STATE_DONE;
 
-	if (data_offset > vb->planes[0].length ||
-	    bytesused > vb->planes[0].length)
-		state = VB2_BUF_STATE_ERROR;
+	if (type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE) {
+		vbuf->timestamp = ns_to_timeval(timestamp_us * NSEC_PER_USEC);
+		vbuf->sequence = inst->sequence++;
+	}
 
-	v4l2_m2m_buf_done(vbuf, state);
-}
-
-static void venc_fill_buf_done(struct venus_inst *inst, u32 addr, u32 bytesused,
-			       u32 data_offset, u32 flags, u64 timestamp_us)
-{
-	struct vb2_v4l2_buffer *vbuf;
-	enum vb2_buffer_state state;
-	struct vb2_buffer *vb;
-
-	vbuf = helper_vb2_find_buf(inst, addr,
-				   V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE);
-	if (!vbuf)
-		return;
-
-	vb = &vbuf->vb2_buf;
-	vb->planes[0].bytesused = bytesused;
-	vb->planes[0].data_offset = data_offset;
-	vbuf->timestamp = ns_to_timeval(timestamp_us * NSEC_PER_USEC);
-	vbuf->flags = flags;
-	vbuf->sequence = inst->sequence++;
-	state = VB2_BUF_STATE_DONE;
-
-	if (data_offset > vb->planes[0].length ||
-	    bytesused > vb->planes[0].length)
-		state = VB2_BUF_STATE_ERROR;
-
-	v4l2_m2m_buf_done(vbuf, state);
+	v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_DONE);
 }
 
 static void venc_event_notify(struct venus_inst *inst, u32 event,
@@ -990,14 +972,13 @@ static void venc_event_notify(struct venus_inst *inst, u32 event,
 	struct device *dev = inst->core->dev;
 
 	if (event == EVT_SESSION_ERROR) {
-		inst->state = INST_INVALID;
+		inst->session_error = true;
 		dev_err(dev, "enc: event session error %x)\n", inst->error);
 	}
 }
 
 static const struct hfi_inst_ops venc_hfi_ops = {
-	.empty_buf_done = venc_empty_buf_done,
-	.fill_buf_done = venc_fill_buf_done,
+	.buf_done = venc_buf_done,
 	.event_notify = venc_event_notify,
 };
 
@@ -1007,19 +988,18 @@ static void venc_m2m_device_run(void *priv)
 	struct device *dev = inst->core->dev;
 	int ret;
 
-	dev_err(dev, "%s: enter\n", __func__);
+	mutex_lock(&inst->lock);
 
 	ret = helper_vb2_start_streaming(inst);
 	if (ret)
 		dev_err(dev, "enc: start streaming failed %d\n", ret);
+
+	mutex_unlock(&inst->lock);
 }
 
 static void venc_m2m_job_abort(void *priv)
 {
 	struct venus_inst *inst = priv;
-	struct device *dev = inst->core->dev;
-
-	dev_err(dev, "%s: enter\n", __func__);
 
 	v4l2_m2m_job_finish(inst->m2m_dev, inst->m2m_ctx);
 }

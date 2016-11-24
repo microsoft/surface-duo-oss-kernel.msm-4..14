@@ -475,10 +475,14 @@ void helper_vb2_buffers_done(struct venus_inst *inst,
 {
 	struct vb2_v4l2_buffer *buf;
 
-	while ((buf = v4l2_m2m_src_buf_remove(inst->m2m_ctx)))
+	while ((buf = v4l2_m2m_src_buf_remove(inst->m2m_ctx))) {
 		v4l2_m2m_buf_done(buf, state);
-	while ((buf = v4l2_m2m_dst_buf_remove(inst->m2m_ctx)))
+		dev_err(inst->core->dev, "src buf done\n");
+	}
+	while ((buf = v4l2_m2m_dst_buf_remove(inst->m2m_ctx))) {
 		v4l2_m2m_buf_done(buf, state);
+		dev_err(inst->core->dev, "dst buf done\n");
+	}
 }
 
 void helper_vb2_stop_streaming(struct vb2_queue *q)
@@ -490,38 +494,35 @@ void helper_vb2_stop_streaming(struct vb2_queue *q)
 
 	mutex_lock(&inst->lock);
 
+	dev_err(dev, "enter helper_vb2_stop_streaming (out:%u, cap:%u)\n",
+		inst->streamon_out, inst->streamon_cap);
+
 	if (!(inst->streamon_out & inst->streamon_cap)) {
 		mutex_unlock(&inst->lock);
 		return;
 	}
 
+	dev_err(dev, "call session_stop\n");
+
 	ret = hfi_session_stop(inst);
+
+	ret |= hfi_session_unload_res(inst);
+
+	ret |= session_unregister_bufs(inst);
+
+	ret |= intbufs_free(inst);
+
+	ret |= hfi_session_deinit(inst);
+
+	if (inst->session_error || core->sys_error)
+		ret = -EIO;
+
 	if (ret) {
-		dev_err(dev, "session: stop failed (%d)\n", ret);
-		goto abort;
-	}
-
-	ret = hfi_session_unload_res(inst);
-	if (ret) {
-		dev_err(dev, "session: release resources failed (%d)\n", ret);
-		goto abort;
-	}
-
-	ret = session_unregister_bufs(inst);
-	if (ret)
-		goto abort;
-
-	ret = intbufs_free(inst);
-
-	if (inst->state == INST_INVALID || core->state == CORE_INVALID)
-		ret = -EINVAL;
-
-abort:
-	if (ret)
+		dev_err(dev, "aborting the session %d\n", ret);
 		hfi_session_abort(inst);
+	}
 
 	load_scale_clocks(core);
-	hfi_session_deinit(inst);
 	pm_runtime_put_sync(dev);
 	helper_vb2_buffers_done(inst, VB2_BUF_STATE_ERROR);
 	inst->streamon_cap = inst->streamon_out = 0;

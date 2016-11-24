@@ -78,10 +78,8 @@ struct hfi_event_data {
 /* define core states */
 #define CORE_UNINIT				0
 #define CORE_INIT				1
-#define CORE_INVALID				2
 
 /* define instance states */
-#define INST_INVALID				1
 #define INST_UNINIT				2
 #define INST_INIT				3
 #define INST_LOAD_RESOURCES			4
@@ -97,10 +95,9 @@ struct hfi_core_ops {
 };
 
 struct hfi_inst_ops {
-	void (*empty_buf_done)(struct venus_inst *inst, u32 addr, u32 bytesused,
-			       u32 data_offset, u32 flags);
-	void (*fill_buf_done)(struct venus_inst *inst, u32 addr, u32 bytesused,
-			      u32 data_offset, u32 flags, u64 timestamp_us);
+	void (*buf_done)(struct venus_inst *inst, unsigned int buf_type,
+			 u32 addr, u32 bytesused, u32 data_offset, u32 flags,
+			 u64 timestamp_us);
 	void (*event_notify)(struct venus_inst *inst, u32 event,
 			     struct hfi_event_data *data);
 };

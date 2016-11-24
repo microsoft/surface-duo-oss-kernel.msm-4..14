@@ -728,8 +728,8 @@ static void hfi_session_etb_done(struct venus_core *core,
 
 	inst->error = pkt->error_type;
 
-	inst->ops->empty_buf_done(inst, pkt->input_tag, pkt->filled_len,
-				  pkt->offset, flags);
+	inst->ops->buf_done(inst, HFI_BUFFER_INPUT, pkt->input_tag,
+			    pkt->filled_len, pkt->offset, flags, 0);
 }
 
 static void hfi_session_ftb_done(struct venus_core *core,
@@ -810,8 +810,8 @@ static void hfi_session_ftb_done(struct venus_core *core,
 
 done:
 	inst->error = error;
-	inst->ops->fill_buf_done(inst, packet_buffer, filled_len,
-				 offset, flags, timestamp_us);
+	inst->ops->buf_done(inst, buffer_type, packet_buffer, filled_len,
+			    offset, flags, timestamp_us);
 }
 
 static void hfi_session_start_done(struct venus_core *core,

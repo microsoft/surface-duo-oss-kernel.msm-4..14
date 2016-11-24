@@ -80,11 +80,11 @@ static void venus_event_notify(struct venus_core *core, u32 event)
 
 	mutex_lock(&core->lock);
 
-	core->state = CORE_INVALID;
+	core->sys_error = true;
 
 	list_for_each_entry(inst, &core->instances, list) {
 		mutex_lock(&inst->lock);
-		inst->state = INST_INVALID;
+		inst->session_error = true;
 		mutex_unlock(&inst->lock);
 	}
 
