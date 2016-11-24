@@ -320,6 +320,68 @@ bool qcom_scm_is_available(void)
 }
 EXPORT_SYMBOL(qcom_scm_is_available);
 
+int qcom_scm_video_set_state(u32 state, u32 spare)
+{
+	int ret;
+
+	ret = qcom_scm_clk_enable();
+	if (ret)
+		return ret;
+
+	ret = __qcom_scm_video_set_state(__scm->dev, state, spare);
+
+	qcom_scm_clk_disable();
+
+	return ret;
+}
+EXPORT_SYMBOL(qcom_scm_video_set_state);
+
+int qcom_scm_iommu_secure_ptbl_size(u32 spare, size_t *size)
+{
+	return __qcom_scm_iommu_secure_ptbl_size(__scm->dev, spare, size);
+}
+EXPORT_SYMBOL(qcom_scm_iommu_secure_ptbl_size);
+
+int qcom_scm_iommu_secure_ptbl_init(u64 addr, u32 size, u32 spare)
+{
+	return __qcom_scm_iommu_secure_ptbl_init(__scm->dev, addr, size, spare);
+}
+EXPORT_SYMBOL(qcom_scm_iommu_secure_ptbl_init);
+
+int qcom_scm_iommu_dump_fault_regs(u32 id, u32 context, u64 addr, u32 len)
+{
+	return __qcom_scm_iommu_dump_fault_regs(__scm->dev, id, context, addr,
+						len);
+}
+EXPORT_SYMBOL(qcom_scm_iommu_dump_fault_regs);
+
+int qcom_scm_restore_sec_cfg(u32 device_id, u32 spare)
+{
+	return __qcom_scm_restore_sec_cfg(__scm->dev, device_id, spare);
+}
+EXPORT_SYMBOL(qcom_scm_restore_sec_cfg);
+
+int qcom_scm_iommu_secure_map(u64 list, u32 list_size, u32 size, u32 id,
+			      u32 ctx_id, u64 va, u32 info_size, u32 flags)
+{
+	return  __qcom_scm_iommu_secure_map(__scm->dev, list, list_size, size,
+					    id, ctx_id, va, info_size, flags);
+}
+EXPORT_SYMBOL(qcom_scm_iommu_secure_map);
+
+int qcom_scm_iommu_secure_unmap(u32 id, u32 ctx_id, u64 va, u32 size, u32 flags)
+{
+	return __qcom_scm_iommu_secure_unmap(__scm->dev, id, ctx_id, va, size,
+					     flags);
+}
+EXPORT_SYMBOL(qcom_scm_iommu_secure_unmap);
+
+int qcom_scm_is_call_available(u32 svc_id, u32 cmd_id)
+{
+	return __qcom_scm_is_call_available(__scm->dev, svc_id, cmd_id);
+}
+EXPORT_SYMBOL(qcom_scm_is_call_available);
+
 static int qcom_scm_probe(struct platform_device *pdev)
 {
 	struct qcom_scm *scm;
