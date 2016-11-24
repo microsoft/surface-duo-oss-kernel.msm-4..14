@@ -9,3 +9,6 @@ obj-$(CONFIG_QCOM_SMSM)	+= smsm.o
 obj-$(CONFIG_QCOM_WCNSS_CTRL) += wcnss_ctrl.o
 obj-$(CONFIG_MSM_GLINK) +=	glink.o glink_debugfs.o
 obj-$(CONFIG_MSM_GLINK_SMEM_NATIVE_XPRT) += glink_smem_native_xprt.o
+
+obj-$(CONFIG_MSM_BUS_SCALING) += msm_bus/
+obj-$(CONFIG_BUS_TOPOLOGY_ADHOC) += msm_bus/
