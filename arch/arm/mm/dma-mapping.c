@@ -2352,12 +2352,21 @@ static bool arm_setup_iommu_dma_ops(struct device *dev, u64 dma_base, u64 size,
 static void arm_teardown_iommu_dma_ops(struct device *dev)
 {
 	struct dma_iommu_mapping *mapping = to_dma_iommu_mapping(dev);
+	const struct iommu_ops *ops;
 
 	if (!mapping)
 		return;
 
 	__arm_iommu_detach_device(dev);
+
+	if (dev->iommu_fwspec) {
+		ops = dev->iommu_fwspec->ops;
+		if (ops->remove_device)
+			ops->remove_device(dev);
+	}
+
 	arm_iommu_release_mapping(mapping);
+	set_dma_ops(dev, NULL);
 }
 
 #else
@@ -2385,6 +2394,15 @@ void arch_setup_dma_ops(struct device *dev, u64 dma_base, u64 size,
 	struct dma_map_ops *dma_ops;
 
 	dev->archdata.dma_coherent = coherent;
+
+	/*
+	 * Don't override the dma_ops if they have already been set. Ideally
+	 * this should be the only location where dma_ops are set, remove this
+	 * check when all other callers of set_dma_ops will have disappeared.
+	 */
+	if (dev->archdata.dma_ops)
+		return;
+
 	if (arm_setup_iommu_dma_ops(dev, dma_base, size, iommu))
 		dma_ops = arm_get_iommu_dma_map_ops(coherent);
 	else

@@ -46,6 +46,14 @@ conditions.
                   Care must be taken to ensure the set of matched IDs
                   does not result in conflicts.
 
+- clock-names:	  Should be a pair of "smmu_iface_clk" and "smmu_bus_clk"
+		  required for smmu's register group access and interface
+		  clk for the smmu's underlying bus access.
+
+- clocks:	  Phandles for respective clocks described by clock-names.
+
+- power-domains:  If required for turning on the smmu's clocks.
+
 ** System MMU optional properties:
 
 - dma-coherent  : Present if page table walks made by the SMMU are
@@ -84,6 +92,10 @@ conditions.
                              <0 36 4>,
                              <0 37 4>;
                 #iommu-cells = <1>;
+		clocks = <&mmcc SMMU_MDP_AHB_CLK>,
+			 <&mmcc SMMU_MDP_AXI_CLK>;
+		clock-names = "smmu_iface_clk",
+			      "smmu_bus_clk";
         };
 
         /* device with two stream IDs, 0 and 7 */
