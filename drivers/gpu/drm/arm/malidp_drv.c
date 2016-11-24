@@ -197,9 +197,7 @@ static const struct file_operations fops = {
 	.open = drm_open,
 	.release = drm_release,
 	.unlocked_ioctl = drm_ioctl,
-#ifdef CONFIG_COMPAT
 	.compat_ioctl = drm_compat_ioctl,
-#endif
 	.poll = drm_poll,
 	.read = drm_read,
 	.llseek = noop_llseek,
@@ -493,7 +491,9 @@ static int malidp_platform_probe(struct platform_device *pdev)
 		return -EAGAIN;
 	}
 
-	component_match_add(&pdev->dev, &match, malidp_compare_dev, port);
+	drm_of_component_match_add(&pdev->dev, &match, malidp_compare_dev,
+				   port);
+	of_node_put(port);
 	return component_master_add_with_match(&pdev->dev, &malidp_master_ops,
 					       match);
 }

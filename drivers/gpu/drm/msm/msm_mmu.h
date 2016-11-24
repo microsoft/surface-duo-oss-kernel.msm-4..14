@@ -45,4 +45,12 @@ static inline void msm_mmu_init(struct msm_mmu *mmu, struct device *dev,
 struct msm_mmu *msm_iommu_new(struct device *dev, struct iommu_domain *domain);
 struct msm_mmu *msm_gpummu_new(struct device *dev, struct msm_gpu *gpu);
 
+#ifdef CONFIG_QCOM_IOMMU_V1
+struct device *msm_iommu_get_ctx(const char *ctx_name);
+#else
+static inline struct device *msm_iommu_get_ctx(const char *ctx_name)
+{
+	return NULL;
+}
+#endif
 #endif /* __MSM_MMU_H__ */

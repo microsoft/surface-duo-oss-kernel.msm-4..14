@@ -464,7 +464,7 @@ static int intel_breadcrumbs_signaler(void *arg)
 						 &request->signaling.wait);
 
 			local_bh_disable();
-			fence_signal(&request->fence);
+			dma_fence_signal(&request->fence);
 			local_bh_enable(); /* kick start the tasklets */
 
 			/* Find the next oldest signal. Note that as we have
@@ -502,7 +502,7 @@ void intel_engine_enable_signaling(struct drm_i915_gem_request *request)
 	struct rb_node *parent, **p;
 	bool first, wakeup;
 
-	/* locked by fence_enable_sw_signaling() */
+	/* locked by dma_fence_enable_sw_signaling() */
 	assert_spin_locked(&request->lock);
 
 	request->signaling.wait.tsk = b->signaler;
@@ -621,6 +621,7 @@ void intel_engine_fini_breadcrumbs(struct intel_engine_cs *engine)
 unsigned int intel_kick_waiters(struct drm_i915_private *i915)
 {
 	struct intel_engine_cs *engine;
+	enum intel_engine_id id;
 	unsigned int mask = 0;
 
 	/* To avoid the task_struct disappearing beneath us as we wake up
@@ -628,7 +629,7 @@ unsigned int intel_kick_waiters(struct drm_i915_private *i915)
 	 * RCU lock, i.e. as we call wake_up_process() we must be holding the
 	 * rcu_read_lock().
 	 */
-	for_each_engine(engine, i915)
+	for_each_engine(engine, i915, id)
 		if (unlikely(intel_engine_wakeup(engine)))
 			mask |= intel_engine_flag(engine);
 
@@ -638,9 +639,10 @@ unsigned int intel_kick_waiters(struct drm_i915_private *i915)
 unsigned int intel_kick_signalers(struct drm_i915_private *i915)
 {
 	struct intel_engine_cs *engine;
+	enum intel_engine_id id;
 	unsigned int mask = 0;
 
-	for_each_engine(engine, i915) {
+	for_each_engine(engine, i915, id) {
 		if (unlikely(READ_ONCE(engine->breadcrumbs.first_signal))) {
 			wake_up_process(engine->breadcrumbs.signaler);
 			mask |= intel_engine_flag(engine);

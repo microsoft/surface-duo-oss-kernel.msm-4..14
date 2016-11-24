@@ -411,6 +411,7 @@ static int msm_iommu_attach_dev(struct iommu_domain *domain, struct device *dev)
 			}
 			__disable_clocks(iommu);
 			list_add(&iommu->dom_node, &priv->list_attached);
+			iommu->domain = domain;
 		}
 	}
 
@@ -614,8 +615,8 @@ irqreturn_t msm_iommu_fault_handler(int irq, void *dev_id)
 		goto fail;
 	}
 
-	pr_err("Unexpected IOMMU page fault!\n");
-	pr_err("base = %08x\n", (unsigned int)iommu->base);
+	pr_debug("Unexpected IOMMU page fault!\n");
+	pr_debug("base = %08x\n", (unsigned int)iommu->base);
 
 	ret = __enable_clocks(iommu);
 	if (ret)
@@ -624,10 +625,16 @@ irqreturn_t msm_iommu_fault_handler(int irq, void *dev_id)
 	for (i = 0; i < iommu->ncb; i++) {
 		fsr = GET_FSR(iommu->base, i);
 		if (fsr) {
-			pr_err("Fault occurred in context %d.\n", i);
-			pr_err("Interesting registers:\n");
-			print_ctx_regs(iommu->base, i);
+			int ret = report_iommu_fault(iommu->domain,
+					to_msm_priv(iommu->domain)->dev,
+					GET_FAR(iommu->base, i), 0);
+			if (ret == -ENOSYS) {
+				pr_err("Fault occurred in context %d.\n", i);
+				pr_err("Interesting registers:\n");
+				print_ctx_regs(iommu->base, i);
+			}
 			SET_FSR(iommu->base, i, 0x4000000F);
+			SET_RESUME(iommu->base, i, 1);
 		}
 	}
 	__disable_clocks(iommu);
