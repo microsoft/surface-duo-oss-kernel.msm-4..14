@@ -12,7 +12,11 @@
  */
 
 #include "msm8996.dtsi"
+#include "pm8994.dtsi"
 #include "apq8096-db820c-pins.dtsi"
+#include "apq8096-db820c-pmic-pins.dtsi"
+#include <dt-bindings/input/input.h>
+#include <dt-bindings/gpio/gpio.h>
 
 / {
 	aliases {
@@ -83,6 +87,293 @@
 			pinctrl-1 = <&sdc2_clk_off &sdc2_cmd_off &sdc2_data_off &sdc2_cd_off>;
 			cd-gpios = <&msmgpio 38 0x1>;
 			status = "okay";
+			vmmc-supply = <&pm8994_l21>;
+			vqmmc-supply = <&pm8994_l13>;
+		};
+
+		agnoc@0 {
+			qcom,pcie@00600000 {
+				perst-gpio = <&msmgpio 35 GPIO_ACTIVE_LOW>;
+			};
+
+			qcom,pcie@00608000 {
+				status = "okay";
+				perst-gpio = <&msmgpio 130 GPIO_ACTIVE_LOW>;
+			};
+
+			qcom,pcie@00610000 {
+				status = "okay";
+				perst-gpio = <&msmgpio 114 GPIO_ACTIVE_LOW>;
+			};
+		};
+
+		ufsphy@627000 {
+			status = "okay";
+		};
+
+		ufshc@624000 {
+			status = "okay";
+		};
+
+		vreg_bb: regulator-fixed@1 {
+			compatible = "regulator-fixed";
+			regulator-min-microvolt = <3300000>;
+			regulator-max-microvolt = <3300000>;
+			regulator-name = "vreg_bb";
+			regulator-type = "voltage";
+			regulator-boot-on;
+		};
+
+		pinctrl@1010000 {
+			hdmi_hpd_active: hdmi_hpd_active {
+				mux {
+					pins = "gpio34";
+					function = "hdmi_hot";
+				};
+
+				config {
+					pins = "gpio34";
+					bias-pull-down;
+					drive-strength = <16>;
+				};
+			};
+
+			hdmi_hpd_suspend: hdmi_hpd_suspend {
+				mux {
+					pins = "gpio34";
+					function = "hdmi_hot";
+				};
+
+				config {
+					pins = "gpio34";
+					bias-pull-down;
+					drive-strength = <2>;
+				};
+			};
+
+			hdmi_ddc_active: hdmi_ddc_active {
+				mux {
+					pins = "gpio32", "gpio33";
+					function = "hdmi_ddc";
+				};
+
+				config {
+					pins = "gpio32", "gpio33";
+					drive-strength = <2>;
+					bias-pull-up;
+				};
+			};
+
+			hdmi_ddc_suspend: hdmi_ddc_suspend {
+				mux {
+					pins = "gpio32", "gpio33";
+					function = "hdmi_ddc";
+				};
+
+				config {
+					pins = "gpio32", "gpio33";
+					drive-strength = <2>;
+					bias-pull-down;
+				};
+			};
+		};
+
+		mdss@900000 {
+			status = "okay";
+
+			mdp@901000 {
+				status = "okay";
+			};
+
+			hdmi-phy@9a0600 {
+				status = "okay";
+
+				vddio-supply = <&pm8994_l12>;
+				vcca-supply = <&pm8994_l28>;
+			};
+
+			hdmi-tx@9a0000 {
+				status = "okay";
+
+				pinctrl-names = "default", "sleep";
+				pinctrl-0 = <&hdmi_hpd_active &hdmi_ddc_active>;
+				pinctrl-1 = <&hdmi_hpd_suspend &hdmi_ddc_suspend>;
+
+				core-vdda-supply = <&pm8994_l12>;
+				core-vcc-supply = <&pm8994_s4>;
+			};
 		};
 	};
+
+
+	gpio_keys {
+		compatible = "gpio-keys";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		autorepeat;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&volume_up_gpio>;
+
+		button@0 {
+			label = "Volume Up";
+			linux,code = <KEY_VOLUMEUP>;
+			gpios = <&pm8994_gpios 2 GPIO_ACTIVE_LOW>;
+		};
+	};
+
+	glink {
+		rpm {
+			rpm-requests {
+				pm8994-regulators {
+					vdd_l1-supply = <&pm8994_s3>;
+					vdd_l2_l26_l28-supply = <&pm8994_s3>;
+					vdd_l3_l11-supply = <&pm8994_s3>;
+					vdd_l4_l27_l31-supply = <&pm8994_s3>;
+					vdd_l5_l7-supply = <&pm8994_s5>;
+					vdd_l14_l15-supply = <&pm8994_s5>;
+					vdd_l20_l21-supply = <&pm8994_s5>;
+					vdd_l25-supply = <&pm8994_s3>;
+					vdd_l13_l19_l23_l24-supply = <&vreg_bb>;
+					s3 {
+						regulator-min-microvolt = <1300000>;
+						regulator-max-microvolt = <1300000>;
+					};
+					s4 {
+						regulator-min-microvolt = <1800000>;
+						regulator-max-microvolt = <1800000>;
+					};
+					s5 {
+						regulator-min-microvolt = <2150000>;
+						regulator-max-microvolt = <2150000>;
+					};
+					s7 {
+						regulator-min-microvolt = <800000>;
+						regulator-max-microvolt = <800000>;
+					};
+
+					l1 {
+						regulator-min-microvolt = <1000000>;
+						regulator-max-microvolt = <1000000>;
+					};
+					l2 {
+						regulator-min-microvolt = <1250000>;
+						regulator-max-microvolt = <1250000>;
+					};
+					l3 {
+						regulator-min-microvolt = <850000>;
+						regulator-max-microvolt = <850000>;
+					};
+					l4 {
+						regulator-min-microvolt = <1225000>;
+						regulator-max-microvolt = <1225000>;
+					};
+					l6 {
+						regulator-min-microvolt = <1200000>;
+						regulator-max-microvolt = <1200000>;
+					};
+					l8 {
+						regulator-min-microvolt = <1800000>;
+						regulator-max-microvolt = <1800000>;
+					};
+					l9 {
+						regulator-min-microvolt = <1800000>;
+						regulator-max-microvolt = <1800000>;
+					};
+					l10 {
+						regulator-min-microvolt = <1800000>;
+						regulator-max-microvolt = <1800000>;
+					};
+					l11 {
+						regulator-min-microvolt = <1150000>;
+						regulator-max-microvolt = <1150000>;
+					};
+					l12 {
+						regulator-min-microvolt = <1800000>;
+						regulator-max-microvolt = <1800000>;
+					};
+					l13 {
+						regulator-min-microvolt = <1800000>;
+						regulator-max-microvolt = <2950000>;
+					};
+					l14 {
+						regulator-min-microvolt = <1800000>;
+						regulator-max-microvolt = <1800000>;
+					};
+					l15 {
+						regulator-min-microvolt = <1800000>;
+						regulator-max-microvolt = <1800000>;
+					};
+					l16 {
+						regulator-min-microvolt = <2700000>;
+						regulator-max-microvolt = <2700000>;
+					};
+					l17 {
+						regulator-min-microvolt = <2500000>;
+						regulator-max-microvolt = <2500000>;
+					};
+					l18 {
+						regulator-min-microvolt = <2700000>;
+						regulator-max-microvolt = <2900000>;
+					};
+					l19 {
+						regulator-min-microvolt = <3000000>;
+						regulator-max-microvolt = <3000000>;
+					};
+					l20 {
+						regulator-min-microvolt = <2950000>;
+						regulator-max-microvolt = <2950000>;
+						regulator-allow-set-load;
+					};
+					l21 {
+						regulator-min-microvolt = <2950000>;
+						regulator-max-microvolt = <2950000>;
+					};
+					l22 {
+						regulator-min-microvolt = <3300000>;
+						regulator-max-microvolt = <3300000>;
+					};
+					l23 {
+						regulator-min-microvolt = <2800000>;
+						regulator-max-microvolt = <2800000>;
+					};
+					l24 {
+						regulator-min-microvolt = <3075000>;
+						regulator-max-microvolt = <3075000>;
+					};
+					l25 {
+						regulator-min-microvolt = <1200000>;
+						regulator-max-microvolt = <1200000>;
+						regulator-allow-set-load;
+					};
+					l27 {
+						regulator-min-microvolt = <1000000>;
+						regulator-max-microvolt = <1000000>;
+					};
+					l28 {
+						regulator-min-microvolt = <925000>;
+						regulator-max-microvolt = <925000>;
+						regulator-allow-set-load;
+					};
+					l29 {
+						regulator-min-microvolt = <2800000>;
+						regulator-max-microvolt = <2800000>;
+					};
+					l30 {
+						regulator-min-microvolt = <1800000>;
+						regulator-max-microvolt = <1800000>;
+					};
+					l32 {
+						regulator-min-microvolt = <1800000>;
+						regulator-max-microvolt = <1800000>;
+					};
+				};
+			};
+		};
+	};
+};
+
+&spmi_pon {
+	// Overwrite RESETIN_N keyboard scan code
+	linux,code = <KEY_VOLUMEDOWN>;
 };
