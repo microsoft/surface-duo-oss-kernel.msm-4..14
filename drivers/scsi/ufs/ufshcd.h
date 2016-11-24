@@ -552,7 +552,8 @@ struct ufs_hba {
 /* Returns true if clocks can be gated. Otherwise false */
 static inline bool ufshcd_is_clkgating_allowed(struct ufs_hba *hba)
 {
-	return hba->caps & UFSHCD_CAP_CLK_GATING;
+	return false;
+	//return hba->caps & UFSHCD_CAP_CLK_GATING;
 }
 static inline bool ufshcd_can_hibern8_during_gating(struct ufs_hba *hba)
 {
