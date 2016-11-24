@@ -1760,6 +1760,7 @@ static struct clk_branch video_ahb_clk = {
 };
 
 static struct clk_branch video_subcore0_clk = {
+	.halt_check = BRANCH_HALT_DELAY,
 	.halt_reg = 0x1048,
 	.clkr = {
 		.enable_reg = 0x1048,
@@ -1775,6 +1776,7 @@ static struct clk_branch video_subcore0_clk = {
 };
 
 static struct clk_branch video_subcore1_clk = {
+	.halt_check = BRANCH_HALT_DELAY,
 	.halt_reg = 0x104c,
 	.clkr = {
 		.enable_reg = 0x104c,
@@ -2945,6 +2947,7 @@ static struct gdsc venus_core0_gdsc = {
 		.name = "venus_core0",
 	},
 	.pwrsts = PWRSTS_OFF_ON,
+	.flags = HW_CTRL,
 };
 
 static struct gdsc venus_core1_gdsc = {
@@ -2955,6 +2958,7 @@ static struct gdsc venus_core1_gdsc = {
 		.name = "venus_core1",
 	},
 	.pwrsts = PWRSTS_OFF_ON,
+	.flags = HW_CTRL,
 };
 
 static struct gdsc camss_gdsc = {
