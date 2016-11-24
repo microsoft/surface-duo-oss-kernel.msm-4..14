@@ -557,8 +557,7 @@ static int nvme_map_data(struct nvme_dev *dev, struct request *req,
 		goto out;
 
 	ret = BLK_MQ_RQ_QUEUE_BUSY;
-	if (!dma_map_sg_attrs(dev->dev, iod->sg, iod->nents, dma_dir,
-				DMA_ATTR_NO_WARN))
+	if (!dma_map_sg(dev->dev, iod->sg, iod->nents, dma_dir))
 		goto out;
 
 	if (!nvme_setup_prps(dev, req, blk_rq_bytes(req)))
