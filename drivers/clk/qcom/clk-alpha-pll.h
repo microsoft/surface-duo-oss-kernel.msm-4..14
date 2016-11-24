@@ -27,6 +27,10 @@ struct pll_vco {
  * struct clk_alpha_pll - phase locked loop (PLL)
  * @offset: base address of registers
  * @vco_table: array of VCO settings
+ * @latch_ack_bit: Bit to check for latch acknowledge
+ * @latch_ack_inverse: Bit set to 0 signifies an ack
+ * @min_rate: Minimim rate for PLLs with single VCO range
+ * @max_rate: Maximun rate for PLLs with single VCO range
  * @clkr: regmap clock handle
  */
 struct clk_alpha_pll {
@@ -34,7 +38,17 @@ struct clk_alpha_pll {
 
 	const struct pll_vco *vco_table;
 	size_t num_vco;
+#define SUPPORTS_OFFLINE_REQ	BIT(0)
+#define SUPPORTS_16BIT_ALPHA	BIT(1)
+#define SUPPORTS_FSM_MODE	BIT(2)
+#define SUPPORTS_DYNAMIC_UPDATE	BIT(3)
+#define SUPPORTS_LATCHED_INPUT	BIT(4)
+	u8 flags;
+	u8 latch_ack_bit;
+	bool latch_ack_inverse;
 
+	unsigned long min_rate;
+	unsigned long max_rate;
 	struct clk_regmap clkr;
 };
 
@@ -51,7 +65,28 @@ struct clk_alpha_pll_postdiv {
 	struct clk_regmap clkr;
 };
 
+struct alpha_pll_config {
+	u32 l;
+	u32 alpha;
+	u32 config_ctl_val;
+	u32 config_ctl_hi_val;
+	u32 main_output_mask;
+	u32 aux_output_mask;
+	u32 aux2_output_mask;
+	u32 early_output_mask;
+	u32 pre_div_val;
+	u32 pre_div_mask;
+	u32 post_div_val;
+	u32 post_div_mask;
+	u32 vco_val;
+	u32 vco_mask;
+};
+
 extern const struct clk_ops clk_alpha_pll_ops;
+extern const struct clk_ops clk_alpha_pll_hwfsm_ops;
 extern const struct clk_ops clk_alpha_pll_postdiv_ops;
+
+void clk_alpha_pll_configure(struct clk_alpha_pll *pll, struct regmap *regmap,
+			     const struct alpha_pll_config *config);
 
 #endif

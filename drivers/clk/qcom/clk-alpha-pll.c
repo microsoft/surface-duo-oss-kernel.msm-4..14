@@ -18,17 +18,22 @@
 #include <linux/delay.h>
 
 #include "clk-alpha-pll.h"
+#include "common.h"
 
 #define PLL_MODE		0x00
 # define PLL_OUTCTRL		BIT(0)
 # define PLL_BYPASSNL		BIT(1)
 # define PLL_RESET_N		BIT(2)
+# define PLL_OFFLINE_REQ	BIT(7)
 # define PLL_LOCK_COUNT_SHIFT	8
 # define PLL_LOCK_COUNT_MASK	0x3f
 # define PLL_BIAS_COUNT_SHIFT	14
 # define PLL_BIAS_COUNT_MASK	0x3f
 # define PLL_VOTE_FSM_ENA	BIT(20)
+# define PLL_FSM_ENA		BIT(20)
 # define PLL_VOTE_FSM_RESET	BIT(21)
+# define PLL_UPDATE		BIT(22)
+# define PLL_OFFLINE_ACK	BIT(28)
 # define PLL_ACTIVE_FLAG	BIT(30)
 # define PLL_LOCK_DET		BIT(31)
 
@@ -44,8 +49,10 @@
 # define PLL_VCO_MASK		0x3
 
 #define PLL_USER_CTL_U		0x14
+# define PLL_LATCH_INTERFACE	BIT(11)
 
 #define PLL_CONFIG_CTL		0x18
+#define PLL_CONFIG_CTL_U	0x20
 #define PLL_TEST_CTL		0x1c
 #define PLL_TEST_CTL_U		0x20
 #define PLL_STATUS		0x24
@@ -55,6 +62,7 @@
  */
 #define ALPHA_REG_BITWIDTH	40
 #define ALPHA_BITWIDTH		32
+#define ALPHA_16BIT_MASK	0xffff
 
 #define to_clk_alpha_pll(_hw) container_of(to_clk_regmap(_hw), \
 					   struct clk_alpha_pll, clkr)
@@ -62,9 +70,10 @@
 #define to_clk_alpha_pll_postdiv(_hw) container_of(to_clk_regmap(_hw), \
 					   struct clk_alpha_pll_postdiv, clkr)
 
-static int wait_for_pll(struct clk_alpha_pll *pll)
+static int wait_for_pll(struct clk_alpha_pll *pll, u32 mask, bool inverse,
+			const char *action)
 {
-	u32 val, mask, off;
+	u32 val, off;
 	int count;
 	int ret;
 	const char *name = clk_hw_get_name(&pll->clkr.hw);
@@ -74,24 +83,154 @@ static int wait_for_pll(struct clk_alpha_pll *pll)
 	if (ret)
 		return ret;
 
-	if (val & PLL_VOTE_FSM_ENA)
-		mask = PLL_ACTIVE_FLAG;
-	else
-		mask = PLL_LOCK_DET;
-
-	/* Wait for pll to enable. */
 	for (count = 100; count > 0; count--) {
 		ret = regmap_read(pll->clkr.regmap, off + PLL_MODE, &val);
 		if (ret)
 			return ret;
-		if ((val & mask) == mask)
+		if (inverse && !(val & mask))
+			return 0;
+		else if ((val & mask) == mask)
 			return 0;
 
 		udelay(1);
 	}
 
-	WARN(1, "%s didn't enable after voting for it!\n", name);
+	WARN(1, "%s failed to %s!\n", name, action);
 	return -ETIMEDOUT;
+}
+
+#define wait_for_pll_enable_active(pll) \
+	wait_for_pll(pll, PLL_ACTIVE_FLAG, 0, "enable")
+
+#define wait_for_pll_enable_lock(pll) \
+	wait_for_pll(pll, PLL_LOCK_DET, 0, "enable")
+
+#define wait_for_pll_disable(pll) \
+	wait_for_pll(pll, PLL_ACTIVE_FLAG, 1, "disable")
+
+#define wait_for_pll_offline(pll) \
+	wait_for_pll(pll, PLL_OFFLINE_ACK, 0, "offline")
+
+#define wait_for_pll_latch_ack(pll) \
+	wait_for_pll(pll, BIT(pll->latch_ack_bit), pll->latch_ack_inverse, \
+		     "latch ack")
+
+void clk_alpha_pll_configure(struct clk_alpha_pll *pll, struct regmap *regmap,
+			     const struct alpha_pll_config *config)
+{
+	u32 val, mask;
+	u32 off = pll->offset;
+
+	regmap_write(regmap, off + PLL_L_VAL, config->l);
+	regmap_write(regmap, off + PLL_ALPHA_VAL, config->alpha);
+	regmap_write(regmap, off + PLL_CONFIG_CTL, config->config_ctl_val);
+	regmap_write(regmap, off + PLL_CONFIG_CTL_U, config->config_ctl_hi_val);
+
+	val = config->main_output_mask;
+	val |= config->aux_output_mask;
+	val |= config->aux2_output_mask;
+	val |= config->early_output_mask;
+	val |= config->pre_div_val;
+	val |= config->post_div_val;
+	val |= config->vco_val;
+
+	mask = config->main_output_mask;
+	mask |= config->aux_output_mask;
+	mask |= config->aux2_output_mask;
+	mask |= config->early_output_mask;
+	mask |= config->pre_div_mask;
+	mask |= config->post_div_mask;
+	mask |= config->vco_mask;
+
+	regmap_update_bits(regmap, off + PLL_USER_CTL, mask, val);
+
+	if (pll->flags & SUPPORTS_FSM_MODE)
+		qcom_pll_set_fsm_mode(regmap, off + PLL_MODE, 6, 0);
+
+	if (pll->flags & SUPPORTS_LATCHED_INPUT)
+		regmap_update_bits(regmap, off + PLL_USER_CTL_U,
+				   PLL_LATCH_INTERFACE, 0);
+}
+
+static int clk_alpha_pll_hwfsm_enable(struct clk_hw *hw)
+{
+	int ret;
+	u32 val, off;
+	struct clk_alpha_pll *pll = to_clk_alpha_pll(hw);
+
+	off = pll->offset;
+	ret = regmap_read(pll->clkr.regmap, off + PLL_MODE, &val);
+	if (ret)
+		return ret;
+
+	val |= PLL_FSM_ENA;
+
+	if (pll->flags & SUPPORTS_OFFLINE_REQ)
+		val &= ~PLL_OFFLINE_REQ;
+
+	ret = regmap_write(pll->clkr.regmap, off + PLL_MODE, val);
+	if (ret)
+		return ret;
+
+	/* Make sure enable request goes through before waiting for update */
+	mb();
+
+	return wait_for_pll_enable_active(pll);
+}
+
+static void clk_alpha_pll_hwfsm_disable(struct clk_hw *hw)
+{
+	int ret;
+	u32 val, off;
+	struct clk_alpha_pll *pll = to_clk_alpha_pll(hw);
+
+	off = pll->offset;
+	ret = regmap_read(pll->clkr.regmap, off + PLL_MODE, &val);
+	if (ret)
+		return;
+
+	if (pll->flags & SUPPORTS_OFFLINE_REQ) {
+		ret = regmap_update_bits(pll->clkr.regmap, off + PLL_MODE,
+					 PLL_OFFLINE_REQ, PLL_OFFLINE_REQ);
+		if (ret)
+			return;
+
+		ret = wait_for_pll_offline(pll);
+		if (ret)
+			return;
+	}
+
+	/* Disable hwfsm */
+	ret = regmap_update_bits(pll->clkr.regmap, off + PLL_MODE,
+				 PLL_FSM_ENA, 0);
+	if (ret)
+		return;
+
+	wait_for_pll_disable(pll);
+}
+
+static int pll_is_enabled(struct clk_hw *hw, u32 mask)
+{
+	int ret;
+	u32 val, off;
+	struct clk_alpha_pll *pll = to_clk_alpha_pll(hw);
+
+	off = pll->offset;
+	ret = regmap_read(pll->clkr.regmap, off + PLL_MODE, &val);
+	if (ret)
+		return ret;
+
+	return !!(val & mask);
+}
+
+static int clk_alpha_pll_hwfsm_is_enabled(struct clk_hw *hw)
+{
+	return pll_is_enabled(hw, PLL_ACTIVE_FLAG);
+}
+
+static int clk_alpha_pll_is_enabled(struct clk_hw *hw)
+{
+	return pll_is_enabled(hw, PLL_LOCK_DET);
 }
 
 static int clk_alpha_pll_enable(struct clk_hw *hw)
@@ -112,7 +251,7 @@ static int clk_alpha_pll_enable(struct clk_hw *hw)
 		ret = clk_enable_regmap(hw);
 		if (ret)
 			return ret;
-		return wait_for_pll(pll);
+		return wait_for_pll_enable_active(pll);
 	}
 
 	/* Skip if already enabled */
@@ -136,7 +275,7 @@ static int clk_alpha_pll_enable(struct clk_hw *hw)
 	if (ret)
 		return ret;
 
-	ret = wait_for_pll(pll);
+	ret = wait_for_pll_enable_lock(pll);
 	if (ret)
 		return ret;
 
@@ -234,43 +373,117 @@ clk_alpha_pll_recalc_rate(struct clk_hw *hw, unsigned long parent_rate)
 	regmap_read(pll->clkr.regmap, off + PLL_USER_CTL, &ctl);
 	if (ctl & PLL_ALPHA_EN) {
 		regmap_read(pll->clkr.regmap, off + PLL_ALPHA_VAL, &low);
-		regmap_read(pll->clkr.regmap, off + PLL_ALPHA_VAL_U, &high);
-		a = (u64)high << 32 | low;
-		a >>= ALPHA_REG_BITWIDTH - ALPHA_BITWIDTH;
+		if (pll->flags & SUPPORTS_16BIT_ALPHA) {
+			a = low & ALPHA_16BIT_MASK;
+		} else {
+			regmap_read(pll->clkr.regmap, off + PLL_ALPHA_VAL_U,
+				    &high);
+			a = (u64)high << 32 | low;
+			a >>= ALPHA_REG_BITWIDTH - ALPHA_BITWIDTH;
+		}
 	}
 
 	return alpha_pll_calc_rate(prate, l, a);
 }
 
-static int clk_alpha_pll_set_rate(struct clk_hw *hw, unsigned long rate,
-				  unsigned long prate)
+static int clk_alpha_pll_update_latch(struct clk_alpha_pll *pll)
 {
+	/* Latch the input to the PLL */
+	regmap_update_bits(pll->clkr.regmap, pll->offset + PLL_MODE,
+			   PLL_UPDATE, PLL_UPDATE);
+
+	/* Wait for 2 reference cycle before checking ACK bit */
+	udelay(1);
+
+	wait_for_pll_latch_ack(pll);
+
+	/* Return latch input to 0 */
+	regmap_update_bits(pll->clkr.regmap, pll->offset + PLL_MODE,
+			   PLL_UPDATE, 0);
+
+	/* Wait for PLL output to stabilize */
+	udelay(100);
+
+	return 0;
+}
+
+static int alpha_pll_set_rate(struct clk_hw *hw, unsigned long rate,
+			      unsigned long prate,
+			      int (*enable)(struct clk_hw *hw),
+			      void (*disable)(struct clk_hw *hw))
+{
+	bool enabled;
 	struct clk_alpha_pll *pll = to_clk_alpha_pll(hw);
 	const struct pll_vco *vco;
 	u32 l, off = pll->offset;
 	u64 a;
 
 	rate = alpha_pll_round_rate(rate, prate, &l, &a);
-	vco = alpha_pll_find_vco(pll, rate);
-	if (!vco) {
-		pr_err("alpha pll not in a valid vco range\n");
-		return -EINVAL;
+	enabled = clk_hw_is_enabled(hw);
+
+	if (pll->flags & SUPPORTS_DYNAMIC_UPDATE) {
+		/*
+		 * PLLs which support dynamic updates support one single
+		 * vco range, between min_rate and max_rate supported
+		 */
+		if (rate < pll->min_rate || rate > pll->max_rate) {
+			pr_err("alpha pll rate outside supported min/max range\n");
+			return -EINVAL;
+		}
+	} else {
+		/*
+		 * All alpha PLLs which do not support dynamic update,
+		 * should be disabled before a vco update.
+		 */
+		if (enabled)
+			disable(hw);
+
+		vco = alpha_pll_find_vco(pll, rate);
+		if (!vco) {
+			pr_err("alpha pll not in a valid vco range\n");
+			return -EINVAL;
+		}
+
+		regmap_update_bits(pll->clkr.regmap, off + PLL_USER_CTL,
+				   PLL_VCO_MASK << PLL_VCO_SHIFT,
+				   vco->val << PLL_VCO_SHIFT);
 	}
 
-	a <<= (ALPHA_REG_BITWIDTH - ALPHA_BITWIDTH);
-
 	regmap_write(pll->clkr.regmap, off + PLL_L_VAL, l);
-	regmap_write(pll->clkr.regmap, off + PLL_ALPHA_VAL, a);
-	regmap_write(pll->clkr.regmap, off + PLL_ALPHA_VAL_U, a >> 32);
 
-	regmap_update_bits(pll->clkr.regmap, off + PLL_USER_CTL,
-			   PLL_VCO_MASK << PLL_VCO_SHIFT,
-			   vco->val << PLL_VCO_SHIFT);
+	if (pll->flags & SUPPORTS_16BIT_ALPHA) {
+		regmap_write(pll->clkr.regmap, off + PLL_ALPHA_VAL,
+			     a & ALPHA_16BIT_MASK);
+	} else {
+		a <<= (ALPHA_REG_BITWIDTH - ALPHA_BITWIDTH);
+		regmap_write(pll->clkr.regmap, off + PLL_ALPHA_VAL_U, a >> 32);
+	}
 
 	regmap_update_bits(pll->clkr.regmap, off + PLL_USER_CTL, PLL_ALPHA_EN,
 			   PLL_ALPHA_EN);
 
+	if (pll->flags & SUPPORTS_DYNAMIC_UPDATE) {
+		if (pll->flags & SUPPORTS_LATCHED_INPUT)
+			clk_alpha_pll_update_latch(pll);
+	} else if (enabled) {
+		enable(hw);
+	}
+
 	return 0;
+}
+
+static int clk_alpha_pll_set_rate(struct clk_hw *hw, unsigned long rate,
+				  unsigned long prate)
+{
+	return alpha_pll_set_rate(hw, rate, prate, clk_alpha_pll_enable,
+				  clk_alpha_pll_disable);
+}
+
+static int clk_alpha_pll_hwfsm_set_rate(struct clk_hw *hw, unsigned long rate,
+					unsigned long prate)
+{
+	return alpha_pll_set_rate(hw, rate, prate, clk_alpha_pll_hwfsm_enable,
+				  clk_alpha_pll_hwfsm_disable);
 }
 
 static long clk_alpha_pll_round_rate(struct clk_hw *hw, unsigned long rate,
@@ -282,6 +495,15 @@ static long clk_alpha_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 	unsigned long min_freq, max_freq;
 
 	rate = alpha_pll_round_rate(rate, *prate, &l, &a);
+
+	if (pll->flags & SUPPORTS_DYNAMIC_UPDATE) {
+		if (rate < pll->min_rate)
+			rate = pll->min_rate;
+		else if (rate > pll->max_rate)
+			rate = pll->max_rate;
+		return rate;
+	}
+
 	if (alpha_pll_find_vco(pll, rate))
 		return rate;
 
@@ -294,11 +516,22 @@ static long clk_alpha_pll_round_rate(struct clk_hw *hw, unsigned long rate,
 const struct clk_ops clk_alpha_pll_ops = {
 	.enable = clk_alpha_pll_enable,
 	.disable = clk_alpha_pll_disable,
+	.is_enabled = clk_alpha_pll_is_enabled,
 	.recalc_rate = clk_alpha_pll_recalc_rate,
 	.round_rate = clk_alpha_pll_round_rate,
 	.set_rate = clk_alpha_pll_set_rate,
 };
 EXPORT_SYMBOL_GPL(clk_alpha_pll_ops);
+
+const struct clk_ops clk_alpha_pll_hwfsm_ops = {
+	.enable = clk_alpha_pll_hwfsm_enable,
+	.disable = clk_alpha_pll_hwfsm_disable,
+	.is_enabled = clk_alpha_pll_hwfsm_is_enabled,
+	.recalc_rate = clk_alpha_pll_recalc_rate,
+	.round_rate = clk_alpha_pll_round_rate,
+	.set_rate = clk_alpha_pll_hwfsm_set_rate,
+};
+EXPORT_SYMBOL_GPL(clk_alpha_pll_hwfsm_ops);
 
 static unsigned long
 clk_alpha_pll_postdiv_recalc_rate(struct clk_hw *hw, unsigned long parent_rate)

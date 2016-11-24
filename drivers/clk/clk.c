@@ -190,6 +190,12 @@ const char *clk_hw_get_name(const struct clk_hw *hw)
 }
 EXPORT_SYMBOL_GPL(clk_hw_get_name);
 
+struct clk *clk_hw_get_clk(const struct clk_hw *hw)
+{
+	return hw->clk;
+}
+EXPORT_SYMBOL_GPL(clk_hw_get_clk);
+
 struct clk_hw *__clk_get_hw(struct clk *clk)
 {
 	return !clk ? NULL : clk->core->hw;
