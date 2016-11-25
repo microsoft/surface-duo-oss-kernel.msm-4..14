@@ -28,6 +28,8 @@ void helper_vb2_buffers_done(struct venus_inst *inst,
 			     enum vb2_buffer_state state);
 void helper_vb2_stop_streaming(struct vb2_queue *q);
 int helper_vb2_start_streaming(struct venus_inst *inst);
+void helper_m2m_device_run(void *priv);
+void helper_m2m_job_abort(void *priv);
 int helper_get_bufreq(struct venus_inst *inst, u32 type,
 		      struct hfi_buffer_requirements *out);
 int helper_set_color_format(struct venus_inst *inst, u32 type, u32 fmt);

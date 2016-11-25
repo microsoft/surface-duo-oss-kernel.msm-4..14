@@ -763,6 +763,10 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (ret)
 		goto deinit_sess;
 
+	ret = helper_vb2_start_streaming(inst);
+	if (ret)
+		goto deinit_sess;
+
 	mutex_unlock(&inst->lock);
 
 	return 0;
@@ -787,8 +791,6 @@ static const struct vb2_ops vdec_vb2_ops = {
 	.start_streaming = vdec_start_streaming,
 	.stop_streaming = helper_vb2_stop_streaming,
 	.buf_queue = helper_vb2_buf_queue,
-	.wait_prepare = vb2_ops_wait_prepare,
-	.wait_finish = vb2_ops_wait_finish,
 };
 
 static void vdec_buf_done(struct venus_inst *inst, unsigned int buf_type,
@@ -897,53 +899,9 @@ static void vdec_inst_init(struct venus_inst *inst)
 	inst->cap_mbs_per_frame.max = 8160;
 }
 
-static void vdec_m2m_device_run(void *priv)
-{
-	struct venus_inst *inst = priv;
-	struct device *dev = inst->core->dev;
-	int ret;
-
-	mutex_lock(&inst->lock);
-
-	ret = helper_vb2_start_streaming(inst);
-	if (ret)
-		dev_err(dev, "dec: start streaming failed %d\n", ret);
-
-	mutex_unlock(&inst->lock);
-}
-
-static int vdec_m2m_job_ready(void *priv)
-{
-	struct venus_inst *inst = priv;
-	struct device *dev = inst->core->dev;
-	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
-	unsigned int num_src, num_dst;
-
-	num_src = v4l2_m2m_num_src_bufs_ready(m2m_ctx);
-	num_dst = v4l2_m2m_num_dst_bufs_ready(m2m_ctx);
-
-	dev_err(dev, "%s: num_src/dst:%u/%u (%u/%u)\n", __func__,
-		num_src, num_dst,
-		inst->num_input_bufs, inst->num_output_bufs);
-
-	if (/*inst->num_input_bufs > num_src ||*/
-	    inst->num_output_bufs > num_dst)
-		return 0;
-
-	return 1;
-}
-
-static void vdec_m2m_job_abort(void *priv)
-{
-	struct venus_inst *inst = priv;
-
-	v4l2_m2m_job_finish(inst->m2m_dev, inst->m2m_ctx);
-}
-
 static const struct v4l2_m2m_ops vdec_m2m_ops = {
-	.device_run = vdec_m2m_device_run,
-	.job_ready = vdec_m2m_job_ready,
-	.job_abort = vdec_m2m_job_abort,
+	.device_run = helper_m2m_device_run,
+	.job_abort = helper_m2m_job_abort,
 };
 
 static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
@@ -961,7 +919,6 @@ static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 	src_vq->buf_struct_size = sizeof(struct venus_buffer);
 	src_vq->allow_zero_bytesused = 1;
 	src_vq->min_buffers_needed = 1;
-	src_vq->lock = &inst->lock;
 	ret = vb2_queue_init(src_vq);
 	if (ret)
 		return ret;
@@ -975,7 +932,6 @@ static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 	dst_vq->buf_struct_size = sizeof(struct venus_buffer);
 	dst_vq->allow_zero_bytesused = 1;
 	dst_vq->min_buffers_needed = 1;
-	dst_vq->lock = &inst->lock;
 	ret = vb2_queue_init(dst_vq);
 	if (ret) {
 		vb2_queue_release(src_vq);

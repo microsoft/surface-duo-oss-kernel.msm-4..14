@@ -909,6 +909,10 @@ static int venc_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (ret)
 		goto deinit_sess;
 
+	ret = helper_vb2_start_streaming(inst);
+	if (ret)
+		goto deinit_sess;
+
 	mutex_unlock(&inst->lock);
 
 	return 0;
@@ -982,31 +986,9 @@ static const struct hfi_inst_ops venc_hfi_ops = {
 	.event_notify = venc_event_notify,
 };
 
-static void venc_m2m_device_run(void *priv)
-{
-	struct venus_inst *inst = priv;
-	struct device *dev = inst->core->dev;
-	int ret;
-
-	mutex_lock(&inst->lock);
-
-	ret = helper_vb2_start_streaming(inst);
-	if (ret)
-		dev_err(dev, "enc: start streaming failed %d\n", ret);
-
-	mutex_unlock(&inst->lock);
-}
-
-static void venc_m2m_job_abort(void *priv)
-{
-	struct venus_inst *inst = priv;
-
-	v4l2_m2m_job_finish(inst->m2m_dev, inst->m2m_ctx);
-}
-
 static const struct v4l2_m2m_ops venc_m2m_ops = {
-	.device_run = venc_m2m_device_run,
-	.job_abort = venc_m2m_job_abort,
+	.device_run = helper_m2m_device_run,
+	.job_abort = helper_m2m_job_abort,
 };
 
 static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
@@ -1023,7 +1005,6 @@ static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 	src_vq->drv_priv = inst;
 	src_vq->buf_struct_size = sizeof(struct venus_buffer);
 	src_vq->allow_zero_bytesused = 1;
-	src_vq->lock = &inst->lock;
 	ret = vb2_queue_init(src_vq);
 	if (ret)
 		return ret;
@@ -1036,8 +1017,7 @@ static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
 	dst_vq->drv_priv = inst;
 	dst_vq->buf_struct_size = sizeof(struct venus_buffer);
 	dst_vq->allow_zero_bytesused = 1;
-	dst_vq->min_buffers_needed = 2;
-	dst_vq->lock = &inst->lock;
+	dst_vq->min_buffers_needed = 1;
 	ret = vb2_queue_init(dst_vq);
 	if (ret) {
 		vb2_queue_release(src_vq);

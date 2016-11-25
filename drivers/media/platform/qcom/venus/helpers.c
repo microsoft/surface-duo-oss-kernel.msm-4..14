@@ -432,7 +432,6 @@ int helper_vb2_buf_init(struct vb2_buffer *vb)
 	if (vb->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 		list_add_tail(&buf->reg_list, &inst->registeredbufs);
 
-//	dev_err(inst->core->dev, "%s: exit type:%u\n", __func__, vb->type);
 	return 0;
 }
 
@@ -475,14 +474,10 @@ void helper_vb2_buffers_done(struct venus_inst *inst,
 {
 	struct vb2_v4l2_buffer *buf;
 
-	while ((buf = v4l2_m2m_src_buf_remove(inst->m2m_ctx))) {
+	while ((buf = v4l2_m2m_src_buf_remove(inst->m2m_ctx)))
 		v4l2_m2m_buf_done(buf, state);
-		dev_err(inst->core->dev, "src buf done\n");
-	}
-	while ((buf = v4l2_m2m_dst_buf_remove(inst->m2m_ctx))) {
+	while ((buf = v4l2_m2m_dst_buf_remove(inst->m2m_ctx)))
 		v4l2_m2m_buf_done(buf, state);
-		dev_err(inst->core->dev, "dst buf done\n");
-	}
 }
 
 void helper_vb2_stop_streaming(struct vb2_queue *q)
@@ -532,8 +527,6 @@ void helper_vb2_stop_streaming(struct vb2_queue *q)
 int helper_vb2_start_streaming(struct venus_inst *inst)
 {
 	struct venus_core *core = inst->core;
-	struct v4l2_m2m_buffer *buf;
-	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
 	int ret;
 
 	ret = intbufs_alloc(inst);
@@ -554,25 +547,8 @@ int helper_vb2_start_streaming(struct venus_inst *inst)
 	if (ret)
 		goto err_unload_res;
 
-	v4l2_m2m_for_each_dst_buf(m2m_ctx, buf) {
-		ret = session_process_buf(inst, &buf->vb);
-		if (ret)
-			break;
-	}
-
-	v4l2_m2m_for_each_src_buf(m2m_ctx, buf) {
-		ret = session_process_buf(inst, &buf->vb);
-		if (ret)
-			break;
-	}
-
-	if (ret)
-		goto err_session_stop;
-
 	return 0;
 
-err_session_stop:
-	hfi_session_stop(inst);
 err_unload_res:
 	hfi_session_unload_res(inst);
 err_unreg_bufs:
@@ -580,4 +556,31 @@ err_unreg_bufs:
 err_bufs_free:
 	intbufs_free(inst);
 	return ret;
+}
+
+void helper_m2m_device_run(void *priv)
+{
+	struct venus_inst *inst = priv;
+	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
+	struct v4l2_m2m_buffer *buf;
+	int ret;
+
+	mutex_lock(&inst->lock);
+
+	v4l2_m2m_for_each_dst_buf(m2m_ctx, buf) {
+		ret = session_process_buf(inst, &buf->vb);
+	}
+
+	v4l2_m2m_for_each_src_buf(m2m_ctx, buf) {
+		ret = session_process_buf(inst, &buf->vb);
+	}
+
+	mutex_unlock(&inst->lock);
+}
+
+void helper_m2m_job_abort(void *priv)
+{
+	struct venus_inst *inst = priv;
+
+	v4l2_m2m_job_finish(inst->m2m_dev, inst->m2m_ctx);
 }
