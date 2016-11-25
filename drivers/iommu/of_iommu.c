@@ -152,7 +152,7 @@ struct iommu_ops *of_iommu_configure(struct device *dev,
 	struct of_phandle_args iommu_spec;
 	struct device_node *np;
 	struct iommu_ops *ops = NULL;
-	int idx = 0;
+	int idx = 0, ret;
 
 	/*
 	 * We can't do much for PCI devices without knowing how
@@ -183,6 +183,14 @@ struct iommu_ops *of_iommu_configure(struct device *dev,
 		if (!ops->of_xlate || ops->of_xlate(dev, &iommu_spec)) {
 			ops = NULL;
 			goto err_put_node;
+		}
+
+		if (ops->add_device) {
+			ret = ops->add_device(dev);
+			if (ret) {
+				ops = ERR_PTR(ret);
+				goto err_put_node;
+			}
 		}
 
 		of_node_put(np);

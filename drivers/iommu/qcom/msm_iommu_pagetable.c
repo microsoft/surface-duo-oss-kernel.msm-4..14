@@ -168,8 +168,8 @@ static int __get_pgprot(int prot, int len)
 	}
 
 	if ((prot & IOMMU_WRITE) && !(prot & IOMMU_READ)) {
+		/* Write-only unsupported falling back to RW */
 		prot |= IOMMU_READ;
-		WARN_ONCE(1, "Write-only unsupported; falling back to RW\n");
 	}
 
 	if (prot & IOMMU_CACHE)
@@ -600,7 +600,7 @@ phys_addr_t msm_iommu_iova_to_phys_soft(struct iommu_domain *domain,
 	return 0;
 }
 
-static int __init get_tex_class(int icp, int ocp, int mt, int nos)
+static int get_tex_class(int icp, int ocp, int mt, int nos)
 {
 	int i = 0;
 	unsigned int prrr;
@@ -623,7 +623,7 @@ static int __init get_tex_class(int icp, int ocp, int mt, int nos)
 	return -ENODEV;
 }
 
-static void __init setup_iommu_tex_classes(void)
+static void setup_iommu_tex_classes(void)
 {
 	msm_iommu_tex_class[MSM_IOMMU_ATTR_NONCACHED] =
 			get_tex_class(CP_NONCACHED, CP_NONCACHED,
@@ -639,7 +639,7 @@ static void __init setup_iommu_tex_classes(void)
 			get_tex_class(CP_WT, CP_WT, MT_IOMMU_NORMAL, 1);
 }
 
-void __init msm_iommu_pagetable_init(void)
+void msm_iommu_pagetable_init(void)
 {
 	setup_iommu_tex_classes();
 }

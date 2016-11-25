@@ -1,0 +1,11 @@
+comment "Qualcomm V4L2 drivers"
+
+source "drivers/media/platform/qcom/camss-8x16/Kconfig"
+source "drivers/media/platform/qcom/cci/Kconfig"
+
+menuconfig QCOM_VIDC
+        tristate "Qualcomm V4L2 encoder/decoder driver"
+        depends on ARCH_QCOM && VIDEO_V4L2
+        depends on IOMMU_DMA
+        depends on QCOM_VENUS_PIL || QCOM_TZ_PIL
+        select VIDEOBUF2_DMA_SG

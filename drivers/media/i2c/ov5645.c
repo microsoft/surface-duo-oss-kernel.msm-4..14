@@ -47,7 +47,7 @@ static DEFINE_MUTEX(ov5645_lock);
 
 /* HACKs here! */
 
-#include <../drivers/media/platform/msm/cci/msm_cci.h>
+#include <../drivers/media/platform/qcom/cci/msm_cci.h>
 
 #ifdef dev_dbg
 	#undef dev_dbg
