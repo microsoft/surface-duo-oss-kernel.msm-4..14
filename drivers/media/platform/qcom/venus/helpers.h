@@ -20,7 +20,7 @@
 struct venus_inst;
 
 struct vb2_v4l2_buffer *helper_vb2_find_buf(struct venus_inst *inst,
-					    dma_addr_t addr, unsigned int type);
+					    unsigned int type, u32 idx);
 int helper_vb2_buf_init(struct vb2_buffer *vb);
 int helper_vb2_buf_prepare(struct vb2_buffer *vb);
 void helper_vb2_buf_queue(struct vb2_buffer *vb);

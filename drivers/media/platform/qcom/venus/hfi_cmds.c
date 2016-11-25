@@ -325,6 +325,7 @@ int pkt_session_ftb(struct hfi_session_fill_buffer_pkt *pkt, void *cookie,
 	else if (out_frame->buffer_type == HFI_BUFFER_OUTPUT2)
 		pkt->stream_id = 1;
 
+	pkt->output_tag = out_frame->clnt_data;
 	pkt->packet_buffer = out_frame->device_addr;
 	pkt->extradata_buffer = out_frame->extradata_addr;
 	pkt->alloc_len = out_frame->alloc_len;

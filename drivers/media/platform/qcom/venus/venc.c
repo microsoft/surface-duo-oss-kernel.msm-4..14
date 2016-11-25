@@ -829,7 +829,7 @@ static int venc_queue_setup(struct vb2_queue *q, const void *parg,
 	return ret;
 }
 
-static int venc_check_configuration(struct venus_inst *inst)
+static int venc_verify_conf(struct venus_inst *inst)
 {
 	struct hfi_buffer_requirements bufreq;
 	int ret;
@@ -890,7 +890,7 @@ static int venc_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (ret)
 		goto deinit_sess;
 
-	ret = venc_check_configuration(inst);
+	ret = venc_verify_conf(inst);
 	if (ret)
 		goto deinit_sess;
 
@@ -940,7 +940,7 @@ static const struct vb2_ops venc_vb2_ops = {
 };
 
 static void venc_buf_done(struct venus_inst *inst, unsigned int buf_type,
-			  u32 addr, u32 bytesused, u32 data_offset, u32 flags,
+			  u32 tag, u32 bytesused, u32 data_offset, u32 flags,
 			  u64 timestamp_us)
 {
 	struct vb2_v4l2_buffer *vbuf;
@@ -952,7 +952,7 @@ static void venc_buf_done(struct venus_inst *inst, unsigned int buf_type,
 	else
 		type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 
-	vbuf = helper_vb2_find_buf(inst, addr, type);
+	vbuf = helper_vb2_find_buf(inst, type, tag);
 	if (!vbuf)
 		return;
 

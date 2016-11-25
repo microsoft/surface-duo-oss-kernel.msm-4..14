@@ -740,7 +740,7 @@ static void hfi_session_ftb_done(struct venus_core *core,
 	u32 timestamp_hi, timestamp_lo;
 	unsigned int error;
 	u32 flags = 0, hfi_flags, offset, filled_len;
-	u32 pic_type, packet_buffer, buffer_type;
+	u32 pic_type, packet_buffer, buffer_type, output_tag;
 
 	if (session_type == VIDC_SESSION_TYPE_ENC) {
 		struct hfi_msg_session_fbd_compressed_pkt *pkt = packet;
@@ -752,6 +752,7 @@ static void hfi_session_ftb_done(struct venus_core *core,
 		filled_len = pkt->filled_len;
 		pic_type = pkt->picture_type;
 		packet_buffer = pkt->packet_buffer;
+		output_tag = pkt->output_tag;
 		buffer_type = HFI_BUFFER_OUTPUT;
 
 		error = pkt->error_type;
@@ -766,6 +767,7 @@ static void hfi_session_ftb_done(struct venus_core *core,
 		filled_len = pkt->filled_len;
 		pic_type = pkt->picture_type;
 		packet_buffer = pkt->packet_buffer;
+		output_tag = pkt->output_tag;
 
 		if (pkt->stream_id == 0)
 			buffer_type = HFI_BUFFER_OUTPUT;
@@ -810,7 +812,7 @@ static void hfi_session_ftb_done(struct venus_core *core,
 
 done:
 	inst->error = error;
-	inst->ops->buf_done(inst, buffer_type, packet_buffer, filled_len,
+	inst->ops->buf_done(inst, buffer_type, output_tag, filled_len,
 			    offset, flags, timestamp_us);
 }
 

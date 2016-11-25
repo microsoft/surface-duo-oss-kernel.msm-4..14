@@ -229,7 +229,20 @@ static void fill_buffer_desc(const struct venus_buffer *buf,
 	bd->buffer_size = buf->size;
 	bd->num_buffers = 1;
 	bd->device_addr = buf->dma_addr;
-	bd->response_required = !!response;
+	bd->response_required = response;
+}
+
+static void return_buf_error(struct venus_inst *inst,
+			     struct vb2_v4l2_buffer *vbuf)
+{
+	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
+
+	if (vbuf->vb2_buf.type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+		v4l2_m2m_src_buf_remove_exact(m2m_ctx, vbuf);
+	else
+		v4l2_m2m_dst_buf_remove_exact(m2m_ctx, vbuf);
+
+	v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
 }
 
 static int
@@ -248,7 +261,7 @@ session_process_buf(struct venus_inst *inst, struct vb2_v4l2_buffer *vbuf)
 	fdata.device_addr = buf->dma_addr;
 	fdata.timestamp = timeval_to_ns(&vbuf->timestamp) / NSEC_PER_USEC;
 	fdata.flags = 0;
-	fdata.clnt_data = buf->dma_addr;
+	fdata.clnt_data = vbuf->vb2_buf.index;
 
 	if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		fdata.buffer_type = HFI_BUFFER_INPUT;
@@ -258,7 +271,8 @@ session_process_buf(struct venus_inst *inst, struct vb2_v4l2_buffer *vbuf)
 		if (vbuf->flags & V4L2_BUF_FLAG_LAST || !fdata.filled_len)
 			fdata.flags |= HFI_BUFFERFLAG_EOS;
 
-//		dev_err(core->dev, "etb: index: %u, filled: %u, off: %u, addr: %x\n", vb->index,
+//		dev_err(core->dev, "etb: index: %u, filled: %u, off: %u, addr: %x\n",
+//			vb->index,
 //			fdata.filled_len, fdata.offset, fdata.device_addr);
 
 		if (inst->codec_cfg == false &&
@@ -389,30 +403,15 @@ int helper_set_color_format(struct venus_inst *inst, u32 type, u32 pixfmt)
 	return 0;
 }
 
-static int buf_match(void *priv, struct vb2_v4l2_buffer *vb)
-{
-	dma_addr_t *addr = priv;
-	struct sg_table *sgt;
-
-	sgt = vb2_dma_sg_plane_desc(&vb->vb2_buf, 0);
-	if (!sgt)
-		return 0;
-
-	if (sg_dma_address(sgt->sgl) == *addr)
-		return 1;
-
-	return 0;
-}
-
 struct vb2_v4l2_buffer *
-helper_vb2_find_buf(struct venus_inst *inst, dma_addr_t addr, unsigned int type)
+helper_vb2_find_buf(struct venus_inst *inst, unsigned int type, u32 idx)
 {
 	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
 
 	if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
-		return v4l2_m2m_src_buf_remove_match(m2m_ctx, &addr, buf_match);
+		return v4l2_m2m_src_buf_remove_by_idx(m2m_ctx, idx);
 	else
-		return v4l2_m2m_dst_buf_remove_match(m2m_ctx, &addr, buf_match);
+		return v4l2_m2m_dst_buf_remove_by_idx(m2m_ctx, idx);
 }
 
 int helper_vb2_buf_init(struct vb2_buffer *vb)
@@ -452,21 +451,22 @@ void helper_vb2_buf_queue(struct vb2_buffer *vb)
 {
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct venus_inst *inst = vb2_get_drv_priv(vb->vb2_queue);
+	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
 	int ret;
 
-	v4l2_m2m_buf_queue(inst->m2m_ctx, vbuf);
+	mutex_lock(&inst->lock);
+
+	v4l2_m2m_buf_queue(m2m_ctx, vbuf);
 
 	if (!(inst->streamon_out & inst->streamon_cap))
-		return;
+		goto unlock;
 
 	ret = session_process_buf(inst, vbuf);
-	if (ret) {
-		if (vb->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
-			v4l2_m2m_src_buf_remove(inst->m2m_ctx);
-		else
-			v4l2_m2m_dst_buf_remove(inst->m2m_ctx);
-		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_ERROR);
-	}
+	if (ret)
+		return_buf_error(inst, vbuf);
+
+unlock:
+	mutex_unlock(&inst->lock);
 }
 
 void helper_vb2_buffers_done(struct venus_inst *inst,
@@ -562,17 +562,21 @@ void helper_m2m_device_run(void *priv)
 {
 	struct venus_inst *inst = priv;
 	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
-	struct v4l2_m2m_buffer *buf;
+	struct v4l2_m2m_buffer *buf, *n;
 	int ret;
 
 	mutex_lock(&inst->lock);
 
-	v4l2_m2m_for_each_dst_buf(m2m_ctx, buf) {
+	v4l2_m2m_for_each_dst_buf_safe(m2m_ctx, buf, n) {
 		ret = session_process_buf(inst, &buf->vb);
+		if (ret)
+			return_buf_error(inst, &buf->vb);
 	}
 
-	v4l2_m2m_for_each_src_buf(m2m_ctx, buf) {
+	v4l2_m2m_for_each_src_buf_safe(m2m_ctx, buf, n) {
 		ret = session_process_buf(inst, &buf->vb);
+		if (ret)
+			return_buf_error(inst, &buf->vb);
 	}
 
 	mutex_unlock(&inst->lock);
