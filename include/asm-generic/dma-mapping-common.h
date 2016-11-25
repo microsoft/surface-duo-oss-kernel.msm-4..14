@@ -332,11 +332,14 @@ static inline int dma_supported(struct device *dev, u64 mask)
 {
 	struct dma_map_ops *ops = get_dma_ops(dev);
 
-	if (!ops)
+	if (!ops){
 		return 0;
-	if (!ops->dma_supported)
+    }
+	if (!ops->dma_supported){
 		return 1;
-	return ops->dma_supported(dev, mask);
+    }
+    int ret = ops->dma_supported(dev, mask);
+    return ret;
 }
 #endif
 
@@ -345,11 +348,13 @@ static inline int dma_set_mask(struct device *dev, u64 mask)
 {
 	struct dma_map_ops *ops = get_dma_ops(dev);
 
-	if (ops->set_dma_mask)
+	if (ops->set_dma_mask){
 		return ops->set_dma_mask(dev, mask);
+    }
 
-	if (!dev->dma_mask || !dma_supported(dev, mask))
+	if (!dev->dma_mask || !dma_supported(dev, mask)){
 		return -EIO;
+    }
 	*dev->dma_mask = mask;
 	return 0;
 }

@@ -1503,6 +1503,16 @@ config MFD_STW481X
 	  in various ST Microelectronics and ST-Ericsson embedded
 	  Nomadik series.
 
+
+config HISI_PMIC
+	tristate "HiSilicon PMU/Codec IC"
+	depends on OF
+	help
+	  This driver supports HiSilicon Hisi power management and codec IC,
+	  including regulators, codec, ADCs, Coulomb counter, etc. Memory
+	  mapped I/O ports are the way of communication with it.
+
+
 menu "Multimedia Capabilities Port drivers"
 	depends on ARCH_SA1100
 

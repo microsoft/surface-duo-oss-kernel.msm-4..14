@@ -60,3 +60,5 @@ obj-$(CONFIG_CXL_BASE)		+= cxl/
 obj-$(CONFIG_UID_CPUTIME) += uid_cputime.o
 obj-$(CONFIG_MEMORY_STATE_TIME) += memory_state_time.o
 obj-$(CONFIG_HI3660_SYSCFG)     += hi3660-sysconfig.o
+obj-y	     += microchip/
+obj-y	     += farichild/

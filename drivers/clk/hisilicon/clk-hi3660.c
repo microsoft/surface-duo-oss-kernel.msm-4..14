@@ -170,6 +170,8 @@ static const struct hisi_gate_clock hi3660_crgctrl_gate_sep_clks[] = {
 	  CLK_SET_RATE_PARENT, 0x420, 8, 0, },
 	{ HI3660_PCLK_GATE_PCIE_PHY, "pclk_gate_pcie_phy", "clk_div_mmc1bus",
 	  CLK_SET_RATE_PARENT, 0x420, 9, 0, },
+	{ HI3660_CLK_GATE_ABB_USB, "clk_gate_abb_usb", "clk_gate_usb_tcxo_en",
+	  CLK_SET_RATE_PARENT, 0x10, 0, 0, },
 };
 
 static const struct hisi_gate_clock hi3660_crgctrl_gate_clks[] = {

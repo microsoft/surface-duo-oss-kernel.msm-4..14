@@ -20,10 +20,11 @@
 #include <linux/slab.h>
 #include <linux/usb/xhci_pdriver.h>
 #include <linux/acpi.h>
-
+#include <linux/dma-mapping.h>
 #include "xhci.h"
 #include "xhci-mvebu.h"
 #include "xhci-rcar.h"
+#include "xhci-debugfs.h"
 
 static struct hc_driver __read_mostly xhci_plat_hc_driver;
 
@@ -73,6 +74,7 @@ static int xhci_plat_start(struct usb_hcd *hcd)
 	return xhci_run(hcd);
 }
 
+void arch_xhci_setup_dma_ops(struct device *dev);
 static int xhci_plat_probe(struct platform_device *pdev)
 {
 	struct device_node	*node = pdev->dev.of_node;
@@ -94,6 +96,8 @@ static int xhci_plat_probe(struct platform_device *pdev)
 	if (irq < 0)
 		return -ENODEV;
 
+        if(&(pdev->dev))
+		arch_xhci_setup_dma_ops(&(pdev->dev));
 	/* Try to set 64-bit DMA first */
 	if (WARN_ON(!pdev->dev.dma_mask))
 		/* Platform did not initialize dma_mask */
@@ -112,6 +116,10 @@ static int xhci_plat_probe(struct platform_device *pdev)
 	hcd = usb_create_hcd(driver, &pdev->dev, dev_name(&pdev->dev));
 	if (!hcd)
 		return -ENOMEM;
+
+#ifdef CONFIG_HISI_USB_SKIP_RESUME
+	hcd_to_bus(hcd)->skip_resume = true;
+#endif
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	hcd->regs = devm_ioremap_resource(&pdev->dev, res);
@@ -158,6 +166,10 @@ static int xhci_plat_probe(struct platform_device *pdev)
 		goto disable_clk;
 	}
 
+#ifdef CONFIG_HISI_USB_SKIP_RESUME
+	hcd_to_bus(xhci->shared_hcd)->skip_resume = true;
+#endif
+
 	if ((node && of_property_read_bool(node, "usb3-lpm-capable")) ||
 			(pdata && pdata->usb3_lpm_capable))
 		xhci->quirks |= XHCI_LPM_SUPPORT;
@@ -185,8 +197,20 @@ static int xhci_plat_probe(struct platform_device *pdev)
 	if (ret)
 		goto dealloc_usb2_hcd;
 
+
+	/* added by l00196665, for xhci debug */
+	ret = xhci_create_debug_file(&pdev->dev);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to initialize debugfs\n");
+		goto dealloc_usb3_hcd;
+	}
+
+
 	return 0;
 
+
+dealloc_usb3_hcd:
+	usb_remove_hcd(xhci->shared_hcd);
 
 dealloc_usb2_hcd:
 	usb_remove_hcd(hcd);
@@ -215,6 +239,9 @@ static int xhci_plat_remove(struct platform_device *dev)
 
 	usb_remove_hcd(xhci->shared_hcd);
 	usb_phy_shutdown(hcd->usb_phy);
+
+	/* add for xhci debug */
+	xhci_remove_debug_file();
 
 	usb_remove_hcd(hcd);
 	usb_put_hcd(xhci->shared_hcd);
