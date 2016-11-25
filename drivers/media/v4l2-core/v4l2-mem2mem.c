@@ -136,9 +136,23 @@ void *v4l2_m2m_buf_remove(struct v4l2_m2m_queue_ctx *q_ctx)
 }
 EXPORT_SYMBOL_GPL(v4l2_m2m_buf_remove);
 
+void v4l2_m2m_buf_remove_exact(struct v4l2_m2m_queue_ctx *q_ctx,
+			       struct vb2_v4l2_buffer *vbuf)
+{
+	struct v4l2_m2m_buffer *b;
+	unsigned long flags;
+
+	spin_lock_irqsave(&q_ctx->rdy_spinlock, flags);
+	b = container_of(vbuf, struct v4l2_m2m_buffer, vb);
+	list_del(&b->list);
+	q_ctx->num_rdy--;
+	spin_unlock_irqrestore(&q_ctx->rdy_spinlock, flags);
+}
+EXPORT_SYMBOL_GPL(v4l2_m2m_buf_remove_exact);
+
 struct vb2_v4l2_buffer *
-v4l2_m2m_buf_remove_match(struct v4l2_m2m_queue_ctx *q_ctx, void *priv,
-			   int (*match)(void *priv, struct vb2_v4l2_buffer *vb))
+v4l2_m2m_buf_remove_by_idx(struct v4l2_m2m_queue_ctx *q_ctx, unsigned int idx)
+
 {
 	struct v4l2_m2m_buffer *b, *tmp;
 	struct vb2_v4l2_buffer *ret = NULL;
@@ -146,7 +160,7 @@ v4l2_m2m_buf_remove_match(struct v4l2_m2m_queue_ctx *q_ctx, void *priv,
 
 	spin_lock_irqsave(&q_ctx->rdy_spinlock, flags);
 	list_for_each_entry_safe(b, tmp, &q_ctx->rdy_queue, list) {
-		if (match(priv, &b->vb)) {
+		if (b->vb.vb2_buf.index == idx) {
 			list_del(&b->list);
 			q_ctx->num_rdy--;
 			ret = &b->vb;
@@ -157,7 +171,7 @@ v4l2_m2m_buf_remove_match(struct v4l2_m2m_queue_ctx *q_ctx, void *priv,
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(v4l2_m2m_buf_remove_match);
+EXPORT_SYMBOL_GPL(v4l2_m2m_buf_remove_by_idx);
 
 /*
  * Scheduling handlers
