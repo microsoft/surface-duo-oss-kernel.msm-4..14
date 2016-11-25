@@ -138,7 +138,7 @@ static const struct iio_chan_spec st_press_1_channels[] = {
 		.scan_type = {
 			.sign = 'u',
 			.realbits = 24,
-			.storagebits = 24,
+			.storagebits = 32,
 			.endianness = IIO_LE,
 		},
 		.info_mask_separate =
@@ -210,7 +210,7 @@ static const struct iio_chan_spec st_press_lps22hb_channels[] = {
 		.scan_type = {
 			.sign = 'u',
 			.realbits = 24,
-			.storagebits = 24,
+			.storagebits = 32,
 			.endianness = IIO_LE,
 		},
 		.info_mask_separate =
