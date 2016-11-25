@@ -33,7 +33,6 @@
 #include "camss.h"
 
 #define MSM_VFE_NAME "msm_vfe"
-#define MSM_VFE_VIDEO_NAME "msm_vfe_video"
 
 #define vfe_line_array(ptr_line)	\
 	((const struct vfe_line (*)[]) &(ptr_line[-(ptr_line->id)]))
@@ -1853,7 +1852,8 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 		}
 
 		video_out->ops = &camss_vfe_video_ops;
-		snprintf(name, ARRAY_SIZE(name), "%s%d", MSM_VFE_VIDEO_NAME, i);
+		snprintf(name, ARRAY_SIZE(name), "%s%d_%s%d",
+			 MSM_VFE_NAME, vfe->id, "video", i);
 		ret = msm_video_register(video_out, v4l2_dev, name);
 		if (ret < 0) {
 			dev_err(dev, "Failed to register video node\n");
