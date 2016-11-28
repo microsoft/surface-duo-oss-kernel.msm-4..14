@@ -271,10 +271,6 @@ session_process_buf(struct venus_inst *inst, struct vb2_v4l2_buffer *vbuf)
 		if (vbuf->flags & V4L2_BUF_FLAG_LAST || !fdata.filled_len)
 			fdata.flags |= HFI_BUFFERFLAG_EOS;
 
-//		dev_err(core->dev, "etb: index: %u, filled: %u, off: %u, addr: %x\n",
-//			vb->index,
-//			fdata.filled_len, fdata.offset, fdata.device_addr);
-
 		if (inst->codec_cfg == false &&
 		    inst->session_type == VIDC_SESSION_TYPE_DEC) {
 			inst->codec_cfg = true;
@@ -285,8 +281,6 @@ session_process_buf(struct venus_inst *inst, struct vb2_v4l2_buffer *vbuf)
 		fdata.filled_len = 0;
 		fdata.offset = 0;
 
-//		dev_err(core->dev, "ftb: index: %u, addr: %x\n", vb->index,
-//			fdata.device_addr);
 	} else {
 		dev_err(dev, "process buffer invalid type\n");
 		return -EINVAL;
@@ -539,15 +533,10 @@ void helper_vb2_stop_streaming(struct vb2_queue *q)
 
 	mutex_lock(&inst->lock);
 
-	dev_err(dev, "enter helper_vb2_stop_streaming (out:%u, cap:%u)\n",
-		inst->streamon_out, inst->streamon_cap);
-
 	if (!(inst->streamon_out & inst->streamon_cap)) {
 		mutex_unlock(&inst->lock);
 		return;
 	}
-
-	dev_err(dev, "call session_stop\n");
 
 	ret = hfi_session_stop(inst);
 

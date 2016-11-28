@@ -234,8 +234,6 @@ static int vdec_g_fmt(struct file *file, void *fh, struct v4l2_format *f)
 
 	vdec_try_fmt_common(inst, f);
 
-	pr_err("g_fmt: type:%u, %ux%u\n", f->type, pixmp->width, pixmp->height);
-
 	return 0;
 }
 
@@ -249,9 +247,6 @@ static int vdec_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 	u32 pixfmt_out = 0, pixfmt_cap = 0;
 
 	orig_pixmp = *pixmp;
-
-	pr_err("s_fmt: enter: type:%u, pixfmt:%u, %ux%u\n", f->type,
-		pixmp->pixelformat, pixmp->width, pixmp->height);
 
 	fmt = vdec_try_fmt_common(inst, f);
 
@@ -295,13 +290,6 @@ static int vdec_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 		inst->fmt_out = fmt;
 	else if (f->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 		inst->fmt_cap = fmt;
-
-	pr_err("s_fmt: exit: type:%u, %ux%u, out %ux%u (orig:%ux%u, ret:%ux%u)\n",
-		f->type,
-		inst->width, inst->height,
-		inst->out_width, inst->out_height,
-		orig_pixmp.width, orig_pixmp.height,
-		pixmp->width, pixmp->height);
 
 	return 0;
 }
