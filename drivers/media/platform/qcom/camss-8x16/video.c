@@ -34,24 +34,43 @@
 static const struct format_info {
 	u32 code;
 	u32 pixelformat;
-	unsigned int bpp;
+	u8 planes;
+	u8 hsub[3];
+	u8 vsub[3];
+	unsigned int bpp[3];
 } formats[] = {
-	{ MEDIA_BUS_FMT_UYVY8_2X8, V4L2_PIX_FMT_UYVY, 16 },
-	{ MEDIA_BUS_FMT_VYUY8_2X8, V4L2_PIX_FMT_VYUY, 16 },
-	{ MEDIA_BUS_FMT_YUYV8_2X8, V4L2_PIX_FMT_YUYV, 16 },
-	{ MEDIA_BUS_FMT_YVYU8_2X8, V4L2_PIX_FMT_YVYU, 16 },
-	{ MEDIA_BUS_FMT_SBGGR8_1X8, V4L2_PIX_FMT_SBGGR8, 8 },
-	{ MEDIA_BUS_FMT_SGBRG8_1X8, V4L2_PIX_FMT_SGBRG8, 8 },
-	{ MEDIA_BUS_FMT_SGRBG8_1X8, V4L2_PIX_FMT_SGRBG8, 8 },
-	{ MEDIA_BUS_FMT_SRGGB8_1X8, V4L2_PIX_FMT_SRGGB8, 8 },
-	{ MEDIA_BUS_FMT_SBGGR10_1X10, V4L2_PIX_FMT_SBGGR10P, 10 },
-	{ MEDIA_BUS_FMT_SGBRG10_1X10, V4L2_PIX_FMT_SGBRG10P, 10 },
-	{ MEDIA_BUS_FMT_SGRBG10_1X10, V4L2_PIX_FMT_SGRBG10P, 10 },
-	{ MEDIA_BUS_FMT_SRGGB10_1X10, V4L2_PIX_FMT_SRGGB10P, 10 },
-	{ MEDIA_BUS_FMT_SBGGR12_1X12, V4L2_PIX_FMT_SRGGB12P, 12 },
-	{ MEDIA_BUS_FMT_SGBRG12_1X12, V4L2_PIX_FMT_SGBRG12P, 12 },
-	{ MEDIA_BUS_FMT_SGRBG12_1X12, V4L2_PIX_FMT_SGRBG12P, 12 },
-	{ MEDIA_BUS_FMT_SRGGB12_1X12, V4L2_PIX_FMT_SRGGB12P, 12 }
+	{ MEDIA_BUS_FMT_UYVY8_2X8, V4L2_PIX_FMT_UYVY, 1,
+	  { 1 }, { 1 }, { 16 } },
+	{ MEDIA_BUS_FMT_VYUY8_2X8, V4L2_PIX_FMT_VYUY, 1,
+	  { 1 }, { 1 }, { 16 } },
+	{ MEDIA_BUS_FMT_YUYV8_2X8, V4L2_PIX_FMT_YUYV, 1,
+	  { 1 }, { 1 }, { 16 } },
+	{ MEDIA_BUS_FMT_YVYU8_2X8, V4L2_PIX_FMT_YVYU, 1,
+	  { 1 }, { 1 }, { 16 } },
+	{ MEDIA_BUS_FMT_SBGGR8_1X8, V4L2_PIX_FMT_SBGGR8, 1,
+	  { 1 }, { 1 }, { 8 } },
+	{ MEDIA_BUS_FMT_SGBRG8_1X8, V4L2_PIX_FMT_SGBRG8, 1,
+	  { 1 }, { 1 }, { 8 } },
+	{ MEDIA_BUS_FMT_SGRBG8_1X8, V4L2_PIX_FMT_SGRBG8, 1,
+	  { 1 }, { 1 }, { 8 } },
+	{ MEDIA_BUS_FMT_SRGGB8_1X8, V4L2_PIX_FMT_SRGGB8, 1,
+	  { 1 }, { 1 }, { 8 } },
+	{ MEDIA_BUS_FMT_SBGGR10_1X10, V4L2_PIX_FMT_SBGGR10P, 1,
+	  { 1 }, { 1 }, { 10 } },
+	{ MEDIA_BUS_FMT_SGBRG10_1X10, V4L2_PIX_FMT_SGBRG10P, 1,
+	  { 1 }, { 1 }, { 10 } },
+	{ MEDIA_BUS_FMT_SGRBG10_1X10, V4L2_PIX_FMT_SGRBG10P, 1,
+	  { 1 }, { 1 }, { 10 } },
+	{ MEDIA_BUS_FMT_SRGGB10_1X10, V4L2_PIX_FMT_SRGGB10P, 1,
+	  { 1 }, { 1 }, { 10 } },
+	{ MEDIA_BUS_FMT_SBGGR12_1X12, V4L2_PIX_FMT_SRGGB12P, 1,
+	  { 1 }, { 1 }, { 12 } },
+	{ MEDIA_BUS_FMT_SGBRG12_1X12, V4L2_PIX_FMT_SGBRG12P, 1,
+	  { 1 }, { 1 }, { 12 } },
+	{ MEDIA_BUS_FMT_SGRBG12_1X12, V4L2_PIX_FMT_SGRBG12P, 1,
+	  { 1 }, { 1 }, { 12 } },
+	{ MEDIA_BUS_FMT_SRGGB12_1X12, V4L2_PIX_FMT_SRGGB12P, 1,
+	  { 1 }, { 1 }, { 12 } }
 };
 
 /* -----------------------------------------------------------------------------
@@ -70,7 +89,7 @@ static const struct format_info {
 static unsigned int video_mbus_to_pix_mp(const struct v4l2_mbus_framefmt *mbus,
 				      struct v4l2_pix_format_mplane *pix)
 {
-	unsigned int i;
+	unsigned int i, j;
 	u32 bytesperline;
 
 	memset(pix, 0, sizeof(*pix));
@@ -86,11 +105,15 @@ static unsigned int video_mbus_to_pix_mp(const struct v4l2_mbus_framefmt *mbus,
 		return -EINVAL;
 
 	pix->pixelformat = formats[i].pixelformat;
-	pix->num_planes = 1;
-	bytesperline = pix->width * formats[i].bpp / 8;
-	bytesperline = ALIGN(bytesperline, 8);
-	pix->plane_fmt[0].bytesperline = bytesperline;
-	pix->plane_fmt[0].sizeimage = bytesperline * pix->height;
+	pix->num_planes = formats[i].planes;
+	for (j = 0; j < pix->num_planes; j++) {
+		bytesperline = pix->width / formats[i].hsub[j] *
+				formats[i].bpp[j] / 8;
+		bytesperline = ALIGN(bytesperline, 8);
+		pix->plane_fmt[j].bytesperline = bytesperline;
+		pix->plane_fmt[j].sizeimage = pix->height / formats[i].vsub[j] *
+						bytesperline;
+	}
 	pix->colorspace = mbus->colorspace;
 	pix->field = mbus->field;
 
@@ -147,15 +170,17 @@ static int video_queue_setup(struct vb2_queue *q, const void *parg,
 {
 	struct camss_video *video = vb2_get_drv_priv(q);
 	const struct v4l2_format *fmt = parg;
-
-	*num_planes = 1;
+	unsigned int i;
 
 	if (NULL == fmt)
-		sizes[0] = video->active_fmt.fmt.pix_mp.plane_fmt[0].sizeimage;
-	else
-		sizes[0] = fmt->fmt.pix_mp.plane_fmt[0].sizeimage;
+		fmt = &video->active_fmt;
 
-	alloc_ctxs[0] = video->alloc_ctx;
+	*num_planes = fmt->fmt.pix_mp.num_planes;
+
+	for (i = 0; i < *num_planes; i++) {
+		sizes[i] = fmt->fmt.pix_mp.plane_fmt[i].sizeimage;
+		alloc_ctxs[i] = video->alloc_ctx;
+	}
 
 	return 0;
 }
@@ -166,18 +191,22 @@ static int video_buf_prepare(struct vb2_buffer *vb)
 	struct camss_video *video = vb2_get_drv_priv(vb->vb2_queue);
 	struct camss_buffer *buffer = container_of(vbuf, struct camss_buffer,
 						   vb);
+	const struct v4l2_format *fmt = &video->active_fmt;
 	struct sg_table *sgt;
+	unsigned int i;
 
-	vb2_set_plane_payload(vb, 0,
-		video->active_fmt.fmt.pix_mp.plane_fmt[0].sizeimage);
-	if (vb2_get_plane_payload(vb, 0) > vb2_plane_size(vb, 0))
-		return -EINVAL;
+	for (i = 0; i < fmt->fmt.pix_mp.num_planes; i++) {
+		vb2_set_plane_payload(vb, i,
+				      fmt->fmt.pix_mp.plane_fmt[i].sizeimage);
+		if (vb2_get_plane_payload(vb, i) > vb2_plane_size(vb, i))
+			return -EINVAL;
 
-	sgt = vb2_dma_sg_plane_desc(vb, 0);
-	if (!sgt)
-		return -EFAULT;
+		sgt = vb2_dma_sg_plane_desc(vb, i);
+		if (!sgt)
+			return -EFAULT;
 
-	buffer->addr = sg_dma_address(sgt->sgl);
+		buffer->addr = sg_dma_address(sgt->sgl);
+	}
 
 	vbuf->field = V4L2_FIELD_NONE;
 
@@ -200,6 +229,7 @@ static int video_check_format(struct camss_video *video)
 	struct v4l2_pix_format_mplane *pix = &video->active_fmt.fmt.pix_mp;
 	struct v4l2_pix_format_mplane *sd_pix;
 	struct v4l2_format format;
+	unsigned int i;
 	int ret;
 
 	ret = video_get_subdev_format(video, &format);
@@ -211,10 +241,15 @@ static int video_check_format(struct camss_video *video)
 	    pix->height != sd_pix->height ||
 	    pix->width != sd_pix->width ||
 	    pix->num_planes != sd_pix->num_planes ||
-	    pix->plane_fmt[0].bytesperline != sd_pix->plane_fmt[0].bytesperline ||
-	    pix->plane_fmt[0].sizeimage != sd_pix->plane_fmt[0].sizeimage ||
 	    pix->field != format.fmt.pix_mp.field)
 		return -EINVAL;
+
+	for (i = 0; i < pix->num_planes; i++)
+		if (pix->plane_fmt[i].bytesperline !=
+				sd_pix->plane_fmt[i].bytesperline ||
+		    pix->plane_fmt[i].sizeimage !=
+				sd_pix->plane_fmt[i].sizeimage)
+			return -EINVAL;
 
 	return 0;
 }
