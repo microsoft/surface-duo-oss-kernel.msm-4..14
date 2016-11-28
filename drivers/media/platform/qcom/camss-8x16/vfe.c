@@ -1633,7 +1633,8 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 	vfe->reg_update = 0;
 
 	for (i = VFE_LINE_RDI0; i <= VFE_LINE_RDI2; i++) {
-		vfe->line[i].video_out.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+		vfe->line[i].video_out.type =
+					V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 		vfe->line[i].video_out.camss = camss;
 		vfe->line[i].id = i;
 	}
