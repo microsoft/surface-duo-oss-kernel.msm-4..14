@@ -1444,6 +1444,23 @@ static void vfe_try_format(struct vfe_line *line,
 		*fmt = *__vfe_get_format(line, cfg, MSM_VFE_PAD_SINK,
 					 which);
 
+		if (line->id == VFE_LINE_PIX)
+			switch (fmt->code) {
+			case MEDIA_BUS_FMT_YUYV8_2X8:
+				fmt->code = MEDIA_BUS_FMT_YUYV8_1_5X8;
+				break;
+			case MEDIA_BUS_FMT_YVYU8_2X8:
+				fmt->code = MEDIA_BUS_FMT_YVYU8_1_5X8;
+				break;
+			case MEDIA_BUS_FMT_UYVY8_2X8:
+			default:
+				fmt->code = MEDIA_BUS_FMT_UYVY8_1_5X8;
+				break;
+			case MEDIA_BUS_FMT_VYUY8_2X8:
+				fmt->code = MEDIA_BUS_FMT_VYUY8_1_5X8;
+				break;
+			}
+
 		break;
 	}
 

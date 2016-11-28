@@ -70,7 +70,15 @@ static const struct format_info {
 	{ MEDIA_BUS_FMT_SGRBG12_1X12, V4L2_PIX_FMT_SGRBG12P, 1,
 	  { 1 }, { 1 }, { 12 } },
 	{ MEDIA_BUS_FMT_SRGGB12_1X12, V4L2_PIX_FMT_SRGGB12P, 1,
-	  { 1 }, { 1 }, { 12 } }
+	  { 1 }, { 1 }, { 12 } },
+	{ MEDIA_BUS_FMT_YUYV8_1_5X8, V4L2_PIX_FMT_NV12M, 2,
+	  { 1, 1 }, { 1, 2 }, { 8, 8 } },
+	{ MEDIA_BUS_FMT_YVYU8_1_5X8, V4L2_PIX_FMT_NV12M, 2,
+	  { 1, 1 }, { 1, 2 }, { 8, 8 } },
+	{ MEDIA_BUS_FMT_UYVY8_1_5X8, V4L2_PIX_FMT_NV12M, 2,
+	  { 1, 1 }, { 1, 2 }, { 8, 8 } },
+	{ MEDIA_BUS_FMT_VYUY8_1_5X8, V4L2_PIX_FMT_NV12M, 2,
+	  { 1, 1 }, { 1, 2 }, { 8, 8 } }
 };
 
 /* -----------------------------------------------------------------------------
