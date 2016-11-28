@@ -182,7 +182,7 @@ int hfi_session_create(struct venus_inst *inst, const struct hfi_inst_ops *ops)
 	return 0;
 }
 
-int hfi_session_init(struct venus_inst *inst, u32 pixfmt, u32 session_type)
+int hfi_session_init(struct venus_inst *inst, u32 pixfmt)
 {
 	struct venus_core *core = inst->core;
 	const struct hfi_ops *ops = core->ops;
@@ -190,10 +190,9 @@ int hfi_session_init(struct venus_inst *inst, u32 pixfmt, u32 session_type)
 	int ret;
 
 	codec = to_codec_type(pixfmt);
-	inst->session_type = session_type;
 	reinit_completion(&inst->done);
 
-	ret = ops->session_init(core, inst, session_type, codec);
+	ret = ops->session_init(inst, inst->session_type, codec);
 	if (ret)
 		return ret;
 
@@ -442,14 +441,14 @@ int hfi_session_set_property(struct venus_inst *inst, u32 ptype, void *pdata)
 	return ops->session_set_property(inst, ptype, pdata);
 }
 
-int hfi_session_process_buf(struct venus_inst *inst, struct hfi_frame_data *f)
+int hfi_session_process_buf(struct venus_inst *inst, struct hfi_frame_data *fd)
 {
 	const struct hfi_ops *ops = inst->core->ops;
 
-	if (f->buffer_type == HFI_BUFFER_INPUT)
-		return ops->session_etb(inst, f);
-	else if (f->buffer_type == HFI_BUFFER_OUTPUT)
-		return ops->session_ftb(inst, f);
+	if (fd->buffer_type == HFI_BUFFER_INPUT)
+		return ops->session_etb(inst, fd);
+	else if (fd->buffer_type == HFI_BUFFER_OUTPUT)
+		return ops->session_ftb(inst, fd);
 
 	return -EINVAL;
 }

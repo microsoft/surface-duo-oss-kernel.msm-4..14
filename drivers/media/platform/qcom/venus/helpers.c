@@ -377,13 +377,64 @@ int helper_get_bufreq(struct venus_inst *inst, u32 type,
 	return ret;
 }
 
-int helper_set_color_format(struct venus_inst *inst, u32 type, u32 pixfmt)
+int helper_set_input_resolution(struct venus_inst *inst, unsigned int width,
+				unsigned int height)
+{
+	u32 ptype = HFI_PROPERTY_PARAM_FRAME_SIZE;
+	struct hfi_framesize fs;
+
+	fs.buffer_type = HFI_BUFFER_INPUT;
+	fs.width = width;
+	fs.height = height;
+
+	return hfi_session_set_property(inst, ptype, &fs);
+}
+
+int helper_set_output_resolution(struct venus_inst *inst, unsigned int width,
+				 unsigned int height)
+{
+	u32 ptype = HFI_PROPERTY_PARAM_FRAME_SIZE;
+	struct hfi_framesize fs;
+
+	fs.buffer_type = HFI_BUFFER_OUTPUT;
+	fs.width = width;
+	fs.height = height;
+
+	return hfi_session_set_property(inst, ptype, &fs);
+}
+
+int helper_set_num_bufs(struct venus_inst *inst, unsigned int input_bufs,
+			unsigned int output_bufs)
+{
+	u32 ptype = HFI_PROPERTY_PARAM_BUFFER_COUNT_ACTUAL;
+	struct hfi_buffer_count_actual buf_count;
+	int ret;
+
+	buf_count.type = HFI_BUFFER_INPUT;
+	buf_count.count_actual = input_bufs;
+
+	ret = hfi_session_set_property(inst, ptype, &buf_count);
+	if (ret)
+		return ret;
+
+	buf_count.type = HFI_BUFFER_OUTPUT;
+	buf_count.count_actual = output_bufs;
+
+	return hfi_session_set_property(inst, ptype, &buf_count);
+}
+
+int helper_set_color_format(struct venus_inst *inst, u32 pixfmt)
 {
 	struct hfi_uncompressed_format_select fmt;
 	u32 ptype = HFI_PROPERTY_PARAM_UNCOMPRESSED_FORMAT_SELECT;
 	int ret;
 
-	fmt.buffer_type = type;
+	if (inst->session_type == VIDC_SESSION_TYPE_DEC)
+		fmt.buffer_type = HFI_BUFFER_OUTPUT;
+	else if (inst->session_type == VIDC_SESSION_TYPE_ENC)
+		fmt.buffer_type = HFI_BUFFER_INPUT;
+	else
+		return -EINVAL;
 
 	switch (pixfmt) {
 	case V4L2_PIX_FMT_NV12:
@@ -404,7 +455,7 @@ int helper_set_color_format(struct venus_inst *inst, u32 type, u32 pixfmt)
 }
 
 struct vb2_v4l2_buffer *
-helper_vb2_find_buf(struct venus_inst *inst, unsigned int type, u32 idx)
+helper_find_buf(struct venus_inst *inst, unsigned int type, u32 idx)
 {
 	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
 
@@ -469,8 +520,7 @@ unlock:
 	mutex_unlock(&inst->lock);
 }
 
-void helper_vb2_buffers_done(struct venus_inst *inst,
-			     enum vb2_buffer_state state)
+void helper_buffers_done(struct venus_inst *inst, enum vb2_buffer_state state)
 {
 	struct vb2_v4l2_buffer *buf;
 
@@ -519,7 +569,7 @@ void helper_vb2_stop_streaming(struct vb2_queue *q)
 
 	load_scale_clocks(core);
 	pm_runtime_put_sync(dev);
-	helper_vb2_buffers_done(inst, VB2_BUF_STATE_ERROR);
+	helper_buffers_done(inst, VB2_BUF_STATE_ERROR);
 	inst->streamon_cap = inst->streamon_out = 0;
 	mutex_unlock(&inst->lock);
 }

@@ -725,40 +725,27 @@ static int venc_set_properties(struct venus_inst *inst)
 
 static int venc_init_session(struct venus_inst *inst)
 {
-	u32 pixfmt = inst->fmt_cap->pixfmt;
-	struct hfi_framesize fs;
-	u32 ptype;
 	int ret;
 
-	ret = hfi_session_init(inst, pixfmt, VIDC_SESSION_TYPE_ENC);
+	ret = hfi_session_init(inst, inst->fmt_cap->pixfmt);
 	if (ret)
 		return ret;
 
-	ptype = HFI_PROPERTY_PARAM_FRAME_SIZE;
-	fs.buffer_type = HFI_BUFFER_INPUT;
-	fs.width = inst->out_width;
-	fs.height = inst->out_height;
-
-	ret = hfi_session_set_property(inst, ptype, &fs);
+	ret = helper_set_input_resolution(inst, inst->out_width,
+					  inst->out_height);
 	if (ret)
-		goto err;
+		goto deinit;
 
-	fs.buffer_type = HFI_BUFFER_OUTPUT;
-	fs.width = inst->width;
-	fs.height = inst->height;
-
-	ret = hfi_session_set_property(inst, ptype, &fs);
+	ret = helper_set_output_resolution(inst, inst->width, inst->height);
 	if (ret)
-		goto err;
+		goto deinit;
 
-	pixfmt = inst->fmt_out->pixfmt;
-
-	ret = helper_set_color_format(inst, HFI_BUFFER_INPUT, pixfmt);
+	ret = helper_set_color_format(inst, inst->fmt_out->pixfmt);
 	if (ret)
-		goto err;
+		goto deinit;
 
 	return 0;
-err:
+deinit:
 	hfi_session_deinit(inst);
 	return ret;
 }
@@ -860,8 +847,6 @@ static int venc_start_streaming(struct vb2_queue *q, unsigned int count)
 {
 	struct venus_inst *inst = vb2_get_drv_priv(q);
 	struct device *dev = inst->core->dev;
-	struct hfi_buffer_count_actual buf_count;
-	u32 ptype;
 	int ret;
 
 	mutex_lock(&inst->lock);
@@ -894,18 +879,8 @@ static int venc_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (ret)
 		goto deinit_sess;
 
-	ptype = HFI_PROPERTY_PARAM_BUFFER_COUNT_ACTUAL;
-	buf_count.type = HFI_BUFFER_OUTPUT;
-	buf_count.count_actual = inst->num_output_bufs;
-
-	ret = hfi_session_set_property(inst, ptype, &buf_count);
-	if (ret)
-		goto deinit_sess;
-
-	buf_count.type = HFI_BUFFER_INPUT;
-	buf_count.count_actual = inst->num_input_bufs;
-
-	ret = hfi_session_set_property(inst, ptype, &buf_count);
+	ret = helper_set_num_bufs(inst, inst->num_input_bufs,
+				  inst->num_output_bufs);
 	if (ret)
 		goto deinit_sess;
 
@@ -921,7 +896,7 @@ deinit_sess:
 	hfi_session_deinit(inst);
 put_sync:
 	pm_runtime_put_sync(dev);
-	helper_vb2_buffers_done(inst, VB2_BUF_STATE_QUEUED);
+	helper_buffers_done(inst, VB2_BUF_STATE_QUEUED);
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		inst->streamon_out = 0;
 	else
@@ -952,7 +927,7 @@ static void venc_buf_done(struct venus_inst *inst, unsigned int buf_type,
 	else
 		type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 
-	vbuf = helper_vb2_find_buf(inst, type, tag);
+	vbuf = helper_find_buf(inst, type, tag);
 	if (!vbuf)
 		return;
 
@@ -1099,6 +1074,10 @@ int venc_open(struct venus_inst *inst)
 
 	venc_inst_init(inst);
 
+	/*
+	 * create m2m device for every instance, the m2m context scheduling
+	 * is made by firmware side so we do not need to care about.
+	 */
 	inst->m2m_dev = v4l2_m2m_init(&venc_m2m_ops);
 	if (IS_ERR(inst->m2m_dev)) {
 		ret = PTR_ERR(inst->m2m_dev);

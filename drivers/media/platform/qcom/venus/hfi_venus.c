@@ -1120,11 +1120,10 @@ static int venus_hfi_core_trigger_ssr(struct venus_core *core, u32 trigger_type)
 	return venus_iface_cmdq_write(hdev, &pkt);
 }
 
-static int venus_hfi_session_init(struct venus_core *core,
-				  struct venus_inst *inst,
+static int venus_hfi_session_init(struct venus_inst *inst,
 				  u32 session_type, u32 codec)
 {
-	struct venus_hfi_device *hdev = to_hfi_priv(core);
+	struct venus_hfi_device *hdev = to_hfi_priv(inst->core);
 	struct hfi_session_init_pkt pkt;
 	int ret;
 

@@ -108,18 +108,16 @@ struct hfi_ops {
 	int (*core_ping)(struct venus_core *core, u32 cookie);
 	int (*core_trigger_ssr)(struct venus_core *core, u32 trigger_type);
 
-	int (*session_init)(struct venus_core *core, struct venus_inst *inst,
-			    u32 session_type, u32 codec);
+	int (*session_init)(struct venus_inst *inst, u32 session_type,
+			    u32 codec);
 	int (*session_end)(struct venus_inst *inst);
 	int (*session_abort)(struct venus_inst *inst);
 	int (*session_flush)(struct venus_inst *inst, u32 flush_mode);
 	int (*session_start)(struct venus_inst *inst);
 	int (*session_stop)(struct venus_inst *inst);
 	int (*session_continue)(struct venus_inst *inst);
-	int (*session_etb)(struct venus_inst *inst,
-			   struct hfi_frame_data *input_frame);
-	int (*session_ftb)(struct venus_inst *inst,
-			   struct hfi_frame_data *output_frame);
+	int (*session_etb)(struct venus_inst *inst, struct hfi_frame_data *fd);
+	int (*session_ftb)(struct venus_inst *inst, struct hfi_frame_data *fd);
 	int (*session_set_buffers)(struct venus_inst *inst,
 				   struct hfi_buffer_desc *bd);
 	int (*session_unset_buffers)(struct venus_inst *inst,
@@ -153,7 +151,7 @@ int hfi_core_trigger_ssr(struct venus_core *core, u32 type);
 int hfi_core_ping(struct venus_core *core);
 int hfi_session_create(struct venus_inst *inst, const struct hfi_inst_ops *ops);
 void hfi_session_destroy(struct venus_inst *inst);
-int hfi_session_init(struct venus_inst *inst, u32 pixfmt, u32 session_type);
+int hfi_session_init(struct venus_inst *inst, u32 pixfmt);
 int hfi_session_deinit(struct venus_inst *inst);
 int hfi_session_start(struct venus_inst *inst);
 int hfi_session_stop(struct venus_inst *inst);
