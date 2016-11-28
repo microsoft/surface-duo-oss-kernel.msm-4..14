@@ -60,18 +60,19 @@ static const struct format_info {
  */
 
 /*
- * video_mbus_to_pix - Convert v4l2_mbus_framefmt to v4l2_pix_format
+ * video_mbus_to_pix_mp - Convert v4l2_mbus_framefmt to v4l2_pix_format_mplane
  * @mbus: v4l2_mbus_framefmt format (input)
- * @pix: v4l2_pix_format format (output)
+ * @pix: v4l2_pix_format_mplane format (output)
  *
  * Fill the output pix structure with information from the input mbus format.
  *
  * Return 0 on success or a negative error code otherwise
  */
-static unsigned int video_mbus_to_pix(const struct v4l2_mbus_framefmt *mbus,
-				      struct v4l2_pix_format *pix)
+static unsigned int video_mbus_to_pix_mp(const struct v4l2_mbus_framefmt *mbus,
+					 struct v4l2_pix_format_mplane *pix)
 {
 	unsigned int i;
+	u32 bytesperline;
 
 	memset(pix, 0, sizeof(*pix));
 	pix->width = mbus->width;
@@ -86,9 +87,11 @@ static unsigned int video_mbus_to_pix(const struct v4l2_mbus_framefmt *mbus,
 		return -EINVAL;
 
 	pix->pixelformat = formats[i].pixelformat;
-	pix->bytesperline = pix->width * formats[i].bpp / 8;
-	pix->bytesperline = ALIGN(pix->bytesperline, 8);
-	pix->sizeimage = pix->bytesperline * pix->height;
+	pix->num_planes = 1;
+	bytesperline = pix->width * formats[i].bpp / 8;
+	bytesperline = ALIGN(bytesperline, 8);
+	pix->plane_fmt[0].bytesperline = bytesperline;
+	pix->plane_fmt[0].sizeimage = bytesperline * pix->height;
 	pix->colorspace = mbus->colorspace;
 	pix->field = mbus->field;
 
@@ -131,7 +134,7 @@ static int video_get_subdev_format(struct camss_video *video,
 		return ret;
 
 	format->type = video->type;
-	return video_mbus_to_pix(&fmt.format, &format->fmt.pix);
+	return video_mbus_to_pix_mp(&fmt.format, &format->fmt.pix_mp);
 }
 
 /* -----------------------------------------------------------------------------
@@ -148,7 +151,7 @@ static int video_queue_setup(struct vb2_queue *q,
 		if (*num_planes != 1)
 			return -EINVAL;
 
-		if (sizes[0] < video->active_fmt.fmt.pix.sizeimage)
+		if (sizes[0] < video->active_fmt.fmt.pix_mp.plane_fmt[0].sizeimage)
 			return -EINVAL;
 
 		return 0;
@@ -156,7 +159,7 @@ static int video_queue_setup(struct vb2_queue *q,
 
 	*num_planes = 1;
 
-	sizes[0] = video->active_fmt.fmt.pix.sizeimage;
+	sizes[0] = video->active_fmt.fmt.pix_mp.plane_fmt[0].sizeimage;
 
 	return 0;
 }
@@ -169,10 +172,12 @@ static int video_buf_prepare(struct vb2_buffer *vb)
 						   vb);
 	struct sg_table *sgt;
 
-	if (video->active_fmt.fmt.pix.sizeimage > vb2_plane_size(vb, 0))
+	if (video->active_fmt.fmt.pix_mp.plane_fmt[0].sizeimage >
+							vb2_plane_size(vb, 0))
 		return -EINVAL;
 
-	vb2_set_plane_payload(vb, 0, video->active_fmt.fmt.pix.sizeimage);
+	vb2_set_plane_payload(vb, 0,
+			video->active_fmt.fmt.pix_mp.plane_fmt[0].sizeimage);
 
 	sgt = vb2_dma_sg_plane_desc(vb, 0);
 	if (!sgt)
@@ -197,7 +202,8 @@ static void video_buf_queue(struct vb2_buffer *vb)
 
 static int video_check_format(struct camss_video *video)
 {
-	struct v4l2_pix_format *pix = &video->active_fmt.fmt.pix;
+	struct v4l2_pix_format_mplane *pix = &video->active_fmt.fmt.pix_mp;
+	struct v4l2_pix_format_mplane *sd_pix;
 	struct v4l2_format format;
 	int ret;
 
@@ -205,12 +211,14 @@ static int video_check_format(struct camss_video *video)
 	if (ret < 0)
 		return ret;
 
-	if (pix->pixelformat != format.fmt.pix.pixelformat ||
-	    pix->height != format.fmt.pix.height ||
-	    pix->width != format.fmt.pix.width ||
-	    pix->bytesperline != format.fmt.pix.bytesperline ||
-	    pix->sizeimage != format.fmt.pix.sizeimage ||
-	    pix->field != format.fmt.pix.field)
+	sd_pix = &format.fmt.pix_mp;
+	if (pix->pixelformat != sd_pix->pixelformat ||
+	    pix->height != sd_pix->height ||
+	    pix->width != sd_pix->width ||
+	    pix->num_planes != sd_pix->num_planes ||
+	    pix->plane_fmt[0].bytesperline != sd_pix->plane_fmt[0].bytesperline ||
+	    pix->plane_fmt[0].sizeimage != sd_pix->plane_fmt[0].sizeimage ||
+	    pix->field != format.fmt.pix_mp.field)
 		return -EINVAL;
 
 	return 0;
@@ -410,21 +418,21 @@ static int video_s_input(struct file *file, void *fh, unsigned int input)
 }
 
 static const struct v4l2_ioctl_ops msm_vid_ioctl_ops = {
-	.vidioc_querycap          = video_querycap,
-	.vidioc_enum_fmt_vid_cap  = video_enum_fmt,
-	.vidioc_g_fmt_vid_cap     = video_g_fmt,
-	.vidioc_s_fmt_vid_cap     = video_s_fmt,
-	.vidioc_try_fmt_vid_cap   = video_try_fmt,
-	.vidioc_reqbufs           = vb2_ioctl_reqbufs,
-	.vidioc_querybuf          = vb2_ioctl_querybuf,
-	.vidioc_qbuf              = vb2_ioctl_qbuf,
-	.vidioc_dqbuf             = vb2_ioctl_dqbuf,
-	.vidioc_create_bufs       = vb2_ioctl_create_bufs,
-	.vidioc_streamon          = vb2_ioctl_streamon,
-	.vidioc_streamoff         = vb2_ioctl_streamoff,
-	.vidioc_enum_input        = video_enum_input,
-	.vidioc_g_input           = video_g_input,
-	.vidioc_s_input           = video_s_input,
+	.vidioc_querycap		= video_querycap,
+	.vidioc_enum_fmt_vid_cap_mplane	= video_enum_fmt,
+	.vidioc_g_fmt_vid_cap_mplane	= video_g_fmt,
+	.vidioc_s_fmt_vid_cap_mplane	= video_s_fmt,
+	.vidioc_try_fmt_vid_cap_mplane	= video_try_fmt,
+	.vidioc_reqbufs			= vb2_ioctl_reqbufs,
+	.vidioc_querybuf		= vb2_ioctl_querybuf,
+	.vidioc_qbuf			= vb2_ioctl_qbuf,
+	.vidioc_dqbuf			= vb2_ioctl_dqbuf,
+	.vidioc_create_bufs		= vb2_ioctl_create_bufs,
+	.vidioc_streamon		= vb2_ioctl_streamon,
+	.vidioc_streamoff		= vb2_ioctl_streamoff,
+	.vidioc_enum_input		= video_enum_input,
+	.vidioc_g_input			= video_g_input,
+	.vidioc_s_input			= video_s_input,
 };
 
 /* -----------------------------------------------------------------------------
@@ -441,7 +449,7 @@ static int video_init_format(struct file *file, void *fh)
 	struct v4l2_format format;
 
 	memset(&format, 0, sizeof(format));
-	format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 
 	return video_s_fmt(file, fh, &format);
 }
@@ -550,7 +558,7 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 	q->drv_priv = video;
 	q->mem_ops = &vb2_dma_sg_memops;
 	q->ops = &msm_video_vb2_q_ops;
-	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 	q->io_modes = VB2_DMABUF | VB2_MMAP | VB2_READ;
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 	q->buf_struct_size = sizeof(struct camss_buffer);
@@ -572,7 +580,7 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 	mutex_init(&video->lock);
 
 	vdev->fops = &msm_vid_fops;
-	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING |
+	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE_MPLANE | V4L2_CAP_STREAMING |
 							V4L2_CAP_READWRITE;
 	vdev->ioctl_ops = &msm_vid_ioctl_ops;
 	vdev->release = msm_video_release;
