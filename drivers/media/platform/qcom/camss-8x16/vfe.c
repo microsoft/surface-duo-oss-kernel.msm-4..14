@@ -466,15 +466,10 @@ static void vfe_init_outputs(struct vfe_device *vfe)
 
 static void vfe_reset_output_maps(struct vfe_device *vfe)
 {
-	unsigned long flags;
 	int i;
-
-	spin_lock_irqsave(&vfe->output_lock, flags);
 
 	for (i = 0; i < ARRAY_SIZE(vfe->wm_output_map); i++)
 		vfe->wm_output_map[i] = VFE_LINE_NONE;
-
-	spin_unlock_irqrestore(&vfe->output_lock, flags);
 }
 
 static void vfe_set_qos(struct vfe_device *vfe)
