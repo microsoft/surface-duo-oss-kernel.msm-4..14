@@ -58,6 +58,8 @@
 
 #define VFE_0_IRQ_MASK_0		0x028
 #define VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(n)		(1 << ((n) + 5))
+#define VFE_0_IRQ_MASK_0_line_n_REG_UPDATE(n)		\
+	((n) == VFE_LINE_PIX ? (1 << 4) : VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(n))
 #define VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(n)	(1 << ((n) + 8))
 #define VFE_0_IRQ_MASK_0_RESET_ACK			(1 << 31)
 #define VFE_0_IRQ_MASK_1		0x02c
@@ -70,6 +72,8 @@
 
 #define VFE_0_IRQ_STATUS_0		0x038
 #define VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(n)		(1 << ((n) + 5))
+#define VFE_0_IRQ_STATUS_0_line_n_REG_UPDATE(n)		\
+	((n) == VFE_LINE_PIX ? (1 << 4) : VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(n))
 #define VFE_0_IRQ_STATUS_0_IMAGE_MASTER_n_PING_PONG(n)	(1 << ((n) + 8))
 #define VFE_0_IRQ_STATUS_0_RESET_ACK			(1 << 31)
 #define VFE_0_IRQ_STATUS_1		0x03c
@@ -128,6 +132,8 @@
 
 #define VFE_0_REG_UPDATE			0x378
 #define VFE_0_REG_UPDATE_RDIn(n)		(1 << (1 + (n)))
+#define VFE_0_REG_UPDATE_line_n(n)		\
+			((n) == VFE_LINE_PIX ? 1 : VFE_0_REG_UPDATE_RDIn(n))
 
 #define VFE_0_CGC_OVERRIDE_1			0x974
 #define VFE_0_CGC_OVERRIDE_1_IMAGE_Mx_CGC_OVERRIDE(x)	(1 << (x))
@@ -362,7 +368,7 @@ static void vfe_set_rdi_cid(struct vfe_device *vfe, enum vfe_line_id id, u8 cid)
 
 static void vfe_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
 {
-	vfe->reg_update |= VFE_0_REG_UPDATE_RDIn(line_id);
+	vfe->reg_update |= VFE_0_REG_UPDATE_line_n(line_id);
 	wmb();
 	writel_relaxed(vfe->reg_update, vfe->base + VFE_0_REG_UPDATE);
 	wmb();
@@ -372,7 +378,7 @@ static void vfe_enable_irq_wm_line(struct vfe_device *vfe, u8 wm,
 				   enum vfe_line_id line_id, u8 enable)
 {
 	u32 irq_en0 = VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(wm) |
-		      VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(line_id);
+		      VFE_0_IRQ_MASK_0_line_n_REG_UPDATE(line_id);
 	u32 irq_en1 = VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(wm);
 
 	if (enable) {
@@ -818,7 +824,7 @@ static int vfe_enable_output(struct vfe_line *line)
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
-	vfe->reg_update &= ~VFE_0_REG_UPDATE_RDIn(line->id);
+	vfe->reg_update &= ~VFE_0_REG_UPDATE_line_n(line->id);
 
 	if (output->state != VFE_OUTPUT_RESERVED) {
 		dev_err(to_device(vfe), "Output is not in reserved state %d\n",
@@ -989,7 +995,7 @@ static void vfe_isr_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
 	unsigned long flags;
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
-	vfe->reg_update &= ~VFE_0_REG_UPDATE_RDIn(line_id);
+	vfe->reg_update &= ~VFE_0_REG_UPDATE_line_n(line_id);
 
 	output = &vfe->line[line_id].output;
 	if (output->state == VFE_OUTPUT_STOPPING) {
@@ -1137,8 +1143,8 @@ static irqreturn_t vfe_isr(int irq, void *dev)
 		writel_relaxed(0x0, vfe->base + VFE_0_BUS_BDG_CMD);
 	}
 
-	for (i = VFE_LINE_RDI0; i <= VFE_LINE_RDI2; i++)
-		if (value0 & VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(i))
+	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++)
+		if (value0 & VFE_0_IRQ_STATUS_0_line_n_REG_UPDATE(i))
 			vfe_isr_reg_update(vfe, i);
 
 	for (i = 0; i < MSM_VFE_IMAGE_MASTERS_NUM; i++)
