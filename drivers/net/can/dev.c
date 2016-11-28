@@ -792,6 +792,9 @@ static int can_validate(struct nlattr *tb[], struct nlattr *data[])
 {
 	bool is_can_fd = false;
 
+	if (!data)
+		return 0;
+
 	/* Make sure that valid CAN FD configurations always consist of
 	 * - nominal/arbitration bittiming
 	 * - data bittiming
