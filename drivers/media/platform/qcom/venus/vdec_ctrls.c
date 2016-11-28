@@ -17,64 +17,6 @@
 
 #include "core.h"
 
-static struct venus_ctrl vdec_ctrls[] = {
-	{
-		.id = V4L2_CID_MPEG_VIDEO_MPEG4_PROFILE,
-		.type = V4L2_CTRL_TYPE_MENU,
-		.min = V4L2_MPEG_VIDEO_MPEG4_PROFILE_SIMPLE,
-		.max = V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_CODING_EFFICIENCY,
-		.def = V4L2_MPEG_VIDEO_MPEG4_PROFILE_SIMPLE,
-		.flags = V4L2_CTRL_FLAG_VOLATILE,
-		.menu_skip_mask = ~(
-			(1 << V4L2_MPEG_VIDEO_MPEG4_PROFILE_SIMPLE) |
-			(1 << V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_SIMPLE)
-		),
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_MPEG4_LEVEL,
-		.type = V4L2_CTRL_TYPE_MENU,
-		.min = V4L2_MPEG_VIDEO_MPEG4_LEVEL_0,
-		.max = V4L2_MPEG_VIDEO_MPEG4_LEVEL_5,
-		.def = V4L2_MPEG_VIDEO_MPEG4_LEVEL_0,
-		.flags = V4L2_CTRL_FLAG_VOLATILE,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_PROFILE,
-		.type = V4L2_CTRL_TYPE_MENU,
-		.min = V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE,
-		.max = V4L2_MPEG_VIDEO_H264_PROFILE_MULTIVIEW_HIGH,
-		.def = V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE,
-		.flags = V4L2_CTRL_FLAG_VOLATILE,
-		.menu_skip_mask = ~(
-		(1 << V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE) |
-		(1 << V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_BASELINE) |
-		(1 << V4L2_MPEG_VIDEO_H264_PROFILE_MAIN) |
-		(1 << V4L2_MPEG_VIDEO_H264_PROFILE_HIGH) |
-		(1 << V4L2_MPEG_VIDEO_H264_PROFILE_STEREO_HIGH) |
-		(1 << V4L2_MPEG_VIDEO_H264_PROFILE_MULTIVIEW_HIGH)
-		),
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_LEVEL,
-		.type = V4L2_CTRL_TYPE_MENU,
-		.min = V4L2_MPEG_VIDEO_H264_LEVEL_1_0,
-		.max = V4L2_MPEG_VIDEO_H264_LEVEL_5_1,
-		.def = V4L2_MPEG_VIDEO_H264_LEVEL_1_0,
-		.flags = V4L2_CTRL_FLAG_VOLATILE,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_VPX_PROFILE,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 0,
-		.max = 3,
-		.step = 1,
-		.def = 0,
-		.flags = V4L2_CTRL_FLAG_VOLATILE,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_DECODER_MPEG4_DEBLOCK_FILTER,
-		.type = V4L2_CTRL_TYPE_BOOLEAN,
-		.def = 0,
-	},
-};
-
-#define NUM_CTRLS	ARRAY_SIZE(vdec_ctrls)
-
 static int vdec_op_s_ctrl(struct v4l2_ctrl *ctrl)
 {
 	struct venus_inst *inst = ctrl_to_inst(ctrl);
@@ -141,54 +83,64 @@ static const struct v4l2_ctrl_ops vdec_ctrl_ops = {
 
 int vdec_ctrl_init(struct venus_inst *inst)
 {
-	unsigned int i;
+	struct v4l2_ctrl *ctrl;
 	int ret;
 
-	ret = v4l2_ctrl_handler_init(&inst->ctrl_handler, NUM_CTRLS);
+	ret = v4l2_ctrl_handler_init(&inst->ctrl_handler, 6);
 	if (ret)
 		return ret;
 
-	for (i = 0; i < NUM_CTRLS; i++) {
-		struct v4l2_ctrl *ctrl;
+	ctrl = v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &vdec_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_MPEG4_PROFILE,
+		V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_CODING_EFFICIENCY,
+		~((1 << V4L2_MPEG_VIDEO_MPEG4_PROFILE_SIMPLE) |
+		  (1 << V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_SIMPLE)),
+		V4L2_MPEG_VIDEO_MPEG4_PROFILE_SIMPLE);
+	if (ctrl)
+		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
 
-		if (vdec_ctrls[i].type == V4L2_CTRL_TYPE_MENU) {
-			ctrl = v4l2_ctrl_new_std_menu(&inst->ctrl_handler,
-					&vdec_ctrl_ops,
-					vdec_ctrls[i].id,
-					vdec_ctrls[i].max,
-					vdec_ctrls[i].menu_skip_mask,
-					vdec_ctrls[i].def);
-		} else {
-			ctrl = v4l2_ctrl_new_std(&inst->ctrl_handler,
-					&vdec_ctrl_ops,
-					vdec_ctrls[i].id,
-					vdec_ctrls[i].min,
-					vdec_ctrls[i].max,
-					vdec_ctrls[i].step,
-					vdec_ctrls[i].def);
-		}
+	ctrl = v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &vdec_ctrl_ops,
+				      V4L2_CID_MPEG_VIDEO_MPEG4_LEVEL,
+				      V4L2_MPEG_VIDEO_MPEG4_LEVEL_5,
+				      0, V4L2_MPEG_VIDEO_MPEG4_LEVEL_0);
+	if (ctrl)
+		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
 
-		if (!ctrl)
-			return -EINVAL;
+	ctrl = v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &vdec_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_H264_PROFILE,
+		V4L2_MPEG_VIDEO_H264_PROFILE_MULTIVIEW_HIGH,
+		~((1 << V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE) |
+		  (1 << V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_BASELINE) |
+		  (1 << V4L2_MPEG_VIDEO_H264_PROFILE_MAIN) |
+		  (1 << V4L2_MPEG_VIDEO_H264_PROFILE_HIGH) |
+		  (1 << V4L2_MPEG_VIDEO_H264_PROFILE_STEREO_HIGH) |
+		  (1 << V4L2_MPEG_VIDEO_H264_PROFILE_MULTIVIEW_HIGH)),
+		V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE);
+	if (ctrl)
+		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
 
-		switch (vdec_ctrls[i].id) {
-		case V4L2_CID_MPEG_VIDEO_MPEG4_PROFILE:
-		case V4L2_CID_MPEG_VIDEO_MPEG4_LEVEL:
-		case V4L2_CID_MPEG_VIDEO_H264_PROFILE:
-		case V4L2_CID_MPEG_VIDEO_H264_LEVEL:
-		case V4L2_CID_MPEG_VIDEO_VPX_PROFILE:
-			ctrl->flags |= vdec_ctrls[i].flags;
-			break;
-		}
+	ctrl = v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &vdec_ctrl_ops,
+				      V4L2_CID_MPEG_VIDEO_H264_LEVEL,
+				      V4L2_MPEG_VIDEO_H264_LEVEL_5_1,
+				      0, V4L2_MPEG_VIDEO_H264_LEVEL_1_0);
+	if (ctrl)
+		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
 
-		ret = inst->ctrl_handler.error;
-		if (ret) {
-			v4l2_ctrl_handler_free(&inst->ctrl_handler);
-			return ret;
-		}
+	ctrl = v4l2_ctrl_new_std(&inst->ctrl_handler, &vdec_ctrl_ops,
+				 V4L2_CID_MPEG_VIDEO_VPX_PROFILE, 0, 3, 1, 0);
+	if (ctrl)
+		ctrl->flags |= V4L2_CTRL_FLAG_VOLATILE;
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &vdec_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_DECODER_MPEG4_DEBLOCK_FILTER, 0, 1, 1, 0);
+
+	ret = inst->ctrl_handler.error;
+	if (ret) {
+		v4l2_ctrl_handler_free(&inst->ctrl_handler);
+		return ret;
 	}
 
-	return ret;
+	return 0;
 }
 
 void vdec_ctrl_deinit(struct venus_inst *inst)

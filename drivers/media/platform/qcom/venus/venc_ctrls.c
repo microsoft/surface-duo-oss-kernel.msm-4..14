@@ -28,234 +28,6 @@
 #define INTRA_REFRESH_MBS_MAX	300
 #define AT_SLICE_BOUNDARY	\
 	V4L2_MPEG_VIDEO_H264_LOOP_FILTER_MODE_DISABLED_AT_SLICE_BOUNDARY
-static struct venus_ctrl venc_ctrls[] = {
-	{
-		.id = V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
-		.type = V4L2_CTRL_TYPE_MENU,
-		.min = V4L2_MPEG_VIDEO_BITRATE_MODE_VBR,
-		.max = V4L2_MPEG_VIDEO_BITRATE_MODE_CBR,
-		.def = V4L2_MPEG_VIDEO_BITRATE_MODE_VBR,
-		.menu_skip_mask = ~((1 << V4L2_MPEG_VIDEO_BITRATE_MODE_VBR) |
-				    (1 << V4L2_MPEG_VIDEO_BITRATE_MODE_CBR)),
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_BITRATE,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = BITRATE_MIN,
-		.max = BITRATE_MAX,
-		.def = BITRATE_DEFAULT,
-		.step = BITRATE_STEP,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_BITRATE_PEAK,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = BITRATE_MIN,
-		.max = BITRATE_MAX,
-		.def = BITRATE_DEFAULT_PEAK,
-		.step = BITRATE_STEP,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_ENTROPY_MODE,
-		.type = V4L2_CTRL_TYPE_MENU,
-		.min = V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CAVLC,
-		.max = V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC,
-		.def = V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CAVLC,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_MPEG4_PROFILE,
-		.type = V4L2_CTRL_TYPE_MENU,
-		.min = V4L2_MPEG_VIDEO_MPEG4_PROFILE_SIMPLE,
-		.max = V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_CODING_EFFICIENCY,
-		.def = V4L2_MPEG_VIDEO_MPEG4_PROFILE_SIMPLE,
-		.menu_skip_mask = ~(
-			(1 << V4L2_MPEG_VIDEO_MPEG4_PROFILE_SIMPLE) |
-			(1 << V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_SIMPLE)
-		),
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_MPEG4_LEVEL,
-		.type = V4L2_CTRL_TYPE_MENU,
-		.min = V4L2_MPEG_VIDEO_MPEG4_LEVEL_0,
-		.max = V4L2_MPEG_VIDEO_MPEG4_LEVEL_5,
-		.def = V4L2_MPEG_VIDEO_MPEG4_LEVEL_0,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_PROFILE,
-		.type = V4L2_CTRL_TYPE_MENU,
-		.min = V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE,
-		.max = V4L2_MPEG_VIDEO_H264_PROFILE_MULTIVIEW_HIGH,
-		.def = V4L2_MPEG_VIDEO_H264_PROFILE_HIGH,
-		.menu_skip_mask = ~(
-		(1 << V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE) |
-		(1 << V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_BASELINE) |
-		(1 << V4L2_MPEG_VIDEO_H264_PROFILE_MAIN) |
-		(1 << V4L2_MPEG_VIDEO_H264_PROFILE_HIGH) |
-		(1 << V4L2_MPEG_VIDEO_H264_PROFILE_STEREO_HIGH) |
-		(1 << V4L2_MPEG_VIDEO_H264_PROFILE_MULTIVIEW_HIGH)
-		),
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_LEVEL,
-		.type = V4L2_CTRL_TYPE_MENU,
-		.min = V4L2_MPEG_VIDEO_H264_LEVEL_1_0,
-		.max = V4L2_MPEG_VIDEO_H264_LEVEL_5_1,
-		.def = V4L2_MPEG_VIDEO_H264_LEVEL_5_0,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_VPX_PROFILE,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 0,
-		.max = 3,
-		.def = 0,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_I_FRAME_QP,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 1,
-		.max = 51,
-		.def = 26,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_P_FRAME_QP,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 1,
-		.max = 51,
-		.def = 28,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_B_FRAME_QP,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 1,
-		.max = 51,
-		.def = 30,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_MIN_QP,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 1,
-		.max = 51,
-		.def = 1,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_MAX_QP,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 1,
-		.max = 51,
-		.def = 51,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MODE,
-		.type = V4L2_CTRL_TYPE_MENU,
-		.min = V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE,
-		.max = V4L2_MPEG_VIDEO_MULTI_SICE_MODE_MAX_BYTES,
-		.def = V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_BYTES,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = SLICE_BYTE_SIZE_MIN,
-		.max = SLICE_BYTE_SIZE_MAX,
-		.def = SLICE_BYTE_SIZE_MIN,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 1,
-		.max = SLICE_MB_SIZE_MAX,
-		.def = 1,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_LOOP_FILTER_ALPHA,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = -6,
-		.max = 6,
-		.def = 0,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_LOOP_FILTER_BETA,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = -6,
-		.max = 6,
-		.def = 0,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_LOOP_FILTER_MODE,
-		.type = V4L2_CTRL_TYPE_MENU,
-		.min = V4L2_MPEG_VIDEO_H264_LOOP_FILTER_MODE_ENABLED,
-		.max = AT_SLICE_BOUNDARY,
-		.def = V4L2_MPEG_VIDEO_H264_LOOP_FILTER_MODE_DISABLED,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_HEADER_MODE,
-		.type = V4L2_CTRL_TYPE_MENU,
-		.min = V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE,
-		.max = V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME,
-		.def = V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE,
-		.menu_skip_mask =
-			1 << V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_CYCLIC_INTRA_REFRESH_MB,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 0,
-		.max = INTRA_REFRESH_MBS_MAX,
-		.def = 0,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_VUI_SAR_ENABLE,
-		.type = V4L2_CTRL_TYPE_BOOLEAN,
-		.min = 0,
-		.max = 1,
-		.def = 0,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_VUI_SAR_IDC,
-		.type = V4L2_CTRL_TYPE_MENU,
-		.min = V4L2_MPEG_VIDEO_H264_VUI_SAR_IDC_UNSPECIFIED,
-		.max = V4L2_MPEG_VIDEO_H264_VUI_SAR_IDC_EXTENDED,
-		.def = V4L2_MPEG_VIDEO_H264_VUI_SAR_IDC_UNSPECIFIED,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_GOP_SIZE,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 0,
-		.max = (1 << 16) - 1,
-		.def = 12,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_CPB_SIZE,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 0,
-		.max = (1 << 16) - 1,
-		.def = 0,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_8X8_TRANSFORM,
-		.type = V4L2_CTRL_TYPE_BOOLEAN,
-		.min = 0,
-		.max = 1,
-		.def = 0,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_VPX_MIN_QP,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 1,
-		.max = 128,
-		.def = 1,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_VPX_MAX_QP,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 1,
-		.max = 128,
-		.def = 128,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_B_FRAMES,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 0,
-		.max = INT_MAX,
-		.def = 0,
-		.step = 1,
-	}, {
-		.id = V4L2_CID_MPEG_VIDEO_H264_I_PERIOD,
-		.type = V4L2_CTRL_TYPE_INTEGER,
-		.min = 0,
-		.max = (1 << 16) - 1,
-		.step = 1,
-		.def = 0,
-	},
-};
-
-#define NUM_CTRLS	ARRAY_SIZE(venc_ctrls)
 
 static int venc_op_s_ctrl(struct v4l2_ctrl *ctrl)
 {
@@ -328,11 +100,6 @@ static int venc_op_s_ctrl(struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDEO_H264_I_PERIOD:
 		ctr->h264_i_period = ctrl->val;
 		break;
-	case V4L2_CID_MPEG_VIDEO_H264_VUI_SAR_ENABLE:
-	case V4L2_CID_MPEG_VIDEO_H264_VUI_SAR_IDC:
-	case V4L2_CID_MPEG_VIDEO_H264_CPB_SIZE:
-	case V4L2_CID_MPEG_VIDEO_H264_8X8_TRANSFORM:
-		break;
 	case V4L2_CID_MPEG_VIDEO_VPX_MIN_QP:
 		ctr->vp8_min_qp = ctrl->val;
 		break;
@@ -355,36 +122,131 @@ static const struct v4l2_ctrl_ops venc_ctrl_ops = {
 
 int venc_ctrl_init(struct venus_inst *inst)
 {
-	unsigned int i;
 	int ret;
 
-	ret = v4l2_ctrl_handler_init(&inst->ctrl_handler, NUM_CTRLS);
+	ret = v4l2_ctrl_handler_init(&inst->ctrl_handler, 27);
 	if (ret)
 		return ret;
 
-	for (i = 0; i < NUM_CTRLS; i++) {
-		struct v4l2_ctrl *ctrl;
+	v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_BITRATE_MODE,
+		V4L2_MPEG_VIDEO_BITRATE_MODE_CBR,
+		~((1 << V4L2_MPEG_VIDEO_BITRATE_MODE_VBR) |
+		  (1 << V4L2_MPEG_VIDEO_BITRATE_MODE_CBR)),
+		V4L2_MPEG_VIDEO_BITRATE_MODE_VBR);
 
-		if (venc_ctrls[i].type == V4L2_CTRL_TYPE_MENU) {
-			ctrl = v4l2_ctrl_new_std_menu(&inst->ctrl_handler,
-					&venc_ctrl_ops, venc_ctrls[i].id,
-					venc_ctrls[i].max,
-					venc_ctrls[i].menu_skip_mask,
-					venc_ctrls[i].def);
-		} else {
-			ctrl = v4l2_ctrl_new_std(&inst->ctrl_handler,
-					&venc_ctrl_ops, venc_ctrls[i].id,
-					venc_ctrls[i].min,
-					venc_ctrls[i].max,
-					venc_ctrls[i].step,
-					venc_ctrls[i].def);
-		}
+	v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_H264_ENTROPY_MODE,
+		V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC,
+		0, V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CAVLC);
 
-		ret = inst->ctrl_handler.error;
-		if (ret) {
-			v4l2_ctrl_handler_free(&inst->ctrl_handler);
-			return ret;
-		}
+	v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_MPEG4_PROFILE,
+		V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_CODING_EFFICIENCY,
+		~((1 << V4L2_MPEG_VIDEO_MPEG4_PROFILE_SIMPLE) |
+		  (1 << V4L2_MPEG_VIDEO_MPEG4_PROFILE_ADVANCED_SIMPLE)),
+		V4L2_MPEG_VIDEO_MPEG4_PROFILE_SIMPLE);
+
+	v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_MPEG4_LEVEL,
+		V4L2_MPEG_VIDEO_MPEG4_LEVEL_5,
+		0, V4L2_MPEG_VIDEO_MPEG4_LEVEL_0);
+
+	v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_H264_PROFILE,
+		V4L2_MPEG_VIDEO_H264_PROFILE_MULTIVIEW_HIGH,
+		~((1 << V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE) |
+		  (1 << V4L2_MPEG_VIDEO_H264_PROFILE_CONSTRAINED_BASELINE) |
+		  (1 << V4L2_MPEG_VIDEO_H264_PROFILE_MAIN) |
+		  (1 << V4L2_MPEG_VIDEO_H264_PROFILE_HIGH) |
+		  (1 << V4L2_MPEG_VIDEO_H264_PROFILE_STEREO_HIGH) |
+		  (1 << V4L2_MPEG_VIDEO_H264_PROFILE_MULTIVIEW_HIGH)),
+		V4L2_MPEG_VIDEO_H264_PROFILE_HIGH);
+
+	v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_H264_LEVEL,
+		V4L2_MPEG_VIDEO_H264_LEVEL_5_1,
+		0, V4L2_MPEG_VIDEO_H264_LEVEL_1_0);
+
+	v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_H264_LOOP_FILTER_MODE,
+		AT_SLICE_BOUNDARY,
+		0, V4L2_MPEG_VIDEO_H264_LOOP_FILTER_MODE_DISABLED);
+
+	v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_HEADER_MODE,
+		V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME,
+		1 << V4L2_MPEG_VIDEO_HEADER_MODE_JOINED_WITH_1ST_FRAME,
+		V4L2_MPEG_VIDEO_HEADER_MODE_SEPARATE);
+
+	v4l2_ctrl_new_std_menu(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MODE,
+		V4L2_MPEG_VIDEO_MULTI_SICE_MODE_MAX_BYTES,
+		0, V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_BITRATE, BITRATE_MIN, BITRATE_MAX,
+		BITRATE_STEP, BITRATE_DEFAULT);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_BITRATE_PEAK, BITRATE_MIN, BITRATE_MAX,
+		BITRATE_STEP, BITRATE_DEFAULT_PEAK);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_VPX_PROFILE, 0, 3, 1, 0);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_H264_I_FRAME_QP, 1, 51, 1, 26);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_H264_P_FRAME_QP, 1, 51, 1, 28);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_H264_B_FRAME_QP, 1, 51, 1, 30);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_H264_MIN_QP, 1, 51, 1, 1);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_H264_MAX_QP, 1, 51, 1, 51);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_BYTES, SLICE_BYTE_SIZE_MIN,
+		SLICE_BYTE_SIZE_MAX, 1, SLICE_BYTE_SIZE_MIN);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_MULTI_SLICE_MAX_MB, 1,
+		SLICE_MB_SIZE_MAX, 1, 1);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_H264_LOOP_FILTER_ALPHA, -6, 6, 1, 0);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_H264_LOOP_FILTER_BETA, -6, 6, 1, 0);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_CYCLIC_INTRA_REFRESH_MB,
+		0, INTRA_REFRESH_MBS_MAX, 1, 0);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_GOP_SIZE, 0, (1 << 16) - 1, 1, 12);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_VPX_MIN_QP, 1, 128, 1, 1);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_VPX_MAX_QP, 1, 128, 1, 128);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_B_FRAMES, 0, 4, 1, 0);
+
+	v4l2_ctrl_new_std(&inst->ctrl_handler, &venc_ctrl_ops,
+		V4L2_CID_MPEG_VIDEO_H264_I_PERIOD, 0, (1 << 16) - 1, 1, 0);
+
+	ret = inst->ctrl_handler.error;
+	if (ret) {
+		v4l2_ctrl_handler_free(&inst->ctrl_handler);
+		return ret;
 	}
 
 	return 0;

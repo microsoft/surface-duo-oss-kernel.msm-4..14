@@ -116,7 +116,6 @@ struct vdec_controls {
 
 struct venc_controls {
 	u16 gop_size;
-	u32 idr_period;
 	u32 num_p_frames;
 	u32 num_b_frames;
 	u32 bitrate_mode;
@@ -281,18 +280,6 @@ struct venus_inst {
 
 #define ctrl_to_inst(ctrl)	\
 	container_of(ctrl->handler, struct venus_inst, ctrl_handler)
-
-struct venus_ctrl {
-	u32 id;
-	enum v4l2_ctrl_type type;
-	s32 min;
-	s32 max;
-	s32 def;
-	u32 step;
-	u64 menu_skip_mask;
-	u32 flags;
-	const char * const *qmenu;
-};
 
 static inline struct venus_inst *to_inst(struct file *filp)
 {
