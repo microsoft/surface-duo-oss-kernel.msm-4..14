@@ -213,7 +213,7 @@ static int video_buf_prepare(struct vb2_buffer *vb)
 		if (!sgt)
 			return -EFAULT;
 
-		buffer->addr = sg_dma_address(sgt->sgl);
+		buffer->addr[i] = sg_dma_address(sgt->sgl);
 	}
 
 	vbuf->field = V4L2_FIELD_NONE;

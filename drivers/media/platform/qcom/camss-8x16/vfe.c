@@ -454,6 +454,10 @@ static void vfe_init_outputs(struct vfe_device *vfe)
 		output->buf[0] = NULL;
 		output->buf[1] = NULL;
 		INIT_LIST_HEAD(&output->pending_bufs);
+
+		output->wm_num = 1;
+		if (vfe->line[i].id == VFE_LINE_PIX)
+			output->wm_num = 2;
 	}
 }
 
@@ -495,49 +499,64 @@ static void vfe_set_cgc_override(struct vfe_device *vfe, u8 wm, u8 enable)
 static void vfe_output_init_addrs(struct vfe_device *vfe,
 				  struct vfe_output *output, u8 sync)
 {
-	u32 ping_addr = 0;
-	u32 pong_addr = 0;
+	u32 ping_addr;
+	u32 pong_addr;
+	unsigned int i;
 
 	output->active_buf = 0;
 
-	if (output->buf[0])
-		ping_addr = output->buf[0]->addr;
+	for (i = 0; i < output->wm_num; i++) {
+		if (output->buf[0])
+			ping_addr = output->buf[0]->addr[i];
+		else
+			ping_addr = 0;
 
-	if (output->buf[1])
-		pong_addr = output->buf[1]->addr;
-	else
-		pong_addr = ping_addr;
+		if (output->buf[1])
+			pong_addr = output->buf[1]->addr[i];
+		else
+			pong_addr = ping_addr;
 
-	vfe_wm_set_ping_addr(vfe, output->wm_idx, ping_addr);
-	vfe_wm_set_pong_addr(vfe, output->wm_idx, pong_addr);
-	if (sync)
-		vfe_bus_reload_wm(vfe, output->wm_idx);
+		vfe_wm_set_ping_addr(vfe, output->wm_idx[i], ping_addr);
+		vfe_wm_set_pong_addr(vfe, output->wm_idx[i], pong_addr);
+		if (sync)
+			vfe_bus_reload_wm(vfe, output->wm_idx[i]);
+	}
 }
 
 static void vfe_output_update_ping_addr(struct vfe_device *vfe,
 					struct vfe_output *output, u8 sync)
 {
-	u32 addr = 0;
+	u32 addr;
+	unsigned int i;
 
-	if (output->buf[0])
-		addr = output->buf[0]->addr;
+	for (i = 0; i < output->wm_num; i++) {
+		if (output->buf[0])
+			addr = output->buf[0]->addr[i];
+		else
+			addr = 0;
 
-	vfe_wm_set_ping_addr(vfe, output->wm_idx, addr);
-	if (sync)
-		vfe_bus_reload_wm(vfe, output->wm_idx);
+		vfe_wm_set_ping_addr(vfe, output->wm_idx[i], addr);
+		if (sync)
+			vfe_bus_reload_wm(vfe, output->wm_idx[i]);
+	}
 }
 
 static void vfe_output_update_pong_addr(struct vfe_device *vfe,
 					struct vfe_output *output, u8 sync)
 {
-	u32 addr = 0;
+	u32 addr;
+	unsigned int i;
 
-	if (output->buf[1])
-		addr = output->buf[1]->addr;
+	for (i = 0; i < output->wm_num; i++) {
+		if (output->buf[1])
+			addr = output->buf[1]->addr[i];
+		else
+			addr = 0;
 
-	vfe_wm_set_pong_addr(vfe, output->wm_idx, addr);
-	if (sync)
-		vfe_bus_reload_wm(vfe, output->wm_idx);
+		vfe_wm_set_pong_addr(vfe, output->wm_idx[i], addr);
+		if (sync)
+			vfe_bus_reload_wm(vfe, output->wm_idx[i]);
+	}
 
 }
 
@@ -572,14 +591,19 @@ static void vfe_output_frame_drop(struct vfe_device *vfe,
 				  u32 drop_pattern)
 {
 	u8 drop_period;
+	unsigned int i;
 
 	/* We need to toggle update period to be valid on next frame */
 	output->drop_update_idx++;
 	output->drop_update_idx %= VFE_FRAME_DROP_UPDATES;
 	drop_period = VFE_FRAME_DROP_VAL + output->drop_update_idx;
 
-	vfe_wm_set_framedrop_period(vfe, output->wm_idx, drop_period);
-	vfe_wm_set_framedrop_pattern(vfe, output->wm_idx, drop_pattern);
+	for (i = 0; i < output->wm_num; i++) {
+		vfe_wm_set_framedrop_period(vfe, output->wm_idx[i],
+					    drop_period);
+		vfe_wm_set_framedrop_pattern(vfe, output->wm_idx[i],
+					     drop_pattern);
+	}
 	vfe_reg_update(vfe, container_of(output, struct vfe_line, output)->id);
 
 }
@@ -717,6 +741,7 @@ static int vfe_get_output(struct vfe_line *line)
 	struct vfe_device *vfe = to_vfe(line);
 	struct vfe_output *output;
 	unsigned long flags;
+	int i;
 	int wm_idx;
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
@@ -730,20 +755,24 @@ static int vfe_get_output(struct vfe_line *line)
 
 	output->active_buf = 0;
 
-	/* We will use only one wm per output for now */
-	wm_idx = vfe_reserve_wm(vfe, line->id);
-	if (wm_idx < 0) {
-		dev_err(to_device(vfe), "Can not reserve wm\n");
-		goto error_get_wm;
+	for (i = 0; i < output->wm_num; i++) {
+		wm_idx = vfe_reserve_wm(vfe, line->id);
+		if (wm_idx < 0) {
+			dev_err(to_device(vfe), "Can not reserve wm\n");
+			goto error_get_wm;
+		}
+		output->wm_idx[i] = wm_idx;
 	}
+
 	output->drop_update_idx = 0;
-	output->wm_idx = wm_idx;
 
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
 
 	return 0;
 
 error_get_wm:
+	for ( i--; i >= 0; i--)
+		vfe_release_wm(vfe, output->wm_idx[i]);
 	output->state = VFE_OUTPUT_OFF;
 error:
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
@@ -756,19 +785,17 @@ static int vfe_put_output(struct vfe_line *line)
 	struct vfe_device *vfe = to_vfe(line);
 	struct vfe_output *output = &line->output;
 	unsigned long flags;
-	int ret;
+	unsigned int i;
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
-	ret = vfe_release_wm(vfe, output->wm_idx);
-	if (ret < 0)
-		goto out;
+	for (i = 0; i < output->wm_num; i++)
+		vfe_release_wm(vfe, output->wm_idx[i]);
 
 	output->state = VFE_OUTPUT_OFF;
 
-out:
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
-	return ret;
+	return 0;
 }
 
 static int vfe_enable_output(struct vfe_line *line)
@@ -833,21 +860,17 @@ static int vfe_enable_output(struct vfe_line *line)
 
 	vfe_output_init_addrs(vfe, output, 0);
 
-	vfe_set_cgc_override(vfe, output->wm_idx, 1);
-
-	vfe_enable_irq_wm_line(vfe, output->wm_idx, line->id, 1);
-
-	vfe_bus_connect_wm_to_rdi(vfe, output->wm_idx, line->id);
-
-	vfe_set_rdi_cid(vfe, line->id, 0);
-
-	vfe_wm_set_ub_cfg(vfe, output->wm_idx,
-			  (ub_size + 1) * output->wm_idx, ub_size);
-
-	vfe_wm_frame_based(vfe, output->wm_idx, 1);
-	vfe_wm_enable(vfe, output->wm_idx, 1);
-
-	vfe_bus_reload_wm(vfe, output->wm_idx);
+	if (line->id != VFE_LINE_PIX) {
+		vfe_set_cgc_override(vfe, output->wm_idx[0], 1);
+		vfe_enable_irq_wm_line(vfe, output->wm_idx[0], line->id, 1);
+		vfe_bus_connect_wm_to_rdi(vfe, output->wm_idx[0], line->id);
+		vfe_set_rdi_cid(vfe, line->id, 0);
+		vfe_wm_set_ub_cfg(vfe, output->wm_idx[0],
+				  (ub_size + 1) * output->wm_idx[0], ub_size);
+		vfe_wm_frame_based(vfe, output->wm_idx[0], 1);
+		vfe_wm_enable(vfe, output->wm_idx[0], 1);
+		vfe_bus_reload_wm(vfe, output->wm_idx[0]);
+	}
 
 	vfe_reg_update(vfe, line->id);
 
@@ -864,8 +887,10 @@ static int vfe_disable_output(struct vfe_line *line)
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
-	vfe_wm_enable(vfe, output->wm_idx, 0);
-	vfe_bus_disconnect_wm_from_rdi(vfe, output->wm_idx, line->id);
+	if (line->id != VFE_LINE_PIX) {
+		vfe_wm_enable(vfe, output->wm_idx[0], 0);
+		vfe_bus_disconnect_wm_from_rdi(vfe, output->wm_idx[0], line->id);
+	}
 	vfe_reg_update(vfe, line->id);
 
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
@@ -1057,10 +1082,10 @@ static void vfe_isr_wm_done(struct vfe_device *vfe, u8 wm)
 	output->buf[!active_index] = vfe_buf_get_pending(output);
 	if (!output->buf[!active_index]) {
 		/* No next buffer - set same address */
-		new_addr = ready_buf->addr;
+		new_addr = ready_buf->addr[0];
 		vfe_buf_update_wm_on_last(vfe, output);
 	} else {
-		new_addr = output->buf[!active_index]->addr;
+		new_addr = output->buf[!active_index]->addr[0];
 		vfe_buf_update_wm_on_next(vfe, output);
 	}
 

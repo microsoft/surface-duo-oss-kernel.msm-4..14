@@ -56,7 +56,8 @@ enum vfe_line_id {
 };
 
 struct vfe_output {
-	u8 wm_idx;
+	u8 wm_num;
+	u8 wm_idx[3];
 
 	int active_buf;
 	struct camss_buffer *buf[2];
