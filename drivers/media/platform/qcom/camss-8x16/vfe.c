@@ -1632,7 +1632,7 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 	vfe->id = 0;
 	vfe->reg_update = 0;
 
-	for (i = VFE_LINE_RDI0; i <= VFE_LINE_RDI2; i++) {
+	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
 		vfe->line[i].video_out.type =
 					V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 		vfe->line[i].video_out.camss = camss;
@@ -1827,8 +1827,13 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 		v4l2_subdev_init(sd, &vfe_v4l2_ops);
 		sd->internal_ops = &vfe_v4l2_internal_ops;
 		sd->flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
-		snprintf(sd->name, ARRAY_SIZE(sd->name), "%s%d_%s%d",
-			 MSM_VFE_NAME, vfe->id, "rdi", i);
+		if (i == VFE_LINE_PIX)
+			snprintf(sd->name, ARRAY_SIZE(sd->name), "%s%d_%s",
+				 MSM_VFE_NAME, vfe->id, "pix");
+		else
+			snprintf(sd->name, ARRAY_SIZE(sd->name), "%s%d_%s%d",
+				 MSM_VFE_NAME, vfe->id, "rdi", i);
+
 		v4l2_set_subdevdata(sd, &vfe->line[i]);
 
 		ret = vfe_init_formats(sd, NULL);

@@ -30,7 +30,7 @@
 #define MSM_VFE_PAD_SRC 1
 #define MSM_VFE_PADS_NUM 2
 
-#define MSM_VFE_LINE_NUM 3
+#define MSM_VFE_LINE_NUM 4
 #define MSM_VFE_IMAGE_MASTERS_NUM 7
 
 #define MSM_VFE_VFE0_UB_SIZE 1023
@@ -51,7 +51,8 @@ enum vfe_line_id {
 	VFE_LINE_NONE = -1,
 	VFE_LINE_RDI0 = 0,
 	VFE_LINE_RDI1 = 1,
-	VFE_LINE_RDI2 = 2
+	VFE_LINE_RDI2 = 2,
+	VFE_LINE_PIX = 3
 };
 
 struct vfe_output {
