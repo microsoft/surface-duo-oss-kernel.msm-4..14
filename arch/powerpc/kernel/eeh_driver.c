@@ -630,13 +630,13 @@ static int eeh_reset_device(struct eeh_pe *pe, struct pci_bus *bus)
 		 * rebuilt when adding PCI devices.
 		 */
 		eeh_pe_traverse(pe, eeh_pe_detach_dev, NULL);
+		eeh_pe_state_clear(pe, EEH_PE_PRI_BUS);
 		pcibios_add_pci_devices(bus);
 	} else if (frozen_bus && removed) {
 		pr_info("EEH: Sleep 5s ahead of partial hotplug\n");
 		ssleep(5);
 
 		eeh_pe_traverse(pe, eeh_pe_detach_dev, NULL);
-		eeh_pe_state_clear(pe, EEH_PE_PRI_BUS);
 		pcibios_add_pci_devices(frozen_bus);
 	}
 	eeh_pe_state_clear(pe, EEH_PE_KEEP);
