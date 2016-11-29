@@ -1631,6 +1631,10 @@ static int nicvf_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	netdev->netdev_ops = &nicvf_netdev_ops;
 	netdev->watchdog_timeo = NICVF_TX_TIMEOUT;
 
+	/* MTU range: 64 - 9200 */
+	netdev->min_mtu = NIC_HW_MIN_FRS;
+	netdev->max_mtu = NIC_HW_MAX_FRS;
+
 	INIT_WORK(&nic->reset_task, nicvf_reset_task);
 
 	err = register_netdev(netdev);
