@@ -349,6 +349,13 @@ int kvm_setup_empty_irq_routing(struct kvm *kvm)
 	return kvm_set_irq_routing(kvm, empty_routing, 0, 0);
 }
 
+void kvm_arch_post_irq_routing_update(struct kvm *kvm)
+{
+	if (ioapic_in_kernel(kvm) || !irqchip_in_kernel(kvm))
+		return;
+	kvm_make_scan_ioapic_request(kvm);
+}
+
 void kvm_scan_ioapic_routes(struct kvm_vcpu *vcpu,
 			    ulong *ioapic_handled_vectors)
 {
