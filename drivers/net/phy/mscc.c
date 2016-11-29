@@ -46,7 +46,14 @@ enum rgmii_rx_clock_delay {
 
 #define MSCC_EXT_PAGE_ACCESS		  31
 #define MSCC_PHY_PAGE_STANDARD		  0x0000 /* Standard registers */
+#define MSCC_PHY_PAGE_EXTENDED		  0x0001 /* Extended registers */
 #define MSCC_PHY_PAGE_EXTENDED_2	  0x0002 /* Extended reg - page 2 */
+
+/* Extended Page 1 Registers */
+#define MSCC_PHY_ACTIPHY_CNTL		  20
+#define DOWNSHIFT_CNTL_MASK		  0x001C
+#define DOWNSHIFT_EN			  0x0010
+#define DOWNSHIFT_CNTL_POS		  2
 
 /* Extended Page 2 Registers */
 #define MSCC_PHY_RGMII_CNTL		  20
@@ -65,13 +72,17 @@ enum rgmii_rx_clock_delay {
 #define SECURE_ON_PASSWD_LEN_4		  0x4000
 
 /* Microsemi PHY ID's */
+#define PHY_ID_VSC8530			  0x00070560
 #define PHY_ID_VSC8531			  0x00070570
+#define PHY_ID_VSC8540			  0x00070760
 #define PHY_ID_VSC8541			  0x00070770
 
 #define MSCC_VDDMAC_1500		  1500
 #define MSCC_VDDMAC_1800		  1800
 #define MSCC_VDDMAC_2500		  2500
 #define MSCC_VDDMAC_3300		  3300
+
+#define DOWNSHIFT_COUNT_MAX		  5
 
 struct vsc8531_private {
 	int rate_magic;
@@ -96,6 +107,66 @@ static int vsc85xx_phy_page_set(struct phy_device *phydev, u8 page)
 	int rc;
 
 	rc = phy_write(phydev, MSCC_EXT_PAGE_ACCESS, page);
+	return rc;
+}
+
+static int vsc85xx_downshift_get(struct phy_device *phydev, u8 *count)
+{
+	int rc;
+	u16 reg_val;
+
+	mutex_lock(&phydev->lock);
+	rc = vsc85xx_phy_page_set(phydev, MSCC_PHY_PAGE_EXTENDED);
+	if (rc != 0)
+		goto out_unlock;
+
+	reg_val = phy_read(phydev, MSCC_PHY_ACTIPHY_CNTL);
+	reg_val &= DOWNSHIFT_CNTL_MASK;
+	if (!(reg_val & DOWNSHIFT_EN))
+		*count = DOWNSHIFT_DEV_DISABLE;
+	else
+		*count = ((reg_val & ~DOWNSHIFT_EN) >> DOWNSHIFT_CNTL_POS) + 2;
+	rc = vsc85xx_phy_page_set(phydev, MSCC_PHY_PAGE_STANDARD);
+
+out_unlock:
+	mutex_unlock(&phydev->lock);
+
+	return rc;
+}
+
+static int vsc85xx_downshift_set(struct phy_device *phydev, u8 count)
+{
+	int rc;
+	u16 reg_val;
+
+	if (count == DOWNSHIFT_DEV_DEFAULT_COUNT) {
+		/* Default downshift count 3 (i.e. Bit3:2 = 0b01) */
+		count = ((1 << DOWNSHIFT_CNTL_POS) | DOWNSHIFT_EN);
+	} else if (count > DOWNSHIFT_COUNT_MAX || count == 1) {
+		phydev_err(phydev, "Downshift count should be 2,3,4 or 5\n");
+		return -ERANGE;
+	} else if (count) {
+		/* Downshift count is either 2,3,4 or 5 */
+		count = (((count - 2) << DOWNSHIFT_CNTL_POS) | DOWNSHIFT_EN);
+	}
+
+	mutex_lock(&phydev->lock);
+	rc = vsc85xx_phy_page_set(phydev, MSCC_PHY_PAGE_EXTENDED);
+	if (rc != 0)
+		goto out_unlock;
+
+	reg_val = phy_read(phydev, MSCC_PHY_ACTIPHY_CNTL);
+	reg_val &= ~(DOWNSHIFT_CNTL_MASK);
+	reg_val |= count;
+	rc = phy_write(phydev, MSCC_PHY_ACTIPHY_CNTL, reg_val);
+	if (rc != 0)
+		goto out_unlock;
+
+	rc = vsc85xx_phy_page_set(phydev, MSCC_PHY_PAGE_STANDARD);
+
+out_unlock:
+	mutex_unlock(&phydev->lock);
+
 	return rc;
 }
 
@@ -327,6 +398,29 @@ out_unlock:
 	return rc;
 }
 
+static int vsc85xx_get_tunable(struct phy_device *phydev,
+			       struct ethtool_tunable *tuna, void *data)
+{
+	switch (tuna->id) {
+	case ETHTOOL_PHY_DOWNSHIFT:
+		return vsc85xx_downshift_get(phydev, (u8 *)data);
+	default:
+		return -EINVAL;
+	}
+}
+
+static int vsc85xx_set_tunable(struct phy_device *phydev,
+			       struct ethtool_tunable *tuna,
+			       const void *data)
+{
+	switch (tuna->id) {
+	case ETHTOOL_PHY_DOWNSHIFT:
+		return vsc85xx_downshift_set(phydev, *(u8 *)data);
+	default:
+		return -EINVAL;
+	}
+}
+
 static int vsc85xx_config_init(struct phy_device *phydev)
 {
 	int rc;
@@ -399,6 +493,27 @@ static int vsc85xx_probe(struct phy_device *phydev)
 /* Microsemi VSC85xx PHYs */
 static struct phy_driver vsc85xx_driver[] = {
 {
+	.phy_id		= PHY_ID_VSC8530,
+	.name		= "Microsemi FE VSC8530",
+	.phy_id_mask	= 0xfffffff0,
+	.features	= PHY_BASIC_FEATURES,
+	.flags		= PHY_HAS_INTERRUPT,
+	.soft_reset	= &genphy_soft_reset,
+	.config_init	= &vsc85xx_config_init,
+	.config_aneg	= &genphy_config_aneg,
+	.aneg_done	= &genphy_aneg_done,
+	.read_status	= &genphy_read_status,
+	.ack_interrupt	= &vsc85xx_ack_interrupt,
+	.config_intr	= &vsc85xx_config_intr,
+	.suspend	= &genphy_suspend,
+	.resume		= &genphy_resume,
+	.probe		= &vsc85xx_probe,
+	.set_wol	= &vsc85xx_wol_set,
+	.get_wol	= &vsc85xx_wol_get,
+	.get_tunable	= &vsc85xx_get_tunable,
+	.set_tunable	= &vsc85xx_set_tunable,
+},
+{
 	.phy_id		= PHY_ID_VSC8531,
 	.name		= "Microsemi VSC8531",
 	.phy_id_mask    = 0xfffffff0,
@@ -416,6 +531,29 @@ static struct phy_driver vsc85xx_driver[] = {
 	.probe		= &vsc85xx_probe,
 	.set_wol	= &vsc85xx_wol_set,
 	.get_wol	= &vsc85xx_wol_get,
+	.get_tunable	= &vsc85xx_get_tunable,
+	.set_tunable	= &vsc85xx_set_tunable,
+},
+{
+	.phy_id		= PHY_ID_VSC8540,
+	.name		= "Microsemi FE VSC8540 SyncE",
+	.phy_id_mask	= 0xfffffff0,
+	.features	= PHY_BASIC_FEATURES,
+	.flags		= PHY_HAS_INTERRUPT,
+	.soft_reset	= &genphy_soft_reset,
+	.config_init	= &vsc85xx_config_init,
+	.config_aneg	= &genphy_config_aneg,
+	.aneg_done	= &genphy_aneg_done,
+	.read_status	= &genphy_read_status,
+	.ack_interrupt	= &vsc85xx_ack_interrupt,
+	.config_intr	= &vsc85xx_config_intr,
+	.suspend	= &genphy_suspend,
+	.resume		= &genphy_resume,
+	.probe		= &vsc85xx_probe,
+	.set_wol	= &vsc85xx_wol_set,
+	.get_wol	= &vsc85xx_wol_get,
+	.get_tunable	= &vsc85xx_get_tunable,
+	.set_tunable	= &vsc85xx_set_tunable,
 },
 {
 	.phy_id		= PHY_ID_VSC8541,
@@ -435,6 +573,8 @@ static struct phy_driver vsc85xx_driver[] = {
 	.probe		= &vsc85xx_probe,
 	.set_wol	= &vsc85xx_wol_set,
 	.get_wol	= &vsc85xx_wol_get,
+	.get_tunable	= &vsc85xx_get_tunable,
+	.set_tunable	= &vsc85xx_set_tunable,
 }
 
 };
@@ -442,7 +582,9 @@ static struct phy_driver vsc85xx_driver[] = {
 module_phy_driver(vsc85xx_driver);
 
 static struct mdio_device_id __maybe_unused vsc85xx_tbl[] = {
+	{ PHY_ID_VSC8530, 0xfffffff0, },
 	{ PHY_ID_VSC8531, 0xfffffff0, },
+	{ PHY_ID_VSC8540, 0xfffffff0, },
 	{ PHY_ID_VSC8541, 0xfffffff0, },
 	{ }
 };

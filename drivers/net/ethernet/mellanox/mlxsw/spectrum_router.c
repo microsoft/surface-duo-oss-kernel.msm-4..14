@@ -1896,6 +1896,9 @@ static void mlxsw_sp_router_fib4_abort(struct mlxsw_sp *mlxsw_sp)
 {
 	int err;
 
+	if (mlxsw_sp->router.aborted)
+		return;
+	dev_warn(mlxsw_sp->bus_info->dev, "FIB abort triggered. Note that FIB entries are no longer being offloaded to this device.\n");
 	mlxsw_sp_router_fib_flush(mlxsw_sp);
 	mlxsw_sp->router.aborted = true;
 	err = mlxsw_sp_router_set_abort_trap(mlxsw_sp);
@@ -1987,7 +1990,7 @@ int mlxsw_sp_router_init(struct mlxsw_sp *mlxsw_sp)
 	if (err)
 		goto err_vrs_init;
 
-	err =  mlxsw_sp_neigh_init(mlxsw_sp);
+	err = mlxsw_sp_neigh_init(mlxsw_sp);
 	if (err)
 		goto err_neigh_init;
 
