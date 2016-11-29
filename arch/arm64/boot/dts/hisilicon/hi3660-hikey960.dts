@@ -94,6 +94,7 @@
 		/* WLAN card specific delay */
 		startup-delay-us = <70000>;
 		enable-active-high;
+		regulator-always-on;
 	};
 
 	leds {
