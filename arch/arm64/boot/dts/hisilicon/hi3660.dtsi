@@ -174,7 +174,7 @@
 		lcd-display-type = <8>;
 		//vdd-supply = <&ldo3>;
 		lcd-ifbc-type = <0>;
-		gpios = <&gpio26 8 0>, <&gpio27 2 0>, <&gpio22 6 0>, <&gpio2 4 0>;
+		gpios = <&gpio27 0 0>, <&gpio27 2 0>, <&gpio22 6 0>, <&gpio2 4 0>;
 		gpio_nums = <216 218 182 20>;
 		fpga_flag = <0>;
 		status = "disabled";
