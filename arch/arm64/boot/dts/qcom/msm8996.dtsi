@@ -794,6 +794,84 @@
 			};
 		};
 
+		adreno_smmu: arm,smmu@b40000 {
+			compatible = "arm,smmu-v2";
+			reg = <0xb40000 0x10000>;
+
+			#global-interrupts = <1>;
+			interrupts = <0 334 0>,
+				     <0 329 0>,
+				     <0 330 0>;
+			#iommu-cells = <1>;
+
+			clocks = <&mmcc MMSS_MMAGIC_AHB_CLK>,
+				<&mmcc MMSS_MMAGIC_CFG_AHB_CLK>,
+				<&mmcc GPU_AHB_CLK>,
+				<&gcc GCC_MMSS_BIMC_GFX_CLK>,
+				<&gcc GCC_BIMC_GFX_CLK>,
+				<&mmcc MMSS_MISC_AHB_CLK>;
+			clock-names = "mmagic_ahb_clk",
+				"mmagic_cfg_ahb_clk",
+				"gpu_ahb_clk",
+				"gcc_mmss_bimc_gfx_clk",
+				"gcc_bimc_gfx_clk",
+				"mmss_misc_bus_clk";
+
+			power-domains = <&mmcc GPU_GDSC>;
+
+			qcom,skip-init;
+			qcom,register-save;
+
+			status = "okay";
+		};
+
+		adreno-3xx@b00000 {
+			compatible = "qcom,adreno-3xx";
+			#stream-id-cells = <16>;
+
+			reg = <0xb00000 0x3f000>;
+			reg-names = "kgsl_3d0_reg_memory";
+
+			interrupts = <0 300 0>;
+			interrupt-names = "kgsl_3d0_irq";
+
+			clocks = <&mmcc GPU_GX_GFX3D_CLK>,
+				<&mmcc GPU_AHB_CLK>,
+				<&mmcc GPU_GX_RBBMTIMER_CLK>,
+				<&gcc GCC_BIMC_GFX_CLK>,
+				<&gcc GCC_MMSS_BIMC_GFX_CLK>,
+				<&mmcc MMSS_MMAGIC_AHB_CLK>;
+
+			clock-names = "core_clk",
+				"iface_clk",
+				"rbbmtimer_clk",
+				"mem_clk",
+				"mem_iface_clk",
+				"alt_mem_iface_clk";
+
+			power-domains = <&mmcc GPU_GDSC>;
+			iommus = <&adreno_smmu 0>;
+
+			/* There are patchlevel 3 chips in the world (Snapdragon
+			 * (820) but they are functionally similar to the 821 in
+			 * the code so we can safely set the chipset as
+			 * patchlevel 4. */
+			qcom,chipid = <0x05030004>;
+
+			/* This is a safe speed for bring up in all bin levels.
+			 * This isn't the fastest the chip can go, but we can
+			 * get there eventually */
+			qcom,gpu-pwrlevels {
+				compatible = "qcom,gpu-pwrlevels";
+				qcom,gpu-pwrlevel@0 {
+					qcom,gpu-freq = <205000000>;
+				};
+				qcom,gpu-pwrlevel@1 {
+					qcom,gpu-freq = <27000000>;
+				};
+			};
+		};
+
 		mdp_smmu: arm,smmu@d00000 {
 			compatible = "arm,smmu-v2";
 			reg = <0xd00000 0x10000>;
