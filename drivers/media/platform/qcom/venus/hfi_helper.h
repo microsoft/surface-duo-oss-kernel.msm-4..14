@@ -12,8 +12,8 @@
  * GNU General Public License for more details.
  *
  */
-#ifndef __HFI_HELPER_H__
-#define __HFI_HELPER_H__
+#ifndef __VENUS_HFI_HELPER_H__
+#define __VENUS_HFI_HELPER_H__
 
 #define HFI_DOMAIN_BASE_COMMON				0
 

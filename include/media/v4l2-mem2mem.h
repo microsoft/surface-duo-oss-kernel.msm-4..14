@@ -211,6 +211,18 @@ static inline void *v4l2_m2m_next_dst_buf(struct v4l2_m2m_ctx *m2m_ctx)
 	return v4l2_m2m_next_buf(&m2m_ctx->cap_q_ctx);
 }
 
+#define v4l2_m2m_for_each_dst_buf(q_ctx, b)	\
+	list_for_each_entry(b, &q_ctx->cap_q_ctx.rdy_queue, list)
+
+#define v4l2_m2m_for_each_src_buf(q_ctx, b)	\
+	list_for_each_entry(b, &q_ctx->out_q_ctx.rdy_queue, list)
+
+#define v4l2_m2m_for_each_dst_buf_safe(q_ctx, b, n)	\
+	list_for_each_entry_safe(b, n, &q_ctx->cap_q_ctx.rdy_queue, list)
+
+#define v4l2_m2m_for_each_src_buf_safe(q_ctx, b, n)	\
+	list_for_each_entry_safe(b, n, &q_ctx->out_q_ctx.rdy_queue, list)
+
 /**
  * v4l2_m2m_get_src_vq() - return vb2_queue for source buffers
  *
@@ -255,6 +267,36 @@ static inline void *v4l2_m2m_src_buf_remove(struct v4l2_m2m_ctx *m2m_ctx)
 static inline void *v4l2_m2m_dst_buf_remove(struct v4l2_m2m_ctx *m2m_ctx)
 {
 	return v4l2_m2m_buf_remove(&m2m_ctx->cap_q_ctx);
+}
+
+void v4l2_m2m_buf_remove_exact(struct v4l2_m2m_queue_ctx *q_ctx,
+			       struct vb2_v4l2_buffer *vbuf);
+
+static inline void v4l2_m2m_src_buf_remove_exact(struct v4l2_m2m_ctx *m2m_ctx,
+						 struct vb2_v4l2_buffer *vbuf)
+{
+	v4l2_m2m_buf_remove_exact(&m2m_ctx->out_q_ctx, vbuf);
+}
+
+static inline void v4l2_m2m_dst_buf_remove_exact(struct v4l2_m2m_ctx *m2m_ctx,
+						 struct vb2_v4l2_buffer *vbuf)
+{
+	v4l2_m2m_buf_remove_exact(&m2m_ctx->cap_q_ctx, vbuf);
+}
+
+struct vb2_v4l2_buffer *
+v4l2_m2m_buf_remove_by_idx(struct v4l2_m2m_queue_ctx *q_ctx, unsigned int idx);
+
+static inline struct vb2_v4l2_buffer *
+v4l2_m2m_src_buf_remove_by_idx(struct v4l2_m2m_ctx *m2m_ctx, unsigned int idx)
+{
+	return v4l2_m2m_buf_remove_by_idx(&m2m_ctx->out_q_ctx, idx);
+}
+
+static inline struct vb2_v4l2_buffer *
+v4l2_m2m_dst_buf_remove_by_idx(struct v4l2_m2m_ctx *m2m_ctx, unsigned int idx)
+{
+	return v4l2_m2m_buf_remove_by_idx(&m2m_ctx->cap_q_ctx, idx);
 }
 
 /* v4l2 ioctl helpers */

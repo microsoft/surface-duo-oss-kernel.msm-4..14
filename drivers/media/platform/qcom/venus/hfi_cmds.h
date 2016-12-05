@@ -12,8 +12,8 @@
  * GNU General Public License for more details.
  *
  */
-#ifndef __HFI_CMDS_H__
-#define __HFI_CMDS_H__
+#ifndef __VENUS_HFI_CMDS_H__
+#define __VENUS_HFI_CMDS_H__
 
 #include "hfi.h"
 

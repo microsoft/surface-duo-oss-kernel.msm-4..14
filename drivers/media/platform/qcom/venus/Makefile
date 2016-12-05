@@ -1,6 +1,6 @@
-# Makefile for Qualcomm vidc driver
+# Makefile for Qualcomm Venus driver
 
-vidc-objs += \
+venus-objs += \
 		core.o \
 		helpers.o \
 		vdec.o \
@@ -12,4 +12,4 @@ vidc-objs += \
 		hfi_cmds.o \
 		hfi.o \
 
-obj-$(CONFIG_QCOM_VIDC) += vidc.o
+obj-$(CONFIG_VIDEO_QCOM_VENUS) += venus.o

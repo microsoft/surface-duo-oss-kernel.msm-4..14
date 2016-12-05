@@ -13,7 +13,6 @@
  *
  */
 #include <linux/errno.h>
-#include <linux/log2.h>
 #include <linux/hash.h>
 
 #include "hfi_cmds.h"
@@ -33,8 +32,7 @@ void pkt_sys_pc_prep(struct hfi_sys_pc_prep_pkt *pkt)
 	pkt->hdr.pkt_type = HFI_CMD_SYS_PC_PREP;
 }
 
-void pkt_sys_idle_indicator(struct hfi_sys_set_property_pkt *pkt,
-				   u32 enable)
+void pkt_sys_idle_indicator(struct hfi_sys_set_property_pkt *pkt, u32 enable)
 {
 	struct hfi_enable *hfi = (struct hfi_enable *) &pkt->data[1];
 
@@ -327,6 +325,7 @@ int pkt_session_ftb(struct hfi_session_fill_buffer_pkt *pkt, void *cookie,
 	else if (out_frame->buffer_type == HFI_BUFFER_OUTPUT2)
 		pkt->stream_id = 1;
 
+	pkt->output_tag = out_frame->clnt_data;
 	pkt->packet_buffer = out_frame->device_addr;
 	pkt->extradata_buffer = out_frame->extradata_addr;
 	pkt->alloc_len = out_frame->alloc_len;
