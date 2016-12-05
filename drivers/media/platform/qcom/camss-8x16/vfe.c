@@ -57,12 +57,16 @@
 #define VFE_0_IRQ_CMD_GLOBAL_CLEAR	(1 << 0)
 
 #define VFE_0_IRQ_MASK_0		0x028
+#define VFE_0_IRQ_MASK_0_CAMIF_SOF			(1 << 0)
+#define VFE_0_IRQ_MASK_0_CAMIF_EOF			(1 << 1)
 #define VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(n)		(1 << ((n) + 5))
 #define VFE_0_IRQ_MASK_0_line_n_REG_UPDATE(n)		\
 	((n) == VFE_LINE_PIX ? (1 << 4) : VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(n))
 #define VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(n)	(1 << ((n) + 8))
+#define VFE_0_IRQ_MASK_0_IMAGE_COMPOSITE_DONE_n(n)	(1 << ((n) + 25))
 #define VFE_0_IRQ_MASK_0_RESET_ACK			(1 << 31)
 #define VFE_0_IRQ_MASK_1		0x02c
+#define VFE_0_IRQ_MASK_1_CAMIF_ERROR			(1 << 0)
 #define VFE_0_IRQ_MASK_1_VIOLATION			(1 << 7)
 #define VFE_0_IRQ_MASK_1_BUS_BDG_HALT_ACK		(1 << 8)
 #define VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(n)	(1 << ((n) + 9))
@@ -75,9 +79,12 @@
 #define VFE_0_IRQ_STATUS_0_line_n_REG_UPDATE(n)		\
 	((n) == VFE_LINE_PIX ? (1 << 4) : VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(n))
 #define VFE_0_IRQ_STATUS_0_IMAGE_MASTER_n_PING_PONG(n)	(1 << ((n) + 8))
+#define VFE_0_IRQ_STATUS_0_IMAGE_COMPOSITE_DONE_n(n)	(1 << ((n) + 25))
 #define VFE_0_IRQ_STATUS_0_RESET_ACK			(1 << 31)
 #define VFE_0_IRQ_STATUS_1		0x03c
 #define VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK		(1 << 8)
+
+#define VFE_0_IRQ_COMPOSITE_MASK_0	0x40
 
 #define VFE_0_BUS_CMD			0x4c
 #define VFE_0_BUS_CMD_Mx_RLD_CMD(x)	(1 << (x))
@@ -387,6 +394,36 @@ static void vfe_enable_irq_wm_line(struct vfe_device *vfe, u8 wm,
 	} else {
 		vfe_reg_clr(vfe, VFE_0_IRQ_MASK_0, irq_en0);
 		vfe_reg_clr(vfe, VFE_0_IRQ_MASK_1, irq_en1);
+	}
+}
+
+static void vfe_enable_irq_pix_line(struct vfe_device *vfe, u8 comp,
+				    enum vfe_line_id line_id, u8 enable) {
+	struct vfe_output *output = &vfe->line[line_id].output;
+	unsigned int i;
+	u32 irq_en0;
+	u32 irq_en1;
+	u32 comp_mask = 0;
+
+	irq_en0 = VFE_0_IRQ_MASK_0_CAMIF_SOF;
+	irq_en0 |= VFE_0_IRQ_MASK_0_CAMIF_EOF;
+	irq_en0 |= VFE_0_IRQ_MASK_0_IMAGE_COMPOSITE_DONE_n(comp);
+	irq_en0 |= VFE_0_IRQ_MASK_0_line_n_REG_UPDATE(line_id);
+	irq_en1 = VFE_0_IRQ_MASK_1_CAMIF_ERROR;
+	for (i = 0; i < output->wm_num; i++) {
+		irq_en1 |= VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(
+							output->wm_idx[i]);
+		comp_mask |= (1 << output->wm_idx[i]) << comp * 8;
+	}
+
+	if (enable) {
+		vfe_reg_set(vfe, VFE_0_IRQ_MASK_0, irq_en0);
+		vfe_reg_set(vfe, VFE_0_IRQ_MASK_1, irq_en0);
+		vfe_reg_set(vfe, VFE_0_IRQ_COMPOSITE_MASK_0, comp_mask);
+	} else {
+		vfe_reg_clr(vfe, VFE_0_IRQ_MASK_0, irq_en0);
+		vfe_reg_clr(vfe, VFE_0_IRQ_MASK_1, irq_en0);
+		vfe_reg_clr(vfe, VFE_0_IRQ_COMPOSITE_MASK_0, comp_mask);
 	}
 }
 
@@ -876,6 +913,8 @@ static int vfe_enable_output(struct vfe_line *line)
 		vfe_wm_frame_based(vfe, output->wm_idx[0], 1);
 		vfe_wm_enable(vfe, output->wm_idx[0], 1);
 		vfe_bus_reload_wm(vfe, output->wm_idx[0]);
+	} else {
+		vfe_enable_irq_pix_line(vfe, 0, line->id, 1);
 	}
 
 	vfe_reg_update(vfe, line->id);
@@ -1051,9 +1090,10 @@ static void vfe_isr_wm_done(struct vfe_device *vfe, u8 wm)
 {
 	struct camss_buffer *ready_buf;
 	struct vfe_output *output;
-	dma_addr_t new_addr;
+	dma_addr_t *new_addr;
 	unsigned long flags;
 	u32 active_index;
+	unsigned int i;
 
 	active_index = vfe_wm_get_ping_pong_status(vfe, wm);
 
@@ -1088,17 +1128,21 @@ static void vfe_isr_wm_done(struct vfe_device *vfe, u8 wm)
 	output->buf[!active_index] = vfe_buf_get_pending(output);
 	if (!output->buf[!active_index]) {
 		/* No next buffer - set same address */
-		new_addr = ready_buf->addr[0];
+		new_addr = ready_buf->addr;
 		vfe_buf_update_wm_on_last(vfe, output);
 	} else {
-		new_addr = output->buf[!active_index]->addr[0];
+		new_addr = output->buf[!active_index]->addr;
 		vfe_buf_update_wm_on_next(vfe, output);
 	}
 
 	if (active_index)
-		vfe_wm_set_ping_addr(vfe, wm, new_addr);
+		for (i = 0; i < output->wm_num; i++)
+			vfe_wm_set_ping_addr(vfe, output->wm_idx[i],
+					     new_addr[i]);
 	else
-		vfe_wm_set_pong_addr(vfe, wm, new_addr);
+		for (i = 0; i < output->wm_num; i++)
+			vfe_wm_set_pong_addr(vfe, output->wm_idx[i],
+					     new_addr[i]);
 
 	spin_unlock_irqrestore(&vfe->output_lock, flags);
 
@@ -1114,6 +1158,22 @@ out_unlock:
 }
 
 /*
+ * vfe_isr_wm_done - Process composite image done interrupt
+ * @vfe: VFE Device
+ * @comp: Composite image id
+ */
+static void vfe_isr_comp_done(struct vfe_device *vfe, u8 comp)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(vfe->wm_output_map); i++)
+		if (vfe->wm_output_map[i] == VFE_LINE_PIX) {
+			vfe_isr_wm_done(vfe, i);
+			break;
+		}
+}
+
+/*
  * vfe_isr - ISPIF module interrupt handler
  * @irq: Interrupt line
  * @dev: VFE device
@@ -1124,7 +1184,7 @@ static irqreturn_t vfe_isr(int irq, void *dev)
 {
 	struct vfe_device *vfe = dev;
 	u32 value0, value1;
-	int i;
+	int i, j;
 
 	value0 = readl_relaxed(vfe->base + VFE_0_IRQ_STATUS_0);
 	value1 = readl_relaxed(vfe->base + VFE_0_IRQ_STATUS_1);
@@ -1146,6 +1206,14 @@ static irqreturn_t vfe_isr(int irq, void *dev)
 	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++)
 		if (value0 & VFE_0_IRQ_STATUS_0_line_n_REG_UPDATE(i))
 			vfe_isr_reg_update(vfe, i);
+
+	for (i = 0; i < MSM_VFE_COMPOSITE_IRQ_NUM; i++)
+		if (value0 & VFE_0_IRQ_STATUS_0_IMAGE_COMPOSITE_DONE_n(i)) {
+			vfe_isr_comp_done(vfe, i);
+			for (j = 0; j < ARRAY_SIZE(vfe->wm_output_map); j++)
+				if (vfe->wm_output_map[j] == VFE_LINE_PIX)
+					value0 &= ~VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(j);
+		}
 
 	for (i = 0; i < MSM_VFE_IMAGE_MASTERS_NUM; i++)
 		if (value0 & VFE_0_IRQ_STATUS_0_IMAGE_MASTER_n_PING_PONG(i))
