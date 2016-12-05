@@ -53,6 +53,9 @@
 #define VFE_0_GLOBAL_RESET_CMD_BUS_MISR	(1 << 7)
 #define VFE_0_GLOBAL_RESET_CMD_TESTGEN	(1 << 8)
 
+#define VFE_0_MODULE_CFG		0x018
+#define VFE_0_MODULE_CFG_CHROMA_UPSAMPLE	(1 << 3)
+
 #define VFE_0_IRQ_CMD			0x024
 #define VFE_0_IRQ_CMD_GLOBAL_CLEAR	(1 << 0)
 
@@ -566,6 +569,17 @@ static void vfe_set_cgc_override(struct vfe_device *vfe, u8 wm, u8 enable)
 	wmb();
 }
 
+
+static void vfe_set_module_cfg(struct vfe_device *vfe, u8 enable)
+{
+	u32 val = VFE_0_MODULE_CFG_CHROMA_UPSAMPLE;
+
+	if (enable)
+		writel_relaxed(val, vfe->base + VFE_0_MODULE_CFG);
+	else
+		writel_relaxed(0x0, vfe->base + VFE_0_MODULE_CFG);
+}
+
 static void vfe_output_init_addrs(struct vfe_device *vfe,
 				  struct vfe_output *output, u8 sync)
 {
@@ -964,6 +978,7 @@ static int vfe_enable_output(struct vfe_line *line)
 			vfe_bus_reload_wm(vfe, output->wm_idx[i]);
 		}
 		vfe_enable_irq_pix_line(vfe, 0, line->id, 1);
+		vfe_set_module_cfg(vfe, 1);
 	}
 
 	vfe_reg_update(vfe, line->id);
