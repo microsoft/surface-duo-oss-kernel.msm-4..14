@@ -1,2 +1,1 @@
-source "drivers/media/platform/qcom/camss-8x16/Kconfig"
 source "drivers/media/platform/qcom/cci/Kconfig"

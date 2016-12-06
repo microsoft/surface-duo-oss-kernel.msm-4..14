@@ -1,7 +1,7 @@
-# Makefile for Qualcomm camss driver
+# Makefile for Qualcomm CAMSS driver
 
-ccflags-y += -Idrivers/media/platform/msm/camss
-msm-camss-objs += \
+ccflags-y += -Idrivers/media/platform/qcom/camss
+qcom-camss-objs += \
 		camss.o \
 		csid.o \
 		csiphy.o \
@@ -9,4 +9,4 @@ msm-camss-objs += \
 		vfe.o \
 		video.o \
 
-obj-$(CONFIG_MSM_CAMSS_V4L2) += msm-camss.o
+obj-$(CONFIG_VIDEO_QCOM_CAMSS) += qcom-camss.o
