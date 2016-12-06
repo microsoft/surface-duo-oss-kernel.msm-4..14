@@ -443,6 +443,7 @@ static const struct of_device_id qcom_scm_dt_match[] = {
 	{ .compatible = "qcom,scm-apq8064",},
 	{ .compatible = "qcom,scm-msm8660",},
 	{ .compatible = "qcom,scm-msm8960",},
+	{ .compatible = "qcom,scm-msm8996",},
 	{ .compatible = "qcom,scm",},
 	{}
 };
