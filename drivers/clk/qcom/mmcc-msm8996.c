@@ -447,7 +447,6 @@ static struct clk_alpha_pll mmpll9_early = {
 	.offset = 0x4200,
 	.vco_table = mmpll_t_vco,
 	.num_vco = ARRAY_SIZE(mmpll_t_vco),
-	.flags = SUPPORTS_DYNAMIC_UPDATE | SUPPORTS_LATCHED_INPUT,
 	.latch_ack_bit = 29,
 	.clkr.hw.init = &(struct clk_init_data){
 		.name = "mmpll9_early",
