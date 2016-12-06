@@ -54,6 +54,7 @@
 #define VFE_0_GLOBAL_RESET_CMD_TESTGEN	(1 << 8)
 
 #define VFE_0_MODULE_CFG		0x018
+#define VFE_0_MODULE_CFG_DEMUX			(1 << 2)
 #define VFE_0_MODULE_CFG_CHROMA_UPSAMPLE	(1 << 3)
 
 #define VFE_0_CORE_CFG			0x01c
@@ -167,6 +168,12 @@
 #define VFE_0_REG_UPDATE_RDIn(n)		(1 << (1 + (n)))
 #define VFE_0_REG_UPDATE_line_n(n)		\
 			((n) == VFE_LINE_PIX ? 1 : VFE_0_REG_UPDATE_RDIn(n))
+
+#define VFE_0_DEMUX_CFG				0x424
+#define VFE_0_DEMUX_GAIN_0			0x428
+#define VFE_0_DEMUX_GAIN_1			0x42c
+#define VFE_0_DEMUX_EVEN_CFG			0x438
+#define VFE_0_DEMUX_ODD_CFG			0x43c
 
 #define VFE_0_CGC_OVERRIDE_1			0x974
 #define VFE_0_CGC_OVERRIDE_1_IMAGE_Mx_CGC_OVERRIDE(x)	(1 << (x))
@@ -518,6 +525,38 @@ static void vfe_enable_irq_common(struct vfe_device *vfe)
 	vfe_reg_set(vfe, VFE_0_IRQ_MASK_1, irq_en1);
 }
 
+static void vfe_set_demux_cfg(struct vfe_device *vfe, struct vfe_line *line)
+{
+	u32 even_cfg, odd_cfg;
+
+	writel_relaxed(0x3, vfe->base + VFE_0_DEMUX_CFG);
+	writel_relaxed(0x800080, vfe->base + VFE_0_DEMUX_GAIN_0);
+	writel_relaxed(0x800080, vfe->base + VFE_0_DEMUX_GAIN_1);
+
+	switch (line->fmt[MSM_VFE_PAD_SINK].code) {
+	case MEDIA_BUS_FMT_YUYV8_2X8:
+		even_cfg = 0x9cac;
+		odd_cfg = 0x9cac;
+		break;
+	case MEDIA_BUS_FMT_YVYU8_2X8:
+		even_cfg = 0xac9c;
+		odd_cfg = 0xac9c;
+		break;
+	case MEDIA_BUS_FMT_UYVY8_2X8:
+	default:
+		even_cfg = 0xc9ca;
+		odd_cfg = 0xc9ca;
+		break;
+	case MEDIA_BUS_FMT_VYUY8_2X8:
+		even_cfg = 0xcac9;
+		odd_cfg = 0xcac9;
+		break;
+	}
+
+	writel_relaxed(even_cfg, vfe->base + VFE_0_DEMUX_EVEN_CFG);
+	writel_relaxed(odd_cfg, vfe->base + VFE_0_DEMUX_ODD_CFG);
+}
+
 /*
  * vfe_reset - Trigger reset on VFE module and wait to complete
  * @vfe: VFE device
@@ -623,7 +662,8 @@ static void vfe_set_cgc_override(struct vfe_device *vfe, u8 wm, u8 enable)
 
 static void vfe_set_module_cfg(struct vfe_device *vfe, u8 enable)
 {
-	u32 val = VFE_0_MODULE_CFG_CHROMA_UPSAMPLE;
+	u32 val = VFE_0_MODULE_CFG_DEMUX |
+		  VFE_0_MODULE_CFG_CHROMA_UPSAMPLE;
 
 	if (enable)
 		writel_relaxed(val, vfe->base + VFE_0_MODULE_CFG);
@@ -1085,6 +1125,7 @@ static int vfe_enable_output(struct vfe_line *line)
 		vfe_set_module_cfg(vfe, 1);
 		vfe_set_camif_cfg(vfe, line);
 		vfe_set_xbar_cfg(vfe, output, 1);
+		vfe_set_demux_cfg(vfe, line);
 		vfe_set_camif_cmd(vfe, VFE_0_CAMIF_CMD_ENABLE_FRAME_BOUNDARY);
 	}
 
