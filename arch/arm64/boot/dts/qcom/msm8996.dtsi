@@ -870,6 +870,14 @@
 					qcom,gpu-freq = <27000000>;
 				};
 			};
+
+			qcom,zap-shader {
+				compatible = "qcom,zap-shader";
+				memory-region = <&peripheral_reserved>;
+
+				qcom,firmware = "a530_zap";
+				qcom,pas-id = <13>;
+			};
 		};
 
 		mdp_smmu: arm,smmu@d00000 {
