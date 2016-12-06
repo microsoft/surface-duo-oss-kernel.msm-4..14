@@ -93,9 +93,11 @@
 #define VFE_0_IRQ_STATUS_0_IMAGE_COMPOSITE_DONE_n(n)	(1 << ((n) + 25))
 #define VFE_0_IRQ_STATUS_0_RESET_ACK			(1 << 31)
 #define VFE_0_IRQ_STATUS_1		0x03c
+#define VFE_0_IRQ_STATUS_1_VIOLATION			(1 << 7)
 #define VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK		(1 << 8)
 
 #define VFE_0_IRQ_COMPOSITE_MASK_0	0x40
+#define VFE_0_VIOLATION_STATUS		0x48
 
 #define VFE_0_BUS_CMD			0x4c
 #define VFE_0_BUS_CMD_Mx_RLD_CMD(x)	(1 << (x))
@@ -1453,6 +1455,7 @@ static irqreturn_t vfe_isr(int irq, void *dev)
 {
 	struct vfe_device *vfe = dev;
 	u32 value0, value1;
+	u32 violation;
 	int i, j;
 
 	value0 = readl_relaxed(vfe->base + VFE_0_IRQ_STATUS_0);
@@ -1466,6 +1469,12 @@ static irqreturn_t vfe_isr(int irq, void *dev)
 
 	if (value0 & VFE_0_IRQ_STATUS_0_RESET_ACK)
 		complete(&vfe->reset_complete);
+
+	if (value1 & VFE_0_IRQ_STATUS_1_VIOLATION) {
+		violation = readl_relaxed(vfe->base + VFE_0_VIOLATION_STATUS);
+		dev_err_ratelimited(to_device(vfe),
+				    "VFE: violation = 0x%08x\n", violation);
+	}
 
 	if (value1 & VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK) {
 		complete(&vfe->halt_complete);
