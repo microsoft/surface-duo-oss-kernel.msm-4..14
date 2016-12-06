@@ -90,11 +90,11 @@ static struct resources_ispif ispif_res = {
 static struct resources vfe_res = {
 	/* VFE0 */
 	.regulator = { NULL },
-	.clock = { "camss_top_ahb_clk", "vfe_clk_src", "camss_vfe_vfe_clk",
-		   "camss_csi_vfe_clk", "iface_clk", "bus_clk",
-		   "camss_ahb_clk" },
-	.clock_rate = { 0, 320000000, 0, 0, 0, 0, 0, 0, 0 },
-	.reg = { "vfe0", "vfe0_vbif" },
+	.clock = { "camss_top_ahb_clk", "camss_vfe_vfe_clk",
+		   "camss_csi_vfe_clk", "iface_clk",
+		   "bus_clk", "camss_ahb_clk" },
+	.clock_rate = { 0, 320000000, 0, 0, 0, 0, 0, 0 },
+	.reg = { "vfe0" },
 	.interrupt = { "vfe0" }
 };
 
@@ -755,7 +755,7 @@ static int camss_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id camss_dt_match[] = {
-	{ .compatible = "qcom,msm-camss" },
+	{ .compatible = "qcom,8x16-camss" },
 	{ }
 };
 

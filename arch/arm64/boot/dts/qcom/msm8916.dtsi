@@ -957,9 +957,8 @@
 		ranges = <0 0 0 0xffffffff>;
 		dma-ranges = <0x40000000 0 0x40000000 0xc0000000>;
 
-		camss: camss@0 {
-			compatible = "qcom,msm-camss";
-
+		camss: camss@1b00000 {
+			compatible = "qcom,8x16-camss";
 			reg = <0x1b0ac00 0x200>,
 				<0x1b00030 0x4>,
 				<0x1b0b000 0x200>,
@@ -968,8 +967,7 @@
 				<0x1b08400 0x100>,
 				<0x1b0a000 0x500>,
 				<0x1b00020 0x10>,
-				<0x1b10000 0x1000>,
-				<0x1b40000 0x200>;
+				<0x1b10000 0x1000>;
 			reg-names = "csiphy0",
 				"csiphy0_clk_mux",
 				"csiphy1",
@@ -978,8 +976,7 @@
 				"csid1",
 				"ispif",
 				"csi_clk_mux",
-				"vfe0",
-				"vfe0_vbif";
+				"vfe0";
 			interrupts = <GIC_SPI 78 0>,
 				<GIC_SPI 79 0>,
 				<GIC_SPI 51 0>,
@@ -995,58 +992,44 @@
 			power-domains = <&gcc VFE_GDSC>;
 			clocks = <&gcc GCC_CAMSS_TOP_AHB_CLK>,
 				<&gcc GCC_CAMSS_ISPIF_AHB_CLK>,
-				<&gcc CSI0PHYTIMER_CLK_SRC>,
 				<&gcc GCC_CAMSS_CSI0PHYTIMER_CLK>,
-				<&gcc CSI1PHYTIMER_CLK_SRC>,
 				<&gcc GCC_CAMSS_CSI1PHYTIMER_CLK>,
-				<&gcc CAMSS_AHB_CLK_SRC>,
 				<&gcc GCC_CAMSS_CSI0_AHB_CLK>,
-				<&gcc CSI0_CLK_SRC>,
 				<&gcc GCC_CAMSS_CSI0_CLK>,
 				<&gcc GCC_CAMSS_CSI0PHY_CLK>,
 				<&gcc GCC_CAMSS_CSI0PIX_CLK>,
 				<&gcc GCC_CAMSS_CSI0RDI_CLK>,
 				<&gcc GCC_CAMSS_CSI1_AHB_CLK>,
-				<&gcc CSI1_CLK_SRC>,
 				<&gcc GCC_CAMSS_CSI1_CLK>,
 				<&gcc GCC_CAMSS_CSI1PHY_CLK>,
 				<&gcc GCC_CAMSS_CSI1PIX_CLK>,
 				<&gcc GCC_CAMSS_CSI1RDI_CLK>,
 				<&gcc GCC_CAMSS_AHB_CLK>,
-				<&gcc VFE0_CLK_SRC>,
 				<&gcc GCC_CAMSS_VFE0_CLK>,
 				<&gcc GCC_CAMSS_CSI_VFE0_CLK>,
 				<&gcc GCC_CAMSS_VFE_AHB_CLK>,
 				<&gcc GCC_CAMSS_VFE_AXI_CLK>;
 			clock-names = "camss_top_ahb_clk",
 				"ispif_ahb_clk",
-				"csiphy0_timer_src_clk",
 				"csiphy0_timer_clk",
-				"csiphy1_timer_src_clk",
 				"csiphy1_timer_clk",
-				"camss_ahb_src",
 				"csi0_ahb_clk",
-				"csi0_src_clk",
 				"csi0_clk",
 				"csi0_phy_clk",
 				"csi0_pix_clk",
 				"csi0_rdi_clk",
 				"csi1_ahb_clk",
-				"csi1_src_clk",
 				"csi1_clk",
 				"csi1_phy_clk",
 				"csi1_pix_clk",
 				"csi1_rdi_clk",
 				"camss_ahb_clk",
-				"vfe_clk_src",
 				"camss_vfe_vfe_clk",
 				"camss_csi_vfe_clk",
 				"iface_clk",
 				"bus_clk";
 			vdda-supply = <&pm8916_l2>;
-
 			iommus = <&apps_iommu 3>;
-
 			qcom,msm-bus,name = "msm_camera_isp";
 			qcom,msm-bus,num-cases = <3>;
 			qcom,msm-bus,num-paths = <1>;
@@ -1054,7 +1037,6 @@
 					<29 512 0 0>,
 					<29 512 11000000 11000000>,
 					<29 512 11000 11000>;
-
 			ports {
 				#address-cells = <1>;
 				#size-cells = <0>;
