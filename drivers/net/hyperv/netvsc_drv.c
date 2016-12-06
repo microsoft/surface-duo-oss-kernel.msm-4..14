@@ -40,6 +40,8 @@
 
 #include "hyperv_net.h"
 
+/* Restrict GSO size to account for NVGRE */
+#define NETVSC_GSO_MAX_SIZE	62768
 
 #define RING_SIZE_MIN 64
 #define LINKCHANGE_INT (2 * HZ)
@@ -826,6 +828,7 @@ static int netvsc_set_channels(struct net_device *net,
 		}
 		goto recover;
 	}
+	netif_set_gso_max_size(net, NETVSC_GSO_MAX_SIZE);
 
  out:
 	netvsc_open(net);
