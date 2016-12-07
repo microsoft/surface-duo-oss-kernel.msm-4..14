@@ -56,6 +56,7 @@
 #define VFE_0_MODULE_CFG		0x018
 #define VFE_0_MODULE_CFG_DEMUX			(1 << 2)
 #define VFE_0_MODULE_CFG_CHROMA_UPSAMPLE	(1 << 3)
+#define VFE_0_MODULE_CFG_SCALE_ENC		(1 << 23)
 
 #define VFE_0_CORE_CFG			0x01c
 #define VFE_0_CORE_CFG_PIXEL_PATTERN_YCBYCR	0x4
@@ -174,6 +175,14 @@
 #define VFE_0_DEMUX_GAIN_1			0x42c
 #define VFE_0_DEMUX_EVEN_CFG			0x438
 #define VFE_0_DEMUX_ODD_CFG			0x43c
+
+#define VFE_0_SCALE_ENC_CBCR_CFG		0x778
+#define VFE_0_SCALE_ENC_CBCR_H_IMAGE_SIZE	0x77c
+#define VFE_0_SCALE_ENC_CBCR_H_PHASE		0x780
+#define VFE_0_SCALE_ENC_CBCR_H_PAD		0x78c
+#define VFE_0_SCALE_ENC_CBCR_V_IMAGE_SIZE	0x790
+#define VFE_0_SCALE_ENC_CBCR_V_PHASE		0x794
+#define VFE_0_SCALE_ENC_CBCR_V_PAD		0x7a0
 
 #define VFE_0_CGC_OVERRIDE_1			0x974
 #define VFE_0_CGC_OVERRIDE_1_IMAGE_Mx_CGC_OVERRIDE(x)	(1 << (x))
@@ -557,6 +566,42 @@ static void vfe_set_demux_cfg(struct vfe_device *vfe, struct vfe_line *line)
 	writel_relaxed(odd_cfg, vfe->base + VFE_0_DEMUX_ODD_CFG);
 }
 
+static void vfe_set_scale_cfg(struct vfe_device *vfe, struct vfe_line *line)
+{
+	u32 reg;
+	u16 input, output;
+	u8 interp_reso;
+	u32 phase_mult;
+
+	writel_relaxed(0x3, vfe->base + VFE_0_SCALE_ENC_CBCR_CFG);
+
+	input = line->fmt[MSM_VFE_PAD_SINK].width;
+	output = line->fmt[MSM_VFE_PAD_SRC].width / 2;
+	reg = (output << 16) | input;
+	writel_relaxed(reg, vfe->base + VFE_0_SCALE_ENC_CBCR_H_IMAGE_SIZE);
+
+	interp_reso = 3;
+	phase_mult = input * (1 << (13 + interp_reso)) / output;
+	reg = (interp_reso << 20) | phase_mult;
+	writel_relaxed(reg, vfe->base + VFE_0_SCALE_ENC_CBCR_H_PHASE);
+
+	reg = input;
+	writel_relaxed(reg, vfe->base + VFE_0_SCALE_ENC_CBCR_H_PAD);
+
+	input = line->fmt[MSM_VFE_PAD_SINK].height;
+	output = line->fmt[MSM_VFE_PAD_SRC].height / 2;
+	reg = (output << 16) | input;
+	writel_relaxed(reg, vfe->base + VFE_0_SCALE_ENC_CBCR_V_IMAGE_SIZE);
+
+	interp_reso = 3;
+	phase_mult = input * (1 << (13 + interp_reso)) / output;
+	reg = (interp_reso << 20) | phase_mult;
+	writel_relaxed(reg, vfe->base + VFE_0_SCALE_ENC_CBCR_V_PHASE);
+
+	reg = input;
+	writel_relaxed(reg, vfe->base + VFE_0_SCALE_ENC_CBCR_V_PAD);
+}
+
 /*
  * vfe_reset - Trigger reset on VFE module and wait to complete
  * @vfe: VFE device
@@ -663,7 +708,8 @@ static void vfe_set_cgc_override(struct vfe_device *vfe, u8 wm, u8 enable)
 static void vfe_set_module_cfg(struct vfe_device *vfe, u8 enable)
 {
 	u32 val = VFE_0_MODULE_CFG_DEMUX |
-		  VFE_0_MODULE_CFG_CHROMA_UPSAMPLE;
+		  VFE_0_MODULE_CFG_CHROMA_UPSAMPLE |
+		  VFE_0_MODULE_CFG_SCALE_ENC;
 
 	if (enable)
 		writel_relaxed(val, vfe->base + VFE_0_MODULE_CFG);
@@ -1126,6 +1172,7 @@ static int vfe_enable_output(struct vfe_line *line)
 		vfe_set_camif_cfg(vfe, line);
 		vfe_set_xbar_cfg(vfe, output, 1);
 		vfe_set_demux_cfg(vfe, line);
+		vfe_set_scale_cfg(vfe, line);
 		vfe_set_camif_cmd(vfe, VFE_0_CAMIF_CMD_ENABLE_FRAME_BOUNDARY);
 	}
 
