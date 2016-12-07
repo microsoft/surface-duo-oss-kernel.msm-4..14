@@ -108,6 +108,8 @@
 
 #define VFE_0_BUS_IMAGE_MASTER_n_WR_UB_CFG(n)		(0x07c + 0x24 * (n))
 #define VFE_0_BUS_IMAGE_MASTER_n_WR_UB_CFG_OFFSET_SHIFT	16
+#define VFE_0_BUS_IMAGE_MASTER_n_WR_IMAGE_SIZE(n)	(0x080 + 0x24 * (n))
+#define VFE_0_BUS_IMAGE_MASTER_n_WR_BUFFER_CFG(n)	(0x084 + 0x24 * (n))
 #define VFE_0_BUS_IMAGE_MASTER_n_WR_FRAMEDROP_PATTERN(n)	\
 							(0x088 + 0x24 * (n))
 #define VFE_0_BUS_IMAGE_MASTER_n_WR_IRQ_SUBSAMPLE_PATTERN(n)	\
@@ -222,6 +224,28 @@ static void vfe_wm_frame_based(struct vfe_device *vfe, u8 wm, u8 enable)
 			1 << VFE_0_BUS_IMAGE_MASTER_n_WR_CFG_FRM_BASED_SHIFT);
 }
 
+static void vfe_wm_line_based(struct vfe_device *vfe, u32 wm,
+			      u16 width, u16 height, u32 enable)
+{
+	u32 reg;
+
+	if (enable) {
+		reg = height - 1;
+		reg |= (width / 16 - 1) << 16;
+
+		writel_relaxed(reg, vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_IMAGE_SIZE(wm));
+
+		reg = 0x3;
+		reg |= (height - 1) << 4;
+		reg |= (width / 8) << 16;
+
+		writel_relaxed(reg, vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_BUFFER_CFG(wm));
+	} else {
+		writel_relaxed(0, vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_IMAGE_SIZE(wm));
+		writel_relaxed(0, vfe->base + VFE_0_BUS_IMAGE_MASTER_n_WR_BUFFER_CFG(wm));
+	}
+}
+
 static void vfe_wm_set_framedrop_period(struct vfe_device *vfe, u8 wm, u8 per)
 {
 	u32 reg;
@@ -325,7 +349,10 @@ static void vfe_bus_connect_wm_to_rdi(struct vfe_device *vfe, u8 wm,
 		reg <<= 16;
 
 	vfe_reg_set(vfe, VFE_0_BUS_XBAR_CFG_x(wm), reg);
+}
 
+static void vfe_wm_set_subsample(struct vfe_device *vfe, u8 wm)
+{
 	writel_relaxed(VFE_0_BUS_IMAGE_MASTER_n_WR_IRQ_SUBSAMPLE_PATTERN_DEF,
 	       vfe->base +
 	       VFE_0_BUS_IMAGE_MASTER_n_WR_IRQ_SUBSAMPLE_PATTERN(wm));
@@ -846,6 +873,7 @@ static int vfe_enable_output(struct vfe_line *line)
 	struct vfe_device *vfe = to_vfe(line);
 	struct vfe_output *output = &line->output;
 	unsigned long flags;
+	unsigned int i;
 	u16 ub_size;
 
 	switch (vfe->id) {
@@ -907,6 +935,7 @@ static int vfe_enable_output(struct vfe_line *line)
 		vfe_set_cgc_override(vfe, output->wm_idx[0], 1);
 		vfe_enable_irq_wm_line(vfe, output->wm_idx[0], line->id, 1);
 		vfe_bus_connect_wm_to_rdi(vfe, output->wm_idx[0], line->id);
+		vfe_wm_set_subsample(vfe, output->wm_idx[0]);
 		vfe_set_rdi_cid(vfe, line->id, 0);
 		vfe_wm_set_ub_cfg(vfe, output->wm_idx[0],
 				  (ub_size + 1) * output->wm_idx[0], ub_size);
@@ -914,6 +943,26 @@ static int vfe_enable_output(struct vfe_line *line)
 		vfe_wm_enable(vfe, output->wm_idx[0], 1);
 		vfe_bus_reload_wm(vfe, output->wm_idx[0]);
 	} else {
+		ub_size /= output->wm_num;
+		for (i = 0; i < output->wm_num; i++) {
+			vfe_set_cgc_override(vfe, output->wm_idx[i], 1);
+			vfe_wm_set_subsample(vfe, output->wm_idx[i]);
+			vfe_wm_set_ub_cfg(vfe, output->wm_idx[i],
+					  (ub_size + 1) * output->wm_idx[i],
+					  ub_size);
+			if (i == 0)
+				vfe_wm_line_based(vfe, output->wm_idx[i],
+						  line->fmt[MSM_VFE_PAD_SRC].width,
+						  line->fmt[MSM_VFE_PAD_SRC].height,
+						  1);
+			else if (i == 1)
+				vfe_wm_line_based(vfe, output->wm_idx[i],
+						  line->fmt[MSM_VFE_PAD_SRC].width,
+						  line->fmt[MSM_VFE_PAD_SRC].height / 2,
+						  1);
+			vfe_wm_enable(vfe, output->wm_idx[i], 1);
+			vfe_bus_reload_wm(vfe, output->wm_idx[i]);
+		}
 		vfe_enable_irq_pix_line(vfe, 0, line->id, 1);
 	}
 
