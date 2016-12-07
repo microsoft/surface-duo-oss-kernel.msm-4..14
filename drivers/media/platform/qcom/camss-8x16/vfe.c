@@ -369,36 +369,29 @@ static void vfe_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
 }
 
 static void vfe_enable_irq_wm_line(struct vfe_device *vfe, u8 wm,
-				   enum vfe_line_id line_id, u8 enable) {
-	u32 irq_en0 = readl_relaxed(vfe->base + VFE_0_IRQ_MASK_0);
-	u32 irq_en1 = readl_relaxed(vfe->base + VFE_0_IRQ_MASK_1);
+				   enum vfe_line_id line_id, u8 enable)
+{
+	u32 irq_en0 = VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(wm) |
+		      VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(line_id);
+	u32 irq_en1 = VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(wm);
 
 	if (enable) {
-		irq_en0 |= VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(wm);
-		irq_en0 |= VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(line_id);
-		irq_en1 |= VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(wm);
+		vfe_reg_set(vfe, VFE_0_IRQ_MASK_0, irq_en0);
+		vfe_reg_set(vfe, VFE_0_IRQ_MASK_1, irq_en1);
 	} else {
-		irq_en0 &= ~VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(wm);
-		irq_en0 &= ~VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(line_id);
-		irq_en1 &= ~VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(wm);
+		vfe_reg_clr(vfe, VFE_0_IRQ_MASK_0, irq_en0);
+		vfe_reg_clr(vfe, VFE_0_IRQ_MASK_1, irq_en1);
 	}
-
-	writel_relaxed(irq_en0, vfe->base + VFE_0_IRQ_MASK_0);
-	writel_relaxed(irq_en1, vfe->base + VFE_0_IRQ_MASK_1);
 }
 
 static void vfe_enable_irq_common(struct vfe_device *vfe)
 {
-	u32 irq_en0 = readl_relaxed(vfe->base + VFE_0_IRQ_MASK_0);
-	u32 irq_en1 = readl_relaxed(vfe->base + VFE_0_IRQ_MASK_1);
+	u32 irq_en0 = VFE_0_IRQ_MASK_0_RESET_ACK;
+	u32 irq_en1 = VFE_0_IRQ_MASK_1_VIOLATION |
+		      VFE_0_IRQ_MASK_1_BUS_BDG_HALT_ACK;
 
-	irq_en0 |= VFE_0_IRQ_MASK_0_RESET_ACK;
-
-	irq_en1 |= VFE_0_IRQ_MASK_1_VIOLATION;
-	irq_en1 |= VFE_0_IRQ_MASK_1_BUS_BDG_HALT_ACK;
-
-	writel(irq_en0, vfe->base + VFE_0_IRQ_MASK_0);
-	writel(irq_en1, vfe->base + VFE_0_IRQ_MASK_1);
+	vfe_reg_set(vfe, VFE_0_IRQ_MASK_0, irq_en0);
+	vfe_reg_set(vfe, VFE_0_IRQ_MASK_1, irq_en1);
 }
 
 /*
