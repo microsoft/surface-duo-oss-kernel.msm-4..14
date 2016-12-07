@@ -184,6 +184,9 @@
 #define VFE_0_SCALE_ENC_CBCR_V_PHASE		0x794
 #define VFE_0_SCALE_ENC_CBCR_V_PAD		0x7a0
 
+#define VFE_0_CLAMP_ENC_MAX_CFG			0x874
+#define VFE_0_CLAMP_ENC_MIN_CFG			0x878
+
 #define VFE_0_CGC_OVERRIDE_1			0x974
 #define VFE_0_CGC_OVERRIDE_1_IMAGE_Mx_CGC_OVERRIDE(x)	(1 << (x))
 
@@ -600,6 +603,12 @@ static void vfe_set_scale_cfg(struct vfe_device *vfe, struct vfe_line *line)
 
 	reg = input;
 	writel_relaxed(reg, vfe->base + VFE_0_SCALE_ENC_CBCR_V_PAD);
+}
+
+static void vfe_set_clamp_cfg(struct vfe_device *vfe)
+{
+	writel_relaxed(0x00ffffff, vfe->base + VFE_0_CLAMP_ENC_MAX_CFG);
+	writel_relaxed(0x0, vfe->base + VFE_0_CLAMP_ENC_MIN_CFG);
 }
 
 /*
@@ -1173,6 +1182,7 @@ static int vfe_enable_output(struct vfe_line *line)
 		vfe_set_xbar_cfg(vfe, output, 1);
 		vfe_set_demux_cfg(vfe, line);
 		vfe_set_scale_cfg(vfe, line);
+		vfe_set_clamp_cfg(vfe);
 		vfe_set_camif_cmd(vfe, VFE_0_CAMIF_CMD_ENABLE_FRAME_BOUNDARY);
 	}
 
