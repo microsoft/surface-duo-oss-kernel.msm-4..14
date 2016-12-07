@@ -19,6 +19,7 @@
 #include <linux/completion.h>
 #include <linux/interrupt.h>
 #include <linux/iommu.h>
+#include <linux/iopoll.h>
 #include <linux/msm-bus.h>
 #include <linux/mutex.h>
 #include <linux/of.h>
@@ -81,11 +82,13 @@
 #define VFE_0_IRQ_MASK_1_VIOLATION			(1 << 7)
 #define VFE_0_IRQ_MASK_1_BUS_BDG_HALT_ACK		(1 << 8)
 #define VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(n)	(1 << ((n) + 9))
+#define VFE_0_IRQ_MASK_1_RDIn_SOF(n)			(1 << ((n) + 29))
 
 #define VFE_0_IRQ_CLEAR_0		0x030
 #define VFE_0_IRQ_CLEAR_1		0x034
 
 #define VFE_0_IRQ_STATUS_0		0x038
+#define VFE_0_IRQ_STATUS_0_CAMIF_SOF			(1 << 0)
 #define VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(n)		(1 << ((n) + 5))
 #define VFE_0_IRQ_STATUS_0_line_n_REG_UPDATE(n)		\
 	((n) == VFE_LINE_PIX ? (1 << 4) : VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(n))
@@ -95,6 +98,7 @@
 #define VFE_0_IRQ_STATUS_1		0x03c
 #define VFE_0_IRQ_STATUS_1_VIOLATION			(1 << 7)
 #define VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK		(1 << 8)
+#define VFE_0_IRQ_STATUS_1_RDIn_SOF(n)			(1 << ((n) + 29))
 
 #define VFE_0_IRQ_COMPOSITE_MASK_0	0x40
 #define VFE_0_VIOLATION_STATUS		0x48
@@ -166,6 +170,8 @@
 #define VFE_0_CAMIF_WINDOW_HEIGHT_CFG		0x308
 #define VFE_0_CAMIF_SUBSAMPLE_CFG_0		0x30c
 #define VFE_0_CAMIF_IRQ_SUBSAMPLE_PATTERN	0x314
+#define VFE_0_CAMIF_STATUS			0x31c
+#define VFE_0_CAMIF_STATUS_HALT			(1 << 31)
 
 #define VFE_0_REG_UPDATE			0x378
 #define VFE_0_REG_UPDATE_RDIn(n)		(1 << (1 + (n)))
@@ -200,6 +206,11 @@
 #define VFE_FRAME_DROP_UPDATES 5
 /* Frame drop value. NOTE: VAL + UPDATES should not exceed 31 */
 #define VFE_FRAME_DROP_VAL 20
+
+#define VFE_NEXT_SOF_MS 500
+
+#define CAMIF_TIMEOUT_SLEEP_US 1000
+#define CAMIF_TIMEOUT_ALL_US 1000000
 
 static const u32 vfe_formats[] = {
 	MEDIA_BUS_FMT_UYVY8_2X8,
@@ -488,7 +499,8 @@ static void vfe_enable_irq_wm_line(struct vfe_device *vfe, u8 wm,
 {
 	u32 irq_en0 = VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(wm) |
 		      VFE_0_IRQ_MASK_0_line_n_REG_UPDATE(line_id);
-	u32 irq_en1 = VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(wm);
+	u32 irq_en1 = VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(wm) |
+		      VFE_0_IRQ_MASK_1_RDIn_SOF(line_id);
 
 	if (enable) {
 		vfe_reg_set(vfe, VFE_0_IRQ_MASK_0, irq_en0);
@@ -779,6 +791,22 @@ static void vfe_set_camif_cmd(struct vfe_device *vfe, u32 cmd)
 		       vfe->base + VFE_0_CAMIF_CMD);
 
 	writel_relaxed(cmd, vfe->base + VFE_0_CAMIF_CMD);
+}
+
+static int vfe_camif_wait_for_stop(struct vfe_device *vfe)
+{
+	u32 val;
+	int ret;
+
+	ret = readl_poll_timeout(vfe->base + VFE_0_CAMIF_STATUS,
+				 val,
+				 (val & VFE_0_CAMIF_STATUS_HALT),
+				 CAMIF_TIMEOUT_SLEEP_US,
+				 CAMIF_TIMEOUT_ALL_US);
+	if (ret < 0)
+		dev_err(to_device(vfe), "%s: camif stop timeout\n", __func__);
+
+	return ret;
 }
 
 static void vfe_output_init_addrs(struct vfe_device *vfe,
@@ -1143,6 +1171,10 @@ static int vfe_enable_output(struct vfe_line *line)
 	}
 
 	output->sequence = 0;
+	output->wait_sof = 0;
+	output->wait_reg_update = 0;
+	reinit_completion(&output->sof);
+	reinit_completion(&output->reg_update);
 
 	vfe_output_init_addrs(vfe, output, 0);
 
@@ -1200,16 +1232,55 @@ static int vfe_disable_output(struct vfe_line *line)
 	struct vfe_device *vfe = to_vfe(line);
 	struct vfe_output *output = &line->output;
 	unsigned long flags;
+	unsigned long time;
+	unsigned int i;
+
+	spin_lock_irqsave(&vfe->output_lock, flags);
+
+	output->wait_sof = 1;
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
+
+	time = wait_for_completion_timeout(&output->sof,
+					   msecs_to_jiffies(VFE_NEXT_SOF_MS));
+	if (!time)
+		dev_err(to_device(vfe), "VFE sof timeout\n");
+
+	spin_lock_irqsave(&vfe->output_lock, flags);
+	for (i = 0; i < output->wm_num; i++)
+		vfe_wm_enable(vfe, output->wm_idx[i], 0);
+
+	vfe_reg_update(vfe, line->id);
+	output->wait_reg_update = 1;
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
+
+	time = wait_for_completion_timeout(&output->reg_update,
+					   msecs_to_jiffies(VFE_NEXT_SOF_MS));
+	if (!time)
+		dev_err(to_device(vfe), "VFE reg update timeout\n");
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
 	if (line->id != VFE_LINE_PIX) {
-		vfe_wm_enable(vfe, output->wm_idx[0], 0);
+		vfe_wm_frame_based(vfe, output->wm_idx[0], 0);
 		vfe_bus_disconnect_wm_from_rdi(vfe, output->wm_idx[0], line->id);
-	}
-	vfe_reg_update(vfe, line->id);
+		vfe_enable_irq_wm_line(vfe, output->wm_idx[0], line->id, 0);
+		vfe_set_cgc_override(vfe, output->wm_idx[0], 0);
+		spin_unlock_irqrestore(&vfe->output_lock, flags);
+	} else {
+		for (i = 0; i < output->wm_num; i++) {
+			vfe_wm_line_based(vfe, output->wm_idx[i], 0, 0, 0);
+			vfe_set_cgc_override(vfe, output->wm_idx[i], 0);
+		}
 
-	spin_unlock_irqrestore(&vfe->output_lock, flags);
+		vfe_enable_irq_pix_line(vfe, 0, line->id, 0);
+		vfe_set_module_cfg(vfe, 0);
+		vfe_set_xbar_cfg(vfe, output, 0);
+
+		vfe_set_camif_cmd(vfe, VFE_0_CAMIF_CMD_DISABLE_FRAME_BOUNDARY);
+		spin_unlock_irqrestore(&vfe->output_lock, flags);
+
+		vfe_camif_wait_for_stop(vfe);
+	}
 
 	return 0;
 }
@@ -1278,6 +1349,10 @@ static int vfe_disable(struct vfe_line *line)
 {
 	struct vfe_device *vfe = to_vfe(line);
 
+	vfe_disable_output(line);
+
+	vfe_put_output(line);
+
 	mutex_lock(&vfe->stream_lock);
 
 	if (vfe->stream_count == 1)
@@ -1287,11 +1362,26 @@ static int vfe_disable(struct vfe_line *line)
 
 	mutex_unlock(&vfe->stream_lock);
 
-	vfe_disable_output(line);
-
-	vfe_put_output(line);
-
 	return 0;
+}
+
+/*
+ * vfe_isr_sof - Process start of frame interrupt
+ * @vfe: VFE Device
+ * @line_id: VFE line
+ */
+static void vfe_isr_sof(struct vfe_device *vfe, enum vfe_line_id line_id)
+{
+	struct vfe_output *output;
+	unsigned long flags;
+
+	spin_lock_irqsave(&vfe->output_lock, flags);
+	output = &vfe->line[line_id].output;
+	if (output->wait_sof) {
+		output->wait_sof = 0;
+		complete(&output->sof);
+	}
+	spin_unlock_irqrestore(&vfe->output_lock, flags);
 }
 
 /*
@@ -1308,6 +1398,14 @@ static void vfe_isr_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
 	vfe->reg_update &= ~VFE_0_REG_UPDATE_line_n(line_id);
 
 	output = &vfe->line[line_id].output;
+
+	if (output->wait_reg_update) {
+		output->wait_reg_update = 0;
+		complete(&output->reg_update);
+		spin_unlock_irqrestore(&vfe->output_lock, flags);
+		return;
+	}
+
 	if (output->state == VFE_OUTPUT_STOPPING) {
 		/* Release last buffer when hw is idle */
 		if (output->last_buffer) {
@@ -1484,6 +1582,13 @@ static irqreturn_t vfe_isr(int irq, void *dev)
 	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++)
 		if (value0 & VFE_0_IRQ_STATUS_0_line_n_REG_UPDATE(i))
 			vfe_isr_reg_update(vfe, i);
+
+	if (value0 & VFE_0_IRQ_STATUS_0_CAMIF_SOF)
+		vfe_isr_sof(vfe, VFE_LINE_PIX);
+
+	for (i = VFE_LINE_RDI0; i <= VFE_LINE_RDI2; i++)
+		if (value1 & VFE_0_IRQ_STATUS_1_RDIn_SOF(i))
+			vfe_isr_sof(vfe, i);
 
 	for (i = 0; i < MSM_VFE_COMPOSITE_IRQ_NUM; i++)
 		if (value0 & VFE_0_IRQ_STATUS_0_IMAGE_COMPOSITE_DONE_n(i)) {
@@ -2031,6 +2136,8 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 					V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 		vfe->line[i].video_out.camss = camss;
 		vfe->line[i].id = i;
+		init_completion(&vfe->line[i].output.sof);
+		init_completion(&vfe->line[i].output.reg_update);
 	}
 
 	/* Memory */
@@ -2100,7 +2207,6 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 
 	init_completion(&vfe->reset_complete);
 	init_completion(&vfe->halt_complete);
-
 
 	return 0;
 }

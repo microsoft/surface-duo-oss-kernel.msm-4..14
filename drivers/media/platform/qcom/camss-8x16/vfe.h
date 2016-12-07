@@ -69,6 +69,10 @@ struct vfe_output {
 
 	enum vfe_output_state state;
 	unsigned int sequence;
+	int wait_sof;
+	int wait_reg_update;
+	struct completion sof;
+	struct completion reg_update;
 };
 
 struct vfe_line {
