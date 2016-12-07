@@ -66,8 +66,6 @@ firmware:       brcm/brcmfmac4330-sdio.bin
 firmware:       brcm/brcmfmac4330-sdio.txt
 firmware:       brcm/brcmfmac43340-sdio.bin
 firmware:       brcm/brcmfmac43340-sdio.txt
-firmware:       brcm/brcmfmac43341-sdio.bin
-firmware:       brcm/brcmfmac43341-sdio.txt
 firmware:       brcm/brcmfmac4334-sdio.bin
 firmware:       brcm/brcmfmac4334-sdio.txt
 firmware:       brcm/brcmfmac4335-sdio.bin
