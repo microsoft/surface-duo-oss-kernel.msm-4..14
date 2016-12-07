@@ -10,3 +10,5 @@ uhci-hcd ?
 xhci-hcd ?
 ehci-tegra ?
 ehci-msm ?
+uas ?
+xhci-plat-hcd ?
