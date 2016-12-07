@@ -33,6 +33,8 @@ struct msm_mmu_funcs {
 struct msm_mmu {
 	const struct msm_mmu_funcs *funcs;
 	struct device *dev;
+	int (*handler)(void *arg, unsigned long iova, int flags);
+	void *arg;
 };
 
 static inline void msm_mmu_init(struct msm_mmu *mmu, struct device *dev,
@@ -53,4 +55,12 @@ static inline struct device *msm_iommu_get_ctx(const char *ctx_name)
 	return NULL;
 }
 #endif
+
+static inline void msm_mmu_set_fault_handler(struct msm_mmu *mmu, void *arg,
+		int (*handler)(void *arg, unsigned long iova, int flags))
+{
+	mmu->arg = arg;
+	mmu->handler = handler;
+}
+
 #endif /* __MSM_MMU_H__ */
