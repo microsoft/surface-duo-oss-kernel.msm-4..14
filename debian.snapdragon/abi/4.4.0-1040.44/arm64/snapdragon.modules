@@ -70,6 +70,9 @@ ad5421
 ad5446
 ad5449
 ad5504
+ad5592r
+ad5592r-base
+ad5593r
 ad5624r_spi
 ad5686
 ad5755
@@ -556,6 +559,7 @@ cls_cgroup
 cls_flow
 cls_flower
 cls_fw
+cls_matchall
 cls_route
 cls_rsvp
 cls_rsvp6
@@ -916,6 +920,7 @@ eeprom_93cx6
 eeprom_93xx46
 eeti_ts
 efi-pstore
+efi_test
 efs
 egalax_ts
 ehset
@@ -1930,6 +1935,7 @@ mag3110
 magellan
 mailbox-altera
 mailbox-test
+mailbox-xgene-slimpro
 mantis
 mantis_core
 map_absent
