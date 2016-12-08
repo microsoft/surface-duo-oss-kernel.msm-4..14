@@ -54,6 +54,9 @@ ad5421
 ad5446
 ad5449
 ad5504
+ad5592r
+ad5592r-base
+ad5593r
 ad5624r_spi
 ad5686
 ad5755
@@ -459,6 +462,7 @@ cls_cgroup
 cls_flow
 cls_flower
 cls_fw
+cls_matchall
 cls_route
 cls_rsvp
 cls_rsvp6
@@ -627,6 +631,7 @@ dp83867
 drbd
 drm
 drm_kms_helper
+drm_mipi_dsi
 drv260x
 drv2665
 drv2667
@@ -1699,6 +1704,7 @@ mdio-gpio
 mdio-mux
 mdio-mux-gpio
 mdio-mux-mmioreg
+mdio-xgene
 media
 memstick
 mena21_wdt
@@ -2022,6 +2028,7 @@ palmas-regulator
 pandora_bl
 panel
 panel-lg-lg4573
+panel-raspberrypi-touchscreen
 panel-samsung-ld9040
 panel-samsung-s6e8aa0
 panel-sharp-lq101r1sx01
@@ -2598,12 +2605,17 @@ snd-seq-virmidi
 snd-serial-u16550
 snd-soc-ac97
 snd-soc-adau1701
+snd-soc-adau1977
+snd-soc-adau1977-adc
+snd-soc-adau1977-i2c
 snd-soc-ak4104
 snd-soc-ak4554
 snd-soc-ak4613
 snd-soc-ak4642
 snd-soc-ak5386
 snd-soc-alc5623
+snd-soc-allo-piano-dac
+snd-soc-audioinjector-pi-soundcard
 snd-soc-bcm2835-i2s
 snd-soc-cs35l32
 snd-soc-cs4265
@@ -2619,6 +2631,8 @@ snd-soc-cs42l73
 snd-soc-cs42xx8
 snd-soc-cs42xx8-i2c
 snd-soc-cs4349
+snd-soc-digidac1-soundcard
+snd-soc-dionaudio-loco
 snd-soc-es8328
 snd-soc-fsl-asrc
 snd-soc-fsl-esai
@@ -2630,6 +2644,9 @@ snd-soc-hifiberry-dac
 snd-soc-hifiberry-dacplus
 snd-soc-hifiberry-digi
 snd-soc-iqaudio-dac
+snd-soc-iqaudio-digi
+snd-soc-justboom-dac
+snd-soc-justboom-digi
 snd-soc-pcm1681
 snd-soc-pcm1792a-codec
 snd-soc-pcm1794a
@@ -2637,6 +2654,7 @@ snd-soc-pcm5102a
 snd-soc-pcm512x
 snd-soc-pcm512x-i2c
 snd-soc-pcm512x-spi
+snd-soc-pisound
 snd-soc-raspidac3
 snd-soc-rpi-dac
 snd-soc-rpi-proto
