@@ -857,7 +857,10 @@
 			 * (820) but they are functionally similar to the 821 in
 			 * the code so we can safely set the chipset as
 			 * patchlevel 4. */
-			qcom,chipid = <0x05030004>;
+			qcom,chipid = <0x05030002>;
+
+			qcom,gpu-quirk-two-pass-use-wfi;
+			qcom,gpu-quirk-fault-detect-mask;
 
 			/* This is a safe speed for bring up in all bin levels.
 			 * This isn't the fastest the chip can go, but we can
@@ -865,7 +868,7 @@
 			qcom,gpu-pwrlevels {
 				compatible = "qcom,gpu-pwrlevels";
 				qcom,gpu-pwrlevel@0 {
-					qcom,gpu-freq = <205000000>;
+					qcom,gpu-freq = <510000000>;
 				};
 				qcom,gpu-pwrlevel@1 {
 					qcom,gpu-freq = <27000000>;
