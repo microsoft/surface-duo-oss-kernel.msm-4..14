@@ -1101,7 +1101,7 @@ static inline bool dwc2_is_hs_iot(struct dwc2_hsotg *hsotg)
  * The following functions support initialization of the core driver component
  * and the DWC_otg controller
  */
-extern int dwc2_core_reset(struct dwc2_hsotg *hsotg);
+extern int dwc2_core_reset(struct dwc2_hsotg *hsotg, bool skip_wait);
 extern int dwc2_core_reset_and_force_dr_mode(struct dwc2_hsotg *hsotg);
 extern int dwc2_enter_hibernation(struct dwc2_hsotg *hsotg);
 extern int dwc2_exit_hibernation(struct dwc2_hsotg *hsotg, bool restore);
