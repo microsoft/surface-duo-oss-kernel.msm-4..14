@@ -26,14 +26,13 @@ obj-$(CONFIG_DRM_I915_BPO)	+= i915/
 ##
 ##
 ##
-##
-##
-##
 obj-$(CONFIG_HIO)             += hio/
 ##
 ##
 ##
+ifeq ($(filter $(ARCH), s390),)
 obj-y				+= xr-usb-serial/
+endif
 ##
 ##
 ##
