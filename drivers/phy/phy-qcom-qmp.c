@@ -159,7 +159,8 @@
 
 #define REFCLK_STABILIZATION_DELAY_US_MIN	1000
 #define REFCLK_STABILIZATION_DELAY_US_MAX	1005
-#define PHY_READY_TIMEOUT_COUNT			10
+#define PHY_COM_READY_TIMEOUT			10
+#define PHY_INIT_COMPLETE_TIMEOUT		1000
 #define POWER_DOWN_DELAY_US_MIN			10
 #define POWER_DOWN_DELAY_US_MAX			11
 
@@ -399,6 +400,7 @@ struct qmp_phy_init_cfg {
 
 	unsigned int mask_start_ctrl;
 	unsigned int mask_pwr_dn_ctrl;
+
 	/* true, if PHY has a separate PHY_COM_CNTRL block */
 	bool has_phy_com_ctrl;
 	/* true, if PHY has a reset for individual lanes */
@@ -613,18 +615,43 @@ static int qcom_qmp_phy_poweroff(struct phy *phy)
 	return 0;
 }
 
-static int qcom_qmp_phy_is_ready(struct qcom_qmp_phy *qphy,
-				void __iomem *pcs_status, u32 mask)
+static int qcom_qmp_phy_com_is_ready(struct qcom_qmp_phy *qphy,
+				void __iomem *status, u32 mask)
 {
-	unsigned int init_timeout;
+	unsigned int init_timeout = PHY_COM_READY_TIMEOUT;
 
-	init_timeout = PHY_READY_TIMEOUT_COUNT;
+	/*
+	 * The PCS ready bit is set to tell when the common PLL
+	 * has been calibrated.
+	 */
 	do {
-		if (readl_relaxed(pcs_status) & mask)
+		if (readl_relaxed(status) & mask)
 			break;
 
 		usleep_range(REFCLK_STABILIZATION_DELAY_US_MIN,
 				 REFCLK_STABILIZATION_DELAY_US_MAX);
+	} while (--init_timeout);
+
+	if (!init_timeout)
+		return -EBUSY;
+
+	return 0;
+}
+
+static int qcom_qmp_phy_is_ready(struct qcom_qmp_phy *qphy,
+				void __iomem *status, u32 mask)
+{
+	unsigned int init_timeout = PHY_INIT_COMPLETE_TIMEOUT;
+
+	/*
+	 * PHY initialization is indicated by bringing the phystatus
+	 * bit of PCS_STATUS register to low.
+	 */
+	do {
+		if (readl_relaxed(status) & mask)
+			usleep_range(1, 2);
+		else
+			break;
 	} while (--init_timeout);
 
 	if (!init_timeout)
@@ -684,9 +711,9 @@ static int qcom_qmp_phy_com_init(struct qcom_qmp_phy *qphy)
 		/* Make sure that above write is completed */
 		mb();
 
-		ret = qcom_qmp_phy_is_ready(qphy, serdes +
-					cfg->regs[QPHY_COM_PCS_READY_STATUS],
-					MASK_COM_PCS_READY);
+		ret = qcom_qmp_phy_com_is_ready(qphy,
+				serdes + cfg->regs[QPHY_COM_PCS_READY_STATUS],
+				MASK_COM_PCS_READY);
 		if (ret) {
 			dev_err(qphy->dev,
 				"common control block init timed-out\n");
@@ -797,12 +824,17 @@ static int qcom_qmp_phy_init(struct phy *phy)
 	/* Make sure that above writes are completed */
 	mb();
 
-	ret = qcom_qmp_phy_is_ready(qphy, pcs +
-					cfg->regs[QPHY_PCS_READY_STATUS],
+	/* TODO: PCIe doesn't reset this bit. Checking only for USB for now.
+	 * Find out about PCIe phystatus check.
+	 */
+	if (!cfg->has_phy_com_ctrl) {
+		ret = qcom_qmp_phy_is_ready(qphy,
+					pcs + cfg->regs[QPHY_PCS_READY_STATUS],
 					MASK_PHYSTATUS);
-	if (ret) {
-		dev_err(qphy->dev, "phy initialization timed-out\n");
-		goto err_pcs_ready;
+		if (ret) {
+			dev_err(qphy->dev, "phy initialization timed-out\n");
+			goto err_pcs_ready;
+		}
 	}
 
 	return 0;
