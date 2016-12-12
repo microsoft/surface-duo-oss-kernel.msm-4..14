@@ -2411,7 +2411,6 @@ EXPORT_SYMBOL vmlinux 0x53326531	mempool_alloc_pages
 EXPORT_SYMBOL vmlinux 0x533cd1b3	nf_log_packet
 EXPORT_SYMBOL vmlinux 0x533eeca3	sk_filter_trim_cap
 EXPORT_SYMBOL vmlinux 0x535ae8b2	netdev_lower_get_next_private
-EXPORT_SYMBOL vmlinux 0x53927371	get_sync_clock
 EXPORT_SYMBOL vmlinux 0x539875c6	inc_zone_page_state
 EXPORT_SYMBOL vmlinux 0x539af73c	__sg_alloc_table
 EXPORT_SYMBOL vmlinux 0x53a35f0e	cdrom_mode_sense
@@ -3802,6 +3801,7 @@ EXPORT_SYMBOL vmlinux 0xb4a3fa23	tcp_filter
 EXPORT_SYMBOL vmlinux 0xb4c1ce3b	dquot_resume
 EXPORT_SYMBOL vmlinux 0xb4d0b87d	netlink_set_err
 EXPORT_SYMBOL vmlinux 0xb4d50a87	param_set_ulong
+EXPORT_SYMBOL vmlinux 0xb4e4f69f	get_phys_clock
 EXPORT_SYMBOL vmlinux 0xb51051a3	get_empty_filp
 EXPORT_SYMBOL vmlinux 0xb518680c	register_service_level
 EXPORT_SYMBOL vmlinux 0xb52f859d	put_page
@@ -8458,7 +8458,6 @@ EXPORT_SYMBOL_GPL vmlinux 0xc705f5dc	probe_kernel_write
 EXPORT_SYMBOL_GPL vmlinux 0xc72e1233	__trace_bprintk
 EXPORT_SYMBOL_GPL vmlinux 0xc7a1840e	llist_add_batch
 EXPORT_SYMBOL_GPL vmlinux 0xc7c6391c	mpi_set_buffer
-EXPORT_SYMBOL_GPL vmlinux 0xc7d0f91e	s390_dma_ops
 EXPORT_SYMBOL_GPL vmlinux 0xc7e39bca	ring_buffer_dropped_events_cpu
 EXPORT_SYMBOL_GPL vmlinux 0xc7ebc38c	class_dev_iter_next
 EXPORT_SYMBOL_GPL vmlinux 0xc7ec2cce	tracepoint_probe_register_prio
@@ -8670,6 +8669,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xdf1d7221	crypto_ahash_type
 EXPORT_SYMBOL_GPL vmlinux 0xdf45a6bf	bitmap_resize
 EXPORT_SYMBOL_GPL vmlinux 0xdf5bf20f	__gmap_zap
 EXPORT_SYMBOL_GPL vmlinux 0xdf6f6979	__mmdrop
+EXPORT_SYMBOL_GPL vmlinux 0xdfaeb9be	s390_dma_ops
 EXPORT_SYMBOL_GPL vmlinux 0xe007de41	kallsyms_lookup_name
 EXPORT_SYMBOL_GPL vmlinux 0xe01ddfd8	seq_release_net
 EXPORT_SYMBOL_GPL vmlinux 0xe02090df	sched_setscheduler_nocheck
