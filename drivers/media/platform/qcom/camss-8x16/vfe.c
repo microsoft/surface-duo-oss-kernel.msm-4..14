@@ -800,10 +800,16 @@ static int vfe_enable_output(struct vfe_line *line)
 	output->state = VFE_OUTPUT_IDLE;
 
 	output->buf[0] = vfe_buf_get_pending(output);
+	output->buf[1] = vfe_buf_get_pending(output);
+
+	if (!output->buf[0] && output->buf[1]) {
+		output->buf[0] = output->buf[1];
+		output->buf[1] = NULL;
+	}
+
 	if (output->buf[0])
 		output->state = VFE_OUTPUT_SINGLE;
 
-	output->buf[1] = vfe_buf_get_pending(output);
 	if (output->buf[1])
 		output->state = VFE_OUTPUT_CONTINUOUS;
 
@@ -972,10 +978,16 @@ static void vfe_isr_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
 		/* dma pending queue, start next capture here */
 
 		output->buf[0] = vfe_buf_get_pending(output);
+		output->buf[1] = vfe_buf_get_pending(output);
+
+		if (!output->buf[0] && output->buf[1]) {
+			output->buf[0] = output->buf[1];
+			output->buf[1] = NULL;
+		}
+
 		if (output->buf[0])
 			output->state = VFE_OUTPUT_SINGLE;
 
-		output->buf[1] = vfe_buf_get_pending(output);
 		if (output->buf[1])
 			output->state = VFE_OUTPUT_CONTINUOUS;
 
