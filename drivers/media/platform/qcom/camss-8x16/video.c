@@ -21,7 +21,7 @@
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-mc.h>
 #include <media/videobuf-core.h>
-#include <media/videobuf2-dma-contig.h>
+#include <media/videobuf2-dma-sg.h>
 
 #include "video.h"
 #include "camss.h"
@@ -167,15 +167,20 @@ static int video_buf_prepare(struct vb2_buffer *vb)
 	struct camss_video *video = vb2_get_drv_priv(vb->vb2_queue);
 	struct camss_buffer *buffer = container_of(vbuf, struct camss_buffer,
 						   vb);
+	struct sg_table *sgt;
 
 	if (video->active_fmt.fmt.pix.sizeimage > vb2_plane_size(vb, 0))
 		return -EINVAL;
 
 	vb2_set_plane_payload(vb, 0, video->active_fmt.fmt.pix.sizeimage);
 
-	vbuf->field = V4L2_FIELD_NONE;
+	sgt = vb2_dma_sg_plane_desc(vb, 0);
+	if (!sgt)
+		return -EFAULT;
 
-	buffer->addr = vb2_dma_contig_plane_dma_addr(vb, 0);
+	buffer->addr = sg_dma_address(sgt->sgl);
+
+	vbuf->field = V4L2_FIELD_NONE;
 
 	return 0;
 }
@@ -543,7 +548,7 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 
 	q = &video->vb2_q;
 	q->drv_priv = video;
-	q->mem_ops = &vb2_dma_contig_memops;
+	q->mem_ops = &vb2_dma_sg_memops;
 	q->ops = &msm_video_vb2_q_ops;
 	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
 	q->io_modes = VB2_DMABUF | VB2_MMAP | VB2_READ;
