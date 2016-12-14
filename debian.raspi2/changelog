@@ -828,7 +828,7 @@ linux-raspi2 (4.4.0-1035.42) xenial; urgency=low
 
  -- Luis Henriques <luis.henriques@canonical.com>  Wed, 07 Dec 2016 17:05:38 +0000
 
-linux-raspi2 (4.4.0-1033.40) xenial; urgency=low
+linux-raspi2 (4.4.0-1034.41) xenial; urgency=low
 
   * CVE-2016-8655 (LP: #1646318)
       - packet: fix race condition in packet_set_ring
