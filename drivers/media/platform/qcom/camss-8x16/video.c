@@ -193,7 +193,7 @@ static int video_queue_setup(struct vb2_queue *q, const void *parg,
 	return 0;
 }
 
-static int video_buf_prepare(struct vb2_buffer *vb)
+static int video_buf_init(struct vb2_buffer *vb)
 {
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct camss_video *video = vb2_get_drv_priv(vb->vb2_queue);
@@ -204,16 +204,28 @@ static int video_buf_prepare(struct vb2_buffer *vb)
 	unsigned int i;
 
 	for (i = 0; i < fmt->fmt.pix_mp.num_planes; i++) {
-		vb2_set_plane_payload(vb, i,
-				      fmt->fmt.pix_mp.plane_fmt[i].sizeimage);
-		if (vb2_get_plane_payload(vb, i) > vb2_plane_size(vb, i))
-			return -EINVAL;
-
 		sgt = vb2_dma_sg_plane_desc(vb, i);
 		if (!sgt)
 			return -EFAULT;
 
 		buffer->addr[i] = sg_dma_address(sgt->sgl);
+	}
+
+	return 0;
+}
+
+static int video_buf_prepare(struct vb2_buffer *vb)
+{
+	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
+	struct camss_video *video = vb2_get_drv_priv(vb->vb2_queue);
+	const struct v4l2_format *fmt = &video->active_fmt;
+	unsigned int i;
+
+	for (i = 0; i < fmt->fmt.pix_mp.num_planes; i++) {
+		vb2_set_plane_payload(vb, i,
+				      fmt->fmt.pix_mp.plane_fmt[i].sizeimage);
+		if (vb2_get_plane_payload(vb, i) > vb2_plane_size(vb, i))
+			return -EINVAL;
 	}
 
 	vbuf->field = V4L2_FIELD_NONE;
@@ -340,6 +352,7 @@ static void video_stop_streaming(struct vb2_queue *q)
 
 static struct vb2_ops msm_video_vb2_q_ops = {
 	.queue_setup     = video_queue_setup,
+	.buf_init        = video_buf_init,
 	.buf_prepare     = video_buf_prepare,
 	.buf_queue       = video_buf_queue,
 	.start_streaming = video_start_streaming,
