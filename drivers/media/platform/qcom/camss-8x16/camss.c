@@ -469,7 +469,7 @@ static int camss_init_subdevices(struct camss *camss)
  */
 static int camss_register_entities(struct camss *camss)
 {
-	unsigned int i, j;
+	int i, j;
 	int ret;
 
 	for (i = 0; i < ARRAY_SIZE(camss->csiphy); i++) {
@@ -590,10 +590,10 @@ static void camss_unregister_entities(struct camss *camss)
 {
 	unsigned int i;
 
-	for (i = ARRAY_SIZE(camss->csiphy) - 1; i >= 0; i--)
+	for (i = 0; i < ARRAY_SIZE(camss->csiphy); i++)
 		msm_csiphy_unregister_entity(&camss->csiphy[i]);
 
-	for (i = ARRAY_SIZE(camss->csid) - 1; i >= 0; i--)
+	for (i = 0; i < ARRAY_SIZE(camss->csid); i++)
 		msm_csid_unregister_entity(&camss->csid[i]);
 
 	msm_ispif_unregister_entities(&camss->ispif);
