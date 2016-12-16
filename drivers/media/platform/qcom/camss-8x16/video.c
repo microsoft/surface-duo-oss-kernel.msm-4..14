@@ -25,6 +25,11 @@
 #include "video.h"
 #include "camss.h"
 
+struct fract {
+	u8 numerator;
+	u8 denominator;
+};
+
 /*
  * struct format_info - ISP media bus format information
  * @code: V4L2 media bus format code
@@ -35,92 +40,129 @@ static const struct format_info {
 	u32 code;
 	u32 pixelformat;
 	u8 planes;
-	u8 hsub[3];
-	u8 vsub[3];
+	struct fract hsub[3];
+	struct fract vsub[3];
 	unsigned int bpp[3];
 } formats[] = {
 	{ MEDIA_BUS_FMT_UYVY8_2X8, V4L2_PIX_FMT_UYVY, 1,
-	  { 1 }, { 1 }, { 16 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 16 } },
 	{ MEDIA_BUS_FMT_VYUY8_2X8, V4L2_PIX_FMT_VYUY, 1,
-	  { 1 }, { 1 }, { 16 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 16 } },
 	{ MEDIA_BUS_FMT_YUYV8_2X8, V4L2_PIX_FMT_YUYV, 1,
-	  { 1 }, { 1 }, { 16 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 16 } },
 	{ MEDIA_BUS_FMT_YVYU8_2X8, V4L2_PIX_FMT_YVYU, 1,
-	  { 1 }, { 1 }, { 16 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 16 } },
 	{ MEDIA_BUS_FMT_SBGGR8_1X8, V4L2_PIX_FMT_SBGGR8, 1,
-	  { 1 }, { 1 }, { 8 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 8 } },
 	{ MEDIA_BUS_FMT_SGBRG8_1X8, V4L2_PIX_FMT_SGBRG8, 1,
-	  { 1 }, { 1 }, { 8 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 8 } },
 	{ MEDIA_BUS_FMT_SGRBG8_1X8, V4L2_PIX_FMT_SGRBG8, 1,
-	  { 1 }, { 1 }, { 8 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 8 } },
 	{ MEDIA_BUS_FMT_SRGGB8_1X8, V4L2_PIX_FMT_SRGGB8, 1,
-	  { 1 }, { 1 }, { 8 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 8 } },
 	{ MEDIA_BUS_FMT_SBGGR10_1X10, V4L2_PIX_FMT_SBGGR10P, 1,
-	  { 1 }, { 1 }, { 10 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 10 } },
 	{ MEDIA_BUS_FMT_SGBRG10_1X10, V4L2_PIX_FMT_SGBRG10P, 1,
-	  { 1 }, { 1 }, { 10 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 10 } },
 	{ MEDIA_BUS_FMT_SGRBG10_1X10, V4L2_PIX_FMT_SGRBG10P, 1,
-	  { 1 }, { 1 }, { 10 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 10 } },
 	{ MEDIA_BUS_FMT_SRGGB10_1X10, V4L2_PIX_FMT_SRGGB10P, 1,
-	  { 1 }, { 1 }, { 10 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 10 } },
 	{ MEDIA_BUS_FMT_SBGGR12_1X12, V4L2_PIX_FMT_SRGGB12P, 1,
-	  { 1 }, { 1 }, { 12 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 12 } },
 	{ MEDIA_BUS_FMT_SGBRG12_1X12, V4L2_PIX_FMT_SGBRG12P, 1,
-	  { 1 }, { 1 }, { 12 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 12 } },
 	{ MEDIA_BUS_FMT_SGRBG12_1X12, V4L2_PIX_FMT_SGRBG12P, 1,
-	  { 1 }, { 1 }, { 12 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 12 } },
 	{ MEDIA_BUS_FMT_SRGGB12_1X12, V4L2_PIX_FMT_SRGGB12P, 1,
-	  { 1 }, { 1 }, { 12 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 12 } },
 	{ MEDIA_BUS_FMT_YUYV8_1_5X8, V4L2_PIX_FMT_NV12M, 2,
-	  { 1, 1 }, { 1, 2 }, { 8, 8 } },
+	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
 	{ MEDIA_BUS_FMT_YVYU8_1_5X8, V4L2_PIX_FMT_NV12M, 2,
-	  { 1, 1 }, { 1, 2 }, { 8, 8 } },
+	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
 	{ MEDIA_BUS_FMT_UYVY8_1_5X8, V4L2_PIX_FMT_NV12M, 2,
-	  { 1, 1 }, { 1, 2 }, { 8, 8 } },
+	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
 	{ MEDIA_BUS_FMT_VYUY8_1_5X8, V4L2_PIX_FMT_NV12M, 2,
-	  { 1, 1 }, { 1, 2 }, { 8, 8 } }
+	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
+	{ MEDIA_BUS_FMT_YUYV8_1_5X8, V4L2_PIX_FMT_NV12, 1,
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
+	{ MEDIA_BUS_FMT_YVYU8_1_5X8, V4L2_PIX_FMT_NV12, 1,
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
+	{ MEDIA_BUS_FMT_UYVY8_1_5X8, V4L2_PIX_FMT_NV12, 1,
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
+	{ MEDIA_BUS_FMT_VYUY8_1_5X8, V4L2_PIX_FMT_NV12, 1,
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
 };
 
 /* -----------------------------------------------------------------------------
  * Helper functions
  */
 
+static int video_find_format(u32 code, u32 pixelformat)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(formats); i++) {
+		if (formats[i].code == code &&
+		    formats[i].pixelformat == pixelformat)
+			return i;
+	}
+
+	for (i = 0; i < ARRAY_SIZE(formats); i++)
+		if (formats[i].code == code)
+			return i;
+
+	WARN_ON(1);
+
+	return -EINVAL;
+}
+
+static int video_find_format_n(u32 code, u32 index)
+{
+	int i;
+	u32 n = 0;
+
+	for (i = 0; i < ARRAY_SIZE(formats); i++)
+		if (formats[i].code == code) {
+			if (n == index)
+				return i;
+			n++;
+		}
+
+	return -EINVAL;
+}
+
 /*
  * video_mbus_to_pix_mp - Convert v4l2_mbus_framefmt to v4l2_pix_format_mplane
- * @mbus: v4l2_mbus_framefmt format (input)
+ * @mbus: v4l2_mbus_framefmt format
  * @pix: v4l2_pix_format_mplane format (output)
+ * @index: index of an entry in formats array to be used for the conversion
  *
  * Fill the output pix structure with information from the input mbus format.
  *
  * Return 0 on success or a negative error code otherwise
  */
-static unsigned int video_mbus_to_pix_mp(const struct v4l2_mbus_framefmt *mbus,
-				      struct v4l2_pix_format_mplane *pix)
+static int video_mbus_to_pix_mp(const struct v4l2_mbus_framefmt *mbus,
+				struct v4l2_pix_format_mplane *pix, int index)
 {
-	unsigned int i, j;
+	const struct format_info *f;
+	unsigned int i;
 	u32 bytesperline;
 
+	f = &formats[index];
 	memset(pix, 0, sizeof(*pix));
 	pix->width = mbus->width;
 	pix->height = mbus->height;
-
-	for (i = 0; i < ARRAY_SIZE(formats); ++i) {
-		if (formats[i].code == mbus->code)
-			break;
-	}
-
-	if (WARN_ON(i == ARRAY_SIZE(formats)))
-		return -EINVAL;
-
-	pix->pixelformat = formats[i].pixelformat;
-	pix->num_planes = formats[i].planes;
-	for (j = 0; j < pix->num_planes; j++) {
-		bytesperline = pix->width / formats[i].hsub[j] *
-				formats[i].bpp[j] / 8;
+	pix->pixelformat = f->pixelformat;
+	pix->num_planes = f->planes;
+	for (i = 0; i < pix->num_planes; i++) {
+		bytesperline = pix->width / f->hsub[i].numerator *
+			f->hsub[i].denominator * f->bpp[i] / 8;
 		bytesperline = ALIGN(bytesperline, 8);
-		pix->plane_fmt[j].bytesperline = bytesperline;
-		pix->plane_fmt[j].sizeimage = pix->height / formats[i].vsub[j] *
-						bytesperline;
+		pix->plane_fmt[i].bytesperline = bytesperline;
+		pix->plane_fmt[i].sizeimage = pix->height /
+				f->vsub[i].numerator * f->vsub[i].denominator *
+				bytesperline;
 	}
 	pix->colorspace = mbus->colorspace;
 	pix->field = mbus->field;
@@ -165,7 +207,41 @@ static int video_get_subdev_format(struct camss_video *video,
 		return ret;
 
 	format->type = video->type;
-	return video_mbus_to_pix_mp(&fmt.format, &format->fmt.pix_mp);
+
+	ret = video_find_format(fmt.format.code,
+				format->fmt.pix_mp.pixelformat);
+	if (ret < 0)
+		return ret;
+
+	return video_mbus_to_pix_mp(&fmt.format, &format->fmt.pix_mp, ret);
+}
+
+static int video_get_pixelformat(struct camss_video *video, u32 *pixelformat,
+				 u32 index)
+{
+	struct v4l2_subdev_format fmt;
+	struct v4l2_subdev *subdev;
+	u32 pad;
+	int ret;
+
+	subdev = video_remote_subdev(video, &pad);
+	if (subdev == NULL)
+		return -EINVAL;
+
+	fmt.pad = pad;
+	fmt.which = V4L2_SUBDEV_FORMAT_ACTIVE;
+
+	ret = v4l2_subdev_call(subdev, pad, get_fmt, NULL, &fmt);
+	if (ret)
+		return ret;
+
+	ret = video_find_format_n(fmt.format.code, index);
+	if (ret < 0)
+		return ret;
+
+	*pixelformat = formats[ret].pixelformat;
+
+	return 0;
 }
 
 /* -----------------------------------------------------------------------------
@@ -211,6 +287,10 @@ static int video_buf_init(struct vb2_buffer *vb)
 		buffer->addr[i] = sg_dma_address(sgt->sgl);
 	}
 
+	if (fmt->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV12)
+		buffer->addr[1] = buffer->addr[0] +
+				fmt->fmt.pix_mp.plane_fmt[0].sizeimage * 2 / 3;
+
 	return 0;
 }
 
@@ -252,11 +332,12 @@ static int video_check_format(struct camss_video *video)
 	unsigned int i;
 	int ret;
 
+	sd_pix = &format.fmt.pix_mp;
+	sd_pix->pixelformat = pix->pixelformat;
 	ret = video_get_subdev_format(video, &format);
 	if (ret < 0)
 		return ret;
 
-	sd_pix = &format.fmt.pix_mp;
 	if (pix->pixelformat != sd_pix->pixelformat ||
 	    pix->height != sd_pix->height ||
 	    pix->width != sd_pix->width ||
@@ -379,22 +460,11 @@ static int video_querycap(struct file *file, void *fh,
 static int video_enum_fmt(struct file *file, void *fh, struct v4l2_fmtdesc *f)
 {
 	struct camss_video *video = video_drvdata(file);
-	struct v4l2_format format;
-	int ret;
 
 	if (f->type != video->type)
 		return -EINVAL;
 
-	if (f->index)
-		return -EINVAL;
-
-	ret = video_get_subdev_format(video, &format);
-	if (ret < 0)
-		return ret;
-
-	f->pixelformat = format.fmt.pix.pixelformat;
-
-	return 0;
+	return video_get_pixelformat(video, &f->pixelformat, f->index);
 }
 
 static int video_g_fmt(struct file *file, void *fh, struct v4l2_format *f)
