@@ -84,6 +84,14 @@ static const struct format_info {
 	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
 	{ MEDIA_BUS_FMT_VYUY8_1_5X8, V4L2_PIX_FMT_NV12M, 2,
 	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
+	{ MEDIA_BUS_FMT_YUYV8_1_5X8, V4L2_PIX_FMT_NV21M, 2,
+	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
+	{ MEDIA_BUS_FMT_YVYU8_1_5X8, V4L2_PIX_FMT_NV21M, 2,
+	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
+	{ MEDIA_BUS_FMT_UYVY8_1_5X8, V4L2_PIX_FMT_NV21M, 2,
+	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
+	{ MEDIA_BUS_FMT_VYUY8_1_5X8, V4L2_PIX_FMT_NV21M, 2,
+	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
 	{ MEDIA_BUS_FMT_YUYV8_1_5X8, V4L2_PIX_FMT_NV12, 1,
 	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
 	{ MEDIA_BUS_FMT_YVYU8_1_5X8, V4L2_PIX_FMT_NV12, 1,
@@ -91,6 +99,14 @@ static const struct format_info {
 	{ MEDIA_BUS_FMT_UYVY8_1_5X8, V4L2_PIX_FMT_NV12, 1,
 	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
 	{ MEDIA_BUS_FMT_VYUY8_1_5X8, V4L2_PIX_FMT_NV12, 1,
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
+	{ MEDIA_BUS_FMT_YUYV8_1_5X8, V4L2_PIX_FMT_NV21, 1,
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
+	{ MEDIA_BUS_FMT_YVYU8_1_5X8, V4L2_PIX_FMT_NV21, 1,
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
+	{ MEDIA_BUS_FMT_UYVY8_1_5X8, V4L2_PIX_FMT_NV21, 1,
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
+	{ MEDIA_BUS_FMT_VYUY8_1_5X8, V4L2_PIX_FMT_NV21, 1,
 	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
 };
 
@@ -287,7 +303,8 @@ static int video_buf_init(struct vb2_buffer *vb)
 		buffer->addr[i] = sg_dma_address(sgt->sgl);
 	}
 
-	if (fmt->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV12)
+	if (fmt->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV12 ||
+			fmt->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_NV21)
 		buffer->addr[1] = buffer->addr[0] +
 				fmt->fmt.pix_mp.plane_fmt[0].sizeimage * 2 / 3;
 

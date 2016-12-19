@@ -450,6 +450,8 @@ static void vfe_bus_disconnect_wm_from_rdi(struct vfe_device *vfe, u8 wm,
 static void vfe_set_xbar_cfg(struct vfe_device *vfe, struct vfe_output *output,
 			     u8 enable)
 {
+	struct vfe_line *line = container_of(output, struct vfe_line, output);
+	u32 p = line->video_out.active_fmt.fmt.pix_mp.pixelformat;
 	u32 reg;
 	unsigned int i;
 
@@ -459,7 +461,8 @@ static void vfe_set_xbar_cfg(struct vfe_device *vfe, struct vfe_output *output,
 				VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT;
 		} else if (i == 1) {
 			reg = VFE_0_BUS_XBAR_CFG_x_M0_PAIR_STREAM_EN;
-			reg |= VFE_0_BUS_XBAR_CFG_x_M0_PAIR_STREAM_SWAP_INTER_INTRA;
+			if (p == V4L2_PIX_FMT_NV12 || p == V4L2_PIX_FMT_NV12M)
+				reg |= VFE_0_BUS_XBAR_CFG_x_M0_PAIR_STREAM_SWAP_INTER_INTRA;
 		}
 
 		if (output->wm_idx[i] % 2 == 1)
