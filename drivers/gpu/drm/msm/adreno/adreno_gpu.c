@@ -378,6 +378,7 @@ int adreno_gpu_init(struct drm_device *drm, struct platform_device *pdev,
 		return ret;
 	}
 
+	pm_runtime_get_sync(&pdev->dev);
 	mmu = gpu->aspace->mmu;
 	if (mmu) {
 		ret = mmu->funcs->attach(mmu, iommu_ports,
@@ -385,6 +386,7 @@ int adreno_gpu_init(struct drm_device *drm, struct platform_device *pdev,
 		if (ret)
 			return ret;
 	}
+	pm_runtime_put_sync(&pdev->dev);
 
 	mutex_lock(&drm->struct_mutex);
 	adreno_gpu->memptrs_bo = msm_gem_new(drm, sizeof(*adreno_gpu->memptrs),
