@@ -1118,6 +1118,11 @@ static int32_t msm_cci_config(struct v4l2_subdev *sd,
 	return rc;
 }
 
+struct v4l2_subdev *msm_cci_get_subdev(void)
+{
+	return g_cci_subdev;
+}
+
 int32_t msm_cci_ctrl_init(void)
 {
 	struct v4l2_subdev *sd = msm_cci_get_subdev();
@@ -1141,6 +1146,7 @@ int32_t msm_cci_ctrl_init(void)
 	CDBG("%s: Exit rc = %d", __func__, rc);
 	return rc;
 }
+EXPORT_SYMBOL(msm_cci_ctrl_init);
 
 int32_t msm_cci_ctrl_release(void)
 {
@@ -1159,6 +1165,7 @@ int32_t msm_cci_ctrl_release(void)
 	CDBG("%s: Exit rc = %d", __func__, rc);
 	return rc;
 }
+EXPORT_SYMBOL(msm_cci_ctrl_release);
 
 int32_t msm_cci_ctrl_read(u16 i2c_addr, u16 addr, const char *buf, int count)
 {
@@ -1191,6 +1198,7 @@ int32_t msm_cci_ctrl_read(u16 i2c_addr, u16 addr, const char *buf, int count)
 	     __func__, rc, addr, *((uint8_t *)buf) );
 	return rc;
 }
+EXPORT_SYMBOL(msm_cci_ctrl_read);
 
 int32_t msm_cci_ctrl_write(u16 i2c_addr, u16 addr, const char *buf, int count)
 {
@@ -1228,6 +1236,7 @@ int32_t msm_cci_ctrl_write(u16 i2c_addr, u16 addr, const char *buf, int count)
 	     __func__, rc, addr, *((uint8_t *)buf) );
 	return rc;
 }
+EXPORT_SYMBOL(msm_cci_ctrl_write);
 
 static irqreturn_t msm_cci_irq(int irq_num, void *data)
 {
@@ -1536,11 +1545,6 @@ static void msm_cci_init_clk_params(struct cci_device *cci_dev)
 		src_node = NULL;
 	}
 	return;
-}
-
-struct v4l2_subdev *msm_cci_get_subdev(void)
-{
-	return g_cci_subdev;
 }
 
 static int msm_cci_get_clk_info(struct cci_device *cci_dev,
