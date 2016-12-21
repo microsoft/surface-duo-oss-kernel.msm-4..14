@@ -189,7 +189,7 @@ static inline int __msm_sd_register_subdev(struct v4l2_subdev *sd,
 	video_set_drvdata(vdev, sd);
 	strlcpy(vdev->name, sd->name, sizeof(vdev->name));
 	vdev->v4l2_dev = msm_v4l2_dev;
-	vdev->fops = &v4l2_subdev_fops;
+	vdev->fops = NULL;
 	vdev->release = msm_sd_unregister_subdev;
 	rc = __video_register_device(vdev, VFL_TYPE_SUBDEV, -1, 1,
 		  sd->owner);
