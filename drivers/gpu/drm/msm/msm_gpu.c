@@ -153,6 +153,8 @@ static int disable_axi(struct msm_gpu *gpu)
 int msm_gpu_pm_resume(struct msm_gpu *gpu)
 {
 	struct drm_device *dev = gpu->dev;
+	struct msm_drm_private *priv = dev->dev_private;
+	struct platform_device *pdev = priv->gpu_pdev;
 	int ret;
 
 	DBG("%s: active_cnt=%d", gpu->name, gpu->active_cnt);
@@ -164,6 +166,8 @@ int msm_gpu_pm_resume(struct msm_gpu *gpu)
 
 	if (WARN_ON(gpu->active_cnt <= 0))
 		return -EINVAL;
+
+	pm_runtime_get_sync(&pdev->dev);
 
 	ret = enable_pwrrail(gpu);
 	if (ret)

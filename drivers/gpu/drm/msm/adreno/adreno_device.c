@@ -234,6 +234,9 @@ static int adreno_bind(struct device *dev, struct device *master, void *data)
 
 	dev->platform_data = &config;
 	set_gpu_pdev(dev_get_drvdata(master), to_platform_device(dev));
+
+	pm_runtime_enable(dev);
+
 	return 0;
 }
 
