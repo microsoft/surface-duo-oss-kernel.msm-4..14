@@ -192,19 +192,10 @@ enum msm_cci_gpio_cmd_type {
 	CCI_GPIO_INVALID_CMD,
 };
 
-#ifdef CONFIG_MSM_CCI
-struct v4l2_subdev *msm_cci_get_subdev(void);
-
 int32_t msm_cci_ctrl_init(void);
 int32_t msm_cci_ctrl_release(void);
 int32_t msm_cci_ctrl_read(u16 i2c_addr, u16 addr, const char *buf, int count);
 int32_t msm_cci_ctrl_write(u16 i2c_addr, u16 addr, const char *buf, int count);
-
-#else
-static inline struct v4l2_subdev *msm_cci_get_subdev(void) {
-	return NULL;
-}
-#endif
 
 #define VIDIOC_MSM_CCI_CFG \
 	_IOWR('V', BASE_VIDIOC_PRIVATE + 23, struct msm_camera_cci_ctrl *)

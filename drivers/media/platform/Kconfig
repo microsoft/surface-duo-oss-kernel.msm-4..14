@@ -105,6 +105,10 @@ config VIDEO_QCOM_CAMSS
         depends on ARCH_QCOM && VIDEO_V4L2
         select VIDEOBUF2_DMA_CONTIG
 
+config MSM_CCI
+	tristate "Qualcomm MSM camera control interface driver"
+	depends on ARCH_QCOM && VIDEO_V4L2
+
 config VIDEO_S3C_CAMIF
 	tristate "Samsung S3C24XX/S3C64XX SoC Camera Interface driver"
 	depends on VIDEO_V4L2 && I2C && VIDEO_V4L2_SUBDEV_API
@@ -124,7 +128,6 @@ source "drivers/media/platform/exynos4-is/Kconfig"
 source "drivers/media/platform/s5p-tv/Kconfig"
 source "drivers/media/platform/am437x/Kconfig"
 source "drivers/media/platform/xilinx/Kconfig"
-source "drivers/media/platform/qcom/Kconfig"
 
 endif # V4L_PLATFORM_DRIVERS
 
