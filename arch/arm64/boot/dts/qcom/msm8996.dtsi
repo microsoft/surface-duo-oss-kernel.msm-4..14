@@ -32,6 +32,7 @@
 		reg = <0 0 0 0>;
 	};
 
+
 	cpus {
 		#address-cells = <2>;
 		#size-cells = <0>;
@@ -258,6 +259,16 @@
 
 		smem_mem: smem-mem@86000000 {
 			reg = <0x0 0x86000000 0x0 0x200000>;
+			no-map;
+		};
+
+		memory@85800000 {
+			reg = <0x0 0x85800000 0x0 0x800000>;
+			no-map;
+		};
+
+		memory@86200000 {
+			reg = <0x0 0x86200000 0x0 0x2600000>;
 			no-map;
 		};
 	};
