@@ -613,14 +613,16 @@ static void vfe_buf_add_pending(struct vfe_output *output,
 /*
  * vfe_buf_flush_pending - Flush all pending buffers.
  * @output: VFE output
+ * @state: vb2 buffer state
  */
-static void vfe_buf_flush_pending(struct vfe_output *output)
+static void vfe_buf_flush_pending(struct vfe_output *output,
+				  enum vb2_buffer_state state)
 {
 	struct camss_buffer *buf;
 	struct camss_buffer *t;
 
 	list_for_each_entry_safe(buf, t, &output->pending_bufs, queue) {
-		vb2_buffer_done(&buf->vb.vb2_buf, VB2_BUF_STATE_ERROR);
+		vb2_buffer_done(&buf->vb.vb2_buf, state);
 		list_del(&buf->queue);
 	}
 }
@@ -1276,13 +1278,15 @@ static int vfe_queue_buffer(struct camss_video *vid,
 /*
  * vfe_flush_buffers - Return all vb2 buffers
  * @vid: Video device structure
+ * @state: vb2 buffer state of the returned buffers
  *
  * Return all buffers to vb2. This includes queued pending buffers (still
  * unused) and any buffers given to the hardware but again still not used.
  *
  * Return 0 on success or a negative error code otherwise
  */
-static int vfe_flush_buffers(struct camss_video *vid)
+static int vfe_flush_buffers(struct camss_video *vid,
+			     enum vb2_buffer_state state)
 {
 	struct vfe_device *vfe = &vid->camss->vfe;
 	struct vfe_line *line;
@@ -1298,19 +1302,16 @@ static int vfe_flush_buffers(struct camss_video *vid)
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
-	vfe_buf_flush_pending(output);
+	vfe_buf_flush_pending(output, state);
 
 	if (output->buf[0])
-		vb2_buffer_done(&output->buf[0]->vb.vb2_buf,
-				VB2_BUF_STATE_ERROR);
+		vb2_buffer_done(&output->buf[0]->vb.vb2_buf, state);
 
 	if (output->buf[1])
-		vb2_buffer_done(&output->buf[1]->vb.vb2_buf,
-				VB2_BUF_STATE_ERROR);
+		vb2_buffer_done(&output->buf[1]->vb.vb2_buf, state);
 
 	if (output->last_buffer) {
-		vb2_buffer_done(&output->last_buffer->vb.vb2_buf,
-				VB2_BUF_STATE_ERROR);
+		vb2_buffer_done(&output->last_buffer->vb.vb2_buf, state);
 		output->last_buffer = NULL;
 	}
 

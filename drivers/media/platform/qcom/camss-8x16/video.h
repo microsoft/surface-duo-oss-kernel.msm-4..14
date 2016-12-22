@@ -40,7 +40,8 @@ struct camss_video;
 
 struct camss_video_ops {
 	int (*queue_buffer)(struct camss_video *vid, struct camss_buffer *buf);
-	int (*flush_buffers)(struct camss_video *vid);
+	int (*flush_buffers)(struct camss_video *vid,
+			     enum vb2_buffer_state state);
 };
 
 struct camss_video {
