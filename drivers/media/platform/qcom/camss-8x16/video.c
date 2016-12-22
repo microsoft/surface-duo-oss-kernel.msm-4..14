@@ -251,6 +251,8 @@ static int video_start_streaming(struct vb2_queue *q, unsigned int count)
 error:
 	media_entity_pipeline_stop(&vdev->entity);
 
+	camss_video_call(video, flush_buffers, VB2_BUF_STATE_QUEUED);
+
 	return ret;
 }
 
@@ -288,7 +290,7 @@ static void video_stop_streaming(struct vb2_queue *q)
 
 	media_entity_pipeline_stop(&vdev->entity);
 
-	camss_video_call(video, flush_buffers);
+	camss_video_call(video, flush_buffers, VB2_BUF_STATE_ERROR);
 }
 
 static struct vb2_ops msm_video_vb2_q_ops = {
