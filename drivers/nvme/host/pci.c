@@ -1613,7 +1613,7 @@ static int nvme_setup_io_queues(struct nvme_dev *dev)
 	struct pci_dev *pdev = to_pci_dev(dev->dev);
 	int result, i, vecs, nr_io_queues, size;
 
-	nr_io_queues = dev->max_qid + 1;
+	nr_io_queues = dev->max_qid;
 	result = nvme_set_queue_count(&dev->ctrl, &nr_io_queues);
 	if (result < 0)
 		return result;
@@ -1653,7 +1653,7 @@ static int nvme_setup_io_queues(struct nvme_dev *dev)
 		adminq->q_db = dev->dbs;
 	}
 
-	dev->max_qid = nr_io_queues - 1;
+	dev->max_qid = nr_io_queues;
 
 	/* Free previously allocated queues that are no longer usable */
 	nvme_free_queues(dev, nr_io_queues + 1);
@@ -1839,13 +1839,13 @@ static int nvme_pci_enable(struct nvme_dev *dev)
 		}
 	}
 
-	if (vecs < 2) {
-		dev_err(dev->ctrl.device, "Failed to get enough MSI/MSIX interrupts\n");
+	if (vecs < 1) {
+		dev_err(dev->ctrl.device, "Failed to get any MSI/MSIX interrupts\n");
 		result = -ENOSPC;
 		goto disable;
 	}
 
-	dev->max_qid = vecs - 1;
+	dev->max_qid = vecs;
 
 	cap = lo_hi_readq(dev->bar + NVME_REG_CAP);
 
