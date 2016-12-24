@@ -1,26 +1,20 @@
 /* Copyright (c) 2013-2014, Hisilicon Tech. Co., Ltd. All rights reserved.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 and
-* only version 2 as published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
-* GNU General Public License for more details.
-*
-*/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
+ * GNU General Public License for more details.
+ *
+ */
 #ifndef _CMD_LIST_UTILS_H_
 #define _CMD_LIST_UTILS_H_
-
-#ifdef CONFIG_HISI_FB_3660
 #include "hisi_overlay_utils_hi3660.h"
-#endif
 
-
-#define CONFIG_HISI_DSS_CMDLIST_LAST_USED
-
-#define HISI_DSS_CMDLIST_DATA_MAX	  (3)
+#define HISI_DSS_CMDLIST_DATA_MAX	(3)
 #define HISI_DSS_CMDLIST_NODE_MAX	(32)
 #define HISI_DSS_CMDLIST_BLOCK_MAX	(32)
 
@@ -74,7 +68,6 @@ enum dss_cmdlist_idx {
 	DSS_CMDLIST_MAX,
 };
 
-
 typedef union {
 	struct {
 		uint32_t exec:1;
@@ -87,7 +80,7 @@ typedef union {
 		uint32_t qos:1;
 		uint32_t task_end:1;
 		uint32_t reserved:1;
-		uint32_t valid_flag:8; //0xA5 is valid
+		uint32_t valid_flag:8;
 	} bits;
 	uint32_t ul32;
 } cmd_flag_t;
@@ -121,7 +114,7 @@ typedef struct cmd_header {
 	cmd_flag_t flag;
 	uint32_t next_list;
 	total_items_t total_items;
-	uint32_t list_addr; //128bit align
+	uint32_t list_addr;
 } cmd_header_t;
 
 enum dss_cmdlist_node_valid {
@@ -142,11 +135,11 @@ enum dss_cmdlist_status {
 };
 
 /*
-** for normal node,all variable should be filled.
-** for NOP node, just the list_header,header_ion_handle,list_node, node_flag should be filled.
-** node_type must be CMDLIST_NODE_NOP when it is NOP node.
-** And item_ion_handle in NOP node should be NULL.
-*/
+ ** for normal node,all variable should be filled.
+ ** for NOP node, just the list_header,header_ion_handle,list_node, node_flag should be filled.
+ ** node_type must be CMDLIST_NODE_NOP when it is NOP node.
+ ** And item_ion_handle in NOP node should be NULL.
+ */
 typedef struct dss_cmdlist_node {
 	struct list_head list_node;
 
@@ -169,16 +162,18 @@ typedef struct dss_cmdlist_heads {
 	struct list_head cmdlist_head;
 
 	dss_cmdlist_node_t *cmdlist_nodes[HISI_DSS_CMDLIST_NODE_MAX];
-}dss_cmdlist_heads_t;
+} dss_cmdlist_heads_t;
 
 typedef struct dss_cmdlist_data {
 	dss_cmdlist_heads_t *cmdlist_heads[HISI_DSS_CMDLIST_MAX];
 	struct list_head cmdlist_head_temp[HISI_DSS_CMDLIST_MAX];
-	dss_cmdlist_node_t *cmdlist_nodes_temp[HISI_DSS_CMDLIST_MAX][HISI_DSS_CMDLIST_NODE_MAX];
+	dss_cmdlist_node_t
+	    *cmdlist_nodes_temp[HISI_DSS_CMDLIST_MAX]
+	    [HISI_DSS_CMDLIST_NODE_MAX];
 } dss_cmdlist_data_t;
 
 typedef struct dss_cmdlist_info {
-	struct semaphore cmdlist_wb_common_sem;  //for primary offline & copybit
+	struct semaphore cmdlist_wb_common_sem;
 	struct semaphore cmdlist_wb_sem[WB_TYPE_MAX];
 	wait_queue_head_t cmdlist_wb_wq[WB_TYPE_MAX];
 	uint32_t cmdlist_wb_done[WB_TYPE_MAX];
@@ -186,7 +181,7 @@ typedef struct dss_cmdlist_info {
 } dss_cmdlist_info_t;
 
 typedef struct dss_copybit_info {
-	struct semaphore copybit_sem;  //for chicago copybit
+	struct semaphore copybit_sem;
 	wait_queue_head_t copybit_wq;
 	uint32_t copybit_flag;
 	uint32_t copybit_done;
@@ -201,44 +196,53 @@ typedef struct dss_wb_info {
 
 extern dss_cmdlist_data_t *g_cmdlist_data;
 
-
 /******************************************************************************
-** FUNCTIONS PROTOTYPES
-*/
+ ** FUNCTIONS PROTOTYPES
+ */
 void hisi_cmdlist_set_reg(struct hisi_fb_data_type *hisifd,
-	char __iomem *addr, uint32_t value, uint8_t bw, uint8_t bs);
-void hisi_cmdlist_flush_cache(struct hisi_fb_data_type *hisifd, struct ion_client *ion_client,
-	uint32_t cmdlist_idxs);
+			  char __iomem *addr, uint32_t value, uint8_t bw,
+			  uint8_t bs);
+void hisi_cmdlist_flush_cache(struct hisi_fb_data_type *hisifd,
+			      struct ion_client *ion_client,
+			      uint32_t cmdlist_idxs);
 
-dss_cmdlist_node_t* hisi_cmdlist_node_alloc(struct ion_client *ion_client);
-void hisi_cmdlist_node_free(struct ion_client *ion_client, dss_cmdlist_node_t *node);
+dss_cmdlist_node_t *hisi_cmdlist_node_alloc(struct ion_client *ion_client);
+void hisi_cmdlist_node_free(struct ion_client *ion_client,
+			    dss_cmdlist_node_t *node);
 
-uint32_t hisi_cmdlist_get_cmdlist_need_start(struct hisi_fb_data_type *hisifd, uint32_t cmdlist_idxs);
+uint32_t hisi_cmdlist_get_cmdlist_need_start(struct hisi_fb_data_type *hisifd,
+					     uint32_t cmdlist_idxs);
 
-int hisi_cmdlist_get_cmdlist_idxs(dss_overlay_t *pov_req, uint32_t *cmdlist_pre_idxs,
-	uint32_t *cmdlist_idxs);
+int hisi_cmdlist_get_cmdlist_idxs(dss_overlay_t *pov_req,
+				  uint32_t *cmdlist_pre_idxs,
+				  uint32_t *cmdlist_idxs);
 void hisi_cmdlist_data_get_online(struct hisi_fb_data_type *hisifd);
 
-int hisi_cmdlist_add_nop_node(struct hisi_fb_data_type *hisifd, uint32_t cmdlist_idxs, int pending, int reserved);
-int hisi_cmdlist_add_new_node(struct hisi_fb_data_type *hisifd, uint32_t cmdlist_idxs, int pending,
-	int task_end, int remove, int last, uint32_t wb_type);
+int hisi_cmdlist_add_nop_node(struct hisi_fb_data_type *hisifd,
+			      uint32_t cmdlist_idxs, int pending, int reserved);
+int hisi_cmdlist_add_new_node(struct hisi_fb_data_type *hisifd,
+			      uint32_t cmdlist_idxs, int pending, int task_end,
+			      int remove, int last, uint32_t wb_type);
 int hisi_cmdlist_del_all_node(struct list_head *cmdlist_heads);
 
-int hisi_cmdlist_config_start(struct hisi_fb_data_type *hisifd, int mctl_idx, uint32_t cmdlist_idxs, uint32_t wb_compose_type);
-int hisi_cmdlist_config_stop(struct hisi_fb_data_type *hisifd, uint32_t cmdlist_idxs);
+int hisi_cmdlist_config_start(struct hisi_fb_data_type *hisifd, int mctl_idx,
+			      uint32_t cmdlist_idxs, uint32_t wb_compose_type);
+int hisi_cmdlist_config_stop(struct hisi_fb_data_type *hisifd,
+			     uint32_t cmdlist_idxs);
 void hisi_cmdlist_config_reset(struct hisi_fb_data_type *hisifd,
-	dss_overlay_t *pov_req, uint32_t cmdlist_idxs);
+			       dss_overlay_t *pov_req, uint32_t cmdlist_idxs);
 
-int hisi_cmdlist_del_node(struct hisi_fb_data_type *hisifd, dss_overlay_t *pov_req, uint32_t cmdlist_idxs);
-int hisi_cmdlist_check_cmdlist_state(struct hisi_fb_data_type *hisifd, uint32_t cmdlist_idxs);
+int hisi_cmdlist_del_node(struct hisi_fb_data_type *hisifd,
+			  dss_overlay_t *pov_req, uint32_t cmdlist_idxs);
+int hisi_cmdlist_check_cmdlist_state(struct hisi_fb_data_type *hisifd,
+				     uint32_t cmdlist_idxs);
 
 int hisi_cmdlist_exec(struct hisi_fb_data_type *hisifd, uint32_t cmdlist_idxs);
 void hisi_dss_cmdlist_qos_on(struct hisi_fb_data_type *hisifd);
-int hisi_cmdlist_dump_all_node (struct hisi_fb_data_type *hisifd, dss_overlay_t *pov_req,
-	uint32_t cmdlist_idxs);
+int hisi_cmdlist_dump_all_node(struct hisi_fb_data_type *hisifd,
+			       dss_overlay_t *pov_req, uint32_t cmdlist_idxs);
 
 int hisi_cmdlist_init(struct hisi_fb_data_type *hisifd);
 int hisi_cmdlist_deinit(struct hisi_fb_data_type *hisifd);
-
 
 #endif

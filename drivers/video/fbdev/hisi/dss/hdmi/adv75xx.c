@@ -6,40 +6,40 @@
 #include "adv75xx.h"
 
 #define HPD_ENABLE	0
-//#define TEST_COLORBAR_DISPLAY
+
 
 static void adv75xx_power_on(struct adi_hdmi *adv75xx);
 static void adv75xx_power_off(struct adi_hdmi *adv75xx);
 
 /* ADI recommended values for proper operation. */
 static const struct reg_sequence adv7511_fixed_registers[] = {
-	{ 0x98, 0x03 },
-	{ 0x9a, 0xe0 },
-	{ 0x9c, 0x30 },
-	{ 0x9d, 0x61 },
-	{ 0xa2, 0xa4 },
-	{ 0xa3, 0xa4 },
-	{ 0xe0, 0xd0 },
-	{ 0xf9, 0x00 },
-	{ 0x55, 0x02 },
+	{0x98, 0x03},
+	{0x9a, 0xe0},
+	{0x9c, 0x30},
+	{0x9d, 0x61},
+	{0xa2, 0xa4},
+	{0xa3, 0xa4},
+	{0xe0, 0xd0},
+	{0xf9, 0x00},
+	{0x55, 0x02},
 };
 
 /* ADI recommended values for proper operation. */
 static const struct reg_sequence adv7533_fixed_registers[] = {
-	{ 0x16, 0x20 },
-	{ 0x9a, 0xe0 },
-	{ 0xba, 0x70 },
-	{ 0xde, 0x82 },
-	{ 0xe4, 0x40 },
-	{ 0xe5, 0x80 },
+	{0x16, 0x20},
+	{0x9a, 0xe0},
+	{0xba, 0x70},
+	{0xde, 0x82},
+	{0xe4, 0x40},
+	{0xe5, 0x80},
 };
 
 static const struct reg_sequence adv7533_cec_fixed_registers[] = {
-	{ 0x15, 0xd0 },
-	{ 0x17, 0xd0 },
-	{ 0x24, 0x20 },
-	{ 0x57, 0x11 },
-	{ 0x05, 0xc8 },
+	{0x15, 0xd0},
+	{0x17, 0xd0},
+	{0x24, 0x20},
+	{0x57, 0x11},
+	{0x05, 0xc8},
 };
 
 /* -----------------------------------------------------------------------------
@@ -47,42 +47,44 @@ static const struct reg_sequence adv7533_cec_fixed_registers[] = {
  */
 
 static const uint8_t adv75xx_register_defaults[] = {
-	0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 00 */
+	0x12, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	/* 00 */
 	0x00, 0x00, 0x01, 0x0e, 0xbc, 0x18, 0x01, 0x13,
-	0x25, 0x37, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 10 */
+	0x25, 0x37, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	/* 10 */
 	0x46, 0x62, 0x04, 0xa8, 0x00, 0x00, 0x1c, 0x84,
-	0x1c, 0xbf, 0x04, 0xa8, 0x1e, 0x70, 0x02, 0x1e, /* 20 */
+	0x1c, 0xbf, 0x04, 0xa8, 0x1e, 0x70, 0x02, 0x1e,	/* 20 */
 	0x00, 0x00, 0x04, 0xa8, 0x08, 0x12, 0x1b, 0xac,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 30 */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	/* 30 */
 	0x00, 0x00, 0x00, 0x80, 0x00, 0x00, 0x00, 0xb0,
-	0x00, 0x50, 0x90, 0x7e, 0x79, 0x70, 0x00, 0x00, /* 40 */
+	0x00, 0x50, 0x90, 0x7e, 0x79, 0x70, 0x00, 0x00,	/* 40 */
 	0x00, 0xa8, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x02, 0x0d, 0x00, 0x00, 0x00, 0x00, /* 50 */
+	0x00, 0x00, 0x02, 0x0d, 0x00, 0x00, 0x00, 0x00,	/* 50 */
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 60 */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	/* 60 */
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x01, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 70 */
+	0x01, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	/* 70 */
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* 80 */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	/* 80 */
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00, /* 90 */
+	0x00, 0x00, 0x00, 0x00, 0xc0, 0x00, 0x00, 0x00,	/* 90 */
 	0x0b, 0x02, 0x00, 0x18, 0x5a, 0x60, 0x00, 0x00,
-	0x00, 0x00, 0x80, 0x80, 0x08, 0x04, 0x00, 0x00, /* a0 */
+	0x00, 0x00, 0x80, 0x80, 0x08, 0x04, 0x00, 0x00,	/* a0 */
 	0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x40, 0x14,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* b0 */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	/* b0 */
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* c0 */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,	/* c0 */
 	0x00, 0x03, 0x00, 0x00, 0x02, 0x00, 0x01, 0x04,
-	0x30, 0xff, 0x80, 0x80, 0x80, 0x00, 0x00, 0x00, /* d0 */
+	0x30, 0xff, 0x80, 0x80, 0x80, 0x00, 0x00, 0x00,	/* d0 */
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10, 0x01,
-	0x80, 0x75, 0x00, 0x00, 0x60, 0x00, 0x00, 0x00, /* e0 */
+	0x80, 0x75, 0x00, 0x00, 0x60, 0x00, 0x00, 0x00,	/* e0 */
 	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-	0x00, 0x00, 0x00, 0x00, 0x00, 0x75, 0x11, 0x00, /* f0 */
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x75, 0x11, 0x00,	/* f0 */
 	0x00, 0x7c, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 };
 
 static bool adv7511_register_volatile(struct device *dev, unsigned int reg)
 {
+	int ret = 0;
+
 	switch (reg) {
 	case ADV7533_REG_CHIP_REVISION:
 	case ADV7533_REG_SPDIF_FREQ:
@@ -116,10 +118,14 @@ static bool adv7511_register_volatile(struct device *dev, unsigned int reg)
 	case ADV7533_REG_BSTATUS(1):
 	case ADV7533_REG_CHIP_ID_HIGH:
 	case ADV7533_REG_CHIP_ID_LOW:
-		return true;
+		ret = 1;
+		break;
+	default:
+		ret = 0;
+		break;
 	}
 
-	return false;
+	return ret ? true : false;
 }
 
 static const struct regmap_config adv75xx_regmap_config = {
@@ -152,10 +158,8 @@ static const struct regmap_config adv7533_packet_regmap_config = {
 /* -----------------------------------------------------------------------------
  * Hardware configuration
  */
-
 static void adv75xx_set_colormap(struct adi_hdmi *adv75xx, bool enable,
-				 const uint16_t *coeff,
-				 unsigned int scaling_factor)
+				 const u16 *coeff, unsigned int scaling_factor)
 {
 	unsigned int i;
 
@@ -170,8 +174,7 @@ static void adv75xx_set_colormap(struct adi_hdmi *adv75xx, bool enable,
 					   ADV7533_REG_CSC_UPPER(i),
 					   0x1f, coeff[i] >> 8);
 			regmap_write(adv75xx->regmap,
-				     ADV7533_REG_CSC_LOWER(i),
-				     coeff[i] & 0xff);
+				     ADV7533_REG_CSC_LOWER(i), coeff[i] & 0xff);
 		}
 	}
 
@@ -233,8 +236,7 @@ static const uint16_t adv75xx_csc_ycbcr_to_rgb[] = {
 	0x0000, 0x04ad, 0x087c, 0x1b77,
 };
 
-static void adv75xx_set_config_csc(struct adi_hdmi *adv75xx,
-				   bool rgb)
+static void adv75xx_set_config_csc(struct adi_hdmi *adv75xx, bool rgb)
 {
 	struct adv75xx_video_config config;
 	bool output_format_422, output_format_ycbcr;
@@ -244,7 +246,7 @@ static void adv75xx_set_config_csc(struct adi_hdmi *adv75xx,
 	HISI_FB_INFO("+.\n");
 
 	if (adv75xx->edid)
-		config.hdmi_mode = true;//defulat use  use HDMI output mode
+		config.hdmi_mode = true;
 	else
 		config.hdmi_mode = false;
 
@@ -260,7 +262,8 @@ static void adv75xx_set_config_csc(struct adi_hdmi *adv75xx,
 		config.csc_coefficents = adv75xx_csc_ycbcr_to_rgb;
 	}
 
-	HISI_FB_INFO("config.avi_infoframe.colorspace = %d\n", config.avi_infoframe.colorspace);
+	HISI_FB_INFO("config.avi_infoframe.colorspace = %d\n",
+		     config.avi_infoframe.colorspace);
 
 	if (config.hdmi_mode) {
 		mode = ADV7533_HDMI_CFG_MODE_HDMI;
@@ -288,8 +291,7 @@ static void adv75xx_set_config_csc(struct adi_hdmi *adv75xx,
 	adv75xx_packet_disable(adv75xx, ADV7533_PACKET_ENABLE_AVI_INFOFRAME);
 
 	adv75xx_set_colormap(adv75xx, config.csc_enable,
-			     config.csc_coefficents,
-			     config.csc_scaling_factor);
+			     config.csc_coefficents, config.csc_scaling_factor);
 
 	regmap_update_bits(adv75xx->regmap, ADV7533_REG_VIDEO_INPUT_CFG1, 0x81,
 			   (output_format_422 << 7) | output_format_ycbcr);
@@ -308,7 +310,7 @@ static void adv75xx_set_config_csc(struct adi_hdmi *adv75xx,
 
 static void adv75xx_dsi_config_tgen(struct adi_hdmi *adv75xx)
 {
-	u8 clock_div_by_lanes[] = { 6, 4, 3 }; /* 2, 3, 4 lanes */
+	u8 clock_div_by_lanes[] = { 6, 4, 3 };	/* 2, 3, 4 lanes */
 	unsigned int hsw, hfp, hbp, vsw, vfp, vbp;
 
 	HISI_FB_INFO("+.\n");
@@ -320,25 +322,28 @@ static void adv75xx_dsi_config_tgen(struct adi_hdmi *adv75xx)
 	vfp = adv75xx->mode->vsync_offset;
 	vbp = adv75xx->mode->vtotal - adv75xx->mode->vsync_end;
 
-	HISI_FB_INFO("hsw = %d, hfp = %d, hbp = %d, vsw = %d, vfp= %d, vbp = %d\n",
-		hsw, hfp, hbp, vsw, vfp, vbp);
+	HISI_FB_INFO
+	    ("hsw = %d, hfp = %d, hbp = %d, vsw = %d, vfp= %d, vbp = %d\n", hsw,
+	     hfp, hbp, vsw, vfp, vbp);
 
 #ifdef TEST_COLORBAR_DISPLAY
 	/* set pixel clock auto mode */
 	regmap_write(adv75xx->regmap_cec, ADV7533_REG_CEC_PIXEL_CLOCK_DIV,
-			0x00);
+		     0x00);
 #else
 	/* set pixel clock divider mode */
 	regmap_write(adv75xx->regmap_cec, ADV7533_REG_CEC_PIXEL_CLOCK_DIV,
-			clock_div_by_lanes[adv75xx->num_dsi_lanes - 2] << 3);
+		     clock_div_by_lanes[adv75xx->num_dsi_lanes - 2] << 3);
 #endif
 
 	HISI_FB_INFO("dsi->lanes = %d, htotal = %d, vtotal = %d\n",
-		adv75xx->num_dsi_lanes, adv75xx->mode->htotal, adv75xx->mode->vtotal);
+		     adv75xx->num_dsi_lanes, adv75xx->mode->htotal,
+		     adv75xx->mode->vtotal);
 
 	/* horizontal porch params */
 	regmap_write(adv75xx->regmap_cec, 0x28, adv75xx->mode->htotal >> 4);
-	regmap_write(adv75xx->regmap_cec, 0x29, (adv75xx->mode->htotal << 4) & 0xff);
+	regmap_write(adv75xx->regmap_cec, 0x29,
+		     (adv75xx->mode->htotal << 4) & 0xff);
 	regmap_write(adv75xx->regmap_cec, 0x2a, hsw >> 4);
 	regmap_write(adv75xx->regmap_cec, 0x2b, (hsw << 4) & 0xff);
 	regmap_write(adv75xx->regmap_cec, 0x2c, hfp >> 4);
@@ -348,7 +353,8 @@ static void adv75xx_dsi_config_tgen(struct adi_hdmi *adv75xx)
 
 	/* vertical porch params */
 	regmap_write(adv75xx->regmap_cec, 0x30, adv75xx->mode->vtotal >> 4);
-	regmap_write(adv75xx->regmap_cec, 0x31, (adv75xx->mode->vtotal << 4) & 0xff);
+	regmap_write(adv75xx->regmap_cec, 0x31,
+		     (adv75xx->mode->vtotal << 4) & 0xff);
 	regmap_write(adv75xx->regmap_cec, 0x32, vsw >> 4);
 	regmap_write(adv75xx->regmap_cec, 0x33, (vsw << 4) & 0xff);
 	regmap_write(adv75xx->regmap_cec, 0x34, vfp >> 4);
@@ -357,7 +363,7 @@ static void adv75xx_dsi_config_tgen(struct adi_hdmi *adv75xx)
 	regmap_write(adv75xx->regmap_cec, 0x37, (vbp << 4) & 0xff);
 
 	/* 30Hz Low Refresh Rate (VIC Detection) */
-	//regmap_write(adv75xx->regmap, 0x4a, 0x8c);
+
 
 	HISI_FB_INFO("-.\n");
 }
@@ -373,8 +379,8 @@ static void adv75xx_dsi_receiver_dpms(struct adi_hdmi *adv75xx)
 		adv75xx_dsi_config_tgen(adv75xx);
 
 		/* set number of dsi lanes */
-		regmap_write(adv75xx->regmap_cec,ADV7533_REG_DSI_DATA_LANES,
-		adv75xx->num_dsi_lanes << 4);
+		regmap_write(adv75xx->regmap_cec, ADV7533_REG_DSI_DATA_LANES,
+			     adv75xx->num_dsi_lanes << 4);
 
 #ifdef TEST_COLORBAR_DISPLAY
 		/* reset internal timing generator */
@@ -407,7 +413,7 @@ static void adv75xx_dsi_receiver_dpms(struct adi_hdmi *adv75xx)
 
 #ifdef TEST_COLORBAR_DISPLAY
 		/*enable test mode */
-		regmap_write(adv75xx->regmap_cec, 0x55, 0x80);//display colorbar
+		regmap_write(adv75xx->regmap_cec, 0x55, 0x80);
 #else
 		/* disable test mode */
 		regmap_write(adv75xx->regmap_cec, 0x55, 0x00);
@@ -423,10 +429,12 @@ static void adv75xx_dsi_receiver_dpms(struct adi_hdmi *adv75xx)
 			int n;
 
 			for (n = 0; n < sizeof(spd_if); n++)
-				regmap_write(adv75xx->regmap_packet, n, spd_if[n]);
+				regmap_write(adv75xx->regmap_packet, n,
+					     spd_if[n]);
 
 			/* enable send SPD */
-			regmap_update_bits(adv75xx->regmap, 0x40, BIT(6), BIT(6));
+			regmap_update_bits(adv75xx->regmap, 0x40, BIT(6),
+					   BIT(6));
 		}
 
 		/* force audio */
@@ -473,7 +481,8 @@ static void adv75xx_dsi_receiver_dpms(struct adi_hdmi *adv75xx)
 		regmap_update_bits(adv75xx->regmap, 0x44, BIT(3), BIT(3));
 
 		/* AV mute disable */
-		regmap_update_bits(adv75xx->regmap, 0x4b, BIT(7) | BIT(6), BIT(7));
+		regmap_update_bits(adv75xx->regmap, 0x4b, BIT(7) | BIT(6),
+				   BIT(7));
 
 		/* use Audio infoframe updated info */
 		regmap_update_bits(adv75xx->regmap, 0x4a, BIT(5), 0);
@@ -539,10 +548,10 @@ static int adv75xx_irq_process(struct adi_hdmi *adv75xx, bool process_hpd)
 
 	if (irq0 & ADV7533_INT0_EDID_READY || irq1 & ADV7533_INT1_DDC_ERROR) {
 		adv75xx->edid_read = true;
-
 		if (adv75xx->i2c_main->irq)
 			HISI_FB_INFO("adv7511_irq_process -->get i2c_main irq \n");
-			wake_up_all(&adv75xx->wq);
+
+		wake_up_all(&adv75xx->wq);
 	}
 
 	HISI_FB_INFO("-.\n");
@@ -576,7 +585,9 @@ static int adv75xx_wait_for_edid(struct adi_hdmi *adv75xx, int timeout)
 
 	if (adv75xx->i2c_main->irq) {
 		ret = wait_event_interruptible_timeout(adv75xx->wq,
-				adv75xx->edid_read, msecs_to_jiffies(timeout));
+						       adv75xx->edid_read,
+						       msecs_to_jiffies
+						       (timeout));
 	} else {
 		for (; timeout > 0; timeout -= 25) {
 			ret = adv75xx_irq_process(adv75xx, false);
@@ -604,12 +615,13 @@ static void print_edid_info(u8 *block)
 		step = 0;
 		do {
 			if (step == 0) {
-				HISI_FB_INFO("------ edid[%d]: 0x%2x \t", count, block[count]);
+				HISI_FB_INFO("------ edid[%d]: 0x%2x \t", count,
+					     block[count]);
 			} else {
 				HISI_FB_INFO(" 0x%2x \t", block[count]);
 			}
 			step++;
-			count ++;
+			count++;
 		} while (step < 8);
 
 		HISI_FB_INFO("\n");
@@ -629,7 +641,7 @@ struct hisi_display_mode *hisi_set_mode_info(void)
 	mode->height_mm = 90 * 100;
 	mode->clock = 148500;
 	mode->hdisplay = 1920;
-	mode->vdisplay  = 1080;
+	mode->vdisplay = 1080;
 	mode->hsync_offset = 88;
 	mode->hsync_pulse_width = 44;
 	mode->hsync_start = 2008;
@@ -650,14 +662,15 @@ struct hisi_display_mode *hisi_set_mode_info(void)
 	vbp = mode->vtotal - mode->vsync_end;
 
 	HISI_FB_INFO("The pixel clock is %d!!\n", mode->clock);
-	HISI_FB_INFO("The resolution is %d x %d !!\n", mode->hdisplay, mode->vdisplay);
-	HISI_FB_INFO("hsw = %d, hfp = %d, hbp = %d, vsw = %d, vfp= %d, vbp = %d\n",
-		hsw, hfp, hbp, vsw, vfp, vbp);
+	HISI_FB_INFO("The resolution is %d x %d !!\n", mode->hdisplay,
+		     mode->vdisplay);
+	HISI_FB_INFO
+	    ("hsw = %d, hfp = %d, hbp = %d, vsw = %d, vfp= %d, vbp = %d\n", hsw,
+	     hfp, hbp, vsw, vfp, vbp);
 
-	//kfree(mode);
+
 	return mode;
 }
-
 
 struct hisi_display_mode *hisi_parse_edid_base_info(u8 *block)
 {
@@ -678,20 +691,24 @@ struct hisi_display_mode *hisi_parse_edid_base_info(u8 *block)
 
 	mode->width_mm = block[21] * 100;
 	mode->height_mm = block[22] * 100;
-	HISI_FB_INFO("The product vender is %c%c%c !!!\n", edid_vendor[0], edid_vendor[1], edid_vendor[2]);
-	HISI_FB_INFO("The screen supported max width is %d cm, max height is %d cm !!\n", block[21], block[22]);
+	HISI_FB_INFO("The product vender is %c%c%c !!!\n", edid_vendor[0],
+		     edid_vendor[1], edid_vendor[2]);
+	HISI_FB_INFO
+	    ("The screen supported max width is %d cm, max height is %d cm !!\n",
+	     block[21], block[22]);
 	HISI_FB_INFO("The display gamma is %d !!\n", block[23]);
-	HISI_FB_INFO("The display is RGB or YCbCr is 0x%x !!\n", (block[24] & 0x18) >> 3);
+	HISI_FB_INFO("The display is RGB or YCbCr is 0x%x !!\n",
+		     (block[24] & 0x18) >> 3);
 	/******** Detailed Timing Descriptor **********/
-	mode->clock = (block[55] << 8 | block[54] )*10 ;
-	mode->hdisplay = ((block[58] & 0xf0) << 4)| block[56];
+	mode->clock = (block[55] << 8 | block[54]) * 10;
+	mode->hdisplay = ((block[58] & 0xf0) << 4) | block[56];
 	hblank = ((block[58] & 0x0f) << 8) | block[57];
-	mode->vdisplay = ((block[61] & 0xf0) <<4) | block[59];
-	vblank = ((block[61] & 0x0f) <<8) | block[60];
+	mode->vdisplay = ((block[61] & 0xf0) << 4) | block[59];
+	vblank = ((block[61] & 0x0f) << 8) | block[60];
 	mode->hsync_offset = block[62];
 	mode->hsync_pulse_width = block[63];
 	mode->vsync_offset = (block[64] & 0xf0) >> 4;
-	mode->vsync_pulse_width= block[64] & 0x0f;
+	mode->vsync_pulse_width = block[64] & 0x0f;
 
 	mode->hsync_start = mode->hdisplay + mode->hsync_offset;
 	mode->hsync_end = mode->hsync_start + mode->hsync_pulse_width;
@@ -708,11 +725,13 @@ struct hisi_display_mode *hisi_parse_edid_base_info(u8 *block)
 	vbp = mode->vtotal - mode->vsync_end;
 
 	HISI_FB_INFO("The pixel clock is %d!!\n", mode->clock);
-	HISI_FB_INFO("The resolution is %d x %d !!\n", mode->hdisplay, mode->vdisplay);
-	HISI_FB_INFO("hsw = %d, hfp = %d, hbp = %d, vsw = %d, vfp= %d, vbp = %d\n",
-		hsw, hfp, hbp, vsw, vfp, vbp);
+	HISI_FB_INFO("The resolution is %d x %d !!\n", mode->hdisplay,
+		     mode->vdisplay);
+	HISI_FB_INFO
+	    ("hsw = %d, hfp = %d, hbp = %d, vsw = %d, vfp= %d, vbp = %d\n", hsw,
+	     hfp, hbp, vsw, vfp, vbp);
 
-	//kfree(mode);
+
 	return mode;
 }
 
@@ -810,11 +829,11 @@ static bool edid_is_zero(const u8 *in_edid, int length)
  *
  * Return: Pointer to valid EDID or NULL if we couldn't find any.
  */
-struct edid *hisi_do_get_edid(int (*get_edid_block)(void *data, u8 *buf,
-	unsigned int block, size_t len),void *data)
+struct edid *hisi_do_get_edid(int (*get_edid_block) (void *data, u8 *buf,
+						     unsigned int block,
+						     size_t len), void *data)
 {
-	int j = 0, valid_extensions = 0;
-	u8 *block, *new_block;
+	u8 *block;
 	bool print_bad_edid = true;
 
 	HISI_FB_INFO("+.\n");
@@ -836,10 +855,10 @@ struct edid *hisi_do_get_edid(int (*get_edid_block)(void *data, u8 *buf,
 
 	return (struct edid *)block;
 
-carp:
+ carp:
 	if (print_bad_edid)
-		dev_err("EDID block %d invalid.\n", j);
-out:
+		HISI_FB_ERR("EDID block invalid.\n");
+ out:
 	kfree(block);
 	return NULL;
 }
@@ -848,21 +867,17 @@ struct hisi_display_mode *adv75xx_get_modes(struct adi_hdmi *adv75xx)
 {
 	struct edid *edid;
 	struct hisi_display_mode *mode;
-	unsigned int count;
 
 	HISI_FB_INFO("+.\n");
 
 	/* Reading the EDID only works if the device is powered */
 	if (!adv75xx->powered) {
-		regmap_update_bits(adv75xx->regmap, ADV7533_REG_POWER2,
-				   ADV7533_REG_POWER2_HDP_SRC_MASK,
-				   ADV7533_REG_POWER2_HDP_SRC_NONE);//0xc0
+		regmap_update_bits(adv75xx->regmap, ADV7533_REG_POWER2, ADV7533_REG_POWER2_HDP_SRC_MASK, ADV7533_REG_POWER2_HDP_SRC_NONE);	/* 0xc0 */
 		regmap_write(adv75xx->regmap, ADV7533_REG_INT(0),
 			     ADV7533_INT0_EDID_READY);
 		regmap_write(adv75xx->regmap, ADV7533_REG_INT(1),
 			     ADV7533_INT1_DDC_ERROR);
-		regmap_update_bits(adv75xx->regmap, ADV7533_REG_POWER,
-				   ADV7533_POWER_POWER_DOWN, 0);//0x41 0x10
+		regmap_update_bits(adv75xx->regmap, ADV7533_REG_POWER, ADV7533_POWER_POWER_DOWN, 0);	/* 0x41 0x10 */
 		adv75xx->current_edid_segment = -1;
 		/* wait some time for edid is ready */
 		msleep(200);
@@ -877,14 +892,13 @@ struct hisi_display_mode *adv75xx_get_modes(struct adi_hdmi *adv75xx)
 
 	kfree(adv75xx->edid);
 	adv75xx->edid = edid;
-	if (!edid)
-	{
+	if (!edid) {
 		HISI_FB_ERR("Fail to get really edid info !!!\n");
 		mode = hisi_set_mode_info();
 		return mode;
 	}
 
-	mode = hisi_parse_edid_base_info(adv75xx->edid);
+	mode = hisi_parse_edid_base_info((u8 *) adv75xx->edid);
 
 	adv75xx_set_config_csc(adv75xx, adv75xx->rgb);
 
@@ -906,8 +920,7 @@ static enum connector_status adv75xx_detect(struct adi_hdmi *adv75xx)
 	HISI_FB_INFO("+.\n");
 
 	ret = regmap_read(adv75xx->regmap, ADV7533_REG_STATUS, &val);
-	if (ret < 0)
-	{
+	if (ret < 0) {
 		HISI_FB_INFO("HDMI connector status is disconnected !!!\n");
 		return connector_status_disconnected;
 	}
@@ -940,7 +953,8 @@ static enum connector_status adv75xx_detect(struct adi_hdmi *adv75xx)
 
 	adv75xx->status = status;
 
-	HISI_FB_INFO("adv7511->status = %d <1-connected,2-disconnected>\n", status);
+	HISI_FB_INFO("adv7511->status = %d <1-connected,2-disconnected>\n",
+		     status);
 	HISI_FB_INFO("-.\n");
 
 	return status;
@@ -985,14 +999,22 @@ static int adv75xx_mode_valid(struct hisi_display_mode *mode)
 	 * some work well modes which want to put in the front of the mode list.
 	 */
 	HISI_FB_INFO("Checking mode %ix%i@%i clock: %i...",
-		  mode->hdisplay, mode->vdisplay, mode_vrefresh(mode), mode->clock);
-	if ((mode->hdisplay == 1920 && mode->vdisplay == 1080 && mode->clock == 148500) ||
-	    (mode->hdisplay == 1280 && mode->vdisplay == 800 && mode->clock == 83496) ||
-	    (mode->hdisplay == 1280 && mode->vdisplay == 720 && mode->clock == 74440) ||
-	    (mode->hdisplay == 1280 && mode->vdisplay == 720 && mode->clock == 74250) ||
-	    (mode->hdisplay == 1024 && mode->vdisplay == 768 && mode->clock == 75000) ||
-	    (mode->hdisplay == 1024 && mode->vdisplay == 768 && mode->clock == 81833) ||
-	    (mode->hdisplay == 800 && mode->vdisplay == 600 && mode->clock == 40000)) {
+		     mode->hdisplay, mode->vdisplay, mode_vrefresh(mode),
+		     mode->clock);
+	if ((mode->hdisplay == 1920 && mode->vdisplay == 1080
+	     && mode->clock == 148500) || (mode->hdisplay == 1280
+					   && mode->vdisplay == 800
+					   && mode->clock == 83496)
+	    || (mode->hdisplay == 1280 && mode->vdisplay == 720
+		&& mode->clock == 74440) || (mode->hdisplay == 1280
+					     && mode->vdisplay == 720
+					     && mode->clock == 74250)
+	    || (mode->hdisplay == 1024 && mode->vdisplay == 768
+		&& mode->clock == 75000) || (mode->hdisplay == 1024
+					     && mode->vdisplay == 768
+					     && mode->clock == 81833)
+	    || (mode->hdisplay == 800 && mode->vdisplay == 600
+		&& mode->clock == 40000)) {
 		HISI_FB_INFO("OK\n");
 		return MODE_OK;
 	}
@@ -1001,7 +1023,8 @@ static int adv75xx_mode_valid(struct hisi_display_mode *mode)
 	return MODE_BAD;
 }
 
-static void adv75xx_mode_set(struct adi_hdmi *adv75xx,  struct hisi_display_mode *mode)
+static void adv75xx_mode_set(struct adi_hdmi *adv75xx,
+			     struct hisi_display_mode *mode)
 {
 	unsigned int low_refresh_rate;
 	unsigned int hsync_polarity = 0;
@@ -1015,10 +1038,8 @@ static void adv75xx_mode_set(struct adi_hdmi *adv75xx,  struct hisi_display_mode
 
 		hsync_offset = mode->hsync_offset;
 		vsync_offset = mode->vsync_offset;
-		hsync_len = mode->hsync_end -
-			    mode->hsync_start;
-		vsync_len = mode->vsync_end -
-			    mode->vsync_start;
+		hsync_len = mode->hsync_end - mode->hsync_start;
+		vsync_len = mode->vsync_end - mode->vsync_start;
 
 		/* The hardware vsync generator has a off-by-one bug */
 		vsync_offset += 1;
@@ -1042,9 +1063,6 @@ static void adv75xx_mode_set(struct adi_hdmi *adv75xx,  struct hisi_display_mode
 		hsync_polarity = !(mode->flags & MODE_FLAG_PHSYNC);
 		vsync_polarity = !(mode->flags & MODE_FLAG_PVSYNC);
 	} else {
-		enum adi_sync_polarity mode_hsync_polarity;
-		enum adi_sync_polarity mode_vsync_polarity;
-
 		/**
 		 * If the input signal is always low or always high we want to
 		 * invert or let it passthrough depending on the polarity of the
@@ -1057,7 +1075,8 @@ static void adv75xx_mode_set(struct adi_hdmi *adv75xx,  struct hisi_display_mode
 		vsync_polarity = adv75xx->vsync_polarity;
 	}
 	mode->vrefresh = mode_vrefresh(mode);
-	HISI_FB_INFO("hsync_polarity = %d; vsync_polarity = %d \n", hsync_polarity, vsync_polarity);
+	HISI_FB_INFO("hsync_polarity = %d; vsync_polarity = %d\n",
+		     hsync_polarity, vsync_polarity);
 	HISI_FB_INFO("mode->vrefresh = %d \n", mode->vrefresh);
 
 	if (mode->vrefresh <= 24000)
@@ -1071,10 +1090,9 @@ static void adv75xx_mode_set(struct adi_hdmi *adv75xx,  struct hisi_display_mode
 
 	HISI_FB_INFO("low_refresh_rate = %d \n", low_refresh_rate);
 
-	regmap_update_bits(adv75xx->regmap, 0xfb,
-		0x6, low_refresh_rate << 1);
+	regmap_update_bits(adv75xx->regmap, 0xfb, 0x6, low_refresh_rate << 1);
 	regmap_update_bits(adv75xx->regmap, ADV7533_REG_SYNC_POLARITY,
-		0x60, (vsync_polarity << 6) | (hsync_polarity << 5));
+			   0x60, (vsync_polarity << 6) | (hsync_polarity << 5));
 
 	/*
 	 * TODO Test first order 4:2:2 to 4:4:4 up conversion method, which is
@@ -1085,7 +1103,6 @@ static void adv75xx_mode_set(struct adi_hdmi *adv75xx,  struct hisi_display_mode
 
 	HISI_FB_INFO("-.\n");
 }
-
 
 static void adv75xx_power_on(struct adi_hdmi *adv75xx)
 {
@@ -1118,8 +1135,8 @@ static void adv75xx_power_on(struct adi_hdmi *adv75xx)
 	regcache_sync(adv75xx->regmap);
 
 	regmap_register_patch(adv75xx->regmap_cec,
-				     adv7533_cec_fixed_registers,
-				     ARRAY_SIZE(adv7533_cec_fixed_registers));
+			      adv7533_cec_fixed_registers,
+			      ARRAY_SIZE(adv7533_cec_fixed_registers));
 	adv75xx->powered = true;
 
 	adv75xx_dsi_receiver_dpms(adv75xx);
@@ -1133,8 +1150,7 @@ static void adv75xx_power_off(struct adi_hdmi *adv75xx)
 
 	/* TODO: setup additional power down modes */
 	regmap_update_bits(adv75xx->regmap, ADV7533_REG_POWER,
-			   ADV7533_POWER_POWER_DOWN,
-			   ADV7533_POWER_POWER_DOWN);
+			   ADV7533_POWER_POWER_DOWN, ADV7533_POWER_POWER_DOWN);
 	regcache_mark_dirty(adv75xx->regmap);
 
 	adv75xx->powered = false;
@@ -1170,7 +1186,6 @@ static int adv7533_init_regulators(struct adi_hdmi *adv75xx)
 		return ret;
 	}
 
-
 	ret = regulator_set_voltage(adv75xx->v1p2, 1200000, 1200000);
 	if (ret) {
 		dev_err(dev, "failed to set v1p2 voltage %d\n", ret);
@@ -1193,33 +1208,10 @@ static int adv7533_init_regulators(struct adi_hdmi *adv75xx)
 	return 0;
 }
 
-static void set_adv7533_pmic_reg(void)//ldo1(0x5c/0x5d) :1.2 V ;   ldo3(0x60/0x61) : 1.8 V
-{
-	HISI_FB_ERR("set_adv7533_pmic_reg enter !!!!!!!!!!!\n");
-	HISI_FB_INFO("+.\n");
-
-       unsigned char data = 0;
-       void __iomem *iomem = ioremap(0xfff34000, 0x1000);
-
-       data = readb(iomem + (0x60 << 2)) | (1 << 1);
-       writeb(data, iomem + (0x60 << 2));
-       data = (readb(iomem + (0x61 << 2)) & ~(0xF)) | 2;
-       writeb(data, iomem + (0x61 << 2));
-
-       data = readb(iomem + (0x5C << 2)) | (1 << 1);
-       writeb(data, iomem + (0x5C << 2));
-       data = (readb(iomem + (0x5D << 2)) & ~(0xF)) | 9;
-       writeb(data, iomem + (0x5D << 2));
-       iounmap(iomem);
-	
-	HISI_FB_INFO("-.\n");
-}
-
 static int adv7533_parse_dt(struct device_node *np, struct adi_hdmi *adv75xx)
 {
 	int ret;
 	u32 num_lanes;
-	struct device_node *endpoint;
 
 	ret = of_property_read_u32(np, "adi,dsi-lanes", &num_lanes);
 	if (ret) {
@@ -1244,25 +1236,26 @@ static const int packet_i2c_addr = 0x70;
 static const int cec_i2c_addr = 0x78;
 
 static const struct of_device_id adv75xx_of_ids[] = {
-	{ .compatible = "adi,adv7511", .data = (void *) ADV7511 },
-	{ .compatible = "adi,adv7511w", .data = (void *) ADV7511 },
-	{ .compatible = "adi,adv7513", .data = (void *) ADV7511 },
-	{ .compatible = "adi,adv7533", .data = (void *) ADV7533 },
-	{ }
+	{.compatible = "adi,adv7511", .data = (void *)ADV7511},
+	{.compatible = "adi,adv7511w", .data = (void *)ADV7511},
+	{.compatible = "adi,adv7513", .data = (void *)ADV7511},
+	{.compatible = "adi,adv7533", .data = (void *)ADV7533},
+	{},
 };
+
 MODULE_DEVICE_TABLE(of, adv75xx_of_ids);
 
 static const struct i2c_device_id adv75xx_i2c_ids[] = {
-	{ "adv7511", ADV7511 },
-	{ "adv7511w", ADV7511 },
-	{ "adv7513", ADV7511 },
-	{ "adv7533", ADV7533 },
-	{ }
+	{"adv7511", ADV7511},
+	{"adv7511w", ADV7511},
+	{"adv7513", ADV7511},
+	{"adv7533", ADV7533},
+	{}
 };
+
 MODULE_DEVICE_TABLE(i2c, adv75xx_i2c_ids);
 
-static struct adi_operation_funcs opt_funcs =
-{
+static struct adi_operation_funcs opt_funcs = {
 	.power_on = adv75xx_power_on,
 	.power_off = adv75xx_power_off,
 	.mode_set = adv75xx_mode_set,
@@ -1295,7 +1288,7 @@ static int adv75xx_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 		const struct of_device_id *of_id;
 
 		of_id = of_match_node(adv75xx_of_ids, dev->of_node);
-		adv75xx->type = (enum adv75xx_type) of_id->data;
+		adv75xx->type = (enum adv75xx_type)of_id->data;
 	} else {
 		adv75xx->type = ADV7533;
 	}
@@ -1306,17 +1299,14 @@ static int adv75xx_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 		goto err_return;
 	}
 
-	HISI_FB_ERR("adv7533_parse_dt ok !!!!!!!!!!!\n");
-
 	adv75xx->i2c_main = i2c;
 
-    //if (adv75xx->type == ADV7533) {
-    //	ret = adv7533_init_regulators(adv75xx); // adv7533 vdd--1.8v  v1p2--1.2v
-    //	if (ret)
-    //		return ret;
-    //}
+	if (adv75xx->type == ADV7533) {
+		ret = adv7533_init_regulators(adv75xx);	/* adv7533 vdd--1.8v  v1p2--1.2v */
+		if (ret)
+			return ret;
+	}
 
-	set_adv7533_pmic_reg();
 	/*
 	 * The power down GPIO is optional. If present, toggle it from active(1) to
 	 * inactive(0) to wake up the encoder.
@@ -1344,37 +1334,36 @@ static int adv75xx_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 		HISI_FB_ERR("regmap read failed, ret = %d!\n", ret);
 		goto err_return;
 	}
-	HISI_FB_ERR("%s of the Chip reversion is %d\n", dev_name(dev), val); // the corect val is 20.
+	HISI_FB_INFO("%s of the Chip reversion is %d\n", dev_name(dev), val);	/* the corect val is 20. */
 	dev_err(dev, "Rev. %d\n", val);
 
 	ret = regmap_register_patch(adv75xx->regmap,
-			adv7533_fixed_registers,
-			ARRAY_SIZE(adv7533_fixed_registers));
+				    adv7533_fixed_registers,
+				    ARRAY_SIZE(adv7533_fixed_registers));
 	if (ret) {
 		HISI_FB_ERR("regmap register failed!\n");
 		goto err_return;
 	}
 
 	regmap_write(adv75xx->regmap, ADV7533_REG_EDID_I2C_ADDR, edid_i2c_addr);
-	regmap_write(adv75xx->regmap, ADV7533_REG_PACKET_I2C_ADDR, packet_i2c_addr);
+	regmap_write(adv75xx->regmap, ADV7533_REG_PACKET_I2C_ADDR,
+		     packet_i2c_addr);
 	regmap_write(adv75xx->regmap, ADV7533_REG_CEC_I2C_ADDR, cec_i2c_addr);
 	adv75xx_packet_disable(adv75xx, 0xffff);
 
-	adv75xx->i2c_packet = i2c_new_dummy(i2c->adapter, packet_i2c_addr >> 1);  // 0x38
-	//adv75xx->i2c_packet = i2c_new_dummy(i2c->adapter, 0x34);
+	adv75xx->i2c_packet = i2c_new_dummy(i2c->adapter, packet_i2c_addr >> 1);
 	if (!adv75xx->i2c_packet) {
 		HISI_FB_ERR("i2c_new_dummy i2c_packet failed!\n");
 		return -ENOMEM;
 	}
 
-	adv75xx->i2c_edid = i2c_new_dummy(i2c->adapter, edid_i2c_addr >> 1);  // 0x3f
+	adv75xx->i2c_edid = i2c_new_dummy(i2c->adapter, edid_i2c_addr >> 1);
 	if (!adv75xx->i2c_edid) {
 		HISI_FB_ERR("i2c_new_dummy i2c_edid failed!\n");
 		goto err_i2c_unregister_packet;
 	}
 
-	adv75xx->i2c_cec = i2c_new_dummy(i2c->adapter, cec_i2c_addr >> 1); //0x3c
-	//adv75xx->i2c_cec = i2c_new_dummy(i2c->adapter, 0x3e);
+	adv75xx->i2c_cec = i2c_new_dummy(i2c->adapter, cec_i2c_addr >> 1);
 	if (!adv75xx->i2c_cec) {
 		ret = -ENOMEM;
 		HISI_FB_ERR("i2c_new_dummy i2c_cec failed!\n");
@@ -1382,7 +1371,7 @@ static int adv75xx_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	}
 
 	adv75xx->regmap_cec = devm_regmap_init_i2c(adv75xx->i2c_cec,
-					&adv7533_cec_regmap_config);
+						   &adv7533_cec_regmap_config);
 	if (IS_ERR(adv75xx->regmap_cec)) {
 		ret = PTR_ERR(adv75xx->regmap_cec);
 		HISI_FB_ERR("devm_regmap_init_i2c regmap_cec failed!\n");
@@ -1390,7 +1379,7 @@ static int adv75xx_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	}
 
 	adv75xx->regmap_packet = devm_regmap_init_i2c(adv75xx->i2c_packet,
-		&adv7533_packet_regmap_config);
+						      &adv7533_packet_regmap_config);
 	if (IS_ERR(adv75xx->regmap_packet)) {
 		ret = PTR_ERR(adv75xx->regmap_packet);
 		HISI_FB_ERR("devm_regmap_init_i2c regmap_packet failed!\n");
@@ -1399,10 +1388,12 @@ static int adv75xx_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 
 	if (adv75xx->type == ADV7533) {
 		ret = regmap_register_patch(adv75xx->regmap_cec,
-				adv7533_cec_fixed_registers,
-				ARRAY_SIZE(adv7533_cec_fixed_registers));
+					    adv7533_cec_fixed_registers,
+					    ARRAY_SIZE
+					    (adv7533_cec_fixed_registers));
 		if (ret) {
-			HISI_FB_ERR("regmap_register_patch cec_fixed_registers failed!\n");
+			HISI_FB_ERR
+			    ("regmap_register_patch cec_fixed_registers failed!\n");
 			goto err_return;
 		}
 	}
@@ -1428,19 +1419,16 @@ static int adv75xx_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 
 	i2c_set_clientdata(i2c, adv75xx);
 
-
-	//adv7511_audio_init(dev);
-	status = adv75xx_detect(adv75xx) ;
-	if(status != connector_status_connected)
-	{
+	/* adv7511_audio_init(dev); */
+	status = adv75xx_detect(adv75xx);
+	if (status != connector_status_connected) {
 		HISI_FB_ERR("adv75xx connector not connected !\n");
 	}
 
 	mode = adv75xx_get_modes(adv75xx);
 
 	ret = adv75xx_mode_valid(mode);
-	if(ret)
-	{
+	if (ret) {
 		HISI_FB_ERR("adv75xx not supported this mode !!\n");
 		kfree(mode);
 		mode = hisi_set_mode_info();
@@ -1449,9 +1437,13 @@ static int adv75xx_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 
 	adv75xx->opt_funcs = &opt_funcs;
 
-	hdmi_pdev = platform_device_alloc("adi_hdmi", (((uint32_t)PANEL_MIPI_VIDEO << 16) | (uint32_t)1));
-	if  (hdmi_pdev) {
-		if (platform_device_add_data(hdmi_pdev, adv75xx, sizeof(struct adi_hdmi))) {
+	hdmi_pdev =
+	    platform_device_alloc("adi_hdmi",
+				  (((uint32_t) PANEL_MIPI_VIDEO << 16) |
+				   (uint32_t) 1));
+	if (hdmi_pdev) {
+		if (platform_device_add_data
+		    (hdmi_pdev, adv75xx, sizeof(struct adi_hdmi))) {
 			HISI_FB_ERR("failed to platform_device_add_data!\n");
 			platform_device_put(hdmi_pdev);
 		}
@@ -1461,20 +1453,21 @@ static int adv75xx_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 	/* set driver data */
 	platform_set_drvdata(hdmi_pdev, adv75xx);
 	if (platform_device_add(hdmi_pdev)) {
-		HISI_FB_ERR("failed to platform_device_add!\n");
+		HISI_FB_ERR("platform_device_add failed!\n");
+		goto err_device_put;
 	}
 
 	return 0;
 
-err_i2c_unregister_cec:
+ err_i2c_unregister_cec:
 	i2c_unregister_device(adv75xx->i2c_cec);
-err_i2c_unregister_edid:
+ err_i2c_unregister_edid:
 	i2c_unregister_device(adv75xx->i2c_edid);
-err_i2c_unregister_packet:
+ err_i2c_unregister_packet:
 	i2c_unregister_device(adv75xx->i2c_packet);
-err_device_put:
+ err_device_put:
 	platform_device_put(hdmi_pdev);
-err_return:
+ err_return:
 	kfree(adv75xx);
 	return ret;
 }
@@ -1495,10 +1488,10 @@ static int adv75xx_remove(struct i2c_client *i2c)
 
 static struct i2c_driver adv75xx_driver = {
 	.driver = {
-		.owner = THIS_MODULE,
-		.name = "adv75xx",
-		.of_match_table = adv75xx_of_ids,
-	},
+		   .owner = THIS_MODULE,
+		   .name = "adv75xx",
+		   .of_match_table = adv75xx_of_ids,
+		   },
 	.id_table = adv75xx_i2c_ids,
 	.probe = adv75xx_probe,
 	.remove = adv75xx_remove,
@@ -1514,15 +1507,16 @@ static int __init adv75xx_init(void)
 	}
 	return ret;
 }
+
 module_init(adv75xx_init);
 
 static void __exit adv75xx_exit(void)
 {
 	i2c_del_driver(&adv75xx_driver);
 }
+
 module_exit(adv75xx_exit);
 
 MODULE_AUTHOR("Hisilicon Inc");
 MODULE_DESCRIPTION("ADV75XX HDMI transmitter driver");
 MODULE_LICENSE("GPL");
-

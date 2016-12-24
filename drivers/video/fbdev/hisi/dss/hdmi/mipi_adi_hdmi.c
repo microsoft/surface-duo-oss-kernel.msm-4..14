@@ -31,8 +31,8 @@
 #include "adv75xx.h"
 
 /*******************************************************************************
-**
-*/
+ **
+ */
 static int mipi_adi_hdmi_on(struct platform_device *pdev)
 {
 	struct adi_hdmi *adv75xx = NULL;
@@ -71,14 +71,15 @@ static int mipi_adi_hdmi_on(struct platform_device *pdev)
 			HISI_FB_ERR("platform get drivre data failed!\n");
 			return -1;
 		}
-	}
-	else{
+	} else {
 		HISI_FB_ERR("pdata->next is NULL!!\n");
 		return -1;
 	}
 
-	HISI_FB_INFO("adv75xx->i2c_main->name is %s!\n", adv75xx->i2c_main->name);
-	HISI_FB_INFO("adv75xx->mode->vdisplay is %d!\n", adv75xx->mode->vdisplay);
+	HISI_FB_INFO("adv75xx->i2c_main->name is %s!\n",
+		     adv75xx->i2c_main->name);
+	HISI_FB_INFO("adv75xx->mode->vdisplay is %d!\n",
+		     adv75xx->mode->vdisplay);
 
 	if (pinfo->lcd_init_step == LCD_INIT_POWER_ON) {
 		pinfo->lcd_init_step = LCD_INIT_MIPI_LP_SEND_SEQUENCE;
@@ -107,7 +108,8 @@ static int mipi_adi_hdmi_off(struct platform_device *pdev)
 	pdata = dev_get_platdata(&pdev->dev);
 	BUG_ON(pdata == NULL);
 
-	HISI_FB_INFO("pdev->name = %s, pdev->id = %d +.\n", pdev->name, pdev->id);
+	HISI_FB_INFO("pdev->name = %s, pdev->id = %d +.\n", pdev->name,
+		     pdev->id);
 
 	if (pdata->next) {
 		adv75xx = platform_get_drvdata(pdata->next);
@@ -117,8 +119,10 @@ static int mipi_adi_hdmi_off(struct platform_device *pdev)
 		}
 	}
 
-	HISI_FB_INFO("adv75xx->i2c_main->name is %s!\n", adv75xx->i2c_main->name);
-	HISI_FB_INFO("adv75xx->mode->vdisplay is %d!\n", adv75xx->mode->vdisplay);
+	HISI_FB_INFO("adv75xx->i2c_main->name is %s!\n",
+		     adv75xx->i2c_main->name);
+	HISI_FB_INFO("adv75xx->mode->vdisplay is %d!\n",
+		     adv75xx->mode->vdisplay);
 
 	adv75xx->opt_funcs->power_off(adv75xx);
 
@@ -133,11 +137,11 @@ static int mipi_adi_hdmi_remove(struct platform_device *pdev)
 	return 0;
 }
 
-
 /*******************************************************************************
-**
-*/
-static struct hisi_panel_info g_adi_hdmi_info = {0};
+ **
+ */
+static struct hisi_panel_info g_adi_hdmi_info = { 0 };
+
 static struct hisi_fb_panel_data g_adi_hdmi_data = {
 	.panel_info = &g_adi_hdmi_info,
 	.on = mipi_adi_hdmi_on,
@@ -145,8 +149,8 @@ static struct hisi_fb_panel_data g_adi_hdmi_data = {
 };
 
 /*******************************************************************************
-**
-*/
+ **
+ */
 static int mipi_adi_hdmi_probe(struct platform_device *pdev)
 {
 	int ret = 0;
@@ -157,7 +161,8 @@ static int mipi_adi_hdmi_probe(struct platform_device *pdev)
 	if (pdev == NULL)
 		HISI_FB_ERR("platform device is NULL!\n");
 
-	HISI_FB_INFO("pdev->name = %s, pdev->id = %d +.\n", pdev->name, pdev->id);
+	HISI_FB_INFO("pdev->name = %s, pdev->id = %d +.\n", pdev->name,
+		     pdev->id);
 
 	adv75xx = platform_get_drvdata(pdev);
 	if (!adv75xx) {
@@ -165,9 +170,11 @@ static int mipi_adi_hdmi_probe(struct platform_device *pdev)
 		goto err_probe_defer;
 	}
 
-	HISI_FB_INFO("adv75xx->i2c_main->name is %s!\n", adv75xx->i2c_main->name);
+	HISI_FB_INFO("adv75xx->i2c_main->name is %s!\n",
+		     adv75xx->i2c_main->name);
 
-	HISI_FB_INFO("adv75xx->mode->vdisplay is %d!\n", adv75xx->mode->vdisplay);
+	HISI_FB_INFO("adv75xx->mode->vdisplay is %d!\n",
+		     adv75xx->mode->vdisplay);
 
 	if (adv75xx->mode) {
 		mode = adv75xx->mode;
@@ -195,7 +202,7 @@ static int mipi_adi_hdmi_probe(struct platform_device *pdev)
 		pinfo->ldi.v_back_porch = mode->vtotal - mode->vsync_end;
 		pinfo->ldi.v_front_porch = mode->vsync_offset;
 		pinfo->ldi.v_pulse_width = mode->vsync_pulse_width;
-	}else {
+	} else {
 		/* init hdmi display info */
 		pinfo = g_adi_hdmi_data.panel_info;
 		pinfo->xres = 1920;
@@ -222,9 +229,9 @@ static int mipi_adi_hdmi_probe(struct platform_device *pdev)
 		pinfo->ldi.v_pulse_width = 5;
 	}
 
-	//mipi
+
 	pinfo->mipi.dsi_bit_clk = 480;
-	//pinfo->mipi.dsi_bit_clk = 436;
+
 
 	pinfo->dsi_bit_clk_upt_support = 0;
 	pinfo->mipi.dsi_bit_clk_upt = pinfo->mipi.dsi_bit_clk;
@@ -232,7 +239,7 @@ static int mipi_adi_hdmi_probe(struct platform_device *pdev)
 	pinfo->mipi.non_continue_en = 0;
 
 	pinfo->pxl_clk_rate = 160 * 1000000UL;
-	//pinfo->pxl_clk_rate = 149 * 1000000UL;
+
 
 	pinfo->mipi.lane_nums = DSI_4_LANES;
 	pinfo->mipi.color_mode = DSI_24BITS_1;
@@ -241,25 +248,27 @@ static int mipi_adi_hdmi_probe(struct platform_device *pdev)
 	pinfo->mipi.burst_mode = DSI_NON_BURST_SYNC_PULSES;
 
 	pinfo->mipi.clk_post_adjust = 120;
-	pinfo->mipi.clk_pre_adjust= 0;
-	pinfo->mipi.clk_t_hs_prepare_adjust= 0;
-	pinfo->mipi.clk_t_lpx_adjust= 0;
-	pinfo->mipi.clk_t_hs_trial_adjust= 0;
-	pinfo->mipi.clk_t_hs_exit_adjust= 0;
-	pinfo->mipi.clk_t_hs_zero_adjust= 0;
+	pinfo->mipi.clk_pre_adjust = 0;
+	pinfo->mipi.clk_t_hs_prepare_adjust = 0;
+	pinfo->mipi.clk_t_lpx_adjust = 0;
+	pinfo->mipi.clk_t_hs_trial_adjust = 0;
+	pinfo->mipi.clk_t_hs_exit_adjust = 0;
+	pinfo->mipi.clk_t_hs_zero_adjust = 0;
 
 	pinfo->pxl_clk_rate_div = 1;
 
 	g_adi_hdmi_data.next = pdev;
-	HISI_FB_INFO("The pixel clock is %d!!\n", pinfo->pxl_clk_rate);
-	HISI_FB_INFO("The resolution is %d x %d !!\n", pinfo->xres, pinfo->yres);
-	HISI_FB_INFO("hsw = %d, hfp = %d, hbp = %d, vsw = %d, vfp= %d, vbp = %d\n",
-		pinfo->ldi.h_pulse_width, pinfo->ldi.h_front_porch, pinfo->ldi.h_back_porch,
-		pinfo->ldi.v_pulse_width, pinfo->ldi.v_front_porch, pinfo->ldi.v_back_porch);
+	HISI_FB_INFO("The pixel clock is %llu !\n", pinfo->pxl_clk_rate);
+	HISI_FB_INFO("The resolution is %d x %d !\n", pinfo->xres, pinfo->yres);
+	HISI_FB_INFO
+	    ("hsw = %d, hfp = %d, hbp = %d, vsw = %d, vfp= %d, vbp = %d\n",
+	     pinfo->ldi.h_pulse_width, pinfo->ldi.h_front_porch,
+	     pinfo->ldi.h_back_porch, pinfo->ldi.v_pulse_width,
+	     pinfo->ldi.v_front_porch, pinfo->ldi.v_back_porch);
 
-	// alloc panel device data
-	ret = platform_device_add_data(pdev,  &g_adi_hdmi_data,
-		sizeof(struct hisi_fb_panel_data));
+
+	ret = platform_device_add_data(pdev, &g_adi_hdmi_data,
+				       sizeof(struct hisi_fb_panel_data));
 	if (ret) {
 		HISI_FB_ERR("platform_device_add_data failed!\n");
 		goto err_device_put;
@@ -271,9 +280,9 @@ static int mipi_adi_hdmi_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_device_put:
+ err_device_put:
 	platform_device_put(pdev);
-err_probe_defer:
+ err_probe_defer:
 	return -EPROBE_DEFER;
 }
 
@@ -283,9 +292,9 @@ static struct platform_driver this_driver = {
 	.suspend = NULL,
 	.resume = NULL,
 	.shutdown = NULL,
-	.driver =  {
-		.name = "adi_hdmi",
-	}
+	.driver = {
+		   .name = "adi_hdmi",
+		   }
 };
 
 static int __init mipi_adi_hdmi_init(void)
@@ -294,7 +303,8 @@ static int __init mipi_adi_hdmi_init(void)
 
 	ret = platform_driver_register(&this_driver);
 	if (ret) {
-		HISI_FB_ERR("platform_driver_register failed, error=%d!\n", ret);
+		HISI_FB_ERR("platform_driver_register failed, error=%d!\n",
+			    ret);
 		return ret;
 	}
 

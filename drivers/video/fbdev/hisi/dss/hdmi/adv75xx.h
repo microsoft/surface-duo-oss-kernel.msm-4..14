@@ -59,34 +59,34 @@
 #define ADV7533_REG_DSD_ENABLE			0x46
 #define ADV7533_REG_VIDEO_INPUT_CFG2		0x48
 #define ADV7533_REG_INFOFRAME_UPDATE		0x4a
-#define ADV7533_REG_GC(x)			(0x4b + (x)) /* 0x4b - 0x51 */
+#define ADV7533_REG_GC(x)			(0x4b + (x))	/* 0x4b - 0x51 */
 #define ADV7533_REG_AVI_INFOFRAME_VERSION	0x52
 #define ADV7533_REG_AVI_INFOFRAME_LENGTH	0x53
 #define ADV7533_REG_AVI_INFOFRAME_CHECKSUM	0x54
-#define ADV7533_REG_AVI_INFOFRAME(x)		(0x55 + (x)) /* 0x55 - 0x6f */
+#define ADV7533_REG_AVI_INFOFRAME(x)		(0x55 + (x))	/* 0x55 - 0x6f */
 #define ADV7533_REG_AUDIO_INFOFRAME_VERSION	0x70
 #define ADV7533_REG_AUDIO_INFOFRAME_LENGTH	0x71
 #define ADV7533_REG_AUDIO_INFOFRAME_CHECKSUM	0x72
-#define ADV7533_REG_AUDIO_INFOFRAME(x)		(0x73 + (x)) /* 0x73 - 0x7c */
+#define ADV7533_REG_AUDIO_INFOFRAME(x)		(0x73 + (x))	/* 0x73 - 0x7c */
 #define ADV7533_REG_INT_ENABLE(x)		(0x94 + (x))
 #define ADV7533_REG_INT(x)			(0x96 + (x))
 #define ADV7533_REG_INPUT_CLK_DIV		0x9d
 #define ADV7533_REG_PLL_STATUS			0x9e
 #define ADV7533_REG_HDMI_POWER			0xa1
 #define ADV7533_REG_HDCP_HDMI_CFG		0xaf
-#define ADV7533_REG_AN(x)			(0xb0 + (x)) /* 0xb0 - 0xb7 */
+#define ADV7533_REG_AN(x)			(0xb0 + (x))	/* 0xb0 - 0xb7 */
 #define ADV7533_REG_HDCP_STATUS			0xb8
 #define ADV7533_REG_BCAPS			0xbe
-#define ADV7533_REG_BKSV(x)			(0xc0 + (x)) /* 0xc0 - 0xc3 */
+#define ADV7533_REG_BKSV(x)			(0xc0 + (x))	/* 0xc0 - 0xc3 */
 #define ADV7533_REG_EDID_SEGMENT		0xc4
 #define ADV7533_REG_DDC_STATUS			0xc8
 #define ADV7533_REG_EDID_READ_CTRL		0xc9
-#define ADV7533_REG_BSTATUS(x)			(0xca + (x)) /* 0xca - 0xcb */
+#define ADV7533_REG_BSTATUS(x)			(0xca + (x))	/* 0xca - 0xcb */
 #define ADV7533_REG_TIMING_GEN_SEQ		0xd0
 #define ADV7533_REG_POWER2			0xd6
 #define ADV7533_REG_HSYNC_PLACEMENT_MSB		0xfa
 
-#define ADV7533_REG_SYNC_ADJUSTMENT(x)		(0xd7 + (x)) /* 0xd7 - 0xdc */
+#define ADV7533_REG_SYNC_ADJUSTMENT(x)		(0xd7 + (x))	/* 0xd7 - 0xdc */
 #define ADV7533_REG_TMDS_CLOCK_INV		0xde
 #define ADV7533_REG_ARC_CTRL			0xdf
 #define ADV7533_REG_CEC_I2C_ADDR		0xe1
@@ -210,12 +210,11 @@
 #define MODE_FLAG_CSYNC			(1<<6)
 #define MODE_FLAG_PCSYNC			(1<<7)
 #define MODE_FLAG_NCSYNC			(1<<8)
-#define MODE_FLAG_HSKEW			(1<<9) /* hskew provided */
+#define MODE_FLAG_HSKEW			(1<<9)	/* hskew provided */
 #define MODE_FLAG_BCAST			(1<<10)
 #define MODE_FLAG_PIXMUX			(1<<11)
 #define MODE_FLAG_DBLCLK			(1<<12)
 #define MODE_FLAG_CLKDIV2			(1<<13)
-
 
 /*
  * Note on terminology:  here, for brevity and convenience, we refer to connector
@@ -226,54 +225,54 @@
  */
 
 enum mode_status {
-    MODE_OK	= 0,	/* Mode OK */
-    MODE_HSYNC,		/* hsync out of range */
-    MODE_VSYNC,		/* vsync out of range */
-    MODE_H_ILLEGAL,	/* mode has illegal horizontal timings */
-    MODE_V_ILLEGAL,	/* mode has illegal horizontal timings */
-    MODE_BAD_WIDTH,	/* requires an unsupported linepitch */
-    MODE_NOMODE,	/* no mode with a matching name */
-    MODE_NO_INTERLACE,	/* interlaced mode not supported */
-    MODE_NO_DBLESCAN,	/* doublescan mode not supported */
-    MODE_NO_VSCAN,	/* multiscan mode not supported */
-    MODE_MEM,		/* insufficient video memory */
-    MODE_VIRTUAL_X,	/* mode width too large for specified virtual size */
-    MODE_VIRTUAL_Y,	/* mode height too large for specified virtual size */
-    MODE_MEM_VIRT,	/* insufficient video memory given virtual size */
-    MODE_NOCLOCK,	/* no fixed clock available */
-    MODE_CLOCK_HIGH,	/* clock required is too high */
-    MODE_CLOCK_LOW,	/* clock required is too low */
-    MODE_CLOCK_RANGE,	/* clock/mode isn't in a ClockRange */
-    MODE_BAD_HVALUE,	/* horizontal timing was out of range */
-    MODE_BAD_VVALUE,	/* vertical timing was out of range */
-    MODE_BAD_VSCAN,	/* VScan value out of range */
-    MODE_HSYNC_NARROW,	/* horizontal sync too narrow */
-    MODE_HSYNC_WIDE,	/* horizontal sync too wide */
-    MODE_HBLANK_NARROW,	/* horizontal blanking too narrow */
-    MODE_HBLANK_WIDE,	/* horizontal blanking too wide */
-    MODE_VSYNC_NARROW,	/* vertical sync too narrow */
-    MODE_VSYNC_WIDE,	/* vertical sync too wide */
-    MODE_VBLANK_NARROW,	/* vertical blanking too narrow */
-    MODE_VBLANK_WIDE,	/* vertical blanking too wide */
-    MODE_PANEL,         /* exceeds panel dimensions */
-    MODE_INTERLACE_WIDTH, /* width too large for interlaced mode */
-    MODE_ONE_WIDTH,     /* only one width is supported */
-    MODE_ONE_HEIGHT,    /* only one height is supported */
-    MODE_ONE_SIZE,      /* only one resolution is supported */
-    MODE_NO_REDUCED,    /* monitor doesn't accept reduced blanking */
-    MODE_NO_STEREO,	/* stereo modes not supported */
-    MODE_UNVERIFIED = -3, /* mode needs to reverified */
-    MODE_BAD = -2,	/* unspecified reason */
-    MODE_ERROR	= -1	/* error condition */
+	MODE_OK = 0,		/* Mode OK */
+	MODE_HSYNC,		/* hsync out of range */
+	MODE_VSYNC,		/* vsync out of range */
+	MODE_H_ILLEGAL,		/* mode has illegal horizontal timings */
+	MODE_V_ILLEGAL,		/* mode has illegal horizontal timings */
+	MODE_BAD_WIDTH,		/* requires an unsupported linepitch */
+	MODE_NOMODE,		/* no mode with a matching name */
+	MODE_NO_INTERLACE,	/* interlaced mode not supported */
+	MODE_NO_DBLESCAN,	/* doublescan mode not supported */
+	MODE_NO_VSCAN,		/* multiscan mode not supported */
+	MODE_MEM,		/* insufficient video memory */
+	MODE_VIRTUAL_X,		/* mode width too large for specified virtual size */
+	MODE_VIRTUAL_Y,		/* mode height too large for specified virtual size */
+	MODE_MEM_VIRT,		/* insufficient video memory given virtual size */
+	MODE_NOCLOCK,		/* no fixed clock available */
+	MODE_CLOCK_HIGH,	/* clock required is too high */
+	MODE_CLOCK_LOW,		/* clock required is too low */
+	MODE_CLOCK_RANGE,	/* clock/mode isn't in a ClockRange */
+	MODE_BAD_HVALUE,	/* horizontal timing was out of range */
+	MODE_BAD_VVALUE,	/* vertical timing was out of range */
+	MODE_BAD_VSCAN,		/* VScan value out of range */
+	MODE_HSYNC_NARROW,	/* horizontal sync too narrow */
+	MODE_HSYNC_WIDE,	/* horizontal sync too wide */
+	MODE_HBLANK_NARROW,	/* horizontal blanking too narrow */
+	MODE_HBLANK_WIDE,	/* horizontal blanking too wide */
+	MODE_VSYNC_NARROW,	/* vertical sync too narrow */
+	MODE_VSYNC_WIDE,	/* vertical sync too wide */
+	MODE_VBLANK_NARROW,	/* vertical blanking too narrow */
+	MODE_VBLANK_WIDE,	/* vertical blanking too wide */
+	MODE_PANEL,		/* exceeds panel dimensions */
+	MODE_INTERLACE_WIDTH,	/* width too large for interlaced mode */
+	MODE_ONE_WIDTH,		/* only one width is supported */
+	MODE_ONE_HEIGHT,	/* only one height is supported */
+	MODE_ONE_SIZE,		/* only one resolution is supported */
+	MODE_NO_REDUCED,	/* monitor doesn't accept reduced blanking */
+	MODE_NO_STEREO,		/* stereo modes not supported */
+	MODE_UNVERIFIED = -3,	/* mode needs to reverified */
+	MODE_BAD = -2,		/* unspecified reason */
+	MODE_ERROR = -1		/* error condition */
 };
 
 enum DDC_controller_status {
-    IN_RESET	= 0,	/* In Reset (No Hot Plug Detected) */
-    READING_EDID,		/* Reading EDID */
-    IDLE,		/* IDLE (Waiting for HDCP Requested) */
-    INIT_HDCP,	/* Initializing HDCP */
-    HDCP_ENABLE,	/* HDCP Enabled */
-    INIT_HDCP_REPEAT	/* Initializing HDCP Repeater */
+	IN_RESET = 0,		/* In Reset (No Hot Plug Detected) */
+	READING_EDID,		/* Reading EDID */
+	IDLE,			/* IDLE (Waiting for HDCP Requested) */
+	INIT_HDCP,		/* Initializing HDCP */
+	HDCP_ENABLE,		/* HDCP Enabled */
+	INIT_HDCP_REPEAT	/* Initializing HDCP Repeater */
 };
 
 /* If detailed data is pixel timing */
@@ -294,33 +293,33 @@ struct detailed_pixel_timing {
 	u8 hborder;
 	u8 vborder;
 	u8 misc;
-} __attribute__((packed));
+} __attribute__ ((packed));
 
 struct est_timings {
 	u8 t1;
 	u8 t2;
 	u8 mfg_rsvd;
-} __attribute__((packed));
+} __attribute__ ((packed));
 
 struct std_timing {
-	u8 hsize; /* need to multiply by 8 then add 248 */
+	u8 hsize;		/* need to multiply by 8 then add 248 */
 	u8 vfreq_aspect;
-} __attribute__((packed));
+} __attribute__ ((packed));
 
 struct detailed_timing {
-	__le16 pixel_clock; /* need to multiply by 10 KHz */
+	__le16 pixel_clock;	/* need to multiply by 10 KHz */
 	union {
 		struct detailed_pixel_timing pixel_data;
-		//struct detailed_non_pixel other_data;
+
 	} data;
-} __attribute__((packed));
+} __attribute__ ((packed));
 
 struct edid {
 	u8 header[8];
 	/* Vendor & product info */
 	u8 mfg_id[2];
 	u8 prod_code[2];
-	u32 serial; /* FIXME: byte order */
+	u32 serial;		/* FIXME: byte order */
 	u8 mfg_week;
 	u8 mfg_year;
 	/* EDID version */
@@ -343,9 +342,9 @@ struct edid {
 	u8 blue_y;
 	u8 white_x;
 	u8 white_y;
-	/* Est. timings and mfg rsvd timings*/
+	/* Est. timings and mfg rsvd timings */
 	struct est_timings established_timings;
-	/* Standard timings 1-8*/
+	/* Standard timings 1-8 */
 	struct std_timing standard_timings[8];
 	/* Detailing timings 1-4 */
 	struct detailed_timing detailed_timings[4];
@@ -353,7 +352,7 @@ struct edid {
 	u8 extensions;
 	/* Checksum */
 	u8 checksum;
-} __attribute__((packed));
+} __attribute__ ((packed));
 
 /**
  * enum adv75xx_csc_scaling - Scaling factor for the ADV75xx CSC
@@ -385,7 +384,7 @@ struct adv75xx_video_config {
 };
 
 struct hisi_display_mode {
-	//enum drm_mode_status status;
+
 	unsigned int type;
 
 	/* Proposed mode values */
@@ -448,12 +447,6 @@ enum connector_status {
 	connector_status_unknown = 3,
 };
 
-struct adi_operation_funcs  {
-	void (*power_on)(struct adi_hdmi *adv75xx);
-	void (*power_off)(struct adi_hdmi *adv75xx);
-	void (*mode_set)(struct adi_hdmi *adv75xx,  struct hisi_display_mode *mode);
-};
-
 struct adi_hdmi {
 	enum adv75xx_type type;
 	bool powered;
@@ -471,7 +464,6 @@ struct adi_hdmi {
 	struct regmap *regmap_packet;
 	enum connector_status status;
 
-	// for audio config
 	unsigned int f_tmds;
 	unsigned int f_audio;
 	unsigned int audio_source;
@@ -494,8 +486,11 @@ struct adi_hdmi {
 	struct adi_operation_funcs *opt_funcs;
 };
 
+struct adi_operation_funcs {
+	void (*power_on)(struct adi_hdmi *adv75xx);
+	void (*power_off)(struct adi_hdmi *adv75xx);
+	void (*mode_set)(struct adi_hdmi *adv75xx,
+			  struct hisi_display_mode *mode);
+};
 
-
-
-#endif  /* __ADV75XX_H__ */
-
+#endif				/* __ADV75XX_H__ */

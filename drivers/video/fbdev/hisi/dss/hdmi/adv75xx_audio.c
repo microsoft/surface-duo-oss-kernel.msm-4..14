@@ -27,7 +27,7 @@ static const struct snd_soc_dapm_widget adv75xx_dapm_widgets[] = {
 };
 
 static const struct snd_soc_dapm_route adv75xx_routes[] = {
-	{ "TMDS", NULL, "AIFIN" },
+	{"TMDS", NULL, "AIFIN"},
 };
 
 static void adv75xx_calc_cts_n(unsigned int f_tmds, unsigned int fs,
@@ -63,8 +63,7 @@ static int adv75xx_update_cts_n(struct adi_hdmi *adv75xx)
 		     (cts >> 16) & 0xf);
 	regmap_write(adv75xx->regmap, ADV7533_REG_CTS_MANUAL1,
 		     (cts >> 8) & 0xff);
-	regmap_write(adv75xx->regmap, ADV7533_REG_CTS_MANUAL2,
-		     cts & 0xff);
+	regmap_write(adv75xx->regmap, ADV7533_REG_CTS_MANUAL2, cts & 0xff);
 
 	return 0;
 }
@@ -134,8 +133,7 @@ static int adv75xx_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static int adv75xx_set_dai_fmt(struct snd_soc_dai *codec_dai,
-			       unsigned int fmt)
+static int adv75xx_set_dai_fmt(struct snd_soc_dai *codec_dai, unsigned int fmt)
 {
 	struct snd_soc_codec *codec = codec_dai->codec;
 	struct adi_hdmi *adv75xx = snd_soc_codec_get_drvdata(codec);
@@ -155,9 +153,11 @@ static int adv75xx_set_dai_fmt(struct snd_soc_dai *codec_dai,
 		audio_source = ADV7533_AUDIO_SOURCE_I2S;
 		i2s_format = ADV7533_I2S_FORMAT_LEFT_J;
 		break;
-//	case SND_SOC_DAIFMT_SPDIF:
-//		audio_source = ADV7533_AUDIO_SOURCE_SPDIF;
-//		break;
+	/*
+	case SND_SOC_DAIFMT_SPDIF:
+	   audio_source = ADV7533_AUDIO_SOURCE_SPDIF;
+	   break;
+	*/
 	default:
 		return -EINVAL;
 	}
@@ -213,18 +213,18 @@ static int adv75xx_set_bias_level(struct snd_soc_codec *codec,
 	case SND_SOC_BIAS_PREPARE:
 		if (dapm->bias_level == SND_SOC_BIAS_STANDBY) {
 			adv75xx_packet_enable(adv75xx,
-					ADV7533_PACKET_ENABLE_AUDIO_SAMPLE);
+					      ADV7533_PACKET_ENABLE_AUDIO_SAMPLE);
 			adv75xx_packet_enable(adv75xx,
-					ADV7533_PACKET_ENABLE_AUDIO_INFOFRAME);
+					      ADV7533_PACKET_ENABLE_AUDIO_INFOFRAME);
 			adv75xx_packet_enable(adv75xx,
-					ADV7533_PACKET_ENABLE_N_CTS);
+					      ADV7533_PACKET_ENABLE_N_CTS);
 		} else {
 			adv75xx_packet_disable(adv75xx,
-					ADV7533_PACKET_ENABLE_AUDIO_SAMPLE);
+					       ADV7533_PACKET_ENABLE_AUDIO_SAMPLE);
 			adv75xx_packet_disable(adv75xx,
-					ADV7533_PACKET_ENABLE_AUDIO_INFOFRAME);
+					       ADV7533_PACKET_ENABLE_AUDIO_INFOFRAME);
 			adv75xx_packet_disable(adv75xx,
-					ADV7533_PACKET_ENABLE_N_CTS);
+					       ADV7533_PACKET_ENABLE_N_CTS);
 		}
 		break;
 	case SND_SOC_BIAS_STANDBY:
@@ -247,20 +247,20 @@ static int adv75xx_set_bias_level(struct snd_soc_codec *codec,
 		SNDRV_PCM_FMTBIT_S20_3LE | SNDRV_PCM_FMTBIT_S24_LE)
 
 static const struct snd_soc_dai_ops adv75xx_dai_ops = {
-	.hw_params	= adv75xx_hw_params,
-	/*.set_sysclk	= adv75xx_set_dai_sysclk,*/
-	.set_fmt	= adv75xx_set_dai_fmt,
+	.hw_params = adv75xx_hw_params,
+	/*.set_sysclk   = adv75xx_set_dai_sysclk, */
+	.set_fmt = adv75xx_set_dai_fmt,
 };
 
 static struct snd_soc_dai_driver adv75xx_dai = {
 	.name = "adv75xx",
 	.playback = {
-		.stream_name = "Playback",
-		.channels_min = 2,
-		.channels_max = 2,
-		.rates = ADV7533_RATES,
-		.formats = ADV7533_FORMATS,
-	},
+		     .stream_name = "Playback",
+		     .channels_min = 2,
+		     .channels_max = 2,
+		     .rates = ADV7533_RATES,
+		     .formats = ADV7533_FORMATS,
+		     },
 	.ops = &adv75xx_dai_ops,
 };
 
@@ -286,22 +286,22 @@ static int adv75xx_remove(struct snd_soc_codec *codec)
 }
 
 static struct snd_soc_codec_driver adv75xx_codec_driver = {
-	.probe		    = adv75xx_probe,
-	.remove		    = adv75xx_remove,
-	.suspend	    = adv75xx_suspend,
-	.resume		    = adv75xx_resume,
-	.set_bias_level	    = adv75xx_set_bias_level,
+	.probe = adv75xx_probe,
+	.remove = adv75xx_remove,
+	.suspend = adv75xx_suspend,
+	.resume = adv75xx_resume,
+	.set_bias_level = adv75xx_set_bias_level,
 
-	.dapm_widgets	    = adv75xx_dapm_widgets,
-	.num_dapm_widgets   = ARRAY_SIZE(adv75xx_dapm_widgets),
-	.dapm_routes	    = adv75xx_routes,
-	.num_dapm_routes    = ARRAY_SIZE(adv75xx_routes),
+	.dapm_widgets = adv75xx_dapm_widgets,
+	.num_dapm_widgets = ARRAY_SIZE(adv75xx_dapm_widgets),
+	.dapm_routes = adv75xx_routes,
+	.num_dapm_routes = ARRAY_SIZE(adv75xx_routes),
 };
 
 int adv75xx_audio_init(struct device *dev)
 {
 	return snd_soc_register_codec(dev, &adv75xx_codec_driver,
-		&adv75xx_dai, 1);
+				      &adv75xx_dai, 1);
 }
 
 void adv75xx_audio_exit(struct device *dev)

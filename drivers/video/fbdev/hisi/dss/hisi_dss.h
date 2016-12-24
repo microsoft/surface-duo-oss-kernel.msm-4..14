@@ -26,9 +26,8 @@
 #define FB_ACCEL_HI365x     0x4
 #define FB_ACCEL_HI625x     0x8
 #define FB_ACCEL_HI366x     0x10
-#define FB_ACCEL_PLATFORM_TYPE_FPGA     0x10000000   //FPGA
-#define FB_ACCEL_PLATFORM_TYPE_ASIC     0x20000000   //ASIC
-
+#define FB_ACCEL_PLATFORM_TYPE_FPGA     0x10000000
+#define FB_ACCEL_PLATFORM_TYPE_ASIC     0x20000000
 
 #define HISIFB_LCD_DIRTY_REGION_INFO_GET _IOW(HISIFB_IOCTL_MAGIC, 801, struct lcd_dirty_region_info)
 #define HISIFB_PLATFORM_TYPE_GET _IOW(HISIFB_IOCTL_MAGIC, 802, int)
@@ -44,7 +43,6 @@
 #define HISIFB_OV_ONLINE_PLAY _IOW(HISIFB_IOCTL_MAGIC, 0x21, struct dss_overlay)
 
 #define HISIFB_IDLE_IS_ALLOWED  _IOW(HISIFB_IOCTL_MAGIC, 0x42, int)
-
 
 #ifndef BIT
 #define BIT(x)  (1<<(x))
@@ -63,9 +61,7 @@
 #define LCD_FPS_SCENCE_WEB      BIT(3)
 #define LCD_FPS_SCENCE_EBOOK    BIT(4)
 
-
 #define DSS_WCH_MAX  (2)
-
 
 /* for YUV */
 #define MAX_PLANES	(3)
@@ -96,16 +92,16 @@ enum hisi_fb_pixel_format {
 	HISI_FB_PIXEL_FORMAT_YUV_422_I,
 
 	/* YUV Semi-planar */
-	HISI_FB_PIXEL_FORMAT_YCbCr_422_SP, /* NV16 */
+	HISI_FB_PIXEL_FORMAT_YCbCr_422_SP,	/* NV16 */
 	HISI_FB_PIXEL_FORMAT_YCrCb_422_SP,
 	HISI_FB_PIXEL_FORMAT_YCbCr_420_SP,
-	HISI_FB_PIXEL_FORMAT_YCrCb_420_SP, /* NV21*/
+	HISI_FB_PIXEL_FORMAT_YCrCb_420_SP,	/* NV21 */
 
 	/* YUV Planar */
 	HISI_FB_PIXEL_FORMAT_YCbCr_422_P,
 	HISI_FB_PIXEL_FORMAT_YCrCb_422_P,
 	HISI_FB_PIXEL_FORMAT_YCbCr_420_P,
-	HISI_FB_PIXEL_FORMAT_YCrCb_420_P, /* HISI_FB_PIXEL_FORMAT_YV12 */
+	HISI_FB_PIXEL_FORMAT_YCrCb_420_P,	/* HISI_FB_PIXEL_FORMAT_YV12 */
 
 	/* YUV Package */
 	HISI_FB_PIXEL_FORMAT_YUYV_422_Pkg,
@@ -122,11 +118,11 @@ enum hisi_fb_blending {
 	HISI_FB_BLENDING_MAX = 3,
 };
 
-enum hisi_fb_transform{
+enum hisi_fb_transform {
 	HISI_FB_TRANSFORM_NOP = 0x0,
 	/* flip source image horizontally (around the vertical axis) */
 	HISI_FB_TRANSFORM_FLIP_H = 0x01,
-	/* flip source image vertically (around the horizontal axis)*/
+	/* flip source image vertically (around the horizontal axis) */
 	HISI_FB_TRANSFORM_FLIP_V = 0x02,
 	/* rotate source image 90 degrees clockwise */
 	HISI_FB_TRANSFORM_ROT_90 = 0x04,
@@ -168,7 +164,7 @@ enum dss_chn_idx {
 
 	DSS_CHN_MAX,
 
-	DSS_RCHN_V2 = DSS_CHN_MAX,  //for copybit, only supported in chicago
+	DSS_RCHN_V2 = DSS_CHN_MAX,
 	DSS_WCHN_W2,
 
 	DSS_COPYBIT_MAX,
@@ -198,24 +194,25 @@ enum dss_ovl_idx {
 #define CAP_DIM	BIT(1)
 #define CAP_BASE	BIT(0)
 
-//this head file to save the structs that both ade and dss will use
-//note: if the left_align is 8,right_align is 8,and w_min is larger than 802,then w_min should be set to 808,
-//make sure that it is 8 align,if w_min is set to 802,there will be an error.left_align,right_align,top_align
-//bottom_align,w_align,h_align,w_min and h_min's valid value should be larger than 0,top_start and bottom_start
-//maybe equal to 0. if it's not surpport partial update, these value should set to invalid value(-1).
+/*this head file to save the structs that both ade and dss will use
+**note: if the left_align is 8,right_align is 8,and w_min is larger than 802,then w_min should be set to 808,
+**make sure that it is 8 align,if w_min is set to 802,there will be an error.left_align,right_align,top_align
+**bottom_align,w_align,h_align,w_min and h_min's valid value should be larger than 0,top_start and bottom_start
+**maybe equal to 0. if it's not surpport partial update, these value should set to invalid value(-1).
+*/
 typedef struct lcd_dirty_region_info {
-    int left_align;
-    int right_align;
-    int top_align;
-    int bottom_align;
+	int left_align;
+	int right_align;
+	int top_align;
+	int bottom_align;
 
-    int w_align;
-    int h_align;
-    int w_min;
-    int h_min;
+	int w_align;
+	int h_align;
+	int w_min;
+	int h_min;
 
-    int top_start;
-    int bottom_start;
+	int top_start;
+	int bottom_start;
 } lcd_dirty_region_info_t;
 
 typedef struct dss_rect {
@@ -241,7 +238,7 @@ typedef struct dss_img {
 	uint32_t format;
 	uint32_t width;
 	uint32_t height;
-	uint32_t bpp;	/* bytes per pixel */
+	uint32_t bpp;		/* bytes per pixel */
 	uint32_t buf_size;
 	uint32_t stride;
 	uint32_t stride_plane1;
@@ -276,11 +273,11 @@ typedef struct dss_block_info {
 	uint32_t arsr2p_left_clip;
 	uint32_t both_vscfh_arsr2p_used;
 	dss_rect_t arsr2p_in_rect;
-	uint32_t arsr2p_src_x; //new added
-	uint32_t arsr2p_src_y; //new added
-	uint32_t arsr2p_dst_x; //new added
-	uint32_t arsr2p_dst_y; //new added
-	uint32_t arsr2p_dst_w; //new added
+	uint32_t arsr2p_src_x;
+	uint32_t arsr2p_src_y;
+	uint32_t arsr2p_dst_x;
+	uint32_t arsr2p_dst_y;
+	uint32_t arsr2p_dst_w;
 	int32_t h_v_order;
 } dss_block_info_t;
 
@@ -292,7 +289,7 @@ typedef struct dss_layer {
 	uint32_t transform;
 	int32_t blending;
 	uint32_t glb_alpha;
-	uint32_t color; /* background color or dim color */
+	uint32_t color;		/* background color or dim color */
 	int32_t layer_idx;
 	int32_t chn_idx;
 	uint32_t need_cap;
@@ -314,18 +311,17 @@ typedef struct dss_wb_layer {
 	int32_t release_fence;
 } dss_wb_layer_t;
 
-
 /*
-** dss error status
-*/
+ ** dss error status
+ */
 #define DSS_PDP_LDI_UNDERFLOW		BIT(0)
 #define DSS_SDP_LDI_UNDERFLOW		BIT(1)
 #define DSS_PDP_SMMU_ERR			BIT(2)
 #define DSS_SDP_SMMU_ERR			BIT(3)
 
 /*
-** crc enable status
-*/
+ ** crc enable status
+ */
 enum dss_crc_enable_status {
 	DSS_CRC_NONE = 0,
 	DSS_CRC_OV_EN = 1,
@@ -334,8 +330,8 @@ enum dss_crc_enable_status {
 };
 
 /*
-** sec enable status
-*/
+ ** sec enable status
+ */
 enum dss_sec_enable_status {
 	DSS_SEC_STOP = 0,
 	DSS_SEC_RUN = 1,
@@ -377,20 +373,16 @@ typedef struct dss_overlay {
 	uint32_t wb_layer_nums;
 	uint32_t wb_compose_type;
 
-	// struct dss_overlay_block
 	uint64_t ov_block_infos_ptr;
 	uint32_t ov_block_nums;
 	int32_t ovl_idx;
 	uint32_t wb_enable;
 	uint32_t frame_no;
 
-	// dirty region
 	dss_rect_t dirty_rect;
 
-	// resolution change
 	struct dss_rect res_updt_rect;
 
-	// crc
 	dss_crc_info_t crc_info;
 	int32_t crc_enable_status;
 	uint32_t sec_enable_status;
@@ -403,7 +395,7 @@ typedef struct dss_clk_rate {
 	uint64_t dss_pri_clk_rate;
 	uint64_t dss_pclk_dss_rate;
 	uint64_t dss_pclk_pctrl_rate;
-	uint32_t dss_voltage_value; //0:0.7v, 2:0.8v
+	uint32_t dss_voltage_value;
 } dss_clk_rate_t;
 
 typedef struct ce_algorithm_parameter {
@@ -458,9 +450,7 @@ typedef struct ce_parameter {
 	ce_algorithm_parameter_t ce_alg_param;
 } ce_parameter_t;
 
-//HIACE struct
 typedef struct hiace_alg_parameter {
-	//paramters to avoid interference of black/white edge
 	int iGlobalHistBlackPos;
 	int iGlobalHistWhitePos;
 	int iGlobalHistBlackWeight;
@@ -468,23 +458,19 @@ typedef struct hiace_alg_parameter {
 	int iGlobalHistZeroCutRatio;
 	int iGlobalHistSlopeCutRatio;
 
-	//Photo metadata
 	char Classifieresult[1024];
 	int iResultLen;
 
-	//function enable/disable switch
 	int iDoLCE;
 	int iDoSRE;
 	int iDoAPLC;
 
-	// minimum ambient light to enable SRE
 	int iLaSensorSREOnTH;
-
 	int iWidth;
 	int iHeight;
 	int bitWidth;
-	int iMode;                      // Image(1) or Video(0) mode
-	int iLevel;                     // Video(0), gallery(1) ...
+	int iMode;
+	int iLevel;
 	int ilhist_sft;
 
 	int iMaxLcdLuminance;
@@ -493,9 +479,8 @@ typedef struct hiace_alg_parameter {
 	int iMinBackLight;
 	int iAmbientLight;
 	int iBackLight;
-	long lTimestamp;                 // Timestamp of frame in millisecond
+	long lTimestamp;
 
-	// path of xml file
 	char chCfgName[512];
 } hiace_alg_parameter_t;
 

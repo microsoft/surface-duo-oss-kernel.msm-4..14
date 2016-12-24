@@ -1,27 +1,24 @@
-ifeq ($(CONFIG_HISI_FB_3660),y)
-obj-$(CONFIG_HISI_FB_3660) := hisifb.o
+ifeq ($(CONFIG_HISI_FB_KIRIN960),y)
+obj-$(CONFIG_HISI_FB_KIRIN960) := hisifb.o
 endif
 
 hisifb-objs := \
 	hisi_mipi_dsi_host.o \
 	hisi_mipi_dsi.o \
-	hisi_sensorhub_blpwm.o \
 	hisi_dpe.o \
 	hisi_fb_panel.o \
 	hisi_fb_isr.o \
 	hisi_fb_vsync.o \
-	hisi_fb_esd.o \
 	hisi_fb_buf_sync.o \
 	hisi_fb_bl.o \
 	hisi_fb_utils.o \
 	hisi_fb.o \
-	hisi_fb_debug.o \
 	hisi_overlay_utils.o \
 	hisi_block_algorithm.o \
-	online.o \
+	hisi_overlay_online.o \
 	hisi_overlay_cmdlist_utils.o
 
-ifeq ($(CONFIG_HISI_FB_3660),y)
+ifeq ($(CONFIG_HISI_FB_KIRIN960),y)
 hisifb-objs += \
 	hisi_dpe_utils_hi3660.o \
 	hisi_overlay_utils_hi3660.o \
@@ -39,5 +36,6 @@ EXTRA_CFLAGS += -Idrivers/video/hisi/dss \
 ifeq ($(CONFIG_HISI_PERIDVFS),y)
 EXTRA_CFLAGS += -Idrivers/clk/hisi/peri_dvfs
 endif
+
 clean:
 	rm *.o .*cmd

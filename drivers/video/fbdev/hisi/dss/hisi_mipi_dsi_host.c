@@ -1,18 +1,17 @@
 /* Copyright (c) 2013-2014, Hisilicon Tech. Co., Ltd. All rights reserved.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 and
-* only version 2 as published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
-* GNU General Public License for more details.
-*
-*/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
+ * GNU General Public License for more details.
+ *
+ */
 
 #include "hisi_mipi_dsi.h"
-
 
 /*
  * mipi dsi short write with 0, 1 2 parameters
@@ -33,7 +32,7 @@ int mipi_dsi_swrite(struct dsi_cmd_desc *cm, char __iomem *dsi_base)
 	BUG_ON(cm->dlen > 2);
 	len = cm->dlen;
 
-	//len = (cm->dlen > 2) ? 2 : cm->dlen;
+
 
 	hdr |= DSI_HDR_DTYPE(cm->dtype);
 	hdr |= DSI_HDR_VC(cm->vc);
@@ -50,7 +49,7 @@ int mipi_dsi_swrite(struct dsi_cmd_desc *cm, char __iomem *dsi_base)
 
 	set_reg(dsi_base + MIPIDSI_GEN_HDR_OFFSET, hdr, 24, 0);
 
-	return len;  /* 4 bytes */
+	return len;		/* 4 bytes */
 }
 
 /*
@@ -73,8 +72,9 @@ int mipi_dsi_lwrite(struct dsi_cmd_desc *cm, char __iomem *dsi_base)
 	}
 
 	/* fill up payload */
-	for (i = 0;  i < cm->dlen; i += 4) {
-		set_reg(dsi_base + MIPIDSI_GEN_PLD_DATA_OFFSET, *((uint32_t *)(cm->payload + i)), 32, 0);
+	for (i = 0; i < cm->dlen; i += 4) {
+		set_reg(dsi_base + MIPIDSI_GEN_PLD_DATA_OFFSET,
+			*((uint32_t *) (cm->payload + i)), 32, 0);
 	}
 
 	/* fill up header */
@@ -86,7 +86,8 @@ int mipi_dsi_lwrite(struct dsi_cmd_desc *cm, char __iomem *dsi_base)
 	return cm->dlen;
 }
 
-void mipi_dsi_max_return_packet_size(struct dsi_cmd_desc *cm, char __iomem *dsi_base)
+void mipi_dsi_max_return_packet_size(struct dsi_cmd_desc *cm,
+				     char __iomem *dsi_base)
 {
 	uint32_t hdr = 0;
 
@@ -112,10 +113,10 @@ uint32_t mipi_dsi_read(uint32_t *out, char __iomem *dsi_base)
 	*out = inp32(dsi_base + MIPIDSI_GEN_PLD_DATA_OFFSET);
 	if (!try_times)
 		HISI_FB_ERR("mipi_dsi_read timeout\n"
-			"MIPIDSI_CMD_PKT_STATUS = 0x%x \n"
-			"MIPIDSI_PHY_STATUS = 0x%x \n",
-			inp32(dsi_base + MIPIDSI_CMD_PKT_STATUS_OFFSET),
-			inp32(dsi_base + MIPIDSI_PHY_STATUS_OFFSET));
+			    "MIPIDSI_CMD_PKT_STATUS = 0x%x \n"
+			    "MIPIDSI_PHY_STATUS = 0x%x \n",
+			    inp32(dsi_base + MIPIDSI_CMD_PKT_STATUS_OFFSET),
+			    inp32(dsi_base + MIPIDSI_PHY_STATUS_OFFSET));
 
 	return try_times;
 }
@@ -146,7 +147,7 @@ void mipi_dsi_sread(uint32_t *out, char __iomem *dsi_base)
 
 void mipi_dsi_lread(uint32_t *out, char __iomem *dsi_base)
 {
-	/* do something here*/
+	/* do something here */
 }
 
 /*
@@ -182,7 +183,8 @@ int mipi_dsi_cmd_add(struct dsi_cmd_desc *cm, char __iomem *dsi_base)
 	return len;
 }
 
-int mipi_dsi_cmds_tx(struct dsi_cmd_desc *cmds, int cnt, char __iomem *dsi_base)
+int mipi_dsi_cmds_tx(struct dsi_cmd_desc *cmds, int cnt,
+		     char __iomem *dsi_base)
 {
 	struct dsi_cmd_desc *cm = NULL;
 	int i = 0;
@@ -217,7 +219,6 @@ void mipi_dsi_check_0lane_is_ready(char __iomem *dsi_base)
 	dw_jiffies = jiffies + HZ / 10;
 	do {
 		tmp = inp32(dsi_base + MIPIDSI_PHY_STATUS_OFFSET);
-		//phy_stopstate0lane
 		if ((tmp & 0x10) == 0x10) {
 			HISI_FB_INFO("0 lane is stopping state");
 			return;
@@ -227,7 +228,8 @@ void mipi_dsi_check_0lane_is_ready(char __iomem *dsi_base)
 	HISI_FB_ERR("0 lane is not stopping state:tmp=0x%x", tmp);
 }
 
-static void mipi_dsi_sread_request(struct dsi_cmd_desc *cm, char __iomem *dsi_base)
+static void mipi_dsi_sread_request(struct dsi_cmd_desc *cm,
+				   char __iomem *dsi_base)
 {
 	uint32_t hdr = 0;
 
@@ -239,7 +241,8 @@ static void mipi_dsi_sread_request(struct dsi_cmd_desc *cm, char __iomem *dsi_ba
 	set_reg(dsi_base + MIPIDSI_GEN_HDR_OFFSET, hdr, 24, 0);
 }
 
-static int mipi_dsi_read_add(uint32_t *out, struct dsi_cmd_desc *cm, char __iomem *dsi_base)
+static int mipi_dsi_read_add(uint32_t *out, struct dsi_cmd_desc *cm,
+			     char __iomem *dsi_base)
 {
 	unsigned long dw_jiffies = 0;
 	uint32_t pkg_status = 0;
@@ -254,17 +257,20 @@ static int mipi_dsi_read_add(uint32_t *out, struct dsi_cmd_desc *cm, char __iome
 		mipi_dsi_sread_request(cm, dsi_base);
 
 		if (!mipi_dsi_read(out, dsi_base)) {
-			HISI_FB_ERR("Read register 0x%X timeout\n",cm->payload[0]);
+			HISI_FB_ERR("Read register 0x%X timeout\n",
+				    cm->payload[0]);
 			return -1;
 		}
 	} else if (cm->dtype == DTYPE_GEN_READ1) {
 
-		/*read status register*/
+		/*read status register */
 		dw_jiffies = jiffies + HZ;
 		do {
-			pkg_status = inp32(dsi_base + MIPIDSI_CMD_PKT_STATUS_OFFSET);
-			phy_status = inp32(dsi_base + MIPIDSI_PHY_STATUS_OFFSET);
-			if ((pkg_status & 0x1) == 0x1 && !(phy_status & 0x2)){
+			pkg_status =
+			    inp32(dsi_base + MIPIDSI_CMD_PKT_STATUS_OFFSET);
+			phy_status =
+			    inp32(dsi_base + MIPIDSI_PHY_STATUS_OFFSET);
+			if ((pkg_status & 0x1) == 0x1 && !(phy_status & 0x2)) {
 				is_timeout = 0;
 				break;
 			}
@@ -272,23 +278,21 @@ static int mipi_dsi_read_add(uint32_t *out, struct dsi_cmd_desc *cm, char __iome
 
 		if (is_timeout) {
 			HISI_FB_ERR("mipi_dsi_read timeout :0x%x \n \
-				MIPIDSI_CMD_PKT_STATUS = 0x%x \n \
-				MIPIDSI_PHY_STATUS = 0x%x \n \
-				MIPIDSI_INT_ST1_OFFSET = 0x%x \n",
-				cm->payload[0],
-				inp32(dsi_base + MIPIDSI_CMD_PKT_STATUS_OFFSET),
-				inp32(dsi_base + MIPIDSI_PHY_STATUS_OFFSET),
-				inp32(dsi_base + MIPIDSI_INT_ST1_OFFSET));
+					MIPIDSI_CMD_PKT_STATUS = 0x%x \n \
+					MIPIDSI_PHY_STATUS = 0x%x \n \
+					MIPIDSI_INT_ST1_OFFSET = 0x%x \n", cm->payload[0], inp32(dsi_base + MIPIDSI_CMD_PKT_STATUS_OFFSET), inp32(dsi_base + MIPIDSI_PHY_STATUS_OFFSET), inp32(dsi_base + MIPIDSI_INT_ST1_OFFSET));
 			return -1;
 		}
-		/*send read cmd to fifo*/
-		set_reg(dsi_base + MIPIDSI_GEN_HDR_OFFSET, ((cm->payload[0] << 8) | cm->dtype), 24, 0);
+		/*send read cmd to fifo */
+		set_reg(dsi_base + MIPIDSI_GEN_HDR_OFFSET,
+			((cm->payload[0] << 8) | cm->dtype), 24, 0);
 
 		is_timeout = 1;
-		/*wait dsi read data*/
+		/*wait dsi read data */
 		dw_jiffies = jiffies + HZ;
 		do {
-			pkg_status = inp32(dsi_base + MIPIDSI_CMD_PKT_STATUS_OFFSET);
+			pkg_status =
+			    inp32(dsi_base + MIPIDSI_CMD_PKT_STATUS_OFFSET);
 			if (!(pkg_status & 0x10)) {
 				is_timeout = 0;
 				break;
@@ -297,14 +301,11 @@ static int mipi_dsi_read_add(uint32_t *out, struct dsi_cmd_desc *cm, char __iome
 
 		if (is_timeout) {
 			HISI_FB_ERR("mipi_dsi_read timeout :0x%x \n \
-				MIPIDSI_CMD_PKT_STATUS = 0x%x \n \
-				MIPIDSI_PHY_STATUS = 0x%x \n",
-				cm->payload[0],
-				inp32(dsi_base + MIPIDSI_CMD_PKT_STATUS_OFFSET),
-				inp32(dsi_base + MIPIDSI_PHY_STATUS_OFFSET));
+					MIPIDSI_CMD_PKT_STATUS = 0x%x \n \
+					MIPIDSI_PHY_STATUS = 0x%x \n", cm->payload[0], inp32(dsi_base + MIPIDSI_CMD_PKT_STATUS_OFFSET), inp32(dsi_base + MIPIDSI_PHY_STATUS_OFFSET));
 			return -1;
 		}
-		/*get read data*/
+		/*get read data */
 		*out = inp32(dsi_base + MIPIDSI_GEN_PLD_DATA_OFFSET);
 	} else {
 		ret = -1;
@@ -315,7 +316,7 @@ static int mipi_dsi_read_add(uint32_t *out, struct dsi_cmd_desc *cm, char __iome
 }
 
 int mipi_dsi_cmds_rx(uint32_t *out, struct dsi_cmd_desc *cmds, int cnt,
-	char __iomem *dsi_base)
+		     char __iomem *dsi_base)
 {
 	struct dsi_cmd_desc *cm = NULL;
 	int i = 0;
@@ -327,7 +328,7 @@ int mipi_dsi_cmds_rx(uint32_t *out, struct dsi_cmd_desc *cmds, int cnt,
 	cm = cmds;
 
 	for (i = 0; i < cnt; i++) {
-		if(mipi_dsi_read_add(&(out[i]), cm, dsi_base)){
+		if (mipi_dsi_read_add(&(out[i]), cm, dsi_base)) {
 			err_num++;
 		}
 
@@ -346,7 +347,7 @@ int mipi_dsi_cmds_rx(uint32_t *out, struct dsi_cmd_desc *cmds, int cnt,
 }
 
 int mipi_dsi_read_compare(struct mipi_dsi_read_compare_data *data,
-	char __iomem *dsi_base)
+			  char __iomem *dsi_base)
 {
 	uint32_t *read_value = NULL;
 	uint32_t *expected_value = NULL;
@@ -381,7 +382,8 @@ int mipi_dsi_read_compare(struct mipi_dsi_read_compare_data *data,
 	for (i = 0; i < cnt; i++) {
 		if (log_on) {
 			HISI_FB_INFO("Read reg %s: 0x%x, value = 0x%x\n",
-				reg_name[i], cmds[i].payload[0], read_value[i]);
+				     reg_name[i], cmds[i].payload[0],
+				     read_value[i]);
 		}
 
 		if (expected_value[i] != (read_value[i] & read_mask[i])) {

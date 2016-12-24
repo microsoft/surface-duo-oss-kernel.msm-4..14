@@ -1,64 +1,63 @@
 /* Copyright (c) 2013-2014, Hisilicon Tech. Co., Ltd. All rights reserved.
-*
-* This program is free software; you can redistribute it and/or modify
-* it under the terms of the GNU General Public License version 2 and
-* only version 2 as published by the Free Software Foundation.
-*
-* This program is distributed in the hope that it will be useful,
-* but WITHOUT ANY WARRANTY; without even the implied warranty of
-* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
-* GNU General Public License for more details.
-*
-*/
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
+ * GNU General Public License for more details.
+ *
+ */
 #ifndef HISI_MIPI_DSI_H
 #define HISI_MIPI_DSI_H
 
 #include "hisi_fb.h"
 
-
 /* mipi dsi panel */
 enum {
-    DSI_VIDEO_MODE,
-    DSI_CMD_MODE,
+	DSI_VIDEO_MODE,
+	DSI_CMD_MODE,
 };
 
 enum {
-    DSI_1_1_VERSION = 0,
-    DSI_1_2_VERSION,
+	DSI_1_1_VERSION = 0,
+	DSI_1_2_VERSION,
 };
 
 enum {
-    DSI_1_LANES = 0,
-    DSI_2_LANES,
-    DSI_3_LANES,
-    DSI_4_LANES,
+	DSI_1_LANES = 0,
+	DSI_2_LANES,
+	DSI_3_LANES,
+	DSI_4_LANES,
 };
 
 enum {
-    DSI_LANE_NUMS_DEFAULT = 0,
-    DSI_1_LANES_SUPPORT = BIT(0),
-    DSI_2_LANES_SUPPORT = BIT(1),
-    DSI_3_LANES_SUPPORT = BIT(2),
-    DSI_4_LANES_SUPPORT = BIT(3),
+	DSI_LANE_NUMS_DEFAULT = 0,
+	DSI_1_LANES_SUPPORT = BIT(0),
+	DSI_2_LANES_SUPPORT = BIT(1),
+	DSI_3_LANES_SUPPORT = BIT(2),
+	DSI_4_LANES_SUPPORT = BIT(3),
 };
 
 enum {
-    DSI_16BITS_1 = 0,
-    DSI_16BITS_2,
-    DSI_16BITS_3,
-    DSI_18BITS_1,
-    DSI_18BITS_2,
-    DSI_24BITS_1,
-    DSI_24BITS_2,
-    DSI_24BITS_3,
-    DSI_DSC24_COMPRESSED_DATA = 0xF,
+	DSI_16BITS_1 = 0,
+	DSI_16BITS_2,
+	DSI_16BITS_3,
+	DSI_18BITS_1,
+	DSI_18BITS_2,
+	DSI_24BITS_1,
+	DSI_24BITS_2,
+	DSI_24BITS_3,
+	DSI_DSC24_COMPRESSED_DATA = 0xF,
 };
 
 enum {
-    DSI_NON_BURST_SYNC_PULSES = 0,
-    DSI_NON_BURST_SYNC_EVENTS,
-    DSI_BURST_SYNC_PULSES_1,
-    DSI_BURST_SYNC_PULSES_2,
+	DSI_NON_BURST_SYNC_PULSES = 0,
+	DSI_NON_BURST_SYNC_EVENTS,
+	DSI_BURST_SYNC_PULSES_1,
+	DSI_BURST_SYNC_PULSES_2,
 };
 
 #define DSI_VIDEO_DST_FORMAT_RGB565			0
@@ -79,7 +78,7 @@ enum {
 
 /* generic read/write */
 #define DTYPE_GEN_WRITE		0x03	/* short write, 0 parameter */
-#define DTYPE_GEN_WRITE1	0x13    /* short write, 1 parameter */
+#define DTYPE_GEN_WRITE1	0x13	/* short write, 1 parameter */
 #define DTYPE_GEN_WRITE2	0x23	/* short write, 2 parameter */
 #define DTYPE_GEN_LWRITE	0x29	/* long write */
 #define DTYPE_GEN_READ		0x04	/* long read, 0 parameter */
@@ -127,10 +126,10 @@ struct mipi_dsi_read_compare_data {
 };
 
 /******************************************************************************
-** FUNCTIONS PROTOTYPES
-*/
+ ** FUNCTIONS PROTOTYPES
+ */
 void mipi_dsi_max_return_packet_size(struct dsi_cmd_desc *cm,
-	char __iomem *dsi_base);
+				     char __iomem *dsi_base);
 void mipi_dsi_sread(uint32_t *out, char __iomem *dsi_base);
 void mipi_dsi_lread(uint32_t *out, char __iomem *dsi_base);
 uint32_t mipi_dsi_read(uint32_t *out, char __iomem *dsi_base);
@@ -138,17 +137,16 @@ int mipi_dsi_swrite(struct dsi_cmd_desc *cm, char __iomem *dsi_base);
 int mipi_dsi_lwrite(struct dsi_cmd_desc *cm, char __iomem *dsi_base);
 void mipi_dsi_check_0lane_is_ready(char __iomem *dsi_base);
 int mipi_dsi_cmds_tx(struct dsi_cmd_desc *cmds, int cnt,
-	char __iomem *dsi_base);
+		     char __iomem *dsi_base);
 int mipi_dsi_cmds_rx(uint32_t *out, struct dsi_cmd_desc *cmds, int cnt,
-	char __iomem *dsi_base);
+		     char __iomem *dsi_base);
 
 int mipi_dsi_read_compare(struct mipi_dsi_read_compare_data *data,
-	char __iomem *dsi_base);
+			  char __iomem *dsi_base);
 
 struct hisi_fb_data_type;
 int mipi_dsi_clk_enable(struct hisi_fb_data_type *hisifd);
 int mipi_dsi_clk_disable(struct hisi_fb_data_type *hisifd);
-int mipi_dsi_bit_clk_upt_isr_handler(struct hisi_fb_data_type *hisifd);
 void mipi_dsi_reset(struct hisi_fb_data_type *hisifd);
 
-#endif  /* HISI_MIPI_DSI_H */
+#endif				/* HISI_MIPI_DSI_H */

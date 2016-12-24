@@ -1,4 +1,4 @@
- /* Copyright (c) 2013-2014, Hisilicon Tech. Co., Ltd. All rights reserved.
+/* Copyright (c) 2013-2014, Hisilicon Tech. Co., Ltd. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,42 +13,30 @@
 
 #include "hisi_fb.h"
 #include "hisi_overlay_utils.h"
-//#include <huawei_platform/log/log_jank.h>
 #include <linux/init.h>
 
-
-u8 color_temp_cal_buf[32] = {0};
-#if 0
-/dev/graphics/fb0
-/sys/class/graphics/fb0
-/sys/devices/platform/
-#endif
-
 static int hisi_fb_resource_initialized;
-static struct platform_device *pdev_list[HISI_FB_MAX_DEV_LIST] = {0};
+static struct platform_device *pdev_list[HISI_FB_MAX_DEV_LIST] = { 0 };
 
 static int pdev_list_cnt;
-struct fb_info *fbi_list[HISI_FB_MAX_FBI_LIST] = {0};
+struct fb_info *fbi_list[HISI_FB_MAX_FBI_LIST] = { 0 };
+
 static int fbi_list_index;
 
-struct hisi_fb_data_type *hisifd_list[HISI_FB_MAX_FBI_LIST] = {0};
+struct hisi_fb_data_type *hisifd_list[HISI_FB_MAX_FBI_LIST] = { 0 };
+
 static int hisifd_list_index;
 
 #define HISI_FB_ION_CLIENT_NAME	"hisi_fb_ion"
 
 uint32_t g_dts_resouce_ready = 0;
-uint32_t g_fastboot_enable_flag = 0;
-uint32_t g_fake_lcd_flag = 0;
 uint32_t g_dss_base_phy = 0;
 uint32_t g_dss_module_resource_initialized = 0;
 uint32_t g_logo_buffer_base = 0;
 uint32_t g_logo_buffer_size = 0;
-
 uint32_t g_fastboot_already_set = 0;
 
-unsigned int g_esd_recover_disable = 0;
-
-struct iommu_domain* g_hisi_domain = NULL;
+struct iommu_domain *g_hisi_domain;
 
 static char __iomem *hisifd_dss_base;
 static char __iomem *hisifd_peri_crg_base;
@@ -57,52 +45,42 @@ static char __iomem *hisifd_pctrl_base;
 static char __iomem *hisifd_noc_dss_base;
 static char __iomem *hisifd_mmbuf_crg_base;
 static char __iomem *hisifd_mmbuf_asc0_base;
-#if defined(CONFIG_HISI_FB_3660)
 static char __iomem *hisifd_pmctrl_base;
-#endif
 
 static uint32_t hisifd_irq_pdp;
 static uint32_t hisifd_irq_sdp;
 static uint32_t hisifd_irq_adp;
 static uint32_t hisifd_irq_dsi0;
 static uint32_t hisifd_irq_dsi1;
-static uint32_t hisifd_irq_mmbuf_asc0;
 
 /*DSS regulators are already enabled in fastboot, so kernel don't care*/
 /*
 #define MAX_DPE_NUM	(2)
 static struct regulator_bulk_data g_dpe_regulator[MAX_DPE_NUM] =
-	{{0}, {0}};
+{{0}, {0}};
 */
 
-static struct clk* dss_aclk_dss;
-static struct clk* dss_pclk_dss;
-static struct clk* dss_clk_edc0;
-static struct clk* dss_clk_ldi0;
-static struct clk* dss_clk_ldi1;
-static struct clk* dss_clk_dss_axi_mm;
-static struct clk* dss_pclk_mmbuf;
-static struct clk* dss_clk_txdphy0_ref;
-static struct clk* dss_clk_txdphy1_ref;
-static struct clk* dss_clk_txdphy0_cfg;
-static struct clk* dss_clk_txdphy1_cfg;
-static struct clk* dss_pclk_dsi0;
-static struct clk* dss_pclk_dsi1;
+static struct clk *dss_aclk_dss;
+static struct clk *dss_pclk_dss;
+static struct clk *dss_clk_edc0;
+static struct clk *dss_clk_ldi0;
+static struct clk *dss_clk_ldi1;
+static struct clk *dss_clk_dss_axi_mm;
+static struct clk *dss_pclk_mmbuf;
+static struct clk *dss_clk_txdphy0_ref;
+static struct clk *dss_clk_txdphy1_ref;
+static struct clk *dss_clk_txdphy0_cfg;
+static struct clk *dss_clk_txdphy1_cfg;
+static struct clk *dss_pclk_dsi0;
+static struct clk *dss_pclk_dsi1;
 
-
-int g_primary_lcd_xres = 0;
-int g_primary_lcd_yres = 0;
-uint64_t g_pxl_clk_rate = 0;
-uint8_t g_prefix_ce_support = 0;
-uint8_t g_prefix_sharpness1D_support = 0;
-uint8_t g_prefix_sharpness2D_support = 0;
 int g_debug_enable_lcd_sleep_in = 0;
 int g_err_status = 0;
 
 /*
-** for debug, S_IRUGO
-** /sys/module/hisifb/parameters
-*/
+ ** for debug, S_IRUGO
+ ** /sys/module/hisifb/parameters
+ */
 unsigned hisi_fb_msg_level = 7;
 module_param_named(debug_msg_level, hisi_fb_msg_level, int, 0644);
 MODULE_PARM_DESC(debug_msg_level, "hisi fb msg level");
@@ -119,7 +97,8 @@ MODULE_PARM_DESC(debug_ldi_underflow, "hisi ldi_underflow debug");
 
 int g_debug_ldi_underflow_clear = 1;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(debug_ldi_underflow_clear, g_debug_ldi_underflow_clear, int, 0644);
+module_param_named(debug_ldi_underflow_clear, g_debug_ldi_underflow_clear, int,
+		   0644);
 MODULE_PARM_DESC(debug_ldi_underflow_clear, "hisi ldi_underflow_clear debug");
 #endif
 
@@ -134,35 +113,46 @@ module_param_named(debug_online_vsync, g_debug_online_vsync, int, 0644);
 MODULE_PARM_DESC(debug_online_vsync, "hisi online vsync debug");
 
 int g_debug_ovl_online_composer = 0;
-module_param_named(debug_ovl_online_composer, g_debug_ovl_online_composer, int, 0644);
-MODULE_PARM_DESC(debug_ovl_online_composer, "hisi overlay online composer debug");
+module_param_named(debug_ovl_online_composer, g_debug_ovl_online_composer, int,
+		   0644);
+MODULE_PARM_DESC(debug_ovl_online_composer,
+		 "hisi overlay online composer debug");
 
 int g_debug_ovl_online_composer_hold = 0;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(debug_ovl_online_composer_hold, g_debug_ovl_online_composer_hold, int, 0644);
-MODULE_PARM_DESC(debug_ovl_online_composer_hold, "hisi overlay online composer hold debug");
+module_param_named(debug_ovl_online_composer_hold,
+		   g_debug_ovl_online_composer_hold, int, 0644);
+MODULE_PARM_DESC(debug_ovl_online_composer_hold,
+		 "hisi overlay online composer hold debug");
 #endif
 
 int g_debug_ovl_online_composer_return = 0;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(debug_ovl_online_composer_return, g_debug_ovl_online_composer_return, int, 0644);
-MODULE_PARM_DESC(debug_ovl_online_composer_return, "hisi overlay online composer return debug");
+module_param_named(debug_ovl_online_composer_return,
+		   g_debug_ovl_online_composer_return, int, 0644);
+MODULE_PARM_DESC(debug_ovl_online_composer_return,
+		 "hisi overlay online composer return debug");
 #endif
 
 int g_debug_ovl_online_composer_timediff = 0;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(debug_ovl_online_composer_timediff, g_debug_ovl_online_composer_timediff, int, 0644);
-MODULE_PARM_DESC(debug_ovl_online_composer_timediff, "hisi overlay online composer timediff debug");
+module_param_named(debug_ovl_online_composer_timediff,
+		   g_debug_ovl_online_composer_timediff, int, 0644);
+MODULE_PARM_DESC(debug_ovl_online_composer_timediff,
+		 "hisi overlay online composer timediff debug");
 #endif
 
-int g_debug_ovl_online_composer_time_threshold = 6000;  //us
+int g_debug_ovl_online_composer_time_threshold = 6000;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(debug_ovl_online_composer_time_threshold, g_debug_ovl_online_composer_time_threshold, int, 0644);
-MODULE_PARM_DESC(debug_ovl_online_composer_time_threshold, "hisi overlay online composer time threshold debug");
+module_param_named(debug_ovl_online_composer_time_threshold,
+		   g_debug_ovl_online_composer_time_threshold, int, 0644);
+MODULE_PARM_DESC(debug_ovl_online_composer_time_threshold,
+		 "hisi overlay online composer time threshold debug");
 #endif
 
 int g_debug_ovl_block_composer = 0;
-module_param_named(debug_ovl_block_composer, g_debug_ovl_block_composer, int, 0644);
+module_param_named(debug_ovl_block_composer, g_debug_ovl_block_composer, int,
+		   0644);
 MODULE_PARM_DESC(debug_ovl_block_composer, "hisi overlay block composer debug");
 
 int g_debug_ovl_cmdlist = 0;
@@ -177,14 +167,18 @@ MODULE_PARM_DESC(dump_cmdlist_content, "hisi overlay dump cmdlist content");
 
 int g_enable_ovl_cmdlist_online = 1;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(enable_ovl_cmdlist_online, g_enable_ovl_cmdlist_online, int, 0644);
-MODULE_PARM_DESC(enable_ovl_cmdlist_online, "hisi overlay cmdlist online enable");
+module_param_named(enable_ovl_cmdlist_online, g_enable_ovl_cmdlist_online, int,
+		   0644);
+MODULE_PARM_DESC(enable_ovl_cmdlist_online,
+		 "hisi overlay cmdlist online enable");
 #endif
 
 int g_enable_ovl_cmdlist_offline = 1;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(enable_ovl_cmdlist_offline, g_enable_ovl_cmdlist_offline, int, 0644);
-MODULE_PARM_DESC(enable_ovl_cmdlist_offline, "hisi overlay cmdlist offline enable");
+module_param_named(enable_ovl_cmdlist_offline, g_enable_ovl_cmdlist_offline,
+		   int, 0644);
+MODULE_PARM_DESC(enable_ovl_cmdlist_offline,
+		 "hisi overlay cmdlist offline enable");
 #endif
 
 int g_rdma_stretch_threshold = RDMA_STRETCH_THRESHOLD;
@@ -195,13 +189,15 @@ MODULE_PARM_DESC(rdma_stretch_threshold, "hisi rdma stretch threshold");
 
 int g_enable_dirty_region_updt = 1;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(enable_dirty_region_updt, g_enable_dirty_region_updt, int, 0644);
+module_param_named(enable_dirty_region_updt, g_enable_dirty_region_updt, int,
+		   0644);
 MODULE_PARM_DESC(enable_dirty_region_updt, "hisi dss dirty_region_updt enable");
 #endif
 
 int g_debug_dirty_region_updt = 0;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(debug_dirty_region_updt, g_debug_dirty_region_updt, int, 0644);
+module_param_named(debug_dirty_region_updt, g_debug_dirty_region_updt, int,
+		   0644);
 MODULE_PARM_DESC(debug_dirty_region_updt, "hisi dss dirty_region_updt debug");
 #endif
 
@@ -235,7 +231,7 @@ module_param_named(debug_layerbuf_sync, g_debug_layerbuf_sync, int, 0644);
 MODULE_PARM_DESC(debug_layerbuf_sync, "hisi dss debug_layerbuf_sync");
 #endif
 
-int g_enable_dss_idle = 1;
+int g_enable_dss_idle;
 #ifdef CONFIG_FB_DEBUG_USED
 module_param_named(enable_dss_idle, g_enable_dss_idle, int, 0644);
 MODULE_PARM_DESC(enable_dss_idle, "hisi dss enable_dss_idle");
@@ -257,12 +253,12 @@ module_param_named(underflow_stop_perf, g_underflow_stop_perf_stat, int, 0600);
 MODULE_PARM_DESC(underflow_stop_perf, "hisi underflow stop perf stat");
 #endif
 
-#if defined (CONFIG_HISI_FB_3660)
-uint32_t g_dss_min_bandwidth_inbusbusy = 200; //200M
+uint32_t g_dss_min_bandwidth_inbusbusy = 200;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(dss_min_bandwidth_inbusbusy, g_dss_min_bandwidth_inbusbusy, int, 0644);
-MODULE_PARM_DESC(dss_min_bandwidth_inbusbusy, "hisi overlay dss_min_bandwidth_inbusbusy");
-#endif
+module_param_named(dss_min_bandwidth_inbusbusy, g_dss_min_bandwidth_inbusbusy,
+		   int, 0644);
+MODULE_PARM_DESC(dss_min_bandwidth_inbusbusy,
+		 "hisi overlay dss_min_bandwidth_inbusbusy");
 #endif
 
 uint32_t g_mmbuf_addr_test = 0;
@@ -272,38 +268,27 @@ MODULE_PARM_DESC(mmbuf_addr_test, "hisi mmbuf addr test");
 #endif
 
 /******************************************************************************
-** FUNCTIONS PROTOTYPES
-*/
+ ** FUNCTIONS PROTOTYPES
+ */
 static int hisi_fb_register(struct hisi_fb_data_type *hisifd);
 
 static int hisi_fb_open(struct fb_info *info, int user);
 static int hisi_fb_release(struct fb_info *info, int user);
-static int hisi_fb_pan_display(struct fb_var_screeninfo *var, struct fb_info *info);
-static int hisi_fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info);
+static int hisi_fb_pan_display(struct fb_var_screeninfo *var,
+			       struct fb_info *info);
+static int hisi_fb_check_var(struct fb_var_screeninfo *var,
+			     struct fb_info *info);
 static int hisi_fb_set_par(struct fb_info *info);
-static int hisi_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg);
-#ifndef CONFIG_HISI_FB_HEAP_CARVEOUT_USED
-static int hisi_fb_mmap(struct fb_info *info, struct vm_area_struct * vma);
-#endif
+static int hisi_fb_ioctl(struct fb_info *info, unsigned int cmd,
+			 unsigned long arg);
+static int hisi_fb_mmap(struct fb_info *info, struct vm_area_struct *vma);
 
 static int hisi_fb_suspend_sub(struct hisi_fb_data_type *hisifd);
 static int hisi_fb_resume_sub(struct hisi_fb_data_type *hisifd);
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void hisifb_early_suspend(struct early_suspend *h);
-static void hisifb_early_resume(struct early_suspend *h);
-#endif
-
-#ifdef CONFIG_PM_RUNTIME
-static void hisifb_pm_runtime_get(struct hisi_fb_data_type *hisifd);
-static void hisifb_pm_runtime_put(struct hisi_fb_data_type *hisifd);
-static void hisifb_pm_runtime_register(struct platform_device *pdev);
-static void hisifb_pm_runtime_unregister(struct platform_device *pdev);
-#endif
-
 
 /*******************************************************************************
-**
-*/
+ **
+ */
 struct platform_device *hisi_fb_add_device(struct platform_device *pdev)
 {
 	struct hisi_fb_panel_data *pdata = NULL;
@@ -357,51 +342,37 @@ struct platform_device *hisi_fb_add_device(struct platform_device *pdev)
 	hisifd->noc_dss_base = hisifd_noc_dss_base;
 	hisifd->mmbuf_crg_base = hisifd_mmbuf_crg_base;
 	hisifd->mmbuf_asc0_base = hisifd_mmbuf_asc0_base;
-#if defined(CONFIG_HISI_FB_3660)
 	hisifd->pmctrl_base = hisifd_pmctrl_base;
-#endif
+
 	hisifd->mipi_dsi0_base = hisifd->dss_base + DSS_MIPI_DSI0_OFFSET;
 	hisifd->mipi_dsi1_base = hisifd->dss_base + DSS_MIPI_DSI1_OFFSET;
 	hisifd->dss_base_phy = g_dss_base_phy;
 
 	hisifd->dss_axi_clk = dss_aclk_dss;
-        hisifd->dss_pclk_dss_clk = dss_pclk_dss;
-        hisifd->dss_pri_clk = dss_clk_edc0;
-        hisifd->dss_pxl0_clk = dss_clk_ldi0;
-        hisifd->dss_pxl1_clk = dss_clk_ldi1;
-        hisifd->dss_mmbuf_clk = dss_clk_dss_axi_mm;
-        hisifd->dss_pclk_mmbuf_clk = dss_pclk_mmbuf; 
-        hisifd->dss_dphy0_ref_clk = dss_clk_txdphy0_ref;
-        hisifd->dss_dphy1_ref_clk = dss_clk_txdphy1_ref;
-        hisifd->dss_dphy0_cfg_clk = dss_clk_txdphy0_cfg;
-        hisifd->dss_dphy1_cfg_clk = dss_clk_txdphy1_cfg;
-        hisifd->dss_pclk_dsi0_clk = dss_pclk_dsi0;
-        hisifd->dss_pclk_dsi1_clk = dss_pclk_dsi1;
+	hisifd->dss_pclk_dss_clk = dss_pclk_dss;
+	hisifd->dss_pri_clk = dss_clk_edc0;
+	hisifd->dss_pxl0_clk = dss_clk_ldi0;
+	hisifd->dss_pxl1_clk = dss_clk_ldi1;
+	hisifd->dss_mmbuf_clk = dss_clk_dss_axi_mm;
+	hisifd->dss_pclk_mmbuf_clk = dss_pclk_mmbuf;
+	hisifd->dss_dphy0_ref_clk = dss_clk_txdphy0_ref;
+	hisifd->dss_dphy1_ref_clk = dss_clk_txdphy1_ref;
+	hisifd->dss_dphy0_cfg_clk = dss_clk_txdphy0_cfg;
+	hisifd->dss_dphy1_cfg_clk = dss_clk_txdphy1_cfg;
+	hisifd->dss_pclk_dsi0_clk = dss_pclk_dsi0;
+	hisifd->dss_pclk_dsi1_clk = dss_pclk_dsi1;
 
 	hisifd->dsi0_irq = hisifd_irq_dsi0;
 	hisifd->dsi1_irq = hisifd_irq_dsi1;
-	hisifd->mmbuf_asc0_irq = hisifd_irq_mmbuf_asc0;
 	if (hisifd->index == PRIMARY_PANEL_IDX) {
 		hisifd->fb_num = HISI_FB0_NUM;
 		hisifd->dpe_irq = hisifd_irq_pdp;
-		/*DSS regulators are already enabled in fastboot ,kernel don't care*/
-		/*hisifd->dpe_regulator = &(g_dpe_regulator[0]);
-		hisifd->mmbuf_regulator = &(g_dpe_regulator[1]);
-		*/
 	} else if (hisifd->index == EXTERNAL_PANEL_IDX) {
 		hisifd->fb_num = HISI_FB1_NUM;
 		hisifd->dpe_irq = hisifd_irq_sdp;
-		/*DSS regulators are already enabled in fastboot ,kernel don't care*/
-		/*hisifd->dpe_regulator = &(g_dpe_regulator[0]);
-		hisifd->mmbuf_regulator = &(g_dpe_regulator[1]);
-		*/
 	} else if (hisifd->index == AUXILIARY_PANEL_IDX) {
 		hisifd->fb_num = HISI_FB2_NUM;
 		hisifd->dpe_irq = hisifd_irq_adp;
-		/*DSS regulators are already enabled in fastboot ,kernel don't care*/
-		/*hisifd->dpe_regulator = &(g_dpe_regulator[0]);
-		hisifd->mmbuf_regulator = &(g_dpe_regulator[1]);
-		*/
 	} else {
 		HISI_FB_ERR("fb%d not support now!\n", hisifd->index);
 		platform_device_put(this_dev);
@@ -415,8 +386,9 @@ struct platform_device *hisi_fb_add_device(struct platform_device *pdev)
 	hisifd_list[hisifd_list_index++] = hisifd;
 	fbi_list[fbi_list_index++] = fbi;
 
-	 /* get/set panel info */
-	memcpy(&hisifd->panel_info, pdata->panel_info, sizeof(struct hisi_panel_info));
+	/* get/set panel info */
+	memcpy(&hisifd->panel_info, pdata->panel_info,
+	       sizeof(struct hisi_panel_info));
 
 	/* set driver data */
 	platform_set_drvdata(this_dev, hisifd);
@@ -473,7 +445,7 @@ int hisi_fb_blank_sub(int blank_mode, struct fb_info *info)
 			if (ret)
 				hisifd->panel_power_on = curr_pwr_state;
 
-			if(hisifd->buf_sync_suspend)
+			if (hisifd->buf_sync_suspend)
 				hisifd->buf_sync_suspend(hisifd);
 		}
 		break;
@@ -482,30 +454,6 @@ int hisi_fb_blank_sub(int blank_mode, struct fb_info *info)
 	up(&hisifd->blank_sem0);
 
 	return ret;
-}
-
-int fastboot_set_needed = 0;
-
-static bool hisi_fb_set_fastboot_needed(struct fb_info *info)
-{
-	struct hisi_fb_data_type *hisifd = NULL;
-
-	BUG_ON(info == NULL);
-	hisifd = (struct hisi_fb_data_type *)info->par;
-	BUG_ON(hisifd == NULL);
-
-	if (fastboot_set_needed == 1) {
-		hisifb_ctrl_fastboot(hisifd);
-
-		hisifd->panel_power_on = true;
-		if (info->screen_base && (info->fix.smem_len > 0))
-			memset(info->screen_base, 0x0, info->fix.smem_len);
-
-		fastboot_set_needed = 0;
-		return true;
-	}
-
-	return false;
 }
 
 static int hisi_fb_open_sub(struct fb_info *info)
@@ -548,10 +496,9 @@ static int hisi_fb_release_sub(struct fb_info *info)
 	return 0;
 }
 
-
 /*******************************************************************************
-**
-*/
+ **
+ */
 static int hisi_fb_blank(int blank_mode, struct fb_info *info)
 {
 	int ret = 0;
@@ -568,11 +515,11 @@ static int hisi_fb_blank(int blank_mode, struct fb_info *info)
 		return -EINVAL;
 	}
 
-	if (hisifd->panel_info.fake_hdmi && (hisifd->index == EXTERNAL_PANEL_IDX)) {
+	if (hisifd->panel_info.fake_hdmi
+	    && (hisifd->index == EXTERNAL_PANEL_IDX)) {
 		HISI_FB_INFO("it is fake, blank it fail \n");
 		return -EINVAL;
 	}
-
 #if 0
 	if (blank_mode == FB_BLANK_POWERDOWN) {
 		struct fb_event event;
@@ -583,21 +530,26 @@ static int hisi_fb_blank(int blank_mode, struct fb_info *info)
 #endif
 
 	if (hisifd->index == AUXILIARY_PANEL_IDX) {
-		HISI_FB_DEBUG("fb%d, blank_mode(%d) +.\n", hisifd->index, blank_mode);
+		HISI_FB_DEBUG("fb%d, blank_mode(%d) +.\n", hisifd->index,
+			      blank_mode);
 	} else {
-		HISI_FB_INFO("fb%d, blank_mode(%d) +.\n", hisifd->index, blank_mode);
+		HISI_FB_INFO("fb%d, blank_mode(%d) +.\n", hisifd->index,
+			     blank_mode);
 	}
 
 	ret = hisi_fb_blank_sub(blank_mode, info);
 	if (ret != 0) {
-		HISI_FB_ERR("fb%d, blank_mode(%d) failed!\n", hisifd->index, blank_mode);
+		HISI_FB_ERR("fb%d, blank_mode(%d) failed!\n", hisifd->index,
+			    blank_mode);
 		return ret;
 	}
-	
+
 	if (hisifd->index == AUXILIARY_PANEL_IDX) {
-		HISI_FB_DEBUG("fb%d, blank_mode(%d) -.\n", hisifd->index, blank_mode);
+		HISI_FB_DEBUG("fb%d, blank_mode(%d) -.\n", hisifd->index,
+			      blank_mode);
 	} else {
-		HISI_FB_INFO("fb%d, blank_mode(%d) -.\n", hisifd->index, blank_mode);
+		HISI_FB_INFO("fb%d, blank_mode(%d) -.\n", hisifd->index,
+			     blank_mode);
 	}
 
 	return 0;
@@ -619,7 +571,8 @@ static int hisi_fb_open(struct fb_info *info, int user)
 		return -EINVAL;
 	}
 
-	if (hisifd->panel_info.fake_hdmi && (hisifd->index == EXTERNAL_PANEL_IDX)) {
+	if (hisifd->panel_info.fake_hdmi
+	    && (hisifd->index == EXTERNAL_PANEL_IDX)) {
 		HISI_FB_INFO("fb%d, is fake, open it fail \n", hisifd->index);
 		return -EINVAL;
 	}
@@ -653,8 +606,10 @@ static int hisi_fb_release(struct fb_info *info, int user)
 		return -EINVAL;
 	}
 
-	if (hisifd->panel_info.fake_hdmi && (hisifd->index == EXTERNAL_PANEL_IDX)) {
-		HISI_FB_INFO("fb%d, is fake, release it fail \n", hisifd->index);
+	if (hisifd->panel_info.fake_hdmi
+	    && (hisifd->index == EXTERNAL_PANEL_IDX)) {
+		HISI_FB_INFO("fb%d, is fake, release it fail \n",
+			     hisifd->index);
 		return -EINVAL;
 	}
 
@@ -677,14 +632,11 @@ static int hisi_fb_release(struct fb_info *info, int user)
 				hisifb_free_fb_buffer(hisifd);
 		}
 	}
-
-//	if (hisifd->pm_runtime_put)
-//		hisifd->pm_runtime_put(hisifd);
-
 	return ret;
 }
 
-static int hisi_fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info)
+static int hisi_fb_check_var(struct fb_var_screeninfo *var,
+			     struct fb_info *info)
 {
 	struct hisi_fb_data_type *hisifd = NULL;
 
@@ -711,33 +663,37 @@ static int hisi_fb_check_var(struct fb_var_screeninfo *var, struct fb_info *info
 
 	if ((var->xres_virtual <= 0) || (var->yres_virtual <= 0)) {
 		HISI_FB_ERR("xres_virtual=%d yres_virtual=%d out of range!",
-			var->xres_virtual, var->yres_virtual);
+			    var->xres_virtual, var->yres_virtual);
 		return -EINVAL;
 	}
-
 #if 0
 	if (info->fix.smem_len <
-		(hisifb_line_length(hisifd->index, var->xres_virtual, (var->bits_per_pixel >> 3)) *
-		var->yres_virtual)) {
-		HISI_FB_ERR("fb%d smem_len=%d is out of range!\n", hisifd->index, info->fix.smem_len);
+	    (hisifb_line_length
+	     (hisifd->index, var->xres_virtual,
+	      (var->bits_per_pixel >> 3)) * var->yres_virtual)) {
+		HISI_FB_ERR("fb%d smem_len=%d is out of range!\n",
+			    hisifd->index, info->fix.smem_len);
 		return -EINVAL;
 	}
 #endif
 
 	if ((var->xres == 0) || (var->yres == 0)) {
-		HISI_FB_ERR("xres=%d, yres=%d is invalid!\n", var->xres, var->yres);
+		HISI_FB_ERR("xres=%d, yres=%d is invalid!\n", var->xres,
+			    var->yres);
 		return -EINVAL;
 	}
 
 	if (var->xoffset > (var->xres_virtual - var->xres)) {
-		HISI_FB_ERR("xoffset=%d(xres_virtual=%d, xres=%d) out of range!\n",
-			var->xoffset, var->xres_virtual, var->xres);
+		HISI_FB_ERR
+		    ("xoffset=%d(xres_virtual=%d, xres=%d) out of range!\n",
+		     var->xoffset, var->xres_virtual, var->xres);
 		return -EINVAL;
 	}
 
 	if (var->yoffset > (var->yres_virtual - var->yres)) {
-		HISI_FB_ERR("yoffset=%d(yres_virtual=%d, yres=%d) out of range!\n",
-			var->yoffset, var->yres_virtual, var->yres);
+		HISI_FB_ERR
+		    ("yoffset=%d(yres_virtual=%d, yres=%d) out of range!\n",
+		     var->yoffset, var->yres_virtual, var->yres);
 		return -EINVAL;
 	}
 
@@ -762,14 +718,15 @@ static int hisi_fb_set_par(struct fb_info *info)
 
 	var = &info->var;
 
-	hisifd->fbi->fix.line_length = hisifb_line_length(hisifd->index, var->xres_virtual,
-		var->bits_per_pixel >> 3);
+	hisifd->fbi->fix.line_length =
+	    hisifb_line_length(hisifd->index, var->xres_virtual,
+			       var->bits_per_pixel >> 3);
 
 	return 0;
 }
 
 static int hisi_fb_pan_display(struct fb_var_screeninfo *var,
-	struct fb_info *info)
+			       struct fb_info *info)
 {
 	int ret = 0;
 	struct hisi_fb_data_type *hisifd = NULL;
@@ -780,7 +737,7 @@ static int hisi_fb_pan_display(struct fb_var_screeninfo *var,
 	}
 
 	hisifd = (struct hisi_fb_data_type *)info->par;
-	if (NULL ==  hisifd) {
+	if (NULL == hisifd) {
 		HISI_FB_ERR("NULL Pointer!\n");
 		return -EINVAL;
 	}
@@ -805,11 +762,11 @@ static int hisi_fb_pan_display(struct fb_var_screeninfo *var,
 
 	if (info->fix.xpanstep)
 		info->var.xoffset =
-		(var->xoffset / info->fix.xpanstep) * info->fix.xpanstep;
+		    (var->xoffset / info->fix.xpanstep) * info->fix.xpanstep;
 
 	if (info->fix.ypanstep)
 		info->var.yoffset =
-		(var->yoffset / info->fix.ypanstep) * info->fix.ypanstep;
+		    (var->yoffset / info->fix.ypanstep) * info->fix.ypanstep;
 
 	if (hisifd->pan_display_fnc)
 		hisifd->pan_display_fnc(hisifd);
@@ -824,12 +781,13 @@ static int hisi_fb_pan_display(struct fb_var_screeninfo *var,
 
 	return ret;
 
-err_out:
+ err_out:
 	up(&hisifd->blank_sem);
 	return 0;
 }
 
-static int hisifb_lcd_dirty_region_info_get(struct fb_info *info, void __user *argp)
+static int hisifb_lcd_dirty_region_info_get(struct fb_info *info,
+					    void __user *argp)
 {
 	struct hisi_fb_data_type *hisifd = NULL;
 
@@ -850,7 +808,7 @@ static int hisifb_lcd_dirty_region_info_get(struct fb_info *info, void __user *a
 	}
 
 	if (copy_to_user(argp, &(hisifd->panel_info.dirty_region_info),
-		sizeof(struct lcd_dirty_region_info))) {
+			 sizeof(struct lcd_dirty_region_info))) {
 		HISI_FB_ERR("copy to user fail");
 		return -EFAULT;
 	}
@@ -858,7 +816,8 @@ static int hisifb_lcd_dirty_region_info_get(struct fb_info *info, void __user *a
 	return 0;
 }
 
-static int hisifb_dirty_region_updt_set(struct fb_info *info, void __user *argp)
+static int hisifb_dirty_region_updt_set(struct fb_info *info,
+					void __user *argp)
 {
 	int enable = 0;
 	struct hisi_fb_data_type *hisifd = NULL;
@@ -885,10 +844,9 @@ static int hisifb_dirty_region_updt_set(struct fb_info *info, void __user *argp)
 	}
 
 	if (g_enable_dirty_region_updt
-		&& hisifd->panel_info.dirty_region_updt_support
-		&& !hisifd->sbl_enable
-		&& !hisifd->color_temperature_flag
-		&& !hisifd->esd_happened) {
+	    && hisifd->panel_info.dirty_region_updt_support
+	    && !hisifd->sbl_enable
+	    && !hisifd->color_temperature_flag && !hisifd->esd_happened) {
 		enable = 1;
 	}
 
@@ -955,32 +913,44 @@ static int hisifb_dss_mmbuf_alloc(struct fb_info *info, void __user *argp)
 
 	ret = copy_from_user(&mmbuf_info, argp, sizeof(dss_mmbuf_t));
 	if (ret) {
-		HISI_FB_ERR("fb%d, copy for user failed!ret=%d.\n", hisifd->index, ret);
+		HISI_FB_ERR("fb%d, copy for user failed!ret=%d.\n",
+			    hisifd->index, ret);
 		ret = -EINVAL;
 		goto err_out;
 	}
 
-	if ((mmbuf_info.size <= 0) || (mmbuf_info.size > MMBUF_SIZE_MAX) || (mmbuf_info.size & (MMBUF_ADDR_ALIGN - 1))) {
-		HISI_FB_ERR("fb%d, mmbuf size is invalid, size=%d!\n", hisifd->index, mmbuf_info.size);
+	if ((mmbuf_info.size <= 0) || (mmbuf_info.size > MMBUF_SIZE_MAX)
+	    || (mmbuf_info.size & (MMBUF_ADDR_ALIGN - 1))) {
+		HISI_FB_ERR("fb%d, mmbuf size is invalid, size=%d!\n",
+			    hisifd->index, mmbuf_info.size);
 		ret = -EINVAL;
 		goto err_out;
 	}
 
 	if (g_mmbuf_addr_test > 0) {
 		if (g_mmbuf_addr_test >= (MMBUF_SIZE_MAX + 0x40)) {
-			HISI_FB_ERR("g_mmbuf_addr_test(0x%x) is overflow max mmbuf size + 0x40(0x%x)\n", g_mmbuf_addr_test, MMBUF_SIZE_MAX + 0x40);
-			HISI_FB_ERR("remain buff size if %d \n", (MMBUF_SIZE_MAX + 0x40) - (g_mmbuf_addr_test - mmbuf_info.size));
+			HISI_FB_ERR
+			    ("g_mmbuf_addr_test(0x%x) is overflow max mmbuf size + 0x40(0x%x)\n",
+			     g_mmbuf_addr_test, MMBUF_SIZE_MAX + 0x40);
+			HISI_FB_ERR("remain buff size if %d \n",
+				    (MMBUF_SIZE_MAX + 0x40) -
+				    (g_mmbuf_addr_test - mmbuf_info.size));
 			g_mmbuf_addr_test = 0;
 		} else {
 			mmbuf_info.addr = g_mmbuf_addr_test;
 			g_mmbuf_addr_test += mmbuf_info.size;
 		}
 
-		HISI_FB_INFO("addr = 0x%x, size =%d,g_mmbuf_addr_test = 0x%x, MAX_SIZE= 0x%x \n", mmbuf_info.addr, mmbuf_info.size, g_mmbuf_addr_test, MMBUF_SIZE_MAX + 0x40);
+		HISI_FB_INFO
+		    ("addr = 0x%x, size =%d,g_mmbuf_addr_test = 0x%x, MAX_SIZE= 0x%x \n",
+		     mmbuf_info.addr, mmbuf_info.size, g_mmbuf_addr_test,
+		     MMBUF_SIZE_MAX + 0x40);
 	}
 
 	if (0 == g_mmbuf_addr_test) {
-		mmbuf_info.addr = hisi_dss_mmbuf_alloc(hisifd->mmbuf_gen_pool, mmbuf_info.size);
+		mmbuf_info.addr =
+		    hisi_dss_mmbuf_alloc(hisifd->mmbuf_gen_pool,
+					 mmbuf_info.size);
 		if (mmbuf_info.addr < MMBUF_BASE) {
 			ret = -EINVAL;
 			goto err_out;
@@ -989,15 +959,17 @@ static int hisifb_dss_mmbuf_alloc(struct fb_info *info, void __user *argp)
 
 	ret = copy_to_user(argp, &mmbuf_info, sizeof(dss_mmbuf_t));
 	if (ret) {
-		HISI_FB_ERR("fb%d, copy to user failed!ret=%d.", hisifd->index, ret);
-		hisi_dss_mmbuf_free(hisifd->mmbuf_gen_pool, mmbuf_info.addr, mmbuf_info.size);
+		HISI_FB_ERR("fb%d, copy to user failed!ret=%d.", hisifd->index,
+			    ret);
+		hisi_dss_mmbuf_free(hisifd->mmbuf_gen_pool, mmbuf_info.addr,
+				    mmbuf_info.size);
 		ret = -EFAULT;
 		goto err_out;
 	}
 
 	return 0;
 
-err_out:
+ err_out:
 	return ret;
 }
 
@@ -1036,27 +1008,30 @@ static int hisifb_dss_mmbuf_free(struct fb_info *info, void __user *argp)
 
 	ret = copy_from_user(&mmbuf_info, argp, sizeof(dss_mmbuf_t));
 	if (ret) {
-		HISI_FB_ERR("fb%d, copy for user failed!ret=%d.", hisifd->index, ret);
+		HISI_FB_ERR("fb%d, copy for user failed!ret=%d.", hisifd->index,
+			    ret);
 		ret = -EINVAL;
 		goto err_out;
 	}
 
 	if ((mmbuf_info.addr <= 0) || (mmbuf_info.size <= 0)) {
 		HISI_FB_ERR("fb%d, addr=0x%x, size=%d is invalid!\n",
-			hisifd->index, mmbuf_info.addr, mmbuf_info.size);
+			    hisifd->index, mmbuf_info.addr, mmbuf_info.size);
 		ret = -EINVAL;
 		goto err_out;
 	}
 
-	hisi_dss_mmbuf_free(hisifd->mmbuf_gen_pool, mmbuf_info.addr, mmbuf_info.size);
+	hisi_dss_mmbuf_free(hisifd->mmbuf_gen_pool, mmbuf_info.addr,
+			    mmbuf_info.size);
 
 	return 0;
 
-err_out:
+ err_out:
 	return ret;
 }
 
-static int hisifb_dss_get_platform_type(struct fb_info *info, void __user *argp)
+static int hisifb_dss_get_platform_type(struct fb_info *info,
+					void __user *argp)
 {
 	int type;
 	int ret = 0;
@@ -1076,13 +1051,12 @@ static int hisifb_dss_get_platform_type(struct fb_info *info, void __user *argp)
 	return ret;
 }
 
-static int hisi_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long arg)
+static int hisi_fb_ioctl(struct fb_info *info, unsigned int cmd,
+			 unsigned long arg)
 {
 	int ret = -ENOSYS;
 	struct hisi_fb_data_type *hisifd = NULL;
 	void __user *argp = (void __user *)arg;
-	//sigset_t setmask;
-	//sigset_t oldmask;
 
 	if (NULL == info) {
 		HISI_FB_ERR("NULL Pointer");
@@ -1095,11 +1069,7 @@ static int hisi_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long a
 		return -EINVAL;
 	}
 
-	//sigemptyset(&setmask);
-	//sigaddset(&setmask, SIGSTOP);
-	//sigprocmask(SIG_SETMASK, &setmask, &oldmask);
-
-	switch (cmd) { //lint -e30, -e142
+	switch (cmd) {
 	case HISIFB_VSYNC_CTRL:
 		if (hisifd->vsync_ctrl_fnc) {
 			ret = hisifd->vsync_ctrl_fnc(info, argp);
@@ -1108,14 +1078,6 @@ static int hisi_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long a
 
 	case HISIFB_IDLE_IS_ALLOWED:
 		ret = hisifb_idle_is_allowed(info, argp);
-		break;
-
-	case HISIFB_DSS_VOLTAGE_GET:
-		ret = hisifb_ctrl_dss_voltage_get(info, argp);
-		break;
-
-	case HISIFB_DSS_VOLTAGE_SET:
-		ret = hisifb_ctrl_dss_voltage_set(info, argp);
 		break;
 
 	case HISIFB_DSS_CLK_RATE_SET:
@@ -1138,21 +1100,11 @@ static int hisi_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long a
 		ret = hisifb_dss_get_platform_type(info, argp);
 		break;
 
-	/*
-	case HISIFB_CE_SUPPORT_GET:
-	case HISIFB_CE_SERVICE_LIMIT_GET:
-	case HISIFB_CE_PARAM_GET:
-	case HISIFB_CE_HIST_GET:
-	case HISIFB_CE_LUT_SET:
-	*/
-
 	default:
 		if (hisifd->ov_ioctl_handler)
 			ret = hisifd->ov_ioctl_handler(hisifd, cmd, argp);
 		break;
-	} //lint +e30, +e142
-
-	//sigprocmask(SIG_SETMASK, &oldmask, NULL);
+	}
 
 	if (ret == -ENOSYS)
 		HISI_FB_ERR("unsupported ioctl (%x)\n", cmd);
@@ -1160,8 +1112,7 @@ static int hisi_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long a
 	return ret;
 }
 
-#ifndef CONFIG_HISI_FB_HEAP_CARVEOUT_USED
-static int hisi_fb_mmap(struct fb_info *info, struct vm_area_struct * vma)
+static int hisi_fb_mmap(struct fb_info *info, struct vm_area_struct *vma)
 {
 	struct hisi_fb_data_type *hisifd = NULL;
 	struct sg_table *table = NULL;
@@ -1188,7 +1139,9 @@ static int hisi_fb_mmap(struct fb_info *info, struct vm_area_struct * vma)
 	if (hisifd->index == PRIMARY_PANEL_IDX) {
 		if (hisifd->fb_mem_free_flag) {
 			if (!hisifb_alloc_fb_buffer(hisifd)) {
-				HISI_FB_ERR("fb%d, hisifb_alloc_buffer failed!\n", hisifd->index);
+				HISI_FB_ERR
+				    ("fb%d, hisifb_alloc_buffer failed!\n",
+				     hisifd->index);
 				return -ENOMEM;
 			}
 		}
@@ -1220,9 +1173,10 @@ static int hisi_fb_mmap(struct fb_info *info, struct vm_area_struct * vma)
 		}
 		len = min(len, remainder);
 		ret = remap_pfn_range(vma, addr, page_to_pfn(page), len,
-			vma->vm_page_prot);
+				      vma->vm_page_prot);
 		if (ret != 0) {
-			HISI_FB_ERR("fb%d, failed to remap_pfn_range! ret=%d\n", hisifd->index, ret);
+			HISI_FB_ERR("fb%d, failed to remap_pfn_range! ret=%d\n",
+				    hisifd->index, ret);
 		}
 
 		addr += len;
@@ -1232,7 +1186,6 @@ static int hisi_fb_mmap(struct fb_info *info, struct vm_area_struct * vma)
 
 	return 0;
 }
-#endif
 
 unsigned long hisifb_alloc_fb_buffer(struct hisi_fb_data_type *hisifd)
 {
@@ -1256,12 +1209,10 @@ unsigned long hisifb_alloc_fb_buffer(struct hisi_fb_data_type *hisifd)
 	}
 
 	buf_len = fbi->fix.smem_len;
+	handle =
+	    ion_alloc(client, buf_len, PAGE_SIZE, ION_HEAP(ION_SYSTEM_HEAP_ID),
+		      0);
 
-#ifdef CONFIG_HISI_FB_HEAP_CARVEOUT_USED
-	handle = ion_alloc(client, buf_len, PAGE_SIZE, ION_HEAP(ION_GRALLOC_HEAP_ID), 0);
-#else
-	handle = ion_alloc(client, buf_len, PAGE_SIZE, ION_HEAP(ION_SYSTEM_HEAP_ID), 0);
-#endif
 	if (IS_ERR_OR_NULL(handle)) {
 		HISI_FB_ERR("failed to ion_alloc!\n");
 		goto err_return;
@@ -1273,33 +1224,26 @@ unsigned long hisifb_alloc_fb_buffer(struct hisi_fb_data_type *hisifd)
 		goto err_ion_map;
 	}
 
-#ifdef CONFIG_HISI_FB_HEAP_CARVEOUT_USED
-	if (ion_phys(client, handle, &buf_addr, &buf_len) < 0) {
-		HISI_FB_ERR("failed to get ion phys!\n");
-		goto err_ion_get_addr;
-	}
-#else
 	if (ion_map_iommu(client, handle, &(hisifd->iommu_format))) {
 		HISI_FB_ERR("failed to ion_map_iommu!\n");
 		goto err_ion_get_addr;
 	}
 
 	buf_addr = hisifd->iommu_format.iova_start;
-#endif
 
 	fbi->fix.smem_start = buf_addr;
 	fbi->screen_size = fbi->fix.smem_len;
-	//memset(fbi->screen_base, 0xFF, fbi->screen_size);
+
 
 	hisifd->ion_handle = handle;
 
 	return buf_addr;
 
-err_ion_get_addr:
+ err_ion_get_addr:
 	ion_unmap_kernel(hisifd->ion_client, handle);
-err_ion_map:
+ err_ion_map:
 	ion_free(hisifd->ion_client, handle);
-err_return:
+ err_return:
 	return 0;
 }
 
@@ -1311,11 +1255,8 @@ void hisifb_free_fb_buffer(struct hisi_fb_data_type *hisifd)
 	fbi = hisifd->fbi;
 	BUG_ON(fbi == NULL);
 
-	if (hisifd->ion_client != NULL &&
-		hisifd->ion_handle != NULL) {
-	#ifndef CONFIG_HISI_FB_HEAP_CARVEOUT_USED
+	if (hisifd->ion_client != NULL && hisifd->ion_handle != NULL) {
 		ion_unmap_iommu(hisifd->ion_client, hisifd->ion_handle);
-	#endif
 		ion_unmap_kernel(hisifd->ion_client, hisifd->ion_handle);
 		ion_free(hisifd->ion_client, hisifd->ion_handle);
 		hisifd->ion_handle = NULL;
@@ -1338,10 +1279,10 @@ void hisifb_free_logo_buffer(struct hisi_fb_data_type *hisifd)
 	logo_buffer_base_temp = g_logo_buffer_base;
 	for (i = 0; i < (g_logo_buffer_size / PAGE_SIZE); i++) {
 		free_reserved_page(phys_to_page(logo_buffer_base_temp));
-	#ifdef CONFIG_HIGHMEM
+#ifdef CONFIG_HIGHMEM
 		if (PageHighMem(phys_to_page(logo_buffer_base_temp)))
 			totalhigh_pages += 1;
-	#endif
+#endif
 		logo_buffer_base_temp += PAGE_SIZE;
 	}
 	memblock_free(g_logo_buffer_base, g_logo_buffer_size);
@@ -1351,8 +1292,8 @@ void hisifb_free_logo_buffer(struct hisi_fb_data_type *hisifd)
 }
 
 /*******************************************************************************
-** fb sys fs
-*/
+ ** fb sys fs
+ */
 static void hisifb_sysfs_init(struct hisi_fb_data_type *hisifd)
 {
 	int i = 0;
@@ -1366,16 +1307,18 @@ static void hisifb_sysfs_init(struct hisi_fb_data_type *hisifd)
 	hisifd->sysfs_attr_group.attrs = hisifd->sysfs_attrs;
 }
 
-static void hisifb_sysfs_attrs_append(struct hisi_fb_data_type *hisifd, struct attribute *attr)
+static void hisifb_sysfs_attrs_append(struct hisi_fb_data_type *hisifd,
+				      struct attribute *attr)
 {
 	BUG_ON(hisifd == NULL);
 	BUG_ON(attr == NULL);
 
 	if (hisifd->sysfs_index >= HISI_FB_SYSFS_ATTRS_NUM) {
 		HISI_FB_ERR("fb%d, sysfs_atts_num(%d) is out of range(%d)!\n",
-			hisifd->index, hisifd->sysfs_index, HISI_FB_SYSFS_ATTRS_NUM);
+			    hisifd->index, hisifd->sysfs_index,
+			    HISI_FB_SYSFS_ATTRS_NUM);
 		BUG_ON(1);
-		return ;
+		return;
 	}
 
 	hisifd->sysfs_attrs[hisifd->sysfs_index] = attr;
@@ -1391,10 +1334,12 @@ static int hisifb_sysfs_create(struct platform_device *pdev)
 	hisifd = platform_get_drvdata(pdev);
 	BUG_ON(hisifd == NULL);
 
-	ret = sysfs_create_group(&hisifd->fbi->dev->kobj, &(hisifd->sysfs_attr_group));
+	ret =
+	    sysfs_create_group(&hisifd->fbi->dev->kobj,
+			       &(hisifd->sysfs_attr_group));
 	if (ret) {
 		HISI_FB_ERR("fb%d sysfs group creation failed, error=%d!\n",
-			hisifd->index, ret);
+			    hisifd->index, ret);
 	}
 
 	return ret;
@@ -1408,14 +1353,15 @@ static void hisifb_sysfs_remove(struct platform_device *pdev)
 	hisifd = platform_get_drvdata(pdev);
 	BUG_ON(hisifd == NULL);
 
-	sysfs_remove_group(&hisifd->fbi->dev->kobj, &(hisifd->sysfs_attr_group));
+	sysfs_remove_group(&hisifd->fbi->dev->kobj,
+			   &(hisifd->sysfs_attr_group));
 
 	hisifb_sysfs_init(hisifd);
 }
 
 /*******************************************************************************
-**
-*/
+ **
+ */
 static struct fb_ops hisi_fb_ops = {
 	.owner = THIS_MODULE,
 	.fb_open = hisi_fb_open,
@@ -1435,32 +1381,8 @@ static struct fb_ops hisi_fb_ops = {
 	.fb_sync = NULL,
 	.fb_ioctl = hisi_fb_ioctl,
 	.fb_compat_ioctl = hisi_fb_ioctl,
-#ifndef CONFIG_HISI_FB_HEAP_CARVEOUT_USED
 	.fb_mmap = hisi_fb_mmap,
-#else
-	.fb_mmap = NULL,
-#endif
 };
-
-int hisifb_esd_recover_disable(int value)
-{
-	struct hisi_fb_panel_data *pdata = NULL;
-	/* primary panel */
-	struct hisi_fb_data_type *hisifd = hisifd_list[PRIMARY_PANEL_IDX];
-	if (hisifd == NULL) {
-		HISI_FB_INFO("esd_recover_disable fail\n");
-		return 0;
-	}
-
-	pdata = (struct hisi_fb_panel_data *)hisifd->pdev->dev.platform_data;
-	if (pdata && pdata->panel_info) {
-		if (pdata->panel_info->esd_enable) {
-			HISI_FB_INFO("esd_recover_disable=%d\n", value);
-			g_esd_recover_disable = value;
-		}
-	}
-	return 0;
-}
 
 static int hisi_fb_register(struct hisi_fb_data_type *hisifd)
 {
@@ -1669,7 +1591,7 @@ static int hisi_fb_register(struct hisi_fb_data_type *hisifd)
 		return -EINVAL;
 	}
 
-	//for resolution update
+
 	memset(&(hisifd->resolution_rect), 0, sizeof(dss_rect_t));
 	memset(&(hisifd->res_updt_rect), 0, sizeof(dss_rect_t));
 
@@ -1680,8 +1602,10 @@ static int hisi_fb_register(struct hisi_fb_data_type *hisifd)
 	var->bits_per_pixel = bpp * 8;
 
 	snprintf(fix->id, sizeof(fix->id), "hisifb%d", hisifd->index);
-	fix->line_length = hisifb_line_length(hisifd->index, var->xres_virtual, bpp);
-	fix->smem_len = roundup(fix->line_length * var->yres_virtual, PAGE_SIZE);
+	fix->line_length =
+	    hisifb_line_length(hisifd->index, var->xres_virtual, bpp);
+	fix->smem_len =
+	    roundup(fix->line_length * var->yres_virtual, PAGE_SIZE);
 	fix->smem_start = 0;
 
 	fbi->screen_base = 0;
@@ -1717,50 +1641,16 @@ static int hisi_fb_register(struct hisi_fb_data_type *hisifd)
 
 	hisifd->on_fnc = hisifb_ctrl_on;
 	hisifd->off_fnc = hisifb_ctrl_off;
-
-	hisifd->color_temp_cal_enabled = color_temp_cal_buf[0];
 	hisifd->hisi_domain = g_hisi_domain;
 
 	if (hisifd->index == PRIMARY_PANEL_IDX) {
 		hisifd->fb_mem_free_flag = false;
-
-		//for offline composer
-		g_primary_lcd_xres = var->xres;
-		g_primary_lcd_yres = var->yres;
-		g_pxl_clk_rate = panel_info->pxl_clk_rate;
-		g_prefix_ce_support = panel_info->prefix_ce_support;
-		g_prefix_sharpness1D_support = panel_info->prefix_sharpness1D_support;
-		g_prefix_sharpness2D_support = panel_info->prefix_sharpness2D_support;
-
-		if (g_fastboot_enable_flag == 1) {
-			hisifd->set_fastboot_fnc = hisi_fb_set_fastboot_needed;
-			fastboot_set_needed = 1;
-		} else {
-			hisifd->set_fastboot_fnc = NULL;
-		}
 		hisifd->open_sub_fnc = hisi_fb_open_sub;
 		hisifd->release_sub_fnc = hisi_fb_release_sub;
-		hisifd->lp_fnc = hisifb_ctrl_lp;
-		hisifd->esd_fnc = hisifb_ctrl_esd;
-		hisifd->sbl_ctrl_fnc = hisifb_ctrl_sbl;
-		hisifd->fps_upt_isr_handler = hisifb_fps_upt_isr_handler;
-		hisifd->mipi_dsi_bit_clk_upt_isr_handler = mipi_dsi_bit_clk_upt_isr_handler;
 		hisifd->sysfs_attrs_add_fnc = hisifb_sysfs_attrs_add;
 		hisifd->sysfs_attrs_append_fnc = hisifb_sysfs_attrs_append;
 		hisifd->sysfs_create_fnc = hisifb_sysfs_create;
 		hisifd->sysfs_remove_fnc = hisifb_sysfs_remove;
-
-	#ifdef CONFIG_PM_RUNTIME
-		hisifd->pm_runtime_register = hisifb_pm_runtime_register;
-		hisifd->pm_runtime_unregister = hisifb_pm_runtime_unregister;
-		hisifd->pm_runtime_get = hisifb_pm_runtime_get;
-		hisifd->pm_runtime_put = hisifb_pm_runtime_put;
-	#else
-		hisifd->pm_runtime_register = NULL;
-		hisifd->pm_runtime_unregister = NULL;
-		hisifd->pm_runtime_get = NULL;
-		hisifd->pm_runtime_put = NULL;
-	#endif
 		hisifd->bl_register = hisifb_backlight_register;
 		hisifd->bl_unregister = hisifb_backlight_unregister;
 		hisifd->bl_update = hisifb_backlight_update;
@@ -1773,41 +1663,9 @@ static int hisi_fb_register(struct hisi_fb_data_type *hisifd)
 		hisifd->buf_sync_unregister = hisifb_buf_sync_unregister;
 		hisifd->buf_sync_signal = hisifb_buf_sync_signal;
 		hisifd->buf_sync_suspend = hisifb_buf_sync_suspend;
-		hisifd->secure_register = NULL;
-		hisifd->secure_unregister = NULL;
-		hisifd->esd_register = hisifb_esd_register;
-		hisifd->esd_unregister = hisifb_esd_unregister;
-		hisifd->debug_register = hisifb_debug_register;
-		hisifd->debug_unregister = hisifb_debug_unregister;
-		hisifd->cabc_update = NULL;//updateCabcPwm;
-
 	} else if (hisifd->index == EXTERNAL_PANEL_IDX) {
 		hisifd->fb_mem_free_flag = true;
-
-		hisifd->set_fastboot_fnc = NULL;
-		hisifd->open_sub_fnc = NULL;
 		hisifd->release_sub_fnc = hisi_fb_release_sub;
-		hisifd->lp_fnc = NULL;
-		hisifd->esd_fnc = NULL;
-		hisifd->sbl_ctrl_fnc = NULL;
-		hisifd->fps_upt_isr_handler = NULL;
-		hisifd->mipi_dsi_bit_clk_upt_isr_handler = NULL;
-		hisifd->sysfs_attrs_add_fnc = NULL;
-		hisifd->sysfs_attrs_append_fnc = NULL;
-		hisifd->sysfs_create_fnc = NULL;
-		hisifd->sysfs_remove_fnc = NULL;
-
-	#ifdef CONFIG_PM_RUNTIME
-		hisifd->pm_runtime_register = hisifb_pm_runtime_register;
-		hisifd->pm_runtime_unregister = hisifb_pm_runtime_unregister;
-		hisifd->pm_runtime_get = hisifb_pm_runtime_get;
-		hisifd->pm_runtime_put = hisifb_pm_runtime_put;
-	#else
-		hisifd->pm_runtime_register = NULL;
-		hisifd->pm_runtime_unregister = NULL;
-		hisifd->pm_runtime_get = NULL;
-		hisifd->pm_runtime_put = NULL;
-	#endif
 		hisifd->bl_register = hisifb_backlight_register;
 		hisifd->bl_unregister = hisifb_backlight_unregister;
 		hisifd->bl_update = hisifb_backlight_update;
@@ -1820,53 +1678,11 @@ static int hisi_fb_register(struct hisi_fb_data_type *hisifd)
 		hisifd->buf_sync_unregister = hisifb_buf_sync_unregister;
 		hisifd->buf_sync_signal = hisifb_buf_sync_signal;
 		hisifd->buf_sync_suspend = hisifb_buf_sync_suspend;
-		hisifd->secure_register = NULL;
-		hisifd->secure_unregister = NULL;
-		hisifd->esd_register = NULL;
-		hisifd->esd_unregister = NULL;
-		hisifd->debug_register = NULL;
-		hisifd->debug_unregister = NULL;
+
 	} else {
 		sema_init(&hisifd->offline_composer_sr_sem, 1);
 		hisifd->offline_composer_sr_refcount = 0;
-
 		hisifd->fb_mem_free_flag = true;
-
-		hisifd->set_fastboot_fnc = NULL;
-		hisifd->open_sub_fnc = NULL;
-		hisifd->release_sub_fnc = NULL;
-		hisifd->lp_fnc = NULL;
-		hisifd->esd_fnc = NULL;
-		hisifd->sbl_ctrl_fnc = NULL;
-		hisifd->fps_upt_isr_handler = NULL;
-		hisifd->mipi_dsi_bit_clk_upt_isr_handler = NULL;
-		hisifd->sysfs_attrs_add_fnc = NULL;
-		hisifd->sysfs_attrs_append_fnc = NULL;
-		hisifd->sysfs_create_fnc = NULL;
-		hisifd->sysfs_remove_fnc = NULL;
-
-		hisifd->pm_runtime_register = NULL;
-		hisifd->pm_runtime_unregister = NULL;
-		hisifd->pm_runtime_get = NULL;
-		hisifd->pm_runtime_put = NULL;
-		hisifd->bl_register = NULL;
-		hisifd->bl_unregister = NULL;
-		hisifd->bl_update = NULL;
-		hisifd->bl_cancel = NULL;
-		hisifd->vsync_register = NULL;
-		hisifd->vsync_unregister = NULL;
-		hisifd->vsync_ctrl_fnc = NULL;
-		hisifd->vsync_isr_handler = NULL;
-		hisifd->buf_sync_register = NULL;
-		hisifd->buf_sync_unregister = NULL;
-		hisifd->buf_sync_signal = NULL;
-		hisifd->buf_sync_suspend = NULL;
-		hisifd->secure_register = NULL;
-		hisifd->secure_unregister = NULL;
-		hisifd->esd_register = NULL;
-		hisifd->esd_unregister = NULL;
-		hisifd->debug_register = NULL;
-		hisifd->debug_unregister = NULL;
 	}
 
 	if (hisi_overlay_init(hisifd)) {
@@ -1875,7 +1691,8 @@ static int hisi_fb_register(struct hisi_fb_data_type *hisifd)
 	}
 
 	if (register_framebuffer(fbi) < 0) {
-		HISI_FB_ERR("fb%d failed to register_framebuffer!", hisifd->index);
+		HISI_FB_ERR("fb%d failed to register_framebuffer!",
+			    hisifd->index);
 		return -EPERM;
 	}
 
@@ -1883,43 +1700,30 @@ static int hisi_fb_register(struct hisi_fb_data_type *hisifd)
 		hisifd->sysfs_attrs_add_fnc(hisifd);
 	}
 
-	/* debug register */
-	if (hisifd->debug_register)
-		hisifd->debug_register(hisifd->pdev);
 	/* backlight register */
 	if (hisifd->bl_register)
 		hisifd->bl_register(hisifd->pdev);
 	/* vsync register */
 	if (hisifd->vsync_register)
 		hisifd->vsync_register(hisifd->pdev);
-	/* secure register */
-	if (hisifd->secure_register)
-		hisifd->secure_register(hisifd->pdev);
 	/* buf_sync register */
 	if (hisifd->buf_sync_register)
 		hisifd->buf_sync_register(hisifd->pdev);
-	/* pm runtime register */
-	if (hisifd->pm_runtime_register)
-		hisifd->pm_runtime_register(hisifd->pdev);
 	/* fb sysfs create */
 	if (hisifd->sysfs_create_fnc)
 		hisifd->sysfs_create_fnc(hisifd->pdev);
-	/* lcd check esd register */
-	if (hisifd->esd_register)
-		hisifd->esd_register(hisifd->pdev);
 
-	HISI_FB_INFO("FrameBuffer[%d] %dx%d size=%d bytes phy_addr=%lu virt_addr=%p "
-		"is registered successfully!\n",
-		hisifd->index, var->xres, var->yres, fbi->fix.smem_len,
-		fix->smem_start, fbi->screen_base);
+	HISI_FB_INFO
+	    ("FrameBuffer[%d] %dx%d size=%d bytes phy_addr=%lu virt_addr=%p "
+	     "is registered successfully!\n", hisifd->index, var->xres,
+	     var->yres, fbi->fix.smem_len, fix->smem_start, fbi->screen_base);
 
 	return 0;
 }
 
-
 /*******************************************************************************
-**
-*/
+ **
+ */
 static int hisi_fb_enable_iommu(struct platform_device *pdev)
 {
 	struct iommu_domain *hisi_domain = NULL;
@@ -1950,13 +1754,15 @@ static int hisi_fb_probe(struct platform_device *pdev)
 	struct device_node *np = NULL;
 
 	if (!hisi_fb_resource_initialized) {
-		HISI_FB_DEBUG("initialized=%d, +.\n", hisi_fb_resource_initialized);
+		HISI_FB_DEBUG("initialized=%d, +.\n",
+			      hisi_fb_resource_initialized);
 
 		pdev->id = 0;
 
 		np = of_find_compatible_node(NULL, NULL, DTS_COMP_FB_NAME);
 		if (!np) {
-			HISI_FB_ERR("NOT FOUND device node %s!\n", DTS_COMP_FB_NAME);
+			HISI_FB_ERR("NOT FOUND device node %s!\n",
+				    DTS_COMP_FB_NAME);
 			return -ENXIO;
 		}
 
@@ -2002,25 +1808,29 @@ static int hisi_fb_probe(struct platform_device *pdev)
 			HISI_FB_ERR("dss_pclk_mmbuf error, ret = %d", ret);
 			return ret;
 		}
-		dss_clk_txdphy0_ref = devm_clk_get(&pdev->dev, "clk_txdphy0_ref");
+		dss_clk_txdphy0_ref =
+		    devm_clk_get(&pdev->dev, "clk_txdphy0_ref");
 		if (IS_ERR(dss_clk_txdphy0_ref)) {
 			ret = PTR_ERR(dss_clk_txdphy0_ref);
 			HISI_FB_ERR("dss_clk_txdphy0_ref error, ret = %d", ret);
 			return ret;
 		}
-		dss_clk_txdphy1_ref = devm_clk_get(&pdev->dev, "clk_txdphy1_ref");
+		dss_clk_txdphy1_ref =
+		    devm_clk_get(&pdev->dev, "clk_txdphy1_ref");
 		if (IS_ERR(dss_clk_txdphy1_ref)) {
 			ret = PTR_ERR(dss_clk_txdphy1_ref);
 			HISI_FB_ERR("dss_clk_txdphy1_ref error, ret = %d", ret);
 			return ret;
 		}
-		dss_clk_txdphy0_cfg = devm_clk_get(&pdev->dev, "clk_txdphy0_cfg");
+		dss_clk_txdphy0_cfg =
+		    devm_clk_get(&pdev->dev, "clk_txdphy0_cfg");
 		if (IS_ERR(dss_clk_txdphy0_cfg)) {
 			ret = PTR_ERR(dss_clk_txdphy0_cfg);
 			HISI_FB_ERR("dss_clk_txdphy0_cfg error, ret = %d", ret);
 			return ret;
 		}
-		dss_clk_txdphy1_cfg = devm_clk_get(&pdev->dev, "clk_txdphy1_cfg");
+		dss_clk_txdphy1_cfg =
+		    devm_clk_get(&pdev->dev, "clk_txdphy1_cfg");
 		if (IS_ERR(dss_clk_txdphy1_cfg)) {
 			ret = PTR_ERR(dss_clk_txdphy1_cfg);
 			HISI_FB_ERR("dss_clk_txdphy1_cfg error, ret = %d", ret);
@@ -2038,28 +1848,6 @@ static int hisi_fb_probe(struct platform_device *pdev)
 			HISI_FB_ERR("dss_pclk_dsi1 error, ret = %d", ret);
 			return ret;
 		}
-
-		ret = of_property_read_u32(np, "fpga_flag", &g_fpga_flag);
-		if (ret) {
-			HISI_FB_ERR("failed to get fpga_flag resource.\n");
-			return -ENXIO;
-		}
-		HISI_FB_INFO("g_fpga_flag=%d.\n", g_fpga_flag);
-
-		ret = of_property_read_u32(np, "fastboot_enable_flag", &g_fastboot_enable_flag);
-		if (ret) {
-			HISI_FB_ERR("failed to get fastboot_display_flag resource.\n");
-			return -ENXIO;
-		}
-		g_fastboot_enable_flag = 0;
-		HISI_FB_INFO("g_fastboot_enable_flag=%d.\n", g_fastboot_enable_flag);
-
-		ret = of_property_read_u32(np, "fake_lcd_flag", &g_fake_lcd_flag);
-		if (ret) {
-			HISI_FB_ERR("failed to get fake_lcd_flag resource.\n");
-			return -ENXIO;
-		}
-		HISI_FB_INFO("g_fake_lcd_flag=%d.\n", g_fake_lcd_flag);
 
 		ret = of_property_read_u32(np, "dss_base_phy", &g_dss_base_phy);
 		if (ret) {
@@ -2089,90 +1877,104 @@ static int hisi_fb_probe(struct platform_device *pdev)
 
 		hisifd_irq_dsi0 = irq_of_parse_and_map(np, 3);
 		if (!hisifd_irq_dsi0) {
-			HISI_FB_ERR("failed to get hisifd_irq_dsi0 resource.\n");
+			HISI_FB_ERR
+			    ("failed to get hisifd_irq_dsi0 resource.\n");
 			return -ENXIO;
 		}
 
 		hisifd_irq_dsi1 = irq_of_parse_and_map(np, 4);
 		if (!hisifd_irq_dsi1) {
-			HISI_FB_ERR("failed to get hisifd_irq_dsi1 resource.\n");
+			HISI_FB_ERR
+			    ("failed to get hisifd_irq_dsi1 resource.\n");
 			return -ENXIO;
 		}
 
 		/* get dss reg base */
 		hisifd_dss_base = of_iomap(np, 0);
 		if (!hisifd_dss_base) {
-			HISI_FB_ERR("failed to get hisifd_dss_base resource.\n");
+			HISI_FB_ERR
+			    ("failed to get hisifd_dss_base resource.\n");
 			return -ENXIO;
 		}
 
 		hisifd_peri_crg_base = of_iomap(np, 1);
 		if (!hisifd_peri_crg_base) {
-			HISI_FB_ERR("failed to get hisifd_peri_crg_base resource.\n");
+			HISI_FB_ERR
+			    ("failed to get hisifd_peri_crg_base resource.\n");
 			return -ENXIO;
 		}
 
 		hisifd_sctrl_base = of_iomap(np, 2);
 		if (!hisifd_sctrl_base) {
-			HISI_FB_ERR("failed to get hisifd_sctrl_base resource.\n");
+			HISI_FB_ERR
+			    ("failed to get hisifd_sctrl_base resource.\n");
 			return -ENXIO;
 		}
 
 		hisifd_pctrl_base = of_iomap(np, 3);
 		if (!hisifd_pctrl_base) {
-			HISI_FB_ERR("failed to get hisifd_pctrl_base resource.\n");
+			HISI_FB_ERR
+			    ("failed to get hisifd_pctrl_base resource.\n");
 			return -ENXIO;
 		}
 
 		hisifd_noc_dss_base = of_iomap(np, 4);
 		if (!hisifd_noc_dss_base) {
-			HISI_FB_ERR("failed to get hisifd_noc_dss_base resource.\n");
+			HISI_FB_ERR
+			    ("failed to get hisifd_noc_dss_base resource.\n");
 			return -ENXIO;
 		}
 
 		hisifd_mmbuf_crg_base = of_iomap(np, 5);
 		if (!hisifd_mmbuf_crg_base) {
-			HISI_FB_ERR("failed to get hisifd_mmbuf_crg_base resource.\n");
+			HISI_FB_ERR
+			    ("failed to get hisifd_mmbuf_crg_base resource.\n");
 			return -ENXIO;
 		}
 
 		hisifd_pmctrl_base = of_iomap(np, 6);
 		if (!hisifd_pmctrl_base) {
-			HISI_FB_ERR("failed to get hisifd_pmctrl_base resource.\n");
+			HISI_FB_ERR
+			    ("failed to get hisifd_pmctrl_base resource.\n");
 			return -ENXIO;
 		}
 
-		/* get regulator resource, DSS regulator is already enabled in fastboot, so kernel dont care*/
+		/* get regulator resource, DSS regulator is already enabled in fastboot, so kernel dont care */
 		/*
-		g_dpe_regulator[0].supply = REGULATOR_PDP_NAME;
-		g_dpe_regulator[1].supply = REGULATOR_MMBUF;
-		ret = devm_regulator_bulk_get(&(pdev->dev),
-			ARRAY_SIZE(g_dpe_regulator), g_dpe_regulator);
-		if (ret) {
-			HISI_FB_ERR("failed to get regulator resource! ret=%d.\n", ret);
-			return -ENXIO;
-		}
-		*/
+		   g_dpe_regulator[0].supply = REGULATOR_PDP_NAME;
+		   g_dpe_regulator[1].supply = REGULATOR_MMBUF;
+		   ret = devm_regulator_bulk_get(&(pdev->dev),
+		   ARRAY_SIZE(g_dpe_regulator), g_dpe_regulator);
+		   if (ret) {
+		   HISI_FB_ERR("failed to get regulator resource! ret=%d.\n", ret);
+		   return -ENXIO;
+		   }
+		 */
 
 		ret = hisi_fb_enable_iommu(pdev);
 		if (ret != 0) {
-			HISI_FB_ERR("failed to hisi_fb_enable_iommu! ret=%d.\n", ret);
+			HISI_FB_ERR("failed to hisi_fb_enable_iommu! ret=%d.\n",
+				    ret);
 			return -ENXIO;
 		}
 
 		/* find and get logo-buffer base */
 		np = of_find_node_by_path(DTS_PATH_LOGO_BUFFER);
 		if (!np) {
-			HISI_FB_ERR("NOT FOUND dts path: %s!\n", DTS_PATH_LOGO_BUFFER);
-			//return -ENXIO;
+			HISI_FB_ERR("NOT FOUND dts path: %s!\n",
+				    DTS_PATH_LOGO_BUFFER);
+
 		}
-		HISI_FB_INFO("g_logo_buffer_base = 0x%x, g_logo_buffer_size = 0x%x. \n", g_logo_buffer_base, g_logo_buffer_size);
+		HISI_FB_INFO
+		    ("g_logo_buffer_base = 0x%x, g_logo_buffer_size = 0x%x. \n",
+		     g_logo_buffer_base, g_logo_buffer_size);
 
 		hisi_fb_resource_initialized = 1;
 
 		hisi_fb_device_set_status0(DTS_FB_RESOURCE_INIT_READY);
 
-		HISI_FB_DEBUG("initialized=%d, -.\n", hisi_fb_resource_initialized);
+		HISI_FB_DEBUG("initialized=%d, -.\n",
+			      hisi_fb_resource_initialized);
 		return 0;
 	}
 
@@ -2198,17 +2000,10 @@ static int hisi_fb_probe(struct platform_device *pdev)
 
 	ret = hisi_fb_register(hisifd);
 	if (ret) {
-		HISI_FB_ERR("fb%d hisi_fb_register failed, error=%d!\n", hisifd->index, ret);
+		HISI_FB_ERR("fb%d hisi_fb_register failed, error=%d!\n",
+			    hisifd->index, ret);
 		return ret;
 	}
-
-	/* config earlysuspend */
-#ifdef CONFIG_HAS_EARLYSUSPEND
-	hisifd->early_suspend.suspend = hisifb_early_suspend;
-	hisifd->early_suspend.resume = hisifb_early_resume;
-	hisifd->early_suspend.level = EARLY_SUSPEND_LEVEL_DISABLE_FB - 2;
-	register_early_suspend(&hisifd->early_suspend);
-#endif
 
 	pdev_list[pdev_list_cnt++] = pdev;
 
@@ -2236,7 +2031,8 @@ static int hisi_fb_remove(struct platform_device *pdev)
 
 	/* stop the device */
 	if (hisi_fb_suspend_sub(hisifd) != 0)
-		HISI_FB_ERR("fb%d hisi_fb_suspend_sub failed!\n", hisifd->index);
+		HISI_FB_ERR("fb%d hisi_fb_suspend_sub failed!\n",
+			    hisifd->index);
 
 	/* overlay destroy */
 	hisi_overlay_deinit(hisifd);
@@ -2283,7 +2079,8 @@ static int hisi_fb_suspend_sub(struct hisi_fb_data_type *hisifd)
 
 	ret = hisi_fb_blank_sub(FB_BLANK_POWERDOWN, hisifd->fbi);
 	if (ret) {
-		HISI_FB_ERR("fb%d can't turn off display, error=%d!\n", hisifd->index, ret);
+		HISI_FB_ERR("fb%d can't turn off display, error=%d!\n",
+			    hisifd->index, ret);
 		return ret;
 	}
 
@@ -2298,43 +2095,14 @@ static int hisi_fb_resume_sub(struct hisi_fb_data_type *hisifd)
 
 	ret = hisi_fb_blank_sub(FB_BLANK_UNBLANK, hisifd->fbi);
 	if (ret) {
-		HISI_FB_ERR("fb%d can't turn on display, error=%d!\n", hisifd->index, ret);
+		HISI_FB_ERR("fb%d can't turn on display, error=%d!\n",
+			    hisifd->index, ret);
 	}
 
 	return ret;
 }
 
-#ifdef CONFIG_HAS_EARLYSUSPEND
-static void hisifb_early_suspend(struct early_suspend *h)
-{
-	struct hisi_fb_data_type *hisifd = NULL;
-
-	hisifd = container_of(h, struct hisi_fb_data_type, early_suspend);
-	BUG_ON(hisifd == NULL);
-
-	HISI_FB_INFO("fb%d, +.\n", hisifd->index);
-
-	hisi_fb_suspend_sub(hisifd);
-
-	HISI_FB_INFO("fb%d, -.\n", hisifd->index);
-}
-
-static void hisifb_early_resume(struct early_suspend *h)
-{
-	struct hisi_fb_data_type *hisifd = NULL;
-
-	hisifd = container_of(h, struct hisi_fb_data_type, early_suspend);
-	BUG_ON(hisifd == NULL);
-
-	HISI_FB_INFO("fb%d, +.\n", hisifd->index);
-
-	hisi_fb_resume_sub(hisifd);
-
-	HISI_FB_INFO("fb%d, -.\n", hisifd->index);
-}
-#endif
-
-#if defined(CONFIG_PM) && !defined(CONFIG_HAS_EARLYSUSPEND)
+#ifdef CONFIG_PM
 static int hisi_fb_suspend(struct platform_device *pdev, pm_message_t state)
 {
 	int ret = 0;
@@ -2350,7 +2118,8 @@ static int hisi_fb_suspend(struct platform_device *pdev, pm_message_t state)
 	fb_set_suspend(hisifd->fbi, FBINFO_STATE_SUSPENDED);
 	ret = hisi_fb_suspend_sub(hisifd);
 	if (ret != 0) {
-		HISI_FB_ERR("fb%d hisi_fb_suspend_sub failed, error=%d!\n", hisifd->index, ret);
+		HISI_FB_ERR("fb%d hisi_fb_suspend_sub failed, error=%d!\n",
+			    hisifd->index, ret);
 		fb_set_suspend(hisifd->fbi, FBINFO_STATE_RUNNING);
 	} else {
 		pdev->dev.power.power_state = state;
@@ -2388,140 +2157,6 @@ static int hisi_fb_resume(struct platform_device *pdev)
 #define hisi_fb_resume NULL
 #endif
 
-
-/*******************************************************************************
-** pm_runtime
-*/
-#ifdef CONFIG_PM_RUNTIME
-static int hisi_fb_runtime_suspend(struct device *dev)
-{
-	struct hisi_fb_data_type *hisifd = NULL;
-	int ret = 0;
-
-	if (NULL == dev) {
-		HISI_FB_ERR("NULL Poniter\n");
-		return 0;
-	}
-
-	hisifd = dev_get_drvdata(dev);
-	if (NULL == hisifd) {
-		HISI_FB_ERR("NULL Poniter\n");
-		return 0;
-	}
-
-	HISI_FB_INFO("fb%d, +.\n", hisifd->index);
-
-	ret = hisi_fb_suspend_sub(hisifd);
-	if (ret != 0) {
-		HISI_FB_ERR("fb%d, failed to hisi_fb_suspend_sub! ret=%d\n", hisifd->index, ret);
-	}
-
-	HISI_FB_INFO("fb%d, -.\n", hisifd->index);
-
-	return 0;
-}
-
-static int hisi_fb_runtime_resume(struct device *dev)
-{
-	struct hisi_fb_data_type *hisifd = NULL;
-	int ret = 0;
-
-	if (NULL == dev) {
-		HISI_FB_ERR("NULL Poniter\n");
-		return 0;
-	}
-
-	hisifd = dev_get_drvdata(dev);
-	if (NULL == hisifd) {
-		HISI_FB_ERR("NULL Poniter\n");
-		return 0;
-	}
-
-	HISI_FB_INFO("fb%d, +.\n", hisifd->index);
-
-	ret = hisi_fb_resume_sub(hisifd);
-	if (ret != 0) {
-		HISI_FB_ERR("fb%d, failed to hisi_fb_resume_sub! ret=%d\n", hisifd->index, ret);
-	}
-
-	HISI_FB_INFO("fb%d, -.\n", hisifd->index);
-
-	return 0;
-}
-
-static int hisi_fb_runtime_idle(struct device *dev)
-{
-	struct hisi_fb_data_type *hisifd = NULL;
-
-	if (NULL == dev) {
-		HISI_FB_ERR("NULL Poniter\n");
-		return 0;
-	}
-
-	hisifd = dev_get_drvdata(dev);
-	if (NULL == hisifd) {
-		HISI_FB_ERR("NULL Poniter\n");
-		return 0;
-	}
-
-	HISI_FB_INFO("fb%d, +.\n", hisifd->index);
-
-	HISI_FB_INFO("fb%d, -.\n", hisifd->index);
-
-	return 0;
-}
-
-static void hisifb_pm_runtime_get(struct hisi_fb_data_type *hisifd)
-{
-	int ret = 0;
-
-	BUG_ON(hisifd == NULL);
-
-	ret = pm_runtime_get_sync(hisifd->fbi->dev);
-	if (ret < 0) {
-		HISI_FB_ERR("fb%d, failed to pm_runtime_get_sync! ret=%d.", hisifd->index, ret);
-	}
-}
-
-static void hisifb_pm_runtime_put(struct hisi_fb_data_type *hisifd)
-{
-	int ret = 0;
-
-	BUG_ON(hisifd == NULL);
-
-	ret = pm_runtime_put(hisifd->fbi->dev);
-	if (ret < 0) {
-		HISI_FB_ERR("fb%d, failed to pm_runtime_put! ret=%d.", hisifd->index, ret);
-	}
-}
-
-static void hisifb_pm_runtime_register(struct platform_device *pdev)
-{
-	int ret = 0;
-	struct hisi_fb_data_type *hisifd = NULL;
-
-	BUG_ON(pdev == NULL);
-	hisifd = platform_get_drvdata(pdev);
-	BUG_ON(hisifd == NULL);
-
-	ret = pm_runtime_set_active(hisifd->fbi->dev);
-	if (ret < 0)
-		HISI_FB_ERR("fb%d failed to pm_runtime_set_active.\n", hisifd->index);
-	pm_runtime_enable(hisifd->fbi->dev);
-}
-
-static void hisifb_pm_runtime_unregister(struct platform_device *pdev)
-{
-	struct hisi_fb_data_type *hisifd = NULL;
-
-	BUG_ON(pdev == NULL);
-	hisifd = platform_get_drvdata(pdev);
-	BUG_ON(hisifd == NULL);
-
-	pm_runtime_disable(hisifd->fbi->dev);
-}
-#endif
-
 #ifdef CONFIG_PM_SLEEP
 static int hisi_fb_pm_suspend(struct device *dev)
 {
@@ -2544,7 +2179,8 @@ static int hisi_fb_pm_suspend(struct device *dev)
 
 	ret = hisi_fb_suspend_sub(hisifd);
 	if (ret != 0) {
-		HISI_FB_ERR("fb%d, failed to hisi_fb_suspend_sub! ret=%d\n", hisifd->index, ret);
+		HISI_FB_ERR("fb%d, failed to hisi_fb_suspend_sub! ret=%d\n",
+			    hisifd->index, ret);
 	}
 
 	HISI_FB_INFO("fb%d, -.\n", hisifd->index);
@@ -2569,7 +2205,8 @@ static int hisi_fb_pm_resume(struct device *dev)
 
 	ret = hisi_fb_resume_sub(hisifd);
 	if (ret != 0) {
-		HISI_FB_ERR("fb%d, failed to hisi_fb_resume_sub! ret=%d\n", hisifd->index, ret);
+		HISI_FB_ERR("fb%d, failed to hisi_fb_resume_sub! ret=%d\n",
+			    hisifd->index, ret);
 	}
 
 	HISI_FB_INFO("fb%d, -.\n", hisifd->index);
@@ -2592,7 +2229,8 @@ static void hisi_fb_shutdown(struct platform_device *pdev)
 	hisifd = platform_get_drvdata(pdev);
 	if (!hisifd) {
 		if (pdev->id) {
-			HISI_FB_ERR("hisifd NULL Pointer,pdev->id=%d\n", pdev->id);
+			HISI_FB_ERR("hisifd NULL Pointer,pdev->id=%d\n",
+				    pdev->id);
 		}
 		return;
 	}
@@ -2607,22 +2245,17 @@ static void hisi_fb_shutdown(struct platform_device *pdev)
 
 	ret = hisi_fb_blank_sub(FB_BLANK_POWERDOWN, hisifd->fbi);
 	if (ret) {
-		HISI_FB_ERR("fb%d can't turn off display, error=%d!\n", hisifd->index, ret);
+		HISI_FB_ERR("fb%d can't turn off display, error=%d!\n",
+			    hisifd->index, ret);
 	}
 
 	HISI_FB_INFO("fb%d shutdown -\n", hisifd->index);
 }
 
-
 /*******************************************************************************
-**
-*/
+ **
+ */
 static struct dev_pm_ops hisi_fb_dev_pm_ops = {
-#ifdef CONFIG_PM_RUNTIME
-	.runtime_suspend = hisi_fb_runtime_suspend,
-	.runtime_resume = hisi_fb_runtime_resume,
-	.runtime_idle = hisi_fb_runtime_idle,
-#endif
 #ifdef CONFIG_PM_SLEEP
 	.suspend = hisi_fb_pm_suspend,
 	.resume = NULL,
@@ -2631,27 +2264,26 @@ static struct dev_pm_ops hisi_fb_dev_pm_ops = {
 
 static const struct of_device_id hisi_fb_match_table[] = {
 	{
-		.compatible = DTS_COMP_FB_NAME,
-		.data = NULL,
-	},
+	 .compatible = DTS_COMP_FB_NAME,
+	 .data = NULL,
+	 },
 	{},
 };
+
 MODULE_DEVICE_TABLE(of, hisi_fb_match_table);
 
 static struct platform_driver hisi_fb_driver = {
 	.probe = hisi_fb_probe,
 	.remove = hisi_fb_remove,
-#ifndef CONFIG_HAS_EARLYSUSPEND
 	.suspend = hisi_fb_suspend,
 	.resume = hisi_fb_resume,
-#endif
 	.shutdown = hisi_fb_shutdown,
 	.driver = {
-		.name = DEV_NAME_FB,
-		.owner  = THIS_MODULE,
-		.of_match_table = of_match_ptr(hisi_fb_match_table),
-		.pm = &hisi_fb_dev_pm_ops,
-	},
+		   .name = DEV_NAME_FB,
+		   .owner = THIS_MODULE,
+		   .of_match_table = of_match_ptr(hisi_fb_match_table),
+		   .pm = &hisi_fb_dev_pm_ops,
+		   },
 };
 
 static int __init hisi_fb_init(void)
@@ -2660,36 +2292,13 @@ static int __init hisi_fb_init(void)
 
 	ret = platform_driver_register(&hisi_fb_driver);
 	if (ret) {
-		HISI_FB_ERR("platform_driver_register failed, error=%d!\n", ret);
+		HISI_FB_ERR("platform_driver_register failed, error=%d!\n",
+			    ret);
 		return ret;
 	}
 
 	return ret;
 }
-
-static int __init early_parse_color_temp_cal_cmdline(char *arg)
-{
-	int len = 0;
-	u8 color_temp_cal = 0;
-	memset(color_temp_cal_buf, 0, sizeof(color_temp_cal_buf));
-	if (arg) {
-		len = strlen(arg);
-
-		if (len > (sizeof(color_temp_cal_buf)-1)) {
-			len = sizeof(color_temp_cal_buf)-1;
-		}
-		memcpy(color_temp_cal_buf, arg, len);
-	} else {
-		HISI_FB_ERR("%s : arg is NULL\n", __func__);
-		color_temp_cal_buf[0] = 0;
-	}
-
-	color_temp_cal = (u8)simple_strtol(color_temp_cal_buf, NULL, 10);
-	HISI_FB_INFO("color_temp_cal_buf = %s, color_temp_cal = %d\n", color_temp_cal_buf, color_temp_cal);
-	color_temp_cal_buf[0] = color_temp_cal;
-	return 0;
-}
-early_param("COLOR_TMP", early_parse_color_temp_cal_cmdline);
 
 module_init(hisi_fb_init);
 
