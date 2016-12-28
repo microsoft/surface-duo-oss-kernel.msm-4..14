@@ -1727,7 +1727,6 @@ static int ci_udc_start(struct usb_gadget *gadget,
 			 struct usb_gadget_driver *driver)
 {
 	struct ci_hdrc *ci = container_of(gadget, struct ci_hdrc, gadget);
-	unsigned long flags;
 	int retval = -ENOMEM;
 
 	if (driver->disconnect == NULL)
@@ -1754,7 +1753,6 @@ static int ci_udc_start(struct usb_gadget *gadget,
 
 	pm_runtime_get_sync(&ci->gadget.dev);
 	if (ci->vbus_active) {
-		spin_lock_irqsave(&ci->lock, flags);
 		hw_device_reset(ci);
 	} else {
 		usb_udc_vbus_handler(&ci->gadget, false);
@@ -1763,7 +1761,6 @@ static int ci_udc_start(struct usb_gadget *gadget,
 	}
 
 	retval = hw_device_state(ci, ci->ep0out->qh.dma);
-	spin_unlock_irqrestore(&ci->lock, flags);
 	if (retval)
 		pm_runtime_put_sync(&ci->gadget.dev);
 
