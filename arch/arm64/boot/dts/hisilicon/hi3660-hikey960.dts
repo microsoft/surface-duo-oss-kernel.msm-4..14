@@ -10,6 +10,7 @@
 #include "hi3660.dtsi"
 #include "hi3660-ion.dtsi"
 #include "hikey960-pinctrl.dtsi"
+#include "hi3660-gpu.dtsi"
 
 / {
 	model = "HiKey960";
