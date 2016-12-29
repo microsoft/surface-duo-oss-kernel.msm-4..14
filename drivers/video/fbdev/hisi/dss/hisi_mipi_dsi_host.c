@@ -31,9 +31,6 @@ int mipi_dsi_swrite(struct dsi_cmd_desc *cm, char __iomem *dsi_base)
 
 	BUG_ON(cm->dlen > 2);
 	len = cm->dlen;
-
-
-
 	hdr |= DSI_HDR_DTYPE(cm->dtype);
 	hdr |= DSI_HDR_VC(cm->vc);
 	if (len == 1) {
@@ -277,10 +274,14 @@ static int mipi_dsi_read_add(uint32_t *out, struct dsi_cmd_desc *cm,
 		} while (time_after(dw_jiffies, jiffies));
 
 		if (is_timeout) {
-			HISI_FB_ERR("mipi_dsi_read timeout :0x%x \n \
-					MIPIDSI_CMD_PKT_STATUS = 0x%x \n \
-					MIPIDSI_PHY_STATUS = 0x%x \n \
-					MIPIDSI_INT_ST1_OFFSET = 0x%x \n", cm->payload[0], inp32(dsi_base + MIPIDSI_CMD_PKT_STATUS_OFFSET), inp32(dsi_base + MIPIDSI_PHY_STATUS_OFFSET), inp32(dsi_base + MIPIDSI_INT_ST1_OFFSET));
+			HISI_FB_ERR("mipi_dsi_read timeout :0x%x\n"
+					"MIPIDSI_CMD_PKT_STATUS = 0x%x\n"
+					"MIPIDSI_PHY_STATUS = 0x%x \n"
+					"MIPIDSI_INT_ST1_OFFSET = 0x%x \n",
+					cm->payload[0],
+					inp32(dsi_base + MIPIDSI_CMD_PKT_STATUS_OFFSET),
+					inp32(dsi_base + MIPIDSI_PHY_STATUS_OFFSET),
+					inp32(dsi_base + MIPIDSI_INT_ST1_OFFSET));
 			return -1;
 		}
 		/*send read cmd to fifo */
@@ -300,9 +301,14 @@ static int mipi_dsi_read_add(uint32_t *out, struct dsi_cmd_desc *cm,
 		} while (time_after(dw_jiffies, jiffies));
 
 		if (is_timeout) {
-			HISI_FB_ERR("mipi_dsi_read timeout :0x%x \n \
-					MIPIDSI_CMD_PKT_STATUS = 0x%x \n \
-					MIPIDSI_PHY_STATUS = 0x%x \n", cm->payload[0], inp32(dsi_base + MIPIDSI_CMD_PKT_STATUS_OFFSET), inp32(dsi_base + MIPIDSI_PHY_STATUS_OFFSET));
+			HISI_FB_ERR("mipi_dsi_read timeout :0x%x\n"
+					"MIPIDSI_CMD_PKT_STATUS = 0x%x\n"
+					"MIPIDSI_PHY_STATUS = 0x%x \n"
+					"MIPIDSI_INT_ST1_OFFSET = 0x%x \n",
+					cm->payload[0],
+					inp32(dsi_base + MIPIDSI_CMD_PKT_STATUS_OFFSET),
+					inp32(dsi_base + MIPIDSI_PHY_STATUS_OFFSET),
+					inp32(dsi_base + MIPIDSI_INT_ST1_OFFSET));
 			return -1;
 		}
 		/*get read data */

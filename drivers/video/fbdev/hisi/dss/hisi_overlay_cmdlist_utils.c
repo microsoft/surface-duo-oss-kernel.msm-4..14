@@ -47,8 +47,7 @@ int hisi_cmdlist_get_cmdlist_idxs(dss_overlay_t *pov_req,
 		for (i = 0; i < pov_h_block->layer_nums; i++) {
 			layer = &(pov_h_block->layer_infos[i]);
 
-			if (layer->
-			    need_cap & (CAP_BASE | CAP_DIM | CAP_PURE_COLOR))
+			if (layer->need_cap & (CAP_BASE | CAP_DIM | CAP_PURE_COLOR))
 				continue;
 
 			if (layer->chn_idx == DSS_RCHN_V2) {
@@ -156,8 +155,8 @@ void hisi_cmdlist_set_reg(struct hisi_fb_data_type *hisifd, char __iomem *addr,
 	BUG_ON((cmdlist_idx < 0) || (cmdlist_idx >= HISI_DSS_CMDLIST_MAX));
 
 	node =
-	    list_entry(hisifd->cmdlist_data->cmdlist_head_temp[cmdlist_idx].
-		       prev, dss_cmdlist_node_t, list_node);
+	    list_entry(hisifd->cmdlist_data->cmdlist_head_temp[cmdlist_idx].prev,
+			   dss_cmdlist_node_t, list_node);
 	BUG_ON(node == NULL);
 
 	if (node->node_type == CMDLIST_NODE_NOP) {
@@ -251,23 +250,18 @@ void hisi_cmdlist_flush_cache(struct hisi_fb_data_type *hisifd,
 					HISI_FB_ERR
 					    ("header_ion_handle is NULL!\n");
 				} else {
-					table =
-					    ion_sg_table(ion_client,
-							 node->
-							 header_ion_handle);
+					table = ion_sg_table(ion_client,
+							 node->header_ion_handle);
 					BUG_ON(table == NULL);
 					dma_sync_sg_for_device(NULL, table->sgl,
 							       table->nents,
 							       DMA_TO_DEVICE);
 				}
 
-
 				if (!node->item_ion_handle) {
-					HISI_FB_ERR
-					    ("item_ion_handle is NULL!\n");
+					HISI_FB_ERR("item_ion_handle is NULL!\n");
 				} else {
-					table =
-					    ion_sg_table(ion_client,
+					table = ion_sg_table(ion_client,
 							 node->item_ion_handle);
 					BUG_ON(table == NULL);
 					dma_sync_sg_for_device(NULL, table->sgl,
@@ -302,8 +296,7 @@ dss_cmdlist_node_t *hisi_cmdlist_node_alloc(struct ion_client *ion_client)
 
 	/*alloc buffer for header */
 	node->header_ion_handle =
-	    ion_alloc(ion_client, header_len, 0, ION_HEAP(ION_GRALLOC_HEAP_ID),
-		      0);
+	    ion_alloc(ion_client, header_len, 0, ION_HEAP(ION_GRALLOC_HEAP_ID), 0);
 	if (IS_ERR(node->header_ion_handle)) {
 		HISI_FB_ERR("failed to ion_alloc node->header_ion_handle!");
 		goto err_header_ion_handle;
@@ -328,8 +321,7 @@ dss_cmdlist_node_t *hisi_cmdlist_node_alloc(struct ion_client *ion_client)
 
 	/*alloc buffer for items */
 	node->item_ion_handle =
-	    ion_alloc(ion_client, item_len, 0, ION_HEAP(ION_GRALLOC_HEAP_ID),
-		      0);
+	    ion_alloc(ion_client, item_len, 0, ION_HEAP(ION_GRALLOC_HEAP_ID), 0);
 	if (!node->item_ion_handle) {
 		HISI_FB_ERR("failed to ion_alloc node->item_ion_handle!");
 		goto err_item_ion_handle;
@@ -343,7 +335,6 @@ dss_cmdlist_node_t *hisi_cmdlist_node_alloc(struct ion_client *ion_client)
 	}
 
 	memset(node->list_item, 0, item_len);
-
 	ret =
 	    ion_phys(ion_client, node->item_ion_handle, &node->item_phys,
 		     &item_len);
@@ -454,8 +445,7 @@ int hisi_cmdlist_add_nop_node(struct hisi_fb_data_type *hisifd,
 
 			/*add this nop to list */
 			list_add_tail(&(node->list_node),
-				      &(hisifd->cmdlist_data->
-					cmdlist_head_temp[i]));
+				      &(hisifd->cmdlist_data->cmdlist_head_temp[i]));
 
 			if (node->list_node.prev !=
 			    &(hisifd->cmdlist_data->cmdlist_head_temp[i])) {
@@ -551,8 +541,7 @@ int hisi_cmdlist_add_new_node(struct hisi_fb_data_type *hisifd,
 
 			/* add this nop to list */
 			list_add_tail(&(node->list_node),
-				      &(hisifd->cmdlist_data->
-					cmdlist_head_temp[i]));
+				      &(hisifd->cmdlist_data->cmdlist_head_temp[i]));
 
 			if (node->list_node.prev !=
 			    &(hisifd->cmdlist_data->cmdlist_head_temp[i])) {
@@ -695,7 +684,6 @@ int hisi_cmdlist_exec(struct hisi_fb_data_type *hisifd, uint32_t cmdlist_idxs)
 					hisi_cmdlist_dump_all_node(hisifd, NULL,
 								   cmdlist_idxs);
 				}
-
 			}
 		}
 
@@ -742,18 +730,14 @@ int hisi_cmdlist_config_start(struct hisi_fb_data_type *hisifd, int mctl_idx,
 
 			if (mctl_idx >= DSS_MCTL2) {
 				cmdlist_node =
-				    list_first_entry(&
-						     (hisifd->
-						      cmdlist_data_tmp
-						      [wb_compose_type]->
-						      cmdlist_head_temp[i]),
+				    list_first_entry(&(hisifd->cmdlist_data_tmp
+							 [wb_compose_type]->cmdlist_head_temp[i]),
 						     dss_cmdlist_node_t,
 						     list_node);
 			} else {
 				cmdlist_node =
-				    list_first_entry(&
-						     (hisifd->cmdlist_data->
-						      cmdlist_head_temp[i]),
+				    list_first_entry(&(hisifd->cmdlist_data->
+							  cmdlist_head_temp[i]),
 						     dss_cmdlist_node_t,
 						     list_node);
 			}
@@ -766,7 +750,6 @@ int hisi_cmdlist_config_start(struct hisi_fb_data_type *hisifd, int mctl_idx,
 			}
 
 			temp |= (1 << i);
-
 			outp32(cmdlist_base + CMDLIST_ADDR_MASK_EN, BIT(i));
 			if (g_debug_set_reg_val) {
 				HISI_FB_INFO("writel: [%p] = 0x%lx\n",
@@ -774,20 +757,20 @@ int hisi_cmdlist_config_start(struct hisi_fb_data_type *hisifd, int mctl_idx,
 					     CMDLIST_ADDR_MASK_EN, BIT(i));
 			}
 
-			set_reg(cmdlist_base + CMDLIST_CH0_CTRL + i * offset, mctl_idx, 3, 2);
+			set_reg(cmdlist_base + CMDLIST_CH0_CTRL + i*offset,
+					mctl_idx, 3, 2);
 			if (mctl_idx <= DSS_MCTL1) {
-				set_reg(cmdlist_base + CMDLIST_CH0_CTRL + i * offset, 0x1, 1, 6);
+				set_reg(cmdlist_base + CMDLIST_CH0_CTRL + i*offset, 0x1, 1, 6);
 			} else {
-				set_reg(cmdlist_base + CMDLIST_CH0_CTRL + i * offset, 0x0, 1, 6);
+				set_reg(cmdlist_base + CMDLIST_CH0_CTRL + i*offset, 0x0, 1, 6);
 			}
 
-			set_reg(cmdlist_base + CMDLIST_CH0_STAAD + i * offset, list_addr, 32, 0);
-
-			set_reg(cmdlist_base + CMDLIST_CH0_CTRL + i * offset, 0x1, 1, 0);
+			set_reg(cmdlist_base + CMDLIST_CH0_STAAD + i*offset,
+					list_addr, 32, 0);
+			set_reg(cmdlist_base + CMDLIST_CH0_CTRL + i*offset, 0x1, 1, 0);
 			if ((mctl_idx <= DSS_MCTL1)
 			    && ((ints_temp & 0x2) == 0x2)) {
-				set_reg(cmdlist_base + CMDLIST_SWRST, 0x1, 1,
-					i);
+				set_reg(cmdlist_base + CMDLIST_SWRST, 0x1, 1, i);
 			}
 
 			if (mctl_idx >= DSS_MCTL2) {
@@ -802,7 +785,6 @@ int hisi_cmdlist_config_start(struct hisi_fb_data_type *hisifd, int mctl_idx,
 				}
 			}
 		}
-
 		cmdlist_idxs_temp = cmdlist_idxs_temp >> 1;
 	}
 
@@ -847,7 +829,6 @@ void hisi_cmdlist_config_mif_reset(struct hisi_fb_data_type *hisifd,
 		mif_nums_max = DSS_CHN_MAX;
 	}
 
-
 	if (mctl_idx == DSS_MCTL5) {
 		for (i = DSS_RCHN_V2; i < DSS_CHN_MAX_DEFINE; i++) {
 			is_timeout = false;
@@ -857,8 +838,7 @@ void hisi_cmdlist_config_mif_reset(struct hisi_fb_data_type *hisifd,
 					tmp |=
 					    inp32(dss_base + DSS_MIF_OFFSET +
 						  MIF_STAT1 +
-						  0x10 * (i * mif_sub_ch_nums +
-							  j));
+						  0x10 * (i * mif_sub_ch_nums +j));
 				}
 
 				if (((tmp & 0x1f) == 0x0) || delay_count > 500) {
@@ -896,19 +876,13 @@ void hisi_cmdlist_config_mif_reset(struct hisi_fb_data_type *hisifd,
 				while (1) {
 					for (j = 1; j <= mif_sub_ch_nums; j++) {
 						tmp |=
-						    inp32(dss_base +
-							  DSS_MIF_OFFSET +
-							  MIF_STAT1 +
-							  0x10 * (i *
-								  mif_sub_ch_nums
-								  + j));
+						    inp32(dss_base + DSS_MIF_OFFSET + MIF_STAT1 +
+							  0x10 * (i * mif_sub_ch_nums + j));
 					}
-
 					if (((tmp & 0x1f) == 0x0)
 					    || delay_count > 500) {
 						is_timeout =
-						    (delay_count >
-						     500) ? true : false;
+						    (delay_count > 500) ? true : false;
 						delay_count = 0;
 						break;
 					} else {
@@ -919,8 +893,7 @@ void hisi_cmdlist_config_mif_reset(struct hisi_fb_data_type *hisifd,
 
 				if (is_timeout) {
 					HISI_FB_ERR
-					    ("mif_ch%d MIF_STAT1=0x%x !\n", i,
-					     tmp);
+					    ("mif_ch%d MIF_STAT1=0x%x !\n", i, tmp);
 				}
 			}
 
@@ -936,13 +909,10 @@ void hisi_cmdlist_config_mif_reset(struct hisi_fb_data_type *hisifd,
 						0);
 				}
 			}
-
 			cmdlist_idxs_temp = cmdlist_idxs_temp >> 1;
 		}
 	}
-
 	mdelay(5);
-
 
 	if (mctl_idx == DSS_MCTL5) {
 		tmp_base = hisifd->dss_module.mif_ch_base[DSS_RCHN_V2];
@@ -964,7 +934,6 @@ void hisi_cmdlist_config_mif_reset(struct hisi_fb_data_type *hisifd,
 						0);
 				}
 			}
-
 			cmdlist_idxs_temp = cmdlist_idxs_temp >> 1;
 		}
 	}
@@ -980,12 +949,9 @@ void hisi_cmdlist_config_reset(struct hisi_fb_data_type *hisifd,
 
 	uint32_t offset = 0;
 	uint32_t cmdlist_idxs_temp = 0;
-	int delay_count = 0;
-	bool is_timeout = true;
 	int i = 0;
 	int ovl_idx = 0;
 	int mctl_idx = 0;
-	int tmp = 0;
 	int ints_temp = 0;
 	int start_sel = 0;
 	uint32_t start_sel_temp = 0;
@@ -1000,11 +966,9 @@ void hisi_cmdlist_config_reset(struct hisi_fb_data_type *hisifd,
 	ovl_idx = pov_req->ovl_idx;
 	pinfo = &(hisifd->panel_info);
 
-	if (cmdlist_idxs == 0)
-		return;
+	if (cmdlist_idxs == 0) return;
 
 	mctl_idx = ovl_idx;
-
 	if (pov_req->wb_compose_type == DSS_WB_COMPOSE_COPYBIT) {
 		mctl_idx = DSS_MCTL5;
 	}
@@ -1024,10 +988,8 @@ void hisi_cmdlist_config_reset(struct hisi_fb_data_type *hisifd,
 				start_sel_temp |= (1 << i);
 			}
 		}
-
 		cmdlist_idxs_temp = cmdlist_idxs_temp >> 1;
 	}
-
 
 	tmp_base = hisifd->dss_module.mctl_base[mctl_idx];
 	if (tmp_base) {
@@ -1035,13 +997,11 @@ void hisi_cmdlist_config_reset(struct hisi_fb_data_type *hisifd,
 	}
 
 	hisi_cmdlist_config_mif_reset(hisifd, pov_req, cmdlist_idxs, mctl_idx);
-
 	cmdlist_idxs_temp = start_sel_temp;
 	for (i = 0; i < HISI_DSS_CMDLIST_MAX; i++) {
 		if ((cmdlist_idxs_temp & 0x1) == 0x1) {
 			set_reg(cmdlist_base + CMDLIST_CH0_CTRL + i * offset, mctl_idx, 3, 2);
 		}
-
 		cmdlist_idxs_temp = cmdlist_idxs_temp >> 1;
 	}
 
@@ -1055,7 +1015,6 @@ void hisi_cmdlist_config_reset(struct hisi_fb_data_type *hisifd,
 				set_reg(cmdlist_base + CMDLIST_CH0_CTRL +
 					i * offset, 0x0, 1, 0);
 			}
-
 			cmdlist_idxs_temp = cmdlist_idxs_temp >> 1;
 		}
 	}
@@ -1072,11 +1031,9 @@ int hisi_cmdlist_config_stop(struct hisi_fb_data_type *hisifd,
 	int i = 0;
 	uint32_t tmp = 0;
 	uint32_t offset = 0;
-
 	int ret = 0;
 
 	BUG_ON(hisifd == NULL);
-
 	pov_req = &(hisifd->ov_req);
 	cmdlist_base = hisifd->dss_base + DSS_CMDLIST_OFFSET;
 	offset = 0x40;
@@ -1129,7 +1086,8 @@ void hisi_dump_cmdlist_node_items(cmd_item_t *item, uint32_t count)
 		addr = addr & CMDLIST_ADDR_OFFSET;
 		addr = addr << 2;
 		HISI_FB_INFO
-		    ("set addr:0x%x value:0x%x add1:0x%x value:0x%x add2:0x%x value:0x%x \n",
+		    ("set addr:0x%x value:0x%x add1:0x%x value:0x%x "
+		     "add2:0x%x value:0x%x \n",
 		     addr, item[index].data0,
 		     item[index].reg_addr.bits.add1 << 2, item[index].data1,
 		     item[index].reg_addr.bits.add2 << 2, item[index].data2);
@@ -1184,7 +1142,7 @@ static void hisi_dump_cmdlist_one_node(struct list_head *cmdlist_head,
 		HISI_FB_INFO
 		    ("\t qos  | flag | pending | tast_end | last  | event_list | list_addr  | next_list  | count | id | is_used | reserved | cmdlist_idx\n");
 		HISI_FB_INFO
-		    ("\t------+---------+------------+------------+------------+------------\n");
+		    ("\t ------+---------+------------+------------+------------+------------\n");
 		HISI_FB_INFO
 		    ("\t 0x%2x | 0x%2x |0x%6x | 0x%5x | 0x%3x | 0x%8x | 0x%8x | 0x%8x | 0x%3x | 0x%2x | 0x%2x | 0x%2x | 0x%2x\n",
 		     node->list_header->flag.bits.qos,
@@ -1249,21 +1207,13 @@ int hisi_cmdlist_dump_all_node(struct hisi_fb_data_type *hisifd,
 	for (i = 0; i < HISI_DSS_CMDLIST_MAX; i++) {
 		if (0x1 == (cmdlist_idxs_temp & 0x1)) {
 			if (pov_req && pov_req->wb_enable) {
-				hisi_dump_cmdlist_one_node(&
-							   (hisifd->
-							    cmdlist_data_tmp
-							    [wb_compose_type]->
-							    cmdlist_head_temp
-							    [i]), i);
+				hisi_dump_cmdlist_one_node(&(hisifd->cmdlist_data_tmp
+							    [wb_compose_type]->cmdlist_head_temp[i]), i);
 			} else {
 				hisi_dump_cmdlist_one_node(&
-							   (hisifd->
-							    cmdlist_data->
-							    cmdlist_head_temp
-							    [i]), i);
+							   (hisifd->cmdlist_data->cmdlist_head_temp[i]), i);
 			}
 		}
-
 		cmdlist_idxs_temp = cmdlist_idxs_temp >> 1;
 	}
 
@@ -1288,21 +1238,13 @@ int hisi_cmdlist_del_node(struct hisi_fb_data_type *hisifd,
 	for (i = 0; i < HISI_DSS_CMDLIST_MAX; i++) {
 		if ((cmdlist_idxs_temp & 0x1) == 0x1) {
 			if (pov_req && pov_req->wb_enable) {
-				hisi_cmdlist_del_all_node(&
-							  (hisifd->
-							   cmdlist_data_tmp
-							   [wb_compose_type]->
-							   cmdlist_head_temp
-							   [i]));
+				hisi_cmdlist_del_all_node(&(hisifd->cmdlist_data_tmp
+							   [wb_compose_type]->cmdlist_head_temp[i]));
 			} else {
 				hisi_cmdlist_del_all_node(&
-							  (hisifd->
-							   cmdlist_data->
-							   cmdlist_head_temp
-							   [i]));
+							  (hisifd->cmdlist_data->cmdlist_head_temp[i]));
 			}
 		}
-
 		cmdlist_idxs_temp = (cmdlist_idxs_temp >> 1);
 	}
 
@@ -1358,8 +1300,7 @@ static void hisi_cmdlist_data_free(struct hisi_fb_data_type *hisifd,
 	for (i = 0; i < HISI_DSS_CMDLIST_MAX; i++) {
 		for (j = 0; j < HISI_DSS_CMDLIST_NODE_MAX; j++) {
 			hisi_cmdlist_node_free(hisifd->ion_client,
-					       hisifd->cmdlist_data->
-					       cmdlist_nodes_temp[i][j]);
+					       hisifd->cmdlist_data->cmdlist_nodes_temp[i][j]);
 		}
 	}
 }
@@ -1373,8 +1314,7 @@ static dss_cmdlist_info_t *hisi_cmdlist_info_alloc(struct hisi_fb_data_type
 	BUG_ON(hisifd == NULL);
 
 	cmdlist_info =
-	    (dss_cmdlist_info_t *) kmalloc(sizeof(dss_cmdlist_info_t),
-					   GFP_ATOMIC);
+	    (dss_cmdlist_info_t *) kmalloc(sizeof(dss_cmdlist_info_t), GFP_ATOMIC);
 	if (cmdlist_info) {
 		memset(cmdlist_info, 0, sizeof(dss_cmdlist_info_t));
 	} else {

@@ -28,7 +28,6 @@ static int hisi_get_ov_data_from_user(struct hisi_fb_data_type *hisifd,
 		HISI_FB_ERR("user data is invalid\n");
 		return -EINVAL;
 	}
-
 	pov_h_block_infos = hisifd->ov_block_infos;
 
 	ret = copy_from_user(pov_req, argp, sizeof(dss_overlay_t));
@@ -88,8 +87,6 @@ int hisi_overlay_pan_display(struct hisi_fb_data_type *hisifd)
 	int enable_cmdlist = 0;
 	bool has_base = false;
 
-	HISI_FB_DEBUG("hisi_overlay_pan_display\n");
-
 	if (NULL == hisifd) {
 		HISI_FB_ERR("hisi fd is invalid\n");
 		return -EINVAL;
@@ -134,8 +131,6 @@ int hisi_overlay_pan_display(struct hisi_fb_data_type *hisifd)
 			    hisifd->index);
 		return -EINVAL;
 	}
-	/* Modified for Standard Android Format */
-	hal_format = HISI_FB_PIXEL_FORMAT_RGBA_8888;
 
 	enable_cmdlist = g_enable_ovl_cmdlist_online;
 	if ((hisifd->index == EXTERNAL_PANEL_IDX)
@@ -153,7 +148,6 @@ int hisi_overlay_pan_display(struct hisi_fb_data_type *hisifd)
 	}
 
 	if (g_debug_ovl_online_composer == 1) {
-		HISI_FB_INFO("offset=%u.\n", offset);
 		dumpDssOverlay(hisifd, pov_req, false);
 	}
 
@@ -223,7 +217,8 @@ int hisi_overlay_pan_display(struct hisi_fb_data_type *hisifd)
 						  &cmdlist_pre_idxs, NULL);
 		if (ret != 0) {
 			HISI_FB_ERR
-			    ("fb%d, hisi_cmdlist_get_cmdlist_idxs pov_req_prev failed! ret = %d\n",
+			    ("fb%d, hisi_cmdlist_get_cmdlist_idxs pov_req_prev failed! "
+			     "ret = %d\n",
 			     hisifd->index, ret);
 			goto err_return;
 		}
@@ -233,7 +228,8 @@ int hisi_overlay_pan_display(struct hisi_fb_data_type *hisifd)
 						  &cmdlist_idxs);
 		if (ret != 0) {
 			HISI_FB_ERR
-			    ("fb%d, hisi_cmdlist_get_cmdlist_idxs pov_req failed! ret = %d\n",
+			    ("fb%d, hisi_cmdlist_get_cmdlist_idxs pov_req failed! "
+			     "ret = %d\n",
 			     hisifd->index, ret);
 			goto err_return;
 		}
@@ -486,12 +482,10 @@ int hisi_ov_online_play(struct hisi_fb_data_type *hisifd, void __user *argp)
 			    hisifd->index, ret);
 		goto err_return;
 	}
-
 	hisi_mmbuf_info_get_online(hisifd);
 
 	if (enable_cmdlist) {
 		hisifd->set_reg = hisi_cmdlist_set_reg;
-
 		hisi_cmdlist_data_get_online(hisifd);
 
 		ret =
@@ -499,7 +493,8 @@ int hisi_ov_online_play(struct hisi_fb_data_type *hisifd, void __user *argp)
 						  &cmdlist_pre_idxs, NULL);
 		if (ret != 0) {
 			HISI_FB_ERR
-			    ("fb%d, hisi_cmdlist_get_cmdlist_idxs pov_req_prev failed! ret = %d\n",
+			    ("fb%d, hisi_cmdlist_get_cmdlist_idxs pov_req_prev failed! "
+			     "ret = %d\n",
 			     hisifd->index, ret);
 			goto err_return;
 		}
@@ -537,7 +532,6 @@ int hisi_ov_online_play(struct hisi_fb_data_type *hisifd, void __user *argp)
 			     hisifd->index, ret);
 			goto err_return;
 		}
-
 		hisi_dss_aif_handler(hisifd, pov_req, pov_h_block);
 
 		ret =
@@ -585,8 +579,7 @@ int hisi_ov_online_play(struct hisi_fb_data_type *hisifd, void __user *argp)
 		if (m == 0) {
 			if (hisifd->panel_info.dirty_region_updt_support) {
 				ret =
-				    hisi_dss_dirty_region_dbuf_config(hisifd,
-								      pov_req);
+				    hisi_dss_dirty_region_dbuf_config(hisifd, pov_req);
 				if (ret != 0) {
 					HISI_FB_ERR
 					    ("fb%d, hisi_dss_dirty_region_dbuf_config failed! ret = %d\n",
@@ -684,7 +677,6 @@ int hisi_ov_online_play(struct hisi_fb_data_type *hisifd, void __user *argp)
 	}
 
 	hisifb_deactivate_vsync(hisifd);
-
 	hisifb_layerbuf_flush(hisifd, &lock_list);
 
 	if ((hisifd->index == PRIMARY_PANEL_IDX)
@@ -692,12 +684,6 @@ int hisi_ov_online_play(struct hisi_fb_data_type *hisifd, void __user *argp)
 		if (!hisifd->fb_mem_free_flag) {
 			hisifb_free_fb_buffer(hisifd);
 			hisifd->fb_mem_free_flag = true;
-		}
-
-		if (g_logo_buffer_base && g_logo_buffer_size) {
-			hisifb_free_logo_buffer(hisifd);
-			HISI_FB_INFO("dss_free_buffer_refcount = %d !\n",
-				     dss_free_buffer_refcount);
 		}
 	}
 

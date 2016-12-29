@@ -32,9 +32,6 @@ static int hisifd_list_index;
 uint32_t g_dts_resouce_ready = 0;
 uint32_t g_dss_base_phy = 0;
 uint32_t g_dss_module_resource_initialized = 0;
-uint32_t g_logo_buffer_base = 0;
-uint32_t g_logo_buffer_size = 0;
-uint32_t g_fastboot_already_set = 0;
 
 struct iommu_domain *g_hisi_domain;
 
@@ -56,8 +53,7 @@ static uint32_t hisifd_irq_dsi1;
 /*DSS regulators are already enabled in fastboot, so kernel don't care*/
 /*
 #define MAX_DPE_NUM	(2)
-static struct regulator_bulk_data g_dpe_regulator[MAX_DPE_NUM] =
-{{0}, {0}};
+static struct regulator_bulk_data g_dpe_regulator[MAX_DPE_NUM] = {{0}, {0}};
 */
 
 static struct clk *dss_aclk_dss;
@@ -97,8 +93,8 @@ MODULE_PARM_DESC(debug_ldi_underflow, "hisi ldi_underflow debug");
 
 int g_debug_ldi_underflow_clear = 1;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(debug_ldi_underflow_clear, g_debug_ldi_underflow_clear, int,
-		   0644);
+module_param_named(debug_ldi_underflow_clear,
+		g_debug_ldi_underflow_clear, int, 0644);
 MODULE_PARM_DESC(debug_ldi_underflow_clear, "hisi ldi_underflow_clear debug");
 #endif
 
@@ -113,47 +109,48 @@ module_param_named(debug_online_vsync, g_debug_online_vsync, int, 0644);
 MODULE_PARM_DESC(debug_online_vsync, "hisi online vsync debug");
 
 int g_debug_ovl_online_composer = 0;
-module_param_named(debug_ovl_online_composer, g_debug_ovl_online_composer, int,
-		   0644);
+module_param_named(debug_ovl_online_composer,
+		g_debug_ovl_online_composer, int, 0644);
 MODULE_PARM_DESC(debug_ovl_online_composer,
-		 "hisi overlay online composer debug");
+		"hisi overlay online composer debug");
 
 int g_debug_ovl_online_composer_hold = 0;
 #ifdef CONFIG_FB_DEBUG_USED
 module_param_named(debug_ovl_online_composer_hold,
-		   g_debug_ovl_online_composer_hold, int, 0644);
+		g_debug_ovl_online_composer_hold, int, 0644);
 MODULE_PARM_DESC(debug_ovl_online_composer_hold,
-		 "hisi overlay online composer hold debug");
+		"hisi overlay online composer hold debug");
 #endif
 
 int g_debug_ovl_online_composer_return = 0;
 #ifdef CONFIG_FB_DEBUG_USED
 module_param_named(debug_ovl_online_composer_return,
-		   g_debug_ovl_online_composer_return, int, 0644);
+		g_debug_ovl_online_composer_return, int, 0644);
 MODULE_PARM_DESC(debug_ovl_online_composer_return,
-		 "hisi overlay online composer return debug");
+		"hisi overlay online composer return debug");
 #endif
 
 int g_debug_ovl_online_composer_timediff = 0;
 #ifdef CONFIG_FB_DEBUG_USED
 module_param_named(debug_ovl_online_composer_timediff,
-		   g_debug_ovl_online_composer_timediff, int, 0644);
+		g_debug_ovl_online_composer_timediff, int, 0644);
 MODULE_PARM_DESC(debug_ovl_online_composer_timediff,
-		 "hisi overlay online composer timediff debug");
+		"hisi overlay online composer timediff debug");
 #endif
 
 int g_debug_ovl_online_composer_time_threshold = 6000;
 #ifdef CONFIG_FB_DEBUG_USED
 module_param_named(debug_ovl_online_composer_time_threshold,
-		   g_debug_ovl_online_composer_time_threshold, int, 0644);
+		g_debug_ovl_online_composer_time_threshold, int, 0644);
 MODULE_PARM_DESC(debug_ovl_online_composer_time_threshold,
-		 "hisi overlay online composer time threshold debug");
+		"hisi overlay online composer time threshold debug");
 #endif
 
 int g_debug_ovl_block_composer = 0;
-module_param_named(debug_ovl_block_composer, g_debug_ovl_block_composer, int,
-		   0644);
-MODULE_PARM_DESC(debug_ovl_block_composer, "hisi overlay block composer debug");
+module_param_named(debug_ovl_block_composer,
+		g_debug_ovl_block_composer, int, 0644);
+MODULE_PARM_DESC(debug_ovl_block_composer,
+		"hisi overlay block composer debug");
 
 int g_debug_ovl_cmdlist = 0;
 module_param_named(debug_ovl_cmdlist, g_debug_ovl_cmdlist, int, 0644);
@@ -167,38 +164,41 @@ MODULE_PARM_DESC(dump_cmdlist_content, "hisi overlay dump cmdlist content");
 
 int g_enable_ovl_cmdlist_online = 1;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(enable_ovl_cmdlist_online, g_enable_ovl_cmdlist_online, int,
-		   0644);
+module_param_named(enable_ovl_cmdlist_online,
+		g_enable_ovl_cmdlist_online, int, 0644);
 MODULE_PARM_DESC(enable_ovl_cmdlist_online,
-		 "hisi overlay cmdlist online enable");
+		"hisi overlay cmdlist online enable");
 #endif
 
 int g_enable_ovl_cmdlist_offline = 1;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(enable_ovl_cmdlist_offline, g_enable_ovl_cmdlist_offline,
-		   int, 0644);
+module_param_named(enable_ovl_cmdlist_offline,
+		g_enable_ovl_cmdlist_offline, int, 0644);
 MODULE_PARM_DESC(enable_ovl_cmdlist_offline,
-		 "hisi overlay cmdlist offline enable");
+		"hisi overlay cmdlist offline enable");
 #endif
 
 int g_rdma_stretch_threshold = RDMA_STRETCH_THRESHOLD;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(rdma_stretch_threshold, g_rdma_stretch_threshold, int, 0644);
+module_param_named(rdma_stretch_threshold,
+		g_rdma_stretch_threshold, int, 0644);
 MODULE_PARM_DESC(rdma_stretch_threshold, "hisi rdma stretch threshold");
 #endif
 
 int g_enable_dirty_region_updt = 1;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(enable_dirty_region_updt, g_enable_dirty_region_updt, int,
-		   0644);
-MODULE_PARM_DESC(enable_dirty_region_updt, "hisi dss dirty_region_updt enable");
+module_param_named(enable_dirty_region_updt,
+		g_enable_dirty_region_updt, int, 0644);
+MODULE_PARM_DESC(enable_dirty_region_updt,
+		"hisi dss dirty_region_updt enable");
 #endif
 
 int g_debug_dirty_region_updt = 0;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(debug_dirty_region_updt, g_debug_dirty_region_updt, int,
-		   0644);
-MODULE_PARM_DESC(debug_dirty_region_updt, "hisi dss dirty_region_updt debug");
+module_param_named(debug_dirty_region_updt,
+		g_debug_dirty_region_updt, int, 0644);
+MODULE_PARM_DESC(debug_dirty_region_updt,
+		"hisi dss dirty_region_updt debug");
 #endif
 
 int g_enable_crc_debug = 0;
@@ -255,10 +255,10 @@ MODULE_PARM_DESC(underflow_stop_perf, "hisi underflow stop perf stat");
 
 uint32_t g_dss_min_bandwidth_inbusbusy = 200;
 #ifdef CONFIG_FB_DEBUG_USED
-module_param_named(dss_min_bandwidth_inbusbusy, g_dss_min_bandwidth_inbusbusy,
-		   int, 0644);
+module_param_named(dss_min_bandwidth_inbusbusy,
+		g_dss_min_bandwidth_inbusbusy, int, 0644);
 MODULE_PARM_DESC(dss_min_bandwidth_inbusbusy,
-		 "hisi overlay dss_min_bandwidth_inbusbusy");
+		"hisi overlay dss_min_bandwidth_inbusbusy");
 #endif
 
 uint32_t g_mmbuf_addr_test = 0;
@@ -433,9 +433,7 @@ int hisi_fb_blank_sub(int blank_mode, struct fb_info *info)
 	default:
 		if (hisifd->panel_power_on) {
 			curr_pwr_state = hisifd->panel_power_on;
-			down(&hisifd->brightness_esd_sem);
 			hisifd->panel_power_on = false;
-			up(&hisifd->brightness_esd_sem);
 
 			if (hisifd->bl_cancel) {
 				hisifd->bl_cancel(hisifd);
@@ -768,10 +766,11 @@ static int hisi_fb_pan_display(struct fb_var_screeninfo *var,
 		info->var.yoffset =
 		    (var->yoffset / info->fix.ypanstep) * info->fix.ypanstep;
 
-	if (hisifd->pan_display_fnc)
+	if (hisifd->pan_display_fnc) {
 		hisifd->pan_display_fnc(hisifd);
-	else
+	} else {
 		HISI_FB_ERR("fb%d pan_display_fnc not set!\n", hisifd->index);
+	}
 
 	up(&hisifd->blank_sem);
 
@@ -858,37 +857,6 @@ static int hisifb_dirty_region_updt_set(struct fb_info *info,
 	return 0;
 }
 
-static int hisifb_idle_is_allowed(struct fb_info *info, void __user *argp)
-{
-	int is_allowed = 0;
-	struct hisi_fb_data_type *hisifd = NULL;
-
-	if (NULL == info) {
-		HISI_FB_ERR("NULL Pointer!\n");
-		return -EINVAL;
-	}
-
-	hisifd = (struct hisi_fb_data_type *)info->par;
-	if (NULL == hisifd) {
-		HISI_FB_ERR("NULL Pointer!\n");
-		return -EINVAL;
-	}
-
-	if (NULL == argp) {
-		HISI_FB_ERR("NULL Pointer!\n");
-		return -EINVAL;
-	}
-
-	is_allowed = (hisifd->frame_update_flag == 1) ? 0 : 1;
-
-	if (copy_to_user(argp, &is_allowed, sizeof(is_allowed))) {
-		HISI_FB_ERR("copy to user fail");
-		return -EFAULT;
-	}
-
-	return 0;
-}
-
 static int hisifb_dss_mmbuf_alloc(struct fb_info *info, void __user *argp)
 {
 	int ret = 0;
@@ -932,9 +900,11 @@ static int hisifb_dss_mmbuf_alloc(struct fb_info *info, void __user *argp)
 			HISI_FB_ERR
 			    ("g_mmbuf_addr_test(0x%x) is overflow max mmbuf size + 0x40(0x%x)\n",
 			     g_mmbuf_addr_test, MMBUF_SIZE_MAX + 0x40);
+
 			HISI_FB_ERR("remain buff size if %d \n",
 				    (MMBUF_SIZE_MAX + 0x40) -
 				    (g_mmbuf_addr_test - mmbuf_info.size));
+
 			g_mmbuf_addr_test = 0;
 		} else {
 			mmbuf_info.addr = g_mmbuf_addr_test;
@@ -942,7 +912,7 @@ static int hisifb_dss_mmbuf_alloc(struct fb_info *info, void __user *argp)
 		}
 
 		HISI_FB_INFO
-		    ("addr = 0x%x, size =%d,g_mmbuf_addr_test = 0x%x, MAX_SIZE= 0x%x \n",
+		    ("addr = 0x%x, size =%d, g_mmbuf_addr_test = 0x%x, MAX_SIZE= 0x%x\n",
 		     mmbuf_info.addr, mmbuf_info.size, g_mmbuf_addr_test,
 		     MMBUF_SIZE_MAX + 0x40);
 	}
@@ -959,10 +929,10 @@ static int hisifb_dss_mmbuf_alloc(struct fb_info *info, void __user *argp)
 
 	ret = copy_to_user(argp, &mmbuf_info, sizeof(dss_mmbuf_t));
 	if (ret) {
-		HISI_FB_ERR("fb%d, copy to user failed!ret=%d.", hisifd->index,
-			    ret);
-		hisi_dss_mmbuf_free(hisifd->mmbuf_gen_pool, mmbuf_info.addr,
-				    mmbuf_info.size);
+		HISI_FB_ERR("fb%d, copy to user failed!ret=%d.",
+					hisifd->index, ret);
+		hisi_dss_mmbuf_free(hisifd->mmbuf_gen_pool,
+					mmbuf_info.addr, mmbuf_info.size);
 		ret = -EFAULT;
 		goto err_out;
 	}
@@ -979,10 +949,6 @@ static int hisifb_dss_mmbuf_free(struct fb_info *info, void __user *argp)
 	struct hisi_fb_data_type *hisifd = NULL;
 	struct hisi_fb_panel_data *pdata = NULL;
 	dss_mmbuf_t mmbuf_info;
-
-#ifdef CONFIG_DSS_MMBUF_FENCE_USED
-	return 0;
-#endif
 
 	if (NULL == info) {
 		HISI_FB_ERR("NULL Pointer!\n");
@@ -1076,16 +1042,14 @@ static int hisi_fb_ioctl(struct fb_info *info, unsigned int cmd,
 		}
 		break;
 
-	case HISIFB_IDLE_IS_ALLOWED:
-		ret = hisifb_idle_is_allowed(info, argp);
-		break;
-
 	case HISIFB_DSS_CLK_RATE_SET:
 		ret = hisifb_ctrl_dss_clk_rate_set(info, argp);
 		break;
+
 	case HISIFB_LCD_DIRTY_REGION_INFO_GET:
 		ret = hisifb_lcd_dirty_region_info_get(info, argp);
 		break;
+
 	case HISIFB_DIRTY_REGION_UPDT_SET:
 		ret = hisifb_dirty_region_updt_set(info, argp);
 		break;
@@ -1093,9 +1057,11 @@ static int hisi_fb_ioctl(struct fb_info *info, unsigned int cmd,
 	case HISIFB_DSS_MMBUF_ALLOC:
 		ret = hisifb_dss_mmbuf_alloc(info, argp);
 		break;
+
 	case HISIFB_DSS_MMBUF_FREE:
 		ret = hisifb_dss_mmbuf_free(info, argp);
 		break;
+
 	case HISIFB_PLATFORM_TYPE_GET:
 		ret = hisifb_dss_get_platform_type(info, argp);
 		break;
@@ -1139,8 +1105,7 @@ static int hisi_fb_mmap(struct fb_info *info, struct vm_area_struct *vma)
 	if (hisifd->index == PRIMARY_PANEL_IDX) {
 		if (hisifd->fb_mem_free_flag) {
 			if (!hisifb_alloc_fb_buffer(hisifd)) {
-				HISI_FB_ERR
-				    ("fb%d, hisifb_alloc_buffer failed!\n",
+				HISI_FB_ERR("fb%d, hisifb_alloc_buffer failed!\n",
 				     hisifd->index);
 				return -ENOMEM;
 			}
@@ -1210,8 +1175,7 @@ unsigned long hisifb_alloc_fb_buffer(struct hisi_fb_data_type *hisifd)
 
 	buf_len = fbi->fix.smem_len;
 	handle =
-	    ion_alloc(client, buf_len, PAGE_SIZE, ION_HEAP(ION_SYSTEM_HEAP_ID),
-		      0);
+	    ion_alloc(client, buf_len, PAGE_SIZE, ION_HEAP(ION_SYSTEM_HEAP_ID), 0);
 
 	if (IS_ERR_OR_NULL(handle)) {
 		HISI_FB_ERR("failed to ion_alloc!\n");
@@ -1260,35 +1224,9 @@ void hisifb_free_fb_buffer(struct hisi_fb_data_type *hisifd)
 		ion_unmap_kernel(hisifd->ion_client, hisifd->ion_handle);
 		ion_free(hisifd->ion_client, hisifd->ion_handle);
 		hisifd->ion_handle = NULL;
-
 		fbi->screen_base = 0;
 		fbi->fix.smem_start = 0;
 	}
-}
-
-void hisifb_free_logo_buffer(struct hisi_fb_data_type *hisifd)
-{
-	int i;
-	struct fb_info *fbi = NULL;
-	uint32_t logo_buffer_base_temp = 0;
-
-	BUG_ON(hisifd == NULL);
-	fbi = hisifd->fbi;
-	BUG_ON(fbi == NULL);
-
-	logo_buffer_base_temp = g_logo_buffer_base;
-	for (i = 0; i < (g_logo_buffer_size / PAGE_SIZE); i++) {
-		free_reserved_page(phys_to_page(logo_buffer_base_temp));
-#ifdef CONFIG_HIGHMEM
-		if (PageHighMem(phys_to_page(logo_buffer_base_temp)))
-			totalhigh_pages += 1;
-#endif
-		logo_buffer_base_temp += PAGE_SIZE;
-	}
-	memblock_free(g_logo_buffer_base, g_logo_buffer_size);
-
-	g_logo_buffer_size = 0;
-	g_logo_buffer_base = 0;
 }
 
 /*******************************************************************************
@@ -1635,7 +1573,6 @@ static int hisi_fb_register(struct hisi_fb_data_type *hisifd)
 	hisifd->aod_function = 0;
 	sema_init(&hisifd->blank_sem, 1);
 	sema_init(&hisifd->blank_sem0, 1);
-	sema_init(&hisifd->brightness_esd_sem, 1);
 
 	hisifb_sysfs_init(hisifd);
 
@@ -1758,7 +1695,6 @@ static int hisi_fb_probe(struct platform_device *pdev)
 			      hisi_fb_resource_initialized);
 
 		pdev->id = 0;
-
 		np = of_find_compatible_node(NULL, NULL, DTS_COMP_FB_NAME);
 		if (!np) {
 			HISI_FB_ERR("NOT FOUND device node %s!\n",
@@ -1772,42 +1708,49 @@ static int hisi_fb_probe(struct platform_device *pdev)
 			HISI_FB_ERR("dss_aclk_dss error, ret = %d", ret);
 			return ret;
 		}
+
 		dss_pclk_dss = devm_clk_get(&pdev->dev, "pclk_dss");
 		if (IS_ERR(dss_pclk_dss)) {
 			ret = PTR_ERR(dss_pclk_dss);
 			HISI_FB_ERR("dss_pclk_dss error, ret = %d", ret);
 			return ret;
 		}
+
 		dss_clk_edc0 = devm_clk_get(&pdev->dev, "clk_edc0");
 		if (IS_ERR(dss_clk_edc0)) {
 			ret = PTR_ERR(dss_clk_edc0);
 			HISI_FB_ERR("dss_clk_edc0 error, ret = %d", ret);
 			return ret;
 		}
+
 		dss_clk_ldi0 = devm_clk_get(&pdev->dev, "clk_ldi0");
 		if (IS_ERR(dss_clk_ldi0)) {
 			ret = PTR_ERR(dss_clk_ldi0);
 			HISI_FB_ERR("dss_clk_ldi0 error, ret = %d", ret);
 			return ret;
 		}
+
 		dss_clk_ldi1 = devm_clk_get(&pdev->dev, "clk_ldi1");
 		if (IS_ERR(dss_clk_ldi1)) {
 			ret = PTR_ERR(dss_clk_ldi1);
 			HISI_FB_ERR("dss_clk_ldi1 error, ret = %d", ret);
 			return ret;
 		}
+
 		dss_clk_dss_axi_mm = devm_clk_get(&pdev->dev, "clk_dss_axi_mm");
 		if (IS_ERR(dss_clk_dss_axi_mm)) {
 			ret = PTR_ERR(dss_clk_dss_axi_mm);
 			HISI_FB_ERR("dss_clk_dss_axi_mm error, ret = %d", ret);
 			return ret;
 		}
+
 		dss_pclk_mmbuf = devm_clk_get(&pdev->dev, "pclk_mmbuf");
 		if (IS_ERR(dss_pclk_mmbuf)) {
 			ret = PTR_ERR(dss_pclk_mmbuf);
 			HISI_FB_ERR("dss_pclk_mmbuf error, ret = %d", ret);
 			return ret;
 		}
+
 		dss_clk_txdphy0_ref =
 		    devm_clk_get(&pdev->dev, "clk_txdphy0_ref");
 		if (IS_ERR(dss_clk_txdphy0_ref)) {
@@ -1815,6 +1758,7 @@ static int hisi_fb_probe(struct platform_device *pdev)
 			HISI_FB_ERR("dss_clk_txdphy0_ref error, ret = %d", ret);
 			return ret;
 		}
+
 		dss_clk_txdphy1_ref =
 		    devm_clk_get(&pdev->dev, "clk_txdphy1_ref");
 		if (IS_ERR(dss_clk_txdphy1_ref)) {
@@ -1822,6 +1766,7 @@ static int hisi_fb_probe(struct platform_device *pdev)
 			HISI_FB_ERR("dss_clk_txdphy1_ref error, ret = %d", ret);
 			return ret;
 		}
+
 		dss_clk_txdphy0_cfg =
 		    devm_clk_get(&pdev->dev, "clk_txdphy0_cfg");
 		if (IS_ERR(dss_clk_txdphy0_cfg)) {
@@ -1829,6 +1774,7 @@ static int hisi_fb_probe(struct platform_device *pdev)
 			HISI_FB_ERR("dss_clk_txdphy0_cfg error, ret = %d", ret);
 			return ret;
 		}
+
 		dss_clk_txdphy1_cfg =
 		    devm_clk_get(&pdev->dev, "clk_txdphy1_cfg");
 		if (IS_ERR(dss_clk_txdphy1_cfg)) {
@@ -1836,12 +1782,14 @@ static int hisi_fb_probe(struct platform_device *pdev)
 			HISI_FB_ERR("dss_clk_txdphy1_cfg error, ret = %d", ret);
 			return ret;
 		}
+
 		dss_pclk_dsi0 = devm_clk_get(&pdev->dev, "pclk_dsi0");
 		if (IS_ERR(dss_pclk_dsi0)) {
 			ret = PTR_ERR(dss_pclk_dsi0);
 			HISI_FB_ERR("dss_pclk_dsi0 error, ret = %d", ret);
 			return ret;
 		}
+
 		dss_pclk_dsi1 = devm_clk_get(&pdev->dev, "pclk_dsi1");
 		if (IS_ERR(dss_pclk_dsi1)) {
 			ret = PTR_ERR(dss_pclk_dsi1);
@@ -1941,15 +1889,15 @@ static int hisi_fb_probe(struct platform_device *pdev)
 
 		/* get regulator resource, DSS regulator is already enabled in fastboot, so kernel dont care */
 		/*
-		   g_dpe_regulator[0].supply = REGULATOR_PDP_NAME;
-		   g_dpe_regulator[1].supply = REGULATOR_MMBUF;
-		   ret = devm_regulator_bulk_get(&(pdev->dev),
-		   ARRAY_SIZE(g_dpe_regulator), g_dpe_regulator);
-		   if (ret) {
-		   HISI_FB_ERR("failed to get regulator resource! ret=%d.\n", ret);
-		   return -ENXIO;
-		   }
-		 */
+			g_dpe_regulator[0].supply = REGULATOR_PDP_NAME;
+			g_dpe_regulator[1].supply = REGULATOR_MMBUF;
+			ret = devm_regulator_bulk_get(&(pdev->dev),
+			ARRAY_SIZE(g_dpe_regulator), g_dpe_regulator);
+			if (ret) {
+				HISI_FB_ERR("failed to get regulator resource! ret=%d.\n", ret);
+				return -ENXIO;
+			}
+		*/
 
 		ret = hisi_fb_enable_iommu(pdev);
 		if (ret != 0) {
@@ -1958,22 +1906,10 @@ static int hisi_fb_probe(struct platform_device *pdev)
 			return -ENXIO;
 		}
 
-		/* find and get logo-buffer base */
-		np = of_find_node_by_path(DTS_PATH_LOGO_BUFFER);
-		if (!np) {
-			HISI_FB_ERR("NOT FOUND dts path: %s!\n",
-				    DTS_PATH_LOGO_BUFFER);
-
-		}
-		HISI_FB_INFO
-		    ("g_logo_buffer_base = 0x%x, g_logo_buffer_size = 0x%x. \n",
-		     g_logo_buffer_base, g_logo_buffer_size);
-
 		hisi_fb_resource_initialized = 1;
-
 		hisi_fb_device_set_status0(DTS_FB_RESOURCE_INIT_READY);
 
-		HISI_FB_DEBUG("initialized=%d, -.\n",
+		HISI_FB_DEBUG("initialized = %d, -.\n",
 			      hisi_fb_resource_initialized);
 		return 0;
 	}
@@ -2025,10 +1961,6 @@ static int hisi_fb_remove(struct platform_device *pdev)
 
 	HISI_FB_DEBUG("fb%d, +.\n", hisifd->index);
 
-	/* pm_runtime unregister */
-	if (hisifd->pm_runtime_unregister)
-		hisifd->pm_runtime_unregister(pdev);
-
 	/* stop the device */
 	if (hisi_fb_suspend_sub(hisifd) != 0)
 		HISI_FB_ERR("fb%d hisi_fb_suspend_sub failed!\n",
@@ -2059,12 +1991,6 @@ static int hisi_fb_remove(struct platform_device *pdev)
 	/* fb sysfs remove */
 	if (hisifd->sysfs_remove_fnc)
 		hisifd->sysfs_remove_fnc(hisifd->pdev);
-	/* lcd check esd remove */
-	if (hisifd->esd_unregister)
-		hisifd->esd_unregister(hisifd->pdev);
-	/* unregister debug */
-	if (hisifd->debug_unregister)
-		hisifd->debug_unregister(hisifd->pdev);
 
 	HISI_FB_DEBUG("fb%d, -.\n", hisifd->index);
 

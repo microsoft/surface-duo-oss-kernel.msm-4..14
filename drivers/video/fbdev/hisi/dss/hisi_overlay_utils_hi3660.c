@@ -366,8 +366,7 @@ static void aif_bw_sort(dss_aif_bw_t a[], int n)
 	}
 }
 
-int
-hisi_dss_aif_handler(struct hisi_fb_data_type *hisifd,
+int hisi_dss_aif_handler(struct hisi_fb_data_type *hisifd,
 		     dss_overlay_t *pov_req, dss_overlay_block_t *pov_h_block)
 {
 	int i = 0;
@@ -416,7 +415,6 @@ hisi_dss_aif_handler(struct hisi_fb_data_type *hisifd,
 				hisifd->dss_module.aif_bw[chn_idx] =
 				    aif_bw_tmp[i];
 			}
-
 			return 0;
 		}
 	}
@@ -536,7 +534,6 @@ static int mid_array[DSS_CHN_MAX_DEFINE] = {
 	0xb, 0xa, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x2, 0x1, 0x3, 0x0
 };
 #define CREDIT_STEP_LOWER_ENABLE
-
 void hisi_dss_aif_init(char __iomem *aif_ch_base, dss_aif_t *s_aif)
 {
 	BUG_ON(aif_ch_base == NULL);
@@ -548,8 +545,7 @@ void hisi_dss_aif_init(char __iomem *aif_ch_base, dss_aif_t *s_aif)
 	s_aif->aif_ch_ctl_add = inp32(aif_ch_base + AIF_CH_CTL_ADD);
 }
 
-void
-hisi_dss_aif_ch_set_reg(struct hisi_fb_data_type *hisifd,
+void hisi_dss_aif_ch_set_reg(struct hisi_fb_data_type *hisifd,
 			char __iomem *aif_ch_base, dss_aif_t *s_aif)
 {
 	BUG_ON(hisifd == NULL);
@@ -562,8 +558,7 @@ hisi_dss_aif_ch_set_reg(struct hisi_fb_data_type *hisifd,
 			s_aif->aif_ch_ctl_add, 32, 0);
 }
 
-int
-hisi_dss_aif_ch_config(struct hisi_fb_data_type *hisifd,
+int hisi_dss_aif_ch_config(struct hisi_fb_data_type *hisifd,
 		       dss_overlay_t *pov_req, dss_layer_t *layer,
 		       dss_rect_t *wb_dst_rect,
 		       dss_wb_layer_t *wb_layer, int ovl_idx)
@@ -654,7 +649,8 @@ hisi_dss_aif_ch_config(struct hisi_fb_data_type *hisifd,
 			    || g_debug_ovl_credit_step) {
 				HISI_FB_INFO
 				    ("fb%d, layer_idx(%d), chn_idx(%d), src_rect(%d,%d,%d,%d),"
-				     "dst_rect(%d,%d,%d,%d), scfd_h=%d, scfd_v=%d, credit_step=%d.\n",
+				     "dst_rect(%d,%d,%d,%d), scfd_h=%d, "
+				     "scfd_v=%d, credit_step=%d.\n",
 				     hisifd->index, layer->layer_idx,
 				     layer->chn_idx, layer->src_rect.x,
 				     layer->src_rect.y, layer->src_rect.w,
@@ -748,8 +744,7 @@ hisi_dss_aif_ch_config(struct hisi_fb_data_type *hisifd,
 	return 0;
 }
 
-int
-hisi_dss_aif1_ch_config(struct hisi_fb_data_type *hisifd,
+int hisi_dss_aif1_ch_config(struct hisi_fb_data_type *hisifd,
 			dss_overlay_t *pov_req, dss_layer_t *layer,
 			dss_wb_layer_t *wb_layer, int ovl_idx)
 {
@@ -826,7 +821,8 @@ hisi_dss_aif1_ch_config(struct hisi_fb_data_type *hisifd,
 			    || g_debug_ovl_credit_step) {
 				HISI_FB_INFO
 				    ("fb%d, layer_idx(%d), chn_idx(%d), src_rect(%d,%d,%d,%d),"
-				     "dst_rect(%d,%d,%d,%d), scfd_h=%d, scfd_v=%d, credit_step=%d.\n",
+				     "dst_rect(%d,%d,%d,%d), scfd_h=%d, "
+				     "scfd_v=%d, credit_step=%d.\n",
 				     hisifd->index, layer->layer_idx,
 				     layer->chn_idx, layer->src_rect.x,
 				     layer->src_rect.y, layer->src_rect.w,
@@ -890,7 +886,8 @@ hisi_dss_aif1_ch_config(struct hisi_fb_data_type *hisifd,
 			    || g_debug_ovl_credit_step) {
 				HISI_FB_INFO
 				    ("fb%d, layer_idx(%d), chn_idx(%d), src_rect(%d,%d,%d,%d),"
-				     "dst_rect(%d,%d,%d,%d), scfd_h=%d, scfd_v=%d, credit_step=%d.\n",
+				     "dst_rect(%d,%d,%d,%d), scfd_h=%d, "
+				     "scfd_v=%d, credit_step=%d.\n",
 				     hisifd->index, layer->layer_idx,
 				     layer->chn_idx, layer->src_rect.x,
 				     layer->src_rect.y, layer->src_rect.w,
@@ -1174,8 +1171,8 @@ hisi_dss_csc_set_reg(struct hisi_fb_data_type *hisifd,
 	hisifd->set_reg(hisifd, csc_base + CSC_P2, s_csc->p2, 32, 0);
 	hisifd->set_reg(hisifd, csc_base + CSC_P3, s_csc->p3, 32, 0);
 	hisifd->set_reg(hisifd, csc_base + CSC_P4, s_csc->p4, 32, 0);
-	hisifd->set_reg(hisifd, csc_base + CSC_ICG_MODULE, s_csc->icg_module,
-			32, 0);
+	hisifd->set_reg(hisifd, csc_base + CSC_ICG_MODULE,
+			s_csc->icg_module, 32, 0);
 	hisifd->set_reg(hisifd, csc_base + CSC_MPREC, s_csc->mprec, 32, 0);
 }
 
@@ -1353,8 +1350,7 @@ hisi_dss_csc_config(struct hisi_fb_data_type *hisifd,
 	return 0;
 }
 
-uint32_t
-hisi_dss_mif_get_invalid_sel(dss_img_t *img, uint32_t transform,
+uint32_t hisi_dss_mif_get_invalid_sel(dss_img_t *img, uint32_t transform,
 			     int v_scaling_factor, uint8_t is_tile,
 			     bool rdma_stretch_enable)
 {
@@ -1788,22 +1784,22 @@ hisi_dss_arsr2p_set_reg(struct hisi_fb_data_type *hisifd,
 			s_arsr2p->arsr_input_width_height, 32, 0);
 	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_OUTPUT_WIDTH_HEIGHT,
 			s_arsr2p->arsr_output_width_height, 32, 0);
-	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_IHLEFT, s_arsr2p->ihleft,
-			32, 0);
+	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_IHLEFT,
+			s_arsr2p->ihleft, 32, 0);
 	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_IHRIGHT,
 			s_arsr2p->ihright, 32, 0);
-	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_IVTOP, s_arsr2p->ivtop, 32,
-			0);
+	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_IVTOP,
+			s_arsr2p->ivtop, 32, 0);
 	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_IVBOTTOM,
 			s_arsr2p->ivbottom, 32, 0);
-	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_IHINC, s_arsr2p->ihinc, 32,
-			0);
-	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_IVINC, s_arsr2p->ivinc, 32,
-			0);
+	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_IHINC,
+			s_arsr2p->ihinc, 32, 0);
+	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_IVINC,
+			s_arsr2p->ivinc, 32, 0);
 	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_UV_OFFSET,
 			s_arsr2p->offset, 32, 0);
-	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_MODE, s_arsr2p->mode, 32,
-			0);
+	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_MODE,
+			s_arsr2p->mode, 32, 0);
 
 	if (hisifd->dss_module.arsr2p_effect_used[DSS_RCHN_V0]) {
 		hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_SKIN_THRES_Y,
@@ -1841,8 +1837,7 @@ hisi_dss_arsr2p_set_reg(struct hisi_fb_data_type *hisifd,
 		hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_SHARP_CFG9,
 				s_arsr2p->arsr2p_effect.sharp_cfg9, 32, 0);
 		hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_TEXTURW_ANALYSTS,
-				s_arsr2p->arsr2p_effect.texturw_analysts, 32,
-				0);
+				s_arsr2p->arsr2p_effect.texturw_analysts, 32, 0);
 		hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_INTPLSHOOTCTRL,
 				s_arsr2p->arsr2p_effect.intplshootctrl, 32, 0);
 	}
@@ -1969,14 +1964,14 @@ hisi_dss_arsr2p_coef_on(struct hisi_fb_data_type *hisifd, bool enable_cmdlist)
 			(448 | (64 << 16)), 32, 0);
 	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_SHARP_CFG7,
 			(1 | (250 << 16)), 32, 0);
-	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_SHARP_CFG8, (-48000), 32,
-			0);
-	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_SHARP_CFG9, (-32000), 32,
-			0);
+	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_SHARP_CFG8,
+			(-48000), 32, 0);
+	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_SHARP_CFG9,
+			(-32000), 32, 0);
 	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_TEXTURW_ANALYSTS,
 			(15 | (20 << 16)), 32, 0);
-	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_INTPLSHOOTCTRL, (4), 32,
-			0);
+	hisifd->set_reg(hisifd, arsr2p_base + ARSR2P_INTPLSHOOTCTRL,
+			(4), 32, 0);
 
 }
 
@@ -2186,7 +2181,8 @@ hisi_dss_arsr2p_config(struct hisi_fb_data_type *hisifd,
 	    || (src_width > ARSR2P_MAX_WIDTH)
 	    || (dst_rect.w > ARSR2P_MAX_WIDTH)) {
 		HISI_FB_ERR
-		    ("src_rect.w(%d) or dst_rect.w(%d) is smaller than 16 or larger than 2560!\n",
+		    ("src_rect.w(%d) or dst_rect.w(%d) is smaller than 16 "
+		     "or larger than 2560!\n",
 		     src_width, dst_rect.w);
 		return -EINVAL;
 	}
@@ -2208,7 +2204,8 @@ hisi_dss_arsr2p_config(struct hisi_fb_data_type *hisifd,
 	if ((src_rect.h > ARSR2P_MAX_HEIGHT)
 	    || (dst_rect.h > ARSR2P_MAX_HEIGHT)) {
 		HISI_FB_ERR
-		    ("src_rect.h(%d) or dst_rect.h(%d) is smaller than 16 or larger than 8192!\n",
+		    ("src_rect.h(%d) or dst_rect.h(%d) is smaller than 16 "
+		     "or larger than 8192!\n",
 		     src_rect.h, dst_rect.h);
 		return -EINVAL;
 	}
@@ -2685,7 +2682,8 @@ hisi_dss_check_layer_par(struct hisi_fb_data_type *hisifd, dss_layer_t *layer)
 		    || (layer->img.afbc_payload_stride == 0)
 		    || (layer->img.mmbuf_size == 0)) {
 			HISI_FB_ERR
-			    ("fb%d, afbc_header_stride=%d, afbc_payload_stride=%d, mmbuf_size=%d is invalid!",
+			    ("fb%d, afbc_header_stride=%d, afbc_payload_stride=%d, "
+			     "mmbuf_size=%d is invalid!",
 			     hisifd->index, layer->img.afbc_header_stride,
 			     layer->img.afbc_payload_stride,
 			     layer->img.mmbuf_size);

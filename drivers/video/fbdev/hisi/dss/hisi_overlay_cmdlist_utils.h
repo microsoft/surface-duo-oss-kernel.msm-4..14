@@ -18,7 +18,8 @@
 #define HISI_DSS_CMDLIST_NODE_MAX	(32)
 #define HISI_DSS_CMDLIST_BLOCK_MAX	(32)
 
-#define HISI_DSS_SUPPORT_DPP_MODULE_BIT(module)     (BIT(module) & HISI_DSS_DPP_MAX_SUPPORT_BIT)
+#define HISI_DSS_SUPPORT_DPP_MODULE_BIT(module) \
+	(BIT(module) & HISI_DSS_DPP_MAX_SUPPORT_BIT)
 
 enum dpp_module_idx {
 	DPP_MODULE_POST_SCF = 0,
@@ -136,7 +137,7 @@ enum dss_cmdlist_status {
 
 /*
  ** for normal node,all variable should be filled.
- ** for NOP node, just the list_header,header_ion_handle,list_node, node_flag should be filled.
+ ** for NOP node, just the list_header,header_ion_handle, list_node, node_flag should be filled.
  ** node_type must be CMDLIST_NODE_NOP when it is NOP node.
  ** And item_ion_handle in NOP node should be NULL.
  */

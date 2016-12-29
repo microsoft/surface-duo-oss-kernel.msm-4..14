@@ -13,13 +13,11 @@
 
 #include "hisi_fb.h"
 #include "hisi_overlay_utils.h"
-
 #if defined (CONFIG_HISI_PERIDVFS)
 #include "peri_volt_poll.h"
 #endif
 
 #define MAX_BUF 60
-
 void set_reg(char __iomem *addr, uint32_t val, uint8_t bw, uint8_t bs)
 {
 	uint32_t mask = (1UL << bw) - 1UL;
@@ -86,10 +84,6 @@ void hisifb_get_timestamp(struct timeval *tv)
 	ktime_get_ts(&ts);
 	tv->tv_sec = ts.tv_sec;
 	tv->tv_usec = ts.tv_nsec / NSEC_PER_USEC;
-
-
-
-
 }
 
 uint32_t hisifb_timestamp_diff(struct timeval *lasttime,
@@ -101,9 +95,6 @@ uint32_t hisifb_timestamp_diff(struct timeval *lasttime,
 	    1000000 - (lasttime->tv_usec - curtime->tv_usec);
 
 	return ret;
-
-
-
 }
 
 void hisifb_save_file(char *filename, char *buf, uint32_t buf_len)
@@ -147,7 +138,6 @@ int hisifb_ctrl_on(struct hisi_fb_data_type *hisifd)
 	}
 
 	hisifb_vsync_resume(hisifd);
-
 	hisi_overlay_on(hisifd, false);
 
 	if (hisifd->panel_info.esd_enable) {
@@ -174,7 +164,6 @@ int hisifb_ctrl_off(struct hisi_fb_data_type *hisifd)
 	}
 
 	hisifb_vsync_suspend(hisifd);
-
 	hisi_overlay_off(hisifd);
 
 	if (pdata->off) {

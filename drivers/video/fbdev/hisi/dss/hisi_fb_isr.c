@@ -115,22 +115,18 @@ irqreturn_t dss_pdp_isr(int irq, void *ptr)
 	}
 
 	if (isr_s2 & BIT_LDI_UNFLOW) {
-		mask =
-		    inp32(hisifd->dss_base + DSS_LDI0_OFFSET +
+		mask = inp32(hisifd->dss_base + DSS_LDI0_OFFSET +
 			  LDI_CPU_ITF_INT_MSK);
 		mask |= BIT_LDI_UNFLOW;
-		outp32(hisifd->dss_base + DSS_LDI0_OFFSET + LDI_CPU_ITF_INT_MSK,
-		       mask);
+		outp32(hisifd->dss_base + DSS_LDI0_OFFSET + LDI_CPU_ITF_INT_MSK, mask);
 
 		if (g_debug_ldi_underflow_clear) {
 			if (is_mipi_cmd_panel(hisifd)) {
 				if (g_ldi_data_gate_en == 0) {
 					if (hisifd->ldi_underflow_wq) {
 						disable_ldi(hisifd);
-						queue_work(hisifd->
-							   ldi_underflow_wq,
-							   &hisifd->
-							   ldi_underflow_work);
+						queue_work(hisifd->ldi_underflow_wq,
+							   &hisifd->ldi_underflow_work);
 					}
 				}
 			} else {
@@ -149,11 +145,9 @@ irqreturn_t dss_pdp_isr(int irq, void *ptr)
 						   &hisifd->dss_debug_work);
 			}
 		}
-
 		g_err_status |= DSS_PDP_LDI_UNDERFLOW;
 
 		if (hisifd->ldi_data_gate_en == 0) {
-
 			temp =
 			    inp32(hisifd->dss_base + DSS_DPP_OFFSET +
 				  DPP_DBG_CNT);
@@ -161,24 +155,19 @@ irqreturn_t dss_pdp_isr(int irq, void *ptr)
 			    ("ldi underflow! frame_no = %d,dpp_dbg = 0x%x!\n",
 			     hisifd->ov_req.frame_no, temp);
 
-
 			for (i = 0; i < DSS_WCHN_W0; i++) {
 				if ((i != DSS_RCHN_V0) && (i != DSS_RCHN_G0)) {
 					HISI_FB_INFO
 					    ("RCH[%d], DMA_BUF_DBG0 = 0x%x,DMA_BUF_DBG1 = 0x%x!!\n",
-					     i,
-					     inp32(dss_module->dma_base[i] +
+					     i, inp32(dss_module->dma_base[i] +
 						   DMA_BUF_DBG0),
 					     inp32(dss_module->dma_base[i] +
 						   DMA_BUF_DBG1));
 				}
 			}
-
-
 			for (i = 0; i < 18; i++) {
 				HISI_FB_INFO("MCTL_MOD%d_STATUS = 0x%x\n",
-					     i,
-					     inp32(dss_module->mctl_sys_base +
+					     i, inp32(dss_module->mctl_sys_base +
 						   MCTL_MOD0_STATUS + i * 0x4));
 			}
 		}
@@ -243,10 +232,8 @@ irqreturn_t dss_sdp_isr(int irq, void *ptr)
 				if (g_ldi_data_gate_en == 0) {
 					if (hisifd->ldi_underflow_wq) {
 						disable_ldi(hisifd);
-						queue_work(hisifd->
-							   ldi_underflow_wq,
-							   &hisifd->
-							   ldi_underflow_work);
+						queue_work(hisifd->ldi_underflow_wq,
+							   &hisifd->ldi_underflow_work);
 					}
 				}
 			} else {
@@ -257,7 +244,6 @@ irqreturn_t dss_sdp_isr(int irq, void *ptr)
 				}
 			}
 		}
-
 		if (g_debug_ldi_underflow) {
 			if (g_debug_ovl_online_composer) {
 				if (hisifd->dss_debug_wq)
@@ -265,9 +251,7 @@ irqreturn_t dss_sdp_isr(int irq, void *ptr)
 						   &hisifd->dss_debug_work);
 			}
 		}
-
 		g_err_status |= DSS_SDP_LDI_UNDERFLOW;
-
 		if (hisifd->ldi_data_gate_en == 0)
 			HISI_FB_ERR("ldi underflow!\n");
 	}
@@ -301,30 +285,25 @@ irqreturn_t dss_adp_isr(int irq, void *ptr)
 		if (hisifd->cmdlist_info->cmdlist_wb_flag[WB_TYPE_WCH0] == 1) {
 			hisifd->cmdlist_info->cmdlist_wb_done[WB_TYPE_WCH0] = 1;
 			wake_up_interruptible_all(&
-						  (hisifd->cmdlist_info->
-						   cmdlist_wb_wq
+						  (hisifd->cmdlist_info->cmdlist_wb_wq
 						   [WB_TYPE_WCH0]));
 		}
 	}
-
 	if (isr_s1 & BIT_OFF_WCH1_INTS) {
 		if (hisifd->cmdlist_info->cmdlist_wb_flag[WB_TYPE_WCH1] == 1) {
 			hisifd->cmdlist_info->cmdlist_wb_done[WB_TYPE_WCH1] = 1;
 			wake_up_interruptible_all(&
-						  (hisifd->cmdlist_info->
-						   cmdlist_wb_wq
+						  (hisifd->cmdlist_info->cmdlist_wb_wq
 						   [WB_TYPE_WCH1]));
 		}
 	}
-
 	if (isr_s1 & BIT_OFF_WCH0_WCH1_FRM_END_INT) {
 		if (hisifd->cmdlist_info->cmdlist_wb_flag[WB_TYPE_WCH0_WCH1] ==
 		    1) {
 			hisifd->cmdlist_info->
 			    cmdlist_wb_done[WB_TYPE_WCH0_WCH1] = 1;
 			wake_up_interruptible_all(&
-						  (hisifd->cmdlist_info->
-						   cmdlist_wb_wq
+						  (hisifd->cmdlist_info->cmdlist_wb_wq
 						   [WB_TYPE_WCH0_WCH1]));
 		}
 	}
@@ -333,15 +312,13 @@ irqreturn_t dss_adp_isr(int irq, void *ptr)
 		if (hisifd->copybit_info->copybit_flag == 1) {
 			hisifd->copybit_info->copybit_done = 1;
 			wake_up_interruptible_all(&
-						  (hisifd->copybit_info->
-						   copybit_wq));
+						  (hisifd->copybit_info->copybit_wq));
 		}
 
 		if (hisifd->cmdlist_info->cmdlist_wb_flag[WB_TYPE_WCH2] == 1) {
 			hisifd->cmdlist_info->cmdlist_wb_done[WB_TYPE_WCH2] = 1;
 			wake_up_interruptible_all(&
-						  (hisifd->cmdlist_info->
-						   cmdlist_wb_wq
+						  (hisifd->cmdlist_info->cmdlist_wb_wq
 						   [WB_TYPE_WCH2]));
 		}
 	}

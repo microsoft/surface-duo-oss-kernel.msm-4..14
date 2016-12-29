@@ -12,7 +12,6 @@
  */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat"
-
 #include "hisi_fb.h"
 
 /*
@@ -103,14 +102,6 @@ static int wait_for_vsync_thread(void *data)
 	ktime_t prev_timestamp;
 	int ret = 0;
 
-#if 0
-	sigset_t setmask;
-	sigset_t oldmask;
-	sigemptyset(&setmask);
-	sigaddset(&setmask, SIGSTOP);
-	sigprocmask(SIG_SETMASK, &setmask, &oldmask);
-#endif
-
 	while (!kthread_should_stop()) {
 		prev_timestamp = hisifd->vsync_ctrl.vsync_timestamp;
 		ret =
@@ -126,7 +117,8 @@ static int wait_for_vsync_thread(void *data)
 		/*if (ret == 0) {
 		   HISI_FB_ERR("wait vsync timeout!");
 		   return -ETIMEDOUT;
-		   } */
+		   }
+		*/
 
 		if (ret > 0) {
 			char *envp[2];
@@ -184,7 +176,6 @@ static ssize_t vsync_show_event(struct device *dev,
 					(hisifd, prev_timestamp)
 					&& hisifd->vsync_ctrl.vsync_enabled));
 	/*lint +e666 */
-
 	vsync_flag = (vsync_timestamp_changed(hisifd, prev_timestamp) &&
 		      hisifd->vsync_ctrl.vsync_enabled);
 
@@ -648,7 +639,6 @@ int hisifb_vsync_resume(struct hisi_fb_data_type *hisifd)
 	vsync_ctrl->vsync_ctrl_disabled_set = 0;
 	vsync_ctrl->vsync_ctrl_enabled = 1;
 	vsync_ctrl->vsync_ctrl_isr_enabled = 1;
-
 
 	atomic_set(&(vsync_ctrl->buffer_updated), 1);
 

@@ -99,12 +99,10 @@ extern uint32_t hisi_fb_msg_level;
 	do { if (hisi_fb_msg_level > 7)  \
 		printk(KERN_INFO "[hisifb]%s: "msg, __func__, ## __VA_ARGS__); } while (0)
 
-
-
 #define assert(expr) \
 	if(!(expr)) { \
 		printk(KERN_ERR "[hisifb]: assertion failed! %s,%s,%s,line=%d\n",\
-#expr, __FILE__, __func__, __LINE__); \
+		#expr, __FILE__, __func__, __LINE__); \
 	}
 
 #define HISI_FB_ASSERT(x)   assert(x)
@@ -124,4 +122,4 @@ extern uint32_t hisi_fb_msg_level;
 #define inpdw(port) readl(port)
 #define outpdw(port, val) writel(val, port)
 
-#endif				/* HISI_FB_DEF_H */
+#endif

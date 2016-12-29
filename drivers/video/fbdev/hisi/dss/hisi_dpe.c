@@ -704,7 +704,8 @@ static int dpe_probe(struct platform_device *pdev)
 
 	fbi = hisifd->fbi;
 	fbi->var.pixclock = hisifd->panel_info.pxl_clk_rate;
-	/*fbi->var.pixclock = clk_round_rate(hisifd->dpe_clk, hisifd->panel_info.pxl_clk_rate); */
+	/*fbi->var.pixclock = clk_round_rate(hisifd->dpe_clk,
+			hisifd->panel_info.pxl_clk_rate); */
 	fbi->var.left_margin = hisifd->panel_info.ldi.h_back_porch;
 	fbi->var.right_margin = hisifd->panel_info.ldi.h_front_porch;
 	fbi->var.upper_margin = hisifd->panel_info.ldi.v_back_porch;

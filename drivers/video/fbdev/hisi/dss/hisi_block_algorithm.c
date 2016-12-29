@@ -231,17 +231,21 @@ int adjust_layers_cap(dss_overlay_t *pov_req,
 
 			if (layer->transform == HISI_FB_TRANSFORM_ROT_90) {
 				layer->transform = HISI_FB_TRANSFORM_FLIP_V;
+
 			} else if (layer->transform ==
 				   HISI_FB_TRANSFORM_ROT_270) {
 				layer->transform = HISI_FB_TRANSFORM_FLIP_H;
+
 			} else if (layer->transform ==
 				   (HISI_FB_TRANSFORM_ROT_90 |
 				    HISI_FB_TRANSFORM_FLIP_H)) {
 				layer->transform = HISI_FB_TRANSFORM_ROT_180;
+
 			} else if (layer->transform ==
 				   (HISI_FB_TRANSFORM_ROT_90 |
 				    HISI_FB_TRANSFORM_FLIP_V)) {
 				layer->transform = HISI_FB_TRANSFORM_NOP;
+
 			} else {
 				;
 			}
@@ -370,7 +374,8 @@ int get_ov_block_rect(dss_overlay_t *pov_req,
 
 		if (g_debug_ovl_block_composer) {
 			HISI_FB_INFO
-			    ("ov_block_rects[%d]:[%d:%d:%d:%d],current_offset=%d, fix_scf_span=%d, last_offset=%d, w=%d!\n",
+			    ("ov_block_rects[%d]:[%d:%d:%d:%d], current_offset=%d, "
+			     "fix_scf_span=%d, last_offset=%d, w=%d!\n",
 			     *block_num, ov_block_rects[*block_num - 1]->x,
 			     ov_block_rects[*block_num - 1]->y,
 			     ov_block_rects[*block_num - 1]->w,
@@ -517,7 +522,7 @@ static int create_h_v_block_layer(dss_layer_t *h_layer,
 	if (((h_layer->src_rect.w != h_layer->dst_rect.w)
 	     && (h_layer->chn_idx != DSS_RCHN_V0))
 	    || ((h_layer->src_rect.w > h_layer->dst_rect.w)
-		&& (h_layer->chn_idx == DSS_RCHN_V0))) {
+		 && (h_layer->chn_idx == DSS_RCHN_V0))) {
 		/* check if arsr2p input has already extened width */
 		if (h_v_layer->block_info.h_ratio_arsr2p) {
 			dst_rect = rect_transform;
@@ -574,7 +579,8 @@ static int create_h_v_block_layer(dss_layer_t *h_layer,
 		if (g_debug_ovl_block_composer) {
 			HISI_FB_INFO
 			    ("first_block=%d, last_block=%d, output_startpos=%d, output_span=%d, "
-			     "h_ratio=%d, acc_hscl=%d, scf_read_start=%d, scf_read_end=%d, input_startpos=%d, input_span=%d\n",
+			     "h_ratio=%d, acc_hscl=%d, scf_read_start=%d,"
+			     "scf_read_end=%d, input_startpos=%d, input_span=%d\n",
 			     first_block, last_block, output_startpos,
 			     output_span, h_ratio, acc_hscl, scf_read_start,
 			     scf_read_end, input_startpos, input_span);
@@ -607,6 +613,7 @@ static int create_h_v_block_layer(dss_layer_t *h_layer,
 	h_v_layer->src_rect = rect_transform;
 	rect_across_rect(h_v_layer->src_rect, h_v_layer->src_rect_mask,
 			 &h_v_layer->src_rect_mask);
+
 	if (!h_v_layer->block_info.both_vscfh_arsr2p_used)
 		h_v_layer->dst_rect = dst_cross_rect;
 
@@ -673,8 +680,10 @@ int get_block_layers(dss_overlay_t *pov_req, dss_overlay_block_t *pov_h_block,
 					   wb_ov_rect);
 		if ((ret != 0) || g_debug_ovl_block_composer) {
 			HISI_FB_INFO
-			    ("h_layer[%d](transform[%d], wb_ov_rect[%d,%d,%d,%d], src_rect[%d,%d,%d,%d], dst_rect[%d,%d,%d,%d]), "
-			     "h_v_layer[%d](transform[%d], src_rect[%d,%d,%d,%d], dst_rect[%d,%d,%d,%d], dst_cross_rect[%d,%d,%d,%d])\n",
+			    ("h_layer[%d](transform[%d], wb_ov_rect[%d,%d,%d,%d], "
+			     "src_rect[%d,%d,%d,%d], dst_rect[%d,%d,%d,%d]), "
+			     "h_v_layer[%d](transform[%d], src_rect[%d,%d,%d,%d], "
+			     "dst_rect[%d,%d,%d,%d], dst_cross_rect[%d,%d,%d,%d])\n",
 			     i, h_layer->transform, wb_ov_rect.x, wb_ov_rect.y,
 			     wb_ov_rect.w, wb_ov_rect.h, h_layer->src_rect.x,
 			     h_layer->src_rect.y, h_layer->src_rect.w,

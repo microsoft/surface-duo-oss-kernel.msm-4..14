@@ -23,8 +23,6 @@ static int is_no_fastboot_bl_enable;
 unsigned long backlight_duration = (3 * HZ / 60);
 #endif
 
-
-
 void hisifb_set_backlight(struct hisi_fb_data_type *hisifd, uint32_t bkl_lvl)
 {
 	struct hisi_fb_panel_data *pdata = NULL;
@@ -224,9 +222,7 @@ static void hisi_fb_set_bl_brightness(struct led_classdev *led_cdev,
 	    / (2 * hisifd->panel_info.bl_max);
 	if (!bl_lvl && value)
 		bl_lvl = 1;
-	down(&hisifd->brightness_esd_sem);
 	hisifb_set_backlight(hisifd, bl_lvl);
-	up(&hisifd->brightness_esd_sem);
 }
 
 static struct led_classdev backlight_led = {
@@ -258,10 +254,7 @@ void hisifb_backlight_register(struct platform_device *pdev)
 			  hisifb_bl_workqueue_handler);
 #endif
 
-	if (lcd_backlight_registered)
-		return;
-
-
+	if (lcd_backlight_registered) return;
 
 #ifdef CONFIG_FB_BACKLIGHT
 	fbi = hisifd->fbi;
@@ -292,9 +285,7 @@ void hisifb_backlight_register(struct platform_device *pdev)
 #endif
 #endif
 
-
 	if (HISI_DSS_SUPPORT_DPP_MODULE_BIT(DPP_MODULE_SBL)) {
-
 		hisifd->backlight.sbl_queue =
 		    create_singlethread_workqueue(K3_DSS_SBL_WORKQUEUE);
 		if (!hisifd->backlight.sbl_queue) {
@@ -324,7 +315,6 @@ void hisifb_backlight_unregister(struct platform_device *pdev)
 		led_classdev_unregister(&backlight_led);
 #endif
 #endif
-
 		if (hisifd->backlight.sbl_queue) {
 			destroy_workqueue(hisifd->backlight.sbl_queue);
 			hisifd->backlight.sbl_queue = NULL;

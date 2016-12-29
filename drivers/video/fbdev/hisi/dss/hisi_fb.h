@@ -78,18 +78,11 @@
 #include "hisi_dpe_utils.h"
 #include "hisi_overlay_utils.h"
 
-
-
-
 #define CONFIG_HISI_FB_BACKLIGHT_DELAY
-
 #define CONFIG_BUF_SYNC_USED
 #define CONFIG_FB_DEBUG_USED
 #define CONFIG_SMMU_RWERRADDR_USED
-
 #define CONFIG_DSS_MMBUF_CLK_USED
-
-
 #define CONFIG_BACKLIGHT_2048
 
 #define HISI_DSS_COMPOSER_HOLD_TIME	(1000 * 3600 * 24 * 7)
@@ -105,7 +98,6 @@
 
 #define HISI_DSS_OFFLINE_MAX_BLOCK	(64)
 #define HISI_DSS_OFFLINE_MAX_LIST	(128)
-
 
 #define ESD_CHECK_TIME_PERIOD	(5000)
 
@@ -134,16 +126,6 @@ struct hisifb_vsync {
 	void (*vsync_report_fnc) (int buffer_updated);
 
 	struct hisi_fb_data_type *hisifd;
-};
-
-enum dss_sec_event {
-	DSS_SEC_DISABLE = 0,
-	DSS_SEC_ENABLE,
-};
-
-enum dss_sec_status {
-	DSS_SEC_IDLE = 0,
-	DSS_SEC_RUNNING,
 };
 
 enum bl_control_mode {
@@ -188,7 +170,6 @@ struct hisifb_buf_sync {
 	int refresh;
 	spinlock_t refresh_lock;
 #endif
-
 	struct workqueue_struct *free_layerbuf_queue;
 	struct work_struct free_layerbuf_work;
 	struct list_head layerbuf_list;
@@ -289,7 +270,6 @@ struct hisi_fb_data_type {
 
 	struct semaphore blank_sem;
 	struct semaphore blank_sem0;
-	struct semaphore brightness_esd_sem;
 	struct semaphore offline_composer_sr_sem;
 	uint32_t offline_composer_sr_refcount;
 
@@ -457,8 +437,6 @@ extern uint32_t g_logo_buffer_base;
 extern uint32_t g_logo_buffer_size;
 extern uint32_t g_underflow_stop_perf_stat;
 
-extern uint32_t g_fastboot_already_set;
-
 /* for debug */
 extern int g_debug_ldi_underflow;
 extern int g_debug_ldi_underflow_clear;
@@ -496,9 +474,6 @@ extern int g_debug_need_save_file;
 extern int g_debug_ovl_credit_step;
 extern int g_debug_layerbuf_sync;
 extern int g_enable_dss_idle;
-extern int g_dss_effect_sharpness1D_en;
-extern int g_dss_effect_sharpness2D_en;
-extern int g_dss_effect_acm_ce_en;
 extern int g_debug_dump_mmbuf;
 extern uint32_t g_mmbuf_addr_test;
 extern uint32_t g_dss_min_bandwidth_inbusbusy;

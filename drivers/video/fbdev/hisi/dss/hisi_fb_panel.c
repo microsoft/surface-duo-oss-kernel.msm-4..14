@@ -15,12 +15,9 @@
 #include "hisi_fb_panel.h"
 
 DEFINE_SEMAPHORE(hisi_fb_dts_resource_sem);
-
-
 mipi_ifbc_division_t g_mipi_ifbc_division[MIPI_DPHY_NUM][IFBC_TYPE_MAX] = {
 
 	{
-
 	 {XRES_DIV_1, YRES_DIV_1, IFBC_COMP_MODE_0, PXL0_DIV2_GT_EN_CLOSE,
 	  PXL0_DIV4_GT_EN_CLOSE, PXL0_DIVCFG_0, PXL0_DSI_GT_EN_1}
 	 ,
@@ -111,7 +108,6 @@ int gpio_cmds_tx(struct gpio_desc *cmds, int cnt)
 	int i = 0;
 
 	cm = cmds;
-
 	for (i = 0; i < cnt; i++) {
 		if ((cm == NULL) || (cm->label == NULL)) {
 			HISI_FB_ERR("cm or cm->label is null! index=%d\n", i);
@@ -201,9 +197,7 @@ int resource_cmds_tx(struct platform_device *pdev,
 			ret = -1;
 			goto error;
 		}
-
 		*(cm->value) = res->start;
-
 		cm++;
 	}
 
@@ -227,7 +221,6 @@ int vcc_cmds_tx(struct platform_device *pdev, struct vcc_desc *cmds, int cnt)
 
 		if (cm->dtype == DTYPE_VCC_GET) {
 			BUG_ON(pdev == NULL);
-
 			*(cm->regulator) =
 			    devm_regulator_get(&pdev->dev, cm->id);
 			if (IS_ERR(*(cm->regulator))) {
@@ -310,7 +303,6 @@ int pinctrl_cmds_tx(struct platform_device *pdev, struct pinctrl_cmd_desc *cmds,
 			HISI_FB_ERR("cm is null! index=%d\n", i);
 			continue;
 		}
-
 		if (cm->dtype == DTYPE_PINCTRL_GET) {
 			BUG_ON(pdev == NULL);
 			cm->pctrl_data->p = devm_pinctrl_get(&pdev->dev);
@@ -352,11 +344,8 @@ int pinctrl_cmds_tx(struct platform_device *pdev, struct pinctrl_cmd_desc *cmds,
 				if (cm->pctrl_data->p
 				    && cm->pctrl_data->pinctrl_def) {
 					ret =
-					    pinctrl_select_state(cm->
-								 pctrl_data->p,
-								 cm->
-								 pctrl_data->
-								 pinctrl_def);
+					    pinctrl_select_state(cm->pctrl_data->p,
+								 cm->pctrl_data->pinctrl_def);
 					if (ret) {
 						HISI_FB_ERR
 						    ("could not set this pin to default state!\n");
@@ -368,11 +357,8 @@ int pinctrl_cmds_tx(struct platform_device *pdev, struct pinctrl_cmd_desc *cmds,
 				if (cm->pctrl_data->p
 				    && cm->pctrl_data->pinctrl_idle) {
 					ret =
-					    pinctrl_select_state(cm->
-								 pctrl_data->p,
-								 cm->
-								 pctrl_data->
-								 pinctrl_idle);
+					    pinctrl_select_state(cm->pctrl_data->p,
+								 cm->pctrl_data->pinctrl_idle);
 					if (ret) {
 						HISI_FB_ERR
 						    ("could not set this pin to idle state!\n");

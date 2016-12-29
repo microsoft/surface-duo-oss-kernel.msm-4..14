@@ -93,16 +93,13 @@
 #define GAMMA_MAP    BIT(19)
 
 #define LCD_BL_IC_NAME_MAX	(50)
-
 #define DEV_DSS_VOLTAGE_ID (20)
-
 
 enum BLPWM_PRECISION_TYPE {
 	BLPWM_PRECISION_DEFAULT_TYPE = 0,
 	BLPWM_PRECISION_10000_TYPE = 1,
 	BLPWM_PRECISION_2048_TYPE = 2,
 };
-
 
 enum LCD_INIT_STEP {
 	LCD_INIT_NONE = 0,
@@ -111,7 +108,6 @@ enum LCD_INIT_STEP {
 	LCD_INIT_MIPI_LP_SEND_SEQUENCE,
 	LCD_INIT_MIPI_HS_SEND_SEQUENCE,
 };
-
 
 enum LCD_UNINIT_STEP {
 	LCD_UNINIT_NONE = 0,
@@ -127,14 +123,12 @@ enum LCD_ESD_RECOVER_STEP {
 	LCD_ESD_RECOVER_POWER_ON,
 };
 
-
 enum LCD_REFRESH_DIRECTION {
 	LCD_REFRESH_LEFT_TOP = 0,
 	LCD_REFRESH_RIGHT_TOP,
 	LCD_REFRESH_LEFT_BOTTOM,
 	LCD_REFRESH_RIGHT_BOTTOM,
 };
-
 
 enum IFBC_TYPE {
 	IFBC_TYPE_NONE = 0,
@@ -151,7 +145,6 @@ enum IFBC_TYPE {
 	IFBC_TYPE_MAX
 };
 
-
 enum IFBC_COMP_MODE {
 	IFBC_COMP_MODE_0 = 0,
 	IFBC_COMP_MODE_1,
@@ -162,7 +155,6 @@ enum IFBC_COMP_MODE {
 	IFBC_COMP_MODE_6,
 };
 
-
 enum XRES_DIV {
 	XRES_DIV_1 = 1,
 	XRES_DIV_2,
@@ -172,7 +164,6 @@ enum XRES_DIV {
 	XRES_DIV_6,
 };
 
-
 enum YRES_DIV {
 	YRES_DIV_1 = 1,
 	YRES_DIV_2,
@@ -181,7 +172,6 @@ enum YRES_DIV {
 	YRES_DIV_5,
 	YRES_DIV_6,
 };
-
 
 enum PXL0_DIVCFG {
 	PXL0_DIVCFG_0 = 0,
@@ -194,18 +184,15 @@ enum PXL0_DIVCFG {
 	PXL0_DIVCFG_7,
 };
 
-
 enum PXL0_DIV2_GT_EN {
 	PXL0_DIV2_GT_EN_CLOSE = 0,
 	PXL0_DIV2_GT_EN_OPEN,
 };
 
-
 enum PXL0_DIV4_GT_EN {
 	PXL0_DIV4_GT_EN_CLOSE = 0,
 	PXL0_DIV4_GT_EN_OPEN,
 };
-
 
 enum PXL0_DSI_GT_EN {
 	PXL0_DSI_GT_EN_0 = 0,
@@ -433,7 +420,6 @@ struct mipi_panel_info {
 
 	uint32_t hs_wr_to_time;
 
-
 	uint32_t clk_post_adjust;
 	uint32_t clk_pre_adjust;
 	uint32_t clk_pre_delay_adjust;
@@ -448,7 +434,6 @@ struct mipi_panel_info {
 	uint32_t data_t_hs_zero_adjust;
 	uint32_t data_t_hs_trial_adjust;
 	uint32_t rg_vrefsel_vcm_adjust;
-
 
 	uint32_t rg_vrefsel_vcm_clk_adjust;
 	uint32_t rg_vrefsel_vcm_data_adjust;
@@ -507,123 +492,82 @@ typedef struct dss_sharpness_bit {
 	uint32_t edgeamt1;
 } sharp2d_t;
 
-
 struct dsc_panel_info {
 
 	uint32_t bits_per_pixel;
 	uint32_t block_pred_enable;
 	uint32_t linebuf_depth;
 	uint32_t bits_per_component;
-
-
 	uint32_t slice_width;
 	uint32_t slice_height;
-
-
 	uint32_t initial_xmit_delay;
-
-
 	uint32_t first_line_bpg_offset;
-
 	uint32_t mux_word_size;
-
-
-
 	uint32_t initial_offset;
-
-
 	uint32_t flatness_max_qp;
 	uint32_t flatness_min_qp;
-
-
 	uint32_t rc_edge_factor;
 	uint32_t rc_model_size;
-
-
 	uint32_t rc_tgt_offset_lo;
 	uint32_t rc_tgt_offset_hi;
 	uint32_t rc_quant_incr_limit1;
 	uint32_t rc_quant_incr_limit0;
-
-
 	uint32_t rc_buf_thresh0;
 	uint32_t rc_buf_thresh1;
 	uint32_t rc_buf_thresh2;
 	uint32_t rc_buf_thresh3;
-
-
 	uint32_t rc_buf_thresh4;
 	uint32_t rc_buf_thresh5;
 	uint32_t rc_buf_thresh6;
 	uint32_t rc_buf_thresh7;
-
-
 	uint32_t rc_buf_thresh8;
 	uint32_t rc_buf_thresh9;
 	uint32_t rc_buf_thresh10;
 	uint32_t rc_buf_thresh11;
-
-
 	uint32_t rc_buf_thresh12;
 	uint32_t rc_buf_thresh13;
-
-
 	uint32_t range_min_qp0;
 	uint32_t range_max_qp0;
 	uint32_t range_bpg_offset0;
 	uint32_t range_min_qp1;
 	uint32_t range_max_qp1;
 	uint32_t range_bpg_offset1;
-
-
 	uint32_t range_min_qp2;
 	uint32_t range_max_qp2;
 	uint32_t range_bpg_offset2;
 	uint32_t range_min_qp3;
 	uint32_t range_max_qp3;
 	uint32_t range_bpg_offset3;
-
-
 	uint32_t range_min_qp4;
 	uint32_t range_max_qp4;
 	uint32_t range_bpg_offset4;
 	uint32_t range_min_qp5;
 	uint32_t range_max_qp5;
 	uint32_t range_bpg_offset5;
-
-
 	uint32_t range_min_qp6;
 	uint32_t range_max_qp6;
 	uint32_t range_bpg_offset6;
 	uint32_t range_min_qp7;
 	uint32_t range_max_qp7;
 	uint32_t range_bpg_offset7;
-
-
 	uint32_t range_min_qp8;
 	uint32_t range_max_qp8;
 	uint32_t range_bpg_offset8;
 	uint32_t range_min_qp9;
 	uint32_t range_max_qp9;
 	uint32_t range_bpg_offset9;
-
-
 	uint32_t range_min_qp10;
 	uint32_t range_max_qp10;
 	uint32_t range_bpg_offset10;
 	uint32_t range_min_qp11;
 	uint32_t range_max_qp11;
 	uint32_t range_bpg_offset11;
-
-
 	uint32_t range_min_qp12;
 	uint32_t range_max_qp12;
 	uint32_t range_bpg_offset12;
 	uint32_t range_min_qp13;
 	uint32_t range_max_qp13;
 	uint32_t range_bpg_offset13;
-
-
 	uint32_t range_min_qp14;
 	uint32_t range_max_qp14;
 	uint32_t range_bpg_offset14;
@@ -657,7 +601,6 @@ struct hisi_panel_info {
 	uint8_t fake_hdmi;
 	uint8_t reserved[3];
 
-
 	uint32_t ifbc_type;
 	uint32_t ifbc_cmp_dat_rev0;
 	uint32_t ifbc_cmp_dat_rev1;
@@ -686,7 +629,6 @@ struct hisi_panel_info {
 	uint8_t dirty_region_updt_support;
 	uint8_t dsi_bit_clk_upt_support;
 	uint8_t fps_updt_support;
-
 	uint8_t panel_effect_support;
 
 	uint8_t prefix_ce_support;
@@ -705,7 +647,6 @@ struct hisi_panel_info {
 	uint8_t arsr1p_sharpness_support;
 	uint8_t post_scf_support;
 	uint8_t default_gmp_off;
-
 
 	uint32_t acm_valid_num;
 	uint32_t r0_hh;
@@ -757,7 +698,6 @@ struct hisi_panel_info {
 	uint32_t *cinema_acm_lut_satr_table;
 	uint32_t cinema_acm_lut_satr_table_len;
 
-
 	uint32_t *acm_lut_satr0_table;
 	uint32_t acm_lut_satr0_table_len;
 	uint32_t *acm_lut_satr1_table;
@@ -784,7 +724,6 @@ struct hisi_panel_info {
 	uint32_t *cinema_acm_lut_satr6_table;
 	uint32_t *cinema_acm_lut_satr7_table;
 
-
 	uint32_t *gamma_lut_table_R;
 	uint32_t *gamma_lut_table_G;
 	uint32_t *gamma_lut_table_B;
@@ -802,7 +741,6 @@ struct hisi_panel_info {
 	uint32_t gmp_lut_table_len;
 	uint32_t *xcc_table;
 	uint32_t xcc_table_len;
-
 
 	uint32_t *pgainlsc0;
 	uint32_t *pgainlsc1;
@@ -843,13 +781,11 @@ struct hisi_panel_info {
 
 	struct mipi_dsi_phy_ctrl dsi_phy_ctrl;
 
-
 	struct hiace_alg_parameter hiace_param;
 	struct ce_algorithm_parameter ce_alg_param;
 };
 
 struct hisi_fb_data_type;
-
 struct hisi_fb_panel_data {
 	struct hisi_panel_info *panel_info;
 
@@ -870,7 +806,6 @@ struct hisi_fb_panel_data {
 
 extern uint32_t g_dts_resouce_ready;
 extern mipi_ifbc_division_t g_mipi_ifbc_division[MIPI_DPHY_NUM][IFBC_TYPE_MAX];
-
 int resource_cmds_tx(struct platform_device *pdev,
 		     struct resource_desc *cmds, int cnt);
 int vcc_cmds_tx(struct platform_device *pdev, struct vcc_desc *cmds, int cnt);

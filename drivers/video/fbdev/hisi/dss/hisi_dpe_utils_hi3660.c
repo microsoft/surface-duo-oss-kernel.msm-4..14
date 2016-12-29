@@ -16,36 +16,9 @@
 DEFINE_SEMAPHORE(hisi_fb_dss_inner_clk_sem);
 
 static int dss_inner_clk_refcount = 0;
-static unsigned int g_comform_value;
-static unsigned int g_acm_State;
-static unsigned int g_gmp_State;
-static unsigned int g_led_rg_csc_value[9];
-static unsigned int g_is_led_rg_csc_set;
-unsigned int g_led_rg_para1 = 7;
-unsigned int g_led_rg_para2 = 30983;
 
 #define OFFSET_FRACTIONAL_BITS	(11)
 #define ROUND1(x,y)	((x) / (y) + ((x) % (y)  ? 1 : 0))
-
-static uint32_t sbl_al_calib_lut[33] = {
-	0x0000, 0x0800, 0x1000, 0x1800, 0x2000, 0x2800, 0x3000, 0x3800, 0x4000,
-	    0x4800,
-	0x5000, 0x5800, 0x6000, 0x6800, 0x7000, 0x7800, 0x8000, 0x87FF, 0x8FFF,
-	    0x97FF,
-	0x9FFF, 0xA7FF, 0xAFFF, 0xB7FF, 0xBFFF, 0xC7FF, 0xCFFF, 0xD7FF, 0xDFFF,
-	    0xE7FF,
-	0xEFFF, 0xF7FF, 0xFFFF
-};
-
-static uint32_t s_calc_al_change_lut[32] = {
-	0x0000, 0x001E, 0x0046, 0x0078, 0x00C8, 0x012C, 0x0258, 0x03E8, 0x0640,
-	    0x09C4,
-	0x0FA0, 0x1B58, 0x32C8, 0x5DC0, 0x9C40, 0xFFFF, 0x0000, 0x000F, 0x0028,
-	    0x003C,
-	0x0064, 0x00DC, 0x01F4, 0x03E8, 0x04B0, 0x0578, 0x0AF0, 0x157c, 0x2AF8,
-	    0x4E20,
-	0x94C0, 0xFFFF
-};
 
 static int get_lcd_frame_rate(struct hisi_panel_info *pinfo)
 {
@@ -78,6 +51,7 @@ struct dss_clk_rate *get_dss_clk_rate(struct hisi_fb_data_type *hisifd)
 			pdss_clk_rate->dss_pclk_pctrl_rate =
 			    DEFAULT_PCLK_PCTRL_RATE;
 			hisifd->core_clk_upt_support = 0;
+
 		} else if ((pinfo->xres * pinfo->yres) >= (RES_1440P)) {
 			if (frame_rate >= 110) {
 				pdss_clk_rate->dss_pri_clk_rate =
@@ -96,6 +70,7 @@ struct dss_clk_rate *get_dss_clk_rate(struct hisi_fb_data_type *hisifd)
 				    DEFAULT_PCLK_PCTRL_RATE;
 				hisifd->core_clk_upt_support = 1;
 			}
+
 		} else if ((pinfo->xres * pinfo->yres) >= (RES_1080P)) {
 			pdss_clk_rate->dss_pri_clk_rate =
 			    DEFAULT_DSS_CORE_CLK_07V_RATE;
@@ -104,6 +79,7 @@ struct dss_clk_rate *get_dss_clk_rate(struct hisi_fb_data_type *hisifd)
 			pdss_clk_rate->dss_pclk_pctrl_rate =
 			    DEFAULT_PCLK_PCTRL_RATE;
 			hisifd->core_clk_upt_support = 1;
+
 		} else {
 			pdss_clk_rate->dss_pri_clk_rate =
 			    DEFAULT_DSS_CORE_CLK_07V_RATE;
@@ -277,8 +253,7 @@ void dss_inner_clk_pdp_enable(struct hisi_fb_data_type *hisifd,
 
 	dss_base = hisifd->dss_base;
 
-	if (fastboot_enable)
-		return;
+	if (fastboot_enable) return;
 
 	outp32(dss_base + DSS_IFBC_OFFSET + IFBC_MEM_CTRL, 0x00000088);
 	outp32(dss_base + DSS_DSC_OFFSET + DSC_MEM_CTRL, 0x00000888);
@@ -404,13 +379,25 @@ static void init_dsc(struct hisi_fb_data_type *hisifd)
 	       && ((slice_bits - num_extra_mux_bits) % dsc->mux_word_size))
 		num_extra_mux_bits--;
 
-	final_offset = dsc->rc_model_size - ((dsc->initial_xmit_delay * target_bpp_x16 + 8) >> 4) + num_extra_mux_bits;
+	final_offset = dsc->rc_model_size -
+		((dsc->initial_xmit_delay * target_bpp_x16 + 8) >> 4) +
+		num_extra_mux_bits;
+
 	final_scale =
 	    8 * dsc->rc_model_size / (dsc->rc_model_size - final_offset);
-	nfl_bpg_offset = ROUND1(dsc->first_line_bpg_offset << OFFSET_FRACTIONAL_BITS, dsc->slice_height);
+
+	nfl_bpg_offset =
+		ROUND1(dsc->first_line_bpg_offset << OFFSET_FRACTIONAL_BITS, dsc->slice_height);
+
 	groups_total = groups_per_line * (dsc->slice_height + 1);
-	slice_bpg_offset = ROUND1((1 << OFFSET_FRACTIONAL_BITS) * (dsc->rc_model_size - dsc->initial_offset + num_extra_mux_bits), groups_total);
-	scale_increment_interval = (1 << OFFSET_FRACTIONAL_BITS) * final_offset / ((final_scale - 9) * (nfl_bpg_offset + slice_bpg_offset));
+	slice_bpg_offset =
+		ROUND1((1 << OFFSET_FRACTIONAL_BITS) *
+			(dsc->rc_model_size - dsc->initial_offset + num_extra_mux_bits),
+			groups_total);
+
+	scale_increment_interval =
+		(1 << OFFSET_FRACTIONAL_BITS) * final_offset /
+		 ((final_scale - 9) * (nfl_bpg_offset + slice_bpg_offset));
 
 	initial_scale_value =
 	    8 * dsc->rc_model_size / (dsc->rc_model_size - dsc->initial_offset);
@@ -427,18 +414,19 @@ static void init_dsc(struct hisi_fb_data_type *hisifd)
 
 	adjustment_bits =
 	    (8 - (dsc->bits_per_pixel * (dsc->slice_width + 1)) % 8) % 8;
+
 	adj_bits_per_grp = dsc->bits_per_pixel * 3 - 3;
 	bits_per_grp = dsc->bits_per_pixel * 3;
 	slices_per_line = (pic_width > dsc->slice_width) ? 1 : 0;
+
 	pic_line_grp_num =
 	    ((dsc->slice_width + 3) / 3) * (slices_per_line + 1) - 1;
 
 	set_reg(dsc_base + DSC_REG_DEFAULT, 0x1, 1, 0);
 	set_reg(dsc_base + DSC_EN, dsc_en, 4, 0);
 	set_reg(dsc_base + DSC_CTRL,
-		dsc->bits_per_component | (dsc->linebuf_depth << 4) | (dsc->
-								       block_pred_enable
-								       << 10) |
+		dsc->bits_per_component | (dsc->linebuf_depth << 4) |
+		(dsc->block_pred_enable << 10) |
 		(0x1 << 11) | (dsc->bits_per_pixel << 16), 26, 0);
 
 	set_reg(dsc_base + DSC_PIC_SIZE, (pic_width << 16) | pic_height, 32, 0);
@@ -474,104 +462,71 @@ static void init_dsc(struct hisi_fb_data_type *hisifd)
 
 	set_reg(dsc_base + DSC_RC_PARAM5,
 		((dsc->rc_tgt_offset_lo << 20) | (dsc->rc_tgt_offset_hi << 16) |
-		 (dsc->rc_quant_incr_limit1 << 8) | (dsc->
-						     rc_quant_incr_limit0 <<
-						     0)), 24, 0);
+		 (dsc->rc_quant_incr_limit1 << 8) |
+		 (dsc->rc_quant_incr_limit0 << 0)), 24, 0);
 
 	set_reg(dsc_base + DSC_RC_BUF_THRESH0,
 		((dsc->rc_buf_thresh0 << 24) | (dsc->rc_buf_thresh1 << 16) |
-		 (dsc->rc_buf_thresh2 << 8) | (dsc->rc_buf_thresh3 << 0)), 32,
-		0);
+		 (dsc->rc_buf_thresh2 << 8) | (dsc->rc_buf_thresh3 << 0)), 32, 0);
+
 	set_reg(dsc_base + DSC_RC_BUF_THRESH1,
-		((dsc->rc_buf_thresh4 << 24) | (dsc->
-						rc_buf_thresh5 << 16) | (dsc->
-									 rc_buf_thresh6
-									 << 8) |
+		((dsc->rc_buf_thresh4 << 24) | (dsc->rc_buf_thresh5 << 16) |
+		 (dsc->rc_buf_thresh6 << 8) |
 		 (dsc->rc_buf_thresh7 << 0)), 32, 0);
+
 	set_reg(dsc_base + DSC_RC_BUF_THRESH2,
-		((dsc->rc_buf_thresh8 << 24) | (dsc->
-						rc_buf_thresh9 << 16) | (dsc->
-									 rc_buf_thresh10
-									 << 8) |
+		((dsc->rc_buf_thresh8 << 24) | (dsc->rc_buf_thresh9 << 16) |
+		 (dsc->rc_buf_thresh10 << 8) |
 		 (dsc->rc_buf_thresh11 << 0)), 32, 0);
+
 	set_reg(dsc_base + DSC_RC_BUF_THRESH3,
-		((dsc->rc_buf_thresh12 << 24) | (dsc->rc_buf_thresh13 << 16)),
-		32, 0);
+		((dsc->rc_buf_thresh12 << 24) |
+		 (dsc->rc_buf_thresh13 << 16)), 32, 0);
 
 	set_reg(dsc_base + DSC_RC_RANGE_PARAM0,
 		((dsc->range_min_qp0 << 27) | (dsc->range_max_qp0 << 22) |
 		 (dsc->range_bpg_offset0 << 16) | (dsc->range_min_qp1 << 11) |
-		 (dsc->range_max_qp1 << 6) | (dsc->range_bpg_offset1 << 0)), 32,
-		0);
+		 (dsc->range_max_qp1 << 6) | (dsc->range_bpg_offset1 << 0)), 32, 0);
+
 	set_reg(dsc_base + DSC_RC_RANGE_PARAM1,
-		((dsc->range_min_qp2 << 27) | (dsc->
-					       range_max_qp2 << 22) | (dsc->
-								       range_bpg_offset2
-								       << 16) |
-		 (dsc->range_min_qp3 << 11) | (dsc->range_max_qp3 << 6) | (dsc->
-									   range_bpg_offset3
-									   <<
-									   0)),
-		32, 0);
+		((dsc->range_min_qp2 << 27) | (dsc->range_max_qp2 << 22) |
+		 (dsc->range_bpg_offset2 << 16) |
+		 (dsc->range_min_qp3 << 11) | (dsc->range_max_qp3 << 6) |
+		 (dsc->range_bpg_offset3 << 0)), 32, 0);
+
 	set_reg(dsc_base + DSC_RC_RANGE_PARAM2,
-		((dsc->range_min_qp4 << 27) | (dsc->
-					       range_max_qp4 << 22) | (dsc->
-								       range_bpg_offset4
-								       << 16) |
-		 (dsc->range_min_qp5 << 11) | (dsc->range_max_qp5 << 6) | (dsc->
-									   range_bpg_offset5
-									   <<
-									   0)),
-		32, 0);
+		((dsc->range_min_qp4 << 27) | (dsc->range_max_qp4 << 22) |
+		 (dsc->range_bpg_offset4 << 16) |
+		 (dsc->range_min_qp5 << 11) | (dsc->range_max_qp5 << 6) |
+		 (dsc->range_bpg_offset5 << 0)), 32, 0);
+
 	set_reg(dsc_base + DSC_RC_RANGE_PARAM3,
-		((dsc->range_min_qp6 << 27) | (dsc->
-					       range_max_qp6 << 22) | (dsc->
-								       range_bpg_offset6
-								       << 16) |
-		 (dsc->range_min_qp7 << 11) | (dsc->range_max_qp7 << 6) | (dsc->
-									   range_bpg_offset7
-									   <<
-									   0)),
-		32, 0);
+		((dsc->range_min_qp6 << 27) | (dsc->range_max_qp6 << 22) |
+		 (dsc->range_bpg_offset6 << 16) |
+		 (dsc->range_min_qp7 << 11) | (dsc->range_max_qp7 << 6) |
+		 (dsc->range_bpg_offset7 << 0)), 32, 0);
+
 	set_reg(dsc_base + DSC_RC_RANGE_PARAM4,
-		((dsc->range_min_qp8 << 27) | (dsc->
-					       range_max_qp8 << 22) | (dsc->
-								       range_bpg_offset8
-								       << 16) |
-		 (dsc->range_min_qp9 << 11) | (dsc->range_max_qp9 << 6) | (dsc->
-									   range_bpg_offset9
-									   <<
-									   0)),
-		32, 0);
+		((dsc->range_min_qp8 << 27) | (dsc->range_max_qp8 << 22) |
+		 (dsc->range_bpg_offset8 << 16) |
+		 (dsc->range_min_qp9 << 11) | (dsc->range_max_qp9 << 6) |
+		 (dsc->range_bpg_offset9 << 0)), 32, 0);
+
 	set_reg(dsc_base + DSC_RC_RANGE_PARAM5,
-		((dsc->range_min_qp10 << 27) | (dsc->
-						range_max_qp10 << 22) | (dsc->
-									 range_bpg_offset10
-									 << 16)
-		 | (dsc->range_min_qp11 << 11) | (dsc->
-						  range_max_qp11 << 6) | (dsc->
-									  range_bpg_offset11
-									  <<
-									  0)),
-		32, 0);
+		((dsc->range_min_qp10 << 27) | (dsc->range_max_qp10 << 22) |
+		 (dsc->range_bpg_offset10 << 16) |
+		 (dsc->range_min_qp11 << 11) | (dsc->range_max_qp11 << 6) |
+		 (dsc->range_bpg_offset11 << 0)), 32, 0);
+
 	set_reg(dsc_base + DSC_RC_RANGE_PARAM6,
-		((dsc->range_min_qp12 << 27) | (dsc->
-						range_max_qp12 << 22) | (dsc->
-									 range_bpg_offset12
-									 << 16)
-		 | (dsc->range_min_qp13 << 11) | (dsc->
-						  range_max_qp13 << 6) | (dsc->
-									  range_bpg_offset13
-									  <<
-									  0)),
-		32, 0);
+		((dsc->range_min_qp12 << 27) | (dsc->range_max_qp12 << 22) |
+		 (dsc->range_bpg_offset12 << 16) |
+		 (dsc->range_min_qp13 << 11) | (dsc->range_max_qp13 << 6) |
+		 (dsc->range_bpg_offset13 << 0)), 32, 0);
+
 	set_reg(dsc_base + DSC_RC_RANGE_PARAM7,
-		((dsc->range_min_qp14 << 27) | (dsc->
-						range_max_qp14 << 22) | (dsc->
-									 range_bpg_offset14
-									 <<
-									 16)),
-		32, 0);
+		((dsc->range_min_qp14 << 27) | (dsc->range_max_qp14 << 22) |
+		 (dsc->range_bpg_offset14 << 16)), 32, 0);
 
 	set_reg(dsc_base + DSC_ADJUSTMENT_BITS, adjustment_bits, 4, 0);
 
@@ -583,11 +538,14 @@ static void init_dsc(struct hisi_fb_data_type *hisifd)
 
 	if ((chunk_size % 3 == 0)) {
 		set_reg(dsc_base + DSC_OUT_CTRL, 0x0, 1, 0);
+
 	} else if ((chunk_size % 2 == 0)) {
 		set_reg(dsc_base + DSC_OUT_CTRL, 0x1, 1, 0);
+
 	} else {
 		HISI_FB_ERR
-		    ("fb%d, chunk_size should be mode by 3 or 2, but chunk_size = %u\n",
+		    ("fb%d, chunk_size should be mode by 3 or 2,"
+		     " but chunk_size = %u\n",
 		     hisifd->index, chunk_size);
 		return;
 	}
@@ -663,7 +621,7 @@ void init_ifbc(struct hisi_fb_data_type *hisifd)
 	if (((pinfo->ifbc_type == IFBC_TYPE_ORISE2X)
 	     && (pinfo->ifbc_cmp_dat_rev0 == 1))
 	    || ((pinfo->ifbc_type == IFBC_TYPE_RSP3X)
-		&& (pinfo->type != PANEL_MIPI_VIDEO) && (pinfo->xres % 3 != 0)))
+		 && (pinfo->type != PANEL_MIPI_VIDEO) && (pinfo->xres % 3 != 0)))
 		if (pinfo->ifbc_auto_sel != 0) {
 			HISI_FB_ERR("fb%d, auto_sel = %u not support!",
 				    hisifd->index, pinfo->ifbc_auto_sel);
@@ -702,10 +660,11 @@ void init_ifbc(struct hisi_fb_data_type *hisifd)
 		porch_num = 0;
 
 		if ((pinfo->type == PANEL_MIPI_CMD) ||
-		    (pinfo->type == PANEL_DUAL_MIPI_CMD))
+		    (pinfo->type == PANEL_DUAL_MIPI_CMD)) {
 			num_pad = (4 - pinfo->xres % 4) % 4;
-		else
+		} else {
 			num_pad = 0;
+		}
 	} else if (pinfo->ifbc_type == IFBC_TYPE_RSP3X) {
 		if ((pinfo->yres % 2 != 0) || (pinfo->yres < 8)) {
 			HISI_FB_ERR
@@ -731,8 +690,7 @@ void init_ifbc(struct hisi_fb_data_type *hisifd)
 		}
 	}
 	set_reg(ifbc_base + IFBC_SIZE,
-		((DSS_WIDTH(pinfo->xres) << 16) | DSS_HEIGHT(pinfo->yres)), 32,
-		0);
+		((DSS_WIDTH(pinfo->xres) << 16) | DSS_HEIGHT(pinfo->yres)), 32, 0);
 
 	set_reg(ifbc_base + IFBC_CTRL, comp_mode, 3, 0);
 	set_reg(ifbc_base + IFBC_CTRL, ifbc_out_mode, 1, 3);
@@ -754,18 +712,16 @@ void init_ifbc(struct hisi_fb_data_type *hisifd)
 		if (pinfo->ifbc_orise_ctr == 1) {
 			set_reg(ifbc_base + IFBC_CORE_GT, 0x0, 2, 0);
 
-			if (pinfo->ifbc_orise_ctl == IFBC_ORISE_CTL_8LINE)
-				set_reg(ifbc_base + IFBC_ORISE_CTL, 0x0208, 32,
-					0);
-			else if (pinfo->ifbc_orise_ctl == IFBC_ORISE_CTL_16LINE)
-				set_reg(ifbc_base + IFBC_ORISE_CTL, 0x0210, 32,
-					0);
-			else if (pinfo->ifbc_orise_ctl == IFBC_ORISE_CTL_32LINE)
-				set_reg(ifbc_base + IFBC_ORISE_CTL, 0x0220, 32,
-					0);
-			else
-				set_reg(ifbc_base + IFBC_ORISE_CTL, 0x0200, 32,
-					0);
+			if (pinfo->ifbc_orise_ctl == IFBC_ORISE_CTL_8LINE) {
+				set_reg(ifbc_base + IFBC_ORISE_CTL, 0x0208, 32, 0);
+
+			} else if (pinfo->ifbc_orise_ctl == IFBC_ORISE_CTL_16LINE) {
+				set_reg(ifbc_base + IFBC_ORISE_CTL, 0x0210, 32, 0);
+			} else if (pinfo->ifbc_orise_ctl == IFBC_ORISE_CTL_32LINE) {
+				set_reg(ifbc_base + IFBC_ORISE_CTL, 0x0220, 32, 0);
+			} else {
+				set_reg(ifbc_base + IFBC_ORISE_CTL, 0x0200, 32, 0);
+			}
 
 			set_reg(ifbc_base + IFBC_ORISE_CTL, 0x0300, 32, 0);
 			set_reg(ifbc_base + IFBC_ORISE_CTL, 0x0419, 32, 0);
@@ -1057,9 +1013,8 @@ void init_ldi(struct hisi_fb_data_type *hisifd, bool fastboot_enable)
 		}
 
 		outp32(ldi_base + LDI_OVERLAP_SIZE,
-		       pinfo->ldi.dpi0_overlap_size | (pinfo->ldi.
-						       dpi1_overlap_size <<
-						       16));
+		       pinfo->ldi.dpi0_overlap_size |
+		       (pinfo->ldi.dpi1_overlap_size << 16));
 
 		/* dual_mode_en */
 		set_reg(ldi_base + LDI_CTRL, 1, 1, 5);
@@ -1073,16 +1028,15 @@ void init_ldi(struct hisi_fb_data_type *hisifd, bool fastboot_enable)
 	}
 	if (is_mipi_video_panel(hisifd)) {
 		outp32(ldi_base + LDI_DPI0_HRZ_CTRL0,
-		       pinfo->ldi.
-		       h_front_porch |
+		       pinfo->ldi.h_front_porch |
 		       ((pinfo->ldi.h_back_porch +
-			 DSS_WIDTH(pinfo->ldi.h_pulse_width)) << 16));
+				DSS_WIDTH(pinfo->ldi.h_pulse_width)) << 16));
+
 		outp32(ldi_base + LDI_DPI0_HRZ_CTRL1, 0);
 		outp32(ldi_base + LDI_DPI0_HRZ_CTRL2, DSS_WIDTH(rect.w));
 	} else {
 		outp32(ldi_base + LDI_DPI0_HRZ_CTRL0,
-		       pinfo->ldi.h_front_porch | (pinfo->ldi.
-						   h_back_porch << 16));
+		       pinfo->ldi.h_front_porch | (pinfo->ldi.h_back_porch << 16));
 		outp32(ldi_base + LDI_DPI0_HRZ_CTRL1,
 		       DSS_WIDTH(pinfo->ldi.h_pulse_width));
 		outp32(ldi_base + LDI_DPI0_HRZ_CTRL2, DSS_WIDTH(rect.w));
@@ -1100,10 +1054,7 @@ void init_ldi(struct hisi_fb_data_type *hisifd, bool fastboot_enable)
 	set_reg(ldi_base + LDI_CTRL, pinfo->bgr_fmt, 1, 13);
 
 	outp32(ldi_base + LDI_VINACT_MSK_LEN, pinfo->ldi.v_front_porch);
-
 	outp32(ldi_base + LDI_CMD_EVENT_SEL, 0x1);
-
-
 
 	/* for 1Hz LCD and mipi command LCD */
 	if (is_mipi_cmd_panel(hisifd)) {
@@ -1136,14 +1087,12 @@ void init_ldi(struct hisi_fb_data_type *hisifd, bool fastboot_enable)
 
 		/* dsi_te0_vs_wd = lcd_te_width / T_pxl_clk, experience lcd_te_width = 2us */
 		if (pinfo->pxl_clk_rate_div == 0) {
-			HISI_FB_ERR
-			    ("pxl_clk_rate_div is NULL, not support !\n");
+			HISI_FB_ERR("pxl_clk_rate_div is NULL, not support !\n");
 			pinfo->pxl_clk_rate_div = 1;
 		}
 		set_reg(ldi_base + LDI_DSI_TE_VS_WD,
 			(0x3FC << 12) | (2 * pinfo->pxl_clk_rate /
-					 pinfo->pxl_clk_rate_div / 1000000), 32,
-			0);
+					 pinfo->pxl_clk_rate_div / 1000000), 32, 0);
 	} else {
 		set_reg(ldi_base + LDI_DSI_CMD_MOD_CTRL, 0x1, 1, 1);
 	}
@@ -1228,8 +1177,7 @@ int dpe_recover_pxl_clock(struct hisi_fb_data_type *hisifd)
 {
 	if ((hisifd->panel_info.pxl_clk_rate > DSS_MAX_PXL0_CLK_288M)
 	    && (hisifd->index == PRIMARY_PANEL_IDX)) {
-		if (clk_set_rate
-		    (hisifd->dss_pxl0_clk,
+		if (clk_set_rate(hisifd->dss_pxl0_clk,
 		     hisifd->panel_info.pxl_clk_rate) < 0) {
 			HISI_FB_ERR
 			    ("fb%d dss_pxl0_clk clk_set_rate(%llu) failed!\n",
@@ -1251,8 +1199,7 @@ void ldi_frame_update(struct hisi_fb_data_type *hisifd, bool update)
 		ldi_base = hisifd->dss_base + DSS_LDI0_OFFSET;
 
 		if (is_mipi_cmd_panel(hisifd)) {
-			set_reg(ldi_base + LDI_FRM_MSK, (update ? 0x0 : 0x1), 1,
-				0);
+			set_reg(ldi_base + LDI_FRM_MSK, (update ? 0x0 : 0x1), 1, 0);
 			if (update)
 				set_reg(ldi_base + LDI_CTRL, 0x1, 1, 0);
 		}
