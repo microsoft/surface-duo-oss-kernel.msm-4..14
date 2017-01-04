@@ -47,6 +47,19 @@ struct s32v_pinctrl {
 	struct list_head gpio_configs;
 };
 
+static const char *pin_get_name_from_info(struct s32v_pinctrl_soc_info *info,
+			const unsigned pin_id)
+{
+	int i;
+
+	for (i = 0; i < info->npins; i++) {
+		if (info->pins[i].number == pin_id)
+			return info->pins[i].name;
+	}
+
+	return NULL;
+}
+
 static const inline struct s32v_pin *s32v_pinctrl_find_pin(
 			const struct s32v_pin_group *grp,
 			unsigned pin_offset)
@@ -409,11 +422,10 @@ static int s32v_pinconf_set(struct pinctrl_dev *pctldev,
 			     unsigned num_configs)
 {
 	struct s32v_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
-	const struct s32v_pinctrl_soc_info *info = ipctl->info;
 	int i;
 
 	dev_dbg(ipctl->dev, "pinconf set pin %s\n",
-		info->pins[pin_id].name);
+			pin_get_name(pctldev, pin_id));
 
 	for (i = 0; i < num_configs; i++) {
 		writel(configs[i], ipctl->base + S32V_PAD_CONFIG(pin_id));
@@ -529,8 +541,8 @@ static int s32v_pinctrl_parse_groups(struct device_node *np,
 		pin->config = be32_to_cpu(*list++);
 		grp->pin_ids[i] = grp->pins[i].pin_id;
 
-		dev_dbg(info->dev, "%s: 0x%08lx", info->pins[pin->pin_id].name,
-				pin->config);
+		dev_dbg(info->dev, "%s: 0x%08lx",
+			pin_get_name_from_info(info, pin->pin_id), pin->config);
 	}
 
 	return 0;
