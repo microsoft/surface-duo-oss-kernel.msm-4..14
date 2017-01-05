@@ -43,6 +43,10 @@
 			status = "ok";
 		};
 
+		uart6: uart@fff32000 {
+			status = "ok";
+		};
+
 		ufs: ufs@ff3b0000 {
 			reset-gpio = <&gpio18 1 0>;
 			//vcc-supply = <&ldo15>;
