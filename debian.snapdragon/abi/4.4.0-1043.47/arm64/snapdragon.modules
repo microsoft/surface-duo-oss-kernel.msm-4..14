@@ -1386,6 +1386,9 @@ hso
 hsr
 hsu_dma
 htc-pasic3
+hts221
+hts221_i2c
+hts221_spi
 htu21
 huawei_cdc_ncm
 hwa-hc
