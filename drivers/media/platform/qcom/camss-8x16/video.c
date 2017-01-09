@@ -311,9 +311,6 @@ static int video_querycap(struct file *file, void *fh,
 	strlcpy(cap->driver, "qcom-camss", sizeof(cap->driver));
 	strlcpy(cap->card, "Qualcomm Camera Subsystem", sizeof(cap->card));
 	strlcpy(cap->bus_info, "platform:qcom-camss", sizeof(cap->bus_info));
-	cap->capabilities = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING |
-							V4L2_CAP_DEVICE_CAPS;
-	cap->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
 
 	return 0;
 }
@@ -566,6 +563,7 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 	}
 
 	vdev->fops = &msm_vid_fops;
+	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
 	vdev->ioctl_ops = &msm_vid_ioctl_ops;
 	vdev->release = video_device_release;
 	vdev->v4l2_dev = v4l2_dev;
