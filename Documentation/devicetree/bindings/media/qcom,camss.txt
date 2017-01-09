@@ -6,7 +6,7 @@ Qualcomm Camera Subsystem
 	Usage: required
 	Value type: <stringlist>
 	Definition: Should contain:
-		- "qcom,8x16-camss"
+		- "qcom,msm8916-camss"
 - reg:
 	Usage: required
 	Value type: <prop-encoded-array>
@@ -108,7 +108,7 @@ Qualcomm Camera Subsystem
 * An Example
 
 	camss: camss@1b00000 {
-		compatible = "qcom,8x16-camss";
+		compatible = "qcom,msm8916-camss";
 		reg = <0x1b0ac00 0x200>,
 			<0x1b00030 0x4>,
 			<0x1b0b000 0x200>,

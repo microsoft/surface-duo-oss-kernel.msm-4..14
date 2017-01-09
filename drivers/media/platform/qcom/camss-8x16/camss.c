@@ -581,7 +581,7 @@ static int camss_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id camss_dt_match[] = {
-	{ .compatible = "qcom,8x16-camss" },
+	{ .compatible = "qcom,msm8916-camss" },
 	{ }
 };
 
