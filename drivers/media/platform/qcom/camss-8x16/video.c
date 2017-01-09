@@ -440,18 +440,17 @@ static int video_open(struct file *file)
 {
 	struct video_device *vdev = video_devdata(file);
 	struct camss_video *video = video_drvdata(file);
-	struct camss_video_fh *handle;
+	struct v4l2_fh *vfh;
 	int ret;
 
-	handle = kzalloc(sizeof(*handle), GFP_KERNEL);
-	if (handle == NULL)
+	vfh = kzalloc(sizeof(*vfh), GFP_KERNEL);
+	if (vfh == NULL)
 		return -ENOMEM;
 
-	v4l2_fh_init(&handle->vfh, video->vdev);
-	v4l2_fh_add(&handle->vfh);
+	v4l2_fh_init(vfh, video->vdev);
+	v4l2_fh_add(vfh);
 
-	handle->video = video;
-	file->private_data = &handle->vfh;
+	file->private_data = vfh;
 
 	ret = v4l2_pipeline_pm_use(&vdev->entity, 1);
 	if (ret < 0) {
@@ -459,7 +458,7 @@ static int video_open(struct file *file)
 		goto error_pm_use;
 	}
 
-	ret = video_init_format(file, &handle->vfh);
+	ret = video_init_format(file, vfh);
 	if (ret < 0) {
 		dev_err(video->camss->dev, "Failed to init format\n");
 		goto error_init_format;
@@ -471,8 +470,7 @@ error_init_format:
 	v4l2_pipeline_pm_use(&vdev->entity, 0);
 
 error_pm_use:
-	v4l2_fh_del(&handle->vfh);
-	kfree(handle);
+	v4l2_fh_release(file);
 
 	return ret;
 }
@@ -480,17 +478,11 @@ error_pm_use:
 static int video_release(struct file *file)
 {
 	struct video_device *vdev = video_devdata(file);
-	struct camss_video *video = video_drvdata(file);
-	struct v4l2_fh *vfh = file->private_data;
-	struct camss_video_fh *handle = container_of(vfh, struct camss_video_fh,
-						     vfh);
 
-	vb2_ioctl_streamoff(file, vfh, video->type);
+	vb2_fop_release(file);
 
 	v4l2_pipeline_pm_use(&vdev->entity, 0);
 
-	v4l2_fh_del(vfh);
-	kfree(handle);
 	file->private_data = NULL;
 
 	return 0;
@@ -593,5 +585,4 @@ void msm_video_unregister(struct camss_video *video)
 {
 	video_unregister_device(video->vdev);
 	media_entity_cleanup(&video->vdev->entity);
-	vb2_queue_release(&video->vb2_q);
 }
