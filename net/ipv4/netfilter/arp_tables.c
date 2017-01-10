@@ -532,8 +532,7 @@ find_check_entry(struct arpt_entry *e, const char *name, unsigned int size)
 	struct xt_target *target;
 	int ret;
 
-	e->counters.pcnt = xt_percpu_counter_alloc();
-	if (IS_ERR_VALUE(e->counters.pcnt))
+	if (!xt_percpu_counter_alloc(&e->counters))
 		return -ENOMEM;
 
 	t = arpt_get_target(e);
