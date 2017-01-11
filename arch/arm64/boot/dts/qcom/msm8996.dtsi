@@ -821,6 +821,7 @@
 
 			qcom,skip-init;
 			qcom,register-save;
+			arm,smmu-enable-stall;
 
 			status = "okay";
 		};
