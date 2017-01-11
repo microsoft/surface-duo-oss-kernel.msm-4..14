@@ -308,12 +308,7 @@
     };
 
 	kirin_pcie_rc@0xf4000000 {
-		board_type = <2>;
-		wl_power = <150>;
-	};
-
-	kirin_pcie_ep@0xf4000000 {
-		board_type = <2>;
+		status = "ok";
 	};
 
 	hisi_axierr {

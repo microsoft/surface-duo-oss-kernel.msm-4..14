@@ -1108,7 +1108,6 @@
 		device_type = "pci";
 		ranges = <0x02000000 0x0 0x00000000 0x0 0xf4000000 0x0 0x4000000>;
 		num-lanes = <1>;
-		rc-id = <0>;
 		#interrupt-cells = <1>;
 		interrupt-map-mask = <0 0 0 7>;
 		interrupt-map = <0 0 0 1 &gic 0 0 0 282 4>,
@@ -1119,17 +1118,9 @@
 			 <&crg_ctrl HI3660_PCLK_GATE_PCIE_PHY>, <&crg_ctrl HI3660_PCLK_GATE_PCIE_SYS>,
 			 <&crg_ctrl HI3660_ACLK_GATE_PCIE>;
 		clock-names = "pcie_phy_ref", "pcie_aux", "pcie_apb_phy", "pcie_apb_sys", "pcie_aclk";
-		interrupts = <0 282 4>, <0 283 4>, <0 284 4>, <0 285 4>, <0 279 4>;
-		interrupt-names = "INTa", "INTb", "INTc", "INTd", "link_down";
-		pinctrl-names = "default";
-		pinctrl-0 = <&pcie_perstn_pmx_func>;
+		interrupts = <0 283 4>;
+		interrupt-names = "INTb";
 		reset-gpio = <&gpio11 1 0 >;
-		isoen = <0x40 0x30>;
-		isodis = <0x44 0x30>;
-		phy_assert = <0x84 0x88000000>;
-		phy_deassert = <0x88 0x88000000>;
-		core_assert = <0x84 0x84000000>;
-		core_deassert = <0x88 0x84000000>;
 		eye_param_ctrl2 = <0x1540AA4B>;
 		eye_param_ctrl3 = <0x14003FFF>;
 	};
