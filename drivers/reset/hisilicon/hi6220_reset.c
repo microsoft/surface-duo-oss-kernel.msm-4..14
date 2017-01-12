@@ -91,12 +91,12 @@ static int hi6220_peripheral_deassert(struct reset_controller_dev *rc_dev,
 	return regmap_write(regmap, reg, BIT(offset));
 }
 
-static const struct reset_control_ops hi6220_media_reset_ops = {
+static struct reset_control_ops hi6220_media_reset_ops = {
 	.assert = hi6220_media_assert,
 	.deassert = hi6220_media_deassert,
 };
 
-static const struct reset_control_ops hi6220_peripheral_reset_ops = {
+static struct reset_control_ops hi6220_peripheral_reset_ops = {
 	.assert = hi6220_peripheral_assert,
 	.deassert = hi6220_peripheral_deassert,
 };
