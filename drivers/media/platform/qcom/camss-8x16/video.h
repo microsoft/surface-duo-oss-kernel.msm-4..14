@@ -27,10 +27,6 @@
 #include <media/v4l2-mediabus.h>
 #include <media/videobuf2-v4l2.h>
 
-#define camss_video_call(f, op, args...)			\
-	(!(f) ? -ENODEV : (((f)->ops && (f)->ops->op) ? \
-			    (f)->ops->op((f), ##args) : -ENOIOCTLCMD))
-
 struct camss_buffer {
 	struct vb2_v4l2_buffer vb;
 	dma_addr_t addr;
