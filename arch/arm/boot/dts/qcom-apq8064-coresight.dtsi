@@ -1,0 +1,196 @@
+/*
+ * Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&soc {
+
+	etb@1a01000 {
+		compatible = "coresight-etb10", "arm,primecell";
+		reg = <0x1a01000 0x1000>;
+
+		clocks = <&rpmcc RPM_QDSS_CLK>;
+		clock-names = "apb_pclk";
+
+		port {
+			etb_in: endpoint {
+				slave-mode;
+				remote-endpoint = <&replicator_out0>;
+			};
+		};
+	};
+
+	tpiu@1a03000 {
+		compatible = "arm,coresight-tpiu", "arm,primecell";
+		reg = <0x1a03000 0x1000>;
+
+		clocks = <&rpmcc RPM_QDSS_CLK>;
+		clock-names = "apb_pclk";
+
+		port {
+			tpiu_in: endpoint {
+				slave-mode;
+				remote-endpoint = <&replicator_out1>;
+			};
+		};
+	};
+
+	replicator {
+		compatible = "arm,coresight-replicator";
+
+		clocks = <&rpmcc RPM_QDSS_CLK>;
+		clock-names = "apb_pclk";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+				replicator_out0: endpoint {
+					remote-endpoint = <&etb_in>;
+				};
+			};
+			port@1 {
+				reg = <1>;
+				replicator_out1: endpoint {
+					remote-endpoint = <&tpiu_in>;
+				};
+			};
+			port@2 {
+				reg = <0>;
+				replicator_in: endpoint {
+					slave-mode;
+					remote-endpoint = <&funnel_out>;
+				};
+			};
+		};
+	};
+
+	funnel@1a04000 {
+		compatible = "arm,coresight-funnel", "arm,primecell";
+		reg = <0x1a04000 0x1000>;
+
+		clocks = <&rpmcc RPM_QDSS_CLK>;
+		clock-names = "apb_pclk";
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			/*
+			 * Not described input ports:
+			 * 2 - connected to STM component
+			 * 3 - not-connected
+			 * 6 - not-connected
+			 * 7 - not-connected
+			 */
+			port@0 {
+				reg = <0>;
+				funnel_in0: endpoint {
+					slave-mode;
+					remote-endpoint = <&etm0_out>;
+				};
+			};
+			port@1 {
+				reg = <1>;
+				funnel_in1: endpoint {
+					slave-mode;
+					remote-endpoint = <&etm1_out>;
+				};
+			};
+			port@4 {
+				reg = <4>;
+				funnel_in4: endpoint {
+					slave-mode;
+					remote-endpoint = <&etm2_out>;
+				};
+			};
+			port@5 {
+				reg = <5>;
+				funnel_in5: endpoint {
+					slave-mode;
+					remote-endpoint = <&etm3_out>;
+				};
+			};
+			port@8 {
+				reg = <0>;
+				funnel_out: endpoint {
+					remote-endpoint = <&replicator_in>;
+				};
+			};
+		};
+	};
+
+	etm@1a1c000 {
+		compatible = "arm,coresight-etm3x", "arm,primecell";
+		reg = <0x1a1c000 0x1000>;
+
+		clocks = <&rpmcc RPM_QDSS_CLK>;
+		clock-names = "apb_pclk";
+
+		cpu = <&CPU0>;
+
+		port {
+			etm0_out: endpoint {
+				remote-endpoint = <&funnel_in0>;
+			};
+		};
+	};
+
+	etm@1a1d000 {
+		compatible = "arm,coresight-etm3x", "arm,primecell";
+		reg = <0x1a1d000 0x1000>;
+
+		clocks = <&rpmcc RPM_QDSS_CLK>;
+		clock-names = "apb_pclk";
+
+		cpu = <&CPU1>;
+
+		port {
+			etm1_out: endpoint {
+				remote-endpoint = <&funnel_in1>;
+			};
+		};
+	};
+
+	etm@1a1e000 {
+		compatible = "arm,coresight-etm3x", "arm,primecell";
+		reg = <0x1a1e000 0x1000>;
+
+		clocks = <&rpmcc RPM_QDSS_CLK>;
+		clock-names = "apb_pclk";
+
+		cpu = <&CPU2>;
+
+		port {
+			etm2_out: endpoint {
+				remote-endpoint = <&funnel_in4>;
+			};
+		};
+	};
+
+	etm@1a1f000 {
+		compatible = "arm,coresight-etm3x", "arm,primecell";
+		reg = <0x1a1f000 0x1000>;
+
+		clocks = <&rpmcc RPM_QDSS_CLK>;
+		clock-names = "apb_pclk";
+
+		cpu = <&CPU3>;
+
+		port {
+			etm3_out: endpoint {
+				remote-endpoint = <&funnel_in5>;
+			};
+		};
+	};
+};
