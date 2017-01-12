@@ -38,6 +38,7 @@
 
 #define RETAIN_MEM		BIT(14)
 #define RETAIN_PERIPH		BIT(13)
+#define OFF_PERIPH		BIT(12)
 
 #define TIMEOUT_US		100
 
@@ -53,6 +54,13 @@ static int gdsc_is_enabled(struct gdsc *sc, unsigned int reg)
 		return ret;
 
 	return !!(val & PWR_ON_MASK);
+}
+
+static int gdsc_hwctrl(struct gdsc *sc, bool en)
+{
+	u32 val = en ? HW_CONTROL_MASK : 0;
+
+	return regmap_update_bits(sc->regmap, sc->gdscr, HW_CONTROL_MASK, val);
 }
 
 static int gdsc_toggle_logic(struct gdsc *sc, bool en)
@@ -122,22 +130,54 @@ static inline int gdsc_assert_reset(struct gdsc *sc)
 	return 0;
 }
 
-static inline void gdsc_force_mem_on(struct gdsc *sc)
+static inline void gdsc_force_mem_core_on(struct gdsc *sc)
 {
 	int i;
-	u32 mask = RETAIN_MEM | RETAIN_PERIPH;
+	u32 mask = RETAIN_MEM;
 
 	for (i = 0; i < sc->cxc_count; i++)
 		regmap_update_bits(sc->regmap, sc->cxcs[i], mask, mask);
 }
 
-static inline void gdsc_clear_mem_on(struct gdsc *sc)
+static inline void gdsc_force_mem_periph_on(struct gdsc *sc)
 {
 	int i;
-	u32 mask = RETAIN_MEM | RETAIN_PERIPH;
+	u32 mask = RETAIN_PERIPH | OFF_PERIPH;
+	u32 val = RETAIN_PERIPH;
+
+	for (i = 0; i < sc->cxc_count; i++)
+		regmap_update_bits(sc->regmap, sc->cxcs[i], mask, val);
+}
+
+static inline void gdsc_force_mem_on(struct gdsc *sc)
+{
+	gdsc_force_mem_core_on(sc);
+	gdsc_force_mem_periph_on(sc);
+}
+
+static inline void gdsc_clear_mem_core_on(struct gdsc *sc)
+{
+	int i;
+	u32 mask = RETAIN_MEM;
 
 	for (i = 0; i < sc->cxc_count; i++)
 		regmap_update_bits(sc->regmap, sc->cxcs[i], mask, 0);
+}
+
+static inline void gdsc_clear_mem_periph_on(struct gdsc *sc)
+{
+	int i;
+	u32 mask = RETAIN_PERIPH | OFF_PERIPH;
+	u32 val = OFF_PERIPH;
+
+	for (i = 0; i < sc->cxc_count; i++)
+		regmap_update_bits(sc->regmap, sc->cxcs[i], mask, val);
+}
+
+static inline void gdsc_clear_mem_on(struct gdsc *sc)
+{
+	gdsc_clear_mem_core_on(sc);
+	gdsc_clear_mem_periph_on(sc);
 }
 
 static int gdsc_enable(struct generic_pm_domain *domain)
@@ -152,8 +192,7 @@ static int gdsc_enable(struct generic_pm_domain *domain)
 	if (ret)
 		return ret;
 
-	if (sc->pwrsts & PWRSTS_OFF)
-		gdsc_force_mem_on(sc);
+	gdsc_force_mem_on(sc);
 
 	/*
 	 * If clocks to this power domain were already on, they will take an
@@ -164,18 +203,50 @@ static int gdsc_enable(struct generic_pm_domain *domain)
 	 */
 	udelay(1);
 
+	/* Turn on HW trigger mode if supported */
+	if (sc->flags & HW_CTRL)
+		gdsc_hwctrl(sc, true);
+
 	return 0;
 }
 
 static int gdsc_disable(struct generic_pm_domain *domain)
 {
 	struct gdsc *sc = domain_to_gdsc(domain);
+	u8 pwrst;
 
 	if (sc->pwrsts == PWRSTS_ON)
 		return gdsc_assert_reset(sc);
 
+	if (domain->state_count > 1)
+		pwrst = 1 << domain->state_idx;
+	else if (sc->pwrsts & PWRSTS_OFF)
+		pwrst = PWRSTS_OFF;
+	else
+		pwrst = PWRSTS_RET;
+
+	switch (pwrst) {
+	case PWRSTS_OFF:
+	/* Turn off HW trigger mode if supported */
+	if (sc->flags & HW_CTRL)
+		gdsc_hwctrl(sc, false);
+
 	if (sc->pwrsts & PWRSTS_OFF)
 		gdsc_clear_mem_on(sc);
+		break;
+	case PWRSTS_RET:
+		if (sc->pwrsts_ret == PWRSTS_RET_ALL)
+			gdsc_force_mem_on(sc);
+		else if (sc->pwrsts_ret == PWRSTS_RET_MEM)
+			gdsc_force_mem_core_on(sc);
+		else if (sc->pwrsts_ret == PWRSTS_RET_PERIPH)
+			gdsc_force_mem_periph_on(sc);
+		else
+			return -EINVAL;
+		break;
+	default:
+		return -EINVAL;
+	};
 
 	return gdsc_toggle_logic(sc, false);
 }
@@ -198,6 +269,9 @@ static int gdsc_init(struct gdsc *sc)
 	if (ret)
 		return ret;
 
+	if (!sc->pwrsts)
+		return -EINVAL;
+
 	/* Force gdsc ON if only ON state is supported */
 	if (sc->pwrsts == PWRSTS_ON) {
 		ret = gdsc_toggle_logic(sc, true);
@@ -217,14 +291,15 @@ static int gdsc_init(struct gdsc *sc)
 	if ((sc->flags & VOTABLE) && on)
 		gdsc_enable(&sc->pd);
 
-	if (on || (sc->pwrsts & PWRSTS_RET))
+	if (on)
 		gdsc_force_mem_on(sc);
-	else
-		gdsc_clear_mem_on(sc);
 
 	sc->pd.power_off = gdsc_disable;
 	sc->pd.power_on = gdsc_enable;
-	pm_genpd_init(&sc->pd, NULL, !on);
+	if (sc->pd.state_count)
+		pm_genpd_init(&sc->pd, &simple_qos_governor, !on);
+	else
+		pm_genpd_init(&sc->pd, NULL, !on);
 
 	return 0;
 }
