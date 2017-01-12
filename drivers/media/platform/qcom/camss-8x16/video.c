@@ -506,6 +506,7 @@ static const struct v4l2_file_operations msm_vid_fops = {
 	.release        = video_release,
 	.poll           = vb2_fop_poll,
 	.mmap		= vb2_fop_mmap,
+	.read		= vb2_fop_read,
 };
 
 /* -----------------------------------------------------------------------------
@@ -535,7 +536,7 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 	q->mem_ops = &vb2_dma_contig_memops;
 	q->ops = &msm_video_vb2_q_ops;
 	q->type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
-	q->io_modes = VB2_DMABUF | VB2_MMAP;
+	q->io_modes = VB2_DMABUF | VB2_MMAP | VB2_READ;
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 	q->buf_struct_size = sizeof(struct camss_buffer);
 	q->dev = video->camss->dev;
@@ -556,7 +557,8 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 	mutex_init(&video->lock);
 
 	vdev->fops = &msm_vid_fops;
-	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
+	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING |
+							V4L2_CAP_READWRITE;
 	vdev->ioctl_ops = &msm_vid_ioctl_ops;
 	vdev->release = video_device_release;
 	vdev->v4l2_dev = v4l2_dev;
