@@ -1753,7 +1753,7 @@ static const struct media_entity_operations vfe_media_ops = {
 	.link_validate = v4l2_subdev_link_validate,
 };
 
-static struct camss_video_ops camss_vfe_video_ops = {
+static const struct camss_video_ops camss_vfe_video_ops = {
 	.queue_buffer = vfe_queue_buffer,
 	.flush_buffers = vfe_flush_buffers,
 };

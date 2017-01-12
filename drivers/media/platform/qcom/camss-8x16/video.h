@@ -49,7 +49,7 @@ struct camss_video {
 	struct v4l2_format active_fmt;
 	enum v4l2_buf_type type;
 	struct media_pipeline pipe;
-	struct camss_video_ops *ops;
+	const struct camss_video_ops *ops;
 	struct mutex lock;
 	struct mutex q_lock;
 };
