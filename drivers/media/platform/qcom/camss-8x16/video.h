@@ -18,6 +18,7 @@
 #ifndef QC_MSM_CAMSS_VIDEO_H
 #define QC_MSM_CAMSS_VIDEO_H
 
+#include <linux/mutex.h>
 #include <linux/videodev2.h>
 #include <media/media-entity.h>
 #include <media/v4l2-dev.h>
@@ -53,6 +54,8 @@ struct camss_video {
 	enum v4l2_buf_type type;
 	struct media_pipeline pipe;
 	struct camss_video_ops *ops;
+	struct mutex lock;
+	struct mutex q_lock;
 };
 
 int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,

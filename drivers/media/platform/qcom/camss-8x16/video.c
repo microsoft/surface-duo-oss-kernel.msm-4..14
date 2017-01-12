@@ -295,6 +295,8 @@ static void video_stop_streaming(struct vb2_queue *q)
 
 static struct vb2_ops msm_video_vb2_q_ops = {
 	.queue_setup     = video_queue_setup,
+	.wait_prepare    = vb2_ops_wait_prepare,
+	.wait_finish     = vb2_ops_wait_finish,
 	.buf_prepare     = video_buf_prepare,
 	.buf_queue       = video_buf_queue,
 	.start_streaming = video_start_streaming,
@@ -443,9 +445,13 @@ static int video_open(struct file *file)
 	struct v4l2_fh *vfh;
 	int ret;
 
+	mutex_lock(&video->lock);
+
 	vfh = kzalloc(sizeof(*vfh), GFP_KERNEL);
-	if (vfh == NULL)
-		return -ENOMEM;
+	if (vfh == NULL) {
+		ret = -ENOMEM;
+		goto error_alloc;
+	}
 
 	v4l2_fh_init(vfh, video->vdev);
 	v4l2_fh_add(vfh);
@@ -464,6 +470,8 @@ static int video_open(struct file *file)
 		goto error_init_format;
 	}
 
+	mutex_unlock(&video->lock);
+
 	return 0;
 
 error_init_format:
@@ -471,6 +479,9 @@ error_init_format:
 
 error_pm_use:
 	v4l2_fh_release(file);
+
+error_alloc:
+	mutex_unlock(&video->lock);
 
 	return ret;
 }
@@ -488,28 +499,13 @@ static int video_release(struct file *file)
 	return 0;
 }
 
-static unsigned int video_poll(struct file *file,
-				   struct poll_table_struct *wait)
-{
-	struct camss_video *video = video_drvdata(file);
-
-	return vb2_poll(&video->vb2_q, file, wait);
-}
-
-static int video_mmap(struct file *file, struct vm_area_struct *vma)
-{
-	struct camss_video *video = video_drvdata(file);
-
-	return vb2_mmap(&video->vb2_q, vma);
-}
-
 static const struct v4l2_file_operations msm_vid_fops = {
 	.owner          = THIS_MODULE,
 	.unlocked_ioctl = video_ioctl2,
 	.open           = video_open,
 	.release        = video_release,
-	.poll           = video_poll,
-	.mmap		= video_mmap,
+	.poll           = vb2_fop_poll,
+	.mmap		= vb2_fop_mmap,
 };
 
 /* -----------------------------------------------------------------------------
@@ -532,6 +528,8 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 
 	video->vdev = vdev;
 
+	mutex_init(&video->q_lock);
+
 	q = &video->vb2_q;
 	q->drv_priv = video;
 	q->mem_ops = &vb2_dma_contig_memops;
@@ -541,10 +539,11 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 	q->timestamp_flags = V4L2_BUF_FLAG_TIMESTAMP_MONOTONIC;
 	q->buf_struct_size = sizeof(struct camss_buffer);
 	q->dev = video->camss->dev;
+	q->lock = &video->q_lock;
 	ret = vb2_queue_init(q);
 	if (ret < 0) {
 		dev_err(v4l2_dev->dev, "Failed to init vb2 queue\n");
-		return ret;
+		goto error_vb2_init;
 	}
 
 	pad->flags = MEDIA_PAD_FL_SINK;
@@ -554,6 +553,8 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 		goto error_media_init;
 	}
 
+	mutex_init(&video->lock);
+
 	vdev->fops = &msm_vid_fops;
 	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING;
 	vdev->ioctl_ops = &msm_vid_ioctl_ops;
@@ -561,6 +562,7 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 	vdev->v4l2_dev = v4l2_dev;
 	vdev->vfl_dir = VFL_DIR_RX;
 	vdev->queue = &video->vb2_q;
+	vdev->lock = &video->lock;
 	strlcpy(vdev->name, name, sizeof(vdev->name));
 
 	ret = video_register_device(vdev, VFL_TYPE_GRABBER, -1);
@@ -575,8 +577,11 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 
 error_video_register:
 	media_entity_cleanup(&vdev->entity);
+	mutex_destroy(&video->lock);
 error_media_init:
 	vb2_queue_release(&video->vb2_q);
+error_vb2_init:
+	mutex_destroy(&video->q_lock);
 
 	return ret;
 }
@@ -585,4 +590,6 @@ void msm_video_unregister(struct camss_video *video)
 {
 	video_unregister_device(video->vdev);
 	media_entity_cleanup(&video->vdev->entity);
+	mutex_destroy(&video->q_lock);
+	mutex_destroy(&video->lock);
 }
