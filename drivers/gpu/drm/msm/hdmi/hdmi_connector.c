@@ -207,6 +207,13 @@ static int hpd_enable(struct hdmi_connector *hdmi_connector)
 			HDMI_HPD_CTRL_ENABLE | hpd_ctrl);
 	spin_unlock_irqrestore(&hdmi->reg_lock, flags);
 
+	/*
+	 * wait for a bit so that HPD is sensed if there is a cable already
+	 * connected. Returning early will result in someone calling the
+	 * connnector func's detect() callback too early
+	 */
+	msleep(15);
+
 	return 0;
 
 fail:
@@ -402,6 +409,10 @@ static int msm_hdmi_connector_mode_valid(struct drm_connector *connector,
 
 	if (actual != requested)
 		return MODE_CLOCK_RANGE;
+
+	/* don't go beyond max layer mixer widths right now */
+	if (mode->hdisplay > 2560)
+		return MODE_VIRTUAL_X;
 
 	return 0;
 }
