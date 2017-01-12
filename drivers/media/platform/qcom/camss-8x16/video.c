@@ -168,9 +168,10 @@ static int video_buf_prepare(struct vb2_buffer *vb)
 	struct camss_buffer *buffer = container_of(vbuf, struct camss_buffer,
 						   vb);
 
-	vb2_set_plane_payload(vb, 0, video->active_fmt.fmt.pix.sizeimage);
-	if (vb2_get_plane_payload(vb, 0) > vb2_plane_size(vb, 0))
+	if (video->active_fmt.fmt.pix.sizeimage > vb2_plane_size(vb, 0))
 		return -EINVAL;
+
+	vb2_set_plane_payload(vb, 0, video->active_fmt.fmt.pix.sizeimage);
 
 	vbuf->field = V4L2_FIELD_NONE;
 
