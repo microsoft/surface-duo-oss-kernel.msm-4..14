@@ -149,7 +149,7 @@ int dm_linear_iterate_devices(struct dm_target *ti,
 }
 EXPORT_SYMBOL_GPL(dm_linear_iterate_devices);
 
-static long linear_dax_direct_access(struct dm_target *ti, pgoff_t pgoff,
+long dm_linear_direct_access(struct dm_target *ti, pgoff_t pgoff,
 		long nr_pages, void **kaddr, pfn_t *pfn)
 {
 	long ret;
@@ -164,6 +164,7 @@ static long linear_dax_direct_access(struct dm_target *ti, pgoff_t pgoff,
 		return ret;
 	return dax_direct_access(dax_dev, pgoff, nr_pages, kaddr, pfn);
 }
+EXPORT_SYMBOL_GPL(dm_linear_direct_access);
 
 static struct target_type linear_target = {
 	.name   = "linear",
@@ -176,7 +177,7 @@ static struct target_type linear_target = {
 	.status = dm_linear_status,
 	.prepare_ioctl = dm_linear_prepare_ioctl,
 	.iterate_devices = dm_linear_iterate_devices,
-	.direct_access = linear_dax_direct_access,
+	.direct_access = dm_linear_direct_access,
 };
 
 int __init dm_linear_init(void)
