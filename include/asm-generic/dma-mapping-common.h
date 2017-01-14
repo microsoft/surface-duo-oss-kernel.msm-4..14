@@ -334,12 +334,11 @@ static inline int dma_supported(struct device *dev, u64 mask)
 
 	if (!ops){
 		return 0;
-    }
+	}
 	if (!ops->dma_supported){
 		return 1;
-    }
-    int ret = ops->dma_supported(dev, mask);
-    return ret;
+	}
+    return ops->dma_supported(dev, mask);
 }
 #endif
 
