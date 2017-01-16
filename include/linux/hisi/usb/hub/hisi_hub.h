@@ -16,10 +16,9 @@
  * GNU General Public License for more details.
  *
  */
-
-extern void gpio_hub_device_attach(void);
-extern void gpio_hub_host_attach(void);
-extern void gpio_hub_device_unattach(void);
-extern void gpio_hub_host_unattach(void);
-extern void gpio_hub_power_on(void);
-extern void gpio_hub_power_off(void);
+void gpio_hub_power_on(void);
+void gpio_hub_power_off(void);
+void gpio_hub_switch_to_hub(void);
+void gpio_hub_switch_to_typec(void);
+void gpio_hub_typec_power_off(void);
+void gpio_hub_typec_power_on(void);
