@@ -338,7 +338,7 @@ static void adv7511_power_on(struct adv7511 *adv7511)
 		 * Still, let's be safe and stick to the documentation.
 		 */
 		regmap_write(adv7511->regmap, ADV7511_REG_INT_ENABLE(0),
-			     ADV7511_INT0_EDID_READY);
+			     ADV7511_INT0_EDID_READY | ADV7511_INT0_HPD);
 		regmap_write(adv7511->regmap, ADV7511_REG_INT_ENABLE(1),
 			     ADV7511_INT1_DDC_ERROR);
 	}
@@ -622,8 +622,24 @@ static int adv7511_mode_valid(struct adv7511 *adv7511,
 {
 	if (mode->clock > 165000)
 		return MODE_CLOCK_HIGH;
-
-	return MODE_OK;
+	/*
+	 * some work well modes which want to put in the front of the mode list.
+	 */
+	DRM_DEBUG("Checking mode %ix%i@%i clock: %i...",
+		  mode->hdisplay, mode->vdisplay, drm_mode_vrefresh(mode), mode->clock);
+	if ((mode->hdisplay == 1920 && mode->vdisplay == 1080 && mode->clock == 148500) ||
+	    (mode->hdisplay == 1280 && mode->vdisplay == 800 && mode->clock == 83496) ||
+	    (mode->hdisplay == 1280 && mode->vdisplay == 720 && mode->clock == 74440) ||
+	    (mode->hdisplay == 1280 && mode->vdisplay == 720 && mode->clock == 74250) ||
+	    (mode->hdisplay == 1024 && mode->vdisplay == 768 && mode->clock == 75000) ||
+	    (mode->hdisplay == 1024 && mode->vdisplay == 768 && mode->clock == 81833) ||
+	    (mode->hdisplay == 800 && mode->vdisplay == 600 && mode->clock == 40000)) {
+		mode->type |= DRM_MODE_TYPE_PREFERRED;
+		DRM_DEBUG("OK\n");
+		return MODE_OK;
+	}
+	DRM_DEBUG("BAD\n");
+	return MODE_BAD;
 }
 
 static void adv7511_mode_set(struct adv7511 *adv7511,
@@ -824,6 +840,10 @@ static int adv7511_bridge_attach(struct drm_bridge *bridge)
 
 	if (adv->type == ADV7533)
 		ret = adv7533_attach_dsi(adv);
+
+	if (adv->i2c_main->irq)
+		regmap_write(adv->regmap, ADV7511_REG_INT_ENABLE(0),
+				ADV7511_INT0_HPD);
 
 	return ret;
 }
@@ -1037,6 +1057,8 @@ static int adv7511_probe(struct i2c_client *i2c, const struct i2c_device_id *id)
 		goto err_unregister_cec;
 	}
 
+	adv7511_audio_init(dev, adv7511);
+
 	return 0;
 
 err_unregister_cec:
@@ -1057,6 +1079,8 @@ static int adv7511_remove(struct i2c_client *i2c)
 	}
 
 	drm_bridge_remove(&adv7511->bridge);
+
+	adv7511_audio_exit(adv7511);
 
 	i2c_unregister_device(adv7511->i2c_edid);
 

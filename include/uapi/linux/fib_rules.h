@@ -54,6 +54,14 @@ enum {
 	FRA_TABLE,	/* Extended table id */
 	FRA_FWMASK,	/* mask for netfilter mark */
 	FRA_OIFNAME,
+	/*
+	 * Android expects UID_START/UID_END here, but that
+	 * collides with FRA_PAD and FRA_L3MDEV so add these
+	 * hack entries to allow Android userspace to continue
+	 * to work
+	 */
+	FRA_ANDROID_ABI_HACK1,
+	FRA_ANDROID_ABI_HACK2,
 	FRA_PAD,
 	FRA_L3MDEV,	/* iif or oif is l3mdev goto its table */
 	FRA_UID_RANGE,	/* UID range */
