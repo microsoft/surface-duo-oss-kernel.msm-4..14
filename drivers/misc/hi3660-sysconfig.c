@@ -14,6 +14,7 @@
 static int __init hi3660_sysconf(void)
 {
         static void __iomem *base = NULL;
+	unsigned char data = 0;
 
 	/* check BT I2S0, LEDs */
 	base = ioremap(0xFFF11000, 0x0B0);
@@ -67,6 +68,21 @@ static int __init hi3660_sysconf(void)
 	pr_err("gpio173: 0x%x, WL_SDIO_D3, should be 1\n", readl(base + 0x014));
 
         iounmap(base);
+
+
+	/* adv7533 regulator power up */
+	base = ioremap(0xfff34000, 0x1000);
+
+	data = readb(base + (0x60 << 2)) | (1 << 1);
+	writeb(data, base + (0x60 << 2));
+	data = (readb(base + (0x61 << 2)) & ~(0xF)) | 2;
+	writeb(data, base + (0x61 << 2));
+
+	data = readb(base + (0x5C << 2)) | (1 << 1);
+	writeb(data, base + (0x5C << 2));
+	data = (readb(base + (0x5D << 2)) & ~(0xF)) | 9;
+	writeb(data, base + (0x5D << 2));
+	iounmap(base);
 
         return 0;
 }
