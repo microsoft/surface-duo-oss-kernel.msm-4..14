@@ -972,8 +972,15 @@
 			clock-frequency = <3200000>;
 			resets = <&crg_rst HI3660_RST_SD>;
 			cd-gpios = <&gpio25 3 0>;
+			hisilicon,peripheral-syscon = <&sctrl>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&sdcard_pmx_func>;
+			vmmc-supply = <&ldo16>;
+			vqmmc-supply = <&ldo9>;
+			sd-uhs-sdr12;
+			sd-uhs-sdr25;
+			sd-uhs-sdr50;
+			sd-uhs-sdr104;
 			slot@0 {
 				reg = <0x0>;
 				bus-width = <4>;
@@ -1007,6 +1014,8 @@
 		};
 
 		hisi_usb@ff200000 {
+			#address-cells = <2>;
+			#size-cells = <2>;
 			compatible = "hisilicon,hi3660-dwc3";
 			reg = <0x0 0xff200000 0x0 0x1000 0x0 0xff100000 0x0 0x100000>;
 			ranges;
