@@ -35,6 +35,12 @@
 					0x094 MUX_M1 /* I2C4_SDA (IOMG_037) */
 				>;
 			};
+
+			pcie_perstn_pmx_func: pcie_perstn_pmx_func {
+				pinctrl-single,pins = <
+					0x15C MUX_M1 /* PCIE_PERST_N (IOMG_087) */
+				>;
+			};
 		};
 
 		/* [IOMG_MMC0_000, IOMG_MMC0_005] */
