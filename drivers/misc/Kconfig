@@ -547,7 +547,7 @@ config MEMORY_STATE_TIME
 
 config HI3660_SYSCFG
 	bool "Hisilicon HI3660 System Configuration driver"
-	default y
+	default n
 	help
 	  Hisilicon HI3660 uses some registers to configure some chip hosts to
 	  work or not, e.g. disable the UART hosts reset and let's them work.
