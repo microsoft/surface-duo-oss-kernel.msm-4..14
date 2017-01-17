@@ -459,20 +459,6 @@
 			status = "ok";
 		};
 
-		i2c6: i2c@FFD6A000 {
-			compatible = "snps,designware-i2c";
-			reg = <0x0 0xFFD6A000 0x0 0x1000>;
-			interrupts = <0 117 4>;
-                        #address-cells = <1>;
-                        #size-cells = <0>;
-			clock-frequency = <400000>;
-			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C6>;
-			resets = <&iomcu_rst HI3660_RST_I2C6>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&i2c6_pmx_func>;
-			status = "ok";
-		};
-
 		i2c7: i2c@FDF0B000 {
 			compatible = "snps,designware-i2c";
 			reg = <0x0 0xFDF0B000 0x0 0x1000>;
@@ -1043,6 +1029,46 @@
 				maximum-speed = "super-speed";
 			};
 		};
+
+		i2s0: hisi_i2s {
+			compatible = "hisilicon,hisi-i2s";
+			reg = <0x0 0xe804f800 0x0 0x400>,
+				  <0x0 0xe804e000 0x0 0x400>;
+		//	sio-bt-supply = <&asp>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2s2_pmx_func>;
+		/*	pinctrl-1 = <&gpio196_pmx_idle
+						&gpio197_pmx_idle
+						&gpio198_pmx_idle
+						&gpio199_pmx_idle>;*/
+			dmas = <&asp_dmac 18 &asp_dmac 19>;
+					dma-names = "rx", "tx";
+			status = "ok";
+			};
+
+		asp_dmac: asp_dmac@E804B000 {
+			compatible = "hisilicon,hisi-pcm-asp-dma";
+			reg = <0x0 0xe804b000 0x0 0x1000>;
+		//	asp-dmac-supply = <&asp>;
+			#dma-cells = <1>;
+			dma-channels = <16>;
+			dma-requests = <32>;
+			dma-min-chan = <0>;
+			dma-used-chans = <0xFFFE>;
+			dma-share;
+			interrupts = <0 216 4>;
+			interrupt-names = "asp_dma_irq";
+			status = "ok";
+		};
+
+		hisi_hdmi_card: hisi_hdmi_card {
+			compatible = "hisilicon,hisi-hdmi-audio-card";
+			reg = <0 0 0 0>;
+			sound-dai = <&i2s0>;
+			status = "ok";
+		};
+
+		//wlan_en_reg: jiguangke {};
 	};
 	its_pcie: interrupt-controller@f4000000 {
 		compatible = "arm,gic-v3-its";

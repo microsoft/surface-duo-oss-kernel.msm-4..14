@@ -105,6 +105,15 @@
 			/* pin base in node, nr pins & gpio function */
 			pinctrl-single,gpio-range = <&range 0 42 0>;
 
+			i2s2_pmx_func: i2s2_pmx_func {
+				pinctrl-single,pins = <
+					0x044 MUX_M1
+					0x048 MUX_M1
+					0x04C MUX_M1
+					0x050 MUX_M1
+				>;
+			};
+
 			i2c0_pmx_func: i2c0_pmx_func {
 				pinctrl-single,pins = <
 					0x014 MUX_M1 /* I2C0_SCL (IOMG_AO_005) */
@@ -123,13 +132,6 @@
 				pinctrl-single,pins = <
 					0x024 MUX_M1 /* I2C2_SCL (IOMG_AO_009) */
 					0x028 MUX_M1 /* I2C2_SDA (IOMG_AO_010) */
-				>;
-			};
-
-			i2c6_pmx_func: i2c6_pmx_func {
-				pinctrl-single,pins = <
-					0x048 MUX_M4 /* I2C6_SCL (IOMG_AO_018) */
-					0x044 MUX_M4 /* I2C6_SDA (IOMG_AO_017) */
 				>;
 			};
 
