@@ -1175,7 +1175,7 @@ void kbase_release_device(struct kbase_device *kbdev)
 }
 EXPORT_SYMBOL(kbase_release_device);
 
-#if KERNEL_VERSION(4, 6, 0) > LINUX_VERSION_CODE
+#if 0 /*KERNEL_VERSION(4, 6, 0) > LINUX_VERSION_CODE*/
 /*
  * Older versions, before v4.6, of the kernel doesn't have
  * kstrtobool_from_user().
