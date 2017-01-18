@@ -100,6 +100,7 @@ int hisi_i2s_startup(struct snd_pcm_substream *substream,
 		     struct snd_soc_dai *cpu_dai)
 {
 	struct hisi_i2s *i2s = dev_get_drvdata(cpu_dai->dev);
+	u32 val;
 	int ret = 0;
 
 //	ret = regulator_enable(i2s->regu_asp);
@@ -140,7 +141,7 @@ int hisi_i2s_startup(struct snd_pcm_substream *substream,
 	hisi_syscon_bits(i2s, HI_ASP_CFG_R_CLK4_DIV_REG, HI_ASP_MASK,HI_ASP_CFG_R_CLK4_DIV_SEL);
 	hisi_syscon_bits(i2s, HI_ASP_CFG_R_CLK6_DIV_REG, HI_ASP_MASK,HI_ASP_CFG_R_CLK6_DIV_SEL);
 
-	u32 val = readl(i2s->base_syscon + HI_ASP_CFG_R_SEC_REG);
+	val = readl(i2s->base_syscon + HI_ASP_CFG_R_SEC_REG);
 	pr_info("****** %s val  0x%x \n", __func__,val);
 	
 #if 1
@@ -150,14 +151,14 @@ int hisi_i2s_startup(struct snd_pcm_substream *substream,
 	hisi_bits(i2s, HI_ASP_SIO_I2S_POS_MERGE_EN_REG, HI_ASP_MASK, 0x1);
 	hisi_bits(i2s, HI_ASP_SIO_I2S_START_POS_REG, HI_ASP_MASK, 0x0);
 #endif
-	pr_info("****** return \n", __func__);
+	pr_info("****** %s return \n", __func__);
 	return 0;
 }
 void hisi_i2s_shutdown(struct snd_pcm_substream *substream,
 		       struct snd_soc_dai *cpu_dai)
 {
 	struct hisi_i2s *i2s = dev_get_drvdata(cpu_dai->dev);
-	int ret;
+	int ret = 0;
 
 //	ret = regulator_disable(i2s->regu_asp);
 	if (ret) {
