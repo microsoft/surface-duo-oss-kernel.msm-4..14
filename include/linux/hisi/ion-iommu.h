@@ -35,8 +35,6 @@ int hisi_iommu_unmap_domain(struct iommu_map_format *format);
 
 phys_addr_t hisi_iommu_domain_iova_to_phys(unsigned long iova);
 
-unsigned int hisi_iommu_page_size (void);
-bool hisi_iommu_off_on(void);
 int hisi_iommu_get_info(unsigned int *iova_start, unsigned int *pgtbl_base);
 
 #else
@@ -58,15 +56,6 @@ static inline int hisi_iommu_unmap_domain(struct iommu_map_format *format)
 static inline phys_addr_t hisi_iommu_domain_iova_to_phys(unsigned long iova)
 {
 	return 0;
-}
-unsigned int hisi_iommu_page_size (void)
-{
-	return SZ_4K;
-}
-
-bool hisi_iommu_off_on(void)
-{
-	return false;
 }
 
 static inline int hisi_iommu_get_info(unsigned int *iova_start, unsigned int *pgtbl_base)
