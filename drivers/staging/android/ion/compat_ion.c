@@ -39,7 +39,7 @@ struct compat_ion_handle_data {
 	compat_int_t handle;
 };
 
-#if CONFIG_HISI_IOMMU
+#ifdef CONFIG_HISI_IOMMU
 struct compat_iommu_map_format {
 	compat_ulong_t iova_start;
 	compat_ulong_t iova_size;
@@ -64,7 +64,7 @@ struct compat_ion_map_iommu_data {
 				      struct compat_ion_handle_data)
 #define COMPAT_ION_IOC_CUSTOM	_IOWR(ION_IOC_MAGIC, 6, \
 				      struct compat_ion_custom_data)
-#if CONFIG_HISI_IOMMU
+#ifdef CONFIG_HISI_IOMMU
 #define COMPAT_ION_IOC_MAP_IOMMU	_IOWR(ION_IOC_MAGIC, 8, \
 				      struct compat_ion_map_iommu_data)
 #define COMPAT_ION_IOC_UNMAP_IOMMU	_IOWR(ION_IOC_MAGIC, 9, \
@@ -146,7 +146,7 @@ static int compat_get_ion_custom_data(
 	return err;
 };
 
-#if CONFIG_HISI_IOMMU
+#ifdef CONFIG_HISI_IOMMU
 static int compat_put_ion_map_iommu_data(
 			struct compat_ion_map_iommu_data __user *data32,
 			struct ion_map_iommu_data __user *data)
@@ -273,7 +273,7 @@ long compat_ion_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		return filp->f_op->unlocked_ioctl(filp, ION_IOC_CUSTOM,
 							(unsigned long)data);
 	}
-#if CONFIG_HISI_IOMMU
+#ifdef CONFIG_HISI_IOMMU
 	case COMPAT_ION_IOC_MAP_IOMMU:
 	{
 		struct compat_ion_map_iommu_data __user *data32;
