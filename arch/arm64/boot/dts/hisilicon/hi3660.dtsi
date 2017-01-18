@@ -264,6 +264,31 @@
 			status = "ok";
 		};
 
+		i2c4: i2c@FDF0D000 {
+			compatible = "snps,designware-i2c";
+			reg = <0x0 0xFDF0D000 0x0 0x1000>;
+			interrupts = <0 82 4>;
+                        #address-cells = <1>;
+                        #size-cells = <0>;
+			clock-frequency = <400000>;
+			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C4>;
+			resets = <&crg_rst HI3660_RST_I2C4>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&i2c4_pmx_func>;
+			status = "ok";
+
+			fairchild_fsa9685: fsa9685@25 {
+				compatible = "hisilicon,fairchild_fsa9685";
+				reg = <0x25>;
+				fairchild_fsa9685,gpio-intb = <&gpio25 6 0>;
+				usbid-enable = <1>;
+				fcp_support = <1>;
+				scp_support = <0>;
+				mhl_detect_disable = <1>;
+				status = "ok";
+			};
+		};
+
 		i2c1: i2c@FFD72000 {
 			compatible = "snps,designware-i2c";
 			reg = <0x0 0xFFD72000 0x0 0x1000>;
@@ -277,6 +302,103 @@
 			pinctrl-0 = <&i2c1_pmx_func>;
 			status = "ok";
 
+			fusb30x@22 {
+				status = "disabled";
+				fairchild,int_n = <&gpio27 3 0>;
+			};
+
+			rt1711@4e {
+				compatible = "richtek,rt1711";
+				reg = <0x4e>;
+				status = "ok";
+				rt1711,irq_pin = <&gpio27 3 0>;
+				/*gpios = <&gpio27 3 0>, <&gpio25 2 0>, <&gpio25 6 0>, <&gpio9 1 0>, <&gpio9 2 0>;*/
+				/*gpio_nums = <219 202 206 73 74>;*/
+				rt-dual,supported_modes = <0>; /* 0: dfp/ufp, 1: dfp, 2: ufp */
+				rt-tcpc,name = "type_c_port0"; /* tcpc_device's name */
+				rt-tcpc,role_def = <2>; /* 0: SNK Only, 1: SRC Only, 2: DRP, 3: Try.SRC, 4: Try.SNK */
+				rt-tcpc,rp_level = <0>; /* 0: Default, 1: 1.5, 2: 3.0 */
+				rt-tcpc,notifier_supply_num = <0>; /* the number of notifier supply */
+				pd-data {
+					pd,source-pdo-size = <1>;
+					pd,source-pdo-data = <0x00019064>;  /*<0x019014>;*/
+
+					pd,sink-pdo-size = <2>;
+					pd,sink-pdo-data = <0x000190c8 0x0002d0c8> ;   /* 0x0002d0c8 : 9V, 2A */
+
+					/*
+					No DP
+					pd,id-vdo-size = <3>;
+					pd,id-vdo-data = <0x500029cf 0x0 0x00010000>;
+					With DP
+					pd,id-vdo-size = <4>;
+					pd,id-vdo-data = <0xec0029cf 0x0 0x00010000 0x11000001>;
+					*/
+
+					pd,id-vdo-size = <3>;
+					pd,id-vdo-data = <0xd00029cf 0x0 0x00010000>;
+				};
+				dpm_caps {
+					local_dr_power;
+					local_dr_data;
+					// local_ext_power;
+					local_usb_comm;
+					// local_usb_suspend;
+					// local_high_cap;
+					// local_give_back;
+					// local_no_suspend;
+					local_vconn_supply;
+
+					// attemp_enter_dp_mode;
+					attemp_discover_cable;
+					attemp_discover_id;
+
+					/* 0: disable, 1: prefer_snk, 2: prefer_src */
+					pr_check = <0>;
+					// pr_reject_as_source;
+					// pr_reject_as_sink;
+					pr_check_gp_source;
+					// pr_check_gp_sink;
+
+					/* 0: disable, 1: prefer_ufp, 2: prefer_dfp */
+					dr_check = <0>;
+					// dr_reject_as_dfp;
+					// dr_reject_as_ufp;
+
+					snk_prefer_low_voltage;
+					snk_ignore_mismatch_current;
+				};
+				displayport {
+					/* connection type = "both", "ufp_d", "dfp_d" */
+					1st_connection = "dfp_d";
+					2nd_connection = "dfp_d";
+					signal,dp_v13;
+					//signal,dp_gen2;
+					//usbr20_not_used;
+					typec,receptacle;
+					ufp_d {
+						//pin_assignment,mode_a;
+						//pin_assignment,mode_b;
+						//pin_assignment,mode_c;
+						//pin_assignment,mode_d;
+						//pin_assignment,mode_e;
+					};
+					dfp_d {
+						/* Only support mode C & D */
+						//pin_assignment,mode_a;
+						//pin_assignment,mode_b;
+						pin_assignment,mode_c;
+						pin_assignment,mode_d;
+						//pin_assignment,mode_e;
+						//pin_assignment,mode_f;
+					};
+				};
+			};
+
+			tusb422@20 {
+				status = "disabled";
+				ti,alert-gpio = <&gpio27 3 0>;
+			};
 			adv7533: adv7533@39 {
 				status = "ok";
 				compatible = "adi,adv7533";
@@ -291,6 +413,23 @@
 				adi,disable-timing-generator;
 			};
 		};
+
+		pd_dpm {
+			compatible = "hisilicon,pd_dpm";
+			tcp_name = "type_c_port0";
+			status = "ok";
+		};
+
+           	hub: gpio_hub{
+           		compatible = "hisilicon,gpio_hub";
+           		typc_vbus_int_gpio,typec-gpios = <&gpio25 2 0>;
+           		otg_gpio = <&gpio25 6 0>;
+			hub_vdd12_en_gpio = <&gpio9 1 0>;
+			hub_vdd33_en_gpio = <&gpio9 2 0>;
+			hub_reset_en_gpio = <&gpio4 4 0>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&usbhub5734_pmx_func>;
+	    	};
 
 		i2c2: i2c@FFD73000 {
 			compatible = "snps,designware-i2c";
@@ -317,20 +456,6 @@
 			resets = <&crg_rst HI3660_RST_I2C3>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2c3_pmx_func>;
-			status = "ok";
-		};
-
-		i2c4: i2c@FDF0D000 {
-			compatible = "snps,designware-i2c";
-			reg = <0x0 0xFDF0D000 0x0 0x1000>;
-			interrupts = <0 82 4>;
-                        #address-cells = <1>;
-                        #size-cells = <0>;
-			clock-frequency = <400000>;
-			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C4>;
-			resets = <&crg_rst HI3660_RST_I2C4>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&i2c4_pmx_func>;
 			status = "ok";
 		};
 
@@ -888,8 +1013,37 @@
 			pinctrl-1 = <>;
 			status = "disabled";
 		};
-	};
 
+		hub5734_gpio:hub5734_gpio {
+			compatible = "hub5734_gpio";
+			pinctrl-names = "default";
+			pinctrl-0 = <&usbhub5734_pmx_func>;
+		};
+
+		hisi_usb@ff200000 {
+			compatible = "hisilicon,hi3660-dwc3";
+			reg = <0x0 0xff200000 0x0 0x1000 0x0 0xff100000 0x0 0x100000>;
+			ranges;
+			bc_again_flag = <1>;
+
+			clocks = <&crg_ctrl HI3660_CLK_GATE_ABB_USB>,
+				<&crg_ctrl HI3660_ACLK_GATE_USB3OTG>;
+			clock-names = "clk_usb3phy_ref", "aclk_usb3otg";
+			eye_diagram_param = <0x1c466e3>;
+			eye_diagram_host_param = <0x1c466e3>;
+			usb3_phy_cr_param = <0xb80>;
+			usb3_phy_host_cr_param = <0x980>;
+			usb3_phy_tx_vboost_lvl = <0x5>;
+
+			dwc3@ff100000 {
+				compatible = "snps,dwc3";
+				reg = <0x0 0xff100000 0x0 0x100000>;
+				interrupts = <0 159 4>, <0 161 4>;
+				dr_mode = "otg";
+				maximum-speed = "super-speed";
+			};
+		};
+	};
 	its_pcie: interrupt-controller@f4000000 {
 		compatible = "arm,gic-v3-its";
 		msi-controller;

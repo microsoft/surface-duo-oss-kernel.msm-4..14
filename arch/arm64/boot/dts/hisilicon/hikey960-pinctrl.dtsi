@@ -41,6 +41,13 @@
 					0x15C MUX_M1 /* PCIE_PERST_N (IOMG_087) */
 				>;
 			};
+
+			usbhub5734_pmx_func: usbhub5734_pmx_func {
+				pinctrl-single,pins = <
+					0x11C MUX_M0 /* GPIO_073 (IOMG_071) */
+					0x120 MUX_M0 /* GPIO_074 (IOMG_072) */
+				>;
+			};
 		};
 
 		/* [IOMG_MMC0_000, IOMG_MMC0_005] */
