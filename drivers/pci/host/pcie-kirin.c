@@ -460,7 +460,7 @@ static void kirin_handle_work(struct work_struct *work)
 
 }
 
-
+#ifdef UNUSED_CODE
 static irqreturn_t kirin_pcie_linkdown_irq_handler(int irq, void *arg)
 {
 	struct pcie_port *pp = arg;
@@ -472,6 +472,8 @@ static irqreturn_t kirin_pcie_linkdown_irq_handler(int irq, void *arg)
 
 	return IRQ_HANDLED;
 }
+#endif /* UNUSED_CODE */
+
 static irqreturn_t kirin_pcie_msi_irq_handler(int irq, void *arg)
 {
 	struct pcie_port *pp = arg;
