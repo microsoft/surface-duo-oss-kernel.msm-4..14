@@ -43,8 +43,6 @@
 
 static int usb3_regu_init(struct hisi_dwc3_device *hisi_dwc3)
 {
-	int ret;
-
 	if (0 != hisi_dwc3->is_regu_on) {
 		usb_dbg("ldo already opened!\n");
 		return 0;
@@ -67,8 +65,6 @@ static int usb3_regu_init(struct hisi_dwc3_device *hisi_dwc3)
 
 static int usb3_regu_shutdown(struct hisi_dwc3_device *hisi_dwc3)
 {
-	int ret;
-
 	if (0 == hisi_dwc3->is_regu_on) {
 		usb_dbg("regu already closed!\n");
 		return 0;
