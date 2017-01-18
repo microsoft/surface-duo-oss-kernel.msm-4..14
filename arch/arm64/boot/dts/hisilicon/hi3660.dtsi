@@ -403,8 +403,8 @@
 				status = "ok";
 				compatible = "adi,adv7533";
 				reg = <0x39>;
-				//v1p2-supply = <&ldo1>;
-				//vdd-supply = <&ldo3>;
+				v1p2-supply = <&ldo1>;
+				vdd-supply = <&ldo3>;
 				interrupt-parent = <&gpio1>;
 				interrupts = <1 2>;
 				pd-gpio = <&gpio5 1 0>;
