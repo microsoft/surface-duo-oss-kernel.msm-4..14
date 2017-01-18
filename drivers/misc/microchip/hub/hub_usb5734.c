@@ -81,6 +81,7 @@ static void gpio_hub_gpio_free(void)
     gpio_hub_driver_info.typec_vbus_gpio = -1;
 }
 
+#ifdef UNUSED_CODE
 static void gpio_hub_vbus_power_on(void)
 {
     struct device_node * root;
@@ -164,10 +165,10 @@ static void gpio_hub_vbus_power_on(void)
     hisilog_info("%s gpio hub step out", __func__);
     return;
 }
+#endif /* UNUSED_CODE */
 static int gpio_hub_probe(struct platform_device *pdev)
 {
     int set_hub_vbus_gpio;
-    int otg_switch_status;
     int typec_vbus_status;
     int set_typec_vbus_gpio;
     int hub_vbus_status;

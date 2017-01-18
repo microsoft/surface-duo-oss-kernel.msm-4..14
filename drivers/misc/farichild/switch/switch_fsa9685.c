@@ -56,7 +56,6 @@ struct mutex accp_detect_lock;
 struct mutex accp_adaptor_reg_lock;
 
 extern unsigned int get_boot_into_recovery_flag(void);
-static int fsa9685_is_support_scp(void);
 #define HISILOG_TAG switch_fsa9685
 HISILOG_REGIST();
 
@@ -1283,8 +1282,6 @@ static struct i2c_driver fsa9685_i2c_driver = {
 
 static __init int fsa9685_i2c_init(void)
 {
-    struct device *dev;
-    struct gpio_descs		*mode;
     int ret = 0;
 
     hisilog_info("%s: ------entry.\n", __func__);

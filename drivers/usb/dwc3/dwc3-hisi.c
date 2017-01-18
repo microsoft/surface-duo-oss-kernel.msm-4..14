@@ -208,6 +208,7 @@ ssize_t hiusb_do_charger_store(void *dev_data, const char *buf, size_t size)
 	return size;
 }
 
+#ifdef CONFIG_HISI_DEBUG_FS
 static ssize_t fakecharger_show(void *dev_data, char *buf, size_t size)
 {
 	struct hisi_dwc3_device *hisi_dwc = (struct hisi_dwc3_device *)dev_data;
@@ -238,7 +239,7 @@ static ssize_t fakecharger_store(void *dev_data, const char *buf, size_t size)
 
 	return size;
 }
-
+#endif /* CONFIG_HISI_DEBUG_FS */
 ssize_t hiusb_do_eventmask_show(void *dev_data, char *buf, size_t size)
 {
 	struct hisi_dwc3_device *hisi_dwc = (struct hisi_dwc3_device *)dev_data;
@@ -1139,11 +1140,11 @@ static int event_check(enum otg_dev_event_type last_event,
 int hisi_usb_otg_event(enum otg_dev_event_type event)
 {
 	int ret = 0;
-    usb_err("hisi_usb_otg_event in:%d\n", event);
 #ifdef CONFIG_USB_DWC3_OTG
-    usb_err("hisi_usb_otg_event in otg:%d\n", event);
 	unsigned long flags;
 	struct hisi_dwc3_device *hisi_dwc3 = hisi_dwc3_dev;
+
+    usb_err("hisi_usb_otg_event in otg:%d\n", event);
 
 	if (!hisi_dwc3){
         usb_dbg("hisi_usb_otg_event error:%d\n", event);
@@ -1181,6 +1182,7 @@ int hisi_usb_otg_event(enum otg_dev_event_type event)
 	}
 	spin_unlock_irqrestore(&(hisi_dwc3->event_lock), flags);
 #endif
+    usb_err("hisi_usb_otg_event in:%d\n", event);
 	return ret;
 }
 EXPORT_SYMBOL_GPL(hisi_usb_otg_event);

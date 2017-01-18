@@ -1110,6 +1110,7 @@ static int rt_parse_dt(struct rt1711_chip *chip, struct device *dev)
  * PD_DBG_INFO, this will provide the threaded debug message for you.
  */
 #if TCPC_ENABLE_ANYMSG
+#ifdef UNUSED_CODE
 static void check_printk_performance(void)
 {
 	int i;
@@ -1148,6 +1149,7 @@ static void check_printk_performance(void)
 	}
 #endif /* CONFIG_PD_DBG_INFO */
 }
+#endif /* UNUSED_CODE */
 #endif /* TCPC_ENABLE_ANYMSG */
 
 static int rt1711_tcpcdev_init(struct rt1711_chip *chip, struct device *dev)

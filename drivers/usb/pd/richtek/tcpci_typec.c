@@ -59,7 +59,6 @@ int oldStatus =  TYPEC_INIT;
 static inline void typec_wait_ps_change(struct tcpc_device *tcpc_dev,
 					enum TYPEC_WAIT_PS_STATE state)
 {
-       hisilog_err("%s: typec_wait_ps_change!!!+++++++++++\n", __func__);
 #if TYPEC_DBG_ENABLE
 	uint8_t old_state = tcpc_dev->typec_wait_ps_change;
 	uint8_t new_state = (uint8_t) state;
@@ -67,6 +66,7 @@ static inline void typec_wait_ps_change(struct tcpc_device *tcpc_dev,
 	if (new_state != old_state)
 		TYPEC_DBG("wait_ps=%s\r\n", typec_wait_ps_name[new_state]);
 #endif
+       hisilog_err("%s: typec_wait_ps_change!!!+++++++++++\n", __func__);
 
 #ifdef CONFIG_TYPEC_ATTACHED_SRC_SAFE0V_TIMEOUT
 	if (state == TYPEC_WAIT_PS_SRC_VSAFE0V)

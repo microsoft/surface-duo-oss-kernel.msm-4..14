@@ -9,10 +9,12 @@
 #include <linux/hisi/log/log_jank.h>
 int hisi_usb_vbus_value(void)
 {
-    return 0;
+	return 0;
+/*
 	unsigned long base = 0;
 	int pmic_status1 = hisi_pmic_reg_read(PMIC_STATUS1_ADDR(base));
 	return !!(pmic_status1 & (1 << 7));
+*/
 }
 
 irqreturn_t charger_connect_interrupt(int irq, void *p)

@@ -71,18 +71,18 @@ int hisilog_to_jank(int tag, int prio, const char* fmt, ...);
 #endif
 
 #else
-#define pr_jank(tag, fmt, ...)	(-ENOENT)
-#define LOG_JANK_D(tag, fmt, ...)	(-ENOENT)
-#define LOG_JANK_W(tag, fmt, ...)	(-ENOENT)
-#define LOG_JANK_V(tag, fmt, ...)	(-ENOENT)
-#define LOG_JANK_I(tag, fmt, ...)	(-ENOENT)
-#define LOG_JANK_E(tag, fmt, ...)	(-ENOENT)
+#define pr_jank(tag, fmt, ...)
+#define LOG_JANK_D(tag, fmt, ...)
+#define LOG_JANK_W(tag, fmt, ...)
+#define LOG_JANK_V(tag, fmt, ...)
+#define LOG_JANK_I(tag, fmt, ...)
+#define LOG_JANK_E(tag, fmt, ...)
 
-#define HWBDAT_pr(tag, fmt, ...)	(-ENOENT)
-#define HWBDAT_LOGV(tag, fmt, ...)	(-ENOENT)
-#define HWBDAT_LOGD(tag, fmt, ...)	(-ENOENT)
-#define HWBDAT_LOGI(tag, fmt, ...)	(-ENOENT)
-#define HWBDAT_LOGW(tag, fmt, ...)	(-ENOENT)
-#define HWBDAT_LOGE(tag, fmt, ...)	(-ENOENT)
+#define HWBDAT_pr(tag, fmt, ...)
+#define HWBDAT_LOGV(tag, fmt, ...)
+#define HWBDAT_LOGD(tag, fmt, ...)
+#define HWBDAT_LOGI(tag, fmt, ...)
+#define HWBDAT_LOGW(tag, fmt, ...)
+#define HWBDAT_LOGE(tag, fmt, ...)
 #endif
 #endif

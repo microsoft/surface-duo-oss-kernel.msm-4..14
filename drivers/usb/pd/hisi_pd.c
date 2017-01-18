@@ -48,7 +48,6 @@ struct pd_dpm_info *g_pd_di = NULL;
 static bool g_pd_cc_orientation = false;
 static struct class *typec_class = NULL;
 static struct device *typec_dev = NULL;
-static struct mutex dpm_sink_vbus_lock;
 static int pd_dpm_typec_state = 0;
 
 #ifndef HISILOG_TAG
@@ -345,7 +344,6 @@ void pd_dpm_report_pd_sink_vbus(struct pd_dpm_info *di, void *data)
 int pd_dpm_report_bc12(struct notifier_block *usb_nb,
                                     unsigned long event, void *data)
 {
-	struct pd_dpm_vbus_state *vbus_state = data;
 	struct pd_dpm_info *di = container_of(usb_nb, struct pd_dpm_info, usb_nb);
 
 	if(CHARGER_TYPE_NONE == event && !di->pd_finish_flag)
@@ -359,7 +357,7 @@ int pd_dpm_report_bc12(struct notifier_block *usb_nb,
 		return NOTIFY_OK;
 
 	if (!di->pd_finish_flag) {
-		hisilog_info("%s : event (%d)\n", __func__, event);
+		hisilog_info("%s : event (%lu)\n", __func__, event);
 		pd_dpm_vbus_notifier_call(di,event,data);
 	} else
 		hisilog_info("%s : igrone\n", __func__);
@@ -657,10 +655,6 @@ static int pd_dpm_probe(struct platform_device *pdev)
 {
 	int ret = 0;
 	struct pd_dpm_info *di;
-	enum hisi_charger_type type;
-
-	struct dual_role_phy_desc *desc;
-	struct dual_role_phy_instance *dual_role;
 
 	di = devm_kzalloc(&pdev->dev,sizeof(*di), GFP_KERNEL);
 	di->dev = &pdev->dev;

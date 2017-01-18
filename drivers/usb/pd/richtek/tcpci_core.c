@@ -384,7 +384,7 @@ static int pd_dpm_wake_lock_call(struct notifier_block *dpm_nb, unsigned long ev
 			wake_unlock(&tcpc->attach_wake_lock);
 			break;
 		default:
-			pr_info("%s unknown event (%d)\n", __func__, event);
+			pr_info("%s unknown event (%lu)\n", __func__, event);
 			break;
 	}
 

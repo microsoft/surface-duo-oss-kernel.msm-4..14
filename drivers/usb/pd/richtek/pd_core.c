@@ -207,7 +207,7 @@ static int dpm_alt_mode_parse_svid_data(
 	}
 	/* 2nd connection must not be BOTH */
 	if(pd_port->dp_second_connected == DPSTS_BOTH_CONNECTED) {
-		snprintf(buf, sizeof(buf), "the connect mode is %s.\n", pd_port->dp_second_connected);
+		snprintf(buf, sizeof(buf), "the connect mode is %i.\n", pd_port->dp_second_connected);
 	}
 	/* UFP or DFP can't both be invalid */
 	if(ufp_d_pin_cap == 0) {

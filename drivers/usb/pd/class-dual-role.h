@@ -109,6 +109,7 @@ extern int dual_role_property_is_writeable(struct dual_role_phy_instance
 					   enum dual_role_property prop);
 extern void *dual_role_get_drvdata(struct dual_role_phy_instance *dual_role);
 #else /* CONFIG_DUAL_ROLE_USB_INTF */
+#ifdef UNUSED_CODE
 static void dual_role_instance_changed(struct dual_role_phy_instance
 				       *dual_role){}
 static struct dual_role_phy_instance *__must_check
@@ -124,5 +125,6 @@ static void *dual_role_get_drvdata(struct dual_role_phy_instance *dual_role)
 {
 	return ERR_PTR(-ENOSYS);
 }
+#endif /* UNUSED_CODE */
 #endif /* CONFIG_DUAL_ROLE_USB_INTF */
 #endif /* __LINUX_CLASS_DUAL_ROLE_H__ */

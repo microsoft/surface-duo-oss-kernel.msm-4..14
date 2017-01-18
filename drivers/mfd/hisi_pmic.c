@@ -377,8 +377,9 @@ static int hisi_pmic_probe(struct platform_device *pdev)
 	int ret, i;
 	int fpga_flag = 0;
 	unsigned int virq;
+#if defined (CONFIG_HUAWEI_DSM)
 	int pmic_irq_error_offset;
-
+#endif
 	pmic = devm_kzalloc(dev, sizeof(*pmic), GFP_KERNEL);
 	if (!pmic) {
 		dev_err(dev, "cannot allocate hisi_pmic device info\n");
