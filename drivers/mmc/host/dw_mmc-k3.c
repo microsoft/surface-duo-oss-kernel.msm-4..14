@@ -77,7 +77,6 @@ static unsigned long dw_mci_hi6220_caps[] = {
 	MMC_CAP_CMD23,
 	0
 };
-static void __iomem *sys_base;
 
 struct hs_timing {
 	int drv_phase;
