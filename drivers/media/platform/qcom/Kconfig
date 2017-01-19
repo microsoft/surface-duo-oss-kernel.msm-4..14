@@ -3,3 +3,5 @@ menuconfig VIDEO_QCOM_CAMSS
 	tristate "Qualcomm 8x16 V4L2 Camera Subsystem driver"
 	depends on ARCH_QCOM && VIDEO_V4L2
 	select VIDEOBUF2_DMA_CONTIG
+
+source "drivers/media/platform/qcom/cci/Kconfig"

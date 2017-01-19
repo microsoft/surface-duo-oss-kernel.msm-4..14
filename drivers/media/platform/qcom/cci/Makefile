@@ -1,6 +1,6 @@
 # Makefile for Qualcomm cci driver
 
-ccflags-y += -Idrivers/media/platform/msm/cci
+ccflags-y += -Idrivers/media/platform/qcom/cci
 msm-cci-objs += \
 		cci.o \
 

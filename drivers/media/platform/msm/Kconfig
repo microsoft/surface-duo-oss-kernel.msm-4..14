@@ -1,7 +1,0 @@
-
-# MSM camera configuration
-#
-
-comment "Qualcomm MSM Camera And Video"
-
-source "drivers/media/platform/msm/cci/Kconfig"
