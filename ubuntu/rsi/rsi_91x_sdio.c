@@ -1221,9 +1221,11 @@ static const struct dev_pm_ops rsi_pm_ops = {
 #endif
 
 static const struct sdio_device_id rsi_dev_table[] =  {
+#if 0
 	{ SDIO_DEVICE(0x303, 0x100) },
 	{ SDIO_DEVICE(0x041B, 0x0301) },
 	{ SDIO_DEVICE(0x041B, 0x0201) },
+#endif
 	{ SDIO_DEVICE(0x041B, 0x9330) },
 	{ /* Blank */},
 };
