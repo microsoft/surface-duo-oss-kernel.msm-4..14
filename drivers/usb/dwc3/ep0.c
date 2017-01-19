@@ -97,7 +97,7 @@ static int dwc3_ep0_start_trans(struct dwc3 *dwc, u8 epnum)
 		return 0;
 	}
 
-
+#if 0
 	/* If software wants to indicate a transfer completion to the host by
 	 * sending a zero-length packet after a multiple of MaxPacketSize, it
 	 * must set up a zero-length TRB following the last TRB in the transfer
@@ -121,6 +121,7 @@ static int dwc3_ep0_start_trans(struct dwc3 *dwc, u8 epnum)
 				| DWC3_TRB_CTRL_IOC
 				| DWC3_TRB_CTRL_ISP_IMI);
 	}
+#endif
 
 	memset(&params, 0, sizeof(params));
 	params.param0 = upper_32_bits(dwc->ep0_trb_addr);
