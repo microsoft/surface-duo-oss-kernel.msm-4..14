@@ -22,6 +22,7 @@ source "ubuntu/hio/Kconfig"
 ##
 ##
 ##
+source "ubuntu/rsi/Kconfig"
 ##
 ##
 ##

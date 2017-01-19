@@ -36,6 +36,9 @@ endif
 ##
 ##
 ##
+obj-$(CONFIG_WLAN_VENDOR_RSI) += rsi/
+##
+##
 ##
 ##
 ##
