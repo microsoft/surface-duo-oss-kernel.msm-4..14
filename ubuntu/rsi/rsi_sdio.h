@@ -112,7 +112,7 @@ struct receive_info {
 
 struct rsi_91x_sdiodev {
 	struct sdio_func *pfunction;
-	struct task_struct *in_sdio_litefi_irq;
+	struct task_struct *sdio_irq_task;
 	struct receive_info rx_info;
 	u32 next_read_delay;
 	u32 sdio_high_speed_enable;
@@ -121,6 +121,7 @@ struct rsi_91x_sdiodev {
 	u8 prev_desc[16];
 	u32 tx_blk_size;
 	u8 write_fail;
+	u8 buff_status_updated;
 };
 
 void rsi_interrupt_handler(struct rsi_hw *adapter);
@@ -149,4 +150,5 @@ int rsi_sdio_master_reg_write(struct rsi_hw *adapter,
 void rsi_sdio_ack_intr(struct rsi_hw *adapter, u8 int_bit);
 int rsi_sdio_determine_event_timeout(struct rsi_hw *adapter);
 int rsi_sdio_read_buffer_status_register(struct rsi_hw *adapter, u8 q_num);
+int rsi_read_intr_status_reg(struct rsi_hw *adapter);
 #endif

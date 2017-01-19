@@ -206,9 +206,9 @@ static int rsi_stats_open(struct inode *inode,
  */
 static int rsi_debug_zone_read(struct seq_file *seq, void *data)
 {
-	rsi_dbg(FSM_ZONE, "%x: rsi_enabled zone", rsi_zone_enabled);
+	ven_rsi_dbg(FSM_ZONE, "%x: rsi_enabled zone", ven_rsi_zone_enabled);
 	seq_printf(seq, "The zones available are %#x\n",
-		   rsi_zone_enabled);
+		   ven_rsi_zone_enabled);
 	return 0;
 }
 
@@ -252,7 +252,7 @@ static ssize_t rsi_debug_zone_write(struct file *filp,
 	if (ret)
 		return ret;
 
-	rsi_zone_enabled = dbg_zone;
+	ven_rsi_zone_enabled = dbg_zone;
 	return len;
 }
 
@@ -280,8 +280,13 @@ static int rsi_bgscan_int_read(struct seq_file *file, void *data)
 		   params->two_probe,
 		   params->num_bg_channels);
 
-	for (cnt = 0; cnt < params->num_bg_channels; cnt++)
-		seq_printf(file, "%d ", params->channels2scan[cnt]);
+	for (cnt = 0; cnt < params->num_bg_channels; cnt++) {
+		if (params->channels2scan[cnt] & (BIT(15)))
+			seq_printf(file, "%d[DFS] ",
+				   (params->channels2scan[cnt] & 0x7FFF));
+		else
+			seq_printf(file, "%d ", params->channels2scan[cnt]);
+	}
 	seq_printf(file, "\n");
 
 	return 0;
@@ -334,20 +339,26 @@ static ssize_t rsi_bgscan_write(struct file *file,
 	if (!g_bgscan_enable) {
 		/* return here if bgscan is already disabled */
 		if (!common->bgscan_en) {
-			rsi_dbg(ERR_ZONE, "bgscan already disabled\n");
+#ifdef PLATFORM_X86
+			ven_rsi_dbg(ERR_ZONE, "bgscan already disabled\n");
+#endif
 			return total_bytes;
 		}
 
 		mutex_lock(&common->mutex);
 		if (bss->assoc && !rsi_send_bgscan_params(common, 0)) {
-			rsi_dbg(ERR_ZONE, "*** bgscan disabled ***\n");
+#ifdef PLATFORM_X86
+			ven_rsi_dbg(ERR_ZONE, "*** bgscan disabled ***\n");
+#endif
 			common->bgscan_en = 0;
 		}
 		mutex_unlock(&common->mutex);
 
 		return total_bytes;
 	} else if (common->bgscan_en) {
-		rsi_dbg(ERR_ZONE, "bgscan already enabled\n");
+#ifdef PLATFORM_X86
+		ven_rsi_dbg(ERR_ZONE, "bgscan already enabled\n");
+#endif
 		return total_bytes;
 	}
 
@@ -373,29 +384,39 @@ static ssize_t rsi_bgscan_write(struct file *file,
 	common->bgscan_info.active_scan_duration = bgscan_vals[3];
 	common->bgscan_info.passive_scan_duration = bgscan_vals[4];
 	common->bgscan_info.two_probe = bgscan_vals[5];
-	common->bgscan_info.num_bg_channels = bgscan_vals[6];
-	for (cnt = 0; cnt < common->bgscan_info.num_bg_channels; cnt++)
-		common->bgscan_info.channels2scan[cnt] = bgscan_vals[7 + cnt];
+	common->bgscan_info.num_user_channels = bgscan_vals[6];
+	memset(&common->bgscan_info.user_channels, 0,
+	       (MAX_BGSCAN_CHANNELS * 2));
+	common->bgscan_info.num_user_channels =
+		((bgscan_vals[6] > MAX_BGSCAN_CHANNELS) ?
+		 MAX_BGSCAN_CHANNELS : bgscan_vals[6]);
 
-	rsi_dbg(INFO_ZONE,
+	for (cnt = 0; cnt < common->bgscan_info.num_user_channels; cnt++)
+		common->bgscan_info.user_channels[cnt] = bgscan_vals[7 + cnt];
+
+#ifdef PLATFORM_X86
+	ven_rsi_dbg(INFO_ZONE,
 		"bgscan_count = %d, roam_count = %d, periodicity = %d\n",
 		common->bgscan_info.bgscan_threshold,
 		common->bgscan_info.roam_threshold,
 		common->bgscan_info.bgscan_periodicity);
-	rsi_dbg(INFO_ZONE,
+	ven_rsi_dbg(INFO_ZONE,
 		"active_scan_dur = %d, passive_scan_dur = %d, two_probe = %d\n",
 		common->bgscan_info.active_scan_duration,
 		common->bgscan_info.passive_scan_duration,
 		common->bgscan_info.two_probe);
-	rsi_dbg(INFO_ZONE, "Number of scan channels = %d\n",
-		common->bgscan_info.num_bg_channels);
+	ven_rsi_dbg(INFO_ZONE, "Number of scan channels = %d\n",
+		common->bgscan_info.num_user_channels);
 	rsi_hex_dump(INFO_ZONE, "bgscan channels",
-		     (u8 *)common->bgscan_info.channels2scan,
-		     common->bgscan_info.num_bg_channels * 2);
+		     (u8 *)common->bgscan_info.user_channels,
+		     common->bgscan_info.num_user_channels * 2);
+#endif
 
 	/* If connection is not done don't send bgscan params */
 	if (!bss->assoc) {
-		rsi_dbg(INFO_ZONE, "Station not connected; skip now\n");
+#ifdef PLATFORM_X86
+		ven_rsi_dbg(INFO_ZONE, "Station not connected; skip now\n");
+#endif
 		return total_bytes;
 	}
 
@@ -403,15 +424,23 @@ static ssize_t rsi_bgscan_write(struct file *file,
 	mutex_lock(&common->mutex);
 	if (!rsi_send_bgscan_params(common, 1)) {
 		if (!rsi_send_bgscan_probe_req(common)) {
-			rsi_dbg(INFO_ZONE, "Background scan started ===>\n");
+#ifdef PLATFORM_X86
+			ven_rsi_dbg(INFO_ZONE, "Background scan started ===>\n");
+#endif
 			common->bgscan_en = 1;
 		} else {
-			rsi_dbg(ERR_ZONE, "Failed sending bgscan probe req\n");
+#ifdef PLATFORM_X86
+			ven_rsi_dbg(ERR_ZONE, "Failed sending bgscan probe req\n");
+#endif
 			common->bgscan_en = 0;
 			g_bgscan_enable = 0;
 		}
-	} else
-		rsi_dbg(ERR_ZONE, "Failed sending bgscan params req\n");
+
+} else {
+#ifdef PLATFORM_X86
+		ven_rsi_dbg(ERR_ZONE, "Failed sending bgscan params req\n");
+#endif
+	}
 	mutex_unlock(&common->mutex);
 
 	return total_bytes;

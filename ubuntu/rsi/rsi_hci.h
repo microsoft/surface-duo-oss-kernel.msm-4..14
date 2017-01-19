@@ -93,13 +93,11 @@ struct rsi_hci_adapter {
 	struct hci_dev *hdev;
 	struct genl_cb *gcb;
 	struct sk_buff_head hci_tx_queue;
-	int fsm_state;
 };
 
 int rsi_genl_recv (struct sk_buff *skb, struct genl_info *info);
 int rsi_hci_attach (struct rsi_common *common);
 void rsi_hci_detach(struct rsi_common *common);
-//int rsi_hci_recv_pkt(struct rsi_hci_adapter *h_adapter, u8 *pkt);
 int rsi_hci_recv_pkt(struct rsi_common *common, u8 *pkt);
 
 #endif

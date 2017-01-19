@@ -80,12 +80,14 @@ static inline int rsi_kill_thread(struct rsi_thread *handle)
 	return kthread_stop(handle->task);
 }
 
-void rsi_mac80211_detach(struct rsi_hw *hw);
+void ven_rsi_mac80211_detach(struct rsi_hw *hw);
 u16 rsi_get_connected_channel(struct rsi_hw *adapter);
-struct rsi_hw *rsi_91x_init(void);
-void rsi_91x_deinit(struct rsi_hw *adapter);
-int rsi_read_pkt(struct rsi_common *common, u8 *rx_pkt, s32 rcv_pkt_len);
+struct rsi_hw *ven_rsi_91x_init(void);
+void ven_rsi_91x_deinit(struct rsi_hw *adapter);
+int ven_rsi_read_pkt(struct rsi_common *common, u8 *rx_pkt, s32 rcv_pkt_len);
 void rsi_indicate_bcnmiss(struct rsi_common *common);
 void rsi_resume_conn_channel(struct rsi_hw *adapter);
 void rsi_hci_detach(struct rsi_common *common);
+inline char *dot11_pkt_type(__le16 frame_control);
+struct rsi_sta *rsi_find_sta(struct rsi_common *common, u8 *mac_addr);
 #endif

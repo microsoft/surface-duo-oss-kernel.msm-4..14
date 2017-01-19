@@ -28,7 +28,7 @@ struct rsi_hw;
 #include "rsi_ps.h"
 
 #define ERR_ZONE                        BIT(0) /* Error Msgs		*/
-#define INFO_ZONE                       BIT(1) /* General Debug Msgs	*/
+#define INFO_ZONE                       BIT(1) /* Generic Debug Msgs	*/
 #define INIT_ZONE                       BIT(2) /* Driver Init Msgs	*/
 #define MGMT_TX_ZONE                    BIT(3) /* TX Mgmt Path Msgs	*/
 #define MGMT_RX_ZONE                    BIT(4) /* RX Mgmt Path Msgs	*/
@@ -47,8 +47,8 @@ struct rsi_hw;
 #define FSM_BB_RF_PROG_SENT             7
 #define FSM_MAC_INIT_DONE               8
 
-extern u32 rsi_zone_enabled;
-extern __printf(2, 3) void rsi_dbg(u32 zone, const char *fmt, ...);
+extern u32 ven_rsi_zone_enabled;
+extern __printf(2, 3) void ven_rsi_dbg(u32 zone, const char *fmt, ...);
 void rsi_hex_dump(u32 zone, char *msg_str, const u8 *msg, u32 len);
 
 #define RSI_MAX_VIFS                    1
@@ -73,7 +73,6 @@ void rsi_hex_dump(u32 zone, char *msg_str, const u8 *msg, u32 len);
 					    */
 #define BROADCAST_HW_Q			9
 #define BEACON_HW_Q			11
-#define MAX_NUM_SCAN_BGCHANS		24
 
 /* Queue information */
 #define RSI_COEX_Q			0x0
@@ -87,10 +86,13 @@ void rsi_hex_dump(u32 zone, char *msg_str, const u8 *msg, u32 len);
 #define IEEE80211_MGMT_FRAME            0x00
 #define IEEE80211_CTL_FRAME             0x04
 
+#define RSI_MAX_ASSOC_STAS		4
 #define IEEE80211_QOS_TID               0x0f
 #define IEEE80211_NONQOS_TID            16
 
 #define MAX_DEBUGFS_ENTRIES             5
+#define MAX_BGSCAN_CHANNELS		38
+
 
 #define TID_TO_WME_AC(_tid) (      \
 	((_tid) == 0 || (_tid) == 3) ? BE_Q : \
@@ -117,6 +119,8 @@ struct skb_info {
 	u16 channel;
 	s8 tid;
 	s8 sta_id;
+	u8 internal_hdr_size;
+	struct ieee80211_sta *sta;
 };
 
 enum edca_queue {
@@ -174,17 +178,25 @@ struct bgscan_config_params {
 	u16 bgscan_threshold;
 	u16 roam_threshold;
 	u16 bgscan_periodicity;
+	u8 num_user_channels;
 	u8 num_bg_channels;
 	u8 two_probe;
 	u16 active_scan_duration;
 	u16 passive_scan_duration;
-	u16 channels2scan[MAX_NUM_SCAN_BGCHANS];
+	u16 user_channels[MAX_BGSCAN_CHANNELS];
+	u16 channels2scan[MAX_BGSCAN_CHANNELS];
 };
 
 struct xtended_desc {
 	u8 confirm_frame_type;
 	u8 retry_cnt;
 	u16 reserved;
+};
+
+struct rsi_sta {
+	struct ieee80211_sta *sta;
+	s16 sta_id;
+	u16 seq_no[IEEE80211_NUM_ACS];
 };
 
 struct rsi_hw;
@@ -198,6 +210,7 @@ struct rsi_common {
 	struct version_info fw_ver;
 
 	struct rsi_thread tx_thread;
+	struct rsi_thread hci_thread;
 	struct sk_buff_head tx_queue[NUM_EDCA_QUEUES + 1];
 	/* Mutex declaration */
 	struct mutex mutex;
@@ -224,6 +237,7 @@ struct rsi_common {
 
 	/* state related */
 	u32 fsm_state;
+	u8 bt_fsm_state;
 	bool init_done;
 	u8 bb_rf_prog_count;
 	bool iface_down;
@@ -274,13 +288,23 @@ struct rsi_common {
 	int tx_power;
 	u8 ant_in_use;
 
-#ifdef CONFIG_VEN_RSI_HCI
+#if defined (CONFIG_VEN_RSI_HCI) || defined(CONFIG_VEN_RSI_COEX)
 	void *hci_adapter;
 #endif
 
 #ifdef CONFIG_VEN_RSI_COEX
 	void *coex_cb;
 #endif
+
+	/* AP mode related */
+	u8 *beacon_frame;
+	u16 beacon_frame_len;
+	u16 beacon_cnt;
+	u8 dtim_cnt;
+	u16 bc_mc_seqno;
+	struct rsi_sta stations[RSI_MAX_ASSOC_STAS + 1];
+	u8 num_stations;
+	struct ieee80211_channel *ap_channel;
 };
 
 enum host_intf {
@@ -326,7 +350,7 @@ struct rsi_hw {
 	enum ps_state ps_state;
 	struct rsi_ps_info ps_info;
 	spinlock_t ps_lock;
-
+	u32 isr_pending;
 #ifdef CONFIG_VEN_RSI_DEBUGFS
 	struct rsi_debugfs *dfsentry;
 	u8 num_debugfs_entries;
@@ -342,12 +366,15 @@ struct rsi_hw {
 	u32 interrupt_status;
 
 	u8 dfs_region;
+	char country[2];
 	void *rsi_dev;
 
 	struct rsi_host_intf_ops *host_intf_ops;
 	int (*check_hw_queue_status)(struct rsi_hw *adapter, u8 q_num);
 	int (*rx_urb_submit)(struct rsi_hw *adapter, u8 ep_num);
 	int (*determine_event_timeout)(struct rsi_hw *adapter);
+	void (*process_isr_hci)(struct rsi_hw *adapter);
+	int  (*check_intr_status_reg)(struct rsi_hw *adapter);
 };
 
 struct rsi_host_intf_ops {

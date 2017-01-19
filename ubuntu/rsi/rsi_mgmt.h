@@ -66,6 +66,10 @@ enum rx_cmd_type {
 	ANTENNA_SELECT = 0xf,
 };
 
+#ifdef RSI_ENABLE_WOW
+#define WOW_MAX_FILTERS_PER_LIST 16
+#define WOW_PATTERN_SIZE 256
+#endif
 #define EAPOL4_CONFIRM			1
 #define PROBEREQ_CONFIRM                2
 #define NULLDATA_CONFIRM		3
@@ -80,9 +84,12 @@ enum rx_cmd_type {
 #define BBP_REG_WRITE                   0
 #define RF_RESET_ENABLE                 BIT(3)
 #define RATE_INFO_ENABLE                BIT(0)
+#define MORE_DATA_PRESENT		BIT(1)
 #define RSI_BROADCAST_PKT               BIT(9)
 #define RSI_DESC_11G_MODE		BIT(7)
 #define RSI_DESC_REQUIRE_CFM_TO_HOST	BIT(10)
+#define ADD_DELTA_TSF_VAP_ID		BIT(11)
+#define FETCH_RETRY_CNT_FRM_HST		BIT(12)
 
 #define UPPER_20_ENABLE                 (0x2 << 12)
 #define LOWER_20_ENABLE                 (0x4 << 12)
@@ -202,15 +209,42 @@ enum rx_cmd_type {
 	 IEEE80211_WMM_IE_STA_QOSINFO_AC_BK)
 #define IEEE80211_STA_SP_ALL_PKTS	0x00
 
+/* Tx data frame format */
+#define MAC_BBP_INFO			BIT(0)
+#define NO_ACK_IND			BIT(9)
+#define QOS_EN				BIT(12)
+/* frame type bit{11:10} */
+#define NORMAL_FRAME			0x00
+#define DTIM_BEACON_GATED_FRAME		BIT(10)
+#define BEACON_FRAME			BIT(11)
+#define DTIM_BEACON			BIT(10) | BIT(11)
+#define INSERT_TSF			BIT(15)
+#define INSERT_SEQ_NO			BIT(2)
+
+#ifdef CONFIG_PM
+#define RSI_WOW_ANY                      BIT(0)
+#define RSI_WOW_SUPPORTS_GTK_REKEY       BIT(3)
+#define RSI_WOW_MAGIC_PKT                BIT(4)
+#define RSI_WOW_DISCONNECT               BIT(5)
+#endif
+
 enum opmode {
+	AP_OPMODE,
 	STA_OPMODE = 1,
-	AP_OPMODE = 2
 };
 
 enum vap_status {
 	VAP_ADD = 1,
 	VAP_DELETE = 2,
 	VAP_UPDATE = 3
+};
+
+enum peer_type {
+	PEER_TYPE_AP,
+	PEER_TYPE_STA,
+	PEER_TYPE_P2P_GO,
+	PEER_TYPE_P2P_CLIENT,
+	PEER_TYPE_IBSS
 };
 
 /*
@@ -337,7 +371,7 @@ struct rsi_bgscan_params {
 	u8 two_probe;
 	__le16 active_scan_duration;
 	__le16 passive_scan_duration;
-	__le16 channels2scan[MAX_NUM_SCAN_BGCHANS];
+	__le16 channels2scan[MAX_BGSCAN_CHANNELS];
 } __packed;
 
 struct rsi_bgscan_probe {
@@ -456,6 +490,14 @@ struct rsi_request_ps {
 	u16 ps_num_dtim_intervals;
 } __packed;
 
+struct rsi_wowlan_req {
+	__le16 desc_word[8];
+	u8 sourceid[ETH_ALEN];
+	u16 wow_flags;
+	u16 host_sleep_status;
+} __packed;
+
+
 static inline u32 rsi_get_queueno(u8 *addr, u16 offset)
 {
 	return (le16_to_cpu(*(__le16 *)&addr[offset]) & 0x7000) >> 12;
@@ -487,13 +529,14 @@ int rsi_set_vap_capabilities(struct rsi_common *common, enum opmode mode,
 int rsi_send_aggr_params_frame(struct rsi_common *common, u16 tid,
 			       u16 ssn, u8 buf_size, u8 event);
 int rsi_load_key(struct rsi_common *common, u8 *data, u16 key_len,
-		 u8 key_type, u8 key_id, u32 cipher);
+		 u8 key_type, u8 key_id, u32 cipher, s16 sta_id);
 int rsi_set_channel(struct rsi_common *common,
 		    struct ieee80211_channel *channel);
 int rsi_send_vap_dynamic_update(struct rsi_common *common);
 int rsi_send_block_unblock_frame(struct rsi_common *common, bool event);
-void rsi_inform_bss_status(struct rsi_common *common, u8 status,
-			   const u8 *bssid, u8 qos_enable, u16 aid);
+void rsi_inform_bss_status(struct rsi_common *common, enum opmode opmode,
+			   u8 status, u8 *bssid, u8 qos_enable, u16 aid,
+			   u16 sta_id);
 void rsi_indicate_pkt_to_os(struct rsi_common *common, struct sk_buff *skb);
 int rsi_mac80211_attach(struct rsi_common *common);
 int rsi_send_bgscan_params(struct rsi_common *common, int enable);
@@ -513,5 +556,9 @@ int rsi_send_radio_params_update(struct rsi_common *common);
 void init_bgscan_params(struct rsi_common *common);
 int rsi_set_antenna(struct rsi_common *common, u8 antenna);
 int rsi_hci_attach(struct rsi_common *common);
-
+int rsi_handle_card_ready(struct rsi_common *common);
+#ifdef CONFIG_RSI_WOW
+int rsi_send_wowlan_request(struct rsi_common *common, u16 flags,
+			    struct cfg80211_wowlan *wowlan);
+#endif
 #endif

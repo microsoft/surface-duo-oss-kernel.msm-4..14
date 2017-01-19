@@ -16,6 +16,10 @@
 
 #include "rsi_mgmt.h"
 #include "rsi_common.h"
+#include "rsi_hal.h"
+#ifdef CONFIG_VEN_RSI_COEX
+#include "rsi_coex.h"
+#endif
 
 /**
  * rsi_determine_min_weight_queue() - This function determines the queue with
@@ -143,7 +147,7 @@ static u8 rsi_core_determine_hal_queue(struct rsi_common *common)
 	}
 
 	if (common->hw_data_qs_blocked) {
-		rsi_dbg(INFO_ZONE, "%s: data queue blocked\n", __func__);
+		ven_rsi_dbg(INFO_ZONE, "%s: data queue blocked\n", __func__);
 		return q_num;
 	}
 
@@ -214,7 +218,7 @@ static void rsi_core_queue_pkt(struct rsi_common *common,
 	u8 q_num = skb->priority;
 
 	if (q_num >= NUM_SOFT_QUEUES) {
-		rsi_dbg(ERR_ZONE, "%s: Invalid Queue Number: q_num = %d\n",
+		ven_rsi_dbg(ERR_ZONE, "%s: Invalid Queue Number: q_num = %d\n",
 			__func__, q_num);
 		dev_kfree_skb(skb);
 		return;
@@ -235,7 +239,7 @@ static struct sk_buff *rsi_core_dequeue_pkt(struct rsi_common *common,
 					    u8 q_num)
 {
 	if (q_num >= NUM_SOFT_QUEUES) {
-		rsi_dbg(ERR_ZONE, "%s: Invalid Queue Number: q_num = %d\n",
+		ven_rsi_dbg(ERR_ZONE, "%s: Invalid Queue Number: q_num = %d\n",
 			__func__, q_num);
 		return NULL;
 	}
@@ -263,11 +267,11 @@ void rsi_core_qos_processor(struct rsi_common *common)
 	tstamp_1 = jiffies;
 	while (1) {
 		q_num = rsi_core_determine_hal_queue(common);
-		rsi_dbg(DATA_TX_ZONE,
+		ven_rsi_dbg(DATA_TX_ZONE,
 			"%s: Queue number = %d\n", __func__, q_num);
 
 		if (q_num == INVALID_QUEUE) {
-			rsi_dbg(DATA_TX_ZONE, "%s: No More Pkt\n", __func__);
+			ven_rsi_dbg(DATA_TX_ZONE, "%s: No More Pkt\n", __func__);
 			break;
 		}
 
@@ -289,15 +293,18 @@ void rsi_core_qos_processor(struct rsi_common *common)
 
 		skb = rsi_core_dequeue_pkt(common, q_num);
 		if (!skb) {
-			rsi_dbg(ERR_ZONE, "skb null\n");
+			ven_rsi_dbg(ERR_ZONE, "skb null\n");
 			mutex_unlock(&common->tx_lock);
 			break;
 		}
-
+#ifdef CONFIG_VEN_RSI_COEX
+		status = rsi_coex_send_pkt(common, skb, RSI_WLAN_Q);
+#else
 		if (q_num == MGMT_SOFT_Q)
 			status = rsi_send_mgmt_pkt(common, skb);
 		else
 			status = rsi_send_data_pkt(common, skb);
+#endif
 
 		if (status) {
 			mutex_unlock(&common->tx_lock);
@@ -314,6 +321,61 @@ void rsi_core_qos_processor(struct rsi_common *common)
 	}
 }
 
+inline char *dot11_pkt_type(__le16 frame_control)
+{
+	if (ieee80211_is_beacon(frame_control))
+		return "BEACON";
+	if (ieee80211_is_assoc_req(frame_control))
+		return "ASSOC_REQ";
+	if (ieee80211_is_assoc_resp(frame_control))
+		return "ASSOC_RESP";
+	if (ieee80211_is_reassoc_req(frame_control))
+		return "REASSOC_REQ";
+	if (ieee80211_is_reassoc_resp(frame_control))
+		return "REASSOC_RESP";
+	if (ieee80211_is_auth(frame_control))
+		return "AUTH";
+	if (ieee80211_is_probe_req(frame_control))
+		return "PROBE_REQ";
+	if (ieee80211_is_probe_resp(frame_control))
+		return "PROBE_RESP";
+	if (ieee80211_is_disassoc(frame_control))
+		return "DISASSOC";
+	if (ieee80211_is_deauth(frame_control))
+		return "DEAUTH";
+	if (ieee80211_is_action(frame_control))
+		return "ACTION";
+	if (ieee80211_is_data_qos(frame_control))
+		return "QOS DATA";
+	if (ieee80211_is_pspoll(frame_control))
+		return "PS_POLL";
+	if (ieee80211_is_nullfunc(frame_control))
+		return "NULL_DATA";
+	if (ieee80211_is_qos_nullfunc(frame_control))
+		return "QOS_NULL_DATA";
+
+	if (ieee80211_is_mgmt(frame_control))
+		return "DOT11_MGMT";
+	if (ieee80211_is_data(frame_control))
+		return "DOT11_DATA";
+	if (ieee80211_is_ctl(frame_control))
+		return "DOT11_CTRL";
+
+	return "UNKNOWN";
+}
+
+struct rsi_sta *rsi_find_sta(struct rsi_common *common, u8 *mac_addr)
+{
+	int i;
+
+	for (i = 0; i < common->num_stations; i++) {
+		if (!(memcmp(common->stations[i].sta->addr,
+			     mac_addr, ETH_ALEN)))
+			return &common->stations[i];
+	}
+	return NULL;
+}
+
 /**
  * rsi_core_xmit() - This function transmits the packets received from mac80211
  * @common: Pointer to the driver private structure.
@@ -326,62 +388,114 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 	struct rsi_hw *adapter = common->priv;
 	struct ieee80211_tx_info *info;
 	struct skb_info *tx_params;
-	struct ieee80211_hdr *tmp_hdr = NULL;
+	struct ieee80211_hdr *wlh = NULL;
+	struct ieee80211_vif *vif = adapter->vifs[0];
 	u8 q_num, tid = 0;
 
 	if ((!skb) || (!skb->len)) {
-		rsi_dbg(ERR_ZONE, "%s: Null skb/zero Length packet\n",
+		ven_rsi_dbg(ERR_ZONE, "%s: Null skb/zero Length packet\n",
 			__func__);
 		goto xmit_fail;
 	}
 
 	if (common->fsm_state != FSM_MAC_INIT_DONE) {
-		rsi_dbg(ERR_ZONE, "%s: FSM state not open\n", __func__);
+		ven_rsi_dbg(ERR_ZONE, "%s: FSM state not open\n", __func__);
 		goto xmit_fail;
 	}
 
 	info = IEEE80211_SKB_CB(skb);
 	tx_params = (struct skb_info *)info->driver_data;
-	tmp_hdr = (struct ieee80211_hdr *)&skb->data[0];
+	wlh = (struct ieee80211_hdr *)&skb->data[0];
 
-	if ((ieee80211_is_mgmt(tmp_hdr->frame_control)) ||
-	    (ieee80211_is_ctl(tmp_hdr->frame_control)) ||
-	    (ieee80211_is_qos_nullfunc(tmp_hdr->frame_control))) {
+	if ((ieee80211_is_mgmt(wlh->frame_control)) ||
+	    (ieee80211_is_ctl(wlh->frame_control)) ||
+	    (ieee80211_is_qos_nullfunc(wlh->frame_control))) {
 		q_num = MGMT_SOFT_Q;
 		skb->priority = q_num;
 
-		if (ieee80211_is_probe_req(tmp_hdr->frame_control)) {
-			rsi_dbg(MGMT_TX_ZONE, "%s: Probe Request\n", __func__);
-			if (is_broadcast_ether_addr(tmp_hdr->addr1)) {
-				rsi_dbg(INFO_ZONE, "%s: Probe request backup\n", __func__);
-				memcpy(common->bgscan_probe_req, skb->data, skb->len);
+		ven_rsi_dbg(INFO_ZONE, "Core: TX Dot11 Mgmt Pkt Type: %s\n",
+			dot11_pkt_type(wlh->frame_control));
+		if (ieee80211_is_probe_req(wlh->frame_control)) {
+			if ((is_broadcast_ether_addr(wlh->addr1)) &&
+			    (skb->data[MIN_802_11_HDR_LEN + 1] == 0)) {
+				memcpy(common->bgscan_probe_req,
+				       skb->data, skb->len);
 				common->bgscan_probe_req_len = skb->len;
 			}
-		} else if (ieee80211_is_auth(tmp_hdr->frame_control))
-			rsi_dbg(MGMT_TX_ZONE, "%s: Auth Request\n", __func__);
-		else if (ieee80211_is_assoc_req(tmp_hdr->frame_control))
-			rsi_dbg(MGMT_TX_ZONE, "%s: Assoc Request\n", __func__);
-		else
-			rsi_dbg(MGMT_TX_ZONE, "%s: pkt_type=%04x\n",
-				__func__, tmp_hdr->frame_control);
+		}
+		if (rsi_prepare_mgmt_desc(common, skb)) {
+			ven_rsi_dbg(ERR_ZONE, "Failed to prepeare desc\n");
+			goto xmit_fail;
+		}
 	} else {
-		rsi_dbg(DATA_TX_ZONE, "%s: Data Packet\n", __func__);
-		if (ieee80211_is_data_qos(tmp_hdr->frame_control)) {
-			tid = (skb->data[24] & IEEE80211_QOS_TID);
+		struct rsi_sta *sta = NULL;
+
+		ven_rsi_dbg(INFO_ZONE, "Core: TX Data Packet\n");
+		rsi_hex_dump(DATA_TX_ZONE, "TX Data Packet",
+			     skb->data, skb->len);
+
+		if (ieee80211_is_data_qos(wlh->frame_control)) {
+			u8 *qos = ieee80211_get_qos_ctl(wlh);
+
+			tid = *qos & IEEE80211_QOS_CTL_TID_MASK;
 			skb->priority = TID_TO_WME_AC(tid);
+
+			if ((vif->type == NL80211_IFTYPE_AP) &&
+			    (!is_broadcast_ether_addr(wlh->addr1)) &&
+			    (!is_multicast_ether_addr(wlh->addr1))) {
+				sta = rsi_find_sta(common, wlh->addr1);
+				if (!sta)
+					goto xmit_fail;
+			}
 		} else {
 			tid = IEEE80211_NONQOS_TID;
 			skb->priority = BE_Q;
+
+			if ((!is_broadcast_ether_addr(wlh->addr1)) &&
+			    (!is_multicast_ether_addr(wlh->addr1)) &&
+			    (vif->type == NL80211_IFTYPE_AP)) {
+				sta = rsi_find_sta(common, wlh->addr1);
+				if (!sta)
+					goto xmit_fail;
+			}
 		}
 		q_num = skb->priority;
 		tx_params->tid = tid;
-		tx_params->sta_id = 0;
+
+		if (sta) {
+			wlh->seq_ctrl =
+				cpu_to_le16((sta->seq_no[skb->priority] << 4) &
+					    IEEE80211_SCTL_SEQ);
+			sta->seq_no[skb->priority] =
+				(sta->seq_no[skb->priority] + 1) % IEEE80211_MAX_SN;
+			tx_params->sta_id = sta->sta_id;
+		} else {
+			if (vif->type == NL80211_IFTYPE_AP) {
+				wlh->seq_ctrl =
+					cpu_to_le16((common->bc_mc_seqno << 4) &
+						    IEEE80211_SCTL_SEQ);
+				common->bc_mc_seqno =
+					(common->bc_mc_seqno + 1) % IEEE80211_MAX_SN;
+			}
+			tx_params->sta_id = 0;
+		}
+
+#ifdef EAPOL_IN_MGMT_Q
+		if (skb->protocol == cpu_to_le16(ETH_P_PAE)) {
+			q_num = MGMT_SOFT_Q;
+			skb->priority = q_num;
+		}
+#endif
+		if (rsi_prepare_data_desc(common, skb)) {
+			ven_rsi_dbg(ERR_ZONE, "Failed to prepare data desc\n");
+			goto xmit_fail;
+		}
 	}
 
 	if ((q_num != MGMT_SOFT_Q) &&
 	    ((skb_queue_len(&common->tx_queue[q_num]) + 1) >=
-		 DATA_QUEUE_WATER_MARK)) {
-		rsi_dbg(ERR_ZONE, "%s: sw queue full\n", __func__);
+	      DATA_QUEUE_WATER_MARK)) {
+		ven_rsi_dbg(ERR_ZONE, "%s: sw queue full\n", __func__);
 		if (!ieee80211_queue_stopped(adapter->hw, WME_AC(q_num)))
 			ieee80211_stop_queue(adapter->hw, WME_AC(q_num));
 		rsi_set_event(&common->tx_thread.event);
@@ -389,13 +503,13 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 	}
 
 	rsi_core_queue_pkt(common, skb);
-	rsi_dbg(DATA_TX_ZONE, "%s: ===> Scheduling TX thead <===\n", __func__);
+	ven_rsi_dbg(DATA_TX_ZONE, "%s: ===> Scheduling TX thead <===\n", __func__);
 	rsi_set_event(&common->tx_thread.event);
 
 	return;
 
 xmit_fail:
-	rsi_dbg(ERR_ZONE, "%s: Failed to queue packet\n", __func__);
+	ven_rsi_dbg(ERR_ZONE, "%s: Failed to queue packet\n", __func__);
 	/* Dropping pkt here */
 	ieee80211_free_txskb(common->priv->hw, skb);
 }

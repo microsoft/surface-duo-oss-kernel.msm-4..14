@@ -14,8 +14,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#ifndef __RSI_DEBUGFS_H__
-#define __RSI_DEBUGFS_H__
+#ifndef __VEN_RSI_DEBUGFS_H__
+#define __VEN_RSI_DEBUGFS_H__
 
 #include "rsi_main.h"
 #include <linux/debugfs.h>

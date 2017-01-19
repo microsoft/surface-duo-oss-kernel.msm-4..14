@@ -21,14 +21,14 @@
 #include "rsi_mgmt.h"
 #include "rsi_common.h"
 #include "rsi_hal.h"
-#ifdef CONFIG_VEN_RSI_HCI
+#if defined(CONFIG_VEN_RSI_HCI) || defined(CONFIG_VEN_RSI_COEX)
 #include "rsi_hci.h"
 #endif
 #ifdef CONFIG_VEN_RSI_COEX
 #include "rsi_coex.h"
 #endif
 
-u32 rsi_zone_enabled =	//INFO_ZONE |
+u32 ven_rsi_zone_enabled =	//INFO_ZONE |
 			INIT_ZONE |
 			//MGMT_TX_ZONE |
 			//MGMT_RX_ZONE |
@@ -38,16 +38,16 @@ u32 rsi_zone_enabled =	//INFO_ZONE |
 			//ISR_ZONE |
 			ERR_ZONE |
 			0;
-EXPORT_SYMBOL_GPL(rsi_zone_enabled);
+EXPORT_SYMBOL_GPL(ven_rsi_zone_enabled);
 
 /**
- * rsi_dbg() - This function outputs informational messages.
+ * ven_rsi_dbg() - This function outputs informational messages.
  * @zone: Zone of interest for output message.
  * @fmt: printf-style format for output message.
  *
  * Return: none
  */
-void rsi_dbg(u32 zone, const char *fmt, ...)
+void ven_rsi_dbg(u32 zone, const char *fmt, ...)
 {
 	struct va_format vaf;
 	va_list args;
@@ -57,11 +57,11 @@ void rsi_dbg(u32 zone, const char *fmt, ...)
 	vaf.fmt = fmt;
 	vaf.va = &args;
 
-	if (zone & rsi_zone_enabled)
+	if (zone & ven_rsi_zone_enabled)
 		pr_info("%pV", &vaf);
 	va_end(args);
 }
-EXPORT_SYMBOL_GPL(rsi_dbg);
+EXPORT_SYMBOL_GPL(ven_rsi_dbg);
 
 /**
  * rsi_hex_dump() - This function prints the packet (/msg) in hex bytes.
@@ -76,7 +76,7 @@ void rsi_hex_dump(u32 zone, char *msg_str, const u8 *msg, u32 len)
 {
 	int ii;
 
-	if (!(zone & rsi_zone_enabled))
+	if (!(zone & ven_rsi_zone_enabled))
 		return;
 	printk("%s: (length = %d)\n", msg_str, len);
 	for (ii = 0; ii < len; ii++) {
@@ -111,7 +111,7 @@ static struct sk_buff *rsi_prepare_skb(struct rsi_common *common,
 		return NULL;
 
 	if (pkt_len > (RSI_RCV_BUFFER_LEN * 4)) {
-		rsi_dbg(ERR_ZONE, "%s: Pkt size > max rx buf size %d\n",
+		ven_rsi_dbg(ERR_ZONE, "%s: Pkt size > max rx buf size %d\n",
 			__func__, pkt_len);
 		pkt_len = RSI_RCV_BUFFER_LEN * 4;
 	}
@@ -128,19 +128,23 @@ static struct sk_buff *rsi_prepare_skb(struct rsi_common *common,
 	info = IEEE80211_SKB_CB(skb);
 	rx_params = (struct skb_info *)info->driver_data;
 	rx_params->rssi = rsi_get_rssi(buffer);
-	rx_params->channel = rsi_get_connected_channel(common->priv);
+
+//	if (vif->type == NL80211_IFTYPE_STATION)
+		rx_params->channel = rsi_get_connected_channel(common->priv);
+//	else
+//		rx_params->channel = common->ap_channel->hw_value;
 
 	return skb;
 }
 
 /**
- * rsi_read_pkt() - This function reads frames from the card.
+ * ven_rsi_read_pkt() - This function reads frames from the card.
  * @common: Pointer to the driver private structure.
  * @rcv_pkt_len: Received pkt length. In case of USB it is 0.
  *
  * Return: 0 on success, -1 on failure.
  */
-int rsi_read_pkt(struct rsi_common *common, u8 *rx_pkt, s32 rcv_pkt_len)
+int ven_rsi_read_pkt(struct rsi_common *common, u8 *rx_pkt, s32 rcv_pkt_len)
 {
 	u8 *frame_desc = NULL, extended_desc = 0;
 	u32 index = 0, length = 0, queueno = 0;
@@ -153,7 +157,7 @@ int rsi_read_pkt(struct rsi_common *common, u8 *rx_pkt, s32 rcv_pkt_len)
 		offset = *(u16 *)&frame_desc[2];
 
 		if ((actual_length < (4 + FRAME_DESC_SZ)) || (offset < 4)) {
-			rsi_dbg(ERR_ZONE,
+			ven_rsi_dbg(ERR_ZONE,
 				"%s: actual_length (%d) is less than 20 or"
 				" offset(%d) is less than 4\n",
 				__func__, actual_length, offset);
@@ -168,10 +172,14 @@ int rsi_read_pkt(struct rsi_common *common, u8 *rx_pkt, s32 rcv_pkt_len)
 		switch (queueno) {
 		case RSI_COEX_Q:
 			rsi_hex_dump(MGMT_RX_ZONE,
-				     "RX Command packet",
+				     "RX Command co ex packet",
 				     frame_desc + offset,
 				     FRAME_DESC_SZ + length);
+#ifdef CONFIG_VEN_RSI_COEX
+			rsi_coex_recv_pkt(common, (frame_desc + offset));
+#else
 			rsi_mgmt_pkt_recv(common, (frame_desc + offset));
+#endif
 			break;
 		case RSI_WIFI_DATA_Q:
 			rsi_hex_dump(DATA_RX_ZONE,
@@ -191,19 +199,19 @@ int rsi_read_pkt(struct rsi_common *common, u8 *rx_pkt, s32 rcv_pkt_len)
 		case RSI_WIFI_MGMT_Q:
 			rsi_mgmt_pkt_recv(common, (frame_desc + offset));
 			break;
-#ifdef CONFIG_VEN_RSI_HCI
+#if defined(CONFIG_VEN_RSI_HCI) || defined(CONFIG_VEN_RSI_COEX)
 		case RSI_BT_MGMT_Q:
 		case RSI_BT_DATA_Q:
 			rsi_hex_dump(DATA_RX_ZONE,
 				     "RX BT Pkt",
 				     frame_desc + offset,
-				     FRAME_DESC_SZ + length); 
+				     FRAME_DESC_SZ + length);
 			rsi_hci_recv_pkt(common, frame_desc + offset);
 			break;
 #endif
 
 		default:
-			rsi_dbg(ERR_ZONE, "%s: pkt from invalid queue: %d\n",
+			ven_rsi_dbg(ERR_ZONE, "%s: pkt from invalid queue: %d\n",
 				__func__,   queueno);
 			goto fail;
 		}
@@ -216,7 +224,7 @@ int rsi_read_pkt(struct rsi_common *common, u8 *rx_pkt, s32 rcv_pkt_len)
 fail:
 	return -EINVAL;
 }
-EXPORT_SYMBOL_GPL(rsi_read_pkt);
+EXPORT_SYMBOL_GPL(ven_rsi_read_pkt);
 
 /**
  * rsi_tx_scheduler_thread() - This function is a kernel thread to send the
@@ -243,12 +251,12 @@ static void rsi_tx_scheduler_thread(struct rsi_common *common)
 }
 
 /**
- * rsi_91x_init() - This function initializes os interface operations.
+ * ven_rsi_91x_init() - This function initializes os interface operations.
  * @void: Void.
  *
  * Return: Pointer to the adapter structure on success, NULL on failure .
  */
-struct rsi_hw *rsi_91x_init(void)
+struct rsi_hw *ven_rsi_91x_init(void)
 {
 	struct rsi_hw *adapter = NULL;
 	struct rsi_common *common = NULL;
@@ -260,13 +268,18 @@ struct rsi_hw *rsi_91x_init(void)
 
 	adapter->priv = kzalloc(sizeof(*common), GFP_KERNEL);
 	if (!adapter->priv) {
-		rsi_dbg(ERR_ZONE, "%s: Failed in allocation of priv\n",
+		ven_rsi_dbg(ERR_ZONE, "%s: Failed in allocation of priv\n",
 			__func__);
 		kfree(adapter);
 		return NULL;
 	}
 	common = adapter->priv;
 	common->priv = adapter;
+
+	common->beacon_frame = kzalloc(512, GFP_KERNEL);
+	if (!common->beacon_frame)
+		goto err;
+	common->beacon_frame_len = 0;
 
 	for (ii = 0; ii < NUM_SOFT_QUEUES; ii++)
 		skb_queue_head_init(&common->tx_queue[ii]);
@@ -280,9 +293,16 @@ struct rsi_hw *rsi_91x_init(void)
 			       &common->tx_thread,
 			       rsi_tx_scheduler_thread,
 			       "Tx-Thread")) {
-		rsi_dbg(ERR_ZONE, "%s: Unable to init tx thrd\n", __func__);
+		ven_rsi_dbg(ERR_ZONE, "%s: Unable to init tx thrd\n", __func__);
 		goto err;
 	}
+
+#ifdef CONFIG_VEN_RSI_COEX
+	if (rsi_coex_init(common)) {
+		ven_rsi_dbg(ERR_ZONE, "Failed to init COEX module\n");
+		goto err;
+	}
+#endif
 	rsi_default_ps_params(adapter);
 	spin_lock_init(&adapter->ps_lock);
 	common->uapsd_bitmap = 0;
@@ -296,33 +316,36 @@ err:
 	kfree(adapter);
 	return NULL;
 }
-EXPORT_SYMBOL_GPL(rsi_91x_init);
+EXPORT_SYMBOL_GPL(ven_rsi_91x_init);
 
 /**
- * rsi_91x_deinit() - This function de-intializes os intf operations.
+ * ven_rsi_91x_deinit() - This function de-intializes os intf operations.
  * @adapter: Pointer to the adapter structure.
  *
  * Return: None.
  */
-void rsi_91x_deinit(struct rsi_hw *adapter)
+void ven_rsi_91x_deinit(struct rsi_hw *adapter)
 {
 	struct rsi_common *common = adapter->priv;
 	u8 ii;
 
-	rsi_dbg(INFO_ZONE, "%s: Deinit core module...\n", __func__);
+	ven_rsi_dbg(INFO_ZONE, "%s: Deinit core module...\n", __func__);
 
 	rsi_kill_thread(&common->tx_thread);
 
 	for (ii = 0; ii < NUM_SOFT_QUEUES; ii++)
 		skb_queue_purge(&common->tx_queue[ii]);
 
+#ifdef CONFIG_VEN_RSI_COEX
+	rsi_coex_deinit(common);
+#endif
 	common->init_done = false;
 
 	kfree(common);
 	kfree(adapter->rsi_dev);
 	kfree(adapter);
 }
-EXPORT_SYMBOL_GPL(rsi_91x_deinit);
+EXPORT_SYMBOL_GPL(ven_rsi_91x_deinit);
 
 /**
  * rsi_91x_hal_module_init() - This function is invoked when the module is
@@ -334,7 +357,7 @@ EXPORT_SYMBOL_GPL(rsi_91x_deinit);
  */
 static int rsi_91x_hal_module_init(void)
 {
-	rsi_dbg(INIT_ZONE, "%s: Module init called\n", __func__);
+	ven_rsi_dbg(INIT_ZONE, "%s: Module init called\n", __func__);
 	return 0;
 }
 
@@ -348,7 +371,7 @@ static int rsi_91x_hal_module_init(void)
  */
 static void rsi_91x_hal_module_exit(void)
 {
-	rsi_dbg(INIT_ZONE, "%s: Module exit called\n", __func__);
+	ven_rsi_dbg(INIT_ZONE, "%s: Module exit called\n", __func__);
 }
 
 module_init(rsi_91x_hal_module_init);

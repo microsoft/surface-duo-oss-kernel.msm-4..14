@@ -44,9 +44,9 @@ void rsi_usb_rx_thread(struct rsi_common *common)
 				continue;
 			
 			mutex_lock(&common->rx_lock);
-			status = rsi_read_pkt(common, rx_cb->rx_buffer, 0);
+			status = ven_rsi_read_pkt(common, rx_cb->rx_buffer, 0);
 			if (status) {
-				rsi_dbg(ERR_ZONE, "%s: Failed To read data",
+				ven_rsi_dbg(ERR_ZONE, "%s: Failed To read data",
 					__func__);
 				mutex_unlock(&common->rx_lock);
 				break;
@@ -55,7 +55,7 @@ void rsi_usb_rx_thread(struct rsi_common *common)
 			mutex_unlock(&common->rx_lock);
 			
 			if (adapter->rx_urb_submit(adapter, rx_cb->ep_num)) {
-				rsi_dbg(ERR_ZONE,
+				ven_rsi_dbg(ERR_ZONE,
 					"%s: Failed in urb submission", __func__);
 				break;
 			}
@@ -64,7 +64,7 @@ void rsi_usb_rx_thread(struct rsi_common *common)
 	
 	} while (1);
 
-	rsi_dbg(INFO_ZONE, "%s: Terminated USB RX thread\n", __func__);
+	ven_rsi_dbg(INFO_ZONE, "%s: Terminated USB RX thread\n", __func__);
 	atomic_inc(&dev->rx_thread.thread_done);
 	complete_and_exit(&dev->rx_thread.completion, 0);
 }

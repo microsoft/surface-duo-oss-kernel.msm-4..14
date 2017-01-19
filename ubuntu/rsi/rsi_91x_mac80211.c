@@ -189,14 +189,65 @@ static void rsi_register_rates_channels(struct rsi_hw *adapter, int band)
 	/* sbands->ht_cap.mcs.rx_highest = 0x82; */
 }
 
+static void rsi_set_min_rate(struct ieee80211_hw *hw,
+			     struct ieee80211_sta *sta,
+			     struct rsi_common *common)
+{
+	struct ieee80211_vif *vif = common->priv->vifs[0];
+	u8 band = hw->conf.chandef.chan->band;
+	u8 ii;
+	u32 rate_bitmap;
+	bool matched = false;
+
+	if (vif->type == NL80211_IFTYPE_AP) {
+		common->bitrate_mask[band] = common->fixedrate_mask[band];
+		rate_bitmap = common->bitrate_mask[band];
+	} else {
+		common->bitrate_mask[band] = sta->supp_rates[band];
+		rate_bitmap = (common->fixedrate_mask[band] &
+			       sta->supp_rates[band]);
+	}
+	ven_rsi_dbg(INFO_ZONE, "bitrate_mask = %x\n", common->bitrate_mask[band]);
+	ven_rsi_dbg(INFO_ZONE, "rate_bitmap = %x\n", rate_bitmap);
+
+	if (rate_bitmap & 0xfff) {
+		/* Find out the min rate */
+		for (ii = 0; ii < ARRAY_SIZE(rsi_rates); ii++) {
+			if (rate_bitmap & BIT(ii)) {
+				common->min_rate = rsi_rates[ii].hw_value;
+				matched = true;
+				break;
+			}
+		}
+	}
+
+	if (vif->type == NL80211_IFTYPE_STATION)
+		common->vif_info[0].is_ht = sta->ht_cap.ht_supported;
+
+	if ((common->vif_info[0].is_ht) && (rate_bitmap >> 12)) {
+		for (ii = 0; ii < ARRAY_SIZE(rsi_mcsrates); ii++) {
+			if ((rate_bitmap >> 12) & BIT(ii)) {
+				common->min_rate = rsi_mcsrates[ii];
+				matched = true;
+				break;
+			}
+		}
+	}
+
+	if (!matched)
+		common->min_rate = 0xffff;
+
+	ven_rsi_dbg(INFO_ZONE, "Min Rate = %d\n", common->min_rate);
+}
+
 /**
- * rsi_mac80211_detach() - This function is used to de-initialize the
+ * ven_rsi_mac80211_detach() - This function is used to de-initialize the
  *			   Mac80211 stack.
  * @adapter: Pointer to the adapter structure.
  *
  * Return: None.
  */
-void rsi_mac80211_detach(struct rsi_hw *adapter)
+void ven_rsi_mac80211_detach(struct rsi_hw *adapter)
 {
 	struct ieee80211_hw *hw = adapter->hw;
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0))
@@ -205,12 +256,13 @@ void rsi_mac80211_detach(struct rsi_hw *adapter)
 	int band;
 #endif
 
-	rsi_dbg(INFO_ZONE, "Detach mac80211...\n");
+	ven_rsi_dbg(INFO_ZONE, "Detach mac80211...\n");
 
 	if (hw) {
 		ieee80211_stop_queues(hw);
 		ieee80211_unregister_hw(hw);
 		ieee80211_free_hw(hw);
+		adapter->hw = NULL;
 	}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0))
@@ -229,7 +281,7 @@ void rsi_mac80211_detach(struct rsi_hw *adapter)
 	kfree(adapter->dfsentry);
 #endif
 }
-EXPORT_SYMBOL_GPL(rsi_mac80211_detach);
+EXPORT_SYMBOL_GPL(ven_rsi_mac80211_detach);
 
 /**
  * rsi_indicate_tx_status() - This function indicates the transmit status.
@@ -244,6 +296,11 @@ void rsi_indicate_tx_status(struct rsi_hw *adapter,
 			    int status)
 {
 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
+
+	if (!adapter->hw) {
+		ven_rsi_dbg(ERR_ZONE, "##### No Hardware #####\n");
+		return;
+	}
 
 	memset(info->driver_data, 0, IEEE80211_TX_INFO_DRIVER_DATA_SIZE);
 
@@ -269,6 +326,12 @@ static void rsi_mac80211_tx(struct ieee80211_hw *hw,
 {
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
+	struct ieee80211_hdr *wlh = (struct ieee80211_hdr *)skb->data;
+
+	if (ieee80211_is_beacon(wlh->frame_control)) {
+		ieee80211_free_txskb(common->priv->hw, skb);
+		return;
+	}
 
 #ifndef CONFIG_VEN_RSI_HCI
 	rsi_core_xmit(common, skb);
@@ -292,7 +355,7 @@ static int rsi_mac80211_start(struct ieee80211_hw *hw)
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
 
-	rsi_dbg(ERR_ZONE, "===> Interface UP <===\n");
+	ven_rsi_dbg(ERR_ZONE, "===> Interface UP <===\n");
 	mutex_lock(&common->mutex);
 	
 	common->iface_down = false;
@@ -315,7 +378,7 @@ static void rsi_mac80211_stop(struct ieee80211_hw *hw)
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
 
-	rsi_dbg(ERR_ZONE, "===> Interface DOWN <===\n");
+	ven_rsi_dbg(ERR_ZONE, "===> Interface DOWN <===\n");
 
 	mutex_lock(&common->mutex);
 	
@@ -341,30 +404,47 @@ static int rsi_mac80211_add_interface(struct ieee80211_hw *hw,
 {
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
+	enum opmode intf_mode;
 	int ret = 0;
 
-	rsi_dbg(INFO_ZONE, "Add Interface Called\n");
+	ven_rsi_dbg(INFO_ZONE, "Add Interface Called\n");
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 0, 0))
 	vif->driver_flags |= IEEE80211_VIF_SUPPORTS_UAPSD;
 #endif
 
+	if ((vif->type != NL80211_IFTYPE_STATION) &&
+	    (vif->type != NL80211_IFTYPE_AP))
+		return -1;
+
 	mutex_lock(&common->mutex);
+
+	/* Not supporting concurrent mode now */
+	if (adapter->sc_nvifs > 0)
+		return -1;
+
+	adapter->vifs[adapter->sc_nvifs++] = vif;
 
 	switch (vif->type) {
 	case NL80211_IFTYPE_STATION:
-		if (!adapter->sc_nvifs) {
-			++adapter->sc_nvifs;
-			adapter->vifs[0] = vif;
-			ret = rsi_set_vap_capabilities(common,
-						       STA_OPMODE,
-						       VAP_ADD);
-		}
+		intf_mode = STA_OPMODE;
+		break;
+	case NL80211_IFTYPE_AP:
+		intf_mode = AP_OPMODE;
 		break;
 	default:
-		rsi_dbg(ERR_ZONE,
-			"%s: Interface type %d not supported\n",
-			__func__, vif->type);
+		return -1;
+	}
+	ret = rsi_set_vap_capabilities(common, intf_mode, VAP_ADD);
+	if (ret) {
+		ven_rsi_dbg(ERR_ZONE, "Failed to send VAP capabilities\n");
+		return ret;
+	}
+
+	if (vif->type == NL80211_IFTYPE_AP) {
+		common->bc_mc_seqno = 1;
+		rsi_send_rx_filter_frame(common, DISALLOW_BEACONS);
+		rsi_set_min_rate(hw, NULL, common);
 	}
 
 	mutex_unlock(&common->mutex);
@@ -386,13 +466,14 @@ static void rsi_mac80211_remove_interface(struct ieee80211_hw *hw,
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
 
-	rsi_dbg(INFO_ZONE, "Remove Interface Called\n");
+	ven_rsi_dbg(INFO_ZONE, "Remove Interface Called\n");
 	mutex_lock(&common->mutex);
 
-	if (vif->type == NL80211_IFTYPE_STATION) {
-		adapter->sc_nvifs--;
+	adapter->sc_nvifs--;
+	if (vif->type == NL80211_IFTYPE_STATION)
 		rsi_set_vap_capabilities(common, STA_OPMODE, VAP_DELETE);
-	}
+	else if (vif->type == NL80211_IFTYPE_AP)
+		rsi_set_vap_capabilities(common, AP_OPMODE, VAP_DELETE);
 
 	if (!memcmp(adapter->vifs[0], vif, sizeof(struct ieee80211_vif)))
 		adapter->vifs[0] = NULL;
@@ -415,33 +496,47 @@ static int rsi_channel_change(struct ieee80211_hw *hw)
 	struct ieee80211_channel *curchan = hw->conf.chandef.chan;
 	u16 channel = curchan->hw_value;
 	struct ieee80211_bss_conf *bss = NULL;
+	struct ieee80211_vif *vif = adapter->vifs[0];
 
 	if (adapter->sc_nvifs <= 0) {
-		rsi_dbg(ERR_ZONE, "%s: No virtual interface found\n", __func__);
+		ven_rsi_dbg(ERR_ZONE, "%s: No virtual interface found\n", __func__);
 		return -EINVAL;
 	}
-	bss = &adapter->vifs[0]->bss_conf;
+	bss = &vif->bss_conf;
 
-	rsi_dbg(INFO_ZONE,
+	ven_rsi_dbg(INFO_ZONE,
 		"%s: Set channel: %d MHz type: %d channel_no %d\n",
 		__func__, curchan->center_freq,
 		curchan->flags, channel);
 
+	if (vif->type == NL80211_IFTYPE_AP) {
+		ven_rsi_dbg(INFO_ZONE, "Configure channel %d for AP\n", channel);
+		if (rsi_band_check(common)) {
+			ven_rsi_dbg(ERR_ZONE, "Failed to set band\n");
+			return -EINVAL;
+		}
+		if (rsi_set_channel(common, curchan)) {
+			ven_rsi_dbg(ERR_ZONE, "Failed to set the channel\n");
+			return -EINVAL;
+		}
+		common->ap_channel = curchan;
+		return 0;
+	}
 	common->mac80211_cur_channel = channel;
 	if (bss->assoc) {
-		rsi_dbg(INFO_ZONE, "%s: connected\n", __func__);
+		ven_rsi_dbg(INFO_ZONE, "%s: connected\n", __func__);
 
 		if (common->bgscan_en)
 			return 0;
 
 		if (!common->hw_data_qs_blocked &&
 		    (rsi_get_connected_channel(adapter) != channel)) {
-			rsi_dbg(INFO_ZONE, "blk data q %d\n", channel);
+			ven_rsi_dbg(INFO_ZONE, "blk data q %d\n", channel);
 			if (!rsi_send_block_unblock_frame(common, true))
 				common->hw_data_qs_blocked = true;
 		}
 	} else {
-		rsi_dbg(INFO_ZONE, "assoc status:%d channel:%d\n",
+		ven_rsi_dbg(INFO_ZONE, "assoc status:%d channel:%d\n",
 			bss->assoc, channel);
 	}
 
@@ -452,13 +547,13 @@ static int rsi_channel_change(struct ieee80211_hw *hw)
 	if (bss->assoc) {
 		if (common->hw_data_qs_blocked &&
 		    (rsi_get_connected_channel(adapter) == channel)) {
-			rsi_dbg(INFO_ZONE, "unblk data q %d\n", channel);
+			ven_rsi_dbg(INFO_ZONE, "unblk data q %d\n", channel);
 			if (!rsi_send_block_unblock_frame(common, false))
 				common->hw_data_qs_blocked = false;
 		}
 	} else {
 		if (common->hw_data_qs_blocked) {
-			rsi_dbg(INFO_ZONE, "unblk data q %d\n", channel);
+			ven_rsi_dbg(INFO_ZONE, "unblk data q %d\n", channel);
 			if (!rsi_send_block_unblock_frame(common, false))
 				common->hw_data_qs_blocked = false;
 		}
@@ -481,11 +576,11 @@ static int rsi_config_power(struct ieee80211_hw *hw)
 	int status;
 
 	if (adapter->sc_nvifs <= 0) {
-		rsi_dbg(ERR_ZONE, "%s: No virtual interface found\n", __func__);
+		ven_rsi_dbg(ERR_ZONE, "%s: No virtual interface found\n", __func__);
 		return -EINVAL;
 	}
 
-	rsi_dbg(INFO_ZONE,
+	ven_rsi_dbg(INFO_ZONE,
 		"%s: Set tx power: %d dBM\n", __func__, conf->power_level);
 
 	if (conf->power_level == common->tx_power)
@@ -512,6 +607,7 @@ static int rsi_mac80211_config(struct ieee80211_hw *hw,
 {
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
+	struct ieee80211_vif *vif = adapter->vifs[0];
 	struct ieee80211_conf *conf = &hw->conf;
 	int status = -EOPNOTSUPP;
 
@@ -523,14 +619,14 @@ static int rsi_mac80211_config(struct ieee80211_hw *hw,
 
 	/* listen interval */
 	if (changed & IEEE80211_CONF_CHANGE_LISTEN_INTERVAL) {
-		rsi_dbg(INFO_ZONE,
+		ven_rsi_dbg(INFO_ZONE,
 			"listen_int = %d\n", conf->listen_interval);
 		adapter->ps_info.num_bcns_per_lis_int = conf->listen_interval;
 	}
 
 	/* tx power */
 	if (changed & IEEE80211_CONF_CHANGE_POWER) {
-		rsi_dbg(INFO_ZONE, "%s: Configuring Power\n", __func__);
+		ven_rsi_dbg(INFO_ZONE, "%s: Configuring Power\n", __func__);
 		status = rsi_config_power(hw);
 	}
 
@@ -540,7 +636,8 @@ static int rsi_mac80211_config(struct ieee80211_hw *hw,
 	}
 
 	/* Power save parameters */
-	if (changed & IEEE80211_CONF_CHANGE_PS) {
+	if ((changed & IEEE80211_CONF_CHANGE_PS) &&
+	    (vif->type == NL80211_IFTYPE_STATION)) {
 		unsigned long flags;
 
 		spin_lock_irqsave(&adapter->ps_lock, flags);
@@ -553,9 +650,9 @@ static int rsi_mac80211_config(struct ieee80211_hw *hw,
 
 	/* RTS threshold */
 	if (changed & WIPHY_PARAM_RTS_THRESHOLD) {
-		rsi_dbg(INFO_ZONE,"RTS threshold\n");
+		ven_rsi_dbg(INFO_ZONE,"RTS threshold\n");
 		if ((common->rts_threshold) <= IEEE80211_MAX_RTS_THRESHOLD) {
-			rsi_dbg(INFO_ZONE,
+			ven_rsi_dbg(INFO_ZONE,
 				"%s: Sending vap updates....\n", __func__);
 			status = rsi_send_vap_dynamic_update(common);
 		}
@@ -608,6 +705,27 @@ void rsi_resume_conn_channel(struct rsi_hw *adapter)
 	mutex_unlock(&common->mutex);
 }
 
+static void rsi_update_beacon(struct ieee80211_hw *hw,
+			      struct ieee80211_vif *vif)
+{
+	struct rsi_hw *adapter = hw->priv;
+	struct rsi_common *common = adapter->priv;
+	struct ieee80211_mutable_offsets offs = {};
+	struct sk_buff *bcn;
+
+	bcn = ieee80211_beacon_get_template(hw, vif, &offs);
+	if (!bcn) {
+		ven_rsi_dbg(ERR_ZONE,
+			"failed to get beacon template from mac80211\n");
+		return;
+	}
+	memcpy(common->beacon_frame, bcn->data, bcn->len);
+	common->beacon_frame_len = bcn->len;
+
+	rsi_hex_dump(INFO_ZONE, "mac80211: Beacon",
+		     common->beacon_frame, common->beacon_frame_len);
+}
+
 /**
  * rsi_mac80211_bss_info_changed() - This function is a handler for config
  *				     requests related to BSS parameters that
@@ -629,65 +747,85 @@ static void rsi_mac80211_bss_info_changed(struct ieee80211_hw *hw,
 	struct ieee80211_bss_conf *bss = &adapter->vifs[0]->bss_conf;
 	u16 rx_filter_word = 0;
 
-	rsi_dbg(INFO_ZONE, "%s: BSS status changed\n", __func__);
+	ven_rsi_dbg(INFO_ZONE, "%s: BSS status changed\n", __func__);
+
 	mutex_lock(&common->mutex);
-	if (changed & BSS_CHANGED_ASSOC) {
-		rsi_dbg(INFO_ZONE, "%s: Changed Association status: %d\n",
+
+	if ((changed & BSS_CHANGED_ASSOC) &&
+	    (vif->type == NL80211_IFTYPE_STATION)) {
+		ven_rsi_dbg(INFO_ZONE, "%s: Changed Association status: %d\n",
 			__func__, bss_conf->assoc);
-		rsi_hex_dump(INFO_ZONE, "BSSID: ", bss->bssid, ETH_ALEN);
 		bss->assoc = bss_conf->assoc;
-		if (bss_conf->assoc) {
+		if (bss->assoc) {
 			/* Send the RX filter frame */
 			rx_filter_word = (ALLOW_DATA_ASSOC_PEER |
 					  ALLOW_CTRL_ASSOC_PEER |
-					  ALLOW_MGMT_ASSOC_PEER);// |
-					  //DISALLOW_BEACONS);
+					  ALLOW_MGMT_ASSOC_PEER |
+#ifdef RSI_HW_CONN_MONITOR
+					  DISALLOW_BEACONS |
+#endif
+					0);
 			rsi_send_rx_filter_frame(common, rx_filter_word);
 		}
-		rsi_dbg(INFO_ZONE,
+		ven_rsi_dbg(INFO_ZONE,
 			"assoc_status=%d, qos=%d, aid=%d\n",
 			bss->assoc, bss->qos, bss->aid);
-		rsi_dbg(INFO_ZONE,
-			"bssid=%02x:%02x:%02x:%02x:%02x:%02x",
-			bss->bssid[0], bss->bssid[1], bss->bssid[2],
-			bss->bssid[3], bss->bssid[4], bss->bssid[5]);
-		rsi_inform_bss_status(common,
-				      bss->assoc,
-				      bss->bssid,
-				      bss->qos,
-				      bss->aid);
+		ven_rsi_dbg(INFO_ZONE,
+				"bssid=%02x:%02x:%02x:%02x:%02x:%02x",
+				bss->bssid[0], bss->bssid[1], bss->bssid[2],
+				bss->bssid[3], bss->bssid[4], bss->bssid[5]);
+
+		/* Send peer notify to device */
+		ven_rsi_dbg(INFO_ZONE, "Indicate bss status to device\n");
+		rsi_inform_bss_status(common, STA_OPMODE, bss->assoc,
+				      bss->bssid, bss->qos, bss->aid, 0);
 
 		adapter->ps_info.listen_interval =
-			bss->beacon_int * adapter->ps_info.num_bcns_per_lis_int; 
+			bss->beacon_int * adapter->ps_info.num_bcns_per_lis_int;
 		adapter->ps_info.deep_sleep_wakeup_period = bss->beacon_int;
 
 		/* If UAPSD is updated send ps params */
 		if (common->uapsd_bitmap) {
-			rsi_dbg(INFO_ZONE, "Configuring UAPSD\n");
+			ven_rsi_dbg(INFO_ZONE, "Configuring UAPSD\n");
 			rsi_conf_uapsd(adapter);
 		}
 	}
 
-	if (changed & BSS_CHANGED_CQM) {
-		rsi_dbg(INFO_ZONE, "%s: Changed CQM\n", __func__);
+	if ((vif->type == NL80211_IFTYPE_STATION) &&
+	    changed & BSS_CHANGED_CQM) {
+		ven_rsi_dbg(INFO_ZONE, "%s: Changed CQM\n", __func__);
 		common->cqm_info.last_cqm_event_rssi = 0;
 		common->cqm_info.rssi_thold = bss_conf->cqm_rssi_thold;
 		common->cqm_info.rssi_hyst = bss_conf->cqm_rssi_hyst;
-		rsi_dbg(INFO_ZONE, "RSSI throld & hysteresis are: %d %d\n",
+		ven_rsi_dbg(INFO_ZONE, "RSSI throld & hysteresis are: %d %d\n",
 			common->cqm_info.rssi_thold,
 			common->cqm_info.rssi_hyst);
 	}
 
 	if (changed & BSS_CHANGED_TXPOWER) {
-		rsi_dbg(INFO_ZONE, "%s: Changed TX power: %d\n",
+		ven_rsi_dbg(INFO_ZONE, "%s: Changed TX power: %d\n",
 			__func__, bss_conf->txpower);
 	}
 
 	if (changed & BSS_CHANGED_BEACON_INT) {
-		rsi_dbg(INFO_ZONE, "%s: Changed Beacon interval: %d\n",
+		ven_rsi_dbg(INFO_ZONE, "%s: Changed Beacon interval: %d\n",
 			__func__, bss_conf->beacon_int);
 		adapter->ps_info.listen_interval =
-			bss->beacon_int * adapter->ps_info.num_bcns_per_lis_int; 
+			bss->beacon_int * adapter->ps_info.num_bcns_per_lis_int;
+	}
+
+	if ((changed & BSS_CHANGED_BEACON) &&
+	    (vif->type == NL80211_IFTYPE_AP)) {
+		ven_rsi_dbg(INFO_ZONE, "%s: Changed Beacon\n", __func__);
+		rsi_update_beacon(hw, vif);
+	}
+
+	if ((changed & BSS_CHANGED_BEACON_ENABLED) &&
+	    (vif->type == NL80211_IFTYPE_AP)) {
+		if (bss->enable_beacon)
+			ven_rsi_dbg(INFO_ZONE, "===> BEACON ENABLED <===\n");
+		else
+			ven_rsi_dbg(INFO_ZONE, "===> BEACON DISABLED <===\n");
 	}
 
 	mutex_unlock(&common->mutex);
@@ -741,7 +879,7 @@ static int rsi_mac80211_conf_tx(struct ieee80211_hw *hw,
 	if (queue >= IEEE80211_NUM_ACS)
 		return 0;
 
-	rsi_dbg(INFO_ZONE,
+	ven_rsi_dbg(INFO_ZONE,
 		"[Conf] queue:%d, aifs:%d, cwmin:%d cwmax:%d, txop:%d uapsd:%d\n",
 		queue, params->aifs, params->cw_min, params->cw_max,
 		params->txop, params->uapsd);
@@ -769,11 +907,11 @@ static int rsi_mac80211_conf_tx(struct ieee80211_hw *hw,
 	memcpy(&common->edca_params[idx],
 	       params,
 	       sizeof(struct ieee80211_tx_queue_params));
-	mutex_unlock(&common->mutex);
 
 	if (params->uapsd)
 		common->uapsd_bitmap |= idx;
 
+	mutex_unlock(&common->mutex);
 	return 0;
 }
 
@@ -787,19 +925,32 @@ static int rsi_mac80211_conf_tx(struct ieee80211_hw *hw,
  */
 static int rsi_hal_key_config(struct ieee80211_hw *hw,
 			      struct ieee80211_vif *vif,
-			      struct ieee80211_key_conf *key)
+			      struct ieee80211_key_conf *key,
+			      struct ieee80211_sta *sta)
 {
 	struct rsi_hw *adapter = hw->priv;
 	int status;
 	u8 key_type;
+	s16 sta_id;
 
 	if (key->flags & IEEE80211_KEY_FLAG_PAIRWISE)
 		key_type = RSI_PAIRWISE_KEY;
 	else
 		key_type = RSI_GROUP_KEY;
 
-	rsi_dbg(ERR_ZONE, "%s: Cipher 0x%x key_type: %d key_len: %d\n",
+	ven_rsi_dbg(ERR_ZONE, "%s: Cipher 0x%x key_type: %d key_len: %d\n",
 		__func__, key->cipher, key_type, key->keylen);
+	ven_rsi_dbg(INFO_ZONE, "hw_key_idx %d\n", key->hw_key_idx);
+
+	if (sta && vif->type == NL80211_IFTYPE_AP) {
+		struct rsi_sta *rsta = rsi_find_sta(adapter->priv, sta->addr);
+
+		if (rsta)
+			sta_id = rsta->sta_id;
+		else
+			return -EINVAL;
+	} else
+		sta_id = 0;
 
 	if ((key->cipher == WLAN_CIPHER_SUITE_WEP104) ||
 	    (key->cipher == WLAN_CIPHER_SUITE_WEP40)) {
@@ -808,7 +959,8 @@ static int rsi_hal_key_config(struct ieee80211_hw *hw,
 				      key->keylen,
 				      RSI_PAIRWISE_KEY,
 				      key->keyidx,
-				      key->cipher);
+				      key->cipher,
+				      sta_id);
 		if (status)
 			return status;
 	}
@@ -817,7 +969,8 @@ static int rsi_hal_key_config(struct ieee80211_hw *hw,
 				key->keylen,
 				key_type,
 				key->keyidx,
-				key->cipher);
+				key->cipher,
+				sta_id);
 }
 
 /**
@@ -845,7 +998,7 @@ static int rsi_mac80211_set_key(struct ieee80211_hw *hw,
 	switch (cmd) {
 	case SET_KEY:
 		secinfo->security_enable = true;
-		status = rsi_hal_key_config(hw, vif, key);
+		status = rsi_hal_key_config(hw, vif, key, sta);
 		if (status) {
 			mutex_unlock(&common->mutex);
 			return status;
@@ -859,14 +1012,14 @@ static int rsi_mac80211_set_key(struct ieee80211_hw *hw,
 		key->hw_key_idx = key->keyidx;
 		key->flags |= IEEE80211_KEY_FLAG_GENERATE_IV;
 
-		rsi_dbg(ERR_ZONE, "%s: RSI set_key\n", __func__);
+		ven_rsi_dbg(ERR_ZONE, "%s: RSI set_key\n", __func__);
 		break;
 
 	case DISABLE_KEY:
 		secinfo->security_enable = false;
-		rsi_dbg(ERR_ZONE, "%s: RSI del key\n", __func__);
+		ven_rsi_dbg(ERR_ZONE, "%s: RSI del key\n", __func__);
 		memset(key, 0, sizeof(struct ieee80211_key_conf));
-		status = rsi_hal_key_config(hw, vif, key);
+		status = rsi_hal_key_config(hw, vif, key, sta);
 		break;
 
 	default:
@@ -942,13 +1095,13 @@ static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 	seq_no = params->ssn;
 #endif
 
-	rsi_dbg(INFO_ZONE,
+	ven_rsi_dbg(INFO_ZONE,
 		"%s: AMPDU action tid=%d ssn=0x%x, buf_size=%d\n",
 		__func__, tid, seq_no, buf_size);
 
 	switch (action) {
 	case IEEE80211_AMPDU_RX_START:
-		rsi_dbg(INFO_ZONE, "AMPDU action RX_START (%d)\n", action);
+		ven_rsi_dbg(INFO_ZONE, "AMPDU action RX_START (%d)\n", action);
 		status = rsi_send_aggr_params_frame(common,
 						    tid,
 						    seq_no,
@@ -957,7 +1110,7 @@ static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 		break;
 
 	case IEEE80211_AMPDU_RX_STOP:
-		rsi_dbg(INFO_ZONE,
+		ven_rsi_dbg(INFO_ZONE,
 			"AMPDU action RX_STOP (%d) called\n", action);
 		status = rsi_send_aggr_params_frame(common,
 						    tid,
@@ -967,7 +1120,7 @@ static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 		break;
 
 	case IEEE80211_AMPDU_TX_START:
-		rsi_dbg(INFO_ZONE,
+		ven_rsi_dbg(INFO_ZONE,
 			"AMPDU action TX_START (%d) called\n", action);
 		common->vif_info[ii].seq_start = seq_no;
 		ieee80211_start_tx_ba_cb_irqsafe(vif, sta->addr, tid);
@@ -977,7 +1130,7 @@ static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 	case IEEE80211_AMPDU_TX_STOP_CONT:
 	case IEEE80211_AMPDU_TX_STOP_FLUSH:
 	case IEEE80211_AMPDU_TX_STOP_FLUSH_CONT:
-		rsi_dbg(INFO_ZONE,
+		ven_rsi_dbg(INFO_ZONE,
 			"AMPDU action TX_STOP_CONT / TX_STOP_FLUSH /"
 			" TX_STOP_FLUSH_CONT (%d) called\n", action);
 		status = rsi_send_aggr_params_frame(common,
@@ -990,7 +1143,7 @@ static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 		break;
 
 	case IEEE80211_AMPDU_TX_OPERATIONAL:
-		rsi_dbg(INFO_ZONE,
+		ven_rsi_dbg(INFO_ZONE,
 			"AMPDU action TX_OPERATIONAL(%d) called\n",
 			action);
 		status = rsi_send_aggr_params_frame(common,
@@ -1001,7 +1154,7 @@ static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 		break;
 
 	default:
-		rsi_dbg(ERR_ZONE, "%s: Uknown AMPDU action\n", __func__);
+		ven_rsi_dbg(ERR_ZONE, "%s: Uknown AMPDU action\n", __func__);
 		break;
 	}
 
@@ -1052,8 +1205,7 @@ static int rsi_mac80211_set_rate_mask(struct ieee80211_hw *hw,
 		common->fixedrate_mask[band] =
 			(mask->control[band].ht_mcs[0] << 12);
 	} else {
-		common->fixedrate_mask[band] =
-			mask->control[band].legacy;
+		common->fixedrate_mask[band] = mask->control[band].legacy;
 	}
 	mutex_unlock(&common->mutex);
 
@@ -1085,7 +1237,7 @@ static void rsi_perform_cqm(struct rsi_common *common,
 		return;
 
 	common->cqm_info.last_cqm_event_rssi = rssi;
-	rsi_dbg(INFO_ZONE, "CQM: Notifying event: %d\n", event);
+	ven_rsi_dbg(INFO_ZONE, "CQM: Notifying event: %d\n", event);
 	ieee80211_cqm_rssi_notify(adapter->vifs[0], event, GFP_KERNEL);
 }
 
@@ -1093,7 +1245,7 @@ void rsi_indicate_bcnmiss(struct rsi_common *common)
 {
 	struct rsi_hw *adapter = common->priv;
 
-	rsi_dbg(INFO_ZONE, "CQM: Notifying beacon miss\n" );
+	ven_rsi_dbg(INFO_ZONE, "CQM: Notifying beacon miss\n" );
 	ieee80211_beacon_loss(adapter->vifs[0]);
 	return;
 }
@@ -1113,7 +1265,8 @@ static void rsi_fill_rx_status(struct ieee80211_hw *hw,
 			       struct rsi_common *common,
 			       struct ieee80211_rx_status *rxs)
 {
-	struct ieee80211_bss_conf *bss = &common->priv->vifs[0]->bss_conf;
+	struct ieee80211_vif *vif = common->priv->vifs[0];
+	struct ieee80211_bss_conf *bss = &vif->bss_conf;
 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
 	struct skb_info *rx_params = (struct skb_info *)info->driver_data;
 	struct ieee80211_hdr *hdr;
@@ -1150,7 +1303,8 @@ static void rsi_fill_rx_status(struct ieee80211_hw *hw,
 	}
 
 	/* CQM only for connected AP beacons, the RSSI is a weighted avg */
-	if (bss->assoc && ether_addr_equal(bss->bssid, hdr->addr2)) {
+	if ((vif->type == NL80211_IFTYPE_STATION) && bss->assoc &&
+	    ether_addr_equal(bss->bssid, hdr->addr2)) {
 		if (ieee80211_is_beacon(hdr->frame_control))
 			rsi_perform_cqm(common, hdr->addr2, rxs->signal);
 	}
@@ -1182,46 +1336,6 @@ void rsi_indicate_pkt_to_os(struct rsi_common *common,
 	ieee80211_rx_irqsafe(hw, skb);
 }
 
-static void rsi_set_min_rate(struct ieee80211_hw *hw,
-			     struct ieee80211_sta *sta,
-			     struct rsi_common *common)
-{
-	u8 band = hw->conf.chandef.chan->band;
-	u8 ii;
-	u32 rate_bitmap;
-	bool matched = false;
-
-	common->bitrate_mask[band] = sta->supp_rates[band];
-
-	rate_bitmap = (common->fixedrate_mask[band] & sta->supp_rates[band]);
-
-	if (rate_bitmap & 0xfff) {
-		/* Find out the min rate */
-		for (ii = 0; ii < ARRAY_SIZE(rsi_rates); ii++) {
-			if (rate_bitmap & BIT(ii)) {
-				common->min_rate = rsi_rates[ii].hw_value;
-				matched = true;
-				break;
-			}
-		}
-	}
-
-	common->vif_info[0].is_ht = sta->ht_cap.ht_supported;
-
-	if ((common->vif_info[0].is_ht) && (rate_bitmap >> 12)) {
-		for (ii = 0; ii < ARRAY_SIZE(rsi_mcsrates); ii++) {
-			if ((rate_bitmap >> 12) & BIT(ii)) {
-				common->min_rate = rsi_mcsrates[ii];
-				matched = true;
-				break;
-			}
-		}
-	}
-
-	if (!matched)
-		common->min_rate = 0xffff;
-}
-
 /**
  * rsi_mac80211_sta_add() - This function notifies driver about a peer getting
  *			    connected.
@@ -1237,28 +1351,60 @@ static int rsi_mac80211_sta_add(struct ieee80211_hw *hw,
 {
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
+	bool sta_exist = 0;
 
 	rsi_hex_dump(INFO_ZONE, "Station Add: ", sta->addr, ETH_ALEN);
 
 	mutex_lock(&common->mutex);
 
-	rsi_set_min_rate(hw, sta, common);
+	if (vif->type == NL80211_IFTYPE_AP) {
+		u8 i, j;
+
+		/* Send peer notify to device */
+		ven_rsi_dbg(INFO_ZONE, "Indicate bss status to device\n");
+		for (i = 0; i < common->num_stations; i++) {
+			if (!memcmp(common->stations[i].sta->addr,
+				    sta->addr, ETH_ALEN)) {
+				ven_rsi_dbg(INFO_ZONE, "Station exists\n");
+				sta_exist = 1;
+				break;
+			}
+		}
+		if (!sta_exist) {
+			ven_rsi_dbg(INFO_ZONE, "New Station\n");
+			rsi_inform_bss_status(common, AP_OPMODE, 1, sta->addr,
+					      sta->wme, sta->aid, i);
+			common->stations[i].sta = sta;
+			common->stations[i].sta_id = i;
+			for (j = 0; j < IEEE80211_NUM_ACS; j++)
+				common->stations[i].seq_no[j] = 1;
+			common->num_stations++;
+		} else {
+			common->stations[i].sta = sta;
+			for (j = 0; j < IEEE80211_NUM_ACS; j++)
+				common->stations[i].seq_no[j] = 1;
+		}
+	}
 
 	if ((sta->ht_cap.cap & IEEE80211_HT_CAP_SGI_20) ||
 	    (sta->ht_cap.cap & IEEE80211_HT_CAP_SGI_40)) {
 		common->vif_info[0].sgi = true;
 	}
-	if (g_bgscan_enable) {
-		if (!rsi_send_bgscan_params(common, 1)) {
-			if (!rsi_send_bgscan_probe_req(common)) {
-				rsi_dbg(INFO_ZONE,
-					"Background scan started ===>\n");
-				common->bgscan_en = 1;
+	if (vif->type == NL80211_IFTYPE_STATION) {
+		rsi_set_min_rate(hw, sta, common);
+		if (g_bgscan_enable) {
+			if (!rsi_send_bgscan_params(common, 1)) {
+				if (!rsi_send_bgscan_probe_req(common)) {
+					ven_rsi_dbg(INFO_ZONE,
+						"Bgscan started ===>\n");
+					common->bgscan_en = 1;
+				}
 			}
 		}
 	}
 
-	if (sta->ht_cap.ht_supported)
+	if ((vif->type == NL80211_IFTYPE_STATION) &&
+	    sta->ht_cap.ht_supported)
 		ieee80211_start_tx_ba_session(sta, 0, 0);
 
 	mutex_unlock(&common->mutex);
@@ -1285,24 +1431,49 @@ static int rsi_mac80211_sta_remove(struct ieee80211_hw *hw,
 
 	rsi_hex_dump(INFO_ZONE, "Station Removed: ", sta->addr, ETH_ALEN);
 
-	/* Resetting all the fields to default values */
-	mutex_lock(&common->mutex);
-	memcpy((u8 *)bss->bssid, (u8 *)sta->addr, ETH_ALEN);
-	bss->qos = sta->wme;
-	common->bitrate_mask[NL80211_BAND_2GHZ] = 0;
-	common->bitrate_mask[NL80211_BAND_5GHZ] = 0;
-	common->min_rate = 0xffff;
-	common->vif_info[0].is_ht = false;
-	common->vif_info[0].sgi = false;
-	common->vif_info[0].seq_start = 0;
-	common->secinfo.ptk_cipher = 0;
-	common->secinfo.gtk_cipher = 0;
-	if (common->bgscan_en)
-		common->bgscan_en = 0;
-	mutex_unlock(&common->mutex);
+	if (vif->type == NL80211_IFTYPE_AP) {
+		u8 i, j;
 
-	if (!common->iface_down)
-		rsi_send_rx_filter_frame(common, 0);
+		/* Send peer notify to device */
+		ven_rsi_dbg(INFO_ZONE, "Indicate bss status to device\n");
+		for (i = 0; i < common->num_stations; i++) {
+			if (!memcmp(common->stations[i].sta->addr,
+				    sta->addr, ETH_ALEN)) {
+				rsi_inform_bss_status(common, AP_OPMODE, 0,
+						      sta->addr, sta->wme,
+						      sta->aid, i);
+				common->stations[i].sta = NULL;
+				common->stations[i].sta_id = -1;
+				for (j = 0; j < IEEE80211_NUM_ACS; j++)
+					common->stations[i].seq_no[j] = 0;
+				common->num_stations--;
+				break;
+			}
+		}
+		if (i >= RSI_MAX_ASSOC_STAS)
+			ven_rsi_dbg(ERR_ZONE, "%s: No station found\n", __func__);
+	}
+
+	if (vif->type == NL80211_IFTYPE_STATION) {
+		/* Resetting all the fields to default values */
+		mutex_lock(&common->mutex);
+		memcpy((u8 *)bss->bssid, (u8 *)sta->addr, ETH_ALEN);
+		bss->qos = sta->wme;
+		common->bitrate_mask[NL80211_BAND_2GHZ] = 0;
+		common->bitrate_mask[NL80211_BAND_5GHZ] = 0;
+		common->min_rate = 0xffff;
+		common->vif_info[0].is_ht = false;
+		common->vif_info[0].sgi = false;
+		common->vif_info[0].seq_start = 0;
+		common->secinfo.ptk_cipher = 0;
+		common->secinfo.gtk_cipher = 0;
+		if (common->bgscan_en)
+			common->bgscan_en = 0;
+		mutex_unlock(&common->mutex);
+
+		if (!common->iface_down)
+			rsi_send_rx_filter_frame(common, 0);
+	}
 	return 0;
 }
 #if 0
@@ -1323,7 +1494,7 @@ static void rsi_mac80211_sw_scan_start(struct ieee80211_hw *hw,
 
 	status = rsi_send_bgscan_params(common, 1);
 	if (!status) {
-		rsi_dbg(INFO_ZONE, "Background scan commensing\n");
+		ven_rsi_dbg(INFO_ZONE, "Background scan commensing\n");
 		if (!rsi_send_bgscan_probe_req(common))
 			common->bgscan_en = 1;
 	}
@@ -1386,15 +1557,15 @@ static int rsi_mac80211_set_antenna(struct ieee80211_hw *hw,
 	u32 antenna = 0;
 
 	if (tx_ant > 1 || rx_ant > 1) {
-		rsi_dbg(ERR_ZONE,
+		ven_rsi_dbg(ERR_ZONE,
 			"Invalid antenna selection (tx: %d, rx:%d)\n",
 			tx_ant, rx_ant);
-		rsi_dbg(ERR_ZONE,
+		ven_rsi_dbg(ERR_ZONE,
 			"Use 0 for int_ant, 1 for ext_ant\n");
 		return -EINVAL; 
 	}
 
-	rsi_dbg(INFO_ZONE, "%s: Antenna map Tx %x Rx %d\n",
+	ven_rsi_dbg(INFO_ZONE, "%s: Antenna map Tx %x Rx %d\n",
 			__func__, tx_ant, rx_ant);
 
 	mutex_lock(&common->mutex);
@@ -1404,7 +1575,7 @@ static int rsi_mac80211_set_antenna(struct ieee80211_hw *hw,
 		if (rsi_set_antenna(common, antenna))
 			goto fail_set_antenna;
 
-	rsi_dbg(INFO_ZONE, "(%s) Antenna path configured successfully\n",
+	ven_rsi_dbg(INFO_ZONE, "(%s) Antenna path configured successfully\n",
 		tx_ant ? "UFL" : "INT");
 
 	common->ant_in_use = antenna;
@@ -1414,7 +1585,7 @@ static int rsi_mac80211_set_antenna(struct ieee80211_hw *hw,
 	return 0;
 
 fail_set_antenna:
-	rsi_dbg(ERR_ZONE, "%s: Failed.\n", __func__);
+	ven_rsi_dbg(ERR_ZONE, "%s: Failed.\n", __func__);
 	mutex_unlock(&common->mutex);
 	return -EINVAL;
 }
@@ -1449,10 +1620,13 @@ static void rsi_reg_notify(struct wiphy *wiphy,
 			  struct regulatory_request *request)
 {
 	struct ieee80211_supported_band *sband;
-	struct ieee80211_channel *ch;
 	struct ieee80211_hw *hw = wiphy_to_ieee80211_hw(wiphy);
 	struct rsi_hw * adapter = hw->priv; 
+	struct rsi_common *common = adapter->priv;
+	struct ieee80211_channel *ch;
 	int i;
+
+	mutex_lock(&common->mutex);
 
 	sband = wiphy->bands[NL80211_BAND_5GHZ];
 	
@@ -1465,10 +1639,27 @@ static void rsi_reg_notify(struct wiphy *wiphy,
 			ch->flags |= IEEE80211_CHAN_NO_IR;
 	}
 	
-	rsi_dbg(INFO_ZONE,
+	ven_rsi_dbg(INFO_ZONE,
 		"country = %s dfs_region = %d\n",
 		request->alpha2, request->dfs_region);
+
+	/* If DFS region or country is changed configure back ground scan
+	 * params to device again */
+	if ((adapter->dfs_region != request->dfs_region) ||
+	    (memcmp(adapter->country, request->alpha2, 2))) {
+		if (common->bgscan_en) {
+			rsi_send_bgscan_params(common, 0);
+			common->bgscan_en = 0;
+			mdelay(10);
+			rsi_send_bgscan_params(common, 1);
+			common->bgscan_en = 1;
+		}
+	}
+
 	adapter->dfs_region = request->dfs_region;
+	adapter->country[0] = request->alpha2[0];
+	adapter->country[1] = request->alpha2[1];
+	mutex_unlock(&common->mutex);
 }
 
 void rsi_mac80211_rfkill_poll(struct ieee80211_hw *hw)
@@ -1485,6 +1676,85 @@ void rsi_mac80211_rfkill_poll(struct ieee80211_hw *hw)
 
 	mutex_unlock(&common->mutex);
 }
+
+#ifdef CONFIG_RSI_WOW
+static const struct wiphy_wowlan_support rsi_wowlan_support = {
+	.flags =WIPHY_WOWLAN_ANY |
+		WIPHY_WOWLAN_MAGIC_PKT |
+		WIPHY_WOWLAN_DISCONNECT |
+		WIPHY_WOWLAN_GTK_REKEY_FAILURE  |
+		WIPHY_WOWLAN_SUPPORTS_GTK_REKEY |
+		WIPHY_WOWLAN_EAP_IDENTITY_REQ   |
+		WIPHY_WOWLAN_4WAY_HANDSHAKE,
+	.n_patterns = 0,
+	.pattern_min_len = 1,
+	.pattern_max_len = 0,
+};
+
+static u16 rsi_wow_map_triggers(struct rsi_common *common,
+				struct cfg80211_wowlan *wowlan)
+{
+	u16 wow_triggers = 0;
+
+	ven_rsi_dbg(INFO_ZONE,"Mapping wowlan triggers\n");
+
+	if (wowlan->any)
+		wow_triggers |= RSI_WOW_ANY;
+	if (wowlan->magic_pkt)
+		wow_triggers |= RSI_WOW_MAGIC_PKT;
+	if (wowlan->disconnect)
+		wow_triggers |= RSI_WOW_DISCONNECT;
+	if (wowlan->gtk_rekey_failure || wowlan->eap_identity_req ||
+	    wowlan->four_way_handshake)
+		wow_triggers |= RSI_WOW_SUPPORTS_GTK_REKEY;
+
+	return wow_triggers;
+}
+#endif
+
+#ifdef CONFIG_PM
+int rsi_mac80211_suspend(struct ieee80211_hw *hw,
+			 struct cfg80211_wowlan *wowlan)
+{
+#ifdef CONFIG_RSI_WOW
+	struct rsi_hw *adapter = hw->priv;
+	struct rsi_common *common = adapter->priv;
+	u16 triggers;
+#endif
+	int ret = 0;
+
+	ven_rsi_dbg(INFO_ZONE, "***** mac80211 suspend called ******\n");
+
+#ifdef CONFIG_RSI_WOW
+	if (WARN_ON(!wowlan)) {
+		ven_rsi_dbg(ERR_ZONE,
+			"##### WoW triggers not enabled #####\n");
+		ret = -EINVAL;
+		goto fail_wow;
+	}
+
+	triggers = rsi_wow_map_triggers(common, wowlan);
+	if (!triggers) {
+		ven_rsi_dbg(ERR_ZONE, "%s:No valid WoW triggers\n",__func__);
+		ret = 1;
+		goto fail_wow;
+	}
+	ven_rsi_dbg(INFO_ZONE, "TRIGGERS %x\n", triggers);
+
+	 rsi_send_wowlan_request(common, triggers, wowlan);
+
+fail_wow:
+#endif
+	return ret;
+}
+
+static int rsi_mac80211_resume(struct ieee80211_hw *hw)
+{
+	ven_rsi_dbg(INFO_ZONE, "%s: mac80211 resume\n", __func__);
+
+	return 0;
+}
+#endif
 
 static struct ieee80211_ops mac80211_ops = {
 	.tx = rsi_mac80211_tx,
@@ -1504,7 +1774,12 @@ static struct ieee80211_ops mac80211_ops = {
 	.sta_remove = rsi_mac80211_sta_remove,
 	.set_antenna = rsi_mac80211_set_antenna,
 	.get_antenna = rsi_mac80211_get_antenna,
-        .rfkill_poll = rsi_mac80211_rfkill_poll 
+	.rfkill_poll = rsi_mac80211_rfkill_poll,
+#ifdef CONFIG_PM
+	.suspend = rsi_mac80211_suspend,
+	.resume  = rsi_mac80211_resume,
+#endif
+
 };
 
 /**
@@ -1521,11 +1796,11 @@ int rsi_mac80211_attach(struct rsi_common *common)
 	struct rsi_hw *adapter = common->priv;
 	u8 addr_mask[ETH_ALEN] = {0x0, 0x0, 0x0, 0x0, 0x0, 0x3};
 
-	rsi_dbg(INIT_ZONE, "%s: Performing mac80211 attach\n", __func__);
+	ven_rsi_dbg(INIT_ZONE, "%s: Performing mac80211 attach\n", __func__);
 
 	hw = ieee80211_alloc_hw(sizeof(struct rsi_hw), &mac80211_ops);
 	if (!hw) {
-		rsi_dbg(ERR_ZONE, "%s: ieee80211 hw alloc failed\n", __func__);
+		ven_rsi_dbg(ERR_ZONE, "%s: ieee80211 hw alloc failed\n", __func__);
 		return -ENOMEM;
 	}
 
@@ -1572,25 +1847,33 @@ int rsi_mac80211_attach(struct rsi_common *common)
 	rsi_register_rates_channels(adapter, NL80211_BAND_2GHZ);
 	rsi_register_rates_channels(adapter, NL80211_BAND_5GHZ);
 	hw->rate_control_algorithm = "AARF";
+	hw->sta_data_size = sizeof(struct rsi_sta);
 
 	SET_IEEE80211_PERM_ADDR(hw, common->mac_addr);
 	ether_addr_copy(hw->wiphy->addr_mask, addr_mask);
 
-	wiphy->interface_modes = BIT(NL80211_IFTYPE_STATION);
+	wiphy->interface_modes = BIT(NL80211_IFTYPE_STATION) |
+				 BIT(NL80211_IFTYPE_AP);
 	wiphy->signal_type = CFG80211_SIGNAL_TYPE_MBM;
 	wiphy->retry_short = RETRY_SHORT;
 	wiphy->retry_long  = RETRY_LONG;
 	wiphy->frag_threshold = IEEE80211_MAX_FRAG_THRESHOLD;
 	wiphy->rts_threshold = IEEE80211_MAX_RTS_THRESHOLD;
-	wiphy->flags = 0;
 	wiphy->available_antennas_tx = 1;
 	wiphy->available_antennas_rx = 1;
 	wiphy->bands[NL80211_BAND_2GHZ] =
 		&adapter->sbands[NL80211_BAND_2GHZ];
 	wiphy->bands[NL80211_BAND_5GHZ] =
 		&adapter->sbands[NL80211_BAND_5GHZ];
+	wiphy->max_ap_assoc_sta = RSI_MAX_ASSOC_STAS;
+
+	wiphy->flags = WIPHY_FLAG_REPORTS_OBSS;
 
 	wiphy->reg_notifier = rsi_reg_notify;
+
+#ifdef CONFIG_RSI_WOW
+	wiphy->wowlan = &rsi_wowlan_support;
+#endif
 
 	status = ieee80211_register_hw(hw);
 	if (status)

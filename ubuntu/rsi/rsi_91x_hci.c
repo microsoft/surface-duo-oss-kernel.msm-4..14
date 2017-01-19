@@ -20,8 +20,8 @@
 #include "rsi_hal.h"
 
 #define RSI_BT_GENL_FAMILY "RSI-BTgenl"
-#define RSI_USER_A_MAX 	(__RSI_USER_A_MAX - 1)
-#define RSI_VERSION_NR 	1
+#define RSI_USER_A_MAX	(__RSI_USER_A_MAX - 1)
+#define RSI_VERSION_NR	1
 
 static struct nla_policy bt_genl_policy[RSI_USER_A_MAX + 1] = {
 	[RSI_USER_A_MSG] = { .type = NLA_NUL_STRING },
@@ -55,10 +55,10 @@ static struct genl_cb *global_gcb;
  */
 static int rsi_hci_open(struct hci_dev *hdev)
 {
-	rsi_dbg(ERR_ZONE, "RSI HCI DEVICE \"%s\" open\n", hdev->name);
+	ven_rsi_dbg(ERR_ZONE, "RSI HCI DEVICE \"%s\" open\n", hdev->name);
 
 	if (test_and_set_bit(HCI_RUNNING, &hdev->flags))
-		rsi_dbg(ERR_ZONE, "%s: device `%s' already running\n", 
+		ven_rsi_dbg(ERR_ZONE, "%s: device `%s' already running\n", 
 				__func__, hdev->name);
 
 	return 0;
@@ -73,10 +73,10 @@ static int rsi_hci_open(struct hci_dev *hdev)
  */
 static int rsi_hci_close(struct hci_dev *hdev)
 {
-	rsi_dbg(ERR_ZONE, "RSI HCI DEVICE \"%s\" closed\n", hdev->name);
+	ven_rsi_dbg(ERR_ZONE, "RSI HCI DEVICE \"%s\" closed\n", hdev->name);
 
 	if (!test_and_clear_bit(HCI_RUNNING, &hdev->flags))
-		rsi_dbg(ERR_ZONE, "%s: device `%s' not running\n",
+		ven_rsi_dbg(ERR_ZONE, "%s: device `%s' not running\n",
 				 __func__, hdev->name);
 
 	return 0;
@@ -96,7 +96,7 @@ static int rsi_hci_flush(struct hci_dev *hdev)
 	if (!(h_adapter = hci_get_drvdata(hdev)))
 		return -EFAULT;
 
-	rsi_dbg(ERR_ZONE, "RSI `%s' flush\n", hdev->name);
+	ven_rsi_dbg(ERR_ZONE, "RSI `%s' flush\n", hdev->name);
 
 	return 0;
 }
@@ -124,7 +124,7 @@ static int rsi_hci_send_pkt(struct hci_dev *hdev, struct sk_buff *skb)
 	int status = 0;
 
 	if (skb->len <= 0) {
-		rsi_dbg(ERR_ZONE, "Zero length packet\n");
+		ven_rsi_dbg(ERR_ZONE, "Zero length packet\n");
 		//hdev->sta.err_tx++;
 		status = -EINVAL;
 		goto fail;
@@ -136,8 +136,8 @@ static int rsi_hci_send_pkt(struct hci_dev *hdev, struct sk_buff *skb)
 		goto fail;
 	}
 
-	if (h_adapter->fsm_state != BT_DEVICE_READY) {
-		rsi_dbg(ERR_ZONE, "BT Device not ready\n");
+	if (h_adapter->priv->bt_fsm_state != BT_DEVICE_READY) {
+		ven_rsi_dbg(ERR_ZONE, "BT Device not ready\n");
 		status = -ENODEV;
 		goto fail;
 	}
@@ -173,7 +173,7 @@ static int rsi_hci_send_pkt(struct hci_dev *hdev, struct sk_buff *skb)
 
 		new_skb = dev_alloc_skb(new_len);
 		if (!new_skb) {
-			rsi_dbg(ERR_ZONE, "%s: Failed to alloc skb\n",
+			ven_rsi_dbg(ERR_ZONE, "%s: Failed to alloc skb\n",
 				__func__);
 			return -ENOMEM;
 		}
@@ -188,7 +188,7 @@ static int rsi_hci_send_pkt(struct hci_dev *hdev, struct sk_buff *skb)
         rsi_hex_dump(DATA_RX_ZONE, "TX BT Pkt", skb->data, skb->len); 
 
 #ifdef CONFIG_VEN_RSI_COEX
-	rsi_coex_send_pkt(h_adapter->priv, skb, RSI_BT_Q);
+	rsi_coex_send_pkt(h_adapter->priv, skb, BT_Q);
 #else
         rsi_send_bt_pkt(h_adapter->priv, skb);
 #endif
@@ -198,43 +198,72 @@ fail:
 	return status;
 }
 
+void rsi_hci_scheduler_thread(struct rsi_common *common)
+{
+	struct rsi_hw *adapter = common->priv;
+	int status = 0;
+
+	do {
+		status = adapter->check_intr_status_reg(adapter);
+		if (adapter->isr_pending)
+			adapter->isr_pending = 0;
+		msleep(20);
+
+	} while (atomic_read(&common->hci_thread.thread_done) == 0);
+	complete_and_exit(&common->hci_thread.completion, 0);
+}
+
 int rsi_hci_recv_pkt(struct rsi_common *common, u8 *pkt)
 {
+	struct rsi_hci_adapter *h_adapter =
+		(struct rsi_hci_adapter *)common->hci_adapter;
 	struct sk_buff *skb = NULL;
-        struct rsi_hci_adapter *h_adapter;
 	struct hci_dev *hdev = NULL;
 	int pkt_len = rsi_get_length(pkt, 0);
 	u8 queue_no = rsi_get_queueno(pkt, 0);
 
-	rsi_dbg(INFO_ZONE, "qno:%d, len:%d, fsm:%d",
-		queue_no, pkt_len, common->fsm_state);
-	
-	if (pkt[14] == BT_CARD_READY_IND) {
-		rsi_dbg(INIT_ZONE, "%s: ===> BT Card Ready Received <===\n",
+	if ((common->bt_fsm_state == BT_DEVICE_NOT_READY) &&
+	    (pkt[14] == BT_CARD_READY_IND)) {
+		ven_rsi_dbg(INIT_ZONE, "%s: ===> BT Card Ready Received <===\n",
 			__func__);
 
-		rsi_dbg(INFO_ZONE, "Attaching HCI module\n");
+		ven_rsi_dbg(INFO_ZONE, "Attaching HCI module\n");
 
 		if (rsi_hci_attach(common)) {
-			rsi_dbg(ERR_ZONE, "Failed to attach HCI module\n");
+			ven_rsi_dbg(ERR_ZONE, "Failed to attach HCI module\n");
 			return 0;
 		}
 
-#ifdef CONFIG_VEN_RSI_COEX
-		if (rsi_coex_init(common)) {
-			rsi_dbg(ERR_ZONE, "Failed to init COEX module\n");
-			goto err;
+		/* TODO: Work aroud for Dell; move this to module_param */
+#if (defined(CONFIG_DELL_BOARD) &&  defined(CONFIG_VEN_RSI_HCI))
+		if (rsi_set_antenna(common, ANTENNA_SEL_UFL)) {
+			ven_rsi_dbg(ERR_ZONE,
+				"%s: Failed to configure external antenna\n",
+				__func__);
+		} else
+			ven_rsi_dbg(INFO_ZONE, "***** UFL antenna is configured\n");
+
+#endif
+
+#if (defined(CONFIG_VEN_RSI_HCI) || defined(CONFIG_VEN_RSI_COEX))
+#if defined(CONFIG_DELL_BOARD)
+	if (common->priv->rsi_host_intf == RSI_HOST_INTF_SDIO) {
+		rsi_init_event(&common->hci_thread.event);
+		if (rsi_create_kthread(common,
+					&common->hci_thread,
+					rsi_hci_scheduler_thread,
+					"hci-Thread")) {
+			ven_rsi_dbg(ERR_ZONE, "%s: Unable to init hci thrd\n",
+				__func__);
 		}
-#endif 
-                h_adapter = (struct rsi_hci_adapter *)common->hci_adapter;
-		h_adapter->fsm_state = BT_DEVICE_READY;
+	}
+#endif
+#endif
 		return 0;
 	}
-                
-        h_adapter = (struct rsi_hci_adapter *)common->hci_adapter;
 
-	if (h_adapter->fsm_state != BT_DEVICE_READY) {
-		rsi_dbg(INFO_ZONE, "BT Device not ready\n");
+	if (common->bt_fsm_state != BT_DEVICE_READY) {
+		ven_rsi_dbg(INFO_ZONE, "BT Device not ready\n");
 		return 0;
 	}
 	
@@ -243,16 +272,13 @@ int rsi_hci_recv_pkt(struct rsi_common *common, u8 *pkt)
 	
 		switch (msg_type) {
 		case RESULT_CONFIRM:
-			rsi_dbg(MGMT_RX_ZONE, "%s: BT Result Confirm\n", __func__);
-			return 0;
-		case BT_PER:
-			rsi_dbg(MGMT_RX_ZONE, "%s: BT Result Confirm\n", __func__);
+			ven_rsi_dbg(MGMT_RX_ZONE, "BT Result Confirm\n");
 			return 0;
 		case BT_BER:
-			rsi_dbg(MGMT_RX_ZONE, "%s: BT Result Confirm\n", __func__);
+			ven_rsi_dbg(MGMT_RX_ZONE, "BT Ber\n");
 			return 0;
 		case BT_CW:
-			rsi_dbg(MGMT_RX_ZONE, "%s: BT Result Confirm\n", __func__);
+			ven_rsi_dbg(MGMT_RX_ZONE, "BT CW\n");
 			return 0;
 		default:
 			break;
@@ -261,7 +287,7 @@ int rsi_hci_recv_pkt(struct rsi_common *common, u8 *pkt)
 
 	skb = dev_alloc_skb(pkt_len);
 	if (!skb) {
-		rsi_dbg(ERR_ZONE, "%s: Failed to alloc skb\n", __func__);
+		ven_rsi_dbg(ERR_ZONE, "%s: Failed to alloc skb\n", __func__);
 		return -ENOMEM;
 	}
         hdev = h_adapter->hdev;
@@ -311,13 +337,13 @@ int rsi_genl_recv(struct sk_buff *skb, struct genl_info *info)
 	if (na) {
 		data = (u8 *)nla_data(na);
 		if (!data) {
-			rsi_dbg(ERR_ZONE,
+			ven_rsi_dbg(ERR_ZONE,
 				"%s: no data recevied on family `%s'\n",
 				__func__, gcb->gc_name);
 			goto err;
 		}
 	} else {
-		rsi_dbg(ERR_ZONE,
+		ven_rsi_dbg(ERR_ZONE,
 			"%s: netlink attr is NULL on family `%s'\n",
 			 __func__, gcb->gc_name);
 		goto err;
@@ -330,14 +356,14 @@ int rsi_genl_recv(struct sk_buff *skb, struct genl_info *info)
 
 	data += 16;
 
-	rsi_dbg(ERR_ZONE, "%s: len %x pkt_type %x\n", 
+	ven_rsi_dbg(ERR_ZONE, "%s: len %x pkt_type %x\n", 
 			__func__, len, pkttype);
 
 	rsi_hex_dump (DATA_RX_ZONE, "BT TX data", data, len);
 
 	skb = dev_alloc_skb(len + REQUIRED_HEADROOM_FOR_BT_HAL);
 	if (!skb) {
-		rsi_dbg(ERR_ZONE, "%s: Failed to alloc skb\n",
+		ven_rsi_dbg(ERR_ZONE, "%s: Failed to alloc skb\n",
 				__func__);
 		return -ENOMEM;
 	}
@@ -355,7 +381,7 @@ int rsi_genl_recv(struct sk_buff *skb, struct genl_info *info)
 #endif
 
 err:
-	rsi_dbg(ERR_ZONE, "%s: error(%d) occured\n", __func__, rc);
+	ven_rsi_dbg(ERR_ZONE, "%s: error(%d) occured\n", __func__, rc);
 	return rc;
 }
 
@@ -374,12 +400,11 @@ int rsi_hci_attach(struct rsi_common *common)
 	struct hci_dev *hdev;
 	int status = 0;
 
-		rsi_dbg (ERR_ZONE, "%s: In alloc HCI adapter\n", __func__);
 	/* Allocate HCI adapter */
 	/* TODO: Check GFP_ATOMIC */
 	h_adapter = kzalloc(sizeof (*h_adapter), GFP_KERNEL);
 	if (!h_adapter) {
-		rsi_dbg (ERR_ZONE, "%s: Failed to alloc HCI adapter\n", __func__);
+		ven_rsi_dbg (ERR_ZONE, "Failed to alloc HCI adapter\n");
 		return -ENOMEM;
 	}
 	h_adapter->priv = common;
@@ -387,7 +412,7 @@ int rsi_hci_attach(struct rsi_common *common)
 	/* Create HCI Interface */
 	hdev = hci_alloc_dev();
 	if (!hdev) {
-		rsi_dbg (ERR_ZONE, "%s: Failed to alloc HCI device\n", __func__);
+		ven_rsi_dbg (ERR_ZONE, "Failed to alloc HCI device\n");
 		goto err;
 	}
 	h_adapter->hdev = hdev;
@@ -412,22 +437,22 @@ int rsi_hci_attach(struct rsi_common *common)
         /* Initialize TX queue */
 	skb_queue_head_init(&h_adapter->hci_tx_queue);
 	common->hci_adapter = (void *)h_adapter;
-	rsi_dbg (ERR_ZONE, "%s: In alloc HCI adapter\n", __func__);
+	ven_rsi_dbg (ERR_ZONE, "%s: In alloc HCI adapter\n", __func__);
 	status = hci_register_dev(hdev);
 	if (status < 0) {
-		rsi_dbg(ERR_ZONE,
+		ven_rsi_dbg(ERR_ZONE,
 			"%s: HCI registration failed with errcode %d\n",
 			__func__, status);
 		goto err;
 	}
-	rsi_dbg(INIT_ZONE, "HCI Interface Created with name \'%s\'\n",
+	ven_rsi_dbg(INIT_ZONE, "HCI Interface Created with name \'%s\'\n",
 		hdev->name);
 
 	/* Register for general netlink operations */
 	/* TODO: Check GFP_ATOMIC */
 	gcb = kzalloc(sizeof(*gcb), GFP_KERNEL);
 	if (!gcb) {
-		rsi_dbg (ERR_ZONE, "%s: Failed to alloc genl control block\n",
+		ven_rsi_dbg (ERR_ZONE, "%s: Failed to alloc genl control block\n",
 				__func__); 
 		goto err;
 	}
@@ -442,7 +467,7 @@ int rsi_hci_attach(struct rsi_common *common)
 	gcb->gc_name = RSI_BT_GENL_FAMILY;
 	gcb->gc_pid = gcb->gc_done = 0;
 
-	rsi_dbg(INIT_ZONE, "genl-register: nl_family `%s'\n", gcb->gc_name);
+	ven_rsi_dbg(INIT_ZONE, "genl-register: nl_family `%s'\n", gcb->gc_name);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 13, 0)
 	gcb->gc_family->ops = gcb->gc_ops;
@@ -450,22 +475,21 @@ int rsi_hci_attach(struct rsi_common *common)
 #endif
 
 	if (genl_register_family(gcb->gc_family)) {
-		rsi_dbg(ERR_ZONE, "%s: genl_register_family failed\n",
+		ven_rsi_dbg(ERR_ZONE, "%s: genl_register_family failed\n",
 			__func__);
 		goto err;
 	}
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION (3, 12, 34)
 	if (genl_register_ops(gcb->gc_family, gcb->gc_ops)) {
-		rsi_dbg(ERR_ZONE, "%s: genl_register_ops failed\n", __func__);
+		ven_rsi_dbg(ERR_ZONE, "%s: genl_register_ops failed\n", __func__);
 		genl_unregister_family(family);
 		goto err;
 	}
 #endif
 	gcb->gc_done = 1;
-
-        //h_adapter->fsm_state = BT_DEVICE_READY;	
-	rsi_dbg(ERR_ZONE, " HCI module init done...\n");
+	common->bt_fsm_state = BT_DEVICE_READY;
+	ven_rsi_dbg(ERR_ZONE, " HCI module init done...\n");
 
 	return 0;
 
@@ -486,6 +510,7 @@ err:
 
 	return -EINVAL;
 }
+EXPORT_SYMBOL_GPL(rsi_hci_attach);
 
 /**
  * rsi_hci_attach () - This function initializes HCI interface
@@ -501,7 +526,7 @@ void rsi_hci_detach(struct rsi_common *common)
 	struct hci_dev *hdev;
 	struct genl_cb *gcb;
 
-	rsi_dbg(INFO_ZONE, "Detaching HCI...\n");
+	ven_rsi_dbg(INFO_ZONE, "Detaching HCI...\n");
 
 	if (!h_adapter)
 		return;
@@ -527,6 +552,5 @@ void rsi_hci_detach(struct rsi_common *common)
 
 	return;
 }
-EXPORT_SYMBOL_GPL(rsi_hci_attach);
 EXPORT_SYMBOL_GPL(rsi_hci_detach);
 
