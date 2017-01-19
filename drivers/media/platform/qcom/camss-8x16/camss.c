@@ -501,10 +501,11 @@ static int camss_probe(struct platform_device *pdev)
 	struct camss *camss;
 	int ret;
 
-	camss = devm_kzalloc(dev, sizeof(*camss), GFP_KERNEL);
+	camss = kzalloc(sizeof(*camss), GFP_KERNEL);
 	if (!camss)
 		return -ENOMEM;
 
+	atomic_set(&camss->ref_count, 0);
 	camss->dev = dev;
 	platform_set_drvdata(pdev, camss);
 
@@ -561,6 +562,15 @@ err_register_entities:
 	return ret;
 }
 
+void camss_delete(struct camss *camss)
+{
+	v4l2_device_unregister(&camss->v4l2_dev);
+	media_device_unregister(&camss->media_dev);
+	media_device_cleanup(&camss->media_dev);
+
+	kfree(camss);
+}
+
 /*
  * camss_remove - Remove CAMSS platform device
  * @pdev: Pointer to CAMSS platform device
@@ -571,11 +581,13 @@ static int camss_remove(struct platform_device *pdev)
 {
 	struct camss *camss = platform_get_drvdata(pdev);
 
+	msm_vfe_stop_streaming(&camss->vfe);
+
 	v4l2_async_notifier_unregister(&camss->notifier);
 	camss_unregister_entities(camss);
-	v4l2_device_unregister(&camss->v4l2_dev);
-	media_device_unregister(&camss->media_dev);
-	media_device_cleanup(&camss->media_dev);
+
+	if (atomic_read(&camss->ref_count) == 0)
+		camss_delete(camss);
 
 	return 0;
 }

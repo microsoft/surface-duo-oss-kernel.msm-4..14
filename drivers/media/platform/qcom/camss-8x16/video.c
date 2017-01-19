@@ -214,7 +214,7 @@ static int video_check_format(struct camss_video *video)
 static int video_start_streaming(struct vb2_queue *q, unsigned int count)
 {
 	struct camss_video *video = vb2_get_drv_priv(q);
-	struct video_device *vdev = video->vdev;
+	struct video_device *vdev = &video->vdev;
 	struct media_entity *entity;
 	struct media_pad *pad;
 	struct v4l2_subdev *subdev;
@@ -259,7 +259,7 @@ error:
 static void video_stop_streaming(struct vb2_queue *q)
 {
 	struct camss_video *video = vb2_get_drv_priv(q);
-	struct video_device *vdev = video->vdev;
+	struct video_device *vdev = &video->vdev;
 	struct media_entity *entity;
 	struct media_pad *pad;
 	struct v4l2_subdev *subdev;
@@ -456,7 +456,7 @@ static int video_open(struct file *file)
 		goto error_alloc;
 	}
 
-	v4l2_fh_init(vfh, video->vdev);
+	v4l2_fh_init(vfh, vdev);
 	v4l2_fh_add(vfh);
 
 	file->private_data = vfh;
@@ -516,6 +516,19 @@ static const struct v4l2_file_operations msm_vid_fops = {
  * CAMSS video core
  */
 
+static void msm_video_release(struct video_device *vdev)
+{
+	struct camss_video *video = video_get_drvdata(vdev);
+
+	media_entity_cleanup(&vdev->entity);
+
+	mutex_destroy(&video->q_lock);
+	mutex_destroy(&video->lock);
+
+	if (atomic_dec_and_test(&video->camss->ref_count))
+		camss_delete(video->camss);
+}
+
 int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 		       const char *name)
 {
@@ -524,13 +537,7 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 	struct vb2_queue *q;
 	int ret;
 
-	vdev = video_device_alloc();
-	if (vdev == NULL) {
-		dev_err(v4l2_dev->dev, "Failed to allocate video device\n");
-		return -ENOMEM;
-	}
-
-	video->vdev = vdev;
+	vdev = &video->vdev;
 
 	mutex_init(&video->q_lock);
 
@@ -563,7 +570,7 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 	vdev->device_caps = V4L2_CAP_VIDEO_CAPTURE | V4L2_CAP_STREAMING |
 							V4L2_CAP_READWRITE;
 	vdev->ioctl_ops = &msm_vid_ioctl_ops;
-	vdev->release = video_device_release;
+	vdev->release = msm_video_release;
 	vdev->v4l2_dev = v4l2_dev;
 	vdev->vfl_dir = VFL_DIR_RX;
 	vdev->queue = &video->vb2_q;
@@ -577,6 +584,7 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 	}
 
 	video_set_drvdata(vdev, video);
+	atomic_inc(&video->camss->ref_count);
 
 	return 0;
 
@@ -591,10 +599,15 @@ error_vb2_init:
 	return ret;
 }
 
+void msm_video_stop_streaming(struct camss_video *video)
+{
+	if (vb2_is_streaming(&video->vb2_q))
+		vb2_queue_release(&video->vb2_q);
+}
+
 void msm_video_unregister(struct camss_video *video)
 {
-	video_unregister_device(video->vdev);
-	media_entity_cleanup(&video->vdev->entity);
-	mutex_destroy(&video->q_lock);
-	mutex_destroy(&video->lock);
+	atomic_inc(&video->camss->ref_count);
+	video_unregister_device(&video->vdev);
+	atomic_dec(&video->camss->ref_count);
 }

@@ -44,7 +44,7 @@ struct camss_video_ops {
 struct camss_video {
 	struct camss *camss;
 	struct vb2_queue vb2_q;
-	struct video_device *vdev;
+	struct video_device vdev;
 	struct media_pad pad;
 	struct v4l2_format active_fmt;
 	enum v4l2_buf_type type;
@@ -53,6 +53,8 @@ struct camss_video {
 	struct mutex lock;
 	struct mutex q_lock;
 };
+
+void msm_video_stop_streaming(struct camss_video *video);
 
 int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 		       const char *name);

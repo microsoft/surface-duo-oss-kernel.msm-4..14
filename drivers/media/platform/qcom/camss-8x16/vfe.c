@@ -1199,7 +1199,7 @@ static struct vfe_line *vfe_video_pad_to_line(struct media_pad *pad)
 	struct v4l2_subdev *subdev;
 
 	vfe_pad = media_entity_remote_pad(pad);
-	if (pad == NULL)
+	if (vfe_pad == NULL)
 		return NULL;
 
 	subdev = media_entity_to_v4l2_subdev(vfe_pad->entity);
@@ -1758,6 +1758,14 @@ static const struct camss_video_ops camss_vfe_video_ops = {
 	.flush_buffers = vfe_flush_buffers,
 };
 
+void msm_vfe_stop_streaming(struct vfe_device *vfe)
+{
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(vfe->line); i++)
+		msm_video_stop_streaming(&vfe->line[i].video_out);
+}
+
 /*
  * msm_vfe_register_entities - Register subdev node for VFE module
  * @vfe: VFE device
@@ -1823,11 +1831,11 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 
 		ret = media_create_pad_link(
 				&sd->entity, MSM_VFE_PAD_SRC,
-				&video_out->vdev->entity, 0,
+				&video_out->vdev.entity, 0,
 				MEDIA_LNK_FL_IMMUTABLE | MEDIA_LNK_FL_ENABLED);
 		if (ret < 0) {
 			dev_err(dev, "Failed to link %s->%s entities\n",
-			       sd->entity.name, video_out->vdev->entity.name);
+			       sd->entity.name, video_out->vdev.entity.name);
 			goto error_link;
 		}
 	}
