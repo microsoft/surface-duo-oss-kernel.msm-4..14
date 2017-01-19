@@ -202,7 +202,7 @@ MODULE_DEVICE_TABLE(spi, adc128_id);
 static struct spi_driver adc128_driver = {
 	.driver = {
 		.name = "adc128s052",
-		.of_match_table = of_match_ptr(adc128_of_match),
+		.of_match_table = adc128_of_match,
 	},
 	.probe = adc128_probe,
 	.remove = adc128_remove,
