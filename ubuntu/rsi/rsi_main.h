@@ -274,11 +274,11 @@ struct rsi_common {
 	int tx_power;
 	u8 ant_in_use;
 
-#ifdef CONFIG_RSI_HCI
+#ifdef CONFIG_VEN_RSI_HCI
 	void *hci_adapter;
 #endif
 
-#ifdef CONFIG_RSI_COEX
+#ifdef CONFIG_VEN_RSI_COEX
 	void *coex_cb;
 #endif
 };
@@ -327,7 +327,7 @@ struct rsi_hw {
 	struct rsi_ps_info ps_info;
 	spinlock_t ps_lock;
 
-#ifdef CONFIG_RSI_DEBUGFS
+#ifdef CONFIG_VEN_RSI_DEBUGFS
 	struct rsi_debugfs *dfsentry;
 	u8 num_debugfs_entries;
 #endif

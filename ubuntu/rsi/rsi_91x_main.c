@@ -21,10 +21,10 @@
 #include "rsi_mgmt.h"
 #include "rsi_common.h"
 #include "rsi_hal.h"
-#ifdef CONFIG_RSI_HCI
+#ifdef CONFIG_VEN_RSI_HCI
 #include "rsi_hci.h"
 #endif
-#ifdef CONFIG_RSI_COEX
+#ifdef CONFIG_VEN_RSI_COEX
 #include "rsi_coex.h"
 #endif
 
@@ -191,7 +191,7 @@ int rsi_read_pkt(struct rsi_common *common, u8 *rx_pkt, s32 rcv_pkt_len)
 		case RSI_WIFI_MGMT_Q:
 			rsi_mgmt_pkt_recv(common, (frame_desc + offset));
 			break;
-#ifdef CONFIG_RSI_HCI
+#ifdef CONFIG_VEN_RSI_HCI
 		case RSI_BT_MGMT_Q:
 		case RSI_BT_DATA_Q:
 			rsi_hex_dump(DATA_RX_ZONE,

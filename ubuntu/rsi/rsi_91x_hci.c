@@ -187,7 +187,7 @@ static int rsi_hci_send_pkt(struct hci_dev *hdev, struct sk_buff *skb)
 
         rsi_hex_dump(DATA_RX_ZONE, "TX BT Pkt", skb->data, skb->len); 
 
-#ifdef CONFIG_RSI_COEX
+#ifdef CONFIG_VEN_RSI_COEX
 	rsi_coex_send_pkt(h_adapter->priv, skb, RSI_BT_Q);
 #else
         rsi_send_bt_pkt(h_adapter->priv, skb);
@@ -220,7 +220,7 @@ int rsi_hci_recv_pkt(struct rsi_common *common, u8 *pkt)
 			return 0;
 		}
 
-#ifdef CONFIG_RSI_COEX
+#ifdef CONFIG_VEN_RSI_COEX
 		if (rsi_coex_init(common)) {
 			rsi_dbg(ERR_ZONE, "Failed to init COEX module\n");
 			goto err;
@@ -348,7 +348,7 @@ int rsi_genl_recv(struct sk_buff *skb, struct genl_info *info)
 	memcpy(skb->data, data, len);
 	bt_cb(skb)->pkt_type = pkttype;
 
-#ifdef CONFIG_RSI_COEX
+#ifdef CONFIG_VEN_RSI_COEX
 	return rsi_coex_send_pkt(h_adapter->priv, skb, RSI_BT_Q);
 #else
         return rsi_send_bt_pkt(h_adapter->priv, skb);

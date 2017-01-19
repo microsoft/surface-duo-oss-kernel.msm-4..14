@@ -1086,7 +1086,7 @@ fail:
 int rsi_hal_device_init(struct rsi_hw *adapter)
 {
 
-#ifdef CONFIG_RSI_HCI
+#ifdef CONFIG_VEN_RSI_HCI
 	adapter->priv->coex_mode = 4;
 #else
 	adapter->priv->coex_mode = 1;

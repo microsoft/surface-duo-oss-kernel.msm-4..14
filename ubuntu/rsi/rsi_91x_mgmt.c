@@ -309,7 +309,7 @@ static void rsi_set_default_parameters(struct rsi_common *common)
 	common->iface_down = true;
 	common->endpoint = EP_2GHZ_20MHZ;
 	common->driver_mode = 1; /* End-to-End Mode */
-#ifdef CONFIG_RSI_HCI
+#ifdef CONFIG_VEN_RSI_HCI
 	common->coex_mode = 4;
 	common->oper_mode = 4;
 #else

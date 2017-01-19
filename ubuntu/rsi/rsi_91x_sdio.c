@@ -965,7 +965,7 @@ static int rsi_init_sdio_interface(struct rsi_hw *adapter,
 	adapter->determine_event_timeout = rsi_sdio_determine_event_timeout;
 	adapter->check_hw_queue_status = rsi_sdio_read_buffer_status_register;
 
-#ifdef CONFIG_RSI_DEBUGFS
+#ifdef CONFIG_VEN_RSI_DEBUGFS
 	adapter->num_debugfs_entries = MAX_DEBUGFS_ENTRIES;
 #endif
 	return status;
@@ -1069,7 +1069,7 @@ static void rsi_disconnect(struct sdio_func *pfunction)
 
 	rsi_mac80211_detach(adapter);
 	mdelay(10);
-#ifdef CONFIG_RSI_HCI
+#ifdef CONFIG_VEN_RSI_HCI
         rsi_hci_detach(adapter->priv);
 #endif
         mdelay(10);

@@ -224,7 +224,7 @@ void rsi_mac80211_detach(struct rsi_hw *adapter)
 		kfree(sband->channels);
 	}
 
-#ifdef CONFIG_RSI_DEBUGFS
+#ifdef CONFIG_VEN_RSI_DEBUGFS
 	rsi_remove_dbgfs(adapter);
 	kfree(adapter->dfsentry);
 #endif
@@ -270,10 +270,10 @@ static void rsi_mac80211_tx(struct ieee80211_hw *hw,
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
 
-#ifndef CONFIG_RSI_HCI
+#ifndef CONFIG_VEN_RSI_HCI
 	rsi_core_xmit(common, skb);
 #else
-#ifndef CONFIG_RSI_COEX
+#ifndef CONFIG_VEN_RSI_COEX
         ieee80211_free_txskb(common->priv->hw, skb); 
 #endif
 #endif

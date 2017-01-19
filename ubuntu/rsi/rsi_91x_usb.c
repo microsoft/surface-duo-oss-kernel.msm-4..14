@@ -469,7 +469,7 @@ static void rsi_deinit_usb_interface(struct rsi_hw *adapter)
 	rsi_kill_thread(&dev->rx_thread);
 	kfree(dev->rx_cb[0].rx_buffer);
 	usb_free_urb(dev->rx_cb[0].rx_urb);
-#ifdef CONFIG_RSI_HCI
+#ifdef CONFIG_VEN_RSI_HCI
 	kfree(dev->rx_cb[1].rx_buffer);
 	usb_free_urb(dev->rx_cb[1].rx_urb);
 #endif
@@ -636,7 +636,7 @@ static int rsi_init_usb_interface(struct rsi_hw *adapter,
 		goto fail_2;
 	}
 
-#ifdef CONFIG_RSI_DEBUGFS
+#ifdef CONFIG_VEN_RSI_DEBUGFS
 	/* In USB, one less than the MAX_DEBUGFS_ENTRIES entries
 	 * is required */
 	adapter->num_debugfs_entries = MAX_DEBUGFS_ENTRIES - 1;
@@ -816,7 +816,7 @@ static int rsi_probe(struct usb_interface *pfunction,
 	if (status)
 		goto err1;
 
-#ifdef CONFIG_RSI_HCI
+#ifdef CONFIG_VEN_RSI_HCI
 	status = rsi_rx_urb_submit(adapter, 2 /* RX_BT_EP */);
 	if (status)
 		goto err1;
@@ -849,7 +849,7 @@ static void rsi_disconnect(struct usb_interface *pfunction)
 	
 	rsi_reset_card(adapter);
 
-#ifdef CONFIG_RSI_HCI
+#ifdef CONFIG_VEN_RSI_HCI
         rsi_hci_detach(adapter->priv);
 	rsi_dbg(INFO_ZONE, "HCI Detach Done\n");
 #endif

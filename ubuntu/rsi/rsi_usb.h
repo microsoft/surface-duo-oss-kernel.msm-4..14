@@ -29,7 +29,7 @@
 #define RSI_USB_TX_HEAD_ROOM         128
 
 #define MAX_TX_URBS                  1
-#ifdef CONFIG_RSI_HCI
+#ifdef CONFIG_VEN_RSI_HCI
 #define MAX_RX_URBS                  2
 #else
 #define MAX_RX_URBS                  1
