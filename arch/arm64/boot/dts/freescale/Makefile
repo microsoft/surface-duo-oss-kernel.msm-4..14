@@ -1,3 +1,5 @@
+dtb-$(CONFIG_ARCH_S32) += s32v234-bbmini.dtb
+dtb-$(CONFIG_ARCH_S32) += s32v234-evb29288.dtb
 dtb-$(CONFIG_ARCH_S32) += s32v234-evb.dtb
 dtb-$(CONFIG_ARCH_S32) += s32v234-evbbcm.dtb
 dtb-$(CONFIG_ARCH_S32) += s32v234-palladium.dtb

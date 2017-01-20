@@ -1,0 +1,83 @@
+SJA1105 Ethernet Switch controller from NXP
+
+Required properties:
+
+- compatible : should be "nxp,sja1105-switch", "nxp,sja1105-switch-1-2",
+		"nxp,sja1105-switch-2-2","nxp,sja1105-switch-1-3",
+		"nxp,sja1105-switch-2-3" or "nxp,sja1105-switch-3-3".
+
+Note:
+	1. If two switches are connected in cascade, first switch should
+use "nxp,sja1105-switch-1-2" as compatible string and the second one
+"nxp,sja1105-switch-2-2".
+	2. If three switches are connected in cascade, first switch should
+use "nxp,sja1105-switch-1-3" as compatible string, the second one
+"nxp,sja1105-switch-2-3" and the third one "nxp,sja1105-switch-3-3".
+
+- reg : should specify the chip select of SPI controller used to
+select this switch
+
+- spi-max-frequency: Maximum frequency used for communication between
+SPI controller and SJA1105 switch
+
+- spi-cpha: SJA1105 switch needs to be configure 0x1 SPI mode
+
+- port-<n>: port node specifies the configuration of the nth port of the
+switch. The port node
+		must have the following mandatory properties:
+		- is-host:	Port Interface mode: MAC or PHY:
+			<0x0> 	: MAC Mode
+			<0x1>	: PHY Mode
+		- speed: 	Port Speed:
+			<0x00>	:	Port Disabled
+			<0x01>	:	1	Gbit/s
+			<0x10>	:	100	Mbit/s
+			<0x11>	:	10	Mbit/s
+		- xmii-mode: Port xMii Mode:
+			"RGMII"
+			"RMII"
+			"MII"
+		- null-phy: Port has PHY connected or not:
+			<0x0>	:	PHY connected
+			<0x1>	:	No PHY connected
+
+For further information, please have a look to the SJA1105 data sheet.
+
+Examples:
+
+sja1105_0: sja1105@0 {
+        compatible = "nxp,sja1105-switch-1-3";
+        spi-max-frequency = <4000000>;
+        spi-cpha;
+        reg = <0>;
+        port-0 {
+                is-host = <1>;
+                speed = <1000>;
+                xmii-mode = "RGMII";
+                null-phy =  <1>;
+        };
+        port-1 {
+                is-host = <0>;
+                speed = <1000>;
+                xmii-mode = "RGMII";
+                null-phy =  <0>;
+        };
+        port-2 {
+                is-host = <0>;
+                speed = <100>;
+                xmii-mode = "RMII";
+                null-phy = <0>;
+        };
+        port-3 {
+                is-host = <0>;
+                speed = <1000>;
+                xmii-mode = "RGMII";
+                null-phy = <0>;
+        };
+        port-4 {
+                is-host = <0>;
+                speed = <1000>;
+                xmii-mode = "RGMII";
+                null-phy = <0>;
+        };
+};
