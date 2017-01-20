@@ -796,7 +796,7 @@ static const struct sdio_device_id rsi_dev_table[] =  {
 	{ SDIO_DEVICE(0x303, 0x100) },
 	{ SDIO_DEVICE(0x041B, 0x0301) },
 	{ SDIO_DEVICE(0x041B, 0x0201) },
-	{ SDIO_DEVICE(0x041B, 0x9330) },
+	/* { SDIO_DEVICE(0x041B, 0x9330) }, LP:#1657682 replaced by ubuntu/rsi/ */
 	{ /* Blank */},
 };
 
