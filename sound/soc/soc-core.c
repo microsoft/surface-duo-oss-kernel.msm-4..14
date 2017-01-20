@@ -2576,7 +2576,7 @@ static int snd_soc_register_dais(struct snd_soc_component *component,
 	unsigned int i;
 	int ret;
 
-	dev_dbg(dev, "ASoC: dai register %s #%Zu\n", dev_name(dev), count);
+	dev_info(dev, "ASoC: dai register %s #%Zu\n", dev_name(dev), count);
 
 	component->dai_drv = dai_drv;
 	component->num_dai = count;
@@ -2897,7 +2897,7 @@ int snd_soc_register_platform(struct device *dev,
 	struct snd_soc_platform *platform;
 	int ret;
 
-	dev_dbg(dev, "ASoC: platform register %s\n", dev_name(dev));
+	dev_info(dev, "ASoC: platform register %s\n", dev_name(dev));
 
 	platform = kzalloc(sizeof(struct snd_soc_platform), GFP_KERNEL);
 	if (platform == NULL)
@@ -3056,7 +3056,7 @@ int snd_soc_register_codec(struct device *dev,
 	struct snd_soc_dai *dai;
 	int ret, i;
 
-	dev_dbg(dev, "codec register %s\n", dev_name(dev));
+	dev_info(dev, "codec register %s\n", dev_name(dev));
 
 	codec = kzalloc(sizeof(struct snd_soc_codec), GFP_KERNEL);
 	if (codec == NULL)

@@ -257,7 +257,7 @@ static inline int dmam_declare_coherent_memory(struct device *dev,
 static inline void dmam_release_declared_memory(struct device *dev)
 {
 }
-#endif /* ARCH_HAS_DMA_DECLARE_COHERENT_MEMORY */
+#endif
 
 #ifndef CONFIG_HAVE_DMA_ATTRS
 struct dma_attrs;

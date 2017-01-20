@@ -250,6 +250,8 @@ static struct ion_heap_ops system_heap_ops = {
 	.map_kernel = ion_heap_map_kernel,
 	.unmap_kernel = ion_heap_unmap_kernel,
 	.map_user = ion_heap_map_user,
+	.map_iommu = ion_heap_map_iommu,
+	.unmap_iommu = ion_heap_unmap_iommu,
 	.shrink = ion_system_heap_shrink,
 };
 

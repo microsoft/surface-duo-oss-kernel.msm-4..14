@@ -14,7 +14,7 @@ xhci-hcd-y := xhci.o xhci-mem.o
 xhci-hcd-y += xhci-ring.o xhci-hub.o xhci-dbg.o
 xhci-hcd-y += xhci-trace.o
 
-xhci-plat-hcd-y := xhci-plat.o
+xhci-plat-hcd-y := xhci-plat.o  xhci-debugfs.o
 ifneq ($(CONFIG_USB_XHCI_MVEBU), )
 	xhci-plat-hcd-y		+= xhci-mvebu.o
 endif

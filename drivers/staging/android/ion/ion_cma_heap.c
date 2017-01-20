@@ -168,6 +168,8 @@ static struct ion_heap_ops ion_cma_ops = {
 	.map_user = ion_cma_mmap,
 	.map_kernel = ion_cma_map_kernel,
 	.unmap_kernel = ion_cma_unmap_kernel,
+	.map_iommu = ion_heap_map_iommu,
+	.unmap_iommu = ion_heap_unmap_iommu,
 };
 
 struct ion_heap *ion_cma_heap_create(struct ion_platform_heap *data)

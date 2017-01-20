@@ -1,0 +1,146 @@
+/*
+ * pinctrl dts fils for Hislicon HiKey960 development board
+ *
+ */
+
+#include <dt-bindings/pinctrl/hisi.h>
+
+/ {
+	soc {
+		/* [IOMG_000, IOMG_123] */
+		range: gpio-range {
+			#pinctrl-single,gpio-range-cells = <3>;
+		};
+		pmx0: pinmux@e896c000 {
+			compatible = "pinctrl-single";
+			reg = <0x0 0xe896c000 0x0 0x1f0>;
+			#gpio-range-cells = <0x3>;
+			pinctrl-single,register-width = <0x20>;
+			pinctrl-single,function-mask = <0x7>;
+			/* pin base, nr pins & gpio function */
+			pinctrl-single,gpio-range = <
+				&range 0 7 0
+				&range 8 116 0>;
+
+			i2c3_pmx_func: i2c3_pmx_func {
+				pinctrl-single,pins = <
+					0x02C MUX_M1 /* I2C3_SCL (IOMG_011) */
+					0x030 MUX_M1 /* I2C3_SDA (IOMG_012) */
+				>;
+			};
+
+			i2c4_pmx_func: i2c4_pmx_func {
+				pinctrl-single,pins = <
+					0x090 MUX_M1 /* I2C4_SCL (IOMG_036) */
+					0x094 MUX_M1 /* I2C4_SDA (IOMG_037) */
+				>;
+			};
+
+			pcie_perstn_pmx_func: pcie_perstn_pmx_func {
+				pinctrl-single,pins = <
+					0x15C MUX_M1 /* PCIE_PERST_N (IOMG_087) */
+				>;
+			};
+
+			usbhub5734_pmx_func: usbhub5734_pmx_func {
+				pinctrl-single,pins = <
+					0x11C MUX_M0 /* GPIO_073 (IOMG_071) */
+					0x120 MUX_M0 /* GPIO_074 (IOMG_072) */
+				>;
+			};
+		};
+
+		/* [IOMG_MMC0_000, IOMG_MMC0_005] */
+		pmx1: pinmux@ff37e000 {
+			compatible = "pinctrl-single";
+			reg = <0x0 0xff37e000 0x0 0x18>;
+			#gpio-range-cells = <0x3>;
+			pinctrl-single,register-width = <0x20>;
+			pinctrl-single,function-mask = <0x7>;
+			/* pin base, nr pins & gpio function */
+			pinctrl-single,gpio-range = <&range 0 6 0>;
+
+			sdcard_pmx_func: sdcard_pmx_func {
+				pinctrl-single,pins = <
+					0x000 MUX_M1 /* SD_CLK (IOMG_MMC0_000) */
+					0x004 MUX_M1 /* SD_CMD (IOMG_MMC0_001) */
+					0x008 MUX_M1 /* SD_DATA0 (IOMG_MMC0_002) */
+					0x00c MUX_M1 /* SD_DATA1 (IOMG_MMC0_003) */
+					0x010 MUX_M1 /* SD_DATA2 (IOMG_MMC0_004) */
+					0x014 MUX_M1 /* SD_DATA3 (IOMG_MMC0_005) */
+				>;
+			};
+		};
+
+		/* [IOMG_FIX_000, IOMG_FIX_011] */
+		pmx2: pinmux@ff3b6000 {
+			compatible = "pinctrl-single";
+			reg = <0x0 0xff3b6000 0x0 0x30>;
+			#gpio-range-cells = <0x3>;
+			pinctrl-single,register-width = <0x20>;
+			pinctrl-single,function-mask = <0x7>;
+			/* pin base, nr pins & gpio function */
+			pinctrl-single,gpio-range = <&range 0 12 0>;
+		};
+
+		/* [IOMG_MMC1_000, IOMG_MMC1_005] */
+		pmx3: pinmux@ff3fd000 {
+			compatible = "pinctrl-single";
+			reg = <0x0 0xff3fd000 0x0 0x18>;
+			#gpio-range-cells = <0x3>;
+			pinctrl-single,register-width = <0x20>;
+			pinctrl-single,function-mask = <0x7>;
+			/* pin base, nr pins & gpio function */
+			pinctrl-single,gpio-range = <&range 0 6 0>;
+
+		};
+
+		/* [IOMG_AO_000, IOMG_AO_041] */
+		pmx4: pinmux@fff11000 {
+			compatible = "pinctrl-single";
+			reg = <0x0 0xfff11000 0x0 0xa8>;
+			#gpio-range-cells = <0x3>;
+			pinctrl-single,register-width = <0x20>;
+			pinctrl-single,function-mask = <0x7>;
+			/* pin base in node, nr pins & gpio function */
+			pinctrl-single,gpio-range = <&range 0 42 0>;
+
+			i2s2_pmx_func: i2s2_pmx_func {
+				pinctrl-single,pins = <
+					0x044 MUX_M1
+					0x048 MUX_M1
+					0x04C MUX_M1
+					0x050 MUX_M1
+				>;
+			};
+
+			i2c0_pmx_func: i2c0_pmx_func {
+				pinctrl-single,pins = <
+					0x014 MUX_M1 /* I2C0_SCL (IOMG_AO_005) */
+					0x018 MUX_M1 /* I2C0_SDA (IOMG_AO_006) */
+				>;
+			};
+
+			i2c1_pmx_func: i2c1_pmx_func {
+				pinctrl-single,pins = <
+					0x01C MUX_M1 /* I2C1_SCL (IOMG_AO_007) */
+					0x020 MUX_M1 /* I2C1_SDA (IOMG_AO_008) */
+				>;
+			};
+
+			i2c2_pmx_func: i2c2_pmx_func {
+				pinctrl-single,pins = <
+					0x024 MUX_M1 /* I2C2_SCL (IOMG_AO_009) */
+					0x028 MUX_M1 /* I2C2_SDA (IOMG_AO_010) */
+				>;
+			};
+
+			i2c7_pmx_func: i2c7_pmx_func {
+				pinctrl-single,pins = <
+					0x024 MUX_M3 /* I2C7_SCL (IOMG_AO_009) */
+					0x028 MUX_M3 /* I2C7_SDA (IOMG_AO_010) */
+				>;
+			};
+		};
+	};
+};

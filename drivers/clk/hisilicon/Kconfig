@@ -1,3 +1,10 @@
+config COMMON_CLK_HI3660
+	bool "Hi3660 Clock Driver"
+	depends on ARCH_HISI || COMPILE_TEST
+	default ARCH_HISI
+	help
+	  Build the Hisilicon Hi3660 clock driver based on the common clock framework.
+
 config COMMON_CLK_HI6220
 	bool "Hi6220 Clock Driver"
 	depends on ARCH_HISI || COMPILE_TEST
