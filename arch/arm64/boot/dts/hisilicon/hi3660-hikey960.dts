@@ -239,25 +239,25 @@
 		compatible = "gpio-leds";
 		user_led1 {
 			label = "user_led1";
-			gpios = <&gpio26 0 0>; /* <&gpio_208_user_led1>; */
+			gpios = <&gpio18 6 0>; /* <&gpio_150_user_led1>; */
 			linux,default-trigger = "heartbeat";
 		};
 
 		user_led2 {
 			label = "user_led2";
-			gpios = <&gpio26 1 0>; /* <&gpio_209_user_led2>; */
+			gpios = <&gpio18 7 0>; /* <&gpio_151_user_led2>; */
 			linux,default-trigger = "mmc0"; /* microSD card */
 		};
 
 		user_led3 {
 			label = "user_led3";
-			gpios = <&gpio26 2 0>; /* <&gpio_210_user_led3>; */
+			gpios = <&gpio23 5 0>; /* <&gpio_189_user_led3>; */
 			default-state = "off";
 		};
 
 		user_led4 {
 			label = "user_led4";
-			gpios = <&gpio26 3 0>; /* <&gpio_211_user_led4>; */
+			gpios = <&gpio23 6 0>; /* <&gpio_190_user_led4>; */
 			linux,default-trigger = "cpu0";
 		};
 
