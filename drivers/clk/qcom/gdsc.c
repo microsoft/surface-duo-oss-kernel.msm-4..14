@@ -63,11 +63,26 @@ static int gdsc_hwctrl(struct gdsc *sc, bool en)
 	return regmap_update_bits(sc->regmap, sc->gdscr, HW_CONTROL_MASK, val);
 }
 
+static int gdsc_poll_status(struct gdsc *sc, unsigned int reg, bool en)
+{
+	ktime_t start;
+
+	start = ktime_get();
+	do {
+		if (gdsc_is_enabled(sc, reg) == en)
+			return 0;
+	} while (ktime_us_delta(ktime_get(), start) < TIMEOUT_US);
+
+	if (gdsc_is_enabled(sc, reg) == en)
+		return 0;
+
+	return -ETIMEDOUT;
+}
+
 static int gdsc_toggle_logic(struct gdsc *sc, bool en)
 {
 	int ret;
 	u32 val = en ? 0 : SW_COLLAPSE_MASK;
-	ktime_t start;
 	unsigned int status_reg = sc->gdscr;
 
 	ret = regmap_update_bits(sc->regmap, sc->gdscr, SW_COLLAPSE_MASK, val);
@@ -100,16 +115,7 @@ static int gdsc_toggle_logic(struct gdsc *sc, bool en)
 		udelay(1);
 	}
 
-	start = ktime_get();
-	do {
-		if (gdsc_is_enabled(sc, status_reg) == en)
-			return 0;
-	} while (ktime_us_delta(ktime_get(), start) < TIMEOUT_US);
-
-	if (gdsc_is_enabled(sc, status_reg) == en)
-		return 0;
-
-	return -ETIMEDOUT;
+	return gdsc_poll_status(sc, status_reg, en);
 }
 
 static inline int gdsc_deassert_reset(struct gdsc *sc)
@@ -204,8 +210,20 @@ static int gdsc_enable(struct generic_pm_domain *domain)
 	udelay(1);
 
 	/* Turn on HW trigger mode if supported */
-	if (sc->flags & HW_CTRL)
-		gdsc_hwctrl(sc, true);
+	if (sc->flags & HW_CTRL) {
+		ret = gdsc_hwctrl(sc, true);
+		if (ret)
+			return ret;
+		/*
+		 * Wait for the GDSC to go through a power down and
+		 * up cycle.  In case a firmware ends up polling status
+		 * bits for the gdsc, it might read an 'on' status before
+		 * the GDSC can finish the power cycle.
+		 * We wait 1us before returning to ensure the firmware
+		 * can't immediately poll the status bits.
+		 */
+		udelay(1);
+	}
 
 	return 0;
 }
@@ -214,6 +232,7 @@ static int gdsc_disable(struct generic_pm_domain *domain)
 {
 	struct gdsc *sc = domain_to_gdsc(domain);
 	u8 pwrst;
+	int ret;
 
 	if (sc->pwrsts == PWRSTS_ON)
 		return gdsc_assert_reset(sc);
@@ -227,12 +246,29 @@ static int gdsc_disable(struct generic_pm_domain *domain)
 
 	switch (pwrst) {
 	case PWRSTS_OFF:
-	/* Turn off HW trigger mode if supported */
-	if (sc->flags & HW_CTRL)
-		gdsc_hwctrl(sc, false);
+		/* Turn off HW trigger mode if supported */
+		if (sc->flags & HW_CTRL) {
+			unsigned int reg;
 
-	if (sc->pwrsts & PWRSTS_OFF)
-		gdsc_clear_mem_on(sc);
+			ret = gdsc_hwctrl(sc, false);
+			if (ret < 0)
+				return ret;
+			/*
+			 * Wait for the GDSC to go through a power down and
+			 * up cycle.  In case we end up polling status
+			 * bits for the gdsc before the power cycle is completed
+			 * it might read an 'on' status wrongly.
+			 */
+			udelay(1);
+
+			reg = sc->gds_hw_ctrl ? sc->gds_hw_ctrl : sc->gdscr;
+			ret = gdsc_poll_status(sc, reg, true);
+			if (ret)
+				return ret;
+		}
+
+		if (sc->pwrsts & PWRSTS_OFF)
+			gdsc_clear_mem_on(sc);
 		break;
 	case PWRSTS_RET:
 		if (sc->pwrsts_ret == PWRSTS_RET_ALL)
