@@ -1,0 +1,31 @@
+Generic on-chip MSCM for S32V234
+
+Simple iomem memory block containing the mapping of the address space
+of the Miscellaneous System Control Module (MSCM).
+For S32V234 this module occupies a 4 Kb address space.
+
+Required properties:
+
+- compatible : fsl,s32v234-mscm
+
+- reg : the address range
+
+- interrupts : the interrupts managed by registers in this module
+	(e.g. the CPU 2 CPU directed interrupts)
+
+address (@<address>) should be
+appended to the name.
+
+Example:
+
+mscm1: mscm@40081000 {
+	compatible = "fsl,s32v234-mscm";
+
+	reg = <0x0 0x40081000 0x0 0x1000>;
+
+	/* CPU2CPU interrupts */
+	interrupts = <0 0 4 >,
+			<0 1 4 >,
+			<0 2 4 >,
+			<0 3 4 >;
+};
