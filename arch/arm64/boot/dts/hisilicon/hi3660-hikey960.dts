@@ -38,6 +38,13 @@
 		reg = <0x0 0x00400000 0x0 0xBFE00000>;
 	};
 
+	reboot_reason: reboot-reason@0xfff34404{
+		compatible              = "linux,reboot-reason-sram";
+		reg                     = <0x0 0xFFF34404 0x0 0x4>;
+		reason,none             = <0x0>;
+		reason,bootloader       = <0xff>;
+	};
+
 	soc {
 		uart5: uart@fdf05000 {
 			status = "ok";
@@ -65,7 +72,7 @@
 
 	pmic: pmic@fff34000 {
 		compatible = "hisilicon,hi6421-pmic";
-		reg = <0x0 0xfff34000 0x0 0x1000>;
+		reg = <0x0 0xfff34000 0x0 0x400>;
 		interrupt-controller;
 		#interrupt-cells = <2>;
 
