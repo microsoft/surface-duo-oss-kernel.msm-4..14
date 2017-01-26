@@ -1109,13 +1109,8 @@
 			compatible = "hisilicon,hisi-i2s";
 			reg = <0x0 0xe804f800 0x0 0x400>,
 				  <0x0 0xe804e000 0x0 0x400>;
-		//	sio-bt-supply = <&asp>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&i2s2_pmx_func>;
-		/*	pinctrl-1 = <&gpio196_pmx_idle
-						&gpio197_pmx_idle
-						&gpio198_pmx_idle
-						&gpio199_pmx_idle>;*/
 			dmas = <&asp_dmac 18 &asp_dmac 19>;
 					dma-names = "rx", "tx";
 			status = "ok";
@@ -1124,7 +1119,6 @@
 		asp_dmac: asp_dmac@E804B000 {
 			compatible = "hisilicon,hisi-pcm-asp-dma";
 			reg = <0x0 0xe804b000 0x0 0x1000>;
-		//	asp-dmac-supply = <&asp>;
 			#dma-cells = <1>;
 			dma-channels = <16>;
 			dma-requests = <32>;
@@ -1143,7 +1137,7 @@
 			status = "ok";
 		};
 
-		//wlan_en_reg: jiguangke {};
+
 	};
 	its_pcie: interrupt-controller@f4000000 {
 		compatible = "arm,gic-v3-its";
