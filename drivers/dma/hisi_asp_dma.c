@@ -162,7 +162,7 @@ static void hisi_asp_dma_set_desc(struct hisi_asp_dma_phy *phy, struct hisi_asp_
 	writel_relaxed(AXI_CFG_DEFAULT, phy->base + AXI_CFG);
 	writel_relaxed(hw->config, phy->base + CX_CFG);
 	wmb();
-	pr_debug("%s: desc %p: ch idx = %d, lli: 0x%x, count: 0x%x, saddr: 0x%x, daddr 0x%x, cfg: 0x%x\n", __func__, (void *)hw,
+	pr_debug("%s: desc %pK: ch idx = %d, lli: 0x%x, count: 0x%x, saddr: 0x%x, daddr 0x%x, cfg: 0x%x\n", __func__, (void *)hw,
 		phy->idx, hw->lli, hw->count, hw->saddr, hw->daddr, hw->config);
 }
 
@@ -347,7 +347,7 @@ static void hisi_asp_dma_tasklet(unsigned long arg)
 			p->vchan = c;
 			c->phy = p;
 			hisi_asp_dma_set_cyclic(c, d, c->cyclic);
-			dev_dbg(d->slave.dev, "pchan %u: alloc vchan %p\n", pch, &c->vc);
+			dev_dbg(d->slave.dev, "pchan %u: alloc vchan %pK\n", pch, &c->vc);
 		}
 	}
 	spin_unlock_irq(&d->lock);
@@ -442,12 +442,12 @@ static void hisi_asp_dma_issue_pending(struct dma_chan *chan)
 				list_add_tail(&c->node, &d->chan_pending);
 				/* check in tasklet */
 				tasklet_schedule(&d->task);
-				dev_dbg(d->slave.dev, "vchan %p: issued\n", &c->vc);
+				dev_dbg(d->slave.dev, "vchan %pK: issued\n", &c->vc);
 			}
 		}
 		spin_unlock(&d->lock);
 	} else
-		dev_dbg(d->slave.dev, "vchan %p: nothing to issue\n", &c->vc);
+		dev_dbg(d->slave.dev, "vchan %pK: nothing to issue\n", &c->vc);
 	spin_unlock_irqrestore(&c->vc.lock, flags);
 }
 
@@ -464,7 +464,7 @@ static void hisi_asp_dma_fill_desc(struct hisi_asp_dma_desc_sw *ds, dma_addr_t d
 	ds->desc_hw[num].daddr = dst;
 	ds->desc_hw[num].config = ccfg;
 
-	pr_debug("%s: hisi_asp_dma_desc_sw = %p, desc_hw = %p (num = %d) lli: 0x%x, count: 0x%x, saddr: 0x%x, daddr 0x%x, cfg: 0x%x\n", __func__,
+	pr_debug("%s: hisi_asp_dma_desc_sw = %pK, desc_hw = %pK (num = %d) lli: 0x%x, count: 0x%x, saddr: 0x%x, daddr 0x%x, cfg: 0x%x\n", __func__,
 	       (void *)ds, &ds->desc_hw[num], num,
 	       ds->desc_hw[num].lli, ds->desc_hw[num].count, ds->desc_hw[num].saddr, ds->desc_hw[num].daddr, ds->desc_hw[num].config);
 
@@ -479,7 +479,7 @@ static struct hisi_asp_dma_desc_sw *hisi_asp_dma_alloc_desc_resource(int num,
 	int lli_limit = LLI_BLOCK_SIZE / sizeof(struct hisi_asp_desc_hw);
 
 	if (num > lli_limit) {
-		dev_dbg(chan->device->dev, "vch %p: sg num %d exceed max %d\n",
+		dev_dbg(chan->device->dev, "vch %pK: sg num %d exceed max %d\n",
 			&c->vc, num, lli_limit);
 		return NULL;
 	}
@@ -490,7 +490,7 @@ static struct hisi_asp_dma_desc_sw *hisi_asp_dma_alloc_desc_resource(int num,
 
 	ds->desc_hw = dma_pool_alloc(d->pool, GFP_NOWAIT, &ds->desc_hw_lli);
 	if (!ds->desc_hw) {
-		dev_dbg(chan->device->dev, "vch %p: dma alloc fail\n", &c->vc);
+		dev_dbg(chan->device->dev, "vch %pK: dma alloc fail\n", &c->vc);
 		kfree(ds);
 		return NULL;
 	}
@@ -515,7 +515,7 @@ static struct dma_async_tx_descriptor *hisi_asp_dma_prep_memcpy(
 
 	ds = hisi_asp_dma_alloc_desc_resource(num, chan);
 	if (!ds) {
-		dev_dbg(chan->device->dev, "vchan %p: kzalloc fail\n", &c->vc);
+		dev_dbg(chan->device->dev, "vchan %pK: kzalloc fail\n", &c->vc);
 		return NULL;
 	}
 	c->cyclic = 0;
@@ -573,7 +573,7 @@ static struct dma_async_tx_descriptor *hisi_asp_dma_prep_slave_sg(
 
 	ds = hisi_asp_dma_alloc_desc_resource(num, chan);
 	if (!ds) {
-		dev_err(chan->device->dev, "vchan %p: kzalloc fail\n", &c->vc);
+		dev_err(chan->device->dev, "vchan %pK: kzalloc fail\n", &c->vc);
 		return NULL;
 	}
 	num = 0;
@@ -620,7 +620,7 @@ hisi_asp_dma_prep_dma_cyclic(struct dma_chan *chan, dma_addr_t buf_addr,
 	size_t modulo = DMA_CYCLIC_MAX_PERIOD;
 	u32 en_tc2 = 0;
 
-	pr_debug("%s: buf %p, dst %p, buf len %d, period_len = %d, dir %d\n",
+	pr_debug("%s: buf %pK, dst %pK, buf len %d, period_len = %d, dir %d\n",
 	       __func__, (void *)buf_addr, (void *)to_hisi_asp_chan(chan)->dev_addr,
 	       (int)buf_len, (int)period_len, (int)dir);
 
@@ -630,7 +630,7 @@ hisi_asp_dma_prep_dma_cyclic(struct dma_chan *chan, dma_addr_t buf_addr,
 
 	ds = hisi_asp_dma_alloc_desc_resource(num, chan);
 	if (!ds) {
-		dev_err(chan->device->dev, "vchan %p: kzalloc fail\n", &c->vc);
+		dev_err(chan->device->dev, "vchan %pK: kzalloc fail\n", &c->vc);
 		return NULL;
 	}
 
@@ -742,7 +742,7 @@ static int hisi_asp_dma_terminate_all(struct dma_chan *chan)
 	unsigned long flags;
 	LIST_HEAD(head);
 
-	dev_dbg(d->slave.dev, "vchan %p: terminate all\n", &c->vc);
+	dev_dbg(d->slave.dev, "vchan %pK: terminate all\n", &c->vc);
 
 	/* Prevent this channel being scheduled */
 	spin_lock(&d->lock);
@@ -779,7 +779,7 @@ static int hisi_asp_dma_transfer_pause(struct dma_chan *chan)
 	struct hisi_asp_dma_dev *d = to_hisi_asp_dma(chan->device);
 	struct hisi_asp_dma_phy *p = c->phy;
 
-	dev_dbg(d->slave.dev, "vchan %p: pause\n", &c->vc);
+	dev_dbg(d->slave.dev, "vchan %pK: pause\n", &c->vc);
 	if (c->status == DMA_IN_PROGRESS) {
 		c->status = DMA_PAUSED;
 		if (p) {
@@ -801,7 +801,7 @@ static int hisi_asp_dma_transfer_resume(struct dma_chan *chan)
 	struct hisi_asp_dma_phy *p = c->phy;
 	unsigned long flags;
 
-	dev_dbg(d->slave.dev, "vchan %p: resume\n", &c->vc);
+	dev_dbg(d->slave.dev, "vchan %pK: resume\n", &c->vc);
 	spin_lock_irqsave(&c->vc.lock, flags);
 	if (c->status == DMA_PAUSED) {
 		c->status = DMA_IN_PROGRESS;
