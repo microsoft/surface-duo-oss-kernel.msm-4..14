@@ -100,7 +100,6 @@ config QCOM_Q6V5_PIL
 	depends on QCOM_SMD || QCOM_SMD=n
 	depends on RPMSG_QCOM_SMD || RPMSG_QCOM_SMD=n
 	select MFD_SYSCON
-	select QCOM_MDT_LOADER
 	select QCOM_RPROC_COMMON
 	select QCOM_SCM
 	help
