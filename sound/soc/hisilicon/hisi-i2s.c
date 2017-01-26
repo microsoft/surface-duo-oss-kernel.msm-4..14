@@ -100,70 +100,36 @@ int hisi_i2s_startup(struct snd_pcm_substream *substream,
 		     struct snd_soc_dai *cpu_dai)
 {
 	struct hisi_i2s *i2s = dev_get_drvdata(cpu_dai->dev);
-	u32 val;
-	int ret = 0;
-
-//	ret = regulator_enable(i2s->regu_asp);
-	if (ret) {
-		dev_err(i2s->dev, "couldn't enable regulators %d\n", ret);
-		ret = -ENOENT;
-		return ret;
-	}
-
-//	ret = clk_prepare_enable(i2s->asp_subsys_clk);
-	if (ret < 0) {
-		dev_err(i2s->dev, "couldn't enable clk %d\n", ret);
-		regulator_disable(i2s->regu_asp);
-		return ret;
-	}
 
 	/* deassert reset on sio_bt*/
 	hisi_syscon_bits(i2s, HI_ASP_CFG_R_RST_CTRLDIS_REG, 0,BIT(2)|BIT(6)|BIT(8)|BIT(16));
-	hisi_syscon_bits(i2s, HI_ASP_CFG_R_RST_CTRLDIS_REG, 0,0xffffffff);
 
 	/* enable clk before frequency division */
 	hisi_syscon_bits(i2s, HI_ASP_CFG_R_GATE_EN_REG, 0,BIT(5)|BIT(6));
-	hisi_syscon_bits(i2s, HI_ASP_CFG_R_GATE_EN_REG, 0,0xffffffff);
-//	hisi_syscon_bits(i2s, HI_ASP_CFG_R_SEC_REG, 0,0xffffffff);
-//	hisi_syscon_bits(i2s, 0x5c, 0,0xffffffff);
 
 	/* enable frequency division */
 	hisi_syscon_bits(i2s, HI_ASP_CFG_R_GATE_CLKDIV_EN_REG, 0,BIT(2)|BIT(5));
 
-
 	/* select clk */
 	hisi_syscon_bits(i2s, HI_ASP_CFG_R_CLK_SEL_REG, HI_ASP_MASK,HI_ASP_CFG_R_CLK_SEL);
-	hisi_syscon_bits(i2s, HI_ASP_CFG_R_CLK_SEL_REG, HI_ASP_MASK,0x150010);
 
-	
 	/* select clk_div */
 	hisi_syscon_bits(i2s, HI_ASP_CFG_R_CLK1_DIV_REG, HI_ASP_MASK,HI_ASP_CFG_R_CLK1_DIV_SEL);
 	hisi_syscon_bits(i2s, HI_ASP_CFG_R_CLK4_DIV_REG, HI_ASP_MASK,HI_ASP_CFG_R_CLK4_DIV_SEL);
 	hisi_syscon_bits(i2s, HI_ASP_CFG_R_CLK6_DIV_REG, HI_ASP_MASK,HI_ASP_CFG_R_CLK6_DIV_SEL);
 
-	val = readl(i2s->base_syscon + HI_ASP_CFG_R_SEC_REG);
-	pr_info("****** %s val  0x%x \n", __func__,val);
-	
-#if 1
 	/* sio config */
 	hisi_bits(i2s, HI_ASP_SIO_MODE_REG, HI_ASP_MASK, 0x0);
-	hisi_bits(i2s, HI_ASP_SIO_DATA_WIDTH_SET_REG, HI_ASP_MASK, 0x09);
+	hisi_bits(i2s, HI_ASP_SIO_DATA_WIDTH_SET_REG, HI_ASP_MASK, 0x9);
 	hisi_bits(i2s, HI_ASP_SIO_I2S_POS_MERGE_EN_REG, HI_ASP_MASK, 0x1);
 	hisi_bits(i2s, HI_ASP_SIO_I2S_START_POS_REG, HI_ASP_MASK, 0x0);
-#endif
-	pr_info("****** %s return \n", __func__);
+
 	return 0;
 }
 void hisi_i2s_shutdown(struct snd_pcm_substream *substream,
 		       struct snd_soc_dai *cpu_dai)
 {
 	struct hisi_i2s *i2s = dev_get_drvdata(cpu_dai->dev);
-	int ret = 0;
-
-//	ret = regulator_disable(i2s->regu_asp);
-	if (ret) {
-		dev_err(i2s->dev, "regulator disable failed!, ret:%d\n", ret);
-	}
 
 	if (!IS_ERR_OR_NULL(i2s->asp_subsys_clk)) {
 		clk_disable_unprepare(i2s->asp_subsys_clk);
@@ -395,20 +361,6 @@ static int hisi_i2s_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	/* asp power on */
-//	i2s->regu_asp = devm_regulator_get(dev, "sio-bt");
-	if (IS_ERR(i2s->regu_asp)) {
-		dev_err(dev, "couldn't get regulators !\n");
-		ret = -ENOENT;
-//		return ret;
-	}
-
-//	i2s->asp_subsys_clk = devm_clk_get(dev, "clk_asp_subsys");
-	if (IS_ERR_OR_NULL(i2s->asp_subsys_clk)) {
-		dev_err(dev, "devm_clk_get: clk_asp_subsys not found!\n");
-//		return -EFAULT;
-	}
-
 	/* i2s iomux config */
 	i2s->pctrl = devm_pinctrl_get(dev);
 	if (IS_ERR(i2s->pctrl)) {
@@ -416,20 +368,13 @@ static int hisi_i2s_probe(struct platform_device *pdev)
 		ret = -EIO;
 		return ret;
 	}
-	
+
 	i2s->pin_default = pinctrl_lookup_state(i2s->pctrl, PINCTRL_STATE_DEFAULT);
 	if (IS_ERR(i2s->pin_default)) {
 		dev_err(dev, "could not get default state (%li)\n" , PTR_ERR(i2s->pin_default));
 		ret = -EIO;
 		return ret;
 	}
-
-/*	i2s->pin_idle = pinctrl_lookup_state(i2s->pctrl, PINCTRL_STATE_IDLE);
-	if (IS_ERR(i2s->pin_idle)) {
-		dev_err(dev, "could not get idle state (%li)\n", PTR_ERR(i2s->pin_idle));
-		ret = -EIO;
-		return ret;
-	}*/
 
 	if (pinctrl_select_state(i2s->pctrl, i2s->pin_default)) {
 		dev_err(dev, "could not set pins to default state\n");
@@ -456,20 +401,12 @@ static int hisi_i2s_probe(struct platform_device *pdev)
 
 static int hisi_i2s_remove(struct platform_device *pdev)
 {
-	int ret = 0;
 	struct hisi_i2s *i2s = dev_get_drvdata(&pdev->dev);
 
 	snd_soc_unregister_component(&pdev->dev);
 	dev_set_drvdata(&pdev->dev, NULL);
 
 	pinctrl_put(i2s->pctrl);
-//	ret = regulator_disable(i2s->regu_asp);
-	if (ret) {
-		dev_err(&pdev->dev, "regulator disable failed!, ret:%d\n", ret);
-	}
-
-//	clk_disable_unprepare(i2s->asp_subsys_clk);
-//	clk_put(i2s->asp_subsys_clk);
 
 	return 0;
 }
