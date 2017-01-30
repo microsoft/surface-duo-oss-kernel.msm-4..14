@@ -82,6 +82,7 @@ struct iommu_domain {
 	unsigned long pgsize_bitmap;	/* Bitmap of page sizes in use */
 	iommu_fault_handler_t handler;
 	void *handler_token;
+	bool can_stall;
 	struct iommu_domain_geometry geometry;
 	void *iova_cookie;
 };
@@ -183,6 +184,7 @@ struct iommu_ops {
 			       enum iommu_attr attr, void *data);
 	int (*domain_set_attr)(struct iommu_domain *domain,
 			       enum iommu_attr attr, void *data);
+	void (*domain_resume)(struct iommu_domain *domain, bool resume);
 
 	/* Request/Free a list of direct mapping requirements for a device */
 	void (*get_dm_regions)(struct device *dev, struct list_head *list);
@@ -231,7 +233,7 @@ extern size_t default_iommu_map_sg(struct iommu_domain *domain, unsigned long io
 				int prot);
 extern phys_addr_t iommu_iova_to_phys(struct iommu_domain *domain, dma_addr_t iova);
 extern void iommu_set_fault_handler(struct iommu_domain *domain,
-			iommu_fault_handler_t handler, void *token);
+			iommu_fault_handler_t handler, void *token, bool can_stall);
 
 extern void iommu_get_dm_regions(struct device *dev, struct list_head *list);
 extern void iommu_put_dm_regions(struct device *dev, struct list_head *list);
@@ -266,6 +268,7 @@ extern int iommu_domain_get_attr(struct iommu_domain *domain, enum iommu_attr,
 				 void *data);
 extern int iommu_domain_set_attr(struct iommu_domain *domain, enum iommu_attr,
 				 void *data);
+extern void iommu_domain_resume(struct iommu_domain *domain, bool resume);
 struct device *iommu_device_create(struct device *parent, void *drvdata,
 				   const struct attribute_group **groups,
 				   const char *fmt, ...) __printf(4, 5);

@@ -29,9 +29,15 @@ static int msm_fault_handler(struct iommu_domain *domain, struct device *dev,
 		unsigned long iova, int flags, void *arg)
 {
 	struct msm_iommu *iommu = arg;
+	int ret = 0;
+
 	if (iommu->base.handler)
-		return iommu->base.handler(iommu->base.arg, iova, flags);
-	pr_warn_ratelimited("*** fault: iova=%08lx, flags=%d\n", iova, flags);
+		ret = iommu->base.handler(iommu->base.arg, iova, flags);
+	else
+		pr_warn_ratelimited("*** fault: iova=%08lx, flags=%d\n", iova, flags);
+
+	iommu_domain_resume(domain, false);
+
 	return 0;
 }
 
@@ -172,7 +178,7 @@ struct msm_mmu *msm_iommu_new(struct device *dev, struct iommu_domain *domain)
 
 	iommu->domain = domain;
 	msm_mmu_init(&iommu->base, dev, &funcs);
-	iommu_set_fault_handler(domain, msm_fault_handler, iommu);
+	iommu_set_fault_handler(domain, msm_fault_handler, iommu, true);
 
 	if (of_find_compatible_node(NULL, NULL, "qcom,msm-smmu-v2") ||
 			of_find_compatible_node(NULL, NULL, "qcom,msm-mmu-500"))

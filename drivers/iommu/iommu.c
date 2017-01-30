@@ -1029,6 +1029,7 @@ EXPORT_SYMBOL_GPL(iommu_capable);
  * @domain: iommu domain
  * @handler: fault handler
  * @token: user data, will be passed back to the fault handler
+ * @can_stall: the user can support stalling on iommu fault
  *
  * This function should be used by IOMMU users which want to be notified
  * whenever an IOMMU fault happens.
@@ -1038,12 +1039,14 @@ EXPORT_SYMBOL_GPL(iommu_capable);
  */
 void iommu_set_fault_handler(struct iommu_domain *domain,
 					iommu_fault_handler_t handler,
-					void *token)
+					void *token,
+					bool can_stall)
 {
 	BUG_ON(!domain);
 
 	domain->handler = handler;
 	domain->handler_token = token;
+	domain->can_stall = can_stall;
 }
 EXPORT_SYMBOL_GPL(iommu_set_fault_handler);
 
@@ -1545,6 +1548,25 @@ int iommu_domain_set_attr(struct iommu_domain *domain,
 	return ret;
 }
 EXPORT_SYMBOL_GPL(iommu_domain_set_attr);
+
+/**
+ * iommu_domain_resume() - resume a stalled transaction after fault
+ * @domain: iommu domain
+ * @resume: if true, resume the transaction, else abort it
+ *
+ * Users that pass can_stall=true to iommu_set_fault_handler() must
+ * call this function to resume (or terminate) the stalled iommu
+ * transaction.  It may either be called directly from the fault
+ * handler, or at some point later from a thread context (ie. if the
+ * fault handler needs to do anything that cannot be done from atomic
+ * context, ie. use any mm related API)
+ */
+void iommu_domain_resume(struct iommu_domain *domain, bool resume)
+{
+	if (domain->ops->domain_resume)
+		domain->ops->domain_resume(domain, resume);
+}
+EXPORT_SYMBOL_GPL(iommu_domain_resume);
 
 void iommu_get_dm_regions(struct device *dev, struct list_head *list)
 {
