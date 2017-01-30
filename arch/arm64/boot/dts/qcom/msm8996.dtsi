@@ -872,8 +872,8 @@
 			status = "okay";
 		};
 
-		adreno-3xx@b00000 {
-			compatible = "qcom,adreno-3xx";
+		gpu@b00000 {
+			compatible = "qcom,adreno-530.2", "qcom,adreno";
 			#stream-id-cells = <16>;
 
 			reg = <0xb00000 0x3f000>;
@@ -889,21 +889,15 @@
 				<&gcc GCC_MMSS_BIMC_GFX_CLK>,
 				<&mmcc MMSS_MMAGIC_AHB_CLK>;
 
-			clock-names = "core_clk",
-				"iface_clk",
-				"rbbmtimer_clk",
-				"mem_clk",
-				"mem_iface_clk",
-				"alt_mem_iface_clk";
+			clock-names = "core",
+				"iface",
+				"rbbmtimer",
+				"mem",
+				"mem_iface",
+				"alt_mem_iface";
 
 			power-domains = <&mmcc GPU_GDSC>;
 			iommus = <&adreno_smmu 0>;
-
-			/* There are patchlevel 3 chips in the world (Snapdragon
-			 * (820) but they are functionally similar to the 821 in
-			 * the code so we can safely set the chipset as
-			 * patchlevel 4. */
-			qcom,chipid = <0x05030002>;
 
 			qcom,gpu-quirk-two-pass-use-wfi;
 			qcom,gpu-quirk-fault-detect-mask;
