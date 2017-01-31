@@ -352,6 +352,7 @@ void dma_common_free_remap(void *cpu_addr, size_t size, unsigned long vm_flags)
 int dma_configure(struct device *dev)
 {
 	struct device *bridge = NULL, *dma_dev = dev;
+	int ret = 0;
 
 	if (dev_is_pci(dev)) {
 		bridge = pci_get_host_bridge_device(to_pci_dev(dev));
@@ -362,12 +363,12 @@ int dma_configure(struct device *dev)
 	}
 
 	if (dma_dev->of_node)
-		of_dma_configure(dev, dma_dev->of_node);
+		ret = of_dma_configure(dev, dma_dev->of_node);
 
 	if (bridge)
 		pci_put_host_bridge_device(bridge);
 
-	return 0;
+	return ret;
 }
 
 void dma_deconfigure(struct device *dev)
