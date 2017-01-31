@@ -456,14 +456,18 @@ static bool ovl_dentry_weird(struct dentry *dentry)
 				  DCACHE_OP_COMPARE);
 }
 
-static inline struct dentry *ovl_lookup_real(struct dentry *dir,
+static inline struct dentry *ovl_lookup_real(struct super_block *ovl_sb,
+					     struct dentry *dir,
 					     struct qstr *name)
 {
+	const struct cred *old_cred;
 	struct dentry *dentry;
 
+	old_cred = ovl_override_creds(ovl_sb);
 	mutex_lock(&dir->d_inode->i_mutex);
 	dentry = lookup_one_len(name->name, dir, name->len);
 	mutex_unlock(&dir->d_inode->i_mutex);
+	revert_creds(old_cred);
 
 	if (IS_ERR(dentry)) {
 		if (PTR_ERR(dentry) == -ENOENT)
@@ -517,7 +521,7 @@ struct dentry *ovl_lookup(struct inode *dir, struct dentry *dentry,
 
 	upperdir = ovl_upperdentry_dereference(poe);
 	if (upperdir) {
-		this = ovl_lookup_real(upperdir, &dentry->d_name);
+		this = ovl_lookup_real(dentry->d_sb, upperdir, &dentry->d_name);
 		err = PTR_ERR(this);
 		if (IS_ERR(this))
 			goto out;
@@ -550,7 +554,8 @@ struct dentry *ovl_lookup(struct inode *dir, struct dentry *dentry,
 		bool opaque = false;
 		struct path lowerpath = poe->lowerstack[i];
 
-		this = ovl_lookup_real(lowerpath.dentry, &dentry->d_name);
+		this = ovl_lookup_real(dentry->d_sb,
+				       lowerpath.dentry, &dentry->d_name);
 		err = PTR_ERR(this);
 		if (IS_ERR(this)) {
 			/*
