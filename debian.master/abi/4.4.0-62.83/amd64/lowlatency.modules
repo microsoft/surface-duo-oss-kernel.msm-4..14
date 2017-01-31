@@ -1041,7 +1041,6 @@ efs
 ehset
 einj
 elan_i2c
-elants_i2c
 elo
 elsa_cs
 em28xx
@@ -2881,7 +2880,6 @@ physmap
 phy-tahvo
 phy-tusb1210
 pinctrl-broxton
-pinctrl-cherryview
 pinctrl-intel
 pinctrl-sunrisepoint
 pixcir_i2c_ts
