@@ -2050,45 +2050,14 @@ static struct platform_driver arm_smmu_driver = {
 	.probe	= arm_smmu_device_dt_probe,
 	.remove	= arm_smmu_device_remove,
 };
+module_platform_driver(arm_smmu_driver);
 
-static int __init arm_smmu_init(void)
-{
-	static bool registered;
-	int ret = 0;
-
-	if (!registered) {
-		ret = platform_driver_register(&arm_smmu_driver);
-		registered = !ret;
-	}
-	return ret;
-}
-
-static void __exit arm_smmu_exit(void)
-{
-	return platform_driver_unregister(&arm_smmu_driver);
-}
-
-subsys_initcall(arm_smmu_init);
-module_exit(arm_smmu_exit);
-
-static int __init arm_smmu_of_init(struct device_node *np)
-{
-	int ret = arm_smmu_init();
-
-	if (ret)
-		return ret;
-
-	if (!of_platform_device_create(np, NULL, platform_bus_type.dev_root))
-		return -ENODEV;
-
-	return 0;
-}
-IOMMU_OF_DECLARE(arm_smmuv1, "arm,smmu-v1", arm_smmu_of_init);
-IOMMU_OF_DECLARE(arm_smmuv2, "arm,smmu-v2", arm_smmu_of_init);
-IOMMU_OF_DECLARE(arm_mmu400, "arm,mmu-400", arm_smmu_of_init);
-IOMMU_OF_DECLARE(arm_mmu401, "arm,mmu-401", arm_smmu_of_init);
-IOMMU_OF_DECLARE(arm_mmu500, "arm,mmu-500", arm_smmu_of_init);
-IOMMU_OF_DECLARE(cavium_smmuv2, "cavium,smmu-v2", arm_smmu_of_init);
+IOMMU_OF_DECLARE(arm_smmuv1, "arm,smmu-v1", NULL);
+IOMMU_OF_DECLARE(arm_smmuv2, "arm,smmu-v2", NULL);
+IOMMU_OF_DECLARE(arm_mmu400, "arm,mmu-400", NULL);
+IOMMU_OF_DECLARE(arm_mmu401, "arm,mmu-401", NULL);
+IOMMU_OF_DECLARE(arm_mmu500, "arm,mmu-500", NULL);
+IOMMU_OF_DECLARE(cavium_smmuv2, "cavium,smmu-v2", NULL);
 
 MODULE_DESCRIPTION("IOMMU API for ARM architected SMMU implementations");
 MODULE_AUTHOR("Will Deacon <will.deacon@arm.com>");
