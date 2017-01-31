@@ -324,21 +324,11 @@ bool qcom_scm_is_available(void)
 }
 EXPORT_SYMBOL(qcom_scm_is_available);
 
-int qcom_scm_video_set_state(u32 state, u32 spare)
+int qcom_scm_set_remote_state(u32 state, u32 id)
 {
-	int ret;
-
-	ret = qcom_scm_clk_enable();
-	if (ret)
-		return ret;
-
-	ret = __qcom_scm_video_set_state(__scm->dev, state, spare);
-
-	qcom_scm_clk_disable();
-
-	return ret;
+	return __qcom_scm_set_remote_state(__scm->dev, state, id);
 }
-EXPORT_SYMBOL(qcom_scm_video_set_state);
+EXPORT_SYMBOL(qcom_scm_set_remote_state);
 
 int qcom_scm_iommu_secure_ptbl_size(u32 spare, size_t *size)
 {
