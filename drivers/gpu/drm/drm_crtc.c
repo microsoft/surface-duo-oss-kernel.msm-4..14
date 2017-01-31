@@ -102,8 +102,6 @@ out:
 }
 EXPORT_SYMBOL(drm_crtc_force_disable_all);
 
-DEFINE_WW_CLASS(crtc_ww_class);
-
 static unsigned int drm_num_crtcs(struct drm_device *dev)
 {
 	unsigned int num = 0;
@@ -205,9 +203,9 @@ int drm_crtc_init_with_planes(struct drm_device *dev, struct drm_crtc *crtc,
 
 	crtc->primary = primary;
 	crtc->cursor = cursor;
-	if (primary)
+	if (primary && !primary->possible_crtcs)
 		primary->possible_crtcs = 1 << drm_crtc_index(crtc);
-	if (cursor)
+	if (cursor && !cursor->possible_crtcs)
 		cursor->possible_crtcs = 1 << drm_crtc_index(crtc);
 
 	if (drm_core_check_feature(dev, DRIVER_ATOMIC)) {
@@ -695,8 +693,7 @@ int drm_crtc_check_viewport(const struct drm_crtc *crtc,
 	drm_crtc_get_hv_timing(mode, &hdisplay, &vdisplay);
 
 	if (crtc->state &&
-	    crtc->primary->state->rotation & (DRM_ROTATE_90 |
-					      DRM_ROTATE_270))
+	    drm_rotation_90_or_270(crtc->primary->state->rotation))
 		swap(hdisplay, vdisplay);
 
 	return drm_framebuffer_check_src_coords(x << 16, y << 16,

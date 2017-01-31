@@ -28,6 +28,7 @@
 #include <drm/drm_mode_object.h>
 
 struct drm_crtc;
+struct drm_printer;
 
 /**
  * struct drm_plane_state - mutable plane state
@@ -94,6 +95,29 @@ struct drm_plane_state {
 	struct drm_atomic_state *state;
 };
 
+static inline struct drm_rect
+drm_plane_state_src(const struct drm_plane_state *state)
+{
+	struct drm_rect src = {
+		.x1 = state->src_x,
+		.y1 = state->src_y,
+		.x2 = state->src_x + state->src_w,
+		.y2 = state->src_y + state->src_h,
+	};
+	return src;
+}
+
+static inline struct drm_rect
+drm_plane_state_dest(const struct drm_plane_state *state)
+{
+	struct drm_rect dest = {
+		.x1 = state->crtc_x,
+		.y1 = state->crtc_y,
+		.x2 = state->crtc_x + state->crtc_w,
+		.y2 = state->crtc_y + state->crtc_h,
+	};
+	return dest;
+}
 
 /**
  * struct drm_plane_funcs - driver plane control functions
@@ -323,6 +347,18 @@ struct drm_plane_funcs {
 	 * before data structures are torndown.
 	 */
 	void (*early_unregister)(struct drm_plane *plane);
+
+	/**
+	 * @atomic_print_state:
+	 *
+	 * If driver subclasses struct &drm_plane_state, it should implement
+	 * this optional hook for printing additional driver specific state.
+	 *
+	 * Do not call this directly, use drm_atomic_plane_print_state()
+	 * instead.
+	 */
+	void (*atomic_print_state)(struct drm_printer *p,
+				   const struct drm_plane_state *state);
 };
 
 /**
@@ -392,6 +428,7 @@ enum drm_plane_type {
  * @type: type of plane (overlay, primary, cursor)
  * @state: current atomic state for this plane
  * @zpos_property: zpos property for this plane
+ * @rotation_property: rotation property for this plane
  * @helper_private: mid-layer private data
  */
 struct drm_plane {
@@ -438,6 +475,7 @@ struct drm_plane {
 	struct drm_plane_state *state;
 
 	struct drm_property *zpos_property;
+	struct drm_property *rotation_property;
 };
 
 #define obj_to_plane(x) container_of(x, struct drm_plane, base)
