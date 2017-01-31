@@ -208,12 +208,8 @@ static int ovl_check_whiteouts(struct dentry *dir, struct ovl_readdir_data *rdd)
 	struct ovl_cache_entry *p;
 	struct dentry *dentry;
 	const struct cred *old_cred;
-	struct cred *override_cred;
 
-	override_cred = ovl_prepare_creds(rdd->dentry->d_sb);
-	if (!override_cred)
-		return -ENOMEM;
-	old_cred = override_creds(override_cred);
+	old_cred = ovl_override_creds(rdd->dentry->d_sb);
 
 	err = mutex_lock_killable(&dir->d_inode->i_mutex);
 	if (!err) {
@@ -229,7 +225,6 @@ static int ovl_check_whiteouts(struct dentry *dir, struct ovl_readdir_data *rdd)
 		mutex_unlock(&dir->d_inode->i_mutex);
 	}
 	revert_creds(old_cred);
-	put_cred(override_cred);
 
 	return err;
 }

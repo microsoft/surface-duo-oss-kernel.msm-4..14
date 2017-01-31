@@ -334,7 +334,6 @@ int ovl_copy_up_one(struct dentry *parent, struct dentry *dentry,
 	struct dentry *upperdir;
 	struct dentry *upperdentry;
 	const struct cred *old_cred;
-	struct cred *override_cred;
 	char *link = NULL;
 
 	if (WARN_ON(!workdir))
@@ -361,11 +360,7 @@ int ovl_copy_up_one(struct dentry *parent, struct dentry *dentry,
 			return PTR_ERR(link);
 	}
 
-	err = -ENOMEM;
-	override_cred = ovl_prepare_creds(dentry->d_sb);
-	if (!override_cred)
-		goto out_free_link;
-	old_cred = override_creds(override_cred);
+	old_cred = ovl_override_creds(dentry->d_sb);
 
 	err = -EIO;
 	if (lock_rename(workdir, upperdir) != NULL) {
@@ -388,9 +383,7 @@ int ovl_copy_up_one(struct dentry *parent, struct dentry *dentry,
 out_unlock:
 	unlock_rename(workdir, upperdir);
 	revert_creds(old_cred);
-	put_cred(override_cred);
 
-out_free_link:
 	if (link)
 		free_page((unsigned long) link);
 
