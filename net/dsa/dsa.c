@@ -225,12 +225,12 @@ static int dsa_switch_setup_one(struct dsa_switch *ds, struct device *parent)
 			continue;
 
 		if (!strcmp(name, "cpu")) {
-			if (dst->cpu_switch != -1) {
+			if (!dst->cpu_switch) {
 				netdev_err(dst->master_netdev,
 					   "multiple cpu ports?!\n");
 				return -EINVAL;
 			}
-			dst->cpu_switch = index;
+			dst->cpu_switch = ds;
 			dst->cpu_port = i;
 			ds->cpu_port_mask |= 1 << i;
 		} else if (!strcmp(name, "dsa")) {
@@ -254,7 +254,7 @@ static int dsa_switch_setup_one(struct dsa_switch *ds, struct device *parent)
 	 * tagging protocol to the preferred tagging format of this
 	 * switch.
 	 */
-	if (dst->cpu_switch == index) {
+	if (dst->cpu_switch == ds) {
 		enum dsa_tag_protocol tag_protocol;
 
 		tag_protocol = ops->get_tag_protocol(ds);
@@ -316,8 +316,6 @@ static int dsa_switch_setup_one(struct dsa_switch *ds, struct device *parent)
 	if (ret)
 		return ret;
 
-	dsa_hwmon_register(ds);
-
 	return 0;
 }
 
@@ -375,8 +373,6 @@ void dsa_cpu_dsa_destroy(struct device_node *port_dn)
 static void dsa_switch_destroy(struct dsa_switch *ds)
 {
 	int port;
-
-	dsa_hwmon_unregister(ds);
 
 	/* Destroy network devices for physical switch ports. */
 	for (port = 0; port < DSA_MAX_PORTS; port++) {
@@ -757,7 +753,6 @@ static int dsa_setup_dst(struct dsa_switch_tree *dst, struct net_device *dev,
 
 	dst->pd = pd;
 	dst->master_netdev = dev;
-	dst->cpu_switch = -1;
 	dst->cpu_port = -1;
 
 	for (i = 0; i < pd->nr_chips; i++) {
@@ -869,7 +864,7 @@ static void dsa_remove_dst(struct dsa_switch_tree *dst)
 			dsa_switch_destroy(ds);
 	}
 
-	dsa_cpu_port_ethtool_restore(dst->ds[0]);
+	dsa_cpu_port_ethtool_restore(dst->cpu_switch);
 
 	dev_put(dst->master_netdev);
 }

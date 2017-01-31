@@ -51,6 +51,9 @@
 
 #define MLX5_SET_CFG(p, f, v) MLX5_SET(create_flow_group_in, p, f, v)
 
+#define MLX5E_HW2SW_MTU(hwmtu) ((hwmtu) - (ETH_HLEN + VLAN_HLEN + ETH_FCS_LEN))
+#define MLX5E_SW2HW_MTU(swmtu) ((swmtu) + (ETH_HLEN + VLAN_HLEN + ETH_FCS_LEN))
+
 #define MLX5E_MAX_NUM_TC	8
 
 #define MLX5E_PARAMS_MINIMUM_LOG_SQ_SIZE                0x6
@@ -259,6 +262,7 @@ struct mlx5e_tstamp {
 	struct mlx5_core_dev      *mdev;
 	struct ptp_clock          *ptp;
 	struct ptp_clock_info      ptp_info;
+	u8                        *pps_pin_caps;
 };
 
 enum {
@@ -369,6 +373,7 @@ struct mlx5e_rq {
 
 	unsigned long          state;
 	int                    ix;
+	u16                    rx_headroom;
 
 	struct mlx5e_rx_am     am; /* Adaptive Moderation */
 	struct bpf_prog       *xdp_prog;
@@ -567,8 +572,9 @@ struct mlx5e_vlan_table {
 	unsigned long active_vlans[BITS_TO_LONGS(VLAN_N_VID)];
 	struct mlx5_flow_handle	*active_vlans_rule[VLAN_N_VID];
 	struct mlx5_flow_handle	*untagged_rule;
-	struct mlx5_flow_handle	*any_vlan_rule;
-	bool		filter_disabled;
+	struct mlx5_flow_handle	*any_cvlan_rule;
+	struct mlx5_flow_handle	*any_svlan_rule;
+	bool			filter_disabled;
 };
 
 struct mlx5e_l2_table {
@@ -776,6 +782,8 @@ void mlx5e_fill_hwstamp(struct mlx5e_tstamp *clock, u64 timestamp,
 			struct skb_shared_hwtstamps *hwts);
 void mlx5e_timestamp_init(struct mlx5e_priv *priv);
 void mlx5e_timestamp_cleanup(struct mlx5e_priv *priv);
+void mlx5e_pps_event_handler(struct mlx5e_priv *priv,
+			     struct ptp_clock_event *event);
 int mlx5e_hwstamp_set(struct net_device *dev, struct ifreq *ifr);
 int mlx5e_hwstamp_get(struct net_device *dev, struct ifreq *ifr);
 void mlx5e_modify_rx_cqe_compression(struct mlx5e_priv *priv, bool val);
