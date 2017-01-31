@@ -284,4 +284,43 @@
 			bias-disable = <0>;
 		};
 	};
+
+	hdmi_pinctrl: hdmi-pinctrl {
+		mux {
+			pins = "gpio70", "gpio71", "gpio72";
+			function = "hdmi";
+		};
+
+		pinconf_ddc {
+			pins = "gpio70", "gpio71";
+			bias-pull-up;
+			drive-strength = <2>;
+		};
+
+		pinconf_hpd {
+			pins = "gpio72";
+			bias-pull-down;
+			drive-strength = <16>;
+		};
+	};
+
+	wcnss_pin_a: wcnss-pins-active {
+		fm {
+			pins = "gpio14", "gpio15";
+			function = "riva_fm";
+		};
+
+		bt {
+			pins = "gpio16", "gpio17";
+			function = "riva_bt";
+		};
+
+		wlan {
+			pins = "gpio64", "gpio65", "gpio66", "gpio67", "gpio68";
+			function = "riva_wlan";
+
+			drive-strength = <6>;
+			bias-pull-down;
+		};
+	};
 };
