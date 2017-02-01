@@ -1,0 +1,25 @@
+Generic on-chip SRAM for S32V234
+
+Simple iomem memory block to be used by APIs requiring SRAM access.
+Compatible to mmio-sram.
+
+Required properties:
+
+- compatible : fsl,s32v234-sram
+
+- reg : SRAM iomem address range
+
+Optional properties:
+
+- device_type : sram
+
+address (@<address>) should be
+appended to the name.
+
+Example:
+
+sram: sram@3E800000 {
+	device_type = "sram";
+	compatible = "mmio-sram","fsl,s32v234-sram";
+	reg = <0 0x3E800000 0 0x400000>;
+};
