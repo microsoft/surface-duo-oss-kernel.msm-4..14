@@ -1323,6 +1323,21 @@ static int arm_smmu_attach_dev(struct iommu_domain *domain, struct device *dev)
 
 	smmu = fwspec_smmu(fwspec);
 
+	/*
+	 * If driver is explicitly managing the iommu, detatch any previously
+	 * attached _DMA domains.
+	 *
+	 * TODO maybe this logic should be in iommu_attach_device() so it can
+	 * happen outside of holding group->mutex??
+	 */
+	if (domain->type != IOMMU_DOMAIN_DMA) {
+		struct arm_smmu_domain *other_domain, *n;
+
+		list_for_each_entry_safe(other_domain, n, &smmu->domain_list, domain_node)
+			if (other_domain->domain.type == IOMMU_DOMAIN_DMA)
+				arm_smmu_detach_dev(&other_domain->domain, dev);
+	}
+
 	if (WARN_ON(!list_empty(&smmu_domain->domain_node)))
 		return -EINVAL;
 
