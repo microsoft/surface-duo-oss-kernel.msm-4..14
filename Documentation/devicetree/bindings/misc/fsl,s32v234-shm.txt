@@ -1,0 +1,39 @@
+S32V234 Shared Memory Block
+
+This is a shared memory block to be used by various S32V234 generic devices,
+which require a dedicated contiguous memory block to be reserved in the kernel
+memory space.
+
+It must reside inside the 'reserved-memory' section of the device tree.
+device is matched via its bus drivers, and has a number of properties
+that apply in on the generic device (independent from the bus).
+It may be used by more than one device at once, as long as each one follows
+a proper synchronization mechanism for accessing the data.
+
+Required properties:
+ - compatible: 		should be set to "fsl,s32v234-shm"
+ - reg:			the address range
+
+address (@<address>) should be appended to the name.
+
+Any device requiring access to this shared memory block should reference it
+from its own device tree node.
+
+Example:
+
+reserved-memory {
+	....
+	/* 1Mb shared memory */
+	shared_memory: shm@0xC1000000 {
+		compatible = "fsl,s32v234-shm";
+		reg = <0x0 0xC1000000 0x0 0x100000>;    /* 1 MB */
+		no-map;
+	};
+};
+
+....
+
+some-device {
+	....
+	memory-region = <&shared_memory>;
+};
