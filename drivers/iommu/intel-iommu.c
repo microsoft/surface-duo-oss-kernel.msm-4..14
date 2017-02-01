@@ -5197,7 +5197,7 @@ static int intel_iommu_add_device(struct device *dev)
 	if (!iommu)
 		return -ENODEV;
 
-	iommu_device_link(&iommu->iommu.dev, dev);
+	iommu_device_link(&iommu->iommu, dev);
 
 	group = iommu_group_get_for_dev(dev);
 
@@ -5219,7 +5219,7 @@ static void intel_iommu_remove_device(struct device *dev)
 
 	iommu_group_remove_device(dev);
 
-	iommu_device_unlink(&iommu->iommu.dev, dev);
+	iommu_device_unlink(&iommu->iommu, dev);
 }
 
 static void intel_iommu_get_resv_regions(struct device *device,
