@@ -279,21 +279,84 @@ static void vfe_wm_frame_based(struct vfe_device *vfe, u8 wm, u8 enable)
 			1 << VFE_0_BUS_IMAGE_MASTER_n_WR_CFG_FRM_BASED_SHIFT);
 }
 
+#define CALC_WORD(width, M, N) (((width) * (M) + (N) - 1) / (N))
+
+static int vfe_word_per_line(uint32_t format, uint32_t pixel_per_line)
+{
+	int val = 0;
+
+	switch (format) {
+	case V4L2_PIX_FMT_NV12:
+	case V4L2_PIX_FMT_NV21:
+	case V4L2_PIX_FMT_NV12M:
+	case V4L2_PIX_FMT_NV21M:
+		val = CALC_WORD(pixel_per_line, 1, 8);
+		break;
+	case V4L2_PIX_FMT_YUYV:
+	case V4L2_PIX_FMT_YVYU:
+	case V4L2_PIX_FMT_UYVY:
+	case V4L2_PIX_FMT_VYUY:
+		val = CALC_WORD(pixel_per_line, 2, 8);
+		break;
+	}
+
+	return val;
+}
+
+static void vfe_get_wm_sizes(struct v4l2_pix_format_mplane *pix, u8 plane,
+			     u16 *width, u16 *height,
+			     u16 *bytesperline, u16 *lines)
+{
+	switch (pix->pixelformat) {
+	case V4L2_PIX_FMT_NV12M:
+	case V4L2_PIX_FMT_NV21M:
+		*width = pix->width;
+		*height = pix->height;
+		*bytesperline = pix->plane_fmt[plane].bytesperline;
+		*lines = pix->plane_fmt[plane].sizeimage / *bytesperline;
+		if (plane == 1)
+			*height /= 2;
+		break;
+	case V4L2_PIX_FMT_NV12:
+	case V4L2_PIX_FMT_NV21:
+		*width = pix->width;
+		*height = pix->height;
+		*bytesperline = pix->plane_fmt[0].bytesperline;
+		*lines = pix->height;
+		if (plane == 1) {
+			*height /= 2;
+			*lines = pix->plane_fmt[0].sizeimage / *bytesperline -
+								pix->height;
+		}
+		break;
+	}
+}
+
 static void vfe_wm_line_based(struct vfe_device *vfe, u32 wm,
-			      u16 width, u16 height, u32 enable)
+			      struct v4l2_pix_format_mplane *pix,
+			      u8 plane, u32 enable)
 {
 	u32 reg;
 
 	if (enable) {
+		u16 width = 0, height = 0, bytesperline = 0, lines = 0, wpl;
+
+		vfe_get_wm_sizes(pix, plane, &width, &height,
+				 &bytesperline, &lines);
+
+		wpl = vfe_word_per_line(pix->pixelformat, width);
+
 		reg = height - 1;
-		reg |= (width / 16 - 1) << 16;
+		reg |= ((wpl + 1) / 2 - 1) << 16;
 
 		writel_relaxed(reg, vfe->base +
 			       VFE_0_BUS_IMAGE_MASTER_n_WR_IMAGE_SIZE(wm));
 
+		wpl = vfe_word_per_line(pix->pixelformat, bytesperline);
+
 		reg = 0x3;
-		reg |= (height - 1) << 4;
-		reg |= (width / 8) << 16;
+		reg |= (lines - 1) << 4;
+		reg |= wpl << 16;
 
 		writel_relaxed(reg, vfe->base +
 			       VFE_0_BUS_IMAGE_MASTER_n_WR_BUFFER_CFG(wm));
@@ -1201,16 +1264,9 @@ static int vfe_enable_output(struct vfe_line *line)
 			vfe_wm_set_ub_cfg(vfe, output->wm_idx[i],
 					  (ub_size + 1) * output->wm_idx[i],
 					  ub_size);
-			if (i == 0)
-				vfe_wm_line_based(vfe, output->wm_idx[i],
-						  line->fmt[MSM_VFE_PAD_SRC].width,
-						  line->fmt[MSM_VFE_PAD_SRC].height,
-						  1);
-			else if (i == 1)
-				vfe_wm_line_based(vfe, output->wm_idx[i],
-						  line->fmt[MSM_VFE_PAD_SRC].width,
-						  line->fmt[MSM_VFE_PAD_SRC].height / 2,
-						  1);
+			vfe_wm_line_based(vfe, output->wm_idx[i],
+					&line->video_out.active_fmt.fmt.pix_mp,
+					i, 1);
 			vfe_wm_enable(vfe, output->wm_idx[i], 1);
 			vfe_bus_reload_wm(vfe, output->wm_idx[i]);
 		}
@@ -1272,7 +1328,7 @@ static int vfe_disable_output(struct vfe_line *line)
 		spin_unlock_irqrestore(&vfe->output_lock, flags);
 	} else {
 		for (i = 0; i < output->wm_num; i++) {
-			vfe_wm_line_based(vfe, output->wm_idx[i], 0, 0, 0);
+			vfe_wm_line_based(vfe, output->wm_idx[i], NULL, i, 0);
 			vfe_set_cgc_override(vfe, output->wm_idx[i], 0);
 		}
 
@@ -2335,6 +2391,12 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 		}
 
 		video_out->ops = &camss_vfe_video_ops;
+		video_out->bpl_alignment = 8;
+		video_out->line_based = 0;
+		if (i == VFE_LINE_PIX) {
+			video_out->bpl_alignment = 16;
+			video_out->line_based = 1;
+		}
 		snprintf(name, ARRAY_SIZE(name), "%s%d_%s%d",
 			 MSM_VFE_NAME, vfe->id, "video", i);
 		ret = msm_video_register(video_out, v4l2_dev, name);

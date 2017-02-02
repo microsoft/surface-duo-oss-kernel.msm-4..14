@@ -154,13 +154,15 @@ static int video_find_format_n(u32 code, u32 index)
  * @mbus: v4l2_mbus_framefmt format
  * @pix: v4l2_pix_format_mplane format (output)
  * @index: index of an entry in formats array to be used for the conversion
+ * @alignment: bytesperline alignment value
  *
  * Fill the output pix structure with information from the input mbus format.
  *
  * Return 0 on success or a negative error code otherwise
  */
 static int video_mbus_to_pix_mp(const struct v4l2_mbus_framefmt *mbus,
-				struct v4l2_pix_format_mplane *pix, int index)
+				struct v4l2_pix_format_mplane *pix, int index,
+				unsigned int alignment)
 {
 	const struct format_info *f;
 	unsigned int i;
@@ -175,7 +177,7 @@ static int video_mbus_to_pix_mp(const struct v4l2_mbus_framefmt *mbus,
 	for (i = 0; i < pix->num_planes; i++) {
 		bytesperline = pix->width / f->hsub[i].numerator *
 			f->hsub[i].denominator * f->bpp[i] / 8;
-		bytesperline = ALIGN(bytesperline, 8);
+		bytesperline = ALIGN(bytesperline, alignment);
 		pix->plane_fmt[i].bytesperline = bytesperline;
 		pix->plane_fmt[i].sizeimage = pix->height /
 				f->vsub[i].numerator * f->vsub[i].denominator *
@@ -229,7 +231,8 @@ static int video_get_subdev_format(struct camss_video *video,
 	if (ret < 0)
 		return ret;
 
-	return video_mbus_to_pix_mp(&fmt.format, &format->fmt.pix_mp, ret);
+	return video_mbus_to_pix_mp(&fmt.format, &format->fmt.pix_mp, ret,
+				    video->bpl_alignment);
 }
 
 static int video_get_pixelformat(struct camss_video *video, u32 *pixelformat,
@@ -314,7 +317,8 @@ static int video_buf_init(struct vb2_buffer *vb)
 	if (format->pixelformat == V4L2_PIX_FMT_NV12 ||
 			format->pixelformat == V4L2_PIX_FMT_NV21)
 		buffer->addr[1] = buffer->addr[0] +
-				format->plane_fmt[0].sizeimage * 2 / 3;
+				format->plane_fmt[0].bytesperline *
+				format->height;
 
 	return 0;
 }
@@ -354,7 +358,6 @@ static int video_check_format(struct camss_video *video)
 	struct v4l2_pix_format_mplane *pix = &video->active_fmt.fmt.pix_mp;
 	struct v4l2_pix_format_mplane *sd_pix;
 	struct v4l2_format format;
-	unsigned int i;
 	int ret;
 
 	sd_pix = &format.fmt.pix_mp;
@@ -369,13 +372,6 @@ static int video_check_format(struct camss_video *video)
 	    pix->num_planes != sd_pix->num_planes ||
 	    pix->field != format.fmt.pix_mp.field)
 		return -EINVAL;
-
-	for (i = 0; i < pix->num_planes; i++)
-		if (pix->plane_fmt[i].bytesperline !=
-				sd_pix->plane_fmt[i].bytesperline ||
-		    pix->plane_fmt[i].sizeimage !=
-				sd_pix->plane_fmt[i].sizeimage)
-			return -EINVAL;
 
 	return 0;
 }
@@ -504,31 +500,70 @@ static int video_g_fmt(struct file *file, void *fh, struct v4l2_format *f)
 	return 0;
 }
 
+static int video_try_fmt(struct file *file, void *fh, struct v4l2_format *f)
+{
+	struct camss_video *video = video_drvdata(file);
+	struct v4l2_plane_pix_format *p;
+	u32 bytesperline[3] = { 0 };
+	u32 sizeimage[3] = { 0 };
+	u32 lines;
+	int ret;
+	int i;
+
+	if (f->type != video->type)
+		return -EINVAL;
+
+	if (video->line_based)
+		for (i = 0; i < f->fmt.pix_mp.num_planes && i < 3; i++) {
+			p = &f->fmt.pix_mp.plane_fmt[i];
+			bytesperline[i] = clamp_t(u32, p->bytesperline,
+						  1, 65528);
+			sizeimage[i] = clamp_t(u32, p->sizeimage,
+					       bytesperline[i],
+					       bytesperline[i] * 4096);
+		}
+
+	ret = video_get_subdev_format(video, f);
+	if (ret < 0)
+		return ret;
+
+	if (video->line_based)
+		for (i = 0; i < f->fmt.pix_mp.num_planes; i++) {
+			p = &f->fmt.pix_mp.plane_fmt[i];
+			p->bytesperline = clamp_t(u32, p->bytesperline,
+						  1, 65528);
+			p->sizeimage = clamp_t(u32, p->sizeimage,
+					       p->bytesperline,
+					       p->bytesperline * 4096);
+			lines = p->sizeimage / p->bytesperline;
+
+			if (p->bytesperline < bytesperline[i])
+				p->bytesperline = ALIGN(bytesperline[i], 8);
+
+			if (p->sizeimage < p->bytesperline * lines)
+				p->sizeimage = p->bytesperline * lines;
+
+			if (p->sizeimage < sizeimage[i])
+				p->sizeimage =
+					(sizeimage[i] + p->bytesperline - 1) /
+					p->bytesperline * p->bytesperline;
+		}
+
+	return 0;
+}
+
 static int video_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 {
 	struct camss_video *video = video_drvdata(file);
 	int ret;
 
-	if (f->type != video->type)
-		return -EINVAL;
-
-	ret = video_get_subdev_format(video, f);
+	ret = video_try_fmt(file, fh, f);
 	if (ret < 0)
 		return ret;
 
 	video->active_fmt = *f;
 
 	return 0;
-}
-
-static int video_try_fmt(struct file *file, void *fh, struct v4l2_format *f)
-{
-	struct camss_video *video = video_drvdata(file);
-
-	if (f->type != video->type)
-		return -EINVAL;
-
-	return video_get_subdev_format(video, f);
 }
 
 static int video_enum_input(struct file *file, void *fh,
