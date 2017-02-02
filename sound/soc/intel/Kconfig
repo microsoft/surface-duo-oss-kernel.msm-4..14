@@ -59,6 +59,18 @@ config SND_SST_ATOM_HIFI2_PLATFORM
 	depends on SND_SOC_INTEL_SST_TOPLEVEL && X86
 	select SND_SOC_COMPRESS
 
+config SND_SOC_INTEL_BYT_CHT_PCM512x_MACH
+	tristate "ASoC Audio driver for Intel Baytrail & Cherrytrail with TI PCM512x codec"
+	depends on X86_INTEL_LPSS && I2C && ACPI
+	select SND_SOC_PCM512x_I2C
+	select SND_SST_ATOM_HIFI2_PLATFORM
+	select SND_SST_IPC_ACPI
+	select SND_SOC_INTEL_SST_MATCH if ACPI
+	help
+	  This adds support for ASoC machine driver for Intel(R) Baytrail and Cherrytrail
+	  platforms with PCM512X audio codec.
+	  If unsure select "N".
+
 config SND_SOC_INTEL_SKYLAKE
 	tristate "Intel ASoC SST driver for SKL/BXT/KBL/GLK/CNL"
 	depends on SND_SOC_INTEL_SST_TOPLEVEL && PCI && ACPI
