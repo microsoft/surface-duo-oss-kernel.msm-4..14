@@ -279,12 +279,6 @@
 		status = "ok";
 	};
 
-    hisi_sysctrl: sysctrl@fff0a000 {
-        compatible = "hisilicon,sysctrl";
-        reg = <0x0 0xfff0a000 0x0 0x1000>;
-        status = "ok";
-    };
-
     hisi_pctrl: pctrl@e8a09000 {
         compatible = "hisilicon,pctrl";
         reg = <0x0 0xe8a09000 0x0 0x1000>;
