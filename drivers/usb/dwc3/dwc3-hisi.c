@@ -1395,7 +1395,7 @@ static int get_resource(struct hisi_dwc3_device *hisi_dwc3)
 	/*
 	 * map SCTRL region
 	 */
-	np = of_find_compatible_node(NULL, NULL, "hisilicon,sysctrl");
+	np = of_find_compatible_node(NULL, NULL, "hisilicon,hi3660-sctrl");
 	if (!np) {
 		dev_err(dev, "get sysctrl node failed!\n");
 		return -EINVAL;
