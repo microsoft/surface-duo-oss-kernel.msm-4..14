@@ -220,6 +220,13 @@
 			#clock-cells = <1>;
 		};
 
+		reboot {
+			compatible = "hisilicon,hi3660-reboot";
+			pmu-regmap = <&pmuctrl>;
+			sctrl-regmap = <&sctrl>;
+			reboot-offset = <0x4>;
+		};
+
 		ufs: ufs@ff3b0000 {
 			compatible = "jedec,ufs-1.1", "hisilicon,hi3660-ufs";
 			reg = <0x0 0xff3b0000 0x0 0x1000>,	/* 0: HCI standard */
