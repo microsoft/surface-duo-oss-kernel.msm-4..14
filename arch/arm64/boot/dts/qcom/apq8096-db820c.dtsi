@@ -377,3 +377,7 @@
 	// Overwrite RESETIN_N keyboard scan code
 	linux,code = <KEY_VOLUMEDOWN>;
 };
+
+&venus {
+	status = "okay";
+};
