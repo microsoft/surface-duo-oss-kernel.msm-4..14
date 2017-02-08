@@ -16,7 +16,6 @@
 #include <dt-bindings/reset/qcom,gcc-msm8916.h>
 #include <dt-bindings/thermal/thermal.h>
 #include <dt-bindings/clock/qcom,rpmcc.h>
-#include <dt-bindings/thermal/thermal.h>
 
 / {
 	model = "Qualcomm Technologies, Inc. MSM8916";
@@ -354,12 +353,12 @@
 		};
 
 		a53pll: a53pll@0b016000 {
-			compatible = "qcom,a53-pll";
+			compatible = "qcom,a53pll-msm8916";
 			reg = <0x0b016000 0x40>;
 		};
 
 		apcs: syscon@b011000 {
-			compatible = "qcom,a53cc", "syscon";
+			compatible = "qcom,a53cc-msm8916", "syscon";
 			reg = <0x0b011000 0x1000>;
 			#clock-cells = <1>;
 		};
