@@ -680,8 +680,8 @@ static netdev_tx_t enic_hard_start_xmit(struct sk_buff *skb,
 }
 
 /* dev_base_lock rwlock held, nominally process context */
-static struct rtnl_link_stats64 *enic_get_stats(struct net_device *netdev,
-						struct rtnl_link_stats64 *net_stats)
+static void enic_get_stats(struct net_device *netdev,
+			   struct rtnl_link_stats64 *net_stats)
 {
 	struct enic *enic = netdev_priv(netdev);
 	struct vnic_stats *stats;
@@ -693,7 +693,7 @@ static struct rtnl_link_stats64 *enic_get_stats(struct net_device *netdev,
 	 * recorded stats.
 	 */
 	if (err == -ENOMEM)
-		return net_stats;
+		return;
 
 	net_stats->tx_packets = stats->tx.tx_frames_ok;
 	net_stats->tx_bytes = stats->tx.tx_bytes_ok;
@@ -707,8 +707,6 @@ static struct rtnl_link_stats64 *enic_get_stats(struct net_device *netdev,
 	net_stats->rx_over_errors = enic->rq_truncated_pkts;
 	net_stats->rx_crc_errors = enic->rq_bad_fcs;
 	net_stats->rx_dropped = stats->rx.rx_no_bufs + stats->rx.rx_drop;
-
-	return net_stats;
 }
 
 static int enic_mc_sync(struct net_device *netdev, const u8 *mc_addr)
@@ -1345,7 +1343,7 @@ static int enic_poll(struct napi_struct *napi, int budget)
 		 * exit polling
 		 */
 
-		napi_complete(napi);
+		napi_complete_done(napi, rq_work_done);
 		if (enic->rx_coalesce_setting.use_adaptive_rx_coalesce)
 			enic_set_int_moderation(enic, &enic->rq[0]);
 		vnic_intr_unmask(&enic->intr[intr]);
@@ -1502,7 +1500,7 @@ static int enic_poll_msix_rq(struct napi_struct *napi, int budget)
 		 * exit polling
 		 */
 
-		napi_complete(napi);
+		napi_complete_done(napi, work_done);
 		if (enic->rx_coalesce_setting.use_adaptive_rx_coalesce)
 			enic_set_int_moderation(enic, &enic->rq[rq]);
 		vnic_intr_unmask(&enic->intr[intr]);

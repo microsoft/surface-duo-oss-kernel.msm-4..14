@@ -2599,6 +2599,12 @@ L:	netdev@vger.kernel.org
 S:	Supported
 F:	drivers/net/ethernet/broadcom/bnx2x/
 
+BROADCOM BNXT_EN 50 GIGABIT ETHERNET DRIVER
+M:	Michael Chan <michael.chan@broadcom.com>
+L:	netdev@vger.kernel.org
+S:	Supported
+F:	drivers/net/ethernet/broadcom/bnxt/
+
 BROADCOM BCM281XX/BCM11XXX/BCM216XX ARM ARCHITECTURE
 M:	Florian Fainelli <f.fainelli@gmail.com>
 M:	Ray Jui <rjui@broadcom.com>
@@ -9967,6 +9973,13 @@ L:	linuxppc-dev@lists.ozlabs.org
 S:	Maintained
 F:	drivers/block/ps3vram.c
 
+PSAMPLE PACKET SAMPLING SUPPORT:
+M:	Yotam Gigi <yotamg@mellanox.com>
+S:	Maintained
+F:	net/psample
+F:	include/net/psample.h
+F:	include/uapi/linux/psample.h
+
 PSTORE FILESYSTEM
 M:	Anton Vorontsov <anton@enomsg.org>
 M:	Colin Cross <ccross@android.com>
@@ -10593,7 +10606,7 @@ F:	drivers/net/wireless/realtek/rtlwifi/
 F:	drivers/net/wireless/realtek/rtlwifi/rtl8192ce/
 
 RTL8XXXU WIRELESS DRIVER (rtl8xxxu)
-M:	Jes Sorensen <Jes.Sorensen@redhat.com>
+M:	Jes Sorensen <Jes.Sorensen@gmail.com>
 L:	linux-wireless@vger.kernel.org
 T:	git git://git.kernel.org/pub/scm/linux/kernel/git/jes/linux.git rtl8xxxu-devel
 S:	Maintained
@@ -10859,6 +10872,13 @@ S:	Maintained
 F:	drivers/staging/media/st-cec/
 F:	Documentation/devicetree/bindings/media/stih-cec.txt
 
+SHARED MEMORY COMMUNICATIONS (SMC) SOCKETS
+M:	Ursula Braun <ubraun@linux.vnet.ibm.com>
+L:	linux-s390@vger.kernel.org
+W:	http://www.ibm.com/developerworks/linux/linux390/
+S:	Supported
+F:	net/smc/
+
 SYNOPSYS DESIGNWARE DMAC DRIVER
 M:	Viresh Kumar <vireshk@kernel.org>
 M:	Andy Shevchenko <andriy.shevchenko@linux.intel.com>
@@ -10866,13 +10886,6 @@ S:	Maintained
 F:	include/linux/dma/dw.h
 F:	include/linux/platform_data/dma-dw.h
 F:	drivers/dma/dw/
-
-SYNOPSYS DESIGNWARE ETHERNET QOS 4.10a driver
-M: Lars Persson <lars.persson@axis.com>
-L: netdev@vger.kernel.org
-S: Supported
-F: Documentation/devicetree/bindings/net/snps,dwc-qos-ethernet.txt
-F: drivers/net/ethernet/synopsys/dwc_eth_qos.c
 
 SYNOPSYS DESIGNWARE I2C DRIVER
 M:	Jarkko Nikula <jarkko.nikula@linux.intel.com>
@@ -11315,6 +11328,13 @@ S:	Supported
 F:	arch/arm/mach-s3c24xx/mach-bast.c
 F:	arch/arm/mach-s3c24xx/bast-ide.c
 F:	arch/arm/mach-s3c24xx/bast-irq.c
+
+SIPHASH PRF ROUTINES
+M:	Jason A. Donenfeld <Jason@zx2c4.com>
+S:	Maintained
+F:	lib/siphash.c
+F:	lib/test_siphash.c
+F:	include/linux/siphash.h
 
 TI DAVINCI MACHINE SUPPORT
 M:	Sekhar Nori <nsekhar@ti.com>

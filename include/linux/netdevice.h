@@ -917,8 +917,8 @@ struct netdev_xdp {
  *	Callback used when the transmitter has not made any progress
  *	for dev->watchdog ticks.
  *
- * struct rtnl_link_stats64* (*ndo_get_stats64)(struct net_device *dev,
- *                      struct rtnl_link_stats64 *storage);
+ * void (*ndo_get_stats64)(struct net_device *dev,
+ *                         struct rtnl_link_stats64 *storage);
  * struct net_device_stats* (*ndo_get_stats)(struct net_device *dev);
  *	Called when a user wants to get the network device usage
  *	statistics. Drivers must do one of the following:
@@ -968,11 +968,12 @@ struct netdev_xdp {
  *      with PF and querying it may introduce a theoretical security risk.
  * int (*ndo_set_vf_rss_query_en)(struct net_device *dev, int vf, bool setting);
  * int (*ndo_get_vf_port)(struct net_device *dev, int vf, struct sk_buff *skb);
- * int (*ndo_setup_tc)(struct net_device *dev, u8 tc)
- * 	Called to setup 'tc' number of traffic classes in the net device. This
- * 	is always called from the stack with the rtnl lock held and netif tx
- * 	queues stopped. This allows the netdevice to perform queue management
- * 	safely.
+ * int (*ndo_setup_tc)(struct net_device *dev, u32 handle,
+ *		       __be16 protocol, struct tc_to_netdev *tc);
+ *	Called to setup any 'tc' scheduler, classifier or action on @dev.
+ *	This is always called from the stack with the rtnl lock held and netif
+ *	tx queues stopped. This allows the netdevice to perform queue
+ *	management safely.
  *
  *	Fiber Channel over Ethernet (FCoE) offload functions.
  * int (*ndo_fcoe_enable)(struct net_device *dev);
@@ -1166,8 +1167,8 @@ struct net_device_ops {
 						   struct neigh_parms *);
 	void			(*ndo_tx_timeout) (struct net_device *dev);
 
-	struct rtnl_link_stats64* (*ndo_get_stats64)(struct net_device *dev,
-						     struct rtnl_link_stats64 *storage);
+	void			(*ndo_get_stats64)(struct net_device *dev,
+						   struct rtnl_link_stats64 *storage);
 	bool			(*ndo_has_offload_stats)(const struct net_device *dev, int attr_id);
 	int			(*ndo_get_offload_stats)(int attr_id,
 							 const struct net_device *dev,
@@ -1552,7 +1553,6 @@ enum netdev_priv_flags {
  *	@ax25_ptr:	AX.25 specific data
  *	@ieee80211_ptr:	IEEE 802.11 specific data, assign before registering
  *
- *	@last_rx:	Time of last Rx
  *	@dev_addr:	Hw address (before bcast,
  *			because most packets are unicast)
  *
@@ -1778,8 +1778,6 @@ struct net_device {
 /*
  * Cache lines mostly used on receive path (including eth_type_trans())
  */
-	unsigned long		last_rx;
-
 	/* Interface address info used in eth_type_trans() */
 	unsigned char		*dev_addr;
 
@@ -3107,7 +3105,19 @@ static inline bool netif_subqueue_stopped(const struct net_device *dev,
 	return __netif_subqueue_stopped(dev, skb_get_queue_mapping(skb));
 }
 
-void netif_wake_subqueue(struct net_device *dev, u16 queue_index);
+/**
+ *	netif_wake_subqueue - allow sending packets on subqueue
+ *	@dev: network device
+ *	@queue_index: sub queue index
+ *
+ * Resume individual transmit queue of a device with multiple transmit queues.
+ */
+static inline void netif_wake_subqueue(struct net_device *dev, u16 queue_index)
+{
+	struct netdev_queue *txq = netdev_get_tx_queue(dev, queue_index);
+
+	netif_tx_wake_queue(txq);
+}
 
 #ifdef CONFIG_XPS
 int netif_set_xps_queue(struct net_device *dev, const struct cpumask *mask,
@@ -3801,6 +3811,10 @@ void netdev_stats_to_stats64(struct rtnl_link_stats64 *stats64,
 extern int		netdev_max_backlog;
 extern int		netdev_tstamp_prequeue;
 extern int		weight_p;
+extern int		dev_weight_rx_bias;
+extern int		dev_weight_tx_bias;
+extern int		dev_rx_weight;
+extern int		dev_tx_weight;
 
 bool netdev_has_upper_dev(struct net_device *dev, struct net_device *upper_dev);
 struct net_device *netdev_upper_get_next_dev_rcu(struct net_device *dev,
@@ -4333,6 +4347,15 @@ do {								\
 	0;								\
 })
 #endif
+
+/* if @cond then downgrade to debug, else print at @level */
+#define netif_cond_dbg(priv, type, netdev, cond, level, fmt, args...)     \
+	do {                                                              \
+		if (cond)                                                 \
+			netif_dbg(priv, type, netdev, fmt, ##args);       \
+		else                                                      \
+			netif_ ## level(priv, type, netdev, fmt, ##args); \
+	} while (0)
 
 #if defined(VERBOSE_DEBUG)
 #define netif_vdbg	netif_dbg
