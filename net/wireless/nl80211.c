@@ -3,7 +3,7 @@
  *
  * Copyright 2006-2010	Johannes Berg <johannes@sipsolutions.net>
  * Copyright 2013-2014  Intel Mobile Communications GmbH
- * Copyright 2015-2016	Intel Deutschland GmbH
+ * Copyright 2015-2017	Intel Deutschland GmbH
  */
 
 #include <linux/if.h>
@@ -3743,6 +3743,49 @@ static int nl80211_parse_beacon(struct nlattr *attrs[],
 	return 0;
 }
 
+static void nl80211_check_ap_rate_selectors(struct cfg80211_ap_settings *params,
+					    const u8 *rates)
+{
+	int i;
+
+	if (!rates)
+		return;
+
+	for (i = 0; i < rates[1]; i++) {
+		if (rates[2 + i] == BSS_MEMBERSHIP_SELECTOR_HT_PHY)
+			params->ht_required = true;
+		if (rates[2 + i] == BSS_MEMBERSHIP_SELECTOR_VHT_PHY)
+			params->vht_required = true;
+	}
+}
+
+/*
+ * Since the nl80211 API didn't include, from the beginning, attributes about
+ * HT/VHT requirements/capabilities, we parse them out of the IEs for the
+ * benefit of drivers that rebuild IEs in the firmware.
+ */
+static void nl80211_calculate_ap_params(struct cfg80211_ap_settings *params)
+{
+	const struct cfg80211_beacon_data *bcn = &params->beacon;
+	size_t ies_len = bcn->beacon_ies_len;
+	const u8 *ies = bcn->beacon_ies;
+	const u8 *rates;
+	const u8 *cap;
+
+	rates = cfg80211_find_ie(WLAN_EID_SUPP_RATES, ies, ies_len);
+	nl80211_check_ap_rate_selectors(params, rates);
+
+	rates = cfg80211_find_ie(WLAN_EID_EXT_SUPP_RATES, ies, ies_len);
+	nl80211_check_ap_rate_selectors(params, rates);
+
+	cap = cfg80211_find_ie(WLAN_EID_HT_CAPABILITY, ies, ies_len);
+	if (cap && cap[1] >= sizeof(*params->ht_cap))
+		params->ht_cap = (void *)(cap + 2);
+	cap = cfg80211_find_ie(WLAN_EID_VHT_CAPABILITY, ies, ies_len);
+	if (cap && cap[1] >= sizeof(*params->vht_cap))
+		params->vht_cap = (void *)(cap + 2);
+}
+
 static bool nl80211_get_ap_channel(struct cfg80211_registered_device *rdev,
 				   struct cfg80211_ap_settings *params)
 {
@@ -3970,6 +4013,8 @@ static int nl80211_start_ap(struct sk_buff *skb, struct genl_info *info)
 		if (IS_ERR(params.acl))
 			return PTR_ERR(params.acl);
 	}
+
+	nl80211_calculate_ap_params(&params);
 
 	wdev_lock(wdev);
 	err = rdev_start_ap(rdev, dev, &params);
@@ -6868,7 +6913,7 @@ nl80211_parse_sched_scan_plans(struct wiphy *wiphy, int n_plans,
 
 static struct cfg80211_sched_scan_request *
 nl80211_parse_sched_scan(struct wiphy *wiphy, struct wireless_dev *wdev,
-			 struct nlattr **attrs)
+			 struct nlattr **attrs, int max_match_sets)
 {
 	struct cfg80211_sched_scan_request *request;
 	struct nlattr *attr;
@@ -6933,7 +6978,7 @@ nl80211_parse_sched_scan(struct wiphy *wiphy, struct wireless_dev *wdev,
 	if (!n_match_sets && default_match_rssi != NL80211_SCAN_RSSI_THOLD_OFF)
 		n_match_sets = 1;
 
-	if (n_match_sets > wiphy->max_match_sets)
+	if (n_match_sets > max_match_sets)
 		return ERR_PTR(-EINVAL);
 
 	if (attrs[NL80211_ATTR_IE])
@@ -7233,7 +7278,8 @@ static int nl80211_start_sched_scan(struct sk_buff *skb,
 		return -EINPROGRESS;
 
 	sched_scan_req = nl80211_parse_sched_scan(&rdev->wiphy, wdev,
-						  info->attrs);
+						  info->attrs,
+						  rdev->wiphy.max_match_sets);
 
 	err = PTR_ERR_OR_ZERO(sched_scan_req);
 	if (err)
@@ -8586,6 +8632,12 @@ static int nl80211_testmode_dump(struct sk_buff *skb,
 		 * so we need to offset by 1.
 		 */
 		phy_idx = cb->args[0] - 1;
+
+		rdev = cfg80211_rdev_by_wiphy_idx(phy_idx);
+		if (!rdev) {
+			err = -ENOENT;
+			goto out_err;
+		}
 	} else {
 		struct nlattr **attrbuf = genl_family_attrbuf(&nl80211_fam);
 
@@ -8600,7 +8652,6 @@ static int nl80211_testmode_dump(struct sk_buff *skb,
 			goto out_err;
 		}
 		phy_idx = rdev->wiphy_idx;
-		rdev = NULL;
 
 		if (attrbuf[NL80211_ATTR_TESTDATA])
 			cb->args[1] = (long)attrbuf[NL80211_ATTR_TESTDATA];
@@ -8609,12 +8660,6 @@ static int nl80211_testmode_dump(struct sk_buff *skb,
 	if (cb->args[1]) {
 		data = nla_data((void *)cb->args[1]);
 		data_len = nla_len((void *)cb->args[1]);
-	}
-
-	rdev = cfg80211_rdev_by_wiphy_idx(phy_idx);
-	if (!rdev) {
-		err = -ENOENT;
-		goto out_err;
 	}
 
 	if (!rdev->ops->testmode_dump) {
@@ -9430,6 +9475,7 @@ nl80211_attr_cqm_policy[NL80211_ATTR_CQM_MAX + 1] = {
 	[NL80211_ATTR_CQM_TXE_RATE] = { .type = NLA_U32 },
 	[NL80211_ATTR_CQM_TXE_PKTS] = { .type = NLA_U32 },
 	[NL80211_ATTR_CQM_TXE_INTVL] = { .type = NLA_U32 },
+	[NL80211_ATTR_CQM_RSSI_LEVEL] = { .type = NLA_S32 },
 };
 
 static int nl80211_set_cqm_txe(struct genl_info *info,
@@ -10046,7 +10092,8 @@ static int nl80211_parse_wowlan_nd(struct cfg80211_registered_device *rdev,
 	if (err)
 		goto out;
 
-	trig->nd_config = nl80211_parse_sched_scan(&rdev->wiphy, NULL, tb);
+	trig->nd_config = nl80211_parse_sched_scan(&rdev->wiphy, NULL, tb,
+						   wowlan->max_nd_match_sets);
 	err = PTR_ERR_OR_ZERO(trig->nd_config);
 	if (err)
 		trig->nd_config = NULL;
@@ -13914,11 +13961,11 @@ static void cfg80211_send_cqm(struct sk_buff *msg, gfp_t gfp)
 
 void cfg80211_cqm_rssi_notify(struct net_device *dev,
 			      enum nl80211_cqm_rssi_threshold_event rssi_event,
-			      gfp_t gfp)
+			      s32 rssi_level, gfp_t gfp)
 {
 	struct sk_buff *msg;
 
-	trace_cfg80211_cqm_rssi_notify(dev, rssi_event);
+	trace_cfg80211_cqm_rssi_notify(dev, rssi_event, rssi_level);
 
 	if (WARN_ON(rssi_event != NL80211_CQM_RSSI_THRESHOLD_EVENT_LOW &&
 		    rssi_event != NL80211_CQM_RSSI_THRESHOLD_EVENT_HIGH))
@@ -13930,6 +13977,10 @@ void cfg80211_cqm_rssi_notify(struct net_device *dev,
 
 	if (nla_put_u32(msg, NL80211_ATTR_CQM_RSSI_THRESHOLD_EVENT,
 			rssi_event))
+		goto nla_put_failure;
+
+	if (rssi_level && nla_put_s32(msg, NL80211_ATTR_CQM_RSSI_LEVEL,
+				      rssi_level))
 		goto nla_put_failure;
 
 	cfg80211_send_cqm(msg, gfp);

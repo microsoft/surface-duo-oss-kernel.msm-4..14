@@ -748,6 +748,10 @@ struct cfg80211_bitrate_mask {
  * @pbss: If set, start as a PCP instead of AP. Relevant for DMG
  *	networks.
  * @beacon_rate: bitrate to be used for beacons
+ * @ht_cap: HT capabilities (or %NULL if HT isn't enabled)
+ * @vht_cap: VHT capabilities (or %NULL if VHT isn't enabled)
+ * @ht_required: stations must support HT
+ * @vht_required: stations must support VHT
  */
 struct cfg80211_ap_settings {
 	struct cfg80211_chan_def chandef;
@@ -768,6 +772,10 @@ struct cfg80211_ap_settings {
 	const struct cfg80211_acl_data *acl;
 	bool pbss;
 	struct cfg80211_bitrate_mask beacon_rate;
+
+	const struct ieee80211_ht_cap *ht_cap;
+	const struct ieee80211_vht_cap *vht_cap;
+	bool ht_required, vht_required;
 };
 
 /**
@@ -3178,22 +3186,6 @@ struct ieee80211_iface_limit {
 
 /**
  * struct ieee80211_iface_combination - possible interface combination
- * @limits: limits for the given interface types
- * @n_limits: number of limitations
- * @num_different_channels: can use up to this many different channels
- * @max_interfaces: maximum number of interfaces in total allowed in this
- *	group
- * @beacon_int_infra_match: In this combination, the beacon intervals
- *	between infrastructure and AP types must match. This is required
- *	only in special cases.
- * @radar_detect_widths: bitmap of channel widths supported for radar detection
- * @radar_detect_regions: bitmap of regions supported for radar detection
- * @beacon_int_min_gcd: This interface combination supports different
- *	beacon intervals.
- *	= 0 - all beacon intervals for different interface must be same.
- *	> 0 - any beacon interval for the interface part of this combination AND
- *	      *GCD* of all beacon intervals from beaconing interfaces of this
- *	      combination must be greater or equal to this value.
  *
  * With this structure the driver can describe which interface
  * combinations it supports concurrently.
@@ -3252,13 +3244,60 @@ struct ieee80211_iface_limit {
  *
  */
 struct ieee80211_iface_combination {
+	/**
+	 * @limits:
+	 * limits for the given interface types
+	 */
 	const struct ieee80211_iface_limit *limits;
+
+	/**
+	 * @num_different_channels:
+	 * can use up to this many different channels
+	 */
 	u32 num_different_channels;
+
+	/**
+	 * @max_interfaces:
+	 * maximum number of interfaces in total allowed in this group
+	 */
 	u16 max_interfaces;
+
+	/**
+	 * @n_limits:
+	 * number of limitations
+	 */
 	u8 n_limits;
+
+	/**
+	 * @beacon_int_infra_match:
+	 * In this combination, the beacon intervals between infrastructure
+	 * and AP types must match. This is required only in special cases.
+	 */
 	bool beacon_int_infra_match;
+
+	/**
+	 * @radar_detect_widths:
+	 * bitmap of channel widths supported for radar detection
+	 */
 	u8 radar_detect_widths;
+
+	/**
+	 * @radar_detect_regions:
+	 * bitmap of regions supported for radar detection
+	 */
 	u8 radar_detect_regions;
+
+	/**
+	 * @beacon_int_min_gcd:
+	 * This interface combination supports different beacon intervals.
+	 *
+	 * = 0
+	 *   all beacon intervals for different interface must be same.
+	 * > 0
+	 *   any beacon interval for the interface part of this combination AND
+	 *   GCD of all beacon intervals from beaconing interfaces of this
+	 *   combination must be greater or equal to this value.
+	 */
 	u32 beacon_int_min_gcd;
 };
 
@@ -5351,6 +5390,7 @@ void cfg80211_mgmt_tx_status(struct wireless_dev *wdev, u64 cookie,
  * cfg80211_cqm_rssi_notify - connection quality monitoring rssi event
  * @dev: network device
  * @rssi_event: the triggered RSSI event
+ * @rssi_level: new RSSI level value or 0 if not available
  * @gfp: context flags
  *
  * This function is called when a configured connection quality monitoring
@@ -5358,7 +5398,7 @@ void cfg80211_mgmt_tx_status(struct wireless_dev *wdev, u64 cookie,
  */
 void cfg80211_cqm_rssi_notify(struct net_device *dev,
 			      enum nl80211_cqm_rssi_threshold_event rssi_event,
-			      gfp_t gfp);
+			      s32 rssi_level, gfp_t gfp);
 
 /**
  * cfg80211_cqm_pktloss_notify - notify userspace about packetloss to peer
