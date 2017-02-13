@@ -42,7 +42,6 @@
  */
 
 #define I915_CSR_KBL "i915/kbl_dmc_ver1.bin"
-MODULE_FIRMWARE(I915_CSR_KBL);
 #define KBL_CSR_VERSION_REQUIRED	CSR_VERSION(1, 1)
 
 #define I915_CSR_SKL "i915/skl_dmc_ver1.bin"
