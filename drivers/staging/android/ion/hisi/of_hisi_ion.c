@@ -106,7 +106,7 @@ static struct hisi_ion_dynamic_area* find_dynamic_area_by_name(const char* name)
 	return NULL;
 }
 
-static int  hisi_ion_reserve_area(struct reserved_mem *rmem)
+static int __init hisi_ion_reserve_area(struct reserved_mem *rmem)
 {
 	char *status   = NULL;
 	int  namesize = 0;
