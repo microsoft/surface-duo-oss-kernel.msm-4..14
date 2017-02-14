@@ -113,7 +113,6 @@ config QCOM_WCNSS_PIL
 	select QCOM_MDT_LOADER
 	select QCOM_RPROC_COMMON
 	select QCOM_SCM
-	select QCOM_WCNSS_IRIS
 	help
 	  Say y here to support the Peripheral Image Loader for the Qualcomm
 	  Wireless Connectivity Subsystem.
