@@ -106,6 +106,32 @@ struct drm_crtc_helper_funcs {
 	void (*commit)(struct drm_crtc *crtc);
 
 	/**
+	 * @mode_valid:
+	 *
+	 * Callback to validate a mode for a crtc, irrespective of the
+	 * specific display configuration.
+	 *
+	 * This callback is used by the probe helpers to filter the mode list
+	 * (which is usually derived from the EDID data block from the sink).
+	 * See e.g. drm_helper_probe_single_connector_modes().
+	 *
+	 * NOTE:
+	 *
+	 * This only filters the mode list supplied to userspace in the
+	 * GETCONNECOTR IOCTL. Userspace is free to create modes of its own and
+	 * ask the kernel to use them. It this case the atomic helpers or legacy
+	 * CRTC helpers will not call this function. Drivers therefore must
+	 * still fully validate any mode passed in in a modeset request.
+	 *
+	 * RETURNS:
+	 *
+	 * Either MODE_OK or one of the failure reasons in enum
+	 * &drm_mode_status.
+	 */
+	enum drm_mode_status (*mode_valid)(struct drm_crtc *crtc,
+					   struct drm_display_mode *mode);
+
+	/**
 	 * @mode_fixup:
 	 *
 	 * This callback is used to validate a mode. The parameter mode is the
