@@ -1,6 +1,6 @@
 /*
- * Copyright (C) 2015-2016 by Freescale Semiconductor
- * Copyright (C) 2016 NXP
+ * Copyright 2015-2016 by Freescale Semiconductor
+ * Copyright 2016-2017 NXP
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -154,6 +154,10 @@
 				PAD_CTL_OBE | PAD_CTL_IBE | \
 				PAD_CTL_MUX_MODE_ALT1)
 
+#define PAD_CTL_DCU_CLK_CFG	(PAD_CTL_DSE_34 | PAD_CTL_SRE_HIGH_200MHZ | \
+				PAD_CTL_OBE | PAD_CTL_IBE | \
+				PAD_CTL_MUX_MODE_ALT1)
+
 /* VIU IMCR = 0x00000002 */
 #define PAD_CTL_VIU_CFG		(PAD_CTL_MUX_MODE_ALT2)
 
@@ -285,7 +289,7 @@
 #define S32V234_PAD_PH8__DCU_HSYNC_C1		120	PAD_CTL_DCU_CFG
 #define S32V234_PAD_PH9__DCU_VSYNC_C2		121	PAD_CTL_DCU_CFG
 #define S32V234_PAD_PH10__DCU_DE_C3			122	PAD_CTL_DCU_CFG
-#define S32V234_PAD_PH10__DCU_PCLK_D1		124	PAD_CTL_DCU_CFG
+#define S32V234_PAD_PH10__DCU_PCLK_D1		124	PAD_CTL_DCU_CLK_CFG
 
 #define S32V234_PAD_PH13__DCU_R0_D2			125	PAD_CTL_DCU_CFG
 #define S32V234_PAD_PH14__DCU_R1_D3			126	PAD_CTL_DCU_CFG
