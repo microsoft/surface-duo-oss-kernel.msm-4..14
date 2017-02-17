@@ -174,6 +174,9 @@
 /* generic_start_io_acct()/generic_end_io_acct() avaliable */
 #undef HAVE_GENERIC_IO_ACCT
 
+/* generic_write_checks() takes kiocb */
+#undef HAVE_GENERIC_WRITE_CHECKS_KIOCB
+
 /* iops->get_acl() exists */
 #undef HAVE_GET_ACL
 
@@ -278,6 +281,9 @@
 
 /* posix_acl_release() is GPL-only */
 #undef HAVE_POSIX_ACL_RELEASE_GPL_ONLY
+
+/* posix_acl_valid() wants user namespace */
+#undef HAVE_POSIX_ACL_VALID_WITH_NS
 
 /* iops->put_link() cookie */
 #undef HAVE_PUT_LINK_COOKIE
