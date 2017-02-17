@@ -90,4 +90,10 @@ void rsi_resume_conn_channel(struct rsi_hw *adapter);
 void rsi_hci_detach(struct rsi_common *common);
 inline char *dot11_pkt_type(__le16 frame_control);
 struct rsi_sta *rsi_find_sta(struct rsi_common *common, u8 *mac_addr);
+void rsi_init_bcn_timer(struct rsi_common *common);
+void rsi_del_bcn_timer(struct rsi_common *common);
+void rsi_bcn_scheduler_thread(struct rsi_common *common);
+#ifdef CONFIG_SDIO_INTR_POLL
+void init_sdio_intr_status_poll_thread(struct rsi_common *common);
+#endif
 #endif

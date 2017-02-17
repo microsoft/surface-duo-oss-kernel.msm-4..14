@@ -341,6 +341,7 @@ static void rsi_set_default_parameters(struct rsi_common *common)
 	common->antenna_diversity = 0;
 	common->tx_power = RSI_TXPOWER_MAX;
 	common->dtim_cnt = 2;
+	common->beacon_interval = 100;
 }
 
 void init_bgscan_params(struct rsi_common *common)
@@ -606,13 +607,13 @@ static int rsi_mgmt_pkt_to_core(struct rsi_common *common,
  *
  * Return: status: 0 on success, corresponding negative error code on failure.
  */
-static int rsi_send_sta_notify_frame(struct rsi_common *common,
-				     enum opmode opmode,
-				     u8 notify_event,
-				     const unsigned char *bssid,
-				     u8 qos_enable,
-				     u16 aid,
-				     u16 sta_id)
+int rsi_send_sta_notify_frame(struct rsi_common *common,
+			      enum opmode opmode,
+			      u8 notify_event,
+			      const unsigned char *bssid,
+			      u8 qos_enable,
+			      u16 aid,
+			      u16 sta_id)
 {
 	struct ieee80211_vif *vif = common->priv->vifs[0];
 	struct sk_buff *skb = NULL;
@@ -685,7 +686,8 @@ int rsi_send_aggr_params_frame(struct rsi_common *common,
 			       u16 tid,
 			       u16 ssn,
 			       u8 buf_size,
-			       u8 event)
+			       u8 event,
+			       u8 sta_id)
 {
 	struct sk_buff *skb = NULL;
 	struct rsi_mac_frame *mgmt_frame;
@@ -868,7 +870,7 @@ int rsi_set_vap_capabilities(struct rsi_common *common,
 #endif
 
 	vap_caps->default_data_rate = 0;
-	vap_caps->beacon_interval = cpu_to_le16(200);
+	vap_caps->beacon_interval = cpu_to_le16(common->beacon_interval);
 	vap_caps->dtim_period = cpu_to_le16(common->dtim_cnt);
 //	vap_caps->beacon_miss_threshold = cpu_to_le16(10);
 	if (mode == AP_OPMODE)
@@ -972,22 +974,18 @@ int rsi_load_key(struct rsi_common *common,
 	set_key->desc_word[4] = cpu_to_le16(key_descriptor);
 	set_key->desc_word[7] = cpu_to_le16(sta_id | (vap_id << 8));
 
-#if 0
-	if ((cipher == WLAN_CIPHER_SUITE_WEP40) ||
-	    (cipher == WLAN_CIPHER_SUITE_WEP104)) {
-		memcpy(&set_key->key[key_id][1], data, key_len * 2);
-	} else {
-		memcpy(&set_key->key[0][0], data, key_len);
-	}
-#endif
 	if (data) {
-		memcpy(&set_key->key[0][0], data, key_len);
-		//memcpy(&set_key->key, data, 4 * 32);
+		if ((cipher == WLAN_CIPHER_SUITE_WEP40) ||
+		    (cipher == WLAN_CIPHER_SUITE_WEP104)) {
+			memcpy(&set_key->key[key_id][1], data, key_len * 2);
+		} else {
+			memcpy(&set_key->key[0][0], data, key_len);
+		}
 		memcpy(set_key->tx_mic_key, &data[16], 8);
 		memcpy(set_key->rx_mic_key, &data[24], 8);
 	} else {
 		memset(&set_key[FRAME_DESC_SZ], 0,
-		       sizeof(struct rsi_set_key) - FRAME_DESC_SZ);
+		       sizeof(struct rsi_set_key) - FRAME_DESC_SZ);				
 	}
 
 	skb_put(skb, sizeof(struct rsi_set_key));
@@ -1401,8 +1399,13 @@ int rsi_send_vap_dynamic_update(struct rsi_common *common)
 	dynamic_frame->desc_word[5] = cpu_to_le16(common->frag_threshold);
 	dynamic_frame->desc_word[5] = cpu_to_le16(2352);
 #endif
-//	dynamic_frame->desc_word[6] = cpu_to_le16(10); /* bmiss_threshold */
+
+#ifdef CONFIG_RSI_WOW
+	dynamic_frame->desc_word[6] = cpu_to_le16(24); /* bmiss_threshold */
+	dynamic_frame->frame_body.keep_alive_period = cpu_to_le16(10);
+#else
 	dynamic_frame->frame_body.keep_alive_period = cpu_to_le16(90);
+#endif
 
 #if 0
 	dynamic_frame->frame_body.mgmt_rate = cpu_to_le32(RSI_RATE_6);
@@ -1526,8 +1529,10 @@ static bool rsi_map_rates(u16 rate, int *offset)
  * Return: 0 on success, corresponding error code on failure.
  */
 static int rsi_send_auto_rate_request(struct rsi_common *common,
+				      struct ieee80211_sta *sta,
 				      u16 sta_id)
 {
+	struct ieee80211_vif *vif = common->priv->vifs[0];
 	struct sk_buff *skb;
 	struct rsi_auto_rate *auto_rate;
 	int ii = 0, jj = 0, kk = 0;
@@ -1535,8 +1540,9 @@ static int rsi_send_auto_rate_request(struct rsi_common *common,
 	u8 band = hw->conf.chandef.chan->band;
 	u8 num_supported_rates = 0;
 	u8 rate_table_offset, rate_offset = 0;
-	u32 rate_bitmap = common->bitrate_mask[band];
+	u32 rate_bitmap = 0;
 	u16 *selected_rates, min_rate;
+	bool is_ht = false, is_sgi = false;
 
 	ven_rsi_dbg(MGMT_TX_ZONE,
 		"%s: Sending auto rate request frame\n", __func__);
@@ -1548,6 +1554,8 @@ static int rsi_send_auto_rate_request(struct rsi_common *common,
 		return -ENOMEM;
 	}
 
+	memset(skb->data, 0, MAX_MGMT_PKT_SIZE);
+
 	selected_rates = kzalloc(2 * RSI_TBL_SZ, GFP_KERNEL);
 	if (!selected_rates) {
 		ven_rsi_dbg(ERR_ZONE, "%s: Failed in allocation of mem\n",
@@ -1555,8 +1563,6 @@ static int rsi_send_auto_rate_request(struct rsi_common *common,
 		dev_kfree_skb(skb);
 		return -ENOMEM;
 	}
-
-	memset(skb->data, 0, sizeof(struct rsi_auto_rate));
 	memset(selected_rates, 0, 2 * RSI_TBL_SZ);
 
 	auto_rate = (struct rsi_auto_rate *)skb->data;
@@ -1573,11 +1579,31 @@ static int rsi_send_auto_rate_request(struct rsi_common *common,
 		auto_rate->desc_word[7] = cpu_to_le16(1);
 	auto_rate->desc_word[7] |= cpu_to_le16(sta_id << 8);
 
+	if (vif->type == NL80211_IFTYPE_STATION) {
+		rate_bitmap = common->bitrate_mask[band];
+		is_ht = common->vif_info[0].is_ht;
+		is_sgi = common->vif_info[0].sgi;
+	} else {
+		rate_bitmap = sta->supp_rates[band];
+		is_ht = sta->ht_cap.ht_supported;
+		if ((sta->ht_cap.cap & IEEE80211_HT_CAP_SGI_20) ||
+		    (sta->ht_cap.cap & IEEE80211_HT_CAP_SGI_40))
+			is_sgi = true;
+	}
+	printk("rate_bitmap = %x\n", rate_bitmap);
+	printk("is_ht = %d\n", is_ht);
+
 	if (band == NL80211_BAND_2GHZ) {
-		min_rate = RSI_RATE_1;
+		if ((rate_bitmap == 0) && (is_ht))
+			min_rate = RSI_RATE_MCS0;
+		else
+			min_rate = RSI_RATE_1;
 		rate_table_offset = 0;
 	} else {
-		min_rate = RSI_RATE_6;
+		if ((rate_bitmap == 0) && (is_ht))
+			min_rate = RSI_RATE_MCS0;
+		else
+			min_rate = RSI_RATE_6;
 		rate_table_offset = 4;
 	}
 
@@ -1591,7 +1617,7 @@ static int rsi_send_auto_rate_request(struct rsi_common *common,
 	}
 	num_supported_rates = jj;
 
-	if (common->vif_info[0].is_ht) {
+	if (is_ht) {
 		for (ii = 0; ii < ARRAY_SIZE(mcs); ii++)
 			selected_rates[jj++] = mcs[ii];
 		num_supported_rates += ARRAY_SIZE(mcs);
@@ -1612,13 +1638,16 @@ static int rsi_send_auto_rate_request(struct rsi_common *common,
 	}
 
 	/* loading HT rates in the bottom half of the auto rate table */
-	if (common->vif_info[0].is_ht) {
+	if (is_ht) {
 		for (ii = rate_offset, kk = ARRAY_SIZE(rsi_mcsrates) - 1;
 		     ii < rate_offset + 2 * ARRAY_SIZE(rsi_mcsrates); ii++) {
-			if (common->vif_info[0].sgi ||
-			    conf_is_ht40(&common->priv->hw->conf))
+			if (is_sgi || conf_is_ht40(&common->priv->hw->conf)) {
 				auto_rate->supported_rates[ii++] =
 					cpu_to_le16(rsi_mcsrates[kk] | BIT(9));
+			} else {
+				auto_rate->supported_rates[ii++] =
+					cpu_to_le16(rsi_mcsrates[kk]);
+			}
 			auto_rate->supported_rates[ii] =
 				cpu_to_le16(rsi_mcsrates[kk--]);
 		}
@@ -1637,8 +1666,8 @@ static int rsi_send_auto_rate_request(struct rsi_common *common,
 	num_supported_rates *= 2;
 
 	auto_rate->desc_word[0] = cpu_to_le16((sizeof(*auto_rate) -
-					       FRAME_DESC_SZ) |
-					       (RSI_WIFI_MGMT_Q << 12));
+					      FRAME_DESC_SZ) |
+					      (RSI_WIFI_MGMT_Q << 12));
 
 	skb_put(skb, sizeof(struct rsi_auto_rate));
 	kfree(selected_rates);
@@ -1659,7 +1688,7 @@ static void rsi_validate_bgscan_channels(struct rsi_hw *adapter,
 {
 	struct ieee80211_supported_band *sband;
 	struct ieee80211_channel *ch;
-	struct wiphy *wiphy = adapter->hw->wiphy;
+	struct wiphy *wiphy = adapter->hw->wiphy; 
 	u16 bgscan_channels[MAX_BGSCAN_CHANNELS] = {1, 2, 3, 4, 5, 6, 7, 8, 9,
 						    10, 11, 12, 13, 14, 36, 40,
 						    44, 48, 52, 56, 60, 64, 100,
@@ -1745,7 +1774,7 @@ int rsi_send_bgscan_params(struct rsi_common *common, int enable)
 		ven_rsi_dbg(ERR_ZONE, "##### No valid bgscan channels #####\n");
 		return -1;
 	}
-
+	
 	skb = dev_alloc_skb(frame_len);
 	if (!skb)
 		return -ENOMEM;
@@ -1849,6 +1878,7 @@ void rsi_inform_bss_status(struct rsi_common *common,
 			   u8 *bssid,
 			   u8 qos_enable,
 			   u16 aid,
+			   struct ieee80211_sta *sta,
 			   u16 sta_id)
 {
 	if (status) {
@@ -1863,15 +1893,21 @@ void rsi_inform_bss_status(struct rsi_common *common,
 					  sta_id);
 		if (common->min_rate == 0xffff) {
 			ven_rsi_dbg(INFO_ZONE, "Send auto rate request\n");
-			rsi_send_auto_rate_request(common, sta_id);
+			rsi_send_auto_rate_request(common, sta, sta_id);
 		}
 		if (opmode == STA_OPMODE) {
-			if (!rsi_send_block_unblock_frame(common, false))
-				common->hw_data_qs_blocked = false;
+			if ((!common->secinfo.security_enable) ||
+			    (rsi_is_cipher_wep(common))) {
+				if (!rsi_send_block_unblock_frame(common, false))
+					common->hw_data_qs_blocked = false;
+			}
 		}
 	} else {
 		if (opmode == STA_OPMODE)
 			common->hw_data_qs_blocked = true;
+#ifdef CONFIG_RSI_WOW
+		if (!common->suspend_flag) {
+#endif
 		rsi_send_sta_notify_frame(common,
 					  opmode,
 					  STA_DISCONNECTED,
@@ -1879,6 +1915,9 @@ void rsi_inform_bss_status(struct rsi_common *common,
 					  qos_enable,
 					  aid,
 					  sta_id);
+#ifdef CONFIG_RSI_WOW
+		}
+#endif
 		if (opmode == STA_OPMODE)
 			rsi_send_block_unblock_frame(common, true);
 	}
@@ -2004,6 +2043,7 @@ int rsi_send_rx_filter_frame(struct rsi_common *common, u16 rx_filter_word)
 
 	return rsi_send_internal_mgmt_frame(common, skb);
 }
+EXPORT_SYMBOL_GPL(rsi_send_rx_filter_frame); 
 
 /**
  * rsi_send_ps_request() - Sends power save request.
@@ -2207,10 +2247,12 @@ static int rsi_handle_ta_confirm(struct rsi_common *common, u8 *msg)
 					ven_rsi_dbg(INIT_ZONE,
 						"Dual band supported\n");
 					common->band = NL80211_BAND_5GHZ;
+					common->num_supp_bands = 2;
 				} else if ((msg[17] & 0x3) == 0x1) {
 					ven_rsi_dbg(INIT_ZONE,
 						"Only 2.4Ghz band supported\n");
 					common->band = NL80211_BAND_2GHZ;
+					common->num_supp_bands = 1;
 				}
 			} else {
 				common->fsm_state = FSM_CARD_NOT_READY;
@@ -2352,42 +2394,45 @@ int rsi_handle_card_ready(struct rsi_common *common)
 	return 0;
 }
 
-#ifdef CONFIG_RSI_WOW
+#ifdef CONFIG_RSI_WOW 
 int rsi_send_wowlan_request(struct rsi_common *common, u16 flags,
-			    struct cfg80211_wowlan *wowlan)
+		            u16 sleep_status)
 {
-	struct rsi_wowlan_req *cmd_frame;
-	struct sk_buff *skb;
-	u8 length;
-	u8 sourceid[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+        struct rsi_wowlan_req *cmd_frame;
+        struct sk_buff *skb;
+        u8 length;
+        u8 sourceid[6] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-	ven_rsi_dbg(ERR_ZONE, "%s: Sending wowlan request frame\n", __func__);
+        ven_rsi_dbg(ERR_ZONE, "%s: Sending wowlan request frame\n", __func__);
 
-	skb = dev_alloc_skb(sizeof(*cmd_frame));
-	if (!skb) {
-		ven_rsi_dbg(ERR_ZONE, "%s: Failed in allocation of skb\n",
-				__func__);
-		return -ENOMEM;
-	}
-	memset(skb->data, 0, sizeof(*cmd_frame));
-	cmd_frame = (struct rsi_wowlan_req *)skb->data;
+        skb = dev_alloc_skb(sizeof(*cmd_frame));
+        if (!skb) {
+                ven_rsi_dbg(ERR_ZONE, "%s: Failed in allocation of skb\n",
+                                __func__);
+                return -ENOMEM;
+        }
+        memset(skb->data, 0, sizeof(*cmd_frame));
+        cmd_frame = (struct rsi_wowlan_req *)skb->data;
 
-	cmd_frame->desc_word[0] = cpu_to_le16(RSI_WIFI_MGMT_Q << 12);
-	cmd_frame->desc_word[1] |= cpu_to_le16(WOWLAN_CONFIG_PARAMS);
+        cmd_frame->desc_word[0] = cpu_to_le16(RSI_WIFI_MGMT_Q << 12);
+        cmd_frame->desc_word[1] |= cpu_to_le16(WOWLAN_CONFIG_PARAMS);
+ 
+        memcpy(cmd_frame->sourceid, &sourceid, IEEE80211_ADDR_LEN);
+	
+        cmd_frame->host_sleep_status = sleep_status;
+	if (sleep_status)
+		cmd_frame->wow_flags = flags; /* TODO: check for magic packet */
+        ven_rsi_dbg(INFO_ZONE, "Host_Sleep_Status : %d Flags : %d\n",
+		cmd_frame->host_sleep_status, cmd_frame->wow_flags );
+	
+        length = FRAME_DESC_SZ + IEEE80211_ADDR_LEN + 2 + 2;
 
-	memcpy(cmd_frame->sourceid, &sourceid, IEEE80211_ADDR_LEN);
+        cmd_frame->desc_word[0] |= cpu_to_le16(length - FRAME_DESC_SZ);
+        cmd_frame->desc_word[2] |= cpu_to_le16(0);
+  
+  	skb_put(skb, length);
 
-	cmd_frame->wow_flags = flags; /* TODO: check for the magic packet */
-	cmd_frame->host_sleep_status = 1; /* TODO: check for the host status */
-
-	length = FRAME_DESC_SZ + IEEE80211_ADDR_LEN + 2 + 2;
-
-	cmd_frame->desc_word[0] |= cpu_to_le16(length - FRAME_DESC_SZ);
-	cmd_frame->desc_word[2] |= cpu_to_le16(0);
-
-	skb_put(skb, length);
-
-	return rsi_send_internal_mgmt_frame(common, skb);
+        return rsi_send_internal_mgmt_frame(common, skb);
 }
 #endif
 
@@ -2403,6 +2448,7 @@ int rsi_mgmt_pkt_recv(struct rsi_common *common, u8 *msg)
 {
 	s32 msg_len = (le16_to_cpu(*(__le16 *)&msg[0]) & 0x0fff);
 	u16 msg_type = msg[2];
+	struct ieee80211_vif *vif = common->priv->vifs[0];
 
 	switch (msg_type) {
 	case TA_CONFIRM_TYPE:
@@ -2416,6 +2462,18 @@ int rsi_mgmt_pkt_recv(struct rsi_common *common, u8 *msg)
 		if (msg[15] == PROBEREQ_CONFIRM) {
 			common->mgmt_q_block = false;
 			ven_rsi_dbg(INFO_ZONE, "Mgmt queue unblocked\n");
+		}
+		if ((msg[15] & 0xff) == EAPOL4_CONFIRM) {
+			u8 status = msg[12];
+
+			if (status) {	
+				if(vif->type == NL80211_IFTYPE_STATION) {
+					ven_rsi_dbg(ERR_ZONE, "EAPOL 4 confirm\n");
+					common->eapol4_confirm = 1;
+					if (!rsi_send_block_unblock_frame(common, false))
+						common->hw_data_qs_blocked = false;
+				}
+			}
 		}
 		break;
 
@@ -2447,13 +2505,15 @@ int rsi_mgmt_pkt_recv(struct rsi_common *common, u8 *msg)
 
 	case BEACON_EVENT_IND:
 		ven_rsi_dbg(INFO_ZONE, "Beacon event\n");
-		if (common->fsm_state != FSM_MAC_INIT_DONE)
+#ifndef CONFIG_CARACALLA_BOARD
+		if (!common->init_done)
 			return -1;
 		if (common->iface_down)
 			return -1;
-		mutex_lock(&common->mutex);
+		if (!common->beacon_enabled)
+			return -1;
 		rsi_send_beacon(common);
-		mutex_unlock(&common->mutex);
+#endif
 		break;
 
 	case RX_DOT11_MGMT:

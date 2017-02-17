@@ -210,7 +210,9 @@ struct rsi_common {
 	struct version_info fw_ver;
 
 	struct rsi_thread tx_thread;
-	struct rsi_thread hci_thread;
+#ifdef CONFIG_SDIO_INTR_POLL
+	struct rsi_thread sdio_intr_poll_thread;
+#endif
 	struct sk_buff_head tx_queue[NUM_EDCA_QUEUES + 1];
 	/* Mutex declaration */
 	struct mutex mutex;
@@ -222,6 +224,7 @@ struct rsi_common {
 
 	/* Channel/band related */
 	u8 band;
+	u8 num_supp_bands;
 	u8 channel_width;
 
 	u16 rts_threshold;
@@ -287,6 +290,9 @@ struct rsi_common {
 	u8 host_wakeup_intr_active_high;
 	int tx_power;
 	u8 ant_in_use;
+#ifdef CONFIG_RSI_WOW
+	u8 suspend_flag;
+#endif
 
 #if defined (CONFIG_VEN_RSI_HCI) || defined(CONFIG_VEN_RSI_COEX)
 	void *hci_adapter;
@@ -297,14 +303,20 @@ struct rsi_common {
 #endif
 
 	/* AP mode related */
+	u8 beacon_enabled;
+	u16 beacon_interval;
 	u8 *beacon_frame;
 	u16 beacon_frame_len;
 	u16 beacon_cnt;
 	u8 dtim_cnt;
 	u16 bc_mc_seqno;
 	struct rsi_sta stations[RSI_MAX_ASSOC_STAS + 1];
-	u8 num_stations;
+	int num_stations;
 	struct ieee80211_channel *ap_channel;
+	struct rsi_thread bcn_thread;
+	struct timer_list bcn_timer;
+	struct ieee80211_key_conf *key;
+	u8 eapol4_confirm;
 };
 
 enum host_intf {

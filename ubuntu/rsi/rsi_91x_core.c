@@ -270,15 +270,13 @@ void rsi_core_qos_processor(struct rsi_common *common)
 		ven_rsi_dbg(DATA_TX_ZONE,
 			"%s: Queue number = %d\n", __func__, q_num);
 
-		if (q_num == INVALID_QUEUE) {
-			ven_rsi_dbg(DATA_TX_ZONE, "%s: No More Pkt\n", __func__);
+		if (q_num == INVALID_QUEUE)
 			break;
-		}
 
 		mutex_lock(&common->tx_lock);
 
 		status = adapter->check_hw_queue_status(adapter, q_num);
-		if ((status <= 0)) {
+		if (status <= 0) {
 			mutex_unlock(&common->tx_lock);
 			break;
 		}
@@ -286,6 +284,8 @@ void rsi_core_qos_processor(struct rsi_common *common)
 		if ((q_num < MGMT_SOFT_Q) &&
 		    ((skb_queue_len(&common->tx_queue[q_num])) <=
 		      MIN_DATA_QUEUE_WATER_MARK)) {
+			if (!adapter->hw)
+				break;
 			if (ieee80211_queue_stopped(adapter->hw, WME_AC(q_num)))
 				ieee80211_wake_queue(adapter->hw,
 						     WME_AC(q_num));
@@ -368,7 +368,9 @@ struct rsi_sta *rsi_find_sta(struct rsi_common *common, u8 *mac_addr)
 {
 	int i;
 
-	for (i = 0; i < common->num_stations; i++) {
+	for (i = 0; i < RSI_MAX_ASSOC_STAS; i++) {
+		if (!common->stations[i].sta)
+			continue;
 		if (!(memcmp(common->stations[i].sta->addr,
 			     mac_addr, ETH_ALEN)))
 			return &common->stations[i];
@@ -397,7 +399,12 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 			__func__);
 		goto xmit_fail;
 	}
-
+#ifdef CONFIG_RSI_WOW
+	if(common->suspend_flag) {
+		ven_rsi_dbg(ERR_ZONE, "%s: Blocking Tx_packets when WOWLAN is enabled\n", __func__);
+		goto xmit_fail;
+	}
+#endif
 	if (common->fsm_state != FSM_MAC_INIT_DONE) {
 		ven_rsi_dbg(ERR_ZONE, "%s: FSM state not open\n", __func__);
 		goto xmit_fail;
@@ -410,9 +417,24 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 	if ((ieee80211_is_mgmt(wlh->frame_control)) ||
 	    (ieee80211_is_ctl(wlh->frame_control)) ||
 	    (ieee80211_is_qos_nullfunc(wlh->frame_control))) {
+		if ((ieee80211_is_assoc_req(wlh->frame_control)) ||
+	 	    (ieee80211_is_reassoc_req(wlh->frame_control))) {
+			struct ieee80211_bss_conf *bss = NULL;
+
+			bss = &adapter->vifs[0]->bss_conf;
+			rsi_send_sta_notify_frame(common, STA_OPMODE,
+						  STA_CONNECTED,
+						  bss->bssid, bss->qos,
+						  bss->aid, 0);
+		}
 		q_num = MGMT_SOFT_Q;
 		skb->priority = q_num;
-
+#ifdef CONFIG_RSI_WOW          
+		if ((ieee80211_is_deauth(wlh->frame_control)) && (common->suspend_flag)) {
+			ven_rsi_dbg(ERR_ZONE, "%s: Discarding Deauth when WOWLAN is enabled\n", __func__);
+			goto xmit_fail; 
+		}
+#endif
 		ven_rsi_dbg(INFO_ZONE, "Core: TX Dot11 Mgmt Pkt Type: %s\n",
 			dot11_pkt_type(wlh->frame_control));
 		if (ieee80211_is_probe_req(wlh->frame_control)) {
@@ -434,9 +456,19 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 		rsi_hex_dump(DATA_TX_ZONE, "TX Data Packet",
 			     skb->data, skb->len);
 
+		/* Drop the null packets if bgscan is enabled
+ 		 * as it is already handled in firmware */
+		if ((vif->type == NL80211_IFTYPE_STATION) && (common->bgscan_en)) {
+			if (ieee80211_is_qos_nullfunc(wlh->frame_control)) {
+				++common->tx_stats.total_tx_pkt_freed[skb->priority];
+				rsi_indicate_tx_status(adapter, skb, 0);
+				return;
+			}
+		}
+
 		if (ieee80211_is_data_qos(wlh->frame_control)) {
 			u8 *qos = ieee80211_get_qos_ctl(wlh);
-
+			
 			tid = *qos & IEEE80211_QOS_CTL_TID_MASK;
 			skb->priority = TID_TO_WME_AC(tid);
 
@@ -450,7 +482,7 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 		} else {
 			tid = IEEE80211_NONQOS_TID;
 			skb->priority = BE_Q;
-
+		
 			if ((!is_broadcast_ether_addr(wlh->addr1)) &&
 			    (!is_multicast_ether_addr(wlh->addr1)) &&
 			    (vif->type == NL80211_IFTYPE_AP)) {

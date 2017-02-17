@@ -267,8 +267,18 @@ static ssize_t rsi_debug_zone_write(struct file *filp,
 static int rsi_bgscan_int_read(struct seq_file *file, void *data)
 {
 	struct rsi_common *common = file->private;
-	struct bgscan_config_params *params = &common->bgscan_info;
+	struct bgscan_config_params *params = NULL;
 	int cnt;
+
+	if (!common) {
+		ven_rsi_dbg(ERR_ZONE, "No Interface\n");
+		return -ENODEV;
+	}
+	if (common->iface_down) {
+		ven_rsi_dbg(ERR_ZONE, "Interface Down\n");
+		return -ENODEV;
+	}
+	params = &common->bgscan_info;
 
 	seq_printf(file, "%d %d %d %d %d %d %d %d\n",
 		   common->bgscan_en,
@@ -314,13 +324,24 @@ static ssize_t rsi_bgscan_write(struct file *file,
 
 {
 	struct rsi_common *common = file->f_inode->i_private;
-	struct rsi_hw *adapter = common->priv;
-	struct ieee80211_bss_conf *bss = &adapter->vifs[0]->bss_conf;
+	struct rsi_hw *adapter = NULL;
+	struct ieee80211_bss_conf *bss = NULL;
 	char bgscan_buf[200];
 	int bgscan_vals[64] = { 0 };
 	int total_bytes, cnt = 0;
 	int bytes_read = 0, t_bytes;
 	int ret;
+
+	if (!common) {
+		ven_rsi_dbg(ERR_ZONE, "No Interface\n");
+		return -ENODEV;
+	}
+	if (common->iface_down) {
+		ven_rsi_dbg(ERR_ZONE, "Interface Down\n");
+		return -ENODEV;
+	}
+	adapter = common->priv;
+	bss = &adapter->vifs[0]->bss_conf;
 
 	total_bytes = simple_write_to_buffer(bgscan_buf,
 					     sizeof(bgscan_buf) - 1,
@@ -387,10 +408,10 @@ static ssize_t rsi_bgscan_write(struct file *file,
 	common->bgscan_info.num_user_channels = bgscan_vals[6];
 	memset(&common->bgscan_info.user_channels, 0,
 	       (MAX_BGSCAN_CHANNELS * 2));
-	common->bgscan_info.num_user_channels =
+	common->bgscan_info.num_user_channels = 
 		((bgscan_vals[6] > MAX_BGSCAN_CHANNELS) ?
-		 MAX_BGSCAN_CHANNELS : bgscan_vals[6]);
-
+		 MAX_BGSCAN_CHANNELS : bgscan_vals[6]); 
+	
 	for (cnt = 0; cnt < common->bgscan_info.num_user_channels; cnt++)
 		common->bgscan_info.user_channels[cnt] = bgscan_vals[7 + cnt];
 
@@ -435,7 +456,7 @@ static ssize_t rsi_bgscan_write(struct file *file,
 			common->bgscan_en = 0;
 			g_bgscan_enable = 0;
 		}
-
+	
 } else {
 #ifdef PLATFORM_X86
 		ven_rsi_dbg(ERR_ZONE, "Failed sending bgscan params req\n");

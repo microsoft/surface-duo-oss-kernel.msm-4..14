@@ -226,6 +226,54 @@ fail:
 }
 EXPORT_SYMBOL_GPL(ven_rsi_read_pkt);
 
+#ifdef CONFIG_CARACALLA_BOARD
+static void rsi_bcn_sched(unsigned long data)
+{
+	struct rsi_common *common = (struct rsi_common *)data;
+
+	rsi_set_event(&common->bcn_thread.event);
+
+	common->bcn_timer.expires =
+		msecs_to_jiffies(common->beacon_interval - 5) + jiffies;
+	add_timer(&common->bcn_timer);
+}
+
+void rsi_init_bcn_timer(struct rsi_common *common)
+{
+	init_timer(&common->bcn_timer);
+
+	common->bcn_timer.data = (unsigned long)common;
+	common->bcn_timer.expires =
+		msecs_to_jiffies(common->beacon_interval - 5) + jiffies;
+	common->bcn_timer.function = (void *)rsi_bcn_sched;
+
+	add_timer(&common->bcn_timer);
+}
+
+void rsi_del_bcn_timer(struct rsi_common *common)
+{
+	del_timer(&common->bcn_timer);
+}
+
+void rsi_bcn_scheduler_thread(struct rsi_common *common)
+{
+	do {
+		rsi_wait_event(&common->bcn_thread.event,
+			       msecs_to_jiffies(common->beacon_interval));
+		rsi_reset_event(&common->bcn_thread.event);
+
+		if (!common->beacon_enabled)
+			continue;
+		if (!common->init_done)
+			continue;
+		if (common->iface_down)
+			continue;
+		rsi_send_beacon(common);
+	} while (atomic_read(&common->bcn_thread.thread_done) == 0);
+	complete_and_exit(&common->bcn_thread.completion, 0);
+}
+#endif
+
 /**
  * rsi_tx_scheduler_thread() - This function is a kernel thread to send the
  *			       packets to the device.
@@ -249,6 +297,36 @@ static void rsi_tx_scheduler_thread(struct rsi_common *common)
 	} while (atomic_read(&common->tx_thread.thread_done) == 0);
 	complete_and_exit(&common->tx_thread.completion, 0);
 }
+
+#ifdef CONFIG_SDIO_INTR_POLL
+void rsi_sdio_intr_poll_scheduler_thread(struct rsi_common *common)
+{
+        struct rsi_hw *adapter = common->priv;
+        int status = 0;
+
+        do {
+                status = adapter->check_intr_status_reg(adapter);
+                if (adapter->isr_pending)
+                        adapter->isr_pending = 0;
+                msleep(20);
+
+        } while (atomic_read(&common->sdio_intr_poll_thread.thread_done) == 0);
+        complete_and_exit(&common->sdio_intr_poll_thread.completion, 0);
+}
+
+void init_sdio_intr_status_poll_thread(struct rsi_common *common)
+{
+	rsi_init_event(&common->sdio_intr_poll_thread.event);
+	if (rsi_create_kthread(common,
+			       &common->sdio_intr_poll_thread,
+			       rsi_sdio_intr_poll_scheduler_thread,
+			       "Sdio Intr poll-Thread")) {
+		rsi_dbg(ERR_ZONE, "%s: Unable to init sdio intr poll thrd\n",
+				__func__);
+	}
+}
+EXPORT_SYMBOL_GPL(init_sdio_intr_status_poll_thread);
+#endif
 
 /**
  * ven_rsi_91x_init() - This function initializes os interface operations.
@@ -285,6 +363,7 @@ struct rsi_hw *ven_rsi_91x_init(void)
 		skb_queue_head_init(&common->tx_queue[ii]);
 
 	rsi_init_event(&common->tx_thread.event);
+	rsi_init_event(&common->bcn_thread.event);
 	mutex_init(&common->mutex);
 	mutex_init(&common->tx_lock);
 	mutex_init(&common->rx_lock);
@@ -296,6 +375,16 @@ struct rsi_hw *ven_rsi_91x_init(void)
 		ven_rsi_dbg(ERR_ZONE, "%s: Unable to init tx thrd\n", __func__);
 		goto err;
 	}
+
+#ifdef CONFIG_CARACALLA_BOARD
+	if (rsi_create_kthread(common,
+			       &common->bcn_thread,
+			       rsi_bcn_scheduler_thread,
+			       "Beacon-Thread")) {
+		ven_rsi_dbg(ERR_ZONE, "%s: Unable to init bcn thrd\n", __func__);
+		goto err;
+	}
+#endif
 
 #ifdef CONFIG_VEN_RSI_COEX
 	if (rsi_coex_init(common)) {
@@ -332,6 +421,9 @@ void ven_rsi_91x_deinit(struct rsi_hw *adapter)
 	ven_rsi_dbg(INFO_ZONE, "%s: Deinit core module...\n", __func__);
 
 	rsi_kill_thread(&common->tx_thread);
+#ifdef CONFIG_CARACALLA_BOARD
+	rsi_kill_thread(&common->bcn_thread);
+#endif
 
 	for (ii = 0; ii < NUM_SOFT_QUEUES; ii++)
 		skb_queue_purge(&common->tx_queue[ii]);
@@ -341,6 +433,8 @@ void ven_rsi_91x_deinit(struct rsi_hw *adapter)
 #endif
 	common->init_done = false;
 
+	kfree(common->beacon_frame);
+	common->beacon_frame = NULL;
 	kfree(common);
 	kfree(adapter->rsi_dev);
 	kfree(adapter);

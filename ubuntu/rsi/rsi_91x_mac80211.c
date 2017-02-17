@@ -419,10 +419,10 @@ static int rsi_mac80211_add_interface(struct ieee80211_hw *hw,
 
 	mutex_lock(&common->mutex);
 
-	/* Not supporting concurrent mode now */
+	/* Not supporting concurrent mode now */	
 	if (adapter->sc_nvifs > 0)
 		return -1;
-
+	
 	adapter->vifs[adapter->sc_nvifs++] = vif;
 
 	switch (vif->type) {
@@ -442,9 +442,15 @@ static int rsi_mac80211_add_interface(struct ieee80211_hw *hw,
 	}
 
 	if (vif->type == NL80211_IFTYPE_AP) {
+		int i;
+
 		common->bc_mc_seqno = 1;
 		rsi_send_rx_filter_frame(common, DISALLOW_BEACONS);
-		rsi_set_min_rate(hw, NULL, common);
+		common->min_rate = 0xffff;
+		//common->bitrate_mask[NL80211_BAND_2GHZ] = 0xfff;
+		//common->bitrate_mask[NL80211_BAND_5GHZ] = 0xfff;
+		for (i = 0; i < RSI_MAX_ASSOC_STAS; i++)
+			common->stations[i].sta = NULL;
 	}
 
 	mutex_unlock(&common->mutex);
@@ -762,7 +768,7 @@ static void rsi_mac80211_bss_info_changed(struct ieee80211_hw *hw,
 					  ALLOW_CTRL_ASSOC_PEER |
 					  ALLOW_MGMT_ASSOC_PEER |
 #ifdef RSI_HW_CONN_MONITOR
-					  DISALLOW_BEACONS |
+					  //DISALLOW_BEACONS |
 #endif
 					0);
 			rsi_send_rx_filter_frame(common, rx_filter_word);
@@ -778,7 +784,7 @@ static void rsi_mac80211_bss_info_changed(struct ieee80211_hw *hw,
 		/* Send peer notify to device */
 		ven_rsi_dbg(INFO_ZONE, "Indicate bss status to device\n");
 		rsi_inform_bss_status(common, STA_OPMODE, bss->assoc,
-				      bss->bssid, bss->qos, bss->aid, 0);
+				      bss->bssid, bss->qos, bss->aid, NULL, 0);
 
 		adapter->ps_info.listen_interval =
 			bss->beacon_int * adapter->ps_info.num_bcns_per_lis_int;
@@ -810,6 +816,7 @@ static void rsi_mac80211_bss_info_changed(struct ieee80211_hw *hw,
 	if (changed & BSS_CHANGED_BEACON_INT) {
 		ven_rsi_dbg(INFO_ZONE, "%s: Changed Beacon interval: %d\n",
 			__func__, bss_conf->beacon_int);
+		common->beacon_interval = bss->beacon_int; 
 		adapter->ps_info.listen_interval =
 			bss->beacon_int * adapter->ps_info.num_bcns_per_lis_int;
 	}
@@ -822,10 +829,19 @@ static void rsi_mac80211_bss_info_changed(struct ieee80211_hw *hw,
 
 	if ((changed & BSS_CHANGED_BEACON_ENABLED) &&
 	    (vif->type == NL80211_IFTYPE_AP)) {
-		if (bss->enable_beacon)
+		if (bss->enable_beacon) {
 			ven_rsi_dbg(INFO_ZONE, "===> BEACON ENABLED <===\n");
-		else
+			common->beacon_enabled = 1;
+#ifdef CONFIG_CARACALLA_BOARD
+			rsi_init_bcn_timer(common);
+#endif
+		} else {
 			ven_rsi_dbg(INFO_ZONE, "===> BEACON DISABLED <===\n");
+			common->beacon_enabled = 0;
+#ifdef CONFIG_CARACALLA_BOARD
+			rsi_del_bcn_timer(common);
+#endif
+		}
 	}
 
 	mutex_unlock(&common->mutex);
@@ -1073,6 +1089,7 @@ static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 	struct rsi_common *common = adapter->priv;
 	u16 seq_no = 0;
 	u8 ii = 0;
+	u8 sta_id = 0;
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0))
 	u16 tid = params->tid;
@@ -1094,6 +1111,15 @@ static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 #else
 	seq_no = params->ssn;
 #endif
+	if (vif->type == NL80211_IFTYPE_AP) {
+		struct rsi_sta *rsta = rsi_find_sta(common, sta->addr);
+
+		if (!rsta) {
+			ven_rsi_dbg(ERR_ZONE, "No station mapped\n");
+			return 0;
+		}
+		sta_id = rsta->sta_id;
+	}
 
 	ven_rsi_dbg(INFO_ZONE,
 		"%s: AMPDU action tid=%d ssn=0x%x, buf_size=%d\n",
@@ -1106,7 +1132,8 @@ static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 						    tid,
 						    seq_no,
 						    buf_size,
-						    STA_RX_ADDBA_DONE);
+						    STA_RX_ADDBA_DONE,
+						    sta_id);
 		break;
 
 	case IEEE80211_AMPDU_RX_STOP:
@@ -1116,7 +1143,8 @@ static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 						    tid,
 						    0,
 						    buf_size,
-						    STA_RX_DELBA);
+						    STA_RX_DELBA,
+						    sta_id);
 		break;
 
 	case IEEE80211_AMPDU_TX_START:
@@ -1137,7 +1165,8 @@ static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 						    tid,
 						    seq_no,
 						    buf_size,
-						    STA_TX_DELBA);
+						    STA_TX_DELBA,
+						    sta_id);
 		if (!status)
 			ieee80211_stop_tx_ba_cb_irqsafe(vif, sta->addr, tid);
 		break;
@@ -1150,7 +1179,8 @@ static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 						tid,
 						common->vif_info[ii].seq_start,
 						buf_size,
-						STA_TX_ADDBA_DONE);
+						STA_TX_ADDBA_DONE,
+						sta_id);
 		break;
 
 	default:
@@ -1332,6 +1362,8 @@ void rsi_indicate_pkt_to_os(struct rsi_common *common,
 	/* filling in the ieee80211_rx_status flags */
 	rsi_fill_rx_status(hw, skb, common, rx_status);
 
+	ven_rsi_dbg(INFO_ZONE, "RX Packet Type: %s\n",
+		dot11_pkt_type(skb->data[0]));
 	rsi_hex_dump(DATA_RX_ZONE, "802.11 RX packet", skb->data, skb->len);
 	ieee80211_rx_irqsafe(hw, skb);
 }
@@ -1359,10 +1391,22 @@ static int rsi_mac80211_sta_add(struct ieee80211_hw *hw,
 
 	if (vif->type == NL80211_IFTYPE_AP) {
 		u8 i, j;
+		int free_index = -1;
+
+		/* Check if max stations reached */
+		if (common->num_stations >= RSI_MAX_ASSOC_STAS) {
+			ven_rsi_dbg(ERR_ZONE, "Reject: Max Stations exists\n");
+			return -EINVAL;
+		}
 
 		/* Send peer notify to device */
 		ven_rsi_dbg(INFO_ZONE, "Indicate bss status to device\n");
-		for (i = 0; i < common->num_stations; i++) {
+		for (i = 0; i < RSI_MAX_ASSOC_STAS; i++) {
+			if (!common->stations[i].sta) {
+				if (free_index < 0)
+					free_index = i;
+				continue; 
+			}
 			if (!memcmp(common->stations[i].sta->addr,
 				    sta->addr, ETH_ALEN)) {
 				ven_rsi_dbg(INFO_ZONE, "Station exists\n");
@@ -1372,15 +1416,18 @@ static int rsi_mac80211_sta_add(struct ieee80211_hw *hw,
 		}
 		if (!sta_exist) {
 			ven_rsi_dbg(INFO_ZONE, "New Station\n");
-			rsi_inform_bss_status(common, AP_OPMODE, 1, sta->addr,
-					      sta->wme, sta->aid, i);
+			if (free_index >= 0)
+				i = free_index;
 			common->stations[i].sta = sta;
 			common->stations[i].sta_id = i;
+			rsi_inform_bss_status(common, AP_OPMODE, 1, sta->addr,
+					      sta->wme, sta->aid, sta, i);
 			for (j = 0; j < IEEE80211_NUM_ACS; j++)
 				common->stations[i].seq_no[j] = 1;
 			common->num_stations++;
 		} else {
 			common->stations[i].sta = sta;
+			common->stations[i].sta_id = i;
 			for (j = 0; j < IEEE80211_NUM_ACS; j++)
 				common->stations[i].seq_no[j] = 1;
 		}
@@ -1403,8 +1450,11 @@ static int rsi_mac80211_sta_add(struct ieee80211_hw *hw,
 		}
 	}
 
+#if 0
 	if ((vif->type == NL80211_IFTYPE_STATION) &&
 	    sta->ht_cap.ht_supported)
+#endif
+	if (sta->ht_cap.ht_supported)
 		ieee80211_start_tx_ba_session(sta, 0, 0);
 
 	mutex_unlock(&common->mutex);
@@ -1431,22 +1481,27 @@ static int rsi_mac80211_sta_remove(struct ieee80211_hw *hw,
 
 	rsi_hex_dump(INFO_ZONE, "Station Removed: ", sta->addr, ETH_ALEN);
 
+	mutex_lock(&common->mutex);
 	if (vif->type == NL80211_IFTYPE_AP) {
 		u8 i, j;
 
 		/* Send peer notify to device */
 		ven_rsi_dbg(INFO_ZONE, "Indicate bss status to device\n");
-		for (i = 0; i < common->num_stations; i++) {
+		for (i = 0; i < RSI_MAX_ASSOC_STAS; i++) {
+			if (!common->stations[i].sta)
+				continue;
 			if (!memcmp(common->stations[i].sta->addr,
 				    sta->addr, ETH_ALEN)) {
 				rsi_inform_bss_status(common, AP_OPMODE, 0,
 						      sta->addr, sta->wme,
-						      sta->aid, i);
+						      sta->aid, sta, i);
 				common->stations[i].sta = NULL;
 				common->stations[i].sta_id = -1;
 				for (j = 0; j < IEEE80211_NUM_ACS; j++)
 					common->stations[i].seq_no[j] = 0;
 				common->num_stations--;
+				if (common->num_stations < 0)
+					common->num_stations = 0;
 				break;
 			}
 		}
@@ -1456,7 +1511,6 @@ static int rsi_mac80211_sta_remove(struct ieee80211_hw *hw,
 
 	if (vif->type == NL80211_IFTYPE_STATION) {
 		/* Resetting all the fields to default values */
-		mutex_lock(&common->mutex);
 		memcpy((u8 *)bss->bssid, (u8 *)sta->addr, ETH_ALEN);
 		bss->qos = sta->wme;
 		common->bitrate_mask[NL80211_BAND_2GHZ] = 0;
@@ -1469,11 +1523,11 @@ static int rsi_mac80211_sta_remove(struct ieee80211_hw *hw,
 		common->secinfo.gtk_cipher = 0;
 		if (common->bgscan_en)
 			common->bgscan_en = 0;
-		mutex_unlock(&common->mutex);
 
 		if (!common->iface_down)
 			rsi_send_rx_filter_frame(common, 0);
 	}
+	mutex_unlock(&common->mutex);
 	return 0;
 }
 #if 0
@@ -1626,6 +1680,8 @@ static void rsi_reg_notify(struct wiphy *wiphy,
 	struct ieee80211_channel *ch;
 	int i;
 
+	if (common->num_supp_bands == 1)
+		return;
 	mutex_lock(&common->mutex);
 
 	sband = wiphy->bands[NL80211_BAND_5GHZ];
@@ -1655,7 +1711,7 @@ static void rsi_reg_notify(struct wiphy *wiphy,
 			common->bgscan_en = 1;
 		}
 	}
-
+	
 	adapter->dfs_region = request->dfs_region;
 	adapter->country[0] = request->alpha2[0];
 	adapter->country[1] = request->alpha2[1];
@@ -1679,13 +1735,13 @@ void rsi_mac80211_rfkill_poll(struct ieee80211_hw *hw)
 
 #ifdef CONFIG_RSI_WOW
 static const struct wiphy_wowlan_support rsi_wowlan_support = {
-	.flags =WIPHY_WOWLAN_ANY |
-		WIPHY_WOWLAN_MAGIC_PKT |
-		WIPHY_WOWLAN_DISCONNECT |
-		WIPHY_WOWLAN_GTK_REKEY_FAILURE  |
-		WIPHY_WOWLAN_SUPPORTS_GTK_REKEY |
-		WIPHY_WOWLAN_EAP_IDENTITY_REQ   |
-		WIPHY_WOWLAN_4WAY_HANDSHAKE,
+	.flags = WIPHY_WOWLAN_ANY |
+		 WIPHY_WOWLAN_MAGIC_PKT |
+		 WIPHY_WOWLAN_DISCONNECT |
+		 WIPHY_WOWLAN_GTK_REKEY_FAILURE  |
+		 WIPHY_WOWLAN_SUPPORTS_GTK_REKEY |
+		 WIPHY_WOWLAN_EAP_IDENTITY_REQ   |
+		 WIPHY_WOWLAN_4WAY_HANDSHAKE,
 	.n_patterns = 0,
 	.pattern_min_len = 1,
 	.pattern_max_len = 0,
@@ -1707,7 +1763,7 @@ static u16 rsi_wow_map_triggers(struct rsi_common *common,
 	if (wowlan->gtk_rekey_failure || wowlan->eap_identity_req ||
 	    wowlan->four_way_handshake)
 		wow_triggers |= RSI_WOW_SUPPORTS_GTK_REKEY;
-
+	
 	return wow_triggers;
 }
 #endif
@@ -1719,7 +1775,7 @@ int rsi_mac80211_suspend(struct ieee80211_hw *hw,
 #ifdef CONFIG_RSI_WOW
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
-	u16 triggers;
+	u16 triggers, rx_filter_word = 0;
 #endif
 	int ret = 0;
 
@@ -1736,22 +1792,45 @@ int rsi_mac80211_suspend(struct ieee80211_hw *hw,
 	triggers = rsi_wow_map_triggers(common, wowlan);
 	if (!triggers) {
 		ven_rsi_dbg(ERR_ZONE, "%s:No valid WoW triggers\n",__func__);
-		ret = 1;
+		ret = -EINVAL;
 		goto fail_wow;
 	}
 	ven_rsi_dbg(INFO_ZONE, "TRIGGERS %x\n", triggers);
 
-	 rsi_send_wowlan_request(common, triggers, wowlan);
+	rsi_send_wowlan_request(common, triggers, 1);
 
+ 	 rx_filter_word = (ALLOW_DATA_ASSOC_PEER |
+			   ALLOW_CTRL_ASSOC_PEER |
+			   ALLOW_MGMT_ASSOC_PEER |
+			   DISALLOW_BEACONS |
+			   0);
+	rsi_send_rx_filter_frame(common, rx_filter_word);
+        common->suspend_flag = 1;
 fail_wow:
 #endif
-	return ret;
+        return ret;
 }
 
 static int rsi_mac80211_resume(struct ieee80211_hw *hw)
 {
+#ifdef CONFIG_RSI_WOW
+	struct rsi_hw *adapter = hw->priv;
+	struct rsi_common *common = adapter->priv;
+	u16 rx_filter_word = 0;
+#endif
+	
 	ven_rsi_dbg(INFO_ZONE, "%s: mac80211 resume\n", __func__);
 
+#ifdef CONFIG_RSI_WOW
+	rsi_send_wowlan_request(common, 0, 0);
+	//rx_filter_word = 0xE ;
+
+	rx_filter_word = (ALLOW_DATA_ASSOC_PEER |
+			  ALLOW_CTRL_ASSOC_PEER |
+			  ALLOW_MGMT_ASSOC_PEER |
+			  0);
+	rsi_send_rx_filter_frame(common, rx_filter_word);
+#endif
 	return 0;
 }
 #endif
@@ -1774,8 +1853,8 @@ static struct ieee80211_ops mac80211_ops = {
 	.sta_remove = rsi_mac80211_sta_remove,
 	.set_antenna = rsi_mac80211_set_antenna,
 	.get_antenna = rsi_mac80211_get_antenna,
-	.rfkill_poll = rsi_mac80211_rfkill_poll,
-#ifdef CONFIG_PM
+        .rfkill_poll = rsi_mac80211_rfkill_poll,
+#ifdef CONFIG_PM 
 	.suspend = rsi_mac80211_suspend,
 	.resume  = rsi_mac80211_resume,
 #endif
@@ -1842,10 +1921,17 @@ int rsi_mac80211_attach(struct rsi_common *common)
 	hw->max_rate_tries = MAX_RETRIES;
 	hw->uapsd_queues = IEEE80211_MARKALL_UAPSD_QUEUES;
 	hw->uapsd_max_sp_len = IEEE80211_STA_SP_ALL_PKTS;
-	hw->max_tx_aggregation_subframes = 6;
+//	hw->max_tx_aggregation_subframes = 6;
+	hw->max_tx_aggregation_subframes = 4;
 
 	rsi_register_rates_channels(adapter, NL80211_BAND_2GHZ);
-	rsi_register_rates_channels(adapter, NL80211_BAND_5GHZ);
+	wiphy->bands[NL80211_BAND_2GHZ] =
+		&adapter->sbands[NL80211_BAND_2GHZ];
+	if (common->num_supp_bands == 2) {
+		rsi_register_rates_channels(adapter, NL80211_BAND_5GHZ);
+		wiphy->bands[NL80211_BAND_5GHZ] =
+			&adapter->sbands[NL80211_BAND_5GHZ];
+	}
 	hw->rate_control_algorithm = "AARF";
 	hw->sta_data_size = sizeof(struct rsi_sta);
 
@@ -1861,10 +1947,6 @@ int rsi_mac80211_attach(struct rsi_common *common)
 	wiphy->rts_threshold = IEEE80211_MAX_RTS_THRESHOLD;
 	wiphy->available_antennas_tx = 1;
 	wiphy->available_antennas_rx = 1;
-	wiphy->bands[NL80211_BAND_2GHZ] =
-		&adapter->sbands[NL80211_BAND_2GHZ];
-	wiphy->bands[NL80211_BAND_5GHZ] =
-		&adapter->sbands[NL80211_BAND_5GHZ];
 	wiphy->max_ap_assoc_sta = RSI_MAX_ASSOC_STAS;
 
 	wiphy->flags = WIPHY_FLAG_REPORTS_OBSS;

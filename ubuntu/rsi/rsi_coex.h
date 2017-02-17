@@ -40,7 +40,7 @@ enum rsi_proto {
 struct rsi_coex_ctrl_block {
 	struct rsi_common *priv;
 	struct sk_buff_head coex_tx_qs[NUM_COEX_TX_QUEUES];
-	struct semaphore tx_bus_lock;
+        struct semaphore tx_bus_lock;
 	struct rsi_thread coex_tx_thread;
 };
 

@@ -276,7 +276,7 @@ static void rsi_reset_card(struct sdio_func *pfunction)
 	u16 rca;
 	u32 cmd_delay = 0;
 
-#ifdef CONFIG_DELL_BOARD
+#ifdef CONFIG_CARACALLA_BOARD
 	/* Reset 9110 chip */
 	err = rsi_cmd52writebyte(pfunction->card,
 				 SDIO_CCCR_ABORT,
@@ -338,7 +338,7 @@ static void rsi_reset_card(struct sdio_func *pfunction)
 	if (err)
 		ven_rsi_dbg(ERR_ZONE, "%s: CMD0 failed : %d\n", __func__, err);
 
-#ifdef CONFIG_DELL_BOARD
+#ifdef CONFIG_CARACALLA_BOARD
 	if (!host->ocr_avail) {
 #else
 	if (1) {
@@ -352,7 +352,7 @@ static void rsi_reset_card(struct sdio_func *pfunction)
 		if (err)
 			ven_rsi_dbg(ERR_ZONE, "%s: CMD5 failed : %d\n",
 				__func__, err);
-#ifdef CONFIG_DELL_BOARD
+#ifdef CONFIG_CARACALLA_BOARD
 		host->ocr_avail = resp;
 #else
 		card->ocr = resp;
@@ -363,7 +363,7 @@ static void rsi_reset_card(struct sdio_func *pfunction)
 	for (i = 0; i < 100; i++) {
 		err = rsi_issue_sdiocommand(pfunction,
 					    SD_IO_SEND_OP_COND,
-#ifdef CONFIG_DELL_BOARD
+#ifdef CONFIG_CARACALLA_BOARD
 					    host->ocr_avail,
 #else
 					    card->ocr,
@@ -997,7 +997,7 @@ static int rsi_init_sdio_interface(struct rsi_hw *adapter,
 	adapter->check_hw_queue_status = rsi_sdio_read_buffer_status_register;
 	adapter->process_isr_hci = rsi_interrupt_handler;
 	adapter->check_intr_status_reg = rsi_read_intr_status_reg;
-
+	
 #ifdef CONFIG_VEN_RSI_DEBUGFS
 	adapter->num_debugfs_entries = MAX_DEBUGFS_ENTRIES;
 #endif
@@ -1049,7 +1049,9 @@ static int rsi_probe(struct sdio_func *pfunction,
 			__func__);
 		goto fail;
 	}
-
+#ifdef CONFIG_SDIO_INTR_POLL
+	init_sdio_intr_status_poll_thread(adapter->priv);
+#endif
 	sdio_claim_host(pfunction);
 //	if (sdio_claim_irq(pfunction, rsi_handle_interrupt)) {
 	if (sdio_claim_irq(pfunction, rsi_dummy_isr)) {
@@ -1089,6 +1091,9 @@ static int rsi_probe(struct sdio_func *pfunction,
 	return 0;
 
 fail:
+#ifdef CONFIG_SDIO_INTR_POLL
+	rsi_kill_thread(&adapter->priv->sdio_intr_poll_thread);
+#endif
 	ven_rsi_91x_deinit(adapter);
 	ven_rsi_dbg(ERR_ZONE, "%s: Failed in probe...Exiting\n", __func__);
 	return 1;
@@ -1110,12 +1115,13 @@ static void rsi_disconnect(struct sdio_func *pfunction)
 
 	dev = (struct rsi_91x_sdiodev *)adapter->rsi_dev;
 
-#if defined(CONFIG_VEN_RSI_HCI) || defined(CONFIG_VEN_RSI_COEX)
-#if defined(CONFIG_DELL_BOARD)
-	if (adapter->rsi_host_intf == RSI_HOST_INTF_SDIO)
-		rsi_kill_thread(&adapter->priv->hci_thread);
+#ifdef CONFIG_SDIO_INTR_POLL
+	rsi_kill_thread(&adapter->priv->sdio_intr_poll_thread);
 #endif
-#endif
+	sdio_claim_host(pfunction);
+	sdio_release_irq(pfunction);
+	sdio_release_host(pfunction);
+	mdelay(10);
 
 	ven_rsi_mac80211_detach(adapter);
 	mdelay(10);
@@ -1124,10 +1130,6 @@ static void rsi_disconnect(struct sdio_func *pfunction)
 	rsi_hci_detach(adapter->priv);
 	mdelay(10);
 #endif
-	sdio_claim_host(pfunction);
-	sdio_release_irq(pfunction);
-	sdio_release_host(pfunction);
-	mdelay(10);
 
 	/* Reset Chip */
 	rsi_reset_chip(adapter);
@@ -1148,15 +1150,7 @@ int rsi_set_sdio_pm_caps(struct rsi_hw *adapter)
 	struct rsi_91x_sdiodev *dev =
 		(struct rsi_91x_sdiodev *)adapter->rsi_dev;
 	struct sdio_func *func = dev->pfunction;
-	mmc_pm_flag_t flags;
 	int ret;
-
-	/*Getting the host power management capabilities*/
-	flags = sdio_get_host_pm_caps(func);
-	ven_rsi_dbg(INFO_ZONE, "sdio suspend pm_caps 0x%x\n", flags);
-	if ((!(flags & MMC_PM_WAKE_SDIO_IRQ)) ||
-	    (!(flags & MMC_PM_KEEP_POWER)))
-		return -EINVAL;
 
 	/* Keep Power to the MMC while suspend*/
 	ret = sdio_set_host_pm_flags(func, MMC_PM_KEEP_POWER);
@@ -1165,26 +1159,7 @@ int rsi_set_sdio_pm_caps(struct rsi_hw *adapter)
 		return ret;
 	}
 
-	/* sdio irq wakes up host */
-	ret = sdio_set_host_pm_flags(func, MMC_PM_WAKE_SDIO_IRQ);
-	if (ret)
-		ven_rsi_dbg(ERR_ZONE,"set sdio wake irq flag failed: %d\n", ret);
-
 	return ret;
-}
-
-int rsi_sdio_suspend(struct rsi_hw *adapter)
-{
-	struct rsi_91x_sdiodev *dev =
-		(struct rsi_91x_sdiodev *)adapter->rsi_dev;
-
-	ven_rsi_dbg(INFO_ZONE,"Suspend SDIO\n");
-
-	sdio_claim_host(dev->pfunction);
-	sdio_release_irq(dev->pfunction);
-	sdio_release_host(dev->pfunction);
-
-	return 0;
 }
 
 static int rsi_suspend(struct device *dev)
@@ -1192,26 +1167,37 @@ static int rsi_suspend(struct device *dev)
 	int ret = 0;
 	struct sdio_func *pfunction = dev_to_sdio_func(dev);
 	struct rsi_hw *adapter = sdio_get_drvdata(pfunction);
+	u8 isr_status = 0;
 
-	ven_rsi_dbg(INFO_ZONE,"***** SUSPEND CALLED ******\n");
+	ven_rsi_dbg(INFO_ZONE,"%s : ***** BUS SUSPEND  ******\n",__func__);
+
+	ven_rsi_dbg(INFO_ZONE, "Waiting for interrupts to be cleared..");
+	do {
+		rsi_sdio_read_register(adapter,
+				       RSI_FN1_INT_REGISTER,
+				       &isr_status);
+		printk(".");
+	} while (isr_status); 
+	printk("\n");
 
 	ret = rsi_set_sdio_pm_caps(adapter);
-	if (ret){
-		ven_rsi_dbg(INFO_ZONE,"failed %s:%d\n",__func__,__LINE__);
-	}
-	ret = rsi_sdio_suspend(adapter);
-
-	if (ret && ret != -ENOTCONN)
-		ven_rsi_dbg(ERR_ZONE,"wow suspend failed: %d\n", ret);
-
+	if (ret)
+		ven_rsi_dbg(INFO_ZONE, "Setting power management caps failed\n");
 	return 0;
 }
 
 int rsi_resume(struct device *dev)
 {
-	ven_rsi_dbg(INFO_ZONE,"rsi_sdio_resume returning\n");
-	return 0;
+#ifdef CONFIG_RSI_WOW
+	struct sdio_func *pfunction = dev_to_sdio_func(dev);
+	struct rsi_hw *adapter = sdio_get_drvdata(pfunction);
+        
+	ven_rsi_dbg(INFO_ZONE,"%s: ***** BUS RESUME ******\n",__func__);
+        adapter->priv->suspend_flag = 0;
+#endif
 
+	ven_rsi_dbg(INFO_ZONE, "RSI module resumed\n");
+	return 0;
 }
 
 static const struct dev_pm_ops rsi_pm_ops = {

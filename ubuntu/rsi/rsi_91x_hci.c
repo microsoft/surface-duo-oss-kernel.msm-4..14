@@ -198,21 +198,6 @@ fail:
 	return status;
 }
 
-void rsi_hci_scheduler_thread(struct rsi_common *common)
-{
-	struct rsi_hw *adapter = common->priv;
-	int status = 0;
-
-	do {
-		status = adapter->check_intr_status_reg(adapter);
-		if (adapter->isr_pending)
-			adapter->isr_pending = 0;
-		msleep(20);
-
-	} while (atomic_read(&common->hci_thread.thread_done) == 0);
-	complete_and_exit(&common->hci_thread.completion, 0);
-}
-
 int rsi_hci_recv_pkt(struct rsi_common *common, u8 *pkt)
 {
 	struct rsi_hci_adapter *h_adapter =
@@ -234,34 +219,9 @@ int rsi_hci_recv_pkt(struct rsi_common *common, u8 *pkt)
 			return 0;
 		}
 
-		/* TODO: Work aroud for Dell; move this to module_param */
-#if (defined(CONFIG_DELL_BOARD) &&  defined(CONFIG_VEN_RSI_HCI))
-		if (rsi_set_antenna(common, ANTENNA_SEL_UFL)) {
-			ven_rsi_dbg(ERR_ZONE,
-				"%s: Failed to configure external antenna\n",
-				__func__);
-		} else
-			ven_rsi_dbg(INFO_ZONE, "***** UFL antenna is configured\n");
-
-#endif
-
-#if (defined(CONFIG_VEN_RSI_HCI) || defined(CONFIG_VEN_RSI_COEX))
-#if defined(CONFIG_DELL_BOARD)
-	if (common->priv->rsi_host_intf == RSI_HOST_INTF_SDIO) {
-		rsi_init_event(&common->hci_thread.event);
-		if (rsi_create_kthread(common,
-					&common->hci_thread,
-					rsi_hci_scheduler_thread,
-					"hci-Thread")) {
-			ven_rsi_dbg(ERR_ZONE, "%s: Unable to init hci thrd\n",
-				__func__);
-		}
-	}
-#endif
-#endif
 		return 0;
 	}
-
+ 
 	if (common->bt_fsm_state != BT_DEVICE_READY) {
 		ven_rsi_dbg(INFO_ZONE, "BT Device not ready\n");
 		return 0;
@@ -504,6 +464,7 @@ err:
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(3, 12, 34)
 		genl_unregister_ops(gcb->gc_family, gcb->gc_ops);
 #endif
+		kfree(gcb);
 	}
 	h_adapter->gcb = NULL;
 	kfree(h_adapter);
@@ -547,6 +508,7 @@ void rsi_hci_detach(struct rsi_common *common)
 		genl_unregister_ops(gcb->gc_family, gcb->gc_ops);
 #endif
 		h_adapter->gcb = NULL;
+		kfree(gcb);
 	}
 	kfree(h_adapter);
 

@@ -160,11 +160,27 @@ int rsi_prepare_data_desc(struct rsi_common *common, struct sk_buff *skb)
 
 	if (skb->protocol == cpu_to_be16(ETH_P_PAE)) {
 		ven_rsi_dbg(INFO_ZONE, "*** Tx EAPOL ***\n");
+		
+		frame_desc[3] = cpu_to_le16(RATE_INFO_ENABLE);
+		if (common->band == NL80211_BAND_5GHZ)
+				frame_desc[4] = cpu_to_le16(RSI_RATE_6);
+			else
+				frame_desc[4] = cpu_to_le16(RSI_RATE_1);
 		frame_desc[6] |= cpu_to_le16(BIT(13));
 		frame_desc[1] |= cpu_to_le16(BIT(12));
+		if (vif->type == NL80211_IFTYPE_STATION) {
+			frame_desc[0] = cpu_to_le16((skb->len - FRAME_DESC_SZ) |
+					(RSI_WIFI_MGMT_Q << 12));
+			if ((skb->len - header_size) == 133) {
+				ven_rsi_dbg(INFO_ZONE, "*** Tx EAPOL 4*****\n");
+				frame_desc[1] |=
+					cpu_to_le16(RSI_DESC_REQUIRE_CFM_TO_HOST);
+				xtend_desc->confirm_frame_type = EAPOL4_CONFIRM;
+			}
+		}
 #define EAPOL_RETRY_CNT 15
 		xtend_desc->retry_cnt = EAPOL_RETRY_CNT;
-#ifdef EAPOL_IN_MGMT_Q
+#if 0 
 		skb->priority = VO_Q;
 #endif
 	}
@@ -178,14 +194,12 @@ int rsi_prepare_data_desc(struct rsi_common *common, struct sk_buff *skb)
 	    (is_multicast_ether_addr(wh->addr1))) {
 		frame_desc[3] = cpu_to_le16(RATE_INFO_ENABLE);
 		frame_desc[3] |= cpu_to_le16(RSI_BROADCAST_PKT);
-#if 0
-		if (common->min_rate == 0xffff) {
+		if (vif->type == NL80211_IFTYPE_AP) {
 			if (common->band == NL80211_BAND_5GHZ)
 				frame_desc[4] = cpu_to_le16(RSI_RATE_6);
 			else
 				frame_desc[4] = cpu_to_le16(RSI_RATE_1);
 		}
-#endif
 	}
 
 	if ((vif->type == NL80211_IFTYPE_AP) &&
@@ -196,7 +210,7 @@ int rsi_prepare_data_desc(struct rsi_common *common, struct sk_buff *skb)
 
 err:
 	++common->tx_stats.total_tx_pkt_freed[skb->priority];
-	rsi_indicate_tx_status(common->priv, skb, status);
+	rsi_indicate_tx_status(adapter, skb, status);
 	return status;
 }
 
@@ -323,6 +337,8 @@ int rsi_send_data_pkt(struct rsi_common *common, struct sk_buff *skb)
 	u8 header_size = 0;
 
 	info = IEEE80211_SKB_CB(skb);
+	if (!info->control.vif)
+		goto err;
 	bss = &info->control.vif->bss_conf;
 	tx_params = (struct skb_info *)info->driver_data;
 
@@ -381,7 +397,6 @@ int rsi_send_mgmt_pkt(struct rsi_common *common, struct sk_buff *skb)
 			     skb->data, skb->len);
 
 		status = rsi_send_pkt(common, skb);
-
 		if (status) {
 			ven_rsi_dbg(ERR_ZONE,
 				"%s: Failed to write the packet\n",
@@ -391,6 +406,8 @@ int rsi_send_mgmt_pkt(struct rsi_common *common, struct sk_buff *skb)
 		return status;
 	}
 
+	if (!info->control.vif)
+		goto out;
 	bss = &info->control.vif->bss_conf;
 	wh = (struct ieee80211_hdr *)&skb->data[header_size];
 
@@ -398,23 +415,24 @@ int rsi_send_mgmt_pkt(struct rsi_common *common, struct sk_buff *skb)
 	xtend_desc = (struct xtended_desc *)&skb->data[FRAME_DESC_SZ];
 
 	/* Indicate to firmware to give cfm */
-	if (ieee80211_is_probe_req(wh->frame_control)) { // && (!bss->assoc)) {
+	if (ieee80211_is_probe_req(wh->frame_control)) {
 		if (!bss->assoc) {
-			ven_rsi_dbg(INFO_ZONE, "%s: blocking mgmt queue\n", __func__);
+			ven_rsi_dbg(INFO_ZONE,
+				"%s: blocking mgmt queue\n", __func__);
 			desc[1] |= cpu_to_le16(RSI_DESC_REQUIRE_CFM_TO_HOST);
 			xtend_desc->confirm_frame_type = PROBEREQ_CONFIRM;
 			common->mgmt_q_block = true;
 			ven_rsi_dbg(INFO_ZONE, "Mgmt queue blocked\n");
 		} else if (common->bgscan_en) {
-			/* Drop off channel probe request */
 			if (common->mac80211_cur_channel !=
 			    rsi_get_connected_channel(adapter)) { 
-				dev_kfree_skb(skb);
-				return 0;
+				/* Drop off channel probe request */
+				status = 0;
+				goto out;
 			} else if (wh->addr1[0] == 0xff) {
 				/* Drop broadcast probe in connected channel*/
-				dev_kfree_skb(skb);
-				return 0;
+				status = 0;
+				goto out;
 			}
 		}
 		ven_rsi_dbg(MGMT_TX_ZONE, "Sending PROBE REQUEST =====>\n");
@@ -433,6 +451,7 @@ int rsi_send_mgmt_pkt(struct rsi_common *common, struct sk_buff *skb)
 			__func__);
 	}
 
+out:
 	rsi_indicate_tx_status(common->priv, skb, status);
 	return status;
 }
@@ -472,7 +491,6 @@ err:
 
 int rsi_send_beacon(struct rsi_common *common)
 {
-	struct rsi_hw *adapter = common->priv;
 	struct rsi_mac_frame *bcn_frm = NULL;
 	u16 bcn_len = common->beacon_frame_len;
 	struct sk_buff *skb = NULL;
@@ -481,16 +499,18 @@ int rsi_send_beacon(struct rsi_common *common)
 	u8 vap_id = 0;
 	u8 dword_align_bytes = 0;
 	u8 header_size = 0;
+	int status = 0;
 
-	skb = dev_alloc_skb(FRAME_DESC_SZ + bcn_len + 64);
+	skb = dev_alloc_skb(MAX_MGMT_PKT_SIZE);
 	if (!skb)
 		return -ENOMEM;
 
 	dword_align_bytes = ((unsigned long)skb->data & 0x3f);
-	printk("%s: dword_bytes = %d\n", __func__, dword_align_bytes);
-	header_size = dword_align_bytes + FRAME_DESC_SZ;
-	printk("header_size = %d\n", header_size);
-	memset(skb->data, 0, header_size + bcn_len + 64);
+	if (dword_align_bytes) {
+		skb_pull(skb, (64 - dword_align_bytes));
+	}
+	header_size = FRAME_DESC_SZ;
+	memset(skb->data, 0, MAX_MGMT_PKT_SIZE);
 
 	common->beacon_cnt++;
 	bcn_frm = (struct rsi_mac_frame *)skb->data;
@@ -504,7 +524,7 @@ int rsi_send_beacon(struct rsi_common *common)
 	bcn_frm->desc_word[3] |= cpu_to_le16(RATE_INFO_ENABLE);
 	bcn_frm->desc_word[4] = cpu_to_le16(vap_id << 14);
 	bcn_frm->desc_word[7] = cpu_to_le16(BEACON_HW_Q);
-
+	
 	if (conf_is_ht40_plus(conf)) {
 		bcn_frm->desc_word[5] = cpu_to_le16(LOWER_20_ENABLE);
 		bcn_frm->desc_word[5] |= cpu_to_le16(LOWER_20_ENABLE >> 12);
@@ -514,29 +534,31 @@ int rsi_send_beacon(struct rsi_common *common)
 	}
 
 	if (common->band == NL80211_BAND_2GHZ)
-		bcn_frm->desc_word[4] |= cpu_to_le16(0xB | RSI_11G_MODE);
+		bcn_frm->desc_word[4] |= cpu_to_le16(RSI_RATE_1);
 	else
-		bcn_frm->desc_word[4] |= cpu_to_le16(RSI_11B_MODE);
+		bcn_frm->desc_word[4] |= cpu_to_le16(RSI_RATE_6);
 
 	//if (!(common->beacon_cnt % common->dtim_cnt))
 	if (1) //FIXME check this
 		bcn_frm->desc_word[3] |= cpu_to_le16(DTIM_BEACON);
 
+	//mutex_lock(&common->mutex);
 	memcpy(&skb->data[header_size], common->beacon_frame, bcn_len);
+	//mutex_unlock(&common->mutex);
 
 	skb_put(skb, bcn_len + header_size);
 
-	rsi_hex_dump(MGMT_TX_ZONE, "Beacon Frame", skb->data, skb->len);
+	rsi_hex_dump(MGMT_TX_ZONE, "Beacon Frame", skb->data, skb->len);	
 
-	if (adapter->host_intf_ops->write_pkt(adapter, skb->data, skb->len) < 0) {
+	mutex_lock(&common->tx_lock);
+	if (rsi_send_pkt(common, skb)) {
 		ven_rsi_dbg(ERR_ZONE, "Failed to send Beacon\n");
-		goto err;
+		status = -EINVAL;
 	}
-	return 0;
+	mutex_unlock(&common->tx_lock);
 
-err:
 	dev_kfree_skb(skb);
-	return -1;
+	return status;
 }
 
 /**

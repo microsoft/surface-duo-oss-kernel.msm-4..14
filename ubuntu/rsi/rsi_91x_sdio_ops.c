@@ -235,7 +235,7 @@ int rsi_read_intr_status_reg(struct rsi_hw *adapter)
 						RSI_FN1_INT_REGISTER,
 						&isr_status);
 	isr_status &= 0xE;
-
+	
 	if(isr_status & BIT(MSDU_PKT_PENDING))
 		adapter->isr_pending = 1;
 	return 0;
@@ -376,9 +376,9 @@ int rsi_sdio_read_buffer_status_register(struct rsi_hw *adapter, u8 q_num)
 		(struct rsi_91x_sdiodev *)adapter->rsi_dev;
 	u8 buf_status = 0;
 	int status = 0;
-#if 0
-	static int counter = 4;
+//	static int counter = 4;
 
+#if 0
 	if ((!dev->buff_status_updated) && counter) {
 		counter--;
 		goto out;
@@ -389,7 +389,6 @@ int rsi_sdio_read_buffer_status_register(struct rsi_hw *adapter, u8 q_num)
 	status = rsi_sdio_read_register(common->priv,
 					RSI_DEVICE_BUFFER_STATUS_REGISTER,
 					&buf_status);
-
 	if (status) {
 		ven_rsi_dbg(ERR_ZONE,
 			"%s: Failed to read status register\n", __func__);
@@ -421,11 +420,11 @@ int rsi_sdio_read_buffer_status_register(struct rsi_hw *adapter, u8 q_num)
 	}
 //	(dev->rx_info.semi_buffer_full ? (counter = 4) : (counter = 1));
 
-out:
+//out:
 	if ((q_num == MGMT_SOFT_Q) && (dev->rx_info.mgmt_buffer_full))
 		return QUEUE_FULL;
 
-	if (dev->rx_info.buffer_full)
+	if ((q_num < MGMT_SOFT_Q) && (dev->rx_info.buffer_full))
 		return QUEUE_FULL;
 
 	return QUEUE_NOT_FULL;
