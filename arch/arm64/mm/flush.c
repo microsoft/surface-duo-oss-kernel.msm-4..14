@@ -104,6 +104,8 @@ EXPORT_SYMBOL(flush_dcache_page);
  */
 EXPORT_SYMBOL(flush_cache_all);
 EXPORT_SYMBOL(flush_icache_range);
+EXPORT_SYMBOL(__dma_map_area);
+EXPORT_SYMBOL(__dma_flush_range);
 
 #ifdef CONFIG_TRANSPARENT_HUGEPAGE
 #ifdef CONFIG_HAVE_RCU_TABLE_FREE
