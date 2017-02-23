@@ -2419,9 +2419,10 @@ static inline bool should_fail_alloc_page(gfp_t gfp_mask, unsigned int order)
  * one free page of a suitable size. Checking now avoids taking the zone lock
  * to check in the allocation paths if no pages are free.
  */
-bool __zone_watermark_ok(struct zone *z, unsigned int order, unsigned long mark,
-			 int classzone_idx, unsigned int alloc_flags,
-			 long free_pages)
+static bool __zone_watermark_ok(struct zone *z, unsigned int order,
+			unsigned long mark, int classzone_idx,
+			unsigned int alloc_flags,
+			long free_pages)
 {
 	long min = mark;
 	int o;
@@ -2892,8 +2893,8 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 }
 
 static inline bool
-should_compact_retry(struct alloc_context *ac, int order, int alloc_flags,
-		     enum compact_result compact_result, enum migrate_mode *migrate_mode,
+should_compact_retry(unsigned int order, enum compact_result compact_result,
+		     enum migrate_mode *migrate_mode,
 		     int compaction_retries)
 {
 	int max_retries = MAX_COMPACT_RETRIES;
@@ -2917,11 +2918,9 @@ should_compact_retry(struct alloc_context *ac, int order, int alloc_flags,
 	/*
 	 * make sure the compaction wasn't deferred or didn't bail out early
 	 * due to locks contention before we declare that we should give up.
-	 * But do not retry if the given zonelist is not suitable for
-	 * compaction.
 	 */
 	if (compaction_withdrawn(compact_result))
-		return compaction_zonelist_suitable(ac, order, alloc_flags);
+		return true;
 
 	/*
 	 * !costly requests are much more important than __GFP_REPEAT
@@ -2949,8 +2948,7 @@ __alloc_pages_direct_compact(gfp_t gfp_mask, unsigned int order,
 }
 
 static inline bool
-should_compact_retry(struct alloc_context *ac, unsigned int order, int alloc_flags,
-		     enum compact_result compact_result,
+should_compact_retry(unsigned int order, enum compact_result compact_result,
 		     enum migrate_mode *migrate_mode,
 		     int compaction_retries)
 {
@@ -3378,9 +3376,8 @@ retry:
 	 * of free memory (see __compaction_suitable)
 	 */
 	if (did_some_progress > 0 &&
-			should_compact_retry(ac, order, alloc_flags,
-				compact_result, &migration_mode,
-				compaction_retries))
+			should_compact_retry(order, compact_result,
+				&migration_mode, compaction_retries))
 		goto retry;
 
 	/* Reclaim has failed us, start killing things */
