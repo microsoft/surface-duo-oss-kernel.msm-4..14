@@ -135,10 +135,6 @@ static inline bool compaction_withdrawn(enum compact_result result)
 
 	return false;
 }
-
-bool compaction_zonelist_suitable(struct alloc_context *ac, int order,
-					int alloc_flags);
-
 #else
 static inline enum compact_result try_to_compact_pages(gfp_t gfp_mask,
 			unsigned int order, int alloc_flags,
