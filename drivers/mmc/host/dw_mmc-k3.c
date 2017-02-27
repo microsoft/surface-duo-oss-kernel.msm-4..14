@@ -264,6 +264,9 @@ static void dw_mci_hs_set_timing(struct dw_mci *host, int timing, int sam_phase)
 
 	reg_value = SDMMC_GPIO_VALUE(GENCLK_DIV, use_sam_dly);
 	mci_writel(host, GPIO, (unsigned int)reg_value | GPIO_CLK_ENABLE);
+
+	/* We should delay 1ms wait for timing setting finished. */
+	mdelay(1);
 }
 
 int dw_mci_hi3660_init(struct dw_mci *host)
