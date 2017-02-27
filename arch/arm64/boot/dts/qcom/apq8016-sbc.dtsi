@@ -400,6 +400,7 @@
 				data-lanes = <0 2>;
 				qcom,settle-cnt = <0xe>;
 				remote-endpoint = <&ov5645_ep>;
+				status = "disabled";
 			};
 		};
 		port@1 {
@@ -409,6 +410,7 @@
 				data-lanes = <0 2>;
 				qcom,settle-cnt = <0xe>;
 				remote-endpoint = <&ov5645_2_ep>;
+				status = "disabled";
 			};
 		};
 	};
@@ -433,6 +435,8 @@
 		vdddo-supply = <&camera_vdddo_1v8>;
 		vdda-supply = <&camera_vdda_2v8>;
 		vddd-supply = <&camera_vddd_1v5>;
+
+		status = "disabled";
 
 		port {
 			ov5645_ep: endpoint {
@@ -459,6 +463,8 @@
 		vdddo-supply = <&camera_vdddo_1v8>;
 		vdda-supply = <&camera_vdda_2v8>;
 		vddd-supply = <&camera_vddd_1v5>;
+
+		status = "disabled";
 
 		port {
 			ov5645_2_ep: endpoint {
