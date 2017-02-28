@@ -276,7 +276,7 @@
 			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C0>;
 			resets = <&iomcu_rst HI3660_RST_I2C0>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&i2c0_pmx_func>;
+			pinctrl-0 = <&i2c0_pmx_func &i2c0_cfg_func>;
 			status = "ok";
 		};
 
@@ -290,7 +290,7 @@
 			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C4>;
 			resets = <&crg_rst HI3660_RST_I2C4>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&i2c4_pmx_func>;
+			pinctrl-0 = <&i2c4_pmx_func &i2c4_cfg_func>;
 			status = "ok";
 
 			fairchild_fsa9685: fsa9685@25 {
@@ -315,7 +315,7 @@
 			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C1>;
 			resets = <&iomcu_rst HI3660_RST_I2C1>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&i2c1_pmx_func>;
+			pinctrl-0 = <&i2c1_pmx_func &i2c1_cfg_func>;
 			status = "ok";
 
 			fusb30x@22 {
@@ -328,6 +328,8 @@
 				reg = <0x4e>;
 				status = "ok";
 				rt1711,irq_pin = <&gpio27 3 0>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&usb_cfg_func>;
 				/*gpios = <&gpio27 3 0>, <&gpio25 2 0>, <&gpio25 6 0>, <&gpio9 1 0>, <&gpio9 2 0>;*/
 				/*gpio_nums = <219 202 206 73 74>;*/
 				rt-dual,supported_modes = <0>; /* 0: dfp/ufp, 1: dfp, 2: ufp */
@@ -469,7 +471,7 @@
 			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C2>;
 			resets = <&iomcu_rst HI3660_RST_I2C2>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&i2c2_pmx_func>;
+			pinctrl-0 = <&i2c2_pmx_func &i2c2_cfg_func>;
 			status = "ok";
 		};
 
@@ -483,7 +485,7 @@
 			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C3>;
 			resets = <&crg_rst HI3660_RST_I2C3>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&i2c3_pmx_func>;
+			pinctrl-0 = <&i2c3_pmx_func &i2c3_cfg_func>;
 			status = "ok";
 		};
 
@@ -497,7 +499,7 @@
 			clocks = <&crg_ctrl HI3660_CLK_GATE_I2C7>;
 			resets = <&crg_rst HI3660_RST_I2C7>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&i2c7_pmx_func>;
+			pinctrl-0 = <&i2c7_pmx_func &i2c7_cfg_func>;
 			status = "ok";
 		};
 
@@ -508,6 +510,8 @@
 			clocks = <&crg_ctrl HI3660_CLK_MUX_UART0>,
 				 <&crg_ctrl HI3660_PCLK>;
 			clock-names = "uartclk", "apb_pclk";
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart0_pmx_func &uart0_cfg_func>;
 			status = "disabled";
 		};
 
@@ -518,6 +522,8 @@
 			clocks = <&crg_ctrl HI3660_CLK_GATE_UART1>,
 				 <&crg_ctrl HI3660_CLK_GATE_UART1>;
 			clock-names = "uartclk", "apb_pclk";
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart1_pmx_func &uart1_cfg_func>;
 			status = "disabled";
 		};
 
@@ -528,6 +534,8 @@
 			clocks = <&crg_ctrl HI3660_CLK_GATE_UART2>,
 				 <&crg_ctrl HI3660_PCLK>;
 			clock-names = "uartclk", "apb_pclk";
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart2_pmx_func &uart2_cfg_func>;
 			status = "disabled";
 		};
 
@@ -538,6 +546,8 @@
 			clocks = <&crg_ctrl HI3660_FACTOR_UART3>,
 				 <&crg_ctrl HI3660_PCLK>;
 			clock-names = "uartclk", "apb_pclk";
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart3_pmx_func &uart3_cfg_func>;
 			status = "disabled";
 	        };
 
@@ -548,6 +558,8 @@
 			clocks = <&crg_ctrl HI3660_CLK_GATE_UART4>,
 				 <&crg_ctrl HI3660_CLK_GATE_UART4>;
 			clock-names = "uartclk", "apb_pclk";
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart4_pmx_func &uart4_cfg_func>;
 			status = "disabled";
 		};
 
@@ -558,6 +570,8 @@
 			clocks = <&crg_ctrl HI3660_CLK_GATE_UART5>,
 				 <&crg_ctrl HI3660_CLK_GATE_UART5>;
 			clock-names = "uartclk", "apb_pclk";
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart5_pmx_func &uart5_cfg_func>;
 			status = "disabled";
 		};
 
@@ -568,6 +582,8 @@
 			clocks = <&crg_ctrl HI3660_CLK_UART6>,
 				 <&crg_ctrl HI3660_PCLK>;
 			clock-names = "uartclk", "apb_pclk";
+			pinctrl-names = "default";
+			pinctrl-0 = <&uart6_pmx_func &uart6_cfg_func>;
 			status = "disabled";
 		};
 
@@ -588,7 +604,7 @@
 			clocks = <&crg_ctrl HI3660_CLK_GATE_SPI1>;
 			clock-names = "apb_pclk";
 			pinctrl-names = "default";
-			pinctrl-0 = <&spi1_pmx_func>;
+			pinctrl-0 = <&spi1_pmx_func &spi1_cfg_func>;
 			num-cs = <1>;
 			cs-gpios = <&gpio2 2 0>;
 			status = "disabled";
@@ -603,7 +619,7 @@
 			clocks = <&crg_ctrl HI3660_CLK_GATE_SPI3>;
 			clock-names = "apb_pclk";
 			pinctrl-names = "default";
-			pinctrl-0 = <&spi3_pmx_func>;
+			pinctrl-0 = <&spi3_pmx_func &spi3_cfg_func>;
 			num-cs = <1>;
 			cs-gpios = <&gpio18 5 0>;
 			status = "disabled";
@@ -618,7 +634,7 @@
 			clocks = <&crg_ctrl HI3660_CLK_GATE_SPI4>;
 			clock-names = "apb_pclk";
 			pinctrl-names = "default";
-			pinctrl-0 = <&spi4_pmx_func>;
+			pinctrl-0 = <&spi4_pmx_func &spi4_cfg_func>;
 			num-cs = <1>;
 			cs-gpios = <&gpio27 2 0>;
 			status = "disabled";
@@ -1125,7 +1141,7 @@
 			reg = <0x0 0xe804f800 0x0 0x400>,
 				  <0x0 0xe804e000 0x0 0x400>;
 			pinctrl-names = "default";
-			pinctrl-0 = <&i2s2_pmx_func>;
+			pinctrl-0 = <&i2s2_pmx_func &i2s2_cfg_func>;
 			dmas = <&asp_dmac 18 &asp_dmac 19>;
 					dma-names = "rx", "tx";
 			status = "ok";
