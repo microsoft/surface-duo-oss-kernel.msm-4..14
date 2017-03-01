@@ -303,7 +303,7 @@ struct etnaviv_iommu *etnaviv_iommu_new(struct etnaviv_gpu *gpu)
 		    mmu->domain->geometry.aperture_end -
 		    mmu->domain->geometry.aperture_start + 1);
 
-	iommu_set_fault_handler(mmu->domain, etnaviv_fault_handler, gpu->dev);
+	iommu_set_fault_handler(mmu->domain, etnaviv_fault_handler, gpu->dev, false);
 
 	return mmu;
 }

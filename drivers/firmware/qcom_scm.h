@@ -84,6 +84,8 @@ extern int __qcom_scm_iommu_secure_map(struct device *dev, u64 list,
 extern int __qcom_scm_iommu_secure_unmap(struct device *dev, u32 id, u32 ctx_id,
 					 u64 va, u32 size, u32 flags);
 
+extern int __qcom_scm_gpu_zap_resume(struct device *dev);
+
 /* common error codes */
 #define QCOM_SCM_V2_EBUSY	-12
 #define QCOM_SCM_NOT_PERMITTED	-8

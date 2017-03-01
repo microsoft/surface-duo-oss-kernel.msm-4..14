@@ -68,6 +68,9 @@ conditions.
                   aliases of secure registers have to be used during
                   SMMU configuration.
 
+- arm,smmu-enable-stall : Enable stall mode to stall memory transactions
+                  and resume after fault is handled
+
 ** Deprecated properties:
 
 - mmu-masters (deprecated in favour of the generic "iommus" binding) :

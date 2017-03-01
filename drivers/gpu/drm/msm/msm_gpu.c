@@ -91,21 +91,20 @@ static int disable_pwrrail(struct msm_gpu *gpu)
 
 static int enable_clk(struct msm_gpu *gpu)
 {
-	struct clk *rate_clk = NULL;
 	int i;
 
-	/* NOTE: kgsl_pwrctrl_clk() ignores grp_clks[0].. */
-	for (i = ARRAY_SIZE(gpu->grp_clks) - 1; i > 0; i--) {
-		if (gpu->grp_clks[i]) {
+	if (gpu->grp_clks[0] && gpu->fast_rate)
+		clk_set_rate(gpu->grp_clks[0], gpu->fast_rate);
+
+	/* Set the RBBM timer rate to 19.2Mhz */
+	if (gpu->grp_clks[2])
+		clk_set_rate(gpu->grp_clks[2], 19200000);
+
+	for (i = ARRAY_SIZE(gpu->grp_clks) - 1; i >= 0; i--)
+		if (gpu->grp_clks[i])
 			clk_prepare(gpu->grp_clks[i]);
-			rate_clk = gpu->grp_clks[i];
-		}
-	}
 
-	if (rate_clk && gpu->fast_rate)
-		clk_set_rate(rate_clk, gpu->fast_rate);
-
-	for (i = ARRAY_SIZE(gpu->grp_clks) - 1; i > 0; i--)
+	for (i = ARRAY_SIZE(gpu->grp_clks) - 1; i >= 0; i--)
 		if (gpu->grp_clks[i])
 			clk_enable(gpu->grp_clks[i]);
 
@@ -114,23 +113,21 @@ static int enable_clk(struct msm_gpu *gpu)
 
 static int disable_clk(struct msm_gpu *gpu)
 {
-	struct clk *rate_clk = NULL;
 	int i;
 
-	/* NOTE: kgsl_pwrctrl_clk() ignores grp_clks[0].. */
-	for (i = ARRAY_SIZE(gpu->grp_clks) - 1; i > 0; i--) {
-		if (gpu->grp_clks[i]) {
+	for (i = ARRAY_SIZE(gpu->grp_clks) - 1; i >= 0; i--)
+		if (gpu->grp_clks[i])
 			clk_disable(gpu->grp_clks[i]);
-			rate_clk = gpu->grp_clks[i];
-		}
-	}
 
-	if (rate_clk && gpu->slow_rate)
-		clk_set_rate(rate_clk, gpu->slow_rate);
-
-	for (i = ARRAY_SIZE(gpu->grp_clks) - 1; i > 0; i--)
+	for (i = ARRAY_SIZE(gpu->grp_clks) - 1; i >= 0; i--)
 		if (gpu->grp_clks[i])
 			clk_unprepare(gpu->grp_clks[i]);
+
+	if (gpu->grp_clks[0] && gpu->slow_rate)
+		clk_set_rate(gpu->grp_clks[0], gpu->slow_rate);
+
+	if (gpu->grp_clks[2])
+		clk_set_rate(gpu->grp_clks[2], 0);
 
 	return 0;
 }
@@ -156,6 +153,8 @@ static int disable_axi(struct msm_gpu *gpu)
 int msm_gpu_pm_resume(struct msm_gpu *gpu)
 {
 	struct drm_device *dev = gpu->dev;
+	struct msm_drm_private *priv = dev->dev_private;
+	struct platform_device *pdev = priv->gpu_pdev;
 	int ret;
 
 	DBG("%s: active_cnt=%d", gpu->name, gpu->active_cnt);
@@ -167,6 +166,8 @@ int msm_gpu_pm_resume(struct msm_gpu *gpu)
 
 	if (WARN_ON(gpu->active_cnt <= 0))
 		return -EINVAL;
+
+	pm_runtime_get_sync(&pdev->dev);
 
 	ret = enable_pwrrail(gpu);
 	if (ret)
@@ -528,7 +529,7 @@ void msm_gpu_submit(struct msm_gpu *gpu, struct msm_gem_submit *submit,
 
 	for (i = 0; i < submit->nr_bos; i++) {
 		struct msm_gem_object *msm_obj = submit->bos[i].obj;
-		uint32_t iova;
+		uint64_t iova;
 
 		/* can't happen yet.. but when we add 2d support we'll have
 		 * to deal w/ cross-ring synchronization:
@@ -563,8 +564,7 @@ static irqreturn_t irq_handler(int irq, void *data)
 }
 
 static const char *clk_names[] = {
-		"src_clk", "core_clk", "iface_clk", "mem_clk", "mem_iface_clk",
-		"alt_mem_iface_clk",
+	"core", "iface", "rbbmtimer", "mem", "mem_iface", "alt_mem_iface",
 };
 
 int msm_gpu_init(struct drm_device *drm, struct platform_device *pdev,
@@ -628,13 +628,13 @@ int msm_gpu_init(struct drm_device *drm, struct platform_device *pdev,
 
 	/* Acquire clocks: */
 	for (i = 0; i < ARRAY_SIZE(clk_names); i++) {
-		gpu->grp_clks[i] = devm_clk_get(&pdev->dev, clk_names[i]);
+		gpu->grp_clks[i] = msm_clk_get(pdev, clk_names[i]);
 		DBG("grp_clks[%s]: %p", clk_names[i], gpu->grp_clks[i]);
 		if (IS_ERR(gpu->grp_clks[i]))
 			gpu->grp_clks[i] = NULL;
 	}
 
-	gpu->ebi1_clk = devm_clk_get(&pdev->dev, "bus_clk");
+	gpu->ebi1_clk = msm_clk_get(pdev, "bus");
 	DBG("ebi1_clk: %p", gpu->ebi1_clk);
 	if (IS_ERR(gpu->ebi1_clk))
 		gpu->ebi1_clk = NULL;
@@ -657,7 +657,7 @@ int msm_gpu_init(struct drm_device *drm, struct platform_device *pdev,
 	iommu = iommu_domain_alloc(&platform_bus_type);
 	if (iommu) {
 		/* TODO 32b vs 64b address space.. */
-		iommu->geometry.aperture_start = 0x1000;
+		iommu->geometry.aperture_start = SZ_16M;
 		iommu->geometry.aperture_end = 0xffffffff;
 
 		dev_info(drm->dev, "%s: using IOMMU\n", name);

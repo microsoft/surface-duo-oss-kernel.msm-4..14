@@ -476,7 +476,7 @@ struct usnic_uiom_pd *usnic_uiom_alloc_pd(void)
 		return ERR_PTR(-ENOMEM);
 	}
 
-	iommu_set_fault_handler(pd->domain, usnic_uiom_dma_fault, NULL);
+	iommu_set_fault_handler(pd->domain, usnic_uiom_dma_fault, NULL, false);
 
 	spin_lock_init(&pd->lock);
 	INIT_LIST_HEAD(&pd->devs);

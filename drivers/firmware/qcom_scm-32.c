@@ -616,3 +616,9 @@ int __qcom_scm_iommu_secure_unmap(struct device *dev, u32 id, u32 ctx_id,
 {
 	return -ENODEV;
 }
+
+int __qcom_scm_gpu_zap_resume(struct device *dev)
+{
+	return -ENOTSUPP;
+}
+

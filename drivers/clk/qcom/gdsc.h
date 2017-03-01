@@ -39,6 +39,7 @@ struct gdsc {
 	struct regmap			*regmap;
 	unsigned int			gdscr;
 	unsigned int			gds_hw_ctrl;
+	unsigned int			clamp_io_ctrl;
 	unsigned int			*cxcs;
 	unsigned int			cxc_count;
 /* supported options for pwrsts */
@@ -58,6 +59,7 @@ struct gdsc {
 /* supported flags */
 #define VOTABLE				BIT(0)
 #define HW_CTRL		BIT(1)
+#define CLAMP_IO	BIT(2)
 	const u8			flags;
 	struct reset_controller_dev	*rcdev;
 	unsigned int			*resets;
