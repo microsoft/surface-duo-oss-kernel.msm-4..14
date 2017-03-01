@@ -1114,6 +1114,7 @@
 				 <&venus_smmu 0x2c>,
 				 <&venus_smmu 0x2d>,
 				 <&venus_smmu 0x31>;
+			memory-region = <&venus_mem>;
 			status = "disabled";
 
 			video-decoder {
@@ -1128,10 +1129,6 @@
 				clocks = <&mmcc VIDEO_SUBCORE1_CLK>;
 				clock-names = "core";
 				power-domains = <&mmcc VENUS_CORE1_GDSC>;
-			};
-
-			video-firmware {
-				memory-region = <&venus_mem>;
 			};
 		};
 	};
