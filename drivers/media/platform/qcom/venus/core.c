@@ -31,29 +31,47 @@
 #include "venc.h"
 #include "firmware.h"
 
+static const struct hfi_core_ops venus_core_ops;
+
 static void venus_sys_error_handler(struct work_struct *work)
 {
 	struct venus_core *core =
 			container_of(work, struct venus_core, work.work);
 	int ret;
 
-	dev_err(core->dev, "system error occurred, starting recovery!\n");
-	hfi_core_deinit(core);
+	dev_warn(core->dev, "system error occurred, starting recovery!\n");
+
+	pm_runtime_get_sync(core->dev);
+
+	hfi_core_deinit(core, true);
+
+	hfi_destroy(core);
 
 	mutex_lock(&core->lock);
 
-	venus_shutdown();
+	venus_shutdown(&core->dev_fw);
 
-	ret = venus_boot(core->dev);
-	if (ret)
-		goto exit;
+	pm_runtime_put_sync(core->dev);
+
+	ret = hfi_create(core, &venus_core_ops);
+
+	pm_runtime_get_sync(core->dev);
+
+	ret = venus_boot(core->dev, &core->dev_fw);
+
+	ret = hfi_core_resume(core, true);
 
 	enable_irq(core->irq);
 
-	core->state = CORE_INIT;
-
-exit:
 	mutex_unlock(&core->lock);
+
+	ret = hfi_core_init(core);
+	if (ret)
+		dev_err(core->dev, "hfi_core_init (%d)\n", ret);
+
+	pm_runtime_put_sync(core->dev);
+
+	core->sys_error = false;
 }
 
 static void venus_event_notify(struct venus_core *core, u32 event)
@@ -81,7 +99,7 @@ static void venus_event_notify(struct venus_core *core, u32 event)
 	 * operations. Without this sleep, we see device reset when firmware is
 	 * unloaded after a system error.
 	 */
-	schedule_delayed_work(&core->work, msecs_to_jiffies(5000));
+	schedule_delayed_work(&core->work, msecs_to_jiffies(100));
 }
 
 static const struct hfi_core_ops venus_core_ops = {
@@ -187,7 +205,7 @@ static int venus_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto err_runtime_disable;
 
-	ret = venus_boot(dev);
+	ret = venus_boot(dev, &core->dev_fw);
 	if (ret)
 		goto err_runtime_disable;
 
@@ -216,9 +234,9 @@ static int venus_probe(struct platform_device *pdev)
 err_dev_unregister:
 	v4l2_device_unregister(&core->v4l2_dev);
 err_core_deinit:
-	hfi_core_deinit(core);
+	hfi_core_deinit(core, false);
 err_venus_shutdown:
-	venus_shutdown();
+	venus_shutdown(&core->dev_fw);
 err_runtime_disable:
 	pm_runtime_set_suspended(dev);
 	pm_runtime_disable(dev);
@@ -235,11 +253,11 @@ static int venus_remove(struct platform_device *pdev)
 	ret = pm_runtime_get_sync(dev);
 	WARN_ON(ret < 0);
 
-	ret = hfi_core_deinit(core);
+	ret = hfi_core_deinit(core, true);
 	WARN_ON(ret);
 
 	hfi_destroy(core);
-	venus_shutdown();
+	venus_shutdown(&core->dev_fw);
 	of_platform_depopulate(dev);
 
 	pm_runtime_put_sync(dev);

@@ -882,15 +882,10 @@ static int venus_session_cmd(struct venus_inst *inst, u32 pkt_type)
 {
 	struct venus_hfi_device *hdev = to_hfi_priv(inst->core);
 	struct hfi_session_pkt pkt;
-	int ret;
 
 	pkt_session_cmd(&pkt, pkt_type, inst);
 
-	ret = venus_iface_cmdq_write(hdev, &pkt);
-	if (ret)
-		return ret;
-
-	return 0;
+	return venus_iface_cmdq_write(hdev, &pkt);
 }
 
 static void venus_flush_debug_queue(struct venus_hfi_device *hdev)
@@ -971,7 +966,7 @@ static void venus_sfr_print(struct venus_hfi_device *hdev)
 	if (p == NULL)
 		sfr->data[sfr->buf_size - 1] = '\0';
 
-	dev_warn_ratelimited(dev, "SFR message from FW: %s\n", sfr->data);
+	dev_dbg_ratelimited(dev, "SFR message from FW: %s\n", sfr->data);
 }
 
 static void venus_process_msg_sys_error(struct venus_hfi_device *hdev,
@@ -1070,6 +1065,8 @@ static int venus_hfi_core_init(struct venus_core *core)
 
 	pkt_sys_init(&pkt, HFI_VIDEO_ARCH_OX);
 
+	venus_set_state(hdev, VENUS_STATE_INIT);
+
 	ret = venus_iface_cmdq_write(hdev, &pkt);
 	if (ret)
 		return ret;
@@ -1080,8 +1077,6 @@ static int venus_hfi_core_init(struct venus_core *core)
 	if (ret)
 		dev_warn(dev, "failed to send image version pkt to fw\n");
 
-	venus_set_state(hdev, VENUS_STATE_INIT);
-
 	return 0;
 }
 
@@ -1091,6 +1086,7 @@ static int venus_hfi_core_deinit(struct venus_core *core)
 
 	venus_set_state(hdev, VENUS_STATE_DEINIT);
 	hdev->suspended = true;
+	hdev->power_enabled = false;
 
 	return 0;
 }
@@ -1539,6 +1535,8 @@ void venus_hfi_destroy(struct venus_core *core)
 	venus_interface_queues_release(hdev);
 	mutex_destroy(&hdev->lock);
 	kfree(hdev);
+	core->priv = NULL;
+	core->ops = NULL;
 }
 
 int venus_hfi_create(struct venus_core *core)

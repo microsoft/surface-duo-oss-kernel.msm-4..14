@@ -144,7 +144,7 @@ int hfi_create(struct venus_core *core, const struct hfi_core_ops *ops);
 void hfi_destroy(struct venus_core *core);
 
 int hfi_core_init(struct venus_core *core);
-int hfi_core_deinit(struct venus_core *core);
+int hfi_core_deinit(struct venus_core *core, bool blocking);
 int hfi_core_suspend(struct venus_core *core);
 int hfi_core_resume(struct venus_core *core, bool force);
 int hfi_core_trigger_ssr(struct venus_core *core, u32 type);

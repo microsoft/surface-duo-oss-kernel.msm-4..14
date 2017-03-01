@@ -73,6 +73,7 @@ struct venus_format {
  * @dev_enc:	convinience struct device pointer for encoder device
  * @lock:	a lock for this strucure
  * @instances:	a list_head of all instances
+ * @insts_count:	num of instances
  * @state:	the state of the venus core
  * @done:	a completion for sync HFI operations
  * @error:	an error returned during last HFI sync operations
@@ -99,8 +100,10 @@ struct venus_core {
 	struct device *dev;
 	struct device *dev_dec;
 	struct device *dev_enc;
+	struct device dev_fw;
 	struct mutex lock;
 	struct list_head instances;
+	atomic_t insts_count;
 	unsigned int state;
 	struct completion done;
 	unsigned int error;

@@ -808,10 +808,16 @@ static void vdec_inst_init(struct venus_inst *inst)
 	inst->timeperframe.denominator = 30;
 
 	inst->cap_width.min = 64;
-	inst->cap_width.max = 1920;
+	if (inst->core->res->hfi_version == HFI_VERSION_LEGACY)
+		inst->cap_width.max = 1920;
+	else
+		inst->cap_width.max = 3840;
 	inst->cap_width.step_size = 1;
 	inst->cap_height.min = 64;
-	inst->cap_height.max = ALIGN(1080, 32);
+	if (inst->core->res->hfi_version == HFI_VERSION_LEGACY)
+		inst->cap_height.max = ALIGN(1080, 32);
+	else
+		inst->cap_height.max = ALIGN(2160, 32);
 	inst->cap_height.step_size = 1;
 	inst->cap_framerate.min = 1;
 	inst->cap_framerate.max = 30;
@@ -948,7 +954,6 @@ static int vdec_close(struct file *file)
 	kfree(inst);
 
 	pm_runtime_put_sync(inst->core->dev_dec);
-
 	return 0;
 }
 

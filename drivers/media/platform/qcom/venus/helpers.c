@@ -192,11 +192,9 @@ static int load_scale_clocks(struct venus_core *core)
 	mbs_per_sec = load_per_type(core, VIDC_SESSION_TYPE_ENC) +
 		      load_per_type(core, VIDC_SESSION_TYPE_DEC);
 
-	if (mbs_per_sec > core->res->max_load) {
+	if (mbs_per_sec > core->res->max_load)
 		dev_warn(dev, "HW is overloaded, needed: %d max: %d\n",
 			 mbs_per_sec, core->res->max_load);
-		return -EBUSY;
-	}
 
 	if (!mbs_per_sec && num_rows > 1) {
 		freq = table[num_rows - 1].freq;
@@ -265,9 +263,12 @@ session_process_buf(struct venus_inst *inst, struct vb2_v4l2_buffer *vbuf)
 	memset(&fdata, 0, sizeof(fdata));
 	fdata.alloc_len = buf->size;
 	fdata.device_addr = buf->dma_addr;
-	fdata.timestamp = vb->timestamp;
+	fdata.timestamp = vb->timestamp / NSEC_PER_USEC;
 	fdata.flags = 0;
 	fdata.clnt_data = vbuf->vb2_buf.index;
+
+	if (!fdata.timestamp)
+		fdata.flags |= HFI_BUFFERFLAG_TIMESTAMPINVALID;
 
 	if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE) {
 		fdata.buffer_type = HFI_BUFFER_INPUT;
@@ -289,10 +290,8 @@ session_process_buf(struct venus_inst *inst, struct vb2_v4l2_buffer *vbuf)
 	}
 
 	ret = hfi_session_process_buf(inst, &fdata);
-	if (ret) {
-		dev_err(dev, "process buffer failed (%d)\n", ret);
+	if (ret)
 		return ret;
-	}
 
 	return 0;
 }
@@ -466,6 +465,35 @@ helper_find_buf(struct venus_inst *inst, unsigned int type, u32 idx)
 		return v4l2_m2m_dst_buf_remove_by_idx(m2m_ctx, idx);
 }
 EXPORT_SYMBOL(helper_find_buf);
+
+static int vb2_buf_init_register_buf(struct venus_inst *inst,
+				     struct venus_buffer *buf)
+{
+	u32 ptype = HFI_PROPERTY_PARAM_BUFFER_COUNT_ACTUAL;
+	struct hfi_buffer_count_actual buf_count;
+	struct hfi_buffer_desc bd;
+	int ret;
+
+	if (inst->core->res->hfi_version != HFI_VERSION_LEGACY)
+		return 0;
+
+	buf_count.type = HFI_BUFFER_OUTPUT;
+	buf_count.count_actual = inst->num_output_bufs + 1;
+
+	ret = hfi_session_set_property(inst, ptype, &buf_count);
+	if (ret)
+		return ret;
+
+	fill_buffer_desc(buf, &bd, false);
+
+	ret = hfi_session_set_buffers(inst, &bd);
+	if (ret)
+		return ret;
+
+	inst->num_output_bufs++;
+
+	return 0;
+}
 
 int helper_vb2_buf_init(struct vb2_buffer *vb)
 {

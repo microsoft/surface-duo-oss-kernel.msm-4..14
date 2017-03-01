@@ -86,26 +86,39 @@ unlock:
 	return ret;
 }
 
-int hfi_core_deinit(struct venus_core *core)
+static int core_deinit_wait_atomic_t(atomic_t *p)
 {
-	struct device *dev = core->dev;
-	int ret = 0;
+	schedule();
+	return 0;
+}
+
+int hfi_core_deinit(struct venus_core *core, bool blocking)
+{
+	int ret = 0, empty;
 
 	mutex_lock(&core->lock);
 
 	if (core->state == CORE_UNINIT)
 		goto unlock;
 
-	if (!list_empty(&core->instances)) {
+	empty = list_empty(&core->instances);
+
+	if (!empty && blocking == false) {
 		ret = -EBUSY;
 		goto unlock;
 	}
 
-	ret = core->ops->core_deinit(core);
-	if (ret)
-		dev_err(dev, "core deinit failed: %d\n", ret);
+	if (!empty) {
+		mutex_unlock(&core->lock);
+		wait_on_atomic_t(&core->insts_count, core_deinit_wait_atomic_t,
+				 TASK_UNINTERRUPTIBLE);
+		mutex_lock(&core->lock);
+	}
 
-	core->state = CORE_UNINIT;
+	ret = core->ops->core_deinit(core);
+
+	if (!ret)
+		core->state = CORE_UNINIT;
 
 unlock:
 	mutex_unlock(&core->lock);
@@ -183,6 +196,7 @@ int hfi_session_create(struct venus_inst *inst, const struct hfi_inst_ops *ops)
 
 	mutex_lock(&core->lock);
 	list_add_tail(&inst->list, &core->instances);
+	atomic_inc(&core->insts_count);
 	mutex_unlock(&core->lock);
 
 	return 0;
@@ -219,6 +233,8 @@ void hfi_session_destroy(struct venus_inst *inst)
 
 	mutex_lock(&core->lock);
 	list_del(&inst->list);
+	atomic_dec(&core->insts_count);
+	wake_up_atomic_t(&core->insts_count);
 	mutex_unlock(&core->lock);
 }
 EXPORT_SYMBOL(hfi_session_destroy);
@@ -388,6 +404,7 @@ int hfi_session_flush(struct venus_inst *inst)
 
 	return 0;
 }
+EXPORT_SYMBOL(hfi_session_flush);
 
 int hfi_session_set_buffers(struct venus_inst *inst, struct hfi_buffer_desc *bd)
 {
@@ -487,20 +504,17 @@ int hfi_create(struct venus_core *core, const struct hfi_core_ops *ops)
 	if (!ops)
 		return -EINVAL;
 
-	mutex_lock(&core->lock);
+	atomic_set(&core->insts_count, 0);
 	core->core_ops = ops;
 	core->state = CORE_UNINIT;
 	init_completion(&core->done);
 	pkt_set_version(core->res->hfi_version);
 	ret = venus_hfi_create(core);
-	mutex_unlock(&core->lock);
 
 	return ret;
 }
 
 void hfi_destroy(struct venus_core *core)
 {
-	mutex_lock(&core->lock);
 	venus_hfi_destroy(core);
-	mutex_unlock(&core->lock);
 }
