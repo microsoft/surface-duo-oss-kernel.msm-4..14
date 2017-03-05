@@ -8,8 +8,8 @@
  *
  */
 
-#ifndef _NXP_PHY_H
-#define _NXP_PHY_H
+#ifndef _NXP_PHY_TJA1105_H
+#define _NXP_PHY_TJA1105_H
 
  /* PHY IDs */
 #define NXP_PHY_ID_TJA1100        (0x0180DC40U)
@@ -19,8 +19,6 @@
 
 /* masks out the revision number */
 #define NXP_PHY_ID_MASK           (0xFFFFFFF0U)
-
-#endif /* _NXP_PHY_H */
 
 /* NXP specific registers */
 
@@ -235,24 +233,4 @@ struct nxp_specific_data {
 	int poll_setup;
 };
 
-/* Helper Function prototypes */
-static int set_master_cfg(struct phy_device *phydev, int setMaster);
-static int get_master_cfg(struct phy_device *phydev);
-static struct phy_device *search_phy_by_id(int phy_id);
-static struct phy_device *search_phy_by_addr(int phy_id);
-static int wait_on_condition(struct phy_device *phydev, int reg_addr,
-			     int reg_mask, int cond, int timeout);
-static void set_link_control(struct phy_device *phydev,
-			     int enable_link_control);
-static inline int phy_configure_bit(struct phy_device *phydev,
-				    int reg_name, int bit_mask,
-				    int bit_value);
-static inline int phy_configure_bits(struct phy_device *phydev,
-				     int reg_name, int bit_mask,
-				     int bit_value);
-static int nxp_resume(struct phy_device *phydev);
-static int nxp_ack_interrupt(struct phy_device *phydev);
-static void poll(struct work_struct *work);
-
-static struct attribute *nxp_sysfs_entries[];
-static struct attribute_group nxp_attribute_group;
+#endif /* _NXP_PHY_TJA1105_H */

@@ -26,6 +26,28 @@ static int managed_mode;
 module_param(managed_mode, int, 0000);
 MODULE_PARM_DESC(managed_mode, "Use PHY in managed or autonomous mode");
 
+/* Function prototypes */
+static int set_master_cfg(struct phy_device *phydev, int setMaster);
+static int get_master_cfg(struct phy_device *phydev);
+static struct phy_device *search_phy_by_id(int phy_id);
+static struct phy_device *search_phy_by_addr(int phy_id);
+static int wait_on_condition(struct phy_device *phydev, int reg_addr,
+			     int reg_mask, int cond, int timeout);
+static void set_link_control(struct phy_device *phydev,
+			     int enable_link_control);
+static inline int phy_configure_bit(struct phy_device *phydev,
+				    int reg_name, int bit_mask,
+				    int bit_value);
+static inline int phy_configure_bits(struct phy_device *phydev,
+				     int reg_name, int bit_mask,
+				     int bit_value);
+static int nxp_resume(struct phy_device *phydev);
+static int nxp_ack_interrupt(struct phy_device *phydev);
+static void poll(struct work_struct *work);
+
+static struct attribute *nxp_sysfs_entries[];
+static struct attribute_group nxp_attribute_group;
+
 /* Called to initialize the PHY,
  * including after a reset
  */
