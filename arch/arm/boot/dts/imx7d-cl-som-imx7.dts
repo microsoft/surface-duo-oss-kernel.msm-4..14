@@ -327,6 +327,12 @@
 	status = "okay";
 };
 
+&wdog1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_wdog>;
+	fsl,ext-reset-output;
+};
+
 &iomuxc {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_hog>;
@@ -440,6 +446,12 @@
 	pinctrl_usbotg1: usbotg1grp {
 		fsl,pins = <
 			MX7D_PAD_GPIO1_IO05__GPIO1_IO5			0x14 /* OTG PWREN */
+		>;
+	};
+
+	pinctrl_wdog: wdoggrp {
+		fsl,pins = <
+			MX7D_PAD_GPIO1_IO00__WDOD1_WDOG_B		0x74
 		>;
 	};
 };
