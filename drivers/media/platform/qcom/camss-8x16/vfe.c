@@ -594,11 +594,11 @@ static void vfe_enable_irq_pix_line(struct vfe_device *vfe, u8 comp,
 
 	if (enable) {
 		vfe_reg_set(vfe, VFE_0_IRQ_MASK_0, irq_en0);
-		vfe_reg_set(vfe, VFE_0_IRQ_MASK_1, irq_en0);
+		vfe_reg_set(vfe, VFE_0_IRQ_MASK_1, irq_en1);
 		vfe_reg_set(vfe, VFE_0_IRQ_COMPOSITE_MASK_0, comp_mask);
 	} else {
 		vfe_reg_clr(vfe, VFE_0_IRQ_MASK_0, irq_en0);
-		vfe_reg_clr(vfe, VFE_0_IRQ_MASK_1, irq_en0);
+		vfe_reg_clr(vfe, VFE_0_IRQ_MASK_1, irq_en1);
 		vfe_reg_clr(vfe, VFE_0_IRQ_COMPOSITE_MASK_0, comp_mask);
 	}
 }
