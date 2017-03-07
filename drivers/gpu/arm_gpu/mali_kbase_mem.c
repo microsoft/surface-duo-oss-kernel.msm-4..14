@@ -2303,17 +2303,10 @@ static int kbase_jd_umm_map(struct kbase_context *kctx,
 	/* Update nents as we now have pages to map */
 	alloc->nents = count;
 
-	if (reg->gpu_alloc->header_page_number)
-		err = kbase_mmu_insert_pages_with_scramble_bit(kctx, reg->start_pfn,
-				kbase_get_gpu_phy_pages(reg),
-				kbase_reg_current_backed_size(reg),
-				reg->flags | KBASE_REG_GPU_WR | KBASE_REG_GPU_RD,
-				reg->gpu_alloc->header_page_number);
-	else
-		err = kbase_mmu_insert_pages(kctx, reg->start_pfn,
-				kbase_get_gpu_phy_pages(reg),
-				kbase_reg_current_backed_size(reg),
-				reg->flags | KBASE_REG_GPU_WR | KBASE_REG_GPU_RD);
+	err = kbase_mmu_insert_pages(kctx, reg->start_pfn,
+			kbase_get_gpu_phy_pages(reg),
+			kbase_reg_current_backed_size(reg),
+			reg->flags | KBASE_REG_GPU_WR | KBASE_REG_GPU_RD);
 
 out:
 	if (err) {

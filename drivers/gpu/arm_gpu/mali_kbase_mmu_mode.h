@@ -37,7 +37,6 @@ struct kbase_mmu_mode {
 	int (*ate_is_valid)(u64 ate);
 	int (*pte_is_valid)(u64 pte);
 	void (*entry_set_ate)(u64 *entry, phys_addr_t phy, unsigned long flags);
-	void (*entry_set_ate_scramble_bit)(u64 *entry, phys_addr_t phy, unsigned long flags);
 	void (*entry_set_pte)(u64 *entry, phys_addr_t phy);
 	void (*entry_invalidate)(u64 *entry);
 };

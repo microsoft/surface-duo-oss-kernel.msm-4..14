@@ -111,7 +111,6 @@ struct kbase_uk_mem_import {
 	/* OUT */
 	u64 gpu_va;
 	u64         va_pages;
-	u64         header_page_number;
 };
 
 struct kbase_uk_mem_flags_change {
@@ -454,21 +453,6 @@ struct kbase_uk_soft_event_update {
 	u32 flags;
 };
 
-#define MAX_TASK_INFO 8
-
-struct task_info {
-       u32 pid;
-       s32 sched_priority;
-       s32 sched_policy;
-};
-
-struct kbase_uk_render_prio_values {
-       union uk_header header;
-
-       u32    size;
-       struct task_info task[MAX_TASK_INFO];
-};
-
 /**
  * struct kbase_uk_mem_jit_init - User/Kernel space data exchange structure
  * @header:     UK structure header
@@ -550,8 +534,6 @@ enum kbase_uk_function_id {
 	KBASE_FUNC_MEM_JIT_INIT = (UK_FUNC_ID + 39),
 
 	KBASE_FUNC_TLSTREAM_ACQUIRE = (UK_FUNC_ID + 40),
-
-	KBASE_FUNC_SET_RENDER_THREAD_PRIO = (UK_FUNC_ID + 41),
 
 	KBASE_FUNC_MAX
 };

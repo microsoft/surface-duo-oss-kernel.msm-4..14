@@ -34,7 +34,6 @@
 #define ENTRY_SHARE_BITS (3ULL << 8)	/* bits 9:8 */
 #define ENTRY_ACCESS_BIT (1ULL << 10)
 #define ENTRY_NX_BIT (1ULL << 54)
-#define ENTRY_SCRAMBLE_BIT (1ULL<<39)
 
 #define ENTRY_FLAGS_MASK (ENTRY_ATTR_BITS | ENTRY_RD_BIT | ENTRY_WR_BIT | \
 		ENTRY_SHARE_BITS | ENTRY_ACCESS_BIT | ENTRY_NX_BIT)
@@ -181,13 +180,6 @@ static void entry_set_ate(u64 *entry, phys_addr_t phy, unsigned long flags)
 		ENTRY_IS_ATE);
 }
 
-static void entry_set_ate_scramble_bit(u64 *entry, phys_addr_t phy, unsigned long flags)
-{
-	page_table_entry_set(entry, (phy & ~0xFFF) |
-		get_mmu_flags(flags) |
-		ENTRY_IS_ATE | ENTRY_SCRAMBLE_BIT);
-}
-
 static void entry_set_pte(u64 *entry, phys_addr_t phy)
 {
 	page_table_entry_set(entry, (phy & ~0xFFF) | ENTRY_IS_PTE);
@@ -206,7 +198,6 @@ static struct kbase_mmu_mode const lpae_mode = {
 	.ate_is_valid = ate_is_valid,
 	.pte_is_valid = pte_is_valid,
 	.entry_set_ate = entry_set_ate,
-	.entry_set_ate_scramble_bit = entry_set_ate_scramble_bit,
 	.entry_set_pte = entry_set_pte,
 	.entry_invalidate = entry_invalidate
 };

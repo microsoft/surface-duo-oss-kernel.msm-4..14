@@ -161,7 +161,6 @@ struct kbase_mem_phy_alloc {
 			dma_addr_t *dma_addrs;
 		} user_buf;
 	} imported;
-	u64 header_page_number;
 };
 
 static inline void kbase_mem_phy_alloc_gpu_mapped(struct kbase_mem_phy_alloc *alloc)
@@ -377,7 +376,6 @@ static inline struct kbase_mem_phy_alloc *kbase_alloc_create(size_t nr_pages, en
 		alloc->imported.user_buf.dma_addrs =
 				(void *) (alloc->pages + nr_pages);
 
-	alloc->header_page_number = 0;
 	return alloc;
 }
 
@@ -653,15 +651,9 @@ void kbase_mmu_free_pgd(struct kbase_context *kctx);
 int kbase_mmu_insert_pages_no_flush(struct kbase_context *kctx, u64 vpfn,
 				  phys_addr_t *phys, size_t nr,
 				  unsigned long flags);
-int kbase_mmu_insert_pages_with_scramble_bit_no_flush(struct kbase_context *kctx, u64 vpfn,
-				  phys_addr_t *phys, size_t nr,
-				  unsigned long flags, u64 header_page_number);
 int kbase_mmu_insert_pages(struct kbase_context *kctx, u64 vpfn,
 				  phys_addr_t *phys, size_t nr,
 				  unsigned long flags);
-int kbase_mmu_insert_pages_with_scramble_bit(struct kbase_context *kctx, u64 vpfn,
-				  phys_addr_t *phys, size_t nr,
-				  unsigned long flags, u64 header_page_number);
 int kbase_mmu_insert_single_page(struct kbase_context *kctx, u64 vpfn,
 					phys_addr_t phys, size_t nr,
 					unsigned long flags);

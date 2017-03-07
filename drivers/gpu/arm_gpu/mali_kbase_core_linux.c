@@ -409,7 +409,7 @@ static int kbase_dispatch(struct kbase_context *kctx, void * const args, u32 arg
 					phandle,
 					&mem_import->gpu_va,
 					&mem_import->va_pages,
-					&mem_import->flags, mem_import->header_page_number)) {
+					&mem_import->flags)) {
 				mem_import->type = BASE_MEM_IMPORT_TYPE_INVALID;
 				ukh->ret = MALI_ERROR_FUNCTION_FAILED;
 			}
@@ -1019,58 +1019,6 @@ copy_failed:
 
 			break;
 		}
-
-	case KBASE_FUNC_SET_RENDER_THREAD_PRIO:
-	{
-		struct kbase_uk_render_prio_values *info = args;
-		struct task_struct *p_task;
-		struct sched_param param_task;
-		struct cpumask cpu_mask;
-
-		int cpu_no;
-		int retval;
-		u32  size =  info->size;
-		u32 i ;
-
-		if ( size >= MAX_TASK_INFO) {
-			goto out_bad;
-		}
-
-		for (i = 0; i < size; i++) {
-			param_task.sched_priority = info->task[i].sched_priority;
-
-			if ( (param_task.sched_priority >=  0) &&  (param_task.sched_priority <= 90) ) {
-				rcu_read_lock();
-				p_task = find_task_by_vpid(info->task[i].pid);
-
-				if (p_task != NULL)
-				{
-					if (info->task[i].sched_policy == SCHED_RR) {
-						retval = sched_setscheduler_nocheck(p_task, info->task[i].sched_policy, &param_task);
-						pr_err("Mali sched_setscheduler policy %d, pid : %d\n", retval, info->task[i].pid);
-					}
-				} else {
-					pr_err("Mali sched_setscheduler not find task  pid : %d\n", info->task[i].pid);
-				}
-				rcu_read_unlock();
-			}
-		}
-
-		cpumask_clear(&cpu_mask);
-
-		for (cpu_no = 4; cpu_no < 8; cpu_no++)
-		{
-			cpumask_set_cpu(cpu_no, &cpu_mask);
-		}
-
-		for (i = 0; i < size; i++) {
-			if(sched_setaffinity(info->task[i].pid, &cpu_mask) < 0)
-			{
-				pr_err("Mali sched_setaffinity  err\n");
-			}
-		}
-		break;
-	}
 
 	default:
 		dev_err(kbdev->dev, "unknown ioctl %u\n", id);
@@ -3186,12 +3134,6 @@ static int kbasep_protected_mode_enter(struct kbase_device *kbdev)
 {
 	kbase_reg_write(kbdev, GPU_CONTROL_REG(GPU_COMMAND),
 		GPU_COMMAND_SET_PROTECTED_MODE, NULL);
-
-#ifdef CONFIG_MALI_GPU_DRM
-	/* Set the G3d reg to configure the gpu's security */
-	configure_master_security(1, MASTER_G3D_ID);
-#endif
-
 	return 0;
 }
 

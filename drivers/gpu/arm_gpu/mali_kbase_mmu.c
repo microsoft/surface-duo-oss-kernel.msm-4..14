@@ -81,7 +81,9 @@ static void kbase_mmu_sync_pgd(struct kbase_device *kbdev,
 	/* Because of the protected mode, we have to sync gpu page table
 	 * no matter what the coherency mode.
 	 */
-	dma_sync_single_for_device(kbdev->dev, handle, size, DMA_TO_DEVICE);
+	if (kbdev->system_coherency != COHERENCY_ACE)
+		dma_sync_single_for_device(kbdev->dev, handle, size,
+				DMA_TO_DEVICE);
 }
 
 /*
@@ -842,145 +844,6 @@ int kbase_mmu_insert_pages(struct kbase_context *kctx, u64 vpfn,
 }
 
 KBASE_EXPORT_TEST_API(kbase_mmu_insert_pages);
-
-int kbase_mmu_insert_pages_with_scramble_bit_no_flush(struct kbase_context *kctx, u64 vpfn,
-				  phys_addr_t *phys, size_t nr,
-				  unsigned long flags, u64 header_page_number)
-{
-	phys_addr_t pgd;
-	u64 *pgd_page;
-	/* In case the insert_pages only partially completes we need to be able
-	 * to recover */
-	bool recover_required = false;
-	u64 recover_vpfn = vpfn;
-	size_t recover_count = 0;
-	size_t remain = nr;
-	int err;
-	u64 header_flags = 0;
-
-	KBASE_DEBUG_ASSERT(NULL != kctx);
-	KBASE_DEBUG_ASSERT(0 != vpfn);
-	/* 64-bit address range is the max */
-	KBASE_DEBUG_ASSERT(vpfn <= (U64_MAX / PAGE_SIZE));
-
-	/* Early out if there is nothing to do */
-	if (nr == 0)
-		return 0;
-
-	mutex_lock(&kctx->mmu_lock);
-
-	while (remain) {
-		unsigned int i;
-		unsigned int index = vpfn & 0x1FF;
-		unsigned int count = KBASE_MMU_PAGE_ENTRIES - index;
-		struct page *p;
-
-		if (count > remain)
-			count = remain;
-
-		/*
-		 * Repeatedly calling mmu_get_bottom_pte() is clearly
-		 * suboptimal. We don't have to re-parse the whole tree
-		 * each time (just cache the l0-l2 sequence).
-		 * On the other hand, it's only a gain when we map more than
-		 * 256 pages at once (on average). Do we really care?
-		 */
-		do {
-			err = mmu_get_bottom_pgd(kctx, vpfn, &pgd);
-			if (err != -ENOMEM)
-				break;
-			/* Fill the memory pool with enough pages for
-			 * the page walk to succeed
-			 */
-			mutex_unlock(&kctx->mmu_lock);
-			err = kbase_mem_pool_grow(&kctx->mem_pool,
-					MIDGARD_MMU_BOTTOMLEVEL);
-			mutex_lock(&kctx->mmu_lock);
-		} while (!err);
-		if (err) {
-			dev_warn(kctx->kbdev->dev, "kbase_mmu_insert_pages: mmu_get_bottom_pgd failure\n");
-			if (recover_required) {
-				/* Invalidate the pages we have partially
-				 * completed */
-				mmu_insert_pages_failure_recovery(kctx,
-								  recover_vpfn,
-								  recover_count);
-			}
-			goto fail_unlock;
-		}
-
-		p = pfn_to_page(PFN_DOWN(pgd));
-		pgd_page = kmap(p);
-		if (!pgd_page) {
-			dev_warn(kctx->kbdev->dev, "kbase_mmu_insert_pages: kmap failure\n");
-			if (recover_required) {
-				/* Invalidate the pages we have partially
-				 * completed */
-				mmu_insert_pages_failure_recovery(kctx,
-								  recover_vpfn,
-								  recover_count);
-			}
-			err = -ENOMEM;
-			goto fail_unlock;
-		}
-
-		for (i = 0; i < count; i++) {
-			unsigned int ofs = index + i;
-
-			KBASE_DEBUG_ASSERT(0 == (pgd_page[ofs] & 1UL));
-			if (header_flags < header_page_number)
-			{
-				kctx->kbdev->mmu_mode->entry_set_ate(&pgd_page[ofs],
-					phys[i], flags);
-				header_flags++;
-			}
-			else
-			{
-				kctx->kbdev->mmu_mode->entry_set_ate_scramble_bit(&pgd_page[ofs],
-							phys[i], flags);
-			}
-		}
-
-		phys += count;
-		vpfn += count;
-		remain -= count;
-
-		kbase_mmu_sync_pgd(kctx->kbdev,
-				kbase_dma_addr(p) + (index * sizeof(u64)),
-				count * sizeof(u64));
-
-		kunmap(p);
-		/* We have started modifying the page table. If further pages
-		 * need inserting and fail we need to undo what has already
-		 * taken place */
-		recover_required = true;
-		recover_count += count;
-	}
-
-	mutex_unlock(&kctx->mmu_lock);
-	return 0;
-
-fail_unlock:
-	mutex_unlock(&kctx->mmu_lock);
-	return err;
-}
-
-/*
- * Map 'nr' pages pointed to by 'phys' at GPU PFN 'vpfn'
- */
-int kbase_mmu_insert_pages_with_scramble_bit(struct kbase_context *kctx, u64 vpfn,
-				  phys_addr_t *phys, size_t nr,
-				  unsigned long flags, u64 header_page_number)
-{
-	int err;
-
-	err = kbase_mmu_insert_pages_with_scramble_bit_no_flush(kctx, vpfn, phys, nr, flags, header_page_number);
-	kbase_mmu_flush_invalidate(kctx, vpfn, nr, false);
-	return err;
-}
-
-KBASE_EXPORT_TEST_API(kbase_mmu_insert_pages_with_scramble_bit);
-
 
 /**
  * kbase_mmu_flush_invalidate_noretain() - Flush and invalidate the GPU caches

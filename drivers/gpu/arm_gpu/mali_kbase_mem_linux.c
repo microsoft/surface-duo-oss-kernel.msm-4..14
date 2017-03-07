@@ -965,7 +965,7 @@ bad_flags:
 #endif				/* CONFIG_UMP */
 
 #ifdef CONFIG_DMA_SHARED_BUFFER
-static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, int fd, u64 *va_pages, u64 *flags, u64 header_page_number)
+static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, int fd, u64 *va_pages, u64 *flags)
 {
 	struct kbase_va_region *reg;
 	struct dma_buf *dma_buf;
@@ -1040,7 +1040,6 @@ static struct kbase_va_region *kbase_mem_from_umm(struct kbase_context *kctx, in
 	reg->gpu_alloc->imported.umm.dma_attachment = dma_attachment;
 	reg->gpu_alloc->imported.umm.current_mapping_usage_count = 0;
 	reg->extent = 0;
-	reg->gpu_alloc->header_page_number = header_page_number;
 
 	return reg;
 
@@ -1390,7 +1389,7 @@ bad_flags:
 
 int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
 		void __user *phandle, u64 *gpu_va, u64 *va_pages,
-		u64 *flags, u64 header_page_number)
+		u64 *flags)
 {
 	struct kbase_va_region *reg;
 
@@ -1430,7 +1429,7 @@ int kbase_mem_import(struct kbase_context *kctx, enum base_mem_import_type type,
 		if (get_user(fd, (int __user *)phandle))
 			reg = NULL;
 		else
-		reg = kbase_mem_from_umm(kctx, fd, va_pages, flags, header_page_number);
+			reg = kbase_mem_from_umm(kctx, fd, va_pages, flags);
 	}
 	break;
 #endif /* CONFIG_DMA_SHARED_BUFFER */
