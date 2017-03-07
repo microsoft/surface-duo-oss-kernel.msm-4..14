@@ -1,20 +1,31 @@
 /**
- * Copyright (c) 2014 Redpine Signals Inc.
+ * Copyright (c) 2017 Redpine Signals Inc. All rights reserved.
  *
- * Developers
- *	Prameela Rani Garnepudi 2016 <prameela.garnepudi@redpinesignals.com>
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * Permission to use, copy, modify, and/or distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * 	1. Redistributions of source code must retain the above copyright
+ * 	   notice, this list of conditions and the following disclaimer.
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * 	2. Redistributions in binary form must reproduce the above copyright
+ * 	   notice, this list of conditions and the following disclaimer in the
+ * 	   documentation and/or other materials provided with the distribution.
+ *
+ * 	3. Neither the name of the copyright holder nor the names of its
+ * 	   contributors may be used to endorse or promote products derived from
+ * 	   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION). HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include <linux/firmware.h>
@@ -25,7 +36,7 @@
 #include "rsi_hal.h"
 #include "rsi_sdio.h"
 #include "rsi_common.h"
-#if defined(CONFIG_VEN_RSI_COEX) || defined(CONFIG_VEN_RSI_HCI)
+#if defined(CONFIG_VEN_RSI_COEX) || defined(CONFIG_VEN_RSI_BT_ALONE)
 #include "rsi_hci.h"
 #endif
 #ifdef CONFIG_VEN_RSI_COEX
@@ -53,20 +64,17 @@ struct ta_metadata metadata_flash_content[] = {
 int rsi_send_pkt(struct rsi_common *common, struct sk_buff *skb)
 {
 	struct rsi_hw *adapter = common->priv;
-#ifdef CONFIG_VEN_RSI_COEX
-	struct rsi_coex_ctrl_block *coex_cb =
-		(struct rsi_coex_ctrl_block *)common->coex_cb;
-#endif
 	int status = -EINVAL;
 
-#ifdef CONFIG_VEN_RSI_COEX
-	down(&coex_cb->tx_bus_lock);
-#endif
+//#ifdef CONFIG_VEN_RSI_COEX
+	//down(&coex_cb->tx_bus_lock);
+	down(&common->tx_bus_lock);
+//#endif
 	status = adapter->host_intf_ops->write_pkt(common->priv,
 						   skb->data, skb->len);
-#ifdef CONFIG_VEN_RSI_COEX
-	up(&coex_cb->tx_bus_lock);
-#endif
+//#ifdef CONFIG_VEN_RSI_COEX
+	up(&common->tx_bus_lock);
+//#endif
 	return status;
 }
 
@@ -82,7 +90,7 @@ int rsi_send_pkt(struct rsi_common *common, struct sk_buff *skb)
 int rsi_prepare_data_desc(struct rsi_common *common, struct sk_buff *skb)
 {
 	struct rsi_hw *adapter = common->priv;
-	struct ieee80211_vif *vif = adapter->vifs[0];
+	struct ieee80211_vif *vif = NULL;
 	struct ieee80211_hdr *wh = NULL;
 	struct ieee80211_tx_info *info;
 	struct skb_info *tx_params;
@@ -93,6 +101,7 @@ int rsi_prepare_data_desc(struct rsi_common *common, struct sk_buff *skb)
 	__le16 *frame_desc;
 	struct xtended_desc *xtend_desc;
 	u16 seq_num = 0;
+	u8 vap_id = 0;
 
 	info = IEEE80211_SKB_CB(skb);
 	tx_params = (struct skb_info *)info->driver_data;
@@ -120,6 +129,8 @@ int rsi_prepare_data_desc(struct rsi_common *common, struct sk_buff *skb)
 
 	wh = (struct ieee80211_hdr *)&skb->data[header_size];
 	seq_num = le16_to_cpu(IEEE80211_SEQ_TO_SN(wh->seq_ctrl));
+	vif = rsi_get_vif(adapter, wh->addr2);
+	vap_id = ((struct vif_priv *)vif->drv_priv)->vap_id;
 
 	frame_desc[2] = cpu_to_le16(header_size - FRAME_DESC_SZ);
 	if (ieee80211_is_data_qos(wh->frame_control)) {
@@ -163,14 +174,20 @@ int rsi_prepare_data_desc(struct rsi_common *common, struct sk_buff *skb)
 		
 		frame_desc[3] = cpu_to_le16(RATE_INFO_ENABLE);
 		if (common->band == NL80211_BAND_5GHZ)
-				frame_desc[4] = cpu_to_le16(RSI_RATE_6);
-			else
-				frame_desc[4] = cpu_to_le16(RSI_RATE_1);
+			frame_desc[4] = cpu_to_le16(RSI_RATE_6);
+		else
+			frame_desc[4] = cpu_to_le16(RSI_RATE_1);
 		frame_desc[6] |= cpu_to_le16(BIT(13));
 		frame_desc[1] |= cpu_to_le16(BIT(12));
 		if (vif->type == NL80211_IFTYPE_STATION) {
+		if (common->eapol4_confirm) {
+			/* Eapol Rekeying , Change the priority to Voice _Q
+			 * XXX: Check for AP*/ 
+			skb->priority = VO_Q;
+		} else {
 			frame_desc[0] = cpu_to_le16((skb->len - FRAME_DESC_SZ) |
-					(RSI_WIFI_MGMT_Q << 12));
+						    (RSI_WIFI_MGMT_Q << 12));
+		}
 			if ((skb->len - header_size) == 133) {
 				ven_rsi_dbg(INFO_ZONE, "*** Tx EAPOL 4*****\n");
 				frame_desc[1] |=
@@ -180,9 +197,6 @@ int rsi_prepare_data_desc(struct rsi_common *common, struct sk_buff *skb)
 		}
 #define EAPOL_RETRY_CNT 15
 		xtend_desc->retry_cnt = EAPOL_RETRY_CNT;
-#if 0 
-		skb->priority = VO_Q;
-#endif
 	}
 
 	frame_desc[6] |= cpu_to_le16(seq_num);
@@ -194,15 +208,20 @@ int rsi_prepare_data_desc(struct rsi_common *common, struct sk_buff *skb)
 	    (is_multicast_ether_addr(wh->addr1))) {
 		frame_desc[3] = cpu_to_le16(RATE_INFO_ENABLE);
 		frame_desc[3] |= cpu_to_le16(RSI_BROADCAST_PKT);
-		if (vif->type == NL80211_IFTYPE_AP) {
+		if ((vif->type == NL80211_IFTYPE_AP) ||
+		    (vif->type == NL80211_IFTYPE_P2P_GO)) {
 			if (common->band == NL80211_BAND_5GHZ)
 				frame_desc[4] = cpu_to_le16(RSI_RATE_6);
 			else
 				frame_desc[4] = cpu_to_le16(RSI_RATE_1);
 		}
+		frame_desc[7] = cpu_to_le16(((tx_params->tid & 0xf) << 4) |
+					    (skb->priority & 0xf) |
+					    (vap_id << 8));
 	}
 
-	if ((vif->type == NL80211_IFTYPE_AP) &&
+	if (((vif->type == NL80211_IFTYPE_AP) ||
+	     (vif->type == NL80211_IFTYPE_P2P_GO)) &&
 	    (ieee80211_has_moredata(wh->frame_control)))
 		frame_desc[3] |= cpu_to_le16(MORE_DATA_PRESENT);
 
@@ -229,7 +248,7 @@ int rsi_prepare_mgmt_desc(struct rsi_common *common,struct sk_buff *skb)
 	struct ieee80211_hdr *wh = NULL;
 	struct ieee80211_tx_info *info;
 	struct ieee80211_conf *conf = &adapter->hw->conf;
-	struct ieee80211_vif *vif = adapter->vifs[0];
+	struct ieee80211_vif *vif = NULL;
 	struct skb_info *tx_params;
 	int status = -EINVAL;
 	__le16 *desc = NULL;
@@ -265,6 +284,8 @@ int rsi_prepare_mgmt_desc(struct rsi_common *common,struct sk_buff *skb)
 	memset(&skb->data[0], 0, header_size);
 
 	wh = (struct ieee80211_hdr *)&skb->data[header_size];
+	vif = rsi_get_vif(adapter, wh->addr2);
+	vap_id = ((struct vif_priv *)vif->drv_priv)->vap_id;
 
 	desc = (__le16 *)skb->data;
 	xtend_desc = (struct xtended_desc *)&skb->data[FRAME_DESC_SZ];
@@ -279,15 +300,23 @@ int rsi_prepare_mgmt_desc(struct rsi_common *common,struct sk_buff *skb)
 	desc[1] = cpu_to_le16(TX_DOT11_MGMT);
 	desc[2] = cpu_to_le16(MIN_802_11_HDR_LEN << 8);
 	desc[2] |= cpu_to_le16(header_size - FRAME_DESC_SZ);
-	desc[3] = cpu_to_le16(RATE_INFO_ENABLE);
+#ifdef CONFIG_HW_SCAN_OFFLOAD
+	if (ieee80211_is_probe_req(wh->frame_control) && 
+		(common->scan_in_prog))
+	desc[3] = cpu_to_le16(INSERT_SEQ_IN_FW);
+#endif
+	desc[3] |= cpu_to_le16(RATE_INFO_ENABLE);
 	if (wh->addr1[0] & BIT(0))
 		desc[3] |= cpu_to_le16(RSI_BROADCAST_PKT);
 	desc[6] = cpu_to_le16(IEEE80211_SEQ_TO_SN(wh->seq_ctrl));
 
 	if (common->band == NL80211_BAND_2GHZ)
-		desc[4] = cpu_to_le16(RSI_11B_MODE);
+		if (!common->p2p_enabled)
+			desc[4] = cpu_to_le16(RSI_RATE_1);
+		else
+			desc[4] = cpu_to_le16(RSI_RATE_6);
 	else
-		desc[4] = cpu_to_le16((RSI_RATE_6 & 0x0f) | RSI_11G_MODE);
+		desc[4] = cpu_to_le16(RSI_RATE_6);
 
 	if (conf_is_ht40(conf)) {
 		desc[5] = cpu_to_le16(FULL40M_ENABLE);
@@ -300,9 +329,11 @@ int rsi_prepare_mgmt_desc(struct rsi_common *common,struct sk_buff *skb)
 		xtend_desc->retry_cnt = PROBE_RESP_RETRY_CNT;
 	}
 
-	if ((vif->type == NL80211_IFTYPE_AP) &&
+	if (((vif->type == NL80211_IFTYPE_AP) ||
+	     (vif->type == NL80211_IFTYPE_P2P_GO)) &&
 	    (ieee80211_is_action(wh->frame_control))) {
 		struct rsi_sta *sta = rsi_find_sta(common, wh->addr1);
+
 		if (sta)
 			desc[7] |= cpu_to_le16(sta->sta_id << 8);
 		else
@@ -328,7 +359,7 @@ err:
 int rsi_send_data_pkt(struct rsi_common *common, struct sk_buff *skb)
 {
 	struct rsi_hw *adapter = common->priv;
-	struct ieee80211_vif *vif = adapter->vifs[0];
+	struct ieee80211_vif *vif = NULL;
 	struct ieee80211_hdr *wh = NULL;
 	struct ieee80211_tx_info *info;
 	struct skb_info *tx_params;
@@ -336,6 +367,10 @@ int rsi_send_data_pkt(struct rsi_common *common, struct sk_buff *skb)
 	int status = -EINVAL;
 	u8 header_size = 0;
 
+	if (!skb)
+		return 0;
+	if (common->iface_down)
+		goto err;
 	info = IEEE80211_SKB_CB(skb);
 	if (!info->control.vif)
 		goto err;
@@ -344,6 +379,7 @@ int rsi_send_data_pkt(struct rsi_common *common, struct sk_buff *skb)
 
 	header_size = tx_params->internal_hdr_size;
 	wh = (struct ieee80211_hdr *)&skb->data[header_size];
+	vif = rsi_get_vif(adapter, wh->addr2);
 
 	if (vif->type == NL80211_IFTYPE_STATION) {
 		if (!bss->assoc)
@@ -386,6 +422,9 @@ int rsi_send_mgmt_pkt(struct rsi_common *common, struct sk_buff *skb)
 	__le16 *desc = NULL;
 	struct xtended_desc *xtend_desc = NULL;
 
+	if (!skb)
+		return 0;
+
 	info = IEEE80211_SKB_CB(skb);
 	tx_params = (struct skb_info *)info->driver_data;
 	header_size = tx_params->internal_hdr_size;
@@ -406,6 +445,8 @@ int rsi_send_mgmt_pkt(struct rsi_common *common, struct sk_buff *skb)
 		return status;
 	}
 
+	if (common->iface_down)
+		goto out;
 	if (!info->control.vif)
 		goto out;
 	bss = &info->control.vif->bss_conf;
@@ -489,35 +530,31 @@ err:
 	return status;
 }
 
-int rsi_send_beacon(struct rsi_common *common)
+int rsi_prepare_beacon(struct rsi_common *common, struct sk_buff *skb)
 {
+	struct rsi_hw *adapter = (struct rsi_hw *)common->priv;
 	struct rsi_mac_frame *bcn_frm = NULL;
-	u16 bcn_len = common->beacon_frame_len;
-	struct sk_buff *skb = NULL;
 	struct ieee80211_hw *hw = common->priv->hw;
 	struct ieee80211_conf *conf = &hw->conf;
+	struct sk_buff *mac_bcn = NULL;
 	u8 vap_id = 0;
-	u8 dword_align_bytes = 0;
-	u8 header_size = 0;
 	int status = 0;
+	u16 tim_offset = 0;
 
-	skb = dev_alloc_skb(MAX_MGMT_PKT_SIZE);
-	if (!skb)
-		return -ENOMEM;
-
-	dword_align_bytes = ((unsigned long)skb->data & 0x3f);
-	if (dword_align_bytes) {
-		skb_pull(skb, (64 - dword_align_bytes));
+	mac_bcn = ieee80211_beacon_get_tim(adapter->hw,
+					   adapter->vifs[adapter->sc_nvifs - 1],
+					   &tim_offset, NULL);
+	if (!mac_bcn) {
+		ven_rsi_dbg(ERR_ZONE, "Failed to get beacon from mac80211\n");
+		return -EINVAL;
 	}
-	header_size = FRAME_DESC_SZ;
-	memset(skb->data, 0, MAX_MGMT_PKT_SIZE);
 
 	common->beacon_cnt++;
 	bcn_frm = (struct rsi_mac_frame *)skb->data;
-	bcn_frm->desc_word[0] = cpu_to_le16(bcn_len | (RSI_WIFI_DATA_Q << 12));
+	bcn_frm->desc_word[0] = cpu_to_le16(mac_bcn->len |
+					    (RSI_WIFI_DATA_Q << 12));
 	bcn_frm->desc_word[1] = 0; // FIXME: Fill type later
-	bcn_frm->desc_word[2] = cpu_to_le16((MIN_802_11_HDR_LEN << 8) |
-					    dword_align_bytes);
+	bcn_frm->desc_word[2] = cpu_to_le16(MIN_802_11_HDR_LEN << 8);
 	bcn_frm->desc_word[3] = cpu_to_le16(MAC_BBP_INFO | NO_ACK_IND |
 					    BEACON_FRAME | INSERT_TSF |
 					    INSERT_SEQ_NO);
@@ -533,31 +570,25 @@ int rsi_send_beacon(struct rsi_common *common)
 		bcn_frm->desc_word[5] |= cpu_to_le16(UPPER_20_ENABLE >> 12);
 	}
 
-	if (common->band == NL80211_BAND_2GHZ)
-		bcn_frm->desc_word[4] |= cpu_to_le16(RSI_RATE_1);
-	else
+	if (common->band == NL80211_BAND_2GHZ) {
+		if (common->p2p_enabled)
+			bcn_frm->desc_word[4] |= cpu_to_le16(RSI_RATE_6);
+		else
+			bcn_frm->desc_word[4] |= cpu_to_le16(RSI_RATE_1);
+	} else
 		bcn_frm->desc_word[4] |= cpu_to_le16(RSI_RATE_6);
 
-	//if (!(common->beacon_cnt % common->dtim_cnt))
-	if (1) //FIXME check this
+	if (mac_bcn->data[tim_offset + 2] == 0)
 		bcn_frm->desc_word[3] |= cpu_to_le16(DTIM_BEACON);
 
-	//mutex_lock(&common->mutex);
-	memcpy(&skb->data[header_size], common->beacon_frame, bcn_len);
-	//mutex_unlock(&common->mutex);
-
-	skb_put(skb, bcn_len + header_size);
+	memcpy(&skb->data[FRAME_DESC_SZ], mac_bcn->data, mac_bcn->len);
+	skb_put(skb, mac_bcn->len + FRAME_DESC_SZ);
 
 	rsi_hex_dump(MGMT_TX_ZONE, "Beacon Frame", skb->data, skb->len);	
 
-	mutex_lock(&common->tx_lock);
-	if (rsi_send_pkt(common, skb)) {
-		ven_rsi_dbg(ERR_ZONE, "Failed to send Beacon\n");
-		status = -EINVAL;
-	}
-	mutex_unlock(&common->tx_lock);
+	if (mac_bcn)
+		dev_kfree_skb(mac_bcn);
 
-	dev_kfree_skb(skb);
 	return status;
 }
 
@@ -651,7 +682,7 @@ int bl_write_cmd(struct rsi_hw *adapter, u8 cmd, u8 exp_resp, u16 *cmd_resp)
 	}
 
 	ven_rsi_dbg(INFO_ZONE,
-		"Issuing write to Regin regin_val:%0x sending cmd:%0x\n",
+		"Issuing write to Regin val:%0x sending cmd:%0x\n",
 		regin_val, (cmd | regin_input << 8));
 	if ((hif_ops->master_reg_write(adapter,
 				       SWBL_REGIN,
@@ -694,7 +725,6 @@ int bl_write_cmd(struct rsi_hw *adapter, u8 cmd, u8 exp_resp, u16 *cmd_resp)
 
 	output = ((u8 *)&regout_val)[0] & 0xff;
 
-	ven_rsi_dbg(INFO_ZONE, "Invalidating regout\n");
 	if ((hif_ops->master_reg_write(adapter,
 				       SWBL_REGOUT,
 				       (cmd | REGOUT_INVALID << 8),
@@ -719,7 +749,7 @@ int bl_write_cmd(struct rsi_hw *adapter, u8 cmd, u8 exp_resp, u16 *cmd_resp)
 	return 0;
 
 fail:
-	return -1;
+	return -EINVAL;
 }
 
 /**
@@ -735,8 +765,6 @@ int bl_cmd(struct rsi_hw *adapter, u8 cmd, u8 exp_resp, char *str)
 {
 	u16 regout_val = 0;
 	u32 timeout = 0;
-
-	ven_rsi_dbg(INFO_ZONE, "Issuing cmd: \"%s\"\n", str);
 
 	if ((cmd == EOF_REACHED) || (cmd == PING_VALID) || (cmd == PONG_VALID))
 		timeout = BL_BURN_TIMEOUT;
@@ -754,7 +782,7 @@ int bl_cmd(struct rsi_hw *adapter, u8 cmd, u8 exp_resp, char *str)
 	return 0;
 
 fail:
-	return -1;
+	return -EINVAL;
 }
 
 /**
@@ -819,7 +847,7 @@ static int bl_write_header(struct rsi_hw *adapter,
 	return 0;
 
 fail:
-	return -1;
+	return -EINVAL;
 }
 
 /**
@@ -896,7 +924,7 @@ static int ping_pong_write(struct rsi_hw *adapter, u8 cmd, u8 *addr, u32 size)
 	return 0;
 
 fail:
-	return -1;
+	return -EINVAL;
 }
 
 /**
@@ -1007,150 +1035,7 @@ static int auto_fw_upgrade(struct rsi_hw *adapter,
 	return 0;
 
 fail:
-	return -1;
-}
-
-/**
- * read_flash_content() - This function reads the flash content
- *				from device
- * @common: Pointer to the driver private structure.
- *
- * Return: status: 0 on success, -1 on failure.
- */
-static int read_flash_content(struct rsi_hw *adapter,
-			      u8 *temp_buf,
-			      u32 address,
-			      u32 len)
-{
-	struct rsi_host_intf_ops *hif_ops = adapter->host_intf_ops;
-
-	if (adapter->rsi_host_intf == RSI_HOST_INTF_SDIO) {
-		if (hif_ops->master_access_msword(adapter,
-						  address >> 16) < 0) {
-			ven_rsi_dbg(ERR_ZONE,
-				"%s: Unable to set ms word to common reg\n",
-				__func__);
-			return -1;
-		}
-		address &= 0xFFFF;
-		return hif_ops->read_reg_multiple(adapter,
-						  address | SD_REQUEST_MASTER,
-						  temp_buf, len);
-	} else {
-		return hif_ops->read_reg_multiple(adapter, address,
-						  temp_buf, len);
-	}
-
-	return 0;
-}
-
-/**
- * verify_flash_content() - This function verifies the loaded flash content
- *				from device
- * @common: Pointer to the driver private structure.
- *
- * Return: status: 0 on success, -1 on failure.
- */
-int verify_flash_content(struct rsi_hw *adapter,
-			 u8 *flash_content,
-			 u32 instructions_sz,
-			 u32 eeprom_offset,
-			 u8  read_mode)
-{
-	int status = 0;
-	u32 num_loops = 0, idx;
-	u32 chunk_size = 0;
-	u8 *dest_addr = NULL;
-	u32 addr = 0;
-	u32 flash_chunk_size;
-
-	if (adapter->rsi_host_intf == RSI_HOST_INTF_USB)
-		flash_chunk_size = USB_FLASH_READ_CHUNK_SIZE;
-	else
-		flash_chunk_size = SDIO_FLASH_READ_CHUNK_SIZE;
-
-	num_loops = instructions_sz / flash_chunk_size;
-
-	if (instructions_sz % flash_chunk_size)
-		num_loops++;
-
-	if (read_mode != EEPROM_READ_MODE) {
-		dest_addr  = kzalloc(instructions_sz, GFP_KERNEL);
-		if (!dest_addr) {
-			ven_rsi_dbg(ERR_ZONE,
-				"%s: Memory allocation for dest_addr failed\n",
-				__func__);
-			return -1;
-		}
-	}
-
-	ven_rsi_dbg(INFO_ZONE, "Number of loops required: %d\n", num_loops);
-	for (idx = 0; idx < num_loops; idx++) {
-		if (instructions_sz < flash_chunk_size)
-			chunk_size = instructions_sz;
-		else
-			chunk_size = flash_chunk_size;
-		ven_rsi_dbg(INFO_ZONE, "idx is %d and chunk size is %d\n",
-			idx, chunk_size);
-		if (read_mode == EEPROM_READ_MODE) {
-			adapter->eeprom.offset = eeprom_offset;
-			ven_rsi_dbg(INFO_ZONE,
-				"eeprom offset is %x\n", eeprom_offset);
-			adapter->eeprom.length = chunk_size;
-			status = rsi_flash_read(adapter);
-			if (status == 0) {
-				ven_rsi_dbg(INFO_ZONE,
-					"%s: BLOCK/SECTOR READING SUCCESSFUL\n",
-					__func__);
-			} else {
-				ven_rsi_dbg(ERR_ZONE,
-					"%s: READING FROM FLASH FAILED\n",
-					__func__);
-				return -1;
-			}
-		} else {
-			memset(dest_addr, 0, chunk_size);
-			addr = SOC_FLASH_ADDR + eeprom_offset;
-			ven_rsi_dbg(INFO_ZONE,
-				"Reading flash addr 0x%0x\n", addr);
-			if (read_flash_content(adapter, dest_addr, addr,
-					       flash_chunk_size) < 0) {
-				ven_rsi_dbg(ERR_ZONE,
-					"%s:Failed to read calib data\n",
-					__func__);
-				status = -1;
-				goto out;
-			}
-		}
-		if (read_mode == EEPROM_READ_MODE) {
-			/* Wait for receive packet */
-			mdelay(10);
-			dest_addr = adapter->priv->rx_data_pkt;
-			if (!dest_addr) {
-				ven_rsi_dbg(ERR_ZONE,
-					"Failed reading flash content\n");
-				status = -1;
-				goto out;
-			}
-		}
-		if (memcmp(&flash_content[idx * flash_chunk_size],
-			   dest_addr,
-			   chunk_size)) {
-			ven_rsi_dbg(ERR_ZONE,
-				"%s: VERIFICATION OF FLASH CHUNK FAILED\n",
-				__func__);
-			kfree(dest_addr);
-			status = -1;
-			goto out;
-		}
-		eeprom_offset += chunk_size;
-		instructions_sz -= chunk_size;
-	}
-
-out:
-	if (read_mode == MASTER_READ_MODE)
-		kfree(dest_addr);
-	return 0;
+	return -EINVAL;
 }
 
 /**
@@ -1162,6 +1047,7 @@ out:
  */
 int rsi_load_9113_firmware(struct rsi_hw *adapter)
 {
+	struct rsi_common *common = adapter->priv;
 	struct rsi_host_intf_ops *hif_ops = adapter->host_intf_ops;
 	const struct firmware *fw_entry = NULL;
 	u32 regout_val = 0;
@@ -1219,7 +1105,8 @@ int rsi_load_9113_firmware(struct rsi_hw *adapter)
 
 	metadata_p = &metadata_flash_content[adapter->priv->coex_mode];
 
-	ven_rsi_dbg(INIT_ZONE, "%s: loading file %s\n", __func__, metadata_p->name);
+	ven_rsi_dbg(INIT_ZONE, "%s: Loading file %s\n", __func__, metadata_p->name);
+	adapter->fw_file_name = metadata_p->name;
 
 	if ((request_firmware(&fw_entry, metadata_p->name,
 			      adapter->device)) < 0) {
@@ -1234,6 +1121,18 @@ int rsi_load_9113_firmware(struct rsi_hw *adapter)
 	}
 	content_size = fw_entry->size;
 	ven_rsi_dbg(INFO_ZONE, "FW Length = %d bytes\n", content_size);
+
+	/* Get the firmware version */
+	common->lmac_ver.ver.info.fw_ver[0] =
+		flash_content[LMAC_VER_OFFSET] & 0xFF;
+	common->lmac_ver.ver.info.fw_ver[1] =
+		flash_content[LMAC_VER_OFFSET+1] & 0xFF;
+	common->lmac_ver.major = flash_content[LMAC_VER_OFFSET + 2] & 0xFF;
+	common->lmac_ver.release_num =
+		flash_content[LMAC_VER_OFFSET + 3] & 0xFF;
+	common->lmac_ver.minor = flash_content[LMAC_VER_OFFSET + 4] & 0xFF;
+	common->lmac_ver.patch_num = 0;
+	rsi_print_version(common);
 
 	if (bl_write_header(adapter, flash_content, content_size)) {
 		ven_rsi_dbg(ERR_ZONE,
@@ -1269,61 +1168,32 @@ load_image_cmd:
 	goto success;
 
 fw_upgrade:
-	/* After burning the RPS header, firmware has to be
-	 * burned using the below steps
-	 */
 	if (bl_cmd(adapter, BURN_HOSTED_FW, SEND_RPS_FILE, "FW_UPGRADE") < 0)
 		goto fail;
 
 	ven_rsi_dbg(INFO_ZONE, "Burn Command Pass.. Upgrading the firmware\n");
 
 	if (auto_fw_upgrade(adapter, flash_content, content_size) == 0) {
-		ven_rsi_dbg(ERR_ZONE, "***** Auto firmware successful *****\n");
+		ven_rsi_dbg(ERR_ZONE, "Firmware upgradation Done\n");
 		goto load_image_cmd;
 	}
+	ven_rsi_dbg(ERR_ZONE, "Firmware upgrade failed\n");
 
 	if (bl_cmd(adapter, CONFIG_AUTO_READ_MODE,
 		   CMD_PASS, "AUTO_READ_MODE") < 0)
 		goto fail;
 
-	/* Not required for current flash mode */
-#if 0
-	ven_rsi_dbg(INFO_ZONE, "Starting Flash Verification Process\n");
-
-	if ((verify_flash_content(adapter,
-				  flash_content,
-				  EEPROM_DATA_SIZE,
-				  0,
-				  EEPROM_READ_MODE)) < 0) {
-		ven_rsi_dbg(ERR_ZONE,
-			"%s: FLASHING SBL failed in Calib VERIFICATION phase\n",
-			__func__);
-		goto fail;
-	}
-	if ((verify_flash_content(adapter,
-				  flash_content + BL_HEADER,
-				  (content_size - BL_HEADER),
-				  EEPROM_DATA_SIZE,
-				  MASTER_READ_MODE)) < 0) {
-		ven_rsi_dbg(ERR_ZONE,
-			"%s:FLASHING SBL failed in SBL VERIFICATION phase\n",
-			__func__);
-		goto fail;
-	}
-	ven_rsi_dbg(INFO_ZONE,
-		"Flash Verification Process Completed Successfully\n");
-#endif
-	ven_rsi_dbg(INFO_ZONE, "SWBL FLASHING THROUGH SWBL PASSED...\n");
-
 success:
+	ven_rsi_dbg(ERR_ZONE, "***** Firmware Loading successful *****\n");
 	kfree(flash_content);
 	release_firmware(fw_entry);
 	return 0;
 
 fail:
+	ven_rsi_dbg(ERR_ZONE, "##### Firmware loading failed #####\n");
 	kfree(flash_content);
 	release_firmware(fw_entry);
-	return -1;
+	return -EINVAL;
 }
 
 /**
@@ -1334,39 +1204,63 @@ fail:
  */
 int rsi_hal_device_init(struct rsi_hw *adapter)
 {
-#if defined(CONFIG_VEN_RSI_HCI)
-	adapter->priv->coex_mode = 2;
-#elif defined(CONFIG_VEN_RSI_COEX)
-	adapter->priv->coex_mode = 2;
+	struct rsi_common *common = adapter->priv;
+
+#if defined (CONFIG_VEN_RSI_COEX) || defined(CONFIG_VEN_RSI_BT_ALONE)
+	switch (common->oper_mode) {
+	case DEV_OPMODE_STA_BT_DUAL:
+	case DEV_OPMODE_STA_BT:
+	case DEV_OPMODE_STA_BT_LE:
+	case DEV_OPMODE_BT_ALONE:
+	case DEV_OPMODE_BT_LE_ALONE:
+		common->coex_mode = 2;
+		break;
+	case DEV_OPMODE_AP_BT_DUAL:
+	case DEV_OPMODE_AP_BT:
+		common->coex_mode = 4;
+		break;
+	case DEV_OPMODE_WIFI_ALONE:
+		common->coex_mode = 1;
+		break;
+	default:
+#ifndef CONFIG_CARACALLA_BOARD
+		common->oper_mode = 1;
+		common->coex_mode = 1;
 #else
-	adapter->priv->coex_mode = 1;
+		common->oper_mode = DEV_OPMODE_STA_BT_DUAL;
+		common->coex_mode = 2;
+#endif
+	}
+#else
+	common->oper_mode = 1;
+	common->coex_mode = 1;
 #endif
 
-#ifdef CONFIG_RSI_BT_LE
-	adapter->priv->coex_mode = 2;
-#endif
+	ven_rsi_dbg(INFO_ZONE, "%s: oper_mode = %d, coex_mode = %d\n",
+		__func__, common->oper_mode, common->coex_mode);
+
 	adapter->device_model = RSI_DEV_9113;
 	switch (adapter->device_model) {
 	case RSI_DEV_9110:
-		/* Add code for 9110 */
+		/* TODO: 9110 FW load */
 		break;
 	case RSI_DEV_9113:
 		if (rsi_load_9113_firmware(adapter)) {
 			ven_rsi_dbg(ERR_ZONE,
 				"%s: Failed to load TA instructions\n",
 				__func__);
-			return -1;
+			return -EINVAL;
 		}
 		break;
 	case RSI_DEV_9116:
-		/* Add code for 9116 */
+		/* TODO: Add code for 9116 */
 		break;
 	default:
-		return -1;
+		return -EINVAL;
 	}
 	adapter->common_hal_fsm = COMMAN_HAL_WAIT_FOR_CARD_READY;
 
-#if defined(CONFIG_VEN_RSI_HCI) || defined(CONFIG_VEN_RSI_COEX)
+#if defined(CONFIG_VEN_RSI_BT_ALONE) || defined(CONFIG_VEN_RSI_COEX)
 	adapter->priv->bt_fsm_state = BT_DEVICE_NOT_READY;
 #endif
 

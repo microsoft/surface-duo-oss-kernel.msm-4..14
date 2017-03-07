@@ -1,27 +1,58 @@
-/**
- * Copyright (c) 2014 Redpine Signals Inc.
+/*
+ * Copyright (c) 2017 Redpine Signals Inc. All rights reserved.
  *
- * Developers:
- *	Prameela Rani Garnepudi	2016 <prameela.garnepudi@redpinesignals.com>
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * Permission to use, copy, modify, and/or distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * 	1. Redistributions of source code must retain the above copyright
+ * 	   notice, this list of conditions and the following disclaimer.
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * 	2. Redistributions in binary form must reproduce the above copyright
+ * 	   notice, this list of conditions and the following disclaimer in the
+ * 	   documentation and/or other materials provided with the distribution.
  *
+ * 	3. Neither the name of the copyright holder nor the names of its
+ * 	   contributors may be used to endorse or promote products derived from
+ * 	   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION). HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include <linux/module.h>
 #include <linux/usb.h>
 #include "rsi_usb.h"
 #include "rsi_hal.h"
+
+/* Default operating mode is Wi-Fi alone */
+#ifdef CONFIG_CARACALLA_BOARD
+#if defined (CONFIG_VEN_RSI_COEX) || defined(CONFIG_VEN_RSI_BT_ALONE)
+u16 dev_oper_mode = DEV_OPMODE_STA_BT_DUAL;
+#else
+u16 dev_oper_mode = DEV_OPMODE_WIFI_ALONE;
+#endif
+#else
+u16 dev_oper_mode = DEV_OPMODE_WIFI_ALONE;
+#endif
+module_param(dev_oper_mode, ushort, S_IRUGO);
+MODULE_PARM_DESC(dev_oper_mode,
+		 "1 -	Wi-Fi Alone \
+		  4 -	BT Alone \
+		  8 -	BT LE Alone \
+		  5 -	Wi-Fi STA + BT classic \
+		  9 -	Wi-Fi STA + BT LE \
+		  13 -	Wi-Fi STA + BT classic + BT LE \
+		  6 -	AP + BT classic \
+		  14 -	AP + BT classic + BT LE");
 
 static struct rsi_host_intf_ops usb_host_intf_ops = {
 	.write_pkt		= rsi_usb_host_intf_write_pkt,
@@ -418,7 +449,7 @@ int rsi_usb_load_data_master_write(struct rsi_hw *adapter,
 {
 	u16 num_blocks;
 	u32 cur_indx, ii;
-	u8  temp_buf[256];
+	u8 temp_buf[256];
 
 	num_blocks = instructions_sz / block_size;
 	ven_rsi_dbg(INFO_ZONE, "num_blocks: %d\n", num_blocks);
@@ -432,7 +463,7 @@ int rsi_usb_load_data_master_write(struct rsi_hw *adapter,
 						     base_address,
 						     (u8 *)(temp_buf),
 						     block_size)) < 0)
-			return -1;
+			return -EIO;
 
 		ven_rsi_dbg(INFO_ZONE, "%s: loading block: %d\n", __func__, ii);
 		base_address += block_size;
@@ -446,7 +477,7 @@ int rsi_usb_load_data_master_write(struct rsi_hw *adapter,
 					     base_address,
 					     (u8 *)temp_buf,
 					     instructions_sz % block_size)) < 0)
-			return -1;
+			return -EIO;
 		ven_rsi_dbg(INFO_ZONE,
 			"Written Last Block in Address 0x%x Successfully\n",
 			cur_indx);
@@ -469,7 +500,7 @@ static void rsi_deinit_usb_interface(struct rsi_hw *adapter)
 	rsi_kill_thread(&dev->rx_thread);
 	kfree(dev->rx_cb[0].rx_buffer);
 	usb_free_urb(dev->rx_cb[0].rx_urb);
-#if defined (CONFIG_VEN_RSI_HCI) || defined(CONFIG_VEN_RSI_COEX)
+#if defined (CONFIG_VEN_RSI_BT_ALONE) || defined(CONFIG_VEN_RSI_COEX)
 	kfree(dev->rx_cb[1].rx_buffer);
 	usb_free_urb(dev->rx_cb[1].rx_urb);
 #endif
@@ -783,6 +814,7 @@ static int rsi_probe(struct usb_interface *pfunction,
 		return -ENOMEM;
 	}
 	adapter->rsi_host_intf = RSI_HOST_INTF_USB;
+	adapter->priv->oper_mode = dev_oper_mode;
 
 	status = rsi_init_usb_interface(adapter, pfunction);
 	if (status) {
@@ -816,7 +848,7 @@ static int rsi_probe(struct usb_interface *pfunction,
 	if (status)
 		goto err1;
 
-#if defined(CONFIG_VEN_RSI_HCI) || defined(CONFIG_VEN_RSI_COEX)
+#if defined(CONFIG_VEN_RSI_BT_ALONE) || defined(CONFIG_VEN_RSI_COEX)
 	status = rsi_rx_urb_submit(adapter, 2 /* RX_BT_EP */);
 	if (status)
 		goto err1;
@@ -841,13 +873,14 @@ err:
 static void rsi_disconnect(struct usb_interface *pfunction)
 {
 	struct rsi_hw *adapter = usb_get_intfdata(pfunction);
+
 	if (!adapter)
 		return;
 
 	ven_rsi_mac80211_detach(adapter);
 	ven_rsi_dbg(INFO_ZONE, "mac80211 detach done\n");
 
-#if defined(CONFIG_VEN_RSI_HCI) || defined(CONFIG_VEN_RSI_COEX)
+#if defined(CONFIG_VEN_RSI_BT_ALONE) || defined(CONFIG_VEN_RSI_COEX)
 	rsi_hci_detach(adapter->priv);
 	ven_rsi_dbg(INFO_ZONE, "HCI Detach Done\n");
 #endif
@@ -877,10 +910,12 @@ static int rsi_resume(struct usb_interface *intf)
 #endif
 
 static const struct usb_device_id rsi_dev_table[] = {
+#if 0
 	{ USB_DEVICE(0x0303, 0x0100) },
 	{ USB_DEVICE(0x041B, 0x0301) },
 	{ USB_DEVICE(0x041B, 0x0201) },
 	{ USB_DEVICE(0x041B, 0x9330) },
+#endif
 	{ USB_DEVICE(0x1618, 0x9113) },
 	{ /* Blank */},
 };
@@ -916,5 +951,5 @@ MODULE_DESCRIPTION("Common USB layer for RSI drivers");
 MODULE_SUPPORTED_DEVICE("RSI-91x");
 MODULE_DEVICE_TABLE(usb, rsi_dev_table);
 MODULE_FIRMWARE(FIRMWARE_RSI9113);
-MODULE_VERSION("0.1");
+MODULE_VERSION(DRV_VER);
 MODULE_LICENSE("Dual BSD/GPL");

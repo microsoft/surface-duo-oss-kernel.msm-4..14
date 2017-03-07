@@ -1,21 +1,45 @@
-/**
- * Copyright (c) 2014 Redpine Signals Inc.
+/*
+ * Copyright (c) 2017 Redpine Signals Inc. All rights reserved.
  *
- * Permission to use, copy, modify, and/or distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * 	1. Redistributions of source code must retain the above copyright
+ * 	   notice, this list of conditions and the following disclaimer.
+ *
+ * 	2. Redistributions in binary form must reproduce the above copyright
+ * 	   notice, this list of conditions and the following disclaimer in the
+ * 	   documentation and/or other materials provided with the distribution.
+ *
+ * 	3. Neither the name of the copyright holder nor the names of its
+ * 	   contributors may be used to endorse or promote products derived from
+ * 	   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION). HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #ifndef __RSI_HAL_H__
 #define __RSI_HAL_H__
+
+/* Device Operating modes */
+#define DEV_OPMODE_WIFI_ALONE		1
+#define DEV_OPMODE_BT_ALONE		4
+#define DEV_OPMODE_BT_LE_ALONE		8
+#define DEV_OPMODE_STA_BT		5
+#define DEV_OPMODE_STA_BT_LE		9
+#define DEV_OPMODE_STA_BT_DUAL		13
+#define DEV_OPMODE_AP_BT		6
+#define DEV_OPMODE_AP_BT_DUAL		14
 
 #define TA_LOAD_ADDRESS			0x00
 #define FIRMWARE_RSI9113		"rsi_91x.fw"
@@ -132,12 +156,15 @@
 #define GSPI_READ			BIT(6)
 #define GSPI_RF_SPI_ACTIVE		BIT(8)
 
+#define FW_FLASH_OFFSET			0x820
+#define LMAC_VER_OFFSET			FW_FLASH_OFFSET +0x200
+
 struct bl_header {
-	u32 flags;
-	u32 image_no;
-	u32 check_sum;
-	u32 flash_start_address;
-	u32 flash_len;
+	__le32 flags;
+	__le32 image_no;
+	__le32 check_sum;
+	__le32 flash_start_address;
+	__le32 flash_len;
 } __packed;
 
 struct ta_metadata {
@@ -150,6 +177,6 @@ int rsi_prepare_data_desc(struct rsi_common *common, struct sk_buff *skb);
 int rsi_hal_device_init(struct rsi_hw *adapter);
 int rsi_send_data_pkt(struct rsi_common *common, struct sk_buff *skb);
 int rsi_send_bt_pkt(struct rsi_common *common, struct sk_buff *skb);
-int rsi_send_beacon(struct rsi_common *common);
+int rsi_prepare_beacon(struct rsi_common *common, struct sk_buff *skb);
 
 #endif

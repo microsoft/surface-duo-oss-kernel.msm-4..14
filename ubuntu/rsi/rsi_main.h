@@ -1,17 +1,31 @@
-/**
- * Copyright (c) 2014 Redpine Signals Inc.
+/*
+ * Copyright (c) 2017 Redpine Signals Inc. All rights reserved.
  *
- * Permission to use, copy, modify, and/or distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * 	1. Redistributions of source code must retain the above copyright
+ * 	   notice, this list of conditions and the following disclaimer.
+ *
+ * 	2. Redistributions in binary form must reproduce the above copyright
+ * 	   notice, this list of conditions and the following disclaimer in the
+ * 	   documentation and/or other materials provided with the distribution.
+ *
+ * 	3. Neither the name of the copyright holder nor the names of its
+ * 	   contributors may be used to endorse or promote products derived from
+ * 	   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION). HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #ifndef __RSI_MAIN_H__
@@ -26,6 +40,8 @@
 struct rsi_hw;
 
 #include "rsi_ps.h"
+
+#define DRV_VER				"RS9113.NB0.NL.GNU.LNX.1.2.RC4"
 
 #define ERR_ZONE                        BIT(0) /* Error Msgs		*/
 #define INFO_ZONE                       BIT(1) /* Generic Debug Msgs	*/
@@ -51,7 +67,7 @@ extern u32 ven_rsi_zone_enabled;
 extern __printf(2, 3) void ven_rsi_dbg(u32 zone, const char *fmt, ...);
 void rsi_hex_dump(u32 zone, char *msg_str, const u8 *msg, u32 len);
 
-#define RSI_MAX_VIFS                    1
+#define RSI_MAX_VIFS                    3
 #define NUM_EDCA_QUEUES                 4
 #define IEEE80211_ADDR_LEN              6
 #define FRAME_DESC_SZ                   16
@@ -62,7 +78,7 @@ void rsi_hex_dump(u32 zone, char *msg_str, const u8 *msg, u32 len);
 #define MULTICAST_WATER_MARK            200
 #define MAC_80211_HDR_FRAME_CONTROL     0
 #define WME_NUM_AC                      4
-#define NUM_SOFT_QUEUES                 5
+#define NUM_SOFT_QUEUES                 6
 #define MAX_HW_QUEUES                   12
 #define INVALID_QUEUE                   0xff
 #define MAX_CONTINUOUS_VO_PKTS          8
@@ -86,7 +102,8 @@ void rsi_hex_dump(u32 zone, char *msg_str, const u8 *msg, u32 len);
 #define IEEE80211_MGMT_FRAME            0x00
 #define IEEE80211_CTL_FRAME             0x04
 
-#define RSI_MAX_ASSOC_STAS		4
+#define RSI_MAX_ASSOC_STAS		32
+#define RSI_MAX_COEX_ASSOC_STAS		4
 #define IEEE80211_QOS_TID               0x0f
 #define IEEE80211_NONQOS_TID            16
 
@@ -106,11 +123,17 @@ void rsi_hex_dump(u32 zone, char *msg_str, const u8 *msg, u32 len);
 	((_q) == VI_Q) ? IEEE80211_AC_VI : \
 	IEEE80211_AC_VO)
 
+#define STATION_NOT_CONNECTED		BIT(1)
 struct version_info {
 	u16 major;
 	u16 minor;
-	u16 release_num;
-	u16 patch_num;
+	u8 release_num;
+	u8 patch_num;
+	union {
+		struct {
+			u8 fw_ver[8];
+		} info;
+	} ver;
 } __packed;
 
 struct skb_info {
@@ -128,7 +151,8 @@ enum edca_queue {
 	BE_Q,
 	VI_Q,
 	VO_Q,
-	MGMT_SOFT_Q
+	MGMT_SOFT_Q,
+	MGMT_BEACON_Q
 };
 
 struct security_info {
@@ -153,6 +177,7 @@ struct vif_priv {
 	bool is_ht;
 	bool sgi;
 	u16 seq_start;
+	u8 vap_id;
 };
 
 struct rsi_event {
@@ -197,6 +222,7 @@ struct rsi_sta {
 	struct ieee80211_sta *sta;
 	s16 sta_id;
 	u16 seq_no[IEEE80211_NUM_ACS];
+	u16 seq_start[IEEE80211_NUM_ACS];
 };
 
 struct rsi_hw;
@@ -206,14 +232,15 @@ struct rsi_common {
 	struct vif_priv vif_info[RSI_MAX_VIFS];
 
 	bool mgmt_q_block;
-	struct version_info driver_ver;
-	struct version_info fw_ver;
+	char driver_ver[32];
+	struct version_info lmac_ver;
 
 	struct rsi_thread tx_thread;
 #ifdef CONFIG_SDIO_INTR_POLL
 	struct rsi_thread sdio_intr_poll_thread;
 #endif
-	struct sk_buff_head tx_queue[NUM_EDCA_QUEUES + 1];
+	struct sk_buff_head tx_queue[NUM_EDCA_QUEUES + 2];
+
 	/* Mutex declaration */
 	struct mutex mutex;
 	struct mutex pslock;
@@ -263,6 +290,7 @@ struct rsi_common {
 	struct cqm_info cqm_info;
 	struct bgscan_config_params bgscan_info;
 	int bgscan_en;
+	u8  start_bgscan;
 	u8 bgscan_probe_req[1500];
 	int bgscan_probe_req_len;
 	u16 bgscan_seq_ctrl;
@@ -271,7 +299,7 @@ struct rsi_common {
 	bool hw_data_qs_blocked;
 	u8 driver_mode;
 	u8 coex_mode;
-	u8 oper_mode;
+	u16 oper_mode;
 	u8 ta_aggr;
 	u8 skip_fw_load;
 	u8 lp_ps_handshake_mode;
@@ -290,11 +318,11 @@ struct rsi_common {
 	u8 host_wakeup_intr_active_high;
 	int tx_power;
 	u8 ant_in_use;
-#ifdef CONFIG_RSI_WOW
+#ifdef CONFIG_VEN_RSI_WOW
 	u8 suspend_flag;
 #endif
 
-#if defined (CONFIG_VEN_RSI_HCI) || defined(CONFIG_VEN_RSI_COEX)
+#if defined (CONFIG_VEN_RSI_BT_ALONE) || defined(CONFIG_VEN_RSI_COEX)
 	void *hci_adapter;
 #endif
 
@@ -305,18 +333,39 @@ struct rsi_common {
 	/* AP mode related */
 	u8 beacon_enabled;
 	u16 beacon_interval;
-	u8 *beacon_frame;
-	u16 beacon_frame_len;
 	u16 beacon_cnt;
 	u8 dtim_cnt;
 	u16 bc_mc_seqno;
 	struct rsi_sta stations[RSI_MAX_ASSOC_STAS + 1];
 	int num_stations;
+	int max_stations;
 	struct ieee80211_channel *ap_channel;
-	struct rsi_thread bcn_thread;
-	struct timer_list bcn_timer;
 	struct ieee80211_key_conf *key;
 	u8 eapol4_confirm;
+
+	/* Wi-Fi direct mode related */
+	bool p2p_enabled;
+	struct timer_list roc_timer;
+	struct ieee80211_vif *roc_vif;
+	int last_vap_type;
+	u8 last_vap_addr[6];
+	u8 last_vap_id;
+
+        struct semaphore tx_bus_lock;
+
+#ifdef CONFIG_HW_SCAN_OFFLOAD
+	struct cfg80211_scan_request *scan_request;
+	struct ieee80211_vif *scan_vif;
+	bool scan_in_prog;
+	struct workqueue_struct *scan_workqueue;
+	struct work_struct scan_work;
+	struct rsi_event chan_set_event;
+	struct rsi_event probe_cfm_event;
+	struct rsi_event chan_change_event;
+	struct rsi_event cancel_hw_scan_event;
+	struct timer_list scan_timer;
+	bool hw_scan_cancel;
+#endif
 };
 
 enum host_intf {
@@ -357,7 +406,7 @@ struct rsi_hw {
 	struct ieee80211_supported_band sbands[NUM_NL80211_BANDS];
 
 	struct device *device;
-	u8 sc_nvifs;
+	int sc_nvifs;
 	enum host_intf rsi_host_intf;
 	enum ps_state ps_state;
 	struct rsi_ps_info ps_info;
@@ -368,6 +417,7 @@ struct rsi_hw {
 	u8 num_debugfs_entries;
 #endif
 
+	char *fw_file_name;
 	struct timer_list bl_cmd_timer;
 	u8 blcmd_timer_expired;
 	u32 flash_capacity;
@@ -389,6 +439,7 @@ struct rsi_hw {
 	int  (*check_intr_status_reg)(struct rsi_hw *adapter);
 };
 
+void rsi_print_version(struct rsi_common *common);
 struct rsi_host_intf_ops {
 	int (*read_pkt)(struct rsi_hw *adapter, u8 *pkt, u32 len);
 	int (*write_pkt)(struct rsi_hw *adapter, u8 *pkt, u32 len);
@@ -405,6 +456,7 @@ struct rsi_host_intf_ops {
 	int (*load_data_master_write)(struct rsi_hw *adapter, u32 addr,
 				      u32 instructions_size, u16 block_size,
 				      u8 *fw);
+	int (*rsi_check_bus_status)(struct rsi_hw *adapter);
 };
 
 #endif

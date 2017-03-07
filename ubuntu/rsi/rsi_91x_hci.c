@@ -1,17 +1,31 @@
-/**
- * Copyright (c) 2014 Redpine Signals Inc.
+/*
+ * Copyright (c) 2017 Redpine Signals Inc. All rights reserved.
  *
- * Permission to use, copy, modify, and/or distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * 	1. Redistributions of source code must retain the above copyright
+ * 	   notice, this list of conditions and the following disclaimer.
+ *
+ * 	2. Redistributions in binary form must reproduce the above copyright
+ * 	   notice, this list of conditions and the following disclaimer in the
+ * 	   documentation and/or other materials provided with the distribution.
+ *
+ * 	3. Neither the name of the copyright holder nor the names of its
+ * 	   contributors may be used to endorse or promote products derived from
+ * 	   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION). HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include "rsi_hci.h"
@@ -136,6 +150,15 @@ static int rsi_hci_send_pkt(struct hci_dev *hdev, struct sk_buff *skb)
 		goto fail;
 	}
 
+#ifdef CONFIG_VEN_RSI_WOW
+	/* Stop here when in suspend */
+	if (h_adapter->priv->suspend_flag) {
+		ven_rsi_dbg(INFO_ZONE, "In suspend: Dropping the pkt\n");
+		status = -ENETDOWN;
+		goto fail;
+	}
+#endif
+
 	if (h_adapter->priv->bt_fsm_state != BT_DEVICE_READY) {
 		ven_rsi_dbg(ERR_ZONE, "BT Device not ready\n");
 		status = -ENODEV;
@@ -175,6 +198,7 @@ static int rsi_hci_send_pkt(struct hci_dev *hdev, struct sk_buff *skb)
 		if (!new_skb) {
 			ven_rsi_dbg(ERR_ZONE, "%s: Failed to alloc skb\n",
 				__func__);
+			dev_kfree_skb(skb);
 			return -ENOMEM;
 		}
 		skb_reserve(new_skb, REQUIRED_HEADROOM_FOR_BT_HAL);
@@ -195,6 +219,7 @@ static int rsi_hci_send_pkt(struct hci_dev *hdev, struct sk_buff *skb)
 	return 0;
 
 fail:
+	dev_kfree_skb(skb);
 	return status;
 }
 
@@ -328,7 +353,7 @@ int rsi_genl_recv(struct sk_buff *skb, struct genl_info *info)
 		return -ENOMEM;
 	}
 	skb_reserve(skb, REQUIRED_HEADROOM_FOR_BT_HAL);
-	dword_align_req_bytes = ((u32)skb->data) & 0x3f;
+	dword_align_req_bytes = ((unsigned long)skb->data) & 0x3f;
 	if (dword_align_req_bytes)
 		skb_push(skb, dword_align_req_bytes);
 	memcpy(skb->data, data, len);
@@ -383,7 +408,11 @@ int rsi_hci_attach(struct rsi_common *common)
 		hdev->bus = HCI_USB;
 
 	hci_set_drvdata(hdev, h_adapter);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION (4, 8, 0)
+  hdev->dev_type = HCI_PRIMARY;
+#else
 	hdev->dev_type = HCI_BREDR;
+#endif
 
 	hdev->open = rsi_hci_open;
 	hdev->close = rsi_hci_close;
@@ -397,7 +426,7 @@ int rsi_hci_attach(struct rsi_common *common)
         /* Initialize TX queue */
 	skb_queue_head_init(&h_adapter->hci_tx_queue);
 	common->hci_adapter = (void *)h_adapter;
-	ven_rsi_dbg (ERR_ZONE, "%s: In alloc HCI adapter\n", __func__);
+	
 	status = hci_register_dev(hdev);
 	if (status < 0) {
 		ven_rsi_dbg(ERR_ZONE,

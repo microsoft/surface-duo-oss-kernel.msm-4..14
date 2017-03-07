@@ -1,17 +1,31 @@
-/**
- * Copyright (c) 2014 Redpine Signals Inc.
+/*
+ * Copyright (c) 2017 Redpine Signals Inc. All rights reserved.
  *
- * Permission to use, copy, modify, and/or distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * 	1. Redistributions of source code must retain the above copyright
+ * 	   notice, this list of conditions and the following disclaimer.
+ *
+ * 	2. Redistributions in binary form must reproduce the above copyright
+ * 	   notice, this list of conditions and the following disclaimer in the
+ * 	   documentation and/or other materials provided with the distribution.
+ *
+ * 	3. Neither the name of the copyright holder nor the names of its
+ * 	   contributors may be used to endorse or promote products derived from
+ * 	   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION). HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #ifndef __RSI_MGMT_H__
@@ -27,7 +41,7 @@
 
 #define RSI_11B_MODE                    0
 #define RSI_11G_MODE                    BIT(7)
-#define RETRY_COUNT                     8
+#define RETRY_COUNT                     15
 #define RETRY_LONG                      4
 #define RETRY_SHORT                     7
 #define WMM_SHORT_SLOT_TIME             9
@@ -44,6 +58,14 @@
 #define WLAN_FW_VERSION_LEN             0x08
 #define MAGIC_WORD                      0x5A
 #define WLAN_EEPROM_RFTYPE_ADDR		424
+
+/*WOWLAN RESUME WAKEUP TYPES*/
+#define	UNICAST_MAGIC_PKT       	BIT(0)
+#define	BROADCAST_MAGICPKT      	BIT(1)
+#define	EAPOL_PKT               	BIT(2)
+#define	DISCONNECT_PKT          	BIT(3)
+#define	HW_BMISS_PKT            	BIT(4)
+#define INSERT_SEQ_IN_FW                BIT(2)
 
 /* Receive Frame Types */
 enum rx_cmd_type {
@@ -66,7 +88,7 @@ enum rx_cmd_type {
 	ANTENNA_SELECT = 0xf,
 };
 
-#ifdef CONFIG_RSI_WOW
+#ifdef CONFIG_VEN_RSI_WOW
 #define WOW_MAX_FILTERS_PER_LIST 16
 #define WOW_PATTERN_SIZE 256
 #endif
@@ -207,7 +229,6 @@ enum rx_cmd_type {
 	 IEEE80211_WMM_IE_STA_QOSINFO_AC_VI | \
 	 IEEE80211_WMM_IE_STA_QOSINFO_AC_BE | \
 	 IEEE80211_WMM_IE_STA_QOSINFO_AC_BK)
-#define IEEE80211_STA_SP_ALL_PKTS	0x00
 
 /* Tx data frame format */
 #define MAC_BBP_INFO			BIT(0) 
@@ -222,15 +243,20 @@ enum rx_cmd_type {
 #define INSERT_SEQ_NO			BIT(2)
 
 #ifdef CONFIG_PM
-#define RSI_WOW_ANY                      BIT(0)
-#define RSI_WOW_SUPPORTS_GTK_REKEY       BIT(3)
-#define RSI_WOW_MAGIC_PKT                BIT(4)
-#define RSI_WOW_DISCONNECT               BIT(5)
+#define RSI_WOW_ANY			BIT(1)
+#define RSI_WOW_GTK_REKEY		BIT(3)
+#define RSI_WOW_MAGIC_PKT		BIT(4)
+#define RSI_WOW_DISCONNECT		BIT(5)
 #endif
+#define HOST_BG_SCAN_TRIG		BIT(4)
+#define TARGET_BOARD_CARACALLA		BIT(10)
 
 enum opmode {
-	AP_OPMODE,
+	UNKNOW_OPMODE = -1,
+	AP_OPMODE = 0,
 	STA_OPMODE = 1,
+	P2P_GO_OPMODE = 2,
+	P2P_CLIENT_OPMODE = 3
 };
 
 enum vap_status {
@@ -312,8 +338,9 @@ enum cmd_frame_type {
 	COMMON_DEV_CONFIG, /* 0x28 */
 	RADIO_PARAMS_UPDATE, /* 0x29 */
 	RADAR_REQUEST, /* 0x2A */
-	WOWLAN_CONFIG_PARAMS, /* 2B */
+	WOWLAN_CONFIG_PARAMS, /* 0x2B */
 	IAP_CONFIG, /* 0x2C */
+	WOWLAN_WAKEUP_REASON = 0xc5 /* 0xC5 */
 };
 
 /* RSI Command packet formats */
@@ -525,7 +552,7 @@ static inline u8 rsi_get_channel(u8 *addr)
 
 int rsi_mgmt_pkt_recv(struct rsi_common *common, u8 *msg);
 int rsi_set_vap_capabilities(struct rsi_common *common, enum opmode mode,
-			     u8 vap_status);
+			     u8 *mac_addr, u8 vap_id, u8 vap_status);
 int rsi_send_aggr_params_frame(struct rsi_common *common, u16 tid,
 			       u16 ssn, u8 buf_size, u8 event, u8 sta_id);
 int rsi_load_key(struct rsi_common *common, u8 *data, u16 key_len,
@@ -535,8 +562,8 @@ int rsi_set_channel(struct rsi_common *common,
 int rsi_send_vap_dynamic_update(struct rsi_common *common);
 int rsi_send_block_unblock_frame(struct rsi_common *common, bool event);
 void rsi_inform_bss_status(struct rsi_common *common, enum opmode opmode,
-			   u8 status, u8 *bssid, u8 qos_enable, u16 aid,
-			   struct ieee80211_sta *sta, u16 sta_id);
+			   u8 status, const u8 *bssid, u8 qos_enable, u16 aid,
+			   struct ieee80211_sta *sta, u16 sta_id, u16 assoc_cap);
 int rsi_send_sta_notify_frame(struct rsi_common *common, enum opmode opmode,
 			      u8 notify_event, const unsigned char *bssid,
 			      u8 qos_enable, u16 aid, u16 sta_id);
@@ -551,7 +578,9 @@ void rsi_core_qos_processor(struct rsi_common *common);
 void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb);
 int rsi_send_mgmt_pkt(struct rsi_common *common, struct sk_buff *skb);
 int rsi_send_data_pkt(struct rsi_common *common, struct sk_buff *skb);
-int rsi_band_check(struct rsi_common *common);
+int rsi_send_beacon(struct rsi_common *common);
+int rsi_send_pkt(struct rsi_common *common, struct sk_buff *skb);
+int rsi_band_check(struct rsi_common *common, struct ieee80211_channel *chan);
 int rsi_send_rx_filter_frame(struct rsi_common *common, u16 rx_filter_word);
 int rsi_flash_read(struct rsi_hw *adapter);
 int rsi_program_bb_rf(struct rsi_common *common);
@@ -560,8 +589,21 @@ void init_bgscan_params(struct rsi_common *common);
 int rsi_set_antenna(struct rsi_common *common, u8 antenna);
 int rsi_hci_attach(struct rsi_common *common);
 int rsi_handle_card_ready(struct rsi_common *common);
-#ifdef CONFIG_RSI_WOW
+void rsi_validate_bgscan_channels(struct rsi_hw *adapter,
+				  struct bgscan_config_params *params);
+#ifdef CONFIG_VEN_RSI_WOW
 int rsi_send_wowlan_request(struct rsi_common *common, u16 flags,
 			    u16 sleep_status);
+#endif
+void rsi_scan_start(struct work_struct *data);
+#ifdef CONFIG_HW_SCAN_OFFLOAD
+int rsi_send_probe_request(struct rsi_common *common,
+			   struct cfg80211_scan_request *scan_req, u8 n_ssid,
+			   u8 channel, u8 scan_type);
+#endif
+#ifdef CONFIG_CARACALLA_BOARD
+void rsi_apply_carcalla_power_values(struct rsi_hw *adapter,
+				     struct ieee80211_vif *vif,
+				     struct ieee80211_channel *channel);
 #endif
 #endif

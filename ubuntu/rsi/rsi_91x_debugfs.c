@@ -1,24 +1,38 @@
 /**
- * Copyright (c) 2014 Redpine Signals Inc.
+ * Copyright (c) 2017 Redpine Signals Inc. All rights reserved.
  *
- * Permission to use, copy, modify, and/or distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * 	1. Redistributions of source code must retain the above copyright
+ * 	   notice, this list of conditions and the following disclaimer.
+ *
+ * 	2. Redistributions in binary form must reproduce the above copyright
+ * 	   notice, this list of conditions and the following disclaimer in the
+ * 	   documentation and/or other materials provided with the distribution.
+ *
+ * 	3. Neither the name of the copyright holder nor the names of its
+ * 	   contributors may be used to endorse or promote products derived from
+ * 	   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION). HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include "rsi_debugfs.h"
 #include "rsi_sdio.h"
 #include "rsi_mgmt.h"
 
-int g_bgscan_enable;
+extern int g_bgscan_enable;
 
 /**
  * rsi_sdio_stats_read() - This function returns the sdio status of the driver.
@@ -86,19 +100,12 @@ static int rsi_version_read(struct seq_file *seq, void *data)
 {
 	struct rsi_common *common = seq->private;
 
-	common->driver_ver.major = 3;
-	common->driver_ver.minor = 0;
-	common->driver_ver.release_num = 0;
-	common->driver_ver.patch_num = 0;
-	seq_printf(seq, "Driver : %x.%d.%d.%d\nLMAC   : %d.%d.%d.%d\n",
-		   common->driver_ver.major,
-		   common->driver_ver.minor,
-		   common->driver_ver.release_num,
-		   common->driver_ver.patch_num,
-		   common->fw_ver.major,
-		   common->fw_ver.minor,
-		   common->fw_ver.release_num,
-		   common->fw_ver.patch_num);
+	seq_printf(seq, "Driver : %s\nLMAC   : %d.%d.%d.%d\n",
+		   common->driver_ver,
+		   common->lmac_ver.major,
+		   common->lmac_ver.minor,
+		   common->lmac_ver.release_num,
+		   common->lmac_ver.patch_num);
 	return 0;
 }
 
@@ -341,7 +348,7 @@ static ssize_t rsi_bgscan_write(struct file *file,
 		return -ENODEV;
 	}
 	adapter = common->priv;
-	bss = &adapter->vifs[0]->bss_conf;
+	bss = &adapter->vifs[adapter->sc_nvifs - 1]->bss_conf;
 
 	total_bytes = simple_write_to_buffer(bgscan_buf,
 					     sizeof(bgscan_buf) - 1,

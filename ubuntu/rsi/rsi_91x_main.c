@@ -1,17 +1,31 @@
-/**
- * Copyright (c) 2014 Redpine Signals Inc.
+/*
+ * Copyright (c) 2017 Redpine Signals Inc. All rights reserved.
  *
- * Permission to use, copy, modify, and/or distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * 	1. Redistributions of source code must retain the above copyright
+ * 	   notice, this list of conditions and the following disclaimer.
+ *
+ * 	2. Redistributions in binary form must reproduce the above copyright
+ * 	   notice, this list of conditions and the following disclaimer in the
+ * 	   documentation and/or other materials provided with the distribution.
+ *
+ * 	3. Neither the name of the copyright holder nor the names of its
+ * 	   contributors may be used to endorse or promote products derived from
+ * 	   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION). HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -21,7 +35,7 @@
 #include "rsi_mgmt.h"
 #include "rsi_common.h"
 #include "rsi_hal.h"
-#if defined(CONFIG_VEN_RSI_HCI) || defined(CONFIG_VEN_RSI_COEX)
+#if defined(CONFIG_VEN_RSI_BT_ALONE) || defined(CONFIG_VEN_RSI_COEX)
 #include "rsi_hci.h"
 #endif
 #ifdef CONFIG_VEN_RSI_COEX
@@ -29,15 +43,15 @@
 #endif
 
 u32 ven_rsi_zone_enabled =	//INFO_ZONE |
-			INIT_ZONE |
-			//MGMT_TX_ZONE |
-			//MGMT_RX_ZONE |
-			//DATA_TX_ZONE |
-			//DATA_RX_ZONE |
-			//FSM_ZONE |
-			//ISR_ZONE |
-			ERR_ZONE |
-			0;
+				//INIT_ZONE |
+				//MGMT_TX_ZONE |
+				//MGMT_RX_ZONE |
+				//DATA_TX_ZONE |
+				//DATA_RX_ZONE |
+				//FSM_ZONE |
+				//ISR_ZONE |
+				ERR_ZONE |
+				0;
 EXPORT_SYMBOL_GPL(ven_rsi_zone_enabled);
 
 /**
@@ -80,13 +94,54 @@ void rsi_hex_dump(u32 zone, char *msg_str, const u8 *msg, u32 len)
 		return;
 	printk("%s: (length = %d)\n", msg_str, len);
 	for (ii = 0; ii < len; ii++) {
-		if (!(ii % 16))
+		if (ii && !(ii % 16))
 			printk("\n");
 		printk("%02x ", msg[ii]);
 	}
 	printk("\n");
 }
 EXPORT_SYMBOL_GPL(rsi_hex_dump);
+
+char *opmode_str(int oper_mode)
+{
+	switch (oper_mode) {
+	case DEV_OPMODE_WIFI_ALONE:
+	       return "Wi-Fi alone";
+	case DEV_OPMODE_BT_ALONE:
+	       return "BT EDR alone";
+	case DEV_OPMODE_BT_LE_ALONE:
+	       return "BT LE alone";
+	case DEV_OPMODE_STA_BT:
+	       return "Wi-Fi STA + BT EDR";
+	case DEV_OPMODE_STA_BT_LE:
+	       return "Wi-Fi STA + BT LE";
+	case DEV_OPMODE_STA_BT_DUAL:
+	       return "Wi-Fi STA + BT DUAL";
+	case DEV_OPMODE_AP_BT:
+	       return "Wi-Fi AP + BT EDR";
+	case DEV_OPMODE_AP_BT_DUAL:
+	       return "Wi-Fi AP + BT DUAL";
+	}
+	return "Unknown";
+}
+
+void rsi_print_version(struct rsi_common *common)
+{
+	memcpy(common->driver_ver, DRV_VER, ARRAY_SIZE(DRV_VER));
+	common->driver_ver[ARRAY_SIZE(DRV_VER)] = '\0';
+
+	ven_rsi_dbg(ERR_ZONE, "================================================\n");
+	ven_rsi_dbg(ERR_ZONE, "================ RSI Version Info ==============\n");
+	ven_rsi_dbg(ERR_ZONE, "================================================\n");
+	ven_rsi_dbg(ERR_ZONE, "FW Version\t: %d.%d.%d\n",
+		common->lmac_ver.major, common->lmac_ver.minor,
+		common->lmac_ver.release_num);
+	ven_rsi_dbg(ERR_ZONE, "Driver Version\t: %s", common->driver_ver);
+	ven_rsi_dbg(ERR_ZONE, "Operating mode\t: %d [%s]",
+		common->oper_mode, opmode_str(common->oper_mode));
+	ven_rsi_dbg(ERR_ZONE, "Firmware file\t: %s", common->priv->fw_file_name);
+	ven_rsi_dbg(ERR_ZONE, "================================================\n");
+}
 
 /**
  * rsi_prepare_skb() - This function prepares the skb.
@@ -129,10 +184,7 @@ static struct sk_buff *rsi_prepare_skb(struct rsi_common *common,
 	rx_params = (struct skb_info *)info->driver_data;
 	rx_params->rssi = rsi_get_rssi(buffer);
 
-//	if (vif->type == NL80211_IFTYPE_STATION)
-		rx_params->channel = rsi_get_connected_channel(common->priv);
-//	else
-//		rx_params->channel = common->ap_channel->hw_value;
+	rx_params->channel = rsi_get_connected_channel(common->priv);
 
 	return skb;
 }
@@ -199,7 +251,7 @@ int ven_rsi_read_pkt(struct rsi_common *common, u8 *rx_pkt, s32 rcv_pkt_len)
 		case RSI_WIFI_MGMT_Q:
 			rsi_mgmt_pkt_recv(common, (frame_desc + offset));
 			break;
-#if defined(CONFIG_VEN_RSI_HCI) || defined(CONFIG_VEN_RSI_COEX)
+#if defined(CONFIG_VEN_RSI_BT_ALONE) || defined(CONFIG_VEN_RSI_COEX)
 		case RSI_BT_MGMT_Q:
 		case RSI_BT_DATA_Q:
 			rsi_hex_dump(DATA_RX_ZONE,
@@ -225,54 +277,6 @@ fail:
 	return -EINVAL;
 }
 EXPORT_SYMBOL_GPL(ven_rsi_read_pkt);
-
-#ifdef CONFIG_CARACALLA_BOARD
-static void rsi_bcn_sched(unsigned long data)
-{
-	struct rsi_common *common = (struct rsi_common *)data;
-
-	rsi_set_event(&common->bcn_thread.event);
-
-	common->bcn_timer.expires =
-		msecs_to_jiffies(common->beacon_interval - 5) + jiffies;
-	add_timer(&common->bcn_timer);
-}
-
-void rsi_init_bcn_timer(struct rsi_common *common)
-{
-	init_timer(&common->bcn_timer);
-
-	common->bcn_timer.data = (unsigned long)common;
-	common->bcn_timer.expires =
-		msecs_to_jiffies(common->beacon_interval - 5) + jiffies;
-	common->bcn_timer.function = (void *)rsi_bcn_sched;
-
-	add_timer(&common->bcn_timer);
-}
-
-void rsi_del_bcn_timer(struct rsi_common *common)
-{
-	del_timer(&common->bcn_timer);
-}
-
-void rsi_bcn_scheduler_thread(struct rsi_common *common)
-{
-	do {
-		rsi_wait_event(&common->bcn_thread.event,
-			       msecs_to_jiffies(common->beacon_interval));
-		rsi_reset_event(&common->bcn_thread.event);
-
-		if (!common->beacon_enabled)
-			continue;
-		if (!common->init_done)
-			continue;
-		if (common->iface_down)
-			continue;
-		rsi_send_beacon(common);
-	} while (atomic_read(&common->bcn_thread.thread_done) == 0);
-	complete_and_exit(&common->bcn_thread.completion, 0);
-}
-#endif
 
 /**
  * rsi_tx_scheduler_thread() - This function is a kernel thread to send the
@@ -321,7 +325,7 @@ void init_sdio_intr_status_poll_thread(struct rsi_common *common)
 			       &common->sdio_intr_poll_thread,
 			       rsi_sdio_intr_poll_scheduler_thread,
 			       "Sdio Intr poll-Thread")) {
-		rsi_dbg(ERR_ZONE, "%s: Unable to init sdio intr poll thrd\n",
+		ven_rsi_dbg(ERR_ZONE, "%s: Unable to init sdio intr poll thrd\n",
 				__func__);
 	}
 }
@@ -354,19 +358,24 @@ struct rsi_hw *ven_rsi_91x_init(void)
 	common = adapter->priv;
 	common->priv = adapter;
 
-	common->beacon_frame = kzalloc(512, GFP_KERNEL);
-	if (!common->beacon_frame)
-		goto err;
-	common->beacon_frame_len = 0;
-
 	for (ii = 0; ii < NUM_SOFT_QUEUES; ii++)
 		skb_queue_head_init(&common->tx_queue[ii]);
 
 	rsi_init_event(&common->tx_thread.event);
-	rsi_init_event(&common->bcn_thread.event);
 	mutex_init(&common->mutex);
 	mutex_init(&common->tx_lock);
 	mutex_init(&common->rx_lock);
+	sema_init(&common->tx_bus_lock, 1);
+
+#ifdef CONFIG_HW_SCAN_OFFLOAD
+	rsi_init_event(&common->chan_set_event);
+	rsi_init_event(&common->probe_cfm_event);
+	rsi_init_event(&common->chan_change_event);
+	rsi_init_event(&common->cancel_hw_scan_event);
+	common->scan_workqueue = 
+		create_singlethread_workqueue("rsi_scan_worker");
+	INIT_WORK(&common->scan_work, rsi_scan_start);
+#endif
 
 	if (rsi_create_kthread(common,
 			       &common->tx_thread,
@@ -376,26 +385,24 @@ struct rsi_hw *ven_rsi_91x_init(void)
 		goto err;
 	}
 
-#ifdef CONFIG_CARACALLA_BOARD
-	if (rsi_create_kthread(common,
-			       &common->bcn_thread,
-			       rsi_bcn_scheduler_thread,
-			       "Beacon-Thread")) {
-		ven_rsi_dbg(ERR_ZONE, "%s: Unable to init bcn thrd\n", __func__);
-		goto err;
-	}
-#endif
-
 #ifdef CONFIG_VEN_RSI_COEX
 	if (rsi_coex_init(common)) {
 		ven_rsi_dbg(ERR_ZONE, "Failed to init COEX module\n");
 		goto err;
 	}
 #endif
+	/* Power save related */
 	rsi_default_ps_params(adapter);
 	spin_lock_init(&adapter->ps_lock);
 	common->uapsd_bitmap = 0;
+
+	/* BGScan related */
 	init_bgscan_params(common);
+
+	/* Wi-Fi direct related */
+	common->roc_timer.data = (unsigned long)common;
+	common->roc_timer.function = (void *)&rsi_roc_timeout;
+	init_timer(&common->roc_timer);
 
 	common->init_done = true;
 	return adapter;
@@ -420,10 +427,12 @@ void ven_rsi_91x_deinit(struct rsi_hw *adapter)
 
 	ven_rsi_dbg(INFO_ZONE, "%s: Deinit core module...\n", __func__);
 
-	rsi_kill_thread(&common->tx_thread);
-#ifdef CONFIG_CARACALLA_BOARD
-	rsi_kill_thread(&common->bcn_thread);
+#ifdef CONFIG_HW_SCAN_OFFLOAD
+	flush_workqueue(common->scan_workqueue);
+	destroy_workqueue(common->scan_workqueue);
 #endif
+
+	rsi_kill_thread(&common->tx_thread);
 
 	for (ii = 0; ii < NUM_SOFT_QUEUES; ii++)
 		skb_queue_purge(&common->tx_queue[ii]);
@@ -433,8 +442,6 @@ void ven_rsi_91x_deinit(struct rsi_hw *adapter)
 #endif
 	common->init_done = false;
 
-	kfree(common->beacon_frame);
-	common->beacon_frame = NULL;
 	kfree(common);
 	kfree(adapter->rsi_dev);
 	kfree(adapter);
@@ -473,5 +480,5 @@ module_exit(rsi_91x_hal_module_exit);
 MODULE_AUTHOR("Redpine Signals Inc");
 MODULE_DESCRIPTION("Station driver for RSI 91x devices");
 MODULE_SUPPORTED_DEVICE("RSI-91x");
-MODULE_VERSION("0.1");
+MODULE_VERSION(DRV_VER);
 MODULE_LICENSE("Dual BSD/GPL");

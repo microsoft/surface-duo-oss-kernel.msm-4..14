@@ -1,26 +1,59 @@
-/**
- * Copyright (c) 2014 Redpine Signals Inc.
+/*
+ * Copyright (c) 2017 Redpine Signals Inc. All rights reserved.
  *
- * Developers:
- *		Fariya Fathima	2014 <fariya.f@redpinesignals.com>
- * Permission to use, copy, modify, and/or distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * 	1. Redistributions of source code must retain the above copyright
+ * 	   notice, this list of conditions and the following disclaimer.
  *
+ * 	2. Redistributions in binary form must reproduce the above copyright
+ * 	   notice, this list of conditions and the following disclaimer in the
+ * 	   documentation and/or other materials provided with the distribution.
+ *
+ * 	3. Neither the name of the copyright holder nor the names of its
+ * 	   contributors may be used to endorse or promote products derived from
+ * 	   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION). HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include <linux/module.h>
 #include "rsi_sdio.h"
 #include "rsi_common.h"
 #include "rsi_hal.h"
+
+/* Default operating mode is Wi-Fi alone */
+#ifdef CONFIG_CARACALLA_BOARD
+#if defined (CONFIG_VEN_RSI_COEX) || defined(CONFIG_VEN_RSI_BT_ALONE)
+u16 dev_oper_mode = DEV_OPMODE_STA_BT_DUAL;
+#else
+u16 dev_oper_mode = DEV_OPMODE_WIFI_ALONE;
+#endif
+#else
+u16 dev_oper_mode = DEV_OPMODE_WIFI_ALONE;
+#endif
+module_param(dev_oper_mode, ushort, S_IRUGO);
+MODULE_PARM_DESC(dev_oper_mode,
+		 "1 -	Wi-Fi Alone \
+		  4 -	BT Alone \
+		  8 -	BT LE Alone \
+		  5 -	Wi-Fi STA + BT classic \
+		  9 -	Wi-Fi STA + BT LE \
+		  13 -	Wi-Fi STA + BT classic + BT LE \
+		  6 -	AP + BT classic \
+		  14 -	AP + BT classic + BT LE");
+
 
 /**
  * rsi_sdio_set_cmd52_arg() - This function prepares cmd 52 read/write arg.
@@ -63,7 +96,7 @@ static int rsi_cmd52writebyte(struct mmc_card *card,
 	arg = rsi_sdio_set_cmd52_arg(1, 0, 0, address, byte);
 	io_cmd.opcode = SD_IO_RW_DIRECT;
 	io_cmd.arg = arg;
-	io_cmd.flags = MMC_RSP_R5 | MMC_CMD_AC;
+	io_cmd.flags = /*MMC_RSP_R5 | */MMC_CMD_AC;
 
 	return mmc_wait_for_cmd(card->host, &io_cmd, 0);
 }
@@ -88,7 +121,7 @@ static int rsi_cmd52readbyte(struct mmc_card *card,
 	arg = rsi_sdio_set_cmd52_arg(0, 0, 0, address, 0);
 	io_cmd.opcode = SD_IO_RW_DIRECT;
 	io_cmd.arg = arg;
-	io_cmd.flags = MMC_RSP_R5 | MMC_CMD_AC;
+	io_cmd.flags = /*MMC_RSP_R5 | */MMC_CMD_AC;
 
 	err = mmc_wait_for_cmd(card->host, &io_cmd, 0);
 	if ((!err) && (byte))
@@ -717,7 +750,7 @@ int rsi_sdio_load_data_master_write(struct rsi_hw *adapter,
 	/* Loading DM ms word in the sdio slave */
 	if (rsi_sdio_master_access_msword(adapter, msb_address)) {
 		ven_rsi_dbg(ERR_ZONE, "%s: Unable to set ms word reg\n", __func__);
-		return -1;
+		return -EIO;
 	}
 
 	for (offset = 0, ii = 0; ii < num_blocks; ii++, offset += block_size) {
@@ -728,7 +761,7 @@ int rsi_sdio_load_data_master_write(struct rsi_hw *adapter,
 					lsb_address | SD_REQUEST_MASTER,
 					temp_buf, block_size)) {
 			ven_rsi_dbg(ERR_ZONE, "%s: failed to write\n", __func__);
-			return -1;
+			return -EIO;
 		}
 		ven_rsi_dbg(INFO_ZONE, "%s: loading block: %d\n", __func__, ii);
 		base_address += block_size;
@@ -742,7 +775,7 @@ int rsi_sdio_load_data_master_write(struct rsi_hw *adapter,
 				ven_rsi_dbg(ERR_ZONE,
 					"%s: Unable to set ms word reg\n",
 					__func__);
-				return -1;
+				return -EIO;
 			}
 		}
 	}
@@ -757,7 +790,7 @@ int rsi_sdio_load_data_master_write(struct rsi_hw *adapter,
 						lsb_address | SD_REQUEST_MASTER,
 						temp_buf,
 						instructions_sz % block_size)) {
-			return -1;
+			return -EIO;
 		}
 		ven_rsi_dbg(INFO_ZONE,
 			"Written Last Block in Address 0x%x Successfully\n",
@@ -781,7 +814,7 @@ int rsi_sdio_master_reg_read(struct rsi_hw *adapter, u32 addr,
 		ven_rsi_dbg(ERR_ZONE,
 			"%s: Unable to set ms word to common reg\n",
 			__func__);
-		return -1;
+		return -EIO;
 	}
 	addr = addr & 0xFFFF;
 
@@ -792,12 +825,12 @@ int rsi_sdio_master_reg_read(struct rsi_hw *adapter, u32 addr,
 	} else
 		addr_on_bus = addr;
 
-	/* Bringing TA out of reset */
+	/* Bring TA out of reset */
 	if (rsi_sdio_read_register_multiple(adapter,
 					    (addr_on_bus | SD_REQUEST_MASTER),
 					    (u8 *)data, 4)) {
 		ven_rsi_dbg(ERR_ZONE, "%s: AHB register read failed\n", __func__);
-		return -1;
+		return -EIO;
 	}
 	if (size == 2) {
 		if ((addr & 0x3) == 0)
@@ -851,17 +884,17 @@ int rsi_sdio_master_reg_write(struct rsi_hw *adapter,
 		ven_rsi_dbg(ERR_ZONE,
 			"%s: Unable to set ms word to common reg\n",
 			__func__);
-		return -1;
+		return -EIO;
 	}
 	addr = addr & 0xFFFF;
 
-	/* Bringing TA out of reset */
+	/* Bring TA out of reset */
 	if (rsi_sdio_write_register_multiple(adapter,
 					     (addr | SD_REQUEST_MASTER),
 					     (u8 *)data_aligned, size)) {
 		ven_rsi_dbg(ERR_ZONE,
 			"%s: Unable to do AHB reg write\n", __func__);
-		return -1;
+		return -EIO;
 	}
 	return 0;
 }
@@ -1043,6 +1076,7 @@ static int rsi_probe(struct sdio_func *pfunction,
 	}
 	adapter->rsi_host_intf = RSI_HOST_INTF_SDIO;
 	adapter->host_intf_ops = &sdio_host_intf_ops;
+	adapter->priv->oper_mode = dev_oper_mode;
 
 	if (rsi_init_sdio_interface(adapter, pfunction)) {
 		ven_rsi_dbg(ERR_ZONE, "%s: Failed to init sdio interface\n",
@@ -1074,7 +1108,7 @@ static int rsi_probe(struct sdio_func *pfunction,
 	
 	if (rsi_sdio_master_access_msword(adapter, MISC_CFG_BASE_ADDR)) {
 		ven_rsi_dbg(ERR_ZONE, "%s: Unable to set ms word reg\n", __func__);
-		return -1;
+		return -EIO;
 	}
 	ven_rsi_dbg(INIT_ZONE, "%s: Setting ms word to 0x41050000\n", __func__);
 
@@ -1126,7 +1160,7 @@ static void rsi_disconnect(struct sdio_func *pfunction)
 	ven_rsi_mac80211_detach(adapter);
 	mdelay(10);
 
-#if defined(CONFIG_VEN_RSI_HCI) || defined(CONFIG_VEN_RSI_COEX)
+#if defined(CONFIG_VEN_RSI_BT_ALONE) || defined(CONFIG_VEN_RSI_COEX)
 	rsi_hci_detach(adapter->priv);
 	mdelay(10);
 #endif
@@ -1152,7 +1186,7 @@ int rsi_set_sdio_pm_caps(struct rsi_hw *adapter)
 	struct sdio_func *func = dev->pfunction;
 	int ret;
 
-	/* Keep Power to the MMC while suspend*/
+	/* Keep Power to the MMC while suspend */
 	ret = sdio_set_host_pm_flags(func, MMC_PM_KEEP_POWER);
 	if (ret) {
 		ven_rsi_dbg(ERR_ZONE, "set sdio keep pwr flag failed: %d\n", ret);
@@ -1162,16 +1196,75 @@ int rsi_set_sdio_pm_caps(struct rsi_hw *adapter)
 	return ret;
 }
 
+static int rsi_freeze(struct device *dev)
+{
+	int ret = 0;
+	struct sdio_func *pfunction = dev_to_sdio_func(dev);
+	struct rsi_hw *adapter = sdio_get_drvdata(pfunction);
+#ifdef CONFIG_VEN_RSI_WOW
+	struct rsi_91x_sdiodev *sdev =
+		(struct rsi_91x_sdiodev *)adapter->rsi_dev;
+#endif
+	u8 isr_status = 0;
+
+	ven_rsi_dbg(INFO_ZONE, "SDIO Bus freeze ===>\n");
+
+#ifdef CONFIG_VEN_RSI_WOW
+	if ((adapter->priv->suspend_flag == STATION_NOT_CONNECTED) ||
+	    (sdev->write_fail)) { 
+		ven_rsi_dbg(ERR_ZONE,
+			"SUSPEND Cannot proceed as Device is not ready\n");
+		ven_rsi_dbg(ERR_ZONE,
+			"Disable WoWLAN / Connect to AP\n");
+		return -EBUSY;
+	}
+#endif
+	ven_rsi_dbg(INFO_ZONE, "Waiting for interrupts to be cleared..");
+	do {
+		rsi_sdio_read_register(adapter,
+				       RSI_FN1_INT_REGISTER,
+				       &isr_status);
+		printk(".");
+	} while (isr_status);
+	printk("\n");
+
+	ret = rsi_set_sdio_pm_caps(adapter);
+	if (ret)
+		ven_rsi_dbg(INFO_ZONE, "Setting power management caps failed\n");
+
+	return 0;
+}
+
 static int rsi_suspend(struct device *dev)
 {
 	int ret = 0;
 	struct sdio_func *pfunction = dev_to_sdio_func(dev);
 	struct rsi_hw *adapter = sdio_get_drvdata(pfunction);
+#ifdef CONFIG_VEN_RSI_WOW
+	struct rsi_91x_sdiodev *sdev =
+		(struct rsi_91x_sdiodev *)adapter->rsi_dev;
+#endif
 	u8 isr_status = 0;
+	u8 data = 0;
 
-	ven_rsi_dbg(INFO_ZONE,"%s : ***** BUS SUSPEND  ******\n",__func__);
+	ven_rsi_dbg(INFO_ZONE, "SDIO Bus suspend ===>\n");
 
-	ven_rsi_dbg(INFO_ZONE, "Waiting for interrupts to be cleared..");
+	if (!adapter) {
+		ven_rsi_dbg(ERR_ZONE, "Device is not ready\n");
+		return -ENODEV;
+	}
+
+#ifdef CONFIG_VEN_RSI_WOW
+	if ((adapter->priv->suspend_flag == STATION_NOT_CONNECTED) ||
+	    (sdev->write_fail)) { 
+		ven_rsi_dbg(ERR_ZONE,
+			"SUSPEND Cannot proceed; Device is not ready\n");
+		ven_rsi_dbg(ERR_ZONE,
+			"Disable WoWLAN / Connect to AP\n");
+		return -EBUSY;
+	}
+#endif
+	printk("Waiting for interrupts to be cleared..");
 	do {
 		rsi_sdio_read_register(adapter,
 				       RSI_FN1_INT_REGISTER,
@@ -1180,21 +1273,123 @@ static int rsi_suspend(struct device *dev)
 	} while (isr_status); 
 	printk("\n");
 
+	/* Release IRQ */
+	sdio_claim_host(pfunction);
+	ret = rsi_cmd52readbyte(pfunction->card, 0x04, &data);
+	if (ret < 0) {
+		ven_rsi_dbg(ERR_ZONE,
+			"%s: Failed to read INTR_EN register\n",
+			__func__);
+		return ret;
+	}
+	ven_rsi_dbg(INFO_ZONE, "INTR_EN reg content = %x\n", data);
+
+	/* And bit0 and b1 */
+	data &= 0xfc;
+
+	ret = rsi_cmd52writebyte(pfunction->card, 0x04, data);
+	if (ret < 0) {
+		ven_rsi_dbg(ERR_ZONE,
+			"%s: Failed to Write to INTR_EN register\n",
+			__func__);
+		return ret;
+	}
+	ret = rsi_cmd52readbyte(pfunction->card, 0x04, &data);
+	if (ret < 0) {
+		ven_rsi_dbg(ERR_ZONE,
+			"%s: Failed to read INTR_EN register\n",
+			__func__);
+		return ret;
+	}
+	ven_rsi_dbg(INFO_ZONE, "INTR_EN reg content. = %x\n", data);
+
+	sdio_release_host(pfunction);
+
 	ret = rsi_set_sdio_pm_caps(adapter);
 	if (ret)
-		ven_rsi_dbg(INFO_ZONE, "Setting power management caps failed\n");
+		ven_rsi_dbg(INFO_ZONE,
+			"Setting power management caps failed\n");
+
+	ven_rsi_dbg(INFO_ZONE, "***** SDIO BUS SUSPEND DONE ******\n");
+	
 	return 0;
 }
 
 int rsi_resume(struct device *dev)
 {
-#ifdef CONFIG_RSI_WOW
+	int ret = 0;
+	u8 data = 0;
 	struct sdio_func *pfunction = dev_to_sdio_func(dev);
+#ifdef CONFIG_VEN_RSI_WOW
 	struct rsi_hw *adapter = sdio_get_drvdata(pfunction);
         
-	ven_rsi_dbg(INFO_ZONE,"%s: ***** BUS RESUME ******\n",__func__);
+	ven_rsi_dbg(INFO_ZONE, "***** BUS RESUME ******\n");
         adapter->priv->suspend_flag = 0;
 #endif
+
+	sdio_claim_host(pfunction);
+	ret = rsi_cmd52readbyte(pfunction->card, 0x04, &data);
+	if (ret < 0) {
+		ven_rsi_dbg(ERR_ZONE,
+			"%s: Failed to read INTR_EN register\n", __func__);
+		return ret;
+	}
+	ven_rsi_dbg(INFO_ZONE, "INTR_EN reg content1 = %x\n", data);
+
+	/* Enable b1 and b0 */
+	data |= 0x03;
+
+	ret = rsi_cmd52writebyte(pfunction->card, 0x04, data);
+	if (ret < 0) {
+		ven_rsi_dbg(ERR_ZONE,
+			"%s: Failed to Write to INTR_EN register\n",
+			__func__);
+		return ret;
+	}
+	
+        ret = rsi_cmd52readbyte(pfunction->card, 0x04, &data);
+	if (ret < 0) {
+		ven_rsi_dbg(ERR_ZONE,
+			"%s: Failed to read INTR_EN register\n", __func__);
+		return ret;
+	}
+	ven_rsi_dbg(INFO_ZONE, "INTR_EN reg content1.. = %x\n", data);
+	sdio_release_host(pfunction);
+
+	ven_rsi_dbg(INFO_ZONE, "***** RSI module resumed *****\n");
+	return 0;
+}
+
+int rsi_thaw(struct device *dev)
+{
+#ifdef CONFIG_VEN_RSI_WOW
+	struct sdio_func *pfunction = dev_to_sdio_func(dev);
+	struct rsi_hw *adapter = sdio_get_drvdata(pfunction);
+
+	ven_rsi_dbg(INFO_ZONE, "***** BUS THAW ******\n");
+	adapter->priv->suspend_flag = 0;
+#endif
+
+	ven_rsi_dbg(INFO_ZONE, "RSI module resumed\n");
+	return 0;
+}
+
+int rsi_restore(struct device *dev)
+{
+	struct sdio_func *pfunction = dev_to_sdio_func(dev);
+	struct rsi_hw *adapter = sdio_get_drvdata(pfunction);
+
+#ifdef CONFIG_VEN_RSI_WOW
+	ven_rsi_dbg(INFO_ZONE, "***** BUS RESTORE ******\n");
+	adapter->priv->suspend_flag = 0;
+#endif
+	rsi_reset_chip(adapter);
+
+	/* Resetting to take care of the case, where-in driver is re-loaded */
+	sdio_claim_host(pfunction);
+	rsi_reset_card(pfunction);
+	sdio_disable_func(pfunction);
+	sdio_release_host(pfunction);
 
 	ven_rsi_dbg(INFO_ZONE, "RSI module resumed\n");
 	return 0;
@@ -1203,6 +1398,10 @@ int rsi_resume(struct device *dev)
 static const struct dev_pm_ops rsi_pm_ops = {
 	.suspend = rsi_suspend,
 	.resume = rsi_resume,
+	.freeze = rsi_freeze,
+	.thaw = rsi_thaw,
+	.poweroff = rsi_suspend,
+	.restore = rsi_restore,
 };
 #endif
 
@@ -1263,5 +1462,5 @@ MODULE_DESCRIPTION("Common SDIO layer for RSI drivers");
 MODULE_SUPPORTED_DEVICE("RSI-91x");
 MODULE_DEVICE_TABLE(sdio, rsi_dev_table);
 MODULE_FIRMWARE(FIRMWARE_RSI9113);
-MODULE_VERSION("0.1");
+MODULE_VERSION(DRV_VER);
 MODULE_LICENSE("Dual BSD/GPL");

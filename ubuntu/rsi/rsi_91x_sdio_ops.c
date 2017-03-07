@@ -1,18 +1,31 @@
-/**
- * Copyright (c) 2014 Redpine Signals Inc.
+/*
+ * Copyright (c) 2017 Redpine Signals Inc. All rights reserved.
  *
- * Permission to use, copy, modify, and/or distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * 	1. Redistributions of source code must retain the above copyright
+ * 	   notice, this list of conditions and the following disclaimer.
  *
+ * 	2. Redistributions in binary form must reproduce the above copyright
+ * 	   notice, this list of conditions and the following disclaimer in the
+ * 	   documentation and/or other materials provided with the distribution.
+ *
+ * 	3. Neither the name of the copyright holder nor the names of its
+ * 	   contributors may be used to endorse or promote products derived from
+ * 	   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION). HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include <linux/firmware.h>
@@ -256,6 +269,7 @@ void rsi_interrupt_handler(struct rsi_hw *adapter)
 	enum sdio_interrupt_type isr_type;
 	u8 isr_status = 0;
 	u8 fw_status = 0;
+	u8 buf_status = 0;
 
 	dev->rx_info.sdio_int_counter++;
 
@@ -294,18 +308,47 @@ void rsi_interrupt_handler(struct rsi_hw *adapter)
 
 			switch (isr_type) {
 			case BUFFER_AVAILABLE:
-				dev->rx_info.watch_bufferfull_count = 0;
+				status = rsi_sdio_read_register(common->priv,
+						RSI_DEVICE_BUFFER_STATUS_REGISTER,
+						&buf_status);
+				if (status) {
+					ven_rsi_dbg(ERR_ZONE,
+						"%s: Failed to read status register\n",
+						__func__);
+					return;
+				}
+				if (buf_status & (BIT(PKT_MGMT_BUFF_FULL))) {
+					if (!dev->rx_info.mgmt_buffer_full)
+						dev->rx_info.mgmt_buf_full_counter++;
+					dev->rx_info.mgmt_buffer_full = true;
+				} else {
+					dev->rx_info.buf_available_counter++;
+					dev->rx_info.mgmt_buffer_full = false;
+				}
+				if (buf_status & (BIT(PKT_BUFF_FULL))) {
+					if (!dev->rx_info.buffer_full)
+						dev->rx_info.buf_full_counter++;
+					dev->rx_info.buffer_full = true;
+				} else {
+					dev->rx_info.buf_available_counter++;
 				dev->rx_info.buffer_full = false;
+				}
+				if (buf_status & (BIT(PKT_BUFF_SEMI_FULL))) {
+					if (!dev->rx_info.semi_buffer_full)
+						dev->rx_info.buf_semi_full_counter++;
+					dev->rx_info.semi_buffer_full = true;
+				} else {
+					dev->rx_info.buf_available_counter++;
 				dev->rx_info.semi_buffer_full = false;
-				dev->rx_info.mgmt_buffer_full = false;
+				}
+
 				rsi_sdio_ack_intr(common->priv,
 						  (1 << PKT_BUFF_AVAILABLE));
 				rsi_set_event(&common->tx_thread.event);
 
 				ven_rsi_dbg(ISR_ZONE,
-					"%s: ==> BUFFER_AVAILABLE <==\n",
+					"%s: Buffer full/available\n",
 					__func__);
-				dev->rx_info.buf_available_counter++;
 				dev->buff_status_updated = 1;
 				break;
 

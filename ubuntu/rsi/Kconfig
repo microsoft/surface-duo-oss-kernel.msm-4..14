@@ -43,12 +43,52 @@ config VEN_RSI_USB
 	  This option enables the USB bus support in rsi drivers.
 	  Select M (recommended), if you have a RSI 1x1 wireless module.
 
-config VEN_RSI_HCI
-	tristate "Redpine Signals HCI support"
+config VEN_RSI_BT_ALONE
+	bool "Redpine Signals BT alone (classic/LE) mode support"
 	depends on VEN_RSI_91X
-	default m
+	default n
 	---help---
-	  This option enables the HCI support in rsi drivers for BT apps.
-	  Select M (recommended), if you have a RSI 1x1 wireless module.
+	  This option enables the BT classic alone upport in rsi drivers.
+	  Say Y, if you want to use this feature.
+
+config VEN_RSI_COEX
+	bool "Redpine Signals Wi-Fi BT Coex support"
+	depends on VEN_RSI_91X
+	default n
+	---help---
+	  This option enables the Wi-Fi BT coex support in rsi drivers.
+	  Select Y, if you have to use this feature.
+
+config VEN_RSI_WOW
+	bool "Redpine Signals WoWLAN support"
+	depends on VEN_RSI_91X
+	default n
+	---help---
+	  This option enables the WoWLAN support.
+	  Say Y if you want to use this feature.
+
+config VEN_RSI_P2P
+	bool "Redpine Signals Wi-Fi Direct support"
+	depends on VEN_RSI_91X
+	default n
+	---help---
+	  This option enables the Wi-Fi Direct support in rsi drivers.
+	  Select Y, if you have to use this feature.
+
+config HW_SCAN_OFFLOAD 
+	bool "Redpine Signals Hardware scan offload feature"
+	depends on VEN_RSI_91X
+	default n
+	---help---
+	  This option enables the hardware scan offload option in rsi drivers.
+	  Select Y, if you have to use this feature.
+
+config CARACALLA_BOARD
+	bool "Redpine device support on Caracalla board"
+	depends on VEN_RSI_91X
+	default n
+	---help---
+	  This option is used to support Caracalla board with RSI driver.
+	  Select Y, if you have to use this support.
 
 endif # WLAN_VENDOR_RSI

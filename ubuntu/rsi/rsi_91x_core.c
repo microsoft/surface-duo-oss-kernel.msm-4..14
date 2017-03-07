@@ -1,17 +1,31 @@
-/**
- * Copyright (c) 2014 Redpine Signals Inc.
+/*
+ * Copyright (c) 2017 Redpine Signals Inc. All rights reserved.
  *
- * Permission to use, copy, modify, and/or distribute this software for any
- * purpose with or without fee is hereby granted, provided that the above
- * copyright notice and this permission notice appear in all copies.
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
  *
- * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
- * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
- * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
- * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
- * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
- * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
- * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ * 	1. Redistributions of source code must retain the above copyright
+ * 	   notice, this list of conditions and the following disclaimer.
+ *
+ * 	2. Redistributions in binary form must reproduce the above copyright
+ * 	   notice, this list of conditions and the following disclaimer in the
+ * 	   documentation and/or other materials provided with the distribution.
+ *
+ * 	3. Neither the name of the copyright holder nor the names of its
+ * 	   contributors may be used to endorse or promote products derived from
+ * 	   this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+ * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+ * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ * ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+ * LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+ * INTERRUPTION). HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+ * CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
  */
 
 #include "rsi_mgmt.h"
@@ -110,9 +124,9 @@ static u32 rsi_get_num_pkts_dequeue(struct rsi_common *common, u8 q_num)
 
 	do {
 		r_txop = ieee80211_generic_frame_duration(adapter->hw,
-							  adapter->vifs[0],
-							  common->band,
-							  skb->len, &rate);
+					adapter->vifs[adapter->sc_nvifs - 1],
+					common->band,
+					skb->len, &rate);
 		txop -= le16_to_cpu(r_txop);
 		pkt_cnt += 1;
 		/*checking if pkts are still there*/
@@ -139,6 +153,11 @@ static u8 rsi_core_determine_hal_queue(struct rsi_common *common)
 	u32 q_len = 0;
 	u8 q_num = INVALID_QUEUE;
 	u8 ii;
+	
+	if (skb_queue_len(&common->tx_queue[MGMT_BEACON_Q])) {
+		q_num = MGMT_BEACON_Q;
+		return q_num;
+	}
 
 	if (skb_queue_len(&common->tx_queue[MGMT_SOFT_Q])) {
 		if (!common->mgmt_q_block)
@@ -284,8 +303,10 @@ void rsi_core_qos_processor(struct rsi_common *common)
 		if ((q_num < MGMT_SOFT_Q) &&
 		    ((skb_queue_len(&common->tx_queue[q_num])) <=
 		      MIN_DATA_QUEUE_WATER_MARK)) {
-			if (!adapter->hw)
+			if (!adapter->hw) {
+				mutex_unlock(&common->tx_lock);
 				break;
+			}
 			if (ieee80211_queue_stopped(adapter->hw, WME_AC(q_num)))
 				ieee80211_wake_queue(adapter->hw,
 						     WME_AC(q_num));
@@ -298,11 +319,18 @@ void rsi_core_qos_processor(struct rsi_common *common)
 			break;
 		}
 #ifdef CONFIG_VEN_RSI_COEX
-		status = rsi_coex_send_pkt(common, skb, RSI_WLAN_Q);
+		if (q_num == MGMT_BEACON_Q) {
+			status = rsi_send_pkt(common, skb);
+			dev_kfree_skb(skb);
+		} else
+			status = rsi_coex_send_pkt(common, skb, RSI_WLAN_Q);
 #else
 		if (q_num == MGMT_SOFT_Q)
 			status = rsi_send_mgmt_pkt(common, skb);
-		else
+		else if(q_num == MGMT_BEACON_Q) {
+			status = rsi_send_pkt(common, skb);
+			dev_kfree_skb(skb);
+		} else 
 			status = rsi_send_data_pkt(common, skb);
 #endif
 
@@ -321,7 +349,7 @@ void rsi_core_qos_processor(struct rsi_common *common)
 	}
 }
 
-inline char *dot11_pkt_type(__le16 frame_control)
+char *dot11_pkt_type(__le16 frame_control)
 {
 	if (ieee80211_is_beacon(frame_control))
 		return "BEACON";
@@ -363,12 +391,13 @@ inline char *dot11_pkt_type(__le16 frame_control)
 
 	return "UNKNOWN";
 }
+EXPORT_SYMBOL_GPL(dot11_pkt_type);
 
 struct rsi_sta *rsi_find_sta(struct rsi_common *common, u8 *mac_addr)
 {
 	int i;
 
-	for (i = 0; i < RSI_MAX_ASSOC_STAS; i++) {
+	for (i = 0; i < common->max_stations; i++) {
 		if (!common->stations[i].sta)
 			continue;
 		if (!(memcmp(common->stations[i].sta->addr,
@@ -391,7 +420,7 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 	struct ieee80211_tx_info *info;
 	struct skb_info *tx_params;
 	struct ieee80211_hdr *wlh = NULL;
-	struct ieee80211_vif *vif = adapter->vifs[0];
+	struct ieee80211_vif *vif = adapter->vifs[adapter->sc_nvifs - 1];
 	u8 q_num, tid = 0;
 
 	if ((!skb) || (!skb->len)) {
@@ -399,9 +428,11 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 			__func__);
 		goto xmit_fail;
 	}
-#ifdef CONFIG_RSI_WOW
-	if(common->suspend_flag) {
-		ven_rsi_dbg(ERR_ZONE, "%s: Blocking Tx_packets when WOWLAN is enabled\n", __func__);
+#ifdef CONFIG_VEN_RSI_WOW
+	if (common->suspend_flag) {
+		ven_rsi_dbg(ERR_ZONE,
+			"%s: Blocking Tx_packets when WOWLAN is enabled\n",
+			__func__);
 		goto xmit_fail;
 	}
 #endif
@@ -417,11 +448,14 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 	if ((ieee80211_is_mgmt(wlh->frame_control)) ||
 	    (ieee80211_is_ctl(wlh->frame_control)) ||
 	    (ieee80211_is_qos_nullfunc(wlh->frame_control))) {
+
 		if ((ieee80211_is_assoc_req(wlh->frame_control)) ||
 	 	    (ieee80211_is_reassoc_req(wlh->frame_control))) {
 			struct ieee80211_bss_conf *bss = NULL;
 
 			bss = &adapter->vifs[0]->bss_conf;
+			common->eapol4_confirm = 0;
+			common->start_bgscan = 0;
 			rsi_send_sta_notify_frame(common, STA_OPMODE,
 						  STA_CONNECTED,
 						  bss->bssid, bss->qos,
@@ -429,22 +463,29 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 		}
 		q_num = MGMT_SOFT_Q;
 		skb->priority = q_num;
-#ifdef CONFIG_RSI_WOW          
-		if ((ieee80211_is_deauth(wlh->frame_control)) && (common->suspend_flag)) {
-			ven_rsi_dbg(ERR_ZONE, "%s: Discarding Deauth when WOWLAN is enabled\n", __func__);
+
+#ifdef CONFIG_VEN_RSI_WOW          
+		if ((ieee80211_is_deauth(wlh->frame_control)) &&
+			(common->suspend_flag)) {
+			ven_rsi_dbg(ERR_ZONE,
+				"%s: Discarding Deauth when WOWLAN is enabled\n",
+				__func__);
 			goto xmit_fail; 
 		}
 #endif
 		ven_rsi_dbg(INFO_ZONE, "Core: TX Dot11 Mgmt Pkt Type: %s\n",
 			dot11_pkt_type(wlh->frame_control));
+#ifndef CONFIG_HW_SCAN_OFFLOAD
 		if (ieee80211_is_probe_req(wlh->frame_control)) {
 			if ((is_broadcast_ether_addr(wlh->addr1)) &&
-			    (skb->data[MIN_802_11_HDR_LEN + 1] == 0)) {
+			    (skb->data[MIN_802_11_HDR_LEN + 1] == 0) &&
+			    (skb->len < 120)) {
 				memcpy(common->bgscan_probe_req,
 				       skb->data, skb->len);
 				common->bgscan_probe_req_len = skb->len;
 			}
 		}
+#endif
 		if (rsi_prepare_mgmt_desc(common, skb)) {
 			ven_rsi_dbg(ERR_ZONE, "Failed to prepeare desc\n");
 			goto xmit_fail;
@@ -459,7 +500,8 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 		/* Drop the null packets if bgscan is enabled
  		 * as it is already handled in firmware */
 		if ((vif->type == NL80211_IFTYPE_STATION) && (common->bgscan_en)) {
-			if (ieee80211_is_qos_nullfunc(wlh->frame_control)) {
+			if ((ieee80211_is_qos_nullfunc(wlh->frame_control) ||
+			    ieee80211_is_nullfunc(wlh->frame_control))) {
 				++common->tx_stats.total_tx_pkt_freed[skb->priority];
 				rsi_indicate_tx_status(adapter, skb, 0);
 				return;
@@ -472,52 +514,49 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 			tid = *qos & IEEE80211_QOS_CTL_TID_MASK;
 			skb->priority = TID_TO_WME_AC(tid);
 
-			if ((vif->type == NL80211_IFTYPE_AP) &&
-			    (!is_broadcast_ether_addr(wlh->addr1)) &&
-			    (!is_multicast_ether_addr(wlh->addr1))) {
-				sta = rsi_find_sta(common, wlh->addr1);
-				if (!sta)
-					goto xmit_fail;
-			}
 		} else {
 			tid = IEEE80211_NONQOS_TID;
 			skb->priority = BE_Q;
-		
-			if ((!is_broadcast_ether_addr(wlh->addr1)) &&
-			    (!is_multicast_ether_addr(wlh->addr1)) &&
-			    (vif->type == NL80211_IFTYPE_AP)) {
-				sta = rsi_find_sta(common, wlh->addr1);
-				if (!sta)
-					goto xmit_fail;
-			}
 		}
+		if (((vif->type == NL80211_IFTYPE_AP) ||
+		     (vif->type == NL80211_IFTYPE_P2P_GO)) &&
+		    (!is_broadcast_ether_addr(wlh->addr1)) &&
+		    (!is_multicast_ether_addr(wlh->addr1))) {
+			sta = rsi_find_sta(common, wlh->addr1);
+			if (!sta)
+				goto xmit_fail;
+		}
+
 		q_num = skb->priority;
 		tx_params->tid = tid;
 
 		if (sta) {
-			wlh->seq_ctrl =
-				cpu_to_le16((sta->seq_no[skb->priority] << 4) &
-					    IEEE80211_SCTL_SEQ);
+#if 0
+			seq = IEEE80211_SN_TO_SEQ(sta->seq_no[skb->priority]);
+
+			wlh->seq_ctrl = cpu_to_le16(seq);
 			sta->seq_no[skb->priority] =
-				(sta->seq_no[skb->priority] + 1) % IEEE80211_MAX_SN;
+				ieee80211_sn_inc(sta->seq_no[skb->priority]);
+#endif
 			tx_params->sta_id = sta->sta_id;
 		} else {
-			if (vif->type == NL80211_IFTYPE_AP) {
-				wlh->seq_ctrl =
-					cpu_to_le16((common->bc_mc_seqno << 4) &
-						    IEEE80211_SCTL_SEQ);
+#if 0
+			seq = IEEE80211_SN_TO_SEQ(common->bc_mc_seqno);
+			if ((vif->type == NL80211_IFTYPE_AP) ||
+			    (vif->type == NL80211_IFTYPE_P2P_GO)) {
+				seq = IEEE80211_SN_TO_SEQ(common->bc_mc_seqno);
+				wlh->seq_ctrl = cpu_to_le16(seq);
 				common->bc_mc_seqno =
-					(common->bc_mc_seqno + 1) % IEEE80211_MAX_SN;
+					ieee80211_sn_inc(common->bc_mc_seqno);
 			}
+#endif
 			tx_params->sta_id = 0;
 		}
 
-#ifdef EAPOL_IN_MGMT_Q
-		if (skb->protocol == cpu_to_le16(ETH_P_PAE)) {
+		if (skb->protocol == cpu_to_be16(ETH_P_PAE)) {
 			q_num = MGMT_SOFT_Q;
 			skb->priority = q_num;
 		}
-#endif
 		if (rsi_prepare_data_desc(common, skb)) {
 			ven_rsi_dbg(ERR_ZONE, "Failed to prepare data desc\n");
 			goto xmit_fail;
@@ -542,6 +581,7 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 
 xmit_fail:
 	ven_rsi_dbg(ERR_ZONE, "%s: Failed to queue packet\n", __func__);
+
 	/* Dropping pkt here */
 	ieee80211_free_txskb(common->priv->hw, skb);
 }
