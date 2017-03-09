@@ -1494,10 +1494,31 @@ static int arm_smmu_add_device(struct device *dev)
 
 	iommu_device_link(&smmu->iommu, dev);
 
+	if (pm_runtime_enabled(smmu->dev)) {
+		struct device_link *link;
+
+		/*
+		 * Establish the link between smmu and master, so that the
+		 * smmu gets runtime enabled/disabled as per the master's
+		 * needs.
+		 */
+		link = device_link_add(dev, smmu->dev, DL_FLAG_PM_RUNTIME);
+		if (!link) {
+			dev_warn(smmu->dev,
+				 "Unable to add link to the consumer %s\n",
+				 dev_name(dev));
+			ret = -ENODEV;
+			goto out_unlink;
+		}
+	}
+
 	arm_smmu_rpm_put(smmu);
 
 	return 0;
 
+out_unlink:
+	iommu_device_unlink(&smmu->iommu, dev);
+	arm_smmu_master_free_smes(fwspec);
 out_rpm_put:
 	arm_smmu_rpm_put(smmu);
 out_cfg_free:
@@ -1519,6 +1540,9 @@ static void arm_smmu_remove_device(struct device *dev)
 
 	cfg  = fwspec->iommu_priv;
 	smmu = cfg->smmu;
+
+	if (pm_runtime_enabled(smmu->dev))
+		device_link_del_dev(dev, smmu->dev);
 
 	ret = arm_smmu_rpm_get(smmu);
 	if (ret < 0)
