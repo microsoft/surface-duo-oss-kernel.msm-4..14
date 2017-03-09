@@ -2011,8 +2011,18 @@ static const struct arm_smmu_match_data name = { .version = ver, .model = imp }
 ARM_SMMU_MATCH_DATA(smmu_generic_v1, ARM_SMMU_V1, GENERIC_SMMU);
 ARM_SMMU_MATCH_DATA(smmu_generic_v2, ARM_SMMU_V2, GENERIC_SMMU);
 ARM_SMMU_MATCH_DATA(arm_mmu401, ARM_SMMU_V1_64K, GENERIC_SMMU);
-ARM_SMMU_MATCH_DATA(arm_mmu500, ARM_SMMU_V2, ARM_MMU500);
 ARM_SMMU_MATCH_DATA(cavium_smmuv2, ARM_SMMU_V2, CAVIUM_SMMUV2);
+
+static const char * const arm_mmu500_clks[] = {
+	"tcu", "iface",
+};
+
+static const struct arm_smmu_match_data arm_mmu500 = {
+	.version = ARM_SMMU_V2,
+	.model = ARM_MMU500,
+	.clks = arm_mmu500_clks,
+	.num_clks = ARRAY_SIZE(arm_mmu500_clks),
+};
 
 static const struct of_device_id arm_smmu_of_match[] = {
 	{ .compatible = "arm,smmu-v1", .data = &smmu_generic_v1 },

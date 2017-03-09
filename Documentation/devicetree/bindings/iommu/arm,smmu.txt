@@ -71,6 +71,26 @@ conditions.
                   or using stream matching with #iommu-cells = <2>, and
                   may be ignored if present in such cases.
 
+- clock-names:    Should be "tcu" and "iface" for "arm,mmu-400",
+                  "arm,mmu-401" and "arm,mmu-500"
+
+                  "tcu" clock is required for smmu's register access using the
+                  programming interface and ptw for downstream bus access. This
+                  clock is also used for access to the TBU connected to the
+                  master locally. Sometimes however, TBU is clocked along with
+                  the master.
+
+                  "iface" clock is required to access the TCU's programming
+                  interface, apart from the "tcu" clock.
+
+- clocks:         Phandles for respective clocks described by clock-names.
+
+- power-domains:  Phandles to SMMU's power domain specifier. This is
+                  required even if SMMU belongs to the master's power
+                  domain, as the SMMU will have to be enabled and
+                  accessed before master gets enabled and linked to its
+                  SMMU.
+
 ** Deprecated properties:
 
 - mmu-masters (deprecated in favour of the generic "iommus" binding) :
@@ -95,6 +115,10 @@ conditions.
                              <0 36 4>,
                              <0 37 4>;
                 #iommu-cells = <1>;
+                clocks = <&gcc GCC_SMMU_CFG_CLK>,
+                         <&gcc GCC_APSS_TCU_CLK>;
+
+		clock-names = "iface", "tcu";
         };
 
         /* device with two stream IDs, 0 and 7 */
