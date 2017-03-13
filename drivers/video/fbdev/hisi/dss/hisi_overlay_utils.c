@@ -7766,6 +7766,8 @@ int hisi_overlay_init(struct hisi_fb_data_type *hisifd)
 	hisifd->dpp_ce_end_wq = NULL;
 	hisifd->hiace_end_wq = NULL;
 
+	hisifd->video_opt_support = is_mipi_video_panel(hisifd) ? true : false;
+
 	if ((hisifd->index == PRIMARY_PANEL_IDX) ||
 	    (hisifd->index == EXTERNAL_PANEL_IDX
 	     && !hisifd->panel_info.fake_hdmi)) {

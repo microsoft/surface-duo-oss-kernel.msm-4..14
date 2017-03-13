@@ -1365,10 +1365,6 @@ void hisi_cmdlist_data_get_online(struct hisi_fb_data_type *hisifd)
 
 	BUG_ON(hisifd == NULL);
 
-	tmp = (hisifd->frame_count + 1) % HISI_DSS_CMDLIST_DATA_MAX;
-	hisifd->cmdlist_data = hisifd->cmdlist_data_tmp[tmp];
-	hisi_cmdlist_del_node(hisifd, NULL, HISI_DSS_CMDLIST_IDXS_MAX);
-
 	tmp = hisifd->frame_count % HISI_DSS_CMDLIST_DATA_MAX;
 	hisifd->cmdlist_data = hisifd->cmdlist_data_tmp[tmp];
 	hisi_cmdlist_del_node(hisifd, NULL, HISI_DSS_CMDLIST_IDXS_MAX);

@@ -230,7 +230,7 @@ static int mipi_adi_hdmi_probe(struct platform_device *pdev)
 	}
 
 
-	pinfo->mipi.dsi_bit_clk = 480;
+	pinfo->mipi.dsi_bit_clk = 432;
 
 
 	pinfo->dsi_bit_clk_upt_support = 0;
@@ -238,7 +238,7 @@ static int mipi_adi_hdmi_probe(struct platform_device *pdev)
 
 	pinfo->mipi.non_continue_en = 0;
 
-	pinfo->pxl_clk_rate = 160 * 1000000UL;
+	pinfo->pxl_clk_rate = 144 * 1000000UL;
 
 
 	pinfo->mipi.lane_nums = DSI_4_LANES;

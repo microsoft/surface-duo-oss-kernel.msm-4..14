@@ -413,6 +413,7 @@ struct hisi_fb_data_type {
 	bool fb_mem_free_flag;
 
 	uint8_t core_clk_upt_support;
+	bool video_opt_support;
 
 	uint32_t vactive_start_event;
 

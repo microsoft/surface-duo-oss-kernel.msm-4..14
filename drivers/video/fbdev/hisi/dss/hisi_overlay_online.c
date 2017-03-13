@@ -386,6 +386,8 @@ int hisi_ov_online_play(struct hisi_fb_data_type *hisifd, void __user *argp)
 	struct timeval tv1;
 	struct timeval tv2;
 	struct timeval tv3;
+	ktime_t prepare_timestamp;
+	uint64_t vsync_timediff = 0;
 
 	if (NULL == hisifd) {
 		HISI_FB_ERR("NULL Pointer!\n");
@@ -433,27 +435,26 @@ int hisi_ov_online_play(struct hisi_fb_data_type *hisifd, void __user *argp)
 		need_skip = 1;
 		goto err_return;
 	}
+
 #ifdef CONFIG_BUF_SYNC_USED
-	if (is_mipi_video_panel(hisifd)) {
+	if (is_mipi_video_panel(hisifd) && !hisifd->video_opt_support) {
 		ret = hisifb_buf_sync_handle(hisifd, pov_req);
 		if (ret < 0) {
-			HISI_FB_ERR
-			    ("fb%d, hisifb_buf_sync_handle failed! ret=%d\n",
-			     hisifd->index, ret);
+			HISI_FB_ERR("fb%d, hisifb_buf_sync_handle failed! ret=%d\n", hisifd->index, ret);
 			need_skip = 1;
 			goto err_return;
 		}
 	}
 #endif
 
-	ret = hisi_vactive0_start_config(hisifd, pov_req);
-	if (ret != 0) {
-		HISI_FB_ERR("fb%d, hisi_vactive0_start_config failed! ret=%d\n",
-			    hisifd->index, ret);
-		need_skip = 1;
-		goto err_return;
+	if (!hisifd->video_opt_support) {
+		ret = hisi_vactive0_start_config(hisifd, pov_req);
+		if (ret != 0) {
+			HISI_FB_ERR("fb%d, hisi_vactive0_start_config failed! ret=%d\n", hisifd->index, ret);
+			need_skip = 1;
+			goto err_return;
+		}
 	}
-	down(&hisifd->blank_sem0);
 
 	if (g_debug_ovl_online_composer_timediff & 0x4) {
 		hisifb_get_timestamp(&tv3);
@@ -462,6 +463,8 @@ int hisi_ov_online_play(struct hisi_fb_data_type *hisifd, void __user *argp)
 			HISI_FB_ERR("ONLINE_VACTIVE_TIMEDIFF is %u us!\n",
 				    timediff);
 	}
+
+	down(&hisifd->blank_sem0);
 
 	if (g_debug_ovl_online_composer == 1) {
 		dumpDssOverlay(hisifd, pov_req, false);
@@ -627,23 +630,40 @@ int hisi_ov_online_play(struct hisi_fb_data_type *hisifd, void __user *argp)
 	hisi_dss_unflow_handler(hisifd, pov_req, true);
 
 #ifdef CONFIG_BUF_SYNC_USED
-	if (is_mipi_cmd_panel(hisifd)) {
+	if (is_mipi_cmd_panel(hisifd) || hisifd->video_opt_support) {
 		ret = hisifb_buf_sync_handle(hisifd, pov_req);
 		if (ret < 0) {
-			HISI_FB_ERR
-			    ("fb%d, hisifb_buf_sync_handle failed! ret=%d\n",
-			     hisifd->index, ret);
+			HISI_FB_ERR("fb%d, hisifb_buf_sync_handle failed! ret=%d\n", hisifd->index, ret);
 			goto err_return;
 		}
 	}
 
-	pov_req->release_fence =
-	    hisifb_buf_sync_create_fence(hisifd,
-					 ++hisifd->buf_sync_ctrl.timeline_max);
+	if (hisifd->video_opt_support) {
+		prepare_timestamp = ktime_get();
+		vsync_timediff = (uint64_t)(hisifd->panel_info.xres + hisifd->panel_info.ldi.h_back_porch +
+			hisifd->panel_info.ldi.h_front_porch + hisifd->panel_info.ldi.h_pulse_width) * (hisifd->panel_info.yres +
+			hisifd->panel_info.ldi.v_back_porch + hisifd->panel_info.ldi.v_front_porch + hisifd->panel_info.ldi.v_pulse_width)	*
+			1000000000UL / hisifd->panel_info.pxl_clk_rate;
+
+		if ((ktime_to_ns(prepare_timestamp) > ktime_to_ns(hisifd->vsync_ctrl.vsync_timestamp)) &&
+			(ktime_to_ns(prepare_timestamp) - ktime_to_ns(hisifd->vsync_ctrl.vsync_timestamp) < (vsync_timediff - 2000000))) {
+			HISI_FB_DEBUG("fb%d, vsync_timediff=%llu, timestamp_diff=%llu!\n", hisifd->index,
+				vsync_timediff, ktime_to_ns(prepare_timestamp) - ktime_to_ns(hisifd->vsync_ctrl.vsync_timestamp));
+		} else {
+			HISI_FB_DEBUG("fb%d, vsync_timediff=%llu.\n", hisifd->index, vsync_timediff);
+
+			ret = hisi_vactive0_start_config(hisifd, pov_req);
+			if (ret != 0) {
+				HISI_FB_ERR("fb%d, hisi_vactive0_start_config failed! ret=%d\n", hisifd->index, ret);
+				need_skip = 0;
+				goto err_return;
+			}
+		}
+	}
+
+	pov_req->release_fence = hisifb_buf_sync_create_fence(hisifd, ++hisifd->buf_sync_ctrl.timeline_max);
 	if (pov_req->release_fence < 0) {
-		HISI_FB_INFO
-		    ("fb%d, hisi_create_fence failed! pov_req->release_fence = 0x%x\n",
-		     hisifd->index, pov_req->release_fence);
+		HISI_FB_INFO("fb%d, hisi_create_fence failed! pov_req->release_fence = 0x%x\n", hisifd->index, pov_req->release_fence);
 	}
 
 	spin_lock_irqsave(&hisifd->buf_sync_ctrl.refresh_lock, flags);
