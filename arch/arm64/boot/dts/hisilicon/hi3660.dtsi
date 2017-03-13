@@ -59,7 +59,6 @@
 			device_type = "cpu";
 			reg = <0x0 0x0>;
 			enable-method = "psci";
-			sched-energy-costs = <&CPU_COST_A53 &CLUSTER_COST_A53>;
 		};
 
 		cpu1: cpu@1 {
@@ -67,7 +66,6 @@
 			device_type = "cpu";
 			reg = <0x0 0x1>;
 			enable-method = "psci";
-			sched-energy-costs = <&CPU_COST_A53 &CLUSTER_COST_A53>;
 		};
 
 		cpu2: cpu@2 {
@@ -75,7 +73,6 @@
 			device_type = "cpu";
 			reg = <0x0 0x2>;
 			enable-method = "psci";
-			sched-energy-costs = <&CPU_COST_A53 &CLUSTER_COST_A53>;
 		};
 
 		cpu3: cpu@3 {
@@ -83,7 +80,6 @@
 			device_type = "cpu";
 			reg = <0x0 0x3>;
 			enable-method = "psci";
-			sched-energy-costs = <&CPU_COST_A53 &CLUSTER_COST_A53>;
 		};
 
 		cpu4: cpu@100 {
@@ -91,7 +87,6 @@
 			device_type = "cpu";
 			reg = <0x0 0x100>;
 			enable-method = "psci";
-			sched-energy-costs = <&CPU_COST_A73 &CLUSTER_COST_A73>;
 		};
 
 		cpu5: cpu@101 {
@@ -99,7 +94,6 @@
 			device_type = "cpu";
 			reg = <0x0 0x101>;
 			enable-method = "psci";
-			sched-energy-costs = <&CPU_COST_A73 &CLUSTER_COST_A73>;
 		};
 
 		cpu6: cpu@102 {
@@ -107,7 +101,6 @@
 			device_type = "cpu";
 			reg = <0x0 0x102>;
 			enable-method = "psci";
-			sched-energy-costs = <&CPU_COST_A73 &CLUSTER_COST_A73>;
 		};
 
 		cpu7: cpu@103 {
@@ -115,9 +108,7 @@
 			device_type = "cpu";
 			reg = <0x0 0x103>;
 			enable-method = "psci";
-			sched-energy-costs = <&CPU_COST_A73 &CLUSTER_COST_A73>;
 		};
-		/include/ "hi3660-sched-energy.dtsi"
 	};
 
 	gic: interrupt-controller@e82b0000 {
