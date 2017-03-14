@@ -254,8 +254,6 @@ session_process_buf(struct venus_inst *inst, struct vb2_v4l2_buffer *vbuf)
 {
 	struct venus_buffer *buf = to_venus_buffer(vbuf);
 	struct vb2_buffer *vb = &vbuf->vb2_buf;
-	struct venus_core *core = inst->core;
-	struct device *dev = core->dev;
 	unsigned int type = vb->type;
 	struct hfi_frame_data fdata;
 	int ret;
@@ -299,7 +297,6 @@ session_process_buf(struct venus_inst *inst, struct vb2_v4l2_buffer *vbuf)
 static int session_unregister_bufs(struct venus_inst *inst)
 {
 	struct venus_core *core = inst->core;
-	struct device *dev = core->dev;
 	struct hfi_buffer_desc bd;
 	struct venus_buffer *buf, *n;
 	int ret = 0;
@@ -310,9 +307,6 @@ static int session_unregister_bufs(struct venus_inst *inst)
 	list_for_each_entry_safe(buf, n, &inst->registeredbufs, reg_list) {
 		fill_buffer_desc(buf, &bd, true);
 		ret = hfi_session_unset_buffers(inst, &bd);
-		if (ret)
-			dev_err(dev, "%s: unset buffers failed\n", __func__);
-
 		list_del(&buf->reg_list);
 	}
 
@@ -334,8 +328,7 @@ static int session_register_bufs(struct venus_inst *inst)
 		fill_buffer_desc(buf, &bd, false);
 		ret = hfi_session_set_buffers(inst, &bd);
 		if (ret) {
-			dev_err(dev, "%s: session: set buffer failed\n",
-				__func__);
+			dev_err(dev, "%s: set buffer failed\n", __func__);
 			break;
 		}
 	}
@@ -465,35 +458,6 @@ helper_find_buf(struct venus_inst *inst, unsigned int type, u32 idx)
 		return v4l2_m2m_dst_buf_remove_by_idx(m2m_ctx, idx);
 }
 EXPORT_SYMBOL(helper_find_buf);
-
-static int vb2_buf_init_register_buf(struct venus_inst *inst,
-				     struct venus_buffer *buf)
-{
-	u32 ptype = HFI_PROPERTY_PARAM_BUFFER_COUNT_ACTUAL;
-	struct hfi_buffer_count_actual buf_count;
-	struct hfi_buffer_desc bd;
-	int ret;
-
-	if (inst->core->res->hfi_version != HFI_VERSION_LEGACY)
-		return 0;
-
-	buf_count.type = HFI_BUFFER_OUTPUT;
-	buf_count.count_actual = inst->num_output_bufs + 1;
-
-	ret = hfi_session_set_property(inst, ptype, &buf_count);
-	if (ret)
-		return ret;
-
-	fill_buffer_desc(buf, &bd, false);
-
-	ret = hfi_session_set_buffers(inst, &bd);
-	if (ret)
-		return ret;
-
-	inst->num_output_bufs++;
-
-	return 0;
-}
 
 int helper_vb2_buf_init(struct vb2_buffer *vb)
 {

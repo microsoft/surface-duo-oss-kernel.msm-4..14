@@ -1036,8 +1036,9 @@ u32 hfi_process_msg_packet(struct venus_core *core, struct hfi_pkt_hdr *hdr)
 		inst = to_instance(core, pkt->shdr.session_id);
 
 		if (!inst)
-			dev_warn(dev, "no valid instance(pkt session_id:%x)\n",
-				 pkt->shdr.session_id);
+			dev_warn(dev, "no valid instance(pkt session_id:%x, pkt:%x)\n",
+				 pkt->shdr.session_id,
+				 handler ? handler->pkt : 0);
 
 		/*
 		 * Event of type HFI_EVENT_SYS_ERROR will not have any session

@@ -29,6 +29,8 @@
 static u32 to_codec_type(u32 pixfmt)
 {
 	switch (pixfmt) {
+	case V4L2_PIX_FMT_HEVC:
+		return HFI_VIDEO_CODEC_HEVC;
 	case V4L2_PIX_FMT_H264:
 	case V4L2_PIX_FMT_H264_NO_SC:
 		return HFI_VIDEO_CODEC_H264;

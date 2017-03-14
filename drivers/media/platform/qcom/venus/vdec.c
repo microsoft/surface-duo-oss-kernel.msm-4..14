@@ -81,6 +81,10 @@ static const struct venus_format vdec_formats[] = {
 		.num_planes = 1,
 		.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
 	}, {
+		.pixfmt = V4L2_PIX_FMT_HEVC,
+		.num_planes = 1,
+		.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
+	}, {
 		.pixfmt = V4L2_PIX_FMT_VP8,
 		.num_planes = 1,
 		.type = V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE,
@@ -303,29 +307,29 @@ vdec_g_selection(struct file *file, void *fh, struct v4l2_selection *s)
 {
 	struct venus_inst *inst = to_inst(file);
 
-	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE &&
-	    s->type != V4L2_BUF_TYPE_VIDEO_OUTPUT)
+	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE &&
+	    s->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		return -EINVAL;
 
 	switch (s->target) {
 	case V4L2_SEL_TGT_CROP_BOUNDS:
 	case V4L2_SEL_TGT_CROP_DEFAULT:
 	case V4L2_SEL_TGT_CROP:
-		if (s->type != V4L2_BUF_TYPE_VIDEO_OUTPUT)
+		if (s->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 			return -EINVAL;
 		s->r.width = inst->out_width;
 		s->r.height = inst->out_height;
 		break;
 	case V4L2_SEL_TGT_COMPOSE_BOUNDS:
 	case V4L2_SEL_TGT_COMPOSE_PADDED:
-		if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 			return -EINVAL;
 		s->r.width = inst->width;
 		s->r.height = inst->height;
 		break;
 	case V4L2_SEL_TGT_COMPOSE_DEFAULT:
 	case V4L2_SEL_TGT_COMPOSE:
-		if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
+		if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 			return -EINVAL;
 		s->r.width = inst->out_width;
 		s->r.height = inst->out_height;
@@ -570,6 +574,9 @@ static int vdec_queue_setup(struct vb2_queue *q,
 
 		if (q->type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE &&
 		    sizes[0] < inst->output_buf_size)
+			return -EINVAL;
+
+		if (inst->core->res->hfi_version == HFI_VERSION_LEGACY)
 			return -EINVAL;
 
 		return 0;

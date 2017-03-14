@@ -393,10 +393,8 @@ static int venus_iface_cmdq_write_nolock(struct venus_hfi_device *hdev,
 	u32 rx_req;
 	int ret;
 
-	if (!venus_is_valid_state(hdev)) {
-		dev_err(dev, "%s: fw not in init state\n", __func__);
+	if (!venus_is_valid_state(hdev))
 		return -EINVAL;
-	}
 
 	cmd_packet = (struct hfi_pkt_hdr *)pkt;
 	hdev->last_packet_type = cmd_packet->pkt_type;
