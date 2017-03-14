@@ -3807,6 +3807,8 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 	const struct list_head *dev_list;
 	int err = 0, ret = 0;
 	struct device_node *np = NULL;
+	const void *fpga_gpu_exist_override_dts;
+	u32 override_fpga_gpu_exist;
 
 #ifdef CONFIG_OF
 	err = kbase_platform_early_init();
@@ -3854,8 +3856,6 @@ static int kbase_platform_device_probe(struct platform_device *pdev)
 		return err;
 	}
 
-	const void *fpga_gpu_exist_override_dts;
-	u32 override_fpga_gpu_exist;
 	fpga_gpu_exist_override_dts = of_get_property(kbdev->dev->of_node,
 				"fpga-gpu-exist",
 				NULL);
