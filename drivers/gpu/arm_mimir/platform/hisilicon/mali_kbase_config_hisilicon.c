@@ -198,7 +198,6 @@ static inline void kbase_platform_off(struct kbase_device *kbdev)
 	}
 }
 
-#ifdef UNUSED_CODE
 #ifdef CONFIG_PM_DEVFREQ
 static int mali_kbase_devfreq_target(struct device *dev, unsigned long *_freq,
 			      u32 flags)
@@ -280,7 +279,6 @@ static struct devfreq_dev_profile mali_kbase_devfreq_profile = {
 	.get_dev_status	= mali_kbase_get_dev_status,
 };
 #endif
-#endif /* UNUSED_CODE */
 
 #ifdef CONFIG_REPORT_VSYNC
 void mali_kbase_pm_report_vsync(int buffer_updated)
@@ -447,6 +445,7 @@ static struct devfreq_cooling_ops hisi_model_ops = {
 
 static int kbase_platform_init(struct kbase_device *kbdev)
 {
+      int err;
 	struct device *dev = kbdev->dev;
 	dev->platform_data = kbdev;
 
@@ -574,7 +573,6 @@ static void pm_callback_power_off(struct kbase_device *kbdev)
 #endif
 }
 
-#ifdef CONFIG_MALI_MIDGARD_RT_PM
 static int pm_callback_runtime_init(struct kbase_device *kbdev)
 {
 	pm_suspend_ignore_children(kbdev->dev, true);
@@ -611,7 +609,6 @@ static int pm_callback_runtime_on(struct kbase_device *kbdev)
 
 	return 0;
 }
-#endif /* CONFIG_MALI_MIDGARD_RT_PM */
 
 static inline void pm_callback_suspend(struct kbase_device *kbdev)
 {
