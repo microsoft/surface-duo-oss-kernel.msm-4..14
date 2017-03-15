@@ -304,8 +304,7 @@ static int vfe_word_per_line(uint32_t format, uint32_t pixel_per_line)
 }
 
 static void vfe_get_wm_sizes(struct v4l2_pix_format_mplane *pix, u8 plane,
-			     u16 *width, u16 *height,
-			     u16 *bytesperline, u16 *lines)
+			     u16 *width, u16 *height, u16 *bytesperline)
 {
 	switch (pix->pixelformat) {
 	case V4L2_PIX_FMT_NV12M:
@@ -313,7 +312,6 @@ static void vfe_get_wm_sizes(struct v4l2_pix_format_mplane *pix, u8 plane,
 		*width = pix->width;
 		*height = pix->height;
 		*bytesperline = pix->plane_fmt[plane].bytesperline;
-		*lines = pix->plane_fmt[plane].sizeimage / *bytesperline;
 		if (plane == 1)
 			*height /= 2;
 		break;
@@ -322,12 +320,8 @@ static void vfe_get_wm_sizes(struct v4l2_pix_format_mplane *pix, u8 plane,
 		*width = pix->width;
 		*height = pix->height;
 		*bytesperline = pix->plane_fmt[0].bytesperline;
-		*lines = pix->height;
-		if (plane == 1) {
+		if (plane == 1)
 			*height /= 2;
-			*lines = pix->plane_fmt[0].sizeimage / *bytesperline -
-								pix->height;
-		}
 		break;
 	}
 }
@@ -339,10 +333,9 @@ static void vfe_wm_line_based(struct vfe_device *vfe, u32 wm,
 	u32 reg;
 
 	if (enable) {
-		u16 width = 0, height = 0, bytesperline = 0, lines = 0, wpl;
+		u16 width = 0, height = 0, bytesperline = 0, wpl;
 
-		vfe_get_wm_sizes(pix, plane, &width, &height,
-				 &bytesperline, &lines);
+		vfe_get_wm_sizes(pix, plane, &width, &height, &bytesperline);
 
 		wpl = vfe_word_per_line(pix->pixelformat, width);
 
@@ -355,7 +348,7 @@ static void vfe_wm_line_based(struct vfe_device *vfe, u32 wm,
 		wpl = vfe_word_per_line(pix->pixelformat, bytesperline);
 
 		reg = 0x3;
-		reg |= (lines - 1) << 4;
+		reg |= (height - 1) << 4;
 		reg |= wpl << 16;
 
 		writel_relaxed(reg, vfe->base +

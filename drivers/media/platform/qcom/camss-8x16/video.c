@@ -544,9 +544,7 @@ static int video_try_fmt(struct file *file, void *fh, struct v4l2_format *f)
 				p->sizeimage = p->bytesperline * lines;
 
 			if (p->sizeimage < sizeimage[i])
-				p->sizeimage =
-					(sizeimage[i] + p->bytesperline - 1) /
-					p->bytesperline * p->bytesperline;
+				p->sizeimage = sizeimage[i];
 		}
 
 	return 0;
