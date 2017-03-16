@@ -63,6 +63,7 @@
 			clocks = <&stub_clock HI3660_CLK_STUB_CLUSTER0>;
 			clock-names = "cpu";
 			operating-points-v2 = <&cluster0_opp>;
+			sched-energy-costs = <&CPU_COST_A53 &CLUSTER_COST_A53>;
 		};
 
 		cpu1: cpu@1 {
@@ -74,6 +75,7 @@
 			clocks = <&stub_clock HI3660_CLK_STUB_CLUSTER0>;
 			clock-names = "cpu";
 			operating-points-v2 = <&cluster0_opp>;
+			sched-energy-costs = <&CPU_COST_A53 &CLUSTER_COST_A53>;
 		};
 
 		cpu2: cpu@2 {
@@ -85,6 +87,7 @@
 			clocks = <&stub_clock HI3660_CLK_STUB_CLUSTER0>;
 			clock-names = "cpu";
 			operating-points-v2 = <&cluster0_opp>;
+			sched-energy-costs = <&CPU_COST_A53 &CLUSTER_COST_A53>;
 		};
 
 		cpu3: cpu@3 {
@@ -96,6 +99,7 @@
 			clocks = <&stub_clock HI3660_CLK_STUB_CLUSTER0>;
 			clock-names = "cpu";
 			operating-points-v2 = <&cluster0_opp>;
+			sched-energy-costs = <&CPU_COST_A53 &CLUSTER_COST_A53>;
 		};
 
 		cpu4: cpu@100 {
@@ -107,6 +111,7 @@
 			clocks = <&stub_clock HI3660_CLK_STUB_CLUSTER1>;
 			clock-names = "cpu";
 			operating-points-v2 = <&cluster1_opp>;
+			sched-energy-costs = <&CPU_COST_A72 &CLUSTER_COST_A72>;
 		};
 
 		cpu5: cpu@101 {
@@ -118,6 +123,7 @@
 			clocks = <&stub_clock HI3660_CLK_STUB_CLUSTER1>;
 			clock-names = "cpu";
 			operating-points-v2 = <&cluster1_opp>;
+			sched-energy-costs = <&CPU_COST_A72 &CLUSTER_COST_A72>;
 		};
 
 		cpu6: cpu@102 {
@@ -129,6 +135,7 @@
 			clocks = <&stub_clock HI3660_CLK_STUB_CLUSTER1>;
 			clock-names = "cpu";
 			operating-points-v2 = <&cluster1_opp>;
+			sched-energy-costs = <&CPU_COST_A72 &CLUSTER_COST_A72>;
 		};
 
 		cpu7: cpu@103 {
@@ -140,6 +147,7 @@
 			clocks = <&stub_clock HI3660_CLK_STUB_CLUSTER1>;
 			clock-names = "cpu";
 			operating-points-v2 = <&cluster1_opp>;
+			sched-energy-costs = <&CPU_COST_A72 &CLUSTER_COST_A72>;
 		};
 
 		idle-states {
@@ -181,6 +189,8 @@
 				local-timer-stop;
 			};
 		};
+
+		/include/ "hi3660-sched-energy.dtsi"
 	};
 
 	cluster0_opp: opp_table0 {
