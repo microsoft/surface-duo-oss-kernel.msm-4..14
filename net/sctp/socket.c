@@ -4479,9 +4479,10 @@ int sctp_transport_lookup_process(int (*cb)(struct sctp_transport *, void *),
 
 	rcu_read_lock();
 	transport = sctp_addrs_lookup_transport(net, laddr, paddr);
-	if (!transport || !sctp_transport_hold(transport))
+	if (!transport || !sctp_transport_hold(transport)) {
+		rcu_read_unlock();
 		goto out;
-
+	}
 	rcu_read_unlock();
 	err = cb(transport, p);
 	sctp_transport_put(transport);
@@ -7426,7 +7427,8 @@ static int sctp_wait_for_sndbuf(struct sctp_association *asoc, long *timeo_p,
 		 */
 		release_sock(sk);
 		current_timeo = schedule_timeout(current_timeo);
-		BUG_ON(sk != asoc->base.sk);
+		if (sk != asoc->base.sk)
+			goto do_error;
 		lock_sock(sk);
 
 		*timeo_p = current_timeo;
