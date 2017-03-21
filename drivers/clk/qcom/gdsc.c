@@ -12,15 +12,19 @@
  */
 
 #include <linux/bitops.h>
+#include <linux/clk.h>
+#include <linux/clk-provider.h>
 #include <linux/delay.h>
 #include <linux/err.h>
 #include <linux/jiffies.h>
 #include <linux/kernel.h>
 #include <linux/ktime.h>
+#include <linux/pm_clock.h>
 #include <linux/pm_domain.h>
 #include <linux/regmap.h>
 #include <linux/reset-controller.h>
 #include <linux/slab.h>
+#include "common.h"
 #include "gdsc.h"
 
 #define PWR_ON_MASK		BIT(31)
@@ -166,6 +170,27 @@ static inline void gdsc_assert_clamp_io(struct gdsc *sc)
 			   GMEM_CLAMP_IO_MASK, 1);
 }
 
+static int gdsc_clk_enable(struct gdsc *sc)
+{
+	int i, ret;
+
+	for (i = 0; i < sc->clk_count; i++) {
+		ret = clk_prepare_enable(sc->clks[i]);
+		if (ret)
+			pr_err("Failed to enable clock: %s\n",
+			       __clk_get_name(sc->clks[i]));
+	}
+	return ret;
+}
+
+static void gdsc_clk_disable(struct gdsc *sc)
+{
+	int i;
+
+	for (i = 0; i < sc->clk_count; i++)
+		clk_disable_unprepare(sc->clks[i]);
+}
+
 static int gdsc_enable(struct generic_pm_domain *domain)
 {
 	struct gdsc *sc = domain_to_gdsc(domain);
@@ -192,6 +217,9 @@ static int gdsc_enable(struct generic_pm_domain *domain)
 	 * memories.
 	 */
 	udelay(1);
+
+	if (sc->clk_count)
+		gdsc_clk_enable(sc);
 
 	/* Turn on HW trigger mode if supported */
 	if (sc->flags & HW_CTRL) {
@@ -241,6 +269,9 @@ static int gdsc_disable(struct generic_pm_domain *domain)
 			return ret;
 	}
 
+	if (sc->clk_count)
+		gdsc_clk_disable(sc);
+
 	if (sc->pwrsts & PWRSTS_OFF)
 		gdsc_clear_mem_on(sc);
 
@@ -254,7 +285,7 @@ static int gdsc_disable(struct generic_pm_domain *domain)
 	return 0;
 }
 
-static int gdsc_init(struct gdsc *sc)
+static int gdsc_init(struct device *dev, struct gdsc *sc)
 {
 	u32 mask, val;
 	int on, ret;
@@ -283,6 +314,19 @@ static int gdsc_init(struct gdsc *sc)
 	on = gdsc_is_enabled(sc, reg);
 	if (on < 0)
 		return on;
+
+	if (sc->clk_count) {
+		int i;
+
+		sc->clks = devm_kcalloc(dev, sc->clk_count, sizeof(*sc->clks),
+					GFP_KERNEL);
+		if (!sc->clks)
+			return -ENOMEM;
+
+		for (i = 0; i < sc->clk_count; i++)
+			sc->clks[i] = devm_clk_hw_get_clk(dev, sc->clk_hws[i],
+							  NULL);
+	}
 
 	/*
 	 * Votable GDSCs can be ON due to Vote from other masters.
@@ -327,7 +371,7 @@ int gdsc_register(struct gdsc_desc *desc,
 			continue;
 		scs[i]->regmap = regmap;
 		scs[i]->rcdev = rcdev;
-		ret = gdsc_init(scs[i]);
+		ret = gdsc_init(dev, scs[i]);
 		if (ret)
 			return ret;
 		data->domains[i] = &scs[i]->pd;
