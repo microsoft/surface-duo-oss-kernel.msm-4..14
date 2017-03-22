@@ -368,6 +368,7 @@ brcmnand
 brcmsmac
 brcmstb_nand
 brcmutil
+brd
 bridge
 broadcom
 broadsheetfb
@@ -632,6 +633,7 @@ drbd
 drm
 drm_kms_helper
 drm_mipi_dsi
+drop_monitor
 drv260x
 drv2665
 drv2667
