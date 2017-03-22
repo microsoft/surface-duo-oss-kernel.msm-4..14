@@ -50,6 +50,8 @@
 #include <linux/mailbox_client.h>
 #include <dt-bindings/clock/hi3660-clock.h>
 
+#include "clk.h"
+
 struct hi3660_stub_clk_chan {
 	struct mbox_client cl;
 	struct mbox_chan *mbox;
@@ -190,14 +192,13 @@ static int hi3660_register_stub_clk(struct platform_device *pdev,
 		int id, char *clk_name,
 		u32 set_rate_cmd, u32 get_rate_cmd,
 		struct hi3660_stub_clk_chan *chan,
-		u32 *table, u32 table_len)
+		u32 *table, u32 table_len,
+		struct clk_onecell_data *data)
 {
 	struct device *dev = &pdev->dev;
 	struct clk_init_data init;
 	struct hi3660_stub_clk *stub_clk;
 	struct clk *clk;
-	struct device_node *np = pdev->dev.of_node;
-	int ret;
 
 	stub_clk = devm_kzalloc(dev, sizeof(*stub_clk), GFP_KERNEL);
 	if (!stub_clk)
@@ -215,19 +216,13 @@ static int hi3660_register_stub_clk(struct platform_device *pdev,
 	init.name = kstrdup(clk_name, GFP_KERNEL);
 	init.ops = &hi3660_stub_clk_ops;
 	init.num_parents = 0;
-	init.flags = 0;
+	init.flags = CLK_IS_ROOT;
 
 	clk = devm_clk_register(dev, &stub_clk->hw);
 	if (IS_ERR(clk))
 		return PTR_ERR(clk);
 
-	ret = of_clk_add_provider(np, of_clk_src_simple_get, clk);
-	if (ret) {
-		dev_err(dev, "failed to register OF clock provider\n");
-		return ret;
-	}
-
-	clk_register_clkdev(clk, clk_name, NULL);
+	data->clks[id] = clk;
 	dev_dbg(dev, "Registered clock '%s'\n", init.name);
 	return 0;
 }
@@ -252,8 +247,27 @@ static int hi3660_stub_clk_probe(struct platform_device *pdev)
 {
 	struct device *dev = &pdev->dev;
 	struct hi3660_stub_clk_chan *chan;
+	struct device_node *np = pdev->dev.of_node;
+	struct clk_onecell_data	*data;
+	struct clk **clk_table;
 
-	chan = kzalloc(sizeof(struct hi3660_stub_clk_chan), GFP_KERNEL);
+	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
+	if (!data) {
+		dev_err(dev, "could not allocate clock data\n");
+		return -ENOMEM;
+	}
+
+	clk_table = devm_kzalloc(dev,
+		sizeof(*clk_table) * HI3660_CLK_STUB_NUM, GFP_KERNEL);
+	if (!clk_table) {
+		dev_err(dev, "could not allocate clock lookup table\n");
+		return -ENOMEM;
+	}
+	data->clks = clk_table;
+	data->clk_num = HI3660_CLK_STUB_NUM;
+	of_clk_add_provider(np, of_clk_src_onecell_get, data);
+
+	chan = devm_kzalloc(dev, sizeof(*chan), GFP_KERNEL);
 	if (!chan) {
 		dev_err(dev, "failed to allocate memory for mbox\n");
 		return -ENOMEM;
@@ -270,22 +284,21 @@ static int hi3660_stub_clk_probe(struct platform_device *pdev)
 	chan->mbox = mbox_request_channel(&chan->cl, 0);
 	if (IS_ERR(chan->mbox)) {
 		dev_err(dev, "failed get mailbox channel\n");
-		kfree(chan);
 		return PTR_ERR(chan->mbox);
 	}
 
 	hi3660_register_stub_clk(pdev, HI3660_CLK_STUB_CLUSTER0,
 			"cpu-cluster.0", 0x0001030a, 0x0001020a, chan,
-			ca53_freq, ARRAY_SIZE(ca53_freq));
+			ca53_freq, ARRAY_SIZE(ca53_freq), data);
 	hi3660_register_stub_clk(pdev, HI3660_CLK_STUB_CLUSTER1,
 			"cpu-cluster.1", 0x0002030a, 0x0002020a, chan,
-			ca72_freq, ARRAY_SIZE(ca72_freq));
+			ca72_freq, ARRAY_SIZE(ca72_freq), data);
 	hi3660_register_stub_clk(pdev, HI3660_CLK_STUB_GPU,
 			"clk-g3d", 0x0003030a, 0x0003020a, chan,
-			gpu_freq, ARRAY_SIZE(gpu_freq));
+			gpu_freq, ARRAY_SIZE(gpu_freq), data);
 	hi3660_register_stub_clk(pdev, HI3660_CLK_STUB_DDR,
 			"clk-ddrc", 0x0004030a, 0x0004020a, chan,
-			ddr_freq, ARRAY_SIZE(ddr_freq));
+			ddr_freq, ARRAY_SIZE(ddr_freq), data);
 
 	return 0;
 }
