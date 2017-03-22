@@ -449,6 +449,7 @@ brcmnand
 brcmsmac
 brcmstb_nand
 brcmutil
+brd
 bridge
 broadcom
 broadsheetfb
@@ -782,6 +783,7 @@ docg4
 dp83848
 dp83867
 drbd
+drop_monitor
 drv260x
 drv2665
 drv2667
