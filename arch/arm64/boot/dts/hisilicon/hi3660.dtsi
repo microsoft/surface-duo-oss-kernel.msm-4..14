@@ -59,7 +59,7 @@
 			device_type = "cpu";
 			reg = <0x0 0x0>;
 			enable-method = "psci";
-			cpu-idle-states = <&CPU_SLEEP_0>;
+			cpu-idle-states = <&CPU_SLEEP_0 &CLUSTER_SLEEP_0>;
 			clocks = <&stub_clock HI3660_CLK_STUB_CLUSTER0>;
 			clock-names = "cpu";
 			operating-points-v2 = <&cluster0_opp>;
@@ -71,7 +71,7 @@
 			device_type = "cpu";
 			reg = <0x0 0x1>;
 			enable-method = "psci";
-			cpu-idle-states = <&CPU_SLEEP_0>;
+			cpu-idle-states = <&CPU_SLEEP_0 &CLUSTER_SLEEP_0>;
 			clocks = <&stub_clock HI3660_CLK_STUB_CLUSTER0>;
 			clock-names = "cpu";
 			operating-points-v2 = <&cluster0_opp>;
@@ -83,7 +83,7 @@
 			device_type = "cpu";
 			reg = <0x0 0x2>;
 			enable-method = "psci";
-			cpu-idle-states = <&CPU_SLEEP_0>;
+			cpu-idle-states = <&CPU_SLEEP_0 &CLUSTER_SLEEP_0>;
 			clocks = <&stub_clock HI3660_CLK_STUB_CLUSTER0>;
 			clock-names = "cpu";
 			operating-points-v2 = <&cluster0_opp>;
@@ -95,7 +95,7 @@
 			device_type = "cpu";
 			reg = <0x0 0x3>;
 			enable-method = "psci";
-			cpu-idle-states = <&CPU_SLEEP_0>;
+			cpu-idle-states = <&CPU_SLEEP_0 &CLUSTER_SLEEP_0>;
 			clocks = <&stub_clock HI3660_CLK_STUB_CLUSTER0>;
 			clock-names = "cpu";
 			operating-points-v2 = <&cluster0_opp>;
