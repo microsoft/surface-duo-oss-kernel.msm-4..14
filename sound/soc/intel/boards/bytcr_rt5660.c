@@ -85,10 +85,10 @@ static int byt_rt5660_aif1_hw_params(struct snd_pcm_substream *substream,
 		return ret;
 	}
 
-	/* use bitclock as PLL input */
+	/* use mclk as PLL input */
 	/* 2x15 bit slots on SSP2 */
-	ret = snd_soc_dai_set_pll(codec_dai, 0, RT5660_PLL1_S_BCLK,
-				params_rate(params) * 50,
+	ret = snd_soc_dai_set_pll(codec_dai, 0, RT5660_PLL1_S_MCLK,
+				19200000,
 				params_rate(params) * 512);
 
 	if (ret < 0) {
