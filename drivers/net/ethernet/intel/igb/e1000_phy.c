@@ -77,7 +77,7 @@ s32 igb_get_phy_id(struct e1000_hw *hw)
 	s32 ret_val = 0;
 	u16 phy_id;
 
-	/* ensure phy page selection to fix misconfigured i210 */
+	/* ensure PHY page selection to fix misconfigured i210 */
 	if ((hw->mac.type == e1000_i210) || (hw->mac.type == e1000_i211))
 		phy->ops.write_reg(hw, I347AT4_PAGE_SELECT, 0);
 
