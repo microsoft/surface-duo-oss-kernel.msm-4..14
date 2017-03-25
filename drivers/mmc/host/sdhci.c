@@ -18,6 +18,7 @@
 #include <linux/io.h>
 #include <linux/module.h>
 #include <linux/dma-mapping.h>
+#include <linux/pci.h>
 #include <linux/slab.h>
 #include <linux/scatterlist.h>
 #include <linux/regulator/consumer.h>
@@ -1747,9 +1748,18 @@ static void sdhci_enable_sdio_irq_nolock(struct sdhci_host *host, int enable)
 static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 {
 	struct sdhci_host *host = mmc_priv(mmc);
+	struct pci_dev *pci_host;
 	unsigned long flags;
 
-	sdhci_runtime_pm_get(host);
+	pci_host = pci_get_subsys(PCI_ANY_ID, PCI_ANY_ID,
+			0x1028, 0x07b9, NULL);
+
+	if (!pci_host)
+		sdhci_runtime_pm_get(host);
+	else {
+		if (enable)
+			sdhci_runtime_pm_get(host);
+	}
 
 	spin_lock_irqsave(&host->lock, flags);
 	if (enable)
@@ -1760,7 +1770,12 @@ static void sdhci_enable_sdio_irq(struct mmc_host *mmc, int enable)
 	sdhci_enable_sdio_irq_nolock(host, enable);
 	spin_unlock_irqrestore(&host->lock, flags);
 
-	sdhci_runtime_pm_put(host);
+	if (!pci_host)
+		sdhci_runtime_pm_put(host);
+	else {
+		if (!enable)
+			sdhci_runtime_pm_put(host);
+	}
 }
 
 static int sdhci_do_start_signal_voltage_switch(struct sdhci_host *host,
