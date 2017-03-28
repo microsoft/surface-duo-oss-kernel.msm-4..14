@@ -344,9 +344,8 @@ config BT_WILINK
 
 config BT_QCOMSMD
 	tristate "Qualcomm SMD based HCI support"
-	depends on QCOM_WCNSS_CTRL
-	depends on QCOM_SMD || QCOM_SMD=n
-	depends on RPMSG_QCOM_SMD || RPMSG_QCOM_SMD=n
+	depends on RPMSG || (COMPILE_TEST && RPMSG=n)
+	depends on QCOM_WCNSS_CTRL || (COMPILE_TEST && QCOM_WCNSS_CTRL=n)
 	select BT_QCA
 	depends on RPMSG || RPMSG=n
 	help
