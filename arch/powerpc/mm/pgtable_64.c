@@ -52,7 +52,6 @@
 #include <asm/sections.h>
 #include <asm/firmware.h>
 #include <asm/dma.h>
-#include <asm/powernv.h>
 
 #include "mmu_decl.h"
 
@@ -437,7 +436,6 @@ void pgtable_free_tlb(struct mmu_gather *tlb, void *table, int shift)
 void __init mmu_partition_table_init(void)
 {
 	unsigned long patb_size = 1UL << PATB_SIZE_SHIFT;
-	unsigned long ptcr;
 
 	BUILD_BUG_ON_MSG((PATB_SIZE_SHIFT > 36), "Partition table size too large.");
 	partition_tb = __va(memblock_alloc_base(patb_size, patb_size,
@@ -450,9 +448,7 @@ void __init mmu_partition_table_init(void)
 	 * update partition table control register,
 	 * 64 K size.
 	 */
-	ptcr = __pa(partition_tb) | (PATB_SIZE_SHIFT - 12);
-	mtspr(SPRN_PTCR, ptcr);
-	powernv_set_nmmu_ptcr(ptcr);
+	mtspr(SPRN_PTCR, __pa(partition_tb) | (PATB_SIZE_SHIFT - 12));
 }
 
 void mmu_partition_table_set_entry(unsigned int lpid, unsigned long dw0,
