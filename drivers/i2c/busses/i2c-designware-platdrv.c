@@ -360,6 +360,9 @@ static int dw_i2c_plat_suspend(struct device *dev)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct dw_i2c_dev *i_dev = platform_get_drvdata(pdev);
 
+	if (pm_runtime_suspended(dev))
+		return 0;
+
 	i2c_dw_disable(i_dev);
 	i2c_dw_plat_prepare_clk(i_dev, false);
 
@@ -370,6 +373,9 @@ static int dw_i2c_plat_resume(struct device *dev)
 {
 	struct platform_device *pdev = to_platform_device(dev);
 	struct dw_i2c_dev *i_dev = platform_get_drvdata(pdev);
+
+	if (pm_runtime_suspended(dev))
+		return 0;
 
 	i2c_dw_plat_prepare_clk(i_dev, true);
 
