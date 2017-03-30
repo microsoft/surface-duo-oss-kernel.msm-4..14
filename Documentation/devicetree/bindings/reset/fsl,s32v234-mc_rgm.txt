@@ -1,0 +1,27 @@
+Copyright 2017 NXP
+Reset Generation Module (MC_RGM)
+
+The reset generation module (MC_RGM) centralizes the different
+reset sources and manages the reset sequence of the chip. It
+provides a register interface and the reset sequencer. Various
+registers are available to monitor and control the chip reset
+sequence. The reset sequencer is a state machine which controls
+the different phases (PHASE0, PHASE1, PHASE2, PHASE3, and IDLE)
+of the reset sequence and controls the reset signals generated
+in the system.
+===========================================
+
+Please also refer to reset.txt in this directory for common reset
+controller binding usage.
+
+Required properties:
+- compatible: Should be "fsl,s32v234-mc_rgm"
+- reg: should be register base and length as documented in the
+  datasheet
+
+example:
+
+mc_rgm: mc_rgm@40048000 {
+				compatible = "fsl,s32v234-mc_rgm";
+				reg = <0x0 0x40048000 0x0 0x1000>;
+			};
