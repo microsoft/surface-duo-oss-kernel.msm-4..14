@@ -59,6 +59,7 @@
 extern int apparmor_initialized __initdata;
 
 /* fn's in lib */
+const char *skipn_spaces(const char *str, size_t n);
 char *aa_split_fqname(char *args, char **ns_name);
 const char *aa_splitn_fqname(const char *fqname, size_t n, const char **ns_name,
 			     size_t *ns_len);
