@@ -606,3 +606,7 @@
 		regulator-max-microvolt = <3337000>;
 	};
 };
+
+&venus {
+	status = "okay";
+};
