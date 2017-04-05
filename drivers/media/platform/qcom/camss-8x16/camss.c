@@ -520,6 +520,10 @@ static int camss_probe(struct platform_device *pdev)
 	if (ret < 0)
 		return ret;
 
+	ret = dma_set_mask_and_coherent(dev, 0xffffffff);
+	if (ret)
+		return ret;
+
 	camss->media_dev.dev = camss->dev;
 	strlcpy(camss->media_dev.model, "Qualcomm Camera Subsystem",
 		sizeof(camss->media_dev.model));
