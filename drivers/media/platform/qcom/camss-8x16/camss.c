@@ -553,6 +553,12 @@ static int camss_probe(struct platform_device *pdev)
 			dev_err(dev, "Failed to register subdev nodes");
 			goto err_register_subdevs;
 		}
+
+		ret = media_device_register(&camss->media_dev);
+		if (ret < 0) {
+			dev_err(dev, "Failed to register media device");
+			goto err_register_subdevs;
+		}
 	}
 
 	return 0;
