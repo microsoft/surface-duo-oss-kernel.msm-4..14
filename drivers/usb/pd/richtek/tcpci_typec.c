@@ -369,7 +369,7 @@ static void typec_unattached_entry(struct tcpc_device *tcpc_dev)
 			break;
 		default:
 			gpio_hub_switch_to_hub();
-			gpio_hub_typec_power_on();
+			gpio_hub_typec_power_off();
 			if (oldstatus == TYPEC_DEVICE) {
 				TYPEC_DBG("device off, otg host:%d:%d\r\n",
 					  oldstatus, tcpc_dev->typec_state);
@@ -378,7 +378,6 @@ static void typec_unattached_entry(struct tcpc_device *tcpc_dev)
 				fsa9685_dcd_timeout_enable(true);
 				fsa9685_manual_sw(FSA9685_USB1_ID_TO_IDBYPASS);
 				hisi_usb_otg_event(CHARGER_DISCONNECT_EVENT);
-				msleep(500);
 				hisi_usb_otg_event(ID_FALL_EVENT);
 				oldstatus = TYPEC_HOST;
 			} else if (oldstatus == TYPEC_INIT) {
@@ -451,6 +450,7 @@ static inline void typec_source_attached_entry(struct tcpc_device *tcpc_dev)
 	TYPEC_DBG("typec attach src, otg host, device mache attach\r\n");
 	oldstatus = TYPEC_HOST;
 	gpio_hub_switch_to_typec();
+	gpio_hub_typec_power_on();
 	typec_wait_ps_change(tcpc_dev, TYPEC_WAIT_PS_SRC_VSAFE5V);
 
 	tcpc_disable_timer(tcpc_dev, TYPEC_TRY_TIMER_DRP_TRY);
@@ -672,9 +672,9 @@ static inline void typec_cc_snk_detect_vsafe5v_entry(
 		oldstatus = TYPEC_DEVICE;
 		gpio_hub_power_off();
 		gpio_hub_typec_power_off();
-		gpio_hub_switch_to_typec();
 		fsa9685_dcd_timeout_enable(false);
 		hisi_usb_otg_event(ID_RISE_EVENT);
+		gpio_hub_switch_to_typec();
 		hisi_usb_otg_event(CHARGER_CONNECT_EVENT);
 	}
 
@@ -1713,7 +1713,7 @@ static int typec_init_power_off_charge(struct tcpc_device *tcpc_dev)
 	TYPEC_DBG("init otg host no mache insert.\r\n");
 
 	gpio_hub_power_on();
-	gpio_hub_typec_power_on();
+	gpio_hub_typec_power_off();
 	hisi_usb_otg_event(CHARGER_DISCONNECT_EVENT);
 	fsa9685_dcd_timeout_enable(true);
 	fsa9685_manual_sw(FSA9685_USB1_ID_TO_IDBYPASS);

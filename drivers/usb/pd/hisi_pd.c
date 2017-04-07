@@ -427,9 +427,6 @@ static inline void pd_dpm_report_device_attach(void)
 static inline void pd_dpm_report_host_attach(void)
 {
 	hisilog_info("%s \r\n",__func__);
-	fsa9685_dcd_timeout_enable(true);
-	fsa9685_manual_sw(FSA9685_USB1_ID_TO_IDBYPASS);
-	hisi_usb_otg_event(ID_FALL_EVENT);
 }
 
 static inline void pd_dpm_report_device_detach(void)
@@ -446,8 +443,6 @@ static inline void pd_dpm_report_device_detach(void)
 static inline void pd_dpm_report_host_detach(void)
 {
 	hisilog_info("%s \r\n",__func__);
-	fsa9685_dcd_timeout_enable(false);
-	hisi_usb_otg_event(ID_RISE_EVENT);
 }
 
 static void pd_dpm_report_attach(int new_state)
