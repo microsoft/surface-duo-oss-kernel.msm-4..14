@@ -231,7 +231,7 @@
 		};
 	};
 
-	/* bluetooth - TI WL1835 */
+	/* bluetooth - TI WL1837 */
 	kim {
 		compatible = "kim";
 		pinctrl-names = "default";
@@ -427,7 +427,7 @@
 	status = "ok";
 
 	wlcore: wlcore@2 {
-		compatible = "ti,wl1835";
+		compatible = "ti,wl1837";
 		reg = <2>;      /* sdio func num */
 		/* WL_IRQ, GPIO_179_WL_WAKEUP_AP */
 		interrupt-parent = <&gpio22>;
