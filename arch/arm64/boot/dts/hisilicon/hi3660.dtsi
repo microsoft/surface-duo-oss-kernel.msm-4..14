@@ -285,6 +285,7 @@
 		clock-frequency = <1920000>;
 	};
 
+
 	/* display start */
 	framebuffer@E8600000 {
 		#address-cells = <2>;
@@ -293,24 +294,22 @@
 		fastboot_enable_flag = <0>;
 		fake_lcd_flag = <0>;
 		dss_base_phy = <0xE8600000>;
-		// DSS, PERI_CRG, SCTRL, PCTRL, NOC_DSS_Service_Target, MMBUF_CFG
+		/*DSS, PERI_CRG, SCTRL, PCTRL, NOC_DSS_Service_Target, MMBUF_CFG*/
 		reg = <0 0xE8600000 0 0x80000>, <0 0xFFF35000 0 0x1000>, <0 0xFFF0A000 0 0x1000>, <0 0xE8A09000 0 0x1000>,
 				<0 0xE86C0000 0 0x10000>, <0 0xFFF02000 0 0x1000>, <0 0xFFF31000 0 0x1000>;
-		// dss-pdp, dss-sdp, dss-adp, dss-dsi0, dss-dsi1 irq
+		/*dss-pdp, dss-sdp, dss-adp, dss-dsi0, dss-dsi1 irq*/
 		interrupts = <0 245 4>, <0 246 4>, <0 247 4>, <0 251 4>, <0 252 4>;
-		//regulator_dsssubsys-supply = <&dsssubsys>;
-		//regulator_mmbuf-supply = <&mmbuf>;
-		clocks = <&crg_ctrl HI3660_ACLK_GATE_DSS>, <&crg_ctrl HI3660_PCLK_GATE_DSS>, <&crg_ctrl HI3660_CLK_GATE_EDC0>, 
-				<&crg_ctrl HI3660_CLK_GATE_LDI0>, <&crg_ctrl HI3660_CLK_GATE_LDI1>, <&sctrl HI3660_CLK_GATE_DSS_AXI_MM>, 
+
+		clocks = <&crg_ctrl HI3660_ACLK_GATE_DSS>, <&crg_ctrl HI3660_PCLK_GATE_DSS>, <&crg_ctrl HI3660_CLK_GATE_EDC0>,
+				<&crg_ctrl HI3660_CLK_GATE_LDI0>, <&crg_ctrl HI3660_CLK_GATE_LDI1>, <&sctrl HI3660_CLK_GATE_DSS_AXI_MM>,
 				<&sctrl HI3660_PCLK_GATE_MMBUF>, <&crg_ctrl HI3660_CLK_GATE_TXDPHY0_REF>, <&crg_ctrl HI3660_CLK_GATE_TXDPHY1_REF>,
 				<&crg_ctrl HI3660_CLK_GATE_TXDPHY0_CFG>, <&crg_ctrl HI3660_CLK_GATE_TXDPHY1_CFG>, <&crg_ctrl HI3660_PCLK_GATE_DSI0>,
-				<&crg_ctrl HI3660_PCLK_GATE_DSI1>;//, <&crg_ctrl HI3660_PCLK_GATE_PCTRL>;
+				<&crg_ctrl HI3660_PCLK_GATE_DSI1>;
 		clock-names = "aclk_dss", "pclk_dss", "clk_edc0", "clk_ldi0", "clk_ldi1",
 				"clk_dss_axi_mm", "pclk_mmbuf",
 				"clk_txdphy0_ref", "clk_txdphy1_ref", "clk_txdphy0_cfg", "clk_txdphy1_cfg",
-				"pclk_dsi0", "pclk_dsi1";//, "pclk_pctrl";
-		status = "ok";
-		fpga_flag = <0>;
+				"pclk_dsi0", "pclk_dsi1";
+		status = "disabled";
 
 		/*iommu_info {
 			start-addr = <0x8000>;
@@ -328,7 +327,6 @@
 		lcd-ifbc-type = <0>;
 		gpios = <&gpio27 0 0>, <&gpio27 2 0>, <&gpio22 6 0>, <&gpio2 4 0>;
 		gpio_nums = <216 218 182 20>;
-		fpga_flag = <0>;
 		status = "disabled";
 	};
 	/* display start */
@@ -591,6 +589,7 @@
 				status = "disabled";
 				ti,alert-gpio = <&gpio27 3 0>;
 			};
+
 			adv7533: adv7533@39 {
 				status = "ok";
 				compatible = "adi,adv7533";
@@ -603,6 +602,12 @@
 				sel-gpio = <&gpio2 4 0>;
 				adi,dsi-lanes = <4>;
 				adi,disable-timing-generator;
+
+				port {
+					adv7533_in: endpoint {
+						remote-endpoint = <&dsi_out0>;
+					};
+				};
 			};
 		};
 
