@@ -2419,6 +2419,20 @@ static int __init cpufreq_driver_setup(char *str)
  */
 __setup("cpufreq_driver=", cpufreq_driver_setup);
 
+static int cpuhp_cpufreq_online(unsigned int cpu)
+{
+	cpufreq_online(cpu);
+
+	return 0;
+}
+
+static int cpuhp_cpufreq_offline(unsigned int cpu)
+{
+	cpufreq_offline(cpu);
+
+	return 0;
+}
+
 /**
  * cpufreq_register_driver - register a CPU Frequency driver
  * @driver_data: A struct cpufreq_driver containing the values#
@@ -2487,8 +2501,8 @@ int cpufreq_register_driver(struct cpufreq_driver *driver_data)
 	}
 
 	ret = cpuhp_setup_state_nocalls(CPUHP_AP_ONLINE_DYN, "cpufreq:online",
-					cpufreq_online,
-					cpufreq_offline);
+					cpuhp_cpufreq_online,
+					cpuhp_cpufreq_offline);
 	if (ret < 0)
 		goto err_if_unreg;
 	hp_online = ret;
