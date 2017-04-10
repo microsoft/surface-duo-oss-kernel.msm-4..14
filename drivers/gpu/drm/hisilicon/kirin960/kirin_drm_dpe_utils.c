@@ -358,7 +358,7 @@ void init_dbuf(struct dss_crtc *acrtc)
 	**	hfp) / mode->hdisplay;
 	** thd_cg_out = dfs_time / (Tp * K * 6);
 	*/
-	thd_cg_out = (dfs_time * adj_mode->clock * 1000 * mode->hdisplay) /
+	thd_cg_out = (dfs_time * adj_mode->clock * 1000UL * mode->hdisplay) /
 		(((hsw + hbp + hfp) + mode->hdisplay) * 6 * 1000000UL);
 
 	sram_valid_num = thd_cg_out / depth;
