@@ -363,6 +363,12 @@
 			#clock-cells = <1>;
 		};
 
+		pmctrl: pmctrl@fff31000 {
+			compatible = "hisilicon,hi3660-pmctrl", "syscon";
+			reg = <0x0 0xfff31000 0x0 0x1000>;
+			#clock-cells = <1>;
+		};
+
 		reboot {
 			compatible = "hisilicon,hi3660-reboot";
 			pmu-regmap = <&pmuctrl>;

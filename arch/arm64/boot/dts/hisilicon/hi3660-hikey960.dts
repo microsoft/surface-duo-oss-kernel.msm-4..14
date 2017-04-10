@@ -367,49 +367,6 @@
 			default-state = "off";
 		};
 	};
-
-	hisi_ipc: ipc@e896b000 {
-		status = "ok";
-	};
-
-    hisi_pctrl: pctrl@e8a09000 {
-        compatible = "hisilicon,pctrl";
-        reg = <0x0 0xe8a09000 0x0 0x1000>;
-        status = "ok";
-    };
-
-    hisi_crgctrl: crgctrl@fff35000 {
-        compatible = "hisilicon,crgctrl";
-        reg = <0x0 0xfff35000 0x0 0x1000>;
-        status = "ok";
-    };
-
-	hisi_iomcuctrl: crgctrl@0xFFD7e000 {
-        compatible = "hisilicon,iomcuctrl";
-        reg = <0x0 0xFFD7e000 0x0 0x1000>;
-        status = "ok";
-    };
-
-    hisi_pmctrl: pmctrl@fff31000 {
-        compatible = "hisilicon,pmctrl";
-        reg = <0x0 0xfff31000 0x0 0x1000>;
-        status = "ok";
-    };
-
-	kirin_pcie_rc@0xf4000000 {
-		status = "ok";
-	};
-
-	hisi_axierr {
-	    compatible = "hisi,hi3xxx-axi";
-	    interrupts = <0 23 4>, <0 1 4>;
-	    status = "ok";
-    };
-
-	hisi_reset {
-        compatible = "hisilicon,hi3xxx-reset";
-        status = "ok";
-    };
 };
 
 &uart4 {

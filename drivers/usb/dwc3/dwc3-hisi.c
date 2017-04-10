@@ -1367,7 +1367,7 @@ static int get_resource(struct hisi_dwc3_device *hisi_dwc3)
 	/*
 	 * map PERI CRG region
 	 */
-	np = of_find_compatible_node(NULL, NULL, "hisilicon,crgctrl");
+	np = of_find_compatible_node(NULL, NULL, "hisilicon,hi3660-crgctrl");
 	if (!np) {
 		dev_err(dev, "get peri cfg node failed!\n");
 		return -EINVAL;
@@ -1381,7 +1381,7 @@ static int get_resource(struct hisi_dwc3_device *hisi_dwc3)
 	/*
 	 * map PCTRL region
 	 */
-	np = of_find_compatible_node(NULL, NULL, "hisilicon,pctrl");
+	np = of_find_compatible_node(NULL, NULL, "hisilicon,hi3660-pctrl");
 	if (!np) {
 		dev_err(dev, "get pctrl node failed!\n");
 		return -EINVAL;
@@ -1409,7 +1409,7 @@ static int get_resource(struct hisi_dwc3_device *hisi_dwc3)
 	/*
 	 * map PMCTRL region
 	 */
-	np = of_find_compatible_node(NULL, NULL, "hisilicon,pmctrl");
+	np = of_find_compatible_node(NULL, NULL, "hisilicon,hi3660-pmctrl");
 	if (!np) {
 		dev_err(dev, "get pmctrl node failed!\n");
 		return -EINVAL;
