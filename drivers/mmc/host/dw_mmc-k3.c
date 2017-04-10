@@ -276,6 +276,7 @@ int dw_mci_hi3660_init(struct dw_mci *host)
 
 	dw_mci_hs_set_timing(host, MMC_TIMING_LEGACY, -1);
 	host->bus_hz /= (GENCLK_DIV + 1);
+	host->pdata->quirks |= DW_MCI_QUIRK_BROKEN_DTO;
 
 	return 0;
 }
