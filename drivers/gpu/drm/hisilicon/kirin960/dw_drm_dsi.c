@@ -35,7 +35,6 @@
 
 #define DTS_COMP_DSI_NAME "hisilicon,hi3660-dsi"
 
-#define MAX_TX_ESC_CLK		10
 #define ROUND(x, y)		((x) / (y) + \
 				((x) % (y) * 10 / (y) >= 5 ? 1 : 0))
 #define ROUND1(x, y)	((x) / (y) + ((x) % (y)  ? 1 : 0))
@@ -1237,7 +1236,7 @@ static int dsi_host_init(struct device *dev, struct dw_dsi *dsi)
 	host->dev = dev;
 	host->ops = &dsi_host_ops;
 
-	mipi->max_tx_esc_clk = 10;
+	mipi->max_tx_esc_clk = 10 * 1000000UL;
 	mipi->vc = 0;
 	mipi->color_mode = DSI_24BITS_1;
 	mipi->clk_post_adjust = 120;

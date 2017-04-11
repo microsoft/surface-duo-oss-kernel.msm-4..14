@@ -30,6 +30,7 @@
 
 
 #define DSS_CHN_MAX_DEFINE (DSS_COPYBIT_MAX)
+#define TIME_OUT  (16)
 
 static int mid_array[DSS_CHN_MAX_DEFINE] = {0xb, 0xa, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x2, 0x1, 0x3, 0x0};
 
@@ -1064,6 +1065,38 @@ void hisi_dss_unflow_handler(struct dss_hw_ctx *ctx, bool unmask)
 	outp32(dss_base + DSS_LDI0_OFFSET + LDI_CPU_ITF_INT_MSK, tmp);
 }
 
+void hisi_dss_wait_for_complete(struct dss_hw_ctx *ctx, bool need_clear)
+{
+	void __iomem *dss_base;
+	u32 tmp = 0;
+	u32 isr_s2 = 0;
+
+	if (!ctx) {
+		DRM_ERROR("ctx is NULL!\n");
+		return;
+	}
+
+	dss_base = ctx->base;
+
+	do {
+		isr_s2 = inp32(dss_base + DSS_LDI0_OFFSET + LDI_CPU_ITF_INTS);
+		if (isr_s2 & BIT_VACTIVE0_END) {
+			DRM_DEBUG("hisi_dss_wait_for_complete exit! temp = %d\n", tmp);
+			if (need_clear)
+				outp32(dss_base + DSS_LDI0_OFFSET + LDI_CPU_ITF_INTS, BIT_VACTIVE0_END);
+			break;
+		} else {
+			msleep(1);
+			tmp++;
+		}
+	} while (tmp < TIME_OUT);
+
+	if (tmp == TIME_OUT) {
+		isr_s2 = inp32(dss_base + DSS_LDI0_OFFSET + LDI_CPU_ITF_INTS);
+		DRM_INFO("wait vactive0_end timeout: isr_s2 = 0x%x\n", isr_s2);
+	}
+}
+#if 0
 static int hisi_vactive0_start_config(struct dss_hw_ctx *ctx)
 {
 	int ret = 0;
@@ -1094,6 +1127,7 @@ REDO:
 
 	return ret;
 }
+#endif
 
 void hisi_fb_pan_display(struct drm_plane *plane)
 {
@@ -1108,9 +1142,6 @@ void hisi_fb_pan_display(struct drm_plane *plane)
 
 	struct kirin_drm_private *priv = plane->dev->dev_private;
 	struct kirin_fbdev *fbdev = to_kirin_fbdev(priv->fbdev);
-
-	ktime_t prepare_timestamp;
-	u64 vsync_timediff;
 
 	bool afbcd = false;
 	bool mmu_enable = true;
@@ -1161,26 +1192,7 @@ void hisi_fb_pan_display(struct drm_plane *plane)
 	vbp = mode->vtotal - mode->vsync_end;
 	vsw = mode->vsync_end - mode->vsync_start;
 
-	vsync_timediff = (uint64_t)(mode->hdisplay + hbp + hfp + hsw) *
-		(mode->vdisplay + vbp + vfp + vsw) *
-		1000000000UL / (adj_mode->clock * 1000);
-
-	prepare_timestamp = ktime_get();
-
-	if ((ktime_to_ns(prepare_timestamp) > ktime_to_ns(ctx->vsync_timestamp)) &&
-		(ktime_to_ns(prepare_timestamp) - ktime_to_ns(ctx->vsync_timestamp) < (vsync_timediff - 2000000)) &&
-		(ktime_to_ns(ctx->vsync_timestamp_prev) != ktime_to_ns(ctx->vsync_timestamp))) {
-		DRM_DEBUG("vsync_timediff=%llu, timestamp_diff=%llu!\n",
-			vsync_timediff, ktime_to_ns(prepare_timestamp) - ktime_to_ns(ctx->vsync_timestamp));
-	} else {
-		DRM_DEBUG("vsync_timediff=%llu.\n", vsync_timediff);
-
-		if (hisi_vactive0_start_config(ctx) != 0) {
-			DRM_ERROR("hisi_vactive0_start_config failed!\n");
-			return;
-		}
-	}
-	ctx->vsync_timestamp_prev = ctx->vsync_timestamp;
+	hisi_dss_wait_for_complete(ctx, true);
 
 	hisi_dss_mctl_mutex_lock(ctx);
 	hisi_dss_aif_ch_config(ctx, chn_idx);
@@ -1195,9 +1207,8 @@ void hisi_fb_pan_display(struct drm_plane *plane)
 	hisi_dss_mctl_sys_config(ctx, chn_idx);
 	hisi_dss_mctl_mutex_unlock(ctx);
 
-	hisi_dss_unflow_handler(ctx, true);
-
 	enable_ldi(acrtc);
+	hisi_dss_wait_for_complete(ctx, false);
 }
 
 void hisi_dss_online_play(struct drm_plane *plane, drm_dss_layer_t *layer)
@@ -1209,9 +1220,6 @@ void hisi_dss_online_play(struct drm_plane *plane, drm_dss_layer_t *layer)
 	struct dss_plane *aplane = to_dss_plane(plane);
 	struct dss_crtc *acrtc = aplane->acrtc;
 	struct dss_hw_ctx *ctx = acrtc->ctx;
-
-	ktime_t prepare_timestamp;
-	u64 vsync_timediff;
 
 	bool afbcd = false;
 	bool mmu_enable = true;
@@ -1246,28 +1254,7 @@ void hisi_dss_online_play(struct drm_plane *plane, drm_dss_layer_t *layer)
 	vfp = mode->vsync_start - mode->vdisplay;
 	vbp = mode->vtotal - mode->vsync_end;
 	vsw = mode->vsync_end - mode->vsync_start;
-
-	vsync_timediff = (uint64_t)(mode->hdisplay + hbp + hfp + hsw) *
-		(mode->vdisplay + vbp + vfp + vsw) *
-		1000000000UL / (adj_mode->clock * 1000);
-
-	prepare_timestamp = ktime_get();
-
-	if ((ktime_to_ns(prepare_timestamp) > ktime_to_ns(ctx->vsync_timestamp)) &&
-		(ktime_to_ns(prepare_timestamp) - ktime_to_ns(ctx->vsync_timestamp) < (vsync_timediff - 2000000)) &&
-		(ktime_to_ns(ctx->vsync_timestamp_prev) != ktime_to_ns(ctx->vsync_timestamp))) {
-		DRM_DEBUG("vsync_timediff=%llu, timestamp_diff=%llu!\n",
-			vsync_timediff, ktime_to_ns(prepare_timestamp) - ktime_to_ns(ctx->vsync_timestamp));
-	} else {
-		DRM_DEBUG("vsync_timediff=%llu.\n", vsync_timediff);
-
-		if (hisi_vactive0_start_config(ctx) != 0) {
-			DRM_ERROR("hisi_vactive0_start_config failed!\n");
-			return;
-		}
-	}
-
-	ctx->vsync_timestamp_prev = ctx->vsync_timestamp;
+	hisi_dss_wait_for_complete(ctx, true);
 
 	hisi_dss_mctl_mutex_lock(ctx);
 	hisi_dss_aif_ch_config(ctx, chn_idx);
@@ -1282,7 +1269,6 @@ void hisi_dss_online_play(struct drm_plane *plane, drm_dss_layer_t *layer)
 	hisi_dss_mctl_sys_config(ctx, chn_idx);
 	hisi_dss_mctl_mutex_unlock(ctx);
 
-	hisi_dss_unflow_handler(ctx, true);
-
 	enable_ldi(acrtc);
+	hisi_dss_wait_for_complete(ctx, false);
 }

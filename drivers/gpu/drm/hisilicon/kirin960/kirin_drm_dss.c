@@ -167,8 +167,8 @@ static int dss_power_up(struct dss_crtc *acrtc)
 	dss_inner_clk_common_enable(acrtc);
 	dpe_interrupt_mask(acrtc);
 	dpe_interrupt_clear(acrtc);
-	dpe_irq_enable(acrtc);
-	dpe_interrupt_unmask(acrtc);
+	//dpe_irq_enable(acrtc);
+	//dpe_interrupt_unmask(acrtc);
 
 	ctx->power_on = true;
 	return 0;
