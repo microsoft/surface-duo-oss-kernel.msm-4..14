@@ -521,6 +521,7 @@ static const struct st_sensor_settings st_press_sensors_settings[] = {
 			.mask_int2 = ST_PRESS_LPS22HB_DRDY_IRQ_INT2_MASK,
 		},
 		.multi_read_bit = ST_PRESS_LPS22HB_MULTIREAD_BIT,
+		.bootime = 2,
 	},
 };
 
