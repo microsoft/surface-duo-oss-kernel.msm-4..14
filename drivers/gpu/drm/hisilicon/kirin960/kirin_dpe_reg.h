@@ -2947,8 +2947,8 @@ struct dss_hw_ctx {
 	bool power_on;
 	int irq;
 
-	wait_queue_head_t vactive0_start_wq;
-	u32 vactive0_start_flag;
+	wait_queue_head_t vactive0_end_wq;
+	u32 vactive0_end_flag;
 	ktime_t vsync_timestamp;
 	ktime_t vsync_timestamp_prev;
 

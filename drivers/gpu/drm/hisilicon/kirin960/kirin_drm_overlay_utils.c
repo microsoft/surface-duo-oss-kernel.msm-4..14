@@ -30,8 +30,6 @@
 
 
 #define DSS_CHN_MAX_DEFINE (DSS_COPYBIT_MAX)
-#define TIME_OUT  (16)
-
 static int mid_array[DSS_CHN_MAX_DEFINE] = {0xb, 0xa, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x2, 0x1, 0x3, 0x0};
 
 /*
@@ -1065,49 +1063,17 @@ void hisi_dss_unflow_handler(struct dss_hw_ctx *ctx, bool unmask)
 	outp32(dss_base + DSS_LDI0_OFFSET + LDI_CPU_ITF_INT_MSK, tmp);
 }
 
-void hisi_dss_wait_for_complete(struct dss_hw_ctx *ctx, bool need_clear)
-{
-	void __iomem *dss_base;
-	u32 tmp = 0;
-	u32 isr_s2 = 0;
-
-	if (!ctx) {
-		DRM_ERROR("ctx is NULL!\n");
-		return;
-	}
-
-	dss_base = ctx->base;
-
-	do {
-		isr_s2 = inp32(dss_base + DSS_LDI0_OFFSET + LDI_CPU_ITF_INTS);
-		if (isr_s2 & BIT_VACTIVE0_END) {
-			DRM_DEBUG("hisi_dss_wait_for_complete exit! temp = %d\n", tmp);
-			if (need_clear)
-				outp32(dss_base + DSS_LDI0_OFFSET + LDI_CPU_ITF_INTS, BIT_VACTIVE0_END);
-			break;
-		} else {
-			msleep(1);
-			tmp++;
-		}
-	} while (tmp < TIME_OUT);
-
-	if (tmp == TIME_OUT) {
-		isr_s2 = inp32(dss_base + DSS_LDI0_OFFSET + LDI_CPU_ITF_INTS);
-		DRM_INFO("wait vactive0_end timeout: isr_s2 = 0x%x\n", isr_s2);
-	}
-}
-#if 0
-static int hisi_vactive0_start_config(struct dss_hw_ctx *ctx)
+static int hisi_dss_wait_for_complete(struct dss_hw_ctx *ctx)
 {
 	int ret = 0;
 	u32 times = 0;
-	u32 prev_vactive0_start = 0;
+	u32 prev_vactive0_end = 0;
 
-	prev_vactive0_start = ctx->vactive0_start_flag;
+	prev_vactive0_end = ctx->vactive0_end_flag;
 
 REDO:
-	ret = wait_event_interruptible_timeout(ctx->vactive0_start_wq,
-		(prev_vactive0_start != ctx->vactive0_start_flag),
+	ret = wait_event_interruptible_timeout(ctx->vactive0_end_wq,
+		(prev_vactive0_end != ctx->vactive0_end_flag),
 		msecs_to_jiffies(300));
 	if (ret == -ERESTARTSYS) {
 		if (times < 50) {
@@ -1118,7 +1084,7 @@ REDO:
 	}
 
 	if (ret <= 0) {
-		DRM_ERROR("wait_for vactive0_start_flag timeout! ret=%d.\n", ret);
+		DRM_ERROR("wait_for vactive0_end_flag timeout! ret=%d.\n", ret);
 
 		ret = -ETIMEDOUT;
 	} else {
@@ -1127,7 +1093,6 @@ REDO:
 
 	return ret;
 }
-#endif
 
 void hisi_fb_pan_display(struct drm_plane *plane)
 {
@@ -1192,8 +1157,6 @@ void hisi_fb_pan_display(struct drm_plane *plane)
 	vbp = mode->vtotal - mode->vsync_end;
 	vsw = mode->vsync_end - mode->vsync_start;
 
-	hisi_dss_wait_for_complete(ctx, true);
-
 	hisi_dss_mctl_mutex_lock(ctx);
 	hisi_dss_aif_ch_config(ctx, chn_idx);
 	hisi_dss_mif_config(ctx, chn_idx, mmu_enable);
@@ -1206,9 +1169,10 @@ void hisi_fb_pan_display(struct drm_plane *plane)
 	hisi_dss_mctl_ov_config(ctx, chn_idx);
 	hisi_dss_mctl_sys_config(ctx, chn_idx);
 	hisi_dss_mctl_mutex_unlock(ctx);
+	hisi_dss_unflow_handler(ctx, true);
 
 	enable_ldi(acrtc);
-	hisi_dss_wait_for_complete(ctx, false);
+	hisi_dss_wait_for_complete(ctx);
 }
 
 void hisi_dss_online_play(struct drm_plane *plane, drm_dss_layer_t *layer)
@@ -1254,7 +1218,6 @@ void hisi_dss_online_play(struct drm_plane *plane, drm_dss_layer_t *layer)
 	vfp = mode->vsync_start - mode->vdisplay;
 	vbp = mode->vtotal - mode->vsync_end;
 	vsw = mode->vsync_end - mode->vsync_start;
-	hisi_dss_wait_for_complete(ctx, true);
 
 	hisi_dss_mctl_mutex_lock(ctx);
 	hisi_dss_aif_ch_config(ctx, chn_idx);
@@ -1268,7 +1231,8 @@ void hisi_dss_online_play(struct drm_plane *plane, drm_dss_layer_t *layer)
 	hisi_dss_mctl_ov_config(ctx, chn_idx);
 	hisi_dss_mctl_sys_config(ctx, chn_idx);
 	hisi_dss_mctl_mutex_unlock(ctx);
+	hisi_dss_unflow_handler(ctx, true);
 
 	enable_ldi(acrtc);
-	hisi_dss_wait_for_complete(ctx, false);
+	hisi_dss_wait_for_complete(ctx);
 }
