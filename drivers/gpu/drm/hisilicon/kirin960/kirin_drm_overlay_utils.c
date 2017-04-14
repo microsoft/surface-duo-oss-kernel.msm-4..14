@@ -30,7 +30,7 @@
 
 
 #define DSS_CHN_MAX_DEFINE (DSS_COPYBIT_MAX)
-#define TIME_OUT  (64)
+#define TIME_OUT  (16)
 
 static int mid_array[DSS_CHN_MAX_DEFINE] = {0xb, 0xa, 0x9, 0x8, 0x7, 0x6, 0x5, 0x4, 0x2, 0x1, 0x3, 0x0};
 
@@ -1086,14 +1086,14 @@ void hisi_dss_wait_for_complete(struct dss_hw_ctx *ctx, bool need_clear)
 				outp32(dss_base + DSS_LDI0_OFFSET + LDI_CPU_ITF_INTS, BIT_VACTIVE0_END);
 			break;
 		} else {
-			usleep_range(250,250);
+			msleep(1);
 			tmp++;
 		}
 	} while (tmp < TIME_OUT);
 
 	if (tmp == TIME_OUT) {
 		isr_s2 = inp32(dss_base + DSS_LDI0_OFFSET + LDI_CPU_ITF_INTS);
-		DRM_DEBUG("wait vactive0_end timeout: isr_s2 = 0x%x\n", isr_s2);
+		DRM_INFO("wait vactive0_end timeout: isr_s2 = 0x%x\n", isr_s2);
 	}
 }
 #if 0
