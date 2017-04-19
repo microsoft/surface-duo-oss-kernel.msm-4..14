@@ -165,23 +165,36 @@ extern struct task_struct *cpu_switch_to(struct task_struct *prev,
  * Prefetching support
  */
 #define ARCH_HAS_PREFETCH
+
 static inline void prefetch(const void *ptr)
 {
+#ifndef __clang__
 	asm volatile("prfm pldl1keep, %a0\n" : : "p" (ptr));
+#else
+	__builtin_arm_prefetch(ptr, 0, 0, 0, 1);
+#endif
 }
 
 #define ARCH_HAS_PREFETCHW
 static inline void prefetchw(const void *ptr)
 {
+#ifndef __clang__
 	asm volatile("prfm pstl1keep, %a0\n" : : "p" (ptr));
+#else
+	__builtin_arm_prefetch(ptr, 1, 0, 0, 1);
+#endif
 }
 
 #define ARCH_HAS_SPINLOCK_PREFETCH
 static inline void spin_lock_prefetch(const void *ptr)
 {
+#ifndef __clang__
 	asm volatile(ARM64_LSE_ATOMIC_INSN(
 		     "prfm pstl1strm, %a0",
 		     "nop") : : "p" (ptr));
+#else
+	prefetchw(ptr);
+#endif
 }
 
 #define HAVE_ARCH_PICK_MMAP_LAYOUT
