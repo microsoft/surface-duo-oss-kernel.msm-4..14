@@ -57,6 +57,7 @@
 #define VFE_0_MODULE_CFG_DEMUX			(1 << 2)
 #define VFE_0_MODULE_CFG_CHROMA_UPSAMPLE	(1 << 3)
 #define VFE_0_MODULE_CFG_SCALE_ENC		(1 << 23)
+#define VFE_0_MODULE_CFG_CROP_ENC		(1 << 27)
 
 #define VFE_0_CORE_CFG			0x01c
 #define VFE_0_CORE_CFG_PIXEL_PATTERN_YCBYCR	0x4
@@ -193,6 +194,11 @@
 #define VFE_0_SCALE_ENC_CBCR_H_PHASE		0x780
 #define VFE_0_SCALE_ENC_CBCR_V_IMAGE_SIZE	0x790
 #define VFE_0_SCALE_ENC_CBCR_V_PHASE		0x794
+
+#define VFE_0_CROP_ENC_Y_WIDTH			0x854
+#define VFE_0_CROP_ENC_Y_HEIGHT			0x858
+#define VFE_0_CROP_ENC_CBCR_WIDTH		0x85c
+#define VFE_0_CROP_ENC_CBCR_HEIGHT		0x860
 
 #define VFE_0_CLAMP_ENC_MAX_CFG			0x874
 #define VFE_0_CLAMP_ENC_MIN_CFG			0x878
@@ -715,6 +721,32 @@ static void vfe_set_scale_cfg(struct vfe_device *vfe, struct vfe_line *line)
 	writel_relaxed(reg, vfe->base + VFE_0_SCALE_ENC_CBCR_V_PHASE);
 }
 
+static void vfe_set_crop_cfg(struct vfe_device *vfe, struct vfe_line *line)
+{
+	u32 reg;
+	u16 first, last;
+
+	first = line->crop.left;
+	last = line->crop.left + line->crop.width - 1;
+	reg = (first << 16) | last;
+	writel_relaxed(reg, vfe->base + VFE_0_CROP_ENC_Y_WIDTH);
+
+	first = line->crop.top;
+	last = line->crop.top + line->crop.height - 1;
+	reg = (first << 16) | last;
+	writel_relaxed(reg, vfe->base + VFE_0_CROP_ENC_Y_HEIGHT);
+
+	first = line->crop.left / 2;
+	last = line->crop.left / 2 + line->crop.width / 2 - 1;
+	reg = (first << 16) | last;
+	writel_relaxed(reg, vfe->base + VFE_0_CROP_ENC_CBCR_WIDTH);
+
+	first = line->crop.top / 2;
+	last = line->crop.top / 2 + line->crop.height / 2 - 1;
+	reg = (first << 16) | last;
+	writel_relaxed(reg, vfe->base + VFE_0_CROP_ENC_CBCR_HEIGHT);
+}
+
 static void vfe_set_clamp_cfg(struct vfe_device *vfe)
 {
 	writel_relaxed(0x00ffffff, vfe->base + VFE_0_CLAMP_ENC_MAX_CFG);
@@ -827,7 +859,8 @@ static void vfe_set_module_cfg(struct vfe_device *vfe, u8 enable)
 {
 	u32 val = VFE_0_MODULE_CFG_DEMUX |
 		  VFE_0_MODULE_CFG_CHROMA_UPSAMPLE |
-		  VFE_0_MODULE_CFG_SCALE_ENC;
+		  VFE_0_MODULE_CFG_SCALE_ENC |
+		  VFE_0_MODULE_CFG_CROP_ENC;
 
 	if (enable)
 		writel_relaxed(val, vfe->base + VFE_0_MODULE_CFG);
@@ -1304,6 +1337,7 @@ static int vfe_enable_output(struct vfe_line *line)
 		vfe_set_xbar_cfg(vfe, output, 1);
 		vfe_set_demux_cfg(vfe, line);
 		vfe_set_scale_cfg(vfe, line);
+		vfe_set_crop_cfg(vfe, line);
 		vfe_set_clamp_cfg(vfe);
 		vfe_set_camif_cmd(vfe, VFE_0_CAMIF_CMD_ENABLE_FRAME_BOUNDARY);
 	}
