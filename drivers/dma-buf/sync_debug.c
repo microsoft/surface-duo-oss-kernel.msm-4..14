@@ -15,14 +15,25 @@
  */
 
 #include <linux/debugfs.h>
-#include "sync_debug.h"
+#include <linux/export.h>
+#include <linux/file.h>
+#include <linux/fs.h>
+#include <linux/kernel.h>
+#include <linux/poll.h>
+#include <linux/sched.h>
+#include <linux/seq_file.h>
+#include <linux/slab.h>
+#include <linux/uaccess.h>
+#include <linux/anon_inodes.h>
+#include <linux/time64.h>
+//#include "sync.h"
 
-static struct dentry *dbgfs;
+#ifdef CONFIG_DEBUG_FS_XXXBROKEN
 
 static LIST_HEAD(sync_timeline_list_head);
 static DEFINE_SPINLOCK(sync_timeline_list_lock);
-static LIST_HEAD(sync_file_list_head);
-static DEFINE_SPINLOCK(sync_file_list_lock);
+static LIST_HEAD(sync_fence_list_head);
+static DEFINE_SPINLOCK(sync_fence_list_lock);
 
 void sync_timeline_debug_add(struct sync_timeline *obj)
 {
@@ -42,22 +53,22 @@ void sync_timeline_debug_remove(struct sync_timeline *obj)
 	spin_unlock_irqrestore(&sync_timeline_list_lock, flags);
 }
 
-void sync_file_debug_add(struct sync_file *sync_file)
+void sync_fence_debug_add(struct sync_fence *fence)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&sync_file_list_lock, flags);
-	list_add_tail(&sync_file->sync_file_list, &sync_file_list_head);
-	spin_unlock_irqrestore(&sync_file_list_lock, flags);
+	spin_lock_irqsave(&sync_fence_list_lock, flags);
+	list_add_tail(&fence->sync_fence_list, &sync_fence_list_head);
+	spin_unlock_irqrestore(&sync_fence_list_lock, flags);
 }
 
-void sync_file_debug_remove(struct sync_file *sync_file)
+void sync_fence_debug_remove(struct sync_fence *fence)
 {
 	unsigned long flags;
 
-	spin_lock_irqsave(&sync_file_list_lock, flags);
-	list_del(&sync_file->sync_file_list);
-	spin_unlock_irqrestore(&sync_file_list_lock, flags);
+	spin_lock_irqsave(&sync_fence_list_lock, flags);
+	list_del(&fence->sync_fence_list);
+	spin_unlock_irqrestore(&sync_fence_list_lock, flags);
 }
 
 static const char *sync_status_str(int status)
@@ -80,31 +91,32 @@ static void sync_print_fence(struct seq_file *s,
 	if (dma_fence_is_signaled_locked(fence))
 		status = fence->status;
 
-	seq_printf(s, "  %s%sfence %s",
-		   show ? parent->name : "",
-		   show ? "_" : "",
+	seq_printf(s, "  %s%spt %s",
+		   fence && pt->ops->get_timeline_name ?
+		   pt->ops->get_timeline_name(pt) : "",
+		   fence ? "_" : "",
 		   sync_status_str(status));
 
 	if (status <= 0) {
 		struct timespec64 ts64 =
-			ktime_to_timespec64(fence->timestamp);
+			ktime_to_timespec64(pt->timestamp);
 
 		seq_printf(s, "@%lld.%09ld", (s64)ts64.tv_sec, ts64.tv_nsec);
 	}
 
-	if (fence->ops->timeline_value_str &&
-		fence->ops->fence_value_str) {
+	if ((!fence || pt->ops->timeline_value_str) &&
+	    pt->ops->fence_value_str) {
 		char value[64];
 		bool success;
 
-		fence->ops->fence_value_str(fence, value, sizeof(value));
+		pt->ops->fence_value_str(pt, value, sizeof(value));
 		success = strlen(value);
 
-		if (success) {
+		if (success)
 			seq_printf(s, ": %s", value);
 
-			fence->ops->timeline_value_str(fence, value,
-						       sizeof(value));
+		if (success && fence) {
+			pt->ops->timeline_value_str(pt, value, sizeof(value));
 
 			if (strlen(value))
 				seq_printf(s, " / %s", value);
@@ -119,20 +131,30 @@ static void sync_print_obj(struct seq_file *s, struct sync_timeline *obj)
 	struct list_head *pos;
 	unsigned long flags;
 
-	seq_printf(s, "%s: %d\n", obj->name, obj->value);
+	seq_printf(s, "%s %s", obj->name, obj->ops->driver_name);
+
+	if (obj->ops->timeline_value_str) {
+		char value[64];
+
+		obj->ops->timeline_value_str(obj, value, sizeof(value));
+		seq_printf(s, ": %s", value);
+	}
+
+	seq_puts(s, "\n");
 
 	spin_lock_irqsave(&obj->child_list_lock, flags);
 	list_for_each(pos, &obj->child_list_head) {
 		struct sync_pt *pt =
 			container_of(pos, struct sync_pt, child_list);
-		sync_print_fence(s, &pt->base, false);
+		sync_print_pt(s, &pt->base, false);
 	}
 	spin_unlock_irqrestore(&obj->child_list_lock, flags);
 }
 
-static void sync_print_sync_file(struct seq_file *s,
-				  struct sync_file *sync_file)
+static void sync_print_fence(struct seq_file *s, struct sync_fence *fence)
 {
+	wait_queue_t *pos;
+	unsigned long flags;
 	int i;
 
 	seq_printf(s, "[%p] %s: %s\n", sync_file, sync_file->name,
@@ -141,11 +163,11 @@ static void sync_print_sync_file(struct seq_file *s,
 	if (dma_fence_is_array(sync_file->fence)) {
 		struct dma_fence_array *array = to_dma_fence_array(sync_file->fence);
 
-		for (i = 0; i < array->num_fences; ++i)
-			sync_print_fence(s, array->fences[i], true);
-	} else {
-		sync_print_fence(s, sync_file->fence, true);
+		waiter = container_of(pos, struct sync_fence_waiter, work);
+
+		seq_printf(s, "waiter %pF\n", waiter->callback);
 	}
+	spin_unlock_irqrestore(&fence->wq.lock, flags);
 }
 
 static int sync_debugfs_show(struct seq_file *s, void *unused)
@@ -168,25 +190,25 @@ static int sync_debugfs_show(struct seq_file *s, void *unused)
 
 	seq_puts(s, "fences:\n--------------\n");
 
-	spin_lock_irqsave(&sync_file_list_lock, flags);
-	list_for_each(pos, &sync_file_list_head) {
-		struct sync_file *sync_file =
-			container_of(pos, struct sync_file, sync_file_list);
+	spin_lock_irqsave(&sync_fence_list_lock, flags);
+	list_for_each(pos, &sync_fence_list_head) {
+		struct sync_fence *fence =
+			container_of(pos, struct sync_fence, sync_fence_list);
 
-		sync_print_sync_file(s, sync_file);
+		sync_print_fence(s, fence);
 		seq_puts(s, "\n");
 	}
-	spin_unlock_irqrestore(&sync_file_list_lock, flags);
+	spin_unlock_irqrestore(&sync_fence_list_lock, flags);
 	return 0;
 }
 
-static int sync_info_debugfs_open(struct inode *inode, struct file *file)
+static int sync_debugfs_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, sync_debugfs_show, inode->i_private);
 }
 
-static const struct file_operations sync_info_debugfs_fops = {
-	.open           = sync_info_debugfs_open,
+static const struct file_operations sync_debugfs_fops = {
+	.open           = sync_debugfs_open,
 	.read           = seq_read,
 	.llseek         = seq_lseek,
 	.release        = single_release,
@@ -194,18 +216,7 @@ static const struct file_operations sync_info_debugfs_fops = {
 
 static __init int sync_debugfs_init(void)
 {
-	dbgfs = debugfs_create_dir("sync", NULL);
-
-	/*
-	 * The debugfs files won't ever get removed and thus, there is
-	 * no need to protect it against removal races. The use of
-	 * debugfs_create_file_unsafe() is actually safe here.
-	 */
-	debugfs_create_file_unsafe("info", 0444, dbgfs, NULL,
-				   &sync_info_debugfs_fops);
-	debugfs_create_file_unsafe("sw_sync", 0644, dbgfs, NULL,
-				   &sw_sync_debugfs_fops);
-
+	debugfs_create_file("sync", S_IRUGO, NULL, NULL, &sync_debugfs_fops);
 	return 0;
 }
 late_initcall(sync_debugfs_init);
@@ -235,3 +246,5 @@ void sync_dump(void)
 		}
 	}
 }
+
+#endif

@@ -50,11 +50,13 @@ static int kirin_drm_kms_cleanup(struct drm_device *dev)
 	return 0;
 }
 
+static DEFINE_MUTEX(fb_lock);
 #ifdef CONFIG_DRM_FBDEV_EMULATION
 static void kirin_fbdev_output_poll_changed(struct drm_device *dev)
 {
 	struct kirin_drm_private *priv = dev->dev_private;
 
+	mutex_lock(&fb_lock);
 	if (priv->fbdev) {
 		drm_fbdev_cma_hotplug_event(priv->fbdev);
 	} else {
@@ -64,6 +66,7 @@ static void kirin_fbdev_output_poll_changed(struct drm_device *dev)
 		if (IS_ERR(priv->fbdev))
 			priv->fbdev = NULL;
 	}
+	mutex_unlock(&fb_lock);
 }
 #endif
 

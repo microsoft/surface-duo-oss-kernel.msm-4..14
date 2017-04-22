@@ -496,7 +496,6 @@ static int persistent_ram_post_init(struct persistent_ram_zone *prz, u32 sig,
 
 	prz->buffer->sig = sig;
 	persistent_ram_zap(prz);
-	prz->buffer_lock = __RAW_SPIN_LOCK_UNLOCKED(buffer_lock);
 	prz->flags = flags;
 
 	return 0;
@@ -532,6 +531,8 @@ struct persistent_ram_zone *persistent_ram_new(phys_addr_t start, size_t size,
 		pr_err("failed to allocate persistent ram zone\n");
 		goto err;
 	}
+
+	raw_spin_lock_init(&prz->buffer_lock);
 
 	ret = persistent_ram_buffer_map(start, size, prz, memtype);
 	if (ret)

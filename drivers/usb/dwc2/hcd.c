@@ -54,6 +54,8 @@
 #include "core.h"
 #include "hcd.h"
 
+static void dwc2_port_resume(struct dwc2_hsotg *hsotg);
+
 /*
  * =========================================================================
  *  Host Core Layer Functions
@@ -3235,12 +3237,25 @@ static void dwc2_conn_id_status_change(struct work_struct *work)
 	if (gotgctl & GOTGCTL_CONID_B) {
 		/* Wait for switch to device mode */
 		dev_dbg(hsotg->dev, "connId B\n");
+		if (hsotg->bus_suspended) {
+			dev_info(hsotg->dev,
+				 "Do port resume before switching to device mode\n");
+			dwc2_port_resume(hsotg);
+		}
 		while (!dwc2_is_device_mode(hsotg)) {
 			dev_info(hsotg->dev,
 				 "Waiting for Peripheral Mode, Mode=%s\n",
 				 dwc2_is_host_mode(hsotg) ? "Host" :
 				 "Peripheral");
 			usleep_range(20000, 40000);
+			/*
+			 * Sometimes the initial GOTGCTRL read is wrong, so
+			 * check it again and jump to host mode if that was
+			 * the case.
+			 */
+			gotgctl = dwc2_readl(hsotg->regs + GOTGCTL);
+			if (!(gotgctl & GOTGCTL_CONID_B))
+				goto host;
 			if (++count > 250)
 				break;
 		}
@@ -3251,10 +3266,12 @@ static void dwc2_conn_id_status_change(struct work_struct *work)
 		dwc2_core_init(hsotg, false);
 		dwc2_enable_global_interrupts(hsotg);
 		spin_lock_irqsave(&hsotg->lock, flags);
+		dwc2_hsotg_disconnect(hsotg);
 		dwc2_hsotg_core_init_disconnected(hsotg, false);
 		spin_unlock_irqrestore(&hsotg->lock, flags);
 		dwc2_hsotg_core_connect(hsotg);
 	} else {
+host:
 		/* A-Device connector (Host Mode) */
 		dev_dbg(hsotg->dev, "connId A\n");
 		while (!dwc2_is_host_mode(hsotg)) {
@@ -4860,6 +4877,61 @@ static void _dwc2_hcd_clear_tt_buffer_complete(struct usb_hcd *hcd,
 	spin_unlock_irqrestore(&hsotg->lock, flags);
 }
 
+/*
+ * HPRT0_SPD_HIGH_SPEED: high speed
+ * HPRT0_SPD_FULL_SPEED: full speed
+ */
+static void dwc2_change_bus_speed(struct usb_hcd *hcd, int speed)
+{
+	struct dwc2_hsotg *hsotg = dwc2_hcd_to_hsotg(hcd);
+
+	if (hsotg->params.speed == speed)
+		return;
+
+	hsotg->params.speed = speed;
+	queue_work(hsotg->wq_otg, &hsotg->wf_otg);
+}
+
+static void dwc2_free_dev(struct usb_hcd *hcd, struct usb_device *udev)
+{
+	struct dwc2_hsotg *hsotg = dwc2_hcd_to_hsotg(hcd);
+
+	if (!hsotg->params.change_speed_quirk)
+		return;
+
+	/*
+	 * On removal, set speed to default high-speed.
+	 */
+	if (udev->parent && udev->parent->speed > USB_SPEED_UNKNOWN &&
+	    udev->parent->speed < USB_SPEED_HIGH) {
+		dev_info(hsotg->dev, "Set speed to default high-speed\n");
+		dwc2_change_bus_speed(hcd, HPRT0_SPD_HIGH_SPEED);
+	}
+}
+
+static int dwc2_reset_device(struct usb_hcd *hcd, struct usb_device *udev)
+{
+	struct dwc2_hsotg *hsotg = dwc2_hcd_to_hsotg(hcd);
+
+	if (!hsotg->params.change_speed_quirk)
+		return 0;
+
+	if (udev->speed == USB_SPEED_HIGH) {
+		dev_info(hsotg->dev, "Set speed to high-speed\n");
+		dwc2_change_bus_speed(hcd, HPRT0_SPD_HIGH_SPEED);
+	} else if ((udev->speed == USB_SPEED_FULL ||
+				udev->speed == USB_SPEED_LOW)) {
+		/*
+		 * Change speed setting to full-speed if there's
+		 * a full-speed or low-speed device plugged in.
+		 */
+		dev_info(hsotg->dev, "Set speed to full-speed\n");
+		dwc2_change_bus_speed(hcd, HPRT0_SPD_FULL_SPEED);
+	}
+
+	return 0;
+}
+
 static struct hc_driver dwc2_hc_driver = {
 	.description = "dwc2_hsotg",
 	.product_desc = "DWC OTG Controller",
@@ -5013,6 +5085,11 @@ int dwc2_hcd_init(struct dwc2_hsotg *hsotg, int irq)
 			dev_warn(hsotg->dev, "can't set DMA mask\n");
 		if (dma_set_coherent_mask(hsotg->dev, DMA_BIT_MASK(32)) < 0)
 			dev_warn(hsotg->dev, "can't set coherent DMA mask\n");
+	}
+
+	if (hsotg->params.change_speed_quirk) {
+		dwc2_hc_driver.free_dev = dwc2_free_dev;
+		dwc2_hc_driver.reset_device = dwc2_reset_device;
 	}
 
 	hcd = usb_create_hcd(&dwc2_hc_driver, hsotg->dev, dev_name(hsotg->dev));

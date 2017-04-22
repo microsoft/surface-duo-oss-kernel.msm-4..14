@@ -332,6 +332,19 @@
 			status = "disabled";
 		};
 
+		dma0: dma@f7370000 {
+			compatible = "hisilicon,k3-dma-1.0";
+			reg = <0x0 0xf7370000 0x0 0x1000>;
+			#dma-cells = <1>;
+			dma-channels = <15>;
+			dma-requests = <32>;
+			interrupts = <0 84 4>;
+			clocks = <&sys_ctrl HI6220_EDMAC_ACLK>;
+			dma-no-cci;
+			dma-type = "hi6220_dma";
+			status = "ok";
+		};
+
 		dual_timer0: timer@f8008000 {
 			compatible = "arm,sp804", "arm,primecell";
 			reg = <0x0 0xf8008000 0x0 0x1000>;
@@ -831,6 +844,19 @@
 			#thermal-sensor-cells = <1>;
 		};
 
+		i2s0: hi6210_i2s {
+			compatible = "hisilicon,hi6210-i2s";
+			reg = <0x0 0xf7118000 0x0 0x8000>; /* i2s unit */
+			interrupts = <GIC_SPI 123 IRQ_TYPE_LEVEL_HIGH>; /* 155 "DigACodec_intr"-32 */
+			clocks = <&sys_ctrl HI6220_DACODEC_PCLK>,
+				 <&sys_ctrl HI6220_BBPPLL0_DIV>;
+			clock-names = "dacodec", "i2s-base";
+			dmas = <&dma0 15 &dma0 14>;
+			dma-names = "rx", "tx";
+			hisilicon,sysctrl-syscon = <&sys_ctrl>;
+			#sound-dai-cells = <0>;
+		};
+
 		thermal-zones {
 
 			cls0: cls0 {
@@ -912,6 +938,44 @@
 					};
 				};
 			};
+		};
+
+		mali:mali@f4080000 {
+			compatible = "arm,mali-450", "arm,mali-utgard";
+			reg = <0x0 0x3f100000 0x0 0x00708000>;
+			clocks = <&media_ctrl HI6220_G3D_CLK>,
+				 <&media_ctrl HI6220_G3D_PCLK>;
+			clock-names = "clk_g3d", "pclk_g3d";
+			mali_def_freq = <500>;
+			pclk_freq = <144>;
+			dfs_steps = <2>;
+			dfs_lockprf = <1>;
+			dfs_limit_max_prf = <1>;
+			dfs_profile_num = <2>;
+			dfs_profiles = <250 3 0>, <500 1 0>;
+			mali_type = <2>;
+
+			interrupt-parent = <&gic>;
+			interrupts =	<1 126 4>, /*gp*/
+					<1 126 4>, /*gp mmu*/
+					<1 126 4>, /*pp bc*/
+					<1 126 4>, /*pmu*/
+					<1 126 4>, /*pp0*/
+					<1 126 4>,
+					<1 126 4>, /*pp1*/
+					<1 126 4>,
+					<1 126 4>, /*pp2*/
+					<1 126 4>,
+					<1 126 4>, /*pp4*/
+					<1 126 4>,
+					<1 126 4>, /*pp5*/
+					<1 126 4>,
+					<1 126 4>, /*pp6*/
+					<1 126 4>;
+			interrupt-names = "IRQGP", "IRQGPMMU", "IRQPP", "IRQPMU",
+					"IRQPP0", "IRQPPMMU0", "IRQPP1", "IRQPPMMU1",
+					"IRQPP2", "IRQPPMMU2","IRQPP4", "IRQPPMMU4",
+					"IRQPP5", "IRQPPMMU5", "IRQPP6", "IRQPPMMU6";
 		};
 	};
 };

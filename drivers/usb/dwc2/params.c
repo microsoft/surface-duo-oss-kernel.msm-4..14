@@ -67,6 +67,7 @@ static const struct dwc2_core_params params_hi6220 = {
 	.uframe_sched			= 0,
 	.external_id_pin_ctl		= -1,
 	.hibernation			= -1,
+	.change_speed_quirk		= 1,
 };
 
 static const struct dwc2_core_params params_bcm2835 = {
@@ -227,6 +228,7 @@ static const struct dwc2_core_params params_default = {
 	.uframe_sched			= -1,
 	.external_id_pin_ctl		= -1,
 	.hibernation			= -1,
+	.change_speed_quirk		= -1,
 };
 
 const struct of_device_id dwc2_of_match_table[] = {
@@ -1098,6 +1100,22 @@ static void dwc2_set_gadget_dma(struct dwc2_hsotg *hsotg)
 			    !!hw->dma_desc_enable);
 }
 
+static void dwc2_set_change_speed_quirk(struct dwc2_hsotg *hsotg, int val)
+{
+	if (DWC2_OUT_OF_BOUNDS(val, 0, 1)) {
+		if (val >= 0) {
+			dev_err(hsotg->dev,
+				"'%d' invalid for parameter change_speed_quirk\n",
+				val);
+			dev_err(hsotg->dev, "change_speed_quirk must be 0 or 1\n");
+		}
+		val = 0;
+		dev_dbg(hsotg->dev, "Setting change_speed_quirk to %d\n", val);
+	}
+
+	hsotg->params.change_speed_quirk = val;
+}
+
 /**
  * dwc2_set_parameters() - Set all core parameters.
  *
@@ -1158,6 +1176,7 @@ static void dwc2_set_parameters(struct dwc2_hsotg *hsotg,
 	dwc2_set_param_uframe_sched(hsotg, params->uframe_sched);
 	dwc2_set_param_external_id_pin_ctl(hsotg, params->external_id_pin_ctl);
 	dwc2_set_param_hibernation(hsotg, params->hibernation);
+	dwc2_set_change_speed_quirk(hsotg, params->change_speed_quirk);
 
 	/*
 	 * Set devicetree-only parameters. These parameters do not
