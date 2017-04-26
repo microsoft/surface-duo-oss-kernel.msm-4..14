@@ -629,17 +629,8 @@ static void blk_mq_check_expired(struct blk_mq_hw_ctx *hctx,
 {
 	struct blk_mq_timeout_data *data = priv;
 
-	if (!test_bit(REQ_ATOM_STARTED, &rq->atomic_flags)) {
-		/*
-		 * If a request wasn't started before the queue was
-		 * marked dying, kill it here or it'll go unnoticed.
-		 */
-		if (unlikely(blk_queue_dying(rq->q))) {
-			rq->errors = -EIO;
-			blk_mq_end_request(rq, rq->errors);
-		}
+	if (!test_bit(REQ_ATOM_STARTED, &rq->atomic_flags))
 		return;
-	}
 
 	if (time_after_eq(jiffies, rq->deadline)) {
 		if (!blk_mark_rq_complete(rq))
@@ -895,7 +886,7 @@ static int blk_mq_hctx_next_cpu(struct blk_mq_hw_ctx *hctx)
 		return WORK_CPU_UNBOUND;
 
 	if (--hctx->next_cpu_batch <= 0) {
-		int cpu = hctx->next_cpu, next_cpu;
+		int next_cpu;
 
 		next_cpu = cpumask_next(hctx->next_cpu, hctx->cpumask);
 		if (next_cpu >= nr_cpu_ids)
@@ -903,8 +894,6 @@ static int blk_mq_hctx_next_cpu(struct blk_mq_hw_ctx *hctx)
 
 		hctx->next_cpu = next_cpu;
 		hctx->next_cpu_batch = BLK_MQ_CPU_WORK_BATCH;
-
-		return cpu;
 	}
 
 	return hctx->next_cpu;
@@ -1332,9 +1321,9 @@ static blk_qc_t blk_mq_make_request(struct request_queue *q, struct bio *bio)
 		blk_mq_put_ctx(data.ctx);
 		if (!old_rq)
 			goto done;
-		if (!blk_mq_direct_issue_request(old_rq, &cookie))
-			goto done;
-		blk_mq_insert_request(old_rq, false, true, true);
+		if (test_bit(BLK_MQ_S_STOPPED, &data.hctx->state) ||
+		    blk_mq_direct_issue_request(old_rq, &cookie) != 0)
+			blk_mq_insert_request(old_rq, false, true, true);
 		goto done;
 	}
 

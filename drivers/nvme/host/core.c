@@ -1122,12 +1122,7 @@ int nvme_disable_ctrl(struct nvme_ctrl *ctrl, u64 cap)
 	if (ret)
 		return ret;
 
-	/* Checking for ctrl->tagset is a trick to avoid sleeping on module
-	 * load, since we only need the quirk on reset_controller. Notice
-	 * that the HGST device needs this delay only in firmware activation
-	 * procedure; unfortunately we have no (easy) way to verify this.
-	 */
-	if ((ctrl->quirks & NVME_QUIRK_DELAY_BEFORE_CHK_RDY) && ctrl->tagset)
+	if (ctrl->quirks & NVME_QUIRK_DELAY_BEFORE_CHK_RDY)
 		msleep(NVME_QUIRK_DELAY_AMOUNT);
 
 	return nvme_wait_ready(ctrl, cap, false);
@@ -2062,9 +2057,9 @@ void nvme_kill_queues(struct nvme_ctrl *ctrl)
 		 * Revalidating a dead namespace sets capacity to 0. This will
 		 * end buffered writers dirtying pages that can't be synced.
 		 */
-		if (ns->disk && !test_and_set_bit(NVME_NS_DEAD, &ns->flags))
-			revalidate_disk(ns->disk);
-
+		if (!ns->disk || test_and_set_bit(NVME_NS_DEAD, &ns->flags))
+			continue;
+		revalidate_disk(ns->disk);
 		blk_set_queue_dying(ns->queue);
 		blk_mq_abort_requeue_list(ns->queue);
 		blk_mq_start_stopped_hw_queues(ns->queue, true);
