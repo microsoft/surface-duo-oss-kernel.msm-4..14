@@ -108,9 +108,9 @@
 #define VFE_0_BUS_CFG			0x050
 
 #define VFE_0_BUS_XBAR_CFG_x(x)		(0x58 + 0x4 * ((x) / 2))
-#define VFE_0_BUS_XBAR_CFG_x_M0_PAIR_STREAM_EN			(1 << 1)
-#define VFE_0_BUS_XBAR_CFG_x_M0_PAIR_STREAM_SWAP_INTER_INTRA	(0x3 << 4)
-#define VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT		8
+#define VFE_0_BUS_XBAR_CFG_x_M_PAIR_STREAM_EN			(1 << 1)
+#define VFE_0_BUS_XBAR_CFG_x_M_PAIR_STREAM_SWAP_INTER_INTRA	(0x3 << 4)
+#define VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_SHIFT		8
 #define VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_LUMA		0
 #define VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI0	5
 #define VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI1	6
@@ -448,15 +448,15 @@ static void vfe_bus_connect_wm_to_rdi(struct vfe_device *vfe, u8 wm,
 	case VFE_LINE_RDI0:
 	default:
 		reg = VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI0 <<
-		      VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT;
+		      VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_SHIFT;
 		break;
 	case VFE_LINE_RDI1:
 		reg = VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI1 <<
-		      VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT;
+		      VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_SHIFT;
 		break;
 	case VFE_LINE_RDI2:
 		reg = VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI2 <<
-		      VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT;
+		      VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_SHIFT;
 		break;
 	}
 
@@ -488,15 +488,15 @@ static void vfe_bus_disconnect_wm_from_rdi(struct vfe_device *vfe, u8 wm,
 	case VFE_LINE_RDI0:
 	default:
 		reg = VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI0 <<
-		      VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT;
+		      VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_SHIFT;
 		break;
 	case VFE_LINE_RDI1:
 		reg = VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI1 <<
-		      VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT;
+		      VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_SHIFT;
 		break;
 	case VFE_LINE_RDI2:
 		reg = VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_VAL_RDI2 <<
-		      VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT;
+		      VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_SHIFT;
 		break;
 	}
 
@@ -517,11 +517,11 @@ static void vfe_set_xbar_cfg(struct vfe_device *vfe, struct vfe_output *output,
 	for (i = 0; i < output->wm_num; i++) {
 		if (i == 0) {
 			reg = VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_LUMA <<
-				VFE_0_BUS_XBAR_CFG_x_M0_SINGLE_STREAM_SEL_SHIFT;
+				VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_SHIFT;
 		} else if (i == 1) {
-			reg = VFE_0_BUS_XBAR_CFG_x_M0_PAIR_STREAM_EN;
+			reg = VFE_0_BUS_XBAR_CFG_x_M_PAIR_STREAM_EN;
 			if (p == V4L2_PIX_FMT_NV12 || p == V4L2_PIX_FMT_NV12M)
-				reg |= VFE_0_BUS_XBAR_CFG_x_M0_PAIR_STREAM_SWAP_INTER_INTRA;
+				reg |= VFE_0_BUS_XBAR_CFG_x_M_PAIR_STREAM_SWAP_INTER_INTRA;
 		}
 
 		if (output->wm_idx[i] % 2 == 1)
@@ -537,7 +537,6 @@ static void vfe_set_xbar_cfg(struct vfe_device *vfe, struct vfe_output *output,
 				    reg);
 	}
 }
-
 
 static void vfe_set_rdi_cid(struct vfe_device *vfe, enum vfe_line_id id, u8 cid)
 {
@@ -789,7 +788,6 @@ static void vfe_set_cgc_override(struct vfe_device *vfe, u8 wm, u8 enable)
 	wmb();
 }
 
-
 static void vfe_set_module_cfg(struct vfe_device *vfe, u8 enable)
 {
 	u32 val = VFE_0_MODULE_CFG_DEMUX |
@@ -834,10 +832,10 @@ static void vfe_set_camif_cfg(struct vfe_device *vfe, struct vfe_line *line)
 	val = line->fmt[MSM_VFE_PAD_SINK].height - 1;
 	writel_relaxed(val, vfe->base + VFE_0_CAMIF_WINDOW_HEIGHT_CFG);
 
-	val = 0xFFFFFFFF;
+	val = 0xffffffff;
 	writel_relaxed(val, vfe->base + VFE_0_CAMIF_SUBSAMPLE_CFG_0);
 
-	val = 0xFFFFFFFF;
+	val = 0xffffffff;
 	writel_relaxed(val, vfe->base + VFE_0_CAMIF_IRQ_SUBSAMPLE_PATTERN);
 
 	val = VFE_0_RDI_CFG_x_MIPI_EN_BITS;
