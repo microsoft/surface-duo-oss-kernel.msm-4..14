@@ -114,6 +114,14 @@ static struct qcom_iommu_ctx * to_ctx(struct iommu_fwspec *fwspec, unsigned asid
 	return NULL;
 }
 
+bool __clk_is_enabled(struct clk *clk);
+
+static void check_fwspec(struct iommu_fwspec *fwspec)
+{
+	struct qcom_iommu_dev *qcom_iommu = to_iommu(fwspec);
+	WARN_ON(!__clk_is_enabled(qcom_iommu->iface_clk));
+}
+
 static inline void
 iommu_writel(struct qcom_iommu_ctx *ctx, unsigned reg, u32 val)
 {
@@ -156,6 +164,8 @@ static void qcom_iommu_tlb_sync(void *cookie)
 	struct iommu_fwspec *fwspec = cookie;
 	unsigned i;
 
+	check_fwspec(fwspec);
+
 	for (i = 0; i < fwspec->num_ids; i++)
 		__sync_tlb(to_ctx(fwspec, fwspec->ids[i]));
 }
@@ -164,6 +174,8 @@ static void qcom_iommu_tlb_inv_context(void *cookie)
 {
 	struct iommu_fwspec *fwspec = cookie;
 	unsigned i;
+
+	check_fwspec(fwspec);
 
 	for (i = 0; i < fwspec->num_ids; i++) {
 		struct qcom_iommu_ctx *ctx = to_ctx(fwspec, fwspec->ids[i]);
@@ -178,6 +190,8 @@ static void qcom_iommu_tlb_inv_range_nosync(unsigned long iova, size_t size,
 {
 	struct iommu_fwspec *fwspec = cookie;
 	unsigned i, reg;
+
+	check_fwspec(fwspec);
 
 	reg = leaf ? ARM_SMMU_CB_S1_TLBIVAL : ARM_SMMU_CB_S1_TLBIVA;
 
