@@ -504,6 +504,43 @@ static void ade_crtc_disable(struct drm_crtc *crtc)
 	acrtc->enable = false;
 }
 
+static enum drm_mode_status ade_crtc_mode_valid(struct drm_crtc *crtc,
+						struct drm_display_mode *mode)
+{
+	/*
+	 * kirin_ade cannot generate all modes, so use the whitelist below
+	 */
+	DRM_DEBUG("Checking mode %ix%i@%i clock: %i...",
+		  mode->hdisplay, mode->vdisplay, drm_mode_vrefresh(mode), mode->clock);
+	if ((mode->hdisplay == 1920 && mode->vdisplay == 1080 && mode->clock == 148500) ||
+	    (mode->hdisplay == 1920 && mode->vdisplay == 1080 && mode->clock == 80192)  ||
+	    (mode->hdisplay == 1920 && mode->vdisplay == 1080 && mode->clock == 74250)  ||
+	    (mode->hdisplay == 1920 && mode->vdisplay == 1080 && mode->clock == 61855)  ||
+	    (mode->hdisplay == 1680 && mode->vdisplay == 1050 && mode->clock == 147116) ||
+	    (mode->hdisplay == 1680 && mode->vdisplay == 1050 && mode->clock == 146250) ||
+	    (mode->hdisplay == 1680 && mode->vdisplay == 1050 && mode->clock == 144589) ||
+	    (mode->hdisplay == 1600 && mode->vdisplay == 1200 && mode->clock == 160961) ||
+	    (mode->hdisplay == 1600 && mode->vdisplay == 900  && mode->clock == 118963) ||
+	    (mode->hdisplay == 1440 && mode->vdisplay == 900  && mode->clock == 126991) ||
+	    (mode->hdisplay == 1280 && mode->vdisplay == 1024 && mode->clock == 128946) ||
+	    (mode->hdisplay == 1280 && mode->vdisplay == 1024 && mode->clock == 98619)  ||
+	    (mode->hdisplay == 1280 && mode->vdisplay == 960  && mode->clock == 102081) ||
+	    (mode->hdisplay == 1280 && mode->vdisplay == 800  && mode->clock == 83496)  ||
+	    (mode->hdisplay == 1280 && mode->vdisplay == 720  && mode->clock == 74440)  ||
+	    (mode->hdisplay == 1280 && mode->vdisplay == 720  && mode->clock == 74250)  ||
+	    (mode->hdisplay == 1024 && mode->vdisplay == 768  && mode->clock == 78800)  ||
+	    (mode->hdisplay == 1024 && mode->vdisplay == 768  && mode->clock == 75000)  ||
+	    (mode->hdisplay == 1024 && mode->vdisplay == 768  && mode->clock == 81833)  ||
+	    (mode->hdisplay == 800  && mode->vdisplay == 600  && mode->clock == 48907)  ||
+	    (mode->hdisplay == 800  && mode->vdisplay == 600  && mode->clock == 40000)) {
+		mode->type |= DRM_MODE_TYPE_PREFERRED;
+		DRM_DEBUG("OK\n");
+		return MODE_OK;
+	}
+	DRM_DEBUG("BAD\n");
+	return MODE_BAD;
+}
+
 static void ade_crtc_mode_set_nofb(struct drm_crtc *crtc)
 {
 	struct ade_crtc *acrtc = to_ade_crtc(crtc);
@@ -521,9 +558,12 @@ static void ade_crtc_atomic_begin(struct drm_crtc *crtc,
 {
 	struct ade_crtc *acrtc = to_ade_crtc(crtc);
 	struct ade_hw_ctx *ctx = acrtc->ctx;
+        struct drm_display_mode *mode = &crtc->state->mode;
+        struct drm_display_mode *adj_mode = &crtc->state->adjusted_mode;
 
 	if (!ctx->power_on)
 		(void)ade_power_up(ctx);
+        ade_ldi_set_mode(acrtc, mode, adj_mode);
 }
 
 static void ade_crtc_atomic_flush(struct drm_crtc *crtc,
@@ -557,6 +597,7 @@ static void ade_crtc_atomic_flush(struct drm_crtc *crtc,
 static const struct drm_crtc_helper_funcs ade_crtc_helper_funcs = {
 	.enable		= ade_crtc_enable,
 	.disable	= ade_crtc_disable,
+	.mode_valid	= ade_crtc_mode_valid,
 	.mode_set_nofb	= ade_crtc_mode_set_nofb,
 	.atomic_begin	= ade_crtc_atomic_begin,
 	.atomic_flush	= ade_crtc_atomic_flush,

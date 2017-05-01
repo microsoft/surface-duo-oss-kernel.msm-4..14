@@ -176,6 +176,28 @@ drm_connector_detect(struct drm_connector *connector, bool force)
 		connector_status_connected;
 }
 
+static enum drm_mode_status
+drm_connector_check_crtc_modes(struct drm_connector *connector,
+			       struct drm_display_mode *mode)
+{
+	struct drm_device *dev = connector->dev;
+	const struct drm_crtc_helper_funcs *crtc_funcs;
+	struct drm_crtc *c;
+
+	if (mode->status != MODE_OK)
+		return mode->status;
+
+	/* Check all the crtcs on a connector to make sure the mode is valid */
+	drm_for_each_crtc(c, dev) {
+		crtc_funcs = c->helper_private;
+		if (crtc_funcs && crtc_funcs->mode_valid)
+			mode->status = crtc_funcs->mode_valid(c, mode);
+		if (mode->status != MODE_OK)
+			break;
+	}
+	return mode->status;
+}
+
 /**
  * drm_helper_probe_single_connector_modes - get complete set of display modes
  * @connector: connector to probe
@@ -344,6 +366,8 @@ int drm_helper_probe_single_connector_modes(struct drm_connector *connector,
 		if (mode->status == MODE_OK && connector_funcs->mode_valid)
 			mode->status = connector_funcs->mode_valid(connector,
 								   mode);
+
+		mode->status = drm_connector_check_crtc_modes(connector, mode);
 	}
 
 prune:

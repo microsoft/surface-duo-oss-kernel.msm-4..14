@@ -201,6 +201,13 @@ struct drm_fb_helper {
 	struct work_struct resume_work;
 
 	/**
+	 * @lock:
+	 *
+	 * Top-level FB helper lock.
+	 */
+	struct mutex lock;
+
+	/**
 	 * @kernel_fb_list:
 	 *
 	 * Entry on the global kernel_fb_helper_list, used for kgdb entry/exit.
@@ -215,6 +222,27 @@ struct drm_fb_helper {
 	 * needs to be reprobe when fbdev is in control again.
 	 */
 	bool delayed_hotplug;
+
+	/**
+	 * @deferred_setup:
+	 *
+	 * If no outputs are connected (disconnected or unknown) the FB helper
+	 * code will defer setup until at least one of the outputs shows up.
+	 * This field keeps track of the status so that setup can be retried
+	 * at every hotplug event until it succeeds eventually.
+	 */
+	bool deferred_setup;
+
+	/**
+	 * @preferred_bpp:
+	 *
+	 * Temporary storage for the driver's preferred BPP setting passed to
+	 * FB helper initialization. This needs to be tracked so that deferred
+	 * FB helper setup can pass this on.
+	 *
+	 * See also: @deferred_setup
+	 */
+	int preferred_bpp;
 };
 
 /**
