@@ -95,7 +95,7 @@ msm_gem_shrinker_scan(struct shrinker *shrinker, struct shrink_control *sc)
 		mutex_unlock(&dev->struct_mutex);
 
 	if (freed > 0)
-		pr_info_ratelimited("Purging %lu bytes\n", freed << PAGE_SHIFT);
+		pr_debug_ratelimited("Purging %lu bytes\n", freed << PAGE_SHIFT);
 
 	return freed;
 }
