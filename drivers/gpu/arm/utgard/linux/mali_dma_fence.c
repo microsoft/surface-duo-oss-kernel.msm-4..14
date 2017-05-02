@@ -19,25 +19,25 @@
 
 static DEFINE_SPINLOCK(mali_dma_fence_lock);
 
-static bool mali_dma_fence_enable_signaling(struct fence *fence)
+static bool mali_dma_fence_enable_signaling(struct dma_fence *fence)
 {
 	MALI_IGNORE(fence);
 	return true;
 }
 
-static const char *mali_dma_fence_get_driver_name(struct fence *fence)
+static const char *mali_dma_fence_get_driver_name(struct dma_fence *fence)
 {
 	MALI_IGNORE(fence);
 	return "mali";
 }
 
-static const char *mali_dma_fence_get_timeline_name(struct fence *fence)
+static const char *mali_dma_fence_get_timeline_name(struct dma_fence *fence)
 {
 	MALI_IGNORE(fence);
 	return "mali_dma_fence";
 }
 
-static const struct fence_ops mali_dma_fence_ops = {
+static const struct dma_fence_ops mali_dma_fence_ops = {
 	.get_driver_name = mali_dma_fence_get_driver_name,
 	.get_timeline_name = mali_dma_fence_get_timeline_name,
 	.enable_signaling = mali_dma_fence_enable_signaling,
@@ -80,7 +80,7 @@ static void mali_dma_fence_context_work_func(struct work_struct *work_handle)
 	dma_fence_context->cb_func(dma_fence_context->pp_job_ptr);
 }
 
-static void mali_dma_fence_callback(struct fence *fence, struct fence_cb *cb)
+static void mali_dma_fence_callback(struct dma_fence *fence, struct dma_fence_cb *cb)
 {
 	struct mali_dma_fence_waiter *dma_fence_waiter = NULL;
 	struct mali_dma_fence_context *dma_fence_context = NULL;
@@ -99,7 +99,7 @@ static void mali_dma_fence_callback(struct fence *fence, struct fence_cb *cb)
 		schedule_work(&dma_fence_context->work_handle);
 }
 
-static _mali_osk_errcode_t mali_dma_fence_add_callback(struct mali_dma_fence_context *dma_fence_context, struct fence *fence)
+static _mali_osk_errcode_t mali_dma_fence_add_callback(struct mali_dma_fence_context *dma_fence_context, struct dma_fence *fence)
 {
 	int ret = 0;
 	struct mali_dma_fence_waiter *dma_fence_waiter;
@@ -155,9 +155,9 @@ static _mali_osk_errcode_t mali_dma_fence_add_callback(struct mali_dma_fence_con
 }
 
 
-struct fence *mali_dma_fence_new(u32  context, u32 seqno)
+struct dma_fence *mali_dma_fence_new(u32  context, u32 seqno)
 {
-	struct fence *fence = NULL;
+	struct dma_fence *fence = NULL;
 
 	fence = kzalloc(sizeof(*fence), GFP_KERNEL);
 
@@ -174,7 +174,7 @@ struct fence *mali_dma_fence_new(u32  context, u32 seqno)
 	return fence;
 }
 
-void mali_dma_fence_signal_and_put(struct fence **fence)
+void mali_dma_fence_signal_and_put(struct dma_fence **fence)
 {
 	MALI_DEBUG_ASSERT_POINTER(fence);
 	MALI_DEBUG_ASSERT_POINTER(*fence);
@@ -202,9 +202,9 @@ _mali_osk_errcode_t mali_dma_fence_context_add_waiters(struct mali_dma_fence_con
 		struct reservation_object *dma_reservation_object)
 {
 	_mali_osk_errcode_t ret = _MALI_OSK_ERR_OK;
-	struct fence *exclusive_fence = NULL;
+	struct dma_fence *exclusive_fence = NULL;
 	u32 shared_count = 0, i;
-	struct fence **shared_fences = NULL;
+	struct dma_fence **shared_fences = NULL;
 
 	MALI_DEBUG_ASSERT_POINTER(dma_fence_context);
 	MALI_DEBUG_ASSERT_POINTER(dma_reservation_object);
