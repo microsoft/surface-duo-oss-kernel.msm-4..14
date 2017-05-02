@@ -167,14 +167,14 @@
 			led@5 {
 				label = "apq8016-sbc:yellow:wlan";
 				gpios = <&pm8916_mpps 2 GPIO_ACTIVE_HIGH>;
-				linux,default-trigger = "wlan";
+				linux,default-trigger = "phy0rx";
 				default-state = "off";
 			};
 
 			led@6 {
 				label = "apq8016-sbc:blue:bt";
 				gpios = <&pm8916_mpps 3 GPIO_ACTIVE_HIGH>;
-				linux,default-trigger = "bt";
+				linux,default-trigger = "hci0-power";
 				default-state = "off";
 			};
 		};
@@ -322,6 +322,30 @@
 		wcnss@a21b000 {
 			status = "okay";
 		};
+
+		camera_vdddo_1v8: fixedregulator@0 {
+			compatible = "regulator-fixed";
+			regulator-name = "camera_vdddo";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-always-on;
+		};
+
+		camera_vdda_2v8: fixedregulator@1 {
+			compatible = "regulator-fixed";
+			regulator-name = "camera_vdda";
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
+			regulator-always-on;
+		};
+
+		camera_vddd_1v5: fixedregulator@2 {
+			compatible = "regulator-fixed";
+			regulator-name = "camera_vddd";
+			regulator-min-microvolt = <1500000>;
+			regulator-max-microvolt = <1500000>;
+			regulator-always-on;
+		};
 	};
 
 	usb2513 {
@@ -361,6 +385,93 @@
 			label = "Volume Up";
 			linux,code = <KEY_VOLUMEUP>;
 			gpios = <&msmgpio 107 GPIO_ACTIVE_LOW>;
+		};
+	};
+};
+
+&camss {
+	ports {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		port@0 {
+			reg = <0>;
+			csiphy0_ep: endpoint {
+				clock-lanes = <1>;
+				data-lanes = <0 2>;
+				qcom,settle-cnt = <0xe>;
+				remote-endpoint = <&ov5645_ep>;
+				status = "disabled";
+			};
+		};
+		port@1 {
+			reg = <1>;
+			csiphy1_ep: endpoint {
+				clock-lanes = <1>;
+				data-lanes = <0 2>;
+				qcom,settle-cnt = <0xe>;
+				remote-endpoint = <&ov5645_2_ep>;
+				status = "disabled";
+			};
+		};
+	};
+};
+
+&blsp_i2c6 {
+	status = "ok";
+
+	camera_rear@76 {
+		compatible = "ovti,ov5645";
+		reg = <0x76>;
+
+		enable-gpios = <&msmgpio 34 0>;
+		reset-gpios = <&msmgpio 35 1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&camera_rear_default>;
+
+		clocks = <&gcc GCC_CAMSS_MCLK0_CLK>;
+		clock-names = "xclk";
+		clock-frequency = <23880000>;
+
+		vdddo-supply = <&camera_vdddo_1v8>;
+		vdda-supply = <&camera_vdda_2v8>;
+		vddd-supply = <&camera_vddd_1v5>;
+
+		status = "disabled";
+
+		port {
+			ov5645_ep: endpoint {
+				clock-lanes = <1>;
+				data-lanes = <0 2>;
+				remote-endpoint = <&csiphy0_ep>;
+			};
+		};
+	};
+
+	camera_front@74 {
+		compatible = "ovti,ov5645";
+		reg = <0x74>;
+
+		enable-gpios = <&msmgpio 33 0>;
+		reset-gpios = <&msmgpio 28 1>;
+		pinctrl-names = "default";
+		pinctrl-0 = <&camera_front_default>;
+
+		clocks = <&gcc GCC_CAMSS_MCLK1_CLK>;
+		clock-names = "xclk";
+		clock-frequency = <23880000>;
+
+		vdddo-supply = <&camera_vdddo_1v8>;
+		vdda-supply = <&camera_vdda_2v8>;
+		vddd-supply = <&camera_vddd_1v5>;
+
+		status = "disabled";
+
+		port {
+			ov5645_2_ep: endpoint {
+				clock-lanes = <1>;
+				data-lanes = <0 2>;
+				remote-endpoint = <&csiphy1_ep>;
+			};
 		};
 	};
 };
@@ -494,4 +605,8 @@
 		regulator-min-microvolt = <1750000>;
 		regulator-max-microvolt = <3337000>;
 	};
+};
+
+&venus {
+	status = "okay";
 };

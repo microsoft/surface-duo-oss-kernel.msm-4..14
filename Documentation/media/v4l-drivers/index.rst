@@ -45,6 +45,7 @@ For more details see the file COPYING in the source distribution of Linux.
 	omap4_camera
 	pvrusb2
 	pxa_camera
+	qcom_camss
 	radiotrack
 	saa7134
 	sh_mobile_ceu_camera

@@ -93,6 +93,13 @@
 			no-map;
 			reg = <0 0x8ea00000 0 0x100000>;
 		};
+
+		venus_mem: venus@89900000 {
+			compatible = "shared-dma-pool";
+			reg = <0x0 0x89900000 0x0 0x800000>;
+			alignment = <0x1000>;
+			no-map;
+		};
 	};
 
 	cpus {
@@ -300,6 +307,119 @@
 		restart@4ab000 {
 			compatible = "qcom,pshold";
 			reg = <0x4ab000 0x4>;
+		};
+
+		camss: camss@1b00000 {
+			compatible = "qcom,msm8916-camss";
+			reg = <0x1b0ac00 0x200>,
+				<0x1b00030 0x4>,
+				<0x1b0b000 0x200>,
+				<0x1b00038 0x4>,
+				<0x1b08000 0x100>,
+				<0x1b08400 0x100>,
+				<0x1b0a000 0x500>,
+				<0x1b00020 0x10>,
+				<0x1b10000 0x1000>;
+			reg-names = "csiphy0",
+				"csiphy0_clk_mux",
+				"csiphy1",
+				"csiphy1_clk_mux",
+				"csid0",
+				"csid1",
+				"ispif",
+				"csi_clk_mux",
+				"vfe0";
+			interrupts = <GIC_SPI 78 0>,
+				<GIC_SPI 79 0>,
+				<GIC_SPI 51 0>,
+				<GIC_SPI 52 0>,
+				<GIC_SPI 55 0>,
+				<GIC_SPI 57 0>;
+			interrupt-names = "csiphy0",
+				"csiphy1",
+				"csid0",
+				"csid1",
+				"ispif",
+				"vfe0";
+			power-domains = <&gcc VFE_GDSC>;
+			clocks = <&gcc GCC_CAMSS_TOP_AHB_CLK>,
+				<&gcc GCC_CAMSS_ISPIF_AHB_CLK>,
+				<&gcc GCC_CAMSS_CSI0PHYTIMER_CLK>,
+				<&gcc GCC_CAMSS_CSI1PHYTIMER_CLK>,
+				<&gcc GCC_CAMSS_CSI0_AHB_CLK>,
+				<&gcc GCC_CAMSS_CSI0_CLK>,
+				<&gcc GCC_CAMSS_CSI0PHY_CLK>,
+				<&gcc GCC_CAMSS_CSI0PIX_CLK>,
+				<&gcc GCC_CAMSS_CSI0RDI_CLK>,
+				<&gcc GCC_CAMSS_CSI1_AHB_CLK>,
+				<&gcc GCC_CAMSS_CSI1_CLK>,
+				<&gcc GCC_CAMSS_CSI1PHY_CLK>,
+				<&gcc GCC_CAMSS_CSI1PIX_CLK>,
+				<&gcc GCC_CAMSS_CSI1RDI_CLK>,
+				<&gcc GCC_CAMSS_AHB_CLK>,
+				<&gcc GCC_CAMSS_VFE0_CLK>,
+				<&gcc GCC_CAMSS_CSI_VFE0_CLK>,
+				<&gcc GCC_CAMSS_VFE_AHB_CLK>,
+				<&gcc GCC_CAMSS_VFE_AXI_CLK>;
+			clock-names = "camss_top_ahb_clk",
+				"ispif_ahb_clk",
+				"csiphy0_timer_clk",
+				"csiphy1_timer_clk",
+				"csi0_ahb_clk",
+				"csi0_clk",
+				"csi0_phy_clk",
+				"csi0_pix_clk",
+				"csi0_rdi_clk",
+				"csi1_ahb_clk",
+				"csi1_clk",
+				"csi1_phy_clk",
+				"csi1_pix_clk",
+				"csi1_rdi_clk",
+				"camss_ahb_clk",
+				"camss_vfe_vfe_clk",
+				"camss_csi_vfe_clk",
+				"iface_clk",
+				"bus_clk";
+			vdda-supply = <&pm8916_l2>;
+			iommus = <&apps_iommu 3>;
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+			};
+		};
+
+		cci: qcom,cci@1b0c000 {
+			cell-index = <0>;
+			compatible = "qcom,cci";
+			reg = <0x1b0c000 0x1000>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			reg-names = "cci";
+			interrupts = <GIC_SPI 50 0>;
+			interrupt-names = "cci";
+			clocks = <&gcc GCC_CAMSS_TOP_AHB_CLK>,
+				<&gcc CCI_CLK_SRC>,
+				<&gcc GCC_CAMSS_CCI_AHB_CLK>,
+				<&gcc GCC_CAMSS_CCI_CLK>,
+				<&gcc GCC_CAMSS_AHB_CLK>;
+			clock-names = "camss_top_ahb_clk",
+				"cci_src_clk",
+				"cci_ahb_clk",
+				"cci_clk",
+				"camss_ahb_clk";
+			qcom,clock-rates = <0 19200000 80000000 0 0>;
+			pinctrl-names = "default", "sleep";
+			pinctrl-0 = <&cci0_default>;
+			pinctrl-1 = <&cci0_sleep>;
+			i2c_freq_100Khz: qcom,i2c_standard_mode {
+				status = "disabled";
+			};
+			i2c_freq_400Khz: qcom,i2c_fast_mode {
+				status = "disabled";
+			};
+			i2c_freq_custom: qcom,i2c_custom_mode {
+				status = "disabled";
+			};
 		};
 
 		msmgpio: pinctrl@1000000 {
@@ -1064,7 +1184,30 @@
 				};
 			};
 		};
+
+		venus: video-codec@1d00000 {
+			compatible = "qcom,msm8916-venus";
+			reg = <0x01d00000 0xff000>;
+			interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;
+			power-domains = <&gcc VENUS_GDSC>;
+			clocks = <&gcc GCC_VENUS0_VCODEC0_CLK>,
+				 <&gcc GCC_VENUS0_AHB_CLK>,
+				 <&gcc GCC_VENUS0_AXI_CLK>;
+			clock-names = "core", "iface", "bus";
+			iommus = <&apps_iommu 5>;
+			memory-region = <&venus_mem>;
+			status = "disabled";
+
+			video-decoder {
+				compatible = "venus-decoder";
+			};
+
+			video-encoder {
+				compatible = "venus-encoder";
+			};
+		};
 	};
+
 
 	smem {
 		compatible = "qcom,smem";
@@ -1210,6 +1353,50 @@
 		};
 	};
 };
+
+&i2c_freq_100Khz {
+	qcom,hw-thigh = <78>;
+	qcom,hw-tlow = <114>;
+	qcom,hw-tsu-sto = <28>;
+	qcom,hw-tsu-sta = <28>;
+	qcom,hw-thd-dat = <10>;
+	qcom,hw-thd-sta = <77>;
+	qcom,hw-tbuf = <118>;
+	qcom,hw-scl-stretch-en = <0>;
+	qcom,hw-trdhld = <6>;
+	qcom,hw-tsp = <1>;
+	status = "ok";
+};
+
+&i2c_freq_400Khz {
+	qcom,hw-thigh = <20>;
+	qcom,hw-tlow = <28>;
+	qcom,hw-tsu-sto = <21>;
+	qcom,hw-tsu-sta = <21>;
+	qcom,hw-thd-dat = <13>;
+	qcom,hw-thd-sta = <18>;
+	qcom,hw-tbuf = <32>;
+	qcom,hw-scl-stretch-en = <0>;
+	qcom,hw-trdhld = <6>;
+	qcom,hw-tsp = <3>;
+	status = "ok";
+};
+
+&i2c_freq_custom {
+	qcom,hw-thigh = <15>;
+	qcom,hw-tlow = <28>;
+	qcom,hw-tsu-sto = <21>;
+	qcom,hw-tsu-sta = <21>;
+	qcom,hw-thd-dat = <13>;
+	qcom,hw-thd-sta = <18>;
+	qcom,hw-tbuf = <25>;
+	qcom,hw-scl-stretch-en = <1>;
+	qcom,hw-trdhld = <6>;
+	qcom,hw-tsp = <3>;
+	status = "ok";
+};
+
+
 #include "msm8916-pins.dtsi"
 #include "msm8916-coresight.dtsi"
 #include "msm8916-iommu.dtsi"

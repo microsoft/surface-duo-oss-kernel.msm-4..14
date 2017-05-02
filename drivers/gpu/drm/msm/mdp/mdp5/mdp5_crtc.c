@@ -553,6 +553,9 @@ static int mdp5_crtc_cursor_set(struct drm_crtc *crtc,
 	spin_unlock_irqrestore(&mdp5_crtc->cursor.lock, flags);
 
 set_cursor:
+	if (!cursor_enable)
+		mdp5_enable(mdp5_kms);
+
 	ret = mdp5_ctl_set_cursor(mdp5_crtc->ctl, 0, cursor_enable);
 	if (ret) {
 		dev_err(dev->dev, "failed to %sable cursor: %d\n",
@@ -562,6 +565,8 @@ set_cursor:
 
 	crtc_flush(crtc, flush_mask);
 
+	if (!cursor_enable)
+		mdp5_disable(mdp5_kms);
 end:
 	if (old_bo) {
 		drm_flip_work_queue(&mdp5_crtc->unref_cursor_work, old_bo);
