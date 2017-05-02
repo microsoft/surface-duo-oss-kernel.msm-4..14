@@ -102,7 +102,7 @@ struct mali_pp_job {
 
 #if defined(CONFIG_MALI_DMA_BUF_FENCE)
 	struct mali_dma_fence_context dma_fence_context; /**< The mali dma fence context to record dma fence waiters that this job wait for */
-	struct fence *rendered_dma_fence; /**< the new dma fence link to this job */
+	struct dma_fence *rendered_dma_fence; /**< the new dma fence link to this job */
 #endif
 };
 
