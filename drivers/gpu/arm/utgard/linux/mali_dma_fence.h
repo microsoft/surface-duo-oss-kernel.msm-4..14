@@ -28,9 +28,9 @@ struct mali_dma_fence_context;
 typedef void (*mali_dma_fence_context_callback_func_t)(void *pp_job_ptr);
 
 struct mali_dma_fence_waiter {
-	struct fence_cb base;
+	struct dma_fence_cb base;
 	struct mali_dma_fence_context *parent;
-	struct fence *fence;
+	struct dma_fence *fence;
 };
 
 struct mali_dma_fence_context {
@@ -47,12 +47,12 @@ struct mali_dma_fence_context {
  * @param seqno A linearly increasing sequence number for this context
  * @return the new dma fence if success, or NULL on failure.
  */
-struct fence *mali_dma_fence_new(u32  context, u32 seqno);
+struct dma_fence *mali_dma_fence_new(u32  context, u32 seqno);
 
 /* Signal and put dma fence
  * @param fence The dma fence to signal and put
  */
-void mali_dma_fence_signal_and_put(struct fence **fence);
+void mali_dma_fence_signal_and_put(struct dma_fence **fence);
 
 /**
  * Initialize a mali dma fence context for pp job.

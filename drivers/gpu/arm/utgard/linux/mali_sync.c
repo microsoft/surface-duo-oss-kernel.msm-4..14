@@ -604,7 +604,7 @@ struct mali_internal_sync_fence *mali_sync_flag_create_fence(struct mali_sync_fl
 	sync_fence = mali_internal_sync_fence_create(sync_pt);
 	if (NULL == sync_fence) {
 		MALI_PRINT_ERROR(("Mali sync: sync_fence creation failed\n"));
-		fence_put(&sync_pt->base);
+		dma_fence_put(&sync_pt->base);
 		return NULL;
 	}
 
