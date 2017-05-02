@@ -7,9 +7,8 @@
  * A copy of the licence is included with the program, and can also be obtained from Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  */
-
+#include <linux/file.h>
 #include "mali_timeline_fence_wait.h"
-
 #include "mali_osk.h"
 #include "mali_kernel_common.h"
 #include "mali_spinlock_reentrant.h"
@@ -64,8 +63,12 @@ static mali_bool mali_timeline_fence_wait_check_status(struct mali_timeline_syst
 	int i;
 	u32 tid = _mali_osk_get_tid();
 	mali_bool ret = MALI_TRUE;
-#if defined(CONFIG_SYNC)
+#if defined(CONFIG_SYNC) || defined(CONFIG_SYNC_FILE)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
 	struct sync_fence *sync_fence = NULL;
+#else
+	struct mali_internal_sync_fence *sync_fence = NULL;
+#endif
 #endif
 
 	MALI_DEBUG_ASSERT_POINTER(system);
@@ -97,9 +100,13 @@ static mali_bool mali_timeline_fence_wait_check_status(struct mali_timeline_syst
 		}
 	}
 
-#if defined(CONFIG_SYNC)
+#if defined(CONFIG_SYNC) || defined(CONFIG_SYNC_FILE)
 	if (-1 != fence->sync_fd) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
 		sync_fence = sync_fence_fdget(fence->sync_fd);
+#else
+		sync_fence = mali_internal_sync_fence_fdget(fence->sync_fd);
+#endif
 		if (likely(NULL != sync_fence)) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
 			if (0 == sync_fence->status) {
@@ -112,16 +119,20 @@ static mali_bool mali_timeline_fence_wait_check_status(struct mali_timeline_syst
 			MALI_PRINT_ERROR(("Mali Timeline: failed to get sync fence from fd %d\n", fence->sync_fd));
 		}
 	}
-#endif /* defined(CONFIG_SYNC) */
+#endif /* defined(CONFIG_SYNC) || defined(CONFIG_SYNC_FILE) */
 
 exit:
 	mali_spinlock_reentrant_signal(system->spinlock, tid);
 
-#if defined(CONFIG_SYNC)
+#if defined(CONFIG_SYNC) || defined(CONFIG_SYNC_FILE)
 	if (NULL != sync_fence) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
 		sync_fence_put(sync_fence);
+#else
+		fput(sync_fence->file);
+#endif
 	}
-#endif /* defined(CONFIG_SYNC) */
+#endif /* defined(CONFIG_SYNC) || defined(CONFIG_SYNC_FILE) */
 
 	return ret;
 }
