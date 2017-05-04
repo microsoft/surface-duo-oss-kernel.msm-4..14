@@ -551,10 +551,26 @@
 	#size-cells = <0>;
 	status = "ok";
 
+	/* the two spidev below cannot be enabled both at the same time */
 	spidev@0 {
 		compatible = "rohm,dh2228fv";
 		spi-max-frequency = <500000>;
 		reg = <0>;
+		status = "disabled";
+	};
+
+	/*
+	 * To enable the DMA on a slave of spi0, add the lines
+         * pl022,com-mode = <2>;
+         * pl022,rx-level-trig = <1>;
+	 * in the DT node of the slave,
+         */
+	spidev_dma@0 {
+		compatible = "rohm,dh2228fv";
+		spi-max-frequency = <500000>;
+		reg = <0>;
+		pl022,com-mode = <2>;
+		pl022,rx-level-trig = <1>;
 		status = "disabled";
 	};
 };
