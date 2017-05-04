@@ -25,10 +25,7 @@
 #include <linux/pm.h>
 #include <linux/mm.h>
 #include <linux/of.h>
-
-#ifdef CONFIG_PM_RUNTIME
 #include <linux/pm_runtime.h>
-#endif
 #include <linux/fs.h>
 #include <linux/delay.h>
 #include <linux/version.h>
