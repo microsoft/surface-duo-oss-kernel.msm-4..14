@@ -1638,6 +1638,10 @@ extern struct dentry *securityfs_create_file(const char *name, umode_t mode,
 					     struct dentry *parent, void *data,
 					     const struct file_operations *fops);
 extern struct dentry *securityfs_create_dir(const char *name, struct dentry *parent);
+struct dentry *securityfs_create_symlink(const char *name,
+					 struct dentry *parent,
+					 const char *target,
+					 const struct inode_operations *iops);
 extern void securityfs_remove(struct dentry *dentry);
 
 #else /* CONFIG_SECURITYFS */
@@ -1653,6 +1657,14 @@ static inline struct dentry *securityfs_create_file(const char *name,
 						    struct dentry *parent,
 						    void *data,
 						    const struct file_operations *fops)
+{
+	return ERR_PTR(-ENODEV);
+}
+
+static inline struct dentry *securityfs_create_symlink(const char *name,
+					struct dentry *parent,
+					const char *target,
+					const struct inode_operations *iops)
 {
 	return ERR_PTR(-ENODEV);
 }
