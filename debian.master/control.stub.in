@@ -117,10 +117,13 @@ Multi-Arch: foreign
 Section: kernel
 Priority: optional
 Provides:
+ linux-aws-tools-common,
  linux-gke-tools-common,
 Conflicts:
+ linux-aws-tools-common,
  linux-gke-tools-common,
 Replaces:
+ linux-aws-tools-common,
  linux-gke-tools-common,
 Depends: ${misc:Depends}, lsb-release
 Description: Linux kernel version specific tools for version PKGVER
@@ -148,12 +151,16 @@ Multi-Arch: foreign
 Section: kernel
 Priority: optional
 Breaks:
+ linux-aws-cloud-tools-common (<= 4.4.0-1017.26),
  linux-gke-cloud-tools-common (<= 4.4.0-1013.13),
 Replaces:
+ linux-aws-cloud-tools-common (<= 4.4.0-1017.26),
  linux-gke-cloud-tools-common (<= 4.4.0-1013.13),
 Conflicts:
+ linux-aws-cloud-tools-common (<= 4.4.0-1017.26),
  linux-gke-cloud-tools-common (<= 4.4.0-1013.13),
 Provides:
+ linux-aws-cloud-tools-common,
  linux-gke-cloud-tools-common,
 Depends: ${misc:Depends}
 Description: Linux kernel version specific cloud tools for version PKGVER
