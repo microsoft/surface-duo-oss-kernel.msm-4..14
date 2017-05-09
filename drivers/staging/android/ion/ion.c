@@ -498,7 +498,6 @@ int ion_query_heaps(struct ion_heap_query *query)
 	}
 
 	query->cnt = cnt;
-	ret = 0;
 out:
 	up_read(&dev->lock);
 	return ret;
