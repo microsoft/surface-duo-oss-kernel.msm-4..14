@@ -41,7 +41,7 @@
 #include "ion.h"
 
 static struct ion_device *internal_dev;
-static int heap_id;
+static int heap_id = 0;
 
 bool ion_buffer_cached(struct ion_buffer *buffer)
 {
