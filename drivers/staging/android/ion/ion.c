@@ -40,6 +40,7 @@
 
 #include "ion.h"
 #include "ion_priv.h"
+#include "compat_ion.h"
 
 bool ion_buffer_cached(struct ion_buffer *buffer)
 {
@@ -1064,9 +1065,7 @@ static const struct file_operations ion_fops = {
 	.open           = ion_open,
 	.release        = ion_release,
 	.unlocked_ioctl = ion_ioctl,
-#ifdef CONFIG_COMPAT
-	.compat_ioctl	= ion_ioctl,
-#endif
+	.compat_ioctl   = compat_ion_ioctl,
 };
 
 static size_t ion_debug_heap_total(struct ion_client *client,
