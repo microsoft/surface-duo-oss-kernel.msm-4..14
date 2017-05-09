@@ -116,6 +116,12 @@ Architecture: all
 Multi-Arch: foreign
 Section: kernel
 Priority: optional
+Provides:
+ linux-gke-tools-common,
+Conflicts:
+ linux-gke-tools-common,
+Replaces:
+ linux-gke-tools-common,
 Depends: ${misc:Depends}, lsb-release
 Description: Linux kernel version specific tools for version PKGVER
  This package provides the architecture independent parts for kernel
@@ -141,6 +147,14 @@ Architecture: all
 Multi-Arch: foreign
 Section: kernel
 Priority: optional
+Breaks:
+ linux-gke-cloud-tools-common (<= 4.4.0-1013.13),
+Replaces:
+ linux-gke-cloud-tools-common (<= 4.4.0-1013.13),
+Conflicts:
+ linux-gke-cloud-tools-common (<= 4.4.0-1013.13),
+Provides:
+ linux-gke-cloud-tools-common,
 Depends: ${misc:Depends}
 Description: Linux kernel version specific cloud tools for version PKGVER
  This package provides the architecture independent parts for kernel
