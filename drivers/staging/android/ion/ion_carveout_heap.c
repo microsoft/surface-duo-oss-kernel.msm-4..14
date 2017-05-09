@@ -23,6 +23,7 @@
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
 #include "ion.h"
+#include "ion_priv.h"
 
 #define ION_CARVEOUT_ALLOCATE_FAIL	-1
 
