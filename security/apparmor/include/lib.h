@@ -16,6 +16,7 @@
 
 #include <linux/slab.h>
 #include <linux/fs.h>
+#include <linux/spinlock.h>
 
 #include "match.h"
 
@@ -24,7 +25,7 @@
  * resolve to true, which is what you want for code making decisions
  * based on it, but wrong for asserts checking that the lock is held
  */
-#ifdef CONFIG_SMP
+#if defined(CONFIG_SMP) && !defined(CONFIG_PREEMPT_RT_FULL)
 #define write_is_locked(X) !write_can_lock(X)
 #else
 #define write_is_locked(X) (1)
