@@ -594,6 +594,11 @@ static int mdp5_get_vblank_timestamp(struct drm_device *dev, unsigned int pipe,
 		return -EINVAL;
 	}
 
+	if (crtc->state && !crtc->state->active) {
+		DBG("crtc disabled %d", pipe);
+		return -EBUSY;
+	}
+
 	return drm_calc_vbltimestamp_from_scanoutpos(dev, pipe, max_error,
 						     vblank_time, flags,
 						     &crtc->mode);
@@ -611,6 +616,11 @@ static u32 mdp5_get_vblank_counter(struct drm_device *dev, unsigned int pipe)
 	crtc = priv->crtcs[pipe];
 	if (!crtc)
 		return 0;
+
+	if (crtc->state && !crtc->state->active) {
+		DBG("crtc disabled %d", pipe);
+		return -EBUSY;
+	}
 
 	encoder = get_encoder_from_crtc(crtc);
 	if (!encoder)
