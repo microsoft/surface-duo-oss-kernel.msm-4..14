@@ -23,6 +23,8 @@
 			interrupts = <0x0 0x8 0 IRQ_TYPE_EDGE_BOTH>;
 			debounce = <15625>;
 			bias-pull-up;
+			mode-recovery = <1>;
+			mode-bootloader = <2>;
 		};
 
 		pm8916_gpios: gpios@c000 {
