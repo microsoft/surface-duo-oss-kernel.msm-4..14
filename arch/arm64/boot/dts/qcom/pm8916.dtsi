@@ -27,6 +27,8 @@
 			bias-pull-up;
 			resin-pull-up;
 			linux,code = <KEY_RESTART>;
+			mode-recovery = <1>;
+			mode-bootloader = <2>;
 		};
 
 		pm8916_gpios: gpios@c000 {
