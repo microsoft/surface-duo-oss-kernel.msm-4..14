@@ -409,10 +409,14 @@ static bool adv7511_hpd(struct adv7511 *adv7511)
 	return false;
 }
 
+static int adv7511_get_modes(struct adv7511 *adv7511,
+			     struct drm_connector *connector);
+
 static void adv7511_hpd_work(struct work_struct *work)
 {
 	struct adv7511 *adv7511 = container_of(work, struct adv7511, hpd_work);
 	enum drm_connector_status status;
+	struct drm_device *dev = adv7511->connector.dev;
 	unsigned int val;
 	int ret;
 
@@ -424,9 +428,31 @@ static void adv7511_hpd_work(struct work_struct *work)
 	else
 		status = connector_status_disconnected;
 
+	/*
+	 * see adv7511_detect(), we do the same thing, but don't check
+	 * for the ADV7511_INT0_HPD bit in ADV7511_REG_INT(0) since we've
+	 * already checked that.
+	 */
+	if (status == connector_status_connected && adv7511->powered) {
+		regcache_mark_dirty(adv7511->regmap);
+		adv7511_power_on(adv7511);
+
+		mutex_lock(&dev->mode_config.mutex);
+		adv7511_get_modes(adv7511, &adv7511->connector);
+		mutex_unlock(&dev->mode_config.mutex);
+
+		if (adv7511->status == connector_status_connected)
+			status = connector_status_disconnected;
+	} else {
+		regmap_update_bits(adv7511->regmap, ADV7511_REG_POWER2,
+				   ADV7511_REG_POWER2_HPD_SRC_MASK,
+				   ADV7511_REG_POWER2_HPD_SRC_BOTH);
+	}
+
+	adv7511->status = status;
 	if (adv7511->connector.status != status) {
 		adv7511->connector.status = status;
-		drm_kms_helper_hotplug_event(adv7511->connector.dev);
+		drm_kms_helper_hotplug_event(dev);
 	}
 }
 
