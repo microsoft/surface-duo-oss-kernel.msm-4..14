@@ -279,7 +279,6 @@ config INTEL_MIC_X100_DMA
 
 config K3_DMA
 	tristate "Hisilicon K3 DMA support"
-	depends on ARCH_HI3xxx
 	select DMA_ENGINE
 	select DMA_VIRTUAL_CHANNELS
 	help
