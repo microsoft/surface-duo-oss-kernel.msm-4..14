@@ -51,4 +51,12 @@ config DRM_PANEL_SHARP_LQ101R1SX01
 	  To compile this driver as a module, choose M here: the module
 	  will be called panel-sharp-lq101r1sx01.
 
+config DRM_PANEL_HIKEY
+	tristate "HiKey LCD panel driver"
+	depends on OF
+	depends on DRM_MIPI_DSI
+	help
+	  Say Y here if you want to enable LCD panel driver for HiKey board.
+	  Current support panel: INNOLUX N070ICN-PB1(800x1280).
+
 endmenu
