@@ -17,9 +17,11 @@
  */
 #include <linux/clk.h>
 #include <linux/media-bus-format.h>
+#include <linux/media.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
+#include <linux/videodev2.h>
 
 #include <media/media-device.h>
 #include <media/v4l2-async.h>
@@ -140,6 +142,67 @@ void camss_disable_clocks(int nclocks, struct clk **clock)
 
 	for (i = nclocks - 1; i >= 0; i--)
 		clk_disable_unprepare(clock[i]);
+}
+
+/*
+ * camss_find_sensor - Find a linked media entity which represents a sensor
+ * @entity: Media entity to start searching from
+ *
+ * Return a pointer to sensor media entity or NULL if not found
+ */
+static struct media_entity *camss_find_sensor(struct media_entity *entity)
+{
+	struct media_pad *pad;
+
+	while (1) {
+		pad = &entity->pads[0];
+		if (!(pad->flags & MEDIA_PAD_FL_SINK))
+			return NULL;
+
+		pad = media_entity_remote_pad(pad);
+		if (!pad || !is_media_entity_v4l2_subdev(pad->entity))
+			return NULL;
+
+		entity = pad->entity;
+
+		if (entity->function == MEDIA_ENT_F_CAM_SENSOR)
+			return entity;
+	}
+}
+
+/*
+ * camss_get_pixel_clock - Get pixel clock rate from sensor
+ * @entity: Media entity in the current pipeline
+ * @pixel_clock: Received pixel clock value
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+int camss_get_pixel_clock(struct media_entity *entity, u32 *pixel_clock)
+{
+	struct media_entity *sensor;
+	struct v4l2_subdev *subdev;
+	struct v4l2_ext_controls ctrls = { { 0 } };
+	struct v4l2_ext_control ctrl = { 0 };
+	int ret;
+
+	sensor = camss_find_sensor(entity);
+	if (!sensor)
+		return -ENODEV;
+
+	subdev = media_entity_to_v4l2_subdev(sensor);
+
+	ctrl.id = V4L2_CID_PIXEL_RATE;
+
+	ctrls.count = 1;
+	ctrls.controls = &ctrl;
+
+	ret = v4l2_g_ext_ctrls(subdev->ctrl_handler, &ctrls);
+	if (ret < 0)
+		return ret;
+
+	*pixel_clock = ctrl.value64;
+
+	return 0;
 }
 
 /*

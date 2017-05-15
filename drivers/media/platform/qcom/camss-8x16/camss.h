@@ -91,6 +91,7 @@ struct camss_async_subdev {
 
 int camss_enable_clocks(int nclocks, struct clk **clock, struct device *dev);
 void camss_disable_clocks(int nclocks, struct clk **clock);
+int camss_get_pixel_clock(struct media_entity *entity, u32 *pixel_clock);
 void camss_delete(struct camss *camss);
 
 #endif /* QC_MSM_CAMSS_H */
