@@ -111,6 +111,8 @@ char *opmode_str(int oper_mode)
 	       return "BT EDR alone";
 	case DEV_OPMODE_BT_LE_ALONE:
 	       return "BT LE alone";
+	case DEV_OPMODE_BT_DUAL:
+	       return "BT Dual";
 	case DEV_OPMODE_STA_BT:
 	       return "Wi-Fi STA + BT EDR";
 	case DEV_OPMODE_STA_BT_LE:

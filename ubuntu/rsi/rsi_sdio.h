@@ -40,12 +40,6 @@
 #include <linux/mmc/sdio_ids.h>
 #include "rsi_main.h"
 
-/* Buffer status register related info */
-#define PKT_BUFF_SEMI_FULL		0
-#define PKT_BUFF_FULL			1
-#define PKT_MGMT_BUFF_FULL		2
-#define MSDU_PKT_PENDING		3
-
 /* Interrupt Bit Related Macros */
 #define PKT_BUFF_AVAILABLE		1
 #define FW_ASSERT_IND			2
@@ -161,6 +155,6 @@ int rsi_sdio_master_reg_write(struct rsi_hw *adapter,
 			      u16 size);
 void rsi_sdio_ack_intr(struct rsi_hw *adapter, u8 int_bit);
 int rsi_sdio_determine_event_timeout(struct rsi_hw *adapter);
-int rsi_sdio_read_buffer_status_register(struct rsi_hw *adapter, u8 q_num);
+int rsi_sdio_check_buffer_status(struct rsi_hw *adapter, u8 q_num);
 int rsi_read_intr_status_reg(struct rsi_hw *adapter);
 #endif

@@ -294,10 +294,15 @@ void rsi_core_qos_processor(struct rsi_common *common)
 
 		mutex_lock(&common->tx_lock);
 
-		status = adapter->check_hw_queue_status(adapter, q_num);
+		status = adapter->host_intf_ops->check_hw_queue_status(adapter,
+								       q_num);
 		if (status <= 0) {
+			if ((q_num < MGMT_SOFT_Q) ||
+			    ((!adapter->peer_notify) &&
+			     (q_num == MGMT_SOFT_Q))) {
 			mutex_unlock(&common->tx_lock);
 			break;
+			}
 		}
 
 		if ((q_num < MGMT_SOFT_Q) &&
@@ -313,6 +318,11 @@ void rsi_core_qos_processor(struct rsi_common *common)
 		}
 
 		skb = rsi_core_dequeue_pkt(common, q_num);
+		if ((adapter->peer_notify) &&
+		    (skb->data[2] == PEER_NOTIFY)) {
+			adapter->peer_notify = false;
+			ven_rsi_dbg(INFO_ZONE, "%s RESET PEER_NOTIFY\n", __func__);
+		}
 		if (!skb) {
 			ven_rsi_dbg(ERR_ZONE, "skb null\n");
 			mutex_unlock(&common->tx_lock);
@@ -429,7 +439,7 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 		goto xmit_fail;
 	}
 #ifdef CONFIG_VEN_RSI_WOW
-	if (common->suspend_flag) {
+	if (common->wow_flags & RSI_WOW_ENABLED) {
 		ven_rsi_dbg(ERR_ZONE,
 			"%s: Blocking Tx_packets when WOWLAN is enabled\n",
 			__func__);
@@ -466,7 +476,7 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 
 #ifdef CONFIG_VEN_RSI_WOW          
 		if ((ieee80211_is_deauth(wlh->frame_control)) &&
-			(common->suspend_flag)) {
+		    (common->wow_flags & RSI_WOW_ENABLED)) {
 			ven_rsi_dbg(ERR_ZONE,
 				"%s: Discarding Deauth when WOWLAN is enabled\n",
 				__func__);
@@ -513,7 +523,6 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 			
 			tid = *qos & IEEE80211_QOS_CTL_TID_MASK;
 			skb->priority = TID_TO_WME_AC(tid);
-
 		} else {
 			tid = IEEE80211_NONQOS_TID;
 			skb->priority = BE_Q;
@@ -539,6 +548,12 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 				ieee80211_sn_inc(sta->seq_no[skb->priority]);
 #endif
 			tx_params->sta_id = sta->sta_id;
+			
+			/* Start aggregation if not done for this tid */
+			if (!sta->start_tx_aggr[tid]) {
+				sta->start_tx_aggr[tid] = true;
+				ieee80211_start_tx_ba_session(sta->sta, tid, 0);
+			}
 		} else {
 #if 0
 			seq = IEEE80211_SN_TO_SEQ(common->bc_mc_seqno);
@@ -563,14 +578,32 @@ void rsi_core_xmit(struct rsi_common *common, struct sk_buff *skb)
 		}
 	}
 
-	if ((q_num != MGMT_SOFT_Q) &&
-	    ((skb_queue_len(&common->tx_queue[q_num]) + 1) >=
-	      DATA_QUEUE_WATER_MARK)) {
-		ven_rsi_dbg(ERR_ZONE, "%s: sw queue full\n", __func__);
-		if (!ieee80211_queue_stopped(adapter->hw, WME_AC(q_num)))
-			ieee80211_stop_queue(adapter->hw, WME_AC(q_num));
-		rsi_set_event(&common->tx_thread.event);
-		goto xmit_fail;
+	if (q_num != MGMT_SOFT_Q)  {
+		u16 water_mark = DATA_QUEUE_WATER_MARK;
+
+		switch (q_num) {
+		case BK_Q:
+			water_mark = BK_DATA_QUEUE_WATER_MARK;
+			break;
+		case BE_Q:
+			water_mark = BE_DATA_QUEUE_WATER_MARK;
+			break;
+		case VI_Q:
+			water_mark = VI_DATA_QUEUE_WATER_MARK;
+			break;
+		case VO_Q:
+			water_mark = VO_DATA_QUEUE_WATER_MARK;
+			break;
+		}
+		if ((skb_queue_len(&common->tx_queue[q_num]) + 1) >= 
+	   	    water_mark) {
+			ven_rsi_dbg(ERR_ZONE, "%s: queue %d is full\n",
+				__func__, q_num);
+			if (!ieee80211_queue_stopped(adapter->hw, WME_AC(q_num)))
+				ieee80211_stop_queue(adapter->hw, WME_AC(q_num));
+			rsi_set_event(&common->tx_thread.event);
+			goto xmit_fail;
+		}
 	}
 
 	rsi_core_queue_pkt(common, skb);

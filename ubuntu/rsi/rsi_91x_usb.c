@@ -61,6 +61,7 @@ static struct rsi_host_intf_ops usb_host_intf_ops = {
 	.read_reg_multiple	= rsi_usb_read_register_multiple,
 	.write_reg_multiple	= rsi_usb_write_register_multiple,
 	.load_data_master_write	= rsi_usb_load_data_master_write,
+	.check_hw_queue_status	= rsi_usb_check_queue_status,
 };
 
 /**
@@ -483,6 +484,56 @@ int rsi_usb_load_data_master_write(struct rsi_hw *adapter,
 			cur_indx);
 	}
 	return 0;
+}
+
+int rsi_usb_check_queue_status(struct rsi_hw *adapter, u8 q_num)
+{
+	struct rsi_91x_usbdev *dev = (struct rsi_91x_usbdev *)adapter->rsi_dev;
+	int status;
+	u32 buf_status = 0;
+
+	return QUEUE_NOT_FULL;
+
+	if (adapter->priv->fsm_state != FSM_MAC_INIT_DONE)
+		return QUEUE_NOT_FULL;
+
+	status = rsi_usb_reg_read(dev->usbdev, adapter->usb_buffer_status_reg,
+				  &buf_status, 2);
+	if (status < 0)
+		return status;
+
+	printk("buffer_status = %x\n", buf_status);
+	if (buf_status & (BIT(PKT_MGMT_BUFF_FULL))) {
+		if (!dev->rx_info.mgmt_buffer_full)
+			dev->rx_info.mgmt_buf_full_counter++;
+		dev->rx_info.mgmt_buffer_full = true;
+	} else {
+		dev->rx_info.mgmt_buffer_full = false;
+	}
+
+	if (buf_status & (BIT(PKT_BUFF_FULL))) {
+		if (!dev->rx_info.buffer_full)
+			dev->rx_info.buf_full_counter++;
+		dev->rx_info.buffer_full = true;
+	} else {
+		dev->rx_info.buffer_full = false;
+	}
+
+	if (buf_status & (BIT(PKT_BUFF_SEMI_FULL))) {
+		if (!dev->rx_info.semi_buffer_full)
+			dev->rx_info.buf_semi_full_counter++;
+		dev->rx_info.semi_buffer_full = true;
+	} else {
+		dev->rx_info.semi_buffer_full = false;
+	}
+
+	if ((q_num == MGMT_SOFT_Q) && (dev->rx_info.mgmt_buffer_full))
+		return QUEUE_FULL;
+
+	if ((q_num < MGMT_SOFT_Q) && (dev->rx_info.buffer_full))
+		return QUEUE_FULL;
+
+	return QUEUE_NOT_FULL;
 }
 
 /**

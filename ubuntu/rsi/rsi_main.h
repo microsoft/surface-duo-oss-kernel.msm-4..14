@@ -41,7 +41,7 @@ struct rsi_hw;
 
 #include "rsi_ps.h"
 
-#define DRV_VER				"RS9113.NB0.NL.GNU.LNX.1.2.RC4"
+#define DRV_VER				"RS9113.NB0.NL.GNU.LNX.1.2.RC9"
 
 #define ERR_ZONE                        BIT(0) /* Error Msgs		*/
 #define INFO_ZONE                       BIT(1) /* Generic Debug Msgs	*/
@@ -75,6 +75,10 @@ void rsi_hex_dump(u32 zone, char *msg_str, const u8 *msg, u32 len);
 
 #define DATA_QUEUE_WATER_MARK           400
 #define MIN_DATA_QUEUE_WATER_MARK       300
+#define BK_DATA_QUEUE_WATER_MARK	600
+#define BE_DATA_QUEUE_WATER_MARK	3200
+#define VI_DATA_QUEUE_WATER_MARK	3900
+#define VO_DATA_QUEUE_WATER_MARK	4500
 #define MULTICAST_WATER_MARK            200
 #define MAC_80211_HDR_FRAME_CONTROL     0
 #define WME_NUM_AC                      4
@@ -123,7 +127,10 @@ void rsi_hex_dump(u32 zone, char *msg_str, const u8 *msg, u32 len);
 	((_q) == VI_Q) ? IEEE80211_AC_VI : \
 	IEEE80211_AC_VO)
 
-#define STATION_NOT_CONNECTED		BIT(1)
+/* WoWLAN flags */
+#define RSI_WOW_ENABLED			BIT(0)
+#define RSI_WOW_NO_CONNECTION		BIT(1)
+
 struct version_info {
 	u16 major;
 	u16 minor;
@@ -223,6 +230,7 @@ struct rsi_sta {
 	s16 sta_id;
 	u16 seq_no[IEEE80211_NUM_ACS];
 	u16 seq_start[IEEE80211_NUM_ACS];
+	bool start_tx_aggr[IEEE80211_NUM_TIDS];
 };
 
 struct rsi_hw;
@@ -318,8 +326,9 @@ struct rsi_common {
 	u8 host_wakeup_intr_active_high;
 	int tx_power;
 	u8 ant_in_use;
+	bool suspend_in_prog;
 #ifdef CONFIG_VEN_RSI_WOW
-	u8 suspend_flag;
+	u8 wow_flags;
 #endif
 
 #if defined (CONFIG_VEN_RSI_BT_ALONE) || defined(CONFIG_VEN_RSI_COEX)
@@ -412,6 +421,7 @@ struct rsi_hw {
 	struct rsi_ps_info ps_info;
 	spinlock_t ps_lock;
 	u32 isr_pending;
+	u32 usb_buffer_status_reg;
 #ifdef CONFIG_VEN_RSI_DEBUGFS
 	struct rsi_debugfs *dfsentry;
 	u8 num_debugfs_entries;
@@ -429,6 +439,7 @@ struct rsi_hw {
 
 	u8 dfs_region;
 	char country[2];
+	bool peer_notify;
 	void *rsi_dev;
 
 	struct rsi_host_intf_ops *host_intf_ops;
@@ -457,6 +468,7 @@ struct rsi_host_intf_ops {
 				      u32 instructions_size, u16 block_size,
 				      u8 *fw);
 	int (*rsi_check_bus_status)(struct rsi_hw *adapter);
+	int (*check_hw_queue_status)(struct rsi_hw *adapter, u8 q_num);
 };
 
 #endif

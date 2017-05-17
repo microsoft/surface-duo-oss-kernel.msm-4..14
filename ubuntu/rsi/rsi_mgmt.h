@@ -501,8 +501,7 @@ struct rsi_config_vals {
 	u8 driver_mode;
 	u8 region_code;
 	u8 antenna_sel_val;
-#define EXT_PA      1
-#define EXT_BT_COEX 2
+	u8 reserved[16];
 } __packed;
 
 struct rsi_request_ps {
@@ -588,7 +587,7 @@ int rsi_send_radio_params_update(struct rsi_common *common);
 void init_bgscan_params(struct rsi_common *common);
 int rsi_set_antenna(struct rsi_common *common, u8 antenna);
 int rsi_hci_attach(struct rsi_common *common);
-int rsi_handle_card_ready(struct rsi_common *common);
+int rsi_handle_card_ready(struct rsi_common *common, u8 *msg);
 void rsi_validate_bgscan_channels(struct rsi_hw *adapter,
 				  struct bgscan_config_params *params);
 #ifdef CONFIG_VEN_RSI_WOW

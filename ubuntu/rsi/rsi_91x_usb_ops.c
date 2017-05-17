@@ -72,9 +72,10 @@ void rsi_usb_rx_thread(struct rsi_common *common)
 					"%s: Failed in urb submission", __func__);
 				break;
 			}
+			/* Update TX buffer status */
+			//rsi_usb_check_queue_status(adapter, 0);
 		}
 		rsi_reset_event(&dev->rx_thread.event);
-	
 	} while (1);
 
 	ven_rsi_dbg(INFO_ZONE, "%s: Terminated USB RX thread\n", __func__);
