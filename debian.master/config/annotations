@@ -1906,11 +1906,13 @@ CONFIG_I2C_SMBUS                                policy<{'amd64': 'm', 'arm64': '
 CONFIG_I2C_STUB                                 policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'powerpc': 'm', 'ppc64el': 'm'}>
 CONFIG_I2C_SLAVE                                policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'y', 'i386': 'n', 'powerpc': 'n', 'ppc64el': 'n'}>
 CONFIG_I2C_SLAVE_EEPROM                         policy<{'armhf': 'm'}>
+CONFIG_I2C_THUNDERX				policy<{'arm64': 'y'}>
 CONFIG_I2C_DEBUG_CORE                           policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'n', 'i386': 'n', 'powerpc': 'n', 'ppc64el': 'n'}>
 CONFIG_I2C_DEBUG_ALGO                           policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'n', 'i386': 'n', 'powerpc': 'n', 'ppc64el': 'n'}>
 CONFIG_I2C_DEBUG_BUS                            policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'n', 'i386': 'n', 'powerpc': 'n', 'ppc64el': 'n'}>
 #
 CONFIG_I2C_CHARDEV                              note<LP:1417032>
+CONFIG_I2C_THUNDERX				note<LP:1688132>
 
 # Menu: Device Drivers >> I2C support >> I2C support >> I2C Algorithms
 CONFIG_I2C_ALGOBIT                              policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'powerpc': 'm', 'ppc64el': 'm'}>
