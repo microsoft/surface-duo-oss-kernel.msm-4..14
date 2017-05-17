@@ -755,6 +755,8 @@ int main(void)
 			offsetof(struct paca_struct, thread_mask));
 	DEFINE(PACA_SUBCORE_SIBLING_MASK,
 			offsetof(struct paca_struct, subcore_sibling_mask));
+	DEFINE(PACA_SIBLING_PACA_PTRS,
+		offsetof(struct paca_struct, thread_sibling_pacas));
 #endif
 
 	DEFINE(PPC_DBELL_SERVER, PPC_DBELL_SERVER);
