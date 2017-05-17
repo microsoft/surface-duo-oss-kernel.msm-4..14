@@ -513,7 +513,7 @@ static void rsi_mac80211_tx(struct ieee80211_hw *hw,
   struct ieee80211_vif *vif = adapter->vifs[adapter->sc_nvifs - 1];
 
 #ifdef CONFIG_VEN_RSI_WOW
-	if (common->suspend_flag) {
+	if (common->wow_flags & RSI_WOW_ENABLED) {
 		ieee80211_free_txskb(common->priv->hw, skb);
 		return;
 	}
@@ -1418,6 +1418,8 @@ static int rsi_mac80211_set_key(struct ieee80211_hw *hw,
 		break;
 
 	case DISABLE_KEY:
+		if ((vif->type == NL80211_IFTYPE_STATION) ||
+		    (vif->type == NL80211_IFTYPE_P2P_CLIENT))
 		secinfo->security_enable = false;
 		ven_rsi_dbg(ERR_ZONE, "%s: RSI del key\n", __func__);
 		memset(key, 0, sizeof(struct ieee80211_key_conf));
@@ -1800,7 +1802,7 @@ static int rsi_mac80211_sta_add(struct ieee80211_hw *hw,
 	struct rsi_common *common = adapter->priv;
 	bool sta_exist = 0;
 
-	rsi_hex_dump(INFO_ZONE, "Station Add: ", sta->addr, ETH_ALEN);
+	rsi_hex_dump(INFO_ZONE, "Station Add", sta->addr, ETH_ALEN);
 
 	mutex_lock(&common->mutex);
 
@@ -1853,12 +1855,16 @@ static int rsi_mac80211_sta_add(struct ieee80211_hw *hw,
 			}
 			for (j = 0; j < IEEE80211_NUM_ACS; j++)
 				common->stations[i].seq_no[j] = 1;
+			for (j = 0; j < IEEE80211_NUM_TIDS; j++)
+				common->stations[i].start_tx_aggr[j] = false;
 			common->num_stations++;
 		} else {
 			common->stations[i].sta = sta;
 			common->stations[i].sta_id = i;
 			for (j = 0; j < IEEE80211_NUM_ACS; j++)
 				common->stations[i].seq_no[j] = 1;
+			for (j = 0; j < IEEE80211_NUM_TIDS; j++)
+				common->stations[i].start_tx_aggr[j] = false;
 		}
 	}
 
@@ -1879,7 +1885,9 @@ static int rsi_mac80211_sta_add(struct ieee80211_hw *hw,
 		}
 	}
 
-	if (sta->ht_cap.ht_supported) {
+	if (((vif->type == NL80211_IFTYPE_STATION) ||
+	     (vif->type == NL80211_IFTYPE_P2P_CLIENT)) &&
+	    (sta->ht_cap.ht_supported)) {
 		common->vif_info[0].is_ht = true;
 		common->bitrate_mask[NL80211_BAND_2GHZ] =
 				sta->supp_rates[NL80211_BAND_2GHZ];
@@ -1910,9 +1918,8 @@ static int rsi_mac80211_sta_remove(struct ieee80211_hw *hw,
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
 	struct ieee80211_bss_conf *bss = &vif->bss_conf;
-//		&adapter->vifs[adapter->sc_nvifs - 1]->bss_conf;
 
-	rsi_hex_dump(INFO_ZONE, "Station Removed: ", sta->addr, ETH_ALEN);
+	rsi_hex_dump(INFO_ZONE, "Station Removed", sta->addr, ETH_ALEN);
 
 	mutex_lock(&common->mutex);
 	if ((vif->type == NL80211_IFTYPE_AP) ||
@@ -2325,10 +2332,12 @@ int rsi_mac80211_suspend(struct ieee80211_hw *hw,
 	if (!bss->assoc) {
 		ven_rsi_dbg(ERR_ZONE,
 			"Cannot configure WoWLAN (Station not connected)\n");
-		common->suspend_flag = STATION_NOT_CONNECTED;
+		common->wow_flags |= RSI_WOW_NO_CONNECTION;
 		ret = 0;
 		goto fail_wow;
 	}
+	ven_rsi_dbg(INFO_ZONE, "TRIGGERS %x\n", triggers);
+	rsi_send_wowlan_request(common, triggers, 1);
 
 	/* Send updated vap caps */
 	rsi_send_vap_dynamic_update(common);
@@ -2336,13 +2345,9 @@ int rsi_mac80211_suspend(struct ieee80211_hw *hw,
 	rx_filter_word = (ALLOW_DATA_ASSOC_PEER |
 			  DISALLOW_BEACONS |
 			  0);
-
-
-	rsi_send_wowlan_request(common, triggers, 1);
-	ven_rsi_dbg(INFO_ZONE, "TRIGGERS %x\n", triggers);
 	rsi_send_rx_filter_frame(common, rx_filter_word);
 
-        common->suspend_flag = 1;
+        common->wow_flags |= RSI_WOW_ENABLED;
 fail_wow:
 #endif
         return (ret ? 1 : 0);
@@ -2355,7 +2360,7 @@ static int rsi_mac80211_resume(struct ieee80211_hw *hw)
 	struct rsi_common *common = adapter->priv;
 	u16 rx_filter_word = 0;
 
-	adapter->priv->suspend_flag = 0;
+	adapter->priv->wow_flags = 0;
 #endif
 	
 	ven_rsi_dbg(INFO_ZONE, "%s: mac80211 resume\n", __func__);
@@ -2665,8 +2670,8 @@ int rsi_mac80211_attach(struct rsi_common *common)
 	hw->max_rate_tries = MAX_RETRIES;
 	hw->uapsd_queues = IEEE80211_MARKALL_UAPSD_QUEUES;
 	hw->uapsd_max_sp_len = IEEE80211_WMM_IE_STA_QOSINFO_SP_ALL;
-//	hw->max_tx_aggregation_subframes = 6;
-	hw->max_tx_aggregation_subframes = 4;
+	hw->max_tx_aggregation_subframes = 8;
+//	hw->max_rx_aggregation_subframes = 8;
 
 	rsi_register_rates_channels(adapter, NL80211_BAND_2GHZ);
 	wiphy->bands[NL80211_BAND_2GHZ] =
@@ -2714,6 +2719,7 @@ int rsi_mac80211_attach(struct rsi_common *common)
 	/* AP Parameters */
 	wiphy->flags = WIPHY_FLAG_REPORTS_OBSS;
 	wiphy->flags |= WIPHY_FLAG_AP_UAPSD;
+	wiphy->features |= NL80211_FEATURE_INACTIVITY_TIMER;
 
 	/*wiphy->regulatory_flags = (REGULATORY_STRICT_REG |
 				   REGULATORY_CUSTOM_REG);
@@ -2732,7 +2738,6 @@ int rsi_mac80211_attach(struct rsi_common *common)
 	hw->max_listen_interval = 10;
 	wiphy->iface_combinations = rsi_iface_combinations;
 	wiphy->n_iface_combinations = ARRAY_SIZE(rsi_iface_combinations);
-	wiphy->features |= NL80211_FEATURE_INACTIVITY_TIMER;
 //	wiphy->features |= (NL80211_FEATURE_P2P_GO_CTWIN |
 //			    NL80211_FEATURE_P2P_GO_OPPPS);
 #endif

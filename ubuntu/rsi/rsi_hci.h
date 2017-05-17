@@ -109,6 +109,35 @@ struct rsi_hci_adapter {
 	struct sk_buff_head hci_tx_queue;
 };
 
+/* TX BT command packet types */
+#define RSI_BT_PKT_TYPE_DEREGISTR		0x11
+#define RSI_BT_PKT_TYPE_RFMODE			0x55
+
+struct rsi_bt_cmd_frame {
+#ifdef __LITTLE_ENDIAN
+	u16 len:12;
+	u16 q_no:4;
+#else
+	u16 reserved1:4;
+	u16 q_no:12;
+#endif
+	__le16 reserved2[6];
+	u8 pkt_type;
+	u8 reserved3;
+};
+
+struct rsi_bt_rfmode_frame {
+	struct rsi_bt_cmd_frame desc;
+#ifdef __LITTLE_ENDIAN
+	u8 bt_rf_tx_power_mode:4;
+	u8 bt_rf_rx_power_mode:4;
+#else
+	u8 bt_rf_rx_power_mode:4;
+	u8 bt_rf_tx_power_mode:4;
+#endif
+	u8 reserved;
+};
+
 int rsi_genl_recv (struct sk_buff *skb, struct genl_info *info);
 int rsi_hci_attach (struct rsi_common *common);
 void rsi_hci_detach(struct rsi_common *common);

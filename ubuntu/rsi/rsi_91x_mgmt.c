@@ -286,7 +286,7 @@ struct rsi_ulp_gpio_vals unused_ulp_gpio_bitmap = {
 struct rsi_soc_gpio_vals unused_soc_gpio_bitmap = {
 	.pspi_csn_0		= USED_GPIO,	//GPIO_0
 	.pspi_csn_1		= USED_GPIO,	//GPIO_1
-	.host_wakeup_intr	= UNUSED_GPIO,	//GPIO_2
+	.host_wakeup_intr	= USED_GPIO,	//GPIO_2
 	.pspi_data_0		= USED_GPIO,	//GPIO_3
 	.pspi_data_1		= USED_GPIO,	//GPIO_4
 	.pspi_data_2		= USED_GPIO,	//GPIO_5
@@ -426,6 +426,9 @@ static int rsi_send_internal_mgmt_frame(struct rsi_common *common,
 	tx_params = (struct skb_info *)&IEEE80211_SKB_CB(skb)->driver_data;
 	tx_params->flags |= INTERNAL_MGMT_PKT;
 	skb->priority = MGMT_SOFT_Q;
+	if (skb->data[2] == PEER_NOTIFY)
+		skb_queue_head(&common->tx_queue[MGMT_SOFT_Q], skb);
+	else
 	skb_queue_tail(&common->tx_queue[MGMT_SOFT_Q], skb);
 	rsi_set_event(&common->tx_thread.event);
 	return 0;
@@ -655,6 +658,7 @@ int rsi_send_sta_notify_frame(struct rsi_common *common,
 	default:
 		break;
 	}
+	adapter->peer_notify = true;
 	peer_notify->command |= cpu_to_le16((aid & 0xfff) << 4);
 	ether_addr_copy(peer_notify->mac_addr, bssid);
 	peer_notify->mpdu_density = cpu_to_le16(0x08); //FIXME check this
@@ -992,57 +996,12 @@ int rsi_load_key(struct rsi_common *common,
 int rsi_send_common_dev_params(struct rsi_common *common)
 {
 	struct sk_buff *skb = NULL;
-	u32 *soc_gpio, len;
-	u16 *frame, *ulp_gpio, *desc;
-
-	ven_rsi_dbg(INFO_ZONE, "Sending common dev config params\n");
-
-	len = 0x20;
-
-	skb = dev_alloc_skb(len + FRAME_DESC_SZ);
-	if (!skb)
-		return -ENOMEM;
-	memset(skb->data, 0, len + FRAME_DESC_SZ);
-
-	desc = (u16 *)&skb->data[0];
-	frame = (u16 *)&skb->data[FRAME_DESC_SZ];
-
-	desc[0] = cpu_to_le16(len | (RSI_COEX_Q << 12));
-	desc[1] = cpu_to_le16(COMMON_DEV_CONFIG);
-
-	frame[0] = (u16)common->lp_ps_handshake_mode;
-	frame[0] |= (u16)common->ulp_ps_handshake_mode << 8;
-
-	ulp_gpio = (u16 *)&unused_ulp_gpio_bitmap;
-	soc_gpio = (u32 *)&unused_soc_gpio_bitmap;
-
-	frame[1] |= (*ulp_gpio) << 8;
-	*(u32 *)&frame[2] = *soc_gpio;
-	frame[4] |= cpu_to_le16((u16)common->oper_mode << 8);
-	frame[5] |= cpu_to_le16((u16)common->wlan_rf_power_mode);
-	frame[5] |= cpu_to_le16((u16)common->bt_rf_power_mode << 8);
-	frame[6] |= cpu_to_le16((u16)common->driver_mode << 8);
-	frame[7] = cpu_to_le16(3); //((u16 )d_assets->region_code);
-	frame[7] |= cpu_to_le16((u16)common->obm_ant_sel_val << 8);
-
-	skb_put(skb, len + FRAME_DESC_SZ);
-
-	return rsi_send_internal_mgmt_frame(common, skb);
-}
-
-#if 0
-int rsi_send_common_dev_params(struct rsi_common *common)
-{
-	struct sk_buff *skb = NULL;
-	u32 *unused_soc_gpio;
 	u32 frame_len = 0;
 	struct rsi_config_vals *dev_cfgs = NULL;
 
 	frame_len = sizeof(struct rsi_config_vals);
 
-	ven_rsi_dbg(MGMT_TX_ZONE,
-		"%s: Sending common device config params frame\n",
-		__func__);
+	ven_rsi_dbg(MGMT_TX_ZONE, "Sending common device config params\n");
 	skb = dev_alloc_skb(frame_len);
 	if (!skb) {
 		ven_rsi_dbg(ERR_ZONE, "%s: Unable to allocate skb\n", __func__);
@@ -1061,27 +1020,15 @@ int rsi_send_common_dev_params(struct rsi_common *common)
 	dev_cfgs->lp_ps_handshake = common->lp_ps_handshake_mode;
 	dev_cfgs->ulp_ps_handshake = common->ulp_ps_handshake_mode;
 
-	if (common->host_wakeup_intr_enable) {
-		dev_cfgs->sleep_config_params |=
-			common->host_wakeup_intr_enable;
-		dev_cfgs->sleep_config_params |= BIT(2);
-		if (common->host_wakeup_intr_active_high)
-			dev_cfgs->sleep_config_params |= BIT(3);
-	}
+	dev_cfgs->unused_ulp_gpio = *(u8 *)&unused_ulp_gpio_bitmap;
+	dev_cfgs->unused_soc_gpio_bitmap =
+		cpu_to_le32(*(u32 *)&unused_soc_gpio_bitmap);
 
-	dev_config_vals[0].opermode = common->coex_mode;
-
-	if (dev_config_vals[0].ext_pa_or_bt_coex_en)
-		dev_cfgs->ext_pa_or_bt_coex_en =
-			dev_config_vals[0].ext_pa_or_bt_coex_en;
-	dev_cfgs->opermode = dev_config_vals[0].opermode;
+	dev_cfgs->opermode = common->oper_mode;
 	dev_cfgs->wlan_rf_pwr_mode = common->wlan_rf_power_mode;
 	dev_cfgs->driver_mode = common->driver_mode;
-	dev_cfgs->region_code = 0; /* Default US */
+	dev_cfgs->region_code = NL80211_DFS_FCC;
 	dev_cfgs->antenna_sel_val = common->obm_ant_sel_val;
-
-	unused_soc_gpio = (u32 *)&unused_soc_gpio_bitmap;
-	dev_cfgs->unused_soc_gpio_bitmap = *unused_soc_gpio;
 
 	skb_put(skb, frame_len);
 
@@ -1089,7 +1036,6 @@ int rsi_send_common_dev_params(struct rsi_common *common)
 		     skb->data, skb->len);
 	return rsi_send_internal_mgmt_frame(common, skb);
 }
-#endif
 
 /*
  * rsi_load_bootup_params() - This function send bootup params to the firmware.
@@ -1975,7 +1921,7 @@ void rsi_inform_bss_status(struct rsi_common *common,
 		if (opmode == STA_OPMODE)
 			common->hw_data_qs_blocked = true;
 #ifdef CONFIG_VEN_RSI_WOW
-		if (!common->suspend_flag) {
+		if (!(common->wow_flags & RSI_WOW_ENABLED)) {
 #endif
 		rsi_send_sta_notify_frame(common,
 					  opmode,
@@ -2756,7 +2702,7 @@ out:
  *
  *Return: 0 on success, -1 on failure.
  */
-int rsi_handle_card_ready(struct rsi_common *common)
+int rsi_handle_card_ready(struct rsi_common *common, u8 *msg)
 {
 	switch (common->fsm_state) {
 	case FSM_CARD_NOT_READY:
@@ -2767,7 +2713,13 @@ int rsi_handle_card_ready(struct rsi_common *common)
 		common->fsm_state = FSM_COMMON_DEV_PARAMS_SENT;
 		break;
 	case FSM_COMMON_DEV_PARAMS_SENT:
-		ven_rsi_dbg(INIT_ZONE, "Common dev config params confirm\n");
+		ven_rsi_dbg(INIT_ZONE, "Card ready indication from WLAN HAL\n");
+
+		/* Get usb buffer status register address */
+		common->priv->usb_buffer_status_reg = *(u32 *)&msg[8];
+		ven_rsi_dbg(INFO_ZONE, "USB buffer status register = %x\n",
+			common->priv->usb_buffer_status_reg);
+
 		if (rsi_load_bootup_params(common)) {
 			common->fsm_state = FSM_CARD_NOT_READY;
 			return -EINVAL;
@@ -2805,7 +2757,7 @@ int rsi_mgmt_pkt_recv(struct rsi_common *common, u8 *msg)
 
 	case CARD_READY_IND:
 		ven_rsi_dbg(INIT_ZONE, "CARD READY INDICATION FROM WLAN.\n");
-		return rsi_handle_card_ready(common);
+		return rsi_handle_card_ready(common, msg);
 
 	case TX_STATUS_IND:
 		if (msg[15] == PROBEREQ_CONFIRM) {

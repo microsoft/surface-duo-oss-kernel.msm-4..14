@@ -152,7 +152,7 @@ static int rsi_hci_send_pkt(struct hci_dev *hdev, struct sk_buff *skb)
 
 #ifdef CONFIG_VEN_RSI_WOW
 	/* Stop here when in suspend */
-	if (h_adapter->priv->suspend_flag) {
+	if (h_adapter->priv->wow_flags & RSI_WOW_ENABLED) {
 		ven_rsi_dbg(INFO_ZONE, "In suspend: Dropping the pkt\n");
 		status = -ENETDOWN;
 		goto fail;
@@ -223,6 +223,58 @@ fail:
 	return status;
 }
 
+int rsi_send_rfmode_frame(struct rsi_common *common)
+{
+	struct sk_buff *skb;
+	struct rsi_bt_rfmode_frame *cmd_frame;
+
+	ven_rsi_dbg(MGMT_TX_ZONE, "%s: Sending BT RF mode frame\n", __func__);
+
+	skb = dev_alloc_skb(sizeof(struct rsi_bt_rfmode_frame));
+	if (!skb)
+		return -ENOMEM;
+
+	memset(skb->data, 0, sizeof(struct rsi_bt_rfmode_frame));
+	cmd_frame = (struct rsi_bt_rfmode_frame *)skb->data;
+
+	/* Length is 0 */
+	cmd_frame->desc.q_no = RSI_BT_MGMT_Q;
+	cmd_frame->desc.pkt_type = RSI_BT_PKT_TYPE_RFMODE;
+	cmd_frame->bt_rf_tx_power_mode = 0;
+	cmd_frame->bt_rf_tx_power_mode = 0;
+
+	skb_put(skb, sizeof(struct rsi_bt_rfmode_frame));
+
+//	return rsi_coex_send_pkt(common, skb, RSI_BT_Q);
+	return common->priv->host_intf_ops->write_pkt(common->priv, skb->data, skb->len);
+}
+EXPORT_SYMBOL_GPL(rsi_send_rfmode_frame);
+
+int rsi_deregister_bt(struct rsi_common *common)
+{
+	struct sk_buff *skb;
+	struct rsi_bt_cmd_frame *cmd_frame;
+
+	ven_rsi_dbg(MGMT_TX_ZONE, "%s: Sending BT register frame\n", __func__);
+
+	skb = dev_alloc_skb(sizeof(struct rsi_bt_cmd_frame));
+	if (!skb)
+		return -ENOMEM;
+
+	memset(skb->data, 0, sizeof(struct rsi_bt_cmd_frame));
+	cmd_frame = (struct rsi_bt_cmd_frame *)skb->data;
+
+	/* Length is 0 */
+	cmd_frame->q_no = RSI_BT_MGMT_Q;
+	cmd_frame->pkt_type = RSI_BT_PKT_TYPE_DEREGISTR;
+
+	skb_put(skb, sizeof(struct rsi_bt_cmd_frame));
+
+	//return rsi_coex_send_pkt(common, skb, RSI_BT_Q);
+	return common->priv->host_intf_ops->write_pkt(common->priv, skb->data, skb->len);
+}
+EXPORT_SYMBOL_GPL(rsi_deregister_bt);
+
 int rsi_hci_recv_pkt(struct rsi_common *common, u8 *pkt)
 {
 	struct rsi_hci_adapter *h_adapter =
@@ -236,6 +288,14 @@ int rsi_hci_recv_pkt(struct rsi_common *common, u8 *pkt)
 	    (pkt[14] == BT_CARD_READY_IND)) {
 		ven_rsi_dbg(INIT_ZONE, "%s: ===> BT Card Ready Received <===\n",
 			__func__);
+
+		if (common->suspend_in_prog) {
+			ven_rsi_dbg(INFO_ZONE,
+				"Suspend is in prog; Do not process\n");
+			return 0;
+		}
+
+		rsi_send_rfmode_frame(common);
 
 		ven_rsi_dbg(INFO_ZONE, "Attaching HCI module\n");
 
@@ -369,7 +429,6 @@ err:
 	ven_rsi_dbg(ERR_ZONE, "%s: error(%d) occured\n", __func__, rc);
 	return rc;
 }
-
 
 /**
  * rsi_hci_attach () - This function initializes HCI interface
@@ -521,6 +580,9 @@ void rsi_hci_detach(struct rsi_common *common)
 	if (!h_adapter)
 		return;
 
+	if (common->suspend_in_prog)
+		rsi_deregister_bt(common);
+
 	hdev = h_adapter->hdev;
 	if (hdev) {
                 //hci_dev_hold(hdev);
@@ -540,6 +602,7 @@ void rsi_hci_detach(struct rsi_common *common)
 		kfree(gcb);
 	}
 	kfree(h_adapter);
+	common->bt_fsm_state = BT_DEVICE_NOT_READY;
 
 	return;
 }

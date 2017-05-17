@@ -476,7 +476,6 @@ int rsi_send_mgmt_pkt(struct rsi_common *common, struct sk_buff *skb)
 				goto out;
 			}
 		}
-		ven_rsi_dbg(MGMT_TX_ZONE, "Sending PROBE REQUEST =====>\n");
 	}
 
 	ven_rsi_dbg(MGMT_TX_ZONE,
@@ -503,12 +502,25 @@ int rsi_send_bt_pkt(struct rsi_common *common, struct sk_buff *skb)
 	int status = -EINVAL;
 	u8 header_size = 0;
 	__le16 *frame_desc;
+	u8 queueno = ((skb->data[1] >> 4) & 0xf);
+
+	if (queueno == RSI_BT_MGMT_Q) {
+		rsi_hex_dump(MGMT_TX_ZONE, "TX BT Mgmt Pkt",
+			     skb->data, skb->len);
+		status = adapter->host_intf_ops->write_pkt(common->priv,
+							   skb->data,
+							   skb->len);
+		if (status)
+			ven_rsi_dbg(ERR_ZONE, "%s: Failed to write bt mgmt pkt\n",
+				__func__);
+		goto out;
+	}
 
 	header_size = FRAME_DESC_SZ;
 	if (header_size > skb_headroom(skb)) {
 		ven_rsi_dbg(ERR_ZONE, "%s: Not enough headroom\n", __func__);
 		status = -ENOSPC;
-		goto err;
+		goto out;
 	}
 	skb_push(skb, header_size);
 	frame_desc = (__le16 *)&skb->data[0];
@@ -525,7 +537,7 @@ int rsi_send_bt_pkt(struct rsi_common *common, struct sk_buff *skb)
 	if (status)
 		ven_rsi_dbg(ERR_ZONE, "%s: Failed to write bt pkt\n", __func__);
 
-err:
+out:
 	dev_kfree_skb(skb);
 	return status;
 }
@@ -1213,6 +1225,7 @@ int rsi_hal_device_init(struct rsi_hw *adapter)
 	case DEV_OPMODE_STA_BT_LE:
 	case DEV_OPMODE_BT_ALONE:
 	case DEV_OPMODE_BT_LE_ALONE:
+	case DEV_OPMODE_BT_DUAL:
 		common->coex_mode = 2;
 		break;
 	case DEV_OPMODE_AP_BT_DUAL:

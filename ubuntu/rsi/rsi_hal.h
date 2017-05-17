@@ -35,6 +35,7 @@
 #define DEV_OPMODE_WIFI_ALONE		1
 #define DEV_OPMODE_BT_ALONE		4
 #define DEV_OPMODE_BT_LE_ALONE		8
+#define DEV_OPMODE_BT_DUAL		12
 #define DEV_OPMODE_STA_BT		5
 #define DEV_OPMODE_STA_BT_LE		9
 #define DEV_OPMODE_STA_BT_DUAL		13
@@ -159,6 +160,12 @@
 #define FW_FLASH_OFFSET			0x820
 #define LMAC_VER_OFFSET			FW_FLASH_OFFSET +0x200
 
+/* Buffer status register related info */
+#define PKT_BUFF_SEMI_FULL		0
+#define PKT_BUFF_FULL			1
+#define PKT_MGMT_BUFF_FULL		2
+#define MSDU_PKT_PENDING		3
+
 struct bl_header {
 	__le32 flags;
 	__le32 image_no;
@@ -178,5 +185,6 @@ int rsi_hal_device_init(struct rsi_hw *adapter);
 int rsi_send_data_pkt(struct rsi_common *common, struct sk_buff *skb);
 int rsi_send_bt_pkt(struct rsi_common *common, struct sk_buff *skb);
 int rsi_prepare_beacon(struct rsi_common *common, struct sk_buff *skb);
+int rsi_deregister_bt(struct rsi_common *common);
 
 #endif

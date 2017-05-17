@@ -269,7 +269,6 @@ void rsi_interrupt_handler(struct rsi_hw *adapter)
 	enum sdio_interrupt_type isr_type;
 	u8 isr_status = 0;
 	u8 fw_status = 0;
-	u8 buf_status = 0;
 
 	dev->rx_info.sdio_int_counter++;
 
@@ -308,40 +307,11 @@ void rsi_interrupt_handler(struct rsi_hw *adapter)
 
 			switch (isr_type) {
 			case BUFFER_AVAILABLE:
-				status = rsi_sdio_read_register(common->priv,
-						RSI_DEVICE_BUFFER_STATUS_REGISTER,
-						&buf_status);
-				if (status) {
+				status = rsi_sdio_check_buffer_status(adapter, 0);
+				if (status < 0)
 					ven_rsi_dbg(ERR_ZONE,
-						"%s: Failed to read status register\n",
+						"%s: Failed to check buffer status\n",
 						__func__);
-					return;
-				}
-				if (buf_status & (BIT(PKT_MGMT_BUFF_FULL))) {
-					if (!dev->rx_info.mgmt_buffer_full)
-						dev->rx_info.mgmt_buf_full_counter++;
-					dev->rx_info.mgmt_buffer_full = true;
-				} else {
-					dev->rx_info.buf_available_counter++;
-					dev->rx_info.mgmt_buffer_full = false;
-				}
-				if (buf_status & (BIT(PKT_BUFF_FULL))) {
-					if (!dev->rx_info.buffer_full)
-						dev->rx_info.buf_full_counter++;
-					dev->rx_info.buffer_full = true;
-				} else {
-					dev->rx_info.buf_available_counter++;
-				dev->rx_info.buffer_full = false;
-				}
-				if (buf_status & (BIT(PKT_BUFF_SEMI_FULL))) {
-					if (!dev->rx_info.semi_buffer_full)
-						dev->rx_info.buf_semi_full_counter++;
-					dev->rx_info.semi_buffer_full = true;
-				} else {
-					dev->rx_info.buf_available_counter++;
-				dev->rx_info.semi_buffer_full = false;
-				}
-
 				rsi_sdio_ack_intr(common->priv,
 						  (1 << PKT_BUFF_AVAILABLE));
 				rsi_set_event(&common->tx_thread.event);
@@ -403,7 +373,7 @@ void rsi_interrupt_handler(struct rsi_hw *adapter)
 }
 
 /**
- * rsi_sdio_read_buffer_status_register() - This function is used to the read
+ * rsi_sdio_check_buffer_status() - This function is used to the read
  *					    buffer status register and set
  *					    relevant fields in
  *					    rsi_91x_sdiodev struct.
@@ -412,21 +382,19 @@ void rsi_interrupt_handler(struct rsi_hw *adapter)
  *
  * Return: status: -1 on failure or else queue full/stop is indicated.
  */
-int rsi_sdio_read_buffer_status_register(struct rsi_hw *adapter, u8 q_num)
+int rsi_sdio_check_buffer_status(struct rsi_hw *adapter, u8 q_num)
 {
 	struct rsi_common *common = adapter->priv;
 	struct rsi_91x_sdiodev *dev =
 		(struct rsi_91x_sdiodev *)adapter->rsi_dev;
 	u8 buf_status = 0;
 	int status = 0;
-//	static int counter = 4;
+	static int counter = 4;
 
-#if 0
-	if ((!dev->buff_status_updated) && counter) {
+	if (!dev->buff_status_updated && counter) {
 		counter--;
 		goto out;
 	}
-#endif
 
 	dev->buff_status_updated = 0;
 	status = rsi_sdio_read_register(common->priv,
@@ -442,28 +410,29 @@ int rsi_sdio_read_buffer_status_register(struct rsi_hw *adapter, u8 q_num)
 		if (!dev->rx_info.mgmt_buffer_full)
 			dev->rx_info.mgmt_buf_full_counter++;
 		dev->rx_info.mgmt_buffer_full = true;
-	} else {
+	} else
 		dev->rx_info.mgmt_buffer_full = false;
-	}
 
 	if (buf_status & (BIT(PKT_BUFF_FULL))) {
 		if (!dev->rx_info.buffer_full)
 			dev->rx_info.buf_full_counter++;
 		dev->rx_info.buffer_full = true;
-	} else {
+	} else
 		dev->rx_info.buffer_full = false;
-	}
 
 	if (buf_status & (BIT(PKT_BUFF_SEMI_FULL))) {
 		if (!dev->rx_info.semi_buffer_full)
 			dev->rx_info.buf_semi_full_counter++;
 		dev->rx_info.semi_buffer_full = true;
-	} else {
+	} else
 		dev->rx_info.semi_buffer_full = false;
-	}
-//	(dev->rx_info.semi_buffer_full ? (counter = 4) : (counter = 1));
 
-//out:
+	if (dev->rx_info.mgmt_buffer_full || dev->rx_info.buf_full_counter)
+		counter = 1;
+	else
+		counter = 4;
+
+out:
 	if ((q_num == MGMT_SOFT_Q) && (dev->rx_info.mgmt_buffer_full))
 		return QUEUE_FULL;
 

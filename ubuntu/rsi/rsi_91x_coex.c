@@ -106,7 +106,7 @@ int rsi_coex_recv_pkt(struct rsi_common *common, u8 *msg)
 
 	if (msg_type == COMMON_CARD_READY_IND) {
 		ven_rsi_dbg(INFO_ZONE, "COMMON CARD READY RECEIVED\n");
-		rsi_handle_card_ready(common);
+		rsi_handle_card_ready(common, msg);
 	} else if (msg_type == SLEEP_NOTIFY_IND) {
 		ven_rsi_dbg(INFO_ZONE, "\n\n sleep notify RECEIVED\n");
 		rsi_mgmt_pkt_recv(common, msg);

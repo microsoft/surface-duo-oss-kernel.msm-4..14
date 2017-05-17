@@ -60,8 +60,20 @@ struct rx_usb_ctrl_block {
 	u8 pend;
 };
 
+struct receive_info {
+	bool buffer_full;
+	bool semi_buffer_full;
+	bool mgmt_buffer_full;
+	u32 mgmt_buf_full_counter;
+	u32 buf_semi_full_counter;
+	u8 watch_bufferfull_count;
+	u32 buf_full_counter;
+	u32 buf_available_counter;
+};
+
 struct rsi_91x_usbdev {
 	void *priv;
+	struct receive_info rx_info;
 	struct rsi_thread rx_thread;
 	u8 endpoint;
 	struct usb_device *usbdev;
@@ -76,12 +88,6 @@ struct rsi_91x_usbdev {
 	u32 tx_blk_size;
 	u8 write_fail;
 };
-
-static inline int rsi_usb_check_queue_status(struct rsi_hw *adapter, u8 q_num)
-{
-	/* In USB, there isn't any need to check the queue status */
-	return QUEUE_NOT_FULL;
-}
 
 static inline int rsi_usb_event_timeout(struct rsi_hw *adapter)
 {
@@ -104,4 +110,5 @@ int rsi_usb_load_data_master_write(struct rsi_hw *adapter, u32 base_address,
 				   u32 instructions_sz,
 				   u16 block_size,
 				   u8 *ta_firmware);
+int rsi_usb_check_queue_status(struct rsi_hw *adapter, u8 q_num);
 #endif
