@@ -4,6 +4,7 @@
  * Copyright (C) 2014-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright (C) 2013 Kosagi
  *		http://www.kosagi.com
+ * Copyright 2017 NXP
  *
  * Author: Sean Cross <xobs@kosagi.com>
  *
@@ -131,6 +132,9 @@ struct s32v234_pcie {
 #define PHY_RX_OVRD_IN_LO 0x1005
 #define PHY_RX_OVRD_IN_LO_RX_DATA_EN (1 << 5)
 #define PHY_RX_OVRD_IN_LO_RX_PLL_EN (1 << 3)
+
+/* Default timeout (ms) */
+#define PCIE_CX_CPL_BASE_TIMER_VALUE	10
 
 #ifdef CONFIG_PCI_S32V234_EP
 /* MSI base region  */
