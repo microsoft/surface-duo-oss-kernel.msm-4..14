@@ -222,24 +222,92 @@
 
 #define SCALER_RATIO_MAX 16
 
-static const u32 vfe_formats[] = {
-	MEDIA_BUS_FMT_UYVY8_2X8,
-	MEDIA_BUS_FMT_VYUY8_2X8,
-	MEDIA_BUS_FMT_YUYV8_2X8,
-	MEDIA_BUS_FMT_YVYU8_2X8,
-	MEDIA_BUS_FMT_SBGGR8_1X8,
-	MEDIA_BUS_FMT_SGBRG8_1X8,
-	MEDIA_BUS_FMT_SGRBG8_1X8,
-	MEDIA_BUS_FMT_SRGGB8_1X8,
-	MEDIA_BUS_FMT_SBGGR10_1X10,
-	MEDIA_BUS_FMT_SGBRG10_1X10,
-	MEDIA_BUS_FMT_SGRBG10_1X10,
-	MEDIA_BUS_FMT_SRGGB10_1X10,
-	MEDIA_BUS_FMT_SBGGR12_1X12,
-	MEDIA_BUS_FMT_SGBRG12_1X12,
-	MEDIA_BUS_FMT_SGRBG12_1X12,
-	MEDIA_BUS_FMT_SRGGB12_1X12,
+static const struct {
+	u32 code;
+	u8 bpp;
+} vfe_formats[] = {
+	{
+		MEDIA_BUS_FMT_UYVY8_2X8,
+		16,
+	},
+	{
+		MEDIA_BUS_FMT_VYUY8_2X8,
+		16,
+	},
+	{
+		MEDIA_BUS_FMT_YUYV8_2X8,
+		16,
+	},
+	{
+		MEDIA_BUS_FMT_YVYU8_2X8,
+		16,
+	},
+	{
+		MEDIA_BUS_FMT_SBGGR8_1X8,
+		8,
+	},
+	{
+		MEDIA_BUS_FMT_SGBRG8_1X8,
+		8,
+	},
+	{
+		MEDIA_BUS_FMT_SGRBG8_1X8,
+		8,
+	},
+	{
+		MEDIA_BUS_FMT_SRGGB8_1X8,
+		8,
+	},
+	{
+		MEDIA_BUS_FMT_SBGGR10_1X10,
+		10,
+	},
+	{
+		MEDIA_BUS_FMT_SGBRG10_1X10,
+		10,
+	},
+	{
+		MEDIA_BUS_FMT_SGRBG10_1X10,
+		10,
+	},
+	{
+		MEDIA_BUS_FMT_SRGGB10_1X10,
+		10,
+	},
+	{
+		MEDIA_BUS_FMT_SBGGR12_1X12,
+		12,
+	},
+	{
+		MEDIA_BUS_FMT_SGBRG12_1X12,
+		12,
+	},
+	{
+		MEDIA_BUS_FMT_SGRBG12_1X12,
+		12,
+	},
+	{
+		MEDIA_BUS_FMT_SRGGB12_1X12,
+		12,
+	}
 };
+
+/*
+ * vfe_get_bpp - map media bus format to bits per pixel
+ * @code: media bus format code
+ *
+ * Return number of bits per pixel
+ */
+static u8 vfe_get_bpp(u32 code)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(vfe_formats); i++)
+		if (code == vfe_formats[i].code)
+			break;
+
+	return vfe_formats[i].bpp;
+}
 
 static inline void vfe_reg_clr(struct vfe_device *vfe, u32 reg, u32 clr_bits)
 {
@@ -1729,6 +1797,78 @@ static irqreturn_t vfe_isr(int irq, void *dev)
 }
 
 /*
+ * vfe_set_clock_rates - Calculate and set clock rates on VFE module
+ * @vfe: VFE device
+ */
+static int vfe_set_clock_rates(struct vfe_device *vfe)
+{
+	struct device *dev = to_device(vfe);
+	u32 pixel_clock[MSM_VFE_LINE_NUM];
+	int i, j;
+	int ret;
+
+	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
+		ret = camss_get_pixel_clock(&vfe->line[i].subdev.entity,
+					    &pixel_clock[i]);
+		if (ret)
+			pixel_clock[i] = 0;
+	}
+
+	for (i = 0; i < vfe->nclocks; i++) {
+		struct camss_clock *clock = &vfe->clock[i];
+
+		if (!strcmp(clock->name, "camss_vfe_vfe_clk")) {
+			u32 min_rate = 0;
+			unsigned long rate;
+
+			for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
+				u32 tmp;
+				u8 bpp;
+
+				if (i == VFE_LINE_PIX) {
+					tmp = pixel_clock[i] * 2;
+				} else {
+					bpp = vfe_get_bpp(vfe->line[i].fmt[MSM_VFE_PAD_SINK].code);
+					tmp = pixel_clock[i] * bpp * 2 / 64;
+				}
+
+				if (min_rate < tmp)
+					min_rate = tmp;
+			}
+
+			for (j = 0; j < clock->nfreqs; j++)
+				if (min_rate < clock->freq[j])
+					break;
+
+			if (j == clock->nfreqs) {
+				dev_err(dev,
+					"Pixel clock is too high for VFE");
+				return -EINVAL;
+			}
+
+			/* if sensor pixel clock is not available */
+			/* set highest possible VFE clock rate */
+			if (min_rate == 0)
+				j = clock->nfreqs - 1;
+
+			rate = clk_round_rate(clock->clk, clock->freq[j]);
+			if (rate < 0) {
+				dev_err(dev, "clk round rate failed\n");
+				return -EINVAL;
+			}
+
+			ret = clk_set_rate(clock->clk, rate);
+			if (ret < 0) {
+				dev_err(dev, "clk set rate failed\n");
+				return ret;
+			}
+		}
+	}
+
+	return 0;
+}
+
+/*
  * vfe_get - Power up and reset VFE module
  * @vfe: VFE Device
  *
@@ -1741,6 +1881,10 @@ static int vfe_get(struct vfe_device *vfe)
 	mutex_lock(&vfe->power_lock);
 
 	if (vfe->power_count == 0) {
+		ret = vfe_set_clock_rates(vfe);
+		if (ret < 0)
+			goto error_clocks;
+
 		ret = camss_enable_clocks(vfe->nclocks, vfe->clock,
 					  to_device(vfe));
 		if (ret < 0)
@@ -2035,7 +2179,7 @@ static void vfe_try_format(struct vfe_line *line,
 		/* Set format on sink pad */
 
 		for (i = 0; i < ARRAY_SIZE(vfe_formats); i++)
-			if (fmt->code == vfe_formats[i])
+			if (fmt->code == vfe_formats[i].code)
 				break;
 
 		/* If not found, use UYVY as default */
@@ -2193,7 +2337,7 @@ static int vfe_enum_mbus_code(struct v4l2_subdev *sd,
 		if (code->index >= ARRAY_SIZE(vfe_formats))
 			return -EINVAL;
 
-		code->code = vfe_formats[code->index];
+		code->code = vfe_formats[code->index].code;
 	} else {
 		if (code->index > 0)
 			return -EINVAL;
@@ -2496,7 +2640,7 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 	struct resource *r;
 	struct camss *camss = to_camss(vfe);
 
-	int i;
+	int i, j;
 	int ret;
 
 	mutex_init(&vfe->power_lock);
@@ -2559,23 +2703,30 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 		return -ENOMEM;
 
 	for (i = 0; i < vfe->nclocks; i++) {
-		vfe->clock[i] = devm_clk_get(dev, res->clock[i]);
-		if (IS_ERR(vfe->clock[i]))
-			return PTR_ERR(vfe->clock[i]);
+		struct camss_clock *clock = &vfe->clock[i];
 
-		if (res->clock_rate[i]) {
-			long clk_rate = clk_round_rate(vfe->clock[i],
-						       res->clock_rate[i]);
-			if (clk_rate < 0) {
-				dev_err(dev, "clk round rate failed\n");
-				return -EINVAL;
-			}
-			ret = clk_set_rate(vfe->clock[i], clk_rate);
-			if (ret < 0) {
-				dev_err(dev, "clk set rate failed\n");
-				return ret;
-			}
+		clock->clk = devm_clk_get(dev, res->clock[i]);
+		if (IS_ERR(clock->clk))
+			return PTR_ERR(clock->clk);
+
+		clock->name = res->clock[i];
+
+		clock->nfreqs = 0;
+		while (res->clock_rate[i][clock->nfreqs])
+			clock->nfreqs++;
+
+		if (!clock->nfreqs) {
+			clock->freq = NULL;
+			continue;
 		}
+
+		clock->freq = devm_kzalloc(dev, clock->nfreqs *
+					   sizeof(*clock->freq), GFP_KERNEL);
+		if (!clock->freq)
+			return -ENOMEM;
+
+		for (j = 0; j < clock->nfreqs; j++)
+			clock->freq[j] = res->clock_rate[i][j];
 	}
 
 	init_completion(&vfe->reset_complete);
