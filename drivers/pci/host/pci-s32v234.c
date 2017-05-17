@@ -903,7 +903,7 @@ static int s32v234_pcie_deassert_core_reset(struct pcie_port *pp)
 	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
 
 	/* allow the clocks to stabilize */
-	mdelay(10);
+	mdelay(PCIE_CX_CPL_BASE_TIMER_VALUE);
 	/*
 	 * Release the PCIe PHY reset here, that we have set in
 	 * s32v234_pcie_init_phy() now
@@ -911,7 +911,7 @@ static int s32v234_pcie_deassert_core_reset(struct pcie_port *pp)
 	if (is_S32V234_pcie(s32v234_pcie))
 		regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
 		SRC_GPR5_GPR_PCIE_BUTTON_RST_N, 0);
-	mdelay(10);
+	mdelay(PCIE_CX_CPL_BASE_TIMER_VALUE);
 	return 0;
 
 }
@@ -944,14 +944,14 @@ static int s32v234_pcie_init_phy(struct pcie_port *pp)
 
 	regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
 			SRC_GPR5_PCIE_APP_LTSSM_ENABLE, 0 << 10);
-	mdelay(10);
+	mdelay(PCIE_CX_CPL_BASE_TIMER_VALUE);
 	regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
 			SRC_GPR5_PCIE_DEVICE_TYPE_MASK,
 			PCI_EXP_TYPE_ROOT_PORT << 1);
-	mdelay(10);
+	mdelay(PCIE_CX_CPL_BASE_TIMER_VALUE);
 	regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
 			SRC_GPR5_PCIE_PHY_LOS_LEVEL_MASK, (0x9 << 22));
-	mdelay(10);
+	mdelay(PCIE_CX_CPL_BASE_TIMER_VALUE);
 	return 0;
 }
 
@@ -1196,7 +1196,7 @@ static void s32v234_pcie_shutdown(struct platform_device *pdev)
 
 	/* bring down link, so bootloader gets clean state in case of reboot */
 	s32v234_pcie_assert_core_reset(&s32v234_pcie->pp);
-	mdelay(10);
+	mdelay(PCIE_CX_CPL_BASE_TIMER_VALUE);
 }
 
 /* link_req_rst_not IRQ handler for RC */
