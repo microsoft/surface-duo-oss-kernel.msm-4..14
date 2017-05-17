@@ -686,24 +686,6 @@ static void s32v234_pcie_setup_ep(struct pcie_port *pp)
 	}
 }
 
-static irqreturn_t s32v234_pcie_link_req_rst_not_handler(int irq, void *arg)
-{
-	struct pcie_port *pp = arg;
-	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
-
-	regmap_update_bits(s32v234_pcie->src, SRC_PCIE_CONFIG0,
-		SRC_CONFIG0_PCIE_LNK_REQ_RST_CLR, 1);
-	s32v234_pcie_setup_ep(pp);
-	regmap_update_bits(s32v234_pcie->src, SRC_GPR11,
-				SRC_GPR11_PCIE_PCIE_CFG_READY,
-				SRC_GPR11_PCIE_PCIE_CFG_READY);
-	if (s32v234_pcie_ignore_err009852()) {
-		restore_inb_atu(pp);
-		restore_outb_atu(pp);
-	}
-	return IRQ_HANDLED;
-}
-
 int s32v_pcie_setup_outbound(void *data)
 {
 	int ret = 0;
@@ -742,6 +724,26 @@ int s32v_pcie_setup_inbound(void *data)
 	return ret;
 }
 EXPORT_SYMBOL(s32v_pcie_setup_inbound);
+
+/* link_req_rst_not IRQ handler for EP */
+static irqreturn_t s32v234_pcie_link_req_rst_not_handler(int irq, void *arg)
+{
+	struct pcie_port *pp = arg;
+	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
+
+	regmap_update_bits(s32v234_pcie->src, SRC_PCIE_CONFIG0,
+		SRC_CONFIG0_PCIE_LNK_REQ_RST_CLR, 1);
+	s32v234_pcie_setup_ep(pp);
+	regmap_update_bits(s32v234_pcie->src, SRC_GPR11,
+				SRC_GPR11_PCIE_PCIE_CFG_READY,
+				SRC_GPR11_PCIE_PCIE_CFG_READY);
+	if (s32v234_pcie_ignore_err009852()) {
+		restore_inb_atu(pp);
+		restore_outb_atu(pp);
+	}
+	return IRQ_HANDLED;
+}
+
 #endif /* CONFIG_PCI_S32V234_EP */
 
 #ifndef CONFIG_PCI_S32V234_EP
@@ -912,6 +914,28 @@ static int s32v234_pcie_deassert_core_reset(struct pcie_port *pp)
 	mdelay(10);
 	return 0;
 
+}
+
+/* Perform a soft-reset of the PCIE core. Needed e.g. in the case of a
+ * 'link_req_rst_not' interrupt.
+ */
+static void s32v234_pcie_soft_reset(struct s32v234_pcie *pcie)
+{
+	struct pcie_port *pp = &pcie->pp;
+
+	/* Temporarily deassert 'app_ltssm_enable' */
+	regmap_update_bits(pcie->src, SRC_GPR5,
+			   SRC_GPR5_PCIE_APP_LTSSM_ENABLE, 0);
+	mdelay(PCIE_CX_CPL_BASE_TIMER_VALUE);
+	regmap_update_bits(pcie->src, SRC_GPR5,
+			   SRC_GPR5_PCIE_APP_LTSSM_ENABLE,
+			   SRC_GPR5_PCIE_APP_LTSSM_ENABLE);
+
+	/* Reset PCIE core */
+	s32v234_pcie_assert_core_reset(pp);
+	mdelay(PCIE_CX_CPL_BASE_TIMER_VALUE);
+	s32v234_pcie_deassert_core_reset(pp);
+	mdelay(PCIE_CX_CPL_BASE_TIMER_VALUE);
 }
 
 static int s32v234_pcie_init_phy(struct pcie_port *pp)
@@ -1174,6 +1198,32 @@ static void s32v234_pcie_shutdown(struct platform_device *pdev)
 	s32v234_pcie_assert_core_reset(&s32v234_pcie->pp);
 	mdelay(10);
 }
+
+/* link_req_rst_not IRQ handler for RC */
+static irqreturn_t s32v234_pcie_link_req_rst_not_handler(int irq, void *arg)
+{
+	struct pcie_port *pp = arg;
+	u32 rc;
+	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
+
+	regmap_update_bits(s32v234_pcie->src, SRC_PCIE_CONFIG0,
+			   SRC_CONFIG0_PCIE_LNK_REQ_RST_CLR, 1);
+
+	/* Note that this interrupt can be shared - e.g. with a USB-PCI device.
+	 * However, we can't read the "link_req_rst_not" signal directly;
+	 * our best heuristic is to look at the PHY link state and only
+	 * if it is down acknowledge the interrupt as ours.
+	 */
+	rc = readl(pp->dbi_base + PCIE_PHY_DEBUG_R1);
+	if ((rc & PCIE_PHY_DEBUG_R1_XMLH_LINK_UP) ||
+	    (rc & PCIE_PHY_DEBUG_R1_XMLH_LINK_IN_TRAINING))
+		return IRQ_NONE;
+
+	/* Must reset the PCIE core, according to the reference manual */
+	s32v234_pcie_soft_reset(s32v234_pcie);
+
+	return IRQ_HANDLED;
+}
 #endif /* !CONFIG_PCI_S32V234_EP */
 
 static int s32v234_pcie_probe(struct platform_device *pdev)
@@ -1192,6 +1242,9 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	pp = &s32v234_pcie->pp;
+	#ifdef CONFIG_PCI_S32V234_EP
+	pcie_port_ep = pp;
+	#endif
 	pp->dev = &pdev->dev;
 
 	/* Added for PCI abort handling */
@@ -1213,20 +1266,6 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 		return ret;
 		platform_set_drvdata(pdev, s32v234_pcie);
 	#else
-	pcie_port_ep = pp;
-	pp->link_req_rst_not_irq = platform_get_irq_byname(pdev,
-					"link_req_rst_not");
-	if (pp->link_req_rst_not_irq <= 0) {
-		dev_err(&pdev->dev, "failed to get link_req_rst_not irq\n");
-		return -ENODEV;
-	}
-	ret = devm_request_irq(&pdev->dev, pp->link_req_rst_not_irq,
-		s32v234_pcie_link_req_rst_not_handler,
-		IRQF_SHARED, "link_req_rst_not", pp);
-	if (ret) {
-		dev_err(&pdev->dev, "failed to request link_req_rst_not irq\n");
-		return -ENODEV;
-	}
 	#ifdef CONFIG_PCI_DW_DMA
 	pp->dma_irq = platform_get_irq_byname(pdev, "dma");
 	if (pp->dma_irq <= 0) {
@@ -1260,6 +1299,20 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 	pp->dbi_base +  PCIE_MSI_CAP);
 
 	#endif /* CONFIG_PCI_S32V234_EP */
+
+	pp->link_req_rst_not_irq = platform_get_irq_byname(pdev,
+					"link_req_rst_not");
+	if (pp->link_req_rst_not_irq <= 0) {
+		dev_err(&pdev->dev, "failed to get link_req_rst_not irq\n");
+		return -ENODEV;
+	}
+	ret = devm_request_irq(&pdev->dev, pp->link_req_rst_not_irq,
+		s32v234_pcie_link_req_rst_not_handler,
+		IRQF_SHARED, "link_req_rst_not", pp);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to request link_req_rst_not irq\n");
+		return -ENODEV;
+	}
 
 	return 0;
 }

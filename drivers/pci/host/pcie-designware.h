@@ -6,6 +6,9 @@
  *
  * Author: Jingoo Han <jg1.han@samsung.com>
  *
+ * Customizations for the NXP S32V PCIE driver
+ * Copyright 2017 NXP
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -131,9 +134,7 @@ struct pcie_port {
 	struct pcie_host_ops	*ops;
 	int			msi_irq;
 	int			dma_irq;
-	#ifdef CONFIG_PCI_S32V234_EP
 	int			link_req_rst_not_irq;
-	#endif
 	struct irq_domain	*irq_domain;
 	unsigned long		msi_data;
 	DECLARE_BITMAP(msi_irq_in_use, MAX_MSI_IRQS);
