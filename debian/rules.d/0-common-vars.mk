@@ -160,6 +160,9 @@ do_common_headers_indep=true
 # add a 'full source' mode
 do_full_source=false
 
+# build common tools
+do_tools_common=true
+
 # build tools
 ifneq ($(wildcard $(CURDIR)/tools),)
 	ifeq ($(do_tools),)
