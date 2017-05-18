@@ -1799,6 +1799,8 @@ static irqreturn_t vfe_isr(int irq, void *dev)
 /*
  * vfe_set_clock_rates - Calculate and set clock rates on VFE module
  * @vfe: VFE device
+ *
+ * Return 0 on success or a negative error code otherwise
  */
 static int vfe_set_clock_rates(struct vfe_device *vfe)
 {
@@ -1828,7 +1830,8 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 				if (i == VFE_LINE_PIX) {
 					tmp = pixel_clock[i] * 2;
 				} else {
-					bpp = vfe_get_bpp(vfe->line[i].fmt[MSM_VFE_PAD_SINK].code);
+					bpp = vfe_get_bpp(vfe->line[i].
+						fmt[MSM_VFE_PAD_SINK].code);
 					tmp = pixel_clock[i] * bpp * 2 / 64;
 				}
 
@@ -1869,6 +1872,58 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 }
 
 /*
+ * vfe_check_clock_rates - Check current clock rates on VFE module
+ * @vfe: VFE device
+ *
+ * Return 0 if current clock rates are suitable for a new pipeline
+ * or a negative error code otherwise
+ */
+static int vfe_check_clock_rates(struct vfe_device *vfe)
+{
+	u32 pixel_clock[MSM_VFE_LINE_NUM];
+	int i;
+	int ret;
+
+	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
+		ret = camss_get_pixel_clock(&vfe->line[i].subdev.entity,
+					    &pixel_clock[i]);
+		if (ret)
+			pixel_clock[i] = 0;
+	}
+
+	for (i = 0; i < vfe->nclocks; i++) {
+		struct camss_clock *clock = &vfe->clock[i];
+
+		if (!strcmp(clock->name, "camss_vfe_vfe_clk")) {
+			u32 min_rate = 0;
+			unsigned long rate;
+
+			for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
+				u32 tmp;
+				u8 bpp;
+
+				if (i == VFE_LINE_PIX) {
+					tmp = pixel_clock[i] * 2;
+				} else {
+					bpp = vfe_get_bpp(vfe->line[i].
+						fmt[MSM_VFE_PAD_SINK].code);
+					tmp = pixel_clock[i] * bpp * 2 / 64;
+				}
+
+				if (min_rate < tmp)
+					min_rate = tmp;
+			}
+
+			rate = clk_get_rate(clock->clk);
+			if (rate < min_rate)
+				return -EBUSY;
+		}
+	}
+
+	return 0;
+}
+
+/*
  * vfe_get - Power up and reset VFE module
  * @vfe: VFE Device
  *
@@ -1897,6 +1952,10 @@ static int vfe_get(struct vfe_device *vfe)
 		vfe_reset_output_maps(vfe);
 
 		vfe_init_outputs(vfe);
+	} else {
+		ret = vfe_check_clock_rates(vfe);
+		if (ret < 0)
+			goto error_clocks;
 	}
 	vfe->power_count++;
 
