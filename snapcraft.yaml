@@ -1,4 +1,4 @@
-name: pi2-kernel
+name: pi2-kernel-rt
 version: null
 version-script: |
     . debian/debian.env
@@ -14,7 +14,8 @@ parts:
     plugin: kernel
     source: .
     source-type: git
-    kconfigflavour: raspi2
+    source-branch: raspi2-rt
+    kconfigflavour: raspi2-rt
     kconfigs:
       - CONFIG_DEBUG_INFO=n
       - CONFIG_PREEMPT=y
