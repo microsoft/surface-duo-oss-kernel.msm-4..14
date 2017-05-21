@@ -354,6 +354,9 @@ static int mdp5_plane_atomic_check(struct drm_plane *plane,
 			}
 			mdp5_pipe_release(state->state, hwpipe);
 		}
+	} else {
+		mdp5_pipe_release(state->state, mdp5_state->hwpipe);
+		mdp5_state->hwpipe = NULL;
 	}
 
 	return 0;
