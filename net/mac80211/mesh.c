@@ -916,6 +916,21 @@ void ieee80211_stop_mesh(struct ieee80211_sub_if_data *sdata)
 	ieee80211_configure_filter(local);
 }
 
+static void ieee80211_mesh_csa_mark_radar(struct ieee80211_sub_if_data *sdata)
+{
+	int err;
+
+	/* if the current channel is a DFS channel, mark the channel as
+	 * unavailable.
+	 */
+	err = cfg80211_chandef_dfs_required(sdata->local->hw.wiphy,
+					    &sdata->vif.bss_conf.chandef,
+					    NL80211_IFTYPE_MESH_POINT);
+	if (err > 0)
+		cfg80211_radar_event(sdata->local->hw.wiphy,
+				     &sdata->vif.bss_conf.chandef, GFP_ATOMIC);
+}
+
 static bool
 ieee80211_mesh_process_chnswitch(struct ieee80211_sub_if_data *sdata,
 				 struct ieee802_11_elems *elems, bool beacon)
@@ -945,7 +960,6 @@ ieee80211_mesh_process_chnswitch(struct ieee80211_sub_if_data *sdata,
 	}
 
 	memset(&params, 0, sizeof(params));
-	memset(&csa_ie, 0, sizeof(csa_ie));
 	err = ieee80211_parse_ch_switch_ie(sdata, elems, sband->band,
 					   sta_flags, sdata->vif.addr,
 					   &csa_ie);
@@ -954,11 +968,19 @@ ieee80211_mesh_process_chnswitch(struct ieee80211_sub_if_data *sdata,
 	if (err)
 		return false;
 
+	/* Mark the channel unavailable if the reason for the switch is
+	 * regulatory.
+	 */
+	if (csa_ie.reason_code == WLAN_REASON_MESH_CHAN_REGULATORY)
+		ieee80211_mesh_csa_mark_radar(sdata);
+
 	params.chandef = csa_ie.chandef;
 	params.count = csa_ie.count;
 
 	if (!cfg80211_chandef_usable(sdata->local->hw.wiphy, &params.chandef,
-				     IEEE80211_CHAN_DISABLED)) {
+				     IEEE80211_CHAN_DISABLED) ||
+	    !cfg80211_reg_can_beacon(sdata->local->hw.wiphy, &params.chandef,
+				     NL80211_IFTYPE_MESH_POINT)) {
 		sdata_info(sdata,
 			   "mesh STA %pM switches to unsupported channel (%d MHz, width:%d, CF1/2: %d/%d MHz), aborting\n",
 			   sdata->vif.addr,
@@ -974,9 +996,16 @@ ieee80211_mesh_process_chnswitch(struct ieee80211_sub_if_data *sdata,
 					    NL80211_IFTYPE_MESH_POINT);
 	if (err < 0)
 		return false;
-	if (err > 0)
-		/* TODO: DFS not (yet) supported */
+	if (err > 0 && !ifmsh->userspace_handles_dfs) {
+		sdata_info(sdata,
+			   "mesh STA %pM switches to channel requiring DFS (%d MHz, width:%d, CF1/2: %d/%d MHz), aborting\n",
+			   sdata->vif.addr,
+			   params.chandef.chan->center_freq,
+			   params.chandef.width,
+			   params.chandef.center_freq1,
+			   params.chandef.center_freq2);
 		return false;
+	}
 
 	params.radar_required = err;
 
@@ -1233,7 +1262,7 @@ static void mesh_rx_csa_frame(struct ieee80211_sub_if_data *sdata,
 	pos = mgmt->u.action.u.chan_switch.variable;
 	baselen = offsetof(struct ieee80211_mgmt,
 			   u.action.u.chan_switch.variable);
-	ieee802_11_parse_elems(pos, len - baselen, false, &elems);
+	ieee802_11_parse_elems(pos, len - baselen, true, &elems);
 
 	ifmsh->chsw_ttl = elems.mesh_chansw_params_ie->mesh_ttl;
 	if (!--ifmsh->chsw_ttl)
