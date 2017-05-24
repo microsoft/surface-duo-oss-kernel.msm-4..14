@@ -15,6 +15,7 @@
 
 struct kirin_pcie *g_kirin_pcie;
 
+int kirin_pcie_enumerate(void);
 static int kirin_pcie_link_up(struct pcie_port *pp);
 
 static inline void kirin_elb_writel(struct kirin_pcie *pcie, u32 val, u32 reg)
@@ -473,6 +474,10 @@ static int kirin_pcie_probe(struct platform_device *pdev)
 	ret = kirin_add_pcie_port(pp, pdev);
 	if (ret)
 		return ret;
+
+	ret = kirin_pcie_enumerate();
+	if (ret)
+		dev_err(&pdev->dev, "enumerate failed with %d\n", ret);
 
 	platform_set_drvdata(pdev, pcie);
 
