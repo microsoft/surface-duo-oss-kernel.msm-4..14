@@ -859,6 +859,10 @@ static int hugepage_vma_revalidate(struct mm_struct *mm, unsigned long address,
 		return SCAN_ADDRESS_RANGE;
 	if (!hugepage_vma_check(vma))
 		return SCAN_VMA_CHECK;
+
+	/* never try to collapse stack gap */
+	if (stack_guard_area(vma, hstart) || stack_guard_area(vma, hend))
+		return SCAN_ADDRESS_RANGE;
 	return 0;
 }
 

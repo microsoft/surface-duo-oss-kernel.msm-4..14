@@ -660,6 +660,9 @@ int do_huge_pmd_anonymous_page(struct vm_fault *vmf)
 
 	if (haddr < vma->vm_start || haddr + HPAGE_PMD_SIZE > vma->vm_end)
 		return VM_FAULT_FALLBACK;
+	if (stack_guard_area(vma, haddr) ||
+			stack_guard_area(vma, haddr + HPAGE_PMD_SIZE))
+		return VM_FAULT_FALLBACK;
 	if (unlikely(anon_vma_prepare(vma)))
 		return VM_FAULT_OOM;
 	if (unlikely(khugepaged_enter(vma, vma->vm_flags)))
