@@ -117,7 +117,8 @@
 			     <1 14 0xf08>,
 			     <1 11 0xf08>,
 			     <1 10 0xf08>;
-		clock-frequency = <12000000>;
+		/* Will be modified by u-boot according to chip version. */
+		clock-frequency = <10000000>;
 	};
 
 	soc {
