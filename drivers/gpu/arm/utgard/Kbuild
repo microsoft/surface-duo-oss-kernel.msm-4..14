@@ -119,6 +119,9 @@ mali-y += \
 	linux/mali_pmu_power_up_down.o \
 	__malidrv_build_info.o
 
+# Files generated that shall be removed upon make clean
+clean-files := __malidrv_build_info.c
+
 ifneq ($(wildcard $(src)/linux/mali_slp_global_lock.c),)
 	mali-y += linux/mali_slp_global_lock.o
 endif
