@@ -541,6 +541,8 @@ static void ieee80211_report_used_skb(struct ieee80211_local *local,
 	} else if (info->ack_frame_id) {
 		ieee80211_report_ack_skb(local, info, acked, dropped);
 	}
+
+	ieee80211_led_tx(local);
 }
 
 /*
@@ -881,8 +883,6 @@ void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 	}
 
 	rcu_read_unlock();
-
-	ieee80211_led_tx(local);
 
 	/* SNMP counters
 	 * Fragments are passed to low-level drivers as separate skbs, so these
