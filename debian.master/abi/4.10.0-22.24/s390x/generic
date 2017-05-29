@@ -3088,6 +3088,7 @@ EXPORT_SYMBOL vmlinux 0x00000000	iov_iter_init
 EXPORT_SYMBOL vmlinux 0x00000000	iov_iter_kvec
 EXPORT_SYMBOL vmlinux 0x00000000	iov_iter_npages
 EXPORT_SYMBOL vmlinux 0x00000000	iov_iter_pipe
+EXPORT_SYMBOL vmlinux 0x00000000	iov_iter_revert
 EXPORT_SYMBOL vmlinux 0x00000000	iov_iter_single_seg_count
 EXPORT_SYMBOL vmlinux 0x00000000	iov_iter_zero
 EXPORT_SYMBOL vmlinux 0x00000000	iov_shorten
@@ -6711,8 +6712,8 @@ EXPORT_SYMBOL_GPL net/l2tp/l2tp_core 0x00000000	l2tp_session_create
 EXPORT_SYMBOL_GPL net/l2tp/l2tp_core 0x00000000	l2tp_session_delete
 EXPORT_SYMBOL_GPL net/l2tp/l2tp_core 0x00000000	l2tp_session_find
 EXPORT_SYMBOL_GPL net/l2tp/l2tp_core 0x00000000	l2tp_session_find_by_ifname
-EXPORT_SYMBOL_GPL net/l2tp/l2tp_core 0x00000000	l2tp_session_find_nth
 EXPORT_SYMBOL_GPL net/l2tp/l2tp_core 0x00000000	l2tp_session_free
+EXPORT_SYMBOL_GPL net/l2tp/l2tp_core 0x00000000	l2tp_session_get_nth
 EXPORT_SYMBOL_GPL net/l2tp/l2tp_core 0x00000000	l2tp_session_queue_purge
 EXPORT_SYMBOL_GPL net/l2tp/l2tp_core 0x00000000	l2tp_session_set_header_len
 EXPORT_SYMBOL_GPL net/l2tp/l2tp_core 0x00000000	l2tp_tunnel_closeall

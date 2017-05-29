@@ -4071,6 +4071,8 @@ snd-soc-rt5640
 snd-soc-rt5645
 snd-soc-rt5651
 snd-soc-rt5670
+snd-soc-rt5677
+snd-soc-rt5677-spi
 snd-soc-sgtl5000
 snd-soc-si476x
 snd-soc-sigmadsp
@@ -4089,6 +4091,7 @@ snd-soc-ssm2602-i2c
 snd-soc-ssm2602-spi
 snd-soc-ssm4567
 snd-soc-sst-acpi
+snd-soc-sst-bdw-rt5677-mach
 snd-soc-sst-broadwell
 snd-soc-sst-bxt-da7219_max98357a
 snd-soc-sst-bxt-rt298
