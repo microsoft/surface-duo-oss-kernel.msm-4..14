@@ -263,6 +263,8 @@ static int kirin_fb_ioctl(struct fb_info *info, unsigned int cmd, unsigned long 
 	case HISI_DRM_ONLINE_PLAY:
 		ret = kirin_dss_online_compose(info, argp);
 		break;
+	case FBIO_WAITFORVSYNC:
+		ret = 0;
 	default:
 		break;
 	}
