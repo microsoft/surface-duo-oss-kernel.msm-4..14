@@ -1,4 +1,4 @@
-linux (4.11.0-5.10) artful; urgency=low
+linux-hwe-edge (4.11.0-5.10~16.04.1) xenial; urgency=low
 
   [ Seth Forshee ]
 
