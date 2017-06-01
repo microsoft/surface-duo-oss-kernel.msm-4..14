@@ -449,6 +449,7 @@ void intel_dvo_init(struct drm_device *dev)
 		bool dvoinit;
 		enum pipe pipe;
 		uint32_t dpll[I915_MAX_PIPES];
+		enum port port = -1;
 
 		/* Allow the I2C driver info to specify the GPIO to be used in
 		 * special cases, but otherwise default to what's defined
@@ -497,7 +498,9 @@ void intel_dvo_init(struct drm_device *dev)
 			continue;
 
 		intel_encoder->type = INTEL_OUTPUT_DVO;
+		intel_encoder->port = port;
 		intel_encoder->crtc_mask = (1 << 0) | (1 << 1);
+
 		switch (dvo->type) {
 		case INTEL_DVO_CHIP_TMDS:
 			intel_encoder->cloneable = (1 << INTEL_OUTPUT_ANALOG) |
