@@ -550,6 +550,7 @@ intel_dp_create_fake_mst_encoder(struct intel_digital_port *intel_dig_port, enum
 			 DRM_MODE_ENCODER_DPMST);
 
 	intel_encoder->type = INTEL_OUTPUT_DP_MST;
+	intel_encoder->port = intel_dig_port->port;
 	intel_encoder->crtc_mask = 0x7;
 	intel_encoder->cloneable = 0;
 
