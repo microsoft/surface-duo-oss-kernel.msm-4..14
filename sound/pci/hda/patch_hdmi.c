@@ -1827,7 +1827,7 @@ static int generic_hdmi_playback_pcm_prepare(struct hda_pcm_stream *hinfo,
 	/* Todo: add DP1.2 MST audio support later */
 	if (acomp && acomp->ops && acomp->ops->sync_audio_rate)
 		acomp->ops->sync_audio_rate(acomp->dev,
-				intel_pin2port(pin_nid),
+				intel_pin2port(pin_nid), -1,
 				runtime->rate);
 
 	non_pcm = check_non_pcm_per_cvt(codec, cvt_nid);
@@ -2350,7 +2350,7 @@ static void haswell_set_power_state(struct hda_codec *codec, hda_nid_t fg,
 	snd_hda_codec_set_power_to_all(codec, fg, power_state);
 }
 
-static void intel_pin_eld_notify(void *audio_ptr, int port)
+static void intel_pin_eld_notify(void *audio_ptr, int port, int pipe)
 {
 	struct hda_codec *codec = audio_ptr;
 	int pin_nid = port + 0x04;
