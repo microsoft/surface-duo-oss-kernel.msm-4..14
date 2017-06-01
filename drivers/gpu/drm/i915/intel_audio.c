@@ -503,6 +503,7 @@ void intel_audio_codec_enable(struct intel_encoder *intel_encoder)
 	struct i915_audio_component *acomp = dev_priv->audio_component;
 	struct intel_digital_port *intel_dig_port = enc_to_dig_port(encoder);
 	enum port port = intel_dig_port->port;
+	enum pipe pipe = -1;
 
 	connector = drm_select_eld(encoder);
 	if (!connector)
@@ -530,7 +531,8 @@ void intel_audio_codec_enable(struct intel_encoder *intel_encoder)
 	mutex_unlock(&dev_priv->av_mutex);
 
 	if (acomp && acomp->audio_ops && acomp->audio_ops->pin_eld_notify)
-		acomp->audio_ops->pin_eld_notify(acomp->audio_ops->audio_ptr, (int) port);
+		acomp->audio_ops->pin_eld_notify(acomp->audio_ops->audio_ptr,
+						(int) port, (int) pipe);
 }
 
 /**
@@ -548,6 +550,7 @@ void intel_audio_codec_disable(struct intel_encoder *intel_encoder)
 	struct i915_audio_component *acomp = dev_priv->audio_component;
 	struct intel_digital_port *intel_dig_port = enc_to_dig_port(encoder);
 	enum port port = intel_dig_port->port;
+	enum pipe pipe = -1;
 
 	if (dev_priv->display.audio_codec_disable)
 		dev_priv->display.audio_codec_disable(intel_encoder);
@@ -557,7 +560,8 @@ void intel_audio_codec_disable(struct intel_encoder *intel_encoder)
 	mutex_unlock(&dev_priv->av_mutex);
 
 	if (acomp && acomp->audio_ops && acomp->audio_ops->pin_eld_notify)
-		acomp->audio_ops->pin_eld_notify(acomp->audio_ops->audio_ptr, (int) port);
+		acomp->audio_ops->pin_eld_notify(acomp->audio_ops->audio_ptr,
+						(int) port, (int) pipe);
 }
 
 /**
