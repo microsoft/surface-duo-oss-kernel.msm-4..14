@@ -193,6 +193,29 @@ static const struct ieee80211_iface_combination rsi_iface_combinations[] = {
 };
 #endif
 
+#ifdef CONFIG_CARACALLA_BOARD
+struct reg_map {
+	char country_code[2];
+	u8 region_code; 
+};
+
+static struct reg_map rsi_caracalla_reg_db[MAX_REG_COUNTRIES] = {
+	{"AU", NL80211_DFS_ETSI}, {"AT", NL80211_DFS_ETSI},
+	{"BE", NL80211_DFS_ETSI}, {"BR", NL80211_DFS_WORLD},
+	{"CA", NL80211_DFS_FCC}, {"CL", NL80211_DFS_WORLD},
+	{"CN", NL80211_DFS_WORLD}, {"CO", NL80211_DFS_FCC},
+	{"CZ", NL80211_DFS_ETSI}, {"DK", NL80211_DFS_ETSI},
+	{"FI", NL80211_DFS_ETSI}, {"FR", NL80211_DFS_ETSI},
+	{"DE", NL80211_DFS_ETSI}, {"HK", NL80211_DFS_WORLD},
+	{"IN", NL80211_DFS_WORLD}, {"ID", NL80211_DFS_WORLD},
+	{"IE", NL80211_DFS_ETSI}, {"IL", NL80211_DFS_ETSI},
+	{"IT", NL80211_DFS_ETSI}, {"JP", NL80211_DFS_JP},
+	{"KR", NL80211_DFS_WORLD}, {"LU", NL80211_DFS_ETSI},
+	{"MY", NL80211_DFS_WORLD}, {"MX", NL80211_DFS_FCC},
+	{"MA", NL80211_DFS_WORLD}, {"NL", NL80211_DFS_ETSI},
+};
+#endif
+
 struct ieee80211_vif *rsi_get_vif(struct rsi_hw *adapter, u8 *mac)
 {
 	u8 i;
@@ -336,6 +359,9 @@ static int rsi_mac80211_hw_scan_start(struct ieee80211_hw *hw,
 	int ii =0;
 
 	ven_rsi_dbg(INFO_ZONE, "***** Hardware scan start *****\n");
+
+	if (common->fsm_state != FSM_MAC_INIT_DONE)
+		return -ENODEV;
 
 	if (scan_req->n_channels == 0)
 		return -EINVAL;
@@ -584,6 +610,9 @@ static void rsi_mac80211_stop(struct ieee80211_hw *hw)
 	struct cfg80211_scan_info info;
 #endif
 	ven_rsi_dbg(ERR_ZONE, "===> Interface DOWN <===\n");
+
+	if (common->fsm_state != FSM_MAC_INIT_DONE)
+		return;
 
 	mutex_lock(&common->mutex);
 	
@@ -1001,6 +1030,9 @@ static int rsi_mac80211_config(struct ieee80211_hw *hw,
 	struct ieee80211_conf *conf = &hw->conf;
 	int status = -EOPNOTSUPP;
 
+	if (common->fsm_state != FSM_MAC_INIT_DONE)
+		return -ENODEV;
+
 	mutex_lock(&common->mutex);
 
 	/* channel */
@@ -1139,6 +1171,9 @@ static void rsi_mac80211_bss_info_changed(struct ieee80211_hw *hw,
 	ven_rsi_dbg(INFO_ZONE, "%s: BSS status changed; changed=%08x\n",
 		__func__, changed);
 
+	if (common->fsm_state != FSM_MAC_INIT_DONE)
+		return;
+
 	mutex_lock(&common->mutex);
 
 	if ((changed & BSS_CHANGED_ASSOC) &&
@@ -1176,10 +1211,13 @@ static void rsi_mac80211_bss_info_changed(struct ieee80211_hw *hw,
 			bss->dtim_period);
 
 		/* If UAPSD is updated send ps params */
-		if (common->uapsd_bitmap) {
-			ven_rsi_dbg(INFO_ZONE, "Configuring UAPSD\n");
-			rsi_conf_uapsd(adapter);
-		}
+		if (bss->assoc) {
+			if (common->uapsd_bitmap) {
+				ven_rsi_dbg(INFO_ZONE, "Configuring UAPSD\n");
+				rsi_conf_uapsd(adapter);
+			}
+		} else
+			common->uapsd_bitmap = 0;
 	}
 
 	if ((vif->type == NL80211_IFTYPE_STATION) &&
@@ -1300,6 +1338,8 @@ static int rsi_mac80211_conf_tx(struct ieee80211_hw *hw,
 
 	if (params->uapsd)
 		common->uapsd_bitmap |= idx;
+	else
+		common->uapsd_bitmap &= (~idx);
 
 	mutex_unlock(&common->mutex);
 	return 0;
@@ -1985,6 +2025,9 @@ static void rsi_mac80211_sw_scan_start(struct ieee80211_hw *hw,
 	struct rsi_common *common = adapter->priv;
 	struct ieee80211_bss_conf *bss = &adapter->vifs[0]->bss_conf;
 
+	if (common->fsm_state != FSM_MAC_INIT_DONE)
+		return -ENODEV;
+
 	if (common->p2p_enabled)
 		return;
 	if (!bss->assoc)
@@ -2120,6 +2163,8 @@ static const char *regdfs_region_str(enum nl80211_dfs_regions dfs_region)
                 return "ETSI";
         case NL80211_DFS_JP:
                 return "JP";
+	case NL80211_DFS_WORLD:
+		return "WORLD";
         }
         return "Unknown";
 }
@@ -2136,14 +2181,32 @@ static void rsi_reg_notify(struct wiphy *wiphy,
 	struct ieee80211_vif *vif = adapter->vifs[adapter->sc_nvifs -1];
 #endif
 	int i;
+	u8 region_code;
 
 	mutex_lock(&common->mutex);
 
+	ven_rsi_dbg(INFO_ZONE,
+		"%s: country = %s dfs_region = %d\n",
+		__func__, request->alpha2, request->dfs_region);
+
+	region_code = request->dfs_region;
+#ifdef CONFIG_CARACALLA_BOARD
+	for (i = 0; i < ARRAY_SIZE(rsi_caracalla_reg_db); i++) {
+		if (!memcmp(rsi_caracalla_reg_db[i].country_code,
+		            request->alpha2, 2)) {
+			region_code = rsi_caracalla_reg_db[i].region_code;
+			break;
+		}
+	}
+	if (!memcmp(request->alpha2, "00", 2))
+		region_code = NL80211_DFS_JP;
+#endif
+
 	ven_rsi_dbg(ERR_ZONE, "%s: Updating regulatory for region %s\n",
-		__func__, regdfs_region_str(request->dfs_region));
+		__func__, regdfs_region_str(region_code));
 
 	sband = wiphy->bands[NL80211_BAND_2GHZ];
-	switch (request->dfs_region) {
+	switch (region_code) {
 	case NL80211_DFS_FCC:
 		for(i = 0; i < sband->n_channels; i++){
 	 		ch = &sband->channels[i];
@@ -2170,7 +2233,7 @@ static void rsi_reg_notify(struct wiphy *wiphy,
 
 	case NL80211_DFS_UNSET:
 	case NL80211_DFS_ETSI:
-		
+	case NL80211_DFS_WORLD:
 		for(i = 0; i < sband->n_channels; i++){
 	 		ch = &sband->channels[i];
 			
@@ -2208,7 +2271,7 @@ static void rsi_reg_notify(struct wiphy *wiphy,
 	default:
 		ven_rsi_dbg(ERR_ZONE,
 			"Wrong Country region code seleted\ndfs_region = %d\n",
-			request->dfs_region);
+			region_code);
 		break;
 	}
 
@@ -2224,15 +2287,11 @@ static void rsi_reg_notify(struct wiphy *wiphy,
 				ch->flags |= IEEE80211_CHAN_NO_IR;
 		}
 	}
-	
-	ven_rsi_dbg(INFO_ZONE,
-		"country = %s dfs_region = %d\n",
-		request->alpha2, request->dfs_region);
 
 #ifndef CONFIG_HW_SCAN_OFFLOAD 
 	/* If DFS region or country is changed configure back ground scan
 	 * params to device again */
-	if ((adapter->dfs_region != request->dfs_region) ||
+	if ((adapter->dfs_region != region_code) ||
 	    (memcmp(adapter->country, request->alpha2, 2))) {
 		if (common->bgscan_en) {
 			rsi_send_bgscan_params(common, 0);
@@ -2244,7 +2303,15 @@ static void rsi_reg_notify(struct wiphy *wiphy,
 	}
 #endif
 	
-	adapter->dfs_region = request->dfs_region;
+	if (region_code == NL80211_DFS_UNSET)
+		region_code = NL80211_DFS_WORLD;
+	ven_rsi_dbg(INFO_ZONE, "Region code: %s\n", regdfs_region_str(region_code));
+
+	/* Firmware region code values 1 less than the standard
+	 * linux values; At this point DFS_UNSET is not set
+	 * as this is set to WORLD (4)
+	 */
+	adapter->dfs_region = region_code - 1;
 	adapter->country[0] = request->alpha2[0];
 	adapter->country[1] = request->alpha2[1];
 	mutex_unlock(&common->mutex);
@@ -2355,19 +2422,21 @@ fail_wow:
 
 static int rsi_mac80211_resume(struct ieee80211_hw *hw)
 {
-#ifdef CONFIG_VEN_RSI_WOW
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
+#ifdef CONFIG_VEN_RSI_WOW
 	u16 rx_filter_word = 0;
-
-	adapter->priv->wow_flags = 0;
 #endif
+        
+	adapter->priv->wow_flags = 0;
 	
 	ven_rsi_dbg(INFO_ZONE, "%s: mac80211 resume\n", __func__);
 
+	if (common->hibernate_resume)
+		return 0;
+
 #ifdef CONFIG_VEN_RSI_WOW
 	rsi_send_wowlan_request(common, 0, 0);
-	//rx_filter_word = 0xE ;
 
 	rx_filter_word = (ALLOW_DATA_ASSOC_PEER |
 			  ALLOW_CTRL_ASSOC_PEER |
@@ -2378,6 +2447,7 @@ static int rsi_mac80211_resume(struct ieee80211_hw *hw)
 	return 0;
 }
 #endif
+
 char *rsi_vif_type_to_name(enum nl80211_iftype vif_type)
 {
 	switch (vif_type) {
