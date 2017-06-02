@@ -41,7 +41,7 @@ struct rsi_hw;
 
 #include "rsi_ps.h"
 
-#define DRV_VER				"RS9113.NB0.NL.GNU.LNX.1.2.RC9"
+#define DRV_VER				"RS9113.NB0.NL.GNU.LNX.1.2.RC12"
 
 #define ERR_ZONE                        BIT(0) /* Error Msgs		*/
 #define INFO_ZONE                       BIT(1) /* Generic Debug Msgs	*/
@@ -63,7 +63,7 @@ struct rsi_hw;
 #define FSM_BB_RF_PROG_SENT             7
 #define FSM_MAC_INIT_DONE               8
 
-extern u32 ven_rsi_zone_enabled;
+extern u16 ven_rsi_zone_enabled;
 extern __printf(2, 3) void ven_rsi_dbg(u32 zone, const char *fmt, ...);
 void rsi_hex_dump(u32 zone, char *msg_str, const u8 *msg, u32 len);
 
@@ -130,6 +130,9 @@ void rsi_hex_dump(u32 zone, char *msg_str, const u8 *msg, u32 len);
 /* WoWLAN flags */
 #define RSI_WOW_ENABLED			BIT(0)
 #define RSI_WOW_NO_CONNECTION		BIT(1)
+
+#define MAX_REG_COUNTRIES		30
+#define NL80211_DFS_WORLD		4
 
 struct version_info {
 	u16 major;
@@ -327,6 +330,7 @@ struct rsi_common {
 	int tx_power;
 	u8 ant_in_use;
 	bool suspend_in_prog;
+	bool hibernate_resume;
 #ifdef CONFIG_VEN_RSI_WOW
 	u8 wow_flags;
 #endif

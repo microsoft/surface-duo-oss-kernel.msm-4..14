@@ -295,8 +295,6 @@ int rsi_hci_recv_pkt(struct rsi_common *common, u8 *pkt)
 			return 0;
 		}
 
-		rsi_send_rfmode_frame(common);
-
 		ven_rsi_dbg(INFO_ZONE, "Attaching HCI module\n");
 
 		if (rsi_hci_attach(common)) {

@@ -292,6 +292,9 @@ void rsi_core_qos_processor(struct rsi_common *common)
 		if (q_num == INVALID_QUEUE)
 			break;
 
+		if (common->hibernate_resume)
+			break;
+
 		mutex_lock(&common->tx_lock);
 
 		status = adapter->host_intf_ops->check_hw_queue_status(adapter,

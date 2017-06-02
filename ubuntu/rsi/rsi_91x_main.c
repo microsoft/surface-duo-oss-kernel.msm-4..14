@@ -42,7 +42,7 @@
 #include "rsi_coex.h"
 #endif
 
-u32 ven_rsi_zone_enabled =	//INFO_ZONE |
+u16 ven_rsi_zone_enabled =	//INFO_ZONE |
 				//INIT_ZONE |
 				//MGMT_TX_ZONE |
 				//MGMT_RX_ZONE |
@@ -53,6 +53,16 @@ u32 ven_rsi_zone_enabled =	//INFO_ZONE |
 				ERR_ZONE |
 				0;
 EXPORT_SYMBOL_GPL(ven_rsi_zone_enabled);
+MODULE_PARM_DESC(ven_rsi_zone_enabled,
+		 "BIT(0) - ERROR ZONE \
+		  BIT(1) - INFO ZONE \
+		  BIT(2) - INIT ZONE \
+		  BIT(3) - MGMT TX ZONE \
+		  BIT(4) - MGMT RX ZONE \
+		  BIT(5) - DATA TX ZONE \
+		  BIT(6) - DATA RX ZONE \
+		  BIT(7) - FSM ZONE \
+		  BIT(8) - ISR ZONE");
 
 /**
  * ven_rsi_dbg() - This function outputs informational messages.
