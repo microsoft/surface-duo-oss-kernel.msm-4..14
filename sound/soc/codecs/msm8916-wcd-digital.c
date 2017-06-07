@@ -189,6 +189,8 @@
 #define TXN_DMIC_CTL_CLK_SEL_DIV6		0x3
 #define TXN_DMIC_CTL_CLK_SEL_DIV16		0x4
 
+#define DEFAULT_MCLK_RATE 9600000
+
 #define MSM8916_WCD_DIGITAL_RATES (SNDRV_PCM_RATE_8000 | \
 				   SNDRV_PCM_RATE_16000 | \
 				   SNDRV_PCM_RATE_32000 | \
@@ -875,6 +877,9 @@ static int msm8916_wcd_digital_probe(struct platform_device *pdev)
 		dev_err(dev, "failed to enable ahbclk %d\n", ret);
 		return ret;
 	}
+
+	/* set mclk default mclk rate */
+	clk_set_rate(priv->mclk, DEFAULT_MCLK_RATE);
 
 	ret = clk_prepare_enable(priv->mclk);
 	if (ret < 0) {
