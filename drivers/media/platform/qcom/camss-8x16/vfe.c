@@ -367,6 +367,8 @@ static int vfe_word_per_line(uint32_t format, uint32_t pixel_per_line)
 	switch (format) {
 	case V4L2_PIX_FMT_NV12:
 	case V4L2_PIX_FMT_NV21:
+	case V4L2_PIX_FMT_NV16:
+	case V4L2_PIX_FMT_NV61:
 		val = CALC_WORD(pixel_per_line, 1, 8);
 		break;
 	case V4L2_PIX_FMT_YUYV:
@@ -391,6 +393,12 @@ static void vfe_get_wm_sizes(struct v4l2_pix_format_mplane *pix, u8 plane,
 		*bytesperline = pix->plane_fmt[0].bytesperline;
 		if (plane == 1)
 			*height /= 2;
+		break;
+	case V4L2_PIX_FMT_NV16:
+	case V4L2_PIX_FMT_NV61:
+		*width = pix->width;
+		*height = pix->height;
+		*bytesperline = pix->plane_fmt[0].bytesperline;
 		break;
 	}
 }
@@ -589,7 +597,7 @@ static void vfe_set_xbar_cfg(struct vfe_device *vfe, struct vfe_output *output,
 				VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_SHIFT;
 		} else if (i == 1) {
 			reg = VFE_0_BUS_XBAR_CFG_x_M_PAIR_STREAM_EN;
-			if (p == V4L2_PIX_FMT_NV12)
+			if (p == V4L2_PIX_FMT_NV12 || p == V4L2_PIX_FMT_NV16)
 				reg |= VFE_0_BUS_XBAR_CFG_x_M_PAIR_STREAM_SWAP_INTER_INTRA;
 		}
 
@@ -729,6 +737,7 @@ static inline u8 vfe_calc_interp_reso(u16 input, u16 output)
 
 static void vfe_set_scale_cfg(struct vfe_device *vfe, struct vfe_line *line)
 {
+	u32 p = line->video_out.active_fmt.fmt.pix_mp.pixelformat;
 	u32 reg;
 	u16 input, output;
 	u8 interp_reso;
@@ -769,7 +778,9 @@ static void vfe_set_scale_cfg(struct vfe_device *vfe, struct vfe_line *line)
 	writel_relaxed(reg, vfe->base + VFE_0_SCALE_ENC_CBCR_H_PHASE);
 
 	input = line->fmt[MSM_VFE_PAD_SINK].height;
-	output = line->compose.height / 2;
+	output = line->compose.height;
+	if (p == V4L2_PIX_FMT_NV12 || p == V4L2_PIX_FMT_NV21)
+		output = line->compose.height / 2;
 	reg = (output << 16) | input;
 	writel_relaxed(reg, vfe->base + VFE_0_SCALE_ENC_CBCR_V_IMAGE_SIZE);
 
@@ -781,6 +792,7 @@ static void vfe_set_scale_cfg(struct vfe_device *vfe, struct vfe_line *line)
 
 static void vfe_set_crop_cfg(struct vfe_device *vfe, struct vfe_line *line)
 {
+	u32 p = line->video_out.active_fmt.fmt.pix_mp.pixelformat;
 	u32 reg;
 	u16 first, last;
 
@@ -799,8 +811,12 @@ static void vfe_set_crop_cfg(struct vfe_device *vfe, struct vfe_line *line)
 	reg = (first << 16) | last;
 	writel_relaxed(reg, vfe->base + VFE_0_CROP_ENC_CBCR_WIDTH);
 
-	first = line->crop.top / 2;
-	last = line->crop.top / 2 + line->crop.height / 2 - 1;
+	first = line->crop.top;
+	last = line->crop.top + line->crop.height - 1;
+	if (p == V4L2_PIX_FMT_NV12 || p == V4L2_PIX_FMT_NV21) {
+		first = line->crop.top / 2;
+		last = line->crop.top / 2 + line->crop.height / 2 - 1;
+	}
 	reg = (first << 16) | last;
 	writel_relaxed(reg, vfe->base + VFE_0_CROP_ENC_CBCR_HEIGHT);
 }
@@ -2222,6 +2238,7 @@ static void vfe_try_format(struct vfe_line *line,
 			   enum v4l2_subdev_format_whence which)
 {
 	unsigned int i;
+	u32 code;
 
 	switch (pad) {
 	case MSM_VFE_PAD_SINK:
@@ -2246,6 +2263,8 @@ static void vfe_try_format(struct vfe_line *line,
 	case MSM_VFE_PAD_SRC:
 		/* Set and return a format same as sink pad */
 
+		code = fmt->code;
+
 		*fmt = *__vfe_get_format(line, cfg, MSM_VFE_PAD_SINK,
 					 which);
 
@@ -2259,17 +2278,29 @@ static void vfe_try_format(struct vfe_line *line,
 
 			switch (fmt->code) {
 			case MEDIA_BUS_FMT_YUYV8_2X8:
-				fmt->code = MEDIA_BUS_FMT_YUYV8_1_5X8;
+				if (code == MEDIA_BUS_FMT_YUYV8_1_5X8)
+					fmt->code = MEDIA_BUS_FMT_YUYV8_1_5X8;
+				else
+					fmt->code = MEDIA_BUS_FMT_YUYV8_2X8;
 				break;
 			case MEDIA_BUS_FMT_YVYU8_2X8:
-				fmt->code = MEDIA_BUS_FMT_YVYU8_1_5X8;
+				if (code == MEDIA_BUS_FMT_YVYU8_1_5X8)
+					fmt->code = MEDIA_BUS_FMT_YVYU8_1_5X8;
+				else
+					fmt->code = MEDIA_BUS_FMT_YVYU8_2X8;
 				break;
 			case MEDIA_BUS_FMT_UYVY8_2X8:
 			default:
-				fmt->code = MEDIA_BUS_FMT_UYVY8_1_5X8;
+				if (code == MEDIA_BUS_FMT_UYVY8_1_5X8)
+					fmt->code = MEDIA_BUS_FMT_UYVY8_1_5X8;
+				else
+					fmt->code = MEDIA_BUS_FMT_UYVY8_2X8;
 				break;
 			case MEDIA_BUS_FMT_VYUY8_2X8:
-				fmt->code = MEDIA_BUS_FMT_VYUY8_1_5X8;
+				if (code == MEDIA_BUS_FMT_VYUY8_1_5X8)
+					fmt->code = MEDIA_BUS_FMT_VYUY8_1_5X8;
+				else
+					fmt->code = MEDIA_BUS_FMT_VYUY8_2X8;
 				break;
 			}
 		}
@@ -2946,9 +2977,11 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 		video_out->ops = &camss_vfe_video_ops;
 		video_out->bpl_alignment = 8;
 		video_out->line_based = 0;
+		video_out->fmt_tag = CAMSS_FMT_TAG_RDI;
 		if (i == VFE_LINE_PIX) {
 			video_out->bpl_alignment = 16;
 			video_out->line_based = 1;
+			video_out->fmt_tag = CAMSS_FMT_TAG_PIX;
 		}
 		snprintf(name, ARRAY_SIZE(name), "%s%d_%s%d",
 			 MSM_VFE_NAME, vfe->id, "video", i);
