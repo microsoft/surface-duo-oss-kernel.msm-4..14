@@ -367,8 +367,6 @@ static int vfe_word_per_line(uint32_t format, uint32_t pixel_per_line)
 	switch (format) {
 	case V4L2_PIX_FMT_NV12:
 	case V4L2_PIX_FMT_NV21:
-	case V4L2_PIX_FMT_NV12M:
-	case V4L2_PIX_FMT_NV21M:
 		val = CALC_WORD(pixel_per_line, 1, 8);
 		break;
 	case V4L2_PIX_FMT_YUYV:
@@ -386,14 +384,6 @@ static void vfe_get_wm_sizes(struct v4l2_pix_format_mplane *pix, u8 plane,
 			     u16 *width, u16 *height, u16 *bytesperline)
 {
 	switch (pix->pixelformat) {
-	case V4L2_PIX_FMT_NV12M:
-	case V4L2_PIX_FMT_NV21M:
-		*width = pix->width;
-		*height = pix->height;
-		*bytesperline = pix->plane_fmt[plane].bytesperline;
-		if (plane == 1)
-			*height /= 2;
-		break;
 	case V4L2_PIX_FMT_NV12:
 	case V4L2_PIX_FMT_NV21:
 		*width = pix->width;
@@ -599,7 +589,7 @@ static void vfe_set_xbar_cfg(struct vfe_device *vfe, struct vfe_output *output,
 				VFE_0_BUS_XBAR_CFG_x_M_SINGLE_STREAM_SEL_SHIFT;
 		} else if (i == 1) {
 			reg = VFE_0_BUS_XBAR_CFG_x_M_PAIR_STREAM_EN;
-			if (p == V4L2_PIX_FMT_NV12 || p == V4L2_PIX_FMT_NV12M)
+			if (p == V4L2_PIX_FMT_NV12)
 				reg |= VFE_0_BUS_XBAR_CFG_x_M_PAIR_STREAM_SWAP_INTER_INTRA;
 		}
 
@@ -1280,7 +1270,7 @@ static int vfe_get_output(struct vfe_line *line)
 	return 0;
 
 error_get_wm:
-	for ( i--; i >= 0; i--)
+	for (i--; i >= 0; i--)
 		vfe_release_wm(vfe, output->wm_idx[i]);
 	output->state = VFE_OUTPUT_OFF;
 error:
