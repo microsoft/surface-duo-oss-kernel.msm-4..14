@@ -35,10 +35,18 @@ struct apq8016_sbc_data {
 #define MIC_CTRL_TLMM_SCLK_EN		BIT(1)
 #define	SPKR_CTL_PRI_WS_SLAVE_SEL_11	(BIT(17) | BIT(16))
 
+static const struct snd_soc_dapm_widget msm8x16_dapm_widgets[] = {
+
+	SND_SOC_DAPM_MIC("Digital Mic1", NULL),
+	SND_SOC_DAPM_MIC("Digital Mic2", NULL),
+};
+
 static int apq8016_sbc_dai_init(struct snd_soc_pcm_runtime *rtd)
 {
 	struct snd_soc_dai *cpu_dai = rtd->cpu_dai;
 	struct snd_soc_card *card = rtd->card;
+	struct snd_soc_codec *codec = rtd->codec;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 	struct apq8016_sbc_data *pdata = snd_soc_card_get_drvdata(card);
 	int rval = 0;
 
@@ -67,6 +75,10 @@ static int apq8016_sbc_dai_init(struct snd_soc_pcm_runtime *rtd)
 		break;
 
 	}
+	snd_soc_dapm_new_controls(dapm, msm8x16_dapm_widgets,
+				ARRAY_SIZE(msm8x16_dapm_widgets));
+
+	snd_soc_dapm_sync(dapm);
 
 	return rval;
 }
