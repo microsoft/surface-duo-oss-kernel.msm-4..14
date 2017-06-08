@@ -647,14 +647,29 @@ static int s32v_adc_remove(struct platform_device *pdev)
 #ifdef CONFIG_PM_SLEEP
 static int s32v_adc_suspend(struct device *dev)
 {
-	/* TODO */
+	struct iio_dev *indio_dev = dev_get_drvdata(dev);
+	struct s32v_adc *info = iio_priv(indio_dev);
+	int mcr_data;
+
+	/* ADC controller and analog part enter to stop mode */
+	mcr_data = readl(info->regs + S32V_REG_ADC_MCR);
+	mcr_data |= S32V_ADC_PWDN;
+	writel(mcr_data, info->regs + S32V_REG_ADC_MCR);
+
+	clk_disable_unprepare(info->clk);
 
 	return 0;
 }
 
 static int s32v_adc_resume(struct device *dev)
 {
-	/* TODO */
+	struct iio_dev *indio_dev = dev_get_drvdata(dev);
+	struct s32v_adc *info = iio_priv(indio_dev);
+	int ret;
+
+	ret = clk_prepare_enable(info->clk);
+	if (ret)
+		return ret;
 
 	return 0;
 }
