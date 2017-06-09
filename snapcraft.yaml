@@ -13,4 +13,5 @@ parts:
     kconfigs:
       - CONFIG_LOCALVERSION="-xenial_raspi2"
       - CONFIG_DEBUG_INFO=n
+      - CONFIG_ANDROID_BINDER=y
     kernel-image-target: zImage
