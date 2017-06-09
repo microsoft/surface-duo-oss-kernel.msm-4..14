@@ -1,4 +1,4 @@
-name: ubuntu-raspi2-kernel
+name: pi2-kernel-ant
 version: 4.4.0
 summary: The Raspberry Pi 2/3 kernel for snappy
 description: This is a snapped kernel, based off the xenial raspi2 branch and config
@@ -8,8 +8,9 @@ parts:
   kernel:
     plugin: kernel
     source: .
+    source-branch: raspi2-ant
     source-type: git
-    kdefconfig: ['--makefile=debian/snapcraft.mk', 'branch=raspi2','flavour=raspi2', 'config']
+    kdefconfig: ['--makefile=debian/snapcraft.mk', 'branch=raspi2-ant','flavour=raspi2', 'config']
     kconfigs:
       - CONFIG_LOCALVERSION="-xenial_raspi2"
       - CONFIG_DEBUG_INFO=n
