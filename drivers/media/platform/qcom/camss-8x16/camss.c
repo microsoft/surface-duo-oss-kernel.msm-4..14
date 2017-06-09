@@ -307,6 +307,9 @@ static int camss_of_parse_ports(struct device *dev,
 	while ((node = of_graph_get_next_endpoint(dev->of_node, node))) {
 		struct camss_async_subdev *csd;
 
+		if (!of_device_is_available(node))
+			continue;
+
 		csd = devm_kzalloc(dev, sizeof(*csd), GFP_KERNEL);
 		if (!csd) {
 			of_node_put(node);
