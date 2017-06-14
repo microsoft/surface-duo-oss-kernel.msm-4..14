@@ -2,6 +2,7 @@
  * Freescale QuadSPI driver.
  *
  * Copyright (C) 2013 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -190,6 +191,7 @@
 #define SEQID_RDCR		9
 #define SEQID_EN4B		10
 #define SEQID_BRWR		11
+#define SEQID_FAST_READ		12
 
 enum fsl_qspi_devtype {
 	FSL_QUADSPI_VYBRID,
@@ -322,6 +324,25 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 	writel(LUT0(DUMMY, PAD1, dummy) | LUT1(READ, PAD4, rxfifo),
 			base + QUADSPI_LUT(lut_base + 1));
 
+	/* Fast read */
+	lut_base = SEQID_FAST_READ * 4;
+
+	if (q->nor_size <= SZ_16M) {
+		cmd = SPINOR_OP_READ_FAST;
+		addrlen = ADDR24BIT;
+		dummy = 8;
+	} else {
+		/* use the 4-byte address */
+		cmd = SPINOR_OP_READ4_FAST;
+		addrlen = ADDR32BIT;
+		dummy = 8;
+	}
+
+	writel(LUT0(CMD, PAD1, cmd) | LUT1(ADDR, PAD1, addrlen),
+			base + QUADSPI_LUT(lut_base));
+	writel(LUT0(DUMMY, PAD1, dummy) | LUT1(READ, PAD1, rxfifo),
+			base + QUADSPI_LUT(lut_base + 1));
+
 	/* Write enable */
 	lut_base = SEQID_WREN * 4;
 	writel(LUT0(CMD, PAD1, SPINOR_OP_WREN), base + QUADSPI_LUT(lut_base));
@@ -334,7 +355,7 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 		addrlen = ADDR24BIT;
 	} else {
 		/* use the 4-byte address */
-		cmd = SPINOR_OP_PP;
+		cmd = SPINOR_OP_PP_4B;
 		addrlen = ADDR32BIT;
 	}
 
@@ -355,7 +376,7 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 		addrlen = ADDR24BIT;
 	} else {
 		/* use the 4-byte address */
-		cmd = SPINOR_OP_SE;
+		cmd = SPINOR_OP_SE_4B;
 		addrlen = ADDR32BIT;
 	}
 
@@ -401,6 +422,9 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 static int fsl_qspi_get_seqid(struct fsl_qspi *q, u8 cmd)
 {
 	switch (cmd) {
+	case SPINOR_OP_READ4_FAST:
+	case SPINOR_OP_READ_FAST:
+		return SEQID_FAST_READ;
 	case SPINOR_OP_READ_1_1_4:
 		return SEQID_QUAD_READ;
 	case SPINOR_OP_WREN:
@@ -410,10 +434,12 @@ static int fsl_qspi_get_seqid(struct fsl_qspi *q, u8 cmd)
 	case SPINOR_OP_RDSR:
 		return SEQID_RDSR;
 	case SPINOR_OP_SE:
+	case SPINOR_OP_SE_4B:
 		return SEQID_SE;
 	case SPINOR_OP_CHIP_ERASE:
 		return SEQID_CHIP_ERASE;
 	case SPINOR_OP_PP:
+	case SPINOR_OP_PP_4B:
 		return SEQID_PP;
 	case SPINOR_OP_RDID:
 		return SEQID_RDID;
