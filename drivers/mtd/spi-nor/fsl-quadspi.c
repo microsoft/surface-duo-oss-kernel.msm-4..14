@@ -2,6 +2,7 @@
  * Freescale QuadSPI driver.
  *
  * Copyright (C) 2013 Freescale Semiconductor, Inc.
+ * Copyright (C) 2017 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -205,6 +206,7 @@
 #define SEQID_RDCR		9
 #define SEQID_EN4B		10
 #define SEQID_BRWR		11
+#define SEQID_FAST_READ		12
 
 #define QUADSPI_MIN_IOMAP SZ_4M
 
@@ -387,6 +389,8 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 	u8 addrlen = (nor->addr_width == 3) ? ADDR24BIT : ADDR32BIT;
 	u8 read_op = nor->read_opcode;
 	u8 read_dm = nor->read_dummy;
+	u8 fast_read_op = (nor->addr_width == 3) ? SPINOR_OP_READ_FAST
+						 : SPINOR_OP_READ_FAST_4B;
 
 	fsl_qspi_unlock_lut(q);
 
@@ -401,6 +405,14 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 			base + QUADSPI_LUT(lut_base));
 	qspi_writel(q, LUT0(DUMMY, PAD1, read_dm) |
 		    LUT1(FSL_READ, PAD4, rxfifo),
+			base + QUADSPI_LUT(lut_base + 1));
+
+	/* Fast Read */
+	lut_base = SEQID_FAST_READ * 4;
+
+	qspi_writel(LUT0(CMD, PAD1, fast_read_op) | LUT1(ADDR, PAD1, addrlen),
+			base + QUADSPI_LUT(lut_base));
+	qspi_writel(LUT0(DUMMY, PAD1, read_dm) | LUT1(FSL_READ, PAD1, rxfifo),
 			base + QUADSPI_LUT(lut_base + 1));
 
 	/* Write enable */
@@ -475,6 +487,9 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 static int fsl_qspi_get_seqid(struct fsl_qspi *q, u8 cmd)
 {
 	switch (cmd) {
+	case SPINOR_OP_READ_FAST_4B:
+	case SPINOR_OP_READ_FAST:
+		return SEQID_FAST_READ;
 	case SPINOR_OP_READ_1_1_4:
 		return SEQID_READ;
 	case SPINOR_OP_WREN:
@@ -484,10 +499,12 @@ static int fsl_qspi_get_seqid(struct fsl_qspi *q, u8 cmd)
 	case SPINOR_OP_RDSR:
 		return SEQID_RDSR;
 	case SPINOR_OP_SE:
+	case SPINOR_OP_SE_4B:
 		return SEQID_SE;
 	case SPINOR_OP_CHIP_ERASE:
 		return SEQID_CHIP_ERASE;
 	case SPINOR_OP_PP:
+	case SPINOR_OP_PP_4B:
 		return SEQID_PP;
 	case SPINOR_OP_RDID:
 		return SEQID_RDID;
