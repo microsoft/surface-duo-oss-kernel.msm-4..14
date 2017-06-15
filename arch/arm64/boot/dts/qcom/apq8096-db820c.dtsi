@@ -338,6 +338,14 @@
 				core-vcc-supply = <&pm8994_s4>;
 			};
 		};
+
+		arm,smmu-venus@d40000 {
+			status = "okay";
+		};
+
+		video-codec@c00000 {
+			status = "okay";
+		};
 	};
 
 
