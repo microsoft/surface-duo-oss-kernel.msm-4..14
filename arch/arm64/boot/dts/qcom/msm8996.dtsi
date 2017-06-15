@@ -1058,15 +1058,11 @@
 				     <0 330 0>;
 			#iommu-cells = <1>;
 
-			clocks = <&mmcc MMSS_MMAGIC_AHB_CLK>,
-				<&mmcc MMSS_MMAGIC_CFG_AHB_CLK>,
-				<&mmcc GPU_AHB_CLK>,
+			clocks = <&mmcc GPU_AHB_CLK>,
 				<&gcc GCC_MMSS_BIMC_GFX_CLK>,
 				<&gcc GCC_BIMC_GFX_CLK>,
 				<&mmcc MMSS_MISC_AHB_CLK>;
-			clock-names = "mmagic_ahb_clk",
-				"mmagic_cfg_ahb_clk",
-				"gpu_ahb_clk",
+			clock-names = "gpu_ahb_clk",
 				"gcc_mmss_bimc_gfx_clk",
 				"gcc_bimc_gfx_clk",
 				"mmss_misc_bus_clk";
@@ -1094,15 +1090,13 @@
 				<&mmcc GPU_AHB_CLK>,
 				<&mmcc GPU_GX_RBBMTIMER_CLK>,
 				<&gcc GCC_BIMC_GFX_CLK>,
-				<&gcc GCC_MMSS_BIMC_GFX_CLK>,
-				<&mmcc MMSS_MMAGIC_AHB_CLK>;
+				<&gcc GCC_MMSS_BIMC_GFX_CLK>;
 
 			clock-names = "core",
 				"iface",
 				"rbbmtimer",
 				"mem",
-				"mem_iface",
-				"alt_mem_iface";
+				"mem_iface";
 
 			power-domains = <&mmcc GPU_GDSC>;
 			iommus = <&adreno_smmu 0>;
@@ -1140,16 +1134,10 @@
 
 			power-domains = <&mmcc MDSS_GDSC>;
 
-			clocks = <&mmcc MMSS_MMAGIC_AHB_CLK>,
-				 <&mmcc MMSS_MMAGIC_CFG_AHB_CLK>,
-				 <&mmcc SMMU_MDP_AHB_CLK>,
-				 <&mmcc SMMU_MDP_AXI_CLK>,
-				 <&mmcc MMAGIC_MDSS_AXI_CLK>;
-			clock-names = "mmagic_iface_clk",
-				      "mmagic_cfg_iface_clk",
-				      "smmu_iface_clk",
-				      "smmu_bus_clk",
-				      "mmagic_mdss_bus_clk";
+			clocks = <&mmcc SMMU_MDP_AHB_CLK>,
+				 <&mmcc SMMU_MDP_AXI_CLK>;
+			clock-names = "smmu_iface_clk",
+				      "smmu_bus_clk";
 
 			status = "okay";
 		};
@@ -1220,22 +1208,18 @@
 				interrupts = <0 IRQ_TYPE_LEVEL_HIGH>;
 
 				clocks = <&mmcc MDSS_AHB_CLK>,
-					 <&mmcc MMSS_MMAGIC_AHB_CLK>,
 					 <&mmcc MDSS_AXI_CLK>,
 					 <&mmcc MDP_CLK_SRC>,
 					 <&mmcc MDSS_MDP_CLK>,
 					 <&mmcc SMMU_MDP_AXI_CLK>,
 					 <&mmcc MDSS_VSYNC_CLK>,
-					 <&mmcc MMAGIC_MDSS_AXI_CLK>,
 					 <&rpmcc RPM_SMD_MMAXI_CLK>;
 				clock-names = "iface_clk",
-					      "mmagic_iface_clk",
 					      "bus_clk",
 					      "core_clk_src",
 					      "core_clk",
 					      "iommu_clk",
 					      "vsync_clk",
-					      "mmagic_mdss_bus_clk",
 					      "rpm_mmaxi_clk";
 
 				iommus = <&mdp_smmu 0>;
