@@ -38,18 +38,19 @@
 		#size-cells = <2>;
 		ranges;
 
-		mba_region: mba@91500000 {
-			reg = <0x0 0x91500000 0x0 0x200000>;
+		mba_region: mba@91600000 {
+			reg = <0x0 0x91600000 0x0 0x200000>;
 			no-map;
 		};
 
-		slpi_region: slpi@90b00000 {
-			reg = <0x0 0x90b00000 0x0 0xa00000>;
+		slpi_region: slpi@90c00000 {
+			reg = <0x0 0x90c00000 0x0 0xa00000>;
 			no-map;
 		};
 
 		venus_region: venus@90400000 {
-			reg = <0x0 0x90400000 0x0 0x700000>;
+			compatible = "shared-dma-pool";
+			reg = <0x0 0x90400000 0x0 0x800000>;
 			no-map;
 		};
 
@@ -80,7 +81,7 @@
 
 		zap_shader_region: gpu@8f200000 {
 			compatible = "shared-dma-pool";
-			reg = <0 0x8f200000 0 0x2300000>;
+			reg = <0 0x8f200000 0 0x100000>;
 			no-map;
 		};
 	};
@@ -1316,6 +1317,75 @@
 				clock-names = "mmagic_iface_clk",
 					      "iface_clk",
 					      "ref_clk";
+			};
+		};
+
+		venus_smmu: arm,smmu-venus@d40000 {
+			compatible = "arm,smmu-v2";
+			reg = <0xd40000 0x20000>;
+			#global-interrupts = <1>;
+			interrupts = <GIC_SPI 286 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 335 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 336 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 337 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 338 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 339 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 340 IRQ_TYPE_LEVEL_HIGH>,
+				     <GIC_SPI 341 IRQ_TYPE_LEVEL_HIGH>;
+			power-domains = <&mmcc MMAGIC_VIDEO_GDSC>;
+			clocks = <&mmcc SMMU_VIDEO_AHB_CLK>,
+				 <&mmcc SMMU_VIDEO_AXI_CLK>;
+			clock-names = "smmu_core_ahb_clk",
+				      "smmu_core_axi_clk";
+			#iommu-cells = <1>;
+			status = "disabled";
+		};
+
+		venus: video-codec@c00000 {
+			compatible = "qcom,msm8996-venus";
+			reg = <0x00c00000 0xff000>;
+			interrupts = <GIC_SPI 287 IRQ_TYPE_LEVEL_HIGH>;
+			power-domains = <&mmcc VENUS_GDSC>;
+			clocks = <&mmcc VIDEO_CORE_CLK>,
+				 <&mmcc VIDEO_AHB_CLK>,
+				 <&mmcc VIDEO_AXI_CLK>,
+				 <&mmcc VIDEO_MAXI_CLK>;
+			clock-names = "core", "iface", "bus", "mbus";
+			iommus = <&venus_smmu 0x00>,
+				 <&venus_smmu 0x01>,
+				 <&venus_smmu 0x0a>,
+				 <&venus_smmu 0x07>,
+				 <&venus_smmu 0x0e>,
+				 <&venus_smmu 0x0f>,
+				 <&venus_smmu 0x08>,
+				 <&venus_smmu 0x09>,
+				 <&venus_smmu 0x0b>,
+				 <&venus_smmu 0x0c>,
+				 <&venus_smmu 0x0d>,
+				 <&venus_smmu 0x10>,
+				 <&venus_smmu 0x11>,
+				 <&venus_smmu 0x21>,
+				 <&venus_smmu 0x28>,
+				 <&venus_smmu 0x29>,
+				 <&venus_smmu 0x2b>,
+				 <&venus_smmu 0x2c>,
+				 <&venus_smmu 0x2d>,
+				 <&venus_smmu 0x31>;
+			memory-region = <&venus_region>;
+			status = "disabled";
+
+			video-decoder {
+				compatible = "venus-decoder";
+				clocks = <&mmcc VIDEO_SUBCORE0_CLK>;
+				clock-names = "core";
+				power-domains = <&mmcc VENUS_CORE0_GDSC>;
+			};
+
+			video-encoder {
+				compatible = "venus-encoder";
+				clocks = <&mmcc VIDEO_SUBCORE1_CLK>;
+				clock-names = "core";
+				power-domains = <&mmcc VENUS_CORE1_GDSC>;
 			};
 		};
 	};
