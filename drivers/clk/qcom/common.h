@@ -59,7 +59,5 @@ extern int qcom_cc_really_probe(struct platform_device *pdev,
 				struct regmap *regmap);
 extern int qcom_cc_probe(struct platform_device *pdev,
 			 const struct qcom_cc_desc *desc);
-extern struct clk *qcom_clk_hw_get_clk(struct clk_hw *, const char *,
-				       const char *);
 
 #endif
