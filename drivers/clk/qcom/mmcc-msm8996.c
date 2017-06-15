@@ -3082,6 +3082,11 @@ static struct gdsc gpu_gdsc = {
 	.pd = {
 		.name = "gpu",
 	},
+	.clk_hws = {
+		&mmss_mmagic_ahb_clk.clkr.hw,
+		&mmss_mmagic_cfg_ahb_clk.clkr.hw,
+	},
+	.clk_count = 2,
 	.parent = &gpu_gx_gdsc.pd,
 	.pwrsts = PWRSTS_OFF_ON,
 	.flags = VOTABLE,
