@@ -3,6 +3,8 @@
  *
  * Copyright 2012-2016 Freescale Semiconductor, Inc.
  *
+ * (C) Copyright 2017 NXP
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -27,6 +29,7 @@
 #include <linux/serial_core.h>
 #include <linux/slab.h>
 #include <linux/tty_flip.h>
+#include <linux/jiffies.h>
 
 /* All registers are 32-bit width */
 
@@ -1018,6 +1021,13 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 	spin_unlock_irqrestore(&sport->port.lock, flags);
 #endif
 
+	/* Workaround for driver hanging when running the 'reboot'
+	command because of the DTFTFF bit in UARTSR not being cleared.
+	The issue is assumed to be caused by a hardware bug.
+	Only apply the workaround after the boot sequence is
+	assumed to be complete.*/
+	if((jiffies - INITIAL_JIFFIES) / HZ > (long unsigned int)10)
+		writeb(' ', port->membase + BDRL);
 }
 
 static const char *linflex_type(struct uart_port *port)
