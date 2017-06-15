@@ -21,6 +21,7 @@
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
+#include <linux/slab.h>
 #include <linux/videodev2.h>
 
 #include <media/media-device.h>
@@ -251,7 +252,7 @@ static int camss_of_parse_endpoint_node(struct device *dev,
 	struct csiphy_lanes_cfg *lncfg = &csd->interface.csi2.lane_cfg;
 	int *settle_cnt = &csd->interface.csi2.settle_cnt;
 	struct v4l2_of_bus_mipi_csi2 *mipi_csi2;
-	struct v4l2_of_endpoint vep;
+	struct v4l2_of_endpoint vep = { { 0 } };
 	unsigned int i;
 
 	v4l2_of_parse_endpoint(node, &vep);
