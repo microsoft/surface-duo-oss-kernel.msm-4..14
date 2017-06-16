@@ -273,6 +273,15 @@ config ROCKCHIP_SARADC
 	  To compile this driver as a module, choose M here: the
 	  module will be called rockchip_saradc.
 
+config S32V234_ADC
+	tristate "NXP S32V234 SAR-ADC driver"
+	depends on OF
+	help
+	  Say yes here to support for S32V234 board analog-to-digital converter.
+
+	  This driver can also be built as a module. If so, the module will be
+	  called s32v234_adc.
+
 config TI_ADC081C
 	tristate "Texas Instruments ADC081C021/027"
 	depends on I2C
