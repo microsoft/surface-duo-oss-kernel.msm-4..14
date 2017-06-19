@@ -1707,6 +1707,7 @@ config LKDTM
 	tristate "Linux Kernel Dump Test Tool Module"
 	depends on DEBUG_FS
 	depends on BLOCK
+	depends on !FTRACE
 	default n
 	help
 	This module enables testing of the different dumping mechanisms by
