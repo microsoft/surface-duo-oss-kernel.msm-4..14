@@ -226,10 +226,8 @@ struct mii_bus {
 
 	/* GPIO reset pulse width in microseconds */
 	int reset_delay_us;
-	/* Number of reset GPIOs */
-	int num_reset_gpios;
-	/* Array of RESET GPIO descriptors */
-	struct gpio_desc **reset_gpiod;
+	/* RESET GPIO descriptor pointer */
+	struct gpio_desc *reset_gpiod;
 };
 #define to_mii_bus(d) container_of(d, struct mii_bus, dev)
 
@@ -874,8 +872,8 @@ void phy_start_machine(struct phy_device *phydev);
 void phy_stop_machine(struct phy_device *phydev);
 void phy_trigger_machine(struct phy_device *phydev, bool sync);
 int phy_ethtool_sset(struct phy_device *phydev, struct ethtool_cmd *cmd);
-int phy_ethtool_ksettings_get(struct phy_device *phydev,
-			      struct ethtool_link_ksettings *cmd);
+void phy_ethtool_ksettings_get(struct phy_device *phydev,
+			       struct ethtool_link_ksettings *cmd);
 int phy_ethtool_ksettings_set(struct phy_device *phydev,
 			      const struct ethtool_link_ksettings *cmd);
 int phy_mii_ioctl(struct phy_device *phydev, struct ifreq *ifr, int cmd);
