@@ -1057,10 +1057,19 @@ EXPORT_SYMBOL_GPL(acpi_subsys_complete);
  * @dev: Device to handle.
  *
  * Follow PCI and resume devices suspended at run time before running their
- * system suspend callbacks.
+ * system suspend callbacks. However, try to avoid it when no_direct_complete
+ * is set.
  */
 int acpi_subsys_suspend(struct device *dev)
 {
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+
+	if (!adev)
+		return 0;
+
+	if (adev->no_direct_complete && !acpi_dev_needs_resume(dev, adev))
+		return pm_generic_suspend(dev);
+
 	pm_runtime_resume(dev);
 	return pm_generic_suspend(dev);
 }
@@ -1118,12 +1127,22 @@ EXPORT_SYMBOL_GPL(acpi_subsys_resume_early);
  */
 int acpi_subsys_freeze(struct device *dev)
 {
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+
+	if (!adev)
+		return 0;
+
 	/*
 	 * This used to be done in acpi_subsys_prepare() for all devices and
 	 * some drivers may depend on it, so do it here.  Ideally, however,
 	 * runtime-suspended devices should not be touched during freeze/thaw
-	 * transitions.
+	 * transitions. At least when no_direct_complete is set, let's try to
+	 * avoid it.
 	 */
+
+	if (adev->no_direct_complete && !acpi_dev_needs_resume(dev, adev))
+		return pm_generic_freeze(dev);
+
 	pm_runtime_resume(dev);
 	return pm_generic_freeze(dev);
 }
