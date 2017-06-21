@@ -702,14 +702,9 @@ static void acpi_lpss_dismiss(struct device *dev)
 }
 
 #ifdef CONFIG_PM_SLEEP
-static int acpi_lpss_suspend_late(struct device *dev)
+static int lpss_suspend_late(struct device *dev)
 {
 	struct lpss_private_data *pdata = acpi_driver_data(ACPI_COMPANION(dev));
-	int ret;
-
-	ret = pm_generic_suspend_late(dev);
-	if (ret)
-		return ret;
 
 	if (pdata->dev_desc->flags & LPSS_SAVE_CTX)
 		acpi_lpss_save_ctx(dev, pdata);
@@ -717,7 +712,18 @@ static int acpi_lpss_suspend_late(struct device *dev)
 	return acpi_dev_suspend_late(dev);
 }
 
-static int acpi_lpss_resume_early(struct device *dev)
+static int acpi_lpss_suspend_late(struct device *dev)
+{
+	int ret;
+
+	ret = pm_generic_suspend_late(dev);
+	if (ret)
+		return ret;
+
+	return lpss_suspend_late(dev);
+}
+
+static int lpss_resume_early(struct device *dev)
 {
 	struct lpss_private_data *pdata = acpi_driver_data(ACPI_COMPANION(dev));
 	int ret;
@@ -730,6 +736,17 @@ static int acpi_lpss_resume_early(struct device *dev)
 
 	if (pdata->dev_desc->flags & LPSS_SAVE_CTX)
 		acpi_lpss_restore_ctx(dev, pdata);
+
+	return 0;
+}
+
+static int acpi_lpss_resume_early(struct device *dev)
+{
+	int ret;
+
+	ret = lpss_resume_early(dev);
+	if (ret)
+		return ret;
 
 	return pm_generic_resume_early(dev);
 }
