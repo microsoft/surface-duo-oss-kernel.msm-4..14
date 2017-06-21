@@ -1531,6 +1531,7 @@ i2c-sis96x
 i2c-smbus
 i2c-stub
 i2c-taos-evm
+i2c-thunderx
 i2c-tiny-usb
 i2c-versatile
 i2c-via
