@@ -860,7 +860,14 @@ EXPORT_SYMBOL_GPL(acpi_dev_runtime_resume);
 int acpi_subsys_runtime_suspend(struct device *dev)
 {
 	int ret = pm_generic_runtime_suspend(dev);
-	return ret ? ret : acpi_dev_runtime_suspend(dev);
+
+	if (ret)
+		return ret;
+
+	if (!pm_runtime_enabled(dev))
+		return acpi_dev_suspend_late(dev);
+
+	return acpi_dev_runtime_suspend(dev);
 }
 EXPORT_SYMBOL_GPL(acpi_subsys_runtime_suspend);
 
@@ -873,7 +880,17 @@ EXPORT_SYMBOL_GPL(acpi_subsys_runtime_suspend);
  */
 int acpi_subsys_runtime_resume(struct device *dev)
 {
-	int ret = acpi_dev_runtime_resume(dev);
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+	int ret = 0;
+
+	if (!adev)
+		return 0;
+
+	if (!pm_runtime_enabled(dev))
+		ret = acpi_dev_resume_early(dev);
+	else
+		ret = acpi_dev_runtime_resume(dev);
+
 	return ret ? ret : pm_generic_runtime_resume(dev);
 }
 EXPORT_SYMBOL_GPL(acpi_subsys_runtime_resume);
@@ -1016,13 +1033,21 @@ EXPORT_SYMBOL_GPL(acpi_subsys_prepare);
  */
 void acpi_subsys_complete(struct device *dev)
 {
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+
+	if (!adev)
+		return;
+
 	pm_generic_complete(dev);
 	/*
 	 * If the device had been runtime-suspended before the system went into
 	 * the sleep state it is going out of and it has never been resumed till
-	 * now, resume it in case the firmware powered it up.
+	 * now, resume it in case the firmware powered it up. Also resume it in
+	 * case no_direct_complete is set for the device, to be sure the device
+	 * are managed correctly when firmware has powered it up.
 	 */
-	if (dev->power.direct_complete && pm_resume_via_firmware())
+	if ((dev->power.direct_complete || adev->no_direct_complete) &&
+	    pm_resume_via_firmware())
 		pm_request_resume(dev);
 }
 EXPORT_SYMBOL_GPL(acpi_subsys_complete);
@@ -1050,8 +1075,17 @@ EXPORT_SYMBOL_GPL(acpi_subsys_suspend);
  */
 int acpi_subsys_suspend_late(struct device *dev)
 {
-	int ret = pm_generic_suspend_late(dev);
-	return ret ? ret : acpi_dev_suspend_late(dev);
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+	int ret;
+
+	if (!adev)
+		return 0;
+
+	ret = pm_generic_suspend_late(dev);
+	if (ret || adev->no_direct_complete)
+		return ret;
+
+	return acpi_dev_suspend_late(dev);
 }
 EXPORT_SYMBOL_GPL(acpi_subsys_suspend_late);
 
@@ -1065,7 +1099,15 @@ EXPORT_SYMBOL_GPL(acpi_subsys_suspend_late);
  */
 int acpi_subsys_resume_early(struct device *dev)
 {
-	int ret = acpi_dev_resume_early(dev);
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+	int ret = 0;
+
+	if (!adev)
+		return 0;
+
+	if (!adev->no_direct_complete)
+		ret = acpi_dev_resume_early(dev);
+
 	return ret ? ret : pm_generic_resume_early(dev);
 }
 EXPORT_SYMBOL_GPL(acpi_subsys_resume_early);
