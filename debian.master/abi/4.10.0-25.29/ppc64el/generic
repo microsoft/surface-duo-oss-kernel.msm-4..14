@@ -8935,6 +8935,9 @@ EXPORT_SYMBOL vmlinux 0x00000000	pnv_cxl_get_irq_count
 EXPORT_SYMBOL vmlinux 0x00000000	pnv_cxl_ioda_msi_setup
 EXPORT_SYMBOL vmlinux 0x00000000	pnv_cxl_release_hwirq_ranges
 EXPORT_SYMBOL vmlinux 0x00000000	pnv_cxl_release_hwirqs
+EXPORT_SYMBOL vmlinux 0x00000000	pnv_npu2_destroy_context
+EXPORT_SYMBOL vmlinux 0x00000000	pnv_npu2_handle_fault
+EXPORT_SYMBOL vmlinux 0x00000000	pnv_npu2_init_context
 EXPORT_SYMBOL vmlinux 0x00000000	pnv_pci_get_gpu_dev
 EXPORT_SYMBOL vmlinux 0x00000000	pnv_pci_get_npu_dev
 EXPORT_SYMBOL vmlinux 0x00000000	pnv_pci_get_phb_node
@@ -18011,6 +18014,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_property_read_string
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_property_read_string_helper
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_property_read_u32_index
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_property_read_u64
+EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_property_read_u64_index
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_property_read_variable_u16_array
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_property_read_variable_u32_array
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_property_read_variable_u64_array
@@ -19800,6 +19804,8 @@ EXPORT_SYMBOL_GPL vmlinux 0x00000000	xhci_resume
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	xhci_run
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	xhci_suspend
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	xics_wake_cpu
+EXPORT_SYMBOL_GPL vmlinux 0x00000000	xive_native_alloc_vp_block
+EXPORT_SYMBOL_GPL vmlinux 0x00000000	xive_native_free_vp_block
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	xts_crypt
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	yield_to
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	zap_vma_ptes
