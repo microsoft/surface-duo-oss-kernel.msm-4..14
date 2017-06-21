@@ -880,6 +880,41 @@ EXPORT_SYMBOL_GPL(acpi_subsys_runtime_resume);
 
 #ifdef CONFIG_PM_SLEEP
 /**
+ * acpi_dev_disable_direct_complete - Disable the direct_complete path for ACPI.
+ * @dev: Device to disable the path for.
+ *
+ * Per default the ACPI PM domain tries to use the direct_complete path for its
+ * devices during system sleep. This function allows a user, typically a driver
+ * during probe, to disable the direct_complete path from being used by ACPI.
+ */
+void acpi_dev_disable_direct_complete(struct device *dev)
+{
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+
+	if (adev)
+		adev->no_direct_complete = true;
+}
+EXPORT_SYMBOL_GPL(acpi_dev_disable_direct_complete);
+
+/**
+ * acpi_dev_enable_direct_complete - Enable the direct_complete path for ACPI.
+ * @dev: Device to enable the path for.
+ *
+ * Enable the direct_complete path to be used during system suspend for the ACPI
+ * PM domain, which is the default option. Typically a driver that disabled the
+ * path during ->probe(), must call this function during ->remove() to re-enable
+ * the direct_complete path to be used by ACPI.
+ */
+void acpi_dev_enable_direct_complete(struct device *dev)
+{
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+
+	if (adev)
+		adev->no_direct_complete = false;
+}
+EXPORT_SYMBOL_GPL(acpi_dev_enable_direct_complete);
+
+/**
  * acpi_dev_suspend_late - Put device into a low-power state using ACPI.
  * @dev: Device to put into a low-power state.
  *
@@ -968,7 +1003,7 @@ int acpi_subsys_prepare(struct device *dev)
 	if (ret < 0)
 		return ret;
 
-	if (!adev || !pm_runtime_suspended(dev))
+	if (!adev || adev->no_direct_complete || !pm_runtime_suspended(dev))
 		return 0;
 
 	return !acpi_dev_needs_resume(dev, adev);
