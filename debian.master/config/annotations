@@ -10181,8 +10181,8 @@ CONFIG_PPC_ICSWX                                flag<REVIEW>
 CONFIG_GENERIC_CPU                              policy<{'amd64': 'y'}>
 
 # Menu: Processor support >> CPU selection >> Architecture: powerpc
-CONFIG_POWER7_CPU                               policy<{'ppc64el': 'y'}>
-CONFIG_POWER8_CPU                               policy<{'ppc64el': 'n'}>
+CONFIG_POWER7_CPU                               policy<{'ppc64el': 'n'}>
+CONFIG_POWER8_CPU                               policy<{'ppc64el': 'y'}>
 
 # Menu: Processor support >> Processor Type >> Architecture: powerpc
 CONFIG_PPC_BOOK3S_64                            policy<{'ppc64el': 'y'}>
