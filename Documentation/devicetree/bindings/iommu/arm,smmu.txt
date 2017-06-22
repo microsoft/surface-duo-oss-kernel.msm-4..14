@@ -17,6 +17,7 @@ conditions.
                         "arm,mmu-401"
                         "arm,mmu-500"
                         "cavium,smmu-v2"
+                        "qcom,msm8996-smmu-v2"
 
                   depending on the particular implementation and/or the
                   version of the architecture implemented.
@@ -74,11 +75,16 @@ conditions.
 - clock-names:    Should be "tcu" and "iface" for "arm,mmu-400",
                   "arm,mmu-401" and "arm,mmu-500"
 
+                  Should be "bus", and "iface" for "qcom,msm8996-smmu-v2"
+                  implementation.
+
                   "tcu" clock is required for smmu's register access using the
                   programming interface and ptw for downstream bus access. This
                   clock is also used for access to the TBU connected to the
                   master locally. Sometimes however, TBU is clocked along with
                   the master.
+                  "bus" clock for "qcom,msm8996-smmu-v2" is requierd for downstream
+                  bus access and for the smmu ptw.
 
                   "iface" clock is required to access the TCU's programming
                   interface, apart from the "tcu" clock.
@@ -161,3 +167,15 @@ conditions.
                 iommu-map = <0 &smmu3 0 0x400>;
                 ...
         };
+
+	/* Qcom's arm,smmu-v2 implementation for msm8996 */
+	smmu4: iommu {
+		compatible = "qcom,msm8996-smmu-v2";
+		...
+		#iommu-cells = <1>;
+		power-domains = <&mmcc MDSS_GDSC>;
+
+		clocks = <&mmcc SMMU_MDP_AXI_CLK>,
+			 <&mmcc SMMU_MDP_AHB_CLK>;
+		clock-names = "bus", "iface";
+	};
