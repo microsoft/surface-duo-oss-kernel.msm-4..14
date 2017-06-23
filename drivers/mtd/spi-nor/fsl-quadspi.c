@@ -772,7 +772,7 @@ static int fsl_qspi_read(struct spi_nor *nor, loff_t from,
 	struct fsl_qspi *q = nor->priv;
 	u8 cmd = nor->read_opcode;
 
-	dev_dbg(q->dev, "cmd [%x],read from (0x%p, 0x%.8x, 0x%.8x),len:%d\n",
+	dev_dbg(q->dev, "cmd [%x],read from (0x%p, 0x%.8x, 0x%.8x),len:%zd\n",
 		cmd, q->ahb_base, q->chip_base_addr, (unsigned int)from, len);
 
 	/* Read out the data directly from the AHB buffer.*/
