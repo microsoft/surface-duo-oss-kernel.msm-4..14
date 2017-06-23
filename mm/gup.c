@@ -313,7 +313,9 @@ static int faultin_page(struct task_struct *tsk, struct vm_area_struct *vma,
 	if ((*flags & (FOLL_POPULATE | FOLL_MLOCK)) == FOLL_MLOCK)
 		return -ENOENT;
 	/* For mm_populate(), just skip the stack guard page. */
-	if ((*flags & FOLL_POPULATE) && stack_guard_area(vma, address))
+	if ((*flags & FOLL_POPULATE) &&
+			(stack_guard_page_start(vma, address) ||
+			 stack_guard_page_end(vma, address + PAGE_SIZE)))
 		return -ENOENT;
 	if (*flags & FOLL_WRITE)
 		fault_flags |= FAULT_FLAG_WRITE;
