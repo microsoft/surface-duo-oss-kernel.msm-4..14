@@ -927,9 +927,14 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 		return -ENOMEM;
 
 	for (i = 0; i < ispif->nclocks; i++) {
-		ispif->clock[i] = devm_clk_get(dev, res->clock[i]);
-		if (IS_ERR(ispif->clock[i]))
-			return PTR_ERR(ispif->clock[i]);
+		struct camss_clock *clock = &ispif->clock[i];
+
+		clock->clk = devm_clk_get(dev, res->clock[i]);
+		if (IS_ERR(clock->clk))
+			return PTR_ERR(clock->clk);
+
+		clock->freq = NULL;
+		clock->nfreqs = 0;
 	}
 
 	ispif->nclocks_for_reset = 0;
@@ -942,10 +947,14 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 		return -ENOMEM;
 
 	for (i = 0; i < ispif->nclocks_for_reset; i++) {
-		ispif->clock_for_reset[i] = devm_clk_get(dev,
-						res->clock_for_reset[i]);
-		if (IS_ERR(ispif->clock_for_reset[i]))
-			return PTR_ERR(ispif->clock_for_reset[i]);
+		struct camss_clock *clock = &ispif->clock_for_reset[i];
+
+		clock->clk = devm_clk_get(dev, res->clock_for_reset[i]);
+		if (IS_ERR(clock->clk))
+			return PTR_ERR(clock->clk);
+
+		clock->freq = NULL;
+		clock->nfreqs = 0;
 	}
 
 	init_completion(&ispif->reset_complete);
@@ -1081,6 +1090,7 @@ int msm_ispif_register_entities(struct ispif_device *ispif,
 		pads[MSM_ISPIF_PAD_SINK].flags = MEDIA_PAD_FL_SINK;
 		pads[MSM_ISPIF_PAD_SRC].flags = MEDIA_PAD_FL_SOURCE;
 
+		sd->entity.function = MEDIA_ENT_F_IO_V4L;
 		sd->entity.ops = &ispif_media_ops;
 		ret = media_entity_pads_init(&sd->entity, MSM_ISPIF_PADS_NUM,
 					     pads);

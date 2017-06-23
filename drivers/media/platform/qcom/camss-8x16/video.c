@@ -15,6 +15,7 @@
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
  */
+#include <linux/slab.h>
 #include <media/media-entity.h>
 #include <media/v4l2-dev.h>
 #include <media/v4l2-device.h>
@@ -35,7 +36,10 @@ struct fract {
  * struct format_info - ISP media bus format information
  * @code: V4L2 media bus format code
  * @pixelformat: V4L2 pixel format FCC identifier
- * @bpp: Bits per pixel when stored in memory
+ * @hsub: Horizontal subsampling (for each plane)
+ * @vsub: Vertical subsampling (for each plane)
+ * @bpp: Bits per pixel when stored in memory (for each plane)
+ * @fmt_tags: Tags that indicate for which output this format can be used
  */
 static const struct format_info {
 	u32 code;
@@ -44,89 +48,124 @@ static const struct format_info {
 	struct fract hsub[3];
 	struct fract vsub[3];
 	unsigned int bpp[3];
+	u8 fmt_tags;
 } formats[] = {
 	{ MEDIA_BUS_FMT_UYVY8_2X8, V4L2_PIX_FMT_UYVY, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 16 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 16 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_VYUY8_2X8, V4L2_PIX_FMT_VYUY, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 16 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 16 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_YUYV8_2X8, V4L2_PIX_FMT_YUYV, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 16 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 16 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_YVYU8_2X8, V4L2_PIX_FMT_YVYU, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 16 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 16 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_SBGGR8_1X8, V4L2_PIX_FMT_SBGGR8, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 8 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 8 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_SGBRG8_1X8, V4L2_PIX_FMT_SGBRG8, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 8 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 8 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_SGRBG8_1X8, V4L2_PIX_FMT_SGRBG8, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 8 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 8 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_SRGGB8_1X8, V4L2_PIX_FMT_SRGGB8, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 8 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 8 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_SBGGR10_1X10, V4L2_PIX_FMT_SBGGR10P, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 10 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 10 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_SGBRG10_1X10, V4L2_PIX_FMT_SGBRG10P, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 10 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 10 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_SGRBG10_1X10, V4L2_PIX_FMT_SGRBG10P, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 10 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 10 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_SRGGB10_1X10, V4L2_PIX_FMT_SRGGB10P, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 10 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 10 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_SBGGR12_1X12, V4L2_PIX_FMT_SRGGB12P, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 12 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 12 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_SGBRG12_1X12, V4L2_PIX_FMT_SGBRG12P, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 12 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 12 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_SGRBG12_1X12, V4L2_PIX_FMT_SGRBG12P, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 12 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 12 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_SRGGB12_1X12, V4L2_PIX_FMT_SRGGB12P, 1,
-	  { { 1, 1 } }, { { 1, 1 } }, { 12 } },
-	{ MEDIA_BUS_FMT_YUYV8_1_5X8, V4L2_PIX_FMT_NV12M, 2,
-	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
-	{ MEDIA_BUS_FMT_YVYU8_1_5X8, V4L2_PIX_FMT_NV12M, 2,
-	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
-	{ MEDIA_BUS_FMT_UYVY8_1_5X8, V4L2_PIX_FMT_NV12M, 2,
-	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
-	{ MEDIA_BUS_FMT_VYUY8_1_5X8, V4L2_PIX_FMT_NV12M, 2,
-	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
-	{ MEDIA_BUS_FMT_YUYV8_1_5X8, V4L2_PIX_FMT_NV21M, 2,
-	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
-	{ MEDIA_BUS_FMT_YVYU8_1_5X8, V4L2_PIX_FMT_NV21M, 2,
-	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
-	{ MEDIA_BUS_FMT_UYVY8_1_5X8, V4L2_PIX_FMT_NV21M, 2,
-	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
-	{ MEDIA_BUS_FMT_VYUY8_1_5X8, V4L2_PIX_FMT_NV21M, 2,
-	  { { 1, 1 }, { 1, 1 } }, { { 1, 1 }, { 2, 1 } }, { 8, 8 } },
+	  { { 1, 1 } }, { { 1, 1 } }, { 12 },
+	  CAMSS_FMT_TAG_RDI },
 	{ MEDIA_BUS_FMT_YUYV8_1_5X8, V4L2_PIX_FMT_NV12, 1,
-	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
 	{ MEDIA_BUS_FMT_YVYU8_1_5X8, V4L2_PIX_FMT_NV12, 1,
-	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
 	{ MEDIA_BUS_FMT_UYVY8_1_5X8, V4L2_PIX_FMT_NV12, 1,
-	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
 	{ MEDIA_BUS_FMT_VYUY8_1_5X8, V4L2_PIX_FMT_NV12, 1,
-	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
 	{ MEDIA_BUS_FMT_YUYV8_1_5X8, V4L2_PIX_FMT_NV21, 1,
-	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
 	{ MEDIA_BUS_FMT_YVYU8_1_5X8, V4L2_PIX_FMT_NV21, 1,
-	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
 	{ MEDIA_BUS_FMT_UYVY8_1_5X8, V4L2_PIX_FMT_NV21, 1,
-	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
 	{ MEDIA_BUS_FMT_VYUY8_1_5X8, V4L2_PIX_FMT_NV21, 1,
-	  { { 1, 1 } }, { { 2, 3 } }, { 8 } },
+	  { { 1, 1 } }, { { 2, 3 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
+	{ MEDIA_BUS_FMT_YUYV8_2X8, V4L2_PIX_FMT_NV16, 1,
+	  { { 1, 1 } }, { { 1, 2 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
+	{ MEDIA_BUS_FMT_YVYU8_2X8, V4L2_PIX_FMT_NV16, 1,
+	  { { 1, 1 } }, { { 1, 2 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
+	{ MEDIA_BUS_FMT_UYVY8_2X8, V4L2_PIX_FMT_NV16, 1,
+	  { { 1, 1 } }, { { 1, 2 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
+	{ MEDIA_BUS_FMT_VYUY8_2X8, V4L2_PIX_FMT_NV16, 1,
+	  { { 1, 1 } }, { { 1, 2 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
+	{ MEDIA_BUS_FMT_YUYV8_2X8, V4L2_PIX_FMT_NV61, 1,
+	  { { 1, 1 } }, { { 1, 2 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
+	{ MEDIA_BUS_FMT_YVYU8_2X8, V4L2_PIX_FMT_NV61, 1,
+	  { { 1, 1 } }, { { 1, 2 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
+	{ MEDIA_BUS_FMT_UYVY8_2X8, V4L2_PIX_FMT_NV61, 1,
+	  { { 1, 1 } }, { { 1, 2 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
+	{ MEDIA_BUS_FMT_VYUY8_2X8, V4L2_PIX_FMT_NV61, 1,
+	  { { 1, 1 } }, { { 1, 2 } }, { 8 },
+	  CAMSS_FMT_TAG_PIX },
 };
 
 /* -----------------------------------------------------------------------------
  * Helper functions
  */
 
-static int video_find_format(u32 code, u32 pixelformat)
+static int video_find_format(u32 code, u32 pixelformat, enum camss_fmt_tag tag)
 {
 	int i;
 
 	for (i = 0; i < ARRAY_SIZE(formats); i++) {
 		if (formats[i].code == code &&
+		    formats[i].fmt_tags & tag &&
 		    formats[i].pixelformat == pixelformat)
 			return i;
 	}
 
 	for (i = 0; i < ARRAY_SIZE(formats); i++)
-		if (formats[i].code == code)
+		if (formats[i].code == code &&
+		    formats[i].fmt_tags & tag)
 			return i;
 
 	WARN_ON(1);
@@ -134,13 +173,14 @@ static int video_find_format(u32 code, u32 pixelformat)
 	return -EINVAL;
 }
 
-static int video_find_format_n(u32 code, u32 index)
+static int video_find_format_n(u32 code, u32 index, enum camss_fmt_tag tag)
 {
 	int i;
 	u32 n = 0;
 
 	for (i = 0; i < ARRAY_SIZE(formats); i++)
-		if (formats[i].code == code) {
+		if (formats[i].code == code &&
+		    formats[i].fmt_tags & tag) {
 			if (n == index)
 				return i;
 			n++;
@@ -227,7 +267,8 @@ static int video_get_subdev_format(struct camss_video *video,
 	format->type = video->type;
 
 	ret = video_find_format(fmt.format.code,
-				format->fmt.pix_mp.pixelformat);
+				format->fmt.pix_mp.pixelformat,
+				video->fmt_tag);
 	if (ret < 0)
 		return ret;
 
@@ -254,7 +295,7 @@ static int video_get_pixelformat(struct camss_video *video, u32 *pixelformat,
 	if (ret)
 		return ret;
 
-	ret = video_find_format_n(fmt.format.code, index);
+	ret = video_find_format_n(fmt.format.code, index, video->fmt_tag);
 	if (ret < 0)
 		return ret;
 
@@ -315,7 +356,9 @@ static int video_buf_init(struct vb2_buffer *vb)
 	}
 
 	if (format->pixelformat == V4L2_PIX_FMT_NV12 ||
-			format->pixelformat == V4L2_PIX_FMT_NV21)
+			format->pixelformat == V4L2_PIX_FMT_NV21 ||
+			format->pixelformat == V4L2_PIX_FMT_NV16 ||
+			format->pixelformat == V4L2_PIX_FMT_NV61)
 		buffer->addr[1] = buffer->addr[0] +
 				format->plane_fmt[0].bytesperline *
 				format->height;

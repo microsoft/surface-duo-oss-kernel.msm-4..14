@@ -80,6 +80,8 @@ struct vfe_line {
 	struct v4l2_subdev subdev;
 	struct media_pad pads[MSM_VFE_PADS_NUM];
 	struct v4l2_mbus_framefmt fmt[MSM_VFE_PADS_NUM];
+	struct v4l2_rect compose;
+	struct v4l2_rect crop;
 	struct camss_video video_out;
 	struct vfe_output output;
 };
@@ -89,7 +91,7 @@ struct vfe_device {
 	void __iomem *base;
 	u32 irq;
 	char irq_name[30];
-	struct clk **clock;
+	struct camss_clock *clock;
 	int nclocks;
 	struct completion reset_complete;
 	struct completion halt_complete;

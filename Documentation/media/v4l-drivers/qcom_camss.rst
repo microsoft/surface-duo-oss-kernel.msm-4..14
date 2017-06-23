@@ -35,7 +35,8 @@ driver consists of:
   the CSIDs to the inputs of the VFE;
 - VFE (Video Front End) module. Contains a pipeline of image processing hardware
   blocks. The VFE has different input interfaces. The PIX input interface feeds
-  the input data to the image processing pipeline. Three RDI input interfaces
+  the input data to the image processing pipeline. The image processing pipeline
+  contains also a scale and crop module at the end. Three RDI input interfaces
   bypass the image processing pipeline. The VFE also contains the AXI bus
   interface which writes the output data to memory.
 
@@ -45,12 +46,36 @@ Supported functionality
 
 The current version of the driver supports:
 
-- input from camera sensor via CSIPHY;
-- generation of test input data by the TG in CSID;
-- raw dump of the input data to memory. RDI interface of VFE is supported.
-  PIX interface (ISP processing, statistics engines, resize/crop, format
-  conversion) is not supported in the current version;
-- concurrent and independent usage of two data inputs - could be camera sensors
+- Input from camera sensor via CSIPHY;
+- Generation of test input data by the TG in CSID;
+- RDI interface of VFE - raw dump of the input data to memory.
+
+  Supported formats:
+
+  - YUYV/UYVY/YVYU/VYUY (packed YUV 4:2:2);
+  - MIPI RAW8 (8bit Bayer RAW);
+  - MIPI RAW10 (10bit packed Bayer RAW);
+  - MIPI RAW12 (12bit packed Bayer RAW).
+
+- PIX interface of VFE
+
+  - Format conversion of the input data.
+
+    Supported input formats:
+
+    - YUYV/UYVY/YVYU/VYUY (packed YUV 4:2:2).
+
+    Supported output formats:
+
+    - NV12/NV21 (two plane YUV 4:2:0);
+    - NV16/NV61 (two plane YUV 4:2:2).
+
+  - Scaling support. Configuration of the VFE Encoder Scale module
+    for downscalling with ratio up to 16x.
+
+  - Cropping support. Configuration of the VFE Encoder Crop module.
+
+- Concurrent and independent usage of two data inputs - could be camera sensors
   and/or TG.
 
 
@@ -65,15 +90,15 @@ interface, the driver is split into V4L2 sub-devices as follows:
 - 2 CSID sub-devices - each CSID is represented by a single sub-device;
 - 2 ISPIF sub-devices - ISPIF is represented by a number of sub-devices equal
   to the number of CSID sub-devices;
-- 3 VFE sub-devices - VFE is represented by a number of sub-devices equal to
-  the number of RDI input interfaces.
+- 4 VFE sub-devices - VFE is represented by a number of sub-devices equal to
+  the number of the input interfaces (3 RDI and 1 PIX).
 
 The considerations to split the driver in this particular way are as follows:
 
 - representing CSIPHY and CSID modules by a separate sub-device for each module
   allows to model the hardware links between these modules;
-- representing VFE by a separate sub-devices for each RDI input interface allows
-  to use the three RDI interfaces concurently and independently as this is
+- representing VFE by a separate sub-devices for each input interface allows
+  to use the input interfaces concurently and independently as this is
   supported by the hardware;
 - representing ISPIF by a number of sub-devices equal to the number of CSID
   sub-devices allows to create linear media controller pipelines when using two
@@ -99,6 +124,8 @@ nodes) is as follows:
 - msm_vfe0_video1
 - msm_vfe0_rdi2
 - msm_vfe0_video2
+- msm_vfe0_pix
+- msm_vfe0_video3
 
 
 Implementation
@@ -108,6 +135,12 @@ Runtime configuration of the hardware (updating settings while streaming) is
 not required to implement the currently supported functionality. The complete
 configuration on each hardware module is applied on STREAMON ioctl based on
 the current active media links, formats and controls set.
+
+The output size of the scaler module in the VFE is configured with the actual
+compose selection rectangle on the sink pad of the 'msm_vfe0_pix' entity.
+
+The crop output area of the crop module in the VFE is configured with the actual
+crop selection rectangle on the source pad of the 'msm_vfe0_pix' entity.
 
 
 Documentation

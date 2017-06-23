@@ -17,9 +17,12 @@
  */
 #include <linux/clk.h>
 #include <linux/media-bus-format.h>
+#include <linux/media.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
+#include <linux/slab.h>
+#include <linux/videodev2.h>
 
 #include <media/media-device.h>
 #include <media/v4l2-async.h>
@@ -35,7 +38,10 @@ static struct resources csiphy_res[] = {
 		.regulator = { NULL },
 		.clock = { "camss_top_ahb_clk", "ispif_ahb_clk",
 			   "camss_ahb_clk", "csiphy0_timer_clk" },
-		.clock_rate = { 0, 0, 0, 200000000 },
+		.clock_rate = { { 0 },
+				{ 0 },
+				{ 0 },
+				{ 100000000, 200000000 } },
 		.reg = { "csiphy0", "csiphy0_clk_mux" },
 		.interrupt = { "csiphy0" }
 	},
@@ -45,7 +51,10 @@ static struct resources csiphy_res[] = {
 		.regulator = { NULL },
 		.clock = { "camss_top_ahb_clk", "ispif_ahb_clk",
 			   "camss_ahb_clk", "csiphy1_timer_clk" },
-		.clock_rate = { 0, 0, 0, 200000000 },
+		.clock_rate = { { 0 },
+				{ 0 },
+				{ 0 },
+				{ 100000000, 200000000 } },
 		.reg = { "csiphy1", "csiphy1_clk_mux" },
 		.interrupt = { "csiphy1" }
 	}
@@ -59,7 +68,14 @@ static struct resources csid_res[] = {
 			   "csi0_ahb_clk", "camss_ahb_clk",
 			   "csi0_clk", "csi0_phy_clk",
 			   "csi0_pix_clk", "csi0_rdi_clk" },
-		.clock_rate = { 0, 0, 0, 0, 200000000, 0, 0, 0 },
+		.clock_rate = { { 0 },
+				{ 0 },
+				{ 0 },
+				{ 0 },
+				{ 100000000, 200000000 },
+				{ 0 },
+				{ 0 },
+				{ 0 } },
 		.reg = { "csid0" },
 		.interrupt = { "csid0" }
 	},
@@ -71,7 +87,14 @@ static struct resources csid_res[] = {
 			   "csi1_ahb_clk", "camss_ahb_clk",
 			   "csi1_clk", "csi1_phy_clk",
 			   "csi1_pix_clk", "csi1_rdi_clk" },
-		.clock_rate = { 0, 0, 0, 0, 200000000, 0, 0, 0 },
+		.clock_rate = { { 0 },
+				{ 0 },
+				{ 0 },
+				{ 0 },
+				{ 100000000, 200000000 },
+				{ 0 },
+				{ 0 },
+				{ 0 } },
 		.reg = { "csid1" },
 		.interrupt = { "csid1" }
 	},
@@ -94,7 +117,17 @@ static struct resources vfe_res = {
 	.clock = { "camss_top_ahb_clk", "camss_vfe_vfe_clk",
 		   "camss_csi_vfe_clk", "iface_clk",
 		   "bus_clk", "camss_ahb_clk" },
-	.clock_rate = { 0, 320000000, 0, 0, 0, 0, 0, 0 },
+	.clock_rate = { { 0 },
+			{ 50000000, 80000000, 100000000, 160000000,
+			  177780000, 200000000, 266670000, 320000000,
+			  400000000, 465000000 },
+			{ 0 },
+			{ 0 },
+			{ 0 },
+			{ 0 },
+			{ 0 },
+			{ 0 },
+			{ 0 } },
 	.reg = { "vfe0" },
 	.interrupt = { "vfe0" }
 };
@@ -107,13 +140,14 @@ static struct resources vfe_res = {
  *
  * Return 0 on success or a negative error code otherwise
  */
-int camss_enable_clocks(int nclocks, struct clk **clock, struct device *dev)
+int camss_enable_clocks(int nclocks, struct camss_clock *clock,
+			struct device *dev)
 {
 	int ret;
 	int i;
 
 	for (i = 0; i < nclocks; i++) {
-		ret = clk_prepare_enable(clock[i]);
+		ret = clk_prepare_enable(clock[i].clk);
 		if (ret) {
 			dev_err(dev, "clock enable failed\n");
 			goto error;
@@ -124,7 +158,7 @@ int camss_enable_clocks(int nclocks, struct clk **clock, struct device *dev)
 
 error:
 	for (i--; i >= 0; i--)
-		clk_disable_unprepare(clock[i]);
+		clk_disable_unprepare(clock[i].clk);
 
 	return ret;
 }
@@ -134,12 +168,73 @@ error:
  * @nclocks: Number of clocks in clock array
  * @clock: Clock array
  */
-void camss_disable_clocks(int nclocks, struct clk **clock)
+void camss_disable_clocks(int nclocks, struct camss_clock *clock)
 {
 	int i;
 
 	for (i = nclocks - 1; i >= 0; i--)
-		clk_disable_unprepare(clock[i]);
+		clk_disable_unprepare(clock[i].clk);
+}
+
+/*
+ * camss_find_sensor - Find a linked media entity which represents a sensor
+ * @entity: Media entity to start searching from
+ *
+ * Return a pointer to sensor media entity or NULL if not found
+ */
+static struct media_entity *camss_find_sensor(struct media_entity *entity)
+{
+	struct media_pad *pad;
+
+	while (1) {
+		pad = &entity->pads[0];
+		if (!(pad->flags & MEDIA_PAD_FL_SINK))
+			return NULL;
+
+		pad = media_entity_remote_pad(pad);
+		if (!pad || !is_media_entity_v4l2_subdev(pad->entity))
+			return NULL;
+
+		entity = pad->entity;
+
+		if (entity->function == MEDIA_ENT_F_CAM_SENSOR)
+			return entity;
+	}
+}
+
+/*
+ * camss_get_pixel_clock - Get pixel clock rate from sensor
+ * @entity: Media entity in the current pipeline
+ * @pixel_clock: Received pixel clock value
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+int camss_get_pixel_clock(struct media_entity *entity, u32 *pixel_clock)
+{
+	struct media_entity *sensor;
+	struct v4l2_subdev *subdev;
+	struct v4l2_ext_controls ctrls = { { 0 } };
+	struct v4l2_ext_control ctrl = { 0 };
+	int ret;
+
+	sensor = camss_find_sensor(entity);
+	if (!sensor)
+		return -ENODEV;
+
+	subdev = media_entity_to_v4l2_subdev(sensor);
+
+	ctrl.id = V4L2_CID_PIXEL_RATE;
+
+	ctrls.count = 1;
+	ctrls.controls = &ctrl;
+
+	ret = v4l2_g_ext_ctrls(subdev->ctrl_handler, &ctrls);
+	if (ret < 0)
+		return ret;
+
+	*pixel_clock = ctrl.value64;
+
+	return 0;
 }
 
 /*
@@ -157,7 +252,7 @@ static int camss_of_parse_endpoint_node(struct device *dev,
 	struct csiphy_lanes_cfg *lncfg = &csd->interface.csi2.lane_cfg;
 	int *settle_cnt = &csd->interface.csi2.settle_cnt;
 	struct v4l2_of_bus_mipi_csi2 *mipi_csi2;
-	struct v4l2_of_endpoint vep;
+	struct v4l2_of_endpoint vep = { { 0 } };
 	unsigned int i;
 
 	v4l2_of_parse_endpoint(node, &vep);
@@ -212,6 +307,9 @@ static int camss_of_parse_ports(struct device *dev,
 	i = 0;
 	while ((node = of_graph_get_next_endpoint(dev->of_node, node))) {
 		struct camss_async_subdev *csd;
+
+		if (!of_device_is_available(node))
+			continue;
 
 		csd = devm_kzalloc(dev, sizeof(*csd), GFP_KERNEL);
 		if (!csd) {
