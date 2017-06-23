@@ -167,7 +167,7 @@
 			led@5 {
 				label = "apq8016-sbc:yellow:wlan";
 				gpios = <&pm8916_mpps 2 GPIO_ACTIVE_HIGH>;
-				linux,default-trigger = "phy0rx";
+				linux,default-trigger = "phy0tx";
 				default-state = "off";
 			};
 
