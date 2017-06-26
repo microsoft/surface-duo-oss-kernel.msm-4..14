@@ -119,13 +119,14 @@ static const struct venus_format *find_format(u32 pixfmt, u32 type)
 	return &fmt[i];
 }
 
-static const struct venus_format *find_format_by_index(int index, u32 type)
+static const struct venus_format *
+find_format_by_index(unsigned int index, u32 type)
 {
 	const struct venus_format *fmt = vdec_formats;
 	unsigned int size = ARRAY_SIZE(vdec_formats);
-	int i, k = 0;
+	unsigned int i, k = 0;
 
-	if (index < 0 || index > size)
+	if (index > size)
 		return NULL;
 
 	for (i = 0; i < size; i++) {
@@ -314,29 +315,29 @@ vdec_g_selection(struct file *file, void *fh, struct v4l2_selection *s)
 {
 	struct venus_inst *inst = to_inst(file);
 
-	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE &&
-	    s->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+	if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE &&
+	    s->type != V4L2_BUF_TYPE_VIDEO_OUTPUT)
 		return -EINVAL;
 
 	switch (s->target) {
 	case V4L2_SEL_TGT_CROP_BOUNDS:
 	case V4L2_SEL_TGT_CROP_DEFAULT:
 	case V4L2_SEL_TGT_CROP:
-		if (s->type != V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
+		if (s->type != V4L2_BUF_TYPE_VIDEO_OUTPUT)
 			return -EINVAL;
 		s->r.width = inst->out_width;
 		s->r.height = inst->out_height;
 		break;
 	case V4L2_SEL_TGT_COMPOSE_BOUNDS:
 	case V4L2_SEL_TGT_COMPOSE_PADDED:
-		if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+		if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 			return -EINVAL;
 		s->r.width = inst->width;
 		s->r.height = inst->height;
 		break;
 	case V4L2_SEL_TGT_COMPOSE_DEFAULT:
 	case V4L2_SEL_TGT_COMPOSE:
-		if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
+		if (s->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 			return -EINVAL;
 		s->r.width = inst->out_width;
 		s->r.height = inst->out_height;
@@ -455,6 +456,34 @@ static int vdec_subscribe_event(struct v4l2_fh *fh,
 	}
 }
 
+static int
+vdec_try_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cmd)
+{
+	if (cmd->cmd != V4L2_DEC_CMD_STOP)
+		return -EINVAL;
+
+	return 0;
+}
+
+static int
+vdec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cmd)
+{
+	struct venus_inst *inst = to_inst(file);
+	int ret;
+
+	ret = vdec_try_decoder_cmd(file, fh, cmd);
+	if (ret)
+		return ret;
+
+	mutex_lock(&inst->lock);
+	inst->cmd_stop = true;
+	mutex_unlock(&inst->lock);
+
+	hfi_session_flush(inst);
+
+	return 0;
+}
+
 static const struct v4l2_ioctl_ops vdec_ioctl_ops = {
 	.vidioc_querycap = vdec_querycap,
 	.vidioc_enum_fmt_vid_cap_mplane = vdec_enum_fmt,
@@ -479,6 +508,8 @@ static const struct v4l2_ioctl_ops vdec_ioctl_ops = {
 	.vidioc_enum_framesizes = vdec_enum_framesizes,
 	.vidioc_subscribe_event = vdec_subscribe_event,
 	.vidioc_unsubscribe_event = v4l2_event_unsubscribe,
+	.vidioc_try_decoder_cmd = vdec_try_decoder_cmd,
+	.vidioc_decoder_cmd = vdec_decoder_cmd,
 };
 
 static int vdec_set_properties(struct venus_inst *inst)
@@ -489,7 +520,7 @@ static int vdec_set_properties(struct venus_inst *inst)
 	u32 ptype;
 	int ret;
 
-	if (core->res->hfi_version == HFI_VERSION_LEGACY) {
+	if (core->res->hfi_version == HFI_VERSION_1XX) {
 		ptype = HFI_PROPERTY_PARAM_VDEC_CONTINUE_DATA_TRANSFER;
 		ret = hfi_session_set_property(inst, ptype, &en);
 		if (ret)
@@ -528,12 +559,12 @@ static int vdec_init_session(struct venus_inst *inst)
 	if (ret)
 		return ret;
 
-	ret = helper_set_input_resolution(inst, inst->out_width,
-					  inst->out_height);
+	ret = venus_helper_set_input_resolution(inst, inst->out_width,
+						inst->out_height);
 	if (ret)
 		goto deinit;
 
-	ret = helper_set_color_format(inst, inst->fmt_cap->pixfmt);
+	ret = venus_helper_set_color_format(inst, inst->fmt_cap->pixfmt);
 	if (ret)
 		goto deinit;
 
@@ -552,7 +583,7 @@ static int vdec_cap_num_buffers(struct venus_inst *inst, unsigned int *num)
 	if (ret)
 		return ret;
 
-	ret = helper_get_bufreq(inst, HFI_BUFFER_OUTPUT, &bufreq);
+	ret = venus_helper_get_bufreq(inst, HFI_BUFFER_OUTPUT, &bufreq);
 
 	*num = bufreq.count_actual;
 
@@ -596,6 +627,12 @@ static int vdec_queue_setup(struct vb2_queue *q,
 						    inst->out_height);
 		inst->input_buf_size = sizes[0];
 		inst->num_input_bufs = *num_buffers;
+
+		ret = vdec_cap_num_buffers(inst, &num);
+		if (ret)
+			break;
+
+		inst->num_output_bufs = num;
 		break;
 	case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
 		*num_planes = inst->fmt_cap->num_planes;
@@ -629,7 +666,7 @@ static int vdec_verify_conf(struct venus_inst *inst)
 	if (!inst->num_input_bufs || !inst->num_output_bufs)
 		return -EINVAL;
 
-	ret = helper_get_bufreq(inst, HFI_BUFFER_OUTPUT, &bufreq);
+	ret = venus_helper_get_bufreq(inst, HFI_BUFFER_OUTPUT, &bufreq);
 	if (ret)
 		return ret;
 
@@ -637,7 +674,7 @@ static int vdec_verify_conf(struct venus_inst *inst)
 	    inst->num_output_bufs < bufreq.count_min)
 		return -EINVAL;
 
-	ret = helper_get_bufreq(inst, HFI_BUFFER_INPUT, &bufreq);
+	ret = venus_helper_get_bufreq(inst, HFI_BUFFER_INPUT, &bufreq);
 	if (ret)
 		return ret;
 
@@ -666,11 +703,12 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
 		return 0;
 	}
 
-	helper_init_instance(inst);
+	venus_helper_init_instance(inst);
 
 	inst->reconfig = false;
 	inst->sequence_cap = 0;
 	inst->sequence_out = 0;
+	inst->cmd_stop = false;
 
 	ret = vdec_init_session(inst);
 	if (ret)
@@ -696,11 +734,12 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (ret)
 		goto deinit_sess;
 
-	ret = helper_set_num_bufs(inst, inst->num_input_bufs, VB2_MAX_FRAME);
+	ret = venus_helper_set_num_bufs(inst, inst->num_input_bufs,
+					VB2_MAX_FRAME);
 	if (ret)
 		goto deinit_sess;
 
-	ret = helper_vb2_start_streaming(inst);
+	ret = venus_helper_vb2_start_streaming(inst);
 	if (ret)
 		goto deinit_sess;
 
@@ -711,7 +750,7 @@ static int vdec_start_streaming(struct vb2_queue *q, unsigned int count)
 deinit_sess:
 	hfi_session_deinit(inst);
 bufs_done:
-	helper_buffers_done(inst, VB2_BUF_STATE_QUEUED);
+	venus_helper_buffers_done(inst, VB2_BUF_STATE_QUEUED);
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		inst->streamon_out = 0;
 	else
@@ -722,11 +761,11 @@ bufs_done:
 
 static const struct vb2_ops vdec_vb2_ops = {
 	.queue_setup = vdec_queue_setup,
-	.buf_init = helper_vb2_buf_init,
-	.buf_prepare = helper_vb2_buf_prepare,
+	.buf_init = venus_helper_vb2_buf_init,
+	.buf_prepare = venus_helper_vb2_buf_prepare,
 	.start_streaming = vdec_start_streaming,
-	.stop_streaming = helper_vb2_stop_streaming,
-	.buf_queue = helper_vb2_buf_queue,
+	.stop_streaming = venus_helper_vb2_stop_streaming,
+	.buf_queue = venus_helper_vb2_buf_queue,
 };
 
 static void vdec_buf_done(struct venus_inst *inst, unsigned int buf_type,
@@ -743,7 +782,7 @@ static void vdec_buf_done(struct venus_inst *inst, unsigned int buf_type,
 	else
 		type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 
-	vbuf = helper_find_buf(inst, type, tag);
+	vbuf = venus_helper_find_buf(inst, type, tag);
 	if (!vbuf)
 		return;
 
@@ -758,6 +797,11 @@ static void vdec_buf_done(struct venus_inst *inst, unsigned int buf_type,
 		vb->timestamp = timestamp_us * NSEC_PER_USEC;
 		vbuf->sequence = inst->sequence_cap++;
 
+		if (inst->cmd_stop) {
+			vbuf->flags |= V4L2_BUF_FLAG_LAST;
+			inst->cmd_stop = false;
+		}
+
 		if (vbuf->flags & V4L2_BUF_FLAG_LAST) {
 			const struct v4l2_event ev = { .type = V4L2_EVENT_EOS };
 
@@ -768,7 +812,7 @@ static void vdec_buf_done(struct venus_inst *inst, unsigned int buf_type,
 	}
 
 	if (hfi_flags & HFI_BUFFERFLAG_READONLY)
-		helper_acquire_buf_ref(vbuf);
+		venus_helper_acquire_buf_ref(vbuf);
 
 	if (hfi_flags & HFI_BUFFERFLAG_DATACORRUPT)
 		state = VB2_BUF_STATE_ERROR;
@@ -807,7 +851,7 @@ static void vdec_event_notify(struct venus_inst *inst, u32 event,
 				data->width, data->height);
 			break;
 		case HFI_EVENT_RELEASE_BUFFER_REFERENCE:
-			helper_release_buf_ref(inst, data->tag);
+			venus_helper_release_buf_ref(inst, data->tag);
 			break;
 		default:
 			break;
@@ -853,8 +897,8 @@ static void vdec_inst_init(struct venus_inst *inst)
 }
 
 static const struct v4l2_m2m_ops vdec_m2m_ops = {
-	.device_run = helper_m2m_device_run,
-	.job_abort = helper_m2m_job_abort,
+	.device_run = venus_helper_m2m_device_run,
+	.job_abort = venus_helper_m2m_job_abort,
 };
 
 static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
@@ -913,8 +957,9 @@ static int vdec_open(struct file *file)
 
 	inst->core = core;
 	inst->session_type = VIDC_SESSION_TYPE_DEC;
+	inst->num_output_bufs = 1;
 
-	helper_init_instance(inst);
+	venus_helper_init_instance(inst);
 
 	ret = pm_runtime_get_sync(core->dev_dec);
 	if (ret < 0)
@@ -979,9 +1024,10 @@ static int vdec_close(struct file *file)
 	mutex_destroy(&inst->lock);
 	v4l2_fh_del(&inst->fh);
 	v4l2_fh_exit(&inst->fh);
-	kfree(inst);
 
 	pm_runtime_put_sync(inst->core->dev_dec);
+
+	kfree(inst);
 	return 0;
 }
 
@@ -1062,7 +1108,7 @@ static int vdec_runtime_suspend(struct device *dev)
 {
 	struct venus_core *core = dev_get_drvdata(dev);
 
-	if (core->res->hfi_version == HFI_VERSION_LEGACY)
+	if (core->res->hfi_version == HFI_VERSION_1XX)
 		return 0;
 
 	writel(0, core->base + WRAPPER_VDEC_VCODEC_POWER_CONTROL);
@@ -1077,7 +1123,7 @@ static int vdec_runtime_resume(struct device *dev)
 	struct venus_core *core = dev_get_drvdata(dev);
 	int ret;
 
-	if (core->res->hfi_version == HFI_VERSION_LEGACY)
+	if (core->res->hfi_version == HFI_VERSION_1XX)
 		return 0;
 
 	writel(0, core->base + WRAPPER_VDEC_VCODEC_POWER_CONTROL);

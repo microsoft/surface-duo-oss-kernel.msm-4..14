@@ -16,6 +16,7 @@
 #include <media/v4l2-ctrls.h>
 
 #include "core.h"
+#include "venc.h"
 
 #define BITRATE_MIN		32000
 #define BITRATE_MAX		160000000

@@ -183,7 +183,7 @@ void pkt_session_cmd(struct hfi_session_pkt *pkt, u32 pkt_type, void *cookie)
 int pkt_session_set_buffers(struct hfi_session_set_buffers_pkt *pkt,
 			    void *cookie, struct hfi_buffer_desc *bd)
 {
-	int i;
+	unsigned int i;
 
 	if (!cookie || !pkt || !bd)
 		return -EINVAL;
@@ -222,7 +222,7 @@ int pkt_session_set_buffers(struct hfi_session_set_buffers_pkt *pkt,
 int pkt_session_unset_buffers(struct hfi_session_release_buffer_pkt *pkt,
 			      void *cookie, struct hfi_buffer_desc *bd)
 {
-	int i;
+	unsigned int i;
 
 	if (!cookie || !pkt || !bd)
 		return -EINVAL;
@@ -409,11 +409,13 @@ static int pkt_session_get_property_1x(struct hfi_session_get_property_pkt *pkt,
 static int pkt_session_set_property_1x(struct hfi_session_set_property_pkt *pkt,
 				       void *cookie, u32 ptype, void *pdata)
 {
-	void *prop_data = &pkt->data[1];
+	void *prop_data;
 	int ret = 0;
 
 	if (!pkt || !cookie || !pdata)
 		return -EINVAL;
+
+	prop_data = &pkt->data[1];
 
 	pkt->shdr.hdr.size = sizeof(*pkt);
 	pkt->shdr.hdr.pkt_type = HFI_CMD_SESSION_SET_PROPERTY;
@@ -1171,11 +1173,13 @@ static int
 pkt_session_set_property_3xx(struct hfi_session_set_property_pkt *pkt,
 			     void *cookie, u32 ptype, void *pdata)
 {
-	void *prop_data = &pkt->data[1];
+	void *prop_data;
 	int ret = 0;
 
 	if (!pkt || !cookie || !pdata)
 		return -EINVAL;
+
+	prop_data = &pkt->data[1];
 
 	pkt->shdr.hdr.size = sizeof(*pkt);
 	pkt->shdr.hdr.pkt_type = HFI_CMD_SESSION_SET_PROPERTY;
@@ -1234,7 +1238,7 @@ pkt_session_set_property_3xx(struct hfi_session_set_property_pkt *pkt,
 int pkt_session_get_property(struct hfi_session_get_property_pkt *pkt,
 			     void *cookie, u32 ptype)
 {
-	if (hfi_ver == HFI_VERSION_LEGACY)
+	if (hfi_ver == HFI_VERSION_1XX)
 		return pkt_session_get_property_1x(pkt, cookie, ptype);
 
 	return pkt_session_get_property_3xx(pkt, cookie, ptype);
@@ -1243,7 +1247,7 @@ int pkt_session_get_property(struct hfi_session_get_property_pkt *pkt,
 int pkt_session_set_property(struct hfi_session_set_property_pkt *pkt,
 			     void *cookie, u32 ptype, void *pdata)
 {
-	if (hfi_ver == HFI_VERSION_LEGACY)
+	if (hfi_ver == HFI_VERSION_1XX)
 		return pkt_session_set_property_1x(pkt, cookie, ptype, pdata);
 
 	return pkt_session_set_property_3xx(pkt, cookie, ptype, pdata);

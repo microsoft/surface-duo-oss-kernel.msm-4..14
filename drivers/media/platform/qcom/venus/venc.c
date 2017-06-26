@@ -91,7 +91,7 @@ static const struct venus_format venc_formats[] = {
 	},
 };
 
-static const struct venus_format *find_format(u32 pixfmt, int type)
+static const struct venus_format *find_format(u32 pixfmt, u32 type)
 {
 	const struct venus_format *fmt = venc_formats;
 	unsigned int size = ARRAY_SIZE(venc_formats);
@@ -108,13 +108,14 @@ static const struct venus_format *find_format(u32 pixfmt, int type)
 	return &fmt[i];
 }
 
-static const struct venus_format *find_format_by_index(int index, int type)
+static const struct venus_format *
+find_format_by_index(unsigned int index, u32 type)
 {
 	const struct venus_format *fmt = venc_formats;
 	unsigned int size = ARRAY_SIZE(venc_formats);
-	int i, k = 0;
+	unsigned int i, k = 0;
 
-	if (index < 0 || index > size)
+	if (index > size)
 		return NULL;
 
 	for (i = 0; i < size; i++) {
@@ -288,7 +289,7 @@ venc_try_fmt_common(struct venus_inst *inst, struct v4l2_format *f)
 	pixmp->height = clamp(pixmp->height, inst->cap_height.min,
 			      inst->cap_height.max);
 
-	if (inst->core->res->hfi_version == HFI_VERSION_LEGACY)
+	if (inst->core->res->hfi_version == HFI_VERSION_1XX)
 		pixmp->height = ALIGN(pixmp->height, 32);
 
 	pixmp->width = ALIGN(pixmp->width, 2);
@@ -746,16 +747,17 @@ static int venc_init_session(struct venus_inst *inst)
 	if (ret)
 		return ret;
 
-	ret = helper_set_input_resolution(inst, inst->out_width,
-					  inst->out_height);
+	ret = venus_helper_set_input_resolution(inst, inst->out_width,
+						inst->out_height);
 	if (ret)
 		goto deinit;
 
-	ret = helper_set_output_resolution(inst, inst->width, inst->height);
+	ret = venus_helper_set_output_resolution(inst, inst->width,
+						 inst->height);
 	if (ret)
 		goto deinit;
 
-	ret = helper_set_color_format(inst, inst->fmt_out->pixfmt);
+	ret = venus_helper_set_color_format(inst, inst->fmt_out->pixfmt);
 	if (ret)
 		goto deinit;
 
@@ -774,7 +776,7 @@ static int venc_out_num_buffers(struct venus_inst *inst, unsigned int *num)
 	if (ret)
 		return ret;
 
-	ret = helper_get_bufreq(inst, HFI_BUFFER_INPUT, &bufreq);
+	ret = venus_helper_get_bufreq(inst, HFI_BUFFER_INPUT, &bufreq);
 
 	*num = bufreq.count_actual;
 
@@ -851,7 +853,7 @@ static int venc_verify_conf(struct venus_inst *inst)
 	if (!inst->num_input_bufs || !inst->num_output_bufs)
 		return -EINVAL;
 
-	ret = helper_get_bufreq(inst, HFI_BUFFER_OUTPUT, &bufreq);
+	ret = venus_helper_get_bufreq(inst, HFI_BUFFER_OUTPUT, &bufreq);
 	if (ret)
 		return ret;
 
@@ -859,7 +861,7 @@ static int venc_verify_conf(struct venus_inst *inst)
 	    inst->num_output_bufs < bufreq.count_min)
 		return -EINVAL;
 
-	ret = helper_get_bufreq(inst, HFI_BUFFER_INPUT, &bufreq);
+	ret = venus_helper_get_bufreq(inst, HFI_BUFFER_INPUT, &bufreq);
 	if (ret)
 		return ret;
 
@@ -887,7 +889,7 @@ static int venc_start_streaming(struct vb2_queue *q, unsigned int count)
 		return 0;
 	}
 
-	helper_init_instance(inst);
+	venus_helper_init_instance(inst);
 
 	inst->sequence_cap = 0;
 	inst->sequence_out = 0;
@@ -904,12 +906,12 @@ static int venc_start_streaming(struct vb2_queue *q, unsigned int count)
 	if (ret)
 		goto deinit_sess;
 
-	ret = helper_set_num_bufs(inst, inst->num_input_bufs,
-				  inst->num_output_bufs);
+	ret = venus_helper_set_num_bufs(inst, inst->num_input_bufs,
+					inst->num_output_bufs);
 	if (ret)
 		goto deinit_sess;
 
-	ret = helper_vb2_start_streaming(inst);
+	ret = venus_helper_vb2_start_streaming(inst);
 	if (ret)
 		goto deinit_sess;
 
@@ -920,7 +922,7 @@ static int venc_start_streaming(struct vb2_queue *q, unsigned int count)
 deinit_sess:
 	hfi_session_deinit(inst);
 bufs_done:
-	helper_buffers_done(inst, VB2_BUF_STATE_QUEUED);
+	venus_helper_buffers_done(inst, VB2_BUF_STATE_QUEUED);
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		inst->streamon_out = 0;
 	else
@@ -931,11 +933,11 @@ bufs_done:
 
 static const struct vb2_ops venc_vb2_ops = {
 	.queue_setup = venc_queue_setup,
-	.buf_init = helper_vb2_buf_init,
-	.buf_prepare = helper_vb2_buf_prepare,
+	.buf_init = venus_helper_vb2_buf_init,
+	.buf_prepare = venus_helper_vb2_buf_prepare,
 	.start_streaming = venc_start_streaming,
-	.stop_streaming = helper_vb2_stop_streaming,
-	.buf_queue = helper_vb2_buf_queue,
+	.stop_streaming = venus_helper_vb2_stop_streaming,
+	.buf_queue = venus_helper_vb2_buf_queue,
 };
 
 static void venc_buf_done(struct venus_inst *inst, unsigned int buf_type,
@@ -951,7 +953,7 @@ static void venc_buf_done(struct venus_inst *inst, unsigned int buf_type,
 	else
 		type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
 
-	vbuf = helper_find_buf(inst, type, tag);
+	vbuf = venus_helper_find_buf(inst, type, tag);
 	if (!vbuf)
 		return;
 
@@ -988,8 +990,8 @@ static const struct hfi_inst_ops venc_hfi_ops = {
 };
 
 static const struct v4l2_m2m_ops venc_m2m_ops = {
-	.device_run = helper_m2m_device_run,
-	.job_abort = helper_m2m_job_abort,
+	.device_run = venus_helper_m2m_device_run,
+	.job_abort = venus_helper_m2m_job_abort,
 };
 
 static int m2m_queue_init(void *priv, struct vb2_queue *src_vq,
@@ -1078,7 +1080,7 @@ static int venc_open(struct file *file)
 	inst->core = core;
 	inst->session_type = VIDC_SESSION_TYPE_ENC;
 
-	helper_init_instance(inst);
+	venus_helper_init_instance(inst);
 
 	ret = pm_runtime_get_sync(core->dev_enc);
 	if (ret < 0)
@@ -1143,10 +1145,10 @@ static int venc_close(struct file *file)
 	mutex_destroy(&inst->lock);
 	v4l2_fh_del(&inst->fh);
 	v4l2_fh_exit(&inst->fh);
-	kfree(inst);
 
 	pm_runtime_put_sync(inst->core->dev_enc);
 
+	kfree(inst);
 	return 0;
 }
 
@@ -1227,7 +1229,7 @@ static int venc_runtime_suspend(struct device *dev)
 {
 	struct venus_core *core = dev_get_drvdata(dev);
 
-	if (core->res->hfi_version == HFI_VERSION_LEGACY)
+	if (core->res->hfi_version == HFI_VERSION_1XX)
 		return 0;
 
 	writel(0, core->base + WRAPPER_VENC_VCODEC_POWER_CONTROL);
@@ -1242,7 +1244,7 @@ static int venc_runtime_resume(struct device *dev)
 	struct venus_core *core = dev_get_drvdata(dev);
 	int ret;
 
-	if (core->res->hfi_version == HFI_VERSION_LEGACY)
+	if (core->res->hfi_version == HFI_VERSION_1XX)
 		return 0;
 
 	writel(0, core->base + WRAPPER_VENC_VCODEC_POWER_CONTROL);
