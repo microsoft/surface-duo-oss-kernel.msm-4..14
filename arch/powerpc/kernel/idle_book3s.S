@@ -433,6 +433,13 @@ FTR_SECTION_ELSE_NESTED(70)
 	ld	r2, PACATOC(r13)
 ALT_FTR_SECTION_END_NESTED_IFSET(CPU_FTR_POWER9_DD1, 70)
 	/*
+	 * Workaround for POWER9, if we lost resources, the ERAT
+	 * might have been mixed up and needs flushing.
+	 */
+	blt	cr3,1f
+	PPC_INVALIDATE_ERAT
+1:
+	/*
 	 * POWER ISA 3. Use PSSCR to determine if we
 	 * are waking up from deep idle state
 	 */
