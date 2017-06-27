@@ -228,19 +228,19 @@ static const struct {
 } vfe_formats[] = {
 	{
 		MEDIA_BUS_FMT_UYVY8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_VYUY8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_YUYV8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_YVYU8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_SBGGR8_1X8,
@@ -1834,11 +1834,11 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 				u8 bpp;
 
 				if (i == VFE_LINE_PIX) {
-					tmp = pixel_clock[i] * 2;
+					tmp = pixel_clock[i];
 				} else {
 					bpp = vfe_get_bpp(vfe->line[i].
 						fmt[MSM_VFE_PAD_SINK].code);
-					tmp = pixel_clock[i] * bpp * 2 / 64;
+					tmp = pixel_clock[i] * bpp / 64;
 				}
 
 				if (min_rate < tmp)
@@ -1909,11 +1909,11 @@ static int vfe_check_clock_rates(struct vfe_device *vfe)
 				u8 bpp;
 
 				if (i == VFE_LINE_PIX) {
-					tmp = pixel_clock[i] * 2;
+					tmp = pixel_clock[i];
 				} else {
 					bpp = vfe_get_bpp(vfe->line[i].
 						fmt[MSM_VFE_PAD_SINK].code);
-					tmp = pixel_clock[i] * bpp * 2 / 64;
+					tmp = pixel_clock[i] * bpp / 64;
 				}
 
 				if (min_rate < tmp)

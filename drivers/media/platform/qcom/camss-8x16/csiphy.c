@@ -48,19 +48,19 @@ static const struct {
 } csiphy_formats[] = {
 	{
 		MEDIA_BUS_FMT_UYVY8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_VYUY8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_YUYV8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_YVYU8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_SBGGR8_1X8,
