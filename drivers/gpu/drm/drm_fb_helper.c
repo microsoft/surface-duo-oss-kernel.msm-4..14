@@ -616,22 +616,12 @@ static struct sysrq_key_op sysrq_drm_fb_helper_restore_op = {
 static struct sysrq_key_op sysrq_drm_fb_helper_restore_op = { };
 #endif
 
-static void drm_fb_helper_dpms(struct fb_info *info, int dpms_mode)
+static void dpms_legacy(struct drm_fb_helper *fb_helper, int dpms_mode)
 {
-	struct drm_fb_helper *fb_helper = info->par;
 	struct drm_device *dev = fb_helper->dev;
 	struct drm_crtc *crtc;
 	struct drm_connector *connector;
 	int i, j;
-
-	/*
-	 * For each CRTC in this fb, turn the connectors on/off.
-	 */
-	mutex_lock(&fb_helper->lock);
-	if (!drm_fb_helper_is_bound(fb_helper)) {
-		mutex_unlock(&fb_helper->lock);
-		return;
-	}
 
 	drm_modeset_lock_all(dev);
 	for (i = 0; i < fb_helper->crtc_count; i++) {
@@ -649,6 +639,81 @@ static void drm_fb_helper_dpms(struct fb_info *info, int dpms_mode)
 		}
 	}
 	drm_modeset_unlock_all(dev);
+}
+
+static void dpms_atomic(struct drm_fb_helper *fb_helper, int dpms_mode)
+{
+	struct drm_device *dev = fb_helper->dev;
+	struct drm_atomic_state *state;
+	int i, ret;
+
+	struct drm_modeset_acquire_ctx ctx;
+
+	drm_modeset_acquire_init(&ctx, 0);
+
+	state = drm_atomic_state_alloc(dev);
+	if (!state) {
+		ret = -ENOMEM;
+		goto out_ctx;
+	}
+
+	state->acquire_ctx = &ctx;
+retry:
+	for (i = 0; i < fb_helper->crtc_count; i++) {
+		struct drm_crtc_state *crtc_state;
+		struct drm_crtc *crtc;
+
+		if (!fb_helper->crtc_info[i].mode_set.mode)
+			continue;
+
+		crtc = fb_helper->crtc_info[i].mode_set.crtc;
+
+		crtc_state = drm_atomic_get_crtc_state(state, crtc);
+		if (IS_ERR(crtc_state)) {
+			ret = PTR_ERR(crtc_state);
+			goto out_state;
+		}
+
+		crtc_state->active = dpms_mode == DRM_MODE_DPMS_ON;
+	}
+
+	ret = drm_atomic_commit(state);
+out_state:
+	if (ret == -EDEADLK)
+		goto backoff;
+
+	drm_atomic_state_put(state);
+out_ctx:
+	drm_modeset_drop_locks(&ctx);
+	drm_modeset_acquire_fini(&ctx);
+
+	return;
+
+backoff:
+	drm_atomic_state_clear(state);
+	drm_modeset_backoff(&ctx);
+
+	goto retry;
+
+}
+
+static void drm_fb_helper_dpms(struct fb_info *info, int dpms_mode)
+{
+	struct drm_fb_helper *fb_helper = info->par;
+
+	/*
+	 * For each CRTC in this fb, turn the connectors on/off.
+	 */
+	mutex_lock(&fb_helper->lock);
+	if (!drm_fb_helper_is_bound(fb_helper)) {
+		mutex_unlock(&fb_helper->lock);
+		return;
+	}
+
+	if (drm_drv_uses_atomic_modeset(fb_helper->dev))
+		dpms_atomic(fb_helper, dpms_mode);
+	else
+		dpms_legacy(fb_helper, dpms_mode);
 	mutex_unlock(&fb_helper->lock);
 }
 
@@ -2467,7 +2532,6 @@ EXPORT_SYMBOL(drm_fb_helper_initial_config);
  */
 int drm_fb_helper_hotplug_event(struct drm_fb_helper *fb_helper)
 {
-	struct drm_device *dev = fb_helper->dev;
 	int err = 0;
 
 	if (!drm_fbdev_emulation)
