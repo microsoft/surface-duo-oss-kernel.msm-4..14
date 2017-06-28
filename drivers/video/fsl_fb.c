@@ -739,8 +739,11 @@ int fsl_fb_parse_video_format(char *video_str,
 		return -EINVAL;
 
 	video_copy = kmalloc(len + 1, GFP_KERNEL);
-	if (!video_copy)
+	if (!video_copy) {
+		dev_err(fsl_dcu_get_dcufb()->dev,
+			"No enough memory to parse video format.");
 		return -ENOMEM;
+	}
 
 	/* Work on a duplicate of the video argument */
 	strcpy(video_copy, video_str);
@@ -754,34 +757,60 @@ int fsl_fb_parse_video_format(char *video_str,
 	else
 		if (strcasecmp(token, "LVDS") == 0)
 			video_format->use_hdmi = 0;
-		else
+		else {
+			dev_err(fsl_dcu_get_dcufb()->dev,
+				"Invalid video mode string '%s'.",
+				token);
 			return -EINVAL;
+		}
 
 	/* Parse the FB device to use */
 	token = strsep(&rest, split);
-	if (sscanf(token, "fb%d", &video_format->fb_idx) < 1)
+	if (!token || sscanf(token, "fb%d", &video_format->fb_idx) < 1) {
+		dev_err(fsl_dcu_get_dcufb()->dev,
+			"Invalid fb device '%s'.", token != NULL ? token : "");
 		return -EINVAL;
+	}
 
 	if ((video_format->fb_idx < 0) ||
-		(video_format->fb_idx >= fsl_dcu_num_layers()))
+		(video_format->fb_idx >= fsl_dcu_num_layers())) {
+		dev_err(fsl_dcu_get_dcufb()->dev,
+			"Invalid fb device number fb%d. Maximum supported is fb%d",
+			video_format->fb_idx, fsl_dcu_num_layers());
 		return -EINVAL;
+	}
 
 	/* Parse the resolution and refresh rate */
 	token = strsep(&rest, split);
-	if (sscanf(token, "%dx%d-%d", &video_format->res_x,
-			&video_format->res_y, &video_format->refresh_rate) < 3)
+	if (!token || sscanf(token, "%dx%d-%d", &video_format->res_x,
+		&video_format->res_y, &video_format->refresh_rate) < 3) {
+		dev_err(fsl_dcu_get_dcufb()->dev,
+			"Invalid resolution '%s'", token != NULL ? token : "");
 		return -EINVAL;
+	}
 
 	if ((video_format->res_x <= 0) || (video_format->res_y <= 0)
-		|| (video_format->refresh_rate <= 0))
+		|| (video_format->refresh_rate <= 0)) {
+		dev_err(fsl_dcu_get_dcufb()->dev,
+			"Invalid resolution '%s'", video_str);
 		return -EINVAL;
+	}
 
 	/* Parse the color format */
 	token = strsep(&rest, split);
+	if (!token) {
+		dev_err(fsl_dcu_get_dcufb()->dev,
+			"Invalid empty format '%s'", "");
+		return -EINVAL;
+	}
+
 	video_format->surf_format_idx = fsl_dcu_get_color_format_byname(token);
 
-	if (video_format->surf_format_idx < 0)
+	if (video_format->surf_format_idx < 0) {
+		dev_err(fsl_dcu_get_dcufb()->dev,
+			"Invalid format '%s'", token);
 		return -EINVAL;
+	}
 
 	dev_info(fsl_dcu_get_dcufb()->dev,
 		"Video mode: <%s> on </dev/fb%d>, <%d x %d @ %d Hz>, <%s>\n",
