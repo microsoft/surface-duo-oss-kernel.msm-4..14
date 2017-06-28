@@ -228,19 +228,19 @@ static const struct {
 } vfe_formats[] = {
 	{
 		MEDIA_BUS_FMT_UYVY8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_VYUY8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_YUYV8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_YVYU8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_SBGGR8_1X8,
@@ -1826,7 +1826,7 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 		struct camss_clock *clock = &vfe->clock[i];
 
 		if (!strcmp(clock->name, "camss_vfe_vfe_clk")) {
-			u32 min_rate = 0;
+			u64 min_rate = 0;
 			unsigned long rate;
 
 			for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
@@ -1834,16 +1834,19 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 				u8 bpp;
 
 				if (i == VFE_LINE_PIX) {
-					tmp = pixel_clock[i] * 2;
+					tmp = pixel_clock[i];
 				} else {
 					bpp = vfe_get_bpp(vfe->line[i].
 						fmt[MSM_VFE_PAD_SINK].code);
-					tmp = pixel_clock[i] * bpp * 2 / 64;
+					tmp = pixel_clock[i] * bpp / 64;
 				}
 
 				if (min_rate < tmp)
 					min_rate = tmp;
 			}
+
+			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
+						CAMSS_CLOCK_MARGIN_DENOMINATOR;
 
 			for (j = 0; j < clock->nfreqs; j++)
 				if (min_rate < clock->freq[j])
@@ -1901,7 +1904,7 @@ static int vfe_check_clock_rates(struct vfe_device *vfe)
 		struct camss_clock *clock = &vfe->clock[i];
 
 		if (!strcmp(clock->name, "camss_vfe_vfe_clk")) {
-			u32 min_rate = 0;
+			u64 min_rate = 0;
 			unsigned long rate;
 
 			for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
@@ -1909,16 +1912,19 @@ static int vfe_check_clock_rates(struct vfe_device *vfe)
 				u8 bpp;
 
 				if (i == VFE_LINE_PIX) {
-					tmp = pixel_clock[i] * 2;
+					tmp = pixel_clock[i];
 				} else {
 					bpp = vfe_get_bpp(vfe->line[i].
 						fmt[MSM_VFE_PAD_SINK].code);
-					tmp = pixel_clock[i] * bpp * 2 / 64;
+					tmp = pixel_clock[i] * bpp / 64;
 				}
 
 				if (min_rate < tmp)
 					min_rate = tmp;
 			}
+
+			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
+						CAMSS_CLOCK_MARGIN_DENOMINATOR;
 
 			rate = clk_get_rate(clock->clk);
 			if (rate < min_rate)

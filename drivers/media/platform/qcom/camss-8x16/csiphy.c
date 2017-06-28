@@ -48,19 +48,19 @@ static const struct {
 } csiphy_formats[] = {
 	{
 		MEDIA_BUS_FMT_UYVY8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_VYUY8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_YUYV8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_YVYU8_2X8,
-		16,
+		8,
 	},
 	{
 		MEDIA_BUS_FMT_SBGGR8_1X8,
@@ -178,8 +178,11 @@ static int csiphy_set_clock_rates(struct csiphy_device *csiphy)
 			u8 bpp = csiphy_get_bpp(
 					csiphy->fmt[MSM_CSIPHY_PAD_SINK].code);
 			u8 num_lanes = csiphy->cfg.csi2->lane_cfg.num_data;
-			u32 min_rate = pixel_clock * bpp / (2 * num_lanes * 4);
+			u64 min_rate = pixel_clock * bpp / (2 * num_lanes * 4);
 			unsigned long rate;
+
+			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
+						CAMSS_CLOCK_MARGIN_DENOMINATOR;
 
 			for (j = 0; j < clock->nfreqs; j++)
 				if (min_rate < clock->freq[j])

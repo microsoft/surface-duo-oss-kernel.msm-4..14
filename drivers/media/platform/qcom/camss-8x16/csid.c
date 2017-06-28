@@ -68,118 +68,135 @@ static const struct {
 	u8 data_type;
 	u8 decode_format;
 	u8 uncompr_bpp;
+	u8 spp; /* bus samples per pixel */
 } csid_input_fmts[] = {
 	{
 		MEDIA_BUS_FMT_UYVY8_2X8,
 		MEDIA_BUS_FMT_UYVY8_2X8,
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
-		16
+		8,
+		2
 	},
 	{
 		MEDIA_BUS_FMT_VYUY8_2X8,
 		MEDIA_BUS_FMT_VYUY8_2X8,
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
-		16
+		8,
+		2
 	},
 	{
 		MEDIA_BUS_FMT_YUYV8_2X8,
 		MEDIA_BUS_FMT_YUYV8_2X8,
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
-		16
+		8,
+		2
 	},
 	{
 		MEDIA_BUS_FMT_YVYU8_2X8,
 		MEDIA_BUS_FMT_YVYU8_2X8,
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
-		16
+		8,
+		2
 	},
 	{
 		MEDIA_BUS_FMT_SBGGR8_1X8,
 		MEDIA_BUS_FMT_SBGGR8_1X8,
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
-		8
+		8,
+		1
 	},
 	{
 		MEDIA_BUS_FMT_SGBRG8_1X8,
 		MEDIA_BUS_FMT_SGBRG8_1X8,
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
-		8
+		8,
+		1
 	},
 	{
 		MEDIA_BUS_FMT_SGRBG8_1X8,
 		MEDIA_BUS_FMT_SGRBG8_1X8,
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
-		8
+		8,
+		1
 	},
 	{
 		MEDIA_BUS_FMT_SRGGB8_1X8,
 		MEDIA_BUS_FMT_SRGGB8_1X8,
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
-		8
+		8,
+		1
 	},
 	{
 		MEDIA_BUS_FMT_SBGGR10_1X10,
 		MEDIA_BUS_FMT_SBGGR10_1X10,
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
-		10
+		10,
+		1
 	},
 	{
 		MEDIA_BUS_FMT_SGBRG10_1X10,
 		MEDIA_BUS_FMT_SGBRG10_1X10,
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
-		10
+		10,
+		1
 	},
 	{
 		MEDIA_BUS_FMT_SGRBG10_1X10,
 		MEDIA_BUS_FMT_SGRBG10_1X10,
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
-		10
+		10,
+		1
 	},
 	{
 		MEDIA_BUS_FMT_SRGGB10_1X10,
 		MEDIA_BUS_FMT_SRGGB10_1X10,
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
-		10
+		10,
+		1
 	},
 	{
 		MEDIA_BUS_FMT_SBGGR12_1X12,
 		MEDIA_BUS_FMT_SBGGR12_1X12,
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
-		12
+		12,
+		1
 	},
 	{
 		MEDIA_BUS_FMT_SGBRG12_1X12,
 		MEDIA_BUS_FMT_SGBRG12_1X12,
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
-		12
+		12,
+		1
 	},
 	{
 		MEDIA_BUS_FMT_SGRBG12_1X12,
 		MEDIA_BUS_FMT_SGRBG12_1X12,
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
-		12
+		12,
+		1
 	},
 	{
 		MEDIA_BUS_FMT_SRGGB12_1X12,
 		MEDIA_BUS_FMT_SRGGB12_1X12,
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
-		12
+		12,
+		1
 	}
 };
 
@@ -252,6 +269,23 @@ static u8 csid_get_bpp(u32 code)
 }
 
 /*
+ * csid_get_spp - map media bus format to bus samples per pixel
+ * @code: media bus format code
+ *
+ * Return number of bus samples per pixel
+ */
+static u8 csid_get_spp(u32 code)
+{
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
+		if (code == csid_input_fmts[i].uncompressed)
+			break;
+
+	return csid_input_fmts[i].spp;
+}
+
+/*
  * csid_isr - CSID module interrupt handler
  * @irq: Interrupt line
  * @dev: CSID device
@@ -295,8 +329,11 @@ static int csid_set_clock_rates(struct csid_device *csid)
 			u8 bpp = csid_get_bpp(
 					csid->fmt[MSM_CSIPHY_PAD_SINK].code);
 			u8 num_lanes = csid->phy.lane_cnt;
-			u32 min_rate = pixel_clock * bpp / (2 * num_lanes * 4);
+			u64 min_rate = pixel_clock * bpp / (2 * num_lanes * 4);
 			unsigned long rate;
+
+			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
+						CAMSS_CLOCK_MARGIN_DENOMINATOR;
 
 			for (j = 0; j < clock->nfreqs; j++)
 				if (min_rate < clock->freq[j])
@@ -445,10 +482,12 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 
 		if (tg->enabled) {
 			/* Config Test Generator */
-			u8 bpp = csid_get_bpp(csid->fmt[MSM_CSID_PAD_SRC].code);
-			u32 num_bytes_per_line =
-				csid->fmt[MSM_CSID_PAD_SRC].width * bpp / 8;
-			u32 num_lines = csid->fmt[MSM_CSID_PAD_SRC].height;
+			struct v4l2_mbus_framefmt *f =
+					&csid->fmt[MSM_CSID_PAD_SRC];
+			u8 bpp = csid_get_bpp(f->code);
+			u8 spp = csid_get_spp(f->code);
+			u32 num_bytes_per_line = f->width * bpp * spp / 8;
+			u32 num_lines = f->height;
 
 			/* 31:24 V blank, 23:13 H blank, 3:2 num of active DT */
 			/* 1:0 VC */
