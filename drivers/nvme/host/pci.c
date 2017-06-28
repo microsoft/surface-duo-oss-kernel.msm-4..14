@@ -1891,6 +1891,12 @@ static int nvme_pci_enable(struct nvme_dev *dev)
 		dev_warn(dev->dev, "detected Apple NVMe controller, set "
 			"queue depth=%u to work around controller resets\n",
 			dev->q_depth);
+	} else if (pdev->vendor == PCI_VENDOR_ID_SAMSUNG &&
+		   (pdev->device == 0xa821 || pdev->device == 0xa822) &&
+		   NVME_CAP_MQES(cap) == 0) {
+		dev->q_depth = 64;
+		dev_err(dev->ctrl.device, "detected PM1725 NVMe controller, "
+                        "set queue depth=%u\n", dev->q_depth);
 	}
 
 	if (readl(dev->bar + NVME_REG_VS) >= NVME_VS(1, 2))
@@ -2370,6 +2376,10 @@ static const struct pci_device_id nvme_id_table[] = {
 	{ PCI_VDEVICE(INTEL, 0x5845),	/* Qemu emulated controller */
 		.driver_data = NVME_QUIRK_IDENTIFY_CNS, },
 	{ PCI_DEVICE(0x1c58, 0x0003),	/* HGST adapter */
+		.driver_data = NVME_QUIRK_DELAY_BEFORE_CHK_RDY, },
+	{ PCI_DEVICE(0x144d, 0xa821),   /* Samsung PM1725 */
+		.driver_data = NVME_QUIRK_DELAY_BEFORE_CHK_RDY, },
+	{ PCI_DEVICE(0x144d, 0xa822),   /* Samsung PM1725a */
 		.driver_data = NVME_QUIRK_DELAY_BEFORE_CHK_RDY, },
 	{ PCI_DEVICE_CLASS(PCI_CLASS_STORAGE_EXPRESS, 0xffffff) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_APPLE, 0x2001) },
