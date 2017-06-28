@@ -34,6 +34,9 @@
 #define CAMSS_CSID_NUM 2
 #define CAMSS_CSIPHY_NUM 2
 
+#define CAMSS_CLOCK_MARGIN_NUMERATOR 105
+#define CAMSS_CLOCK_MARGIN_DENOMINATOR 100
+
 #define to_camss(ptr_module)	\
 	container_of(ptr_module, struct camss, ptr_module)
 

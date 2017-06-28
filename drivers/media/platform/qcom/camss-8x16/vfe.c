@@ -1826,7 +1826,7 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 		struct camss_clock *clock = &vfe->clock[i];
 
 		if (!strcmp(clock->name, "camss_vfe_vfe_clk")) {
-			u32 min_rate = 0;
+			u64 min_rate = 0;
 			unsigned long rate;
 
 			for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
@@ -1844,6 +1844,9 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 				if (min_rate < tmp)
 					min_rate = tmp;
 			}
+
+			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
+						CAMSS_CLOCK_MARGIN_DENOMINATOR;
 
 			for (j = 0; j < clock->nfreqs; j++)
 				if (min_rate < clock->freq[j])
@@ -1901,7 +1904,7 @@ static int vfe_check_clock_rates(struct vfe_device *vfe)
 		struct camss_clock *clock = &vfe->clock[i];
 
 		if (!strcmp(clock->name, "camss_vfe_vfe_clk")) {
-			u32 min_rate = 0;
+			u64 min_rate = 0;
 			unsigned long rate;
 
 			for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
@@ -1919,6 +1922,9 @@ static int vfe_check_clock_rates(struct vfe_device *vfe)
 				if (min_rate < tmp)
 					min_rate = tmp;
 			}
+
+			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
+						CAMSS_CLOCK_MARGIN_DENOMINATOR;
 
 			rate = clk_get_rate(clock->clk);
 			if (rate < min_rate)

@@ -329,8 +329,11 @@ static int csid_set_clock_rates(struct csid_device *csid)
 			u8 bpp = csid_get_bpp(
 					csid->fmt[MSM_CSIPHY_PAD_SINK].code);
 			u8 num_lanes = csid->phy.lane_cnt;
-			u32 min_rate = pixel_clock * bpp / (2 * num_lanes * 4);
+			u64 min_rate = pixel_clock * bpp / (2 * num_lanes * 4);
 			unsigned long rate;
+
+			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
+						CAMSS_CLOCK_MARGIN_DENOMINATOR;
 
 			for (j = 0; j < clock->nfreqs; j++)
 				if (min_rate < clock->freq[j])
