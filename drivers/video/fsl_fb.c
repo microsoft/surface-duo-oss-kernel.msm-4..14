@@ -616,7 +616,7 @@ put_display_node:
  * FUNCTION: fsl_fb_install
  **********************************************************/
 static int fsl_fb_install(struct fb_info *info,
-	struct fb_video_format *video_format)
+	struct fb_video_format *fb_vformat)
 {
 	struct mfb_info *mfbi = info->par;
 	struct dcu_fb_data *dcufb = mfbi->parent;
@@ -643,27 +643,36 @@ static int fsl_fb_install(struct fb_info *info,
 	if (ret)
 		goto fb_install_failed;
 
-	list_for_each(pos, &info->modelist) {
-		modelist = list_entry(pos, struct fb_modelist, list);
-
-		if (!fsl_fb_video_format_match(&modelist->mode, video_format))
-			continue;
-
-		found = 1;
-		break;
-	}
-
-	if (!found) {
-		dev_warn(dcufb->dev,
-			"Invalid display mode for <fb %d> (using defaults).\n",
-			mfbi->index);
+	/* if default video format, select first entry */
+	if (NULL == fb_vformat) {
 		modelist = list_first_entry(&info->modelist,
 			struct fb_modelist, list);
+	} else {
+		list_for_each(pos, &info->modelist) {
+			modelist = list_entry(pos, struct fb_modelist, list);
+
+			if (!fsl_fb_video_format_match(
+					&modelist->mode,
+					fb_vformat))
+				continue;
+
+			found = 1;
+			break;
+		}
+
+		if (!found) {
+			dev_warn(dcufb->dev,
+				"Invalid display mode for <fb %d> (using defaults).\n",
+				mfbi->index);
+			modelist = list_first_entry(&info->modelist,
+				struct fb_modelist, list);
+		}
 	}
 
 	/* Set video mode and color format */
 	fb_videomode_to_var(&info->var, &modelist->mode);
-	fsl_fb_init_color_format(&info->var, video_format->surf_format_idx);
+	fsl_fb_init_color_format(&info->var,
+			fb_vformat != NULL ? fb_vformat->surf_format_idx : 0);
 	fsl_fb_check_var(&info->var, info);
 
 	return 0;
@@ -794,6 +803,7 @@ static int r_init(void)
 	int dcu_num_layers = 0;
 	struct dcu_fb_data *dcufb;
 	int ret = 0, byte_len, i, j;
+	int boot_vformat = 1;
 
 	__TRACE__;
 	if (fsl_dcu_init_status() != 0)
@@ -804,6 +814,7 @@ static int r_init(void)
 	if (ret != 0) {
 		/* On invalid / missing format use a default display mode */
 		memset(&video_format, 0, sizeof(video_format));
+		boot_vformat = 0;
 	}
 
 	dcufb = fsl_dcu_get_dcufb();
@@ -851,7 +862,8 @@ static int r_init(void)
 		mfbi->y_layer_d = 0;
 		mfbi->parent = dcufb;
 
-		ret = fsl_fb_install(dcufb->fsl_dcu_info[i], &video_format);
+		ret = fsl_fb_install(dcufb->fsl_dcu_info[i],
+				(boot_vformat != 0 ? &video_format : NULL));
 		if (ret) {
 			dev_err(dcufb->dev,
 				"Could not register framebuffer %d.\n", i);
