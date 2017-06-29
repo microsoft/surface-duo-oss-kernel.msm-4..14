@@ -868,8 +868,7 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 			  struct resources_ispif *res)
 {
 	struct device *dev = to_device(ispif);
-	struct platform_device *pdev = container_of(dev, struct platform_device,
-						    dev);
+	struct platform_device *pdev = to_platform_device(dev);
 	struct resource *r;
 	int i;
 	int ret;

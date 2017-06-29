@@ -617,8 +617,7 @@ int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
 			   struct resources *res, u8 id)
 {
 	struct device *dev = to_device_index(csiphy, id);
-	struct platform_device *pdev = container_of(dev,
-						struct platform_device, dev);
+	struct platform_device *pdev = to_platform_device(dev);
 	struct resource *r;
 	int i, j;
 	int ret;
