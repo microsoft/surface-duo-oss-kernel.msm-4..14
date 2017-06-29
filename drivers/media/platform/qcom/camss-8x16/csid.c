@@ -987,7 +987,7 @@ void msm_csid_get_csid_id(struct media_entity *entity, u8 *id)
 	struct v4l2_subdev *sd;
 	struct csid_device *csid;
 
-	sd = container_of(entity, struct v4l2_subdev, entity);
+	sd = media_entity_to_v4l2_subdev(entity);
 	csid = v4l2_get_subdevdata(sd);
 
 	*id = csid->id;
@@ -1035,7 +1035,7 @@ static int csid_link_setup(struct media_entity *entity,
 		struct csiphy_lanes_cfg *lane_cfg;
 		struct v4l2_subdev_format format = { 0 };
 
-		sd = container_of(entity, struct v4l2_subdev, entity);
+		sd = media_entity_to_v4l2_subdev(entity);
 		csid = v4l2_get_subdevdata(sd);
 
 		/* If test generator is enabled */
@@ -1043,7 +1043,7 @@ static int csid_link_setup(struct media_entity *entity,
 		if (csid->testgen_mode->cur.val != 0)
 			return -EBUSY;
 
-		sd = container_of(remote->entity, struct v4l2_subdev, entity);
+		sd = media_entity_to_v4l2_subdev(remote->entity);
 		csiphy = v4l2_get_subdevdata(sd);
 
 		/* If a sensor is not linked to CSIPHY */

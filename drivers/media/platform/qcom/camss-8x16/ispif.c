@@ -1006,7 +1006,7 @@ static int ispif_link_setup(struct media_entity *entity,
 			struct v4l2_subdev *sd;
 			struct ispif_line *line;
 
-			sd = container_of(entity, struct v4l2_subdev, entity);
+			sd = media_entity_to_v4l2_subdev(entity);
 			line = v4l2_get_subdevdata(sd);
 
 			msm_csid_get_csid_id(remote->entity, &line->csid_id);
@@ -1015,7 +1015,7 @@ static int ispif_link_setup(struct media_entity *entity,
 			struct ispif_line *line;
 			enum vfe_line_id id;
 
-			sd = container_of(entity, struct v4l2_subdev, entity);
+			sd = media_entity_to_v4l2_subdev(entity);
 			line = v4l2_get_subdevdata(sd);
 
 			msm_vfe_get_vfe_id(remote->entity, &line->vfe_id);

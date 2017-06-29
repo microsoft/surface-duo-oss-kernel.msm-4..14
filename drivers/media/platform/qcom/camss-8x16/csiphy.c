@@ -726,10 +726,10 @@ static int csiphy_link_setup(struct media_entity *entity,
 		if (media_entity_remote_pad((struct media_pad *)local))
 			return -EBUSY;
 
-		sd = container_of(entity, struct v4l2_subdev, entity);
+		sd = media_entity_to_v4l2_subdev(entity);
 		csiphy = v4l2_get_subdevdata(sd);
 
-		sd = container_of(remote->entity, struct v4l2_subdev, entity);
+		sd = media_entity_to_v4l2_subdev(remote->entity);
 		csid = v4l2_get_subdevdata(sd);
 
 		csiphy->cfg.csid_id = csid->id;

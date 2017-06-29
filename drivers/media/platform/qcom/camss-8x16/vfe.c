@@ -2833,7 +2833,7 @@ void msm_vfe_get_vfe_id(struct media_entity *entity, u8 *id)
 	struct vfe_line *line;
 	struct vfe_device *vfe;
 
-	sd = container_of(entity, struct v4l2_subdev, entity);
+	sd = media_entity_to_v4l2_subdev(entity);
 	line = v4l2_get_subdevdata(sd);
 	vfe = to_vfe(line);
 
@@ -2850,7 +2850,7 @@ void msm_vfe_get_vfe_line_id(struct media_entity *entity, enum vfe_line_id *id)
 	struct v4l2_subdev *sd;
 	struct vfe_line *line;
 
-	sd = container_of(entity, struct v4l2_subdev, entity);
+	sd = media_entity_to_v4l2_subdev(entity);
 	line = v4l2_get_subdevdata(sd);
 
 	*id = line->id;
