@@ -691,13 +691,14 @@ static int video_open(struct file *file)
 
 	ret = v4l2_pipeline_pm_use(&vdev->entity, 1);
 	if (ret < 0) {
-		dev_err(video->camss->dev, "Failed to power up pipeline\n");
+		dev_err(video->camss->dev, "Failed to power up pipeline: %d\n",
+			ret);
 		goto error_pm_use;
 	}
 
 	ret = video_init_format(file, vfh);
 	if (ret < 0) {
-		dev_err(video->camss->dev, "Failed to init format\n");
+		dev_err(video->camss->dev, "Failed to init format: %d\n", ret);
 		goto error_init_format;
 	}
 
@@ -781,14 +782,15 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 	q->lock = &video->q_lock;
 	ret = vb2_queue_init(q);
 	if (ret < 0) {
-		dev_err(v4l2_dev->dev, "Failed to init vb2 queue\n");
+		dev_err(v4l2_dev->dev, "Failed to init vb2 queue: %d\n", ret);
 		goto error_vb2_init;
 	}
 
 	pad->flags = MEDIA_PAD_FL_SINK;
 	ret = media_entity_pads_init(&vdev->entity, 1, pad);
 	if (ret < 0) {
-		dev_err(v4l2_dev->dev, "Failed to init video entity\n");
+		dev_err(v4l2_dev->dev, "Failed to init video entity: %d\n",
+			ret);
 		goto error_media_init;
 	}
 
@@ -807,7 +809,8 @@ int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 
 	ret = video_register_device(vdev, VFL_TYPE_GRABBER, -1);
 	if (ret < 0) {
-		dev_err(v4l2_dev->dev, "Failed to register video device\n");
+		dev_err(v4l2_dev->dev, "Failed to register video device: %d\n",
+			ret);
 		goto error_video_register;
 	}
 

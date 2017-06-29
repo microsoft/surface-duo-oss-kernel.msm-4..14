@@ -912,7 +912,7 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 	ret = devm_request_irq(dev, ispif->irq, ispif_isr,
 			       IRQF_TRIGGER_RISING, ispif->irq_name, ispif);
 	if (ret < 0) {
-		dev_err(dev, "request_irq failed\n");
+		dev_err(dev, "request_irq failed: %d\n", ret);
 		return ret;
 	}
 
@@ -1084,7 +1084,7 @@ int msm_ispif_register_entities(struct ispif_device *ispif,
 
 		ret = ispif_init_formats(sd, NULL);
 		if (ret < 0) {
-			dev_err(dev, "Failed to init format\n");
+			dev_err(dev, "Failed to init format: %d\n", ret);
 			goto error;
 		}
 
@@ -1096,13 +1096,13 @@ int msm_ispif_register_entities(struct ispif_device *ispif,
 		ret = media_entity_pads_init(&sd->entity, MSM_ISPIF_PADS_NUM,
 					     pads);
 		if (ret < 0) {
-			dev_err(dev, "Failed to init media entity\n");
+			dev_err(dev, "Failed to init media entity: %d\n", ret);
 			goto error;
 		}
 
 		ret = v4l2_device_register_subdev(v4l2_dev, sd);
 		if (ret < 0) {
-			dev_err(dev, "Failed to register subdev\n");
+			dev_err(dev, "Failed to register subdev: %d\n", ret);
 			media_entity_cleanup(&sd->entity);
 			goto error;
 		}

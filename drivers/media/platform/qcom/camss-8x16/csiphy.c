@@ -201,13 +201,14 @@ static int csiphy_set_clock_rates(struct csiphy_device *csiphy)
 
 			rate = clk_round_rate(clock->clk, clock->freq[j]);
 			if (rate < 0) {
-				dev_err(dev, "clk round rate failed\n");
+				dev_err(dev, "clk round rate failed: %d\n",
+					ret);
 				return -EINVAL;
 			}
 
 			ret = clk_set_rate(clock->clk, rate);
 			if (ret < 0) {
-				dev_err(dev, "clk set rate failed\n");
+				dev_err(dev, "clk set rate failed: %d\n", ret);
 				return ret;
 			}
 		}
@@ -656,7 +657,7 @@ int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
 	ret = devm_request_irq(dev, csiphy->irq, csiphy_isr,
 			       IRQF_TRIGGER_RISING, csiphy->irq_name, csiphy);
 	if (ret < 0) {
-		dev_err(dev, "request_irq failed\n");
+		dev_err(dev, "request_irq failed: %d\n", ret);
 		return ret;
 	}
 
@@ -791,7 +792,7 @@ int msm_csiphy_register_entity(struct csiphy_device *csiphy,
 
 	ret = csiphy_init_formats(sd, NULL);
 	if (ret < 0) {
-		dev_err(dev, "Failed to init format\n");
+		dev_err(dev, "Failed to init format: %d\n", ret);
 		return ret;
 	}
 
@@ -802,13 +803,13 @@ int msm_csiphy_register_entity(struct csiphy_device *csiphy,
 	sd->entity.ops = &csiphy_media_ops;
 	ret = media_entity_pads_init(&sd->entity, MSM_CSIPHY_PADS_NUM, pads);
 	if (ret < 0) {
-		dev_err(dev, "Failed to init media entity\n");
+		dev_err(dev, "Failed to init media entity: %d\n", ret);
 		return ret;
 	}
 
 	ret = v4l2_device_register_subdev(v4l2_dev, sd);
 	if (ret < 0) {
-		dev_err(dev, "Failed to register subdev\n");
+		dev_err(dev, "Failed to register subdev: %d\n", ret);
 		media_entity_cleanup(&sd->entity);
 	}
 

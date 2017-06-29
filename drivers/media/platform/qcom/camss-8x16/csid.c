@@ -352,13 +352,14 @@ static int csid_set_clock_rates(struct csid_device *csid)
 
 			rate = clk_round_rate(clock->clk, clock->freq[j]);
 			if (rate < 0) {
-				dev_err(dev, "clk round rate failed\n");
+				dev_err(dev, "clk round rate failed: %d\n",
+					ret);
 				return -EINVAL;
 			}
 
 			ret = clk_set_rate(clock->clk, rate);
 			if (ret < 0) {
-				dev_err(dev, "clk set rate failed\n");
+				dev_err(dev, "clk set rate failed: %d\n", ret);
 				return ret;
 			}
 		}
@@ -469,7 +470,7 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 		ret = v4l2_ctrl_handler_setup(&csid->ctrls);
 		if (ret < 0) {
 			dev_err(to_device_index(csid, csid->id),
-				"could not sync v4l2 controls\n");
+				"could not sync v4l2 controls: %d\n", ret);
 			return ret;
 		}
 
@@ -919,7 +920,7 @@ int msm_csid_subdev_init(struct csid_device *csid,
 	ret = devm_request_irq(dev, csid->irq, csid_isr,
 		IRQF_TRIGGER_RISING, csid->irq_name, csid);
 	if (ret < 0) {
-		dev_err(dev, "request_irq failed\n");
+		dev_err(dev, "request_irq failed: %d\n", ret);
 		return ret;
 	}
 
@@ -1119,7 +1120,7 @@ int msm_csid_register_entity(struct csid_device *csid,
 
 	ret = v4l2_ctrl_handler_init(&csid->ctrls, 1);
 	if (ret < 0) {
-		dev_err(dev, "Failed to init ctrl handler\n");
+		dev_err(dev, "Failed to init ctrl handler: %d\n", ret);
 		return ret;
 	}
 
@@ -1138,7 +1139,7 @@ int msm_csid_register_entity(struct csid_device *csid,
 
 	ret = csid_init_formats(sd, NULL);
 	if (ret < 0) {
-		dev_err(dev, "Failed to init format\n");
+		dev_err(dev, "Failed to init format: %d\n", ret);
 		goto free_ctrl;
 	}
 
@@ -1149,13 +1150,13 @@ int msm_csid_register_entity(struct csid_device *csid,
 	sd->entity.ops = &csid_media_ops;
 	ret = media_entity_pads_init(&sd->entity, MSM_CSID_PADS_NUM, pads);
 	if (ret < 0) {
-		dev_err(dev, "Failed to init media entity\n");
+		dev_err(dev, "Failed to init media entity: %d\n", ret);
 		goto free_ctrl;
 	}
 
 	ret = v4l2_device_register_subdev(v4l2_dev, sd);
 	if (ret < 0) {
-		dev_err(dev, "Failed to register subdev\n");
+		dev_err(dev, "Failed to register subdev: %d\n", ret);
 		goto media_cleanup;
 	}
 

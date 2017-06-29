@@ -2774,7 +2774,7 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 	ret = devm_request_irq(dev, vfe->irq, vfe_isr,
 			       IRQF_TRIGGER_RISING, vfe->irq_name, vfe);
 	if (ret < 0) {
-		dev_err(dev, "request_irq failed\n");
+		dev_err(dev, "request_irq failed: %d\n", ret);
 		return ret;
 	}
 
@@ -2959,7 +2959,7 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 
 		ret = vfe_init_formats(sd, NULL);
 		if (ret < 0) {
-			dev_err(dev, "Failed to init format\n");
+			dev_err(dev, "Failed to init format: %d\n", ret);
 			goto error_init;
 		}
 
@@ -2971,13 +2971,13 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 		ret = media_entity_pads_init(&sd->entity, MSM_VFE_PADS_NUM,
 					     pads);
 		if (ret < 0) {
-			dev_err(dev, "Failed to init media entity\n");
+			dev_err(dev, "Failed to init media entity: %d\n", ret);
 			goto error_init;
 		}
 
 		ret = v4l2_device_register_subdev(v4l2_dev, sd);
 		if (ret < 0) {
-			dev_err(dev, "Failed to register subdev\n");
+			dev_err(dev, "Failed to register subdev: %d\n", ret);
 			goto error_reg_subdev;
 		}
 
@@ -2994,7 +2994,8 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 			 MSM_VFE_NAME, vfe->id, "video", i);
 		ret = msm_video_register(video_out, v4l2_dev, name);
 		if (ret < 0) {
-			dev_err(dev, "Failed to register video node\n");
+			dev_err(dev, "Failed to register video node: %d\n",
+				ret);
 			goto error_reg_video;
 		}
 
@@ -3003,8 +3004,9 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 				&video_out->vdev.entity, 0,
 				MEDIA_LNK_FL_IMMUTABLE | MEDIA_LNK_FL_ENABLED);
 		if (ret < 0) {
-			dev_err(dev, "Failed to link %s->%s entities\n",
-			       sd->entity.name, video_out->vdev.entity.name);
+			dev_err(dev, "Failed to link %s->%s entities: %d\n",
+				sd->entity.name, video_out->vdev.entity.name,
+				ret);
 			goto error_link;
 		}
 	}
