@@ -843,14 +843,16 @@ static int ispif_set_format(struct v4l2_subdev *sd,
  */
 static int ispif_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
-	struct v4l2_subdev_format format;
-
-	memset(&format, 0, sizeof(format));
-	format.pad = MSM_ISPIF_PAD_SINK;
-	format.which = fh ? V4L2_SUBDEV_FORMAT_TRY : V4L2_SUBDEV_FORMAT_ACTIVE;
-	format.format.code = MEDIA_BUS_FMT_UYVY8_2X8;
-	format.format.width = 1920;
-	format.format.height = 1080;
+	struct v4l2_subdev_format format = {
+		.pad = MSM_ISPIF_PAD_SINK,
+		.which = fh ? V4L2_SUBDEV_FORMAT_TRY :
+			      V4L2_SUBDEV_FORMAT_ACTIVE,
+		.format = {
+			.code = MEDIA_BUS_FMT_UYVY8_2X8,
+			.width = 1920,
+			.height = 1080
+		}
+	};
 
 	return ispif_set_format(sd, fh ? fh->pad : NULL, &format);
 }

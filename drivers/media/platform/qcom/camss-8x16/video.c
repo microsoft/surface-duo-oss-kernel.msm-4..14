@@ -662,10 +662,9 @@ static const struct v4l2_ioctl_ops msm_vid_ioctl_ops = {
  */
 static int video_init_format(struct file *file, void *fh)
 {
-	struct v4l2_format format;
-
-	memset(&format, 0, sizeof(format));
-	format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+	struct v4l2_format format = {
+		.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE
+	};
 
 	return video_s_fmt(file, fh, &format);
 }

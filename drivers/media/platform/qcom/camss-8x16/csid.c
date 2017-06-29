@@ -790,14 +790,16 @@ static int csid_set_format(struct v4l2_subdev *sd,
  */
 static int csid_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
-	struct v4l2_subdev_format format;
-
-	memset(&format, 0, sizeof(format));
-	format.pad = MSM_CSID_PAD_SINK;
-	format.which = fh ? V4L2_SUBDEV_FORMAT_TRY : V4L2_SUBDEV_FORMAT_ACTIVE;
-	format.format.code = MEDIA_BUS_FMT_UYVY8_2X8;
-	format.format.width = 1920;
-	format.format.height = 1080;
+	struct v4l2_subdev_format format = {
+		.pad = MSM_CSID_PAD_SINK,
+		.which = fh ? V4L2_SUBDEV_FORMAT_TRY :
+			      V4L2_SUBDEV_FORMAT_ACTIVE,
+		.format = {
+			.code = MEDIA_BUS_FMT_UYVY8_2X8,
+			.width = 1920,
+			.height = 1080
+		}
+	};
 
 	return csid_set_format(sd, fh ? fh->pad : NULL, &format);
 }
@@ -1031,7 +1033,7 @@ static int csid_link_setup(struct media_entity *entity,
 		struct csid_device *csid;
 		struct csiphy_device *csiphy;
 		struct csiphy_lanes_cfg *lane_cfg;
-		struct v4l2_subdev_format format;
+		struct v4l2_subdev_format format = { 0 };
 
 		sd = container_of(entity, struct v4l2_subdev, entity);
 		csid = v4l2_get_subdevdata(sd);
@@ -1056,7 +1058,6 @@ static int csid_link_setup(struct media_entity *entity,
 		csid->phy.lane_assign = csid_get_lane_assign(lane_cfg);
 
 		/* Reset format on source pad to sink pad format */
-		memset(&format, 0, sizeof(format));
 		format.pad = MSM_CSID_PAD_SRC;
 		format.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 		csid_set_format(&csid->subdev, NULL, &format);
