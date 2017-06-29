@@ -173,8 +173,8 @@ static int csiphy_set_clock_rates(struct csiphy_device *csiphy)
 	for (i = 0; i < csiphy->nclocks; i++) {
 		struct camss_clock *clock = &csiphy->clock[i];
 
-		if (!strcmp(clock->name, "csiphy0_timer_clk") ||
-			!strcmp(clock->name, "csiphy1_timer_clk")) {
+		if (!strcmp(clock->name, "csiphy0_timer") ||
+			!strcmp(clock->name, "csiphy1_timer")) {
 			u8 bpp = csiphy_get_bpp(
 					csiphy->fmt[MSM_CSIPHY_PAD_SINK].code);
 			u8 num_lanes = csiphy->cfg.csi2->lane_cfg.num_data;

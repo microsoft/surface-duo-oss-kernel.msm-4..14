@@ -1825,7 +1825,7 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 	for (i = 0; i < vfe->nclocks; i++) {
 		struct camss_clock *clock = &vfe->clock[i];
 
-		if (!strcmp(clock->name, "camss_vfe_vfe_clk")) {
+		if (!strcmp(clock->name, "camss_vfe_vfe")) {
 			u64 min_rate = 0;
 			unsigned long rate;
 
@@ -1903,7 +1903,7 @@ static int vfe_check_clock_rates(struct vfe_device *vfe)
 	for (i = 0; i < vfe->nclocks; i++) {
 		struct camss_clock *clock = &vfe->clock[i];
 
-		if (!strcmp(clock->name, "camss_vfe_vfe_clk")) {
+		if (!strcmp(clock->name, "camss_vfe_vfe")) {
 			u64 min_rate = 0;
 			unsigned long rate;
 

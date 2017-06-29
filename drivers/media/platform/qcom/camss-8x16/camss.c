@@ -36,8 +36,8 @@ static struct resources csiphy_res[] = {
 	/* CSIPHY0 */
 	{
 		.regulator = { NULL },
-		.clock = { "camss_top_ahb_clk", "ispif_ahb_clk",
-			   "camss_ahb_clk", "csiphy0_timer_clk" },
+		.clock = { "camss_top_ahb", "ispif_ahb",
+			   "camss_ahb", "csiphy0_timer" },
 		.clock_rate = { { 0 },
 				{ 0 },
 				{ 0 },
@@ -49,8 +49,8 @@ static struct resources csiphy_res[] = {
 	/* CSIPHY1 */
 	{
 		.regulator = { NULL },
-		.clock = { "camss_top_ahb_clk", "ispif_ahb_clk",
-			   "camss_ahb_clk", "csiphy1_timer_clk" },
+		.clock = { "camss_top_ahb", "ispif_ahb",
+			   "camss_ahb", "csiphy1_timer" },
 		.clock_rate = { { 0 },
 				{ 0 },
 				{ 0 },
@@ -64,10 +64,9 @@ static struct resources csid_res[] = {
 	/* CSID0 */
 	{
 		.regulator = { "vdda" },
-		.clock = { "camss_top_ahb_clk", "ispif_ahb_clk",
-			   "csi0_ahb_clk", "camss_ahb_clk",
-			   "csi0_clk", "csi0_phy_clk",
-			   "csi0_pix_clk", "csi0_rdi_clk" },
+		.clock = { "camss_top_ahb", "ispif_ahb",
+			   "csi0_ahb", "camss_ahb",
+			   "csi0", "csi0_phy", "csi0_pix", "csi0_rdi" },
 		.clock_rate = { { 0 },
 				{ 0 },
 				{ 0 },
@@ -83,10 +82,9 @@ static struct resources csid_res[] = {
 	/* CSID1 */
 	{
 		.regulator = { "vdda" },
-		.clock = { "camss_top_ahb_clk", "ispif_ahb_clk",
-			   "csi1_ahb_clk", "camss_ahb_clk",
-			   "csi1_clk", "csi1_phy_clk",
-			   "csi1_pix_clk", "csi1_rdi_clk" },
+		.clock = { "camss_top_ahb", "ispif_ahb",
+			   "csi1_ahb", "camss_ahb",
+			   "csi1", "csi1_phy", "csi1_pix", "csi1_rdi" },
 		.clock_rate = { { 0 },
 				{ 0 },
 				{ 0 },
@@ -102,10 +100,10 @@ static struct resources csid_res[] = {
 
 static struct resources_ispif ispif_res = {
 	/* ISPIF */
-	.clock = { "camss_top_ahb_clk", "camss_ahb_clk", "ispif_ahb_clk",
-		   "csi0_clk", "csi0_pix_clk", "csi0_rdi_clk",
-		   "csi1_clk", "csi1_pix_clk", "csi1_rdi_clk" },
-	.clock_for_reset = { "camss_vfe_vfe_clk", "camss_csi_vfe_clk" },
+	.clock = { "camss_top_ahb", "camss_ahb", "ispif_ahb",
+		   "csi0", "csi0_pix", "csi0_rdi",
+		   "csi1", "csi1_pix", "csi1_rdi" },
+	.clock_for_reset = { "camss_vfe_vfe", "camss_csi_vfe" },
 	.reg = { "ispif", "csi_clk_mux" },
 	.interrupt = "ispif"
 
@@ -114,9 +112,8 @@ static struct resources_ispif ispif_res = {
 static struct resources vfe_res = {
 	/* VFE0 */
 	.regulator = { NULL },
-	.clock = { "camss_top_ahb_clk", "camss_vfe_vfe_clk",
-		   "camss_csi_vfe_clk", "iface_clk",
-		   "bus_clk", "camss_ahb_clk" },
+	.clock = { "camss_top_ahb", "camss_vfe_vfe", "camss_csi_vfe",
+		   "iface", "bus", "camss_ahb" },
 	.clock_rate = { { 0 },
 			{ 50000000, 80000000, 100000000, 160000000,
 			  177780000, 200000000, 266670000, 320000000,

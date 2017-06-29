@@ -324,8 +324,8 @@ static int csid_set_clock_rates(struct csid_device *csid)
 	for (i = 0; i < csid->nclocks; i++) {
 		struct camss_clock *clock = &csid->clock[i];
 
-		if (!strcmp(clock->name, "csi0_clk") ||
-			!strcmp(clock->name, "csi1_clk")) {
+		if (!strcmp(clock->name, "csi0") ||
+			!strcmp(clock->name, "csi1")) {
 			u8 bpp = csid_get_bpp(
 					csid->fmt[MSM_CSIPHY_PAD_SINK].code);
 			u8 num_lanes = csid->phy.lane_cnt;
