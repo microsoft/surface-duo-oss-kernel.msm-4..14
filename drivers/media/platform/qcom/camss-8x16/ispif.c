@@ -865,7 +865,7 @@ static int ispif_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
  * Return 0 on success or a negative error code otherwise
  */
 int msm_ispif_subdev_init(struct ispif_device *ispif,
-			  struct resources_ispif *res)
+			  const struct resources_ispif *res)
 {
 	struct device *dev = to_device(ispif);
 	struct platform_device *pdev = to_platform_device(dev);

@@ -75,7 +75,7 @@ struct ispif_device {
 struct resources_ispif;
 
 int msm_ispif_subdev_init(struct ispif_device *ispif,
-			  struct resources_ispif *res);
+			  const struct resources_ispif *res);
 
 int msm_ispif_register_entities(struct ispif_device *ispif,
 				struct v4l2_device *v4l2_dev);

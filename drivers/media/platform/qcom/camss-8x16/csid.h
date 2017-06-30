@@ -70,7 +70,7 @@ struct csid_device {
 struct resources;
 
 int msm_csid_subdev_init(struct csid_device *csid,
-			 struct resources *res, u8 id);
+			 const struct resources *res, u8 id);
 
 int msm_csid_register_entity(struct csid_device *csid,
 			     struct v4l2_device *v4l2_dev);

@@ -615,7 +615,7 @@ static int csiphy_init_formats(struct v4l2_subdev *sd,
  * Return 0 on success or a negative error code otherwise
  */
 int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
-			   struct resources *res, u8 id)
+			   const struct resources *res, u8 id)
 {
 	struct device *dev = to_device_index(csiphy, id);
 	struct platform_device *pdev = to_platform_device(dev);

@@ -108,7 +108,7 @@ struct vfe_device {
 
 struct resources;
 
-int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res);
+int msm_vfe_subdev_init(struct vfe_device *vfe, const struct resources *res);
 
 int msm_vfe_register_entities(struct vfe_device *vfe,
 			      struct v4l2_device *v4l2_dev);

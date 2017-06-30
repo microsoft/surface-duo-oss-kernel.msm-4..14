@@ -32,7 +32,7 @@
 
 #include "camss.h"
 
-static struct resources csiphy_res[] = {
+static const struct resources csiphy_res[] = {
 	/* CSIPHY0 */
 	{
 		.regulator = { NULL },
@@ -60,7 +60,7 @@ static struct resources csiphy_res[] = {
 	}
 };
 
-static struct resources csid_res[] = {
+static const struct resources csid_res[] = {
 	/* CSID0 */
 	{
 		.regulator = { "vdda" },
@@ -98,7 +98,7 @@ static struct resources csid_res[] = {
 	},
 };
 
-static struct resources_ispif ispif_res = {
+static const struct resources_ispif ispif_res = {
 	/* ISPIF */
 	.clock = { "camss_top_ahb", "camss_ahb", "ispif_ahb",
 		   "csi0", "csi0_pix", "csi0_rdi",
@@ -109,7 +109,7 @@ static struct resources_ispif ispif_res = {
 
 };
 
-static struct resources vfe_res = {
+static const struct resources vfe_res = {
 	/* VFE0 */
 	.regulator = { NULL },
 	.clock = { "camss_top_ahb", "camss_vfe_vfe", "camss_csi_vfe",

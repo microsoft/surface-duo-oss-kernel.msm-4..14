@@ -67,7 +67,7 @@ struct csiphy_device {
 struct resources;
 
 int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
-			   struct resources *res, u8 id);
+			   const struct resources *res, u8 id);
 
 int msm_csiphy_register_entity(struct csiphy_device *csiphy,
 			       struct v4l2_device *v4l2_dev);
