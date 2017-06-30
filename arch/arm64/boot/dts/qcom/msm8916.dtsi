@@ -90,9 +90,7 @@
 		};
 
 		venus_mem: venus@89900000 {
-			compatible = "shared-dma-pool";
-			reg = <0x0 0x89900000 0x0 0x800000>;
-			alignment = <0x1000>;
+			reg = <0x0 0x89900000 0x0 0x600000>;
 			no-map;
 		};
 
