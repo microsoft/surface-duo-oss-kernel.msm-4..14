@@ -247,7 +247,6 @@ static int camss_of_parse_endpoint_node(struct device *dev,
 					struct camss_async_subdev *csd)
 {
 	struct csiphy_lanes_cfg *lncfg = &csd->interface.csi2.lane_cfg;
-	int *settle_cnt = &csd->interface.csi2.settle_cnt;
 	struct v4l2_of_bus_mipi_csi2 *mipi_csi2;
 	struct v4l2_of_endpoint vep = { { 0 } };
 	unsigned int i;
@@ -270,8 +269,6 @@ static int camss_of_parse_endpoint_node(struct device *dev,
 		lncfg->data[i].pos = mipi_csi2->data_lanes[i];
 		lncfg->data[i].pol = mipi_csi2->lane_polarities[i + 1];
 	}
-
-	of_property_read_u32(node, "qcom,settle-cnt", settle_cnt);
 
 	return 0;
 }

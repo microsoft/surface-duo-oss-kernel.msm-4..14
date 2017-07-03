@@ -40,7 +40,6 @@ struct csiphy_lanes_cfg {
 };
 
 struct csiphy_csi2_cfg {
-	int settle_cnt;
 	struct csiphy_lanes_cfg lane_cfg;
 };
 
@@ -60,6 +59,7 @@ struct csiphy_device {
 	char irq_name[30];
 	struct camss_clock *clock;
 	int nclocks;
+	long timer_clk_rate;
 	struct csiphy_config cfg;
 	struct v4l2_mbus_framefmt fmt[MSM_CSIPHY_PADS_NUM];
 };

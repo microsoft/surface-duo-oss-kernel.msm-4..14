@@ -398,7 +398,6 @@
 			csiphy0_ep: endpoint {
 				clock-lanes = <1>;
 				data-lanes = <0 2>;
-				qcom,settle-cnt = <0xe>;
 				remote-endpoint = <&ov5645_ep>;
 				status = "disabled";
 			};
@@ -408,7 +407,6 @@
 			csiphy1_ep: endpoint {
 				clock-lanes = <1>;
 				data-lanes = <0 2>;
-				qcom,settle-cnt = <0xe>;
 				remote-endpoint = <&ov5645_2_ep>;
 				status = "disabled";
 			};

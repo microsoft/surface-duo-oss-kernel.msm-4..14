@@ -179,7 +179,6 @@ static int csiphy_set_clock_rates(struct csiphy_device *csiphy)
 					csiphy->fmt[MSM_CSIPHY_PAD_SINK].code);
 			u8 num_lanes = csiphy->cfg.csi2->lane_cfg.num_data;
 			u64 min_rate = pixel_clock * bpp / (2 * num_lanes * 4);
-			unsigned long rate;
 
 			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
 						CAMSS_CLOCK_MARGIN_DENOMINATOR;
@@ -199,14 +198,15 @@ static int csiphy_set_clock_rates(struct csiphy_device *csiphy)
 			if (min_rate == 0)
 				j = clock->nfreqs - 1;
 
-			rate = clk_round_rate(clock->clk, clock->freq[j]);
-			if (rate < 0) {
+			csiphy->timer_clk_rate = clk_round_rate(clock->clk,
+								clock->freq[j]);
+			if (csiphy->timer_clk_rate < 0) {
 				dev_err(dev, "clk round rate failed: %d\n",
 					ret);
 				return -EINVAL;
 			}
 
-			ret = clk_set_rate(clock->clk, rate);
+			ret = clk_set_rate(clock->clk, csiphy->timer_clk_rate);
 			if (ret < 0) {
 				dev_err(dev, "clk set rate failed: %d\n", ret);
 				return ret;
@@ -288,18 +288,71 @@ static u8 csiphy_get_lane_mask(struct csiphy_lanes_cfg *lane_cfg)
 }
 
 /*
+ * csiphy_settle_cnt_calc - Calculate settle count value
+ * @csiphy: CSIPHY device
+ *
+ * Helper function to calculate settle count value. This is
+ * based on the CSI2 T_hs_settle parameter which in turn
+ * is calculated based on the CSI2 transmitter pixel clock
+ * frequency.
+ *
+ * Return settle count value or 0 if the CSI2 pixel clock
+ * frequency is not available
+ */
+static u8 csiphy_settle_cnt_calc(struct csiphy_device *csiphy)
+{
+	u8 bpp = csiphy_get_bpp(
+			csiphy->fmt[MSM_CSIPHY_PAD_SINK].code);
+	u8 num_lanes = csiphy->cfg.csi2->lane_cfg.num_data;
+	u32 pixel_clock; /* Hz */
+	u32 mipi_clock; /* Hz */
+	u32 ui; /* ps */
+	u32 timer_period; /* ps */
+	u32 t_hs_prepare_max; /* ps */
+	u32 t_hs_prepare_zero_min; /* ps */
+	u32 t_hs_settle; /* ps */
+	u8 settle_cnt;
+	int ret;
+
+	ret = camss_get_pixel_clock(&csiphy->subdev.entity, &pixel_clock);
+	if (ret) {
+		dev_err(to_device_index(csiphy, csiphy->id),
+			"Cannot get CSI2 transmitter's pixel clock\n");
+		return 0;
+	}
+
+	mipi_clock = pixel_clock * bpp / (2 * num_lanes);
+	ui = 1000000000000 / (mipi_clock * 2);
+	t_hs_prepare_max = 85000 + 6 * ui;
+	t_hs_prepare_zero_min = 145000 + 10 * ui;
+	t_hs_settle = (t_hs_prepare_max + t_hs_prepare_zero_min) / 2;
+
+	timer_period = 1000000000000 / csiphy->timer_clk_rate;
+	settle_cnt = t_hs_settle / timer_period;
+
+	return settle_cnt;
+}
+
+/*
  * csiphy_stream_on - Enable streaming on CSIPHY module
  * @csiphy: CSIPHY device
  *
  * Helper function to enable streaming on CSIPHY module.
  * Main configuration of CSIPHY module is also done here.
+ *
+ * Return 0 on success or a negative error code otherwise
  */
-static void csiphy_stream_on(struct csiphy_device *csiphy)
+static int csiphy_stream_on(struct csiphy_device *csiphy)
 {
 	struct csiphy_config *cfg = &csiphy->cfg;
 	u8 lane_mask = csiphy_get_lane_mask(&cfg->csi2->lane_cfg);
+	u8 settle_cnt;
 	u8 val;
 	int i = 0;
+
+	settle_cnt = csiphy_settle_cnt_calc(csiphy);
+	if (!settle_cnt)
+		return -EINVAL;
 
 	val = readl_relaxed(csiphy->base_clk_mux);
 	if (cfg->combo_mode && (lane_mask & 0x18) == 0x18) {
@@ -327,7 +380,7 @@ static void csiphy_stream_on(struct csiphy_device *csiphy)
 		if (lane_mask & 0x1) {
 			writel_relaxed(0x10, csiphy->base +
 				       CAMSS_CSI_PHY_LNn_CFG2(i));
-			writel_relaxed(cfg->csi2->settle_cnt, csiphy->base +
+			writel_relaxed(settle_cnt, csiphy->base +
 				       CAMSS_CSI_PHY_LNn_CFG3(i));
 			writel_relaxed(0x3f, csiphy->base +
 				       CAMSS_CSI_PHY_INTERRUPT_MASKn(i));
@@ -338,6 +391,8 @@ static void csiphy_stream_on(struct csiphy_device *csiphy)
 		lane_mask >>= 1;
 		i++;
 	}
+
+	return 0;
 }
 
 /*
@@ -369,18 +424,19 @@ static void csiphy_stream_off(struct csiphy_device *csiphy)
  * @sd: CSIPHY V4L2 subdevice
  * @enable: Requested streaming state
  *
- * Return 0 (awlays succeeds)
+ * Return 0 on success or a negative error code otherwise
  */
 static int csiphy_set_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct csiphy_device *csiphy = v4l2_get_subdevdata(sd);
+	int ret = 0;
 
 	if (enable)
-		csiphy_stream_on(csiphy);
+		ret = csiphy_stream_on(csiphy);
 	else
 		csiphy_stream_off(csiphy);
 
-	return 0;
+	return ret;
 }
 
 /*

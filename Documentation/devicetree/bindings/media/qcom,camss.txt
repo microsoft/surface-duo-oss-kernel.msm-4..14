@@ -100,10 +100,6 @@ Qualcomm Camera Subsystem
 			Usage: required
 			Value type: <prop-encoded-array>
 			Definition: An array of data lanes.
-		- qcom,settle-cnt:
-			Usage: required
-			Value type: <u32>
-			Definition: The settle count parameter for CSI PHY.
 
 * An Example
 
@@ -188,7 +184,6 @@ Qualcomm Camera Subsystem
 				csiphy0_ep: endpoint {
 					clock-lanes = <1>;
 					data-lanes = <0 2>;
-					qcom,settle-cnt = <0xe>;
 					remote-endpoint = <&ov5645_ep>;
 				};
 			};
