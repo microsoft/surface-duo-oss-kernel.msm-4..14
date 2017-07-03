@@ -535,9 +535,6 @@ static int video_g_fmt(struct file *file, void *fh, struct v4l2_format *f)
 {
 	struct camss_video *video = video_drvdata(file);
 
-	if (f->type != video->type)
-		return -EINVAL;
-
 	*f = video->active_fmt;
 
 	return 0;
@@ -552,9 +549,6 @@ static int video_try_fmt(struct file *file, void *fh, struct v4l2_format *f)
 	u32 lines;
 	int ret;
 	int i;
-
-	if (f->type != video->type)
-		return -EINVAL;
 
 	if (video->line_based)
 		for (i = 0; i < f->fmt.pix_mp.num_planes && i < 3; i++) {
