@@ -859,6 +859,8 @@ static inline int acpi_dev_pm_attach(struct device *dev, bool power_on)
 #endif
 
 #if defined(CONFIG_ACPI) && defined(CONFIG_PM_SLEEP)
+void acpi_dev_disable_direct_complete(struct device *dev);
+void acpi_dev_enable_direct_complete(struct device *dev);
 int acpi_dev_suspend_late(struct device *dev);
 int acpi_dev_resume_early(struct device *dev);
 int acpi_subsys_prepare(struct device *dev);
@@ -868,6 +870,8 @@ int acpi_subsys_resume_early(struct device *dev);
 int acpi_subsys_suspend(struct device *dev);
 int acpi_subsys_freeze(struct device *dev);
 #else
+static inline void acpi_dev_disable_direct_complete(struct device *dev) {}
+static inline void acpi_dev_enable_direct_complete(struct device *dev) {}
 static inline int acpi_dev_suspend_late(struct device *dev) { return 0; }
 static inline int acpi_dev_resume_early(struct device *dev) { return 0; }
 static inline int acpi_subsys_prepare(struct device *dev) { return 0; }

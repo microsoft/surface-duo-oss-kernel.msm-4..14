@@ -702,14 +702,9 @@ static void acpi_lpss_dismiss(struct device *dev)
 }
 
 #ifdef CONFIG_PM_SLEEP
-static int acpi_lpss_suspend_late(struct device *dev)
+static int lpss_suspend_late(struct device *dev)
 {
 	struct lpss_private_data *pdata = acpi_driver_data(ACPI_COMPANION(dev));
-	int ret;
-
-	ret = pm_generic_suspend_late(dev);
-	if (ret)
-		return ret;
 
 	if (pdata->dev_desc->flags & LPSS_SAVE_CTX)
 		acpi_lpss_save_ctx(dev, pdata);
@@ -717,7 +712,19 @@ static int acpi_lpss_suspend_late(struct device *dev)
 	return acpi_dev_suspend_late(dev);
 }
 
-static int acpi_lpss_resume_early(struct device *dev)
+static int acpi_lpss_suspend_late(struct device *dev)
+{
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+	int ret;
+
+	ret = pm_generic_suspend_late(dev);
+	if (ret || adev->no_direct_complete)
+		return ret;
+
+	return lpss_suspend_late(dev);
+}
+
+static int lpss_resume_early(struct device *dev)
 {
 	struct lpss_private_data *pdata = acpi_driver_data(ACPI_COMPANION(dev));
 	int ret;
@@ -731,7 +738,28 @@ static int acpi_lpss_resume_early(struct device *dev)
 	if (pdata->dev_desc->flags & LPSS_SAVE_CTX)
 		acpi_lpss_restore_ctx(dev, pdata);
 
-	return pm_generic_resume_early(dev);
+	return 0;
+}
+
+static int acpi_lpss_resume_early(struct device *dev)
+{
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+	int ret = 0;
+
+	if (!adev->no_direct_complete)
+		ret = lpss_resume_early(dev);
+
+	return ret ? ret : pm_generic_resume_early(dev);
+}
+#else
+static inline int lpss_suspend_late(struct device *dev)
+{
+	return 0;
+}
+
+static inline int lpss_resume_early(struct device *dev)
+{
+	return 0;
 }
 #endif /* CONFIG_PM_SLEEP */
 
@@ -829,6 +857,9 @@ static int acpi_lpss_runtime_suspend(struct device *dev)
 	if (ret)
 		return ret;
 
+	if (!pm_runtime_enabled(dev))
+		return lpss_suspend_late(dev);
+
 	if (pdata->dev_desc->flags & LPSS_SAVE_CTX)
 		acpi_lpss_save_ctx(dev, pdata);
 
@@ -850,21 +881,29 @@ static int acpi_lpss_runtime_resume(struct device *dev)
 	struct lpss_private_data *pdata = acpi_driver_data(ACPI_COMPANION(dev));
 	int ret;
 
-	/*
-	 * This call is kept first to be in symmetry with
-	 * acpi_lpss_runtime_suspend() one.
-	 */
-	if (lpss_quirks & LPSS_QUIRK_ALWAYS_POWER_ON && iosf_mbi_available())
-		lpss_iosf_exit_d3_state();
+	if (pm_runtime_enabled(dev)) {
+		/*
+		 * This call is kept first to be in symmetry with
+		 * acpi_lpss_runtime_suspend() one.
+		 */
+		if (lpss_quirks & LPSS_QUIRK_ALWAYS_POWER_ON &&
+		    iosf_mbi_available())
+			lpss_iosf_exit_d3_state();
 
-	ret = acpi_dev_runtime_resume(dev);
-	if (ret)
-		return ret;
+		ret = acpi_dev_runtime_resume(dev);
+		if (ret)
+			return ret;
 
-	acpi_lpss_d3_to_d0_delay(pdata);
+		acpi_lpss_d3_to_d0_delay(pdata);
 
-	if (pdata->dev_desc->flags & LPSS_SAVE_CTX)
-		acpi_lpss_restore_ctx(dev, pdata);
+		if (pdata->dev_desc->flags & LPSS_SAVE_CTX)
+			acpi_lpss_restore_ctx(dev, pdata);
+
+	} else {
+		ret = lpss_resume_early(dev);
+		if (ret)
+			return ret;
+	}
 
 	return pm_generic_runtime_resume(dev);
 }
@@ -879,7 +918,7 @@ static struct dev_pm_domain acpi_lpss_pm_domain = {
 #ifdef CONFIG_PM
 #ifdef CONFIG_PM_SLEEP
 		.prepare = acpi_subsys_prepare,
-		.complete = pm_complete_with_resume_check,
+		.complete = acpi_subsys_complete,
 		.suspend = acpi_subsys_suspend,
 		.suspend_late = acpi_lpss_suspend_late,
 		.resume_early = acpi_lpss_resume_early,

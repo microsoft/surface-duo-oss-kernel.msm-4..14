@@ -35,7 +35,11 @@ contain the following properties.
 	1: polling mode (default mode if property not present)
 	2: DMA mode
 - pl022,rx-level-trig : Rx FIFO watermark level
+	Set to 0 for watermark level of 1 element (default if property not
+	present), 1 for 4 elements, 2 for 8 elements, 3 for 16 element or 4
+	for 32 elements
 - pl022,tx-level-trig : Tx FIFO watermark level
+	Same values and default as for pl022,rx-level-trig
 - pl022,ctrl-len : Microwire interface: Control length
 - pl022,wait-state : Microwire interface: Wait state
 - pl022,duplex : Microwire interface: Full/Half duplex

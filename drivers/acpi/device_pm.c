@@ -860,7 +860,14 @@ EXPORT_SYMBOL_GPL(acpi_dev_runtime_resume);
 int acpi_subsys_runtime_suspend(struct device *dev)
 {
 	int ret = pm_generic_runtime_suspend(dev);
-	return ret ? ret : acpi_dev_runtime_suspend(dev);
+
+	if (ret)
+		return ret;
+
+	if (!pm_runtime_enabled(dev))
+		return acpi_dev_suspend_late(dev);
+
+	return acpi_dev_runtime_suspend(dev);
 }
 EXPORT_SYMBOL_GPL(acpi_subsys_runtime_suspend);
 
@@ -873,12 +880,57 @@ EXPORT_SYMBOL_GPL(acpi_subsys_runtime_suspend);
  */
 int acpi_subsys_runtime_resume(struct device *dev)
 {
-	int ret = acpi_dev_runtime_resume(dev);
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+	int ret = 0;
+
+	if (!adev)
+		return 0;
+
+	if (!pm_runtime_enabled(dev))
+		ret = acpi_dev_resume_early(dev);
+	else
+		ret = acpi_dev_runtime_resume(dev);
+
 	return ret ? ret : pm_generic_runtime_resume(dev);
 }
 EXPORT_SYMBOL_GPL(acpi_subsys_runtime_resume);
 
 #ifdef CONFIG_PM_SLEEP
+/**
+ * acpi_dev_disable_direct_complete - Disable the direct_complete path for ACPI.
+ * @dev: Device to disable the path for.
+ *
+ * Per default the ACPI PM domain tries to use the direct_complete path for its
+ * devices during system sleep. This function allows a user, typically a driver
+ * during probe, to disable the direct_complete path from being used by ACPI.
+ */
+void acpi_dev_disable_direct_complete(struct device *dev)
+{
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+
+	if (adev)
+		adev->no_direct_complete = true;
+}
+EXPORT_SYMBOL_GPL(acpi_dev_disable_direct_complete);
+
+/**
+ * acpi_dev_enable_direct_complete - Enable the direct_complete path for ACPI.
+ * @dev: Device to enable the path for.
+ *
+ * Enable the direct_complete path to be used during system suspend for the ACPI
+ * PM domain, which is the default option. Typically a driver that disabled the
+ * path during ->probe(), must call this function during ->remove() to re-enable
+ * the direct_complete path to be used by ACPI.
+ */
+void acpi_dev_enable_direct_complete(struct device *dev)
+{
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+
+	if (adev)
+		adev->no_direct_complete = false;
+}
+EXPORT_SYMBOL_GPL(acpi_dev_enable_direct_complete);
+
 /**
  * acpi_dev_suspend_late - Put device into a low-power state using ACPI.
  * @dev: Device to put into a low-power state.
@@ -934,6 +986,27 @@ int acpi_dev_resume_early(struct device *dev)
 }
 EXPORT_SYMBOL_GPL(acpi_dev_resume_early);
 
+static bool acpi_dev_needs_resume(struct device *dev, struct acpi_device *adev)
+{
+	u32 sys_target = acpi_target_system_state();
+	int ret, state;
+
+	if (device_may_wakeup(dev) != !!adev->wakeup.prepare_count)
+		return true;
+
+	if (sys_target == ACPI_STATE_S0)
+		return false;
+
+	if (adev->power.flags.dsw_present)
+		return true;
+
+	ret = acpi_dev_pm_get_state(dev, adev, sys_target, NULL, &state);
+	if (ret)
+		return true;
+
+	return !(state == adev->power.state);
+}
+
 /**
  * acpi_subsys_prepare - Prepare device for system transition to a sleep state.
  * @dev: Device to prepare.
@@ -941,38 +1014,62 @@ EXPORT_SYMBOL_GPL(acpi_dev_resume_early);
 int acpi_subsys_prepare(struct device *dev)
 {
 	struct acpi_device *adev = ACPI_COMPANION(dev);
-	u32 sys_target;
-	int ret, state;
+	int ret;
 
 	ret = pm_generic_prepare(dev);
 	if (ret < 0)
 		return ret;
 
-	if (!adev || !pm_runtime_suspended(dev)
-	    || device_may_wakeup(dev) != !!adev->wakeup.prepare_count)
+	if (!adev || adev->no_direct_complete || !pm_runtime_suspended(dev))
 		return 0;
 
-	sys_target = acpi_target_system_state();
-	if (sys_target == ACPI_STATE_S0)
-		return 1;
-
-	if (adev->power.flags.dsw_present)
-		return 0;
-
-	ret = acpi_dev_pm_get_state(dev, adev, sys_target, NULL, &state);
-	return !ret && state == adev->power.state;
+	return !acpi_dev_needs_resume(dev, adev);
 }
 EXPORT_SYMBOL_GPL(acpi_subsys_prepare);
+
+/**
+ * acpi_subsys_complete - Finalize device's resume during system resume.
+ * @dev: Device to handle.
+ */
+void acpi_subsys_complete(struct device *dev)
+{
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+
+	if (!adev)
+		return;
+
+	pm_generic_complete(dev);
+	/*
+	 * If the device had been runtime-suspended before the system went into
+	 * the sleep state it is going out of and it has never been resumed till
+	 * now, resume it in case the firmware powered it up. Also resume it in
+	 * case no_direct_complete is set for the device, to be sure the device
+	 * are managed correctly when firmware has powered it up.
+	 */
+	if ((dev->power.direct_complete || adev->no_direct_complete) &&
+	    pm_resume_via_firmware())
+		pm_request_resume(dev);
+}
+EXPORT_SYMBOL_GPL(acpi_subsys_complete);
 
 /**
  * acpi_subsys_suspend - Run the device driver's suspend callback.
  * @dev: Device to handle.
  *
  * Follow PCI and resume devices suspended at run time before running their
- * system suspend callbacks.
+ * system suspend callbacks. However, try to avoid it when no_direct_complete
+ * is set.
  */
 int acpi_subsys_suspend(struct device *dev)
 {
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+
+	if (!adev)
+		return 0;
+
+	if (adev->no_direct_complete && !acpi_dev_needs_resume(dev, adev))
+		return pm_generic_suspend(dev);
+
 	pm_runtime_resume(dev);
 	return pm_generic_suspend(dev);
 }
@@ -987,8 +1084,17 @@ EXPORT_SYMBOL_GPL(acpi_subsys_suspend);
  */
 int acpi_subsys_suspend_late(struct device *dev)
 {
-	int ret = pm_generic_suspend_late(dev);
-	return ret ? ret : acpi_dev_suspend_late(dev);
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+	int ret;
+
+	if (!adev)
+		return 0;
+
+	ret = pm_generic_suspend_late(dev);
+	if (ret || adev->no_direct_complete)
+		return ret;
+
+	return acpi_dev_suspend_late(dev);
 }
 EXPORT_SYMBOL_GPL(acpi_subsys_suspend_late);
 
@@ -1002,7 +1108,15 @@ EXPORT_SYMBOL_GPL(acpi_subsys_suspend_late);
  */
 int acpi_subsys_resume_early(struct device *dev)
 {
-	int ret = acpi_dev_resume_early(dev);
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+	int ret = 0;
+
+	if (!adev)
+		return 0;
+
+	if (!adev->no_direct_complete)
+		ret = acpi_dev_resume_early(dev);
+
 	return ret ? ret : pm_generic_resume_early(dev);
 }
 EXPORT_SYMBOL_GPL(acpi_subsys_resume_early);
@@ -1013,12 +1127,22 @@ EXPORT_SYMBOL_GPL(acpi_subsys_resume_early);
  */
 int acpi_subsys_freeze(struct device *dev)
 {
+	struct acpi_device *adev = ACPI_COMPANION(dev);
+
+	if (!adev)
+		return 0;
+
 	/*
 	 * This used to be done in acpi_subsys_prepare() for all devices and
 	 * some drivers may depend on it, so do it here.  Ideally, however,
 	 * runtime-suspended devices should not be touched during freeze/thaw
-	 * transitions.
+	 * transitions. At least when no_direct_complete is set, let's try to
+	 * avoid it.
 	 */
+
+	if (adev->no_direct_complete && !acpi_dev_needs_resume(dev, adev))
+		return pm_generic_freeze(dev);
+
 	pm_runtime_resume(dev);
 	return pm_generic_freeze(dev);
 }
@@ -1032,7 +1156,7 @@ static struct dev_pm_domain acpi_general_pm_domain = {
 		.runtime_resume = acpi_subsys_runtime_resume,
 #ifdef CONFIG_PM_SLEEP
 		.prepare = acpi_subsys_prepare,
-		.complete = pm_complete_with_resume_check,
+		.complete = acpi_subsys_complete,
 		.suspend = acpi_subsys_suspend,
 		.suspend_late = acpi_subsys_suspend_late,
 		.resume_early = acpi_subsys_resume_early,

@@ -381,6 +381,7 @@ struct acpi_device {
 	struct list_head physical_node_list;
 	struct mutex physical_node_lock;
 	void (*remove)(struct acpi_device *);
+	bool no_direct_complete;
 };
 
 /* Non-device subnode */
