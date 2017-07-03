@@ -29,6 +29,7 @@
 #include <asm/sync_bitops.h>
 #include <linux/atomic.h>
 #include <linux/hyperv.h>
+#include <linux/clocksource.h>
 
 /*
  * Timeout for services such as KVP and fcopy.
@@ -718,5 +719,7 @@ enum hvutil_device_state {
 	HVUTIL_USERSPACE_RECV,   /* reply from userspace was received */
 	HVUTIL_DEVICE_DYING,     /* driver unload is in progress */
 };
+
+extern struct clocksource *hyperv_cs;
 
 #endif /* _HYPERV_VMBUS_H */
