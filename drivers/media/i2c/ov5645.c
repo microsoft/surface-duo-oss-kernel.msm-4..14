@@ -527,21 +527,21 @@ static const struct ov5645_mode_info ov5645_mode_info_data[] = {
 		.height = 960,
 		.data = ov5645_setting_sxga,
 		.data_size = ARRAY_SIZE(ov5645_setting_sxga),
-		.pixel_clock = 112000000
+		.pixel_clock = 111440000
 	},
 	{
 		.width = 1920,
 		.height = 1080,
 		.data = ov5645_setting_1080p,
 		.data_size = ARRAY_SIZE(ov5645_setting_1080p),
-		.pixel_clock = 168000000
+		.pixel_clock = 167160000
 	},
 	{
 		.width = 2592,
 		.height = 1944,
 		.data = ov5645_setting_full,
 		.data_size = ARRAY_SIZE(ov5645_setting_full),
-		.pixel_clock = 168000000
+		.pixel_clock = 167160000
 	},
 };
 
