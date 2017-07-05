@@ -592,6 +592,9 @@ static int video_s_fmt(struct file *file, void *fh, struct v4l2_format *f)
 	struct camss_video *video = video_drvdata(file);
 	int ret;
 
+	if (vb2_is_busy(&video->vb2_q))
+		return -EBUSY;
+
 	ret = video_try_fmt(file, fh, f);
 	if (ret < 0)
 		return ret;
