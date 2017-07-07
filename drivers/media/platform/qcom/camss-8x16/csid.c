@@ -330,7 +330,7 @@ static int csid_set_clock_rates(struct csid_device *csid)
 					csid->fmt[MSM_CSIPHY_PAD_SINK].code);
 			u8 num_lanes = csid->phy.lane_cnt;
 			u64 min_rate = pixel_clock * bpp / (2 * num_lanes * 4);
-			unsigned long rate;
+			long rate;
 
 			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
 						CAMSS_CLOCK_MARGIN_DENOMINATOR;
@@ -352,8 +352,8 @@ static int csid_set_clock_rates(struct csid_device *csid)
 
 			rate = clk_round_rate(clock->clk, clock->freq[j]);
 			if (rate < 0) {
-				dev_err(dev, "clk round rate failed: %d\n",
-					ret);
+				dev_err(dev, "clk round rate failed: %ld\n",
+					rate);
 				return -EINVAL;
 			}
 

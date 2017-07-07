@@ -1827,7 +1827,7 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 
 		if (!strcmp(clock->name, "camss_vfe_vfe")) {
 			u64 min_rate = 0;
-			unsigned long rate;
+			long rate;
 
 			for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
 				u32 tmp;
@@ -1865,13 +1865,14 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 
 			rate = clk_round_rate(clock->clk, clock->freq[j]);
 			if (rate < 0) {
-				dev_err(dev, "clk round rate failed\n");
+				dev_err(dev, "clk round rate failed: %ld\n",
+					rate);
 				return -EINVAL;
 			}
 
 			ret = clk_set_rate(clock->clk, rate);
 			if (ret < 0) {
-				dev_err(dev, "clk set rate failed\n");
+				dev_err(dev, "clk set rate failed: %d\n", ret);
 				return ret;
 			}
 		}

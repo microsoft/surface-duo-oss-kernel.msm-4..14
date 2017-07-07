@@ -201,8 +201,8 @@ static int csiphy_set_clock_rates(struct csiphy_device *csiphy)
 			csiphy->timer_clk_rate = clk_round_rate(clock->clk,
 								clock->freq[j]);
 			if (csiphy->timer_clk_rate < 0) {
-				dev_err(dev, "clk round rate failed: %d\n",
-					ret);
+				dev_err(dev, "clk round rate failed: %ld\n",
+					csiphy->timer_clk_rate);
 				return -EINVAL;
 			}
 
