@@ -1802,6 +1802,12 @@ config MFD_STM32_TIMERS
 	  for PWM and IIO Timer. This driver allow to share the
 	  registers between the others drivers.
 
+config MFD_UPBOARD_FPGA
+	tristate "Support for the UP board FPGA"
+	select MFD_CORE
+	help
+	  Select this option to enable the UP and UP^2 on-board FPGA.
+
 menu "Multimedia Capabilities Port drivers"
 	depends on ARCH_SA1100
 
