@@ -210,8 +210,7 @@ static int video_mbus_to_pix_mp(const struct v4l2_mbus_framefmt *mbus,
 
 	f = &formats[index];
 	memset(pix, 0, sizeof(*pix));
-	pix->width = mbus->width;
-	pix->height = mbus->height;
+	v4l2_fill_pix_format_mplane(pix, mbus);
 	pix->pixelformat = f->pixelformat;
 	pix->num_planes = f->planes;
 	for (i = 0; i < pix->num_planes; i++) {
@@ -223,8 +222,6 @@ static int video_mbus_to_pix_mp(const struct v4l2_mbus_framefmt *mbus,
 				f->vsub[i].numerator * f->vsub[i].denominator *
 				bytesperline;
 	}
-	pix->colorspace = mbus->colorspace;
-	pix->field = mbus->field;
 
 	return 0;
 }
