@@ -477,7 +477,7 @@ static void dwc2_check_param_tx_fifo_sizes(struct dwc2_hsotg *hsotg)
 			dev_warn(hsotg->dev, "%s: Invalid parameter g_tx_fifo_size[%d]=%d\n",
 				 __func__, fifo,
 				 hsotg->params.g_tx_fifo_size[fifo]);
-			hsotg->params.g_tx_fifo_size[fifo] = dptxfszn;
+			hsotg->params.g_tx_fifo_size[fifo] = min;
 		}
 	}
 }
