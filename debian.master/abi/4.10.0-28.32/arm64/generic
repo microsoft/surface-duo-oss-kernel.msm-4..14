@@ -13073,10 +13073,13 @@ EXPORT_SYMBOL_GPL drivers/scsi/fcoe/libfcoe 0x00000000	fcoe_start_io
 EXPORT_SYMBOL_GPL drivers/scsi/fcoe/libfcoe 0x00000000	fcoe_validate_vport_create
 EXPORT_SYMBOL_GPL drivers/scsi/fcoe/libfcoe 0x00000000	fcoe_wwn_from_mac
 EXPORT_SYMBOL_GPL drivers/scsi/fcoe/libfcoe 0x00000000	fcoe_wwn_to_str
+EXPORT_SYMBOL_GPL drivers/scsi/hisi_sas/hisi_sas_main 0x00000000	hisi_sas_init_mem
 EXPORT_SYMBOL_GPL drivers/scsi/hisi_sas/hisi_sas_main 0x00000000	hisi_sas_phy_down
 EXPORT_SYMBOL_GPL drivers/scsi/hisi_sas/hisi_sas_main 0x00000000	hisi_sas_probe
 EXPORT_SYMBOL_GPL drivers/scsi/hisi_sas/hisi_sas_main 0x00000000	hisi_sas_remove
+EXPORT_SYMBOL_GPL drivers/scsi/hisi_sas/hisi_sas_main 0x00000000	hisi_sas_rescan_topology
 EXPORT_SYMBOL_GPL drivers/scsi/hisi_sas/hisi_sas_main 0x00000000	hisi_sas_slot_task_free
+EXPORT_SYMBOL_GPL drivers/scsi/hisi_sas/hisi_sas_main 0x00000000	to_hisi_sas_port
 EXPORT_SYMBOL_GPL drivers/scsi/iscsi_boot_sysfs 0x00000000	iscsi_boot_create_acpitbl
 EXPORT_SYMBOL_GPL drivers/scsi/iscsi_boot_sysfs 0x00000000	iscsi_boot_create_ethernet
 EXPORT_SYMBOL_GPL drivers/scsi/iscsi_boot_sysfs 0x00000000	iscsi_boot_create_host_kset
@@ -17421,6 +17424,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x00000000	ehci_resume
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	ehci_setup
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	ehci_suspend
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	elf_hwcap
+EXPORT_SYMBOL_GPL vmlinux 0x00000000	elfcorehdr_addr
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	elv_register
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	elv_unregister
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	emergency_restart
@@ -19059,6 +19063,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x00000000	register_kretprobe
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	register_kretprobes
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	register_net_sysctl
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	register_netevent_notifier
+EXPORT_SYMBOL_GPL vmlinux 0x00000000	register_oldmem_pfn_is_ram
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	register_oom_notifier
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	register_pernet_device
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	register_pernet_subsys
@@ -19912,6 +19917,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x00000000	unregister_kretprobe
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	unregister_kretprobes
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	unregister_net_sysctl_table
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	unregister_netevent_notifier
+EXPORT_SYMBOL_GPL vmlinux 0x00000000	unregister_oldmem_pfn_is_ram
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	unregister_oom_notifier
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	unregister_pernet_device
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	unregister_pernet_subsys
