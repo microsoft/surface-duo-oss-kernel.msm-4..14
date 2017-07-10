@@ -2927,6 +2927,11 @@ void msm_vfe_stop_streaming(struct vfe_device *vfe)
  * @vfe: VFE device
  * @v4l2_dev: V4L2 device
  *
+ * Initialize and register a subdev node for the VFE module. Then
+ * call msm_video_register() to register the video device node which
+ * will be connected to this subdev node. Then actually create the
+ * media link between them.
+ *
  * Return 0 on success or a negative error code otherwise
  */
 int msm_vfe_register_entities(struct vfe_device *vfe,

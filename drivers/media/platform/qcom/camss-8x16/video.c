@@ -752,6 +752,18 @@ static void msm_video_release(struct video_device *vdev)
 		camss_delete(video->camss);
 }
 
+/*
+ * msm_video_register - Register a video device node
+ * @video: struct camss_video
+ * @v4l2_dev: V4L2 device
+ * @name: name to be used for the video device node
+ *
+ * Initialize and register a video device node to a V4L2 device. Also
+ * initialize the vb2 queue.
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+
 int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
 		       const char *name)
 {
