@@ -649,20 +649,6 @@ static const struct v4l2_ioctl_ops msm_vid_ioctl_ops = {
  * V4L2 file operations
  */
 
-/*
- * video_init_format - Helper function to initialize format
- *
- * Initialize all pad formats with default values.
- */
-static int video_init_format(struct file *file, void *fh)
-{
-	struct v4l2_format format = {
-		.type = V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE
-	};
-
-	return video_s_fmt(file, fh, &format);
-}
-
 static int video_open(struct file *file)
 {
 	struct video_device *vdev = video_devdata(file);
@@ -690,18 +676,9 @@ static int video_open(struct file *file)
 		goto error_pm_use;
 	}
 
-	ret = video_init_format(file, vfh);
-	if (ret < 0) {
-		dev_err(video->camss->dev, "Failed to init format: %d\n", ret);
-		goto error_init_format;
-	}
-
 	mutex_unlock(&video->lock);
 
 	return 0;
-
-error_init_format:
-	v4l2_pipeline_pm_use(&vdev->entity, 0);
 
 error_pm_use:
 	v4l2_fh_release(file);
@@ -834,6 +811,21 @@ error_vb2_init:
 	mutex_destroy(&video->q_lock);
 
 	return ret;
+}
+
+/*
+ * msm_video_init_format - Helper function to initialize format
+ * @video: struct camss_video
+ *
+ * Initialize pad format with default value. Default format is aqcuired
+ * and converted to from the subdev pad linked to this video device node.
+ * Note: media link must be already created when calling this function.
+ *
+ * Return 0 on success or a negative error code otherwise
+ */
+int msm_video_init_format(struct camss_video *video)
+{
+	return video_get_subdev_format(video, &video->active_fmt);
 }
 
 void msm_video_stop_streaming(struct camss_video *video)

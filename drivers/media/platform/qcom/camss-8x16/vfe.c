@@ -3015,6 +3015,13 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 				ret);
 			goto error_link;
 		}
+
+		ret = msm_video_init_format(video_out);
+		if (ret < 0) {
+			dev_err(dev, "Failed to init format: %d\n", ret);
+			goto error_link;
+		}
+
 	}
 
 	return 0;
