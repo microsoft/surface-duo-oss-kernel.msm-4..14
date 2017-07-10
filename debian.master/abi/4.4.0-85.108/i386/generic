@@ -10340,6 +10340,7 @@ EXPORT_SYMBOL_GPL drivers/hv/hv_vmbus 0x65668429	__vmbus_driver_register
 EXPORT_SYMBOL_GPL drivers/hv/hv_vmbus 0x6a913d04	vmbus_set_chn_rescind_callback
 EXPORT_SYMBOL_GPL drivers/hv/hv_vmbus 0x72a61a99	vmbus_allocate_mmio
 EXPORT_SYMBOL_GPL drivers/hv/hv_vmbus 0x73023d78	vmbus_close
+EXPORT_SYMBOL_GPL drivers/hv/hv_vmbus 0x86ff5fa6	hyperv_cs
 EXPORT_SYMBOL_GPL drivers/hv/hv_vmbus 0x8c6bac23	vmbus_driver_unregister
 EXPORT_SYMBOL_GPL drivers/hv/hv_vmbus 0xa9e2d37f	vmbus_are_subchannels_present
 EXPORT_SYMBOL_GPL drivers/hv/hv_vmbus 0xdb2f6047	vmbus_free_mmio
