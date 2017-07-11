@@ -1,0 +1,23 @@
+#
+# OpenNSL configuration
+#
+
+menuconfig OPENNSL
+	bool "OpenNSL options"
+	depends on NET
+
+if OPENNSL
+config OPENNSL_KERNEL_BDE
+	default y
+	tristate "OpenNSL kernel BDE"
+
+config OPENNSL_BCM_KNET
+	default y
+	depends on OPENNSL_KERNEL_BDE
+	tristate "OpenNSL KNET support"
+
+config OPENNSL_USER_BDE
+	default y
+	depends on OPENNSL_KERNEL_BDE
+	tristate "OpenNSL user BDE"
+endif
