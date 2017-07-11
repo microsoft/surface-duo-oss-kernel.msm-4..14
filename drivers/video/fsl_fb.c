@@ -786,22 +786,6 @@ int fsl_fb_parse_video_format(char *video_str,
 }
 
 /**********************************************************
- * FUNCTION: fsl_fb_init_first_layer
- * INFO: initialize the first layer after kernel boot
- **********************************************************/
-int fsl_fb_init_first_layer(struct fb_info *info)
-{
-	__u32 fb_activate_mask = info->var.activate;
-	int ret;
-
-	info->var.activate |= (FB_ACTIVATE_FORCE | FB_ACTIVATE_NOW);
-	ret = fb_set_var(info, &info->var);
-	info->var.activate = fb_activate_mask;
-
-	return ret;
-}
-
-/**********************************************************
  * FUNCTION: r_init
  **********************************************************/
 static int r_init(void)
@@ -878,14 +862,10 @@ static int r_init(void)
 		fsl_dcu_register_timings_listener(dcufb->fsl_dcu_info[i]);
 	}
 
-	/* Initialize the first layer if everything is OK so far */
-	if (i >= dcu_num_layers) {
-		ret = fsl_fb_init_first_layer(
-			dcufb->fsl_dcu_info[video_format.fb_idx]);
+	/* Return success if all layers were initialized successfully */
+	if (i >= dcu_num_layers)
+		return 0;
 
-		if (!ret)
-			return 0;
-	}
 
 	/* An error occurred, so all framebuffers get released */
 	dev_err(dcufb->dev, "Rolling back frambuffer initialization.\n");
