@@ -4,6 +4,25 @@ linux-raspi2 (4.4.0-1063.71) UNRELEASED; urgency=low
   CHANGELOG: Use the printchanges target to see the curent changes.
   CHANGELOG: Use the insertchanges target to create the final log.
 
+  [ Ubuntu: 4.4.0-86.109 ]
+
+  * linux: 4.4.0-86.109 -proposed tracker (LP: #1703995)
+  * sock_recvmsg has dropped size argument (LP: #1701697)
+    - Packaging: Breaks unfixed iscsitarget versions
+
+  [ Ubuntu: 4.4.0-85.108 ]
+
+  * linux: 4.4.0-85.108 -proposed tracker (LP: #1702103)
+  * [Hyper-V] Implement Hyper-V PTP Source (LP: #1676635)
+    - SAUCE: hv: make clocksource available for PTP device supporting
+    - Drivers: hv: util: Use hv_get_current_tick() to get current tick
+    - hv_util: switch to using timespec64
+    - hv_utils: implement Hyper-V PTP source
+    - Drivers: hv: util: Fix a typo
+    - Drivers: hv: util: don't forget to init host_ts.lock
+    - hv_utils: drop .getcrosststamp() support from PTP driver
+    - hv_utils: fix TimeSync work on pre-TimeSync-v4 hosts
+
  -- Thadeu Lima de Souza Cascardo <cascardo@canonical.com>  Mon, 03 Jul 2017 14:42:35 -0300
 
 linux-raspi2 (4.4.0-1062.70) xenial; urgency=low
