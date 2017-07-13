@@ -53,6 +53,7 @@ Architecture: armhf
 Multi-Arch: foreign
 Section: devel
 Priority: optional
+Breaks: iscsitarget-dkms (<< 1.4.20.3+svn502-2ubuntu4.3)
 Depends: ${misc:Depends}, coreutils | fileutils (>= 4.0)
 Description: Header files related to Linux kernel version PKGVER
  This package provides kernel header files for version PKGVER, for sites
