@@ -17,6 +17,9 @@
 #ifndef __AA_BACKPORT_H
 #define __AA_BACKPORT_H
 
+#include <linux/types.h>
+#include <linux/slab.h>
+
 /* backport to 4.13 - 1751e8a6cb93 ("Rename superblock flags (MS_xyz -> SB_xyz)") */
 #define SB_NOUSER MS_NOUSER
 
@@ -25,5 +28,18 @@
 
 /* backport 4.12 to 4.11 support __ro_after_init introduce by ca97d939db11 */
 #define __lsm_ro_after_init /* nothing */
+
+/* backport 4.12 to 4.11 support kvmalloc interface a7c3e901a46f introduced by */
+void *__aa_kvmalloc(size_t size, gfp_t flags);
+
+static inline void *kvmalloc(size_t size, gfp_t flags)
+{
+	return __aa_kvmalloc(size, flags );
+}
+
+static inline void *kvzalloc(size_t size, gfp_t flags)
+{
+	return __aa_kvmalloc(size, flags | __GFP_ZERO);
+}
 
 #endif /* __AA_BACKPORT_H */
