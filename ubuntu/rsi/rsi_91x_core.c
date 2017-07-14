@@ -321,15 +321,15 @@ void rsi_core_qos_processor(struct rsi_common *common)
 		}
 
 		skb = rsi_core_dequeue_pkt(common, q_num);
-		if ((adapter->peer_notify) &&
-		    (skb->data[2] == PEER_NOTIFY)) {
-			adapter->peer_notify = false;
-			ven_rsi_dbg(INFO_ZONE, "%s RESET PEER_NOTIFY\n", __func__);
-		}
 		if (!skb) {
 			ven_rsi_dbg(ERR_ZONE, "skb null\n");
 			mutex_unlock(&common->tx_lock);
 			break;
+		}
+		if ((adapter->peer_notify) &&
+		    (skb->data[2] == PEER_NOTIFY)) {
+			adapter->peer_notify = false;
+			ven_rsi_dbg(INFO_ZONE, "%s RESET PEER_NOTIFY\n", __func__);
 		}
 #ifdef CONFIG_VEN_RSI_COEX
 		if (q_num == MGMT_BEACON_Q) {

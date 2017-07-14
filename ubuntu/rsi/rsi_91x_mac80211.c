@@ -456,6 +456,9 @@ static void rsi_mac80211_hw_scan_cancel(struct ieee80211_hw *hw,
 void ven_rsi_mac80211_detach(struct rsi_hw *adapter)
 {
 	struct ieee80211_hw *hw = adapter->hw;
+#ifdef CONFIG_HW_SCAN_OFFLOAD
+	struct rsi_common *common = adapter->priv;
+#endif
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0))
 	enum nl80211_band band;
 #else
@@ -464,11 +467,15 @@ void ven_rsi_mac80211_detach(struct rsi_hw *adapter)
 
 	ven_rsi_dbg(INFO_ZONE, "Detach mac80211...\n");
 
+#ifdef CONFIG_HW_SCAN_OFFLOAD
+	flush_workqueue(common->scan_workqueue);
+#endif
 	if (hw) {
 		ieee80211_stop_queues(hw);
 		ieee80211_unregister_hw(hw);
 		ieee80211_free_hw(hw);
 		adapter->hw = NULL;
+		adapter->sc_nvifs = 0;
 	}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0))
@@ -606,13 +613,8 @@ static void rsi_mac80211_stop(struct ieee80211_hw *hw)
 {
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0))
-	struct cfg80211_scan_info info;
-#endif
-	ven_rsi_dbg(ERR_ZONE, "===> Interface DOWN <===\n");
 
-	if (common->fsm_state != FSM_MAC_INIT_DONE)
-		return;
+	ven_rsi_dbg(ERR_ZONE, "===> Interface DOWN <===\n");
 
 	mutex_lock(&common->mutex);
 	
@@ -625,7 +627,8 @@ static void rsi_mac80211_stop(struct ieee80211_hw *hw)
 	wiphy_rfkill_stop_polling(hw->wiphy);
 
 	/* Block all rx frames */
-	rsi_send_rx_filter_frame(common, 0xffff);
+	if (common->fsm_state == FSM_MAC_INIT_DONE)
+		rsi_send_rx_filter_frame(common, 0xffff);
 	
 	mutex_unlock(&common->mutex);
 }
@@ -1489,6 +1492,7 @@ static int rsi_mac80211_set_key(struct ieee80211_hw *hw,
  *
  * Return: status: 0 on success, negative error code on failure.
  */
+#ifndef CONFIG_CARACALLA_BOARD
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))
 static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 				     struct ieee80211_vif *vif,
@@ -1511,6 +1515,12 @@ static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 				     struct ieee80211_vif *vif,
 				     struct ieee80211_ampdu_params *params)
 #endif
+#else
+static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
+				     struct ieee80211_vif *vif,
+				     struct ieee80211_ampdu_params *params)
+#endif
+	
 {
 	int status = 1;
 	struct rsi_hw *adapter = hw->priv;
@@ -1520,7 +1530,7 @@ static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 	u8 ii = 0;
 	u8 sta_id = 0;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0))
+#if ((LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0)) || defined(CONFIG_CARACALLA_BOARD))
 	u16 tid = params->tid;
 	u8 buf_size = params->buf_size;
 	enum ieee80211_ampdu_mlme_action action = params->action;
@@ -1534,7 +1544,7 @@ static int rsi_mac80211_ampdu_action(struct ieee80211_hw *hw,
 
 	mutex_lock(&common->mutex);
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0))
+#if ((LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)) && !(defined(CONFIG_CARACALLA_BOARD)))
 	if (ssn != NULL)
 		seq_no = *ssn;
 #else
@@ -2026,7 +2036,7 @@ static void rsi_mac80211_sw_scan_start(struct ieee80211_hw *hw,
 	struct ieee80211_bss_conf *bss = &adapter->vifs[0]->bss_conf;
 
 	if (common->fsm_state != FSM_MAC_INIT_DONE)
-		return -ENODEV;
+		return;
 
 	if (common->p2p_enabled)
 		return;
@@ -2152,7 +2162,7 @@ static int rsi_mac80211_get_antenna(struct ieee80211_hw *hw,
 	return 0;	
 }
 
-static const char *regdfs_region_str(enum nl80211_dfs_regions dfs_region)
+static const char *regdfs_region_str(u8 dfs_region)
 {
         switch (dfs_region) {
         case NL80211_DFS_UNSET:
@@ -2367,41 +2377,31 @@ static u16 rsi_wow_map_triggers(struct rsi_common *common,
 }
 #endif
 
-#ifdef CONFIG_PM
-int rsi_mac80211_suspend(struct ieee80211_hw *hw,
-			 struct cfg80211_wowlan *wowlan)
-{
 #ifdef CONFIG_VEN_RSI_WOW
-	struct rsi_hw *adapter = hw->priv;
+int rsi_config_wowlan(struct rsi_hw *adapter, struct cfg80211_wowlan *wowlan)
+{
 	struct rsi_common *common = adapter->priv;
 	u16 triggers = 0;
 	u16 rx_filter_word = 0;
 	struct ieee80211_bss_conf *bss = &adapter->vifs[0]->bss_conf;
-#endif
-	int ret = 0;
 
-	ven_rsi_dbg(INFO_ZONE, "***** mac80211 suspend called ******\n");
+	ven_rsi_dbg(INFO_ZONE, "Config WoWLAN to device\n");
 
-#ifdef CONFIG_VEN_RSI_WOW
 	if (WARN_ON(!wowlan)) {
-		ven_rsi_dbg(ERR_ZONE,
-			"##### WoW triggers not enabled #####\n");
-		ret = -EINVAL;
-		goto fail_wow;
+		ven_rsi_dbg(ERR_ZONE, "WoW triggers not enabled\n");
+		return -EINVAL;
 	}
 
 	triggers = rsi_wow_map_triggers(common, wowlan);
 	if (!triggers) {
 		ven_rsi_dbg(ERR_ZONE, "%s:No valid WoW triggers\n",__func__);
-		ret = -EINVAL;
-		goto fail_wow;
+		return -EINVAL;
 	}
 	if (!bss->assoc) {
 		ven_rsi_dbg(ERR_ZONE,
 			"Cannot configure WoWLAN (Station not connected)\n");
 		common->wow_flags |= RSI_WOW_NO_CONNECTION;
-		ret = 0;
-		goto fail_wow;
+		return 0;
 	}
 	ven_rsi_dbg(INFO_ZONE, "TRIGGERS %x\n", triggers);
 	rsi_send_wowlan_request(common, triggers, 1);
@@ -2415,9 +2415,29 @@ int rsi_mac80211_suspend(struct ieee80211_hw *hw,
 	rsi_send_rx_filter_frame(common, rx_filter_word);
 
         common->wow_flags |= RSI_WOW_ENABLED;
-fail_wow:
+        
+	return 0;
+}
+EXPORT_SYMBOL_GPL(rsi_config_wowlan);
 #endif
-        return (ret ? 1 : 0);
+
+#ifdef CONFIG_PM
+static int rsi_mac80211_suspend(struct ieee80211_hw *hw,
+				struct cfg80211_wowlan *wowlan)
+{
+#ifdef CONFIG_VEN_RSI_WOW
+	struct rsi_hw *adapter = hw->priv;
+	struct rsi_common *common = adapter->priv;
+
+	mutex_lock(&common->mutex);
+	if (rsi_config_wowlan(adapter, wowlan)) {
+		ven_rsi_dbg(ERR_ZONE, "Failed to configure WoWLAN\n");
+		mutex_unlock(&common->mutex);
+		return 1;
+	}
+	mutex_unlock(&common->mutex);
+#endif
+	return 0;
 }
 
 static int rsi_mac80211_resume(struct ieee80211_hw *hw)
@@ -2426,9 +2446,9 @@ static int rsi_mac80211_resume(struct ieee80211_hw *hw)
 	struct rsi_common *common = adapter->priv;
 #ifdef CONFIG_VEN_RSI_WOW
 	u16 rx_filter_word = 0;
-#endif
         
 	adapter->priv->wow_flags = 0;
+#endif
 	
 	ven_rsi_dbg(INFO_ZONE, "%s: mac80211 resume\n", __func__);
 
@@ -2436,6 +2456,7 @@ static int rsi_mac80211_resume(struct ieee80211_hw *hw)
 		return 0;
 
 #ifdef CONFIG_VEN_RSI_WOW
+	mutex_lock(&common->mutex);
 	rsi_send_wowlan_request(common, 0, 0);
 
 	rx_filter_word = (ALLOW_DATA_ASSOC_PEER |
@@ -2443,7 +2464,9 @@ static int rsi_mac80211_resume(struct ieee80211_hw *hw)
 			  ALLOW_MGMT_ASSOC_PEER |
 			  0);
 	rsi_send_rx_filter_frame(common, rx_filter_word);
+	mutex_unlock(&common->mutex);
 #endif
+
 	return 0;
 }
 #endif
@@ -2741,7 +2764,7 @@ int rsi_mac80211_attach(struct rsi_common *common)
 	hw->uapsd_queues = IEEE80211_MARKALL_UAPSD_QUEUES;
 	hw->uapsd_max_sp_len = IEEE80211_WMM_IE_STA_QOSINFO_SP_ALL;
 	hw->max_tx_aggregation_subframes = 8;
-//	hw->max_rx_aggregation_subframes = 8;
+	hw->max_rx_aggregation_subframes = 8;
 
 	rsi_register_rates_channels(adapter, NL80211_BAND_2GHZ);
 	wiphy->bands[NL80211_BAND_2GHZ] =

@@ -112,4 +112,7 @@ void init_sdio_intr_status_poll_thread(struct rsi_common *common);
 #endif
 void rsi_roc_timeout(unsigned long data);
 struct ieee80211_vif *rsi_get_vif(struct rsi_hw *adapter, u8 *mac);
+#ifdef CONFIG_VEN_RSI_WOW
+int rsi_config_wowlan(struct rsi_hw *adapter, struct cfg80211_wowlan *wowlan);
+#endif
 #endif

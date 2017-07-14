@@ -42,7 +42,7 @@ void rsi_usb_rx_thread(struct rsi_common *common)
 {
 	struct rsi_hw *adapter = common->priv;
 	struct rsi_91x_usbdev *dev = (struct rsi_91x_usbdev *)adapter->rsi_dev;
-	struct rx_usb_ctrl_block *rx_cb;
+	struct sk_buff *skb;
 	int status, idx;
 
 	do {
@@ -52,28 +52,18 @@ void rsi_usb_rx_thread(struct rsi_common *common)
 			break;
 
 		for (idx = 0; idx < MAX_RX_URBS; idx++) {
-			rx_cb = &dev->rx_cb[idx];
-			if (!rx_cb->pend)
-				continue;
-			
-			mutex_lock(&common->rx_lock);
-			status = ven_rsi_read_pkt(common, rx_cb->rx_buffer, 0);
-			if (status) {
-				ven_rsi_dbg(ERR_ZONE, "%s: Failed To read data",
-					__func__);
-				mutex_unlock(&common->rx_lock);
-				break;
+			while (true) {
+				skb = skb_dequeue(&dev->rx_q[idx]);
+				if (!skb)
+					break;
+
+				status = ven_rsi_read_pkt(common, skb->data, 0);
+				if (status) {
+					ven_rsi_dbg(ERR_ZONE, "%s: Failed To read data",
+						__func__);
+				}
+				dev_kfree_skb(skb);
 			}
-			rx_cb->pend = 0;
-			mutex_unlock(&common->rx_lock);
-			
-			if (adapter->rx_urb_submit(adapter, rx_cb->ep_num)) {
-				ven_rsi_dbg(ERR_ZONE,
-					"%s: Failed in urb submission", __func__);
-				break;
-			}
-			/* Update TX buffer status */
-			//rsi_usb_check_queue_status(adapter, 0);
 		}
 		rsi_reset_event(&dev->rx_thread.event);
 	} while (1);

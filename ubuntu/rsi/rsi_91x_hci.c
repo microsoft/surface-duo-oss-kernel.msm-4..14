@@ -227,6 +227,7 @@ int rsi_send_rfmode_frame(struct rsi_common *common)
 {
 	struct sk_buff *skb;
 	struct rsi_bt_rfmode_frame *cmd_frame;
+	int status;
 
 	ven_rsi_dbg(MGMT_TX_ZONE, "%s: Sending BT RF mode frame\n", __func__);
 
@@ -246,7 +247,11 @@ int rsi_send_rfmode_frame(struct rsi_common *common)
 	skb_put(skb, sizeof(struct rsi_bt_rfmode_frame));
 
 //	return rsi_coex_send_pkt(common, skb, RSI_BT_Q);
-	return common->priv->host_intf_ops->write_pkt(common->priv, skb->data, skb->len);
+	status = common->priv->host_intf_ops->write_pkt(common->priv,
+							skb->data,
+							skb->len);
+	dev_kfree_skb(skb);
+	return status;
 }
 EXPORT_SYMBOL_GPL(rsi_send_rfmode_frame);
 
@@ -254,6 +259,7 @@ int rsi_deregister_bt(struct rsi_common *common)
 {
 	struct sk_buff *skb;
 	struct rsi_bt_cmd_frame *cmd_frame;
+	int status;
 
 	ven_rsi_dbg(MGMT_TX_ZONE, "%s: Sending BT register frame\n", __func__);
 
@@ -271,7 +277,11 @@ int rsi_deregister_bt(struct rsi_common *common)
 	skb_put(skb, sizeof(struct rsi_bt_cmd_frame));
 
 	//return rsi_coex_send_pkt(common, skb, RSI_BT_Q);
-	return common->priv->host_intf_ops->write_pkt(common->priv, skb->data, skb->len);
+	status = common->priv->host_intf_ops->write_pkt(common->priv,
+							skb->data,
+							skb->len);
+	dev_kfree_skb(skb);
+	return status;
 }
 EXPORT_SYMBOL_GPL(rsi_deregister_bt);
 
@@ -577,9 +587,6 @@ void rsi_hci_detach(struct rsi_common *common)
 
 	if (!h_adapter)
 		return;
-
-	if (common->suspend_in_prog)
-		rsi_deregister_bt(common);
 
 	hdev = h_adapter->hdev;
 	if (hdev) {

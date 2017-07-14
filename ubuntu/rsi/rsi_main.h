@@ -41,7 +41,7 @@ struct rsi_hw;
 
 #include "rsi_ps.h"
 
-#define DRV_VER				"RS9113.NB0.NL.GNU.LNX.1.2.RC12"
+#define DRV_VER				"RS9113.NB0.NL.GNU.LNX.1.2"
 
 #define ERR_ZONE                        BIT(0) /* Error Msgs		*/
 #define INFO_ZONE                       BIT(1) /* Generic Debug Msgs	*/
@@ -53,15 +53,16 @@ struct rsi_hw;
 #define FSM_ZONE                        BIT(7) /* State Machine Msgs	*/
 #define ISR_ZONE                        BIT(8) /* Interrupt Msgs	*/
 
-#define FSM_CARD_NOT_READY              0
-#define FSM_COMMON_DEV_PARAMS_SENT	1
-#define FSM_BOOT_PARAMS_SENT            2
-#define FSM_EEPROM_READ_MAC_ADDR        3
-#define FSM_EEPROM_READ_RF_TYPE		4
-#define FSM_RESET_MAC_SENT              5
-#define FSM_RADIO_CAPS_SENT             6
-#define FSM_BB_RF_PROG_SENT             7
-#define FSM_MAC_INIT_DONE               8
+#define FSM_FW_NOT_LOADED		0
+#define FSM_CARD_NOT_READY              1
+#define FSM_COMMON_DEV_PARAMS_SENT	2
+#define FSM_BOOT_PARAMS_SENT            3
+#define FSM_EEPROM_READ_MAC_ADDR        4
+#define FSM_EEPROM_READ_RF_TYPE		5
+#define FSM_RESET_MAC_SENT              6
+#define FSM_RADIO_CAPS_SENT             7
+#define FSM_BB_RF_PROG_SENT             8
+#define FSM_MAC_INIT_DONE               9
 
 extern u16 ven_rsi_zone_enabled;
 extern __printf(2, 3) void ven_rsi_dbg(u32 zone, const char *fmt, ...);
@@ -179,8 +180,8 @@ struct wmm_qinfo {
 };
 
 struct transmit_q_stats {
-	u32 total_tx_pkt_send[NUM_EDCA_QUEUES + 1];
-	u32 total_tx_pkt_freed[NUM_EDCA_QUEUES + 1];
+	u32 total_tx_pkt_send[NUM_EDCA_QUEUES + 2];
+	u32 total_tx_pkt_freed[NUM_EDCA_QUEUES + 2];
 };
 
 struct vif_priv {
@@ -285,7 +286,6 @@ struct rsi_common {
 
 	/* Generic */
 	u8 channel;
-	u8 *rx_data_pkt;
 	u8 *saved_rx_data_pkt;
 	u8 mac_id;
 	u8 radio_id;

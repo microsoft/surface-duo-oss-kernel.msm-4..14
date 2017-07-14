@@ -52,7 +52,7 @@ u16 ven_rsi_zone_enabled =	//INFO_ZONE |
 				//ISR_ZONE |
 				ERR_ZONE |
 				0;
-EXPORT_SYMBOL_GPL(ven_rsi_zone_enabled);
+module_param(ven_rsi_zone_enabled, ushort, S_IRUGO);
 MODULE_PARM_DESC(ven_rsi_zone_enabled,
 		 "BIT(0) - ERROR ZONE \
 		  BIT(1) - INFO ZONE \

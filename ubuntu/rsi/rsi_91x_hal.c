@@ -247,7 +247,7 @@ int rsi_prepare_mgmt_desc(struct rsi_common *common,struct sk_buff *skb)
 	struct rsi_hw *adapter = common->priv;
 	struct ieee80211_hdr *wh = NULL;
 	struct ieee80211_tx_info *info;
-	struct ieee80211_conf *conf = &adapter->hw->conf;
+	struct ieee80211_conf *conf;// = &adapter->hw->conf;
 	struct ieee80211_vif *vif = NULL;
 	struct skb_info *tx_params;
 	int status = -EINVAL;
@@ -257,6 +257,9 @@ int rsi_prepare_mgmt_desc(struct rsi_common *common,struct sk_buff *skb)
 	u8 vap_id = 0;
 	u32 dword_align_bytes = 0;
 
+	if (!adapter->hw)
+		goto err;
+	conf = &adapter->hw->conf;
 	info = IEEE80211_SKB_CB(skb);
 	tx_params = (struct skb_info *)info->driver_data;
 
@@ -1272,6 +1275,7 @@ int rsi_hal_device_init(struct rsi_hw *adapter)
 		return -EINVAL;
 	}
 	adapter->common_hal_fsm = COMMAN_HAL_WAIT_FOR_CARD_READY;
+	common->fsm_state = FSM_CARD_NOT_READY;
 
 #if defined(CONFIG_VEN_RSI_BT_ALONE) || defined(CONFIG_VEN_RSI_COEX)
 	adapter->priv->bt_fsm_state = BT_DEVICE_NOT_READY;

@@ -74,6 +74,50 @@ int rsi_sdio_master_access_msword(struct rsi_hw *adapter,
 	return status;
 }
 
+void rsi_sdio_rx_thread(struct rsi_common *common)
+{
+	struct rsi_hw *adapter = common->priv;
+	struct rsi_91x_sdiodev *sdev = adapter->rsi_dev;
+	struct sk_buff *skb;
+	int status;
+	bool done = false;
+
+	do {
+		rsi_wait_event(&sdev->rx_thread.event, EVENT_WAIT_FOREVER);
+
+		if (atomic_read(&sdev->rx_thread.thread_done))
+			break;
+
+		while (true) {
+			skb = skb_dequeue(&sdev->rx_q.head);
+			if (!skb)
+				break;
+			status = ven_rsi_read_pkt(common, skb->data, skb->len);
+			if (status) {
+				ven_rsi_dbg(ERR_ZONE, "Failed to read the packet\n");
+				dev_kfree_skb(skb);
+				return;
+			}
+			dev_kfree_skb(skb);
+			if (sdev->rx_q.num_rx_pkts > 0)
+				sdev->rx_q.num_rx_pkts--;
+			
+			if (atomic_read(&sdev->rx_thread.thread_done)) {
+				done = true;
+				break;
+			}
+		}
+		rsi_reset_event(&sdev->rx_thread.event);
+		if (done)
+			break;
+	} while (1);
+
+	ven_rsi_dbg(INFO_ZONE, "%s: Terminated SDIO RX thread\n", __func__);
+	skb_queue_purge(&sdev->rx_q.head);
+	atomic_inc(&sdev->rx_thread.thread_done);
+	complete_and_exit(&sdev->rx_thread.completion, 0);
+}
+
 /**
  * rsi_process_pkt() - This Function reads rx_blocks register and figures out
  *		       the size of the rx pkt.
@@ -91,6 +135,7 @@ static int rsi_process_pkt(struct rsi_common *common)
 	int status = 0;
 	u8 value = 0;
 	u8 protocol = 0, unaggr_pkt = 0;
+	struct sk_buff *skb;
 
 #define COEX_PKT 0
 #define WLAN_PKT 3
@@ -128,28 +173,30 @@ static int rsi_process_pkt(struct rsi_common *common)
 		unaggr_pkt = 1;
 
 	rcv_pkt_len = (num_blks * 256);
+	
+	if (dev->rx_q.num_rx_pkts >= RSI_SDIO_MAX_RX_PKTS)
+		return -EINVAL;
 
-	common->rx_data_pkt = kmalloc(rcv_pkt_len, GFP_KERNEL);
-	if (!common->rx_data_pkt) {
-		ven_rsi_dbg(ERR_ZONE, "%s: Failed in memory allocation\n",
+	skb = dev_alloc_skb(rcv_pkt_len);
+	if (!skb) {
+		ven_rsi_dbg(ERR_ZONE, "%s: Failed to allocate rx packet\n",
 			__func__);
 		return -ENOMEM;
 	}
+	skb_put(skb, rcv_pkt_len);
 
-	status = rsi_sdio_host_intf_read_pkt(adapter,
-					     common->rx_data_pkt,
-					     rcv_pkt_len);
+	status = rsi_sdio_host_intf_read_pkt(adapter, skb->data, skb->len);
 	if (status) {
 		ven_rsi_dbg(ERR_ZONE, "%s: Failed to read packet from card\n",
 			__func__);
-		goto fail;
+		dev_kfree_skb(skb);
+		return status;
 	}
+	skb_queue_tail(&dev->rx_q.head, skb);
+	dev->rx_q.num_rx_pkts++;
+	rsi_set_event(&dev->rx_thread.event);
 
-	status = ven_rsi_read_pkt(common, common->rx_data_pkt, rcv_pkt_len);
-
-fail:
-	kfree(common->rx_data_pkt);
-	return status;
+	return 0;
 }
 
 /**
