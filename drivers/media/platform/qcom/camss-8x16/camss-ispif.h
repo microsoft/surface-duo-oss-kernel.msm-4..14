@@ -1,5 +1,5 @@
 /*
- * ispif.h
+ * camss-ispif.h
  *
  * Qualcomm MSM Camera Subsystem - ISPIF Module
  *

@@ -1,5 +1,5 @@
 /*
- * csid.h
+ * camss-csid.h
  *
  * Qualcomm MSM Camera Subsystem - CSID Module
  *

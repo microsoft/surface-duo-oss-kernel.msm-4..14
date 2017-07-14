@@ -1,5 +1,5 @@
 /*
- * ispif.c
+ * camss-ispif.c
  *
  * Qualcomm MSM Camera Subsystem - ISPIF Module
  *
@@ -26,7 +26,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
 
-#include "ispif.h"
+#include "camss-ispif.h"
 #include "camss.h"
 
 #define MSM_ISPIF_NAME "msm_ispif"

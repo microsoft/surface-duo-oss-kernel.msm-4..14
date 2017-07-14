@@ -1,5 +1,5 @@
 /*
- * video.c
+ * camss-video.c
  *
  * Qualcomm MSM Camera Subsystem - V4L2 device node
  *
@@ -24,7 +24,7 @@
 #include <media/videobuf-core.h>
 #include <media/videobuf2-dma-sg.h>
 
-#include "video.h"
+#include "camss-video.h"
 #include "camss.h"
 
 struct fract {

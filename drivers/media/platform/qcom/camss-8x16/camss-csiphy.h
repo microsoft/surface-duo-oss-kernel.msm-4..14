@@ -1,5 +1,5 @@
 /*
- * csiphy.h
+ * camss-csiphy.h
  *
  * Qualcomm MSM Camera Subsystem - CSIPHY Module
  *

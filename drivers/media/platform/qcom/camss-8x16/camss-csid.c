@@ -1,5 +1,5 @@
 /*
- * csid.c
+ * camss-csid.c
  *
  * Qualcomm MSM Camera Subsystem - CSID Module
  *
@@ -26,7 +26,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
 
-#include "csid.h"
+#include "camss-csid.h"
 #include "camss.h"
 
 #define MSM_CSID_NAME "msm_csid"

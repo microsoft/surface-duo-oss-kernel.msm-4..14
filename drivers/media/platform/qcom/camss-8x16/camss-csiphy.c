@@ -1,5 +1,5 @@
 /*
- * csiphy.c
+ * camss-csiphy.c
  *
  * Qualcomm MSM Camera Subsystem - CSIPHY Module
  *
@@ -25,7 +25,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
 
-#include "csiphy.h"
+#include "camss-csiphy.h"
 #include "camss.h"
 
 #define MSM_CSIPHY_NAME "msm_csiphy"

@@ -1,5 +1,5 @@
 /*
- * video.h
+ * camss-video.h
  *
  * Qualcomm MSM Camera Subsystem - V4L2 device node
  *

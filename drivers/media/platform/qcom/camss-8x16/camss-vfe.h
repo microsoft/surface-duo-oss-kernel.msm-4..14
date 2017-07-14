@@ -1,5 +1,5 @@
 /*
- * vfe.h
+ * camss-vfe.h
  *
  * Qualcomm MSM Camera Subsystem - VFE Module
  *
@@ -24,7 +24,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
 
-#include "video.h"
+#include "camss-video.h"
 
 #define MSM_VFE_PAD_SINK 0
 #define MSM_VFE_PAD_SRC 1

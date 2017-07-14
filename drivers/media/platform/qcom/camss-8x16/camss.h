@@ -26,10 +26,10 @@
 #include <media/media-entity.h>
 #include <linux/device.h>
 
-#include "csid.h"
-#include "csiphy.h"
-#include "ispif.h"
-#include "vfe.h"
+#include "camss-csid.h"
+#include "camss-csiphy.h"
+#include "camss-ispif.h"
+#include "camss-vfe.h"
 
 #define CAMSS_CSID_NUM 2
 #define CAMSS_CSIPHY_NUM 2
