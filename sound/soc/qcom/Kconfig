@@ -62,6 +62,9 @@ config SND_SOC_QDSP6_ROUTING
 config SND_SOC_QDSP6_ASM
 	tristate
 
+config SND_SOC_QDSP6_ASM_DAI
+	tristate
+
 config SND_SOC_QDSP6_CORE
 	tristate
 
@@ -74,6 +77,7 @@ config SND_SOC_QDSP6
 	select SND_SOC_QDSP6_ADM
 	select SND_SOC_QDSP6_ROUTING
 	select SND_SOC_QDSP6_ASM
+	select SND_SOC_QDSP6_ASM_DAI
 	select SND_SOC_QDSP6_CORE
 	help
 	 To add support for MSM QDSP6 Soc Audio.
