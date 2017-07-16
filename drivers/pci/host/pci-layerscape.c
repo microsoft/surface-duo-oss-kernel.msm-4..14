@@ -103,30 +103,34 @@ static int ls1021_pcie_link_up(struct pcie_port *pp)
 	return 1;
 }
 
-static void ls1021_pcie_host_init(struct pcie_port *pp)
+static int ls1021_pcie_host_init(struct pcie_port *pp)
 {
 	struct device *dev = pp->dev;
 	struct ls_pcie *pcie = to_ls_pcie(pp);
 	u32 index[2];
+	int ret;
 
 	pcie->scfg = syscon_regmap_lookup_by_phandle(dev->of_node,
 						     "fsl,pcie-scfg");
 	if (IS_ERR(pcie->scfg)) {
+		ret = PTR_ERR(pcie->scfg);
 		dev_err(dev, "No syscfg phandle specified\n");
 		pcie->scfg = NULL;
-		return;
+		return ret;
 	}
 
 	if (of_property_read_u32_array(dev->of_node,
 				       "fsl,pcie-scfg", index, 2)) {
 		pcie->scfg = NULL;
-		return;
+		return -EINVAL;
 	}
 	pcie->index = index[1];
 
 	dw_pcie_setup_rc(pp);
 
 	ls_pcie_drop_msg_tlp(pcie);
+
+	return 0;
 }
 
 static int ls_pcie_link_up(struct pcie_port *pp)
@@ -144,7 +148,8 @@ static int ls_pcie_link_up(struct pcie_port *pp)
 	return 1;
 }
 
-static void ls_pcie_host_init(struct pcie_port *pp)
+int (*host_init)(struct pcie_port *pp);
+static int ls_pcie_host_init(struct pcie_port *pp)
 {
 	struct ls_pcie *pcie = to_ls_pcie(pp);
 
@@ -153,6 +158,8 @@ static void ls_pcie_host_init(struct pcie_port *pp)
 	ls_pcie_clear_multifunction(pcie);
 	ls_pcie_drop_msg_tlp(pcie);
 	iowrite32(0, pcie->pp.dbi_base + PCIE_DBI_RO_WR_EN);
+
+	return 0;
 }
 
 static int ls_pcie_msi_host_init(struct pcie_port *pp,
