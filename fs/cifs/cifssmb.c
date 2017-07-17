@@ -1404,9 +1404,9 @@ openRetry:
  * current bigbuf.
  */
 int
-cifs_discard_remaining_data(struct TCP_Server_Info *server, char *buf)
+cifs_discard_remaining_data(struct TCP_Server_Info *server)
 {
-	unsigned int rfclen = get_rfc1002_length(buf);
+	unsigned int rfclen = get_rfc1002_length(server->smallbuf);
 	int remaining = rfclen + 4 - server->total_read;
 
 	while (remaining > 0) {
@@ -1430,8 +1430,10 @@ cifs_readv_discard(struct TCP_Server_Info *server, struct mid_q_entry *mid)
 	int length;
 	struct cifs_readdata *rdata = mid->callback_data;
 
-	length = cifs_discard_remaining_data(server, mid->resp_buf);
+	length = cifs_discard_remaining_data(server);
 	dequeue_mid(mid, rdata->result);
+	mid->resp_buf = server->smallbuf;
+	server->smallbuf = NULL;
 	return length;
 }
 
@@ -1463,7 +1465,7 @@ cifs_readv_receive(struct TCP_Server_Info *server, struct mid_q_entry *mid)
 
 	if (server->ops->is_status_pending &&
 	    server->ops->is_status_pending(buf, server, 0)) {
-		cifs_discard_remaining_data(server, buf);
+		cifs_discard_remaining_data(server);
 		return -1;
 	}
 
@@ -1523,9 +1525,6 @@ cifs_readv_receive(struct TCP_Server_Info *server, struct mid_q_entry *mid)
 	cifs_dbg(FYI, "0: iov_base=%p iov_len=%u\n",
 		 rdata->iov[0].iov_base, server->total_read);
 
-	mid->resp_buf = server->smallbuf;
-	server->smallbuf = NULL;
-
 	/* how much data is in the response? */
 	data_len = server->ops->read_data_length(buf);
 	if (data_offset + data_len > buflen) {
@@ -1548,6 +1547,8 @@ cifs_readv_receive(struct TCP_Server_Info *server, struct mid_q_entry *mid)
 		return cifs_readv_discard(server, mid);
 
 	dequeue_mid(mid, false);
+	mid->resp_buf = server->smallbuf;
+	server->smallbuf = NULL;
 	return length;
 }
 
