@@ -650,7 +650,8 @@ static void vfe_enable_irq_wm_line(struct vfe_device *vfe, u8 wm,
 }
 
 static void vfe_enable_irq_pix_line(struct vfe_device *vfe, u8 comp,
-				    enum vfe_line_id line_id, u8 enable) {
+				    enum vfe_line_id line_id, u8 enable)
+{
 	struct vfe_output *output = &vfe->line[line_id].output;
 	unsigned int i;
 	u32 irq_en0;
