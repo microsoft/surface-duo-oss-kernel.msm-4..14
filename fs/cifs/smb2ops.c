@@ -1650,7 +1650,8 @@ crypt_message(struct TCP_Server_Info *server, struct smb_rqst *rqst, int enc)
 
 	sg = init_sg(rqst, sign);
 	if (!sg) {
-		cifs_dbg(VFS, "%s: Failed to init sg %d", __func__, rc);
+		cifs_dbg(VFS, "%s: Failed to init sg", __func__);
+		rc = -ENOMEM;
 		goto free_req;
 	}
 
@@ -1658,6 +1659,7 @@ crypt_message(struct TCP_Server_Info *server, struct smb_rqst *rqst, int enc)
 	iv = kzalloc(iv_len, GFP_KERNEL);
 	if (!iv) {
 		cifs_dbg(VFS, "%s: Failed to alloc IV", __func__);
+		rc = -ENOMEM;
 		goto free_sg;
 	}
 	iv[0] = 3;
