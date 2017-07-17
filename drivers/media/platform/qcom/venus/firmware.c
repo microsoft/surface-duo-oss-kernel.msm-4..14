@@ -38,7 +38,7 @@ int venus_boot(struct device *dev, const char *fwname)
 	void *mem_va;
 	int ret;
 
-	if (!qcom_scm_is_available())
+	if (!IS_ENABLED(CONFIG_QCOM_MDT_LOADER) || !qcom_scm_is_available())
 		return -EPROBE_DEFER;
 
 	node = of_parse_phandle(dev->of_node, "memory-region", 0);
