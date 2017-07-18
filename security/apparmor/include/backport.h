@@ -23,4 +23,7 @@
 /* backport 4.13 - a481f4d91783 ("apparmor: add custom apparmorfs that will be used by policy namespace files") */
 #define AAFS_MAGIC	0x5a3c69f0
 
+/* backport 4.12 to 4.11 support __ro_after_init introduce by ca97d939db11 */
+#define __lsm_ro_after_init /* nothing */
+
 #endif /* __AA_BACKPORT_H */
