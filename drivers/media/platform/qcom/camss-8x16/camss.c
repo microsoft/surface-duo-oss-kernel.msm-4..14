@@ -210,9 +210,7 @@ int camss_get_pixel_clock(struct media_entity *entity, u32 *pixel_clock)
 {
 	struct media_entity *sensor;
 	struct v4l2_subdev *subdev;
-	struct v4l2_ext_controls ctrls = { { 0 } };
-	struct v4l2_ext_control ctrl = { 0 };
-	int ret;
+	struct v4l2_ctrl *ctrl;
 
 	sensor = camss_find_sensor(entity);
 	if (!sensor)
@@ -220,16 +218,12 @@ int camss_get_pixel_clock(struct media_entity *entity, u32 *pixel_clock)
 
 	subdev = media_entity_to_v4l2_subdev(sensor);
 
-	ctrl.id = V4L2_CID_PIXEL_RATE;
+	ctrl = v4l2_ctrl_find(subdev->ctrl_handler, V4L2_CID_PIXEL_RATE);
 
-	ctrls.count = 1;
-	ctrls.controls = &ctrl;
+	if (!ctrl)
+		return -EINVAL;
 
-	ret = v4l2_g_ext_ctrls(subdev->ctrl_handler, &ctrls);
-	if (ret < 0)
-		return ret;
-
-	*pixel_clock = ctrl.value64;
+	*pixel_clock = v4l2_ctrl_g_ctrl_int64(ctrl);
 
 	return 0;
 }
