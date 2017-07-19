@@ -826,7 +826,7 @@ int apparmor_bprm_set_creds(struct linux_binprm *bprm)
 		;
 	}
 
-	if (bprm->unsafe & (LSM_UNSAFE_PTRACE)) {
+	if (bprm->unsafe & (LSM_UNSAFE_PTRACE | LSM_UNSAFE_PTRACE_CAP)) {
 		/* TODO: test needs to be profile of label to new */
 		error = may_change_ptraced_domain(new, &info);
 		if (error)
