@@ -131,6 +131,16 @@ struct apparmor_audit_data {
 					unsigned long max;
 				} rlim;
 				int signal;
+				struct {
+					int type, protocol;
+					struct sock *peer_sk;
+					void *addr;
+					int addrlen;
+				} net;
+				struct {
+					int rlim;
+					unsigned long max;
+				} rlim;
 			};
 		};
 		struct {
