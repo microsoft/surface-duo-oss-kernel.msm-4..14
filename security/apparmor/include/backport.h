@@ -42,4 +42,7 @@ static inline void *kvzalloc(size_t size, gfp_t flags)
 	return __aa_kvmalloc(size, flags | __GFP_ZERO);
 }
 
+/* 4.10 backport support LSM name in security_add_hooks d69dece5f5b6 */
+#define security_add_hooks(H, C, NAME) (security_add_hooks)(H, C)
+
 #endif /* __AA_BACKPORT_H */
