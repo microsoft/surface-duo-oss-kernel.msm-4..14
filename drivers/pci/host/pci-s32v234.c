@@ -1157,6 +1157,7 @@ static int s32v234_pcie_link_up(struct pcie_port *pp)
 static struct pcie_host_ops s32v234_pcie_host_ops = {
 	.link_up = s32v234_pcie_link_up,
 	.host_init = s32v234_pcie_host_init,
+	.send_signal_to_user = send_signal_to_user,
 };
 
 static int __init s32v234_add_pcie_port(struct pcie_port *pp,
@@ -1226,6 +1227,10 @@ static irqreturn_t s32v234_pcie_link_req_rst_not_handler(int irq, void *arg)
 }
 #endif /* !CONFIG_PCI_S32V234_EP */
 
+static struct pcie_host_ops s32v234_pcie_host_ops_ep = {
+	.send_signal_to_user = send_signal_to_user,
+};
+
 static int s32v234_pcie_probe(struct platform_device *pdev)
 {
 	struct s32v234_pcie *s32v234_pcie;
@@ -1264,8 +1269,24 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 	ret = s32v234_add_pcie_port(pp, pdev);
 	if (ret < 0)
 		return ret;
-		platform_set_drvdata(pdev, s32v234_pcie);
+	platform_set_drvdata(pdev, s32v234_pcie);
 	#else
+	pp->ops = &s32v234_pcie_host_ops_ep;
+	pcie_port_ep = pp;
+	pp->link_req_rst_not_irq = platform_get_irq_byname(pdev,
+					"link_req_rst_not");
+	if (pp->link_req_rst_not_irq <= 0) {
+		dev_err(&pdev->dev, "failed to get link_req_rst_not irq\n");
+		return -ENODEV;
+	}
+	ret = devm_request_irq(&pdev->dev, pp->link_req_rst_not_irq,
+		s32v234_pcie_link_req_rst_not_handler,
+		IRQF_SHARED, "link_req_rst_not", pp);
+	if (ret) {
+		dev_err(&pdev->dev, "failed to request link_req_rst_not irq\n");
+		return -ENODEV;
+	}
+
 	#ifdef CONFIG_PCI_DW_DMA
 	pp->dma_irq = platform_get_irq_byname(pdev, "dma");
 	if (pp->dma_irq <= 0) {
