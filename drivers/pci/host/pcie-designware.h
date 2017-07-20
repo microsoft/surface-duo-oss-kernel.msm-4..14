@@ -139,11 +139,9 @@ struct pcie_port {
 	unsigned long		msi_data;
 	DECLARE_BITMAP(msi_irq_in_use, MAX_MSI_IRQS);
 	u8			atu_idx[ATU_TYPE_MAX];
-	#ifdef CONFIG_PCI_S32V234_EP
 	struct dentry		*dir;
 	int			user_pid;
 	struct siginfo	info;    /* signal information */
-	#endif
 	#ifdef CONFIG_PCI_DW_DMA
 	struct dma_ch_info	wr_ch;
 	struct dma_ch_info	rd_ch;
