@@ -141,8 +141,8 @@ static const struct resources vfe_res = {
  */
 inline void camss_add_clock_margin(u64 *rate)
 {
-	*rate = (*rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
-			CAMSS_CLOCK_MARGIN_DENOMINATOR;
+	*rate *= CAMSS_CLOCK_MARGIN_NUMERATOR;
+	*rate = div_u64(*rate, CAMSS_CLOCK_MARGIN_DENOMINATOR);
 }
 
 /*
