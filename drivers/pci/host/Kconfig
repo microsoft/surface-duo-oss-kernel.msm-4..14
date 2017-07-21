@@ -45,19 +45,17 @@ config PCI_S32V234_IGNORE_ERR009852
 	depends on OF && (ARM || ARM64)
 	help
 	Erratum ERR009852 limits inbound transactions over PCIe on certain,
-	older chipsets having maskset 0N71N. Outbound transactions are not
-	affected.
+	older chipsets having maskset 0N71N, when configured as End Point.
+	Outbound transactions are not affected.
 	If you are using an affected variant of the SoC, you should leave
 	this option unchecked, unless for development purposes (and if you
 	know what you're doing).
-	On newer chipsets (e.g. maskset 1N71N or newer), it is safe to select
-	this option.
-	Clearing this option will make the EP's BAR registers inaccessible
-	from the RC.
+	Clearing this option will make EP's BAR registers inaccessible
+	from the RC on affected variants.
 
-	If you are using a new enough u-boot, the chipset maskset will be
-	determined automatically, so you would not have to worry
-	about this option anymore.
+	On newer chipsets, the erratum is by default ignored (e.g. maskset
+	1N71N or newer), so you would not have to worry about this option
+	anymore.
 
 	If unsure, select 'no'.
 

@@ -177,6 +177,62 @@ struct s32v234_pcie {
 #define PCIE_BAR4_INIT	0
 #define PCIE_BAR5_INIT	0
 #define PCIE_ROM_INIT	0
+
+/* SOC revision */
+#define SOC_REVISION_MINOR_MASK		(0xF)
+#define SOC_REVISION_MAJOR_SHIFT	(4)
+#define SOC_REVISION_MAJOR_MASK		(0xF << SOC_REVISION_MAJOR_SHIFT)
+#define SOC_REVISION_MASK		(SOC_REVISION_MINOR_MASK | \
+					    SOC_REVISION_MAJOR_MASK)
+
+#define SIUL2_MIDR1_OFF			0x4
+#define pr_soc_debug pr_debug
+
+static int s32v234_pcie_get_soc_revision(void)
+{
+	struct device_node *node = NULL;
+	int rev = -1;
+	__be32 *siul2_base = NULL;
+	u64 siul2_base_address = OF_BAD_ADDR;
+
+	pr_soc_debug("Searching SIUL2 MIDR registers in device-tree\n");
+	node = of_find_node_by_name(NULL, "siul2");
+	if (node) {
+		siul2_base = of_get_property(node, "midr-reg", NULL);
+
+		if (siul2_base)
+			siul2_base_address =
+				of_translate_address(node, siul2_base);
+
+		of_node_put(node);
+	} else {
+		pr_warn("Could not get siul2 node from device-tree\n");
+		goto err_find_node;
+	}
+
+	if (siul2_base_address != OF_BAD_ADDR) {
+		char *siul2_virt_addr = ioremap_nocache(siul2_base_address,
+							SZ_1K);
+
+		pr_soc_debug("Resolved SIUL2 base address to 0x%x\n",
+				siul2_base_address);
+
+		if (siul2_virt_addr) {
+			rev = readl(siul2_virt_addr + SIUL2_MIDR1_OFF) &
+				(SOC_REVISION_MASK);
+			pr_soc_debug("SIUL2_MIDR1 (0x%llx) revision: 0x%x\n",
+				siul2_base_address + SIUL2_MIDR1_OFF, rev);
+			iounmap(siul2_virt_addr);
+			return rev;
+		}
+		pr_warn("Could not remap SIUL2 memory\n");
+	} else
+		pr_warn("Could not translate SIUL2 base address\n");
+
+err_find_node:
+	return rev;
+}
+
 struct task_struct *task;
 struct s32v_bar {
 	u32 bar_nr;
@@ -450,26 +506,14 @@ static bool s32v234_pcie_ignore_err009852(void)
 #else
 /* It is safe to override Kconfig selection if the chip revision is in fact
  * not affected by the erratum.
+ * The erratumonly affects chips revision 1.0.
  * We rely on u-boot passing the chip revision along, via the fdt.
  */
 static bool s32v234_pcie_ignore_err009852(void)
 {
-	const char *path = "/chosen";
-	struct device_node *node;
-	const u32 *rev;
-	int len;
-	bool ret = false;
+	int soc_revision = s32v234_pcie_get_soc_revision();
 
-	node = of_find_node_by_path(path);
-	if (!node)
-		goto err_find_node;
-
-	rev = of_get_property(node, "soc_revision", &len);
-	if (rev && (len == sizeof(u32)))
-		ret = (*rev > 0);
-
-err_find_node:
-	return ret;
+	return soc_revision > 0;
 }
 #endif
 
@@ -507,7 +551,7 @@ static int s32v_get_bar_info(struct pcie_port *pp, void __user *argp)
 	int ret = 0;
 
 	if (copy_from_user(&bar_info, argp, sizeof(bar_info))) {
-		dev_err(pp->dev, "Error while copying from user");
+		dev_err(pp->dev, "Error while copying from user\n");
 		return -EFAULT;
 	}
 	if (bar_info.bar_nr)
@@ -1030,25 +1074,46 @@ out:
 
 static void s32v234_pcie_host_init(struct pcie_port *pp)
 {
+	int socmask_info;
+
 	/* enable disp_mix power domain */
 	pm_runtime_get_sync(pp->dev);
 
 	s32v234_pcie_assert_core_reset(pp);
 
 	if (s32v234_pcie_init_phy(pp) < 0) {
-		pr_warn("Error initializing s32v234 pcie phy");
+		pr_warn("Error initializing s32v234 pcie phy\n");
 		return;
 	}
 
 	if (s32v234_pcie_deassert_core_reset(pp) < 0) {
-		pr_warn("Error deasserting core reset");
+		pr_warn("Error deasserting core reset\n");
 		return;
 	}
 
+	/* We set up the ID for all Rev 1.x chips */
+	socmask_info = s32v234_pcie_get_soc_revision();
+	if (socmask_info >= 0) {
+		dev_info(pp->dev, "SOC revision: 0x%x\n", socmask_info);
+		if ((socmask_info & SOC_REVISION_MAJOR_MASK) == 0) {
+			/*
+			* Vendor ID is Freescale (now NXP): 0x1957
+			* Device ID is split as follows
+			* Family 15:12, Device 11:6, Personality 5:0
+			* S32V is in the automotive family: 0100
+			* S32V is the first auto device with PCIe: 000000
+			* S32V has not export controlled cryptography: 00001
+			*/
+			dev_info(pp->dev,
+				 "Setting PCIE Vendor and Device ID\n");
+			writel((0x4001 << 16) | 0x1957,
+				pp->dbi_base + PCI_VENDOR_ID);
+	    }
+	}
 	dw_pcie_setup_rc(pp);
 
 	if (s32v234_pcie_start_link(pp) < 0) {
-		pr_warn("Error starting pcie link");
+		pr_warn("Error starting pcie link\n");
 		return;
 	}
 
