@@ -321,6 +321,11 @@ static u8 csiphy_settle_cnt_calc(struct csiphy_device *csiphy)
 			"Cannot get CSI2 transmitter's pixel clock\n");
 		return 0;
 	}
+	if (!pixel_clock) {
+		dev_err(to_device_index(csiphy, csiphy->id),
+			"Got pixel clock == 0, cannot continue\n");
+		return 0;
+	}
 
 	mipi_clock = pixel_clock * bpp / (2 * num_lanes);
 	ui = 1000000000000 / (mipi_clock * 2);
