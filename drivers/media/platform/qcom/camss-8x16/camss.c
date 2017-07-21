@@ -32,6 +32,9 @@
 
 #include "camss.h"
 
+#define CAMSS_CLOCK_MARGIN_NUMERATOR 105
+#define CAMSS_CLOCK_MARGIN_DENOMINATOR 100
+
 static const struct resources csiphy_res[] = {
 	/* CSIPHY0 */
 	{
@@ -128,6 +131,19 @@ static const struct resources vfe_res = {
 	.reg = { "vfe0" },
 	.interrupt = { "vfe0" }
 };
+
+/*
+ * camss_add_clock_margin - Add margin to clock frequency rate
+ * @rate: Clock frequency rate
+ *
+ * When making calculations with physical clock frequency values
+ * some safety margin must be added. Add it.
+ */
+inline void camss_add_clock_margin(u64 *rate)
+{
+	*rate = (*rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
+			CAMSS_CLOCK_MARGIN_DENOMINATOR;
+}
 
 /*
  * camss_enable_clocks - Enable multiple clocks

@@ -1846,8 +1846,7 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 					min_rate = tmp;
 			}
 
-			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
-						CAMSS_CLOCK_MARGIN_DENOMINATOR;
+			camss_add_clock_margin(&min_rate);
 
 			for (j = 0; j < clock->nfreqs; j++)
 				if (min_rate < clock->freq[j])
@@ -1925,8 +1924,7 @@ static int vfe_check_clock_rates(struct vfe_device *vfe)
 					min_rate = tmp;
 			}
 
-			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
-						CAMSS_CLOCK_MARGIN_DENOMINATOR;
+			camss_add_clock_margin(&min_rate);
 
 			rate = clk_get_rate(clock->clk);
 			if (rate < min_rate)

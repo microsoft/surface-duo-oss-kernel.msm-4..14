@@ -332,8 +332,7 @@ static int csid_set_clock_rates(struct csid_device *csid)
 			u64 min_rate = pixel_clock * bpp / (2 * num_lanes * 4);
 			long rate;
 
-			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
-						CAMSS_CLOCK_MARGIN_DENOMINATOR;
+			camss_add_clock_margin(&min_rate);
 
 			for (j = 0; j < clock->nfreqs; j++)
 				if (min_rate < clock->freq[j])
