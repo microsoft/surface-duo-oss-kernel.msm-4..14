@@ -179,6 +179,7 @@ static int csiphy_set_clock_rates(struct csiphy_device *csiphy)
 					csiphy->fmt[MSM_CSIPHY_PAD_SINK].code);
 			u8 num_lanes = csiphy->cfg.csi2->lane_cfg.num_data;
 			u64 min_rate = pixel_clock * bpp / (2 * num_lanes * 4);
+			long round_rate;
 
 			camss_add_clock_margin(&min_rate);
 
@@ -197,13 +198,14 @@ static int csiphy_set_clock_rates(struct csiphy_device *csiphy)
 			if (min_rate == 0)
 				j = clock->nfreqs - 1;
 
-			csiphy->timer_clk_rate = clk_round_rate(clock->clk,
-								clock->freq[j]);
-			if (csiphy->timer_clk_rate < 0) {
+			round_rate = clk_round_rate(clock->clk, clock->freq[j]);
+			if (round_rate < 0) {
 				dev_err(dev, "clk round rate failed: %ld\n",
-					csiphy->timer_clk_rate);
+					round_rate);
 				return -EINVAL;
 			}
+
+			csiphy->timer_clk_rate = round_rate;
 
 			ret = clk_set_rate(clock->clk, csiphy->timer_clk_rate);
 			if (ret < 0) {
