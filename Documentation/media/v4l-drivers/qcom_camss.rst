@@ -52,10 +52,14 @@ The current version of the driver supports:
 
   Supported formats:
 
-  - YUYV/UYVY/YVYU/VYUY (packed YUV 4:2:2);
-  - MIPI RAW8 (8bit Bayer RAW);
-  - MIPI RAW10 (10bit packed Bayer RAW);
-  - MIPI RAW12 (12bit packed Bayer RAW).
+  - YUYV/UYVY/YVYU/VYUY (packed YUV 4:2:2 - V4L2_PIX_FMT_YUYV /
+    V4L2_PIX_FMT_UYVY / V4L2_PIX_FMT_YVYU / V4L2_PIX_FMT_VYUY);
+  - MIPI RAW8 (8bit Bayer RAW - V4L2_PIX_FMT_SRGGB8 /
+    V4L2_PIX_FMT_SGRBG8 / V4L2_PIX_FMT_SGBRG8 / V4L2_PIX_FMT_SBGGR8);
+  - MIPI RAW10 (10bit packed Bayer RAW - V4L2_PIX_FMT_SBGGR10P /
+    V4L2_PIX_FMT_SGBRG10P / V4L2_PIX_FMT_SGRBG10P / V4L2_PIX_FMT_SRGGB10P);
+  - MIPI RAW12 (12bit packed Bayer RAW - V4L2_PIX_FMT_SRGGB12P /
+    V4L2_PIX_FMT_SGBRG12P / V4L2_PIX_FMT_SGRBG12P / V4L2_PIX_FMT_SRGGB12P).
 
 - PIX interface of VFE
 
@@ -63,12 +67,13 @@ The current version of the driver supports:
 
     Supported input formats:
 
-    - YUYV/UYVY/YVYU/VYUY (packed YUV 4:2:2).
+    - YUYV/UYVY/YVYU/VYUY (packed YUV 4:2:2 - V4L2_PIX_FMT_YUYV /
+      V4L2_PIX_FMT_UYVY / V4L2_PIX_FMT_YVYU / V4L2_PIX_FMT_VYUY).
 
     Supported output formats:
 
-    - NV12/NV21 (two plane YUV 4:2:0);
-    - NV16/NV61 (two plane YUV 4:2:2).
+    - NV12/NV21 (two plane YUV 4:2:0 - V4L2_PIX_FMT_NV12 / V4L2_PIX_FMT_NV21);
+    - NV16/NV61 (two plane YUV 4:2:2 - V4L2_PIX_FMT_NV16 / V4L2_PIX_FMT_NV61).
 
   - Scaling support. Configuration of the VFE Encoder Scale module
     for downscalling with ratio up to 16x.
