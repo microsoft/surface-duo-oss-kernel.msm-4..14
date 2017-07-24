@@ -1121,7 +1121,6 @@ static void vfe_output_frame_drop(struct vfe_device *vfe,
 					     drop_pattern);
 	}
 	vfe_reg_update(vfe, container_of(output, struct vfe_line, output)->id);
-
 }
 
 static struct camss_buffer *vfe_buf_get_pending(struct vfe_output *output)

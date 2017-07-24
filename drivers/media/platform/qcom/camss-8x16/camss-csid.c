@@ -76,7 +76,7 @@ static const struct {
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		2
+		2,
 	},
 	{
 		MEDIA_BUS_FMT_VYUY8_2X8,
@@ -84,7 +84,7 @@ static const struct {
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		2
+		2,
 	},
 	{
 		MEDIA_BUS_FMT_YUYV8_2X8,
@@ -92,7 +92,7 @@ static const struct {
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		2
+		2,
 	},
 	{
 		MEDIA_BUS_FMT_YVYU8_2X8,
@@ -100,7 +100,7 @@ static const struct {
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		2
+		2,
 	},
 	{
 		MEDIA_BUS_FMT_SBGGR8_1X8,
@@ -108,7 +108,7 @@ static const struct {
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		1
+		1,
 	},
 	{
 		MEDIA_BUS_FMT_SGBRG8_1X8,
@@ -116,7 +116,7 @@ static const struct {
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		1
+		1,
 	},
 	{
 		MEDIA_BUS_FMT_SGRBG8_1X8,
@@ -124,7 +124,7 @@ static const struct {
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		1
+		1,
 	},
 	{
 		MEDIA_BUS_FMT_SRGGB8_1X8,
@@ -132,7 +132,7 @@ static const struct {
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		1
+		1,
 	},
 	{
 		MEDIA_BUS_FMT_SBGGR10_1X10,
@@ -140,7 +140,7 @@ static const struct {
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
 		10,
-		1
+		1,
 	},
 	{
 		MEDIA_BUS_FMT_SGBRG10_1X10,
@@ -148,7 +148,7 @@ static const struct {
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
 		10,
-		1
+		1,
 	},
 	{
 		MEDIA_BUS_FMT_SGRBG10_1X10,
@@ -156,7 +156,7 @@ static const struct {
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
 		10,
-		1
+		1,
 	},
 	{
 		MEDIA_BUS_FMT_SRGGB10_1X10,
@@ -164,7 +164,7 @@ static const struct {
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
 		10,
-		1
+		1,
 	},
 	{
 		MEDIA_BUS_FMT_SBGGR12_1X12,
@@ -172,7 +172,7 @@ static const struct {
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
 		12,
-		1
+		1,
 	},
 	{
 		MEDIA_BUS_FMT_SGBRG12_1X12,
@@ -180,7 +180,7 @@ static const struct {
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
 		12,
-		1
+		1,
 	},
 	{
 		MEDIA_BUS_FMT_SGRBG12_1X12,
@@ -188,7 +188,7 @@ static const struct {
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
 		12,
-		1
+		1,
 	},
 	{
 		MEDIA_BUS_FMT_SRGGB12_1X12,
@@ -196,7 +196,7 @@ static const struct {
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
 		12,
-		1
+		1,
 	}
 };
 
@@ -462,7 +462,7 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 
 	if (enable) {
 		u8 vc = 0; /* Virtual Channel 0 */
-		u8 cid = vc * 4;
+		u8 cid = vc * 4; /* id of Virtual Channel and Data Type set */
 		u8 dt, dt_shift, df;
 		int ret;
 
@@ -474,9 +474,8 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 		}
 
 		if (!tg->enabled &&
-		    !media_entity_remote_pad(&csid->pads[MSM_CSID_PAD_SINK])) {
+		    !media_entity_remote_pad(&csid->pads[MSM_CSID_PAD_SINK]))
 			return -ENOLINK;
-		}
 
 		dt = csid_get_data_type(csid->fmt[MSM_CSID_PAD_SRC].code);
 
@@ -807,10 +806,10 @@ static int csid_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 static const char * const csid_test_pattern_menu[] = {
 	"Disabled",
 	"Incrementing",
-	"Alternating 55/AA",
-	"All Zeros",
-	"All Ones",
-	"Random Data",
+	"Alternating 0x55/0xAA",
+	"All Zeros 0x00",
+	"All Ones 0xFF",
+	"Pseudo-random Data",
 };
 
 /*
@@ -983,11 +982,8 @@ int msm_csid_subdev_init(struct csid_device *csid,
  */
 void msm_csid_get_csid_id(struct media_entity *entity, u8 *id)
 {
-	struct v4l2_subdev *sd;
-	struct csid_device *csid;
-
-	sd = media_entity_to_v4l2_subdev(entity);
-	csid = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *sd = media_entity_to_v4l2_subdev(entity);
+	struct csid_device *csid = v4l2_get_subdevdata(sd);
 
 	*id = csid->id;
 }

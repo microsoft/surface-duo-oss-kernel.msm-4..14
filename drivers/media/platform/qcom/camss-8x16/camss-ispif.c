@@ -588,14 +588,12 @@ static int ispif_set_stream(struct v4l2_subdev *sd, int enable)
 	u8 csid = line->csid_id;
 	u8 vfe = line->vfe_id;
 	u8 vc = 0; /* Virtual Channel 0 */
-	u8 cid = vc * 4;
+	u8 cid = vc * 4; /* id of Virtual Channel and Data Type set */
 	int ret;
 
 	if (enable) {
-		if (!media_entity_remote_pad(
-					&line->pads[MSM_ISPIF_PAD_SINK])) {
+		if (!media_entity_remote_pad(&line->pads[MSM_ISPIF_PAD_SINK]))
 			return -ENOLINK;
-		}
 
 		/* Config */
 

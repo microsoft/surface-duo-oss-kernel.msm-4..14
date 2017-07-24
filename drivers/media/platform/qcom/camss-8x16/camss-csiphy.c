@@ -240,10 +240,10 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 {
 	struct csiphy_device *csiphy = v4l2_get_subdevdata(sd);
 	struct device *dev = to_device_index(csiphy, csiphy->id);
-	int ret;
 
 	if (on) {
 		u8 hw_version;
+		int ret;
 
 		ret = csiphy_set_clock_rates(csiphy);
 		if (ret < 0)
