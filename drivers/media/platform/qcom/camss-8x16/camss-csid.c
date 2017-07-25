@@ -64,22 +64,19 @@
 
 static const struct {
 	u32 code;
-	u32 uncompressed;
 	u8 data_type;
 	u8 decode_format;
-	u8 uncompr_bpp;
+	u8 bpp;
 	u8 spp; /* bus samples per pixel */
 } csid_input_fmts[] = {
 	{
 		MEDIA_BUS_FMT_UYVY8_2X8,
-		MEDIA_BUS_FMT_UYVY8_2X8,
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
 		2,
 	},
 	{
-		MEDIA_BUS_FMT_VYUY8_2X8,
 		MEDIA_BUS_FMT_VYUY8_2X8,
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
@@ -88,14 +85,12 @@ static const struct {
 	},
 	{
 		MEDIA_BUS_FMT_YUYV8_2X8,
-		MEDIA_BUS_FMT_YUYV8_2X8,
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
 		2,
 	},
 	{
-		MEDIA_BUS_FMT_YVYU8_2X8,
 		MEDIA_BUS_FMT_YVYU8_2X8,
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
@@ -104,14 +99,12 @@ static const struct {
 	},
 	{
 		MEDIA_BUS_FMT_SBGGR8_1X8,
-		MEDIA_BUS_FMT_SBGGR8_1X8,
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
 		1,
 	},
 	{
-		MEDIA_BUS_FMT_SGBRG8_1X8,
 		MEDIA_BUS_FMT_SGBRG8_1X8,
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
@@ -120,14 +113,12 @@ static const struct {
 	},
 	{
 		MEDIA_BUS_FMT_SGRBG8_1X8,
-		MEDIA_BUS_FMT_SGRBG8_1X8,
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
 		1,
 	},
 	{
-		MEDIA_BUS_FMT_SRGGB8_1X8,
 		MEDIA_BUS_FMT_SRGGB8_1X8,
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
@@ -136,14 +127,12 @@ static const struct {
 	},
 	{
 		MEDIA_BUS_FMT_SBGGR10_1X10,
-		MEDIA_BUS_FMT_SBGGR10_1X10,
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
 		10,
 		1,
 	},
 	{
-		MEDIA_BUS_FMT_SGBRG10_1X10,
 		MEDIA_BUS_FMT_SGBRG10_1X10,
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
@@ -152,14 +141,12 @@ static const struct {
 	},
 	{
 		MEDIA_BUS_FMT_SGRBG10_1X10,
-		MEDIA_BUS_FMT_SGRBG10_1X10,
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
 		10,
 		1,
 	},
 	{
-		MEDIA_BUS_FMT_SRGGB10_1X10,
 		MEDIA_BUS_FMT_SRGGB10_1X10,
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
@@ -168,14 +155,12 @@ static const struct {
 	},
 	{
 		MEDIA_BUS_FMT_SBGGR12_1X12,
-		MEDIA_BUS_FMT_SBGGR12_1X12,
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
 		12,
 		1,
 	},
 	{
-		MEDIA_BUS_FMT_SGBRG12_1X12,
 		MEDIA_BUS_FMT_SGBRG12_1X12,
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
@@ -184,14 +169,12 @@ static const struct {
 	},
 	{
 		MEDIA_BUS_FMT_SGRBG12_1X12,
-		MEDIA_BUS_FMT_SGRBG12_1X12,
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
 		12,
 		1,
 	},
 	{
-		MEDIA_BUS_FMT_SRGGB12_1X12,
 		MEDIA_BUS_FMT_SRGGB12_1X12,
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
@@ -199,23 +182,6 @@ static const struct {
 		1,
 	}
 };
-
-/*
- * csid_get_uncompressed - map media bus format to uncompressed media bus format
- * @code: media bus format code
- *
- * Return uncompressed media bus format code
- */
-static u32 csid_get_uncompressed(u32 code)
-{
-	unsigned int i;
-
-	for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
-		if (code == csid_input_fmts[i].code)
-			break;
-
-	return csid_input_fmts[i].uncompressed;
-}
 
 /*
  * csid_get_data_type - map media bus format to data type
@@ -262,10 +228,10 @@ static u8 csid_get_bpp(u32 code)
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
-		if (code == csid_input_fmts[i].uncompressed)
+		if (code == csid_input_fmts[i].code)
 			break;
 
-	return csid_input_fmts[i].uncompr_bpp;
+	return csid_input_fmts[i].bpp;
 }
 
 /*
@@ -279,7 +245,7 @@ static u8 csid_get_spp(u32 code)
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
-		if (code == csid_input_fmts[i].uncompressed)
+		if (code == csid_input_fmts[i].code)
 			break;
 
 	return csid_input_fmts[i].spp;
@@ -617,15 +583,13 @@ static void csid_try_format(struct csid_device *csid,
 
 			format = *__csid_get_format(csid, cfg,
 						    MSM_CSID_PAD_SINK, which);
-			format.code = csid_get_uncompressed(format.code);
 			*fmt = format;
 		} else {
 			/* Test generator is enabled, set format on source*/
 			/* pad to allow test generator usage */
 
 			for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
-				if (csid_input_fmts[i].uncompressed ==
-								fmt->code)
+				if (csid_input_fmts[i].code == fmt->code)
 					break;
 
 			/* If not found, use UYVY as default */
@@ -670,12 +634,12 @@ static int csid_enum_mbus_code(struct v4l2_subdev *sd,
 			format = __csid_get_format(csid, cfg, MSM_CSID_PAD_SINK,
 						   code->which);
 
-			code->code = csid_get_uncompressed(format->code);
+			code->code = format->code;
 		} else {
 			if (code->index >= ARRAY_SIZE(csid_input_fmts))
 				return -EINVAL;
 
-			code->code = csid_input_fmts[code->index].uncompressed;
+			code->code = csid_input_fmts[code->index].code;
 		}
 	}
 
