@@ -41,6 +41,8 @@
 #define CAMSS_CSID_IRQ_MASK		0x064
 #define CAMSS_CSID_IRQ_STATUS		0x068
 #define CAMSS_CSID_TG_CTRL		0x0a0
+#define CAMSS_CSID_TG_CTRL_DISABLE	0xa06436
+#define CAMSS_CSID_TG_CTRL_ENABLE	0xa06437
 #define CAMSS_CSID_TG_VC_CFG		0x0a4
 #define CAMSS_CSID_TG_VC_CFG_H_BLANKING		0x3ff
 #define CAMSS_CSID_TG_VC_CFG_V_BLANKING		0x7f
@@ -454,12 +456,12 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 		writel_relaxed(val, csid->base + CAMSS_CSID_CID_n_CFG(cid));
 
 		if (tg->enabled) {
-			val = 0x00a06437;
+			val = CAMSS_CSID_TG_CTRL_ENABLE;
 			writel_relaxed(val, csid->base + CAMSS_CSID_TG_CTRL);
 		}
 	} else {
 		if (tg->enabled) {
-			val = 0x00a06436;
+			val = CAMSS_CSID_TG_CTRL_DISABLE;
 			writel_relaxed(val, csid->base + CAMSS_CSID_TG_CTRL);
 		}
 	}

@@ -142,6 +142,7 @@
 #define VFE_0_BUS_BDG_CMD_HALT_REQ	1
 
 #define VFE_0_BUS_BDG_QOS_CFG_0		0x2c4
+#define VFE_0_BUS_BDG_QOS_CFG_0_CFG	0xaaa5aaa5
 #define VFE_0_BUS_BDG_QOS_CFG_1		0x2c8
 #define VFE_0_BUS_BDG_QOS_CFG_2		0x2cc
 #define VFE_0_BUS_BDG_QOS_CFG_3		0x2d0
@@ -149,6 +150,7 @@
 #define VFE_0_BUS_BDG_QOS_CFG_5		0x2d8
 #define VFE_0_BUS_BDG_QOS_CFG_6		0x2dc
 #define VFE_0_BUS_BDG_QOS_CFG_7		0x2e0
+#define VFE_0_BUS_BDG_QOS_CFG_7_CFG	0x0001aaa5
 
 #define VFE_0_RDI_CFG_x(x)		(0x2e8 + (0x4 * (x)))
 #define VFE_0_RDI_CFG_x_RDI_STREAM_SEL_SHIFT	28
@@ -179,10 +181,23 @@
 			((n) == VFE_LINE_PIX ? 1 : VFE_0_REG_UPDATE_RDIn(n))
 
 #define VFE_0_DEMUX_CFG				0x424
+#define VFE_0_DEMUX_CFG_PERIOD			0x3
 #define VFE_0_DEMUX_GAIN_0			0x428
+#define VFE_0_DEMUX_GAIN_0_CH0_EVEN		(0x80 << 0)
+#define VFE_0_DEMUX_GAIN_0_CH0_ODD		(0x80 << 16)
 #define VFE_0_DEMUX_GAIN_1			0x42c
+#define VFE_0_DEMUX_GAIN_1_CH1			(0x80 << 0)
+#define VFE_0_DEMUX_GAIN_1_CH2			(0x80 << 16)
 #define VFE_0_DEMUX_EVEN_CFG			0x438
+#define VFE_0_DEMUX_EVEN_CFG_PATTERN_YUYV	0x9cac
+#define VFE_0_DEMUX_EVEN_CFG_PATTERN_YVYU	0xac9c
+#define VFE_0_DEMUX_EVEN_CFG_PATTERN_UYVY	0xc9ca
+#define VFE_0_DEMUX_EVEN_CFG_PATTERN_VYUY	0xcac9
 #define VFE_0_DEMUX_ODD_CFG			0x43c
+#define VFE_0_DEMUX_ODD_CFG_PATTERN_YUYV	0x9cac
+#define VFE_0_DEMUX_ODD_CFG_PATTERN_YVYU	0xac9c
+#define VFE_0_DEMUX_ODD_CFG_PATTERN_UYVY	0xc9ca
+#define VFE_0_DEMUX_ODD_CFG_PATTERN_VYUY	0xcac9
 
 #define VFE_0_SCALE_ENC_Y_CFG			0x75c
 #define VFE_0_SCALE_ENC_Y_H_IMAGE_SIZE		0x760
@@ -201,7 +216,13 @@
 #define VFE_0_CROP_ENC_CBCR_HEIGHT		0x860
 
 #define VFE_0_CLAMP_ENC_MAX_CFG			0x874
+#define VFE_0_CLAMP_ENC_MAX_CFG_CH0		(0xff << 0)
+#define VFE_0_CLAMP_ENC_MAX_CFG_CH1		(0xff << 8)
+#define VFE_0_CLAMP_ENC_MAX_CFG_CH2		(0xff << 16)
 #define VFE_0_CLAMP_ENC_MIN_CFG			0x878
+#define VFE_0_CLAMP_ENC_MIN_CFG_CH0		(0x0 << 0)
+#define VFE_0_CLAMP_ENC_MIN_CFG_CH1		(0x0 << 8)
+#define VFE_0_CLAMP_ENC_MIN_CFG_CH2		(0x0 << 16)
 
 #define VFE_0_CGC_OVERRIDE_1			0x974
 #define VFE_0_CGC_OVERRIDE_1_IMAGE_Mx_CGC_OVERRIDE(x)	(1 << (x))
@@ -694,29 +715,33 @@ static void vfe_enable_irq_common(struct vfe_device *vfe)
 
 static void vfe_set_demux_cfg(struct vfe_device *vfe, struct vfe_line *line)
 {
-	u32 even_cfg, odd_cfg;
+	u32 val, even_cfg, odd_cfg;
 
-	writel_relaxed(0x3, vfe->base + VFE_0_DEMUX_CFG);
-	writel_relaxed(0x800080, vfe->base + VFE_0_DEMUX_GAIN_0);
-	writel_relaxed(0x800080, vfe->base + VFE_0_DEMUX_GAIN_1);
+	writel_relaxed(VFE_0_DEMUX_CFG_PERIOD, vfe->base + VFE_0_DEMUX_CFG);
+
+	val = VFE_0_DEMUX_GAIN_0_CH0_EVEN | VFE_0_DEMUX_GAIN_0_CH0_ODD;
+	writel_relaxed(val, vfe->base + VFE_0_DEMUX_GAIN_0);
+
+	val = VFE_0_DEMUX_GAIN_1_CH1 | VFE_0_DEMUX_GAIN_1_CH2;
+	writel_relaxed(val, vfe->base + VFE_0_DEMUX_GAIN_1);
 
 	switch (line->fmt[MSM_VFE_PAD_SINK].code) {
 	case MEDIA_BUS_FMT_YUYV8_2X8:
-		even_cfg = 0x9cac;
-		odd_cfg = 0x9cac;
+		even_cfg = VFE_0_DEMUX_EVEN_CFG_PATTERN_YUYV;
+		odd_cfg = VFE_0_DEMUX_ODD_CFG_PATTERN_YUYV;
 		break;
 	case MEDIA_BUS_FMT_YVYU8_2X8:
-		even_cfg = 0xac9c;
-		odd_cfg = 0xac9c;
+		even_cfg = VFE_0_DEMUX_EVEN_CFG_PATTERN_YVYU;
+		odd_cfg = VFE_0_DEMUX_ODD_CFG_PATTERN_YVYU;
 		break;
 	case MEDIA_BUS_FMT_UYVY8_2X8:
 	default:
-		even_cfg = 0xc9ca;
-		odd_cfg = 0xc9ca;
+		even_cfg = VFE_0_DEMUX_EVEN_CFG_PATTERN_UYVY;
+		odd_cfg = VFE_0_DEMUX_ODD_CFG_PATTERN_UYVY;
 		break;
 	case MEDIA_BUS_FMT_VYUY8_2X8:
-		even_cfg = 0xcac9;
-		odd_cfg = 0xcac9;
+		even_cfg = VFE_0_DEMUX_EVEN_CFG_PATTERN_VYUY;
+		odd_cfg = VFE_0_DEMUX_ODD_CFG_PATTERN_VYUY;
 		break;
 	}
 
@@ -826,8 +851,17 @@ static void vfe_set_crop_cfg(struct vfe_device *vfe, struct vfe_line *line)
 
 static void vfe_set_clamp_cfg(struct vfe_device *vfe)
 {
-	writel_relaxed(0x00ffffff, vfe->base + VFE_0_CLAMP_ENC_MAX_CFG);
-	writel_relaxed(0x0, vfe->base + VFE_0_CLAMP_ENC_MIN_CFG);
+	u32 val = VFE_0_CLAMP_ENC_MAX_CFG_CH0 |
+		VFE_0_CLAMP_ENC_MAX_CFG_CH1 |
+		VFE_0_CLAMP_ENC_MAX_CFG_CH2;
+
+	writel_relaxed(val, vfe->base + VFE_0_CLAMP_ENC_MAX_CFG);
+
+	val = VFE_0_CLAMP_ENC_MIN_CFG_CH0 |
+		VFE_0_CLAMP_ENC_MIN_CFG_CH1 |
+		VFE_0_CLAMP_ENC_MIN_CFG_CH2;
+
+	writel_relaxed(val, vfe->base + VFE_0_CLAMP_ENC_MIN_CFG);
 }
 
 /*
@@ -907,8 +941,8 @@ static void vfe_reset_output_maps(struct vfe_device *vfe)
 
 static void vfe_set_qos(struct vfe_device *vfe)
 {
-	u32 val = 0xaaa5aaa5;
-	u32 val7 = 0x0001aaa5;
+	u32 val = VFE_0_BUS_BDG_QOS_CFG_0_CFG;
+	u32 val7 = VFE_0_BUS_BDG_QOS_CFG_7_CFG;
 
 	writel_relaxed(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_0);
 	writel_relaxed(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_1);

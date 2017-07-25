@@ -38,6 +38,23 @@
 	container_of(ispif_line_array(ptr_line), struct ispif_device, ptr_line)
 
 #define ISPIF_RST_CMD_0			0x008
+#define ISPIF_RST_CMD_0_STROBED_RST_EN		(1 << 0)
+#define ISPIF_RST_CMD_0_MISC_LOGIC_RST		(1 << 1)
+#define ISPIF_RST_CMD_0_SW_REG_RST		(1 << 2)
+#define ISPIF_RST_CMD_0_PIX_INTF_0_CSID_RST	(1 << 3)
+#define ISPIF_RST_CMD_0_PIX_INTF_0_VFE_RST	(1 << 4)
+#define ISPIF_RST_CMD_0_PIX_INTF_1_CSID_RST	(1 << 5)
+#define ISPIF_RST_CMD_0_PIX_INTF_1_VFE_RST	(1 << 6)
+#define ISPIF_RST_CMD_0_RDI_INTF_0_CSID_RST	(1 << 7)
+#define ISPIF_RST_CMD_0_RDI_INTF_0_VFE_RST	(1 << 8)
+#define ISPIF_RST_CMD_0_RDI_INTF_1_CSID_RST	(1 << 9)
+#define ISPIF_RST_CMD_0_RDI_INTF_1_VFE_RST	(1 << 10)
+#define ISPIF_RST_CMD_0_RDI_INTF_2_CSID_RST	(1 << 11)
+#define ISPIF_RST_CMD_0_RDI_INTF_2_VFE_RST	(1 << 12)
+#define ISPIF_RST_CMD_0_PIX_OUTPUT_0_MISR_RST	(1 << 16)
+#define ISPIF_RST_CMD_0_RDI_OUTPUT_0_MISR_RST	(1 << 17)
+#define ISPIF_RST_CMD_0_RDI_OUTPUT_1_MISR_RST	(1 << 18)
+#define ISPIF_RST_CMD_0_RDI_OUTPUT_2_MISR_RST	(1 << 19)
 #define ISPIF_IRQ_GLOBAL_CLEAR_CMD	0x01c
 #define ISPIF_VFE_m_CTRL_0(m)		(0x200 + 0x200 * (m))
 #define ISPIF_VFE_m_CTRL_0_PIX0_LINE_BUF_EN	(1 << 6)
@@ -163,6 +180,7 @@ static irqreturn_t ispif_isr(int irq, void *dev)
 static int ispif_reset(struct ispif_device *ispif)
 {
 	unsigned long time;
+	u32 val;
 	int ret;
 
 	ret = camss_enable_clocks(ispif->nclocks_for_reset,
@@ -173,7 +191,25 @@ static int ispif_reset(struct ispif_device *ispif)
 
 	reinit_completion(&ispif->reset_complete);
 
-	writel_relaxed(0x000f1fff, ispif->base + ISPIF_RST_CMD_0);
+	val = ISPIF_RST_CMD_0_STROBED_RST_EN |
+		ISPIF_RST_CMD_0_MISC_LOGIC_RST |
+		ISPIF_RST_CMD_0_SW_REG_RST |
+		ISPIF_RST_CMD_0_PIX_INTF_0_CSID_RST |
+		ISPIF_RST_CMD_0_PIX_INTF_0_VFE_RST |
+		ISPIF_RST_CMD_0_PIX_INTF_1_CSID_RST |
+		ISPIF_RST_CMD_0_PIX_INTF_1_VFE_RST |
+		ISPIF_RST_CMD_0_RDI_INTF_0_CSID_RST |
+		ISPIF_RST_CMD_0_RDI_INTF_0_VFE_RST |
+		ISPIF_RST_CMD_0_RDI_INTF_1_CSID_RST |
+		ISPIF_RST_CMD_0_RDI_INTF_1_VFE_RST |
+		ISPIF_RST_CMD_0_RDI_INTF_2_CSID_RST |
+		ISPIF_RST_CMD_0_RDI_INTF_2_VFE_RST |
+		ISPIF_RST_CMD_0_PIX_OUTPUT_0_MISR_RST |
+		ISPIF_RST_CMD_0_RDI_OUTPUT_0_MISR_RST |
+		ISPIF_RST_CMD_0_RDI_OUTPUT_1_MISR_RST |
+		ISPIF_RST_CMD_0_RDI_OUTPUT_2_MISR_RST;
+
+	writel_relaxed(val, ispif->base + ISPIF_RST_CMD_0);
 
 	time = wait_for_completion_timeout(&ispif->reset_complete,
 		msecs_to_jiffies(ISPIF_RESET_TIMEOUT_MS));
