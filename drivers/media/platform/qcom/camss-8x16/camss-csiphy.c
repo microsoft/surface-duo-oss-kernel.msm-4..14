@@ -124,9 +124,11 @@ static u8 csiphy_get_bpp(u32 code)
 
 	for (i = 0; i < ARRAY_SIZE(csiphy_formats); i++)
 		if (code == csiphy_formats[i].code)
-			break;
+			return csiphy_formats[i].bpp;
 
-	return csiphy_formats[i].bpp;
+	WARN(1, "Unknown format\n");
+
+	return csiphy_formats[0].bpp;
 }
 
 /*

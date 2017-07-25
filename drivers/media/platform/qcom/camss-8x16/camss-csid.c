@@ -62,13 +62,15 @@
 
 #define CSID_RESET_TIMEOUT_MS 500
 
-static const struct {
+struct csid_fmts {
 	u32 code;
 	u8 data_type;
 	u8 decode_format;
 	u8 bpp;
 	u8 spp; /* bus samples per pixel */
-} csid_input_fmts[] = {
+};
+
+static const struct csid_fmts csid_input_fmts[] = {
 	{
 		MEDIA_BUS_FMT_UYVY8_2X8,
 		DATA_TYPE_YUV422_8BIT,
@@ -183,72 +185,17 @@ static const struct {
 	}
 };
 
-/*
- * csid_get_data_type - map media bus format to data type
- * @code: media bus format code
- *
- * Return data type code
- */
-static u8 csid_get_data_type(u32 code)
+static const struct csid_fmts *csid_get_fmt_entry(u32 code)
 {
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
 		if (code == csid_input_fmts[i].code)
-			break;
+			return &csid_input_fmts[i];
 
-	return csid_input_fmts[i].data_type;
-}
+	WARN(1, "Unknown format\n");
 
-/*
- * csid_get_decode_format - map media bus format to decode format
- * @code: media bus format code
- *
- * Return decode format code
- */
-static u8 csid_get_decode_format(u32 code)
-{
-	unsigned int i;
-
-	for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
-		if (code == csid_input_fmts[i].code)
-			break;
-
-	return csid_input_fmts[i].decode_format;
-}
-
-/*
- * csid_get_bpp - map media bus format to bits per pixel
- * @code: media bus format code
- *
- * Return number of bits per pixel
- */
-static u8 csid_get_bpp(u32 code)
-{
-	unsigned int i;
-
-	for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
-		if (code == csid_input_fmts[i].code)
-			break;
-
-	return csid_input_fmts[i].bpp;
-}
-
-/*
- * csid_get_spp - map media bus format to bus samples per pixel
- * @code: media bus format code
- *
- * Return number of bus samples per pixel
- */
-static u8 csid_get_spp(u32 code)
-{
-	unsigned int i;
-
-	for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
-		if (code == csid_input_fmts[i].code)
-			break;
-
-	return csid_input_fmts[i].spp;
+	return &csid_input_fmts[0];
 }
 
 /*
@@ -292,8 +239,8 @@ static int csid_set_clock_rates(struct csid_device *csid)
 
 		if (!strcmp(clock->name, "csi0") ||
 			!strcmp(clock->name, "csi1")) {
-			u8 bpp = csid_get_bpp(
-					csid->fmt[MSM_CSIPHY_PAD_SINK].code);
+			u8 bpp = csid_get_fmt_entry(
+				csid->fmt[MSM_CSIPHY_PAD_SINK].code)->bpp;
 			u8 num_lanes = csid->phy.lane_cnt;
 			u64 min_rate = pixel_clock * bpp / (2 * num_lanes * 4);
 			long rate;
@@ -443,14 +390,15 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 		    !media_entity_remote_pad(&csid->pads[MSM_CSID_PAD_SINK]))
 			return -ENOLINK;
 
-		dt = csid_get_data_type(csid->fmt[MSM_CSID_PAD_SRC].code);
+		dt = csid_get_fmt_entry(csid->fmt[MSM_CSID_PAD_SRC].code)->
+								data_type;
 
 		if (tg->enabled) {
 			/* Config Test Generator */
 			struct v4l2_mbus_framefmt *f =
 					&csid->fmt[MSM_CSID_PAD_SRC];
-			u8 bpp = csid_get_bpp(f->code);
-			u8 spp = csid_get_spp(f->code);
+			u8 bpp = csid_get_fmt_entry(f->code)->bpp;
+			u8 spp = csid_get_fmt_entry(f->code)->spp;
 			u32 num_bytes_per_line = f->width * bpp * spp / 8;
 			u32 num_lines = f->height;
 
@@ -494,7 +442,8 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 		/* Config LUT */
 
 		dt_shift = (cid % 4) * 8;
-		df = csid_get_decode_format(csid->fmt[MSM_CSID_PAD_SINK].code);
+		df = csid_get_fmt_entry(csid->fmt[MSM_CSID_PAD_SINK].code)->
+								decode_format;
 
 		val = readl_relaxed(csid->base + CAMSS_CSID_CID_LUT_VC_n(vc));
 		val &= ~(0xff << dt_shift);

@@ -304,9 +304,11 @@ static u8 vfe_get_bpp(u32 code)
 
 	for (i = 0; i < ARRAY_SIZE(vfe_formats); i++)
 		if (code == vfe_formats[i].code)
-			break;
+			return vfe_formats[i].bpp;
 
-	return vfe_formats[i].bpp;
+	WARN(1, "Unknown format\n");
+
+	return vfe_formats[0].bpp;
 }
 
 static inline void vfe_reg_clr(struct vfe_device *vfe, u32 reg, u32 clr_bits)
