@@ -6,6 +6,9 @@
  *
  * Author: Jingoo Han <jg1.han@samsung.com>
  *
+ * Customizations for the NXP S32V PCIE driver
+ * Copyright 2017 NXP
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -678,8 +681,10 @@ irqreturn_t dw_handle_dma_irq(struct pcie_port *pp)
 				/* Check channel list mode */
 			}
 			pp->wr_ch.status = DMA_CH_STOPPED;
+			#ifdef CONFIG_PCI_S32V234
 			if (pp->ops->send_signal_to_user)
 				pp->ops->send_signal_to_user(pp);
+			#endif
 		} else
 			writel(0x00FF00FF, pp->dbi_base +
 				PCIE_DMA_WRITE_INT_CLEAR);
@@ -701,8 +706,10 @@ irqreturn_t dw_handle_dma_irq(struct pcie_port *pp)
 				/* Check channel list mode */
 			}
 			pp->rd_ch.status = DMA_CH_STOPPED;
+			#ifdef CONFIG_PCI_S32V234
 			if (pp->ops->send_signal_to_user)
 				pp->ops->send_signal_to_user(pp);
+			#endif
 		} else
 			writel(0x00FF00FF, pp->dbi_base +
 				PCIE_DMA_READ_INT_CLEAR);

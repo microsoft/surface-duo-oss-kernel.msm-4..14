@@ -139,9 +139,11 @@ struct pcie_port {
 	unsigned long		msi_data;
 	DECLARE_BITMAP(msi_irq_in_use, MAX_MSI_IRQS);
 	u8			atu_idx[ATU_TYPE_MAX];
+	#ifdef CONFIG_PCI_S32V234
 	struct dentry		*dir;
 	int			user_pid;
 	struct siginfo	info;    /* signal information */
+	#endif
 	#ifdef CONFIG_PCI_DW_DMA
 	struct dma_ch_info	wr_ch;
 	struct dma_ch_info	rd_ch;
@@ -171,7 +173,9 @@ struct pcie_host_ops {
 	u32 (*get_msi_data)(struct pcie_port *pp, int pos);
 	void (*scan_bus)(struct pcie_port *pp);
 	int (*msi_host_init)(struct pcie_port *pp, struct msi_controller *chip);
+	#ifdef CONFIG_PCI_S32V234
 	int (*send_signal_to_user)(struct pcie_port *pp);
+	#endif
 };
 
 int dw_pcie_cfg_read(void __iomem *addr, int where, int size, u32 *val);
