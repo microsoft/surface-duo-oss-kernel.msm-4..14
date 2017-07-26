@@ -204,6 +204,36 @@ static void *init_ppi_data(struct rndis_message *msg, u32 ppi_size,
 	return ppi;
 }
 
+/* Azure hosts don't support non-TCP port numbers in hashing yet. We compute
+ * hash for non-TCP traffic with only IP numbers.
+ */
+static inline u32 netvsc_get_hash(struct sk_buff *skb, struct sock *sk)
+{
+	struct flow_keys flow;
+	u32 hash;
+	static u32 hashrnd __read_mostly;
+
+	net_get_random_once(&hashrnd, sizeof(hashrnd));
+
+	if (!skb_flow_dissect_flow_keys(skb, &flow, 0))
+		return 0;
+
+	if (flow.basic.ip_proto == IPPROTO_TCP) {
+		return skb_get_hash(skb);
+	} else {
+		if (flow.basic.n_proto == htons(ETH_P_IP))
+			hash = jhash2((u32 *)&flow.addrs.v4addrs, 2, hashrnd);
+		else if (flow.basic.n_proto == htons(ETH_P_IPV6))
+			hash = jhash2((u32 *)&flow.addrs.v6addrs, 8, hashrnd);
+		else
+			hash = 0;
+
+		skb_set_hash(skb, hash, PKT_HASH_TYPE_L3);
+	}
+
+	return hash;
+}
+
 static u16 netvsc_select_queue(struct net_device *ndev, struct sk_buff *skb,
 			void *accel_priv, select_queue_fallback_t fallback)
 {
@@ -215,7 +245,7 @@ static u16 netvsc_select_queue(struct net_device *ndev, struct sk_buff *skb,
 	if (nvsc_dev == NULL || ndev->real_num_tx_queues <= 1)
 		return 0;
 
-	hash = skb_get_hash(skb);
+	hash = netvsc_get_hash(skb, skb->sk);
 	q_idx = nvsc_dev->send_table[hash % VRSS_SEND_TAB_SIZE] %
 		ndev->real_num_tx_queues;
 
