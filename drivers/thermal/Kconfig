@@ -136,6 +136,14 @@ config THERMAL_EMULATION
 	  because userland can easily disable the thermal policy by simply
 	  flooding this sysfs node with low temperature values.
 
+config S32V234_THERMAL
+	bool "Temperature sensor driver for NXP s32v234 SoCs"
+	depends on SYSFS
+	help
+	  Support for Temperature Monitoring Unit (TMU) found on NXP s32v234
+	  SoCs. It supports reporting the immediate and average temperature
+	  in a manner compatible with lm-sensors
+
 config IMX_THERMAL
 	tristate "Temperature sensor driver for Freescale i.MX SoCs"
 	depends on CPU_THERMAL
