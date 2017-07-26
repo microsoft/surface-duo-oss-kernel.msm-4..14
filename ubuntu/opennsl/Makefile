@@ -9,7 +9,12 @@ ccflags-y += \
 	-I$(OP)/include \
 	-I$(OP)/systems/bde/linux/include \
 	-I$(OP)/systems/bde/shared/include \
-	-I$(OP)/systems/linux/kernel/modules/include
+	-I$(OP)/systems/linux/kernel/modules/include \
+	-DLONGS_ARE_64BITS \
+	-DPTRS_ARE_64BITS \
+	-DSAL_SPL_LOCK_ON_IRQ \
+	-DSYS_BE_PIO=0 -DSYS_BE_PACKET=0 -DSYS_BE_OTHER=0 \
+	-DLE_HOST=1 -DSAL_BDE_DMA_MEM_DEFAULT=16
 
 obj-$(CONFIG_OPENNSL_BCM_KNET) += linux-bcm-knet.o
 
