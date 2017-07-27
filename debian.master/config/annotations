@@ -1084,7 +1084,7 @@ CONFIG_EDAC_DEBUG                               policy<{'amd64': 'n', 'arm64': '
 CONFIG_EDAC_DECODE_MCE                          policy<{'amd64': 'm', 'i386': 'm'}>
 
 # Menu: Device Drivers >> EDAC (Error Detection And Correction) reporting >> Main Memory EDAC (Error Detection And Correction) reporting
-CONFIG_EDAC_MM_EDAC                             policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
+CONFIG_EDAC_MM_EDAC                             policy<{'amd64': 'm', 'arm64': 'y', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
 CONFIG_EDAC_AMD64                               policy<{'amd64': 'm', 'i386': 'm'}>
 CONFIG_EDAC_AMD64_ERROR_INJECTION               policy<{'amd64': 'n', 'i386': 'n'}>
 CONFIG_EDAC_AMD76X                              policy<{'i386': 'm'}>
@@ -1111,6 +1111,8 @@ CONFIG_EDAC_CPC925                              policy<{'ppc64el': 'm'}>
 CONFIG_EDAC_HIGHBANK_MC                         policy<{'armhf': 'm'}>
 CONFIG_EDAC_HIGHBANK_L2                         policy<{'armhf': 'm'}>
 CONFIG_EDAC_XGENE                               policy<{'arm64': 'm'}>
+#
+CONFIG_EDAC_MM_EDAC                             note<LP:1706141>
 
 # Menu: Device Drivers >> EDAC (Error Detection And Correction) reporting >> Main Memory EDAC (Error Detection And Correction) reporting >> Altera SOCFPGA ECC
 
