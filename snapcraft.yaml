@@ -20,6 +20,7 @@ parts:
     kernel-image-target: Image
     install: |
       cp $SNAPCRAFT_PART_INSTALL/dtbs/qcom/apq8016-sbc-snappy.dtb $SNAPCRAFT_PART_INSTALL/dtbs/qcom/apq8016-sbc.dtb
+      cp $SNAPCRAFT_PART_INSTALL/dtbs/qcom/*.dtb $SNAPCRAFT_PART_INSTALL/dtbs/
   firmware:
     plugin: nil
     stage-packages:
