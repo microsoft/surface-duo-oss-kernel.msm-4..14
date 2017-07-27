@@ -17,6 +17,7 @@ parts:
     kconfigflavour: snapdragon
     kconfigs:
       - CONFIG_DEBUG_INFO=n
+    kernel-image-target: Image
     install: |
       cp $SNAPCRAFT_PART_INSTALL/dtbs/qcom/apq8016-sbc-snappy.dtb $SNAPCRAFT_PART_INSTALL/dtbs/qcom/apq8016-sbc.dtb
   firmware:
