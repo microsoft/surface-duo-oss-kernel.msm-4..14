@@ -2296,8 +2296,8 @@ static void vfe_try_format(struct vfe_line *line,
 		fmt->width = clamp_t(u32, fmt->width, 1, 8191);
 		fmt->height = clamp_t(u32, fmt->height, 1, 8191);
 
-		if (fmt->field == V4L2_FIELD_ANY)
-			fmt->field = V4L2_FIELD_NONE;
+		fmt->field = V4L2_FIELD_NONE;
+		fmt->colorspace = V4L2_COLORSPACE_SRGB;
 
 		break;
 
@@ -3024,15 +3024,14 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 		video_out->ops = &camss_vfe_video_ops;
 		video_out->bpl_alignment = 8;
 		video_out->line_based = 0;
-		video_out->fmt_tag = CAMSS_FMT_TAG_RDI;
 		if (i == VFE_LINE_PIX) {
 			video_out->bpl_alignment = 16;
 			video_out->line_based = 1;
-			video_out->fmt_tag = CAMSS_FMT_TAG_PIX;
 		}
 		snprintf(name, ARRAY_SIZE(name), "%s%d_%s%d",
 			 MSM_VFE_NAME, vfe->id, "video", i);
-		ret = msm_video_register(video_out, v4l2_dev, name);
+		ret = msm_video_register(video_out, v4l2_dev, name,
+					 i == VFE_LINE_PIX ? 1 : 0);
 		if (ret < 0) {
 			dev_err(dev, "Failed to register video node: %d\n",
 				ret);
@@ -3049,13 +3048,6 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 				ret);
 			goto error_link;
 		}
-
-		ret = msm_video_init_format(video_out);
-		if (ret < 0) {
-			dev_err(dev, "Failed to init format: %d\n", ret);
-			goto error_link;
-		}
-
 	}
 
 	return 0;

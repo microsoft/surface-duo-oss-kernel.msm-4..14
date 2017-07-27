@@ -41,10 +41,7 @@ struct camss_video_ops {
 			     enum vb2_buffer_state state);
 };
 
-enum camss_fmt_tag {
-	CAMSS_FMT_TAG_RDI = 1 << 0,
-	CAMSS_FMT_TAG_PIX = 1 << 1
-};
+struct camss_format_info;
 
 struct camss_video {
 	struct camss *camss;
@@ -59,15 +56,14 @@ struct camss_video {
 	struct mutex q_lock;
 	unsigned int bpl_alignment;
 	unsigned int line_based;
-	enum camss_fmt_tag fmt_tag;
+	const struct camss_format_info *formats;
+	unsigned int nformats;
 };
 
 void msm_video_stop_streaming(struct camss_video *video);
 
-int msm_video_init_format(struct camss_video *video);
-
 int msm_video_register(struct camss_video *video, struct v4l2_device *v4l2_dev,
-		       const char *name);
+		       const char *name, int is_pix);
 
 void msm_video_unregister(struct camss_video *video);
 
