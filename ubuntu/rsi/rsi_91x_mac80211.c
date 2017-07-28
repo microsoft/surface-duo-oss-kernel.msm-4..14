@@ -2835,6 +2835,9 @@ int rsi_mac80211_attach(struct rsi_common *common)
 //			    NL80211_FEATURE_P2P_GO_OPPPS);
 #endif
 
+	if (common->coex_mode > 1)
+		wiphy->flags |= WIPHY_FLAG_PS_ON_BY_DEFAULT;
+
 	status = ieee80211_register_hw(hw);
 	if (status) {
 		ven_rsi_dbg(ERR_ZONE, "Failed to register to mac80211\n");
