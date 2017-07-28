@@ -1064,7 +1064,6 @@ ec_sys
 ecdh_generic
 echainiv
 echo
-edac_core
 edt-ft5x06
 eeprom
 eeprom_93cx6

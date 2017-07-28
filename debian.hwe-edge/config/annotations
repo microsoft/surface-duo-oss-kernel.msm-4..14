@@ -1084,7 +1084,7 @@ CONFIG_EDAC_DEBUG                               policy<{'amd64': 'n', 'arm64': '
 CONFIG_EDAC_DECODE_MCE                          policy<{'amd64': 'm', 'i386': 'm'}>
 
 # Menu: Device Drivers >> EDAC (Error Detection And Correction) reporting >> Main Memory EDAC (Error Detection And Correction) reporting
-CONFIG_EDAC_MM_EDAC                             policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
+CONFIG_EDAC_MM_EDAC                             policy<{'amd64': 'm', 'arm64': 'y', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
 CONFIG_EDAC_AMD64                               policy<{'amd64': 'm', 'i386': 'm'}>
 CONFIG_EDAC_AMD64_ERROR_INJECTION               policy<{'amd64': 'n', 'i386': 'n'}>
 CONFIG_EDAC_AMD76X                              policy<{'i386': 'm'}>
@@ -1111,6 +1111,8 @@ CONFIG_EDAC_CPC925                              policy<{'ppc64el': 'm'}>
 CONFIG_EDAC_HIGHBANK_MC                         policy<{'armhf': 'm'}>
 CONFIG_EDAC_HIGHBANK_L2                         policy<{'armhf': 'm'}>
 CONFIG_EDAC_XGENE                               policy<{'arm64': 'm'}>
+#
+CONFIG_EDAC_MM_EDAC                             note<LP:1706141>
 
 # Menu: Device Drivers >> EDAC (Error Detection And Correction) reporting >> Main Memory EDAC (Error Detection And Correction) reporting >> Altera SOCFPGA ECC
 
@@ -4745,7 +4747,7 @@ CONFIG_HNS_ENET                                 policy<{'arm64': 'm', 'armhf': '
 
 # Menu: Device Drivers >> Network device support >> Ethernet driver support >> IBM devices
 CONFIG_NET_VENDOR_IBM                           policy<{'ppc64el': 'y'}>
-CONFIG_IBMVETH                                  policy<{'ppc64el': 'y'}>
+CONFIG_IBMVETH                                  policy<{'ppc64el': 'm'}>
 CONFIG_IBMVNIC                                  policy<{'ppc64el': 'm'}>
 #
 CONFIG_IBMVNIC                            	mark<ENFORCED> note<LP:#1628187>
@@ -10642,8 +10644,8 @@ CONFIG_HZ_200                                   policy<{'armhf': 'n'}>
 CONFIG_HZ_500                                   policy<{'armhf': 'n'}>
 
 # Menu: Processor type and features >> Transparent Hugepage Support sysfs defaults
-CONFIG_TRANSPARENT_HUGEPAGE_ALWAYS              policy<{'amd64': 'y', 'arm64': 'y', 'armhf-generic-lpae': 'y', 'i386': 'y', 'ppc64el': 'y', 's390x': 'y'}>
-CONFIG_TRANSPARENT_HUGEPAGE_MADVISE             policy<{'amd64': 'n', 'arm64': 'n', 'armhf-generic-lpae': 'n', 'i386': 'n', 'ppc64el': 'n', 's390x': 'n'}>
+CONFIG_TRANSPARENT_HUGEPAGE_ALWAYS              policy<{'amd64': 'n', 'arm64': 'n', 'armhf-generic-lpae': 'n', 'i386': 'n', 'ppc64el': 'n', 's390x': 'n'}>
+CONFIG_TRANSPARENT_HUGEPAGE_MADVISE             policy<{'amd64': 'y', 'arm64': 'y', 'armhf-generic-lpae': 'y', 'i386': 'y', 'ppc64el': 'y', 's390x': 'y'}>
 
 # Menu: Processor type and features >> Tune code generation >> Architecture: s390
 CONFIG_TUNE_DEFAULT                             policy<{'s390x': 'n'}>
