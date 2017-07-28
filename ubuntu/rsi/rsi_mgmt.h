@@ -117,6 +117,8 @@ enum rx_cmd_type {
 #define LOWER_20_ENABLE                 (0x4 << 12)
 #define FULL40M_ENABLE                  0x6
 
+#define RSI_UAPSD_WAKEUP_PERIOD         0x1e
+#define RSI_DEFAULT_DTIM_INTERVAL       0x0
 #define RSI_LMAC_CLOCK_80MHZ            0x1
 #define RSI_ENABLE_40MHZ                (0x1 << 3)
 #define ENABLE_SHORTGI_RATE		BIT(9)

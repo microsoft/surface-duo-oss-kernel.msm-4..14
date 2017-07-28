@@ -2114,13 +2114,15 @@ int rsi_send_ps_request(struct rsi_hw *adapter, bool enable)
 		ps->ps_sleep.connected_sleep = DEEP_SLEEP;
 
 	ps->ps_listen_interval = cpu_to_le32(ps_info->listen_interval);
-	ps->ps_dtim_interval_duration =
-		cpu_to_le32(ps_info->dtim_interval_duration);
+	ps->ps_dtim_interval_duration = RSI_DEFAULT_DTIM_INTERVAL;
 
 	if (ps->ps_listen_interval > ps->ps_dtim_interval_duration)
 		ps->ps_listen_interval = 0;
 
-	ps->ps_num_dtim_intervals = cpu_to_le32(ps_info->num_dtims_per_sleep);
+	ps->ps_uapsd_acs = (adapter->hw->uapsd_max_sp_len <<
+			    IEEE80211_WMM_IE_STA_QOSINFO_SP_SHIFT) |
+			    IEEE80211_WMM_IE_STA_QOSINFO_AC_MASK;
+	ps->ps_uapsd_wakeup_period = RSI_UAPSD_WAKEUP_PERIOD;
 
 	skb_put(skb, frame_len);
 
