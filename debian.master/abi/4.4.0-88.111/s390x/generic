@@ -3779,6 +3779,7 @@ EXPORT_SYMBOL vmlinux 0xaf147b16	vfs_fsync_range
 EXPORT_SYMBOL vmlinux 0xaf3dd7dc	scsi_logging_level
 EXPORT_SYMBOL vmlinux 0xaf6d21de	make_kuid
 EXPORT_SYMBOL vmlinux 0xaf8ace71	xfrm6_protocol_register
+EXPORT_SYMBOL vmlinux 0xaf8be1ed	dump_truncate
 EXPORT_SYMBOL vmlinux 0xaf8c883a	inet6_add_offload
 EXPORT_SYMBOL vmlinux 0xafc2fc96	skb_queue_purge
 EXPORT_SYMBOL vmlinux 0xafc7e476	file_ns_capable
