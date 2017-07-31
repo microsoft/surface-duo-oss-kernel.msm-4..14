@@ -1,6 +1,7 @@
-linux (4.11.0-12.17) artful; urgency=low
+linux (4.11.0-12.18) artful; urgency=low
 
-  * linux: 4.11.0-12.17 -proposed tracker (LP: #1707157)
+  * linux: 4.11.0-12.18 -proposed tracker (LP: #1707635)
+    - no change rebuild to pick up the new binutils.
 
   * Adt tests of src:linux time out often on armhf lxc containers (LP: #1705495)
     - [Packaging] tests -- reduce rebuild test to one flavour
