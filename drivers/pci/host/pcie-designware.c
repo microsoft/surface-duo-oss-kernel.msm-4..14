@@ -6,6 +6,9 @@
  *
  * Author: Jingoo Han <jg1.han@samsung.com>
  *
+ * Customizations for the NXP S32V PCIE driver
+ * Copyright 2017 NXP
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -147,26 +150,18 @@ int dw_pcie_cfg_write(void __iomem *addr, int where, int size, u32 val)
 
 static inline void dw_pcie_readl_rc(struct pcie_port *pp, u32 reg, u32 *val)
 {
-	#ifndef CONFIG_PCI_S32V234_EP
 	if (pp->ops->readl_rc)
 		pp->ops->readl_rc(pp, pp->dbi_base + reg, val);
 	else
 		*val = readl(pp->dbi_base + reg);
-	#else
-	*val = readl(pp->dbi_base + reg);
-	#endif
 }
 
 static inline void dw_pcie_writel_rc(struct pcie_port *pp, u32 val, u32 reg)
 {
-	#ifndef CONFIG_PCI_S32V234_EP
 	if (pp->ops->writel_rc)
 		pp->ops->writel_rc(pp, val, pp->dbi_base + reg);
 	else
 		writel(val, pp->dbi_base + reg);
-	#else
-	writel(val, pp->dbi_base + reg);
-	#endif
 }
 
 static int dw_pcie_rd_own_conf(struct pcie_port *pp, int where, int size,
@@ -686,11 +681,9 @@ irqreturn_t dw_handle_dma_irq(struct pcie_port *pp)
 				/* Check channel list mode */
 			}
 			pp->wr_ch.status = DMA_CH_STOPPED;
-			#ifdef CONFIG_PCI_S32V234_EP
-			/* Note: this is always compiled, since PCI_DW_DMA
-			 * currently depends on PCI_S32V234_EP.
-			 */
-			send_signal_to_user(pp);
+			#ifdef CONFIG_PCI_S32V234
+			if (pp->ops->send_signal_to_user)
+				pp->ops->send_signal_to_user(pp);
 			#endif
 		} else
 			writel(0x00FF00FF, pp->dbi_base +
@@ -713,11 +706,9 @@ irqreturn_t dw_handle_dma_irq(struct pcie_port *pp)
 				/* Check channel list mode */
 			}
 			pp->rd_ch.status = DMA_CH_STOPPED;
-			#ifdef CONFIG_PCI_S32V234_EP
-			/* Note: this is always compiled, since PCI_DW_DMA
-			 * currently depends on PCI_S32V234_EP.
-			 */
-			send_signal_to_user(pp);
+			#ifdef CONFIG_PCI_S32V234
+			if (pp->ops->send_signal_to_user)
+				pp->ops->send_signal_to_user(pp);
 			#endif
 		} else
 			writel(0x00FF00FF, pp->dbi_base +
