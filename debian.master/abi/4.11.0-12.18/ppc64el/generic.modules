@@ -1596,6 +1596,7 @@ ib_uverbs
 ibmaem
 ibmpex
 ibmpowernv
+ibmveth
 ibmvfc
 ibmvnic
 ibmvscsi
