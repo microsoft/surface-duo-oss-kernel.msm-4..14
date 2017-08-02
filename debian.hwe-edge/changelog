@@ -1,8 +1,14 @@
-linux-hwe-edge (4.11.0-12.17~16.04.1) xenial; urgency=low
+linux-hwe-edge (4.11.0-13.19~16.04.1) xenial; urgency=low
 
-  * linux-hwe-edge: 4.11.0-12.17~16.04.1 -proposed tracker (LP: #1704964)
+  * CVE-2017-7533
+    - dentry name snapshots
 
-  * linux: 4.11.0-12.17 -proposed tracker (LP: #1707157)
+ -- Thadeu Lima de Souza Cascardo <cascardo@canonical.com>  Tue, 01 Aug 2017 19:35:17 -0300
+
+linux (4.11.0-12.18) artful; urgency=low
+
+  * linux: 4.11.0-12.18 -proposed tracker (LP: #1707635)
+    - no change rebuild to pick up the new binutils.
 
   * Adt tests of src:linux time out often on armhf lxc containers (LP: #1705495)
     - [Packaging] tests -- reduce rebuild test to one flavour

@@ -1595,6 +1595,7 @@ EXPORT_SYMBOL vmlinux 0x00000000	__dev_getfirstbyhwtype
 EXPORT_SYMBOL vmlinux 0x00000000	__dev_kfree_skb_any
 EXPORT_SYMBOL vmlinux 0x00000000	__dev_kfree_skb_irq
 EXPORT_SYMBOL vmlinux 0x00000000	__dev_remove_pack
+EXPORT_SYMBOL vmlinux 0x00000000	__dev_set_mtu
 EXPORT_SYMBOL vmlinux 0x00000000	__devm_release_region
 EXPORT_SYMBOL vmlinux 0x00000000	__devm_request_region
 EXPORT_SYMBOL vmlinux 0x00000000	__do_once_done
@@ -2330,6 +2331,7 @@ EXPORT_SYMBOL vmlinux 0x00000000	cpu_rmap_update
 EXPORT_SYMBOL vmlinux 0x00000000	cpumask_any_but
 EXPORT_SYMBOL vmlinux 0x00000000	cpumask_local_spread
 EXPORT_SYMBOL vmlinux 0x00000000	cpumask_next_and
+EXPORT_SYMBOL vmlinux 0x00000000	cpumask_next_wrap
 EXPORT_SYMBOL vmlinux 0x00000000	crc16
 EXPORT_SYMBOL vmlinux 0x00000000	crc16_table
 EXPORT_SYMBOL vmlinux 0x00000000	crc32_be
