@@ -616,7 +616,7 @@ put_display_node:
  * FUNCTION: fsl_fb_install
  **********************************************************/
 static int fsl_fb_install(struct fb_info *info,
-	struct fb_video_format *video_format)
+	struct fb_video_format *fb_vformat)
 {
 	struct mfb_info *mfbi = info->par;
 	struct dcu_fb_data *dcufb = mfbi->parent;
@@ -643,27 +643,36 @@ static int fsl_fb_install(struct fb_info *info,
 	if (ret)
 		goto fb_install_failed;
 
-	list_for_each(pos, &info->modelist) {
-		modelist = list_entry(pos, struct fb_modelist, list);
-
-		if (!fsl_fb_video_format_match(&modelist->mode, video_format))
-			continue;
-
-		found = 1;
-		break;
-	}
-
-	if (!found) {
-		dev_warn(dcufb->dev,
-			"Invalid display mode for <fb %d> (using defaults).\n",
-			mfbi->index);
+	/* if default video format, select first entry */
+	if (NULL == fb_vformat) {
 		modelist = list_first_entry(&info->modelist,
 			struct fb_modelist, list);
+	} else {
+		list_for_each(pos, &info->modelist) {
+			modelist = list_entry(pos, struct fb_modelist, list);
+
+			if (!fsl_fb_video_format_match(
+					&modelist->mode,
+					fb_vformat))
+				continue;
+
+			found = 1;
+			break;
+		}
+
+		if (!found) {
+			dev_warn(dcufb->dev,
+				"Invalid display mode for <fb %d> (using defaults).\n",
+				mfbi->index);
+			modelist = list_first_entry(&info->modelist,
+				struct fb_modelist, list);
+		}
 	}
 
 	/* Set video mode and color format */
 	fb_videomode_to_var(&info->var, &modelist->mode);
-	fsl_fb_init_color_format(&info->var, video_format->surf_format_idx);
+	fsl_fb_init_color_format(&info->var,
+			fb_vformat != NULL ? fb_vformat->surf_format_idx : 0);
 	fsl_fb_check_var(&info->var, info);
 
 	return 0;
@@ -730,8 +739,11 @@ int fsl_fb_parse_video_format(char *video_str,
 		return -EINVAL;
 
 	video_copy = kmalloc(len + 1, GFP_KERNEL);
-	if (!video_copy)
+	if (!video_copy) {
+		dev_err(fsl_dcu_get_dcufb()->dev,
+			"No enough memory to parse video format.");
 		return -ENOMEM;
+	}
 
 	/* Work on a duplicate of the video argument */
 	strcpy(video_copy, video_str);
@@ -745,34 +757,60 @@ int fsl_fb_parse_video_format(char *video_str,
 	else
 		if (strcasecmp(token, "LVDS") == 0)
 			video_format->use_hdmi = 0;
-		else
+		else {
+			dev_err(fsl_dcu_get_dcufb()->dev,
+				"Invalid video mode string '%s'.",
+				token);
 			return -EINVAL;
+		}
 
 	/* Parse the FB device to use */
 	token = strsep(&rest, split);
-	if (sscanf(token, "fb%d", &video_format->fb_idx) < 1)
+	if (!token || sscanf(token, "fb%d", &video_format->fb_idx) < 1) {
+		dev_err(fsl_dcu_get_dcufb()->dev,
+			"Invalid fb device '%s'.", token != NULL ? token : "");
 		return -EINVAL;
+	}
 
 	if ((video_format->fb_idx < 0) ||
-		(video_format->fb_idx >= fsl_dcu_num_layers()))
+		(video_format->fb_idx >= fsl_dcu_num_layers())) {
+		dev_err(fsl_dcu_get_dcufb()->dev,
+			"Invalid fb device number fb%d. Maximum supported is fb%d",
+			video_format->fb_idx, fsl_dcu_num_layers());
 		return -EINVAL;
+	}
 
 	/* Parse the resolution and refresh rate */
 	token = strsep(&rest, split);
-	if (sscanf(token, "%dx%d-%d", &video_format->res_x,
-			&video_format->res_y, &video_format->refresh_rate) < 3)
+	if (!token || sscanf(token, "%dx%d-%d", &video_format->res_x,
+		&video_format->res_y, &video_format->refresh_rate) < 3) {
+		dev_err(fsl_dcu_get_dcufb()->dev,
+			"Invalid resolution '%s'", token != NULL ? token : "");
 		return -EINVAL;
+	}
 
 	if ((video_format->res_x <= 0) || (video_format->res_y <= 0)
-		|| (video_format->refresh_rate <= 0))
+		|| (video_format->refresh_rate <= 0)) {
+		dev_err(fsl_dcu_get_dcufb()->dev,
+			"Invalid resolution '%s'", video_str);
 		return -EINVAL;
+	}
 
 	/* Parse the color format */
 	token = strsep(&rest, split);
+	if (!token) {
+		dev_err(fsl_dcu_get_dcufb()->dev,
+			"Invalid empty format '%s'", "");
+		return -EINVAL;
+	}
+
 	video_format->surf_format_idx = fsl_dcu_get_color_format_byname(token);
 
-	if (video_format->surf_format_idx < 0)
+	if (video_format->surf_format_idx < 0) {
+		dev_err(fsl_dcu_get_dcufb()->dev,
+			"Invalid format '%s'", token);
 		return -EINVAL;
+	}
 
 	dev_info(fsl_dcu_get_dcufb()->dev,
 		"Video mode: <%s> on </dev/fb%d>, <%d x %d @ %d Hz>, <%s>\n",
@@ -794,6 +832,7 @@ static int r_init(void)
 	int dcu_num_layers = 0;
 	struct dcu_fb_data *dcufb;
 	int ret = 0, byte_len, i, j;
+	int boot_vformat = 1;
 
 	__TRACE__;
 	if (fsl_dcu_init_status() != 0)
@@ -804,6 +843,7 @@ static int r_init(void)
 	if (ret != 0) {
 		/* On invalid / missing format use a default display mode */
 		memset(&video_format, 0, sizeof(video_format));
+		boot_vformat = 0;
 	}
 
 	dcufb = fsl_dcu_get_dcufb();
@@ -851,7 +891,8 @@ static int r_init(void)
 		mfbi->y_layer_d = 0;
 		mfbi->parent = dcufb;
 
-		ret = fsl_fb_install(dcufb->fsl_dcu_info[i], &video_format);
+		ret = fsl_fb_install(dcufb->fsl_dcu_info[i],
+				(boot_vformat != 0 ? &video_format : NULL));
 		if (ret) {
 			dev_err(dcufb->dev,
 				"Could not register framebuffer %d.\n", i);
