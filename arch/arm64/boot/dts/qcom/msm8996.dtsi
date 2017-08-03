@@ -49,7 +49,6 @@
 		};
 
 		venus_region: venus@90400000 {
-			compatible = "shared-dma-pool";
 			reg = <0x0 0x90400000 0x0 0x800000>;
 			no-map;
 		};
