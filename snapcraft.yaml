@@ -1,7 +1,12 @@
-name: ubuntu-raspi2-kernel
-version: 4.4.0
-summary: The Raspberry Pi 2/3 kernel for snappy
-description: This is a snapped kernel, based off the xenial raspi2 branch and config
+name: pi2-kernel
+version: null
+version-script: |
+    . debian/debian.env
+    dpkg-parsechangelog -l $DEBIAN/changelog -S version
+summary: The Canonical raspi2 Linux kernel
+description: The Canonical raspi2 Linux kernel
+grade: stable
+confinement: strict
 type: kernel
 
 parts:
@@ -9,8 +14,44 @@ parts:
     plugin: kernel
     source: .
     source-type: git
-    kdefconfig: ['--makefile=debian/snapcraft.mk', 'branch=raspi2','flavour=raspi2', 'config']
+    kconfigflavour: raspi2
     kconfigs:
-      - CONFIG_LOCALVERSION="-xenial_raspi2"
       - CONFIG_DEBUG_INFO=n
     kernel-image-target: zImage
+    install: |
+      tar -C $SNAPCRAFT_PART_INSTALL/dtbs -f $SNAPCRAFT_PART_INSTALL/dtbs/overlays.tgz -czv overlays
+      rm -rf $SNAPCRAFT_PART_INSTALL/dtbs/overlays
+  firmware:
+    plugin: nil
+    stage-packages:
+      - linux-firmware
+    organize:
+      lib/firmware: firmware
+    prime:
+      - -usr
+      - -lib
+    install: |
+      rm $SNAPCRAFT_PART_INSTALL/lib/firmware/brcm/brcmfmac43430-sdio.bin
+    build-packages:
+      - cpio
+      - libssl-dev
+  raspiwififw:
+    plugin: nil
+    source: .
+    after:
+      - firmware
+    prepare: |
+      PKGS="http://ppa.launchpad.net/snappy-dev/image/ubuntu/dists/xenial/main/binary-armhf/Packages.gz"
+      PKGPATH="$(wget -q -O- $PKGS|zcat|grep-dctrl raspberrypi-wireless-firmware |\
+        grep Filename|tail -1| sed 's/^Filename: //')"
+      wget http://ppa.launchpad.net/snappy-dev/image/ubuntu/$PKGPATH
+      dpkg -x $(basename $PKGPATH) unpack/
+    install: |
+      mkdir -p $SNAPCRAFT_PART_INSTALL/firmware/brcm
+      mv unpack/usr/share/doc/raspberrypi-wireless-firmware $SNAPCRAFT_PART_INSTALL/firmware/rpi-wlanfw-licenses
+      mv unpack/lib/firmware/brcm80211/brcm/* $SNAPCRAFT_PART_INSTALL/firmware/brcm
+    build-packages:
+      - coreutils
+      - dctrl-tools
+      - sed
+      - wget
