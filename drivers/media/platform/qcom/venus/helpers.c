@@ -34,6 +34,58 @@ struct intbuf {
 	unsigned long attrs;
 };
 
+bool venus_helper_check_codec(struct venus_inst *inst, u32 v4l2_pixfmt)
+{
+	struct venus_core *core = inst->core;
+	u32 session_type = inst->session_type;
+	u32 codec = 0;
+
+	switch (v4l2_pixfmt) {
+	case V4L2_PIX_FMT_H264:
+		codec = HFI_VIDEO_CODEC_H264;
+		break;
+	case V4L2_PIX_FMT_H263:
+		codec = HFI_VIDEO_CODEC_H263;
+		break;
+	case V4L2_PIX_FMT_MPEG1:
+		codec = HFI_VIDEO_CODEC_MPEG1;
+		break;
+	case V4L2_PIX_FMT_MPEG2:
+		codec = HFI_VIDEO_CODEC_MPEG2;
+		break;
+	case V4L2_PIX_FMT_MPEG4:
+		codec = HFI_VIDEO_CODEC_MPEG4;
+		break;
+	case V4L2_PIX_FMT_VC1_ANNEX_G:
+	case V4L2_PIX_FMT_VC1_ANNEX_L:
+		codec = HFI_VIDEO_CODEC_VC1;
+		break;
+	case V4L2_PIX_FMT_VP8:
+		codec = HFI_VIDEO_CODEC_VP8;
+		break;
+	case V4L2_PIX_FMT_VP9:
+		codec = HFI_VIDEO_CODEC_VP9;
+		break;
+	case V4L2_PIX_FMT_XVID:
+		codec = HFI_VIDEO_CODEC_DIVX;
+		break;
+	default:
+		break;
+	}
+
+	if (!codec)
+		return false;
+
+	if (session_type == VIDC_SESSION_TYPE_ENC && core->enc_codecs & codec)
+		return true;
+
+	if (session_type == VIDC_SESSION_TYPE_DEC && core->dec_codecs & codec)
+		return true;
+
+	return false;
+}
+EXPORT_SYMBOL_GPL(venus_helper_check_codec);
+
 static int intbufs_set_buffer(struct venus_inst *inst, u32 type)
 {
 	struct venus_core *core = inst->core;
@@ -44,7 +96,7 @@ static int intbufs_set_buffer(struct venus_inst *inst, u32 type)
 	unsigned int i;
 	int ret;
 
-	ret = helper_get_bufreq(inst, type, &bufreq);
+	ret = venus_helper_get_bufreq(inst, type, &bufreq);
 	if (ret)
 		return 0;
 
@@ -150,14 +202,12 @@ static int intbufs_free(struct venus_inst *inst)
 
 static u32 load_per_instance(struct venus_inst *inst)
 {
-	u32 w = inst->width;
-	u32 h = inst->height;
 	u32 mbs;
 
 	if (!inst || !(inst->state >= INST_INIT && inst->state < INST_STOP))
 		return 0;
 
-	mbs = (ALIGN(w, 16) / 16) * (ALIGN(h, 16) / 16);
+	mbs = (ALIGN(inst->width, 16) / 16) * (ALIGN(inst->height, 16) / 16);
 
 	return mbs * inst->fps;
 }
@@ -298,7 +348,7 @@ static inline int is_reg_unreg_needed(struct venus_inst *inst)
 
 	if (inst->session_type == VIDC_SESSION_TYPE_DEC &&
 	    inst->cap_bufs_mode_dynamic &&
-	    inst->core->res->hfi_version == HFI_VERSION_LEGACY)
+	    inst->core->res->hfi_version == HFI_VERSION_1XX)
 		return 0;
 
 	return 1;
@@ -345,12 +395,13 @@ static int session_register_bufs(struct venus_inst *inst)
 	return ret;
 }
 
-int helper_get_bufreq(struct venus_inst *inst, u32 type,
-		      struct hfi_buffer_requirements *req)
+int venus_helper_get_bufreq(struct venus_inst *inst, u32 type,
+			    struct hfi_buffer_requirements *req)
 {
 	u32 ptype = HFI_PROPERTY_CONFIG_BUFFER_REQUIREMENTS;
 	union hfi_get_property hprop;
-	int ret, i;
+	unsigned int i;
+	int ret;
 
 	if (req)
 		memset(req, 0, sizeof(*req));
@@ -373,10 +424,10 @@ int helper_get_bufreq(struct venus_inst *inst, u32 type,
 
 	return ret;
 }
-EXPORT_SYMBOL_GPL(helper_get_bufreq);
+EXPORT_SYMBOL_GPL(venus_helper_get_bufreq);
 
-int helper_set_input_resolution(struct venus_inst *inst, unsigned int width,
-				unsigned int height)
+int venus_helper_set_input_resolution(struct venus_inst *inst,
+				      unsigned int width, unsigned int height)
 {
 	u32 ptype = HFI_PROPERTY_PARAM_FRAME_SIZE;
 	struct hfi_framesize fs;
@@ -387,10 +438,10 @@ int helper_set_input_resolution(struct venus_inst *inst, unsigned int width,
 
 	return hfi_session_set_property(inst, ptype, &fs);
 }
-EXPORT_SYMBOL_GPL(helper_set_input_resolution);
+EXPORT_SYMBOL_GPL(venus_helper_set_input_resolution);
 
-int helper_set_output_resolution(struct venus_inst *inst, unsigned int width,
-				 unsigned int height)
+int venus_helper_set_output_resolution(struct venus_inst *inst,
+				       unsigned int width, unsigned int height)
 {
 	u32 ptype = HFI_PROPERTY_PARAM_FRAME_SIZE;
 	struct hfi_framesize fs;
@@ -401,10 +452,10 @@ int helper_set_output_resolution(struct venus_inst *inst, unsigned int width,
 
 	return hfi_session_set_property(inst, ptype, &fs);
 }
-EXPORT_SYMBOL_GPL(helper_set_output_resolution);
+EXPORT_SYMBOL_GPL(venus_helper_set_output_resolution);
 
-int helper_set_num_bufs(struct venus_inst *inst, unsigned int input_bufs,
-			unsigned int output_bufs)
+int venus_helper_set_num_bufs(struct venus_inst *inst, unsigned int input_bufs,
+			      unsigned int output_bufs)
 {
 	u32 ptype = HFI_PROPERTY_PARAM_BUFFER_COUNT_ACTUAL;
 	struct hfi_buffer_count_actual buf_count;
@@ -422,9 +473,9 @@ int helper_set_num_bufs(struct venus_inst *inst, unsigned int input_bufs,
 
 	return hfi_session_set_property(inst, ptype, &buf_count);
 }
-EXPORT_SYMBOL_GPL(helper_set_num_bufs);
+EXPORT_SYMBOL_GPL(venus_helper_set_num_bufs);
 
-int helper_set_color_format(struct venus_inst *inst, u32 pixfmt)
+int venus_helper_set_color_format(struct venus_inst *inst, u32 pixfmt)
 {
 	struct hfi_uncompressed_format_select fmt;
 	u32 ptype = HFI_PROPERTY_PARAM_UNCOMPRESSED_FORMAT_SELECT;
@@ -454,7 +505,7 @@ int helper_set_color_format(struct venus_inst *inst, u32 pixfmt)
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(helper_set_color_format);
+EXPORT_SYMBOL_GPL(venus_helper_set_color_format);
 
 static void delayed_process_buf_func(struct work_struct *work)
 {
@@ -483,7 +534,7 @@ unlock:
 	mutex_unlock(&inst->lock);
 }
 
-void helper_release_buf_ref(struct venus_inst *inst, unsigned int idx)
+void venus_helper_release_buf_ref(struct venus_inst *inst, unsigned int idx)
 {
 	struct venus_buffer *buf;
 
@@ -495,15 +546,15 @@ void helper_release_buf_ref(struct venus_inst *inst, unsigned int idx)
 		}
 	}
 }
-EXPORT_SYMBOL_GPL(helper_release_buf_ref);
+EXPORT_SYMBOL_GPL(venus_helper_release_buf_ref);
 
-void helper_acquire_buf_ref(struct vb2_v4l2_buffer *vbuf)
+void venus_helper_acquire_buf_ref(struct vb2_v4l2_buffer *vbuf)
 {
 	struct venus_buffer *buf = to_venus_buffer(vbuf);
 
 	buf->flags |= HFI_BUFFERFLAG_READONLY;
 }
-EXPORT_SYMBOL_GPL(helper_acquire_buf_ref);
+EXPORT_SYMBOL_GPL(venus_helper_acquire_buf_ref);
 
 static int is_buf_refed(struct venus_inst *inst, struct vb2_v4l2_buffer *vbuf)
 {
@@ -519,7 +570,7 @@ static int is_buf_refed(struct venus_inst *inst, struct vb2_v4l2_buffer *vbuf)
 }
 
 struct vb2_v4l2_buffer *
-helper_find_buf(struct venus_inst *inst, unsigned int type, u32 idx)
+venus_helper_find_buf(struct venus_inst *inst, unsigned int type, u32 idx)
 {
 	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
 
@@ -528,9 +579,9 @@ helper_find_buf(struct venus_inst *inst, unsigned int type, u32 idx)
 	else
 		return v4l2_m2m_dst_buf_remove_by_idx(m2m_ctx, idx);
 }
-EXPORT_SYMBOL_GPL(helper_find_buf);
+EXPORT_SYMBOL_GPL(venus_helper_find_buf);
 
-int helper_vb2_buf_init(struct vb2_buffer *vb)
+int venus_helper_vb2_buf_init(struct vb2_buffer *vb)
 {
 	struct venus_inst *inst = vb2_get_drv_priv(vb->vb2_queue);
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
@@ -549,9 +600,9 @@ int helper_vb2_buf_init(struct vb2_buffer *vb)
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(helper_vb2_buf_init);
+EXPORT_SYMBOL_GPL(venus_helper_vb2_buf_init);
 
-int helper_vb2_buf_prepare(struct vb2_buffer *vb)
+int venus_helper_vb2_buf_prepare(struct vb2_buffer *vb)
 {
 	struct venus_inst *inst = vb2_get_drv_priv(vb->vb2_queue);
 
@@ -564,9 +615,9 @@ int helper_vb2_buf_prepare(struct vb2_buffer *vb)
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(helper_vb2_buf_prepare);
+EXPORT_SYMBOL_GPL(venus_helper_vb2_buf_prepare);
 
-void helper_vb2_buf_queue(struct vb2_buffer *vb)
+void venus_helper_vb2_buf_queue(struct vb2_buffer *vb)
 {
 	struct vb2_v4l2_buffer *vbuf = to_vb2_v4l2_buffer(vb);
 	struct venus_inst *inst = vb2_get_drv_priv(vb->vb2_queue);
@@ -574,6 +625,13 @@ void helper_vb2_buf_queue(struct vb2_buffer *vb)
 	int ret;
 
 	mutex_lock(&inst->lock);
+
+	if (inst->cmd_stop) {
+		vbuf->flags |= V4L2_BUF_FLAG_LAST;
+		v4l2_m2m_buf_done(vbuf, VB2_BUF_STATE_DONE);
+		inst->cmd_stop = false;
+		goto unlock;
+	}
 
 	v4l2_m2m_buf_queue(m2m_ctx, vbuf);
 
@@ -591,9 +649,10 @@ void helper_vb2_buf_queue(struct vb2_buffer *vb)
 unlock:
 	mutex_unlock(&inst->lock);
 }
-EXPORT_SYMBOL_GPL(helper_vb2_buf_queue);
+EXPORT_SYMBOL_GPL(venus_helper_vb2_buf_queue);
 
-void helper_buffers_done(struct venus_inst *inst, enum vb2_buffer_state state)
+void venus_helper_buffers_done(struct venus_inst *inst,
+			       enum vb2_buffer_state state)
 {
 	struct vb2_v4l2_buffer *buf;
 
@@ -602,9 +661,9 @@ void helper_buffers_done(struct venus_inst *inst, enum vb2_buffer_state state)
 	while ((buf = v4l2_m2m_dst_buf_remove(inst->m2m_ctx)))
 		v4l2_m2m_buf_done(buf, state);
 }
-EXPORT_SYMBOL_GPL(helper_buffers_done);
+EXPORT_SYMBOL_GPL(venus_helper_buffers_done);
 
-void helper_vb2_stop_streaming(struct vb2_queue *q)
+void venus_helper_vb2_stop_streaming(struct vb2_queue *q)
 {
 	struct venus_inst *inst = vb2_get_drv_priv(q);
 	struct venus_core *core = inst->core;
@@ -628,7 +687,7 @@ void helper_vb2_stop_streaming(struct vb2_queue *q)
 		load_scale_clocks(core);
 	}
 
-	helper_buffers_done(inst, VB2_BUF_STATE_ERROR);
+	venus_helper_buffers_done(inst, VB2_BUF_STATE_ERROR);
 
 	if (q->type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE)
 		inst->streamon_out = 0;
@@ -637,9 +696,9 @@ void helper_vb2_stop_streaming(struct vb2_queue *q)
 
 	mutex_unlock(&inst->lock);
 }
-EXPORT_SYMBOL_GPL(helper_vb2_stop_streaming);
+EXPORT_SYMBOL_GPL(venus_helper_vb2_stop_streaming);
 
-int helper_vb2_start_streaming(struct venus_inst *inst)
+int venus_helper_vb2_start_streaming(struct venus_inst *inst)
 {
 	struct venus_core *core = inst->core;
 	int ret;
@@ -672,9 +731,9 @@ err_bufs_free:
 	intbufs_free(inst);
 	return ret;
 }
-EXPORT_SYMBOL_GPL(helper_vb2_start_streaming);
+EXPORT_SYMBOL_GPL(venus_helper_vb2_start_streaming);
 
-void helper_m2m_device_run(void *priv)
+void venus_helper_m2m_device_run(void *priv)
 {
 	struct venus_inst *inst = priv;
 	struct v4l2_m2m_ctx *m2m_ctx = inst->m2m_ctx;
@@ -697,17 +756,17 @@ void helper_m2m_device_run(void *priv)
 
 	mutex_unlock(&inst->lock);
 }
-EXPORT_SYMBOL_GPL(helper_m2m_device_run);
+EXPORT_SYMBOL_GPL(venus_helper_m2m_device_run);
 
-void helper_m2m_job_abort(void *priv)
+void venus_helper_m2m_job_abort(void *priv)
 {
 	struct venus_inst *inst = priv;
 
 	v4l2_m2m_job_finish(inst->m2m_dev, inst->m2m_ctx);
 }
-EXPORT_SYMBOL_GPL(helper_m2m_job_abort);
+EXPORT_SYMBOL_GPL(venus_helper_m2m_job_abort);
 
-void helper_init_instance(struct venus_inst *inst)
+void venus_helper_init_instance(struct venus_inst *inst)
 {
 	if (inst->session_type == VIDC_SESSION_TYPE_DEC) {
 		INIT_LIST_HEAD(&inst->delayed_process);
@@ -715,4 +774,4 @@ void helper_init_instance(struct venus_inst *inst)
 			  delayed_process_buf_func);
 	}
 }
-EXPORT_SYMBOL_GPL(helper_init_instance);
+EXPORT_SYMBOL_GPL(venus_helper_init_instance);

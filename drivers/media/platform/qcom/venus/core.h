@@ -48,11 +48,12 @@ struct venus_resources {
 	unsigned int vmem_id;
 	u32 vmem_size;
 	u32 vmem_addr;
+	const char *fwname;
 };
 
 struct venus_format {
 	u32 pixfmt;
-	int num_planes;
+	unsigned int num_planes;
 	u32 type;
 };
 
@@ -68,9 +69,9 @@ struct venus_format {
  * @vdev_enc:	a reference to video device structure for encoder instances
  * @v4l2_dev:	a holder for v4l2 device structure
  * @res:		a reference to venus resources structure
- * @dev:		convinience struct device pointer
- * @dev_dec:	convinience struct device pointer for decoder device
- * @dev_enc:	convinience struct device pointer for encoder device
+ * @dev:		convenience struct device pointer
+ * @dev_dec:	convenience struct device pointer for decoder device
+ * @dev_enc:	convenience struct device pointer for encoder device
  * @lock:	a lock for this strucure
  * @instances:	a list_head of all instances
  * @insts_count:	num of instances
@@ -100,7 +101,6 @@ struct venus_core {
 	struct device *dev;
 	struct device *dev_dec;
 	struct device *dev_enc;
-	struct device dev_fw;
 	struct mutex lock;
 	struct list_head instances;
 	atomic_t insts_count;
@@ -187,9 +187,14 @@ struct venus_buffer {
  * @core:	a reference to the core struct
  * @internalbufs:	a list of internal bufferes
  * @registeredbufs:	a list of registered capture bufferes
+ * @delayed_process	a list of delayed buffers
+ * @delayed_process_work:	a work_struct for process delayed buffers
  * @ctrl_handler:	v4l control handler
  * @controls:	a union of decoder and encoder control parameters
  * @fh:	 a holder of v4l file handle structure
+ * @streamon_cap: stream on flag for capture queue
+ * @streamon_out: stream on flag for output queue
+ * @cmd_stop:	a flag to signal encoder/decoder commands
  * @width:	current capture width
  * @height:	current capture height
  * @out_width:	current output width
@@ -253,6 +258,7 @@ struct venus_inst {
 	} controls;
 	struct v4l2_fh fh;
 	unsigned int streamon_cap, streamon_out;
+	bool cmd_stop;
 	u32 width;
 	u32 height;
 	u32 out_width;

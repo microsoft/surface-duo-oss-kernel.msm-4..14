@@ -462,7 +462,7 @@ static u32 init_done_read_prop(struct venus_core *core, struct venus_inst *inst,
 			       struct hfi_msg_session_init_done_pkt *pkt)
 {
 	struct device *dev = core->dev;
-	u32 rem_bytes, num_props, codecs = 0, domain = 0;
+	u32 rem_bytes, num_props;
 	u32 ptype, next_offset = 0;
 	u32 err;
 	u8 *data;
@@ -490,8 +490,6 @@ static u32 init_done_read_prop(struct venus_core *core, struct venus_inst *inst,
 				(struct hfi_codec_mask_supported *)
 				(data + next_offset);
 
-			codecs = masks->codecs;
-			domain = masks->video_domains;
 			next_offset += sizeof(*masks);
 			num_props--;
 			break;
@@ -653,7 +651,7 @@ static u32 init_done_read_prop(struct venus_core *core, struct venus_inst *inst,
 			struct hfi_buffer_alloc_mode_supported *prop =
 				(struct hfi_buffer_alloc_mode_supported *)
 				(data + next_offset);
-			int i;
+			unsigned int i;
 
 			for (i = 0; i < prop->num_entries; i++) {
 				if (prop->buffer_type == HFI_BUFFER_OUTPUT ||
@@ -697,7 +695,7 @@ static void hfi_session_init_done(struct venus_core *core,
 	if (error != HFI_ERR_NONE)
 		goto done;
 
-	if (core->res->hfi_version != HFI_VERSION_LEGACY)
+	if (core->res->hfi_version != HFI_VERSION_1XX)
 		goto done;
 
 	error = init_done_read_prop(core, inst, pkt);
@@ -743,7 +741,7 @@ static void hfi_session_ftb_done(struct venus_core *core,
 	u32 timestamp_hi = 0, timestamp_lo = 0;
 	unsigned int error;
 	u32 flags = 0, hfi_flags = 0, offset = 0, filled_len = 0;
-	u32 pic_type = 0, packet_buffer, buffer_type = 0, output_tag = -1;
+	u32 pic_type = 0, buffer_type = 0, output_tag = -1;
 
 	if (session_type == VIDC_SESSION_TYPE_ENC) {
 		struct hfi_msg_session_fbd_compressed_pkt *pkt = packet;
@@ -754,7 +752,6 @@ static void hfi_session_ftb_done(struct venus_core *core,
 		offset = pkt->offset;
 		filled_len = pkt->filled_len;
 		pic_type = pkt->picture_type;
-		packet_buffer = pkt->packet_buffer;
 		output_tag = pkt->output_tag;
 		buffer_type = HFI_BUFFER_OUTPUT;
 
@@ -769,7 +766,6 @@ static void hfi_session_ftb_done(struct venus_core *core,
 		offset = pkt->offset;
 		filled_len = pkt->filled_len;
 		pic_type = pkt->picture_type;
-		packet_buffer = pkt->packet_buffer;
 		output_tag = pkt->output_tag;
 
 		if (pkt->stream_id == 0)
