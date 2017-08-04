@@ -566,6 +566,10 @@
 	};
 };
 
+&tmu {
+	status = "okay";
+};
+
 &stm0 {
 	status = "okay";
 };
