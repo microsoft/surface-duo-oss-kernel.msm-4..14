@@ -95,11 +95,17 @@ Qualcomm Camera Subsystem
 		- clock-lanes:
 			Usage: required
 			Value type: <u32>
-			Definition: The clock lane.
+                        Definition: The physical clock lane index. The value
+                                    must always be <1> as the physical clock
+                                    lane is lane 1.
 		- data-lanes:
 			Usage: required
 			Value type: <prop-encoded-array>
-			Definition: An array of data lanes.
+                        Definition: An array of physical data lanes indexes.
+                                    Position of an entry determines the logical
+                                    lane number, while the value of an entry
+                                    indicates physical lane index. Lane swapping
+                                    is supported.
 
 * An Example
 
