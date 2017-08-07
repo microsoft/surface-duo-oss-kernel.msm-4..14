@@ -1865,16 +1865,16 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 			u64 min_rate = 0;
 			long rate;
 
-			for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
+			for (j = VFE_LINE_RDI0; j <= VFE_LINE_PIX; j++) {
 				u32 tmp;
 				u8 bpp;
 
-				if (i == VFE_LINE_PIX) {
-					tmp = pixel_clock[i];
+				if (j == VFE_LINE_PIX) {
+					tmp = pixel_clock[j];
 				} else {
-					bpp = vfe_get_bpp(vfe->line[i].
+					bpp = vfe_get_bpp(vfe->line[j].
 						fmt[MSM_VFE_PAD_SINK].code);
-					tmp = pixel_clock[i] * bpp / 64;
+					tmp = pixel_clock[j] * bpp / 64;
 				}
 
 				if (min_rate < tmp)
@@ -1926,7 +1926,7 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 static int vfe_check_clock_rates(struct vfe_device *vfe)
 {
 	u32 pixel_clock[MSM_VFE_LINE_NUM];
-	int i;
+	int i, j;
 	int ret;
 
 	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
@@ -1943,16 +1943,16 @@ static int vfe_check_clock_rates(struct vfe_device *vfe)
 			u64 min_rate = 0;
 			unsigned long rate;
 
-			for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
+			for (j = VFE_LINE_RDI0; j <= VFE_LINE_PIX; j++) {
 				u32 tmp;
 				u8 bpp;
 
-				if (i == VFE_LINE_PIX) {
-					tmp = pixel_clock[i];
+				if (j == VFE_LINE_PIX) {
+					tmp = pixel_clock[j];
 				} else {
-					bpp = vfe_get_bpp(vfe->line[i].
+					bpp = vfe_get_bpp(vfe->line[j].
 						fmt[MSM_VFE_PAD_SINK].code);
-					tmp = pixel_clock[i] * bpp / 64;
+					tmp = pixel_clock[j] * bpp / 64;
 				}
 
 				if (min_rate < tmp)
