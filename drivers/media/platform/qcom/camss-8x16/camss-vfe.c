@@ -2756,29 +2756,8 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, const struct resources *res)
 	struct platform_device *pdev = to_platform_device(dev);
 	struct resource *r;
 	struct camss *camss = to_camss(vfe);
-
 	int i, j;
 	int ret;
-
-	mutex_init(&vfe->power_lock);
-	vfe->power_count = 0;
-
-	mutex_init(&vfe->stream_lock);
-	vfe->stream_count = 0;
-
-	spin_lock_init(&vfe->output_lock);
-
-	vfe->id = 0;
-	vfe->reg_update = 0;
-
-	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
-		vfe->line[i].video_out.type =
-					V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
-		vfe->line[i].video_out.camss = camss;
-		vfe->line[i].id = i;
-		init_completion(&vfe->line[i].output.sof);
-		init_completion(&vfe->line[i].output.reg_update);
-	}
 
 	/* Memory */
 
@@ -2844,6 +2823,26 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, const struct resources *res)
 
 		for (j = 0; j < clock->nfreqs; j++)
 			clock->freq[j] = res->clock_rate[i][j];
+	}
+
+	mutex_init(&vfe->power_lock);
+	vfe->power_count = 0;
+
+	mutex_init(&vfe->stream_lock);
+	vfe->stream_count = 0;
+
+	spin_lock_init(&vfe->output_lock);
+
+	vfe->id = 0;
+	vfe->reg_update = 0;
+
+	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
+		vfe->line[i].video_out.type =
+					V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+		vfe->line[i].video_out.camss = camss;
+		vfe->line[i].id = i;
+		init_completion(&vfe->line[i].output.sof);
+		init_completion(&vfe->line[i].output.reg_update);
 	}
 
 	init_completion(&vfe->reset_complete);

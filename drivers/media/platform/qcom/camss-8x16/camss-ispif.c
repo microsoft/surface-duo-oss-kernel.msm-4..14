@@ -907,14 +907,6 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 	int i;
 	int ret;
 
-	for (i = 0; i < ARRAY_SIZE(ispif->line); i++)
-		ispif->line[i].id = i;
-
-	mutex_init(&ispif->power_lock);
-	ispif->power_count = 0;
-
-	mutex_init(&ispif->config_lock);
-
 	/* Memory */
 
 	r = platform_get_resource_byname(pdev, IORESOURCE_MEM, res->reg[0]);
@@ -991,6 +983,14 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 		clock->freq = NULL;
 		clock->nfreqs = 0;
 	}
+
+	for (i = 0; i < ARRAY_SIZE(ispif->line); i++)
+		ispif->line[i].id = i;
+
+	mutex_init(&ispif->power_lock);
+	ispif->power_count = 0;
+
+	mutex_init(&ispif->config_lock);
 
 	init_completion(&ispif->reset_complete);
 
@@ -1162,6 +1162,9 @@ error:
 void msm_ispif_unregister_entities(struct ispif_device *ispif)
 {
 	int i;
+
+	mutex_destroy(&ispif->power_lock);
+	mutex_destroy(&ispif->config_lock);
 
 	for (i = 0; i < ARRAY_SIZE(ispif->line); i++) {
 		struct v4l2_subdev *sd = &ispif->line[i].subdev;
