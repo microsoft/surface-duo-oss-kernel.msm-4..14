@@ -2366,11 +2366,6 @@ static void vfe_try_compose(struct vfe_line *line,
 {
 	struct v4l2_mbus_framefmt *fmt;
 
-	rect->width = rect->width - rect->left;
-	rect->left = 0;
-	rect->height = rect->height - rect->top;
-	rect->top = 0;
-
 	fmt = __vfe_get_format(line, cfg, MSM_VFE_PAD_SINK, which);
 
 	if (rect->width > fmt->width)
