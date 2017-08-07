@@ -9311,6 +9311,7 @@ EXPORT_SYMBOL vmlinux 0x00000000	register_sysctl_table
 EXPORT_SYMBOL vmlinux 0x00000000	register_sysrq_key
 EXPORT_SYMBOL vmlinux 0x00000000	register_tcf_proto_ops
 EXPORT_SYMBOL vmlinux 0x00000000	registered_fb
+EXPORT_SYMBOL vmlinux 0x00000000	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x00000000	release_firmware
 EXPORT_SYMBOL vmlinux 0x00000000	release_pages
 EXPORT_SYMBOL vmlinux 0x00000000	release_resource
@@ -9947,6 +9948,7 @@ EXPORT_SYMBOL vmlinux 0x00000000	t10_pi_type1_ip
 EXPORT_SYMBOL vmlinux 0x00000000	t10_pi_type3_crc
 EXPORT_SYMBOL vmlinux 0x00000000	t10_pi_type3_ip
 EXPORT_SYMBOL vmlinux 0x00000000	tag_pages_for_writeback
+EXPORT_SYMBOL vmlinux 0x00000000	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x00000000	task_tgid_nr_ns
 EXPORT_SYMBOL vmlinux 0x00000000	tasklet_init
 EXPORT_SYMBOL vmlinux 0x00000000	tasklet_kill
