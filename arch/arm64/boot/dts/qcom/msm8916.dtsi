@@ -1404,6 +1404,10 @@
 					#clock-cells = <1>;
 				};
 
+				interconnect-smd-rpm {
+					compatible = "qcom,interconnect-smd-rpm";
+				};
+
 				smd_rpm_regulators: pm8916-regulators {
 					compatible = "qcom,rpm-pm8916-regulators";
 
