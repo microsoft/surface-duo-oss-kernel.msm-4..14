@@ -4727,6 +4727,7 @@ EXPORT_SYMBOL vmlinux 0x074e9213	down_killable
 EXPORT_SYMBOL vmlinux 0x07596b87	of_find_property
 EXPORT_SYMBOL vmlinux 0x079a164a	dev_uc_del
 EXPORT_SYMBOL vmlinux 0x07a890c8	fb_alloc_cmap
+EXPORT_SYMBOL vmlinux 0x07a9ef84	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x07ae888e	of_translate_address
 EXPORT_SYMBOL vmlinux 0x07cc4a5d	printk_timed_ratelimit
 EXPORT_SYMBOL vmlinux 0x07ec80a9	security_inode_getsecctx
@@ -5707,6 +5708,7 @@ EXPORT_SYMBOL vmlinux 0x3eb68a44	dmam_alloc_coherent
 EXPORT_SYMBOL vmlinux 0x3f016089	skb_get_hash_perturb
 EXPORT_SYMBOL vmlinux 0x3f0546a8	ioread32_rep
 EXPORT_SYMBOL vmlinux 0x3f0c3924	ndisc_mc_map
+EXPORT_SYMBOL vmlinux 0x3f1a71a1	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x3f1c55cf	iov_iter_kvec
 EXPORT_SYMBOL vmlinux 0x3f406a3b	enable_kernel_altivec
 EXPORT_SYMBOL vmlinux 0x3f4547a7	put_unused_fd

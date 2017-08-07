@@ -5200,6 +5200,7 @@ EXPORT_SYMBOL vmlinux 0x0469437a	ip_mc_inc_group
 EXPORT_SYMBOL vmlinux 0x04806d8e	bio_clone_fast
 EXPORT_SYMBOL vmlinux 0x0487f831	fb_find_best_display
 EXPORT_SYMBOL vmlinux 0x049cad05	ip4_datagram_connect
+EXPORT_SYMBOL vmlinux 0x04afd4fb	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x04c3bb04	nvm_dev_dma_free
 EXPORT_SYMBOL vmlinux 0x04d098d0	read_cache_page
 EXPORT_SYMBOL vmlinux 0x04d36ce3	dump_truncate
@@ -5662,6 +5663,7 @@ EXPORT_SYMBOL vmlinux 0x1e095254	mpage_readpages
 EXPORT_SYMBOL vmlinux 0x1e0c2be4	ioremap_wc
 EXPORT_SYMBOL vmlinux 0x1e26be3b	get_anon_bdev
 EXPORT_SYMBOL vmlinux 0x1e2d4086	dmam_alloc_noncoherent
+EXPORT_SYMBOL vmlinux 0x1e44a22a	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x1e57fa0c	nf_log_register
 EXPORT_SYMBOL vmlinux 0x1e6d26a8	strstr
 EXPORT_SYMBOL vmlinux 0x1e75bc82	dev_uc_add_excl

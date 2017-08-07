@@ -4816,6 +4816,7 @@ EXPORT_SYMBOL vmlinux 0x07673c80	ps2_handle_response
 EXPORT_SYMBOL vmlinux 0x077bf724	neigh_table_clear
 EXPORT_SYMBOL vmlinux 0x07951280	bio_alloc_pages
 EXPORT_SYMBOL vmlinux 0x07a890c8	fb_alloc_cmap
+EXPORT_SYMBOL vmlinux 0x07a9ef84	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x07bd4cf9	request_key_async_with_auxdata
 EXPORT_SYMBOL vmlinux 0x07cc4a5d	printk_timed_ratelimit
 EXPORT_SYMBOL vmlinux 0x07ef213a	pasemi_dma_free_fun
@@ -7984,6 +7985,7 @@ EXPORT_SYMBOL vmlinux 0xb737be88	netif_device_detach
 EXPORT_SYMBOL vmlinux 0xb73b5275	pcie_get_minimum_link
 EXPORT_SYMBOL vmlinux 0xb7488905	scsi_normalize_sense
 EXPORT_SYMBOL vmlinux 0xb74e2c8b	kill_fasync
+EXPORT_SYMBOL vmlinux 0xb74f0e8f	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0xb755a5e0	sk_stream_wait_close
 EXPORT_SYMBOL vmlinux 0xb758d1d0	pci_find_next_bus
 EXPORT_SYMBOL vmlinux 0xb77131b1	psched_ratecfg_precompute

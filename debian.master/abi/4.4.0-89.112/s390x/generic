@@ -1363,6 +1363,7 @@ EXPORT_SYMBOL vmlinux 0x071889e0	locks_copy_conflock
 EXPORT_SYMBOL vmlinux 0x07297511	crc_t10dif_update
 EXPORT_SYMBOL vmlinux 0x07a12f7c	__napi_complete
 EXPORT_SYMBOL vmlinux 0x07a4b576	flex_array_free
+EXPORT_SYMBOL vmlinux 0x07a9ef84	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x07aa14ac	netif_rx
 EXPORT_SYMBOL vmlinux 0x07b68796	pci_dev_put
 EXPORT_SYMBOL vmlinux 0x07c2cc1d	iov_iter_get_pages_alloc
@@ -3613,6 +3614,7 @@ EXPORT_SYMBOL vmlinux 0xa373b476	get_cached_acl
 EXPORT_SYMBOL vmlinux 0xa376a20b	skb_copy
 EXPORT_SYMBOL vmlinux 0xa37e78b6	flex_array_get
 EXPORT_SYMBOL vmlinux 0xa38a971a	set_blocksize
+EXPORT_SYMBOL vmlinux 0xa39ca35e	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0xa3af6cd7	inode_claim_rsv_space
 EXPORT_SYMBOL vmlinux 0xa40b3c9b	tty_port_lower_dtr_rts
 EXPORT_SYMBOL vmlinux 0xa422acc4	__napi_schedule

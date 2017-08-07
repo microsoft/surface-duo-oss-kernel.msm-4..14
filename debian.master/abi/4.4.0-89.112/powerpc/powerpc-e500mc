@@ -4719,6 +4719,7 @@ EXPORT_SYMBOL vmlinux 0x04482cdb	__refrigerator
 EXPORT_SYMBOL vmlinux 0x046d24e0	sock_no_mmap
 EXPORT_SYMBOL vmlinux 0x047f4d8e	write_one_page
 EXPORT_SYMBOL vmlinux 0x0487f831	fb_find_best_display
+EXPORT_SYMBOL vmlinux 0x04afd4fb	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x04d96e9c	netif_tx_stop_all_queues
 EXPORT_SYMBOL vmlinux 0x04ea56f9	_kstrtol
 EXPORT_SYMBOL vmlinux 0x04f1041d	lockref_get
@@ -7063,6 +7064,7 @@ EXPORT_SYMBOL vmlinux 0x87579de4	tty_lock
 EXPORT_SYMBOL vmlinux 0x875afacc	genphy_restart_aneg
 EXPORT_SYMBOL vmlinux 0x878ab3ce	sysctl_tcp_adv_win_scale
 EXPORT_SYMBOL vmlinux 0x87cca441	pci_bus_get
+EXPORT_SYMBOL vmlinux 0x87f9031a	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x88007aba	blk_queue_free_tags
 EXPORT_SYMBOL vmlinux 0x8808cca6	PDE_DATA
 EXPORT_SYMBOL vmlinux 0x880a616e	netif_receive_skb

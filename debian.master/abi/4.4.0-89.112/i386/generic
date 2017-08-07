@@ -5208,6 +5208,7 @@ EXPORT_SYMBOL vmlinux 0x0497cbd1	inet_proto_csum_replace16
 EXPORT_SYMBOL vmlinux 0x049bd2bb	generic_cont_expand_simple
 EXPORT_SYMBOL vmlinux 0x049c404d	sock_wake_async
 EXPORT_SYMBOL vmlinux 0x04a0f0e5	__dev_getfirstbyhwtype
+EXPORT_SYMBOL vmlinux 0x04afd4fb	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x04c9b95d	skb_queue_head
 EXPORT_SYMBOL vmlinux 0x04d8c750	release_perfctr_nmi
 EXPORT_SYMBOL vmlinux 0x04d8e721	component_match_add
@@ -6204,6 +6205,7 @@ EXPORT_SYMBOL vmlinux 0x3cb3931b	sg_copy_to_buffer
 EXPORT_SYMBOL vmlinux 0x3cdb3a36	mfd_cell_enable
 EXPORT_SYMBOL vmlinux 0x3ce4ca6f	disable_irq
 EXPORT_SYMBOL vmlinux 0x3ce60f15	serial8250_register_8250_port
+EXPORT_SYMBOL vmlinux 0x3cffa29a	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x3d1391e2	_raw_read_unlock_irqrestore
 EXPORT_SYMBOL vmlinux 0x3d1e7350	mipi_dsi_generic_write
 EXPORT_SYMBOL vmlinux 0x3d1fc0e6	__scsi_iterate_devices

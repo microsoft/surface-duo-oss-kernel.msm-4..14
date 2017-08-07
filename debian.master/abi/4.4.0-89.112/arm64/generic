@@ -4717,6 +4717,7 @@ EXPORT_SYMBOL vmlinux 0x076f98ca	lease_modify
 EXPORT_SYMBOL vmlinux 0x0792a714	kernel_recvmsg
 EXPORT_SYMBOL vmlinux 0x07a4b576	flex_array_free
 EXPORT_SYMBOL vmlinux 0x07a890c8	fb_alloc_cmap
+EXPORT_SYMBOL vmlinux 0x07a9ef84	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x07ba00fd	iov_iter_zero
 EXPORT_SYMBOL vmlinux 0x07bda92c	sb_set_blocksize
 EXPORT_SYMBOL vmlinux 0x07cc4a5d	printk_timed_ratelimit
@@ -6901,6 +6902,7 @@ EXPORT_SYMBOL vmlinux 0x828b0cd9	twl6040_set_pll
 EXPORT_SYMBOL vmlinux 0x828d73df	devm_clk_get
 EXPORT_SYMBOL vmlinux 0x82acfb70	blk_iopoll_sched
 EXPORT_SYMBOL vmlinux 0x82d9a140	blk_alloc_queue_node
+EXPORT_SYMBOL vmlinux 0x82da96b5	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x82e6200f	__generic_file_fsync
 EXPORT_SYMBOL vmlinux 0x82edddcb	__wait_on_bit_lock
 EXPORT_SYMBOL vmlinux 0x83046e8e	i2c_register_driver

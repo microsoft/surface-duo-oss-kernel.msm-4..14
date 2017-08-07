@@ -4789,6 +4789,7 @@ EXPORT_SYMBOL vmlinux 0x074e9213	down_killable
 EXPORT_SYMBOL vmlinux 0x0768a2ed	textsearch_find_continuous
 EXPORT_SYMBOL vmlinux 0x0790240d	jbd2_journal_extend
 EXPORT_SYMBOL vmlinux 0x07a890c8	fb_alloc_cmap
+EXPORT_SYMBOL vmlinux 0x07a9ef84	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x07b9909d	devfreq_monitor_resume
 EXPORT_SYMBOL vmlinux 0x07cc4a5d	printk_timed_ratelimit
 EXPORT_SYMBOL vmlinux 0x07e6da9f	dmaengine_get_unmap_data
@@ -8640,6 +8641,7 @@ EXPORT_SYMBOL vmlinux 0xeac8ee31	phy_start_interrupts
 EXPORT_SYMBOL vmlinux 0xeacc46ac	ps2_end_command
 EXPORT_SYMBOL vmlinux 0xeaf7b7d9	padata_do_serial
 EXPORT_SYMBOL vmlinux 0xeb2f84a9	devfreq_monitor_start
+EXPORT_SYMBOL vmlinux 0xeb34e6ac	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0xeb37101c	audit_log_end
 EXPORT_SYMBOL vmlinux 0xeb40c1bd	blk_queue_max_segment_size
 EXPORT_SYMBOL vmlinux 0xeb4384cd	swiotlb_dma_supported

@@ -5165,6 +5165,7 @@ EXPORT_SYMBOL vmlinux 0x078eb9f7	bio_chain
 EXPORT_SYMBOL vmlinux 0x07933d48	vme_unregister_driver
 EXPORT_SYMBOL vmlinux 0x07a4b576	flex_array_free
 EXPORT_SYMBOL vmlinux 0x07a890c8	fb_alloc_cmap
+EXPORT_SYMBOL vmlinux 0x07a9ef84	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x07cc4a5d	printk_timed_ratelimit
 EXPORT_SYMBOL vmlinux 0x07cec41f	dma_find_channel
 EXPORT_SYMBOL vmlinux 0x080937ff	nvm_set_rqd_ppalist
@@ -6076,6 +6077,7 @@ EXPORT_SYMBOL vmlinux 0x38f359dc	scsi_device_lookup_by_target
 EXPORT_SYMBOL vmlinux 0x3907bfd2	dump_align
 EXPORT_SYMBOL vmlinux 0x39081193	__max_logical_packages
 EXPORT_SYMBOL vmlinux 0x390b5752	kset_unregister
+EXPORT_SYMBOL vmlinux 0x39327236	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x39330373	dev_get_iflink
 EXPORT_SYMBOL vmlinux 0x3939f8f0	rfkill_pause_polling
 EXPORT_SYMBOL vmlinux 0x393d4de9	crc32_le

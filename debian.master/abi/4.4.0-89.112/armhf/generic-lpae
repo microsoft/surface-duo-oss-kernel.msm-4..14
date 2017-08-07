@@ -4521,6 +4521,7 @@ EXPORT_SYMBOL vmlinux 0x0472be67	tty_insert_flip_string_flags
 EXPORT_SYMBOL vmlinux 0x047bd75f	free_page_put_link
 EXPORT_SYMBOL vmlinux 0x0487f831	fb_find_best_display
 EXPORT_SYMBOL vmlinux 0x04ab9a1e	would_dump
+EXPORT_SYMBOL vmlinux 0x04afd4fb	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x04cb4b69	devfreq_remove_device
 EXPORT_SYMBOL vmlinux 0x04cda566	snd_interval_refine
 EXPORT_SYMBOL vmlinux 0x04d485d8	mb_cache_entry_release
@@ -8852,6 +8853,7 @@ EXPORT_SYMBOL vmlinux 0xf4bdbeb9	__frontswap_invalidate_area
 EXPORT_SYMBOL vmlinux 0xf4ce3eb5	__vfs_read
 EXPORT_SYMBOL vmlinux 0xf4d2285e	mmc_free_host
 EXPORT_SYMBOL vmlinux 0xf4da2e26	pci_scan_slot
+EXPORT_SYMBOL vmlinux 0xf4e737b4	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0xf4f14de6	rtnl_trylock
 EXPORT_SYMBOL vmlinux 0xf5066a29	tcp_enter_memory_pressure
 EXPORT_SYMBOL vmlinux 0xf51f6569	tty_unregister_device

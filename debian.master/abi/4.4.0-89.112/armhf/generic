@@ -4544,6 +4544,7 @@ EXPORT_SYMBOL vmlinux 0x04817921	nf_log_trace
 EXPORT_SYMBOL vmlinux 0x0487f831	fb_find_best_display
 EXPORT_SYMBOL vmlinux 0x048a5fa2	simple_map_init
 EXPORT_SYMBOL vmlinux 0x04941ecc	tcp_md5_do_add
+EXPORT_SYMBOL vmlinux 0x04afd4fb	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x04cda566	snd_interval_refine
 EXPORT_SYMBOL vmlinux 0x04dc8d74	md_wakeup_thread
 EXPORT_SYMBOL vmlinux 0x04ea56f9	_kstrtol
@@ -6594,6 +6595,7 @@ EXPORT_SYMBOL vmlinux 0x750af912	tcp_v4_destroy_sock
 EXPORT_SYMBOL vmlinux 0x752838d8	icmpv6_send
 EXPORT_SYMBOL vmlinux 0x7530fcef	tcp_close
 EXPORT_SYMBOL vmlinux 0x753c5b7e	vfs_mkdir
+EXPORT_SYMBOL vmlinux 0x755546a2	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x7561a5af	load_nls_default
 EXPORT_SYMBOL vmlinux 0x75638434	migrate_page_move_mapping
 EXPORT_SYMBOL vmlinux 0x7567d381	__get_fiq_regs

@@ -5144,6 +5144,7 @@ EXPORT_SYMBOL vmlinux 0x0764e8e2	lwtunnel_fill_encap
 EXPORT_SYMBOL vmlinux 0x078822e4	gen_pool_create
 EXPORT_SYMBOL vmlinux 0x07a4b576	flex_array_free
 EXPORT_SYMBOL vmlinux 0x07a890c8	fb_alloc_cmap
+EXPORT_SYMBOL vmlinux 0x07a9ef84	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x07ba5f85	input_set_keycode
 EXPORT_SYMBOL vmlinux 0x07bc2a67	d_alloc_name
 EXPORT_SYMBOL vmlinux 0x07c2f6a9	__scsi_add_device
@@ -7242,6 +7243,7 @@ EXPORT_SYMBOL vmlinux 0x7862ff6a	skb_checksum_help
 EXPORT_SYMBOL vmlinux 0x78764f4e	pv_irq_ops
 EXPORT_SYMBOL vmlinux 0x7880c781	dm_kcopyd_prepare_callback
 EXPORT_SYMBOL vmlinux 0x788f19d1	unmap_underlying_metadata
+EXPORT_SYMBOL vmlinux 0x78962e67	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x789affb1	frontswap_tmem_exclusive_gets
 EXPORT_SYMBOL vmlinux 0x789fa266	netif_stacked_transfer_operstate
 EXPORT_SYMBOL vmlinux 0x78a5ff8a	fence_add_callback

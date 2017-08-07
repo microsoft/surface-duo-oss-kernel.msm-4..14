@@ -4720,6 +4720,7 @@ EXPORT_SYMBOL vmlinux 0x046fa788	down_read
 EXPORT_SYMBOL vmlinux 0x0476b525	dquot_quotactl_sysfile_ops
 EXPORT_SYMBOL vmlinux 0x0487f831	fb_find_best_display
 EXPORT_SYMBOL vmlinux 0x04af4e01	__xfrm_state_delete
+EXPORT_SYMBOL vmlinux 0x04afd4fb	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x04b3788a	pcie_capability_read_dword
 EXPORT_SYMBOL vmlinux 0x04bfe31d	abx500_register_ops
 EXPORT_SYMBOL vmlinux 0x04ea56f9	_kstrtol
@@ -7510,6 +7511,7 @@ EXPORT_SYMBOL vmlinux 0xa867c605	__inode_add_bytes
 EXPORT_SYMBOL vmlinux 0xa868fbc3	pci_get_subsys
 EXPORT_SYMBOL vmlinux 0xa86d9ead	seq_escape
 EXPORT_SYMBOL vmlinux 0xa8721b97	system_state
+EXPORT_SYMBOL vmlinux 0xa8760c9f	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0xa87d1132	nf_unregister_hook
 EXPORT_SYMBOL vmlinux 0xa8804438	vfs_path_lookup
 EXPORT_SYMBOL vmlinux 0xa89464b7	__ashldi3
