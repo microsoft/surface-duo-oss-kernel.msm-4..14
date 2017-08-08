@@ -3582,6 +3582,7 @@ EXPORT_SYMBOL vmlinux 0x079f80f6	i2c_clients_command
 EXPORT_SYMBOL vmlinux 0x07a333d8	drm_mode_vrefresh
 EXPORT_SYMBOL vmlinux 0x07a4b576	flex_array_free
 EXPORT_SYMBOL vmlinux 0x07a890c8	fb_alloc_cmap
+EXPORT_SYMBOL vmlinux 0x07a9ef84	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x07bb71e7	ieee80211_tx_status_irqsafe
 EXPORT_SYMBOL vmlinux 0x07c25eeb	down_killable
 EXPORT_SYMBOL vmlinux 0x07cc4a5d	printk_timed_ratelimit
@@ -8162,6 +8163,7 @@ EXPORT_SYMBOL vmlinux 0xd8f25e75	msm_get_iommu_access_ops
 EXPORT_SYMBOL vmlinux 0xd8f2a78e	param_set_charp
 EXPORT_SYMBOL vmlinux 0xd8fd9fe0	ieee80211_rate_control_unregister
 EXPORT_SYMBOL vmlinux 0xd8fe4b32	__drm_atomic_helper_connector_reset
+EXPORT_SYMBOL vmlinux 0xd900ce4b	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0xd900e5f4	blk_rq_map_integrity_sg
 EXPORT_SYMBOL vmlinux 0xd907c6b3	account_page_redirty
 EXPORT_SYMBOL vmlinux 0xd9091363	acpi_install_notify_handler
