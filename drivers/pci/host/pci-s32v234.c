@@ -192,7 +192,7 @@ static int s32v234_pcie_get_soc_revision(void)
 {
 	struct device_node *node = NULL;
 	int rev = -1;
-	__be32 *siul2_base = NULL;
+	const __be32 *siul2_base = NULL;
 	u64 siul2_base_address = OF_BAD_ADDR;
 
 	pr_soc_debug("Searching SIUL2 MIDR registers in device-tree\n");
@@ -214,7 +214,7 @@ static int s32v234_pcie_get_soc_revision(void)
 		char *siul2_virt_addr = ioremap_nocache(siul2_base_address,
 							SZ_1K);
 
-		pr_soc_debug("Resolved SIUL2 base address to 0x%x\n",
+		pr_soc_debug("Resolved SIUL2 base address to 0x%llx\n",
 				siul2_base_address);
 
 		if (siul2_virt_addr) {
