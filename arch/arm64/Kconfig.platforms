@@ -56,6 +56,8 @@ config GALCORE_ANON_INODES
 menu "S32 SOC selection"
 	config SOC_S32V234
 		bool "S32V234 SOC"
+	config SOC_S32V244
+		bool "S32V244 SOC"
 endmenu
 
 menu "STM timer used as system timer"
@@ -109,6 +111,16 @@ menu "S32V234 execution target"
 		bool "S32V234 tmdp"
 		help
 		  S32V234 tmdp is a variation of S32V234 evb.
+endmenu
+endif
+
+if SOC_S32V244
+menu "S32V244 execution target"
+	config S32V244_SIMULATOR
+		bool "S32V244 Synopsis Simulator"
+		help
+		  S32V244 Software Simulator from Synopsis is a presilicon
+		  development solution.
 endmenu
 endif
 
