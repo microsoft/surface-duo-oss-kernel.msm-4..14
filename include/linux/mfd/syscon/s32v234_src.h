@@ -4,6 +4,9 @@
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
+ *
+ * Copyright 2017 NXP
+ *
  */
 
 #ifndef __LINUX_S32V234SRC_GPR_H
@@ -12,11 +15,14 @@
 #include <linux/bitops.h>
 
 #define SRC_GPR3 0x108
+#define SRC_GPR4 0x10C
 #define SRC_GPR5 0x110
 #define SRC_GPR10 0x124
 #define SRC_GPR11 0x128
 #define SRC_PCIE_CONFIG1 0x180
 #define SRC_PCIE_CONFIG0 0x188
+
+#define SRC_GPR4_TSENS_ENABLE_MASK				(0x1)
 
 #define SRC_GPR5_PCIE_DEVICE_TYPE_EP				(0x0 << 1)
 #define SRC_GPR5_PCIE_DEVICE_TYPE_RC				(0x4 << 1)
