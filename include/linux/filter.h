@@ -535,6 +535,14 @@ static inline bool bpf_jit_blinding_enabled(void)
 
 	return true;
 }
+static inline bool bpf_jit_fence_present(void)
+{
+	/* Check if lfence is present on CPU
+	 */
+	if (boot_cpu_has(X86_FEATURE_LFENCE_RDTSC))
+		return true;
+	return false;
+}
 #else
 static inline void bpf_jit_compile(struct bpf_prog *fp)
 {
