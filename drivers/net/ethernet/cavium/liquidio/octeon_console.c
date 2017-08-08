@@ -37,13 +37,6 @@ static u64 cvmx_bootmem_phy_named_block_find(struct octeon_device *oct,
 					     u32 flags);
 static int octeon_console_read(struct octeon_device *oct, u32 console_num,
 			       char *buffer, u32 buf_size);
-static u32 console_bitmask;
-module_param(console_bitmask, int, 0644);
-MODULE_PARM_DESC(console_bitmask,
-		 "Bitmask indicating which consoles have debug output redirected to syslog.");
-
-#define MIN(a, b) min((a), (b))
-#define CAST_ULL(v) ((u64)(v))
 
 #define BOOTLOADER_PCI_READ_BUFFER_DATA_ADDR    0x0006c008
 #define BOOTLOADER_PCI_READ_BUFFER_LEN_ADDR     0x0006c004
@@ -139,16 +132,6 @@ struct octeon_pci_console_desc {
 };
 
 /**
- * \brief determines if a given console has debug enabled.
- * @param console console to check
- * @returns  1 = enabled. 0 otherwise
- */
-static int octeon_console_debug_enabled(u32 console)
-{
-	return (console_bitmask >> (console)) & 0x1;
-}
-
-/**
  * This function is the implementation of the get macros defined
  * for individual structure members. The argument are generated
  * by the macros inorder to read only the needed memory.
@@ -234,7 +217,7 @@ static int __cvmx_bootmem_check_version(struct octeon_device *oct,
 	    (exact_match && major_version != exact_match)) {
 		dev_err(&oct->pci_dev->dev, "bootmem ver mismatch %d.%d addr:0x%llx\n",
 			major_version, minor_version,
-			CAST_ULL(oct->bootmem_desc_addr));
+			(long long)oct->bootmem_desc_addr);
 		return -1;
 	} else {
 		return 0;
@@ -704,7 +687,7 @@ static int octeon_console_read(struct octeon_device *oct, u32 console_num,
 	if (bytes_to_read <= 0)
 		return bytes_to_read;
 
-	bytes_to_read = MIN(bytes_to_read, (s32)buf_size);
+	bytes_to_read = min_t(s32, bytes_to_read, buf_size);
 
 	/* Check to see if what we want to read is not contiguous, and limit
 	 * ourselves to the contiguous block

@@ -126,8 +126,8 @@ typedef union {
 	__u8 u8;
 	int error;
 	__be16 err;
-	sctp_state_t state;
-	sctp_event_timeout_t to;
+	enum sctp_state state;
+	enum sctp_event_timeout to;
 	struct sctp_chunk *chunk;
 	struct sctp_association *asoc;
 	struct sctp_transport *transport;
@@ -135,7 +135,7 @@ typedef union {
 	struct sctp_init_chunk *init;
 	struct sctp_ulpevent *ulpevent;
 	struct sctp_packet *packet;
-	sctp_sackhdr_t *sackh;
+	struct sctp_sackhdr *sackh;
 	struct sctp_datamsg *msg;
 } sctp_arg_t;
 
@@ -167,8 +167,8 @@ SCTP_ARG_CONSTRUCTOR(U16,	__u16, u16)
 SCTP_ARG_CONSTRUCTOR(U8,	__u8, u8)
 SCTP_ARG_CONSTRUCTOR(ERROR,     int, error)
 SCTP_ARG_CONSTRUCTOR(PERR,      __be16, err)	/* protocol error */
-SCTP_ARG_CONSTRUCTOR(STATE,	sctp_state_t, state)
-SCTP_ARG_CONSTRUCTOR(TO,	sctp_event_timeout_t, to)
+SCTP_ARG_CONSTRUCTOR(STATE,	enum sctp_state, state)
+SCTP_ARG_CONSTRUCTOR(TO,	enum sctp_event_timeout, to)
 SCTP_ARG_CONSTRUCTOR(CHUNK,	struct sctp_chunk *, chunk)
 SCTP_ARG_CONSTRUCTOR(ASOC,	struct sctp_association *, asoc)
 SCTP_ARG_CONSTRUCTOR(TRANSPORT,	struct sctp_transport *, transport)
@@ -176,7 +176,7 @@ SCTP_ARG_CONSTRUCTOR(BA,	struct sctp_bind_addr *, bp)
 SCTP_ARG_CONSTRUCTOR(PEER_INIT,	struct sctp_init_chunk *, init)
 SCTP_ARG_CONSTRUCTOR(ULPEVENT,  struct sctp_ulpevent *, ulpevent)
 SCTP_ARG_CONSTRUCTOR(PACKET,	struct sctp_packet *, packet)
-SCTP_ARG_CONSTRUCTOR(SACKH,	sctp_sackhdr_t *, sackh)
+SCTP_ARG_CONSTRUCTOR(SACKH,	struct sctp_sackhdr *, sackh)
 SCTP_ARG_CONSTRUCTOR(DATAMSG,	struct sctp_datamsg *, msg)
 
 static inline sctp_arg_t SCTP_FORCE(void)

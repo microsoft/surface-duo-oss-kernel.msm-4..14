@@ -22,6 +22,8 @@
 #ifndef _OCTEON_DEVICE_H_
 #define  _OCTEON_DEVICE_H_
 
+#include <linux/interrupt.h>
+
 /** PCI VendorId Device Id */
 #define  OCTEON_CN68XX_PCIID          0x91177d
 #define  OCTEON_CN66XX_PCIID          0x92177d
@@ -736,6 +738,8 @@ int octeon_wait_for_bootloader(struct octeon_device *oct,
  * @return Zero on success, negative on failure.
  */
 int octeon_init_consoles(struct octeon_device *oct);
+
+int octeon_console_debug_enabled(u32 console);
 
 /**
  * Adds access to a console to the device.
