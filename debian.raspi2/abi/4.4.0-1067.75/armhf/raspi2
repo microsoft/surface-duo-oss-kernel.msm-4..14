@@ -3558,6 +3558,7 @@ EXPORT_SYMBOL vmlinux 0x045539fe	inet_add_protocol
 EXPORT_SYMBOL vmlinux 0x0487f831	fb_find_best_display
 EXPORT_SYMBOL vmlinux 0x04a4d2a1	devm_gpio_request_one
 EXPORT_SYMBOL vmlinux 0x04a7fe04	vfs_getxattr_alloc
+EXPORT_SYMBOL vmlinux 0x04afd4fb	release_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x04b68ed2	seq_write
 EXPORT_SYMBOL vmlinux 0x04bf751f	unload_nls
 EXPORT_SYMBOL vmlinux 0x04cabed9	rfkill_register
@@ -3782,6 +3783,7 @@ EXPORT_SYMBOL vmlinux 0x1228e788	of_mdio_parse_addr
 EXPORT_SYMBOL vmlinux 0x1234911f	tcp_connect
 EXPORT_SYMBOL vmlinux 0x12480719	scsi_host_put
 EXPORT_SYMBOL vmlinux 0x124c038c	nf_register_sockopt
+EXPORT_SYMBOL vmlinux 0x1255a6fc	take_dentry_name_snapshot
 EXPORT_SYMBOL vmlinux 0x1266b39e	phy_print_status
 EXPORT_SYMBOL vmlinux 0x12a38747	usleep_range
 EXPORT_SYMBOL vmlinux 0x12aa8ca7	kernel_connect
