@@ -90,24 +90,6 @@ struct fb_video_format {
 struct fb_video_format video_format;
 
 /**********************************************************
- * FUNCTION: fsl_fb_video_format_match
- **********************************************************/
-int fsl_fb_video_format_match(struct fb_videomode *fb_mode,
-	struct fb_video_format *fb_format)
-{
-	/* Check for corresponding HDMI / LVDS format */
-	if ((fb_format->use_hdmi && !strstr(fb_mode->name, "HDMI"))
-		|| (!fb_format->use_hdmi && !strstr(fb_mode->name, "LVDS")))
-		return 0;
-
-	if ((fb_mode->xres != fb_format->res_x) ||
-		(fb_mode->yres != fb_format->res_y))
-		return 0;
-
-	return 1;
-}
-
-/**********************************************************
  * FUNCTION: fsl_fb_init_color_format
  **********************************************************/
 void fsl_fb_init_color_format(struct fb_var_screeninfo *var,
@@ -620,9 +602,8 @@ static int fsl_fb_install(struct fb_info *info,
 {
 	struct mfb_info *mfbi = info->par;
 	struct dcu_fb_data *dcufb = mfbi->parent;
-	struct fb_modelist *modelist = NULL;
-	struct list_head *pos;
-	int ret, found = 0;
+	const struct fb_videomode *fb_selected_mode = NULL;
+	int ret;
 
 	__TRACE__;
 
@@ -643,37 +624,53 @@ static int fsl_fb_install(struct fb_info *info,
 	if (ret)
 		goto fb_install_failed;
 
-	/* if default video format, select first entry */
-	if (NULL == fb_vformat) {
-		modelist = list_first_entry(&info->modelist,
-			struct fb_modelist, list);
-	} else {
-		list_for_each(pos, &info->modelist) {
-			modelist = list_entry(pos, struct fb_modelist, list);
+	/*
+	 *  if video format is given, select nearest one
+	 */
+	if (NULL != fb_vformat) {
+		struct fb_videomode fb_vmode = {0};
 
-			if (!fsl_fb_video_format_match(
-					&modelist->mode,
-					fb_vformat))
-				continue;
+		fb_vmode.xres = fb_vformat->res_x;
+		fb_vmode.yres = fb_vformat->res_y;
+		fb_vmode.refresh = fb_vformat->refresh_rate;
 
-			found = 1;
-			break;
-		}
+		fb_selected_mode = fb_find_nearest_mode(&fb_vmode,
+						     &info->modelist);
 
-		if (!found) {
+		if (!fb_selected_mode) {
 			dev_warn(dcufb->dev,
 				"Invalid display mode for <fb %d> (using defaults).\n",
 				mfbi->index);
-			modelist = list_first_entry(&info->modelist,
-				struct fb_modelist, list);
 		}
 	}
 
+	if (NULL == fb_selected_mode) {
+		/* Attempt default as FHD  */
+		struct fb_var_screeninfo fb_screen = info->var;
+
+		fb_screen.xres = 1920;
+		fb_screen.yres = 1080;
+		fb_selected_mode = fb_find_best_mode(&fb_screen,
+				&info->modelist);
+	}
+
+	if (NULL == fb_selected_mode) {
+		/*
+		 * Select first mode from device tree
+		 * if no FHD mode is defined */
+		fb_selected_mode = &list_first_entry(&info->modelist,
+			struct fb_modelist, list)->mode;
+	}
+
 	/* Set video mode and color format */
-	fb_videomode_to_var(&info->var, &modelist->mode);
+	fb_videomode_to_var(&info->var, fb_selected_mode);
 	fsl_fb_init_color_format(&info->var,
 			fb_vformat != NULL ? fb_vformat->surf_format_idx : 0);
 	fsl_fb_check_var(&info->var, info);
+
+	dev_info(fsl_dcu_get_dcufb()->dev,
+		"Selected video mode on </dev/fb%d> : <%d x %d>\n",
+		mfbi->index, info->var.xres, info->var.yres);
 
 	return 0;
 
@@ -727,7 +724,8 @@ int fsl_fb_parse_video_format(char *video_str,
 	struct fb_video_format *video_format)
 {
 	const char *split = ",;|";
-	char *video_copy, *token, *rest;
+	char *video_copy, *rest;
+	const char *token;
 	int len;
 
 	if (!video_str)
@@ -801,7 +799,7 @@ int fsl_fb_parse_video_format(char *video_str,
 	if (!token) {
 		dev_err(fsl_dcu_get_dcufb()->dev,
 			"Invalid empty format '%s'", "");
-		return -EINVAL;
+		token = DCU_FB_COLOR_FORMATS[0].format_name;
 	}
 
 	video_format->surf_format_idx = fsl_dcu_get_color_format_byname(token);
@@ -809,7 +807,9 @@ int fsl_fb_parse_video_format(char *video_str,
 	if (video_format->surf_format_idx < 0) {
 		dev_err(fsl_dcu_get_dcufb()->dev,
 			"Invalid format '%s'", token);
-		return -EINVAL;
+		token = DCU_FB_COLOR_FORMATS[0].format_name;
+		video_format->surf_format_idx =
+				fsl_dcu_get_color_format_byname(token);
 	}
 
 	dev_info(fsl_dcu_get_dcufb()->dev,
