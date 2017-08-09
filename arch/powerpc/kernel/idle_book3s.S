@@ -29,6 +29,7 @@
  * Use unused space in the interrupt stack to save and restore
  * registers for winkle support.
  */
+#define _MMCR0	GPR0
 #define _SDR1	GPR3
 #define _RPR	GPR4
 #define _SPURR	GPR5
@@ -282,6 +283,14 @@ power_enter_stop:
 	b 	pnv_wakeup_noloss
 
 .Lhandle_esl_ec_set:
+	/*
+	 * POWER9 DD2 can incorrectly set PMAO when waking up after a
+	 * state-loss idle. Saving and restoring MMCR0 over idle is a
+	 * workaround.
+	 */
+	mfspr	r4,SPRN_MMCR0
+	std	r4,_MMCR0(r1)
+
 /*
  * Check if the requested state is a deep idle state.
  */
@@ -434,10 +443,14 @@ FTR_SECTION_ELSE_NESTED(70)
 ALT_FTR_SECTION_END_NESTED_IFSET(CPU_FTR_POWER9_DD1, 70)
 	/*
 	 * Workaround for POWER9, if we lost resources, the ERAT
-	 * might have been mixed up and needs flushing.
+	 * might have been mixed up and needs flushing. We also need
+	 * to reload MMCR0 (see comment above).
 	 */
 	blt	cr3,1f
 	PPC_INVALIDATE_ERAT
+	ld	r1,PACAR1(r13)
+	ld	r4,_MMCR0(r1)
+	mtspr	SPRN_MMCR0,r4
 1:
 	/*
 	 * POWER ISA 3. Use PSSCR to determine if we
