@@ -420,9 +420,6 @@ firmware:       i915/bxt_dmc_ver1_07.bin
 firmware:       i915/kbl_dmc_ver1_01.bin
 firmware:       i915/skl_dmc_ver1_26.bin
 firmware:       i915/skl_guc_ver6_1.bin
-firmware:       icom_asc.bin
-firmware:       icom_call_setup.bin
-firmware:       icom_res_dce.bin
 firmware:       intel/ibt-11-5.ddc
 firmware:       intel/ibt-11-5.sfi
 firmware:       ipw2100-1.3-i.fw
@@ -654,7 +651,6 @@ firmware:       nvidia/tegra124/xusb.bin
 firmware:       nvidia/tegra210/xusb.bin
 firmware:       orinoco_ezusb_fw
 firmware:       ositech/Xilinx7OD.bin
-firmware:       pca200e.bin
 firmware:       pca200e_ecd.bin2
 firmware:       pcxhr/dspb1222e.b56
 firmware:       pcxhr/dspb1222hr.b56
