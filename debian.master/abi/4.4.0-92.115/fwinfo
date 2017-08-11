@@ -539,6 +539,7 @@ firmware:       niscrb01.bin
 firmware:       niscrb02.bin
 firmware:       orinoco_ezusb_fw
 firmware:       ositech/Xilinx7OD.bin
+firmware:       pca200e.bin
 firmware:       pca200e_ecd.bin2
 firmware:       pcxhr/dspb1222e.b56
 firmware:       pcxhr/dspb1222hr.b56
