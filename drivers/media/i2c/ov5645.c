@@ -595,9 +595,20 @@ static void ov5645_regulators_disable(struct ov5645 *ov5645)
 
 static int ov5645_write_reg_to(struct ov5645 *ov5645, u16 reg, u8 val, u16 i2c_addr)
 {
+	u8 regbuf[3] = {
+		reg >> 8,
+		reg & 0xff,
+		val
+	};
+	struct i2c_msg msgs = {
+		.addr = i2c_addr,
+		.flags = 0,
+		.len = 3,
+		.buf = regbuf
+	};
 	int ret;
 
-	ret = msm_cci_ctrl_write(i2c_addr, reg, &val, 1);
+	ret = i2c_transfer(ov5645->i2c_client->adapter, &msgs, 1);
 	if (ret < 0)
 		dev_err(ov5645->dev,
 			"%s: write reg error %d on addr 0x%x: reg=0x%x, val=0x%x\n",
