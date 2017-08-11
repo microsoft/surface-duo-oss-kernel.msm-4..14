@@ -45,15 +45,6 @@
 
 static DEFINE_MUTEX(ov5645_lock);
 
-/* HACKs here! */
-
-#include <../drivers/media/platform/qcom/cci/msm_cci.h>
-
-#ifdef dev_dbg
-	#undef dev_dbg
-	#define dev_dbg dev_err
-#endif
-
 #define OV5645_VOLTAGE_ANALOG               2800000
 #define OV5645_VOLTAGE_DIGITAL_CORE         1500000
 #define OV5645_VOLTAGE_DIGITAL_IO           1800000
@@ -126,8 +117,6 @@ struct ov5645 {
 
 	struct gpio_desc *enable_gpio;
 	struct gpio_desc *rst_gpio;
-
-	struct v4l2_subdev *cci;
 };
 
 static inline struct ov5645 *to_ov5645(struct v4l2_subdev *sd)
@@ -619,28 +608,40 @@ static int ov5645_write_reg_to(struct ov5645 *ov5645, u16 reg, u8 val, u16 i2c_a
 
 static int ov5645_write_reg(struct ov5645 *ov5645, u16 reg, u8 val)
 {
-	u16 i2c_addr = ov5645->i2c_client->addr;
+	u8 regbuf[3];
 	int ret;
 
-	ret = msm_cci_ctrl_write(i2c_addr, reg, &val, 1);
+	regbuf[0] = reg >> 8;
+	regbuf[1] = reg & 0xff;
+	regbuf[2] = val;
+
+	ret = i2c_master_send(ov5645->i2c_client, regbuf, 3);
 	if (ret < 0)
-		dev_err(ov5645->dev,
-			"%s: write reg error %d on addr 0x%x: reg=0x%x, val=0x%x\n",
-			__func__, ret, i2c_addr, reg, val);
+		dev_err(ov5645->dev, "%s: write reg error %d: reg=%x, val=%x\n",
+			__func__, ret, reg, val);
 
 	return ret;
 }
 
 static int ov5645_read_reg(struct ov5645 *ov5645, u16 reg, u8 *val)
 {
-	u16 i2c_addr = ov5645->i2c_client->addr;
+	u8 regbuf[2];
 	int ret;
 
-	ret = msm_cci_ctrl_read(i2c_addr, reg, val, 1);
+	regbuf[0] = reg >> 8;
+	regbuf[1] = reg & 0xff;
+
+	ret = i2c_master_send(ov5645->i2c_client, regbuf, 2);
 	if (ret < 0) {
-		dev_err(ov5645->dev,
-			"%s: read reg error %d on addr 0x%x: reg=0x%x\n",
-			__func__, ret, i2c_addr, reg);
+		dev_err(ov5645->dev, "%s: write reg error %d: reg=%x\n",
+			__func__, ret, reg);
+		return ret;
+	}
+
+	ret = i2c_master_recv(ov5645->i2c_client, val, 1);
+	if (ret < 0) {
+		dev_err(ov5645->dev, "%s: read reg error %d: reg=%x\n",
+			__func__, ret, reg);
 		return ret;
 	}
 
@@ -739,12 +740,6 @@ static int ov5645_s_power(struct v4l2_subdev *sd, int on)
 
 	mutex_lock(&ov5645->power_lock);
 
-	if (on) {
-		ret = msm_cci_ctrl_init();
-		if (ret < 0)
-			goto exit;
-	}
-
 	/* If the power count is modified from 0 to != 0 or from != 0 to 0,
 	 * update the power state.
 	 */
@@ -794,9 +789,6 @@ static int ov5645_s_power(struct v4l2_subdev *sd, int on)
 	WARN_ON(ov5645->power_count < 0);
 
 exit:
-	if (!on)
-		msm_cci_ctrl_release();
-
 	mutex_unlock(&ov5645->power_lock);
 
 	return ret;
