@@ -151,3 +151,8 @@ Required root node properties:
 S32V234 PCIE board
 Required root node properties:
     - compatible = "fsl,s32v234-pcie", "fsl,s32v234";
+
+S32V244 base Simulator model
+Required root node properties:
+    - compatible = "fsl,s32v244-simu", "fsl,s32v244";
+
