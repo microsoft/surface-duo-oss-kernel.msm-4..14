@@ -999,8 +999,8 @@ void fsl_dcu_display(DCU_DISPLAY_TYPE display_type,
 
 	__TRACE__;
 
-	/* DCU set configuration, LVDS has fixed div according to RM - TODO */
-	DCU_Init(0, 150000000, dcu_lcd_timings, DCU_FREQDIV_NORMAL);
+	/* DCU set configuration, Use already calculated frequency divider */
+	DCU_Init(0, dcu_clk_val, dcu_lcd_timings, DCU_FREQDIV_LVDS);
 
 	/* Initialize DCU background color */
 	bkgr_color.Red_Value	= 0x0;
@@ -1035,7 +1035,7 @@ void print_display_modes(struct fb_monspecs monspecs)
 
 	for (i = 0; i < monspecs.modedb_len; i++) {
 		dev_info(&dcu_pdev->dev, "hdmi %d %d %d %d %d %d %d %d %d\n",
-			monspecs.modedb[i].pixclock * 1000,
+			monspecs.modedb[i].pixclock,
 			monspecs.modedb[i].xres,
 			monspecs.modedb[i].yres,
 			monspecs.modedb[i].upper_margin,
@@ -1072,7 +1072,7 @@ void update_display_timings(struct IOCTL_DISPLAY_CFG *ioctl_display_cfg,
 {
 	struct fb_var_screeninfo *var = &info->var;
 
-	var->pixclock = ioctl_display_cfg->clock_freq / 1000;
+	var->pixclock = KHZ2PICOS(ioctl_display_cfg->clock_freq / 1000);
 	var->left_margin = ioctl_display_cfg->hback_porch;
 	var->right_margin = ioctl_display_cfg->hfront_porch;
 	var->upper_margin = ioctl_display_cfg->vback_porch;
@@ -1099,6 +1099,15 @@ int fsl_dcu_display_configs_match(
 }
 
 /**********************************************************
+ * FUNCTION: round_div
+ * compute rounded divide operation
+ **********************************************************/
+static inline int round_div(int num, int den)
+{
+	return (num + (den / 2)) / den;
+}
+
+/**********************************************************
  * FUNCTION: fsl_dcu_configure_display
  * Set the parameters of a DCU-managed display
  **********************************************************/
@@ -1107,27 +1116,6 @@ void fsl_dcu_configure_display(struct IOCTL_DISPLAY_CFG *display_cfg)
 	Dcu_LCD_Para_t dcu_lcd_timings;
 	struct fb_monspecs monspecs;
 	int i;
-
-	/* Don't configure the display to the same parameters */
-	if (fsl_dcu_display_configs_match(display_cfg, &current_display_cfg))
-		return;
-
-	/* Update the current display parameters */
-	memcpy(&current_display_cfg, display_cfg,
-		sizeof(struct IOCTL_DISPLAY_CFG));
-
-	/* Set specific parameters for the DCU to drive the display */
-	dcu_lcd_timings.mDeltaX = display_cfg->hactive;
-	dcu_lcd_timings.mDeltaY = display_cfg->vactive;
-	dcu_lcd_timings.mHorzBP = display_cfg->hback_porch;
-	dcu_lcd_timings.mHorzFP = display_cfg->hfront_porch;
-	dcu_lcd_timings.mHorzPW = display_cfg->hsync_len;
-	dcu_lcd_timings.mVertBP = display_cfg->vback_porch;
-	dcu_lcd_timings.mVertFP = display_cfg->vfront_porch;
-	dcu_lcd_timings.mVertPW = display_cfg->vsync_len;
-	dcu_lcd_timings.mSyncPol = 3;
-	dcu_lcd_timings.mVertFq = 60;
-	dcu_lcd_timings.mDivFactor = dcu_clk_val / display_cfg->clock_freq;
 
 	if (((display_cfg->hsync_len + display_cfg->vsync_len) == 0) &&
 		(display_cfg->disp_type == IOCTL_DISPLAY_HDMI)) {
@@ -1139,16 +1127,16 @@ void fsl_dcu_configure_display(struct IOCTL_DISPLAY_CFG *display_cfg)
 		for (i = 0; i < monspecs.modedb_len; i++) {
 			struct fb_videomode *mode = &monspecs.modedb[i];
 
-			if ((mode->xres == dcu_lcd_timings.mDeltaX) &&
-			    (mode->yres == dcu_lcd_timings.mDeltaY)) {
-				dcu_lcd_timings.mHorzBP  = mode->left_margin;
-				dcu_lcd_timings.mHorzFP  = mode->right_margin;
-				dcu_lcd_timings.mHorzPW  = mode->hsync_len;
-				dcu_lcd_timings.mVertBP  = mode->upper_margin;
-				dcu_lcd_timings.mVertFP  = mode->lower_margin;
-				dcu_lcd_timings.mVertPW  = mode->vsync_len;
-				dcu_lcd_timings.mSyncPol = 3;
-				dcu_lcd_timings.mVertFq  = mode->refresh;
+			if ((mode->xres == display_cfg->hactive) &&
+			    (mode->yres == display_cfg->vactive)) {
+				display_cfg->hback_porch =  mode->left_margin;
+				display_cfg->hfront_porch = mode->right_margin;
+				display_cfg->hsync_len =  mode->hsync_len;
+				display_cfg->vback_porch =  mode->upper_margin;
+				display_cfg->vfront_porch =  mode->lower_margin;
+				display_cfg->vsync_len = mode->vsync_len;
+				display_cfg->clock_freq =
+						PICOS2KHZ(mode->pixclock)*1000;
 				break;
 			}
 		}
@@ -1159,6 +1147,31 @@ void fsl_dcu_configure_display(struct IOCTL_DISPLAY_CFG *display_cfg)
 				dcu_lcd_timings.mDeltaX,
 				dcu_lcd_timings.mDeltaY);
 	}
+
+	/* Set specific parameters for the DCU to drive the display */
+	dcu_lcd_timings.mDeltaX = display_cfg->hactive;
+	dcu_lcd_timings.mDeltaY = display_cfg->vactive;
+	dcu_lcd_timings.mHorzBP = display_cfg->hback_porch;
+	dcu_lcd_timings.mHorzFP = display_cfg->hfront_porch;
+	dcu_lcd_timings.mHorzPW = display_cfg->hsync_len;
+	dcu_lcd_timings.mVertBP = display_cfg->vback_porch;
+	dcu_lcd_timings.mVertFP = display_cfg->vfront_porch;
+	dcu_lcd_timings.mVertPW = display_cfg->vsync_len;
+	dcu_lcd_timings.mSyncPol = 3;
+	dcu_lcd_timings.mVertFq = 60; /* not used */
+	dcu_lcd_timings.mDivFactor = (dcu_clk_val >= display_cfg->clock_freq) ?
+			round_div(dcu_clk_val, display_cfg->clock_freq)  : 1;
+
+	/* adjust input frequency to what actually is set on target */
+	display_cfg->clock_freq = dcu_clk_val / dcu_lcd_timings.mDivFactor;
+
+	/* Don't configure the display to the same parameters */
+	if (fsl_dcu_display_configs_match(display_cfg, &current_display_cfg))
+		return;
+
+	/* Update the current display parameters */
+	memcpy(&current_display_cfg, display_cfg,
+		sizeof(struct IOCTL_DISPLAY_CFG));
 
 	/* set display configuration */
 	fsl_dcu_display(display_cfg->disp_type, &dcu_lcd_timings);
@@ -1574,8 +1587,11 @@ int fsl_dcu_probe(struct platform_device *pdev)
 	clk_prepare_enable(pxl_clk);
 	dcu_fb_data->pxl_clk = pxl_clk;
 
-	/* get pixel clock in Hz */
-	dcu_clk_val = clk_get_rate(pxl_clk);
+	/*
+	 * get pixel clock in Hz
+	 * do not use clk_get_rate(pxl_clk); as it is incorrectly reported
+	 */
+	dcu_clk_val = 150000000;
 
 
 	pm_runtime_enable(&pdev->dev);
