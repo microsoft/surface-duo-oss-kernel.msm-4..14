@@ -47,43 +47,27 @@ static inline void __tlb_flush_global(void)
 }
 
 /*
- * Flush TLB entries for a specific mm on all CPUs (in case gmap is used
- * this implicates multiple ASCEs!).
+ * Flush TLB entries for a specific ASCE on all CPUs.
  */
-static inline void __tlb_flush_full(struct mm_struct *mm)
+static inline void __tlb_flush_mm(struct mm_struct * mm)
 {
+	/*
+	 * If the machine has IDTE we prefer to do a per mm flush
+	 * on all cpus instead of doing a local flush if the mm
+	 * only ran on the local cpu.
+	 */
 	preempt_disable();
 	atomic_add(0x10000, &mm->context.attach_count);
-	if (cpumask_equal(mm_cpumask(mm), cpumask_of(smp_processor_id()))) {
-		/* Local TLB flush */
-		__tlb_flush_local();
-	} else {
-		/* Global TLB flush */
-		__tlb_flush_global();
-		/* Reset TLB flush mask */
-		if (MACHINE_HAS_TLB_LC)
-			cpumask_copy(mm_cpumask(mm),
-				     &mm->context.cpu_attach_mask);
-	}
-	atomic_sub(0x10000, &mm->context.attach_count);
-	preempt_enable();
-}
-
-/*
- * Flush TLB entries for a specific ASCE on all CPUs. Should never be used
- * when more than one asce (e.g. gmap) ran on this mm.
- */
-static inline void __tlb_flush_asce(struct mm_struct *mm, unsigned long asce)
-{
-	preempt_disable();
-	atomic_add(0x10000, &mm->context.attach_count);
-	if (MACHINE_HAS_IDTE)
-		__tlb_flush_idte(asce);
-	else
-		__tlb_flush_global();
 	/* Reset TLB flush mask */
 	if (MACHINE_HAS_TLB_LC)
 		cpumask_copy(mm_cpumask(mm), &mm->context.cpu_attach_mask);
+	barrier();
+	if (MACHINE_HAS_IDTE && list_empty(&mm->context.gmap_list)) {
+		__tlb_flush_idte(mm->context.asce);
+	} else {
+		/* Global TLB flush */
+		__tlb_flush_global();
+	}
 	atomic_sub(0x10000, &mm->context.attach_count);
 	preempt_enable();
 }
@@ -97,7 +81,6 @@ static inline void __tlb_flush_kernel(void)
 }
 #else
 #define __tlb_flush_global()	__tlb_flush_local()
-#define __tlb_flush_full(mm)	__tlb_flush_local()
 
 /*
  * Flush TLB entries for a specific ASCE on all CPUs.
@@ -111,20 +94,13 @@ static inline void __tlb_flush_kernel(void)
 {
 	__tlb_flush_local();
 }
-#endif
 
 static inline void __tlb_flush_mm(struct mm_struct * mm)
 {
-	/*
-	 * If the machine has IDTE we prefer to do a per mm flush
-	 * on all cpus instead of doing a local flush if the mm
-	 * only ran on the local cpu.
-	 */
-	if (MACHINE_HAS_IDTE && list_empty(&mm->context.gmap_list))
-		__tlb_flush_asce(mm, mm->context.asce);
-	else
-		__tlb_flush_full(mm);
+	__tlb_flush_local();
 }
+
+#endif
 
 static inline void __tlb_flush_mm_lazy(struct mm_struct * mm)
 {
