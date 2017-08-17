@@ -109,7 +109,6 @@ config PINCTRL_IMX28
 
 config PINCTRL_S32V_CORE
 	bool
-	select PINCTRL_S32_CORE
 
 config PINCTRL_S32V234
 	bool "Freescale S32V234 pinctrl driver"
