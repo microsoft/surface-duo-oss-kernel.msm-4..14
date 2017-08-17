@@ -719,17 +719,7 @@ static struct platform_driver s32v234_pinctrl_driver = {
 	.remove = s32v_pinctrl_remove,
 };
 
-static int __init s32v234_pinctrl_init(void)
-{
-	return platform_driver_register(&s32v234_pinctrl_driver);
-}
-arch_initcall(s32v234_pinctrl_init);
-
-static void __exit s32v234_pinctrl_exit(void)
-{
-	platform_driver_unregister(&s32v234_pinctrl_driver);
-}
-module_exit(s32v234_pinctrl_exit);
+module_platform_driver(s32v234_pinctrl_driver);
 
 MODULE_DESCRIPTION("Freescale S32V234 pinctrl driver");
 MODULE_LICENSE("GPL v2");
