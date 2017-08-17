@@ -1,7 +1,8 @@
 /*
  * Core driver for the S32V pin controller
  *
- * Copyright (C) 2015 Freescale Semiconductor, Inc.
+ * Copyright 2015-2016 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by

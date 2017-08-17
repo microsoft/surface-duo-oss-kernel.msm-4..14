@@ -1,7 +1,8 @@
 /*
  * S32V pinmux core definitions
  *
- * Copyright (C) 2015 Freescale Semiconductor, Inc.
+ * Copyright 2016-2017 NXP
+ * Copyright 2015-2016 Freescale Semiconductor, Inc.
  * Copyright (C) 2012 Linaro Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
