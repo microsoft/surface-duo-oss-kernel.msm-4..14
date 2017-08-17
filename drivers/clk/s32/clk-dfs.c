@@ -1,5 +1,6 @@
 /*
  * Copyright 2015-2016 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  *
  * The code contained herein is licensed under the GNU General Public
  * License. You may obtain a copy of the GNU General Public License
@@ -83,11 +84,11 @@ static unsigned long get_pllx_dfsy_max_rate(enum s32_plldig_type plltype,
 	case S32_PLLDIG_DDR:
 		switch (dfsno) {
 		case 0:
-			return ENETPLL_DFS0_MAX_RATE;
+			return DDRPLL_DFS0_MAX_RATE;
 		case 1:
-			return ENETPLL_DFS1_MAX_RATE;
+			return DDRPLL_DFS1_MAX_RATE;
 		case 2:
-			return ENETPLL_DFS2_MAX_RATE;
+			return DDRPLL_DFS2_MAX_RATE;
 		}
 		break;
 	case S32_PLLDIG_PERIPH:
