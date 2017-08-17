@@ -49,7 +49,7 @@ struct s32v_pinctrl {
 };
 
 static const char *pin_get_name_from_info(struct s32v_pinctrl_soc_info *info,
-			const unsigned pin_id)
+			const unsigned int pin_id)
 {
 	int i;
 
@@ -105,7 +105,7 @@ static int s32v_get_groups_count(struct pinctrl_dev *pctldev)
 }
 
 static const char *s32v_get_group_name(struct pinctrl_dev *pctldev,
-				       unsigned selector)
+				       unsigned int selector)
 {
 	struct s32v_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
 	const struct s32v_pinctrl_soc_info *info = ipctl->info;
@@ -113,9 +113,9 @@ static const char *s32v_get_group_name(struct pinctrl_dev *pctldev,
 	return info->groups[selector].name;
 }
 
-static int s32v_get_group_pins(struct pinctrl_dev *pctldev, unsigned selector,
-			       const unsigned **pins,
-			       unsigned *npins)
+static int s32v_get_group_pins(struct pinctrl_dev *pctldev,
+			       unsigned int selector, const unsigned int **pins,
+			       unsigned int *npins)
 {
 	struct s32v_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
 	const struct s32v_pinctrl_soc_info *info = ipctl->info;
@@ -130,14 +130,14 @@ static int s32v_get_group_pins(struct pinctrl_dev *pctldev, unsigned selector,
 }
 
 static void s32v_pin_dbg_show(struct pinctrl_dev *pctldev, struct seq_file *s,
-		   unsigned offset)
+		   unsigned int offset)
 {
 	seq_printf(s, "%s", dev_name(pctldev->dev));
 }
 
 static int s32v_dt_node_to_map(struct pinctrl_dev *pctldev,
 			struct device_node *np,
-			struct pinctrl_map **map, unsigned *num_maps)
+			struct pinctrl_map **map, unsigned int *num_maps)
 {
 	struct s32v_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
 	const struct s32v_pinctrl_soc_info *info = ipctl->info;
@@ -197,7 +197,7 @@ static int s32v_dt_node_to_map(struct pinctrl_dev *pctldev,
 }
 
 static void s32v_dt_free_map(struct pinctrl_dev *pctldev,
-				struct pinctrl_map *map, unsigned num_maps)
+				struct pinctrl_map *map, unsigned int num_maps)
 {
 	kfree(map);
 }
@@ -212,8 +212,8 @@ static const struct pinctrl_ops s32v_pctrl_ops = {
 
 };
 
-static int s32v_pmx_set(struct pinctrl_dev *pctldev, unsigned selector,
-		       unsigned group)
+static int s32v_pmx_set(struct pinctrl_dev *pctldev, unsigned int selector,
+		       unsigned int group)
 {
 	struct s32v_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
 	const struct s32v_pinctrl_soc_info *info = ipctl->info;
@@ -253,7 +253,7 @@ static int s32v_pmx_get_funcs_count(struct pinctrl_dev *pctldev)
 }
 
 static const char *s32v_pmx_get_func_name(struct pinctrl_dev *pctldev,
-					  unsigned selector)
+					  unsigned int selector)
 {
 	struct s32v_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
 	const struct s32v_pinctrl_soc_info *info = ipctl->info;
@@ -261,9 +261,10 @@ static const char *s32v_pmx_get_func_name(struct pinctrl_dev *pctldev,
 	return info->functions[selector].name;
 }
 
-static int s32v_pmx_get_groups(struct pinctrl_dev *pctldev, unsigned selector,
+static int s32v_pmx_get_groups(struct pinctrl_dev *pctldev,
+			       unsigned int selector,
 			       const char * const **groups,
-			       unsigned * const num_groups)
+			       unsigned int * const num_groups)
 {
 	struct s32v_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
 	const struct s32v_pinctrl_soc_info *info = ipctl->info;
@@ -409,7 +410,7 @@ static const struct pinmux_ops s32v_pmx_ops = {
 };
 
 static int s32v_pinconf_get(struct pinctrl_dev *pctldev,
-			     unsigned pin_id, unsigned long *config)
+			     unsigned int pin_id, unsigned long *config)
 {
 	struct s32v_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
 
@@ -419,8 +420,8 @@ static int s32v_pinconf_get(struct pinctrl_dev *pctldev,
 }
 
 static int s32v_pinconf_set(struct pinctrl_dev *pctldev,
-			     unsigned pin_id, unsigned long *configs,
-			     unsigned num_configs)
+			     unsigned int pin_id, unsigned long *configs,
+			     unsigned int num_configs)
 {
 	struct s32v_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
 	int i;
@@ -438,7 +439,7 @@ static int s32v_pinconf_set(struct pinctrl_dev *pctldev,
 }
 
 static void s32v_pinconf_dbg_show(struct pinctrl_dev *pctldev,
-				   struct seq_file *s, unsigned pin_id)
+				   struct seq_file *s, unsigned int pin_id)
 {
 	struct s32v_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
 	unsigned long config;
@@ -448,7 +449,7 @@ static void s32v_pinconf_dbg_show(struct pinctrl_dev *pctldev,
 }
 
 static void s32v_pinconf_group_dbg_show(struct pinctrl_dev *pctldev,
-					 struct seq_file *s, unsigned group)
+					 struct seq_file *s, unsigned int group)
 {
 	struct s32v_pinctrl *ipctl = pinctrl_dev_get_drvdata(pctldev);
 	const struct s32v_pinctrl_soc_info *info = ipctl->info;
@@ -460,7 +461,7 @@ static void s32v_pinconf_group_dbg_show(struct pinctrl_dev *pctldev,
 	if (group > info->ngroups)
 		return;
 
-	seq_printf(s, "\n");
+	seq_puts(s, "\n");
 	grp = &info->groups[group];
 	for (i = 0; i < grp->npins; i++) {
 		struct s32v_pin *pin = &grp->pins[i];

@@ -63,75 +63,75 @@
  *	CONSTANT DEFINITIONS
  */
 
-#define LINFLEXD_LINCR1_INIT		(1<<0)
-#define LINFLEXD_LINCR1_MME		(1<<4)
-#define LINFLEXD_LINCR1_BF		(1<<7)
+#define LINFLEXD_LINCR1_INIT		BIT(0)
+#define LINFLEXD_LINCR1_MME		BIT(4)
+#define LINFLEXD_LINCR1_BF		BIT(7)
 
-#define LINFLEXD_LINSR_LINS_INITMODE	(1<<12)
+#define LINFLEXD_LINSR_LINS_INITMODE	BIT(12)
 #define LINFLEXD_LINSR_LINS_MASK	(0xF<<12)
 
-#define LINFLEXD_LINIER_SZIE		(1<<15)
-#define LINFLEXD_LINIER_OCIE		(1<<14)
-#define LINFLEXD_LINIER_BEIE		(1<<13)
-#define LINFLEXD_LINIER_CEIE		(1<<12)
-#define LINFLEXD_LINIER_HEIE		(1<<11)
-#define LINFLEXD_LINIER_FEIE		(1<<8)
-#define LINFLEXD_LINIER_BOIE		(1<<7)
-#define LINFLEXD_LINIER_LSIE		(1<<6)
-#define LINFLEXD_LINIER_WUIE		(1<<5)
-#define LINFLEXD_LINIER_DBFIE		(1<<4)
-#define LINFLEXD_LINIER_DBEIETOIE	(1<<3)
-#define LINFLEXD_LINIER_DRIE		(1<<2)
-#define LINFLEXD_LINIER_DTIE		(1<<1)
-#define LINFLEXD_LINIER_HRIE		(1<<0)
+#define LINFLEXD_LINIER_SZIE		BIT(15)
+#define LINFLEXD_LINIER_OCIE		BIT(14)
+#define LINFLEXD_LINIER_BEIE		BIT(13)
+#define LINFLEXD_LINIER_CEIE		BIT(12)
+#define LINFLEXD_LINIER_HEIE		BIT(11)
+#define LINFLEXD_LINIER_FEIE		BIT(8)
+#define LINFLEXD_LINIER_BOIE		BIT(7)
+#define LINFLEXD_LINIER_LSIE		BIT(6)
+#define LINFLEXD_LINIER_WUIE		BIT(5)
+#define LINFLEXD_LINIER_DBFIE		BIT(4)
+#define LINFLEXD_LINIER_DBEIETOIE	BIT(3)
+#define LINFLEXD_LINIER_DRIE		BIT(2)
+#define LINFLEXD_LINIER_DTIE		BIT(1)
+#define LINFLEXD_LINIER_HRIE		BIT(0)
 
 #define LINFLEXD_UARTCR_OSR_MASK	(0xF<<24)
 #define LINFLEXD_UARTCR_OSR(uartcr)	(((uartcr) \
 					& LINFLEXD_UARTCR_OSR_MASK) >> 24)
 
-#define LINFLEXD_UARTCR_ROSE		(1<<23)
+#define LINFLEXD_UARTCR_ROSE		BIT(23)
 
 #define LINFLEXD_UARTCR_SBUR_MASK	(0x3<<17)
 #define LINFLEXD_UARTCR_SBUR_1SBITS	(0x0<<17)
 #define LINFLEXD_UARTCR_SBUR_2SBITS	(0x1<<17)
 #define LINFLEXD_UARTCR_SBUR_3SBITS	(0x2<<17)
 
-#define LINFLEXD_UARTCR_RFBM		(1<<9)
-#define LINFLEXD_UARTCR_TFBM		(1<<8)
-#define LINFLEXD_UARTCR_WL1		(1<<7)
-#define LINFLEXD_UARTCR_PC1		(1<<6)
+#define LINFLEXD_UARTCR_RFBM		BIT(9)
+#define LINFLEXD_UARTCR_TFBM		BIT(8)
+#define LINFLEXD_UARTCR_WL1		BIT(7)
+#define LINFLEXD_UARTCR_PC1		BIT(6)
 
-#define LINFLEXD_UARTCR_RXEN		(1<<5)
-#define LINFLEXD_UARTCR_TXEN		(1<<4)
-#define LINFLEXD_UARTCR_PC0		(1<<3)
+#define LINFLEXD_UARTCR_RXEN		BIT(5)
+#define LINFLEXD_UARTCR_TXEN		BIT(4)
+#define LINFLEXD_UARTCR_PC0		BIT(3)
 
-#define LINFLEXD_UARTCR_PCE		(1<<2)
-#define LINFLEXD_UARTCR_WL0		(1<<1)
-#define LINFLEXD_UARTCR_UART		(1<<0)
+#define LINFLEXD_UARTCR_PCE		BIT(2)
+#define LINFLEXD_UARTCR_WL0		BIT(1)
+#define LINFLEXD_UARTCR_UART		BIT(0)
 
-#define LINFLEXD_UARTSR_SZF		(1<<15)
-#define LINFLEXD_UARTSR_OCF		(1<<14)
-#define LINFLEXD_UARTSR_PE3		(1<<13)
-#define LINFLEXD_UARTSR_PE2		(1<<12)
-#define LINFLEXD_UARTSR_PE1		(1<<11)
-#define LINFLEXD_UARTSR_PE0		(1<<10)
-#define LINFLEXD_UARTSR_RMB		(1<<9)
-#define LINFLEXD_UARTSR_FEF		(1<<8)
-#define LINFLEXD_UARTSR_BOF		(1<<7)
-#define LINFLEXD_UARTSR_RPS		(1<<6)
-#define LINFLEXD_UARTSR_WUF		(1<<5)
-#define LINFLEXD_UARTSR_4		(1<<4)
+#define LINFLEXD_UARTSR_SZF		BIT(15)
+#define LINFLEXD_UARTSR_OCF		BIT(14)
+#define LINFLEXD_UARTSR_PE3		BIT(13)
+#define LINFLEXD_UARTSR_PE2		BIT(12)
+#define LINFLEXD_UARTSR_PE1		BIT(11)
+#define LINFLEXD_UARTSR_PE0		BIT(10)
+#define LINFLEXD_UARTSR_RMB		BIT(9)
+#define LINFLEXD_UARTSR_FEF		BIT(8)
+#define LINFLEXD_UARTSR_BOF		BIT(7)
+#define LINFLEXD_UARTSR_RPS		BIT(6)
+#define LINFLEXD_UARTSR_WUF		BIT(5)
+#define LINFLEXD_UARTSR_4		BIT(4)
 
-#define LINFLEXD_UARTSR_TO		(1<<3)
+#define LINFLEXD_UARTSR_TO		BIT(3)
 
-#define LINFLEXD_UARTSR_DRFRFE		(1<<2)
-#define LINFLEXD_UARTSR_DTFTFF		(1<<1)
-#define LINFLEXD_UARTSR_NF		(1<<0)
+#define LINFLEXD_UARTSR_DRFRFE		BIT(2)
+#define LINFLEXD_UARTSR_DTFTFF		BIT(1)
+#define LINFLEXD_UARTSR_NF		BIT(0)
 #define LINFLEXD_UARTSR_PE		(LINFLEXD_UARTSR_PE0|LINFLEXD_UARTSR_PE1|LINFLEXD_UARTSR_PE2|LINFLEXD_UARTSR_PE3)
 
-#define LINFLEXD_GCR_STOP_MASK		(1<<1)
-#define LINFLEXD_GCR_STOP_1SBITS	(0<<1)
-#define LINFLEXD_GCR_STOP_2SBITS	(1<<1)
+#define LINFLEXD_GCR_STOP_MASK		BIT(1)
+#define LINFLEXD_GCR_STOP_1SBITS	BIT(1)
+#define LINFLEXD_GCR_STOP_2SBITS	BIT(1)
 
 #define DMA_MAXBURST			(16)
 #define DMA_MAXBURST_MASK		(DMA_MAXBURST - 1)
@@ -173,7 +173,7 @@ struct linflex_port {
 	struct timer_list	timer;
 };
 
-static struct of_device_id linflex_dt_ids[] = {
+static const struct of_device_id linflex_dt_ids[] = {
 	{
 		.compatible = "fsl,s32v234-linflexuart",
 	},
@@ -600,7 +600,7 @@ static void linflex_setup_watermark(struct linflex_port *sport)
 
 	/* Enter initialization mode by setting INIT bit */
 
-	/* set the Linflex in master mode amd activate by-pass filter */
+	/* set the Linflex in master mode and activate by-pass filter */
 	cr1 = LINFLEXD_LINCR1_BF | LINFLEXD_LINCR1_MME
 	      | LINFLEXD_LINCR1_INIT;
 	writel(cr1, sport->port.membase + LINCR1);
@@ -1070,7 +1070,7 @@ static int linflex_verify_port(struct uart_port *port, struct serial_struct *ser
 	return ret;
 }
 
-static struct uart_ops linflex_pops = {
+static const struct uart_ops linflex_pops = {
 	.tx_empty	= linflex_tx_empty,
 	.set_mctrl	= linflex_set_mctrl,
 	.get_mctrl	= linflex_get_mctrl,
@@ -1122,7 +1122,8 @@ linflex_console_write(struct console *co, const char *s, unsigned int count)
 	unsigned long cr, ier, old_ier;
 
 	/* First save CR2 and then disable interrupts. */
-	ier = old_ier = readl(sport->port.membase + LINIER);
+	ier = readl(sport->port.membase + LINIER);
+	old_ier = ier;
 	if (!sport->dma_tx_use) {
 		ier &= ~(LINFLEXD_LINIER_DTIE);
 		writel(ier, sport->port.membase + LINIER);
@@ -1182,8 +1183,8 @@ linflex_console_get_options(struct linflex_port *sport, int *baud,
 	baud_raw = uartclk / (linflex_ldiv_multiplier(sport) * ibr);
 
 	if (*baud != baud_raw)
-		printk(KERN_INFO "Serial: Console linflex rounded baud rate"
-				"from %d to %d\n", baud_raw, *baud);
+		pr_info("Serial: Console linflex rounded baud rate from %d to %d\n",
+			baud_raw, *baud);
 	#endif
 }
 
@@ -1203,7 +1204,7 @@ static int __init linflex_console_setup(struct console *co, char *options)
 		co->index = 0;
 
 	sport = linflex_ports[co->index];
-	if (sport == NULL)
+	if (!sport)
 		return -ENODEV;
 
 	if (options)
