@@ -46,7 +46,7 @@ struct s32v_pin {
  */
 struct s32v_pin_group {
 	const char *name;
-	unsigned npins;
+	unsigned int npins;
 	unsigned int *pin_ids;
 	struct s32v_pin *pins;
 };
@@ -60,7 +60,7 @@ struct s32v_pin_group {
 struct s32v_pmx_func {
 	const char *name;
 	const char **groups;
-	unsigned num_groups;
+	unsigned int num_groups;
 };
 
 

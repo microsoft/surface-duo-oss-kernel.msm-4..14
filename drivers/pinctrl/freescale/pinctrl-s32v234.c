@@ -685,7 +685,7 @@ static struct s32v_pinctrl_soc_info s32v234_pinctrl_info = {
 };
 
 
-static struct of_device_id s32v234_pinctrl_of_match[] = {
+static const struct of_device_id s32v234_pinctrl_of_match[] = {
 	{
 		.compatible = "fsl,s32v234-siul2",
 		.data = (void *) PINCTRL_V1,
