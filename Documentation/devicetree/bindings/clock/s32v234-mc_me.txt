@@ -1,0 +1,11 @@
+* NXP S32V234 Mode Entry Module (MC_ME)
+
+Required properties:
+- compatible: Should be "fsl,s32v234-mc_me"
+- reg: Location and length of the register set
+
+Example:
+mc_me: mc_me@4004a000 {
+	compatible = "fsl,s32v234-mc_me";
+	reg = <0x0 0x4004A000 0x0 0x1000>;
+};
