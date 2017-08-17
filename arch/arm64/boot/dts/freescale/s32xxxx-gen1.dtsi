@@ -10,7 +10,7 @@
 /memreserve/ 0x8000fff8 0x00010000;
 
 / {
-	compatible = "arm,vexpress,v2p-aarch64", "arm,vexpress";
+	compatible = "arm,vexpress";
 	interrupt-parent = <&gic>;
 	#address-cells = <2>;
 	#size-cells = <2>;

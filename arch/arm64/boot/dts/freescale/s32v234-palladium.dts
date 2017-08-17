@@ -106,7 +106,7 @@ soc {
 		ranges;
 
 		aips0: aips-bus@40000000 {
-			compatible = "fsl,aips-bus", "simple-bus";
+			compatible = "simple-bus";
 			#address-cells = <2>;
 			#size-cells = <2>;
 			interrupt-parent = <&gic>;
