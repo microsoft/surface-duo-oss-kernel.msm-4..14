@@ -195,7 +195,7 @@ static const struct pci_device_id bnxt_pci_tbl[] = {
 	{ PCI_VDEVICE(BROADCOM, 0x16ef), .driver_data = BCM57416_NPAR },
 	{ PCI_VDEVICE(BROADCOM, 0x16f1), .driver_data = BCM57452 },
 	{ PCI_VDEVICE(BROADCOM, 0x1614), .driver_data = BCM57454 },
-#ifdef CONFIG_BNXT_SRIOV
+#ifdef CONFIG_BNXT_BPO_SRIOV
 	{ PCI_VDEVICE(BROADCOM, 0x16c1), .driver_data = NETXTREME_E_VF },
 	{ PCI_VDEVICE(BROADCOM, 0x16dc), .driver_data = NETXTREME_E_VF },
 	{ PCI_VDEVICE(BROADCOM, 0x16e1), .driver_data = NETXTREME_C_VF },
@@ -4186,7 +4186,7 @@ int bnxt_hwrm_vnic_cfg(struct bnxt *bp, u16 vnic_id)
 	req.mru = cpu_to_le16(bp->dev->mtu + ETH_HLEN + ETH_FCS_LEN +
 			      VLAN_HLEN);
 
-#ifdef CONFIG_BNXT_SRIOV
+#ifdef CONFIG_BNXT_BPO_SRIOV
 	if (BNXT_VF(bp))
 		def_vlan = bp->vf.vlan;
 #endif
@@ -4852,7 +4852,7 @@ static int bnxt_hwrm_func_qcfg(struct bnxt *bp)
 	if (rc)
 		goto func_qcfg_exit;
 
-#ifdef CONFIG_BNXT_SRIOV
+#ifdef CONFIG_BNXT_BPO_SRIOV
 	if (BNXT_VF(bp)) {
 		struct bnxt_vf_info *vf = &bp->vf;
 
@@ -4983,7 +4983,7 @@ int bnxt_hwrm_func_qcaps(struct bnxt *bp)
 		if (flags & FUNC_QCAPS_RESP_FLAGS_PTP_SUPPORTED)
 			__bnxt_hwrm_ptp_qcfg(bp);
 	} else {
-#ifdef CONFIG_BNXT_SRIOV
+#ifdef CONFIG_BNXT_BPO_SRIOV
 		struct bnxt_vf_info *vf = &bp->vf;
 
 		vf->fw_fid = le16_to_cpu(resp->fid);
@@ -5337,7 +5337,7 @@ static int bnxt_alloc_rfs_vnics(struct bnxt *bp)
 /* Allow PF and VF with default VLAN to be in promiscuous mode */
 static bool bnxt_promisc_ok(struct bnxt *bp)
 {
-#ifdef CONFIG_BNXT_SRIOV
+#ifdef CONFIG_BNXT_BPO_SRIOV
 	if (BNXT_VF(bp) && !bp->vf.vlan)
 		return false;
 #endif
@@ -5603,7 +5603,7 @@ static int bnxt_setup_int_mode(struct bnxt *bp)
 #ifdef CONFIG_RFS_ACCEL
 static unsigned int bnxt_get_max_func_rss_ctxs(struct bnxt *bp)
 {
-#if defined(CONFIG_BNXT_SRIOV)
+#if defined(CONFIG_BNXT_BPO_SRIOV)
 	if (BNXT_VF(bp))
 		return bp->vf.max_rsscos_ctxs;
 #endif
@@ -5612,7 +5612,7 @@ static unsigned int bnxt_get_max_func_rss_ctxs(struct bnxt *bp)
 
 static unsigned int bnxt_get_max_func_vnics(struct bnxt *bp)
 {
-#if defined(CONFIG_BNXT_SRIOV)
+#if defined(CONFIG_BNXT_BPO_SRIOV)
 	if (BNXT_VF(bp))
 		return bp->vf.max_vnics;
 #endif
@@ -5622,7 +5622,7 @@ static unsigned int bnxt_get_max_func_vnics(struct bnxt *bp)
 
 unsigned int bnxt_get_max_func_stat_ctxs(struct bnxt *bp)
 {
-#if defined(CONFIG_BNXT_SRIOV)
+#if defined(CONFIG_BNXT_BPO_SRIOV)
 	if (BNXT_VF(bp))
 		return bp->vf.max_stat_ctxs;
 #endif
@@ -5631,7 +5631,7 @@ unsigned int bnxt_get_max_func_stat_ctxs(struct bnxt *bp)
 
 void bnxt_set_max_func_stat_ctxs(struct bnxt *bp, unsigned int max)
 {
-#if defined(CONFIG_BNXT_SRIOV)
+#if defined(CONFIG_BNXT_BPO_SRIOV)
 	if (BNXT_VF(bp))
 		bp->vf.max_stat_ctxs = max;
 	else
@@ -5641,7 +5641,7 @@ void bnxt_set_max_func_stat_ctxs(struct bnxt *bp, unsigned int max)
 
 unsigned int bnxt_get_max_func_cp_rings(struct bnxt *bp)
 {
-#if defined(CONFIG_BNXT_SRIOV)
+#if defined(CONFIG_BNXT_BPO_SRIOV)
 	if (BNXT_VF(bp))
 		return bp->vf.max_cp_rings;
 #endif
@@ -5650,7 +5650,7 @@ unsigned int bnxt_get_max_func_cp_rings(struct bnxt *bp)
 
 void bnxt_set_max_func_cp_rings(struct bnxt *bp, unsigned int max)
 {
-#if defined(CONFIG_BNXT_SRIOV)
+#if defined(CONFIG_BNXT_BPO_SRIOV)
 	if (BNXT_VF(bp))
 		bp->vf.max_cp_rings = max;
 	else
@@ -5660,7 +5660,7 @@ void bnxt_set_max_func_cp_rings(struct bnxt *bp, unsigned int max)
 
 static unsigned int bnxt_get_max_func_irqs(struct bnxt *bp)
 {
-#if defined(CONFIG_BNXT_SRIOV)
+#if defined(CONFIG_BNXT_BPO_SRIOV)
 	if (BNXT_VF(bp))
 		return min_t(unsigned int, bp->vf.max_irqs,
 			     bp->vf.max_cp_rings);
@@ -5670,7 +5670,7 @@ static unsigned int bnxt_get_max_func_irqs(struct bnxt *bp)
 
 void bnxt_set_max_func_irqs(struct bnxt *bp, unsigned int max_irqs)
 {
-#if defined(CONFIG_BNXT_SRIOV)
+#if defined(CONFIG_BNXT_BPO_SRIOV)
 	if (BNXT_VF(bp))
 		bp->vf.max_irqs = max_irqs;
 	else
@@ -6673,7 +6673,7 @@ int bnxt_close_nic(struct bnxt *bp, bool irq_re_init, bool link_re_init)
 {
 	int rc = 0;
 
-#ifdef CONFIG_BNXT_SRIOV
+#ifdef CONFIG_BNXT_BPO_SRIOV
 	if (bp->sriov_cfg) {
 		rc = wait_event_interruptible_timeout(bp->sriov_cfg_wait,
 						      !bp->sriov_cfg,
@@ -7107,7 +7107,7 @@ static netdev_features_t bnxt_fix_features(struct net_device *dev,
 			features |= NETIF_F_HW_VLAN_CTAG_RX |
 				    NETIF_F_HW_VLAN_STAG_RX;
 	}
-#ifdef CONFIG_BNXT_SRIOV
+#ifdef CONFIG_BNXT_BPO_SRIOV
 	if (BNXT_VF(bp)) {
 		if (bp->vf.vlan) {
 			features &= ~(NETIF_F_HW_VLAN_CTAG_RX |
@@ -7832,7 +7832,7 @@ static int bnxt_change_mtu(struct net_device *dev, int new_mtu)
 	return 0;
 }
 
-#if defined(HAVE_SETUP_TC) || defined(CONFIG_BNXT_DCB)
+#if defined(HAVE_SETUP_TC) || defined(CONFIG_BNXT_BPO_DCB)
 int bnxt_setup_mq_tc(struct net_device *dev, u8 tc)
 {
 	struct bnxt *bp = netdev_priv(dev);
@@ -8338,7 +8338,7 @@ static const struct net_device_ops bnxt_netdev_ops = {
 	.ndo_set_features	= bnxt_set_features,
 #endif
 	.ndo_tx_timeout		= bnxt_tx_timeout,
-#ifdef CONFIG_BNXT_SRIOV
+#ifdef CONFIG_BNXT_BPO_SRIOV
 #ifdef HAVE_NDO_GET_VF_CONFIG
 	.ndo_get_vf_config	= bnxt_get_vf_config,
 	.ndo_set_vf_mac		= bnxt_set_vf_mac,
@@ -8492,7 +8492,7 @@ static void _bnxt_get_max_rings(struct bnxt *bp, int *max_rx, int *max_tx,
 {
 	int max_ring_grps = 0;
 
-#ifdef CONFIG_BNXT_SRIOV
+#ifdef CONFIG_BNXT_BPO_SRIOV
 	if (!BNXT_PF(bp)) {
 		*max_tx = bp->vf.max_tx_rings;
 		*max_rx = bp->vf.max_rx_rings;
@@ -8547,7 +8547,7 @@ static int bnxt_get_dflt_rings(struct bnxt *bp, int *max_rx, int *max_tx,
 		bp->dev->features &= ~NETIF_F_LRO;
 		bnxt_set_ring_params(bp);
 	}
-#ifdef CONFIG_BNXT_RE
+#ifdef CONFIG_BNXT_BPO_RE
 	if (bp->flags & BNXT_FLAG_ROCE_CAP) {
 		int max_cp, max_stat, max_irq;
 
@@ -8717,7 +8717,7 @@ static int bnxt_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 	dev->max_mtu = BNXT_MAX_MTU;
 #endif
 
-#ifdef CONFIG_BNXT_SRIOV
+#ifdef CONFIG_BNXT_BPO_SRIOV
 	init_waitqueue_head(&bp->sriov_cfg_wait);
 #endif
 	bp->gro_func = bnxt_gro_func_5730x;
@@ -9036,7 +9036,7 @@ static struct pci_driver bnxt_pci_driver = {
 	.shutdown	= bnxt_shutdown,
 	.driver.pm	= BNXT_PM_OPS,
 	.err_handler	= &bnxt_err_handler,
-#if defined(CONFIG_BNXT_SRIOV) && defined(PCIE_SRIOV_CONFIGURE)
+#if defined(CONFIG_BNXT_BPO_SRIOV) && defined(PCIE_SRIOV_CONFIGURE)
 	.sriov_configure = bnxt_sriov_configure,
 #endif
 };

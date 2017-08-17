@@ -20,7 +20,7 @@
 #include "bnxt.h"
 #include "bnxt_dcb.h"
 
-#ifdef CONFIG_BNXT_DCB
+#ifdef CONFIG_BNXT_BPO_DCB
 static int bnxt_hwrm_queue_pri2cos_cfg(struct bnxt *bp, struct ieee_ets *ets)
 {
 	struct hwrm_queue_pri2cos_cfg_input req = {0};

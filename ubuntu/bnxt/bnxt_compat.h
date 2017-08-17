@@ -286,7 +286,7 @@ skb_set_hash(struct sk_buff *skb, __u32 hash, enum pkt_hash_types type)
 #endif
 
 #if !defined(IEEE_8021QAZ_APP_SEL_DGRAM) || !defined(CONFIG_DCB)
-#undef CONFIG_BNXT_DCB
+#undef CONFIG_BNXT_BPO_DCB
 #endif
 
 #ifdef NETDEV_UDP_TUNNEL_PUSH_INFO
@@ -294,7 +294,7 @@ skb_set_hash(struct sk_buff *skb, __u32 hash, enum pkt_hash_types type)
 #endif
 
 #ifdef HAVE_NDO_XDP
-#define CONFIG_BNXT_XDP	1
+#define CONFIG_BNXT_BPO_XDP	1
 #endif
 
 #ifndef NETDEV_HW_FEATURES

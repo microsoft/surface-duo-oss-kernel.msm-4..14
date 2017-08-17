@@ -403,9 +403,9 @@ ifneq ($(shell ls $(LINUXSRC)/include/$(UAPI)/linux/net_tstamp.h > /dev/null 2>&
   endif
 endif
 
-EXTRA_CFLAGS += $(DISTRO_CFLAG) -DCHIMP_FW -DCONFIG_BNXT_FLASHDEV -DHSI_DBG_DISABLE -DCONFIG_BNXT_RE
+EXTRA_CFLAGS += $(DISTRO_CFLAG) -DCHIMP_FW -DCONFIG_BNXT_BPO_FLASHDEV -DHSI_DBG_DISABLE -DCONFIG_BNXT_BPO_RE
 
 cflags-y += $(EXTRA_CFLAGS)
 
-obj-$(CONFIG_BNXT) += bnxt_en.o
-bnxt_en-y := bnxt.o bnxt_ethtool.o bnxt_sriov.o bnxt_dcb.o bnxt_ulp.o bnxt_xdp.o bnxt_ptp.o #decode_hsi.o
+obj-$(CONFIG_BNXT_BPO) += bnxt_en_bpo.o
+bnxt_en_bpo-y := bnxt.o bnxt_ethtool.o bnxt_sriov.o bnxt_dcb.o bnxt_ulp.o bnxt_xdp.o bnxt_ptp.o #decode_hsi.o

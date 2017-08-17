@@ -22,7 +22,7 @@
 #include "bnxt_sriov.h"
 #include "bnxt_ethtool.h"
 
-#ifdef CONFIG_BNXT_SRIOV
+#ifdef CONFIG_BNXT_BPO_SRIOV
 static int bnxt_hwrm_fwd_async_event_cmpl(struct bnxt *bp,
 					  struct bnxt_vf_info *vf,
 					  u16 event_id)

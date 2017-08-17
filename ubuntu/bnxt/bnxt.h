@@ -11,7 +11,7 @@
 #ifndef BNXT_H
 #define BNXT_H
 
-#define DRV_MODULE_NAME		"bnxt_en"
+#define DRV_MODULE_NAME		"bnxt_en_bpo"
 #define DRV_MODULE_VERSION	"1.8.1"
 
 #define DRV_VER_MAJ	1
@@ -755,7 +755,7 @@ struct bnxt_vnic_info {
 #define BNXT_VNIC_RFS_NEW_RSS_FLAG	0x10
 };
 
-#if defined(CONFIG_BNXT_SRIOV)
+#if defined(CONFIG_BNXT_BPO_SRIOV)
 struct bnxt_vf_info {
 	u16	fw_fid;
 	u8	mac_addr[ETH_ALEN];
@@ -1126,12 +1126,12 @@ struct bnxt {
 	int			total_irqs;
 	u8			mac_addr[ETH_ALEN];
 
-#ifdef CONFIG_BNXT_DCB
+#ifdef CONFIG_BNXT_BPO_DCB
 	struct ieee_pfc		*ieee_pfc;
 	struct ieee_ets		*ieee_ets;
 	u8			dcbx_cap;
 	u8			default_pri;
-#endif /* CONFIG_BNXT_DCB */
+#endif /* CONFIG_BNXT_BPO_DCB */
 
 	u32			msg_enable;
 
@@ -1202,7 +1202,7 @@ struct bnxt {
 #define BNXT_LINK_SPEED_CHNG_SP_EVENT	14
 
 	struct bnxt_pf_info	pf;
-#ifdef CONFIG_BNXT_SRIOV
+#ifdef CONFIG_BNXT_BPO_SRIOV
 	int			nr_vfs;
 	struct bnxt_vf_info	vf;
 	wait_queue_head_t	sriov_cfg_wait;
@@ -1413,7 +1413,7 @@ void bnxt_half_close_nic(struct bnxt *bp);
 int bnxt_close_nic(struct bnxt *, bool, bool);
 int bnxt_reserve_rings(struct bnxt *bp, int tx, int rx, bool sh, int tcs,
 		       int tx_xdp);
-#if defined(HAVE_SETUP_TC) || defined(CONFIG_BNXT_DCB)
+#if defined(HAVE_SETUP_TC) || defined(CONFIG_BNXT_BPO_DCB)
 int bnxt_setup_mq_tc(struct net_device *, u8);
 #endif
 int bnxt_get_max_rings(struct bnxt *, int *, int *, bool);

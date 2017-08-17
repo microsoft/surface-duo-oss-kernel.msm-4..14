@@ -1,4 +1,4 @@
-config BNXT
+config BNXT_BPO
 	tristate "Broadcom NetXtreme-C/E support"
 	depends on PCI
 	depends on VXLAN || VXLAN=n
@@ -7,21 +7,21 @@ config BNXT
 	---help---
 	  This driver supports Broadcom NetXtreme-C/E 10/25/40/50 gigabit
 	  Ethernet cards.  To compile this driver as a module, choose M here:
-	  the module will be called bnxt_en.  This is recommended.
+	  the module will be called bnxt_en_bpo.  This is recommended.
 
-config BNXT_SRIOV
+config BNXT_BPO_SRIOV
 	bool "Broadcom NetXtreme-C/E SR-IOV support"
-	depends on BNXT && PCI_IOV
+	depends on BNXT_BPO && PCI_IOV
 	default y
 	---help---
 	  This configuration parameter enables Single Root Input Output
 	  Virtualization support in the NetXtreme-C/E products. This
 	  allows for virtual function acceleration in virtual environments.
 
-config BNXT_DCB
+config BNXT_BPO_DCB
 	bool "Data Center Bridging (DCB) Support"
 	default n
-	depends on BNXT && DCB
+	depends on BNXT_BPO && DCB
 	---help---
 	  Say Y here if you want to use Data Center Bridging (DCB) in the
 	  driver.

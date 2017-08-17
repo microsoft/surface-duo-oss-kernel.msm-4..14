@@ -30,7 +30,7 @@
 #include "bnxt_xdp.h"
 #include "bnxt_ptp.h"
 #include "bnxt_ethtool.h"
-#ifdef CONFIG_BNXT_FLASHDEV
+#ifdef CONFIG_BNXT_BPO_FLASHDEV
 #include "bnxt_nvm_defs.h"	/* NVRAM content constant and structure defs */
 #include "bnxt_fw_hdr.h"	/* Firmware hdr constant and structure defs */
 #define FLASH_NVRAM_TIMEOUT	((HWRM_CMD_TIMEOUT) * 100)
@@ -1538,7 +1538,7 @@ static u32 bnxt_get_link(struct net_device *dev)
 	return bp->link_info.link_up;
 }
 
-#ifdef CONFIG_BNXT_FLASHDEV
+#ifdef CONFIG_BNXT_BPO_FLASHDEV
 static int bnxt_find_nvram_item(struct net_device *dev, u16 type, u16 ordinal,
 				u16 ext, u16 *index, u32 *item_length,
 				u32 *data_length);
@@ -2920,7 +2920,7 @@ const struct ethtool_ops bnxt_ethtool_ops = {
 	.get_rxfh_key_size      = bnxt_get_rxfh_key_size,
 	.get_rxfh               = bnxt_get_rxfh,
 #endif
-#ifdef CONFIG_BNXT_FLASHDEV
+#ifdef CONFIG_BNXT_BPO_FLASHDEV
 	.flash_device		= bnxt_flash_device,
 	.get_eeprom_len         = bnxt_get_eeprom_len,
 	.get_eeprom             = bnxt_get_eeprom,

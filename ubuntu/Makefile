@@ -45,6 +45,11 @@ obj-$(CONFIG_OPENNSL) += opennsl/
 ##
 ##
 ##
+obj-$(CONFIG_BNXT_BPO) += bnxt/
+##
+##
+##
+##
 ##
 ##
 
