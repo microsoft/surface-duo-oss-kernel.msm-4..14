@@ -1,0 +1,1594 @@
+                              Release Notes
+                       Broadcom bnxt_en Linux Driver
+                              Version 1.8.1
+                                07/11/2017
+
+                            Broadcom Limited
+                         5300 California Avenue,
+                            Irvine, CA 92617
+
+                 Copyright (c) 2015 - 2016 Broadcom Corporation
+                   Copyright (c) 2016 - 2017 Broadcom Limited
+                           All rights reserved
+
+v1.8.1 (July 11, 2017)
+======================
+This version uses HWRM 1.8.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1.  (CTRL-25863) Fix warnings and errors in netpoll mode.
+        2.  (CTRL-25665) Fix uninitalized ethtool -S counters when
+            interface is down on older kernels.
+        3.  (CTRL-25917) Fix crash when ifconfig is retreiving counters
+            while device is closing.
+        4.  (CTRL-26071) Fix occasional failures when changing ethtool -L
+            channels from combined to rx/tx or vice versa.
+        5.  Fix SRIOV on big-endian systems.
+
+Enhancements:
+        1.  Fix compile errors on 4.13 kernel.
+        2.  Allow users to disable periodic counter updates for debugging
+            purposes.
+        3.  Add PTP hardware timestamp support (requires HWRM 1.8.0)
+        4.  Update to HWRM 1.8.0 with better support for link duplex
+            reporting.
+
+v1.7.30 (June 16, 2017)
+=======================
+This version uses HWRM 1.7.8.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1.  Fix potential memory corruption when lots of RFS filters are in
+            use. (backported from 1.7.53)
+        2.  Fixed compile errors on 4.11 kernel. (backported from 1.7.51)
+
+Enhancements:
+        1.  (CTRL-25004) Add VEPA support. (backported from 1.7.54)
+        2.  Fix compile errors on RHEL7.4. (backported from 1.7.53)
+
+v1.7.25 (April 10, 2017)
+========================
+This version uses HWRM 1.7.6.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Fixed regression in v1.7.24 on the kernels that the fix was
+           intended for (e.g. 3.10).
+
+v1.7.24 (April 10, 2017)
+=======================
+This version uses HWRM 1.7.6.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Fixed VF tx rate attribute on some older kernels (e.g. 3.10).
+
+v1.7.23 (April 8, 2017)
+=======================
+This version uses HWRM 1.7.6.2 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-25309) Do not allow lldpad to set host based DCBX if
+           firmware DCBX agent is running.
+
+v1.7.22 (April 7, 2017)
+=======================
+This version uses HWRM 1.7.6.2 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-25309) Report to DCBNL if firmware DCBX agent is enabled
+           so that lldpad will not try to configure the device.
+        2. Fix VF qos attribute reporting.
+
+Enhancements:
+        1. (CTRL-25284) Use up to 8 RSS rings by default on RHEL6.3 and
+           other similar old kernels.
+
+v1.7.21 (Mar 31, 2017)
+=======================
+This version uses HWRM 1.7.6.2 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. (CTRL-24874) Cap the use of MSIX with max available completion
+           rings.
+
+v1.7.20 (Mar 29, 2017)
+=======================
+This version uses HWRM 1.7.5 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. DMA unmapping bug during shutdown in XDP mode.
+        2. Removed ethtool -d which is unused and buggy.
+        3. Fixed compile errors on 4.12 rc kernels.
+        4. (CTRL-25056) Fixed NULL pointer crash in one open error path.
+
+Enhancements:
+        1. (CTRL-24492) Use short TX BDs for XDP.
+
+v1.7.9 (Mar 08, 2017)
+=====================
+This version uses HWRM 1.7.5 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Do not call firmware to get the list of available selftests
+           unless it is a single PF on a port.
+        2. Do not allow offline tests if there are active VFs.
+
+v1.7.8 (Mar 07, 2017)
+=====================
+This version uses HWRM 1.7.5 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. GPL clean up.  Remove miscellaneous non-GPL files that are not
+           needed.
+        2. Ignore 0 value in autoneg supported speed from firmware.
+
+v1.7.7 (Mar 04, 2017)
+=====================
+This version uses HWRM 1.7.5 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. Updated to HWRM spec 1.7.5.
+
+v1.7.6 (Mar 03, 2017)
+=====================
+This version uses HWRM 1.7.4 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-24746) Fix phy loopback self test failure when link
+           speed is autoneg.
+
+v1.7.5 (Mar 01, 2017)
+=====================
+This version uses HWRM 1.7.4 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-24724) Perform function reset earlier so that reserved
+           rings will not be cleared by firmware.
+
+Enhancements:
+        1. (CTRL-23660) Add ethtool -t selftest supported by HWRM 1.7.4.
+        2. Disallow lldpad if firmware DCBX/LLDP agent is running.
+        3. Notify RDMA driver during tx timeout.
+
+v1.7.4 (Feb 20, 2017)
+=====================
+This version uses HWRM 1.7.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (SOC-5134) Reject driver probe against all bridge devices.
+        2. (CTRL-24802) Fix NULL pointer dereference when open fails.
+        3. (CTRL-24803) Fix PCI cleanup when probe fails.
+
+Enhancements:
+        1. (CTRL-23667) Update to HWRM 1.7.1 spec to support VF MAC address
+           spoof check.
+
+v1.7.3 (Feb 13, 2017)
+=====================
+This version uses HWRM 1.7.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-24618) Fix ethtool -l pre-set max combined channels.
+        2. (CTRL-24206) Fix bugs in retry NVRAM install update operation.
+
+Enhancements:
+        1. (CTRL-24491, CTRL-24492) Merge with latest upstream XDP
+           implementation.
+
+v1.7.2 (Feb 6, 2017)
+====================
+This version uses HWRM 1.7.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. Removed -DNEW_TX compile option.  It will always use the new
+           logic if HWRM spec is 1.6.1 or newer.
+
+v1.7.1 (Feb 6, 2017)
+====================
+This version uses HWRM 1.7.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. (CTRL-24206) Retry NVRAM install update with defragmentation.
+
+v1.7.0 (Feb 3, 2017)
+====================
+This version uses HWRM 1.7.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Fix compile errors on Ubuntu 4.2 kernel.
+
+Enhancements:
+        1. (CTRL-24646) Add support for 57452 and 57454 devices.
+
+v1.6.10 (Jan 26, 2017)
+======================
+This version uses HWRM 1.6.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-24550, CTRL-24540) Fix compile errors on various
+           distributions introduced by the Yocto Makefile changes for SoC.
+
+v1.6.9 (Jan 24, 2017)
+=====================
+This version uses HWRM 1.6.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-24522) Fix compile warnings on RHEL6.9.
+        2. (CTRL-24491) Fix compile errors on newer kernels supporting XDP.
+        3. (CTRL-24491) Fix compile errors on early 4.x kernels.
+
+v1.6.8 (Jan 23, 2017)
+=====================
+This version uses HWRM 1.6.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Fix a kernel mutex deadlock situation during some link event
+           scenarios.
+        2. (CTRL-24496) Allow NTUPLE to be enabled on VFs.
+        3. (CTRL-24365) Silence warning messages from NPAR and VFs by
+           skipping phy configuration unless it is a single PF.
+        4. Fix poor TPA GRO performance on Cu devices when TCP timestamp
+           is not enabled.
+        5. Fix memory leak when setting DCBX APP TLV.
+        6. Fix ethtool -p kernel compatibility checks.
+
+v1.6.7 (Jan 09, 2017)
+=====================
+This version uses HWRM 1.6.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-24308) Fix proper punctuations in bnxt_setup_tc() error
+           message.
+        2. (CTRL-24269) Fix compiler warnings when CONFIG_RFS_ACCEL is
+           not defined.
+
+Enhancements:
+        1. (CTRL-24268) Compile RDMA interface for all supported kernels.
+        2. (CTRL-23664) Add GRE and IP encapsulated NTUPLE filter support.
+        3. Add ethtool -p support.
+        4. Add SRIOV hooks for RDMA interface.
+
+v1.6.6 (Dec 28, 2016)
+=====================
+This version uses HWRM 1.6.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-23746) Reserve TX rings when changing the number of TCs
+           (-DNEW_TX compile option required).
+        2. (CTRL-24283) Handle one available RX ring gracefully by
+           disabling TPA and HDS.
+
+Enhancements:
+        1. Added support for 4.10 kernel's new core MTU structure.
+
+v1.6.5 (Dec 23, 2016)
+=====================
+This version uses HWRM 1.6.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-24266) Fix regression on VF driver.
+
+v1.6.4 (Dec 22, 2016)
+=====================
+This version uses HWRM 1.6.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-24213) Disable MSIX before PCI shutdown to prevent
+           PCIE unsupported request error.
+        2. (CTRL-23907, CTRL-24172) Set default completion ring for
+           async event, otherwise all async events may end up going
+           to bnxt_re's completion ring.
+
+v1.6.3 (Dec 19, 2016)
+======================
+This version uses HWRM 1.6.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-24084, CTRL-24149, CTRL-24191) Fix Makefile for proper
+           RHEL7.3 compatibility.
+        2. Fixed endian conversion for DCBX protocol_id.
+
+v1.6.2 (Dec 14, 2016)
+======================
+This version uses HWRM 1.6.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. (CTRL-23854) Added support for ipv6 flows on RFS.
+        2. (CTRL-23683) Implemented new TX ring allocation scheme as a compile
+                        option.
+        3. (CTRL-23653) Display FEC settings during link up.
+
+v1.6.1 (Dec 08, 2016)
+======================
+This version uses HWRM 1.6.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Fixed hang issue during modprobe introduced in 1.6.0 when
+           running on HWRM 1.6.0 or above firmware.
+
+Enhancements:
+        1. Updated to 1.6.1 firmware HSI.
+
+v1.6.0 (Dec 06, 2016)
+======================
+This version uses HWRM 1.6.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-23711) Fix IRQ disable sequence during shutdown.
+        2. (CTRL-23724) Improve resource allocation for VFs.
+        3. Fix TPA/GRO code path on Cu+ devices.
+
+Enhancements:
+        1. Updated to 1.6.0 firmware HSI.
+        2. (CTRL-22565) Improve interface with RDMA driver.
+        3. Added support for improved Cu+ RFS mode which also supports RFS
+           on VFs (requires new HWRM 1.6.0 firmware).
+        4. DCBNL setapp/delapp implemented according to new spec.
+
+v1.5.13 (Nov 17, 2016)
+======================
+This version uses HWRM 1.5.4 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-23724) Fix bnxt_re registration failure.
+
+v1.5.12 (Nov 16, 2016)
+=====================
+This version uses HWRM 1.5.4 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. Updated HSI file to include 1.5.0 RoCE HSI.
+        2. Added ethtool -u|-U to display/set RSS hash (see README.TXT).
+        3. Better DCB support for NPAR/SR-IOV (see README.TXT).
+
+v1.5.11 (Nov 9, 2016)
+=====================
+This version uses HWRM 1.5.4 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-22565) Improve NULL pointer fix when bnxt_re registers
+           using new MSIX scheme (initial Fix in v1.5.7).
+
+v1.5.10 (Nov 8, 2016)
+=====================
+This version uses HWRM 1.5.4 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Move function reset from open to probe.  With the new MSIX
+           scheme, doing function reset in open may free all resources
+           allocated by bnxt_re.
+
+v1.5.9 (Nov 4, 2016)
+====================
+This version uses HWRM 1.5.4 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-22565) Improve early MSIX enablement scheme to prevent
+           race conditions with RoCE driver.
+
+v1.5.8 (Nov 4, 2016)
+====================
+This version uses HWRM 1.5.4 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-23629) Fixed RoCE registration regression caused by
+           fix for CTRL-23568.
+
+v1.5.7 (Nov 2, 2016)
+====================
+This version uses HWRM 1.5.4 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-23568) Fixed RoCE MSIX regression seen on VF.
+        2. (CTRL-23475) Fixed VF virtual link state regression since
+           firmware 20.6.0.
+        3. (CTRL-22565) Fix NULL pointer derefernce when bnxt_re loads
+           before network is up.
+
+Enhancements:
+        1. Added per priority PFC statistics.
+        2. Changed egress VLAN priority scheme.
+
+v1.5.6 (Oct 26, 2016)
+====================
+This version uses HWRM 1.5.4 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Fixed hang issue when enabling PFC mapped to TC 2 and above.
+        2. (CTRL-23288) Do full function reset after suspend/resume.
+
+Enhancements:
+        1. (CTRL-22565) Enable MSIX early during PCI probe so that MSIX
+           will always be available whether the network interface is up or
+           down.
+
+v1.5.5 (Oct 19, 2016)
+====================
+This version uses HWRM 1.5.3 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. (CTRL-23432) Send DCBX RoCE app TLV data to firmware.
+
+v1.5.4 (Oct 6, 2016)
+====================
+This version uses HWRM 1.5.2 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. Updated to HWRM 1.5.2 spec to use the new FORCE_LINK_DWN bit.
+
+v1.5.3 (Sep 23, 2016)
+=====================
+This version uses HWRM 1.5.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-23107, CTRL-23121, CTRL-23122) Fixed memory corruption
+           after setting ETS TLV under some conditions.
+        2. Fix compile error on kernels without CONFIG_DCB enabled.
+        3. Fix compile error on kernels without RTC_LIB enabled.
+        4. Fix compile error on SLES11SP4.
+
+v1.5.2 (Sep 16, 2016)
+====================
+This version uses HWRM 1.5.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Fixed Compilation issue on 3.7 Debian kernel.
+        2. Fixed autoneg issues on some dual-port devices.
+        3. (CTRL-22897) Reserved some statistics contexts for RoCE.
+
+Enhancements:
+        1. Added UDP RSS for 57X1X (Cu+) devices.
+        2. Added initial hardware QoS support.
+
+v1.5.1 (Sep 2, 2016)
+====================
+This version uses HWRM 1.5.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Fixed TX PUSH operation on ARM64 and similar architectures.
+        2. (CTRL-22870) Fixed compile issue on Debian 7.7 (3.2.0-4 kernel)
+
+Enhancements:
+        1. Updated to support HWRM spec 1.5.1.
+        2. (CTRL-22776) Added missing 57407 and 5741X NPAR PCI IDs.
+        3. (CTRL-22886) Improved the setting of VF link state.
+        4. (CTRL-22737) Added ethtool -r support.
+
+v1.5.0 (Aug 25, 2016)
+======================
+This version uses HWRM 1.5.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-22748) Fix ethtool -l|-L minor inconsistency.
+        2. Pad TX packets below 52 bytes to allow traffic to loopback to BMC.
+
+Enhancements:
+        1. Updated to support HWRM spec 1.5.0.
+        2. (CTRL-21966) Added secure firmware update.
+        3. Enable software GRO on 2.6 kernels.
+        4. Removed "Single-port/Dual-port" from device strings.
+
+v1.3.23 (Jul 15, 2016)
+======================
+This version uses HWRM 1.3.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Fix 5731X/5741X GRO logic.
+
+Enhancements:
+        1. (CTRL-22449) Added support for RoCE statistics context.
+        2. (CTRL-22525) Added all NPAR and 57416/57417 device IDs.
+        3. (CTRL-22021) Added support for 58700 Nitro devices.
+        4. Improved ntuple filters by including destination MAC in the
+           filter.
+
+v1.3.22 (Jun 30, 2016)
+======================
+This version uses HWRM 1.3.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Fix RoCE MSI-X and completion ring reservation logic.  It was
+           causing SRIOV to fail when enabling a large number of VFs.
+
+v1.3.21 (Jun 29, 2016)
+======================
+This version uses HWRM 1.3.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. (CTRL-22163) Added support for changing statistics coalescing
+           using ethtool -C (requires firmware 2.6.11 or newer).
+        2. Added promiscuous mode support on VF if default VLAN is in use.
+
+v1.3.20 (Jun 23, 2016)
+======================
+This version uses HWRM 1.3.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Fix hwrm_vnic_cfg with MRU enable bit for correctness.
+
+Enhancements:
+        1. Increased maximum MTU to 9500.
+
+v1.3.2 (Jul 28, 2016)
+=====================
+This version uses HWRM 1.3.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. (CTRL-22663) Removed "Single-port/Dual-port" from device strings.
+
+v1.3.1 (Jul 13, 2016)
+=====================
+This version uses HWRM 1.3.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. (CTRL-22510) Added 5740X NPAR and 57407 device IDs.
+
+v1.3.0 (Jun 29, 2016)
+=====================
+This version uses HWRM 1.3.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. (CTRL-22089) Added support for suspend/resume.
+        2. Set up dev_port sysfs attribute with port ID.
+
+v1.2.22 (Jun 17, 2016)
+======================
+This version uses HWRM 1.3.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. ifup/ifdown on the PF will not cause catastrophic failure on
+           active VFs.
+        2. (CTRL-22235) Add support for Kong and Bono firmware updates.
+        3. Fixed compile issues on 4.6 and 4.7 kernels.
+        4. (CTRL-22014) Added RoCE driver hooks.
+
+v1.2.21 (Jun 03, 2016)
+======================
+This version uses HWRM 1.2.2 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-22179) Fix tx push race condition causing driver crash.
+
+Enhancements:
+        1. (CTRL-22201) Request APE reset after firmware upgrade.
+        2. (CTRL-21966) Support NVM secure update item.
+
+v1.2.20 (May 25, 2016)
+=====================
+This version uses HWRM 1.2.2 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. (CTRL-22125) Added support for 5731X and 5741X devices.
+
+Known Issues:
+        1. Default VLAN not working on 5731x/5741x (20.6.6 firmware issue).
+        2. Accelerated RFS not working on 5731x/5741x (20.6.6 firmware issue).
+
+v1.2.8 (Jun 17, 2016)
+=====================
+This version uses HWRM 1.3.0 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-22211) Fixed VLAN receive on 3.8 and similar kernels.
+        2. (CTRL-22319) Fix compatibility issue on SRIOV mode which caused
+           the set_vf_link_state code to be disabled.
+
+Enhancements:
+        1. (CTRL-22089) Added magic packet WoL support (shutdown only).
+
+v1.2.7 (Jun 3, 2016)
+====================
+This version uses HWRM 1.2.2 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-22158) Return error code when NPAR/VF functions try to
+           change speed, flow control, etc.
+
+v1.2.6 (May 18, 2016)
+=====================
+This version uses HWRM 1.2.2 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Re-implemented default VLAN properly by disabling RX VLAN
+           acceleration on the VF.  New firmware which fixes CTRL-22105 is
+           also required.
+
+Enhancements:
+        1. (CTRL-21914) Add NPAR support for 57402, 57404, 57406.
+
+v1.2.5 (May 16, 2016)
+=====================
+This version uses HWRM 1.2.2 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Various fixes for ethtool -m.
+        2. (CTRL-21932) Unsupported SFP modules are now detected before device
+           is up.
+        3. (CTRL-22078) Firmware wait time extended to the proper time
+           specified by the firmware.  This may fix some VF firmware timeout
+           issue.
+        4. (CTRL-22019) Fixed powerpc panic issue.
+
+Enhancements:
+        1. (CTRL-21956) Added PCIE link speed and width message during
+           modprobe.
+
+v1.2.4 (Apr 22, 2016)
+=====================
+This version uses HWRM 1.2.2 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-21914) Fix invalid max channels displayed by ethtool -l
+           when one MSIX is assigned to the function.
+        2. Fix rx path on architectures using 64K PAGE_SIZE.
+
+Enhancements:
+        1. (CTRL-21786) Added support for ethtool -m.
+
+v1.2.3 (Apr 15, 2016)
+=====================
+This version uses HWRM 1.2.2 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-21965) Don't allow autoneg on NICs that don't support it.
+
+v1.2.2 (Apr 12, 2016)
+=====================
+This version uses HWRM 1.2.2 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-21776) Add workaround for hardware duplicate rx opaque
+           bug (CUMULUS-7831).
+        2. (CTRL-21934) Don't fall back to INTA if msix allocation fails
+           on the VF.
+
+v1.2.1 (Mar 25, 2016)
+=====================
+This version uses HWRM 1.2.2 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. Fixed incorrect link down state when unsupported optical modules
+           notifications are enabled.
+
+v1.2.0 (Mar 24, 2016)
+=====================
+This version uses HWRM 1.2.2 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-21822) Implemented new HWRM scheme for VF MAC address change
+           for VMWare that also works for Linux PF.
+        2. (CTRL-21859) Fixed flow control reporting when autoneg is off.
+
+v1.0.7 (Mar 16, 2016)
+=====================
+This version uses HWRM 1.2.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-21839) Fixed inconsistent EEE reporting on dmesg.
+        2. Fixed flow control settings logic.  This fixes the
+           update_phy error message when bringing up the VFs with
+           flow control set to autoneg.
+
+v1.0.6 (Mar 14, 2016)
+=====================
+This version uses HWRM 1.2.1 and is compatible with all firmware using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. (CTRL-21729) Provide NVM and FW status information via ethtool
+           GEEPROM.
+        2. Adjusted default coalescing parameters to reduce interrupts.
+        3. Added check for valid forced speed during ethtool -s.
+        4. Improved ethtool forced speed settings display.
+        5. Added default VLAN support for VFs.
+
+Fixes:
+        1. Fixed RHEL6.8 compile error.
+        2. (CTRL-21440) Worked around RHEL6.3 source tree bug that caused
+           issues with IOMMU.
+        3. Disallow forced speed on 10GbaseT/1GBaseT.
+
+v1.0.5 (Mar 2, 2016)
+====================
+
+Enhancements:
+        1. Added unsupported SFP+ module reporting.
+
+v1.0.4 (Mar 1, 2016)
+====================
+
+This version is compatible with all ChiMP FW versions 20.1.x and above using
+HWRM 1.0.0 or above.
+
+Enhancements:
+        1. Updated to support HWRM 1.2.0, backwards compatible to 1.0.0.
+        2. (CTRL-21401) Added EEE for 10GBase-T devices.
+
+v1.0.3 (Feb 16, 2016)
+=====================
+
+This version is compatible with all ChiMP FW version 20.1.x and above using
+HWRM 1.0.0 or above.
+
+Fixes:
+        1. (CTRL-21636) Fixed link down condition when doing rapid speed
+           changes and changing other settings.
+        2. (CTRL-20564) Improve default firmware timeout behavior so that
+           messages requiring long timeouts (such as NVM commands) will work
+           better with older firmware.
+
+Enhancements:
+        1. (CTRL-21405) Add PCIE advanced error reporting.
+	2. Added port statistics for PF.
+        3. (CTRL-21587) Add autoneg support for 25G/40G/50G. See README.TXT.
+
+v1.0.2 (Jan 26, 2016)
+=====================
+
+This version requires ChiMP FW version 20.1.11 (HWRM 1.0.0).
+
+Fixes:
+        1. (CTRL-21271) Reduce default ring sizes and change default to
+           combined channels to reduce memory and DMA mappings.
+        2. (CTRL-21271) Fix crash when freeing tx ring during tx timeout.
+        3. Fix firmware error message logging to print message fields
+           properly.
+        4. Use completion ring to process ring free response response
+           from firmware.
+
+Enhancements:
+        1. (CTRL-21288) Add package version information to ethtool -i.
+
+v1.0.1 (Jan 08, 2016)
+=====================
+
+This version requires ChiMP FW version 20.1.9 (HWRM 1.0.0).
+
+Fixes:
+        1. (CTRL-21410, CUMULUS-6643) Exclude hw rx_drop_pkts from the stack's
+           rx_dropped counter.
+
+v1.0.0 (Jan 07, 2016)
+=====================
+
+This version requires ChiMP FW version 20.1.7 (HWRM 1.0.0).
+
+Enhancements:
+        1. Driver is now compatible with all future versions of production
+           firmware using HWRM spec 1.0.0 or newer.
+
+v0.1.32 (Dec 18, 2015)
+======================
+
+This version requires ChiMP FW version 20.1.5 (HWRM 0.8.0).
+
+Enhancements:
+        1. Enhanced ethtool -d with a signature to determine endianess.
+
+v0.1.31 (Dec 16, 2015)
+======================
+
+This version requires ChiMP FW version 20.1.3 (HWRM 0.7.8).
+
+Fixes:
+        1. (CTRL-21319) Fixed compile error on RHEL6 2.6.32-573.el6 kernel.
+        2. (CTRL-20830) Keep track of ring group resources advertised by
+           firmware.
+        3. Check for adequate resources before allowing NTUPLE to be enabled.
+        4. Fixed compile issues on 4.3/4.4 kernels.
+        5. (CTRL-21379) Fixed rmmod hang on older 3.x kernels.
+
+Enhancements:
+        1. Removed all A0 workarounds.
+        2. Added preliminary support for ethtool -d.
+        3. Added reset to tx timeout and reverted back to 5 seconds.
+
+v0.1.30 (Nov 23, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.41 (HWRM 0.7.8).
+
+Fixes:
+        1. Fixed compile error on generic 3.10 kernel.  This was a
+           regression introduced in version 0.1.29.
+
+v0.1.29 (Nov 23, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.41 (HWRM 0.7.8).
+
+Enhancements:
+        1. (CTRL-21302) Added support for upgrading APE/NC-SI firmware using
+           ethtool -f.
+        2. (CTRL-20980) Completed support for all RHEL6.x kernels and generic
+           2.6.32 kernel.
+
+Fixes:
+        1. (CTRL-21203) Increment software checksum error counter only if
+           rx checksum offload is enabled.
+
+v0.1.28 (Nov 17, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.39 (HWRM 0.7.8).
+
+Enhancements:
+        1. (CTRL-21270) Added PCI IDs for 57301 and 57402 devices.
+
+        2. More robust SRIOV cleanup sequence to prevent VF crash when
+           the PF driver is unloaded.
+
+        3. (CTRL-20989, CTRL-20925) Implement rx/tx channels to improve tx
+           performance with dedicated tx and rx completion rings.  See
+           ethtool -L in README.TXT for more information.
+
+Fixes:
+        1. (CTRL-21217) Fixed SRIOV implementation on RHEL6.x kernels with
+           num_vfs module parameter.
+
+        2. (CTRL-21211) Fixed VLAN acceleration for RHEL6.x kernels.
+
+        3. (CTRL-21255) Fixed macvlan issue after driver reset.  The
+           unicast address list needs to be reprogrammed after reset.
+
+        4. Fixed INTA implementation by properly mapping the CAG register.
+
+v0.1.27 (Oct 28, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.38 (HWRM 0.7.8).
+
+Fixes:
+        1. (CTRL-21223) Fixed GRO issue when running ipv6 without TCP
+           timestamps.
+
+v0.1.26 (Oct 23, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.38 (HWRM 0.7.8).
+
+Fixes:
+        1. Fixed MAC address change to take effect immediately.
+
+Enhancements:
+        1. (CTRL-21163) Added support for RHEL6.3 kernel and OLE6.3 UEK.
+        2. (CTRL-21186) Added ChiMP reset after flashing firmware with
+           ethtool -f.
+        3. (CTRL-21165) Added support for flashing AVS firmware.
+
+v0.1.25 (Oct 09, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.36 (HWRM 0.7.8).
+
+Fixes:
+        1. (CTRL-21064) Fix PF max ring calculation to prevent ethtool -L
+           failure on PF when SRIOV is enabled.
+
+v0.1.24 (Oct 07, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.36 (HWRM 0.7.8).
+
+New Features:
+        1. (CTRL-21053) Added support for INTA mode.  The driver will
+           automatically fall back to INTA if MSIX is not available.
+
+        2. (CTRL-20980) Added initial support for RHEL6.7 and some
+           similar kernels.
+
+Fixes:
+        1. Added fixes for ethtool -K ntuple on|off.
+
+        2. Added proper accounting of statistics context resources when
+           changing ethtool channels.
+
+        3. (CTRL-21095) Ensure we have enough RSS contexts before enabling
+           a VF.
+
+        4. (CTRL-21048) Make sure GRO packets have valid hash.  Disable TPA
+           during shutdown.  Close the device if we cannot initialize it
+           during configuration changes.
+
+        5. (CTRL-20989) Partial fix by setting a limit on tx completion
+           processing.
+
+        6. (CTRL-21011) Make sure ring pages don't exceed the maximum.
+           Adjust maximum ring sizes to prevent exceeding the maximum.
+
+        7. (CTRL-21064) Do not do function reset during ring changes
+           so that PF/VFs are not affected during ring changes.
+
+Enhancements:
+        1. Added extra padding for small packets to work in loopback mode
+           using latest firmware that has TXP padding disabled.
+
+        2. Enhanced pause setting changes to trigger link change and
+           print a new link message when appropriate.
+
+Known Issues:
+        1. Known VEB firmware issue of duplicating multicast packets on
+           NIC2.  This would cause ipv6 to detect duplicate address.
+
+v0.1.23 (Sep 22, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.34 (HWRM 0.7.6).
+
+New Features:
+        1. Added support for BCM57302 PCI ID.
+
+Fixes:
+        1. (CTRL-21032) Use modified firmware ring reset to workaround
+           hardware issue CUMULUS-5196.
+
+        2. (CTRL-20989) Partial fix of tx timeout issue by increasing the
+           timeout value from 5 to 10 seconds.  This is a temporary workaround
+           for the occasional tx completions that can take longer than 5
+           seconds while the issue is being investigated.
+
+        3. (CTRL-21048) Fix macvtap BUG condition while doing ring changes
+           with TPA (GRO) enabled.
+
+        4. Fix the msix table size read from the msix capability.  It was off
+           by 1 in previous versions.
+
+        5. (CTRL-21059) Fix RFS on 2nd port.  ChiMP firmware fix in 0.1.33
+           also required.
+
+        6. (CTRL-21033) Limit maximum ethtool channels to no more than the
+           msix table size to prevent failures.
+
+Enhancements:
+        1. Use smaller (256-byte) 1st buffer with HDS mode.
+
+        2. Support asynchronous link events in VF driver.
+
+v0.1.22 (Sep 14, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.32 (HWRM 0.7.6).
+
+Fixes:
+        1. (CTRL-20993) Reject SRIOV configuration from sysfs if PF is down.
+        2. Fixed ethtool -S counter names discard and drop to match exactly
+           hardware counter definitions.
+        3. (CTRL-20705) Fixed kernel oops when running ethtool -L rx 0 tx 0.
+
+Enhancements:
+        1. (CTRL-20686) Call firmware hwrm_ring_reset to perform recovery
+           from duplicate opaque hardware issue (CUMULUS-5196)
+        2. Added support for 3.8 kernel.
+
+v0.1.21 (Sep 10, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.31 (HWRM 0.7.6).
+
+New Features:
+        1. Added autoneg support for 57406 10GBase-T device.
+        2. (CTRL-20619) Added rx_l4_csum_errors software counter.
+
+Fixes:
+        1. (CTRL-20704) ethttol -L now returns error when user tries to set
+           combined or other channels.
+        2. (CTRL-20704) Fix incorrect ethtool -S statistics when device is
+           down.
+        3. Added RSS hash values to skb->hash for RFS packets.
+
+Enhancements:
+        1. Improved ethtool -{L|l} when VFs are configured.
+        2. Added support for 3.9 kernel.
+
+v0.1.20 (Sep 01, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.30 (HWRM 0.7.6).
+
+New Features:
+        1. (CTRL-20800) Added ethtool -x to display RSS indirection table and
+           hash key.
+
+Fixes:
+        1. Fixed the problem of non-functioning Low Latency Polling mode
+           after driver config. changes such as MTU change.
+
+Enhancements:
+        1. Added ability to configure VF MAC address at any time after SR-IOV
+           is enabled.
+
+v0.1.19 (Aug 26, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.28 (HWRM 0.7.6).
+
+New Features:
+        1. Added Accelerated RFS support on PF for TCP/IPv4.
+        2. Enabled Header Data split for TPA and jumbo frames.
+
+Fixes:
+        1. (CTRL-20905) Fixed over-subscription of rx rings, causing failure
+           when enabling a large number of VFs.
+        2. Use correct length hint for TSO packets for correct TSO mbuf usage.
+        3. (CTRL-20930) Enhanced duplicate opaque workaround logic for dual
+           port and multiple fuctions.
+
+Enhancements:
+        1. Added basic register and state dump during tx timeout, but no
+           recovery logic yet.
+        2. Added support for setting VF link state.
+           
+v0.1.18 (Aug 20, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.27 (HWRM 0.7.6).
+
+New Features:
+        1. Added support for 57406 10GBase-T device.
+
+Fixes:
+        1. (CTRL-20890) Fixed ethtool -L driver bug when increasing the rings
+           beyond 16.
+        2. (CTRL-20905) Fixed vnic allocation in VF to increase the number
+           of supported VF. ChiMP fix is also required to support more
+           than 32 VFs.
+
+Enhancements:
+        1. Modified MSI-X IRQ name to work with affinity scripts.
+        2. Enhanced recovery steps further to include RE_FLUSH and rx doorbell
+           unmap for hw bug CTRL-20686 (CUMULUS-5196).
+
+Known Issues:
+        1. PF cannot be brought down or reconfigured if there are active VFs.
+
+v0.1.17 (Aug 12, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.26 (HWRM 0.7.5).
+
+New Features:
+        1. (CTRL-20869) Add support to ethtool -f for pre-boot components.
+
+Enhancements:
+        1. Speed up the recovery steps for hw bug CTRL-20686 (CUMULUS-5196).
+
+v0.1.16 (Aug 09, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.26 (HWRM 0.7.5).
+
+New Features:
+        1. Added VF device ID 0x16d3 for 57404 VF.
+
+v0.1.15 (Aug 05, 2015)
+======================
+
+This version requires ChiMP FW version 0.1.24 (HWRM 0.7.5).
+
+New Features:
+        1. SR-IOV tested to work on ChiMP FW 0.1.24.
+
+Fixes:
+        1. (CTRL-20804) Added workaround for TPA_FLUSH to make recovery from
+           duplicate agg completion (CTRL-20686) reliable.
+
+        2. (CUMULUS-5361) Use different TPA_TIMERS_CFG to make TPA timeouts
+           reliable.
+
+Known Issues:
+        1. ChiMP FW 0.1.24 has an issue with multicast and SR-IOV.  For
+           example, this problem can affect ipv6 neighbor discovery with
+           VFs enabled.
+
+v0.1.14 (July 30, 2015)
+=======================
+
+This version requires ChiMP FW version 0.1.23 (HWRM 0.7.5).
+
+Fixes:
+        1. (CTRL-20848) Fix failure to create vxlan tunnel.
+        2. (CTRL-20651) Update NVRAM HWRM API to work with ChiMP 0.1.23.
+        3. (CTRL-20823) Fix ethtool -C failure due to out-of-range rx-frames
+           value.
+
+Known Issues:
+        1. (CTRL-20841) MTU may need to be adjusted when creating a tunnel so
+           that the tunnel MTU is divisble by 4 to avoid PCIE errors caused
+           by known issue with TPA enabled (CTRL-20641).
+        2. SRIOV has issues with Firmware 0.1.23.
+
+v0.1.13 (July 28, 2015)
+=======================
+
+This version requires ChiMP FW version 0.1.22 (HWRM 0.7.5).
+
+New Features:
+        1. Geneve tunnel stateless offload.
+        2. VXLAN arbitrary UDP port.
+        3. Support 4.x kernels.
+        4. PCIe and PHY microcode update using ethtool -f.
+
+Fixes:
+        1. (CTRL-20793, CTRL-20796) Fix bridging issues with hardware GRO.
+
+Enhancements:
+        1. Improved workaround for CTRL-20686.
+
+v0.1.12 (July 13, 2015)
+=======================
+
+Fixes:
+	01. Increased TPA concurrent aggregations to max (64).
+	02. Refined IRQ coalescing to only enable RING_IDLE feature if
+	    rx-usecs is less than 25 us.
+
+v0.1.11 (July 09, 2015)
+=======================
+
+This version supports ChiMP FW version 0.1.20 (HWRM 0.7.4).
+
+Fixes:
+	01. (CTRL-20686) Implemented workaround to recover from duplicate
+	    aggregation ring completions hardware bug.
+
+v0.1.10 (June 30, 2015)
+======================
+
+This version supports ChiMP FW version 0.1.19 (HWRM 0.7.4).
+
+Fixes:
+	01. Disabled HDS (header data split) to workaround CTRL-20686 hardware
+	    issue so that standard MTU will not hit the issue.
+
+v0.1.9 (June 30, 2015)
+======================
+
+This version supports ChiMP FW version 0.1.19 (HWRM 0.7.4).
+
+Fixes:
+	01. Added support for generic 4.0 kernel.
+	02. Enabled HDS (header data split) when aggregation ring is used.
+
+v0.1.8 (June 26, 2015)
+======================
+
+This version supports ChiMP FW version 0.1.18 (HWRM 0.7.4).
+
+Fixes:
+	01. Added support for generic 3.10/3.11 kernels.
+
+v0.1.7 (June 24, 2015)
+======================
+
+This version supports ChiMP FW version 0.1.18 (HWRM 0.7.4).
+
+Fixes:
+
+	01. (CTRL-20641) Added SOP (start of frame padding) to workaround
+	    PCIE error with TPA enabled.
+
+v0.1.6 (June 20, 2015)
+======================
+
+This version supports ChiMP FW version 0.1.18 (HWRM 0.7.4).
+
+Fixes:
+
+	01. Enabled link change events.
+
+	02. Added support for link pause flow control (preview feature, not
+            well tested).
+
+	03. (CTRL-20630) Fixed most crashes during GRO and LRO settings
+            changes.
+
+v0.1.5 (June 17, 2015)
+======================
+
+This version supports ChiMP FW version 0.1.16 (HWRM 0.7.3).
+
+Fixes:
+
+	01. Fixed low latency (busy poll) socket mode.
+
+	02. (CTRL-20624) Fixed "ethtool -C rx-frames 1" problem.
+
+	03. Added ethtool -f support for upgrading firmware.
+
+	04. Added ethtool -e support to read NVRAM.
+
+	05. Added multiple unicast address support, eliminating the
+	    need to always go into promiscuous mode.
+
+	06. Fixed low performance with tunnel packets in GRO mode.
+
+	07. (CTRL-20660) Fixed macvtap crash with GRO enabled.
+
+v0.1.4 (May 29, 2015)
+======================
+
+This version supports ChiMP FW version 0.1.12 (HWRM 0.7.3).
+
+Fixes:
+
+	01. (CTRL-20585) Added workaround for bridge multicast storm issue.
+
+	02. Added interrupt coalescing support with new default settings
+            and configurable using ethtool.
+
+	03. Fixed VLAN issue by configuring chip to strip VLAN tags on RX.
+
+	04. Added page table support for the larger ring sizes.
+
+	05. (CTRL-20599) Fixed transmit queue 8 timeout issue.
+
+	06. Updated Chip names with official marketing names.
+
+v0.1.3 (May 23, 2015)
+======================
+
+This version supports ChiMP FW version 0.1.11 (HWRM 0.7.3).
+
+Fixes:
+
+	01. Fixed TPA setup with large MTUs.  Before this fix, TCP
+            performance was very poor with larger MTUs.
+
+        02. Fixed the problem of statistics counters not working after
+            configuration changes.
+
+v0.1.2 (May 21, 2015)
+======================
+
+Fixes:
+	01. Fixed the "DMA: Out of SW-IOMMU space ..." error by enabling
+            64-bit DMA.  This should also improve performance slightly.
+
+	02. Fixed firmware version in ethtool -i by reporting the ChiMP
+            firmware version as "bc" and the HWRM spec version as "rm".
+            PHY firmware version was added as "ph".
+
+        03. Added module version and description for modinfo.
+
+
+v0.1.1 (May 19, 2015)
+======================
+Features tested
+	01. Cumulus A0 NIC2 and NIC3 at 10/25 Gbps.
+	02. Dual port support on NIC2
+	03. TX/RX Checksum offload (IPv4/IPv6)
+	04. TCP segmentation offload (TSO IPv4/IPv6)
+	05. MultiQ (TSS / RSS)
+	06. Statistics (PF only)
+	07. Ethtool (only options -s -k,-K,-i,-g,-G,-l,-L)
+	08. vlan acceleration
+	09. TPA GRO and LRO with ethtool support
+	10. Broadcast/multicast replication
+	11. Promiscuous mode support
+
+v0.1.0 (May 15, 2015)
+======================
+Features tested
+	01. Cumulus A0 NIC2 at 10 Gbps.
+	02. Dual port support
+	03. TX/RX Checksum offload (IPv4/IPv6)
+	04. TCP segmentation offload (TSO IPv4/IPv6)
+	05. MultiQ (TSS / RSS)
+	06. Statistics (PF only)
+	07. Ethtool (only options -k,-K,-i,-g,-G,-l,-L)
+	08. vlan acceleration
+	09. TPA GRO and LRO with ethtool support
+	10. Broadcast/multicast replication
+	11. Promiscuous mode support
+
+v0.008 (Mar 11, 2015)
+======================
+Features supported
+	01. Dual port support
+	02. TX/RX Checksum offload (IPv4/IPv6)
+	03. TCP segmentation offload (TSO IPv4/IPv6)
+	04. MultiQ (TSS / RSS)
+	05. Change MTU
+	06. Jumbo Frames
+	07. Statistics (PF only)
+	08. Ethtool (only options -k,-K,-i,-g,-G)
+	09. vlan acceleration
+	10. VXLAN stateless offload (only UDP port 4789 is supported)
+	11. GRE stateless offload
+	12. IPinIP stateless offload
+	13. SRIOV
+	14. VEB
+	15. TPA GRO and LRO with ethtool support
+	16. Broadcast/multicast replication fully supported on PF and VF
+	17. TXP padding disabled and XLMAC padding enabled to workaround
+            JIRA-4080
+	18. Added double doorbell to workaround JIRA-3918
+	19. Added promiscuous mode support
+
+Features not supported:
+	01. Ethtool options other than -k,-K,-i,-g,-G,-S
+	02. QoS/DCBX
+
+FPGA: 		3.1.27
+Chimp FW: 	0.0.18
+
+v0.007 (Feb 25, 2015)
+======================
+Features supported
+	01. Dual port support
+	02. TX/RX Checksum offload (IPv4/IPv6)
+	03. TCP segmentation offload (TSO IPv4/IPv6)
+	04. MultiQ (TSS / RSS)
+	05. Change MTU
+	06. Jumbo Frames
+	07. Statistics (PF only)
+	08. Ethtool (only options -k,-K,-i,-g,-G)
+	09. vlan acceleration
+	10. VXLAN stateless offload (only UDP port 4789 is supported)
+	11. GRE stateless offload
+	12. IPinIP stateless offload
+	13. SRIOV (most previous limitations removed)
+	14. VEB (previous limitations removed)
+	15. TPA GRO and LRO with ethtool support (previous limitations removed)
+	16. Broadcast/multicast replication fully supported on PF and VF
+	17. TXP padding disabled and XLMAC padding enabled to workaround
+            JIRA-4080
+	18. Added double doorbell to workaround JIRA-3918
+
+Features not supported:
+	01. Ethtool options other than -k,-K,-i,-g,-G,-S
+	02. QoS/DCBX
+
+FPGA: 		3.1.27
+Chimp FW: 	0.0.18
+
+v0.006 (Jan 29, 2015)
+======================
+Features supported
+	01. Dual port support
+	02. TX/RX Checksum offload (IPv4/IPv6)
+	03. TCP segmentation offload (TSO IPv4/IPv6)
+	04. Change MTU
+	05. Jumbo Frames
+	06. Statistics (PF only)
+	07. Ethtool (only options -k,-K,-i,-g,-G)
+	08. vlan acceleration
+	09. VXLAN stateless offload (only UDP port 4789 is supported)
+	10. GRE stateless offload
+	11. IPinIP stateless offload
+	12. SRIOV (limited functionality, check limitations below)
+	13. VEB (limited functionality, check limitations below)
+	14. TPA GRO and LRO with ethtool support (check limitations below)
+
+Features not supported:
+	01. Ethtool options other than -k,-K,-i,-g,-G,-S
+	02. QoS/DCBX
+	03. MultiQ (TSS / RSS)
+
+FPGA: 		3.1.21
+Chimp FW: 	0.0.17
+
+v0.005 (Jan 21, 2015)
+======================
+Features supported
+	01. Dual port support
+	02. TX/RX Checksum offload (IPv4/IPv6)
+	03. TCP segmentation offload (TSO IPv4/IPv6)
+	04. Change MTU
+	05. Change Mac Address
+	06. Jumbo Frames
+	07. Ethtool (only options -k,-K,-i)
+	08. vlan acceleration
+	09. VXLAN stateless offload (only UDP port 4789 is supported)
+	10. GRE stateless offload
+	11. IPinIP stateless offload
+	12. SRIOV (limited functionality, check limitations below)
+	13. VEB (limited functionality, check limitations below)
+	13. TPA GRO and LRO with ethtool support (check limitations below)
+
+Features not supported:
+	01. Statistics
+	02. Ethtool options other than -k,-K,-i
+	03. QoS/DCBX
+	04. MultiQ (TSS / RSS)
+
+
+v0.004 (Jan 20, 2015)
+======================
+Features supported
+	01. Dual port support
+	02. TX/RX Checksum offload (IPv4/IPv6)
+	03. TCP segmentation offload (TSO IPv4/IPv6)
+	04. Change MTU
+	05. Change Mac Address
+	06. Jumbo Frames
+	07. Ethtool (only options -k,-K,-i)
+	08. vlan acceleration
+	09. VXLAN stateless offload (only UDP port 4789 is supported)
+	10. GRE stateless offload
+	11. IPinIP stateless offload
+	12. SRIOV (limited functionality, check limitations below)
+	13. TPA (known issues, check limitations)
+
+Features not supported:
+	01. Statistics
+	02. Ethtool options other than -k,-K,-i
+	03. QoS/DCBX
+	04. MultiQ (TSS / RSS)
+
+
+v0.003 (Dec 15, 2014)
+======================
+Bug fixes:
+	1. Aggregation ring enablement (JIRA 3359).
+	2. Broadcast/Multicast filters (JIRA's 3315, 3358).
+
+Features supported
+	01. TX/RX Checksum offload (IPv4/IPv6)
+	02. TCP segmentation offload (TSO IPv4/IPv6)
+	03. MultiQ (TSS / RSS)
+	04. Change MTU
+	05. Change Mac Address
+	06. Jumbo Frames
+	07. Ethtool (only options -k,-K,-i)
+	08. vlan acceleration
+	09. TPA (only LRO)
+	10. VXLAN stateless offload (only UDP port 4789 is supported)
+	11. GRE stateless offload
+	12. IPinIP stateless offload
+	 
+Features not supported:
+	01. SRIOV
+	02. Statistics
+	03. Ethtool options other than -k,-K,-i
+	04. QoS/DCBX
+
+v0.001 (Oct 31, 2014)
+======================
+Features supported:
+
+	1. TX/RX Checksum offload
+	2. Large segment offload (LSO)
+	3. MultiQ (TSS / RSS)
+	4. Change MTU
+	5. Change Mac Address
+	6. Jumbo Frames
+	7. vlan
+	8. Ethtool (only options -k,-K,-i)
+
+Features not supported:
+	1. Statistics (basic & advanced)
+	2. Ethtool options other than -k,-K,-i
+	3. vlan acceleration
+	4. TPA (LRO/GRO)
+	5. SRIOV
+	6. QoS/DCBX
+	7. Vxlan
+
+========================================================================
+DETAILS:
+
+FPGA version 3.1.27:
+
+	To program FPGA
+	1. RDP to any of pb_sniffer[5-10]
+	2. Map \\pb_file_srvr\drive_e to a drive.
+	3. Change directory to <DRIVE>\ProDesign\<FPGA version>
+	4. Run “prg_fpga.bat” <IP address of FPGA>
+
+Chimp FW version 0.0.18:
+	Locaton: ~/nseg/rels/bcm5734x/firmware/ChiMP_Firmware/0.0.18
+
+	To program Chimp FW to NVRAM:
+	1.esx-dbg (Administrator/broadcom) has the dos USB key.
+	2.Open your setup idrac and map the usb key (use Mozilla or Chrome)
+	3.Boot to dos
+	4.cd cdiag/0915/
+	5.cdiag.exe -eng
+	6.Enter the following command in cdiag and wait for completion
+		1:> nvm upgrade –cfw ncfc0000.17
+	7.Enter the following command to get fw version
+		1:> nvm dir
+
+Kernel:
+	Standard kernel that comes with RHEL7.0 or above
+	(Development was done using 3.10.0-123.el7.x86_64)
+
+Driver:
+	nseg: ~/nseg/rels/bcm5734x/drivers/linux/0.006
+
+iproute2:
+	https://www.kernel.org/pub/linux/utils/net/iproute2/  OR
+	git://git.kernel.org/pub/scm/linux/kernel/git/shemminger/iproute2.git
+
+============================================================================
+Know Issues/Limitations:
+
+SRIOV:
+	1. Max 2 VF's can be enabled.
+	2. All VF development/testing was done using 'network namespace' on the
+	   hypervisor itself, no major issues are expected when VF driver is
+	   brought up on a real VM.
+
+	a. To enable 'x' VF's
+	#echo x > /sys/bus/pci/devices/<pci_bus_id of PF0>/sriov_numvfs
+
+	b. To disable VF's
+	#echo 0 > /sys/bus/pci/devices/<pci_bus_id of PF0>/sriov_numvfs
+
+Vlan:
+	1. RX side vlan stripping cannot be disabled on HW. Thus there is no
+	   support for non-accelerated vlan on RX. If user disables vlan
+	   stripping it will not ping.
+
+	2. On TX side vlan normal/accelerated modes are supported.
+
+	a. To enable/disable TX vlan acceleration
+	#ethtool -K vlan-tx-offload  on/off
+
+	b. To enable/disable RX vlan acceleration
+	#ethtool -K vlan-rx-offload  on/off
+
+============================================================================

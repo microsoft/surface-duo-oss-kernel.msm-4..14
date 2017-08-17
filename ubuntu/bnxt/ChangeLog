@@ -1,0 +1,3952 @@
+commit 9b0436c3f29483ca91d890b0072c0c02e2e535ed
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Jul 11 13:05:36 2017 -0400
+
+    bnxt_en: Fix SRIOV on big-endian architecture.
+    
+    The PF driver sets up a list of firmware commands from the VF driver that
+    needs to be forwarded to the PF for approval.  This list is a 256-bit
+    bitmap.  The code that sets up the bitmap falls apart on big-endian
+    architecture.  __set_bit() does not work because it operates on long types
+    whereas the firmware interface is defined in u32 types, causing bits in
+    the wrong 32-bit word to be set.
+    
+    Fix it by setting the proper bits on an array of u32.
+    
+    Fixes: de68f5de5651 ("bnxt_en: Fix bitmap declaration to work on 32-bit arches.")
+    Reported-by: Shannon Nelson <shannon.nelson@oracle.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 3b6b34df342553a7522561e34288f5bb803aa9aa
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Jul 11 13:05:35 2017 -0400
+
+    bnxt_en: Fix bug in ethtool -L.
+    
+    When changing channels from combined to rx/tx or vice versa, the code
+    uses the wrong "sh" parameter to determine if we are reserving rings
+    for shared or non-shared mode.  It should be using the ethtool requested
+    "sh" parameter instead of the current "sh" parameter.
+    
+    Fix it by passing the "sh" parameter to bnxt_reserve_rings().  For
+    ethtool, we will pass in the requested "sh" parameter.
+    
+    Fixes: 391be5c27364 ("bnxt_en: Implement new scheme to reserve tx rings.")
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit f9b76ebd49f97458857568918c305a17fa7c6567
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Jul 11 13:05:34 2017 -0400
+
+    bnxt_en: Fix race conditions in .ndo_get_stats64().
+    
+    .ndo_get_stats64() may not be protected by RTNL and can race with
+    .ndo_stop() or other ethtool operations that can free the statistics
+    memory.  Fix it by setting a new flag BNXT_STATE_READ_STATS and then
+    proceeding to read statistics memory only if the state is OPEN.  The
+    close path that frees the memory clears the OPEN state and then waits
+    for the BNXT_STATE_READ_STATS to clear before proceeding to free the
+    statistics memory.
+    
+    Fixes: c0c050c58d84 ("bnxt_en: New Broadcom ethernet driver.")
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 2270bc5da34979454e6f2eb133d800b635156174
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Jun 23 14:01:01 2017 -0400
+
+    bnxt_en: Fix netpoll handling.
+    
+    To handle netpoll properly, the driver must only handle TX packets
+    during NAPI.  Handling RX events cause warnings and errors in
+    netpoll mode. The ndo_poll_controller() method should call
+    napi_schedule() directly so that a NAPI weight of zero will be used
+    during netpoll mode.
+    
+    The bnxt_en driver supports 2 ring modes: combined, and separate rx/tx.
+    In separate rx/tx mode, the ndo_poll_controller() method will only
+    process the tx rings.  In combined mode, the rx and tx completion
+    entries are mixed in the completion ring and we need to drop the rx
+    entries and recycle the rx buffers.
+    
+    Add a function bnxt_force_rx_discard() to handle this in netpoll mode
+    when we see rx entries in combined ring mode.
+    
+    Reported-by: Calvin Owens <calvinowens@fb.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 69c149e2e39e8d66437c9034bb4926ef2c1f7c23
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Jun 23 14:01:00 2017 -0400
+
+    bnxt_en: Add missing logic to handle TPA end error conditions.
+    
+    When we get a TPA_END completion to handle a completed LRO packet, it
+    is possible that hardware would indicate errors.  The current code is
+    not checking for the error condition.  Define the proper error bits and
+    the macro to check for this error and abort properly.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 8902965f8cb23bba8aa7f3be293ec2f3067b82c6
+Author: Martin KaFai Lau <kafai@fb.com>
+Date:   Thu Jun 15 17:29:13 2017 -0700
+
+    bpf: bnxt: Report bpf_prog ID during XDP_QUERY_PROG
+    
+    Add support to bnxt to report bpf_prog ID during XDP_QUERY_PROG.
+    
+    Signed-off-by: Martin KaFai Lau <kafai@fb.com>
+    Cc: Michael Chan <michael.chan@broadcom.com>
+    Acked-by: Alexei Starovoitov <ast@fb.com>
+    Acked-by: Daniel Borkmann <daniel@iogearbox.net>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit a5fcf8a6c968ed8e312ff0b2a55d4c62d821eabb
+Author: Jiri Pirko <jiri@mellanox.com>
+Date:   Tue Jun 6 17:00:16 2017 +0200
+
+    net: propagate tc filter chain index down the ndo_setup_tc call
+    
+    We need to push the chain index down to the drivers, so they have the
+    information to which chain the rule belongs. For now, no driver supports
+    multichain offload, so only chain 0 is supported. This is needed to
+    prevent chain squashes during offload for now. Later this will be used
+    to implement multichain offload.
+    
+    Signed-off-by: Jiri Pirko <jiri@mellanox.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit f667724b99ad1afc91f16064d8fb293d2805bd57
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue May 16 16:39:44 2017 -0400
+
+    bnxt_en: Check status of firmware DCBX agent before setting DCB_CAP_DCBX_HOST.
+    
+    Otherwise, all the host based DCBX settings from lldpad will fail if the
+    firmware DCBX agent is running.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 87fe603274aa9889c05cca3c3e45675e1997cb13
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue May 16 16:39:43 2017 -0400
+
+    bnxt_en: Call bnxt_dcb_init() after getting firmware DCBX configuration.
+    
+    In the current code, bnxt_dcb_init() is called too early before we
+    determine if the firmware DCBX agent is running or not.  As a result,
+    we are not setting the DCB_CAP_DCBX_HOST and DCB_CAP_DCBX_LLD_MANAGED
+    flags properly to report to DCBNL.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit ac45bd93a5035c2f39c9862b8b6ed692db0fdc87
+Author: Dan Carpenter <dan.carpenter@oracle.com>
+Date:   Sat May 6 03:49:01 2017 +0300
+
+    bnxt_en: allocate enough space for ->ntp_fltr_bmap
+    
+    We have the number of longs, but we need to calculate the number of
+    bytes required.
+    
+    Fixes: c0c050c58d84 ("bnxt_en: New Broadcom ethernet driver.")
+    Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+    Acked-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 7d63818a35851cf00867248d5ab50a8fe8df5943
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Apr 21 20:11:25 2017 -0400
+
+    bnxt_en: Check the FW_LLDP_AGENT flag before allowing DCBX host agent.
+    
+    Check the additional flag in bnxt_hwrm_func_qcfg() before allowing
+    DCBX to be done in host mode.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit f0249056eaf2b9a17b2b76a6e099e9b7877e187d
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Apr 21 20:11:23 2017 -0400
+
+    bnxt_en: Fix VF attributes reporting.
+    
+    The .ndo_get_vf_config() is returning the wrong qos attribute.  Fix
+    the code that checks and reports the qos and spoofchk attributes.  The
+    BNXT_VF_QOS and BNXT_VF_LINK_UP flags should not be set by default
+    during init. time.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit a82fba8dbfb522bd19b1644bf599135680fd0122
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Apr 21 20:11:22 2017 -0400
+
+    bnxt_en: Pass DCB RoCE app priority to firmware.
+    
+    When the driver gets the RoCE app priority set/delete call through DCBNL,
+    the driver will send the information to the firmware to set up the
+    priority VLAN tag for RDMA traffic.
+    
+    [ New version using the common ETH_P_IBOE constant in if_ether.h ]
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 68a946bb81e07ed0e59a99e0c068d091ed42cc1b
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 4 18:14:17 2017 -0400
+
+    bnxt_en: Cap the msix vector with the max completion rings.
+    
+    The current code enables up to the maximum MSIX vectors in the PCIE
+    config space without considering the max completion rings available.
+    An MSIX vector is only useful when it has an associated completion
+    ring, so it is better to cap it.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 932dbf83ba18bdb871e0c03a4ffdd9785f7a9c07
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 4 18:14:16 2017 -0400
+
+    bnxt_en: Use short TX BDs for the XDP TX ring.
+    
+    No offload is performed on the XDP_TX ring so we can use the short TX
+    BDs.  This has the effect of doubling the size of the XDP TX ring so
+    that it now matches the size of the rx ring by default.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 67fea463fd873492ab641459a6d1af0e9ea3c9ce
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 4 18:14:15 2017 -0400
+
+    bnxt_en: Add interrupt test to ethtool -t selftest.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 91725d89b97acea168a94c577d999801c3b3bcfb
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 4 18:14:14 2017 -0400
+
+    bnxt_en: Add PHY loopback to ethtool self-test.
+    
+    It is necessary to disable autoneg before enabling PHY loopback,
+    otherwise link won't come up.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit f7dc1ea6c4c1f31371b7098d6fae0d49dc6cdff1
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 4 18:14:13 2017 -0400
+
+    bnxt_en: Add ethtool mac loopback self test.
+    
+    The mac loopback self test operates in polling mode.  To support that,
+    we need to add functions to open and close the NIC half way.  The half
+    open mode allows the rings to operate without IRQ and NAPI.  We
+    use the XDP transmit function to send the loopback packet.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit eb51365846bc418687af4c4f41b68b6e84cdd449
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 4 18:14:12 2017 -0400
+
+    bnxt_en: Add basic ethtool -t selftest support.
+    
+    Add the basic infrastructure and only firmware tests initially.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit f65a2044a8c988adf16788c51c04ac10dbbdb494
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 4 18:14:11 2017 -0400
+
+    bnxt_en: Add suspend/resume callbacks.
+    
+    Add suspend/resume callbacks using the newer dev_pm_ops method.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 5282db6c794fed3ea8b399bc5305c4078e084f7b
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 4 18:14:10 2017 -0400
+
+    bnxt_en: Add ethtool set_wol method.
+    
+    And add functions to set and free magic packet filter.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 8e202366dd752564d7f090ba280cc51cbf7bbbd9
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 4 18:14:09 2017 -0400
+
+    bnxt_en: Add ethtool get_wol method.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit d196ece740bf337aa25731cd8cb44660a2a227dd
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 4 18:14:08 2017 -0400
+
+    bnxt_en: Add pci shutdown method.
+    
+    Add pci shutdown method to put device in the proper WoL and power state.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit c1ef146a5bd3b286d5c3eb2c9f631b38647c76d3
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 4 18:14:07 2017 -0400
+
+    bnxt_en: Add basic WoL infrastructure.
+    
+    Add code to driver probe function to check if the device is WoL capable
+    and if Magic packet WoL filter is currently set.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 8eb992e876a88de7539b1b9e132dd171d865cd2f
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 4 18:14:06 2017 -0400
+
+    bnxt_en: Update firmware interface spec to 1.7.6.2.
+    
+    Features added include WoL and selftest.
+    
+    Signed-off-by: Deepak Khungar <deepak.khungar@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 282ccf6efb7c5d75b0283b66ed487957163ce8fe
+Author: Florian Westphal <fw@strlen.de>
+Date:   Wed Mar 29 17:17:31 2017 +0200
+
+    drivers: add explicit interrupt.h includes
+    
+    These files all use functions declared in interrupt.h, but currently rely
+    on implicit inclusion of this file (via netns/xfrm.h).
+    
+    That won't work anymore when the flow cache is removed so include that
+    header where needed.
+    
+    Signed-off-by: Florian Westphal <fw@strlen.de>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 3ed3a83e3f3871c57b18cef09b148e96921236ed
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Mar 28 19:47:31 2017 -0400
+
+    bnxt_en: Fix DMA unmapping of the RX buffers in XDP mode during shutdown.
+    
+    In bnxt_free_rx_skbs(), which is called to free up all RX buffers during
+    shutdown, we need to unmap the page if we are running in XDP mode.
+    
+    Fixes: c61fb99cae51 ("bnxt_en: Add RX page mode support.")
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 23e12c893489ed12ecfccbf866fc62af1bead4b0
+Author: Sankar Patchineelam <sankar.patchineelam@broadcom.com>
+Date:   Tue Mar 28 19:47:30 2017 -0400
+
+    bnxt_en: Correct the order of arguments to netdev_err() in bnxt_set_tpa()
+    
+    Signed-off-by: Sankar Patchineelam <sankar.patchineelam@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 2247925f0942dc4e7c09b1cde45ca18461d94c5f
+Author: Sankar Patchineelam <sankar.patchineelam@broadcom.com>
+Date:   Tue Mar 28 19:47:29 2017 -0400
+
+    bnxt_en: Fix NULL pointer dereference in reopen failure path
+    
+    Net device reset can fail when the h/w or f/w is in a bad state.
+    Subsequent netdevice open fails in bnxt_hwrm_stat_ctx_alloc().
+    The cleanup invokes bnxt_hwrm_resource_free() which inturn
+    calls bnxt_disable_int().  In this routine, the code segment
+    
+    if (ring->fw_ring_id != INVALID_HW_RING_ID)
+       BNXT_CP_DB(cpr->cp_doorbell, cpr->cp_raw_cons);
+    
+    results in NULL pointer dereference as cpr->cp_doorbell is not yet
+    initialized, and fw_ring_id is zero.
+    
+    The fix is to initialize cpr fw_ring_id to INVALID_HW_RING_ID before
+    bnxt_init_chip() is invoked.
+    
+    Signed-off-by: Sankar Patchineelam <sankar.patchineelam@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 56f36acd215cf7c28372b2fdb4f33f6900e97e05
+Author: Amritha Nambiar <amritha.nambiar@intel.com>
+Date:   Wed Mar 15 10:39:25 2017 -0700
+
+    mqprio: Modify mqprio to pass user parameters via ndo_setup_tc.
+    
+    The configurable priority to traffic class mapping and the user specified
+    queue ranges are used to configure the traffic class, overriding the
+    hardware defaults when the 'hw' option is set to 0. However, when the 'hw'
+    option is non-zero, the hardware QOS defaults are used.
+    
+    This patch makes it so that we can pass the data the user provided to
+    ndo_setup_tc. This allows us to pull in the queue configuration if the
+    user requested it as well as any additional hardware offload type
+    requested by using a value other than 1 for the hw value.
+    
+    Finally it also provides a means for the device driver to return the level
+    supported for the offload type via the qopt->hw value. Previously we were
+    just always assuming the value to be 1, in the future values beyond just 1
+    may be supported.
+    
+    Signed-off-by: Amritha Nambiar <amritha.nambiar@intel.com>
+    Signed-off-by: Alexander Duyck <alexander.h.duyck@intel.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 520ad89a54edea84496695d528f73ddcf4a52ea4
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Mar 8 18:44:35 2017 -0500
+
+    bnxt_en: Ignore 0 value in autoneg supported speed from firmware.
+    
+    In some situations, the firmware will return 0 for autoneg supported
+    speed.  This may happen if the firmware detects no SFP module, for
+    example.  The driver should ignore this so that we don't end up with
+    an invalid autoneg setting with nothing advertised.  When SFP module
+    is inserted, we'll get the updated settings from firmware at that time.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit bc39f885a9c3bdbff0a96ecaf07b162a78eff6e4
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Mar 8 18:44:34 2017 -0500
+
+    bnxt_en: Check if firmware LLDP agent is running.
+    
+    Set DCB_CAP_DCBX_HOST capability flag only if the firmware LLDP agent
+    is not running.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit b386cd362ffea09d05c56bfa85d104562e860647
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Mar 8 18:44:33 2017 -0500
+
+    bnxt_en: Call bnxt_ulp_stop() during tx timeout.
+    
+    If we call bnxt_reset_task() due to tx timeout, we should call
+    bnxt_ulp_stop() to inform the RDMA driver about the error and the
+    impending reset.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 3c2217a675bac22afb149166e0de71809189850d
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Mar 8 18:44:32 2017 -0500
+
+    bnxt_en: Perform function reset earlier during probe.
+    
+    The firmware call to do function reset is done too late.  It is causing
+    the rings that have been reserved to be freed.  In NPAR mode, this bug
+    is causing us to run out of rings.
+    
+    Fixes: 391be5c27364 ("bnxt_en: Implement new scheme to reserve tx rings.")
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 1faaa78f36cb2915ae89138ba5846f87ade85dcb
+Author: Tobias Klauser <tklauser@distanz.ch>
+Date:   Tue Feb 21 15:27:28 2017 +0100
+
+    bnxt_en: use eth_hw_addr_random()
+    
+    Use eth_hw_addr_random() to set a random MAC address in order to make
+    sure bp->dev->addr_assign_type will be properly set to NET_ADDR_RANDOM.
+    
+    Signed-off-by: Tobias Klauser <tklauser@distanz.ch>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 17086399c113d933e1202697f85b8f0f82fcb8ce
+Author: Sathya Perla <sathya.perla@broadcom.com>
+Date:   Mon Feb 20 19:25:18 2017 -0500
+
+    bnxt_en: fix pci cleanup in bnxt_init_one() failure path
+    
+    In the bnxt_init_one() failure path, bar1 and bar2 are not
+    being unmapped.  This commit fixes this issue.  Reorganize the
+    code so that bnxt_init_one()'s failure path and bnxt_remove_one()
+    can call the same function to do the PCI cleanup.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit daf1f1e7841138cb0e48d52c8573a5f064d8f495
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Feb 20 19:25:17 2017 -0500
+
+    bnxt_en: Fix NULL pointer dereference in a failure path during open.
+    
+    If bnxt_hwrm_ring_free() is called during a failure path in bnxt_open(),
+    it is possible that the completion rings have not been allocated yet.
+    In that case, the completion doorbell has not been initialized, and
+    calling bnxt_disable_int() will crash.  Fix it by checking that the
+    completion ring has been initialized before writing to the completion
+    ring doorbell.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 4e00338a61998de3502d0428c4f71ffc69772316
+Author: Ray Jui <ray.jui@broadcom.com>
+Date:   Mon Feb 20 19:25:16 2017 -0500
+
+    bnxt_en: Reject driver probe against all bridge devices
+    
+    There are additional SoC devices that use the same device ID for
+    bridge and NIC devices.  The bnxt driver should reject probe against
+    all bridge devices since it's meant to be used with only endpoint
+    devices.
+    
+    Signed-off-by: Ray Jui <ray.jui@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 32b40798c1b40343641f04cdfd09652af70ea0e9
+Author: Deepak Khungar <deepak.khungar@broadcom.com>
+Date:   Sun Feb 12 19:18:18 2017 -0500
+
+    bnxt_en: Added PCI IDs for BCM57452 and BCM57454 ASICs
+    
+    Signed-off-by: Deepak Khungar <deepak.khungar@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit b451c8b69e70de299aa6061e1fa6afbb4d7c1f9e
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Sun Feb 12 19:18:17 2017 -0500
+
+    bnxt_en: Fix bnxt_setup_tc() error message.
+    
+    Add proper puctuation to make the message more clear.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit e70c752f88ed23e6a0f081fa408282c2450c8ce9
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Sun Feb 12 19:18:16 2017 -0500
+
+    bnxt_en: Print FEC settings as part of the linkup dmesg.
+    
+    Print FEC (Forward Error Correction) autoneg and encoding settings during
+    link up.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 33dac24abbd5a77eefca18fb7ebbd01a3cf1b343
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Sun Feb 12 19:18:15 2017 -0500
+
+    bnxt_en: Do not setup PHY unless driving a single PF.
+    
+    If it is a VF or an NPAR function, the firmware call to setup the PHY
+    will fail.  Adding this check will prevent unnecessary firmware calls
+    to setup the PHY unless calling from the PF.  This will also eliminate
+    many unnecessary warning messages when the call from a VF or NPAR fails.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 61aad724ec0a685bc83b02b059a3ca0ad3bde6b0
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Sun Feb 12 19:18:14 2017 -0500
+
+    bnxt_en: Add hardware NTUPLE filter for encapsulated packets.
+    
+    If skb_flow_dissect_flow_keys() returns with the encapsulation flag
+    set, pass the information to the firmware to setup the NTUPLE filter
+    accordingly.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 964fd4801d40ead69a447482c0dd0cd4be495e47
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Sun Feb 12 19:18:13 2017 -0500
+
+    bnxt_en: Allow NETIF_F_NTUPLE to be enabled on VFs.
+    
+    Commit ae10ae740ad2 ("bnxt_en: Add new hardware RFS mode.") has added
+    code to allow NTUPLE to be enabled on VFs.  So we now remove the
+    BNXT_VF() check in rfs_capable() to allow NTUPLE on VFs.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit a79a5276aa2f844bd368c1d3d5a625e1fbefd989
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Sun Feb 12 19:18:12 2017 -0500
+
+    bnxt_en: Fix ethtool -l pre-set max combined channel.
+    
+    With commit d1e7925e6d80 ("bnxt_en: Centralize logic to reserve rings."),
+    ring allocation for combined rings has become stricter.  A combined
+    ring must now have an rx-tx ring pair.  The pre-set max. for combined
+    rings should now be min(rx, tx).
+    
+    Fixes: d1e7925e6d80 ("bnxt_en: Centralize logic to reserve rings.")
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit cb4d1d6261453677feb54e7a09c23fc7648dd6bc
+Author: Kshitij Soni <kshitij.soni@broadcom.com>
+Date:   Sun Feb 12 19:18:11 2017 -0500
+
+    bnxt_en: Retry failed NVM_INSTALL_UPDATE with defragmentation flag.
+    
+    If the HWRM_NVM_INSTALL_UPDATE command fails with the error code
+    NVM_INSTALL_UPDATE_CMD_ERR_CODE_FRAG_ERR, retry the command with
+    a new flag to allow defragmentation.  Since we are checking the
+    response for error code, we also need to take the mutex until
+    we finish reading the response.
+    
+    Signed-off-by: Kshitij Soni <kshitij.soni@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit bac9a7e0f5d6da82478d5e0a2a236158f42d5757
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Sun Feb 12 19:18:10 2017 -0500
+
+    bnxt_en: Update to firmware interface spec 1.7.0.
+    
+    The new spec has NVRAM defragmentation support which will be used in
+    the next patch to improve ethtool flash operation.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 38413406277fd060f46855ad527f6f8d4cf2652d
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Feb 6 16:55:43 2017 -0500
+
+    bnxt_en: Add support for XDP_TX action.
+    
+    Add dedicated transmit function and transmit completion handler for
+    XDP.  The XDP transmit logic and completion logic are different than
+    regular TX ring.  The TX buffer is recycled back to the RX ring when
+    it completes.
+    
+    v3: Improved the buffer recyling scheme for XDP_TX.
+    
+    v2: Add trace_xdp_exception().
+        Add dma_sync.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Tested-by: Andy Gospodarek <gospo@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit c6d30e8391b85e00eb544e6cf047ee0160ee9938
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Feb 6 16:55:42 2017 -0500
+
+    bnxt_en: Add basic XDP support.
+    
+    Add basic ndo_xdp support to setup and query program, configure the NIC
+    to run in rx page mode, and support XDP_PASS, XDP_DROP, XDP_ABORTED
+    actions only.
+    
+    v3: Pass modified offset and length to stack for XDP_PASS.
+        Remove Kconfig option.
+    
+    v2: Added trace_xdp_exception()
+        Added dma_syncs.
+        Added XDP headroom support.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Tested-by: Andy Gospodarek <gospo@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit fa3e93e86cc3d1809fba67cb138883ed4bb74a5f
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Feb 6 16:55:41 2017 -0500
+
+    bnxt_en: Refactor tx completion path.
+    
+    XDP_TX requires a different function to handle completion.  Add a
+    function pointer to handle tx completion logic.  Regular TX rings
+    will be assigned the current bnxt_tx_int() for the ->tx_int()
+    function pointer.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 5f4492493e75dafc5cbb96eabe0f146c2ffb1e3d
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Feb 6 16:55:40 2017 -0500
+
+    bnxt_en: Add a set of TX rings to support XDP.
+    
+    Add logic for an extra set of TX rings for XDP.  If enabled, this
+    set of TX rings equals the number of RX rings and shares the same
+    IRQ as the RX ring set.  A new field bp->tx_nr_rings_xdp is added
+    to keep track of these TX XDP rings.  Adjust all other relevant functions
+    to handle bp->tx_nr_rings_xdp.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit a960dec98861b009b4227d2ae3b94a142c83eb96
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Feb 6 16:55:39 2017 -0500
+
+    bnxt_en: Add tx ring mapping logic.
+    
+    To support XDP_TX, we need to add a set of dedicated TX rings, each
+    associated with the NAPI of an RX ring.  To assign XDP rings and regular
+    rings in a flexible way, we add a bp->tx_ring_map[] array to do the
+    remapping.  The netdev txq index is stored in the new field txq_index
+    so that we can retrieve the netdev txq when handling TX completions.
+    In this patch, before we introduce XDP_TX, the mapping is 1:1.
+    
+    v2: Fixed a bug in bnxt_tx_int().
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit d1e7925e6d80ce5f9ef6deb8f3cec7526f5c443c
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Feb 6 16:55:38 2017 -0500
+
+    bnxt_en: Centralize logic to reserve rings.
+    
+    Currently, bnxt_setup_tc() and bnxt_set_channels() have similar and
+    duplicated code to check and reserve rx and tx rings.  Add a new
+    function bnxt_reserve_rings() to centralize the logic.  This will
+    make it easier to add XDP_TX support which requires allocating a
+    new set of TX rings.
+    
+    Also, the tx ring checking logic in bnxt_setup_msix() can be removed.
+    The rings have been reserved before hand.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 4e5dbbda4c40a239e2ed4bbc98f2aa320e4dcca2
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Feb 6 16:55:37 2017 -0500
+
+    bnxt_en: Use event bit map in RX path.
+    
+    In the current code, we have separate rx_event and agg_event parameters
+    to keep track of rx and aggregation events.  Combine these events into
+    an u8 event mask with different bits defined for different events.  This
+    way, it is easier to expand the logic to include XDP tx events.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit c61fb99cae51958a9096d8540c8c05e74cfa7e59
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Feb 6 16:55:36 2017 -0500
+
+    bnxt_en: Add RX page mode support.
+    
+    This mode is to support XDP.  In this mode, each rx ring is configured
+    with page sized buffers for linear placement of each packet.  MTU will be
+    restricted to what the page sized buffers can support.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit b3dba77cf0acb6e44b368979026df975658332bc
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Feb 6 16:55:35 2017 -0500
+
+    bnxt_en: Parameterize RX buffer offsets.
+    
+    Convert the global constants BNXT_RX_OFFSET and BNXT_RX_DMA_OFFSET to
+    device parameters.  This will make it easier to support XDP with
+    headroom support which requires different RX buffer offsets.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 745fc05c9db1f17da076861c7f57507e13f28a3a
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Feb 6 16:55:34 2017 -0500
+
+    bnxt_en: Add bp->rx_dir field for rx buffer DMA direction.
+    
+    When driver is running in XDP mode, rx buffers are DMA mapped as
+    DMA_BIDIRECTIONAL.  Add a field so the code will map/unmap rx buffers
+    according to this field.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 11cd119d31a71b37c2362fc621f225e2aa12aea1
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Feb 6 16:55:33 2017 -0500
+
+    bnxt_en: Don't use DEFINE_DMA_UNMAP_ADDR to store DMA address in RX path.
+    
+    To support XDP_TX, we need the RX buffer's DMA address to transmit the
+    packet.  Convert the DMA address field to a permanent field in
+    bnxt_sw_rx_bd.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 6bb19474391d17954fee9a9997ecca25b35dfd46
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Feb 6 16:55:32 2017 -0500
+
+    bnxt_en: Refactor rx SKB function.
+    
+    Minor refactoring of bnxt_rx_skb() so that it can easily be replaced by
+    a new function that handles packets in a single page.  Also, use a
+    function pointer bp->rx_skb_func() to switch to a new function when
+    we add the new mode in the next patch.
+    
+    Add a new field data_ptr that points to the packet data in the
+    bnxt_sw_rx_bd structure.  The original data field is changed to void
+    pointer so that it can either hold the kmalloc'ed data or a page
+    pointer.
+    
+    The last parameter of bnxt_rx_skb() which was the length parameter is
+    changed to include the payload offset of the packet in the upper 16 bit.
+    The offset is needed to support the rx page mode and is not used in
+    this existing function.
+    
+    v3: Added a new data_ptr parameter to bp->rx_skb_func().  The caller
+    has the option to modify the starting address of the packet.  This
+    will be needed when XDP with headroom support is added.
+    
+    v2: Changed the name of the last parameter to offset_and_len to make the
+    code more clear.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 6ad20165d376fa07919a70e4f43dfae564601829
+Author: Eric Dumazet <edumazet@google.com>
+Date:   Mon Jan 30 08:22:01 2017 -0800
+
+    drivers: net: generalize napi_complete_done()
+    
+    napi_complete_done() allows to opt-in for gro_flush_timeout,
+    added back in linux-3.19, commit 3b47d30396ba
+    ("net: gro: add a per device gro flush timer")
+    
+    This allows for more efficient GRO aggregation without
+    sacrifying latencies.
+    
+    Signed-off-by: Eric Dumazet <edumazet@google.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 90c694bb71819fb5bd3501ac397307d7e41ddeca
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Jan 25 02:55:09 2017 -0500
+
+    bnxt_en: Fix RTNL lock usage on bnxt_get_port_module_status().
+    
+    bnxt_get_port_module_status() calls bnxt_update_link() which expects
+    RTNL to be held.  In bnxt_sp_task() that does not hold RTNL, we need to
+    call it with a prior call to bnxt_rtnl_lock_sp() and the call needs to
+    be moved to the end of bnxt_sp_task().
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 0eaa24b971ae251ae9d3be23f77662a655532063
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Jan 25 02:55:08 2017 -0500
+
+    bnxt_en: Fix RTNL lock usage on bnxt_update_link().
+    
+    bnxt_update_link() is called from multiple code paths.  Most callers,
+    such as open, ethtool, already hold RTNL.  Only the caller bnxt_sp_task()
+    does not.  So it is a bug to take RTNL inside bnxt_update_link().
+    
+    Fix it by removing the RTNL inside bnxt_update_link().  The function
+    now expects the caller to always hold RTNL.
+    
+    In bnxt_sp_task(), call bnxt_rtnl_lock_sp() before calling
+    bnxt_update_link().  We also need to move the call to the end of
+    bnxt_sp_task() since it will be clearing the BNXT_STATE_IN_SP_TASK bit.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit a551ee94ea723b4af9b827c7460f108bc13425ee
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Jan 25 02:55:07 2017 -0500
+
+    bnxt_en: Fix bnxt_reset() in the slow path task.
+    
+    In bnxt_sp_task(), we set a bit BNXT_STATE_IN_SP_TASK so that bnxt_close()
+    will synchronize and wait for bnxt_sp_task() to finish.  Some functions
+    in bnxt_sp_task() require us to clear BNXT_STATE_IN_SP_TASK and then
+    acquire rtnl_lock() to prevent race conditions.
+    
+    There are some bugs related to this logic. This patch refactors the code
+    to have common bnxt_rtnl_lock_sp() and bnxt_rtnl_unlock_sp() to handle
+    the RTNL and the clearing/setting of the bit.  Multiple functions will
+    need the same logic.  We also need to move bnxt_reset() to the end of
+    bnxt_sp_task().  Functions that clear BNXT_STATE_IN_SP_TASK must be the
+    last functions to be called in bnxt_sp_task().  The common scheme will
+    handle the condition properly.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 719ca8111402aa6157bd83a3c966d184db0d8956
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Jan 17 22:07:19 2017 -0500
+
+    bnxt_en: Fix "uninitialized variable" bug in TPA code path.
+    
+    In the TPA GRO code path, initialize the tcp_opt_len variable to 0 so
+    that it will be correct for packets without TCP timestamps.  The bug
+    caused the SKB fields to be incorrectly set up for packets without
+    TCP timestamps, leading to these packets being rejected by the stack.
+    
+    Reported-by: Andy Gospodarek <andrew.gospodarek@broadocm.com>
+    Acked-by: Andy Gospodarek <andrew.gospodarek@broadocm.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 2f5938467bd7f34e59a1d6d3809f5970f62e194b
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Jan 13 01:32:04 2017 -0500
+
+    bnxt_en: Add the ulp_sriov_cfg hooks for bnxt_re RDMA driver.
+    
+    Add the ulp_sriov_cfg callbacks when the number of VFs is changing.  This
+    allows the RDMA driver to provision RDMA resources for the VFs.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 5ad2cbeed74bd1e89ac4ba14288158ec7eb167da
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Jan 13 01:32:03 2017 -0500
+
+    bnxt_en: Add support for ethtool -p.
+    
+    Add LED blinking code to support ethtool -p on the PF.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit f183886c0d798ca3cf0a51e8cab3c1902fbd1e8b
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Jan 13 01:32:02 2017 -0500
+
+    bnxt_en: Update to firmware interface spec to 1.6.1.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 341138c3e6afa8e77f9f3e773d72b37022dbcee8
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Jan 13 01:32:01 2017 -0500
+
+    bnxt_en: Clear TPA flags when BNXT_FLAG_NO_AGG_RINGS is set.
+    
+    Commit bdbd1eb59c56 ("bnxt_en: Handle no aggregation ring gracefully.")
+    introduced the BNXT_FLAG_NO_AGG_RINGS flag.  For consistency,
+    bnxt_set_tpa_flags() should also clear TPA flags when there are no
+    aggregation rings.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit b742995445fbac874f5fe19ce2afc76c7a6ac2cf
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Jan 13 01:32:00 2017 -0500
+
+    bnxt_en: Fix compiler warnings when CONFIG_RFS_ACCEL is not defined.
+    
+    CC [M]  drivers/net/ethernet/broadcom/bnxt/bnxt.o
+    drivers/net/ethernet/broadcom/bnxt/bnxt.c:4947:21: warning: ‘bnxt_get_max_func_rss_ctxs’ defined but not used [-Wunused-function]
+     static unsigned int bnxt_get_max_func_rss_ctxs(struct bnxt *bp)
+                         ^
+      CC [M]  drivers/net/ethernet/broadcom/bnxt/bnxt.o
+    drivers/net/ethernet/broadcom/bnxt/bnxt.c:4956:21: warning: ‘bnxt_get_max_func_vnics’ defined but not used [-Wunused-function]
+     static unsigned int bnxt_get_max_func_vnics(struct bnxt *bp)
+                         ^
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 5944701df90d9577658e2354cc27c4ceaeca30fe
+Author: stephen hemminger <stephen@networkplumber.org>
+Date:   Fri Jan 6 19:12:53 2017 -0800
+
+    net: remove useless memset's in drivers get_stats64
+    
+    In dev_get_stats() the statistic structure storage has already been
+    zeroed. Therefore network drivers do not need to call memset() again.
+    
+    Signed-off-by: Stephen Hemminger <sthemmin@microsoft.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit bc1f44709cf27fb2a5766cadafe7e2ad5e9cb221
+Author: stephen hemminger <stephen@networkplumber.org>
+Date:   Fri Jan 6 19:12:52 2017 -0800
+
+    net: make ndo_get_stats64 a void function
+    
+    The network device operation for reading statistics is only called
+    in one place, and it ignores the return value. Having a structure
+    return value is potentially confusing because some future driver could
+    incorrectly assume that the return value was used.
+    
+    Fix all drivers with ndo_get_stats64 to have a void function.
+    
+    Signed-off-by: Stephen Hemminger <sthemmin@microsoft.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit bdbd1eb59c565c56a74d21076e2ae8706de00ecd
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Thu Dec 29 12:13:43 2016 -0500
+
+    bnxt_en: Handle no aggregation ring gracefully.
+    
+    The current code assumes that we will always have at least 2 rx rings, 1
+    will be used as an aggregation ring for TPA and jumbo page placements.
+    However, it is possible, especially on a VF, that there is only 1 rx
+    ring available.  In this scenario, the current code will fail to initialize.
+    To handle it, we need to properly set up only 1 ring without aggregation.
+    Set a new flag BNXT_FLAG_NO_AGG_RINGS for this condition and add logic to
+    set up the chip to place RX data linearly into a single buffer per packet.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 486b5c22ea1d35e00e90dd79a32a9ee530b18915
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Thu Dec 29 12:13:42 2016 -0500
+
+    bnxt_en: Set default completion ring for async events.
+    
+    With the added support for the bnxt_re RDMA driver, both drivers can be
+    allocating completion rings in any order.  The firmware does not know
+    which completion ring should be receiving async events.  Add an
+    extra step to tell firmware the completion ring number for receiving
+    async events after bnxt_en allocates the completion rings.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 391be5c2736456f032fe0265031ecfe17aee84a0
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Thu Dec 29 12:13:41 2016 -0500
+
+    bnxt_en: Implement new scheme to reserve tx rings.
+    
+    In order to properly support TX rate limiting in SRIOV VF functions or
+    NPAR functions, firmware needs better control over tx ring allocations.
+    The new scheme requires the driver to reserve the number of tx rings
+    and to query to see if the requested number of tx rings is reserved.
+    The driver will use the new scheme when the firmware interface spec is
+    1.6.1 or newer.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit dda0e7465f040ed814d4a5c98c6bf042e59cba69
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Thu Dec 29 12:13:40 2016 -0500
+
+    bnxt_en: Add IPV6 hardware RFS support.
+    
+    Accept ipv6 flows in .ndo_rx_flow_steer() and support ETHTOOL_GRXCLSRULE
+    ipv6 flows.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadocm.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 8427af811a2fcbbf0c71a4b1f904f2442abdcf39
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Thu Dec 29 12:13:39 2016 -0500
+
+    bnxt_en: Assign additional vnics to VFs.
+    
+    Assign additional vnics to VFs whenever possible so that NTUPLE can be
+    supported on the VFs.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit ae10ae740ad2befd92b6f5b2ab39220bce6e5da2
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Thu Dec 29 12:13:38 2016 -0500
+
+    bnxt_en: Add new hardware RFS mode.
+    
+    The existing hardware RFS mode uses one hardware RSS context block
+    per ring just to calculate the RSS hash.  This is very wasteful and
+    prevents VF functions from using it.  The new hardware mode shares
+    the same hardware RSS context for RSS placement and RFS steering.
+    This allows VFs to enable RFS.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 8079e8f107bf02e1e5ece89239dd2fb475a4735f
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Thu Dec 29 12:13:37 2016 -0500
+
+    bnxt_en: Refactor code that determines RFS capability.
+    
+    Add function bnxt_rfs_supported() that determines if the chip supports
+    RFS.  Refactor the existing function bnxt_rfs_capable() that determines
+    if run-time conditions support RFS.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 8fdefd63c203d9b2955d679704f4ed92bf40752c
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Thu Dec 29 12:13:36 2016 -0500
+
+    bnxt_en: Add function to get vnic capability.
+    
+    The new vnic RSS capability will enhance NTUPLE support, to be added
+    in subsequent patches.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 5910906ca9ee32943f67db24917f78a9ad1087db
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Thu Dec 29 12:13:35 2016 -0500
+
+    bnxt_en: Refactor TPA code path.
+    
+    Call tcp_gro_complete() in the common code path instead of the chip-
+    specific method.  The newer 5731x method is missing the call.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcmo.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 68515a186cf8a8f97956eaea5829277752399f58
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Thu Dec 29 12:13:34 2016 -0500
+
+    bnxt_en: Fix and clarify link_info->advertising.
+    
+    The advertising field is closely related to the auto_link_speeds field.
+    The former is the user setting while the latter is the firmware setting.
+    Both should be u16.  We should use the advertising field in
+    bnxt_get_link_ksettings because the auto_link_speeds field may not
+    be updated with the latest from the firmware yet.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 9d8bc09766f1a229b2d204c713a1cfc6c7fa1bb1
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Thu Dec 29 12:13:33 2016 -0500
+
+    bnxt_en: Improve the IRQ disable sequence during shutdown.
+    
+    The IRQ is disabled by writing to the completion ring doorbell.  This
+    should be done before the hardware completion ring is freed for correctness.
+    The current code disables IRQs after all the completion rings are freed.
+    
+    Fix it by calling bnxt_disable_int_sync() before freeing the completion
+    rings.  Rearrange the code to avoid forward declaration.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadocm.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit e7b9569102995ebc26821789628eef45bd9840d8
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Thu Dec 29 12:13:32 2016 -0500
+
+    bnxt_en: Use napi_complete_done()
+    
+    For better busy polling and GRO support.  Do not re-arm IRQ if
+    napi_complete_done() returns false.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit b356a2e729cec145a648d22ba5686357c009da25
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Thu Dec 29 12:13:31 2016 -0500
+
+    bnxt_en: Remove busy poll logic in the driver.
+    
+    Use native NAPI polling instead.  The next patch will complete the work
+    by switching to use napi_complete_done()
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit a588e4580a7ecb715dab8bf09725b97aa0e0e3a0
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Dec 7 00:26:21 2016 -0500
+
+    bnxt_en: Add interface to support RDMA driver.
+    
+    Since the network driver and RDMA driver operate on the same PCI function,
+    we need to create an interface to allow the RDMA driver to share resources
+    with the network driver.
+    
+    1. Create a new bnxt_en_dev struct which will be returned by
+    bnxt_ulp_probe() upon success.  After that, all calls from the RDMA driver
+    to bnxt_en will pass a pointer to this struct.
+    
+    2. This struct contains additional function pointers to register, request
+    msix, send fw messages, register for async events.
+    
+    3. If the RDMA driver wants to enable RDMA on the function, it needs to
+    call the function pointer bnxt_register_device().  A ulp_ops structure
+    is passed for RCU protected upcalls from bnxt_en to the RDMA driver.
+    
+    4. The RDMA driver can call firmware APIs using the bnxt_send_fw_msg()
+    function pointer.
+    
+    5. 1 stats context is reserved when the RDMA driver registers.  MSIX
+    and completion rings are reserved when the RDMA driver calls
+    bnxt_request_msix() function pointer.
+    
+    6. When the RDMA driver calls bnxt_unregister_device(), all RDMA resources
+    will be cleaned up.
+    
+    v2: Fixed 2 uninitialized variable warnings.
+    
+    Signed-off-by: Somnath Kotur <somnath.kotur@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit a1653b13f14c714f9bfd5e10c603a37c3bcba7b6
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Dec 7 00:26:20 2016 -0500
+
+    bnxt_en: Refactor the driver registration function with firmware.
+    
+    The driver register function with firmware consists of passing version
+    information and registering for async events.  To support the RDMA driver,
+    the async events that we need to register may change.  Separate the
+    driver register function into 2 parts so that we can just update the
+    async events for the RDMA driver.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit e4060d306b5196966d74e05dee48e6c3a52aaad4
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Dec 7 00:26:19 2016 -0500
+
+    bnxt_en: Reserve RDMA resources by default.
+    
+    If the device supports RDMA, we'll setup network default rings so that
+    there are enough minimum resources for RDMA, if possible.  However, the
+    user can still increase network rings to the max if he wants.  The actual
+    RDMA resources won't be reserved until the RDMA driver registers.
+    
+    v2: Fix compile warning when BNXT_CONFIG_SRIOV is not set.
+    
+    Signed-off-by: Somnath Kotur <somnath.kotur@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 7b08f661ab80e87dcdba7ab9a460fe2c9d08bf5b
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Dec 7 00:26:18 2016 -0500
+
+    bnxt_en: Improve completion ring allocation for VFs.
+    
+    All available remaining completion rings not used by the PF should be
+    made available for the VFs so that there are enough rings in the VF to
+    support RDMA.  The earlier workaround code of capping the rings by the
+    statistics context is removed.
+    
+    When SRIOV is disabled, call a new function bnxt_restore_pf_fw_resources()
+    to restore FW resources.  Later on we need to add some logic to account
+    for RDMA resources.
+    
+    Signed-off-by: Somnath Kotur <somnath.kotur@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit aa8ed021ab515a93f2a052e9cc80320882889698
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Dec 7 00:26:17 2016 -0500
+
+    bnxt_en: Move function reset to bnxt_init_one().
+    
+    Now that MSIX is enabled in bnxt_init_one(), resources may be allocated by
+    the RDMA driver before the network device is opened.  So we cannot do
+    function reset in bnxt_open() which will clear all the resources.
+    
+    The proper place to do function reset now is in bnxt_init_one().
+    If we get AER, we'll do function reset as well.
+    
+    Signed-off-by: Somnath Kotur <somnath.kotur@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 7809592d3e2ec79cd1feab0cc96169d22f6ffee1
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Dec 7 00:26:16 2016 -0500
+
+    bnxt_en: Enable MSIX early in bnxt_init_one().
+    
+    To better support the new RDMA driver, we need to move pci_enable_msix()
+    from bnxt_open() to bnxt_init_one().  This way, MSIX vectors are available
+    to the RDMA driver whether the network device is up or down.
+    
+    Part of the existing bnxt_setup_int_mode() function is now refactored into
+    a new bnxt_init_int_mode().  bnxt_init_int_mode() is called during
+    bnxt_init_one() to enable MSIX.  The remaining logic in
+    bnxt_setup_int_mode() to map the IRQs to the completion rings is called
+    during bnxt_open().
+    
+    v2: Fixed compile warning when CONFIG_BNXT_SRIOV is not set.
+    
+    Signed-off-by: Somnath Kotur <somnath.kotur@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 33c2657eb688a063ab9cbe11fd4d18c93c7945e1
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Dec 7 00:26:15 2016 -0500
+
+    bnxt_en: Add bnxt_set_max_func_irqs().
+    
+    By refactoring existing code into this new function.  The new function
+    will be used in subsequent patches.
+    
+    v2: Fixed compile warning when CONFIG_BNXT_SRIOV is not set.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 89aa8445cd4e8c2556c40d42dd0ceb2cbb96ba78
+Author: Pan Bian <bianpan2016@163.com>
+Date:   Sat Dec 3 17:56:17 2016 +0800
+
+    netdev: broadcom: propagate error code
+    
+    Function bnxt_hwrm_stat_ctx_alloc() always returns 0, even if the call
+    to _hwrm_send_message() fails. It may be better to propagate the errors
+    to the caller of bnxt_hwrm_stat_ctx_alloc().
+    
+    Bugzilla: https://bugzilla.kernel.org/show_bug.cgi?id=188661
+    
+    Signed-off-by: Pan Bian <bianpan2016@163.com>
+    Acked-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit c77192f2042537b1e0e5f520db91e4d28778195f
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Dec 2 21:17:18 2016 -0500
+
+    bnxt_en: Add PFC statistics.
+    
+    Report PFC statistics to ethtool -S and DCBNL.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 7df4ae9fe85567a1710048da8229bd85e0da9df7
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Dec 2 21:17:17 2016 -0500
+
+    bnxt_en: Implement DCBNL to support host-based DCBX.
+    
+    Support only IEEE DCBX initially.  Add IEEE DCBNL ops and functions to
+    get and set the hardware DCBX parameters.  The DCB code is conditional on
+    Kconfig CONFIG_BNXT_DCB.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 87c374ded0b2cfe50bb1e7648a4ca06df13fa399
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Dec 2 21:17:16 2016 -0500
+
+    bnxt_en: Update firmware header file to latest 1.6.0.
+    
+    Latest interface has the latest DCB command structs.  Get and store the
+    max number of lossless TCs the hardware can support.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit c5e3deb8a38453037b89e0b0485d3b031896e8eb
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Dec 2 21:17:15 2016 -0500
+
+    bnxt_en: Re-factor bnxt_setup_tc().
+    
+    Add a new function bnxt_setup_mq_tc() to handle MQPRIO.  This new function
+    will be called during ETS setup when we add DCBNL in the next patch.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 57aac71b3e9ed890cf2219dd980c36f859b43d6a
+Author: Christophe Jaillet <christophe.jaillet@wanadoo.fr>
+Date:   Tue Nov 22 06:14:40 2016 +0100
+
+    bnxt_en: Fix a VXLAN vs GENEVE issue
+    
+    Knowing that:
+      #define TUNNEL_DST_PORT_FREE_REQ_TUNNEL_TYPE_VXLAN        (0x1UL << 0)
+      #define TUNNEL_DST_PORT_FREE_REQ_TUNNEL_TYPE_GENEVE       (0x5UL << 0)
+    and that 'bnxt_hwrm_tunnel_dst_port_alloc()' is only called with one of
+    these 2 constants, the TUNNEL_DST_PORT_ALLOC_REQ_TUNNEL_TYPE_GENEVE can not
+    trigger.
+    
+    Replace the bit test that overlap by an equality test, just as in
+    'bnxt_hwrm_tunnel_dst_port_free()' above.
+    
+    Signed-off-by: Christophe JAILLET <christophe.jaillet@wanadoo.fr>
+    Acked-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit e5f6f564fd191d365fcd775c06a732a488205588
+Author: Eric Dumazet <edumazet@google.com>
+Date:   Wed Nov 16 06:31:52 2016 -0800
+
+    bnxt: add a missing rcu synchronization
+    
+    Add a missing synchronize_net() call to avoid potential use after free,
+    since we explicitly call napi_hash_del() to factorize the RCU grace
+    period.
+    
+    Fixes: c0c050c58d84 ("bnxt_en: New Broadcom ethernet driver.")
+    Signed-off-by: Eric Dumazet <edumazet@google.com>
+    Cc: Michael Chan <michael.chan@broadcom.com>
+    Acked-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit a011952a1a465258ab006a8613a41aa5367d2274
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Nov 16 21:13:10 2016 -0500
+
+    bnxt_en: Add ethtool -n|-N rx-flow-hash support.
+    
+    To display and modify the RSS hash.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 87da7f796d5e44311ea69afb6f4220d43a89382e
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Nov 16 21:13:09 2016 -0500
+
+    bnxt_en: Add UDP RSS support for 57X1X chips.
+    
+    The newer chips have proper support for 4-tuple UDP RSS.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 286ef9d64ea7435a1e323d12b44a309e15cbff0e
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Nov 16 21:13:08 2016 -0500
+
+    bnxt_en: Enhance autoneg support.
+    
+    On some dual port NICs, the speed setting on one port can affect the
+    available speed on the other port.  Add logic to detect these changes
+    and adjust the advertised speed settings when necessary.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 16d663a69f4a1f3534e780e35d50142b98cf1279
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed Nov 16 21:13:07 2016 -0500
+
+    bnxt_en: Update firmware interface spec to 1.5.4.
+    
+    Use the new FORCE_LINK_DWN bit to shutdown link during close.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 73b9bad63ae3c902ce64221d10a0d371d059748d
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Nov 11 00:11:43 2016 -0500
+
+    bnxt_en: Fix VF virtual link state.
+    
+    If the physical link is down and the VF virtual link is set to "enable",
+    the current code does not always work.  If the link is down but the
+    cable is attached, the firmware returns LINK_SIGNAL instead of
+    NO_LINK.  The current code is treating LINK_SIGNAL as link up.
+    The fix is to treat link as down when the link_status != LINK.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 3ffb6a39b751b635a0c50b650064c38b8d371ef2
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Nov 11 00:11:42 2016 -0500
+
+    bnxt_en: Fix ring arithmetic in bnxt_setup_tc().
+    
+    The logic is missing the check on whether the tx and rx rings are sharing
+    completion rings or not.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit ef8d759b5251ee9d6784fe53d90220bd91ee477f
+Author: Eric Dumazet <edumazet@google.com>
+Date:   Tue Nov 8 11:06:53 2016 -0800
+
+    bnxt_en: do not call napi_hash_add()
+    
+    This is automatically done from netif_napi_add(), and we want to not
+    export napi_hash_add() anymore in the following patch.
+    
+    Signed-off-by: Eric Dumazet <edumazet@google.com>
+    Cc: Michael Chan <michael.chan@broadcom.com>
+    Acked-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit e1c6dccaf3af291488fbad155d7ee6bc29db262a
+Author: Jarod Wilson <jarod@redhat.com>
+Date:   Mon Oct 17 15:54:04 2016 -0400
+
+    ethernet/broadcom: use core min/max MTU checking
+    
+    tg3: min_mtu 60, max_mtu 9000/1500
+    
+    bnxt: min_mtu 60, max_mtu 9000
+    
+    bnx2x: min_mtu 46, max_mtu 9600
+    - Fix up ETH_OVREHEAD -> ETH_OVERHEAD while we're in here, remove
+      duplicated defines from bnx2x_link.c.
+    
+    bnx2: min_mtu 46, max_mtu 9000
+    - Use more standard ETH_* defines while we're at it.
+    
+    bcm63xx_enet: min_mtu 46, max_mtu 2028
+    - compute_hw_mtu was made largely pointless, and thus merged back into
+      bcm_enet_change_mtu.
+    
+    b44: min_mtu 60, max_mtu 1500
+    
+    CC: netdev@vger.kernel.org
+    CC: Michael Chan <michael.chan@broadcom.com>
+    CC: Sony Chacko <sony.chacko@qlogic.com>
+    CC: Ariel Elior <ariel.elior@qlogic.com>
+    CC: Dept-HSGLinuxNICDev@qlogic.com
+    CC: Siva Reddy Kallam <siva.kallam@broadcom.com>
+    CC: Prashant Sreedharan <prashant@broadcom.com>
+    Signed-off-by: Jarod Wilson <jarod@redhat.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 79aab093a0b5370d7fc4e99df75996f4744dc03f
+Author: Moshe Shemesh <moshe@mellanox.com>
+Date:   Thu Sep 22 12:11:15 2016 +0300
+
+    net: Update API for VF vlan protocol 802.1ad support
+    
+    Introduce new rtnl UAPI that exposes a list of vlans per VF, giving
+    the ability for user-space application to specify it for the VF, as an
+    option to support 802.1ad.
+    We adjusted IP Link tool to support this option.
+    
+    For future use cases, the new UAPI supports multiple vlans. For now we
+    limit the list size to a single vlan in kernel.
+    Add IFLA_VF_VLAN_LIST in addition to IFLA_VF_VLAN to keep backward
+    compatibility with older versions of IP Link tool.
+    
+    Add a vlan protocol parameter to the ndo_set_vf_vlan callback.
+    We kept 802.1Q as the drivers' default vlan protocol.
+    Suitable ip link tool command examples:
+      Set vf vlan protocol 802.1ad:
+        ip link set eth0 vf 1 vlan 100 proto 802.1ad
+      Set vf to VST (802.1Q) mode:
+        ip link set eth0 vf 1 vlan 100 proto 802.1Q
+      Or by omitting the new parameter
+        ip link set eth0 vf 1 vlan 100
+    
+    Signed-off-by: Moshe Shemesh <moshe@mellanox.com>
+    Signed-off-by: Tariq Toukan <tariqt@mellanox.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 878786d95e07ce2f5fb6e3cd8a6c2ed320339196
+Author: Rob Swindell <swindell@broadcom.com>
+Date:   Tue Sep 20 03:36:33 2016 -0400
+
+    bnxt_en: Fix build error for kernesl without RTC-LIB
+    
+    bnxt_hwrm_fw_set_time() now returns -EOPNOTSUPP when built for kernel
+    without RTC_LIB.  Setting the firmware time is not critical to the
+    successful completion of the firmware update process.
+    
+    Signed-off-by: Rob Swindell <Rob.Swindell@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 350a714960eb8a980c913c9be5a96bb18b2fe9da
+Author: Eddie Wai <eddie.wai@broadcom.com>
+Date:   Mon Sep 19 03:58:09 2016 -0400
+
+    bnxt_en: Fixed the VF link status after a link state change
+    
+    The VF link state can be changed via the 'ip link set' cmd.
+    Currently, the new link state does not take effect immediately.
+    
+    The fix is for the PF to send a link change async event to the
+    designated VF after a VF link state change.  This async event will
+    trigger the VF to update the link status.
+    
+    Signed-off-by: Eddie Wai <eddie.wai@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit ae8e98a6fa7a73917196c507e43414ea96b6a0fc
+Author: Deepak Khungar <deepak.khungar@broadcom.com>
+Date:   Mon Sep 19 03:58:08 2016 -0400
+
+    bnxt_en: Support for "ethtool -r" command
+    
+    Restart autoneg if autoneg is enabled.
+    
+    Signed-off-by: Deepak Khungar <deepak.khungar@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 4ffcd582301bd020b1f9d00c55473af305ec19b5
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Sep 19 03:58:07 2016 -0400
+
+    bnxt_en: Pad TX packets below 52 bytes.
+    
+    The hardware has a limitation that it won't pass host to BMC loopback
+    packets below 52-bytes.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 001154eb242b5a6667b74e5cf20873fb75f1b9d3
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Sep 19 03:58:06 2016 -0400
+
+    bnxt_en: Call firmware to approve the random VF MAC address.
+    
+    After generating the random MAC address for VF, call the firmware to
+    approve it.  This step serves 2 purposes.  Some hypervisor (e.g. ESX)
+    wants to approve the MAC address.  2nd, the call will setup the
+    proper forwarding database in the internal switch.
+    
+    We need to unlock the hwrm_cmd_lock mutex before calling bnxt_approve_mac().
+    We can do that because we are at the end of the function and all the
+    previous firmware response data has been copied.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 7cc5a20e38fcaf395ac59e7ed6c3decb575a0dc7
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Sep 19 03:58:05 2016 -0400
+
+    bnxt_en: Re-arrange bnxt_hwrm_func_qcaps().
+    
+    Re-arrange the code so that the generation of the random MAC address for
+    the VF is at the end of the function.  The next patch will add one more step
+    to call bnxt_approve_mac() to get the firmware to approve the random MAC
+    address.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 47f8e8b9bbbbe00740786bd1da0d5097d45ba46b
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Sep 19 03:58:04 2016 -0400
+
+    bnxt_en: Fix ethtool -l|-L inconsistent channel counts.
+    
+    The existing code is inconsistent in reporting and accepting the combined
+    channel count.  bnxt_get_channels() reports maximum combined as the
+    maximum rx count.  bnxt_set_channels() accepts combined count that
+    cannot be bigger than max rx or max tx.
+    
+    For example, if max rx = 2 and max tx = 1, we report max supported
+    combined to be 2.  But if the user tries to set combined to 2, it will
+    fail because 2 is bigger than max tx which is 1.
+    
+    Fix the code to be consistent.  Max allowed combined = max(max_rx, max_tx).
+    We will accept a combined channel count <= max(max_rx, max_tx).
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 5ac67d8bc753b122175e682274599338b3ee7d42
+Author: Rob Swindell <Rob.Swindell@broadcom.com>
+Date:   Mon Sep 19 03:58:03 2016 -0400
+
+    bnxt_en: Added support for Secure Firmware Update
+    
+    Using Ethtool flashdev command, entire NVM package (*.pkg) files
+    may now be staged into the "update" area of the NVM and subsequently
+    verified and installed by the firmware using the newly introduced
+    command: NVM_INSTALL_UPDATE.
+    
+    We also introduce use of the new firmware command FW_SET_TIME so that the
+    NVM-resident package installation log contains valid time-stamps.
+    
+    Signed-off-by: Rob Swindell <Rob.Swindell@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 441cabbbf1bd0b99e283c9116fe430e53ee67a4a
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Sep 19 03:58:02 2016 -0400
+
+    bnxt_en: Update to firmware interface spec 1.5.1.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit adbc830545003c4b7494c903654bea22e5a66bb4
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Sep 19 03:58:01 2016 -0400
+
+    bnxt_en: Simplify PCI device names and add additinal PCI IDs.
+    
+    Remove "Single-port/Dual-port" from the device names.  Dual-port devices
+    will appear as 2 separate devices, so no need to call each a dual-port
+    device.  Use a more generic name for VF devices belonging to the same
+    chip fanmily.  Add some remaining NPAR device IDs.
+    
+    Signed-off-by: David Christensen <david.christensen@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 8d6be8b627389c6dc7e0ea2455a7542c8a2a16a7
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Sep 19 03:58:00 2016 -0400
+
+    bnxt_en: Use RSS flags defined in the bnxt_hsi.h file.
+    
+    And remove redundant definitions of the same flags.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 9d13744bb75078175ab49408f2abb980e4dbccc9
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Sep 5 01:57:35 2016 -0400
+
+    bnxt_en: Fix TX push operation on ARM64.
+    
+    There is a code path where we are calling __iowrite64_copy() on
+    an address that is not 64-bit aligned.  This causes an exception on
+    some architectures such as arm64.  Fix that code path by using
+    __iowrite32_copy().
+    
+    Reported-by: JD Zheng <jiandong.zheng@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 1f681688aaf1126df981615064a68a0dced458ef
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Jul 25 12:33:37 2016 -0400
+
+    bnxt_en: Add new NPAR and dual media device IDs.
+    
+    Add 5741X/5731X NPAR device IDs and dual media SFP/10GBase-T device IDs.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit a23049091d57f4bdc47f16fce01c371647d15dd7
+Author: Vasundhara Volam <vasundhara-v.volam@broadcom.com>
+Date:   Mon Jul 25 12:33:36 2016 -0400
+
+    bnxt_en: Log a message, if enabling NTUPLE filtering fails.
+    
+    If there are not enough resources to enable ntuple filtering,
+    log a warning message.
+    
+    v2: Use single message and add missing newline.
+    
+    Signed-off-by: Vasundhara Volam <vasundhara-v.volam@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit a54c4d74989b769014b359e5b66f3e571d903d25
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Jul 25 12:33:35 2016 -0400
+
+    bnxt_en: Improve ntuple filters by checking destination MAC address.
+    
+    Include the destination MAC address in the ntuple filter structure.  The
+    current code assumes that the destination MAC address is always the MAC
+    address of the NIC.  This may not be true if there are macvlans, for
+    example.  Add destination MAC address checking and configure the filter
+    correctly using the correct index for the destination MAC address.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit cbce91cad4ee39070bf3c7873767194e4be88e16
+Author: Florian Fainelli <f.fainelli@gmail.com>
+Date:   Mon Jul 18 13:02:47 2016 -0700
+
+    bnxt_en: Remove locking around txr->dev_state
+    
+    txr->dev_state was not consistently manipulated with the acquisition of
+    the per-queue lock, after further inspection the lock does not seem
+    necessary, either the value is read as BNXT_DEV_STATE_CLOSING or 0.
+    
+    Reported-by: coverity (CID 1339583)
+    Fixes: c0c050c58d840 ("bnxt_en: New Broadcom ethernet driver.")
+    Signed-off-by: Florian Fainelli <f.fainelli@gmail.com>
+    Acked-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit fa853dda19a1878d2a586de19f02bc9fed052425
+Author: Prashant Sreedharan <prashant.sreedharan@broadcom.com>
+Date:   Mon Jul 18 07:15:25 2016 -0400
+
+    bnxt_en: Add BCM58700 PCI device ID for NS2 Nitro.
+    
+    A bridge device in NS2 has the same device ID as the ethernet controller.
+    Add check to avoid probing the bridge device.
+    
+    Signed-off-by: Prashant Sreedharan <prashant.sreedharan@broadcom.com>
+    Signed-off-by: Vasundhara Volam <vasundhara-v.volam@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit dc52c6c70e0066e9cef886907f820411bebe8e07
+Author: Prashant Sreedharan <prashant.sreedharan@broadcom.com>
+Date:   Mon Jul 18 07:15:24 2016 -0400
+
+    bnxt_en: Workaround Nitro A0 RX hardware bug (part 4).
+    
+    Allocate special vnic for dropping packets not matching the RX filters.
+    First vnic is for normal RX packets and the driver will drop all
+    packets on the 2nd vnic.
+    
+    Signed-off-by: Prashant Sreedharan <prashant.sreedharan@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 10bbdaf5e4879fd7fc51f25c84d7b10de16cbe0e
+Author: Prashant Sreedharan <prashant.sreedharan@broadcom.com>
+Date:   Mon Jul 18 07:15:23 2016 -0400
+
+    bnxt_en: Workaround Nitro A0 hardware RX bug (part 3).
+    
+    Allocate napi for special vnic, packets arriving on this
+    napi will simply be dropped and the buffers will be replenished back
+    to the HW.
+    
+    Signed-off-by: Prashant Sreedharan <prashant.sreedharan@broadcom.com>
+    Signed-off-by: Vasundhara Volam <vasundhara-v.volam@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 765951938e2fe2e30571ef4a7de6a46659ce4c68
+Author: Prashant Sreedharan <prashant.sreedharan@broadcom.com>
+Date:   Mon Jul 18 07:15:22 2016 -0400
+
+    bnxt_en: Workaround Nitro A0 hardware RX bug (part 2).
+    
+    The hardware is unable to drop rx packets not matching the RX filters.  To
+    workaround it, we create a special VNIC and configure the hardware to
+    direct all packets not matching the filters to it.  We then setup the
+    driver to drop packets received on this VNIC.
+    
+    This patch creates the infrastructure for this VNIC, reserves a
+    completion ring, and rx rings.  Only shared completion ring mode is
+    supported.  The next 2 patches add a NAPI to handle packets from this
+    VNIC and the setup of the VNIC.
+    
+    Signed-off-by: Prashant Sreedharan <prashant.sreedharan@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 94ce9caa0f75b0d56e69550e84d7a1653f0ef3b0
+Author: Prashant Sreedharan <prashant.sreedharan@broadcom.com>
+Date:   Mon Jul 18 07:15:21 2016 -0400
+
+    bnxt_en: Workaround Nitro A0 hardware RX bug (part 1).
+    
+    Nitro A0 has a hardware bug in the rx path.  The workaround is to create
+    a special COS context as a path for non-RSS (non-IP) packets.  Without this
+    workaround, the chip may stall when receiving RSS and non-RSS packets.
+    
+    Add infrastructure to allow 2 contexts (RSS and CoS) per VNIC.  Allocate
+    and configure the CoS context for Nitro A0.
+    
+    Signed-off-by: Prashant Sreedharan <prashant.sreedharan@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 3e8060fa837630f6fb4acbf59ba588c6df5b2f50
+Author: Prashant Sreedharan <prashant.sreedharan@broadcom.com>
+Date:   Mon Jul 18 07:15:20 2016 -0400
+
+    bnxt_en: Add basic support for Nitro in North Star 2.
+    
+    Nitro is the embedded version of the ethernet controller in the North
+    Star 2 SoC.  Add basic code to recognize the chip ID and disable
+    the features (ntuple, TPA, ring and port statistics) not supported on
+    Nitro A0.
+    
+    Signed-off-by: Prashant Sreedharan <prashant.sreedharan@broadcom.com>
+    Signed-off-by: Vasundhara Volam <vasundhara-v.volam@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit f3ea3119ad75dde0ba3e8da4653dbd5a189688e5
+Author: Colin Ian King <colin.king@canonical.com>
+Date:   Fri Jul 8 16:42:48 2016 +0100
+
+    bnxt_en: initialize rc to zero to avoid returning garbage
+    
+    rc is not initialized so it can contain garbage if it is not
+    set by the call to bnxt_read_sfp_module_eeprom_info. Ensure
+    garbage is not returned by initializing rc to 0.
+    
+    Signed-off-by: Colin Ian King <colin.king@canonical.com>
+    Acked-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 09a7636a5b151670072de60767ddf096dc7bd12e
+Author: Dan Carpenter <dan.carpenter@oracle.com>
+Date:   Thu Jul 7 11:23:09 2016 +0300
+
+    bnxt: fix a condition
+    
+    This code generates as static checker warning because htons(ETH_P_IPV6)
+    is always true.  From the context it looks like the && was intended to
+    be !=.
+    
+    Fixes: 94758f8de037 ('bnxt_en: Add GRO logic for BCM5731X chips.')
+    Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+    Acked-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 51f307856b60e6b10975654e15bc236aa87b53d7
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Jul 1 18:46:29 2016 -0400
+
+    bnxt_en: Allow statistics DMA to be configurable using ethtool -C.
+    
+    The allowable range is 0.25 seconds to 1 second interval.  Default is
+    1 second.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 87027db19c30aafb8ff8d98e1c8802bc920f7b32
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Jul 1 18:46:28 2016 -0400
+
+    bnxt_en: Assign netdev->dev_port with port ID.
+    
+    This is useful for multi-function devices.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 17c71ac38134c3369479e34911b2035a85566caf
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Jul 1 18:46:27 2016 -0400
+
+    bnxt_en: Allow promiscuous mode for VF if default VLAN is enabled.
+    
+    With a default VLAN, the VF has its own VLAN domain and it can receive
+    all traffic within that domain.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit dc7aadb5133846f738c59da7af3261335af35ad3
+Author: Vasundhara Volam <vasundhara-v.volam@broadcom.com>
+Date:   Fri Jul 1 18:46:26 2016 -0400
+
+    bnxt_en: Increase maximum supported MTU to 9500.
+    
+    Signed-off-by: Vasundhara Volam <vasundhara-v.volam@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 550feebf5cb075f7576b3cfe9bcf05abc1ffb8cd
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Jul 1 18:46:25 2016 -0400
+
+    bnxt_en: Enable MRU enables bit when configuring VNIC MRU.
+    
+    For correctness, the MRU enables bit must be set when passing the
+    MRU to firmware during vnic configuration.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 93e0b4feb90cc651f7fbdfe07c257a969c51d1bb
+Author: Rob Swindell <rob.swindell@broadcom.com>
+Date:   Fri Jul 1 18:46:24 2016 -0400
+
+    bnxt_en: Add support for firmware updates for additional processors.
+    
+    Add support to the Ethtool FLASHDEV command handler for additional
+    firmware types to cover all the on-chip processors.
+    
+    Signed-off-by: Rob Swindell <rob.swindell@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 08141e0bf4f6cb82d51930e34e6a8e4af46c776f
+Author: Rob Swindell <rob.swindell@broadcom.com>
+Date:   Fri Jul 1 18:46:23 2016 -0400
+
+    bnxt_en: Request firmware reset after successful firwmare update
+    
+    Upon successful mgmt processor firmware update, request a self
+    reset upon next PCIe reset (e.g. system reboot).
+    
+    Signed-off-by: Rob Swindell <rob.swindell@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit a4c363471f2fa2b0f0abbd9f0563b034340585c3
+Author: Rob Swindell <rob.swindell@broadcom.com>
+Date:   Fri Jul 1 18:46:22 2016 -0400
+
+    bnxt_en: Add support for updating flash more securely
+    
+    To support Secure Firmware Update, we must be able to allocate
+    a staging area in the Flash.  This patch adds support for the
+    "update" type to tell firmware to do that.
+    
+    Signed-off-by: Rob Swindell <rob.swindell@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 2a5bedfa674cf81d60a20a76f456778834bd2123
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Jul 1 18:46:21 2016 -0400
+
+    bnxt_en: Do function reset on the 1st PF open only.
+    
+    Calling the firmware to do function reset on the PF will kill all the VFs.
+    To prevent that, we call function reset on the 1st PF open before any VF
+    can be activated.  On subsequent PF opens (with possibly some active VFs),
+    a bit has been set and we'll skip the function reset.  VF driver will
+    always do function reset on every open.  If there is an AER event, we will
+    always do function reset.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadocm.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit a58a3e68037647de78e3461194239a1104f76003
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Jul 1 18:46:20 2016 -0400
+
+    bnxt_en: Update firmware spec. to 1.3.0.
+    
+    And update driver version to 1.3.0.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 75362a3fd4e37ff8af1ef5e3d9f2d9d5ccf2f3ab
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Jul 1 18:46:19 2016 -0400
+
+    bnxt_en: VF/NPAR should return -EOPNOTSUPP for unsupported ethtool ops.
+    
+    Returning 0 for doing nothing is confusing to the user.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 7cdd5fc376a51cdf191895c23badd699eddbc901
+Author: Alexander Duyck <aduyck@mirantis.com>
+Date:   Thu Jun 16 12:21:36 2016 -0700
+
+    bnxt: Move GENEVE support from hard-coded port to using port notifier
+    
+    The port number for GENEVE is hard coded into the bnxt driver.  This is the
+    kind of thing we want to avoid going forward.  For now I will integrate
+    this back into the port notifier so that we can change the GENEVE port
+    number if we need to in the future.
+    
+    Signed-off-by: Alexander Duyck <aduyck@mirantis.com>
+    Acked-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit ad51b8e9f9f4f8172eb7a6219d3005861bfb9a57
+Author: Alexander Duyck <aduyck@mirantis.com>
+Date:   Thu Jun 16 12:21:19 2016 -0700
+
+    bnxt: Update drivers to support unified UDP encapsulation offload functions
+    
+    This patch ends up doing several things.  First it updates the driver to
+    make use of the new unified UDP tunnel offload notifier functions.  In
+    addition I updated the code so that we can work around the bits that were
+    checking for if VXLAN was enabled since we are now using a notifier based
+    setup.
+    
+    Signed-off-by: Alexander Duyck <aduyck@mirantis.com>
+    Acked-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 00c04a928572991d30b2473a7e992c1be8e646f3
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Jun 13 02:25:38 2016 -0400
+
+    bnxt_en: Support new ETHTOOL_{G|S}LINKSETTINGS API.
+    
+    To fully support 25G and 50G link settings.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 93ed8117336485af2cedb069d28f3d4270fb90a1
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Jun 13 02:25:37 2016 -0400
+
+    bnxt_en: Don't allow autoneg on cards that don't support it.
+    
+    Some cards do not support autoneg.  The current code does not prevent the
+    user from enabling autoneg with ethtool on such cards, causing confusion.
+    Firmware provides the autoneg capability information and we just need to
+    store it in the support_auto_speeds field in bnxt_link_info struct.
+    The ethtool set_settings() call will check this field before proceeding
+    with autoneg.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit b24eb6ae7058ca1a42b0532489e5f5796c107d65
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Jun 13 02:25:36 2016 -0400
+
+    bnxt_en: Add BCM5731X and BCM5741X device IDs.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 94758f8de037cf5c62eb56287f5d5e937cda8c9b
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Jun 13 02:25:35 2016 -0400
+
+    bnxt_en: Add GRO logic for BCM5731X chips.
+    
+    Add bnxt_gro_func_5731x() to handle GRO packets for this chip.  The
+    completion structures used in the new chip have new data to help determine
+    the header offsets.  The offsets can be off by 4 if the packet is an
+    internal loopback packet (e.g. from one VF to another VF).  Some additional
+    logic is added to adjust the offsets if it is a loopback packet.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 309369c9b3f6a8665e581d9014f222b602f6845a
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Jun 13 02:25:34 2016 -0400
+
+    bnxt_en: Refactor bnxt_gro_skb().
+    
+    Newer chips require different logic to handle GRO packets.  So refactor
+    the code so that we can call different functions depending on the chip.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 659c805cc01b3c5a6d972db0408164371a2bab4b
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Jun 13 02:25:33 2016 -0400
+
+    bnxt_en: Define the supported chip numbers.
+    
+    Define all the supported chip numbers and chip categories.  Store the
+    chip_num returned by firmware.  If the call to get the version and chip
+    number fails, we should abort.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit ebcd4eeb2a0b4859d7aaa3308b222a30d51a643f
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Jun 13 02:25:32 2016 -0400
+
+    bnxt_en: Add PCI device ID for 57404 NPAR devices.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 567b2abe68551781b725b3b739672da41cb92ef0
+Author: Satish Baddipadige <sbaddipa@broadcom.com>
+Date:   Mon Jun 13 02:25:31 2016 -0400
+
+    bnxt_en: Enable NPAR (NIC Partitioning) Support.
+    
+    NPAR type is read from bnxt_hwrm_func_qcfg.  Do not allow changing link
+    parameters if in NPAR mode sinc ethe port is shared among multiple
+    partitions.  The link parameters are set up by firmware.
+    
+    Signed-off-by: Satish Baddipadige <sbaddipa@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit fc0f19294d1ffaf9366b10d966f86e6cf13335a4
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Jun 13 02:25:30 2016 -0400
+
+    bnxt_en: Handle VF_CFG_CHANGE event from firmware.
+    
+    When the VF driver gets this event, the VF configuration has changed (such
+    as default VLAN).  The VF driver will initiate a silent reset to pick up
+    the new configuration.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 6988bd920c6ea53497ed15db947408b7488c9e36
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Jun 13 02:25:29 2016 -0400
+
+    bnxt_en: Add new function bnxt_reset().
+    
+    When a default VLAN is added to the VF, the VF driver needs to reset to
+    pick up the default VLAN ID.  We can use the same tx timeout reset logic
+    to do that, without the debug output.  This new function, with the
+    silent parameter to suppress debug output will now serve both purposes.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit cf6645f8ebc69775a857b7c51928f3ad9e37aa66
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Jun 13 02:25:28 2016 -0400
+
+    bnxt_en: Add function for VF driver to query default VLAN.
+    
+    The PF can setup a default VLAN for a VF.  The default VLAN tag is
+    automatically inserted and stripped without the knowledge of the
+    stack running on the VF.  The VF driver needs to know that default
+    VLAN is enabled as VLAN acceleration on the RX side is no longer
+    supported.  Call netdev_update_features() to fix up the VLAN features
+    as necessary.  Also, VLAN strip mode must be enabled to strip out
+    the default VLAN tag.
+    
+    Only allow VF default VLAN to be set if the firmware spec is >= 1.2.1.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 8852ddb4dcdfe6f877a02f79bf2bca9ae63c039a
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Jun 6 02:37:16 2016 -0400
+
+    bnxt_en: Simplify VLAN receive logic.
+    
+    Since both CTAG and STAG rx acceleration must be enabled together, we
+    only need to check one feature flag (NETIF_F_HW_VLAN_CTAG_RX) before
+    calling __vlan_hwaccel_put_tag().
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 5a9f6b238e59bc05afb4cdeaf3672990bf2a5309
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Jun 6 02:37:15 2016 -0400
+
+    bnxt_en: Enable and disable RX CTAG and RX STAG VLAN acceleration together.
+    
+    The hardware can only be set to strip or not strip both the VLAN CTAG and
+    STAG.  It cannot strip one and not strip the other.  Add logic to
+    bnxt_fix_features() to toggle both feature flags when the user is toggling
+    one of them.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit b9a8460a08a1e0150073cda3e7a0dd23cb888052
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Jun 6 02:37:14 2016 -0400
+
+    bnxt_en: Fix tx push race condition.
+    
+    Set the is_push flag in the software BD before the tx data is pushed to
+    the chip.  It is possible to get the tx interrupt as soon as the tx data
+    is pushed.  The tx handler will not handle the event properly if the
+    is_push flag is not set and it will crash.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadocm.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 7e13318daa4a67bff2f800923a993ef3818b3c53
+Author: Tom Herbert <tom@herbertland.com>
+Date:   Wed May 18 09:06:10 2016 -0700
+
+    net: define gso types for IPx over IPv4 and IPv6
+    
+    This patch defines two new GSO definitions SKB_GSO_IPXIP4 and
+    SKB_GSO_IPXIP6 along with corresponding NETIF_F_GSO_IPXIP4 and
+    NETIF_F_GSO_IPXIP6. These are used to described IP in IP
+    tunnel and what the outer protocol is. The inner protocol
+    can be deduced from other GSO types (e.g. SKB_GSO_TCPV4 and
+    SKB_GSO_TCPV6). The GSO types of SKB_GSO_IPIP and SKB_GSO_SIT
+    are removed (these are both instances of SKB_GSO_IPXIP4).
+    SKB_GSO_IPXIP6 will be used when support for GSO with IP
+    encapsulation over IPv6 is added.
+    
+    Signed-off-by: Tom Herbert <tom@herbertland.com>
+    Acked-by: Jeff Kirsher <jeffrey.t.kirsher@intel.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit b67daab033293b3882ba4dc926ffb084d70044e0
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Sun May 15 03:04:51 2016 -0400
+
+    bnxt_en: Use dma_rmb() instead of rmb().
+    
+    Use the weaker but more appropriate dma_rmb() to order the reading of
+    the completion ring.
+    
+    Suggested-by: Ajit Khaparde <ajit.khaparde@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 5049e33b559a44e9f216d86c58c7c7fce6f5df2f
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Sun May 15 03:04:50 2016 -0400
+
+    bnxt_en: Add BCM57314 device ID.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 10289bec0072b13f629a654d94faf1dadd44f335
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Sun May 15 03:04:49 2016 -0400
+
+    bnxt_en: Simplify and improve unsupported SFP+ module reporting.
+    
+    The current code is more complicated than necessary and can only report
+    unsupported SFP+ module if it is plugged in after the device is up.
+    
+    Rename bnxt_port_module_event() to bnxt_get_port_module_status().  We
+    already have the current module_status in the link_info structure, so
+    just check that and report any unsupported SFP+ module status.  Delete
+    the unnecessary last_port_module_event.  Call this function at the
+    end of bnxt_open to report unsupported module already plugged in.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 8578d6c19a308dea3daf3d03acdf18724ec05590
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Sun May 15 03:04:48 2016 -0400
+
+    bnxt_en: Fix length value in dmesg log firmware error message.
+    
+    The len value in the hwrm error message is wrong.  Use the properly adjusted
+    value in the variable len.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit a11fa2be6d1564375dc57530680268ad569c2632
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Sun May 15 03:04:47 2016 -0400
+
+    bnxt_en: Improve the delay logic for firmware response.
+    
+    The current code has 2 problems:
+    
+    1. The maximum wait time is not long enough.  It is about 60% of the
+    duration specified by the firmware.  It is calling usleep_range(600, 800)
+    for every 1 msec we are supposed to wait.
+    
+    2. The granularity of the delay is too coarse.  Many simple firmware
+    commands finish in 25 usec or less.
+    
+    We fix these 2 issues by multiplying the original 1 msec loop counter by
+    40 and calling usleep_range(25, 40) for each iteration.
+    
+    There is also a second delay loop to wait for the last DMA word to
+    complete.  This delay loop should be a very short 5 usec wait.
+    
+    This change results in much faster bring-up/down time:
+    
+    Before the patch:
+    
+    time ip link set p4p1 up
+    
+    real    0m0.120s
+    user    0m0.001s
+    sys     0m0.009s
+    
+    After the patch:
+    
+    time ip link set p4p1 up
+    
+    real    0m0.030s
+    user    0m0.000s
+    sys     0m0.010s
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit d0a42d6fc8eaf1b64f62b0bbc3b829b756eacf57
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Sun May 15 03:04:46 2016 -0400
+
+    bnxt_en: Reduce maximum ring pages if page size is 64K.
+    
+    The chip supports 4K/8K/64K page sizes for the rings and we try to
+    match it to the CPU PAGE_SIZE.  The current page size limits for the rings
+    are based on 4K/8K page size. If the page size is 64K, these limits are
+    too large.  Reduce them appropriately.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 90c4f788f6c08aaa52edbb47a817403376523375
+Author: Ajit Khaparde <ajit.khaparde@broadcom.com>
+Date:   Sun May 15 03:04:45 2016 -0400
+
+    bnxt_en: Report PCIe link speed and width during driver load
+    
+    Add code to log a message during driver load indicating PCIe link
+    speed and width.
+    
+    The log message will look like this:
+    bnxt_en 0000:86:00.0 eth0: PCIe: Speed 8.0GT/s Width x8
+    
+    Signed-off-by: Ajit Khaparde <ajit.khaparde@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 42ee18fe4ca2a12b8370bb1c53fa6b9f9300c70c
+Author: Ajit Khaparde <ajit.khaparde@broadcom.com>
+Date:   Sun May 15 03:04:44 2016 -0400
+
+    bnxt_en: Add Support for ETHTOOL_GMODULEINFO and ETHTOOL_GMODULEEEPRO
+    
+    Add support to fetch the SFP EEPROM settings from the firmware
+    and display it via the ethtool -m command.  We support SFP+ and QSFP
+    modules.
+    
+    v2: Fixed a bug in bnxt_get_module_eeprom() found by Ben Hutchings.
+    
+    Signed-off-by: Ajit Khaparde <ajit.khaparde@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 18d6e4e2d800cbd44a7d7d215a49f99c6508e4a5
+Author: Satish Baddipadige <sbaddipa@broadcom.com>
+Date:   Sun May 15 03:04:43 2016 -0400
+
+    bnxt_en: Fix invalid max channel parameter in ethtool -l.
+    
+    When there is only 1 MSI-X vector or in INTA mode, tx and rx pre-set
+    max channel parameters are shown incorrectly in ethtool -l.  With only 1
+    vector, bnxt_get_max_rings() will return -ENOMEM.  bnxt_get_channels
+    should check this return value, and set max_rx/max_tx to 0 if it is
+    non-zero.
+    
+    Signed-off-by: Satish Baddipadige <sbaddipa@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit fa7e28127a5ad9fd55ac9c7707d8c8b835113a7c
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue May 10 19:18:00 2016 -0400
+
+    bnxt_en: Add workaround to detect bad opaque in rx completion (part 2)
+    
+    Add detection and recovery code when the hardware returned opaque value
+    does not match the expected consumer index.  Once the issue is detected,
+    we skip the processing of all RX and LRO/GRO packets.  These completion
+    entries are discarded without sending the SKB to the stack and without
+    producing new buffers.  The function will be reset from a workqueue.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 376a5b8647d6c56cb8f104d7ad0390b4f4057e70
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue May 10 19:17:59 2016 -0400
+
+    bnxt_en: Add workaround to detect bad opaque in rx completion (part 1)
+    
+    There is a rare hardware bug that can cause a bad opaque value in the RX
+    or TPA completion.  When this happens, the hardware may have used the
+    same buffer twice for 2 rx packets.  In addition, the driver will also
+    crash later using the bad opaque as the index into the ring.
+    
+    The rx opaque value is predictable and is always monotonically increasing.
+    The workaround is to keep track of the expected next opaque value and
+    compare it with the one returned by hardware during RX and TPA start
+    completions.  If they miscompare, we will not process any more RX and
+    TPA completions and exit NAPI.  We will then schedule a workqueue to
+    reset the function.
+    
+    This patch adds the logic to keep track of the next rx consumer index.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 7d2837dd7a3239e8201d9bef75c1a708e451e123
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed May 4 16:56:44 2016 -0400
+
+    bnxt_en: Setup multicast properly after resetting device.
+    
+    The multicast/all-multicast internal flags are not properly restored
+    after device reset.  This could lead to unreliable multicast operations
+    after an ethtool configuration change for example.
+    
+    Call bnxt_mc_list_updated() and setup the vnic->mask in bnxt_init_chip()
+    to fix the issue.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 67a95e2022c7f0405408fb1f910283785ece354a
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Wed May 4 16:56:43 2016 -0400
+
+    bnxt_en: Need memory barrier when processing the completion ring.
+    
+    The code determines if the next ring entry is valid before proceeding
+    further to read the rest of the entry.  The CPU can re-order and read
+    the rest of the entry first, possibly reading a stale entry, if DMA
+    of a new entry happens right after reading it.  This issue can be
+    readily seen on a ppc64 system, causing it to crash.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 152971ee75fddbc43fb6cf7e3ada96c1324df2af
+Author: Alexander Duyck <aduyck@mirantis.com>
+Date:   Mon May 2 09:38:55 2016 -0700
+
+    bnxt: Add support for segmentation of tunnels with outer checksums
+    
+    This patch assumes that the bnxt hardware will ignore existing IPv4/v6
+    header fields for length and checksum as well as the length and checksum
+    fields for outer UDP and GRE headers.
+    
+    I have been told by Michael Chan that this is working.  Though this might
+    be somewhat redundant for IPv6 as they are forcing the checksum to be
+    computed for all IPv6 frames that are offloaded.  A follow-up patch may be
+    necessary in order to fix this as it is essentially mangling the outer IPv6
+    headers to add a checksum where none was requested.
+    
+    Signed-off-by: Alexander Duyck <aduyck@mirantis.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 89d0a06c516339c0a2b3d02677f5d6310b3319fb
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Apr 25 02:30:51 2016 -0400
+
+    bnxt_en: Divide a page into 32K buffers for the aggregation ring if necessary.
+    
+    If PAGE_SIZE is bigger than BNXT_RX_PAGE_SIZE, that means the native CPU
+    page is bigger than the maximum length of the RX BD.  Divide the page
+    into multiple 32K buffers for the aggregation ring.
+    
+    Add an offset field in the bnxt_sw_rx_agg_bd struct to keep track of the
+    page offset of each buffer.  Since each page can be referenced by multiple
+    buffer entries, call get_page() as needed to get the proper reference
+    count.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 2839f28bd5bf8fd2ab4a1ea3a5589c8f94364cbb
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Apr 25 02:30:50 2016 -0400
+
+    bnxt_en: Limit RX BD pages to be no bigger than 32K.
+    
+    The RX BD length field of this device is 16-bit, so the largest buffer
+    size is 65535.  For LRO and GRO, we allocate native CPU pages for the
+    aggregation ring buffers.  It won't work if the native CPU page size is
+    64K or bigger.
+    
+    We fix this by defining BNXT_RX_PAGE_SIZE to be native CPU page size
+    up to 32K.  Replace PAGE_SIZE with BNXT_RX_PAGE_SIZE in all appropriate
+    places related to the rx aggregation ring logic.
+    
+    The next patch will add additional logic to divide the page into 32K
+    chunks for aggrgation ring buffers if PAGE_SIZE is bigger than
+    BNXT_RX_PAGE_SIZE.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 1fa72e29e14d97fbda15437c648d7cc4eb00bff8
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Apr 25 02:30:49 2016 -0400
+
+    bnxt_en: Don't fallback to INTA on VF.
+    
+    Only MSI-X can be used on a VF.  The driver should fail initialization
+    if it cannot successfully enable MSI-X.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 8cbde1175e3c8565edbb777cd09cbfdb93c78397
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Apr 11 04:11:14 2016 -0400
+
+    bnxt_en: Add async event handling for speed config changes.
+    
+    On some dual port cards, link speeds on both ports have to be compatible.
+    Firmware will inform the driver when a certain speed is no longer
+    supported if the other port has linked up at a certain speed.  Add
+    logic to handle this event by logging a message and getting the
+    updated list of supported speeds.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 84c33dd342ad596a271a61da0119bf34e80bb1c5
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Apr 11 04:11:13 2016 -0400
+
+    bnxt_en: Call firmware to approve VF MAC address change.
+    
+    Some hypervisors (e.g. ESX) require the VF MAC address to be forwarded to
+    the PF for approval.  In Linux PF, the call is not forwarded and the
+    firmware will simply check and approve the MAC address if the PF has not
+    previously administered a valid MAC address for this VF.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 33f7d55f07ab964055d73d38774346f8d4821f00
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Apr 11 04:11:12 2016 -0400
+
+    bnxt_en: Shutdown link when device is closed.
+    
+    Let firmware know that the driver is giving up control of the link so that
+    it can be shutdown if no management firmware is running.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 03efbec03198a0f505c2a6c93268c3c5df321c90
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Apr 11 04:11:11 2016 -0400
+
+    bnxt_en: Disallow forced speed for 10GBaseT devices.
+    
+    10GBaseT devices must autonegotiate to determine master/slave clocking.
+    Disallow forced speed in ethtool .set_settings() for these devices.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 29c262fed4067c52977ba279cf71520f9991a050
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 5 14:09:03 2016 -0400
+
+    bnxt_en: Improve ethtool .get_settings().
+    
+    If autoneg is off, we should always report the speed and duplex settings
+    even if it is link down so the user knows the current settings.  The
+    unknown speed and duplex should only be used for autoneg when link is
+    down.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 9d9cee08fc9f5c4df84ef314158fd19c013bcec6
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 5 14:09:02 2016 -0400
+
+    bnxt_en: Check for valid forced speed during ethtool -s.
+    
+    Check that the forced speed is a valid speed supported by firmware.
+    If not supported, return -EINVAL.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 4bb13abf208cb484a9b9d1af9233b0ef850c2fe7
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 5 14:09:01 2016 -0400
+
+    bnxt_en: Add unsupported SFP+ module warnings.
+    
+    Add the PORT_CONN_NOT_ALLOWED async event handling logic.  The driver
+    will print an appropriate warning to reflect the SFP+ module enforcement
+    policy done in the firmware.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 25be862370031056989ee76e3c48c3ac8ff67fd4
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 5 14:09:00 2016 -0400
+
+    bnxt_en: Set async event bits when registering with the firmware.
+    
+    Currently, the driver only sets bit 0 of the async_event_fwd fields.
+    To be compatible with the latest spec, we need to set the
+    appropriate event bits handled by the driver.  We should be handling
+    link change and PF driver unload events, so these 2 bits should be
+    set.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 72b34f04e0b00956dd679ae18bf2163669df8b56
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 5 14:08:59 2016 -0400
+
+    bnxt_en: Add get_eee() and set_eee() ethtool support.
+    
+    Allow users to get|set EEE parameters.
+    
+    v2: Added comment for preserving the tx_lpi_timer value in get_eee.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 939f7f0ca442187db2a4ec7a40979c711b0c939e
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 5 14:08:58 2016 -0400
+
+    bnxt_en: Add EEE setup code.
+    
+    1. Add bnxt_hwrm_set_eee() function to setup EEE firmware parameters based
+    on the bp->eee settings.
+    2. The new function bnxt_eee_config_ok() will check if EEE parameters need
+    to be modified due to autoneg changes.
+    3. bnxt_hwrm_set_link() has added a new parameter to update EEE.  If the
+    parameter is set, it will call bnxt_hwrm_set_eee().
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 170ce01301a2a1a87808765531d938fa0b023641
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 5 14:08:57 2016 -0400
+
+    bnxt_en: Add basic EEE support.
+    
+    Get EEE capability and the initial EEE settings from firmware.
+    Add "EEE is active | not active" to link up dmesg.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit c9ee9516c161da2d072e035907aa35a35dfa68a8
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 5 14:08:56 2016 -0400
+
+    bnxt_en: Improve flow control autoneg with Firmware 1.2.1 interface.
+    
+    Make use of the new AUTONEG_PAUSE bit in the new interface to better
+    control autoneg flow control settings, independent of RX and TX
+    advertisement settings.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 11f15ed394782dd018d60a0bb550616a8571b43c
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Tue Apr 5 14:08:55 2016 -0400
+
+    bnxt_en: Update to Firmware 1.2.2 spec.
+    
+    Use new field names in API structs and stop using deprecated fields
+    auto_link_speed and auto_duplex in phy_cfg/phy_qcfg structs.
+    
+    Update copyright year to 2016.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 3c02d1bb32347d0674714ee170772d771d513469
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Mar 28 19:46:07 2016 -0400
+
+    bnxt_en: Fix ethtool -a reporting.
+    
+    To report flow control tx/rx settings accurately regardless of autoneg
+    setting, we should use link_info->req_flow_ctrl.  Before this patch,
+    the reported settings were only correct when autoneg was on.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 49b5c7a125201bb42c25831fda3a50305c29ef50
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Mar 28 19:46:06 2016 -0400
+
+    bnxt_en: Fix typo in bnxt_hwrm_set_pause_common().
+    
+    The typo caused the wrong flow control bit to be set.
+    
+    Reported by: Ajit Khaparde <ajit.khaparde@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit e6ef26991a46e20879bebb8298080eb7ceed4ae8
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Mar 28 19:46:05 2016 -0400
+
+    bnxt_en: Implement proper firmware message padding.
+    
+    The size of every padded firmware message is specified in the first
+    HWRM_VER_GET response message.  Use this value to pad every message
+    after that.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 33e52d888d0c84a0c66f13357a53113fd9710bd6
+Author: Prashant Sreedharan <prashant@broadcom.com>
+Date:   Mon Mar 28 19:46:04 2016 -0400
+
+    bnxt_en: Initialize CP doorbell value before ring allocation
+    
+    The existing code does the following:
+        allocate completion ring
+        initialize completion ring doorbell
+        disable interrupts on this completion ring by writing to the doorbell
+    
+    We can have a race where firmware sends an asynchronous event to the host
+    after completion ring allocation and before doorbell is initialized.
+    When this happens driver can crash while ringing the doorbell using
+    uninitialized value as part of handling the IRQ/napi request.
+    
+    Signed-off-by: Prashant Sreedharan <prashant.sreedharan@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 6316ea6db93d875df333e7ab205bf1aa3b3616d7
+Author: Satish Baddipadige <sbaddipa@broadcom.com>
+Date:   Mon Mar 7 15:38:48 2016 -0500
+
+    bnxt_en: Enable AER support.
+    
+    Add pci_error_handler callbacks to support for pcie advanced error
+    recovery.
+    
+    Signed-off-by: Satish Baddipadige <sbaddipa@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 8ddc9aaa725a9337fc7bbe95fe1d1499769fb9b2
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Mar 7 15:38:47 2016 -0500
+
+    bnxt_en: Include hardware port statistics in ethtool -S.
+    
+    Include the more useful port statistics in ethtool -S for the PF device.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 9947f83fb79ca501f5ab24c370211bfb78b6b364
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Mar 7 15:38:46 2016 -0500
+
+    bnxt_en: Include some hardware port statistics in ndo_get_stats64().
+    
+    Include some of the port error counters (e.g. crc) in ->ndo_get_stats64()
+    for the PF device.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 3bdf56c47dfcd819ab1e73644c2eb9c72c08f29e
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Mar 7 15:38:45 2016 -0500
+
+    bnxt_en: Add port statistics support.
+    
+    Gather periodic port statistics if the device is PF and link is up.  This
+    is triggered in bnxt_timer() every one second to request firmware to DMA
+    the counters.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadocm.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit f1a082a6f79fd5f06b27ef05a5ba7ec8d6e83b4c
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Mar 7 15:38:44 2016 -0500
+
+    bnxt_en: Extend autoneg to all speeds.
+    
+    Allow all autoneg speeds aupported by firmware to be advertised.  If
+    the advertising parameter is 0, then all supported speeds will be
+    advertised.
+    
+    Remove BNXT_ALL_COPPER_ETHTOOL_SPEED which is no longer used as all
+    supported speeds can be advertised.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 4b32cacca28fe8b29bf266feff19b6fc2180402e
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Mar 7 15:38:43 2016 -0500
+
+    bnxt_en: Use common function to get ethtool supported flags.
+    
+    The supported bits and advertising bits in ethtool have the same
+    definitions.  The same is true for the firmware bits.  So use the
+    common function to handle the conversion for both supported and
+    advertising bits.
+    
+    v2: Don't use parentheses on function return.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 3277360eb29c6e482391975717d983060ecbd28d
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Mar 7 15:38:42 2016 -0500
+
+    bnxt_en: Add reporting of link partner advertisement.
+    
+    And report actual pause settings to ETHTOOL_GPAUSEPARAM to let ethtool
+    resolve the actual pause settings.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 27c4d578600c401c119c012a90920805fab05cc9
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Mar 7 15:38:41 2016 -0500
+
+    bnxt_en: Refactor bnxt_fw_to_ethtool_advertised_spds().
+    
+    Include the conversion of pause bits and add one extra call layer so
+    that the same refactored function can be reused to get the link partner
+    advertisement bits.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 90e209213096110bce06ef580e1c73702fe4a288
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Feb 26 04:00:08 2016 -0500
+
+    bnxt_en: Add hwrm_send_message_silent().
+    
+    This is used to send NVM_FIND_DIR_ENTRY messages which can return error
+    if the entry is not found.  This is normal and the error message will
+    cause unnecessary alarm, so silence it.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit fbfbc4851dd709cf1327afc283f9cca00235dcb3
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Feb 26 04:00:07 2016 -0500
+
+    bnxt_en: Refactor _hwrm_send_message().
+    
+    Add a new function bnxt_do_send_msg() to do essentially the same thing
+    with an additional paramter to silence error response messages.  All
+    current callers will set silent to false.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 3ebf6f0a09a284adef62111c7cfca29f56d6cce7
+Author: Rob Swindell <swindell@broadcom.com>
+Date:   Fri Feb 26 04:00:06 2016 -0500
+
+    bnxt_en: Add installed-package firmware version reporting via Ethtool GDRVINFO
+    
+    For everything to fit, we remove the PHY microcode version and replace it
+    with the firmware package version in the fw_version string.
+    
+    Signed-off-by: Rob Swindell <swindell@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit a8643e1604c1f39a675c6b10a7f84260fa13590c
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Feb 26 04:00:05 2016 -0500
+
+    bnxt_en: Fix dmesg log firmware error messages.
+    
+    Use appropriate firmware request header structure to prepare the
+    firmware messages.  This avoids the unnecessary conversion of the
+    fields to 32-bit fields.  Add appropriate endian conversion when
+    printing out the message fields in dmesg so that they appear correct
+    in the log.
+    
+    Reported-by: Rob Swindell <swindell@broadcom.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit ff4fe81d2d49e3cad3bb45c8c5b9a49ca90ee10b
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Feb 26 04:00:04 2016 -0500
+
+    bnxt_en: Use firmware provided message timeout value.
+    
+    Before this patch, we used a hardcoded value of 500 msec as the default
+    value for firmware message response timeout.  For better portability with
+    future hardware or debug platforms, use the value provided by firmware in
+    the first response and store it for all susequent messages.  Redefine the
+    macro HWRM_CMD_TIMEOUT to the stored value.  Since we don't have the
+    value yet in the first message, use the 500 ms default if the stored value
+    is zero.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit dfc9c94a83909f4be80e5d0c67e79793830aa312
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Feb 26 04:00:03 2016 -0500
+
+    bnxt_en: Add coalescing support for tx rings.
+    
+    When tx and rx rings don't share the same completion ring, tx coalescing
+    parameters can be set differently from the rx coalescing parameters.
+    Otherwise, use rx coalescing parameters on shared completion rings.
+    
+    Adjust rx coalescing default values to lower interrupt rate.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit bb053f52a54d66a6057c2220458349f7d39ce0d2
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Feb 26 04:00:02 2016 -0500
+
+    bnxt_en: Refactor bnxt_hwrm_set_coal().
+    
+    Add a function to set all the coalescing parameters.  The function can
+    be used later to set both rx and tx coalescing parameters.
+    
+    v2: Fixed function parameters formatting requested by DaveM.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit dfb5b894f87cb78168e04283e8d15626dc3e6d5a
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Fri Feb 26 04:00:01 2016 -0500
+
+    bnxt_en: Store irq coalescing timer values in micro seconds.
+    
+    Don't convert these to internal hardware tick values before storing
+    them.  This avoids the confusion of ethtool -c returning slightly
+    different values than the ones set using ethtool -C when we convert
+    hardware tick values back to micro seconds.  Add better comments for
+    the hardware settings.
+    
+    Also, rename the current set of coalescing fields with rx_ prefix.
+    The next patch will add support of tx coalescing values.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 19241368443ff976b1924019d29eef8e972158e7
+Author: Jeffrey Huang <huangjw@broadcom.com>
+Date:   Fri Feb 26 04:00:00 2016 -0500
+
+    bnxt_en: Send PF driver unload notification to all VFs.
+    
+    During remove_one() when SRIOV is enabled, the PF driver
+    should broadcast PF driver unload notification to all
+    VFs that are attached to VMs. Upon receiving the PF
+    driver unload notification, the VF driver should print
+    a warning message to message log.  Certain operations on the
+    VF may not succeed after the PF has unloaded.
+    
+    Signed-off-by: Jeffrey Huang <huangjw@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 3874d6a8b61966a77aa743b4160ba96bf3081ce5
+Author: Jeffrey Huang <huangjw@broadcom.com>
+Date:   Fri Feb 26 03:59:59 2016 -0500
+
+    bnxt_en: Improve bnxt_vf_update_mac().
+    
+    Allow the VF to setup its own MAC address if the PF has not administratively
+    set it for the VF.  To do that, we should always store the MAC address
+    from the firmware.  There are 2 cases:
+    
+    1. The MAC address is valid.  This MAC address is assigned by the PF and
+    it needs to override the current VF MAC address.
+    
+    2. The MAC address is zero.  The VF will use a random MAC address by default.
+    By storing this 0 MAC address in the VF structure, it will allow the VF
+    user to change the MAC address later using ndo_set_mac_address() when
+    it sees that the stored MAC address is 0.
+    
+    v2: Expanded descriptions and added more comments.
+    
+    Signed-off-by: Jeffrey Huang <huangjw@broadcom.com>
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit fbb0fa8b48892a3db8f5b89fb591c741fbd2fe7a
+Author: Michael Chan <michael.chan@broadcom.com>
+Date:   Mon Feb 22 02:10:26 2016 -0500
+
+    bnxt_en: Fix zero padding of tx push data.
+    
+    The arithmetic to zero pad the last 64-bit word in the push buffer is not
+    correct.
+    
+    1. It should be pdata + length to get to the end.
+    2. 'pdata' is void pointer and passing it to PTR_ALIGN() will cast the
+    aligned pointer to void.  Pass 'end' which is u64 pointer to PTR_ALIGN()
+    instead so that the aligned pointer - 1 is the last 64-bit pointer to data.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit ba41d46fe03223279054e58d570069fdc62fb768
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Fri Feb 19 19:43:21 2016 -0500
+
+    bnxt_en: Failure to update PHY is not fatal condition.
+    
+    If we fail to update the PHY, we should print a warning and continue.
+    The current code to exit is buggy as it has not freed up the NIC
+    resources yet.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit de73018fb5474b33dc4f6d6b8d889e40232e325b
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Fri Feb 19 19:43:20 2016 -0500
+
+    bnxt_en: Remove unnecessary call to update PHY settings.
+    
+    Fix bnxt_update_phy_setting() to check the correct parameters when
+    determining whether to update the PHY.  Requested line speed/duplex should
+    only be checked for forced speed mode.  This avoids unnecessary link
+    interruptions when loading the driver.
+    
+    Signed-off-by: Michael Chan <michael.chan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 035a1539ab63bfdb284bdf6e8459e35897c60564
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Fri Feb 19 19:43:19 2016 -0500
+
+    bnxt_en: Poll link at the end of __bnxt_open_nic().
+    
+    When shutting down the NIC, we shutdown async event processing before
+    freeing all the rings.  If there is a link change event during reset, the
+    driver may miss it and the link state may be incorrect after the NIC is
+    re-opened.  Poll the link at the end of __bnxt_open_nic() to get the
+    correct link status.
+    
+    Signed-off-by Michael Chan <michael.chan@broadcom.com>
+    
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 51dd55b5688e81f9f13fb520a59900d4c3959a9a
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Wed Feb 10 17:33:50 2016 -0500
+
+    bnxt_en: Reduce default ring sizes.
+    
+    The current default tx ring size of 512 causes an extra page to be
+    allocated for the tx ring with only 1 entry in it.  Reduce it to
+    511.  The default rx ring size is also reduced to 511 to use less
+    memory by default.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 4419dbe6a0f031ddb2df4cd993805546a566d20e
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Wed Feb 10 17:33:49 2016 -0500
+
+    bnxt_en: Fix implementation of tx push operation.
+    
+    tx push is supported for small packets to reduce DMA latency.  The
+    following bugs are fixed in this patch:
+    
+    1. Fix the definition of the push BD which is different from the DMA BD.
+    2. The push buffer has to be zero padded to the next 64-bit word boundary
+    or tx checksum won't be correct.
+    3. Increase the tx push packet threshold to 164 bytes (192 bytes with the BD)
+    so that small tunneled packets are within the threshold.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 1c49c421f3ec446f1e0eda6d965a6cb23214d7a1
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Wed Feb 10 17:33:48 2016 -0500
+
+    bnxt_en: Remove 20G support and advertise only 40GbaseCR4.
+    
+    20G is not supported by production hardware and only the 40GbaseCR4 standard
+    is supported.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 0d8abf020199b0cbc5fb3aa309d36f0ac1b91631
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Wed Feb 10 17:33:47 2016 -0500
+
+    bnxt_en: Cleanup and Fix flow control setup logic
+    
+    Cleanup bnxt_probe_phy() to cleanly separate 2 code blocks for autoneg
+    on and off.  Autoneg flow control is possible only if autoneg is enabled.
+    
+    In bnxt_get_settings(), Pause and Asym_Pause are always supported.
+    Only the advertisement bits change depending on the ethtool -A setting
+    in auto mode.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit b763499ee16b74707af0fb26ab0a26bd9719870b
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Wed Feb 10 17:33:46 2016 -0500
+
+    bnxt_en: Fix ethtool autoneg logic.
+    
+    1. Determine autoneg on|off setting from link_info->autoneg.  Using the
+    firmware returned setting can be misleading if autoneg is changed and
+    there hasn't been a phy update from the firmware.
+    
+    2. If autoneg is disabled, link_info->autoneg should be set to 0 to
+    indicate both speed and flow control autoneg are disabled.
+    
+    3. To enable autoneg flow control, speed autoneg must be enabled.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit d612a579771385e08f7b665063b36bfa52c03ea3
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Thu Jan 28 03:11:22 2016 -0500
+
+    bnxt_en: Fix crash in bnxt_free_tx_skbs() during tx timeout.
+    
+    The ring index j is not wrapped properly at the end of the ring, causing
+    it to reference pointers past the end of the ring.  For proper loop
+    termination and to access the ring properly, we need to increment j and
+    mask it before referencing the ring entry.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 8a4d4c8dde7a4119bce3fd8287dca193ff6356da
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Thu Jan 28 03:11:21 2016 -0500
+
+    bnxt_en: Exclude rx_drop_pkts hw counter from the stack's rx_dropped counter.
+    
+    This hardware counter is misleading as it counts dropped packets that
+    don't match the hardware filters for unicast/broadcast/multicast.  We
+    will still report this counter in ethtool -S for diagnostics purposes.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 74608fc98d2856fa7201a498b61c9dd9455b504a
+Author: Prashant Sreedharan <prashant@broadcom.com>
+Date:   Thu Jan 28 03:11:20 2016 -0500
+
+    bnxt_en: Ring free response from close path should use completion ring
+    
+    Use completion ring for ring free response from firmware.  The response
+    will be the last entry in the ring and we can free the ring after getting
+    the response.  This will guarantee no spurious DMA to freed memory.
+    
+    Signed-off-by: Prashant Sreedharan <prashant@broadcom.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 415b6f19e87e350b13585591859d4fdf50772229
+Author: Arnd Bergmann <arnd@arndb.de>
+Date:   Tue Jan 12 16:05:08 2016 +0100
+
+    net: bnxt: always return values from _bnxt_get_max_rings
+    
+    Newly added code in the bnxt driver uses a couple of variables that
+    are never initialized when CONFIG_BNXT_SRIOV is not set, and gcc
+    correctly warns about that:
+    
+    In file included from include/linux/list.h:8:0,
+                     from include/linux/module.h:9,
+                     from drivers/net/ethernet/broadcom/bnxt/bnxt.c:10:
+    drivers/net/ethernet/broadcom/bnxt/bnxt.c: In function 'bnxt_get_max_rings':
+    include/linux/kernel.h:794:26: warning: 'cp' may be used uninitialized in this function [-Wmaybe-uninitialized]
+    include/linux/kernel.h:794:26: warning: 'tx' may be used uninitialized in this function [-Wmaybe-uninitialized]
+    drivers/net/ethernet/broadcom/bnxt/bnxt.c:5730:11: warning: 'rx' may be used uninitialized in this function [-Wmaybe-uninitialized]
+    drivers/net/ethernet/broadcom/bnxt/bnxt.c:5736:6: note: 'rx' was declared here
+    
+    This changes the condition so that we fall back to using the PF
+    data if VF is not available, and always initialize the variables
+    to something useful.
+    
+    Signed-off-by: Arnd Bergmann <arnd@arndb.de>
+    Fixes: 6e6c5a57fbe1 ("bnxt_en: Modify bnxt_get_max_rings() to support shared or non shared rings.")
+    Acked-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit d2d6318cb996f39112ba24ff23abe67578a611bc
+Author: Rob Swindell <swindell@broadcom.com>
+Date:   Thu Jan 7 19:56:58 2016 -0500
+
+    bnxt_en: Reset embedded processor after applying firmware upgrade
+    
+    Use HWRM_FW_RESET command to request a self-reset of the embedded
+    processor(s) after successfully applying a firmware update. For boot
+    processor, the self-reset is currently deferred until the next PCIe reset.
+    
+    Signed-off-by: Rob Swindell <swindell@broadcom.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit d79979a103f7820d3107cdc04096e87b37f90008
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Thu Jan 7 19:56:57 2016 -0500
+
+    bnxt_en: Zero pad firmware messages to 128 bytes.
+    
+    For future compatibility, zero pad all messages that the driver sends
+    to the firmware to 128 bytes.  If these messages are extended in the
+    future with new byte enables, zero padding these messages now will
+    guarantee future compatibility.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 068c9ec62906b626a30526638fd36189b80b6464
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sat Jan 2 23:45:04 2016 -0500
+
+    bnxt_en: Modify ethtool -l|-L to support combined or rx/tx rings.
+    
+    The driver can support either all combined or all rx/tx rings.  The
+    default is combined, but the user can now select rx/tx rings.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 01657bcd078b924e4599a83acd402ea6f85a1e45
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sat Jan 2 23:45:03 2016 -0500
+
+    bnxt_en: Modify init sequence to support shared or non shared rings.
+    
+    Modify ring memory allocation and MSIX setup to support shared or
+    non shared rings and do the proper mapping.  Default is still to
+    use shared rings.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 6e6c5a57fbe1c77c2c55e266f87a83429adc3de7
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sat Jan 2 23:45:02 2016 -0500
+
+    bnxt_en: Modify bnxt_get_max_rings() to support shared or non shared rings.
+    
+    Add logic to calculate how many shared or non shared rings can be
+    supported.  Default is to use shared rings.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit b81a90d3028af92da61a61e2efd231a585180044
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sat Jan 2 23:45:01 2016 -0500
+
+    bnxt_en: Re-structure ring indexing and mapping.
+    
+    In order to support dedicated or shared completion rings, the ring
+    indexing and mapping are re-structured as below:
+    
+    1. bp->grp_info[] array index is 1:1 with bp->bnapi[] array index and
+    completion ring index.
+    
+    2. rx rings 0 to n will be mapped to completion rings 0 to n.
+    
+    3. If tx and rx rings share completion rings, then tx rings 0 to m will
+    be mapped to completion rings 0 to m.
+    
+    4. If tx and rx rings use dedicated completion rings, then tx rings 0 to
+    m will be mapped to completion rings n + 1 to n + m.
+    
+    5. Each tx or rx ring will use the corresponding completion ring index
+    for doorbell mapping and MSIX mapping.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 3b2b7d9db74adb95aa0bd029298a741333eb847e
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sat Jan 2 23:45:00 2016 -0500
+
+    bnxt_en: Check for NULL rx or tx ring.
+    
+    Each bnxt_napi structure may no longer be having both an rx ring and
+    a tx ring.  Check for a valid ring before using it.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit b6ab4b01f53b5f9e17dbd4f91c95fa5049fa2101
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sat Jan 2 23:44:59 2016 -0500
+
+    bnxt_en: Separate bnxt_{rx|tx}_ring_info structs from bnxt_napi struct.
+    
+    Currently, an rx and a tx ring are always paired with a completion ring.
+    We want to restructure it so that it is possible to have a dedicated
+    completion ring for tx or rx only.
+    
+    The bnxt hardware uses a completion ring for rx and tx events.  The driver
+    has to process the completion ring entries sequentially for the rx and tx
+    events.  Using a dedicated completion ring for rx only or tx only has these
+    benefits:
+    
+    1. A burst of rx packets can cause delay in processing tx events if the
+    completion ring is shared.  If tx queue is stopped by BQL, this can cause
+    delay in re-starting the tx queue.
+    
+    2. A completion ring is sized according to the rx and tx ring size rounded
+    up to the nearest power of 2.  When the completion ring is shared, it is
+    sized by adding the rx and tx ring sizes and then rounded to the next power
+    of 2, often with a lot of wasted space.
+    
+    3. Using dedicated completion ring, we can adjust the tx and rx coalescing
+    parameters independently for rx and tx.
+    
+    The first step is to separate the rx and tx ring structures from the
+    bnxt_napi struct.
+    
+    In this patch, an rx ring and a tx ring will point to the same bnxt_napi
+    struct to share the same completion ring.  No change in ring assignment
+    and mapping yet.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 9f5545905fbcc069f6fa8030b866e967ec6a5c73
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sat Jan 2 23:44:58 2016 -0500
+
+    bnxt_en: Refactor bnxt_dbg_dump_states().
+    
+    By adding 3 separate functions to dump the different ring states.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit fbc9a5237a767cada312cb07877d0992b1e34242
+Author: David Christensen <davidch@broadcom.com>
+Date:   Sun Dec 27 18:19:29 2015 -0500
+
+    bnxt_en: Add BCM57301 & BCM57402 devices.
+    
+    Added the PCI IDs for the BCM57301 and BCM57402 controllers.
+    
+    Signed-off-by: David Christensen <davidch@broadcom.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit c193554ecd050e63753aa0ec99c188800843bca2
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sun Dec 27 18:19:28 2015 -0500
+
+    bnxt_en: Update to Firmware interface spec 1.0.0.
+    
+    This interface will be forward compatible with future changes.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit b72d4a68c443e29cb59e15a1a9b2c2f4bf802831
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sun Dec 27 18:19:27 2015 -0500
+
+    bnxt_en: Keep track of the ring group resource.
+    
+    Newer firmware will return the ring group resource when we call
+    hwrm_func_qcaps().  To be compatible with older firmware, use the
+    number of tx rings as the number of ring groups if the older firmware
+    returns 0.  When determining how many rx rings we can support, take
+    the ring group resource in account as well in _bnxt_get_max_rings().
+    Divide and assign the ring groups to VFs.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 4a21b49b34c01137a67bf0fe185c5d0fff747e4d
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sun Dec 27 18:19:26 2015 -0500
+
+    bnxt_en: Improve VF resource accounting.
+    
+    We need to keep track of all resources, such as rx rings, tx rings,
+    cmpl rings, rss contexts, stats contexts, vnics, after we have
+    divided them for the VFs.  Otherwise, subsequent ring changes on
+    the PF may not work correctly.
+    
+    We adjust all max resources in struct bnxt_pf_info after they have been
+    assigned to the VFs.  There is no need to keep the separate
+    max_pf_tx_rings and max_pf_rx_rings.
+    
+    When SR-IOV is disabled, we call bnxt_hwrm_func_qcaps() to restore the
+    max resources for the PF.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 92268c328a8dae4635b3deaca52a8ed329642219
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sun Dec 27 18:19:25 2015 -0500
+
+    bnxt_en: Cleanup bnxt_hwrm_func_cfg().
+    
+    1. Use local variable pf for repeated access to this pointer.
+    
+    2.  The 2nd argument num_vfs was unnecessarily declared as pointer to int.
+    This function doesn't change num_vfs so change the argument to int.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 2bcfa6f6e7cf867e4aa623f84caea4bc413d38c9
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sun Dec 27 18:19:24 2015 -0500
+
+    bnxt_en: Check hardware resources before enabling NTUPLE.
+    
+    The hardware resources required to enable NTUPLE varies depending on
+    how many rx channels are configured.  We need to make sure we have the
+    resources before we enable NTUPLE.  Add bnxt_rfs_capable() to do the
+    checking.
+    
+    In addition, we need to do the same checking in ndo_fix_features().  As
+    the rx channels are changed using ethtool -L, we call
+    netdev_update_features() to make the necessary adjustment for NTUPLE.
+    
+    Calling netdev_update_features() in netif_running() state but before
+    calling bnxt_open_nic() would be a problem.  To make this work,
+    bnxt_set_features() has to be modified to test for BNXT_STATE_OPEN for
+    the true hardware state instead of checking netif_running().
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 27e241896f2e21c96200df711659117923dec8a2
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sun Dec 27 18:19:23 2015 -0500
+
+    bnxt_en: Don't treat single segment rx frames as GRO frames.
+    
+    If hardware completes single segment rx frames, don't bother setting
+    up all the GRO related fields.  Pass the SKB up as a normal frame.
+    
+    Reviewed-by: vasundhara volam <vvolam@broadcom.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 45019a180358c3cf290c3f3dc953c44f978d5527
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sun Dec 27 18:19:22 2015 -0500
+
+    bnxt_en: Allocate rx_cpu_rmap only if Accelerated RFS is enabled.
+    
+    Also, no need to check for bp->rx_nr_rings as it is always >= 1.  If the
+    allocation fails, it is not a fatal error and we can still proceed.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 665e350ddbfde88c5c18142dfd7b8c64556bc964
+Author: Satish Baddipadige <sbaddipa@broadcom.com>
+Date:   Sun Dec 27 18:19:21 2015 -0500
+
+    bnxt_en: Increment checksum error counter only if NETIF_F_RXCSUM is set.
+    
+    rx_l4_csum_error is now incremented only when offload is enabled
+    
+    Signed-off-by: Satish Baddipadige <sbaddipa@broadcom.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 2731d70fa9cbb62e45743171bf979784fb36778c
+Author: Rob Swindell <swindell@broadcom.com>
+Date:   Sun Dec 27 18:19:20 2015 -0500
+
+    bnxt_en: Add support for upgrading APE/NC-SI firmware via Ethtool FLASHDEV
+    
+    NC-SI firmware of type apeFW (10) is now supported.
+    
+    Signed-off-by: Rob Swindell <swindell@broadcom.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit edd0c2cc2b73ff21f356d6cbd3b5bf83e692ea9d
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sun Dec 27 18:19:19 2015 -0500
+
+    bnxt_en: Optimize ring alloc and ring free functions.
+    
+    Remove the unnecessary "if" statement before the "for" statement:
+    
+    if (x) {
+            for (i = 0; i < x; i++)
+    ...
+    }
+    
+    Also, change the ring free function to return void as it only returns 0.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit be58a0da1672391b246880450e990fe36d7ba24d
+Author: Jeffrey Huang <huangjw@broadcom.com>
+Date:   Sun Dec 27 18:19:18 2015 -0500
+
+    bnxt_en: support hwrm_func_drv_unrgtr command
+    
+    During remove_one, the driver should issue hwrm_func_drv_unrgtr
+    command to inform firmware that this function has been unloaded.
+    This is to let firmware keep track of driver present/absent state
+    when driver is gracefully unloaded. A keep alive timer is needed
+    later to keep track of driver state during abnormal shutdown.
+    
+    Signed-off-by: Jeffrey Huang <huangjw@broadcom.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 028de140ffdf481d4948de663b33dae78e1e9cc8
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Wed Dec 9 19:35:44 2015 -0500
+
+    bnxt_en: Implement missing tx timeout reset logic.
+    
+    The reset logic calls bnxt_close_nic() and bnxt_open_nic() under rtnl_lock
+    from bnxt_sp_task.  BNXT_STATE_IN_SP_TASK must be cleared before calling
+    bnxt_close_nic() to avoid deadlock.
+    
+    v2: Fixed white space error.  Thanks Dave.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 4cebdcec0933bf39c0ab42e8ce8c9d72f803fbe9
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Wed Dec 9 19:35:43 2015 -0500
+
+    bnxt_en: Don't cancel sp_task from bnxt_close_nic().
+    
+    When implementing driver reset from tx_timeout in the next patch,
+    bnxt_close_nic() will be called from the sp_task workqueue.  Calling
+    cancel_work() on sp_task will hang the workqueue.
+    
+    Instead, set a new bit BNXT_STATE_IN_SP_TASK when bnxt_sp_task() is running.
+    bnxt_close_nic() will wait for BNXT_STATE_IN_SP_TASK to clear before
+    proceeding.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit caefe526d7b5af11d9b5977b2862eb144fa45537
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Wed Dec 9 19:35:42 2015 -0500
+
+    bnxt_en: Change bp->state to bitmap.
+    
+    This allows multiple independent bits to be set for various states.
+    Subsequent patches to implement tx timeout reset will require this.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit de68f5de56512a2ff5d5810ef4d54c53470c3c45
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Wed Dec 9 19:35:41 2015 -0500
+
+    bnxt_en: Fix bitmap declaration to work on 32-bit arches.
+    
+    The declaration of the bitmap vf_req_snif_bmap using fixed array of
+    unsigned long will only work on 64-bit archs.  Use DECLARE_BITMAP instead
+    which will work on all archs.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit b664f008b0d885db1d5617ed1c51d29a8c04da93
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Wed Dec 2 01:54:08 2015 -0500
+
+    bnxt_en: Setup uc_list mac filters after resetting the chip.
+    
+    Call bnxt_cfg_rx_mode() in bnxt_init_chip() to setup uc_list and
+    mc_list mac address filters.  Before the patch, uc_list is not
+    setup again after chip reset (such as ethtool ring size change)
+    and macvlans don't work any more after that.
+    
+    Modify bnxt_cfg_rx_mode() to return error codes appropriately so
+    that the init chip sequence can detect any failures.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit bdd4347b33f480187b44699cf1caac9400496d6d
+Author: Jeffrey Huang <huangjw@broadcom.com>
+Date:   Wed Dec 2 01:54:07 2015 -0500
+
+    bnxt_en: enforce proper storing of MAC address
+    
+    For PF, the bp->pf.mac_addr always holds the permanent MAC
+    addr assigned by the HW.  For VF, the bp->vf.mac_addr always
+    holds the administrator assigned VF MAC addr. The random
+    generated VF MAC addr should never get stored to bp->vf.mac_addr.
+    This way, when the VF wants to change the MAC address, we can tell
+    if the adminstrator has already set it and disallow the VF from
+    changing it.
+    
+    v2: Fix compile error if CONFIG_BNXT_SRIOV is not set.
+    
+    Signed-off-by: Jeffrey Huang <huangjw@broadcom.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 1fc2cfd03bbf8f1f8b6b90f0858faba8bd6631c4
+Author: Jeffrey Huang <huangjw@broadcom.com>
+Date:   Wed Dec 2 01:54:06 2015 -0500
+
+    bnxt_en: Fixed incorrect implementation of ndo_set_mac_address
+    
+    The existing ndo_set_mac_address only copies the new MAC addr
+    and didn't set the new MAC addr to the HW. The correct way is
+    to delete the existing default MAC filter from HW and add
+    the new one. Because of RFS filters are also dependent on the
+    default mac filter l2 context, the driver must go thru
+    close_nic() to delete the default MAC and RFS filters, then
+    open_nic() to set the default MAC address to HW.
+    
+    Signed-off-by: Jeffrey Huang <huangjw@broadcom.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 93d05d4a320cb16712bb3d57a9658f395d8cecb9
+Author: Eric Dumazet <edumazet@google.com>
+Date:   Wed Nov 18 06:31:03 2015 -0800
+
+    net: provide generic busy polling to all NAPI drivers
+    
+    NAPI drivers no longer need to observe a particular protocol
+    to benefit from busy polling (CONFIG_NET_RX_BUSY_POLL=y)
+    
+    napi_hash_add() and napi_hash_del() are automatically called
+    from core networking stack, respectively from
+    netif_napi_add() and netif_napi_del()
+    
+    This patch depends on free_netdev() and netif_napi_del() being
+    called from process context, which seems to be the norm.
+    
+    Drivers might still prefer to call napi_hash_del() on their
+    own, since they might combine all the rcu grace periods into
+    a single one, knowing their NAPI structures lifetime, while
+    core networking stack has no idea of a possible combining.
+    
+    Once this patch proves to not bring serious regressions,
+    we will cleanup drivers to either remove napi_hash_del()
+    or provide appropriate rcu grace periods combining.
+    
+    Signed-off-by: Eric Dumazet <edumazet@google.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 4bb6cdce386d620d10d2588ea5bf4093a3b21ab9
+Author: Jeffrey Huang <huangjw@broadcom.com>
+Date:   Thu Nov 5 16:25:51 2015 -0500
+
+    bnxt_en: More robust SRIOV cleanup sequence.
+    
+    Instead of always calling pci_sriov_disable() in remove_one(),
+    the driver should detect whether VFs are currently assigned
+    to the VMs. If the VFs are active in VMs, then it should not
+    disable SRIOV as it is catastrophic to the VMs. Instead,
+    it just leaves the VFs alone and continues to unload the PF.
+    The user can then cleanup the VMs even after the PF driver
+    has been unloaded.
+    
+    Signed-off-by: Jeffrey Huang <huangjw@broadcom.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 84e86b98f6515aaeaac053b234be158b25457184
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Thu Nov 5 16:25:50 2015 -0500
+
+    bnxt_en: Fix comparison of u16 sw_id against negative value.
+    
+    Assign the return value from bitmap_find_free_region() to an integer
+    variable and check for negative error codes first, before assigning
+    the bit ID to the unsigned sw_id field.
+    
+    Reported-by: Dan Carpenter <dan.carpenter@oracle.com>
+    Cc: Dan Carpenter <dan.carpenter@oracle.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 11809490ac17810cff90c12e9f2f3e0303a72121
+Author: Jeffrey Huang <huangjw@broadcom.com>
+Date:   Thu Nov 5 16:25:49 2015 -0500
+
+    bnxt_en: map CAG_REG_LEGACY_INT_STATUS_MASK to GRC window #4
+    
+    In order to use offset 0x4014 for reading CAG interrupt status,
+    the actual CAG register must be mapped to GRC bar0 window #4.
+    Otherwise, the driver is reading garbage. This patch corrects
+    this issue.
+    
+    Signed-off-by: Jeffrey Huang <huangjw@broadcom.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 614388ce39f3d61ad7f95db65f409d35d5943616
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Thu Nov 5 16:25:48 2015 -0500
+
+    bnxt_en: Determine tcp/ipv6 RSS hash type correctly.
+    
+    The profile ID in the completion record needs to be ANDed with the
+    profile ID mask of 0x1f.  This bug was causing the SKB hash type
+    and the gso_type to be wrong in some cases.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit c5d7774db350e77f2506e36e1797c958d1b118c8
+Author: Jeffrey Huang <huangjw@broadcom.com>
+Date:   Thu Nov 5 16:25:47 2015 -0500
+
+    bnxt_en: Change sp events definitions to represent bit position.
+    
+    Fix the sp event bits to be bit positions instead of bit values since
+    the bit helper functions are expecting the former.
+    
+    Signed-off-by: Jeffrey Huang <huangjw@broadcom.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit d1611c3aba11ffa281bdd027aace52f5a370b8c5
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Sun Oct 25 22:27:57 2015 -0400
+
+    bnxt_en: Fix compile warnings when CONFIG_INET is not set.
+    
+    bnxt_gro_skb() has unused variables when CONFIG_INET is not set.  We
+    really cannot support hardware GRO if CONFIG_INET is not set, so
+    compile out bnxt_gro_skb() completely and define BNXT_FLAG_GRO to be 0
+    if CONFIG_INET is not set.  This will effectively always disable
+    hardware GRO if CONFIG_INET is not set.
+    
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit 379a80a1d048dcacfc2011d5d32e16d5c804b9f4
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Fri Oct 23 15:06:19 2015 -0400
+
+    bnxt_en: Fix compile errors when CONFIG_BNXT_SRIOV is not set.
+    
+    struct bnxt_pf_info needs to be always defined.  Move bnxt_update_vf_mac()
+    to bnxt_sriov.c and add some missing #ifdef CONFIG_BNXT_SRIOV.
+    
+    Reported-by: Jim Hull <jim.hull@hpe.com>
+    Tested-by: Jim Hull <jim.hull@hpe.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
+
+commit c0c050c58d840994ba842ad1c338a98e7c12b764
+Author: Michael Chan <mchan@broadcom.com>
+Date:   Thu Oct 22 16:01:17 2015 -0400
+
+    bnxt_en: New Broadcom ethernet driver.
+    
+    Broadcom ethernet driver for the new family of NetXtreme-C/E
+    ethernet devices.
+    
+    v5:
+      - Removed empty blank lines at end of files (noted by David Miller).
+      - Moved busy poll helper functions to bnxt.h to at least make the
+        .c file look less cluttered with #ifdef (noted by Stephen Hemminger).
+    
+    v4:
+      - Broke up 2 long message strings with "\n" (suggested by John Linville)
+      - Constify an array of strings (suggested by Stephen Hemminger)
+      - Improve bnxt_vf_pciid() (suggested by Stephen Hemminger)
+      - Use PCI_VDEVICE() to populate pci_device_id table for more compact
+        source.
+    
+    v3:
+      - Fixed 2 more sparse warnings.
+      - Removed some unused structures in .h files.
+    
+    v2:
+      - Fixed all kbuild test robot reported warnings.
+      - Fixed many of the checkpatch.pl errors and warnings.
+      - Fixed the Kconfig description (noted by Dmitry Kravkov).
+    
+    Acked-by: Eddie Wai <eddie.wai@broadcom.com>
+    Acked-by: Jeffrey Huang <huangjw@broadcom.com>
+    Signed-off-by: Prashant Sreedharan <prashant@broadcom.com>
+    Signed-off-by: Michael Chan <mchan@broadcom.com>
+    Signed-off-by: David S. Miller <davem@davemloft.net>
