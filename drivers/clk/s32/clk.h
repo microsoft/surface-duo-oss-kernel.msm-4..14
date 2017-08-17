@@ -1,5 +1,6 @@
 /*
  * Copyright 2015-2016 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -91,7 +92,7 @@ struct clk *s32_clk_fixup_mux(const char *name, void __iomem *reg,
 
 static inline struct clk *s32_clk_fixed(const char *name, int rate)
 {
-	return clk_register_fixed_rate(NULL, name, NULL, CLK_IS_ROOT, rate);
+	return clk_register_fixed_rate(NULL, name, NULL, 0, rate);
 }
 
 static inline struct clk *s32_clk_divider(const char *name, const char *parent,
