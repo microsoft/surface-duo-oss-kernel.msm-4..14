@@ -43,7 +43,7 @@ config ARCH_QCOM
 config ARCH_S32
 	bool "Freescale S32 family" if ARCH_VEXPRESS
 	select PINCTRL
-	select S32_CLK
+	select ARCH_S32_CLK
 	help
 	  Support for Freescale S32 family of processors.
 
