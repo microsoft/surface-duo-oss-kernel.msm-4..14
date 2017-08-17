@@ -1148,7 +1148,7 @@ linflex_console_get_options(struct linflex_port *sport, int *baud,
 {
 #ifndef CONFIG_S32V234_PALLADIUM
 	/*unsigned char cr, bdh, bdl, brfa;*/
-	unsigned long cr, fbr, ibr;
+	unsigned long cr, ibr;
 	unsigned int uartclk, baud_raw;
 
 	prd_info("8\n");
@@ -1174,8 +1174,6 @@ linflex_console_get_options(struct linflex_port *sport, int *baud,
 		else
 			*bits = 8;
 	}
-
-	fbr = readl(sport->port.membase + LINFBRR);
 
 	ibr = readl(sport->port.membase + LINIBRR);
 

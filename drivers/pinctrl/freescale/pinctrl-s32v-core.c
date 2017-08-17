@@ -61,7 +61,7 @@ static const char *pin_get_name_from_info(struct s32v_pinctrl_soc_info *info,
 	return NULL;
 }
 
-static const inline struct s32v_pin *s32v_pinctrl_find_pin(
+static inline const struct s32v_pin *s32v_pinctrl_find_pin(
 			const struct s32v_pin_group *grp,
 			unsigned pin_offset)
 {
@@ -79,7 +79,7 @@ static const inline struct s32v_pin *s32v_pinctrl_find_pin(
 
 	return NULL;
 }
-static const inline struct s32v_pin_group *s32v_pinctrl_find_group_by_name(
+static inline const struct s32v_pin_group *s32v_pinctrl_find_group_by_name(
 				const struct s32v_pinctrl_soc_info *info,
 				const char *name)
 {
