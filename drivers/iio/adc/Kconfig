@@ -275,7 +275,7 @@ config ROCKCHIP_SARADC
 
 config S32V234_ADC
 	tristate "NXP S32V234 SAR-ADC driver"
-	depends on OF
+	depends on SOC_S32V234
 	help
 	  Say yes here to support for S32V234 board analog-to-digital converter.
 
