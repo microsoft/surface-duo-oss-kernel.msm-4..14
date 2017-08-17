@@ -92,7 +92,20 @@ static void dw_i2c_acpi_params(struct platform_device *pdev, char method[],
 	kfree(buf.pointer);
 }
 
-static int dw_i2c_acpi_configure(struct platform_device *pdev)
+static void dw_i2c_acpi_freq_param(struct platform_device *pdev, u32 *freq)
+{
+	acpi_handle handle = ACPI_HANDLE(&pdev->dev);
+	unsigned long long tmp;
+
+	if (ACPI_FAILURE(acpi_evaluate_integer(handle, "FREQ", NULL, &tmp)))
+		return;
+
+	*freq = (u32)tmp;
+	dev_dbg(&pdev->dev, "%u Hz bus speed specified by 'FREQ' ACPI method\n",
+		*freq);
+}
+
+static int dw_i2c_acpi_configure(struct platform_device *pdev, u32 *freq)
 {
 	struct dw_i2c_dev *dev = platform_get_drvdata(pdev);
 	u32 ss_ht = 0, fp_ht = 0, hs_ht = 0, fs_ht = 0;
@@ -130,6 +143,9 @@ static int dw_i2c_acpi_configure(struct platform_device *pdev)
 		break;
 	}
 
+	/* Try to get default speed mode from an ACPI method if it exists */
+	dw_i2c_acpi_freq_param(pdev, freq);
+
 	id = acpi_match_device(pdev->dev.driver->acpi_match_table, &pdev->dev);
 	if (id && id->driver_data)
 		dev->flags |= (u32)id->driver_data;
@@ -166,7 +182,7 @@ static const struct acpi_device_id dw_i2c_acpi_match[] = {
 };
 MODULE_DEVICE_TABLE(acpi, dw_i2c_acpi_match);
 #else
-static inline int dw_i2c_acpi_configure(struct platform_device *pdev)
+static inline int dw_i2c_acpi_configure(struct platform_device *pdev, u32 *freq)
 {
 	return -ENODEV;
 }
@@ -330,7 +346,7 @@ static int dw_i2c_plat_probe(struct platform_device *pdev)
 		dev->clk_freq = 400000;
 
 	if (has_acpi_companion(&pdev->dev))
-		dw_i2c_acpi_configure(pdev);
+		dw_i2c_acpi_configure(pdev, &dev->clk_freq);
 
 	/*
 	 * Only standard mode at 100kHz, fast mode at 400kHz,
