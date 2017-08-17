@@ -1,7 +1,7 @@
 /*
  * s32v234 pinctrl driver based on imx pinmux and pinconf core
  *
- * Copyright 2015 Freescale Semiconductor, Inc.
+ * Copyright 2015-2016 Freescale Semiconductor, Inc.
  * Copyright 2017 NXP
  *
  * This program is free software; you can redistribute it and/or modify
