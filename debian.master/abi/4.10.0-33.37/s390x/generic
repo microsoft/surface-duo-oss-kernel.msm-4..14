@@ -1526,6 +1526,7 @@ EXPORT_SYMBOL vmlinux 0x00000000	__dev_getfirstbyhwtype
 EXPORT_SYMBOL vmlinux 0x00000000	__dev_kfree_skb_any
 EXPORT_SYMBOL vmlinux 0x00000000	__dev_kfree_skb_irq
 EXPORT_SYMBOL vmlinux 0x00000000	__dev_remove_pack
+EXPORT_SYMBOL vmlinux 0x00000000	__dev_set_mtu
 EXPORT_SYMBOL vmlinux 0x00000000	__devm_release_region
 EXPORT_SYMBOL vmlinux 0x00000000	__devm_request_region
 EXPORT_SYMBOL vmlinux 0x00000000	__do_once_done
@@ -7556,6 +7557,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x00000000	__trace_note_message
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	__trace_printk
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	__trace_puts
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	__tracepoint_add_device_to_group
+EXPORT_SYMBOL_GPL vmlinux 0x00000000	__tracepoint_arm_event
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	__tracepoint_attach_device_to_domain
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	__tracepoint_block_bio_complete
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	__tracepoint_block_bio_remap
@@ -7571,6 +7573,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x00000000	__tracepoint_kfree_skb
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	__tracepoint_map
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	__tracepoint_mc_event
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	__tracepoint_napi_poll
+EXPORT_SYMBOL_GPL vmlinux 0x00000000	__tracepoint_non_standard_event
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	__tracepoint_powernv_throttle
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	__tracepoint_remove_device_from_group
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	__tracepoint_rpm_idle
