@@ -400,6 +400,8 @@ firmware:       icom_call_setup.bin
 firmware:       icom_res_dce.bin
 firmware:       intel/ibt-11-5.ddc
 firmware:       intel/ibt-11-5.sfi
+firmware:       intel/ibt-12-16.ddc
+firmware:       intel/ibt-12-16.sfi
 firmware:       ipw2100-1.3-i.fw
 firmware:       ipw2100-1.3-p.fw
 firmware:       ipw2100-1.3.fw

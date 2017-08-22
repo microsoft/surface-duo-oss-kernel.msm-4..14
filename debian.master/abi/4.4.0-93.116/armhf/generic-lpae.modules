@@ -3341,7 +3341,6 @@ salsa20_generic
 samsung
 samsung-keypad
 samsung-sxgbe
-sata_highbank
 sata_inic162x
 sata_mv
 sata_nv
