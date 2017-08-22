@@ -19,7 +19,7 @@
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/mfd/syscon.h>
-#include <linux/mfd/syscon/s32v234_src.h>
+#include <linux/mfd/syscon/s32v234-src.h>
 #include <linux/module.h>
 #include <linux/of_gpio.h>
 #include <linux/of_address.h>
