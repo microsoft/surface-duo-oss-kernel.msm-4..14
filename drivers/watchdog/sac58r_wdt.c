@@ -2,6 +2,7 @@
  * Watchdog driver for SAC58R SoC
  *
  *  Copyright (C) 2014 Freescale Semiconductor, Inc.
+ *  Copyright 2017 NXP.
  *
  * Based on imx2_wdt.c
  * Drives the Software Watchdog Timer module
@@ -311,7 +312,7 @@ static int __init sac58r_wdt_probe(struct platform_device *pdev)
 		goto fail;
 
 	dev_info(&pdev->dev,
-		 "SAC58R Watchdog Timer Registered. timeout=%ds (nowayout=%d)\n",
+		 "SAC58R/S32V234 Watchdog Timer Registered. timeout=%ds (nowayout=%d)\n",
 		 sac58r_wdt.timeout, nowayout);
 	return 0;
 
