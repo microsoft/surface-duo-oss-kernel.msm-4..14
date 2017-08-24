@@ -228,6 +228,7 @@ struct fsl_dspi {
 	struct platform_device	*pdev;
 
 	struct regmap		*regmap;
+	void __iomem		*base;
 	int			irq;
 	struct clk		*clk;
 
@@ -1037,7 +1038,6 @@ static int dspi_probe(struct platform_device *pdev)
 	struct spi_master *master;
 	struct fsl_dspi *dspi;
 	struct resource *res;
-	void __iomem *base;
 	int ret = 0, cs_num, bus_num;
 
 	master = spi_alloc_master(&pdev->dev, sizeof(struct fsl_dspi));
@@ -1080,13 +1080,13 @@ static int dspi_probe(struct platform_device *pdev)
 	}
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(base)) {
-		ret = PTR_ERR(base);
+	dspi->base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(dspi->base)) {
+		ret = PTR_ERR(dspi->base);
 		goto out_master_put;
 	}
 
-	dspi->regmap = devm_regmap_init_mmio_clk(&pdev->dev, NULL, base,
+	dspi->regmap = devm_regmap_init_mmio_clk(&pdev->dev, NULL, dspi->base,
 						&dspi_regmap_config);
 	if (IS_ERR(dspi->regmap)) {
 		dev_err(&pdev->dev, "failed to init regmap: %ld\n",
