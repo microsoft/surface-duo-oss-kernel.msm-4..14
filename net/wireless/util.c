@@ -121,7 +121,7 @@ struct ieee80211_channel *__ieee80211_get_channel(struct wiphy *wiphy,
 	int i;
 
 	for (band = 0; band < IEEE80211_NUM_BANDS; band++) {
-		sband = wiphy->bands[band];
+		sband = wiphy ? wiphy->bands[band] : NULL;
 
 		if (!sband)
 			continue;
