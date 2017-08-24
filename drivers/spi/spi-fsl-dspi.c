@@ -252,6 +252,7 @@ struct fsl_dspi {
 	u16			void_write_data;
 	u32			cs_change;
 	const struct fsl_dspi_devtype_data *devtype_data;
+	size_t			queue_size;
 
 	wait_queue_head_t	waitq;
 	u32			waitflags;
@@ -658,57 +659,92 @@ static void dspi_data_from_popr(struct fsl_dspi *dspi,
 
 static int dspi_eoq_write(struct fsl_dspi *dspi)
 {
-	int tx_count = 0;
-	int tx_word;
+	int first = 1;
+	size_t initial_len = dspi->len;
+	unsigned int fifo_entries_used = 0;
+	unsigned int fifo_entries_per_frm = 0;
+	unsigned int tx_frames_count = 0;
 	u32 dspi_pushr = 0;
+	enum frame_mode tx_frame_mode = get_frame_mode(dspi);
 
-	tx_word = is_double_byte_mode(dspi);
+	fifo_entries_per_frm = (tx_frame_mode == FM_BYTES_4) ? 2 : 1;
 
-	while (dspi->len && (tx_count < DSPI_FIFO_SIZE)) {
-		/* If we are in word mode, only have a single byte to transfer
-		 * switch to byte mode temporarily.  Will switch back at the
-		 * end of the transfer.
-		 */
-		if (tx_word && (dspi->len == 1)) {
-			dspi->dataflags |= TRAN_STATE_WORD_ODD_NUM;
-			regmap_update_bits(dspi->regmap, SPI_CTAR(0),
-					SPI_FRAME_BITS_MASK, SPI_FRAME_BITS(8));
-			tx_word = 0;
+	while (dspi->len &&
+	       DSPI_FIFO_SIZE - fifo_entries_used >= fifo_entries_per_frm) {
+
+		switch (tx_frame_mode) {
+		case FM_BYTES_4:
+			fifo_entries_used++;
+			/* Fall through and prepare the register to push the
+			 * least significant 16 bits only. We'll push the other
+			 * 16 bits after we have written to the CMD-FIFO.
+			 */
+		case FM_BYTES_2:
+			dspi_pushr = dspi_data_to_pushr(dspi, 1);
+			break;
+
+		default:
+			dspi_pushr = dspi_data_to_pushr(dspi, 0);
+			break;
 		}
 
-		dspi_pushr = dspi_data_to_pushr(dspi, tx_word);
+		fifo_entries_used++;
+		tx_frames_count++;
 
-		if (dspi->len == 0 || tx_count == DSPI_FIFO_SIZE - 1) {
+		if (dspi->len == 0 ||
+		    DSPI_FIFO_SIZE - fifo_entries_used < fifo_entries_per_frm) {
+
 			/* last transfer in the transfer */
 			dspi_pushr |= SPI_PUSHR_EOQ;
+			dspi->queue_size = tx_frames_count;
 			if ((dspi->cs_change) && (!dspi->len))
 				dspi_pushr &= ~SPI_PUSHR_CONT;
-		} else if (tx_word && (dspi->len == 1))
+
+		} else if ((tx_frame_mode == FM_BYTES_2 && dspi->len == 1) ||
+			   (tx_frame_mode == FM_BYTES_4 && dspi->len < 4)) {
 			dspi_pushr |= SPI_PUSHR_EOQ;
+			dspi->queue_size = tx_frames_count;
+		}
+
+		if (first) {
+			first = 0;
+			dspi_pushr |= SPI_PUSHR_CTCNT; /* clear counter */
+		}
 
 		regmap_write(dspi->regmap, SPI_PUSHR, dspi_pushr);
 
-		tx_count++;
+		if (tx_frame_mode == FM_BYTES_4) {
+
+			/* regmap does not seem to support 16-bit write access
+			 * to 32-bit registers.
+			 * This currently applies only to S32V234 SPI, which is
+			 * known to be little-endian.
+			 */
+
+			dspi_pushr = dspi_data_to_pushr(dspi, 1);
+			/* Only write the TXDATA part of the register */
+			writew(SPI_PUSHR_TXDATA(dspi_pushr),
+			       dspi->base + SPI_PUSHR);
+		}
 	}
 
-	return tx_count * (tx_word + 1);
+	return initial_len - dspi->len;
 }
 
 static int dspi_eoq_read(struct fsl_dspi *dspi)
 {
-	int rx_count = 0;
-	int rx_word = is_double_byte_mode(dspi);
+	enum frame_mode rx_frame_mode = get_frame_mode(dspi);
+	unsigned int rx_bytes_count = 0;
+	unsigned int rx_frames_count = 0;
 
-	while ((dspi->rx < dspi->rx_end)
-			&& (rx_count < DSPI_FIFO_SIZE)) {
-		if (rx_word && (dspi->rx_end - dspi->rx) == 1)
-			rx_word = 0;
-
-		dspi_data_from_popr(dspi, rx_word);
-		rx_count++;
+	while (dspi->rx < dspi->rx_end &&
+	       rx_frames_count < dspi->queue_size) {
+		dspi_data_from_popr(dspi, rx_frame_mode);
+		rx_bytes_count += bytes_per_frame(rx_frame_mode);
+		rx_frames_count++;
 	}
 
-	return rx_count;
+	return rx_bytes_count;
 }
 
 static int dspi_tcfq_write(struct fsl_dspi *dspi)
@@ -742,7 +778,11 @@ static void dspi_tcfq_read(struct fsl_dspi *dspi)
 	if (rx_word && (dspi->rx_end - dspi->rx) == 1)
 		rx_word = 0;
 
-	dspi_data_from_popr(dspi, rx_word);
+	if (rx_word == 0)
+		dspi_data_from_popr(dspi, FM_BYTES_1);
+	else
+		dspi_data_from_popr(dspi, FM_BYTES_2);
+
 }
 
 static int dspi_transfer_one_message(struct spi_master *master,
