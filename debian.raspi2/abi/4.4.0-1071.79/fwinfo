@@ -202,6 +202,8 @@ firmware:       i2400m-fw-usb-1.5.sbcf
 firmware:       i6050-fw-usb-1.5.sbcf
 firmware:       intel/ibt-11-5.ddc
 firmware:       intel/ibt-11-5.sfi
+firmware:       intel/ibt-12-16.ddc
+firmware:       intel/ibt-12-16.sfi
 firmware:       isdbt_nova_12mhz.inp
 firmware:       isdbt_nova_12mhz_b0.inp
 firmware:       isdbt_pele.inp
