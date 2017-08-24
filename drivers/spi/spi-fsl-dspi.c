@@ -2,6 +2,7 @@
  * drivers/spi/spi-fsl-dspi.c
  *
  * Copyright 2013-2016 Freescale Semiconductor, Inc.
+ * Copyright 2017 NXP
  *
  * Freescale DSPI driver
  * This file contains a driver for the Freescale DSPI
@@ -61,6 +62,7 @@
 
 #define SPI_MCR_CLR_TXF		(1 << 11)
 #define SPI_MCR_CLR_RXF		(1 << 10)
+#define SPI_MCR_XSPI		(1 << 3)
 
 /* Transfer Count Register (SPI_TCR) */
 #define SPI_TCR			0x08
@@ -138,6 +140,14 @@
 #define SPI_RXFR4		0x8C
 #endif
 
+/* Clock and Transfer Attribute Register Extended (SPI_CTAREn) */
+#define SPI_CTARE(x)		(0x11c + (((x) & 0x3) * 4))
+#define SPI_CTARE_FMSZE(x)	(((x) & 0x00000010) << 12)
+#define SPI_CTARE_FMSZE_MASK	SPI_CTARE_FMSZE(0x10)
+
+/* Status Register Extended */
+#define SPI_SREX		0x13c
+
 #define SPI_FRAME_BITS(bits)	SPI_CTAR_FMSZ((bits) - 1)
 #define SPI_FRAME_BITS_MASK	SPI_CTAR_FMSZ(0xf)
 #define SPI_FRAME_BITS_16	SPI_CTAR_FMSZ(0xf)
@@ -150,6 +160,12 @@
 #define SPI_TCR_TCNT_MAX	0x10000
 
 #define DMA_COMPLETION_TIMEOUT	msecs_to_jiffies(3000)
+
+enum frame_mode {
+	FM_BYTES_1 = 0,
+	FM_BYTES_2,
+	FM_BYTES_4,
+};
 
 struct chip_data {
 	u32 mcr_val;
@@ -235,6 +251,28 @@ struct fsl_dspi {
 };
 
 static u32 dspi_data_to_pushr(struct fsl_dspi *dspi, int tx_word);
+
+static inline enum frame_mode get_frame_mode(struct fsl_dspi *dspi)
+{
+	unsigned int val;
+
+	regmap_read(dspi->regmap, SPI_MCR, &val);
+	if (val & SPI_MCR_XSPI) {
+		regmap_read(dspi->regmap, SPI_CTARE(0), &val);
+		if (val & SPI_CTARE_FMSZE_MASK)
+			return FM_BYTES_4;
+	}
+
+	regmap_read(dspi->regmap, SPI_CTAR(0), &val);
+	if ((val & SPI_FRAME_BITS_MASK) == SPI_FRAME_BITS(8))
+		return FM_BYTES_1;
+	return FM_BYTES_2;
+}
+
+static inline int bytes_per_frame(enum frame_mode fm)
+{
+	return 1 << (int)fm;
+}
 
 static inline int is_double_byte_mode(struct fsl_dspi *dspi)
 {
