@@ -8,7 +8,7 @@
  */
 
 /dts-v1/;
-#include "s32v244.dtsi"
+#include "s32xxxx-gen1.dtsi"
 / {
 	model = "Freescale S32V244";
 	compatible = "fsl,s32v244-simu", "fsl,s32v244",
@@ -17,7 +17,7 @@
 	chosen {
 		bootargs = "console=ttyAMA0 earlyprintk=pl011,0x20020000";
 		linux,initrd-start = <0xa0000000>;
-		linux,initrd-end = <0xa019b34d>;
+		linux,initrd-end = <0xa2000000>;
 
 	};
 
