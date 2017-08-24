@@ -146,6 +146,7 @@
 #define SPI_CTARE(x)		(0x11c + (((x) & 0x3) * 4))
 #define SPI_CTARE_FMSZE(x)	(((x) & 0x00000010) << 12)
 #define SPI_CTARE_FMSZE_MASK	SPI_CTARE_FMSZE(0x10)
+#define SPI_CTARE_DTCP(x)	((x) & 0x000007ff)
 
 /* Status Register Extended */
 #define SPI_SREX		0x13c
@@ -172,6 +173,7 @@ enum frame_mode {
 struct chip_data {
 	u32 mcr_val;
 	u32 ctar_val;
+	u32 ctare_val;
 	u16 void_write_data;
 };
 
@@ -184,26 +186,31 @@ enum dspi_trans_mode {
 struct fsl_dspi_devtype_data {
 	enum dspi_trans_mode trans_mode;
 	u8 max_clock_factor;
+	u8 extended_mode;
 };
 
 static const struct fsl_dspi_devtype_data vf610_data = {
 	.trans_mode = DSPI_DMA_MODE,
 	.max_clock_factor = 2,
+	.extended_mode = 0,
 };
 
 static const struct fsl_dspi_devtype_data ls1021a_v1_data = {
 	.trans_mode = DSPI_TCFQ_MODE,
 	.max_clock_factor = 8,
+	.extended_mode = 0,
 };
 
 static const struct fsl_dspi_devtype_data ls2085a_data = {
 	.trans_mode = DSPI_TCFQ_MODE,
 	.max_clock_factor = 8,
+	.extended_mode = 0,
 };
 
 static const struct fsl_dspi_devtype_data s32v234_data = {
 	.trans_mode = DSPI_EOQ_MODE,
 	.max_clock_factor = 1,
+	.extended_mode = 1,
 };
 
 struct fsl_dspi_dma {
@@ -784,6 +791,10 @@ static int dspi_transfer_one_message(struct spi_master *master,
 		regmap_write(dspi->regmap, SPI_CTAR(0),
 				dspi->cur_chip->ctar_val);
 
+		if (dspi->cur_chip->mcr_val & SPI_MCR_XSPI)
+			regmap_write(dspi->regmap, SPI_CTARE(0),
+				     dspi->cur_chip->ctare_val);
+
 		trans_mode = dspi->devtype_data->trans_mode;
 		switch (trans_mode) {
 		case DSPI_EOQ_MODE:
@@ -835,7 +846,8 @@ static int dspi_setup(struct spi_device *spi)
 	unsigned char pasc = 0, asc = 0, fmsz = 0;
 	unsigned long clkrate;
 
-	if ((spi->bits_per_word >= 4) && (spi->bits_per_word <= 16)) {
+	if ((spi->bits_per_word >= 4 && spi->bits_per_word <= 16) ||
+	    (dspi->devtype_data->extended_mode && spi->bits_per_word <= 32)) {
 		fmsz = spi->bits_per_word - 1;
 	} else {
 		pr_err("Invalid wordsize\n");
@@ -882,6 +894,16 @@ static int dspi_setup(struct spi_device *spi)
 		| SPI_CTAR_BR(br);
 
 	spi_set_ctldata(spi, chip);
+
+	if (dspi->devtype_data->extended_mode && fmsz >= 16) {
+		chip->mcr_val |= SPI_MCR_XSPI;
+
+		/* Support for multiple data frames with a single command frame
+		 * not yet implemented: SPI_CTAREn[DTCP] is left to the default
+		 * value, 1.
+		 */
+		chip->ctare_val = SPI_CTARE_FMSZE(fmsz) | SPI_CTARE_DTCP(1);
+	}
 
 	return 0;
 }
@@ -1056,7 +1078,7 @@ static int dspi_probe(struct platform_device *pdev)
 	master->cleanup = dspi_cleanup;
 	master->mode_bits = SPI_CPOL | SPI_CPHA;
 	master->bits_per_word_mask = SPI_BPW_MASK(4) | SPI_BPW_MASK(8) |
-					SPI_BPW_MASK(16);
+					SPI_BPW_MASK(16) | SPI_BPW_MASK(32);
 
 	ret = of_property_read_u32(np, "spi-num-chipselects", &cs_num);
 	if (ret < 0) {
