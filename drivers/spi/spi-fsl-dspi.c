@@ -120,7 +120,9 @@
 
 /* POP RX FIFO Register (SPI_POPR) */
 #define SPI_POPR		0x38
-#define SPI_POPR_RXDATA(x)	((x) & 0x0000ffff)
+#define SPI_POPR_RXDATA_8(x)    ((x) & 0x000000ff)
+#define SPI_POPR_RXDATA_16(x)   ((x) & 0x0000ffff)
+#define SPI_POPR_RXDATA_32(x)   ((x) & 0xffffffff)
 
 /* Transmit FIFO Registers (SPI_TXFRn) */
 #define SPI_TXFR0		0x3c
@@ -621,18 +623,29 @@ static u32 dspi_data_to_pushr(struct fsl_dspi *dspi, int tx_word)
 		SPI_PUSHR_CONT;
 }
 
-static void dspi_data_from_popr(struct fsl_dspi *dspi, int rx_word)
+static void dspi_data_from_popr(struct fsl_dspi *dspi,
+				enum frame_mode rx_frame_mode)
 {
-	u16 d;
-	unsigned int val;
+	u32 rxdata;
 
-	regmap_read(dspi->regmap, SPI_POPR, &val);
-	d = SPI_POPR_RXDATA(val);
+	regmap_read(dspi->regmap, SPI_POPR, &rxdata);
 
-	if (!(dspi->dataflags & TRAN_STATE_RX_VOID))
-		rx_word ? (*(u16 *)dspi->rx = d) : (*(u8 *)dspi->rx = d);
+	switch (rx_frame_mode) {
+	case FM_BYTES_4:
+		if (!(dspi->dataflags & TRAN_STATE_RX_VOID))
+			*(u32 *)dspi->rx = SPI_POPR_RXDATA_32(rxdata);
+		break;
+	case FM_BYTES_2:
+		if (!(dspi->dataflags & TRAN_STATE_RX_VOID))
+			*(u16 *)dspi->rx = SPI_POPR_RXDATA_16(rxdata);
+		break;
+	default:
+		if (!(dspi->dataflags & TRAN_STATE_RX_VOID))
+			*(u8 *)dspi->rx = SPI_POPR_RXDATA_8(rxdata);
+		break;
+	}
 
-	dspi->rx += rx_word + 1;
+	dspi->rx += bytes_per_frame(rx_frame_mode);
 }
 
 static int dspi_eoq_write(struct fsl_dspi *dspi)
