@@ -19,7 +19,7 @@
 #include <linux/interrupt.h>
 #include <linux/kernel.h>
 #include <linux/mfd/syscon.h>
-#include <linux/mfd/syscon/s32v234_src.h>
+#include <linux/mfd/syscon/s32v234-src.h>
 #include <linux/module.h>
 #include <linux/of_gpio.h>
 #include <linux/of_address.h>
@@ -192,7 +192,7 @@ static int s32v234_pcie_get_soc_revision(void)
 {
 	struct device_node *node = NULL;
 	int rev = -1;
-	__be32 *siul2_base = NULL;
+	const __be32 *siul2_base = NULL;
 	u64 siul2_base_address = OF_BAD_ADDR;
 
 	pr_soc_debug("Searching SIUL2 MIDR registers in device-tree\n");
@@ -214,7 +214,7 @@ static int s32v234_pcie_get_soc_revision(void)
 		char *siul2_virt_addr = ioremap_nocache(siul2_base_address,
 							SZ_1K);
 
-		pr_soc_debug("Resolved SIUL2 base address to 0x%x\n",
+		pr_soc_debug("Resolved SIUL2 base address to 0x%llx\n",
 				siul2_base_address);
 
 		if (siul2_virt_addr) {
@@ -1302,7 +1302,7 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 	struct pcie_port *pp;
 	struct resource *dbi_base;
 	int ret;
-	unsigned int pcie_device_type;
+	unsigned int src_gpr5, pcie_device_type, ltssm_en;
 
 	s32v234_pcie = devm_kzalloc(&pdev->dev, sizeof(*s32v234_pcie)
 					, GFP_KERNEL);
@@ -1326,15 +1326,31 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 		return PTR_ERR(s32v234_pcie->src);
 	}
 
-	ret = regmap_read(s32v234_pcie->src, SRC_GPR5, &pcie_device_type);
+	ret = regmap_read(s32v234_pcie->src, SRC_GPR5, &src_gpr5);
 	if (ret) {
-		dev_err(&pdev->dev, "could not determine PCIe RC/EP type\n");
+		dev_err(&pdev->dev, "could not read SRC_GPR5 register\n");
 		return -ENODEV;
 	}
 
-	pcie_device_type &= SRC_GPR5_PCIE_DEVICE_TYPE_MASK;
+	pcie_device_type = src_gpr5 & SRC_GPR5_PCIE_DEVICE_TYPE_MASK;
 	s32v234_pcie->is_endpoint =
 		(pcie_device_type != SRC_GPR5_PCIE_DEVICE_TYPE_RC);
+
+	/* Attempt to figure out whether u-boot has preconfigured PCIE; if it
+	 * did not, we will not be able to tell whether we should run as EP
+	 * (whose configuration value is the same as the reset value) or RC.
+	 * Failing to do so might result in a hardware freeze, if u-boot was
+	 * compiled without PCIE support at all.
+	 *
+	 * Test SRC_GPR5:GPR_PCIE_APP_LTSSM_ENABLE, whose reset value
+	 * is different from the value set by u-boot.
+	 */
+	ltssm_en = src_gpr5 & SRC_GPR5_PCIE_APP_LTSSM_ENABLE;
+	if (!ltssm_en) {
+		dev_info(&pdev->dev,
+			 "u-boot did not initialize PCIE PHY; is u-boot compiled with PCIE support?\n");
+		return -ENODEV;
+	}
 
 	dev_info(pp->dev, "Configuring as %s\n",
 		 (s32v234_pcie->is_endpoint) ? "EP" : "RC");
