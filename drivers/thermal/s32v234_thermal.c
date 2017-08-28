@@ -11,7 +11,7 @@
 #include <linux/of_address.h>
 #include <linux/mfd/syscon.h>
 #include <linux/platform_device.h>
-#include <linux/mfd/syscon/s32v234_src.h>
+#include <linux/mfd/syscon/s32v234-src.h>
 
 #define DRIVER_NAME "s32v234-tmu"
 
