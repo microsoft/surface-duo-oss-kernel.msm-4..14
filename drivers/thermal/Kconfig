@@ -138,7 +138,7 @@ config THERMAL_EMULATION
 
 config S32V234_THERMAL
 	bool "Temperature sensor driver for NXP s32v234 SoCs"
-	depends on SYSFS
+	depends on SYSFS && THERMAL_HWMON
 	help
 	  Support for Temperature Monitoring Unit (TMU) found on NXP s32v234
 	  SoCs. It supports reporting the immediate and average temperature
