@@ -45,6 +45,7 @@
 
 struct s32v234_pcie {
 	bool			is_endpoint;
+	int			soc_revision;
 	int			reset_gpio;
 	int			power_on_gpio;
 	struct clk		*pcie_bus;
@@ -499,7 +500,7 @@ static int s32v_pcie_iatu_inbound_set(struct pcie_port *pp,
 
 #ifdef CONFIG_PCI_S32V234_IGNORE_ERR009852
 /* User choice: ignore erratum regardless of chip version. */
-static bool s32v234_pcie_ignore_err009852(void)
+static bool s32v234_pcie_ignore_err009852(struct pcie_port *pp)
 {
 	return true;
 }
@@ -509,11 +510,11 @@ static bool s32v234_pcie_ignore_err009852(void)
  * The erratumonly affects chips revision 1.0.
  * We rely on u-boot passing the chip revision along, via the fdt.
  */
-static bool s32v234_pcie_ignore_err009852(void)
+static bool s32v234_pcie_ignore_err009852(struct pcie_port *pp)
 {
-	int soc_revision = s32v234_pcie_get_soc_revision();
+	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
 
-	return soc_revision > 0;
+	return s32v234_pcie->soc_revision > 0;
 }
 #endif
 
@@ -679,7 +680,7 @@ static void s32v234_pcie_setup_ep(struct pcie_port *pp)
 	 * any memory access from the RC! We solve this
 	 * by disabling all BARs and ROM access
 	 */
-	if (s32v234_pcie_ignore_err009852()) {
+	if (s32v234_pcie_ignore_err009852(pp)) {
 		s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_0,
 				     PCIE_BAR0_EN_DIS,
 				     PCIE_BAR0_SIZE,
@@ -1075,6 +1076,7 @@ out:
 static void s32v234_pcie_host_init(struct pcie_port *pp)
 {
 	int socmask_info;
+	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
 
 	/* enable disp_mix power domain */
 	pm_runtime_get_sync(pp->dev);
@@ -1092,7 +1094,7 @@ static void s32v234_pcie_host_init(struct pcie_port *pp)
 	}
 
 	/* We set up the ID for all Rev 1.x chips */
-	socmask_info = s32v234_pcie_get_soc_revision();
+	socmask_info = s32v234_pcie->soc_revision;
 	if (socmask_info >= 0) {
 		dev_info(pp->dev, "SOC revision: 0x%x\n", socmask_info);
 		if ((socmask_info & SOC_REVISION_MAJOR_MASK) == 0) {
@@ -1251,43 +1253,42 @@ static void s32v234_pcie_shutdown(struct platform_device *pdev)
 static irqreturn_t s32v234_pcie_link_req_rst_not_handler(int irq, void *arg)
 {
 	struct pcie_port *pp = arg;
+	u32 rc;
 	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
 
 	regmap_update_bits(s32v234_pcie->src, SRC_PCIE_CONFIG0,
-		SRC_CONFIG0_PCIE_LNK_REQ_RST_CLR, 1);
+			   SRC_CONFIG0_PCIE_LNK_REQ_RST_CLR, 1);
 
+	/* Handler code for EP */
 	if (s32v234_pcie->is_endpoint) {
-		/* link_req_rst_not IRQ handler - EP side */
 
 		s32v234_pcie_setup_ep(pp);
 		regmap_update_bits(s32v234_pcie->src, SRC_GPR11,
-					SRC_GPR11_PCIE_PCIE_CFG_READY,
-					SRC_GPR11_PCIE_PCIE_CFG_READY);
-		if (s32v234_pcie_ignore_err009852()) {
+				SRC_GPR11_PCIE_PCIE_CFG_READY,
+				SRC_GPR11_PCIE_PCIE_CFG_READY);
+		if (s32v234_pcie_ignore_err009852(pp)) {
 			restore_inb_atu(pp);
 			restore_outb_atu(pp);
 		}
-	} else {
-		u32 rc;
 
-		/* link_req_rst_not IRQ handler - RC side */
-
-		/* Note that this interrupt can be shared - e.g. with a
-		 * USB-PCI device.
-		 * However, we can't read the "link_req_rst_not" signal
-		 * directly; our best heuristic is to look at the PHY link
-		 * state and only if it is down acknowledge the interrupt
-		 * as ours.
-		 */
-		rc = readl(pp->dbi_base + PCIE_PHY_DEBUG_R1);
-		if ((rc & PCIE_PHY_DEBUG_R1_XMLH_LINK_UP) ||
-			(rc & PCIE_PHY_DEBUG_R1_XMLH_LINK_IN_TRAINING))
-			return IRQ_NONE;
-
-		/* Must reset the PCIe core, according to the reference
-		 * manual */
-		s32v234_pcie_soft_reset(s32v234_pcie);
+		goto done;
 	}
+
+	/* Handler code for RC */
+	/* Note that this interrupt can be shared - e.g. with a USB-PCI device.
+	 * However, we can't read the "link_req_rst_not" signal directly;
+	 * our best heuristic is to look at the PHY link state and only
+	 * if it is down acknowledge the interrupt as ours.
+	 */
+	rc = readl(pp->dbi_base + PCIE_PHY_DEBUG_R1);
+	if ((rc & PCIE_PHY_DEBUG_R1_XMLH_LINK_UP) ||
+	    (rc & PCIE_PHY_DEBUG_R1_XMLH_LINK_IN_TRAINING))
+		return IRQ_NONE;
+
+	/* Must reset the PCIE core, according to the reference manual */
+	s32v234_pcie_soft_reset(s32v234_pcie);
+
+done:
 
 	return IRQ_HANDLED;
 }
@@ -1354,6 +1355,9 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 
 	dev_info(pp->dev, "Configuring as %s\n",
 		 (s32v234_pcie->is_endpoint) ? "EP" : "RC");
+
+	s32v234_pcie->soc_revision = s32v234_pcie_get_soc_revision();
+
 	if (!s32v234_pcie->is_endpoint) {
 		ret = s32v234_add_pcie_port(pp, pdev);
 		if (ret < 0)
