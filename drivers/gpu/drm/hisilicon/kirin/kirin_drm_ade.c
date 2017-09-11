@@ -178,6 +178,19 @@ static void ade_init(struct ade_hw_ctx *ctx)
 			FRM_END_START_MASK, REG_EFFECTIVE_IN_ADEEN_FRMEND);
 }
 
+static bool ade_crtc_mode_fixup(struct drm_crtc *crtc,
+				const struct drm_display_mode *mode,
+				struct drm_display_mode *adjusted_mode)
+{
+	struct ade_crtc *acrtc = to_ade_crtc(crtc);
+	struct ade_hw_ctx *ctx = acrtc->ctx;
+
+	adjusted_mode->clock =
+		clk_round_rate(ctx->ade_pix_clk, mode->clock * 1000) / 1000;
+	return true;
+}
+
+
 static void ade_set_pix_clk(struct ade_hw_ctx *ctx,
 			    struct drm_display_mode *mode,
 			    struct drm_display_mode *adj_mode)
@@ -519,9 +532,12 @@ static void ade_crtc_atomic_begin(struct drm_crtc *crtc,
 {
 	struct ade_crtc *acrtc = to_ade_crtc(crtc);
 	struct ade_hw_ctx *ctx = acrtc->ctx;
+        struct drm_display_mode *mode = &crtc->state->mode;
+        struct drm_display_mode *adj_mode = &crtc->state->adjusted_mode;
 
 	if (!ctx->power_on)
 		(void)ade_power_up(ctx);
+        ade_ldi_set_mode(acrtc, mode, adj_mode);
 }
 
 static void ade_crtc_atomic_flush(struct drm_crtc *crtc,
@@ -555,6 +571,7 @@ static void ade_crtc_atomic_flush(struct drm_crtc *crtc,
 static const struct drm_crtc_helper_funcs ade_crtc_helper_funcs = {
 	.enable		= ade_crtc_enable,
 	.disable	= ade_crtc_disable,
+	.mode_fixup	= ade_crtc_mode_fixup,
 	.mode_set_nofb	= ade_crtc_mode_set_nofb,
 	.atomic_begin	= ade_crtc_atomic_begin,
 	.atomic_flush	= ade_crtc_atomic_flush,
