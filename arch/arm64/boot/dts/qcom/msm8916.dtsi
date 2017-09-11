@@ -380,6 +380,7 @@
 				"bus";
 			vdda-supply = <&pm8916_l2>;
 			iommus = <&apps_iommu 3>;
+			status = "disabled";
 			ports {
 				#address-cells = <1>;
 				#size-cells = <0>;
@@ -387,37 +388,25 @@
 		};
 
 		cci: qcom,cci@1b0c000 {
-			cell-index = <0>;
-			compatible = "qcom,cci";
-			reg = <0x1b0c000 0x1000>;
+			compatible = "qcom,cci-v1.0.8";
 			#address-cells = <1>;
 			#size-cells = <0>;
+			reg = <0x1b0c000 0x1000>;
 			reg-names = "cci";
-			interrupts = <GIC_SPI 50 0>;
+			interrupts = <GIC_SPI 50 IRQ_TYPE_EDGE_RISING>;
 			interrupt-names = "cci";
 			clocks = <&gcc GCC_CAMSS_TOP_AHB_CLK>,
-				<&gcc CCI_CLK_SRC>,
 				<&gcc GCC_CAMSS_CCI_AHB_CLK>,
 				<&gcc GCC_CAMSS_CCI_CLK>,
 				<&gcc GCC_CAMSS_AHB_CLK>;
-			clock-names = "camss_top_ahb_clk",
-				"cci_src_clk",
-				"cci_ahb_clk",
-				"cci_clk",
-				"camss_ahb_clk";
-			qcom,clock-rates = <0 19200000 80000000 0 0>;
+			clock-names = "camss_top_ahb",
+				"cci_ahb",
+				"cci",
+				"camss_ahb";
 			pinctrl-names = "default", "sleep";
 			pinctrl-0 = <&cci0_default>;
 			pinctrl-1 = <&cci0_sleep>;
-			i2c_freq_100Khz: qcom,i2c_standard_mode {
-				status = "disabled";
-			};
-			i2c_freq_400Khz: qcom,i2c_fast_mode {
-				status = "disabled";
-			};
-			i2c_freq_custom: qcom,i2c_custom_mode {
-				status = "disabled";
-			};
+			status = "disabled";
 		};
 
 		msmgpio: pinctrl@1000000 {
@@ -1351,49 +1340,6 @@
 		};
 	};
 };
-
-&i2c_freq_100Khz {
-	qcom,hw-thigh = <78>;
-	qcom,hw-tlow = <114>;
-	qcom,hw-tsu-sto = <28>;
-	qcom,hw-tsu-sta = <28>;
-	qcom,hw-thd-dat = <10>;
-	qcom,hw-thd-sta = <77>;
-	qcom,hw-tbuf = <118>;
-	qcom,hw-scl-stretch-en = <0>;
-	qcom,hw-trdhld = <6>;
-	qcom,hw-tsp = <1>;
-	status = "ok";
-};
-
-&i2c_freq_400Khz {
-	qcom,hw-thigh = <20>;
-	qcom,hw-tlow = <28>;
-	qcom,hw-tsu-sto = <21>;
-	qcom,hw-tsu-sta = <21>;
-	qcom,hw-thd-dat = <13>;
-	qcom,hw-thd-sta = <18>;
-	qcom,hw-tbuf = <32>;
-	qcom,hw-scl-stretch-en = <0>;
-	qcom,hw-trdhld = <6>;
-	qcom,hw-tsp = <3>;
-	status = "ok";
-};
-
-&i2c_freq_custom {
-	qcom,hw-thigh = <15>;
-	qcom,hw-tlow = <28>;
-	qcom,hw-tsu-sto = <21>;
-	qcom,hw-tsu-sta = <21>;
-	qcom,hw-thd-dat = <13>;
-	qcom,hw-thd-sta = <18>;
-	qcom,hw-tbuf = <25>;
-	qcom,hw-scl-stretch-en = <1>;
-	qcom,hw-trdhld = <6>;
-	qcom,hw-tsp = <3>;
-	status = "ok";
-};
-
 
 #include "msm8916-pins.dtsi"
 #include "msm8916-coresight.dtsi"
