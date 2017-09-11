@@ -105,6 +105,7 @@ struct dma_list {
 	u32 size;
 };
 #endif
+
 struct pcie_port {
 	struct device		*dev;
 	u8			root_bus_nr;
@@ -143,6 +144,7 @@ struct pcie_port {
 	struct dentry		*dir;
 	int			user_pid;
 	struct siginfo	info;    /* signal information */
+	void (*call_back)(u32);
 	#endif
 	#ifdef CONFIG_PCI_DW_DMA
 	struct dma_ch_info	wr_ch;
@@ -209,5 +211,6 @@ int dw_pcie_dma_load_linked_list(struct pcie_port *pp,
 int dw_pcie_dma_start_linked_list(struct pcie_port *pp,
 	u32 phy_list_addr,
 	u8 direction);
+void dw_start_dma_llw(struct pcie_port*, u64);
 #endif
 #endif /* _PCIE_DESIGNWARE_H */

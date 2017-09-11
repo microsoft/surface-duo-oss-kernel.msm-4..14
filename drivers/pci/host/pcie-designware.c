@@ -445,6 +445,26 @@ static void dma_set_data_elem(u32 *ptr_list_base, u8 index,
 	*(ptr_list_base + (i * 6) + 0x5) = upper_32_bits(dar);
 	*(ptr_list_base + (i * 6) + 0) = ctrl_LIE | 0x1;
 }
+
+void dw_start_dma_llw(struct pcie_port *pp, u64 phy_list_addr)
+{
+	/* Program DMA regs for LL mode */
+	writel(0x0, pp->dbi_base + PCIE_DMA_CH_CONTROL1);
+	writel(0x1, pp->dbi_base + PCIE_DMA_WRITE_ENGINE_EN);
+	writel(0, pp->dbi_base + PCIE_DMA_WRITE_INT_MASK);
+	writel(0x10000, pp->dbi_base +
+		PCIE_DMA_WRITE_LINKED_LIST_ERR_EN);
+	writel(0, pp->dbi_base + PCIE_DMA_VIEWPORT_SEL);
+	writel(0x04000300, pp->dbi_base + PCIE_DMA_CH_CONTROL1);
+
+	/* Set pointer to start of first list */
+	dma_set_list_ptr(pp, DMA_CH_WRITE, phy_list_addr);
+	/* Ring doorbell */
+	pp->wr_ch.status = DMA_CH_RUNNING;
+	writel(0, pp->dbi_base + PCIE_DMA_WRITE_DOORBELL);
+}
+EXPORT_SYMBOL(dw_start_dma_llw);
+
 int dw_pcie_dma_start_linked_list(struct pcie_port *pp,
 	u32 phy_list_addr,
 	u8 direction)
@@ -688,6 +708,11 @@ irqreturn_t dw_handle_dma_irq(struct pcie_port *pp)
 		} else
 			writel(0x00FF00FF, pp->dbi_base +
 				PCIE_DMA_WRITE_INT_CLEAR);
+
+		#ifdef CONFIG_PCI_S32V234
+		if (pp->call_back)
+			pp->call_back(val_write);
+		#endif
 	}
 	if (val_read) {
 		if (pp->rd_ch.status == DMA_CH_RUNNING) {
