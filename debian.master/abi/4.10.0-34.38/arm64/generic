@@ -9219,6 +9219,7 @@ EXPORT_SYMBOL vmlinux 0x00000000	qcom_scm_pas_shutdown
 EXPORT_SYMBOL vmlinux 0x00000000	qcom_scm_pas_supported
 EXPORT_SYMBOL vmlinux 0x00000000	qcom_scm_set_cold_boot_addr
 EXPORT_SYMBOL vmlinux 0x00000000	qcom_scm_set_warm_boot_addr
+EXPORT_SYMBOL vmlinux 0x00000000	qdf2400_e44_present
 EXPORT_SYMBOL vmlinux 0x00000000	qdisc_class_hash_destroy
 EXPORT_SYMBOL vmlinux 0x00000000	qdisc_class_hash_grow
 EXPORT_SYMBOL vmlinux 0x00000000	qdisc_class_hash_init

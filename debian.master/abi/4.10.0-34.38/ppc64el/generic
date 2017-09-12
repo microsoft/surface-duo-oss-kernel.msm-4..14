@@ -9077,7 +9077,6 @@ EXPORT_SYMBOL vmlinux 0x00000000	radix__flush_tlb_pwc
 EXPORT_SYMBOL vmlinux 0x00000000	radix__flush_tlb_range
 EXPORT_SYMBOL vmlinux 0x00000000	radix__local_flush_tlb_mm
 EXPORT_SYMBOL vmlinux 0x00000000	radix__local_flush_tlb_page
-EXPORT_SYMBOL vmlinux 0x00000000	radix__local_flush_tlb_pwc
 EXPORT_SYMBOL vmlinux 0x00000000	radix_tree_delete
 EXPORT_SYMBOL vmlinux 0x00000000	radix_tree_delete_item
 EXPORT_SYMBOL vmlinux 0x00000000	radix_tree_gang_lookup
@@ -17442,7 +17441,10 @@ EXPORT_SYMBOL_GPL vmlinux 0x00000000	iommu_take_ownership
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	iommu_tce_clear_param_check
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	iommu_tce_direction
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	iommu_tce_put_param_check
+EXPORT_SYMBOL_GPL vmlinux 0x00000000	iommu_tce_table_get
+EXPORT_SYMBOL_GPL vmlinux 0x00000000	iommu_tce_table_put
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	iommu_tce_xchg
+EXPORT_SYMBOL_GPL vmlinux 0x00000000	iommu_tce_xchg_rm
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	iommu_unmap
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	ip4_datagram_release_cb
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	ip6_append_data
@@ -17787,11 +17789,13 @@ EXPORT_SYMBOL_GPL vmlinux 0x00000000	metadata_dst_alloc_percpu
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	mm_iommu_find
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	mm_iommu_get
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	mm_iommu_lookup
+EXPORT_SYMBOL_GPL vmlinux 0x00000000	mm_iommu_lookup_rm
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	mm_iommu_mapped_dec
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	mm_iommu_mapped_inc
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	mm_iommu_preregistered
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	mm_iommu_put
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	mm_iommu_ua_to_hpa
+EXPORT_SYMBOL_GPL vmlinux 0x00000000	mm_iommu_ua_to_hpa_rm
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	mm_kobj
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	mmc_abort_tuning
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	mmc_app_cmd
