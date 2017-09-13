@@ -517,6 +517,7 @@ static irqreturn_t arm_smmu_context_fault(int irq, void *dev)
 			    fsr, iova, fsynr, cfg->cbndx);
 
 	writel(fsr, cb_base + ARM_SMMU_CB_FSR);
+	writel_relaxed(RESUME_TERMINATE, cb_base + ARM_SMMU_CB_RESUME);
 	return IRQ_HANDLED;
 }
 
@@ -645,6 +646,7 @@ static void arm_smmu_init_context_bank(struct arm_smmu_domain *smmu_domain,
 
 	/* SCTLR */
 	reg = SCTLR_CFIE | SCTLR_CFRE | SCTLR_AFE | SCTLR_TRE | SCTLR_M;
+	reg |= SCTLR_CFCFG;  /* stall on fault */
 	if (stage1)
 		reg |= SCTLR_S1_ASIDPNE;
 #ifdef __BIG_ENDIAN
