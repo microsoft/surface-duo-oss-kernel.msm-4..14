@@ -1129,9 +1129,6 @@ static const struct v4l2_subdev_ops ov5645_subdev_ops = {
 	.pad = &ov5645_subdev_pad_ops,
 };
 
-static const struct v4l2_subdev_internal_ops ov5645_subdev_internal_ops = {
-};
-
 static int ov5645_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
@@ -1284,7 +1281,6 @@ static int ov5645_probe(struct i2c_client *client,
 	v4l2_i2c_subdev_init(&ov5645->sd, client, &ov5645_subdev_ops);
 	ov5645->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	ov5645->pad.flags = MEDIA_PAD_FL_SOURCE;
-	ov5645->sd.internal_ops = &ov5645_subdev_internal_ops;
 	ov5645->sd.dev = &client->dev;
 	ov5645->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
 
@@ -1362,7 +1358,6 @@ free_ctrl:
 	return ret;
 }
 
-
 static int ov5645_remove(struct i2c_client *client)
 {
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
@@ -1375,7 +1370,6 @@ static int ov5645_remove(struct i2c_client *client)
 
 	return 0;
 }
-
 
 static const struct i2c_device_id ov5645_id[] = {
 	{ "ov5645", 0 },
