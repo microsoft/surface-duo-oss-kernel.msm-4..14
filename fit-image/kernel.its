@@ -1,0 +1,118 @@
+/*
+ * Simple U-Boot uImage source file containing a single kernel, ramdisk and FDT blob
+ */
+
+/dts-v1/;
+
+/ {
+    description = "Simple image with single Linux kernel, ramdisk and FDT blob";
+    #address-cells = <1>;
+
+    images {
+        kernel@1 {
+            description = "snapdragon Ubuntu Core kernel";
+            data = /incbin/("./Image-4.4");
+            type = "kernel";
+            arch = "arm64";
+            os = "linux";
+            compression = "none";
+            load = <0x80080000>;
+            entry = <0x80080000>;
+            hash@1 {
+                algo = "crc32";
+            };
+            hash@2 {
+                algo = "sha1";
+            };
+            signature@1 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "ondra";
+                sign-images = "kernel";
+            };
+            signature@2 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "ubuntu";
+                sign-images = "kernel";
+            };
+        };
+
+        ramdisk@1 {
+            description = "Ubuntu Core ramdisk";
+            data = /incbin/("./initrd.img");
+            type = "ramdisk";
+            arch = "arm64";
+            os = "linux";
+            compression = "gzip";
+            load = <0x84000000>;
+            entry = <0x84000000>;
+            hash@1 {
+                algo = "crc32";
+            };
+            hash@2 {
+                algo = "sha1";
+            };
+            signature@1 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "ondra";
+                sign-images = "ramdisk";
+            };
+            signature@2 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "ubuntu";
+                sign-images = "ramdisk";
+            };
+        };
+
+        fdt@1 {
+            description = "DB410c Device Tree blob";
+            data = /incbin/("./dtbs/apq8016-sbc.dtb");
+            type = "flat_dt";
+            arch = "arm64";
+            compression = "none";
+                load = <0x83000000>;
+                entry = <0x83000000>;
+            hash@1 {
+                algo = "crc32";
+            };
+            hash@2 {
+                algo = "sha1";
+            };
+            signature@1 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "ondra";
+                sign-images = "fdt";
+            };
+            signature@2 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "ubuntu";
+                sign-images = "fdt";
+            };
+        };
+    };
+
+    configurations {
+        default = "config@1";
+        config@1 {
+            description = "Boot Ubuntu Core with DB410c FDT blob";
+            kernel = "kernel@1";
+            ramdisk = "ramdisk@1";
+            fdt = "fdt@1";
+            hash@1 {
+                algo = "crc32";
+            };
+            hash@2 {
+                algo = "sha1";
+            };
+            signature@1 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "ondra";
+                sign-images = "kernel", "ramdisk","fdt";
+            };
+            signature@2 {
+                algo = "sha256,rsa2048";
+                key-name-hint = "ubuntu";
+                sign-images = "kernel", "ramdisk","fdt";
+            };
+        };
+    };
+};

@@ -22,8 +22,11 @@ parts:
       snapcraftctl build
       cp $SNAPCRAFT_PART_INSTALL/dtbs/qcom/apq8016-sbc-snappy.dtb $SNAPCRAFT_PART_INSTALL/dtbs/qcom/apq8016-sbc.dtb
       cp $SNAPCRAFT_PART_INSTALL/dtbs/qcom/*.dtb $SNAPCRAFT_PART_INSTALL/dtbs/
+    organize:
+      kernel.img: Image-4.4
   firmware:
     plugin: nil
+    source: firmware
     stage-packages:
       - on arm64:
         - linux-firmware
@@ -43,3 +46,37 @@ parts:
       - cpio
       - libssl-dev
       - dpkg-dev
+  fit-image:
+    plugin: nil
+    source: fit-image
+    after:
+      - u-boot-tools
+      - kernel
+    override-build: |
+      cp $SNAPCRAFT_STAGE/Image-4.4* .
+      cp $SNAPCRAFT_STAGE/initrd.img .
+      cp -r $SNAPCRAFT_STAGE/dtbs .
+      if [ -d "$KEYS" ] ; then \
+        $SNAPCRAFT_STAGE/mkimage -D "-I dts -O dtb -p 2000" -f kernel.its -k $KEYS -K dragonboard410c.dtb -r $SNAPCRAFT_PART_INSTALL/kernel.img; \
+      else \
+        $SNAPCRAFT_STAGE/mkimage -D "-I dts -O dtb -p 2000" -f kernel.its -r $SNAPCRAFT_PART_INSTALL/kernel.img; \
+      fi
+      cp kernel.its $SNAPCRAFT_PART_INSTALL/kernel.its
+      cp dragonboard410c.dtb $SNAPCRAFT_PART_INSTALL/
+  u-boot-tools:
+    plugin: nil
+    source: git://git.denx.de/u-boot.git
+    source-tag: v2017.11
+    build-packages:
+      - device-tree-compiler
+      - libssl-dev
+    override-build: |
+      make dragonboard410c_defconfig
+      echo "CONFIG_CMD_MD5SUM=y\nCONFIG_SYS_NO_FLASH=y\nCONFIG_FIT=y\nCONFIG_FIT_SIGNATURE=y\nCONFIG_RSA=y\nCONFIG_FIT_VERBOSE=y \
+               \nCONFIG_FIT_ENABLE_SHA256_SUPPORT=y\n# CONFIG_SPL_RSA is not set\n# CONFIG_SPL_LOAD_FIT is not set \
+               \n# CONFIG_FIT_BEST_MATCH is not set\nCONFIG_RSA_SOFTWARE_EXP=y" \
+         >> .config
+      make tools-only
+      cp tools/mkimage $SNAPCRAFT_PART_INSTALL
+    prime:
+      - -mkimage
