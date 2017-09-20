@@ -433,10 +433,11 @@ clean:
 
 binary: binary-arch
 EOF
-	mv ${sourcename}.tar.gz ../${sourcename}_${version}.orig.tar.gz
+	origversion=$(echo $packageversion|sed 's/-[^-]*$//')
+	mv ${sourcename}.tar.gz ../${sourcename}_${origversion}.orig.tar.gz
 	tar caf ../${sourcename}_${packageversion}.debian.tar.gz debian/{copyright,rules,changelog,control}
 	dpkg-source -cdebian/control -ldebian/changelog --format="3.0 (custom)" --target-format="3.0 (quilt)" \
-		-b / ../${sourcename}_${version}.orig.tar.gz  ../${sourcename}_${packageversion}.debian.tar.gz
+		-b / ../${sourcename}_${origversion}.orig.tar.gz  ../${sourcename}_${packageversion}.debian.tar.gz
 	mv ${sourcename}_${packageversion}*dsc ..
 	dpkg-genchanges > ../${sourcename}_${packageversion}_${debarch}.changes
 else
