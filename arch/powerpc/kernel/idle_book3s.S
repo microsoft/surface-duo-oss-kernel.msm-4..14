@@ -444,11 +444,17 @@ ALT_FTR_SECTION_END_NESTED_IFSET(CPU_FTR_POWER9_DD1, 70)
 	/*
 	 * Workaround for POWER9, if we lost resources, the ERAT
 	 * might have been mixed up and needs flushing. We also need
-	 * to reload MMCR0 (see comment above).
+	 * to reload MMCR0 (see comment above). We also need to set
+	 * then clear bit 60 in MMCRA to ensure the PMU starts running.
 	 */
 	blt	cr3,1f
 	PPC_INVALIDATE_ERAT
 	ld	r1,PACAR1(r13)
+	mfspr	r4,SPRN_MMCRA
+	ori	r4,r4,(1 << (63-60))
+	mtspr	SPRN_MMCRA,r4
+	xori	r4,r4,(1 << (63-60))
+	mtspr	SPRN_MMCRA,r4
 	ld	r4,_MMCR0(r1)
 	mtspr	SPRN_MMCR0,r4
 1:
