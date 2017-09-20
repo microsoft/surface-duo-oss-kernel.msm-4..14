@@ -999,6 +999,8 @@ _ioctl(unsigned int cmd, unsigned long arg)
         io.d0 = user_bde->num_devices(io.dev);
         break;
     case LUBDE_GET_DEVICE:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         bde_dev = user_bde->get_dev(io.dev);
         if (bde_dev) {
             io.d0 = bde_dev->device;
@@ -1013,13 +1015,19 @@ _ioctl(unsigned int cmd, unsigned long arg)
         }
         break;
     case LUBDE_GET_DEVICE_TYPE:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         io.d0 = _devices[io.dev].dev_type;
         break;
     case LUBDE_GET_BUS_FEATURES:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         user_bde->pci_bus_features(io.dev, (int *) &io.d0, (int *) &io.d1,
                                    (int *) &io.d2);
         break;
     case LUBDE_PCI_CONFIG_PUT32:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         if (_devices[io.dev].dev_type & BDE_PCI_DEV_TYPE) {
             user_bde->pci_conf_write(io.dev, io.d0, io.d1);
         } else {
@@ -1027,6 +1035,8 @@ _ioctl(unsigned int cmd, unsigned long arg)
         }
         break;
     case LUBDE_PCI_CONFIG_GET32:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         if (_devices[io.dev].dev_type & BDE_PCI_DEV_TYPE) {
             io.d0 = user_bde->pci_conf_read(io.dev, io.d0);
         } else {
@@ -1034,6 +1044,8 @@ _ioctl(unsigned int cmd, unsigned long arg)
         }
         break;
     case LUBDE_GET_DMA_INFO:
+	if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         inst_id = io.dev;
         if (_bde_multi_inst){
             _dma_resource_get(inst_id, &cpu_pbase, &dma_pbase, &size);
@@ -1053,6 +1065,8 @@ _ioctl(unsigned int cmd, unsigned long arg)
 #endif
         break;
     case LUBDE_ENABLE_INTERRUPTS:
+	if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         if (_devices[io.dev].dev_type & BDE_SWITCH_DEV_TYPE) {
             if (_devices[io.dev].isr && !_devices[io.dev].enabled) {
                 user_bde->interrupt_connect(io.dev,
@@ -1072,12 +1086,16 @@ _ioctl(unsigned int cmd, unsigned long arg)
         }
         break;
     case LUBDE_DISABLE_INTERRUPTS:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         if (_devices[io.dev].enabled) {
             user_bde->interrupt_disconnect(io.dev);
             _devices[io.dev].enabled = 0;
         }
         break;
     case LUBDE_WAIT_FOR_INTERRUPT:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         if (_devices[io.dev].dev_type & BDE_SWITCH_DEV_TYPE) {
             res = &_bde_inst_resource[_devices[io.dev].inst];
 #ifdef BDE_LINUX_NON_INTERRUPTIBLE
@@ -1134,27 +1152,39 @@ _ioctl(unsigned int cmd, unsigned long arg)
         }
         break;
     case LUBDE_WRITE_IRQ_MASK:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         io.rc = lkbde_irq_mask_set(io.dev, io.d0, io.d1, 0);
         break;
     case LUBDE_SPI_READ_REG:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         if (user_bde->spi_read(io.dev, io.d0, io.dx.buf, io.d1) == -1) {
             io.rc = LUBDE_FAIL;
         } 
         break;
     case LUBDE_SPI_WRITE_REG:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         if (user_bde->spi_write(io.dev, io.d0, io.dx.buf, io.d1) == -1) {
             io.rc = LUBDE_FAIL;
         }
         break;
     case LUBDE_READ_REG_16BIT_BUS:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         io.d1 = user_bde->read(io.dev, io.d0);
         break;
     case LUBDE_WRITE_REG_16BIT_BUS:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         io.rc = user_bde->write(io.dev, io.d0, io.d1);
         break;
 #if (defined(BCM_PETRA_SUPPORT) || defined(BCM_DFE_SUPPORT))
     case LUBDE_CPU_WRITE_REG:
     {
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         if (lkbde_cpu_write(io.dev, io.d0, (uint32*)io.dx.buf) == -1) {
             io.rc = LUBDE_FAIL;
         }
@@ -1162,6 +1192,8 @@ _ioctl(unsigned int cmd, unsigned long arg)
     }
     case LUBDE_CPU_READ_REG:
     {
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         if (lkbde_cpu_read(io.dev, io.d0, (uint32*)io.dx.buf) == -1) {
             io.rc = LUBDE_FAIL;
         }
@@ -1169,6 +1201,8 @@ _ioctl(unsigned int cmd, unsigned long arg)
     }
     case LUBDE_CPU_PCI_REGISTER:
     {
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         if (lkbde_cpu_pci_register(io.dev) == -1) {
             io.rc = LUBDE_FAIL;
         }
@@ -1176,6 +1210,8 @@ _ioctl(unsigned int cmd, unsigned long arg)
     }
 #endif
     case LUBDE_DEV_RESOURCE:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         bde_dev = user_bde->get_dev(io.dev);
         if (bde_dev) {
             if (BDE_DEV_MEM_MAPPED(_devices[io.dev].dev_type)) {
@@ -1188,12 +1224,16 @@ _ioctl(unsigned int cmd, unsigned long arg)
         }
         break;
     case LUBDE_IPROC_READ_REG:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         io.d1 = user_bde->iproc_read(io.dev, io.d0);
         if (io.d1 == -1) {
             io.rc = LUBDE_FAIL;
         }
         break;
     case LUBDE_IPROC_WRITE_REG:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         if (user_bde->iproc_write(io.dev, io.d0, io.d1) == -1) {
             io.rc = LUBDE_FAIL;
         }
@@ -1202,6 +1242,8 @@ _ioctl(unsigned int cmd, unsigned long arg)
         io.rc = _instance_attach(io.d0, io.d1);
         break;
     case LUBDE_GET_DEVICE_STATE:
+        if (io.dev >= LINUX_BDE_MAX_DEVICES)
+		return -EINVAL;
         io.rc = lkbde_dev_state_get(io.dev, &io.d0);
         break;
     default:
