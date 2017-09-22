@@ -29,3 +29,4 @@ parts:
     build-packages:
       - cpio
       - libssl-dev
+      - dpkg-dev
