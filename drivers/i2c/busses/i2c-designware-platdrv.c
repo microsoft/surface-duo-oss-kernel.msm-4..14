@@ -45,6 +45,10 @@
 
 #include "i2c-designware-core.h"
 
+static unsigned int i2c_freq;
+module_param(i2c_freq, uint, 0660);
+MODULE_PARM_DESC(i2c_freq, "I2C clock frequency");
+
 static u32 i2c_dw_get_clk_rate_khz(struct dw_i2c_dev *dev)
 {
 	return clk_get_rate(dev->clk)/1000;
@@ -347,6 +351,15 @@ static int dw_i2c_plat_probe(struct platform_device *pdev)
 
 	if (has_acpi_companion(&pdev->dev))
 		dw_i2c_acpi_configure(pdev, &dev->clk_freq);
+
+	if (i2c_freq) {
+		dev_warn(&pdev->dev,
+			"I2C Frequency override by module parameter:"
+			"old frequency=%u new frequency=%u\n",
+			dev->clk_freq,
+			i2c_freq);
+		dev->clk_freq = i2c_freq;
+	}
 
 	/*
 	 * Only standard mode at 100kHz, fast mode at 400kHz,
