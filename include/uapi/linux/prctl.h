@@ -219,4 +219,8 @@ struct prctl_mm_map {
 #define PR_GET_TAGGED_ADDR_CTRL		56
 # define PR_TAGGED_ADDR_ENABLE		(1UL << 0)
 
+/* Control the LSM specific peer information */
+#define	PR_GET_DISPLAY_LSM	52
+#define	PR_SET_DISPLAY_LSM	53
+
 #endif /* _LINUX_PRCTL_H */
