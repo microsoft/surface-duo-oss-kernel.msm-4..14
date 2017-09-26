@@ -4,7 +4,7 @@
  * Qualcomm MSM Camera Subsystem - Core
  *
  * Copyright (c) 2015, The Linux Foundation. All rights reserved.
- * Copyright (C) 2015-2016 Linaro Ltd.
+ * Copyright (C) 2015-2017 Linaro Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -26,16 +26,13 @@
 #include <media/media-entity.h>
 #include <linux/device.h>
 
-#include "csid.h"
-#include "csiphy.h"
-#include "ispif.h"
-#include "vfe.h"
+#include "camss-csid.h"
+#include "camss-csiphy.h"
+#include "camss-ispif.h"
+#include "camss-vfe.h"
 
 #define CAMSS_CSID_NUM 2
 #define CAMSS_CSIPHY_NUM 2
-
-#define CAMSS_CLOCK_MARGIN_NUMERATOR 105
-#define CAMSS_CLOCK_MARGIN_DENOMINATOR 100
 
 #define to_camss(ptr_module)	\
 	container_of(ptr_module, struct camss, ptr_module)
@@ -99,6 +96,7 @@ struct camss_clock {
 	u32 nfreqs;
 };
 
+void camss_add_clock_margin(u64 *rate);
 int camss_enable_clocks(int nclocks, struct camss_clock *clock,
 			struct device *dev);
 void camss_disable_clocks(int nclocks, struct camss_clock *clock);

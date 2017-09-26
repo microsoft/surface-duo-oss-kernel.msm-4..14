@@ -1,10 +1,10 @@
 /*
- * ispif.h
+ * camss-ispif.h
  *
- * Qualcomm MSM Camera Subsystem - ISPIF Module
+ * Qualcomm MSM Camera Subsystem - ISPIF (ISP Interface) Module
  *
  * Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
- * Copyright (C) 2015-2016 Linaro Ltd.
+ * Copyright (C) 2015-2017 Linaro Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -75,7 +75,7 @@ struct ispif_device {
 struct resources_ispif;
 
 int msm_ispif_subdev_init(struct ispif_device *ispif,
-			  struct resources_ispif *res);
+			  const struct resources_ispif *res);
 
 int msm_ispif_register_entities(struct ispif_device *ispif,
 				struct v4l2_device *v4l2_dev);

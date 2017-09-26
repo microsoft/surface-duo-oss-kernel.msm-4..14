@@ -1,10 +1,10 @@
 /*
- * vfe.c
+ * camss-vfe.c
  *
- * Qualcomm MSM Camera Subsystem - VFE Module
+ * Qualcomm MSM Camera Subsystem - VFE (Video Front End) Module
  *
  * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
- * Copyright (C) 2015-2016 Linaro Ltd.
+ * Copyright (C) 2015-2017 Linaro Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -29,7 +29,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
 
-#include "vfe.h"
+#include "camss-vfe.h"
 #include "camss.h"
 
 #define MSM_VFE_NAME "msm_vfe"
@@ -142,6 +142,7 @@
 #define VFE_0_BUS_BDG_CMD_HALT_REQ	1
 
 #define VFE_0_BUS_BDG_QOS_CFG_0		0x2c4
+#define VFE_0_BUS_BDG_QOS_CFG_0_CFG	0xaaa5aaa5
 #define VFE_0_BUS_BDG_QOS_CFG_1		0x2c8
 #define VFE_0_BUS_BDG_QOS_CFG_2		0x2cc
 #define VFE_0_BUS_BDG_QOS_CFG_3		0x2d0
@@ -149,6 +150,7 @@
 #define VFE_0_BUS_BDG_QOS_CFG_5		0x2d8
 #define VFE_0_BUS_BDG_QOS_CFG_6		0x2dc
 #define VFE_0_BUS_BDG_QOS_CFG_7		0x2e0
+#define VFE_0_BUS_BDG_QOS_CFG_7_CFG	0x0001aaa5
 
 #define VFE_0_RDI_CFG_x(x)		(0x2e8 + (0x4 * (x)))
 #define VFE_0_RDI_CFG_x_RDI_STREAM_SEL_SHIFT	28
@@ -179,10 +181,23 @@
 			((n) == VFE_LINE_PIX ? 1 : VFE_0_REG_UPDATE_RDIn(n))
 
 #define VFE_0_DEMUX_CFG				0x424
+#define VFE_0_DEMUX_CFG_PERIOD			0x3
 #define VFE_0_DEMUX_GAIN_0			0x428
+#define VFE_0_DEMUX_GAIN_0_CH0_EVEN		(0x80 << 0)
+#define VFE_0_DEMUX_GAIN_0_CH0_ODD		(0x80 << 16)
 #define VFE_0_DEMUX_GAIN_1			0x42c
+#define VFE_0_DEMUX_GAIN_1_CH1			(0x80 << 0)
+#define VFE_0_DEMUX_GAIN_1_CH2			(0x80 << 16)
 #define VFE_0_DEMUX_EVEN_CFG			0x438
+#define VFE_0_DEMUX_EVEN_CFG_PATTERN_YUYV	0x9cac
+#define VFE_0_DEMUX_EVEN_CFG_PATTERN_YVYU	0xac9c
+#define VFE_0_DEMUX_EVEN_CFG_PATTERN_UYVY	0xc9ca
+#define VFE_0_DEMUX_EVEN_CFG_PATTERN_VYUY	0xcac9
 #define VFE_0_DEMUX_ODD_CFG			0x43c
+#define VFE_0_DEMUX_ODD_CFG_PATTERN_YUYV	0x9cac
+#define VFE_0_DEMUX_ODD_CFG_PATTERN_YVYU	0xac9c
+#define VFE_0_DEMUX_ODD_CFG_PATTERN_UYVY	0xc9ca
+#define VFE_0_DEMUX_ODD_CFG_PATTERN_VYUY	0xcac9
 
 #define VFE_0_SCALE_ENC_Y_CFG			0x75c
 #define VFE_0_SCALE_ENC_Y_H_IMAGE_SIZE		0x760
@@ -201,7 +216,13 @@
 #define VFE_0_CROP_ENC_CBCR_HEIGHT		0x860
 
 #define VFE_0_CLAMP_ENC_MAX_CFG			0x874
+#define VFE_0_CLAMP_ENC_MAX_CFG_CH0		(0xff << 0)
+#define VFE_0_CLAMP_ENC_MAX_CFG_CH1		(0xff << 8)
+#define VFE_0_CLAMP_ENC_MAX_CFG_CH2		(0xff << 16)
 #define VFE_0_CLAMP_ENC_MIN_CFG			0x878
+#define VFE_0_CLAMP_ENC_MIN_CFG_CH0		(0x0 << 0)
+#define VFE_0_CLAMP_ENC_MIN_CFG_CH1		(0x0 << 8)
+#define VFE_0_CLAMP_ENC_MIN_CFG_CH2		(0x0 << 16)
 
 #define VFE_0_CGC_OVERRIDE_1			0x974
 #define VFE_0_CGC_OVERRIDE_1_IMAGE_Mx_CGC_OVERRIDE(x)	(1 << (x))
@@ -304,9 +325,11 @@ static u8 vfe_get_bpp(u32 code)
 
 	for (i = 0; i < ARRAY_SIZE(vfe_formats); i++)
 		if (code == vfe_formats[i].code)
-			break;
+			return vfe_formats[i].bpp;
 
-	return vfe_formats[i].bpp;
+	WARN(1, "Unknown format\n");
+
+	return vfe_formats[0].bpp;
 }
 
 static inline void vfe_reg_clr(struct vfe_device *vfe, u32 reg, u32 clr_bits)
@@ -650,7 +673,8 @@ static void vfe_enable_irq_wm_line(struct vfe_device *vfe, u8 wm,
 }
 
 static void vfe_enable_irq_pix_line(struct vfe_device *vfe, u8 comp,
-				    enum vfe_line_id line_id, u8 enable) {
+				    enum vfe_line_id line_id, u8 enable)
+{
 	struct vfe_output *output = &vfe->line[line_id].output;
 	unsigned int i;
 	u32 irq_en0;
@@ -691,29 +715,33 @@ static void vfe_enable_irq_common(struct vfe_device *vfe)
 
 static void vfe_set_demux_cfg(struct vfe_device *vfe, struct vfe_line *line)
 {
-	u32 even_cfg, odd_cfg;
+	u32 val, even_cfg, odd_cfg;
 
-	writel_relaxed(0x3, vfe->base + VFE_0_DEMUX_CFG);
-	writel_relaxed(0x800080, vfe->base + VFE_0_DEMUX_GAIN_0);
-	writel_relaxed(0x800080, vfe->base + VFE_0_DEMUX_GAIN_1);
+	writel_relaxed(VFE_0_DEMUX_CFG_PERIOD, vfe->base + VFE_0_DEMUX_CFG);
+
+	val = VFE_0_DEMUX_GAIN_0_CH0_EVEN | VFE_0_DEMUX_GAIN_0_CH0_ODD;
+	writel_relaxed(val, vfe->base + VFE_0_DEMUX_GAIN_0);
+
+	val = VFE_0_DEMUX_GAIN_1_CH1 | VFE_0_DEMUX_GAIN_1_CH2;
+	writel_relaxed(val, vfe->base + VFE_0_DEMUX_GAIN_1);
 
 	switch (line->fmt[MSM_VFE_PAD_SINK].code) {
 	case MEDIA_BUS_FMT_YUYV8_2X8:
-		even_cfg = 0x9cac;
-		odd_cfg = 0x9cac;
+		even_cfg = VFE_0_DEMUX_EVEN_CFG_PATTERN_YUYV;
+		odd_cfg = VFE_0_DEMUX_ODD_CFG_PATTERN_YUYV;
 		break;
 	case MEDIA_BUS_FMT_YVYU8_2X8:
-		even_cfg = 0xac9c;
-		odd_cfg = 0xac9c;
+		even_cfg = VFE_0_DEMUX_EVEN_CFG_PATTERN_YVYU;
+		odd_cfg = VFE_0_DEMUX_ODD_CFG_PATTERN_YVYU;
 		break;
 	case MEDIA_BUS_FMT_UYVY8_2X8:
 	default:
-		even_cfg = 0xc9ca;
-		odd_cfg = 0xc9ca;
+		even_cfg = VFE_0_DEMUX_EVEN_CFG_PATTERN_UYVY;
+		odd_cfg = VFE_0_DEMUX_ODD_CFG_PATTERN_UYVY;
 		break;
 	case MEDIA_BUS_FMT_VYUY8_2X8:
-		even_cfg = 0xcac9;
-		odd_cfg = 0xcac9;
+		even_cfg = VFE_0_DEMUX_EVEN_CFG_PATTERN_VYUY;
+		odd_cfg = VFE_0_DEMUX_ODD_CFG_PATTERN_VYUY;
 		break;
 	}
 
@@ -823,8 +851,17 @@ static void vfe_set_crop_cfg(struct vfe_device *vfe, struct vfe_line *line)
 
 static void vfe_set_clamp_cfg(struct vfe_device *vfe)
 {
-	writel_relaxed(0x00ffffff, vfe->base + VFE_0_CLAMP_ENC_MAX_CFG);
-	writel_relaxed(0x0, vfe->base + VFE_0_CLAMP_ENC_MIN_CFG);
+	u32 val = VFE_0_CLAMP_ENC_MAX_CFG_CH0 |
+		VFE_0_CLAMP_ENC_MAX_CFG_CH1 |
+		VFE_0_CLAMP_ENC_MAX_CFG_CH2;
+
+	writel_relaxed(val, vfe->base + VFE_0_CLAMP_ENC_MAX_CFG);
+
+	val = VFE_0_CLAMP_ENC_MIN_CFG_CH0 |
+		VFE_0_CLAMP_ENC_MIN_CFG_CH1 |
+		VFE_0_CLAMP_ENC_MIN_CFG_CH2;
+
+	writel_relaxed(val, vfe->base + VFE_0_CLAMP_ENC_MIN_CFG);
 }
 
 /*
@@ -904,8 +941,8 @@ static void vfe_reset_output_maps(struct vfe_device *vfe)
 
 static void vfe_set_qos(struct vfe_device *vfe)
 {
-	u32 val = 0xaaa5aaa5;
-	u32 val7 = 0x0001aaa5;
+	u32 val = VFE_0_BUS_BDG_QOS_CFG_0_CFG;
+	u32 val7 = VFE_0_BUS_BDG_QOS_CFG_7_CFG;
 
 	writel_relaxed(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_0);
 	writel_relaxed(val, vfe->base + VFE_0_BUS_BDG_QOS_CFG_1);
@@ -1093,7 +1130,7 @@ static int vfe_reserve_wm(struct vfe_device *vfe, enum vfe_line_id line_id)
 
 static int vfe_release_wm(struct vfe_device *vfe, u8 wm)
 {
-	if (wm > ARRAY_SIZE(vfe->wm_output_map))
+	if (wm >= ARRAY_SIZE(vfe->wm_output_map))
 		return -EINVAL;
 
 	vfe->wm_output_map[wm] = VFE_LINE_NONE;
@@ -1120,7 +1157,6 @@ static void vfe_output_frame_drop(struct vfe_device *vfe,
 					     drop_pattern);
 	}
 	vfe_reg_update(vfe, container_of(output, struct vfe_line, output)->id);
-
 }
 
 static struct camss_buffer *vfe_buf_get_pending(struct vfe_output *output)
@@ -1825,28 +1861,27 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 	for (i = 0; i < vfe->nclocks; i++) {
 		struct camss_clock *clock = &vfe->clock[i];
 
-		if (!strcmp(clock->name, "camss_vfe_vfe_clk")) {
+		if (!strcmp(clock->name, "camss_vfe_vfe")) {
 			u64 min_rate = 0;
-			unsigned long rate;
+			long rate;
 
-			for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
+			for (j = VFE_LINE_RDI0; j <= VFE_LINE_PIX; j++) {
 				u32 tmp;
 				u8 bpp;
 
-				if (i == VFE_LINE_PIX) {
-					tmp = pixel_clock[i];
+				if (j == VFE_LINE_PIX) {
+					tmp = pixel_clock[j];
 				} else {
-					bpp = vfe_get_bpp(vfe->line[i].
+					bpp = vfe_get_bpp(vfe->line[j].
 						fmt[MSM_VFE_PAD_SINK].code);
-					tmp = pixel_clock[i] * bpp / 64;
+					tmp = pixel_clock[j] * bpp / 64;
 				}
 
 				if (min_rate < tmp)
 					min_rate = tmp;
 			}
 
-			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
-						CAMSS_CLOCK_MARGIN_DENOMINATOR;
+			camss_add_clock_margin(&min_rate);
 
 			for (j = 0; j < clock->nfreqs; j++)
 				if (min_rate < clock->freq[j])
@@ -1865,13 +1900,14 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 
 			rate = clk_round_rate(clock->clk, clock->freq[j]);
 			if (rate < 0) {
-				dev_err(dev, "clk round rate failed\n");
+				dev_err(dev, "clk round rate failed: %ld\n",
+					rate);
 				return -EINVAL;
 			}
 
 			ret = clk_set_rate(clock->clk, rate);
 			if (ret < 0) {
-				dev_err(dev, "clk set rate failed\n");
+				dev_err(dev, "clk set rate failed: %d\n", ret);
 				return ret;
 			}
 		}
@@ -1890,7 +1926,7 @@ static int vfe_set_clock_rates(struct vfe_device *vfe)
 static int vfe_check_clock_rates(struct vfe_device *vfe)
 {
 	u32 pixel_clock[MSM_VFE_LINE_NUM];
-	int i;
+	int i, j;
 	int ret;
 
 	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
@@ -1903,28 +1939,27 @@ static int vfe_check_clock_rates(struct vfe_device *vfe)
 	for (i = 0; i < vfe->nclocks; i++) {
 		struct camss_clock *clock = &vfe->clock[i];
 
-		if (!strcmp(clock->name, "camss_vfe_vfe_clk")) {
+		if (!strcmp(clock->name, "camss_vfe_vfe")) {
 			u64 min_rate = 0;
 			unsigned long rate;
 
-			for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
+			for (j = VFE_LINE_RDI0; j <= VFE_LINE_PIX; j++) {
 				u32 tmp;
 				u8 bpp;
 
-				if (i == VFE_LINE_PIX) {
-					tmp = pixel_clock[i];
+				if (j == VFE_LINE_PIX) {
+					tmp = pixel_clock[j];
 				} else {
-					bpp = vfe_get_bpp(vfe->line[i].
+					bpp = vfe_get_bpp(vfe->line[j].
 						fmt[MSM_VFE_PAD_SINK].code);
-					tmp = pixel_clock[i] * bpp / 64;
+					tmp = pixel_clock[j] * bpp / 64;
 				}
 
 				if (min_rate < tmp)
 					min_rate = tmp;
 			}
 
-			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
-						CAMSS_CLOCK_MARGIN_DENOMINATOR;
+			camss_add_clock_margin(&min_rate);
 
 			rate = clk_get_rate(clock->clk);
 			if (rate < min_rate)
@@ -2261,8 +2296,8 @@ static void vfe_try_format(struct vfe_line *line,
 		fmt->width = clamp_t(u32, fmt->width, 1, 8191);
 		fmt->height = clamp_t(u32, fmt->height, 1, 8191);
 
-		if (fmt->field == V4L2_FIELD_ANY)
-			fmt->field = V4L2_FIELD_NONE;
+		fmt->field = V4L2_FIELD_NONE;
+		fmt->colorspace = V4L2_COLORSPACE_SRGB;
 
 		break;
 
@@ -2330,11 +2365,6 @@ static void vfe_try_compose(struct vfe_line *line,
 			    enum v4l2_subdev_format_whence which)
 {
 	struct v4l2_mbus_framefmt *fmt;
-
-	rect->width = rect->width - rect->left;
-	rect->left = 0;
-	rect->height = rect->height - rect->top;
-	rect->top = 0;
 
 	fmt = __vfe_get_format(line, cfg, MSM_VFE_PAD_SINK, which);
 
@@ -2699,14 +2729,16 @@ int vfe_set_selection(struct v4l2_subdev *sd,
  */
 static int vfe_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
-	struct v4l2_subdev_format format;
-
-	memset(&format, 0, sizeof(format));
-	format.pad = MSM_VFE_PAD_SINK;
-	format.which = fh ? V4L2_SUBDEV_FORMAT_TRY : V4L2_SUBDEV_FORMAT_ACTIVE;
-	format.format.code = MEDIA_BUS_FMT_UYVY8_2X8;
-	format.format.width = 1920;
-	format.format.height = 1080;
+	struct v4l2_subdev_format format = {
+		.pad = MSM_VFE_PAD_SINK,
+		.which = fh ? V4L2_SUBDEV_FORMAT_TRY :
+			      V4L2_SUBDEV_FORMAT_ACTIVE,
+		.format = {
+			.code = MEDIA_BUS_FMT_UYVY8_2X8,
+			.width = 1920,
+			.height = 1080
+		}
+	};
 
 	return vfe_set_format(sd, fh ? fh->pad : NULL, &format);
 }
@@ -2718,36 +2750,14 @@ static int vfe_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
  *
  * Return 0 on success or a negative error code otherwise
  */
-int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
+int msm_vfe_subdev_init(struct vfe_device *vfe, const struct resources *res)
 {
 	struct device *dev = to_device(vfe);
-	struct platform_device *pdev = container_of(dev, struct platform_device,
-						    dev);
+	struct platform_device *pdev = to_platform_device(dev);
 	struct resource *r;
 	struct camss *camss = to_camss(vfe);
-
 	int i, j;
 	int ret;
-
-	mutex_init(&vfe->power_lock);
-	vfe->power_count = 0;
-
-	mutex_init(&vfe->stream_lock);
-	vfe->stream_count = 0;
-
-	spin_lock_init(&vfe->output_lock);
-
-	vfe->id = 0;
-	vfe->reg_update = 0;
-
-	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
-		vfe->line[i].video_out.type =
-					V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
-		vfe->line[i].video_out.camss = camss;
-		vfe->line[i].id = i;
-		init_completion(&vfe->line[i].output.sof);
-		init_completion(&vfe->line[i].output.reg_update);
-	}
 
 	/* Memory */
 
@@ -2773,7 +2783,7 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 	ret = devm_request_irq(dev, vfe->irq, vfe_isr,
 			       IRQF_TRIGGER_RISING, vfe->irq_name, vfe);
 	if (ret < 0) {
-		dev_err(dev, "request_irq failed\n");
+		dev_err(dev, "request_irq failed: %d\n", ret);
 		return ret;
 	}
 
@@ -2815,6 +2825,26 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res)
 			clock->freq[j] = res->clock_rate[i][j];
 	}
 
+	mutex_init(&vfe->power_lock);
+	vfe->power_count = 0;
+
+	mutex_init(&vfe->stream_lock);
+	vfe->stream_count = 0;
+
+	spin_lock_init(&vfe->output_lock);
+
+	vfe->id = 0;
+	vfe->reg_update = 0;
+
+	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
+		vfe->line[i].video_out.type =
+					V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE;
+		vfe->line[i].video_out.camss = camss;
+		vfe->line[i].id = i;
+		init_completion(&vfe->line[i].output.sof);
+		init_completion(&vfe->line[i].output.reg_update);
+	}
+
 	init_completion(&vfe->reset_complete);
 	init_completion(&vfe->halt_complete);
 
@@ -2832,7 +2862,7 @@ void msm_vfe_get_vfe_id(struct media_entity *entity, u8 *id)
 	struct vfe_line *line;
 	struct vfe_device *vfe;
 
-	sd = container_of(entity, struct v4l2_subdev, entity);
+	sd = media_entity_to_v4l2_subdev(entity);
 	line = v4l2_get_subdevdata(sd);
 	vfe = to_vfe(line);
 
@@ -2849,7 +2879,7 @@ void msm_vfe_get_vfe_line_id(struct media_entity *entity, enum vfe_line_id *id)
 	struct v4l2_subdev *sd;
 	struct vfe_line *line;
 
-	sd = container_of(entity, struct v4l2_subdev, entity);
+	sd = media_entity_to_v4l2_subdev(entity);
 	line = v4l2_get_subdevdata(sd);
 
 	*id = line->id;
@@ -2869,7 +2899,7 @@ static int vfe_link_setup(struct media_entity *entity,
 			  const struct media_pad *remote, u32 flags)
 {
 	if (flags & MEDIA_LNK_FL_ENABLED)
-		if (media_entity_remote_pad((struct media_pad *)local))
+		if (media_entity_remote_pad(local))
 			return -EBUSY;
 
 	return 0;
@@ -2925,6 +2955,11 @@ void msm_vfe_stop_streaming(struct vfe_device *vfe)
  * @vfe: VFE device
  * @v4l2_dev: V4L2 device
  *
+ * Initialize and register a subdev node for the VFE module. Then
+ * call msm_video_register() to register the video device node which
+ * will be connected to this subdev node. Then actually create the
+ * media link between them.
+ *
  * Return 0 on success or a negative error code otherwise
  */
 int msm_vfe_register_entities(struct vfe_device *vfe,
@@ -2958,7 +2993,7 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 
 		ret = vfe_init_formats(sd, NULL);
 		if (ret < 0) {
-			dev_err(dev, "Failed to init format\n");
+			dev_err(dev, "Failed to init format: %d\n", ret);
 			goto error_init;
 		}
 
@@ -2970,30 +3005,30 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 		ret = media_entity_pads_init(&sd->entity, MSM_VFE_PADS_NUM,
 					     pads);
 		if (ret < 0) {
-			dev_err(dev, "Failed to init media entity\n");
+			dev_err(dev, "Failed to init media entity: %d\n", ret);
 			goto error_init;
 		}
 
 		ret = v4l2_device_register_subdev(v4l2_dev, sd);
 		if (ret < 0) {
-			dev_err(dev, "Failed to register subdev\n");
+			dev_err(dev, "Failed to register subdev: %d\n", ret);
 			goto error_reg_subdev;
 		}
 
 		video_out->ops = &camss_vfe_video_ops;
 		video_out->bpl_alignment = 8;
 		video_out->line_based = 0;
-		video_out->fmt_tag = CAMSS_FMT_TAG_RDI;
 		if (i == VFE_LINE_PIX) {
 			video_out->bpl_alignment = 16;
 			video_out->line_based = 1;
-			video_out->fmt_tag = CAMSS_FMT_TAG_PIX;
 		}
 		snprintf(name, ARRAY_SIZE(name), "%s%d_%s%d",
 			 MSM_VFE_NAME, vfe->id, "video", i);
-		ret = msm_video_register(video_out, v4l2_dev, name);
+		ret = msm_video_register(video_out, v4l2_dev, name,
+					 i == VFE_LINE_PIX ? 1 : 0);
 		if (ret < 0) {
-			dev_err(dev, "Failed to register video node\n");
+			dev_err(dev, "Failed to register video node: %d\n",
+				ret);
 			goto error_reg_video;
 		}
 
@@ -3002,8 +3037,9 @@ int msm_vfe_register_entities(struct vfe_device *vfe,
 				&video_out->vdev.entity, 0,
 				MEDIA_LNK_FL_IMMUTABLE | MEDIA_LNK_FL_ENABLED);
 		if (ret < 0) {
-			dev_err(dev, "Failed to link %s->%s entities\n",
-			       sd->entity.name, video_out->vdev.entity.name);
+			dev_err(dev, "Failed to link %s->%s entities: %d\n",
+				sd->entity.name, video_out->vdev.entity.name,
+				ret);
 			goto error_link;
 		}
 	}

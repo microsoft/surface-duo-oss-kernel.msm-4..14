@@ -1,10 +1,10 @@
 /*
- * csid.c
+ * camss-csid.c
  *
- * Qualcomm MSM Camera Subsystem - CSID Module
+ * Qualcomm MSM Camera Subsystem - CSID (CSI Decoder) Module
  *
  * Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
- * Copyright (C) 2015-2016 Linaro Ltd.
+ * Copyright (C) 2015-2017 Linaro Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -26,7 +26,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
 
-#include "csid.h"
+#include "camss-csid.h"
 #include "camss.h"
 
 #define MSM_CSID_NAME "msm_csid"
@@ -41,6 +41,8 @@
 #define CAMSS_CSID_IRQ_MASK		0x064
 #define CAMSS_CSID_IRQ_STATUS		0x068
 #define CAMSS_CSID_TG_CTRL		0x0a0
+#define CAMSS_CSID_TG_CTRL_DISABLE	0xa06436
+#define CAMSS_CSID_TG_CTRL_ENABLE	0xa06437
 #define CAMSS_CSID_TG_VC_CFG		0x0a4
 #define CAMSS_CSID_TG_VC_CFG_H_BLANKING		0x3ff
 #define CAMSS_CSID_TG_VC_CFG_V_BLANKING		0x7f
@@ -62,227 +64,140 @@
 
 #define CSID_RESET_TIMEOUT_MS 500
 
-static const struct {
+struct csid_fmts {
 	u32 code;
-	u32 uncompressed;
 	u8 data_type;
 	u8 decode_format;
-	u8 uncompr_bpp;
+	u8 bpp;
 	u8 spp; /* bus samples per pixel */
-} csid_input_fmts[] = {
+};
+
+static const struct csid_fmts csid_input_fmts[] = {
 	{
-		MEDIA_BUS_FMT_UYVY8_2X8,
 		MEDIA_BUS_FMT_UYVY8_2X8,
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		2
+		2,
 	},
 	{
 		MEDIA_BUS_FMT_VYUY8_2X8,
-		MEDIA_BUS_FMT_VYUY8_2X8,
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		2
+		2,
 	},
 	{
-		MEDIA_BUS_FMT_YUYV8_2X8,
 		MEDIA_BUS_FMT_YUYV8_2X8,
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		2
+		2,
 	},
 	{
-		MEDIA_BUS_FMT_YVYU8_2X8,
 		MEDIA_BUS_FMT_YVYU8_2X8,
 		DATA_TYPE_YUV422_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		2
+		2,
 	},
 	{
-		MEDIA_BUS_FMT_SBGGR8_1X8,
 		MEDIA_BUS_FMT_SBGGR8_1X8,
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		1
+		1,
 	},
 	{
-		MEDIA_BUS_FMT_SGBRG8_1X8,
 		MEDIA_BUS_FMT_SGBRG8_1X8,
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		1
+		1,
 	},
 	{
-		MEDIA_BUS_FMT_SGRBG8_1X8,
 		MEDIA_BUS_FMT_SGRBG8_1X8,
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		1
+		1,
 	},
 	{
-		MEDIA_BUS_FMT_SRGGB8_1X8,
 		MEDIA_BUS_FMT_SRGGB8_1X8,
 		DATA_TYPE_RAW_8BIT,
 		DECODE_FORMAT_UNCOMPRESSED_8_BIT,
 		8,
-		1
+		1,
 	},
 	{
-		MEDIA_BUS_FMT_SBGGR10_1X10,
 		MEDIA_BUS_FMT_SBGGR10_1X10,
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
 		10,
-		1
+		1,
 	},
 	{
-		MEDIA_BUS_FMT_SGBRG10_1X10,
 		MEDIA_BUS_FMT_SGBRG10_1X10,
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
 		10,
-		1
+		1,
 	},
 	{
-		MEDIA_BUS_FMT_SGRBG10_1X10,
 		MEDIA_BUS_FMT_SGRBG10_1X10,
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
 		10,
-		1
+		1,
 	},
 	{
-		MEDIA_BUS_FMT_SRGGB10_1X10,
 		MEDIA_BUS_FMT_SRGGB10_1X10,
 		DATA_TYPE_RAW_10BIT,
 		DECODE_FORMAT_UNCOMPRESSED_10_BIT,
 		10,
-		1
+		1,
 	},
 	{
-		MEDIA_BUS_FMT_SBGGR12_1X12,
 		MEDIA_BUS_FMT_SBGGR12_1X12,
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
 		12,
-		1
+		1,
 	},
 	{
-		MEDIA_BUS_FMT_SGBRG12_1X12,
 		MEDIA_BUS_FMT_SGBRG12_1X12,
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
 		12,
-		1
+		1,
 	},
 	{
-		MEDIA_BUS_FMT_SGRBG12_1X12,
 		MEDIA_BUS_FMT_SGRBG12_1X12,
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
 		12,
-		1
+		1,
 	},
 	{
-		MEDIA_BUS_FMT_SRGGB12_1X12,
 		MEDIA_BUS_FMT_SRGGB12_1X12,
 		DATA_TYPE_RAW_12BIT,
 		DECODE_FORMAT_UNCOMPRESSED_12_BIT,
 		12,
-		1
+		1,
 	}
 };
 
-/*
- * csid_get_uncompressed - map media bus format to uncompressed media bus format
- * @code: media bus format code
- *
- * Return uncompressed media bus format code
- */
-static u32 csid_get_uncompressed(u32 code)
+static const struct csid_fmts *csid_get_fmt_entry(u32 code)
 {
 	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
 		if (code == csid_input_fmts[i].code)
-			break;
+			return &csid_input_fmts[i];
 
-	return csid_input_fmts[i].uncompressed;
-}
+	WARN(1, "Unknown format\n");
 
-/*
- * csid_get_data_type - map media bus format to data type
- * @code: media bus format code
- *
- * Return data type code
- */
-static u8 csid_get_data_type(u32 code)
-{
-	unsigned int i;
-
-	for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
-		if (code == csid_input_fmts[i].code)
-			break;
-
-	return csid_input_fmts[i].data_type;
-}
-
-/*
- * csid_get_decode_format - map media bus format to decode format
- * @code: media bus format code
- *
- * Return decode format code
- */
-static u8 csid_get_decode_format(u32 code)
-{
-	unsigned int i;
-
-	for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
-		if (code == csid_input_fmts[i].code)
-			break;
-
-	return csid_input_fmts[i].decode_format;
-}
-
-/*
- * csid_get_bpp - map media bus format to bits per pixel
- * @code: media bus format code
- *
- * Return number of bits per pixel
- */
-static u8 csid_get_bpp(u32 code)
-{
-	unsigned int i;
-
-	for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
-		if (code == csid_input_fmts[i].uncompressed)
-			break;
-
-	return csid_input_fmts[i].uncompr_bpp;
-}
-
-/*
- * csid_get_spp - map media bus format to bus samples per pixel
- * @code: media bus format code
- *
- * Return number of bus samples per pixel
- */
-static u8 csid_get_spp(u32 code)
-{
-	unsigned int i;
-
-	for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
-		if (code == csid_input_fmts[i].uncompressed)
-			break;
-
-	return csid_input_fmts[i].spp;
+	return &csid_input_fmts[0];
 }
 
 /*
@@ -324,16 +239,15 @@ static int csid_set_clock_rates(struct csid_device *csid)
 	for (i = 0; i < csid->nclocks; i++) {
 		struct camss_clock *clock = &csid->clock[i];
 
-		if (!strcmp(clock->name, "csi0_clk") ||
-			!strcmp(clock->name, "csi1_clk")) {
-			u8 bpp = csid_get_bpp(
-					csid->fmt[MSM_CSIPHY_PAD_SINK].code);
+		if (!strcmp(clock->name, "csi0") ||
+			!strcmp(clock->name, "csi1")) {
+			u8 bpp = csid_get_fmt_entry(
+				csid->fmt[MSM_CSIPHY_PAD_SINK].code)->bpp;
 			u8 num_lanes = csid->phy.lane_cnt;
 			u64 min_rate = pixel_clock * bpp / (2 * num_lanes * 4);
-			unsigned long rate;
+			long rate;
 
-			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
-						CAMSS_CLOCK_MARGIN_DENOMINATOR;
+			camss_add_clock_margin(&min_rate);
 
 			for (j = 0; j < clock->nfreqs; j++)
 				if (min_rate < clock->freq[j])
@@ -352,13 +266,14 @@ static int csid_set_clock_rates(struct csid_device *csid)
 
 			rate = clk_round_rate(clock->clk, clock->freq[j]);
 			if (rate < 0) {
-				dev_err(dev, "clk round rate failed\n");
+				dev_err(dev, "clk round rate failed: %ld\n",
+					rate);
 				return -EINVAL;
 			}
 
 			ret = clk_set_rate(clock->clk, rate);
 			if (ret < 0) {
-				dev_err(dev, "clk set rate failed\n");
+				dev_err(dev, "clk set rate failed: %d\n", ret);
 				return ret;
 			}
 		}
@@ -462,30 +377,30 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 
 	if (enable) {
 		u8 vc = 0; /* Virtual Channel 0 */
-		u8 cid = vc * 4;
+		u8 cid = vc * 4; /* id of Virtual Channel and Data Type set */
 		u8 dt, dt_shift, df;
 		int ret;
 
 		ret = v4l2_ctrl_handler_setup(&csid->ctrls);
 		if (ret < 0) {
 			dev_err(to_device_index(csid, csid->id),
-				"could not sync v4l2 controls\n");
+				"could not sync v4l2 controls: %d\n", ret);
 			return ret;
 		}
 
 		if (!tg->enabled &&
-		    !media_entity_remote_pad(&csid->pads[MSM_CSID_PAD_SINK])) {
+		    !media_entity_remote_pad(&csid->pads[MSM_CSID_PAD_SINK]))
 			return -ENOLINK;
-		}
 
-		dt = csid_get_data_type(csid->fmt[MSM_CSID_PAD_SRC].code);
+		dt = csid_get_fmt_entry(csid->fmt[MSM_CSID_PAD_SRC].code)->
+								data_type;
 
 		if (tg->enabled) {
 			/* Config Test Generator */
 			struct v4l2_mbus_framefmt *f =
 					&csid->fmt[MSM_CSID_PAD_SRC];
-			u8 bpp = csid_get_bpp(f->code);
-			u8 spp = csid_get_spp(f->code);
+			u8 bpp = csid_get_fmt_entry(f->code)->bpp;
+			u8 spp = csid_get_fmt_entry(f->code)->spp;
 			u32 num_bytes_per_line = f->width * bpp * spp / 8;
 			u32 num_lines = f->height;
 
@@ -529,7 +444,8 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 		/* Config LUT */
 
 		dt_shift = (cid % 4) * 8;
-		df = csid_get_decode_format(csid->fmt[MSM_CSID_PAD_SINK].code);
+		df = csid_get_fmt_entry(csid->fmt[MSM_CSID_PAD_SINK].code)->
+								decode_format;
 
 		val = readl_relaxed(csid->base + CAMSS_CSID_CID_LUT_VC_n(vc));
 		val &= ~(0xff << dt_shift);
@@ -540,12 +456,12 @@ static int csid_set_stream(struct v4l2_subdev *sd, int enable)
 		writel_relaxed(val, csid->base + CAMSS_CSID_CID_n_CFG(cid));
 
 		if (tg->enabled) {
-			val = 0x00a06437;
+			val = CAMSS_CSID_TG_CTRL_ENABLE;
 			writel_relaxed(val, csid->base + CAMSS_CSID_TG_CTRL);
 		}
 	} else {
 		if (tg->enabled) {
-			val = 0x00a06436;
+			val = CAMSS_CSID_TG_CTRL_DISABLE;
 			writel_relaxed(val, csid->base + CAMSS_CSID_TG_CTRL);
 		}
 	}
@@ -605,8 +521,8 @@ static void csid_try_format(struct csid_device *csid,
 		fmt->width = clamp_t(u32, fmt->width, 1, 8191);
 		fmt->height = clamp_t(u32, fmt->height, 1, 8191);
 
-		if (fmt->field == V4L2_FIELD_ANY)
-			fmt->field = V4L2_FIELD_NONE;
+		fmt->field = V4L2_FIELD_NONE;
+		fmt->colorspace = V4L2_COLORSPACE_SRGB;
 
 		break;
 
@@ -618,15 +534,13 @@ static void csid_try_format(struct csid_device *csid,
 
 			format = *__csid_get_format(csid, cfg,
 						    MSM_CSID_PAD_SINK, which);
-			format.code = csid_get_uncompressed(format.code);
 			*fmt = format;
 		} else {
 			/* Test generator is enabled, set format on source*/
 			/* pad to allow test generator usage */
 
 			for (i = 0; i < ARRAY_SIZE(csid_input_fmts); i++)
-				if (csid_input_fmts[i].uncompressed ==
-								fmt->code)
+				if (csid_input_fmts[i].code == fmt->code)
 					break;
 
 			/* If not found, use UYVY as default */
@@ -671,12 +585,12 @@ static int csid_enum_mbus_code(struct v4l2_subdev *sd,
 			format = __csid_get_format(csid, cfg, MSM_CSID_PAD_SINK,
 						   code->which);
 
-			code->code = csid_get_uncompressed(format->code);
+			code->code = format->code;
 		} else {
 			if (code->index >= ARRAY_SIZE(csid_input_fmts))
 				return -EINVAL;
 
-			code->code = csid_input_fmts[code->index].uncompressed;
+			code->code = csid_input_fmts[code->index].code;
 		}
 	}
 
@@ -790,14 +704,16 @@ static int csid_set_format(struct v4l2_subdev *sd,
  */
 static int csid_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
-	struct v4l2_subdev_format format;
-
-	memset(&format, 0, sizeof(format));
-	format.pad = MSM_CSID_PAD_SINK;
-	format.which = fh ? V4L2_SUBDEV_FORMAT_TRY : V4L2_SUBDEV_FORMAT_ACTIVE;
-	format.format.code = MEDIA_BUS_FMT_UYVY8_2X8;
-	format.format.width = 1920;
-	format.format.height = 1080;
+	struct v4l2_subdev_format format = {
+		.pad = MSM_CSID_PAD_SINK,
+		.which = fh ? V4L2_SUBDEV_FORMAT_TRY :
+			      V4L2_SUBDEV_FORMAT_ACTIVE,
+		.format = {
+			.code = MEDIA_BUS_FMT_UYVY8_2X8,
+			.width = 1920,
+			.height = 1080
+		}
+	};
 
 	return csid_set_format(sd, fh ? fh->pad : NULL, &format);
 }
@@ -805,10 +721,10 @@ static int csid_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 static const char * const csid_test_pattern_menu[] = {
 	"Disabled",
 	"Incrementing",
-	"Alternating 55/AA",
-	"All Zeros",
-	"All Ones",
-	"Random Data",
+	"Alternating 0x55/0xAA",
+	"All Zeros 0x00",
+	"All Ones 0xFF",
+	"Pseudo-random Data",
 };
 
 /*
@@ -883,11 +799,10 @@ static const struct v4l2_ctrl_ops csid_ctrl_ops = {
  * Return 0 on success or a negative error code otherwise
  */
 int msm_csid_subdev_init(struct csid_device *csid,
-			 struct resources *res, u8 id)
+			 const struct resources *res, u8 id)
 {
 	struct device *dev = to_device_index(csid, id);
-	struct platform_device *pdev = container_of(dev, struct platform_device,
-						    dev);
+	struct platform_device *pdev = to_platform_device(dev);
 	struct resource *r;
 	int i, j;
 	int ret;
@@ -918,7 +833,7 @@ int msm_csid_subdev_init(struct csid_device *csid,
 	ret = devm_request_irq(dev, csid->irq, csid_isr,
 		IRQF_TRIGGER_RISING, csid->irq_name, csid);
 	if (ret < 0) {
-		dev_err(dev, "request_irq failed\n");
+		dev_err(dev, "request_irq failed: %d\n", ret);
 		return ret;
 	}
 
@@ -982,11 +897,8 @@ int msm_csid_subdev_init(struct csid_device *csid,
  */
 void msm_csid_get_csid_id(struct media_entity *entity, u8 *id)
 {
-	struct v4l2_subdev *sd;
-	struct csid_device *csid;
-
-	sd = container_of(entity, struct v4l2_subdev, entity);
-	csid = v4l2_get_subdevdata(sd);
+	struct v4l2_subdev *sd = media_entity_to_v4l2_subdev(entity);
+	struct csid_device *csid = v4l2_get_subdevdata(sd);
 
 	*id = csid->id;
 }
@@ -1022,7 +934,7 @@ static int csid_link_setup(struct media_entity *entity,
 			   const struct media_pad *remote, u32 flags)
 {
 	if (flags & MEDIA_LNK_FL_ENABLED)
-		if (media_entity_remote_pad((struct media_pad *)local))
+		if (media_entity_remote_pad(local))
 			return -EBUSY;
 
 	if ((local->flags & MEDIA_PAD_FL_SINK) &&
@@ -1031,9 +943,9 @@ static int csid_link_setup(struct media_entity *entity,
 		struct csid_device *csid;
 		struct csiphy_device *csiphy;
 		struct csiphy_lanes_cfg *lane_cfg;
-		struct v4l2_subdev_format format;
+		struct v4l2_subdev_format format = { 0 };
 
-		sd = container_of(entity, struct v4l2_subdev, entity);
+		sd = media_entity_to_v4l2_subdev(entity);
 		csid = v4l2_get_subdevdata(sd);
 
 		/* If test generator is enabled */
@@ -1041,7 +953,7 @@ static int csid_link_setup(struct media_entity *entity,
 		if (csid->testgen_mode->cur.val != 0)
 			return -EBUSY;
 
-		sd = container_of(remote->entity, struct v4l2_subdev, entity);
+		sd = media_entity_to_v4l2_subdev(remote->entity);
 		csiphy = v4l2_get_subdevdata(sd);
 
 		/* If a sensor is not linked to CSIPHY */
@@ -1056,7 +968,6 @@ static int csid_link_setup(struct media_entity *entity,
 		csid->phy.lane_assign = csid_get_lane_assign(lane_cfg);
 
 		/* Reset format on source pad to sink pad format */
-		memset(&format, 0, sizeof(format));
 		format.pad = MSM_CSID_PAD_SRC;
 		format.which = V4L2_SUBDEV_FORMAT_ACTIVE;
 		csid_set_format(&csid->subdev, NULL, &format);
@@ -1119,7 +1030,7 @@ int msm_csid_register_entity(struct csid_device *csid,
 
 	ret = v4l2_ctrl_handler_init(&csid->ctrls, 1);
 	if (ret < 0) {
-		dev_err(dev, "Failed to init ctrl handler\n");
+		dev_err(dev, "Failed to init ctrl handler: %d\n", ret);
 		return ret;
 	}
 
@@ -1138,7 +1049,7 @@ int msm_csid_register_entity(struct csid_device *csid,
 
 	ret = csid_init_formats(sd, NULL);
 	if (ret < 0) {
-		dev_err(dev, "Failed to init format\n");
+		dev_err(dev, "Failed to init format: %d\n", ret);
 		goto free_ctrl;
 	}
 
@@ -1149,13 +1060,13 @@ int msm_csid_register_entity(struct csid_device *csid,
 	sd->entity.ops = &csid_media_ops;
 	ret = media_entity_pads_init(&sd->entity, MSM_CSID_PADS_NUM, pads);
 	if (ret < 0) {
-		dev_err(dev, "Failed to init media entity\n");
+		dev_err(dev, "Failed to init media entity: %d\n", ret);
 		goto free_ctrl;
 	}
 
 	ret = v4l2_device_register_subdev(v4l2_dev, sd);
 	if (ret < 0) {
-		dev_err(dev, "Failed to register subdev\n");
+		dev_err(dev, "Failed to register subdev: %d\n", ret);
 		goto media_cleanup;
 	}
 
@@ -1176,5 +1087,6 @@ free_ctrl:
 void msm_csid_unregister_entity(struct csid_device *csid)
 {
 	v4l2_device_unregister_subdev(&csid->subdev);
+	media_entity_cleanup(&csid->subdev.entity);
 	v4l2_ctrl_handler_free(&csid->ctrls);
 }

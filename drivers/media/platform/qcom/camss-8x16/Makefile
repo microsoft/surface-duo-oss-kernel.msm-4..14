@@ -2,10 +2,10 @@
 
 qcom-camss-objs += \
 		camss.o \
-		csid.o \
-		csiphy.o \
-		ispif.o \
-		vfe.o \
-		video.o \
+		camss-csid.o \
+		camss-csiphy.o \
+		camss-ispif.o \
+		camss-vfe.o \
+		camss-video.o \
 
 obj-$(CONFIG_VIDEO_QCOM_CAMSS) += qcom-camss.o

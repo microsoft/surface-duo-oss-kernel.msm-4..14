@@ -1,10 +1,10 @@
 /*
- * csiphy.h
+ * camss-csiphy.h
  *
  * Qualcomm MSM Camera Subsystem - CSIPHY Module
  *
  * Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
- * Copyright (C) 2016 Linaro Ltd.
+ * Copyright (C) 2016-2017 Linaro Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -40,7 +40,6 @@ struct csiphy_lanes_cfg {
 };
 
 struct csiphy_csi2_cfg {
-	int settle_cnt;
 	struct csiphy_lanes_cfg lane_cfg;
 };
 
@@ -60,6 +59,7 @@ struct csiphy_device {
 	char irq_name[30];
 	struct camss_clock *clock;
 	int nclocks;
+	u32 timer_clk_rate;
 	struct csiphy_config cfg;
 	struct v4l2_mbus_framefmt fmt[MSM_CSIPHY_PADS_NUM];
 };
@@ -67,7 +67,7 @@ struct csiphy_device {
 struct resources;
 
 int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
-			   struct resources *res, u8 id);
+			   const struct resources *res, u8 id);
 
 int msm_csiphy_register_entity(struct csiphy_device *csiphy,
 			       struct v4l2_device *v4l2_dev);

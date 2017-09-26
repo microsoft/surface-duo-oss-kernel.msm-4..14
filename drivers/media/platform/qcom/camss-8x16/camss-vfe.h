@@ -1,10 +1,10 @@
 /*
- * vfe.h
+ * camss-vfe.h
  *
- * Qualcomm MSM Camera Subsystem - VFE Module
+ * Qualcomm MSM Camera Subsystem - VFE (Video Front End) Module
  *
  * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
- * Copyright (C) 2015-2016 Linaro Ltd.
+ * Copyright (C) 2015-2017 Linaro Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -24,7 +24,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
 
-#include "video.h"
+#include "camss-video.h"
 
 #define MSM_VFE_PAD_SINK 0
 #define MSM_VFE_PAD_SRC 1
@@ -108,7 +108,7 @@ struct vfe_device {
 
 struct resources;
 
-int msm_vfe_subdev_init(struct vfe_device *vfe, struct resources *res);
+int msm_vfe_subdev_init(struct vfe_device *vfe, const struct resources *res);
 
 int msm_vfe_register_entities(struct vfe_device *vfe,
 			      struct v4l2_device *v4l2_dev);

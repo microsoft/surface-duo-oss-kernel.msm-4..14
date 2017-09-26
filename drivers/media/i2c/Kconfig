@@ -536,7 +536,6 @@ config VIDEO_OV5645
 	depends on OF
 	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
 	depends on MEDIA_CAMERA_SUPPORT
-	depends on MSM_CCI
 	---help---
 	  This is a Video4Linux2 sensor-level driver for the OmniVision
 	  OV5645 camera.

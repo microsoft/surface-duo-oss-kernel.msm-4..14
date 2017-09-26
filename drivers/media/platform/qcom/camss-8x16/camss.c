@@ -4,7 +4,7 @@
  * Qualcomm MSM Camera Subsystem - Core
  *
  * Copyright (c) 2015, The Linux Foundation. All rights reserved.
- * Copyright (C) 2015-2016 Linaro Ltd.
+ * Copyright (C) 2015-2017 Linaro Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -32,12 +32,15 @@
 
 #include "camss.h"
 
-static struct resources csiphy_res[] = {
+#define CAMSS_CLOCK_MARGIN_NUMERATOR 105
+#define CAMSS_CLOCK_MARGIN_DENOMINATOR 100
+
+static const struct resources csiphy_res[] = {
 	/* CSIPHY0 */
 	{
 		.regulator = { NULL },
-		.clock = { "camss_top_ahb_clk", "ispif_ahb_clk",
-			   "camss_ahb_clk", "csiphy0_timer_clk" },
+		.clock = { "camss_top_ahb", "ispif_ahb",
+			   "camss_ahb", "csiphy0_timer" },
 		.clock_rate = { { 0 },
 				{ 0 },
 				{ 0 },
@@ -49,8 +52,8 @@ static struct resources csiphy_res[] = {
 	/* CSIPHY1 */
 	{
 		.regulator = { NULL },
-		.clock = { "camss_top_ahb_clk", "ispif_ahb_clk",
-			   "camss_ahb_clk", "csiphy1_timer_clk" },
+		.clock = { "camss_top_ahb", "ispif_ahb",
+			   "camss_ahb", "csiphy1_timer" },
 		.clock_rate = { { 0 },
 				{ 0 },
 				{ 0 },
@@ -60,14 +63,13 @@ static struct resources csiphy_res[] = {
 	}
 };
 
-static struct resources csid_res[] = {
+static const struct resources csid_res[] = {
 	/* CSID0 */
 	{
 		.regulator = { "vdda" },
-		.clock = { "camss_top_ahb_clk", "ispif_ahb_clk",
-			   "csi0_ahb_clk", "camss_ahb_clk",
-			   "csi0_clk", "csi0_phy_clk",
-			   "csi0_pix_clk", "csi0_rdi_clk" },
+		.clock = { "camss_top_ahb", "ispif_ahb",
+			   "csi0_ahb", "camss_ahb",
+			   "csi0", "csi0_phy", "csi0_pix", "csi0_rdi" },
 		.clock_rate = { { 0 },
 				{ 0 },
 				{ 0 },
@@ -83,10 +85,9 @@ static struct resources csid_res[] = {
 	/* CSID1 */
 	{
 		.regulator = { "vdda" },
-		.clock = { "camss_top_ahb_clk", "ispif_ahb_clk",
-			   "csi1_ahb_clk", "camss_ahb_clk",
-			   "csi1_clk", "csi1_phy_clk",
-			   "csi1_pix_clk", "csi1_rdi_clk" },
+		.clock = { "camss_top_ahb", "ispif_ahb",
+			   "csi1_ahb", "camss_ahb",
+			   "csi1", "csi1_phy", "csi1_pix", "csi1_rdi" },
 		.clock_rate = { { 0 },
 				{ 0 },
 				{ 0 },
@@ -100,23 +101,22 @@ static struct resources csid_res[] = {
 	},
 };
 
-static struct resources_ispif ispif_res = {
+static const struct resources_ispif ispif_res = {
 	/* ISPIF */
-	.clock = { "camss_top_ahb_clk", "camss_ahb_clk", "ispif_ahb_clk",
-		   "csi0_clk", "csi0_pix_clk", "csi0_rdi_clk",
-		   "csi1_clk", "csi1_pix_clk", "csi1_rdi_clk" },
-	.clock_for_reset = { "camss_vfe_vfe_clk", "camss_csi_vfe_clk" },
+	.clock = { "camss_top_ahb", "camss_ahb", "ispif_ahb",
+		   "csi0", "csi0_pix", "csi0_rdi",
+		   "csi1", "csi1_pix", "csi1_rdi" },
+	.clock_for_reset = { "camss_vfe_vfe", "camss_csi_vfe" },
 	.reg = { "ispif", "csi_clk_mux" },
 	.interrupt = "ispif"
 
 };
 
-static struct resources vfe_res = {
+static const struct resources vfe_res = {
 	/* VFE0 */
 	.regulator = { NULL },
-	.clock = { "camss_top_ahb_clk", "camss_vfe_vfe_clk",
-		   "camss_csi_vfe_clk", "iface_clk",
-		   "bus_clk", "camss_ahb_clk" },
+	.clock = { "camss_top_ahb", "camss_vfe_vfe", "camss_csi_vfe",
+		   "iface", "bus", "camss_ahb" },
 	.clock_rate = { { 0 },
 			{ 50000000, 80000000, 100000000, 160000000,
 			  177780000, 200000000, 266670000, 320000000,
@@ -131,6 +131,19 @@ static struct resources vfe_res = {
 	.reg = { "vfe0" },
 	.interrupt = { "vfe0" }
 };
+
+/*
+ * camss_add_clock_margin - Add margin to clock frequency rate
+ * @rate: Clock frequency rate
+ *
+ * When making calculations with physical clock frequency values
+ * some safety margin must be added. Add it.
+ */
+inline void camss_add_clock_margin(u64 *rate)
+{
+	*rate *= CAMSS_CLOCK_MARGIN_NUMERATOR;
+	*rate = div_u64(*rate, CAMSS_CLOCK_MARGIN_DENOMINATOR);
+}
 
 /*
  * camss_enable_clocks - Enable multiple clocks
@@ -149,7 +162,7 @@ int camss_enable_clocks(int nclocks, struct camss_clock *clock,
 	for (i = 0; i < nclocks; i++) {
 		ret = clk_prepare_enable(clock[i].clk);
 		if (ret) {
-			dev_err(dev, "clock enable failed\n");
+			dev_err(dev, "clock enable failed: %d\n", ret);
 			goto error;
 		}
 	}
@@ -213,9 +226,7 @@ int camss_get_pixel_clock(struct media_entity *entity, u32 *pixel_clock)
 {
 	struct media_entity *sensor;
 	struct v4l2_subdev *subdev;
-	struct v4l2_ext_controls ctrls = { { 0 } };
-	struct v4l2_ext_control ctrl = { 0 };
-	int ret;
+	struct v4l2_ctrl *ctrl;
 
 	sensor = camss_find_sensor(entity);
 	if (!sensor)
@@ -223,16 +234,12 @@ int camss_get_pixel_clock(struct media_entity *entity, u32 *pixel_clock)
 
 	subdev = media_entity_to_v4l2_subdev(sensor);
 
-	ctrl.id = V4L2_CID_PIXEL_RATE;
+	ctrl = v4l2_ctrl_find(subdev->ctrl_handler, V4L2_CID_PIXEL_RATE);
 
-	ctrls.count = 1;
-	ctrls.controls = &ctrl;
+	if (!ctrl)
+		return -EINVAL;
 
-	ret = v4l2_g_ext_ctrls(subdev->ctrl_handler, &ctrls);
-	if (ret < 0)
-		return ret;
-
-	*pixel_clock = ctrl.value64;
+	*pixel_clock = v4l2_ctrl_g_ctrl_int64(ctrl);
 
 	return 0;
 }
@@ -250,7 +257,6 @@ static int camss_of_parse_endpoint_node(struct device *dev,
 					struct camss_async_subdev *csd)
 {
 	struct csiphy_lanes_cfg *lncfg = &csd->interface.csi2.lane_cfg;
-	int *settle_cnt = &csd->interface.csi2.settle_cnt;
 	struct v4l2_of_bus_mipi_csi2 *mipi_csi2;
 	struct v4l2_of_endpoint vep = { { 0 } };
 	unsigned int i;
@@ -273,8 +279,6 @@ static int camss_of_parse_endpoint_node(struct device *dev,
 		lncfg->data[i].pos = mipi_csi2->data_lanes[i];
 		lncfg->data[i].pol = mipi_csi2->lane_polarities[i + 1];
 	}
-
-	of_property_read_u32(node, "qcom,settle-cnt", settle_cnt);
 
 	return 0;
 }
@@ -355,7 +359,8 @@ static int camss_init_subdevices(struct camss *camss)
 					     &csiphy_res[i], i);
 		if (ret < 0) {
 			dev_err(camss->dev,
-				"Failed to init csiphy%d sub-device\n", i);
+				"Failed to init csiphy%d sub-device: %d\n",
+				i, ret);
 			return ret;
 		}
 	}
@@ -365,20 +370,22 @@ static int camss_init_subdevices(struct camss *camss)
 					   &csid_res[i], i);
 		if (ret < 0) {
 			dev_err(camss->dev,
-				"Failed to init csid%d sub-device\n", i);
+				"Failed to init csid%d sub-device: %d\n",
+				i, ret);
 			return ret;
 		}
 	}
 
 	ret = msm_ispif_subdev_init(&camss->ispif, &ispif_res);
 	if (ret < 0) {
-		dev_err(camss->dev, "Failed to init ispif sub-device\n");
+		dev_err(camss->dev, "Failed to init ispif sub-device: %d\n",
+			ret);
 		return ret;
 	}
 
 	ret = msm_vfe_subdev_init(&camss->vfe, &vfe_res);
 	if (ret < 0) {
-		dev_err(camss->dev, "Fail to init vfe sub-device\n");
+		dev_err(camss->dev, "Fail to init vfe sub-device: %d\n", ret);
 		return ret;
 	}
 
@@ -401,7 +408,8 @@ static int camss_register_entities(struct camss *camss)
 						 &camss->v4l2_dev);
 		if (ret < 0) {
 			dev_err(camss->dev,
-				"Failed to register csiphy%d entity\n", i);
+				"Failed to register csiphy%d entity: %d\n",
+				i, ret);
 			goto err_reg_csiphy;
 		}
 	}
@@ -411,20 +419,23 @@ static int camss_register_entities(struct camss *camss)
 					       &camss->v4l2_dev);
 		if (ret < 0) {
 			dev_err(camss->dev,
-				"Failed to register csid%d entity\n", i);
+				"Failed to register csid%d entity: %d\n",
+				i, ret);
 			goto err_reg_csid;
 		}
 	}
 
 	ret = msm_ispif_register_entities(&camss->ispif, &camss->v4l2_dev);
 	if (ret < 0) {
-		dev_err(camss->dev, "Failed to register ispif entities\n");
+		dev_err(camss->dev, "Failed to register ispif entities: %d\n",
+			ret);
 		goto err_reg_ispif;
 	}
 
 	ret = msm_vfe_register_entities(&camss->vfe, &camss->v4l2_dev);
 	if (ret < 0) {
-		dev_err(camss->dev, "Failed to register vfe entities\n");
+		dev_err(camss->dev, "Failed to register vfe entities: %d\n",
+			ret);
 		goto err_reg_vfe;
 	}
 
@@ -438,9 +449,10 @@ static int camss_register_entities(struct camss *camss)
 				0);
 			if (ret < 0) {
 				dev_err(camss->dev,
-					"Failed to link %s->%s entities\n",
+					"Failed to link %s->%s entities: %d\n",
 					camss->csiphy[i].subdev.entity.name,
-					camss->csid[j].subdev.entity.name);
+					camss->csid[j].subdev.entity.name,
+					ret);
 				goto err_link;
 			}
 		}
@@ -456,10 +468,10 @@ static int camss_register_entities(struct camss *camss)
 				0);
 			if (ret < 0) {
 				dev_err(camss->dev,
-					"Failed to link %s->%s entities\n",
+					"Failed to link %s->%s entities: %d\n",
 					camss->csid[i].subdev.entity.name,
-					camss->ispif.line[j].subdev.entity.name
-					);
+					camss->ispif.line[j].subdev.entity.name,
+					ret);
 				goto err_link;
 			}
 		}
@@ -475,9 +487,10 @@ static int camss_register_entities(struct camss *camss)
 				0);
 			if (ret < 0) {
 				dev_err(camss->dev,
-					"Failed to link %s->%s entities\n",
+					"Failed to link %s->%s entities: %d\n",
 					camss->ispif.line[i].subdev.entity.name,
-					camss->vfe.line[j].subdev.entity.name);
+					camss->vfe.line[j].subdev.entity.name,
+					ret);
 				goto err_link;
 			}
 		}
@@ -570,8 +583,8 @@ static int camss_subdev_notifier_complete(struct v4l2_async_notifier *async)
 				MEDIA_LNK_FL_IMMUTABLE | MEDIA_LNK_FL_ENABLED);
 			if (ret < 0) {
 				dev_err(camss->dev,
-					"Failed to link %s->%s entities\n",
-					sensor->name, input->name);
+					"Failed to link %s->%s entities: %d\n",
+					sensor->name, input->name, ret);
 				return ret;
 			}
 		}
@@ -631,7 +644,7 @@ static int camss_probe(struct platform_device *pdev)
 	camss->v4l2_dev.mdev = &camss->media_dev;
 	ret = v4l2_device_register(camss->dev, &camss->v4l2_dev);
 	if (ret < 0) {
-		dev_err(dev, "Failed to register V4L2 device\n");
+		dev_err(dev, "Failed to register V4L2 device: %d\n", ret);
 		return ret;
 	}
 
@@ -646,19 +659,23 @@ static int camss_probe(struct platform_device *pdev)
 		ret = v4l2_async_notifier_register(&camss->v4l2_dev,
 						   &camss->notifier);
 		if (ret) {
-			dev_err(dev, "Failed to register async subdev nodes");
+			dev_err(dev,
+				"Failed to register async subdev nodes: %d\n",
+				ret);
 			goto err_register_subdevs;
 		}
 	} else {
 		ret = v4l2_device_register_subdev_nodes(&camss->v4l2_dev);
 		if (ret < 0) {
-			dev_err(dev, "Failed to register subdev nodes");
+			dev_err(dev, "Failed to register subdev nodes: %d\n",
+				ret);
 			goto err_register_subdevs;
 		}
 
 		ret = media_device_register(&camss->media_dev);
 		if (ret < 0) {
-			dev_err(dev, "Failed to register media device");
+			dev_err(dev, "Failed to register media device: %d\n",
+				ret);
 			goto err_register_subdevs;
 		}
 	}
@@ -723,4 +740,5 @@ module_platform_driver(qcom_camss_driver);
 
 MODULE_ALIAS("platform:qcom-camss");
 MODULE_DESCRIPTION("Qualcomm Camera Subsystem driver");
-MODULE_LICENSE("GPL");
+MODULE_AUTHOR("Todor Tomov <todor.tomov@linaro.org>");
+MODULE_LICENSE("GPL v2");

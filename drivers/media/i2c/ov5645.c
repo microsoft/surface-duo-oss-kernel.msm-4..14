@@ -45,15 +45,6 @@
 
 static DEFINE_MUTEX(ov5645_lock);
 
-/* HACKs here! */
-
-#include <../drivers/media/platform/qcom/cci/msm_cci.h>
-
-#ifdef dev_dbg
-	#undef dev_dbg
-	#define dev_dbg dev_err
-#endif
-
 #define OV5645_VOLTAGE_ANALOG               2800000
 #define OV5645_VOLTAGE_DIGITAL_CORE         1500000
 #define OV5645_VOLTAGE_DIGITAL_IO           1800000
@@ -93,6 +84,7 @@ struct ov5645_mode_info {
 	const struct reg_value *data;
 	u32 data_size;
 	u32 pixel_clock;
+	u32 link_freq;
 };
 
 struct ov5645 {
@@ -113,6 +105,7 @@ struct ov5645 {
 
 	struct v4l2_ctrl_handler ctrls;
 	struct v4l2_ctrl *pixel_clock;
+	struct v4l2_ctrl *link_freq;
 
 	/* Cached register values */
 	u8 aec_pk_manual;
@@ -124,8 +117,6 @@ struct ov5645 {
 
 	struct gpio_desc *enable_gpio;
 	struct gpio_desc *rst_gpio;
-
-	struct v4l2_subdev *cci;
 };
 
 static inline struct ov5645 *to_ov5645(struct v4l2_subdev *sd)
@@ -521,27 +512,35 @@ static const struct reg_value ov5645_setting_full[] = {
 	{ 0x4202, 0x00 }
 };
 
+static const s64 link_freq[] = {
+	222880000,
+	334320000
+};
+
 static const struct ov5645_mode_info ov5645_mode_info_data[] = {
 	{
 		.width = 1280,
 		.height = 960,
 		.data = ov5645_setting_sxga,
 		.data_size = ARRAY_SIZE(ov5645_setting_sxga),
-		.pixel_clock = 112000000
+		.pixel_clock = 111440000,
+		.link_freq = 0 /* an index in link_freq[] */
 	},
 	{
 		.width = 1920,
 		.height = 1080,
 		.data = ov5645_setting_1080p,
 		.data_size = ARRAY_SIZE(ov5645_setting_1080p),
-		.pixel_clock = 168000000
+		.pixel_clock = 167160000,
+		.link_freq = 1 /* an index in link_freq[] */
 	},
 	{
 		.width = 2592,
 		.height = 1944,
 		.data = ov5645_setting_full,
 		.data_size = ARRAY_SIZE(ov5645_setting_full),
-		.pixel_clock = 168000000
+		.pixel_clock = 167160000,
+		.link_freq = 1 /* an index in link_freq[] */
 	},
 };
 
@@ -596,9 +595,20 @@ static void ov5645_regulators_disable(struct ov5645 *ov5645)
 
 static int ov5645_write_reg_to(struct ov5645 *ov5645, u16 reg, u8 val, u16 i2c_addr)
 {
+	u8 regbuf[3] = {
+		reg >> 8,
+		reg & 0xff,
+		val
+	};
+	struct i2c_msg msgs = {
+		.addr = i2c_addr,
+		.flags = 0,
+		.len = 3,
+		.buf = regbuf
+	};
 	int ret;
 
-	ret = msm_cci_ctrl_write(i2c_addr, reg, &val, 1);
+	ret = i2c_transfer(ov5645->i2c_client->adapter, &msgs, 1);
 	if (ret < 0)
 		dev_err(ov5645->dev,
 			"%s: write reg error %d on addr 0x%x: reg=0x%x, val=0x%x\n",
@@ -609,28 +619,40 @@ static int ov5645_write_reg_to(struct ov5645 *ov5645, u16 reg, u8 val, u16 i2c_a
 
 static int ov5645_write_reg(struct ov5645 *ov5645, u16 reg, u8 val)
 {
-	u16 i2c_addr = ov5645->i2c_client->addr;
+	u8 regbuf[3];
 	int ret;
 
-	ret = msm_cci_ctrl_write(i2c_addr, reg, &val, 1);
+	regbuf[0] = reg >> 8;
+	regbuf[1] = reg & 0xff;
+	regbuf[2] = val;
+
+	ret = i2c_master_send(ov5645->i2c_client, regbuf, 3);
 	if (ret < 0)
-		dev_err(ov5645->dev,
-			"%s: write reg error %d on addr 0x%x: reg=0x%x, val=0x%x\n",
-			__func__, ret, i2c_addr, reg, val);
+		dev_err(ov5645->dev, "%s: write reg error %d: reg=%x, val=%x\n",
+			__func__, ret, reg, val);
 
 	return ret;
 }
 
 static int ov5645_read_reg(struct ov5645 *ov5645, u16 reg, u8 *val)
 {
-	u16 i2c_addr = ov5645->i2c_client->addr;
+	u8 regbuf[2];
 	int ret;
 
-	ret = msm_cci_ctrl_read(i2c_addr, reg, val, 1);
+	regbuf[0] = reg >> 8;
+	regbuf[1] = reg & 0xff;
+
+	ret = i2c_master_send(ov5645->i2c_client, regbuf, 2);
 	if (ret < 0) {
-		dev_err(ov5645->dev,
-			"%s: read reg error %d on addr 0x%x: reg=0x%x\n",
-			__func__, ret, i2c_addr, reg);
+		dev_err(ov5645->dev, "%s: write reg error %d: reg=%x\n",
+			__func__, ret, reg);
+		return ret;
+	}
+
+	ret = i2c_master_recv(ov5645->i2c_client, val, 1);
+	if (ret < 0) {
+		dev_err(ov5645->dev, "%s: read reg error %d: reg=%x\n",
+			__func__, ret, reg);
 		return ret;
 	}
 
@@ -729,12 +751,6 @@ static int ov5645_s_power(struct v4l2_subdev *sd, int on)
 
 	mutex_lock(&ov5645->power_lock);
 
-	if (on) {
-		ret = msm_cci_ctrl_init();
-		if (ret < 0)
-			goto exit;
-	}
-
 	/* If the power count is modified from 0 to != 0 or from != 0 to 0,
 	 * update the power state.
 	 */
@@ -784,9 +800,6 @@ static int ov5645_s_power(struct v4l2_subdev *sd, int on)
 	WARN_ON(ov5645->power_count < 0);
 
 exit:
-	if (!on)
-		msm_cci_ctrl_release();
-
 	mutex_unlock(&ov5645->power_lock);
 
 	return ret;
@@ -1028,6 +1041,11 @@ static int ov5645_set_format(struct v4l2_subdev *sd,
 		if (ret < 0)
 			return ret;
 
+		ret = v4l2_ctrl_s_ctrl(ov5645->link_freq,
+				       new_mode->link_freq);
+		if (ret < 0)
+			return ret;
+
 		ov5645->current_mode = new_mode;
 	}
 
@@ -1127,9 +1145,6 @@ static const struct v4l2_subdev_ops ov5645_subdev_ops = {
 	.core = &ov5645_core_ops,
 	.video = &ov5645_video_ops,
 	.pad = &ov5645_subdev_pad_ops,
-};
-
-static const struct v4l2_subdev_internal_ops ov5645_subdev_internal_ops = {
 };
 
 static int ov5645_probe(struct i2c_client *client,
@@ -1249,7 +1264,7 @@ static int ov5645_probe(struct i2c_client *client,
 
 	mutex_init(&ov5645->power_lock);
 
-	v4l2_ctrl_handler_init(&ov5645->ctrls, 8);
+	v4l2_ctrl_handler_init(&ov5645->ctrls, 9);
 	v4l2_ctrl_new_std(&ov5645->ctrls, &ov5645_ctrl_ops,
 			  V4L2_CID_SATURATION, -4, 4, 1, 0);
 	v4l2_ctrl_new_std(&ov5645->ctrls, &ov5645_ctrl_ops,
@@ -1271,6 +1286,13 @@ static int ov5645_probe(struct i2c_client *client,
 						&ov5645_ctrl_ops,
 						V4L2_CID_PIXEL_RATE,
 						1, INT_MAX, 1, 1);
+	ov5645->link_freq = v4l2_ctrl_new_int_menu(&ov5645->ctrls,
+						   &ov5645_ctrl_ops,
+						   V4L2_CID_LINK_FREQ,
+						   ARRAY_SIZE(link_freq) - 1,
+						   0, link_freq);
+	if (ov5645->link_freq)
+		ov5645->link_freq->flags |= V4L2_CTRL_FLAG_READ_ONLY;
 
 	ov5645->sd.ctrl_handler = &ov5645->ctrls;
 
@@ -1284,7 +1306,6 @@ static int ov5645_probe(struct i2c_client *client,
 	v4l2_i2c_subdev_init(&ov5645->sd, client, &ov5645_subdev_ops);
 	ov5645->sd.flags |= V4L2_SUBDEV_FL_HAS_DEVNODE;
 	ov5645->pad.flags = MEDIA_PAD_FL_SOURCE;
-	ov5645->sd.internal_ops = &ov5645_subdev_internal_ops;
 	ov5645->sd.dev = &client->dev;
 	ov5645->sd.entity.function = MEDIA_ENT_F_CAM_SENSOR;
 
@@ -1362,7 +1383,6 @@ free_ctrl:
 	return ret;
 }
 
-
 static int ov5645_remove(struct i2c_client *client)
 {
 	struct v4l2_subdev *sd = i2c_get_clientdata(client);
@@ -1375,7 +1395,6 @@ static int ov5645_remove(struct i2c_client *client)
 
 	return 0;
 }
-
 
 static const struct i2c_device_id ov5645_id[] = {
 	{ "ov5645", 0 },

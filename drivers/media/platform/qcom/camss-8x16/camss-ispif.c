@@ -1,10 +1,10 @@
 /*
- * ispif.c
+ * camss-ispif.c
  *
- * Qualcomm MSM Camera Subsystem - ISPIF Module
+ * Qualcomm MSM Camera Subsystem - ISPIF (ISP Interface) Module
  *
  * Copyright (c) 2013-2015, The Linux Foundation. All rights reserved.
- * Copyright (C) 2015-2016 Linaro Ltd.
+ * Copyright (C) 2015-2017 Linaro Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -26,7 +26,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
 
-#include "ispif.h"
+#include "camss-ispif.h"
 #include "camss.h"
 
 #define MSM_ISPIF_NAME "msm_ispif"
@@ -38,6 +38,23 @@
 	container_of(ispif_line_array(ptr_line), struct ispif_device, ptr_line)
 
 #define ISPIF_RST_CMD_0			0x008
+#define ISPIF_RST_CMD_0_STROBED_RST_EN		(1 << 0)
+#define ISPIF_RST_CMD_0_MISC_LOGIC_RST		(1 << 1)
+#define ISPIF_RST_CMD_0_SW_REG_RST		(1 << 2)
+#define ISPIF_RST_CMD_0_PIX_INTF_0_CSID_RST	(1 << 3)
+#define ISPIF_RST_CMD_0_PIX_INTF_0_VFE_RST	(1 << 4)
+#define ISPIF_RST_CMD_0_PIX_INTF_1_CSID_RST	(1 << 5)
+#define ISPIF_RST_CMD_0_PIX_INTF_1_VFE_RST	(1 << 6)
+#define ISPIF_RST_CMD_0_RDI_INTF_0_CSID_RST	(1 << 7)
+#define ISPIF_RST_CMD_0_RDI_INTF_0_VFE_RST	(1 << 8)
+#define ISPIF_RST_CMD_0_RDI_INTF_1_CSID_RST	(1 << 9)
+#define ISPIF_RST_CMD_0_RDI_INTF_1_VFE_RST	(1 << 10)
+#define ISPIF_RST_CMD_0_RDI_INTF_2_CSID_RST	(1 << 11)
+#define ISPIF_RST_CMD_0_RDI_INTF_2_VFE_RST	(1 << 12)
+#define ISPIF_RST_CMD_0_PIX_OUTPUT_0_MISR_RST	(1 << 16)
+#define ISPIF_RST_CMD_0_RDI_OUTPUT_0_MISR_RST	(1 << 17)
+#define ISPIF_RST_CMD_0_RDI_OUTPUT_1_MISR_RST	(1 << 18)
+#define ISPIF_RST_CMD_0_RDI_OUTPUT_2_MISR_RST	(1 << 19)
 #define ISPIF_IRQ_GLOBAL_CLEAR_CMD	0x01c
 #define ISPIF_VFE_m_CTRL_0(m)		(0x200 + 0x200 * (m))
 #define ISPIF_VFE_m_CTRL_0_PIX0_LINE_BUF_EN	(1 << 6)
@@ -163,6 +180,7 @@ static irqreturn_t ispif_isr(int irq, void *dev)
 static int ispif_reset(struct ispif_device *ispif)
 {
 	unsigned long time;
+	u32 val;
 	int ret;
 
 	ret = camss_enable_clocks(ispif->nclocks_for_reset,
@@ -173,7 +191,25 @@ static int ispif_reset(struct ispif_device *ispif)
 
 	reinit_completion(&ispif->reset_complete);
 
-	writel_relaxed(0x000f1fff, ispif->base + ISPIF_RST_CMD_0);
+	val = ISPIF_RST_CMD_0_STROBED_RST_EN |
+		ISPIF_RST_CMD_0_MISC_LOGIC_RST |
+		ISPIF_RST_CMD_0_SW_REG_RST |
+		ISPIF_RST_CMD_0_PIX_INTF_0_CSID_RST |
+		ISPIF_RST_CMD_0_PIX_INTF_0_VFE_RST |
+		ISPIF_RST_CMD_0_PIX_INTF_1_CSID_RST |
+		ISPIF_RST_CMD_0_PIX_INTF_1_VFE_RST |
+		ISPIF_RST_CMD_0_RDI_INTF_0_CSID_RST |
+		ISPIF_RST_CMD_0_RDI_INTF_0_VFE_RST |
+		ISPIF_RST_CMD_0_RDI_INTF_1_CSID_RST |
+		ISPIF_RST_CMD_0_RDI_INTF_1_VFE_RST |
+		ISPIF_RST_CMD_0_RDI_INTF_2_CSID_RST |
+		ISPIF_RST_CMD_0_RDI_INTF_2_VFE_RST |
+		ISPIF_RST_CMD_0_PIX_OUTPUT_0_MISR_RST |
+		ISPIF_RST_CMD_0_RDI_OUTPUT_0_MISR_RST |
+		ISPIF_RST_CMD_0_RDI_OUTPUT_1_MISR_RST |
+		ISPIF_RST_CMD_0_RDI_OUTPUT_2_MISR_RST;
+
+	writel_relaxed(val, ispif->base + ISPIF_RST_CMD_0);
 
 	time = wait_for_completion_timeout(&ispif->reset_complete,
 		msecs_to_jiffies(ISPIF_RESET_TIMEOUT_MS));
@@ -588,14 +624,12 @@ static int ispif_set_stream(struct v4l2_subdev *sd, int enable)
 	u8 csid = line->csid_id;
 	u8 vfe = line->vfe_id;
 	u8 vc = 0; /* Virtual Channel 0 */
-	u8 cid = vc * 4;
+	u8 cid = vc * 4; /* id of Virtual Channel and Data Type set */
 	int ret;
 
 	if (enable) {
-		if (!media_entity_remote_pad(
-					&line->pads[MSM_ISPIF_PAD_SINK])) {
+		if (!media_entity_remote_pad(&line->pads[MSM_ISPIF_PAD_SINK]))
 			return -ENOLINK;
-		}
 
 		/* Config */
 
@@ -687,8 +721,8 @@ static void ispif_try_format(struct ispif_line *line,
 		fmt->width = clamp_t(u32, fmt->width, 1, 8191);
 		fmt->height = clamp_t(u32, fmt->height, 1, 8191);
 
-		if (fmt->field == V4L2_FIELD_ANY)
-			fmt->field = V4L2_FIELD_NONE;
+		fmt->field = V4L2_FIELD_NONE;
+		fmt->colorspace = V4L2_COLORSPACE_SRGB;
 
 		break;
 
@@ -843,14 +877,16 @@ static int ispif_set_format(struct v4l2_subdev *sd,
  */
 static int ispif_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
 {
-	struct v4l2_subdev_format format;
-
-	memset(&format, 0, sizeof(format));
-	format.pad = MSM_ISPIF_PAD_SINK;
-	format.which = fh ? V4L2_SUBDEV_FORMAT_TRY : V4L2_SUBDEV_FORMAT_ACTIVE;
-	format.format.code = MEDIA_BUS_FMT_UYVY8_2X8;
-	format.format.width = 1920;
-	format.format.height = 1080;
+	struct v4l2_subdev_format format = {
+		.pad = MSM_ISPIF_PAD_SINK,
+		.which = fh ? V4L2_SUBDEV_FORMAT_TRY :
+			      V4L2_SUBDEV_FORMAT_ACTIVE,
+		.format = {
+			.code = MEDIA_BUS_FMT_UYVY8_2X8,
+			.width = 1920,
+			.height = 1080
+		}
+	};
 
 	return ispif_set_format(sd, fh ? fh->pad : NULL, &format);
 }
@@ -863,22 +899,13 @@ static int ispif_init_formats(struct v4l2_subdev *sd, struct v4l2_subdev_fh *fh)
  * Return 0 on success or a negative error code otherwise
  */
 int msm_ispif_subdev_init(struct ispif_device *ispif,
-			  struct resources_ispif *res)
+			  const struct resources_ispif *res)
 {
 	struct device *dev = to_device(ispif);
-	struct platform_device *pdev = container_of(dev, struct platform_device,
-						    dev);
+	struct platform_device *pdev = to_platform_device(dev);
 	struct resource *r;
 	int i;
 	int ret;
-
-	for (i = 0; i < ARRAY_SIZE(ispif->line); i++)
-		ispif->line[i].id = i;
-
-	mutex_init(&ispif->power_lock);
-	ispif->power_count = 0;
-
-	mutex_init(&ispif->config_lock);
 
 	/* Memory */
 
@@ -911,7 +938,7 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 	ret = devm_request_irq(dev, ispif->irq, ispif_isr,
 			       IRQF_TRIGGER_RISING, ispif->irq_name, ispif);
 	if (ret < 0) {
-		dev_err(dev, "request_irq failed\n");
+		dev_err(dev, "request_irq failed: %d\n", ret);
 		return ret;
 	}
 
@@ -957,6 +984,14 @@ int msm_ispif_subdev_init(struct ispif_device *ispif,
 		clock->nfreqs = 0;
 	}
 
+	for (i = 0; i < ARRAY_SIZE(ispif->line); i++)
+		ispif->line[i].id = i;
+
+	mutex_init(&ispif->power_lock);
+	ispif->power_count = 0;
+
+	mutex_init(&ispif->config_lock);
+
 	init_completion(&ispif->reset_complete);
 
 	return 0;
@@ -998,14 +1033,14 @@ static int ispif_link_setup(struct media_entity *entity,
 			    const struct media_pad *remote, u32 flags)
 {
 	if (flags & MEDIA_LNK_FL_ENABLED) {
-		if (media_entity_remote_pad((struct media_pad *)local))
+		if (media_entity_remote_pad(local))
 			return -EBUSY;
 
 		if (local->flags & MEDIA_PAD_FL_SINK) {
 			struct v4l2_subdev *sd;
 			struct ispif_line *line;
 
-			sd = container_of(entity, struct v4l2_subdev, entity);
+			sd = media_entity_to_v4l2_subdev(entity);
 			line = v4l2_get_subdevdata(sd);
 
 			msm_csid_get_csid_id(remote->entity, &line->csid_id);
@@ -1014,7 +1049,7 @@ static int ispif_link_setup(struct media_entity *entity,
 			struct ispif_line *line;
 			enum vfe_line_id id;
 
-			sd = container_of(entity, struct v4l2_subdev, entity);
+			sd = media_entity_to_v4l2_subdev(entity);
 			line = v4l2_get_subdevdata(sd);
 
 			msm_vfe_get_vfe_id(remote->entity, &line->vfe_id);
@@ -1083,7 +1118,7 @@ int msm_ispif_register_entities(struct ispif_device *ispif,
 
 		ret = ispif_init_formats(sd, NULL);
 		if (ret < 0) {
-			dev_err(dev, "Failed to init format\n");
+			dev_err(dev, "Failed to init format: %d\n", ret);
 			goto error;
 		}
 
@@ -1095,13 +1130,13 @@ int msm_ispif_register_entities(struct ispif_device *ispif,
 		ret = media_entity_pads_init(&sd->entity, MSM_ISPIF_PADS_NUM,
 					     pads);
 		if (ret < 0) {
-			dev_err(dev, "Failed to init media entity\n");
+			dev_err(dev, "Failed to init media entity: %d\n", ret);
 			goto error;
 		}
 
 		ret = v4l2_device_register_subdev(v4l2_dev, sd);
 		if (ret < 0) {
-			dev_err(dev, "Failed to register subdev\n");
+			dev_err(dev, "Failed to register subdev: %d\n", ret);
 			media_entity_cleanup(&sd->entity);
 			goto error;
 		}
@@ -1127,6 +1162,9 @@ error:
 void msm_ispif_unregister_entities(struct ispif_device *ispif)
 {
 	int i;
+
+	mutex_destroy(&ispif->power_lock);
+	mutex_destroy(&ispif->config_lock);
 
 	for (i = 0; i < ARRAY_SIZE(ispif->line); i++) {
 		struct v4l2_subdev *sd = &ispif->line[i].subdev;

@@ -67,8 +67,6 @@ obj-$(CONFIG_VIDEO_MEDIATEK_VPU)	+= mtk-vpu/
 
 obj-$(CONFIG_VIDEO_MEDIATEK_VCODEC)	+= mtk-vcodec/
 
-obj-$(CONFIG_MSM_CCI)			+= qcom/cci/
-
 obj-$(CONFIG_VIDEO_QCOM_CAMSS)		+= qcom/camss-8x16/
 
 obj-$(CONFIG_VIDEO_QCOM_VENUS)		+= qcom/venus/

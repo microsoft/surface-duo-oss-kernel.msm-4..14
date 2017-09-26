@@ -34,11 +34,12 @@ driver consists of:
 - ISPIF (ISP Interface) module. Handles the routing of the data streams from
   the CSIDs to the inputs of the VFE;
 - VFE (Video Front End) module. Contains a pipeline of image processing hardware
-  blocks. The VFE has different input interfaces. The PIX input interface feeds
-  the input data to the image processing pipeline. The image processing pipeline
-  contains also a scale and crop module at the end. Three RDI input interfaces
-  bypass the image processing pipeline. The VFE also contains the AXI bus
-  interface which writes the output data to memory.
+  blocks. The VFE has different input interfaces. The PIX (Pixel) input
+  interface feeds the input data to the image processing pipeline. The image
+  processing pipeline contains also a scale and crop module at the end. Three
+  RDI (Raw Dump Interface) input interfaces bypass the image processing
+  pipeline. The VFE also contains the AXI bus interface which writes the output
+  data to memory.
 
 
 Supported functionality
@@ -52,10 +53,14 @@ The current version of the driver supports:
 
   Supported formats:
 
-  - YUYV/UYVY/YVYU/VYUY (packed YUV 4:2:2);
-  - MIPI RAW8 (8bit Bayer RAW);
-  - MIPI RAW10 (10bit packed Bayer RAW);
-  - MIPI RAW12 (12bit packed Bayer RAW).
+  - YUYV/UYVY/YVYU/VYUY (packed YUV 4:2:2 - V4L2_PIX_FMT_YUYV /
+    V4L2_PIX_FMT_UYVY / V4L2_PIX_FMT_YVYU / V4L2_PIX_FMT_VYUY);
+  - MIPI RAW8 (8bit Bayer RAW - V4L2_PIX_FMT_SRGGB8 /
+    V4L2_PIX_FMT_SGRBG8 / V4L2_PIX_FMT_SGBRG8 / V4L2_PIX_FMT_SBGGR8);
+  - MIPI RAW10 (10bit packed Bayer RAW - V4L2_PIX_FMT_SBGGR10P /
+    V4L2_PIX_FMT_SGBRG10P / V4L2_PIX_FMT_SGRBG10P / V4L2_PIX_FMT_SRGGB10P);
+  - MIPI RAW12 (12bit packed Bayer RAW - V4L2_PIX_FMT_SRGGB12P /
+    V4L2_PIX_FMT_SGBRG12P / V4L2_PIX_FMT_SGRBG12P / V4L2_PIX_FMT_SRGGB12P).
 
 - PIX interface of VFE
 
@@ -63,12 +68,13 @@ The current version of the driver supports:
 
     Supported input formats:
 
-    - YUYV/UYVY/YVYU/VYUY (packed YUV 4:2:2).
+    - YUYV/UYVY/YVYU/VYUY (packed YUV 4:2:2 - V4L2_PIX_FMT_YUYV /
+      V4L2_PIX_FMT_UYVY / V4L2_PIX_FMT_YVYU / V4L2_PIX_FMT_VYUY).
 
     Supported output formats:
 
-    - NV12/NV21 (two plane YUV 4:2:0);
-    - NV16/NV61 (two plane YUV 4:2:2).
+    - NV12/NV21 (two plane YUV 4:2:0 - V4L2_PIX_FMT_NV12 / V4L2_PIX_FMT_NV21);
+    - NV16/NV61 (two plane YUV 4:2:2 - V4L2_PIX_FMT_NV16 / V4L2_PIX_FMT_NV61).
 
   - Scaling support. Configuration of the VFE Encoder Scale module
     for downscalling with ratio up to 16x.
@@ -109,23 +115,16 @@ The considerations to split the driver in this particular way are as follows:
 
 Each VFE sub-device is linked to a separate video device node.
 
-The complete list of the media entities (V4L2 sub-devices and video device
-nodes) is as follows:
+The media controller pipeline graph is as follows (with connected two OV5645
+camera sensors):
 
-- msm_csiphy0
-- msm_csiphy1
-- msm_csid0
-- msm_csid1
-- msm_ispif0
-- msm_ispif1
-- msm_vfe0_rdi0
-- msm_vfe0_video0
-- msm_vfe0_rdi1
-- msm_vfe0_video1
-- msm_vfe0_rdi2
-- msm_vfe0_video2
-- msm_vfe0_pix
-- msm_vfe0_video3
+.. _qcom_camss_graph:
+
+.. kernel-figure:: qcom_camss_graph.dot
+    :alt:   qcom_camss_graph.dot
+    :align: center
+
+    Media pipeline graph
 
 
 Implementation

@@ -1,10 +1,10 @@
 /*
- * csiphy.c
+ * camss-csiphy.c
  *
  * Qualcomm MSM Camera Subsystem - CSIPHY Module
  *
  * Copyright (c) 2011-2015, The Linux Foundation. All rights reserved.
- * Copyright (C) 2016 Linaro Ltd.
+ * Copyright (C) 2016-2017 Linaro Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -25,7 +25,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
 
-#include "csiphy.h"
+#include "camss-csiphy.h"
 #include "camss.h"
 
 #define MSM_CSIPHY_NAME "msm_csiphy"
@@ -124,9 +124,11 @@ static u8 csiphy_get_bpp(u32 code)
 
 	for (i = 0; i < ARRAY_SIZE(csiphy_formats); i++)
 		if (code == csiphy_formats[i].code)
-			break;
+			return csiphy_formats[i].bpp;
 
-	return csiphy_formats[i].bpp;
+	WARN(1, "Unknown format\n");
+
+	return csiphy_formats[0].bpp;
 }
 
 /*
@@ -173,16 +175,15 @@ static int csiphy_set_clock_rates(struct csiphy_device *csiphy)
 	for (i = 0; i < csiphy->nclocks; i++) {
 		struct camss_clock *clock = &csiphy->clock[i];
 
-		if (!strcmp(clock->name, "csiphy0_timer_clk") ||
-			!strcmp(clock->name, "csiphy1_timer_clk")) {
+		if (!strcmp(clock->name, "csiphy0_timer") ||
+			!strcmp(clock->name, "csiphy1_timer")) {
 			u8 bpp = csiphy_get_bpp(
 					csiphy->fmt[MSM_CSIPHY_PAD_SINK].code);
 			u8 num_lanes = csiphy->cfg.csi2->lane_cfg.num_data;
 			u64 min_rate = pixel_clock * bpp / (2 * num_lanes * 4);
-			unsigned long rate;
+			long round_rate;
 
-			min_rate = (min_rate * CAMSS_CLOCK_MARGIN_NUMERATOR) /
-						CAMSS_CLOCK_MARGIN_DENOMINATOR;
+			camss_add_clock_margin(&min_rate);
 
 			for (j = 0; j < clock->nfreqs; j++)
 				if (min_rate < clock->freq[j])
@@ -199,15 +200,18 @@ static int csiphy_set_clock_rates(struct csiphy_device *csiphy)
 			if (min_rate == 0)
 				j = clock->nfreqs - 1;
 
-			rate = clk_round_rate(clock->clk, clock->freq[j]);
-			if (rate < 0) {
-				dev_err(dev, "clk round rate failed\n");
+			round_rate = clk_round_rate(clock->clk, clock->freq[j]);
+			if (round_rate < 0) {
+				dev_err(dev, "clk round rate failed: %ld\n",
+					round_rate);
 				return -EINVAL;
 			}
 
-			ret = clk_set_rate(clock->clk, rate);
+			csiphy->timer_clk_rate = round_rate;
+
+			ret = clk_set_rate(clock->clk, csiphy->timer_clk_rate);
 			if (ret < 0) {
-				dev_err(dev, "clk set rate failed\n");
+				dev_err(dev, "clk set rate failed: %d\n", ret);
 				return ret;
 			}
 		}
@@ -238,10 +242,10 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 {
 	struct csiphy_device *csiphy = v4l2_get_subdevdata(sd);
 	struct device *dev = to_device_index(csiphy, csiphy->id);
-	int ret;
 
 	if (on) {
 		u8 hw_version;
+		int ret;
 
 		ret = csiphy_set_clock_rates(csiphy);
 		if (ret < 0)
@@ -287,18 +291,77 @@ static u8 csiphy_get_lane_mask(struct csiphy_lanes_cfg *lane_cfg)
 }
 
 /*
+ * csiphy_settle_cnt_calc - Calculate settle count value
+ * @csiphy: CSIPHY device
+ *
+ * Helper function to calculate settle count value. This is
+ * based on the CSI2 T_hs_settle parameter which in turn
+ * is calculated based on the CSI2 transmitter pixel clock
+ * frequency.
+ *
+ * Return settle count value or 0 if the CSI2 pixel clock
+ * frequency is not available
+ */
+static u8 csiphy_settle_cnt_calc(struct csiphy_device *csiphy)
+{
+	u8 bpp = csiphy_get_bpp(
+			csiphy->fmt[MSM_CSIPHY_PAD_SINK].code);
+	u8 num_lanes = csiphy->cfg.csi2->lane_cfg.num_data;
+	u32 pixel_clock; /* Hz */
+	u32 mipi_clock; /* Hz */
+	u32 ui; /* ps */
+	u32 timer_period; /* ps */
+	u32 t_hs_prepare_max; /* ps */
+	u32 t_hs_prepare_zero_min; /* ps */
+	u32 t_hs_settle; /* ps */
+	u8 settle_cnt;
+	int ret;
+
+	ret = camss_get_pixel_clock(&csiphy->subdev.entity, &pixel_clock);
+	if (ret) {
+		dev_err(to_device_index(csiphy, csiphy->id),
+			"Cannot get CSI2 transmitter's pixel clock\n");
+		return 0;
+	}
+	if (!pixel_clock) {
+		dev_err(to_device_index(csiphy, csiphy->id),
+			"Got pixel clock == 0, cannot continue\n");
+		return 0;
+	}
+
+	mipi_clock = pixel_clock * bpp / (2 * num_lanes);
+	ui = div_u64(1000000000000LL, mipi_clock);
+	ui /= 2;
+	t_hs_prepare_max = 85000 + 6 * ui;
+	t_hs_prepare_zero_min = 145000 + 10 * ui;
+	t_hs_settle = (t_hs_prepare_max + t_hs_prepare_zero_min) / 2;
+
+	timer_period = div_u64(1000000000000LL, csiphy->timer_clk_rate);
+	settle_cnt = t_hs_settle / timer_period;
+
+	return settle_cnt;
+}
+
+/*
  * csiphy_stream_on - Enable streaming on CSIPHY module
  * @csiphy: CSIPHY device
  *
  * Helper function to enable streaming on CSIPHY module.
  * Main configuration of CSIPHY module is also done here.
+ *
+ * Return 0 on success or a negative error code otherwise
  */
-static void csiphy_stream_on(struct csiphy_device *csiphy)
+static int csiphy_stream_on(struct csiphy_device *csiphy)
 {
 	struct csiphy_config *cfg = &csiphy->cfg;
 	u8 lane_mask = csiphy_get_lane_mask(&cfg->csi2->lane_cfg);
+	u8 settle_cnt;
 	u8 val;
 	int i = 0;
+
+	settle_cnt = csiphy_settle_cnt_calc(csiphy);
+	if (!settle_cnt)
+		return -EINVAL;
 
 	val = readl_relaxed(csiphy->base_clk_mux);
 	if (cfg->combo_mode && (lane_mask & 0x18) == 0x18) {
@@ -326,7 +389,7 @@ static void csiphy_stream_on(struct csiphy_device *csiphy)
 		if (lane_mask & 0x1) {
 			writel_relaxed(0x10, csiphy->base +
 				       CAMSS_CSI_PHY_LNn_CFG2(i));
-			writel_relaxed(cfg->csi2->settle_cnt, csiphy->base +
+			writel_relaxed(settle_cnt, csiphy->base +
 				       CAMSS_CSI_PHY_LNn_CFG3(i));
 			writel_relaxed(0x3f, csiphy->base +
 				       CAMSS_CSI_PHY_INTERRUPT_MASKn(i));
@@ -337,6 +400,8 @@ static void csiphy_stream_on(struct csiphy_device *csiphy)
 		lane_mask >>= 1;
 		i++;
 	}
+
+	return 0;
 }
 
 /*
@@ -368,18 +433,19 @@ static void csiphy_stream_off(struct csiphy_device *csiphy)
  * @sd: CSIPHY V4L2 subdevice
  * @enable: Requested streaming state
  *
- * Return 0 (awlays succeeds)
+ * Return 0 on success or a negative error code otherwise
  */
 static int csiphy_set_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct csiphy_device *csiphy = v4l2_get_subdevdata(sd);
+	int ret = 0;
 
 	if (enable)
-		csiphy_stream_on(csiphy);
+		ret = csiphy_stream_on(csiphy);
 	else
 		csiphy_stream_off(csiphy);
 
-	return 0;
+	return ret;
 }
 
 /*
@@ -434,9 +500,7 @@ static void csiphy_try_format(struct csiphy_device *csiphy,
 		fmt->width = clamp_t(u32, fmt->width, 1, 8191);
 		fmt->height = clamp_t(u32, fmt->height, 1, 8191);
 
-		if (fmt->field == V4L2_FIELD_ANY)
-			fmt->field = V4L2_FIELD_NONE;
-
+		fmt->field = V4L2_FIELD_NONE;
 		fmt->colorspace = V4L2_COLORSPACE_SRGB;
 
 		break;
@@ -591,14 +655,16 @@ static int csiphy_set_format(struct v4l2_subdev *sd,
 static int csiphy_init_formats(struct v4l2_subdev *sd,
 			       struct v4l2_subdev_fh *fh)
 {
-	struct v4l2_subdev_format format;
-
-	memset(&format, 0, sizeof(format));
-	format.pad = MSM_CSIPHY_PAD_SINK;
-	format.which = fh ? V4L2_SUBDEV_FORMAT_TRY : V4L2_SUBDEV_FORMAT_ACTIVE;
-	format.format.code = MEDIA_BUS_FMT_UYVY8_2X8;
-	format.format.width = 1920;
-	format.format.height = 1080;
+	struct v4l2_subdev_format format = {
+		.pad = MSM_CSIPHY_PAD_SINK,
+		.which = fh ? V4L2_SUBDEV_FORMAT_TRY :
+			      V4L2_SUBDEV_FORMAT_ACTIVE,
+		.format = {
+			.code = MEDIA_BUS_FMT_UYVY8_2X8,
+			.width = 1920,
+			.height = 1080
+		}
+	};
 
 	return csiphy_set_format(sd, fh ? fh->pad : NULL, &format);
 }
@@ -612,11 +678,10 @@ static int csiphy_init_formats(struct v4l2_subdev *sd,
  * Return 0 on success or a negative error code otherwise
  */
 int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
-			   struct resources *res, u8 id)
+			   const struct resources *res, u8 id)
 {
 	struct device *dev = to_device_index(csiphy, id);
-	struct platform_device *pdev = container_of(dev,
-						struct platform_device, dev);
+	struct platform_device *pdev = to_platform_device(dev);
 	struct resource *r;
 	int i, j;
 	int ret;
@@ -655,7 +720,7 @@ int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
 	ret = devm_request_irq(dev, csiphy->irq, csiphy_isr,
 			       IRQF_TRIGGER_RISING, csiphy->irq_name, csiphy);
 	if (ret < 0) {
-		dev_err(dev, "request_irq failed\n");
+		dev_err(dev, "request_irq failed: %d\n", ret);
 		return ret;
 	}
 
@@ -721,13 +786,13 @@ static int csiphy_link_setup(struct media_entity *entity,
 		struct csiphy_device *csiphy;
 		struct csid_device *csid;
 
-		if (media_entity_remote_pad((struct media_pad *)local))
+		if (media_entity_remote_pad(local))
 			return -EBUSY;
 
-		sd = container_of(entity, struct v4l2_subdev, entity);
+		sd = media_entity_to_v4l2_subdev(entity);
 		csiphy = v4l2_get_subdevdata(sd);
 
-		sd = container_of(remote->entity, struct v4l2_subdev, entity);
+		sd = media_entity_to_v4l2_subdev(remote->entity);
 		csid = v4l2_get_subdevdata(sd);
 
 		csiphy->cfg.csid_id = csid->id;
@@ -790,7 +855,7 @@ int msm_csiphy_register_entity(struct csiphy_device *csiphy,
 
 	ret = csiphy_init_formats(sd, NULL);
 	if (ret < 0) {
-		dev_err(dev, "Failed to init format\n");
+		dev_err(dev, "Failed to init format: %d\n", ret);
 		return ret;
 	}
 
@@ -801,13 +866,13 @@ int msm_csiphy_register_entity(struct csiphy_device *csiphy,
 	sd->entity.ops = &csiphy_media_ops;
 	ret = media_entity_pads_init(&sd->entity, MSM_CSIPHY_PADS_NUM, pads);
 	if (ret < 0) {
-		dev_err(dev, "Failed to init media entity\n");
+		dev_err(dev, "Failed to init media entity: %d\n", ret);
 		return ret;
 	}
 
 	ret = v4l2_device_register_subdev(v4l2_dev, sd);
 	if (ret < 0) {
-		dev_err(dev, "Failed to register subdev\n");
+		dev_err(dev, "Failed to register subdev: %d\n", ret);
 		media_entity_cleanup(&sd->entity);
 	}
 
@@ -821,4 +886,5 @@ int msm_csiphy_register_entity(struct csiphy_device *csiphy,
 void msm_csiphy_unregister_entity(struct csiphy_device *csiphy)
 {
 	v4l2_device_unregister_subdev(&csiphy->subdev);
+	media_entity_cleanup(&csiphy->subdev.entity);
 }

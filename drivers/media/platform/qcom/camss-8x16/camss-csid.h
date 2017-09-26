@@ -1,10 +1,10 @@
 /*
- * csid.h
+ * camss-csid.h
  *
- * Qualcomm MSM Camera Subsystem - CSID Module
+ * Qualcomm MSM Camera Subsystem - CSID (CSI Decoder) Module
  *
  * Copyright (c) 2011-2014, The Linux Foundation. All rights reserved.
- * Copyright (C) 2015-2016 Linaro Ltd.
+ * Copyright (C) 2015-2017 Linaro Ltd.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -70,7 +70,7 @@ struct csid_device {
 struct resources;
 
 int msm_csid_subdev_init(struct csid_device *csid,
-			 struct resources *res, u8 id);
+			 const struct resources *res, u8 id);
 
 int msm_csid_register_entity(struct csid_device *csid,
 			     struct v4l2_device *v4l2_dev);
