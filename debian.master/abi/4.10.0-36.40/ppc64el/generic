@@ -8605,6 +8605,7 @@ EXPORT_SYMBOL vmlinux 0x00000000	of_n_addr_cells
 EXPORT_SYMBOL vmlinux 0x00000000	of_n_size_cells
 EXPORT_SYMBOL vmlinux 0x00000000	of_node_get
 EXPORT_SYMBOL vmlinux 0x00000000	of_node_put
+EXPORT_SYMBOL vmlinux 0x00000000	of_node_to_nid
 EXPORT_SYMBOL vmlinux 0x00000000	of_parse_phandle
 EXPORT_SYMBOL vmlinux 0x00000000	of_parse_phandle_with_args
 EXPORT_SYMBOL vmlinux 0x00000000	of_parse_phandle_with_fixed_args
@@ -17991,7 +17992,6 @@ EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_irq_to_resource_table
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_modalias_node
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_mpc8xxx_spi_probe
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_msi_configure
-EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_node_to_nid
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_overlay_create
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_overlay_destroy
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	of_overlay_destroy_all
