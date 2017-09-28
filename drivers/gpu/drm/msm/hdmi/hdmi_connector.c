@@ -446,8 +446,7 @@ struct drm_connector *msm_hdmi_connector_init(struct hdmi *hdmi)
 				    hdmi->i2c);
 	drm_connector_helper_add(connector, &msm_hdmi_connector_helper_funcs);
 
-	connector->polled = DRM_CONNECTOR_POLL_CONNECT |
-			DRM_CONNECTOR_POLL_DISCONNECT;
+	connector->polled = DRM_CONNECTOR_POLL_HPD;
 
 	connector->interlace_allowed = 0;
 	connector->doublescan_allowed = 0;
