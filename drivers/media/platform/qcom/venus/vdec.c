@@ -145,9 +145,11 @@ find_format_by_index(struct venus_inst *inst, unsigned int index, u32 type)
 	if (i == size)
 		return NULL;
 
+#if 0
 	if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE &&
 	    !venus_helper_check_codec(inst, fmt->pixfmt))
 		return NULL;
+#endif
 
 	return &fmt[i];
 }
@@ -489,7 +491,6 @@ vdec_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder_cmd *cmd)
 	inst->cmd_stop = true;
 	mutex_unlock(&inst->lock);
 
-	hfi_session_flush(inst);
 
 	return 0;
 }
