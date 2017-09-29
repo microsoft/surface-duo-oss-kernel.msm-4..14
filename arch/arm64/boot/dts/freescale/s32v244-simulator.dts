@@ -8,7 +8,7 @@
  */
 
 /dts-v1/;
-#include "s32xxxx-gen1.dtsi"
+#include "s32-gen1.dtsi"
 / {
 	model = "Freescale S32V244";
 	compatible = "fsl,s32v244-simu", "fsl,s32v244",
