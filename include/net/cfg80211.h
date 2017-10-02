@@ -4347,19 +4347,6 @@ static inline int ieee80211_data_to_8023(struct sk_buff *skb, const u8 *addr,
 }
 
 /**
- * ieee80211_data_from_8023 - convert an 802.3 frame to 802.11
- * @skb: the 802.3 frame
- * @addr: the device MAC address
- * @iftype: the virtual interface type
- * @bssid: the network bssid (used only for iftype STATION and ADHOC)
- * @qos: build 802.11 QoS data frame
- * Return: 0 on success, or a negative error code.
- */
-int ieee80211_data_from_8023(struct sk_buff *skb, const u8 *addr,
-			     enum nl80211_iftype iftype, const u8 *bssid,
-			     bool qos);
-
-/**
  * ieee80211_amsdu_to_8023s - decode an IEEE 802.11n A-MSDU frame
  *
  * Decode an IEEE 802.11 A-MSDU and convert it to a list of 802.3 frames.
@@ -5934,7 +5921,8 @@ int cfg80211_get_p2p_attr(const u8 *ies, unsigned int len,
  * @ies: the IE buffer
  * @ielen: the length of the IE buffer
  * @ids: an array with element IDs that are allowed before
- *	the split
+ *	the split. A WLAN_EID_EXTENSION value means that the next
+ *	EID in the list is a sub-element of the EXTENSION IE.
  * @n_ids: the size of the element ID array
  * @after_ric: array IE types that come after the RIC element
  * @n_after_ric: size of the @after_ric array
@@ -5965,7 +5953,8 @@ size_t ieee80211_ie_split_ric(const u8 *ies, size_t ielen,
  * @ies: the IE buffer
  * @ielen: the length of the IE buffer
  * @ids: an array with element IDs that are allowed before
- *	the split
+ *	the split. A WLAN_EID_EXTENSION value means that the next
+ *	EID in the list is a sub-element of the EXTENSION IE.
  * @n_ids: the size of the element ID array
  * @offset: offset where to start splitting in the buffer
  *
