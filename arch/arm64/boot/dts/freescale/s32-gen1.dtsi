@@ -15,6 +15,13 @@
 	#address-cells = <2>;
 	#size-cells = <2>;
 
+	aliases {
+		serial0 = &uart0;
+		serial1 = &uart1;
+		serial2 = &uart2;
+	};
+
+
 	cpus {
 		#address-cells = <2>;
 		#size-cells = <0>;
@@ -78,6 +85,30 @@
 		      <0 0x50410000 0 0x2000>,
 		      <0 0x50420000 0 0x2000>;
 		interrupts = <1 9 0xf04>;
+	};
+
+	uart0:serial@40168000 {
+		compatible = "fsl,s32-linflexuart";
+		reg = <0x0 0x40168000 0x0 0x1000>;
+		interrupts = <0 82 1>;
+		clocks = <&sysclk>, <&sysclk>;
+		clock-names = "lin", "ipg";
+	};
+
+	uart1:serial@40169000 {
+		compatible = "fsl,s32-linflexuart";
+		reg = <0x0 0x40169000 0x0 0x1000>;
+		interrupts = <0 83 1>;
+		clocks = <&sysclk>, <&sysclk>;
+		clock-names = "lin", "ipg";
+	};
+
+	uart2:serial@40268000 {
+		compatible = "fsl,s32-linflexuart";
+		reg = <0x0 0x40268000 0x0 0x1000>;
+		interrupts = <0 84 1>;
+		clocks = <&sysclk>, <&sysclk>;
+		clock-names = "lin", "ipg";
 	};
 
 	memory_DDR0@80000000 {
