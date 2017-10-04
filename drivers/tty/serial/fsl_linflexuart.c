@@ -144,7 +144,7 @@
 
 #define DRIVER_NAME	"fsl-linflexuart"
 #define DEV_NAME	"ttyLF"
-#define UART_NR		2
+#define UART_NR		4
 
 #define prd_info(a)	;//pr_info(a);
 
@@ -1259,6 +1259,12 @@ static int linflex_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed to get alias id, errno %d\n", ret);
 		return ret;
 	}
+	if (ret >= UART_NR) {
+		dev_err(&pdev->dev, "driver limited to %d serial ports\n",
+				UART_NR);
+		return -ENOMEM;
+	}
+
 	sport->port.line = ret;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
