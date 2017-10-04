@@ -175,7 +175,7 @@ struct linflex_port {
 
 static const struct of_device_id linflex_dt_ids[] = {
 	{
-		.compatible = "fsl,s32v234-linflexuart",
+		.compatible = "fsl,s32-linflexuart",
 	},
 	{ /* sentinel */ }
 };

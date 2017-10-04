@@ -114,7 +114,7 @@ soc {
 			ranges;
 
 			imx_serial0:serial@40053000 {
-				compatible = "fsl,s32v234-linflexuart";
+				compatible = "fsl,s32-linflexuart";
 				reg = <0x0 0x40053000 0x0 0x1000>;
 				interrupts = <0 59 4>;
 				clocks = <&v2m_oscclk2>, <&p9_smbclk>;
