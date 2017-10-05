@@ -1547,7 +1547,6 @@ htu21
 huawei_cdc_ncm
 hv_balloon
 hv_netvsc
-hv_network_direct
 hv_storvsc
 hv_utils
 hv_vmbus

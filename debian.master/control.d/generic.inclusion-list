@@ -49,7 +49,6 @@ drivers/infiniband/core/iw_cm.ko
 drivers/infiniband/core/rdma_cm.ko
 drivers/infiniband/ulp/iser/ib_iser.ko
 drivers/infiniband/ulp/isert/ib_isert.ko
-drivers/infiniband/hw/vmbus-rdma/hv_network_direct.ko
 drivers/input/evbug.ko
 drivers/input/gameport/gameport.ko
 drivers/input/input-leds.ko

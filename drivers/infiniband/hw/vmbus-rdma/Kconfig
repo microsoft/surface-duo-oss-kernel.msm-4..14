@@ -1,5 +1,0 @@
-config HYPERV_INFINIBAND_ND 
-	tristate "Microsoft Hyper-V Network Direct"
-	depends on PCI && INET && INFINIBAND && HYPERV && X86_64
-	---help---
-	  This is a low-level driver for Vmbus based NetworkDirect. 
