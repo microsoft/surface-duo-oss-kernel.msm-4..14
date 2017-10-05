@@ -118,7 +118,7 @@ find_format(struct venus_inst *inst, u32 pixfmt, u32 type)
 		return NULL;
 
 	if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE &&
-	    !venus_helper_check_codec(inst, pixfmt))
+	    !venus_helper_check_codec(inst, fmt[i].pixfmt))
 		return NULL;
 
 	return &fmt[i];
@@ -146,7 +146,7 @@ find_format_by_index(struct venus_inst *inst, unsigned int index, u32 type)
 		return NULL;
 
 	if (type == V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE &&
-	    !venus_helper_check_codec(inst, fmt->pixfmt))
+	    !venus_helper_check_codec(inst, fmt[i].pixfmt))
 		return NULL;
 
 	return &fmt[i];
@@ -1114,8 +1114,7 @@ static int vdec_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-static int vdec_runtime_suspend(struct device *dev)
+static __maybe_unused int vdec_runtime_suspend(struct device *dev)
 {
 	struct venus_core *core = dev_get_drvdata(dev);
 
@@ -1129,7 +1128,7 @@ static int vdec_runtime_suspend(struct device *dev)
 	return 0;
 }
 
-static int vdec_runtime_resume(struct device *dev)
+static __maybe_unused int vdec_runtime_resume(struct device *dev)
 {
 	struct venus_core *core = dev_get_drvdata(dev);
 	int ret;
@@ -1143,7 +1142,6 @@ static int vdec_runtime_resume(struct device *dev)
 
 	return ret;
 }
-#endif
 
 static const struct dev_pm_ops vdec_pm_ops = {
 	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
