@@ -301,6 +301,7 @@
 					ov5645_ep: endpoint {
 						clock-lanes = <1>;
 						data-lanes = <0 2>;
+						remote-endpoint = <&csiphy0_ep>;
 					};
 				};
 			};
@@ -326,6 +327,7 @@
 					ov5645_2_ep: endpoint {
 						clock-lanes = <1>;
 						data-lanes = <0 2>;
+						remote-endpoint = <&csiphy1_ep>;
 					};
 				};
 			};
@@ -351,6 +353,40 @@
 					ov5645_3_ep: endpoint {
 						clock-lanes = <1>;
 						data-lanes = <0 2>;
+						remote-endpoint = <&csiphy2_ep>;
+					};
+				};
+			};
+		};
+
+		camss@a00000 {
+			status = "ok";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					csiphy0_ep: endpoint {
+						clock-lanes = <7>;
+						data-lanes = <0 1>;
+						remote-endpoint = <&ov5645_ep>;
+					};
+				};
+				port@1 {
+					reg = <1>;
+					csiphy1_ep: endpoint {
+						clock-lanes = <7>;
+						data-lanes = <0 1>;
+						remote-endpoint = <&ov5645_2_ep>;
+					};
+				};
+				port@2 {
+					reg = <2>;
+					csiphy2_ep: endpoint {
+						clock-lanes = <7>;
+						data-lanes = <0 1>;
+						remote-endpoint = <&ov5645_3_ep>;
 					};
 				};
 			};
