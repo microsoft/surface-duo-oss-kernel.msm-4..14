@@ -26,6 +26,14 @@ struct platform_device juno_device_ion = {
         .id             = -1,
 };
 
+static struct ion_cpa_platform_data cpa_config = {
+	.lowmark = 8,
+	.highmark = 128,
+	.fillmark = 64,
+	.align_order = 0,
+	.order = 9,
+};
+
 struct ion_platform_heap juno_heaps[] = {
 		{
 			.id	= ION_HEAP_TYPE_SYSTEM,
@@ -47,6 +55,7 @@ struct ion_platform_heap juno_heaps[] = {
 			.id = ION_HEAP_TYPE_COMPOUND_PAGE,
 			.type = ION_HEAP_TYPE_COMPOUND_PAGE,
 			.name = "compound_page",
+			.priv = &cpa_config,
 		}
 
 };
