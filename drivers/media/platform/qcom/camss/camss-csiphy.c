@@ -163,7 +163,7 @@ static irqreturn_t csiphy_isr(int irq, void *dev)
  */
 static int csiphy_set_clock_rates(struct csiphy_device *csiphy)
 {
-	struct device *dev = to_device_index(csiphy, csiphy->id);
+	struct device *dev = csiphy->camss->dev;
 	u32 pixel_clock;
 	int i, j;
 	int ret;
@@ -241,7 +241,7 @@ static void csiphy_reset(struct csiphy_device *csiphy)
 static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 {
 	struct csiphy_device *csiphy = v4l2_get_subdevdata(sd);
-	struct device *dev = to_device_index(csiphy, csiphy->id);
+	struct device *dev = csiphy->camss->dev;
 
 	if (on) {
 		u8 hw_version;
@@ -319,12 +319,12 @@ static u8 csiphy_settle_cnt_calc(struct csiphy_device *csiphy)
 
 	ret = camss_get_pixel_clock(&csiphy->subdev.entity, &pixel_clock);
 	if (ret) {
-		dev_err(to_device_index(csiphy, csiphy->id),
+		dev_err(csiphy->camss->dev,
 			"Cannot get CSI2 transmitter's pixel clock\n");
 		return 0;
 	}
 	if (!pixel_clock) {
-		dev_err(to_device_index(csiphy, csiphy->id),
+		dev_err(csiphy->camss->dev,
 			"Got pixel clock == 0, cannot continue\n");
 		return 0;
 	}
@@ -678,15 +678,17 @@ static int csiphy_init_formats(struct v4l2_subdev *sd,
  *
  * Return 0 on success or a negative error code otherwise
  */
-int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
+int msm_csiphy_subdev_init(struct camss *camss,
+			   struct csiphy_device *csiphy,
 			   const struct resources *res, u8 id)
 {
-	struct device *dev = to_device_index(csiphy, id);
+	struct device *dev = camss->dev;
 	struct platform_device *pdev = to_platform_device(dev);
 	struct resource *r;
 	int i, j;
 	int ret;
 
+	csiphy->camss = camss;
 	csiphy->id = id;
 	csiphy->cfg.combo_mode = 0;
 
@@ -844,7 +846,7 @@ int msm_csiphy_register_entity(struct csiphy_device *csiphy,
 {
 	struct v4l2_subdev *sd = &csiphy->subdev;
 	struct media_pad *pads = csiphy->pads;
-	struct device *dev = to_device_index(csiphy, csiphy->id);
+	struct device *dev = csiphy->camss->dev;
 	int ret;
 
 	v4l2_subdev_init(sd, &csiphy_v4l2_ops);

@@ -31,9 +31,6 @@
 #include "camss-ispif.h"
 #include "camss-vfe.h"
 
-#define CAMSS_CSID_NUM 2
-#define CAMSS_CSIPHY_NUM 2
-
 #define to_camss(ptr_module)	\
 	container_of(ptr_module, struct camss, ptr_module)
 
@@ -50,7 +47,7 @@
 #define to_device_index(ptr_module, index)	\
 	(to_camss_index(ptr_module, index)->dev)
 
-#define CAMSS_RES_MAX 15
+#define CAMSS_RES_MAX 17
 
 struct resources {
 	char *regulator[CAMSS_RES_MAX];
@@ -67,13 +64,21 @@ struct resources_ispif {
 	char *interrupt;
 };
 
+enum camss_version {
+	CAMSS_8x16,
+	CAMSS_8x96,
+};
+
 struct camss {
+	enum camss_version version;
 	struct v4l2_device v4l2_dev;
 	struct v4l2_async_notifier notifier;
 	struct media_device media_dev;
 	struct device *dev;
-	struct csiphy_device csiphy[CAMSS_CSIPHY_NUM];
-	struct csid_device csid[CAMSS_CSID_NUM];
+	int csiphy_num;
+	struct csiphy_device *csiphy;
+	int csid_num;
+	struct csid_device *csid;
 	struct ispif_device ispif;
 	struct vfe_device vfe;
 	atomic_t ref_count;
