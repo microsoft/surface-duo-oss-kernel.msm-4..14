@@ -170,10 +170,14 @@ static int seccomp_check_filter(struct sock_filter *filter, unsigned int flen)
 /**
  * seccomp_run_filters - evaluates all seccomp filters against @syscall
  * @syscall: number of the current system call
+ * @match: stores struct seccomp_filter that resulted in the return value,
+ *         unless filter returned SECCOMP_RET_ALLOW, in which case it will
+ *         be unchanged.
  *
  * Returns valid seccomp BPF response codes.
  */
-static u32 seccomp_run_filters(struct seccomp_data *sd)
+static u32 seccomp_run_filters(struct seccomp_data *sd,
+			       struct seccomp_filter **match)
 {
 	struct seccomp_data sd_local;
 	u32 ret = SECCOMP_RET_ALLOW;
@@ -197,8 +201,10 @@ static u32 seccomp_run_filters(struct seccomp_data *sd)
 	for (; f; f = f->prev) {
 		u32 cur_ret = BPF_PROG_RUN(f->prog, (void *)sd);
 
-		if ((cur_ret & SECCOMP_RET_ACTION) < (ret & SECCOMP_RET_ACTION))
+		if ((cur_ret & SECCOMP_RET_ACTION) < (ret & SECCOMP_RET_ACTION)) {
 			ret = cur_ret;
+			*match = f;
+		}
 	}
 	return ret;
 }
@@ -586,6 +592,7 @@ int __secure_computing(void)
 static u32 __seccomp_phase1_filter(int this_syscall, struct seccomp_data *sd)
 {
 	u32 filter_ret, action;
+	struct seccomp_filter *match = NULL;
 	int data;
 
 	/*
@@ -594,7 +601,7 @@ static u32 __seccomp_phase1_filter(int this_syscall, struct seccomp_data *sd)
 	 */
 	rmb();
 
-	filter_ret = seccomp_run_filters(sd);
+	filter_ret = seccomp_run_filters(sd, &match);
 	data = filter_ret & SECCOMP_RET_DATA;
 	action = filter_ret & SECCOMP_RET_ACTION;
 
@@ -618,6 +625,11 @@ static u32 __seccomp_phase1_filter(int this_syscall, struct seccomp_data *sd)
 		return filter_ret;  /* Save the rest for phase 2. */
 
 	case SECCOMP_RET_ALLOW:
+		/*
+		 * Note that the "match" filter will always be NULL for
+		 * this action since SECCOMP_RET_ALLOW is the starting
+		 * state in seccomp_run_filters().
+		 */
 		return SECCOMP_PHASE1_OK;
 
 	case SECCOMP_RET_KILL:
