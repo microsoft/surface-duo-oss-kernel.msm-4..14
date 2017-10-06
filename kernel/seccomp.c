@@ -42,6 +42,7 @@
  *         get/put helpers should be used when accessing an instance
  *         outside of a lifetime-guarded section.  In general, this
  *         is only needed for handling filters shared across tasks.
+ * @log: true if all actions except for SECCOMP_RET_ALLOW should be logged
  * @prev: points to a previously installed, or inherited, filter
  * @prog: the BPF program to evaluate
  *
@@ -57,6 +58,7 @@
  */
 struct seccomp_filter {
 	atomic_t usage;
+	bool log;
 	struct seccomp_filter *prev;
 	struct bpf_prog *prog;
 };
@@ -450,6 +452,10 @@ static long seccomp_attach_filter(unsigned int flags,
 			return ret;
 	}
 
+	/* Set log flag, if present. */
+	if (flags & SECCOMP_FILTER_FLAG_LOG)
+		filter->log = true;
+
 	/*
 	 * If there is an existing filter, make it the prev and don't drop its
 	 * task reference.
@@ -525,15 +531,22 @@ static void seccomp_send_sigsys(int syscall, int reason)
 static u32 seccomp_actions_logged = SECCOMP_LOG_KILL  | SECCOMP_LOG_TRAP  |
 				    SECCOMP_LOG_ERRNO | SECCOMP_LOG_TRACE;
 
-static inline void seccomp_log(unsigned long syscall, long signr, u32 action)
+static inline void seccomp_log(unsigned long syscall, long signr, u32 action,
+			       bool requested)
 {
 	bool log = false;
 
 	switch (action) {
 	case SECCOMP_RET_ALLOW:
+		break;
 	case SECCOMP_RET_TRAP:
+		log = requested && seccomp_actions_logged & SECCOMP_LOG_TRAP;
+		break;
 	case SECCOMP_RET_ERRNO:
+		log = requested && seccomp_actions_logged & SECCOMP_LOG_ERRNO;
+		break;
 	case SECCOMP_RET_TRACE:
+		log = requested && seccomp_actions_logged & SECCOMP_LOG_TRACE;
 		break;
 	case SECCOMP_RET_KILL:
 	default:
@@ -541,8 +554,9 @@ static inline void seccomp_log(unsigned long syscall, long signr, u32 action)
 	}
 
 	/*
-	 * Force an audit message to be emitted when the action is RET_KILL and
-	 * the action is allowed to be logged by the admin.
+	 * Force an audit message to be emitted when the action is RET_KILL or
+	 * the FILTER_FLAG_LOG bit was set and the action is allowed to be
+	 * logged by the admin.
 	 */
 	if (log)
 		return __audit_seccomp(syscall, signr, action);
@@ -579,7 +593,7 @@ static void __secure_computing_strict(int this_syscall)
 #ifdef SECCOMP_DEBUG
 	dump_stack();
 #endif
-	seccomp_log(this_syscall, SIGKILL, SECCOMP_RET_KILL);
+	seccomp_log(this_syscall, SIGKILL, SECCOMP_RET_KILL, true);
 	do_exit(SIGKILL);
 }
 
@@ -688,14 +702,14 @@ static int __seccomp_filter(int this_syscall, const struct seccomp_data *sd,
 
 	case SECCOMP_RET_KILL:
 	default:
-		seccomp_log(this_syscall, SIGSYS, action);
+		seccomp_log(this_syscall, SIGSYS, action, true);
 		do_exit(SIGSYS);
 	}
 
 	unreachable();
 
 skip:
-	seccomp_log(this_syscall, 0, action);
+	seccomp_log(this_syscall, 0, action, match ? match->log : false);
 	return -1;
 }
 #else
