@@ -1,6 +1,6 @@
 /*********************************************************************
 *
-* (C) Copyright Broadcom Corporation 2013-2016
+* (C) Copyright Broadcom Corporation 2013-2017
 *
 *  Licensed under the Apache License, Version 2.0 (the "License");
 *  you may not use this file except in compliance with the License.
@@ -24,6 +24,8 @@
 #ifndef DRIVER_H
 #define DRIVER_H
 
+#define OPENNSL_F_FAST_BOOT   0x00000001  /* Fast boot mode */
+
 typedef struct opennsl_config_s
 {
   char         *cfg_fname;  /* Configuration file name along with the path */
@@ -31,6 +33,9 @@ typedef struct opennsl_config_s
   char         *wb_fname;   /* File to store warmboot configuration *
                             * along with the path */
   char         *rmcfg_fname; /* RM config file name along with the path */
+  char         *cfg_post_fname;  /* Post init configuration file name *
+                                  * along with the path */
+  unsigned int opennsl_flags;  /* OpenNSL flags */
 } opennsl_init_t;
 
 /*****************************************************************//**
@@ -43,6 +48,13 @@ typedef struct opennsl_config_s
 ********************************************************************/
 extern int opennsl_driver_init(opennsl_init_t *init);
 
+/*****************************************************************//**
+* \brief Function to free up the resources and exit the driver
+*
+* \return OPENNSL_E_XXX     OpenNSL API return code
+********************************************************************/
+extern int opennsl_driver_exit();
+
 /**************************************************************************//**
  * \brief To get platform boot flags
  *
@@ -50,6 +62,7 @@ extern int opennsl_driver_init(opennsl_init_t *init);
  *****************************************************************************/
 extern unsigned int opennsl_driver_boot_flags_get(void);
 
+#ifdef INCLUDE_DIAG_SHELL
 /*****************************************************************//**
 * \brief Bringup diagnostic shell prompt and process the input commands.
 *
@@ -65,6 +78,19 @@ extern int opennsl_driver_shell();
 * \return OPENNSL_E_XXX     OpenNSL API return code
 ********************************************************************/
 extern int opennsl_driver_process_command(char *commandBuf);
+#endif
 
+/*****************************************************************//**
+* \brief Get a line from a user with editing
+*
+* \param prompt    [IN]    prompt string
+*
+* \return char*     NULL, if the line is empty
+*                   empty string, if the line is blank
+*                   text of the line read, otherwise.
+********************************************************************/
 extern char *readline(const char *prompt);
+
+extern void platform_phy_cleanup();
+
 #endif  /* DRIVER_H */

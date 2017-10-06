@@ -2,7 +2,7 @@
 # Makefile for OpenNSL drivers
 #
 
-SDK=OpenNSL/sdk-6.4.10-gpl-modules
+SDK=OpenNSL/sdk-6.5.10-gpl-modules
 OP=ubuntu/opennsl/$(SDK)
 
 ccflags-y += \
@@ -25,6 +25,7 @@ linux-bcm-knet-objs := \
 obj-$(CONFIG_OPENNSL_KERNEL_BDE) += linux-kernel-bde.o
 
 linux-kernel-bde-objs := \
+	$(SDK)/systems/bde/linux/kernel/linux_dma.o \
 	$(SDK)/systems/bde/linux/kernel/linux-kernel-bde.o \
 	$(SDK)/systems/bde/linux/kernel/linux_shbde.o \
 	$(SDK)/systems/bde/linux/shared/mpool.o \

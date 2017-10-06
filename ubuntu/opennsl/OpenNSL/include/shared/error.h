@@ -87,6 +87,10 @@ extern char *_shr_errmsg[];
 
 #define _SHR_E_IF_ERROR_RETURN(op) \
     do { int __rv__; if ((__rv__ = (op)) < 0) { _SHR_ERROR_TRACE(__rv__);  return(__rv__); } } while(0)
+
+#define _SHR_E_IF_ERROR_CLEAN_RETURN(op,exop) \
+    do { int __rv__; if ((__rv__ = (op)) < 0) { _SHR_ERROR_TRACE(__rv__); (exop); return(__rv__); } } while(0)
+
 #define _SHR_E_IF_ERROR_NOT_UNAVAIL_RETURN(op)                       \
     do {                                                                \
         int __rv__;                                                     \
@@ -94,6 +98,8 @@ extern char *_shr_errmsg[];
             return(__rv__);                                             \
         }                                                               \
     } while(0)
+
+
 typedef enum {
     _SHR_SWITCH_EVENT_IO_ERROR      = 1,
     _SHR_SWITCH_EVENT_PARITY_ERROR  = 2,
@@ -112,6 +118,7 @@ typedef enum {
     _SHR_SWITCH_EVENT_MMU_BST_TRIGGER = 15,
     _SHR_SWITCH_EVENT_EPON_ALARM = 16,
     _SHR_SWITCH_EVENT_RUNT_DETECT = 17,
+    _SHR_SWITCH_EVENT_AUTONEG_SPEED_ERROR = 18,
     _SHR_SWITCH_EVENT_COUNT             /* last, as always */
 } _shr_switch_event_t;
 

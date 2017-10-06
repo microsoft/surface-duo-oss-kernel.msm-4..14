@@ -1,6 +1,6 @@
 /*********************************************************************
  *
- * (C) Copyright Broadcom Corporation 2013-2016
+ * (C) Copyright Broadcom Corporation 2013-2017
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -115,6 +115,13 @@ typedef enum _shr_port_if_e {
     _SHR_PORT_IF_LR2,
     _SHR_PORT_IF_LRM,
     _SHR_PORT_IF_XLPPI,
+    _SHR_PORT_IF_2500X,
+    _SHR_PORT_IF_SAT,
+    _SHR_PORT_IF_IPSEC,
+    _SHR_PORT_IF_LBG,
+    _SHR_PORT_IF_CAUI4,
+    _SHR_PORT_IF_5000X,
+    _SHR_PORT_IF_EVENTOR,
     _SHR_PORT_IF_COUNT /* last, please */
 } _shr_port_if_t;
 
@@ -172,5 +179,52 @@ typedef enum _shr_port_medium_e {
     _SHR_PORT_MEDIUM_FIBER             = 2,
     _SHR_PORT_MEDIUM_COUNT             /* last, please */
 } _shr_port_medium_t;
+
+/*
+ * Defines:
+ *     _SHR_PORT_PHY_CONTROL_*
+ * Purpose:
+ *     PHY specific control settings
+ */
+typedef enum _shr_port_phy_control_e {
+    _SHR_PORT_PHY_CONTROL_FORWARD_ERROR_CORRECTION = 74,
+    _SHR_PORT_PHY_CONTROL_SOFTWARE_RX_LOS = 214,
+    _SHR_PORT_PHY_CONTROL_SOFTWARE_RX_LOS_LINK_WAIT_TIMER_US = 328,
+    _SHR_PORT_PHY_CONTROL_SOFTWARE_RX_LOS_RESTART_TIMER_US = 329
+} _shr_port_phy_control_t;
+
+/*
+ * Defines:
+ *     _SHR_PORT_PRBS_POLYNOMIAL_*
+ * Purpose:
+ *     PRBS polynomial type
+ */
+typedef enum _shr_port_prbs_polynomial_e {
+    _SHR_PORT_PRBS_POLYNOMIAL_X7_X6_1      = 0,
+    _SHR_PORT_PRBS_POLYNOMIAL_X15_X14_1    = 1,
+    _SHR_PORT_PRBS_POLYNOMIAL_X23_X18_1    = 2,
+    _SHR_PORT_PRBS_POLYNOMIAL_X31_X28_1    = 3,
+    _SHR_PORT_PRBS_POLYNOMIAL_X9_X5_1      = 4,
+    _SHR_PORT_PRBS_POLYNOMIAL_X11_X9_1     = 5,
+    _SHR_PORT_PRBS_POLYNOMIAL_X58_X31_1    = 6
+} _shr_port_prbs_polynomial_t;
+
+/*
+ * Defines:
+ *     _SHR_PORT_PHY_CONTROL_FEC_*
+ * Purpose:
+ *     PHY specific values for _SHR_PORT_PHY_CONTROL_FORWARD_ERROR_CORRECTION
+ */
+typedef enum _shr_port_phy_control_fec_e {
+    _SHR_PORT_PHY_CONTROL_FEC_OFF,
+    _SHR_PORT_PHY_CONTROL_FEC_ON,
+    _SHR_PORT_PHY_CONTROL_FEC_AUTO
+} _shr_port_phy_control_fec_t;
+
+typedef enum _shr_port_phy_control_rx_los_e {
+    _SHR_PORT_PHY_CONTROL_RX_LOS_NONE,
+    _SHR_PORT_PHY_CONTROL_RX_LOS_SOFTWARE,
+    _SHR_PORT_PHY_CONTROL_RX_LOS_FIRMWARE
+} _shr_port_phy_control_rx_los_t;
 
 #endif	/* !_SHR_PORT_H */

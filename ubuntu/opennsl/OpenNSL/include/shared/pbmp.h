@@ -1,6 +1,6 @@
 /*********************************************************************
  *
- * (C) Copyright Broadcom Corporation 2013-2016
+ * (C) Copyright Broadcom Corporation 2013-2017
  *
  *  Licensed under the Apache License, Version 2.0 (the "License");
  *  you may not use this file except in compliance with the License.
@@ -90,7 +90,12 @@
  */
 
 #ifndef	_SHR_PBMP_WIDTH
+#undef   _SHR_PBMP_PORT_MAX
+#ifndef OPENNSL_PRODUCT_DNX
 #define	_SHR_PBMP_PORT_MAX	256
+#else
+#define  _SHR_PBMP_PORT_MAX 571
+#endif
 
 #define	_SHR_PBMP_WIDTH		(((_SHR_PBMP_PORT_MAX + 32 - 1)/32)*32)
 #endif
@@ -245,6 +250,10 @@ extern int	_shr_pbmp_bmeq(_shr_pbmp_t *, _shr_pbmp_t *);
 	for ((port) = 0; (port) < _SHR_PBMP_PORT_MAX; (port)++) \
 		if (_SHR_PBMP_MEMBER((bm), (port)))
 
+#define _SHR_PBMP_REVERSE_ITER(bm, port)	\
+	for ((port) = _SHR_PBMP_PORT_MAX - 1; (port) > -1; (port)--) \
+		if (_SHR_PBMP_MEMBER((bm), (port)))
+
 #define _SHR_PBMP_IS_NULL(bm)		(_SHR_PBMP_BMNULL(bm))
 #define _SHR_PBMP_NOT_NULL(bm)		(!_SHR_PBMP_BMNULL(bm))
 #define _SHR_PBMP_EQ(bma, bmb)		(_SHR_PBMP_BMEQ(bma, bmb))
@@ -259,6 +268,18 @@ extern int	_shr_pbmp_bmeq(_shr_pbmp_t *, _shr_pbmp_t *);
 #define _SHR_PBMP_NEGATE(bma, bmb)	_SHR_PBMP_BMOP(bma, bmb, = ~)
 
 /* Port PBMP operators */
+#define	_SHR_PBMP_FIRST(bm, first_port)	\
+    do {\
+	    _SHR_PBMP_ITER(bm, first_port) {break;} \
+        if (first_port == _SHR_PBMP_PORT_MAX) first_port = -1; \
+    } while(0)
+
+#define	_SHR_PBMP_LAST(bm, last_port)	\
+    do {\
+	    _SHR_PBMP_REVERSE_ITER(bm, last_port) {break;} \
+    } while(0)
+
+    
 #define	_SHR_PBMP_ENTRY(bm, port)	\
 	(_SHR_PBMP_WORD_GET(bm,_SHR_PBMP_WENT(port)))
 #define _SHR_PBMP_MEMBER(bm, port)	\
@@ -276,5 +297,7 @@ extern int	_shr_pbmp_bmeq(_shr_pbmp_t *, _shr_pbmp_t *);
 extern char		*_shr_pbmp_format(_shr_pbmp_t, char *);
 #define	_SHR_PBMP_FMT(bm, buf)		_shr_pbmp_format(bm, buf)
 #define	_SHR_PBMP_FMT_LEN		((_SHR_PBMP_WORD_MAX*8)+3)
+
+#define	_SHR_PBMP_PORT_VALID(p)		((p) >= 0 && (p) < _SHR_PBMP_PORT_MAX)
 
 #endif	/* !_SHR_PBMP_H */

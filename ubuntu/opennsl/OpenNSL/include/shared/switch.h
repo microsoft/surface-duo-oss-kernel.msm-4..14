@@ -28,5 +28,18 @@
 #define _SHR_SWITCH_STABLE_DEVICE_NEXT_HOP    1  /* Use next hop table */
 #define _SHR_SWITCH_STABLE_DEVICE_EXT_MEM     2  /* Use external TCAM/SRAM */
 #define _SHR_SWITCH_STABLE_APPLICATION        3  /* Use application storage */
+#define _SHR_SWITCH_STABLE_SHARED_MEM         4  /* Use Linux shmem for internal proccess NV storage */ 
+
+/*
+ * structure:
+ *      _shr_temperature_monitor_t
+ * Purpose:
+ *      entry type for retrieving temperature monitor value
+ *
+ */
+typedef struct _shr_switch_temperature_monitor_s {
+    int curr;
+    int peak;
+} _shr_switch_temperature_monitor_t;
 
 #endif  /* !_SHR_SWITCH_H */
