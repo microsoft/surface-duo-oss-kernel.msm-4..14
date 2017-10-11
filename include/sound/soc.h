@@ -818,6 +818,7 @@ struct snd_soc_component_driver {
 	int (*stream_event)(struct snd_soc_component *, int event);
 
 	const struct snd_pcm_ops *ops;
+	const struct snd_compr_ops *compr_ops;
 
 	/* probe ordering - for components with runtime dependencies */
 	int probe_order;
