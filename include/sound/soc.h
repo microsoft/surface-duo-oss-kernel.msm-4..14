@@ -817,6 +817,8 @@ struct snd_soc_component_driver {
 		int subseq);
 	int (*stream_event)(struct snd_soc_component *, int event);
 
+	const struct snd_pcm_ops *ops;
+
 	/* probe ordering - for components with runtime dependencies */
 	int probe_order;
 	int remove_order;
