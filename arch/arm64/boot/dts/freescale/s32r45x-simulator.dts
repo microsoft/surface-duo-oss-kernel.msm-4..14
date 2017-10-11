@@ -27,3 +27,11 @@
 		clock-output-names = "sysclk";
 	};
 };
+
+&pit0 {
+	status = "okay";
+};
+
+&pit1 {
+	status = "okay";
+};
