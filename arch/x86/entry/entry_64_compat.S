@@ -15,6 +15,7 @@
 #include <asm/smap.h>
 #include <asm/pgtable_types.h>
 #include <asm/kaiser.h>
+#include <asm/spec_ctrl.h>
 #include <linux/linkage.h>
 #include <linux/err.h>
 
@@ -98,6 +99,8 @@ ENTRY(entry_SYSENTER_compat)
 	pushq   %r8                     /* pt_regs->r14 = 0 */
 	pushq   %r8                     /* pt_regs->r15 = 0 */
 	cld
+
+	ENABLE_IBRS
 
 	/*
 	 * Sysenter doesn't filter flags, so we need to clear NT
@@ -197,6 +200,8 @@ ENTRY(entry_SYSCALL_compat)
 	pushq   %r8                     /* pt_regs->r14 = 0 */
 	pushq   %r8                     /* pt_regs->r15 = 0 */
 
+	ENABLE_IBRS
+
 	/*
 	 * User mode is traced as though IRQs are on, and SYSENTER
 	 * turned them off.
@@ -212,6 +217,7 @@ ENTRY(entry_SYSCALL_compat)
 	/* Opportunistic SYSRET */
 sysret32_from_system_call:
 	TRACE_IRQS_ON			/* User mode traces as IRQs on. */
+	DISABLE_IBRS
 	SWITCH_USER_CR3
 	movq	RBX(%rsp), %rbx		/* pt_regs->rbx */
 	movq	RBP(%rsp), %rbp		/* pt_regs->rbp */
@@ -304,6 +310,8 @@ ENTRY(entry_INT80_compat)
 	pushq   %r14                    /* pt_regs->r14 */
 	pushq   %r15                    /* pt_regs->r15 */
 	cld
+
+	ENABLE_IBRS
 
 	/*
 	 * User mode is traced as though IRQs are on, and the interrupt
