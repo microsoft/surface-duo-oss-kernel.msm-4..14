@@ -425,7 +425,6 @@ int aa_check_perms(struct aa_profile *profile, struct aa_perms *perms,
 		   void (*cb)(struct audit_buffer *, void *))
 {
 	int type, error;
-	bool stop = false;
 	u32 denied = request & (~perms->allow | perms->deny);
 
 	if (likely(!denied)) {
@@ -446,8 +445,6 @@ int aa_check_perms(struct aa_profile *profile, struct aa_perms *perms,
 		else
 			type = AUDIT_APPARMOR_DENIED;
 
-		if (denied & perms->stop)
-			stop = true;
 		if (denied == (denied & perms->hide))
 			error = -ENOENT;
 
