@@ -1,0 +1,199 @@
+# -*- shell-script -*-
+
+# needs additional binaries:
+# - tune2fs
+# - cryptsetup
+# - rsync
+
+init_crypt_root()
+{
+    # create initial encrypted partition from original "writable"
+    # keep original data around in "restore" partition
+    ILOG="/run/initramfs/init-crypt.log"
+
+    # we have been run already, do not run twice !
+    findfs LABEL=restore  >/dev/null 2>&1 && return 1
+
+    # get the key
+    key="$(obtain_crypto_key)"
+
+    # if needed, load modules
+    modprobe dm-crypt >/dev/null 2>&1 || true
+    modprobe sha256 >/dev/null 2>&1 || true
+    modprobe aes >/dev/null 2>&1 || true
+
+    while read opt; do
+        for word in $opt; do
+            case $word in
+                debug)
+                    ILOG="/dev/kmsg"
+                    ;;
+            esac
+        done
+    done < /proc/cmdline
+
+    # find original "writable" and matching disk device
+    restore_part="$(findfs LABEL=writable)"
+    device="$(echo "$restore_part" | sed 's/[0-9]*$//;s/p$//')"
+
+    [ -z "$restore_part" ] && return 1
+
+    # set clock to image creation time so we are not too far off
+    # even without rtc battery
+    stamp="$(tune2fs -l "$restore_part" | grep created | sed 's/^.*: [ \t]*//;')"
+    date --set="$stamp" >>$ILOG 2>&1 || true
+
+    # find free partition space
+    last="$(parted -ms "$device" unit B print | grep -cE ^'[0-9]{1,}':)"
+    enc_part="$((last+1))"
+    enc_dev="$(echo "$restore_part" | sed 's/[0-9]*$//')${enc_part}"
+
+    # re-label old "writable" to "restore"
+    tune2fs -L restore "$restore_part" >>$ILOG 2>&1
+
+    # check which partition table we use
+    table="$(parted -ms "$device" print | grep ^/ | cut -d: -f6)"
+    case $table in
+        gpt)
+            # create new partition on GPT device
+            gpt_update_partition_setup $device $restore_part >> $ILOG 2>&1
+            ;;
+        mbr|msdos)
+            # create new partition on MSDOS device
+            # FIXME get end sector of old writable instead !
+            start="$(parted -ms "$device" unit s print free | tail -1 | cut -d ':' -f2 | sed 's/s$//')"
+            parted -ms "$device" mkpart primary "${start}s" 100% >>$ILOG 2>&1
+            ;;
+        *)
+            echo "unknown partition table type, can not encrypt" >>$ILOG
+            exit 0
+            ;;
+    esac
+
+    # refresh partition table
+    blockdev --rereadpt "$device" >/dev/null 2>&1
+
+    # encrypt new partition
+    printf '%s' "$key" | cryptsetup luksFormat "$enc_dev" -c aes-xts-plain64 -s 256 -h sha256 >>$ILOG 2>&1
+
+    # format the device
+    echo "Encrypted root: formatting encrypted rootfs, please wait ... "
+    format_crypt_root "$enc_dev" "$key"
+    echo "done"
+
+    # back up system-boot
+    echo "Encrypted root: backing up bootpartition, please wait ... "
+    backup_systemboot
+    echo "done"
+
+    # mark superblock of restore partition readonly
+    # FIXME (kernel bug ??) tune2fs -E mount_opts="ro" $restore_part
+}
+
+format_crypt_root()
+{
+    # formats and populates an already encrypted partiton
+    restore_part="$(findfs LABEL=restore)"
+    FLOG="/run/initramfs/format-crypt.log"
+    device="$1"
+
+    # unlock the device
+    unlock_crypt_root "$device"
+
+    # format crypt_root with new filesystem
+    mkfs.ext4 /dev/mapper/writable -L writable >>$FLOG 2>&1
+
+    # mount filesystems
+    mkdir -p /restore
+    mkdir -p /target
+    mount -o ro "$restore_part" /restore >>$FLOG 2>&1
+    mount /dev/mapper/writable /target >>$FLOG 2>&1
+
+    # copy content
+    rsync -a --info=progress2  /restore/system-data /target 2>&1 > /dev/kmsg
+
+    # back up logs
+    mkdir -p /target/system-data/var/log/cryptoroot
+    cp -a /run/initramfs/* /target/system-data/var/log/cryptoroot/
+
+    # clean up
+    umount /target
+    umount /restore
+
+    # close the device
+    cryptsetup luksClose writable >>$FLOG 2>&1 || true
+}
+
+backup_systemboot()
+{
+    # make a raw backup of system-boot
+    BLOG="/run/initramfs/backup-systemboot.log"
+    imgname="system-boot.img.gz"
+    imgpath="/restore/$imgname"
+
+    # find partitions
+    bootpart="$(findfs LABEL=system-boot)"
+    restore_part="$(findfs LABEL=restore)"
+
+    # only progress if both are found
+    [ -n "$bootpart" ] || return 1
+    [ -n "$restore_part" ] || return 1
+
+    # mount/umount target partition
+    mkdir -p /restore >>$BLOG 2>&1
+    mount "$restore_part" /restore >>$BLOG 2>&1
+
+    # unmount system-boot if mounted
+    if grep -q ^"$bootpart" /proc/mounts; then
+        umount "$bootpart" >>$BLOG 2>&1
+    fi
+
+    # back up system-boot partition to img file so we keep the
+    # exact filesystem without having to parse gadget.yaml or
+    # worring about ABI compatibility to ubuntu-image's dosfstools
+    dd if="$bootpart" bs=1024k | gzip -c >"$imgpath"
+
+    # unmont the restore partition
+    umount /restore
+}
+
+restore_systemboot()
+{
+    # restore raw backup of system-boot
+    RLOG="/run/initramfs/restore-systemboot.log"
+    imgname="system-boot.img.gz"
+    imgpath="/restore/$imgname"
+
+    # find partitions
+    bootpart="$(findfs LABEL=system-boot)"
+    restore_part="$(findfs LABEL=restore)"
+
+    # only progress if both are found
+    [ -n "$bootpart" ] || return 1
+    [ -n "$restore_part" ] || return 1
+
+    # mount/umount target partition
+    mkdir -p /restore >>$RLOG 2>&1
+    mount -o ro "$restore_part" /restore >>$RLOG 2>&1
+
+    # unmount system-boot if mounted
+    if grep -q ^"$bootpart" /proc/mounts; then
+        umount "$bootpart" >>$RLOG 2>&1
+    fi
+
+    # write partition content back
+    zcat "$imgpath" | dd of="$bootpart" >>$RLOG 2>&1
+
+    # unmont the restore partition
+    umount /restore
+}
+
+unlock_crypt_root()
+{
+    ULOG="/run/initramfs/unlock-crypt.log"
+    device="$1"
+    key="$(obtain_crypto_key)"
+
+    # unlock crypt_root
+    printf '%s' "$key" | cryptsetup luksOpen "$device" writable >>$ULOG 2>&1
+}

@@ -1,0 +1,110 @@
+#! /bin/sh -e
+# initramfs local-premount script for encrypted /writable
+
+PREREQ=""
+
+# Output pre-requisites
+prereqs()
+{
+        echo "$PREREQ"
+}
+
+case "$1" in
+    prereqs)
+        prereqs
+        exit 0
+        ;;
+esac
+
+gpt_update_partition_setup()
+{
+  device=$1
+  restore_part=$2
+  eval $(sgdisk -p  ${device} | while read  line
+    do
+      val=$(echo $line | grep -w "writable" | awk '{print $1}') && [ -n "${val}" ] && echo "PARTNUM='${val}'"
+      val=$(echo $line | grep '^Logical sector size'| sed 's/^.*: //g;s/ .*$//') && [ -n "${val}" ] && echo "SECTOR=${val}"
+    done)
+
+  eval $(sgdisk -i ${PARTNUM} ${device} | while read line
+    do
+      val=$(echo $line | grep unique | sed 's/^.*: //g') && [ -n "$val" ] && echo "GUID=${val}"
+      val=$(echo $line | grep 'GUID code'| sed 's/^.*: //g' | sed 's/\s.*$//') && [ -n "$val" ] && echo "GUID_TYPE=${val}"
+      val=$(echo $line | grep ^First | sed 's/^.*: //g;s/ .*$//') && [ -n "$val" ] && echo "FIRST=${val}"
+      val=$(echo $line | grep ^Last | sed 's/^.*: //g;s/ .*$//') && [ -n "$val" ] && echo "LAST=${val}"
+      val=$(echo $line | grep '^Partition size' | sed 's/^.*: //g;s/ .*$//') && [ -n "$val" ] && echo "PSIZE=${val}"
+    done)
+
+  eval $(tune2fs $restore_part -l | while read  line
+    do
+      val=$(echo $line | grep 'Block count' | sed 's/^.*://g;s/ //g') && [ -n "$val" ] && echo "BLOCK_C=${val}"
+      val=$(echo $line | grep 'Block size' | sed 's/^.*://g;s/ //g') && [ -n "$val" ] && echo "BLOCK_S=${val}"
+    done)
+
+  DISK_SIZE=$((BLOCK_C * BLOCK_S))
+  PART_SIZE=$((SECTOR * PSIZE))
+  echo "PARTNUM=${PARTNUM}, SECTOR=${SECTOR}, GUID=${GUID}, GUID_TYPE=${GUID_TYPE}, FIRST=${FIRST}, LAST=${LAST}, PSIZE=${PSIZE}, BLOCK_C=${BLOCK_C}, BLOCK_S=${BLOCK_C}"
+  echo "DISK_SIZE=${DISK_SIZE}, PART_SIZE=${PART_SIZE}"
+  if [ ${DISK_SIZE} != ${PART_SIZE} ]; then
+      echo "First resizing existing writable partition"
+      LAST=$((FIRST -1 + DISK_SIZE / SECTOR))
+      echo "LAST=${LAST}"
+      sgdisk -d ${PARTNUM} $device
+      sgdisk -n ${PARTNUM}:${FIRST}:${LAST} $device
+      sgdisk -t ${PARTNUM}:${GUID_TYPE} ${device}
+  fi
+  # rename writable to recovery_label
+  echo "Renaming part number <${PARTNUM}> to <restore>"
+  sgdisk -c ${PARTNUM}:restore $device
+  e2label ${device}p${PARTNUM} restore
+  sgdisk -u ${PARTNUM}:R ${device}
+  recovery_partition="${device}p${PARTNUM}"
+  # create new partition
+  LAST=$((LAST+1))
+  PARTNUM=$((PARTNUM+1))
+  echo "creating new partition number <${PARTNUM}> with label <writable>"
+  GUID_LUKS="CA7D7CCB-63ED-4C53-861C-1742536059CC"
+  sgdisk -n ${PARTNUM}:${LAST}:0 ${device}
+  sgdisk -u ${PARTNUM}:${GUID} -t ${PARTNUM}:${GUID_LUKS} -c ${PARTNUM}:writable ${device}
+  writable_partition="${device}p${PARTNUM}"
+}
+
+. /scripts/functions
+. /scripts/crypto-functions
+. /scripts/crypto-key-functions
+
+# print a newline for prettier console output
+echo
+
+# if there is no restore partition yet, there is also no
+# encrypted root, lets create one
+findfs LABEL=restore >/dev/null 2>&1 || init_crypt_root
+
+# TODO, make the line below more robust, it assumes
+# there is only one encrypted disk
+cryptodisk="$(blkid -t TYPE=crypto_LUKS -o device)"
+
+while read opt; do
+    for word in $opt; do
+        case $word in
+            factory-reset)
+                echo "Doing a factory reset, all data on $cryptodisk will be wiped !!!"
+
+                # format disk and restore system-boot to virgin state
+                format_crypt_root "$cryptodisk"
+                echo "Restoring system-boot partition to factory state"
+                restore_systemboot
+
+                echo "done"
+                echo "Rebooting to clear the bootloader state ..."
+                sync
+                sleep 2
+                reboot -f
+            ;;
+        esac
+    done
+done < /proc/cmdline
+
+echo "Encrypted root: found rootfs on $cryptodisk"
+unlock_crypt_root "$cryptodisk"
+echo "Encrypted root: unlocked $cryptodisk"

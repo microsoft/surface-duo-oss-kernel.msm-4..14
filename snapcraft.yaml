@@ -22,6 +22,10 @@ parts:
     kconfigflavour: snapdragon
     kconfigs:
       - CONFIG_DEBUG_INFO=n
+    kernel-initrd-modules:
+      - dm-crypt
+    build-packages:
+      - kmod
     kernel-image-target: Image
     override-build: |
       snapcraftctl build
@@ -29,6 +33,13 @@ parts:
       cp $SNAPCRAFT_PART_INSTALL/dtbs/qcom/*.dtb $SNAPCRAFT_PART_INSTALL/dtbs/
     organize:
       kernel.img: Image-4.4
+      initrd.img: initrd
+    prime:
+      - -initrd*
+      - -Image-4.4
+    after:
+      - firmware
+      - u-boot-tools
   firmware:
     plugin: nil
     source: firmware
@@ -55,7 +66,7 @@ parts:
     plugin: nil
     source: fit-image
     after:
-      - u-boot-tools
+      - initrd
       - kernel
     override-build: |
       cp $SNAPCRAFT_STAGE/Image-4.4* .
@@ -85,3 +96,62 @@ parts:
       cp tools/mkimage $SNAPCRAFT_PART_INSTALL
     prime:
       - -mkimage
+  initrd:
+    plugin: nil
+    source: initrd
+    stage-packages:
+      - on arm64:
+        - cryptsetup-bin
+        - e2fsprogs
+        - rsync
+        - libcryptsetup4
+        - libgcrypt20
+        - libgpg-error0
+        - dmsetup
+        - libdevmapper1.02.1
+        - jq
+        - libonig2
+      - else:
+        - cryptsetup-bin:arm64
+        - e2fsprogs:arm64
+        - rsync:arm64
+        - libcryptsetup4:arm64
+        - libgcrypt20:arm64
+        - libgpg-error0:arm64
+        - dmsetup:arm64
+        - libdevmapper1.02.1:arm64
+        - jq:arm64
+        - libonig2:arm64
+    prime:
+      - -etc
+      - -lib
+      - -sbin
+      - -usr
+      - -var
+    after:
+      - kernel
+      - initrd-patch
+    override-build: |
+      echo "Cleaning staged packages first in install"
+      for d in lib/x86_64-linux-gnu lib/systemd etc usr/share usr/lib/gcc var; do \
+          [ -e $SNAPCRAFT_PART_INSTALL/${d} ] && rm -rf $SNAPCRAFT_PART_INSTALL/${d}; \
+      done
+      find  $SNAPCRAFT_PART_INSTALL/lib/ ! -name "libcryptsetup.so.*" ! -name "libgcrypt.so.*" ! -name "libgpg-error.so.*" ! -name "libdevmapper.so.*" ! -name "*.rules" \( -type f -o -type l \) -exec rm -v {} \;
+      find  $SNAPCRAFT_PART_INSTALL/usr/lib ! -name "libonig.so.*" \( -type f -o -type l \) -exec rm -v {} \;
+      cp -ran $SNAPCRAFT_PART_INSTALL/* initrd
+      cd initrd; find . | cpio --quiet -o -H newc | lzma -7 > ../initrd.img
+      cat $SNAPCRAFT_STAGE/initrd-patched.img ../initrd.img > $SNAPCRAFT_PART_INSTALL/initrd.img
+
+  initrd-patch:
+    plugin: nil
+    source: initrd
+    after:
+      - kernel
+    override-build: |
+      echo "Patching upstream initrd to enable console over serial"
+      rm -rf initrd; mkdir initrd; cd initrd
+      zcat $SNAPCRAFT_STAGE/initrd | cpio -idmv
+      sed -i 's#/dev/console#/dev/ttyMSM0#g' scripts/functions
+      find . | cpio --quiet -o -H newc | lzma -7 > $SNAPCRAFT_PART_INSTALL/initrd-patched.img
+    prime:
+      - -initrd-patched.img

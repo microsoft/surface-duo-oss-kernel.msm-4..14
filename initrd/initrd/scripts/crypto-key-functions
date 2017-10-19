@@ -1,0 +1,12 @@
+# -*- shell-script -*-
+
+# This is device specific, add key creation specifcs here
+# (create key, write to device specific secure storage,
+# read from device specific storage and echo key from
+# obtain_crypto_key
+
+obtain_crypto_key()
+{
+    # TODO read key from defined secure storage
+    echo "ubuntu"
+}
