@@ -52,6 +52,7 @@
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
 			#cooling-cells = <2>;
+			operating-points-v2 = <&cpu_opp_table>;
 		};
 
 		CPU1: cpu@1 {
@@ -70,6 +71,7 @@
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
 			#cooling-cells = <2>;
+			operating-points-v2 = <&cpu_opp_table>;
 		};
 
 		CPU2: cpu@2 {
@@ -88,6 +90,7 @@
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
 			#cooling-cells = <2>;
+			operating-points-v2 = <&cpu_opp_table>;
 		};
 
 		CPU3: cpu@3 {
@@ -106,6 +109,7 @@
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
 			#cooling-cells = <2>;
+			operating-points-v2 = <&cpu_opp_table>;
 		};
 
 		L2: l2-cache {
@@ -125,6 +129,60 @@
 				exit-latency-us = <900>;
 				min-residency-us = <3000>;
 			};
+		};
+	};
+
+	cpu_opp_table: opp_table0 {
+		compatible = "operating-points-v2";
+
+		opp-384000000 {
+			opp-hz = /bits/ 64 <384000000>;
+			opp-microvolt = <950000>;
+			clock-latency-ns = <244144>;
+		};
+		opp-486000000 {
+			opp-hz = /bits/ 64 <486000000>;
+			opp-microvolt = <950000>;
+		};
+		opp-594000000 {
+			opp-hz = /bits/ 64 <594000000>;
+			opp-microvolt = <950000>;
+		};
+		opp-702000000 {
+			opp-hz = /bits/ 64 <702000000>;
+			opp-microvolt = <962500>;
+		};
+		opp-810000000 {
+			opp-hz = /bits/ 64 <810000000>;
+			opp-microvolt = <1000000>;
+		};
+		opp-918000000 {
+			opp-hz = /bits/ 64 <918000000>;
+			opp-microvolt = <1025000>;
+		};
+		opp-1026000000 {
+			opp-hz = /bits/ 64 <1026000000>;
+			opp-microvolt = <1037500>;
+		};
+		opp-1134000000 {
+			opp-hz = /bits/ 64 <1134000000>;
+			opp-microvolt = <1075000>;
+		};
+		opp-1242000000 {
+			opp-hz = /bits/ 64 <1242000000>;
+			opp-microvolt = <1087500>;
+		};
+		opp-1350000000 {
+			opp-hz = /bits/ 64 <1350000000>;
+			opp-microvolt = <1125000>;
+		};
+		opp-1458000000 {
+			opp-hz = /bits/ 64 <1458000000>;
+			opp-microvolt = <1150000>;
+		};
+		opp-1512000000 {
+			opp-hz = /bits/ 64 <1512000000>;
+			opp-microvolt = <1162500>;
 		};
 	};
 
