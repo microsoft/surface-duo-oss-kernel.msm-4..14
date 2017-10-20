@@ -2,7 +2,7 @@ name: dragonboard-kernel
 version: null
 version-script: |
     . debian/debian.env
-    VERSION=$(dpkg-parsechangelog -l $DEBIAN/changelog -S version)-fit
+    VERSION=$(dpkg-parsechangelog -l $DEBIAN/changelog -S version)-fit-fde
     if [ -d "$KEYS" ] ; then \
        echo ${VERSION}; \
     else \
