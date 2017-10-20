@@ -2,7 +2,12 @@ name: dragonboard-kernel
 version: null
 version-script: |
     . debian/debian.env
-    dpkg-parsechangelog -l $DEBIAN/changelog -S version
+    VERSION=$(dpkg-parsechangelog -l $DEBIAN/changelog -S version)-fit
+    if [ -d "$KEYS" ] ; then \
+       echo ${VERSION}; \
+    else \
+       echo ${VERSION}-open; \
+    fi
 summary: The Canonical snapdragon arm64 kernel
 description: The Canonical snapdragon arm64 kernel
 grade: stable
