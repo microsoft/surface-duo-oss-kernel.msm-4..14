@@ -33,6 +33,7 @@
 #include <linux/regmap.h>
 #include <linux/sched.h>
 #include <linux/spi/spi.h>
+#include <linux/spi/spi-fsl-dspi.h>
 #include <linux/spi/spi_bitbang.h>
 #include <linux/time.h>
 
@@ -180,6 +181,11 @@ static const struct fsl_dspi_devtype_data ls2085a_data = {
 static const struct fsl_dspi_devtype_data s32_data = {
 	.trans_mode = DSPI_EOQ_MODE,
 	.max_clock_factor = 1,
+};
+
+static const struct fsl_dspi_devtype_data coldfire_data = {
+	.trans_mode = DSPI_EOQ_MODE,
+	.max_clock_factor = 8,
 };
 
 struct fsl_dspi_dma {
@@ -868,6 +874,7 @@ static int dspi_setup(struct spi_device *spi)
 {
 	struct chip_data *chip;
 	struct fsl_dspi *dspi = spi_master_get_devdata(spi->master);
+	struct fsl_dspi_platform_data *pdata;
 	u32 cs_sck_delay = 0, sck_cs_delay = 0;
 	unsigned char br = 0, pbr = 0, pcssck = 0, cssck = 0;
 	unsigned char pasc = 0, asc = 0, fmsz = 0;
@@ -889,11 +896,18 @@ static int dspi_setup(struct spi_device *spi)
 			return -ENOMEM;
 	}
 
-	of_property_read_u32(spi->dev.of_node, "fsl,spi-cs-sck-delay",
-			&cs_sck_delay);
+	pdata = dev_get_platdata(&dspi->pdev->dev);
 
-	of_property_read_u32(spi->dev.of_node, "fsl,spi-sck-cs-delay",
-			&sck_cs_delay);
+	if (!pdata) {
+		of_property_read_u32(spi->dev.of_node, "fsl,spi-cs-sck-delay",
+				&cs_sck_delay);
+
+		of_property_read_u32(spi->dev.of_node, "fsl,spi-sck-cs-delay",
+				&sck_cs_delay);
+	} else {
+		cs_sck_delay = pdata->cs_sck_delay;
+		sck_cs_delay = pdata->sck_cs_delay;
+	}
 
 	chip->mcr_val = SPI_MCR_MASTER | SPI_MCR_PCSIS(dspi->pcs_mask) |
 		SPI_MCR_CLR_TXF | SPI_MCR_CLR_RXF;
@@ -1087,6 +1101,7 @@ static int dspi_probe(struct platform_device *pdev)
 	struct spi_master *master;
 	struct fsl_dspi *dspi;
 	struct resource *res;
+	struct fsl_dspi_platform_data *pdata;
 	int ret = 0, cs_num, bus_num;
 	u32 val;
 
@@ -1115,19 +1130,34 @@ static int dspi_probe(struct platform_device *pdev)
 	}
 	master->num_chipselect = cs_num;
 	dspi->pcs_mask = (1 << cs_num) - 1;
+	pdata = dev_get_platdata(&pdev->dev);
+	if (pdata) {
+		master->num_chipselect = pdata->cs_num;
+		master->bus_num = pdata->bus_num;
 
-	ret = of_property_read_u32(np, "bus-num", &bus_num);
-	if (ret < 0) {
-		dev_err(&pdev->dev, "can't get bus-num\n");
-		goto out_master_put;
-	}
-	master->bus_num = bus_num;
+		dspi->devtype_data = &coldfire_data;
+	} else {
 
-	dspi->devtype_data = of_device_get_match_data(&pdev->dev);
-	if (!dspi->devtype_data) {
-		dev_err(&pdev->dev, "can't get devtype_data\n");
-		ret = -EFAULT;
-		goto out_master_put;
+		ret = of_property_read_u32(np, "spi-num-chipselects", &cs_num);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "can't get spi-num-chipselects\n");
+			goto out_master_put;
+		}
+		master->num_chipselect = cs_num;
+
+		ret = of_property_read_u32(np, "bus-num", &bus_num);
+		if (ret < 0) {
+			dev_err(&pdev->dev, "can't get bus-num\n");
+			goto out_master_put;
+		}
+		master->bus_num = bus_num;
+
+		dspi->devtype_data = of_device_get_match_data(&pdev->dev);
+		if (!dspi->devtype_data) {
+			dev_err(&pdev->dev, "can't get devtype_data\n");
+			ret = -EFAULT;
+			goto out_master_put;
+		}
 	}
 
 	ret = of_property_read_u32(np, "spi-fifo-size", &val);
