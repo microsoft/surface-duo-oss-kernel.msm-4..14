@@ -1456,13 +1456,16 @@ struct fib6_node *fib6_locate(struct fib6_node *root,
 
 #ifdef CONFIG_IPV6_SUBTREES
 	if (src_len) {
-		struct fib6_node *subtree = FIB6_SUBTREE(fn);
-
 		WARN_ON(saddr == NULL);
-		if (fn && subtree)
-			fn = fib6_locate_1(subtree, saddr, src_len,
+		if (fn) {
+			struct fib6_node *subtree = FIB6_SUBTREE(fn);
+
+			if (subtree) {
+				fn = fib6_locate_1(subtree, saddr, src_len,
 					   offsetof(struct rt6_info, rt6i_src),
 					   exact_match);
+			}
+		}
 	}
 #endif
 
@@ -1777,6 +1780,7 @@ static int fib6_walk_continue(struct fib6_walker *w)
 			}
 			w->state = FWS_L;
 #endif
+			/* fall through */
 		case FWS_L:
 			left = rcu_dereference_protected(fn->left, 1);
 			if (left) {
@@ -1785,6 +1789,7 @@ static int fib6_walk_continue(struct fib6_walker *w)
 				continue;
 			}
 			w->state = FWS_R;
+			/* fall through */
 		case FWS_R:
 			right = rcu_dereference_protected(fn->right, 1);
 			if (right) {
@@ -1794,6 +1799,7 @@ static int fib6_walk_continue(struct fib6_walker *w)
 			}
 			w->state = FWS_C;
 			w->leaf = rcu_dereference_protected(fn->leaf, 1);
+			/* fall through */
 		case FWS_C:
 			if (w->leaf && fn->fn_flags & RTN_RTINFO) {
 				int err;
@@ -1812,6 +1818,7 @@ static int fib6_walk_continue(struct fib6_walker *w)
 			}
 skip:
 			w->state = FWS_U;
+			/* fall through */
 		case FWS_U:
 			if (fn == w->root)
 				return 0;
