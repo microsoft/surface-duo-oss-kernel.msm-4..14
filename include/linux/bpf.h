@@ -157,6 +157,11 @@ bpf_ctx_record_field_size(struct bpf_insn_access_aux *aux, u32 size)
 	aux->ctx_field_size = size;
 }
 
+struct bpf_prog_ops {
+	int (*test_run)(struct bpf_prog *prog, const union bpf_attr *kattr,
+			union bpf_attr __user *uattr);
+};
+
 struct bpf_verifier_ops {
 	/* return eBPF function prototype for verification */
 	const struct bpf_func_proto *(*get_func_proto)(enum bpf_func_id func_id);
@@ -172,8 +177,6 @@ struct bpf_verifier_ops {
 				  const struct bpf_insn *src,
 				  struct bpf_insn *dst,
 				  struct bpf_prog *prog, u32 *target_size);
-	int (*test_run)(struct bpf_prog *prog, const union bpf_attr *kattr,
-			union bpf_attr __user *uattr);
 };
 
 struct bpf_prog_aux {
@@ -184,7 +187,7 @@ struct bpf_prog_aux {
 	u32 id;
 	struct latch_tree_node ksym_tnode;
 	struct list_head ksym_lnode;
-	const struct bpf_verifier_ops *ops;
+	const struct bpf_prog_ops *ops;
 	struct bpf_map **used_maps;
 	struct bpf_prog *prog;
 	struct user_struct *user;
@@ -279,13 +282,17 @@ int bpf_prog_array_copy_to_user(struct bpf_prog_array __rcu *progs,
 #ifdef CONFIG_BPF_SYSCALL
 DECLARE_PER_CPU(int, bpf_prog_active);
 
-#define BPF_PROG_TYPE(_id, _ops) \
-	extern const struct bpf_verifier_ops _ops;
+#define BPF_PROG_TYPE(_id, _name) \
+	extern const struct bpf_prog_ops _name ## _prog_ops; \
+	extern const struct bpf_verifier_ops _name ## _verifier_ops;
 #define BPF_MAP_TYPE(_id, _ops) \
 	extern const struct bpf_map_ops _ops;
 #include <linux/bpf_types.h>
 #undef BPF_PROG_TYPE
 #undef BPF_MAP_TYPE
+
+extern const struct bpf_verifier_ops tc_cls_act_analyzer_ops;
+extern const struct bpf_verifier_ops xdp_analyzer_ops;
 
 struct bpf_prog *bpf_prog_get(u32 ufd);
 struct bpf_prog *bpf_prog_get_type(u32 ufd, enum bpf_prog_type type);
@@ -355,6 +362,13 @@ struct net_device  *__dev_map_lookup_elem(struct bpf_map *map, u32 key);
 void __dev_map_insert_ctx(struct bpf_map *map, u32 index);
 void __dev_map_flush(struct bpf_map *map);
 
+struct bpf_cpu_map_entry *__cpu_map_lookup_elem(struct bpf_map *map, u32 key);
+void __cpu_map_insert_ctx(struct bpf_map *map, u32 index);
+void __cpu_map_flush(struct bpf_map *map);
+struct xdp_buff;
+int cpu_map_enqueue(struct bpf_cpu_map_entry *rcpu, struct xdp_buff *xdp,
+		    struct net_device *dev_rx);
+
 /* Return map's numa specified by userspace */
 static inline int bpf_map_attr_numa_node(const union bpf_attr *attr)
 {
@@ -362,7 +376,7 @@ static inline int bpf_map_attr_numa_node(const union bpf_attr *attr)
 		attr->numa_node : NUMA_NO_NODE;
 }
 
-#else
+#else /* !CONFIG_BPF_SYSCALL */
 static inline struct bpf_prog *bpf_prog_get(u32 ufd)
 {
 	return ERR_PTR(-EOPNOTSUPP);
@@ -424,6 +438,28 @@ static inline void __dev_map_insert_ctx(struct bpf_map *map, u32 index)
 
 static inline void __dev_map_flush(struct bpf_map *map)
 {
+}
+
+static inline
+struct bpf_cpu_map_entry *__cpu_map_lookup_elem(struct bpf_map *map, u32 key)
+{
+	return NULL;
+}
+
+static inline void __cpu_map_insert_ctx(struct bpf_map *map, u32 index)
+{
+}
+
+static inline void __cpu_map_flush(struct bpf_map *map)
+{
+}
+
+struct xdp_buff;
+static inline int cpu_map_enqueue(struct bpf_cpu_map_entry *rcpu,
+				  struct xdp_buff *xdp,
+				  struct net_device *dev_rx)
+{
+	return 0;
 }
 #endif /* CONFIG_BPF_SYSCALL */
 
