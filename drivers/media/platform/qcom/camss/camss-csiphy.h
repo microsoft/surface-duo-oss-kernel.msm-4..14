@@ -19,6 +19,7 @@
 #define QC_MSM_CAMSS_CSIPHY_H
 
 #include <linux/clk.h>
+#include <linux/interrupt.h>
 #include <media/media-entity.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-mediabus.h>
@@ -49,6 +50,19 @@ struct csiphy_config {
 	struct csiphy_csi2_cfg *csi2;
 };
 
+struct csiphy_device;
+
+struct csiphy_hw_ops {
+	void (*hw_version_read)(struct csiphy_device *csiphy,
+				struct device *dev);
+	void (*reset)(struct csiphy_device *csiphy);
+	void (*lanes_enable)(struct csiphy_device *csiphy,
+			     struct csiphy_config *cfg,
+			     u8 lane_mask, u8 settle_cnt);
+	void (*lanes_disable)(struct csiphy_device *csiphy, u8 lane_mask);
+	irqreturn_t (*isr)(int irq, void *dev);
+};
+
 struct csiphy_device {
 	struct camss *camss;
 	u8 id;
@@ -63,6 +77,7 @@ struct csiphy_device {
 	u32 timer_clk_rate;
 	struct csiphy_config cfg;
 	struct v4l2_mbus_framefmt fmt[MSM_CSIPHY_PADS_NUM];
+	struct csiphy_hw_ops *ops;
 };
 
 struct resources;
