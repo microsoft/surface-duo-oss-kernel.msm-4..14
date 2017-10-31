@@ -151,6 +151,44 @@
 		clock-names = "lin", "ipg";
 	};
 
+	edma0: dma-controller@40110000 {
+		#dma-cells = <2>;
+		compatible = "fsl,s32gen1-edma";
+		reg = <0x0 0x40110000 0x0 0x21000>,
+		      <0x0 0x40108000 0x0 0x1000>,
+		      <0x0 0x40109000 0x0 0x1000>;
+		dma-channels = <32>;
+		interrupts = <0 8 4>,
+			     <0 9 4>,
+			     <0 10 4>;
+		interrupt-names = "edma-tx_0-15",
+				  "edma-tx_16-31",
+				  "edma-err";
+		clock-names = "dmamux0", "dmamux1";
+		clocks = <&sysclk>,
+			 <&sysclk>;
+		status = "disabled";
+	};
+
+	edma1: dma-controller@40210000 {
+		#dma-cells = <2>;
+		compatible = "fsl,s32gen1-edma";
+		reg = <0x0 0x40210000 0x0 0x21000>,
+		      <0x0 0x40208000 0x0 0x1000>,
+		      <0x0 0x40209000 0x0 0x1000>;
+		dma-channels = <32>;
+		interrupts = <0 11 4>,
+			     <0 12 4>,
+			     <0 13 4>;
+		interrupt-names = "edma-tx_0-15",
+				  "edma-tx_16-31",
+				  "edma-err";
+		clock-names = "dmamux0", "dmamux1";
+		clocks = <&sysclk>,
+			 <&sysclk>;
+		status = "disabled";
+	};
+
 	memory_DDR0@80000000 {
 		device_type = "memory";
 		reg = <0 0x80000000 0 0x40000000>;
