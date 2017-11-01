@@ -1297,6 +1297,12 @@ static struct pcie_host_ops s32v234_pcie_host_ops_ep = {
 	.send_signal_to_user = send_signal_to_user,
 };
 
+struct pcie_port *s32v_get_pcie_port(void)
+{
+	return (struct pcie_port *)pcie_port_ep;
+}
+EXPORT_SYMBOL(s32v_get_pcie_port);
+
 static int s32v234_pcie_probe(struct platform_device *pdev)
 {
 	struct s32v234_pcie *s32v234_pcie;
@@ -1367,6 +1373,8 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 
 		pp->ops = &s32v234_pcie_host_ops_ep;
 		pcie_port_ep = pp;
+
+		pp->call_back = NULL;
 
 		#ifdef CONFIG_PCI_DW_DMA
 		pp->dma_irq = platform_get_irq_byname(pdev, "dma");
