@@ -247,13 +247,6 @@
 		>;
 	};
 
-	pinctrl_i2c2: i2c2grp {
-		fsl,pins = <
-			MX7D_PAD_I2C2_SDA__I2C2_SDA		0x4000007f
-			MX7D_PAD_I2C2_SCL__I2C2_SCL		0x4000007f
-		>;
-	};
-
 	pinctrl_uart1: uart1grp {
 		fsl,pins = <
 			MX7D_PAD_UART1_TX_DATA__UART1_DCE_TX		0x79
@@ -279,6 +272,13 @@
 };
 
 &iomuxc_lpsr {
+	pinctrl_i2c2: i2c2grp {
+		fsl,pins = <
+			MX7D_PAD_GPIO1_IO07__I2C2_SDA			0x4000000f
+			MX7D_PAD_GPIO1_IO06__I2C2_SCL			0x4000000f
+		>;
+	};
+
 	pinctrl_usbotg1: usbotg1grp {
 		fsl,pins = <
 			MX7D_PAD_GPIO1_IO05__GPIO1_IO5			0x14 /* OTG PWREN */
