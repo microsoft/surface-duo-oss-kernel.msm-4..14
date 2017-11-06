@@ -252,15 +252,9 @@ static int ovl_copy_up_locked(struct dentry *workdir, struct dentry *upperdir,
 		.link = link
 	};
 
-	upper = lookup_one_len(dentry->d_name.name, upperdir,
-			       dentry->d_name.len);
-	err = PTR_ERR(upper);
-	if (IS_ERR(upper))
-		goto out;
-
 	err = security_inode_copy_up(dentry, &new_creds);
 	if (err < 0)
-		goto out1;
+		goto out;
 
 	if (new_creds)
 		old_creds = override_creds(new_creds);
@@ -269,12 +263,13 @@ static int ovl_copy_up_locked(struct dentry *workdir, struct dentry *upperdir,
 		temp = ovl_do_tmpfile(upperdir, stat->mode);
 	else
 		temp = ovl_lookup_temp(workdir, dentry);
-	err = PTR_ERR(temp);
-	if (IS_ERR(temp))
-		goto out1;
-
 	err = 0;
-	if (!tmpfile)
+	if (IS_ERR(temp)) {
+		err = PTR_ERR(temp);
+		temp = NULL;
+	}
+
+	if (!err && !tmpfile)
 		err = ovl_create_real(wdir, temp, &cattr, NULL, true);
 
 	if (new_creds) {
@@ -283,7 +278,7 @@ static int ovl_copy_up_locked(struct dentry *workdir, struct dentry *upperdir,
 	}
 
 	if (err)
-		goto out2;
+		goto out;
 
 	if (S_ISREG(stat->mode)) {
 		struct path upperpath;
@@ -316,6 +311,14 @@ static int ovl_copy_up_locked(struct dentry *workdir, struct dentry *upperdir,
 	if (err)
 		goto out_cleanup;
 
+	upper = lookup_one_len(dentry->d_name.name, upperdir,
+			       dentry->d_name.len);
+	if (IS_ERR(upper)) {
+		err = PTR_ERR(upper);
+		upper = NULL;
+		goto out_cleanup;
+	}
+
 	if (tmpfile)
 		err = ovl_do_link(temp, udir, upper, true);
 	else
@@ -329,17 +332,15 @@ static int ovl_copy_up_locked(struct dentry *workdir, struct dentry *upperdir,
 
 	/* Restore timestamps on parent (best effort) */
 	ovl_set_timestamps(upperdir, pstat);
-out2:
-	dput(temp);
-out1:
-	dput(upper);
 out:
+	dput(temp);
+	dput(upper);
 	return err;
 
 out_cleanup:
 	if (!tmpfile)
 		ovl_cleanup(wdir, temp);
-	goto out2;
+	goto out;
 }
 
 /*

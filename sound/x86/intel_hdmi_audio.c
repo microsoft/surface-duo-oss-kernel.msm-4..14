@@ -1665,6 +1665,11 @@ static int __maybe_unused hdmi_lpe_audio_resume(struct device *dev)
 static void hdmi_lpe_audio_free(struct snd_card *card)
 {
 	struct snd_intelhad *ctx = card->private_data;
+	struct intel_hdmi_lpe_audio_pdata *pdata = ctx->dev->platform_data;
+
+	spin_lock_irq(&pdata->lpe_audio_slock);
+	pdata->notify_audio_lpe = NULL;
+	spin_unlock_irq(&pdata->lpe_audio_slock);
 
 	cancel_work_sync(&ctx->hdmi_audio_wq);
 
@@ -1809,10 +1814,6 @@ static int hdmi_lpe_audio_probe(struct platform_device *pdev)
 	pdata->notify_pending = false;
 	spin_unlock_irq(&pdata->lpe_audio_slock);
 
-	/* runtime PM isn't enabled as default, since it won't save much on
-	 * BYT/CHT devices; user who want the runtime PM should adjust the
-	 * power/ontrol and power/autosuspend_delay_ms sysfs entries instead
-	 */
 	pm_runtime_use_autosuspend(&pdev->dev);
 	pm_runtime_mark_last_busy(&pdev->dev);
 	pm_runtime_set_active(&pdev->dev);
