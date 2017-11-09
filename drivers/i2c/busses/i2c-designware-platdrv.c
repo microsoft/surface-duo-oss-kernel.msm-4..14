@@ -275,6 +275,10 @@ static void dw_i2c_plat_pm_cleanup(struct dw_i2c_dev *dev)
 
 	if (dev->pm_disabled)
 		pm_runtime_put_noidle(dev->dev);
+
+        dev_info(&pdev->dev,
+                        "I2C_DESIGNWARE %d Controller at 0x%08lx (irq %d) (baudrate %d)",
+                        pdev->id_auto, (unsigned long) mem->start, irq, dev->clk_freq);
 }
 
 static int dw_i2c_plat_probe(struct platform_device *pdev)
