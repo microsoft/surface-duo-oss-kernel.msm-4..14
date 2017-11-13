@@ -18,6 +18,7 @@
 
 #include "camss-vfe.h"
 
+void vfe_hw_version_read(struct vfe_device *vfe, struct device *dev);
 u16 vfe_get_ub_size(u8 vfe_id);
 void vfe_global_reset(struct vfe_device *vfe);
 void vfe_request_halt(struct vfe_device *vfe);

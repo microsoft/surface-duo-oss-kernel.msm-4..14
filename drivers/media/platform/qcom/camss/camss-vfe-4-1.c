@@ -214,6 +214,13 @@
 #define MSM_VFE_VFE0_UB_SIZE 1023
 #define MSM_VFE_VFE0_UB_SIZE_RDI (MSM_VFE_VFE0_UB_SIZE / 3)
 
+void vfe_hw_version_read(struct vfe_device *vfe, struct device *dev)
+{
+	u32 hw_version = readl_relaxed(vfe->base + VFE_0_HW_VERSION);
+
+	dev_dbg(dev, "VFE HW Version = 0x%08x\n", hw_version);
+}
+
 u16 vfe_get_ub_size(u8 vfe_id)
 {
 	if (vfe_id == 0)
