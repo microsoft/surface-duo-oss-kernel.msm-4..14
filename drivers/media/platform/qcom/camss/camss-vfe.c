@@ -41,8 +41,6 @@
 #define to_vfe(ptr_line)	\
 	container_of(vfe_line_array(ptr_line), struct vfe_device, ptr_line)
 
-#define VFE_0_HW_VERSION		0x000
-
 #define VFE_0_IRQ_CMD			0x024
 #define VFE_0_IRQ_CMD_GLOBAL_CLEAR	(1 << 0)
 
@@ -1362,15 +1360,11 @@ static int vfe_set_power(struct v4l2_subdev *sd, int on)
 	int ret;
 
 	if (on) {
-		u32 hw_version;
-
 		ret = vfe_get(vfe);
 		if (ret < 0)
 			return ret;
 
-		hw_version = readl_relaxed(vfe->base + VFE_0_HW_VERSION);
-		dev_dbg(to_device(vfe),
-			"VFE HW Version = 0x%08x\n", hw_version);
+		vfe_hw_version_read(vfe, to_device(vfe));
 	} else {
 		vfe_put(vfe);
 	}
