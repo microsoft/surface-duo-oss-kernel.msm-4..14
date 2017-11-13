@@ -258,10 +258,15 @@ void vfe_global_reset(struct vfe_device *vfe)
 	writel_relaxed(reset_bits, vfe->base + VFE_0_GLOBAL_RESET_CMD);
 }
 
-void vfe_request_halt(struct vfe_device *vfe)
+void vfe_halt_request(struct vfe_device *vfe)
 {
 	writel_relaxed(VFE_0_BUS_BDG_CMD_HALT_REQ,
 		       vfe->base + VFE_0_BUS_BDG_CMD);
+}
+
+void vfe_halt_clear(struct vfe_device *vfe)
+{
+	writel_relaxed(0x0, vfe->base + VFE_0_BUS_BDG_CMD);
 }
 
 void vfe_wm_enable(struct vfe_device *vfe, u8 wm, u8 enable)
@@ -887,4 +892,23 @@ int vfe_camif_wait_for_stop(struct vfe_device *vfe, struct device *dev)
 		dev_err(dev, "%s: camif stop timeout\n", __func__);
 
 	return ret;
+}
+
+void vfe_isr_read(struct vfe_device *vfe, u32 *value0, u32 *value1)
+{
+	*value0 = readl_relaxed(vfe->base + VFE_0_IRQ_STATUS_0);
+	*value1 = readl_relaxed(vfe->base + VFE_0_IRQ_STATUS_1);
+
+	writel_relaxed(*value0, vfe->base + VFE_0_IRQ_CLEAR_0);
+	writel_relaxed(*value1, vfe->base + VFE_0_IRQ_CLEAR_1);
+
+	wmb();
+	writel_relaxed(VFE_0_IRQ_CMD_GLOBAL_CLEAR, vfe->base + VFE_0_IRQ_CMD);
+}
+
+void vfe_violation_read(struct vfe_device *vfe, struct device *dev)
+{
+	u32 violation = readl_relaxed(vfe->base + VFE_0_VIOLATION_STATUS);
+
+	dev_err_ratelimited(dev, "VFE: violation = 0x%08x\n", violation);
 }
