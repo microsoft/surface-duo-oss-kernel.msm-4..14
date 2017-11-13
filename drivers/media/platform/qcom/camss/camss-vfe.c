@@ -84,11 +84,6 @@
 #define VFE_0_BUS_BDG_CMD		0x2c0
 #define VFE_0_BUS_BDG_CMD_HALT_REQ	1
 
-#define VFE_0_REG_UPDATE			0x378
-#define VFE_0_REG_UPDATE_RDIn(n)		(1 << (1 + (n)))
-#define VFE_0_REG_UPDATE_line_n(n)		\
-			((n) == VFE_LINE_PIX ? 1 : VFE_0_REG_UPDATE_RDIn(n))
-
 /* VFE reset timeout */
 #define VFE_RESET_TIMEOUT_MS 50
 /* VFE halt timeout */
@@ -580,7 +575,7 @@ static int vfe_enable_output(struct vfe_line *line)
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 
-	vfe->reg_update &= ~VFE_0_REG_UPDATE_line_n(line->id);
+	vfe_reg_update_clear(vfe, line->id);
 
 	if (output->state != VFE_OUTPUT_RESERVED) {
 		dev_err(to_device(vfe), "Output is not in reserved state %d\n",
@@ -837,7 +832,7 @@ static void vfe_isr_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
 	unsigned long flags;
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
-	vfe->reg_update &= ~VFE_0_REG_UPDATE_line_n(line_id);
+	vfe_reg_update_clear(vfe, line_id);
 
 	output = &vfe->line[line_id].output;
 
