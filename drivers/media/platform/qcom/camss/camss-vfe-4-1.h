@@ -21,7 +21,8 @@
 void vfe_hw_version_read(struct vfe_device *vfe, struct device *dev);
 u16 vfe_get_ub_size(u8 vfe_id);
 void vfe_global_reset(struct vfe_device *vfe);
-void vfe_request_halt(struct vfe_device *vfe);
+void vfe_halt_request(struct vfe_device *vfe);
+void vfe_halt_clear(struct vfe_device *vfe);
 void vfe_wm_enable(struct vfe_device *vfe, u8 wm, u8 enable);
 void vfe_wm_frame_based(struct vfe_device *vfe, u8 wm, u8 enable);
 void vfe_wm_line_based(struct vfe_device *vfe, u32 wm,
@@ -60,3 +61,5 @@ void vfe_set_camif_cfg(struct vfe_device *vfe, struct vfe_line *line);
 void vfe_set_camif_cmd(struct vfe_device *vfe, u8 enable);
 void vfe_set_module_cfg(struct vfe_device *vfe, u8 enable);
 int vfe_camif_wait_for_stop(struct vfe_device *vfe, struct device *dev);
+void vfe_isr_read(struct vfe_device *vfe, u32 *value0, u32 *value1);
+void vfe_violation_read(struct vfe_device *vfe, struct device *dev);

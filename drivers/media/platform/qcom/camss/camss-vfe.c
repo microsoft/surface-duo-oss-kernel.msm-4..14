@@ -41,29 +41,9 @@
 #define to_vfe(ptr_line)	\
 	container_of(vfe_line_array(ptr_line), struct vfe_device, ptr_line)
 
-#define VFE_0_IRQ_CMD			0x024
-#define VFE_0_IRQ_CMD_GLOBAL_CLEAR	(1 << 0)
 
-#define VFE_0_IRQ_MASK_0		0x028
-#define VFE_0_IRQ_MASK_0_CAMIF_SOF			(1 << 0)
-#define VFE_0_IRQ_MASK_0_CAMIF_EOF			(1 << 1)
-#define VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(n)		(1 << ((n) + 5))
-#define VFE_0_IRQ_MASK_0_line_n_REG_UPDATE(n)		\
-	((n) == VFE_LINE_PIX ? (1 << 4) : VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(n))
 #define VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(n)	(1 << ((n) + 8))
-#define VFE_0_IRQ_MASK_0_IMAGE_COMPOSITE_DONE_n(n)	(1 << ((n) + 25))
-#define VFE_0_IRQ_MASK_0_RESET_ACK			(1 << 31)
-#define VFE_0_IRQ_MASK_1		0x02c
-#define VFE_0_IRQ_MASK_1_CAMIF_ERROR			(1 << 0)
-#define VFE_0_IRQ_MASK_1_VIOLATION			(1 << 7)
-#define VFE_0_IRQ_MASK_1_BUS_BDG_HALT_ACK		(1 << 8)
-#define VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(n)	(1 << ((n) + 9))
-#define VFE_0_IRQ_MASK_1_RDIn_SOF(n)			(1 << ((n) + 29))
 
-#define VFE_0_IRQ_CLEAR_0		0x030
-#define VFE_0_IRQ_CLEAR_1		0x034
-
-#define VFE_0_IRQ_STATUS_0		0x038
 #define VFE_0_IRQ_STATUS_0_CAMIF_SOF			(1 << 0)
 #define VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(n)		(1 << ((n) + 5))
 #define VFE_0_IRQ_STATUS_0_line_n_REG_UPDATE(n)		\
@@ -71,16 +51,9 @@
 #define VFE_0_IRQ_STATUS_0_IMAGE_MASTER_n_PING_PONG(n)	(1 << ((n) + 8))
 #define VFE_0_IRQ_STATUS_0_IMAGE_COMPOSITE_DONE_n(n)	(1 << ((n) + 25))
 #define VFE_0_IRQ_STATUS_0_RESET_ACK			(1 << 31)
-#define VFE_0_IRQ_STATUS_1		0x03c
 #define VFE_0_IRQ_STATUS_1_VIOLATION			(1 << 7)
 #define VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK		(1 << 8)
 #define VFE_0_IRQ_STATUS_1_RDIn_SOF(n)			(1 << ((n) + 29))
-
-#define VFE_0_IRQ_COMPOSITE_MASK_0	0x40
-#define VFE_0_VIOLATION_STATUS		0x48
-
-#define VFE_0_BUS_BDG_CMD		0x2c0
-#define VFE_0_BUS_BDG_CMD_HALT_REQ	1
 
 /* VFE reset timeout */
 #define VFE_RESET_TIMEOUT_MS 50
@@ -220,7 +193,7 @@ static int vfe_halt(struct vfe_device *vfe)
 
 	reinit_completion(&vfe->halt_complete);
 
-	vfe_request_halt(vfe);
+	vfe_halt_request(vfe);
 
 	time = wait_for_completion_timeout(&vfe->halt_complete,
 		msecs_to_jiffies(VFE_HALT_TIMEOUT_MS));
@@ -989,30 +962,19 @@ static irqreturn_t vfe_isr(int irq, void *dev)
 {
 	struct vfe_device *vfe = dev;
 	u32 value0, value1;
-	u32 violation;
 	int i, j;
 
-	value0 = readl_relaxed(vfe->base + VFE_0_IRQ_STATUS_0);
-	value1 = readl_relaxed(vfe->base + VFE_0_IRQ_STATUS_1);
-
-	writel_relaxed(value0, vfe->base + VFE_0_IRQ_CLEAR_0);
-	writel_relaxed(value1, vfe->base + VFE_0_IRQ_CLEAR_1);
-
-	wmb();
-	writel_relaxed(VFE_0_IRQ_CMD_GLOBAL_CLEAR, vfe->base + VFE_0_IRQ_CMD);
+	vfe_isr_read(vfe, &value0, &value1);
 
 	if (value0 & VFE_0_IRQ_STATUS_0_RESET_ACK)
 		complete(&vfe->reset_complete);
 
-	if (value1 & VFE_0_IRQ_STATUS_1_VIOLATION) {
-		violation = readl_relaxed(vfe->base + VFE_0_VIOLATION_STATUS);
-		dev_err_ratelimited(to_device(vfe),
-				    "VFE: violation = 0x%08x\n", violation);
-	}
+	if (value1 & VFE_0_IRQ_STATUS_1_VIOLATION)
+		vfe_violation_read(vfe, to_device(vfe));
 
 	if (value1 & VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK) {
 		complete(&vfe->halt_complete);
-		writel_relaxed(0x0, vfe->base + VFE_0_BUS_BDG_CMD);
+		vfe_halt_clear(vfe);
 	}
 
 	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++)
