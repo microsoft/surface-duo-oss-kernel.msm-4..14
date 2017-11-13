@@ -588,16 +588,9 @@ static int vfe_enable_output(struct vfe_line *line)
 	unsigned int i;
 	u16 ub_size;
 
-	switch (vfe->id) {
-	case 0:
-		ub_size = MSM_VFE_VFE0_UB_SIZE_RDI;
-		break;
-	case 1:
-		ub_size = MSM_VFE_VFE1_UB_SIZE_RDI;
-		break;
-	default:
+	ub_size = vfe_get_ub_size(vfe->id);
+	if (!ub_size)
 		return -EINVAL;
-	}
 
 	spin_lock_irqsave(&vfe->output_lock, flags);
 

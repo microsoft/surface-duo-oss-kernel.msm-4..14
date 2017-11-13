@@ -211,6 +211,17 @@
 #define CAMIF_TIMEOUT_SLEEP_US 1000
 #define CAMIF_TIMEOUT_ALL_US 1000000
 
+#define MSM_VFE_VFE0_UB_SIZE 1023
+#define MSM_VFE_VFE0_UB_SIZE_RDI (MSM_VFE_VFE0_UB_SIZE / 3)
+
+u16 vfe_get_ub_size(u8 vfe_id)
+{
+	if (vfe_id == 0)
+		return MSM_VFE_VFE0_UB_SIZE_RDI;
+
+	return 0;
+}
+
 static inline void vfe_reg_clr(struct vfe_device *vfe, u32 reg, u32 clr_bits)
 {
 	u32 bits = readl_relaxed(vfe->base + reg);
