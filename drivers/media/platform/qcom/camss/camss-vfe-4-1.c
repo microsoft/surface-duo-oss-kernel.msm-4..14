@@ -833,8 +833,15 @@ void vfe_set_camif_cfg(struct vfe_device *vfe, struct vfe_line *line)
 	writel_relaxed(val, vfe->base + VFE_0_CAMIF_CFG);
 }
 
-void vfe_set_camif_cmd(struct vfe_device *vfe, u32 cmd)
+void vfe_set_camif_cmd(struct vfe_device *vfe, u8 enable)
 {
+	u32 cmd;
+
+	if (enable)
+		cmd = VFE_0_CAMIF_CMD_ENABLE_FRAME_BOUNDARY;
+	else
+		cmd = VFE_0_CAMIF_CMD_DISABLE_FRAME_BOUNDARY;
+
 	writel_relaxed(VFE_0_CAMIF_CMD_CLEAR_CAMIF_STATUS,
 		       vfe->base + VFE_0_CAMIF_CMD);
 
