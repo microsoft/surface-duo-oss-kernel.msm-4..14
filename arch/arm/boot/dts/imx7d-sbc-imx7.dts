@@ -13,7 +13,7 @@
 #include "imx7d-cl-som-imx7.dts"
 
 / {
-	model = "CompuLab SBC-iMX7";
+	model = "CompuLab CL-SOM-iMX7 on SB-SOM";
 	compatible = "compulab,sbc-imx7", "compulab,cl-som-imx7", "fsl,imx7d";
 };
 
