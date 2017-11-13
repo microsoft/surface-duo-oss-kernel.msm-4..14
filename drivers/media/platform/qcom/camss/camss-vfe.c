@@ -84,20 +84,6 @@
 #define VFE_0_BUS_BDG_CMD		0x2c0
 #define VFE_0_BUS_BDG_CMD_HALT_REQ	1
 
-#define VFE_0_CAMIF_CMD				0x2f4
-#define VFE_0_CAMIF_CMD_DISABLE_FRAME_BOUNDARY	0
-#define VFE_0_CAMIF_CMD_ENABLE_FRAME_BOUNDARY	1
-#define VFE_0_CAMIF_CMD_CLEAR_CAMIF_STATUS	(1 << 2)
-#define VFE_0_CAMIF_CFG				0x2f8
-#define VFE_0_CAMIF_CFG_VFE_OUTPUT_EN		(1 << 6)
-#define VFE_0_CAMIF_FRAME_CFG			0x300
-#define VFE_0_CAMIF_WINDOW_WIDTH_CFG		0x304
-#define VFE_0_CAMIF_WINDOW_HEIGHT_CFG		0x308
-#define VFE_0_CAMIF_SUBSAMPLE_CFG_0		0x30c
-#define VFE_0_CAMIF_IRQ_SUBSAMPLE_PATTERN	0x314
-#define VFE_0_CAMIF_STATUS			0x31c
-#define VFE_0_CAMIF_STATUS_HALT			(1 << 31)
-
 #define VFE_0_REG_UPDATE			0x378
 #define VFE_0_REG_UPDATE_RDIn(n)		(1 << (1 + (n)))
 #define VFE_0_REG_UPDATE_line_n(n)		\
@@ -673,7 +659,7 @@ static int vfe_enable_output(struct vfe_line *line)
 		vfe_set_scale_cfg(vfe, line);
 		vfe_set_crop_cfg(vfe, line);
 		vfe_set_clamp_cfg(vfe);
-		vfe_set_camif_cmd(vfe, VFE_0_CAMIF_CMD_ENABLE_FRAME_BOUNDARY);
+		vfe_set_camif_cmd(vfe, 1);
 	}
 
 	vfe_reg_update(vfe, line->id);
@@ -732,7 +718,7 @@ static int vfe_disable_output(struct vfe_line *line)
 		vfe_set_module_cfg(vfe, 0);
 		vfe_set_xbar_cfg(vfe, output, 0);
 
-		vfe_set_camif_cmd(vfe, VFE_0_CAMIF_CMD_DISABLE_FRAME_BOUNDARY);
+		vfe_set_camif_cmd(vfe, 0);
 		spin_unlock_irqrestore(&vfe->output_lock, flags);
 
 		vfe_camif_wait_for_stop(vfe, to_device(vfe));

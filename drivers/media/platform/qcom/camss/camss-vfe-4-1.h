@@ -55,6 +55,6 @@ void vfe_set_clamp_cfg(struct vfe_device *vfe);
 void vfe_set_qos(struct vfe_device *vfe);
 void vfe_set_cgc_override(struct vfe_device *vfe, u8 wm, u8 enable);
 void vfe_set_camif_cfg(struct vfe_device *vfe, struct vfe_line *line);
-void vfe_set_camif_cmd(struct vfe_device *vfe, u32 cmd);
+void vfe_set_camif_cmd(struct vfe_device *vfe, u8 enable);
 void vfe_set_module_cfg(struct vfe_device *vfe, u8 enable);
 int vfe_camif_wait_for_stop(struct vfe_device *vfe, struct device *dev);
