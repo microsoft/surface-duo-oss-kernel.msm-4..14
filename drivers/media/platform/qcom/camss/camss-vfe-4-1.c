@@ -552,6 +552,11 @@ void vfe_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id)
 	wmb();
 }
 
+inline void vfe_reg_update_clear(struct vfe_device *vfe,
+				 enum vfe_line_id line_id)
+{
+	vfe->reg_update &= ~VFE_0_REG_UPDATE_line_n(line_id);
+}
 void vfe_enable_irq_wm_line(struct vfe_device *vfe, u8 wm,
 			    enum vfe_line_id line_id, u8 enable)
 {
