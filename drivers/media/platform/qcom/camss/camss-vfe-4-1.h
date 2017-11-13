@@ -43,6 +43,7 @@ void vfe_set_xbar_cfg(struct vfe_device *vfe, struct vfe_output *output,
 		      u8 enable);
 void vfe_set_rdi_cid(struct vfe_device *vfe, enum vfe_line_id id, u8 cid);
 void vfe_reg_update(struct vfe_device *vfe, enum vfe_line_id line_id);
+void vfe_reg_update_clear(struct vfe_device *vfe, enum vfe_line_id line_id);
 void vfe_enable_irq_wm_line(struct vfe_device *vfe, u8 wm,
 			    enum vfe_line_id line_id, u8 enable);
 void vfe_enable_irq_pix_line(struct vfe_device *vfe, u8 comp,
