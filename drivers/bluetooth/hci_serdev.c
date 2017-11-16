@@ -304,6 +304,8 @@ int hci_uart_register_device(struct hci_uart *hu,
 
 	INIT_WORK(&hu->write_work, hci_uart_write_work);
 
+	percpu_init_rwsem(&hu->proto_lock);
+
 	/* Only when vendor specific setup callback is provided, consider
 	 * the manufacturer information valid. This avoids filling in the
 	 * value for Ericsson when nothing is specified.
