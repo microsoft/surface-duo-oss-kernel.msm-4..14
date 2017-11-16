@@ -176,8 +176,35 @@ static int ovl_dir_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	if (err)
 		return err;
 
+	/*
+	 * When all layers are on the same fs, use the copy-up-origin st_ino,
+	 * which is persistent, unique and constant across copy up.
+	 *
+	 * Otherwise the pair {real st_ino; overlay st_dev} is not unique, so
+	 * use the non persistent overlay st_ino.
+	 */
+	if (ovl_same_sb(dentry->d_sb)) {
+		if (OVL_TYPE_MERGE(type) && OVL_TYPE_UPPER(type)) {
+			struct kstat lowerstat;
+
+			ovl_path_lower(dentry, &realpath);
+			err = vfs_getattr(&realpath, &lowerstat);
+			if (err)
+				return err;
+
+			WARN_ON_ONCE(stat->dev != lowerstat.dev);
+			stat->ino = lowerstat.ino;
+		}
+	} else {
+		stat->ino = dentry->d_inode->i_ino;
+	}
+
+	/*
+	 * Always use the overlay st_dev for directories, so 'find -xdev' will
+	 * scan the entire overlay mount and won't cross the overlay mount
+	 * boundaries.
+	 */
 	stat->dev = dentry->d_sb->s_dev;
-	stat->ino = dentry->d_inode->i_ino;
 
 	/*
 	 * It's probably not worth it to count subdirs to get the
