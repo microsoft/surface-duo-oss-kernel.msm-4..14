@@ -44,6 +44,8 @@ struct ovl_fs {
 	/* pathnames of lower and upper dirs, for show_options */
 	struct ovl_config config;
 	struct cred *mounter_creds;
+	/* sb common to all layers */
+	struct super_block *same_sb;
 };
 
 struct ovl_dir_cache;
@@ -429,6 +431,13 @@ static const struct dentry_operations ovl_reval_dentry_operations = {
 	.d_revalidate = ovl_dentry_revalidate,
 	.d_weak_revalidate = ovl_dentry_weak_revalidate,
 };
+
+struct super_block *ovl_same_sb(struct super_block *sb)
+{
+	struct ovl_fs *ofs = sb->s_fs_info;
+
+	return ofs->same_sb;
+}
 
 static struct ovl_entry *ovl_alloc_entry(unsigned int numlower)
 {
@@ -1157,11 +1166,19 @@ static int ovl_fill_super(struct super_block *sb, void *data, int silent)
 
 		ufs->lower_mnt[ufs->numlower] = mnt;
 		ufs->numlower++;
+
+		/* Check if all lower layers are on same sb */
+		if (i == 0)
+			ufs->same_sb = mnt->mnt_sb;
+		else if (ufs->same_sb != mnt->mnt_sb)
+			ufs->same_sb = NULL;
 	}
 
 	/* If the upper fs is nonexistent, we mark overlayfs r/o too */
 	if (!ufs->upper_mnt)
 		sb->s_flags |= MS_RDONLY;
+	else if (ufs->upper_mnt->mnt_sb != ufs->same_sb)
+		ufs->same_sb = NULL;
 
 	if (remote)
 		sb->s_d_op = &ovl_reval_dentry_operations;
