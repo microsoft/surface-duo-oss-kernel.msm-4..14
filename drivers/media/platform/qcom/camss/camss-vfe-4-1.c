@@ -796,6 +796,11 @@ static void vfe_set_qos(struct vfe_device *vfe)
 	writel_relaxed(val7, vfe->base + VFE_0_BUS_BDG_QOS_CFG_7);
 }
 
+static void vfe_set_ds(struct vfe_device *vfe)
+{
+	/* empty */
+}
+
 static void vfe_set_cgc_override(struct vfe_device *vfe, u8 wm, u8 enable)
 {
 	u32 val = VFE_0_CGC_OVERRIDE_1_IMAGE_Mx_CGC_OVERRIDE(wm);
@@ -948,6 +953,7 @@ const struct vfe_hw_ops vfe_ops_4_1 = {
 	.set_crop_cfg = vfe_set_crop_cfg,
 	.set_clamp_cfg = vfe_set_clamp_cfg,
 	.set_qos = vfe_set_qos,
+	.set_ds = vfe_set_ds,
 	.set_cgc_override = vfe_set_cgc_override,
 	.set_camif_cfg = vfe_set_camif_cfg,
 	.set_camif_cmd = vfe_set_camif_cmd,
