@@ -122,6 +122,7 @@ struct vfe_hw_ops {
 	void (*set_crop_cfg)(struct vfe_device *vfe, struct vfe_line *line);
 	void (*set_clamp_cfg)(struct vfe_device *vfe);
 	void (*set_qos)(struct vfe_device *vfe);
+	void (*set_ds)(struct vfe_device *vfe);
 	void (*set_cgc_override)(struct vfe_device *vfe, u8 wm, u8 enable);
 	void (*set_camif_cfg)(struct vfe_device *vfe, struct vfe_line *line);
 	void (*set_camif_cmd)(struct vfe_device *vfe, u8 enable);
