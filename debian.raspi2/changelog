@@ -4,6 +4,175 @@ linux-raspi2 (4.4.0-1078.86) UNRELEASED; urgency=low
   CHANGELOG: Use the printchanges target to see the curent changes.
   CHANGELOG: Use the insertchanges target to create the final log.
 
+  * Update config with NET_DSA=n as required by changes in
+    upstream stable update to 4.4.98 (LP: #1732698)
+
+  [ Ubuntu: 4.4.0-102.125 ]
+
+  * linux: 4.4.0-102.125 -proposed tracker (LP: #1733541)
+  * tar -x sometimes fails on overlayfs (LP: #1728489)
+    - ovl: check if all layers are on the same fs
+    - ovl: persistent inode number for directories
+  * NVMe timeout is too short (LP: #1729119)
+    - nvme: update timeout module parameter type
+  * Set PANIC_TIMEOUT=10 on Power Systems (LP: #1730660)
+    - [Config]: Set PANIC_TIMEOUT=10 on ppc64el
+  * Cannot pair BLE remote devices when using combo BT SoC (LP: #1731467)
+    - Bluetooth: increase timeout for le auto connections
+  * CIFS errors on 4.4.0-98, but not on 4.4.0-97 with same config (LP: #1729337)
+    - SMB3: Validate negotiate request must always be signed
+  * Plantronics P610 does not support sample rate reading (LP: #1719853)
+    - ALSA: usb-audio: Add sample rate quirk for Plantronics P610
+  * Invalid btree pointer causes the kernel NULL pointer dereference
+    (LP: #1729256)
+    - xfs: reinit btree pointer on attr tree inactivation walk
+  * Samba mount/umount in docker container triggers kernel Oops (LP: #1729637)
+    - ipv6: only call ip6_route_dev_notify() once for NETDEV_UNREGISTER
+    - ipv6: fix NULL dereference in ip6_route_dev_notify()
+  * [kernel] tty/hvc: Use opal irqchip interface if available (LP: #1728098)
+    - tty/hvc: Use opal irqchip interface if available
+  * Device hotplugging with MPT SAS cannot work for VMWare ESXi (LP: #1730852)
+    - scsi: mptsas: Fixup device hotplug for VMWare ESXi
+  * NMI watchdog: BUG: soft lockup on Guest upon boot (KVM) (LP: #1727331)
+    - KVM: PPC: Book3S: Treat VTB as a per-subcore register, not per-thread
+  * Attempt to map rbd image from ceph jewel/luminous hangs (LP: #1728739)
+    - crush: ensure bucket id is valid before indexing buckets array
+    - crush: ensure take bucket value is valid
+    - crush: add chooseleaf_stable tunable
+    - crush: decode and initialize chooseleaf_stable
+    - libceph: advertise support for TUNABLES5
+    - libceph: MOSDOpReply v7 encoding
+  * Xenial update to 4.4.98 stable release (LP: #1732698)
+    - adv7604: Initialize drive strength to default when using DT
+    - video: fbdev: pmag-ba-fb: Remove bad `__init' annotation
+    - PCI: mvebu: Handle changes to the bridge windows while enabled
+    - xen/netback: set default upper limit of tx/rx queues to 8
+    - drm: drm_minor_register(): Clean up debugfs on failure
+    - KVM: PPC: Book 3S: XICS: correct the real mode ICP rejecting counter
+    - iommu/arm-smmu-v3: Clear prior settings when updating STEs
+    - powerpc/corenet: explicitly disable the SDHC controller on kmcoge4
+    - ARM: omap2plus_defconfig: Fix probe errors on UARTs 5 and 6
+    - crypto: vmx - disable preemption to enable vsx in aes_ctr.c
+    - iio: trigger: free trigger resource correctly
+    - phy: increase size of MII_BUS_ID_SIZE and bus_id
+    - serial: sh-sci: Fix register offsets for the IRDA serial port
+    - usb: hcd: initialize hcd->flags to 0 when rm hcd
+    - netfilter: nft_meta: deal with PACKET_LOOPBACK in netdev family
+    - IPsec: do not ignore crypto err in ah4 input
+    - Input: mpr121 - handle multiple bits change of status register
+    - Input: mpr121 - set missing event capability
+    - IB/ipoib: Change list_del to list_del_init in the tx object
+    - s390/qeth: issue STARTLAN as first IPA command
+    - (config) Add NET_DSA=n
+    - net: dsa: select NET_SWITCHDEV
+    - platform/x86: hp-wmi: Fix detection for dock and tablet mode
+    - cdc_ncm: Set NTB format again after altsetting switch for Huawei devices
+    - KEYS: trusted: sanitize all key material
+    - KEYS: trusted: fix writing past end of buffer in trusted_read()
+    - platform/x86: hp-wmi: Fix error value for hp_wmi_tablet_state
+    - platform/x86: hp-wmi: Do not shadow error values
+    - x86/uaccess, sched/preempt: Verify access_ok() context
+    - workqueue: Fix NULL pointer dereference
+    - crypto: x86/sha1-mb - fix panic due to unaligned access
+    - KEYS: fix NULL pointer dereference during ASN.1 parsing [ver #2]
+    - ARM: 8720/1: ensure dump_instr() checks addr_limit
+    - ALSA: seq: Fix OSS sysex delivery in OSS emulation
+    - ALSA: seq: Avoid invalid lockdep class warning
+    - MIPS: microMIPS: Fix incorrect mask in insn_table_MM
+    - MIPS: Fix CM region target definitions
+    - MIPS: SMP: Use a completion event to signal CPU up
+    - MIPS: Fix race on setting and getting cpu_online_mask
+    - MIPS: SMP: Fix deadlock & online race
+    - test: firmware_class: report errors properly on failure
+    - selftests: firmware: add empty string and async tests
+    - selftests: firmware: send expected errors to /dev/null
+    - tools: firmware: check for distro fallback udev cancel rule
+    - MIPS: AR7: Defer registration of GPIO
+    - MIPS: AR7: Ensure that serial ports are properly set up
+    - Input: elan_i2c - add ELAN060C to the ACPI table
+    - drm/vmwgfx: Fix Ubuntu 17.10 Wayland black screen issue
+    - rbd: use GFP_NOIO for parent stat and data requests
+    - can: sun4i: handle overrun in RX FIFO
+    - can: c_can: don't indicate triple sampling support for D_CAN
+    - x86/oprofile/ppro: Do not use __this_cpu*() in preemptible context
+    - PKCS#7: fix unitialized boolean 'want'
+    - Linux 4.4.98
+  * ELANTECH Touchpad is not detected in 'Lenovo Ideapad 320 14AST' after fresh
+    install (LP: #1727544)
+    - Input: elan_i2c - add ELAN060C to the ACPI table
+  * Xenial update to 4.4.97 stable release (LP: #1731915)
+    - ALSA: timer: Add missing mutex lock for compat ioctls
+    - ALSA: seq: Fix nested rwsem annotation for lockdep splat
+    - cifs: check MaxPathNameComponentLength != 0 before using it
+    - KEYS: return full count in keyring_read() if buffer is too small
+    - KEYS: fix out-of-bounds read during ASN.1 parsing
+    - ASoC: adau17x1: Workaround for noise bug in ADC
+    - arm64: ensure __dump_instr() checks addr_limit
+    - ARM: dts: mvebu: pl310-cache disable double-linefill
+    - ARM: 8715/1: add a private asm/unaligned.h
+    - ocfs2: fstrim: Fix start offset of first cluster group during fstrim
+    - perf tools: Fix build failure on perl script context
+    - drm/msm: Fix potential buffer overflow issue
+    - drm/msm: fix an integer overflow test
+    - tracing/samples: Fix creation and deletion of simple_thread_fn creation
+    - Fix tracing sample code warning.
+    - PM / wakeirq: report a wakeup_event on dedicated wekup irq
+    - mmc: s3cmci: include linux/interrupt.h for tasklet_struct
+    - ARM: pxa: Don't rely on public mmc header to include leds.h
+    - mfd: ab8500-sysctrl: Handle probe deferral
+    - mfd: axp20x: Fix axp288 PEK_DBR and PEK_DBF irqs being swapped
+    - staging: rtl8712u: Fix endian settings for structs describing network
+      packets
+    - ext4: fix stripe-unaligned allocations
+    - ext4: do not use stripe_width if it is not set
+    - i2c: riic: correctly finish transfers
+    - drm/amdgpu: when dpm disabled, also need to stop/start vce.
+    - perf tools: Only increase index if perf_evsel__new_idx() succeeds
+    - cx231xx: Fix I2C on Internal Master 3 Bus
+    - xen/manage: correct return value check on xenbus_scanf()
+    - scsi: aacraid: Process Error for response I/O
+    - platform/x86: intel_mid_thermal: Fix module autoload
+    - staging: lustre: llite: don't invoke direct_IO for the EOF case
+    - staging: lustre: hsm: stack overrun in hai_dump_data_field
+    - staging: lustre: ptlrpc: skip lock if export failed
+    - exynos4-is: fimc-is: Unmap region obtained by of_iomap()
+    - mei: return error on notification request to a disconnected client
+    - s390/dasd: check for device error pointer within state change interrupts
+    - bt8xx: fix memory leak
+    - xen: don't print error message in case of missing Xenstore entry
+    - staging: r8712u: Fix Sparse warning in rtl871x_xmit.c
+    - Linux 4.4.97
+  * Xenial update to 4.4.96 stable release (LP: #1731882)
+    - workqueue: replace pool->manager_arb mutex with a flag
+    - ALSA: hda/realtek - Add support for ALC236/ALC3204
+    - ALSA: hda - fix headset mic problem for Dell machines with alc236
+    - ceph: unlock dangling spinlock in try_flush_caps()
+    - usb: xhci: Handle error condition in xhci_stop_device()
+    - spi: uapi: spidev: add missing ioctl header
+    - fuse: fix READDIRPLUS skipping an entry
+    - xen/gntdev: avoid out of bounds access in case of partial gntdev_mmap()
+    - Input: elan_i2c - add ELAN0611 to the ACPI table
+    - Input: gtco - fix potential out-of-bound access
+    - assoc_array: Fix a buggy node-splitting case
+    - scsi: zfcp: fix erp_action use-before-initialize in REC action trace
+    - scsi: sg: Re-fix off by one in sg_fill_request_table()
+    - can: sun4i: fix loopback mode
+    - can: kvaser_usb: Correct return value in printout
+    - can: kvaser_usb: Ignore CMD_FLUSH_QUEUE_REPLY messages
+    - regulator: fan53555: fix I2C device ids
+    - x86/microcode/intel: Disable late loading on model 79
+    - ecryptfs: fix dereference of NULL user_key_payload
+    - Revert "drm: bridge: add DT bindings for TI ths8135"
+    - Linux 4.4.96
+  * Touchpad not detected - Lenovo ideapad 320-15IKB (LP: #1723736)
+    - Input: elan_i2c - add ELAN0611 to the ACPI table
+
+  [ Ubuntu: 4.4.0-101.124 ]
+
+  * linux: 4.4.0-101.124 -proposed tracker (LP: #1731264)
+  * s390/mm: fix write access check in gup_huge_pmd() (LP: #1730596)
+    - s390/mm: fix write access check in gup_huge_pmd()
+
  -- Stefan Bader <stefan.bader@canonical.com>  Wed, 22 Nov 2017 14:31:56 +0100
 
 linux-raspi2 (4.4.0-1077.85) xenial; urgency=low
