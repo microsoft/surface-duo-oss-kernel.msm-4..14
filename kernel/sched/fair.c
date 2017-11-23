@@ -5376,6 +5376,8 @@ static inline void hrtick_update(struct rq *rq)
 #ifdef CONFIG_SMP
 static bool cpu_overutilized(int cpu);
 
+static unsigned long cpu_util(int cpu);
+
 static bool sd_overutilized(struct sched_domain *sd)
 {
 	return sd->shared->overutilized;
@@ -5383,11 +5385,13 @@ static bool sd_overutilized(struct sched_domain *sd)
 
 static void set_sd_overutilized(struct sched_domain *sd)
 {
+	trace_sched_overutilized(sd, sd->shared->overutilized, true);
 	sd->shared->overutilized = true;
 }
 
 static void clear_sd_overutilized(struct sched_domain *sd)
 {
+	trace_sched_overutilized(sd, sd->shared->overutilized, false);
 	sd->shared->overutilized = false;
 }
 
