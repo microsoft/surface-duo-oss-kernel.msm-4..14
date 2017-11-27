@@ -41,6 +41,7 @@ bmac ?
 bnx2 ?
 bnx2x ?
 bnxt_en ?
+bnxt_en_bpo ?
 bonding ?
 brcmfmac ?
 brcmsmac ?
