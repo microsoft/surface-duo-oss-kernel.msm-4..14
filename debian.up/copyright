@@ -1,14 +1,18 @@
-This is the Ubuntu prepackaged version of the Linux kernel.
+This is the Ubuntu prepackaged version of the Linux kernel, with
+added UP board support.
 Linux was written by Linus Torvalds <Linus.Torvalds@cs.Helsinki.FI>
 and others.
 
-This package was put together by the Ubuntu Kernel Team, from
+The base kernel was put together by the Ubuntu Kernel Team, from
 sources retrieved from upstream linux git.
 The sources may be found at most Linux ftp sites, including 
 ftp://ftp.kernel.org/pub/linux/kernel/
 
+Patches have then been added by Emutex (http://emutex.com) to enable specific
+features of the UP board (http://up-board.org).
+
 This package is currently maintained by the
-Ubuntu Kernel Team <ubuntu-kernel@lists.ubuntu.com>
+ubilinux team <ubilinux@emutex.com>
 
 Linux is copyrighted by Linus Torvalds and others.
 
