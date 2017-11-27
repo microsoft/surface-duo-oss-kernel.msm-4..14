@@ -1,3 +1,10 @@
+linux-hwe (4.10.0-41.5000~upboard4) xenial; urgency=medium
+
+  * ASoC: Intel: new Baytrail/Cherrytrail+PCM512x machine driver
+  * ASoC: Intel: atom: enable machine driver for BYT/CHT+PCM512x
+
+ -- Ubilinux Team <ubilinux@emutex.com>  Mon, 27 Nov 2017 13:10:57 +0000
+
 linux-hwe (4.10.0-41.5000~upboard3) xenial; urgency=medium
 
   * UPBOARD: Squashed merge of Pier Louis Bossart Audio fixes for 4.10
