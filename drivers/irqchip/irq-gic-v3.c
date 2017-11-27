@@ -1316,6 +1316,10 @@ static int __init gic_of_init(struct device_node *node, struct device_node *pare
 
 	if (static_branch_likely(&supports_deactivate_key))
 		gic_of_setup_kvm_info(node);
+
+	if (IS_ENABLED(CONFIG_ARM_GIC_V2M))
+		gicv2m_init_gicv3(&node->fwnode, gic_data.domain);
+
 	return 0;
 
 out_unmap_rdist:
