@@ -1,3 +1,12 @@
+linux-hwe (4.10.0-41.5000~upboard2) xenial; urgency=medium
+
+  * UPBOARD: move debian.hwe directory to debian.up
+  * UPBOARD: removed unused architectures
+  * UPBOARD: bump debhelper compatibility to 9
+  * UPBOARD: config: add upboard pinctrl to the config
+
+ -- Ubilinux Team <ubilinux@emutex.com>  Mon, 27 Nov 2017 12:42:08 +0000
+
 linux-hwe (4.10.0-41.5000~upboard1) xenial; urgency=medium
 
   * Initial release. (Closes: #000)
