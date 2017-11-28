@@ -1276,13 +1276,13 @@ static int cpr_populate_opps(struct device_node *of_node, struct cpr_drv *drv,
 	struct corner *corner;
 	const struct corner_data *p;
 
-	for (i = 0; (cpu_dev = cpr_get_cpu_device(of_node, i)); i++)
-		for (j = 0, corner = drv->corners; plan[j]; j++, corner++) {
-			p = plan[j];
-			ret = dev_pm_opp_add(cpu_dev, p->freq, corner->uV);
-			if (ret)
-				return ret;
-		}
+	cpu_dev = get_cpu_device(0);
+	for (j = 0, corner = drv->corners; plan[j]; j++, corner++) {
+		p = plan[j];
+		ret = dev_pm_opp_add(cpu_dev, p->freq, corner->uV);
+		if (ret)
+			return ret;
+	}
 
 	return 0;
 }
