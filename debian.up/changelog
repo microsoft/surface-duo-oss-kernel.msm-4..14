@@ -1,3 +1,15 @@
+linux-hwe (4.10.0-41.5000~upboard6) xenial; urgency=medium
+
+  * Multiple audio fixes:
+    - ASoC: Intel: Enable bytcht_nocodec machine driver
+    - ASoC: Intel: boards: add card for MinnowBoardMax/Up I2S access
+    - ASoC: Intel: Atom: enable BYT/CHT+DA7213 machine driver
+    - ASoC: Intel: atom: enable driver for BYT/CHT+PCM512x
+    - Squashed merge of Pierre-Louis Bossart audio fixes for v4.10
+  * BUGFIX: disable I2C_DESIGNWARE_BAYTRAIL crash on Cherry Trail Platform
+
+ -- Ubilinux Team <ubilinux@emutex.com>  Wed, 29 Nov 2017 14:02:32 +0000
+
 linux-hwe (4.10.0-41.5000~upboard5) xenial; urgency=medium
 
   * Removed all audio patches (Bug in LPE audio subsistem reserving I2C6 on  UP) 
