@@ -30,6 +30,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/cpufreq.h>
 #include <linux/bitops.h>
+#include <linux/nvmem-consumer.h>
 #include <linux/regulator/qcom_smd-regulator.h>
 
 /* Register Offsets for RB-CPR and Bit Definitions */
@@ -776,7 +777,7 @@ static int cpr_enable(struct cpr_drv *drv)
 
 	return 0;
 }
-
+/*
 static int cpr_disable(struct cpr_drv *drv)
 {
 	int ret;
@@ -798,6 +799,8 @@ static int cpr_disable(struct cpr_drv *drv)
 
 	return 0;
 }
+*/
+
 
 #ifdef CONFIG_PM_SLEEP
 static int cpr_suspend(struct device *dev)
@@ -1271,7 +1274,7 @@ cpr_get_cpu_resources(struct cpr_drv *drv, struct device_node *of_node)
 static int cpr_populate_opps(struct device_node *of_node, struct cpr_drv *drv,
 			     const struct corner_data **plan)
 {
-	int i, j, ret;
+	int j, ret;
 	struct device *cpu_dev;
 	struct corner *corner;
 	const struct corner_data *p;
