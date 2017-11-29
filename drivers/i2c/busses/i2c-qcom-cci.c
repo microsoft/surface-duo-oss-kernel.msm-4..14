@@ -158,13 +158,11 @@ static const struct cci_res res_v1_0_8 = {
 };
 
 static const struct cci_res res_v1_4_0 = {
-	.clock = { "mmss_mmagic_ahb",
-		   "camss_top_ahb",
+	.clock = { "camss_top_ahb",
 		   "cci_ahb",
 		   "camss_ahb",
 		   "cci" },
 	.clock_rate = { 0,
-			0,
 			0,
 			0,
 			37500000 }
