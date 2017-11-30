@@ -30,6 +30,16 @@
 		gpio = <&gpio1 5 GPIO_ACTIVE_HIGH>;
 		enable-active-high;
 	};
+
+	reg_phy1_nreset: regulator-phy1-nrst {
+		compatible = "regulator-fixed";
+		regulator-name = "fec1_phy_nreset";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&gpio1 4 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		regulator-always-on;
+	};
 };
 
 &cpu0 {
@@ -46,6 +56,7 @@
 	phy-mode = "rgmii";
 	phy-handle = <&ethphy0>;
 	fsl,magic-packet;
+	phy-reset-gpios = <&pca9555 4 GPIO_ACTIVE_LOW>;	
 	status = "okay";
 
 	mdio {
@@ -213,8 +224,8 @@
 &iomuxc {
 	pinctrl_enet1: enet1grp {
 		fsl,pins = <
-			MX7D_PAD_SD2_CD_B__ENET1_MDIO			0x3
-			MX7D_PAD_SD2_WP__ENET1_MDC			0x3
+			MX7D_PAD_SD2_CD_B__ENET1_MDIO			0x30
+			MX7D_PAD_SD2_WP__ENET1_MDC			0x30
 			MX7D_PAD_ENET1_RGMII_TXC__ENET1_RGMII_TXC	0x1
 			MX7D_PAD_ENET1_RGMII_TD0__ENET1_RGMII_TD0	0x1
 			MX7D_PAD_ENET1_RGMII_TD1__ENET1_RGMII_TD1	0x1
@@ -272,6 +283,15 @@
 };
 
 &iomuxc_lpsr {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_hog_lpsr>;
+
+	pinctrl_hog_lpsr: hoggrp_lpsr {
+		fsl,pins = <
+			MX7D_PAD_GPIO1_IO04__GPIO1_IO4			0x34 /* FEC1 Phy nReset */
+		>;
+	};
+
 	pinctrl_i2c2: i2c2grp {
 		fsl,pins = <
 			MX7D_PAD_GPIO1_IO07__I2C2_SDA			0x4000000f
