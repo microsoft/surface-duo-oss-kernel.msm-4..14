@@ -1,3 +1,9 @@
+linux-hwe (4.10.0-41.5000~upboard7) xenial; urgency=medium
+
+  * UPBOARD: enable usb OTG in config and disable U_SERIAL
+
+ -- Ubilinux Team <ubilinux@emutex.com>  Fri, 01 Dec 2017 12:46:33 +0000
+
 linux-hwe (4.10.0-41.5000~upboard6) xenial; urgency=medium
 
   * Multiple audio fixes:
