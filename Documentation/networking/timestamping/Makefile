@@ -1,7 +1,7 @@
 # To compile, from the source root
 #
 #    make headers_install
-#    make M=documentation
+#    make M=Documentation
 
 # List of programs to build
 hostprogs-y := hwtstamp_config timestamping txtimestamp
