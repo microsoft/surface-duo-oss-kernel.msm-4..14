@@ -22,6 +22,7 @@
 #include <linux/mutex.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <linux/spinlock_types.h>
 #include <linux/spinlock.h>
 #include <media/media-entity.h>
@@ -1156,6 +1157,8 @@ static int vfe_get(struct vfe_device *vfe)
 	mutex_lock(&vfe->power_lock);
 
 	if (vfe->power_count == 0) {
+		pm_runtime_get_sync(to_device(vfe));
+
 		ret = vfe_set_clock_rates(vfe);
 		if (ret < 0)
 			goto error_clocks;
@@ -1209,6 +1212,7 @@ static void vfe_put(struct vfe_device *vfe)
 			vfe_halt(vfe);
 		}
 		camss_disable_clocks(vfe->nclocks, vfe->clock);
+		pm_runtime_put_sync(to_device(vfe));
 	}
 
 	vfe->power_count--;
