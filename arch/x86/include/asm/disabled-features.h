@@ -30,6 +30,12 @@
 # define DISABLE_PCID		(1<<(X86_FEATURE_PCID & 31))
 #endif /* CONFIG_X86_64 */
 
+#ifdef CONFIG_PAGE_TABLE_ISOLATION
+# define DISABLE_PTI		0
+#else
+# define DISABLE_PTI		(1 << (X86_FEATURE_PTI & 31))
+#endif
+
 /*
  * Make sure to add features to the correct mask
  */
@@ -40,7 +46,7 @@
 #define DISABLED_MASK4	(DISABLE_PCID)
 #define DISABLED_MASK5	0
 #define DISABLED_MASK6	0
-#define DISABLED_MASK7	0
+#define DISABLED_MASK7	(DISABLE_PTI)
 #define DISABLED_MASK8	0
 #define DISABLED_MASK9	(DISABLE_MPX)
 

@@ -192,6 +192,7 @@
 
 #define X86_FEATURE_HW_PSTATE	( 7*32+ 8) /* AMD HW-PState */
 #define X86_FEATURE_PROC_FEEDBACK ( 7*32+ 9) /* AMD ProcFeedbackInterface */
+#define X86_FEATURE_PTI			( 7*32+11) /* Kernel Page Table Isolation enabled */
 
 #define X86_FEATURE_INTEL_PT	( 7*32+15) /* Intel Processor Trace */
 /* Because the ALTERNATIVE scheme is for members of the X86_FEATURE club... */
@@ -292,4 +293,6 @@
 #define X86_BUG_SYSRET_SS_ATTRS	X86_BUG(8) /* SYSRET doesn't fix up SS attrs */
 
 #define X86_BUG_MONITOR		X86_BUG(12) /* IPI required to wake up remote CPU */
+#define X86_BUG_CPU_INSECURE		X86_BUG(14) /* CPU is insecure and needs kernel page table isolation */
+
 #endif /* _ASM_X86_CPUFEATURES_H */
