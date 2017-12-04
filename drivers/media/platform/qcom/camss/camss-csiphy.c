@@ -21,6 +21,7 @@
 #include <linux/kernel.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <media/media-entity.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
@@ -201,6 +202,8 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 	if (on) {
 		int ret;
 
+		pm_runtime_get_sync(dev);
+
 		ret = csiphy_set_clock_rates(csiphy);
 		if (ret < 0)
 			return ret;
@@ -218,6 +221,8 @@ static int csiphy_set_power(struct v4l2_subdev *sd, int on)
 		disable_irq(csiphy->irq);
 
 		camss_disable_clocks(csiphy->nclocks, csiphy->clock);
+
+		pm_runtime_put_sync(dev);
 	}
 
 	return 0;
