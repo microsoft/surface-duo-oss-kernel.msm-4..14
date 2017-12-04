@@ -22,6 +22,7 @@
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <linux/of_graph.h>
+#include <linux/pm_runtime.h>
 #include <linux/slab.h>
 #include <linux/videodev2.h>
 
@@ -872,6 +873,8 @@ static int camss_probe(struct platform_device *pdev)
 		}
 	}
 
+	pm_runtime_enable(dev);
+
 	return 0;
 
 err_register_subdevs:
@@ -887,6 +890,8 @@ void camss_delete(struct camss *camss)
 	v4l2_device_unregister(&camss->v4l2_dev);
 	media_device_unregister(&camss->media_dev);
 	media_device_cleanup(&camss->media_dev);
+
+	pm_runtime_disable(camss->dev);
 
 	kfree(camss);
 }
@@ -920,12 +925,29 @@ static const struct of_device_id camss_dt_match[] = {
 
 MODULE_DEVICE_TABLE(of, camss_dt_match);
 
+static int camss_runtime_suspend(struct device *dev)
+{
+	return 0;
+}
+
+static int camss_runtime_resume(struct device *dev)
+{
+	return 0;
+}
+
+static const struct dev_pm_ops camss_pm_ops = {
+	SET_SYSTEM_SLEEP_PM_OPS(pm_runtime_force_suspend,
+				pm_runtime_force_resume)
+	SET_RUNTIME_PM_OPS(camss_runtime_suspend, camss_runtime_resume, NULL)
+};
+
 static struct platform_driver qcom_camss_driver = {
 	.probe = camss_probe,
 	.remove = camss_remove,
 	.driver = {
 		.name = "qcom-camss",
 		.of_match_table = camss_dt_match,
+		.pm = &camss_pm_ops,
 	},
 };
 

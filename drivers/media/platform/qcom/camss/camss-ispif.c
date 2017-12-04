@@ -22,6 +22,7 @@
 #include <linux/kernel.h>
 #include <linux/mutex.h>
 #include <linux/platform_device.h>
+#include <linux/pm_runtime.h>
 #include <media/media-entity.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-subdev.h>
@@ -304,6 +305,8 @@ static int ispif_set_power(struct v4l2_subdev *sd, int on)
 			goto exit;
 		}
 
+		pm_runtime_get_sync(dev);
+
 		ret = camss_enable_clocks(ispif->nclocks, ispif->clock, dev);
 		if (ret < 0)
 			goto exit;
@@ -324,6 +327,7 @@ static int ispif_set_power(struct v4l2_subdev *sd, int on)
 			goto exit;
 		} else if (ispif->power_count == 1) {
 			camss_disable_clocks(ispif->nclocks, ispif->clock);
+			pm_runtime_put_sync(dev);
 		}
 
 		ispif->power_count--;
