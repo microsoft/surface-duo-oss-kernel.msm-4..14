@@ -604,11 +604,10 @@ static int drm_atomic_crtc_check(struct drm_crtc *crtc,
 	 * pipe.
 	 */
 	if (state->event && !state->active && !crtc->state->active) {
-		DRM_DEBUG_ATOMIC("[CRTC:%d:%s] requesting event but off\n",
-				 crtc->base.id, crtc->name);
-		return -EINVAL;
+		printk("[CRTC:%d] requesting event but off\n",
+				 crtc->base.id);
+	//	return -EINVAL;
 	}
-
 	return 0;
 }
 
