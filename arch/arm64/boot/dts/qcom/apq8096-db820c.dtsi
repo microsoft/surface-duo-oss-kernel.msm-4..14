@@ -18,7 +18,8 @@
 #include "apq8096-db820c-pmic-pins.dtsi"
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/gpio/gpio.h>
-
+#include <dt-bindings/sound/qcom,q6afe.h>
+#include <dt-bindings/sound/qcom,q6asm.h>
 / {
 	aliases {
 		serial0 = &blsp2_uart1;
@@ -186,10 +187,10 @@
 
 				core-vdda-supply = <&pm8994_l12>;
 				core-vcc-supply = <&pm8994_s4>;
+				#sound-dai-cells = <1>;
 			};
 		};
 	};
-
 
 	gpio_keys {
 		compatible = "gpio-keys";
@@ -356,6 +357,46 @@
 				l32 {
 					regulator-min-microvolt = <1800000>;
 					regulator-max-microvolt = <1800000>;
+				};
+			};
+		};
+	};
+	adsp-pil {
+		power-domains = <&gcc HLOS1_VOTE_LPASS_ADSP_GDSC>;
+		smd-edge {
+			apr {
+				iommus = <&lpass_q6_smmu 1>;
+				audio {
+					compatible = "qcom,apq8096-sndcard";
+					qcom,model = "DB820c";
+					qcom,audio-routing =
+						"RX_BIAS", "MCLK";
+
+					fe@1 {
+						is-fe;
+						link-name = "MultiMedia1 Playback";
+						cpu {
+							sound-dai = <&q6asm  MSM_FRONTEND_DAI_MULTIMEDIA1>;
+						};
+						platform {
+							sound-dai = <&q6asm  MSM_FRONTEND_DAI_MULTIMEDIA1>;
+						};
+					};
+
+					be@1 {
+						link-name = "HDMI Playback";
+						cpu {
+							sound-dai = <&q6afe AFE_PORT_HDMI_RX>;
+						};
+
+						platform {
+							sound-dai = <&q6adm>;
+						};
+
+						codec {
+							sound-dai = <&hdmi 0>;
+						};
+					};
 				};
 			};
 		};
