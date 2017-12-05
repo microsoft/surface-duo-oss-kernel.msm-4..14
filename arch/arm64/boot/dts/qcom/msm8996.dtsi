@@ -380,12 +380,22 @@
 		intc: interrupt-controller@9bc0000 {
 			compatible = "qcom,msm8996-gic-v3", "arm,gic-v3";
 			#interrupt-cells = <3>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
 			interrupt-controller;
 			#redistributor-regions = <1>;
 			redistributor-stride = <0x0 0x40000>;
 			reg = <0x09bc0000 0x10000>,
 			      <0x09c00000 0x100000>;
 			interrupts = <GIC_PPI 9 IRQ_TYPE_LEVEL_HIGH>;
+
+			msi_alias0: interrupt-controller@9bd0000 {
+				compatible = "qcom,gic-msi-aliases";
+				reg = <0x9bd0000 0x1000>;
+				msi-controller;
+				arm,spi-ranges = <544 96>;
+			};
 		};
 
 		apcs: syscon@9820000 {
@@ -852,6 +862,7 @@
 				power-domains = <&gcc PCIE0_GDSC>;
 				bus-range = <0x00 0xff>;
 				num-lanes = <1>;
+				msi-parent = <&msi_alias0>;
 
 				reg = <0x00600000 0x2000>,
 				      <0x0c000000 0xf1d>,
@@ -903,6 +914,7 @@
 				compatible = "qcom,pcie-msm8996", "snps,dw-pcie";
 				power-domains = <&gcc PCIE1_GDSC>;
 				bus-range = <0x00 0xff>;
+				msi-parent = <&msi_alias0>;
 				num-lanes = <1>;
 
 				status  = "disabled";
@@ -956,6 +968,7 @@
 				compatible = "qcom,pcie-msm8996", "snps,dw-pcie";
 				power-domains = <&gcc PCIE2_GDSC>;
 				bus-range = <0x00 0xff>;
+				msi-parent = <&msi_alias0>;
 				num-lanes = <1>;
 				status = "disabled";
 				reg = <0x00610000 0x2000>,
