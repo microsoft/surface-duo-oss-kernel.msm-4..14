@@ -1,3 +1,9 @@
+linux-hwe (4.10.0-42.5000~upboard9) xenial; urgency=medium
+
+  * UPBOARD: bump version to 9 to make launchpad happy 
+
+ -- Ubilinux Team <ubilinux@emutex.com>  Thu, 07 Dec 2017 16:13:05 +0000
+
 linux-hwe (4.10.0-42.5000~upboard8) xenial; urgency=medium
 
   * UPBOARD: ABI changes ubuntu version 4.10.0-42.46 
