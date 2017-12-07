@@ -113,7 +113,6 @@ struct machdep_calls {
 
 	void		(*restart)(char *cmd);
 	void		(*halt)(void);
-	void		(*panic)(char *str);
 	void		(*cpu_die)(void);
 
 	long		(*time_init)(void); /* Optional, may be NULL */
