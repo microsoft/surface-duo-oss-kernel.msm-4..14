@@ -1,3 +1,9 @@
+linux-hwe (4.10.0-42.5000~upboard8) xenial; urgency=medium
+
+  * UPBOARD: ABI changes ubuntu version 4.10.0-42.46 
+
+ -- Ubilinux Team <ubilinux@emutex.com>  Thu, 07 Dec 2017 15:31:47 +0000
+
 linux-hwe (4.10.0-41.5000~upboard7) xenial; urgency=medium
 
   * UPBOARD: enable usb OTG in config and disable U_SERIAL
