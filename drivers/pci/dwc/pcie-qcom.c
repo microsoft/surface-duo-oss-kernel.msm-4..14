@@ -497,6 +497,9 @@ static int qcom_pcie_get_resources_2_3_2(struct qcom_pcie *pcie)
 	int ret;
 
 	res->supplies[0].supply = "vdda";
+	res->supplies[1].supply = "vdda-1p8";
+	res->supplies[2].supply = "vddpe";
+	res->supplies[3].supply = "vddpe1";
 	res->supplies[1].supply = "vddpe-3v3";
 	ret = devm_regulator_bulk_get(dev, ARRAY_SIZE(res->supplies),
 				      res->supplies);
