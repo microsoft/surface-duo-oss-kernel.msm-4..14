@@ -3,6 +3,7 @@
  * Copyright (c) 2013-2016, Linux Foundation. All rights reserved.
  */
 
+#include <linux/interconnect.h>
 #include <linux/time.h>
 #include <linux/of.h>
 #include <linux/platform_device.h>
@@ -754,6 +755,7 @@ static int ufs_qcom_bus_register(struct ufs_qcom_host *host)
 	return 0;
 }
 #endif /* CONFIG_MSM_BUS_SCALING */
+
 
 static void ufs_qcom_dev_ref_clk_ctrl(struct ufs_qcom_host *host, bool enable)
 {
@@ -1601,6 +1603,17 @@ static int ufs_qcom_probe(struct platform_device *pdev)
 {
 	int err;
 	struct device *dev = &pdev->dev;
+	struct icc_path *path = of_icc_get(dev, "ufs-mem");
+	struct icc_path *path_cfg = of_icc_get(dev, "cpu-ufs");
+
+	if (IS_ERR(path))
+		return PTR_ERR(path);
+
+	if (IS_ERR(path_cfg))
+		return PTR_ERR(path_cfg);
+
+	icc_set_bw(path, kBps_to_icc(4096000), 0);
+	icc_set_bw(path_cfg, kBps_to_icc(1000), 0);
 
 	/* Perform generic probe */
 	err = ufshcd_pltfrm_init(pdev, &ufs_hba_qcom_vops);
