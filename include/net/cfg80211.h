@@ -2021,6 +2021,9 @@ struct cfg80211_disassoc_request {
  * @ht_capa:  HT Capabilities over-rides.  Values set in ht_capa_mask
  *	will be used in ht_capa.  Un-supported values will be ignored.
  * @ht_capa_mask:  The bits of ht_capa which are to be used.
+ * @wep_keys: static WEP keys, if not NULL points to an array of
+ * 	CFG80211_MAX_WEP_KEYS WEP keys
+ * @wep_tx_key: key index (0..3) of the default TX static WEP key
  */
 struct cfg80211_ibss_params {
 	const u8 *ssid;
@@ -2037,6 +2040,8 @@ struct cfg80211_ibss_params {
 	int mcast_rate[NUM_NL80211_BANDS];
 	struct ieee80211_ht_cap ht_capa;
 	struct ieee80211_ht_cap ht_capa_mask;
+	struct key_params *wep_keys;
+	int wep_tx_key;
 };
 
 /**
@@ -5576,7 +5581,7 @@ void cfg80211_conn_failed(struct net_device *dev, const u8 *mac_addr,
  * cfg80211_rx_mgmt - notification of received, unprocessed management frame
  * @wdev: wireless device receiving the frame
  * @freq: Frequency on which the frame was received in MHz
- * @sig_dbm: signal strength in mBm, or 0 if unknown
+ * @sig_dbm: signal strength in dBm, or 0 if unknown
  * @buf: Management frame (header + body)
  * @len: length of the frame data
  * @flags: flags, as defined in enum nl80211_rxmgmt_flags
@@ -5755,7 +5760,7 @@ void cfg80211_probe_status(struct net_device *dev, const u8 *addr,
  * @frame: the frame
  * @len: length of the frame
  * @freq: frequency the frame was received on
- * @sig_dbm: signal strength in mBm, or 0 if unknown
+ * @sig_dbm: signal strength in dBm, or 0 if unknown
  *
  * Use this function to report to userspace when a beacon was
  * received. It is not useful to call this when there is no

@@ -1439,6 +1439,7 @@ void ieee80211_txq_init(struct ieee80211_sub_if_data *sdata,
 	codel_vars_init(&txqi->def_cvars);
 	codel_stats_init(&txqi->cstats);
 	__skb_queue_head_init(&txqi->frags);
+	INIT_LIST_HEAD(&txqi->schedule_order);
 
 	txqi->txq.vif = &sdata->vif;
 
@@ -1462,6 +1463,7 @@ void ieee80211_txq_purge(struct ieee80211_local *local,
 
 	fq_tin_reset(fq, tin, fq_skb_free_func);
 	ieee80211_purge_tx_queue(&local->hw, &txqi->frags);
+	list_del_init(&txqi->schedule_order);
 }
 
 int ieee80211_txq_setup_flows(struct ieee80211_local *local)
@@ -1558,7 +1560,8 @@ static bool ieee80211_queue_skb(struct ieee80211_local *local,
 	ieee80211_txq_enqueue(local, txqi, skb);
 	spin_unlock_bh(&fq->lock);
 
-	drv_wake_tx_queue(local, txqi);
+	if (ieee80211_schedule_txq(&local->hw, &txqi->txq))
+		drv_wake_tx_queue(local);
 
 	return true;
 }
@@ -2922,7 +2925,9 @@ void ieee80211_check_fast_xmit(struct sta_info *sta)
 
 		gen_iv = build.key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_IV;
 		iv_spc = build.key->conf.flags & IEEE80211_KEY_FLAG_PUT_IV_SPACE;
-		mmic = build.key->conf.flags & IEEE80211_KEY_FLAG_GENERATE_MMIC;
+		mmic = build.key->conf.flags &
+			(IEEE80211_KEY_FLAG_GENERATE_MMIC |
+			 IEEE80211_KEY_FLAG_PUT_MIC_SPACE);
 
 		/* don't handle software crypto */
 		if (!(build.key->flags & KEY_FLAG_UPLOADED_TO_HARDWARE))
@@ -3550,6 +3555,71 @@ out:
 	return skb;
 }
 EXPORT_SYMBOL(ieee80211_tx_dequeue);
+
+bool ieee80211_schedule_txq(struct ieee80211_hw *hw,
+			    struct ieee80211_txq *txq)
+{
+	struct ieee80211_local *local = hw_to_local(hw);
+	struct txq_info *txqi = to_txq_info(txq);
+	bool ret = false;
+
+	spin_lock_bh(&local->active_txq_lock);
+
+	if (list_empty(&txqi->schedule_order)) {
+		list_add_tail(&txqi->schedule_order, &local->active_txqs_new);
+		ret = true;
+	}
+
+	spin_unlock_bh(&local->active_txq_lock);
+
+	return ret;
+}
+EXPORT_SYMBOL(ieee80211_schedule_txq);
+
+struct ieee80211_txq *ieee80211_next_txq(struct ieee80211_hw *hw)
+{
+	struct ieee80211_local *local = hw_to_local(hw);
+	struct txq_info *txqi = NULL;
+	struct list_head *head;
+
+	spin_lock_bh(&local->active_txq_lock);
+
+begin:
+	head = &local->active_txqs_new;
+	if (list_empty(head)) {
+		head = &local->active_txqs_old;
+		if (list_empty(head))
+			goto out;
+	}
+
+	txqi = list_first_entry(head, struct txq_info, schedule_order);
+
+	if (txqi->txq.sta) {
+		struct sta_info *sta = container_of(txqi->txq.sta,
+						struct sta_info, sta);
+
+		spin_lock_bh(&sta->lock);
+		if (sta->airtime_deficit < 0) {
+			sta->airtime_deficit += IEEE80211_AIRTIME_QUANTUM;
+			list_move_tail(&txqi->schedule_order,
+				       &local->active_txqs_old);
+			spin_unlock_bh(&sta->lock);
+			goto begin;
+		}
+		spin_unlock_bh(&sta->lock);
+	}
+
+	list_del_init(&txqi->schedule_order);
+
+out:
+	spin_unlock_bh(&local->active_txq_lock);
+
+	if (!txqi)
+		return NULL;
+
+	return &txqi->txq;
+}
+EXPORT_SYMBOL(ieee80211_next_txq);
 
 void __ieee80211_subif_start_xmit(struct sk_buff *skb,
 				  struct net_device *dev,

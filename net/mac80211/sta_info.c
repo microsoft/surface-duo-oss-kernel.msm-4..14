@@ -425,6 +425,8 @@ struct sta_info *sta_info_alloc(struct ieee80211_sub_if_data *sdata,
 	sta->cparams.interval = MS2TIME(100);
 	sta->cparams.ecn = true;
 
+	sta->airtime_deficit = IEEE80211_AIRTIME_QUANTUM;
+
 	sta_dbg(sdata, "Allocated STA %pM\n", sta->sta.addr);
 
 	return sta;
@@ -1237,12 +1239,17 @@ void ieee80211_sta_ps_deliver_wakeup(struct sta_info *sta)
 		drv_sta_notify(local, sdata, STA_NOTIFY_AWAKE, &sta->sta);
 
 	if (sta->sta.txq[0]) {
+		bool wake = false;
+
 		for (i = 0; i < ARRAY_SIZE(sta->sta.txq); i++) {
 			if (!txq_has_queue(sta->sta.txq[i]))
 				continue;
 
-			drv_wake_tx_queue(local, to_txq_info(sta->sta.txq[i]));
+			if (ieee80211_schedule_txq(&local->hw, sta->sta.txq[i]))
+				wake = true;
 		}
+		if (wake)
+			drv_wake_tx_queue(local);
 	}
 
 	skb_queue_head_init(&pending);

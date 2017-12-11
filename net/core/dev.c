@@ -3162,6 +3162,21 @@ static inline int __dev_xmit_skb(struct sk_buff *skb, struct Qdisc *q,
 	int rc;
 
 	qdisc_calculate_pkt_len(skb, q);
+
+	if (q->flags & TCQ_F_NOLOCK) {
+		if (unlikely(test_bit(__QDISC_STATE_DEACTIVATED, &q->state))) {
+			__qdisc_drop(skb, &to_free);
+			rc = NET_XMIT_DROP;
+		} else {
+			rc = q->enqueue(skb, q, &to_free) & NET_XMIT_MASK;
+			__qdisc_run(q);
+		}
+
+		if (unlikely(to_free))
+			kfree_skb_list(to_free);
+		return rc;
+	}
+
 	/*
 	 * Heuristic to force contended enqueues to serialize on a
 	 * separate lock before trying to get qdisc main lock.
@@ -3192,9 +3207,9 @@ static inline int __dev_xmit_skb(struct sk_buff *skb, struct Qdisc *q,
 				contended = false;
 			}
 			__qdisc_run(q);
-		} else
-			qdisc_run_end(q);
+		}
 
+		qdisc_run_end(q);
 		rc = NET_XMIT_SUCCESS;
 	} else {
 		rc = q->enqueue(skb, q, &to_free) & NET_XMIT_MASK;
@@ -3204,6 +3219,7 @@ static inline int __dev_xmit_skb(struct sk_buff *skb, struct Qdisc *q,
 				contended = false;
 			}
 			__qdisc_run(q);
+			qdisc_run_end(q);
 		}
 	}
 	spin_unlock(root_lock);
@@ -4143,19 +4159,22 @@ static __latent_entropy void net_tx_action(struct softirq_action *h)
 
 		while (head) {
 			struct Qdisc *q = head;
-			spinlock_t *root_lock;
+			spinlock_t *root_lock = NULL;
 
 			head = head->next_sched;
 
-			root_lock = qdisc_lock(q);
-			spin_lock(root_lock);
+			if (!(q->flags & TCQ_F_NOLOCK)) {
+				root_lock = qdisc_lock(q);
+				spin_lock(root_lock);
+			}
 			/* We need to make sure head->next_sched is read
 			 * before clearing __QDISC_STATE_SCHED
 			 */
 			smp_mb__before_atomic();
 			clear_bit(__QDISC_STATE_SCHED, &q->state);
 			qdisc_run(q);
-			spin_unlock(root_lock);
+			if (root_lock)
+				spin_unlock(root_lock);
 		}
 	}
 }
@@ -7073,17 +7092,21 @@ int dev_change_proto_down(struct net_device *dev, bool proto_down)
 }
 EXPORT_SYMBOL(dev_change_proto_down);
 
-u8 __dev_xdp_attached(struct net_device *dev, bpf_op_t bpf_op, u32 *prog_id)
+void __dev_xdp_query(struct net_device *dev, bpf_op_t bpf_op,
+		     struct netdev_bpf *xdp)
+{
+	memset(xdp, 0, sizeof(*xdp));
+	xdp->command = XDP_QUERY_PROG;
+
+	/* Query must always succeed. */
+	WARN_ON(bpf_op(dev, xdp) < 0);
+}
+
+static u8 __dev_xdp_attached(struct net_device *dev, bpf_op_t bpf_op)
 {
 	struct netdev_bpf xdp;
 
-	memset(&xdp, 0, sizeof(xdp));
-	xdp.command = XDP_QUERY_PROG;
-
-	/* Query must always succeed. */
-	WARN_ON(bpf_op(dev, &xdp) < 0);
-	if (prog_id)
-		*prog_id = xdp.prog_id;
+	__dev_xdp_query(dev, bpf_op, &xdp);
 
 	return xdp.prog_attached;
 }
@@ -7104,6 +7127,27 @@ static int dev_xdp_install(struct net_device *dev, bpf_op_t bpf_op,
 	xdp.prog = prog;
 
 	return bpf_op(dev, &xdp);
+}
+
+static void dev_xdp_uninstall(struct net_device *dev)
+{
+	struct netdev_bpf xdp;
+	bpf_op_t ndo_bpf;
+
+	/* Remove generic XDP */
+	WARN_ON(dev_xdp_install(dev, generic_xdp_install, NULL, 0, NULL));
+
+	/* Remove from the driver */
+	ndo_bpf = dev->netdev_ops->ndo_bpf;
+	if (!ndo_bpf)
+		return;
+
+	__dev_xdp_query(dev, ndo_bpf, &xdp);
+	if (xdp.prog_attached == XDP_ATTACHED_NONE)
+		return;
+
+	/* Program removal should always succeed */
+	WARN_ON(dev_xdp_install(dev, ndo_bpf, NULL, xdp.prog_flags, NULL));
 }
 
 /**
@@ -7134,10 +7178,10 @@ int dev_change_xdp_fd(struct net_device *dev, struct netlink_ext_ack *extack,
 		bpf_chk = generic_xdp_install;
 
 	if (fd >= 0) {
-		if (bpf_chk && __dev_xdp_attached(dev, bpf_chk, NULL))
+		if (bpf_chk && __dev_xdp_attached(dev, bpf_chk))
 			return -EEXIST;
 		if ((flags & XDP_FLAGS_UPDATE_IF_NOEXIST) &&
-		    __dev_xdp_attached(dev, bpf_op, NULL))
+		    __dev_xdp_attached(dev, bpf_op))
 			return -EBUSY;
 
 		prog = bpf_prog_get_type_dev(fd, BPF_PROG_TYPE_XDP,
@@ -7236,6 +7280,7 @@ static void rollback_registered_many(struct list_head *head)
 		/* Shutdown queueing discipline. */
 		dev_shutdown(dev);
 
+		dev_xdp_uninstall(dev);
 
 		/* Notify protocols, that we are about to destroy
 		 * this device. They should clean all the things.
@@ -8195,7 +8240,6 @@ EXPORT_SYMBOL(alloc_netdev_mqs);
 void free_netdev(struct net_device *dev)
 {
 	struct napi_struct *p, *n;
-	struct bpf_prog *prog;
 
 	might_sleep();
 	netif_free_tx_queues(dev);
@@ -8213,12 +8257,6 @@ void free_netdev(struct net_device *dev)
 
 	free_percpu(dev->pcpu_refcnt);
 	dev->pcpu_refcnt = NULL;
-
-	prog = rcu_dereference_protected(dev->xdp_prog, 1);
-	if (prog) {
-		bpf_prog_put(prog);
-		static_key_slow_dec(&generic_xdp_needed);
-	}
 
 	/*  Compatibility with error handling in drivers */
 	if (dev->reg_state == NETREG_UNINITIALIZED) {

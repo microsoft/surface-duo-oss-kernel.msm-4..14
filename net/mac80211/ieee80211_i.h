@@ -90,6 +90,9 @@ extern const u8 ieee80211_ac_to_qos_mask[IEEE80211_NUM_ACS];
 
 #define IEEE80211_MAX_NAN_INSTANCE_ID 255
 
+/* How much to increase airtime deficit on each scheduling round */
+#define IEEE80211_AIRTIME_QUANTUM        1000 /* usec */
+
 struct ieee80211_fragment_entry {
 	struct sk_buff_head skb_list;
 	unsigned long first_frag_time;
@@ -832,6 +835,7 @@ struct txq_info {
 	struct codel_vars def_cvars;
 	struct codel_stats cstats;
 	struct sk_buff_head frags;
+	struct list_head schedule_order;
 	unsigned long flags;
 
 	/* keep last! */
@@ -1121,6 +1125,11 @@ struct ieee80211_local {
 	struct fq fq;
 	struct codel_vars *cvars;
 	struct codel_params cparams;
+
+	/* protects active_txqs_{new,old} and txqi->schedule_order */
+	spinlock_t active_txq_lock;
+	struct list_head active_txqs_new;
+	struct list_head active_txqs_old;
 
 	const struct ieee80211_ops *ops;
 
@@ -1757,10 +1766,6 @@ void ___ieee80211_stop_rx_ba_session(struct sta_info *sta, u16 tid,
 				     u16 initiator, u16 reason, bool stop);
 void __ieee80211_stop_rx_ba_session(struct sta_info *sta, u16 tid,
 				    u16 initiator, u16 reason, bool stop);
-void __ieee80211_start_rx_ba_session(struct sta_info *sta,
-				     u8 dialog_token, u16 timeout,
-				     u16 start_seq_num, u16 ba_policy, u16 tid,
-				     u16 buf_size, bool tx, bool auto_seq);
 void ___ieee80211_start_rx_ba_session(struct sta_info *sta,
 				      u8 dialog_token, u16 timeout,
 				      u16 start_seq_num, u16 ba_policy, u16 tid,

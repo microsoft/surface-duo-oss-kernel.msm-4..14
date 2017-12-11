@@ -263,6 +263,9 @@ static void ieee80211_restart_work(struct work_struct *work)
 	flush_delayed_work(&local->roc_work);
 	flush_work(&local->hw_roc_done);
 
+	/* wait for all packet processing to be done */
+	synchronize_net();
+
 	ieee80211_reconfig(local);
 	rtnl_unlock();
 }
@@ -615,6 +618,10 @@ struct ieee80211_hw *ieee80211_alloc_hw_nm(size_t priv_data_len,
 	spin_lock_init(&local->filter_lock);
 	spin_lock_init(&local->rx_path_lock);
 	spin_lock_init(&local->queue_stop_reason_lock);
+
+	INIT_LIST_HEAD(&local->active_txqs_new);
+	INIT_LIST_HEAD(&local->active_txqs_old);
+	spin_lock_init(&local->active_txq_lock);
 
 	INIT_LIST_HEAD(&local->chanctx_list);
 	mutex_init(&local->chanctx_mtx);

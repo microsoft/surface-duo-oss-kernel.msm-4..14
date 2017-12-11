@@ -105,9 +105,12 @@
  * The driver is expected to initialize its private per-queue data for stations
  * and interfaces in the .add_interface and .sta_add ops.
  *
- * The driver can't access the queue directly. To dequeue a frame, it calls
- * ieee80211_tx_dequeue(). Whenever mac80211 adds a new frame to a queue, it
- * calls the .wake_tx_queue driver op.
+ * The driver can't access the queue directly. To obtain the next queue to pull
+ * frames from, the driver calls ieee80211_next_txq(). To dequeue a frame from a
+ * txq, it calls ieee80211_tx_dequeue(). Whenever mac80211 adds a new frame to a
+ * queue, it calls the .wake_tx_queue driver op. The driver is expected to
+ * re-schedule the txq using ieee80211_schedule_txq() if it is still active
+ * after the driver has finished pulling packets from it.
  *
  * For AP powersave TIM handling, the driver only needs to indicate if it has
  * buffered packets in the driver specific data structures by calling
@@ -1185,6 +1188,8 @@ enum mac80211_rx_encoding {
  *	HT or VHT is used (%RX_FLAG_HT/%RX_FLAG_VHT)
  * @nss: number of streams (VHT and HE only)
  * @flag: %RX_FLAG_\*
+ * @airtime: Duration of frame in usec. See @IEEE80211_HW_AIRTIME_ACCOUNTING for
+ *       how to use this.
  * @encoding: &enum mac80211_rx_encoding
  * @bw: &enum rate_info_bw
  * @enc_flags: uses bits from &enum mac80211_rx_encoding_flags
@@ -1199,6 +1204,7 @@ struct ieee80211_rx_status {
 	u32 device_timestamp;
 	u32 ampdu_reference;
 	u32 flag;
+	u16 airtime;
 	u16 freq;
 	u8 enc_flags;
 	u8 encoding:2, bw:3;
@@ -1552,6 +1558,9 @@ struct wireless_dev *ieee80211_vif_to_wdev(struct ieee80211_vif *vif);
  * @IEEE80211_KEY_FLAG_RESERVE_TAILROOM: This flag should be set by the
  *	driver for a key to indicate that sufficient tailroom must always
  *	be reserved for ICV or MIC, even when HW encryption is enabled.
+ * @IEEE80211_KEY_FLAG_PUT_MIC_SPACE: This flag should be set by the driver for
+ *	a TKIP key if it only requires MIC space. Do not set together with
+ *	@IEEE80211_KEY_FLAG_GENERATE_MMIC on the same key.
  */
 enum ieee80211_key_flags {
 	IEEE80211_KEY_FLAG_GENERATE_IV_MGMT	= BIT(0),
@@ -1562,6 +1571,7 @@ enum ieee80211_key_flags {
 	IEEE80211_KEY_FLAG_PUT_IV_SPACE		= BIT(5),
 	IEEE80211_KEY_FLAG_RX_MGMT		= BIT(6),
 	IEEE80211_KEY_FLAG_RESERVE_TAILROOM	= BIT(7),
+	IEEE80211_KEY_FLAG_PUT_MIC_SPACE	= BIT(8),
 };
 
 /**
@@ -1593,8 +1603,8 @@ struct ieee80211_key_conf {
 	u8 icv_len;
 	u8 iv_len;
 	u8 hw_key_idx;
-	u8 flags;
 	s8 keyidx;
+	u16 flags;
 	u8 keylen;
 	u8 key[0];
 };
@@ -2056,6 +2066,29 @@ struct ieee80211_txq {
  *	The stack will not do fragmentation.
  *	The callback for @set_frag_threshold should be set as well.
  *
+ * @IEEE80211_HW_SUPPORTS_TDLS_BUFFER_STA: Hardware supports buffer STA on
+ *	TDLS links.
+ *
+ * @IEEE80211_HW_AIRTIME_ACCOUNTING: Hardware supports accounting the airtime
+ *      usage of other stations and reports it in the @tx_time and/or @airtime
+ *      fields of the TX/RX status structs.
+ *      When setting this flag, the driver should ensure that the respective
+ *      fields in the TX and RX status structs are always either zero or
+ *      contains a valid duration for the frame in usec. The driver can choose
+ *      to report either or both of TX and RX airtime, but it is recommended to
+ *      report both.
+ *      The reported airtime should as a minimum include all time that is spent
+ *      transmitting to the remote station, including overhead and padding, but
+ *      not including time spent waiting for a TXOP. If the time is not reported
+ *      by the hardware it can in some cases be calculated from the rate and
+ *      known frame composition. When possible, the time should include any
+ *      failed transmission attempts.
+ *      For aggregated frames, there are two possible strategies to report the
+ *      airtime: Either include the airtime of the entire aggregate in the first
+ *      (or last) frame and leave the others at zero. Alternatively, include the
+ *      overhead of the full aggregate in the first or last frame and report the
+ *      time of each frame + padding not including the full aggregate overhead.
+ *
  * @NUM_IEEE80211_HW_FLAGS: number of hardware flags, used for sizing arrays
  */
 enum ieee80211_hw_flags {
@@ -2098,6 +2131,8 @@ enum ieee80211_hw_flags {
 	IEEE80211_HW_TX_FRAG_LIST,
 	IEEE80211_HW_REPORTS_LOW_ACK,
 	IEEE80211_HW_SUPPORTS_TX_FRAG,
+	IEEE80211_HW_SUPPORTS_TDLS_BUFFER_STA,
+	IEEE80211_HW_AIRTIME_ACCOUNTING,
 
 	/* keep last, obviously */
 	NUM_IEEE80211_HW_FLAGS
@@ -3723,8 +3758,7 @@ struct ieee80211_ops {
 					 struct ieee80211_vif *vif,
 					 struct ieee80211_tdls_ch_sw_params *params);
 
-	void (*wake_tx_queue)(struct ieee80211_hw *hw,
-			      struct ieee80211_txq *txq);
+	void (*wake_tx_queue)(struct ieee80211_hw *hw);
 	void (*sync_rx_queues)(struct ieee80211_hw *hw);
 
 	int (*start_nan)(struct ieee80211_hw *hw,
@@ -5875,12 +5909,35 @@ void ieee80211_unreserve_tid(struct ieee80211_sta *sta, u8 tid);
  * ieee80211_tx_dequeue - dequeue a packet from a software tx queue
  *
  * @hw: pointer as obtained from ieee80211_alloc_hw()
- * @txq: pointer obtained from station or virtual interface
+ * @txq: pointer obtained from ieee80211_next_txq()
  *
  * Returns the skb if successful, %NULL if no frame was available.
  */
 struct sk_buff *ieee80211_tx_dequeue(struct ieee80211_hw *hw,
 				     struct ieee80211_txq *txq);
+
+/**
+ * ieee80211_schedule_txq - add txq to scheduling loop
+ *
+ * @hw: pointer as obtained from ieee80211_alloc_hw()
+ * @txq: pointer obtained from station or virtual interface
+ *
+ * Returns %true if the txq was actually added to the scheduling,
+ * %false otherwise.
+ */
+bool ieee80211_schedule_txq(struct ieee80211_hw *hw,
+			    struct ieee80211_txq *txq);
+
+/**
+ * ieee80211_next_txq - get next tx queue to pull packets from
+ *
+ * @hw: pointer as obtained from ieee80211_alloc_hw()
+ *
+ * Returns the next txq if successful, %NULL if no queue is eligible. If a txq
+ * is returned, it will have been removed from the scheduler queue and needs to
+ * be re-scheduled with ieee80211_schedule_txq() to continue to be active.
+ */
+struct ieee80211_txq *ieee80211_next_txq(struct ieee80211_hw *hw);
 
 /**
  * ieee80211_txq_get_depth - get pending frame/byte count of given txq
