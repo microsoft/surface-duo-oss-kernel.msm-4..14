@@ -3119,7 +3119,7 @@ static struct gdsc hlos1_vote_lpass_adsp_gdsc = {
 		.name = "hlos1_vote_lpass_adsp",
 	},
 	.pwrsts = PWRSTS_OFF_ON,
-	.flags = VOTABLE,
+	.flags = VOTABLE | ALWAYS_ON,
 };
 
 static struct gdsc hlos1_vote_lpass_core_gdsc = {
@@ -3128,7 +3128,7 @@ static struct gdsc hlos1_vote_lpass_core_gdsc = {
 		.name = "hlos1_vote_lpass_core",
 	},
 	.pwrsts = PWRSTS_OFF_ON,
-	.flags = VOTABLE,
+	.flags = VOTABLE | ALWAYS_ON,
 };
 
 static struct gdsc usb30_gdsc = {
