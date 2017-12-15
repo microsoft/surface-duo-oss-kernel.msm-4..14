@@ -12,7 +12,7 @@
 /memreserve/ 0x80000000 0x00010000;
 
 / {
-	compatible = "fsl,s32v234", "arm,vexpress";
+	compatible = "fsl,s32v234";
 	interrupt-parent = <&gic>;
 	#address-cells = <2>;
 	#size-cells = <2>;
