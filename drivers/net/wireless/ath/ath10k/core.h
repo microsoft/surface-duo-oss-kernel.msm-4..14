@@ -792,6 +792,8 @@ struct ath10k {
 
 	bool p2p;
 
+	bool is_high_latency;
+
 	struct {
 		enum ath10k_bus bus;
 		const struct ath10k_hif_ops *ops;
@@ -1012,6 +1014,11 @@ static inline bool ath10k_peer_stats_enabled(struct ath10k *ar)
 		return true;
 
 	return false;
+}
+
+static inline bool ath10k_is_high_latency(enum ath10k_bus bus)
+{
+	return ((bus == ATH10K_BUS_SDIO) || (bus == ATH10K_BUS_USB));
 }
 
 struct ath10k *ath10k_core_create(size_t priv_size, struct device *dev,
