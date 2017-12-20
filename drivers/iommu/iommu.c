@@ -1319,6 +1319,9 @@ int iommu_attach_device(struct iommu_domain *domain, struct device *dev)
 	int ret;
 
 	group = iommu_group_get(dev);
+	if (!group)
+		return -ENODEV;
+
 	/*
 	 * Lock the group to make sure the device-count doesn't
 	 * change while we are attaching
@@ -1357,6 +1360,8 @@ void iommu_detach_device(struct iommu_domain *domain, struct device *dev)
 	struct iommu_group *group;
 
 	group = iommu_group_get(dev);
+	if (!group)
+		return;
 
 	mutex_lock(&group->mutex);
 	if (iommu_group_device_count(group) != 1) {
