@@ -36,6 +36,8 @@
 
 #define smp_store_mb(var, value) do { WRITE_ONCE(var, value); smp_mb(); } while (0)
 
+#define gmb()   asm volatile("ori 31,31,0")
+
 #ifdef __SUBARCH_HAS_LWSYNC
 #    define SMPWMB      LWSYNC
 #else
