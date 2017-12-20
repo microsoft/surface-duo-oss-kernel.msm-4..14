@@ -20,6 +20,13 @@
 
 #include "targaddrs.h"
 
+enum ath10k_bus {
+	ATH10K_BUS_PCI,
+	ATH10K_BUS_AHB,
+	ATH10K_BUS_SDIO,
+	ATH10K_BUS_USB,
+};
+
 #define ATH10K_FW_DIR			"ath10k"
 
 #define QCA988X_2_0_DEVICE_ID   (0x003c)
@@ -558,9 +565,25 @@ struct ath10k_hw_params {
 	/* Number of ciphers supported (i.e First N) in cipher_suites array */
 	int n_cipher_suites;
 
+
 	u32 num_peers;
 	u32 ast_skid_limit;
 	u32 num_wds_entries;
+
+	/* max_num_peers can be used to override the setting derived from
+	 * the WMI op version. If this value is non-zero, it will always
+	 * be used instead of the default value derived from the WMI op
+	 * version.
+	 *
+	 * FIXME: this conflicts with later added num_beers above (kvalo
+	 * 20171220)
+	 */
+	int max_num_peers;
+
+	/* Specifies whether or not the device is a high latency device */
+	bool is_high_latency;
+
+	enum ath10k_bus bus;
 };
 
 struct htt_rx_desc;
@@ -672,10 +695,14 @@ ath10k_rx_desc_get_l3_pad_bytes(struct ath10k_hw_params *hw,
 #define TARGET_TLV_NUM_MSDU_DESC		(1024 + 32)
 #define TARGET_TLV_NUM_WOW_PATTERNS		22
 
+
 /* Target specific defines for WMI-HL-1.0 firmware */
 #define TARGET_HL_10_TLV_NUM_PEERS		14
 #define TARGET_HL_10_TLV_AST_SKID_LIMIT		6
 #define TARGET_HL_10_TLV_NUM_WDS_ENTRIES	2
+
+/* Target specific defines for QCA9377 high latency firmware */
+#define TARGET_QCA9377_HL_NUM_PEERS		15
 
 /* Diagnostic Window */
 #define CE_DIAG_PIPE	7
