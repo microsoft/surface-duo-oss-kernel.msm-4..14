@@ -7,6 +7,7 @@ obj-$(CONFIG_QCOM_SMEM_STATE) += smem_state.o
 obj-$(CONFIG_QCOM_SMP2P)	+= smp2p.o
 obj-$(CONFIG_QCOM_SMSM)	+= smsm.o
 obj-$(CONFIG_QCOM_WCNSS_CTRL) += wcnss_ctrl.o
+obj-$(CONFIG_ARCH_MSM8996) +=	kryo-l2-accessors.o
 obj-$(CONFIG_QCOM_SMD_APR) += apr_smd.o
 
 obj-$(CONFIG_MSM_BUS_SCALING) += msm_bus/
