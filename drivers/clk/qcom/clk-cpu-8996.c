@@ -284,7 +284,7 @@ static struct clk_cpu_8996_mux perfcl_pmux = {
 		.parent_names = (const char *[]){
 			"perfcl_smux",
 			"perfcl_pll",
-			"pwrcl_pll_acd",
+			"perfcl_pll_acd",
 			"perfcl_alt_pll",
 		},
 		.num_parents = 4,
@@ -330,7 +330,7 @@ qcom_cpu_clk_msm8996_register_clks(struct device *dev, struct clk_hw_clks *hws,
 				   struct regmap *regmap)
 {
 	int i, ret;
-	struct clk *perf_clk, *pwr_clk;
+	struct clk *perf_alt_pll, *pwr_alt_pll, *perf_pll, *pwr_pll;
 
 	hws->hws[0] = clk_hw_register_fixed_factor(dev, "perfcl_pll_main",
 						   "perfcl_pll",
@@ -355,6 +355,23 @@ qcom_cpu_clk_msm8996_register_clks(struct device *dev, struct clk_hw_clks *hws,
 	clk_alpha_pll_configure(&perfcl_alt_pll, regmap, &altpll_config);
 	clk_alpha_pll_configure(&pwrcl_alt_pll, regmap, &altpll_config);
 
+	pwr_alt_pll = clk_hw_get_clk(&pwrcl_alt_pll.clkr.hw, NULL, NULL);
+	perf_alt_pll = clk_hw_get_clk(&perfcl_alt_pll.clkr.hw, NULL, NULL);
+	perf_pll = clk_hw_get_clk(&perfcl_pll.clkr.hw, NULL, NULL);
+	pwr_pll = clk_hw_get_clk(&pwrcl_pll.clkr.hw, NULL, NULL);
+
+	/* Enable all PLLs and alt PLLs */
+	clk_prepare_enable(perf_alt_pll);
+	clk_prepare_enable(pwr_alt_pll);
+	clk_prepare_enable(perf_pll);
+	clk_prepare_enable(pwr_pll);
+
+	/* Set initial boot frequencies for power/perf PLLs */
+	clk_set_rate(pwr_alt_pll, 652800000);
+	clk_set_rate(perf_alt_pll, 652800000);
+	clk_set_rate(pwr_pll, 652800000);
+	clk_set_rate(perf_pll, 652800000);
+
 	ret = clk_notifier_register(pwrcl_pmux.clkr.hw.clk, &pwrcl_pmux.nb);
 	if (ret)
 		return ret;
@@ -362,13 +379,6 @@ qcom_cpu_clk_msm8996_register_clks(struct device *dev, struct clk_hw_clks *hws,
 	ret = clk_notifier_register(perfcl_pmux.clkr.hw.clk, &perfcl_pmux.nb);
 	if (ret)
 		return ret;
-
-	pwr_clk = clk_hw_get_clk(&pwrcl_pmux.clkr.hw, NULL, NULL);
-	perf_clk = clk_hw_get_clk(&perfcl_pmux.clkr.hw, NULL, NULL);
-
-	/* Set initial boot frequencies for power/perf clusters */
-	clk_set_rate(pwr_clk, 1248000000);
-	clk_set_rate(perf_clk, 1536000000);
 
 	return ret;
 }
