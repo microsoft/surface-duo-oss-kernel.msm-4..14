@@ -96,6 +96,8 @@ static const struct of_device_id machines[] __initconst = {
 
 	{ .compatible = "zte,zx296718", },
 
+	{ .compatible = "qcom,apq8096-sbc", },
+
 	{ }
 };
 
