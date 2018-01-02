@@ -180,20 +180,6 @@ static int __init x86_sep_setup(char *s)
 }
 __setup("nosep", x86_sep_setup);
 
-static int __init x86_nokaiser_setup(char *s)
-{
-	/* nokaiser doesn't accept parameters */
-	if (s)
-		return -EINVAL;
-#ifdef CONFIG_KAISER
-	kaiser_enabled = 0;
-	setup_clear_cpu_cap(X86_FEATURE_KAISER);
-	pr_info("nokaiser: KAISER feature disabled\n");
-#endif
-	return 0;
-}
-early_param("nokaiser", x86_nokaiser_setup);
-
 /* Standard macro to see if a specific flag is changeable */
 static inline int flag_is_changeable_p(u32 flag)
 {
@@ -730,10 +716,6 @@ void get_cpu_cap(struct cpuinfo_x86 *c)
 		c->x86_power = cpuid_edx(0x80000007);
 
 	init_scattered_cpuid_features(c);
-#ifdef CONFIG_KAISER
-	if (kaiser_enabled)
-		set_cpu_cap(c, X86_FEATURE_KAISER);
-#endif
 }
 
 static void identify_cpu_without_cpuid(struct cpuinfo_x86 *c)
