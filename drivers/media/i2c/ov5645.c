@@ -1010,18 +1010,24 @@ __ov5645_get_pad_crop(struct ov5645 *ov5645, struct v4l2_subdev_pad_config *cfg,
 static const struct ov5645_mode_info *
 ov5645_find_nearest_mode(unsigned int width, unsigned int height)
 {
-	int i;
+	unsigned int max_dist_match = (unsigned int) -1;
+	int i, n = 0;
 
-	for (i = ARRAY_SIZE(ov5645_mode_info_data) - 1; i >= 0; i--) {
-		if (ov5645_mode_info_data[i].width <= width &&
-		    ov5645_mode_info_data[i].height <= height)
-			break;
+	for (i = 0; i < ARRAY_SIZE(ov5645_mode_info_data); i++) {
+		unsigned int dist = min(width, ov5645_mode_info_data[i].width)
+				* min(height, ov5645_mode_info_data[i].height);
+
+		dist = ov5645_mode_info_data[i].width *
+				ov5645_mode_info_data[i].height
+		     + width * height - 2 * dist;
+
+		if (dist < max_dist_match) {
+			n = i;
+			max_dist_match = dist;
+		}
 	}
 
-	if (i < 0)
-		i = 0;
-
-	return &ov5645_mode_info_data[i];
+	return &ov5645_mode_info_data[n];
 }
 
 static int ov5645_set_format(struct v4l2_subdev *sd,
