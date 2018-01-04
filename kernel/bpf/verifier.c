@@ -186,6 +186,10 @@ struct verifier_stack_elem {
 	struct verifier_stack_elem *next;
 };
 
+struct bpf_insn_aux_data {
+	bool seen; /* this insn was processed by the verifier */
+};
+
 #define MAX_USED_MAPS 64 /* max number of maps accessed by one eBPF program */
 
 /* single container for all structs
@@ -200,6 +204,7 @@ struct verifier_env {
 	struct bpf_map *used_maps[MAX_USED_MAPS]; /* array of map's used by eBPF program */
 	u32 used_map_cnt;		/* number of used maps */
 	bool allow_ptr_leaks;
+	struct bpf_insn_aux_data *insn_aux_data; /* array of per-insn state */
 };
 
 /* verbose verifier prints what it's seeing
@@ -1792,6 +1797,7 @@ static int do_check(struct verifier_env *env)
 			print_bpf_insn(env, insn);
 		}
 
+		env->insn_aux_data[insn_idx].seen = true;
 		if (class == BPF_ALU || class == BPF_ALU64) {
 			err = check_alu_op(env, insn);
 			if (err)
@@ -1824,6 +1830,7 @@ static int do_check(struct verifier_env *env)
 
 			if (BPF_SIZE(insn->code) != BPF_W) {
 				insn_idx++;
+				env->insn_aux_data[insn_idx].seen = true;
 				continue;
 			}
 
@@ -2112,6 +2119,25 @@ static void convert_pseudo_ld_imm64(struct verifier_env *env)
 			insn->src_reg = 0;
 }
 
+/* The verifier does more data flow analysis than llvm and will not explore
+ * branches that are dead at run time. Malicious programs can have dead code
+ * too. Therefore replace all dead at-run-time code with nops.
+ */
+static void sanitize_dead_code(struct verifier_env *env)
+{
+	struct bpf_insn_aux_data *aux_data = env->insn_aux_data;
+	struct bpf_insn nop = BPF_MOV64_REG(BPF_REG_0, BPF_REG_0);
+	struct bpf_insn *insn = env->prog->insnsi;
+	const int insn_cnt = env->prog->len;
+	int i;
+
+	for (i = 0; i < insn_cnt; i++) {
+		if (aux_data[i].seen)
+			continue;
+		memcpy(insn + i, &nop, sizeof(nop));
+	}
+}
+
 /* convert load instructions that access fields of 'struct __sk_buff'
  * into sequence of instructions that access fields of 'struct sk_buff'
  */
@@ -2206,6 +2232,11 @@ int bpf_check(struct bpf_prog **prog, union bpf_attr *attr)
 	if (!env)
 		return -ENOMEM;
 
+	env->insn_aux_data = vzalloc(sizeof(struct bpf_insn_aux_data) *
+				     (*prog)->len);
+	ret = -ENOMEM;
+	if (!env->insn_aux_data)
+		goto err_free_env;
 	env->prog = *prog;
 
 	/* grab the mutex to protect few globals used by verifier */
@@ -2224,12 +2255,12 @@ int bpf_check(struct bpf_prog **prog, union bpf_attr *attr)
 		/* log_* values have to be sane */
 		if (log_size < 128 || log_size > UINT_MAX >> 8 ||
 		    log_level == 0 || log_ubuf == NULL)
-			goto free_env;
+			goto err_unlock;
 
 		ret = -ENOMEM;
 		log_buf = vmalloc(log_size);
 		if (!log_buf)
-			goto free_env;
+			goto err_unlock;
 	} else {
 		log_level = 0;
 	}
@@ -2256,6 +2287,9 @@ int bpf_check(struct bpf_prog **prog, union bpf_attr *attr)
 skip_full_check:
 	while (pop_stack(env, NULL) >= 0);
 	free_states(env);
+
+	if (ret == 0)
+		sanitize_dead_code(env);
 
 	if (ret == 0)
 		/* program is valid, convert *(u32*)(ctx + off) accesses */
@@ -2298,14 +2332,16 @@ skip_full_check:
 free_log_buf:
 	if (log_level)
 		vfree(log_buf);
-free_env:
 	if (!env->prog->aux->used_maps)
 		/* if we didn't copy map pointers into bpf_prog_info, release
 		 * them now. Otherwise free_bpf_prog_info() will release them.
 		 */
 		release_maps(env);
 	*prog = env->prog;
-	kfree(env);
+err_unlock:
 	mutex_unlock(&bpf_verifier_lock);
+	vfree(env->insn_aux_data);
+err_free_env:
+	kfree(env);
 	return ret;
 }
