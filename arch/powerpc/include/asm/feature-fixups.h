@@ -196,7 +196,6 @@ label##3:					       	\
 #include <linux/types.h>
 
 extern long __start___rfi_flush_fixup, __stop___rfi_flush_fixup;
-extern void do_rfi_flush_fixups(bool enable, unsigned int insn);
 
 #endif
 
