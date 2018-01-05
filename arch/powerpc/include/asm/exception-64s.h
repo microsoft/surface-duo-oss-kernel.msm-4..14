@@ -64,9 +64,7 @@
 	RFI_FLUSH_FIXUP_SECTION;					\
 	nop
 
-#define DEBUG_RFI
-
-#ifdef DEBUG_RFI
+#ifdef CONFIG_PPC_DEBUG_RFI
 #define CHECK_TARGET_MSR_PR(srr_reg, expected_pr)			\
 	SET_SCRATCH0(r3);						\
 	mfspr	r3,srr_reg;						\
