@@ -293,6 +293,6 @@
 #define X86_BUG_SYSRET_SS_ATTRS	X86_BUG(8) /* SYSRET doesn't fix up SS attrs */
 
 #define X86_BUG_MONITOR		X86_BUG(12) /* IPI required to wake up remote CPU */
-#define X86_BUG_CPU_INSECURE		X86_BUG(14) /* CPU is insecure and needs kernel page table isolation */
+#define X86_BUG_CPU_MELTDOWN		X86_BUG(14) /* CPU is affected by meltdown attack and needs kernel page table isolation */
 
 #endif /* _ASM_X86_CPUFEATURES_H */
