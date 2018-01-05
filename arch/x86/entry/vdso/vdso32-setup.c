@@ -17,7 +17,7 @@
 #ifdef CONFIG_COMPAT_VDSO
 #define VDSO_DEFAULT	0
 #else
-#define VDSO_DEFAULT	1
+#define VDSO_DEFAULT	0
 #endif
 
 /*

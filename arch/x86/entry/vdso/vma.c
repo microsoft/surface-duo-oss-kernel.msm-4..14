@@ -22,7 +22,7 @@
 #include <asm/cpufeature.h>
 
 #if defined(CONFIG_X86_64)
-unsigned int __read_mostly vdso64_enabled = 1;
+unsigned int __read_mostly vdso64_enabled = 0;
 #endif
 
 void __init init_vdso_image(const struct vdso_image *image)
