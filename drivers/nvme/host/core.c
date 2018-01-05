@@ -894,8 +894,8 @@ static void nvme_configure_apst(struct nvme_ctrl *ctrl)
 	 * heuristic: we are willing to spend at most 2% of the time
 	 * transitioning between power states.  Therefore, when running
 	 * in any given state, we will enter the next lower-power
-	 * non-operational state after waiting 100 * (enlat + exlat)
-	 * microseconds, as long as that state's total latency is under
+	 * non-operational state after waiting 50 * (enlat + exlat)
+	 * microseconds, as long as that state's exit latency is under
 	 * the requested maximum latency.
 	 *
 	 * We will not autonomously enter any non-operational state for
@@ -937,7 +937,7 @@ static void nvme_configure_apst(struct nvme_ctrl *ctrl)
 		 * lowest-power state, not the number of states.
 		 */
 		for (state = (int)ctrl->npss; state >= 0; state--) {
-			u64 total_latency_us, transition_ms;
+			u64 total_latency_us, exit_latency_us, transition_ms;
 
 			if (target)
 				table->entries[state] = target;
@@ -958,11 +958,14 @@ static void nvme_configure_apst(struct nvme_ctrl *ctrl)
 			      NVME_PS_FLAGS_NON_OP_STATE))
 				continue;
 
-			total_latency_us =
-				(u64)le32_to_cpu(ctrl->psd[state].entry_lat) +
-				+ le32_to_cpu(ctrl->psd[state].exit_lat);
-			if (total_latency_us > ctrl->ps_max_latency_us)
+			exit_latency_us =
+				(u64)le32_to_cpu(ctrl->psd[state].exit_lat);
+			if (exit_latency_us > ctrl->ps_max_latency_us)
 				continue;
+
+			total_latency_us =
+				exit_latency_us +
+				le32_to_cpu(ctrl->psd[state].entry_lat);
 
 			/*
 			 * This state is good.  Use it as the APST idle
