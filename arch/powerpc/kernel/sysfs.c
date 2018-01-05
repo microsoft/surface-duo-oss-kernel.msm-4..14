@@ -21,7 +21,6 @@
 #include <asm/ppc_asm.h>
 
 #include "cacheinfo.h"
-#include "setup.h"
 
 #ifdef CONFIG_PPC64
 #include <asm/paca.h>
@@ -499,6 +498,7 @@ static DEVICE_ATTR(purr, 0400, show_purr, store_purr);
 static DEVICE_ATTR(pir, 0400, show_pir, NULL);
 
 #ifdef CONFIG_PPC_BOOK3S_64
+extern bool rfi_flush;
 static ssize_t show_rfi_flush(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
