@@ -81,6 +81,7 @@ enum nvme_quirks {
 #define NVME_QUIRK_DELAY_AMOUNT		2000
 
 struct nvme_ctrl {
+	bool identified;
 	const struct nvme_ctrl_ops *ops;
 	struct request_queue *admin_q;
 	struct device *dev;
