@@ -828,6 +828,7 @@ enum fw_ldst_addrspc {
 	FW_LDST_ADDRSPC_MPS       = 0x0020,
 	FW_LDST_ADDRSPC_FUNC      = 0x0028,
 	FW_LDST_ADDRSPC_FUNC_PCIE = 0x0029,
+	FW_LDST_ADDRSPC_I2C       = 0x0038,
 };
 
 enum fw_ldst_mps_fid {
@@ -2828,6 +2829,7 @@ enum fw_port_type {
 	FW_PORT_TYPE_CR2_QSFP,
 	FW_PORT_TYPE_SFP28,
 	FW_PORT_TYPE_KR_SFP28,
+	FW_PORT_TYPE_KR_XLAUI,
 
 	FW_PORT_TYPE_NONE = FW_PORT_CMD_PTYPE_M
 };

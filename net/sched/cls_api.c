@@ -217,8 +217,12 @@ static void tcf_chain_flush(struct tcf_chain *chain)
 
 static void tcf_chain_destroy(struct tcf_chain *chain)
 {
+	struct tcf_block *block = chain->block;
+
 	list_del(&chain->list);
 	kfree(chain);
+	if (list_empty(&block->chain_list))
+		kfree(block);
 }
 
 static void tcf_chain_hold(struct tcf_chain *chain)
@@ -277,20 +281,24 @@ static void tcf_block_offload_unbind(struct tcf_block *block, struct Qdisc *q,
 }
 
 int tcf_block_get_ext(struct tcf_block **p_block, struct Qdisc *q,
-		      struct tcf_block_ext_info *ei)
+		      struct tcf_block_ext_info *ei,
+		      struct netlink_ext_ack *extack)
 {
 	struct tcf_block *block = kzalloc(sizeof(*block), GFP_KERNEL);
 	struct tcf_chain *chain;
 	int err;
 
-	if (!block)
+	if (!block) {
+		NL_SET_ERR_MSG(extack, "Memory allocation for block failed");
 		return -ENOMEM;
+	}
 	INIT_LIST_HEAD(&block->chain_list);
 	INIT_LIST_HEAD(&block->cb_list);
 
 	/* Create chain 0 by default, it has to be always present. */
 	chain = tcf_chain_create(block, 0);
 	if (!chain) {
+		NL_SET_ERR_MSG(extack, "Failed to create new tcf chain");
 		err = -ENOMEM;
 		goto err_chain_create;
 	}
@@ -317,7 +325,8 @@ static void tcf_chain_head_change_dflt(struct tcf_proto *tp_head, void *priv)
 }
 
 int tcf_block_get(struct tcf_block **p_block,
-		  struct tcf_proto __rcu **p_filter_chain, struct Qdisc *q)
+		  struct tcf_proto __rcu **p_filter_chain, struct Qdisc *q,
+		  struct netlink_ext_ack *extack)
 {
 	struct tcf_block_ext_info ei = {
 		.chain_head_change = tcf_chain_head_change_dflt,
@@ -325,23 +334,9 @@ int tcf_block_get(struct tcf_block **p_block,
 	};
 
 	WARN_ON(!p_filter_chain);
-	return tcf_block_get_ext(p_block, q, &ei);
+	return tcf_block_get_ext(p_block, q, &ei, extack);
 }
 EXPORT_SYMBOL(tcf_block_get);
-
-static void tcf_block_put_final(struct work_struct *work)
-{
-	struct tcf_block *block = container_of(work, struct tcf_block, work);
-	struct tcf_chain *chain, *tmp;
-
-	rtnl_lock();
-
-	/* At this point, all the chains should have refcnt == 1. */
-	list_for_each_entry_safe(chain, tmp, &block->chain_list, list)
-		tcf_chain_put(chain);
-	rtnl_unlock();
-	kfree(block);
-}
 
 /* XXX: Standalone actions are not allowed to jump to any chain, and bound
  * actions should be all removed after flushing.
@@ -349,29 +344,28 @@ static void tcf_block_put_final(struct work_struct *work)
 void tcf_block_put_ext(struct tcf_block *block, struct Qdisc *q,
 		       struct tcf_block_ext_info *ei)
 {
-	struct tcf_chain *chain;
+	struct tcf_chain *chain, *tmp;
 
-	if (!block)
-		return;
-	/* Hold a refcnt for all chains, except 0, so that they don't disappear
+	/* Hold a refcnt for all chains, so that they don't disappear
 	 * while we are iterating.
 	 */
+	if (!block)
+		return;
 	list_for_each_entry(chain, &block->chain_list, list)
-		if (chain->index)
-			tcf_chain_hold(chain);
+		tcf_chain_hold(chain);
 
 	list_for_each_entry(chain, &block->chain_list, list)
 		tcf_chain_flush(chain);
 
 	tcf_block_offload_unbind(block, q, ei);
 
-	INIT_WORK(&block->work, tcf_block_put_final);
-	/* Wait for existing RCU callbacks to cool down, make sure their works
-	 * have been queued before this. We can not flush pending works here
-	 * because we are holding the RTNL lock.
-	 */
-	rcu_barrier();
-	tcf_queue_work(&block->work);
+	/* At this point, all the chains should have refcnt >= 1. */
+	list_for_each_entry_safe(chain, tmp, &block->chain_list, list)
+		tcf_chain_put(chain);
+
+	/* Finally, put chain 0 and allow block to be freed. */
+	chain = list_first_entry(&block->chain_list, struct tcf_chain, list);
+	tcf_chain_put(chain);
 }
 EXPORT_SYMBOL(tcf_block_put_ext);
 
@@ -806,7 +800,7 @@ replay:
 	}
 
 	/* And the last stroke */
-	block = cops->tcf_block(q, cl);
+	block = cops->tcf_block(q, cl, extack);
 	if (!block) {
 		err = -EINVAL;
 		goto errout;
@@ -1053,7 +1047,7 @@ static int tc_dump_tfilter(struct sk_buff *skb, struct netlink_callback *cb)
 		if (cl == 0)
 			goto out;
 	}
-	block = cops->tcf_block(q, cl);
+	block = cops->tcf_block(q, cl, NULL);
 	if (!block)
 		goto out;
 
