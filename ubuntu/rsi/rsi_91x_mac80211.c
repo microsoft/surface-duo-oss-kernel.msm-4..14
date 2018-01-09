@@ -2404,6 +2404,8 @@ int rsi_config_wowlan(struct rsi_hw *adapter, struct cfg80211_wowlan *wowlan)
 		return 0;
 	}
 	ven_rsi_dbg(INFO_ZONE, "TRIGGERS %x\n", triggers);
+	if (common->coex_mode > 1)
+		rsi_disable_ps(adapter);
 	rsi_send_wowlan_request(common, triggers, 1);
 
 	/* Send updated vap caps */
