@@ -2100,6 +2100,11 @@ int rsi_send_ps_request(struct rsi_hw *adapter, bool enable)
 	if (common->uapsd_bitmap) {
 //		ps->ps_mimic_support = 1;
 		ps->ps_uapsd_acs = common->uapsd_bitmap;
+		ps->ps_uapsd_acs = (adapter->hw->uapsd_max_sp_len <<
+				    IEEE80211_WMM_IE_STA_QOSINFO_SP_SHIFT) |
+				    IEEE80211_WMM_IE_STA_QOSINFO_AC_MASK;
+		ps->ps_uapsd_wakeup_period = RSI_UAPSD_WAKEUP_PERIOD;
+
 	}
 
 	ps->ps_sleep.sleep_type = ps_info->sleep_type;
@@ -2118,11 +2123,6 @@ int rsi_send_ps_request(struct rsi_hw *adapter, bool enable)
 
 	if (ps->ps_listen_interval > ps->ps_dtim_interval_duration)
 		ps->ps_listen_interval = 0;
-
-	ps->ps_uapsd_acs = (adapter->hw->uapsd_max_sp_len <<
-			    IEEE80211_WMM_IE_STA_QOSINFO_SP_SHIFT) |
-			    IEEE80211_WMM_IE_STA_QOSINFO_AC_MASK;
-	ps->ps_uapsd_wakeup_period = RSI_UAPSD_WAKEUP_PERIOD;
 
 	skb_put(skb, frame_len);
 
