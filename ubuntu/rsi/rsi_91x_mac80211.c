@@ -363,6 +363,11 @@ static int rsi_mac80211_hw_scan_start(struct ieee80211_hw *hw,
 	if (common->fsm_state != FSM_MAC_INIT_DONE)
 		return -ENODEV;
 
+#ifdef CONFIG_RSI_WOW
+	if (common->wow_flags & RSI_WOW_ENABLED)
+		return -ENETDOWN;
+#endif
+
 	if (scan_req->n_channels == 0)
 		return -EINVAL;
 
@@ -404,8 +409,8 @@ static int rsi_mac80211_hw_scan_start(struct ieee80211_hw *hw,
         return 0;
 }
 
-static void rsi_mac80211_hw_scan_cancel(struct ieee80211_hw *hw,
-					struct ieee80211_vif *vif)
+void rsi_mac80211_hw_scan_cancel(struct ieee80211_hw *hw,
+				 struct ieee80211_vif *vif)
 {
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
@@ -444,6 +449,7 @@ static void rsi_mac80211_hw_scan_cancel(struct ieee80211_hw *hw,
 	common->hw_scan_cancel = false;
 	mutex_unlock(&common->mutex);
 }
+EXPORT_SYMBOL_GPL(rsi_mac80211_hw_scan_cancel);
 #endif
 
 /**
@@ -2454,8 +2460,11 @@ static int rsi_mac80211_resume(struct ieee80211_hw *hw)
 	
 	ven_rsi_dbg(INFO_ZONE, "%s: mac80211 resume\n", __func__);
 
-	if (common->hibernate_resume)
+	if (common->hibernate_resume) {
+		if (common->reinit_hw)
+			wait_for_completion(&common->wlan_init_completion);
 		return 0;
+	}
 
 #ifdef CONFIG_VEN_RSI_WOW
 	mutex_lock(&common->mutex);

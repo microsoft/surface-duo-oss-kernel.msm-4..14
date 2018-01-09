@@ -2343,6 +2343,21 @@ int rsi_send_probe_request(struct rsi_common *common,
 	}
        
 	if (scan_type == 1) {
+		if (len > 120) {
+			u16 t_len = MIN_802_11_HDR_LEN;
+
+			/* Cut some IEs */
+			pos = &skb->data[MIN_802_11_HDR_LEN];
+			while (true) {
+				if ((t_len + pos[1] + 2) > 120) {
+					skb_trim(skb, t_len);
+					len = t_len;
+					break;
+				}
+				t_len += pos[1] + 2;
+				pos += (pos[1] + 2);
+			}
+		}
 		common->bgscan_probe_req_len = len;	
 		return 0;
 	}
@@ -2635,7 +2650,14 @@ static int rsi_handle_ta_confirm(struct rsi_common *common, u8 *msg)
 			common->bb_rf_prog_count--;
 			if (!common->bb_rf_prog_count) {
 				common->fsm_state = FSM_MAC_INIT_DONE;
-				return rsi_mac80211_attach(common);
+				if (common->reinit_hw) {
+					common->hw_data_qs_blocked = false;
+					ieee80211_wake_queues(adapter->hw);
+					complete(&common->wlan_init_completion);
+					common->reinit_hw = false;
+				} else {
+					return rsi_mac80211_attach(common);
+				}
 			}
 		} else {
 			ven_rsi_dbg(INFO_ZONE,

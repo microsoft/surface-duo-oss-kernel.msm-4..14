@@ -415,6 +415,7 @@ struct rsi_hw *ven_rsi_91x_init(void)
 	common->roc_timer.data = (unsigned long)common;
 	common->roc_timer.function = (void *)&rsi_roc_timeout;
 	init_timer(&common->roc_timer);
+	init_completion(&common->wlan_init_completion);
 
 	common->init_done = true;
 	return adapter;

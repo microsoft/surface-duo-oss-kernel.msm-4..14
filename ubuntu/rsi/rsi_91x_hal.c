@@ -188,7 +188,8 @@ int rsi_prepare_data_desc(struct rsi_common *common, struct sk_buff *skb)
 			frame_desc[0] = cpu_to_le16((skb->len - FRAME_DESC_SZ) |
 						    (RSI_WIFI_MGMT_Q << 12));
 		}
-			if ((skb->len - header_size) == 133) {
+			if (((skb->len - header_size) == 133) ||
+			    ((skb->len - header_size) == 131)) {
 				ven_rsi_dbg(INFO_ZONE, "*** Tx EAPOL 4*****\n");
 				frame_desc[1] |=
 					cpu_to_le16(RSI_DESC_REQUIRE_CFM_TO_HOST);

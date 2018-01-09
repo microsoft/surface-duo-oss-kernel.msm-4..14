@@ -115,4 +115,6 @@ struct ieee80211_vif *rsi_get_vif(struct rsi_hw *adapter, u8 *mac);
 #ifdef CONFIG_VEN_RSI_WOW
 int rsi_config_wowlan(struct rsi_hw *adapter, struct cfg80211_wowlan *wowlan);
 #endif
+void rsi_mac80211_hw_scan_cancel(struct ieee80211_hw *hw,
+				 struct ieee80211_vif *vif);
 #endif

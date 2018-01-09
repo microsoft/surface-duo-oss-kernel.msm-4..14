@@ -1475,9 +1475,6 @@ static int rsi_sdio_reinit_device(struct rsi_hw *adapter)
 	for (ii = 0; ii < NUM_SOFT_QUEUES; ii++)
 		skb_queue_purge(&adapter->priv->tx_queue[ii]);
 
-	/* Detach MAC */
-	ven_rsi_mac80211_detach(adapter);
-	
 	/* Initialize device again */
 	sdio_claim_host(pfunction);
 
@@ -1508,7 +1505,14 @@ int rsi_restore(struct device *dev)
 	adapter->priv->bt_fsm_state = BT_DEVICE_NOT_READY;
 	adapter->priv->iface_down = true;
 
+	adapter->sc_nvifs = 0;
+	rsi_mac80211_hw_scan_cancel(adapter->hw, adapter->priv->scan_vif);
+	flush_workqueue(adapter->priv->scan_workqueue);
+	ieee80211_stop_queues(adapter->hw);
+	ieee80211_restart_hw(adapter->hw);
+
 	/* Initialize device again */
+	adapter->priv->reinit_hw = true;
 	rsi_sdio_reinit_device(adapter);
 
 #ifdef CONFIG_VEN_RSI_WOW

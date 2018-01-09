@@ -331,6 +331,8 @@ struct rsi_common {
 	u8 ant_in_use;
 	bool suspend_in_prog;
 	bool hibernate_resume;
+	bool reinit_hw;
+	struct completion wlan_init_completion;
 #ifdef CONFIG_VEN_RSI_WOW
 	u8 wow_flags;
 #endif
