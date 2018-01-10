@@ -248,58 +248,6 @@ static u8 csiphy_get_lane_mask(struct csiphy_lanes_cfg *lane_cfg)
 }
 
 /*
- * csiphy_settle_cnt_calc - Calculate settle count value
- * @csiphy: CSIPHY device
- *
- * Helper function to calculate settle count value. This is
- * based on the CSI2 T_hs_settle parameter which in turn
- * is calculated based on the CSI2 transmitter pixel clock
- * frequency.
- *
- * Return settle count value or 0 if the CSI2 pixel clock
- * frequency is not available
- */
-static u8 csiphy_settle_cnt_calc(struct csiphy_device *csiphy)
-{
-	u8 bpp = csiphy_get_bpp(
-			csiphy->fmt[MSM_CSIPHY_PAD_SINK].code);
-	u8 num_lanes = csiphy->cfg.csi2->lane_cfg.num_data;
-	u32 pixel_clock; /* Hz */
-	u32 mipi_clock; /* Hz */
-	u32 ui; /* ps */
-	u32 timer_period; /* ps */
-	u32 t_hs_prepare_max; /* ps */
-	u32 t_hs_prepare_zero_min; /* ps */
-	u32 t_hs_settle; /* ps */
-	u8 settle_cnt;
-	int ret;
-
-	ret = camss_get_pixel_clock(&csiphy->subdev.entity, &pixel_clock);
-	if (ret) {
-		dev_err(csiphy->camss->dev,
-			"Cannot get CSI2 transmitter's pixel clock\n");
-		return 0;
-	}
-	if (!pixel_clock) {
-		dev_err(csiphy->camss->dev,
-			"Got pixel clock == 0, cannot continue\n");
-		return 0;
-	}
-
-	mipi_clock = pixel_clock * bpp / (2 * num_lanes);
-	ui = div_u64(1000000000000LL, mipi_clock);
-	ui /= 2;
-	t_hs_prepare_max = 85000 + 6 * ui;
-	t_hs_prepare_zero_min = 145000 + 10 * ui;
-	t_hs_settle = (t_hs_prepare_max + t_hs_prepare_zero_min) / 2;
-
-	timer_period = div_u64(1000000000000LL, csiphy->timer_clk_rate);
-	settle_cnt = t_hs_settle / timer_period;
-
-	return settle_cnt;
-}
-
-/*
  * csiphy_stream_on - Enable streaming on CSIPHY module
  * @csiphy: CSIPHY device
  *
@@ -311,13 +259,23 @@ static u8 csiphy_settle_cnt_calc(struct csiphy_device *csiphy)
 static int csiphy_stream_on(struct csiphy_device *csiphy)
 {
 	struct csiphy_config *cfg = &csiphy->cfg;
+	u32 pixel_clock;
 	u8 lane_mask = csiphy_get_lane_mask(&cfg->csi2->lane_cfg);
-	u8 settle_cnt;
+	u8 bpp = csiphy_get_bpp(csiphy->fmt[MSM_CSIPHY_PAD_SINK].code);
 	u8 val;
+	int ret;
 
-	settle_cnt = csiphy_settle_cnt_calc(csiphy);
-	if (!settle_cnt)
+	ret = camss_get_pixel_clock(&csiphy->subdev.entity, &pixel_clock);
+	if (ret) {
+		dev_err(csiphy->camss->dev,
+			"Cannot get CSI2 transmitter's pixel clock\n");
 		return -EINVAL;
+	}
+	if (!pixel_clock) {
+		dev_err(csiphy->camss->dev,
+			"Got pixel clock == 0, cannot continue\n");
+		return -EINVAL;
+	}
 
 	val = readl_relaxed(csiphy->base_clk_mux);
 	if (cfg->combo_mode && (lane_mask & 0x18) == 0x18) {
@@ -330,7 +288,7 @@ static int csiphy_stream_on(struct csiphy_device *csiphy)
 	writel_relaxed(val, csiphy->base_clk_mux);
 	wmb();
 
-	csiphy->ops->lanes_enable(csiphy, cfg, lane_mask, settle_cnt);
+	csiphy->ops->lanes_enable(csiphy, cfg, pixel_clock, bpp, lane_mask);
 
 	return 0;
 }
