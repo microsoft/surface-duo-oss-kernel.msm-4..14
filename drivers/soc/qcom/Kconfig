@@ -33,17 +33,10 @@ config QCOM_SMEM
 	  The driver provides an interface to items in a heap shared among all
 	  processors in a Qualcomm platform.
 
-config QCOM_SMD
-	tristate "Qualcomm Shared Memory Driver (SMD)"
-	depends on QCOM_SMEM
-	help
-	  Say y here to enable support for the Qualcomm Shared Memory Driver
-	  providing communication channels to remote processors in Qualcomm
-	  platforms.
-
 config QCOM_SMD_RPM
 	tristate "Qualcomm Resource Power Manager (RPM) over SMD"
-	depends on QCOM_SMD && OF
+	depends on ARCH_QCOM
+	depends on RPMSG && OF
 	help
 	  If you say yes to this option, support will be included for the
 	  Resource Power Manager system found in the Qualcomm 8974 based
@@ -76,7 +69,45 @@ config QCOM_SMSM
 
 config QCOM_WCNSS_CTRL
 	tristate "Qualcomm WCNSS control driver"
-	depends on QCOM_SMD
+	depends on ARCH_QCOM
+	depends on RPMSG
 	help
 	  Client driver for the WCNSS_CTRL SMD channel, used to download nv
 	  firmware to a newly booted WCNSS chip.
+
+config QCOM_SMD_APR
+	tristate "Qualcomm APR (Asynchronous Packet Router) over SMD"
+	depends on RPMSG_QCOM_SMD
+	help
+          Enable APR IPC protocol support between
+          application processor and QDSP6. APR is
+          used by audio driver to configure QDSP6
+          ASM, ADM and AFE.
+
+config MSM_BUS_SCALING
+	bool "Bus scaling driver"
+	default n
+	help
+		This option enables bus scaling on MSM devices.  Bus scaling
+		allows devices to request the clocks be set to rates sufficient
+		for the active devices needs without keeping the clocks at max
+		frequency when a slower speed is sufficient.
+
+config MSM_BUSPM_DEV
+	tristate "MSM Bus Performance Monitor Kernel Module"
+	depends on MSM_BUS_SCALING
+	default n
+	help
+	  This kernel module is used to mmap() hardware registers for the
+	  performance monitors, counters, etc. The module can also be used to
+	  allocate physical memory which is used by bus performance hardware to
+	  dump performance data
+
+config BUS_TOPOLOGY_ADHOC
+	bool "ad-hoc bus scaling topology"
+	default n
+	help
+		This option enables a driver that can handle adhoc bus topologies.
+		Adhoc bus topology driver allows one to many connections and maintains
+		directionality of connections by explicitly listing device connections
+		thus avoiding illegal routes.

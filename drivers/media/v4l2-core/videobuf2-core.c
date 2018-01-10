@@ -200,6 +200,9 @@ static int __vb2_buf_mem_alloc(struct vb2_buffer *vb)
 	int plane;
 	int ret = -ENOMEM;
 
+	if (q->bidirectional)
+		dma_dir = DMA_BIDIRECTIONAL;
+
 	/*
 	 * Allocate memory for all planes in this buffer
 	 * NOTE: mmapped areas should be page aligned

@@ -11,12 +11,163 @@
  *
  */
 
+#include <linux/elf.h>
+#include <linux/types.h>
+#include <linux/cpumask.h>
+#include <linux/qcom_scm.h>
+#include <linux/dma-mapping.h>
+#include <linux/of_reserved_mem.h>
 #include "msm_gem.h"
 #include "msm_mmu.h"
 #include "a5xx_gpu.h"
 
 extern bool hang_debug;
 static void a5xx_dump(struct msm_gpu *gpu);
+
+static inline bool _check_segment(const struct elf32_phdr *phdr)
+{
+	return ((phdr->p_type == PT_LOAD) &&
+		((phdr->p_flags & (7 << 24)) != (2 << 24)) &&
+		phdr->p_memsz);
+}
+
+static int zap_load_segments(struct device *dev,
+		const struct firmware *mdt, const char *fwname,
+		void *fwptr, size_t fw_size, unsigned long fw_min_addr)
+{
+	char filename[64];
+	const struct elf32_hdr *ehdr = (struct elf32_hdr *) mdt->data;
+	const struct elf32_phdr *phdrs = (struct elf32_phdr *) (ehdr + 1);
+	const struct firmware *fw;
+	int i, ret = 0;
+
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		const struct elf32_phdr *phdr = &phdrs[i];
+		size_t offset;
+
+		/* Make sure the segment is loadable */
+		if (!_check_segment(phdr))
+			continue;
+
+		/* Get the offset of the segment within the region */
+		offset = (phdr->p_paddr - fw_min_addr);
+
+		/* Request the file containing the segment */
+		snprintf(filename, sizeof(filename), "%s.b%02d", fwname, i);
+
+		ret = request_firmware(&fw, filename, dev);
+		if (ret) {
+			DRM_DEV_ERROR(dev, "Failed to load segment %s\n",
+				filename);
+			break;
+		}
+
+		if (offset + fw->size > fw_size) {
+			DRM_DEV_ERROR(dev, "Segment %s is too big\n",
+				filename);
+			ret = -EINVAL;
+			release_firmware(fw);
+			break;
+		}
+
+		/* Copy the segment into place */
+		memcpy(fwptr + offset, fw->data, fw->size);
+
+		if (phdr->p_memsz > phdr->p_filesz)
+			memset(fwptr + fw->size, 0,
+				phdr->p_memsz - phdr->p_filesz);
+		release_firmware(fw);
+	}
+
+	return ret;
+}
+
+static int zap_load_mdt(struct device *dev, const char *fwname)
+{
+	char filename[64];
+	const struct elf32_hdr *ehdr;
+	const struct elf32_phdr *phdrs;
+	const struct firmware *mdt;
+	phys_addr_t fw_min_addr, fw_max_addr;
+	dma_addr_t fw_phys;
+	size_t fw_size;
+	void *ptr = NULL;
+	int i, ret;
+
+	ret = of_reserved_mem_device_init(dev);
+	if (ret) {
+		DRM_DEV_ERROR(dev, "Unable to set up the reserved memory\n");
+		return ret;
+	}
+
+	snprintf(filename, sizeof(filename), "%s.mdt", fwname);
+
+	/* Request the MDT file for the firmware */
+	ret = request_firmware(&mdt, filename, dev);
+	if (ret) {
+		DRM_DEV_ERROR(dev, "Unable to load %s\n", filename);
+		goto out;
+	}
+
+	ehdr = (struct elf32_hdr *) mdt->data;
+	phdrs = (struct elf32_phdr *) (ehdr + 1);
+
+	/* Get the extents of the firmware image */
+
+	fw_min_addr = (phys_addr_t) ULLONG_MAX;
+	fw_max_addr = 0;
+
+	for (i = 0; i < ehdr->e_phnum; i++) {
+		const struct elf32_phdr *phdr = &phdrs[i];
+
+		if (!_check_segment(phdr))
+			continue;
+
+		fw_min_addr = min_t(phys_addr_t, fw_min_addr, phdr->p_paddr);
+		fw_max_addr = max_t(phys_addr_t, fw_max_addr,
+			PAGE_ALIGN(phdr->p_paddr + phdr->p_memsz));
+	}
+
+	if (fw_min_addr == (phys_addr_t) ULLONG_MAX && fw_max_addr == 0)
+		goto out;
+
+	fw_size = (size_t) (fw_max_addr - fw_min_addr);
+
+	/* Verify the MDT header */
+	ret = qcom_scm_pas_init_image(13, mdt->data, mdt->size);
+	if (ret) {
+		DRM_DEV_ERROR(dev, "Invalid firmware metadata\n");
+		goto out;
+	}
+
+	/* allocate some memory */
+	ptr = dma_alloc_coherent(dev, fw_size, &fw_phys, GFP_KERNEL);
+	if (ptr == NULL)
+		goto out;
+
+	/* Set up the newly allocated memory region */
+	ret = qcom_scm_pas_mem_setup(13, fw_phys, fw_size);
+	if (ret) {
+		DRM_DEV_ERROR(dev, "Unable to set up firmware memory\n");
+		goto out;
+	}
+
+	ret = zap_load_segments(dev, mdt, fwname, ptr, fw_size, fw_min_addr);
+	if (ret)
+		goto out;
+
+	ret = qcom_scm_pas_auth_and_reset(13);
+	if (ret)
+		DRM_DEV_ERROR(dev, "Unable to authorize the image\n");
+
+out:
+	if (ret && ptr)
+		dma_free_coherent(dev, fw_size, ptr, fw_phys);
+
+	release_firmware(mdt);
+
+	return ret;
+}
 
 static void a5xx_submit(struct msm_gpu *gpu, struct msm_gem_submit *submit,
 	struct msm_file_private *ctx)
@@ -304,6 +455,78 @@ static int a5xx_ucode_init(struct msm_gpu *gpu)
 	return 0;
 }
 
+static int a5xx_zap_shader_resume(struct msm_gpu *gpu)
+{
+	int ret;
+
+	ret = qcom_scm_set_remote_state(0, 13);
+	if (ret)
+		DRM_ERROR("%s: zap-shader resume failed: %d\n",
+			gpu->name, ret);
+
+	return ret;
+}
+
+static int a5xx_zap_shader_init(struct msm_gpu *gpu)
+{
+	static bool loaded;
+	struct adreno_gpu *adreno_gpu = to_adreno_gpu(gpu);
+	struct a5xx_gpu *a5xx_gpu = to_a5xx_gpu(adreno_gpu);
+	struct platform_device *pdev = a5xx_gpu->pdev;
+	struct device_node *node;
+	int ret;
+
+	/*
+	 * If the zap shader is already loaded into memory we just need to kick
+	 * the remote processor to reinitialize it
+	 */
+	if (loaded)
+		return a5xx_zap_shader_resume(gpu);
+
+	/* We need SCM to be able to load the firmware */
+	if (!qcom_scm_is_available()) {
+		DRM_DEV_ERROR(&pdev->dev, "SCM is not available\n");
+		return -EPROBE_DEFER;
+	}
+
+	/* Each GPU has a target specific zap shader firmware name to use */
+	if (!adreno_gpu->info->zapfw) {
+		DRM_DEV_ERROR(&pdev->dev,
+			"Zap shader firmware file not specified for this target\n");
+		return -ENODEV;
+	}
+
+	/* Find the sub-node for the zap shader */
+	node = of_get_child_by_name(pdev->dev.of_node, "zap-shader");
+	if (!node) {
+		DRM_DEV_ERROR(&pdev->dev,
+			"zap-shader not found in device tree\n");
+		return -ENODEV;
+	}
+
+	/* Set up the child device to "own" the zap shader */
+	if (!a5xx_gpu->zap_dev.parent) {
+		a5xx_gpu->zap_dev.parent = &pdev->dev;
+		a5xx_gpu->zap_dev.of_node = node;
+		dev_set_name(&a5xx_gpu->zap_dev, "adreno_zap_shader");
+
+		ret = device_register(&a5xx_gpu->zap_dev);
+		if (ret) {
+			DRM_DEV_ERROR(&pdev->dev,
+				"Couldn't register the zap shader device\n");
+
+			a5xx_gpu->zap_dev.parent = NULL;
+			return ret;
+		}
+	}
+
+	ret = zap_load_mdt(&a5xx_gpu->zap_dev, adreno_gpu->info->zapfw);
+
+	loaded = !ret;
+
+	return ret;
+}
+
 #define A5XX_INT_MASK (A5XX_RBBM_INT_0_MASK_RBBM_AHB_ERROR | \
 	  A5XX_RBBM_INT_0_MASK_RBBM_TRANSFER_TIMEOUT | \
 	  A5XX_RBBM_INT_0_MASK_RBBM_ME_MS_TIMEOUT | \
@@ -488,8 +711,27 @@ static int a5xx_hw_init(struct msm_gpu *gpu)
 			return -EINVAL;
 	}
 
-	/* Put the GPU into unsecure mode */
-	gpu_write(gpu, REG_A5XX_RBBM_SECVID_TRUST_CNTL, 0x0);
+	/*
+	 * Try to load a zap shader into the secure world. If successful
+	 * we can use the CP to switch out of secure mode. If not then we
+	 * have no resource but to try to switch ourselves out manually. If we
+	 * guessed wrong then access to the RBBM_SECVID_TRUST_CNTL register will
+	 * be blocked and a permissions violation will soon follow.
+	 */
+	ret = a5xx_zap_shader_init(gpu);
+	if (!ret) {
+		OUT_PKT7(gpu->rb, CP_SET_SECURE_MODE, 1);
+		OUT_RING(gpu->rb, 0x00000000);
+
+		gpu->funcs->flush(gpu);
+		if (!gpu->funcs->idle(gpu))
+			return -EINVAL;
+	} else {
+		/* Print a warning so if we die, we know why */
+		dev_warn_once(gpu->dev->dev,
+			"Zap shader not enabled - using SECVID_TRUST_CNTL instead\n");
+		gpu_write(gpu, REG_A5XX_RBBM_SECVID_TRUST_CNTL, 0x0);
+	}
 
 	return 0;
 }
@@ -520,6 +762,9 @@ static void a5xx_destroy(struct msm_gpu *gpu)
 	struct a5xx_gpu *a5xx_gpu = to_a5xx_gpu(adreno_gpu);
 
 	DBG("%s", gpu->name);
+
+	if (a5xx_gpu->zap_dev.parent)
+		device_unregister(&a5xx_gpu->zap_dev);
 
 	if (a5xx_gpu->pm4_bo) {
 		if (a5xx_gpu->pm4_iova)
@@ -638,10 +883,8 @@ static void a5xx_cp_err_irq(struct msm_gpu *gpu)
 	}
 }
 
-static void a5xx_rbbm_err_irq(struct msm_gpu *gpu)
+static void a5xx_rbbm_err_irq(struct msm_gpu *gpu, u32 status)
 {
-	u32 status = gpu_read(gpu, REG_A5XX_RBBM_INT_0_STATUS);
-
 	if (status & A5XX_RBBM_INT_0_MASK_RBBM_AHB_ERROR) {
 		u32 val = gpu_read(gpu, REG_A5XX_RBBM_AHB_ERROR_STATUS);
 
@@ -653,6 +896,10 @@ static void a5xx_rbbm_err_irq(struct msm_gpu *gpu)
 
 		/* Clear the error */
 		gpu_write(gpu, REG_A5XX_RBBM_AHB_CMD, (1 << 4));
+
+		/* Clear the interrupt */
+		gpu_write(gpu, REG_A5XX_RBBM_INT_CLEAR_CMD,
+			A5XX_RBBM_INT_0_MASK_RBBM_AHB_ERROR);
 	}
 
 	if (status & A5XX_RBBM_INT_0_MASK_RBBM_TRANSFER_TIMEOUT)
@@ -704,10 +951,16 @@ static irqreturn_t a5xx_irq(struct msm_gpu *gpu)
 {
 	u32 status = gpu_read(gpu, REG_A5XX_RBBM_INT_0_STATUS);
 
-	gpu_write(gpu, REG_A5XX_RBBM_INT_CLEAR_CMD, status);
+	/*
+	 * Clear all the interrupts except RBBM_AHB_ERROR - if we clear it
+	 * before the source is cleared the interrupt will storm.
+	 */
+	gpu_write(gpu, REG_A5XX_RBBM_INT_CLEAR_CMD,
+		status & ~A5XX_RBBM_INT_0_MASK_RBBM_AHB_ERROR);
 
+	/* Pass status to a5xx_rbbm_err_irq because we've already cleared it */
 	if (status & RBBM_ERROR_MASK)
-		a5xx_rbbm_err_irq(gpu);
+		a5xx_rbbm_err_irq(gpu, status);
 
 	if (status & A5XX_RBBM_INT_0_MASK_CP_HW_ERROR)
 		a5xx_cp_err_irq(gpu);
@@ -837,12 +1090,8 @@ static int a5xx_get_timestamp(struct msm_gpu *gpu, uint64_t *value)
 #ifdef CONFIG_DEBUG_FS
 static void a5xx_show(struct msm_gpu *gpu, struct seq_file *m)
 {
-	gpu->funcs->pm_resume(gpu);
-
 	seq_printf(m, "status:   %08x\n",
 			gpu_read(gpu, REG_A5XX_RBBM_STATUS));
-	gpu->funcs->pm_suspend(gpu);
-
 	adreno_show(gpu, m);
 }
 #endif
