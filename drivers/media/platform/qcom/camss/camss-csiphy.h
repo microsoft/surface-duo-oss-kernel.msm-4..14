@@ -58,7 +58,7 @@ struct csiphy_hw_ops {
 	void (*reset)(struct csiphy_device *csiphy);
 	void (*lanes_enable)(struct csiphy_device *csiphy,
 			     struct csiphy_config *cfg,
-			     u8 lane_mask, u8 settle_cnt);
+			     u32 pixel_clock, u8 bpp, u8 lane_mask);
 	void (*lanes_disable)(struct csiphy_device *csiphy,
 			      struct csiphy_config *cfg);
 	irqreturn_t (*isr)(int irq, void *dev);
