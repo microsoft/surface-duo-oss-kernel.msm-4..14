@@ -1,0 +1,11 @@
+linux-db820c (4.11.0-1001.2) xenial; urgency=low
+
+  * Bump ABI
+
+ -- Shrirang Bagul <shrirang.bagul@canonical.com>  Wed, 03 Jan 2018 05:29:42 +0000
+
+linux-db820c (4.11.0-1001.1) xenial; urgency=low
+
+  * Initial release.
+
+ -- Shrirang Bagul <shrirang.bagul@canonical.com>  Tue, 19 Dec 2017 13:49:38 +0000

@@ -1,0 +1,5 @@
+arch="arm64"
+supported="Generic"
+target="Geared toward desktop and server systems."
+desc="=HUMAN= SMP"
+bootloader="flash-kernel"
