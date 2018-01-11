@@ -2,7 +2,7 @@
  * drivers/spi/spi-fsl-dspi.c
  *
  * Copyright 2013-2016 Freescale Semiconductor, Inc.
- * Copyright 2017 NXP
+ * Copyright 2017-2018 NXP
  *
  * Freescale DSPI driver
  * This file contains a driver for the Freescale DSPI
@@ -187,30 +187,35 @@ struct fsl_dspi_devtype_data {
 	enum dspi_trans_mode trans_mode;
 	u8 max_clock_factor;
 	u8 extended_mode;
+	unsigned int max_register;
 };
 
 static const struct fsl_dspi_devtype_data vf610_data = {
 	.trans_mode = DSPI_DMA_MODE,
 	.max_clock_factor = 2,
 	.extended_mode = 0,
+	.max_register = 0x88,
 };
 
 static const struct fsl_dspi_devtype_data ls1021a_v1_data = {
 	.trans_mode = DSPI_TCFQ_MODE,
 	.max_clock_factor = 8,
 	.extended_mode = 0,
+	.max_register = 0x88,
 };
 
 static const struct fsl_dspi_devtype_data ls2085a_data = {
 	.trans_mode = DSPI_TCFQ_MODE,
 	.max_clock_factor = 8,
 	.extended_mode = 0,
+	.max_register = 0x88,
 };
 
 static const struct fsl_dspi_devtype_data s32v234_data = {
 	.trans_mode = DSPI_EOQ_MODE,
 	.max_clock_factor = 1,
 	.extended_mode = 1,
+	.max_register = 0x13c,
 };
 
 struct fsl_dspi_dma {
@@ -1082,11 +1087,10 @@ static int dspi_resume(struct device *dev)
 
 static SIMPLE_DEV_PM_OPS(dspi_pm, dspi_suspend, dspi_resume);
 
-static const struct regmap_config dspi_regmap_config = {
+static struct regmap_config dspi_regmap_config = {
 	.reg_bits = 32,
 	.val_bits = 32,
 	.reg_stride = 4,
-	.max_register = 0x88,
 };
 
 static void dspi_init(struct fsl_dspi *dspi)
@@ -1148,6 +1152,7 @@ static int dspi_probe(struct platform_device *pdev)
 		goto out_master_put;
 	}
 
+	dspi_regmap_config.max_register = dspi->devtype_data->max_register;
 	dspi->regmap = devm_regmap_init_mmio_clk(&pdev->dev, NULL, dspi->base,
 						&dspi_regmap_config);
 	if (IS_ERR(dspi->regmap)) {
