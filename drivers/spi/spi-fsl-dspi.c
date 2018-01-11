@@ -2,7 +2,7 @@
  * drivers/spi/spi-fsl-dspi.c
  *
  * Copyright 2013-2016 Freescale Semiconductor, Inc.
- * Copyright 2017 NXP
+ * Copyright 2017-2018 NXP
  *
  * Freescale DSPI driver
  * This file contains a driver for the Freescale DSPI
@@ -129,6 +129,7 @@
 #define SPI_CTARE(x)		(0x11c + (((x) & 0x3) * 4))
 #define SPI_CTARE_FMSZE(x)	(((x) & 0x00000010) << 12)
 #define SPI_CTARE_FMSZE_MASK	SPI_CTARE_FMSZE(0x10)
+#define SPI_CTARE_DTCP(x)	((x) & 0x000007ff)
 
 /* Status Register Extended */
 #define SPI_SREX		0x13c
@@ -144,14 +145,17 @@
 
 struct dspi_soc_data {
 	u8 extended_mode;
+	unsigned int max_register;
 };
 
 static struct dspi_soc_data dspi_vf610_data = {
 	.extended_mode = 0,
+	.max_register = 0x88,
 };
 
 static struct dspi_soc_data dspi_s32v234_data = {
 	.extended_mode = 1,
+	.max_register = 0x13c,
 };
 
 enum frame_mode {
@@ -581,12 +585,12 @@ static int dspi_setup(struct spi_device *spi)
 
 	if (dspi->socdata->extended_mode && fmsz >= 16) {
 		chip->mcr_val |= SPI_MCR_XSPI;
-		chip->ctare_val = SPI_CTARE_FMSZE(fmsz);
 
 		/* Support for multiple data frames with a single command frame
 		 * not yet implemented: SPI_CTAREn[DTCP] is left to the default
 		 * value, 1.
 		 */
+		chip->ctare_val = SPI_CTARE_FMSZE(fmsz) | SPI_CTARE_DTCP(1);
 	}
 
 	spi_set_ctldata(spi, chip);
@@ -661,11 +665,10 @@ static int dspi_resume(struct device *dev)
 
 static SIMPLE_DEV_PM_OPS(dspi_pm, dspi_suspend, dspi_resume);
 
-static const struct regmap_config dspi_regmap_config = {
+static struct regmap_config dspi_regmap_config = {
 	.reg_bits = 32,
 	.val_bits = 32,
 	.reg_stride = 4,
-	.max_register = 0x88,
 };
 
 static int dspi_probe(struct platform_device *pdev)
@@ -718,6 +721,7 @@ static int dspi_probe(struct platform_device *pdev)
 		goto out_master_put;
 	}
 
+	dspi_regmap_config.max_register = dspi->socdata->max_register;
 	dspi->regmap = devm_regmap_init_mmio_clk(&pdev->dev, "dspi", dspi->base,
 						&dspi_regmap_config);
 	if (IS_ERR(dspi->regmap)) {
