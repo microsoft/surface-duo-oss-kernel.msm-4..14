@@ -59,6 +59,8 @@ extern void arm_heavy_mb(void);
 #define dma_rmb()	barrier()
 #define dma_wmb()	barrier()
 #endif
+#define osb() 		do { } while (0)
+#define osb_is_enabled	(0)
 
 #ifndef CONFIG_SMP
 #define smp_mb()	barrier()
