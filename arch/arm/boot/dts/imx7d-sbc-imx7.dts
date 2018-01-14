@@ -18,6 +18,7 @@
 
 	aliases {
 		lcdif = &lcdif;
+		pcie = &pcie;
 	};
 
 	backlight {
@@ -133,6 +134,12 @@
 			};
 		};
 	};
+};
+
+&pcie {
+	reset-gpio = <&pca9555_sb 1 GPIO_ACTIVE_LOW>;
+	fsl,pcie-phy-refclk-internal;
+	status = "okay";
 };
 
 &pwm2 {
