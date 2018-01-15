@@ -252,6 +252,8 @@
 		/* On Low speed expansion */
 			label = "LS-SPI0";
 			status = "okay";
+			num-cs = <1>;
+			cs-gpios = <&msmgpio 2 0>;
 		};
 
 		i2c@075b5000 {
@@ -264,6 +266,8 @@
 		/* On High speed expansion */
 			label = "HS-SPI1";
 			status = "okay";
+			num-cs = <1>;
+			cs-gpios = <&msmgpio 87 0>;
 		};
 
 		sdhci@74a4900 {
