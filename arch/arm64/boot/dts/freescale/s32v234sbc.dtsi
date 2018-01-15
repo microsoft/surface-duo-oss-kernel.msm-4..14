@@ -664,3 +664,7 @@ spidev0: spidev@0 {
 &vseq {
 	status = "okay";
 };
+
+&tmu {
+	status = "okay";
+};
