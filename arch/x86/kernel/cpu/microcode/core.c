@@ -718,4 +718,4 @@ int __init microcode_init(void)
 	return error;
 
 }
-fs_initcall(save_microcode_in_initrd);
+late_initcall(microcode_init);
