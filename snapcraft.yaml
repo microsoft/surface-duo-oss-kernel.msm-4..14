@@ -25,8 +25,12 @@ parts:
   firmware:
     plugin: nil
     stage-packages:
-      - linux-firmware
-      - linux-firmware-snapdragon
+      - on arm64:
+        - linux-firmware
+        - linux-firmware-snapdragon
+      - else:
+        - linux-firmware
+        - linux-firmware-snapdragon:arm64
     organize:
       lib/firmware: firmware
     prime:
