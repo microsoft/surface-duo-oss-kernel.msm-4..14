@@ -5551,6 +5551,7 @@ EXPORT_SYMBOL vmlinux 0x32ea35e2	pneigh_enqueue
 EXPORT_SYMBOL vmlinux 0x32f8347b	flush_dcache_icache_page
 EXPORT_SYMBOL vmlinux 0x3314ba2c	__skb_flow_get_ports
 EXPORT_SYMBOL vmlinux 0x33178a56	dm_put_device
+EXPORT_SYMBOL vmlinux 0x331fa4c8	spec_ctrl_mutex
 EXPORT_SYMBOL vmlinux 0x33233fcc	of_clk_get_by_name
 EXPORT_SYMBOL vmlinux 0x335ef16d	uart_update_timeout
 EXPORT_SYMBOL vmlinux 0x336d5340	pci_enable_msix
@@ -5799,6 +5800,7 @@ EXPORT_SYMBOL vmlinux 0x41482d8b	strndup_user
 EXPORT_SYMBOL vmlinux 0x414945b6	vm_insert_page
 EXPORT_SYMBOL vmlinux 0x414f703a	simple_open
 EXPORT_SYMBOL vmlinux 0x4159c38f	ioremap_wc
+EXPORT_SYMBOL vmlinux 0x41609a7a	sysctl_ibpb_enabled
 EXPORT_SYMBOL vmlinux 0x4167adcb	serio_unregister_port
 EXPORT_SYMBOL vmlinux 0x41684e73	dma_async_tx_descriptor_init
 EXPORT_SYMBOL vmlinux 0x4178634b	proc_remove
@@ -8268,6 +8270,7 @@ EXPORT_SYMBOL vmlinux 0xd0fef3b2	agp_free_key
 EXPORT_SYMBOL vmlinux 0xd102d845	of_mm_gpiochip_add
 EXPORT_SYMBOL vmlinux 0xd1299b03	lwtunnel_output
 EXPORT_SYMBOL vmlinux 0xd14ebfac	ppp_dev_name
+EXPORT_SYMBOL vmlinux 0xd160c96d	sysctl_ibrs_enabled
 EXPORT_SYMBOL vmlinux 0xd1645f0c	install_exec_creds
 EXPORT_SYMBOL vmlinux 0xd1816f32	frontswap_writethrough
 EXPORT_SYMBOL vmlinux 0xd196c9be	kstrtos16_from_user
@@ -16196,7 +16199,6 @@ EXPORT_SYMBOL_GPL vmlinux 0xb5ee4bd8	ata_pci_sff_activate_host
 EXPORT_SYMBOL_GPL vmlinux 0xb5f00222	ata_bmdma_port_start32
 EXPORT_SYMBOL_GPL vmlinux 0xb5f17edf	perf_register_guest_info_callbacks
 EXPORT_SYMBOL_GPL vmlinux 0xb60b5707	of_i8042_aux_irq
-EXPORT_SYMBOL_GPL vmlinux 0xb6249dec	bpf_prog_select_runtime
 EXPORT_SYMBOL_GPL vmlinux 0xb6261484	register_die_notifier
 EXPORT_SYMBOL_GPL vmlinux 0xb63fa319	of_pci_address_to_resource
 EXPORT_SYMBOL_GPL vmlinux 0xb657e9ed	usb_driver_release_interface
@@ -16525,6 +16527,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xc9fc61a1	devm_add_action
 EXPORT_SYMBOL_GPL vmlinux 0xca06f41f	__tracepoint_rpm_return_int
 EXPORT_SYMBOL_GPL vmlinux 0xca082a3f	verify_signature
 EXPORT_SYMBOL_GPL vmlinux 0xca164819	__rio_local_read_config_32
+EXPORT_SYMBOL_GPL vmlinux 0xca2026cf	___ptrace_may_access
 EXPORT_SYMBOL_GPL vmlinux 0xca3b0db5	relay_reset
 EXPORT_SYMBOL_GPL vmlinux 0xca7d8764	kthread_freezable_should_stop
 EXPORT_SYMBOL_GPL vmlinux 0xcabe04de	cpuidle_resume_and_unlock
@@ -16809,6 +16812,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xde7f7960	pm_generic_restore
 EXPORT_SYMBOL_GPL vmlinux 0xde9463a6	freezer_cgrp_subsys_on_dfl_key
 EXPORT_SYMBOL_GPL vmlinux 0xdea9a43a	stmpe_disable
 EXPORT_SYMBOL_GPL vmlinux 0xdeb8cdb4	sock_diag_save_cookie
+EXPORT_SYMBOL_GPL vmlinux 0xded2b6f0	bpf_prog_select_runtime
 EXPORT_SYMBOL_GPL vmlinux 0xdeeec150	netlink_has_listeners
 EXPORT_SYMBOL_GPL vmlinux 0xdef58811	__pneigh_lookup
 EXPORT_SYMBOL_GPL vmlinux 0xdf0b291b	napi_by_id

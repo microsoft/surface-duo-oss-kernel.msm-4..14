@@ -5777,6 +5777,7 @@ EXPORT_SYMBOL vmlinux 0x4133223d	tcp_v4_syn_recv_sock
 EXPORT_SYMBOL vmlinux 0x41482d8b	strndup_user
 EXPORT_SYMBOL vmlinux 0x4153e0aa	udp_seq_open
 EXPORT_SYMBOL vmlinux 0x415d8ba8	inet_unregister_protosw
+EXPORT_SYMBOL vmlinux 0x41609a7a	sysctl_ibpb_enabled
 EXPORT_SYMBOL vmlinux 0x4164d1bf	tcp_ioctl
 EXPORT_SYMBOL vmlinux 0x4188d439	neigh_rand_reach_time
 EXPORT_SYMBOL vmlinux 0x418a5367	__scsi_format_command
@@ -6620,6 +6621,7 @@ EXPORT_SYMBOL vmlinux 0x7124ccbc	neigh_sysctl_register
 EXPORT_SYMBOL vmlinux 0x7129e5f8	hex_asc
 EXPORT_SYMBOL vmlinux 0x712e4e1c	dmam_alloc_coherent
 EXPORT_SYMBOL vmlinux 0x712ed37b	radix_tree_gang_lookup_tag_slot
+EXPORT_SYMBOL vmlinux 0x7138b901	spec_ctrl_mutex
 EXPORT_SYMBOL vmlinux 0x7151eec7	__bio_clone_fast
 EXPORT_SYMBOL vmlinux 0x71590c1a	register_md_cluster_operations
 EXPORT_SYMBOL vmlinux 0x7169be68	xfrm_policy_delete
@@ -8286,6 +8288,7 @@ EXPORT_SYMBOL vmlinux 0xd1247cc4	of_translate_address
 EXPORT_SYMBOL vmlinux 0xd1262886	rtas_data_buf
 EXPORT_SYMBOL vmlinux 0xd144e169	devfreq_remove_governor
 EXPORT_SYMBOL vmlinux 0xd1570c0f	ilookup
+EXPORT_SYMBOL vmlinux 0xd160c96d	sysctl_ibrs_enabled
 EXPORT_SYMBOL vmlinux 0xd1816f32	frontswap_writethrough
 EXPORT_SYMBOL vmlinux 0xd18e7f8a	agp_generic_alloc_page
 EXPORT_SYMBOL vmlinux 0xd196c9be	kstrtos16_from_user
@@ -14962,6 +14965,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x65b173ad	ping_hash
 EXPORT_SYMBOL_GPL vmlinux 0x65b4cf6b	bus_for_each_drv
 EXPORT_SYMBOL_GPL vmlinux 0x65bbbc78	schedule_hrtimeout_range
 EXPORT_SYMBOL_GPL vmlinux 0x65ccb6f0	call_netevent_notifiers
+EXPORT_SYMBOL_GPL vmlinux 0x65e70baf	bpf_prog_select_runtime
 EXPORT_SYMBOL_GPL vmlinux 0x65fbff36	swiotlb_tbl_unmap_single
 EXPORT_SYMBOL_GPL vmlinux 0x6601392c	usb_autopm_get_interface_no_resume
 EXPORT_SYMBOL_GPL vmlinux 0x6601d1f2	of_reserved_mem_device_release
@@ -15598,7 +15602,6 @@ EXPORT_SYMBOL_GPL vmlinux 0x911827e0	gpiod_set_raw_value_cansleep
 EXPORT_SYMBOL_GPL vmlinux 0x911e546e	usb_root_hub_lost_power
 EXPORT_SYMBOL_GPL vmlinux 0x9166e585	ata_eh_qc_retry
 EXPORT_SYMBOL_GPL vmlinux 0x917fe53e	tcp_send_ack
-EXPORT_SYMBOL_GPL vmlinux 0x91885fe5	bpf_prog_select_runtime
 EXPORT_SYMBOL_GPL vmlinux 0x918ad429	ring_buffer_lock_reserve
 EXPORT_SYMBOL_GPL vmlinux 0x91965753	devm_free_pages
 EXPORT_SYMBOL_GPL vmlinux 0x91c3e10f	find_pid_ns
@@ -16280,6 +16283,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xc3ec0688	trace_buffer_unlock_commit_regs
 EXPORT_SYMBOL_GPL vmlinux 0xc3ed476a	bio_trim
 EXPORT_SYMBOL_GPL vmlinux 0xc3f4d4dd	dev_pm_qos_update_request
 EXPORT_SYMBOL_GPL vmlinux 0xc4133b65	pmac_i2c_get_dev_addr
+EXPORT_SYMBOL_GPL vmlinux 0xc41fb015	___ptrace_may_access
 EXPORT_SYMBOL_GPL vmlinux 0xc428068d	sata_deb_timing_long
 EXPORT_SYMBOL_GPL vmlinux 0xc430fe46	phy_pm_runtime_get
 EXPORT_SYMBOL_GPL vmlinux 0xc4398102	wm831x_set_bits

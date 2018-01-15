@@ -5752,6 +5752,7 @@ EXPORT_SYMBOL vmlinux 0x41456be8	__get_page_tail
 EXPORT_SYMBOL vmlinux 0x41482d8b	strndup_user
 EXPORT_SYMBOL vmlinux 0x41506ca5	disk_stack_limits
 EXPORT_SYMBOL vmlinux 0x41531b84	lease_get_mtime
+EXPORT_SYMBOL vmlinux 0x41609a7a	sysctl_ibpb_enabled
 EXPORT_SYMBOL vmlinux 0x4171cb57	netif_set_real_num_tx_queues
 EXPORT_SYMBOL vmlinux 0x4188d439	neigh_rand_reach_time
 EXPORT_SYMBOL vmlinux 0x41a3fbf1	__tracepoint_kmem_cache_free
@@ -6783,6 +6784,7 @@ EXPORT_SYMBOL vmlinux 0x7c61340c	__release_region
 EXPORT_SYMBOL vmlinux 0x7c74cf4c	mutex_lock_killable
 EXPORT_SYMBOL vmlinux 0x7c7853a8	pci_enable_msix_range
 EXPORT_SYMBOL vmlinux 0x7c78f77e	gen_pool_dma_alloc
+EXPORT_SYMBOL vmlinux 0x7c7d3a4e	spec_ctrl_mutex
 EXPORT_SYMBOL vmlinux 0x7c8c90e0	pm_vt_switch_required
 EXPORT_SYMBOL vmlinux 0x7c98845d	twl_i2c_read
 EXPORT_SYMBOL vmlinux 0x7cb1ae69	cpu_down
@@ -8235,6 +8237,7 @@ EXPORT_SYMBOL vmlinux 0xd0f5c49b	dev_mc_add_excl
 EXPORT_SYMBOL vmlinux 0xd0fb7cd4	__tasklet_hi_schedule_first
 EXPORT_SYMBOL vmlinux 0xd1033632	netdev_emerg
 EXPORT_SYMBOL vmlinux 0xd138dd08	fb_get_mode
+EXPORT_SYMBOL vmlinux 0xd160c96d	sysctl_ibrs_enabled
 EXPORT_SYMBOL vmlinux 0xd1615e23	seq_escape
 EXPORT_SYMBOL vmlinux 0xd1652a93	acpi_info
 EXPORT_SYMBOL vmlinux 0xd178ff70	vm_stat
@@ -14821,6 +14824,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x4ae56fdf	da903x_clr_bits
 EXPORT_SYMBOL_GPL vmlinux 0x4ae82044	blkcg_root
 EXPORT_SYMBOL_GPL vmlinux 0x4af56a26	free_iova
 EXPORT_SYMBOL_GPL vmlinux 0x4b01c9e6	spi_alloc_master
+EXPORT_SYMBOL_GPL vmlinux 0x4b22cf9e	___ptrace_may_access
 EXPORT_SYMBOL_GPL vmlinux 0x4b33d651	wm5110_spi_regmap
 EXPORT_SYMBOL_GPL vmlinux 0x4b4a4c9f	__bpf_prog_free
 EXPORT_SYMBOL_GPL vmlinux 0x4b5b6a43	kernfs_get
@@ -16126,6 +16130,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x9f2766df	bpf_prog_realloc
 EXPORT_SYMBOL_GPL vmlinux 0x9f472ad4	amba_device_put
 EXPORT_SYMBOL_GPL vmlinux 0x9f517986	HYPERVISOR_hvm_op
 EXPORT_SYMBOL_GPL vmlinux 0x9f5bdb05	led_trigger_register_simple
+EXPORT_SYMBOL_GPL vmlinux 0x9f78d030	bpf_prog_select_runtime
 EXPORT_SYMBOL_GPL vmlinux 0x9fbdfcc6	iommu_get_domain_for_dev
 EXPORT_SYMBOL_GPL vmlinux 0x9fc0e5fe	get_task_pid
 EXPORT_SYMBOL_GPL vmlinux 0x9fcb8e58	power_supply_get_drvdata
@@ -16352,7 +16357,6 @@ EXPORT_SYMBOL_GPL vmlinux 0xafc0e75e	thermal_zone_device_unregister
 EXPORT_SYMBOL_GPL vmlinux 0xafc3f927	inet_csk_update_pmtu
 EXPORT_SYMBOL_GPL vmlinux 0xafc9a40b	sdio_memcpy_toio
 EXPORT_SYMBOL_GPL vmlinux 0xafd94a01	regulator_get
-EXPORT_SYMBOL_GPL vmlinux 0xafed0d2c	bpf_prog_select_runtime
 EXPORT_SYMBOL_GPL vmlinux 0xafedc5b2	adp5520_clr_bits
 EXPORT_SYMBOL_GPL vmlinux 0xb005e74d	scsi_dh_attach
 EXPORT_SYMBOL_GPL vmlinux 0xb00b833e	pkcs7_get_content_data

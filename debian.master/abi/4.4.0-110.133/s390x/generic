@@ -2169,6 +2169,7 @@ EXPORT_SYMBOL vmlinux 0x41081802	pci_clear_mwi
 EXPORT_SYMBOL vmlinux 0x413d903c	dev_uc_sync_multiple
 EXPORT_SYMBOL vmlinux 0x41482d8b	strndup_user
 EXPORT_SYMBOL vmlinux 0x4155acfc	qdisc_tree_reduce_backlog
+EXPORT_SYMBOL vmlinux 0x41609a7a	sysctl_ibpb_enabled
 EXPORT_SYMBOL vmlinux 0x416690eb	tcp_mtup_init
 EXPORT_SYMBOL vmlinux 0x417652f8	__d_drop
 EXPORT_SYMBOL vmlinux 0x4188d439	neigh_rand_reach_time
@@ -2559,6 +2560,7 @@ EXPORT_SYMBOL vmlinux 0x5dbbe98e	memmove
 EXPORT_SYMBOL vmlinux 0x5dbe5093	blk_pre_runtime_suspend
 EXPORT_SYMBOL vmlinux 0x5dbfb642	skb_append_datato_frags
 EXPORT_SYMBOL vmlinux 0x5dc0f338	diag_stat_inc_norecursion
+EXPORT_SYMBOL vmlinux 0x5dd6c6fe	spec_ctrl_mutex
 EXPORT_SYMBOL vmlinux 0x5de1ca19	lg_local_lock_cpu
 EXPORT_SYMBOL vmlinux 0x5de4df4a	sock_i_uid
 EXPORT_SYMBOL vmlinux 0x5df08f8c	address_space_init_once
@@ -4189,6 +4191,7 @@ EXPORT_SYMBOL vmlinux 0xd0f36f0d	audit_log_format
 EXPORT_SYMBOL vmlinux 0xd0fb7cd4	__tasklet_hi_schedule_first
 EXPORT_SYMBOL vmlinux 0xd10f2da4	nf_unregister_net_hooks
 EXPORT_SYMBOL vmlinux 0xd13a0886	xfrm_policy_hash_rebuild
+EXPORT_SYMBOL vmlinux 0xd160c96d	sysctl_ibrs_enabled
 EXPORT_SYMBOL vmlinux 0xd171ed0a	elv_rb_del
 EXPORT_SYMBOL vmlinux 0xd178ff70	vm_stat
 EXPORT_SYMBOL vmlinux 0xd17b8e63	param_ops_bool
@@ -7481,6 +7484,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x549525ef	handle_nested_irq
 EXPORT_SYMBOL_GPL vmlinux 0x54ab9a60	disk_part_iter_next
 EXPORT_SYMBOL_GPL vmlinux 0x54d3d9e2	kvm_debugfs_dir
 EXPORT_SYMBOL_GPL vmlinux 0x54db0003	blk_execute_rq_nowait
+EXPORT_SYMBOL_GPL vmlinux 0x54e74155	bpf_prog_select_runtime
 EXPORT_SYMBOL_GPL vmlinux 0x54ef3d03	ioremap_page_range
 EXPORT_SYMBOL_GPL vmlinux 0x551b3435	dma_get_required_mask
 EXPORT_SYMBOL_GPL vmlinux 0x55454c41	pci_ignore_hotplug
@@ -8533,6 +8537,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xcdca3691	nr_irqs
 EXPORT_SYMBOL_GPL vmlinux 0xcde34ce3	add_memory_resource
 EXPORT_SYMBOL_GPL vmlinux 0xcde574ac	fsstack_copy_attr_all
 EXPORT_SYMBOL_GPL vmlinux 0xcdf315f0	__rtnl_af_unregister
+EXPORT_SYMBOL_GPL vmlinux 0xce5f8f42	___ptrace_may_access
 EXPORT_SYMBOL_GPL vmlinux 0xce6a9d9a	trace_current_buffer_discard_commit
 EXPORT_SYMBOL_GPL vmlinux 0xce6b9ee0	devm_hwrng_register
 EXPORT_SYMBOL_GPL vmlinux 0xce6db656	rcu_is_watching
@@ -8902,7 +8907,6 @@ EXPORT_SYMBOL_GPL vmlinux 0xf5247d53	rhashtable_walk_init
 EXPORT_SYMBOL_GPL vmlinux 0xf5494bc6	blocking_notifier_chain_register
 EXPORT_SYMBOL_GPL vmlinux 0xf54ae3f7	save_stack_trace_tsk
 EXPORT_SYMBOL_GPL vmlinux 0xf54bd49b	lcm
-EXPORT_SYMBOL_GPL vmlinux 0xf5545f5c	bpf_prog_select_runtime
 EXPORT_SYMBOL_GPL vmlinux 0xf5a691cd	invalidate_bh_lrus
 EXPORT_SYMBOL_GPL vmlinux 0xf5ba9820	fsnotify
 EXPORT_SYMBOL_GPL vmlinux 0xf5bcf1b2	__cookie_v4_check

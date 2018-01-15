@@ -5605,6 +5605,7 @@ EXPORT_SYMBOL vmlinux 0x41482d8b	strndup_user
 EXPORT_SYMBOL vmlinux 0x4152b0f5	vc_resize
 EXPORT_SYMBOL vmlinux 0x41579469	pci_bus_find_capability
 EXPORT_SYMBOL vmlinux 0x415d192c	submit_bio_wait
+EXPORT_SYMBOL vmlinux 0x41609a7a	sysctl_ibpb_enabled
 EXPORT_SYMBOL vmlinux 0x41690404	pneigh_lookup
 EXPORT_SYMBOL vmlinux 0x4171072f	from_kuid_munged
 EXPORT_SYMBOL vmlinux 0x417ced06	path_put
@@ -8215,6 +8216,7 @@ EXPORT_SYMBOL vmlinux 0xd1067ba7	dispc_ovl_enabled
 EXPORT_SYMBOL vmlinux 0xd1135bb3	fixed_phy_update_state
 EXPORT_SYMBOL vmlinux 0xd1157735	release_and_free_resource
 EXPORT_SYMBOL vmlinux 0xd14824a7	blk_requeue_request
+EXPORT_SYMBOL vmlinux 0xd160c96d	sysctl_ibrs_enabled
 EXPORT_SYMBOL vmlinux 0xd1664669	vlan_vid_add
 EXPORT_SYMBOL vmlinux 0xd169679f	frontswap_register_ops
 EXPORT_SYMBOL vmlinux 0xd17386bb	register_sound_midi
@@ -8533,6 +8535,7 @@ EXPORT_SYMBOL vmlinux 0xe2d5255a	strcmp
 EXPORT_SYMBOL vmlinux 0xe2d900b2	__netif_schedule
 EXPORT_SYMBOL vmlinux 0xe2e09482	mipi_dsi_dcs_get_pixel_format
 EXPORT_SYMBOL vmlinux 0xe2e8065e	memdup_user
+EXPORT_SYMBOL vmlinux 0xe2eb59a2	spec_ctrl_mutex
 EXPORT_SYMBOL vmlinux 0xe2f425e7	rps_cpu_mask
 EXPORT_SYMBOL vmlinux 0xe2f92042	skb_try_coalesce
 EXPORT_SYMBOL vmlinux 0xe2fae716	kmemdup
@@ -14401,6 +14404,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x358ff60f	twl_get_hfclk_rate
 EXPORT_SYMBOL_GPL vmlinux 0x35a01f05	cpufreq_cpu_put
 EXPORT_SYMBOL_GPL vmlinux 0x35ac128a	devm_add_action
 EXPORT_SYMBOL_GPL vmlinux 0x35dcd1f7	trace_seq_vprintf
+EXPORT_SYMBOL_GPL vmlinux 0x35e0f118	___ptrace_may_access
 EXPORT_SYMBOL_GPL vmlinux 0x35f3b0c0	ata_sas_port_destroy
 EXPORT_SYMBOL_GPL vmlinux 0x36075bb5	iommu_group_register_notifier
 EXPORT_SYMBOL_GPL vmlinux 0x361e2bcc	save_stack_trace
@@ -14625,7 +14629,6 @@ EXPORT_SYMBOL_GPL vmlinux 0x43f81957	clk_round_rate
 EXPORT_SYMBOL_GPL vmlinux 0x44020321	devres_add
 EXPORT_SYMBOL_GPL vmlinux 0x44088a5e	swiotlb_tbl_sync_single
 EXPORT_SYMBOL_GPL vmlinux 0x441d8ef5	__hvc_resize
-EXPORT_SYMBOL_GPL vmlinux 0x442ab9ea	bpf_prog_select_runtime
 EXPORT_SYMBOL_GPL vmlinux 0x444f1735	cpu_pm_register_notifier
 EXPORT_SYMBOL_GPL vmlinux 0x4452ecff	wm8350_reg_write
 EXPORT_SYMBOL_GPL vmlinux 0x4463545e	__irq_set_handler
@@ -15994,6 +15997,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x9a3e0d69	pci_max_pasids
 EXPORT_SYMBOL_GPL vmlinux 0x9a70c678	sdhci_set_uhs_signaling
 EXPORT_SYMBOL_GPL vmlinux 0x9a7c10f0	__pci_reset_function
 EXPORT_SYMBOL_GPL vmlinux 0x9a89dbf7	lpddr2_jedec_min_tck
+EXPORT_SYMBOL_GPL vmlinux 0x9a9796be	bpf_prog_select_runtime
 EXPORT_SYMBOL_GPL vmlinux 0x9aa6dd3e	irq_set_chip_and_handler_name
 EXPORT_SYMBOL_GPL vmlinux 0x9abf7508	virtio_device_restore
 EXPORT_SYMBOL_GPL vmlinux 0x9ac11b74	suspend_set_ops

@@ -4524,6 +4524,7 @@ EXPORT_SYMBOL vmlinux 0x03fd2571	vm_unmap_ram
 EXPORT_SYMBOL vmlinux 0x0412f5c7	tcp_md5_do_add
 EXPORT_SYMBOL vmlinux 0x0415c2ca	nvm_generic_to_addr_mode
 EXPORT_SYMBOL vmlinux 0x04190126	netdev_crit
+EXPORT_SYMBOL vmlinux 0x041d1dc6	spec_ctrl_mutex
 EXPORT_SYMBOL vmlinux 0x0422fe4a	inet_csk_timer_bug_msg
 EXPORT_SYMBOL vmlinux 0x0435d572	amba_find_device
 EXPORT_SYMBOL vmlinux 0x043adeaa	gro_find_receive_by_type
@@ -5623,6 +5624,7 @@ EXPORT_SYMBOL vmlinux 0x4112ae39	call_usermodehelper_exec
 EXPORT_SYMBOL vmlinux 0x411acc07	make_bad_inode
 EXPORT_SYMBOL vmlinux 0x4141973b	of_find_i2c_adapter_by_node
 EXPORT_SYMBOL vmlinux 0x41482d8b	strndup_user
+EXPORT_SYMBOL vmlinux 0x41609a7a	sysctl_ibpb_enabled
 EXPORT_SYMBOL vmlinux 0x416c9f3e	nvm_get_blk_unlocked
 EXPORT_SYMBOL vmlinux 0x417cb01d	vga_put
 EXPORT_SYMBOL vmlinux 0x417f72e5	blk_queue_alignment_offset
@@ -8216,6 +8218,7 @@ EXPORT_SYMBOL vmlinux 0xd1386c40	max8998_write_reg
 EXPORT_SYMBOL vmlinux 0xd1457d96	down_write_trylock
 EXPORT_SYMBOL vmlinux 0xd14c79f2	vfs_path_lookup
 EXPORT_SYMBOL vmlinux 0xd15e10da	vfs_getxattr_alloc
+EXPORT_SYMBOL vmlinux 0xd160c96d	sysctl_ibrs_enabled
 EXPORT_SYMBOL vmlinux 0xd162c0b5	tcf_exts_validate
 EXPORT_SYMBOL vmlinux 0xd18151d8	param_ops_ulong
 EXPORT_SYMBOL vmlinux 0xd1816f32	frontswap_writethrough
@@ -14157,7 +14160,6 @@ EXPORT_SYMBOL_GPL vmlinux 0x29fa419f	decode_rs8
 EXPORT_SYMBOL_GPL vmlinux 0x2a095036	tc3589x_block_write
 EXPORT_SYMBOL_GPL vmlinux 0x2a1959ed	__tracepoint_block_split
 EXPORT_SYMBOL_GPL vmlinux 0x2a2c212b	ahci_set_em_messages
-EXPORT_SYMBOL_GPL vmlinux 0x2a59c5d5	bpf_prog_select_runtime
 EXPORT_SYMBOL_GPL vmlinux 0x2a59f946	regulator_get
 EXPORT_SYMBOL_GPL vmlinux 0x2a610fa1	devm_extcon_dev_allocate
 EXPORT_SYMBOL_GPL vmlinux 0x2a63df2e	device_destroy
@@ -14426,6 +14428,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x398a93d0	tpm_chip_register
 EXPORT_SYMBOL_GPL vmlinux 0x399e7871	crypto_register_aead
 EXPORT_SYMBOL_GPL vmlinux 0x39a5ef2f	of_irq_find_parent
 EXPORT_SYMBOL_GPL vmlinux 0x39c705a4	fuse_get_req
+EXPORT_SYMBOL_GPL vmlinux 0x39c91bde	bpf_prog_select_runtime
 EXPORT_SYMBOL_GPL vmlinux 0x39ca07cc	maxim_charger_calc_reg_current
 EXPORT_SYMBOL_GPL vmlinux 0x39d672fa	power_supply_put
 EXPORT_SYMBOL_GPL vmlinux 0x39e61495	nf_logger_request_module
@@ -16327,6 +16330,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xb1acbcce	rcu_barrier_sched
 EXPORT_SYMBOL_GPL vmlinux 0xb1b17705	tty_ldisc_ref_wait
 EXPORT_SYMBOL_GPL vmlinux 0xb1bed25d	dpm_resume_start
 EXPORT_SYMBOL_GPL vmlinux 0xb1c0c1c2	async_schedule_domain
+EXPORT_SYMBOL_GPL vmlinux 0xb1d27236	___ptrace_may_access
 EXPORT_SYMBOL_GPL vmlinux 0xb1e25684	__trace_bputs
 EXPORT_SYMBOL_GPL vmlinux 0xb1e70a5c	irq_find_matching_fwnode
 EXPORT_SYMBOL_GPL vmlinux 0xb1eb8765	crypto_init_ahash_spawn

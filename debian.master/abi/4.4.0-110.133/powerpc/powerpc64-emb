@@ -5722,6 +5722,7 @@ EXPORT_SYMBOL vmlinux 0x3cebbe7c	bio_unmap_user
 EXPORT_SYMBOL vmlinux 0x3ced3cf1	vme_dma_list_free
 EXPORT_SYMBOL vmlinux 0x3cf81b1a	of_match_node
 EXPORT_SYMBOL vmlinux 0x3d16b053	mmc_wait_for_req
+EXPORT_SYMBOL vmlinux 0x3d6c5df2	spec_ctrl_mutex
 EXPORT_SYMBOL vmlinux 0x3d7efd2c	jbd2_journal_begin_ordered_truncate
 EXPORT_SYMBOL vmlinux 0x3d88d3d6	fifo_set_limit
 EXPORT_SYMBOL vmlinux 0x3da474e4	add_disk
@@ -5789,6 +5790,7 @@ EXPORT_SYMBOL vmlinux 0x41193058	vc_resize
 EXPORT_SYMBOL vmlinux 0x4144374c	scsi_device_lookup
 EXPORT_SYMBOL vmlinux 0x41482d8b	strndup_user
 EXPORT_SYMBOL vmlinux 0x4159c38f	ioremap_wc
+EXPORT_SYMBOL vmlinux 0x41609a7a	sysctl_ibpb_enabled
 EXPORT_SYMBOL vmlinux 0x416d60e7	xfrm_input_register_afinfo
 EXPORT_SYMBOL vmlinux 0x4188d439	neigh_rand_reach_time
 EXPORT_SYMBOL vmlinux 0x418ba53c	simple_empty
@@ -8199,6 +8201,7 @@ EXPORT_SYMBOL vmlinux 0xd1201fad	dcache_dir_close
 EXPORT_SYMBOL vmlinux 0xd1327a98	agp_generic_enable
 EXPORT_SYMBOL vmlinux 0xd141846b	netif_schedule_queue
 EXPORT_SYMBOL vmlinux 0xd1594cbf	eth_prepare_mac_addr_change
+EXPORT_SYMBOL vmlinux 0xd160c96d	sysctl_ibrs_enabled
 EXPORT_SYMBOL vmlinux 0xd1664f20	devm_devfreq_add_device
 EXPORT_SYMBOL vmlinux 0xd1758b80	ip_mc_dec_group
 EXPORT_SYMBOL vmlinux 0xd17b10e4	tty_wait_until_sent
@@ -14287,7 +14290,6 @@ EXPORT_SYMBOL_GPL vmlinux 0x33d02a5c	__spi_register_driver
 EXPORT_SYMBOL_GPL vmlinux 0x33d5c069	irq_create_strict_mappings
 EXPORT_SYMBOL_GPL vmlinux 0x33eb0e44	edac_get_sysfs_subsys
 EXPORT_SYMBOL_GPL vmlinux 0x34083af8	i2c_new_device
-EXPORT_SYMBOL_GPL vmlinux 0x340b1cec	bpf_prog_select_runtime
 EXPORT_SYMBOL_GPL vmlinux 0x340ce1ca	fuse_conn_get
 EXPORT_SYMBOL_GPL vmlinux 0x3425e2bc	arizona_clk32k_disable
 EXPORT_SYMBOL_GPL vmlinux 0x344c5e63	thermal_zone_get_temp
@@ -14917,6 +14919,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x5d404329	yield_to
 EXPORT_SYMBOL_GPL vmlinux 0x5d4f3c8e	blockdev_superblock
 EXPORT_SYMBOL_GPL vmlinux 0x5d5316d9	inet6_csk_xmit
 EXPORT_SYMBOL_GPL vmlinux 0x5d5f5dfd	led_stop_software_blink
+EXPORT_SYMBOL_GPL vmlinux 0x5d60c6d4	bpf_prog_select_runtime
 EXPORT_SYMBOL_GPL vmlinux 0x5da67adc	zs_compact
 EXPORT_SYMBOL_GPL vmlinux 0x5db6211c	kvm_is_visible_gfn
 EXPORT_SYMBOL_GPL vmlinux 0x5dbd24b7	fat_getattr
@@ -16275,6 +16278,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xbd671048	__alloc_percpu_gfp
 EXPORT_SYMBOL_GPL vmlinux 0xbd7fd5bf	pcibios_remove_pci_devices
 EXPORT_SYMBOL_GPL vmlinux 0xbd84b425	wm8350_set_bits
 EXPORT_SYMBOL_GPL vmlinux 0xbd88d881	ata_sg_init
+EXPORT_SYMBOL_GPL vmlinux 0xbd8db6ab	___ptrace_may_access
 EXPORT_SYMBOL_GPL vmlinux 0xbdd295f0	trace_vprintk
 EXPORT_SYMBOL_GPL vmlinux 0xbdd2f42a	rcu_bh_force_quiescent_state
 EXPORT_SYMBOL_GPL vmlinux 0xbdd74efb	devm_pwm_put
