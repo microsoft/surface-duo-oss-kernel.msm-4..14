@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2016 Netronome Systems, Inc.
+ * Copyright (C) 2016-2017 Netronome Systems, Inc.
  *
  * This software is dual licensed under the GNU General License Version 2,
  * June 1991 as shown in the file COPYING in the top-level directory of this
@@ -42,12 +42,14 @@
 #include <linux/jiffies.h>
 #include <linux/timer.h>
 #include <linux/list.h>
+#include <linux/mm.h>
 
 #include <net/pkt_cls.h>
 #include <net/tc_act/tc_gact.h>
 #include <net/tc_act/tc_mirred.h>
 
 #include "main.h"
+#include "../nfp_app.h"
 #include "../nfp_net_ctrl.h"
 #include "../nfp_net.h"
 
@@ -55,11 +57,10 @@ static int
 nfp_prog_prepare(struct nfp_prog *nfp_prog, const struct bpf_insn *prog,
 		 unsigned int cnt)
 {
+	struct nfp_insn_meta *meta;
 	unsigned int i;
 
 	for (i = 0; i < cnt; i++) {
-		struct nfp_insn_meta *meta;
-
 		meta = kzalloc(sizeof(*meta), GFP_KERNEL);
 		if (!meta)
 			return -ENOMEM;
@@ -69,6 +70,8 @@ nfp_prog_prepare(struct nfp_prog *nfp_prog, const struct bpf_insn *prog,
 
 		list_add_tail(&meta->l, &nfp_prog->insns);
 	}
+
+	nfp_bpf_jit_prepare(nfp_prog, cnt);
 
 	return 0;
 }
@@ -84,8 +87,9 @@ static void nfp_prog_free(struct nfp_prog *nfp_prog)
 	kfree(nfp_prog);
 }
 
-int nfp_bpf_verifier_prep(struct nfp_app *app, struct nfp_net *nn,
-			  struct netdev_bpf *bpf)
+static int
+nfp_bpf_verifier_prep(struct nfp_app *app, struct nfp_net *nn,
+		      struct netdev_bpf *bpf)
 {
 	struct bpf_prog *prog = bpf->verifier.prog;
 	struct nfp_prog *nfp_prog;
@@ -98,6 +102,7 @@ int nfp_bpf_verifier_prep(struct nfp_app *app, struct nfp_net *nn,
 
 	INIT_LIST_HEAD(&nfp_prog->insns);
 	nfp_prog->type = prog->type;
+	nfp_prog->bpf = app->priv;
 
 	ret = nfp_prog_prepare(nfp_prog, prog->insnsi, prog->len);
 	if (ret)
@@ -114,8 +119,7 @@ err_free:
 	return ret;
 }
 
-int nfp_bpf_translate(struct nfp_app *app, struct nfp_net *nn,
-		      struct bpf_prog *prog)
+static int nfp_bpf_translate(struct nfp_net *nn, struct bpf_prog *prog)
 {
 	struct nfp_prog *nfp_prog = prog->aux->offload->dev_priv;
 	unsigned int stack_size;
@@ -127,30 +131,40 @@ int nfp_bpf_translate(struct nfp_app *app, struct nfp_net *nn,
 			prog->aux->stack_depth, stack_size);
 		return -EOPNOTSUPP;
 	}
-
-	nfp_prog->stack_depth = prog->aux->stack_depth;
-	nfp_prog->start_off = nn_readw(nn, NFP_NET_CFG_BPF_START);
-	nfp_prog->tgt_done = nn_readw(nn, NFP_NET_CFG_BPF_DONE);
+	nfp_prog->stack_depth = round_up(prog->aux->stack_depth, 4);
 
 	max_instr = nn_readw(nn, NFP_NET_CFG_BPF_MAX_LEN);
 	nfp_prog->__prog_alloc_len = max_instr * sizeof(u64);
 
-	nfp_prog->prog = kmalloc(nfp_prog->__prog_alloc_len, GFP_KERNEL);
+	nfp_prog->prog = kvmalloc(nfp_prog->__prog_alloc_len, GFP_KERNEL);
 	if (!nfp_prog->prog)
 		return -ENOMEM;
 
 	return nfp_bpf_jit(nfp_prog);
 }
 
-int nfp_bpf_destroy(struct nfp_app *app, struct nfp_net *nn,
-		    struct bpf_prog *prog)
+static int nfp_bpf_destroy(struct nfp_net *nn, struct bpf_prog *prog)
 {
 	struct nfp_prog *nfp_prog = prog->aux->offload->dev_priv;
 
-	kfree(nfp_prog->prog);
+	kvfree(nfp_prog->prog);
 	nfp_prog_free(nfp_prog);
 
 	return 0;
+}
+
+int nfp_ndo_bpf(struct nfp_app *app, struct nfp_net *nn, struct netdev_bpf *bpf)
+{
+	switch (bpf->command) {
+	case BPF_OFFLOAD_VERIFIER_PREP:
+		return nfp_bpf_verifier_prep(app, nn, bpf);
+	case BPF_OFFLOAD_TRANSLATE:
+		return nfp_bpf_translate(nn, bpf->offload.prog);
+	case BPF_OFFLOAD_DESTROY:
+		return nfp_bpf_destroy(nn, bpf->offload.prog);
+	default:
+		return -EINVAL;
+	}
 }
 
 static int nfp_net_bpf_load(struct nfp_net *nn, struct bpf_prog *prog)
@@ -158,6 +172,7 @@ static int nfp_net_bpf_load(struct nfp_net *nn, struct bpf_prog *prog)
 	struct nfp_prog *nfp_prog = prog->aux->offload->dev_priv;
 	unsigned int max_mtu;
 	dma_addr_t dma_addr;
+	void *img;
 	int err;
 
 	max_mtu = nn_readb(nn, NFP_NET_CFG_BPF_INL_MTU) * 64 - 32;
@@ -166,11 +181,17 @@ static int nfp_net_bpf_load(struct nfp_net *nn, struct bpf_prog *prog)
 		return -EOPNOTSUPP;
 	}
 
-	dma_addr = dma_map_single(nn->dp.dev, nfp_prog->prog,
+	img = nfp_bpf_relo_for_vnic(nfp_prog, nn->app_priv);
+	if (IS_ERR(img))
+		return PTR_ERR(img);
+
+	dma_addr = dma_map_single(nn->dp.dev, img,
 				  nfp_prog->prog_len * sizeof(u64),
 				  DMA_TO_DEVICE);
-	if (dma_mapping_error(nn->dp.dev, dma_addr))
+	if (dma_mapping_error(nn->dp.dev, dma_addr)) {
+		kfree(img);
 		return -ENOMEM;
+	}
 
 	nn_writew(nn, NFP_NET_CFG_BPF_SIZE, nfp_prog->prog_len);
 	nn_writeq(nn, NFP_NET_CFG_BPF_ADDR, dma_addr);
@@ -182,6 +203,7 @@ static int nfp_net_bpf_load(struct nfp_net *nn, struct bpf_prog *prog)
 
 	dma_unmap_single(nn->dp.dev, dma_addr, nfp_prog->prog_len * sizeof(u64),
 			 DMA_TO_DEVICE);
+	kfree(img);
 
 	return err;
 }

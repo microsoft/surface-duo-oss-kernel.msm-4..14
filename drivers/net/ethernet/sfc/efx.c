@@ -27,6 +27,7 @@
 #include <net/udp_tunnel.h>
 #include "efx.h"
 #include "nic.h"
+#include "io.h"
 #include "selftest.h"
 #include "sriov.h"
 
@@ -952,31 +953,42 @@ void efx_link_status_changed(struct efx_nic *efx)
 		netif_info(efx, link, efx->net_dev, "link down\n");
 }
 
-void efx_link_set_advertising(struct efx_nic *efx, u32 advertising)
+void efx_link_set_advertising(struct efx_nic *efx,
+			      const unsigned long *advertising)
 {
-	efx->link_advertising = advertising;
-	if (advertising) {
-		if (advertising & ADVERTISED_Pause)
-			efx->wanted_fc |= (EFX_FC_TX | EFX_FC_RX);
-		else
-			efx->wanted_fc &= ~(EFX_FC_TX | EFX_FC_RX);
-		if (advertising & ADVERTISED_Asym_Pause)
-			efx->wanted_fc ^= EFX_FC_TX;
-	}
+	memcpy(efx->link_advertising, advertising,
+	       sizeof(__ETHTOOL_DECLARE_LINK_MODE_MASK()));
+
+	efx->link_advertising[0] |= ADVERTISED_Autoneg;
+	if (advertising[0] & ADVERTISED_Pause)
+		efx->wanted_fc |= (EFX_FC_TX | EFX_FC_RX);
+	else
+		efx->wanted_fc &= ~(EFX_FC_TX | EFX_FC_RX);
+	if (advertising[0] & ADVERTISED_Asym_Pause)
+		efx->wanted_fc ^= EFX_FC_TX;
+}
+
+/* Equivalent to efx_link_set_advertising with all-zeroes, except does not
+ * force the Autoneg bit on.
+ */
+void efx_link_clear_advertising(struct efx_nic *efx)
+{
+	bitmap_zero(efx->link_advertising, __ETHTOOL_LINK_MODE_MASK_NBITS);
+	efx->wanted_fc &= ~(EFX_FC_TX | EFX_FC_RX);
 }
 
 void efx_link_set_wanted_fc(struct efx_nic *efx, u8 wanted_fc)
 {
 	efx->wanted_fc = wanted_fc;
-	if (efx->link_advertising) {
+	if (efx->link_advertising[0]) {
 		if (wanted_fc & EFX_FC_RX)
-			efx->link_advertising |= (ADVERTISED_Pause |
-						  ADVERTISED_Asym_Pause);
+			efx->link_advertising[0] |= (ADVERTISED_Pause |
+						     ADVERTISED_Asym_Pause);
 		else
-			efx->link_advertising &= ~(ADVERTISED_Pause |
-						   ADVERTISED_Asym_Pause);
+			efx->link_advertising[0] &= ~(ADVERTISED_Pause |
+						      ADVERTISED_Asym_Pause);
 		if (wanted_fc & EFX_FC_TX)
-			efx->link_advertising ^= ADVERTISED_Asym_Pause;
+			efx->link_advertising[0] ^= ADVERTISED_Asym_Pause;
 	}
 }
 
@@ -1248,7 +1260,7 @@ static int efx_init_io(struct efx_nic *efx)
 
 	netif_dbg(efx, probe, efx->net_dev, "initialising I/O\n");
 
-	bar = efx->type->mem_bar;
+	bar = efx->type->mem_bar(efx);
 
 	rc = pci_enable_device(pci_dev);
 	if (rc) {
@@ -1323,7 +1335,7 @@ static void efx_fini_io(struct efx_nic *efx)
 	}
 
 	if (efx->membase_phys) {
-		bar = efx->type->mem_bar;
+		bar = efx->type->mem_bar(efx);
 		pci_release_region(efx->pci_dev, bar);
 		efx->membase_phys = 0;
 	}
@@ -2909,6 +2921,10 @@ static const struct pci_device_id efx_pci_table[] = {
 	 .driver_data = (unsigned long) &efx_hunt_a0_nic_type},
 	{PCI_DEVICE(PCI_VENDOR_ID_SOLARFLARE, 0x1a03),  /* SFC9220 VF */
 	 .driver_data = (unsigned long) &efx_hunt_a0_vf_nic_type},
+	{PCI_DEVICE(PCI_VENDOR_ID_SOLARFLARE, 0x0b03),  /* SFC9250 PF */
+	 .driver_data = (unsigned long) &efx_hunt_a0_nic_type},
+	{PCI_DEVICE(PCI_VENDOR_ID_SOLARFLARE, 0x1b03),  /* SFC9250 VF */
+	 .driver_data = (unsigned long) &efx_hunt_a0_vf_nic_type},
 	{0}			/* end of list */
 };
 
@@ -2977,6 +2993,9 @@ static int efx_init_struct(struct efx_nic *efx,
 	efx->rx_packet_ts_offset =
 		efx->type->rx_ts_offset - efx->type->rx_prefix_size;
 	spin_lock_init(&efx->stats_lock);
+	efx->vi_stride = EFX_DEFAULT_VI_STRIDE;
+	efx->num_mac_stats = MC_CMD_MAC_NSTATS;
+	BUILD_BUG_ON(MC_CMD_MAC_NSTATS - 1 != MC_CMD_MAC_GENERATION_END);
 	mutex_init(&efx->mac_lock);
 	efx->phy_op = &efx_dummy_phy_operations;
 	efx->mdio.dev = net_dev;

@@ -1610,11 +1610,13 @@ static int nfp_net_rx(struct nfp_net_rx_ring *rx_ring, int budget)
 	unsigned int true_bufsz;
 	struct sk_buff *skb;
 	int pkts_polled = 0;
+	struct xdp_buff xdp;
 	int idx;
 
 	rcu_read_lock();
 	xdp_prog = READ_ONCE(dp->xdp_prog);
 	true_bufsz = xdp_prog ? PAGE_SIZE : dp->fl_bufsz;
+	xdp.rxq = &rx_ring->xdp_rxq;
 	tx_ring = r_vec->xdp_ring;
 
 	while (pkts_polled < budget) {
@@ -1705,7 +1707,6 @@ static int nfp_net_rx(struct nfp_net_rx_ring *rx_ring, int budget)
 				  dp->bpf_offload_xdp) && !meta.portid) {
 			void *orig_data = rxbuf->frag + pkt_off;
 			unsigned int dma_off;
-			struct xdp_buff xdp;
 			int act;
 
 			xdp.data_hard_start = rxbuf->frag + NFP_NET_RX_BUF_HEADROOM;
@@ -2254,6 +2255,8 @@ static void nfp_net_rx_ring_free(struct nfp_net_rx_ring *rx_ring)
 	struct nfp_net_r_vector *r_vec = rx_ring->r_vec;
 	struct nfp_net_dp *dp = &r_vec->nfp_net->dp;
 
+	if (dp->netdev)
+		xdp_rxq_info_unreg(&rx_ring->xdp_rxq);
 	kfree(rx_ring->rxbufs);
 
 	if (rx_ring->rxds)
@@ -2277,7 +2280,14 @@ static void nfp_net_rx_ring_free(struct nfp_net_rx_ring *rx_ring)
 static int
 nfp_net_rx_ring_alloc(struct nfp_net_dp *dp, struct nfp_net_rx_ring *rx_ring)
 {
-	int sz;
+	int sz, err;
+
+	if (dp->netdev) {
+		err = xdp_rxq_info_reg(&rx_ring->xdp_rxq, dp->netdev,
+				       rx_ring->idx);
+		if (err < 0)
+			return err;
+	}
 
 	rx_ring->cnt = dp->rxd_cnt;
 	rx_ring->size = sizeof(*rx_ring->rxds) * rx_ring->cnt;
@@ -2852,6 +2862,11 @@ static void nfp_net_set_rx_mode(struct net_device *netdev)
 
 	new_ctrl = nn->dp.ctrl;
 
+	if (!netdev_mc_empty(netdev) || netdev->flags & IFF_ALLMULTI)
+		new_ctrl |= nn->cap & NFP_NET_CFG_CTRL_L2MC;
+	else
+		new_ctrl &= ~NFP_NET_CFG_CTRL_L2MC;
+
 	if (netdev->flags & IFF_PROMISC) {
 		if (nn->cap & NFP_NET_CFG_CTRL_PROMISC)
 			new_ctrl |= NFP_NET_CFG_CTRL_PROMISC;
@@ -3036,6 +3051,11 @@ static int nfp_net_change_mtu(struct net_device *netdev, int new_mtu)
 {
 	struct nfp_net *nn = netdev_priv(netdev);
 	struct nfp_net_dp *dp;
+	int err;
+
+	err = nfp_app_change_mtu(nn->app, netdev, new_mtu);
+	if (err)
+		return err;
 
 	dp = nfp_net_clone_dp(nn);
 	if (!dp)
@@ -3394,17 +3414,10 @@ static int nfp_net_xdp(struct net_device *netdev, struct netdev_bpf *xdp)
 		if (nn->dp.bpf_offload_xdp)
 			xdp->prog_attached = XDP_ATTACHED_HW;
 		xdp->prog_id = nn->xdp_prog ? nn->xdp_prog->aux->id : 0;
+		xdp->prog_flags = nn->xdp_prog ? nn->xdp_flags : 0;
 		return 0;
-	case BPF_OFFLOAD_VERIFIER_PREP:
-		return nfp_app_bpf_verifier_prep(nn->app, nn, xdp);
-	case BPF_OFFLOAD_TRANSLATE:
-		return nfp_app_bpf_translate(nn->app, nn,
-					     xdp->offload.prog);
-	case BPF_OFFLOAD_DESTROY:
-		return nfp_app_bpf_destroy(nn->app, nn,
-					   xdp->offload.prog);
 	default:
-		return -EINVAL;
+		return nfp_app_bpf(nn->app, nn, xdp);
 	}
 }
 
@@ -3563,9 +3576,6 @@ struct nfp_net *nfp_net_alloc(struct pci_dev *pdev, bool needs_netdev,
  */
 void nfp_net_free(struct nfp_net *nn)
 {
-	if (nn->xdp_prog)
-		bpf_prog_put(nn->xdp_prog);
-
 	if (nn->dp.netdev)
 		free_netdev(nn->dp.netdev);
 	else
@@ -3791,8 +3801,6 @@ int nfp_net_init(struct nfp_net *nn)
 	/* Allow L2 Broadcast and Multicast through by default, if supported */
 	if (nn->cap & NFP_NET_CFG_CTRL_L2BC)
 		nn->dp.ctrl |= NFP_NET_CFG_CTRL_L2BC;
-	if (nn->cap & NFP_NET_CFG_CTRL_L2MC)
-		nn->dp.ctrl |= NFP_NET_CFG_CTRL_L2MC;
 
 	/* Allow IRQ moderation, if supported */
 	if (nn->cap & NFP_NET_CFG_CTRL_IRQMOD) {

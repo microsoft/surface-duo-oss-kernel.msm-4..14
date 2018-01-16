@@ -186,6 +186,13 @@ nfp_repr_get_offload_stats(int attr_id, const struct net_device *dev,
 	return -EINVAL;
 }
 
+static int nfp_repr_change_mtu(struct net_device *netdev, int new_mtu)
+{
+	struct nfp_repr *repr = netdev_priv(netdev);
+
+	return nfp_app_change_mtu(repr->app, netdev, new_mtu);
+}
+
 static netdev_tx_t nfp_repr_xmit(struct sk_buff *skb, struct net_device *netdev)
 {
 	struct nfp_repr *repr = netdev_priv(netdev);
@@ -240,6 +247,7 @@ const struct net_device_ops nfp_repr_netdev_ops = {
 	.ndo_open		= nfp_repr_open,
 	.ndo_stop		= nfp_repr_stop,
 	.ndo_start_xmit		= nfp_repr_xmit,
+	.ndo_change_mtu		= nfp_repr_change_mtu,
 	.ndo_get_stats64	= nfp_repr_get_stats64,
 	.ndo_has_offload_stats	= nfp_repr_has_offload_stats,
 	.ndo_get_offload_stats	= nfp_repr_get_offload_stats,
@@ -336,6 +344,8 @@ struct net_device *nfp_repr_alloc(struct nfp_app *app)
 	if (!netdev)
 		return NULL;
 
+	netif_carrier_off(netdev);
+
 	repr = netdev_priv(netdev);
 	repr->netdev = netdev;
 	repr->app = app;
@@ -375,10 +385,21 @@ nfp_reprs_clean_and_free_by_type(struct nfp_app *app,
 				 enum nfp_repr_type type)
 {
 	struct nfp_reprs *reprs;
+	int i;
 
-	reprs = nfp_app_reprs_set(app, type, NULL);
+	reprs = rcu_dereference_protected(app->reprs[type],
+					  lockdep_is_held(&app->pf->lock));
 	if (!reprs)
 		return;
+
+	/* Preclean must happen before we remove the reprs reference from the
+	 * app below.
+	 */
+	for (i = 0; i < reprs->num_reprs; i++)
+		if (reprs->reprs[i])
+			nfp_app_repr_preclean(app, reprs->reprs[i]);
+
+	reprs = nfp_app_reprs_set(app, type, NULL);
 
 	synchronize_rcu();
 	nfp_reprs_clean_and_free(reprs);
@@ -418,8 +439,10 @@ int nfp_reprs_resync_phys_ports(struct nfp_app *app)
 			continue;
 
 		repr = netdev_priv(old_reprs->reprs[i]);
-		if (repr->port->type == NFP_PORT_INVALID)
+		if (repr->port->type == NFP_PORT_INVALID) {
+			nfp_app_repr_preclean(app, old_reprs->reprs[i]);
 			continue;
+		}
 
 		reprs->reprs[i] = old_reprs->reprs[i];
 	}
@@ -436,7 +459,6 @@ int nfp_reprs_resync_phys_ports(struct nfp_app *app)
 		if (repr->port->type != NFP_PORT_INVALID)
 			continue;
 
-		nfp_app_repr_stop(app, repr);
 		nfp_repr_clean(repr);
 	}
 

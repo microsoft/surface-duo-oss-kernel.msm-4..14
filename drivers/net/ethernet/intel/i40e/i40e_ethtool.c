@@ -126,6 +126,10 @@ static const struct i40e_stats i40e_gstrings_stats[] = {
 	I40E_PF_STAT("link_xoff_rx", stats.link_xoff_rx),
 	I40E_PF_STAT("link_xon_tx", stats.link_xon_tx),
 	I40E_PF_STAT("link_xoff_tx", stats.link_xoff_tx),
+	I40E_PF_STAT("priority_xon_rx", stats.priority_xon_rx),
+	I40E_PF_STAT("priority_xoff_rx", stats.priority_xoff_rx),
+	I40E_PF_STAT("priority_xon_tx", stats.priority_xon_tx),
+	I40E_PF_STAT("priority_xoff_tx", stats.priority_xoff_tx),
 	I40E_PF_STAT("rx_size_64", stats.rx_size_64),
 	I40E_PF_STAT("rx_size_127", stats.rx_size_127),
 	I40E_PF_STAT("rx_size_255", stats.rx_size_255),
@@ -1585,6 +1589,8 @@ static int i40e_set_ringparam(struct net_device *netdev,
 			 */
 			rx_rings[i].desc = NULL;
 			rx_rings[i].rx_bi = NULL;
+			/* Clear cloned XDP RX-queue info before setup call */
+			memset(&rx_rings[i].xdp_rxq, 0, sizeof(rx_rings[i].xdp_rxq));
 			/* this is to allow wr32 to have something to write to
 			 * during early allocation of Rx buffers
 			 */

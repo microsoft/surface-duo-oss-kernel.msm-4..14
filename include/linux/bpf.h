@@ -17,6 +17,7 @@
 #include <linux/numa.h>
 #include <linux/wait.h>
 
+struct bpf_verifier_env;
 struct perf_event;
 struct bpf_prog;
 struct bpf_map;
@@ -193,14 +194,18 @@ struct bpf_verifier_ops {
 				  struct bpf_prog *prog, u32 *target_size);
 };
 
+struct bpf_prog_offload_ops {
+	int (*insn_hook)(struct bpf_verifier_env *env,
+			 int insn_idx, int prev_insn_idx);
+};
+
 struct bpf_dev_offload {
 	struct bpf_prog		*prog;
 	struct net_device	*netdev;
 	void			*dev_priv;
 	struct list_head	offloads;
 	bool			dev_state;
-	bool			verifier_running;
-	wait_queue_head_t	verifier_done;
+	const struct bpf_prog_offload_ops *dev_ops;
 };
 
 struct bpf_prog_aux {
@@ -209,6 +214,10 @@ struct bpf_prog_aux {
 	u32 max_ctx_offset;
 	u32 stack_depth;
 	u32 id;
+	u32 func_cnt;
+	bool offload_requested;
+	struct bpf_prog **func;
+	void *jit_data; /* JIT specific data. arch dependent */
 	struct latch_tree_node ksym_tnode;
 	struct list_head ksym_lnode;
 	const struct bpf_prog_ops *ops;
@@ -295,6 +304,9 @@ int bpf_prog_array_copy_to_user(struct bpf_prog_array __rcu *progs,
 
 void bpf_prog_array_delete_safe(struct bpf_prog_array __rcu *progs,
 				struct bpf_prog *old_prog);
+int bpf_prog_array_copy_info(struct bpf_prog_array __rcu *array,
+			     __u32 __user *prog_ids, u32 request_cnt,
+			     __u32 __user *prog_cnt);
 int bpf_prog_array_copy(struct bpf_prog_array __rcu *old_array,
 			struct bpf_prog *exclude_prog,
 			struct bpf_prog *include_prog,
@@ -355,6 +367,8 @@ void bpf_prog_put(struct bpf_prog *prog);
 int __bpf_prog_charge(struct user_struct *user, u32 pages);
 void __bpf_prog_uncharge(struct user_struct *user, u32 pages);
 
+void bpf_prog_free_id(struct bpf_prog *prog, bool do_idr_lock);
+
 struct bpf_map *bpf_map_get_with_uref(u32 ufd);
 struct bpf_map *__bpf_map_get(struct fd f);
 struct bpf_map * __must_check bpf_map_inc(struct bpf_map *map, bool uref);
@@ -409,6 +423,7 @@ static inline void bpf_long_memcpy(void *dst, const void *src, u32 size)
 
 /* verify correctness of eBPF program */
 int bpf_check(struct bpf_prog **fp, union bpf_attr *attr);
+void bpf_patch_call_args(struct bpf_insn *insn, u32 stack_depth);
 
 /* Map specifics */
 struct net_device  *__dev_map_lookup_elem(struct bpf_map *map, u32 key);
@@ -536,13 +551,15 @@ bool bpf_prog_get_ok(struct bpf_prog *, enum bpf_prog_type *, bool);
 
 int bpf_prog_offload_compile(struct bpf_prog *prog);
 void bpf_prog_offload_destroy(struct bpf_prog *prog);
+int bpf_prog_offload_info_fill(struct bpf_prog_info *info,
+			       struct bpf_prog *prog);
 
 #if defined(CONFIG_NET) && defined(CONFIG_BPF_SYSCALL)
 int bpf_prog_offload_init(struct bpf_prog *prog, union bpf_attr *attr);
 
 static inline bool bpf_prog_is_dev_bound(struct bpf_prog_aux *aux)
 {
-	return aux->offload;
+	return aux->offload_requested;
 }
 #else
 static inline int bpf_prog_offload_init(struct bpf_prog *prog,
@@ -557,7 +574,7 @@ static inline bool bpf_prog_is_dev_bound(struct bpf_prog_aux *aux)
 }
 #endif /* CONFIG_NET && CONFIG_BPF_SYSCALL */
 
-#if defined(CONFIG_STREAM_PARSER) && defined(CONFIG_BPF_SYSCALL)
+#if defined(CONFIG_STREAM_PARSER) && defined(CONFIG_BPF_SYSCALL) && defined(CONFIG_INET)
 struct sock  *__sock_map_lookup_elem(struct bpf_map *map, u32 key);
 int sock_map_prog(struct bpf_map *map, struct bpf_prog *prog, u32 type);
 #else
@@ -595,5 +612,16 @@ extern const struct bpf_func_proto bpf_sock_map_update_proto;
 /* Shared helpers among cBPF and eBPF. */
 void bpf_user_rnd_init_once(void);
 u64 bpf_user_rnd_u32(u64 r1, u64 r2, u64 r3, u64 r4, u64 r5);
+
+#if defined(__KERNEL__) && !defined(__ASSEMBLY__)
+#ifdef CONFIG_BPF_KPROBE_OVERRIDE
+#define BPF_ALLOW_ERROR_INJECTION(fname)				\
+static unsigned long __used						\
+	__attribute__((__section__("_kprobe_error_inject_list")))	\
+	_eil_addr_##fname = (unsigned long)fname;
+#else
+#define BPF_ALLOW_ERROR_INJECTION(fname)
+#endif
+#endif
 
 #endif /* _LINUX_BPF_H */

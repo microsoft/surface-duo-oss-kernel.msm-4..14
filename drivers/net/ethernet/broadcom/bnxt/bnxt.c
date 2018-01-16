@@ -1645,6 +1645,8 @@ next_rx:
 	rxr->rx_next_cons = NEXT_RX(cons);
 
 next_rx_no_prod:
+	cpr->rx_packets += 1;
+	cpr->rx_bytes += len;
 	*raw_cons = tmp_raw_cons;
 
 	return rc;
@@ -1706,12 +1708,16 @@ static int bnxt_async_event_process(struct bnxt *bp,
 
 		if (BNXT_VF(bp))
 			goto async_event_process_exit;
-		if (data1 & 0x20000) {
+
+		/* print unsupported speed warning in forced speed mode only */
+		if (!(link_info->autoneg & BNXT_AUTONEG_SPEED) &&
+		    (data1 & 0x20000)) {
 			u16 fw_speed = link_info->force_link_speed;
 			u32 speed = bnxt_fw_to_ethtool_speed(fw_speed);
 
-			netdev_warn(bp->dev, "Link speed %d no longer supported\n",
-				    speed);
+			if (speed != SPEED_UNKNOWN)
+				netdev_warn(bp->dev, "Link speed %d no longer supported\n",
+					    speed);
 		}
 		set_bit(BNXT_LINK_SPEED_CHNG_SP_EVENT, &bp->sp_event);
 		/* fall thru */
@@ -1798,6 +1804,7 @@ static irqreturn_t bnxt_msix(int irq, void *dev_instance)
 	struct bnxt_cp_ring_info *cpr = &bnapi->cp_ring;
 	u32 cons = RING_CMP(cpr->cp_raw_cons);
 
+	cpr->event_ctr++;
 	prefetch(&cpr->cp_desc_ring[CP_RING(cons)][CP_IDX(cons)]);
 	napi_schedule(&bnapi->napi);
 	return IRQ_HANDLED;
@@ -2021,6 +2028,15 @@ static int bnxt_poll(struct napi_struct *napi, int budget)
 			break;
 		}
 	}
+	if (bp->flags & BNXT_FLAG_DIM) {
+		struct net_dim_sample dim_sample;
+
+		net_dim_sample(cpr->event_ctr,
+			       cpr->rx_packets,
+			       cpr->rx_bytes,
+			       &dim_sample);
+		net_dim(&cpr->dim, dim_sample);
+	}
 	mmiowb();
 	return work_done;
 }
@@ -2243,6 +2259,9 @@ static void bnxt_free_rx_rings(struct bnxt *bp)
 		if (rxr->xdp_prog)
 			bpf_prog_put(rxr->xdp_prog);
 
+		if (xdp_rxq_info_is_reg(&rxr->xdp_rxq))
+			xdp_rxq_info_unreg(&rxr->xdp_rxq);
+
 		kfree(rxr->rx_tpa);
 		rxr->rx_tpa = NULL;
 
@@ -2275,6 +2294,10 @@ static int bnxt_alloc_rx_rings(struct bnxt *bp)
 		struct bnxt_ring_struct *ring;
 
 		ring = &rxr->rx_ring_struct;
+
+		rc = xdp_rxq_info_reg(&rxr->xdp_rxq, bp->dev, i);
+		if (rc < 0)
+			return rc;
 
 		rc = bnxt_alloc_ring(bp, ring);
 		if (rc)
@@ -2606,6 +2629,8 @@ static void bnxt_init_cp_rings(struct bnxt *bp)
 		struct bnxt_ring_struct *ring = &cpr->cp_ring_struct;
 
 		ring->fw_ring_id = INVALID_HW_RING_ID;
+		cpr->rx_ring_coal.coal_ticks = bp->rx_coal.coal_ticks;
+		cpr->rx_ring_coal.coal_bufs = bp->rx_coal.coal_bufs;
 	}
 }
 
@@ -2751,7 +2776,7 @@ void bnxt_set_tpa_flags(struct bnxt *bp)
 		return;
 	if (bp->dev->features & NETIF_F_LRO)
 		bp->flags |= BNXT_FLAG_LRO;
-	if (bp->dev->features & NETIF_F_GRO)
+	else if (bp->dev->features & NETIF_F_GRO_HW)
 		bp->flags |= BNXT_FLAG_GRO;
 }
 
@@ -2830,6 +2855,9 @@ void bnxt_set_ring_params(struct bnxt *bp)
 	bp->cp_ring_mask = bp->cp_bit - 1;
 }
 
+/* Changing allocation mode of RX rings.
+ * TODO: Update when extending xdp_rxq_info to support allocation modes.
+ */
 int bnxt_set_rx_skb_mode(struct bnxt *bp, bool page_mode)
 {
 	if (page_mode) {
@@ -2839,10 +2867,10 @@ int bnxt_set_rx_skb_mode(struct bnxt *bp, bool page_mode)
 			min_t(u16, bp->max_mtu, BNXT_MAX_PAGE_MODE_MTU);
 		bp->flags &= ~BNXT_FLAG_AGG_RINGS;
 		bp->flags |= BNXT_FLAG_NO_AGG_RINGS | BNXT_FLAG_RX_PAGE_MODE;
-		bp->dev->hw_features &= ~NETIF_F_LRO;
-		bp->dev->features &= ~NETIF_F_LRO;
 		bp->rx_dir = DMA_BIDIRECTIONAL;
 		bp->rx_skb_func = bnxt_rx_page_skb;
+		/* Disable LRO or GRO_HW */
+		netdev_update_features(bp->dev);
 	} else {
 		bp->dev->max_mtu = bp->max_mtu;
 		bp->flags &= ~BNXT_FLAG_RX_PAGE_MODE;
@@ -4579,6 +4607,36 @@ static void bnxt_hwrm_set_coal_params(struct bnxt_coal *hw_coal,
 	req->flags = cpu_to_le16(flags);
 }
 
+int bnxt_hwrm_set_ring_coal(struct bnxt *bp, struct bnxt_napi *bnapi)
+{
+	struct hwrm_ring_cmpl_ring_cfg_aggint_params_input req_rx = {0};
+	struct bnxt_cp_ring_info *cpr = &bnapi->cp_ring;
+	struct bnxt_coal coal;
+	unsigned int grp_idx;
+
+	/* Tick values in micro seconds.
+	 * 1 coal_buf x bufs_per_record = 1 completion record.
+	 */
+	memcpy(&coal, &bp->rx_coal, sizeof(struct bnxt_coal));
+
+	coal.coal_ticks = cpr->rx_ring_coal.coal_ticks;
+	coal.coal_bufs = cpr->rx_ring_coal.coal_bufs;
+
+	if (!bnapi->rx_ring)
+		return -ENODEV;
+
+	bnxt_hwrm_cmd_hdr_init(bp, &req_rx,
+			       HWRM_RING_CMPL_RING_CFG_AGGINT_PARAMS, -1, -1);
+
+	bnxt_hwrm_set_coal_params(&coal, &req_rx);
+
+	grp_idx = bnapi->index;
+	req_rx.ring_id = cpu_to_le16(bp->grp_info[grp_idx].cp_fw_ring_id);
+
+	return hwrm_send_message(bp, &req_rx, sizeof(req_rx),
+				 HWRM_CMD_TIMEOUT);
+}
+
 int bnxt_hwrm_set_coal(struct bnxt *bp)
 {
 	int i, rc = 0;
@@ -5701,7 +5759,13 @@ static void bnxt_enable_napi(struct bnxt *bp)
 	int i;
 
 	for (i = 0; i < bp->cp_nr_rings; i++) {
+		struct bnxt_cp_ring_info *cpr = &bp->bnapi[i]->cp_ring;
 		bp->bnapi[i]->in_reset = false;
+
+		if (bp->bnapi[i]->rx_ring) {
+			INIT_WORK(&cpr->dim.work, bnxt_dim_work);
+			cpr->dim.mode = NET_DIM_CQ_PERIOD_MODE_START_FROM_EQE;
+		}
 		napi_enable(&bp->bnapi[i]->napi);
 	}
 }
@@ -6784,6 +6848,15 @@ static netdev_features_t bnxt_fix_features(struct net_device *dev,
 	if ((features & NETIF_F_NTUPLE) && !bnxt_rfs_capable(bp))
 		features &= ~NETIF_F_NTUPLE;
 
+	if (bp->flags & BNXT_FLAG_NO_AGG_RINGS)
+		features &= ~(NETIF_F_LRO | NETIF_F_GRO_HW);
+
+	if (!(features & NETIF_F_GRO))
+		features &= ~NETIF_F_GRO_HW;
+
+	if (features & NETIF_F_GRO_HW)
+		features &= ~NETIF_F_LRO;
+
 	/* Both CTAG and STAG VLAN accelaration on the RX side have to be
 	 * turned on or off together.
 	 */
@@ -6817,9 +6890,9 @@ static int bnxt_set_features(struct net_device *dev, netdev_features_t features)
 	bool update_tpa = false;
 
 	flags &= ~BNXT_FLAG_ALL_CONFIG_FEATS;
-	if ((features & NETIF_F_GRO) && !BNXT_CHIP_TYPE_NITRO_A0(bp))
+	if (features & NETIF_F_GRO_HW)
 		flags |= BNXT_FLAG_GRO;
-	if (features & NETIF_F_LRO)
+	else if (features & NETIF_F_LRO)
 		flags |= BNXT_FLAG_LRO;
 
 	if (bp->flags & BNXT_FLAG_NO_AGG_RINGS)
@@ -7800,8 +7873,6 @@ static void bnxt_remove_one(struct pci_dev *pdev)
 	bnxt_dcb_free(bp);
 	kfree(bp->edev);
 	bp->edev = NULL;
-	if (bp->xdp_prog)
-		bpf_prog_put(bp->xdp_prog);
 	bnxt_cleanup_pci(bp);
 	free_netdev(dev);
 }
@@ -7922,8 +7993,8 @@ static int bnxt_get_dflt_rings(struct bnxt *bp, int *max_rx, int *max_tx,
 		if (rc)
 			return rc;
 		bp->flags |= BNXT_FLAG_NO_AGG_RINGS;
-		bp->dev->hw_features &= ~NETIF_F_LRO;
-		bp->dev->features &= ~NETIF_F_LRO;
+		bp->dev->hw_features &= ~(NETIF_F_LRO | NETIF_F_GRO_HW);
+		bp->dev->features &= ~(NETIF_F_LRO | NETIF_F_GRO_HW);
 		bnxt_set_ring_params(bp);
 	}
 
@@ -8106,7 +8177,11 @@ static int bnxt_init_one(struct pci_dev *pdev, const struct pci_device_id *ent)
 	dev->vlan_features = dev->hw_features | NETIF_F_HIGHDMA;
 	dev->hw_features |= NETIF_F_HW_VLAN_CTAG_RX | NETIF_F_HW_VLAN_CTAG_TX |
 			    NETIF_F_HW_VLAN_STAG_RX | NETIF_F_HW_VLAN_STAG_TX;
+	if (!BNXT_CHIP_TYPE_NITRO_A0(bp))
+		dev->hw_features |= NETIF_F_GRO_HW;
 	dev->features |= dev->hw_features | NETIF_F_HIGHDMA;
+	if (dev->features & NETIF_F_GRO_HW)
+		dev->features &= ~NETIF_F_LRO;
 	dev->priv_flags |= IFF_UNICAST_FLT;
 
 #ifdef CONFIG_BNXT_SRIOV

@@ -96,6 +96,8 @@ struct pinned_obj {
 int build_pinned_obj_table(struct pinned_obj_table *table,
 			   enum bpf_obj_type type);
 void delete_pinned_obj_table(struct pinned_obj_table *tab);
+void print_dev_plain(__u32 ifindex, __u64 ns_dev, __u64 ns_inode);
+void print_dev_json(__u32 ifindex, __u64 ns_dev, __u64 ns_inode);
 
 struct cmd {
 	const char *cmd;
@@ -111,9 +113,11 @@ char *get_fdinfo(int fd, const char *key);
 int open_obj_pinned(char *path);
 int open_obj_pinned_any(char *path, enum bpf_obj_type exp_type);
 int do_pin_any(int argc, char **argv, int (*get_fd_by_id)(__u32));
+int do_pin_fd(int fd, const char *name);
 
 int do_prog(int argc, char **arg);
 int do_map(int argc, char **arg);
+int do_cgroup(int argc, char **arg);
 
 int prog_parse_fd(int *argc, char ***argv);
 

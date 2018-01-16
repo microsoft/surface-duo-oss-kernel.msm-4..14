@@ -2093,14 +2093,21 @@ struct rtl_wow_pattern {
 	u32 mask[4];
 };
 
+/* struct to store contents of interrupt vectors */
+struct rtl_int {
+	u32 inta;
+	u32 intb;
+	u32 intc;
+	u32 intd;
+};
+
 struct rtl_hal_ops {
 	int (*init_sw_vars) (struct ieee80211_hw *hw);
 	void (*deinit_sw_vars) (struct ieee80211_hw *hw);
 	void (*read_chip_version)(struct ieee80211_hw *hw);
 	void (*read_eeprom_info) (struct ieee80211_hw *hw);
 	void (*interrupt_recognized) (struct ieee80211_hw *hw,
-				      u32 *p_inta, u32 *p_intb,
-				      u32 *p_intc, u32 *p_intd);
+				      struct rtl_int *intvec);
 	int (*hw_init) (struct ieee80211_hw *hw);
 	void (*hw_disable) (struct ieee80211_hw *hw);
 	void (*hw_suspend) (struct ieee80211_hw *hw);
@@ -2374,6 +2381,12 @@ struct rtl_works {
 	struct work_struct fill_h2c_cmd;
 };
 
+struct rtl_debug {
+	/* add for debug */
+	struct dentry *debugfs_dir;
+	char debugfs_name[20];
+};
+
 #define MIMO_PS_STATIC			0
 #define MIMO_PS_DYNAMIC			1
 #define MIMO_PS_NOLIMIT			3
@@ -2568,6 +2581,8 @@ struct rtl_btc_ops {
 	bool (*btc_is_bt_disabled) (struct rtl_priv *rtlpriv);
 	void (*btc_special_packet_notify)(struct rtl_priv *rtlpriv,
 					  u8 pkt_type);
+	void (*btc_display_bt_coex_info)(struct rtl_priv *rtlpriv,
+					 struct seq_file *m);
 	void (*btc_record_pwr_mode)(struct rtl_priv *rtlpriv, u8 *buf, u8 len);
 	u8   (*btc_get_lps_val)(struct rtl_priv *rtlpriv);
 	u8   (*btc_get_rpwm_val)(struct rtl_priv *rtlpriv);
@@ -2642,6 +2657,7 @@ struct rtl_priv {
 	/* c2hcmd list for kthread level access */
 	struct list_head c2hcmd_list;
 
+	struct rtl_debug dbg;
 	int max_fw_size;
 
 	/*
