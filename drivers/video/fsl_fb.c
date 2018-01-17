@@ -25,6 +25,7 @@
 #include <linux/videodev2.h>
 #include <linux/string.h>
 #include <linux/ctype.h>
+#include <mxcfb.h>
 
 #include "fsl_dcu.h"
 #include "fsl_dcu_linux.h"
@@ -44,12 +45,6 @@
 #define MFB_GET_ALPHA	_IOR('M', 0, __u8)
 #define MFB_SET_LAYER	_IOW('M', 4, struct layer_display_offset)
 #define MFB_GET_LAYER	_IOR('M', 4, struct layer_display_offset)
-
-/**
- * iMX6 IPU tiled formats and IOCTL calls used by Vivante driver
- */
-#define MXCFB_SET_PREFETCH	_IOW('F', 0x30, int)
-#define MXCFB_GET_PREFETCH	_IOR('F', 0x31, int)
 
 /* 32bit single buf 4x4 standard */
 #define IPU_PIX_FMT_GPU32_ST     v4l2_fourcc('5', 'I', '4', 'S')
