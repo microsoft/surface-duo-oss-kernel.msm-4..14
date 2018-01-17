@@ -361,6 +361,10 @@ static inline int __do_cpuid_ent(struct kvm_cpuid_entry2 *entry, u32 function,
 		F(ADX) | F(SMAP) | F(AVX512F) | F(AVX512PF) | F(AVX512ER) |
 		F(AVX512CD) | F(CLFLUSHOPT) | F(CLWB) | F(PCOMMIT);
 
+	/* cpuid 7.0.edx */
+	const u32 kvm_supported_7_0_edx_x86_features =
+		KF(SPEC_CTRL);
+
 	/* cpuid 0xD.1.eax */
 	const u32 kvm_supported_word10_x86_features =
 		F(XSAVEOPT) | F(XSAVEC) | F(XGETBV1) | f_xsaves;
@@ -446,11 +450,14 @@ static inline int __do_cpuid_ent(struct kvm_cpuid_entry2 *entry, u32 function,
 			cpuid_mask(&entry->ebx, 9);
 			// TSC_ADJUST is emulated
 			entry->ebx |= F(TSC_ADJUST);
-		} else
+			entry->edx &= kvm_supported_7_0_edx_x86_features;
+			entry->edx &= get_scattered_cpuid_leaf(7, 0, 2);
+		} else {
 			entry->ebx = 0;
+			entry->edx = 0;
+		}
 		entry->eax = 0;
 		entry->ecx = 0;
-		entry->edx = 0;
 		break;
 	}
 	case 9:
