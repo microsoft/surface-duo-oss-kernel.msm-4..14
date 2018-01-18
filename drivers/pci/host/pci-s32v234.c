@@ -1244,6 +1244,11 @@ static void s32v234_pcie_shutdown(struct platform_device *pdev)
 	if (!s32v234_pcie->is_endpoint) {
 		/* bring down link, so bootloader gets clean state
 		 * in case of reboot */
+
+		devm_free_irq(&pdev->dev,
+			s32v234_pcie->pp.link_req_rst_not_irq,
+			&s32v234_pcie->pp);
+
 		s32v234_pcie_assert_core_reset(&s32v234_pcie->pp);
 		mdelay(PCIE_CX_CPL_BASE_TIMER_VALUE);
 	}
