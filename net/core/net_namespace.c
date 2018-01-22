@@ -35,7 +35,7 @@ LIST_HEAD(net_namespace_list);
 EXPORT_SYMBOL_GPL(net_namespace_list);
 
 struct net init_net = {
-	.count		= ATOMIC_INIT(1),
+	.count		= REFCOUNT_INIT(1),
 	.dev_base_head	= LIST_HEAD_INIT(init_net.dev_base_head),
 };
 EXPORT_SYMBOL(init_net);
@@ -221,17 +221,26 @@ static void rtnl_net_notifyid(struct net *net, int cmd, int id);
  */
 int peernet2id_alloc(struct net *net, struct net *peer)
 {
-	bool alloc;
+	bool alloc = false, alive = false;
 	int id;
 
-	if (atomic_read(&net->count) == 0)
+	if (refcount_read(&net->count) == 0)
 		return NETNSA_NSID_NOT_ASSIGNED;
 	spin_lock_bh(&net->nsid_lock);
-	alloc = atomic_read(&peer->count) == 0 ? false : true;
+	/*
+	 * When peer is obtained from RCU lists, we may race with
+	 * its cleanup. Check whether it's alive, and this guarantees
+	 * we never hash a peer back to net->netns_ids, after it has
+	 * just been idr_remove()'d from there in cleanup_net().
+	 */
+	if (maybe_get_net(peer))
+		alive = alloc = true;
 	id = __peernet2id_alloc(net, peer, &alloc);
 	spin_unlock_bh(&net->nsid_lock);
 	if (alloc && id >= 0)
 		rtnl_net_notifyid(net, RTM_NEWNSID, id);
+	if (alive)
+		put_net(peer);
 	return id;
 }
 EXPORT_SYMBOL_GPL(peernet2id_alloc);
@@ -264,11 +273,9 @@ struct net *get_net_ns_by_id(struct net *net, int id)
 		return NULL;
 
 	rcu_read_lock();
-	spin_lock_bh(&net->nsid_lock);
 	peer = idr_find(&net->netns_ids, id);
 	if (peer)
 		peer = maybe_get_net(peer);
-	spin_unlock_bh(&net->nsid_lock);
 	rcu_read_unlock();
 
 	return peer;
@@ -284,7 +291,7 @@ static __net_init int setup_net(struct net *net, struct user_namespace *user_ns)
 	int error = 0;
 	LIST_HEAD(net_exit_list);
 
-	atomic_set(&net->count, 1);
+	refcount_set(&net->count, 1);
 	refcount_set(&net->passive, 1);
 	net->dev_base_seq = 1;
 	net->user_ns = user_ns;

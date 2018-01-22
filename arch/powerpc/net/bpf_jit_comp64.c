@@ -21,8 +21,6 @@
 
 #include "bpf_jit64.h"
 
-int bpf_jit_enable __read_mostly;
-
 static void bpf_jit_fill_ill_insns(void *area, unsigned int size)
 {
 	memset32(area, BREAKPOINT_INSTRUCTION, size/4);
@@ -995,7 +993,7 @@ struct bpf_prog *bpf_int_jit_compile(struct bpf_prog *fp)
 	struct bpf_prog *tmp_fp;
 	bool bpf_blinded = false;
 
-	if (!bpf_jit_enable)
+	if (!fp->jit_requested)
 		return org_fp;
 
 	tmp_fp = bpf_jit_blind_constants(org_fp);

@@ -2093,14 +2093,21 @@ struct rtl_wow_pattern {
 	u32 mask[4];
 };
 
+/* struct to store contents of interrupt vectors */
+struct rtl_int {
+	u32 inta;
+	u32 intb;
+	u32 intc;
+	u32 intd;
+};
+
 struct rtl_hal_ops {
 	int (*init_sw_vars) (struct ieee80211_hw *hw);
 	void (*deinit_sw_vars) (struct ieee80211_hw *hw);
 	void (*read_chip_version)(struct ieee80211_hw *hw);
 	void (*read_eeprom_info) (struct ieee80211_hw *hw);
 	void (*interrupt_recognized) (struct ieee80211_hw *hw,
-				      u32 *p_inta, u32 *p_intb,
-				      u32 *p_intc, u32 *p_intd);
+				      struct rtl_int *intvec);
 	int (*hw_init) (struct ieee80211_hw *hw);
 	void (*hw_disable) (struct ieee80211_hw *hw);
 	void (*hw_suspend) (struct ieee80211_hw *hw);
@@ -2318,17 +2325,14 @@ struct rtl_hal_cfg {
 struct rtl_locks {
 	/* mutex */
 	struct mutex conf_mutex;
-	struct mutex ps_mutex;
+	struct mutex ips_mutex;	/* mutex for enter/leave IPS */
+	struct mutex lps_mutex;	/* mutex for enter/leave LPS */
 
 	/*spin lock */
-	spinlock_t ips_lock;
 	spinlock_t irq_th_lock;
-	spinlock_t irq_pci_lock;
-	spinlock_t tx_lock;
 	spinlock_t h2c_lock;
 	spinlock_t rf_ps_lock;
 	spinlock_t rf_lock;
-	spinlock_t lps_lock;
 	spinlock_t waitq_lock;
 	spinlock_t entry_list_lock;
 	spinlock_t usb_lock;
@@ -2340,9 +2344,6 @@ struct rtl_locks {
 
 	/*Dual mac*/
 	spinlock_t cck_and_rw_pagea_lock;
-
-	/*Easy concurrent*/
-	spinlock_t check_sendpkt_lock;
 
 	spinlock_t iqk_lock;
 };
@@ -2372,6 +2373,12 @@ struct rtl_works {
 
 	struct work_struct lps_change_work;
 	struct work_struct fill_h2c_cmd;
+};
+
+struct rtl_debug {
+	/* add for debug */
+	struct dentry *debugfs_dir;
+	char debugfs_name[20];
 };
 
 #define MIMO_PS_STATIC			0
@@ -2493,6 +2500,8 @@ struct rtl_btc_info {
 struct bt_coexist_info {
 	struct rtl_btc_ops *btc_ops;
 	struct rtl_btc_info btc_info;
+	/* btc context */
+	void *btc_context;
 	/* EEPROM BT info. */
 	u8 eeprom_bt_coexist;
 	u8 eeprom_bt_type;
@@ -2549,7 +2558,9 @@ struct bt_coexist_info {
 
 struct rtl_btc_ops {
 	void (*btc_init_variables) (struct rtl_priv *rtlpriv);
+	void (*btc_deinit_variables)(struct rtl_priv *rtlpriv);
 	void (*btc_init_hal_vars) (struct rtl_priv *rtlpriv);
+	void (*btc_power_on_setting)(struct rtl_priv *rtlpriv);
 	void (*btc_init_hw_config) (struct rtl_priv *rtlpriv);
 	void (*btc_ips_notify) (struct rtl_priv *rtlpriv, u8 type);
 	void (*btc_lps_notify)(struct rtl_priv *rtlpriv, u8 type);
@@ -2558,7 +2569,7 @@ struct rtl_btc_ops {
 	void (*btc_mediastatus_notify) (struct rtl_priv *rtlpriv,
 					enum rt_media_status mstatus);
 	void (*btc_periodical) (struct rtl_priv *rtlpriv);
-	void (*btc_halt_notify) (void);
+	void (*btc_halt_notify)(struct rtl_priv *rtlpriv);
 	void (*btc_btinfo_notify) (struct rtl_priv *rtlpriv,
 				   u8 *tmp_buf, u8 length);
 	void (*btc_btmpinfo_notify)(struct rtl_priv *rtlpriv,
@@ -2568,6 +2579,8 @@ struct rtl_btc_ops {
 	bool (*btc_is_bt_disabled) (struct rtl_priv *rtlpriv);
 	void (*btc_special_packet_notify)(struct rtl_priv *rtlpriv,
 					  u8 pkt_type);
+	void (*btc_display_bt_coex_info)(struct rtl_priv *rtlpriv,
+					 struct seq_file *m);
 	void (*btc_record_pwr_mode)(struct rtl_priv *rtlpriv, u8 *buf, u8 len);
 	u8   (*btc_get_lps_val)(struct rtl_priv *rtlpriv);
 	u8   (*btc_get_rpwm_val)(struct rtl_priv *rtlpriv);
@@ -2642,6 +2655,7 @@ struct rtl_priv {
 	/* c2hcmd list for kthread level access */
 	struct list_head c2hcmd_list;
 
+	struct rtl_debug dbg;
 	int max_fw_size;
 
 	/*

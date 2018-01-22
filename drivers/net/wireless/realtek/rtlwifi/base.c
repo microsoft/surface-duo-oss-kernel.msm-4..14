@@ -395,6 +395,7 @@ static void _rtl_init_mac80211(struct ieee80211_hw *hw)
 	ieee80211_hw_set(hw, CONNECTION_MONITOR);
 	ieee80211_hw_set(hw, MFP_CAPABLE);
 	ieee80211_hw_set(hw, REPORTS_TX_ACK_STATUS);
+	ieee80211_hw_set(hw, SUPPORTS_AMSDU_IN_AMPDU);
 
 	/* swlps or hwlps has been set in diff chip in init_sw_vars */
 	if (rtlpriv->psc.swctrl_lps) {
@@ -551,7 +552,8 @@ int rtl_init_core(struct ieee80211_hw *hw)
 
 	/* <4> locks */
 	mutex_init(&rtlpriv->locks.conf_mutex);
-	spin_lock_init(&rtlpriv->locks.ips_lock);
+	mutex_init(&rtlpriv->locks.ips_mutex);
+	mutex_init(&rtlpriv->locks.lps_mutex);
 	spin_lock_init(&rtlpriv->locks.irq_th_lock);
 	spin_lock_init(&rtlpriv->locks.h2c_lock);
 	spin_lock_init(&rtlpriv->locks.rf_ps_lock);
@@ -561,9 +563,7 @@ int rtl_init_core(struct ieee80211_hw *hw)
 	spin_lock_init(&rtlpriv->locks.c2hcmd_lock);
 	spin_lock_init(&rtlpriv->locks.scan_list_lock);
 	spin_lock_init(&rtlpriv->locks.cck_and_rw_pagea_lock);
-	spin_lock_init(&rtlpriv->locks.check_sendpkt_lock);
 	spin_lock_init(&rtlpriv->locks.fw_ps_lock);
-	spin_lock_init(&rtlpriv->locks.lps_lock);
 	spin_lock_init(&rtlpriv->locks.iqk_lock);
 	/* <5> init list */
 	INIT_LIST_HEAD(&rtlpriv->entry_list);
@@ -859,8 +859,8 @@ static u8 _rtl_get_highest_n_rate(struct ieee80211_hw *hw,
 	struct rtl_phy *rtlphy = &rtlpriv->phy;
 	u8 hw_rate;
 
-	if ((get_rf_type(rtlphy) == RF_2T2R) &&
-	    (sta->ht_cap.mcs.rx_mask[1] != 0))
+	if (get_rf_type(rtlphy) == RF_2T2R &&
+	    sta->ht_cap.mcs.rx_mask[1] != 0)
 		hw_rate = rtlpriv->cfg->maps[RTL_RC_HT_RATEMCS15];
 	else
 		hw_rate = rtlpriv->cfg->maps[RTL_RC_HT_RATEMCS7];
@@ -1180,7 +1180,7 @@ void rtl_get_tcb_desc(struct ieee80211_hw *hw,
 				tcb_desc->hw_rate =
 				_rtl_get_vht_highest_n_rate(hw, sta);
 			} else {
-				if (sta && (sta->ht_cap.ht_supported)) {
+				if (sta && sta->ht_cap.ht_supported) {
 					tcb_desc->hw_rate =
 						_rtl_get_highest_n_rate(hw, sta);
 				} else {
@@ -1229,7 +1229,6 @@ bool rtl_tx_mgmt_proc(struct ieee80211_hw *hw, struct sk_buff *skb)
 	}
 	if (ieee80211_is_auth(fc)) {
 		RT_TRACE(rtlpriv, COMP_SEND, DBG_DMESG, "MAC80211_LINKING\n");
-		rtl_ips_nic_on(hw);
 
 		mac->link_state = MAC80211_LINKING;
 		/* Dul mac */
@@ -1321,6 +1320,10 @@ bool rtl_action_proc(struct ieee80211_hw *hw, struct sk_buff *skb, u8 is_tx)
 				  le16_to_cpu(mgmt->u.action.u.addba_req.capab);
 				tid = (capab &
 				       IEEE80211_ADDBA_PARAM_TID_MASK) >> 2;
+				if (tid >= MAX_TID_COUNT) {
+					rcu_read_unlock();
+					return true;
+				}
 				tid_data = &sta_entry->tids[tid];
 				if (tid_data->agg.rx_agg_state ==
 				    RTL_RX_AGG_START)
@@ -1726,7 +1729,7 @@ int rtl_tx_agg_oper(struct ieee80211_hw *hw,
 void rtl_rx_ampdu_apply(struct rtl_priv *rtlpriv)
 {
 	struct rtl_btc_ops *btc_ops = rtlpriv->btcoexist.btc_ops;
-	u8 reject_agg, ctrl_agg_size = 0, agg_size;
+	u8 reject_agg = 0, ctrl_agg_size = 0, agg_size = 0;
 
 	if (rtlpriv->cfg->ops->get_btc_status())
 		btc_ops->btc_get_ampdu_cfg(rtlpriv, &reject_agg,
@@ -1972,9 +1975,9 @@ void rtl_watchdog_wq_callback(void *data)
 		    rtlpriv->btcoexist.btc_ops->btc_is_bt_ctrl_lps(rtlpriv))
 			goto label_lps_done;
 
-		if (((rtlpriv->link_info.num_rx_inperiod +
-		      rtlpriv->link_info.num_tx_inperiod) > 8) ||
-		    (rtlpriv->link_info.num_rx_inperiod > 2))
+		if (rtlpriv->link_info.num_rx_inperiod +
+		      rtlpriv->link_info.num_tx_inperiod > 8 ||
+		    rtlpriv->link_info.num_rx_inperiod > 2)
 			rtl_lps_leave(hw);
 		else
 			rtl_lps_enter(hw);
@@ -2225,9 +2228,7 @@ static struct sk_buff *rtl_make_smps_action(struct ieee80211_hw *hw,
 	case IEEE80211_SMPS_AUTOMATIC:/* 0 */
 	case IEEE80211_SMPS_NUM_MODES:/* 4 */
 		WARN_ON(1);
-	/* Here will get a 'MISSING_BREAK' in Coverity Test, just ignore it.
-	 * According to Kernel Code, here is right.
-	 */
+	/* fall through */
 	case IEEE80211_SMPS_OFF:/* 1 */ /*MIMO_PS_NOLIMIT*/
 		action_frame->u.action.u.ht_smps.smps_control =
 				WLAN_HT_SMPS_CONTROL_DISABLED;/* 0 */
@@ -2528,6 +2529,9 @@ static int __init rtl_core_module_init(void)
 	if (rtl_rate_control_register())
 		pr_err("rtl: Unable to register rtl_rc, use default RC !!\n");
 
+	/* add debugfs */
+	rtl_debugfs_add_topdir();
+
 	/* init some global vars */
 	INIT_LIST_HEAD(&rtl_global_var.glb_priv_list);
 	spin_lock_init(&rtl_global_var.glb_list_lock);
@@ -2539,6 +2543,9 @@ static void __exit rtl_core_module_exit(void)
 {
 	/*RC*/
 	rtl_rate_control_unregister();
+
+	/* remove debugfs */
+	rtl_debugfs_remove_topdir();
 }
 
 module_init(rtl_core_module_init);
