@@ -14986,6 +14986,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x04f0eba8	ata_timing_compute
 EXPORT_SYMBOL_GPL vmlinux 0x04f5c52c	pci_hp_deregister
 EXPORT_SYMBOL_GPL vmlinux 0x050d035d	usb_get_current_frame_number
 EXPORT_SYMBOL_GPL vmlinux 0x0518149d	pci_find_ext_capability
+EXPORT_SYMBOL_GPL vmlinux 0x0520bef1	get_scattered_cpuid_leaf
 EXPORT_SYMBOL_GPL vmlinux 0x05235ee2	__pm_runtime_use_autosuspend
 EXPORT_SYMBOL_GPL vmlinux 0x053494cb	tpm_get_random
 EXPORT_SYMBOL_GPL vmlinux 0x0537de4e	get_user_pages_fast

@@ -14960,6 +14960,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x04f4bd8d	percpu_ref_exit
 EXPORT_SYMBOL_GPL vmlinux 0x0509cf6a	tty_buffer_space_avail
 EXPORT_SYMBOL_GPL vmlinux 0x05125d80	to_nd_desc
 EXPORT_SYMBOL_GPL vmlinux 0x05196d63	sock_diag_save_cookie
+EXPORT_SYMBOL_GPL vmlinux 0x0520bef1	get_scattered_cpuid_leaf
 EXPORT_SYMBOL_GPL vmlinux 0x0524dc28	blk_queue_flush
 EXPORT_SYMBOL_GPL vmlinux 0x05306bfe	for_each_kernel_tracepoint
 EXPORT_SYMBOL_GPL vmlinux 0x054e550b	kernel_halt

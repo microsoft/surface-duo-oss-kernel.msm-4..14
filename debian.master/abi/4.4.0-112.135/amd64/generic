@@ -14989,6 +14989,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x04df8fbc	lzo1x_decompress_safe
 EXPORT_SYMBOL_GPL vmlinux 0x04e130da	platform_get_resource_byname
 EXPORT_SYMBOL_GPL vmlinux 0x04ecfb5c	set_memory_wt
 EXPORT_SYMBOL_GPL vmlinux 0x051239e9	usb_reset_endpoint
+EXPORT_SYMBOL_GPL vmlinux 0x0520bef1	get_scattered_cpuid_leaf
 EXPORT_SYMBOL_GPL vmlinux 0x053494cb	tpm_get_random
 EXPORT_SYMBOL_GPL vmlinux 0x05388cb2	sysfs_remove_link_from_group
 EXPORT_SYMBOL_GPL vmlinux 0x0538c38a	ata_port_freeze

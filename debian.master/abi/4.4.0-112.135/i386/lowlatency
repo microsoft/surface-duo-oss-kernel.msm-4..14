@@ -14960,6 +14960,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x04d055af	sysfs_remove_bin_file
 EXPORT_SYMBOL_GPL vmlinux 0x04ecfb5c	set_memory_wt
 EXPORT_SYMBOL_GPL vmlinux 0x04f4bd8d	percpu_ref_exit
 EXPORT_SYMBOL_GPL vmlinux 0x05177e47	__regmap_init_spi
+EXPORT_SYMBOL_GPL vmlinux 0x0520bef1	get_scattered_cpuid_leaf
 EXPORT_SYMBOL_GPL vmlinux 0x052569a5	sdev_evt_send
 EXPORT_SYMBOL_GPL vmlinux 0x05306bfe	for_each_kernel_tracepoint
 EXPORT_SYMBOL_GPL vmlinux 0x054e550b	kernel_halt

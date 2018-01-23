@@ -1309,7 +1309,6 @@ EXPORT_SYMBOL vmlinux 0x03fd2571	vm_unmap_ram
 EXPORT_SYMBOL vmlinux 0x04224a92	kill_bdev
 EXPORT_SYMBOL vmlinux 0x0422fe4a	inet_csk_timer_bug_msg
 EXPORT_SYMBOL vmlinux 0x042612fa	inet6_offloads
-EXPORT_SYMBOL vmlinux 0x0435f26d	lowcore_ptr
 EXPORT_SYMBOL vmlinux 0x0436a92e	rwsem_down_write_failed
 EXPORT_SYMBOL vmlinux 0x04482cdb	__refrigerator
 EXPORT_SYMBOL vmlinux 0x046c447c	security_inode_permission
@@ -1898,6 +1897,7 @@ EXPORT_SYMBOL vmlinux 0x2e0d2f7f	queue_work_on
 EXPORT_SYMBOL vmlinux 0x2e2ce9e0	sysctl_tcp_syncookies
 EXPORT_SYMBOL vmlinux 0x2e427069	inet_proto_csum_replace16
 EXPORT_SYMBOL vmlinux 0x2e593a27	timespec64_to_jiffies
+EXPORT_SYMBOL vmlinux 0x2e665827	lowcore_ptr
 EXPORT_SYMBOL vmlinux 0x2e7ceb2c	pci_back_from_sleep
 EXPORT_SYMBOL vmlinux 0x2e8abdeb	proc_douintvec
 EXPORT_SYMBOL vmlinux 0x2e8b6609	register_qdisc
