@@ -330,6 +330,17 @@
                         };
                 };
 
+		spmi@200f000 {
+			pm8916@1 {
+				pwm@bc00 {
+					status = "okay";
+
+					pinctrl-names = "default";
+					pinctrl-0 = <&ls_exp_gpio_f>;
+				};
+			};
+		};
+
 		wcnss@a21b000 {
 			status = "okay";
 		};
