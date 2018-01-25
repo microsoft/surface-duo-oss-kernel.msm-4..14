@@ -1080,7 +1080,7 @@ struct bpf_prog *bpf_int_jit_compile(struct bpf_prog *prog)
 		return prog;
 
 	if (!prog || !prog->len)
-		return;
+		return prog;
 
 	if (bpf_jit_fence_present() && bpf_jit_blinding_enabled())
 		bpf_jit_fence = 1;
