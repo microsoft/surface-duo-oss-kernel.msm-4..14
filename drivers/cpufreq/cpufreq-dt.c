@@ -54,6 +54,9 @@ static int set_target(struct cpufreq_policy *policy, unsigned int index)
 	if (!ret)
 		priv->opp_freq = target_freq;
 	mutex_unlock(&priv->lock);
+	if (!ret)
+		arch_set_freq_scale(policy->related_cpus, target_freq / 1000,
+				    policy->cpuinfo.max_freq);
 
 	return ret;
 }
