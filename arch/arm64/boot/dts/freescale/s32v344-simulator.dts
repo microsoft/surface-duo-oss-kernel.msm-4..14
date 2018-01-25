@@ -10,8 +10,8 @@
 /dts-v1/;
 #include "s32-gen1.dtsi"
 / {
-	model = "Freescale S32V244";
-	compatible = "fsl,s32v244-simu", "fsl,s32v244",
+	model = "Freescale S32V344";
+	compatible = "fsl,s32v344-simu", "fsl,s32v344",
 				 "arm,vexpress,v2p-aarch64", "arm,vexpress";
 
 	chosen {
