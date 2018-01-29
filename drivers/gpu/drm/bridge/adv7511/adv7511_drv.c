@@ -443,7 +443,16 @@ static int adv7511_irq_process(struct adv7511 *adv7511, bool process_hpd)
 	if (ret < 0)
 		return ret;
 
-	regmap_write(adv7511->regmap, ADV7511_REG_INT(0), irq0);
+	/*
+	 * Don't clear HPD flag right now, let it be cleared later in
+	 * adv7511_detect(). If we don't do this, adv7511_detect
+	 * (i.e. the connector's detect op) doesn't realize that we need to
+	 * re-enable the display.
+	 *
+	 * Problem with this fix: Can not clearing this flag before returning
+	 * IRQ_HANDLED cause spurious interrupts?
+	 */
+	regmap_write(adv7511->regmap, ADV7511_REG_INT(0), irq0 & ~ADV7511_INT0_HPD);
 	regmap_write(adv7511->regmap, ADV7511_REG_INT(1), irq1);
 
 	if (process_hpd && irq0 & ADV7511_INT0_HPD && adv7511->bridge.encoder)
@@ -476,7 +485,13 @@ static int adv7511_wait_for_edid(struct adv7511 *adv7511, int timeout)
 {
 	int ret;
 
-	if (adv7511->i2c_main->irq) {
+	/*
+	 * HACK: EDID-Ready interrupt doesn't seem to happen if we try to do
+	 * "power-on - read EDID - power-off" consecutively really fast.
+	 * Inserting a delay after powering on ADV7511 improves things a
+	 * bit but doesn't solve it entirely.
+	 */
+	 if (0 /*adv7511->i2c_main->irq*/) {
 		ret = wait_event_interruptible_timeout(adv7511->wq,
 				adv7511->edid_read, msecs_to_jiffies(timeout));
 	} else {
