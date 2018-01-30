@@ -1306,6 +1306,77 @@
 			};
 		};
 
+		qcom,sps {
+			compatible = "qcom,msm_sps_4k";
+			qcom,device-type = <3>;
+			qcom,pipe-attr-ee;
+		};
+
+		slim_msm:sc {
+			cell-index = <1>;
+			compatible = "qcom,slim-ngd";
+			reg = <0x91c0000 0x2C000>,
+				<0x9184000 0x32000>;
+			reg-names = "slimbus_physical", "slimbus_bam_physical";
+			interrupts = <0 163 0>, <0 164 0>;
+			interrupt-names = "slimbus_irq", "slimbus_bam_irq";
+			qcom,apps-ch-pipes = <0x60000000>;
+			qcom,ea-pc = <0x160>;
+		
+			tasha_codec: tas {
+				pinctrl-0 = <&cdc_reset_active &wcd_intr_default>;
+				pinctrl-1 = <&cdc_reset_sleep>;
+				pinctrl-names = "default", "sleep";
+				qcom,gpio-int2 = <&msmgpio 54 0>;
+				qcom,cdc-reset-gpio = <&msmgpio 64 0>;
+
+				compatible = "qcom,tasha-slim-pgd";
+				elemental-addr = [00 01 A0 01 17 02];
+
+				clock-names = "mclk", "native";
+				clocks = <&rpmcc RPM_SMD_DIV_CLK1>,
+				 <&rpmcc RPM_SMD_BB_CLK1>;
+
+				vdd-buck-supply = <&pm8994_s4>;
+				qcom,cdc-vdd-buck-voltage = <1800000 1800000>;
+				qcom,cdc-vdd-buck-current = <650000>;
+
+				buck-sido-supply = <&pm8994_s4>;
+				qcom,cdc-buck-sido-voltage = <1800000 1800000>;
+				qcom,cdc-buck-sido-current = <250000>;
+
+				vdd-tx-h-supply = <&pm8994_s4>;
+				qcom,cdc-vdd-tx-h-voltage = <1800000 1800000>;
+				qcom,cdc-vdd-tx-h-current = <25000>;
+
+				vdd-rx-h-supply = <&pm8994_s4>;
+				qcom,cdc-vdd-rx-h-voltage = <1800000 1800000>;
+				qcom,cdc-vdd-rx-h-current = <25000>;
+
+				vddpx-1-supply = <&pm8994_s4>;
+				qcom,cdc-vddpx-1-voltage = <1800000 1800000>;
+				qcom,cdc-vddpx-1-current = <10000>;
+
+				qcom,cdc-micbias1-mv = <1800>;
+				qcom,cdc-micbias2-mv = <1800>;
+				qcom,cdc-micbias3-mv = <1800>;
+				qcom,cdc-micbias4-mv = <1800>;
+
+				qcom,cdc-mclk-clk-rate = <9600000>;
+
+				qcom,cdc-slim-ifd = "tasha-slim-ifd";
+				qcom,cdc-slim-ifd-elemental-addr = [00 00 A0 01 17 02];
+
+				qcom,cdc-dmic-sample-rate = <4800000>;
+				qcom,cdc-mad-dmic-rate = <600000>;
+				qcom,clk1-gpio = <&pm8994_gpios 15 0>;
+				wcd9335:wcd {
+					compatible = "qcom,wcd9335";
+					#sound-dai-cells = <1>;
+				};
+			};
+		};
+
 	        lpass_q6_smmu: arm,smmu-lpass_q6@1600000 {
 			compatible = "qcom,msm8996-smmu-v2";
 	                reg = <0x1600000 0x20000>;

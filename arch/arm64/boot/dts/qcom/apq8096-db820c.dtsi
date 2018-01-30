@@ -225,6 +225,14 @@
 				#sound-dai-cells = <1>;
 			};
 		};
+
+		slim_msm:sc {
+			tasha_codec: tas {
+				pinctrl-0 = <&cdc_reset_active &wcd_intr_default &audio_mclk>;
+				pinctrl-1 = <&cdc_reset_sleep>;
+				pinctrl-names = "default", "sleep";
+			};
+		};
 	};
 
 	gpio_keys {
