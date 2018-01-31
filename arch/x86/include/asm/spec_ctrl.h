@@ -8,9 +8,6 @@
 
 #ifdef __ASSEMBLY__
 
-.extern use_ibrs
-.extern use_ibpb
-
 #define __ASM_ENABLE_IBRS			\
 	pushq %rax;				\
 	pushq %rcx;				\
@@ -107,30 +104,15 @@
 	add $(32*8), %rsp;
 
 .macro ENABLE_IBRS
-	testl	$1, use_ibrs
-	jz	10f
-	__ASM_ENABLE_IBRS
-	jmp 20f
-10:
-	lfence
-20:
+ALTERNATIVE "", __stringify(__ASM_ENABLE_IBRS), X86_FEATURE_SPEC_CTRL
 .endm
 
 .macro ENABLE_IBRS_CLOBBER
-	testl	$1, use_ibrs
-	jz	11f
-	__ASM_ENABLE_IBRS_CLOBBER
-	jmp 21f
-11:
-	lfence
-21:
+ALTERNATIVE "", __stringify(__ASM_ENABLE_IBRS_CLOBBER), X86_FEATURE_SPEC_CTRL
 .endm
 
 .macro DISABLE_IBRS
-	testl	$1, use_ibrs
-	jz	9f
-	__ASM_DISABLE_IBRS
-9:
+ALTERNATIVE "", __stringify(__ASM_DISABLE_IBRS), X86_FEATURE_SPEC_CTRL
 .endm
 
 .macro STUFF_RSB
