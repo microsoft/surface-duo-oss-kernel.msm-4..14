@@ -101,7 +101,6 @@ ENTRY(entry_SYSENTER_compat)
 	cld
 
 	ENABLE_IBRS
-	STUFF_RSB
 
 	/*
 	 * Sysenter doesn't filter flags, so we need to clear NT
@@ -202,7 +201,6 @@ ENTRY(entry_SYSCALL_compat)
 	pushq   %r8                     /* pt_regs->r15 = 0 */
 
 	ENABLE_IBRS
-	STUFF_RSB
 
 	/*
 	 * User mode is traced as though IRQs are on, and SYSENTER
@@ -314,7 +312,6 @@ ENTRY(entry_INT80_compat)
 	cld
 
 	ENABLE_IBRS
-	STUFF_RSB
 
 	/*
 	 * User mode is traced as though IRQs are on, and the interrupt

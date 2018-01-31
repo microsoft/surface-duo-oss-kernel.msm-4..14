@@ -175,7 +175,6 @@ GLOBAL(entry_SYSCALL_64_after_swapgs)
 	sub	$(6*8), %rsp			/* pt_regs->bp, bx, r12-15 not saved */
 
 	ENABLE_IBRS
-	STUFF_RSB
 
 	testl	$_TIF_WORK_SYSCALL_ENTRY, ASM_THREAD_INFO(TI_flags, %rsp, SIZEOF_PTREGS)
 	jnz	tracesys
@@ -536,12 +535,6 @@ END(irq_entries_start)
 	ALLOC_PT_GPREGS_ON_STACK
 	SAVE_C_REGS
 	SAVE_EXTRA_REGS
-	/*
-	 * Have to do stuffing before encoding frame pointer.
-	 * Could add some unnecessary RSB clearing if coming
-	 * from kernel for non-SMEP platform.
-	 */
-	STUFF_RSB
 
 	testb	$3, CS(%rsp)
 	jz	1f
@@ -1054,10 +1047,6 @@ ENTRY(paranoid_entry)
 	cld
 	SAVE_C_REGS 8
 	SAVE_EXTRA_REGS 8
-	/*
-	 * Do the stuffing unconditionally from user/kernel to be safe
-	 */
-	STUFF_RSB
 	movl	$1, %ebx
 	movl	$MSR_GS_BASE, %ecx
 	rdmsr
@@ -1141,7 +1130,6 @@ ENTRY(error_entry)
 	 * the kernel CR3 here.
 	 */
 	SWITCH_KERNEL_CR3
-	STUFF_RSB
 	xorl	%ebx, %ebx
 	testb	$3, CS+8(%rsp)
 	jz	.Lerror_kernelspace
