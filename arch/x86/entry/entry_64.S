@@ -172,16 +172,9 @@ GLOBAL(entry_SYSCALL_64_after_swapgs)
 	pushq	%r9				/* pt_regs->r9 */
 	pushq	%r10				/* pt_regs->r10 */
 	pushq	%r11				/* pt_regs->r11 */
-	sub	$(6*8), %rsp			/* pt_regs->bp, bx, r12-15 not used */
+	sub	$(6*8), %rsp			/* pt_regs->bp, bx, r12-15 not saved */
 
 	ENABLE_IBRS
-	/*
-	 * Clear the unused extra regs for code hygiene.
-	 * Will restore the callee saved extra regs at end of syscall.
-	 */
-	SAVE_EXTRA_REGS
-	CLEAR_EXTRA_REGS
-
 	STUFF_RSB
 
 	testl	$_TIF_WORK_SYSCALL_ENTRY, ASM_THREAD_INFO(TI_flags, %rsp, SIZEOF_PTREGS)
@@ -222,12 +215,9 @@ entry_SYSCALL_64_fastpath:
 
 	movq	RIP(%rsp), %rcx
 	movq	EFLAGS(%rsp), %r11
+	RESTORE_C_REGS_EXCEPT_RCX_R11
 
 	DISABLE_IBRS
-
-	RESTORE_EXTRA_REGS
-
-	RESTORE_C_REGS_EXCEPT_RCX_R11
 
 	/*
 	 * This opens a window where we have a user CR3, but are
@@ -272,6 +262,7 @@ tracesys:
 	jmp	entry_SYSCALL_64_fastpath	/* and return to the fast path */
 
 tracesys_phase2:
+	SAVE_EXTRA_REGS
 	movq	%rsp, %rdi
 	movl	$AUDIT_ARCH_X86_64, %esi
 	movq	%rax, %rdx
@@ -283,6 +274,7 @@ tracesys_phase2:
 	 * the value it wants us to use in the table lookup.
 	 */
 	RESTORE_C_REGS_EXCEPT_RAX
+	RESTORE_EXTRA_REGS
 #if __SYSCALL_MASK == ~0
 	cmpq	$__NR_syscall_max, %rax
 #else
@@ -301,8 +293,10 @@ tracesys_phase2:
  * Has correct iret frame.
  */
 GLOBAL(int_ret_from_sys_call)
+	SAVE_EXTRA_REGS
 	movq	%rsp, %rdi
 	call	syscall_return_slowpath	/* returns with IRQs disabled */
+	RESTORE_EXTRA_REGS
 	TRACE_IRQS_IRETQ		/* we're about to change IF */
 
 	/*
@@ -370,8 +364,6 @@ GLOBAL(int_ret_from_sys_call)
 syscall_return_via_sysret:
 	DISABLE_IBRS
 
-	RESTORE_EXTRA_REGS
-
 	/* rcx and r11 are already restored (see code above) */
 	RESTORE_C_REGS_EXCEPT_RCX_R11
 	/*
@@ -386,6 +378,7 @@ syscall_return_via_sysret:
 	USERGS_SYSRET64
 
 opportunistic_sysret_failed:
+	/* XXX: might we need a DISABLE_IBRS */
 	/*
 	 * This opens a window where we have a user CR3, but are
 	 * running in the kernel.  This makes using the CS
@@ -393,9 +386,6 @@ opportunistic_sysret_failed:
 	 * switch CR3 in NMIs.  Normal interrupts are OK because
 	 * they are off here.
 	 */
-	DISABLE_IBRS
-	RESTORE_EXTRA_REGS
-
 	SWITCH_USER_CR3
 	SWAPGS
 	jmp	restore_c_regs_and_iret
@@ -404,6 +394,7 @@ END(entry_SYSCALL_64)
 
 	.macro FORK_LIKE func
 ENTRY(stub_\func)
+	SAVE_EXTRA_REGS 8
 	jmp	sys_\func
 END(stub_\func)
 	.endm

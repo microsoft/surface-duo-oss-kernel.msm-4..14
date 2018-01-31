@@ -195,15 +195,6 @@ For 32-bit we have the following conventions - kernel is built with
 	subq $-(15*8+\addskip), %rsp
 	.endm
 
-	.macro CLEAR_EXTRA_REGS
-	xorq %r15, %r15
-	xorq %r14, %r14
-	xorq %r13, %r13
-	xorq %r12, %r12
-	xorq %rbp, %rbp
-	xorq %rbx, %rbx
-	.endm
-
 	.macro icebp
 	.byte 0xf1
 	.endm
