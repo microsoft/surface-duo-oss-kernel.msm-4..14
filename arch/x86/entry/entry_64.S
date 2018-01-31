@@ -36,7 +36,6 @@
 #include <asm/smap.h>
 #include <asm/pgtable_types.h>
 #include <asm/kaiser.h>
-#include <asm/spec_ctrl.h>
 #include <linux/err.h>
 
 /* Avoid __ASSEMBLER__'ifying <linux/audit.h> just for this.  */
@@ -174,8 +173,6 @@ GLOBAL(entry_SYSCALL_64_after_swapgs)
 	pushq	%r11				/* pt_regs->r11 */
 	sub	$(6*8), %rsp			/* pt_regs->bp, bx, r12-15 not saved */
 
-	ENABLE_IBRS
-
 	testl	$_TIF_WORK_SYSCALL_ENTRY, ASM_THREAD_INFO(TI_flags, %rsp, SIZEOF_PTREGS)
 	jnz	tracesys
 entry_SYSCALL_64_fastpath:
@@ -215,9 +212,6 @@ entry_SYSCALL_64_fastpath:
 	movq	RIP(%rsp), %rcx
 	movq	EFLAGS(%rsp), %r11
 	RESTORE_C_REGS_EXCEPT_RCX_R11
-
-	DISABLE_IBRS
-
 	/*
 	 * This opens a window where we have a user CR3, but are
 	 * running in the kernel.  This makes using the CS
@@ -361,8 +355,6 @@ GLOBAL(int_ret_from_sys_call)
 	 * perf profiles. Nothing jumps here.
 	 */
 syscall_return_via_sysret:
-	DISABLE_IBRS
-
 	/* rcx and r11 are already restored (see code above) */
 	RESTORE_C_REGS_EXCEPT_RCX_R11
 	/*
@@ -377,7 +369,6 @@ syscall_return_via_sysret:
 	USERGS_SYSRET64
 
 opportunistic_sysret_failed:
-	/* XXX: might we need a DISABLE_IBRS */
 	/*
 	 * This opens a window where we have a user CR3, but are
 	 * running in the kernel.  This makes using the CS
@@ -546,8 +537,6 @@ END(irq_entries_start)
 	SWAPGS
 	SWITCH_KERNEL_CR3
 
-	ENABLE_IBRS
-
 	/*
 	 * We need to tell lockdep that IRQs are off.  We can't do this until
 	 * we fix gsbase, and we should do it before enter_from_user_mode
@@ -606,7 +595,6 @@ GLOBAL(retint_user)
 	mov	%rsp,%rdi
 	call	prepare_exit_to_usermode
 	TRACE_IRQS_IRETQ
-	DISABLE_IBRS
 	SWITCH_USER_CR3
 	SWAPGS
 	jmp	restore_regs_and_iret
@@ -1073,8 +1061,6 @@ ENTRY(paranoid_entry)
 	movq	%rax, %cr3
 2:
 #endif
-	ENABLE_IBRS_CLOBBER
-
 	ret
 END(paranoid_entry)
 
@@ -1101,7 +1087,6 @@ ENTRY(paranoid_exit)
 	/* No ALTERNATIVE for X86_FEATURE_KAISER: paranoid_entry sets %ebx */
 	testl	$2, %ebx			/* SWITCH_USER_CR3 needed? */
 	jz	paranoid_exit_no_switch
-	DISABLE_IBRS
 	SWITCH_USER_CR3
 paranoid_exit_no_switch:
 #endif
@@ -1140,8 +1125,6 @@ ENTRY(error_entry)
 	 * from user mode due to an IRET fault.
 	 */
 	SWAPGS
-
-	ENABLE_IBRS
 
 .Lerror_entry_from_usermode_after_swapgs:
 	/*
@@ -1193,7 +1176,6 @@ ENTRY(error_entry)
 	 * We came from an IRET to user mode, so we have user gsbase.
 	 * Switch to kernel gsbase:
 	 */
-	ENABLE_IBRS_CLOBBER
 	SWAPGS
 
 	/*
@@ -1344,7 +1326,6 @@ ENTRY(nmi)
 	movq	%rax, %cr3
 2:
 #endif
-	ENABLE_IBRS
 	call	do_nmi
 
 #ifdef CONFIG_KAISER
