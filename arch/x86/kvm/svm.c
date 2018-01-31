@@ -414,8 +414,6 @@ struct svm_cpu_data {
 	struct kvm_ldttss_desc *tss_desc;
 
 	struct page *save_area;
-
-	struct vmcb *current_vmcb;
 };
 
 static DEFINE_PER_CPU(struct svm_cpu_data *, svm_data);
@@ -1215,19 +1213,11 @@ static void svm_free_vcpu(struct kvm_vcpu *vcpu)
 	__free_pages(virt_to_page(svm->nested.msrpm), MSRPM_ALLOC_ORDER);
 	kvm_vcpu_uninit(vcpu);
 	kmem_cache_free(kvm_vcpu_cache, svm);
-
-	/*
-	 * The VMCB could be recycled, causing a false negative in svm_vcpu_load;
-	 * block speculative execution.
-	 */
-	if (ibpb_inuse)
-		wrmsrl(MSR_IA32_PRED_CMD, FEATURE_SET_IBPB);
 }
 
 static void svm_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 {
 	struct vcpu_svm *svm = to_svm(vcpu);
-	struct svm_cpu_data *sd = per_cpu(svm_data, cpu);
 	int i;
 
 	if (unlikely(cpu != vcpu->cpu)) {
@@ -1251,12 +1241,6 @@ static void svm_vcpu_load(struct kvm_vcpu *vcpu, int cpu)
 			__this_cpu_write(current_tsc_ratio, tsc_ratio);
 			wrmsrl(MSR_AMD64_TSC_RATIO, tsc_ratio);
 		}
-	}
-
-	if (sd->current_vmcb != svm->vmcb) {
-		sd->current_vmcb = svm->vmcb;
-		if (ibpb_inuse)
-			wrmsrl(MSR_IA32_PRED_CMD, FEATURE_SET_IBPB);
 	}
 }
 
