@@ -195,21 +195,7 @@ entry_SYSCALL_64_fastpath:
 #endif
 	ja	1f				/* return -ENOSYS (already in pt_regs->ax) */
 	movq	%r10, %rcx
-
-	/*
-	 * This call instruction is handled specially in stub_ptregs_64.
-	 * It might end up jumping to the slow path.  If it jumps, RAX
-	 * and all argument registers are clobbered.
-	 */
-	movq	sys_call_table(, %rax, 8), %r10
-	jmp     1001f
-1004:	callq   1002f
-1003:	nop
-	jmp     1003b
-1002:	mov     %r10, (%rsp)
-	retq
-1001:	callq   1004b
-
+	call	*sys_call_table(, %rax, 8)
 	movq	%rax, RAX(%rsp)
 1:
 /*
