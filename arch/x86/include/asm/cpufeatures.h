@@ -243,7 +243,6 @@
 
 /* Intel-defined CPU QoS Sub-leaf, CPUID level 0x0000000F:0 (edx), word 11 */
 #define X86_FEATURE_CQM_LLC	(11*32+ 1) /* LLC QoS if 1 */
-#define X86_FEATURE_IBPB	(13*32+12) /* Indirect Branch Prediction Barrier */
 
 /* Intel-defined CPU QoS Sub-leaf, CPUID level 0x0000000F:1 (edx), word 12 */
 #define X86_FEATURE_CQM_OCCUP_LLC (12*32+ 0) /* LLC occupancy monitoring if 1 */
