@@ -9119,6 +9119,7 @@ CONFIG_PPC_86xx                                 policy<{'powerpc-powerpc-smp': '
 
 # Menu: Power management and ACPI options >> ACPI (Advanced Configuration and Power Interface) Support
 CONFIG_ACPI                                     policy<{'amd64': 'y', 'arm64': 'y', 'i386': 'y'}>
+CONFIG_ACPI_SPCR_TABLE				policy<{'arm64': 'y'}>
 CONFIG_ACPI_PROCFS_POWER                        policy<{'amd64': 'n', 'i386': 'n'}>
 CONFIG_ACPI_REV_OVERRIDE_POSSIBLE               policy<{'amd64': 'y', 'i386': 'y'}>
 CONFIG_ACPI_EC_DEBUGFS                          policy<{'amd64': 'm', 'arm64': 'm', 'i386': 'm'}>
@@ -9149,6 +9150,7 @@ CONFIG_ACPI_NFIT                                policy<{'amd64': 'm', 'i386': 'm
 CONFIG_ACPI_NFIT_DEBUG                          policy<{'amd64': 'n', 'i386': 'n'}>
 CONFIG_ACPI_EXTLOG                              policy<{'amd64': 'm', 'i386': 'm'}>
 #
+CONFIG_ACPI_SPCR_TABLE				mark<ENFORCED> note<LP:1744754>
 CONFIG_ACPI_PROCFS_POWER                        mark<DEPRECATED>
 CONFIG_ACPI_CUSTOM_METHOD                       mark<ENFORCED> note<SECURITY: allows arbitrary execution>
 CONFIG_ACPI_CUSTOM_DSDT_FILE                    note<might allow hardware damage>
