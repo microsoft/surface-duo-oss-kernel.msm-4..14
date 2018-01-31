@@ -65,10 +65,6 @@ u64 kvm_supported_xcr0(void)
 
 #define F(x) bit(X86_FEATURE_##x)
 
-/* These are scattered features in cpufeatures.h. */
-#define KVM_CPUID_BIT_SPEC_CTRL		26
-#define KF(x) bit(KVM_CPUID_BIT_##x)
-
 int kvm_update_cpuid(struct kvm_vcpu *vcpu)
 {
 	struct kvm_cpuid_entry2 *best;
@@ -365,10 +361,6 @@ static inline int __do_cpuid_ent(struct kvm_cpuid_entry2 *entry, u32 function,
 	const u32 kvm_supported_word10_x86_features =
 		F(XSAVEOPT) | F(XSAVEC) | F(XGETBV1) | f_xsaves;
 
-	/* cpuid 0x80000008.0.ebx */
-	const u32 kvm_cpuid_80000008_0_ebx_x86_features =
-		F(IBPB);
-
 	/* all calls to cpuid_count() should be made on the same cpu */
 	get_cpu();
 
@@ -594,9 +586,7 @@ static inline int __do_cpuid_ent(struct kvm_cpuid_entry2 *entry, u32 function,
 		if (!g_phys_as)
 			g_phys_as = phys_as;
 		entry->eax = g_phys_as | (virt_as << 8);
-		entry->ebx &= kvm_cpuid_80000008_0_ebx_x86_features;
-		cpuid_mask(&entry->ebx, 13 /* CPUID_8000_0008_EBX */);
-		entry->edx = 0;
+		entry->ebx = entry->edx = 0;
 		break;
 	}
 	case 0x80000019:
