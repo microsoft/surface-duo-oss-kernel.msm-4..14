@@ -14,7 +14,6 @@
 #include <asm/apic.h>
 #include <asm/uv/uv.h>
 #include <asm/kaiser.h>
-#include <asm/microcode.h>
 
 /*
  *	Smarter SMP flushing macros.
@@ -139,9 +138,6 @@ void switch_mm(struct mm_struct *prev, struct mm_struct *next,
 
 		/* Stop flush ipis for the previous mm */
 		cpumask_clear_cpu(cpu, mm_cpumask(prev));
-
-		if (boot_cpu_has(X86_FEATURE_SPEC_CTRL))
-			native_wrmsrl(MSR_IA32_PRED_CMD, FEATURE_SET_IBPB);
 
 		/* Load per-mm CR4 state */
 		load_mm_cr4(next);
