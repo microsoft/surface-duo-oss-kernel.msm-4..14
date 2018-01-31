@@ -539,8 +539,10 @@ static inline bool bpf_jit_fence_present(void)
 {
 	/* Check if lfence is present on CPU
 	 */
+#ifdef CONFIG_X86
 	if (boot_cpu_has(X86_FEATURE_LFENCE_RDTSC))
 		return true;
+#endif
 	return false;
 }
 #else
