@@ -194,7 +194,6 @@
 #define X86_FEATURE_PROC_FEEDBACK ( 7*32+ 9) /* AMD ProcFeedbackInterface */
 
 #define X86_FEATURE_INTEL_PT	( 7*32+15) /* Intel Processor Trace */
-#define X86_FEATURE_SPEC_CTRL		( 7*32+19) /* Control Speculation Control */
 /* Because the ALTERNATIVE scheme is for members of the X86_FEATURE club... */
 #define X86_FEATURE_KAISER     ( 7*32+31) /* CONFIG_KAISER w/o nokaiser */
 
