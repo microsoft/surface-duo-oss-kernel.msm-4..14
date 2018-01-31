@@ -31,7 +31,6 @@
 #define mb()		dsb(sy)
 #define rmb()		dsb(ld)
 #define wmb()		dsb(st)
-#define gmb()   	do { } while (0)
 
 #define dma_rmb()	dmb(oshld)
 #define dma_wmb()	dmb(oshst)
