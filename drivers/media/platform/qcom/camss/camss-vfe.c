@@ -41,20 +41,6 @@
 #define to_vfe(ptr_line)	\
 	container_of(vfe_line_array(ptr_line), struct vfe_device, ptr_line)
 
-
-#define VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(n)	(1 << ((n) + 8))
-
-#define VFE_0_IRQ_STATUS_0_CAMIF_SOF			(1 << 0)
-#define VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(n)		(1 << ((n) + 5))
-#define VFE_0_IRQ_STATUS_0_line_n_REG_UPDATE(n)		\
-	((n) == VFE_LINE_PIX ? (1 << 4) : VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(n))
-#define VFE_0_IRQ_STATUS_0_IMAGE_MASTER_n_PING_PONG(n)	(1 << ((n) + 8))
-#define VFE_0_IRQ_STATUS_0_IMAGE_COMPOSITE_DONE_n(n)	(1 << ((n) + 25))
-#define VFE_0_IRQ_STATUS_0_RESET_ACK			(1 << 31)
-#define VFE_0_IRQ_STATUS_1_VIOLATION			(1 << 7)
-#define VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK		(1 << 8)
-#define VFE_0_IRQ_STATUS_1_RDIn_SOF(n)			(1 << ((n) + 29))
-
 /* VFE reset timeout */
 #define VFE_RESET_TIMEOUT_MS 50
 /* VFE halt timeout */
@@ -959,56 +945,15 @@ static void vfe_isr_comp_done(struct vfe_device *vfe, u8 comp)
 		}
 }
 
-/*
- * vfe_isr - ISPIF module interrupt handler
- * @irq: Interrupt line
- * @dev: VFE device
- *
- * Return IRQ_HANDLED on success
- */
-static irqreturn_t vfe_isr(int irq, void *dev)
+static inline void vfe_isr_reset_ack(struct vfe_device *vfe)
 {
-	struct vfe_device *vfe = dev;
-	u32 value0, value1;
-	int i, j;
+	complete(&vfe->reset_complete);
+}
 
-	vfe->ops->isr_read(vfe, &value0, &value1);
-
-	if (value0 & VFE_0_IRQ_STATUS_0_RESET_ACK)
-		complete(&vfe->reset_complete);
-
-	if (value1 & VFE_0_IRQ_STATUS_1_VIOLATION)
-		vfe->ops->violation_read(vfe, to_device(vfe));
-
-	if (value1 & VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK) {
-		complete(&vfe->halt_complete);
-		vfe->ops->halt_clear(vfe);
-	}
-
-	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++)
-		if (value0 & VFE_0_IRQ_STATUS_0_line_n_REG_UPDATE(i))
-			vfe_isr_reg_update(vfe, i);
-
-	if (value0 & VFE_0_IRQ_STATUS_0_CAMIF_SOF)
-		vfe_isr_sof(vfe, VFE_LINE_PIX);
-
-	for (i = VFE_LINE_RDI0; i <= VFE_LINE_RDI2; i++)
-		if (value1 & VFE_0_IRQ_STATUS_1_RDIn_SOF(i))
-			vfe_isr_sof(vfe, i);
-
-	for (i = 0; i < MSM_VFE_COMPOSITE_IRQ_NUM; i++)
-		if (value0 & VFE_0_IRQ_STATUS_0_IMAGE_COMPOSITE_DONE_n(i)) {
-			vfe_isr_comp_done(vfe, i);
-			for (j = 0; j < ARRAY_SIZE(vfe->wm_output_map); j++)
-				if (vfe->wm_output_map[j] == VFE_LINE_PIX)
-					value0 &= ~VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(j);
-		}
-
-	for (i = 0; i < MSM_VFE_IMAGE_MASTERS_NUM; i++)
-		if (value0 & VFE_0_IRQ_STATUS_0_IMAGE_MASTER_n_PING_PONG(i))
-			vfe_isr_wm_done(vfe, i);
-
-	return IRQ_HANDLED;
+static inline void vfe_isr_halt_ack(struct vfe_device *vfe)
+{
+	complete(&vfe->halt_complete);
+	vfe->ops->halt_clear(vfe);
 }
 
 /*
@@ -1932,6 +1877,20 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, const struct resources *res)
 	int i, j;
 	int ret;
 
+	vfe->isr_ops.reset_ack = vfe_isr_reset_ack;
+	vfe->isr_ops.halt_ack = vfe_isr_halt_ack;
+	vfe->isr_ops.reg_update = vfe_isr_reg_update;
+	vfe->isr_ops.sof = vfe_isr_sof;
+	vfe->isr_ops.comp_done = vfe_isr_comp_done;
+	vfe->isr_ops.wm_done = vfe_isr_wm_done;
+
+	if (camss->version == CAMSS_8x16)
+		vfe->ops = &vfe_ops_4_1;
+	else if (camss->version == CAMSS_8x96)
+		vfe->ops = &vfe_ops_4_7;
+	else
+		return -EINVAL;
+
 	/* Memory */
 
 	r = platform_get_resource_byname(pdev, IORESOURCE_MEM, res->reg[0]);
@@ -1953,7 +1912,7 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, const struct resources *res)
 	vfe->irq = r->start;
 	snprintf(vfe->irq_name, sizeof(vfe->irq_name), "%s_%s%d",
 		 dev_name(dev), MSM_VFE_NAME, vfe->id);
-	ret = devm_request_irq(dev, vfe->irq, vfe_isr,
+	ret = devm_request_irq(dev, vfe->irq, vfe->ops->isr,
 			       IRQF_TRIGGER_RISING, vfe->irq_name, vfe);
 	if (ret < 0) {
 		dev_err(dev, "request_irq failed: %d\n", ret);
@@ -2008,12 +1967,6 @@ int msm_vfe_subdev_init(struct vfe_device *vfe, const struct resources *res)
 
 	vfe->id = 0;
 	vfe->reg_update = 0;
-	if (camss->version == CAMSS_8x16)
-		vfe->ops = &vfe_ops_4_1;
-	else if (camss->version == CAMSS_8x96)
-		vfe->ops = &vfe_ops_4_7;
-	else
-		return -EINVAL;
 
 	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++) {
 		vfe->line[i].video_out.type =
