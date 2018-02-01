@@ -16,6 +16,7 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/interrupt.h>
 #include <linux/iopoll.h>
 
 #include "camss-vfe.h"
@@ -54,7 +55,17 @@
 #define VFE_0_IRQ_CLEAR_1		0x068
 
 #define VFE_0_IRQ_STATUS_0		0x06c
+#define VFE_0_IRQ_STATUS_0_CAMIF_SOF			(1 << 0)
+#define VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(n)		(1 << ((n) + 5))
+#define VFE_0_IRQ_STATUS_0_line_n_REG_UPDATE(n)		\
+	((n) == VFE_LINE_PIX ? (1 << 4) : VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(n))
+#define VFE_0_IRQ_STATUS_0_IMAGE_MASTER_n_PING_PONG(n)	(1 << ((n) + 8))
+#define VFE_0_IRQ_STATUS_0_IMAGE_COMPOSITE_DONE_n(n)	(1 << ((n) + 25))
+#define VFE_0_IRQ_STATUS_0_RESET_ACK			(1 << 31)
 #define VFE_0_IRQ_STATUS_1		0x070
+#define VFE_0_IRQ_STATUS_1_VIOLATION			(1 << 7)
+#define VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK		(1 << 8)
+#define VFE_0_IRQ_STATUS_1_RDIn_SOF(n)			(1 << ((n) + 29))
 
 #define VFE_0_VIOLATION_STATUS		0x07c
 
@@ -467,11 +478,64 @@ static void vfe_isr_read(struct vfe_device *vfe, u32 *value0, u32 *value1)
 	writel_relaxed(VFE_0_IRQ_CMD_GLOBAL_CLEAR, vfe->base + VFE_0_IRQ_CMD);
 }
 
-static void vfe_violation_read(struct vfe_device *vfe, struct device *dev)
+static void vfe_violation_read(struct vfe_device *vfe)
 {
 	u32 violation = readl_relaxed(vfe->base + VFE_0_VIOLATION_STATUS);
 
-	dev_err_ratelimited(dev, "VFE: violation = 0x%08x\n", violation);
+	pr_err_ratelimited("VFE: violation = 0x%08x\n", violation);
+}
+
+/*
+ * vfe_isr - ISPIF module interrupt handler
+ * @irq: Interrupt line
+ * @dev: VFE device
+ *
+ * Return IRQ_HANDLED on success
+ */
+static irqreturn_t vfe_isr(int irq, void *dev)
+{
+	struct vfe_device *vfe = dev;
+	u32 value0, value1;
+	int i, j;
+
+	vfe->ops->isr_read(vfe, &value0, &value1);
+
+	trace_printk("VFE: status0 = 0x%08x, status1 = 0x%08x\n",
+		     value0, value1);
+
+	if (value0 & VFE_0_IRQ_STATUS_0_RESET_ACK)
+		vfe->isr_ops.reset_ack(vfe);
+
+	if (value1 & VFE_0_IRQ_STATUS_1_VIOLATION)
+		vfe->ops->violation_read(vfe);
+
+	if (value1 & VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK)
+		vfe->isr_ops.halt_ack(vfe);
+
+	for (i = VFE_LINE_RDI0; i <= VFE_LINE_PIX; i++)
+		if (value0 & VFE_0_IRQ_STATUS_0_line_n_REG_UPDATE(i))
+			vfe->isr_ops.reg_update(vfe, i);
+
+	if (value0 & VFE_0_IRQ_STATUS_0_CAMIF_SOF)
+		vfe->isr_ops.sof(vfe, VFE_LINE_PIX);
+
+	for (i = VFE_LINE_RDI0; i <= VFE_LINE_RDI2; i++)
+		if (value1 & VFE_0_IRQ_STATUS_1_RDIn_SOF(i))
+			vfe->isr_ops.sof(vfe, i);
+
+	for (i = 0; i < MSM_VFE_COMPOSITE_IRQ_NUM; i++)
+		if (value0 & VFE_0_IRQ_STATUS_0_IMAGE_COMPOSITE_DONE_n(i)) {
+			vfe->isr_ops.comp_done(vfe, i);
+			for (j = 0; j < ARRAY_SIZE(vfe->wm_output_map); j++)
+				if (vfe->wm_output_map[j] == VFE_LINE_PIX)
+					value0 &= ~VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(j);
+		}
+
+	for (i = 0; i < MSM_VFE_IMAGE_MASTERS_NUM; i++)
+		if (value0 & VFE_0_IRQ_STATUS_0_IMAGE_MASTER_n_PING_PONG(i))
+			vfe->isr_ops.wm_done(vfe, i);
+
+	return IRQ_HANDLED;
 }
 
 const struct vfe_hw_ops vfe_ops_4_7 = {
@@ -503,4 +567,5 @@ const struct vfe_hw_ops vfe_ops_4_7 = {
 	.set_cgc_override = vfe_set_cgc_override,
 	.isr_read = vfe_isr_read,
 	.violation_read = vfe_violation_read,
+	.isr = vfe_isr,
 };
