@@ -129,7 +129,17 @@ struct vfe_hw_ops {
 	void (*set_module_cfg)(struct vfe_device *vfe, u8 enable);
 	int (*camif_wait_for_stop)(struct vfe_device *vfe, struct device *dev);
 	void (*isr_read)(struct vfe_device *vfe, u32 *value0, u32 *value1);
-	void (*violation_read)(struct vfe_device *vfe, struct device *dev);
+	void (*violation_read)(struct vfe_device *vfe);
+	irqreturn_t (*isr)(int irq, void *dev);
+};
+
+struct vfe_isr_ops {
+	void (*reset_ack)(struct vfe_device *vfe);
+	void (*halt_ack)(struct vfe_device *vfe);
+	void (*reg_update)(struct vfe_device *vfe, enum vfe_line_id line_id);
+	void (*sof)(struct vfe_device *vfe, enum vfe_line_id line_id);
+	void (*comp_done)(struct vfe_device *vfe, u8 comp);
+	void (*wm_done)(struct vfe_device *vfe, u8 wm);
 };
 
 struct vfe_device {
@@ -151,6 +161,7 @@ struct vfe_device {
 	u32 reg_update;
 	u8 was_streaming;
 	struct vfe_hw_ops *ops;
+	struct vfe_isr_ops isr_ops;
 };
 
 struct resources;
