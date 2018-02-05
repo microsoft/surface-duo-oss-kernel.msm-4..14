@@ -299,6 +299,8 @@
 				vdda-supply = <&camera_vdda_2v8>;
 				vddd-supply = <&camera_vddd_1v5>;
 
+				status = "disabled";
+
 				port {
 					ov5645_ep: endpoint {
 						clock-lanes = <1>;
@@ -324,6 +326,8 @@
 				vdddo-supply = <&camera_vdddo_1v8>;
 				vdda-supply = <&camera_vdda_2v8>;
 				vddd-supply = <&camera_vddd_1v5>;
+
+				status = "disabled";
 
 				port {
 					ov5645_2_ep: endpoint {
@@ -351,6 +355,8 @@
 				vdda-supply = <&camera_vdda_2v8>;
 				vddd-supply = <&camera_vddd_1v5>;
 
+				status = "disabled";
+
 				port {
 					ov5645_3_ep: endpoint {
 						clock-lanes = <1>;
@@ -373,6 +379,7 @@
 						clock-lanes = <7>;
 						data-lanes = <0 1>;
 						remote-endpoint = <&ov5645_ep>;
+						status = "disabled";
 					};
 				};
 				port@1 {
@@ -381,6 +388,7 @@
 						clock-lanes = <7>;
 						data-lanes = <0 1>;
 						remote-endpoint = <&ov5645_2_ep>;
+						status = "disabled";
 					};
 				};
 				port@2 {
@@ -389,6 +397,7 @@
 						clock-lanes = <7>;
 						data-lanes = <0 1>;
 						remote-endpoint = <&ov5645_3_ep>;
+						status = "disabled";
 					};
 				};
 			};
