@@ -280,12 +280,11 @@
 		cci@a0c000 {
 			status = "ok";
 
-			camera_rear@3b {
-				compatible = "ovti,ov5645";
-				reg = <0x3b>;
+			camera_rear@60 {
+				compatible = "ovti,ov7251";
+				reg = <0x60>;
 
-				enable-gpios = <&msmgpio 26 GPIO_ACTIVE_HIGH>;
-				reset-gpios = <&msmgpio 25 GPIO_ACTIVE_LOW>;
+				enable-gpios = <&msmgpio 25 GPIO_ACTIVE_HIGH>;
 				pinctrl-names = "default";
 				pinctrl-0 = <&camera_rear_default>;
 
@@ -300,9 +299,9 @@
 				status = "disabled";
 
 				port {
-					ov5645_ep: endpoint {
+					ov7251_ep: endpoint {
 						clock-lanes = <1>;
-						data-lanes = <0 2>;
+						data-lanes = <0>;
 						remote-endpoint = <&csiphy0_ep>;
 					};
 				};
@@ -375,8 +374,8 @@
 					reg = <0>;
 					csiphy0_ep: endpoint {
 						clock-lanes = <7>;
-						data-lanes = <0 1>;
-						remote-endpoint = <&ov5645_ep>;
+						data-lanes = <0>;
+						remote-endpoint = <&ov7251_ep>;
 						status = "disabled";
 					};
 				};
