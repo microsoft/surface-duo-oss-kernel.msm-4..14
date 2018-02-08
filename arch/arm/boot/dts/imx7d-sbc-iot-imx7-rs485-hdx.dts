@@ -1,0 +1,36 @@
+/*
+ * Support for CompuLab SBC-IOT-iMX7 Single Board Computer with RS485 in Half Duplex mode
+ *
+ * Copyright (C) 2017 CompuLab Ltd. - http://www.compulab.co.il/
+ * Author: Ilya Ledvich <ilya@compulab.co.il>
+ *
+ * This file is dual-licensed: you can use it either under the terms
+ * of the GPL or the X11 license, at your option. Note that this dual
+ * licensing only applies to this file, and not this project as a
+ * whole.
+ */
+
+#include "imx7d-sbc-iot-imx7.dts"
+
+&iomuxc {
+	pinctrl-1 = <&pinctrl_xpen>;
+
+	pinctrl_uart7_rs485_hdx: uart7rs485hdxgrp {
+		fsl,pins = <
+			MX7D_PAD_ECSPI2_MOSI__UART7_DCE_TX	0x79 /* R485-TX */
+			MX7D_PAD_ECSPI2_SCLK__UART7_DCE_RX	0x79 /* R485-RX */
+			MX7D_PAD_ECSPI2_SS0__GPIO4_IO23		0x34 /* RTS GPIO */
+		>;
+	};
+};
+
+&uart7 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_uart7_rs485_hdx>;
+	assigned-clocks = <&clks IMX7D_UART7_ROOT_SRC>;
+	assigned-clock-parents = <&clks IMX7D_PLL_SYS_MAIN_240M_CLK>;
+	linux,rs485-enabled-at-boot-time;
+	rs485-rts-active-high;
+	rts-gpio = <&gpio4 23 GPIO_ACTIVE_HIGH>;
+	status = "okay";
+};
