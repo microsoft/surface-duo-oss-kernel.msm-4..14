@@ -154,7 +154,8 @@
 		compatible = "fsl,s32-linflexuart";
 		reg = <0x0 0x401C8000 0x0 0x3000>;
 		interrupts = <0 82 1>;
-		clocks = <&sysclk>, <&sysclk>;
+		clocks = <&clks S32GEN1_CLK_LIN0_BAUD>,
+			 <&clks S32GEN1_CLK_LIN0>;
 		clock-names = "lin", "ipg";
 	};
 
@@ -162,7 +163,8 @@
 		compatible = "fsl,s32-linflexuart";
 		reg = <0x0 0x401CC000 0x0 0x3000>;
 		interrupts = <0 83 1>;
-		clocks = <&sysclk>, <&sysclk>;
+		clocks = <&clks S32GEN1_CLK_LIN1_BAUD>,
+			 <&clks S32GEN1_CLK_LIN1>;
 		clock-names = "lin", "ipg";
 	};
 
@@ -180,7 +182,8 @@
 		compatible = "fsl,s32-linflexuart";
 		reg = <0x0 0x402BC000 0x0 0x3000>;
 		interrupts = <0 84 1>;
-		clocks = <&sysclk>, <&sysclk>;
+		clocks = <&clks S32GEN1_CLK_LIN2_BAUD>,
+			 <&clks S32GEN1_CLK_LIN2>;
 		clock-names = "lin", "ipg";
 	};
 
