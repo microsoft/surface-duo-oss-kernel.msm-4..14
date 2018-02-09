@@ -1,0 +1,69 @@
+* NXP S32GEN1 CLOCKING
+
+The internal clocks are generated from one of these input clock sources:
+- FIRC – 48 MHz (mainly used as backup clock)
+- SIRC – 32 kHz
+- FXOSC – 20-40 MHz
+- PLLs:
+	- CORE_PLL (FM)
+	- PERIPH_PLL (Non-FM)
+	- DDR_PLL (Non-FM)
+	- ACCEL_PLL (FM)
+	- AURORA_PLL (Non-FM)
+- DFS blocks:
+	- CORE_PLL DFS
+	- PERIPH_PLL DFS
+
+The PLLDIG module provides a user interface and control over PLL system composed
+of a single PLL analog block and the digital interface.
+The DFS digital block implements registers to control the analog DFS block.
+
+Required properties:
+- compatible:
+	Should be:
+	- "fsl,s32r45x-clocking", "fsl,s32g275-clocking", "fsl,s32v344-clocking"
+- reg:
+	Location and length of the register set
+
+Example:
+
+clks: clocking@40038000 {
+	compatible = "fsl,s32r45x-clocking";
+	reg = <0x0 0x40038000 0x0 0x3000>, /*armpll*/
+		<0x0 0x4003C000 0x0 0x3000>, /*periphpll*/
+		<0x0 0x40040000 0x0 0x3000>, /*accelpll*/
+		<0x0 0x40044000 0x0 0x3000>, /*ddrpll*/
+		<0x0 0x40048000 0x0 0x3000>, /*aurorapll*/
+		<0x0 0x40050000 0x0 0x3000>, /*xosc*/
+		<0x0 0x40054000 0x0 0x3000>, /*armdfs*/
+		<0x0 0x40058000 0x0 0x3000>; /*periphdfs*/
+	#clock-cells = <1>;
+};
+
+
+* NXP S32GEN1 Clock Generation Modules (MC_CGMs)
+
+Clock Generation Modules provides registers for system and peripherals clock
+source selection and division.
+
+This binding uses the common clock binding:
+    Documentation/devicetree/bindings/clock/clock-bindings.txt
+
+Required properties:
+- compatible:
+	Should be:
+	- "fsl,s32gen1-mc_cgm0" for MC_CGM_0
+	- "fsl,s32gen1-mc_cgm1" for MC_CGM_1
+	- "fsl,s32gen1-mc_cgm5" for MC_CGM_5
+- reg:
+	Location and length of the register set
+- #clock-cells (only for MC_CGM_0):
+	Should be <1>. See dt-bindings/clock/s32gen1-clock.h for the clock
+	specifiers allowed in the clocks property of consumers.
+
+Example:
+clks: mc_cgm0@40030000 {
+	compatible = "fsl,s32gen1-mc_cgm0";
+	reg = <0x0 0x40030000 0x0 0x3000>;
+	#clock-cells = <1>;
+};

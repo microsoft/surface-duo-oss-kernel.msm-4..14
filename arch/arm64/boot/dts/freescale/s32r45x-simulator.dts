@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 NXP
+ * Copyright 2017-2018 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,6 +26,20 @@
 		clock-frequency = <10000000>;
 		clock-output-names = "sysclk";
 	};
+
+	clks: clks@40038000 {
+		compatible = "fsl,s32r45x-clocking";
+		reg = <0x0 0x40038000 0x0 0x3000>, /*armpll*/
+		      <0x0 0x4003C000 0x0 0x3000>, /*periphpll*/
+		      <0x0 0x40040000 0x0 0x3000>, /*accelpll*/
+		      <0x0 0x40044000 0x0 0x3000>, /*ddrpll*/
+		      <0x0 0x40048000 0x0 0x3000>, /*aurorapll*/
+		      <0x0 0x40050000 0x0 0x3000>, /*xosc*/
+		      <0x0 0x40054000 0x0 0x3000>, /*armdfs*/
+		      <0x0 0x40058000 0x0 0x3000>; /*periphdfs*/
+		#clock-cells = <1>;
+	};
+
 };
 
 &stm0 {
