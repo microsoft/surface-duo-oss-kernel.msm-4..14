@@ -97,26 +97,20 @@ static inline void clear_ibrs_disabled(void)
 /* indicate usage of IBPB to control execution speculation */
 extern int use_ibpb;
 extern u32 sysctl_ibpb_enabled;
-/*      ibpb_enabled_kernel	(use_ibpb & 0x1) */
 #define ibpb_supported		(use_ibpb & 0x2)
 #define ibpb_disabled		(use_ibpb & 0x4)
-#define ibpb_retpoline_enabled  (use_ibpb & 0x8)
-#define ibpb_enabled_user	(use_ibpb & 0x10)
-static inline void sync_ibpb_inuse(void)
+static inline void set_ibpb_inuse(void)
 {
-	if (ibpb_supported && !ibpb_disabled) {
-		use_ibpb |= 0x10; /* Enable flushing on context/VM switch. */
-		if (!ibpb_retpoline_enabled)
-			use_ibpb |= 0x1; /* Enable for kernel proper (entry). */
-		else
-			use_ibpb &= ~0x1;
-	} else {
-		use_ibpb &= ~(0x10|0x1);
-	}
+	if (ibpb_supported)
+		use_ibpb |= 0x1;
+}
+static inline void clear_ibpb_inuse(void)
+{
+	use_ibpb &= ~0x1;
 }
 static inline int check_ibpb_inuse(void)
 {
-	if (use_ibpb & 0x10)
+	if (use_ibpb & 0x1)
 		return 1;
 	else
 		/* rmb to prevent wrong speculation for security */
@@ -126,22 +120,19 @@ static inline int check_ibpb_inuse(void)
 static inline void set_ibpb_supported(void)
 {
 	use_ibpb |= 0x2;
-	sync_ibpb_inuse();
+	if (!ibpb_disabled)
+		set_ibpb_inuse();
 }
 static inline void set_ibpb_disabled(void)
 {
 	use_ibpb |= 0x4;
-	sync_ibpb_inuse();
+	if (check_ibpb_inuse())
+		clear_ibpb_inuse();
 }
 static inline void clear_ibpb_disabled(void)
 {
 	use_ibpb &= ~0x4;
-	sync_ibpb_inuse();
-}
-static inline void set_ibpb_retpoline_enabled(void)
-{
-	use_ibpb |= 0x8;
-	sync_ibpb_inuse();
+	set_ibpb_inuse();
 }
 #define ibpb_inuse		(check_ibpb_inuse())
 #endif
