@@ -621,7 +621,7 @@ static int raw_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 			goto done;
 	}
 
-	if (hdrincl) {
+	if (!hdrincl) {
 		rfv.msg = msg;
 		rfv.hlen = 0;
 
