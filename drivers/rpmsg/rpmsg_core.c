@@ -472,6 +472,7 @@ struct bus_type rpmsg_bus = {
 	.uevent		= rpmsg_uevent,
 	.probe		= rpmsg_dev_probe,
 	.remove		= rpmsg_dev_remove,
+	.force_dma	= true,
 };
 EXPORT_SYMBOL(rpmsg_bus);
 
