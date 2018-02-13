@@ -52,6 +52,7 @@
 #include <linux/spinlock.h>
 
 #include <linux/amba/bus.h>
+#include <linux/rpmsg.h>
 
 #include "io-pgtable.h"
 #include "arm-smmu-regs.h"
@@ -2093,6 +2094,10 @@ static void arm_smmu_bus_init(void)
 		pci_request_acs();
 		bus_set_iommu(&pci_bus_type, &arm_smmu_ops);
 	}
+#endif
+#ifdef CONFIG_RPMSG
+	if (!iommu_present(&rpmsg_bus))
+		bus_set_iommu(&rpmsg_bus, &arm_smmu_ops);
 #endif
 }
 
