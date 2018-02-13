@@ -4189,6 +4189,7 @@ EXPORT_SYMBOL vmlinux 0x224ff4ad	wait_for_completion_interruptible_timeout
 EXPORT_SYMBOL vmlinux 0x226413c0	blk_set_default_limits
 EXPORT_SYMBOL vmlinux 0x226eef96	__dev_get_by_name
 EXPORT_SYMBOL vmlinux 0x228a411c	dev_addr_add
+EXPORT_SYMBOL vmlinux 0x228c34a6	spec_ctrl_mutex
 EXPORT_SYMBOL vmlinux 0x228e96c4	xfrm_state_update
 EXPORT_SYMBOL vmlinux 0x229cc94b	dev_mc_flush
 EXPORT_SYMBOL vmlinux 0x22a311a5	check_disk_size_change
@@ -4896,6 +4897,7 @@ EXPORT_SYMBOL vmlinux 0x4111966b	snd_pcm_hw_constraint_mask64
 EXPORT_SYMBOL vmlinux 0x411e9279	i2c_smbus_write_byte_data
 EXPORT_SYMBOL vmlinux 0x4133433d	page_cache_prev_hole
 EXPORT_SYMBOL vmlinux 0x41482d8b	strndup_user
+EXPORT_SYMBOL vmlinux 0x41609a7a	sysctl_ibpb_enabled
 EXPORT_SYMBOL vmlinux 0x416c5430	trace_raw_output_prep
 EXPORT_SYMBOL vmlinux 0x4171c136	processors
 EXPORT_SYMBOL vmlinux 0x4188d439	neigh_rand_reach_time
@@ -8025,6 +8027,7 @@ EXPORT_SYMBOL vmlinux 0xd1506bb7	v4l2_querymenu
 EXPORT_SYMBOL vmlinux 0xd1577c35	dma_alloc_from_coherent
 EXPORT_SYMBOL vmlinux 0xd15e0007	dquot_destroy
 EXPORT_SYMBOL vmlinux 0xd15e3876	_dev_info
+EXPORT_SYMBOL vmlinux 0xd160c96d	sysctl_ibrs_enabled
 EXPORT_SYMBOL vmlinux 0xd1652a93	acpi_info
 EXPORT_SYMBOL vmlinux 0xd1816f32	frontswap_writethrough
 EXPORT_SYMBOL vmlinux 0xd18ff827	cpu_present_mask
@@ -16412,6 +16415,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xbf6b3e18	of_genpd_del_provider
 EXPORT_SYMBOL_GPL vmlinux 0xbf77fdb0	tcp_unregister_congestion_control
 EXPORT_SYMBOL_GPL vmlinux 0xbf82c658	class_find_device
 EXPORT_SYMBOL_GPL vmlinux 0xbf9d1b96	nfsd_debug
+EXPORT_SYMBOL_GPL vmlinux 0xbfaa2d62	___ptrace_may_access
 EXPORT_SYMBOL_GPL vmlinux 0xbfacb0bb	device_initialize
 EXPORT_SYMBOL_GPL vmlinux 0xbfbc5434	pciserial_resume_ports
 EXPORT_SYMBOL_GPL vmlinux 0xbfc9c74a	xdr_encode_array2
