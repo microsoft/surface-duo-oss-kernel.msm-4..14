@@ -465,7 +465,7 @@ static int rpmsg_dev_remove(struct device *dev)
 	return err;
 }
 
-static struct bus_type rpmsg_bus = {
+struct bus_type rpmsg_bus = {
 	.name		= "rpmsg",
 	.match		= rpmsg_dev_match,
 	.dev_groups	= rpmsg_dev_groups,
@@ -473,6 +473,7 @@ static struct bus_type rpmsg_bus = {
 	.probe		= rpmsg_dev_probe,
 	.remove		= rpmsg_dev_remove,
 };
+EXPORT_SYMBOL(rpmsg_bus);
 
 int rpmsg_register_device(struct rpmsg_device *rpdev)
 {
