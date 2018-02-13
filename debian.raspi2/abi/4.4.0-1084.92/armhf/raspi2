@@ -4542,6 +4542,7 @@ EXPORT_SYMBOL vmlinux 0x412a8f39	blk_init_queue
 EXPORT_SYMBOL vmlinux 0x4134812d	usbnet_link_change
 EXPORT_SYMBOL vmlinux 0x414720e0	netdev_refcnt_read
 EXPORT_SYMBOL vmlinux 0x41482d8b	strndup_user
+EXPORT_SYMBOL vmlinux 0x41609a7a	sysctl_ibpb_enabled
 EXPORT_SYMBOL vmlinux 0x41798f08	bd_set_size
 EXPORT_SYMBOL vmlinux 0x4188d439	neigh_rand_reach_time
 EXPORT_SYMBOL vmlinux 0x418a5367	__scsi_format_command
@@ -6680,6 +6681,7 @@ EXPORT_SYMBOL vmlinux 0xc3906302	nf_register_sockopt
 EXPORT_SYMBOL vmlinux 0xc391badf	inet_del_protocol
 EXPORT_SYMBOL vmlinux 0xc39ec225	ps2_init
 EXPORT_SYMBOL vmlinux 0xc3a4e43c	of_mm_gpiochip_remove
+EXPORT_SYMBOL vmlinux 0xc3c861d6	spec_ctrl_mutex
 EXPORT_SYMBOL vmlinux 0xc3c8e6da	eth_platform_get_mac_address
 EXPORT_SYMBOL vmlinux 0xc4252ddf	rt6_lookup
 EXPORT_SYMBOL vmlinux 0xc4275e13	path_nosuid
@@ -6915,6 +6917,7 @@ EXPORT_SYMBOL vmlinux 0xd13e170a	copy_from_iter_nocache
 EXPORT_SYMBOL vmlinux 0xd13f9a13	mmc_align_data_size
 EXPORT_SYMBOL vmlinux 0xd1470d6b	fib_default_rule_add
 EXPORT_SYMBOL vmlinux 0xd15d098b	writeback_inodes_sb
+EXPORT_SYMBOL vmlinux 0xd160c96d	sysctl_ibrs_enabled
 EXPORT_SYMBOL vmlinux 0xd16e0101	blk_mq_alloc_tag_set
 EXPORT_SYMBOL vmlinux 0xd16f289e	blk_pm_runtime_init
 EXPORT_SYMBOL vmlinux 0xd17a1a9d	nvm_unregister_target
@@ -13642,6 +13645,7 @@ EXPORT_SYMBOL_GPL vmlinux 0xa3e7c113	ring_buffer_iter_peek
 EXPORT_SYMBOL_GPL vmlinux 0xa3f52b9a	usb_stor_ctrl_transfer
 EXPORT_SYMBOL_GPL vmlinux 0xa3faab3f	device_get_dma_attr
 EXPORT_SYMBOL_GPL vmlinux 0xa3fbbd51	gpiod_get_array
+EXPORT_SYMBOL_GPL vmlinux 0xa4124cc8	___ptrace_may_access
 EXPORT_SYMBOL_GPL vmlinux 0xa42d0467	sdio_register_driver
 EXPORT_SYMBOL_GPL vmlinux 0xa4414022	regulator_unregister_supply_alias
 EXPORT_SYMBOL_GPL vmlinux 0xa44d2b8e	cpufreq_governor_dbs
