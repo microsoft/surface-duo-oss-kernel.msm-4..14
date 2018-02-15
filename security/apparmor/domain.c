@@ -791,7 +791,7 @@ int apparmor_bprm_set_creds(struct linux_binprm *bprm)
 		file_inode(bprm->file)->i_mode
 	};
 
-	if (bprm->called_set_creds)
+	if (bprm->cred_prepared)
 		return 0;
 
 	ctx = cred_ctx(bprm->cred);
