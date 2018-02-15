@@ -18,7 +18,8 @@
 #include "apq8096-db820c-pmic-pins.dtsi"
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/gpio/gpio.h>
-
+#include <dt-bindings/sound/qcom,q6afe.h>
+#include <dt-bindings/sound/qcom,q6asm.h>
 / {
 	aliases {
 		serial0 = &blsp2_uart1;
@@ -236,6 +237,7 @@
 
 				core-vdda-supply = <&pm8994_l12>;
 				core-vcc-supply = <&pm8994_s4>;
+				#sound-dai-cells = <1>;
 			};
 		};
 	};
@@ -482,6 +484,37 @@
 
 				qcom,dtest = <4 1>;
 			};
+		};
+	};
+};
+
+&sound {
+	compatible = "qcom,apq8096-sndcard";
+	qcom,model = "DB820c";
+	qcom,audio-routing =
+		"RX_BIAS", "MCLK";
+	mm1-dai-link {
+		link-name = "MultiMedia1";
+		cpu {
+			sound-dai = <&q6asmdai  MSM_FRONTEND_DAI_MULTIMEDIA1>;
+		};
+		platform {
+			sound-dai = <&q6asmdai>;
+		};
+	};
+
+	hdmi-dai-link {
+		link-name = "HDMI Playback";
+		cpu {
+			sound-dai = <&q6afedai HDMI_RX>;
+		};
+
+		platform {
+			sound-dai = <&q6routing>;
+		};
+
+		codec {
+			sound-dai = <&hdmi 0>;
 		};
 	};
 };
