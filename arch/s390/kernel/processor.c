@@ -6,12 +6,14 @@
 #define KMSG_COMPONENT "cpu"
 #define pr_fmt(fmt) KMSG_COMPONENT ": " fmt
 
+#include <linux/bitops.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/seq_file.h>
 #include <linux/delay.h>
 #include <linux/cpu.h>
 #include <asm/diag.h>
+#include <asm/facility.h>
 #include <asm/elf.h>
 #include <asm/lowcore.h>
 #include <asm/param.h>
@@ -52,6 +54,18 @@ int cpu_have_feature(unsigned int num)
 }
 EXPORT_SYMBOL(cpu_have_feature);
 
+static void show_facilities(struct seq_file *m)
+{
+	unsigned int bit;
+	long *facilities;
+
+	facilities = (long *)&S390_lowcore.stfle_fac_list;
+	seq_puts(m, "facilities      :");
+	for_each_set_bit_inv(bit, facilities, MAX_FACILITY_BIT)
+		seq_printf(m, " %d", bit);
+	seq_putc(m, '\n');
+}
+
 /*
  * show_cpuinfo - Get information on one CPU for use by procfs.
  */
@@ -76,6 +90,7 @@ static int show_cpuinfo(struct seq_file *m, void *v)
 			if (hwcap_str[i] && (elf_hwcap & (1UL << i)))
 				seq_printf(m, "%s ", hwcap_str[i]);
 		seq_puts(m, "\n");
+		show_facilities(m);
 		show_cacheinfo(m);
 	}
 	get_online_cpus();
