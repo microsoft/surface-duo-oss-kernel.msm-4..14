@@ -1143,6 +1143,15 @@ static void apparmor_sock_graft(struct sock *sk, struct socket *parent)
 		ctx->label = aa_get_current_label();
 }
 
+static int wrap_apparmor_setprocattr(struct task_struct *task, char *name,
+				     void *value, size_t size)
+{
+	if (current != task)
+		return EACCES;
+
+	return apparmor_setprocattr(name, value, size);
+}
+
 static struct security_hook_list apparmor_hooks[] __lsm_ro_after_init = {
 	LSM_HOOK_INIT(ptrace_access_check, apparmor_ptrace_access_check),
 	LSM_HOOK_INIT(ptrace_traceme, apparmor_ptrace_traceme),
@@ -1175,7 +1184,7 @@ static struct security_hook_list apparmor_hooks[] __lsm_ro_after_init = {
 	LSM_HOOK_INIT(file_lock, apparmor_file_lock),
 
 	LSM_HOOK_INIT(getprocattr, apparmor_getprocattr),
-	LSM_HOOK_INIT(setprocattr, apparmor_setprocattr),
+	LSM_HOOK_INIT(setprocattr, wrap_apparmor_setprocattr),
 
 	LSM_HOOK_INIT(sk_alloc_security, apparmor_sk_alloc_security),
 	LSM_HOOK_INIT(sk_free_security, apparmor_sk_free_security),
