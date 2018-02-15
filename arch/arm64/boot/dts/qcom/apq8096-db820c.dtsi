@@ -211,6 +211,7 @@
 
 				vddio-supply = <&pm8994_l12>;
 				vcca-supply = <&pm8994_l28>;
+				#phy-cells = <0>;
 			};
 
 			hdmi-tx@9a0000 {
