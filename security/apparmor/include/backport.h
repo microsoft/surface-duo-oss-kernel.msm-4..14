@@ -45,4 +45,7 @@ static inline void *kvzalloc(size_t size, gfp_t flags)
 /* 4.10 backport support LSM name in security_add_hooks d69dece5f5b6 */
 #define security_add_hooks(H, C, NAME) (security_add_hooks)(H, C)
 
+/* backport 4.10 to 4.9 support lockdep_assert_held_exclusive() f8319483f57f */
+#define lockdep_assert_held_exclusive(l)       do { (void)(l); } while (0)
+
 #endif /* __AA_BACKPORT_H */
