@@ -20,4 +20,7 @@
 /* backport to 4.13 - 1751e8a6cb93 ("Rename superblock flags (MS_xyz -> SB_xyz)") */
 #define SB_NOUSER MS_NOUSER
 
+/* backport 4.13 - a481f4d91783 ("apparmor: add custom apparmorfs that will be used by policy namespace files") */
+#define AAFS_MAGIC	0x5a3c69f0
+
 #endif /* __AA_BACKPORT_H */
