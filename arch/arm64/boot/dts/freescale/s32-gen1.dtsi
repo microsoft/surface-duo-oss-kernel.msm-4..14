@@ -210,7 +210,7 @@
 		compatible = "fsl,s32v234-dspi";
 		reg = <0x0 0x401D4000 0x0 0x3000>;
 		interrupts = <0 85 4>;
-		clocks = <&sysclk>;
+		clocks = <&clks S32GEN1_CLK_SPI0>;
 		clock-names = "dspi";
 		spi-num-chipselects = <4>;
 		bus-num = <0>;
@@ -223,7 +223,7 @@
 		compatible = "fsl,s32v234-dspi";
 		reg = <0x0 0x401D8000 0x0 0x3000>;
 		interrupts = <0 86 4>;
-		clocks = <&sysclk>;
+		clocks = <&clks S32GEN1_CLK_SPI1>;
 		clock-names = "dspi";
 		spi-num-chipselects = <4>;
 		bus-num = <1>;
@@ -236,7 +236,7 @@
 		compatible = "fsl,s32v234-dspi";
 		reg = <0x0 0x401DC000 0x0 0x3000>;
 		interrupts = <0 87 4>;
-		clocks = <&sysclk>;
+		clocks = <&clks S32GEN1_CLK_SPI2>;
 		clock-names = "dspi";
 		spi-num-chipselects = <4>;
 		bus-num = <2>;
@@ -268,7 +268,7 @@
 		compatible = "fsl,s32v234-dspi";
 		reg = <0x0 0x402C8000 0x0 0x3000>;
 		interrupts = <0 88 4>;
-		clocks = <&sysclk>;
+		clocks = <&clks S32GEN1_CLK_SPI3>;
 		clock-names = "dspi";
 		spi-num-chipselects = <4>;
 		bus-num = <3>;
@@ -281,7 +281,7 @@
 		compatible = "fsl,s32v234-dspi";
 		reg = <0x0 0x402CC000 0x0 0x3000>;
 		interrupts = <0 89 4>;
-		clocks = <&sysclk>;
+		clocks = <&clks S32GEN1_CLK_SPI4>;
 		clock-names = "dspi";
 		spi-num-chipselects = <4>;
 		bus-num = <4>;
@@ -294,7 +294,7 @@
 		compatible = "fsl,s32v234-dspi";
 		reg = <0x0 0x402D0000 0x0 0x3000>;
 		interrupts = <0 90 4>;
-		clocks = <&sysclk>;
+		clocks = <&clks S32GEN1_CLK_SPI5>;
 		clock-names = "dspi";
 		spi-num-chipselects = <4>;
 		bus-num = <4>;

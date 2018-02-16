@@ -70,6 +70,13 @@
 #define	S32GEN1_CLK_LIN1			50
 #define	S32GEN1_CLK_LIN2_BAUD			51
 #define	S32GEN1_CLK_LIN2			52
+/* DSPI Clock*/
+#define S32GEN1_CLK_SPI0                        53
+#define S32GEN1_CLK_SPI1                        54
+#define S32GEN1_CLK_SPI2                        55
+#define S32GEN1_CLK_SPI3                        56
+#define S32GEN1_CLK_SPI4                        57
+#define S32GEN1_CLK_SPI5                        58
 
-#define	S32GEN1_CLK_END				53
+#define	S32GEN1_CLK_END				59
 #endif /* __DT_BINDINGS_CLOCK_S32GEN1_H */
