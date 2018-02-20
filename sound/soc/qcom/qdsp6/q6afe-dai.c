@@ -310,6 +310,11 @@ static const struct snd_soc_dapm_route q6afe_dapm_routes[] = {
 	{"Secondary MI2S Playback", NULL, "SEC_MI2S_RX"},
 	{"Tertiary MI2S Playback", NULL, "TERT_MI2S_RX"},
 	{"Quaternary MI2S Playback", NULL, "QUAT_MI2S_RX"},
+
+	{"TERT_MI2S_TX", NULL, "Tertiary MI2S Capture"},
+	{"PRI_MI2S_TX", NULL, "Primary MI2S Capture"},
+	{"SEC_MI2S_TX", NULL, "Secondary MI2S Capture"},
+	{"QUAT_MI2S_TX", NULL, "Quaternary MI2S Capture"},
 };
 
 static struct snd_soc_dai_ops q6hdmi_ops = {
@@ -524,6 +529,21 @@ static struct snd_soc_dai_driver q6afe_dais[] = {
 		.probe = msm_dai_q6_dai_probe,
 		.remove = msm_dai_q6_dai_remove,
 	}, {
+		.capture = {
+			.stream_name = "Primary MI2S Capture",
+			.rates = SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_8000 |
+			SNDRV_PCM_RATE_16000,
+			.formats = SNDRV_PCM_FMTBIT_S16_LE |
+				SNDRV_PCM_FMTBIT_S24_LE,
+			.rate_min =     8000,
+			.rate_max =     48000,
+		},
+		.id = PRIMARY_MI2S_TX,
+		.name = "PRI_MI2S_TX",
+		.ops = &q6i2s_ops,
+		.probe = msm_dai_q6_dai_probe,
+		.remove = msm_dai_q6_dai_remove,
+	}, {
 		.playback = {
 			.stream_name = "Secondary MI2S Playback",
 			.rates = SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_8000 |
@@ -534,6 +554,21 @@ static struct snd_soc_dai_driver q6afe_dais[] = {
 		},
 		.name = "SEC_MI2S_RX",
 		.id = SECONDARY_MI2S_RX,
+		.ops = &q6i2s_ops,
+		.probe = msm_dai_q6_dai_probe,
+		.remove = msm_dai_q6_dai_remove,
+	}, {
+		.capture = {
+			.stream_name = "Secondary MI2S Capture",
+			.rates = SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_8000 |
+			SNDRV_PCM_RATE_16000,
+			.formats = SNDRV_PCM_FMTBIT_S16_LE |
+				SNDRV_PCM_FMTBIT_S24_LE,
+			.rate_min =     8000,
+			.rate_max =     48000,
+		},
+		.id = SECONDARY_MI2S_TX,
+		.name = "SEC_MI2S_TX",
 		.ops = &q6i2s_ops,
 		.probe = msm_dai_q6_dai_probe,
 		.remove = msm_dai_q6_dai_remove,
@@ -552,6 +587,21 @@ static struct snd_soc_dai_driver q6afe_dais[] = {
 		.probe = msm_dai_q6_dai_probe,
 		.remove = msm_dai_q6_dai_remove,
 	}, {
+		.capture = {
+			.stream_name = "Tertiary MI2S Capture",
+			.rates = SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_8000 |
+			SNDRV_PCM_RATE_16000,
+			.formats = SNDRV_PCM_FMTBIT_S16_LE |
+				SNDRV_PCM_FMTBIT_S24_LE,
+			.rate_min =     8000,
+			.rate_max =     48000,
+		},
+		.id = TERTIARY_MI2S_TX,
+		.name = "TERT_MI2S_TX",
+		.ops = &q6i2s_ops,
+		.probe = msm_dai_q6_dai_probe,
+		.remove = msm_dai_q6_dai_remove,
+	}, {
 		.playback = {
 			.stream_name = "Quaternary MI2S Playback",
 			.rates = SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_8000 |
@@ -562,6 +612,21 @@ static struct snd_soc_dai_driver q6afe_dais[] = {
 		},
 		.name = "QUAT_MI2S_RX",
 		.id = QUATERNARY_MI2S_RX,
+		.ops = &q6i2s_ops,
+		.probe = msm_dai_q6_dai_probe,
+		.remove = msm_dai_q6_dai_remove,
+	}, {
+		.capture = {
+			.stream_name = "Quaternary MI2S Capture",
+			.rates = SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_8000 |
+			SNDRV_PCM_RATE_16000,
+			.formats = SNDRV_PCM_FMTBIT_S16_LE |
+				SNDRV_PCM_FMTBIT_S24_LE,
+			.rate_min =     8000,
+			.rate_max =     48000,
+		},
+		.id = QUATERNARY_MI2S_TX,
+		.name = "QUAT_MI2S_TX",
 		.ops = &q6i2s_ops,
 		.probe = msm_dai_q6_dai_probe,
 		.remove = msm_dai_q6_dai_remove,
@@ -597,15 +662,23 @@ static const struct snd_soc_dapm_widget q6afe_dai_widgets[] = {
 	SND_SOC_DAPM_AIF_OUT("SLIMBUS_6_RX", "Slimbus6 Playback", 0, 0, 0, 0),
 	SND_SOC_DAPM_AIF_OUT("QUAT_MI2S_RX", "Quaternary MI2S Playback",
 						0, 0, 0, 0),
+	SND_SOC_DAPM_AIF_IN("QUAT_MI2S_TX", "Quaternary MI2S Capture",
+						0, 0, 0, 0),
 	SND_SOC_DAPM_AIF_OUT("TERT_MI2S_RX", "Tertiary MI2S Playback",
+						0, 0, 0, 0),
+	SND_SOC_DAPM_AIF_IN("TERT_MI2S_TX", "Tertiary MI2S Capture",
 						0, 0, 0, 0),
 	SND_SOC_DAPM_AIF_OUT("SEC_MI2S_RX", "Secondary MI2S Playback",
 			     0, 0, 0, 0),
+	SND_SOC_DAPM_AIF_IN("SEC_MI2S_TX", "Secondary MI2S Capture",
+						0, 0, 0, 0),
 	SND_SOC_DAPM_AIF_OUT("SEC_MI2S_RX_SD1",
 			"Secondary MI2S Playback SD1",
 			0, 0, 0, 0),
 	SND_SOC_DAPM_AIF_OUT("PRI_MI2S_RX", "Primary MI2S Playback",
 			     0, 0, 0, 0),
+	SND_SOC_DAPM_AIF_IN("PRI_MI2S_TX", "Primary MI2S Capture",
+						0, 0, 0, 0),
 };
 
 static const struct snd_soc_component_driver q6afe_dai_component = {
