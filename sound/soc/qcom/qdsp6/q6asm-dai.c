@@ -91,7 +91,8 @@ static void event_handler(uint32_t opcode, uint32_t token,
 
 	switch (opcode) {
 	case ASM_CLIENT_EVENT_CMD_RUN_DONE:
-		q6asm_write_async(prtd->audio_client,
+		if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
+			q6asm_write_async(prtd->audio_client,
 				   prtd->pcm_count, 0, 0, NO_TIMESTAMP);
 		break;
 	case ASM_CLIENT_EVENT_CMD_EOS_DONE:
@@ -138,7 +139,7 @@ static int q6asm_dai_prepare(struct snd_pcm_substream *substream)
 		q6asm_unmap_memory_regions(substream->stream,
 					   prtd->audio_client);
 		q6routing_stream_close(soc_prtd->dai_link->id,
-					 SNDRV_PCM_STREAM_PLAYBACK);
+					 substream->stream);
 	}
 
 	ret = q6asm_map_memory_regions(substream->stream, prtd->audio_client,
@@ -189,8 +190,6 @@ static int q6asm_dai_trigger(struct snd_pcm_substream *substream, int cmd)
 
 	switch (cmd) {
 	case SNDRV_PCM_TRIGGER_START:
-		ret = q6asm_run_nowait(prtd->audio_client, 0, 0, 0);
-		break;
 	case SNDRV_PCM_TRIGGER_RESUME:
 	case SNDRV_PCM_TRIGGER_PAUSE_RELEASE:
 		ret = q6asm_run_nowait(prtd->audio_client, 0, 0, 0);
@@ -243,8 +242,6 @@ static int q6asm_dai_open(struct snd_pcm_substream *substream)
 		kfree(prtd);
 		return -ENOMEM;
 	}
-
-//	prtd->audio_client->dev = dev;
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK)
 		runtime->hw = q6asm_dai_hardware_playback;
@@ -314,7 +311,7 @@ static int q6asm_dai_close(struct snd_pcm_substream *substream)
 		q6asm_audio_client_free(prtd->audio_client);
 	}
 	q6routing_stream_close(soc_prtd->dai_link->id,
-						SNDRV_PCM_STREAM_PLAYBACK);
+						substream->stream);
 	kfree(prtd);
 	return 0;
 }
