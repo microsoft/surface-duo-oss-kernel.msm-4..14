@@ -3,6 +3,7 @@
 #define __Q6_ADM_V2_H__
 
 #define ADM_PATH_PLAYBACK	0x1
+#define ADM_PATH_LIVE_REC	0x2
 #define MAX_COPPS_PER_PORT	8
 #define NULL_COPP_TOPOLOGY	0x00010312
 

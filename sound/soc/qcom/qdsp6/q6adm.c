@@ -32,7 +32,7 @@
 /* Definition for a legacy device session. */
 #define ADM_LEGACY_DEVICE_SESSION	0
 #define ADM_MATRIX_ID_AUDIO_RX		0
-
+#define ADM_MATRIX_ID_AUDIO_TX		1
 struct copp {
 	int afe_port;
 	int copp_idx;
@@ -456,6 +456,9 @@ int q6adm_matrix_map(struct device *dev, int path,
 	switch (path) {
 	case ADM_PATH_PLAYBACK:
 		route->matrix_id = ADM_MATRIX_ID_AUDIO_RX;
+		break;
+	case ADM_PATH_LIVE_REC:
+		route->matrix_id = ADM_MATRIX_ID_AUDIO_TX;
 		break;
 	default:
 		dev_err(dev, "Wrong path set[%d]\n", path);
