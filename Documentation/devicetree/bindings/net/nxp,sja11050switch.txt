@@ -1,5 +1,82 @@
 SJA1105 Ethernet Switch controller from NXP
 
+Properties of the sja1105p node:
+
+- "compatible"
+	- String that is matched against the of_device_id table "sja1105p_dt_ids"
+	in sja1105p_init.c. Used to determine the switch type
+	- values: "nxp,sja1105p-switch"
+- "firmware_name" (optional)
+	- Name of the firmware (in /lib/firmware) to be loaded for that switch
+- "spi-max-frequency"
+	- the max SPI frequency
+- "spi-cpha"
+	- SPI configuration to be used
+- "reg"
+	- address of chip select
+- "port-X"
+	- port node specifies the configuration of the nth port of the switch.
+	- See bellow for components
+
+
+Properties of the port-X child node:
+
+- "is-host" (optional)
+	- Determines if the port is a host port or not
+- "null-phy" (optional)
+	-Determines if the port has a phy connected to it or not
+- "phy-ref" (optional)
+	- phandle to the connected ethernet phy
+	- Must be 0x0 in case there is no phy connected to it (for example a
+	 host port or a cascaded port)
+- "logical-port-num" (optional)
+	- logical port number, used for the port mapping
+	- Must be 0xff in case the port is a cascaded port
+
+Example:
+
+sja1105p@0 {
+	compatible = "nxp,sja1105p-switch";
+	firmware_name = "sja1105_cfg_mra2lt_1-2.bin";
+	spi-max-frequency = <0x3D0900>;
+	spi-cpha;
+	fsl,spi-cs-sck-delay = <100>;
+	fsl,spi-sck-cs-delay = <100>;
+
+	reg = <0>;
+	port-0 {
+		is-host = <0x1>;
+		null-phy = <0x1>;
+		phy-ref = < 0 >;
+	};
+	port-1 {
+		is-host = <0x0>;
+		null-phy = <0x1>;
+		phy-ref = < 0 >;
+	};
+	port-2 {
+		is-host = <0x0>;
+		null-phy = <0x1>;
+		phy-ref = < 0 >;
+	};
+	port-3 {
+		is-host = <0x0>;
+		null-phy = <0x1>;
+		phy-ref = < 0 >;
+	};
+	port-4 {
+		is-host = <0x0>;
+		null-phy = <0x0>;
+		phy-ref = < &phy0 >;
+	};
+};
+
+
+--------------------------------------------------------------------------------
+
+Former and obsolete DTS compatible strings
+
+
 Required properties:
 
 - compatible : should be "nxp,sja1105-switch", "nxp,sja1105-switch-1-2",
