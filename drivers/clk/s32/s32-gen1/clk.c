@@ -208,6 +208,11 @@ static void __init s32gen1_clocks_init(struct device_node *clocking_node)
 		"periphpll_phi6", "periphpll_vco",
 		periphpll, 6);
 
+	clk[S32GEN1_CLK_PERIPHPLL_PHI7] =
+		s32gen1_clk_plldig_phi(S32GEN1_PLLDIG_PERIPH,
+		"periphpll_phi7", "periphpll_vco",
+		periphpll, 7);
+
 	clk[S32GEN1_CLK_PERIPHPLL_DFS1] = s32gen1_clk_dfs(S32GEN1_PLLDIG_PERIPH,
 		 "periphll_dfs1", "periphpll_vco",
 		 periphdfs, 1);
