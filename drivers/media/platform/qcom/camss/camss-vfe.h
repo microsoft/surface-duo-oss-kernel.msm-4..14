@@ -111,6 +111,8 @@ struct vfe_hw_ops {
 					   enum vfe_line_id id);
 	void (*set_xbar_cfg)(struct vfe_device *vfe, struct vfe_output *output,
 			     u8 enable);
+	void (*set_realign_cfg)(struct vfe_device *vfe, struct vfe_line *line,
+				u8 enable);
 	void (*set_rdi_cid)(struct vfe_device *vfe, enum vfe_line_id id, u8 cid);
 	void (*reg_update)(struct vfe_device *vfe, enum vfe_line_id line_id);
 	void (*reg_update_clear)(struct vfe_device *vfe, enum vfe_line_id line_id);
