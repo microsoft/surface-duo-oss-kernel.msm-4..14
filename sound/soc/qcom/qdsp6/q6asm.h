@@ -19,6 +19,7 @@
 #define ASM_CLIENT_EVENT_CMD_SUSPEND_DONE	0x1006
 #define ASM_CLIENT_EVENT_CMD_RUN_DONE		0x1008
 #define ASM_CLIENT_EVENT_DATA_WRITE_DONE	0x1009
+#define ASM_CLIENT_EVENT_DATA_READ_DONE		0x100a
 
 enum {
 	LEGACY_PCM_MODE = 0,
@@ -47,6 +48,13 @@ int q6asm_write_async(struct audio_client *ac, uint32_t len, uint32_t msw_ts,
 		       uint32_t lsw_ts, uint32_t flags);
 int q6asm_open_write(struct audio_client *ac, uint32_t format,
 		     uint16_t bits_per_sample);
+
+int q6asm_open_read(struct audio_client *ac, uint32_t format,
+		     uint16_t bits_per_sample);
+int q6asm_enc_cfg_blk_pcm_format_support(struct audio_client *ac,
+		uint32_t rate, uint32_t channels, uint16_t bits_per_sample);
+int q6asm_read(struct audio_client *ac);
+
 int q6asm_media_format_block_multi_ch_pcm(struct audio_client *ac,
 					  uint32_t rate, uint32_t channels,
 					  u8 channel_map[PCM_FORMAT_MAX_NUM_CHANNEL],
