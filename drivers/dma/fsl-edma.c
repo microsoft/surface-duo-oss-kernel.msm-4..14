@@ -2,6 +2,7 @@
  * drivers/dma/fsl-edma.c
  *
  * Copyright 2013-2016 Freescale Semiconductor, Inc.
+ * Copyright 2017-2018 NXP
  *
  * Driver for the Freescale eDMA engine with flexible channel multiplexing
  * capability for DMA request sources. The eDMA block can be found on some
@@ -51,11 +52,11 @@
 #define EDMA3_MP_CSR			0x00
 #define EDMA3_MP_ES			0x04
 
-#define EDMA3_CHn_CSR(ch)	(0x1000 + (ch) * 0x1000)
-#define EDMA3_CHn_ES(ch)	(0x1004 + (ch) * 0x1000)
-#define EDMA3_CHn_INT(ch)	(0x1008 + (ch) * 0x1000)
+#define EDMA3_CHn_CSR(ch)	(0x4000 + (ch) * 0x1000)
+#define EDMA3_CHn_ES(ch)	(0x4004 + (ch) * 0x1000)
+#define EDMA3_CHn_INT(ch)	(0x4008 + (ch) * 0x1000)
 
-#define EDMA3_TCD(ch)		(0x1020 + 0x1000 * (ch))
+#define EDMA3_TCD(ch)		(0x4020 + 0x1000 * (ch))
 
 /* edma2 fields. */
 #define EDMA_CR_EDBG		BIT(1)
