@@ -551,7 +551,7 @@ static int handle_hca_cap(struct mlx5_core_dev *dev)
 		MLX5_SET(cmd_hca_cap,
 			 set_hca_cap,
 			 cache_line_128byte,
-			 cache_line_size() == 128 ? 1 : 0);
+			 cache_line_size() >= 128 ? 1 : 0);
 
 	if (MLX5_CAP_GEN_MAX(dev, dct))
 		MLX5_SET(cmd_hca_cap, set_hca_cap, dct, 1);
@@ -942,9 +942,9 @@ static int mlx5_init_once(struct mlx5_core_dev *dev, struct mlx5_priv *priv)
 		goto out;
 	}
 
-	err = mlx5_init_cq_table(dev);
+	err = mlx5_cq_debugfs_init(dev);
 	if (err) {
-		dev_err(&pdev->dev, "failed to initialize cq table\n");
+		dev_err(&pdev->dev, "failed to initialize cq debugfs\n");
 		goto err_eq_cleanup;
 	}
 
@@ -1002,7 +1002,7 @@ err_tables_cleanup:
 	mlx5_cleanup_mkey_table(dev);
 	mlx5_cleanup_srq_table(dev);
 	mlx5_cleanup_qp_table(dev);
-	mlx5_cleanup_cq_table(dev);
+	mlx5_cq_debugfs_cleanup(dev);
 
 err_eq_cleanup:
 	mlx5_eq_cleanup(dev);
@@ -1023,7 +1023,7 @@ static void mlx5_cleanup_once(struct mlx5_core_dev *dev)
 	mlx5_cleanup_mkey_table(dev);
 	mlx5_cleanup_srq_table(dev);
 	mlx5_cleanup_qp_table(dev);
-	mlx5_cleanup_cq_table(dev);
+	mlx5_cq_debugfs_cleanup(dev);
 	mlx5_eq_cleanup(dev);
 }
 

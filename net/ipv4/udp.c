@@ -2024,6 +2024,11 @@ static inline int udp4_csum_init(struct sk_buff *skb, struct udphdr *uh,
 		err = udplite_checksum_init(skb, uh);
 		if (err)
 			return err;
+
+		if (UDP_SKB_CB(skb)->partial_cov) {
+			skb->csum = inet_compute_pseudo(skb, proto);
+			return 0;
+		}
 	}
 
 	/* Note, we are only interested in != 0 or == 0, thus the
@@ -2757,6 +2762,7 @@ static void __net_exit udp4_proc_exit_net(struct net *net)
 static struct pernet_operations udp4_net_ops = {
 	.init = udp4_proc_init_net,
 	.exit = udp4_proc_exit_net,
+	.async = true,
 };
 
 int __init udp4_proc_init(void)
