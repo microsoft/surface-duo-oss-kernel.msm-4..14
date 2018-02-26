@@ -85,3 +85,11 @@ config SND_SOC_MSM8996
 	default n
 	help
 	 To add support for SoC audio on MSM8996 and APQ8096 boards
+
+config SND_SOC_APQ8064
+	tristate "SoC Machine driver for APQ8064 based boards"
+	depends on QCOM_APR
+	select SND_SOC_QDSP6
+	default n
+	help
+	 To add support for SoC audio on APQ8064 based boards
