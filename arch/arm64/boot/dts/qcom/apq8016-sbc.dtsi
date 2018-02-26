@@ -18,6 +18,7 @@
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/sound/apq8016-lpass.h>
+#include <dt-bindings/mux/mux.h>
 
 /*
  * GPIO name legend: proper name = the GPIO line is used as GPIO
@@ -231,6 +232,7 @@
 			adv_bridge: bridge@39 {
 				status = "okay";
 
+
 				compatible = "adi,adv7533";
 				reg = <0x39>;
 
@@ -371,14 +373,13 @@
 			adp-disable;
 			hnp-disable;
 			srp-disable;
-			dr_mode = "host";
-			pinctrl-names = "default";
-			pinctrl-0 = <&usb_sw_sel_pm>;
+			mux-controls = <&usb_switch>;
+			mux-control-names = "usb_switch";
+
 			ulpi {
 				phy {
 					v1p8-supply = <&pm8916_l7>;
 					v3p3-supply = <&pm8916_l13>;
-					extcon = <&usb_id>;
 				};
 			};
 		};
@@ -512,9 +513,15 @@
 
 	usb_id: usb-id {
 		compatible = "linux,extcon-usb-gpio";
-		vbus-gpio = <&msmgpio 121 GPIO_ACTIVE_HIGH>;
+		id-gpio = <&msmgpio 121 GPIO_ACTIVE_HIGH>;
 		pinctrl-names = "default";
 		pinctrl-0 = <&usb_id_default>;
+	};
+
+	usb_switch: usb-switch {
+		compatible = "gpio-mux";
+		mux-gpios = <&pm8916_gpios 4 GPIO_ACTIVE_HIGH>;
+		#mux-control-cells = <0>;
 	};
 
 	hdmi-out {
