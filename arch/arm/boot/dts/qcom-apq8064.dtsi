@@ -9,6 +9,7 @@
 #include <dt-bindings/soc/qcom,gsbi.h>
 #include <dt-bindings/interrupt-controller/irq.h>
 #include <dt-bindings/interrupt-controller/arm-gic.h>
+#include <dt-bindings/soc/qcom,apr.h>
 / {
 	model = "Qualcomm APQ8064";
 	compatible = "qcom,apq8064";
@@ -235,8 +236,40 @@
 
 			qcom,ipc = <&l2cc 8 15>;
 			qcom,smd-edge = <1>;
+				apr {
+					compatible = "qcom,apr-v2";
+					qcom,smd-channels = "apr_audio_svc";
+					qcom,apr-dest-domain-id = <APR_DOMAIN_ADSP>;
+	
+					q6core {
+						qcom,apr-svc-name = "CORE";
+						qcom,apr-svc-id = <APR_SVC_ADSP_CORE>;
+						compatible = "qcom,q6core";
+					};
+	
+					q6afe: q6afe {
+						compatible = "qcom,q6afe";
+						qcom,apr-svc-name = "AFE";
+						qcom,apr-svc-id = <APR_SVC_AFE>;
+						#sound-dai-cells = <1>;
+					};
+	
+					q6asm: q6asm {
+						compatible = "qcom,q6asm";
+						qcom,apr-svc-name = "ASM";
+						qcom,apr-svc-id = <APR_SVC_ASM>;
+						#sound-dai-cells = <1>;
+					};
+	
+					q6adm: q6adm {
+						compatible = "qcom,q6adm";
+						qcom,apr-svc-name = "ADM";
+						qcom,apr-svc-id = <APR_SVC_ADM>;
+						#sound-dai-cells = <0>;
+					};
+	
+				};
 
-			status = "disabled";
 		};
 
 		dsps@3 {
@@ -1376,6 +1409,26 @@
 			status = "disabled";
 		};
 
+		pil_q6v4: pil@28800000 {
+			compatible	= "qcom,tz-pil", "qcom,apq8064-tz-pil";
+			qcom,firmware-name = "q6";
+			reg		= <0x28800000 0x100>;
+			reg-names	= "qdsp6_base";
+			qcom,pas-id		= <1>; /* PAS_Q6 */
+
+
+			smd-edge {
+				interrupts = <GIC_SPI 90 IRQ_TYPE_EDGE_RISING>;
+				lable = "lpass";
+				qcom,ipc = <&l2cc 8 15>;
+				qcom,smd-edge = <1>;
+
+				status = "okay";
+
+			};
+
+		};
+
 		hdmi: hdmi-tx@4a00000 {
 			compatible = "qcom,hdmi-tx-8960";
 			pinctrl-names = "default";
@@ -1392,6 +1445,7 @@
 
 			phys = <&hdmi_phy>;
 			phy-names = "hdmi-phy";
+			#sound-dai-cells = <1>;
 
 			ports {
 				#address-cells = <1>;
@@ -1474,6 +1528,8 @@
 				};
 			};
 		};
+
+
 
 		riva: riva-pil@3204000 {
 			compatible = "qcom,riva-pil";
