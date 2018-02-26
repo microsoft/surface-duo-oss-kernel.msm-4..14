@@ -87,7 +87,7 @@ struct apr_device {
 	struct device	dev;
 	uint16_t	svc_id;
 	uint16_t	domain_id;
-	uint16_t	version;
+	uint32_t	version;
 	spinlock_t	lock;
 	struct list_head node;
 };
