@@ -33,7 +33,7 @@
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/delay.h>
-#include <linux/soc/qcom/smd.h>
+#include <linux/rpmsg/qcom_smd.h>
 
 #include "remoteproc_internal.h"
 
@@ -317,13 +317,13 @@ static int qproc_load(struct rproc *rproc, const struct firmware *fw)
 
 	return 0;
 }
-
+#if 0
 const struct rproc_fw_ops qproc_fw_ops = {
 	.find_rsc_table = qproc_find_rsc_table,
 	.load = qproc_load,
 	.sanity_check = qproc_sanity_check,
 };
-
+#endif
 static int qproc_start(struct rproc *rproc)
 {
 	struct qproc *qproc = (struct qproc *)rproc->priv;
@@ -380,6 +380,9 @@ static int qproc_stop(struct rproc *rproc)
 static const struct rproc_ops qproc_ops = {
 	.start = qproc_start,
 	.stop = qproc_stop,
+//	.find_rsc_table = qproc_find_rsc_table,
+	.load = qproc_load,
+	.sanity_check = qproc_sanity_check,
 };
 
 static irqreturn_t qproc_wdog_interrupt(int irq, void *dev)
@@ -397,8 +400,8 @@ static irqreturn_t qproc_fatal_interrupt(int irq, void *dev)
 	char *msg;
 	int ret;
 
-	ret = qcom_smem_get(-1, qproc->crash_reason, (void**)&msg, &len);
-	if (!ret && len > 0 && msg[0])
+	msg = qcom_smem_get(-1, qproc->crash_reason, &len);
+	if (IS_ERR(msg) && len > 0 && msg[0])
 		dev_err(qproc->dev, "fatal error received: %s\n", msg);
 
 	rproc_report_crash(qproc->rproc, RPROC_FATAL_ERROR);
@@ -611,7 +614,7 @@ static int qproc_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	rproc->fw_ops = &qproc_fw_ops;
+//	rproc->fw_ops = &qproc_fw_ops;
 
 	qproc = (struct qproc *)rproc->priv;
 	qproc->dev = &pdev->dev;
