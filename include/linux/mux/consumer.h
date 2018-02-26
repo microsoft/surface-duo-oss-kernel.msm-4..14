@@ -23,9 +23,15 @@ int __must_check mux_control_try_select(struct mux_control *mux,
 int mux_control_deselect(struct mux_control *mux);
 
 struct mux_control *mux_control_get(struct device *dev, const char *mux_name);
+struct mux_control *mux_control_get_optional(struct device *dev,
+					     const char *mux_name);
+
 void mux_control_put(struct mux_control *mux);
 
 struct mux_control *devm_mux_control_get(struct device *dev,
 					 const char *mux_name);
+struct mux_control *devm_mux_control_get_optional(struct device *dev,
+						  const char *mux_name);
+
 
 #endif /* _LINUX_MUX_CONSUMER_H */
