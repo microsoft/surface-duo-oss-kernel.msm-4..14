@@ -19,6 +19,7 @@
 #include <sound/pcm.h>
 #include <sound/pcm_params.h>
 #include "q6dsp-errno.h"
+#include "q6core.h"
 #include "q6afe.h"
 
 /* AFE CMDs */
@@ -106,6 +107,19 @@
 #define AFE_CMD_RESP_AVAIL	0
 #define AFE_CMD_RESP_NONE	1
 
+/* v1 Specific */
+#define AFE_PORT_MULTI_CHAN_HDMI_AUDIO_IF_CONFIG	0x000100D9
+#define AFE_PORT_CMD_START 0x000100ca
+#define AFE_PORT_CMD_STOP 0x000100cb
+
+struct q6afe_ops {
+	int (*port_stop)(struct q6afe_port *port);
+	int (*port_start)(struct q6afe_port *port);
+	struct q6afe_port * (*port_get_from_id)(struct device *dev, int id);
+	void (*hdmi_prepare) (struct q6afe_port *port,
+			      struct q6afe_hdmi_cfg *cfg);
+};
+
 struct q6afe {
 	struct apr_device *apr;
 	struct device *dev;
@@ -117,13 +131,28 @@ struct q6afe {
 	spinlock_t port_list_lock;
 	struct list_head node;
 	void *dai_data;
+	struct q6afe_ops *ops;
 };
+
+struct afe_port_start_command_v1 {
+	struct apr_hdr hdr;
+	u16 port_id;
+	u16 gain;		/* Q13 */
+	u32 sample_rate;	/* 8 , 16, 48khz */
+} __packed;
+
 
 struct afe_port_cmd_device_start {
 	struct apr_hdr hdr;
 	u16 port_id;
 	u16 reserved;
 } __packed;
+
+struct afe_port_stop_command_v1 {
+	struct apr_hdr hdr;
+	u16 port_id;
+	u16 reserved;
+} __attribute__ ((packed));
 
 struct afe_port_cmd_device_stop {
 	struct apr_hdr hdr;
@@ -227,6 +256,29 @@ struct afe_param_id_i2s_cfg {
 	u16	reserved;
 } __packed;
 
+struct afe_port_hdmi_multi_ch_cfg {
+	u16	data_type;		/* HDMI_Linear = 0 */
+					/* HDMI_non_Linear = 1 */
+	u16	channel_allocation;	/* The default is 0 (Stereo) */
+	u16	reserved;		/* must be set to 0 */
+} __packed;
+
+
+
+struct afe_port_hdmi_cfg {
+	u16	bitwidth;	/* 16,24,32 */
+	u16	channel_mode;	/* HDMI Stereo = 0 */
+				/* HDMI_3Point1 (4-ch) = 1 */
+				/* HDMI_5Point1 (6-ch) = 2 */
+				/* HDMI_6Point1 (8-ch) = 3 */
+	u16	data_type;	/* HDMI_Linear = 0 */
+				/* HDMI_non_Linear = 1 */
+} __packed;
+
+union afe_port_config_v1 {
+	struct afe_port_hdmi_multi_ch_cfg hdmi_multi_ch;
+};
+
 union afe_port_config {
 	struct afe_param_id_hdmi_multi_chan_audio_cfg hdmi_multi_ch;
 	struct afe_param_id_slimbus_cfg           slim_cfg;
@@ -251,9 +303,11 @@ struct afe_lpass_digital_clk_config_command {
 struct q6afe_port {
 	wait_queue_head_t wait;
 	union afe_port_config port_cfg;
+	union afe_port_config_v1 port_cfgv1;
 	int token;
 	int id;
 	int cfg_type;
+	int rate;
 	struct q6afe *afe;
 	struct list_head	node;
 };
@@ -263,6 +317,13 @@ struct afe_audioif_config_command {
 	struct afe_port_cmd_set_param_v2 param;
 	struct afe_port_param_data_v2 pdata;
 	union afe_port_config port;
+} __packed;
+
+
+struct afe_audioif_config_command_v1 {
+	struct apr_hdr hdr;
+	u16 port_id;
+	union afe_port_config_v1 port;
 } __packed;
 
 struct afe_port_map {
@@ -340,6 +401,9 @@ static int afe_callback(struct apr_device *adev,
 		}
 
 		switch (res->opcode) {
+		case AFE_PORT_CMD_START:
+		case AFE_PORT_CMD_STOP:
+		case AFE_PORT_MULTI_CHAN_HDMI_AUDIO_IF_CONFIG:
 		case AFE_PORT_CMD_SET_PARAM_V2:
 		case AFE_PORT_CMD_DEVICE_STOP:
 		case AFE_PORT_CMD_DEVICE_START:
@@ -357,6 +421,7 @@ static int afe_callback(struct apr_device *adev,
 
 	return 0;
 }
+
 /**
  * q6afe_get_port_id() - Get port id from a given port index
  *
@@ -548,9 +613,9 @@ int q6afe_port_set_sysclk(struct q6afe_port *port, int clk_id,
 }
 EXPORT_SYMBOL_GPL(q6afe_port_set_sysclk);
 
-static int afe_port_start(struct q6afe_port *port,
-			  union afe_port_config *afe_config)
+static int q6afev2_port_start(struct q6afe_port *port)
 {
+	union afe_port_config *afe_config = &port->port_cfg;
 	struct afe_audioif_config_command config = {0,};
 	struct q6afe *afe = port->afe;
 	int port_id = port->id;
@@ -568,14 +633,86 @@ static int afe_port_start(struct q6afe_port *port,
 	return afe_send_cmd_port_start(port);
 }
 
-/**
- * q6afe_port_stop() - Stop a afe port
- *
- * @port: Instance of port to stop
- *
- * Return: Will be an negative on packet size on success.
- */
-int q6afe_port_stop(struct q6afe_port *port)
+static int q6afev1_port_start(struct q6afe_port *port)
+{
+	union afe_port_config_v1 *afe_config = &port->port_cfgv1;
+	struct afe_port_start_command_v1 start;
+	struct afe_audioif_config_command_v1 config = {0,};
+	struct q6afe *afe = port->afe;
+	int port_id = port->id;
+	struct apr_hdr *hdr;
+	int ret;
+
+	hdr = &config.hdr;
+
+	hdr->hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
+					      APR_HDR_LEN(APR_HDR_SIZE),
+					      APR_PKT_VER);
+	hdr->pkt_size = sizeof(config);
+	hdr->src_port = 0;
+	hdr->dest_port = 0;
+	hdr->token = port_id;
+	hdr->opcode = port->cfg_type;
+	config.port_id = port_id;
+	config.port = *afe_config;
+
+	ret = afe_apr_send_pkt(afe, &config, &port->wait);
+	if (ret) {
+		dev_err(afe->dev, "AFE enable for port 0x%x failed %d\n",
+		       port_id, ret);
+		return ret;
+	}
+
+	hdr = &start.hdr;
+	hdr->hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
+					      APR_HDR_LEN(APR_HDR_SIZE),
+					      APR_PKT_VER);
+	hdr->pkt_size = sizeof(start);
+	hdr->src_port = 0;
+	hdr->dest_port = 0;
+	hdr->token = port_id;
+	hdr->opcode = AFE_PORT_CMD_START;
+	start.port_id = port_id;
+	start.gain = 0x2000;
+	start.sample_rate = port->rate;
+
+	return afe_apr_send_pkt(afe, &start, &port->wait);
+}
+
+static int q6afev1_port_stop(struct q6afe_port *port)
+{
+	int port_id = port->id;
+	struct afe_port_stop_command_v1 stop;
+	struct q6afe *afe = port->afe;
+	int ret = 0;
+	int index = 0;
+
+	port_id = port->id;
+	index = port->token;
+	if (index < 0 || index > AFE_PORT_MAX) {
+		dev_err(afe->dev, "AFE port index[%d] invalid!\n", index);
+		return -EINVAL;
+	}
+
+	stop.hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
+					   APR_HDR_LEN(APR_HDR_SIZE),
+					   APR_PKT_VER);
+	stop.hdr.pkt_size = sizeof(stop);
+	stop.hdr.src_port = 0;
+	stop.hdr.dest_port = 0;
+	stop.hdr.token = port_id;
+	stop.hdr.opcode = AFE_PORT_CMD_STOP;
+	stop.port_id = port_id;
+	stop.reserved = 0;
+
+	ret = afe_apr_send_pkt(afe, &stop, &port->wait);
+	if (ret)
+		dev_err(afe->dev, "AFE close failed %d\n", ret);
+
+	return ret;
+}
+
+static int q6afev2_port_stop(struct q6afe_port *port)
 {
 	int port_id = port->id;
 	struct afe_port_cmd_device_stop stop;
@@ -606,6 +743,17 @@ int q6afe_port_stop(struct q6afe_port *port)
 		dev_err(afe->dev, "AFE close failed %d\n", ret);
 
 	return ret;
+}
+/**
+ * q6afe_port_stop() - Stop a afe port
+ *
+ * @port: Instance of port to stop
+ *
+ * Return: Will be an negative on packet size on success.
+ */
+int q6afe_port_stop(struct q6afe_port *port)
+{
+	return port->afe->ops->port_stop(port);
 }
 EXPORT_SYMBOL_GPL(q6afe_port_stop);
 
@@ -664,14 +812,21 @@ void q6afe_slim_port_prepare(struct q6afe_port *port,
 }
 EXPORT_SYMBOL_GPL(q6afe_slim_port_prepare);
 
-/**
- * q6afe_hdmi_port_prepare() - Prepare hdmi afe port.
- *
- * @port: Instance of afe port
- * @cfg: HDMI configuration for the afe port
- *
- */
-void q6afe_hdmi_port_prepare(struct q6afe_port *port,
+void q6afev1_hdmi_port_prepare(struct q6afe_port *port,
+			     struct q6afe_hdmi_cfg *cfg)
+{
+	union afe_port_config_v1 *pcfg = &port->port_cfgv1;
+
+	pcfg->hdmi_multi_ch.data_type = cfg->datatype;
+	pcfg->hdmi_multi_ch.channel_allocation = cfg->channel_allocation;
+	pcfg->hdmi_multi_ch.reserved = 0;
+	port->rate = cfg->sample_rate;
+	//FIXME RATE 
+//	pcfg->hdmi_multi_ch.sample_rate = cfg->sample_rate;
+//	pcfg->hdmi_multi_ch.bit_width = cfg->bit_width;
+}
+
+void q6afev2_hdmi_port_prepare(struct q6afe_port *port,
 			     struct q6afe_hdmi_cfg *cfg)
 {
 	union afe_port_config *pcfg = &port->port_cfg;
@@ -682,6 +837,19 @@ void q6afe_hdmi_port_prepare(struct q6afe_port *port,
 	pcfg->hdmi_multi_ch.channel_allocation = cfg->channel_allocation;
 	pcfg->hdmi_multi_ch.sample_rate = cfg->sample_rate;
 	pcfg->hdmi_multi_ch.bit_width = cfg->bit_width;
+}
+
+/**
+ * q6afe_hdmi_port_prepare() - Prepare hdmi afe port.
+ *
+ * @port: Instance of afe port
+ * @cfg: HDMI configuration for the afe port
+ *
+ */
+void q6afe_hdmi_port_prepare(struct q6afe_port *port,
+			     struct q6afe_hdmi_cfg *cfg)
+{
+	port->afe->ops->hdmi_prepare(port, cfg);
 }
 EXPORT_SYMBOL_GPL(q6afe_hdmi_port_prepare);
 
@@ -749,20 +917,51 @@ EXPORT_SYMBOL_GPL(q6afe_i2s_port_prepare);
  */
 int q6afe_port_start(struct q6afe_port *port)
 {
-	return afe_port_start(port, &port->port_cfg);
+	return port->afe->ops->port_start(port);
 }
 EXPORT_SYMBOL_GPL(q6afe_port_start);
 
-/**
- * q6afe_port_get_from_id() - Get port instance from a port id
- *
- * @dev: Pointer to afe child device.
- * @id: port id
- *
- * Return: Will be an error pointer on error or a valid afe port
- * on success.
- */
-struct q6afe_port *q6afe_port_get_from_id(struct device *dev, int id)
+struct q6afe_port *q6afev1_port_get_from_id(struct device *dev, int port_id)
+{
+	struct q6afe *afe = dev_get_drvdata(dev);
+	struct q6afe_port *port;
+	int cfg_type;
+
+	if (port_id < 0 || port_id > AFE_PORT_MAX) {
+		dev_err(dev, "AFE port token[%d] invalid!\n", port_id);
+		return ERR_PTR(-EINVAL);
+	}
+
+
+	switch (port_id) {
+	case AFE_PORT_HDMI_RX:
+		cfg_type = AFE_PORT_MULTI_CHAN_HDMI_AUDIO_IF_CONFIG;
+		break;
+	default:
+		dev_err(dev, "Invalid port id 0x%x\n", port_id);
+		return ERR_PTR(-EINVAL);
+	}
+
+	port = devm_kzalloc(dev, sizeof(*port), GFP_KERNEL);
+	if (!port)
+		return ERR_PTR(-ENOMEM);
+
+	init_waitqueue_head(&port->wait);
+
+	port->token = port_id;
+	port->id = port_id;
+	port->afe = afe;
+	port->cfg_type = cfg_type;
+
+	spin_lock(&afe->port_list_lock);
+	list_add_tail(&port->node, &afe->port_list);
+	spin_unlock(&afe->port_list_lock);
+
+	return port;
+
+}
+
+struct q6afe_port *q6afev2_port_get_from_id(struct device *dev, int id)
 {
 	int port_id;
 	struct q6afe *afe = dev_get_drvdata(dev);
@@ -823,6 +1022,22 @@ struct q6afe_port *q6afe_port_get_from_id(struct device *dev, int id)
 	return port;
 
 }
+/**
+ * q6afe_port_get_from_id() - Get port instance from a port id
+ *
+ * @dev: Pointer to afe child device.
+ * @id: port id
+ *
+ * Return: Will be an error pointer on error or a valid afe port
+ * on success.
+ */
+struct q6afe_port *q6afe_port_get_from_id(struct device *dev, int id)
+{
+	struct q6afe *afe = dev_get_drvdata(dev);
+
+	return afe->ops->port_get_from_id(dev, id);
+}
+
 EXPORT_SYMBOL_GPL(q6afe_port_get_from_id);
 
 /**
@@ -840,6 +1055,20 @@ void q6afe_port_put(struct q6afe_port *port)
 }
 EXPORT_SYMBOL_GPL(q6afe_port_put);
 
+struct q6afe_ops q6afev1_ops  = {
+	.port_stop = q6afev1_port_stop,
+	.port_start = q6afev1_port_start,
+	.hdmi_prepare = q6afev1_hdmi_port_prepare,
+	.port_get_from_id = q6afev1_port_get_from_id,
+};
+
+struct q6afe_ops q6afev2_ops = {
+	.port_stop = q6afev2_port_stop,
+	.port_start = q6afev2_port_start,
+	.hdmi_prepare = q6afev2_hdmi_port_prepare,
+	.port_get_from_id = q6afev2_port_get_from_id,
+};
+
 static int q6afev2_probe(struct apr_device *adev)
 {
 	struct q6afe *afe;
@@ -848,6 +1077,18 @@ static int q6afev2_probe(struct apr_device *adev)
 	afe = devm_kzalloc(dev, sizeof(*afe), GFP_KERNEL);
 	if (!afe)
 		return -ENOMEM;
+
+	adev->version = q6core_get_svc_version(adev->svc_id);
+
+	if (APR_SVC_MAJOR_VERSION(adev->version) >= 0x20)
+		afe->ops = &q6afev2_ops;
+	else if (!APR_SVC_MAJOR_VERSION(adev->version))
+		afe->ops = &q6afev1_ops;
+
+	if (!afe->ops) {
+		dev_err(&adev->dev, "Unsupported AFE version\n");
+		return -EINVAL;
+	}
 
 	afe->apr = adev;
 	mutex_init(&afe->lock);
