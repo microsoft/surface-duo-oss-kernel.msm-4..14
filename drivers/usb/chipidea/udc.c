@@ -19,6 +19,7 @@
 #include <linux/usb/gadget.h>
 #include <linux/usb/otg-fsm.h>
 #include <linux/usb/chipidea.h>
+#include <linux/mux/consumer.h>
 
 #include "ci.h"
 #include "udc.h"
@@ -1965,16 +1966,26 @@ void ci_hdrc_gadget_destroy(struct ci_hdrc *ci)
 
 static int udc_id_switch_for_device(struct ci_hdrc *ci)
 {
+	int ret = 0;
+
 	if (ci->is_otg)
 		/* Clear and enable BSV irq */
 		hw_write_otgsc(ci, OTGSC_BSVIS | OTGSC_BSVIE,
 					OTGSC_BSVIS | OTGSC_BSVIE);
 
-	return 0;
+	if (!ci_otg_is_fsm_mode(ci))
+		ret = mux_control_select(ci->platdata->usb_switch, 0);
+
+	if (ci->is_otg && ret)
+		hw_write_otgsc(ci, OTGSC_BSVIE | OTGSC_BSVIS, OTGSC_BSVIS);
+
+	return ret;
 }
 
 static void udc_id_switch_for_host(struct ci_hdrc *ci)
 {
+	mux_control_deselect(ci->platdata->usb_switch);
+
 	/*
 	 * host doesn't care B_SESSION_VALID event
 	 * so clear and disbale BSV irq

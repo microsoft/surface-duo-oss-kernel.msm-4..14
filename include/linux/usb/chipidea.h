@@ -10,6 +10,7 @@
 #include <linux/usb/otg.h>
 
 struct ci_hdrc;
+struct mux_control;
 
 /**
  * struct ci_hdrc_cable - structure for external connector cable state tracking
@@ -76,6 +77,7 @@ struct ci_hdrc_platform_data {
 	/* VBUS and ID signal state tracking, using extcon framework */
 	struct ci_hdrc_cable		vbus_extcon;
 	struct ci_hdrc_cable		id_extcon;
+	struct mux_control		*usb_switch;
 	u32			phy_clkgate_delay_us;
 };
 
