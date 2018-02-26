@@ -61,6 +61,7 @@
 #include <linux/of.h>
 #include <linux/regulator/consumer.h>
 #include <linux/usb/ehci_def.h>
+#include <linux/mux/consumer.h>
 
 #include "ci.h"
 #include "udc.h"
@@ -686,6 +687,11 @@ static int ci_get_platdata(struct device *dev,
 
 	if (of_find_property(dev->of_node, "non-zero-ttctrl-ttha", NULL))
 		platdata->flags |= CI_HDRC_SET_NON_ZERO_TTHA;
+
+	platdata->usb_switch = devm_mux_control_get_optional(dev, "usb_switch");
+	if (IS_ERR(platdata->usb_switch)){
+		return PTR_ERR(platdata->usb_switch);
+	}
 
 	ext_id = ERR_PTR(-ENODEV);
 	ext_vbus = ERR_PTR(-ENODEV);

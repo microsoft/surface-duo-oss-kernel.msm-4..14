@@ -13,6 +13,7 @@
 #include <linux/usb/hcd.h>
 #include <linux/usb/chipidea.h>
 #include <linux/regulator/consumer.h>
+#include <linux/mux/consumer.h>
 
 #include "../host/ehci.h"
 
@@ -164,6 +165,10 @@ static int host_start(struct ci_hdrc *ci)
 		if (ci_otg_is_fsm_mode(ci)) {
 			otg->host = &hcd->self;
 			hcd->self.otg_port = 1;
+		} else {
+			ret = mux_control_select(ci->platdata->usb_switch, 1);
+			if (ret)
+				goto disable_reg;
 		}
 	}
 
@@ -184,6 +189,8 @@ static void host_stop(struct ci_hdrc *ci)
 	struct usb_hcd *hcd = ci->hcd;
 
 	if (hcd) {
+		if (!ci_otg_is_fsm_mode(ci))
+			mux_control_deselect(ci->platdata->usb_switch);
 		if (ci->platdata->notify_event)
 			ci->platdata->notify_event(ci,
 				CI_HDRC_CONTROLLER_STOPPED_EVENT);

@@ -3,6 +3,8 @@ config USB_CHIPIDEA
 	depends on ((USB_EHCI_HCD && USB_GADGET) || (USB_EHCI_HCD && !USB_GADGET) || (!USB_EHCI_HCD && USB_GADGET)) && HAS_DMA
 	select EXTCON
 	select RESET_CONTROLLER
+	select MULTIPLEXER
+	select MUX_GPIO
 	help
 	  Say Y here if your system has a dual role high speed USB
 	  controller based on ChipIdea silicon IP. It supports:
