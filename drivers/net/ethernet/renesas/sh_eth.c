@@ -123,8 +123,8 @@ static const u16 sh_eth_offset_gigabit[SH_ETH_MAX_REGISTER_OFFSET] = {
 	[TSU_FWSL0]	= 0x0030,
 	[TSU_FWSL1]	= 0x0034,
 	[TSU_FWSLC]	= 0x0038,
-	[TSU_QTAG0]	= 0x0040,
-	[TSU_QTAG1]	= 0x0044,
+	[TSU_QTAGM0]	= 0x0040,
+	[TSU_QTAGM1]	= 0x0044,
 	[TSU_FWSR]	= 0x0050,
 	[TSU_FWINMK]	= 0x0054,
 	[TSU_ADQT0]	= 0x0048,
@@ -752,6 +752,7 @@ static struct sh_eth_cpu_data sh7757_data = {
 	.rpadir		= 1,
 	.rpadir_value   = 2 << 16,
 	.rtrate		= 1,
+	.dual_port	= 1,
 };
 
 #define SH_GIGA_ETH_BASE	0xfee00000UL
@@ -830,6 +831,7 @@ static struct sh_eth_cpu_data sh7757_data_giga = {
 	.no_trimd	= 1,
 	.no_ade		= 1,
 	.tsu		= 1,
+	.dual_port	= 1,
 };
 
 /* SH7734 */
@@ -900,6 +902,7 @@ static struct sh_eth_cpu_data sh7763_data = {
 	.tsu		= 1,
 	.irq_flags	= IRQF_SHARED,
 	.magic		= 1,
+	.dual_port	= 1,
 };
 
 static struct sh_eth_cpu_data sh7619_data = {
@@ -932,6 +935,7 @@ static struct sh_eth_cpu_data sh771x_data = {
 			  EESIPR_RRFIP | EESIPR_RTLFIP | EESIPR_RTSFIP |
 			  EESIPR_PREIP | EESIPR_CERFIP,
 	.tsu		= 1,
+	.dual_port	= 1,
 };
 
 static void sh_eth_set_default_cpu_data(struct sh_eth_cpu_data *cd)
@@ -961,20 +965,16 @@ static void sh_eth_set_default_cpu_data(struct sh_eth_cpu_data *cd)
 
 static int sh_eth_check_reset(struct net_device *ndev)
 {
-	int ret = 0;
-	int cnt = 100;
+	int cnt;
 
-	while (cnt > 0) {
+	for (cnt = 100; cnt > 0; cnt--) {
 		if (!(sh_eth_read(ndev, EDMR) & EDMR_SRST_GETHER))
-			break;
+			return 0;
 		mdelay(1);
-		cnt--;
 	}
-	if (cnt <= 0) {
-		netdev_err(ndev, "Device reset failed\n");
-		ret = -ETIMEDOUT;
-	}
-	return ret;
+
+	netdev_err(ndev, "Device reset failed\n");
+	return -ETIMEDOUT;
 }
 
 static int sh_eth_reset(struct net_device *ndev)
@@ -2101,8 +2101,6 @@ static size_t __sh_eth_get_regs(struct net_device *ndev, u32 *buf)
 		add_tsu_reg(TSU_FWSL0);
 		add_tsu_reg(TSU_FWSL1);
 		add_tsu_reg(TSU_FWSLC);
-		add_tsu_reg(TSU_QTAG0);
-		add_tsu_reg(TSU_QTAG1);
 		add_tsu_reg(TSU_QTAGM0);
 		add_tsu_reg(TSU_QTAGM1);
 		add_tsu_reg(TSU_FWSR);
@@ -2921,7 +2919,7 @@ static int sh_eth_vlan_rx_kill_vid(struct net_device *ndev,
 /* SuperH's TSU register init function */
 static void sh_eth_tsu_init(struct sh_eth_private *mdp)
 {
-	if (sh_eth_is_rz_fast_ether(mdp)) {
+	if (!mdp->cd->dual_port) {
 		sh_eth_tsu_write(mdp, 0, TSU_TEN); /* Disable all CAM entry */
 		sh_eth_tsu_write(mdp, TSU_FWSLC_POSTENU | TSU_FWSLC_POSTENL,
 				 TSU_FWSLC);	/* Enable POST registers */
@@ -2938,13 +2936,8 @@ static void sh_eth_tsu_init(struct sh_eth_private *mdp)
 	sh_eth_tsu_write(mdp, 0, TSU_FWSL0);
 	sh_eth_tsu_write(mdp, 0, TSU_FWSL1);
 	sh_eth_tsu_write(mdp, TSU_FWSLC_POSTENU | TSU_FWSLC_POSTENL, TSU_FWSLC);
-	if (sh_eth_is_gether(mdp)) {
-		sh_eth_tsu_write(mdp, 0, TSU_QTAG0);	/* Disable QTAG(0->1) */
-		sh_eth_tsu_write(mdp, 0, TSU_QTAG1);	/* Disable QTAG(1->0) */
-	} else {
-		sh_eth_tsu_write(mdp, 0, TSU_QTAGM0);	/* Disable QTAG(0->1) */
-		sh_eth_tsu_write(mdp, 0, TSU_QTAGM1);	/* Disable QTAG(1->0) */
-	}
+	sh_eth_tsu_write(mdp, 0, TSU_QTAGM0);	/* Disable QTAG(0->1) */
+	sh_eth_tsu_write(mdp, 0, TSU_QTAGM1);	/* Disable QTAG(1->0) */
 	sh_eth_tsu_write(mdp, 0, TSU_FWSR);	/* all interrupt status clear */
 	sh_eth_tsu_write(mdp, 0, TSU_FWINMK);	/* Disable all interrupt */
 	sh_eth_tsu_write(mdp, 0, TSU_TEN);	/* Disable all CAM entry */

@@ -118,8 +118,8 @@ enum {
 	TSU_FWSL0,
 	TSU_FWSL1,
 	TSU_FWSLC,
-	TSU_QTAG0,
-	TSU_QTAG1,
+	TSU_QTAG0,			/* Same as TSU_QTAGM0 */
+	TSU_QTAG1,			/* Same as TSU_QTAGM1 */
 	TSU_QTAGM0,
 	TSU_QTAGM1,
 	TSU_FWSR,
@@ -509,6 +509,7 @@ struct sh_eth_cpu_data {
 	unsigned rmiimode:1;	/* EtherC has RMIIMODE register */
 	unsigned rtrate:1;	/* EtherC has RTRATE register */
 	unsigned magic:1;	/* EtherC has ECMR.MPDE and ECSR.MPD */
+	unsigned dual_port:1;	/* Dual EtherC/E-DMAC */
 };
 
 struct sh_eth_private {

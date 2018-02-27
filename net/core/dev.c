@@ -8141,8 +8141,9 @@ void netdev_run_todo(void)
 		BUG_ON(!list_empty(&dev->ptype_specific));
 		WARN_ON(rcu_access_pointer(dev->ip_ptr));
 		WARN_ON(rcu_access_pointer(dev->ip6_ptr));
+#if IS_ENABLED(CONFIG_DECNET)
 		WARN_ON(dev->dn_ptr);
-
+#endif
 		if (dev->priv_destructor)
 			dev->priv_destructor(dev);
 		if (dev->needs_free_netdev)
@@ -8840,6 +8841,7 @@ static void __net_exit netdev_exit(struct net *net)
 static struct pernet_operations __net_initdata netdev_net_ops = {
 	.init = netdev_init,
 	.exit = netdev_exit,
+	.async = true,
 };
 
 static void __net_exit default_device_exit(struct net *net)
@@ -8940,6 +8942,7 @@ static void __net_exit default_device_exit_batch(struct list_head *net_list)
 static struct pernet_operations __net_initdata default_device_ops = {
 	.exit = default_device_exit,
 	.exit_batch = default_device_exit_batch,
+	.async = true,
 };
 
 /*

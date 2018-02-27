@@ -28,6 +28,7 @@
 
 #include <linux/uaccess.h>
 #include <linux/types.h>
+#include <linux/cache.h>
 #include <linux/capability.h>
 #include <linux/errno.h>
 #include <linux/timer.h>
@@ -96,7 +97,7 @@ static DEFINE_SPINLOCK(mfc_unres_lock);
  * In this case data path is free of exclusive locks at all.
  */
 
-static struct kmem_cache *mrt_cachep __read_mostly;
+static struct kmem_cache *mrt_cachep __ro_after_init;
 
 static struct mr_table *ipmr_new_table(struct net *net, u32 id);
 static void ipmr_free_table(struct mr_table *mrt);
@@ -3327,6 +3328,7 @@ static void __net_exit ipmr_net_exit(struct net *net)
 static struct pernet_operations ipmr_net_ops = {
 	.init = ipmr_net_init,
 	.exit = ipmr_net_exit,
+	.async = true,
 };
 
 int __init ip_mr_init(void)

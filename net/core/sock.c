@@ -1049,18 +1049,21 @@ set_rcvbuf:
 		break;
 
 	case SO_ZEROCOPY:
-		if (sk->sk_family != PF_INET && sk->sk_family != PF_INET6)
+		if (sk->sk_family == PF_INET || sk->sk_family == PF_INET6) {
+			if (sk->sk_protocol != IPPROTO_TCP)
+				ret = -ENOTSUPP;
+			else if (sk->sk_state != TCP_CLOSE)
+				ret = -EBUSY;
+		} else if (sk->sk_family != PF_RDS) {
 			ret = -ENOTSUPP;
-		else if (sk->sk_protocol != IPPROTO_TCP)
-			ret = -ENOTSUPP;
-		else if (sk->sk_state != TCP_CLOSE)
-			ret = -EBUSY;
-		else if (val < 0 || val > 1)
-			ret = -EINVAL;
-		else
-			sock_valbool_flag(sk, SOCK_ZEROCOPY, valbool);
-		break;
-
+		}
+		if (!ret) {
+			if (val < 0 || val > 1)
+				ret = -EINVAL;
+			else
+				sock_valbool_flag(sk, SOCK_ZEROCOPY, valbool);
+			break;
+		}
 	default:
 		ret = -ENOPROTOOPT;
 		break;
@@ -1274,7 +1277,8 @@ int sock_getsockopt(struct socket *sock, int level, int optname,
 	{
 		char address[128];
 
-		if (sock->ops->getname(sock, (struct sockaddr *)address, &lv, 2))
+		lv = sock->ops->getname(sock, (struct sockaddr *)address, 2);
+		if (lv < 0)
 			return -ENOTCONN;
 		if (lv < len)
 			return -EINVAL;
@@ -1773,7 +1777,7 @@ void sk_setup_caps(struct sock *sk, struct dst_entry *dst)
 	u32 max_segs = 1;
 
 	sk_dst_set(sk, dst);
-	sk->sk_route_caps = dst->dev->features;
+	sk->sk_route_caps = dst->dev->features | sk->sk_route_forced_caps;
 	if (sk->sk_route_caps & NETIF_F_GSO)
 		sk->sk_route_caps |= NETIF_F_GSO_SOFTWARE;
 	sk->sk_route_caps &= ~sk->sk_route_nocaps;
@@ -2497,7 +2501,7 @@ int sock_no_accept(struct socket *sock, struct socket *newsock, int flags,
 EXPORT_SYMBOL(sock_no_accept);
 
 int sock_no_getname(struct socket *sock, struct sockaddr *saddr,
-		    int *len, int peer)
+		    int peer)
 {
 	return -EOPNOTSUPP;
 }
@@ -3111,6 +3115,7 @@ static void __net_exit sock_inuse_exit_net(struct net *net)
 static struct pernet_operations net_inuse_ops = {
 	.init = sock_inuse_init_net,
 	.exit = sock_inuse_exit_net,
+	.async = true,
 };
 
 static __init int net_inuse_init(void)
@@ -3384,6 +3389,7 @@ static __net_exit void proto_exit_net(struct net *net)
 static __net_initdata struct pernet_operations proto_net_ops = {
 	.init = proto_init_net,
 	.exit = proto_exit_net,
+	.async = true,
 };
 
 static int __init proto_init(void)
