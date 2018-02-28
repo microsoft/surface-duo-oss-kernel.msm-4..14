@@ -5,6 +5,7 @@
  * Author: Rob Clark <robdclark@gmail.com>
  */
 
+#include <linux/interconnect.h>
 #include <linux/of_irq.h>
 
 #include "msm_drv.h"
@@ -1039,6 +1040,19 @@ static const struct component_ops mdp5_ops = {
 
 static int mdp5_dev_probe(struct platform_device *pdev)
 {
+	struct icc_path *path0 = of_icc_get(&pdev->dev, "port0");
+	struct icc_path *path1 = of_icc_get(&pdev->dev, "port1");
+	struct icc_path *path_rot = of_icc_get(&pdev->dev, "rotator");
+
+	if (IS_ERR(path0))
+		return PTR_ERR(path0);
+	icc_set_bw(path0, 0, MBps_to_icc(6400));
+
+	if (!IS_ERR(path1))
+		icc_set_bw(path1, 0, MBps_to_icc(6400));
+	if (!IS_ERR(path_rot))
+		icc_set_bw(path_rot, 0, MBps_to_icc(6400));
+
 	DBG("");
 	return component_add(&pdev->dev, &mdp5_ops);
 }
