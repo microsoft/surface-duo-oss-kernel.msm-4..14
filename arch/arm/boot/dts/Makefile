@@ -548,6 +548,7 @@ dtb-$(CONFIG_SOC_IMX7D) += \
 	imx7d-colibri-eval-v3.dtb \
 	imx7d-nitrogen7.dtb \
 	imx7d-sbc-imx7.dtb \
+	imx7d-sbc-imx7-m4.dtb \
 	imx7d-sbc-iot-imx7.dtb \
 	imx7d-sbc-iot-imx7-can.dtb \
 	imx7d-sbc-iot-imx7-rs485-hdx.dtb \

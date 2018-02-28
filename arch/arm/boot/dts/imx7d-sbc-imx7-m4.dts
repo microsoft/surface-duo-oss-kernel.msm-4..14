@@ -1,0 +1,30 @@
+#include "imx7d-sbc-imx7.dts"
+
+/ {
+	m4_tcm: tcml@007f8000 {
+		compatible = "fsl, m4_tcml";
+		reg = <0x007f8000 0x8000>;
+	};
+};
+
+&adc1 {
+	status = "disabled";
+};
+
+&adc2 {
+	status = "disabled";
+};
+
+&rpmsg {
+	status = "okay";
+	vdev-nums = <1>;
+	reg = <0xafff0000 0x10000>;
+};
+
+&uart2 {
+	status = "disabled";
+};
+
+&ocram {
+	reg = <0x00901000 0xf000>;
+};
