@@ -212,7 +212,7 @@
 		interrupts = <0 85 4>;
 		clocks = <&clks S32GEN1_CLK_SPI0>;
 		clock-names = "dspi";
-		spi-num-chipselects = <4>;
+		spi-num-chipselects = <5>;
 		bus-num = <0>;
 		spi-cpol;
 		spi-cpha;
@@ -225,7 +225,7 @@
 		interrupts = <0 86 4>;
 		clocks = <&clks S32GEN1_CLK_SPI1>;
 		clock-names = "dspi";
-		spi-num-chipselects = <4>;
+		spi-num-chipselects = <5>;
 		bus-num = <1>;
 		spi-cpol;
 		spi-cpha;
@@ -238,7 +238,7 @@
 		interrupts = <0 87 4>;
 		clocks = <&clks S32GEN1_CLK_SPI2>;
 		clock-names = "dspi";
-		spi-num-chipselects = <4>;
+		spi-num-chipselects = <5>;
 		bus-num = <2>;
 		spi-cpol;
 		spi-cpha;
@@ -270,7 +270,7 @@
 		interrupts = <0 88 4>;
 		clocks = <&clks S32GEN1_CLK_SPI3>;
 		clock-names = "dspi";
-		spi-num-chipselects = <4>;
+		spi-num-chipselects = <5>;
 		bus-num = <3>;
 		spi-cpol;
 		spi-cpha;
@@ -283,7 +283,7 @@
 		interrupts = <0 89 4>;
 		clocks = <&clks S32GEN1_CLK_SPI4>;
 		clock-names = "dspi";
-		spi-num-chipselects = <4>;
+		spi-num-chipselects = <5>;
 		bus-num = <4>;
 		spi-cpol;
 		spi-cpha;
@@ -296,8 +296,8 @@
 		interrupts = <0 90 4>;
 		clocks = <&clks S32GEN1_CLK_SPI5>;
 		clock-names = "dspi";
-		spi-num-chipselects = <4>;
-		bus-num = <4>;
+		spi-num-chipselects = <5>;
+		bus-num = <5>;
 		spi-cpol;
 		spi-cpha;
 		status = "disabled";
