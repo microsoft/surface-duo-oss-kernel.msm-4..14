@@ -63,6 +63,7 @@
 #define SPI_MCR_CLR_TXF		(1 << 11)
 #define SPI_MCR_CLR_RXF		(1 << 10)
 #define SPI_MCR_XSPI		(1 << 3)
+#define SPI_MCR_HALT		(1 << 0)
 
 /* Transfer Count Register (SPI_TCR) */
 #define SPI_TCR			0x08
@@ -88,7 +89,8 @@
 
 /* Status Register (SPI_SR) */
 #define SPI_SR			0x2c
-#define SPI_SR_EOQF		0x10000000
+#define SPI_SR_EOQF		(1 << 28)
+#define SPI_SR_TXRXS		(1 << 30)
 #define SPI_SR_TCFQF		0x80000000
 #define SPI_SR_CLEAR		0xdaad0000
 
@@ -797,6 +799,7 @@ static int dspi_transfer_one_message(struct spi_master *master,
 	struct spi_device *spi = message->spi;
 	struct spi_transfer *transfer;
 	int status = 0;
+	unsigned int val;
 	enum dspi_trans_mode trans_mode;
 	u32 spi_tcr;
 
@@ -829,10 +832,13 @@ static int dspi_transfer_one_message(struct spi_master *master,
 		if (!dspi->tx)
 			dspi->dataflags |= TRAN_STATE_TX_VOID;
 
-		regmap_write(dspi->regmap, SPI_MCR, dspi->cur_chip->mcr_val);
+		/* Put DSPI in stopped mode. */
 		regmap_update_bits(dspi->regmap, SPI_MCR,
-				SPI_MCR_CLR_TXF | SPI_MCR_CLR_RXF,
-				SPI_MCR_CLR_TXF | SPI_MCR_CLR_RXF);
+				SPI_MCR_HALT, SPI_MCR_HALT);
+		while (regmap_read(dspi->regmap, SPI_SR, &val) >= 0 &&
+				val & SPI_SR_TXRXS)
+			;
+
 		regmap_write(dspi->regmap, SPI_CTAR(0),
 				dspi->cur_chip->ctar_val);
 
@@ -844,16 +850,25 @@ static int dspi_transfer_one_message(struct spi_master *master,
 		switch (trans_mode) {
 		case DSPI_EOQ_MODE:
 			regmap_write(dspi->regmap, SPI_RSER, SPI_RSER_EOQFE);
+			regmap_write(dspi->regmap, SPI_MCR,
+				     dspi->cur_chip->mcr_val |
+				     SPI_MCR_CLR_TXF | SPI_MCR_CLR_RXF);
 			dspi_eoq_write(dspi);
 			break;
 		case DSPI_TCFQ_MODE:
 			regmap_write(dspi->regmap, SPI_RSER, SPI_RSER_TCFQE);
+			regmap_write(dspi->regmap, SPI_MCR,
+				     dspi->cur_chip->mcr_val |
+				     SPI_MCR_CLR_TXF | SPI_MCR_CLR_RXF);
 			dspi_tcfq_write(dspi);
 			break;
 		case DSPI_DMA_MODE:
 			regmap_write(dspi->regmap, SPI_RSER,
 				SPI_RSER_TFFFE | SPI_RSER_TFFFD |
 				SPI_RSER_RFDFE | SPI_RSER_RFDFD);
+			regmap_write(dspi->regmap, SPI_MCR,
+				     dspi->cur_chip->mcr_val |
+				     SPI_MCR_CLR_TXF | SPI_MCR_CLR_RXF);
 			status = dspi_dma_xfer(dspi);
 			break;
 		default:
