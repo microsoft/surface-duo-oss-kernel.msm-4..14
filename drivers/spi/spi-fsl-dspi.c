@@ -55,6 +55,7 @@
 #define SPI_MCR_CLR_TXF		(1 << 11)
 #define SPI_MCR_CLR_RXF		(1 << 10)
 #define SPI_MCR_XSPI		(1 << 3)
+#define SPI_MCR_HALT		(1 << 0)
 
 /* Transfer Count Register (SPI_TCR) */
 #define SPI_TCR			0x08
@@ -79,7 +80,8 @@
 
 /* Status Register (SPI_SR) */
 #define SPI_SR			0x2c
-#define SPI_SR_EOQF		0x10000000
+#define SPI_SR_EOQF		(1 << 28)
+#define SPI_SR_TXRXS		(1 << 30)
 
 /* DMA/Interrupts Request Select and Enable Register (SPI_RSER) */
 #define SPI_RSER		0x30
@@ -407,6 +409,7 @@ static int dspi_transfer_write(struct fsl_dspi *dspi)
 			dspi->queue_size = tx_frames;
 
 		regmap_write(dspi->regmap, SPI_PUSHR, dspi_pushr);
+
 		if (tx_mode == FR_LONG) {
 			/* regmap does not seem to support 16-bit write access
 			 * to 32-bit registers.
@@ -472,6 +475,7 @@ static int dspi_transfer_one_message(struct spi_master *master,
 	struct spi_device *spi = message->spi;
 	struct spi_transfer *transfer;
 	int status = 0;
+	unsigned int val;
 	message->actual_length = 0;
 
 	list_for_each_entry(transfer, &message->transfers, transfer_list) {
@@ -498,18 +502,25 @@ static int dspi_transfer_one_message(struct spi_master *master,
 		if (!dspi->tx)
 			dspi->dataflags |= TRAN_STATE_TX_VOID;
 
-		regmap_write(dspi->regmap, SPI_MCR, dspi->cur_chip->mcr_val);
+		/* Put DSPI in stopped mode. */
 		regmap_update_bits(dspi->regmap, SPI_MCR,
-				SPI_MCR_CLR_TXF | SPI_MCR_CLR_RXF,
-				SPI_MCR_CLR_TXF | SPI_MCR_CLR_RXF);
+				SPI_MCR_HALT, SPI_MCR_HALT);
+		while (regmap_read(dspi->regmap, SPI_SR, &val) >= 0 &&
+				val & SPI_SR_TXRXS)
+			;
+
+		regmap_write(dspi->regmap, SPI_RSER, SPI_RSER_EOQFE);
 		regmap_write(dspi->regmap, SPI_CTAR(0),
 				dspi->cur_chip->ctar_val);
 		if (dspi->cur_chip->mcr_val & SPI_MCR_XSPI) {
 			regmap_write(dspi->regmap, SPI_CTARE(0),
 				     dspi->cur_chip->ctare_val);
 		}
+		regmap_write(dspi->regmap, SPI_MCR, dspi->cur_chip->mcr_val);
+		regmap_update_bits(dspi->regmap, SPI_MCR,
+				SPI_MCR_CLR_TXF | SPI_MCR_CLR_RXF,
+				SPI_MCR_CLR_TXF | SPI_MCR_CLR_RXF);
 
-		regmap_write(dspi->regmap, SPI_RSER, SPI_RSER_EOQFE);
 		message->actual_length += dspi_transfer_write(dspi);
 
 		if (wait_event_interruptible(dspi->waitq, dspi->waitflags))
