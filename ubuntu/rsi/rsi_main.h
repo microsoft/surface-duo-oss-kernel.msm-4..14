@@ -381,6 +381,7 @@ struct rsi_common {
 	struct timer_list scan_timer;
 	bool hw_scan_cancel;
 #endif
+	bool mac_ops_resumed;
 };
 
 enum host_intf {

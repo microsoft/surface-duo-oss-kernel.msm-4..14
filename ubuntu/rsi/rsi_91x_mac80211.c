@@ -359,6 +359,7 @@ static int rsi_mac80211_hw_scan_start(struct ieee80211_hw *hw,
 	int ii =0;
 
 	ven_rsi_dbg(INFO_ZONE, "***** Hardware scan start *****\n");
+	common->mac_ops_resumed = false;
 
 	if (common->fsm_state != FSM_MAC_INIT_DONE)
 		return -ENODEV;
@@ -566,6 +567,8 @@ static void rsi_mac80211_tx(struct ieee80211_hw *hw,
 	    (adapter->ps_state == PS_ENABLED) &&
 	    (vif->type == NL80211_IFTYPE_STATION))
 		rsi_disable_ps(adapter);
+	if (ieee80211_is_auth(wlh->frame_control))
+		common->mac_ops_resumed = false;
 
   if ((common->coex_mode == 4) &&
       (vif->type == NL80211_IFTYPE_STATION) &&
@@ -1078,7 +1081,8 @@ static int rsi_mac80211_config(struct ieee80211_hw *hw,
 
 	/* Power save parameters */
 	if ((changed & IEEE80211_CONF_CHANGE_PS) &&
-	    (vif->type == NL80211_IFTYPE_STATION)) {
+	    (vif->type == NL80211_IFTYPE_STATION) &&
+	     !common->mac_ops_resumed) {
 		unsigned long flags;
 
 		spin_lock_irqsave(&adapter->ps_lock, flags);
@@ -2466,6 +2470,7 @@ static int rsi_mac80211_resume(struct ieee80211_hw *hw)
 	ven_rsi_dbg(INFO_ZONE, "%s: mac80211 resume\n", __func__);
 
 	if (common->hibernate_resume) {
+		common->mac_ops_resumed = true;
 		if (common->reinit_hw)
 			wait_for_completion(&common->wlan_init_completion);
 		/* Device need a complete restart of all MAC operations.

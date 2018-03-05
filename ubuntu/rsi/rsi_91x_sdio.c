@@ -1506,6 +1506,7 @@ int rsi_restore(struct device *dev)
 	adapter->priv->iface_down = true;
 
 	adapter->sc_nvifs = 0;
+	adapter->ps_state = PS_NONE;
 	flush_workqueue(adapter->priv->scan_workqueue);
 	ieee80211_stop_queues(adapter->hw);
 
