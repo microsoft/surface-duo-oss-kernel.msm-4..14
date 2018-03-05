@@ -1,5 +1,7 @@
 * Freescale Linflex UART
 
+See chapter 47 ("LINFlexD") in the reference manual[1].
+
 Required properties:
 - compatible :
   - "fsl,s32-linflexuart" for linflex configured in uart mode which
@@ -18,3 +20,5 @@ uart0:serial@40053000 {
 	clock-names = "lin";
 	status = "disabled";
 };
+
+[1] https://www.nxp.com/webapp/Download?colCode=S32V234RM
