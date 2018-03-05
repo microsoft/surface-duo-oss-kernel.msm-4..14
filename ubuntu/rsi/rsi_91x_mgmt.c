@@ -2068,11 +2068,12 @@ EXPORT_SYMBOL_GPL(rsi_send_rx_filter_frame);
 int rsi_send_ps_request(struct rsi_hw *adapter, bool enable)
 {
 	struct rsi_common *common = adapter->priv;
-	struct ieee80211_bss_conf *bss = &adapter->vifs[0]->bss_conf;
+	struct ieee80211_bss_conf *bss;
 	struct rsi_request_ps *ps = NULL;
 	struct rsi_ps_info *ps_info = NULL;
 	struct sk_buff *skb = NULL;
 	int frame_len = sizeof(*ps);
+	bool assoc;
 
 	skb = dev_alloc_skb(frame_len);
 	if (!skb)
@@ -2110,7 +2111,16 @@ int rsi_send_ps_request(struct rsi_hw *adapter, bool enable)
 	ps->ps_sleep.sleep_duration =
 		cpu_to_le32(ps_info->deep_sleep_wakeup_period);
 
-	if (bss->assoc)
+	if (adapter->sc_nvifs == 0) {
+		assoc = false;
+	} else {
+		bss = &adapter->vifs[0]->bss_conf;
+		if (bss->assoc)
+			assoc = true;
+		else
+			assoc = false;
+	}
+	if (assoc)
 		ps->ps_sleep.connected_sleep = CONNECTED_SLEEP;
 	else
 		ps->ps_sleep.connected_sleep = DEEP_SLEEP;
@@ -2396,6 +2406,7 @@ void rsi_scan_start(struct work_struct *work)
 		return;
 
 	common->scan_in_prog = true;
+	rsi_disable_ps(common->priv);
 	
 	for (ii =0; ii < scan_req->n_channels ; ii++) {
 		if (common->iface_down)
@@ -2458,7 +2469,7 @@ void rsi_scan_start(struct work_struct *work)
 
 	del_timer(&common->scan_timer);
 	common->scan_in_prog = false;
-
+	rsi_enable_ps(common->priv);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0))
 	info.aborted = false;
 	ieee80211_scan_completed(common->priv->hw, &info);
@@ -2653,6 +2664,7 @@ static int rsi_handle_ta_confirm(struct rsi_common *common, u8 *msg)
 					complete(&common->wlan_init_completion);
 					common->reinit_hw = false;
 				} else {
+					rsi_enable_ps(adapter);
 					return rsi_mac80211_attach(common);
 				}
 			}

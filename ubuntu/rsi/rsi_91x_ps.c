@@ -100,7 +100,7 @@ void rsi_default_ps_params(struct rsi_hw *adapter)
 	ps_info->num_bcns_per_lis_int = 0;
 	ps_info->dtim_interval_duration = 0;
 	ps_info->num_dtims_per_sleep = 0;
-	ps_info->deep_sleep_wakeup_period = 200;
+	ps_info->deep_sleep_wakeup_period = 0;
 }
 EXPORT_SYMBOL_GPL(rsi_default_ps_params);
 

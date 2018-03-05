@@ -549,7 +549,8 @@ static void rsi_mac80211_tx(struct ieee80211_hw *hw,
 	struct rsi_hw *adapter = hw->priv;
 	struct rsi_common *common = adapter->priv;
 	struct ieee80211_hdr *wlh = (struct ieee80211_hdr *)skb->data;
-  struct ieee80211_vif *vif = adapter->vifs[adapter->sc_nvifs - 1];
+	struct ieee80211_vif *vif = adapter->vifs[adapter->sc_nvifs - 1];
+	struct ieee80211_bss_conf *bss = &adapter->vifs[0]->bss_conf;
 
 #ifdef CONFIG_VEN_RSI_WOW
 	if (common->wow_flags & RSI_WOW_ENABLED) {
@@ -561,6 +562,10 @@ static void rsi_mac80211_tx(struct ieee80211_hw *hw,
 		ieee80211_free_txskb(common->priv->hw, skb);
 		return;
 	}
+	if ((!bss->assoc) &&
+	    (adapter->ps_state == PS_ENABLED) &&
+	    (vif->type == NL80211_IFTYPE_STATION))
+		rsi_disable_ps(adapter);
 
   if ((common->coex_mode == 4) &&
       (vif->type == NL80211_IFTYPE_STATION) &&
