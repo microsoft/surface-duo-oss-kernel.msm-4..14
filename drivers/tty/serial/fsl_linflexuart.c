@@ -30,6 +30,7 @@
 #include <linux/slab.h>
 #include <linux/tty_flip.h>
 #include <linux/jiffies.h>
+#include <linux/kgdb.h>
 
 /* All registers are 32-bit width */
 
@@ -148,6 +149,16 @@
 
 #define prd_info(a)	;//pr_info(a);
 
+#ifdef CONFIG_CONSOLE_POLL
+struct linflex_poll_ctx {
+	uint32_t ier;
+	uint32_t cr;
+	uint32_t dmatxe;
+	uint32_t dmarxe;
+	bool in_use;
+};
+#endif
+
 struct linflex_port {
 	struct uart_port	port;
 	struct clk		*clk;
@@ -171,6 +182,9 @@ struct linflex_port {
 	int			dma_rx_in_progress;
 	unsigned int		dma_rx_timeout;
 	struct timer_list	timer;
+#ifdef CONFIG_CONSOLE_POLL
+	struct linflex_poll_ctx poll_ctx;
+#endif
 };
 
 static const struct of_device_id linflex_dt_ids[] = {
@@ -184,6 +198,11 @@ MODULE_DEVICE_TABLE(of, linflex_dt_ids);
 /* Forward declare this for the dma callbacks. */
 static void linflex_dma_tx_complete(void *arg);
 static void linflex_dma_rx_complete(void *arg);
+
+#ifdef CONFIG_CONSOLE_POLL
+static void linflex_poll_release(struct linflex_port *sport);
+static void linflex_console_putchar(struct uart_port *port, int ch);
+#endif
 
 static void linflex_copy_rx_to_tty(struct linflex_port *sport,
 		struct tty_port *tty, int count)
@@ -402,9 +421,16 @@ static void linflex_dma_rx_complete(void *arg)
 	struct tty_port *port = &sport->port.state->port;
 	unsigned long flags;
 
-	mod_timer(&sport->timer, jiffies + sport->dma_rx_timeout);
-
 	spin_lock_irqsave(&sport->port.lock, flags);
+
+#ifdef CONFIG_CONSOLE_POLL
+	if (!kgdb_connected && sport->poll_ctx.in_use) {
+		sport->poll_ctx.in_use = false;
+		linflex_poll_release(sport);
+	}
+#endif
+
+	mod_timer(&sport->timer, jiffies + sport->dma_rx_timeout);
 
 	sport->dma_rx_in_progress = 0;
 	linflex_copy_rx_to_tty(sport, port, FSL_UART_RX_DMA_BUFFER_SIZE);
@@ -422,13 +448,20 @@ static void linflex_timer_func(unsigned long data)
 	unsigned long flags;
 	int count;
 
+	spin_lock_irqsave(&sport->port.lock, flags);
+
+#ifdef CONFIG_CONSOLE_POLL
+	if (!kgdb_connected && sport->poll_ctx.in_use) {
+		sport->poll_ctx.in_use = false;
+		linflex_poll_release(sport);
+	}
+#endif
+
 	del_timer(&sport->timer);
 	dmaengine_pause(sport->dma_rx_chan);
 	dmaengine_tx_status(sport->dma_rx_chan, sport->dma_rx_cookie, &state);
 	dmaengine_terminate_all(sport->dma_rx_chan);
 	count = FSL_UART_RX_DMA_BUFFER_SIZE - state.residue;
-
-	spin_lock_irqsave(&sport->port.lock, flags);
 
 	sport->dma_rx_in_progress = 0;
 	linflex_copy_rx_to_tty(sport, port, count);
@@ -1070,6 +1103,123 @@ static int linflex_verify_port(struct uart_port *port, struct serial_struct *ser
 	return ret;
 }
 
+#ifdef CONFIG_CONSOLE_POLL
+static int linflex_poll_init(struct uart_port *port)
+{
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
+	uint32_t ier, cr, dmatxe, dmarxe;
+
+	/* Save control and DMA settings and disable interrupts */
+	ier = readl(sport->port.membase + LINIER);
+
+	sport->poll_ctx.ier = ier;
+	if (!sport->dma_tx_use) {
+		ier &= ~(LINFLEXD_LINIER_DTIE);
+		writel(ier, sport->port.membase + LINIER);
+	} else {
+		dmaengine_terminate_all(sport->dma_tx_chan);
+
+		dmatxe = readl(sport->port.membase + DMATXE);
+		sport->poll_ctx.dmatxe = dmatxe;
+		writel(dmatxe & 0xFFFF0000, sport->port.membase + DMATXE);
+	}
+
+	if (!sport->dma_rx_use) {
+		ier &= ~(LINFLEXD_LINIER_DRIE);
+		writel(ier, sport->port.membase + LINIER);
+	} else {
+		dmaengine_terminate_all(sport->dma_rx_chan);
+
+		dmarxe = readl(sport->port.membase + DMARXE);
+		sport->poll_ctx.dmarxe = dmarxe;
+		writel(dmarxe & 0xFFFF0000, sport->port.membase + DMARXE);
+	}
+
+	cr = readl(sport->port.membase + UARTCR);
+	sport->poll_ctx.cr = cr;
+
+	cr |= (LINFLEXD_UARTCR_TXEN) | (LINFLEXD_UARTCR_RXEN);
+
+	writel(cr, sport->port.membase + UARTCR);
+
+	return 0;
+}
+
+static void linflex_poll_release(struct linflex_port *sport)
+{
+	/* Restore settings from poll context */
+	if (!sport->dma_tx_use || !!sport->dma_rx_use)
+		writel(sport->poll_ctx.ier, sport->port.membase + LINIER);
+
+	if (sport->dma_tx_use)
+		writel(sport->poll_ctx.dmatxe, sport->port.membase + DMATXE);
+
+	if (sport->dma_rx_use)
+		writel(sport->poll_ctx.dmarxe, sport->port.membase + DMARXE);
+
+	writel(sport->poll_ctx.cr, sport->port.membase + UARTCR);
+}
+
+static void linflex_poll_putchar(struct uart_port *port, unsigned char ch)
+{
+	int ich = ch;
+	unsigned long flags;
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
+
+	spin_lock_irqsave(&sport->port.lock, flags);
+
+	if (!sport->poll_ctx.in_use) {
+		sport->poll_ctx.in_use = true;
+		linflex_poll_init(port);
+	}
+
+	linflex_console_putchar(port, ich);
+	spin_unlock_irqrestore(&sport->port.lock, flags);
+}
+
+static int linflex_poll_getchar(struct uart_port *port)
+{
+	int ret = NO_POLL_CHAR;
+	unsigned long flags;
+	struct linflex_port *sport = container_of(port,
+					struct linflex_port, port);
+
+	spin_lock_irqsave(&sport->port.lock, flags);
+
+	if (!sport->poll_ctx.in_use) {
+		sport->poll_ctx.in_use = true;
+		linflex_poll_init(port);
+	}
+
+	if (!sport->dma_rx_use) {
+		/* Buffer mode: wait until the bytes programmed
+		   in RDFL are received */
+		while ((readl(port->membase + UARTSR) &
+					LINFLEXD_UARTSR_DRFRFE)
+				!= LINFLEXD_UARTSR_DRFRFE)
+			;
+	} else {
+		/* FIFO mode: Busy waiting while FIFO is empty */
+		while ((readl(port->membase + UARTSR) &
+					LINFLEXD_UARTSR_DRFRFE))
+			;
+	}
+
+	spin_unlock_irqrestore(&sport->port.lock, flags);
+
+	writel((readl(port->membase + UARTSR) |
+				LINFLEXD_UARTSR_DRFRFE),
+				port->membase + UARTSR);
+
+	ret = readb(port->membase + BDRM);
+
+	return ret;
+}
+#endif
+
+
 static const struct uart_ops linflex_pops = {
 	.tx_empty	= linflex_tx_empty,
 	.set_mctrl	= linflex_set_mctrl,
@@ -1087,6 +1237,11 @@ static const struct uart_ops linflex_pops = {
 	.config_port	= linflex_config_port,
 	.verify_port	= linflex_verify_port,
 	.flush_buffer	= linflex_flush_buffer,
+#ifdef CONFIG_CONSOLE_POLL
+	.poll_get_char	= linflex_poll_getchar,
+	.poll_put_char	= linflex_poll_putchar,
+#endif
+
 };
 
 static struct linflex_port *linflex_ports[UART_NR];
