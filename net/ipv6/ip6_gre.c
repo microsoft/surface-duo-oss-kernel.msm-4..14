@@ -695,9 +695,6 @@ static netdev_tx_t __gre6_xmit(struct sk_buff *skb,
 	else
 		fl6->daddr = tunnel->parms.raddr;
 
-	if (tunnel->parms.o_flags & TUNNEL_SEQ)
-		tunnel->o_seqno++;
-
 	/* Push GRE header. */
 	protocol = (dev->type == ARPHRD_ETHER) ? htons(ETH_P_TEB) : proto;
 
@@ -720,14 +717,20 @@ static netdev_tx_t __gre6_xmit(struct sk_buff *skb,
 		fl6->flowi6_uid = sock_net_uid(dev_net(dev), NULL);
 
 		dsfield = key->tos;
-		flags = key->tun_flags & (TUNNEL_CSUM | TUNNEL_KEY);
+		flags = key->tun_flags &
+			(TUNNEL_CSUM | TUNNEL_KEY | TUNNEL_SEQ);
 		tunnel->tun_hlen = gre_calc_hlen(flags);
 
 		gre_build_header(skb, tunnel->tun_hlen,
 				 flags, protocol,
-				 tunnel_id_to_key32(tun_info->key.tun_id), 0);
+				 tunnel_id_to_key32(tun_info->key.tun_id),
+				 (flags | TUNNEL_SEQ) ? htonl(tunnel->o_seqno++)
+						      : 0);
 
 	} else {
+		if (tunnel->parms.o_flags & TUNNEL_SEQ)
+			tunnel->o_seqno++;
+
 		gre_build_header(skb, tunnel->tun_hlen, tunnel->parms.o_flags,
 				 protocol, tunnel->parms.o_key,
 				 htonl(tunnel->o_seqno));
@@ -1053,7 +1056,7 @@ static void ip6gre_tnl_link_config(struct ip6_tnl *t, int set_mtu)
 
 		struct rt6_info *rt = rt6_lookup(t->net,
 						 &p->raddr, &p->laddr,
-						 p->link, strict);
+						 p->link, NULL, strict);
 
 		if (!rt)
 			return;
@@ -1517,6 +1520,7 @@ static struct pernet_operations ip6gre_net_ops = {
 	.exit_batch = ip6gre_exit_batch_net,
 	.id   = &ip6gre_net_id,
 	.size = sizeof(struct ip6gre_net),
+	.async = true,
 };
 
 static int ip6gre_tunnel_validate(struct nlattr *tb[], struct nlattr *data[],
@@ -1783,6 +1787,12 @@ static void ip6gre_tap_setup(struct net_device *dev)
 	dev->priv_flags |= IFF_LIVE_ADDR_CHANGE;
 	netif_keep_dst(dev);
 }
+
+bool is_ip6gretap_dev(const struct net_device *dev)
+{
+	return dev->netdev_ops == &ip6gre_tap_netdev_ops;
+}
+EXPORT_SYMBOL_GPL(is_ip6gretap_dev);
 
 static bool ip6gre_netlink_encap_parms(struct nlattr *data[],
 				       struct ip_tunnel_encap *ipencap)

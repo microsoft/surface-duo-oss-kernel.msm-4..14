@@ -797,7 +797,6 @@ ieee80211_tx_h_sequence(struct ieee80211_tx_data *tx)
 {
 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(tx->skb);
 	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *)tx->skb->data;
-	u8 *qc;
 	int tid;
 
 	/*
@@ -844,9 +843,7 @@ ieee80211_tx_h_sequence(struct ieee80211_tx_data *tx)
 		return TX_CONTINUE;
 
 	/* include per-STA, per-TID sequence counter */
-
-	qc = ieee80211_get_qos_ctl(hdr);
-	tid = *qc & IEEE80211_QOS_CTL_TID_MASK;
+	tid = ieee80211_get_tid(hdr);
 	tx->sta->tx_stats.msdu[tid]++;
 
 	hdr->seq_ctrl = ieee80211_tx_next_seq(tx->sta, tid);
@@ -1158,7 +1155,6 @@ ieee80211_tx_prepare(struct ieee80211_sub_if_data *sdata,
 	struct ieee80211_hdr *hdr;
 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
 	int tid;
-	u8 *qc;
 
 	memset(tx, 0, sizeof(*tx));
 	tx->skb = skb;
@@ -1198,8 +1194,7 @@ ieee80211_tx_prepare(struct ieee80211_sub_if_data *sdata,
 	    !ieee80211_hw_check(&local->hw, TX_AMPDU_SETUP_IN_HW)) {
 		struct tid_ampdu_tx *tid_tx;
 
-		qc = ieee80211_get_qos_ctl(hdr);
-		tid = *qc & IEEE80211_QOS_CTL_TID_MASK;
+		tid = ieee80211_get_tid(hdr);
 
 		tid_tx = rcu_dereference(tx->sta->ampdu_mlme.tid_tx[tid]);
 		if (tid_tx) {
@@ -1921,7 +1916,7 @@ void ieee80211_xmit(struct ieee80211_sub_if_data *sdata,
 {
 	struct ieee80211_local *local = sdata->local;
 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
-	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
+	struct ieee80211_hdr *hdr;
 	int headroom;
 	bool may_encrypt;
 
@@ -3573,6 +3568,14 @@ void __ieee80211_subif_start_xmit(struct sk_buff *skb,
 
 	if (!IS_ERR_OR_NULL(sta)) {
 		struct ieee80211_fast_tx *fast_tx;
+
+		/* We need a bit of data queued to build aggregates properly, so
+		 * instruct the TCP stack to allow more than a single ms of data
+		 * to be queued in the stack. The value is a bit-shift of 1
+		 * second, so 8 is ~4ms of queued data. Only affects local TCP
+		 * sockets.
+		 */
+		sk_pacing_shift_update(skb->sk, 8);
 
 		fast_tx = rcu_dereference(sta->fast_tx);
 

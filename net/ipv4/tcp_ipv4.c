@@ -561,16 +561,9 @@ void __tcp_v4_send_check(struct sk_buff *skb, __be32 saddr, __be32 daddr)
 {
 	struct tcphdr *th = tcp_hdr(skb);
 
-	if (skb->ip_summed == CHECKSUM_PARTIAL) {
-		th->check = ~tcp_v4_check(skb->len, saddr, daddr, 0);
-		skb->csum_start = skb_transport_header(skb) - skb->head;
-		skb->csum_offset = offsetof(struct tcphdr, check);
-	} else {
-		th->check = tcp_v4_check(skb->len, saddr, daddr,
-					 csum_partial(th,
-						      th->doff << 2,
-						      skb->csum));
-	}
+	th->check = ~tcp_v4_check(skb->len, saddr, daddr, 0);
+	skb->csum_start = skb_transport_header(skb) - skb->head;
+	skb->csum_offset = offsetof(struct tcphdr, check);
 }
 
 /* This routine computes an IPv4 TCP checksum. */
@@ -1672,6 +1665,7 @@ process:
 
 	if (sk->sk_state == TCP_NEW_SYN_RECV) {
 		struct request_sock *req = inet_reqsk(sk);
+		bool req_stolen = false;
 		struct sock *nsk;
 
 		sk = req->rsk_listener;
@@ -1694,10 +1688,20 @@ process:
 			th = (const struct tcphdr *)skb->data;
 			iph = ip_hdr(skb);
 			tcp_v4_fill_cb(skb, iph, th);
-			nsk = tcp_check_req(sk, skb, req, false);
+			nsk = tcp_check_req(sk, skb, req, false, &req_stolen);
 		}
 		if (!nsk) {
 			reqsk_put(req);
+			if (req_stolen) {
+				/* Another cpu got exclusive access to req
+				 * and created a full blown socket.
+				 * Try to feed this packet to this socket
+				 * instead of discarding it.
+				 */
+				tcp_v4_restore_cb(skb);
+				sock_put(sk);
+				goto lookup;
+			}
 			goto discard_and_relse;
 		}
 		if (nsk == sk) {
@@ -2387,6 +2391,7 @@ static void __net_exit tcp4_proc_exit_net(struct net *net)
 static struct pernet_operations tcp4_net_ops = {
 	.init = tcp4_proc_init_net,
 	.exit = tcp4_proc_exit_net,
+	.async = true,
 };
 
 int __init tcp4_proc_init(void)
@@ -2573,6 +2578,7 @@ static struct pernet_operations __net_initdata tcp_sk_ops = {
        .init	   = tcp_sk_init,
        .exit	   = tcp_sk_exit,
        .exit_batch = tcp_sk_exit_batch,
+       .async	   = true,
 };
 
 void __init tcp_v4_init(void)

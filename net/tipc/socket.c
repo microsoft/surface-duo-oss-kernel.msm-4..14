@@ -473,6 +473,7 @@ static int tipc_sk_create(struct net *net, struct socket *sock,
 	sk->sk_write_space = tipc_write_space;
 	sk->sk_destruct = tipc_sock_destruct;
 	tsk->conn_timeout = CONN_TIMEOUT_DEFAULT;
+	tsk->group_is_open = true;
 	atomic_set(&tsk->dupl_rcvcnt, 0);
 
 	/* Start out with safe limits until we receive an advertised window */
@@ -665,7 +666,7 @@ exit:
  *       a completely predictable manner).
  */
 static int tipc_getname(struct socket *sock, struct sockaddr *uaddr,
-			int *uaddr_len, int peer)
+			int peer)
 {
 	struct sockaddr_tipc *addr = (struct sockaddr_tipc *)uaddr;
 	struct sock *sk = sock->sk;
@@ -684,13 +685,12 @@ static int tipc_getname(struct socket *sock, struct sockaddr *uaddr,
 		addr->addr.id.node = tn->own_addr;
 	}
 
-	*uaddr_len = sizeof(*addr);
 	addr->addrtype = TIPC_ADDR_ID;
 	addr->family = AF_TIPC;
 	addr->scope = 0;
 	addr->addr.name.domain = 0;
 
-	return 0;
+	return sizeof(*addr);
 }
 
 /**

@@ -400,7 +400,7 @@ static int proc_fib_multipath_hash_policy(struct ctl_table *table, int write,
 
 	ret = proc_dointvec_minmax(table, write, buffer, lenp, ppos);
 	if (write && ret == 0)
-		call_netevent_notifiers(NETEVENT_MULTIPATH_HASH_UPDATE, net);
+		call_netevent_notifiers(NETEVENT_IPV4_MPATH_HASH_UPDATE, net);
 
 	return ret;
 }
@@ -1219,6 +1219,7 @@ static __net_exit void ipv4_sysctl_exit_net(struct net *net)
 static __net_initdata struct pernet_operations ipv4_sysctl_ops = {
 	.init = ipv4_sysctl_init_net,
 	.exit = ipv4_sysctl_exit_net,
+	.async = true,
 };
 
 static __init int sysctl_ipv4_init(void)

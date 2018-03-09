@@ -77,8 +77,8 @@
 #include <linux/capability.h>
 #include <linux/user_namespace.h>
 
-struct kmem_cache *skbuff_head_cache __read_mostly;
-static struct kmem_cache *skbuff_fclone_cache __read_mostly;
+struct kmem_cache *skbuff_head_cache __ro_after_init;
+static struct kmem_cache *skbuff_fclone_cache __ro_after_init;
 int sysctl_max_skb_frags __read_mostly = MAX_SKB_FRAGS;
 EXPORT_SYMBOL(sysctl_max_skb_frags);
 
@@ -890,7 +890,7 @@ struct sk_buff *skb_morph(struct sk_buff *dst, struct sk_buff *src)
 }
 EXPORT_SYMBOL_GPL(skb_morph);
 
-static int mm_account_pinned_pages(struct mmpin *mmp, size_t size)
+int mm_account_pinned_pages(struct mmpin *mmp, size_t size)
 {
 	unsigned long max_pg, num_pg, new_pg, old_pg;
 	struct user_struct *user;
@@ -919,14 +919,16 @@ static int mm_account_pinned_pages(struct mmpin *mmp, size_t size)
 
 	return 0;
 }
+EXPORT_SYMBOL_GPL(mm_account_pinned_pages);
 
-static void mm_unaccount_pinned_pages(struct mmpin *mmp)
+void mm_unaccount_pinned_pages(struct mmpin *mmp)
 {
 	if (mmp->user) {
 		atomic_long_sub(mmp->num_pg, &mmp->user->locked_vm);
 		free_uid(mmp->user);
 	}
 }
+EXPORT_SYMBOL_GPL(mm_unaccount_pinned_pages);
 
 struct ubuf_info *sock_zerocopy_alloc(struct sock *sk, size_t size)
 {
@@ -4891,7 +4893,7 @@ EXPORT_SYMBOL_GPL(skb_scrub_packet);
  *
  * The MAC/L2 or network (IP, IPv6) headers are not accounted for.
  */
-unsigned int skb_gso_transport_seglen(const struct sk_buff *skb)
+static unsigned int skb_gso_transport_seglen(const struct sk_buff *skb)
 {
 	const struct skb_shared_info *shinfo = skb_shinfo(skb);
 	unsigned int thlen = 0;
@@ -4913,7 +4915,40 @@ unsigned int skb_gso_transport_seglen(const struct sk_buff *skb)
 	 */
 	return thlen + shinfo->gso_size;
 }
-EXPORT_SYMBOL_GPL(skb_gso_transport_seglen);
+
+/**
+ * skb_gso_network_seglen - Return length of individual segments of a gso packet
+ *
+ * @skb: GSO skb
+ *
+ * skb_gso_network_seglen is used to determine the real size of the
+ * individual segments, including Layer3 (IP, IPv6) and L4 headers (TCP/UDP).
+ *
+ * The MAC/L2 header is not accounted for.
+ */
+static unsigned int skb_gso_network_seglen(const struct sk_buff *skb)
+{
+	unsigned int hdr_len = skb_transport_header(skb) -
+			       skb_network_header(skb);
+
+	return hdr_len + skb_gso_transport_seglen(skb);
+}
+
+/**
+ * skb_gso_mac_seglen - Return length of individual segments of a gso packet
+ *
+ * @skb: GSO skb
+ *
+ * skb_gso_mac_seglen is used to determine the real size of the
+ * individual segments, including MAC/L2, Layer3 (IP, IPv6) and L4
+ * headers (TCP/UDP).
+ */
+static unsigned int skb_gso_mac_seglen(const struct sk_buff *skb)
+{
+	unsigned int hdr_len = skb_transport_header(skb) - skb_mac_header(skb);
+
+	return hdr_len + skb_gso_transport_seglen(skb);
+}
 
 /**
  * skb_gso_size_check - check the skb size, considering GSO_BY_FRAGS
@@ -4955,19 +4990,20 @@ static inline bool skb_gso_size_check(const struct sk_buff *skb,
 }
 
 /**
- * skb_gso_validate_mtu - Return in case such skb fits a given MTU
+ * skb_gso_validate_network_len - Will a split GSO skb fit into a given MTU?
  *
  * @skb: GSO skb
  * @mtu: MTU to validate against
  *
- * skb_gso_validate_mtu validates if a given skb will fit a wanted MTU
- * once split.
+ * skb_gso_validate_network_len validates if a given skb will fit a
+ * wanted MTU once split. It considers L3 headers, L4 headers, and the
+ * payload.
  */
-bool skb_gso_validate_mtu(const struct sk_buff *skb, unsigned int mtu)
+bool skb_gso_validate_network_len(const struct sk_buff *skb, unsigned int mtu)
 {
 	return skb_gso_size_check(skb, skb_gso_network_seglen(skb), mtu);
 }
-EXPORT_SYMBOL_GPL(skb_gso_validate_mtu);
+EXPORT_SYMBOL_GPL(skb_gso_validate_network_len);
 
 /**
  * skb_gso_validate_mac_len - Will a split GSO skb fit in a given length?

@@ -527,7 +527,7 @@ void ndisc_send_na(struct net_device *dev, const struct in6_addr *daddr,
 	}
 
 	if (!dev->addr_len)
-		inc_opt = 0;
+		inc_opt = false;
 	if (inc_opt)
 		optlen += ndisc_opt_addr_space(dev,
 					       NDISC_NEIGHBOUR_ADVERTISEMENT);
@@ -1882,6 +1882,7 @@ static void __net_exit ndisc_net_exit(struct net *net)
 static struct pernet_operations ndisc_net_ops = {
 	.init = ndisc_net_init,
 	.exit = ndisc_net_exit,
+	.async = true,
 };
 
 int __init ndisc_init(void)

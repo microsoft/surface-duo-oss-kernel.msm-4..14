@@ -234,13 +234,9 @@ struct devlink_dpipe_headers {
 /**
  * struct devlink_resource_ops - resource ops
  * @occ_get: get the occupied size
- * @size_validate: validate the size of the resource before update, reload
- *                 is needed for changes to take place
  */
 struct devlink_resource_ops {
 	u64 (*occ_get)(struct devlink *devlink);
-	int (*size_validate)(struct devlink *devlink, u64 size,
-			     struct netlink_ext_ack *extack);
 };
 
 /**
@@ -256,6 +252,18 @@ struct devlink_resource_size_params {
 	u64 size_granularity;
 	enum devlink_resource_unit unit;
 };
+
+static inline void
+devlink_resource_size_params_init(struct devlink_resource_size_params *size_params,
+				  u64 size_min, u64 size_max,
+				  u64 size_granularity,
+				  enum devlink_resource_unit unit)
+{
+	size_params->size_min = size_min;
+	size_params->size_max = size_max;
+	size_params->size_granularity = size_granularity;
+	size_params->unit = unit;
+}
 
 /**
  * struct devlink_resource - devlink resource
@@ -278,7 +286,7 @@ struct devlink_resource {
 	u64 size_new;
 	bool size_valid;
 	struct devlink_resource *parent;
-	struct devlink_resource_size_params *size_params;
+	struct devlink_resource_size_params size_params;
 	struct list_head list;
 	struct list_head resource_list;
 	const struct devlink_resource_ops *resource_ops;
@@ -402,7 +410,7 @@ int devlink_resource_register(struct devlink *devlink,
 			      u64 resource_size,
 			      u64 resource_id,
 			      u64 parent_resource_id,
-			      struct devlink_resource_size_params *size_params,
+			      const struct devlink_resource_size_params *size_params,
 			      const struct devlink_resource_ops *resource_ops);
 void devlink_resources_unregister(struct devlink *devlink,
 				  struct devlink_resource *resource);
@@ -556,7 +564,7 @@ devlink_resource_register(struct devlink *devlink,
 			  u64 resource_size,
 			  u64 resource_id,
 			  u64 parent_resource_id,
-			  struct devlink_resource_size_params *size_params,
+			  const struct devlink_resource_size_params *size_params,
 			  const struct devlink_resource_ops *resource_ops)
 {
 	return 0;

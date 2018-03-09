@@ -1695,10 +1695,11 @@ static int devlink_dpipe_table_put(struct sk_buff *skb,
 		goto nla_put_failure;
 
 	if (table->resource_valid) {
-		nla_put_u64_64bit(skb, DEVLINK_ATTR_DPIPE_TABLE_RESOURCE_ID,
-				  table->resource_id, DEVLINK_ATTR_PAD);
-		nla_put_u64_64bit(skb, DEVLINK_ATTR_DPIPE_TABLE_RESOURCE_UNITS,
-				  table->resource_units, DEVLINK_ATTR_PAD);
+		if (nla_put_u64_64bit(skb, DEVLINK_ATTR_DPIPE_TABLE_RESOURCE_ID,
+				      table->resource_id, DEVLINK_ATTR_PAD) ||
+		    nla_put_u64_64bit(skb, DEVLINK_ATTR_DPIPE_TABLE_RESOURCE_UNITS,
+				      table->resource_units, DEVLINK_ATTR_PAD))
+			goto nla_put_failure;
 	}
 	if (devlink_dpipe_matches_put(table, skb))
 		goto nla_put_failure;
@@ -2332,10 +2333,36 @@ devlink_resource_validate_children(struct devlink_resource *resource)
 	list_for_each_entry(child_resource, &resource->resource_list, list)
 		parts_size += child_resource->size_new;
 
-	if (parts_size > resource->size)
+	if (parts_size > resource->size_new)
 		size_valid = false;
 out:
 	resource->size_valid = size_valid;
+}
+
+static int
+devlink_resource_validate_size(struct devlink_resource *resource, u64 size,
+			       struct netlink_ext_ack *extack)
+{
+	u64 reminder;
+	int err = 0;
+
+	if (size > resource->size_params.size_max) {
+		NL_SET_ERR_MSG_MOD(extack, "Size larger than maximum");
+		err = -EINVAL;
+	}
+
+	if (size < resource->size_params.size_min) {
+		NL_SET_ERR_MSG_MOD(extack, "Size smaller than minimum");
+		err = -EINVAL;
+	}
+
+	div64_u64_rem(size, resource->size_params.size_granularity, &reminder);
+	if (reminder) {
+		NL_SET_ERR_MSG_MOD(extack, "Wrong granularity");
+		err = -EINVAL;
+	}
+
+	return err;
 }
 
 static int devlink_nl_cmd_resource_set(struct sk_buff *skb,
@@ -2356,12 +2383,8 @@ static int devlink_nl_cmd_resource_set(struct sk_buff *skb,
 	if (!resource)
 		return -EINVAL;
 
-	if (!resource->resource_ops->size_validate)
-		return -EINVAL;
-
 	size = nla_get_u64(info->attrs[DEVLINK_ATTR_RESOURCE_SIZE]);
-	err = resource->resource_ops->size_validate(devlink, size,
-						    info->extack);
+	err = devlink_resource_validate_size(resource, size, info->extack);
 	if (err)
 		return err;
 
@@ -2372,20 +2395,22 @@ static int devlink_nl_cmd_resource_set(struct sk_buff *skb,
 	return 0;
 }
 
-static void
+static int
 devlink_resource_size_params_put(struct devlink_resource *resource,
 				 struct sk_buff *skb)
 {
 	struct devlink_resource_size_params *size_params;
 
-	size_params = resource->size_params;
-	nla_put_u64_64bit(skb, DEVLINK_ATTR_RESOURCE_SIZE_GRAN,
-			  size_params->size_granularity, DEVLINK_ATTR_PAD);
-	nla_put_u64_64bit(skb, DEVLINK_ATTR_RESOURCE_SIZE_MAX,
-			  size_params->size_max, DEVLINK_ATTR_PAD);
-	nla_put_u64_64bit(skb, DEVLINK_ATTR_RESOURCE_SIZE_MIN,
-			  size_params->size_min, DEVLINK_ATTR_PAD);
-	nla_put_u8(skb, DEVLINK_ATTR_RESOURCE_UNIT, size_params->unit);
+	size_params = &resource->size_params;
+	if (nla_put_u64_64bit(skb, DEVLINK_ATTR_RESOURCE_SIZE_GRAN,
+			      size_params->size_granularity, DEVLINK_ATTR_PAD) ||
+	    nla_put_u64_64bit(skb, DEVLINK_ATTR_RESOURCE_SIZE_MAX,
+			      size_params->size_max, DEVLINK_ATTR_PAD) ||
+	    nla_put_u64_64bit(skb, DEVLINK_ATTR_RESOURCE_SIZE_MIN,
+			      size_params->size_min, DEVLINK_ATTR_PAD) ||
+	    nla_put_u8(skb, DEVLINK_ATTR_RESOURCE_UNIT, size_params->unit))
+		return -EMSGSIZE;
+	return 0;
 }
 
 static int devlink_resource_put(struct devlink *devlink, struct sk_buff *skb,
@@ -2409,10 +2434,12 @@ static int devlink_resource_put(struct devlink *devlink, struct sk_buff *skb,
 		nla_put_u64_64bit(skb, DEVLINK_ATTR_RESOURCE_SIZE_NEW,
 				  resource->size_new, DEVLINK_ATTR_PAD);
 	if (resource->resource_ops && resource->resource_ops->occ_get)
-		nla_put_u64_64bit(skb, DEVLINK_ATTR_RESOURCE_OCC,
-				  resource->resource_ops->occ_get(devlink),
-				  DEVLINK_ATTR_PAD);
-	devlink_resource_size_params_put(resource, skb);
+		if (nla_put_u64_64bit(skb, DEVLINK_ATTR_RESOURCE_OCC,
+				      resource->resource_ops->occ_get(devlink),
+				      DEVLINK_ATTR_PAD))
+			goto nla_put_failure;
+	if (devlink_resource_size_params_put(resource, skb))
+		goto nla_put_failure;
 	if (list_empty(&resource->resource_list))
 		goto out;
 
@@ -2717,22 +2744,22 @@ static const struct genl_ops devlink_nl_ops[] = {
 		.cmd = DEVLINK_CMD_DPIPE_TABLE_GET,
 		.doit = devlink_nl_cmd_dpipe_table_get,
 		.policy = devlink_nl_policy,
-		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
+		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_DPIPE_ENTRIES_GET,
 		.doit = devlink_nl_cmd_dpipe_entries_get,
 		.policy = devlink_nl_policy,
-		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
+		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_DPIPE_HEADERS_GET,
 		.doit = devlink_nl_cmd_dpipe_headers_get,
 		.policy = devlink_nl_policy,
-		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
+		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_DPIPE_TABLE_COUNTERS_SET,
@@ -2752,8 +2779,8 @@ static const struct genl_ops devlink_nl_ops[] = {
 		.cmd = DEVLINK_CMD_RESOURCE_DUMP,
 		.doit = devlink_nl_cmd_resource_dump,
 		.policy = devlink_nl_policy,
-		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
+		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_RELOAD,
@@ -3151,7 +3178,7 @@ int devlink_resource_register(struct devlink *devlink,
 			      u64 resource_size,
 			      u64 resource_id,
 			      u64 parent_resource_id,
-			      struct devlink_resource_size_params *size_params,
+			      const struct devlink_resource_size_params *size_params,
 			      const struct devlink_resource_ops *resource_ops)
 {
 	struct devlink_resource *resource;
@@ -3194,7 +3221,8 @@ int devlink_resource_register(struct devlink *devlink,
 	resource->id = resource_id;
 	resource->resource_ops = resource_ops;
 	resource->size_valid = true;
-	resource->size_params = size_params;
+	memcpy(&resource->size_params, size_params,
+	       sizeof(resource->size_params));
 	INIT_LIST_HEAD(&resource->resource_list);
 	list_add_tail(&resource->list, resource_list);
 out:

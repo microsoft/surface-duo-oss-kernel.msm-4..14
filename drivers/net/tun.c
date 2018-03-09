@@ -78,6 +78,7 @@
 #include <linux/mutex.h>
 
 #include <linux/uaccess.h>
+#include <linux/proc_fs.h>
 
 /* Uncomment to enable debugging */
 /* #define TUN_DEBUG 1 */
@@ -181,7 +182,6 @@ struct tun_file {
 	struct tun_struct *detached;
 	struct ptr_ring tx_ring;
 	struct xdp_rxq_info xdp_rxq;
-	int xdp_pending_pkts;
 };
 
 struct tun_flow_entry {
@@ -1643,6 +1643,7 @@ static struct sk_buff *tun_build_skb(struct tun_struct *tun,
 	else
 		*skb_xdp = 0;
 
+	preempt_disable();
 	rcu_read_lock();
 	xdp_prog = rcu_dereference(tun->xdp_prog);
 	if (xdp_prog && !*skb_xdp) {
@@ -1662,11 +1663,12 @@ static struct sk_buff *tun_build_skb(struct tun_struct *tun,
 		case XDP_REDIRECT:
 			get_page(alloc_frag->page);
 			alloc_frag->offset += buflen;
-			++tfile->xdp_pending_pkts;
 			err = xdp_do_redirect(tun->dev, &xdp, xdp_prog);
+			xdp_do_flush_map();
 			if (err)
 				goto err_redirect;
 			rcu_read_unlock();
+			preempt_enable();
 			return NULL;
 		case XDP_TX:
 			xdp_xmit = true;
@@ -1688,6 +1690,7 @@ static struct sk_buff *tun_build_skb(struct tun_struct *tun,
 	skb = build_skb(buf, buflen);
 	if (!skb) {
 		rcu_read_unlock();
+		preempt_enable();
 		return ERR_PTR(-ENOMEM);
 	}
 
@@ -1700,10 +1703,12 @@ static struct sk_buff *tun_build_skb(struct tun_struct *tun,
 		skb->dev = tun->dev;
 		generic_xdp_tx(skb, xdp_prog);
 		rcu_read_unlock();
+		preempt_enable();
 		return NULL;
 	}
 
 	rcu_read_unlock();
+	preempt_enable();
 
 	return skb;
 
@@ -1711,6 +1716,7 @@ err_redirect:
 	put_page(alloc_frag->page);
 err_xdp:
 	rcu_read_unlock();
+	preempt_enable();
 	this_cpu_inc(tun->pcpu_stats->rx_dropped);
 	return NULL;
 }
@@ -1983,11 +1989,6 @@ static ssize_t tun_chr_write_iter(struct kiocb *iocb, struct iov_iter *from)
 
 	result = tun_get_user(tun, tfile, NULL, from,
 			      file->f_flags & O_NONBLOCK, false);
-
-	if (tfile->xdp_pending_pkts) {
-		tfile->xdp_pending_pkts = 0;
-		xdp_do_flush_map();
-	}
 
 	tun_put(tun);
 	return result;
@@ -2286,11 +2287,67 @@ static int tun_validate(struct nlattr *tb[], struct nlattr *data[],
 	return -EINVAL;
 }
 
+static size_t tun_get_size(const struct net_device *dev)
+{
+	BUILD_BUG_ON(sizeof(u32) != sizeof(uid_t));
+	BUILD_BUG_ON(sizeof(u32) != sizeof(gid_t));
+
+	return nla_total_size(sizeof(uid_t)) + /* OWNER */
+	       nla_total_size(sizeof(gid_t)) + /* GROUP */
+	       nla_total_size(sizeof(u8)) + /* TYPE */
+	       nla_total_size(sizeof(u8)) + /* PI */
+	       nla_total_size(sizeof(u8)) + /* VNET_HDR */
+	       nla_total_size(sizeof(u8)) + /* PERSIST */
+	       nla_total_size(sizeof(u8)) + /* MULTI_QUEUE */
+	       nla_total_size(sizeof(u32)) + /* NUM_QUEUES */
+	       nla_total_size(sizeof(u32)) + /* NUM_DISABLED_QUEUES */
+	       0;
+}
+
+static int tun_fill_info(struct sk_buff *skb, const struct net_device *dev)
+{
+	struct tun_struct *tun = netdev_priv(dev);
+
+	if (nla_put_u8(skb, IFLA_TUN_TYPE, tun->flags & TUN_TYPE_MASK))
+		goto nla_put_failure;
+	if (uid_valid(tun->owner) &&
+	    nla_put_u32(skb, IFLA_TUN_OWNER,
+			from_kuid_munged(current_user_ns(), tun->owner)))
+		goto nla_put_failure;
+	if (gid_valid(tun->group) &&
+	    nla_put_u32(skb, IFLA_TUN_GROUP,
+			from_kgid_munged(current_user_ns(), tun->group)))
+		goto nla_put_failure;
+	if (nla_put_u8(skb, IFLA_TUN_PI, !(tun->flags & IFF_NO_PI)))
+		goto nla_put_failure;
+	if (nla_put_u8(skb, IFLA_TUN_VNET_HDR, !!(tun->flags & IFF_VNET_HDR)))
+		goto nla_put_failure;
+	if (nla_put_u8(skb, IFLA_TUN_PERSIST, !!(tun->flags & IFF_PERSIST)))
+		goto nla_put_failure;
+	if (nla_put_u8(skb, IFLA_TUN_MULTI_QUEUE,
+		       !!(tun->flags & IFF_MULTI_QUEUE)))
+		goto nla_put_failure;
+	if (tun->flags & IFF_MULTI_QUEUE) {
+		if (nla_put_u32(skb, IFLA_TUN_NUM_QUEUES, tun->numqueues))
+			goto nla_put_failure;
+		if (nla_put_u32(skb, IFLA_TUN_NUM_DISABLED_QUEUES,
+				tun->numdisabled))
+			goto nla_put_failure;
+	}
+
+	return 0;
+
+nla_put_failure:
+	return -EMSGSIZE;
+}
+
 static struct rtnl_link_ops tun_link_ops __read_mostly = {
 	.kind		= DRV_NAME,
 	.priv_size	= sizeof(struct tun_struct),
 	.setup		= tun_setup,
 	.validate	= tun_validate,
+	.get_size       = tun_get_size,
+	.fill_info      = tun_fill_info,
 };
 
 static void tun_sock_write_space(struct sock *sk)
@@ -2325,13 +2382,6 @@ static int tun_sendmsg(struct socket *sock, struct msghdr *m, size_t total_len)
 	ret = tun_get_user(tun, tfile, m->msg_control, &m->msg_iter,
 			   m->msg_flags & MSG_DONTWAIT,
 			   m->msg_flags & MSG_MORE);
-
-	if (tfile->xdp_pending_pkts >= NAPI_POLL_WEIGHT ||
-	    !(m->msg_flags & MSG_MORE)) {
-		tfile->xdp_pending_pkts = 0;
-		xdp_do_flush_map();
-	}
-
 	tun_put(tun);
 	return ret;
 }
@@ -2789,6 +2839,7 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 	struct tun_struct *tun;
 	void __user* argp = (void __user*)arg;
 	struct ifreq ifr;
+	struct net *net;
 	kuid_t owner;
 	kgid_t group;
 	int sndbuf;
@@ -2797,7 +2848,8 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 	int le;
 	int ret;
 
-	if (cmd == TUNSETIFF || cmd == TUNSETQUEUE || _IOC_TYPE(cmd) == SOCK_IOC_TYPE) {
+	if (cmd == TUNSETIFF || cmd == TUNSETQUEUE ||
+	    (_IOC_TYPE(cmd) == SOCK_IOC_TYPE && cmd != SIOCGSKNS)) {
 		if (copy_from_user(&ifr, argp, ifreq_len))
 			return -EFAULT;
 	} else {
@@ -2817,6 +2869,7 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 	rtnl_lock();
 
 	tun = tun_get(tfile);
+	net = sock_net(&tfile->sk);
 	if (cmd == TUNSETIFF) {
 		ret = -EEXIST;
 		if (tun)
@@ -2824,7 +2877,7 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 
 		ifr.ifr_name[IFNAMSIZ-1] = '\0';
 
-		ret = tun_set_iff(sock_net(&tfile->sk), file, &ifr);
+		ret = tun_set_iff(net, file, &ifr);
 
 		if (ret)
 			goto unlock;
@@ -2844,6 +2897,14 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 
 		ret = 0;
 		tfile->ifindex = ifindex;
+		goto unlock;
+	}
+	if (cmd == SIOCGSKNS) {
+		ret = -EPERM;
+		if (!ns_capable(net->user_ns, CAP_NET_ADMIN))
+			goto unlock;
+
+		ret = open_related_ns(&net->ns, get_net_ns);
 		goto unlock;
 	}
 
@@ -3163,7 +3224,6 @@ static int tun_chr_open(struct inode *inode, struct file * file)
 	sock_set_flag(&tfile->sk, SOCK_ZEROCOPY);
 
 	memset(&tfile->tx_ring, 0, sizeof(tfile->tx_ring));
-	tfile->xdp_pending_pkts = 0;
 
 	return 0;
 }
