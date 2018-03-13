@@ -1282,7 +1282,7 @@
 
 			clocks = <&mmcc GPU_AHB_CLK>,
 				<&gcc GCC_MMSS_BIMC_GFX_CLK>;
-			clock-names = "bus", "iface";
+			clock-names = "iface", "bus";
 
 			power-domains = <&mmcc GPU_GDSC>;
 
