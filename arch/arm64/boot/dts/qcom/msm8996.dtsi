@@ -1271,7 +1271,7 @@
 		};
 
 		adreno_smmu: arm,smmu@b40000 {
-			compatible = "qcom,msm8996-smmu-v2";
+			compatible = "qcom,msm8996-smmu-v2", "qcom,smmu-v2";
 			reg = <0xb40000 0x10000>;
 
 			#global-interrupts = <1>;
@@ -1336,7 +1336,7 @@
 		};
 
 		mdp_smmu: arm,smmu@d00000 {
-			compatible = "qcom,msm8996-smmu-v2";
+			compatible = "qcom,msm8996-smmu-v2", "qcom,smmu-v2";
 			reg = <0xd00000 0x10000>;
 
 			#global-interrupts = <1>;
