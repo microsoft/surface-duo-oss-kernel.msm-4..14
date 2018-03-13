@@ -56,7 +56,7 @@
 	} while (0)
 
 /* Flag indicating whether initialization completed */
-extern int apparmor_initialized __initdata;
+extern int apparmor_initialized;
 
 /* fn's in lib */
 char *aa_split_fqname(char *args, char **ns_name);
