@@ -444,6 +444,7 @@
 				clock-names = "core", "iface";
 				#address-cells = <1>;
 				#size-cells = <0>;
+				status = "disabled";
 			};
 
 		};
@@ -472,6 +473,7 @@
 				clock-names = "core", "iface";
 				#address-cells = <1>;
 				#size-cells = <0>;
+				status = "disabled";
 			};
 		};
 
@@ -497,6 +499,7 @@
 				clock-names = "core", "iface";
 				#address-cells = <1>;
 				#size-cells = <0>;
+				status = "disabled";
 			};
 		};
 
@@ -521,6 +524,7 @@
 				clocks = <&gcc GSBI4_QUP_CLK>,
 					 <&gcc GSBI4_H_CLK>;
 				clock-names = "core", "iface";
+				status = "disabled";
 			};
 		};
 
