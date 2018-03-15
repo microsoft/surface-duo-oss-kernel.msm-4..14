@@ -4,6 +4,8 @@
 #include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
 #include <dt-bindings/pinctrl/qcom,pmic-mpp.h>
 #include <dt-bindings/mfd/qcom-rpm.h>
+#include <dt-bindings/sound/qcom,q6afe.h>
+#include <dt-bindings/sound/qcom,q6asm.h>
 
 / {
 	model = "Qualcomm Technologies, Inc. DB600c";
@@ -60,6 +62,45 @@
 		port {
 			hdmi_con: endpoint {
 				remote-endpoint = <&hdmi_out>;
+			};
+		};
+	};
+
+	smd {
+		q6@1 {
+			status = "okay";
+			apr {
+				audio {
+					compatible = "qcom,apq8064-sndcard";
+					qcom,model = "IFC6410";
+					qcom,audio-routing =
+						"RX_BIAS", "MCLK";
+					fe@1 {
+						is-fe;
+						link-name = "MultiMedia1 Playback";
+						cpu {
+							sound-dai = <&q6asm  MSM_FRONTEND_DAI_MULTIMEDIA1>;
+						};
+						platform {
+							sound-dai = <&q6asm  MSM_FRONTEND_DAI_MULTIMEDIA1>;
+						};
+					};
+
+					be@1 {
+						link-name = "HDMI Playback";
+						cpu {
+							sound-dai = <&q6afe AFE_PORT_HDMI_RX>;
+						};
+
+						platform {
+							sound-dai = <&q6adm>;
+						};
+
+						codec {
+							sound-dai = <&hdmi 0>;
+						};
+					};
+				};
 			};
 		};
 	};
