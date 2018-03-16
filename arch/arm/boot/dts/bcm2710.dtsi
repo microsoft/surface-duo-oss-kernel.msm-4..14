@@ -7,6 +7,7 @@
 	chosen {
 		/* No padding required - the boot loader can do that. */
 		bootargs = "";
+		/delete-property/ stdout-path;
 	};
 
 	soc {
