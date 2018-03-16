@@ -116,12 +116,6 @@
 	hrfid;								\
 	b	hrfi_flush_fallback
 
-#define HRFI_TO_UNKNOWN							\
-	RFI_FLUSH_FIXUP_SECTION;					\
-	nop;								\
-	hrfid;								\
-	b	hrfi_flush_fallback
-
 #ifdef CONFIG_RELOCATABLE
 #define __EXCEPTION_RELON_PROLOG_PSERIES_1(label, h)			\
 	ld	r12,PACAKBASE(r13);	/* get high part of &label */	\
