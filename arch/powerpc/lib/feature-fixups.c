@@ -20,7 +20,6 @@
 #include <asm/code-patching.h>
 #include <asm/page.h>
 #include <asm/sections.h>
-#include <asm/setup.h>
 
 
 struct fixup_entry {
