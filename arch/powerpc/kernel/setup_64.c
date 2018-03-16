@@ -833,7 +833,7 @@ static int __init disable_hardlockup_detector(void)
 early_initcall(disable_hardlockup_detector);
 #endif
 #ifdef CONFIG_PPC_BOOK3S_64
-static enum l1d_flush_type enabled_flush_types;
+static enum l1d_flush_type l1d_flush_type;
 static void *l1d_flush_fallback_area;
 bool rfi_flush;
 
@@ -851,7 +851,7 @@ void rfi_flush_enable(bool enable)
 		return;
 
 	if (enable) {
-		do_rfi_flush_fixups(enabled_flush_types);
+		do_rfi_flush_fixups(l1d_flush_type);
 		on_each_cpu(do_nothing, NULL, 1);
 	} else
 		do_rfi_flush_fixups(L1D_FLUSH_NONE);
@@ -859,9 +859,9 @@ void rfi_flush_enable(bool enable)
 	rfi_flush = enable;
 }
 
-void __init setup_rfi_flush(enum l1d_flush_type types, bool enable)
+void __init setup_rfi_flush(enum l1d_flush_type type, bool enable)
 {
-	if (types & L1D_FLUSH_FALLBACK) {
+	if (type == L1D_FLUSH_FALLBACK) {
 		int cpu;
 		u64 l1d_size = ppc64_caches.dsize;
 		u64 limit = min(safe_stack_limit(), ppc64_rma_size);
@@ -893,15 +893,12 @@ void __init setup_rfi_flush(enum l1d_flush_type types, bool enable)
 			paca[cpu].l1d_flush_congruence = c;
 			paca[cpu].l1d_flush_sets = c / 128;
 		}
-	}
-
-	if (types & L1D_FLUSH_ORI)
+	} else if (type == L1D_FLUSH_ORI)
 		pr_info("rfi-fixups: Using ori type flush\n");
-
-	if (types & L1D_FLUSH_MTTRIG)
+	else if (type == L1D_FLUSH_MTTRIG)
 		pr_info("rfi-fixups: Using mttrig type flush\n");
 
-	enabled_flush_types = types;
+	l1d_flush_type = type;
 	rfi_flush_enable(enable);
 }
 #endif /* CONFIG_PPC_BOOK3S_64 */
