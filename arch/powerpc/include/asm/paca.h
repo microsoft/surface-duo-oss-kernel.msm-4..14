@@ -167,8 +167,6 @@ struct paca_struct {
 #endif
 
 #ifdef CONFIG_PPC_BOOK3S_64
-	void *rfi_flush_fallback_area;
-
 	/* Exclusive emergency stack pointer for machine check exception. */
 	void *mc_emergency_sp;
 	/*
@@ -202,15 +200,6 @@ struct paca_struct {
 	struct kvmppc_book3s_shadow_vcpu shadow_vcpu;
 #endif
 	struct kvmppc_host_state kvm_hstate;
-#endif
-#ifdef CONFIG_PPC_BOOK3S_64
-	/*
-	 * rfi fallback flush must be in its own cacheline to prevent
-	 * other paca data leaking into the L1d
-	 */
-	u64 exrfi[13] __aligned(0x80);
-	/* Number of consecutive 128 byte lines that must be loaded */
-	u64 l1d_flush_lines;
 #endif
 };
 
