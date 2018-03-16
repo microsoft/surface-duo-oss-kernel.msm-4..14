@@ -727,36 +727,29 @@ rfi_flush_fallback:
 	std	r9,PACA_EXRFI+EX_R9(r13)
 	std	r10,PACA_EXRFI+EX_R10(r13)
 	std	r11,PACA_EXRFI+EX_R11(r13)
-	std	r12,PACA_EXRFI+EX_R12(r13)
-	std	r8,PACA_EXRFI+EX_R13(r13)
 	mfctr	r9
 	ld	r10,PACA_RFI_FLUSH_FALLBACK_AREA(r13)
-	ld	r11,PACA_L1D_FLUSH_SETS(r13)
-	ld	r12,PACA_L1D_FLUSH_CONGRUENCE(r13)
+	ld	r11,PACA_L1D_FLUSH_LINES(r13)
+	srdi	r11,r11,2	/* Unrolled x4 */
+	mtctr	r11
+	DCBT_STOP_ALL_STREAM_IDS(r11) /* Stop prefetch streams */
+	/* XXX: Should an instruction synchronizing operation be done here? */
+1:
 	/*
 	 * The load adresses are at staggered offsets within cachelines,
 	 * which suits some pipelines better (on others it should not
 	 * hurt.
 	 */
-	addi	r12,r12,8
-	mtctr	r11
-	DCBT_STOP_ALL_STREAM_IDS(r11) /* Stop prefetch streams */
-	/* XXX: Should an instruction synchronizing operation be done here? */
-
-1:	li	r8,0
-	.rept	8 /* 8-way set associative */
-	ldx	r11,r10,r8
-	add	r8,r8,r12
-	.endr
-	addi	r10,r10,128 /* 128 byte cache line */
+	ld	r11,128*0+0(r10)
+	ld	r11,128*1+8(r10)
+	ld	r11,128*2+16(r10)
+	ld	r11,128*3+24(r10)
+	addi	r10,r10,(128 * 4)
 	bdnz	1b
-
 	mtctr	r9
 	ld	r9,PACA_EXRFI+EX_R9(r13)
 	ld	r10,PACA_EXRFI+EX_R10(r13)
 	ld	r11,PACA_EXRFI+EX_R11(r13)
-	ld	r12,PACA_EXRFI+EX_R12(r13)
-	ld	r8,PACA_EXRFI+EX_R13(r13)
 	GET_SCRATCH0(r13);
 	rfid
 
@@ -767,36 +760,29 @@ hrfi_flush_fallback:
 	std	r9,PACA_EXRFI+EX_R9(r13)
 	std	r10,PACA_EXRFI+EX_R10(r13)
 	std	r11,PACA_EXRFI+EX_R11(r13)
-	std	r12,PACA_EXRFI+EX_R12(r13)
-	std	r8,PACA_EXRFI+EX_R13(r13)
 	mfctr	r9
 	ld	r10,PACA_RFI_FLUSH_FALLBACK_AREA(r13)
-	ld	r11,PACA_L1D_FLUSH_SETS(r13)
-	ld	r12,PACA_L1D_FLUSH_CONGRUENCE(r13)
+	ld	r11,PACA_L1D_FLUSH_LINES(r13)
+	srdi	r11,r11,2	/* Unrolled x4 */
+	mtctr	r11
+	DCBT_STOP_ALL_STREAM_IDS(r11) /* Stop prefetch streams */
+	/* XXX: Should an instruction synchronizing operation be done here? */
+1:
 	/*
 	 * The load adresses are at staggered offsets within cachelines,
 	 * which suits some pipelines better (on others it should not
 	 * hurt.
 	 */
-	addi	r12,r12,8
-	mtctr	r11
-	DCBT_STOP_ALL_STREAM_IDS(r11) /* Stop prefetch streams */
-	/* XXX: Should an instruction synchronizing operation be done here? */
-
-1:	li	r8,0
-	.rept	8 /* 8-way set associative */
-	ldx	r11,r10,r8
-	add	r8,r8,r12
-	.endr
-	addi	r10,r10,128 /* 128 byte cache line */
+	ld	r11,128*0+0(r10)
+	ld	r11,128*1+8(r10)
+	ld	r11,128*2+16(r10)
+	ld	r11,128*3+24(r10)
+	addi	r10,r10,(128 * 4)
 	bdnz	1b
-
 	mtctr	r9
 	ld	r9,PACA_EXRFI+EX_R9(r13)
 	ld	r10,PACA_EXRFI+EX_R10(r13)
 	ld	r11,PACA_EXRFI+EX_R11(r13)
-	ld	r12,PACA_EXRFI+EX_R12(r13)
-	ld	r8,PACA_EXRFI+EX_R13(r13)
 	GET_SCRATCH0(r13);
 	hrfid
 
