@@ -46,9 +46,6 @@
 
 #define FUNC(name)		name
 
-#define RFI_TO_KERNEL	RFI
-#define RFI_TO_GUEST	RFI
-
 .macro INTERRUPT_TRAMPOLINE intno
 
 .global kvmppc_trampoline_\intno
