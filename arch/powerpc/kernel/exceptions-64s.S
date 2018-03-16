@@ -741,15 +741,13 @@ rfi_flush_fallback:
 	addi	r12,r12,8
 	mtctr	r11
 	DCBT_STOP_ALL_STREAM_IDS(r11) /* Stop prefetch streams */
+	/* XXX: Should an instruction synchronizing operation be done here? */
 
-	/* order ld/st prior to dcbt stop all streams with flushing */
-	sync
 1:	li	r8,0
 	.rept	8 /* 8-way set associative */
 	ldx	r11,r10,r8
 	add	r8,r8,r12
 	.endr
-	lwsync	/* Ensure that we do all 8 sets before others */
 	addi	r10,r10,128 /* 128 byte cache line */
 	bdnz	1b
 
@@ -783,15 +781,13 @@ hrfi_flush_fallback:
 	addi	r12,r12,8
 	mtctr	r11
 	DCBT_STOP_ALL_STREAM_IDS(r11) /* Stop prefetch streams */
+	/* XXX: Should an instruction synchronizing operation be done here? */
 
-	/* order ld/st prior to dcbt stop all streams with flushing */
-	sync
 1:	li	r8,0
 	.rept	8 /* 8-way set associative */
 	ldx	r11,r10,r8
 	add	r8,r8,r12
 	.endr
-	lwsync	/* Ensure that we do all 8 sets before others */
 	addi	r10,r10,128 /* 128 byte cache line */
 	bdnz	1b
 
