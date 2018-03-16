@@ -43,17 +43,20 @@ static void pnv_setup_rfi_flush(void)
 {
 	struct device_node *np, *fw_features;
 	enum l1d_flush_type type;
-	int enable;
+	bool enable;
 
 	/* Default to fallback in case fw-features are not available */
 	type = L1D_FLUSH_FALLBACK;
-	enable = 1;
+	enable = true;
 
 	np = of_find_node_by_name(NULL, "ibm,opal");
 	fw_features = of_get_child_by_name(np, "fw-features");
 	of_node_put(np);
 
 	if (fw_features) {
+		/* Default to no flush, unless firmware says otherwise */
+		type = L1D_FLUSH_NONE;
+
 		np = of_get_child_by_name(fw_features, "inst-l1d-flush-trig2");
 		if (np && of_property_read_bool(np, "enabled"))
 			type = L1D_FLUSH_MTTRIG;
@@ -66,23 +69,23 @@ static void pnv_setup_rfi_flush(void)
 
 		of_node_put(np);
 
-		/* Enable unless firmware says NOT to */
-		enable = 2;
+		/* Don't enable unless firmware says so */
+		enable = false;
 		np = of_get_child_by_name(fw_features, "needs-l1d-flush-msr-hv-1-to-0");
-		if (np && of_property_read_bool(np, "disabled"))
-			enable--;
+		if (np && of_property_read_bool(np, "enabled"))
+			enable = true;
 
 		of_node_put(np);
 
 		np = of_get_child_by_name(fw_features, "needs-l1d-flush-msr-pr-0-to-1");
-		if (np && of_property_read_bool(np, "disabled"))
-			enable--;
+		if (np && of_property_read_bool(np, "enabled"))
+			enable = true;
 
 		of_node_put(np);
 		of_node_put(fw_features);
 	}
 
-	setup_rfi_flush(type, enable > 0);
+	setup_rfi_flush(type, enable);
 }
 
 static void __init pnv_setup_arch(void)
