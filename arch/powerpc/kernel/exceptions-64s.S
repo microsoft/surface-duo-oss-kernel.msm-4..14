@@ -824,7 +824,7 @@ kvmppc_skip_interrupt:
 	addi	r13, r13, 4
 	mtspr	SPRN_SRR0, r13
 	GET_SCRATCH0(r13)
-	RFI_TO_KERNEL
+	RFI_TO_GUEST
 	b	.
 
 kvmppc_skip_Hinterrupt:
@@ -836,7 +836,7 @@ kvmppc_skip_Hinterrupt:
 	addi	r13, r13, 4
 	mtspr	SPRN_HSRR0, r13
 	GET_SCRATCH0(r13)
-	HRFI_TO_KERNEL
+	HRFI_TO_GUEST
 	b	.
 #endif
 
