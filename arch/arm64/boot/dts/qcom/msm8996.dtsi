@@ -562,6 +562,8 @@
 			 clocks = <&gcc GCC_SDCC2_AHB_CLK>,
 			 <&gcc GCC_SDCC2_APPS_CLK>,
 			 <&xo_board>;
+			 interconnects = <&pnoc MASTER_SDCC_2 &bimc SLAVE_EBI_CH0>;
+			 interconnect-names = "sdhc-mem";
 			 bus-width = <4>;
 		 };
 
