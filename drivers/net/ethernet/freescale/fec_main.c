@@ -19,6 +19,7 @@
  * Copyright (c) 2004-2006 Macq Electronique SA.
  *
  * Copyright (C) 2010-2015 Freescale Semiconductor, Inc.
+ * Copyright (C) 2018 NXP
  */
 
 #include <linux/module.h>
@@ -242,6 +243,9 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
 #define IS_TSO_HEADER(txq, addr) \
 	((addr >= txq->tso_hdrs_dma) && \
 	(addr < txq->tso_hdrs_dma + txq->bd.ring_size * TSO_HEADER_SIZE))
+
+void (*fec_cb)(int status_change, int link) = NULL;
+static DEFINE_MUTEX(fec_cb_lock);
 
 static int mii_cnt;
 
@@ -1774,7 +1778,21 @@ static void fec_enet_adjust_link(struct net_device *ndev)
 
 	if (status_change)
 		phy_print_status(phy_dev);
+
+	mutex_lock(&fec_cb_lock);
+	if (fec_cb)
+		fec_cb(status_change, fep->link);
+	mutex_unlock(&fec_cb_lock);
 }
+
+void fec_set_phy_callback(void (*fec_callback)(int status_change,
+					       int link))
+{
+	mutex_lock(&fec_cb_lock);
+	fec_cb = fec_callback;
+	mutex_unlock(&fec_cb_lock);
+}
+EXPORT_SYMBOL(fec_set_phy_callback);
 
 #define EBERR 1
 static int fec_enec_clear_eberr(struct fec_enet_private *fep)
