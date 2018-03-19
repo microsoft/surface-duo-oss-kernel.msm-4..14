@@ -4,6 +4,7 @@
  *   Baruch Siach <baruch@tkos.co.il>
  *
  * Copyright (C) 2010 Freescale Semiconductor, Inc.
+ * Copyright 2018 NXP
  *
  * Header file for the FEC platform data
  *
@@ -21,5 +22,8 @@ struct fec_platform_data {
 	unsigned char mac[ETH_ALEN];
 	void (*sleep_mode_enable)(int enabled);
 };
+
+extern void fec_set_phy_callback(void (*fec_callback)(int status_change,
+				 int link));
 
 #endif
