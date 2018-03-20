@@ -21,6 +21,7 @@
 #include <asm/page_types.h>
 #include <asm/asm-offsets.h>
 #include <asm/processor-flags.h>
+#include <asm/nospec-branch.h>
 
 ENTRY(swsusp_arch_suspend)
 	movq	$saved_context, %rax
@@ -63,6 +64,7 @@ ENTRY(restore_image)
 
 	/* jump to relocated restore code */
 	movq	relocated_restore_code(%rip), %rcx
+	ANNOTATE_RETPOLINE_SAFE
 	jmpq	*%rcx
 
 	/* code below has been relocated to a safe page */
@@ -95,6 +97,7 @@ ENTRY(core_restore_code)
 
 .Ldone:
 	/* jump to the restore_registers address from the image header */
+	ANNOTATE_RETPOLINE_SAFE
 	jmpq	*%r8
 
 	 /* code below belongs to the image kernel */

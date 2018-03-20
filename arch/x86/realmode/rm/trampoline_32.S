@@ -22,6 +22,7 @@
 #include <linux/linkage.h>
 #include <asm/segment.h>
 #include <asm/page_types.h>
+#include <asm/nospec-branch.h>
 #include "realmode.h"
 
 	.text
@@ -60,6 +61,7 @@ ENTRY(trampoline_start)
 	.section ".text32","ax"
 	.code32
 ENTRY(startup_32)			# note: also used from wakeup_asm.S
+	ANNOTATE_RETPOLINE_SAFE
 	jmp	*%eax
 
 	.bss
