@@ -18,7 +18,8 @@
 #include "apq8096-db820c-pmic-pins.dtsi"
 #include <dt-bindings/input/input.h>
 #include <dt-bindings/gpio/gpio.h>
-
+#include <dt-bindings/sound/qcom,q6afe.h>
+#include <dt-bindings/sound/qcom,q6asm.h>
 / {
 	aliases {
 		serial0 = &blsp2_uart1;
@@ -43,13 +44,13 @@
 			pinctrl-1 = <&blsp2_uart1_2pins_sleep>;
 		};
 
-		serial@75b1000 {
-			label = "LS-UART0";
-			status = "okay";
-			pinctrl-names = "default", "sleep";
-			pinctrl-0 = <&blsp2_uart2_4pins_default>;
-			pinctrl-1 = <&blsp2_uart2_4pins_sleep>;
-		};
+//		serial@75b1000 {
+//			label = "LS-UART0";
+//			status = "okay";
+//			pinctrl-names = "default", "sleep";
+//			pinctrl-0 = <&blsp2_uart2_4pins_default>;
+//			pinctrl-1 = <&blsp2_uart2_4pins_sleep>;
+//		};
 
 		i2c@07577000 {
 		/* On Low speed expansion */
@@ -137,6 +138,91 @@
 			id-gpio = <&pmi8994_gpios 6 GPIO_ACTIVE_HIGH>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&usb2_vbus_det_gpio>;
+		};
+
+		ufsphy@627000 {
+			status = "okay";
+		};
+
+		ufshc@624000 {
+			status = "okay";
+		};
+
+	        bt_en: bt-en-1-8v {
+			pinctrl-names = "default";
+			pinctrl-0 = <&bt_en_gpios>;
+	                compatible = "regulator-fixed";
+	                regulator-name = "bt-en-regulator";
+	                regulator-min-microvolt = <1800000>;
+	                regulator-max-microvolt = <1800000>;
+
+			gpio = <&pm8994_gpios 19 0>;
+	
+	                /* WLAN card specific delay */
+	                startup-delay-us = <70000>;
+	                enable-active-high;
+	        };
+
+	        wlan_en: wlan-en-1-8v {
+			pinctrl-names = "default";
+			pinctrl-0 = <&wlan_en_gpios>;
+	                compatible = "regulator-fixed";
+	                regulator-name = "wlan-en-regulator";
+	                regulator-min-microvolt = <1800000>;
+	                regulator-max-microvolt = <1800000>;
+	
+			gpio = <&pm8994_gpios 8 0>;
+	
+	                /* WLAN card specific delay */
+	                startup-delay-us = <70000>;
+	                enable-active-high;
+	        };
+
+
+		agnoc@0 {
+			qcom,pcie@00600000 {
+				status = "okay";
+				perst-gpio = <&msmgpio 35 GPIO_ACTIVE_LOW>;
+				vddpe-3v3-supply = <&wlan_en>;
+
+			};
+
+			qcom,pcie@00608000 {
+				status = "okay";
+				perst-gpio = <&msmgpio 130 GPIO_ACTIVE_LOW>;
+			};
+
+			qcom,pcie@00610000 {
+				status = "okay";
+				perst-gpio = <&msmgpio 114 GPIO_ACTIVE_LOW>;
+			};
+		};
+
+		mdss@900000 {
+			status = "okay";
+
+			mdp@901000 {
+				status = "okay";
+			};
+
+			hdmi-phy@9a0600 {
+				status = "okay";
+
+				vddio-supply = <&pm8994_l12>;
+				vcca-supply = <&pm8994_l28>;
+			};
+
+			hdmi-tx@9a0000 {
+				status = "okay";
+
+				pinctrl-names = "default", "sleep";
+				pinctrl-0 = <&hdmi_hpd_active &hdmi_ddc_active>;
+				pinctrl-1 = <&hdmi_hpd_suspend &hdmi_ddc_suspend>;
+
+				core-vdda-supply = <&pm8994_l12>;
+				core-vcc-supply = <&pm8994_s4>;
+				#sound-dai-cells = <1>;
+			};
 		};
 	};
 
@@ -376,6 +462,36 @@
 
 				qcom,dtest = <4 1>;
 			};
+		};
+	 };
+};
+&sound {
+	compatible = "qcom,apq8096-sndcard";
+	qcom,model = "DB820c";
+	qcom,audio-routing =
+		"RX_BIAS", "MCLK";
+	mm1-dai-link {
+		link-name = "MultiMedia1";
+		cpu {
+			sound-dai = <&q6asmdai  MSM_FRONTEND_DAI_MULTIMEDIA1>;
+		};
+		platform {
+			sound-dai = <&q6asmdai>;
+		};
+	};
+
+	hdmi-dai-link {
+		link-name = "HDMI Playback";
+		cpu {
+			sound-dai = <&q6afedai HDMI_RX>;
+		};
+
+		platform {
+			sound-dai = <&q6routing>;
+		};
+
+		codec {
+			sound-dai = <&hdmi 0>;
 		};
 	};
 };
