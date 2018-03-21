@@ -80,7 +80,8 @@ struct camss {
 	int csid_num;
 	struct csid_device *csid;
 	struct ispif_device ispif;
-	struct vfe_device vfe;
+	int vfe_num;
+	struct vfe_device *vfe;
 	atomic_t ref_count;
 };
 
