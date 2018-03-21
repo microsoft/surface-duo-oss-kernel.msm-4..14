@@ -2989,17 +2989,6 @@ static struct gdsc camss_gdsc = {
 	.pwrsts = PWRSTS_OFF_ON,
 };
 
-static struct gdsc vfe0_gdsc = {
-	.gdscr = 0x3664,
-	.cxcs = (unsigned int []){ 0x36a8 },
-	.cxc_count = 1,
-	.pd = {
-		.name = "vfe0",
-	},
-	.parent = &camss_gdsc.pd,
-	.pwrsts = PWRSTS_OFF_ON,
-};
-
 static struct gdsc vfe1_gdsc = {
 	.gdscr = 0x3674,
 	.cxcs = (unsigned int []){ 0x36ac },
@@ -3008,6 +2997,17 @@ static struct gdsc vfe1_gdsc = {
 		.name = "vfe1",
 	},
 	.parent = &camss_gdsc.pd,
+	.pwrsts = PWRSTS_OFF_ON,
+};
+
+static struct gdsc vfe0_gdsc = {
+	.gdscr = 0x3664,
+	.cxcs = (unsigned int []){ 0x36a8 },
+	.cxc_count = 1,
+	.pd = {
+		.name = "vfe0",
+	},
+	.parent = &vfe1_gdsc.pd,
 	.pwrsts = PWRSTS_OFF_ON,
 };
 
