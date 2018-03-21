@@ -27,7 +27,7 @@
 #define MSM_ISPIF_PAD_SRC 1
 #define MSM_ISPIF_PADS_NUM 2
 
-#define MSM_ISPIF_VFE_NUM 1
+#define MSM_ISPIF_VFE_NUM 2
 
 enum ispif_intf {
 	PIX0,
