@@ -376,6 +376,7 @@ struct rsi_common {
 	struct work_struct scan_work;
 	struct rsi_event chan_set_event;
 	struct rsi_event probe_cfm_event;
+	struct rsi_event mgmt_cfm_event;
 	struct rsi_event chan_change_event;
 	struct rsi_event cancel_hw_scan_event;
 	struct timer_list scan_timer;

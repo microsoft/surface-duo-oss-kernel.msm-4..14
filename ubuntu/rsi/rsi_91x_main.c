@@ -382,6 +382,7 @@ struct rsi_hw *ven_rsi_91x_init(void)
 #ifdef CONFIG_HW_SCAN_OFFLOAD
 	rsi_init_event(&common->chan_set_event);
 	rsi_init_event(&common->probe_cfm_event);
+	rsi_init_event(&common->mgmt_cfm_event);
 	rsi_init_event(&common->chan_change_event);
 	rsi_init_event(&common->cancel_hw_scan_event);
 	common->scan_workqueue = 

@@ -2407,6 +2407,8 @@ void rsi_scan_start(struct work_struct *work)
 
 	common->scan_in_prog = true;
 	rsi_disable_ps(common->priv);
+	rsi_reset_event(&common->mgmt_cfm_event);
+	rsi_wait_event(&common->mgmt_cfm_event, msecs_to_jiffies(2000));
 	
 	for (ii =0; ii < scan_req->n_channels ; ii++) {
 		if (common->iface_down)
@@ -2470,6 +2472,8 @@ void rsi_scan_start(struct work_struct *work)
 	del_timer(&common->scan_timer);
 	common->scan_in_prog = false;
 	rsi_enable_ps(common->priv);
+	rsi_reset_event(&common->mgmt_cfm_event);
+	rsi_wait_event(&common->mgmt_cfm_event, msecs_to_jiffies(2000));
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0))
 	info.aborted = false;
 	ieee80211_scan_completed(common->priv->hw, &info);
@@ -2693,6 +2697,7 @@ static int rsi_handle_ta_confirm(struct rsi_common *common, u8 *msg)
 
 	case WAKEUP_SLEEP_REQUEST:
 		ven_rsi_dbg(INFO_ZONE, "Wakeup/Sleep confirmation.\n");
+		rsi_set_event(&common->mgmt_cfm_event);
 		return rsi_handle_ps_confirm(adapter, msg);
 
 	case BG_SCAN_PROBE_REQ:
