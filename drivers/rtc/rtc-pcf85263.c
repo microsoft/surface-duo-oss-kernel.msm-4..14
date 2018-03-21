@@ -405,7 +405,7 @@ static int pcf85263_set_alarm(struct device *dev, struct rtc_wkalrm *alarm)
 
 	/* Clear any pending alarm (write 0=>clr, 1=>no change) */
 	ret = regmap_write(pcf85263->regmap, PCF85263_REG_FLAGS,
-			~PCF85263_REG_FLAGS_A1F);
+			~((unsigned int)PCF85263_REG_FLAGS_A1F));
 	if (ret)
 		return ret;
 
@@ -447,7 +447,7 @@ static irqreturn_t pcf85263_irq(int irq, void *data)
 
 	if (regval & PCF85263_REG_FLAGS_A1F) {
 		regmap_write(pcf85263->regmap, PCF85263_REG_FLAGS,
-				~PCF85263_REG_FLAGS_A1F);
+				~((unsigned int)PCF85263_REG_FLAGS_A1F));
 
 		rtc_update_irq(pcf85263->rtc, 1, RTC_IRQF | RTC_AF);
 
