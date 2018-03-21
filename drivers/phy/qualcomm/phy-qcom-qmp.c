@@ -840,7 +840,7 @@ static int qcom_qmp_phy_com_exit(struct qcom_qmp *qmp)
 			     SW_PWRDN);
 	}
 
-	while (--i >= 0)
+	while (i--)
 		reset_control_assert(qmp->resets[i]);
 
 	mutex_unlock(&qmp->phy_mutex);
@@ -950,7 +950,7 @@ static int qcom_qmp_phy_exit(struct phy *phy)
 
 	qcom_qmp_phy_com_exit(qmp);
 
-	while (--i >= 0)
+	while (i--)
 		clk_disable_unprepare(qmp->clks[i]);
 
 	return 0;

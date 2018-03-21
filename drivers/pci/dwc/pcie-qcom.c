@@ -90,6 +90,7 @@
 struct qcom_pcie_resources_2_1_0 {
 	struct clk *iface_clk;
 	struct clk *core_clk;
+	struct clk *ref_clk;
 	struct clk *phy_clk;
 	struct reset_control *pci_reset;
 	struct reset_control *axi_reset;
@@ -110,12 +111,14 @@ struct qcom_pcie_resources_1_0_0 {
 	struct regulator *vdda;
 };
 
+#define QCOM_PCIE_2_3_2_MAX_SUPPLY	2
 struct qcom_pcie_resources_2_3_2 {
 	struct clk *aux_clk;
 	struct clk *master_clk;
 	struct clk *slave_clk;
 	struct clk *cfg_clk;
 	struct clk *pipe_clk;
+	struct regulator_bulk_data supplies[QCOM_PCIE_2_3_2_MAX_SUPPLY];
 };
 
 struct qcom_pcie_resources_2_4_0 {
@@ -241,6 +244,15 @@ static int qcom_pcie_get_resources_2_1_0(struct qcom_pcie *pcie)
 	if (IS_ERR(res->iface_clk))
 		return PTR_ERR(res->iface_clk);
 
+	res->ref_clk = devm_clk_get(dev, "ref");
+
+	if (IS_ERR(res->ref_clk)) {
+		if (PTR_ERR(res->ref_clk) == -EPROBE_DEFER)
+			return PTR_ERR(res->ref_clk);
+
+		res->ref_clk = NULL;
+	}
+
 	res->core_clk = devm_clk_get(dev, "core");
 	if (IS_ERR(res->core_clk))
 		return PTR_ERR(res->core_clk);
@@ -279,6 +291,7 @@ static void qcom_pcie_deinit_2_1_0(struct qcom_pcie *pcie)
 	reset_control_assert(res->por_reset);
 	reset_control_assert(res->pci_reset);
 	clk_disable_unprepare(res->iface_clk);
+	clk_disable_unprepare(res->ref_clk);
 	clk_disable_unprepare(res->core_clk);
 	clk_disable_unprepare(res->phy_clk);
 	regulator_disable(res->vdda);
@@ -318,10 +331,16 @@ static int qcom_pcie_init_2_1_0(struct qcom_pcie *pcie)
 		goto err_assert_ahb;
 	}
 
+	ret = clk_prepare_enable(res->ref_clk);
+	if (ret) {
+		dev_err(dev, "cannot prepare/enable ref clock\n");
+		goto err_assert_ahb;
+	}
+
 	ret = clk_prepare_enable(res->iface_clk);
 	if (ret) {
 		dev_err(dev, "cannot prepare/enable iface clock\n");
-		goto err_assert_ahb;
+		goto err_clk_iface;
 	}
 
 	ret = clk_prepare_enable(res->phy_clk);
@@ -394,6 +413,8 @@ err_clk_core:
 	clk_disable_unprepare(res->phy_clk);
 err_clk_phy:
 	clk_disable_unprepare(res->iface_clk);
+err_clk_iface:
+	clk_disable_unprepare(res->ref_clk);
 err_assert_ahb:
 	regulator_disable(res->vdda_phy);
 err_vdda_phy:
@@ -529,6 +550,14 @@ static int qcom_pcie_get_resources_2_3_2(struct qcom_pcie *pcie)
 	struct qcom_pcie_resources_2_3_2 *res = &pcie->res.v2_3_2;
 	struct dw_pcie *pci = pcie->pci;
 	struct device *dev = pci->dev;
+	int ret;
+
+	res->supplies[0].supply = "vdda";
+	res->supplies[1].supply = "vddpe-3v3";
+	ret = devm_regulator_bulk_get(dev, ARRAY_SIZE(res->supplies),
+				      res->supplies);
+	if (ret)
+		return ret;
 
 	res->aux_clk = devm_clk_get(dev, "aux");
 	if (IS_ERR(res->aux_clk))
@@ -558,6 +587,8 @@ static void qcom_pcie_deinit_2_3_2(struct qcom_pcie *pcie)
 	clk_disable_unprepare(res->master_clk);
 	clk_disable_unprepare(res->cfg_clk);
 	clk_disable_unprepare(res->aux_clk);
+
+	regulator_bulk_disable(ARRAY_SIZE(res->supplies), res->supplies);
 }
 
 static void qcom_pcie_post_deinit_2_3_2(struct qcom_pcie *pcie)
@@ -575,10 +606,16 @@ static int qcom_pcie_init_2_3_2(struct qcom_pcie *pcie)
 	u32 val;
 	int ret;
 
+	ret = regulator_bulk_enable(ARRAY_SIZE(res->supplies), res->supplies);
+	if (ret < 0) {
+		dev_err(dev, "cannot enable regulators\n");
+		return ret;
+	}
+
 	ret = clk_prepare_enable(res->aux_clk);
 	if (ret) {
 		dev_err(dev, "cannot prepare/enable aux clock\n");
-		return ret;
+		goto err_aux_clk;
 	}
 
 	ret = clk_prepare_enable(res->cfg_clk);
@@ -628,6 +665,9 @@ err_master_clk:
 	clk_disable_unprepare(res->cfg_clk);
 err_cfg_clk:
 	clk_disable_unprepare(res->aux_clk);
+
+err_aux_clk:
+	regulator_bulk_disable(ARRAY_SIZE(res->supplies), res->supplies);
 
 	return ret;
 }
@@ -1104,6 +1144,9 @@ static int qcom_pcie_host_init(struct pcie_port *pp)
 	struct qcom_pcie *pcie = to_qcom_pcie(pci);
 	int ret;
 
+
+	pm_runtime_get_sync(pci->dev);
+
 	qcom_ep_reset_assert(pcie);
 
 	ret = pcie->ops->init(pcie);
@@ -1140,6 +1183,7 @@ err_disable_phy:
 	phy_power_off(pcie->phy);
 err_deinit:
 	pcie->ops->deinit(pcie);
+	pm_runtime_put_sync(pci->dev);
 
 	return ret;
 }
@@ -1228,6 +1272,7 @@ static int qcom_pcie_probe(struct platform_device *pdev)
 	if (!pci)
 		return -ENOMEM;
 
+	pm_runtime_enable(dev);
 	pci->dev = dev;
 	pci->ops = &dw_pcie_ops;
 	pp = &pci->pp;
@@ -1277,6 +1322,7 @@ static int qcom_pcie_probe(struct platform_device *pdev)
 				       "qcom-pcie-msi", pp);
 		if (ret) {
 			dev_err(dev, "cannot request msi irq\n");
+			pm_runtime_disable(&pdev->dev);
 			return ret;
 		}
 	}
@@ -1290,6 +1336,7 @@ static int qcom_pcie_probe(struct platform_device *pdev)
 	ret = dw_pcie_host_init(pp);
 	if (ret) {
 		dev_err(dev, "cannot initialize host\n");
+		pm_runtime_disable(&pdev->dev);
 		return ret;
 	}
 

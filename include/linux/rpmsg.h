@@ -49,7 +49,7 @@ struct rpmsg_device;
 struct rpmsg_endpoint;
 struct rpmsg_device_ops;
 struct rpmsg_endpoint_ops;
-
+extern struct bus_type rpmsg_bus;
 /**
  * struct rpmsg_channel_info - channel info representation
  * @name: name of service

@@ -238,28 +238,6 @@ int qcom_cc_really_probe(struct platform_device *pdev,
 	if (!cc)
 		return -ENOMEM;
 
-	cc->rclks = rclks;
-	cc->num_rclks = num_clks;
-
-	for (i = 0; i < num_clks; i++) {
-		if (!rclks[i])
-			continue;
-
-		ret = devm_clk_register_regmap(dev, rclks[i]);
-		if (ret)
-			return ret;
-	}
-
-	ret = of_clk_add_hw_provider(dev->of_node, qcom_cc_clk_hw_get, cc);
-	if (ret)
-		return ret;
-
-	ret = devm_add_action_or_reset(dev, qcom_cc_del_clk_provider,
-				       pdev->dev.of_node);
-
-	if (ret)
-		return ret;
-
 	reset = &cc->reset;
 	reset->rcdev.of_node = dev->of_node;
 	reset->rcdev.ops = &qcom_reset_ops;
@@ -293,6 +271,22 @@ int qcom_cc_really_probe(struct platform_device *pdev,
 		if (ret)
 			return ret;
 	}
+
+	cc->rclks = rclks;
+	cc->num_rclks = num_clks;
+
+	for (i = 0; i < num_clks; i++) {
+		if (!rclks[i])
+			continue;
+
+		ret = devm_clk_register_regmap(dev, rclks[i]);
+		if (ret)
+			return ret;
+	}
+
+	ret = of_clk_add_hw_provider(dev->of_node, qcom_cc_clk_hw_get, cc);
+	if (ret)
+		return ret;
 
 	return 0;
 }

@@ -88,6 +88,7 @@
 	Definition: Should contain the following entries
 			- "core"	Clocks the pcie hw block
 			- "phy"		Clocks the pcie PHY block
+			- "ref"		Clocks the pcie refclk
 - clock-names:
 	Usage: required for apq8084/ipq4019
 	Value type: <stringlist>
@@ -179,6 +180,11 @@
 	Value type: <phandle>
 	Definition: A phandle to the core analog power supply
 
+- vdda-1p8-supply:
+	Usage: required for msm8996
+	Value type: <phandle>
+	Definition: A phandle to the 1.8v analog power supply
+
 - vdda_phy-supply:
 	Usage: required for ipq/apq8064
 	Value type: <phandle>
@@ -189,6 +195,15 @@
 	Value type: <phandle>
 	Definition: A phandle to the analog power supply for IC which generates
 		    reference clock
+- vddpe-supply:
+	Usage: optional
+	Value type: <phandle>
+	Definition: A phandle to the PCIe endpoint power supply
+
+- vddpe1-supply:
+	Usage: optional
+	Value type: <phandle>
+	Definition: A phandle to the PCIe endpoint power supply 1
 
 - phys:
 	Usage: required for apq8084
@@ -205,6 +220,8 @@
 	Value type: <prop-encoded-array>
 	Definition: List of phandle and GPIO specifier pairs. Should contain
 			- "perst-gpios"	PCIe endpoint reset signal line
+			- "pe_en-gpios"	PCIe endpoint enable signal line
+			- "pe_en1-gpios" PCIe endpoint enable1 signal line
 			- "wake-gpios"	PCIe endpoint wake signal line
 
 * Example for ipq/apq8064
