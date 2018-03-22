@@ -1888,7 +1888,6 @@ lis3lv02d_i2c
 lis3lv02d_spi
 litelink-sir
 lkkbd
-ll_temac
 llc
 llc2
 lm25066
