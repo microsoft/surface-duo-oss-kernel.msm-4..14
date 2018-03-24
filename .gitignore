@@ -117,3 +117,8 @@ all.config
 
 # Kdevelop4
 *.kdev4
+parts
+stage
+prime
+snap/.snapcraft/
+*.snap
