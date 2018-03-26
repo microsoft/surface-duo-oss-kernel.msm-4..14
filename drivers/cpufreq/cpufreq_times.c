@@ -105,10 +105,8 @@ static struct uid_entry *find_or_register_uid_locked(uid_t uid)
 		memset(temp->time_in_state + uid_entry->max_state, 0,
 		       (max_state - uid_entry->max_state) *
 		       sizeof(uid_entry->time_in_state[0]));
-		if (temp != uid_entry) {
-			hlist_replace_rcu(&uid_entry->hash, &temp->hash);
-			kfree_rcu(uid_entry, rcu);
-		}
+		hlist_replace_rcu(&uid_entry->hash, &temp->hash);
+		kfree_rcu(uid_entry, rcu);
 		return temp;
 	}
 
