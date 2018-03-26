@@ -85,6 +85,6 @@ config PROC_CHILDREN
 config PROC_UID
 	bool "Include /proc/uid/ files"
 	default y
-	depends on PROC_FS && RT_MUTEXES
+	depends on PROC_FS
 	help
 	Provides aggregated per-uid information under /proc/uid.
