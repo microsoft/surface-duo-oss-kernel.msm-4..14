@@ -3,7 +3,7 @@
  *
  * Copyright 2012-2016 Freescale Semiconductor, Inc.
  *
- * (C) Copyright 2017 NXP
+ * (C) Copyright 2017-2018 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -1033,7 +1033,7 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 
 	/* update the per-port timeout */
 	uart_update_timeout(port, termios->c_cflag, baud);
-	sport->dma_rx_timeout = msecs_to_jiffies(20);
+	sport->dma_rx_timeout = msecs_to_jiffies(DIV_ROUND_UP(10000000, baud));
 
 	/* disable transmit and receive */
 	writel(old_cr & ~(LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN),
