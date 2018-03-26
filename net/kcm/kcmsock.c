@@ -1425,6 +1425,7 @@ static int kcm_attach(struct socket *sock, struct socket *csock,
 	 */
 	if (csk->sk_user_data) {
 		write_unlock_bh(&csk->sk_callback_lock);
+		strp_stop(&psock->strp);
 		strp_done(&psock->strp);
 		kmem_cache_free(kcm_psockp, psock);
 		err = -EALREADY;
@@ -2027,6 +2028,7 @@ static struct pernet_operations kcm_net_ops = {
 	.exit = kcm_exit_net,
 	.id   = &kcm_net_id,
 	.size = sizeof(struct kcm_net),
+	.async = true,
 };
 
 static int __init kcm_init(void)

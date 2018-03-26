@@ -101,7 +101,6 @@ static int xfrm4_fill_dst(struct xfrm_dst *xdst, struct net_device *dev,
 	xdst->u.rt.rt_uses_gateway = rt->rt_uses_gateway;
 	xdst->u.rt.rt_pmtu = rt->rt_pmtu;
 	xdst->u.rt.rt_mtu_locked = rt->rt_mtu_locked;
-	xdst->u.rt.rt_table_id = rt->rt_table_id;
 	INIT_LIST_HEAD(&xdst->u.rt.rt_uncached);
 	rt_add_uncached_list(&xdst->u.rt);
 
@@ -368,6 +367,7 @@ static void __net_exit xfrm4_net_exit(struct net *net)
 static struct pernet_operations __net_initdata xfrm4_net_ops = {
 	.init	= xfrm4_net_init,
 	.exit	= xfrm4_net_exit,
+	.async	= true,
 };
 
 static void __init xfrm4_policy_init(void)
@@ -382,4 +382,3 @@ void __init xfrm4_init(void)
 	xfrm4_protocol_init();
 	register_pernet_subsys(&xfrm4_net_ops);
 }
-

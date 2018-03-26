@@ -862,7 +862,7 @@ err:
 /* getname() support.
  */
 static int pppol2tp_getname(struct socket *sock, struct sockaddr *uaddr,
-			    int *usockaddr_len, int peer)
+			    int peer)
 {
 	int len = 0;
 	int error = 0;
@@ -961,8 +961,7 @@ static int pppol2tp_getname(struct socket *sock, struct sockaddr *uaddr,
 		memcpy(uaddr, &sp, len);
 	}
 
-	*usockaddr_len = len;
-	error = 0;
+	error = len;
 
 	sock_put(sk);
 end:
@@ -1763,6 +1762,7 @@ static struct pernet_operations pppol2tp_net_ops = {
 	.init = pppol2tp_init_net,
 	.exit = pppol2tp_exit_net,
 	.id   = &pppol2tp_net_id,
+	.async = true,
 };
 
 /*****************************************************************************

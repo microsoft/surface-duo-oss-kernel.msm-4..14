@@ -711,9 +711,7 @@ static void raw_close(struct sock *sk, long timeout)
 	/*
 	 * Raw sockets may have direct kernel references. Kill them.
 	 */
-	rtnl_lock();
 	ip_ra_control(sk, 0, NULL);
-	rtnl_unlock();
 
 	sk_common_release(sk);
 }
@@ -1156,6 +1154,7 @@ static __net_exit void raw_exit_net(struct net *net)
 static __net_initdata struct pernet_operations raw_net_ops = {
 	.init = raw_init_net,
 	.exit = raw_exit_net,
+	.async = true,
 };
 
 int __init raw_proc_init(void)
