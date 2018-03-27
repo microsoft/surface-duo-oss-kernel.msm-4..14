@@ -3943,12 +3943,13 @@ CONFIG_MICREL_KS8995MA                          policy<{'amd64': 'm', 'arm64': '
 CONFIG_PLIP                                     policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'powerpc': 'm', 'ppc64el': 'm'}>
 CONFIG_XEN_NETDEV_FRONTEND                      policy<{'amd64': 'y', 'arm64': 'y', 'i386': 'y'}>
 CONFIG_XEN_NETDEV_BACKEND                       policy<{'amd64': 'm', 'arm64': 'm', 'i386': 'm'}>
-CONFIG_VMXNET3                                  policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'powerpc': 'm', 'ppc64el': 'm', 's390x': 'n'}>
+CONFIG_VMXNET3                                  policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'powerpc': 'm', 'ppc64el': 'n', 's390x': 'n'}>
 CONFIG_FUJITSU_ES                               policy<{'amd64': 'm', 'arm64': 'm', 'i386': 'm'}>
 CONFIG_HYPERV_NET                               policy<{'amd64': 'm', 'i386': 'm'}>
 #
 CONFIG_HIPPI                                    note<DEPRECATED>
 CONFIG_XEN_NETDEV_FRONTEND                      note<not autoloadable -- XEN paravirt support>
+CONFIG_VMXNET3					note<implicitly disabled by upstream stable change for ppc64el (64K pages)>
 CONFIG_DEFXX_MMIO                               flag<REVIEW>
 
 # Menu: Device Drivers >> Network device support >> ARCnet support

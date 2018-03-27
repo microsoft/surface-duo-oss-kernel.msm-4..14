@@ -722,7 +722,6 @@ virtio-rng
 virtio_scsi
 vmac
 vmx-crypto
-vmxnet3
 vport-geneve
 vport-gre
 vport-vxlan
