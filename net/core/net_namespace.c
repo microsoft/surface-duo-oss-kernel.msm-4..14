@@ -29,7 +29,6 @@
 
 static LIST_HEAD(pernet_list);
 static struct list_head *first_device = &pernet_list;
-DEFINE_MUTEX(net_mutex);
 
 LIST_HEAD(net_namespace_list);
 EXPORT_SYMBOL_GPL(net_namespace_list);
@@ -41,6 +40,13 @@ struct net init_net = {
 EXPORT_SYMBOL(init_net);
 
 static bool init_net_initialized;
+/*
+ * pernet_ops_rwsem: protects: pernet_list, net_generic_ids,
+ * init_net_initialized and first_device pointer.
+ * This is internal net namespace object. Please, don't use it
+ * outside.
+ */
+DECLARE_RWSEM(pernet_ops_rwsem);
 
 #define MIN_PERNET_OPS_ID	\
 	((sizeof(struct net_generic) + sizeof(void *) - 1) / sizeof(void *))
@@ -65,11 +71,10 @@ static int net_assign_generic(struct net *net, unsigned int id, void *data)
 {
 	struct net_generic *ng, *old_ng;
 
-	BUG_ON(!mutex_is_locked(&net_mutex));
 	BUG_ON(id < MIN_PERNET_OPS_ID);
 
 	old_ng = rcu_dereference_protected(net->gen,
-					   lockdep_is_held(&net_mutex));
+					   lockdep_is_held(&pernet_ops_rwsem));
 	if (old_ng->s.len > id) {
 		old_ng->ptr[id] = data;
 		return 0;
@@ -286,7 +291,7 @@ struct net *get_net_ns_by_id(struct net *net, int id)
  */
 static __net_init int setup_net(struct net *net, struct user_namespace *user_ns)
 {
-	/* Must be called with net_mutex held */
+	/* Must be called with pernet_ops_rwsem held */
 	const struct pernet_operations *ops, *saved_ops;
 	int error = 0;
 	LIST_HEAD(net_exit_list);
@@ -297,12 +302,16 @@ static __net_init int setup_net(struct net *net, struct user_namespace *user_ns)
 	net->user_ns = user_ns;
 	idr_init(&net->netns_ids);
 	spin_lock_init(&net->nsid_lock);
+	mutex_init(&net->ipv4.ra_mutex);
 
 	list_for_each_entry(ops, &pernet_list, list) {
 		error = ops_init(ops, net);
 		if (error < 0)
 			goto out_undo;
 	}
+	rtnl_lock();
+	list_add_tail_rcu(&net->list, &net_namespace_list);
+	rtnl_unlock();
 out:
 	return error;
 
@@ -354,7 +363,7 @@ static void dec_net_namespaces(struct ucounts *ucounts)
 	dec_ucount(ucounts, UCOUNT_NET_NAMESPACES);
 }
 
-static struct kmem_cache *net_cachep;
+static struct kmem_cache *net_cachep __ro_after_init;
 static struct workqueue_struct *netns_wq;
 
 static struct net *net_alloc(void)
@@ -408,32 +417,27 @@ struct net *copy_net_ns(unsigned long flags,
 
 	net = net_alloc();
 	if (!net) {
-		dec_net_namespaces(ucounts);
-		return ERR_PTR(-ENOMEM);
+		rv = -ENOMEM;
+		goto dec_ucounts;
 	}
-
+	refcount_set(&net->passive, 1);
+	net->ucounts = ucounts;
 	get_user_ns(user_ns);
 
-	rv = mutex_lock_killable(&net_mutex);
-	if (rv < 0) {
-		net_free(net);
-		dec_net_namespaces(ucounts);
-		put_user_ns(user_ns);
-		return ERR_PTR(rv);
-	}
+	rv = down_read_killable(&pernet_ops_rwsem);
+	if (rv < 0)
+		goto put_userns;
 
-	net->ucounts = ucounts;
 	rv = setup_net(net, user_ns);
-	if (rv == 0) {
-		rtnl_lock();
-		list_add_tail_rcu(&net->list, &net_namespace_list);
-		rtnl_unlock();
-	}
-	mutex_unlock(&net_mutex);
+
+	up_read(&pernet_ops_rwsem);
+
 	if (rv < 0) {
-		dec_net_namespaces(ucounts);
+put_userns:
 		put_user_ns(user_ns);
 		net_drop_ns(net);
+dec_ucounts:
+		dec_net_namespaces(ucounts);
 		return ERR_PTR(rv);
 	}
 	return net;
@@ -466,26 +470,23 @@ static void unhash_nsid(struct net *net, struct net *last)
 	spin_unlock_bh(&net->nsid_lock);
 }
 
-static DEFINE_SPINLOCK(cleanup_list_lock);
-static LIST_HEAD(cleanup_list);  /* Must hold cleanup_list_lock to touch */
+static LLIST_HEAD(cleanup_list);
 
 static void cleanup_net(struct work_struct *work)
 {
 	const struct pernet_operations *ops;
 	struct net *net, *tmp, *last;
-	struct list_head net_kill_list;
+	struct llist_node *net_kill_list;
 	LIST_HEAD(net_exit_list);
 
 	/* Atomically snapshot the list of namespaces to cleanup */
-	spin_lock_irq(&cleanup_list_lock);
-	list_replace_init(&cleanup_list, &net_kill_list);
-	spin_unlock_irq(&cleanup_list_lock);
+	net_kill_list = llist_del_all(&cleanup_list);
 
-	mutex_lock(&net_mutex);
+	down_read(&pernet_ops_rwsem);
 
 	/* Don't let anyone else find us. */
 	rtnl_lock();
-	list_for_each_entry(net, &net_kill_list, cleanup_list)
+	llist_for_each_entry(net, net_kill_list, cleanup_list)
 		list_del_rcu(&net->list);
 	/* Cache last net. After we unlock rtnl, no one new net
 	 * added to net_namespace_list can assign nsid pointer
@@ -500,7 +501,7 @@ static void cleanup_net(struct work_struct *work)
 	last = list_last_entry(&net_namespace_list, struct net, list);
 	rtnl_unlock();
 
-	list_for_each_entry(net, &net_kill_list, cleanup_list) {
+	llist_for_each_entry(net, net_kill_list, cleanup_list) {
 		unhash_nsid(net, last);
 		list_add_tail(&net->exit_list, &net_exit_list);
 	}
@@ -520,7 +521,7 @@ static void cleanup_net(struct work_struct *work)
 	list_for_each_entry_reverse(ops, &pernet_list, list)
 		ops_free_list(ops, &net_exit_list);
 
-	mutex_unlock(&net_mutex);
+	up_read(&pernet_ops_rwsem);
 
 	/* Ensure there are no outstanding rcu callbacks using this
 	 * network namespace.
@@ -547,8 +548,8 @@ static void cleanup_net(struct work_struct *work)
  */
 void net_ns_barrier(void)
 {
-	mutex_lock(&net_mutex);
-	mutex_unlock(&net_mutex);
+	down_write(&pernet_ops_rwsem);
+	up_write(&pernet_ops_rwsem);
 }
 EXPORT_SYMBOL(net_ns_barrier);
 
@@ -557,13 +558,8 @@ static DECLARE_WORK(net_cleanup_work, cleanup_net);
 void __put_net(struct net *net)
 {
 	/* Cleanup the network namespace in process context */
-	unsigned long flags;
-
-	spin_lock_irqsave(&cleanup_list_lock, flags);
-	list_add(&net->cleanup_list, &cleanup_list);
-	spin_unlock_irqrestore(&cleanup_list_lock, flags);
-
-	queue_work(netns_wq, &net_cleanup_work);
+	if (llist_add(&net->cleanup_list, &cleanup_list))
+		queue_work(netns_wq, &net_cleanup_work);
 }
 EXPORT_SYMBOL_GPL(__put_net);
 
@@ -861,7 +857,7 @@ static int __init net_ns_init(void)
 #ifdef CONFIG_NET_NS
 	net_cachep = kmem_cache_create("net_namespace", sizeof(struct net),
 					SMP_CACHE_BYTES,
-					SLAB_PANIC, NULL);
+					SLAB_PANIC|SLAB_ACCOUNT, NULL);
 
 	/* Create workqueue for cleanup */
 	netns_wq = create_singlethread_workqueue("netns");
@@ -875,17 +871,12 @@ static int __init net_ns_init(void)
 
 	rcu_assign_pointer(init_net.gen, ng);
 
-	mutex_lock(&net_mutex);
+	down_write(&pernet_ops_rwsem);
 	if (setup_net(&init_net, &init_user_ns))
 		panic("Could not setup the initial network namespace");
 
 	init_net_initialized = true;
-
-	rtnl_lock();
-	list_add_tail_rcu(&init_net.list, &net_namespace_list);
-	rtnl_unlock();
-
-	mutex_unlock(&net_mutex);
+	up_write(&pernet_ops_rwsem);
 
 	register_pernet_subsys(&net_ns_ops);
 
@@ -996,7 +987,6 @@ again:
 
 static void unregister_pernet_operations(struct pernet_operations *ops)
 {
-	
 	__unregister_pernet_operations(ops);
 	rcu_barrier();
 	if (ops->id)
@@ -1025,9 +1015,9 @@ static void unregister_pernet_operations(struct pernet_operations *ops)
 int register_pernet_subsys(struct pernet_operations *ops)
 {
 	int error;
-	mutex_lock(&net_mutex);
+	down_write(&pernet_ops_rwsem);
 	error =  register_pernet_operations(first_device, ops);
-	mutex_unlock(&net_mutex);
+	up_write(&pernet_ops_rwsem);
 	return error;
 }
 EXPORT_SYMBOL_GPL(register_pernet_subsys);
@@ -1043,9 +1033,9 @@ EXPORT_SYMBOL_GPL(register_pernet_subsys);
  */
 void unregister_pernet_subsys(struct pernet_operations *ops)
 {
-	mutex_lock(&net_mutex);
+	down_write(&pernet_ops_rwsem);
 	unregister_pernet_operations(ops);
-	mutex_unlock(&net_mutex);
+	up_write(&pernet_ops_rwsem);
 }
 EXPORT_SYMBOL_GPL(unregister_pernet_subsys);
 
@@ -1071,11 +1061,11 @@ EXPORT_SYMBOL_GPL(unregister_pernet_subsys);
 int register_pernet_device(struct pernet_operations *ops)
 {
 	int error;
-	mutex_lock(&net_mutex);
+	down_write(&pernet_ops_rwsem);
 	error = register_pernet_operations(&pernet_list, ops);
 	if (!error && (first_device == &pernet_list))
 		first_device = &ops->list;
-	mutex_unlock(&net_mutex);
+	up_write(&pernet_ops_rwsem);
 	return error;
 }
 EXPORT_SYMBOL_GPL(register_pernet_device);
@@ -1091,11 +1081,11 @@ EXPORT_SYMBOL_GPL(register_pernet_device);
  */
 void unregister_pernet_device(struct pernet_operations *ops)
 {
-	mutex_lock(&net_mutex);
+	down_write(&pernet_ops_rwsem);
 	if (&ops->list == first_device)
 		first_device = first_device->next;
 	unregister_pernet_operations(ops);
-	mutex_unlock(&net_mutex);
+	up_write(&pernet_ops_rwsem);
 }
 EXPORT_SYMBOL_GPL(unregister_pernet_device);
 

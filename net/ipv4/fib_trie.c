@@ -50,6 +50,7 @@
 
 #define VERSION "0.409"
 
+#include <linux/cache.h>
 #include <linux/uaccess.h>
 #include <linux/bitops.h>
 #include <linux/types.h>
@@ -191,8 +192,8 @@ static size_t tnode_free_size;
  */
 static const int sync_pages = 128;
 
-static struct kmem_cache *fn_alias_kmem __read_mostly;
-static struct kmem_cache *trie_leaf_kmem __read_mostly;
+static struct kmem_cache *fn_alias_kmem __ro_after_init;
+static struct kmem_cache *trie_leaf_kmem __ro_after_init;
 
 static inline struct tnode *tn_info(struct key_vector *kv)
 {
@@ -2721,14 +2722,14 @@ static const struct file_operations fib_route_fops = {
 
 int __net_init fib_proc_init(struct net *net)
 {
-	if (!proc_create("fib_trie", S_IRUGO, net->proc_net, &fib_trie_fops))
+	if (!proc_create("fib_trie", 0444, net->proc_net, &fib_trie_fops))
 		goto out1;
 
-	if (!proc_create("fib_triestat", S_IRUGO, net->proc_net,
+	if (!proc_create("fib_triestat", 0444, net->proc_net,
 			 &fib_triestat_fops))
 		goto out2;
 
-	if (!proc_create("route", S_IRUGO, net->proc_net, &fib_route_fops))
+	if (!proc_create("route", 0444, net->proc_net, &fib_route_fops))
 		goto out3;
 
 	return 0;

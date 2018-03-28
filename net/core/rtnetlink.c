@@ -75,6 +75,12 @@ void rtnl_lock(void)
 }
 EXPORT_SYMBOL(rtnl_lock);
 
+int rtnl_lock_killable(void)
+{
+	return mutex_lock_killable(&rtnl_mutex);
+}
+EXPORT_SYMBOL(rtnl_lock_killable);
+
 static struct sk_buff *defer_kfree_skb_list;
 void rtnl_kfree_skbs(struct sk_buff *head, struct sk_buff *tail)
 {
@@ -453,12 +459,12 @@ static void rtnl_lock_unregistering_all(void)
  */
 void rtnl_link_unregister(struct rtnl_link_ops *ops)
 {
-	/* Close the race with cleanup_net() */
-	mutex_lock(&net_mutex);
+	/* Close the race with setup_net() and cleanup_net() */
+	down_write(&pernet_ops_rwsem);
 	rtnl_lock_unregistering_all();
 	__rtnl_link_unregister(ops);
 	rtnl_unlock();
-	mutex_unlock(&net_mutex);
+	up_write(&pernet_ops_rwsem);
 }
 EXPORT_SYMBOL_GPL(rtnl_link_unregister);
 
