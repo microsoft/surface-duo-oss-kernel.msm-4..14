@@ -1,0 +1,137 @@
+name: dragonboard-kernel
+version-script: echo $(make kernelversion)
+summary: Snapdragon kernel for snappy
+description: This is a snapdragon snapped kernel, based off linaro kernel
+
+grade: stable
+build-base: core18
+confinement: strict
+type: kernel
+adopt-info: kernel
+
+parts:
+    kernel:
+        plugin: kernel
+        source: .
+        source-type: git
+        kdefconfig: [ "sa8155_defconfig" ]
+        kernel-with-firmware: false
+        kernel-image-target: Image.gz
+        override-build: |
+            snapcraftctl build
+            cp $SNAPCRAFT_PART_INSTALL/dtbs/qcom/*.dtb $SNAPCRAFT_PART_INSTALL/dtbs/
+            kernel_version=$(make kernelversion)
+            snapcraftctl set-version ${kernel_version}-lk
+        organize:
+            initrd.img: initrd
+        prime:
+            - -initrd*
+            - -Image*
+            - -kernel.img
+
+    firmware:
+        plugin: nil
+        source: firmware
+        stage-packages:
+            - linux-firmware
+            - on arm64:
+                - linux-firmware-snapdragon
+            - else:
+                - linux-firmware-snapdragon:arm64
+        organize:
+            lib/firmware: firmware
+        stage:
+            - -firmware/a300_pfp.fw
+            - -firmware/a300_pm4.fw
+            - -firmware/ath3k-1.fw
+            - -firmware/ath10k/QCA4019/hw1.0/board-2.bin
+            - -firmware/ath10k/QCA4019/hw1.0/firmware-5.bin
+            - -firmware/ath10k/QCA9377/hw1.0/board-2.bin
+            - -firmware/ath10k/QCA9377/hw1.0/firmware-5.bin
+            - -firmware/ath10k/QCA9887/hw1.0/firmware-5.bin
+            - -firmware/ath10k/QCA9888/hw2.0/board-2.bin
+            - -firmware/ath10k/QCA9888/hw2.0/firmware-5.bin
+            - -firmware/ath10k/QCA988X/hw2.0/firmware-5.bin
+            - -firmware/ath10k/QCA9984/hw1.0/board-2.bin
+            - -firmware/ath10k/QCA9984/hw1.0/firmware-5.bin
+            - -firmware/ath10k/QCA6174/hw3.0/firmware-6.bin
+            - -firmware/wcnss.b00
+            - -firmware/wcnss.b01
+            - -firmware/wcnss.b02
+            - -firmware/wcnss.b04
+            - -firmware/wcnss.b06
+            - -firmware/wcnss.b11
+            - -firmware/wcnss.mdt
+            - -firmware/wil6210.brd
+            - -firmware/wil6210.fw
+        prime:
+            - -usr
+            - -lib
+        override-build: |
+            mkdir -p $SNAPCRAFT_PART_INSTALL/firmware/wlan
+            ln -sf /run/macaddr-wcn36xx $SNAPCRAFT_PART_INSTALL/firmware/wlan/macaddr0
+            mkdir -p $SNAPCRAFT_PART_INSTALL/firmware/smsc75xx
+            ln -sf /run/macaddr-smsc75xx-0 $SNAPCRAFT_PART_INSTALL/firmware/smsc75xx/ethmacaddr0
+            ln -sf /run/macaddr-smsc75xx-1 $SNAPCRAFT_PART_INSTALL/firmware/smsc75xx/ethmacaddr1
+            ln -sf /run/macaddr-smsc75xx-0 $SNAPCRAFT_PART_INSTALL/firmware/smsc75xx/ethmacaddr-1.3
+            ln -sf /run/macaddr-smsc75xx-1 $SNAPCRAFT_PART_INSTALL/firmware/smsc75xx/ethmacaddr-1-1.3
+        build-packages:
+            - cpio
+            - libssl-dev
+            - dpkg-dev
+        after:
+            - kernel
+
+    firmware-ath:
+        after:
+            - kernel
+        plugin: nil
+        source: http://cdn-fastly.deb.debian.org/debian/pool/non-free/f/firmware-nonfree/firmware-atheros_20190114-1_all.deb
+        organize:
+            lib/firmware: firmware
+
+    firmware-db820c:
+        after:
+            - kernel
+        plugin: nil
+        source: http://obs.linaro.org/linaro-overlay-buster/buster/all/firmware-qcom-dragonboard820c_01700.1-2_all.deb
+        organize:
+            lib/firmware: firmware
+
+    firmware-db410c:
+        after:
+            - kernel
+        plugin: nil
+        source: http://obs.linaro.org/linaro-overlay-buster/buster/all/firmware-qcom-dragonboard410c_1034.2.1-3_all.deb
+        organize:
+            lib/firmware: firmware
+
+    initrd:
+        plugin: nil
+        source: initrd-dragonboard
+        after:
+            - kernel
+        override-build: |
+            cd initrd; find . | cpio --quiet -o -H newc | lzma -7 > ../initrd.img
+            cat $SNAPCRAFT_STAGE/initrd ../initrd.img > $SNAPCRAFT_PART_INSTALL/initrd.img
+
+    bootimg:
+        plugin: nil
+        after:
+            - kernel
+            - initrd
+        build-packages:
+            - libfdt-dev
+            - android-tools-mkbootimg
+        override-build: |
+            cat ${SNAPCRAFT_STAGE}/kernel.img ${SNAPCRAFT_STAGE}/dtbs/qcom/sa8155.dtb > Image.gz+dtb
+            mkbootimg \
+                --kernel Image.gz+dtb \
+                --ramdisk ${SNAPCRAFT_STAGE}/initrd.img \
+                --output ${SNAPCRAFT_PART_INSTALL}/boot.img \
+                --pagesize 4096 \
+                --base 0x80000000 \
+                --kernel_offset 0x8000 \
+                --ramdisk_offset 0x1000000 \
+                --tags_offset 0x100 \
+                --cmdline 'console=tty0 console=ttyMSM0,115200n8 panic=-1 clk_ignore_unused pd_ignore_unused snapd_lk_boot_disk=sde'
