@@ -213,6 +213,9 @@
 /* kernel defines KOBJ_NAME_LEN */
 #undef HAVE_KOBJ_NAME_LEN
 
+/* Define if you have libaio */
+#undef HAVE_LIBAIO
+
 /* Define if you have libblkid */
 #undef HAVE_LIBBLKID
 

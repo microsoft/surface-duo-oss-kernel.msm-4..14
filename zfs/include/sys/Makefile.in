@@ -167,6 +167,7 @@ am__aclocal_m4_deps = $(top_srcdir)/config/always-no-bool-compare.m4 \
 	$(top_srcdir)/config/user-arch.m4 \
 	$(top_srcdir)/config/user-dracut.m4 \
 	$(top_srcdir)/config/user-frame-larger-than.m4 \
+	$(top_srcdir)/config/user-libaio.m4 \
 	$(top_srcdir)/config/user-libblkid.m4 \
 	$(top_srcdir)/config/user-libuuid.m4 \
 	$(top_srcdir)/config/user-runstatedir.m4 \
@@ -550,6 +551,7 @@ KERNELCPPFLAGS = @KERNELCPPFLAGS@
 KERNELMAKE_PARAMS = @KERNELMAKE_PARAMS@
 LD = @LD@
 LDFLAGS = @LDFLAGS@
+LIBAIO = @LIBAIO@
 LIBBLKID = @LIBBLKID@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@

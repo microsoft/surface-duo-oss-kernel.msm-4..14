@@ -636,6 +636,10 @@ DEBUG_DMU_TX
 DEBUG_ZFS
 DEBUG_STACKFLAGS
 DEBUG_CFLAGS
+WANT_MMAP_LIBAIO_FALSE
+WANT_MMAP_LIBAIO_TRUE
+WANT_DEVNAME2DEVID_FALSE
+WANT_DEVNAME2DEVID_TRUE
 CONFIG_KERNEL_FALSE
 CONFIG_KERNEL_TRUE
 CONFIG_USER_FALSE
@@ -661,6 +665,7 @@ systemdpresetdir
 systemdunitdir
 ZFS_MODULE_LOAD
 ZFS_INIT_SYSTEMD
+LIBAIO
 udevruledir
 udevdir
 mounthelperdir
@@ -12898,6 +12903,27 @@ fi
 
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $udevdir;$udevruledir" >&5
 $as_echo "$udevdir;$udevruledir" >&6; }
+
+
+	LIBAIO=
+
+	ac_fn_c_check_header_mongrel "$LINENO" "libaio.h" "ac_cv_header_libaio_h" "$ac_includes_default"
+if test "x$ac_cv_header_libaio_h" = xyes; then :
+
+	    user_libaio=yes
+	    LIBAIO="-laio"
+
+
+$as_echo "#define HAVE_LIBAIO 1" >>confdefs.h
+
+
+else
+
+	    user_libaio=no
+
+fi
+
+
 
 
 	# Check whether --enable-systemd was given.
@@ -32417,6 +32443,27 @@ fi
 $as_echo "$udevdir;$udevruledir" >&6; }
 
 
+	LIBAIO=
+
+	ac_fn_c_check_header_mongrel "$LINENO" "libaio.h" "ac_cv_header_libaio_h" "$ac_includes_default"
+if test "x$ac_cv_header_libaio_h" = xyes; then :
+
+	    user_libaio=yes
+	    LIBAIO="-laio"
+
+
+$as_echo "#define HAVE_LIBAIO 1" >>confdefs.h
+
+
+else
+
+	    user_libaio=no
+
+fi
+
+
+
+
 	# Check whether --enable-systemd was given.
 if test "${enable_systemd+set}" = set; then :
   enableval=$enable_systemd;
@@ -33094,6 +33141,22 @@ else
   CONFIG_KERNEL_FALSE=
 fi
 
+	 if test "x$user_libudev" = xyes ; then
+  WANT_DEVNAME2DEVID_TRUE=
+  WANT_DEVNAME2DEVID_FALSE='#'
+else
+  WANT_DEVNAME2DEVID_TRUE='#'
+  WANT_DEVNAME2DEVID_FALSE=
+fi
+
+	 if test "x$user_libaio" = xyes ; then
+  WANT_MMAP_LIBAIO_TRUE=
+  WANT_MMAP_LIBAIO_FALSE='#'
+else
+  WANT_MMAP_LIBAIO_TRUE='#'
+  WANT_MMAP_LIBAIO_FALSE=
+fi
+
 
 
 	{ $as_echo "$as_me:${as_lineno-$LINENO}: checking whether debugging is enabled" >&5
@@ -33313,6 +33376,14 @@ Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 if test -z "${CONFIG_KERNEL_TRUE}" && test -z "${CONFIG_KERNEL_FALSE}"; then
   as_fn_error $? "conditional \"CONFIG_KERNEL\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${WANT_DEVNAME2DEVID_TRUE}" && test -z "${WANT_DEVNAME2DEVID_FALSE}"; then
+  as_fn_error $? "conditional \"WANT_DEVNAME2DEVID\" was never defined.
+Usually this means the macro was only invoked conditionally." "$LINENO" 5
+fi
+if test -z "${WANT_MMAP_LIBAIO_TRUE}" && test -z "${WANT_MMAP_LIBAIO_FALSE}"; then
+  as_fn_error $? "conditional \"WANT_MMAP_LIBAIO\" was never defined.
 Usually this means the macro was only invoked conditionally." "$LINENO" 5
 fi
 
