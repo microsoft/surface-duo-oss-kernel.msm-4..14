@@ -981,8 +981,7 @@ static int brcmf_revinfo_read(struct seq_file *s, void *data)
 	seq_printf(s, "vendorid: 0x%04x\n", ri->vendorid);
 	seq_printf(s, "deviceid: 0x%04x\n", ri->deviceid);
 	seq_printf(s, "radiorev: %s\n", brcmu_dotrev_str(ri->radiorev, drev));
-	seq_printf(s, "chipnum: %u (%x)\n", ri->chipnum, ri->chipnum);
-	seq_printf(s, "chiprev: %u\n", ri->chiprev);
+	seq_printf(s, "chip: %s\n", ri->chipname);
 	seq_printf(s, "chippkg: %u\n", ri->chippkg);
 	seq_printf(s, "corerev: %u\n", ri->corerev);
 	seq_printf(s, "boardid: 0x%04x\n", ri->boardid);
@@ -1001,7 +1000,7 @@ static int brcmf_revinfo_read(struct seq_file *s, void *data)
 	return 0;
 }
 
-static int brcmf_bus_started(struct brcmf_pub *drvr)
+static int brcmf_bus_started(struct brcmf_pub *drvr, struct cfg80211_ops *ops)
 {
 	int ret = -1;
 	struct brcmf_bus *bus_if = drvr->bus_if;
@@ -1030,15 +1029,6 @@ static int brcmf_bus_started(struct brcmf_pub *drvr)
 	if (ret < 0)
 		goto fail;
 
-	brcmf_debugfs_add_entry(drvr, "revinfo", brcmf_revinfo_read);
-
-	/* assure we have chipid before feature attach */
-	if (!bus_if->chip) {
-		bus_if->chip = drvr->revinfo.chipnum;
-		bus_if->chiprev = drvr->revinfo.chiprev;
-		brcmf_dbg(INFO, "firmware revinfo: chip %x (%d) rev %d\n",
-			  bus_if->chip, bus_if->chip, bus_if->chiprev);
-	}
 	brcmf_feat_attach(drvr);
 
 	ret = brcmf_proto_init_done(drvr);
@@ -1047,7 +1037,7 @@ static int brcmf_bus_started(struct brcmf_pub *drvr)
 
 	brcmf_proto_add_if(drvr, ifp);
 
-	drvr->config = brcmf_cfg80211_attach(drvr, bus_if->dev,
+	drvr->config = brcmf_cfg80211_attach(drvr, ops,
 					     drvr->settings->p2p_enable);
 	if (drvr->config == NULL) {
 		ret = -ENOMEM;
@@ -1081,6 +1071,11 @@ static int brcmf_bus_started(struct brcmf_pub *drvr)
 #endif
 #endif /* CONFIG_INET */
 
+	/* populate debugfs */
+	brcmf_debugfs_add_entry(drvr, "revinfo", brcmf_revinfo_read);
+	brcmf_feat_debugfs_create(drvr);
+	brcmf_proto_debugfs_create(drvr);
+
 	return 0;
 
 fail:
@@ -1102,16 +1097,25 @@ fail:
 
 int brcmf_attach(struct device *dev, struct brcmf_mp_device *settings)
 {
+	struct wiphy *wiphy;
+	struct cfg80211_ops *ops;
 	struct brcmf_pub *drvr = NULL;
 	int ret = 0;
 	int i;
 
 	brcmf_dbg(TRACE, "Enter\n");
 
-	/* Allocate primary brcmf_info */
-	drvr = kzalloc(sizeof(*drvr), GFP_ATOMIC);
-	if (!drvr)
+	ops = brcmf_cfg80211_get_ops();
+	if (!ops)
 		return -ENOMEM;
+
+	wiphy = wiphy_new(ops, sizeof(*drvr));
+	if (!wiphy)
+		return -ENOMEM;
+
+	set_wiphy_dev(wiphy, dev);
+	drvr = wiphy_priv(wiphy);
+	drvr->wiphy = wiphy;
 
 	for (i = 0; i < ARRAY_SIZE(drvr->if2bss); i++)
 		drvr->if2bss[i] = BRCMF_BSSIDX_INVALID;
@@ -1123,9 +1127,6 @@ int brcmf_attach(struct device *dev, struct brcmf_mp_device *settings)
 	drvr->bus_if = dev_get_drvdata(dev);
 	drvr->bus_if->drvr = drvr;
 	drvr->settings = settings;
-
-	/* attach debug facilities */
-	brcmf_debug_attach(drvr);
 
 	/* Attach and link in the protocol */
 	ret = brcmf_proto_attach(drvr);
@@ -1141,15 +1142,18 @@ int brcmf_attach(struct device *dev, struct brcmf_mp_device *settings)
 	/* attach firmware event handler */
 	brcmf_fweh_attach(drvr);
 
-	ret = brcmf_bus_started(drvr);
+	ret = brcmf_bus_started(drvr, ops);
 	if (ret != 0) {
 		brcmf_err("dongle is not responding: err=%d\n", ret);
 		goto fail;
 	}
+
+	drvr->config->ops = ops;
 	return 0;
 
 fail:
 	brcmf_detach(dev);
+	kfree(ops);
 
 	return ret;
 }
@@ -1207,14 +1211,14 @@ void brcmf_detach(struct device *dev)
 		brcmf_remove_interface(drvr->iflist[i], false);
 
 	brcmf_cfg80211_detach(drvr->config);
+	drvr->config = NULL;
 
 	brcmf_bus_stop(drvr->bus_if);
 
 	brcmf_proto_detach(drvr);
 
-	brcmf_debug_detach(drvr);
 	bus_if->drvr = NULL;
-	kfree(drvr);
+	wiphy_free(drvr->wiphy);
 }
 
 s32 brcmf_iovar_data_set(struct device *dev, char *name, void *data, u32 len)
