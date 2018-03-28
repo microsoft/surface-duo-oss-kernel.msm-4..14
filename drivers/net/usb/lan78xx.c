@@ -1520,6 +1520,10 @@ static int lan78xx_phy_init(struct lan78xx_net *dev)
 	int i;
 	struct phy_device *phydev = dev->net->phydev;
 
+	/* Return early if already initialised */
+	if (phydev)
+	    return 0;
+
 	phydev = phy_find_first(dev->mdiobus);
 	if (!phydev) {
 		netdev_err(dev->net, "no PHY found\n");
@@ -2061,9 +2065,8 @@ int lan78xx_stop(struct net_device *net)
 {
 	struct lan78xx_net		*dev = netdev_priv(net);
 
-	phy_stop(net->phydev);
-	phy_disconnect(net->phydev);
-	net->phydev = NULL;
+	if (net->phydev)
+		phy_stop(net->phydev);
 
 	clear_bit(EVENT_DEV_OPEN, &dev->flags);
 	netif_stop_queue(net);
@@ -2924,6 +2927,8 @@ static void lan78xx_disconnect(struct usb_interface *intf)
 	udev = interface_to_usbdev(intf);
 
 	net = dev->net;
+	phy_disconnect(net->phydev);
+	net->phydev = NULL;
 	unregister_netdev(net);
 
 	cancel_delayed_work_sync(&dev->wq);
