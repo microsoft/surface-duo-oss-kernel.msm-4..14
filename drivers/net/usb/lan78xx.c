@@ -1332,6 +1332,15 @@ static void lan78xx_init_mac_address(struct lan78xx_net *dev)
 	addr[5] = (addr_hi >> 8) & 0xFF;
 
 	if (!is_valid_ether_addr(addr)) {
+		const u8 *mac_addr;
+
+		/* maybe the boot loader passed the MAC address in devicetree */
+		mac_addr = of_get_mac_address(dev->udev->dev.of_node);
+		if (mac_addr) {
+			ether_addr_copy(addr, mac_addr);
+			goto set_mac_addr;
+		}
+
 		/* reading mac address from EEPROM or OTP */
 		if ((lan78xx_read_eeprom(dev, EEPROM_MAC_OFFSET, ETH_ALEN,
 					 addr) == 0) ||
