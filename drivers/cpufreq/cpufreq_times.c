@@ -79,25 +79,8 @@ static struct uid_entry *find_or_register_uid_locked(uid_t uid)
 		sizeof(uid_entry->time_in_state[0]);
 
 	uid_entry = find_uid_entry_locked(uid);
-	if (uid_entry) {
-		if (uid_entry->max_state == max_state)
-			return uid_entry;
-		/* uid_entry->time_in_state is too small to track all freqs, so
-		 * expand it.
-		 */
-		temp = __krealloc(uid_entry, alloc_size, GFP_ATOMIC);
-		if (!temp)
-			return uid_entry;
-		temp->max_state = max_state;
-		memset(temp->time_in_state + uid_entry->max_state, 0,
-		       (max_state - uid_entry->max_state) *
-		       sizeof(uid_entry->time_in_state[0]));
-		if (temp != uid_entry) {
-			hlist_replace_rcu(&uid_entry->hash, &temp->hash);
-			kfree_rcu(uid_entry, rcu);
-		}
-		return temp;
-	}
+	if (uid_entry)
+		return uid_entry;
 
 	uid_entry = kzalloc(alloc_size, GFP_ATOMIC);
 	if (!uid_entry)
