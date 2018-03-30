@@ -78,6 +78,9 @@ static struct uid_entry *find_or_register_uid_locked(uid_t uid)
 	size_t alloc_size = sizeof(uid_entry) + max_state *
 		sizeof(uid_entry->time_in_state[0]);
 
+	if (uid == overflowuid)
+		return NULL;
+
 	uid_entry = find_uid_entry_locked(uid);
 	if (uid_entry)
 		return uid_entry;
@@ -244,27 +247,6 @@ void cpufreq_times_create_policy(struct cpufreq_policy *policy)
 	WRITE_ONCE(next_offset, freqs->offset + count);
 	for_each_cpu(cpu, policy->related_cpus)
 		all_freqs[cpu] = freqs;
-}
-
-void cpufreq_task_times_remove_uids(uid_t uid_start, uid_t uid_end)
-{
-	struct uid_entry *uid_entry;
-	struct hlist_node *tmp;
-	unsigned long flags;
-
-	spin_lock_irqsave(&uid_lock, flags);
-
-	for (; uid_start <= uid_end; uid_start++) {
-		hash_for_each_possible_safe(uid_hash_table, uid_entry, tmp,
-			hash, uid_start) {
-			if (uid_start == uid_entry->uid) {
-				hash_del_rcu(&uid_entry->hash);
-				kfree_rcu(uid_entry, rcu);
-			}
-		}
-	}
-
-	spin_unlock_irqrestore(&uid_lock, flags);
 }
 
 void cpufreq_times_record_transition(struct cpufreq_freqs *freq)
