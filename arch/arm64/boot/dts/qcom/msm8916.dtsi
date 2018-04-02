@@ -748,6 +748,8 @@
 			reg = <0x00022000 0x200>;
 			clocks = <&gcc GCC_PRNG_AHB_CLK>;
 			clock-names = "core";
+			interconnects = <&bimc MASTER_AMPSS_M0 &pnoc SLAVE_PRNG>;
+			interconnect-names = "cpu";
 		};
 
 		qfprom: qfprom@5c000 {
