@@ -894,6 +894,9 @@
 
 				iommus = <&apps_iommu 4>;
 
+				interconnects = <&snoc MASTER_MDP_PORT0 &bimc SLAVE_EBI_CH0>;
+				interconnect-names = "port0";
+
 				ports {
 					#address-cells = <1>;
 					#size-cells = <0>;
