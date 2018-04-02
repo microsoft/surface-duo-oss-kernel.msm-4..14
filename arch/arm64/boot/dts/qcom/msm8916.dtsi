@@ -1375,6 +1375,10 @@
 			clock-names = "core", "iface", "bus";
 			iommus = <&apps_iommu 5>;
 			memory-region = <&venus_mem>;
+			interconnects = <&snoc MASTER_VIDEO_P0 &bimc SLAVE_EBI_CH0>,
+					<&snoc MASTER_MDP_PORT0 &bimc SLAVE_EBI_CH0>,
+					<&bimc MASTER_GRAPHICS_3D &bimc SLAVE_EBI_CH0>;
+			interconnect-names = "video", "mdp0", "gpu";
 			status = "okay";
 
 			video-decoder {
