@@ -301,18 +301,16 @@
 		};
 	};
 
-	cci_lines {
-		cci0_default: cci0_default {
-			pinmux {
-				function = "cci_i2c";
-				pins = "gpio17", "gpio18";
-			};
-			pinconf {
-				pins = "gpio17", "gpio18";
-				drive-strength = <16>;
-				bias-disable;
-			};
-		};
+        cci0_default: cci0_default {
+                mux {
+                        function = "cci_i2c";
+                        pins = "gpio17", "gpio18";
+                };
+                config {
+                        pins = "gpio17", "gpio18";
+                        drive-strength = <16>;
+                        bias-disable;
+                };
 	};
 
 	pcie0_clkreq_default: pcie0_clkreq_default {
