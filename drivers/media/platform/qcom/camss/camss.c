@@ -41,8 +41,7 @@ static const struct resources csiphy_res_msm8916[] = {
 	/* CSIPHY0 */
 	{
 		.regulator = { NULL },
-		.clock = { "camss_top_ahb", "ispif_ahb",
-			   "camss_ahb", "csiphy0_timer" },
+		.clock = { "top_ahb", "ispif_ahb", "ahb", "csiphy0_timer" },
 		.clock_rate = { { 0 },
 				{ 0 },
 				{ 0 },
@@ -54,8 +53,7 @@ static const struct resources csiphy_res_msm8916[] = {
 	/* CSIPHY1 */
 	{
 		.regulator = { NULL },
-		.clock = { "camss_top_ahb", "ispif_ahb",
-			   "camss_ahb", "csiphy1_timer" },
+		.clock = { "top_ahb", "ispif_ahb", "ahb", "csiphy1_timer" },
 		.clock_rate = { { 0 },
 				{ 0 },
 				{ 0 },
@@ -69,8 +67,7 @@ static const struct resources csid_res_msm8916[] = {
 	/* CSID0 */
 	{
 		.regulator = { "vdda" },
-		.clock = { "camss_top_ahb", "ispif_ahb",
-			   "csi0_ahb", "camss_ahb",
+		.clock = { "top_ahb", "ispif_ahb", "csi0_ahb", "ahb",
 			   "csi0", "csi0_phy", "csi0_pix", "csi0_rdi" },
 		.clock_rate = { { 0 },
 				{ 0 },
@@ -87,8 +84,7 @@ static const struct resources csid_res_msm8916[] = {
 	/* CSID1 */
 	{
 		.regulator = { "vdda" },
-		.clock = { "camss_top_ahb", "ispif_ahb",
-			   "csi1_ahb", "camss_ahb",
+		.clock = { "top_ahb", "ispif_ahb", "csi1_ahb", "ahb",
 			   "csi1", "csi1_phy", "csi1_pix", "csi1_rdi" },
 		.clock_rate = { { 0 },
 				{ 0 },
@@ -105,10 +101,10 @@ static const struct resources csid_res_msm8916[] = {
 
 static const struct resources_ispif ispif_res_msm8916 = {
 	/* ISPIF */
-	.clock = { "camss_top_ahb", "camss_ahb", "ispif_ahb",
+	.clock = { "top_ahb", "ahb", "ispif_ahb",
 		   "csi0", "csi0_pix", "csi0_rdi",
 		   "csi1", "csi1_pix", "csi1_rdi" },
-	.clock_for_reset = { "camss_vfe_vfe", "camss_csi_vfe" },
+	.clock_for_reset = { "vfe0", "csi_vfe0" },
 	.reg = { "ispif", "csi_clk_mux" },
 	.interrupt = "ispif"
 
@@ -118,8 +114,8 @@ static const struct resources vfe_res_msm8916[] = {
 	/* VFE0 */
 	{
 		.regulator = { NULL },
-		.clock = { "camss_top_ahb", "camss_vfe_vfe", "camss_csi_vfe",
-			   "iface", "bus", "camss_ahb" },
+		.clock = { "top_ahb", "vfe0", "csi_vfe0",
+			   "vfe_ahb", "vfe_axi", "ahb" },
 		.clock_rate = { { 0 },
 				{ 50000000, 80000000, 100000000, 160000000,
 				  177780000, 200000000, 266670000, 320000000,
@@ -140,8 +136,7 @@ static const struct resources csiphy_res_msm8996[] = {
 	/* CSIPHY0 */
 	{
 		.regulator = { NULL },
-		.clock = { "camss_top_ahb", "ispif_ahb",
-			   "camss_ahb", "csiphy0_timer" },
+		.clock = { "top_ahb", "ispif_ahb", "ahb", "csiphy0_timer" },
 		.clock_rate = { { 0 },
 				{ 0 },
 				{ 0 },
@@ -153,8 +148,7 @@ static const struct resources csiphy_res_msm8996[] = {
 	/* CSIPHY1 */
 	{
 		.regulator = { NULL },
-		.clock = { "camss_top_ahb", "ispif_ahb",
-			   "camss_ahb", "csiphy1_timer" },
+		.clock = { "top_ahb", "ispif_ahb", "ahb", "csiphy1_timer" },
 		.clock_rate = { { 0 },
 				{ 0 },
 				{ 0 },
@@ -166,8 +160,7 @@ static const struct resources csiphy_res_msm8996[] = {
 	/* CSIPHY2 */
 	{
 		.regulator = { NULL },
-		.clock = { "camss_top_ahb", "ispif_ahb",
-			   "camss_ahb", "csiphy2_timer" },
+		.clock = { "top_ahb", "ispif_ahb", "ahb", "csiphy2_timer" },
 		.clock_rate = { { 0 },
 				{ 0 },
 				{ 0 },
@@ -181,8 +174,7 @@ static const struct resources csid_res_msm8996[] = {
 	/* CSID0 */
 	{
 		.regulator = { "vdda" },
-		.clock = { "camss_top_ahb", "ispif_ahb",
-			   "csi0_ahb", "camss_ahb",
+		.clock = { "top_ahb", "ispif_ahb", "csi0_ahb", "ahb",
 			   "csi0", "csi0_phy", "csi0_pix", "csi0_rdi" },
 		.clock_rate = { { 0 },
 				{ 0 },
@@ -199,8 +191,7 @@ static const struct resources csid_res_msm8996[] = {
 	/* CSID1 */
 	{
 		.regulator = { "vdda" },
-		.clock = { "camss_top_ahb", "ispif_ahb",
-			   "csi1_ahb", "camss_ahb",
+		.clock = { "top_ahb", "ispif_ahb", "csi1_ahb", "ahb",
 			   "csi1", "csi1_phy", "csi1_pix", "csi1_rdi" },
 		.clock_rate = { { 0 },
 				{ 0 },
@@ -217,8 +208,7 @@ static const struct resources csid_res_msm8996[] = {
 	/* CSID2 */
 	{
 		.regulator = { "vdda" },
-		.clock = { "camss_top_ahb", "ispif_ahb",
-			   "csi2_ahb", "camss_ahb",
+		.clock = { "top_ahb", "ispif_ahb", "csi2_ahb", "ahb",
 			   "csi2", "csi2_phy", "csi2_pix", "csi2_rdi" },
 		.clock_rate = { { 0 },
 				{ 0 },
@@ -235,8 +225,7 @@ static const struct resources csid_res_msm8996[] = {
 	/* CSID3 */
 	{
 		.regulator = { "vdda" },
-		.clock = { "camss_top_ahb", "ispif_ahb",
-			   "csi3_ahb", "camss_ahb",
+		.clock = { "top_ahb", "ispif_ahb", "csi3_ahb", "ahb",
 			   "csi3", "csi3_phy", "csi3_pix", "csi3_rdi" },
 		.clock_rate = { { 0 },
 				{ 0 },
@@ -253,12 +242,12 @@ static const struct resources csid_res_msm8996[] = {
 
 static const struct resources_ispif ispif_res_msm8996 = {
 	/* ISPIF */
-	.clock = { "camss_top_ahb", "camss_ahb", "ispif_ahb",
+	.clock = { "top_ahb", "ahb", "ispif_ahb",
 		   "csi0", "csi0_pix", "csi0_rdi",
 		   "csi1", "csi1_pix", "csi1_rdi",
 		   "csi2", "csi2_pix", "csi2_rdi",
 		   "csi3", "csi3_pix", "csi3_rdi" },
-	.clock_for_reset = { "vfe0", "vfe0_csi", "vfe1", "vfe1_csi" },
+	.clock_for_reset = { "vfe0", "csi_vfe0", "vfe1", "csi_vfe1" },
 	.reg = { "ispif", "csi_clk_mux" },
 	.interrupt = "ispif"
 };
@@ -267,8 +256,7 @@ static const struct resources vfe_res_msm8996[] = {
 	/* VFE0 */
 	{
 		.regulator = { NULL },
-		.clock = { "camss_top_ahb",
-			   "camss_ahb", "vfe0", "vfe0_csi", "vfe_ahb",
+		.clock = { "top_ahb", "ahb", "vfe0", "csi_vfe0", "vfe_ahb",
 			   "vfe0_ahb", "vfe_axi", "vfe0_stream"},
 		.clock_rate = { { 0 },
 				{ 0 },
@@ -286,8 +274,7 @@ static const struct resources vfe_res_msm8996[] = {
 	/* VFE1 */
 	{
 		.regulator = { NULL },
-		.clock = { "camss_top_ahb",
-			   "camss_ahb", "vfe1", "vfe1_csi", "vfe_ahb",
+		.clock = { "top_ahb", "ahb", "vfe1", "csi_vfe1", "vfe_ahb",
 			   "vfe1_ahb", "vfe_axi", "vfe1_stream"},
 		.clock_rate = { { 0 },
 				{ 0 },
