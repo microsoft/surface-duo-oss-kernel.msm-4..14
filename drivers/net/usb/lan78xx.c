@@ -1551,6 +1551,22 @@ static int lan78xx_phy_init(struct lan78xx_net *dev)
 			      SUPPORTED_1000baseT_Full |
 			      SUPPORTED_Pause | SUPPORTED_Asym_Pause);
 
+        if (of_property_read_bool(dev->udev->dev.of_node,
+                                  "microchip,eee-enabled")) {
+                struct ethtool_eee edata;
+                memset(&edata, 0, sizeof(edata));
+                edata.cmd = ETHTOOL_SEEE;
+                edata.advertised = ADVERTISED_1000baseT_Full |
+                                   ADVERTISED_100baseT_Full;
+                edata.eee_enabled = true;
+                edata.tx_lpi_enabled = true;
+                if (of_property_read_u32(dev->udev->dev.of_node,
+                                         "microchip,tx-lpi-timer",
+                                         &edata.tx_lpi_timer))
+                        edata.tx_lpi_timer = 600; /* non-aggressive */
+                (void)lan78xx_set_eee(net, &edata);
+        }
+
 	/* Set LED modes:
 	 * led: 0=link/activity          1=link1000/activity
 	 *      2=link100/activity       3=link10/activity
@@ -1996,21 +2012,6 @@ static int lan78xx_open(struct net_device *net)
 	if (ret < 0)
 		goto done;
 
-	if (of_property_read_bool(dev->udev->dev.of_node,
-				  "microchip,eee-enabled")) {
-		struct ethtool_eee edata;
-		memset(&edata, 0, sizeof(edata));
-		edata.cmd = ETHTOOL_SEEE;
-		edata.advertised = ADVERTISED_1000baseT_Full |
-				   ADVERTISED_100baseT_Full;
-		edata.eee_enabled = true;
-		edata.tx_lpi_enabled = true;
-		if (of_property_read_u32(dev->udev->dev.of_node,
-					 "microchip,tx-lpi-timer",
-					 &edata.tx_lpi_timer))
-			edata.tx_lpi_timer = 600; /* non-aggressive */
-		(void)lan78xx_set_eee(net, &edata);
-	}
 
 	/* for Link Check */
 	if (dev->urb_intr) {
