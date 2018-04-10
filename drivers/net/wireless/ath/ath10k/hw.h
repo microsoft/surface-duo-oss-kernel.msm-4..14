@@ -121,6 +121,7 @@ enum qca9377_chip_id_rev {
 /* QCA9377 1.0 definitions */
 #define QCA9377_HW_1_0_FW_DIR          ATH10K_FW_DIR "/QCA9377/hw1.0"
 #define QCA9377_HW_1_0_BOARD_DATA_FILE "board.bin"
+#define QCA9377_HW_1_0_BOARD_DATA_FILE_SDIO "board-sdio.bin"
 #define QCA9377_HW_1_0_PATCH_LOAD_ADDR	0x1234
 
 /* QCA4019 1.0 definitions */
@@ -737,6 +738,9 @@ ath10k_rx_desc_msdu_limit_error(struct ath10k_hw_params *hw,
 #define TARGET_HL_10_TLV_NUM_PEERS		14
 #define TARGET_HL_10_TLV_AST_SKID_LIMIT		6
 #define TARGET_HL_10_TLV_NUM_WDS_ENTRIES	2
+
+/* Target specific defines for QCA9377 high latency firmware */
+#define TARGET_QCA9377_HL_NUM_PEERS		15
 
 /* Diagnostic Window */
 #define CE_DIAG_PIPE	7
