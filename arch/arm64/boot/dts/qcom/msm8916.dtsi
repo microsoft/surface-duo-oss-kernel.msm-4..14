@@ -1025,7 +1025,7 @@
 
 			qcom,halt-regs = <&tcsr 0x18000 0x19000 0x1a000>;
 
-			status = "disabled";
+			status = "okay";
 
 			mba {
 				memory-region = <&mba_mem>;
