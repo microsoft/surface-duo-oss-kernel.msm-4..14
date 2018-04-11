@@ -20,7 +20,7 @@
 #define to_clk_regmap_mux_div(_hw) \
 	container_of(to_clk_regmap(_hw), struct clk_regmap_mux_div, clkr)
 
-int __mux_div_set_src_div(struct clk_regmap_mux_div *md, u32 src, u32 div)
+int mux_div_set_src_div(struct clk_regmap_mux_div *md, u32 src, u32 div)
 {
 	int ret, count;
 	u32 val, mask;
@@ -40,7 +40,7 @@ int __mux_div_set_src_div(struct clk_regmap_mux_div *md, u32 src, u32 div)
 	if (ret)
 		return ret;
 
-	// Wait for update to take effect
+	/* Wait for update to take effect */
 	for (count = 500; count > 0; count--) {
 		ret = regmap_read(md->clkr.regmap, CMD_RCGR + md->reg_offset,
 				  &val);
@@ -54,9 +54,10 @@ int __mux_div_set_src_div(struct clk_regmap_mux_div *md, u32 src, u32 div)
 	pr_err("%s: RCG did not update its configuration", name);
 	return -EBUSY;
 }
+EXPORT_SYMBOL_GPL(mux_div_set_src_div);
 
-static void __mux_div_get_src_div(struct clk_regmap_mux_div *md, u32 *src,
-				  u32 *div)
+static void mux_div_get_src_div(struct clk_regmap_mux_div *md, u32 *src,
+				u32 *div)
 {
 	u32 val, d, s;
 	const char *name = clk_hw_get_name(&md->clkr.hw);
@@ -141,7 +142,7 @@ static int __mux_div_set_rate_and_parent(struct clk_hw *hw, unsigned long rate,
 
 			if (is_better_rate(rate, best_rate, actual_rate)) {
 				best_rate = actual_rate;
-				best_src = md->parent_map[i].cfg;
+				best_src = md->parent_map[i];
 				best_div = div - 1;
 			}
 
@@ -150,7 +151,7 @@ static int __mux_div_set_rate_and_parent(struct clk_hw *hw, unsigned long rate,
 		}
 	}
 
-	ret = __mux_div_set_src_div(md, best_src, best_div);
+	ret = mux_div_set_src_div(md, best_src, best_div);
 	if (!ret) {
 		md->div = best_div;
 		md->src = best_src;
@@ -165,10 +166,10 @@ static u8 mux_div_get_parent(struct clk_hw *hw)
 	const char *name = clk_hw_get_name(hw);
 	u32 i, div, src = 0;
 
-	__mux_div_get_src_div(md, &src, &div);
+	mux_div_get_src_div(md, &src, &div);
 
 	for (i = 0; i < clk_hw_get_num_parents(hw); i++)
-		if (src == md->parent_map[i].cfg)
+		if (src == md->parent_map[i])
 			return i;
 
 	pr_err("%s: Can't find parent with src %d\n", name, src);
@@ -179,7 +180,7 @@ static int mux_div_set_parent(struct clk_hw *hw, u8 index)
 {
 	struct clk_regmap_mux_div *md = to_clk_regmap_mux_div(hw);
 
-	return __mux_div_set_src_div(md, md->parent_map[index].cfg, md->div);
+	return mux_div_set_src_div(md, md->parent_map[index], md->div);
 }
 
 static int mux_div_set_rate(struct clk_hw *hw,
@@ -196,7 +197,7 @@ static int mux_div_set_rate_and_parent(struct clk_hw *hw,  unsigned long rate,
 	struct clk_regmap_mux_div *md = to_clk_regmap_mux_div(hw);
 
 	return __mux_div_set_rate_and_parent(hw, rate, prate,
-					     md->parent_map[index].cfg);
+					     md->parent_map[index]);
 }
 
 static unsigned long mux_div_recalc_rate(struct clk_hw *hw, unsigned long prate)
@@ -206,9 +207,9 @@ static unsigned long mux_div_recalc_rate(struct clk_hw *hw, unsigned long prate)
 	int i, num_parents = clk_hw_get_num_parents(hw);
 	const char *name = clk_hw_get_name(hw);
 
-	__mux_div_get_src_div(md, &src, &div);
+	mux_div_get_src_div(md, &src, &div);
 	for (i = 0; i < num_parents; i++)
-		if (src == md->parent_map[i].cfg) {
+		if (src == md->parent_map[i]) {
 			struct clk_hw *p = clk_hw_get_parent_by_index(hw, i);
 			unsigned long parent_rate = clk_hw_get_rate(p);
 
@@ -227,3 +228,4 @@ const struct clk_ops clk_regmap_mux_div_ops = {
 	.determine_rate = mux_div_determine_rate,
 	.recalc_rate = mux_div_recalc_rate,
 };
+EXPORT_SYMBOL_GPL(clk_regmap_mux_div_ops);

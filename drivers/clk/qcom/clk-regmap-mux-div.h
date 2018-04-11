@@ -8,7 +8,6 @@
 #define __QCOM_CLK_REGMAP_MUX_DIV_H__
 
 #include <linux/clk-provider.h>
-#include "clk-rcg.h"
 #include "clk-regmap.h"
 
 /**
@@ -20,12 +19,11 @@
  * @src_shift:	lowest bit of source select field
  * @div:	the divider raw configuration value
  * @src:	the mux index which will be used if the clock is enabled
- * @parent_map:	pointer to parent_map struct
+ * @parent_map: map from parent_names index to src_sel field
  * @clkr:	handle between common and hardware-specific interfaces
  * @pclk:	the input PLL clock
  * @clk_nb:	clock notifier for rate changes of the input PLL
  */
-
 struct clk_regmap_mux_div {
 	u32				reg_offset;
 	u32				hid_width;
@@ -34,13 +32,13 @@ struct clk_regmap_mux_div {
 	u32				src_shift;
 	u32				div;
 	u32				src;
-	const struct parent_map		*parent_map;
+	const u32			*parent_map;
 	struct clk_regmap		clkr;
 	struct clk			*pclk;
 	struct notifier_block		clk_nb;
 };
 
 extern const struct clk_ops clk_regmap_mux_div_ops;
-int __mux_div_set_src_div(struct clk_regmap_mux_div *md, u32 src, u32 div);
+extern int mux_div_set_src_div(struct clk_regmap_mux_div *md, u32 src, u32 div);
 
 #endif

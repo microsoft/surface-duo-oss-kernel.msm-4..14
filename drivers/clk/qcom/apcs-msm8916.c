@@ -9,26 +9,15 @@
 #include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/kernel.h>
-#include <linux/mailbox_controller.h>
 #include <linux/module.h>
-#include <linux/io.h>
 #include <linux/slab.h>
-#include <linux/of.h>
-#include <linux/of_platform.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
+
 #include "clk-regmap.h"
 #include "clk-regmap-mux-div.h"
 
-enum {
-	P_GPLL0,
-	P_A53PLL,
-};
-
-static const struct parent_map gpll0_a53cc_map[] = {
-	{ P_GPLL0, 4 },
-	{ P_A53PLL, 5 },
-};
+static const u32 gpll0_a53cc_map[] = { 4, 5 };
 
 static const char * const gpll0_a53cc[] = {
 	"gpll0_vote",
@@ -48,7 +37,7 @@ static int a53cc_notifier_cb(struct notifier_block *nb, unsigned long event,
 						     clk_nb);
 	if (event == PRE_RATE_CHANGE)
 		/* set the mux and divider to safe frequency (400mhz) */
-		ret = __mux_div_set_src_div(md, 4, 3);
+		ret = mux_div_set_src_div(md, 4, 3);
 
 	return notifier_from_errno(ret);
 }

@@ -14,6 +14,28 @@
 		};
 	};
 
+	bt_en_gpios: bt_en_gpios {
+		pinconf {
+			pins = "gpio19";
+			function = PMIC_GPIO_FUNC_NORMAL;
+			output-low;
+			power-source = <PM8994_GPIO_S4>; // 1.8V
+			qcom,drive-strength = <3>;
+			bias-pull-down;
+		};
+	};
+
+	wlan_en_gpios: wlan_en_gpios {
+		pinconf {
+			pins = "gpio8";
+			function = PMIC_GPIO_FUNC_NORMAL;
+			output-low;
+			power-source = <PM8994_GPIO_S4>; // 1.8V
+			qcom,drive-strength = <3>;
+			bias-pull-down;
+		};
+	};
+
 	volume_up_gpio: pm8996_gpio2 {
 		pinconf {
 			pins = "gpio2";
@@ -23,6 +45,16 @@
 			bias-pull-up;
 			qcom,drive-strength = <PMIC_GPIO_STRENGTH_NO>;
 			power-source = <PM8994_GPIO_S4>; // 1.8V
+		};
+	};
+
+	divclk4_pin_a: divclk4 {
+		pinconf {
+			pins = "gpio18";
+			function = PMIC_GPIO_FUNC_FUNC2;
+
+			bias-disable;
+			power-source = <PM8994_GPIO_S4>;
 		};
 	};
 
@@ -48,5 +80,33 @@
 			qcom,drive-strength = <PMIC_GPIO_STRENGTH_NO>;
 			power-source = <PM8994_GPIO_S4>; // 1.8V
 		};
+	};
+};
+
+&pm8994_mpps {
+	pm8994_mpp2_wifi_led: mpp2-wifi-led-active {
+		pins = "mpp2";
+		function = "sink";
+
+		output-low;
+		qcom,dtest = <1>;
+	};
+
+	pm8994_mpp4_bt_led: mpp4-wifi-led-active {
+		pins = "mpp4";
+		function = "sink";
+
+		output-low;
+		qcom,dtest = <2>;
+	};
+};
+
+&pmi8994_mpps {
+	pmi8994_mpp2_userled4: mpp2-userled4 {
+		pins = "mpp2";
+		function = "sink";
+
+		output-low;
+		qcom,dtest = <4>;
 	};
 };

@@ -10,6 +10,7 @@
 #include <linux/kernel.h>
 #include <linux/platform_device.h>
 #include <linux/regmap.h>
+#include <linux/module.h>
 
 #include "clk-pll.h"
 #include "clk-regmap.h"
@@ -22,6 +23,7 @@ static const struct pll_freq_tbl a53pll_freq[] = {
 	{ 1248000000, 65, 0x0, 0x1, 0 },
 	{ 1363200000, 71, 0x0, 0x1, 0 },
 	{ 1401600000, 73, 0x0, 0x1, 0 },
+	{ }
 };
 
 static const struct regmap_config a53pll_regmap_config = {
@@ -31,12 +33,6 @@ static const struct regmap_config a53pll_regmap_config = {
 	.max_register		= 0x40,
 	.fast_io		= true,
 };
-
-static int qcom_a53pll_remove(struct platform_device *pdev)
-{
-	of_clk_del_provider(pdev->dev.of_node);
-	return 0;
-}
 
 static int qcom_a53pll_probe(struct platform_device *pdev)
 {
@@ -83,8 +79,8 @@ static int qcom_a53pll_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	ret = of_clk_add_hw_provider(dev->of_node, of_clk_hw_simple_get,
-				     &pll->clkr.hw);
+	ret = devm_of_clk_add_hw_provider(dev, of_clk_hw_simple_get,
+					  &pll->clkr.hw);
 	if (ret) {
 		dev_err(dev, "failed to add clock provider: %d\n", ret);
 		return ret;
@@ -100,11 +96,12 @@ static const struct of_device_id qcom_a53pll_match_table[] = {
 
 static struct platform_driver qcom_a53pll_driver = {
 	.probe = qcom_a53pll_probe,
-	.remove = qcom_a53pll_remove,
 	.driver = {
 		.name = "qcom-a53pll",
 		.of_match_table = qcom_a53pll_match_table,
 	},
 };
+module_platform_driver(qcom_a53pll_driver);
 
-builtin_platform_driver(qcom_a53pll_driver);
+MODULE_DESCRIPTION("Qualcomm A53 PLL Driver");
+MODULE_LICENSE("GPL v2");
