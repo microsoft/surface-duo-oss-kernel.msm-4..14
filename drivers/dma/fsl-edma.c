@@ -255,14 +255,6 @@ static int is_s32gen1_edma(struct fsl_edma_engine *data);
  * should also be swapped opposite to that in little-endian IP.
  */
 
-static u16 edma_readw(struct fsl_edma_engine *edma, void __iomem *addr)
-{
-	if (edma->big_endian)
-		return ioread16be(addr);
-	else
-		return ioread16(addr);
-}
-
 static u32 edma_readl(struct fsl_edma_engine *edma, void __iomem *addr)
 {
 	if (edma->big_endian)
@@ -329,14 +321,9 @@ static void fsl_edma3_enable_request(struct fsl_edma_chan *fsl_chan)
 {
 	void __iomem *addr = fsl_chan->edma->membase;
 	u32 ch = fsl_chan->vchan.chan.chan_id;
-	const struct fsl_edma_soc_data *socdata = fsl_chan->edma->socdata;
-	struct fsl_edma_hw_tcd *hw_tcd = (struct fsl_edma_hw_tcd *)
-		socdata->ops->edma_get_tcd_addr(fsl_chan);
-	u16 csr = edma_readw(fsl_chan->edma, &hw_tcd->csr);
 
 	edma_writel(fsl_chan->edma, EDMA3_CHn_CSR_ERQ | EDMA3_CHn_CSR_EEI,
 			addr + EDMA3_CHn_CSR(ch));
-	edma_writew(fsl_chan->edma, csr | EDMA_TCD_CSR_START, &hw_tcd->csr);
 }
 
 static void fsl_edma3_disable_request(struct fsl_edma_chan *fsl_chan)
