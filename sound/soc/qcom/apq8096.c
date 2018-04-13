@@ -220,6 +220,8 @@ static const struct of_device_id msm_snd_apq8096_dt_match[] = {
 	{}
 };
 
+MODULE_DEVICE_TABLE(of, msm_snd_apq8096_dt_match);
+
 static struct platform_driver msm_snd_apq8096_driver = {
 	.probe  = apq8096_platform_probe,
 	.remove = apq8096_platform_remove,
