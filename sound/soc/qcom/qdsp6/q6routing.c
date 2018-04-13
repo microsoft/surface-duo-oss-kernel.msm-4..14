@@ -969,9 +969,16 @@ static int q6pcm_routing_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct of_device_id q6routing_of_match[] = {
+	{ .compatible = "q6routing"},
+	{ },
+};
+MODULE_DEVICE_TABLE(of, q6routing_of_match);
+
 static struct platform_driver q6pcm_routing_platform_driver = {
 	.driver = {
 		.name = "q6routing",
+		.of_match_table = q6routing_of_match,
 	},
 	.probe = q6pcm_routing_probe,
 	.remove = q6pcm_routing_remove,
