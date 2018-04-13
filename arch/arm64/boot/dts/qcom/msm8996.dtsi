@@ -1912,6 +1912,7 @@
 					qcom,apr-svc-name = "AFE";
 					qcom,apr-svc-id = <APR_SVC_AFE>;
 					q6afedai: dais {
+						compatible = "qcom,q6afe-dai";
 						#sound-dai-cells = <1>;
 					};
 				};
@@ -1921,6 +1922,7 @@
 					qcom,apr-svc-name = "ASM";
 					qcom,apr-svc-id = <APR_SVC_ASM>;
 					q6asmdai: dais {
+						compatible = "qcom,q6asm-dai";
 						#sound-dai-cells = <1>;
 						power-domains = <&gcc HLOS1_VOTE_LPASS_ADSP_GDSC>;
 						iommus = <&lpass_q6_smmu 1>;
@@ -1932,6 +1934,7 @@
 					qcom,apr-svc-name = "ADM";
 					qcom,apr-svc-id = <APR_SVC_ADM>;
 					q6routing: routing {
+						compatible = "q6routing";
 						#sound-dai-cells = <0>;
 					};
 				};
