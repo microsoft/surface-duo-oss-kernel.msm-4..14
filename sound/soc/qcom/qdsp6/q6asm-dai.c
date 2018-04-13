@@ -619,9 +619,16 @@ static int q6asm_dai_dev_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct of_device_id q6asm_dai_of_match[] = {
+	{ .compatible = "qcom,q6asm-dai"},
+	{ },
+};
+MODULE_DEVICE_TABLE(of, q6asm_dai_of_match);
+
 static struct platform_driver q6asm_dai_platform_driver = {
 	.driver = {
 		.name = "q6asm-dai",
+		.of_match_table = q6asm_dai_of_match,
 	},
 	.probe = q6asm_dai_probe,
 	.remove = q6asm_dai_dev_remove,
