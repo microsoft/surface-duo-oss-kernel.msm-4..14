@@ -195,10 +195,23 @@ static int apr_device_remove(struct device *dev)
 	return 0;
 }
 
+static int apr_uevent(struct device *dev, struct kobj_uevent_env *env)
+{
+	struct apr_device *adev = to_apr_device(dev);
+        int ret;
+
+        ret = of_device_uevent_modalias(dev, env);
+        if (ret != -ENODEV)
+                return ret;
+
+        return add_uevent_var(env, "MODALIAS= apr:%s", adev->name);
+}
+
 struct bus_type aprbus_type = {
 	.name		= "aprbus",
 	.match		= apr_device_match,
 	.probe		= apr_device_probe,
+	.uevent		= apr_uevent,
 	.remove		= apr_device_remove,
 	.force_dma	= true,
 };
@@ -220,6 +233,7 @@ static int apr_add_device(struct device *dev, struct device_node *np,
 		adev->svc_id = id->svc_id;
 		adev->domain_id = id->domain_id;
 		adev->version = id->svc_version;
+		strncpy(adev->name, id->name, APR_NAME_SIZE);
 		dev_set_name(&adev->dev, "aprsvc:%s:%x:%x", id->name,
 			     id->domain_id, id->svc_id);
 	} else  {
@@ -344,6 +358,7 @@ static const struct of_device_id apr_of_match[] = {
 	{ .compatible = "qcom,apr-v2"},
 	{}
 };
+MODULE_DEVICE_TABLE(of, apr_of_match);
 
 static struct rpmsg_driver apr_driver = {
 	.probe = apr_probe,
