@@ -21,10 +21,6 @@
 #include <media/v4l2-fwnode.h>
 #include <media/v4l2-subdev.h>
 
-#define OV7251_VOLTAGE_ANALOG               2800000
-#define OV7251_VOLTAGE_DIGITAL_CORE         1500000
-#define OV7251_VOLTAGE_DIGITAL_IO           1800000
-
 #define OV7251_SC_MODE_SELECT		0x0100
 #define OV7251_SC_MODE_SELECT_SW_STANDBY	0x0
 #define OV7251_SC_MODE_SELECT_STREAMING		0x1
@@ -72,6 +68,7 @@ struct ov7251 {
 	struct v4l2_mbus_framefmt fmt;
 	struct v4l2_rect crop;
 	struct clk *xclk;
+	u32 xclk_freq;
 
 	struct regulator *io_regulator;
 	struct regulator *core_regulator;
@@ -91,7 +88,7 @@ struct ov7251 {
 	u8 timing_format1;
 	u8 timing_format2;
 
-	struct mutex power_lock; /* lock to protect power state */
+	struct mutex lock; /* lock to protect power state, ctrls and mode */
 	bool power_on;
 
 	struct gpio_desc *enable_gpio;
@@ -574,6 +571,10 @@ static int ov7251_regulators_enable(struct ov7251 *ov7251)
 {
 	int ret;
 
+	/* OV7251 power up sequence requires core regulator
+	 * to be enabled not earlier than io regulator
+	 */
+
 	ret = regulator_enable(ov7251->io_regulator);
 	if (ret < 0) {
 		dev_err(ov7251->dev, "set io voltage failed\n");
@@ -638,6 +639,35 @@ static int ov7251_write_reg(struct ov7251 *ov7251, u16 reg, u8 val)
 	return 0;
 }
 
+static int ov7251_write_seq_regs(struct ov7251 *ov7251, u16 reg, u8 *val,
+				 u8 num)
+{
+	u8 *regbuf;
+	u8 nregbuf = sizeof(reg) + num * sizeof(*val);
+	int ret = 0;
+	int i;
+
+	regbuf = kzalloc(nregbuf, GFP_KERNEL);
+	if (!regbuf)
+		return -ENOMEM;
+
+	regbuf[0] = reg >> 8;
+	regbuf[1] = reg & 0xff;
+
+	for (i = 0; i < num; i++)
+		regbuf[2 + i] = val[i];
+
+	ret = i2c_master_send(ov7251->i2c_client, regbuf, nregbuf);
+	kfree(regbuf);
+	if (ret < 0) {
+		dev_err(ov7251->dev, "%s: write seq regs error %d: first reg=%x\n",
+			__func__, ret, reg);
+		return ret;
+	}
+
+	return 0;
+}
+
 static int ov7251_read_reg(struct ov7251 *ov7251, u16 reg, u8 *val)
 {
 	u8 regbuf[2];
@@ -665,32 +695,27 @@ static int ov7251_read_reg(struct ov7251 *ov7251, u16 reg, u8 *val)
 
 static int ov7251_set_exposure(struct ov7251 *ov7251, s32 exposure)
 {
-	int ret;
+	u16 reg;
+	u8 val[3];
 
-	ret = ov7251_write_reg(ov7251, OV7251_AEC_EXPO_0,
-			       (exposure & 0xf000) >> 12);
-	if (ret < 0)
-		return ret;
+	reg = OV7251_AEC_EXPO_0;
+	val[0] = (exposure & 0xf000) >> 12; /* goes to OV7251_AEC_EXPO_0 */
+	val[1] = (exposure & 0x0ff0) >> 4;  /* goes to OV7251_AEC_EXPO_1 */
+	val[2] = (exposure & 0x000f) << 4;  /* goes to OV7251_AEC_EXPO_2 */
 
-	ret = ov7251_write_reg(ov7251, OV7251_AEC_EXPO_1,
-			       (exposure & 0x0ff0) >> 4);
-	if (ret < 0)
-		return ret;
-
-	return ov7251_write_reg(ov7251, OV7251_AEC_EXPO_2,
-				(exposure & 0x000f) << 4);
+	return ov7251_write_seq_regs(ov7251, reg, val, 3);
 }
 
 static int ov7251_set_gain(struct ov7251 *ov7251, s32 gain)
 {
-	int ret;
+	u16 reg;
+	u8 val[2];
 
-	ret = ov7251_write_reg(ov7251, OV7251_AEC_AGC_ADJ_0,
-			       (gain & 0x0300) >> 8);
-	if (ret < 0)
-		return ret;
+	reg = OV7251_AEC_AGC_ADJ_0;
+	val[0] = (gain & 0x0300) >> 8; /* goes to OV7251_AEC_AGC_ADJ_0 */
+	val[1] = gain & 0xff;          /* goes to OV7251_AEC_AGC_ADJ_1 */
 
-	return ov7251_write_reg(ov7251, OV7251_AEC_AGC_ADJ_1, gain & 0xff);
+	return ov7251_write_seq_regs(ov7251, reg, val, 2);
 }
 
 static int ov7251_set_register_array(struct ov7251 *ov7251,
@@ -712,6 +737,7 @@ static int ov7251_set_register_array(struct ov7251 *ov7251,
 static int ov7251_set_power_on(struct ov7251 *ov7251)
 {
 	int ret;
+	u32 wait_us;
 
 	ret = ov7251_regulators_enable(ov7251);
 	if (ret < 0)
@@ -726,7 +752,9 @@ static int ov7251_set_power_on(struct ov7251 *ov7251)
 
 	gpiod_set_value_cansleep(ov7251->enable_gpio, 1);
 
-	usleep_range(3000, 4000); /* 65536 / 24MHz = 2.73ms */
+	/* wait at least 65536 external clock cycles */
+	wait_us = (65536 * 1000) / (ov7251->xclk_freq / 1000);
+	usleep_range(wait_us, wait_us + 1000);
 
 	return 0;
 }
@@ -743,7 +771,7 @@ static int ov7251_s_power(struct v4l2_subdev *sd, int on)
 	struct ov7251 *ov7251 = to_ov7251(sd);
 	int ret = 0;
 
-	mutex_lock(&ov7251->power_lock);
+	mutex_lock(&ov7251->lock);
 
 	/* If the power state is not modified - no work to do. */
 	if (ov7251->power_on == !!on)
@@ -770,7 +798,7 @@ static int ov7251_s_power(struct v4l2_subdev *sd, int on)
 	}
 
 exit:
-	mutex_unlock(&ov7251->power_lock);
+	mutex_unlock(&ov7251->lock);
 
 	return ret;
 }
@@ -837,11 +865,10 @@ static int ov7251_s_ctrl(struct v4l2_ctrl *ctrl)
 					     struct ov7251, ctrls);
 	int ret;
 
-	mutex_lock(&ov7251->power_lock);
-	if (!ov7251->power_on) {
-		mutex_unlock(&ov7251->power_lock);
+	/* v4l2_ctrl_lock() locks our mutex */
+
+	if (!ov7251->power_on)
 		return 0;
-	}
 
 	switch (ctrl->id) {
 	case V4L2_CID_EXPOSURE:
@@ -864,8 +891,6 @@ static int ov7251_s_ctrl(struct v4l2_ctrl *ctrl)
 		break;
 	}
 
-	mutex_unlock(&ov7251->power_lock);
-
 	return ret;
 }
 
@@ -880,7 +905,7 @@ static int ov7251_enum_mbus_code(struct v4l2_subdev *sd,
 	if (code->index > 0)
 		return -EINVAL;
 
-	code->code = MEDIA_BUS_FMT_SBGGR10_1X10;
+	code->code = MEDIA_BUS_FMT_Y10_1X10;
 
 	return 0;
 }
@@ -889,7 +914,7 @@ static int ov7251_enum_frame_size(struct v4l2_subdev *subdev,
 				  struct v4l2_subdev_pad_config *cfg,
 				  struct v4l2_subdev_frame_size_enum *fse)
 {
-	if (fse->code != MEDIA_BUS_FMT_SBGGR10_1X10)
+	if (fse->code != MEDIA_BUS_FMT_Y10_1X10)
 		return -EINVAL;
 
 	if (fse->index >= ARRAY_SIZE(ov7251_mode_info_data))
@@ -946,8 +971,11 @@ static int ov7251_get_format(struct v4l2_subdev *sd,
 {
 	struct ov7251 *ov7251 = to_ov7251(sd);
 
+	mutex_lock(&ov7251->lock);
 	format->format = *__ov7251_get_pad_format(ov7251, cfg, format->pad,
 						  format->which);
+	mutex_unlock(&ov7251->lock);
+
 	return 0;
 }
 
@@ -1030,7 +1058,9 @@ static int ov7251_set_format(struct v4l2_subdev *sd,
 	struct v4l2_mbus_framefmt *__format;
 	struct v4l2_rect *__crop;
 	const struct ov7251_mode_info *new_mode;
-	int ret;
+	int ret = 0;
+
+	mutex_lock(&ov7251->lock);
 
 	__crop = __ov7251_get_pad_crop(ov7251, cfg, format->pad, format->which);
 
@@ -1041,30 +1071,30 @@ static int ov7251_set_format(struct v4l2_subdev *sd,
 	__crop->height = new_mode->height;
 
 	if (format->which == V4L2_SUBDEV_FORMAT_ACTIVE) {
-		ret = v4l2_ctrl_s_ctrl_int64(ov7251->pixel_clock,
-					     new_mode->pixel_clock);
+		ret = __v4l2_ctrl_s_ctrl_int64(ov7251->pixel_clock,
+					       new_mode->pixel_clock);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
-		ret = v4l2_ctrl_s_ctrl(ov7251->link_freq,
-				       new_mode->link_freq);
+		ret = __v4l2_ctrl_s_ctrl(ov7251->link_freq,
+					 new_mode->link_freq);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
-		ret = v4l2_ctrl_modify_range(ov7251->exposure,
-					     1, new_mode->exposure_max,
-					     1, new_mode->exposure_def);
+		ret = __v4l2_ctrl_modify_range(ov7251->exposure,
+					       1, new_mode->exposure_max,
+					       1, new_mode->exposure_def);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
-		ret = v4l2_ctrl_s_ctrl(ov7251->exposure,
-				       new_mode->exposure_def);
+		ret = __v4l2_ctrl_s_ctrl(ov7251->exposure,
+					 new_mode->exposure_def);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
-		ret = v4l2_ctrl_s_ctrl(ov7251->gain, 16);
+		ret = __v4l2_ctrl_s_ctrl(ov7251->gain, 16);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
 		ov7251->current_mode = new_mode;
 	}
@@ -1073,7 +1103,7 @@ static int ov7251_set_format(struct v4l2_subdev *sd,
 					   format->which);
 	__format->width = __crop->width;
 	__format->height = __crop->height;
-	__format->code = MEDIA_BUS_FMT_SBGGR10_1X10;
+	__format->code = MEDIA_BUS_FMT_Y10_1X10;
 	__format->field = V4L2_FIELD_NONE;
 	__format->colorspace = V4L2_COLORSPACE_SRGB;
 	__format->ycbcr_enc = V4L2_MAP_YCBCR_ENC_DEFAULT(__format->colorspace);
@@ -1083,7 +1113,10 @@ static int ov7251_set_format(struct v4l2_subdev *sd,
 
 	format->format = *__format;
 
-	return 0;
+exit:
+	mutex_unlock(&ov7251->lock);
+
+	return ret;
 }
 
 static int ov7251_entity_init_cfg(struct v4l2_subdev *subdev,
@@ -1109,8 +1142,11 @@ static int ov7251_get_selection(struct v4l2_subdev *sd,
 	if (sel->target != V4L2_SEL_TGT_CROP)
 		return -EINVAL;
 
+	mutex_lock(&ov7251->lock);
 	sel->r = *__ov7251_get_pad_crop(ov7251, cfg, sel->pad,
 					sel->which);
+	mutex_unlock(&ov7251->lock);
+
 	return 0;
 }
 
@@ -1118,6 +1154,8 @@ static int ov7251_s_stream(struct v4l2_subdev *subdev, int enable)
 {
 	struct ov7251 *ov7251 = to_ov7251(subdev);
 	int ret;
+
+	mutex_lock(&ov7251->lock);
 
 	if (enable) {
 		ret = ov7251_set_register_array(ov7251,
@@ -1127,25 +1165,24 @@ static int ov7251_s_stream(struct v4l2_subdev *subdev, int enable)
 			dev_err(ov7251->dev, "could not set mode %dx%d\n",
 				ov7251->current_mode->width,
 				ov7251->current_mode->height);
-			return ret;
+			goto exit;
 		}
-		ret = v4l2_ctrl_handler_setup(&ov7251->ctrls);
+		ret = __v4l2_ctrl_handler_setup(&ov7251->ctrls);
 		if (ret < 0) {
 			dev_err(ov7251->dev, "could not sync v4l2 controls\n");
-			return ret;
+			goto exit;
 		}
 		ret = ov7251_write_reg(ov7251, OV7251_SC_MODE_SELECT,
 				       OV7251_SC_MODE_SELECT_STREAMING);
-		if (ret < 0)
-			return ret;
 	} else {
 		ret = ov7251_write_reg(ov7251, OV7251_SC_MODE_SELECT,
 				       OV7251_SC_MODE_SELECT_SW_STANDBY);
-		if (ret < 0)
-			return ret;
 	}
 
-	return 0;
+exit:
+	mutex_unlock(&ov7251->lock);
+
+	return ret;
 }
 
 static int ov7251_get_frame_interval(struct v4l2_subdev *subdev,
@@ -1153,7 +1190,9 @@ static int ov7251_get_frame_interval(struct v4l2_subdev *subdev,
 {
 	struct ov7251 *ov7251 = to_ov7251(subdev);
 
+	mutex_lock(&ov7251->lock);
 	fi->interval = ov7251->current_mode->timeperframe;
+	mutex_unlock(&ov7251->lock);
 
 	return 0;
 }
@@ -1163,43 +1202,46 @@ static int ov7251_set_frame_interval(struct v4l2_subdev *subdev,
 {
 	struct ov7251 *ov7251 = to_ov7251(subdev);
 	const struct ov7251_mode_info *new_mode;
+	int ret = 0;
 
+	mutex_lock(&ov7251->lock);
 	new_mode = ov7251_find_mode_by_ival(ov7251, &fi->interval);
 
 	if (new_mode != ov7251->current_mode) {
-		int ret;
-
-		ret = v4l2_ctrl_s_ctrl_int64(ov7251->pixel_clock,
-					     new_mode->pixel_clock);
+		ret = __v4l2_ctrl_s_ctrl_int64(ov7251->pixel_clock,
+					       new_mode->pixel_clock);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
-		ret = v4l2_ctrl_s_ctrl(ov7251->link_freq,
-				       new_mode->link_freq);
+		ret = __v4l2_ctrl_s_ctrl(ov7251->link_freq,
+					 new_mode->link_freq);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
-		ret = v4l2_ctrl_modify_range(ov7251->exposure,
-					     1, new_mode->exposure_max,
-					     1, new_mode->exposure_def);
+		ret = __v4l2_ctrl_modify_range(ov7251->exposure,
+					       1, new_mode->exposure_max,
+					       1, new_mode->exposure_def);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
-		ret = v4l2_ctrl_s_ctrl(ov7251->exposure,
-				       new_mode->exposure_def);
+		ret = __v4l2_ctrl_s_ctrl(ov7251->exposure,
+					 new_mode->exposure_def);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
-		ret = v4l2_ctrl_s_ctrl(ov7251->gain, 16);
+		ret = __v4l2_ctrl_s_ctrl(ov7251->gain, 16);
 		if (ret < 0)
-			return ret;
+			goto exit;
 
 		ov7251->current_mode = new_mode;
 	}
 
 	fi->interval = ov7251->current_mode->timeperframe;
 
-	return 0;
+exit:
+	mutex_unlock(&ov7251->lock);
+
+	return ret;
 }
 
 static const struct v4l2_subdev_core_ops ov7251_core_ops = {
@@ -1234,7 +1276,6 @@ static int ov7251_probe(struct i2c_client *client)
 	struct fwnode_handle *endpoint;
 	struct ov7251 *ov7251;
 	u8 chip_id_high, chip_id_low, chip_rev;
-	u32 xclk_freq;
 	int ret;
 
 	ov7251 = devm_kzalloc(dev, sizeof(struct ov7251), GFP_KERNEL);
@@ -1271,20 +1312,20 @@ static int ov7251_probe(struct i2c_client *client)
 	}
 
 	ret = fwnode_property_read_u32(dev_fwnode(dev), "clock-frequency",
-				       &xclk_freq);
+				       &ov7251->xclk_freq);
 	if (ret) {
 		dev_err(dev, "could not get xclk frequency\n");
 		return ret;
 	}
 
 	/* external clock must be 24MHz, allow 1% tolerance */
-	if (xclk_freq < 23760000 || xclk_freq > 24240000) {
+	if (ov7251->xclk_freq < 23760000 || ov7251->xclk_freq > 24240000) {
 		dev_err(dev, "external clock frequency %u is not supported\n",
-			xclk_freq);
+			ov7251->xclk_freq);
 		return -EINVAL;
 	}
 
-	ret = clk_set_rate(ov7251->xclk, xclk_freq);
+	ret = clk_set_rate(ov7251->xclk, ov7251->xclk_freq);
 	if (ret) {
 		dev_err(dev, "could not set xclk frequency\n");
 		return ret;
@@ -1296,26 +1337,10 @@ static int ov7251_probe(struct i2c_client *client)
 		return PTR_ERR(ov7251->io_regulator);
 	}
 
-	ret = regulator_set_voltage(ov7251->io_regulator,
-				    OV7251_VOLTAGE_DIGITAL_IO,
-				    OV7251_VOLTAGE_DIGITAL_IO);
-	if (ret < 0) {
-		dev_err(dev, "cannot set io voltage\n");
-		return ret;
-	}
-
 	ov7251->core_regulator = devm_regulator_get(dev, "vddd");
 	if (IS_ERR(ov7251->core_regulator)) {
 		dev_err(dev, "cannot get core regulator\n");
 		return PTR_ERR(ov7251->core_regulator);
-	}
-
-	ret = regulator_set_voltage(ov7251->core_regulator,
-				    OV7251_VOLTAGE_DIGITAL_CORE,
-				    OV7251_VOLTAGE_DIGITAL_CORE);
-	if (ret < 0) {
-		dev_err(dev, "cannot set core voltage\n");
-		return ret;
 	}
 
 	ov7251->analog_regulator = devm_regulator_get(dev, "vdda");
@@ -1324,23 +1349,17 @@ static int ov7251_probe(struct i2c_client *client)
 		return PTR_ERR(ov7251->analog_regulator);
 	}
 
-	ret = regulator_set_voltage(ov7251->analog_regulator,
-				    OV7251_VOLTAGE_ANALOG,
-				    OV7251_VOLTAGE_ANALOG);
-	if (ret < 0) {
-		dev_err(dev, "cannot set analog voltage\n");
-		return ret;
-	}
-
 	ov7251->enable_gpio = devm_gpiod_get(dev, "enable", GPIOD_OUT_HIGH);
 	if (IS_ERR(ov7251->enable_gpio)) {
 		dev_err(dev, "cannot get enable gpio\n");
 		return PTR_ERR(ov7251->enable_gpio);
 	}
 
-	mutex_init(&ov7251->power_lock);
+	mutex_init(&ov7251->lock);
 
 	v4l2_ctrl_handler_init(&ov7251->ctrls, 7);
+	ov7251->ctrls.lock = &ov7251->lock;
+
 	v4l2_ctrl_new_std(&ov7251->ctrls, &ov7251_ctrl_ops,
 			  V4L2_CID_HFLIP, 0, 1, 1, 0);
 	v4l2_ctrl_new_std(&ov7251->ctrls, &ov7251_ctrl_ops,
@@ -1463,7 +1482,7 @@ free_entity:
 	media_entity_cleanup(&ov7251->sd.entity);
 free_ctrl:
 	v4l2_ctrl_handler_free(&ov7251->ctrls);
-	mutex_destroy(&ov7251->power_lock);
+	mutex_destroy(&ov7251->lock);
 
 	return ret;
 }
@@ -1476,7 +1495,7 @@ static int ov7251_remove(struct i2c_client *client)
 	v4l2_async_unregister_subdev(&ov7251->sd);
 	media_entity_cleanup(&ov7251->sd.entity);
 	v4l2_ctrl_handler_free(&ov7251->ctrls);
-	mutex_destroy(&ov7251->power_lock);
+	mutex_destroy(&ov7251->lock);
 
 	return 0;
 }
