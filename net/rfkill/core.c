@@ -1358,6 +1358,7 @@ static int __init rfkill_init(void)
 
 error_led_trigger:
 	misc_deregister(&rfkill_miscdev);
+	return error;
 }
 subsys_initcall(rfkill_init);
 
