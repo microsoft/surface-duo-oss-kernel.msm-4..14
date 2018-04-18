@@ -196,19 +196,6 @@
 			status = "okay";
 		};
 
-	        bt_en: bt-en-1-8v {
-			pinctrl-names = "default";
-			pinctrl-0 = <&bt_en_gpios>;
-	                compatible = "regulator-fixed";
-	                regulator-name = "bt-en-regulator";
-	                regulator-min-microvolt = <1800000>;
-	                regulator-max-microvolt = <1800000>;
-
-	                /* WLAN card specific delay */
-	                startup-delay-us = <70000>;
-	                enable-active-high;
-	        };
-
 	        wlan_en: wlan-en-1-8v {
 			pinctrl-names = "default";
 			pinctrl-0 = <&wlan_en_gpios>;
