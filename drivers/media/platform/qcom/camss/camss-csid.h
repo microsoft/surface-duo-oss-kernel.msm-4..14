@@ -50,6 +50,7 @@ struct csid_phy_config {
 };
 
 struct csid_device {
+	struct camss *camss;
 	u8 id;
 	struct v4l2_subdev subdev;
 	struct media_pad pads[MSM_CSID_PADS_NUM];
@@ -65,11 +66,13 @@ struct csid_device {
 	struct v4l2_mbus_framefmt fmt[MSM_CSID_PADS_NUM];
 	struct v4l2_ctrl_handler ctrls;
 	struct v4l2_ctrl *testgen_mode;
+	const struct csid_format *formats;
+	unsigned int nformats;
 };
 
 struct resources;
 
-int msm_csid_subdev_init(struct csid_device *csid,
+int msm_csid_subdev_init(struct camss *camss, struct csid_device *csid,
 			 const struct resources *res, u8 id);
 
 int msm_csid_register_entity(struct csid_device *csid,

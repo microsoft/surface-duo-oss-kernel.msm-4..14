@@ -19,6 +19,7 @@
 #define QC_MSM_CAMSS_CSIPHY_H
 
 #include <linux/clk.h>
+#include <linux/interrupt.h>
 #include <media/media-entity.h>
 #include <media/v4l2-device.h>
 #include <media/v4l2-mediabus.h>
@@ -49,7 +50,22 @@ struct csiphy_config {
 	struct csiphy_csi2_cfg *csi2;
 };
 
+struct csiphy_device;
+
+struct csiphy_hw_ops {
+	void (*hw_version_read)(struct csiphy_device *csiphy,
+				struct device *dev);
+	void (*reset)(struct csiphy_device *csiphy);
+	void (*lanes_enable)(struct csiphy_device *csiphy,
+			     struct csiphy_config *cfg,
+			     u32 pixel_clock, u8 bpp, u8 lane_mask);
+	void (*lanes_disable)(struct csiphy_device *csiphy,
+			      struct csiphy_config *cfg);
+	irqreturn_t (*isr)(int irq, void *dev);
+};
+
 struct csiphy_device {
+	struct camss *camss;
 	u8 id;
 	struct v4l2_subdev subdev;
 	struct media_pad pads[MSM_CSIPHY_PADS_NUM];
@@ -62,11 +78,15 @@ struct csiphy_device {
 	u32 timer_clk_rate;
 	struct csiphy_config cfg;
 	struct v4l2_mbus_framefmt fmt[MSM_CSIPHY_PADS_NUM];
+	struct csiphy_hw_ops *ops;
+	const struct csiphy_format *formats;
+	unsigned int nformats;
 };
 
 struct resources;
 
-int msm_csiphy_subdev_init(struct csiphy_device *csiphy,
+int msm_csiphy_subdev_init(struct camss *camss,
+			   struct csiphy_device *csiphy,
 			   const struct resources *res, u8 id);
 
 int msm_csiphy_register_entity(struct csiphy_device *csiphy,
