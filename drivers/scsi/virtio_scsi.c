@@ -785,6 +785,10 @@ static int virtscsi_target_alloc(struct scsi_target *starget)
 static void virtscsi_target_destroy(struct scsi_target *starget)
 {
 	struct virtio_scsi_target_state *tgt = starget->hostdata;
+
+	/* we can race with concurrent virtscsi_complete_cmd */
+	while (atomic_read(&tgt->reqs))
+		cpu_relax();
 	kfree(tgt);
 }
 
