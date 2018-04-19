@@ -1846,7 +1846,6 @@ static int do_check(struct verifier_env *env)
 
 			if (BPF_SIZE(insn->code) != BPF_W) {
 				insn_idx++;
-				env->insn_aux_data[insn_idx].seen = true;
 				continue;
 			}
 
@@ -2016,6 +2015,7 @@ process_bpf_exit:
 					return err;
 
 				insn_idx++;
+				env->insn_aux_data[insn_idx].seen = true;
 			} else {
 				verbose("invalid BPF_LD mode\n");
 				return -EINVAL;
@@ -2172,6 +2172,7 @@ static int adjust_insn_aux_data(struct verifier_env *env, u32 prog_len,
 				u32 off, u32 cnt)
 {
 	struct bpf_insn_aux_data *new_data, *old_data = env->insn_aux_data;
+	int i;
 
 	if (cnt == 1)
 		return 0;
@@ -2181,6 +2182,8 @@ static int adjust_insn_aux_data(struct verifier_env *env, u32 prog_len,
 	memcpy(new_data, old_data, sizeof(struct bpf_insn_aux_data) * off);
 	memcpy(new_data + off + cnt - 1, old_data + off,
 	       sizeof(struct bpf_insn_aux_data) * (prog_len - off - cnt + 1));
+	for (i = off; i < off + cnt - 1; i++)
+		new_data[i].seen = true;
 	env->insn_aux_data = new_data;
 	vfree(old_data);
 	return 0;
