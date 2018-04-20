@@ -118,6 +118,8 @@
 			pinctrl-0 = <&sdc2_clk_on &sdc2_cmd_on &sdc2_data_on &sdc2_cd_on>;
 			pinctrl-1 = <&sdc2_clk_off &sdc2_cmd_off &sdc2_data_off &sdc2_cd_off>;
 			cd-gpios = <&msmgpio 38 0x1>;
+			vmmc-supply = <&pm8994_l21>;
+			vqmmc-supply = <&pm8994_l13>;
 			status = "okay";
 		};
 
@@ -178,19 +180,6 @@
 			status = "okay";
 		};
 
-	        bt_en: bt-en-1-8v {
-			pinctrl-names = "default";
-			pinctrl-0 = <&bt_en_gpios>;
-	                compatible = "regulator-fixed";
-	                regulator-name = "bt-en-regulator";
-	                regulator-min-microvolt = <1800000>;
-	                regulator-max-microvolt = <1800000>;
-
-	                /* WLAN card specific delay */
-	                startup-delay-us = <70000>;
-	                enable-active-high;
-	        };
-
 	        wlan_en: wlan-en-1-8v {
 			pinctrl-names = "default";
 			pinctrl-0 = <&wlan_en_gpios>;
@@ -250,6 +239,153 @@
 				core-vdda-supply = <&pm8994_l12>;
 				core-vcc-supply = <&pm8994_s4>;
 				#sound-dai-cells = <1>;
+			};
+		};
+
+		camera_vdddo_1v8: fixedregulator@0 {
+			compatible = "regulator-fixed";
+			regulator-name = "camera_vdddo";
+			regulator-min-microvolt = <1800000>;
+			regulator-max-microvolt = <1800000>;
+			regulator-always-on;
+		};
+
+		camera_vdda_2v8: fixedregulator@1 {
+			compatible = "regulator-fixed";
+			regulator-name = "camera_vdda";
+			regulator-min-microvolt = <2800000>;
+			regulator-max-microvolt = <2800000>;
+			regulator-always-on;
+		};
+
+		camera_vddd_1v5: fixedregulator@2 {
+			compatible = "regulator-fixed";
+			regulator-name = "camera_vddd";
+			regulator-min-microvolt = <1500000>;
+			regulator-max-microvolt = <1500000>;
+			regulator-always-on;
+		};
+
+		cci@a0c000 {
+			status = "ok";
+
+			camera_rear@60 {
+				compatible = "ovti,ov7251";
+				reg = <0x60>;
+
+				enable-gpios = <&msmgpio 25 GPIO_ACTIVE_HIGH>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&camera_rear_default>;
+
+				clocks = <&mmcc CAMSS_MCLK0_CLK>;
+				clock-names = "xclk";
+				clock-frequency = <24000000>;
+
+				vdddo-supply = <&camera_vdddo_1v8>;
+				vdda-supply = <&camera_vdda_2v8>;
+				vddd-supply = <&camera_vddd_1v5>;
+
+				status = "disabled";
+
+				port {
+					ov7251_ep: endpoint {
+						clock-lanes = <1>;
+						data-lanes = <0>;
+						remote-endpoint = <&csiphy0_ep>;
+					};
+				};
+			};
+
+			camera_board@39 {
+				compatible = "ovti,ov5645";
+				reg = <0x39>;
+
+				enable-gpios = <&msmgpio 98 GPIO_ACTIVE_HIGH>;
+				reset-gpios = <&msmgpio 104 GPIO_ACTIVE_LOW>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&camera_board_default>;
+
+				clocks = <&mmcc CAMSS_MCLK1_CLK>;
+				clock-names = "xclk";
+				clock-frequency = <24000000>;
+
+				vdddo-supply = <&camera_vdddo_1v8>;
+				vdda-supply = <&camera_vdda_2v8>;
+				vddd-supply = <&camera_vddd_1v5>;
+
+				status = "disabled";
+
+				port {
+					ov5645_2_ep: endpoint {
+						clock-lanes = <1>;
+						data-lanes = <0 2>;
+						remote-endpoint = <&csiphy1_ep>;
+					};
+				};
+			};
+
+			camera_front@3a {
+				compatible = "ovti,ov5645";
+				reg = <0x3a>;
+
+				enable-gpios = <&msmgpio 133 GPIO_ACTIVE_HIGH>;
+				reset-gpios = <&msmgpio 23 GPIO_ACTIVE_LOW>;
+				pinctrl-names = "default";
+				pinctrl-0 = <&camera_front_default>;
+
+				clocks = <&mmcc CAMSS_MCLK2_CLK>;
+				clock-names = "xclk";
+				clock-frequency = <24000000>;
+
+				vdddo-supply = <&camera_vdddo_1v8>;
+				vdda-supply = <&camera_vdda_2v8>;
+				vddd-supply = <&camera_vddd_1v5>;
+
+				status = "disabled";
+
+				port {
+					ov5645_3_ep: endpoint {
+						clock-lanes = <1>;
+						data-lanes = <0 2>;
+						remote-endpoint = <&csiphy2_ep>;
+					};
+				};
+			};
+		};
+
+		camss@a00000 {
+			status = "ok";
+
+			ports {
+				#address-cells = <1>;
+				#size-cells = <0>;
+				port@0 {
+					reg = <0>;
+					csiphy0_ep: endpoint {
+						clock-lanes = <7>;
+						data-lanes = <0>;
+						remote-endpoint = <&ov7251_ep>;
+						status = "disabled";
+					};
+				};
+				port@1 {
+					reg = <1>;
+					csiphy1_ep: endpoint {
+						clock-lanes = <7>;
+						data-lanes = <0 1>;
+						remote-endpoint = <&ov5645_2_ep>;
+						status = "disabled";
+					};
+				};
+				port@2 {
+					reg = <2>;
+					csiphy2_ep: endpoint {
+						clock-lanes = <7>;
+						data-lanes = <0 1>;
+						remote-endpoint = <&ov5645_3_ep>;
+						status = "disabled";
+					};
+				};
 			};
 		};
 	};
