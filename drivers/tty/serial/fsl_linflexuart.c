@@ -1060,7 +1060,7 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 	Only apply the workaround after the boot sequence is
 	assumed to be complete.*/
 	if((jiffies - INITIAL_JIFFIES) / HZ > (long unsigned int)10)
-		writeb(' ', port->membase + BDRL);
+		writeb(0, port->membase + BDRL);
 }
 
 static const char *linflex_type(struct uart_port *port)
