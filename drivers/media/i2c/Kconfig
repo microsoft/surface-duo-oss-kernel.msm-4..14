@@ -648,7 +648,6 @@ config VIDEO_OV5670
 
 config VIDEO_OV7251
 	tristate "OmniVision OV7251 sensor support"
-	depends on OF
 	depends on I2C && VIDEO_V4L2 && VIDEO_V4L2_SUBDEV_API
 	depends on MEDIA_CAMERA_SUPPORT
 	select V4L2_FWNODE
