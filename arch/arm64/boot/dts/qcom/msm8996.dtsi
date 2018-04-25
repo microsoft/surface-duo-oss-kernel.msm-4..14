@@ -1128,9 +1128,9 @@
 			reg = <0xb40000 0x10000>;
 
 			#global-interrupts = <1>;
-			interrupts = <0 334 0>,
-				     <0 329 0>,
-				     <0 330 0>;
+			interrupts = <0 334 IRQ_TYPE_LEVEL_HIGH>,
+				     <0 329 IRQ_TYPE_LEVEL_HIGH>,
+				     <0 330 IRQ_TYPE_LEVEL_HIGH>;
 			#iommu-cells = <1>;
 
 			clocks = <&mmcc GPU_AHB_CLK>,
@@ -1149,7 +1149,7 @@
 			reg = <0xb00000 0x3f000>;
 			reg-names = "kgsl_3d0_reg_memory";
 
-			interrupts = <0 300 0>;
+			interrupts = <0 300 IRQ_TYPE_LEVEL_HIGH>;
 			interrupt-names = "kgsl_3d0_irq";
 
 			clocks = <&mmcc GPU_GX_GFX3D_CLK>,
