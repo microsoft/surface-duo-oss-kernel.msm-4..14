@@ -17,6 +17,8 @@ parts:
     kconfigflavour: raspi2
     kconfigs:
       - CONFIG_DEBUG_INFO=n
+      - CONFIG_USB_LAN78XX=y
+      - CONFIG_SERIAL_DEV_BUS=m
     kernel-image-target: zImage
     install: |
       tar -C $SNAPCRAFT_PART_INSTALL/dtbs -f $SNAPCRAFT_PART_INSTALL/dtbs/overlays.tgz -czv overlays
