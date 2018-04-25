@@ -597,6 +597,7 @@ static int ov7251_regulators_enable(struct ov7251 *ov7251)
 
 err_disable_analog:
 	regulator_disable(ov7251->analog_regulator);
+
 err_disable_io:
 	regulator_disable(ov7251->io_regulator);
 
@@ -642,25 +643,22 @@ static int ov7251_write_reg(struct ov7251 *ov7251, u16 reg, u8 val)
 static int ov7251_write_seq_regs(struct ov7251 *ov7251, u16 reg, u8 *val,
 				 u8 num)
 {
-	u8 *regbuf;
+	u8 regbuf[5];
 	u8 nregbuf = sizeof(reg) + num * sizeof(*val);
 	int ret = 0;
-	int i;
 
-	regbuf = kzalloc(nregbuf, GFP_KERNEL);
-	if (!regbuf)
-		return -ENOMEM;
+	if (nregbuf > sizeof(regbuf))
+		return -EINVAL;
 
 	regbuf[0] = reg >> 8;
 	regbuf[1] = reg & 0xff;
 
-	for (i = 0; i < num; i++)
-		regbuf[2 + i] = val[i];
+	memcpy(regbuf + 2, val, num);
 
 	ret = i2c_master_send(ov7251->i2c_client, regbuf, nregbuf);
-	kfree(regbuf);
 	if (ret < 0) {
-		dev_err(ov7251->dev, "%s: write seq regs error %d: first reg=%x\n",
+		dev_err(ov7251->dev,
+			"%s: write seq regs error %d: first reg=%x\n",
 			__func__, ret, reg);
 		return ret;
 	}
@@ -753,7 +751,8 @@ static int ov7251_set_power_on(struct ov7251 *ov7251)
 	gpiod_set_value_cansleep(ov7251->enable_gpio, 1);
 
 	/* wait at least 65536 external clock cycles */
-	wait_us = (65536 * 1000) / (ov7251->xclk_freq / 1000);
+	wait_us = DIV_ROUND_UP(65536 * 1000,
+			       DIV_ROUND_UP(ov7251->xclk_freq, 1000));
 	usleep_range(wait_us, wait_us + 1000);
 
 	return 0;
@@ -932,8 +931,8 @@ static int ov7251_enum_frame_ival(struct v4l2_subdev *subdev,
 				  struct v4l2_subdev_pad_config *cfg,
 				  struct v4l2_subdev_frame_interval_enum *fie)
 {
-	int index = fie->index;
-	int i;
+	unsigned int index = fie->index;
+	unsigned int i;
 
 	for (i = 0; i < ARRAY_SIZE(ov7251_mode_info_data); i++) {
 		if (fie->width != ov7251_mode_info_data[i].width ||
@@ -997,7 +996,7 @@ static const struct ov7251_mode_info *
 ov7251_find_mode_by_size(unsigned int width, unsigned int height)
 {
 	unsigned int max_dist_match = (unsigned int) -1;
-	int i, n = 0;
+	unsigned int i, n = 0;
 
 	for (i = 0; i < ARRAY_SIZE(ov7251_mode_info_data); i++) {
 		unsigned int dist = min(width, ov7251_mode_info_data[i].width)
@@ -1025,13 +1024,13 @@ static const struct ov7251_mode_info *
 ov7251_find_mode_by_ival(struct ov7251 *ov7251, struct v4l2_fract *timeperframe)
 {
 	const struct ov7251_mode_info *mode = ov7251->current_mode;
-	int fps_req = avg_fps(timeperframe);
+	unsigned int fps_req = avg_fps(timeperframe);
 	unsigned int max_dist_match = (unsigned int) -1;
-	int i, n = 0;
+	unsigned int i, n = 0;
 
 	for (i = 0; i < ARRAY_SIZE(ov7251_mode_info_data); i++) {
 		unsigned int dist;
-		int fps_tmp;
+		unsigned int fps_tmp;
 
 		if (mode->width != ov7251_mode_info_data[i].width ||
 		    mode->height != ov7251_mode_info_data[i].height)
@@ -1122,11 +1121,14 @@ exit:
 static int ov7251_entity_init_cfg(struct v4l2_subdev *subdev,
 				  struct v4l2_subdev_pad_config *cfg)
 {
-	struct v4l2_subdev_format fmt = { 0 };
-
-	fmt.which = cfg ? V4L2_SUBDEV_FORMAT_TRY : V4L2_SUBDEV_FORMAT_ACTIVE;
-	fmt.format.width = 640;
-	fmt.format.height = 480;
+	struct v4l2_subdev_format fmt = {
+		.which = cfg ? V4L2_SUBDEV_FORMAT_TRY
+			     : V4L2_SUBDEV_FORMAT_ACTIVE,
+		.format = {
+			.width = 640,
+			.height = 480
+		}
+	};
 
 	ov7251_set_format(subdev, cfg, &fmt);
 
