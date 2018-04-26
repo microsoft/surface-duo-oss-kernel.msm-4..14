@@ -198,10 +198,10 @@ MODULE_DEVICE_TABLE(of, linflex_dt_ids);
 /* Forward declare this for the dma callbacks. */
 static void linflex_dma_tx_complete(void *arg);
 static void linflex_dma_rx_complete(void *arg);
+static void linflex_console_putchar(struct uart_port *port, int ch);
 
 #ifdef CONFIG_CONSOLE_POLL
 static void linflex_poll_release(struct linflex_port *sport);
-static void linflex_console_putchar(struct uart_port *port, int ch);
 #endif
 
 static void linflex_copy_rx_to_tty(struct linflex_port *sport,
@@ -913,6 +913,7 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 	unsigned int  baud;
 	unsigned int old_csize = old ? old->c_cflag & CSIZE : CS8;
 	unsigned long ibr, fbr, divisr, dividr;
+	unsigned long ier, old_ier, dmatxe;
 
 	cr = old_cr = readl(sport->port.membase + UARTCR);
 
@@ -1054,16 +1055,41 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 
 	writel(cr1, sport->port.membase + LINCR1);
 
-	spin_unlock_irqrestore(&sport->port.lock, flags);
-#endif
-
 	/* Workaround for driver hanging when running the 'reboot'
 	command because of the DTFTFF bit in UARTSR not being cleared.
 	The issue is assumed to be caused by a hardware bug.
 	Only apply the workaround after the boot sequence is
 	assumed to be complete.*/
-	if((jiffies - INITIAL_JIFFIES) / HZ > (long unsigned int)10)
-		writeb(0, port->membase + BDRL);
+	if ((jiffies - INITIAL_JIFFIES) / HZ > (unsigned long)10) {
+		/* First save CR2 and then disable interrupts. */
+		ier = readl(sport->port.membase + LINIER);
+		old_ier = ier;
+		if (!sport->dma_tx_use) {
+			ier &= ~(LINFLEXD_LINIER_DTIE);
+			writel(ier, sport->port.membase + LINIER);
+		} else {
+			if (sport->dma_tx_in_progress)
+				dmaengine_terminate_all(sport->dma_tx_chan);
+
+			dmatxe = readl(sport->port.membase + DMATXE);
+			writel(dmatxe & 0xFFFF0000,
+					sport->port.membase + DMATXE);
+
+			sport->dma_tx_in_progress = 0;
+		}
+
+		linflex_console_putchar(&sport->port, 0);
+		if (!sport->dma_tx_use)
+			writel(old_ier, sport->port.membase + LINIER);
+		else {
+			dmatxe = readl(sport->port.membase + DMATXE);
+			writel(dmatxe | 0x1, sport->port.membase + DMATXE);
+		}
+	}
+	spin_unlock_irqrestore(&sport->port.lock, flags);
+
+#endif
+
 }
 
 static const char *linflex_type(struct uart_port *port)
