@@ -1277,14 +1277,15 @@ static void
 linflex_console_write(struct console *co, const char *s, unsigned int count)
 {
 	struct linflex_port *sport = linflex_ports[co->index];
-	unsigned long cr, ier, old_ier;
+	unsigned long cr, ier = 0, temp;
 
 	/* First save CR2 and then disable interrupts. */
-	ier = readl(sport->port.membase + LINIER);
-	old_ier = ier;
-	if (!sport->dma_tx_use) {
-		ier &= ~(LINFLEXD_LINIER_DTIE);
-		writel(ier, sport->port.membase + LINIER);
+	if (!sport->dma_tx_use)
+		ier = readl(sport->port.membase + LINIER);
+	linflex_stop_tx(&sport->port);
+	if (sport->dma_tx_use) {
+		temp = readl(sport->port.membase + DMATXE);
+		writel(temp & 0xFFFF0000, sport->port.membase + DMATXE);
 	}
 
 	cr = readl(sport->port.membase + UARTCR);
@@ -1294,7 +1295,11 @@ linflex_console_write(struct console *co, const char *s, unsigned int count)
 	uart_console_write(&sport->port, s, count, linflex_console_putchar);
 
 	if (!sport->dma_tx_use)
-		writel(old_ier, sport->port.membase + LINIER);
+		writel(ier, sport->port.membase + LINIER);
+	else {
+		temp = readl(sport->port.membase + DMATXE);
+		writel(temp | 0x1, sport->port.membase + DMATXE);
+	}
 }
 
 /*
