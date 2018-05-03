@@ -421,6 +421,8 @@ static void linflex_dma_rx_complete(void *arg)
 	struct tty_port *port = &sport->port.state->port;
 	unsigned long flags;
 
+	del_timer(&sport->timer);
+
 	spin_lock_irqsave(&sport->port.lock, flags);
 
 #ifdef CONFIG_CONSOLE_POLL
@@ -430,14 +432,14 @@ static void linflex_dma_rx_complete(void *arg)
 	}
 #endif
 
-	mod_timer(&sport->timer, jiffies + sport->dma_rx_timeout);
-
 	sport->dma_rx_in_progress = 0;
 	linflex_copy_rx_to_tty(sport, port, FSL_UART_RX_DMA_BUFFER_SIZE);
 	tty_flip_buffer_push(port);
 	linflex_dma_rx(sport);
 
 	spin_unlock_irqrestore(&sport->port.lock, flags);
+
+	mod_timer(&sport->timer, jiffies + sport->dma_rx_timeout);
 }
 
 static void linflex_timer_func(unsigned long data)
@@ -448,13 +450,13 @@ static void linflex_timer_func(unsigned long data)
 	unsigned long flags;
 	int count;
 
-	spin_lock_irqsave(&sport->port.lock, flags);
-
 #ifdef CONFIG_CONSOLE_POLL
+	spin_lock_irqsave(&sport->port.lock, flags);
 	if (!kgdb_connected && sport->poll_ctx.in_use) {
 		sport->poll_ctx.in_use = false;
 		linflex_poll_release(sport);
 	}
+	spin_unlock_irqrestore(&sport->port.lock, flags);
 #endif
 
 	del_timer(&sport->timer);
@@ -462,6 +464,8 @@ static void linflex_timer_func(unsigned long data)
 	dmaengine_tx_status(sport->dma_rx_chan, sport->dma_rx_cookie, &state);
 	dmaengine_terminate_all(sport->dma_rx_chan);
 	count = FSL_UART_RX_DMA_BUFFER_SIZE - state.residue;
+
+	spin_lock_irqsave(&sport->port.lock, flags);
 
 	sport->dma_rx_in_progress = 0;
 	linflex_copy_rx_to_tty(sport, port, count);
