@@ -18,7 +18,8 @@ parts:
     kconfigs:
       - CONFIG_DEBUG_INFO=n
     kernel-image-target: Image
-    install: |
+    override-build: |
+      snapcraftctl build
       cp $SNAPCRAFT_PART_INSTALL/dtbs/qcom/apq8016-sbc-snappy.dtb $SNAPCRAFT_PART_INSTALL/dtbs/qcom/apq8016-sbc.dtb
       cp $SNAPCRAFT_PART_INSTALL/dtbs/qcom/*.dtb $SNAPCRAFT_PART_INSTALL/dtbs/
   firmware:
@@ -31,7 +32,7 @@ parts:
     prime:
       - -usr
       - -lib
-    install: |
+    override-build: |
       mkdir -p $SNAPCRAFT_PART_INSTALL/firmware/wlan
       ln -s /run/macaddr0 $SNAPCRAFT_PART_INSTALL/firmware/wlan/
     build-packages:
