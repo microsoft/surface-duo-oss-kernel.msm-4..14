@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 #
 # KVM configuration
 #
@@ -28,7 +29,9 @@ config KVM
 	select HAVE_KVM_IRQCHIP
 	select HAVE_KVM_IRQFD
 	select HAVE_KVM_IRQ_ROUTING
+	select HAVE_KVM_INVALID_WAKEUPS
 	select SRCU
+	select KVM_VFIO
 	---help---
 	  Support hosting paravirtualized guest machines using the SIE
 	  virtualization capability on the mainframe. This should work

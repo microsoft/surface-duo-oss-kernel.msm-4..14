@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  * Copyright (C) 2012 ARM Ltd.
  *
@@ -18,5 +19,7 @@
 
 /* vDSO location */
 #define AT_SYSINFO_EHDR	33
+
+#define AT_VECTOR_SIZE_ARCH 1 /* entries in ARCH_DLINFO */
 
 #endif

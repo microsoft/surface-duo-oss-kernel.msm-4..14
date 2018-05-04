@@ -45,6 +45,8 @@
 #include <linux/export.h>
 #include <linux/uio.h>
 
+#include <rdma/ib.h>
+
 #include "qib.h"
 #include "qib_common.h"
 #include "qib_user_sdma.h"
@@ -822,10 +824,7 @@ static int mmap_piobufs(struct vm_area_struct *vma,
 	phys = dd->physaddr + piobufs;
 
 #if defined(__powerpc__)
-	/* There isn't a generic way to specify writethrough mappings */
-	pgprot_val(vma->vm_page_prot) |= _PAGE_NO_CACHE;
-	pgprot_val(vma->vm_page_prot) |= _PAGE_WRITETHRU;
-	pgprot_val(vma->vm_page_prot) &= ~_PAGE_GUARDED;
+	vma->vm_page_prot = pgprot_noncached(vma->vm_page_prot);
 #endif
 
 	/*
@@ -894,7 +893,7 @@ bail:
 /*
  * qib_file_vma_fault - handle a VMA page fault.
  */
-static int qib_file_vma_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
+static int qib_file_vma_fault(struct vm_fault *vmf)
 {
 	struct page *page;
 
@@ -908,7 +907,7 @@ static int qib_file_vma_fault(struct vm_area_struct *vma, struct vm_fault *vmf)
 	return 0;
 }
 
-static struct vm_operations_struct qib_file_vm_ops = {
+static const struct vm_operations_struct qib_file_vm_ops = {
 	.fault = qib_file_vma_fault,
 };
 
@@ -1164,7 +1163,7 @@ static unsigned int qib_poll(struct file *fp, struct poll_table_struct *pt)
 static void assign_ctxt_affinity(struct file *fp, struct qib_devdata *dd)
 {
 	struct qib_filedata *fd = fp->private_data;
-	const unsigned int weight = cpumask_weight(&current->cpus_allowed);
+	const unsigned int weight = current->nr_cpus_allowed;
 	const struct cpumask *local_mask = cpumask_of_pcibus(dd->pcidev->bus);
 	int local_cpu;
 
@@ -1645,9 +1644,8 @@ static int qib_assign_ctxt(struct file *fp, const struct qib_user_info *uinfo)
 		ret = find_free_ctxt(i_minor - 1, fp, uinfo);
 	else {
 		int unit;
-		const unsigned int cpu = cpumask_first(&current->cpus_allowed);
-		const unsigned int weight =
-			cpumask_weight(&current->cpus_allowed);
+		const unsigned int cpu = cpumask_first(current->cpus_ptr);
+		const unsigned int weight = current->nr_cpus_allowed;
 
 		if (weight == 1 && !test_bit(cpu, qib_cpulist))
 			if (!find_hca(cpu, &unit) && unit >= 0)
@@ -2067,6 +2065,12 @@ static ssize_t qib_write(struct file *fp, const char __user *data,
 	ssize_t ret = 0;
 	void *dest;
 
+	if (!ib_safe_file_access(fp)) {
+		pr_err_once("qib_write: process %d (%s) changed security contexts after opening file descriptor, this is not allowed.\n",
+			    task_tgid_vnr(current), current->comm);
+		return -EACCES;
+	}
+
 	if (count < sizeof(cmd.type)) {
 		ret = -EINVAL;
 		goto bail;
@@ -2176,6 +2180,11 @@ static ssize_t qib_write(struct file *fp, const char __user *data,
 
 	switch (cmd.type) {
 	case QIB_CMD_ASSIGN_CTXT:
+		if (rcd) {
+			ret = -EINVAL;
+			goto bail;
+		}
+
 		ret = qib_assign_ctxt(fp, &cmd.cmd.user_info);
 		if (ret)
 			goto bail;

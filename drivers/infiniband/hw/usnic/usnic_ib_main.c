@@ -1,9 +1,24 @@
 /*
  * Copyright (c) 2013, Cisco Systems, Inc. All rights reserved.
  *
- * This program is free software; you may redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
+ * This software is available to you under a choice of one of two
+ * licenses.  You may choose to be licensed under the terms of the GNU
+ * General Public License (GPL) Version 2, available from the file
+ * COPYING in the main directory of this source tree, or the
+ * BSD license below:
+ *
+ *     Redistribution and use in source and binary forms, with or
+ *     without modification, are permitted provided that the following
+ *     conditions are met:
+ *
+ *      - Redistributions of source code must retain the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer.
+ *
+ *      - Redistributions in binary form must reproduce the above
+ *        copyright notice, this list of conditions and the following
+ *        disclaimer in the documentation and/or other materials
+ *        provided with the distribution.
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
  * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
@@ -300,28 +315,58 @@ static struct notifier_block usnic_ib_inetaddr_notifier = {
 };
 /* End of inet section*/
 
+static int usnic_port_immutable(struct ib_device *ibdev, u8 port_num,
+			        struct ib_port_immutable *immutable)
+{
+	struct ib_port_attr attr;
+	int err;
+
+	immutable->core_cap_flags = RDMA_CORE_PORT_USNIC;
+
+	err = ib_query_port(ibdev, port_num, &attr);
+	if (err)
+		return err;
+
+	immutable->pkey_tbl_len = attr.pkey_tbl_len;
+	immutable->gid_tbl_len = attr.gid_tbl_len;
+
+	return 0;
+}
+
+static void usnic_get_dev_fw_str(struct ib_device *device, char *str)
+{
+	struct usnic_ib_dev *us_ibdev =
+		container_of(device, struct usnic_ib_dev, ib_dev);
+	struct ethtool_drvinfo info;
+
+	mutex_lock(&us_ibdev->usdev_lock);
+	us_ibdev->netdev->ethtool_ops->get_drvinfo(us_ibdev->netdev, &info);
+	mutex_unlock(&us_ibdev->usdev_lock);
+
+	snprintf(str, IB_FW_VERSION_NAME_MAX, "%s", info.fw_version);
+}
+
 /* Start of PF discovery section */
 static void *usnic_ib_device_add(struct pci_dev *dev)
 {
 	struct usnic_ib_dev *us_ibdev;
 	union ib_gid gid;
-	struct in_ifaddr *in;
+	struct in_device *ind;
 	struct net_device *netdev;
 
 	usnic_dbg("\n");
 	netdev = pci_get_drvdata(dev);
 
 	us_ibdev = (struct usnic_ib_dev *)ib_alloc_device(sizeof(*us_ibdev));
-	if (IS_ERR_OR_NULL(us_ibdev)) {
+	if (!us_ibdev) {
 		usnic_err("Device %s context alloc failed\n",
 				netdev_name(pci_get_drvdata(dev)));
-		return ERR_PTR(us_ibdev ? PTR_ERR(us_ibdev) : -EFAULT);
+		return ERR_PTR(-EFAULT);
 	}
 
 	us_ibdev->ufdev = usnic_fwd_dev_alloc(dev);
-	if (IS_ERR_OR_NULL(us_ibdev->ufdev)) {
-		usnic_err("Failed to alloc ufdev for %s with err %ld\n",
-				pci_name(dev), PTR_ERR(us_ibdev->ufdev));
+	if (!us_ibdev->ufdev) {
+		usnic_err("Failed to alloc ufdev for %s\n", pci_name(dev));
 		goto err_dealloc;
 	}
 
@@ -335,7 +380,7 @@ static void *usnic_ib_device_add(struct pci_dev *dev)
 	us_ibdev->ib_dev.node_type = RDMA_NODE_USNIC_UDP;
 	us_ibdev->ib_dev.phys_port_cnt = USNIC_IB_PORT_CNT;
 	us_ibdev->ib_dev.num_comp_vectors = USNIC_IB_NUM_COMP_VECTORS;
-	us_ibdev->ib_dev.dma_device = &dev->dev;
+	us_ibdev->ib_dev.dev.parent = &dev->dev;
 	us_ibdev->ib_dev.uverbs_abi_ver = USNIC_UVERBS_ABI_VERSION;
 	strlcpy(us_ibdev->ib_dev.name, "usnic_%d", IB_DEVICE_NAME_MAX);
 
@@ -362,6 +407,7 @@ static void *usnic_ib_device_add(struct pci_dev *dev)
 	us_ibdev->ib_dev.query_port = usnic_ib_query_port;
 	us_ibdev->ib_dev.query_pkey = usnic_ib_query_pkey;
 	us_ibdev->ib_dev.query_gid = usnic_ib_query_gid;
+	us_ibdev->ib_dev.get_netdev = usnic_get_netdev;
 	us_ibdev->ib_dev.get_link_layer = usnic_ib_port_link_layer;
 	us_ibdev->ib_dev.alloc_pd = usnic_ib_alloc_pd;
 	us_ibdev->ib_dev.dealloc_pd = usnic_ib_dealloc_pd;
@@ -383,6 +429,8 @@ static void *usnic_ib_device_add(struct pci_dev *dev)
 	us_ibdev->ib_dev.poll_cq = usnic_ib_poll_cq;
 	us_ibdev->ib_dev.req_notify_cq = usnic_ib_req_notify_cq;
 	us_ibdev->ib_dev.get_dma_mr = usnic_ib_get_dma_mr;
+	us_ibdev->ib_dev.get_port_immutable = usnic_port_immutable;
+	us_ibdev->ib_dev.get_dev_fw_str     = usnic_get_dev_fw_str;
 
 
 	if (ib_register_device(&us_ibdev->ib_dev, NULL))
@@ -393,9 +441,11 @@ static void *usnic_ib_device_add(struct pci_dev *dev)
 	if (netif_carrier_ok(us_ibdev->netdev))
 		usnic_fwd_carrier_up(us_ibdev->ufdev);
 
-	in = ((struct in_device *)(netdev->ip_ptr))->ifa_list;
-	if (in != NULL)
-		usnic_fwd_add_ipaddr(us_ibdev->ufdev, in->ifa_address);
+	ind = in_dev_get(netdev);
+	if (ind->ifa_list)
+		usnic_fwd_add_ipaddr(us_ibdev->ufdev,
+				     ind->ifa_list->ifa_address);
+	in_dev_put(ind);
 
 	usnic_mac_ip_to_gid(us_ibdev->netdev->perm_addr,
 				us_ibdev->ufdev->inaddr, &gid.raw[0]);
@@ -617,7 +667,8 @@ static int __init usnic_ib_init(void)
 		return err;
 	}
 
-	if (pci_register_driver(&usnic_ib_pci_driver)) {
+	err = pci_register_driver(&usnic_ib_pci_driver);
+	if (err) {
 		usnic_err("Unable to register with PCI\n");
 		goto out_umem_fini;
 	}
@@ -670,7 +721,6 @@ static void __exit usnic_ib_destroy(void)
 MODULE_DESCRIPTION("Cisco VIC (usNIC) Verbs Driver");
 MODULE_AUTHOR("Upinder Malhi <umalhi@cisco.com>");
 MODULE_LICENSE("Dual BSD/GPL");
-MODULE_VERSION(DRV_VERSION);
 module_param(usnic_log_lvl, uint, S_IRUGO | S_IWUSR);
 module_param(usnic_ib_share_vf, uint, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(usnic_log_lvl, " Off=0, Err=1, Info=2, Debug=3");

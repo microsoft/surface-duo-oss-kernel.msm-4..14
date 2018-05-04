@@ -36,8 +36,7 @@ static int storm_ops_hw_params(struct snd_pcm_substream *substream,
 
 	bitwidth = snd_pcm_format_width(format);
 	if (bitwidth < 0) {
-		dev_err(card->dev, "%s() invalid bit width given: %d\n",
-				__func__, bitwidth);
+		dev_err(card->dev, "invalid bit width given: %d\n", bitwidth);
 		return bitwidth;
 	}
 
@@ -50,15 +49,15 @@ static int storm_ops_hw_params(struct snd_pcm_substream *substream,
 
 	ret = snd_soc_dai_set_sysclk(soc_runtime->cpu_dai, 0, sysclk_freq, 0);
 	if (ret) {
-		dev_err(card->dev, "%s() error setting sysclk to %u: %d\n",
-				__func__, sysclk_freq, ret);
+		dev_err(card->dev, "error setting sysclk to %u: %d\n",
+			sysclk_freq, ret);
 		return ret;
 	}
 
 	return 0;
 }
 
-static struct snd_soc_ops storm_soc_ops = {
+static const struct snd_soc_ops storm_soc_ops = {
 	.hw_params	= storm_ops_hw_params,
 };
 
@@ -69,11 +68,6 @@ static struct snd_soc_dai_link storm_dai_link = {
 	.ops		= &storm_soc_ops,
 };
 
-static struct snd_soc_card storm_soc_card = {
-	.name	= "ipq806x-storm",
-	.dev	= NULL,
-};
-
 static int storm_parse_of(struct snd_soc_card *card)
 {
 	struct snd_soc_dai_link *dai_link = card->dai_link;
@@ -81,16 +75,14 @@ static int storm_parse_of(struct snd_soc_card *card)
 
 	dai_link->cpu_of_node = of_parse_phandle(np, "cpu", 0);
 	if (!dai_link->cpu_of_node) {
-		dev_err(card->dev, "%s() error getting cpu phandle\n",
-				__func__);
+		dev_err(card->dev, "error getting cpu phandle\n");
 		return -EINVAL;
 	}
 	dai_link->platform_of_node = dai_link->cpu_of_node;
 
 	dai_link->codec_of_node = of_parse_phandle(np, "codec", 0);
 	if (!dai_link->codec_of_node) {
-		dev_err(card->dev, "%s() error getting codec phandle\n",
-				__func__);
+		dev_err(card->dev, "error getting codec phandle\n");
 		return -EINVAL;
 	}
 
@@ -99,21 +91,18 @@ static int storm_parse_of(struct snd_soc_card *card)
 
 static int storm_platform_probe(struct platform_device *pdev)
 {
-	struct snd_soc_card *card = &storm_soc_card;
+	struct snd_soc_card *card;
 	int ret;
 
-	if (card->dev) {
-		dev_err(&pdev->dev, "%s() error, existing soundcard\n",
-				__func__);
-		return -ENODEV;
-	}
+	card = devm_kzalloc(&pdev->dev, sizeof(*card), GFP_KERNEL);
+	if (!card)
+		return -ENOMEM;
+
 	card->dev = &pdev->dev;
-	platform_set_drvdata(pdev, card);
 
 	ret = snd_soc_of_parse_card_name(card, "qcom,model");
 	if (ret) {
-		dev_err(&pdev->dev, "%s() error parsing card name: %d\n",
-				__func__, ret);
+		dev_err(&pdev->dev, "error parsing card name: %d\n", ret);
 		return ret;
 	}
 
@@ -122,22 +111,16 @@ static int storm_platform_probe(struct platform_device *pdev)
 
 	ret = storm_parse_of(card);
 	if (ret) {
-		dev_err(&pdev->dev, "%s() error resolving dai links: %d\n",
-				__func__, ret);
+		dev_err(&pdev->dev, "error resolving dai links: %d\n", ret);
 		return ret;
 	}
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
-	if (ret == -EPROBE_DEFER) {
-		card->dev = NULL;
-		return ret;
-	} else if (ret) {
-		dev_err(&pdev->dev, "%s() error registering soundcard: %d\n",
-				__func__, ret);
-		return ret;
-	}
+	if (ret)
+		dev_err(&pdev->dev, "error registering soundcard: %d\n", ret);
 
-	return 0;
+	return ret;
+
 }
 
 #ifdef CONFIG_OF

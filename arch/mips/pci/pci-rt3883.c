@@ -16,7 +16,6 @@
 #include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/interrupt.h>
-#include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_irq.h>
 #include <linux/of_pci.h>
@@ -129,12 +128,12 @@ static void rt3883_pci_write_cfg32(struct rt3883_pci_controller *rpc,
 	rt3883_pci_w32(rpc, val, RT3883_PCI_REG_CFGDATA);
 }
 
-static void rt3883_pci_irq_handler(unsigned int irq, struct irq_desc *desc)
+static void rt3883_pci_irq_handler(struct irq_desc *desc)
 {
 	struct rt3883_pci_controller *rpc;
 	u32 pending;
 
-	rpc = irq_get_handler_data(irq);
+	rpc = irq_desc_get_handler_data(desc);
 
 	pending = rt3883_pci_r32(rpc, RT3883_PCI_REG_PCIINT) &
 		  rt3883_pci_r32(rpc, RT3883_PCI_REG_PCIENA);
@@ -145,7 +144,7 @@ static void rt3883_pci_irq_handler(unsigned int irq, struct irq_desc *desc)
 	}
 
 	while (pending) {
-		unsigned bit = __ffs(pending);
+		unsigned irq, bit = __ffs(pending);
 
 		irq = irq_find_mapping(rpc->irq_domain, bit);
 		generic_handle_irq(irq);
@@ -208,8 +207,7 @@ static int rt3883_pci_irq_init(struct device *dev,
 
 	irq = irq_of_parse_and_map(rpc->intc_of_node, 0);
 	if (irq == 0) {
-		dev_err(dev, "%s has no IRQ",
-			of_node_full_name(rpc->intc_of_node));
+		dev_err(dev, "%pOF has no IRQ", rpc->intc_of_node);
 		return -EINVAL;
 	}
 
@@ -225,8 +223,7 @@ static int rt3883_pci_irq_init(struct device *dev,
 		return -ENODEV;
 	}
 
-	irq_set_handler_data(irq, rpc);
-	irq_set_chained_handler(irq, rt3883_pci_irq_handler);
+	irq_set_chained_handler_and_data(irq, rt3883_pci_irq_handler, rpc);
 
 	return 0;
 }
@@ -433,16 +430,15 @@ static int rt3883_pci_probe(struct platform_device *pdev)
 
 	/* find the interrupt controller child node */
 	for_each_child_of_node(np, child) {
-		if (of_get_property(child, "interrupt-controller", NULL) &&
-		    of_node_get(child)) {
+		if (of_get_property(child, "interrupt-controller", NULL)) {
 			rpc->intc_of_node = child;
 			break;
 		}
 	}
 
 	if (!rpc->intc_of_node) {
-		dev_err(dev, "%s has no %s child node",
-			of_node_full_name(rpc->intc_of_node),
+		dev_err(dev, "%pOF has no %s child node",
+			rpc->intc_of_node,
 			"interrupt controller");
 		return -EINVAL;
 	}
@@ -450,16 +446,15 @@ static int rt3883_pci_probe(struct platform_device *pdev)
 	/* find the PCI host bridge child node */
 	for_each_child_of_node(np, child) {
 		if (child->type &&
-		    of_node_cmp(child->type, "pci") == 0 &&
-		    of_node_get(child)) {
+		    of_node_cmp(child->type, "pci") == 0) {
 			rpc->pci_controller.of_node = child;
 			break;
 		}
 	}
 
 	if (!rpc->pci_controller.of_node) {
-		dev_err(dev, "%s has no %s child node",
-			of_node_full_name(rpc->intc_of_node),
+		dev_err(dev, "%pOF has no %s child node",
+			rpc->intc_of_node,
 			"PCI host bridge");
 		err = -EINVAL;
 		goto err_put_intc_node;
@@ -569,7 +564,7 @@ err_put_intc_node:
 	return err;
 }
 
-int __init pcibios_map_irq(const struct pci_dev *dev, u8 slot, u8 pin)
+int pcibios_map_irq(const struct pci_dev *dev, u8 slot, u8 pin)
 {
 	return of_irq_parse_and_map_pci(dev, slot, pin);
 }
@@ -583,7 +578,6 @@ static const struct of_device_id rt3883_pci_ids[] = {
 	{ .compatible = "ralink,rt3883-pci" },
 	{},
 };
-MODULE_DEVICE_TABLE(of, rt3883_pci_ids);
 
 static struct platform_driver rt3883_pci_driver = {
 	.probe = rt3883_pci_probe,

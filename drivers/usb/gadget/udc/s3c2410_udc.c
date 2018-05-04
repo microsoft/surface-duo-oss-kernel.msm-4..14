@@ -51,7 +51,6 @@
 #include "s3c2410_udc.h"
 
 #define DRIVER_DESC	"S3C2410 USB Device Controller Gadget"
-#define DRIVER_VERSION	"29 Apr 2007"
 #define DRIVER_AUTHOR	"Herbert Pötzl <herbert@13thfloor.at>, " \
 			"Arnaud Patard <arnaud.patard@rtp-net.org>"
 
@@ -92,40 +91,38 @@ static struct s3c2410_udc_mach_info *udc_info;
 
 static uint32_t s3c2410_ticks = 0;
 
-static int dprintk(int level, const char *fmt, ...)
+__printf(2, 3)
+static void dprintk(int level, const char *fmt, ...)
 {
-	static char printk_buf[1024];
 	static long prevticks;
 	static int invocation;
+	struct va_format vaf;
 	va_list args;
-	int len;
 
 	if (level > USB_S3C2410_DEBUG_LEVEL)
-		return 0;
+		return;
+
+	va_start(args, fmt);
+
+	vaf.fmt = fmt;
+	vaf.va = &args;
 
 	if (s3c2410_ticks != prevticks) {
 		prevticks = s3c2410_ticks;
 		invocation = 0;
 	}
 
-	len = scnprintf(printk_buf,
-			sizeof(printk_buf), "%1lu.%02d USB: ",
-			prevticks, invocation++);
+	pr_debug("%1lu.%02d USB: %pV", prevticks, invocation++, &vaf);
 
-	va_start(args, fmt);
-	len = vscnprintf(printk_buf+len,
-			sizeof(printk_buf)-len, fmt, args);
 	va_end(args);
-
-	pr_debug("%s", printk_buf);
-	return len;
 }
 #else
-static int dprintk(int level, const char *fmt, ...)
+__printf(2, 3)
+static void dprintk(int level, const char *fmt, ...)
 {
-	return 0;
 }
 #endif
+
 static int s3c2410_udc_debugfs_seq_show(struct seq_file *m, void *p)
 {
 	u32 addr_reg, pwr_reg, ep_int_reg, usb_int_reg;
@@ -1049,10 +1046,10 @@ static int s3c2410_udc_ep_enable(struct usb_ep *_ep,
 	if (!dev->driver || dev->gadget.speed == USB_SPEED_UNKNOWN)
 		return -ESHUTDOWN;
 
-	max = usb_endpoint_maxp(desc) & 0x1fff;
+	max = usb_endpoint_maxp(desc);
 
 	local_irq_save(flags);
-	_ep->maxpacket = max & 0x7ff;
+	_ep->maxpacket = max;
 	ep->ep.desc = desc;
 	ep->halted = 0;
 	ep->bEndpointAddress = desc->bEndpointAddress;
@@ -1693,6 +1690,8 @@ static struct s3c2410_udc memory = {
 			.name		= ep0name,
 			.ops		= &s3c2410_ep_ops,
 			.maxpacket	= EP0_FIFO_SIZE,
+			.caps		= USB_EP_CAPS(USB_EP_CAPS_TYPE_CONTROL,
+						USB_EP_CAPS_DIR_ALL),
 		},
 		.dev		= &memory,
 	},
@@ -1704,6 +1703,8 @@ static struct s3c2410_udc memory = {
 			.name		= "ep1-bulk",
 			.ops		= &s3c2410_ep_ops,
 			.maxpacket	= EP_FIFO_SIZE,
+			.caps		= USB_EP_CAPS(USB_EP_CAPS_TYPE_BULK,
+						USB_EP_CAPS_DIR_ALL),
 		},
 		.dev		= &memory,
 		.fifo_size	= EP_FIFO_SIZE,
@@ -1716,6 +1717,8 @@ static struct s3c2410_udc memory = {
 			.name		= "ep2-bulk",
 			.ops		= &s3c2410_ep_ops,
 			.maxpacket	= EP_FIFO_SIZE,
+			.caps		= USB_EP_CAPS(USB_EP_CAPS_TYPE_BULK,
+						USB_EP_CAPS_DIR_ALL),
 		},
 		.dev		= &memory,
 		.fifo_size	= EP_FIFO_SIZE,
@@ -1728,6 +1731,8 @@ static struct s3c2410_udc memory = {
 			.name		= "ep3-bulk",
 			.ops		= &s3c2410_ep_ops,
 			.maxpacket	= EP_FIFO_SIZE,
+			.caps		= USB_EP_CAPS(USB_EP_CAPS_TYPE_BULK,
+						USB_EP_CAPS_DIR_ALL),
 		},
 		.dev		= &memory,
 		.fifo_size	= EP_FIFO_SIZE,
@@ -1740,6 +1745,8 @@ static struct s3c2410_udc memory = {
 			.name		= "ep4-bulk",
 			.ops		= &s3c2410_ep_ops,
 			.maxpacket	= EP_FIFO_SIZE,
+			.caps		= USB_EP_CAPS(USB_EP_CAPS_TYPE_BULK,
+						USB_EP_CAPS_DIR_ALL),
 		},
 		.dev		= &memory,
 		.fifo_size	= EP_FIFO_SIZE,
@@ -1988,7 +1995,7 @@ static int __init udc_init(void)
 {
 	int retval;
 
-	dprintk(DEBUG_NORMAL, "%s: version %s\n", gadget_name, DRIVER_VERSION);
+	dprintk(DEBUG_NORMAL, "%s\n", gadget_name);
 
 	s3c2410_udc_debugfs_root = debugfs_create_dir(gadget_name, NULL);
 	if (IS_ERR(s3c2410_udc_debugfs_root)) {
@@ -2019,5 +2026,4 @@ module_exit(udc_exit);
 
 MODULE_AUTHOR(DRIVER_AUTHOR);
 MODULE_DESCRIPTION(DRIVER_DESC);
-MODULE_VERSION(DRIVER_VERSION);
 MODULE_LICENSE("GPL");

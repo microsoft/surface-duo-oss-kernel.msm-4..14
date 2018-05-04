@@ -831,6 +831,7 @@ static struct of_device_id of_platform_mb862xx_tbl[] = {
 	{ .compatible = "fujitsu,coral", },
 	{ /* end */ }
 };
+MODULE_DEVICE_TABLE(of, of_platform_mb862xx_tbl);
 
 static struct platform_driver of_platform_mb862xxfb_driver = {
 	.driver = {
@@ -981,7 +982,7 @@ static inline int mb862xx_pci_gdc_init(struct mb862xxfb_par *par)
 #define CHIP_ID(id)	\
 	{ PCI_DEVICE(PCI_VENDOR_ID_FUJITSU_LIMITED, id) }
 
-static struct pci_device_id mb862xx_pci_tbl[] = {
+static const struct pci_device_id mb862xx_pci_tbl[] = {
 	/* MB86295/MB86296 */
 	CHIP_ID(PCI_DEVICE_ID_FUJITSU_CORALP),
 	CHIP_ID(PCI_DEVICE_ID_FUJITSU_CORALPA),

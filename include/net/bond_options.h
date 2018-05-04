@@ -63,6 +63,10 @@ enum {
 	BOND_OPT_LP_INTERVAL,
 	BOND_OPT_SLAVES,
 	BOND_OPT_TLB_DYNAMIC_LB,
+	BOND_OPT_AD_ACTOR_SYS_PRIO,
+	BOND_OPT_AD_ACTOR_SYSTEM,
+	BOND_OPT_AD_USER_PORT_KEY,
+	BOND_OPT_NUM_PEER_NOTIF_ALIAS,
 	BOND_OPT_LAST
 };
 
@@ -100,6 +104,8 @@ struct bond_option {
 
 int __bond_opt_set(struct bonding *bond, unsigned int option,
 		   struct bond_opt_value *val);
+int __bond_opt_set_notify(struct bonding *bond, unsigned int option,
+			  struct bond_opt_value *val);
 int bond_opt_tryset_rtnl(struct bonding *bond, unsigned int option, char *buf);
 
 const struct bond_opt_value *bond_opt_parse(const struct bond_option *opt,

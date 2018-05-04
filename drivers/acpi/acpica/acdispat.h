@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -237,6 +237,11 @@ acpi_ds_initialize_objects(u32 table_index,
  * dsobject - Parser/Interpreter interface - object initialization and conversion
  */
 acpi_status
+acpi_ds_build_internal_object(struct acpi_walk_state *walk_state,
+			      union acpi_parse_object *op,
+			      union acpi_operand_object **obj_desc_ptr);
+
+acpi_status
 acpi_ds_build_internal_buffer_obj(struct acpi_walk_state *walk_state,
 				  union acpi_parse_object *op,
 				  u32 buffer_length,
@@ -257,6 +262,14 @@ acpi_status
 acpi_ds_create_node(struct acpi_walk_state *walk_state,
 		    struct acpi_namespace_node *node,
 		    union acpi_parse_object *op);
+
+/*
+ * dspkginit - Package object initialization
+ */
+acpi_status
+acpi_ds_init_package_element(u8 object_type,
+			     union acpi_operand_object *source_object,
+			     union acpi_generic_state *state, void *context);
 
 /*
  * dsutils - Parser/Interpreter interface utility routines
@@ -353,5 +366,13 @@ acpi_ds_result_pop(union acpi_operand_object **object,
 acpi_status
 acpi_ds_result_push(union acpi_operand_object *object,
 		    struct acpi_walk_state *walk_state);
+
+/*
+ * dsdebug - parser debugging routines
+ */
+void
+acpi_ds_dump_method_stack(acpi_status status,
+			  struct acpi_walk_state *walk_state,
+			  union acpi_parse_object *op);
 
 #endif				/* _ACDISPAT_H_ */

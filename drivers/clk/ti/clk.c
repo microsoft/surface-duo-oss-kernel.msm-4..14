@@ -15,12 +15,16 @@
  * GNU General Public License for more details.
  */
 
+#include <linux/clk.h>
 #include <linux/clk-provider.h>
 #include <linux/clkdev.h>
 #include <linux/clk/ti.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 #include <linux/list.h>
+#include <linux/regmap.h>
+#include <linux/bootmem.h>
+#include <linux/device.h>
 
 #include "clock.h"
 
@@ -29,6 +33,65 @@
 
 struct ti_clk_ll_ops *ti_clk_ll_ops;
 static struct device_node *clocks_node_ptr[CLK_MAX_MEMMAPS];
+
+static struct ti_clk_features ti_clk_features;
+
+struct clk_iomap {
+	struct regmap *regmap;
+	void __iomem *mem;
+};
+
+static struct clk_iomap *clk_memmaps[CLK_MAX_MEMMAPS];
+
+static void clk_memmap_writel(u32 val, const struct clk_omap_reg *reg)
+{
+	struct clk_iomap *io = clk_memmaps[reg->index];
+
+	if (reg->ptr)
+		writel_relaxed(val, reg->ptr);
+	else if (io->regmap)
+		regmap_write(io->regmap, reg->offset, val);
+	else
+		writel_relaxed(val, io->mem + reg->offset);
+}
+
+static u32 clk_memmap_readl(const struct clk_omap_reg *reg)
+{
+	u32 val;
+	struct clk_iomap *io = clk_memmaps[reg->index];
+
+	if (reg->ptr)
+		val = readl_relaxed(reg->ptr);
+	else if (io->regmap)
+		regmap_read(io->regmap, reg->offset, &val);
+	else
+		val = readl_relaxed(io->mem + reg->offset);
+
+	return val;
+}
+
+/**
+ * ti_clk_setup_ll_ops - setup low level clock operations
+ * @ops: low level clock ops descriptor
+ *
+ * Sets up low level clock operations for TI clock driver. This is used
+ * to provide various callbacks for the clock driver towards platform
+ * specific code. Returns 0 on success, -EBUSY if ll_ops have been
+ * registered already.
+ */
+int ti_clk_setup_ll_ops(struct ti_clk_ll_ops *ops)
+{
+	if (ti_clk_ll_ops) {
+		pr_err("Attempt to register ll_ops multiple times.\n");
+		return -EBUSY;
+	}
+
+	ti_clk_ll_ops = ops;
+	ops->clk_readl = clk_memmap_readl;
+	ops->clk_writel = clk_memmap_writel;
+
+	return 0;
+}
 
 /**
  * ti_dt_clocks_register - register DT alias clocks during boot
@@ -101,19 +164,17 @@ int __init ti_clk_retry_init(struct device_node *node, struct clk_hw *hw,
  * ti_clk_get_reg_addr - get register address for a clock register
  * @node: device node for the clock
  * @index: register index from the clock node
+ * @reg: pointer to target register struct
  *
- * Builds clock register address from device tree information. This
- * is a struct of type clk_omap_reg. Returns a pointer to the register
- * address, or a pointer error value in failure.
+ * Builds clock register address from device tree information, and returns
+ * the data via the provided output pointer @reg. Returns 0 on success,
+ * negative error value on failure.
  */
-void __iomem *ti_clk_get_reg_addr(struct device_node *node, int index)
+int ti_clk_get_reg_addr(struct device_node *node, int index,
+			struct clk_omap_reg *reg)
 {
-	struct clk_omap_reg *reg;
 	u32 val;
-	u32 tmp;
 	int i;
-
-	reg = (struct clk_omap_reg *)&tmp;
 
 	for (i = 0; i < CLK_MAX_MEMMAPS; i++) {
 		if (clocks_node_ptr[i] == node->parent)
@@ -122,44 +183,80 @@ void __iomem *ti_clk_get_reg_addr(struct device_node *node, int index)
 
 	if (i == CLK_MAX_MEMMAPS) {
 		pr_err("clk-provider not found for %s!\n", node->name);
-		return ERR_PTR(-ENOENT);
+		return -ENOENT;
 	}
 
 	reg->index = i;
 
 	if (of_property_read_u32_index(node, "reg", index, &val)) {
 		pr_err("%s must have reg[%d]!\n", node->name, index);
-		return ERR_PTR(-EINVAL);
+		return -EINVAL;
 	}
 
 	reg->offset = val;
+	reg->ptr = NULL;
 
-	return (void __iomem *)tmp;
+	return 0;
 }
 
 /**
- * ti_dt_clk_init_provider - init master clock provider
+ * omap2_clk_provider_init - init master clock provider
  * @parent: master node
  * @index: internal index for clk_reg_ops
+ * @syscon: syscon regmap pointer for accessing clock registers
+ * @mem: iomem pointer for the clock provider memory area, only used if
+ *       syscon is not provided
  *
  * Initializes a master clock IP block. This basically sets up the
  * mapping from clocks node to the memory map index. All the clocks
  * are then initialized through the common of_clk_init call, and the
  * clocks will access their memory maps based on the node layout.
+ * Returns 0 in success.
  */
-void ti_dt_clk_init_provider(struct device_node *parent, int index)
+int __init omap2_clk_provider_init(struct device_node *parent, int index,
+				   struct regmap *syscon, void __iomem *mem)
 {
 	struct device_node *clocks;
+	struct clk_iomap *io;
 
 	/* get clocks for this parent */
 	clocks = of_get_child_by_name(parent, "clocks");
 	if (!clocks) {
 		pr_err("%s missing 'clocks' child node.\n", parent->name);
-		return;
+		return -EINVAL;
 	}
 
 	/* add clocks node info */
 	clocks_node_ptr[index] = clocks;
+
+	io = kzalloc(sizeof(*io), GFP_KERNEL);
+	if (!io)
+		return -ENOMEM;
+
+	io->regmap = syscon;
+	io->mem = mem;
+
+	clk_memmaps[index] = io;
+
+	return 0;
+}
+
+/**
+ * omap2_clk_legacy_provider_init - initialize a legacy clock provider
+ * @index: index for the clock provider
+ * @mem: iomem pointer for the clock provider memory area
+ *
+ * Initializes a legacy clock provider memory mapping.
+ */
+void __init omap2_clk_legacy_provider_init(int index, void __iomem *mem)
+{
+	struct clk_iomap *io;
+
+	io = memblock_virt_alloc(sizeof(*io), 0);
+
+	io->mem = mem;
+
+	clk_memmaps[index] = io;
 }
 
 /**
@@ -202,6 +299,7 @@ struct clk __init *ti_clk_register_clk(struct ti_clk *setup)
 	struct ti_clk_fixed *fixed;
 	struct ti_clk_fixed_factor *fixed_factor;
 	struct clk_hw *clk_hw;
+	int ret;
 
 	if (setup->clk)
 		return setup->clk;
@@ -210,8 +308,15 @@ struct clk __init *ti_clk_register_clk(struct ti_clk *setup)
 	case TI_CLK_FIXED:
 		fixed = setup->data;
 
-		clk = clk_register_fixed_rate(NULL, setup->name, NULL,
-					      CLK_IS_ROOT, fixed->frequency);
+		clk = clk_register_fixed_rate(NULL, setup->name, NULL, 0,
+					      fixed->frequency);
+		if (!IS_ERR(clk)) {
+			ret = ti_clk_add_alias(NULL, clk, setup->name);
+			if (ret) {
+				clk_unregister(clk);
+				clk = ERR_PTR(ret);
+			}
+		}
 		break;
 	case TI_CLK_MUX:
 		clk = ti_clk_register_mux(setup);
@@ -229,6 +334,13 @@ struct clk __init *ti_clk_register_clk(struct ti_clk *setup)
 						fixed_factor->parent,
 						0, fixed_factor->mult,
 						fixed_factor->div);
+		if (!IS_ERR(clk)) {
+			ret = ti_clk_add_alias(NULL, clk, setup->name);
+			if (ret) {
+				clk_unregister(clk);
+				clk = ERR_PTR(ret);
+			}
+		}
 		break;
 	case TI_CLK_GATE:
 		clk = ti_clk_register_gate(setup);
@@ -244,11 +356,11 @@ struct clk __init *ti_clk_register_clk(struct ti_clk *setup)
 	if (!IS_ERR(clk)) {
 		setup->clk = clk;
 		if (setup->clkdm_name) {
-			if (__clk_get_flags(clk) & CLK_IS_BASIC) {
+			clk_hw = __clk_get_hw(clk);
+			if (clk_hw_get_flags(clk_hw) & CLK_IS_BASIC) {
 				pr_warn("can't setup clkdm for basic clk %s\n",
 					setup->name);
 			} else {
-				clk_hw = __clk_get_hw(clk);
 				to_clk_hw_omap(clk_hw)->clkdm_name =
 					setup->clkdm_name;
 				omap2_init_clk_clkdm(clk_hw);
@@ -276,9 +388,6 @@ int __init ti_clk_register_legacy_clks(struct ti_clk_alias *clks)
 				       clks->clk->name, PTR_ERR(clk));
 				return PTR_ERR(clk);
 			}
-		} else {
-			clks->lk.clk = clk;
-			clkdev_add(&clks->lk);
 		}
 		clks++;
 	}
@@ -301,8 +410,6 @@ int __init ti_clk_register_legacy_clks(struct ti_clk_alias *clks)
 				}
 			} else {
 				retry = true;
-				retry_clk->lk.clk = clk;
-				clkdev_add(&retry_clk->lk);
 				list_del(&retry_clk->link);
 			}
 		}
@@ -311,3 +418,139 @@ int __init ti_clk_register_legacy_clks(struct ti_clk_alias *clks)
 	return 0;
 }
 #endif
+
+static const struct of_device_id simple_clk_match_table[] __initconst = {
+	{ .compatible = "fixed-clock" },
+	{ .compatible = "fixed-factor-clock" },
+	{ }
+};
+
+/**
+ * ti_clk_add_aliases - setup clock aliases
+ *
+ * Sets up any missing clock aliases. No return value.
+ */
+void __init ti_clk_add_aliases(void)
+{
+	struct device_node *np;
+	struct clk *clk;
+
+	for_each_matching_node(np, simple_clk_match_table) {
+		struct of_phandle_args clkspec;
+
+		clkspec.np = np;
+		clk = of_clk_get_from_provider(&clkspec);
+
+		ti_clk_add_alias(NULL, clk, np->name);
+	}
+}
+
+/**
+ * ti_clk_setup_features - setup clock features flags
+ * @features: features definition to use
+ *
+ * Initializes the clock driver features flags based on platform
+ * provided data. No return value.
+ */
+void __init ti_clk_setup_features(struct ti_clk_features *features)
+{
+	memcpy(&ti_clk_features, features, sizeof(*features));
+}
+
+/**
+ * ti_clk_get_features - get clock driver features flags
+ *
+ * Get TI clock driver features description. Returns a pointer
+ * to the current feature setup.
+ */
+const struct ti_clk_features *ti_clk_get_features(void)
+{
+	return &ti_clk_features;
+}
+
+/**
+ * omap2_clk_enable_init_clocks - prepare & enable a list of clocks
+ * @clk_names: ptr to an array of strings of clock names to enable
+ * @num_clocks: number of clock names in @clk_names
+ *
+ * Prepare and enable a list of clocks, named by @clk_names.  No
+ * return value. XXX Deprecated; only needed until these clocks are
+ * properly claimed and enabled by the drivers or core code that uses
+ * them.  XXX What code disables & calls clk_put on these clocks?
+ */
+void omap2_clk_enable_init_clocks(const char **clk_names, u8 num_clocks)
+{
+	struct clk *init_clk;
+	int i;
+
+	for (i = 0; i < num_clocks; i++) {
+		init_clk = clk_get(NULL, clk_names[i]);
+		if (WARN(IS_ERR(init_clk), "could not find init clock %s\n",
+			 clk_names[i]))
+			continue;
+		clk_prepare_enable(init_clk);
+	}
+}
+
+/**
+ * ti_clk_add_alias - add a clock alias for a TI clock
+ * @dev: device alias for this clock
+ * @clk: clock handle to create alias for
+ * @con: connection ID for this clock
+ *
+ * Creates a clock alias for a TI clock. Allocates the clock lookup entry
+ * and assigns the data to it. Returns 0 if successful, negative error
+ * value otherwise.
+ */
+int ti_clk_add_alias(struct device *dev, struct clk *clk, const char *con)
+{
+	struct clk_lookup *cl;
+
+	if (!clk)
+		return 0;
+
+	if (IS_ERR(clk))
+		return PTR_ERR(clk);
+
+	cl = kzalloc(sizeof(*cl), GFP_KERNEL);
+	if (!cl)
+		return -ENOMEM;
+
+	if (dev)
+		cl->dev_id = dev_name(dev);
+	cl->con_id = con;
+	cl->clk = clk;
+
+	clkdev_add(cl);
+
+	return 0;
+}
+
+/**
+ * ti_clk_register - register a TI clock to the common clock framework
+ * @dev: device for this clock
+ * @hw: hardware clock handle
+ * @con: connection ID for this clock
+ *
+ * Registers a TI clock to the common clock framework, and adds a clock
+ * alias for it. Returns a handle to the registered clock if successful,
+ * ERR_PTR value in failure.
+ */
+struct clk *ti_clk_register(struct device *dev, struct clk_hw *hw,
+			    const char *con)
+{
+	struct clk *clk;
+	int ret;
+
+	clk = clk_register(dev, hw);
+	if (IS_ERR(clk))
+		return clk;
+
+	ret = ti_clk_add_alias(dev, clk, con);
+	if (ret) {
+		clk_unregister(clk);
+		return ERR_PTR(ret);
+	}
+
+	return clk;
+}

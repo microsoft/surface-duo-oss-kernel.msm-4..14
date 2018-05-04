@@ -16,7 +16,7 @@
 #include <linux/dio.h>
 
 #include <asm/io.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 
 static struct fb_info fb_info = {
 	.fix = {
@@ -241,8 +241,8 @@ static int hpfb_init_one(unsigned long phys_base, unsigned long virt_base)
 	fb_info.fix.line_length = fb_width;
 	fb_height = (in_8(fb_regs + HPFB_FBHMSB) << 8) | in_8(fb_regs + HPFB_FBHLSB);
 	fb_info.fix.smem_len = fb_width * fb_height;
-	fb_start = (unsigned long)ioremap_writethrough(fb_info.fix.smem_start,
-						       fb_info.fix.smem_len);
+	fb_start = (unsigned long)ioremap_wt(fb_info.fix.smem_start,
+					     fb_info.fix.smem_len);
 	hpfb_defined.xres = (in_8(fb_regs + HPFB_DWMSB) << 8) | in_8(fb_regs + HPFB_DWLSB);
 	hpfb_defined.yres = (in_8(fb_regs + HPFB_DHMSB) << 8) | in_8(fb_regs + HPFB_DHLSB);
 	hpfb_defined.xres_virtual = hpfb_defined.xres;
@@ -377,7 +377,6 @@ static struct dio_driver hpfb_driver = {
 int __init hpfb_init(void)
 {
 	unsigned int sid;
-	mm_segment_t fs;
 	unsigned char i;
 	int err;
 
@@ -402,10 +401,7 @@ int __init hpfb_init(void)
 	if (err)
 		return err;
 
-	fs = get_fs();
-	set_fs(KERNEL_DS);
-	err = get_user(i, (unsigned char *)INTFBVADDR + DIO_IDOFF);
-	set_fs(fs);
+	err = probe_kernel_read(&i, (unsigned char *)INTFBVADDR + DIO_IDOFF, 1);
 
 	if (!err && (i == DIO_ID_FBUFFER) && topcat_sid_ok(sid = DIO_SECID(INTFBVADDR))) {
 		if (!request_mem_region(INTFBPADDR, DIO_DEVSIZE, "Internal Topcat"))

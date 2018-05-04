@@ -106,18 +106,6 @@ static void limit_channels_and_rates(struct snd_pcm_hardware *hw, u8 **formats)
 	}
 }
 
-static void limit_period_and_buffer(struct snd_pcm_hardware *hw)
-{
-	hw->periods_min = 2;		/* SNDRV_PCM_INFO_BATCH */
-	hw->periods_max = UINT_MAX;
-
-	hw->period_bytes_min = 4 * hw->channels_max;	/* bytes for a frame */
-
-	/* Just to prevent from allocating much pages. */
-	hw->period_bytes_max = hw->period_bytes_min * 2048;
-	hw->buffer_bytes_max = hw->period_bytes_max * hw->periods_min;
-}
-
 static int init_hw_params(struct snd_oxfw *oxfw,
 			  struct snd_pcm_substream *substream)
 {
@@ -126,25 +114,17 @@ static int init_hw_params(struct snd_oxfw *oxfw,
 	struct amdtp_stream *stream;
 	int err;
 
-	runtime->hw.info = SNDRV_PCM_INFO_BATCH |
-			   SNDRV_PCM_INFO_BLOCK_TRANSFER |
-			   SNDRV_PCM_INFO_INTERLEAVED |
-			   SNDRV_PCM_INFO_JOINT_DUPLEX |
-			   SNDRV_PCM_INFO_MMAP |
-			   SNDRV_PCM_INFO_MMAP_VALID;
-
 	if (substream->stream == SNDRV_PCM_STREAM_CAPTURE) {
-		runtime->hw.formats = AMDTP_IN_PCM_FORMAT_BITS;
+		runtime->hw.formats = AM824_IN_PCM_FORMAT_BITS;
 		stream = &oxfw->tx_stream;
 		formats = oxfw->tx_stream_formats;
 	} else {
-		runtime->hw.formats = AMDTP_OUT_PCM_FORMAT_BITS;
+		runtime->hw.formats = AM824_OUT_PCM_FORMAT_BITS;
 		stream = &oxfw->rx_stream;
 		formats = oxfw->rx_stream_formats;
 	}
 
 	limit_channels_and_rates(&runtime->hw, formats);
-	limit_period_and_buffer(&runtime->hw);
 
 	err = snd_pcm_hw_rule_add(runtime, 0, SNDRV_PCM_HW_PARAM_CHANNELS,
 				  hw_rule_channels, formats,
@@ -158,7 +138,7 @@ static int init_hw_params(struct snd_oxfw *oxfw,
 	if (err < 0)
 		goto end;
 
-	err = amdtp_stream_add_pcm_hw_constraints(stream, runtime);
+	err = amdtp_am824_add_pcm_hw_constraints(stream, runtime);
 end:
 	return err;
 }
@@ -231,7 +211,12 @@ static int pcm_capture_hw_params(struct snd_pcm_substream *substream,
 				 struct snd_pcm_hw_params *hw_params)
 {
 	struct snd_oxfw *oxfw = substream->private_data;
+	int err;
 
+	err = snd_pcm_lib_alloc_vmalloc_buffer(substream,
+					       params_buffer_bytes(hw_params));
+	if (err < 0)
+		return err;
 
 	if (substream->runtime->status->state == SNDRV_PCM_STATE_OPEN) {
 		mutex_lock(&oxfw->mutex);
@@ -239,15 +224,18 @@ static int pcm_capture_hw_params(struct snd_pcm_substream *substream,
 		mutex_unlock(&oxfw->mutex);
 	}
 
-	amdtp_stream_set_pcm_format(&oxfw->tx_stream, params_format(hw_params));
-
-	return snd_pcm_lib_alloc_vmalloc_buffer(substream,
-						params_buffer_bytes(hw_params));
+	return 0;
 }
 static int pcm_playback_hw_params(struct snd_pcm_substream *substream,
 				  struct snd_pcm_hw_params *hw_params)
 {
 	struct snd_oxfw *oxfw = substream->private_data;
+	int err;
+
+	err = snd_pcm_lib_alloc_vmalloc_buffer(substream,
+					       params_buffer_bytes(hw_params));
+	if (err < 0)
+		return err;
 
 	if (substream->runtime->status->state == SNDRV_PCM_STATE_OPEN) {
 		mutex_lock(&oxfw->mutex);
@@ -255,10 +243,7 @@ static int pcm_playback_hw_params(struct snd_pcm_substream *substream,
 		mutex_unlock(&oxfw->mutex);
 	}
 
-	amdtp_stream_set_pcm_format(&oxfw->rx_stream, params_format(hw_params));
-
-	return snd_pcm_lib_alloc_vmalloc_buffer(substream,
-						params_buffer_bytes(hw_params));
+	return 0;
 }
 
 static int pcm_capture_hw_free(struct snd_pcm_substream *substream)
@@ -377,9 +362,23 @@ static snd_pcm_uframes_t pcm_playback_pointer(struct snd_pcm_substream *sbstm)
 	return amdtp_stream_pcm_pointer(&oxfw->rx_stream);
 }
 
+static int pcm_capture_ack(struct snd_pcm_substream *substream)
+{
+	struct snd_oxfw *oxfw = substream->private_data;
+
+	return amdtp_stream_pcm_ack(&oxfw->tx_stream);
+}
+
+static int pcm_playback_ack(struct snd_pcm_substream *substream)
+{
+	struct snd_oxfw *oxfw = substream->private_data;
+
+	return amdtp_stream_pcm_ack(&oxfw->rx_stream);
+}
+
 int snd_oxfw_create_pcm(struct snd_oxfw *oxfw)
 {
-	static struct snd_pcm_ops capture_ops = {
+	static const struct snd_pcm_ops capture_ops = {
 		.open      = pcm_open,
 		.close     = pcm_close,
 		.ioctl     = snd_pcm_lib_ioctl,
@@ -388,10 +387,11 @@ int snd_oxfw_create_pcm(struct snd_oxfw *oxfw)
 		.prepare   = pcm_capture_prepare,
 		.trigger   = pcm_capture_trigger,
 		.pointer   = pcm_capture_pointer,
+		.ack       = pcm_capture_ack,
 		.page      = snd_pcm_lib_get_vmalloc_page,
 		.mmap      = snd_pcm_lib_mmap_vmalloc,
 	};
-	static struct snd_pcm_ops playback_ops = {
+	static const struct snd_pcm_ops playback_ops = {
 		.open      = pcm_open,
 		.close     = pcm_close,
 		.ioctl     = snd_pcm_lib_ioctl,
@@ -400,6 +400,7 @@ int snd_oxfw_create_pcm(struct snd_oxfw *oxfw)
 		.prepare   = pcm_playback_prepare,
 		.trigger   = pcm_playback_trigger,
 		.pointer   = pcm_playback_pointer,
+		.ack       = pcm_playback_ack,
 		.page      = snd_pcm_lib_get_vmalloc_page,
 		.mmap      = snd_pcm_lib_mmap_vmalloc,
 	};

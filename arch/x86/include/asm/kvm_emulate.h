@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /******************************************************************************
  * x86_emulate.h
  *
@@ -23,6 +24,7 @@ struct x86_exception {
 	u16 error_code;
 	bool nested_page_fault;
 	u64 address; /* cr2 or nested page fault gpa */
+	u8 async_page_fault;
 };
 
 /*
@@ -112,6 +114,16 @@ struct x86_emulate_ops {
 			struct x86_exception *fault);
 
 	/*
+	 * read_phys: Read bytes of standard (non-emulated/special) memory.
+	 *            Used for descriptor reading.
+	 *  @addr:  [IN ] Physical address from which to read.
+	 *  @val:   [OUT] Value read from memory.
+	 *  @bytes: [IN ] Number of bytes to read from memory.
+	 */
+	int (*read_phys)(struct x86_emulate_ctxt *ctxt, unsigned long addr,
+			void *val, unsigned int bytes);
+
+	/*
 	 * write_std: Write bytes of standard (non-emulated/special) memory.
 	 *            Used for descriptor writing.
 	 *  @addr:  [IN ] Linear address to which to write.
@@ -193,6 +205,8 @@ struct x86_emulate_ops {
 	int (*cpl)(struct x86_emulate_ctxt *ctxt);
 	int (*get_dr)(struct x86_emulate_ctxt *ctxt, int dr, ulong *dest);
 	int (*set_dr)(struct x86_emulate_ctxt *ctxt, int dr, ulong value);
+	u64 (*get_smbase)(struct x86_emulate_ctxt *ctxt);
+	void (*set_smbase)(struct x86_emulate_ctxt *ctxt, u64 smbase);
 	int (*set_msr)(struct x86_emulate_ctxt *ctxt, u32 msr_index, u64 data);
 	int (*get_msr)(struct x86_emulate_ctxt *ctxt, u32 msr_index, u64 *pdata);
 	int (*check_pmc)(struct x86_emulate_ctxt *ctxt, u32 pmc);
@@ -206,9 +220,12 @@ struct x86_emulate_ops {
 			 struct x86_instruction_info *info,
 			 enum x86_intercept_stage stage);
 
-	void (*get_cpuid)(struct x86_emulate_ctxt *ctxt,
-			  u32 *eax, u32 *ebx, u32 *ecx, u32 *edx);
+	bool (*get_cpuid)(struct x86_emulate_ctxt *ctxt, u32 *eax, u32 *ebx,
+			  u32 *ecx, u32 *edx, bool check_limit);
 	void (*set_nmi_mask)(struct x86_emulate_ctxt *ctxt, bool masked);
+
+	unsigned (*get_hflags)(struct x86_emulate_ctxt *ctxt);
+	void (*set_hflags)(struct x86_emulate_ctxt *ctxt, unsigned hflags);
 };
 
 typedef u32 __attribute__((vector_size(16))) sse128_t;
@@ -262,6 +279,11 @@ enum x86emul_mode {
 	X86EMUL_MODE_PROT64,	/* 64-bit (long) mode.    */
 };
 
+/* These match some of the HF_* flags defined in kvm_host.h  */
+#define X86EMUL_GUEST_MASK           (1 << 5) /* VCPU is in guest-mode */
+#define X86EMUL_SMM_MASK             (1 << 6)
+#define X86EMUL_SMM_INSIDE_NMI_MASK  (1 << 7)
+
 struct x86_emulate_ctxt {
 	const struct x86_emulate_ops *ops;
 
@@ -274,9 +296,9 @@ struct x86_emulate_ctxt {
 	/* interruptibility state, as a result of execution of STI or MOV SS */
 	int interruptibility;
 
-	bool guest_mode; /* guest running a nested guest */
 	bool perm_ok; /* do not check permissions if true */
 	bool ud;	/* inject an #UD if host doesn't support insn */
+	bool tf;	/* TF value before instruction (after for syscall/sysret) */
 
 	bool have_exception;
 	struct x86_exception exception;
@@ -424,5 +446,6 @@ int emulator_task_switch(struct x86_emulate_ctxt *ctxt,
 int emulate_int_real(struct x86_emulate_ctxt *ctxt, int irq);
 void emulator_invalidate_register_cache(struct x86_emulate_ctxt *ctxt);
 void emulator_writeback_register_cache(struct x86_emulate_ctxt *ctxt);
+bool emulator_can_use_gpa(struct x86_emulate_ctxt *ctxt);
 
 #endif /* _ASM_X86_KVM_X86_EMULATE_H */

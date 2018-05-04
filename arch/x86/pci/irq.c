@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *	Low-Level PCI Support for PC -- Routing of Interrupts
  *
@@ -146,19 +147,20 @@ static void __init pirq_peer_trick(void)
 
 /*
  *  Code for querying and setting of IRQ routes on various interrupt routers.
+ *  PIC Edge/Level Control Registers (ELCR) 0x4d0 & 0x4d1.
  */
 
-void eisa_set_level_irq(unsigned int irq)
+void elcr_set_level_irq(unsigned int irq)
 {
 	unsigned char mask = 1 << (irq & 7);
 	unsigned int port = 0x4d0 + (irq >> 3);
 	unsigned char val;
-	static u16 eisa_irq_mask;
+	static u16 elcr_irq_mask;
 
-	if (irq >= 16 || (1 << irq) & eisa_irq_mask)
+	if (irq >= 16 || (1 << irq) & elcr_irq_mask)
 		return;
 
-	eisa_irq_mask |= (1 << irq);
+	elcr_irq_mask |= (1 << irq);
 	printk(KERN_DEBUG "PCI: setting IRQ %u as level-triggered\n", irq);
 	val = inb(port);
 	if (!(val & mask)) {
@@ -965,11 +967,11 @@ static int pcibios_lookup_irq(struct pci_dev *dev, int assign)
 	} else if (r->get && (irq = r->get(pirq_router_dev, dev, pirq)) && \
 	((!(pci_probe & PCI_USE_PIRQ_MASK)) || ((1 << irq) & mask))) {
 		msg = "found";
-		eisa_set_level_irq(irq);
+		elcr_set_level_irq(irq);
 	} else if (newirq && r->set &&
 		(dev->class >> 8) != PCI_CLASS_DISPLAY_VGA) {
 		if (r->set(pirq_router_dev, dev, pirq, newirq)) {
-			eisa_set_level_irq(newirq);
+			elcr_set_level_irq(newirq);
 			msg = "assigned";
 			irq = newirq;
 		}
@@ -1091,7 +1093,7 @@ static int __init fix_acer_tm360_irqrouting(const struct dmi_system_id *d)
 	return 0;
 }
 
-static struct dmi_system_id __initdata pciirq_dmi_table[] = {
+static const struct dmi_system_id pciirq_dmi_table[] __initconst = {
 	{
 		.callback = fix_broken_hp_bios_irq9,
 		.ident = "HP Pavilion N5400 Series Laptop",

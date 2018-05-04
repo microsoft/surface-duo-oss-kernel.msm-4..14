@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __LINUX_PREEMPT_H
 #define __LINUX_PREEMPT_H
 
@@ -10,17 +11,163 @@
 #include <linux/list.h>
 
 /*
- * We use the MSB mostly because its available; see <linux/preempt_mask.h> for
- * the other bits -- can't include that header due to inclusion hell.
+ * We put the hardirq and softirq counter into the preemption
+ * counter. The bitmask has the following meaning:
+ *
+ * - bits 0-7 are the preemption count (max preemption depth: 256)
+ * - bits 8-15 are the softirq count (max # of softirqs: 256)
+ *
+ * The hardirq count could in theory be the same as the number of
+ * interrupts in the system, but we run all interrupt handlers with
+ * interrupts disabled, so we cannot have nesting interrupts. Though
+ * there are a few palaeontologic drivers which reenable interrupts in
+ * the handler, so we need more than one bit here.
+ *
+ *         PREEMPT_MASK:	0x000000ff
+ *         SOFTIRQ_MASK:	0x0000ff00
+ *         HARDIRQ_MASK:	0x000f0000
+ *             NMI_MASK:	0x00100000
+ * PREEMPT_NEED_RESCHED:	0x80000000
  */
+#define PREEMPT_BITS	8
+#define SOFTIRQ_BITS	8
+#define HARDIRQ_BITS	4
+#define NMI_BITS	1
+
+#define PREEMPT_SHIFT	0
+#define SOFTIRQ_SHIFT	(PREEMPT_SHIFT + PREEMPT_BITS)
+#define HARDIRQ_SHIFT	(SOFTIRQ_SHIFT + SOFTIRQ_BITS)
+#define NMI_SHIFT	(HARDIRQ_SHIFT + HARDIRQ_BITS)
+
+#define __IRQ_MASK(x)	((1UL << (x))-1)
+
+#define PREEMPT_MASK	(__IRQ_MASK(PREEMPT_BITS) << PREEMPT_SHIFT)
+#define SOFTIRQ_MASK	(__IRQ_MASK(SOFTIRQ_BITS) << SOFTIRQ_SHIFT)
+#define HARDIRQ_MASK	(__IRQ_MASK(HARDIRQ_BITS) << HARDIRQ_SHIFT)
+#define NMI_MASK	(__IRQ_MASK(NMI_BITS)     << NMI_SHIFT)
+
+#define PREEMPT_OFFSET	(1UL << PREEMPT_SHIFT)
+#define SOFTIRQ_OFFSET	(1UL << SOFTIRQ_SHIFT)
+#define HARDIRQ_OFFSET	(1UL << HARDIRQ_SHIFT)
+#define NMI_OFFSET	(1UL << NMI_SHIFT)
+
+#ifndef CONFIG_PREEMPT_RT_FULL
+# define SOFTIRQ_DISABLE_OFFSET		(2 * SOFTIRQ_OFFSET)
+#else
+# define SOFTIRQ_DISABLE_OFFSET		(0)
+#endif
+
+/* We use the MSB mostly because its available */
 #define PREEMPT_NEED_RESCHED	0x80000000
 
+#define PREEMPT_DISABLED	(PREEMPT_DISABLE_OFFSET + PREEMPT_ENABLED)
+
+/*
+ * Disable preemption until the scheduler is running -- use an unconditional
+ * value so that it also works on !PREEMPT_COUNT kernels.
+ *
+ * Reset by start_kernel()->sched_init()->init_idle()->init_idle_preempt_count().
+ */
+#define INIT_PREEMPT_COUNT	PREEMPT_OFFSET
+
+/*
+ * Initial preempt_count value; reflects the preempt_count schedule invariant
+ * which states that during context switches:
+ *
+ *    preempt_count() == 2*PREEMPT_DISABLE_OFFSET
+ *
+ * Note: PREEMPT_DISABLE_OFFSET is 0 for !PREEMPT_COUNT kernels.
+ * Note: See finish_task_switch().
+ */
+#define FORK_PREEMPT_COUNT	(2*PREEMPT_DISABLE_OFFSET + PREEMPT_ENABLED)
+
+/* preempt_count() and related functions, depends on PREEMPT_NEED_RESCHED */
 #include <asm/preempt.h>
+
+#define hardirq_count()	(preempt_count() & HARDIRQ_MASK)
+#define irq_count()	(preempt_count() & (HARDIRQ_MASK | SOFTIRQ_MASK \
+				 | NMI_MASK))
+#ifndef CONFIG_PREEMPT_RT_FULL
+# define softirq_count()	(preempt_count() & SOFTIRQ_MASK)
+# define in_serving_softirq()	(softirq_count() & SOFTIRQ_OFFSET)
+#else
+# define softirq_count()	(0UL)
+extern int in_serving_softirq(void);
+#endif
+
+/*
+ * Are we doing bottom half or hardware interrupt processing?
+ *
+ * in_irq()       - We're in (hard) IRQ context
+ * in_softirq()   - We have BH disabled, or are processing softirqs
+ * in_interrupt() - We're in NMI,IRQ,SoftIRQ context or have BH disabled
+ * in_serving_softirq() - We're in softirq context
+ * in_nmi()       - We're in NMI context
+ * in_task()	  - We're in task context
+ *
+ * Note: due to the BH disabled confusion: in_softirq(),in_interrupt() really
+ *       should not be used in new code.
+ */
+#define in_irq()		(hardirq_count())
+#define in_softirq()		(softirq_count())
+#define in_interrupt()		(irq_count())
+#define in_nmi()		(preempt_count() & NMI_MASK)
+#define in_task()		(!(preempt_count() & \
+				   (NMI_MASK | HARDIRQ_MASK | SOFTIRQ_OFFSET)))
+
+/*
+ * The preempt_count offset after preempt_disable();
+ */
+#if defined(CONFIG_PREEMPT_COUNT)
+# define PREEMPT_DISABLE_OFFSET	PREEMPT_OFFSET
+#else
+# define PREEMPT_DISABLE_OFFSET	0
+#endif
+
+/*
+ * The preempt_count offset after spin_lock()
+ */
+#if !defined(CONFIG_PREEMPT_RT_FULL)
+#define PREEMPT_LOCK_OFFSET	PREEMPT_DISABLE_OFFSET
+#else
+#define PREEMPT_LOCK_OFFSET	0
+#endif
+
+/*
+ * The preempt_count offset needed for things like:
+ *
+ *  spin_lock_bh()
+ *
+ * Which need to disable both preemption (CONFIG_PREEMPT_COUNT) and
+ * softirqs, such that unlock sequences of:
+ *
+ *  spin_unlock();
+ *  local_bh_enable();
+ *
+ * Work as expected.
+ */
+#define SOFTIRQ_LOCK_OFFSET (SOFTIRQ_DISABLE_OFFSET + PREEMPT_LOCK_OFFSET)
+
+/*
+ * Are we running in atomic context?  WARNING: this macro cannot
+ * always detect atomic context; in particular, it cannot know about
+ * held spinlocks in non-preemptible kernels.  Thus it should not be
+ * used in the general case to determine whether sleeping is possible.
+ * Do not use in_atomic() in driver code.
+ */
+#define in_atomic()	(preempt_count() != 0)
+
+/*
+ * Check whether we were atomic before we did preempt_disable():
+ * (used by the scheduler)
+ */
+#define in_atomic_preempt_off() (preempt_count() != PREEMPT_DISABLE_OFFSET)
 
 #if defined(CONFIG_DEBUG_PREEMPT) || defined(CONFIG_PREEMPT_TRACER)
 extern void preempt_count_add(int val);
 extern void preempt_count_sub(int val);
-#define preempt_count_dec_and_test() ({ preempt_count_sub(1); should_resched(); })
+#define preempt_count_dec_and_test() \
+	({ preempt_count_sub(1); should_resched(0); })
 #else
 #define preempt_count_add(val)	__preempt_count_add(val)
 #define preempt_count_sub(val)	__preempt_count_sub(val)
@@ -33,11 +180,31 @@ extern void preempt_count_sub(int val);
 #define preempt_count_inc() preempt_count_add(1)
 #define preempt_count_dec() preempt_count_sub(1)
 
+#ifdef CONFIG_PREEMPT_LAZY
+#define add_preempt_lazy_count(val)	do { preempt_lazy_count() += (val); } while (0)
+#define sub_preempt_lazy_count(val)	do { preempt_lazy_count() -= (val); } while (0)
+#define inc_preempt_lazy_count()	add_preempt_lazy_count(1)
+#define dec_preempt_lazy_count()	sub_preempt_lazy_count(1)
+#define preempt_lazy_count()		(current_thread_info()->preempt_lazy_count)
+#else
+#define add_preempt_lazy_count(val)	do { } while (0)
+#define sub_preempt_lazy_count(val)	do { } while (0)
+#define inc_preempt_lazy_count()	do { } while (0)
+#define dec_preempt_lazy_count()	do { } while (0)
+#define preempt_lazy_count()		(0)
+#endif
+
 #ifdef CONFIG_PREEMPT_COUNT
 
 #define preempt_disable() \
 do { \
 	preempt_count_inc(); \
+	barrier(); \
+} while (0)
+
+#define preempt_lazy_disable() \
+do { \
+	inc_preempt_lazy_count(); \
 	barrier(); \
 } while (0)
 
@@ -47,7 +214,40 @@ do { \
 	preempt_count_dec(); \
 } while (0)
 
-#define preempt_enable_no_resched() sched_preempt_enable_no_resched()
+#ifdef CONFIG_PREEMPT_RT_BASE
+# define preempt_enable_no_resched() sched_preempt_enable_no_resched()
+# define preempt_check_resched_rt() preempt_check_resched()
+#else
+# define preempt_enable_no_resched() preempt_enable()
+# define preempt_check_resched_rt() barrier();
+#endif
+
+#define preemptible()	(preempt_count() == 0 && !irqs_disabled())
+
+#ifdef CONFIG_SMP
+
+extern void migrate_disable(void);
+extern void migrate_enable(void);
+
+int __migrate_disabled(struct task_struct *p);
+
+#elif !defined(CONFIG_SMP) && defined(CONFIG_PREEMPT_RT_BASE)
+
+extern void migrate_disable(void);
+extern void migrate_enable(void);
+static inline int __migrate_disabled(struct task_struct *p)
+{
+	return 0;
+}
+
+#else
+#define migrate_disable()		barrier()
+#define migrate_enable()		barrier()
+static inline int __migrate_disabled(struct task_struct *p)
+{
+	return 0;
+}
+#endif
 
 #ifdef CONFIG_PREEMPT
 #define preempt_enable() \
@@ -57,20 +257,47 @@ do { \
 		__preempt_schedule(); \
 } while (0)
 
+#define preempt_enable_notrace() \
+do { \
+	barrier(); \
+	if (unlikely(__preempt_count_dec_and_test())) \
+		__preempt_schedule_notrace(); \
+} while (0)
+
 #define preempt_check_resched() \
 do { \
-	if (should_resched()) \
+	if (should_resched(0)) \
 		__preempt_schedule(); \
 } while (0)
 
-#else
+#define preempt_lazy_enable() \
+do { \
+	dec_preempt_lazy_count(); \
+	barrier(); \
+	preempt_check_resched(); \
+} while (0)
+
+#else /* !CONFIG_PREEMPT */
 #define preempt_enable() \
 do { \
 	barrier(); \
 	preempt_count_dec(); \
 } while (0)
+
+#define preempt_lazy_enable() \
+do { \
+	dec_preempt_lazy_count(); \
+	barrier(); \
+} while (0)
+
+#define preempt_enable_notrace() \
+do { \
+	barrier(); \
+	__preempt_count_dec(); \
+} while (0)
+
 #define preempt_check_resched() do { } while (0)
-#endif
+#endif /* CONFIG_PREEMPT */
 
 #define preempt_disable_notrace() \
 do { \
@@ -83,26 +310,6 @@ do { \
 	barrier(); \
 	__preempt_count_dec(); \
 } while (0)
-
-#ifdef CONFIG_PREEMPT
-
-#ifndef CONFIG_CONTEXT_TRACKING
-#define __preempt_schedule_context() __preempt_schedule()
-#endif
-
-#define preempt_enable_notrace() \
-do { \
-	barrier(); \
-	if (unlikely(__preempt_count_dec_and_test())) \
-		__preempt_schedule_context(); \
-} while (0)
-#else
-#define preempt_enable_notrace() \
-do { \
-	barrier(); \
-	__preempt_count_dec(); \
-} while (0)
-#endif
 
 #else /* !CONFIG_PREEMPT_COUNT */
 
@@ -121,7 +328,16 @@ do { \
 #define preempt_disable_notrace()		barrier()
 #define preempt_enable_no_resched_notrace()	barrier()
 #define preempt_enable_notrace()		barrier()
+#define preempt_check_resched_rt()		barrier()
+#define preemptible()				0
 
+#define migrate_disable()			barrier()
+#define migrate_enable()			barrier()
+
+static inline int __migrate_disabled(struct task_struct *p)
+{
+	return 0;
+}
 #endif /* CONFIG_PREEMPT_COUNT */
 
 #ifdef MODULE
@@ -140,9 +356,21 @@ do { \
 } while (0)
 #define preempt_fold_need_resched() \
 do { \
-	if (tif_need_resched()) \
+	if (tif_need_resched_now()) \
 		set_preempt_need_resched(); \
 } while (0)
+
+#ifdef CONFIG_PREEMPT_RT_FULL
+# define preempt_disable_rt()		preempt_disable()
+# define preempt_enable_rt()		preempt_enable()
+# define preempt_disable_nort()		barrier()
+# define preempt_enable_nort()		barrier()
+#else
+# define preempt_disable_rt()		barrier()
+# define preempt_enable_rt()		barrier()
+# define preempt_disable_nort()		preempt_disable()
+# define preempt_enable_nort()		preempt_enable()
+#endif
 
 #ifdef CONFIG_PREEMPT_NOTIFIERS
 
@@ -180,6 +408,8 @@ struct preempt_notifier {
 	struct preempt_ops *ops;
 };
 
+void preempt_notifier_inc(void);
+void preempt_notifier_dec(void);
 void preempt_notifier_register(struct preempt_notifier *notifier);
 void preempt_notifier_unregister(struct preempt_notifier *notifier);
 

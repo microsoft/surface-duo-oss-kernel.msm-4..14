@@ -1,5 +1,5 @@
 include ../../scripts/Makefile.include
-include ../config/utilities.mak
+include ../../scripts/utilities.mak
 
 MAN1_TXT= \
 	$(filter-out $(addsuffix .txt, $(ARTICLES) $(SP_ARTICLES)), \
@@ -192,7 +192,7 @@ do-install-man: man
 #		$(INSTALL) -m 644 $(DOC_MAN5) $(DESTDIR)$(man5dir); \
 #		$(INSTALL) -m 644 $(DOC_MAN7) $(DESTDIR)$(man7dir)
 
-install-man: check-man-tools man
+install-man: check-man-tools man do-install-man
 
 ifdef missing_tools
   DO_INSTALL_MAN = $(warning Please install $(missing_tools) to have the man pages installed)

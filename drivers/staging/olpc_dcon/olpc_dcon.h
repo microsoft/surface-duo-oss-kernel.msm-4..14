@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef OLPC_DCON_H_
 #define OLPC_DCON_H_
 
@@ -79,8 +80,8 @@ struct dcon_priv {
 
 	/* Variables used during switches */
 	bool switched;
-	struct timespec irq_time;
-	struct timespec load_time;
+	ktime_t irq_time;
+	ktime_t load_time;
 
 	/* Current output type; true == mono, false == color */
 	bool mono;
@@ -98,7 +99,7 @@ struct dcon_platform_data {
 
 #include <linux/interrupt.h>
 
-extern irqreturn_t dcon_interrupt(int irq, void *id);
+irqreturn_t dcon_interrupt(int irq, void *id);
 
 #ifdef CONFIG_FB_OLPC_DCON_1
 extern struct dcon_platform_data dcon_pdata_xo_1;

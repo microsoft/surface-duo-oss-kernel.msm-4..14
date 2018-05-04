@@ -1,10 +1,11 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_CRIS_UNISTD_H_
 #define _ASM_CRIS_UNISTD_H_
 
 #include <uapi/asm/unistd.h>
 
 
-#define NR_syscalls 360
+#define NR_syscalls 365
 
 #include <arch/unistd.h>
 

@@ -15,11 +15,6 @@
  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to the Free Software
- *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
- *  02111-1307  USA
  */
 
 #include "cx18-driver.h"
@@ -177,7 +172,7 @@ static int cx18_g_fmt_vbi_cap(struct file *file, void *fh,
 
 	vbifmt->sampling_rate = 27000000;
 	vbifmt->offset = 248; /* FIXME - slightly wrong for both 50 & 60 Hz */
-	vbifmt->samples_per_line = vbi_active_samples - 4;
+	vbifmt->samples_per_line = VBI_ACTIVE_SAMPLES - 4;
 	vbifmt->sample_format = V4L2_PIX_FMT_GREY;
 	vbifmt->start[0] = cx->vbi.start[0];
 	vbifmt->start[1] = cx->vbi.start[1];
@@ -267,7 +262,9 @@ static int cx18_s_fmt_vid_cap(struct file *file, void *fh,
 {
 	struct cx18_open_id *id = fh2id(fh);
 	struct cx18 *cx = id->cx;
-	struct v4l2_mbus_framefmt mbus_fmt;
+	struct v4l2_subdev_format format = {
+		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
+	};
 	struct cx18_stream *s = &cx->streams[id->type];
 	int ret;
 	int w, h;
@@ -296,10 +293,10 @@ static int cx18_s_fmt_vid_cap(struct file *file, void *fh,
 		s->vb_bytes_per_line = 1440; /* Packed */
 	}
 
-	mbus_fmt.width = cx->cxhdl.width = w;
-	mbus_fmt.height = cx->cxhdl.height = h;
-	mbus_fmt.code = MEDIA_BUS_FMT_FIXED;
-	v4l2_subdev_call(cx->sd_av, video, s_mbus_fmt, &mbus_fmt);
+	format.format.width = cx->cxhdl.width = w;
+	format.format.height = cx->cxhdl.height = h;
+	format.format.code = MEDIA_BUS_FMT_FIXED;
+	v4l2_subdev_call(cx->sd_av, pad, set_fmt, NULL, &format);
 	return cx18_g_fmt_vid_cap(file, fh, fmt);
 }
 
@@ -451,8 +448,8 @@ static int cx18_cropcap(struct file *file, void *fh,
 
 	if (cropcap->type != V4L2_BUF_TYPE_VIDEO_CAPTURE)
 		return -EINVAL;
-	cropcap->pixelaspect.numerator = cx->is_50hz ? 59 : 10;
-	cropcap->pixelaspect.denominator = cx->is_50hz ? 54 : 11;
+	cropcap->pixelaspect.numerator = cx->is_50hz ? 54 : 11;
+	cropcap->pixelaspect.denominator = cx->is_50hz ? 59 : 10;
 	return 0;
 }
 
@@ -949,8 +946,7 @@ static int cx18_encoder_cmd(struct file *file, void *fh,
 			return 0;
 		h = cx18_find_handle(cx);
 		if (h == CX18_INVALID_TASK_HANDLE) {
-			CX18_ERR("Can't find valid task handle for "
-				 "V4L2_ENC_CMD_PAUSE\n");
+			CX18_ERR("Can't find valid task handle for V4L2_ENC_CMD_PAUSE\n");
 			return -EBADFD;
 		}
 		cx18_mute(cx);
@@ -966,8 +962,7 @@ static int cx18_encoder_cmd(struct file *file, void *fh,
 			return 0;
 		h = cx18_find_handle(cx);
 		if (h == CX18_INVALID_TASK_HANDLE) {
-			CX18_ERR("Can't find valid task handle for "
-				 "V4L2_ENC_CMD_RESUME\n");
+			CX18_ERR("Can't find valid task handle for V4L2_ENC_CMD_RESUME\n");
 			return -EBADFD;
 		}
 		cx18_vapi(cx, CX18_CPU_CAPTURE_RESUME, 1, h);

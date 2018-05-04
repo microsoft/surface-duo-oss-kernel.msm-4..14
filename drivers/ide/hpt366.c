@@ -130,7 +130,7 @@
 #include <linux/ide.h>
 #include <linux/slab.h>
 
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <asm/io.h>
 
 #define DRV_NAME "hpt366"
@@ -531,14 +531,9 @@ static const struct hpt_info hpt371n = {
 	.timings	= &hpt37x_timings
 };
 
-static int check_in_drive_list(ide_drive_t *drive, const char **list)
+static bool check_in_drive_list(ide_drive_t *drive, const char **list)
 {
-	char *m = (char *)&drive->id[ATA_ID_PROD];
-
-	while (*list)
-		if (!strcmp(*list++, m))
-			return 1;
-	return 0;
+	return match_string(list, -1, (char *)&drive->id[ATA_ID_PROD]) >= 0;
 }
 
 static struct hpt_info *hpt3xx_get_info(struct device *dev)
@@ -1017,7 +1012,7 @@ static int init_chipset_hpt366(struct pci_dev *dev)
 		pci_read_config_dword(dev, 0x40, &itr1);
 
 		/* Detect PCI clock by looking at cmd_high_time. */
-		switch((itr1 >> 8) & 0x07) {
+		switch ((itr1 >> 8) & 0x0f) {
 			case 0x09:
 				pci_clk = 40;
 				break;
@@ -1241,7 +1236,7 @@ static int init_dma_hpt366(ide_hwif_t *hwif,
 
 	dma_old = inb(base + 2);
 
-	local_irq_save(flags);
+	local_irq_save_nort(flags);
 
 	dma_new = dma_old;
 	pci_read_config_byte(dev, hwif->channel ? 0x4b : 0x43, &masterdma);
@@ -1252,7 +1247,7 @@ static int init_dma_hpt366(ide_hwif_t *hwif,
 	if (dma_new != dma_old)
 		outb(dma_new, base + 2);
 
-	local_irq_restore(flags);
+	local_irq_restore_nort(flags);
 
 	printk(KERN_INFO "    %s: BM-DMA at 0x%04lx-0x%04lx\n",
 			 hwif->name, base, base + 7);

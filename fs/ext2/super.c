@@ -31,13 +31,13 @@
 #include <linux/mount.h>
 #include <linux/log2.h>
 #include <linux/quotaops.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
+#include <linux/dax.h>
 #include "ext2.h"
 #include "xattr.h"
 #include "acl.h"
 
-static void ext2_sync_super(struct super_block *sb,
-			    struct ext2_super_block *es, int wait);
+static void ext2_write_super(struct super_block *sb);
 static int ext2_remount (struct super_block * sb, int * flags, char * data);
 static int ext2_statfs (struct dentry * dentry, struct kstatfs * buf);
 static int ext2_sync_fs(struct super_block *sb, int wait);
@@ -52,7 +52,7 @@ void ext2_error(struct super_block *sb, const char *function,
 	struct ext2_sb_info *sbi = EXT2_SB(sb);
 	struct ext2_super_block *es = sbi->s_es;
 
-	if (!(sb->s_flags & MS_RDONLY)) {
+	if (!sb_rdonly(sb)) {
 		spin_lock(&sbi->s_lock);
 		sbi->s_mount_state |= EXT2_ERROR_FS;
 		es->s_state |= cpu_to_le16(EXT2_ERROR_FS);
@@ -123,16 +123,35 @@ void ext2_update_dynamic_rev(struct super_block *sb)
 	 */
 }
 
+#ifdef CONFIG_QUOTA
+static int ext2_quota_off(struct super_block *sb, int type);
+
+static void ext2_quota_off_umount(struct super_block *sb)
+{
+	int type;
+
+	for (type = 0; type < MAXQUOTAS; type++)
+		ext2_quota_off(sb, type);
+}
+#else
+static inline void ext2_quota_off_umount(struct super_block *sb)
+{
+}
+#endif
+
 static void ext2_put_super (struct super_block * sb)
 {
 	int db_count;
 	int i;
 	struct ext2_sb_info *sbi = EXT2_SB(sb);
 
-	dquot_disable(sb, -1, DQUOT_USAGE_ENABLED | DQUOT_LIMITS_ENABLED);
+	ext2_quota_off_umount(sb);
 
-	ext2_xattr_put_super(sb);
-	if (!(sb->s_flags & MS_RDONLY)) {
+	if (sbi->s_ea_block_cache) {
+		ext2_xattr_destroy_cache(sbi->s_ea_block_cache);
+		sbi->s_ea_block_cache = NULL;
+	}
+	if (!sb_rdonly(sb)) {
 		struct ext2_super_block *es = sbi->s_es;
 
 		spin_lock(&sbi->s_lock);
@@ -152,6 +171,7 @@ static void ext2_put_super (struct super_block * sb)
 	brelse (sbi->s_sbh);
 	sb->s_fs_info = NULL;
 	kfree(sbi->s_blockgroup_lock);
+	fs_put_dax(sbi->s_daxdev);
 	kfree(sbi);
 }
 
@@ -192,6 +212,9 @@ static void init_once(void *foo)
 	init_rwsem(&ei->xattr_sem);
 #endif
 	mutex_init(&ei->truncate_mutex);
+#ifdef CONFIG_FS_DAX
+	init_rwsem(&ei->dax_sem);
+#endif
 	inode_init_once(&ei->vfs_inode);
 }
 
@@ -200,7 +223,7 @@ static int __init init_inodecache(void)
 	ext2_inode_cachep = kmem_cache_create("ext2_inode_cache",
 					     sizeof(struct ext2_inode_info),
 					     0, (SLAB_RECLAIM_ACCOUNT|
-						SLAB_MEM_SPREAD),
+						SLAB_MEM_SPREAD|SLAB_ACCOUNT),
 					     init_once);
 	if (ext2_inode_cachep == NULL)
 		return -ENOMEM;
@@ -308,10 +331,23 @@ static int ext2_show_options(struct seq_file *seq, struct dentry *root)
 #ifdef CONFIG_QUOTA
 static ssize_t ext2_quota_read(struct super_block *sb, int type, char *data, size_t len, loff_t off);
 static ssize_t ext2_quota_write(struct super_block *sb, int type, const char *data, size_t len, loff_t off);
+static int ext2_quota_on(struct super_block *sb, int type, int format_id,
+			 const struct path *path);
 static struct dquot **ext2_get_dquots(struct inode *inode)
 {
 	return EXT2_I(inode)->i_dquot;
 }
+
+static const struct quotactl_ops ext2_quotactl_ops = {
+	.quota_on	= ext2_quota_on,
+	.quota_off	= ext2_quota_off,
+	.quota_sync	= dquot_quota_sync,
+	.get_state	= dquot_get_state,
+	.set_info	= dquot_set_dqinfo,
+	.get_dqblk	= dquot_get_dqblk,
+	.set_dqblk	= dquot_set_dqblk,
+	.get_nextdqblk	= dquot_get_next_dqblk,
+};
 #endif
 
 static const struct super_operations ext2_sops = {
@@ -566,6 +602,8 @@ static int parse_options(char *options, struct super_block *sb)
 			/* Fall through */
 		case Opt_dax:
 #ifdef CONFIG_FS_DAX
+			ext2_msg(sb, KERN_WARNING,
+		"DAX enabled. Warning: EXPERIMENTAL, use at your own risk");
 			set_opt(sbi->s_mount_opt, DAX);
 #else
 			ext2_msg(sb, KERN_INFO, "dax option not supported");
@@ -776,6 +814,7 @@ static unsigned long descriptor_loc(struct super_block *sb,
 
 static int ext2_fill_super(struct super_block *sb, void *data, int silent)
 {
+	struct dax_device *dax_dev = fs_dax_get_by_bdev(sb->s_bdev);
 	struct buffer_head * bh;
 	struct ext2_sb_info * sbi;
 	struct ext2_super_block * es;
@@ -805,6 +844,7 @@ static int ext2_fill_super(struct super_block *sb, void *data, int silent)
 	}
 	sb->s_fs_info = sbi;
 	sbi->s_sb_block = sb_block;
+	sbi->s_daxdev = dax_dev;
 
 	spin_lock_init(&sbi->s_lock);
 
@@ -882,6 +922,7 @@ static int ext2_fill_super(struct super_block *sb, void *data, int silent)
 	sb->s_flags = (sb->s_flags & ~MS_POSIXACL) |
 		((EXT2_SB(sb)->s_mount_opt & EXT2_MOUNT_POSIX_ACL) ?
 		 MS_POSIXACL : 0);
+	sb->s_iflags |= SB_I_CGROUPWB;
 
 	if (le32_to_cpu(es->s_rev_level) == EXT2_GOOD_OLD_REV &&
 	    (EXT2_HAS_COMPAT_FEATURE(sb, ~0U) ||
@@ -902,8 +943,7 @@ static int ext2_fill_super(struct super_block *sb, void *data, int silent)
 			le32_to_cpu(features));
 		goto failed_mount;
 	}
-	if (!(sb->s_flags & MS_RDONLY) &&
-	    (features = EXT2_HAS_RO_COMPAT_FEATURE(sb, ~EXT2_FEATURE_RO_COMPAT_SUPP))){
+	if (!sb_rdonly(sb) && (features = EXT2_HAS_RO_COMPAT_FEATURE(sb, ~EXT2_FEATURE_RO_COMPAT_SUPP))){
 		ext2_msg(sb, KERN_ERR, "error: couldn't mount RDWR because of "
 		       "unsupported optional features (%x)",
 		       le32_to_cpu(features));
@@ -913,16 +953,9 @@ static int ext2_fill_super(struct super_block *sb, void *data, int silent)
 	blocksize = BLOCK_SIZE << le32_to_cpu(sbi->s_es->s_log_block_size);
 
 	if (sbi->s_mount_opt & EXT2_MOUNT_DAX) {
-		if (blocksize != PAGE_SIZE) {
-			ext2_msg(sb, KERN_ERR,
-					"error: unsupported blocksize for dax");
+		err = bdev_dax_supported(sb, blocksize);
+		if (err)
 			goto failed_mount;
-		}
-		if (!sb->s_bdev->bd_disk->fops->direct_access) {
-			ext2_msg(sb, KERN_ERR,
-					"error: device does not support dax");
-			goto failed_mount;
-		}
 	}
 
 	/* If the blocksize doesn't match, re-read the thing.. */
@@ -1098,6 +1131,14 @@ static int ext2_fill_super(struct super_block *sb, void *data, int silent)
 		ext2_msg(sb, KERN_ERR, "error: insufficient memory");
 		goto failed_mount3;
 	}
+
+#ifdef CONFIG_EXT2_FS_XATTR
+	sbi->s_ea_block_cache = ext2_xattr_create_cache();
+	if (!sbi->s_ea_block_cache) {
+		ext2_msg(sb, KERN_ERR, "Failed to create ea_block_cache");
+		goto failed_mount3;
+	}
+#endif
 	/*
 	 * set up enough so that it can read an inode
 	 */
@@ -1107,7 +1148,7 @@ static int ext2_fill_super(struct super_block *sb, void *data, int silent)
 
 #ifdef CONFIG_QUOTA
 	sb->dq_op = &dquot_operations;
-	sb->s_qcop = &dquot_quotactl_ops;
+	sb->s_qcop = &ext2_quotactl_ops;
 	sb->s_quota_types = QTYPE_MASK_USR | QTYPE_MASK_GRP;
 #endif
 
@@ -1131,7 +1172,7 @@ static int ext2_fill_super(struct super_block *sb, void *data, int silent)
 	if (EXT2_HAS_COMPAT_FEATURE(sb, EXT3_FEATURE_COMPAT_HAS_JOURNAL))
 		ext2_msg(sb, KERN_WARNING,
 			"warning: mounting ext3 filesystem as ext2");
-	if (ext2_setup_super (sb, es, sb->s_flags & MS_RDONLY))
+	if (ext2_setup_super (sb, es, sb_rdonly(sb)))
 		sb->s_flags |= MS_RDONLY;
 	ext2_write_super(sb);
 	return 0;
@@ -1143,6 +1184,8 @@ cantfind_ext2:
 			sb->s_id);
 	goto failed_mount;
 failed_mount3:
+	if (sbi->s_ea_block_cache)
+		ext2_xattr_destroy_cache(sbi->s_ea_block_cache);
 	percpu_counter_destroy(&sbi->s_freeblocks_counter);
 	percpu_counter_destroy(&sbi->s_freeinodes_counter);
 	percpu_counter_destroy(&sbi->s_dirs_counter);
@@ -1159,6 +1202,7 @@ failed_sbi:
 	kfree(sbi->s_blockgroup_lock);
 	kfree(sbi);
 failed:
+	fs_put_dax(dax_dev);
 	return ret;
 }
 
@@ -1182,8 +1226,8 @@ static void ext2_clear_super_error(struct super_block *sb)
 	}
 }
 
-static void ext2_sync_super(struct super_block *sb, struct ext2_super_block *es,
-			    int wait)
+void ext2_sync_super(struct super_block *sb, struct ext2_super_block *es,
+		     int wait)
 {
 	ext2_clear_super_error(sb);
 	spin_lock(&EXT2_SB(sb)->s_lock);
@@ -1258,9 +1302,9 @@ static int ext2_unfreeze(struct super_block *sb)
 	return 0;
 }
 
-void ext2_write_super(struct super_block *sb)
+static void ext2_write_super(struct super_block *sb)
 {
-	if (!(sb->s_flags & MS_RDONLY))
+	if (!sb_rdonly(sb))
 		ext2_sync_fs(sb, 1);
 }
 
@@ -1298,7 +1342,7 @@ static int ext2_remount (struct super_block * sb, int * flags, char * data)
 			 "dax flag with busy inodes while remounting");
 		sbi->s_mount_opt ^= EXT2_MOUNT_DAX;
 	}
-	if ((*flags & MS_RDONLY) == (sb->s_flags & MS_RDONLY)) {
+	if ((bool)(*flags & MS_RDONLY) == sb_rdonly(sb)) {
 		spin_unlock(&sbi->s_lock);
 		return 0;
 	}
@@ -1531,9 +1575,54 @@ out:
 	if (inode->i_size < off+len-towrite)
 		i_size_write(inode, off+len-towrite);
 	inode->i_version++;
-	inode->i_mtime = inode->i_ctime = CURRENT_TIME;
+	inode->i_mtime = inode->i_ctime = current_time(inode);
 	mark_inode_dirty(inode);
 	return len - towrite;
+}
+
+static int ext2_quota_on(struct super_block *sb, int type, int format_id,
+			 const struct path *path)
+{
+	int err;
+	struct inode *inode;
+
+	err = dquot_quota_on(sb, type, format_id, path);
+	if (err)
+		return err;
+
+	inode = d_inode(path->dentry);
+	inode_lock(inode);
+	EXT2_I(inode)->i_flags |= EXT2_NOATIME_FL | EXT2_IMMUTABLE_FL;
+	inode_set_flags(inode, S_NOATIME | S_IMMUTABLE,
+			S_NOATIME | S_IMMUTABLE);
+	inode_unlock(inode);
+	mark_inode_dirty(inode);
+
+	return 0;
+}
+
+static int ext2_quota_off(struct super_block *sb, int type)
+{
+	struct inode *inode = sb_dqopt(sb)->files[type];
+	int err;
+
+	if (!inode || !igrab(inode))
+		goto out;
+
+	err = dquot_quota_off(sb, type);
+	if (err)
+		goto out_put;
+
+	inode_lock(inode);
+	EXT2_I(inode)->i_flags &= ~(EXT2_NOATIME_FL | EXT2_IMMUTABLE_FL);
+	inode_set_flags(inode, 0, S_NOATIME | S_IMMUTABLE);
+	inode_unlock(inode);
+	mark_inode_dirty(inode);
+out_put:
+	iput(inode);
+	return err;
+out:
+	return dquot_quota_off(sb, type);
 }
 
 #endif
@@ -1549,20 +1638,17 @@ MODULE_ALIAS_FS("ext2");
 
 static int __init init_ext2_fs(void)
 {
-	int err = init_ext2_xattr();
-	if (err)
-		return err;
+	int err;
+
 	err = init_inodecache();
 	if (err)
-		goto out1;
+		return err;
         err = register_filesystem(&ext2_fs_type);
 	if (err)
 		goto out;
 	return 0;
 out:
 	destroy_inodecache();
-out1:
-	exit_ext2_xattr();
 	return err;
 }
 
@@ -1570,7 +1656,6 @@ static void __exit exit_ext2_fs(void)
 {
 	unregister_filesystem(&ext2_fs_type);
 	destroy_inodecache();
-	exit_ext2_xattr();
 }
 
 MODULE_AUTHOR("Remy Card and others");

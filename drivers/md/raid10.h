@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _RAID10_H
 #define _RAID10_H
 
@@ -53,15 +54,22 @@ struct r10conf {
 	sector_t		offset_diff;
 
 	struct list_head	retry_list;
+	/* A separate list of r1bio which just need raid_end_bio_io called.
+	 * This mustn't happen for writes which had any errors if the superblock
+	 * needs to be written.
+	 */
+	struct list_head	bio_end_io_list;
+
 	/* queue pending writes and submit them on unplug */
 	struct bio_list		pending_bio_list;
 	int			pending_count;
 
 	spinlock_t		resync_lock;
-	int			nr_pending;
+	atomic_t		nr_pending;
 	int			nr_waiting;
 	int			nr_queued;
 	int			barrier;
+	int			array_freeze_pending;
 	sector_t		next_resync;
 	int			fullsync;  /* set to 1 if a full sync is needed,
 					    * (fresh device added).
@@ -75,6 +83,7 @@ struct r10conf {
 	mempool_t		*r10bio_pool;
 	mempool_t		*r10buf_pool;
 	struct page		*tmppage;
+	struct bio_set		*bio_split;
 
 	/* When taking over an array from a different personality, we store
 	 * the new thread here until we fully activate the array.
@@ -149,5 +158,7 @@ enum r10bio_state {
  * flag is set
  */
 	R10BIO_Previous,
+/* failfast devices did receive failfast requests. */
+	R10BIO_FailFast,
 };
 #endif

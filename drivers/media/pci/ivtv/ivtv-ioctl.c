@@ -32,10 +32,13 @@
 #include "ivtv-gpio.h"
 #include "ivtv-controls.h"
 #include "ivtv-cards.h"
-#include <media/saa7127.h>
+#include <media/i2c/saa7127.h>
 #include <media/tveeprom.h>
 #include <media/v4l2-event.h>
+#ifdef CONFIG_VIDEO_IVTV_DEPRECATED_IOCTLS
 #include <linux/dvb/audio.h>
+#include <linux/dvb/video.h>
+#endif
 
 u16 ivtv_service2vbi(int type)
 {
@@ -581,7 +584,9 @@ static int ivtv_s_fmt_vid_cap(struct file *file, void *fh, struct v4l2_format *f
 {
 	struct ivtv_open_id *id = fh2id(fh);
 	struct ivtv *itv = id->itv;
-	struct v4l2_mbus_framefmt mbus_fmt;
+	struct v4l2_subdev_format format = {
+		.which = V4L2_SUBDEV_FORMAT_ACTIVE,
+	};
 	int ret = ivtv_try_fmt_vid_cap(file, fh, fmt);
 	int w = fmt->fmt.pix.width;
 	int h = fmt->fmt.pix.height;
@@ -599,10 +604,10 @@ static int ivtv_s_fmt_vid_cap(struct file *file, void *fh, struct v4l2_format *f
 	itv->cxhdl.height = h;
 	if (v4l2_ctrl_g_ctrl(itv->cxhdl.video_encoding) == V4L2_MPEG_VIDEO_ENCODING_MPEG_1)
 		fmt->fmt.pix.width /= 2;
-	mbus_fmt.width = fmt->fmt.pix.width;
-	mbus_fmt.height = h;
-	mbus_fmt.code = MEDIA_BUS_FMT_FIXED;
-	v4l2_subdev_call(itv->sd_video, video, s_mbus_fmt, &mbus_fmt);
+	format.format.width = fmt->fmt.pix.width;
+	format.format.height = h;
+	format.format.code = MEDIA_BUS_FMT_FIXED;
+	v4l2_subdev_call(itv->sd_video, pad, set_fmt, NULL, &format);
 	return ivtv_g_fmt_vid_cap(file, fh, fmt);
 }
 
@@ -829,11 +834,11 @@ static int ivtv_cropcap(struct file *file, void *fh, struct v4l2_cropcap *cropca
 	struct ivtv *itv = id->itv;
 
 	if (cropcap->type == V4L2_BUF_TYPE_VIDEO_CAPTURE) {
-		cropcap->pixelaspect.numerator = itv->is_50hz ? 59 : 10;
-		cropcap->pixelaspect.denominator = itv->is_50hz ? 54 : 11;
+		cropcap->pixelaspect.numerator = itv->is_50hz ? 54 : 11;
+		cropcap->pixelaspect.denominator = itv->is_50hz ? 59 : 10;
 	} else if (cropcap->type == V4L2_BUF_TYPE_VIDEO_OUTPUT) {
-		cropcap->pixelaspect.numerator = itv->is_out_50hz ? 59 : 10;
-		cropcap->pixelaspect.denominator = itv->is_out_50hz ? 54 : 11;
+		cropcap->pixelaspect.numerator = itv->is_out_50hz ? 54 : 11;
+		cropcap->pixelaspect.denominator = itv->is_out_50hz ? 59 : 10;
 	} else {
 		return -EINVAL;
 	}
@@ -1501,10 +1506,8 @@ static int ivtv_subscribe_event(struct v4l2_fh *fh, const struct v4l2_event_subs
 	case V4L2_EVENT_VSYNC:
 	case V4L2_EVENT_EOS:
 		return v4l2_event_subscribe(fh, sub, 0, NULL);
-	case V4L2_EVENT_CTRL:
-		return v4l2_event_subscribe(fh, sub, 0, &v4l2_ctrl_sub_ev_ops);
 	default:
-		return -EINVAL;
+		return v4l2_ctrl_subscribe_event(fh, sub);
 	}
 }
 
@@ -1529,7 +1532,8 @@ static int ivtv_log_status(struct file *file, void *fh)
 	ivtv_get_audio_input(itv, itv->audio_input, &audin);
 	IVTV_INFO("Video Input:  %s\n", vidin.name);
 	IVTV_INFO("Audio Input:  %s%s\n", audin.name,
-		(itv->dualwatch_stereo_mode & ~0x300) == 0x200 ? " (Bilingual)" : "");
+		itv->dualwatch_stereo_mode == V4L2_MPEG_AUDIO_MODE_DUAL ?
+			" (Bilingual)" : "");
 	if (has_output) {
 		struct v4l2_output vidout;
 		struct v4l2_audioout audout;
@@ -1617,13 +1621,23 @@ static int ivtv_try_decoder_cmd(struct file *file, void *fh, struct v4l2_decoder
 	return ivtv_video_command(itv, id, dec, true);
 }
 
+#ifdef CONFIG_VIDEO_IVTV_DEPRECATED_IOCTLS
+static __inline__ void warn_deprecated_ioctl(const char *name)
+{
+	pr_warn_once("warning: the %s ioctl is deprecated. Don't use it, as it will be removed soon\n",
+		     name);
+}
+#endif
+
 static int ivtv_decoder_ioctls(struct file *filp, unsigned int cmd, void *arg)
 {
 	struct ivtv_open_id *id = fh2id(filp->private_data);
 	struct ivtv *itv = id->itv;
-	int nonblocking = filp->f_flags & O_NONBLOCK;
 	struct ivtv_stream *s = &itv->streams[id->type];
+#ifdef CONFIG_VIDEO_IVTV_DEPRECATED_IOCTLS
+	int nonblocking = filp->f_flags & O_NONBLOCK;
 	unsigned long iarg = (unsigned long)arg;
+#endif
 
 	switch (cmd) {
 	case IVTV_IOC_DMA_FRAME: {
@@ -1655,12 +1669,12 @@ static int ivtv_decoder_ioctls(struct file *filp, unsigned int cmd, void *arg)
 		if (!(itv->v4l2_cap & V4L2_CAP_VIDEO_OUTPUT))
 			return -EINVAL;
 		return ivtv_passthrough_mode(itv, *(int *)arg != 0);
-
+#ifdef CONFIG_VIDEO_IVTV_DEPRECATED_IOCTLS
 	case VIDEO_GET_PTS: {
 		s64 *pts = arg;
 		s64 frame;
 
-		IVTV_DEBUG_IOCTL("VIDEO_GET_PTS\n");
+		warn_deprecated_ioctl("VIDEO_GET_PTS");
 		if (s->type < IVTV_DEC_STREAM_TYPE_MPG) {
 			*pts = s->dma_pts;
 			break;
@@ -1674,7 +1688,7 @@ static int ivtv_decoder_ioctls(struct file *filp, unsigned int cmd, void *arg)
 		s64 *frame = arg;
 		s64 pts;
 
-		IVTV_DEBUG_IOCTL("VIDEO_GET_FRAME_COUNT\n");
+		warn_deprecated_ioctl("VIDEO_GET_FRAME_COUNT");
 		if (s->type < IVTV_DEC_STREAM_TYPE_MPG) {
 			*frame = 0;
 			break;
@@ -1687,7 +1701,7 @@ static int ivtv_decoder_ioctls(struct file *filp, unsigned int cmd, void *arg)
 	case VIDEO_PLAY: {
 		struct v4l2_decoder_cmd dc;
 
-		IVTV_DEBUG_IOCTL("VIDEO_PLAY\n");
+		warn_deprecated_ioctl("VIDEO_PLAY");
 		memset(&dc, 0, sizeof(dc));
 		dc.cmd = V4L2_DEC_CMD_START;
 		return ivtv_video_command(itv, id, &dc, 0);
@@ -1696,7 +1710,7 @@ static int ivtv_decoder_ioctls(struct file *filp, unsigned int cmd, void *arg)
 	case VIDEO_STOP: {
 		struct v4l2_decoder_cmd dc;
 
-		IVTV_DEBUG_IOCTL("VIDEO_STOP\n");
+		warn_deprecated_ioctl("VIDEO_STOP");
 		memset(&dc, 0, sizeof(dc));
 		dc.cmd = V4L2_DEC_CMD_STOP;
 		dc.flags = V4L2_DEC_CMD_STOP_TO_BLACK | V4L2_DEC_CMD_STOP_IMMEDIATELY;
@@ -1706,7 +1720,7 @@ static int ivtv_decoder_ioctls(struct file *filp, unsigned int cmd, void *arg)
 	case VIDEO_FREEZE: {
 		struct v4l2_decoder_cmd dc;
 
-		IVTV_DEBUG_IOCTL("VIDEO_FREEZE\n");
+		warn_deprecated_ioctl("VIDEO_FREEZE");
 		memset(&dc, 0, sizeof(dc));
 		dc.cmd = V4L2_DEC_CMD_PAUSE;
 		return ivtv_video_command(itv, id, &dc, 0);
@@ -1715,7 +1729,7 @@ static int ivtv_decoder_ioctls(struct file *filp, unsigned int cmd, void *arg)
 	case VIDEO_CONTINUE: {
 		struct v4l2_decoder_cmd dc;
 
-		IVTV_DEBUG_IOCTL("VIDEO_CONTINUE\n");
+		warn_deprecated_ioctl("VIDEO_CONTINUE");
 		memset(&dc, 0, sizeof(dc));
 		dc.cmd = V4L2_DEC_CMD_RESUME;
 		return ivtv_video_command(itv, id, &dc, 0);
@@ -1729,9 +1743,9 @@ static int ivtv_decoder_ioctls(struct file *filp, unsigned int cmd, void *arg)
 		int try = (cmd == VIDEO_TRY_COMMAND);
 
 		if (try)
-			IVTV_DEBUG_IOCTL("VIDEO_TRY_COMMAND %d\n", dc->cmd);
+			warn_deprecated_ioctl("VIDEO_TRY_COMMAND");
 		else
-			IVTV_DEBUG_IOCTL("VIDEO_COMMAND %d\n", dc->cmd);
+			warn_deprecated_ioctl("VIDEO_COMMAND");
 		return ivtv_video_command(itv, id, dc, try);
 	}
 
@@ -1739,7 +1753,7 @@ static int ivtv_decoder_ioctls(struct file *filp, unsigned int cmd, void *arg)
 		struct video_event *ev = arg;
 		DEFINE_WAIT(wait);
 
-		IVTV_DEBUG_IOCTL("VIDEO_GET_EVENT\n");
+		warn_deprecated_ioctl("VIDEO_GET_EVENT");
 		if (!(itv->v4l2_cap & V4L2_CAP_VIDEO_OUTPUT))
 			return -EINVAL;
 		memset(ev, 0, sizeof(*ev));
@@ -1782,28 +1796,28 @@ static int ivtv_decoder_ioctls(struct file *filp, unsigned int cmd, void *arg)
 	}
 
 	case VIDEO_SELECT_SOURCE:
-		IVTV_DEBUG_IOCTL("VIDEO_SELECT_SOURCE\n");
+		warn_deprecated_ioctl("VIDEO_SELECT_SOURCE");
 		if (!(itv->v4l2_cap & V4L2_CAP_VIDEO_OUTPUT))
 			return -EINVAL;
 		return ivtv_passthrough_mode(itv, iarg == VIDEO_SOURCE_DEMUX);
 
 	case AUDIO_SET_MUTE:
-		IVTV_DEBUG_IOCTL("AUDIO_SET_MUTE\n");
+		warn_deprecated_ioctl("AUDIO_SET_MUTE");
 		itv->speed_mute_audio = iarg;
 		return 0;
 
 	case AUDIO_CHANNEL_SELECT:
-		IVTV_DEBUG_IOCTL("AUDIO_CHANNEL_SELECT\n");
+		warn_deprecated_ioctl("AUDIO_CHANNEL_SELECT");
 		if (iarg > AUDIO_STEREO_SWAPPED)
 			return -EINVAL;
 		return v4l2_ctrl_s_ctrl(itv->ctrl_audio_playback, iarg + 1);
 
 	case AUDIO_BILINGUAL_CHANNEL_SELECT:
-		IVTV_DEBUG_IOCTL("AUDIO_BILINGUAL_CHANNEL_SELECT\n");
+		warn_deprecated_ioctl("AUDIO_BILINGUAL_CHANNEL_SELECT");
 		if (iarg > AUDIO_STEREO_SWAPPED)
 			return -EINVAL;
 		return v4l2_ctrl_s_ctrl(itv->ctrl_audio_multilingual_playback, iarg + 1);
-
+#endif
 	default:
 		return -EINVAL;
 	}
@@ -1818,6 +1832,7 @@ static long ivtv_default(struct file *file, void *fh, bool valid_prio,
 	if (!valid_prio) {
 		switch (cmd) {
 		case IVTV_IOC_PASSTHROUGH_MODE:
+#ifdef CONFIG_VIDEO_IVTV_DEPRECATED_IOCTLS
 		case VIDEO_PLAY:
 		case VIDEO_STOP:
 		case VIDEO_FREEZE:
@@ -1827,6 +1842,7 @@ static long ivtv_default(struct file *file, void *fh, bool valid_prio,
 		case AUDIO_SET_MUTE:
 		case AUDIO_CHANNEL_SELECT:
 		case AUDIO_BILINGUAL_CHANNEL_SELECT:
+#endif
 			return -EBUSY;
 		}
 	}
@@ -1844,6 +1860,7 @@ static long ivtv_default(struct file *file, void *fh, bool valid_prio,
 
 	case IVTV_IOC_DMA_FRAME:
 	case IVTV_IOC_PASSTHROUGH_MODE:
+#ifdef CONFIG_VIDEO_IVTV_DEPRECATED_IOCTLS
 	case VIDEO_GET_PTS:
 	case VIDEO_GET_FRAME_COUNT:
 	case VIDEO_GET_EVENT:
@@ -1857,6 +1874,7 @@ static long ivtv_default(struct file *file, void *fh, bool valid_prio,
 	case AUDIO_SET_MUTE:
 	case AUDIO_CHANNEL_SELECT:
 	case AUDIO_BILINGUAL_CHANNEL_SELECT:
+#endif
 		return ivtv_decoder_ioctls(file, cmd, (void *)arg);
 
 	default:

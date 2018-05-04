@@ -291,9 +291,9 @@ static int hid_time_probe(struct platform_device *pdev)
 					"hid-sensor-time", &hid_time_rtc_ops,
 					THIS_MODULE);
 
-	if (IS_ERR_OR_NULL(time_state->rtc)) {
+	if (IS_ERR(time_state->rtc)) {
 		hid_device_io_stop(hsdev->hdev);
-		ret = time_state->rtc ? PTR_ERR(time_state->rtc) : -ENODEV;
+		ret = PTR_ERR(time_state->rtc);
 		time_state->rtc = NULL;
 		dev_err(&pdev->dev, "rtc device register failed!\n");
 		goto err_rtc;
@@ -318,7 +318,7 @@ static int hid_time_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static struct platform_device_id hid_time_ids[] = {
+static const struct platform_device_id hid_time_ids[] = {
 	{
 		/* Format: HID-SENSOR-usage_id_in_hex_lowercase */
 		.name = "HID-SENSOR-2000a0",

@@ -57,8 +57,8 @@
 #include <asm/mach-netlogic/multi-node.h>
 
 struct irq_desc;
-void nlm_smp_function_ipi_handler(unsigned int irq, struct irq_desc *desc);
-void nlm_smp_resched_ipi_handler(unsigned int irq, struct irq_desc *desc);
+void nlm_smp_function_ipi_handler(struct irq_desc *desc);
+void nlm_smp_resched_ipi_handler(struct irq_desc *desc);
 void nlm_smp_irq_init(int hwcpuid);
 void nlm_boot_secondary_cpus(void);
 int nlm_wakeup_secondary_cpus(void);
@@ -84,11 +84,11 @@ nlm_set_nmi_handler(void *handler)
  */
 void nlm_init_boot_cpu(void);
 unsigned int nlm_get_cpu_frequency(void);
-extern struct plat_smp_ops nlm_smp_ops;
+extern const struct plat_smp_ops nlm_smp_ops;
 extern char nlm_reset_entry[], nlm_reset_entry_end[];
 
 /* SWIOTLB */
-extern struct dma_map_ops nlm_swiotlb_dma_ops;
+extern const struct dma_map_ops nlm_swiotlb_dma_ops;
 
 extern unsigned int nlm_threads_per_core;
 extern cpumask_t nlm_cpumask;

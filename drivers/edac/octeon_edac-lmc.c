@@ -19,7 +19,6 @@
 #include <asm/octeon/octeon.h>
 #include <asm/octeon/cvmx-lmcx-defs.h>
 
-#include "edac_core.h"
 #include "edac_module.h"
 
 #define OCTEON_MAX_MC 4
@@ -79,6 +78,7 @@ static void octeon_lmc_edac_poll_o2(struct mem_ctl_info *mci)
 	if (!pvt->inject)
 		int_reg.u64 = cvmx_read_csr(CVMX_LMCX_INT(mci->mc_idx));
 	else {
+		int_reg.u64 = 0;
 		if (pvt->error_type == 1)
 			int_reg.s.sec_err = 1;
 		if (pvt->error_type == 2)
@@ -234,7 +234,7 @@ static int octeon_lmc_edac_probe(struct platform_device *pdev)
 	layers[0].size = 1;
 	layers[0].is_virt_csrow = false;
 
-	if (OCTEON_IS_MODEL(OCTEON_FAM_1_PLUS)) {
+	if (OCTEON_IS_OCTEON1PLUS()) {
 		union cvmx_lmcx_mem_cfg0 cfg0;
 
 		cfg0.u64 = cvmx_read_csr(CVMX_LMCX_MEM_CFG0(0));

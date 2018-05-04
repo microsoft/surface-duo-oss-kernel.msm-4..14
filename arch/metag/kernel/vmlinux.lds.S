@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /* ld script to make Meta Linux kernel */
 
 #include <asm/thread_info.h>
@@ -21,9 +22,11 @@ SECTIONS
   .text : {
 	TEXT_TEXT
 	SCHED_TEXT
+	CPUIDLE_TEXT
 	LOCK_TEXT
 	KPROBES_TEXT
 	IRQENTRY_TEXT
+	SOFTIRQENTRY_TEXT
 	*(.text.*)
 	*(.gnu.warning)
 	}

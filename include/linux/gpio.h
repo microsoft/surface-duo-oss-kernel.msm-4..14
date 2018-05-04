@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __LINUX_GPIO_H
 #define __LINUX_GPIO_H
 
@@ -192,13 +193,6 @@ static inline int gpio_export_link(struct device *dev, const char *name,
 				unsigned gpio)
 {
 	/* GPIO can never have been exported */
-	WARN_ON(1);
-	return -EINVAL;
-}
-
-static inline int gpio_sysfs_set_active_low(unsigned gpio, int value)
-{
-	/* GPIO can never have been requested */
 	WARN_ON(1);
 	return -EINVAL;
 }

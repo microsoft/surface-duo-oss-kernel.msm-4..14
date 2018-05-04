@@ -55,6 +55,7 @@
 #include <linux/module.h>
 #include <linux/omap-iommu.h>
 #include <linux/platform_device.h>
+#include <linux/property.h>
 #include <linux/regulator/consumer.h>
 #include <linux/slab.h>
 #include <linux/sched.h>
@@ -63,8 +64,9 @@
 #include <asm/dma-iommu.h>
 
 #include <media/v4l2-common.h>
+#include <media/v4l2-fwnode.h>
 #include <media/v4l2-device.h>
-#include <media/v4l2-of.h>
+#include <media/v4l2-mc.h>
 
 #include "isp.h"
 #include "ispreg.h"
@@ -101,7 +103,6 @@ static const struct isp_res_mapping isp_res_maps[] = {
 			0x0000, /* csi2a, len 0x0170 */
 			0x0170, /* csiphy2, len 0x000c */
 		},
-		.syscon_offset = 0xdc,
 		.phy_type = ISP_PHY_TYPE_3430,
 	},
 	{
@@ -124,7 +125,6 @@ static const struct isp_res_mapping isp_res_maps[] = {
 			0x0570, /* csiphy1, len 0x000c */
 			0x05c0, /* csi2c, len 0x0040 (2nd area) */
 		},
-		.syscon_offset = 0x2f0,
 		.phy_type = ISP_PHY_TYPE_3630,
 	},
 };
@@ -451,7 +451,7 @@ void omap3isp_configure_bridge(struct isp_device *isp,
 	case CCDC_INPUT_PARALLEL:
 		ispctrl_val |= ISPCTRL_PAR_SER_CLK_SEL_PARALLEL;
 		ispctrl_val |= parcfg->clk_pol << ISPCTRL_PAR_CLK_POL_SHIFT;
-		shift += parcfg->data_lane_shift * 2;
+		shift += parcfg->data_lane_shift;
 		break;
 
 	case CCDC_INPUT_CSI2A:
@@ -481,8 +481,8 @@ void omap3isp_hist_dma_done(struct isp_device *isp)
 	    omap3isp_stat_pcr_busy(&isp->isp_hist)) {
 		/* Histogram cannot be enabled in this frame anymore */
 		atomic_set(&isp->isp_hist.buf_err, 1);
-		dev_dbg(isp->dev, "hist: Out of synchronization with "
-				  "CCDC. Ignoring next buffer.\n");
+		dev_dbg(isp->dev,
+			"hist: Out of synchronization with CCDC. Ignoring next buffer.\n");
 	}
 }
 
@@ -658,200 +658,9 @@ static irqreturn_t isp_isr(int irq, void *_isp)
 	return IRQ_HANDLED;
 }
 
-/* -----------------------------------------------------------------------------
- * Pipeline power management
- *
- * Entities must be powered up when part of a pipeline that contains at least
- * one open video device node.
- *
- * To achieve this use the entity use_count field to track the number of users.
- * For entities corresponding to video device nodes the use_count field stores
- * the users count of the node. For entities corresponding to subdevs the
- * use_count field stores the total number of users of all video device nodes
- * in the pipeline.
- *
- * The omap3isp_pipeline_pm_use() function must be called in the open() and
- * close() handlers of video device nodes. It increments or decrements the use
- * count of all subdev entities in the pipeline.
- *
- * To react to link management on powered pipelines, the link setup notification
- * callback updates the use count of all entities in the source and sink sides
- * of the link.
- */
-
-/*
- * isp_pipeline_pm_use_count - Count the number of users of a pipeline
- * @entity: The entity
- *
- * Return the total number of users of all video device nodes in the pipeline.
- */
-static int isp_pipeline_pm_use_count(struct media_entity *entity)
-{
-	struct media_entity_graph graph;
-	int use = 0;
-
-	media_entity_graph_walk_start(&graph, entity);
-
-	while ((entity = media_entity_graph_walk_next(&graph))) {
-		if (media_entity_type(entity) == MEDIA_ENT_T_DEVNODE)
-			use += entity->use_count;
-	}
-
-	return use;
-}
-
-/*
- * isp_pipeline_pm_power_one - Apply power change to an entity
- * @entity: The entity
- * @change: Use count change
- *
- * Change the entity use count by @change. If the entity is a subdev update its
- * power state by calling the core::s_power operation when the use count goes
- * from 0 to != 0 or from != 0 to 0.
- *
- * Return 0 on success or a negative error code on failure.
- */
-static int isp_pipeline_pm_power_one(struct media_entity *entity, int change)
-{
-	struct v4l2_subdev *subdev;
-	int ret;
-
-	subdev = media_entity_type(entity) == MEDIA_ENT_T_V4L2_SUBDEV
-	       ? media_entity_to_v4l2_subdev(entity) : NULL;
-
-	if (entity->use_count == 0 && change > 0 && subdev != NULL) {
-		ret = v4l2_subdev_call(subdev, core, s_power, 1);
-		if (ret < 0 && ret != -ENOIOCTLCMD)
-			return ret;
-	}
-
-	entity->use_count += change;
-	WARN_ON(entity->use_count < 0);
-
-	if (entity->use_count == 0 && change < 0 && subdev != NULL)
-		v4l2_subdev_call(subdev, core, s_power, 0);
-
-	return 0;
-}
-
-/*
- * isp_pipeline_pm_power - Apply power change to all entities in a pipeline
- * @entity: The entity
- * @change: Use count change
- *
- * Walk the pipeline to update the use count and the power state of all non-node
- * entities.
- *
- * Return 0 on success or a negative error code on failure.
- */
-static int isp_pipeline_pm_power(struct media_entity *entity, int change)
-{
-	struct media_entity_graph graph;
-	struct media_entity *first = entity;
-	int ret = 0;
-
-	if (!change)
-		return 0;
-
-	media_entity_graph_walk_start(&graph, entity);
-
-	while (!ret && (entity = media_entity_graph_walk_next(&graph)))
-		if (media_entity_type(entity) != MEDIA_ENT_T_DEVNODE)
-			ret = isp_pipeline_pm_power_one(entity, change);
-
-	if (!ret)
-		return 0;
-
-	media_entity_graph_walk_start(&graph, first);
-
-	while ((first = media_entity_graph_walk_next(&graph))
-	       && first != entity)
-		if (media_entity_type(first) != MEDIA_ENT_T_DEVNODE)
-			isp_pipeline_pm_power_one(first, -change);
-
-	return ret;
-}
-
-/*
- * omap3isp_pipeline_pm_use - Update the use count of an entity
- * @entity: The entity
- * @use: Use (1) or stop using (0) the entity
- *
- * Update the use count of all entities in the pipeline and power entities on or
- * off accordingly.
- *
- * Return 0 on success or a negative error code on failure. Powering entities
- * off is assumed to never fail. No failure can occur when the use parameter is
- * set to 0.
- */
-int omap3isp_pipeline_pm_use(struct media_entity *entity, int use)
-{
-	int change = use ? 1 : -1;
-	int ret;
-
-	mutex_lock(&entity->parent->graph_mutex);
-
-	/* Apply use count to node. */
-	entity->use_count += change;
-	WARN_ON(entity->use_count < 0);
-
-	/* Apply power change to connected non-nodes. */
-	ret = isp_pipeline_pm_power(entity, change);
-	if (ret < 0)
-		entity->use_count -= change;
-
-	mutex_unlock(&entity->parent->graph_mutex);
-
-	return ret;
-}
-
-/*
- * isp_pipeline_link_notify - Link management notification callback
- * @link: The link
- * @flags: New link flags that will be applied
- * @notification: The link's state change notification type (MEDIA_DEV_NOTIFY_*)
- *
- * React to link management on powered pipelines by updating the use count of
- * all entities in the source and sink sides of the link. Entities are powered
- * on or off accordingly.
- *
- * Return 0 on success or a negative error code on failure. Powering entities
- * off is assumed to never fail. This function will not fail for disconnection
- * events.
- */
-static int isp_pipeline_link_notify(struct media_link *link, u32 flags,
-				    unsigned int notification)
-{
-	struct media_entity *source = link->source->entity;
-	struct media_entity *sink = link->sink->entity;
-	int source_use = isp_pipeline_pm_use_count(source);
-	int sink_use = isp_pipeline_pm_use_count(sink);
-	int ret;
-
-	if (notification == MEDIA_DEV_NOTIFY_POST_LINK_CH &&
-	    !(link->flags & MEDIA_LNK_FL_ENABLED)) {
-		/* Powering off entities is assumed to never fail. */
-		isp_pipeline_pm_power(source, -sink_use);
-		isp_pipeline_pm_power(sink, -source_use);
-		return 0;
-	}
-
-	if (notification == MEDIA_DEV_NOTIFY_POST_LINK_CH &&
-		(flags & MEDIA_LNK_FL_ENABLED)) {
-
-		ret = isp_pipeline_pm_power(source, sink_use);
-		if (ret < 0)
-			return ret;
-
-		ret = isp_pipeline_pm_power(sink, source_use);
-		if (ret < 0)
-			isp_pipeline_pm_power(source, -sink_use);
-
-		return ret;
-	}
-
-	return 0;
-}
+static const struct media_device_ops isp_media_ops = {
+	.link_notify = v4l2_pipeline_link_notify,
+};
 
 /* -----------------------------------------------------------------------------
  * Pipeline stream management
@@ -883,7 +692,7 @@ static int isp_pipeline_enable(struct isp_pipeline *pipe,
 	 * starting entities if the pipeline won't start anyway (those entities
 	 * would then likely fail to stop, making the problem worse).
 	 */
-	if (pipe->entities & isp->crashed)
+	if (media_entity_enum_intersects(&pipe->ent_enum, &isp->crashed))
 		return -EIO;
 
 	spin_lock_irqsave(&pipe->lock, flags);
@@ -899,8 +708,7 @@ static int isp_pipeline_enable(struct isp_pipeline *pipe,
 			break;
 
 		pad = media_entity_remote_pad(pad);
-		if (pad == NULL ||
-		    media_entity_type(pad->entity) != MEDIA_ENT_T_V4L2_SUBDEV)
+		if (!pad || !is_media_entity_v4l2_subdev(pad->entity))
 			break;
 
 		entity = pad->entity;
@@ -989,8 +797,7 @@ static int isp_pipeline_disable(struct isp_pipeline *pipe)
 			break;
 
 		pad = media_entity_remote_pad(pad);
-		if (pad == NULL ||
-		    media_entity_type(pad->entity) != MEDIA_ENT_T_V4L2_SUBDEV)
+		if (!pad || !is_media_entity_v4l2_subdev(pad->entity))
 			break;
 
 		entity = pad->entity;
@@ -1030,7 +837,8 @@ static int isp_pipeline_disable(struct isp_pipeline *pipe)
 			dev_info(isp->dev, "Unable to stop %s\n", subdev->name);
 			isp->stop_failure = true;
 			if (subdev == &isp->isp_prev.subdev)
-				isp->crashed |= 1U << subdev->entity.id;
+				media_entity_enum_set(&isp->crashed,
+						      &subdev->entity);
 			failure = -ETIMEDOUT;
 		}
 	}
@@ -1236,7 +1044,7 @@ static int isp_reset(struct isp_device *isp)
 	}
 
 	isp->stop_failure = false;
-	isp->crashed = 0;
+	media_entity_enum_zero(&isp->crashed);
 	return 0;
 }
 
@@ -1647,7 +1455,8 @@ static void __omap3isp_put(struct isp_device *isp, bool save_ctx)
 		/* Reset the ISP if an entity has failed to stop. This is the
 		 * only way to recover from such conditions.
 		 */
-		if (isp->crashed || isp->stop_failure)
+		if (!media_entity_enum_empty(&isp->crashed) ||
+		    isp->stop_failure)
 			isp_reset(isp);
 		isp_disable_clocks(isp);
 	}
@@ -1794,47 +1603,7 @@ static void isp_unregister_entities(struct isp_device *isp)
 
 	v4l2_device_unregister(&isp->v4l2_dev);
 	media_device_unregister(&isp->media_dev);
-}
-
-/*
- * isp_register_subdev - Register a sub-device
- * @isp: OMAP3 ISP device
- * @isp_subdev: platform data related to a sub-device
- *
- * Register an I2C sub-device which has not been registered by other
- * means (such as the Device Tree).
- *
- * Return a pointer to the sub-device if it has been successfully
- * registered, or NULL otherwise.
- */
-static struct v4l2_subdev *
-isp_register_subdev(struct isp_device *isp,
-		    struct isp_platform_subdev *isp_subdev)
-{
-	struct i2c_adapter *adapter;
-	struct v4l2_subdev *sd;
-
-	if (isp_subdev->board_info == NULL)
-		return NULL;
-
-	adapter = i2c_get_adapter(isp_subdev->i2c_adapter_id);
-	if (adapter == NULL) {
-		dev_err(isp->dev,
-			"%s: Unable to get I2C adapter %d for device %s\n",
-			__func__, isp_subdev->i2c_adapter_id,
-			isp_subdev->board_info->type);
-		return NULL;
-	}
-
-	sd = v4l2_i2c_new_subdev_board(&isp->v4l2_dev, adapter,
-				       isp_subdev->board_info, NULL);
-	if (sd == NULL) {
-		dev_err(isp->dev, "%s: Unable to register subdev %s\n",
-			__func__, isp_subdev->board_info->type);
-		return NULL;
-	}
-
-	return sd;
+	media_device_cleanup(&isp->media_dev);
 }
 
 static int isp_link_entity(
@@ -1905,26 +1674,19 @@ static int isp_link_entity(
 		return -EINVAL;
 	}
 
-	return media_entity_create_link(entity, i, input, pad, flags);
+	return media_create_pad_link(entity, i, input, pad, flags);
 }
 
 static int isp_register_entities(struct isp_device *isp)
 {
-	struct isp_platform_data *pdata = isp->pdata;
-	struct isp_platform_subdev *isp_subdev;
 	int ret;
 
 	isp->media_dev.dev = isp->dev;
 	strlcpy(isp->media_dev.model, "TI OMAP3 ISP",
 		sizeof(isp->media_dev.model));
 	isp->media_dev.hw_revision = isp->revision;
-	isp->media_dev.link_notify = isp_pipeline_link_notify;
-	ret = media_device_register(&isp->media_dev);
-	if (ret < 0) {
-		dev_err(isp->dev, "%s: Media device registration failed (%d)\n",
-			__func__, ret);
-		return ret;
-	}
+	isp->media_dev.ops = &isp_media_ops;
+	media_device_init(&isp->media_dev);
 
 	isp->v4l2_dev.mdev = &isp->media_dev;
 	ret = v4l2_device_register(isp->dev, &isp->v4l2_dev);
@@ -1968,44 +1730,123 @@ static int isp_register_entities(struct isp_device *isp)
 	if (ret < 0)
 		goto done;
 
-	/*
-	 * Device Tree --- the external sub-devices will be registered
-	 * later. The same goes for the sub-device node registration.
-	 */
-	if (isp->dev->of_node)
-		return 0;
-
-	/* Register external entities */
-	for (isp_subdev = pdata ? pdata->subdevs : NULL;
-	     isp_subdev && isp_subdev->board_info; isp_subdev++) {
-		struct v4l2_subdev *sd;
-
-		sd = isp_register_subdev(isp, isp_subdev);
-
-		/*
-		 * No bus information --- this is either a flash or a
-		 * lens subdev.
-		 */
-		if (!sd || !isp_subdev->bus)
-			continue;
-
-		sd->host_priv = isp_subdev->bus;
-
-		ret = isp_link_entity(isp, &sd->entity,
-				      isp_subdev->bus->interface);
-		if (ret < 0)
-			goto done;
-	}
-
-	ret = v4l2_device_register_subdev_nodes(&isp->v4l2_dev);
-
 done:
-	if (ret < 0) {
+	if (ret < 0)
 		isp_unregister_entities(isp);
-		v4l2_async_notifier_unregister(&isp->notifier);
-	}
 
 	return ret;
+}
+
+/*
+ * isp_create_links() - Create links for internal and external ISP entities
+ * @isp : Pointer to ISP device
+ *
+ * This function creates all links between ISP internal and external entities.
+ *
+ * Return: A negative error code on failure or zero on success. Possible error
+ * codes are those returned by media_create_pad_link().
+ */
+static int isp_create_links(struct isp_device *isp)
+{
+	int ret;
+
+	/* Create links between entities and video nodes. */
+	ret = media_create_pad_link(
+			&isp->isp_csi2a.subdev.entity, CSI2_PAD_SOURCE,
+			&isp->isp_csi2a.video_out.video.entity, 0, 0);
+	if (ret < 0)
+		return ret;
+
+	ret = media_create_pad_link(
+			&isp->isp_ccp2.video_in.video.entity, 0,
+			&isp->isp_ccp2.subdev.entity, CCP2_PAD_SINK, 0);
+	if (ret < 0)
+		return ret;
+
+	ret = media_create_pad_link(
+			&isp->isp_ccdc.subdev.entity, CCDC_PAD_SOURCE_OF,
+			&isp->isp_ccdc.video_out.video.entity, 0, 0);
+	if (ret < 0)
+		return ret;
+
+	ret = media_create_pad_link(
+			&isp->isp_prev.video_in.video.entity, 0,
+			&isp->isp_prev.subdev.entity, PREV_PAD_SINK, 0);
+	if (ret < 0)
+		return ret;
+
+	ret = media_create_pad_link(
+			&isp->isp_prev.subdev.entity, PREV_PAD_SOURCE,
+			&isp->isp_prev.video_out.video.entity, 0, 0);
+	if (ret < 0)
+		return ret;
+
+	ret = media_create_pad_link(
+			&isp->isp_res.video_in.video.entity, 0,
+			&isp->isp_res.subdev.entity, RESZ_PAD_SINK, 0);
+	if (ret < 0)
+		return ret;
+
+	ret = media_create_pad_link(
+			&isp->isp_res.subdev.entity, RESZ_PAD_SOURCE,
+			&isp->isp_res.video_out.video.entity, 0, 0);
+
+	if (ret < 0)
+		return ret;
+
+	/* Create links between entities. */
+	ret = media_create_pad_link(
+			&isp->isp_csi2a.subdev.entity, CSI2_PAD_SOURCE,
+			&isp->isp_ccdc.subdev.entity, CCDC_PAD_SINK, 0);
+	if (ret < 0)
+		return ret;
+
+	ret = media_create_pad_link(
+			&isp->isp_ccp2.subdev.entity, CCP2_PAD_SOURCE,
+			&isp->isp_ccdc.subdev.entity, CCDC_PAD_SINK, 0);
+	if (ret < 0)
+		return ret;
+
+	ret = media_create_pad_link(
+			&isp->isp_ccdc.subdev.entity, CCDC_PAD_SOURCE_VP,
+			&isp->isp_prev.subdev.entity, PREV_PAD_SINK, 0);
+	if (ret < 0)
+		return ret;
+
+	ret = media_create_pad_link(
+			&isp->isp_ccdc.subdev.entity, CCDC_PAD_SOURCE_OF,
+			&isp->isp_res.subdev.entity, RESZ_PAD_SINK, 0);
+	if (ret < 0)
+		return ret;
+
+	ret = media_create_pad_link(
+			&isp->isp_prev.subdev.entity, PREV_PAD_SOURCE,
+			&isp->isp_res.subdev.entity, RESZ_PAD_SINK, 0);
+	if (ret < 0)
+		return ret;
+
+	ret = media_create_pad_link(
+			&isp->isp_ccdc.subdev.entity, CCDC_PAD_SOURCE_VP,
+			&isp->isp_aewb.subdev.entity, 0,
+			MEDIA_LNK_FL_ENABLED | MEDIA_LNK_FL_IMMUTABLE);
+	if (ret < 0)
+		return ret;
+
+	ret = media_create_pad_link(
+			&isp->isp_ccdc.subdev.entity, CCDC_PAD_SOURCE_VP,
+			&isp->isp_af.subdev.entity, 0,
+			MEDIA_LNK_FL_ENABLED | MEDIA_LNK_FL_IMMUTABLE);
+	if (ret < 0)
+		return ret;
+
+	ret = media_create_pad_link(
+			&isp->isp_ccdc.subdev.entity, CCDC_PAD_SOURCE_VP,
+			&isp->isp_hist.subdev.entity, 0,
+			MEDIA_LNK_FL_ENABLED | MEDIA_LNK_FL_IMMUTABLE);
+	if (ret < 0)
+		return ret;
+
+	return 0;
 }
 
 static void isp_cleanup_modules(struct isp_device *isp)
@@ -2018,6 +1859,7 @@ static void isp_cleanup_modules(struct isp_device *isp)
 	omap3isp_ccdc_cleanup(isp);
 	omap3isp_ccp2_cleanup(isp);
 	omap3isp_csi2_cleanup(isp);
+	omap3isp_csiphy_cleanup(isp);
 }
 
 static int isp_initialize_modules(struct isp_device *isp)
@@ -2027,7 +1869,7 @@ static int isp_initialize_modules(struct isp_device *isp)
 	ret = omap3isp_csiphy_init(isp);
 	if (ret < 0) {
 		dev_err(isp->dev, "CSI PHY initialization failed\n");
-		goto error_csiphy;
+		return ret;
 	}
 
 	ret = omap3isp_csi2_init(isp);
@@ -2038,7 +1880,8 @@ static int isp_initialize_modules(struct isp_device *isp)
 
 	ret = omap3isp_ccp2_init(isp);
 	if (ret < 0) {
-		dev_err(isp->dev, "CCP2 initialization failed\n");
+		if (ret != -EPROBE_DEFER)
+			dev_err(isp->dev, "CCP2 initialization failed\n");
 		goto error_ccp2;
 	}
 
@@ -2078,62 +1921,8 @@ static int isp_initialize_modules(struct isp_device *isp)
 		goto error_h3a_af;
 	}
 
-	/* Connect the submodules. */
-	ret = media_entity_create_link(
-			&isp->isp_csi2a.subdev.entity, CSI2_PAD_SOURCE,
-			&isp->isp_ccdc.subdev.entity, CCDC_PAD_SINK, 0);
-	if (ret < 0)
-		goto error_link;
-
-	ret = media_entity_create_link(
-			&isp->isp_ccp2.subdev.entity, CCP2_PAD_SOURCE,
-			&isp->isp_ccdc.subdev.entity, CCDC_PAD_SINK, 0);
-	if (ret < 0)
-		goto error_link;
-
-	ret = media_entity_create_link(
-			&isp->isp_ccdc.subdev.entity, CCDC_PAD_SOURCE_VP,
-			&isp->isp_prev.subdev.entity, PREV_PAD_SINK, 0);
-	if (ret < 0)
-		goto error_link;
-
-	ret = media_entity_create_link(
-			&isp->isp_ccdc.subdev.entity, CCDC_PAD_SOURCE_OF,
-			&isp->isp_res.subdev.entity, RESZ_PAD_SINK, 0);
-	if (ret < 0)
-		goto error_link;
-
-	ret = media_entity_create_link(
-			&isp->isp_prev.subdev.entity, PREV_PAD_SOURCE,
-			&isp->isp_res.subdev.entity, RESZ_PAD_SINK, 0);
-	if (ret < 0)
-		goto error_link;
-
-	ret = media_entity_create_link(
-			&isp->isp_ccdc.subdev.entity, CCDC_PAD_SOURCE_VP,
-			&isp->isp_aewb.subdev.entity, 0,
-			MEDIA_LNK_FL_ENABLED | MEDIA_LNK_FL_IMMUTABLE);
-	if (ret < 0)
-		goto error_link;
-
-	ret = media_entity_create_link(
-			&isp->isp_ccdc.subdev.entity, CCDC_PAD_SOURCE_VP,
-			&isp->isp_af.subdev.entity, 0,
-			MEDIA_LNK_FL_ENABLED | MEDIA_LNK_FL_IMMUTABLE);
-	if (ret < 0)
-		goto error_link;
-
-	ret = media_entity_create_link(
-			&isp->isp_ccdc.subdev.entity, CCDC_PAD_SOURCE_VP,
-			&isp->isp_hist.subdev.entity, 0,
-			MEDIA_LNK_FL_ENABLED | MEDIA_LNK_FL_IMMUTABLE);
-	if (ret < 0)
-		goto error_link;
-
 	return 0;
 
-error_link:
-	omap3isp_h3a_af_cleanup(isp);
 error_h3a_af:
 	omap3isp_h3a_aewb_cleanup(isp);
 error_h3a_aewb:
@@ -2149,7 +1938,8 @@ error_ccdc:
 error_ccp2:
 	omap3isp_csi2_cleanup(isp);
 error_csi2:
-error_csiphy:
+	omap3isp_csiphy_cleanup(isp);
+
 	return ret;
 }
 
@@ -2157,29 +1947,12 @@ static void isp_detach_iommu(struct isp_device *isp)
 {
 	arm_iommu_release_mapping(isp->mapping);
 	isp->mapping = NULL;
-	iommu_group_remove_device(isp->dev);
 }
 
 static int isp_attach_iommu(struct isp_device *isp)
 {
 	struct dma_iommu_mapping *mapping;
-	struct iommu_group *group;
 	int ret;
-
-	/* Create a device group and add the device to it. */
-	group = iommu_group_alloc();
-	if (IS_ERR(group)) {
-		dev_err(isp->dev, "failed to allocate IOMMU group\n");
-		return PTR_ERR(group);
-	}
-
-	ret = iommu_group_add_device(group, isp->dev);
-	iommu_group_put(group);
-
-	if (ret < 0) {
-		dev_err(isp->dev, "failed to add device to IPMMU group\n");
-		return ret;
-	}
 
 	/*
 	 * Create the ARM mapping, used by the ARM DMA mapping core to allocate
@@ -2227,6 +2000,8 @@ static int isp_remove(struct platform_device *pdev)
 	isp_detach_iommu(isp);
 	__omap3isp_put(isp, false);
 
+	media_entity_enum_cleanup(&isp->crashed);
+
 	return 0;
 }
 
@@ -2236,17 +2011,21 @@ enum isp_of_phy {
 	ISP_OF_PHY_CSIPHY2,
 };
 
-static int isp_of_parse_node(struct device *dev, struct device_node *node,
-			     struct isp_async_subdev *isd)
+static int isp_fwnode_parse(struct device *dev, struct fwnode_handle *fwnode,
+			    struct isp_async_subdev *isd)
 {
 	struct isp_bus_cfg *buscfg = &isd->bus;
-	struct v4l2_of_endpoint vep;
+	struct v4l2_fwnode_endpoint vep;
 	unsigned int i;
+	int ret;
+	bool csi1 = false;
 
-	v4l2_of_parse_endpoint(node, &vep);
+	ret = v4l2_fwnode_endpoint_parse(fwnode, &vep);
+	if (ret)
+		return ret;
 
-	dev_dbg(dev, "parsing endpoint %s, interface %u\n", node->full_name,
-		vep.base.port);
+	dev_dbg(dev, "parsing endpoint %pOF, interface %u\n",
+		to_of_node(fwnode), vep.base.port);
 
 	switch (vep.base.port) {
 	case ISP_OF_PHY_PARALLEL:
@@ -2264,57 +2043,111 @@ static int isp_of_parse_node(struct device *dev, struct device_node *node,
 			!!(vep.bus.parallel.flags & V4L2_MBUS_FIELD_EVEN_LOW);
 		buscfg->bus.parallel.data_pol =
 			!!(vep.bus.parallel.flags & V4L2_MBUS_DATA_ACTIVE_LOW);
+		buscfg->bus.parallel.bt656 = vep.bus_type == V4L2_MBUS_BT656;
 		break;
 
 	case ISP_OF_PHY_CSIPHY1:
 	case ISP_OF_PHY_CSIPHY2:
-		/* FIXME: always assume CSI-2 for now. */
+		switch (vep.bus_type) {
+		case V4L2_MBUS_CCP2:
+		case V4L2_MBUS_CSI1:
+			dev_dbg(dev, "CSI-1/CCP-2 configuration\n");
+			csi1 = true;
+			break;
+		case V4L2_MBUS_CSI2:
+			dev_dbg(dev, "CSI-2 configuration\n");
+			csi1 = false;
+			break;
+		default:
+			dev_err(dev, "unsupported bus type %u\n",
+				vep.bus_type);
+			return -EINVAL;
+		}
+
 		switch (vep.base.port) {
 		case ISP_OF_PHY_CSIPHY1:
-			buscfg->interface = ISP_INTERFACE_CSI2C_PHY1;
+			if (csi1)
+				buscfg->interface = ISP_INTERFACE_CCP2B_PHY1;
+			else
+				buscfg->interface = ISP_INTERFACE_CSI2C_PHY1;
 			break;
 		case ISP_OF_PHY_CSIPHY2:
-			buscfg->interface = ISP_INTERFACE_CSI2A_PHY2;
+			if (csi1)
+				buscfg->interface = ISP_INTERFACE_CCP2B_PHY2;
+			else
+				buscfg->interface = ISP_INTERFACE_CSI2A_PHY2;
 			break;
 		}
-		buscfg->bus.csi2.lanecfg.clk.pos = vep.bus.mipi_csi2.clock_lane;
-		buscfg->bus.csi2.lanecfg.clk.pol =
-			vep.bus.mipi_csi2.lane_polarities[0];
-		dev_dbg(dev, "clock lane polarity %u, pos %u\n",
-			buscfg->bus.csi2.lanecfg.clk.pol,
-			buscfg->bus.csi2.lanecfg.clk.pos);
+		if (csi1) {
+			buscfg->bus.ccp2.lanecfg.clk.pos =
+				vep.bus.mipi_csi1.clock_lane;
+			buscfg->bus.ccp2.lanecfg.clk.pol =
+				vep.bus.mipi_csi1.lane_polarity[0];
+			dev_dbg(dev, "clock lane polarity %u, pos %u\n",
+				buscfg->bus.ccp2.lanecfg.clk.pol,
+				buscfg->bus.ccp2.lanecfg.clk.pos);
 
-		for (i = 0; i < ISP_CSIPHY2_NUM_DATA_LANES; i++) {
-			buscfg->bus.csi2.lanecfg.data[i].pos =
-				vep.bus.mipi_csi2.data_lanes[i];
-			buscfg->bus.csi2.lanecfg.data[i].pol =
-				vep.bus.mipi_csi2.lane_polarities[i + 1];
-			dev_dbg(dev, "data lane %u polarity %u, pos %u\n", i,
-				buscfg->bus.csi2.lanecfg.data[i].pol,
-				buscfg->bus.csi2.lanecfg.data[i].pos);
+			buscfg->bus.ccp2.lanecfg.data[0].pos =
+				vep.bus.mipi_csi1.data_lane;
+			buscfg->bus.ccp2.lanecfg.data[0].pol =
+				vep.bus.mipi_csi1.lane_polarity[1];
+
+			dev_dbg(dev, "data lane polarity %u, pos %u\n",
+				buscfg->bus.ccp2.lanecfg.data[0].pol,
+				buscfg->bus.ccp2.lanecfg.data[0].pos);
+
+			buscfg->bus.ccp2.strobe_clk_pol =
+				vep.bus.mipi_csi1.clock_inv;
+			buscfg->bus.ccp2.phy_layer = vep.bus.mipi_csi1.strobe;
+			buscfg->bus.ccp2.ccp2_mode =
+				vep.bus_type == V4L2_MBUS_CCP2;
+			buscfg->bus.ccp2.vp_clk_pol = 1;
+
+			buscfg->bus.ccp2.crc = 1;
+		} else {
+			buscfg->bus.csi2.lanecfg.clk.pos =
+				vep.bus.mipi_csi2.clock_lane;
+			buscfg->bus.csi2.lanecfg.clk.pol =
+				vep.bus.mipi_csi2.lane_polarities[0];
+			dev_dbg(dev, "clock lane polarity %u, pos %u\n",
+				buscfg->bus.csi2.lanecfg.clk.pol,
+				buscfg->bus.csi2.lanecfg.clk.pos);
+
+			buscfg->bus.csi2.num_data_lanes =
+				vep.bus.mipi_csi2.num_data_lanes;
+
+			for (i = 0; i < buscfg->bus.csi2.num_data_lanes; i++) {
+				buscfg->bus.csi2.lanecfg.data[i].pos =
+					vep.bus.mipi_csi2.data_lanes[i];
+				buscfg->bus.csi2.lanecfg.data[i].pol =
+					vep.bus.mipi_csi2.lane_polarities[i + 1];
+				dev_dbg(dev,
+					"data lane %u polarity %u, pos %u\n", i,
+					buscfg->bus.csi2.lanecfg.data[i].pol,
+					buscfg->bus.csi2.lanecfg.data[i].pos);
+			}
+			/*
+			 * FIXME: now we assume the CRC is always there.
+			 * Implement a way to obtain this information from the
+			 * sensor. Frame descriptors, perhaps?
+			 */
+			buscfg->bus.csi2.crc = 1;
 		}
-
-		/*
-		 * FIXME: now we assume the CRC is always there.
-		 * Implement a way to obtain this information from the
-		 * sensor. Frame descriptors, perhaps?
-		 */
-		buscfg->bus.csi2.crc = 1;
 		break;
 
 	default:
-		dev_warn(dev, "%s: invalid interface %u\n", node->full_name,
-			 vep.base.port);
-		break;
+		dev_warn(dev, "%pOF: invalid interface %u\n",
+			 to_of_node(fwnode), vep.base.port);
+		return -EINVAL;
 	}
 
 	return 0;
 }
 
-static int isp_of_parse_nodes(struct device *dev,
-			      struct v4l2_async_notifier *notifier)
+static int isp_fwnodes_parse(struct device *dev,
+			     struct v4l2_async_notifier *notifier)
 {
-	struct device_node *node = NULL;
+	struct fwnode_handle *fwnode = NULL;
 
 	notifier->subdevs = devm_kcalloc(
 		dev, ISP_MAX_SUBDEVS, sizeof(*notifier->subdevs), GFP_KERNEL);
@@ -2322,62 +2155,66 @@ static int isp_of_parse_nodes(struct device *dev,
 		return -ENOMEM;
 
 	while (notifier->num_subdevs < ISP_MAX_SUBDEVS &&
-	       (node = of_graph_get_next_endpoint(dev->of_node, node))) {
+	       (fwnode = fwnode_graph_get_next_endpoint(
+			of_fwnode_handle(dev->of_node), fwnode))) {
 		struct isp_async_subdev *isd;
 
 		isd = devm_kzalloc(dev, sizeof(*isd), GFP_KERNEL);
-		if (!isd) {
-			of_node_put(node);
-			return -ENOMEM;
+		if (!isd)
+			goto error;
+
+		if (isp_fwnode_parse(dev, fwnode, isd)) {
+			devm_kfree(dev, isd);
+			continue;
 		}
 
 		notifier->subdevs[notifier->num_subdevs] = &isd->asd;
 
-		if (isp_of_parse_node(dev, node, isd)) {
-			of_node_put(node);
-			return -EINVAL;
-		}
-
-		isd->asd.match.of.node = of_graph_get_remote_port_parent(node);
-		of_node_put(node);
-		if (!isd->asd.match.of.node) {
+		isd->asd.match.fwnode.fwnode =
+			fwnode_graph_get_remote_port_parent(fwnode);
+		if (!isd->asd.match.fwnode.fwnode) {
 			dev_warn(dev, "bad remote port parent\n");
-			return -EINVAL;
+			goto error;
 		}
 
-		isd->asd.match_type = V4L2_ASYNC_MATCH_OF;
+		isd->asd.match_type = V4L2_ASYNC_MATCH_FWNODE;
 		notifier->num_subdevs++;
 	}
 
 	return notifier->num_subdevs;
-}
 
-static int isp_subdev_notifier_bound(struct v4l2_async_notifier *async,
-				     struct v4l2_subdev *subdev,
-				     struct v4l2_async_subdev *asd)
-{
-	struct isp_device *isp = container_of(async, struct isp_device,
-					      notifier);
-	struct isp_async_subdev *isd =
-		container_of(asd, struct isp_async_subdev, asd);
-	int ret;
-
-	ret = isp_link_entity(isp, &subdev->entity, isd->bus.interface);
-	if (ret < 0)
-		return ret;
-
-	isd->sd = subdev;
-	isd->sd->host_priv = &isd->bus;
-
-	return ret;
+error:
+	fwnode_handle_put(fwnode);
+	return -EINVAL;
 }
 
 static int isp_subdev_notifier_complete(struct v4l2_async_notifier *async)
 {
 	struct isp_device *isp = container_of(async, struct isp_device,
 					      notifier);
+	struct v4l2_device *v4l2_dev = &isp->v4l2_dev;
+	struct v4l2_subdev *sd;
+	int ret;
 
-	return v4l2_device_register_subdev_nodes(&isp->v4l2_dev);
+	ret = media_entity_enum_init(&isp->crashed, &isp->media_dev);
+	if (ret)
+		return ret;
+
+	list_for_each_entry(sd, &v4l2_dev->subdevs, list) {
+		if (!sd->asd)
+			continue;
+
+		ret = isp_link_entity(isp, &sd->entity,
+				      v4l2_subdev_to_bus_cfg(sd)->interface);
+		if (ret < 0)
+			return ret;
+	}
+
+	ret = v4l2_device_register_subdev_nodes(&isp->v4l2_dev);
+	if (ret < 0)
+		return ret;
+
+	return media_device_register(&isp->media_dev);
 }
 
 /*
@@ -2404,37 +2241,24 @@ static int isp_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
-	if (IS_ENABLED(CONFIG_OF) && pdev->dev.of_node) {
-		ret = of_property_read_u32(pdev->dev.of_node, "ti,phy-type",
-					   &isp->phy_type);
-		if (ret)
-			return ret;
+	ret = fwnode_property_read_u32(of_fwnode_handle(pdev->dev.of_node),
+				       "ti,phy-type", &isp->phy_type);
+	if (ret)
+		return ret;
 
-		isp->syscon = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
-							      "syscon");
-		if (IS_ERR(isp->syscon))
-			return PTR_ERR(isp->syscon);
+	isp->syscon = syscon_regmap_lookup_by_phandle(pdev->dev.of_node,
+						      "syscon");
+	if (IS_ERR(isp->syscon))
+		return PTR_ERR(isp->syscon);
 
-		ret = of_property_read_u32_index(pdev->dev.of_node, "syscon", 1,
-						 &isp->syscon_offset);
-		if (ret)
-			return ret;
+	ret = of_property_read_u32_index(pdev->dev.of_node,
+					 "syscon", 1, &isp->syscon_offset);
+	if (ret)
+		return ret;
 
-		ret = isp_of_parse_nodes(&pdev->dev, &isp->notifier);
-		if (ret < 0)
-			return ret;
-		ret = v4l2_async_notifier_register(&isp->v4l2_dev,
-						   &isp->notifier);
-		if (ret)
-			return ret;
-	} else {
-		isp->pdata = pdev->dev.platform_data;
-		isp->syscon = syscon_regmap_lookup_by_pdevname("syscon.0");
-		if (IS_ERR(isp->syscon))
-			return PTR_ERR(isp->syscon);
-		dev_warn(&pdev->dev,
-			 "Platform data support is deprecated! Please move to DT now!\n");
-	}
+	ret = isp_fwnodes_parse(&pdev->dev, &isp->notifier);
+	if (ret < 0)
+		return ret;
 
 	isp->autoidle = autoidle;
 
@@ -2513,11 +2337,6 @@ static int isp_probe(struct platform_device *pdev)
 		goto error_isp;
 	}
 
-	if (!IS_ENABLED(CONFIG_OF) || !pdev->dev.of_node) {
-		isp->syscon_offset = isp_res_maps[m].syscon_offset;
-		isp->phy_type = isp_res_maps[m].phy_type;
-	}
-
 	for (i = 1; i < OMAP3_ISP_IOMEM_CSI2A_REGS1; i++)
 		isp->mmio_base[i] =
 			isp->mmio_base[0] + isp_res_maps[m].offset[i];
@@ -2538,12 +2357,13 @@ static int isp_probe(struct platform_device *pdev)
 	}
 
 	/* Interrupt */
-	isp->irq_num = platform_get_irq(pdev, 0);
-	if (isp->irq_num <= 0) {
+	ret = platform_get_irq(pdev, 0);
+	if (ret <= 0) {
 		dev_err(isp->dev, "No IRQ resource\n");
 		ret = -ENODEV;
 		goto error_iommu;
 	}
+	isp->irq_num = ret;
 
 	if (devm_request_irq(isp->dev, isp->irq_num, isp_isr, IRQF_SHARED,
 			     "OMAP3 ISP", isp)) {
@@ -2557,18 +2377,27 @@ static int isp_probe(struct platform_device *pdev)
 	if (ret < 0)
 		goto error_iommu;
 
-	isp->notifier.bound = isp_subdev_notifier_bound;
-	isp->notifier.complete = isp_subdev_notifier_complete;
-
 	ret = isp_register_entities(isp);
 	if (ret < 0)
 		goto error_modules;
+
+	ret = isp_create_links(isp);
+	if (ret < 0)
+		goto error_register_entities;
+
+	isp->notifier.complete = isp_subdev_notifier_complete;
+
+	ret = v4l2_async_notifier_register(&isp->v4l2_dev, &isp->notifier);
+	if (ret)
+		goto error_register_entities;
 
 	isp_core_init(isp, 1);
 	omap3isp_put(isp);
 
 	return 0;
 
+error_register_entities:
+	isp_unregister_entities(isp);
 error_modules:
 	isp_cleanup_modules(isp);
 error_iommu:
@@ -2599,6 +2428,7 @@ static const struct of_device_id omap3isp_of_table[] = {
 	{ .compatible = "ti,omap3-isp" },
 	{ },
 };
+MODULE_DEVICE_TABLE(of, omap3isp_of_table);
 
 static struct platform_driver omap3isp_driver = {
 	.probe = isp_probe,

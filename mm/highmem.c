@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * High memory handling common code and variables.
  *
@@ -29,9 +30,10 @@
 #include <linux/kgdb.h>
 #include <asm/tlbflush.h>
 
-
+#ifndef CONFIG_PREEMPT_RT_FULL
 #if defined(CONFIG_HIGHMEM) || defined(CONFIG_X86_32)
 DEFINE_PER_CPU(int, __kmap_atomic_idx);
+#endif
 #endif
 
 /*
@@ -107,21 +109,18 @@ static inline wait_queue_head_t *get_pkmap_wait_queue_head(unsigned int color)
 unsigned long totalhigh_pages __read_mostly;
 EXPORT_SYMBOL(totalhigh_pages);
 
-
+#ifndef CONFIG_PREEMPT_RT_FULL
 EXPORT_PER_CPU_SYMBOL(__kmap_atomic_idx);
+#endif
 
 unsigned int nr_free_highpages (void)
 {
-	pg_data_t *pgdat;
+	struct zone *zone;
 	unsigned int pages = 0;
 
-	for_each_online_pgdat(pgdat) {
-		pages += zone_page_state(&pgdat->node_zones[ZONE_HIGHMEM],
-			NR_FREE_PAGES);
-		if (zone_movable_is_highmem())
-			pages += zone_page_state(
-					&pgdat->node_zones[ZONE_MOVABLE],
-					NR_FREE_PAGES);
+	for_each_populated_zone(zone) {
+		if (is_highmem(zone))
+			pages += zone_page_state(zone, NR_FREE_PAGES);
 	}
 
 	return pages;

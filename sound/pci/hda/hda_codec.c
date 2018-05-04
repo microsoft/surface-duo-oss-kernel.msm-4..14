@@ -19,13 +19,11 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307 USA
  */
 
-#include <linux/mm.h>
 #include <linux/init.h>
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/mutex.h>
 #include <linux/module.h>
-#include <linux/async.h>
 #include <linux/pm.h>
 #include <linux/pm_runtime.h>
 #include <sound/core.h>
@@ -53,76 +51,6 @@
 #define codec_has_clkstop(codec) \
 	((codec)->core.power_caps & AC_PWRST_CLKSTOP)
 
-/**
- * snd_hda_get_jack_location - Give a location string of the jack
- * @cfg: pin default config value
- *
- * Parse the pin default config value and returns the string of the
- * jack location, e.g. "Rear", "Front", etc.
- */
-const char *snd_hda_get_jack_location(u32 cfg)
-{
-	static char *bases[7] = {
-		"N/A", "Rear", "Front", "Left", "Right", "Top", "Bottom",
-	};
-	static unsigned char specials_idx[] = {
-		0x07, 0x08,
-		0x17, 0x18, 0x19,
-		0x37, 0x38
-	};
-	static char *specials[] = {
-		"Rear Panel", "Drive Bar",
-		"Riser", "HDMI", "ATAPI",
-		"Mobile-In", "Mobile-Out"
-	};
-	int i;
-	cfg = (cfg & AC_DEFCFG_LOCATION) >> AC_DEFCFG_LOCATION_SHIFT;
-	if ((cfg & 0x0f) < 7)
-		return bases[cfg & 0x0f];
-	for (i = 0; i < ARRAY_SIZE(specials_idx); i++) {
-		if (cfg == specials_idx[i])
-			return specials[i];
-	}
-	return "UNKNOWN";
-}
-EXPORT_SYMBOL_GPL(snd_hda_get_jack_location);
-
-/**
- * snd_hda_get_jack_connectivity - Give a connectivity string of the jack
- * @cfg: pin default config value
- *
- * Parse the pin default config value and returns the string of the
- * jack connectivity, i.e. external or internal connection.
- */
-const char *snd_hda_get_jack_connectivity(u32 cfg)
-{
-	static char *jack_locations[4] = { "Ext", "Int", "Sep", "Oth" };
-
-	return jack_locations[(cfg >> (AC_DEFCFG_LOCATION_SHIFT + 4)) & 3];
-}
-EXPORT_SYMBOL_GPL(snd_hda_get_jack_connectivity);
-
-/**
- * snd_hda_get_jack_type - Give a type string of the jack
- * @cfg: pin default config value
- *
- * Parse the pin default config value and returns the string of the
- * jack type, i.e. the purpose of the jack, such as Line-Out or CD.
- */
-const char *snd_hda_get_jack_type(u32 cfg)
-{
-	static char *jack_types[16] = {
-		"Line Out", "Speaker", "HP Out", "CD",
-		"SPDIF Out", "Digital Out", "Modem Line", "Modem Hand",
-		"Line In", "Aux", "Mic", "Telephony",
-		"SPDIF In", "Digital In", "Reserved", "Other"
-	};
-
-	return jack_types[(cfg & AC_DEFCFG_DEVICE)
-				>> AC_DEFCFG_DEVICE_SHIFT];
-}
-EXPORT_SYMBOL_GPL(snd_hda_get_jack_type);
-
 /*
  * Send and receive a verb - passed to exec_verb override for hdac_device
  */
@@ -146,11 +74,11 @@ static int codec_exec_verb(struct hdac_device *dev, unsigned int cmd,
 	bus->no_response_fallback = 0;
 	mutex_unlock(&bus->core.cmd_mutex);
 	snd_hda_power_down_pm(codec);
-	if (!codec_in_pm(codec) && res && err < 0 && bus->rirb_error) {
+	if (!codec_in_pm(codec) && res && err == -EAGAIN) {
 		if (bus->response_reset) {
 			codec_dbg(codec,
 				  "resetting BUS due to fatal communication error\n");
-			bus->ops.bus_reset(bus);
+			snd_hda_bus_reset(bus);
 		}
 		goto again;
 	}
@@ -159,50 +87,6 @@ static int codec_exec_verb(struct hdac_device *dev, unsigned int cmd,
 		bus->response_reset = 0;
 	return err;
 }
-
-/**
- * snd_hda_codec_read - send a command and get the response
- * @codec: the HDA codec
- * @nid: NID to send the command
- * @flags: optional bit flags
- * @verb: the verb to send
- * @parm: the parameter for the verb
- *
- * Send a single command and read the corresponding response.
- *
- * Returns the obtained response value, or -1 for an error.
- */
-unsigned int snd_hda_codec_read(struct hda_codec *codec, hda_nid_t nid,
-				int flags,
-				unsigned int verb, unsigned int parm)
-{
-	unsigned int cmd = snd_hdac_make_cmd(&codec->core, nid, verb, parm);
-	unsigned int res;
-	if (snd_hdac_exec_verb(&codec->core, cmd, flags, &res))
-		return -1;
-	return res;
-}
-EXPORT_SYMBOL_GPL(snd_hda_codec_read);
-
-/**
- * snd_hda_codec_write - send a single command without waiting for response
- * @codec: the HDA codec
- * @nid: NID to send the command
- * @flags: optional bit flags
- * @verb: the verb to send
- * @parm: the parameter for the verb
- *
- * Send a single command without waiting for response.
- *
- * Returns 0 if successful, or a negative error code.
- */
-int snd_hda_codec_write(struct hda_codec *codec, hda_nid_t nid, int flags,
-			unsigned int verb, unsigned int parm)
-{
-	unsigned int cmd = snd_hdac_make_cmd(&codec->core, nid, verb, parm);
-	return snd_hdac_exec_verb(&codec->core, cmd, flags, NULL);
-}
-EXPORT_SYMBOL_GPL(snd_hda_codec_write);
 
 /**
  * snd_hda_sequence_write - sequence writes
@@ -425,9 +309,15 @@ int snd_hda_get_conn_index(struct hda_codec *codec, hda_nid_t mux,
 }
 EXPORT_SYMBOL_GPL(snd_hda_get_conn_index);
 
-
-/* return DEVLIST_LEN parameter of the given widget */
-static unsigned int get_num_devices(struct hda_codec *codec, hda_nid_t nid)
+/**
+ * snd_hda_get_num_devices - get DEVLIST_LEN parameter of the given widget
+ *  @codec: the HDA codec
+ *  @nid: NID of the pin to parse
+ *
+ * Get the device entry number on the given widget. This is a feature of
+ * DP MST audio. Each pin can have several device entries in it.
+ */
+unsigned int snd_hda_get_num_devices(struct hda_codec *codec, hda_nid_t nid)
 {
 	unsigned int wcaps = get_wcaps(codec, nid);
 	unsigned int parm;
@@ -437,10 +327,11 @@ static unsigned int get_num_devices(struct hda_codec *codec, hda_nid_t nid)
 		return 0;
 
 	parm = snd_hdac_read_parm_uncached(&codec->core, nid, AC_PAR_DEVLIST_LEN);
-	if (parm == -1 && codec->bus->rirb_error)
+	if (parm == -1)
 		parm = 0;
 	return parm & AC_DEV_LIST_LEN_MASK;
 }
+EXPORT_SYMBOL_GPL(snd_hda_get_num_devices);
 
 /**
  * snd_hda_get_devices - copy device list without cache
@@ -458,7 +349,7 @@ int snd_hda_get_devices(struct hda_codec *codec, hda_nid_t nid,
 	unsigned int parm;
 	int i, dev_len, devices;
 
-	parm = get_num_devices(codec, nid);
+	parm = snd_hda_get_num_devices(codec, nid);
 	if (!parm)	/* not multi-stream capable */
 		return 0;
 
@@ -467,10 +358,9 @@ int snd_hda_get_devices(struct hda_codec *codec, hda_nid_t nid,
 
 	devices = 0;
 	while (devices < dev_len) {
-		parm = snd_hda_codec_read(codec, nid, 0,
-					  AC_VERB_GET_DEVICE_LIST, devices);
-		if (parm == -1 && codec->bus->rirb_error)
-			break;
+		if (snd_hdac_read(&codec->core, nid,
+				  AC_VERB_GET_DEVICE_LIST, devices, &parm))
+			break; /* error */
 
 		for (i = 0; i < 8; i++) {
 			dev_list[devices] = (u8)parm;
@@ -483,95 +373,62 @@ int snd_hda_get_devices(struct hda_codec *codec, hda_nid_t nid,
 	return devices;
 }
 
-/*
- * destructor
+/**
+ * snd_hda_get_dev_select - get device entry select on the pin
+ * @codec: the HDA codec
+ * @nid: NID of the pin to get device entry select
+ *
+ * Get the devcie entry select on the pin. Return the device entry
+ * id selected on the pin. Return 0 means the first device entry
+ * is selected or MST is not supported.
  */
-static void snd_hda_bus_free(struct hda_bus *bus)
+int snd_hda_get_dev_select(struct hda_codec *codec, hda_nid_t nid)
 {
-	if (!bus)
-		return;
-	if (bus->ops.private_free)
-		bus->ops.private_free(bus);
-	snd_hdac_bus_exit(&bus->core);
-	kfree(bus);
-}
+	/* not support dp_mst will always return 0, using first dev_entry */
+	if (!codec->dp_mst)
+		return 0;
 
-static int snd_hda_bus_dev_free(struct snd_device *device)
-{
-	snd_hda_bus_free(device->device_data);
-	return 0;
+	return snd_hda_codec_read(codec, nid, 0, AC_VERB_GET_DEVICE_SEL, 0);
 }
-
-static int snd_hda_bus_dev_disconnect(struct snd_device *device)
-{
-	struct hda_bus *bus = device->device_data;
-	bus->shutdown = 1;
-	return 0;
-}
-
-/* hdac_bus_ops translations */
-static int _hda_bus_command(struct hdac_bus *_bus, unsigned int cmd)
-{
-	struct hda_bus *bus = container_of(_bus, struct hda_bus, core);
-	return bus->ops.command(bus, cmd);
-}
-
-static int _hda_bus_get_response(struct hdac_bus *_bus, unsigned int addr,
-				 unsigned int *res)
-{
-	struct hda_bus *bus = container_of(_bus, struct hda_bus, core);
-	*res = bus->ops.get_response(bus, addr);
-	return bus->rirb_error ? -EIO : 0;
-}
-
-static const struct hdac_bus_ops bus_ops = {
-	.command = _hda_bus_command,
-	.get_response = _hda_bus_get_response,
-};
+EXPORT_SYMBOL_GPL(snd_hda_get_dev_select);
 
 /**
- * snd_hda_bus_new - create a HDA bus
- * @card: the card entry
- * @busp: the pointer to store the created bus instance
+ * snd_hda_set_dev_select - set device entry select on the pin
+ * @codec: the HDA codec
+ * @nid: NID of the pin to set device entry select
+ * @dev_id: device entry id to be set
  *
- * Returns 0 if successful, or a negative error code.
+ * Set the device entry select on the pin nid.
  */
-int snd_hda_bus_new(struct snd_card *card,
-		    struct hda_bus **busp)
+int snd_hda_set_dev_select(struct hda_codec *codec, hda_nid_t nid, int dev_id)
 {
-	struct hda_bus *bus;
-	int err;
-	static struct snd_device_ops dev_ops = {
-		.dev_disconnect = snd_hda_bus_dev_disconnect,
-		.dev_free = snd_hda_bus_dev_free,
-	};
+	int ret, num_devices;
 
-	if (busp)
-		*busp = NULL;
+	/* not support dp_mst will always return 0, using first dev_entry */
+	if (!codec->dp_mst)
+		return 0;
 
-	bus = kzalloc(sizeof(*bus), GFP_KERNEL);
-	if (!bus)
-		return -ENOMEM;
+	/* AC_PAR_DEVLIST_LEN is 0 based. */
+	num_devices = snd_hda_get_num_devices(codec, nid) + 1;
+	/* If Device List Length is 0 (num_device = 1),
+	 * the pin is not multi stream capable.
+	 * Do nothing in this case.
+	 */
+	if (num_devices == 1)
+		return 0;
 
-	err = snd_hdac_bus_init(&bus->core, card->dev, &bus_ops);
-	if (err < 0) {
-		kfree(bus);
-		return err;
-	}
+	/* Behavior of setting index being equal to or greater than
+	 * Device List Length is not predictable
+	 */
+	if (num_devices <= dev_id)
+		return -EINVAL;
 
-	bus->card = card;
-	mutex_init(&bus->prepare_mutex);
+	ret = snd_hda_codec_write(codec, nid, 0,
+			AC_VERB_SET_DEVICE_SEL, dev_id);
 
-	err = snd_device_new(card, SNDRV_DEV_BUS, bus, &dev_ops);
-	if (err < 0) {
-		snd_hda_bus_free(bus);
-		return err;
-	}
-	if (busp)
-		*busp = bus;
-	return 0;
+	return ret;
 }
-EXPORT_SYMBOL_GPL(snd_hda_bus_new);
+EXPORT_SYMBOL_GPL(snd_hda_set_dev_select);
 
 /*
  * read widget caps for each widget and store in cache
@@ -608,6 +465,10 @@ static int read_pin_defaults(struct hda_codec *codec)
 		pin->nid = nid;
 		pin->cfg = snd_hda_codec_read(codec, nid, 0,
 					      AC_VERB_GET_CONFIG_DEFAULT, 0);
+		/*
+		 * all device entries are the same widget control so far
+		 * fixme: if any codec is different, need fix here
+		 */
 		pin->ctrl = snd_hda_codec_read(codec, nid, 0,
 					       AC_VERB_GET_PIN_WIDGET_CONTROL,
 					       0);
@@ -950,6 +811,7 @@ void snd_hda_codec_register(struct hda_codec *codec)
 		return;
 	if (device_is_registered(hda_codec_dev(codec))) {
 		snd_hda_register_beep_device(codec);
+		snd_hdac_link_power(&codec->core, true);
 		pm_runtime_enable(hda_codec_dev(codec));
 		/* it was powered up in snd_hda_codec_new(), now all done */
 		snd_hda_power_down(codec);
@@ -977,6 +839,7 @@ static int snd_hda_codec_dev_free(struct snd_device *device)
 
 	codec->in_freeing = 1;
 	snd_hdac_device_unregister(&codec->core);
+	snd_hdac_link_power(&codec->core, false);
 	put_device(hda_codec_dev(codec));
 	return 0;
 }
@@ -1064,7 +927,7 @@ int snd_hda_codec_new(struct hda_bus *bus, struct snd_card *card,
 	if (codec->bus->modelname) {
 		codec->modelname = kstrdup(codec->bus->modelname, GFP_KERNEL);
 		if (!codec->modelname) {
-			err = -ENODEV;
+			err = -ENOMEM;
 			goto error;
 		}
 	}
@@ -1114,7 +977,7 @@ int snd_hda_codec_update_widgets(struct hda_codec *codec)
 	hda_nid_t fg;
 	int err;
 
-	err = snd_hdac_refresh_widgets(&codec->core);
+	err = snd_hdac_refresh_widget_sysfs(&codec->core);
 	if (err < 0)
 		return err;
 
@@ -1612,8 +1475,32 @@ int snd_hda_mixer_amp_volume_put(struct snd_kcontrol *kcontrol,
 }
 EXPORT_SYMBOL_GPL(snd_hda_mixer_amp_volume_put);
 
+/* inquiry the amp caps and convert to TLV */
+static void get_ctl_amp_tlv(struct snd_kcontrol *kcontrol, unsigned int *tlv)
+{
+	struct hda_codec *codec = snd_kcontrol_chip(kcontrol);
+	hda_nid_t nid = get_amp_nid(kcontrol);
+	int dir = get_amp_direction(kcontrol);
+	unsigned int ofs = get_amp_offset(kcontrol);
+	bool min_mute = get_amp_min_mute(kcontrol);
+	u32 caps, val1, val2;
+
+	caps = query_amp_caps(codec, nid, dir);
+	val2 = (caps & AC_AMPCAP_STEP_SIZE) >> AC_AMPCAP_STEP_SIZE_SHIFT;
+	val2 = (val2 + 1) * 25;
+	val1 = -((caps & AC_AMPCAP_OFFSET) >> AC_AMPCAP_OFFSET_SHIFT);
+	val1 += ofs;
+	val1 = ((int)val1) * ((int)val2);
+	if (min_mute || (caps & AC_AMPCAP_MIN_MUTE))
+		val2 |= TLV_DB_SCALE_MUTE;
+	tlv[0] = SNDRV_CTL_TLVT_DB_SCALE;
+	tlv[1] = 2 * sizeof(unsigned int);
+	tlv[2] = val1;
+	tlv[3] = val2;
+}
+
 /**
- * snd_hda_mixer_amp_volume_put - TLV callback for a standard AMP mixer volume
+ * snd_hda_mixer_amp_tlv - TLV callback for a standard AMP mixer volume
  * @kcontrol: ctl element
  * @op_flag: operation flag
  * @size: byte size of input TLV
@@ -1625,30 +1512,12 @@ EXPORT_SYMBOL_GPL(snd_hda_mixer_amp_volume_put);
 int snd_hda_mixer_amp_tlv(struct snd_kcontrol *kcontrol, int op_flag,
 			  unsigned int size, unsigned int __user *_tlv)
 {
-	struct hda_codec *codec = snd_kcontrol_chip(kcontrol);
-	hda_nid_t nid = get_amp_nid(kcontrol);
-	int dir = get_amp_direction(kcontrol);
-	unsigned int ofs = get_amp_offset(kcontrol);
-	bool min_mute = get_amp_min_mute(kcontrol);
-	u32 caps, val1, val2;
+	unsigned int tlv[4];
 
 	if (size < 4 * sizeof(unsigned int))
 		return -ENOMEM;
-	caps = query_amp_caps(codec, nid, dir);
-	val2 = (caps & AC_AMPCAP_STEP_SIZE) >> AC_AMPCAP_STEP_SIZE_SHIFT;
-	val2 = (val2 + 1) * 25;
-	val1 = -((caps & AC_AMPCAP_OFFSET) >> AC_AMPCAP_OFFSET_SHIFT);
-	val1 += ofs;
-	val1 = ((int)val1) * ((int)val2);
-	if (min_mute || (caps & AC_AMPCAP_MIN_MUTE))
-		val2 |= TLV_DB_SCALE_MUTE;
-	if (put_user(SNDRV_CTL_TLVT_DB_SCALE, _tlv))
-		return -EFAULT;
-	if (put_user(2 * sizeof(unsigned int), _tlv + 1))
-		return -EFAULT;
-	if (put_user(val1, _tlv + 2))
-		return -EFAULT;
-	if (put_user(val2, _tlv + 3))
+	get_ctl_amp_tlv(kcontrol, tlv);
+	if (copy_to_user(_tlv, tlv, sizeof(tlv)))
 		return -EFAULT;
 	return 0;
 }
@@ -1934,39 +1803,6 @@ static int check_slave_present(struct hda_codec *codec,
 	return 1;
 }
 
-/* guess the value corresponding to 0dB */
-static int get_kctl_0dB_offset(struct hda_codec *codec,
-			       struct snd_kcontrol *kctl, int *step_to_check)
-{
-	int _tlv[4];
-	const int *tlv = NULL;
-	int val = -1;
-
-	if (kctl->vd[0].access & SNDRV_CTL_ELEM_ACCESS_TLV_CALLBACK) {
-		/* FIXME: set_fs() hack for obtaining user-space TLV data */
-		mm_segment_t fs = get_fs();
-		set_fs(get_ds());
-		if (!kctl->tlv.c(kctl, 0, sizeof(_tlv), _tlv))
-			tlv = _tlv;
-		set_fs(fs);
-	} else if (kctl->vd[0].access & SNDRV_CTL_ELEM_ACCESS_TLV_READ)
-		tlv = kctl->tlv.p;
-	if (tlv && tlv[0] == SNDRV_CTL_TLVT_DB_SCALE) {
-		int step = tlv[3];
-		step &= ~TLV_DB_SCALE_MUTE;
-		if (!step)
-			return -1;
-		if (*step_to_check && *step_to_check != step) {
-			codec_err(codec, "Mismatching dB step for vmaster slave (%d!=%d)\n",
--				   *step_to_check, step);
-			return -1;
-		}
-		*step_to_check = step;
-		val = -tlv[2] / step;
-	}
-	return val;
-}
-
 /* call kctl->put with the given value(s) */
 static int put_kctl_with_value(struct snd_kcontrol *kctl, int val)
 {
@@ -1981,19 +1817,62 @@ static int put_kctl_with_value(struct snd_kcontrol *kctl, int val)
 	return 0;
 }
 
-/* initialize the slave volume with 0dB */
-static int init_slave_0dB(struct hda_codec *codec,
-			  void *data, struct snd_kcontrol *slave)
+struct slave_init_arg {
+	struct hda_codec *codec;
+	int step;
+};
+
+/* initialize the slave volume with 0dB via snd_ctl_apply_vmaster_slaves() */
+static int init_slave_0dB(struct snd_kcontrol *slave,
+			  struct snd_kcontrol *kctl,
+			  void *_arg)
 {
-	int offset = get_kctl_0dB_offset(codec, slave, data);
-	if (offset > 0)
-		put_kctl_with_value(slave, offset);
+	struct slave_init_arg *arg = _arg;
+	int _tlv[4];
+	const int *tlv = NULL;
+	int step;
+	int val;
+
+	if (kctl->vd[0].access & SNDRV_CTL_ELEM_ACCESS_TLV_CALLBACK) {
+		if (kctl->tlv.c != snd_hda_mixer_amp_tlv) {
+			codec_err(arg->codec,
+				  "Unexpected TLV callback for slave %s:%d\n",
+				  kctl->id.name, kctl->id.index);
+			return 0; /* ignore */
+		}
+		get_ctl_amp_tlv(kctl, _tlv);
+		tlv = _tlv;
+	} else if (kctl->vd[0].access & SNDRV_CTL_ELEM_ACCESS_TLV_READ)
+		tlv = kctl->tlv.p;
+
+	if (!tlv || tlv[0] != SNDRV_CTL_TLVT_DB_SCALE)
+		return 0;
+
+	step = tlv[3];
+	step &= ~TLV_DB_SCALE_MUTE;
+	if (!step)
+		return 0;
+	if (arg->step && arg->step != step) {
+		codec_err(arg->codec,
+			  "Mismatching dB step for vmaster slave (%d!=%d)\n",
+			  arg->step, step);
+		return 0;
+	}
+
+	arg->step = step;
+	val = -tlv[2] / step;
+	if (val > 0) {
+		put_kctl_with_value(slave, val);
+		return val;
+	}
+
 	return 0;
 }
 
-/* unmute the slave */
-static int init_slave_unmute(struct hda_codec *codec,
-			     void *data, struct snd_kcontrol *slave)
+/* unmute the slave via snd_ctl_apply_vmaster_slaves() */
+static int init_slave_unmute(struct snd_kcontrol *slave,
+			     struct snd_kcontrol *kctl,
+			     void *_arg)
 {
 	return put_kctl_with_value(slave, 1);
 }
@@ -2053,9 +1932,13 @@ int __snd_hda_add_vmaster(struct hda_codec *codec, char *name,
 	/* init with master mute & zero volume */
 	put_kctl_with_value(kctl, 0);
 	if (init_slave_vol) {
-		int step = 0;
-		map_slaves(codec, slaves, suffix,
-			   tlv ? init_slave_0dB : init_slave_unmute, &step);
+		struct slave_init_arg arg = {
+			.codec = codec,
+			.step = 0,
+		};
+		snd_ctl_apply_vmaster_slaves(kctl,
+					     tlv ? init_slave_0dB : init_slave_unmute,
+					     &arg);
 	}
 
 	if (ctl_ret)
@@ -2100,7 +1983,7 @@ static int vmaster_mute_mode_put(struct snd_kcontrol *kcontrol,
 	return 1;
 }
 
-static struct snd_kcontrol_new vmaster_mute_mode = {
+static const struct snd_kcontrol_new vmaster_mute_mode = {
 	.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
 	.name = "Mute-LED Mode",
 	.info = vmaster_mute_mode_info,
@@ -2251,196 +2134,6 @@ int snd_hda_mixer_amp_switch_put(struct snd_kcontrol *kcontrol,
 	return change;
 }
 EXPORT_SYMBOL_GPL(snd_hda_mixer_amp_switch_put);
-
-/*
- * bound volume controls
- *
- * bind multiple volumes (# indices, from 0)
- */
-
-#define AMP_VAL_IDX_SHIFT	19
-#define AMP_VAL_IDX_MASK	(0x0f<<19)
-
-/**
- * snd_hda_mixer_bind_switch_get - Get callback for a bound volume control
- * @kcontrol: ctl element
- * @ucontrol: pointer to get/store the data
- *
- * The control element is supposed to have the private_value field
- * set up via HDA_BIND_MUTE*() macros.
- */
-int snd_hda_mixer_bind_switch_get(struct snd_kcontrol *kcontrol,
-				  struct snd_ctl_elem_value *ucontrol)
-{
-	struct hda_codec *codec = snd_kcontrol_chip(kcontrol);
-	unsigned long pval;
-	int err;
-
-	mutex_lock(&codec->control_mutex);
-	pval = kcontrol->private_value;
-	kcontrol->private_value = pval & ~AMP_VAL_IDX_MASK; /* index 0 */
-	err = snd_hda_mixer_amp_switch_get(kcontrol, ucontrol);
-	kcontrol->private_value = pval;
-	mutex_unlock(&codec->control_mutex);
-	return err;
-}
-EXPORT_SYMBOL_GPL(snd_hda_mixer_bind_switch_get);
-
-/**
- * snd_hda_mixer_bind_switch_put - Put callback for a bound volume control
- * @kcontrol: ctl element
- * @ucontrol: pointer to get/store the data
- *
- * The control element is supposed to have the private_value field
- * set up via HDA_BIND_MUTE*() macros.
- */
-int snd_hda_mixer_bind_switch_put(struct snd_kcontrol *kcontrol,
-				  struct snd_ctl_elem_value *ucontrol)
-{
-	struct hda_codec *codec = snd_kcontrol_chip(kcontrol);
-	unsigned long pval;
-	int i, indices, err = 0, change = 0;
-
-	mutex_lock(&codec->control_mutex);
-	pval = kcontrol->private_value;
-	indices = (pval & AMP_VAL_IDX_MASK) >> AMP_VAL_IDX_SHIFT;
-	for (i = 0; i < indices; i++) {
-		kcontrol->private_value = (pval & ~AMP_VAL_IDX_MASK) |
-			(i << AMP_VAL_IDX_SHIFT);
-		err = snd_hda_mixer_amp_switch_put(kcontrol, ucontrol);
-		if (err < 0)
-			break;
-		change |= err;
-	}
-	kcontrol->private_value = pval;
-	mutex_unlock(&codec->control_mutex);
-	return err < 0 ? err : change;
-}
-EXPORT_SYMBOL_GPL(snd_hda_mixer_bind_switch_put);
-
-/**
- * snd_hda_mixer_bind_ctls_info - Info callback for a generic bound control
- * @kcontrol: referred ctl element
- * @uinfo: pointer to get/store the data
- *
- * The control element is supposed to have the private_value field
- * set up via HDA_BIND_VOL() or HDA_BIND_SW() macros.
- */
-int snd_hda_mixer_bind_ctls_info(struct snd_kcontrol *kcontrol,
-				 struct snd_ctl_elem_info *uinfo)
-{
-	struct hda_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct hda_bind_ctls *c;
-	int err;
-
-	mutex_lock(&codec->control_mutex);
-	c = (struct hda_bind_ctls *)kcontrol->private_value;
-	kcontrol->private_value = *c->values;
-	err = c->ops->info(kcontrol, uinfo);
-	kcontrol->private_value = (long)c;
-	mutex_unlock(&codec->control_mutex);
-	return err;
-}
-EXPORT_SYMBOL_GPL(snd_hda_mixer_bind_ctls_info);
-
-/**
- * snd_hda_mixer_bind_ctls_get - Get callback for a generic bound control
- * @kcontrol: ctl element
- * @ucontrol: pointer to get/store the data
- *
- * The control element is supposed to have the private_value field
- * set up via HDA_BIND_VOL() or HDA_BIND_SW() macros.
- */
-int snd_hda_mixer_bind_ctls_get(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	struct hda_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct hda_bind_ctls *c;
-	int err;
-
-	mutex_lock(&codec->control_mutex);
-	c = (struct hda_bind_ctls *)kcontrol->private_value;
-	kcontrol->private_value = *c->values;
-	err = c->ops->get(kcontrol, ucontrol);
-	kcontrol->private_value = (long)c;
-	mutex_unlock(&codec->control_mutex);
-	return err;
-}
-EXPORT_SYMBOL_GPL(snd_hda_mixer_bind_ctls_get);
-
-/**
- * snd_hda_mixer_bind_ctls_put - Put callback for a generic bound control
- * @kcontrol: ctl element
- * @ucontrol: pointer to get/store the data
- *
- * The control element is supposed to have the private_value field
- * set up via HDA_BIND_VOL() or HDA_BIND_SW() macros.
- */
-int snd_hda_mixer_bind_ctls_put(struct snd_kcontrol *kcontrol,
-				struct snd_ctl_elem_value *ucontrol)
-{
-	struct hda_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct hda_bind_ctls *c;
-	unsigned long *vals;
-	int err = 0, change = 0;
-
-	mutex_lock(&codec->control_mutex);
-	c = (struct hda_bind_ctls *)kcontrol->private_value;
-	for (vals = c->values; *vals; vals++) {
-		kcontrol->private_value = *vals;
-		err = c->ops->put(kcontrol, ucontrol);
-		if (err < 0)
-			break;
-		change |= err;
-	}
-	kcontrol->private_value = (long)c;
-	mutex_unlock(&codec->control_mutex);
-	return err < 0 ? err : change;
-}
-EXPORT_SYMBOL_GPL(snd_hda_mixer_bind_ctls_put);
-
-/**
- * snd_hda_mixer_bind_tlv - TLV callback for a generic bound control
- * @kcontrol: ctl element
- * @op_flag: operation flag
- * @size: byte size of input TLV
- * @tlv: TLV data
- *
- * The control element is supposed to have the private_value field
- * set up via HDA_BIND_VOL() macro.
- */
-int snd_hda_mixer_bind_tlv(struct snd_kcontrol *kcontrol, int op_flag,
-			   unsigned int size, unsigned int __user *tlv)
-{
-	struct hda_codec *codec = snd_kcontrol_chip(kcontrol);
-	struct hda_bind_ctls *c;
-	int err;
-
-	mutex_lock(&codec->control_mutex);
-	c = (struct hda_bind_ctls *)kcontrol->private_value;
-	kcontrol->private_value = *c->values;
-	err = c->ops->tlv(kcontrol, op_flag, size, tlv);
-	kcontrol->private_value = (long)c;
-	mutex_unlock(&codec->control_mutex);
-	return err;
-}
-EXPORT_SYMBOL_GPL(snd_hda_mixer_bind_tlv);
-
-struct hda_ctl_ops snd_hda_bind_vol = {
-	.info = snd_hda_mixer_amp_volume_info,
-	.get = snd_hda_mixer_amp_volume_get,
-	.put = snd_hda_mixer_amp_volume_put,
-	.tlv = snd_hda_mixer_amp_tlv
-};
-EXPORT_SYMBOL_GPL(snd_hda_bind_vol);
-
-struct hda_ctl_ops snd_hda_bind_sw = {
-	.info = snd_hda_mixer_amp_switch_info,
-	.get = snd_hda_mixer_amp_switch_get,
-	.put = snd_hda_mixer_amp_switch_put,
-	.tlv = snd_hda_mixer_amp_tlv
-};
-EXPORT_SYMBOL_GPL(snd_hda_bind_sw);
 
 /*
  * SPDIF out controls
@@ -2840,7 +2533,7 @@ static int spdif_share_sw_put(struct snd_kcontrol *kcontrol,
 	return 0;
 }
 
-static struct snd_kcontrol_new spdif_share_sw = {
+static const struct snd_kcontrol_new spdif_share_sw = {
 	.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
 	.name = "IEC958 Default PCM Playback Switch",
 	.info = snd_ctl_boolean_mono_info,
@@ -3223,6 +2916,7 @@ static int hda_codec_runtime_suspend(struct device *dev)
 	if (codec_has_clkstop(codec) && codec_has_epss(codec) &&
 	    (state & AC_PWRST_CLK_STOP_OK))
 		snd_hdac_codec_link_down(&codec->core);
+	snd_hdac_link_power(&codec->core, false);
 	return 0;
 }
 
@@ -3230,6 +2924,7 @@ static int hda_codec_runtime_resume(struct device *dev)
 {
 	struct hda_codec *codec = dev_to_hda_codec(dev);
 
+	snd_hdac_link_power(&codec->core, true);
 	snd_hdac_codec_link_up(&codec->core);
 	hda_call_codec_resume(codec);
 	pm_runtime_mark_last_busy(dev);
@@ -3259,8 +2954,7 @@ static int add_std_chmaps(struct hda_codec *codec)
 			struct snd_pcm_chmap *chmap;
 			const struct snd_pcm_chmap_elem *elem;
 
-			if (!pcm || pcm->own_chmap ||
-			    !hinfo->substreams)
+			if (!pcm->pcm || pcm->own_chmap || !hinfo->substreams)
 				continue;
 			elem = hinfo->chmap ? hinfo->chmap : snd_pcm_std_chmaps;
 			err = snd_pcm_add_chmap_ctls(pcm->pcm, str, elem,
@@ -3311,311 +3005,6 @@ int snd_hda_codec_build_controls(struct hda_codec *codec)
 	sync_power_up_states(codec);
 	return 0;
 }
-
-/*
- * stream formats
- */
-struct hda_rate_tbl {
-	unsigned int hz;
-	unsigned int alsa_bits;
-	unsigned int hda_fmt;
-};
-
-/* rate = base * mult / div */
-#define HDA_RATE(base, mult, div) \
-	(AC_FMT_BASE_##base##K | (((mult) - 1) << AC_FMT_MULT_SHIFT) | \
-	 (((div) - 1) << AC_FMT_DIV_SHIFT))
-
-static struct hda_rate_tbl rate_bits[] = {
-	/* rate in Hz, ALSA rate bitmask, HDA format value */
-
-	/* autodetected value used in snd_hda_query_supported_pcm */
-	{ 8000, SNDRV_PCM_RATE_8000, HDA_RATE(48, 1, 6) },
-	{ 11025, SNDRV_PCM_RATE_11025, HDA_RATE(44, 1, 4) },
-	{ 16000, SNDRV_PCM_RATE_16000, HDA_RATE(48, 1, 3) },
-	{ 22050, SNDRV_PCM_RATE_22050, HDA_RATE(44, 1, 2) },
-	{ 32000, SNDRV_PCM_RATE_32000, HDA_RATE(48, 2, 3) },
-	{ 44100, SNDRV_PCM_RATE_44100, HDA_RATE(44, 1, 1) },
-	{ 48000, SNDRV_PCM_RATE_48000, HDA_RATE(48, 1, 1) },
-	{ 88200, SNDRV_PCM_RATE_88200, HDA_RATE(44, 2, 1) },
-	{ 96000, SNDRV_PCM_RATE_96000, HDA_RATE(48, 2, 1) },
-	{ 176400, SNDRV_PCM_RATE_176400, HDA_RATE(44, 4, 1) },
-	{ 192000, SNDRV_PCM_RATE_192000, HDA_RATE(48, 4, 1) },
-#define AC_PAR_PCM_RATE_BITS	11
-	/* up to bits 10, 384kHZ isn't supported properly */
-
-	/* not autodetected value */
-	{ 9600, SNDRV_PCM_RATE_KNOT, HDA_RATE(48, 1, 5) },
-
-	{ 0 } /* terminator */
-};
-
-/**
- * snd_hda_calc_stream_format - calculate format bitset
- * @codec: HD-audio codec
- * @rate: the sample rate
- * @channels: the number of channels
- * @format: the PCM format (SNDRV_PCM_FORMAT_XXX)
- * @maxbps: the max. bps
- * @spdif_ctls: HD-audio SPDIF status bits (0 if irrelevant)
- *
- * Calculate the format bitset from the given rate, channels and th PCM format.
- *
- * Return zero if invalid.
- */
-unsigned int snd_hda_calc_stream_format(struct hda_codec *codec,
-					unsigned int rate,
-					unsigned int channels,
-					unsigned int format,
-					unsigned int maxbps,
-					unsigned short spdif_ctls)
-{
-	int i;
-	unsigned int val = 0;
-
-	for (i = 0; rate_bits[i].hz; i++)
-		if (rate_bits[i].hz == rate) {
-			val = rate_bits[i].hda_fmt;
-			break;
-		}
-	if (!rate_bits[i].hz) {
-		codec_dbg(codec, "invalid rate %d\n", rate);
-		return 0;
-	}
-
-	if (channels == 0 || channels > 8) {
-		codec_dbg(codec, "invalid channels %d\n", channels);
-		return 0;
-	}
-	val |= channels - 1;
-
-	switch (snd_pcm_format_width(format)) {
-	case 8:
-		val |= AC_FMT_BITS_8;
-		break;
-	case 16:
-		val |= AC_FMT_BITS_16;
-		break;
-	case 20:
-	case 24:
-	case 32:
-		if (maxbps >= 32 || format == SNDRV_PCM_FORMAT_FLOAT_LE)
-			val |= AC_FMT_BITS_32;
-		else if (maxbps >= 24)
-			val |= AC_FMT_BITS_24;
-		else
-			val |= AC_FMT_BITS_20;
-		break;
-	default:
-		codec_dbg(codec, "invalid format width %d\n",
-			  snd_pcm_format_width(format));
-		return 0;
-	}
-
-	if (spdif_ctls & AC_DIG1_NONAUDIO)
-		val |= AC_FMT_TYPE_NON_PCM;
-
-	return val;
-}
-EXPORT_SYMBOL_GPL(snd_hda_calc_stream_format);
-
-static unsigned int query_pcm_param(struct hda_codec *codec, hda_nid_t nid)
-{
-	unsigned int val = 0;
-	if (nid != codec->core.afg &&
-	    (get_wcaps(codec, nid) & AC_WCAP_FORMAT_OVRD))
-		val = snd_hda_param_read(codec, nid, AC_PAR_PCM);
-	if (!val || val == -1)
-		val = snd_hda_param_read(codec, codec->core.afg, AC_PAR_PCM);
-	if (!val || val == -1)
-		return 0;
-	return val;
-}
-
-static unsigned int query_stream_param(struct hda_codec *codec, hda_nid_t nid)
-{
-	unsigned int streams = snd_hda_param_read(codec, nid, AC_PAR_STREAM);
-	if (!streams || streams == -1)
-		streams = snd_hda_param_read(codec, codec->core.afg, AC_PAR_STREAM);
-	if (!streams || streams == -1)
-		return 0;
-	return streams;
-}
-
-/**
- * snd_hda_query_supported_pcm - query the supported PCM rates and formats
- * @codec: the HDA codec
- * @nid: NID to query
- * @ratesp: the pointer to store the detected rate bitflags
- * @formatsp: the pointer to store the detected formats
- * @bpsp: the pointer to store the detected format widths
- *
- * Queries the supported PCM rates and formats.  The NULL @ratesp, @formatsp
- * or @bsps argument is ignored.
- *
- * Returns 0 if successful, otherwise a negative error code.
- */
-int snd_hda_query_supported_pcm(struct hda_codec *codec, hda_nid_t nid,
-				u32 *ratesp, u64 *formatsp, unsigned int *bpsp)
-{
-	unsigned int i, val, wcaps;
-
-	wcaps = get_wcaps(codec, nid);
-	val = query_pcm_param(codec, nid);
-
-	if (ratesp) {
-		u32 rates = 0;
-		for (i = 0; i < AC_PAR_PCM_RATE_BITS; i++) {
-			if (val & (1 << i))
-				rates |= rate_bits[i].alsa_bits;
-		}
-		if (rates == 0) {
-			codec_err(codec,
-				  "rates == 0 (nid=0x%x, val=0x%x, ovrd=%i)\n",
-				  nid, val,
-				  (wcaps & AC_WCAP_FORMAT_OVRD) ? 1 : 0);
-			return -EIO;
-		}
-		*ratesp = rates;
-	}
-
-	if (formatsp || bpsp) {
-		u64 formats = 0;
-		unsigned int streams, bps;
-
-		streams = query_stream_param(codec, nid);
-		if (!streams)
-			return -EIO;
-
-		bps = 0;
-		if (streams & AC_SUPFMT_PCM) {
-			if (val & AC_SUPPCM_BITS_8) {
-				formats |= SNDRV_PCM_FMTBIT_U8;
-				bps = 8;
-			}
-			if (val & AC_SUPPCM_BITS_16) {
-				formats |= SNDRV_PCM_FMTBIT_S16_LE;
-				bps = 16;
-			}
-			if (wcaps & AC_WCAP_DIGITAL) {
-				if (val & AC_SUPPCM_BITS_32)
-					formats |= SNDRV_PCM_FMTBIT_IEC958_SUBFRAME_LE;
-				if (val & (AC_SUPPCM_BITS_20|AC_SUPPCM_BITS_24))
-					formats |= SNDRV_PCM_FMTBIT_S32_LE;
-				if (val & AC_SUPPCM_BITS_24)
-					bps = 24;
-				else if (val & AC_SUPPCM_BITS_20)
-					bps = 20;
-			} else if (val & (AC_SUPPCM_BITS_20|AC_SUPPCM_BITS_24|
-					  AC_SUPPCM_BITS_32)) {
-				formats |= SNDRV_PCM_FMTBIT_S32_LE;
-				if (val & AC_SUPPCM_BITS_32)
-					bps = 32;
-				else if (val & AC_SUPPCM_BITS_24)
-					bps = 24;
-				else if (val & AC_SUPPCM_BITS_20)
-					bps = 20;
-			}
-		}
-#if 0 /* FIXME: CS4206 doesn't work, which is the only codec supporting float */
-		if (streams & AC_SUPFMT_FLOAT32) {
-			formats |= SNDRV_PCM_FMTBIT_FLOAT_LE;
-			if (!bps)
-				bps = 32;
-		}
-#endif
-		if (streams == AC_SUPFMT_AC3) {
-			/* should be exclusive */
-			/* temporary hack: we have still no proper support
-			 * for the direct AC3 stream...
-			 */
-			formats |= SNDRV_PCM_FMTBIT_U8;
-			bps = 8;
-		}
-		if (formats == 0) {
-			codec_err(codec,
-				  "formats == 0 (nid=0x%x, val=0x%x, ovrd=%i, streams=0x%x)\n",
-				  nid, val,
-				  (wcaps & AC_WCAP_FORMAT_OVRD) ? 1 : 0,
-				  streams);
-			return -EIO;
-		}
-		if (formatsp)
-			*formatsp = formats;
-		if (bpsp)
-			*bpsp = bps;
-	}
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(snd_hda_query_supported_pcm);
-
-/**
- * snd_hda_is_supported_format - Check the validity of the format
- * @codec: HD-audio codec
- * @nid: NID to check
- * @format: the HD-audio format value to check
- *
- * Check whether the given node supports the format value.
- *
- * Returns 1 if supported, 0 if not.
- */
-int snd_hda_is_supported_format(struct hda_codec *codec, hda_nid_t nid,
-				unsigned int format)
-{
-	int i;
-	unsigned int val = 0, rate, stream;
-
-	val = query_pcm_param(codec, nid);
-	if (!val)
-		return 0;
-
-	rate = format & 0xff00;
-	for (i = 0; i < AC_PAR_PCM_RATE_BITS; i++)
-		if (rate_bits[i].hda_fmt == rate) {
-			if (val & (1 << i))
-				break;
-			return 0;
-		}
-	if (i >= AC_PAR_PCM_RATE_BITS)
-		return 0;
-
-	stream = query_stream_param(codec, nid);
-	if (!stream)
-		return 0;
-
-	if (stream & AC_SUPFMT_PCM) {
-		switch (format & 0xf0) {
-		case 0x00:
-			if (!(val & AC_SUPPCM_BITS_8))
-				return 0;
-			break;
-		case 0x10:
-			if (!(val & AC_SUPPCM_BITS_16))
-				return 0;
-			break;
-		case 0x20:
-			if (!(val & AC_SUPPCM_BITS_20))
-				return 0;
-			break;
-		case 0x30:
-			if (!(val & AC_SUPPCM_BITS_24))
-				return 0;
-			break;
-		case 0x40:
-			if (!(val & AC_SUPPCM_BITS_32))
-				return 0;
-			break;
-		default:
-			return 0;
-		}
-	} else {
-		/* FIXME: check for float32 and AC3? */
-	}
-
-	return 1;
-}
-EXPORT_SYMBOL_GPL(snd_hda_is_supported_format);
 
 /*
  * PCM stuff
@@ -3829,14 +3218,9 @@ int snd_hda_codec_build_pcms(struct hda_codec *codec)
 	struct hda_pcm *cpcm;
 	int dev, err;
 
-	if (snd_BUG_ON(!bus->ops.attach_pcm))
-		return -EINVAL;
-
 	err = snd_hda_codec_parse_pcms(codec);
-	if (err < 0) {
-		snd_hda_codec_reset(codec);
+	if (err < 0)
 		return err;
-	}
 
 	/* attach a new PCM streams */
 	list_for_each_entry(cpcm, &codec->pcm_list_head, list) {
@@ -3846,10 +3230,12 @@ int snd_hda_codec_build_pcms(struct hda_codec *codec)
 			continue; /* no substreams assigned */
 
 		dev = get_empty_pcm_device(bus, cpcm->pcm_type);
-		if (dev < 0)
+		if (dev < 0) {
+			cpcm->device = SNDRV_PCM_INVALID_DEVICE;
 			continue; /* no fatal error */
+		}
 		cpcm->device = dev;
-		err =  bus->ops.attach_pcm(bus, codec, cpcm);
+		err =  snd_hda_attach_pcm_stream(bus, codec, cpcm);
 		if (err < 0) {
 			codec_err(codec,
 				  "cannot attach PCM stream %d for codec #%d\n",
@@ -3915,6 +3301,9 @@ EXPORT_SYMBOL_GPL(snd_hda_add_new_ctls);
 static void codec_set_power_save(struct hda_codec *codec, int delay)
 {
 	struct device *dev = hda_codec_dev(codec);
+
+	if (delay == 0 && codec->auto_runtime_pm)
+		delay = 3000;
 
 	if (delay > 0) {
 		pm_runtime_set_autosuspend_delay(dev, delay);
@@ -4093,6 +3482,12 @@ static void setup_dig_out_stream(struct hda_codec *codec, hda_nid_t nid,
 	bool reset;
 
 	spdif = snd_hda_spdif_out_of_nid(codec, nid);
+	/* Add sanity check to pass klockwork check.
+	 * This should never happen.
+	 */
+	if (WARN_ON(spdif == NULL))
+		return;
+
 	curr_fmt = snd_hda_codec_read(codec, nid, 0,
 				      AC_VERB_GET_STREAM_FORMAT, 0);
 	reset = codec->spdif_status_reset &&
@@ -4277,7 +3672,7 @@ int snd_hda_multi_out_analog_prepare(struct hda_codec *codec,
 	spdif = snd_hda_spdif_out_of_nid(codec, mout->dig_out_nid);
 	if (mout->dig_out_nid && mout->share_spdif &&
 	    mout->dig_out_used != HDA_DIG_EXCLUSIVE) {
-		if (chs == 2 &&
+		if (chs == 2 && spdif != NULL &&
 		    snd_hda_is_supported_format(codec, mout->dig_out_nid,
 						format) &&
 		    !(spdif->status & IEC958_AES0_NONAUDIO)) {
@@ -4519,10 +3914,10 @@ int snd_hda_add_imux_item(struct hda_codec *codec,
 EXPORT_SYMBOL_GPL(snd_hda_add_imux_item);
 
 /**
- * snd_hda_bus_reset - Reset the bus
+ * snd_hda_bus_reset_codecs - Reset the bus
  * @bus: HD-audio bus
  */
-void snd_hda_bus_reset(struct hda_bus *bus)
+void snd_hda_bus_reset_codecs(struct hda_bus *bus)
 {
 	struct hda_codec *codec;
 
@@ -4537,7 +3932,6 @@ void snd_hda_bus_reset(struct hda_bus *bus)
 #endif
 	}
 }
-EXPORT_SYMBOL_GPL(snd_hda_bus_reset);
 
 /**
  * snd_print_pcm_bits - Print the supported PCM fmt bits to the string buffer

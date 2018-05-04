@@ -93,9 +93,9 @@ int rpaphp_enable_slot(struct slot *slot)
 	if (rc)
 		return rc;
 
-	bus = pcibios_find_pci_bus(slot->dn);
+	bus = pci_find_bus_by_node(slot->dn);
 	if (!bus) {
-		err("%s: no pci_bus for dn %s\n", __func__, slot->dn->full_name);
+		err("%s: no pci_bus for dn %pOF\n", __func__, slot->dn);
 		return -EINVAL;
 	}
 
@@ -116,7 +116,7 @@ int rpaphp_enable_slot(struct slot *slot)
 		}
 
 		if (list_empty(&bus->devices))
-			pcibios_add_pci_devices(bus);
+			pci_hp_add_devices(bus);
 
 		if (!list_empty(&bus->devices)) {
 			info->adapter_status = CONFIGURED;
@@ -125,8 +125,8 @@ int rpaphp_enable_slot(struct slot *slot)
 
 		if (rpaphp_debug) {
 			struct pci_dev *dev;
-			dbg("%s: pci_devs of slot[%s]\n", __func__, slot->dn->full_name);
-			list_for_each_entry (dev, &bus->devices, bus_list)
+			dbg("%s: pci_devs of slot[%pOF]\n", __func__, slot->dn);
+			list_for_each_entry(dev, &bus->devices, bus_list)
 				dbg("\t%s\n", pci_name(dev));
 		}
 	}

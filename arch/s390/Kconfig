@@ -1,16 +1,17 @@
+# SPDX-License-Identifier: GPL-2.0
 config MMU
 	def_bool y
 
 config ZONE_DMA
 	def_bool y
 
+config CPU_BIG_ENDIAN
+	def_bool y
+
 config LOCKDEP_SUPPORT
 	def_bool y
 
 config STACKTRACE_SUPPORT
-	def_bool y
-
-config HAVE_LATENCYTOP_SUPPORT
 	def_bool y
 
 config RWSEM_GENERIC_SPINLOCK
@@ -48,6 +49,7 @@ config ARCH_SUPPORTS_DEBUG_PAGEALLOC
 
 config KEXEC
 	def_bool y
+	select KEXEC_CORE
 
 config AUDIT_ARCH
 	def_bool y
@@ -63,11 +65,17 @@ config ARCH_SUPPORTS_UPROBES
 
 config S390
 	def_bool y
-	select ARCH_HAS_ATOMIC64_DEC_IF_POSITIVE
-	select ARCH_HAS_DEBUG_STRICT_USER_COPY_CHECKS
+	select ARCH_BINFMT_ELF_STATE
+	select ARCH_HAS_DEVMEM_IS_ALLOWED
 	select ARCH_HAS_ELF_RANDOMIZE
 	select ARCH_HAS_GCOV_PROFILE_ALL
+	select ARCH_HAS_GIGANTIC_PAGE if (MEMORY_ISOLATION && COMPACTION) || CMA
+	select ARCH_HAS_KCOV
+	select ARCH_HAS_SET_MEMORY
 	select ARCH_HAS_SG_CHAIN
+	select ARCH_HAS_STRICT_KERNEL_RWX
+	select ARCH_HAS_STRICT_MODULE_RWX
+	select ARCH_HAS_UBSAN_SANITIZE_ALL
 	select ARCH_HAVE_NMI_SAFE_CMPXCHG
 	select ARCH_INLINE_READ_LOCK
 	select ARCH_INLINE_READ_LOCK_BH
@@ -99,12 +107,19 @@ config S390
 	select ARCH_INLINE_WRITE_UNLOCK_IRQRESTORE
 	select ARCH_SAVE_PAGE_KEYS if HIBERNATION
 	select ARCH_SUPPORTS_ATOMIC_RMW
+	select ARCH_SUPPORTS_DEFERRED_STRUCT_PAGE_INIT
+	select ARCH_SUPPORTS_NUMA_BALANCING
+	select ARCH_USE_BUILTIN_BSWAP
 	select ARCH_USE_CMPXCHG_LOCKREF
+	select ARCH_WANTS_DYNAMIC_TASK_STRUCT
+	select ARCH_WANTS_PROT_NUMA_PROT_NONE
+	select ARCH_WANTS_UBSAN_NO_NULL
 	select ARCH_WANT_IPC_PARSE_VERSION
 	select BUILDTIME_EXTABLE_SORT
 	select CLONE_BACKWARDS2
 	select DYNAMIC_FTRACE if FUNCTION_TRACER
 	select GENERIC_CLOCKEVENTS
+	select GENERIC_CPU_AUTOPROBE
 	select GENERIC_CPU_DEVICES if !SMP
 	select GENERIC_FIND_FIRST_BIT
 	select GENERIC_SMP_IDLE_THREAD
@@ -112,15 +127,23 @@ config S390
 	select HAVE_ALIGNED_STRUCT_PAGE if SLUB
 	select HAVE_ARCH_AUDITSYSCALL
 	select HAVE_ARCH_JUMP_LABEL
+	select CPU_NO_EFFICIENT_FFS if !HAVE_MARCH_Z9_109_FEATURES
 	select HAVE_ARCH_SECCOMP_FILTER
+	select HAVE_ARCH_SOFT_DIRTY
 	select HAVE_ARCH_TRACEHOOK
 	select HAVE_ARCH_TRANSPARENT_HUGEPAGE
-	select HAVE_BPF_JIT if PACK_STACK && HAVE_MARCH_Z196_FEATURES
+	select HAVE_EBPF_JIT if PACK_STACK && HAVE_MARCH_Z196_FEATURES
 	select HAVE_CMPXCHG_DOUBLE
 	select HAVE_CMPXCHG_LOCAL
+	select HAVE_COPY_THREAD_TLS
 	select HAVE_DEBUG_KMEMLEAK
+	select HAVE_DMA_API_DEBUG
+	select HAVE_DMA_CONTIGUOUS
+	select DMA_NOOP_OPS
 	select HAVE_DYNAMIC_FTRACE
 	select HAVE_DYNAMIC_FTRACE_WITH_REGS
+	select HAVE_EFFICIENT_UNALIGNED_ACCESS
+	select HAVE_EXIT_THREAD
 	select HAVE_FTRACE_MCOUNT_RECORD
 	select HAVE_FUNCTION_GRAPH_TRACER
 	select HAVE_FUNCTION_TRACER
@@ -148,18 +171,22 @@ config S390
 	select NO_BOOTMEM
 	select OLD_SIGACTION
 	select OLD_SIGSUSPEND3
+	select SPARSE_IRQ
 	select SYSCTL_EXCEPTION_TRACE
+	select THREAD_INFO_IN_TASK
 	select TTY
 	select VIRT_CPU_ACCOUNTING
+	select ARCH_HAS_SCALED_CPUTIME
 	select VIRT_TO_BUS
+	select HAVE_NMI
+
 
 config SCHED_OMIT_FRAME_POINTER
 	def_bool y
 
 config PGTABLE_LEVELS
 	int
-	default 4 if 64BIT
-	default 2
+	default 5
 
 source "init/Kconfig"
 
@@ -196,9 +223,13 @@ config HAVE_MARCH_Z13_FEATURES
 	def_bool n
 	select HAVE_MARCH_ZEC12_FEATURES
 
+config HAVE_MARCH_Z14_FEATURES
+	def_bool n
+	select HAVE_MARCH_Z13_FEATURES
+
 choice
 	prompt "Processor type"
-	default MARCH_Z900
+	default MARCH_Z196
 
 config MARCH_Z900
 	bool "IBM zSeries model z800 and z900"
@@ -249,10 +280,18 @@ config MARCH_ZEC12
 	  older machines.
 
 config MARCH_Z13
-	bool "IBM z13"
+	bool "IBM z13s and z13"
 	select HAVE_MARCH_Z13_FEATURES
 	help
-	  Select this to enable optimizations for IBM z13 (2964 series).
+	  Select this to enable optimizations for IBM z13s and z13 (2965 and
+	  2964 series). The kernel will be slightly faster but will not work on
+	  older machines.
+
+config MARCH_Z14
+	bool "IBM z14"
+	select HAVE_MARCH_Z14_FEATURES
+	help
+	  Select this to enable optimizations for IBM z14 (3906 series).
 	  The kernel will be slightly faster but will not work on older
 	  machines.
 
@@ -278,6 +317,9 @@ config MARCH_ZEC12_TUNE
 
 config MARCH_Z13_TUNE
 	def_bool TUNE_Z13 || MARCH_Z13 && TUNE_DEFAULT
+
+config MARCH_Z14_TUNE
+	def_bool TUNE_Z14 || MARCH_Z14 && TUNE_DEFAULT
 
 choice
 	prompt "Tune code generation"
@@ -317,6 +359,9 @@ config TUNE_ZEC12
 config TUNE_Z13
 	bool "IBM z13"
 
+config TUNE_Z14
+	bool "IBM z14"
+
 endchoice
 
 config 64BIT
@@ -337,9 +382,6 @@ config COMPAT
 
 config SYSVIPC_COMPAT
 	def_bool y if COMPAT && SYSVIPC
-
-config KEYS_COMPAT
-	def_bool y if COMPAT && KEYS
 
 config SMP
 	def_bool y
@@ -382,6 +424,76 @@ config HOTPLUG_CPU
 	  can be controlled through /sys/devices/system/cpu/cpu#.
 	  Say N if you want to disable CPU hotplug.
 
+# Some NUMA nodes have memory ranges that span
+# other nodes.	Even though a pfn is valid and
+# between a node's start and end pfns, it may not
+# reside on that node.	See memmap_init_zone()
+# for details. <- They meant memory holes!
+config NODES_SPAN_OTHER_NODES
+	def_bool NUMA
+
+config NUMA
+	bool "NUMA support"
+	depends on SMP && SCHED_TOPOLOGY
+	default n
+	help
+	  Enable NUMA support
+
+	  This option adds NUMA support to the kernel.
+
+	  An operation mode can be selected by appending
+	  numa=<method> to the kernel command line.
+
+	  The default behaviour is identical to appending numa=plain to
+	  the command line. This will create just one node with all
+	  available memory and all CPUs in it.
+
+config NODES_SHIFT
+	int "Maximum NUMA nodes (as a power of 2)"
+	range 1 10
+	depends on NUMA
+	default "4"
+	help
+	  Specify the maximum number of NUMA nodes available on the target
+	  system. Increases memory reserved to accommodate various tables.
+
+menu "Select NUMA modes"
+	depends on NUMA
+
+config NUMA_EMU
+	bool "NUMA emulation"
+	default y
+	help
+	  Numa emulation mode will split the available system memory into
+	  equal chunks which then are distributed over the configured number
+	  of nodes in a round-robin manner.
+
+	  The number of fake nodes is limited by the number of available memory
+	  chunks (i.e. memory size / fake size) and the number of supported
+	  nodes in the kernel.
+
+	  The CPUs are assigned to the nodes in a way that partially respects
+	  the original machine topology (if supported by the machine).
+	  Fair distribution of the CPUs is not guaranteed.
+
+config EMU_SIZE
+	hex "NUMA emulation memory chunk size"
+	default 0x10000000
+	range 0x400000 0x100000000
+	depends on NUMA_EMU
+	help
+	  Select the default size by which the memory is chopped and then
+	  assigned to emulated NUMA nodes.
+
+	  This can be overridden by specifying
+
+	  emu_size=<n>
+
+	  on the kernel command line where also suffixes K, M, G, and T are
+	  supported.
+
+endmenu
+
 config SCHED_SMT
 	def_bool n
 
@@ -391,6 +503,9 @@ config SCHED_MC
 config SCHED_BOOK
 	def_bool n
 
+config SCHED_DRAWER
+	def_bool n
+
 config SCHED_TOPOLOGY
 	def_bool y
 	prompt "Topology scheduler support"
@@ -398,6 +513,7 @@ config SCHED_TOPOLOGY
 	select SCHED_SMT
 	select SCHED_MC
 	select SCHED_BOOK
+	select SCHED_DRAWER
 	help
 	  Topology scheduler support improves the CPU scheduler's decision
 	  making when dealing with machines that have multi-threading,
@@ -406,6 +522,21 @@ config SCHED_TOPOLOGY
 source kernel/Kconfig.preempt
 
 source kernel/Kconfig.hz
+
+config ARCH_RANDOM
+	def_bool y
+	prompt "s390 architectural random number generation API"
+	help
+	  Enable the s390 architectural random number generation API
+	  to provide random data for all consumers within the Linux
+	  kernel.
+
+	  When enabled the arch_random_* functions declared in linux/random.h
+	  are implemented. The implementation is based on the s390 CPACF
+	  instruction subfunction TRNG which provides a real true random
+	  number generator.
+
+	  If unsure, say Y.
 
 endmenu
 
@@ -436,6 +567,16 @@ config FORCE_MAX_ZONEORDER
 	default "9"
 
 source "mm/Kconfig"
+
+config MAX_PHYSMEM_BITS
+	int "Maximum size of supported physical memory in bits (42-53)"
+	range 42 53
+	default "46"
+	help
+	  This option specifies the maximum supported size of physical memory
+	  in bits. Supported is any size between 2^42 (4TB) and 2^53 (8PB).
+	  Increasing the number of bits also increases the kernel image size.
+	  By default 46 bits (64TB) are supported.
 
 config PACK_STACK
 	def_bool y
@@ -504,8 +645,8 @@ config QDIO
 
 menuconfig PCI
 	bool "PCI support"
-	select HAVE_DMA_ATTRS
 	select PCI_MSI
+	select IOMMU_SUPPORT
 	help
 	  Enable PCI support.
 
@@ -514,24 +655,12 @@ if PCI
 config PCI_NR_FUNCTIONS
 	int "Maximum number of PCI functions (1-4096)"
 	range 1 4096
-	default "64"
+	default "128"
 	help
 	  This allows you to specify the maximum number of PCI functions which
 	  this kernel will support.
 
-config PCI_NR_MSI
-	int "Maximum number of MSI interrupts (64-32768)"
-	range 64 32768
-	default "256"
-	help
-	  This defines the number of virtual interrupts the kernel will
-	  provide for MSI interrupts. If you configure your system to have
-	  too few drivers will fail to allocate MSI interrupts for all
-	  PCI devices.
-
 source "drivers/pci/Kconfig"
-source "drivers/pci/pcie/Kconfig"
-source "drivers/pci/hotplug/Kconfig"
 
 endif	# PCI
 
@@ -543,10 +672,6 @@ config HAS_IOMEM
 
 config IOMMU_HELPER
 	def_bool PCI
-
-config HAS_DMA
-	def_bool PCI
-	select HAVE_DMA_API_DEBUG
 
 config NEED_SG_DMA_LENGTH
 	def_bool PCI
@@ -587,6 +712,16 @@ config EADM_SCH
 
 	  To compile this driver as a module, choose M here: the
 	  module will be called eadm_sch.
+
+config VFIO_CCW
+	def_tristate n
+	prompt "Support for VFIO-CCW subchannels"
+	depends on S390_CCW_IOMMU && VFIO_MDEV
+	help
+	  This driver allows usage of I/O subchannels via VFIO-CCW.
+
+	  To compile this driver as a module, choose M here: the
+	  module will be called vfio_ccw.
 
 endmenu
 
@@ -794,5 +929,18 @@ config S390_GUEST
 
 	  Select this option if you want to run the kernel as a guest under
 	  the KVM hypervisor.
+
+config S390_GUEST_OLD_TRANSPORT
+	def_bool y
+	prompt "Guest support for old s390 virtio transport (DEPRECATED)"
+	depends on S390_GUEST
+	help
+	  Enable this option to add support for the old s390-virtio
+	  transport (i.e. virtio devices NOT based on virtio-ccw). This
+	  type of virtio devices is only available on the experimental
+	  kuli userspace or with old (< 2.6) qemu. If you are running
+	  with a modern version of qemu (which supports virtio-ccw since
+	  1.4 and uses it by default since version 2.4), you probably won't
+	  need this.
 
 endmenu

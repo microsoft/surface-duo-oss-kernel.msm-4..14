@@ -102,17 +102,16 @@ static int nokia_modem_gpio_probe(struct device *dev)
 		return -EINVAL;
 	}
 
-	modem->gpios = devm_kzalloc(dev, gpio_count *
-				sizeof(struct nokia_modem_gpio), GFP_KERNEL);
-	if (!modem->gpios) {
-		dev_err(dev, "Could not allocate memory for gpios\n");
+	modem->gpios = devm_kcalloc(dev, gpio_count, sizeof(*modem->gpios),
+				    GFP_KERNEL);
+	if (!modem->gpios)
 		return -ENOMEM;
-	}
 
 	modem->gpio_amount = gpio_count;
 
 	for (i = 0; i < gpio_count; i++) {
-		modem->gpios[i].gpio = devm_gpiod_get_index(dev, NULL, i);
+		modem->gpios[i].gpio = devm_gpiod_get_index(dev, NULL, i,
+							    GPIOD_OUT_LOW);
 		if (IS_ERR(modem->gpios[i].gpio)) {
 			dev_err(dev, "Could not get gpio %d\n", i);
 			return PTR_ERR(modem->gpios[i].gpio);
@@ -124,10 +123,6 @@ static int nokia_modem_gpio_probe(struct device *dev)
 			dev_err(dev, "Could not get gpio name %d\n", i);
 			return err;
 		}
-
-		err = gpiod_direction_output(modem->gpios[i].gpio, 0);
-		if (err)
-			return err;
 
 		err = gpiod_export(modem->gpios[i].gpio, 0);
 		if (err)
@@ -159,10 +154,9 @@ static int nokia_modem_probe(struct device *dev)
 	}
 
 	modem = devm_kzalloc(dev, sizeof(*modem), GFP_KERNEL);
-	if (!modem) {
-		dev_err(dev, "Could not allocate memory for nokia_modem_device\n");
+	if (!modem)
 		return -ENOMEM;
-	}
+
 	dev_set_drvdata(dev, modem);
 	modem->device = dev;
 
@@ -185,7 +179,7 @@ static int nokia_modem_probe(struct device *dev)
 	}
 	enable_irq_wake(irq);
 
-	if(pm) {
+	if (pm) {
 		err = nokia_modem_gpio_probe(dev);
 		if (err < 0) {
 			dev_err(dev, "Could not probe GPIOs\n");
@@ -208,7 +202,7 @@ static int nokia_modem_probe(struct device *dev)
 
 	err = device_attach(&modem->ssi_protocol->device);
 	if (err == 0) {
-		dev_err(dev, "Missing ssi-protocol driver\n");
+		dev_dbg(dev, "Missing ssi-protocol driver\n");
 		err = -EPROBE_DEFER;
 		goto error3;
 	} else if (err < 0) {
@@ -231,7 +225,7 @@ static int nokia_modem_probe(struct device *dev)
 
 	err = device_attach(&modem->cmt_speech->device);
 	if (err == 0) {
-		dev_err(dev, "Missing cmt-speech driver\n");
+		dev_dbg(dev, "Missing cmt-speech driver\n");
 		err = -EPROBE_DEFER;
 		goto error4;
 	} else if (err < 0) {
@@ -284,6 +278,8 @@ static int nokia_modem_remove(struct device *dev)
 #ifdef CONFIG_OF
 static const struct of_device_id nokia_modem_of_match[] = {
 	{ .compatible = "nokia,n900-modem", },
+	{ .compatible = "nokia,n950-modem", },
+	{ .compatible = "nokia,n9-modem", },
 	{},
 };
 MODULE_DEVICE_TABLE(of, nokia_modem_of_match);

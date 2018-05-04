@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_ARM_TOPOLOGY_H
 #define _ASM_ARM_TOPOLOGY_H
 
@@ -18,7 +19,7 @@ extern struct cputopo_arm cpu_topology[NR_CPUS];
 #define topology_physical_package_id(cpu)	(cpu_topology[cpu].socket_id)
 #define topology_core_id(cpu)		(cpu_topology[cpu].core_id)
 #define topology_core_cpumask(cpu)	(&cpu_topology[cpu].core_sibling)
-#define topology_thread_cpumask(cpu)	(&cpu_topology[cpu].thread_sibling)
+#define topology_sibling_cpumask(cpu)	(&cpu_topology[cpu].thread_sibling)
 
 void init_cpu_topology(void);
 void store_cpu_topology(unsigned int cpuid);

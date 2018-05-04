@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/fs/proc/array.c
  *
@@ -60,6 +61,11 @@
 #include <linux/tty.h>
 #include <linux/string.h>
 #include <linux/mman.h>
+#include <linux/sched/mm.h>
+#include <linux/sched/numa_balancing.h>
+#include <linux/sched/task_stack.h>
+#include <linux/sched/task.h>
+#include <linux/sched/cputime.h>
 #include <linux/proc_fs.h>
 #include <linux/ioport.h>
 #include <linux/uaccess.h>
@@ -83,6 +89,7 @@
 #include <linux/tracehook.h>
 #include <linux/string_helpers.h>
 #include <linux/user_namespace.h>
+#include <linux/fs_struct.h>
 
 #include <asm/pgtable.h>
 #include <asm/processor.h>
@@ -91,18 +98,18 @@
 static inline void task_name(struct seq_file *m, struct task_struct *p)
 {
 	char *buf;
+	size_t size;
 	char tcomm[sizeof(p->comm)];
+	int ret;
 
 	get_task_comm(tcomm, p);
 
 	seq_puts(m, "Name:\t");
-	buf = m->buf + m->count;
 
-	/* Ignore error for now */
-	buf += string_escape_str(tcomm, buf, m->size - m->count,
-				 ESCAPE_SPACE | ESCAPE_SPECIAL, "\n\\");
+	size = seq_get_buf(m, &buf);
+	ret = string_escape_str(tcomm, buf, size, ESCAPE_SPACE | ESCAPE_SPECIAL, "\n\\");
+	seq_commit(m, ret < size ? ret : -1);
 
-	m->count = buf - m->buf;
 	seq_putc(m, '\n');
 }
 
@@ -113,22 +120,38 @@ static inline void task_name(struct seq_file *m, struct task_struct *p)
  * simple bit tests.
  */
 static const char * const task_state_array[] = {
-	"R (running)",		/*   0 */
-	"S (sleeping)",		/*   1 */
-	"D (disk sleep)",	/*   2 */
-	"T (stopped)",		/*   4 */
-	"t (tracing stop)",	/*   8 */
-	"X (dead)",		/*  16 */
-	"Z (zombie)",		/*  32 */
+
+	/* states in TASK_REPORT: */
+	"R (running)",		/* 0x00 */
+	"S (sleeping)",		/* 0x01 */
+	"D (disk sleep)",	/* 0x02 */
+	"T (stopped)",		/* 0x04 */
+	"t (tracing stop)",	/* 0x08 */
+	"X (dead)",		/* 0x10 */
+	"Z (zombie)",		/* 0x20 */
+	"P (parked)",		/* 0x40 */
+
+	/* states beyond TASK_REPORT: */
+	"I (idle)",		/* 0x80 */
 };
 
 static inline const char *get_task_state(struct task_struct *tsk)
 {
-	unsigned int state = (tsk->state | tsk->exit_state) & TASK_REPORT;
+	BUILD_BUG_ON(1 + ilog2(TASK_REPORT_MAX) != ARRAY_SIZE(task_state_array));
+	return task_state_array[__get_task_state(tsk)];
+}
 
-	BUILD_BUG_ON(1 + ilog2(TASK_REPORT) != ARRAY_SIZE(task_state_array)-1);
+static inline int get_task_umask(struct task_struct *tsk)
+{
+	struct fs_struct *fs;
+	int umask = -ENOENT;
 
-	return task_state_array[fls(state)];
+	task_lock(tsk);
+	fs = tsk->fs;
+	if (fs)
+		umask = fs->umask;
+	task_unlock(tsk);
+	return umask;
 }
 
 static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
@@ -136,7 +159,7 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
 {
 	struct user_namespace *user_ns = seq_user_ns(m);
 	struct group_info *group_info;
-	int g;
+	int g, umask;
 	struct task_struct *tracer;
 	const struct cred *cred;
 	pid_t ppid, tpid = 0, tgid, ngid;
@@ -154,57 +177,55 @@ static inline void task_state(struct seq_file *m, struct pid_namespace *ns,
 	ngid = task_numa_group_id(p);
 	cred = get_task_cred(p);
 
+	umask = get_task_umask(p);
+	if (umask >= 0)
+		seq_printf(m, "Umask:\t%#04o\n", umask);
+
 	task_lock(p);
 	if (p->files)
 		max_fds = files_fdtable(p->files)->max_fds;
 	task_unlock(p);
 	rcu_read_unlock();
 
-	seq_printf(m,
-		"State:\t%s\n"
-		"Tgid:\t%d\n"
-		"Ngid:\t%d\n"
-		"Pid:\t%d\n"
-		"PPid:\t%d\n"
-		"TracerPid:\t%d\n"
-		"Uid:\t%d\t%d\t%d\t%d\n"
-		"Gid:\t%d\t%d\t%d\t%d\n"
-		"FDSize:\t%d\nGroups:\t",
-		get_task_state(p),
-		tgid, ngid, pid_nr_ns(pid, ns), ppid, tpid,
-		from_kuid_munged(user_ns, cred->uid),
-		from_kuid_munged(user_ns, cred->euid),
-		from_kuid_munged(user_ns, cred->suid),
-		from_kuid_munged(user_ns, cred->fsuid),
-		from_kgid_munged(user_ns, cred->gid),
-		from_kgid_munged(user_ns, cred->egid),
-		from_kgid_munged(user_ns, cred->sgid),
-		from_kgid_munged(user_ns, cred->fsgid),
-		max_fds);
+	seq_printf(m, "State:\t%s", get_task_state(p));
 
+	seq_put_decimal_ull(m, "\nTgid:\t", tgid);
+	seq_put_decimal_ull(m, "\nNgid:\t", ngid);
+	seq_put_decimal_ull(m, "\nPid:\t", pid_nr_ns(pid, ns));
+	seq_put_decimal_ull(m, "\nPPid:\t", ppid);
+	seq_put_decimal_ull(m, "\nTracerPid:\t", tpid);
+	seq_put_decimal_ull(m, "\nUid:\t", from_kuid_munged(user_ns, cred->uid));
+	seq_put_decimal_ull(m, "\t", from_kuid_munged(user_ns, cred->euid));
+	seq_put_decimal_ull(m, "\t", from_kuid_munged(user_ns, cred->suid));
+	seq_put_decimal_ull(m, "\t", from_kuid_munged(user_ns, cred->fsuid));
+	seq_put_decimal_ull(m, "\nGid:\t", from_kgid_munged(user_ns, cred->gid));
+	seq_put_decimal_ull(m, "\t", from_kgid_munged(user_ns, cred->egid));
+	seq_put_decimal_ull(m, "\t", from_kgid_munged(user_ns, cred->sgid));
+	seq_put_decimal_ull(m, "\t", from_kgid_munged(user_ns, cred->fsgid));
+	seq_put_decimal_ull(m, "\nFDSize:\t", max_fds);
+
+	seq_puts(m, "\nGroups:\t");
 	group_info = cred->group_info;
 	for (g = 0; g < group_info->ngroups; g++)
-		seq_printf(m, "%d ",
-			   from_kgid_munged(user_ns, GROUP_AT(group_info, g)));
+		seq_put_decimal_ull(m, g ? " " : "",
+				from_kgid_munged(user_ns, group_info->gid[g]));
 	put_cred(cred);
+	/* Trailing space shouldn't have been added in the first place. */
+	seq_putc(m, ' ');
 
 #ifdef CONFIG_PID_NS
 	seq_puts(m, "\nNStgid:");
 	for (g = ns->level; g <= pid->level; g++)
-		seq_printf(m, "\t%d",
-			task_tgid_nr_ns(p, pid->numbers[g].ns));
+		seq_put_decimal_ull(m, "\t", task_tgid_nr_ns(p, pid->numbers[g].ns));
 	seq_puts(m, "\nNSpid:");
 	for (g = ns->level; g <= pid->level; g++)
-		seq_printf(m, "\t%d",
-			task_pid_nr_ns(p, pid->numbers[g].ns));
+		seq_put_decimal_ull(m, "\t", task_pid_nr_ns(p, pid->numbers[g].ns));
 	seq_puts(m, "\nNSpgid:");
 	for (g = ns->level; g <= pid->level; g++)
-		seq_printf(m, "\t%d",
-			task_pgrp_nr_ns(p, pid->numbers[g].ns));
+		seq_put_decimal_ull(m, "\t", task_pgrp_nr_ns(p, pid->numbers[g].ns));
 	seq_puts(m, "\nNSsid:");
 	for (g = ns->level; g <= pid->level; g++)
-		seq_printf(m, "\t%d",
-			task_session_nr_ns(p, pid->numbers[g].ns));
+		seq_put_decimal_ull(m, "\t", task_session_nr_ns(p, pid->numbers[g].ns));
 #endif
 	seq_putc(m, '\n');
 }
@@ -225,7 +246,7 @@ void render_sigset_t(struct seq_file *m, const char *header,
 		if (sigismember(set, i+2)) x |= 2;
 		if (sigismember(set, i+3)) x |= 4;
 		if (sigismember(set, i+4)) x |= 8;
-		seq_printf(m, "%x", x);
+		seq_putc(m, hex_asc[x]);
 	} while (i >= 4);
 
 	seq_putc(m, '\n');
@@ -273,11 +294,12 @@ static inline void task_sig(struct seq_file *m, struct task_struct *p)
 		unlock_task_sighand(p, &flags);
 	}
 
-	seq_printf(m, "Threads:\t%d\n", num_threads);
-	seq_printf(m, "SigQ:\t%lu/%lu\n", qsize, qlim);
+	seq_put_decimal_ull(m, "Threads:\t", num_threads);
+	seq_put_decimal_ull(m, "\nSigQ:\t", qsize);
+	seq_put_decimal_ull(m, "/", qlim);
 
 	/* render them all */
-	render_sigset_t(m, "SigPnd:\t", &pending);
+	render_sigset_t(m, "\nSigPnd:\t", &pending);
 	render_sigset_t(m, "ShdPnd:\t", &shpending);
 	render_sigset_t(m, "SigBlk:\t", &blocked);
 	render_sigset_t(m, "SigIgn:\t", &ignored);
@@ -300,7 +322,8 @@ static void render_cap_t(struct seq_file *m, const char *header,
 static inline void task_cap(struct seq_file *m, struct task_struct *p)
 {
 	const struct cred *cred;
-	kernel_cap_t cap_inheritable, cap_permitted, cap_effective, cap_bset;
+	kernel_cap_t cap_inheritable, cap_permitted, cap_effective,
+			cap_bset, cap_ambient;
 
 	rcu_read_lock();
 	cred = __task_cred(p);
@@ -308,36 +331,39 @@ static inline void task_cap(struct seq_file *m, struct task_struct *p)
 	cap_permitted	= cred->cap_permitted;
 	cap_effective	= cred->cap_effective;
 	cap_bset	= cred->cap_bset;
+	cap_ambient	= cred->cap_ambient;
 	rcu_read_unlock();
 
 	render_cap_t(m, "CapInh:\t", &cap_inheritable);
 	render_cap_t(m, "CapPrm:\t", &cap_permitted);
 	render_cap_t(m, "CapEff:\t", &cap_effective);
 	render_cap_t(m, "CapBnd:\t", &cap_bset);
+	render_cap_t(m, "CapAmb:\t", &cap_ambient);
 }
 
 static inline void task_seccomp(struct seq_file *m, struct task_struct *p)
 {
+	seq_put_decimal_ull(m, "NoNewPrivs:\t", task_no_new_privs(p));
 #ifdef CONFIG_SECCOMP
-	seq_printf(m, "Seccomp:\t%d\n", p->seccomp.mode);
+	seq_put_decimal_ull(m, "\nSeccomp:\t", p->seccomp.mode);
 #endif
+	seq_putc(m, '\n');
 }
 
 static inline void task_context_switch_counts(struct seq_file *m,
 						struct task_struct *p)
 {
-	seq_printf(m,	"voluntary_ctxt_switches:\t%lu\n"
-			"nonvoluntary_ctxt_switches:\t%lu\n",
-			p->nvcsw,
-			p->nivcsw);
+	seq_put_decimal_ull(m, "voluntary_ctxt_switches:\t", p->nvcsw);
+	seq_put_decimal_ull(m, "\nnonvoluntary_ctxt_switches:\t", p->nivcsw);
+	seq_putc(m, '\n');
 }
 
 static void task_cpus_allowed(struct seq_file *m, struct task_struct *task)
 {
 	seq_printf(m, "Cpus_allowed:\t%*pb\n",
-		   cpumask_pr_args(&task->cpus_allowed));
+		   cpumask_pr_args(task->cpus_ptr));
 	seq_printf(m, "Cpus_allowed_list:\t%*pbl\n",
-		   cpumask_pr_args(&task->cpus_allowed));
+		   cpumask_pr_args(task->cpus_ptr));
 }
 
 int proc_pid_status(struct seq_file *m, struct pid_namespace *ns,
@@ -364,7 +390,7 @@ int proc_pid_status(struct seq_file *m, struct pid_namespace *ns,
 static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 			struct pid *pid, struct task_struct *task, int whole)
 {
-	unsigned long vsize, eip, esp, wchan = ~0UL;
+	unsigned long vsize, eip, esp, wchan = 0;
 	int priority, nice;
 	int tty_pgrp = -1, tty_nr = 0;
 	sigset_t sigign, sigcatch;
@@ -376,21 +402,33 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 	unsigned long long start_time;
 	unsigned long cmin_flt = 0, cmaj_flt = 0;
 	unsigned long  min_flt = 0,  maj_flt = 0;
-	cputime_t cutime, cstime, utime, stime;
-	cputime_t cgtime, gtime;
+	u64 cutime, cstime, utime, stime;
+	u64 cgtime, gtime;
 	unsigned long rsslim = 0;
 	char tcomm[sizeof(task->comm)];
 	unsigned long flags;
 
 	state = *get_task_state(task);
 	vsize = eip = esp = 0;
-	permitted = ptrace_may_access(task, PTRACE_MODE_READ | PTRACE_MODE_NOAUDIT);
+	permitted = ptrace_may_access(task, PTRACE_MODE_READ_FSCREDS | PTRACE_MODE_NOAUDIT);
 	mm = get_task_mm(task);
 	if (mm) {
 		vsize = task_vsize(mm);
-		if (permitted) {
-			eip = KSTK_EIP(task);
-			esp = KSTK_ESP(task);
+		/*
+		 * esp and eip are intentionally zeroed out.  There is no
+		 * non-racy way to read them without freezing the task.
+		 * Programs that need reliable values can use ptrace(2).
+		 *
+		 * The only exception is if the task is core dumping because
+		 * a program is not able to use ptrace(2) in that case. It is
+		 * safe because the task has stopped executing permanently.
+		 */
+		if (permitted && (task->flags & PF_DUMPCORE)) {
+			if (try_get_task_stack(task)) {
+				eip = KSTK_EIP(task);
+				esp = KSTK_ESP(task);
+				put_task_stack(task);
+			}
 		}
 	}
 
@@ -461,67 +499,79 @@ static int do_task_stat(struct seq_file *m, struct pid_namespace *ns,
 	start_time = nsec_to_clock_t(task->real_start_time);
 
 	seq_printf(m, "%d (%s) %c", pid_nr_ns(pid, ns), tcomm, state);
-	seq_put_decimal_ll(m, ' ', ppid);
-	seq_put_decimal_ll(m, ' ', pgid);
-	seq_put_decimal_ll(m, ' ', sid);
-	seq_put_decimal_ll(m, ' ', tty_nr);
-	seq_put_decimal_ll(m, ' ', tty_pgrp);
-	seq_put_decimal_ull(m, ' ', task->flags);
-	seq_put_decimal_ull(m, ' ', min_flt);
-	seq_put_decimal_ull(m, ' ', cmin_flt);
-	seq_put_decimal_ull(m, ' ', maj_flt);
-	seq_put_decimal_ull(m, ' ', cmaj_flt);
-	seq_put_decimal_ull(m, ' ', cputime_to_clock_t(utime));
-	seq_put_decimal_ull(m, ' ', cputime_to_clock_t(stime));
-	seq_put_decimal_ll(m, ' ', cputime_to_clock_t(cutime));
-	seq_put_decimal_ll(m, ' ', cputime_to_clock_t(cstime));
-	seq_put_decimal_ll(m, ' ', priority);
-	seq_put_decimal_ll(m, ' ', nice);
-	seq_put_decimal_ll(m, ' ', num_threads);
-	seq_put_decimal_ull(m, ' ', 0);
-	seq_put_decimal_ull(m, ' ', start_time);
-	seq_put_decimal_ull(m, ' ', vsize);
-	seq_put_decimal_ull(m, ' ', mm ? get_mm_rss(mm) : 0);
-	seq_put_decimal_ull(m, ' ', rsslim);
-	seq_put_decimal_ull(m, ' ', mm ? (permitted ? mm->start_code : 1) : 0);
-	seq_put_decimal_ull(m, ' ', mm ? (permitted ? mm->end_code : 1) : 0);
-	seq_put_decimal_ull(m, ' ', (permitted && mm) ? mm->start_stack : 0);
-	seq_put_decimal_ull(m, ' ', esp);
-	seq_put_decimal_ull(m, ' ', eip);
+	seq_put_decimal_ll(m, " ", ppid);
+	seq_put_decimal_ll(m, " ", pgid);
+	seq_put_decimal_ll(m, " ", sid);
+	seq_put_decimal_ll(m, " ", tty_nr);
+	seq_put_decimal_ll(m, " ", tty_pgrp);
+	seq_put_decimal_ull(m, " ", task->flags);
+	seq_put_decimal_ull(m, " ", min_flt);
+	seq_put_decimal_ull(m, " ", cmin_flt);
+	seq_put_decimal_ull(m, " ", maj_flt);
+	seq_put_decimal_ull(m, " ", cmaj_flt);
+	seq_put_decimal_ull(m, " ", nsec_to_clock_t(utime));
+	seq_put_decimal_ull(m, " ", nsec_to_clock_t(stime));
+	seq_put_decimal_ll(m, " ", nsec_to_clock_t(cutime));
+	seq_put_decimal_ll(m, " ", nsec_to_clock_t(cstime));
+	seq_put_decimal_ll(m, " ", priority);
+	seq_put_decimal_ll(m, " ", nice);
+	seq_put_decimal_ll(m, " ", num_threads);
+	seq_put_decimal_ull(m, " ", 0);
+	seq_put_decimal_ull(m, " ", start_time);
+	seq_put_decimal_ull(m, " ", vsize);
+	seq_put_decimal_ull(m, " ", mm ? get_mm_rss(mm) : 0);
+	seq_put_decimal_ull(m, " ", rsslim);
+	seq_put_decimal_ull(m, " ", mm ? (permitted ? mm->start_code : 1) : 0);
+	seq_put_decimal_ull(m, " ", mm ? (permitted ? mm->end_code : 1) : 0);
+	seq_put_decimal_ull(m, " ", (permitted && mm) ? mm->start_stack : 0);
+	seq_put_decimal_ull(m, " ", esp);
+	seq_put_decimal_ull(m, " ", eip);
 	/* The signal information here is obsolete.
 	 * It must be decimal for Linux 2.0 compatibility.
 	 * Use /proc/#/status for real-time signals.
 	 */
-	seq_put_decimal_ull(m, ' ', task->pending.signal.sig[0] & 0x7fffffffUL);
-	seq_put_decimal_ull(m, ' ', task->blocked.sig[0] & 0x7fffffffUL);
-	seq_put_decimal_ull(m, ' ', sigign.sig[0] & 0x7fffffffUL);
-	seq_put_decimal_ull(m, ' ', sigcatch.sig[0] & 0x7fffffffUL);
-	seq_put_decimal_ull(m, ' ', wchan);
-	seq_put_decimal_ull(m, ' ', 0);
-	seq_put_decimal_ull(m, ' ', 0);
-	seq_put_decimal_ll(m, ' ', task->exit_signal);
-	seq_put_decimal_ll(m, ' ', task_cpu(task));
-	seq_put_decimal_ull(m, ' ', task->rt_priority);
-	seq_put_decimal_ull(m, ' ', task->policy);
-	seq_put_decimal_ull(m, ' ', delayacct_blkio_ticks(task));
-	seq_put_decimal_ull(m, ' ', cputime_to_clock_t(gtime));
-	seq_put_decimal_ll(m, ' ', cputime_to_clock_t(cgtime));
+	seq_put_decimal_ull(m, " ", task->pending.signal.sig[0] & 0x7fffffffUL);
+	seq_put_decimal_ull(m, " ", task->blocked.sig[0] & 0x7fffffffUL);
+	seq_put_decimal_ull(m, " ", sigign.sig[0] & 0x7fffffffUL);
+	seq_put_decimal_ull(m, " ", sigcatch.sig[0] & 0x7fffffffUL);
+
+	/*
+	 * We used to output the absolute kernel address, but that's an
+	 * information leak - so instead we show a 0/1 flag here, to signal
+	 * to user-space whether there's a wchan field in /proc/PID/wchan.
+	 *
+	 * This works with older implementations of procps as well.
+	 */
+	if (wchan)
+		seq_puts(m, " 1");
+	else
+		seq_puts(m, " 0");
+
+	seq_put_decimal_ull(m, " ", 0);
+	seq_put_decimal_ull(m, " ", 0);
+	seq_put_decimal_ll(m, " ", task->exit_signal);
+	seq_put_decimal_ll(m, " ", task_cpu(task));
+	seq_put_decimal_ull(m, " ", task->rt_priority);
+	seq_put_decimal_ull(m, " ", task->policy);
+	seq_put_decimal_ull(m, " ", delayacct_blkio_ticks(task));
+	seq_put_decimal_ull(m, " ", nsec_to_clock_t(gtime));
+	seq_put_decimal_ll(m, " ", nsec_to_clock_t(cgtime));
 
 	if (mm && permitted) {
-		seq_put_decimal_ull(m, ' ', mm->start_data);
-		seq_put_decimal_ull(m, ' ', mm->end_data);
-		seq_put_decimal_ull(m, ' ', mm->start_brk);
-		seq_put_decimal_ull(m, ' ', mm->arg_start);
-		seq_put_decimal_ull(m, ' ', mm->arg_end);
-		seq_put_decimal_ull(m, ' ', mm->env_start);
-		seq_put_decimal_ull(m, ' ', mm->env_end);
+		seq_put_decimal_ull(m, " ", mm->start_data);
+		seq_put_decimal_ull(m, " ", mm->end_data);
+		seq_put_decimal_ull(m, " ", mm->start_brk);
+		seq_put_decimal_ull(m, " ", mm->arg_start);
+		seq_put_decimal_ull(m, " ", mm->arg_end);
+		seq_put_decimal_ull(m, " ", mm->env_start);
+		seq_put_decimal_ull(m, " ", mm->env_end);
 	} else
-		seq_printf(m, " 0 0 0 0 0 0 0");
+		seq_puts(m, " 0 0 0 0 0 0 0");
 
 	if (permitted)
-		seq_put_decimal_ll(m, ' ', task->exit_code);
+		seq_put_decimal_ll(m, " ", task->exit_code);
 	else
-		seq_put_decimal_ll(m, ' ', 0);
+		seq_puts(m, " 0");
 
 	seq_putc(m, '\n');
 	if (mm)
@@ -557,19 +607,19 @@ int proc_pid_statm(struct seq_file *m, struct pid_namespace *ns,
 	 * seq_printf(m, "%lu %lu %lu %lu 0 %lu 0\n",
 	 *               size, resident, shared, text, data);
 	 */
-	seq_put_decimal_ull(m, 0, size);
-	seq_put_decimal_ull(m, ' ', resident);
-	seq_put_decimal_ull(m, ' ', shared);
-	seq_put_decimal_ull(m, ' ', text);
-	seq_put_decimal_ull(m, ' ', 0);
-	seq_put_decimal_ull(m, ' ', data);
-	seq_put_decimal_ull(m, ' ', 0);
+	seq_put_decimal_ull(m, "", size);
+	seq_put_decimal_ull(m, " ", resident);
+	seq_put_decimal_ull(m, " ", shared);
+	seq_put_decimal_ull(m, " ", text);
+	seq_put_decimal_ull(m, " ", 0);
+	seq_put_decimal_ull(m, " ", data);
+	seq_put_decimal_ull(m, " ", 0);
 	seq_putc(m, '\n');
 
 	return 0;
 }
 
-#ifdef CONFIG_CHECKPOINT_RESTORE
+#ifdef CONFIG_PROC_CHILDREN
 static struct pid *
 get_children_pid(struct inode *inode, struct pid *pid_prev, loff_t pos)
 {
@@ -692,4 +742,4 @@ const struct file_operations proc_tid_children_operations = {
 	.llseek  = seq_lseek,
 	.release = children_seq_release,
 };
-#endif /* CONFIG_CHECKPOINT_RESTORE */
+#endif /* CONFIG_PROC_CHILDREN */

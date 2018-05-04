@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright 1995, Russell King.
  * Various bits and pieces copyrights include:
@@ -35,9 +36,9 @@
 static inline void ____atomic_set_bit(unsigned int bit, volatile unsigned long *p)
 {
 	unsigned long flags;
-	unsigned long mask = 1UL << (bit & 31);
+	unsigned long mask = BIT_MASK(bit);
 
-	p += bit >> 5;
+	p += BIT_WORD(bit);
 
 	raw_local_irq_save(flags);
 	*p |= mask;
@@ -47,9 +48,9 @@ static inline void ____atomic_set_bit(unsigned int bit, volatile unsigned long *
 static inline void ____atomic_clear_bit(unsigned int bit, volatile unsigned long *p)
 {
 	unsigned long flags;
-	unsigned long mask = 1UL << (bit & 31);
+	unsigned long mask = BIT_MASK(bit);
 
-	p += bit >> 5;
+	p += BIT_WORD(bit);
 
 	raw_local_irq_save(flags);
 	*p &= ~mask;
@@ -59,9 +60,9 @@ static inline void ____atomic_clear_bit(unsigned int bit, volatile unsigned long
 static inline void ____atomic_change_bit(unsigned int bit, volatile unsigned long *p)
 {
 	unsigned long flags;
-	unsigned long mask = 1UL << (bit & 31);
+	unsigned long mask = BIT_MASK(bit);
 
-	p += bit >> 5;
+	p += BIT_WORD(bit);
 
 	raw_local_irq_save(flags);
 	*p ^= mask;
@@ -73,9 +74,9 @@ ____atomic_test_and_set_bit(unsigned int bit, volatile unsigned long *p)
 {
 	unsigned long flags;
 	unsigned int res;
-	unsigned long mask = 1UL << (bit & 31);
+	unsigned long mask = BIT_MASK(bit);
 
-	p += bit >> 5;
+	p += BIT_WORD(bit);
 
 	raw_local_irq_save(flags);
 	res = *p;
@@ -90,9 +91,9 @@ ____atomic_test_and_clear_bit(unsigned int bit, volatile unsigned long *p)
 {
 	unsigned long flags;
 	unsigned int res;
-	unsigned long mask = 1UL << (bit & 31);
+	unsigned long mask = BIT_MASK(bit);
 
-	p += bit >> 5;
+	p += BIT_WORD(bit);
 
 	raw_local_irq_save(flags);
 	res = *p;
@@ -107,9 +108,9 @@ ____atomic_test_and_change_bit(unsigned int bit, volatile unsigned long *p)
 {
 	unsigned long flags;
 	unsigned int res;
-	unsigned long mask = 1UL << (bit & 31);
+	unsigned long mask = BIT_MASK(bit);
 
-	p += bit >> 5;
+	p += BIT_WORD(bit);
 
 	raw_local_irq_save(flags);
 	res = *p;
@@ -159,16 +160,16 @@ extern int _test_and_change_bit(int nr, volatile unsigned long * p);
 /*
  * Little endian assembly bitops.  nr = 0 -> byte 0 bit 0.
  */
-extern int _find_first_zero_bit_le(const void * p, unsigned size);
-extern int _find_next_zero_bit_le(const void * p, int size, int offset);
+extern int _find_first_zero_bit_le(const unsigned long *p, unsigned size);
+extern int _find_next_zero_bit_le(const unsigned long *p, int size, int offset);
 extern int _find_first_bit_le(const unsigned long *p, unsigned size);
 extern int _find_next_bit_le(const unsigned long *p, int size, int offset);
 
 /*
  * Big endian assembly bitops.  nr = 0 -> byte 3 bit 0.
  */
-extern int _find_first_zero_bit_be(const void * p, unsigned size);
-extern int _find_next_zero_bit_be(const void * p, int size, int offset);
+extern int _find_first_zero_bit_be(const unsigned long *p, unsigned size);
+extern int _find_next_zero_bit_be(const unsigned long *p, int size, int offset);
 extern int _find_first_bit_be(const unsigned long *p, unsigned size);
 extern int _find_next_bit_be(const unsigned long *p, int size, int offset);
 

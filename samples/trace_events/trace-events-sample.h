@@ -1,17 +1,18 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * If TRACE_SYSTEM is defined, that will be the directory created
  * in the ftrace directory under /sys/kernel/tracing/events/<system>
  *
  * The define_trace.h below will also look for a file name of
  * TRACE_SYSTEM.h where TRACE_SYSTEM is what is defined here.
- * In this case, it would look for sample.h
+ * In this case, it would look for sample-trace.h
  *
  * If the header name will be different than the system name
  * (as in this case), then you can override the header name that
  * define_trace.h will look up by defining TRACE_INCLUDE_FILE
  *
  * This file is called trace-events-sample.h but we want the system
- * to be called "sample". Therefore we must define the name of this
+ * to be called "sample-trace". Therefore we must define the name of this
  * file:
  *
  * #define TRACE_INCLUDE_FILE trace-events-sample
@@ -106,7 +107,7 @@
  *
  *         memcpy(__entry->foo, bar, 10);
  *
- *   __dynamic_array: This is similar to array, but can vary is size from
+ *   __dynamic_array: This is similar to array, but can vary its size from
  *         instance to instance of the tracepoint being called.
  *         Like __array, this too has three elements (type, name, size);
  *         type is the type of the element, name is the name of the array.
@@ -168,7 +169,10 @@
  *
  *      For __dynamic_array(int, foo, bar) use __get_dynamic_array(foo)
  *            Use __get_dynamic_array_len(foo) to get the length of the array
- *            saved.
+ *            saved. Note, __get_dynamic_array_len() returns the total allocated
+ *            length of the dynamic array; __print_array() expects the second
+ *            parameter to be the number of elements. To get that, the array length
+ *            needs to be divided by the element size.
  *
  *      For __string(foo, bar) use __get_str(foo)
  *
@@ -288,7 +292,7 @@ TRACE_EVENT(foo_bar,
  *    This prints out the array that is defined by __array in a nice format.
  */
 		  __print_array(__get_dynamic_array(list),
-				__get_dynamic_array_len(list),
+				__get_dynamic_array_len(list) / sizeof(int),
 				sizeof(int)),
 		  __get_str(str), __get_bitmask(cpus))
 );
@@ -351,7 +355,7 @@ TRACE_EVENT_CONDITION(foo_bar_with_cond,
 	TP_printk("foo %s %d", __get_str(foo), __entry->bar)
 );
 
-void foo_bar_reg(void);
+int foo_bar_reg(void);
 void foo_bar_unreg(void);
 
 /*

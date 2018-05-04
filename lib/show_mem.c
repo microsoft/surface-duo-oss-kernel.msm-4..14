@@ -9,13 +9,13 @@
 #include <linux/quicklist.h>
 #include <linux/cma.h>
 
-void show_mem(unsigned int filter)
+void show_mem(unsigned int filter, nodemask_t *nodemask)
 {
 	pg_data_t *pgdat;
 	unsigned long total = 0, reserved = 0, highmem = 0;
 
 	printk("Mem-Info:\n");
-	show_free_areas(filter);
+	show_free_areas(filter, nodemask);
 
 	for_each_online_pgdat(pgdat) {
 		unsigned long flags;
@@ -38,11 +38,9 @@ void show_mem(unsigned int filter)
 
 	printk("%lu pages RAM\n", total);
 	printk("%lu pages HighMem/MovableOnly\n", highmem);
-#ifdef CONFIG_CMA
-	printk("%lu pages reserved\n", (reserved - totalcma_pages));
-	printk("%lu pages cma reserved\n", totalcma_pages);
-#else
 	printk("%lu pages reserved\n", reserved);
+#ifdef CONFIG_CMA
+	printk("%lu pages cma reserved\n", totalcma_pages);
 #endif
 #ifdef CONFIG_QUICKLIST
 	printk("%lu pages in pagetable cache\n",

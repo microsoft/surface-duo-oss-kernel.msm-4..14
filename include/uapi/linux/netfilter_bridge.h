@@ -1,9 +1,11 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 #ifndef _UAPI__LINUX_BRIDGE_NETFILTER_H
 #define _UAPI__LINUX_BRIDGE_NETFILTER_H
 
 /* bridge-specific defines for netfilter. 
  */
 
+#include <linux/in.h>
 #include <linux/netfilter.h>
 #include <linux/if_ether.h>
 #include <linux/if_vlan.h>

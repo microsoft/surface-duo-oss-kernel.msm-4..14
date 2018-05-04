@@ -23,6 +23,7 @@
 
 #include <linux/netdevice.h>
 #include <linux/soc/ti/knav_dma.h>
+#include <linux/u64_stats_sync.h>
 
 /* Maximum Ethernet frame size supported by Keystone switch */
 #define NETCP_MAX_FRAME_SIZE		9504
@@ -68,6 +69,20 @@ struct netcp_addr {
 	struct list_head	node;
 };
 
+struct netcp_stats {
+	struct u64_stats_sync   syncp_rx ____cacheline_aligned_in_smp;
+	u64                     rx_packets;
+	u64                     rx_bytes;
+	u32                     rx_errors;
+	u32                     rx_dropped;
+
+	struct u64_stats_sync   syncp_tx ____cacheline_aligned_in_smp;
+	u64                     tx_packets;
+	u64                     tx_bytes;
+	u32                     tx_errors;
+	u32                     tx_dropped;
+};
+
 struct netcp_intf {
 	struct device		*dev;
 	struct device		*ndev_dev;
@@ -85,9 +100,13 @@ struct netcp_intf {
 	struct list_head	rxhook_list_head;
 	unsigned int		rx_queue_id;
 	void			*rx_fdq[KNAV_DMA_FDQ_PER_CHAN];
-	u32			rx_buffer_sizes[KNAV_DMA_FDQ_PER_CHAN];
 	struct napi_struct	rx_napi;
 	struct napi_struct	tx_napi;
+#define ETH_SW_CAN_REMOVE_ETH_FCS	BIT(0)
+	u32			hw_cap;
+
+	/* 64-bit netcp stats */
+	struct netcp_stats	stats;
 
 	void			*rx_channel;
 	const char		*dma_chan_name;
@@ -114,15 +133,16 @@ struct netcp_intf {
 #define	NETCP_PSDATA_LEN		KNAV_DMA_NUM_PS_WORDS
 struct netcp_packet {
 	struct sk_buff		*skb;
-	u32			*epib;
+	__le32			*epib;
 	u32			*psdata;
+	u32			eflags;
 	unsigned int		psdata_len;
 	struct netcp_intf	*netcp;
 	struct netcp_tx_pipe	*tx_pipe;
 	bool			rxtstamp_complete;
 	void			*ts_context;
 
-	int	(*txtstamp_complete)(void *ctx, struct netcp_packet *pkt);
+	void (*txtstamp)(void *ctx, struct sk_buff *skb);
 };
 
 static inline u32 *netcp_push_psdata(struct netcp_packet *p_info,
@@ -223,6 +243,7 @@ void *netcp_device_find_module(struct netcp_device *netcp_device,
 
 /* SGMII functions */
 int netcp_sgmii_reset(void __iomem *sgmii_ofs, int port);
+bool netcp_sgmii_rtreset(void __iomem *sgmii_ofs, int port, bool set);
 int netcp_sgmii_get_port_link(void __iomem *sgmii_ofs, int port);
 int netcp_sgmii_config(void __iomem *sgmii_ofs, int port, u32 interface);
 

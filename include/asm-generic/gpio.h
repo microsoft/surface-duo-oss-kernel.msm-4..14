@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_GENERIC_GPIO_H
 #define _ASM_GENERIC_GPIO_H
 
@@ -26,7 +27,11 @@
  */
 
 #ifndef ARCH_NR_GPIOS
+#if defined(CONFIG_ARCH_NR_GPIO) && CONFIG_ARCH_NR_GPIO > 0
+#define ARCH_NR_GPIOS CONFIG_ARCH_NR_GPIO
+#else
 #define ARCH_NR_GPIOS		512
+#endif
 #endif
 
 /*
@@ -126,11 +131,6 @@ static inline int gpio_export_link(struct device *dev, const char *name,
 				   unsigned gpio)
 {
 	return gpiod_export_link(dev, name, gpio_to_desc(gpio));
-}
-
-static inline int gpio_sysfs_set_active_low(unsigned gpio, int value)
-{
-	return gpiod_sysfs_set_active_low(gpio_to_desc(gpio), value);
 }
 
 static inline void gpio_unexport(unsigned gpio)

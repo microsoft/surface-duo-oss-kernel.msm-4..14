@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 #include <linux/ceph/ceph_debug.h>
 
 #include <linux/file.h>
@@ -79,7 +80,7 @@ static int ceph_lock_message(u8 lock_type, u16 operation, struct file *file,
 	err = ceph_mdsc_do_request(mdsc, inode, req);
 
 	if (operation == CEPH_MDS_OP_GETFILELOCK) {
-		fl->fl_pid = le64_to_cpu(req->r_reply_info.filelock_reply->pid);
+		fl->fl_pid = -le64_to_cpu(req->r_reply_info.filelock_reply->pid);
 		if (CEPH_LOCK_SHARED == req->r_reply_info.filelock_reply->type)
 			fl->fl_type = F_RDLCK;
 		else if (CEPH_LOCK_EXCL == req->r_reply_info.filelock_reply->type)
@@ -127,6 +128,29 @@ static int ceph_lock_wait_for_completion(struct ceph_mds_client *mdsc,
 	dout("ceph_lock_wait_for_completion: request %llu was interrupted\n",
 	     req->r_tid);
 
+	mutex_lock(&mdsc->mutex);
+	if (test_bit(CEPH_MDS_R_GOT_RESULT, &req->r_req_flags)) {
+		err = 0;
+	} else {
+		/*
+		 * ensure we aren't running concurrently with
+		 * ceph_fill_trace or ceph_readdir_prepopulate, which
+		 * rely on locks (dir mutex) held by our caller.
+		 */
+		mutex_lock(&req->r_fill_mutex);
+		req->r_err = err;
+		set_bit(CEPH_MDS_R_ABORTED, &req->r_req_flags);
+		mutex_unlock(&req->r_fill_mutex);
+
+		if (!req->r_session) {
+			// haven't sent the request
+			err = 0;
+		}
+	}
+	mutex_unlock(&mdsc->mutex);
+	if (!err)
+		return 0;
+
 	intr_req = ceph_mdsc_create_request(mdsc, CEPH_MDS_OP_SETFILELOCK,
 					    USE_AUTH_MDS);
 	if (IS_ERR(intr_req))
@@ -146,7 +170,7 @@ static int ceph_lock_wait_for_completion(struct ceph_mds_client *mdsc,
 	if (err && err != -ERESTARTSYS)
 		return err;
 
-	wait_for_completion(&req->r_completion);
+	wait_for_completion_killable(&req->r_safe_completion);
 	return 0;
 }
 
@@ -210,8 +234,8 @@ int ceph_flock(struct file *file, int cmd, struct file_lock *fl)
 	if (!(fl->fl_flags & FL_FLOCK))
 		return -ENOLCK;
 	/* No mandatory locks */
-	if (__mandatory_lock(file->f_mapping->host) && fl->fl_type != F_UNLCK)
-		return -ENOLCK;
+	if (fl->fl_type & LOCK_MAND)
+		return -EOPNOTSUPP;
 
 	dout("ceph_flock, fl_file: %p", fl->fl_file);
 
@@ -228,12 +252,12 @@ int ceph_flock(struct file *file, int cmd, struct file_lock *fl)
 	err = ceph_lock_message(CEPH_LOCK_FLOCK, CEPH_MDS_OP_SETFILELOCK,
 				file, lock_cmd, wait, fl);
 	if (!err) {
-		err = flock_lock_file_wait(file, fl);
+		err = locks_lock_file_wait(file, fl);
 		if (err) {
 			ceph_lock_message(CEPH_LOCK_FLOCK,
 					  CEPH_MDS_OP_SETFILELOCK,
 					  file, CEPH_LOCK_UNLOCK, 0, fl);
-			dout("got %d on flock_lock_file_wait, undid lock", err);
+			dout("got %d on locks_lock_file_wait, undid lock", err);
 		}
 	}
 	return err;
@@ -287,7 +311,7 @@ int ceph_encode_locks_to_buffer(struct inode *inode,
 		return 0;
 
 	spin_lock(&ctx->flc_lock);
-	list_for_each_entry(lock, &ctx->flc_flock, fl_list) {
+	list_for_each_entry(lock, &ctx->flc_posix, fl_list) {
 		++seen_fcntl;
 		if (seen_fcntl > num_fcntl_locks) {
 			err = -ENOSPC;

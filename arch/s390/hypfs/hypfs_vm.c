@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *    Hypervisor filesystem for Linux on s390. z/VM implementation.
  *
@@ -9,6 +10,7 @@
 #include <linux/errno.h>
 #include <linux/string.h>
 #include <linux/vmalloc.h>
+#include <asm/diag.h>
 #include <asm/ebcdic.h>
 #include <asm/timex.h>
 #include "hypfs.h"
@@ -66,9 +68,10 @@ static int diag2fc(int size, char* query, void *addr)
 	memset(parm_list.aci_grp, 0x40, NAME_LEN);
 	rc = -1;
 
+	diag_stat_inc(DIAG_STAT_X2FC);
 	asm volatile(
 		"	diag    %0,%1,0x2fc\n"
-		"0:\n"
+		"0:	nopr	%%r7\n"
 		EX_TABLE(0b,0b)
 		: "=d" (residual_cnt), "+d" (rc) : "0" (&parm_list) : "memory");
 

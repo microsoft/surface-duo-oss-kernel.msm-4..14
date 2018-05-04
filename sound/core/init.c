@@ -100,35 +100,28 @@ int (*snd_mixer_oss_notify_callback)(struct snd_card *card, int free_flag);
 EXPORT_SYMBOL(snd_mixer_oss_notify_callback);
 #endif
 
-#ifdef CONFIG_PROC_FS
+#ifdef CONFIG_SND_PROC_FS
 static void snd_card_id_read(struct snd_info_entry *entry,
 			     struct snd_info_buffer *buffer)
 {
 	snd_iprintf(buffer, "%s\n", entry->card->id);
 }
 
-static inline int init_info_for_card(struct snd_card *card)
+static int init_info_for_card(struct snd_card *card)
 {
-	int err;
 	struct snd_info_entry *entry;
 
-	if ((err = snd_info_card_register(card)) < 0) {
-		dev_dbg(card->dev, "unable to create card info\n");
-		return err;
-	}
-	if ((entry = snd_info_create_card_entry(card, "id", card->proc_root)) == NULL) {
+	entry = snd_info_create_card_entry(card, "id", card->proc_root);
+	if (!entry) {
 		dev_dbg(card->dev, "unable to create card entry\n");
-		return err;
+		return -ENOMEM;
 	}
 	entry->c.text.read = snd_card_id_read;
-	if (snd_info_register(entry) < 0) {
-		snd_info_free_entry(entry);
-		entry = NULL;
-	}
 	card->proc_id = entry;
-	return 0;
+
+	return snd_info_card_register(card);
 }
-#else /* !CONFIG_PROC_FS */
+#else /* !CONFIG_SND_PROC_FS */
 #define init_info_for_card(card)
 #endif
 
@@ -255,13 +248,11 @@ int snd_card_new(struct device *parent, int idx, const char *xid,
 	INIT_LIST_HEAD(&card->devices);
 	init_rwsem(&card->controls_rwsem);
 	rwlock_init(&card->ctl_files_rwlock);
-	mutex_init(&card->user_ctl_lock);
 	INIT_LIST_HEAD(&card->controls);
 	INIT_LIST_HEAD(&card->ctl_files);
 	spin_lock_init(&card->files_lock);
 	INIT_LIST_HEAD(&card->files_list);
 #ifdef CONFIG_PM
-	mutex_init(&card->power_lock);
 	init_waitqueue_head(&card->power_sleep);
 #endif
 
@@ -274,6 +265,9 @@ int snd_card_new(struct device *parent, int idx, const char *xid,
 	err = kobject_set_name(&card->card_dev.kobj, "card%d", idx);
 	if (err < 0)
 		goto __error;
+
+	snprintf(card->irq_descr, sizeof(card->irq_descr), "%s:%s",
+		 dev_driver_string(card->dev), dev_name(&card->card_dev));
 
 	/* the control interface cannot be accessed from the user space until */
 	/* snd_cards_bitmask and snd_cards are set with snd_card_register */
@@ -456,7 +450,6 @@ int snd_card_disconnect(struct snd_card *card)
 #endif
 	return 0;	
 }
-
 EXPORT_SYMBOL(snd_card_disconnect);
 
 static int snd_card_do_free(struct snd_card *card)
@@ -722,7 +715,7 @@ int snd_card_add_dev_attr(struct snd_card *card,
 
 	dev_err(card->dev, "Too many groups assigned\n");
 	return -ENOSPC;
-};
+}
 EXPORT_SYMBOL_GPL(snd_card_add_dev_attr);
 
 /**
@@ -756,7 +749,7 @@ int snd_card_register(struct snd_card *card)
 	if (snd_cards[card->number]) {
 		/* already registered */
 		mutex_unlock(&snd_card_mutex);
-		return 0;
+		return snd_info_card_register(card); /* register pending info */
 	}
 	if (*card->id) {
 		/* make a unique id name from the given string */
@@ -779,12 +772,9 @@ int snd_card_register(struct snd_card *card)
 #endif
 	return 0;
 }
-
 EXPORT_SYMBOL(snd_card_register);
 
-#ifdef CONFIG_PROC_FS
-static struct snd_info_entry *snd_card_info_entry;
-
+#ifdef CONFIG_SND_PROC_FS
 static void snd_card_info_read(struct snd_info_entry *entry,
 			       struct snd_info_buffer *buffer)
 {
@@ -810,7 +800,6 @@ static void snd_card_info_read(struct snd_info_entry *entry,
 }
 
 #ifdef CONFIG_SND_OSSEMUL
-
 void snd_card_info_read_oss(struct snd_info_buffer *buffer)
 {
 	int idx, count;
@@ -832,7 +821,6 @@ void snd_card_info_read_oss(struct snd_info_buffer *buffer)
 #endif
 
 #ifdef MODULE
-static struct snd_info_entry *snd_card_module_info_entry;
 static void snd_card_module_info_read(struct snd_info_entry *entry,
 				      struct snd_info_buffer *buffer)
 {
@@ -857,36 +845,21 @@ int __init snd_card_info_init(void)
 	if (! entry)
 		return -ENOMEM;
 	entry->c.text.read = snd_card_info_read;
-	if (snd_info_register(entry) < 0) {
-		snd_info_free_entry(entry);
-		return -ENOMEM;
-	}
-	snd_card_info_entry = entry;
+	if (snd_info_register(entry) < 0)
+		return -ENOMEM; /* freed in error path */
 
 #ifdef MODULE
 	entry = snd_info_create_module_entry(THIS_MODULE, "modules", NULL);
-	if (entry) {
-		entry->c.text.read = snd_card_module_info_read;
-		if (snd_info_register(entry) < 0)
-			snd_info_free_entry(entry);
-		else
-			snd_card_module_info_entry = entry;
-	}
+	if (!entry)
+		return -ENOMEM;
+	entry->c.text.read = snd_card_module_info_read;
+	if (snd_info_register(entry) < 0)
+		return -ENOMEM; /* freed in error path */
 #endif
 
 	return 0;
 }
-
-int __exit snd_card_info_done(void)
-{
-	snd_info_free_entry(snd_card_info_entry);
-#ifdef MODULE
-	snd_info_free_entry(snd_card_module_info_entry);
-#endif
-	return 0;
-}
-
-#endif /* CONFIG_PROC_FS */
+#endif /* CONFIG_SND_PROC_FS */
 
 /**
  *  snd_component_add - add a component string
@@ -918,7 +891,6 @@ int snd_component_add(struct snd_card *card, const char *component)
 	strcat(card->components, component);
 	return 0;
 }
-
 EXPORT_SYMBOL(snd_component_add);
 
 /**
@@ -953,7 +925,6 @@ int snd_card_file_add(struct snd_card *card, struct file *file)
 	spin_unlock(&card->files_lock);
 	return 0;
 }
-
 EXPORT_SYMBOL(snd_card_file_add);
 
 /**
@@ -995,7 +966,6 @@ int snd_card_file_remove(struct snd_card *card, struct file *file)
 	put_device(&card->card_dev);
 	return 0;
 }
-
 EXPORT_SYMBOL(snd_card_file_remove);
 
 #ifdef CONFIG_PM
@@ -1007,12 +977,10 @@ EXPORT_SYMBOL(snd_card_file_remove);
  *  Waits until the power-state is changed.
  *
  *  Return: Zero if successful, or a negative error code.
- *
- *  Note: the power lock must be active before call.
  */
 int snd_power_wait(struct snd_card *card, unsigned int power_state)
 {
-	wait_queue_t wait;
+	wait_queue_entry_t wait;
 	int result = 0;
 
 	/* fastpath */
@@ -1028,13 +996,10 @@ int snd_power_wait(struct snd_card *card, unsigned int power_state)
 		if (snd_power_get_state(card) == power_state)
 			break;
 		set_current_state(TASK_UNINTERRUPTIBLE);
-		snd_power_unlock(card);
 		schedule_timeout(30 * HZ);
-		snd_power_lock(card);
 	}
 	remove_wait_queue(&card->power_sleep, &wait);
 	return result;
 }
-
 EXPORT_SYMBOL(snd_power_wait);
 #endif /* CONFIG_PM */

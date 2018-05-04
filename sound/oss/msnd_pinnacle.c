@@ -41,6 +41,8 @@
 #include <linux/interrupt.h>
 #include <linux/mutex.h>
 #include <linux/gfp.h>
+#include <linux/sched/signal.h>
+
 #include <asm/irq.h>
 #include <asm/io.h>
 #include "sound_config.h"
@@ -1288,8 +1290,7 @@ static int __init calibrate_adc(WORD srate)
 		       & ~0x0001, dev.SMA + SMA_wCurrHostStatusFlags);
 	if (msnd_send_word(&dev, 0, 0, HDEXAR_CAL_A_TO_D) == 0 &&
 	    chk_send_dsp_cmd(&dev, HDEX_AUX_REQ) == 0) {
-		__set_current_state(TASK_INTERRUPTIBLE);
-		schedule_timeout(HZ / 3);
+		schedule_timeout_interruptible(HZ / 3);
 		return 0;
 	}
 	printk(KERN_WARNING LOGNAME ": ADC calibration failed\n");
@@ -1726,22 +1727,22 @@ static int
 calibrate_signal __initdata =		CONFIG_MSND_CALSIGNAL;
 #endif /* MODULE */
 
-module_param				(io, int, 0);
-module_param				(irq, int, 0);
-module_param				(mem, int, 0);
+module_param_hw				(io, int, ioport, 0);
+module_param_hw				(irq, int, irq, 0);
+module_param_hw				(mem, int, iomem, 0);
 module_param				(write_ndelay, int, 0);
 module_param				(fifosize, int, 0);
 module_param				(calibrate_signal, int, 0);
 #ifndef MSND_CLASSIC
 module_param				(digital, bool, 0);
-module_param				(cfg, int, 0);
+module_param_hw				(cfg, int, ioport, 0);
 module_param				(reset, int, 0);
-module_param				(mpu_io, int, 0);
-module_param				(mpu_irq, int, 0);
-module_param				(ide_io0, int, 0);
-module_param				(ide_io1, int, 0);
-module_param				(ide_irq, int, 0);
-module_param				(joystick_io, int, 0);
+module_param_hw				(mpu_io, int, ioport, 0);
+module_param_hw				(mpu_irq, int, irq, 0);
+module_param_hw				(ide_io0, int, ioport, 0);
+module_param_hw				(ide_io1, int, ioport, 0);
+module_param_hw				(ide_irq, int, irq, 0);
+module_param_hw				(joystick_io, int, ioport, 0);
 #endif
 
 static int __init msnd_init(void)

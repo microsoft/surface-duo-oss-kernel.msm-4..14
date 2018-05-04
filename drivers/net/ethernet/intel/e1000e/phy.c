@@ -1,5 +1,5 @@
 /* Intel PRO/1000 Linux driver
- * Copyright(c) 1999 - 2014 Intel Corporation.
+ * Copyright(c) 1999 - 2015 Intel Corporation.
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
@@ -1744,6 +1744,7 @@ s32 e1000e_phy_has_link_generic(struct e1000_hw *hw, u32 iterations,
 	s32 ret_val = 0;
 	u16 i, phy_status;
 
+	*success = false;
 	for (i = 0; i < iterations; i++) {
 		/* Some PHYs require the MII_BMSR register to be read
 		 * twice due to the link bit being sticky.  No harm doing
@@ -1763,15 +1764,15 @@ s32 e1000e_phy_has_link_generic(struct e1000_hw *hw, u32 iterations,
 		ret_val = e1e_rphy(hw, MII_BMSR, &phy_status);
 		if (ret_val)
 			break;
-		if (phy_status & BMSR_LSTATUS)
+		if (phy_status & BMSR_LSTATUS) {
+			*success = true;
 			break;
+		}
 		if (usec_interval >= 1000)
 			msleep(usec_interval / 1000);
 		else
 			udelay(usec_interval);
 	}
-
-	*success = (i < iterations);
 
 	return ret_val;
 }
@@ -2894,11 +2895,11 @@ static s32 __e1000_write_phy_reg_hv(struct e1000_hw *hw, u32 offset, u16 data,
 		if ((hw->phy.type == e1000_phy_82578) &&
 		    (hw->phy.revision >= 1) &&
 		    (hw->phy.addr == 2) &&
-		    !(MAX_PHY_REG_ADDRESS & reg) && (data & (1 << 11))) {
+		    !(MAX_PHY_REG_ADDRESS & reg) && (data & BIT(11))) {
 			u16 data2 = 0x7EFF;
 
 			ret_val = e1000_access_phy_debug_regs_hv(hw,
-								 (1 << 6) | 0x3,
+								 BIT(6) | 0x3,
 								 &data2, false);
 			if (ret_val)
 				goto out;

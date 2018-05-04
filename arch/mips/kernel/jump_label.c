@@ -51,14 +51,13 @@ void arch_jump_label_transform(struct jump_entry *e,
 	/* Target must have the right alignment and ISA must be preserved. */
 	BUG_ON((e->target & J_ALIGN_MASK) != J_ISA_BIT);
 
-	if (type == JUMP_LABEL_ENABLE) {
+	if (type == JUMP_LABEL_JMP) {
 		insn.j_format.opcode = J_ISA_BIT ? mm_j32_op : j_op;
 		insn.j_format.target = e->target >> J_RANGE_SHIFT;
 	} else {
 		insn.word = 0; /* nop */
 	}
 
-	get_online_cpus();
 	mutex_lock(&text_mutex);
 	if (IS_ENABLED(CONFIG_CPU_MICROMIPS)) {
 		insn_p->halfword[0] = insn.word >> 16;
@@ -70,7 +69,6 @@ void arch_jump_label_transform(struct jump_entry *e,
 			   (unsigned long)insn_p + sizeof(*insn_p));
 
 	mutex_unlock(&text_mutex);
-	put_online_cpus();
 }
 
 #endif /* HAVE_JUMP_LABEL */

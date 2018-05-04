@@ -6,16 +6,12 @@
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
  * more details.
  *
- * You should have received a copy of the GNU General Public License along with
- * this program; if not, write to the Free Software Foundation, Inc.,
- * 51 Franklin Street, Fifth Floor, Boston, MA 02110, USA
- *
  * The full GNU General Public License is included in this distribution in the
  * file called LICENSE.
  *
  * Contact Information:
  * wlanfae <wlanfae@realtek.com>
-******************************************************************************/
+ *****************************************************************************/
 #ifndef __INC_HAL8192PciE_FW_IMG_H
 #define __INC_HAL8192PciE_FW_IMG_H
 
@@ -23,12 +19,6 @@
 
 #include <linux/types.h>
 
-#define BootArrayLengthPciE 344
-extern u8 Rtl8192PciEFwBootArray[BootArrayLengthPciE];
-#define MainArrayLengthPciE 43012
-extern u8 Rtl8192PciEFwMainArray[MainArrayLengthPciE];
-#define DataArrayLengthPciE 848
-extern u8 Rtl8192PciEFwDataArray[DataArrayLengthPciE];
 #define PHY_REGArrayLengthPciE 1
 extern u32 Rtl8192PciEPHY_REGArray[PHY_REGArrayLengthPciE];
 #define PHY_REG_1T2RArrayLengthPciE 296

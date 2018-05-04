@@ -1,10 +1,11 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_ARCH_IRQ_H
 #define _ASM_ARCH_IRQ_H
 
 #include <hwregs/intr_vect.h>
 
 /* Number of non-cpu interrupts. */
-#define NR_IRQS NBR_INTR_VECT /* Exceptions + IRQs */
+#define NR_IRQS (NBR_INTR_VECT + 256) /* Exceptions + IRQs */
 #define FIRST_IRQ 0x31 /* Exception number for first IRQ */
 #define NR_REAL_IRQS (NBR_INTR_VECT - FIRST_IRQ) /* IRQs */
 #if NR_REAL_IRQS > 32

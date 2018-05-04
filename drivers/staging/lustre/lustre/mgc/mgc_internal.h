@@ -15,11 +15,7 @@
  *
  * You should have received a copy of the GNU General Public License
  * version 2 along with this program; If not, see
- * http://www.sun.com/software/products/lustre/docs/GPLv2.pdf
- *
- * Please contact Sun Microsystems, Inc., 4150 Network Circle, Santa Clara,
- * CA 95054 USA or visit www.sun.com if you need additional information or
- * have any questions.
+ * http://www.gnu.org/licenses/gpl-2.0.html
  *
  * GPL HEADER END
  */
@@ -37,26 +33,14 @@
 #ifndef _MGC_INTERNAL_H
 #define _MGC_INTERNAL_H
 
-#include "../../include/linux/libcfs/libcfs.h"
-#include "../include/lustre/lustre_idl.h"
-#include "../include/lustre_lib.h"
-#include "../include/lustre_dlm.h"
-#include "../include/lustre_log.h"
-#include "../include/lustre_export.h"
+#include <linux/libcfs/libcfs.h>
+#include <lustre_lib.h>
+#include <lustre_dlm.h>
+#include <lustre_log.h>
+#include <lustre_export.h>
 
-#if defined (CONFIG_PROC_FS)
 void lprocfs_mgc_init_vars(struct lprocfs_static_vars *lvars);
 int lprocfs_mgc_rd_ir_state(struct seq_file *m, void *data);
-#else
-static inline void lprocfs_mgc_init_vars(struct lprocfs_static_vars *lvars)
-{
-	memset(lvars, 0, sizeof(*lvars));
-}
-static inline int lprocfs_mgc_rd_ir_state(struct seq_file *m, void *data)
-{
-	return 0;
-}
-#endif  /* CONFIG_PROC_FS */
 
 int mgc_process_log(struct obd_device *mgc, struct config_llog_data *cld);
 

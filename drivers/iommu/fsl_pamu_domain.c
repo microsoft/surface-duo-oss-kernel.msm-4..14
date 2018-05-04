@@ -33,6 +33,8 @@ static struct kmem_cache *fsl_pamu_domain_cache;
 static struct kmem_cache *iommu_devinfo_cache;
 static DEFINE_SPINLOCK(device_domain_lock);
 
+struct iommu_device pamu_iommu;	/* IOMMU core code handle */
+
 static struct fsl_dma_domain *to_fsl_dma_domain(struct iommu_domain *dom)
 {
 	return container_of(dom, struct fsl_dma_domain, iommu_domain);
@@ -619,8 +621,8 @@ static int handle_attach_device(struct fsl_dma_domain *dma_domain,
 	for (i = 0; i < num; i++) {
 		/* Ensure that LIODN value is valid */
 		if (liodn[i] >= PAACE_NUMBER_ENTRIES) {
-			pr_debug("Invalid liodn %d, attach device failed for %s\n",
-				 liodn[i], dev->of_node->full_name);
+			pr_debug("Invalid liodn %d, attach device failed for %pOF\n",
+				 liodn[i], dev->of_node);
 			ret = -EINVAL;
 			break;
 		}
@@ -684,8 +686,7 @@ static int fsl_pamu_attach_device(struct iommu_domain *domain,
 		liodn_cnt = len / sizeof(u32);
 		ret = handle_attach_device(dma_domain, dev, liodn, liodn_cnt);
 	} else {
-		pr_debug("missing fsl,liodn property at %s\n",
-			 dev->of_node->full_name);
+		pr_debug("missing fsl,liodn property at %pOF\n", dev->of_node);
 		ret = -EINVAL;
 	}
 
@@ -720,8 +721,7 @@ static void fsl_pamu_detach_device(struct iommu_domain *domain,
 	if (prop)
 		detach_device(dev, dma_domain);
 	else
-		pr_debug("missing fsl,liodn property at %s\n",
-			 dev->of_node->full_name);
+		pr_debug("missing fsl,liodn property at %pOF\n", dev->of_node);
 }
 
 static  int configure_domain_geometry(struct iommu_domain *domain, void *data)
@@ -923,7 +923,7 @@ static struct iommu_group *get_pci_device_group(struct pci_dev *pdev)
 	pci_endpt_partioning = check_pci_ctl_endpt_part(pci_ctl);
 	/* We can partition PCIe devices so assign device group to the device */
 	if (pci_endpt_partioning) {
-		group = iommu_group_get_for_dev(&pdev->dev);
+		group = pci_device_group(&pdev->dev);
 
 		/*
 		 * PCIe controller is not a paritionable entity
@@ -956,48 +956,41 @@ static struct iommu_group *get_pci_device_group(struct pci_dev *pdev)
 	return group;
 }
 
-static int fsl_pamu_add_device(struct device *dev)
+static struct iommu_group *fsl_pamu_device_group(struct device *dev)
 {
 	struct iommu_group *group = ERR_PTR(-ENODEV);
-	struct pci_dev *pdev;
-	const u32 *prop;
-	int ret = 0, len;
+	int len;
 
 	/*
 	 * For platform devices we allocate a separate group for
 	 * each of the devices.
 	 */
-	if (dev_is_pci(dev)) {
-		pdev = to_pci_dev(dev);
-		/* Don't create device groups for virtual PCI bridges */
-		if (pdev->subordinate)
-			return 0;
+	if (dev_is_pci(dev))
+		group = get_pci_device_group(to_pci_dev(dev));
+	else if (of_get_property(dev->of_node, "fsl,liodn", &len))
+		group = get_device_iommu_group(dev);
 
-		group = get_pci_device_group(pdev);
+	return group;
+}
 
-	} else {
-		prop = of_get_property(dev->of_node, "fsl,liodn", &len);
-		if (prop)
-			group = get_device_iommu_group(dev);
-	}
+static int fsl_pamu_add_device(struct device *dev)
+{
+	struct iommu_group *group;
 
+	group = iommu_group_get_for_dev(dev);
 	if (IS_ERR(group))
 		return PTR_ERR(group);
 
-	/*
-	 * Check if device has already been added to an iommu group.
-	 * Group could have already been created for a PCI device in
-	 * the iommu_group_get_for_dev path.
-	 */
-	if (!dev->iommu_group)
-		ret = iommu_group_add_device(group, dev);
-
 	iommu_group_put(group);
-	return ret;
+
+	iommu_device_link(&pamu_iommu, dev);
+
+	return 0;
 }
 
 static void fsl_pamu_remove_device(struct device *dev)
 {
+	iommu_device_unlink(&pamu_iommu, dev);
 	iommu_group_remove_device(dev);
 }
 
@@ -1072,6 +1065,7 @@ static const struct iommu_ops fsl_pamu_ops = {
 	.domain_get_attr = fsl_pamu_get_domain_attr,
 	.add_device	= fsl_pamu_add_device,
 	.remove_device	= fsl_pamu_remove_device,
+	.device_group   = fsl_pamu_device_group,
 };
 
 int __init pamu_domain_init(void)
@@ -1081,6 +1075,19 @@ int __init pamu_domain_init(void)
 	ret = iommu_init_mempool();
 	if (ret)
 		return ret;
+
+	ret = iommu_device_sysfs_add(&pamu_iommu, NULL, NULL, "iommu0");
+	if (ret)
+		return ret;
+
+	iommu_device_set_ops(&pamu_iommu, &fsl_pamu_ops);
+
+	ret = iommu_device_register(&pamu_iommu);
+	if (ret) {
+		iommu_device_sysfs_remove(&pamu_iommu);
+		pr_err("Can't register iommu device\n");
+		return ret;
+	}
 
 	bus_set_iommu(&platform_bus_type, &fsl_pamu_ops);
 	bus_set_iommu(&pci_bus_type, &fsl_pamu_ops);

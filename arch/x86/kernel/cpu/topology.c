@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Check for extended topology enumeration cpuid leaf 0xb and if it
  * exists, use it for populating initial_apicid and cpu topology
@@ -87,10 +88,10 @@ void detect_extended_topology(struct cpuinfo_x86 *c)
 	c->x86_max_cores = (core_level_siblings / smp_num_siblings);
 
 	if (!printed) {
-		printk(KERN_INFO  "CPU: Physical Processor ID: %d\n",
+		pr_info("CPU: Physical Processor ID: %d\n",
 		       c->phys_proc_id);
 		if (c->x86_max_cores > 1)
-			printk(KERN_INFO  "CPU: Processor Core ID: %d\n",
+			pr_info("CPU: Processor Core ID: %d\n",
 			       c->cpu_core_id);
 		printed = 1;
 	}

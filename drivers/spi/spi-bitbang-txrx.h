@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Mix this utility code with some glue code to get one of several types of
  * simple SPI master driver.  Two do polled word-at-a-time I/O:
@@ -49,7 +50,7 @@ bitbang_txrx_be_cpha0(struct spi_device *spi,
 {
 	/* if (cpol == 0) this is SPI_MODE_0; else this is SPI_MODE_2 */
 
-	bool oldbit = !(word & 1);
+	u32 oldbit = (!(word & (1<<(bits-1)))) << 31;
 	/* clock starts at inactive polarity */
 	for (word <<= (32 - bits); likely(bits); bits--) {
 
@@ -81,7 +82,7 @@ bitbang_txrx_be_cpha1(struct spi_device *spi,
 {
 	/* if (cpol == 0) this is SPI_MODE_1; else this is SPI_MODE_3 */
 
-	bool oldbit = !(word & (1 << 31));
+	u32 oldbit = (!(word & (1<<(bits-1)))) << 31;
 	/* clock starts at inactive polarity */
 	for (word <<= (32 - bits); likely(bits); bits--) {
 

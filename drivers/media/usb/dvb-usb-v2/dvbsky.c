@@ -12,10 +12,6 @@
  *    but WITHOUT ANY WARRANTY; without even the implied warranty of
  *    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *    GNU General Public License for more details.
- *
- *    You should have received a copy of the GNU General Public License
- *    along with this program; if not, write to the Free Software
- *    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */
 
 #include "dvb_usb.h"
@@ -45,9 +41,9 @@ struct dvbsky_state {
 
 	/* fe hook functions*/
 	int (*fe_set_voltage)(struct dvb_frontend *fe,
-		fe_sec_voltage_t voltage);
+		enum fe_sec_voltage voltage);
 	int (*fe_read_status)(struct dvb_frontend *fe,
-		fe_status_t *status);
+		enum fe_status *status);
 };
 
 static int dvbsky_usb_generic_rw(struct dvb_usb_device *d,
@@ -215,7 +211,7 @@ static int dvbsky_rc_query(struct dvb_usb_device *d)
 		rc5_system = (code & 0x7C0) >> 6;
 		toggle = (code & 0x800) ? 1 : 0;
 		scancode = rc5_system << 8 | rc5_command;
-		rc_keydown(d->rc_dev, RC_TYPE_RC5, scancode, toggle);
+		rc_keydown(d->rc_dev, RC_PROTO_RC5, scancode, toggle);
 	}
 	return 0;
 }
@@ -227,7 +223,7 @@ static int dvbsky_get_rc_config(struct dvb_usb_device *d, struct dvb_usb_rc *rc)
 		return 0;
 	}
 
-	rc->allowed_protos = RC_BIT_RC5;
+	rc->allowed_protos = RC_PROTO_BIT_RC5;
 	rc->query          = dvbsky_rc_query;
 	rc->interval       = 300;
 	return 0;
@@ -237,7 +233,7 @@ static int dvbsky_get_rc_config(struct dvb_usb_device *d, struct dvb_usb_rc *rc)
 #endif
 
 static int dvbsky_usb_set_voltage(struct dvb_frontend *fe,
-	fe_sec_voltage_t voltage)
+	enum fe_sec_voltage voltage)
 {
 	struct dvb_usb_device *d = fe_to_d(fe);
 	struct dvbsky_state *state = d_to_priv(d);
@@ -277,7 +273,8 @@ static int dvbsky_read_mac_addr(struct dvb_usb_adapter *adap, u8 mac[6])
 	return 0;
 }
 
-static int dvbsky_usb_read_status(struct dvb_frontend *fe, fe_status_t *status)
+static int dvbsky_usb_read_status(struct dvb_frontend *fe,
+				  enum fe_status *status)
 {
 	struct dvb_usb_device *d = fe_to_d(fe);
 	struct dvbsky_state *state = d_to_priv(d);
@@ -331,6 +328,7 @@ static int dvbsky_s960_attach(struct dvb_usb_adapter *adap)
 
 	/* attach tuner */
 	ts2020_config.fe = adap->fe[0];
+	ts2020_config.get_agc_pwm = m88ds3103_get_agc_pwm;
 	strlcpy(info.type, "ts2020", I2C_NAME_SIZE);
 	info.addr = 0x60;
 	info.platform_data = &ts2020_config;
@@ -368,7 +366,7 @@ fail_attach:
 }
 
 static int dvbsky_usb_ci_set_voltage(struct dvb_frontend *fe,
-	fe_sec_voltage_t voltage)
+	enum fe_sec_voltage voltage)
 {
 	struct dvb_usb_device *d = fe_to_d(fe);
 	struct dvbsky_state *state = d_to_priv(d);
@@ -453,6 +451,7 @@ static int dvbsky_s960c_attach(struct dvb_usb_adapter *adap)
 
 	/* attach tuner */
 	ts2020_config.fe = adap->fe[0];
+	ts2020_config.get_agc_pwm = m88ds3103_get_agc_pwm;
 	strlcpy(info.type, "ts2020", I2C_NAME_SIZE);
 	info.addr = 0x60;
 	info.platform_data = &ts2020_config;
@@ -549,6 +548,7 @@ static int dvbsky_t680c_attach(struct dvb_usb_adapter *adap)
 	/* attach tuner */
 	memset(&si2157_config, 0, sizeof(si2157_config));
 	si2157_config.fe = adap->fe[0];
+	si2157_config.if_port = 1;
 	memset(&info, 0, sizeof(struct i2c_board_info));
 	strlcpy(info.type, "si2157", I2C_NAME_SIZE);
 	info.addr = 0x60;
@@ -615,7 +615,8 @@ static int dvbsky_t330_attach(struct dvb_usb_adapter *adap)
 	memset(&si2168_config, 0, sizeof(si2168_config));
 	si2168_config.i2c_adapter = &i2c_adapter;
 	si2168_config.fe = &adap->fe[0];
-	si2168_config.ts_mode = SI2168_TS_PARALLEL | 0x40;
+	si2168_config.ts_mode = SI2168_TS_PARALLEL;
+	si2168_config.ts_clock_gapped = true;
 	memset(&info, 0, sizeof(struct i2c_board_info));
 	strlcpy(info.type, "si2168", I2C_NAME_SIZE);
 	info.addr = 0x64;
@@ -632,6 +633,7 @@ static int dvbsky_t330_attach(struct dvb_usb_adapter *adap)
 	/* attach tuner */
 	memset(&si2157_config, 0, sizeof(si2157_config));
 	si2157_config.fe = adap->fe[0];
+	si2157_config.if_port = 1;
 	memset(&info, 0, sizeof(struct i2c_board_info));
 	strlcpy(info.type, "si2157", I2C_NAME_SIZE);
 	info.addr = 0x60;
@@ -841,6 +843,21 @@ static const struct usb_device_id dvbsky_id_table[] = {
 		USB_PID_TECHNOTREND_CONNECT_CT2_4650_CI,
 		&dvbsky_t680c_props, "TechnoTrend TT-connect CT2-4650 CI",
 		RC_MAP_TT_1500) },
+	{ DVB_USB_DEVICE(USB_VID_TECHNOTREND,
+		USB_PID_TECHNOTREND_CONNECT_CT2_4650_CI_2,
+		&dvbsky_t680c_props, "TechnoTrend TT-connect CT2-4650 CI v1.1",
+		RC_MAP_TT_1500) },
+	{ DVB_USB_DEVICE(USB_VID_TECHNOTREND,
+		USB_PID_TECHNOTREND_CONNECT_S2_4650_CI,
+		&dvbsky_s960c_props, "TechnoTrend TT-connect S2-4650 CI",
+		RC_MAP_TT_1500) },
+	{ DVB_USB_DEVICE(USB_VID_TERRATEC,
+		USB_PID_TERRATEC_H7_3,
+		&dvbsky_t680c_props, "Terratec H7 Rev.4",
+		RC_MAP_TT_1500) },
+	{ DVB_USB_DEVICE(USB_VID_TERRATEC, USB_PID_TERRATEC_CINERGY_S2_R4,
+		&dvbsky_s960_props, "Terratec Cinergy S2 Rev.4",
+		RC_MAP_DVBSKY) },
 	{ }
 };
 MODULE_DEVICE_TABLE(usb, dvbsky_id_table);

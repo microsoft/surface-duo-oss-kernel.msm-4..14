@@ -25,44 +25,42 @@
 #include <subdev/bios/bit.h>
 #include <subdev/bios/therm.h>
 
-#include <core/device.h>
-
-static u16
+static u32
 therm_table(struct nvkm_bios *bios, u8 *ver, u8 *hdr, u8 *len, u8 *cnt)
 {
 	struct bit_entry bit_P;
-	u16 therm = 0;
+	u32 therm = 0;
 
 	if (!bit_entry(bios, 'P', &bit_P)) {
 		if (bit_P.version == 1)
-			therm = nv_ro16(bios, bit_P.offset + 12);
+			therm = nvbios_rd32(bios, bit_P.offset + 12);
 		else if (bit_P.version == 2)
-			therm = nv_ro16(bios, bit_P.offset + 16);
+			therm = nvbios_rd32(bios, bit_P.offset + 16);
 		else
-			nv_error(bios,
-				"unknown offset for thermal in BIT P %d\n",
-				bit_P.version);
+			nvkm_error(&bios->subdev,
+				   "unknown offset for thermal in BIT P %d\n",
+				   bit_P.version);
 	}
 
 	/* exit now if we haven't found the thermal table */
 	if (!therm)
-		return 0x0000;
+		return 0;
 
-	*ver = nv_ro08(bios, therm + 0);
-	*hdr = nv_ro08(bios, therm + 1);
-	*len = nv_ro08(bios, therm + 2);
-	*cnt = nv_ro08(bios, therm + 3);
-	return therm + nv_ro08(bios, therm + 1);
+	*ver = nvbios_rd08(bios, therm + 0);
+	*hdr = nvbios_rd08(bios, therm + 1);
+	*len = nvbios_rd08(bios, therm + 2);
+	*cnt = nvbios_rd08(bios, therm + 3);
+	return therm + nvbios_rd08(bios, therm + 1);
 }
 
-static u16
+static u32
 nvbios_therm_entry(struct nvkm_bios *bios, int idx, u8 *ver, u8 *len)
 {
 	u8 hdr, cnt;
-	u16 therm = therm_table(bios, ver, &hdr, len, &cnt);
+	u32 therm = therm_table(bios, ver, &hdr, len, &cnt);
 	if (therm && idx < cnt)
 		return therm + idx * *len;
-	return 0x0000;
+	return 0;
 }
 
 int
@@ -72,7 +70,7 @@ nvbios_therm_sensor_parse(struct nvkm_bios *bios,
 {
 	s8 thrs_section, sensor_section, offset;
 	u8 ver, len, i;
-	u16 entry;
+	u32 entry;
 
 	/* we only support the core domain for now */
 	if (domain != NVBIOS_THERM_DOMAIN_CORE)
@@ -83,9 +81,9 @@ nvbios_therm_sensor_parse(struct nvkm_bios *bios,
 	sensor_section = -1;
 	i = 0;
 	while ((entry = nvbios_therm_entry(bios, i++, &ver, &len))) {
-		s16 value = nv_ro16(bios, entry + 1);
+		s16 value = nvbios_rd16(bios, entry + 1);
 
-		switch (nv_ro08(bios, entry + 0)) {
+		switch (nvbios_rd08(bios, entry + 0)) {
 		case 0x0:
 			thrs_section = value;
 			if (value > 0)
@@ -94,7 +92,7 @@ nvbios_therm_sensor_parse(struct nvkm_bios *bios,
 		case 0x01:
 			sensor_section++;
 			if (sensor_section == 0) {
-				offset = ((s8) nv_ro08(bios, entry + 2)) / 2;
+				offset = ((s8) nvbios_rd08(bios, entry + 2)) / 2;
 				sensor->offset_constant = offset;
 			}
 			break;
@@ -156,7 +154,7 @@ nvbios_therm_fan_parse(struct nvkm_bios *bios, struct nvbios_therm_fan *fan)
 {
 	struct nvbios_therm_trip_point *cur_trip = NULL;
 	u8 ver, len, i;
-	u16 entry;
+	u32 entry;
 
 	uint8_t duty_lut[] = { 0, 0, 25, 0, 40, 0, 50, 0,
 				75, 0, 85, 0, 100, 0, 100, 0 };
@@ -165,9 +163,9 @@ nvbios_therm_fan_parse(struct nvkm_bios *bios, struct nvbios_therm_fan *fan)
 	fan->nr_fan_trip = 0;
 	fan->fan_mode = NVBIOS_THERM_FAN_OTHER;
 	while ((entry = nvbios_therm_entry(bios, i++, &ver, &len))) {
-		s16 value = nv_ro16(bios, entry + 1);
+		s16 value = nvbios_rd16(bios, entry + 1);
 
-		switch (nv_ro08(bios, entry + 0)) {
+		switch (nvbios_rd08(bios, entry + 0)) {
 		case 0x22:
 			fan->min_duty = value & 0xff;
 			fan->max_duty = (value & 0xff00) >> 8;
@@ -198,14 +196,14 @@ nvbios_therm_fan_parse(struct nvkm_bios *bios, struct nvbios_therm_fan *fan)
 		case 0x46:
 			if (fan->fan_mode > NVBIOS_THERM_FAN_LINEAR)
 				fan->fan_mode = NVBIOS_THERM_FAN_LINEAR;
-			fan->linear_min_temp = nv_ro08(bios, entry + 1);
-			fan->linear_max_temp = nv_ro08(bios, entry + 2);
+			fan->linear_min_temp = nvbios_rd08(bios, entry + 1);
+			fan->linear_max_temp = nvbios_rd08(bios, entry + 2);
 			break;
 		}
 	}
 
 	/* starting from fermi, fan management is always linear */
-	if (nv_device(bios)->card_type >= NV_C0 &&
+	if (bios->subdev.device->card_type >= NV_C0 &&
 		fan->fan_mode == NVBIOS_THERM_FAN_OTHER) {
 		fan->fan_mode = NVBIOS_THERM_FAN_LINEAR;
 	}

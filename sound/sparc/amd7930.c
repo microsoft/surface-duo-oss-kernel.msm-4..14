@@ -666,7 +666,7 @@ static snd_pcm_uframes_t snd_amd7930_capture_pointer(struct snd_pcm_substream *s
 }
 
 /* Playback and capture have identical properties.  */
-static struct snd_pcm_hardware snd_amd7930_pcm_hw =
+static const struct snd_pcm_hardware snd_amd7930_pcm_hw =
 {
 	.info			= (SNDRV_PCM_INFO_MMAP |
 				   SNDRV_PCM_INFO_MMAP_VALID |
@@ -733,7 +733,7 @@ static int snd_amd7930_hw_free(struct snd_pcm_substream *substream)
 	return snd_pcm_lib_free_pages(substream);
 }
 
-static struct snd_pcm_ops snd_amd7930_playback_ops = {
+static const struct snd_pcm_ops snd_amd7930_playback_ops = {
 	.open		=	snd_amd7930_playback_open,
 	.close		=	snd_amd7930_playback_close,
 	.ioctl		=	snd_pcm_lib_ioctl,
@@ -744,7 +744,7 @@ static struct snd_pcm_ops snd_amd7930_playback_ops = {
 	.pointer	=	snd_amd7930_playback_pointer,
 };
 
-static struct snd_pcm_ops snd_amd7930_capture_ops = {
+static const struct snd_pcm_ops snd_amd7930_capture_ops = {
 	.open		=	snd_amd7930_capture_open,
 	.close		=	snd_amd7930_capture_close,
 	.ioctl		=	snd_pcm_lib_ioctl,
@@ -956,6 +956,7 @@ static int snd_amd7930_create(struct snd_card *card,
 	if (!amd->regs) {
 		snd_printk(KERN_ERR
 			   "amd7930-%d: Unable to map chip registers.\n", dev);
+		kfree(amd);
 		return -EIO;
 	}
 
@@ -1063,6 +1064,7 @@ static const struct of_device_id amd7930_match[] = {
 	},
 	{},
 };
+MODULE_DEVICE_TABLE(of, amd7930_match);
 
 static struct platform_driver amd7930_sbus_driver = {
 	.driver = {

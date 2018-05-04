@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 #include <string.h>
 #include "perf_regs.h"
 #include "thread.h"
@@ -5,6 +6,7 @@
 #include "event.h"
 #include "debug.h"
 #include "tests/tests.h"
+#include "arch-tests.h"
 
 #define STACK_SIZE 8192
 

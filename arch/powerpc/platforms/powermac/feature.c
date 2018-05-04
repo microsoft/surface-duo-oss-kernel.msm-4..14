@@ -198,7 +198,7 @@ static long ohare_htw_scc_enable(struct device_node *node, long param,
 			if (htw) {
 				/* Side effect: this will also power up the
 				 * modem, but it's too messy to figure out on which
-				 * ports this controls the tranceiver and on which
+				 * ports this controls the transceiver and on which
 				 * it controls the modem
 				 */
 				if (trans)
@@ -463,7 +463,7 @@ static long heathrow_sound_enable(struct device_node *node, long param,
 	unsigned long		flags;
 
 	/* B&W G3 and Yikes don't support that properly (the
-	 * sound appear to never come back after beeing shut down).
+	 * sound appear to never come back after being shut down).
 	 */
 	if (pmac_mb.model_id == PMAC_TYPE_YOSEMITE ||
 	    pmac_mb.model_id == PMAC_TYPE_YIKES)
@@ -2658,25 +2658,25 @@ static void __init probe_one_macio(const char *name, const char *compat, int typ
 
 	if (i >= MAX_MACIO_CHIPS) {
 		printk(KERN_ERR "pmac_feature: Please increase MAX_MACIO_CHIPS !\n");
-		printk(KERN_ERR "pmac_feature: %s skipped\n", node->full_name);
+		printk(KERN_ERR "pmac_feature: %pOF skipped\n", node);
 		return;
 	}
 	addrp = of_get_pci_address(node, 0, &size, NULL);
 	if (addrp == NULL) {
-		printk(KERN_ERR "pmac_feature: %s: can't find base !\n",
-		       node->full_name);
+		printk(KERN_ERR "pmac_feature: %pOF: can't find base !\n",
+		       node);
 		return;
 	}
 	addr = of_translate_address(node, addrp);
 	if (addr == 0) {
-		printk(KERN_ERR "pmac_feature: %s, can't translate base !\n",
-		       node->full_name);
+		printk(KERN_ERR "pmac_feature: %pOF, can't translate base !\n",
+		       node);
 		return;
 	}
 	base = ioremap(addr, (unsigned long)size);
 	if (!base) {
-		printk(KERN_ERR "pmac_feature: %s, can't map mac-io chip !\n",
-		       node->full_name);
+		printk(KERN_ERR "pmac_feature: %pOF, can't map mac-io chip !\n",
+		       node);
 		return;
 	}
 	if (type == macio_keylargo || type == macio_keylargo2) {
@@ -2770,7 +2770,7 @@ set_initial_features(void)
 	 * but I'm not too sure it was audited for side-effects on other
 	 * ohare based machines...
 	 * Since I still have difficulties figuring the right way to
-	 * differenciate them all and since that hack was there for a long
+	 * differentiate them all and since that hack was there for a long
 	 * time, I'll keep it around
 	 */
 	if (macio_chips[0].type == macio_ohare) {

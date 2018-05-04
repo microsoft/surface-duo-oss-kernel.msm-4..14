@@ -87,7 +87,7 @@ static int imx_src_reset_module(struct reset_controller_dev *rcdev,
 	return 0;
 }
 
-static struct reset_control_ops imx_src_ops = {
+static const struct reset_control_ops imx_src_ops = {
 	.reset = imx_src_reset_module,
 };
 
@@ -135,8 +135,8 @@ void imx_set_cpu_jump(int cpu, void *jump_addr)
 
 
 	cpu = cpu_logical_map(cpu);
-	writel_relaxed(virt_to_phys(jump_addr),
-		       src_base + src_base_address + cpu * 8);
+	writel_relaxed(__pa_symbol(jump_addr),
+		       src_base + SRC_GPR1 + cpu * 8);
 }
 
 u32 imx_get_cpu_arg(int cpu)

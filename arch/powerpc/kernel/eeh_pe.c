@@ -104,7 +104,7 @@ int eeh_phb_pe_create(struct pci_controller *phb)
 	/* Put it into the list */
 	list_add_tail(&pe->child, &eeh_phb_pe);
 
-	pr_debug("EEH: Add PE for PHB#%d\n", phb->global_number);
+	pr_debug("EEH: Add PE for PHB#%x\n", phb->global_number);
 
 	return 0;
 }
@@ -230,10 +230,15 @@ void *eeh_pe_dev_traverse(struct eeh_pe *root,
  * Bus/Device/Function number. The extra data referred by flag
  * indicates which type of address should be used.
  */
+struct eeh_pe_get_flag {
+	int pe_no;
+	int config_addr;
+};
+
 static void *__eeh_pe_get(void *data, void *flag)
 {
 	struct eeh_pe *pe = (struct eeh_pe *)data;
-	struct eeh_dev *edev = (struct eeh_dev *)flag;
+	struct eeh_pe_get_flag *tmp = (struct eeh_pe_get_flag *) flag;
 
 	/* Unexpected PHB PE */
 	if (pe->type & EEH_PE_PHB)
@@ -244,17 +249,17 @@ static void *__eeh_pe_get(void *data, void *flag)
 	 * have non-zero PE address
 	 */
 	if (eeh_has_flag(EEH_VALID_PE_ZERO)) {
-		if (edev->pe_config_addr == pe->addr)
+		if (tmp->pe_no == pe->addr)
 			return pe;
 	} else {
-		if (edev->pe_config_addr &&
-		    (edev->pe_config_addr == pe->addr))
-		return pe;
+		if (tmp->pe_no &&
+		    (tmp->pe_no == pe->addr))
+			return pe;
 	}
 
 	/* Try BDF address */
-	if (edev->config_addr &&
-	   (edev->config_addr == pe->config_addr))
+	if (tmp->config_addr &&
+	   (tmp->config_addr == pe->config_addr))
 		return pe;
 
 	return NULL;
@@ -262,7 +267,9 @@ static void *__eeh_pe_get(void *data, void *flag)
 
 /**
  * eeh_pe_get - Search PE based on the given address
- * @edev: EEH device
+ * @phb: PCI controller
+ * @pe_no: PE number
+ * @config_addr: Config address
  *
  * Search the corresponding PE based on the specified address which
  * is included in the eeh device. The function is used to check if
@@ -271,12 +278,14 @@ static void *__eeh_pe_get(void *data, void *flag)
  * which is composed of PCI bus/device/function number, or unified
  * PE address.
  */
-struct eeh_pe *eeh_pe_get(struct eeh_dev *edev)
+struct eeh_pe *eeh_pe_get(struct pci_controller *phb,
+		int pe_no, int config_addr)
 {
-	struct eeh_pe *root = eeh_phb_pe_get(edev->phb);
+	struct eeh_pe *root = eeh_phb_pe_get(phb);
+	struct eeh_pe_get_flag tmp = { pe_no, config_addr };
 	struct eeh_pe *pe;
 
-	pe = eeh_pe_traverse(root, __eeh_pe_get, edev);
+	pe = eeh_pe_traverse(root, __eeh_pe_get, &tmp);
 
 	return pe;
 }
@@ -299,7 +308,10 @@ static struct eeh_pe *eeh_pe_get_parent(struct eeh_dev *edev)
 	 * EEH device already having associated PE, but
 	 * the direct parent EEH device doesn't have yet.
 	 */
-	pdn = pdn ? pdn->parent : NULL;
+	if (edev->physfn)
+		pdn = pci_get_pdn(edev->physfn);
+	else
+		pdn = pdn ? pdn->parent : NULL;
 	while (pdn) {
 		/* We're poking out of PCI territory */
 		parent = pdn_to_eeh_dev(pdn);
@@ -327,11 +339,13 @@ static struct eeh_pe *eeh_pe_get_parent(struct eeh_dev *edev)
 int eeh_add_to_parent_pe(struct eeh_dev *edev)
 {
 	struct eeh_pe *pe, *parent;
+	struct pci_dn *pdn = eeh_dev_to_pdn(edev);
+	int config_addr = (pdn->busno << 8) | (pdn->devfn);
 
 	/* Check if the PE number is valid */
 	if (!eeh_has_flag(EEH_VALID_PE_ZERO) && !edev->pe_config_addr) {
-		pr_err("%s: Invalid PE#0 for edev 0x%x on PHB#%d\n",
-		       __func__, edev->config_addr, edev->phb->global_number);
+		pr_err("%s: Invalid PE#0 for edev 0x%x on PHB#%x\n",
+		       __func__, config_addr, pdn->phb->global_number);
 		return -EINVAL;
 	}
 
@@ -341,7 +355,7 @@ int eeh_add_to_parent_pe(struct eeh_dev *edev)
 	 * PE should be composed of PCI bus and its subordinate
 	 * components.
 	 */
-	pe = eeh_pe_get(edev);
+	pe = eeh_pe_get(pdn->phb, edev->pe_config_addr, config_addr);
 	if (pe && !(pe->type & EEH_PE_INVALID)) {
 		/* Mark the PE as type of PCI bus */
 		pe->type = EEH_PE_BUS;
@@ -350,11 +364,11 @@ int eeh_add_to_parent_pe(struct eeh_dev *edev)
 		/* Put the edev to PE */
 		list_add_tail(&edev->list, &pe->edevs);
 		pr_debug("EEH: Add %04x:%02x:%02x.%01x to Bus PE#%x\n",
-			edev->phb->global_number,
-			edev->config_addr >> 8,
-			PCI_SLOT(edev->config_addr & 0xFF),
-			PCI_FUNC(edev->config_addr & 0xFF),
-			pe->addr);
+			 pdn->phb->global_number,
+			 pdn->busno,
+			 PCI_SLOT(pdn->devfn),
+			 PCI_FUNC(pdn->devfn),
+			 pe->addr);
 		return 0;
 	} else if (pe && (pe->type & EEH_PE_INVALID)) {
 		list_add_tail(&edev->list, &pe->edevs);
@@ -373,22 +387,25 @@ int eeh_add_to_parent_pe(struct eeh_dev *edev)
 
 		pr_debug("EEH: Add %04x:%02x:%02x.%01x to Device "
 			 "PE#%x, Parent PE#%x\n",
-			edev->phb->global_number,
-			edev->config_addr >> 8,
-                        PCI_SLOT(edev->config_addr & 0xFF),
-                        PCI_FUNC(edev->config_addr & 0xFF),
-			pe->addr, pe->parent->addr);
+			 pdn->phb->global_number,
+			 pdn->busno,
+			 PCI_SLOT(pdn->devfn),
+			 PCI_FUNC(pdn->devfn),
+			 pe->addr, pe->parent->addr);
 		return 0;
 	}
 
 	/* Create a new EEH PE */
-	pe = eeh_pe_alloc(edev->phb, EEH_PE_DEVICE);
+	if (edev->physfn)
+		pe = eeh_pe_alloc(pdn->phb, EEH_PE_VF);
+	else
+		pe = eeh_pe_alloc(pdn->phb, EEH_PE_DEVICE);
 	if (!pe) {
 		pr_err("%s: out of memory!\n", __func__);
 		return -ENOMEM;
 	}
 	pe->addr	= edev->pe_config_addr;
-	pe->config_addr	= edev->config_addr;
+	pe->config_addr	= config_addr;
 
 	/*
 	 * Put the new EEH PE into hierarchy tree. If the parent
@@ -398,10 +415,10 @@ int eeh_add_to_parent_pe(struct eeh_dev *edev)
 	 */
 	parent = eeh_pe_get_parent(edev);
 	if (!parent) {
-		parent = eeh_phb_pe_get(edev->phb);
+		parent = eeh_phb_pe_get(pdn->phb);
 		if (!parent) {
 			pr_err("%s: No PHB PE is found (PHB Domain=%d)\n",
-				__func__, edev->phb->global_number);
+				__func__, pdn->phb->global_number);
 			edev->pe = NULL;
 			kfree(pe);
 			return -EEXIST;
@@ -418,10 +435,10 @@ int eeh_add_to_parent_pe(struct eeh_dev *edev)
 	edev->pe = pe;
 	pr_debug("EEH: Add %04x:%02x:%02x.%01x to "
 		 "Device PE#%x, Parent PE#%x\n",
-		 edev->phb->global_number,
-		 edev->config_addr >> 8,
-		 PCI_SLOT(edev->config_addr & 0xFF),
-		 PCI_FUNC(edev->config_addr & 0xFF),
+		 pdn->phb->global_number,
+		 pdn->busno,
+		 PCI_SLOT(pdn->devfn),
+		 PCI_FUNC(pdn->devfn),
 		 pe->addr, pe->parent->addr);
 
 	return 0;
@@ -440,13 +457,14 @@ int eeh_rmv_from_parent_pe(struct eeh_dev *edev)
 {
 	struct eeh_pe *pe, *parent, *child;
 	int cnt;
+	struct pci_dn *pdn = eeh_dev_to_pdn(edev);
 
 	if (!edev->pe) {
 		pr_debug("%s: No PE found for device %04x:%02x:%02x.%01x\n",
-			 __func__,  edev->phb->global_number,
-			 edev->config_addr >> 8,
-			 PCI_SLOT(edev->config_addr & 0xFF),
-			 PCI_FUNC(edev->config_addr & 0xFF));
+			 __func__,  pdn->phb->global_number,
+			 pdn->busno,
+			 PCI_SLOT(pdn->devfn),
+			 PCI_FUNC(pdn->devfn));
 		return -EEXIST;
 	}
 
@@ -575,6 +593,7 @@ void eeh_pe_state_mark(struct eeh_pe *pe, int state)
 {
 	eeh_pe_traverse(pe, __eeh_pe_state_mark, &state);
 }
+EXPORT_SYMBOL_GPL(eeh_pe_state_mark);
 
 static void *__eeh_pe_dev_mode_mark(void *data, void *flag)
 {
@@ -657,6 +676,28 @@ void eeh_pe_state_clear(struct eeh_pe *pe, int state)
 	eeh_pe_traverse(pe, __eeh_pe_state_clear, &state);
 }
 
+/**
+ * eeh_pe_state_mark_with_cfg - Mark PE state with unblocked config space
+ * @pe: PE
+ * @state: PE state to be set
+ *
+ * Set specified flag to PE and its child PEs. The PCI config space
+ * of some PEs is blocked automatically when EEH_PE_ISOLATED is set,
+ * which isn't needed in some situations. The function allows to set
+ * the specified flag to indicated PEs without blocking their PCI
+ * config space.
+ */
+void eeh_pe_state_mark_with_cfg(struct eeh_pe *pe, int state)
+{
+	eeh_pe_traverse(pe, __eeh_pe_state_mark, &state);
+	if (!(state & EEH_PE_ISOLATED))
+		return;
+
+	/* Clear EEH_PE_CFG_BLOCKED, which might be set just now */
+	state = EEH_PE_CFG_BLOCKED;
+	eeh_pe_traverse(pe, __eeh_pe_state_clear, &state);
+}
+
 /*
  * Some PCI bridges (e.g. PLX bridges) have primary/secondary
  * buses assigned explicitly by firmware, and we probably have
@@ -683,10 +724,10 @@ static void eeh_bridge_check_link(struct eeh_dev *edev)
 		return;
 
 	pr_debug("%s: Check PCIe link for %04x:%02x:%02x.%01x ...\n",
-		 __func__, edev->phb->global_number,
-		 edev->config_addr >> 8,
-		 PCI_SLOT(edev->config_addr & 0xFF),
-		 PCI_FUNC(edev->config_addr & 0xFF));
+		 __func__, pdn->phb->global_number,
+		 pdn->busno,
+		 PCI_SLOT(pdn->devfn),
+		 PCI_FUNC(pdn->devfn));
 
 	/* Check slot status */
 	cap = edev->pcie_cap;
@@ -861,32 +902,29 @@ void eeh_pe_restore_bars(struct eeh_pe *pe)
 const char *eeh_pe_loc_get(struct eeh_pe *pe)
 {
 	struct pci_bus *bus = eeh_pe_bus_get(pe);
-	struct device_node *dn = pci_bus_to_OF_node(bus);
+	struct device_node *dn;
 	const char *loc = NULL;
 
-	if (!dn)
-		goto out;
+	while (bus) {
+		dn = pci_bus_to_OF_node(bus);
+		if (!dn) {
+			bus = bus->parent;
+			continue;
+		}
 
-	/* PHB PE or root PE ? */
-	if (pci_is_root_bus(bus)) {
-		loc = of_get_property(dn, "ibm,loc-code", NULL);
-		if (!loc)
+		if (pci_is_root_bus(bus))
 			loc = of_get_property(dn, "ibm,io-base-loc-code", NULL);
-		if (loc)
-			goto out;
+		else
+			loc = of_get_property(dn, "ibm,slot-location-code",
+					      NULL);
 
-		/* Check the root port */
-		dn = dn->child;
-		if (!dn)
-			goto out;
+		if (loc)
+			return loc;
+
+		bus = bus->parent;
 	}
 
-	loc = of_get_property(dn, "ibm,loc-code", NULL);
-	if (!loc)
-		loc = of_get_property(dn, "ibm,slot-location-code", NULL);
-
-out:
-	return loc ? loc : "N/A";
+	return "N/A";
 }
 
 /**
@@ -901,25 +939,21 @@ out:
  */
 struct pci_bus *eeh_pe_bus_get(struct eeh_pe *pe)
 {
-	struct pci_bus *bus = NULL;
 	struct eeh_dev *edev;
 	struct pci_dev *pdev;
 
-	if (pe->type & EEH_PE_PHB) {
-		bus = pe->phb->bus;
-	} else if (pe->type & EEH_PE_BUS ||
-		   pe->type & EEH_PE_DEVICE) {
-		if (pe->bus) {
-			bus = pe->bus;
-			goto out;
-		}
+	if (pe->type & EEH_PE_PHB)
+		return pe->phb->bus;
 
-		edev = list_first_entry(&pe->edevs, struct eeh_dev, list);
-		pdev = eeh_dev_to_pci_dev(edev);
-		if (pdev)
-			bus = pdev->bus;
-	}
+	/* The primary bus might be cached during probe time */
+	if (pe->state & EEH_PE_PRI_BUS)
+		return pe->bus;
 
-out:
-	return bus;
+	/* Retrieve the parent PCI bus of first (top) PCI device */
+	edev = list_first_entry_or_null(&pe->edevs, struct eeh_dev, list);
+	pdev = eeh_dev_to_pci_dev(edev);
+	if (pdev)
+		return pdev->bus;
+
+	return NULL;
 }

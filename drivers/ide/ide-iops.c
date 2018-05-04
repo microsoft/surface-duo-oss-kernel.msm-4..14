@@ -24,7 +24,7 @@
 
 #include <asm/byteorder.h>
 #include <asm/irq.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <asm/io.h>
 
 void SELECT_MASK(ide_drive_t *drive, int mask)
@@ -129,12 +129,12 @@ int __ide_wait_stat(ide_drive_t *drive, u8 good, u8 bad,
 				if ((stat & ATA_BUSY) == 0)
 					break;
 
-				local_irq_restore(flags);
+				local_irq_restore_nort(flags);
 				*rstat = stat;
 				return -EBUSY;
 			}
 		}
-		local_irq_restore(flags);
+		local_irq_restore_nort(flags);
 	}
 	/*
 	 * Allow status to settle, then read it again.

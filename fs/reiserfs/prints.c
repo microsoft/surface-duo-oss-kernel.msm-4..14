@@ -139,11 +139,9 @@ static void sprintf_block_head(char *buf, struct buffer_head *bh)
 
 static void sprintf_buffer_head(char *buf, struct buffer_head *bh)
 {
-	char b[BDEVNAME_SIZE];
-
 	sprintf(buf,
-		"dev %s, size %zd, blocknr %llu, count %d, state 0x%lx, page %p, (%s, %s, %s)",
-		bdevname(bh->b_bdev, b), bh->b_size,
+		"dev %pg, size %zd, blocknr %llu, count %d, state 0x%lx, page %p, (%s, %s, %s)",
+		bh->b_bdev, bh->b_size,
 		(unsigned long long)bh->b_blocknr, atomic_read(&(bh->b_count)),
 		bh->b_state, bh->b_page,
 		buffer_uptodate(bh) ? "UPTODATE" : "!UPTODATE",
@@ -388,7 +386,7 @@ void __reiserfs_error(struct super_block *sb, const char *id,
 		printk(KERN_CRIT "REISERFS error (device %s): %s: %s\n",
 		       sb->s_id, function, error_buf);
 
-	if (sb->s_flags & MS_RDONLY)
+	if (sb_rdonly(sb))
 		return;
 
 	reiserfs_info(sb, "Remounting filesystem read-only\n");
@@ -530,7 +528,6 @@ static int print_super_block(struct buffer_head *bh)
 	    (struct reiserfs_super_block *)(bh->b_data);
 	int skipped, data_blocks;
 	char *version;
-	char b[BDEVNAME_SIZE];
 
 	if (is_reiserfs_3_5(rs)) {
 		version = "3.5";
@@ -543,7 +540,7 @@ static int print_super_block(struct buffer_head *bh)
 		return 1;
 	}
 
-	printk("%s\'s super block is in block %llu\n", bdevname(bh->b_bdev, b),
+	printk("%pg\'s super block is in block %llu\n", bh->b_bdev,
 	       (unsigned long long)bh->b_blocknr);
 	printk("Reiserfs version %s\n", version);
 	printk("Block count %u\n", sb_block_count(rs));

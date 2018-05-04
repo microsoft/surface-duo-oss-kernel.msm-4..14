@@ -1,6 +1,13 @@
-obj-y += time.o timer.o hrtimer.o itimer.o posix-timers.o posix-cpu-timers.o
+# SPDX-License-Identifier: GPL-2.0
+obj-y += time.o timer.o hrtimer.o
 obj-y += timekeeping.o ntp.o clocksource.o jiffies.o timer_list.o
-obj-y += timeconv.o timecounter.o posix-clock.o alarmtimer.o
+obj-y += timeconv.o timecounter.o alarmtimer.o
+
+ifeq ($(CONFIG_POSIX_TIMERS),y)
+ obj-y += posix-timers.o posix-cpu-timers.o posix-clock.o itimer.o
+else
+ obj-y += posix-stubs.o
+endif
 
 obj-$(CONFIG_GENERIC_CLOCKEVENTS)		+= clockevents.o tick-common.o
 ifeq ($(CONFIG_GENERIC_CLOCKEVENTS_BROADCAST),y)
@@ -9,23 +16,5 @@ ifeq ($(CONFIG_GENERIC_CLOCKEVENTS_BROADCAST),y)
 endif
 obj-$(CONFIG_GENERIC_SCHED_CLOCK)		+= sched_clock.o
 obj-$(CONFIG_TICK_ONESHOT)			+= tick-oneshot.o tick-sched.o
-obj-$(CONFIG_TIMER_STATS)			+= timer_stats.o
 obj-$(CONFIG_DEBUG_FS)				+= timekeeping_debug.o
 obj-$(CONFIG_TEST_UDELAY)			+= test_udelay.o
-
-$(obj)/time.o: $(obj)/timeconst.h
-
-quiet_cmd_hzfile = HZFILE  $@
-      cmd_hzfile = echo "hz=$(CONFIG_HZ)" > $@
-
-targets += hz.bc
-$(obj)/hz.bc: $(objtree)/include/config/hz.h FORCE
-	$(call if_changed,hzfile)
-
-quiet_cmd_bc  = BC      $@
-      cmd_bc  = bc -q $(filter-out FORCE,$^) > $@
-
-targets += timeconst.h
-$(obj)/timeconst.h: $(obj)/hz.bc $(src)/timeconst.bc FORCE
-	$(call if_changed,bc)
-

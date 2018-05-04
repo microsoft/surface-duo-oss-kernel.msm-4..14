@@ -115,7 +115,6 @@ static int mop500_probe(struct platform_device *pdev)
 
 	dev_dbg(&pdev->dev, "%s: Card %s: Set platform drvdata.\n",
 		__func__, mop500_card.name);
-	platform_set_drvdata(pdev, &mop500_card);
 
 	snd_soc_card_set_drvdata(&mop500_card, NULL);
 
@@ -152,6 +151,7 @@ static const struct of_device_id snd_soc_mop500_match[] = {
 	{ .compatible = "stericsson,snd-soc-mop500", },
 	{},
 };
+MODULE_DEVICE_TABLE(of, snd_soc_mop500_match);
 
 static struct platform_driver snd_soc_mop500_driver = {
 	.driver = {
@@ -163,3 +163,7 @@ static struct platform_driver snd_soc_mop500_driver = {
 };
 
 module_platform_driver(snd_soc_mop500_driver);
+
+MODULE_LICENSE("GPL v2");
+MODULE_DESCRIPTION("ASoC MOP500 board driver");
+MODULE_AUTHOR("Ola Lilja");

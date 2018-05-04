@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __ASM_METAG_CMPXCHG_LNKGET_H
 #define __ASM_METAG_CMPXCHG_LNKGET_H
 
@@ -73,7 +74,7 @@ static inline unsigned long __cmpxchg_u32(volatile int *m, unsigned long old,
 		      "	DCACHE	[%2], %0\n"
 #endif
 		      "2:\n"
-		      : "=&d" (temp), "=&da" (retval)
+		      : "=&d" (temp), "=&d" (retval)
 		      : "da" (m), "bd" (old), "da" (new)
 		      : "cc"
 		      );

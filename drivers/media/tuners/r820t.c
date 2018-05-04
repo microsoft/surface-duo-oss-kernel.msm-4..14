@@ -337,20 +337,6 @@ static int r820t_xtal_capacitor[][2] = {
 };
 
 /*
- * measured with a Racal 6103E GSM test set at 928 MHz with -60 dBm
- * input power, for raw results see:
- *	http://steve-m.de/projects/rtl-sdr/gain_measurement/r820t/
- */
-
-static const int r820t_lna_gain_steps[]  = {
-	0, 9, 13, 40, 38, 13, 31, 22, 26, 31, 26, 14, 19, 5, 35, 13
-};
-
-static const int r820t_mixer_gain_steps[]  = {
-	0, 5, 10, 10, 19, 9, 10, 25, 17, 10, 8, 16, 13, 6, 3, -8
-};
-
-/*
  * I2C read/write code and shadow registers logic
  */
 static void shadow_store(struct r820t_priv *priv, u8 reg, const u8 *val,
@@ -410,9 +396,11 @@ static int r820t_write(struct r820t_priv *priv, u8 reg, const u8 *val,
 	return 0;
 }
 
-static int r820t_write_reg(struct r820t_priv *priv, u8 reg, u8 val)
+static inline int r820t_write_reg(struct r820t_priv *priv, u8 reg, u8 val)
 {
-	return r820t_write(priv, reg, &val, 1);
+	u8 tmp = val; /* work around GCC PR81715 with asan-stack=1 */
+
+	return r820t_write(priv, reg, &tmp, 1);
 }
 
 static int r820t_read_cache_reg(struct r820t_priv *priv, int reg)
@@ -425,17 +413,18 @@ static int r820t_read_cache_reg(struct r820t_priv *priv, int reg)
 		return -EINVAL;
 }
 
-static int r820t_write_reg_mask(struct r820t_priv *priv, u8 reg, u8 val,
+static inline int r820t_write_reg_mask(struct r820t_priv *priv, u8 reg, u8 val,
 				u8 bit_mask)
 {
+	u8 tmp = val;
 	int rc = r820t_read_cache_reg(priv, reg);
 
 	if (rc < 0)
 		return rc;
 
-	val = (rc & ~bit_mask) | (val & bit_mask);
+	tmp = (rc & ~bit_mask) | (tmp & bit_mask);
 
-	return r820t_write(priv, reg, &val, 1);
+	return r820t_write(priv, reg, &tmp, 1);
 }
 
 static int r820t_read(struct r820t_priv *priv, u8 reg, u8 *val, int len)
@@ -941,8 +930,8 @@ static int r820t_sysfreq_sel(struct r820t_priv *priv, u32 freq,
 		rc = r820t_write_reg_mask(priv, 0x10, 0x00, 0x04);
 		if (rc < 0)
 			return rc;
-	 }
-	 return 0;
+	}
+	return 0;
 }
 
 static int r820t_set_tv_standard(struct r820t_priv *priv,
@@ -1216,6 +1205,21 @@ static int r820t_read_gain(struct r820t_priv *priv)
 
 #if 0
 /* FIXME: This routine requires more testing */
+
+/*
+ * measured with a Racal 6103E GSM test set at 928 MHz with -60 dBm
+ * input power, for raw results see:
+ *	http://steve-m.de/projects/rtl-sdr/gain_measurement/r820t/
+ */
+
+static const int r820t_lna_gain_steps[]  = {
+	0, 9, 13, 40, 38, 13, 31, 22, 26, 31, 26, 14, 19, 5, 35, 13
+};
+
+static const int r820t_mixer_gain_steps[]  = {
+	0, 5, 10, 10, 19, 9, 10, 25, 17, 10, 8, 16, 13, 6, 3, -8
+};
+
 static int r820t_set_gain_mode(struct r820t_priv *priv,
 			       bool set_manual_gain,
 			       int gain)
@@ -1295,7 +1299,7 @@ static int generic_set_freq(struct dvb_frontend *fe,
 			    v4l2_std_id std, u32 delsys)
 {
 	struct r820t_priv		*priv = fe->tuner_priv;
-	int				rc = -EINVAL;
+	int				rc;
 	u32				lo_freq;
 
 	tuner_dbg("should set frequency to %d kHz, bw %d MHz\n",
@@ -2285,7 +2289,7 @@ static int r820t_get_if_frequency(struct dvb_frontend *fe, u32 *frequency)
 	return 0;
 }
 
-static int r820t_release(struct dvb_frontend *fe)
+static void r820t_release(struct dvb_frontend *fe)
 {
 	struct r820t_priv *priv = fe->tuner_priv;
 
@@ -2299,8 +2303,6 @@ static int r820t_release(struct dvb_frontend *fe)
 	mutex_unlock(&r820t_list_mutex);
 
 	fe->tuner_priv = NULL;
-
-	return 0;
 }
 
 static const struct dvb_tuner_ops r820t_tuner_ops = {

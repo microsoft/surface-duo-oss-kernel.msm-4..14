@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _UDF_I_H
 #define _UDF_I_H
 
@@ -56,7 +57,7 @@ struct udf_inode_info {
 
 static inline struct udf_inode_info *UDF_I(struct inode *inode)
 {
-	return list_entry(inode, struct udf_inode_info, vfs_inode);
+	return container_of(inode, struct udf_inode_info, vfs_inode);
 }
 
 #endif /* _UDF_I_H) */

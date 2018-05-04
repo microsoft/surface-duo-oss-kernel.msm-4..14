@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0+ WITH Linux-syscall-note */
 /*
  * INET		An implementation of the TCP/IP protocol suite for the LINUX
  *		operating system.  INET is implemented using the  BSD Socket
@@ -36,6 +37,7 @@ struct udphdr {
 #define UDP_ENCAP_ESPINUDP_NON_IKE	1 /* draft-ietf-ipsec-nat-t-ike-00/01 */
 #define UDP_ENCAP_ESPINUDP	2 /* draft-ietf-ipsec-udp-encaps-06 */
 #define UDP_ENCAP_L2TPINUDP	3 /* rfc2661 */
-
+#define UDP_ENCAP_GTP0		4 /* GSM TS 09.60 */
+#define UDP_ENCAP_GTP1U		5 /* 3GPP TS 29.060 */
 
 #endif /* _UAPI_LINUX_UDP_H */

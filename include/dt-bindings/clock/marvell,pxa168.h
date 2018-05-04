@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __DTS_MARVELL_PXA168_CLOCK_H
 #define __DTS_MARVELL_PXA168_CLOCK_H
 
@@ -18,7 +19,9 @@
 #define PXA168_CLK_PLL1_13_1_5		18
 #define PXA168_CLK_PLL1_2_1_5		19
 #define PXA168_CLK_PLL1_3_16		20
+#define PXA168_CLK_PLL1_192		21
 #define PXA168_CLK_UART_PLL		27
+#define PXA168_CLK_USB_PLL		28
 
 /* apb periphrals */
 #define PXA168_CLK_TWSI0		60
@@ -40,6 +43,7 @@
 #define PXA168_CLK_SSP2			76
 #define PXA168_CLK_SSP3			77
 #define PXA168_CLK_SSP4			78
+#define PXA168_CLK_TIMER		79
 
 /* axi periphrals */
 #define PXA168_CLK_DFC			100

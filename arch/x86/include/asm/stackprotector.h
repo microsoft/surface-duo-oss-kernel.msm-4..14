@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * GCC stack protector support.
  *
@@ -39,7 +40,9 @@
 #include <asm/processor.h>
 #include <asm/percpu.h>
 #include <asm/desc.h>
+
 #include <linux/random.h>
+#include <linux/sched.h>
 
 /*
  * 24 byte read-only segment initializer for stack canary.  Linker
@@ -57,7 +60,7 @@
  */
 static __always_inline void boot_init_stack_canary(void)
 {
-	u64 canary;
+	u64 uninitialized_var(canary);
 	u64 tsc;
 
 #ifdef CONFIG_X86_64
@@ -68,10 +71,17 @@ static __always_inline void boot_init_stack_canary(void)
 	 * of randomness. The TSC only matters for very early init,
 	 * there it already has some randomness on most systems. Later
 	 * on during the bootup the random pool has true entropy too.
+	 * For preempt-rt we need to weaken the randomness a bit, as
+	 * we can't call into the random generator from atomic context
+	 * due to locking constraints. We just leave canary
+	 * uninitialized and use the TSC based randomness on top of it.
 	 */
+#ifndef CONFIG_PREEMPT_RT_FULL
 	get_random_bytes(&canary, sizeof(canary));
-	tsc = __native_read_tsc();
+#endif
+	tsc = rdtsc();
 	canary += tsc + (tsc << 32UL);
+	canary &= CANARY_MASK;
 
 	current->stack_canary = canary;
 #ifdef CONFIG_X86_64
@@ -85,7 +95,7 @@ static inline void setup_stack_canary_segment(int cpu)
 {
 #ifdef CONFIG_X86_32
 	unsigned long canary = (unsigned long)&per_cpu(stack_canary, cpu);
-	struct desc_struct *gdt_table = get_cpu_gdt_table(cpu);
+	struct desc_struct *gdt_table = get_cpu_gdt_rw(cpu);
 	struct desc_struct desc;
 
 	desc = gdt_table[GDT_ENTRY_STACK_CANARY];

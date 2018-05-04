@@ -1,8 +1,9 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Runtime locking correctness validator
  *
  *  Copyright (C) 2006,2007 Red Hat, Inc., Ingo Molnar <mingo@redhat.com>
- *  Copyright (C) 2007 Red Hat, Inc., Peter Zijlstra <pzijlstr@redhat.com>
+ *  Copyright (C) 2007 Red Hat, Inc., Peter Zijlstra
  *
  * see Documentation/locking/lockdep-design.txt for more details.
  */
@@ -16,6 +17,10 @@ struct lockdep_map;
 extern int prove_locking;
 extern int lock_stat;
 
+#define MAX_LOCKDEP_SUBCLASSES		8UL
+
+#include <linux/types.h>
+
 #ifdef CONFIG_LOCKDEP
 
 #include <linux/linkage.h>
@@ -27,9 +32,7 @@ extern int lock_stat;
  * We'd rather not expose kernel/lockdep_states.h this wide, but we do need
  * the total number of states... :-(
  */
-#define XXX_LOCK_USAGE_STATES		(1+3*4)
-
-#define MAX_LOCKDEP_SUBCLASSES		8UL
+#define XXX_LOCK_USAGE_STATES		(1+2*4)
 
 /*
  * NR_LOCKDEP_CACHING_CLASSES ... Number of classes
@@ -66,7 +69,7 @@ struct lock_class {
 	/*
 	 * class-hash:
 	 */
-	struct list_head		hash_entry;
+	struct hlist_node		hash_entry;
 
 	/*
 	 * global list of all lock-classes:
@@ -130,8 +133,8 @@ enum bounce_type {
 };
 
 struct lock_class_stats {
-	unsigned long			contention_point[4];
-	unsigned long			contending_point[4];
+	unsigned long			contention_point[LOCKSTAT_POINTS];
+	unsigned long			contending_point[LOCKSTAT_POINTS];
 	struct lock_time		read_waittime;
 	struct lock_time		write_waittime;
 	struct lock_time		read_holdtime;
@@ -154,6 +157,12 @@ struct lockdep_map {
 #ifdef CONFIG_LOCK_STAT
 	int				cpu;
 	unsigned long			ip;
+#endif
+#ifdef CONFIG_LOCKDEP_CROSSRELEASE
+	/*
+	 * Whether it's a crosslock.
+	 */
+	int				cross;
 #endif
 };
 
@@ -196,10 +205,12 @@ struct lock_list {
  * We record lock dependency chains, so that we can cache them:
  */
 struct lock_chain {
-	u8				irq_context;
-	u8				depth;
-	u16				base;
-	struct list_head		entry;
+	/* see BUILD_BUG_ON()s in lookup_chain_cache() */
+	unsigned int			irq_context :  2,
+					depth       :  6,
+					base	    : 24;
+	/* 4 byte hole */
+	struct hlist_node		entry;
 	u64				chain_key;
 };
 
@@ -255,12 +266,99 @@ struct held_lock {
 	unsigned int check:1;       /* see lock_acquire() comment */
 	unsigned int hardirqs_off:1;
 	unsigned int references:12;					/* 32 bits */
+	unsigned int pin_count;
+#ifdef CONFIG_LOCKDEP_CROSSRELEASE
+	/*
+	 * Generation id.
+	 *
+	 * A value of cross_gen_id will be stored when holding this,
+	 * which is globally increased whenever each crosslock is held.
+	 */
+	unsigned int gen_id;
+#endif
 };
+
+#ifdef CONFIG_LOCKDEP_CROSSRELEASE
+#define MAX_XHLOCK_TRACE_ENTRIES 5
+
+/*
+ * This is for keeping locks waiting for commit so that true dependencies
+ * can be added at commit step.
+ */
+struct hist_lock {
+	/*
+	 * Id for each entry in the ring buffer. This is used to
+	 * decide whether the ring buffer was overwritten or not.
+	 *
+	 * For example,
+	 *
+	 *           |<----------- hist_lock ring buffer size ------->|
+	 *           pppppppppppppppppppppiiiiiiiiiiiiiiiiiiiiiiiiiiiii
+	 * wrapped > iiiiiiiiiiiiiiiiiiiiiiiiiii.......................
+	 *
+	 *           where 'p' represents an acquisition in process
+	 *           context, 'i' represents an acquisition in irq
+	 *           context.
+	 *
+	 * In this example, the ring buffer was overwritten by
+	 * acquisitions in irq context, that should be detected on
+	 * rollback or commit.
+	 */
+	unsigned int hist_id;
+
+	/*
+	 * Seperate stack_trace data. This will be used at commit step.
+	 */
+	struct stack_trace	trace;
+	unsigned long		trace_entries[MAX_XHLOCK_TRACE_ENTRIES];
+
+	/*
+	 * Seperate hlock instance. This will be used at commit step.
+	 *
+	 * TODO: Use a smaller data structure containing only necessary
+	 * data. However, we should make lockdep code able to handle the
+	 * smaller one first.
+	 */
+	struct held_lock	hlock;
+};
+
+/*
+ * To initialize a lock as crosslock, lockdep_init_map_crosslock() should
+ * be called instead of lockdep_init_map().
+ */
+struct cross_lock {
+	/*
+	 * When more than one acquisition of crosslocks are overlapped,
+	 * we have to perform commit for them based on cross_gen_id of
+	 * the first acquisition, which allows us to add more true
+	 * dependencies.
+	 *
+	 * Moreover, when no acquisition of a crosslock is in progress,
+	 * we should not perform commit because the lock might not exist
+	 * any more, which might cause incorrect memory access. So we
+	 * have to track the number of acquisitions of a crosslock.
+	 */
+	int nr_acquire;
+
+	/*
+	 * Seperate hlock instance. This will be used at commit step.
+	 *
+	 * TODO: Use a smaller data structure containing only necessary
+	 * data. However, we should make lockdep code able to handle the
+	 * smaller one first.
+	 */
+	struct held_lock	hlock;
+};
+
+struct lockdep_map_cross {
+	struct lockdep_map map;
+	struct cross_lock xlock;
+};
+#endif
 
 /*
  * Initialization, self-test and debugging-output methods:
  */
-extern void lockdep_init(void);
 extern void lockdep_info(void);
 extern void lockdep_reset(void);
 extern void lockdep_reset_lock(struct lockdep_map *lock);
@@ -278,13 +376,6 @@ extern void lockdep_on(void);
 
 extern void lockdep_init_map(struct lockdep_map *lock, const char *name,
 			     struct lock_class_key *key, int subclass);
-
-/*
- * To initialize a lockdep_map statically use this macro.
- * Note that _name must not be NULL.
- */
-#define STATIC_LOCKDEP_MAP_INIT(_name, _key) \
-	{ .name = (_name), .key = (void *)(_key), }
 
 /*
  * Reinitialize a lock key - for cases where there is special locking or
@@ -336,9 +427,18 @@ extern void lock_acquire(struct lockdep_map *lock, unsigned int subclass,
 extern void lock_release(struct lockdep_map *lock, int nested,
 			 unsigned long ip);
 
-#define lockdep_is_held(lock)	lock_is_held(&(lock)->dep_map)
+/*
+ * Same "read" as for lock_acquire(), except -1 means any.
+ */
+extern int lock_is_held_type(struct lockdep_map *lock, int read);
 
-extern int lock_is_held(struct lockdep_map *lock);
+static inline int lock_is_held(struct lockdep_map *lock)
+{
+	return lock_is_held_type(lock, -1);
+}
+
+#define lockdep_is_held(lock)		lock_is_held(&(lock)->dep_map)
+#define lockdep_is_held_type(lock, r)	lock_is_held_type(&(lock)->dep_map, (r))
 
 extern void lock_set_class(struct lockdep_map *lock, const char *name,
 			   struct lock_class_key *key, unsigned int subclass,
@@ -350,11 +450,17 @@ static inline void lock_set_subclass(struct lockdep_map *lock,
 	lock_set_class(lock, lock->name, lock->key, subclass, ip);
 }
 
-extern void lockdep_set_current_reclaim_state(gfp_t gfp_mask);
-extern void lockdep_clear_current_reclaim_state(void);
-extern void lockdep_trace_alloc(gfp_t mask);
+extern void lock_downgrade(struct lockdep_map *lock, unsigned long ip);
 
-# define INIT_LOCKDEP				.lockdep_recursion = 0, .lockdep_reclaim_gfp = 0,
+struct pin_cookie { unsigned int val; };
+
+#define NIL_COOKIE (struct pin_cookie){ .val = 0U, }
+
+extern struct pin_cookie lock_pin_lock(struct lockdep_map *lock);
+extern void lock_repin_lock(struct lockdep_map *lock, struct pin_cookie);
+extern void lock_unpin_lock(struct lockdep_map *lock, struct pin_cookie);
+
+# define INIT_LOCKDEP				.lockdep_recursion = 0,
 
 #define lockdep_depth(tsk)	(debug_locks ? (tsk)->lockdep_depth : 0)
 
@@ -362,11 +468,23 @@ extern void lockdep_trace_alloc(gfp_t mask);
 		WARN_ON(debug_locks && !lockdep_is_held(l));	\
 	} while (0)
 
+#define lockdep_assert_held_exclusive(l)	do {			\
+		WARN_ON(debug_locks && !lockdep_is_held_type(l, 0));	\
+	} while (0)
+
+#define lockdep_assert_held_read(l)	do {				\
+		WARN_ON(debug_locks && !lockdep_is_held_type(l, 1));	\
+	} while (0)
+
 #define lockdep_assert_held_once(l)	do {				\
 		WARN_ON_ONCE(debug_locks && !lockdep_is_held(l));	\
 	} while (0)
 
 #define lockdep_recursing(tsk)	((tsk)->lockdep_recursion)
+
+#define lockdep_pin_lock(l)	lock_pin_lock(&(l)->dep_map)
+#define lockdep_repin_lock(l,c)	lock_repin_lock(&(l)->dep_map, (c))
+#define lockdep_unpin_lock(l,c)	lock_unpin_lock(&(l)->dep_map, (c))
 
 #else /* !CONFIG_LOCKDEP */
 
@@ -380,12 +498,9 @@ static inline void lockdep_on(void)
 
 # define lock_acquire(l, s, t, r, c, n, i)	do { } while (0)
 # define lock_release(l, n, i)			do { } while (0)
+# define lock_downgrade(l, i)			do { } while (0)
 # define lock_set_class(l, n, k, s, i)		do { } while (0)
 # define lock_set_subclass(l, s, i)		do { } while (0)
-# define lockdep_set_current_reclaim_state(g)	do { } while (0)
-# define lockdep_clear_current_reclaim_state()	do { } while (0)
-# define lockdep_trace_alloc(g)			do { } while (0)
-# define lockdep_init()				do { } while (0)
 # define lockdep_info()				do { } while (0)
 # define lockdep_init_map(lock, name, key, sub) \
 		do { (void)(name); (void)(key); } while (0)
@@ -415,12 +530,76 @@ struct lock_class_key { };
 
 #define lockdep_depth(tsk)	(0)
 
+#define lockdep_is_held_type(l, r)		(1)
+
 #define lockdep_assert_held(l)			do { (void)(l); } while (0)
+#define lockdep_assert_held_exclusive(l)	do { (void)(l); } while (0)
+#define lockdep_assert_held_read(l)		do { (void)(l); } while (0)
 #define lockdep_assert_held_once(l)		do { (void)(l); } while (0)
 
 #define lockdep_recursing(tsk)			(0)
 
+struct pin_cookie { };
+
+#define NIL_COOKIE (struct pin_cookie){ }
+
+#define lockdep_pin_lock(l)			({ struct pin_cookie cookie; cookie; })
+#define lockdep_repin_lock(l, c)		do { (void)(l); (void)(c); } while (0)
+#define lockdep_unpin_lock(l, c)		do { (void)(l); (void)(c); } while (0)
+
 #endif /* !LOCKDEP */
+
+enum xhlock_context_t {
+	XHLOCK_HARD,
+	XHLOCK_SOFT,
+	XHLOCK_CTX_NR,
+};
+
+#ifdef CONFIG_LOCKDEP_CROSSRELEASE
+extern void lockdep_init_map_crosslock(struct lockdep_map *lock,
+				       const char *name,
+				       struct lock_class_key *key,
+				       int subclass);
+extern void lock_commit_crosslock(struct lockdep_map *lock);
+
+/*
+ * What we essencially have to initialize is 'nr_acquire'. Other members
+ * will be initialized in add_xlock().
+ */
+#define STATIC_CROSS_LOCK_INIT() \
+	{ .nr_acquire = 0,}
+
+#define STATIC_CROSS_LOCKDEP_MAP_INIT(_name, _key) \
+	{ .map.name = (_name), .map.key = (void *)(_key), \
+	  .map.cross = 1, .xlock = STATIC_CROSS_LOCK_INIT(), }
+
+/*
+ * To initialize a lockdep_map statically use this macro.
+ * Note that _name must not be NULL.
+ */
+#define STATIC_LOCKDEP_MAP_INIT(_name, _key) \
+	{ .name = (_name), .key = (void *)(_key), .cross = 0, }
+
+extern void crossrelease_hist_start(enum xhlock_context_t c);
+extern void crossrelease_hist_end(enum xhlock_context_t c);
+extern void lockdep_invariant_state(bool force);
+extern void lockdep_init_task(struct task_struct *task);
+extern void lockdep_free_task(struct task_struct *task);
+#else /* !CROSSRELEASE */
+#define lockdep_init_map_crosslock(m, n, k, s) do {} while (0)
+/*
+ * To initialize a lockdep_map statically use this macro.
+ * Note that _name must not be NULL.
+ */
+#define STATIC_LOCKDEP_MAP_INIT(_name, _key) \
+	{ .name = (_name), .key = (void *)(_key), }
+
+static inline void crossrelease_hist_start(enum xhlock_context_t c) {}
+static inline void crossrelease_hist_end(enum xhlock_context_t c) {}
+static inline void lockdep_invariant_state(bool force) {}
+static inline void lockdep_init_task(struct task_struct *task) {}
+static inline void lockdep_free_task(struct task_struct *task) {}
+#endif /* CROSSRELEASE */
 
 #ifdef CONFIG_LOCK_STAT
 
@@ -436,12 +615,27 @@ do {								\
 	lock_acquired(&(_lock)->dep_map, _RET_IP_);			\
 } while (0)
 
+#define LOCK_CONTENDED_RETURN(_lock, try, lock)			\
+({								\
+	int ____err = 0;					\
+	if (!try(_lock)) {					\
+		lock_contended(&(_lock)->dep_map, _RET_IP_);	\
+		____err = lock(_lock);				\
+	}							\
+	if (!____err)						\
+		lock_acquired(&(_lock)->dep_map, _RET_IP_);	\
+	____err;						\
+})
+
 #else /* CONFIG_LOCK_STAT */
 
 #define lock_contended(lockdep_map, ip) do {} while (0)
 #define lock_acquired(lockdep_map, ip) do {} while (0)
 
 #define LOCK_CONTENDED(_lock, try, lock) \
+	lock(_lock)
+
+#define LOCK_CONTENDED_RETURN(_lock, try, lock) \
 	lock(_lock)
 
 #endif /* CONFIG_LOCK_STAT */

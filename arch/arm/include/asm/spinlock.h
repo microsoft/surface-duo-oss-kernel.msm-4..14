@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __ASM_SPINLOCK_H
 #define __ASM_SPINLOCK_H
 
@@ -6,6 +7,8 @@
 #endif
 
 #include <linux/prefetch.h>
+#include <asm/barrier.h>
+#include <asm/processor.h>
 
 /*
  * sev and wfe are ARMv6K extensions.  Uniprocessor ARMv6 may not have the K
@@ -49,9 +52,6 @@ static inline void dsb_sev(void)
  * release it, because V6 CPUs are assumed to have weakly ordered
  * memory.
  */
-
-#define arch_spin_unlock_wait(lock) \
-	do { while (arch_spin_is_locked(lock)) cpu_relax(); } while (0)
 
 #define arch_spin_lock_flags(lock, flags) arch_spin_lock(lock)
 

@@ -42,13 +42,15 @@ static inline void atomic_set(atomic_t *v, int new)
 	);
 }
 
+#define atomic_set_release(v, i)	atomic_set((v), (i))
+
 /**
  * atomic_read - reads a word, atomically
  * @v: pointer to atomic value
  *
  * Assumes all word reads on our architecture are atomic.
  */
-#define atomic_read(v)		((v)->counter)
+#define atomic_read(v)		READ_ONCE((v)->counter)
 
 /**
  * atomic_xchg - atomic
@@ -110,7 +112,7 @@ static inline void atomic_##op(int i, atomic_t *v)			\
 	);								\
 }									\
 
-#define ATOMIC_OP_RETURN(op)							\
+#define ATOMIC_OP_RETURN(op)						\
 static inline int atomic_##op##_return(int i, atomic_t *v)		\
 {									\
 	int output;							\
@@ -127,12 +129,37 @@ static inline int atomic_##op##_return(int i, atomic_t *v)		\
 	return output;							\
 }
 
-#define ATOMIC_OPS(op) ATOMIC_OP(op) ATOMIC_OP_RETURN(op)
+#define ATOMIC_FETCH_OP(op)						\
+static inline int atomic_fetch_##op(int i, atomic_t *v)			\
+{									\
+	int output, val;						\
+									\
+	__asm__ __volatile__ (						\
+		"1:	%0 = memw_locked(%2);\n"			\
+		"	%1 = "#op "(%0,%3);\n"				\
+		"	memw_locked(%2,P3)=%1;\n"			\
+		"	if !P3 jump 1b;\n"				\
+		: "=&r" (output), "=&r" (val)				\
+		: "r" (&v->counter), "r" (i)				\
+		: "memory", "p3"					\
+	);								\
+	return output;							\
+}
+
+#define ATOMIC_OPS(op) ATOMIC_OP(op) ATOMIC_OP_RETURN(op) ATOMIC_FETCH_OP(op)
 
 ATOMIC_OPS(add)
 ATOMIC_OPS(sub)
 
 #undef ATOMIC_OPS
+#define ATOMIC_OPS(op) ATOMIC_OP(op) ATOMIC_FETCH_OP(op)
+
+ATOMIC_OPS(and)
+ATOMIC_OPS(or)
+ATOMIC_OPS(xor)
+
+#undef ATOMIC_OPS
+#undef ATOMIC_FETCH_OP
 #undef ATOMIC_OP_RETURN
 #undef ATOMIC_OP
 

@@ -2151,17 +2151,15 @@ SiS_GetVCLK2Ptr(struct SiS_Private *SiS_Pr, unsigned short ModeNo, unsigned shor
 		unsigned short RefreshRateTableIndex)
 {
   unsigned short CRT2Index, VCLKIndex = 0, VCLKIndexGEN = 0, VCLKIndexGENCRT = 0;
-  unsigned short modeflag, resinfo, tempbx;
+  unsigned short resinfo, tempbx;
   const unsigned char *CHTVVCLKPtr = NULL;
 
   if(ModeNo <= 0x13) {
-     modeflag = SiS_Pr->SiS_SModeIDTable[ModeIdIndex].St_ModeFlag;
      resinfo = SiS_Pr->SiS_SModeIDTable[ModeIdIndex].St_ResInfo;
      CRT2Index = SiS_Pr->SiS_SModeIDTable[ModeIdIndex].St_CRT2CRTC;
      VCLKIndexGEN = (SiS_GetRegByte((SiS_Pr->SiS_P3ca+0x02)) >> 2) & 0x03;
      VCLKIndexGENCRT = VCLKIndexGEN;
   } else {
-     modeflag = SiS_Pr->SiS_EModeIDTable[ModeIdIndex].Ext_ModeFlag;
      resinfo = SiS_Pr->SiS_EModeIDTable[ModeIdIndex].Ext_RESINFO;
      CRT2Index = SiS_Pr->SiS_RefIndex[RefreshRateTableIndex].Ext_CRT2CRTC;
      VCLKIndexGEN = SiS_Pr->SiS_RefIndex[RefreshRateTableIndex].Ext_CRTVCLK;
@@ -6850,8 +6848,6 @@ SiS_SetGroup2(struct SiS_Private *SiS_Pr, unsigned short ModeNo, unsigned short 
 	   if(SiS_Pr->SiS_VGAHDE >= 1280) {
               tempch = 20;
               tempbx &= ~0x20;
-           } else if(SiS_Pr->SiS_VGAHDE >= 1024) {
-              tempch = 25;
            } else {
 	      tempch = 25; /* OK */
 	   }
@@ -7270,7 +7266,7 @@ SiS_ShiftXPos(struct SiS_Private *SiS_Pr, int shift)
 static void
 SiS_SetGroup4_C_ELV(struct SiS_Private *SiS_Pr, unsigned short ModeNo, unsigned short ModeIdIndex)
 {
-   unsigned short temp, temp1, resinfo = 0;
+   unsigned short temp, temp1;
    unsigned char  *ROMAddr = SiS_Pr->VirtualRomBase;
 
    if(!(SiS_Pr->SiS_VBType & VB_SIS30xCLV)) return;
@@ -7280,10 +7276,6 @@ SiS_SetGroup4_C_ELV(struct SiS_Private *SiS_Pr, unsigned short ModeNo, unsigned 
 
    if((SiS_Pr->ChipType >= SIS_661) && (SiS_Pr->SiS_ROMNew)) {
       if(!(ROMAddr[0x61] & 0x04)) return;
-   }
-
-   if(ModeNo > 0x13) {
-      resinfo = SiS_Pr->SiS_EModeIDTable[ModeIdIndex].Ext_RESINFO;
    }
 
    SiS_SetRegOR(SiS_Pr->SiS_Part4Port,0x3a,0x08);
@@ -7970,14 +7962,9 @@ SiS_SetCHTVReg(struct SiS_Private *SiS_Pr, unsigned short ModeNo, unsigned short
             }
          }
       } else {						/* ---- PAL ---- */
-         /* We don't play around with FSCI in PAL mode */
-         if(resindex == 0x04) {
-            SiS_SetCH70xxANDOR(SiS_Pr,0x20,0x00,0xEF);	/* loop filter off */
-            SiS_SetCH70xxANDOR(SiS_Pr,0x21,0x01,0xFE);	/* ACIV on */
-         } else {
-            SiS_SetCH70xxANDOR(SiS_Pr,0x20,0x00,0xEF);	/* loop filter off */
-            SiS_SetCH70xxANDOR(SiS_Pr,0x21,0x01,0xFE);	/* ACIV on */
-         }
+	/* We don't play around with FSCI in PAL mode */
+	SiS_SetCH70xxANDOR(SiS_Pr, 0x20, 0x00, 0xEF);	/* loop filter off */
+	SiS_SetCH70xxANDOR(SiS_Pr, 0x21, 0x01, 0xFE);	/* ACIV on */
       }
 
 #endif  /* 300 */
@@ -9663,8 +9650,6 @@ SetDelayComp(struct SiS_Private *SiS_Pr, unsigned short ModeNo)
 	      delay = 0x0a;
 	   } else if(IS_SIS740) {
 	      delay = 0x00;
-	   } else if(SiS_Pr->ChipType < SIS_330) {
-	      delay = 0x0c;
 	   } else {
 	      delay = 0x0c;
 	   }

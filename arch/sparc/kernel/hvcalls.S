@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 	/* %o0: devhandle
 	 * %o1:	devino
 	 *
@@ -105,6 +106,17 @@ ENTRY(sun4v_cpu_yield)
 	retl
 	 nop
 ENDPROC(sun4v_cpu_yield)
+
+	/* %o0: cpuid
+	 *
+	 * returns %o0:	status
+	 */
+ENTRY(sun4v_cpu_poke)
+	mov     HV_FAST_CPU_POKE, %o5
+	ta      HV_FAST_TRAP
+	retl
+	 nop
+ENDPROC(sun4v_cpu_poke)
 
 	/* %o0:	type
 	 * %o1:	queue paddr
@@ -338,10 +350,12 @@ ENTRY(sun4v_mach_set_watchdog)
 	mov	%o1, %o4
 	mov	HV_FAST_MACH_SET_WATCHDOG, %o5
 	ta	HV_FAST_TRAP
+	brnz,a,pn %o4, 0f
 	stx	%o1, [%o4]
-	retl
+0:	retl
 	 nop
 ENDPROC(sun4v_mach_set_watchdog)
+EXPORT_SYMBOL(sun4v_mach_set_watchdog)
 
 	/* No inputs and does not return.  */
 ENTRY(sun4v_mach_sir)
@@ -775,6 +789,7 @@ ENTRY(sun4v_niagara_getperf)
 	retl
 	 nop
 ENDPROC(sun4v_niagara_getperf)
+EXPORT_SYMBOL(sun4v_niagara_getperf)
 
 ENTRY(sun4v_niagara_setperf)
 	mov	HV_FAST_SET_PERFREG, %o5
@@ -782,6 +797,7 @@ ENTRY(sun4v_niagara_setperf)
 	retl
 	 nop
 ENDPROC(sun4v_niagara_setperf)
+EXPORT_SYMBOL(sun4v_niagara_setperf)
 
 ENTRY(sun4v_niagara2_getperf)
 	mov	%o0, %o4
@@ -791,6 +807,7 @@ ENTRY(sun4v_niagara2_getperf)
 	retl
 	 nop
 ENDPROC(sun4v_niagara2_getperf)
+EXPORT_SYMBOL(sun4v_niagara2_getperf)
 
 ENTRY(sun4v_niagara2_setperf)
 	mov	HV_FAST_N2_SET_PERFREG, %o5
@@ -798,6 +815,7 @@ ENTRY(sun4v_niagara2_setperf)
 	retl
 	 nop
 ENDPROC(sun4v_niagara2_setperf)
+EXPORT_SYMBOL(sun4v_niagara2_setperf)
 
 ENTRY(sun4v_reboot_data_set)
 	mov	HV_FAST_REBOOT_DATA_SET, %o5

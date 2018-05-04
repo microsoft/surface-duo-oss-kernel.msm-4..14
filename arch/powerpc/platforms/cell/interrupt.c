@@ -99,11 +99,12 @@ static void iic_ioexc_eoi(struct irq_data *d)
 {
 }
 
-static void iic_ioexc_cascade(unsigned int irq, struct irq_desc *desc)
+static void iic_ioexc_cascade(struct irq_desc *desc)
 {
 	struct irq_chip *chip = irq_desc_get_chip(desc);
 	struct cbe_iic_regs __iomem *node_iic =
 		(void __iomem *)irq_desc_get_handler_data(desc);
+	unsigned int irq = irq_desc_get_irq(desc);
 	unsigned int base = (irq & 0xffffff00) | IIC_IRQ_TYPE_IOEXC;
 	unsigned long bits, ack;
 	int cascade;
@@ -122,7 +123,7 @@ static void iic_ioexc_cascade(unsigned int irq, struct irq_desc *desc)
 				unsigned int cirq =
 					irq_linear_revmap(iic_host,
 							  base | cascade);
-				if (cirq != NO_IRQ)
+				if (cirq)
 					generic_handle_irq(cirq);
 			}
 		/* post-ack level interrupts */
@@ -152,10 +153,10 @@ static unsigned int iic_get_irq(void)
 	*(unsigned long *) &pending =
 		in_be64((u64 __iomem *) &iic->regs->pending_destr);
 	if (!(pending.flags & CBE_IIC_IRQ_VALID))
-		return NO_IRQ;
+		return 0;
 	virq = irq_linear_revmap(iic_host, iic_pending_to_hwnum(pending));
-	if (virq == NO_IRQ)
-		return NO_IRQ;
+	if (!virq)
+		return 0;
 	iic->eoi_stack[++iic->eoi_ptr] = pending.prio;
 	BUG_ON(iic->eoi_ptr > 15);
 	return virq;
@@ -186,18 +187,12 @@ void iic_message_pass(int cpu, int msg)
 	out_be64(&per_cpu(cpu_iic, cpu).regs->generate, (0xf - msg) << 4);
 }
 
-struct irq_domain *iic_get_irq_host(int node)
-{
-	return iic_host;
-}
-EXPORT_SYMBOL_GPL(iic_get_irq_host);
-
 static void iic_request_ipi(int msg)
 {
 	int virq;
 
 	virq = irq_create_mapping(iic_host, iic_msg_to_irq(msg));
-	if (virq == NO_IRQ) {
+	if (!virq) {
 		printk(KERN_ERR
 		       "iic: failed to map IPI %s\n", smp_ipi_name[msg]);
 		return;
@@ -216,13 +211,14 @@ void iic_request_IPIs(void)
 	iic_request_ipi(PPC_MSG_CALL_FUNCTION);
 	iic_request_ipi(PPC_MSG_RESCHEDULE);
 	iic_request_ipi(PPC_MSG_TICK_BROADCAST);
-	iic_request_ipi(PPC_MSG_DEBUGGER_BREAK);
+	iic_request_ipi(PPC_MSG_NMI_IPI);
 }
 
 #endif /* CONFIG_SMP */
 
 
-static int iic_host_match(struct irq_domain *h, struct device_node *node)
+static int iic_host_match(struct irq_domain *h, struct device_node *node,
+			  enum irq_domain_bus_token bus_token)
 {
 	return of_device_is_compatible(node,
 				    "IBM,CBEA-Internal-Interrupt-Controller");
@@ -307,8 +303,8 @@ static void __init init_one_iic(unsigned int hw_cpu, unsigned long addr,
 	iic->node = of_node_get(node);
 	out_be64(&iic->regs->prio, 0);
 
-	printk(KERN_INFO "IIC for CPU %d target id 0x%x : %s\n",
-	       hw_cpu, iic->target_id, node->full_name);
+	printk(KERN_INFO "IIC for CPU %d target id 0x%x : %pOF\n",
+	       hw_cpu, iic->target_id, node);
 }
 
 static int __init setup_iic(void)
@@ -351,7 +347,7 @@ static int __init setup_iic(void)
 		cascade |= 1 << IIC_IRQ_CLASS_SHIFT;
 		cascade |= IIC_UNIT_IIC;
 		cascade = irq_create_mapping(iic_host, cascade);
-		if (cascade == NO_IRQ)
+		if (!cascade)
 			continue;
 		/*
 		 * irq_data is a generic pointer that gets passed back

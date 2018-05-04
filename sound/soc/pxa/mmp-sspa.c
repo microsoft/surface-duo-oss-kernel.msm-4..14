@@ -119,7 +119,6 @@ static void mmp_sspa_shutdown(struct snd_pcm_substream *substream,
 	clk_disable(priv->sspa->clk);
 	clk_disable(priv->sysclk);
 
-	return;
 }
 
 /*
@@ -381,7 +380,7 @@ static int mmp_sspa_probe(struct snd_soc_dai *dai)
 		SNDRV_PCM_FMTBIT_S24_LE | \
 		SNDRV_PCM_FMTBIT_S32_LE)
 
-static struct snd_soc_dai_ops mmp_sspa_dai_ops = {
+static const struct snd_soc_dai_ops mmp_sspa_dai_ops = {
 	.startup	= mmp_sspa_startup,
 	.shutdown	= mmp_sspa_shutdown,
 	.trigger	= mmp_sspa_trigger,
@@ -482,3 +481,4 @@ module_platform_driver(asoc_mmp_sspa_driver);
 MODULE_AUTHOR("Leo Yan <leoy@marvell.com>");
 MODULE_DESCRIPTION("MMP SSPA SoC Interface");
 MODULE_LICENSE("GPL");
+MODULE_ALIAS("platform:mmp-sspa-dai");

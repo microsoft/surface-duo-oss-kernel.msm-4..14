@@ -12,6 +12,7 @@
 
 #include <linux/err.h>
 #include <linux/errno.h>
+#include <linux/fips.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/list.h>
@@ -43,12 +44,9 @@ static inline int crypto_set_driver_name(struct crypto_alg *alg)
 
 static inline void crypto_check_module_sig(struct module *mod)
 {
-#ifdef CONFIG_CRYPTO_FIPS
-	if (fips_enabled && mod && !mod->sig_ok)
+	if (fips_enabled && mod && !module_sig_ok(mod))
 		panic("Module %s signature verification failed in FIPS mode\n",
-		      mod->name);
-#endif
-	return;
+		      module_name(mod));
 }
 
 static int crypto_check_alg(struct crypto_alg *alg)
@@ -69,12 +67,22 @@ static int crypto_check_alg(struct crypto_alg *alg)
 	return crypto_set_driver_name(alg);
 }
 
+static void crypto_free_instance(struct crypto_instance *inst)
+{
+	if (!inst->alg.cra_type->free) {
+		inst->tmpl->free(inst);
+		return;
+	}
+
+	inst->alg.cra_type->free(inst);
+}
+
 static void crypto_destroy_instance(struct crypto_alg *alg)
 {
 	struct crypto_instance *inst = (void *)alg;
 	struct crypto_template *tmpl = inst->tmpl;
 
-	tmpl->free(inst);
+	crypto_free_instance(inst);
 	crypto_tmpl_put(tmpl);
 }
 
@@ -85,16 +93,15 @@ static struct list_head *crypto_more_spawns(struct crypto_alg *alg,
 {
 	struct crypto_spawn *spawn, *n;
 
-	if (list_empty(stack))
+	spawn = list_first_entry_or_null(stack, struct crypto_spawn, list);
+	if (!spawn)
 		return NULL;
 
-	spawn = list_first_entry(stack, struct crypto_spawn, list);
-	n = list_entry(spawn->list.next, struct crypto_spawn, list);
+	n = list_next_entry(spawn, list);
 
 	if (spawn->alg && &n->list != stack && !n->alg)
 		n->alg = (n->list.next == stack) ? alg :
-			 &list_entry(n->list.next, struct crypto_spawn,
-				     list)->inst->alg;
+			 &list_next_entry(n, list)->inst->alg;
 
 	list_move(&spawn->list, secondary_spawns);
 
@@ -160,6 +167,18 @@ void crypto_remove_spawns(struct crypto_alg *alg, struct list_head *list,
 
 			spawn->alg = NULL;
 			spawns = &inst->alg.cra_users;
+
+			/*
+			 * We may encounter an unregistered instance here, since
+			 * an instance's spawns are set up prior to the instance
+			 * being registered.  An unregistered instance will have
+			 * NULL ->cra_users.next, since ->cra_users isn't
+			 * properly initialized until registration.  But an
+			 * unregistered instance cannot have any users, so treat
+			 * it the same as ->cra_users being empty.
+			 */
+			if (spawns->next == NULL)
+				break;
 		}
 	} while ((spawns = crypto_more_spawns(alg, &stack, &top,
 					      &secondary_spawns)));
@@ -253,7 +272,7 @@ void crypto_alg_tested(const char *name, int err)
 			goto found;
 	}
 
-	printk(KERN_ERR "alg: Unexpected test result for %s: %d\n", name, err);
+	pr_err("alg: Unexpected test result for %s: %d\n", name, err);
 	goto unlock;
 
 found:
@@ -337,7 +356,7 @@ static void crypto_wait_for_test(struct crypto_larval *larval)
 		crypto_alg_tested(larval->alg.cra_driver_name, 0);
 	}
 
-	err = wait_for_completion_interruptible(&larval->completion);
+	err = wait_for_completion_killable(&larval->completion);
 	WARN_ON(err);
 
 out:
@@ -349,6 +368,7 @@ int crypto_register_alg(struct crypto_alg *alg)
 	struct crypto_larval *larval;
 	int err;
 
+	alg->cra_flags &= ~CRYPTO_ALG_DEAD;
 	err = crypto_check_alg(alg);
 	if (err)
 		return err;
@@ -483,7 +503,7 @@ void crypto_unregister_template(struct crypto_template *tmpl)
 
 	hlist_for_each_entry_safe(inst, n, list, list) {
 		BUG_ON(atomic_read(&inst->alg.cra_refcnt) != 1);
-		tmpl->free(inst);
+		crypto_free_instance(inst);
 	}
 	crypto_remove_final(&users);
 }
@@ -614,6 +634,22 @@ out:
 }
 EXPORT_SYMBOL_GPL(crypto_init_spawn2);
 
+int crypto_grab_spawn(struct crypto_spawn *spawn, const char *name,
+		      u32 type, u32 mask)
+{
+	struct crypto_alg *alg;
+	int err;
+
+	alg = crypto_find_alg(name, spawn->frontend, type, mask);
+	if (IS_ERR(alg))
+		return PTR_ERR(alg);
+
+	err = crypto_init_spawn(spawn, alg, spawn->inst, mask);
+	crypto_mod_put(alg);
+	return err;
+}
+EXPORT_SYMBOL_GPL(crypto_grab_spawn);
+
 void crypto_drop_spawn(struct crypto_spawn *spawn)
 {
 	if (!spawn->alg)
@@ -695,13 +731,13 @@ EXPORT_SYMBOL_GPL(crypto_spawn_tfm2);
 
 int crypto_register_notifier(struct notifier_block *nb)
 {
-	return blocking_notifier_chain_register(&crypto_chain, nb);
+	return srcu_notifier_chain_register(&crypto_chain, nb);
 }
 EXPORT_SYMBOL_GPL(crypto_register_notifier);
 
 int crypto_unregister_notifier(struct notifier_block *nb)
 {
-	return blocking_notifier_chain_unregister(&crypto_chain, nb);
+	return srcu_notifier_chain_unregister(&crypto_chain, nb);
 }
 EXPORT_SYMBOL_GPL(crypto_unregister_notifier);
 
@@ -788,6 +824,21 @@ int crypto_attr_u32(struct rtattr *rta, u32 *num)
 }
 EXPORT_SYMBOL_GPL(crypto_attr_u32);
 
+int crypto_inst_setname(struct crypto_instance *inst, const char *name,
+			struct crypto_alg *alg)
+{
+	if (snprintf(inst->alg.cra_name, CRYPTO_MAX_ALG_NAME, "%s(%s)", name,
+		     alg->cra_name) >= CRYPTO_MAX_ALG_NAME)
+		return -ENAMETOOLONG;
+
+	if (snprintf(inst->alg.cra_driver_name, CRYPTO_MAX_ALG_NAME, "%s(%s)",
+		     name, alg->cra_driver_name) >= CRYPTO_MAX_ALG_NAME)
+		return -ENAMETOOLONG;
+
+	return 0;
+}
+EXPORT_SYMBOL_GPL(crypto_inst_setname);
+
 void *crypto_alloc_instance2(const char *name, struct crypto_alg *alg,
 			     unsigned int head)
 {
@@ -802,13 +853,8 @@ void *crypto_alloc_instance2(const char *name, struct crypto_alg *alg,
 
 	inst = (void *)(p + head);
 
-	err = -ENAMETOOLONG;
-	if (snprintf(inst->alg.cra_name, CRYPTO_MAX_ALG_NAME, "%s(%s)", name,
-		     alg->cra_name) >= CRYPTO_MAX_ALG_NAME)
-		goto err_free_inst;
-
-	if (snprintf(inst->alg.cra_driver_name, CRYPTO_MAX_ALG_NAME, "%s(%s)",
-		     name, alg->cra_driver_name) >= CRYPTO_MAX_ALG_NAME)
+	err = crypto_inst_setname(inst, name, alg);
+	if (err)
 		goto err_free_inst;
 
 	return p;
@@ -878,7 +924,7 @@ out:
 }
 EXPORT_SYMBOL_GPL(crypto_enqueue_request);
 
-void *__crypto_dequeue_request(struct crypto_queue *queue, unsigned int offset)
+struct crypto_async_request *crypto_dequeue_request(struct crypto_queue *queue)
 {
 	struct list_head *request;
 
@@ -893,14 +939,7 @@ void *__crypto_dequeue_request(struct crypto_queue *queue, unsigned int offset)
 	request = queue->list.next;
 	list_del(request);
 
-	return (char *)list_entry(request, struct crypto_async_request, list) -
-	       offset;
-}
-EXPORT_SYMBOL_GPL(__crypto_dequeue_request);
-
-struct crypto_async_request *crypto_dequeue_request(struct crypto_queue *queue)
-{
-	return __crypto_dequeue_request(queue, 0);
+	return list_entry(request, struct crypto_async_request, list);
 }
 EXPORT_SYMBOL_GPL(crypto_dequeue_request);
 
@@ -935,34 +974,93 @@ void crypto_inc(u8 *a, unsigned int size)
 	__be32 *b = (__be32 *)(a + size);
 	u32 c;
 
-	for (; size >= 4; size -= 4) {
-		c = be32_to_cpu(*--b) + 1;
-		*b = cpu_to_be32(c);
-		if (c)
-			return;
-	}
+	if (IS_ENABLED(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS) ||
+	    IS_ALIGNED((unsigned long)b, __alignof__(*b)))
+		for (; size >= 4; size -= 4) {
+			c = be32_to_cpu(*--b) + 1;
+			*b = cpu_to_be32(c);
+			if (likely(c))
+				return;
+		}
 
 	crypto_inc_byte(a, size);
 }
 EXPORT_SYMBOL_GPL(crypto_inc);
 
-static inline void crypto_xor_byte(u8 *a, const u8 *b, unsigned int size)
+void __crypto_xor(u8 *dst, const u8 *src1, const u8 *src2, unsigned int len)
 {
-	for (; size; size--)
-		*a++ ^= *b++;
-}
+	int relalign = 0;
 
-void crypto_xor(u8 *dst, const u8 *src, unsigned int size)
+	if (!IS_ENABLED(CONFIG_HAVE_EFFICIENT_UNALIGNED_ACCESS)) {
+		int size = sizeof(unsigned long);
+		int d = (((unsigned long)dst ^ (unsigned long)src1) |
+			 ((unsigned long)dst ^ (unsigned long)src2)) &
+			(size - 1);
+
+		relalign = d ? 1 << __ffs(d) : size;
+
+		/*
+		 * If we care about alignment, process as many bytes as
+		 * needed to advance dst and src to values whose alignments
+		 * equal their relative alignment. This will allow us to
+		 * process the remainder of the input using optimal strides.
+		 */
+		while (((unsigned long)dst & (relalign - 1)) && len > 0) {
+			*dst++ = *src1++ ^ *src2++;
+			len--;
+		}
+	}
+
+	while (IS_ENABLED(CONFIG_64BIT) && len >= 8 && !(relalign & 7)) {
+		*(u64 *)dst = *(u64 *)src1 ^  *(u64 *)src2;
+		dst += 8;
+		src1 += 8;
+		src2 += 8;
+		len -= 8;
+	}
+
+	while (len >= 4 && !(relalign & 3)) {
+		*(u32 *)dst = *(u32 *)src1 ^ *(u32 *)src2;
+		dst += 4;
+		src1 += 4;
+		src2 += 4;
+		len -= 4;
+	}
+
+	while (len >= 2 && !(relalign & 1)) {
+		*(u16 *)dst = *(u16 *)src1 ^ *(u16 *)src2;
+		dst += 2;
+		src1 += 2;
+		src2 += 2;
+		len -= 2;
+	}
+
+	while (len--)
+		*dst++ = *src1++ ^ *src2++;
+}
+EXPORT_SYMBOL_GPL(__crypto_xor);
+
+unsigned int crypto_alg_extsize(struct crypto_alg *alg)
 {
-	u32 *a = (u32 *)dst;
-	u32 *b = (u32 *)src;
-
-	for (; size >= 4; size -= 4)
-		*a++ ^= *b++;
-
-	crypto_xor_byte((u8 *)a, (u8 *)b, size);
+	return alg->cra_ctxsize +
+	       (alg->cra_alignmask & ~(crypto_tfm_ctx_alignment() - 1));
 }
-EXPORT_SYMBOL_GPL(crypto_xor);
+EXPORT_SYMBOL_GPL(crypto_alg_extsize);
+
+int crypto_type_has_alg(const char *name, const struct crypto_type *frontend,
+			u32 type, u32 mask)
+{
+	int ret = 0;
+	struct crypto_alg *alg = crypto_find_alg(name, frontend, type, mask);
+
+	if (!IS_ERR(alg)) {
+		crypto_mod_put(alg);
+		ret = 1;
+	}
+
+	return ret;
+}
+EXPORT_SYMBOL_GPL(crypto_type_has_alg);
 
 static int __init crypto_algapi_init(void)
 {

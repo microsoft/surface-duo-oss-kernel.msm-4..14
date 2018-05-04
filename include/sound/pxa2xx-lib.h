@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef PXA2XX_LIB_H
 #define PXA2XX_LIB_H
 
@@ -12,7 +13,6 @@ extern int __pxa2xx_pcm_hw_free(struct snd_pcm_substream *substream);
 extern int pxa2xx_pcm_trigger(struct snd_pcm_substream *substream, int cmd);
 extern snd_pcm_uframes_t pxa2xx_pcm_pointer(struct snd_pcm_substream *substream);
 extern int __pxa2xx_pcm_prepare(struct snd_pcm_substream *substream);
-extern void pxa2xx_pcm_dma_irq(int dma_ch, void *dev_id);
 extern int __pxa2xx_pcm_open(struct snd_pcm_substream *substream);
 extern int __pxa2xx_pcm_close(struct snd_pcm_substream *substream);
 extern int pxa2xx_pcm_mmap(struct snd_pcm_substream *substream,

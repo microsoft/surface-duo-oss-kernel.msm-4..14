@@ -25,7 +25,12 @@
 #define MAXMEM_PFN	PFN_DOWN(MAXMEM)
 
 int tile_console_write(const char *buf, int count);
+
+#ifdef CONFIG_EARLY_PRINTK
 void early_panic(const char *fmt, ...);
+#else
+#define early_panic panic
+#endif
 
 /* Init-time routine to do tile-specific per-cpu setup. */
 void setup_cpu(int boot);
@@ -44,7 +49,7 @@ int hardwall_ipi_valid(int cpu);
 
 /* Hook hardwall code into changes in affinity. */
 #define arch_set_cpus_allowed(p, new_mask) do { \
-	if (!cpumask_equal(&p->cpus_allowed, new_mask)) \
+	if (!cpumask_equal(p->cpus_ptr, new_mask)) \
 		hardwall_deactivate_all(p); \
 } while (0)
 #endif

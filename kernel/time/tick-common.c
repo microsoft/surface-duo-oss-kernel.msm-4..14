@@ -19,6 +19,7 @@
 #include <linux/profile.h>
 #include <linux/sched.h>
 #include <linux/module.h>
+#include <trace/events/power.h>
 
 #include <asm/irq_regs.h>
 
@@ -78,13 +79,15 @@ int tick_is_oneshot_available(void)
 static void tick_periodic(int cpu)
 {
 	if (tick_do_timer_cpu == cpu) {
-		write_seqlock(&jiffies_lock);
+		raw_spin_lock(&jiffies_lock);
+		write_seqcount_begin(&jiffies_seq);
 
 		/* Keep track of the next tick event */
 		tick_next_period = ktime_add(tick_next_period, tick_period);
 
 		do_timer(1);
-		write_sequnlock(&jiffies_lock);
+		write_seqcount_end(&jiffies_seq);
+		raw_spin_unlock(&jiffies_lock);
 		update_wall_time();
 	}
 
@@ -102,7 +105,17 @@ void tick_handle_periodic(struct clock_event_device *dev)
 
 	tick_periodic(cpu);
 
-	if (dev->state != CLOCK_EVT_STATE_ONESHOT)
+#if defined(CONFIG_HIGH_RES_TIMERS) || defined(CONFIG_NO_HZ_COMMON)
+	/*
+	 * The cpu might have transitioned to HIGHRES or NOHZ mode via
+	 * update_process_times() -> run_local_timers() ->
+	 * hrtimer_run_queues().
+	 */
+	if (dev->event_handler != tick_handle_periodic)
+		return;
+#endif
+
+	if (!clockevent_state_oneshot(dev))
 		return;
 	for (;;) {
 		/*
@@ -140,17 +153,17 @@ void tick_setup_periodic(struct clock_event_device *dev, int broadcast)
 
 	if ((dev->features & CLOCK_EVT_FEAT_PERIODIC) &&
 	    !tick_broadcast_oneshot_active()) {
-		clockevents_set_state(dev, CLOCK_EVT_STATE_PERIODIC);
+		clockevents_switch_state(dev, CLOCK_EVT_STATE_PERIODIC);
 	} else {
 		unsigned long seq;
 		ktime_t next;
 
 		do {
-			seq = read_seqbegin(&jiffies_lock);
+			seq = read_seqcount_begin(&jiffies_seq);
 			next = tick_next_period;
-		} while (read_seqretry(&jiffies_lock, seq));
+		} while (read_seqcount_retry(&jiffies_seq, seq));
 
-		clockevents_set_state(dev, CLOCK_EVT_STATE_ONESHOT);
+		clockevents_switch_state(dev, CLOCK_EVT_STATE_ONESHOT);
 
 		for (;;) {
 			if (!clockevents_program_event(dev, next, false))
@@ -167,8 +180,8 @@ static void tick_setup_device(struct tick_device *td,
 			      struct clock_event_device *newdev, int cpu,
 			      const struct cpumask *cpumask)
 {
-	ktime_t next_event;
 	void (*handler)(struct clock_event_device *) = NULL;
+	ktime_t next_event = 0;
 
 	/*
 	 * First device setup ?
@@ -184,7 +197,7 @@ static void tick_setup_device(struct tick_device *td,
 			else
 				tick_do_timer_cpu = TICK_DO_TIMER_NONE;
 			tick_next_period = ktime_get();
-			tick_period = ktime_set(0, NSEC_PER_SEC / HZ);
+			tick_period = NSEC_PER_SEC / HZ;
 		}
 
 		/*
@@ -293,9 +306,6 @@ void tick_check_new_device(struct clock_event_device *newdev)
 	int cpu;
 
 	cpu = smp_processor_id();
-	if (!cpumask_test_cpu(cpu, newdev->cpumask))
-		goto out_bc;
-
 	td = &per_cpu(tick_cpu_device, cpu);
 	curdev = td->evtdev;
 
@@ -332,6 +342,28 @@ out_bc:
 	tick_install_broadcast_device(newdev);
 }
 
+/**
+ * tick_broadcast_oneshot_control - Enter/exit broadcast oneshot mode
+ * @state:	The target state (enter/exit)
+ *
+ * The system enters/leaves a state, where affected devices might stop
+ * Returns 0 on success, -EBUSY if the cpu is used to broadcast wakeups.
+ *
+ * Called with interrupts disabled, so clockevents_lock is not
+ * required here because the local clock event device cannot go away
+ * under us.
+ */
+int tick_broadcast_oneshot_control(enum tick_broadcast_state state)
+{
+	struct tick_device *td = this_cpu_ptr(&tick_cpu_device);
+
+	if (!(td->evtdev->features & CLOCK_EVT_FEAT_C3STOP))
+		return 0;
+
+	return __tick_broadcast_oneshot_control(state);
+}
+EXPORT_SYMBOL_GPL(tick_broadcast_oneshot_control);
+
 #ifdef CONFIG_HOTPLUG_CPU
 /*
  * Transfer the do_timer job away from a dying cpu.
@@ -367,8 +399,7 @@ void tick_shutdown(unsigned int cpu)
 		 * Prevent that the clock events layer tries to call
 		 * the set mode function!
 		 */
-		dev->state = CLOCK_EVT_STATE_DETACHED;
-		dev->mode = CLOCK_EVT_MODE_UNUSED;
+		clockevent_set_state(dev, CLOCK_EVT_STATE_DETACHED);
 		clockevents_exchange_device(dev, NULL);
 		dev->event_handler = clockevents_handle_noop;
 		td->evtdev = NULL;
@@ -440,6 +471,7 @@ void tick_resume(void)
 	tick_resume_local();
 }
 
+#ifdef CONFIG_SUSPEND
 static DEFINE_RAW_SPINLOCK(tick_freeze_lock);
 static unsigned int tick_freeze_depth;
 
@@ -457,10 +489,13 @@ void tick_freeze(void)
 	raw_spin_lock(&tick_freeze_lock);
 
 	tick_freeze_depth++;
-	if (tick_freeze_depth == num_online_cpus())
+	if (tick_freeze_depth == num_online_cpus()) {
+		trace_suspend_resume(TPS("timekeeping_freeze"),
+				     smp_processor_id(), true);
 		timekeeping_suspend();
-	else
+	} else {
 		tick_suspend_local();
+	}
 
 	raw_spin_unlock(&tick_freeze_lock);
 }
@@ -478,15 +513,19 @@ void tick_unfreeze(void)
 {
 	raw_spin_lock(&tick_freeze_lock);
 
-	if (tick_freeze_depth == num_online_cpus())
+	if (tick_freeze_depth == num_online_cpus()) {
 		timekeeping_resume();
-	else
+		trace_suspend_resume(TPS("timekeeping_freeze"),
+				     smp_processor_id(), false);
+	} else {
 		tick_resume_local();
+	}
 
 	tick_freeze_depth--;
 
 	raw_spin_unlock(&tick_freeze_lock);
 }
+#endif /* CONFIG_SUSPEND */
 
 /**
  * tick_init - initialize the tick control

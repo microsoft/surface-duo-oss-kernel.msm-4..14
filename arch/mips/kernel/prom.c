@@ -18,6 +18,7 @@
 #include <linux/of_fdt.h>
 #include <linux/of_platform.h>
 
+#include <asm/bootinfo.h>
 #include <asm/page.h>
 #include <asm/prom.h>
 
@@ -37,7 +38,7 @@ char *mips_get_machine_name(void)
 	return mips_machine_name;
 }
 
-#ifdef CONFIG_OF
+#ifdef CONFIG_USE_OF
 void __init early_init_dt_add_memory_arch(u64 base, u64 size)
 {
 	return add_memory_region(base, size, BOOT_MEM_RAM);
@@ -46,6 +47,13 @@ void __init early_init_dt_add_memory_arch(u64 base, u64 size)
 void * __init early_init_dt_alloc_memory_arch(u64 size, u64 align)
 {
 	return __alloc_bootmem(size, align, __pa(MAX_DMA_ADDRESS));
+}
+
+int __init early_init_dt_reserve_memory_arch(phys_addr_t base,
+					phys_addr_t size, bool nomap)
+{
+	add_memory_region(base, size, BOOT_MEM_RESERVED);
+	return 0;
 }
 
 void __init __dt_setup_arch(void *bph)

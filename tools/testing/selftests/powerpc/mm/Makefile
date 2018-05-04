@@ -1,16 +1,16 @@
+# SPDX-License-Identifier: GPL-2.0
 noarg:
 	$(MAKE) -C ../
 
-TEST_PROGS := hugetlb_vs_thp_test subpage_prot
-
-all: $(TEST_PROGS) tempfile
-
-$(TEST_PROGS): ../harness.c
+TEST_GEN_PROGS := hugetlb_vs_thp_test subpage_prot prot_sao
+TEST_GEN_FILES := tempfile
 
 include ../../lib.mk
 
-tempfile:
-	dd if=/dev/zero of=tempfile bs=64k count=1
+$(TEST_GEN_PROGS): ../harness.c
 
-clean:
-	rm -f $(TEST_PROGS) tempfile
+$(OUTPUT)/prot_sao: ../utils.c
+
+$(OUTPUT)/tempfile:
+	dd if=/dev/zero of=$@ bs=64k count=1
+

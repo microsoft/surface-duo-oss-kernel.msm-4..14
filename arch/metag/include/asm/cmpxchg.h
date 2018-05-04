@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __ASM_METAG_CMPXCHG_H
 #define __ASM_METAG_CMPXCHG_H
 
@@ -50,8 +51,6 @@ static inline unsigned long __cmpxchg(volatile void *ptr, unsigned long old,
 	__cmpxchg_called_with_bad_pointer();
 	return old;
 }
-
-#define __HAVE_ARCH_CMPXCHG 1
 
 #define cmpxchg(ptr, o, n)						\
 	({								\

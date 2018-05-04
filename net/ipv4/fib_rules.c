@@ -47,13 +47,48 @@ struct fib4_rule {
 #endif
 };
 
-int __fib_lookup(struct net *net, struct flowi4 *flp, struct fib_result *res)
+static bool fib4_rule_matchall(const struct fib_rule *rule)
+{
+	struct fib4_rule *r = container_of(rule, struct fib4_rule, common);
+
+	if (r->dst_len || r->src_len || r->tos)
+		return false;
+	return fib_rule_matchall(rule);
+}
+
+bool fib4_rule_default(const struct fib_rule *rule)
+{
+	if (!fib4_rule_matchall(rule) || rule->action != FR_ACT_TO_TBL ||
+	    rule->l3mdev)
+		return false;
+	if (rule->table != RT_TABLE_LOCAL && rule->table != RT_TABLE_MAIN &&
+	    rule->table != RT_TABLE_DEFAULT)
+		return false;
+	return true;
+}
+EXPORT_SYMBOL_GPL(fib4_rule_default);
+
+int fib4_rules_dump(struct net *net, struct notifier_block *nb)
+{
+	return fib_rules_dump(net, nb, AF_INET);
+}
+
+unsigned int fib4_rules_seq_read(struct net *net)
+{
+	return fib_rules_seq_read(net, AF_INET);
+}
+
+int __fib_lookup(struct net *net, struct flowi4 *flp,
+		 struct fib_result *res, unsigned int flags)
 {
 	struct fib_lookup_arg arg = {
 		.result = res,
-		.flags = FIB_LOOKUP_NOREF,
+		.flags = flags,
 	};
 	int err;
+
+	/* update flow if oif or iif point to device enslaved to l3mdev */
+	l3mdev_update_flow(net, flowi4_to_flowi(flp));
 
 	err = fib_rules_lookup(net->ipv4.rules_ops, flowi4_to_flowi(flp), 0, &arg);
 #ifdef CONFIG_IP_ROUTE_CLASSID
@@ -75,6 +110,7 @@ static int fib4_rule_action(struct fib_rule *rule, struct flowi *flp,
 {
 	int err = -EAGAIN;
 	struct fib_table *tbl;
+	u32 tb_id;
 
 	switch (rule->action) {
 	case FR_ACT_TO_TBL:
@@ -93,7 +129,8 @@ static int fib4_rule_action(struct fib_rule *rule, struct flowi *flp,
 
 	rcu_read_lock();
 
-	tbl = fib_get_table(rule->fr_net, rule->table);
+	tb_id = fib_rule_get_table(rule, arg);
+	tbl = fib_get_table(rule->fr_net, tb_id);
 	if (tbl)
 		err = fib_table_lookup(tbl, &flp->u.ip4,
 				       (struct fib_result *)arg->result,
@@ -179,7 +216,7 @@ static int fib4_rule_configure(struct fib_rule *rule, struct sk_buff *skb,
 	if (err)
 		goto errout;
 
-	if (rule->table == RT_TABLE_UNSPEC) {
+	if (rule->table == RT_TABLE_UNSPEC && !rule->l3mdev) {
 		if (rule->action == FR_ACT_TO_TBL) {
 			struct fib_table *table;
 
@@ -214,7 +251,6 @@ static int fib4_rule_configure(struct fib_rule *rule, struct sk_buff *skb,
 	rule4->tos = frh->tos;
 
 	net->ipv4.fib_has_custom_rules = true;
-	fib_flush_external(rule->fr_net);
 
 	err = 0;
 errout:
@@ -236,7 +272,6 @@ static int fib4_rule_delete(struct fib_rule *rule)
 		net->ipv4.fib_num_tclassid_users--;
 #endif
 	net->ipv4.fib_has_custom_rules = true;
-	fib_flush_external(rule->fr_net);
 errout:
 	return err;
 }
@@ -317,7 +352,6 @@ static const struct fib_rules_ops __net_initconst fib4_rules_ops_template = {
 	.delete		= fib4_rule_delete,
 	.compare	= fib4_rule_compare,
 	.fill		= fib4_rule_fill,
-	.default_pref	= fib_default_rule_pref,
 	.nlmsg_payload	= fib4_rule_nlmsg_payload,
 	.flush_cache	= fib4_rule_flush_cache,
 	.nlgroup	= RTNLGRP_IPV4_RULE,

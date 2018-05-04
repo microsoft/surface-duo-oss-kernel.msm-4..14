@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _PASEMI_PASEMI_H
 #define _PASEMI_PASEMI_H
 
@@ -8,7 +9,6 @@ extern void pas_pci_dma_dev_setup(struct pci_dev *dev);
 
 extern void __iomem *pasemi_pci_getcfgaddr(struct pci_dev *dev, int offset);
 
-extern void __init alloc_iobmap_l2(void);
 extern void __init pasemi_map_registers(void);
 
 /* Power savings modes, implemented in asm */

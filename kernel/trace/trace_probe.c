@@ -21,6 +21,7 @@
  * Copyright (C) IBM Corporation, 2010-2011
  * Author:     Srikar Dronamraju
  */
+#define pr_fmt(fmt)	"trace_probe: " fmt
 
 #include "trace_probe.h"
 
@@ -36,24 +37,28 @@ const char *reserved_field_names[] = {
 };
 
 /* Printing  in basic type function template */
-#define DEFINE_BASIC_PRINT_TYPE_FUNC(type, fmt)				\
-int PRINT_TYPE_FUNC_NAME(type)(struct trace_seq *s, const char *name,	\
+#define DEFINE_BASIC_PRINT_TYPE_FUNC(tname, type, fmt)			\
+int PRINT_TYPE_FUNC_NAME(tname)(struct trace_seq *s, const char *name,	\
 				void *data, void *ent)			\
 {									\
 	trace_seq_printf(s, " %s=" fmt, name, *(type *)data);		\
 	return !trace_seq_has_overflowed(s);				\
 }									\
-const char PRINT_TYPE_FMT_NAME(type)[] = fmt;				\
-NOKPROBE_SYMBOL(PRINT_TYPE_FUNC_NAME(type));
+const char PRINT_TYPE_FMT_NAME(tname)[] = fmt;				\
+NOKPROBE_SYMBOL(PRINT_TYPE_FUNC_NAME(tname));
 
-DEFINE_BASIC_PRINT_TYPE_FUNC(u8 , "0x%x")
-DEFINE_BASIC_PRINT_TYPE_FUNC(u16, "0x%x")
-DEFINE_BASIC_PRINT_TYPE_FUNC(u32, "0x%x")
-DEFINE_BASIC_PRINT_TYPE_FUNC(u64, "0x%Lx")
-DEFINE_BASIC_PRINT_TYPE_FUNC(s8,  "%d")
-DEFINE_BASIC_PRINT_TYPE_FUNC(s16, "%d")
-DEFINE_BASIC_PRINT_TYPE_FUNC(s32, "%d")
-DEFINE_BASIC_PRINT_TYPE_FUNC(s64, "%Ld")
+DEFINE_BASIC_PRINT_TYPE_FUNC(u8,  u8,  "%u")
+DEFINE_BASIC_PRINT_TYPE_FUNC(u16, u16, "%u")
+DEFINE_BASIC_PRINT_TYPE_FUNC(u32, u32, "%u")
+DEFINE_BASIC_PRINT_TYPE_FUNC(u64, u64, "%Lu")
+DEFINE_BASIC_PRINT_TYPE_FUNC(s8,  s8,  "%d")
+DEFINE_BASIC_PRINT_TYPE_FUNC(s16, s16, "%d")
+DEFINE_BASIC_PRINT_TYPE_FUNC(s32, s32, "%d")
+DEFINE_BASIC_PRINT_TYPE_FUNC(s64, s64, "%Ld")
+DEFINE_BASIC_PRINT_TYPE_FUNC(x8,  u8,  "0x%x")
+DEFINE_BASIC_PRINT_TYPE_FUNC(x16, u16, "0x%x")
+DEFINE_BASIC_PRINT_TYPE_FUNC(x32, u32, "0x%x")
+DEFINE_BASIC_PRINT_TYPE_FUNC(x64, u64, "0x%Lx")
 
 /* Print type function for string type */
 int PRINT_TYPE_FUNC_NAME(string)(struct trace_seq *s, const char *name,
@@ -218,6 +223,28 @@ free_bitfield_fetch_param(struct bitfield_fetch_param *data)
 	kfree(data);
 }
 
+void FETCH_FUNC_NAME(comm, string)(struct pt_regs *regs,
+					  void *data, void *dest)
+{
+	int maxlen = get_rloc_len(*(u32 *)dest);
+	u8 *dst = get_rloc_data(dest);
+	long ret;
+
+	if (!maxlen)
+		return;
+
+	ret = strlcpy(dst, current->comm, maxlen);
+	*(u32 *)dest = make_data_rloc(ret, get_rloc_offs(*(u32 *)dest));
+}
+NOKPROBE_SYMBOL(FETCH_FUNC_NAME(comm, string));
+
+void FETCH_FUNC_NAME(comm, string_size)(struct pt_regs *regs,
+					       void *data, void *dest)
+{
+	*(u32 *)dest = strlen(current->comm) + 1;
+}
+NOKPROBE_SYMBOL(FETCH_FUNC_NAME(comm, string_size));
+
 static const struct fetch_type *find_fetch_type(const char *type,
 						const struct fetch_type *ftbl)
 {
@@ -293,7 +320,7 @@ static fetch_func_t get_fetch_size_function(const struct fetch_type *type,
 }
 
 /* Split symbol and offset. */
-int traceprobe_split_symbol_offset(char *symbol, unsigned long *offset)
+int traceprobe_split_symbol_offset(char *symbol, long *offset)
 {
 	char *tmp;
 	int ret;
@@ -301,13 +328,11 @@ int traceprobe_split_symbol_offset(char *symbol, unsigned long *offset)
 	if (!offset)
 		return -EINVAL;
 
-	tmp = strchr(symbol, '+');
+	tmp = strpbrk(symbol, "+-");
 	if (tmp) {
-		/* skip sign because kstrtoul doesn't accept '+' */
-		ret = kstrtoul(tmp + 1, 0, offset);
+		ret = kstrtol(tmp, 0, offset);
 		if (ret)
 			return ret;
-
 		*tmp = '\0';
 	} else
 		*offset = 0;
@@ -348,6 +373,11 @@ static int parse_probe_vars(char *arg, const struct fetch_type *t,
 			}
 		} else
 			ret = -EINVAL;
+	} else if (strcmp(arg, "comm") == 0) {
+		if (strcmp(t->name, "string") != 0 &&
+		    strcmp(t->name, "string_size") != 0)
+			return -EINVAL;
+		f->fn = t->fetch[FETCH_MTD_comm];
 	} else
 		ret = -EINVAL;
 
@@ -522,6 +552,12 @@ int traceprobe_parse_probe_arg(char *arg, ssize_t *size,
 		arg[t - parg->comm] = '\0';
 		t++;
 	}
+	/*
+	 * The default type of $comm should be "string", and it can't be
+	 * dereferenced.
+	 */
+	if (!t && strcmp(arg, "$comm") == 0)
+		t = "string";
 	parg->type = find_fetch_type(t, ftbl);
 	if (!parg->type) {
 		pr_info("Unsupported type: %s\n", t);
@@ -583,81 +619,6 @@ void traceprobe_free_probe_arg(struct probe_arg *arg)
 
 	kfree(arg->name);
 	kfree(arg->comm);
-}
-
-int traceprobe_command(const char *buf, int (*createfn)(int, char **))
-{
-	char **argv;
-	int argc, ret;
-
-	argc = 0;
-	ret = 0;
-	argv = argv_split(GFP_KERNEL, buf, &argc);
-	if (!argv)
-		return -ENOMEM;
-
-	if (argc)
-		ret = createfn(argc, argv);
-
-	argv_free(argv);
-
-	return ret;
-}
-
-#define WRITE_BUFSIZE  4096
-
-ssize_t traceprobe_probes_write(struct file *file, const char __user *buffer,
-				size_t count, loff_t *ppos,
-				int (*createfn)(int, char **))
-{
-	char *kbuf, *tmp;
-	int ret = 0;
-	size_t done = 0;
-	size_t size;
-
-	kbuf = kmalloc(WRITE_BUFSIZE, GFP_KERNEL);
-	if (!kbuf)
-		return -ENOMEM;
-
-	while (done < count) {
-		size = count - done;
-
-		if (size >= WRITE_BUFSIZE)
-			size = WRITE_BUFSIZE - 1;
-
-		if (copy_from_user(kbuf, buffer + done, size)) {
-			ret = -EFAULT;
-			goto out;
-		}
-		kbuf[size] = '\0';
-		tmp = strchr(kbuf, '\n');
-
-		if (tmp) {
-			*tmp = '\0';
-			size = tmp - kbuf + 1;
-		} else if (done + size < count) {
-			pr_warning("Line length is too long: "
-				   "Should be less than %d.", WRITE_BUFSIZE);
-			ret = -EINVAL;
-			goto out;
-		}
-		done += size;
-		/* Remove comments */
-		tmp = strchr(kbuf, '#');
-
-		if (tmp)
-			*tmp = '\0';
-
-		ret = traceprobe_command(kbuf, createfn);
-		if (ret)
-			goto out;
-	}
-	ret = done;
-
-out:
-	kfree(kbuf);
-
-	return ret;
 }
 
 static int __set_print_fmt(struct trace_probe *tp, char *buf, int len,

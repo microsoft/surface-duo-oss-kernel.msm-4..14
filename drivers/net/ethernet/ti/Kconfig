@@ -7,9 +7,7 @@ config NET_VENDOR_TI
 	default y
 	depends on PCI || EISA || AR7 || ARCH_DAVINCI || ARCH_OMAP2PLUS || ARCH_KEYSTONE
 	---help---
-	  If you have a network (Ethernet) card belonging to this class, say Y
-	  and read the Ethernet-HOWTO, available from
-	  <http://www.tldp.org/docs.html#howto>.
+	  If you have a network (Ethernet) card belonging to this class, say Y.
 
 	  Note that the answer to this question doesn't directly affect the
 	  kernel: saying N will just cause the configurator to skip all
@@ -50,8 +48,7 @@ config TI_DAVINCI_CPDMA
 	  will be called davinci_cpdma.  This is recommended.
 
 config TI_CPSW_PHY_SEL
-	bool "TI CPSW Switch Phy sel Support"
-	depends on TI_CPSW
+	bool
 	---help---
 	  This driver supports configuring of the phy mode connected to
 	  the CPSW.
@@ -78,12 +75,21 @@ config TI_CPSW
 
 config TI_CPTS
 	bool "TI Common Platform Time Sync (CPTS) Support"
-	depends on TI_CPSW
-	select PTP_1588_CLOCK
+	depends on TI_CPSW || TI_KEYSTONE_NETCP
+	depends on POSIX_TIMERS
 	---help---
 	  This driver supports the Common Platform Time Sync unit of
-	  the CPSW Ethernet Switch. The unit can time stamp PTP UDP/IPv4
-	  and Layer 2 packets, and the driver offers a PTP Hardware Clock.
+	  the CPSW Ethernet Switch and Keystone 2 1g/10g Switch Subsystem.
+	  The unit can time stamp PTP UDP/IPv4 and Layer 2 packets, and the
+	  driver offers a PTP Hardware Clock.
+
+config TI_CPTS_MOD
+	tristate
+	depends on TI_CPTS
+	default y if TI_CPSW=y || TI_KEYSTONE_NETCP=y
+	select NET_PTP_CLASSIFY
+	imply PTP_1588_CLOCK
+	default m
 
 config TI_KEYSTONE_NETCP
 	tristate "TI Keystone NETCP Core Support"
@@ -110,9 +116,7 @@ config TLAN
 	depends on (PCI || EISA)
 	---help---
 	  If you have a PCI Ethernet network card based on the ThunderLAN chip
-	  which is supported by this driver, say Y and read the
-	  Ethernet-HOWTO, available from
-	  <http://www.tldp.org/docs.html#howto>.
+	  which is supported by this driver, say Y here.
 
 	  Devices currently supported by this driver are Compaq Netelligent,
 	  Compaq NetFlex and Olicom cards.  Please read the file

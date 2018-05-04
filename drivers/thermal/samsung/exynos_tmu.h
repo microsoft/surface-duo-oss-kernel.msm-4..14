@@ -33,6 +33,7 @@ enum soc_type {
 	SOC_ARCH_EXYNOS5260,
 	SOC_ARCH_EXYNOS5420,
 	SOC_ARCH_EXYNOS5420_TRIMINFO,
+	SOC_ARCH_EXYNOS5433,
 	SOC_ARCH_EXYNOS5440,
 	SOC_ARCH_EXYNOS7,
 };
@@ -69,7 +70,6 @@ struct exynos_tmu_platform_data {
 
 	enum soc_type type;
 	u32 cal_type;
-	u32 cal_mode;
 };
 
 #endif /* _EXYNOS_TMU_H */

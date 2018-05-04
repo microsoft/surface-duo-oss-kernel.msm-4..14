@@ -210,7 +210,7 @@ DEFINES
 
 /**
 * \def DRXJ_DEF_I2C_ADDR
-* \brief Default I2C addres of a demodulator instance.
+* \brief Default I2C address of a demodulator instance.
 */
 #define DRXJ_DEF_I2C_ADDR (0x52)
 
@@ -336,7 +336,7 @@ DEFINES
  * MICROCODE RELATED DEFINES
  */
 
-/* Magic word for checking correct Endianess of microcode data */
+/* Magic word for checking correct Endianness of microcode data */
 #define DRX_UCODE_MAGIC_WORD         ((((u16)'H')<<8)+((u16)'L'))
 
 /* CRC flag in ucode header, flags field. */
@@ -601,7 +601,7 @@ static struct drxj_data drxj_data_g = {
 	0,			/* hi_cfg_wake_up_key    */
 	0,			/* hi_cfg_ctrl         */
 	0,			/* HICfgTimeout      */
-	/* UIO configuartion */
+	/* UIO configuration */
 	DRX_UIO_MODE_DISABLE,	/* uio_sma_rx_mode      */
 	DRX_UIO_MODE_DISABLE,	/* uio_sma_tx_mode      */
 	DRX_UIO_MODE_DISABLE,	/* uioASELMode       */
@@ -619,7 +619,7 @@ static struct drxj_data drxj_data_g = {
 /*   false,                  * flagHDevSet       */
 /*   (u16) 0xFFF,          * rdsLastCount      */
 
-	/* ATV configuartion */
+	/* ATV configuration */
 	0UL,			/* flags cfg changes */
 	/* shadow of ATV_TOP_EQU0__A */
 	{-5,
@@ -847,9 +847,9 @@ static struct drx_common_attr drxj_default_comm_attr_g = {
 				   static clockrate is selected */
 	 DRX_MPEG_STR_WIDTH_1	/* MPEG Start width in clock cycles */
 	 },
-	/* Initilisations below can be ommited, they require no user input and
+	/* Initilisations below can be omitted, they require no user input and
 	   are initialy 0, NULL or false. The compiler will initialize them to these
-	   values when ommited.  */
+	   values when omitted.  */
 	false,			/* is_opened */
 
 	/* SCAN */
@@ -1175,7 +1175,7 @@ static u32 log1_times100(u32 x)
 	   Now x has binary point between bit[scale] and bit[scale-1]
 	   and 1.0 <= x < 2.0 */
 
-	/* correction for divison: log(x) = log(x/y)+log(y) */
+	/* correction for division: log(x) = log(x/y)+log(y) */
 	y = k * ((((u32) 1) << scale) * 200);
 
 	/* remove integer part */
@@ -1240,12 +1240,15 @@ static u32 frac_times1e6(u32 N, u32 D)
 *        and rounded. For calc used formula: 16*10^(prescaleGain[dB]/20).
 *
 */
+#if 0
+/* Currently, unused as we lack support for analog TV */
 static const u16 nicam_presc_table_val[43] = {
 	1, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 4, 4,
 	5, 5, 6, 6, 7, 8, 9, 10, 11, 13, 14, 16,
 	18, 20, 23, 25, 28, 32, 36, 40, 45,
 	51, 57, 64, 71, 80, 90, 101, 113, 127
 };
+#endif
 
 /*============================================================================*/
 /*==                        END HELPER FUNCTIONS                            ==*/
@@ -1653,7 +1656,7 @@ static int drxdap_fasi_write_block(struct i2c_device_addr *dev_addr,
 		   sequense will be visible: (1) write address {i2c addr,
 		   4 bytes chip address} (2) write data {i2c addr, 4 bytes data }
 		   (3) write address (4) write data etc...
-		   Addres must be rewriten because HI is reset after data transport and
+		   Address must be rewriten because HI is reset after data transport and
 		   expects an address.
 		 */
 		todo = (block_size < datasize ? block_size : datasize);
@@ -2834,7 +2837,8 @@ ctrl_set_cfg_mpeg_output(struct drx_demod_instance *demod, struct drx_cfg_mpeg_o
 			/* coef = 188/204                          */
 			max_bit_rate =
 			    (ext_attr->curr_symbol_rate / 8) * nr_bits * 188;
-			/* pass through b/c Annex A/c need following settings */
+			/* pass through as b/c Annex A/c need following settings */
+			/* fall-through */
 		case DRX_STANDARD_ITU_B:
 			rc = drxj_dap_write_reg16(dev_addr, FEC_OC_FCT_USAGE__A, FEC_OC_FCT_USAGE__PRE, 0);
 			if (rc != 0) {
@@ -2971,7 +2975,7 @@ ctrl_set_cfg_mpeg_output(struct drx_demod_instance *demod, struct drx_cfg_mpeg_o
 			}	/* ext_attr->standard */
 		}
 
-		if (cfg_data->enable_parallel == true) {	/* MPEG data output is paralel -> clear ipr_mode[0] */
+		if (cfg_data->enable_parallel == true) {	/* MPEG data output is parallel -> clear ipr_mode[0] */
 			fec_oc_reg_ipr_mode &= (~(FEC_OC_IPR_MODE_SERIAL__M));
 		} else {	/* MPEG data output is serial -> set ipr_mode[0] */
 			fec_oc_reg_ipr_mode |= FEC_OC_IPR_MODE_SERIAL__M;
@@ -3157,7 +3161,7 @@ ctrl_set_cfg_mpeg_output(struct drx_demod_instance *demod, struct drx_cfg_mpeg_o
 			pr_err("error %d\n", rc);
 			goto rw_error;
 		}
-		if (cfg_data->enable_parallel == true) {	/* MPEG data output is paralel -> set MD1 to MD7 to output mode */
+		if (cfg_data->enable_parallel == true) {	/* MPEG data output is parallel -> set MD1 to MD7 to output mode */
 			sio_pdr_md_cfg =
 			    MPEG_PARALLEL_OUTPUT_PIN_DRIVE_STRENGTH <<
 			    SIO_PDR_MD0_CFG_DRIVE__B | 0x03 <<
@@ -3349,7 +3353,7 @@ rw_error:
 /*----------------------------------------------------------------------------*/
 
 /*----------------------------------------------------------------------------*/
-/* miscellaneous configuartions - begin                           */
+/* miscellaneous configurations - begin                           */
 /*----------------------------------------------------------------------------*/
 
 /**
@@ -3512,7 +3516,7 @@ rw_error:
 }
 
 /*----------------------------------------------------------------------------*/
-/* miscellaneous configuartions - end                             */
+/* miscellaneous configurations - end                             */
 /*----------------------------------------------------------------------------*/
 
 /*----------------------------------------------------------------------------*/
@@ -4131,7 +4135,7 @@ int drxj_dap_scu_atomic_read_write_block(struct i2c_device_addr *dev_addr, u32 a
 {
 	struct drxjscu_cmd scu_cmd;
 	int rc;
-	u16 set_param_parameters[15];
+	u16 set_param_parameters[18];
 	u16 cmd_result[15];
 
 	/* Parameter check */
@@ -4320,7 +4324,7 @@ static int adc_synchronization(struct drx_demod_instance *demod)
 	}
 
 	if (count == 1) {
-		/* Try sampling on a diffrent edge */
+		/* Try sampling on a different edge */
 		u16 clk_neg = 0;
 
 		rc = drxj_dap_read_reg16(dev_addr, IQM_AF_CLKNEG__A, &clk_neg, 0);
@@ -4773,9 +4777,9 @@ set_frequency(struct drx_demod_instance *demod,
 	   No need to account for mirroring on RF
 	 */
 	switch (ext_attr->standard) {
-	case DRX_STANDARD_ITU_A:	/* fallthrough */
-	case DRX_STANDARD_ITU_C:	/* fallthrough */
-	case DRX_STANDARD_PAL_SECAM_LP:	/* fallthrough */
+	case DRX_STANDARD_ITU_A:
+	case DRX_STANDARD_ITU_C:
+	case DRX_STANDARD_PAL_SECAM_LP:
 	case DRX_STANDARD_8VSB:
 		select_pos_image = true;
 		break;
@@ -4784,11 +4788,12 @@ set_frequency(struct drx_demod_instance *demod,
 		   Sound carrier is already 3Mhz above centre frequency due
 		   to tuner setting so now add an extra shift of 1MHz... */
 		fm_frequency_shift = 1000;
-	case DRX_STANDARD_ITU_B:	/* fallthrough */
-	case DRX_STANDARD_NTSC:	/* fallthrough */
-	case DRX_STANDARD_PAL_SECAM_BG:	/* fallthrough */
-	case DRX_STANDARD_PAL_SECAM_DK:	/* fallthrough */
-	case DRX_STANDARD_PAL_SECAM_I:	/* fallthrough */
+		/*fall through */
+	case DRX_STANDARD_ITU_B:
+	case DRX_STANDARD_NTSC:
+	case DRX_STANDARD_PAL_SECAM_BG:
+	case DRX_STANDARD_PAL_SECAM_DK:
+	case DRX_STANDARD_PAL_SECAM_I:
 	case DRX_STANDARD_PAL_SECAM_L:
 		select_pos_image = false;
 		break;
@@ -5484,7 +5489,7 @@ static int set_vsb_leak_n_gain(struct drx_demod_instance *demod)
 	struct i2c_device_addr *dev_addr = NULL;
 	int rc;
 
-	const u8 vsb_ffe_leak_gain_ram0[] = {
+	static const u8 vsb_ffe_leak_gain_ram0[] = {
 		DRXJ_16TO8(0x8),	/* FFETRAINLKRATIO1  */
 		DRXJ_16TO8(0x8),	/* FFETRAINLKRATIO2  */
 		DRXJ_16TO8(0x8),	/* FFETRAINLKRATIO3  */
@@ -5615,7 +5620,7 @@ static int set_vsb_leak_n_gain(struct drx_demod_instance *demod)
 		DRXJ_16TO8(0x1010)	/* FIRRCA1GAIN8 */
 	};
 
-	const u8 vsb_ffe_leak_gain_ram1[] = {
+	static const u8 vsb_ffe_leak_gain_ram1[] = {
 		DRXJ_16TO8(0x1010),	/* FIRRCA1GAIN9 */
 		DRXJ_16TO8(0x0808),	/* FIRRCA1GAIN10 */
 		DRXJ_16TO8(0x0808),	/* FIRRCA1GAIN11 */
@@ -5705,7 +5710,7 @@ static int set_vsb(struct drx_demod_instance *demod)
 	struct drxj_data *ext_attr = NULL;
 	u16 cmd_result = 0;
 	u16 cmd_param = 0;
-	const u8 vsb_taps_re[] = {
+	static const u8 vsb_taps_re[] = {
 		DRXJ_16TO8(-2),	/* re0  */
 		DRXJ_16TO8(4),	/* re1  */
 		DRXJ_16TO8(1),	/* re2  */
@@ -6461,7 +6466,7 @@ set_qam_measurement(struct drx_demod_instance *demod,
 		    enum drx_modulation constellation, u32 symbol_rate)
 {
 	struct i2c_device_addr *dev_addr = NULL;	/* device address for I2C writes */
-	struct drxj_data *ext_attr = NULL;	/* Global data container for DRXJ specif data */
+	struct drxj_data *ext_attr = NULL;	/* Global data container for DRXJ specific data */
 	int rc;
 	u32 fec_bits_desired = 0;	/* BER accounting period */
 	u16 fec_rs_plen = 0;	/* defines RS BER measurement period */
@@ -6661,7 +6666,7 @@ static int set_qam16(struct drx_demod_instance *demod)
 {
 	struct i2c_device_addr *dev_addr = demod->my_i2c_dev_addr;
 	int rc;
-	const u8 qam_dq_qual_fun[] = {
+	static const u8 qam_dq_qual_fun[] = {
 		DRXJ_16TO8(2),	/* fun0  */
 		DRXJ_16TO8(2),	/* fun1  */
 		DRXJ_16TO8(2),	/* fun2  */
@@ -6669,7 +6674,7 @@ static int set_qam16(struct drx_demod_instance *demod)
 		DRXJ_16TO8(3),	/* fun4  */
 		DRXJ_16TO8(3),	/* fun5  */
 	};
-	const u8 qam_eq_cma_rad[] = {
+	static const u8 qam_eq_cma_rad[] = {
 		DRXJ_16TO8(13517),	/* RAD0  */
 		DRXJ_16TO8(13517),	/* RAD1  */
 		DRXJ_16TO8(13517),	/* RAD2  */
@@ -6896,7 +6901,7 @@ static int set_qam32(struct drx_demod_instance *demod)
 {
 	struct i2c_device_addr *dev_addr = demod->my_i2c_dev_addr;
 	int rc;
-	const u8 qam_dq_qual_fun[] = {
+	static const u8 qam_dq_qual_fun[] = {
 		DRXJ_16TO8(3),	/* fun0  */
 		DRXJ_16TO8(3),	/* fun1  */
 		DRXJ_16TO8(3),	/* fun2  */
@@ -6904,7 +6909,7 @@ static int set_qam32(struct drx_demod_instance *demod)
 		DRXJ_16TO8(4),	/* fun4  */
 		DRXJ_16TO8(4),	/* fun5  */
 	};
-	const u8 qam_eq_cma_rad[] = {
+	static const u8 qam_eq_cma_rad[] = {
 		DRXJ_16TO8(6707),	/* RAD0  */
 		DRXJ_16TO8(6707),	/* RAD1  */
 		DRXJ_16TO8(6707),	/* RAD2  */
@@ -7131,7 +7136,8 @@ static int set_qam64(struct drx_demod_instance *demod)
 {
 	struct i2c_device_addr *dev_addr = demod->my_i2c_dev_addr;
 	int rc;
-	const u8 qam_dq_qual_fun[] = {	/* this is hw reset value. no necessary to re-write */
+	static const u8 qam_dq_qual_fun[] = {
+		/* this is hw reset value. no necessary to re-write */
 		DRXJ_16TO8(4),	/* fun0  */
 		DRXJ_16TO8(4),	/* fun1  */
 		DRXJ_16TO8(4),	/* fun2  */
@@ -7139,7 +7145,7 @@ static int set_qam64(struct drx_demod_instance *demod)
 		DRXJ_16TO8(6),	/* fun4  */
 		DRXJ_16TO8(6),	/* fun5  */
 	};
-	const u8 qam_eq_cma_rad[] = {
+	static const u8 qam_eq_cma_rad[] = {
 		DRXJ_16TO8(13336),	/* RAD0  */
 		DRXJ_16TO8(12618),	/* RAD1  */
 		DRXJ_16TO8(11988),	/* RAD2  */
@@ -7366,7 +7372,7 @@ static int set_qam128(struct drx_demod_instance *demod)
 {
 	struct i2c_device_addr *dev_addr = demod->my_i2c_dev_addr;
 	int rc;
-	const u8 qam_dq_qual_fun[] = {
+	static const u8 qam_dq_qual_fun[] = {
 		DRXJ_16TO8(6),	/* fun0  */
 		DRXJ_16TO8(6),	/* fun1  */
 		DRXJ_16TO8(6),	/* fun2  */
@@ -7374,7 +7380,7 @@ static int set_qam128(struct drx_demod_instance *demod)
 		DRXJ_16TO8(9),	/* fun4  */
 		DRXJ_16TO8(9),	/* fun5  */
 	};
-	const u8 qam_eq_cma_rad[] = {
+	static const u8 qam_eq_cma_rad[] = {
 		DRXJ_16TO8(6164),	/* RAD0  */
 		DRXJ_16TO8(6598),	/* RAD1  */
 		DRXJ_16TO8(6394),	/* RAD2  */
@@ -7601,7 +7607,7 @@ static int set_qam256(struct drx_demod_instance *demod)
 {
 	struct i2c_device_addr *dev_addr = demod->my_i2c_dev_addr;
 	int rc;
-	const u8 qam_dq_qual_fun[] = {
+	static const u8 qam_dq_qual_fun[] = {
 		DRXJ_16TO8(8),	/* fun0  */
 		DRXJ_16TO8(8),	/* fun1  */
 		DRXJ_16TO8(8),	/* fun2  */
@@ -7609,7 +7615,7 @@ static int set_qam256(struct drx_demod_instance *demod)
 		DRXJ_16TO8(12),	/* fun4  */
 		DRXJ_16TO8(12),	/* fun5  */
 	};
-	const u8 qam_eq_cma_rad[] = {
+	static const u8 qam_eq_cma_rad[] = {
 		DRXJ_16TO8(12345),	/* RAD0  */
 		DRXJ_16TO8(12345),	/* RAD1  */
 		DRXJ_16TO8(13626),	/* RAD2  */
@@ -7857,7 +7863,7 @@ set_qam(struct drx_demod_instance *demod,
 		/* parameter    */ NULL,
 		/* result       */ NULL
 	};
-	const u8 qam_a_taps[] = {
+	static const u8 qam_a_taps[] = {
 		DRXJ_16TO8(-1),	/* re0  */
 		DRXJ_16TO8(1),	/* re1  */
 		DRXJ_16TO8(1),	/* re2  */
@@ -7887,7 +7893,7 @@ set_qam(struct drx_demod_instance *demod,
 		DRXJ_16TO8(-40),	/* re26 */
 		DRXJ_16TO8(619)	/* re27 */
 	};
-	const u8 qam_b64_taps[] = {
+	static const u8 qam_b64_taps[] = {
 		DRXJ_16TO8(0),	/* re0  */
 		DRXJ_16TO8(-2),	/* re1  */
 		DRXJ_16TO8(1),	/* re2  */
@@ -7917,7 +7923,7 @@ set_qam(struct drx_demod_instance *demod,
 		DRXJ_16TO8(-46),	/* re26 */
 		DRXJ_16TO8(614)	/* re27 */
 	};
-	const u8 qam_b256_taps[] = {
+	static const u8 qam_b256_taps[] = {
 		DRXJ_16TO8(-2),	/* re0  */
 		DRXJ_16TO8(4),	/* re1  */
 		DRXJ_16TO8(1),	/* re2  */
@@ -7947,7 +7953,7 @@ set_qam(struct drx_demod_instance *demod,
 		DRXJ_16TO8(-32),	/* re26 */
 		DRXJ_16TO8(628)	/* re27 */
 	};
-	const u8 qam_c_taps[] = {
+	static const u8 qam_c_taps[] = {
 		DRXJ_16TO8(-3),	/* re0  */
 		DRXJ_16TO8(3),	/* re1  */
 		DRXJ_16TO8(2),	/* re2  */
@@ -8864,7 +8870,7 @@ qam64auto(struct drx_demod_instance *demod,
 	u32 timeout_ofs = 0;
 	u16 data = 0;
 
-	/* external attributes for storing aquired channel constellation */
+	/* external attributes for storing acquired channel constellation */
 	*lock_status = DRX_NOT_LOCKED;
 	start_time = jiffies_to_msecs(jiffies);
 	lck_state = NO_LOCK;
@@ -9011,7 +9017,7 @@ qam256auto(struct drx_demod_instance *demod,
 	u32 d_locked_time = 0;
 	u32 timeout_ofs = DRXJ_QAM_DEMOD_LOCK_EXT_WAITTIME;
 
-	/* external attributes for storing aquired channel constellation */
+	/* external attributes for storing acquired channel constellation */
 	*lock_status = DRX_NOT_LOCKED;
 	start_time = jiffies_to_msecs(jiffies);
 	lck_state = NO_LOCK;
@@ -9087,7 +9093,7 @@ set_qam_channel(struct drx_demod_instance *demod,
 	enum drx_lock_status lock_status = DRX_NOT_LOCKED;
 	bool auto_flag = false;
 
-	/* external attributes for storing aquired channel constellation */
+	/* external attributes for storing acquired channel constellation */
 	ext_attr = (struct drxj_data *) demod->my_ext_attr;
 
 	/* set QAM channel constellation */
@@ -9431,7 +9437,7 @@ rw_error:
 
 /**
 * \fn int ctrl_get_qam_sig_quality()
-* \brief Retreive QAM signal quality from device.
+* \brief Retrieve QAM signal quality from device.
 * \param devmod Pointer to demodulator instance.
 * \param sig_quality Pointer to signal quality data.
 * \return int.
@@ -9541,7 +9547,7 @@ ctrl_get_qam_sig_quality(struct drx_demod_instance *demod)
 	/* ----------------------------------------- */
 	/* Pre Viterbi Symbol Error Rate Calculation */
 	/* ----------------------------------------- */
-	/* pre viterbi SER is good if it is bellow 0.025 */
+	/* pre viterbi SER is good if it is below 0.025 */
 
 	/* get the register value */
 	/*   no of quadrature symbol errors */
@@ -9597,12 +9603,13 @@ ctrl_get_qam_sig_quality(struct drx_demod_instance *demod)
 
 	   Precision errors still possible.
 	 */
-	e = post_bit_err_rs * 742686;
-	m = fec_oc_period * 100;
-	if (fec_oc_period == 0)
+	if (!fec_oc_period) {
 		qam_post_rs_ber = 0xFFFFFFFF;
-	else
+	} else {
+		e = post_bit_err_rs * 742686;
+		m = fec_oc_period * 100;
 		qam_post_rs_ber = e / m;
+	}
 
 	/* fill signal quality data structure */
 	p->pre_bit_count.stat[0].scale = FE_SCALE_COUNTER;
@@ -10647,7 +10654,7 @@ rw_error:
 
 /**
 * \fn int ctrl_sig_quality()
-* \brief Retreive signal quality form device.
+* \brief Retrieve signal quality form device.
 * \param devmod Pointer to demodulator instance.
 * \param sig_quality Pointer to signal quality data.
 * \return int.
@@ -10763,7 +10770,7 @@ rw_error:
 
 /**
 * \fn int ctrl_lock_status()
-* \brief Retreive lock status .
+* \brief Retrieve lock status .
 * \param dev_addr Pointer to demodulator device address.
 * \param lock_stat Pointer to lock status structure.
 * \return int.
@@ -10815,7 +10822,7 @@ ctrl_lock_status(struct drx_demod_instance *demod, enum drx_lock_status *lock_st
 		return -EIO;
 	}
 
-	/* define the SCU command paramters and execute the command */
+	/* define the SCU command parameters and execute the command */
 	cmd_scu.parameter_len = 0;
 	cmd_scu.result_len = 2;
 	cmd_scu.parameter = NULL;
@@ -10948,7 +10955,7 @@ rw_error:
 
 static void drxj_reset_mode(struct drxj_data *ext_attr)
 {
-	/* Initialize default AFE configuartion for QAM */
+	/* Initialize default AFE configuration for QAM */
 	if (ext_attr->has_lna) {
 		/* IF AGC off, PGA active */
 #ifndef DRXJ_VSB_ONLY
@@ -10992,7 +10999,7 @@ static void drxj_reset_mode(struct drxj_data *ext_attr)
 	ext_attr->qam_pre_saw_cfg.reference = 0x07;
 	ext_attr->qam_pre_saw_cfg.use_pre_saw = true;
 #endif
-	/* Initialize default AFE configuartion for VSB */
+	/* Initialize default AFE configuration for VSB */
 	ext_attr->vsb_rf_agc_cfg.standard = DRX_STANDARD_8VSB;
 	ext_attr->vsb_rf_agc_cfg.ctrl_mode = DRX_AGC_CTRL_AUTO;
 	ext_attr->vsb_rf_agc_cfg.min_output_level = 0;
@@ -11068,9 +11075,9 @@ ctrl_power_mode(struct drx_demod_instance *demod, enum drx_power_mode *mode)
 	}
 
 	if ((*mode == DRX_POWER_UP)) {
-		/* Restore analog & pin configuartion */
+		/* Restore analog & pin configuration */
 
-		/* Initialize default AFE configuartion for VSB */
+		/* Initialize default AFE configuration for VSB */
 		drxj_reset_mode(ext_attr);
 	} else {
 		/* Power down to requested mode */
@@ -11489,7 +11496,7 @@ static int drxj_open(struct drx_demod_instance *demod)
 	}
 
 	/* Stamp driver version number in SCU data RAM in BCD code
-	   Done to enable field application engineers to retreive drxdriver version
+	   Done to enable field application engineers to retrieve drxdriver version
 	   via I2C from SCU RAM
 	 */
 	driver_version = (VERSION_MAJOR / 100) % 10;
@@ -11892,7 +11899,7 @@ release:
 	return rc;
 }
 
-/* caller is expeced to check if lna is supported before enabling */
+/* caller is expected to check if lna is supported before enabling */
 static int drxj_set_lna_state(struct drx_demod_instance *demod, bool state)
 {
 	struct drxuio_cfg uio_cfg;
@@ -11946,7 +11953,7 @@ static int drx39xxj_set_powerstate(struct dvb_frontend *fe, int enable)
 	return 0;
 }
 
-static int drx39xxj_read_status(struct dvb_frontend *fe, fe_status_t *status)
+static int drx39xxj_read_status(struct dvb_frontend *fe, enum fe_status *status)
 {
 	struct drx39xxj_state *state = fe->demodulator_priv;
 	struct drx_demod_instance *demod = state->demod;
@@ -12260,7 +12267,7 @@ static void drx39xxj_release(struct dvb_frontend *fe)
 	kfree(state);
 }
 
-static struct dvb_frontend_ops drx39xxj_ops;
+static const struct dvb_frontend_ops drx39xxj_ops;
 
 struct dvb_frontend *drx39xxj_attach(struct i2c_adapter *i2c)
 {
@@ -12359,7 +12366,7 @@ error:
 }
 EXPORT_SYMBOL(drx39xxj_attach);
 
-static struct dvb_frontend_ops drx39xxj_ops = {
+static const struct dvb_frontend_ops drx39xxj_ops = {
 	.delsys = { SYS_ATSC, SYS_DVBC_ANNEX_B },
 	.info = {
 		 .name = "Micronas DRX39xxj family Frontend",

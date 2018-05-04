@@ -47,12 +47,11 @@ static void config_item_release(struct kref *kref);
  *	config_item_init - initialize item.
  *	@item:	item in question.
  */
-void config_item_init(struct config_item *item)
+static void config_item_init(struct config_item *item)
 {
 	kref_init(&item->ci_kref);
 	INIT_LIST_HEAD(&item->ci_entry);
 }
-EXPORT_SYMBOL(config_item_init);
 
 /**
  *	config_item_set_name - Set the name of an item
@@ -116,7 +115,7 @@ void config_item_init_type_name(struct config_item *item,
 				const char *name,
 				struct config_item_type *type)
 {
-	config_item_set_name(item, name);
+	config_item_set_name(item, "%s", name);
 	item->ci_type = type;
 	config_item_init(item);
 }
@@ -125,7 +124,7 @@ EXPORT_SYMBOL(config_item_init_type_name);
 void config_group_init_type_name(struct config_group *group, const char *name,
 			 struct config_item_type *type)
 {
-	config_item_set_name(&group->cg_item, name);
+	config_item_set_name(&group->cg_item, "%s", name);
 	group->cg_item.ci_type = type;
 	config_group_init(group);
 }
@@ -138,6 +137,14 @@ struct config_item *config_item_get(struct config_item *item)
 	return item;
 }
 EXPORT_SYMBOL(config_item_get);
+
+struct config_item *config_item_get_unless_zero(struct config_item *item)
+{
+	if (item && kref_get_unless_zero(&item->ci_kref))
+		return item;
+	return NULL;
+}
+EXPORT_SYMBOL(config_item_get_unless_zero);
 
 static void config_item_cleanup(struct config_item *item)
 {
@@ -183,6 +190,7 @@ void config_group_init(struct config_group *group)
 {
 	config_item_init(&group->cg_item);
 	INIT_LIST_HEAD(&group->cg_children);
+	INIT_LIST_HEAD(&group->default_groups);
 }
 EXPORT_SYMBOL(config_group_init);
 

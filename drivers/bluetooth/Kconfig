@@ -1,11 +1,21 @@
+# SPDX-License-Identifier: GPL-2.0
 
 menu "Bluetooth device drivers"
 	depends on BT
 
 config BT_INTEL
 	tristate
+	select REGMAP
 
 config BT_BCM
+	tristate
+	select FW_LOADER
+
+config BT_RTL
+	tristate
+	select FW_LOADER
+
+config BT_QCA
 	tristate
 	select FW_LOADER
 
@@ -32,6 +42,17 @@ config BT_HCIBTUSB_BCM
 
 	  Say Y here to compile support for Broadcom protocol.
 
+config BT_HCIBTUSB_RTL
+	bool "Realtek protocol support"
+	depends on BT_HCIBTUSB
+	select BT_RTL
+	default y
+	help
+	  The Realtek protocol support enables firmware and configuration
+	  download support for Realtek Bluetooth controllers.
+
+	  Say Y here to compile support for Realtek protocol.
+
 config BT_HCIBTSDIO
 	tristate "HCI SDIO driver"
 	depends on MMC
@@ -45,6 +66,7 @@ config BT_HCIBTSDIO
 
 config BT_HCIUART
 	tristate "HCI UART driver"
+	depends on SERIAL_DEV_BUS || !SERIAL_DEV_BUS
 	depends on TTY
 	help
 	  Bluetooth HCI UART driver.
@@ -56,6 +78,11 @@ config BT_HCIUART
 	  Say Y here to compile support for Bluetooth UART devices into the
 	  kernel or say M to compile it as module (hci_uart).
 
+config BT_HCIUART_SERDEV
+	bool
+	depends on SERIAL_DEV_BUS && BT_HCIUART
+	default y
+
 config BT_HCIUART_H4
 	bool "UART (H4) protocol support"
 	depends on BT_HCIUART
@@ -65,6 +92,20 @@ config BT_HCIUART_H4
 	  with UART interface, including PCMCIA and CF cards.
 
 	  Say Y here to compile support for HCI UART (H4) protocol.
+
+config BT_HCIUART_NOKIA
+	tristate "UART Nokia H4+ protocol support"
+	depends on BT_HCIUART
+	depends on BT_HCIUART_SERDEV
+	depends on PM
+	select BT_HCIUART_H4
+	select BT_BCM
+	help
+	  Nokia H4+ is serial protocol for communication between Bluetooth
+	  device and host. This protocol is required for Bluetooth devices
+	  with UART interface in Nokia devices.
+
+	  Say Y here to compile support for Nokia's H4+ protocol.
 
 config BT_HCIUART_BCSP
 	bool "BCSP protocol support"
@@ -93,7 +134,7 @@ config BT_HCIUART_ATH3K
 
 config BT_HCIUART_LL
 	bool "HCILL protocol support"
-	depends on BT_HCIUART
+	depends on BT_HCIUART_SERDEV
 	help
 	  HCILL (HCI Low Level) is a serial protocol for communication
 	  between Bluetooth device and host. This protocol is required for
@@ -117,6 +158,7 @@ config BT_HCIUART_3WIRE
 config BT_HCIUART_INTEL
 	bool "Intel protocol support"
 	depends on BT_HCIUART
+	select BT_HCIUART_H4
 	select BT_INTEL
 	help
 	  The Intel protocol support enables Bluetooth HCI over serial
@@ -127,6 +169,7 @@ config BT_HCIUART_INTEL
 config BT_HCIUART_BCM
 	bool "Broadcom protocol support"
 	depends on BT_HCIUART
+	depends on BT_HCIUART_SERDEV
 	select BT_HCIUART_H4
 	select BT_BCM
 	help
@@ -134,6 +177,41 @@ config BT_HCIUART_BCM
 	  port interface for Broadcom Bluetooth controllers.
 
 	  Say Y here to compile support for Broadcom protocol.
+
+config BT_HCIUART_QCA
+	bool "Qualcomm Atheros protocol support"
+	depends on BT_HCIUART
+	select BT_HCIUART_H4
+	select BT_QCA
+	help
+	  The Qualcomm Atheros protocol supports HCI In-Band Sleep feature
+	  over serial port interface(H4) between controller and host.
+	  This protocol is required for UART clock control for QCA Bluetooth
+	  devices.
+
+	  Say Y here to compile support for QCA protocol.
+
+config BT_HCIUART_AG6XX
+	bool "Intel AG6XX protocol support"
+	depends on BT_HCIUART
+	select BT_HCIUART_H4
+	select BT_INTEL
+	help
+	  The Intel/AG6XX protocol support enables Bluetooth HCI over serial
+	  port interface for Intel ibt 2.1 Bluetooth controllers.
+
+	  Say Y here to compile support for Intel AG6XX protocol.
+
+config BT_HCIUART_MRVL
+	bool "Marvell protocol support"
+	depends on BT_HCIUART
+	select BT_HCIUART_H4
+	help
+	  Marvell is serial protocol for communication between Bluetooth
+	  device and host. This protocol is required for most Marvell Bluetooth
+	  devices with UART interface.
+
+	  Say Y here to compile support for HCI MRVL protocol.
 
 config BT_HCIBCM203X
 	tristate "HCI BCM203x USB driver"
@@ -149,7 +227,8 @@ config BT_HCIBCM203X
 
 config BT_HCIBPA10X
 	tristate "HCI BPA10x USB driver"
-	depends on USB
+	depends on USB && BT_HCIUART
+	select BT_HCIUART_H4
 	help
 	  Bluetooth HCI BPA10x USB driver.
 	  This driver provides support for the Digianswer BPA 100/105 Bluetooth
@@ -242,7 +321,7 @@ config BT_MRVL
 	  The core driver to support Marvell Bluetooth devices.
 
 	  This driver is required if you want to support
-	  Marvell Bluetooth devices, such as 8688/8787/8797/8887/8897.
+	  Marvell Bluetooth devices, such as 8688/8787/8797/8887/8897/8997.
 
 	  Say Y here to compile Marvell Bluetooth driver
 	  into the kernel or say M to compile it as module.
@@ -256,7 +335,7 @@ config BT_MRVL_SDIO
 	  The driver for Marvell Bluetooth chipsets with SDIO interface.
 
 	  This driver is required if you want to use Marvell Bluetooth
-	  devices with SDIO interface. Currently SD8688/SD8787/SD8797/SD8887/SD8897
+	  devices with SDIO interface. Currently SD8688/SD8787/SD8797/SD8887/SD8897/SD8997
 	  chipsets are supported.
 
 	  Say Y here to compile support for Marvell BT-over-SDIO driver
@@ -284,5 +363,18 @@ config BT_WILINK
 
 	  Say Y here to compile support for Texas Instrument's WiLink7 driver
 	  into the kernel or say M to compile it as module (btwilink).
+
+config BT_QCOMSMD
+	tristate "Qualcomm SMD based HCI support"
+	depends on RPMSG || (COMPILE_TEST && RPMSG=n)
+	depends on QCOM_WCNSS_CTRL || (COMPILE_TEST && QCOM_WCNSS_CTRL=n)
+	select BT_QCA
+	help
+	  Qualcomm SMD based HCI driver.
+	  This driver is used to bridge HCI data onto the shared memory
+	  channels to the WCNSS core.
+
+	  Say Y here to compile support for HCI over Qualcomm SMD into the
+	  kernel or say M to compile as a module.
 
 endmenu

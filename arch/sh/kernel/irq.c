@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * linux/arch/sh/kernel/irq.c
  *
@@ -16,7 +17,7 @@
 #include <linux/ratelimit.h>
 #include <asm/processor.h>
 #include <asm/machvec.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <asm/thread_info.h>
 #include <cpu/mmu_context.h>
 
@@ -99,7 +100,7 @@ static inline void handle_one_irq(unsigned int irq)
 			"mov	%0, r4		\n"
 			"mov	r15, r8		\n"
 			"jsr	@%1		\n"
-			/* swith to the irq stack */
+			/* switch to the irq stack */
 			" mov	%2, r15		\n"
 			/* restore the stack (ring zero) */
 			"mov	r8, r15		\n"
@@ -147,6 +148,7 @@ void irq_ctx_exit(int cpu)
 	hardirq_ctx[cpu] = NULL;
 }
 
+#ifndef CONFIG_PREEMPT_RT_FULL
 void do_softirq_own_stack(void)
 {
 	struct thread_info *curctx;
@@ -174,6 +176,7 @@ void do_softirq_own_stack(void)
 		  "r5", "r6", "r7", "r8", "r9", "r15", "t", "pr"
 	);
 }
+#endif
 #else
 static inline void handle_one_irq(unsigned int irq)
 {
@@ -227,16 +230,17 @@ void migrate_irqs(void)
 	for_each_active_irq(irq) {
 		struct irq_data *data = irq_get_irq_data(irq);
 
-		if (data->node == cpu) {
-			unsigned int newcpu = cpumask_any_and(data->affinity,
+		if (irq_data_get_node(data) == cpu) {
+			struct cpumask *mask = irq_data_get_affinity_mask(data);
+			unsigned int newcpu = cpumask_any_and(mask,
 							      cpu_online_mask);
 			if (newcpu >= nr_cpu_ids) {
 				pr_info_ratelimited("IRQ%u no longer affine to CPU%u\n",
 						    irq, cpu);
 
-				cpumask_setall(data->affinity);
+				cpumask_setall(mask);
 			}
-			irq_set_affinity(irq, data->affinity);
+			irq_set_affinity(irq, mask);
 		}
 	}
 }

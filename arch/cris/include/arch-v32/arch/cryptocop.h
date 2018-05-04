@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * The device /dev/cryptocop is accessible using this driver using
  * CRYPTOCOP_MAJOR (254) and minor number 0.
@@ -81,7 +82,7 @@ struct cryptocop_tfrm_cfg {
 
 	unsigned int flags; /* DECRYPT, ENCRYPT, EXPLICIT_IV */
 
-	/* CBC initialisation vector for cihers. */
+	/* CBC initialisation vector for ciphers. */
 	u8 iv[CRYPTOCOP_MAX_IV_LENGTH];
 
 	/* The position in output where to write the transform output.  The order

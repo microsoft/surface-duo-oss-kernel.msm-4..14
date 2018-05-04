@@ -36,8 +36,7 @@
 #include <crypto/ctr.h>
 #include <crypto/lrw.h>
 #include <crypto/xts.h>
-#include <asm/xcr.h>
-#include <asm/xsave.h>
+#include <asm/fpu/api.h>
 #include <asm/crypto/glue_helper.h>
 
 #define CAST6_PARALLEL_BLOCKS 8
@@ -206,19 +205,33 @@ struct crypt_priv {
 	bool fpu_enabled;
 };
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+static void cast6_fpu_end_rt(struct crypt_priv *ctx)
+{
+	bool fpu_enabled = ctx->fpu_enabled;
+
+	if (!fpu_enabled)
+		return;
+	cast6_fpu_end(fpu_enabled);
+	ctx->fpu_enabled = false;
+}
+
+#else
+static void cast6_fpu_end_rt(struct crypt_priv *ctx) { }
+#endif
+
 static void encrypt_callback(void *priv, u8 *srcdst, unsigned int nbytes)
 {
 	const unsigned int bsize = CAST6_BLOCK_SIZE;
 	struct crypt_priv *ctx = priv;
 	int i;
 
-	ctx->fpu_enabled = cast6_fpu_begin(ctx->fpu_enabled, nbytes);
-
 	if (nbytes == bsize * CAST6_PARALLEL_BLOCKS) {
+		ctx->fpu_enabled = cast6_fpu_begin(ctx->fpu_enabled, nbytes);
 		cast6_ecb_enc_8way(ctx->ctx, srcdst, srcdst);
+		cast6_fpu_end_rt(ctx);
 		return;
 	}
-
 	for (i = 0; i < nbytes / bsize; i++, srcdst += bsize)
 		__cast6_encrypt(ctx->ctx, srcdst, srcdst);
 }
@@ -229,10 +242,10 @@ static void decrypt_callback(void *priv, u8 *srcdst, unsigned int nbytes)
 	struct crypt_priv *ctx = priv;
 	int i;
 
-	ctx->fpu_enabled = cast6_fpu_begin(ctx->fpu_enabled, nbytes);
-
 	if (nbytes == bsize * CAST6_PARALLEL_BLOCKS) {
+		ctx->fpu_enabled = cast6_fpu_begin(ctx->fpu_enabled, nbytes);
 		cast6_ecb_dec_8way(ctx->ctx, srcdst, srcdst);
+		cast6_fpu_end_rt(ctx);
 		return;
 	}
 
@@ -330,13 +343,9 @@ static int xts_cast6_setkey(struct crypto_tfm *tfm, const u8 *key,
 	u32 *flags = &tfm->crt_flags;
 	int err;
 
-	/* key consists of keys of equal size concatenated, therefore
-	 * the length must be even
-	 */
-	if (keylen % 2) {
-		*flags |= CRYPTO_TFM_RES_BAD_KEY_LEN;
-		return -EINVAL;
-	}
+	err = xts_check_key(tfm, key, keylen);
+	if (err)
+		return err;
 
 	/* first half of xts-key is for crypt */
 	err = __cast6_setkey(&ctx->crypt_ctx, key, keylen / 2, flags);
@@ -590,16 +599,11 @@ static struct crypto_alg cast6_algs[10] = { {
 
 static int __init cast6_init(void)
 {
-	u64 xcr0;
+	const char *feature_name;
 
-	if (!cpu_has_avx || !cpu_has_osxsave) {
-		pr_info("AVX instructions are not detected.\n");
-		return -ENODEV;
-	}
-
-	xcr0 = xgetbv(XCR_XFEATURE_ENABLED_MASK);
-	if ((xcr0 & (XSTATE_SSE | XSTATE_YMM)) != (XSTATE_SSE | XSTATE_YMM)) {
-		pr_info("AVX detected but unusable.\n");
+	if (!cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM,
+				&feature_name)) {
+		pr_info("CPU feature '%s' is not supported.\n", feature_name);
 		return -ENODEV;
 	}
 

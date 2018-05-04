@@ -19,9 +19,12 @@
 #include <net/flow.h>
 #include <linux/seq_file.h>
 #include <linux/rcupdate.h>
+#include <net/fib_notifier.h>
 #include <net/fib_rules.h>
 #include <net/inetpeer.h>
 #include <linux/percpu.h>
+#include <linux/notifier.h>
+#include <linux/refcount.h>
 
 struct fib_config {
 	u8			fc_dst_len;
@@ -44,7 +47,9 @@ struct fib_config {
 	u32			fc_flow;
 	u32			fc_nlflags;
 	struct nl_info		fc_nlinfo;
- };
+	struct nlattr		*fc_encap;
+	u16			fc_encap_type;
+};
 
 struct fib_info;
 struct rtable;
@@ -59,6 +64,7 @@ struct fib_nh_exception {
 	struct rtable __rcu		*fnhe_rth_input;
 	struct rtable __rcu		*fnhe_rth_output;
 	unsigned long			fnhe_stamp;
+	struct rcu_head			rcu;
 };
 
 struct fnhe_hash_bucket {
@@ -77,7 +83,7 @@ struct fib_nh {
 	unsigned char		nh_scope;
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
 	int			nh_weight;
-	int			nh_power;
+	atomic_t		nh_upper_bound;
 #endif
 #ifdef CONFIG_IP_ROUTE_CLASSID
 	__u32			nh_tclassid;
@@ -89,6 +95,7 @@ struct fib_nh {
 	struct rtable __rcu * __percpu *nh_pcpu_rth_output;
 	struct rtable __rcu	*nh_rth_input;
 	struct fnhe_hash_bucket	__rcu *nh_exceptions;
+	struct lwtunnel_state	*nh_lwtstate;
 };
 
 /*
@@ -100,22 +107,23 @@ struct fib_info {
 	struct hlist_node	fib_lhash;
 	struct net		*fib_net;
 	int			fib_treeref;
-	atomic_t		fib_clntref;
+	refcount_t		fib_clntref;
 	unsigned int		fib_flags;
 	unsigned char		fib_dead;
 	unsigned char		fib_protocol;
 	unsigned char		fib_scope;
 	unsigned char		fib_type;
 	__be32			fib_prefsrc;
+	u32			fib_tb_id;
 	u32			fib_priority;
-	u32			*fib_metrics;
-#define fib_mtu fib_metrics[RTAX_MTU-1]
-#define fib_window fib_metrics[RTAX_WINDOW-1]
-#define fib_rtt fib_metrics[RTAX_RTT-1]
-#define fib_advmss fib_metrics[RTAX_ADVMSS-1]
+	struct dst_metrics	*fib_metrics;
+#define fib_mtu fib_metrics->metrics[RTAX_MTU-1]
+#define fib_window fib_metrics->metrics[RTAX_WINDOW-1]
+#define fib_rtt fib_metrics->metrics[RTAX_RTT-1]
+#define fib_advmss fib_metrics->metrics[RTAX_ADVMSS-1]
 	int			fib_nhs;
 #ifdef CONFIG_IP_ROUTE_MULTIPATH
-	int			fib_power;
+	int			fib_weight;
 #endif
 	struct rcu_head		rcu;
 	struct fib_nh		fib_nh[0];
@@ -129,6 +137,7 @@ struct fib_rule;
 
 struct fib_table;
 struct fib_result {
+	__be32		prefix;
 	unsigned char	prefixlen;
 	unsigned char	nh_sel;
 	unsigned char	type;
@@ -180,10 +189,35 @@ __be32 fib_info_update_nh_saddr(struct net *net, struct fib_nh *nh);
 #define FIB_RES_PREFSRC(net, res)	((res).fi->fib_prefsrc ? : \
 					 FIB_RES_SADDR(net, res))
 
+struct fib_entry_notifier_info {
+	struct fib_notifier_info info; /* must be first */
+	u32 dst;
+	int dst_len;
+	struct fib_info *fi;
+	u8 tos;
+	u8 type;
+	u32 tb_id;
+};
+
+struct fib_nh_notifier_info {
+	struct fib_notifier_info info; /* must be first */
+	struct fib_nh *fib_nh;
+};
+
+int call_fib4_notifier(struct notifier_block *nb, struct net *net,
+		       enum fib_event_type event_type,
+		       struct fib_notifier_info *info);
+int call_fib4_notifiers(struct net *net, enum fib_event_type event_type,
+			struct fib_notifier_info *info);
+
+int __net_init fib4_notifier_init(struct net *net);
+void __net_exit fib4_notifier_exit(struct net *net);
+
+void fib_notify(struct net *net, struct notifier_block *nb);
+
 struct fib_table {
 	struct hlist_node	tb_hlist;
 	u32			tb_id;
-	int			tb_default;
 	int			tb_num_default;
 	struct rcu_head		rcu;
 	unsigned long 		*tb_data;
@@ -192,11 +226,13 @@ struct fib_table {
 
 int fib_table_lookup(struct fib_table *tb, const struct flowi4 *flp,
 		     struct fib_result *res, int fib_flags);
-int fib_table_insert(struct fib_table *, struct fib_config *);
-int fib_table_delete(struct fib_table *, struct fib_config *);
+int fib_table_insert(struct net *, struct fib_table *, struct fib_config *,
+		     struct netlink_ext_ack *extack);
+int fib_table_delete(struct net *, struct fib_table *, struct fib_config *,
+		     struct netlink_ext_ack *extack);
 int fib_table_dump(struct fib_table *table, struct sk_buff *skb,
 		   struct netlink_callback *cb);
-int fib_table_flush(struct fib_table *table);
+int fib_table_flush(struct net *net, struct fib_table *table);
 struct fib_table *fib_trie_unmerge(struct fib_table *main_tb);
 void fib_table_flush_external(struct fib_table *table);
 void fib_free_table(struct fib_table *tb);
@@ -226,7 +262,7 @@ static inline struct fib_table *fib_new_table(struct net *net, u32 id)
 }
 
 static inline int fib_lookup(struct net *net, const struct flowi4 *flp,
-			     struct fib_result *res)
+			     struct fib_result *res, unsigned int flags)
 {
 	struct fib_table *tb;
 	int err = -ENETUNREACH;
@@ -234,12 +270,30 @@ static inline int fib_lookup(struct net *net, const struct flowi4 *flp,
 	rcu_read_lock();
 
 	tb = fib_get_table(net, RT_TABLE_MAIN);
-	if (tb && !fib_table_lookup(tb, flp, res, FIB_LOOKUP_NOREF))
-		err = 0;
+	if (tb)
+		err = fib_table_lookup(tb, flp, res, flags | FIB_LOOKUP_NOREF);
+
+	if (err == -EAGAIN)
+		err = -ENETUNREACH;
 
 	rcu_read_unlock();
 
 	return err;
+}
+
+static inline bool fib4_rule_default(const struct fib_rule *rule)
+{
+	return true;
+}
+
+static inline int fib4_rules_dump(struct net *net, struct notifier_block *nb)
+{
+	return 0;
+}
+
+static inline unsigned int fib4_rules_seq_read(struct net *net)
+{
+	return 0;
 }
 
 #else /* CONFIG_IP_MULTIPLE_TABLES */
@@ -249,35 +303,46 @@ void __net_exit fib4_rules_exit(struct net *net);
 struct fib_table *fib_new_table(struct net *net, u32 id);
 struct fib_table *fib_get_table(struct net *net, u32 id);
 
-int __fib_lookup(struct net *net, struct flowi4 *flp, struct fib_result *res);
+int __fib_lookup(struct net *net, struct flowi4 *flp,
+		 struct fib_result *res, unsigned int flags);
 
 static inline int fib_lookup(struct net *net, struct flowi4 *flp,
-			     struct fib_result *res)
+			     struct fib_result *res, unsigned int flags)
 {
 	struct fib_table *tb;
-	int err;
+	int err = -ENETUNREACH;
 
+	flags |= FIB_LOOKUP_NOREF;
 	if (net->ipv4.fib_has_custom_rules)
-		return __fib_lookup(net, flp, res);
+		return __fib_lookup(net, flp, res, flags);
 
 	rcu_read_lock();
 
 	res->tclassid = 0;
 
-	for (err = 0; !err; err = -ENETUNREACH) {
-		tb = rcu_dereference_rtnl(net->ipv4.fib_main);
-		if (tb && !fib_table_lookup(tb, flp, res, FIB_LOOKUP_NOREF))
-			break;
+	tb = rcu_dereference_rtnl(net->ipv4.fib_main);
+	if (tb)
+		err = fib_table_lookup(tb, flp, res, flags);
 
-		tb = rcu_dereference_rtnl(net->ipv4.fib_default);
-		if (tb && !fib_table_lookup(tb, flp, res, FIB_LOOKUP_NOREF))
-			break;
-	}
+	if (!err)
+		goto out;
+
+	tb = rcu_dereference_rtnl(net->ipv4.fib_default);
+	if (tb)
+		err = fib_table_lookup(tb, flp, res, flags);
+
+out:
+	if (err == -EAGAIN)
+		err = -ENETUNREACH;
 
 	rcu_read_unlock();
 
 	return err;
 }
+
+bool fib4_rule_default(const struct fib_rule *rule);
+int fib4_rules_dump(struct net *net, struct notifier_block *nb);
+unsigned int fib4_rules_seq_read(struct net *net);
 
 #endif /* CONFIG_IP_MULTIPLE_TABLES */
 
@@ -288,7 +353,6 @@ __be32 fib_compute_spec_dst(struct sk_buff *skb);
 int fib_validate_source(struct sk_buff *skb, __be32 src, __be32 dst,
 			u8 tos, int oif, struct net_device *dev,
 			struct in_device *idev, u32 *itag);
-void fib_select_default(struct fib_result *res);
 #ifdef CONFIG_IP_ROUTE_CLASSID
 static inline int fib_num_tclassid_users(struct net *net)
 {
@@ -301,14 +365,20 @@ static inline int fib_num_tclassid_users(struct net *net)
 }
 #endif
 int fib_unmerge(struct net *net);
-void fib_flush_external(struct net *net);
 
 /* Exported by fib_semantics.c */
 int ip_fib_check_default(__be32 gw, struct net_device *dev);
-int fib_sync_down_dev(struct net_device *dev, int force);
-int fib_sync_down_addr(struct net *net, __be32 local);
-int fib_sync_up(struct net_device *dev);
-void fib_select_multipath(struct fib_result *res);
+int fib_sync_down_dev(struct net_device *dev, unsigned long event, bool force);
+int fib_sync_down_addr(struct net_device *dev, __be32 local);
+int fib_sync_up(struct net_device *dev, unsigned int nh_flags);
+
+#ifdef CONFIG_IP_ROUTE_MULTIPATH
+int fib_multipath_hash(const struct fib_info *fi, const struct flowi4 *fl4,
+		       const struct sk_buff *skb);
+#endif
+void fib_select_multipath(struct fib_result *res, int hash);
+void fib_select_path(struct net *net, struct fib_result *res,
+		     struct flowi4 *fl4, const struct sk_buff *skb);
 
 /* Exported by fib_trie.c */
 void fib_trie_init(void);
@@ -332,9 +402,14 @@ static inline void fib_combine_itag(u32 *itag, const struct fib_result *res)
 
 void free_fib_info(struct fib_info *fi);
 
+static inline void fib_info_hold(struct fib_info *fi)
+{
+	refcount_inc(&fi->fib_clntref);
+}
+
 static inline void fib_info_put(struct fib_info *fi)
 {
-	if (atomic_dec_and_test(&fi->fib_clntref))
+	if (refcount_dec_and_test(&fi->fib_clntref))
 		free_fib_info(fi);
 }
 

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _SPARC64_TTABLE_H
 #define _SPARC64_TTABLE_H
 
@@ -184,6 +185,12 @@
 #define KPROBES_TRAP(lvl) TRAP_IRQ(kprobe_trap, lvl)
 #else
 #define KPROBES_TRAP(lvl) TRAP_ARG(bad_trap, lvl)
+#endif
+
+#ifdef CONFIG_UPROBES
+#define UPROBES_TRAP(lvl) TRAP_ARG(uprobe_trap, lvl)
+#else
+#define UPROBES_TRAP(lvl) TRAP_ARG(bad_trap, lvl)
 #endif
 
 #ifdef CONFIG_KGDB
@@ -589,8 +596,8 @@ user_rtt_fill_64bit:					\
 	 restored;					\
 	nop; nop; nop; nop; nop; nop;			\
 	nop; nop; nop; nop; nop;			\
-	ba,a,pt	%xcc, user_rtt_fill_fixup;		\
-	ba,a,pt	%xcc, user_rtt_fill_fixup;		\
+	ba,a,pt	%xcc, user_rtt_fill_fixup_dax;		\
+	ba,a,pt	%xcc, user_rtt_fill_fixup_mna;		\
 	ba,a,pt	%xcc, user_rtt_fill_fixup;
 
 
@@ -652,8 +659,8 @@ user_rtt_fill_32bit:					\
 	 restored;					\
 	nop; nop; nop; nop; nop;			\
 	nop; nop; nop;					\
-	ba,a,pt	%xcc, user_rtt_fill_fixup;		\
-	ba,a,pt	%xcc, user_rtt_fill_fixup;		\
+	ba,a,pt	%xcc, user_rtt_fill_fixup_dax;		\
+	ba,a,pt	%xcc, user_rtt_fill_fixup_mna;		\
 	ba,a,pt	%xcc, user_rtt_fill_fixup;
 
 

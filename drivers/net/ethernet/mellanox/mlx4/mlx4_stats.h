@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _MLX4_STATS_
 #define _MLX4_STATS_
 
@@ -23,13 +24,21 @@ struct mlx4_en_pkt_stats {
 #define NUM_PKT_STATS		43
 };
 
+struct mlx4_en_counter_stats {
+	unsigned long rx_packets;
+	unsigned long rx_bytes;
+	unsigned long tx_packets;
+	unsigned long tx_bytes;
+#define NUM_PF_STATS      4
+};
+
 struct mlx4_en_port_stats {
 	unsigned long tso_packets;
 	unsigned long xmit_more;
 	unsigned long queue_stopped;
 	unsigned long wake_queue;
 	unsigned long tx_timeout;
-	unsigned long rx_alloc_failed;
+	unsigned long rx_alloc_pages;
 	unsigned long rx_chksum_good;
 	unsigned long rx_chksum_none;
 	unsigned long rx_chksum_complete;
@@ -45,6 +54,13 @@ struct mlx4_en_perf_stats {
 	u16 rx_coal_avg;
 	u32 napi_quota;
 #define NUM_PERF_COUNTERS		6
+};
+
+struct mlx4_en_xdp_stats {
+	unsigned long rx_xdp_drop;
+	unsigned long rx_xdp_tx;
+	unsigned long rx_xdp_tx_full;
+#define NUM_XDP_STATS		3
 };
 
 #define NUM_MAIN_STATS	21
@@ -99,7 +115,8 @@ enum {
 };
 
 #define NUM_ALL_STATS	(NUM_MAIN_STATS + NUM_PORT_STATS + NUM_PKT_STATS + \
-			 NUM_FLOW_STATS + NUM_PERF_STATS)
+			 NUM_FLOW_STATS + NUM_PERF_STATS + NUM_PF_STATS + \
+			 NUM_XDP_STATS)
 
 #define MLX4_FIND_NETDEV_STAT(n) (offsetof(struct net_device_stats, n) / \
 				  sizeof(((struct net_device_stats *)0)->n))

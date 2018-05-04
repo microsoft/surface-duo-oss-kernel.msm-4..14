@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_X86_I8259_H
 #define _ASM_X86_I8259_H
 
@@ -60,6 +61,7 @@ struct legacy_pic {
 	void (*mask_all)(void);
 	void (*restore_mask)(void);
 	void (*init)(int auto_eoi);
+	int (*probe)(void);
 	int (*irq_pending)(unsigned int irq);
 	void (*make_irq)(unsigned int irq);
 };

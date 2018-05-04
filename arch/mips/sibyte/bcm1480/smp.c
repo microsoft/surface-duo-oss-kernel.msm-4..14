@@ -21,6 +21,7 @@
 #include <linux/smp.h>
 #include <linux/kernel_stat.h>
 #include <linux/sched.h>
+#include <linux/sched/task_stack.h>
 
 #include <asm/mmu_context.h>
 #include <asm/io.h>
@@ -28,8 +29,6 @@
 #include <asm/sibyte/sb1250.h>
 #include <asm/sibyte/bcm1480_regs.h>
 #include <asm/sibyte/bcm1480_int.h>
-
-extern void smp_call_function_interrupt(void);
 
 /*
  * These are routines for dealing with the bcm1480 smp capabilities
@@ -118,7 +117,7 @@ static void bcm1480_smp_finish(void)
  * Setup the PC, SP, and GP of a secondary processor and start it
  * running!
  */
-static void bcm1480_boot_secondary(int cpu, struct task_struct *idle)
+static int bcm1480_boot_secondary(int cpu, struct task_struct *idle)
 {
 	int retval;
 
@@ -127,6 +126,7 @@ static void bcm1480_boot_secondary(int cpu, struct task_struct *idle)
 			       (unsigned long)task_thread_info(idle), 0);
 	if (retval != 0)
 		printk("cfe_start_cpu(%i) returned %i\n" , cpu, retval);
+	return retval;
 }
 
 /*
@@ -158,7 +158,7 @@ static void __init bcm1480_prepare_cpus(unsigned int max_cpus)
 {
 }
 
-struct plat_smp_ops bcm1480_smp_ops = {
+const struct plat_smp_ops bcm1480_smp_ops = {
 	.send_ipi_single	= bcm1480_send_ipi_single,
 	.send_ipi_mask		= bcm1480_send_ipi_mask,
 	.init_secondary		= bcm1480_init_secondary,
@@ -184,6 +184,9 @@ void bcm1480_mailbox_interrupt(void)
 	if (action & SMP_RESCHEDULE_YOURSELF)
 		scheduler_ipi();
 
-	if (action & SMP_CALL_FUNCTION)
-		smp_call_function_interrupt();
+	if (action & SMP_CALL_FUNCTION) {
+		irq_enter();
+		generic_smp_call_function_interrupt();
+		irq_exit();
+	}
 }

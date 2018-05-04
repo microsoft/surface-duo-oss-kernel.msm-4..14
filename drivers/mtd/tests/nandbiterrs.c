@@ -47,7 +47,7 @@
 #include <linux/moduleparam.h>
 #include <linux/mtd/mtd.h>
 #include <linux/err.h>
-#include <linux/mtd/nand.h>
+#include <linux/mtd/rawnand.h>
 #include <linux/slab.h>
 #include "mtd_test.h"
 
@@ -290,7 +290,7 @@ static int overwrite_test(void)
 
 	while (opno < max_overwrite) {
 
-		err = rewrite_page(0);
+		err = write_page(0);
 		if (err)
 			break;
 

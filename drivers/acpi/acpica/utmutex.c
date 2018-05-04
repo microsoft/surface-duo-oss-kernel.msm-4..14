@@ -5,7 +5,7 @@
  ******************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -88,7 +88,7 @@ acpi_status acpi_ut_mutex_initialize(void)
 		return_ACPI_STATUS (status);
 	}
 
-	status = acpi_os_create_lock (&acpi_gbl_hardware_lock);
+	status = acpi_os_create_raw_lock (&acpi_gbl_hardware_lock);
 	if (ACPI_FAILURE (status)) {
 		return_ACPI_STATUS (status);
 	}
@@ -108,6 +108,10 @@ acpi_status acpi_ut_mutex_initialize(void)
 	/* Create the reader/writer lock for namespace access */
 
 	status = acpi_ut_create_rw_lock(&acpi_gbl_namespace_rw_lock);
+	if (ACPI_FAILURE(status)) {
+		return_ACPI_STATUS(status);
+	}
+
 	return_ACPI_STATUS(status);
 }
 
@@ -141,7 +145,7 @@ void acpi_ut_mutex_terminate(void)
 	/* Delete the spinlocks */
 
 	acpi_os_delete_lock(acpi_gbl_gpe_lock);
-	acpi_os_delete_lock(acpi_gbl_hardware_lock);
+	acpi_os_delete_raw_lock(acpi_gbl_hardware_lock);
 	acpi_os_delete_lock(acpi_gbl_reference_count_lock);
 
 	/* Delete the reader/writer lock */
@@ -269,8 +273,9 @@ acpi_status acpi_ut_acquire_mutex(acpi_mutex_handle mutex_id)
 			  (u32)this_thread_id,
 			  acpi_ut_get_mutex_name(mutex_id)));
 
-	status = acpi_os_acquire_mutex(acpi_gbl_mutex_info[mutex_id].mutex,
-				       ACPI_WAIT_FOREVER);
+	status =
+	    acpi_os_acquire_mutex(acpi_gbl_mutex_info[mutex_id].mutex,
+				  ACPI_WAIT_FOREVER);
 	if (ACPI_SUCCESS(status)) {
 		ACPI_DEBUG_PRINT((ACPI_DB_MUTEX,
 				  "Thread %u acquired Mutex [%s]\n",

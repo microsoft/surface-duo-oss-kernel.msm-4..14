@@ -107,16 +107,16 @@ EXPORT_SYMBOL_GPL(tcp_vegas_init);
  *   o min-filter RTT samples from a much longer window (forever for now)
  *     to find the propagation delay (baseRTT)
  */
-void tcp_vegas_pkts_acked(struct sock *sk, u32 cnt, s32 rtt_us)
+void tcp_vegas_pkts_acked(struct sock *sk, const struct ack_sample *sample)
 {
 	struct vegas *vegas = inet_csk_ca(sk);
 	u32 vrtt;
 
-	if (rtt_us < 0)
+	if (sample->rtt_us < 0)
 		return;
 
 	/* Never allow zero rtt or baseRTT */
-	vrtt = rtt_us + 1;
+	vrtt = sample->rtt_us + 1;
 
 	/* Filter to find propagation delay: */
 	if (vrtt < vegas->baseRTT)
@@ -158,7 +158,7 @@ EXPORT_SYMBOL_GPL(tcp_vegas_cwnd_event);
 
 static inline u32 tcp_vegas_ssthresh(struct tcp_sock *tp)
 {
-	return  min(tp->snd_ssthresh, tp->snd_cwnd-1);
+	return  min(tp->snd_ssthresh, tp->snd_cwnd);
 }
 
 static void tcp_vegas_cong_avoid(struct sock *sk, u32 ack, u32 acked)
@@ -225,7 +225,7 @@ static void tcp_vegas_cong_avoid(struct sock *sk, u32 ack, u32 acked)
 			 */
 			diff = tp->snd_cwnd * (rtt-vegas->baseRTT) / vegas->baseRTT;
 
-			if (diff > gamma && tp->snd_cwnd <= tp->snd_ssthresh) {
+			if (diff > gamma && tcp_in_slow_start(tp)) {
 				/* Going too fast. Time to slow down
 				 * and switch to congestion avoidance.
 				 */
@@ -240,7 +240,7 @@ static void tcp_vegas_cong_avoid(struct sock *sk, u32 ack, u32 acked)
 				tp->snd_cwnd = min(tp->snd_cwnd, (u32)target_cwnd+1);
 				tp->snd_ssthresh = tcp_vegas_ssthresh(tp);
 
-			} else if (tp->snd_cwnd <= tp->snd_ssthresh) {
+			} else if (tcp_in_slow_start(tp)) {
 				/* Slow start.  */
 				tcp_slow_start(tp, acked);
 			} else {
@@ -281,7 +281,7 @@ static void tcp_vegas_cong_avoid(struct sock *sk, u32 ack, u32 acked)
 		vegas->minRTT = 0x7fffffff;
 	}
 	/* Use normal slow start */
-	else if (tp->snd_cwnd <= tp->snd_ssthresh)
+	else if (tcp_in_slow_start(tp))
 		tcp_slow_start(tp, acked);
 }
 
@@ -307,6 +307,7 @@ EXPORT_SYMBOL_GPL(tcp_vegas_get_info);
 static struct tcp_congestion_ops tcp_vegas __read_mostly = {
 	.init		= tcp_vegas_init,
 	.ssthresh	= tcp_reno_ssthresh,
+	.undo_cwnd	= tcp_reno_undo_cwnd,
 	.cong_avoid	= tcp_vegas_cong_avoid,
 	.pkts_acked	= tcp_vegas_pkts_acked,
 	.set_state	= tcp_vegas_state,

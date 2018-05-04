@@ -1,8 +1,9 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NETNS_X_TABLES_H
 #define __NETNS_X_TABLES_H
 
 #include <linux/list.h>
-#include <linux/netfilter.h>
+#include <linux/netfilter_defs.h>
 
 struct ebt_table;
 

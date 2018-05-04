@@ -90,7 +90,7 @@ static int vr_nor_mtd_setup(struct vr_nor_mtd *p)
 	if (!p->info)
 		return -ENODEV;
 
-	p->info->owner = THIS_MODULE;
+	p->info->dev.parent = &p->dev->dev;
 
 	return 0;
 }
@@ -170,7 +170,7 @@ static int vr_nor_init_maps(struct vr_nor_mtd *p)
 	return err;
 }
 
-static struct pci_device_id vr_nor_pci_ids[] = {
+static const struct pci_device_id vr_nor_pci_ids[] = {
 	{PCI_DEVICE(PCI_VENDOR_ID_INTEL, 0x500D)},
 	{0,}
 };

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 #include "util/cache.h"
 #include "util/debug.h"
 #include "ui/browser.h"
@@ -7,6 +8,8 @@
 #include "ui/libslang.h"
 #include "util/header.h"
 #include "util/session.h"
+
+#include <sys/ttydefaults.h>
 
 static void ui_browser__argv_write(struct ui_browser *browser,
 				   void *entry, int row)
@@ -25,7 +28,7 @@ static void ui_browser__argv_write(struct ui_browser *browser,
 	ui_browser__set_color(browser, current_entry ? HE_COLORSET_SELECTED :
 						       HE_COLORSET_NORMAL);
 
-	slsmg_write_nstring(str, browser->width);
+	ui_browser__write_nstring(browser, str, browser->width);
 }
 
 static int list_menu__run(struct ui_browser *menu)
@@ -91,7 +94,7 @@ static int ui__list_menu(int argc, char * const argv[])
 	return list_menu__run(&menu);
 }
 
-int tui__header_window(struct perf_session_env *env)
+int tui__header_window(struct perf_env *env)
 {
 	int i, argc = 0;
 	char **argv;

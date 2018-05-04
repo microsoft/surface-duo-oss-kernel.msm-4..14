@@ -1,9 +1,10 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * DRAM/SDRAM initialization - alter with care
  * This file is intended to be included from other assembler files
  *
  * Note: This file may not modify r9 because r9 is used to carry
- *       information from the decompresser to the kernel
+ *       information from the decompressor to the kernel
  *
  * Copyright (C) 2000-2012 Axis Communications AB
  *

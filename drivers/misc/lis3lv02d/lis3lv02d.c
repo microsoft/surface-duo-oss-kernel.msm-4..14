@@ -23,6 +23,7 @@
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
 
 #include <linux/kernel.h>
+#include <linux/sched/signal.h>
 #include <linux/dmi.h>
 #include <linux/module.h>
 #include <linux/types.h>
@@ -115,7 +116,7 @@ static int param_set_axis(const char *val, const struct kernel_param *kp)
 	return ret;
 }
 
-static struct kernel_param_ops param_ops_axis = {
+static const struct kernel_param_ops param_ops_axis = {
 	.set = param_set_axis,
 	.get = param_get_int,
 };
@@ -855,7 +856,7 @@ static struct attribute *lis3lv02d_attributes[] = {
 	NULL
 };
 
-static struct attribute_group lis3lv02d_attribute_group = {
+static const struct attribute_group lis3lv02d_attribute_group = {
 	.attrs = lis3lv02d_attributes
 };
 

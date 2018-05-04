@@ -1,7 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0
 #include <linux/io.h>
-#include <linux/clk.h>
 #include <linux/clk-provider.h>
-#include <linux/clkdev.h>
+#include <linux/slab.h>
 #include <linux/of.h>
 #include <linux/of_address.h>
 
@@ -10,7 +10,7 @@
 void mmp_clk_init(struct device_node *np, struct mmp_clk_unit *unit,
 		int nr_clks)
 {
-	static struct clk **clk_table;
+	struct clk **clk_table;
 
 	clk_table = kcalloc(nr_clks, sizeof(struct clk *), GFP_KERNEL);
 	if (!clk_table)

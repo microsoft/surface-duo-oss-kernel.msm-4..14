@@ -13,11 +13,11 @@
 
 #include <linux/module.h>
 #include <linux/i2c.h>
-#include <linux/i2c/mcs.h>
 #include <linux/interrupt.h>
 #include <linux/input.h>
 #include <linux/irq.h>
 #include <linux/slab.h>
+#include <linux/platform_data/mcs.h>
 #include <linux/pm.h>
 
 /* MCS5000 Touchkey */
@@ -265,7 +265,6 @@ MODULE_DEVICE_TABLE(i2c, mcs_touchkey_id);
 static struct i2c_driver mcs_touchkey_driver = {
 	.driver = {
 		.name	= "mcs_touchkey",
-		.owner	= THIS_MODULE,
 		.pm	= &mcs_touchkey_pm_ops,
 	},
 	.probe		= mcs_touchkey_probe,

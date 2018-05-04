@@ -25,7 +25,7 @@
 #define PPC_LCMPI	stringify_in_c(cmpdi)
 #define PPC_LCMPLI	stringify_in_c(cmpldi)
 #define PPC_LCMP	stringify_in_c(cmpd)
-#define PPC_LONG	stringify_in_c(.llong)
+#define PPC_LONG	stringify_in_c(.8byte)
 #define PPC_LONG_ALIGN	stringify_in_c(.balign 8)
 #define PPC_TLNEI	stringify_in_c(tdnei)
 #define PPC_LLARX(t, a, b, eh)	PPC_LDARX(t, a, b, eh)
@@ -36,11 +36,13 @@
 #define PPC_MIN_STKFRM	112
 
 #ifdef __BIG_ENDIAN__
+#define LHZX_BE	stringify_in_c(lhzx)
 #define LWZX_BE	stringify_in_c(lwzx)
 #define LDX_BE	stringify_in_c(ldx)
 #define STWX_BE	stringify_in_c(stwx)
 #define STDX_BE	stringify_in_c(stdx)
 #else
+#define LHZX_BE	stringify_in_c(lhbrx)
 #define LWZX_BE	stringify_in_c(lwbrx)
 #define LDX_BE	stringify_in_c(ldbrx)
 #define STWX_BE	stringify_in_c(stwbrx)

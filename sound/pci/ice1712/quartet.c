@@ -203,7 +203,6 @@ static const char * const ext_clock_names[3] = {"IEC958 In", "Word Clock 1xFS",
 #define AK4620_DEEMVOL_REG	0x03
 #define AK4620_SMUTE		(1<<7)
 
-#ifdef CONFIG_PROC_FS
 /*
  * Conversion from int value to its binary form. Used for debugging.
  * The output buffer must be allocated prior to calling the function.
@@ -228,22 +227,21 @@ static char *get_binary(char *buffer, int value)
 	buffer[pos] = '\0';
 	return buffer;
 }
-#endif /* CONFIG_PROC_FS */
 
 /*
  * Initial setup of the conversion array GPIO <-> rate
  */
-static unsigned int qtet_rates[] = {
+static const unsigned int qtet_rates[] = {
 	44100, 48000, 88200,
 	96000, 176400, 192000,
 };
 
-static unsigned int cks_vals[] = {
+static const unsigned int cks_vals[] = {
 	CPLD_CKS_44100HZ, CPLD_CKS_48000HZ, CPLD_CKS_88200HZ,
 	CPLD_CKS_96000HZ, CPLD_CKS_176400HZ, CPLD_CKS_192000HZ,
 };
 
-static struct snd_pcm_hw_constraint_list qtet_rates_info = {
+static const struct snd_pcm_hw_constraint_list qtet_rates_info = {
 	.count = ARRAY_SIZE(qtet_rates),
 	.list = qtet_rates,
 	.mask = 0,
@@ -388,7 +386,7 @@ static const struct snd_akm4xxx_adc_channel qtet_adc[] = {
 	AK_CONTROL(PCM_34_CAPTURE_VOLUME, 2),
 };
 
-static struct snd_akm4xxx akm_qtet_dac = {
+static const struct snd_akm4xxx akm_qtet_dac = {
 	.type = SND_AK4620,
 	.num_dacs = 4,	/* DAC1 - Output 12
 	*/
@@ -486,7 +484,7 @@ static void set_cpld(struct snd_ice1712 *ice, unsigned int val)
 	reg_write(ice, GPIO_CPLD_CSN, val);
 	spec->cpld = val;
 }
-#ifdef CONFIG_PROC_FS
+
 static void proc_regs_read(struct snd_info_entry *entry,
 		struct snd_info_buffer *buffer)
 {
@@ -507,9 +505,6 @@ static void proc_init(struct snd_ice1712 *ice)
 	if (!snd_card_proc_new(ice->card, "quartet", &entry))
 		snd_info_set_text_ops(entry, ice, proc_regs_read);
 }
-#else /* !CONFIG_PROC_FS */
-static void proc_init(struct snd_ice1712 *ice) {}
-#endif
 
 static int qtet_mute_get(struct snd_kcontrol *kcontrol,
 		struct snd_ctl_elem_value *ucontrol)

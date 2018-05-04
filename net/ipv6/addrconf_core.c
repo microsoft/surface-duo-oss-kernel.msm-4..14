@@ -88,6 +88,7 @@ int __ipv6_addr_type(const struct in6_addr *addr)
 EXPORT_SYMBOL(__ipv6_addr_type);
 
 static ATOMIC_NOTIFIER_HEAD(inet6addr_chain);
+static ATOMIC_NOTIFIER_HEAD(inet6addr_validator_chain);
 
 int register_inet6addr_notifier(struct notifier_block *nb)
 {
@@ -107,7 +108,34 @@ int inet6addr_notifier_call_chain(unsigned long val, void *v)
 }
 EXPORT_SYMBOL(inet6addr_notifier_call_chain);
 
-const struct ipv6_stub *ipv6_stub __read_mostly;
+int register_inet6addr_validator_notifier(struct notifier_block *nb)
+{
+	return atomic_notifier_chain_register(&inet6addr_validator_chain, nb);
+}
+EXPORT_SYMBOL(register_inet6addr_validator_notifier);
+
+int unregister_inet6addr_validator_notifier(struct notifier_block *nb)
+{
+	return atomic_notifier_chain_unregister(&inet6addr_validator_chain, nb);
+}
+EXPORT_SYMBOL(unregister_inet6addr_validator_notifier);
+
+int inet6addr_validator_notifier_call_chain(unsigned long val, void *v)
+{
+	return atomic_notifier_call_chain(&inet6addr_validator_chain, val, v);
+}
+EXPORT_SYMBOL(inet6addr_validator_notifier_call_chain);
+
+static int eafnosupport_ipv6_dst_lookup(struct net *net, struct sock *u1,
+					struct dst_entry **u2,
+					struct flowi6 *u3)
+{
+	return -EAFNOSUPPORT;
+}
+
+const struct ipv6_stub *ipv6_stub __read_mostly = &(struct ipv6_stub) {
+	.ipv6_dst_lookup = eafnosupport_ipv6_dst_lookup,
+};
 EXPORT_SYMBOL_GPL(ipv6_stub);
 
 /* IPv6 Wildcard Address and Loopback Address defined by RFC2553 */

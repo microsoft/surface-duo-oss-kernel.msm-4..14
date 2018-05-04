@@ -189,7 +189,7 @@ void mlx4_ib_notify_slaves_on_guid_change(struct mlx4_ib_dev *dev,
 {
 	int i;
 	u64 guid_indexes;
-	int slave_id;
+	int slave_id, slave_port;
 	enum slave_port_state new_state;
 	enum slave_port_state prev_state;
 	__be64 tmp_cur_ag, form_cache_ag;
@@ -217,6 +217,11 @@ void mlx4_ib_notify_slaves_on_guid_change(struct mlx4_ib_dev *dev,
 		slave_id = (block_num * NUM_ALIAS_GUID_IN_REC) + i ;
 		if (slave_id >= dev->dev->persist->num_vfs + 1)
 			return;
+
+		slave_port = mlx4_phys_to_slave_port(dev->dev, slave_id, port_num);
+		if (slave_port < 0) /* this port isn't available for the VF */
+			continue;
+
 		tmp_cur_ag = *(__be64 *)&p_data[i * GUID_REC_SIZE];
 		form_cache_ag = get_cached_alias_guid(dev, port_num,
 					(NUM_ALIAS_GUID_IN_REC * block_num) + i);
@@ -305,7 +310,7 @@ static void aliasguid_query_handler(int status,
 	if (status) {
 		pr_debug("(port: %d) failed: status = %d\n",
 			 cb_ctx->port, status);
-		rec->time_to_run = ktime_get_real_ns() + 1 * NSEC_PER_SEC;
+		rec->time_to_run = ktime_get_boot_ns() + 1 * NSEC_PER_SEC;
 		goto out;
 	}
 
@@ -411,7 +416,7 @@ next_entry:
 			 be64_to_cpu((__force __be64)rec->guid_indexes),
 			 be64_to_cpu((__force __be64)applied_guid_indexes),
 			 be64_to_cpu((__force __be64)declined_guid_indexes));
-		rec->time_to_run = ktime_get_real_ns() +
+		rec->time_to_run = ktime_get_boot_ns() +
 			resched_delay_sec * NSEC_PER_SEC;
 	} else {
 		rec->status = MLX4_GUID_INFO_STATUS_SET;
@@ -494,6 +499,7 @@ static int set_guid_rec(struct ib_device *ibdev,
 	struct list_head *head =
 		&dev->sriov.alias_guid.ports_guid[port - 1].cb_list;
 
+	memset(&attr, 0, sizeof(attr));
 	err = __mlx4_ib_query_port(ibdev, port, &attr, 1);
 	if (err) {
 		pr_debug("mlx4_ib_query_port failed (err: %d), port: %d\n",
@@ -522,7 +528,7 @@ static int set_guid_rec(struct ib_device *ibdev,
 
 	memset(&guid_info_rec, 0, sizeof (struct ib_sa_guidinfo_rec));
 
-	guid_info_rec.lid = cpu_to_be16(attr.lid);
+	guid_info_rec.lid = ib_lid_be16(attr.lid);
 	guid_info_rec.block_num = index;
 
 	memcpy(guid_info_rec.guid_info_list, rec_det->all_recs,
@@ -703,7 +709,7 @@ static int get_low_record_time_index(struct mlx4_ib_dev *dev, u8 port,
 		}
 	}
 	if (resched_delay_sec) {
-		u64 curr_time = ktime_get_real_ns();
+		u64 curr_time = ktime_get_boot_ns();
 
 		*resched_delay_sec = (low_record_time < curr_time) ? 0 :
 			div_u64((low_record_time - curr_time), NSEC_PER_SEC);
@@ -750,10 +756,8 @@ static void alias_guid_work(struct work_struct *work)
 	struct mlx4_ib_dev *dev = container_of(ib_sriov, struct mlx4_ib_dev, sriov);
 
 	rec = kzalloc(sizeof *rec, GFP_KERNEL);
-	if (!rec) {
-		pr_err("alias_guid_work: No Memory\n");
+	if (!rec)
 		return;
-	}
 
 	pr_debug("starting [port: %d]...\n", sriov_alias_port->port + 1);
 	ret = get_next_record_to_update(dev, sriov_alias_port->port, rec);
@@ -777,7 +781,7 @@ void mlx4_ib_init_alias_guid_work(struct mlx4_ib_dev *dev, int port)
 	spin_lock_irqsave(&dev->sriov.going_down_lock, flags);
 	spin_lock_irqsave(&dev->sriov.alias_guid.ag_work_lock, flags1);
 	if (!dev->sriov.is_going_down) {
-		/* If there is pending one should cancell then run, otherwise
+		/* If there is pending one should cancel then run, otherwise
 		  * won't run till previous one is ended as same work
 		  * struct is used.
 		  */
@@ -876,7 +880,7 @@ int mlx4_ib_init_alias_guid_service(struct mlx4_ib_dev *dev)
 
 		snprintf(alias_wq_name, sizeof alias_wq_name, "alias_guid%d", i);
 		dev->sriov.alias_guid.ports_guid[i].wq =
-			create_singlethread_workqueue(alias_wq_name);
+			alloc_ordered_workqueue(alias_wq_name, WQ_MEM_RECLAIM);
 		if (!dev->sriov.alias_guid.ports_guid[i].wq) {
 			ret = -ENOMEM;
 			goto err_thread;

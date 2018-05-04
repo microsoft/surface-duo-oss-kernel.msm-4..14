@@ -22,7 +22,7 @@
 
 static void __iomem *clk_base;
 
-static DEFINE_SPINLOCK(boot_lock);
+static DEFINE_RAW_SPINLOCK(boot_lock);
 
 static void sirfsoc_secondary_init(unsigned int cpu)
 {
@@ -36,8 +36,8 @@ static void sirfsoc_secondary_init(unsigned int cpu)
 	/*
 	 * Synchronise with the boot thread.
 	 */
-	spin_lock(&boot_lock);
-	spin_unlock(&boot_lock);
+	raw_spin_lock(&boot_lock);
+	raw_spin_unlock(&boot_lock);
 }
 
 static const struct of_device_id clk_ids[]  = {
@@ -65,7 +65,7 @@ static int sirfsoc_boot_secondary(unsigned int cpu, struct task_struct *idle)
 	 * waiting for. This would wake up the secondary core from WFE
 	 */
 #define SIRFSOC_CPU1_JUMPADDR_OFFSET 0x2bc
-	__raw_writel(virt_to_phys(sirfsoc_secondary_startup),
+	__raw_writel(__pa_symbol(sirfsoc_secondary_startup),
 		clk_base + SIRFSOC_CPU1_JUMPADDR_OFFSET);
 
 #define SIRFSOC_CPU1_WAKEMAGIC_OFFSET 0x2b8
@@ -75,7 +75,7 @@ static int sirfsoc_boot_secondary(unsigned int cpu, struct task_struct *idle)
 	/* make sure write buffer is drained */
 	mb();
 
-	spin_lock(&boot_lock);
+	raw_spin_lock(&boot_lock);
 
 	/*
 	 * The secondary processor is waiting to be released from
@@ -107,12 +107,12 @@ static int sirfsoc_boot_secondary(unsigned int cpu, struct task_struct *idle)
 	 * now the secondary core is starting up let it run its
 	 * calibrations, then wait for it to finish
 	 */
-	spin_unlock(&boot_lock);
+	raw_spin_unlock(&boot_lock);
 
 	return pen_release != -1 ? -ENOSYS : 0;
 }
 
-struct smp_operations sirfsoc_smp_ops __initdata = {
+const struct smp_operations sirfsoc_smp_ops __initconst = {
 	.smp_secondary_init     = sirfsoc_secondary_init,
 	.smp_boot_secondary     = sirfsoc_boot_secondary,
 #ifdef CONFIG_HOTPLUG_CPU

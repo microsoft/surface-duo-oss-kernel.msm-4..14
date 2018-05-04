@@ -71,7 +71,7 @@ static int i2c_opal_send_request(u32 bus_id, struct opal_i2c_request *req)
 	if (rc)
 		goto exit;
 
-	rc = be64_to_cpu(msg.params[1]);
+	rc = opal_get_async_rc(msg);
 	if (rc != OPAL_SUCCESS) {
 		rc = i2c_opal_translate_error(rc);
 		goto exit;
@@ -204,7 +204,7 @@ static const struct i2c_algorithm i2c_opal_algo = {
  * For two messages, we basically support simple smbus transactions of a
  * write-then-anything.
  */
-static struct i2c_adapter_quirks i2c_opal_quirks = {
+static const struct i2c_adapter_quirks i2c_opal_quirks = {
 	.flags = I2C_AQ_COMB | I2C_AQ_COMB_WRITE_FIRST | I2C_AQ_COMB_SAME_ADDR,
 	.max_comb_1st_msg_len = 4,
 };

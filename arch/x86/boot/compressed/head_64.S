@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *  linux/boot/head.S
  *
@@ -32,6 +33,14 @@
 #include <asm/processor-flags.h>
 #include <asm/asm-offsets.h>
 #include <asm/bootparam.h>
+
+/*
+ * Locally defined symbols should be marked hidden:
+ */
+	.hidden _bss
+	.hidden _ebss
+	.hidden _got
+	.hidden _egot
 
 	__HEAD
 	.code32
@@ -102,15 +111,16 @@ ENTRY(startup_32)
 1:
 
 	/* Target address to relocate to for decompression */
-	addl	$z_extract_offset, %ebx
+	movl	BP_init_size(%esi), %eax
+	subl	$_end, %eax
+	addl	%eax, %ebx
 
 /*
  * Prepare for entering 64 bit mode
  */
 
 	/* Load new GDT with the 64bit segments using 32bit descriptor */
-	leal	gdt(%ebp), %eax
-	movl	%eax, gdt+2(%ebp)
+	addl	%ebp, gdt+2(%ebp)
 	lgdt	gdt(%ebp)
 
 	/* Enable PAE mode */
@@ -124,7 +134,7 @@ ENTRY(startup_32)
 	/* Initialize Page tables to 0 */
 	leal	pgtable(%ebx), %edi
 	xorl	%eax, %eax
-	movl	$((4096*6)/4), %ecx
+	movl	$(BOOT_INIT_PGT_SIZE/4), %ecx
 	rep	stosl
 
 	/* Build Level 4 */
@@ -234,65 +244,6 @@ ENTRY(startup_64)
 	 * that maps our entire kernel(text+data+bss+brk), zero page
 	 * and command line.
 	 */
-#ifdef CONFIG_EFI_STUB
-	/*
-	 * The entry point for the PE/COFF executable is efi_pe_entry, so
-	 * only legacy boot loaders will execute this jmp.
-	 */
-	jmp	preferred_addr
-
-ENTRY(efi_pe_entry)
-	movq	%rcx, efi64_config(%rip)	/* Handle */
-	movq	%rdx, efi64_config+8(%rip) /* EFI System table pointer */
-
-	leaq	efi64_config(%rip), %rax
-	movq	%rax, efi_config(%rip)
-
-	call	1f
-1:	popq	%rbp
-	subq	$1b, %rbp
-
-	/*
-	 * Relocate efi_config->call().
-	 */
-	addq	%rbp, efi64_config+88(%rip)
-
-	movq	%rax, %rdi
-	call	make_boot_params
-	cmpq	$0,%rax
-	je	fail
-	mov	%rax, %rsi
-	leaq	startup_32(%rip), %rax
-	movl	%eax, BP_code32_start(%rsi)
-	jmp	2f		/* Skip the relocation */
-
-handover_entry:
-	call	1f
-1:	popq	%rbp
-	subq	$1b, %rbp
-
-	/*
-	 * Relocate efi_config->call().
-	 */
-	movq	efi_config(%rip), %rax
-	addq	%rbp, 88(%rax)
-2:
-	movq	efi_config(%rip), %rdi
-	call	efi_main
-	movq	%rax,%rsi
-	cmpq	$0,%rax
-	jne	2f
-fail:
-	/* EFI init failed, so hang. */
-	hlt
-	jmp	fail
-2:
-	movl	BP_code32_start(%esi), %eax
-	leaq	preferred_addr(%rax), %rax
-	jmp	*%rax
-
-preferred_addr:
-#endif
 
 	/* Setup data segments. */
 	xorl	%eax, %eax
@@ -330,10 +281,62 @@ preferred_addr:
 1:
 
 	/* Target address to relocate to for decompression */
-	leaq	z_extract_offset(%rbp), %rbx
+	movl	BP_init_size(%rsi), %ebx
+	subl	$_end, %ebx
+	addq	%rbp, %rbx
 
 	/* Set up the stack */
 	leaq	boot_stack_end(%rbx), %rsp
+
+#ifdef CONFIG_X86_5LEVEL
+	/*
+	 * Check if we need to enable 5-level paging.
+	 * RSI holds real mode data and need to be preserved across
+	 * a function call.
+	 */
+	pushq	%rsi
+	call	l5_paging_required
+	popq	%rsi
+
+	/* If l5_paging_required() returned zero, we're done here. */
+	cmpq	$0, %rax
+	je	lvl5
+
+	/*
+	 * At this point we are in long mode with 4-level paging enabled,
+	 * but we want to enable 5-level paging.
+	 *
+	 * The problem is that we cannot do it directly. Setting LA57 in
+	 * long mode would trigger #GP. So we need to switch off long mode
+	 * first.
+	 *
+	 * NOTE: This is not going to work if bootloader put us above 4G
+	 * limit.
+	 *
+	 * The first step is go into compatibility mode.
+	 */
+
+	/* Clear additional page table */
+	leaq	lvl5_pgtable(%rbx), %rdi
+	xorq	%rax, %rax
+	movq	$(PAGE_SIZE/8), %rcx
+	rep	stosq
+
+	/*
+	 * Setup current CR3 as the first and only entry in a new top level
+	 * page table.
+	 */
+	movq	%cr3, %rdi
+	leaq	0x7 (%rdi), %rax
+	movq	%rax, lvl5_pgtable(%rbx)
+
+	/* Switch to compatibility mode (CS.L = 0 CS.D = 1) via far return */
+	pushq	$__KERNEL32_CS
+	leaq	compatible_mode(%rip), %rax
+	pushq	%rax
+	lretq
+lvl5:
+#endif
 
 	/* Zero EFLAGS */
 	pushq	$0
@@ -360,6 +363,59 @@ preferred_addr:
 	jmp	*%rax
 
 #ifdef CONFIG_EFI_STUB
+
+/* The entry point for the PE/COFF executable is efi_pe_entry. */
+ENTRY(efi_pe_entry)
+	movq	%rcx, efi64_config(%rip)	/* Handle */
+	movq	%rdx, efi64_config+8(%rip) /* EFI System table pointer */
+
+	leaq	efi64_config(%rip), %rax
+	movq	%rax, efi_config(%rip)
+
+	call	1f
+1:	popq	%rbp
+	subq	$1b, %rbp
+
+	/*
+	 * Relocate efi_config->call().
+	 */
+	addq	%rbp, efi64_config+40(%rip)
+
+	movq	%rax, %rdi
+	call	make_boot_params
+	cmpq	$0,%rax
+	je	fail
+	mov	%rax, %rsi
+	leaq	startup_32(%rip), %rax
+	movl	%eax, BP_code32_start(%rsi)
+	jmp	2f		/* Skip the relocation */
+
+handover_entry:
+	call	1f
+1:	popq	%rbp
+	subq	$1b, %rbp
+
+	/*
+	 * Relocate efi_config->call().
+	 */
+	movq	efi_config(%rip), %rax
+	addq	%rbp, 40(%rax)
+2:
+	movq	efi_config(%rip), %rdi
+	call	efi_main
+	movq	%rax,%rsi
+	cmpq	$0,%rax
+	jne	2f
+fail:
+	/* EFI init failed, so hang. */
+	hlt
+	jmp	fail
+2:
+	movl	BP_code32_start(%esi), %eax
+	leaq	startup_64(%rax), %rax
+	jmp	*%rax
+ENDPROC(efi_pe_entry)
+
 	.org 0x390
 ENTRY(efi64_stub_entry)
 	movq	%rdi, efi64_config(%rip)	/* Handle */
@@ -400,19 +456,16 @@ relocated:
 2:
 	
 /*
- * Do the decompression, and jump to the new kernel..
+ * Do the extraction, and jump to the new kernel..
  */
 	pushq	%rsi			/* Save the real mode argument */
-	movq	$z_run_size, %r9	/* size of kernel with .bss and .brk */
-	pushq	%r9
 	movq	%rsi, %rdi		/* real mode address */
 	leaq	boot_heap(%rip), %rsi	/* malloc area for uncompression */
 	leaq	input_data(%rip), %rdx  /* input_data */
 	movl	$z_input_len, %ecx	/* input_len */
 	movq	%rbp, %r8		/* output target address */
 	movq	$z_output_len, %r9	/* decompressed length, end of relocs */
-	call	decompress_kernel	/* returns kernel location in %rax */
-	popq	%r9
+	call	extract_kernel		/* returns kernel location in %rax */
 	popq	%rsi
 
 /*
@@ -421,6 +474,44 @@ relocated:
 	jmp	*%rax
 
 	.code32
+#ifdef CONFIG_X86_5LEVEL
+compatible_mode:
+	/* Setup data and stack segments */
+	movl	$__KERNEL_DS, %eax
+	movl	%eax, %ds
+	movl	%eax, %ss
+
+	/* Disable paging */
+	movl	%cr0, %eax
+	btrl	$X86_CR0_PG_BIT, %eax
+	movl	%eax, %cr0
+
+	/* Point CR3 to 5-level paging */
+	leal	lvl5_pgtable(%ebx), %eax
+	movl	%eax, %cr3
+
+	/* Enable PAE and LA57 mode */
+	movl	%cr4, %eax
+	orl	$(X86_CR4_PAE | X86_CR4_LA57), %eax
+	movl	%eax, %cr4
+
+	/* Calculate address we are running at */
+	call	1f
+1:	popl	%edi
+	subl	$1b, %edi
+
+	/* Prepare stack for far return to Long Mode */
+	pushl	$__KERNEL_CS
+	leal	lvl5(%edi), %eax
+	push	%eax
+
+	/* Enable paging back */
+	movl	$(X86_CR0_PG | X86_CR0_PE), %eax
+	movl	%eax, %cr0
+
+	lret
+#endif
+
 no_longmode:
 	/* This isn't an x86-64 CPU so hang */
 1:
@@ -434,7 +525,7 @@ gdt:
 	.word	gdt_end - gdt
 	.long	gdt
 	.word	0
-	.quad	0x0000000000000000	/* NULL descriptor */
+	.quad	0x00cf9a000000ffff	/* __KERNEL32_CS */
 	.quad	0x00af9a000000ffff	/* __KERNEL_CS */
 	.quad	0x00cf92000000ffff	/* __KERNEL_DS */
 	.quad	0x0080890000000000	/* TS descriptor */
@@ -448,14 +539,14 @@ efi_config:
 #ifdef CONFIG_EFI_MIXED
 	.global efi32_config
 efi32_config:
-	.fill	11,8,0
+	.fill	5,8,0
 	.quad	efi64_thunk
 	.byte	0
 #endif
 
 	.global efi64_config
 efi64_config:
-	.fill	11,8,0
+	.fill	5,8,0
 	.quad	efi_call
 	.byte	1
 #endif /* CONFIG_EFI_STUB */
@@ -477,4 +568,8 @@ boot_stack_end:
 	.section ".pgtable","a",@nobits
 	.balign 4096
 pgtable:
-	.fill 6*4096, 1, 0
+	.fill BOOT_PGT_SIZE, 1, 0
+#ifdef CONFIG_X86_5LEVEL
+lvl5_pgtable:
+	.fill PAGE_SIZE, 1, 0
+#endif

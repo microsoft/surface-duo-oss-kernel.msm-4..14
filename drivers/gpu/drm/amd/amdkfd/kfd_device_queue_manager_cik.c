@@ -23,6 +23,8 @@
 
 #include "kfd_device_queue_manager.h"
 #include "cik_regs.h"
+#include "oss/oss_2_4_sh_mask.h"
+#include "gca/gfx_7_2_sh_mask.h"
 
 static bool set_cache_memory_policy_cik(struct device_queue_manager *dqm,
 				   struct qcm_process_device *qpd,
@@ -33,12 +35,15 @@ static bool set_cache_memory_policy_cik(struct device_queue_manager *dqm,
 static int register_process_cik(struct device_queue_manager *dqm,
 					struct qcm_process_device *qpd);
 static int initialize_cpsch_cik(struct device_queue_manager *dqm);
+static void init_sdma_vm(struct device_queue_manager *dqm, struct queue *q,
+				struct qcm_process_device *qpd);
 
-void device_queue_manager_init_cik(struct device_queue_manager_ops *ops)
+void device_queue_manager_init_cik(struct device_queue_manager_asic_ops *ops)
 {
 	ops->set_cache_memory_policy = set_cache_memory_policy_cik;
 	ops->register_process = register_process_cik;
 	ops->initialize = initialize_cpsch_cik;
+	ops->init_sdma_vm = init_sdma_vm;
 }
 
 static uint32_t compute_sh_mem_bases_64bit(unsigned int top_address_nybble)
@@ -61,7 +66,7 @@ static uint32_t compute_sh_mem_bases_64bit(unsigned int top_address_nybble)
 	 * for LDS/Scratch and GPUVM.
 	 */
 
-	BUG_ON((top_address_nybble & 1) || top_address_nybble > 0xE ||
+	WARN_ON((top_address_nybble & 1) || top_address_nybble > 0xE ||
 		top_address_nybble == 0);
 
 	return PRIVATE_BASE(top_address_nybble << 12) |
@@ -100,8 +105,6 @@ static int register_process_cik(struct device_queue_manager *dqm,
 	struct kfd_process_device *pdd;
 	unsigned int temp;
 
-	BUG_ON(!dqm || !qpd);
-
 	pdd = qpd_to_pdd(qpd);
 
 	/* check if sh_mem_config register already configured */
@@ -121,15 +124,32 @@ static int register_process_cik(struct device_queue_manager *dqm,
 	} else {
 		temp = get_sh_mem_bases_nybble_64(pdd);
 		qpd->sh_mem_bases = compute_sh_mem_bases_64bit(temp);
+		qpd->sh_mem_config |= 1  << SH_MEM_CONFIG__PRIVATE_ATC__SHIFT;
 	}
 
-	pr_debug("kfd: is32bit process: %d sh_mem_bases nybble: 0x%X and register 0x%X\n",
+	pr_debug("is32bit process: %d sh_mem_bases nybble: 0x%X and register 0x%X\n",
 		qpd->pqm->process->is_32bit_user_mode, temp, qpd->sh_mem_bases);
 
 	return 0;
 }
 
+static void init_sdma_vm(struct device_queue_manager *dqm, struct queue *q,
+				struct qcm_process_device *qpd)
+{
+	uint32_t value = (1 << SDMA0_RLC0_VIRTUAL_ADDR__ATC__SHIFT);
+
+	if (q->process->is_32bit_user_mode)
+		value |= (1 << SDMA0_RLC0_VIRTUAL_ADDR__PTR32__SHIFT) |
+				get_sh_mem_bases_32(qpd_to_pdd(qpd));
+	else
+		value |= ((get_sh_mem_bases_nybble_64(qpd_to_pdd(qpd))) <<
+				SDMA0_RLC0_VIRTUAL_ADDR__SHARED_BASE__SHIFT) &
+				SDMA0_RLC0_VIRTUAL_ADDR__SHARED_BASE_MASK;
+
+	q->properties.sdma_vm_addr = value;
+}
+
 static int initialize_cpsch_cik(struct device_queue_manager *dqm)
 {
-	return init_pipelines(dqm, get_pipes_num(dqm), get_first_pipe(dqm));
+	return 0;
 }

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * This module exports the functions:
  *
@@ -16,7 +17,7 @@
 #include <linux/slab.h>
 #include <linux/types.h>
 
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 
 #include <linux/kbd_kern.h>
 #include <linux/vt_kern.h>
@@ -80,21 +81,17 @@ void clear_selection(void)
 
 /*
  * User settable table: what characters are to be considered alphabetic?
- * 256 bits. Locked by the console lock.
+ * 128 bits. Locked by the console lock.
  */
-static u32 inwordLut[8]={
+static u32 inwordLut[]={
   0x00000000, /* control chars     */
-  0x03FF0000, /* digits            */
+  0x03FFE000, /* digits and "-./"  */
   0x87FFFFFE, /* uppercase and '_' */
   0x07FFFFFE, /* lowercase         */
-  0x00000000,
-  0x00000000,
-  0xFF7FFFFF, /* latin-1 accented letters, not multiplication sign */
-  0xFF7FFFFF  /* latin-1 accented letters, not division sign */
 };
 
 static inline int inword(const u16 c) {
-	return c > 0xff || (( inwordLut[c>>5] >> (c & 0x1F) ) & 1);
+	return c > 0x7f || (( inwordLut[c>>5] >> (c & 0x1F) ) & 1);
 }
 
 /**
@@ -106,10 +103,10 @@ static inline int inword(const u16 c) {
  */
 int sel_loadlut(char __user *p)
 {
-	u32 tmplut[8];
-	if (copy_from_user(tmplut, (u32 __user *)(p+4), 32))
+	u32 tmplut[ARRAY_SIZE(inwordLut)];
+	if (copy_from_user(tmplut, (u32 __user *)(p+4), sizeof(inwordLut)))
 		return -EFAULT;
-	memcpy(inwordLut, tmplut, 32);
+	memcpy(inwordLut, tmplut, sizeof(inwordLut));
 	return 0;
 }
 
@@ -347,15 +344,18 @@ int paste_selection(struct tty_struct *tty)
 	console_unlock();
 
 	ld = tty_ldisc_ref_wait(tty);
+	if (!ld)
+		return -EIO;	/* ldisc was hung up */
 	tty_buffer_lock_exclusive(&vc->port);
 
 	add_wait_queue(&vc->paste_wait, &wait);
 	while (sel_buffer && sel_buffer_lth > pasted) {
 		set_current_state(TASK_INTERRUPTIBLE);
-		if (test_bit(TTY_THROTTLED, &tty->flags)) {
+		if (tty_throttled(tty)) {
 			schedule();
 			continue;
 		}
+		__set_current_state(TASK_RUNNING);
 		count = sel_buffer_lth - pasted;
 		count = tty_ldisc_receive_buf(ld, sel_buffer + pasted, NULL,
 					      count);
