@@ -23,7 +23,7 @@
 #include <linux/gpio.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
-#include <linux/basic_mmio_gpio.h>
+#include <linux/gpio/driver.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/module.h>
