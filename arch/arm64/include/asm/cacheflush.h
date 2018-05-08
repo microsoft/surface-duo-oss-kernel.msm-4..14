@@ -94,7 +94,6 @@ static inline void flush_cache_range(struct vm_area_struct *vma,
 extern void __dma_map_area(const void *, size_t, int);
 extern void __dma_unmap_area(const void *, size_t, int);
 extern void __dma_flush_range(const void *, const void *);
-extern void __inval_cache_range(const void *, const void *);
 extern void __dma_flush_area(const void *, size_t);
 
 /*
