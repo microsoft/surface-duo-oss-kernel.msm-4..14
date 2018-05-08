@@ -217,7 +217,7 @@ static int siul2_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 	return 0;
 }
 
-static void siul2_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
+static void siul2_gpio_irq_handler(struct irq_desc *desc)
 {
 	struct gpio_chip *gc = irq_desc_get_handler_data(desc);
 	struct siul2_gpio_dev *gpio_dev = to_siul2_gpio_dev(gc);
