@@ -1987,7 +1987,8 @@ static struct phy_device *search_phy_by_addr(int phy_addr)
 	while (dev) {
 		if (dev->phydev) {
 			/* check if there is a phy at given addr */
-			phydev = dev->phydev->mdio.bus->phy_map[phy_addr];
+			phydev = mdiobus_get_phy(dev->phydev->mdio.bus,
+						 phy_addr);
 			if (phydev)
 				return phydev;
 		}
@@ -2008,8 +2009,8 @@ static struct phy_device *search_mdio_by_id(struct mii_bus *bus, int phy_id)
 
 	/* search the bus for a phy with the specified phy_id */
 	for (addr = 0; addr < PHY_MAX_ADDR; addr++) {
-		if (bus->phy_map[addr]) {
-			phydev = bus->phy_map[addr];
+		phydev = mdiobus_get_phy(bus, addr);
+		if (phydev) {
 			if ((phydev->phy_id & NXP_PHY_ID_MASK) == phy_id) {
 				pr_alert("found the given phy\n");
 
