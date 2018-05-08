@@ -181,7 +181,7 @@ static int siul2_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 
 	ret = pinctrl_gpio_direction_input(gc->base + eirq);
 	if (ret) {
-		dev_err(gc->dev, "Failed to configure %d pin as input pin\n",
+		dev_err(gc->parent, "Failed to configure %d pin as input pin\n",
 			eirq);
 		return ret;
 	}
@@ -189,7 +189,7 @@ static int siul2_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 	/* SIUL2 GPIO doesn't support level triggering */
 	if ((irq_type & IRQ_TYPE_LEVEL_HIGH)
 	    || (irq_type & IRQ_TYPE_LEVEL_LOW)) {
-		dev_err(gc->dev,
+		dev_err(gc->parent,
 			"Invalid SIUL2 GPIO irq type 0x%x\n", type);
 		return -EINVAL;
 	}
@@ -571,7 +571,7 @@ int siul2_gpio_probe(struct platform_device *pdev)
 	gpio_dev->pin_dir_bitmap = devm_kzalloc(&pdev->dev, bitmap_size,
 						GFP_KERNEL);
 
-	gc->dev = &pdev->dev;
+	gc->parent = &pdev->dev;
 	gc->label = dev_name(&pdev->dev);
 	gc->set = siul2_gpio_set;
 	gc->get = siul2_gpio_get;
