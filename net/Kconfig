@@ -59,6 +59,7 @@ source "net/tls/Kconfig"
 source "net/xfrm/Kconfig"
 source "net/iucv/Kconfig"
 source "net/smc/Kconfig"
+source "net/xdp/Kconfig"
 
 config INET
 	bool "TCP/IP networking"
@@ -407,6 +408,9 @@ config GRO_CELLS
 	bool
 	default n
 
+config SOCK_VALIDATE_XMIT
+	bool
+
 config NET_DEVLINK
 	tristate "Network physical/parent device Netlink interface"
 	help
@@ -422,6 +426,9 @@ config MAY_USE_DEVLINK
 	  Drivers using the devlink infrastructure should have a dependency
 	  on MAY_USE_DEVLINK to ensure they do not cause link errors when
 	  devlink is a loadable module and the driver using it is built-in.
+
+config PAGE_POOL
+       bool
 
 endif   # if NET
 

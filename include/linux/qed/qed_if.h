@@ -159,6 +159,9 @@ struct qed_dcbx_get {
 enum qed_nvm_images {
 	QED_NVM_IMAGE_ISCSI_CFG,
 	QED_NVM_IMAGE_FCOE_CFG,
+	QED_NVM_IMAGE_NVM_CFG1,
+	QED_NVM_IMAGE_DEFAULT_CFG,
+	QED_NVM_IMAGE_NVM_META,
 };
 
 struct qed_link_eee_params {
@@ -336,7 +339,6 @@ struct qed_dev_info {
 	u8		num_hwfns;
 
 	u8		hw_mac[ETH_ALEN];
-	bool		is_mf_default;
 
 	/* FW version */
 	u16		fw_major;
@@ -356,7 +358,7 @@ struct qed_dev_info {
 #define QED_MFW_VERSION_3_OFFSET	24
 
 	u32		flash_size;
-	u8		mf_mode;
+	bool		b_inter_pf_switch;
 	bool		tx_switching;
 	bool		rdma_supported;
 	u16		mtu;
