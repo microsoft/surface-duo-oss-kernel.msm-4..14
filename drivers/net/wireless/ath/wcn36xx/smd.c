@@ -1560,6 +1560,7 @@ out:
 
 int wcn36xx_smd_set_bsskey(struct wcn36xx *wcn,
 			   enum ani_ed_type enc_type,
+			   u8 bssidx,
 			   u8 keyidx,
 			   u8 keylen,
 			   u8 *key)
@@ -1569,7 +1570,7 @@ int wcn36xx_smd_set_bsskey(struct wcn36xx *wcn,
 
 	mutex_lock(&wcn->hal_mutex);
 	INIT_HAL_MSG(msg_body, WCN36XX_HAL_SET_BSSKEY_REQ);
-	msg_body.bss_idx = 0;
+	msg_body.bss_idx = bssidx;
 	msg_body.enc_type = enc_type;
 	msg_body.num_keys = 1;
 	msg_body.keys[0].id = keyidx;
@@ -1630,6 +1631,7 @@ out:
 
 int wcn36xx_smd_remove_bsskey(struct wcn36xx *wcn,
 			      enum ani_ed_type enc_type,
+			      u8 bssidx,
 			      u8 keyidx)
 {
 	struct wcn36xx_hal_remove_bss_key_req_msg msg_body;
@@ -1637,7 +1639,7 @@ int wcn36xx_smd_remove_bsskey(struct wcn36xx *wcn,
 
 	mutex_lock(&wcn->hal_mutex);
 	INIT_HAL_MSG(msg_body, WCN36XX_HAL_RMV_BSSKEY_REQ);
-	msg_body.bss_idx = 0;
+	msg_body.bss_idx = bssidx;
 	msg_body.enc_type = enc_type;
 	msg_body.key_id = keyidx;
 
