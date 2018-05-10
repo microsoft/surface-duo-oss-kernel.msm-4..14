@@ -1,0 +1,37 @@
+S32V234 Fault Collection and Control Unit
+
+This is a module, it used to collect and control fault signals from
+peripherals. It requires a correct configuration to enable reception and react
+to a signal from a channel.
+
+After it is configured successfully, a reset signal from a configured channel can
+reset system. If a signal is generated before FCCU is configured, the signal
+will be ignored.
+
+Required properties:
+ - compatible: 		should be set to "fsl,s32v234-fccu"
+ - cfg_reg_off: 	the offsets of NCF_CFGn and NCF_Sn register
+ - cfg_reg_val: 	the values of NCF_CFGn and NCF_Sn register
+ - reg:				the address range
+
+Any driver requiring access to FCCU registers should reference it from its own
+device tree node.
+
+Example:
+
+fccu: fccu@400B0000 {
+				compatible = "fsl,s32v234-fccu";
+				reg = <0x0 0x400B0000 0x0 0x1000>;
+				clocks = <&clks S32V234_CLK_SYS6>;
+				clock-names = "fccu";
+				cfg_reg_off = <0x9C 0x5C 0x60>;
+				cfg_reg_val = <0x3C000 0xA0000000 0xA>;
+				status = "disabled";
+			};
+
+....
+
+some-device {
+	....
+	memory-region = <&shared_memory>;
+};
