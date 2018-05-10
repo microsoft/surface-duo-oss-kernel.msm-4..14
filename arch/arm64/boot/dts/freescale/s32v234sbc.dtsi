@@ -673,6 +673,10 @@ spidev0: spidev@0 {
 	status = "okay";
 };
 
+&fccu {
+	status = "okay";
+};
+
 &uart0 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_uart0>;
