@@ -627,7 +627,7 @@ static void linflex_break_ctl(struct uart_port *port, int break_state)
 }
 static void linflex_setup_watermark(struct linflex_port *sport)
 {
-	unsigned long cr, ier, cr1;
+	unsigned long cr, ier, cr1, temp;
 
 	/* Disable transmission/reception */
 	ier = readl(sport->port.membase + LINIER);
@@ -683,9 +683,17 @@ static void linflex_setup_watermark(struct linflex_port *sport)
 	ier = readl(sport->port.membase + LINIER);
 	if (!sport->dma_rx_use)
 		ier |= LINFLEXD_LINIER_DRIE;
+	else {
+		temp = readl(sport->port.membase + DMARXE);
+		writel(temp | 0x1, sport->port.membase + DMARXE);
+	}
 
 	if (!sport->dma_tx_use)
 		ier |= LINFLEXD_LINIER_DTIE;
+	else {
+		temp = readl(sport->port.membase + DMATXE);
+		writel(temp | 0x1, sport->port.membase + DMATXE);
+	}
 
 	writel(ier, sport->port.membase + LINIER);
 }
@@ -802,42 +810,30 @@ static int linflex_startup(struct uart_port *port)
 	struct linflex_port *sport = container_of(port,
 					struct linflex_port, port);
 	int ret = 0;
-	unsigned long flags, temp;
+	unsigned long flags;
 
 	sport->txfifo_size = LINFLEXD_UARTCR_TXFIFO_SIZE;
 	sport->rxfifo_size = LINFLEXD_UARTCR_RXFIFO_SIZE;
 	sport->port.fifosize = sport->txfifo_size;
 
-	if (sport->dma_rx_chan && !linflex_dma_rx_request(port)) {
-		sport->dma_rx_use = true;
-		temp = readl(port->membase + DMARXE);
-		writel(temp | 0x1, port->membase + DMARXE);
+	sport->dma_rx_use = sport->dma_rx_chan && !linflex_dma_rx_request(port);
+	sport->dma_tx_use = sport->dma_tx_chan && !linflex_dma_tx_request(port);
+
+	spin_lock_irqsave(&sport->port.lock, flags);
+	linflex_setup_watermark(sport);
+	spin_unlock_irqrestore(&sport->port.lock, flags);
+
+	if (!sport->dma_rx_use || !sport->dma_tx_use) {
+		ret = devm_request_irq(port->dev, port->irq, linflex_int, 0,
+						DRIVER_NAME, sport);
+	}
+	if (sport->dma_rx_use) {
 		setup_timer(&sport->timer, linflex_timer_func,
 				(unsigned long)sport);
 
 		linflex_dma_rx(sport);
 		sport->timer.expires = jiffies + sport->dma_rx_timeout;
 		add_timer(&sport->timer);
-	} else
-		sport->dma_rx_use = false;
-
-	if (sport->dma_tx_chan && !linflex_dma_tx_request(port)) {
-		sport->dma_tx_use = true;
-		temp = readl(port->membase + DMATXE);
-		writel(temp | 0x1, port->membase + DMATXE);
-
-	} else
-		sport->dma_tx_use = false;
-
-	spin_lock_irqsave(&sport->port.lock, flags);
-
-	linflex_setup_watermark(sport);
-
-	spin_unlock_irqrestore(&sport->port.lock, flags);
-
-	if (!sport->dma_rx_use || !sport->dma_tx_use) {
-		ret = devm_request_irq(port->dev, port->irq, linflex_int, 0,
-						DRIVER_NAME, sport);
 	}
 
 	return ret;
