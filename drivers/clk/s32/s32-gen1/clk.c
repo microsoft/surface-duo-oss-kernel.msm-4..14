@@ -272,7 +272,7 @@ static void __init s32gen1_clocks_init(struct device_node *clocking_node)
 		&share_count_linflex2gate, &s32gen1_lock);
 
 	/* DSPI Clock */
-	clk[S32GEN1_CLK_LIN_BAUD] = s32_clk_mux_table("spi_sel",
+	clk[S32GEN1_CLK_DSPI] = s32_clk_mux_table("spi_sel",
 		CGM_MUXn_CSC(mc_cgm0_base, 16),
 		MC_CGM_MUXn_CSC_SELCTL_OFFSET,
 		MC_CGM_MUXn_CSC_SELCTL_SIZE,

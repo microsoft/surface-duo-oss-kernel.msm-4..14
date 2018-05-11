@@ -77,6 +77,7 @@
 #define S32GEN1_CLK_SPI3                        56
 #define S32GEN1_CLK_SPI4                        57
 #define S32GEN1_CLK_SPI5                        58
+#define S32GEN1_CLK_DSPI                        59
 
-#define	S32GEN1_CLK_END				59
+#define	S32GEN1_CLK_END				60
 #endif /* __DT_BINDINGS_CLOCK_S32GEN1_H */
