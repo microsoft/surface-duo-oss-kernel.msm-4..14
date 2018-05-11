@@ -1303,7 +1303,15 @@ static void
 linflex_console_write(struct console *co, const char *s, unsigned int count)
 {
 	struct linflex_port *sport = linflex_ports[co->index];
-	unsigned long cr, ier = 0, temp;
+	unsigned long cr, ier = 0, temp, flags;
+	int locked = 1;
+
+	if (sport->port.sysrq)
+		locked = 0;
+	else if (oops_in_progress)
+		locked = spin_trylock_irqsave(&sport->port.lock, flags);
+	else
+		spin_lock_irqsave(&sport->port.lock, flags);
 
 	/* First save CR2 and then disable interrupts. */
 	if (!sport->dma_tx_use)
@@ -1326,6 +1334,9 @@ linflex_console_write(struct console *co, const char *s, unsigned int count)
 		temp = readl(sport->port.membase + DMATXE);
 		writel(temp | 0x1, sport->port.membase + DMATXE);
 	}
+
+	if (locked)
+		spin_unlock_irqrestore(&sport->port.lock, flags);
 }
 
 /*
