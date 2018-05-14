@@ -18,7 +18,8 @@
  * Bug fixes and cleanup by Philippe De Muyter (phdm@macqel.be)
  * Copyright (c) 2004-2006 Macq Electronique SA.
  *
- * Copyright (C) 2010-2011 Freescale Semiconductor, Inc.
+ * Copyright (C) 2010-2015 Freescale Semiconductor, Inc.
+ * Copyright (C) 2018 NXP
  */
 
 #include <linux/module.h>
@@ -121,6 +122,12 @@ static struct platform_device_id fec_devtype[] = {
 				FEC_QUIRK_BUG_CAPTURE | FEC_QUIRK_HAS_RACC |
 				FEC_QUIRK_HAS_COALESCE,
 	}, {
+		.name = "s32v234-fec",
+		.driver_data = FEC_QUIRK_ENET_MAC | FEC_QUIRK_HAS_GBIT |
+				FEC_QUIRK_HAS_BUFDESC_EX | FEC_QUIRK_HAS_CSUM |
+				FEC_QUIRK_HAS_VLAN | FEC_QUIRK_HAS_AVB |
+				FEC_QUIRK_ERR007885 | FEC_QUIRK_BUG_CAPTURE,
+	}, {
 		/* sentinel */
 	}
 };
@@ -134,6 +141,7 @@ enum imx_fec_type {
 	MVF600_FEC,
 	IMX6SX_FEC,
 	IMX6UL_FEC,
+	S32V234_FEC,
 };
 
 static const struct of_device_id fec_dt_ids[] = {
@@ -144,6 +152,7 @@ static const struct of_device_id fec_dt_ids[] = {
 	{ .compatible = "fsl,mvf600-fec", .data = &fec_devtype[MVF600_FEC], },
 	{ .compatible = "fsl,imx6sx-fec", .data = &fec_devtype[IMX6SX_FEC], },
 	{ .compatible = "fsl,imx6ul-fec", .data = &fec_devtype[IMX6UL_FEC], },
+	{ .compatible = "fsl,s32v234-fec", .data = &fec_devtype[S32V234_FEC], },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, fec_dt_ids);
@@ -195,7 +204,8 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
  * account when setting it.
  */
 #if defined(CONFIG_M523x) || defined(CONFIG_M527x) || defined(CONFIG_M528x) || \
-    defined(CONFIG_M520x) || defined(CONFIG_M532x) || defined(CONFIG_ARM)
+	defined(CONFIG_M520x) || defined(CONFIG_M532x) || \
+	defined(CONFIG_ARM) || defined(CONFIG_ARM64)
 #define	OPT_FRAME_SIZE	(PKT_MAXBUF_SIZE << 16)
 #else
 #define	OPT_FRAME_SIZE	0
@@ -233,6 +243,9 @@ MODULE_PARM_DESC(macaddr, "FEC Ethernet MAC address");
 #define IS_TSO_HEADER(txq, addr) \
 	((addr >= txq->tso_hdrs_dma) && \
 	(addr < txq->tso_hdrs_dma + txq->bd.ring_size * TSO_HEADER_SIZE))
+
+void (*fec_cb)(int status_change, int link) = NULL;
+static DEFINE_MUTEX(fec_cb_lock);
 
 static int mii_cnt;
 
@@ -1765,13 +1778,70 @@ static void fec_enet_adjust_link(struct net_device *ndev)
 
 	if (status_change)
 		phy_print_status(phy_dev);
+
+	mutex_lock(&fec_cb_lock);
+	if (fec_cb)
+		fec_cb(status_change, fep->link);
+	mutex_unlock(&fec_cb_lock);
+}
+
+void fec_set_phy_callback(void (*fec_callback)(int status_change,
+					       int link))
+{
+	mutex_lock(&fec_cb_lock);
+	fec_cb = fec_callback;
+	mutex_unlock(&fec_cb_lock);
+}
+EXPORT_SYMBOL(fec_set_phy_callback);
+
+#define EBERR 1
+static int fec_enec_clear_eberr(struct fec_enet_private *fep)
+{
+	u32 ievent = readl(fep->hwp + FEC_IEVENT);
+	u32 ecntrl = readl(fep->hwp + FEC_ECNTRL);
+
+	if ((ievent & FEC_ENET_EBERR) && !(ecntrl & FEC_ENET_ETHEREN)) {
+		netdev_dbg(fep->netdev, "Ethernet Bus Error\n");
+		napi_disable(&fep->napi);
+		netif_tx_lock_bh(fep->netdev);
+		fec_restart(fep->netdev);
+		netif_wake_queue(fep->netdev);
+		netif_tx_unlock_bh(fep->netdev);
+		napi_enable(&fep->napi);
+
+		return -EBERR;
+	}
+
+	return 0;
+}
+
+/**
+ * Waits for completion of a MDIO read/write operation
+ * @param fep  Driver private data
+ * @return    -EBERR if an ethernet buss error occurred, 0 for success and
+ *            -ETIMEDOUT for any other errors
+ */
+static int fec_enet_wait_transfer(struct fec_enet_private *fep)
+{
+	int ret = 0;
+	unsigned long time_left = wait_for_completion_timeout(&fep->mdio_done,
+			usecs_to_jiffies(FEC_MII_TIMEOUT));
+
+	if (time_left == 0) {
+		fep->mii_timeout = 1;
+		netdev_err(fep->netdev, "MDIO timeout\n");
+		ret = fec_enec_clear_eberr(fep);
+		if (!ret)
+			return -ETIMEDOUT;
+	}
+
+	return ret;
 }
 
 static int fec_enet_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 {
 	struct fec_enet_private *fep = bus->priv;
 	struct device *dev = &fep->pdev->dev;
-	unsigned long time_left;
 	int ret = 0;
 
 	ret = pm_runtime_get_sync(dev);
@@ -1787,14 +1857,23 @@ static int fec_enet_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 		FEC_MMFR_TA, fep->hwp + FEC_MII_DATA);
 
 	/* wait for end of transfer */
-	time_left = wait_for_completion_timeout(&fep->mdio_done,
-			usecs_to_jiffies(FEC_MII_TIMEOUT));
-	if (time_left == 0) {
-		fep->mii_timeout = 1;
-		netdev_err(fep->netdev, "MDIO read timeout\n");
-		ret = -ETIMEDOUT;
-		goto out;
+	ret = fec_enet_wait_transfer(fep);
+	if (ret == -EBERR) {
+		/* On some platforms the read operation might timeout
+		 * because of an uDMA error. In this case the FEC module must be
+		 * restarted and read operation reinitialized.
+		 */
+
+		/* start a read op */
+		writel(FEC_MMFR_ST | FEC_MMFR_OP_READ |
+			FEC_MMFR_PA(mii_id) | FEC_MMFR_RA(regnum) |
+			FEC_MMFR_TA, fep->hwp + FEC_MII_DATA);
+
+		ret = fec_enet_wait_transfer(fep);
 	}
+
+	if (ret < 0)
+		goto out;
 
 	ret = FEC_MMFR_DATA(readl(fep->hwp + FEC_MII_DATA));
 
@@ -1810,8 +1889,7 @@ static int fec_enet_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
 {
 	struct fec_enet_private *fep = bus->priv;
 	struct device *dev = &fep->pdev->dev;
-	unsigned long time_left;
-	int ret;
+	int ret = 0;
 
 	ret = pm_runtime_get_sync(dev);
 	if (ret < 0)
@@ -1829,12 +1907,19 @@ static int fec_enet_mdio_write(struct mii_bus *bus, int mii_id, int regnum,
 		fep->hwp + FEC_MII_DATA);
 
 	/* wait for end of transfer */
-	time_left = wait_for_completion_timeout(&fep->mdio_done,
-			usecs_to_jiffies(FEC_MII_TIMEOUT));
-	if (time_left == 0) {
-		fep->mii_timeout = 1;
-		netdev_err(fep->netdev, "MDIO write timeout\n");
-		ret  = -ETIMEDOUT;
+	ret = fec_enet_wait_transfer(fep);
+
+	if (ret == -EBERR) {
+		/* On some platforms the write operation might timeout
+		 * because of an uDMA error. In this case the FEC module must be
+		 * restarted and write operation reinitialized.
+		 */
+		writel(FEC_MMFR_ST | FEC_MMFR_OP_WRITE |
+			FEC_MMFR_PA(mii_id) | FEC_MMFR_RA(regnum) |
+			FEC_MMFR_TA | FEC_MMFR_DATA(value),
+			fep->hwp + FEC_MII_DATA);
+
+		ret = fec_enet_wait_transfer(fep);
 	}
 
 	pm_runtime_mark_last_busy(dev);
@@ -2111,7 +2196,8 @@ static int fec_enet_get_regs_len(struct net_device *ndev)
 
 /* List of registers that can be safety be read to dump them with ethtool */
 #if defined(CONFIG_M523x) || defined(CONFIG_M527x) || defined(CONFIG_M528x) || \
-	defined(CONFIG_M520x) || defined(CONFIG_M532x) || defined(CONFIG_ARM)
+	defined(CONFIG_M520x) || defined(CONFIG_M532x) || \
+	defined(CONFIG_ARM) || defined(CONFIG_ARCH_S32)
 static u32 fec_enet_register_offset[] = {
 	FEC_IEVENT, FEC_IMASK, FEC_R_DES_ACTIVE_0, FEC_X_DES_ACTIVE_0,
 	FEC_ECNTRL, FEC_MII_DATA, FEC_MII_SPEED, FEC_MIB_CTRLSTAT, FEC_R_CNTRL,
@@ -3123,7 +3209,7 @@ static int fec_enet_init(struct net_device *ndev)
 	unsigned dsize_log2 = __fls(dsize);
 
 	WARN_ON(dsize != (1 << dsize_log2));
-#if defined(CONFIG_ARM)
+#if defined(CONFIG_ARM) || defined(CONFIG_ARM64)
 	fep->rx_align = 0xf;
 	fep->tx_align = 0xf;
 #else
@@ -3506,6 +3592,8 @@ fec_probe(struct platform_device *pdev)
 	/* Carrier starts down, phylib will bring it up */
 	netif_carrier_off(ndev);
 	fec_enet_clk_enable(ndev, false);
+
+	/* Select sleep pin state */
 	pinctrl_pm_select_sleep_state(&pdev->dev);
 
 	ret = register_netdev(ndev);
@@ -3682,6 +3770,7 @@ static const struct dev_pm_ops fec_pm_ops = {
 static struct platform_driver fec_driver = {
 	.driver	= {
 		.name	= DRIVER_NAME,
+		.owner	= THIS_MODULE,
 		.pm	= &fec_pm_ops,
 		.of_match_table = fec_dt_ids,
 	},
