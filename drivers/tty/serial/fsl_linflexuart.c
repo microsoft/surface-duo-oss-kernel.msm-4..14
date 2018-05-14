@@ -199,6 +199,8 @@ MODULE_DEVICE_TABLE(of, linflex_dt_ids);
 static void linflex_dma_tx_complete(void *arg);
 static void linflex_dma_rx_complete(void *arg);
 static void linflex_console_putchar(struct uart_port *port, int ch);
+static void linflex_string_write(struct linflex_port *sport, const char *s,
+		unsigned int count);
 
 #ifdef CONFIG_CONSOLE_POLL
 static void linflex_poll_release(struct linflex_port *sport);
@@ -913,7 +915,6 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 	unsigned int  baud;
 	unsigned int old_csize = old ? old->c_cflag & CSIZE : CS8;
 	unsigned long ibr, fbr, divisr, dividr;
-	unsigned long ier, old_ier, dmatxe;
 
 	cr = old_cr = readl(sport->port.membase + UARTCR);
 
@@ -1060,34 +1061,10 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 	The issue is assumed to be caused by a hardware bug.
 	Only apply the workaround after the boot sequence is
 	assumed to be complete.*/
-	if ((jiffies - INITIAL_JIFFIES) / HZ > (unsigned long)10) {
-		/* First save CR2 and then disable interrupts. */
-		ier = readl(sport->port.membase + LINIER);
-		old_ier = ier;
-		if (!sport->dma_tx_use) {
-			ier &= ~(LINFLEXD_LINIER_DTIE);
-			writel(ier, sport->port.membase + LINIER);
-		} else {
-			if (sport->dma_tx_in_progress)
-				dmaengine_terminate_all(sport->dma_tx_chan);
+	if ((jiffies - INITIAL_JIFFIES) / HZ > (unsigned long)10)
+		linflex_string_write(sport, "", 1);
 
-			dmatxe = readl(sport->port.membase + DMATXE);
-			writel(dmatxe & 0xFFFF0000,
-					sport->port.membase + DMATXE);
-
-			sport->dma_tx_in_progress = 0;
-		}
-
-		linflex_console_putchar(&sport->port, 0);
-		if (!sport->dma_tx_use)
-			writel(old_ier, sport->port.membase + LINIER);
-		else {
-			dmatxe = readl(sport->port.membase + DMATXE);
-			writel(dmatxe | 0x1, sport->port.membase + DMATXE);
-		}
-	}
 	spin_unlock_irqrestore(&sport->port.lock, flags);
-
 #endif
 
 }
@@ -1299,19 +1276,11 @@ static void linflex_console_putchar(struct uart_port *port, int ch)
 					port->membase + UARTSR);
 	}
 }
-static void
-linflex_console_write(struct console *co, const char *s, unsigned int count)
-{
-	struct linflex_port *sport = linflex_ports[co->index];
-	unsigned long cr, ier = 0, temp, flags;
-	int locked = 1;
 
-	if (sport->port.sysrq)
-		locked = 0;
-	else if (oops_in_progress)
-		locked = spin_trylock_irqsave(&sport->port.lock, flags);
-	else
-		spin_lock_irqsave(&sport->port.lock, flags);
+static void linflex_string_write(struct linflex_port *sport, const char *s,
+		unsigned int count)
+{
+	unsigned long cr, ier = 0, temp;
 
 	/* First save CR2 and then disable interrupts. */
 	if (!sport->dma_tx_use)
@@ -1334,6 +1303,23 @@ linflex_console_write(struct console *co, const char *s, unsigned int count)
 		temp = readl(sport->port.membase + DMATXE);
 		writel(temp | 0x1, sport->port.membase + DMATXE);
 	}
+}
+
+static void
+linflex_console_write(struct console *co, const char *s, unsigned int count)
+{
+	struct linflex_port *sport = linflex_ports[co->index];
+	unsigned long flags;
+	int locked = 1;
+
+	if (sport->port.sysrq)
+		locked = 0;
+	else if (oops_in_progress)
+		locked = spin_trylock_irqsave(&sport->port.lock, flags);
+	else
+		spin_lock_irqsave(&sport->port.lock, flags);
+
+	linflex_string_write(sport, s, count);
 
 	if (locked)
 		spin_unlock_irqrestore(&sport->port.lock, flags);
