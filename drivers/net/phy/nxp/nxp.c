@@ -1292,11 +1292,11 @@ phy_auto_op_error:
 	return count;
 
 phy_parse_error:
-	dev_err(&phydev->mdio.dev, "parse error: %s failed\n");
+	dev_err(&phydev->mdio.dev, "parse error: %s failed\n", __func__);
 	return err;
 
 phy_lmode_transit_error:
-	dev_err(&phydev->mdio.dev, "lmode error: %s failed\n");
+	dev_err(&phydev->mdio.dev, "lmode error: %s failed\n", __func__);
 	return err;
 }
 
