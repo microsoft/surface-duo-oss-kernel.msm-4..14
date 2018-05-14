@@ -137,6 +137,10 @@
 #define ESDHC_FLAG_HS200		BIT(8)
 /* The IP supports HS400 mode */
 #define ESDHC_FLAG_HS400		BIT(9)
+/* need request bus freq during low power */
+#define ESDHC_FLAG_BUSFREQ		BIT(10)
+/* IP support ESDHC multiblock read ACMD 12 */
+#define ESDHC_FLAG_MULTIBLK_READ_ACMD12	BIT(11)
 
 /* A clock frequency higher than this rate requires strobe dll control */
 #define ESDHC_STROBE_DLL_CLK_FREQ	100000000
@@ -180,6 +184,18 @@ static struct esdhc_soc_data usdhc_imx7d_data = {
 	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_STD_TUNING
 			| ESDHC_FLAG_HAVE_CAP1 | ESDHC_FLAG_HS200
 			| ESDHC_FLAG_HS400,
+};
+
+static struct esdhc_soc_data esdhc_vf610_data = {
+	.flags = ESDHC_FLAG_MULTIBLK_READ_ACMD12,
+};
+
+static struct esdhc_soc_data usdhc_sac58r_data = {
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MULTIBLK_READ_ACMD12,
+};
+
+static struct esdhc_soc_data usdhc_s32v234_data = {
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MULTIBLK_READ_ACMD12,
 };
 
 struct pltfm_imx_data {
@@ -226,6 +242,9 @@ static const struct of_device_id imx_esdhc_dt_ids[] = {
 	{ .compatible = "fsl,imx6sl-usdhc", .data = &usdhc_imx6sl_data, },
 	{ .compatible = "fsl,imx6q-usdhc", .data = &usdhc_imx6q_data, },
 	{ .compatible = "fsl,imx7d-usdhc", .data = &usdhc_imx7d_data, },
+	{ .compatible = "fsl,vf610-esdhc", .data = &esdhc_vf610_data, },
+	{ .compatible = "fsl,sac58r-usdhc", .data = &usdhc_sac58r_data, },
+	{ .compatible = "fsl,s32v234-usdhc", .data = &usdhc_s32v234_data, },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, imx_esdhc_dt_ids);
@@ -243,6 +262,16 @@ static inline int is_imx53_esdhc(struct pltfm_imx_data *data)
 static inline int is_imx6q_usdhc(struct pltfm_imx_data *data)
 {
 	return data->socdata == &usdhc_imx6q_data;
+}
+
+static inline int is_sac58r_usdhc(struct pltfm_imx_data *data)
+{
+	return data->socdata == &usdhc_sac58r_data;
+}
+
+static inline int is_s32v234_usdhc(struct pltfm_imx_data *data)
+{
+	return data->socdata == &usdhc_s32v234_data;
 }
 
 static inline int esdhc_is_usdhc(struct pltfm_imx_data *data)
@@ -295,14 +324,34 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 	if (unlikely(reg == SDHCI_CAPABILITIES_1)) {
 		if (esdhc_is_usdhc(imx_data)) {
 			if (imx_data->socdata->flags & ESDHC_FLAG_HAVE_CAP1)
-				val = readl(host->ioaddr + SDHCI_CAPABILITIES) & 0xFFFF;
-			else
-				/* imx6q/dl does not have cap_1 register, fake one */
-				val = SDHCI_SUPPORT_DDR50 | SDHCI_SUPPORT_SDR104
-					| SDHCI_SUPPORT_SDR50
-					| SDHCI_USE_SDR50_TUNING
-					| (SDHCI_TUNING_MODE_3 << SDHCI_RETUNING_MODE_SHIFT);
-
+				val = readl(host->ioaddr + SDHCI_CAPABILITIES)
+					& 0xFFFF;
+			else {
+				if (is_sac58r_usdhc(imx_data)
+					|| is_s32v234_usdhc(imx_data)) {
+					/*
+					 * sac58r and s32v234 HOST_CTRL_CAP
+					 * register does not provide speed info.
+					 * __Only__ sac58r does not support
+					 * DDR50, but this is needed to support
+					 * DDR50 SD cards. If this is not
+					 * enabled, a lot of TIMEOUT errors get
+					 * returned when trying to access SD
+					 * card.
+					 */
+					val = SDHCI_SUPPORT_SDR50
+						| SDHCI_SUPPORT_DDR50;
+				} else
+					/* imx6q/dl does not have cap_1
+					 * register, fake one
+					 */
+					val = SDHCI_SUPPORT_DDR50
+						| SDHCI_SUPPORT_SDR104
+						| SDHCI_SUPPORT_SDR50
+						| SDHCI_USE_SDR50_TUNING
+						| (SDHCI_TUNING_MODE_3
+						<< SDHCI_RETUNING_MODE_SHIFT);
+			}
 			if (imx_data->socdata->flags & ESDHC_FLAG_HS400)
 				val |= SDHCI_SUPPORT_HS400;
 		}
@@ -1068,12 +1117,15 @@ static void sdhci_esdhc_imx_hwinit(struct sdhci_host *host)
 		writel(readl(host->ioaddr + SDHCI_HOST_CONTROL)
 			| ESDHC_BURST_LEN_EN_INCR,
 			host->ioaddr + SDHCI_HOST_CONTROL);
-		/*
-		* erratum ESDHC_FLAG_ERR004536 fix for MX6Q TO1.2 and MX6DL
-		* TO1.1, it's harmless for MX6SL
-		*/
-		writel(readl(host->ioaddr + 0x6c) | BIT(7),
-			host->ioaddr + 0x6c);
+
+		if (!is_s32v234_usdhc(imx_data)) {
+			/*
+			 * erratum ESDHC_FLAG_ERR004536 fix for MX6Q TO1.2
+			 * and MX6DL TO1.1, it's harmless for MX6SL
+			 */
+			writel(readl(host->ioaddr + 0x6c) | BIT(7),
+				host->ioaddr + 0x6c);
+			}
 
 		/* disable DLL_CTRL delay line settings */
 		writel(0x0, host->ioaddr + ESDHC_DLL_CTRL);
@@ -1126,27 +1178,40 @@ sdhci_esdhc_imx_probe_dt(struct platform_device *pdev,
 	if (of_property_read_u32(np, "fsl,delay-line", &boarddata->delay_line))
 		boarddata->delay_line = 0;
 
+	if (of_find_property(np, "keep-power-in-suspend", NULL))
+		host->mmc->pm_caps |= MMC_PM_KEEP_POWER;
+
+	if (of_find_property(np, "enable-sdio-wakeup", NULL))
+		host->mmc->pm_caps |= MMC_PM_WAKE_SDIO_IRQ;
+
 	mmc_of_parse_voltage(np, &host->ocr_mask);
 
-	/* sdr50 and sdr104 need work on 1.8v signal voltage */
-	if ((boarddata->support_vsel) && esdhc_is_usdhc(imx_data) &&
-	    !IS_ERR(imx_data->pins_default)) {
-		imx_data->pins_100mhz = pinctrl_lookup_state(imx_data->pinctrl,
-						ESDHC_PINCTRL_STATE_100MHZ);
-		imx_data->pins_200mhz = pinctrl_lookup_state(imx_data->pinctrl,
-						ESDHC_PINCTRL_STATE_200MHZ);
-		if (IS_ERR(imx_data->pins_100mhz) ||
-				IS_ERR(imx_data->pins_200mhz)) {
-			dev_warn(mmc_dev(host->mmc),
-				"could not get ultra high speed state, work on normal mode\n");
-			/*
-			 * fall back to not supporting uhs by specifying no
-			 * 1.8v quirk
-			 */
+	/* UHS-I support: sac58r does not have pinctrl driver
+	 * however, there's 1.8V support.
+	 * So, ignore the pinctrl lookup.
+	 * FIXME: there must be a better way to handle this!
+	 */
+	if (!is_sac58r_usdhc(imx_data) && !is_s32v234_usdhc(imx_data)) {
+		/* sdr50 and sdr104 need work on 1.8v signal voltage */
+		if ((boarddata->support_vsel) && esdhc_is_usdhc(imx_data) &&
+		    !IS_ERR(imx_data->pins_default)) {
+			imx_data->pins_100mhz = pinctrl_lookup_state(imx_data->pinctrl,
+							ESDHC_PINCTRL_STATE_100MHZ);
+			imx_data->pins_200mhz = pinctrl_lookup_state(imx_data->pinctrl,
+							ESDHC_PINCTRL_STATE_200MHZ);
+			if (IS_ERR(imx_data->pins_100mhz) ||
+					IS_ERR(imx_data->pins_200mhz)) {
+				dev_warn(mmc_dev(host->mmc),
+					"could not get ultra high speed state, work on normal mode\n");
+				/*
+				 * fall back to not supporting uhs by
+				 * specifying no 1.8v quirk
+				 */
+				host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
+			}
+		} else {
 			host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
 		}
-	} else {
-		host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
 	}
 
 	/* call to generic mmc_of_parse to support additional capabilities */
@@ -1318,6 +1383,9 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 	if (imx_data->socdata->flags & ESDHC_FLAG_HS400)
 		host->quirks2 |= SDHCI_QUIRK2_CAPS_BIT63_FOR_HS400;
 
+	if (imx_data->socdata->flags & ESDHC_FLAG_MULTIBLK_READ_ACMD12)
+		host->quirks |= SDHCI_QUIRK_MULTIBLOCK_READ_ACMD12;
+
 	if (of_id)
 		err = sdhci_esdhc_imx_probe_dt(pdev, host, imx_data);
 	else
@@ -1326,6 +1394,13 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 		goto disable_ahb_clk;
 
 	sdhci_esdhc_imx_hwinit(host);
+
+	if (is_s32v234_usdhc(imx_data))
+		host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
+
+	if (host->mmc->pm_caps & MMC_PM_KEEP_POWER &&
+		host->mmc->pm_caps & MMC_PM_WAKE_SDIO_IRQ)
+		device_init_wakeup(&pdev->dev, 1);
 
 	err = sdhci_add_host(host);
 	if (err)
@@ -1355,7 +1430,13 @@ static int sdhci_esdhc_imx_remove(struct platform_device *pdev)
 	struct sdhci_host *host = platform_get_drvdata(pdev);
 	struct sdhci_pltfm_host *pltfm_host = sdhci_priv(host);
 	struct pltfm_imx_data *imx_data = sdhci_pltfm_priv(pltfm_host);
-	int dead = (readl(host->ioaddr + SDHCI_INT_STATUS) == 0xffffffff);
+	int dead;
+
+	clk_prepare_enable(imx_data->clk_per);
+	clk_prepare_enable(imx_data->clk_ipg);
+	clk_prepare_enable(imx_data->clk_ahb);
+
+	dead = (readl(host->ioaddr + SDHCI_INT_STATUS) == 0xffffffff);
 
 	pm_runtime_get_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);

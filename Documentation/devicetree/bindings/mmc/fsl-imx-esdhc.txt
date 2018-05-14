@@ -16,6 +16,7 @@ Required properties:
 	       "fsl,imx6sl-usdhc"
 	       "fsl,imx6sx-usdhc"
 	       "fsl,imx7d-usdhc"
+	       "fsl,sac58r-usdhc"
 	       "fsl,s32v234-usdhc"
 
 Optional properties:
