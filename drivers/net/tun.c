@@ -248,11 +248,11 @@ struct veth {
 	__be16 h_vlan_TCI;
 };
 
-bool tun_is_xdp_buff(void *ptr)
+bool tun_is_xdp_frame(void *ptr)
 {
 	return (unsigned long)ptr & TUN_XDP_FLAG;
 }
-EXPORT_SYMBOL(tun_is_xdp_buff);
+EXPORT_SYMBOL(tun_is_xdp_frame);
 
 void *tun_xdp_to_ptr(void *ptr)
 {
@@ -525,11 +525,6 @@ static void tun_flow_update(struct tun_struct *tun, u32 rxhash,
 
 	rcu_read_lock();
 
-	/* We may get a very small possibility of OOO during switching, not
-	 * worth to optimize.*/
-	if (tun->numqueues == 1 || tfile->detached)
-		goto unlock;
-
 	e = tun_flow_find(head, rxhash);
 	if (likely(e)) {
 		/* TODO: keep queueing to old queue until it's empty? */
@@ -548,7 +543,6 @@ static void tun_flow_update(struct tun_struct *tun, u32 rxhash,
 		spin_unlock_bh(&tun->lock);
 	}
 
-unlock:
 	rcu_read_unlock();
 }
 
@@ -660,10 +654,10 @@ void tun_ptr_free(void *ptr)
 {
 	if (!ptr)
 		return;
-	if (tun_is_xdp_buff(ptr)) {
-		struct xdp_buff *xdp = tun_ptr_to_xdp(ptr);
+	if (tun_is_xdp_frame(ptr)) {
+		struct xdp_frame *xdpf = tun_ptr_to_xdp(ptr);
 
-		put_page(virt_to_head_page(xdp->data));
+		xdp_return_frame(xdpf);
 	} else {
 		__skb_array_destroy_skb(ptr);
 	}
@@ -854,6 +848,12 @@ static int tun_attach(struct tun_struct *tun, struct file *file,
 				       tun->dev, tfile->queue_index);
 		if (err < 0)
 			goto out;
+		err = xdp_rxq_info_reg_mem_model(&tfile->xdp_rxq,
+						 MEM_TYPE_PAGE_SHARED, NULL);
+		if (err < 0) {
+			xdp_rxq_info_unreg(&tfile->xdp_rxq);
+			goto out;
+		}
 		err = 0;
 	}
 
@@ -1290,20 +1290,12 @@ static const struct net_device_ops tun_netdev_ops = {
 	.ndo_get_stats64	= tun_net_get_stats64,
 };
 
-static int tun_xdp_xmit(struct net_device *dev, struct xdp_buff *xdp)
+static int tun_xdp_xmit(struct net_device *dev, struct xdp_frame *frame)
 {
 	struct tun_struct *tun = netdev_priv(dev);
-	struct xdp_buff *buff = xdp->data_hard_start;
-	int headroom = xdp->data - xdp->data_hard_start;
 	struct tun_file *tfile;
 	u32 numqueues;
 	int ret = 0;
-
-	/* Assure headroom is available and buff is properly aligned */
-	if (unlikely(headroom < sizeof(*xdp) || tun_is_xdp_buff(xdp)))
-		return -ENOSPC;
-
-	*buff = *xdp;
 
 	rcu_read_lock();
 
@@ -1318,7 +1310,7 @@ static int tun_xdp_xmit(struct net_device *dev, struct xdp_buff *xdp)
 	/* Encode the XDP flag into lowest bit for consumer to differ
 	 * XDP buffer from sk_buff.
 	 */
-	if (ptr_ring_produce(&tfile->tx_ring, tun_xdp_to_ptr(buff))) {
+	if (ptr_ring_produce(&tfile->tx_ring, tun_xdp_to_ptr(frame))) {
 		this_cpu_inc(tun->pcpu_stats->tx_dropped);
 		ret = -ENOSPC;
 	}
@@ -1326,6 +1318,16 @@ static int tun_xdp_xmit(struct net_device *dev, struct xdp_buff *xdp)
 out:
 	rcu_read_unlock();
 	return ret;
+}
+
+static int tun_xdp_tx(struct net_device *dev, struct xdp_buff *xdp)
+{
+	struct xdp_frame *frame = convert_to_xdp_frame(xdp);
+
+	if (unlikely(!frame))
+		return -EOVERFLOW;
+
+	return tun_xdp_xmit(dev, frame);
 }
 
 static void tun_xdp_flush(struct net_device *dev)
@@ -1675,7 +1677,7 @@ static struct sk_buff *tun_build_skb(struct tun_struct *tun,
 		case XDP_TX:
 			get_page(alloc_frag->page);
 			alloc_frag->offset += buflen;
-			if (tun_xdp_xmit(tun->dev, &xdp))
+			if (tun_xdp_tx(tun->dev, &xdp))
 				goto err_redirect;
 			tun_xdp_flush(tun->dev);
 			rcu_read_unlock();
@@ -1683,6 +1685,7 @@ static struct sk_buff *tun_build_skb(struct tun_struct *tun,
 			return NULL;
 		case XDP_PASS:
 			delta = orig_data - xdp.data;
+			len = xdp.data_end - xdp.data;
 			break;
 		default:
 			bpf_warn_invalid_xdp_action(act);
@@ -1703,7 +1706,7 @@ static struct sk_buff *tun_build_skb(struct tun_struct *tun,
 	}
 
 	skb_reserve(skb, pad - delta);
-	skb_put(skb, len + delta);
+	skb_put(skb, len);
 	get_page(alloc_frag->page);
 	alloc_frag->offset += buflen;
 
@@ -1924,10 +1927,13 @@ static ssize_t tun_get_user(struct tun_struct *tun, struct tun_file *tfile,
 		rcu_read_unlock();
 	}
 
-	rcu_read_lock();
-	if (!rcu_dereference(tun->steering_prog))
+	/* Compute the costly rx hash only if needed for flow updates.
+	 * We may get a very small possibility of OOO during switching, not
+	 * worth to optimize.
+	 */
+	if (!rcu_access_pointer(tun->steering_prog) && tun->numqueues > 1 &&
+	    !tfile->detached)
 		rxhash = __skb_get_hash_symmetric(skb);
-	rcu_read_unlock();
 
 	if (frags) {
 		/* Exercise flow dissector code path. */
@@ -1996,11 +2002,11 @@ static ssize_t tun_chr_write_iter(struct kiocb *iocb, struct iov_iter *from)
 
 static ssize_t tun_put_user_xdp(struct tun_struct *tun,
 				struct tun_file *tfile,
-				struct xdp_buff *xdp,
+				struct xdp_frame *xdp_frame,
 				struct iov_iter *iter)
 {
 	int vnet_hdr_sz = 0;
-	size_t size = xdp->data_end - xdp->data;
+	size_t size = xdp_frame->len;
 	struct tun_pcpu_stats *stats;
 	size_t ret;
 
@@ -2016,7 +2022,7 @@ static ssize_t tun_put_user_xdp(struct tun_struct *tun,
 		iov_iter_advance(iter, vnet_hdr_sz - sizeof(gso));
 	}
 
-	ret = copy_to_iter(xdp->data, size, iter) + vnet_hdr_sz;
+	ret = copy_to_iter(xdp_frame->data, size, iter) + vnet_hdr_sz;
 
 	stats = get_cpu_ptr(tun->pcpu_stats);
 	u64_stats_update_begin(&stats->syncp);
@@ -2184,11 +2190,11 @@ static ssize_t tun_do_read(struct tun_struct *tun, struct tun_file *tfile,
 			return err;
 	}
 
-	if (tun_is_xdp_buff(ptr)) {
-		struct xdp_buff *xdp = tun_ptr_to_xdp(ptr);
+	if (tun_is_xdp_frame(ptr)) {
+		struct xdp_frame *xdpf = tun_ptr_to_xdp(ptr);
 
-		ret = tun_put_user_xdp(tun, tfile, xdp, to);
-		put_page(virt_to_head_page(xdp->data));
+		ret = tun_put_user_xdp(tun, tfile, xdpf, to);
+		xdp_return_frame(xdpf);
 	} else {
 		struct sk_buff *skb = ptr;
 
@@ -2427,10 +2433,10 @@ out_free:
 static int tun_ptr_peek_len(void *ptr)
 {
 	if (likely(ptr)) {
-		if (tun_is_xdp_buff(ptr)) {
-			struct xdp_buff *xdp = tun_ptr_to_xdp(ptr);
+		if (tun_is_xdp_frame(ptr)) {
+			struct xdp_frame *xdpf = tun_ptr_to_xdp(ptr);
 
-			return xdp->data_end - xdp->data;
+			return xdpf->len;
 		}
 		return __skb_array_len_with_tag(ptr);
 	} else {
@@ -2844,10 +2850,10 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 			    unsigned long arg, int ifreq_len)
 {
 	struct tun_file *tfile = file->private_data;
+	struct net *net = sock_net(&tfile->sk);
 	struct tun_struct *tun;
 	void __user* argp = (void __user*)arg;
 	struct ifreq ifr;
-	struct net *net;
 	kuid_t owner;
 	kgid_t group;
 	int sndbuf;
@@ -2871,14 +2877,18 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 		 */
 		return put_user(IFF_TUN | IFF_TAP | TUN_FEATURES,
 				(unsigned int __user*)argp);
-	} else if (cmd == TUNSETQUEUE)
+	} else if (cmd == TUNSETQUEUE) {
 		return tun_set_queue(file, &ifr);
+	} else if (cmd == SIOCGSKNS) {
+		if (!ns_capable(net->user_ns, CAP_NET_ADMIN))
+			return -EPERM;
+		return open_related_ns(&net->ns, get_net_ns);
+	}
 
 	ret = 0;
 	rtnl_lock();
 
 	tun = tun_get(tfile);
-	net = sock_net(&tfile->sk);
 	if (cmd == TUNSETIFF) {
 		ret = -EEXIST;
 		if (tun)
@@ -2906,14 +2916,6 @@ static long __tun_chr_ioctl(struct file *file, unsigned int cmd,
 
 		ret = 0;
 		tfile->ifindex = ifindex;
-		goto unlock;
-	}
-	if (cmd == SIOCGSKNS) {
-		ret = -EPERM;
-		if (!ns_capable(net->user_ns, CAP_NET_ADMIN))
-			goto unlock;
-
-		ret = open_related_ns(&net->ns, get_net_ns);
 		goto unlock;
 	}
 

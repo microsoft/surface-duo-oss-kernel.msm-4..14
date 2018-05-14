@@ -164,6 +164,9 @@ struct smc_connection {
 	atomic_t		bytes_to_rcv;	/* arrived data,
 						 * not yet received
 						 */
+	atomic_t		splice_pending;	/* number of spliced bytes
+						 * pending processing
+						 */
 #ifndef KERNEL_HAS_ATOMIC64
 	spinlock_t		acurs_lock;	/* protect cursors */
 #endif
@@ -180,6 +183,10 @@ struct smc_sock {				/* smc sock container */
 	struct list_head	accept_q;	/* sockets to be accepted */
 	spinlock_t		accept_q_lock;	/* protects accept_q */
 	bool			use_fallback;	/* fallback to tcp */
+	int			sockopt_defer_accept;
+						/* sockopt TCP_DEFER_ACCEPT
+						 * value
+						 */
 	u8			wait_close_tx_prepared : 1;
 						/* shutdown wr or close
 						 * started, waiting for unsent
