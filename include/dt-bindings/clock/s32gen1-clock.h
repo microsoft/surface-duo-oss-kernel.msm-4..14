@@ -78,6 +78,12 @@
 #define S32GEN1_CLK_SPI4                        57
 #define S32GEN1_CLK_SPI5                        58
 #define S32GEN1_CLK_DSPI                        59
+/* XBAR Clock */
+#define S32GEN1_CLK_XBAR			60
+#define S32GEN1_CLK_XBAR_DIV2			61
+#define S32GEN1_CLK_XBAR_DIV3			62
+#define S32GEN1_CLK_XBAR_DIV4			63
+#define S32GEN1_CLK_SBSW			64
 
-#define	S32GEN1_CLK_END				60
+#define	S32GEN1_CLK_END				65
 #endif /* __DT_BINDINGS_CLOCK_S32GEN1_H */
