@@ -303,6 +303,7 @@
 				interrupts =<0 67 4>;
 				clocks = <&clks S32V234_CLK_IIC0>;
 				clock-names = "ipg";
+				clock-frequency = <400000>;
 				dmas = <&edma 0 5>,
 				       <&edma 0 6>;
 				dma-names = "rx","tx";
@@ -549,6 +550,7 @@
 				interrupts =<0 68 4>;
 				clocks = <&clks S32V234_CLK_IIC1>;
 				clock-names = "ipg";
+				clock-frequency = <400000>;
 				dmas = <&edma 1 14>,
 				       <&edma 1 15>;
 				dma-names = "rx","tx";
@@ -563,6 +565,7 @@
 				interrupts =<0 69 4>;
 				clocks = <&clks S32V234_CLK_IIC2>;
 				clock-names = "ipg";
+				clock-frequency = <400000>;
 				dmas = <&edma 1 16>,
 				       <&edma 1 17>;
 				dma-names = "rx","tx";
