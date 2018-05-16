@@ -218,7 +218,7 @@
 
 			led@1 {
 				label = "apq8016-sbc:green:user1";
-				gpios = <&msmgpio 21 GPIO_ACTIVE_HIGH>;
+				gpios = <&msmgpio 95 GPIO_ACTIVE_HIGH>;
 				linux,default-trigger = "heartbeat";
 				default-state = "off";
 			};
@@ -240,21 +240,21 @@
 			led@4 {
 				label = "apq8016-sbc:green:user4";
 				gpios = <&pm8916_gpios 2 GPIO_ACTIVE_HIGH>;
-				linux,default-trigger = "none";
+				linux,default-trigger = "default-on";
 				default-state = "off";
 			};
 
 			led@5 {
 				label = "apq8016-sbc:yellow:wlan";
 				gpios = <&pm8916_mpps 2 GPIO_ACTIVE_HIGH>;
-				linux,default-trigger = "wlan";
+				linux,default-trigger = "rfkill1";
 				default-state = "off";
 			};
 
 			led@6 {
 				label = "apq8016-sbc:blue:bt";
 				gpios = <&pm8916_mpps 3 GPIO_ACTIVE_HIGH>;
-				linux,default-trigger = "bt";
+				linux,default-trigger = "rfkill0";
 				default-state = "off";
 			};
 		};
