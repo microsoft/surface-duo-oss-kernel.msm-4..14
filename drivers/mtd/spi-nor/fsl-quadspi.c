@@ -410,9 +410,11 @@ static void fsl_qspi_init_lut(struct fsl_qspi *q)
 	/* Fast Read */
 	lut_base = SEQID_FAST_READ * 4;
 
-	qspi_writel(LUT0(CMD, PAD1, fast_read_op) | LUT1(ADDR, PAD1, addrlen),
+	qspi_writel(q, LUT0(CMD, PAD1, fast_read_op) |
+		    LUT1(ADDR, PAD1, addrlen),
 			base + QUADSPI_LUT(lut_base));
-	qspi_writel(LUT0(DUMMY, PAD1, read_dm) | LUT1(FSL_READ, PAD1, rxfifo),
+	qspi_writel(q, LUT0(DUMMY, PAD1, read_dm) |
+		    LUT1(FSL_READ, PAD1, rxfifo),
 			base + QUADSPI_LUT(lut_base + 1));
 
 	/* Write enable */
