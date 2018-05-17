@@ -519,6 +519,14 @@ static int bam_alloc_chan(struct dma_chan *chan)
 	return 0;
 }
 
+static int bam_pm_runtime_get_sync(struct device *dev)
+{
+	if (pm_runtime_enabled(dev))
+		return pm_runtime_get_sync(dev);
+
+	return 0;
+}
+
 /**
  * bam_free_chan - Frees dma resources associated with specific channel
  * @chan: specified channel
@@ -534,7 +542,7 @@ static void bam_free_chan(struct dma_chan *chan)
 	unsigned long flags;
 	int ret;
 
-	ret = pm_runtime_get_sync(bdev->dev);
+	ret = bam_pm_runtime_get_sync(bdev->dev);
 	if (ret < 0)
 		return;
 
@@ -715,7 +723,7 @@ static int bam_pause(struct dma_chan *chan)
 	unsigned long flag;
 	int ret;
 
-	ret = pm_runtime_get_sync(bdev->dev);
+	ret = bam_pm_runtime_get_sync(bdev->dev);
 	if (ret < 0)
 		return ret;
 
@@ -741,7 +749,7 @@ static int bam_resume(struct dma_chan *chan)
 	unsigned long flag;
 	int ret;
 
-	ret = pm_runtime_get_sync(bdev->dev);
+	ret = bam_pm_runtime_get_sync(bdev->dev);
 	if (ret < 0)
 		return ret;
 
@@ -834,7 +842,7 @@ static irqreturn_t bam_dma_irq(int irq, void *data)
 	if (srcs & P_IRQ)
 		tasklet_schedule(&bdev->task);
 
-	ret = pm_runtime_get_sync(bdev->dev);
+	ret = bam_pm_runtime_get_sync(bdev->dev);
 	if (ret < 0)
 		return ret;
 
@@ -947,7 +955,7 @@ static void bam_start_dma(struct bam_chan *bchan)
 	async_desc = container_of(vd, struct bam_async_desc, vd);
 	bchan->curr_txd = async_desc;
 
-	ret = pm_runtime_get_sync(bdev->dev);
+	ret = bam_pm_runtime_get_sync(bdev->dev);
 	if (ret < 0)
 		return;
 
