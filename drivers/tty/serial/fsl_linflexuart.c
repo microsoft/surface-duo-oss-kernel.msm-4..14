@@ -873,7 +873,6 @@ static void linflex_shutdown(struct uart_port *port)
 
 		linflex_dma_rx_free(&sport->port);
 		sport->dma_rx_in_progress = 0;
-		sport->dma_rx_use = false;
 	}
 
 	if (sport->dma_tx_use) {
@@ -884,7 +883,6 @@ static void linflex_shutdown(struct uart_port *port)
 
 		linflex_dma_tx_free(&sport->port);
 		sport->dma_tx_in_progress = 0;
-		sport->dma_tx_use = false;
 	}
 
 }
