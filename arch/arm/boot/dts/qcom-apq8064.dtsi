@@ -52,6 +52,7 @@
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
 			#cooling-cells = <2>;
+			operating-points-v2 = <&cpu_opp_table>;
 		};
 
 		CPU1: cpu@1 {
@@ -70,6 +71,7 @@
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
 			#cooling-cells = <2>;
+			operating-points-v2 = <&cpu_opp_table>;
 		};
 
 		CPU2: cpu@2 {
@@ -88,6 +90,7 @@
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
 			#cooling-cells = <2>;
+			operating-points-v2 = <&cpu_opp_table>;
 		};
 
 		CPU3: cpu@3 {
@@ -106,11 +109,16 @@
 			cooling-min-level = <0>;
 			cooling-max-level = <7>;
 			#cooling-cells = <2>;
+			operating-points-v2 = <&cpu_opp_table>;
 		};
 
 		L2: l2-cache {
 			compatible = "cache";
 			cache-level = <2>;
+		};
+
+		l2-clock {
+			l2-rates = <384000000 972000000 1188000000>;
 		};
 
 		idle-states {
@@ -241,6 +249,11 @@
 	cpu-pmu {
 		compatible = "qcom,krait-pmu";
 		interrupts = <1 10 0x304>;
+	};
+
+	kraitcc: clock-controller {
+		compatible = "qcom,krait-cc-v1";
+		#clock-cells = <1>;
 	};
 
 	clocks {
@@ -389,6 +402,514 @@
 			    <&xoadc 0x00 0x0c>, /* Reference voltage 1.25V */
 			    <&xoadc 0x00 0x0d>, /* Reference voltage 0.625V */
 			    <&xoadc 0x00 0x0e>; /* Charger temperature */
+	};
+
+	cpu_opp_table: opp-table {
+		compatible = "operating-points-v2-krait-cpu";
+		nvmem-cells = <&pvs_efuse>;
+
+		/*
+		 * Missing opp-shared property means CPUs switch DVFS states
+		 * independently.
+		 */
+
+		opp-391500000 {
+			opp-hz = /bits/ 64 <391500000>;
+			opp-supported-hw = <0x87>;
+			opp-microvolt-speed0-pvs0-v0 = <950000>;
+			opp-microvolt-speed0-pvs1-v0 = <900000>;
+			opp-microvolt-speed0-pvs3-v0 = <850000>;
+			opp-microvolt-speed0-pvs4-v0 = <850000>;
+			opp-microvolt-speed1-pvs0-v0 = <950000>;
+			opp-microvolt-speed1-pvs1-v0 = <950000>;
+			opp-microvolt-speed1-pvs2-v0 = <925000>;
+			opp-microvolt-speed1-pvs3-v0 = <900000>;
+			opp-microvolt-speed1-pvs4-v0 = <875000>;
+			opp-microvolt-speed1-pvs5-v0 = <875000>;
+			opp-microvolt-speed1-pvs6-v0 = <875000>;
+			opp-microvolt-speed2-pvs0-v0 = <950000>;
+			opp-microvolt-speed2-pvs1-v0 = <950000>;
+			opp-microvolt-speed2-pvs2-v0 = <925000>;
+			opp-microvolt-speed2-pvs3-v0 = <900000>;
+			opp-microvolt-speed2-pvs4-v0 = <875000>;
+			opp-microvolt-speed2-pvs5-v0 = <875000>;
+			opp-microvolt-speed2-pvs6-v0 = <875000>;
+			opp-microvolt-speed7-pvs0-v0 = <950000>;
+			opp-microvolt-speed7-pvs1-v0 = <925000>;
+			opp-microvolt-speed7-pvs2-v0 = <900000>;
+			opp-microvolt-speed7-pvs3-v0 = <900000>;
+			opp-microvolt-speed7-pvs4-v0 = <875000>;
+			opp-microvolt-speed7-pvs5-v0 = <875000>;
+			opp-microvolt-speed7-pvs6-v0 = <875000>;
+		};
+
+		opp-432000000 {
+			opp-hz = /bits/ 64 <432000000>;
+			opp-supported-hw = <0x01>;
+			opp-microvolt-speed0-pvs0-v0 = <975000>;
+			opp-microvolt-speed0-pvs1-v0 = <925000>;
+			opp-microvolt-speed0-pvs3-v0 = <875000>;
+			opp-microvolt-speed0-pvs4-v0 = <875000>;
+		};
+
+		opp-486000000 {
+			opp-hz = /bits/ 64 <486000000>;
+			opp-supported-hw = <0x87>;
+			opp-microvolt-speed0-pvs0-v0 = <975000>;
+			opp-microvolt-speed0-pvs1-v0 = <925000>;
+			opp-microvolt-speed0-pvs3-v0 = <875000>;
+			opp-microvolt-speed0-pvs4-v0 = <875000>;
+			opp-microvolt-speed1-pvs0-v0 = <950000>;
+			opp-microvolt-speed1-pvs1-v0 = <950000>;
+			opp-microvolt-speed1-pvs2-v0 = <925000>;
+			opp-microvolt-speed1-pvs3-v0 = <900000>;
+			opp-microvolt-speed1-pvs4-v0 = <875000>;
+			opp-microvolt-speed1-pvs5-v0 = <875000>;
+			opp-microvolt-speed1-pvs6-v0 = <875000>;
+			opp-microvolt-speed2-pvs0-v0 = <950000>;
+			opp-microvolt-speed2-pvs1-v0 = <950000>;
+			opp-microvolt-speed2-pvs2-v0 = <925000>;
+			opp-microvolt-speed2-pvs3-v0 = <900000>;
+			opp-microvolt-speed2-pvs4-v0 = <875000>;
+			opp-microvolt-speed2-pvs5-v0 = <875000>;
+			opp-microvolt-speed2-pvs6-v0 = <875000>;
+			opp-microvolt-speed7-pvs0-v0 = <950000>;
+			opp-microvolt-speed7-pvs1-v0 = <925000>;
+			opp-microvolt-speed7-pvs2-v0 = <900000>;
+			opp-microvolt-speed7-pvs3-v0 = <900000>;
+			opp-microvolt-speed7-pvs4-v0 = <875000>;
+			opp-microvolt-speed7-pvs5-v0 = <875000>;
+			opp-microvolt-speed7-pvs6-v0 = <875000>;
+		};
+
+		opp-540000000 {
+			opp-hz = /bits/ 64 <540000000>;
+			opp-supported-hw = <0x01>;
+			opp-microvolt-speed0-pvs0-v0 = <1000000>;
+			opp-microvolt-speed0-pvs1-v0 = <950000>;
+			opp-microvolt-speed0-pvs3-v0 = <900000>;
+			opp-microvolt-speed0-pvs4-v0 = <900000>;
+		};
+
+		opp-594000000 {
+			opp-hz = /bits/ 64 <594000000>;
+			opp-supported-hw = <0x87>;
+			opp-microvolt-speed0-pvs0-v0 = <1000000>;
+			opp-microvolt-speed0-pvs1-v0 = <950000>;
+			opp-microvolt-speed0-pvs3-v0 = <900000>;
+			opp-microvolt-speed0-pvs4-v0 = <900000>;
+			opp-microvolt-speed1-pvs0-v0 = <950000>;
+			opp-microvolt-speed1-pvs1-v0 = <950000>;
+			opp-microvolt-speed1-pvs2-v0 = <925000>;
+			opp-microvolt-speed1-pvs3-v0 = <900000>;
+			opp-microvolt-speed1-pvs4-v0 = <875000>;
+			opp-microvolt-speed1-pvs5-v0 = <875000>;
+			opp-microvolt-speed1-pvs6-v0 = <875000>;
+			opp-microvolt-speed2-pvs0-v0 = <950000>;
+			opp-microvolt-speed2-pvs1-v0 = <950000>;
+			opp-microvolt-speed2-pvs2-v0 = <925000>;
+			opp-microvolt-speed2-pvs3-v0 = <900000>;
+			opp-microvolt-speed2-pvs4-v0 = <875000>;
+			opp-microvolt-speed2-pvs5-v0 = <875000>;
+			opp-microvolt-speed2-pvs6-v0 = <875000>;
+			opp-microvolt-speed7-pvs0-v0 = <950000>;
+			opp-microvolt-speed7-pvs1-v0 = <925000>;
+			opp-microvolt-speed7-pvs2-v0 = <900000>;
+			opp-microvolt-speed7-pvs3-v0 = <900000>;
+			opp-microvolt-speed7-pvs4-v0 = <875000>;
+			opp-microvolt-speed7-pvs5-v0 = <875000>;
+			opp-microvolt-speed7-pvs6-v0 = <875000>;
+		};
+
+		opp-648000000 {
+			opp-hz = /bits/ 64 <648000000>;
+			opp-supported-hw = <0x01>;
+			opp-microvolt-speed0-pvs0-v0 = <1025000>;
+			opp-microvolt-speed0-pvs1-v0 = <975000>;
+			opp-microvolt-speed0-pvs3-v0 = <925000>;
+			opp-microvolt-speed0-pvs4-v0 = <925000>;
+		};
+
+		opp-702000000 {
+			opp-hz = /bits/ 64 <702000000>;
+			opp-supported-hw = <0x87>;
+			opp-microvolt-speed0-pvs0-v0 = <1025000>;
+			opp-microvolt-speed0-pvs1-v0 = <975000>;
+			opp-microvolt-speed0-pvs3-v0 = <925000>;
+			opp-microvolt-speed0-pvs4-v0 = <925000>;
+			opp-microvolt-speed1-pvs0-v0 = <962500>;
+			opp-microvolt-speed1-pvs1-v0 = <962500>;
+			opp-microvolt-speed1-pvs2-v0 = <925000>;
+			opp-microvolt-speed1-pvs3-v0 = <900000>;
+			opp-microvolt-speed1-pvs4-v0 = <875000>;
+			opp-microvolt-speed1-pvs5-v0 = <875000>;
+			opp-microvolt-speed1-pvs6-v0 = <875000>;
+			opp-microvolt-speed2-pvs0-v0 = <962500>;
+			opp-microvolt-speed2-pvs1-v0 = <962500>;
+			opp-microvolt-speed2-pvs2-v0 = <925000>;
+			opp-microvolt-speed2-pvs3-v0 = <900000>;
+			opp-microvolt-speed2-pvs4-v0 = <875000>;
+			opp-microvolt-speed2-pvs5-v0 = <875000>;
+			opp-microvolt-speed2-pvs6-v0 = <875000>;
+			opp-microvolt-speed7-pvs0-v0 = <950000>;
+			opp-microvolt-speed7-pvs1-v0 = <925000>;
+			opp-microvolt-speed7-pvs2-v0 = <900000>;
+			opp-microvolt-speed7-pvs3-v0 = <900000>;
+			opp-microvolt-speed7-pvs4-v0 = <875000>;
+			opp-microvolt-speed7-pvs5-v0 = <875000>;
+			opp-microvolt-speed7-pvs6-v0 = <875000>;
+		};
+
+		opp-756000000 {
+			opp-hz = /bits/ 64 <756000000>;
+			opp-supported-hw = <0x01>;
+			opp-microvolt-speed0-pvs0-v0 = <1075000>;
+			opp-microvolt-speed0-pvs1-v0 = <1025000>;
+			opp-microvolt-speed0-pvs3-v0 = <975000>;
+			opp-microvolt-speed0-pvs4-v0 = <962500>;
+		};
+
+		opp-810000000 {
+			opp-hz = /bits/ 64 <810000000>;
+			opp-supported-hw = <0x87>;
+			opp-microvolt-speed0-pvs0-v0 = <1075000>;
+			opp-microvolt-speed0-pvs1-v0 = <1025000>;
+			opp-microvolt-speed0-pvs3-v0 = <975000>;
+			opp-microvolt-speed0-pvs4-v0 = <962500>;
+			opp-microvolt-speed1-pvs0-v0 = <1000000>;
+			opp-microvolt-speed1-pvs1-v0 = <975000>;
+			opp-microvolt-speed1-pvs2-v0 = <937500>;
+			opp-microvolt-speed1-pvs3-v0 = <900000>;
+			opp-microvolt-speed1-pvs4-v0 = <887500>;
+			opp-microvolt-speed1-pvs5-v0 = <887500>;
+			opp-microvolt-speed1-pvs6-v0 = <887500>;
+			opp-microvolt-speed2-pvs0-v0 = <1000000>;
+			opp-microvolt-speed2-pvs1-v0 = <975000>;
+			opp-microvolt-speed2-pvs2-v0 = <937500>;
+			opp-microvolt-speed2-pvs3-v0 = <900000>;
+			opp-microvolt-speed2-pvs4-v0 = <887500>;
+			opp-microvolt-speed2-pvs5-v0 = <887500>;
+			opp-microvolt-speed2-pvs6-v0 = <887500>;
+			opp-microvolt-speed7-pvs0-v0 = <962500>;
+			opp-microvolt-speed7-pvs1-v0 = <937500>;
+			opp-microvolt-speed7-pvs2-v0 = <912500>;
+			opp-microvolt-speed7-pvs3-v0 = <900000>;
+			opp-microvolt-speed7-pvs4-v0 = <887500>;
+			opp-microvolt-speed7-pvs5-v0 = <887500>;
+			opp-microvolt-speed7-pvs6-v0 = <887500>;
+		};
+
+		opp-864000000 {
+			opp-hz = /bits/ 64 <864000000>;
+			opp-supported-hw = <0x01>;
+			opp-microvolt-speed0-pvs0-v0 = <1100000>;
+			opp-microvolt-speed0-pvs1-v0 = <1050000>;
+			opp-microvolt-speed0-pvs3-v0 = <1000000>;
+			opp-microvolt-speed0-pvs4-v0 = <975000>;
+		};
+
+		opp-918000000 {
+			opp-hz = /bits/ 64 <918000000>;
+			opp-supported-hw = <0x87>;
+			opp-microvolt-speed0-pvs0-v0 = <1100000>;
+			opp-microvolt-speed0-pvs1-v0 = <1050000>;
+			opp-microvolt-speed0-pvs3-v0 = <1000000>;
+			opp-microvolt-speed0-pvs4-v0 = <975000>;
+			opp-microvolt-speed1-pvs0-v0 = <1025000>;
+			opp-microvolt-speed1-pvs1-v0 = <1000000>;
+			opp-microvolt-speed1-pvs2-v0 = <950000>;
+			opp-microvolt-speed1-pvs3-v0 = <925000>;
+			opp-microvolt-speed1-pvs4-v0 = <900000>;
+			opp-microvolt-speed1-pvs5-v0 = <900000>;
+			opp-microvolt-speed1-pvs6-v0 = <900000>;
+			opp-microvolt-speed2-pvs0-v0 = <1025000>;
+			opp-microvolt-speed2-pvs1-v0 = <1000000>;
+			opp-microvolt-speed2-pvs2-v0 = <950000>;
+			opp-microvolt-speed2-pvs3-v0 = <925000>;
+			opp-microvolt-speed2-pvs4-v0 = <900000>;
+			opp-microvolt-speed2-pvs5-v0 = <900000>;
+			opp-microvolt-speed2-pvs6-v0 = <900000>;
+			opp-microvolt-speed7-pvs0-v0 = <975000>;
+			opp-microvolt-speed7-pvs1-v0 = <950000>;
+			opp-microvolt-speed7-pvs2-v0 = <925000>;
+			opp-microvolt-speed7-pvs3-v0 = <912500>;
+			opp-microvolt-speed7-pvs4-v0 = <900000>;
+			opp-microvolt-speed7-pvs5-v0 = <900000>;
+			opp-microvolt-speed7-pvs6-v0 = <900000>;
+		};
+
+		opp-972000000 {
+			opp-hz = /bits/ 64 <972000000>;
+			opp-supported-hw = <0x01>;
+			opp-microvolt-speed0-pvs0-v0 = <1125000>;
+			opp-microvolt-speed0-pvs1-v0 = <1075000>;
+			opp-microvolt-speed0-pvs3-v0 = <1025000>;
+			opp-microvolt-speed0-pvs4-v0 = <1000000>;
+		};
+
+		opp-1026000000 {
+			opp-hz = /bits/ 64 <1026000000>;
+			opp-supported-hw = <0x87>;
+			opp-microvolt-speed0-pvs0-v0 = <1125000>;
+			opp-microvolt-speed0-pvs1-v0 = <1075000>;
+			opp-microvolt-speed0-pvs3-v0 = <1025000>;
+			opp-microvolt-speed0-pvs4-v0 = <1000000>;
+			opp-microvolt-speed1-pvs0-v0 = <1037500>;
+			opp-microvolt-speed1-pvs1-v0 = <1012500>;
+			opp-microvolt-speed1-pvs2-v0 = <975000>;
+			opp-microvolt-speed1-pvs3-v0 = <950000>;
+			opp-microvolt-speed1-pvs4-v0 = <925000>;
+			opp-microvolt-speed1-pvs5-v0 = <925000>;
+			opp-microvolt-speed1-pvs6-v0 = <925000>;
+			opp-microvolt-speed2-pvs0-v0 = <1037500>;
+			opp-microvolt-speed2-pvs1-v0 = <1012500>;
+			opp-microvolt-speed2-pvs2-v0 = <975000>;
+			opp-microvolt-speed2-pvs3-v0 = <950000>;
+			opp-microvolt-speed2-pvs4-v0 = <925000>;
+			opp-microvolt-speed2-pvs5-v0 = <925000>;
+			opp-microvolt-speed2-pvs6-v0 = <925000>;
+			opp-microvolt-speed7-pvs0-v0 = <1000000>;
+			opp-microvolt-speed7-pvs1-v0 = <975000>;
+			opp-microvolt-speed7-pvs2-v0 = <950000>;
+			opp-microvolt-speed7-pvs3-v0 = <937500>;
+			opp-microvolt-speed7-pvs4-v0 = <925000>;
+			opp-microvolt-speed7-pvs5-v0 = <925000>;
+			opp-microvolt-speed7-pvs6-v0 = <925000>;
+		};
+
+		opp-1080000000 {
+			opp-hz = /bits/ 64 <1080000000>;
+			opp-supported-hw = <0x01>;
+			opp-microvolt-speed0-pvs0-v0 = <1175000>;
+			opp-microvolt-speed0-pvs1-v0 = <1125000>;
+			opp-microvolt-speed0-pvs3-v0 = <1075000>;
+			opp-microvolt-speed0-pvs4-v0 = <1050000>;
+		};
+
+		opp-1134000000 {
+			opp-hz = /bits/ 64 <1134000000>;
+			opp-supported-hw = <0x87>;
+			opp-microvolt-speed0-pvs0-v0 = <1175000>;
+			opp-microvolt-speed0-pvs1-v0 = <1125000>;
+			opp-microvolt-speed0-pvs3-v0 = <1075000>;
+			opp-microvolt-speed0-pvs4-v0 = <1050000>;
+			opp-microvolt-speed1-pvs0-v0 = <1075000>;
+			opp-microvolt-speed1-pvs1-v0 = <1037500>;
+			opp-microvolt-speed1-pvs2-v0 = <1000000>;
+			opp-microvolt-speed1-pvs3-v0 = <975000>;
+			opp-microvolt-speed1-pvs4-v0 = <950000>;
+			opp-microvolt-speed1-pvs5-v0 = <937500>;
+			opp-microvolt-speed1-pvs6-v0 = <937500>;
+			opp-microvolt-speed2-pvs0-v0 = <1075000>;
+			opp-microvolt-speed2-pvs1-v0 = <1037500>;
+			opp-microvolt-speed2-pvs2-v0 = <1000000>;
+			opp-microvolt-speed2-pvs3-v0 = <975000>;
+			opp-microvolt-speed2-pvs4-v0 = <950000>;
+			opp-microvolt-speed2-pvs5-v0 = <937500>;
+			opp-microvolt-speed2-pvs6-v0 = <937500>;
+			opp-microvolt-speed7-pvs0-v0 = <1025000>;
+			opp-microvolt-speed7-pvs1-v0 = <1000000>;
+			opp-microvolt-speed7-pvs2-v0 = <975000>;
+			opp-microvolt-speed7-pvs3-v0 = <962500>;
+			opp-microvolt-speed7-pvs4-v0 = <950000>;
+			opp-microvolt-speed7-pvs5-v0 = <937500>;
+			opp-microvolt-speed7-pvs6-v0 = <937500>;
+		};
+
+		opp-1188000000 {
+			opp-hz = /bits/ 64 <1188000000>;
+			opp-supported-hw = <0x01>;
+			opp-microvolt-speed0-pvs0-v0 = <1200000>;
+			opp-microvolt-speed0-pvs1-v0 = <1150000>;
+			opp-microvolt-speed0-pvs3-v0 = <1100000>;
+			opp-microvolt-speed0-pvs4-v0 = <1075000>;
+		};
+
+		opp-1242000000 {
+			opp-hz = /bits/ 64 <1242000000>;
+			opp-supported-hw = <0x87>;
+			opp-microvolt-speed0-pvs0-v0 = <1200000>;
+			opp-microvolt-speed0-pvs1-v0 = <1150000>;
+			opp-microvolt-speed0-pvs3-v0 = <1100000>;
+			opp-microvolt-speed0-pvs4-v0 = <1075000>;
+			opp-microvolt-speed1-pvs0-v0 = <1087500>;
+			opp-microvolt-speed1-pvs1-v0 = <1050000>;
+			opp-microvolt-speed1-pvs2-v0 = <1012500>;
+			opp-microvolt-speed1-pvs3-v0 = <987500>;
+			opp-microvolt-speed1-pvs4-v0 = <962500>;
+			opp-microvolt-speed1-pvs5-v0 = <950000>;
+			opp-microvolt-speed1-pvs6-v0 = <950000>;
+			opp-microvolt-speed2-pvs0-v0 = <1087500>;
+			opp-microvolt-speed2-pvs1-v0 = <1050000>;
+			opp-microvolt-speed2-pvs2-v0 = <1012500>;
+			opp-microvolt-speed2-pvs3-v0 = <987500>;
+			opp-microvolt-speed2-pvs4-v0 = <962500>;
+			opp-microvolt-speed2-pvs5-v0 = <950000>;
+			opp-microvolt-speed2-pvs6-v0 = <950000>;
+			opp-microvolt-speed7-pvs0-v0 = <1037500>;
+			opp-microvolt-speed7-pvs1-v0 = <1012500>;
+			opp-microvolt-speed7-pvs2-v0 = <987500>;
+			opp-microvolt-speed7-pvs3-v0 = <975000>;
+			opp-microvolt-speed7-pvs4-v0 = <962500>;
+			opp-microvolt-speed7-pvs5-v0 = <950000>;
+			opp-microvolt-speed7-pvs6-v0 = <950000>;
+		};
+
+		opp-1296000000 {
+			opp-hz = /bits/ 64 <1296000000>;
+			opp-supported-hw = <0x01>;
+			opp-microvolt-speed0-pvs0-v0 = <1225000>;
+			opp-microvolt-speed0-pvs1-v0 = <1175000>;
+			opp-microvolt-speed0-pvs3-v0 = <1125000>;
+			opp-microvolt-speed0-pvs4-v0 = <1100000>;
+		};
+
+		opp-1350000000 {
+			opp-hz = /bits/ 64 <1350000000>;
+			opp-supported-hw = <0x87>;
+			opp-microvolt-speed0-pvs0-v0 = <1225000>;
+			opp-microvolt-speed0-pvs1-v0 = <1175000>;
+			opp-microvolt-speed0-pvs3-v0 = <1125000>;
+			opp-microvolt-speed0-pvs4-v0 = <1100000>;
+			opp-microvolt-speed1-pvs0-v0 = <1125000>;
+			opp-microvolt-speed1-pvs1-v0 = <1087500>;
+			opp-microvolt-speed1-pvs2-v0 = <1037500>;
+			opp-microvolt-speed1-pvs3-v0 = <1000000>;
+			opp-microvolt-speed1-pvs4-v0 = <975000>;
+			opp-microvolt-speed1-pvs5-v0 = <962500>;
+			opp-microvolt-speed1-pvs6-v0 = <962500>;
+			opp-microvolt-speed2-pvs0-v0 = <1125000>;
+			opp-microvolt-speed2-pvs1-v0 = <1087500>;
+			opp-microvolt-speed2-pvs2-v0 = <1037500>;
+			opp-microvolt-speed2-pvs3-v0 = <1000000>;
+			opp-microvolt-speed2-pvs4-v0 = <975000>;
+			opp-microvolt-speed2-pvs5-v0 = <962500>;
+			opp-microvolt-speed2-pvs6-v0 = <962500>;
+			opp-microvolt-speed7-pvs0-v0 = <1062500>;
+			opp-microvolt-speed7-pvs1-v0 = <1037500>;
+			opp-microvolt-speed7-pvs2-v0 = <1012500>;
+			opp-microvolt-speed7-pvs3-v0 = <1000000>;
+			opp-microvolt-speed7-pvs4-v0 = <975000>;
+			opp-microvolt-speed7-pvs5-v0 = <962500>;
+			opp-microvolt-speed7-pvs6-v0 = <962500>;
+		};
+
+		opp-1404000000 {
+			opp-hz = /bits/ 64 <1404000000>;
+			opp-supported-hw = <0x01>;
+			opp-microvolt-speed0-pvs0-v0 = <1237500>;
+			opp-microvolt-speed0-pvs1-v0 = <1187500>;
+			opp-microvolt-speed0-pvs3-v0 = <1137500>;
+			opp-microvolt-speed0-pvs4-v0 = <1112500>;
+		};
+
+		opp-1458000000 {
+			opp-hz = /bits/ 64 <1458000000>;
+			opp-supported-hw = <0x87>;
+			opp-microvolt-speed0-pvs0-v0 = <1237500>;
+			opp-microvolt-speed0-pvs1-v0 = <1187500>;
+			opp-microvolt-speed0-pvs3-v0 = <1137500>;
+			opp-microvolt-speed0-pvs4-v0 = <1112500>;
+			opp-microvolt-speed1-pvs0-v0 = <1150000>;
+			opp-microvolt-speed1-pvs1-v0 = <1112500>;
+			opp-microvolt-speed1-pvs2-v0 = <1075000>;
+			opp-microvolt-speed1-pvs3-v0 = <1037500>;
+			opp-microvolt-speed1-pvs4-v0 = <1000000>;
+			opp-microvolt-speed1-pvs5-v0 = <987500>;
+			opp-microvolt-speed1-pvs6-v0 = <975000>;
+			opp-microvolt-speed2-pvs0-v0 = <1150000>;
+			opp-microvolt-speed2-pvs1-v0 = <1112500>;
+			opp-microvolt-speed2-pvs2-v0 = <1075000>;
+			opp-microvolt-speed2-pvs3-v0 = <1037500>;
+			opp-microvolt-speed2-pvs4-v0 = <1000000>;
+			opp-microvolt-speed2-pvs5-v0 = <987500>;
+			opp-microvolt-speed2-pvs6-v0 = <975000>;
+			opp-microvolt-speed7-pvs0-v0 = <1110000>;
+			opp-microvolt-speed7-pvs1-v0 = <1075000>;
+			opp-microvolt-speed7-pvs2-v0 = <1050000>;
+			opp-microvolt-speed7-pvs3-v0 = <1025000>;
+			opp-microvolt-speed7-pvs4-v0 = <1000000>;
+			opp-microvolt-speed7-pvs5-v0 = <987500>;
+			opp-microvolt-speed7-pvs6-v0 = <975000>;
+		};
+
+		opp-1512000000 {
+			opp-hz = /bits/ 64 <1512000000>;
+			opp-supported-hw = <0x03>;
+			opp-microvolt-speed0-pvs0-v0 = <1250000>;
+			opp-microvolt-speed0-pvs1-v0 = <1200000>;
+			opp-microvolt-speed0-pvs3-v0 = <1150000>;
+			opp-microvolt-speed0-pvs4-v0 = <1125000>;
+			opp-microvolt-speed1-pvs0-v0 = <1162500>;
+			opp-microvolt-speed1-pvs1-v0 = <1125000>;
+			opp-microvolt-speed1-pvs2-v0 = <1087500>;
+			opp-microvolt-speed1-pvs3-v0 = <1050000>;
+			opp-microvolt-speed1-pvs4-v0 = <1012500>;
+			opp-microvolt-speed1-pvs5-v0 = <1000000>;
+			opp-microvolt-speed1-pvs6-v0 = <987500>;
+		};
+
+		opp-1566000000 {
+			opp-hz = /bits/ 64 <1566000000>;
+			opp-supported-hw = <0x84>;
+			opp-microvolt-speed2-pvs0-v0 = <1175000>;
+			opp-microvolt-speed2-pvs1-v0 = <1150000>;
+			opp-microvolt-speed2-pvs2-v0 = <1100000>;
+			opp-microvolt-speed2-pvs3-v0 = <1062500>;
+			opp-microvolt-speed2-pvs4-v0 = <1037500>;
+			opp-microvolt-speed2-pvs5-v0 = <1012500>;
+			opp-microvolt-speed2-pvs6-v0 = <1000000>;
+			opp-microvolt-speed7-pvs0-v0 = <1125000>;
+			opp-microvolt-speed7-pvs1-v0 = <1100000>;
+			opp-microvolt-speed7-pvs2-v0 = <1075000>;
+			opp-microvolt-speed7-pvs3-v0 = <1050000>;
+			opp-microvolt-speed7-pvs4-v0 = <1037500>;
+			opp-microvolt-speed7-pvs5-v0 = <1012500>;
+			opp-microvolt-speed7-pvs6-v0 = <1000000>;
+		};
+
+		opp-1674000000 {
+			opp-hz = /bits/ 64 <1674000000>;
+			opp-supported-hw = <0x84>;
+			opp-microvolt-speed2-pvs0-v0 = <1225000>;
+			opp-microvolt-speed2-pvs1-v0 = <1187500>;
+			opp-microvolt-speed2-pvs2-v0 = <1137500>;
+			opp-microvolt-speed2-pvs3-v0 = <1100000>;
+			opp-microvolt-speed2-pvs4-v0 = <1075000>;
+			opp-microvolt-speed2-pvs5-v0 = <1050000>;
+			opp-microvolt-speed2-pvs6-v0 = <1025000>;
+			opp-microvolt-speed7-pvs0-v0 = <1175000>;
+			opp-microvolt-speed7-pvs1-v0 = <1137500>;
+			opp-microvolt-speed7-pvs2-v0 = <1112500>;
+			opp-microvolt-speed7-pvs3-v0 = <1087500>;
+			opp-microvolt-speed7-pvs4-v0 = <1075000>;
+			opp-microvolt-speed7-pvs5-v0 = <1050000>;
+			opp-microvolt-speed7-pvs6-v0 = <1025000>;
+		};
+
+		opp-1728000000 {
+			opp-hz = /bits/ 64 <1728000000>;
+			opp-supported-hw = <0x04>;
+			opp-microvolt-speed2-pvs0-v0 = <1250000>;
+			opp-microvolt-speed2-pvs1-v0 = <1200000>;
+			opp-microvolt-speed2-pvs2-v0 = <1162500>;
+			opp-microvolt-speed2-pvs3-v0 = <1125000>;
+			opp-microvolt-speed2-pvs4-v0 = <1100000>;
+			opp-microvolt-speed2-pvs5-v0 = <1075000>;
+			opp-microvolt-speed2-pvs6-v0 = <1050000>;
+		};
+
+		opp-1782000000 {
+			opp-hz = /bits/ 64 <1782000000>;
+			opp-supported-hw = <0x80>;
+			opp-microvolt-speed7-pvs0-v0 = <1225000>;
+			opp-microvolt-speed7-pvs1-v0 = <1187500>;
+			opp-microvolt-speed7-pvs2-v0 = <1162500>;
+			opp-microvolt-speed7-pvs3-v0 = <1137500>;
+			opp-microvolt-speed7-pvs4-v0 = <1112500>;
+			opp-microvolt-speed7-pvs5-v0 = <1087500>;
+			opp-microvolt-speed7-pvs6-v0 = <1062500>;
+		};
 	};
 
 	soc: soc {
@@ -941,6 +1462,9 @@
 			};
 			tsens_backup: backup_calib {
 				reg = <0x414 0x10>;
+			};
+			pvs_efuse: pvs {
+				reg = <0xc0 0x4>;
 			};
 		};
 
