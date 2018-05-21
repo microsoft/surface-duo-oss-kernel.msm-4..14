@@ -1,7 +1,7 @@
 * Freescale S32V SIUL2 GPIO controller
 
 Required properties:
-- compatible : Should be "fsl,s32v234-siul2-gpio"
+- compatible : Should be "fsl,s32v234-siul2-gpio", "fsl,s32gen1-siul2-gpio"
 - reg : 4 or 5 ranges. 4 for nodes without EIRQ management and 5 for others.
 	Ranges index meaning :
 		- 0 Address and length of the Parallel GPIO Pad Data Out Register
