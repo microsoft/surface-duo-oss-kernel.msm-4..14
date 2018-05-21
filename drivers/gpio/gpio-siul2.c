@@ -403,6 +403,7 @@ static int siul2_gpio_remove(struct platform_device *pdev)
 
 static const struct of_device_id siul2_gpio_dt_ids[] = {
 	{ .compatible = "fsl,s32v234-siul2-gpio" },
+	{ .compatible = "fsl,s32gen1-siul2-gpio" },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, siul2_gpio_dt_ids);
