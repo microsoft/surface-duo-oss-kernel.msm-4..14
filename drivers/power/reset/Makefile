@@ -20,3 +20,4 @@ obj-$(CONFIG_POWER_RESET_SYSCON) += syscon-reboot.o
 obj-$(CONFIG_POWER_RESET_SYSCON_POWEROFF) += syscon-poweroff.o
 obj-$(CONFIG_POWER_RESET_RMOBILE) += rmobile-reset.o
 obj-$(CONFIG_POWER_RESET_S32V) += s32v-reboot.o
+obj-$(CONFIG_POWER_RESET_S32GEN1) += s32gen1-reboot.o
