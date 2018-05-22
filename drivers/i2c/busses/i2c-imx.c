@@ -26,7 +26,7 @@
  *	Copyright (C) 2008 Darius Augulis <darius.augulis at teltonika.lt>
  *
  *	Copyright 2013 Freescale Semiconductor, Inc.
- *	Copyright 2017 NXP
+ *	Copyright 2017-2018 NXP
  */
 
 /** Includes *******************************************************************
@@ -292,6 +292,7 @@ static const struct of_device_id i2c_imx_dt_ids[] = {
 	{ .compatible = "fsl,imx21-i2c", .data = &imx21_i2c_hwdata, },
 	{ .compatible = "fsl,vf610-i2c", .data = &vf610_i2c_hwdata, },
 	{ .compatible = "fsl,s32v234-i2c", .data = &s32v234_i2c_hwdata, },
+	{ .compatible = "fsl,s32gen1-i2c", .data = &s32v234_i2c_hwdata, },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, i2c_imx_dt_ids);
