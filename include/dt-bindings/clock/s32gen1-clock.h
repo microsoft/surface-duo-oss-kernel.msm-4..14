@@ -73,10 +73,11 @@
 #define S32GEN1_CLK_XBAR_DIV3			51
 #define S32GEN1_CLK_XBAR_DIV4			52
 #define S32GEN1_CLK_SBSW			53
-
 /* SDHC Clock */
 #define S32GEN1_CLK_SDHC_SEL			54
 #define S32GEN1_CLK_SDHC			55
+/* CAN Clock */
+#define	S32GEN1_CLK_CAN				56
 
-#define	S32GEN1_CLK_END				56
+#define	S32GEN1_CLK_END				57
 #endif /* __DT_BINDINGS_CLOCK_S32GEN1_H */
