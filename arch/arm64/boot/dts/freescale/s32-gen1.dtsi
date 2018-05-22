@@ -106,6 +106,11 @@
 		reg = <0x0 0x40068000 0x0 0x3000>;
 	};
 
+	mc_me: mc_me@40088000 {
+		compatible = "fsl,s32gen1-reset";
+		reg = <0x0 0x40088000 0x0 0x1000>;
+	};
+
 	siul2_0 {
 		compatible = "simple-mfd";
 		#address-cells = <2>;
