@@ -28,3 +28,4 @@ obj-$(CONFIG_POWER_RESET_S32V) += s32v-reboot.o
 obj-$(CONFIG_POWER_RESET_ZX) += zx-reboot.o
 obj-$(CONFIG_REBOOT_MODE) += reboot-mode.o
 obj-$(CONFIG_SYSCON_REBOOT_MODE) += syscon-reboot-mode.o
+obj-$(CONFIG_POWER_RESET_S32GEN1) += s32gen1-reboot.o
