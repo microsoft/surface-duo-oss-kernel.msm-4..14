@@ -1012,6 +1012,19 @@ static unsigned vf610_mux_channel_mapping(u32 channel_id)
 	return channel_id;
 }
 
+static void fsl_edma_irq_exit(
+		struct platform_device *pdev, struct fsl_edma_engine *fsl_edma)
+{
+	unsigned int i;
+	const struct fsl_edma_soc_data *socdata = fsl_edma->socdata;
+
+	for (i = 0; i < socdata->n_irqs; i++) {
+		if (socdata->irqs[i].irqno >= 0)
+			devm_free_irq(&pdev->dev,
+					socdata->irqs[i].irqno, fsl_edma);
+	}
+}
+
 static void fsl_edma_enable_arbitration(struct fsl_edma_engine *fsl_edma)
 {
 	void __iomem *addr = fsl_edma->membase;
@@ -1245,12 +1258,25 @@ static int fsl_edma_probe(struct platform_device *pdev)
 	return 0;
 }
 
+static void fsl_edma_cleanup_vchan(struct dma_device *dmadev)
+{
+	struct fsl_edma_chan *chan, *_chan;
+
+	list_for_each_entry_safe(chan, _chan,
+				&dmadev->channels, vchan.chan.device_node) {
+		list_del(&chan->vchan.chan.device_node);
+		tasklet_kill(&chan->vchan.task);
+	}
+}
+
 static int fsl_edma_remove(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
 	struct fsl_edma_engine *fsl_edma = platform_get_drvdata(pdev);
 	int i;
 
+	fsl_edma_irq_exit(pdev, fsl_edma);
+	fsl_edma_cleanup_vchan(&fsl_edma->dma_dev);
 	of_dma_controller_free(np);
 	dma_async_device_unregister(&fsl_edma->dma_dev);
 
