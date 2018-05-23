@@ -18,36 +18,37 @@ parts:
     kconfigs:
       - CONFIG_DEBUG_INFO=n
     kernel-image-target: zImage
-    install: |
+    override-build: |
+      snapcraftctl build
       tar -C $SNAPCRAFT_PART_INSTALL/dtbs -f $SNAPCRAFT_PART_INSTALL/dtbs/overlays.tgz -czv overlays
       rm -rf $SNAPCRAFT_PART_INSTALL/dtbs/overlays
+
   firmware:
     plugin: nil
+    source: firmware
+    after:
+      - kernel
     stage-packages:
       - linux-firmware
     organize:
       lib/firmware: firmware
-    prime:
+    stage:
       - -usr
       - -lib
-    install: |
-      rm $SNAPCRAFT_PART_INSTALL/lib/firmware/brcm/brcmfmac43430-sdio.bin
-    build-packages:
-      - cpio
-      - libssl-dev
-      - dpkg-dev
+      - -firmware/brcm/brcmfmac43430-sdio.bin
+
   raspiwififw:
     plugin: nil
-    source: .
+    source: firmware
     after:
       - firmware
-    prepare: |
+    override-pull: |
       PKGS="http://ppa.launchpad.net/snappy-dev/image/ubuntu/dists/xenial/main/binary-armhf/Packages.gz"
       PKGPATH="$(wget -q -O- $PKGS|zcat|grep-dctrl raspberrypi-wireless-firmware |\
         grep Filename|tail -1| sed 's/^Filename: //')"
       wget http://ppa.launchpad.net/snappy-dev/image/ubuntu/$PKGPATH
       dpkg -x $(basename $PKGPATH) unpack/
-    install: |
+    override-build: |
       mkdir -p $SNAPCRAFT_PART_INSTALL/firmware/brcm
       mv unpack/usr/share/doc/raspberrypi-wireless-firmware $SNAPCRAFT_PART_INSTALL/firmware/rpi-wlanfw-licenses
       mv unpack/lib/firmware/brcm80211/brcm/* $SNAPCRAFT_PART_INSTALL/firmware/brcm
@@ -56,3 +57,5 @@ parts:
       - dctrl-tools
       - sed
       - wget
+      - libssl-dev
+      - dpkg-dev
