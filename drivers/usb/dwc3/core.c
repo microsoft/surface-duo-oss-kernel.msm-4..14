@@ -763,8 +763,6 @@ static void dwc3_core_setup_global_control(struct dwc3 *dwc)
 	dwc3_writel(dwc->regs, DWC3_GCTL, reg);
 }
 
-static int dwc3_core_get_phy(struct dwc3 *dwc);
-
 /**
  * dwc3_core_init - Low-level initialization of DWC3 Core
  * @dwc: Pointer to our controller context structure
@@ -800,10 +798,6 @@ static int dwc3_core_init(struct dwc3 *dwc)
 		goto err0;
 
 	ret = dwc3_phy_setup(dwc);
-	if (ret)
-		goto err0;
-
-	ret = dwc3_core_get_phy(dwc);
 	if (ret)
 		goto err0;
 
@@ -1306,6 +1300,10 @@ static int dwc3_probe(struct platform_device *pdev)
 	platform_set_drvdata(pdev, dwc);
 	dwc3_cache_hwparams(dwc);
 
+	ret = dwc3_core_get_phy(dwc);
+	if (ret)
+		goto err0;
+
 	spin_lock_init(&dwc->lock);
 
 	pm_runtime_set_active(dev);
@@ -1367,6 +1365,7 @@ err1:
 	pm_runtime_put_sync(&pdev->dev);
 	pm_runtime_disable(&pdev->dev);
 
+err0:
 	clk_bulk_disable(dwc->num_clks, dwc->clks);
 unprepare_clks:
 	clk_bulk_unprepare(dwc->num_clks, dwc->clks);
