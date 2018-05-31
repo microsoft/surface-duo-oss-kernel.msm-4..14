@@ -354,19 +354,19 @@ static void __init s32gen1_clocks_init(struct device_node *clocking_node)
 	of_clk_add_provider(clocking_node, of_clk_src_onecell_get, &clk_data);
 }
 
-static void __init s32v344_clocks_init(struct device_node *mc_cgm0_node)
+static void __init s32v344_clocks_init(struct device_node *clks_node)
 {
-	s32gen1_clocks_init(mc_cgm0_node);
+	s32gen1_clocks_init(clks_node);
 }
 
-static void __init s32g275_clocks_init(struct device_node *mc_cgm0_node)
+static void __init s32g275_clocks_init(struct device_node *clks_node)
 {
-	s32gen1_clocks_init(mc_cgm0_node);
+	s32gen1_clocks_init(clks_node);
 }
 
-static void __init s32r45x_clocks_init(struct device_node *mc_cgm0_node)
+static void __init s32r45x_clocks_init(struct device_node *clks_node)
 {
-	s32gen1_clocks_init(mc_cgm0_node);
+	s32gen1_clocks_init(clks_node);
 }
 
 CLK_OF_DECLARE(S32V344, "fsl,s32v344-clocking", s32v344_clocks_init);
