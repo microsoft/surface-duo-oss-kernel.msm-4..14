@@ -185,8 +185,8 @@
 				  "edma-tx_16-31",
 				  "edma-err";
 		clock-names = "dmamux0", "dmamux1";
-		clocks = <&sysclk>,
-			 <&sysclk>;
+		clocks = <&clks S32GEN1_CLK_XBAR>,
+			 <&clks S32GEN1_CLK_XBAR>;
 		status = "disabled";
 	};
 
@@ -330,8 +330,8 @@
 				  "edma-tx_16-31",
 				  "edma-err";
 		clock-names = "dmamux0", "dmamux1";
-		clocks = <&sysclk>,
-			 <&sysclk>;
+		clocks = <&clks S32GEN1_CLK_XBAR>,
+			 <&clks S32GEN1_CLK_XBAR>;
 		status = "disabled";
 	};
 
