@@ -194,7 +194,7 @@
 		compatible = "fsl,s32v234-pit";
 		reg = <0x0 0x40188000 0x0 0x3000>;
 		interrupts= <0 53 4>;
-		clocks = <&sysclk>;
+		clocks = <&clks S32GEN1_CLK_XBAR_DIV3>;
 		clock-names = "pit";
 		cpu = <0>;
 		status = "disabled";
@@ -340,7 +340,7 @@
 		reg = <0x0 0x40288000 0x0 0x3000>;
 		interrupts= <0 54 4>;
 		cpu = <1>;
-		clocks = <&sysclk>;
+		clocks = <&clks S32GEN1_CLK_XBAR_DIV3>;
 		clock-names = "pit";
 		status = "disabled";
 	};
