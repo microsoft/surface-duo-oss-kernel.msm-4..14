@@ -64,7 +64,7 @@
 
 		pinctrl1: siul2-pinctrl1@44010000 {
 			compatible =
-				"fsl,s32v234-siul2-pinctrl";
+				"fsl,s32g275-siul2-pinctrl";
 			reg = <0x1 0x0 0x0 0xA00>;
 			status = "disabled";
 		};
