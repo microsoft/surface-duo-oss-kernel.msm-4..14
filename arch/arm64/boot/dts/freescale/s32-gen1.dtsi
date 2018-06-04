@@ -336,7 +336,7 @@
 	};
 
 	pit1: pit@40288000{
-		compatible = "fsl,s32v234-pit";
+		compatible = "fsl,s32gen1-pit";
 		reg = <0x0 0x40288000 0x0 0x3000>;
 		interrupts= <0 54 4>;
 		cpu = <1>;
