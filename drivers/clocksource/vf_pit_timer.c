@@ -1,5 +1,6 @@
 /*
  * Copyright 2012-2016 Freescale Semiconductor, Inc.
+ * Copyright 2018 NXP
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -303,3 +304,4 @@ static void __init pit_timer_init(struct device_node *np)
 }
 CLOCKSOURCE_OF_DECLARE(s32v234, "fsl,s32v234-pit", pit_timer_init);
 CLOCKSOURCE_OF_DECLARE(vf610, "fsl,vf610-pit", pit_timer_init);
+CLOCKSOURCE_OF_DECLARE(s32gen1, "fsl,s32gen1-pit", pit_timer_init);

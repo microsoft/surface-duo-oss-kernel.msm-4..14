@@ -1,10 +1,10 @@
 Freescale PIT timer used as clocksource/clockevents
 
 This PIT timer driver is designed to be used as clocksource/clockevents
-for VF610 and S32V234 SoCs.
+for VF610 and S32 SoCs.
 
 Required properties:
-- compatible : "fsl,s32v234-pit", "fsl,vf610-pit"
+- compatible : "fsl,s32v234-pit", "fsl,vf610-pit", "fsl,s32gen1-pit"
 - reg : Should contain 1 register range(address and length)
 - interrupts : One interrupt for PIT timer
 - cpu: The virtual cpu id which will use the timer as
