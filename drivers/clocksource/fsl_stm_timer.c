@@ -1,5 +1,6 @@
 /*
  * Copyright 2016 Freescale Semiconductor, Inc.
+ * Copyright 2018 NXP
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -303,3 +304,4 @@ void __init stm_timer_init(struct device_node *np)
 					timer_base + STM_CR);
 }
 CLOCKSOURCE_OF_DECLARE(s32v234, "fsl,s32v234-stm", stm_timer_init);
+CLOCKSOURCE_OF_DECLARE(s32gen1, "fsl,s32gen1-stm", stm_timer_init);
