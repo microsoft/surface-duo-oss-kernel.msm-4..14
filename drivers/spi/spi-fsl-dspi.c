@@ -155,7 +155,7 @@ static struct dspi_soc_data dspi_vf610_data = {
 	.max_register = 0x88,
 };
 
-static struct dspi_soc_data dspi_s32v234_data = {
+static struct dspi_soc_data dspi_s32_data = {
 	.extended_mode = 1,
 	.max_register = 0x13c,
 };
@@ -643,7 +643,10 @@ static const struct of_device_id fsl_dspi_dt_ids[] = {
 		.data = (void *)&dspi_vf610_data,
 	}, {
 		.compatible = "fsl,s32v234-dspi",
-		.data = (void *)&dspi_s32v234_data,
+		.data = (void *)&dspi_s32_data,
+	}, {
+		.compatible = "fsl,s32gen1-dspi",
+		.data = (void *)&dspi_s32_data,
 	}, {
 		/* sentinel */
 	}
