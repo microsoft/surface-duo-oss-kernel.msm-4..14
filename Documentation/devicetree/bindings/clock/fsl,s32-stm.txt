@@ -1,10 +1,10 @@
 Freescale STM timer used as clockevents
 
 This STM timer driver is designed to be used as clockevents
-for S32V234 SoCs.
+for S32 SoCs.
 
 Required properties:
-- compatible : "fsl,s32v234-stm"
+- compatible : "fsl,s32v234-stm", "fsl,s32gen1-stm"
 - reg : Should contain 1 register range(address and length)
 - interrupts : One interrupt for STM timer
 - cpu: The virtual cpu id which will use the timer as

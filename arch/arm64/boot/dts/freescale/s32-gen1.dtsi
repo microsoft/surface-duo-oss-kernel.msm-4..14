@@ -152,7 +152,7 @@
 	};
 
 	stm0: stm@4011C000{
-		compatible = "fsl,s32v234-stm";
+		compatible = "fsl,s32gen1-stm";
 		reg = <0x0 0x4011C000 0x0 0x3000>;
 		interrupts= <0 24 4>;
 		clocks = <&clks S32GEN1_CLK_XBAR_DIV3>;
@@ -162,7 +162,7 @@
 	};
 
 	stm1: stm@40120000{
-		compatible = "fsl,s32v234-stm";
+		compatible = "fsl,s32gen1-stm";
 		reg = <0x0 0x40120000 0x0 0x3000>;
 		interrupts= <0 25 4>;
 		clocks = <&clks S32GEN1_CLK_XBAR_DIV3>;
