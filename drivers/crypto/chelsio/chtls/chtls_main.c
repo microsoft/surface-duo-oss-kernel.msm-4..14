@@ -239,6 +239,7 @@ static void *chtls_uld_add(const struct cxgb4_lld_info *info)
 	spin_lock_init(&cdev->idr_lock);
 	cdev->send_page_order = min_t(uint, get_order(32768),
 				      send_page_order);
+	cdev->max_host_sndbuf = 48 * 1024;
 
 	if (lldi->vr->key.size)
 		if (chtls_init_kmap(cdev, lldi))
@@ -250,7 +251,7 @@ static void *chtls_uld_add(const struct cxgb4_lld_info *info)
 
 	return cdev;
 out_rspq_skb:
-	for (j = 0; j <= i; j++)
+	for (j = 0; j < i; j++)
 		kfree_skb(cdev->rspq_skb_cache[j]);
 	kfree_skb(cdev->askb);
 out_skb:
