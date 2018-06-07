@@ -64,26 +64,14 @@
 /* LINFLEX Clock */
 #define	S32GEN1_CLK_LIN_BAUD			45
 #define	S32GEN1_CLK_LIN				46
-#define	S32GEN1_CLK_LIN0_BAUD			47
-#define	S32GEN1_CLK_LIN0			48
-#define	S32GEN1_CLK_LIN1_BAUD			49
-#define	S32GEN1_CLK_LIN1			50
-#define	S32GEN1_CLK_LIN2_BAUD			51
-#define	S32GEN1_CLK_LIN2			52
 /* DSPI Clock*/
-#define S32GEN1_CLK_SPI0                        53
-#define S32GEN1_CLK_SPI1                        54
-#define S32GEN1_CLK_SPI2                        55
-#define S32GEN1_CLK_SPI3                        56
-#define S32GEN1_CLK_SPI4                        57
-#define S32GEN1_CLK_SPI5                        58
-#define S32GEN1_CLK_DSPI                        59
+#define S32GEN1_CLK_DSPI                        47
 /* XBAR Clock */
-#define S32GEN1_CLK_XBAR			60
-#define S32GEN1_CLK_XBAR_DIV2			61
-#define S32GEN1_CLK_XBAR_DIV3			62
-#define S32GEN1_CLK_XBAR_DIV4			63
-#define S32GEN1_CLK_SBSW			64
+#define S32GEN1_CLK_XBAR			48
+#define S32GEN1_CLK_XBAR_DIV2			49
+#define S32GEN1_CLK_XBAR_DIV3			50
+#define S32GEN1_CLK_XBAR_DIV4			51
+#define S32GEN1_CLK_SBSW			52
 
-#define	S32GEN1_CLK_END				65
+#define	S32GEN1_CLK_END				53
 #endif /* __DT_BINDINGS_CLOCK_S32GEN1_H */
