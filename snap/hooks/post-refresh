@@ -1,0 +1,27 @@
+#!/bin/sh
+
+exec >> ${SNAP_DATA}/hook.log 2>&1
+echo "$(date '+%Y-%m-%d %H:%M:%S') $0: Entering hook"
+
+set -x
+
+# we are installing new kernel, we need to also update dtbs and overlays
+# so firmware using dtbs which are in sync with current kernel
+# but copy new dtb files in only if previous kernel revison has backed up running dtb
+
+if [ -e ${SNAP_COMMON}/dtb-backed ]; then
+    # target location /boot/uboot/
+    TMP_DIR="/boot/uboot/tmp_update"
+    rm -rf ${TMP_DIR}
+    mkdir -p ${TMP_DIR}
+    cp ${SNAP}/dtbs/bcm2709*.dtb ${TMP_DIR}
+    cp ${SNAP}/dtbs/bcm2710*.dtb ${TMP_DIR}
+    tar -xvzf ${SNAP}/dtbs/overlays.tgz -C ${TMP_DIR}  --owner root --group root --no-same-owner
+    # we have all files ready, replace old one with new one now
+    mv ${TMP_DIR}/bcm* /boot/uboot/
+    rm -rf /boot/uboot/overlays
+    mv ${TMP_DIR}/overlays /boot/uboot/
+    rm -rf ${TMP_DIR}
+    # remove flag for next time
+    rm ${SNAP_COMMON}/dtb-backed
+fi

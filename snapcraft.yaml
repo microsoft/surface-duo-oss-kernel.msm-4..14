@@ -9,6 +9,15 @@ grade: stable
 confinement: strict
 type: kernel
 
+hooks:
+  pre-refresh:
+    plugs:
+      - hardware-observe
+      - boot-update
+  post-refresh:
+    plugs:
+      - boot-update
+
 parts:
   kernel:
     plugin: kernel
@@ -61,3 +70,15 @@ parts:
       - wget
       - libssl-dev
       - dpkg-dev
+  dt-tools:
+    plugin: nil
+    source: arch/arm/boot/dts
+    stage-packages:
+      - on amd64:
+        - device-tree-compiler:armhf
+      - else:
+        - device-tree-compiler
+    stage:
+      - -usr/share
+      - -usr/bin/fdt*
+      - -usr/bin/c*

@@ -1,0 +1,22 @@
+#!/bin/sh
+
+exec >> ${SNAP_DATA}/hook.log 2>&1
+echo "$(date '+%Y-%m-%d %H:%M:%S') $0: Entering hook"
+
+set -x
+
+# we are about to install new kernel, first store current running dtb into system-boot
+# this will allow us to replace all dtbs and overlays read by firmware to new one
+
+# we need to clean bootargs in the process as it contains also info added by u-boot, we do not want this there
+# also only copy actual dtb file to final location once all is done
+
+# target location /boot/uboot/<kernel-snap-name>_<revision>/kernel.dtb
+KERNEL_DTB="kernel.dtb"
+
+${SNAP}/usr/bin/dtc -I fs -O dts /proc/device-tree | sed '0,/bootargs/s/ root=.*$/\";/' > $SNAP_DATA/kernel.dts
+${SNAP}/usr/bin/dtc -I dts -O dtb -o $SNAP_DATA/${KERNEL_DTB} $SNAP_DATA/kernel.dts
+cp $SNAP_DATA/${KERNEL_DTB} /boot/uboot/${SNAP_NAME}_${SNAP_REVISION}.snap/${KERNEL_DTB}
+
+# signal next revision that run time dtb has been backed up
+touch ${SNAP_COMMON}/dtb-backed
