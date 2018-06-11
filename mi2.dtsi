@@ -1,0 +1,33 @@
+/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+&soc{
+	i2c@f9967000 { 
+		analogix_i2c@50{
+			compatible ="analogix,anx7625";
+			status = "ok";
+                        reg = <0x58>;
+        		interrupt-parent = <&msm_gpio>;
+			interrupts = <64 0>, <74 0>; //cable_det gpio is interrupt pin
+			analogix,p-on-gpio = <&msm_gpio 49 0x0>;//APQ_GPIO_49
+			analogix,reset-gpio = <&msm_gpio 50 0x0>;//APQ_GPIO_50
+			analogix,v33-ctrl-gpio = <&msm_gpio 51 0x0>;//APQ_GPIO_51
+			analogix,intr-comm-gpio = <&msm_gpio 64 0x0>;//APQ_GPIO_64
+			analogix,cbl-det-gpio = <&msm_gpio 74 0x0>;//APQ_GPIO_74 
+			analogix.external-ldo-control = <1>;
+			analogix,i2c-pull-up = <1>;
+		};
+	};
+};
+		
+
+
+
