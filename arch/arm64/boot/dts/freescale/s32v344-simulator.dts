@@ -15,8 +15,8 @@
 				 "arm,vexpress,v2p-aarch64", "arm,vexpress";
 
 	chosen {
-		linux,initrd-start = <0xa0000000>;
-		linux,initrd-end = <0xa2000000>;
+		linux,initrd-start = <0x84000000>;
+		linux,initrd-end = <0x86000000>;
 
 	};
 
