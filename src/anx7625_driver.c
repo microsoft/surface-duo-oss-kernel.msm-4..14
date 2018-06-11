@@ -19,7 +19,7 @@
 #include "anx7625_public_interface.h"
 #include  "anx7625_display.h"
 #include "display.h"
-#include "Flash.h"
+/*#include "Flash.h"*/
 
 /* Use device tree structure data when defined "CONFIG_OF"  */
 /* #define CONFIG_OF */
@@ -1544,6 +1544,22 @@ static void dumpall(void)
 	}
 
 }
+
+void command_erase_mainfw(void)
+{}
+
+
+void command_erase_securefw(void)
+{}
+
+void burnhex(int file_index)
+{}
+
+void command_flash_read(unsigned int addr, unsigned long read_size)
+{}
+
+void command_erase_sector(int start_index, int i_count)
+{}
 
 
 ssize_t anx7625_erase_hex(struct device *dev,
