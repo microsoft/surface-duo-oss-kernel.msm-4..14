@@ -82,7 +82,7 @@
 /*#define TRY_SNK_ENABLE*/
 
 /*Auto Update OCM FW Enabled.*/
-#define AUTO_UPDATE_OCM_FW 1 /* 0:disable, 1:enable*/
+#define AUTO_UPDATE_OCM_FW 0 /* 0:disable, 1:enable*/
 
 /*VBUS Control logic status.*/
 #define ENABLE_VBUS_OUTPUT 0
