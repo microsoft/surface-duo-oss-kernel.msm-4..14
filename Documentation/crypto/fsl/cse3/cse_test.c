@@ -4,6 +4,7 @@
  * and their expected command line arguments
  *
  * Copyright (c) 2015 Freescale Semiconductor, Inc.
+ * Copyright 2018 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 or
@@ -49,7 +50,7 @@ static void print_hex(const unsigned char *s, int size)
 {
 	int i;
 	for (i = 0; i < size; i++)
-		printf("%x", s[i]);
+		printf("%02x", s[i]);
 	printf("\n");
 }
 
