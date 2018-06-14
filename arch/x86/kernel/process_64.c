@@ -528,6 +528,7 @@ void set_personality_64bit(void)
 	clear_thread_flag(TIF_X32);
 	/* Pretend that this comes from a 64bit execve */
 	task_pt_regs(current)->orig_ax = __NR_execve;
+	current_thread_info()->status &= ~TS_COMPAT;
 
 	/* Ensure the corresponding mm is not marked. */
 	if (current->mm)
@@ -557,7 +558,7 @@ static void __set_personality_x32(void)
 	 * Pretend to come from a x32 execve.
 	 */
 	task_pt_regs(current)->orig_ax = __NR_x32_execve | __X32_SYSCALL_BIT;
-	current->thread.status &= ~TS_COMPAT;
+	current_thread_info()->status &= ~TS_COMPAT;
 #endif
 }
 
@@ -571,7 +572,7 @@ static void __set_personality_ia32(void)
 	current->personality |= force_personality32;
 	/* Prepare the first "return" to user space */
 	task_pt_regs(current)->orig_ax = __NR_ia32_execve;
-	current->thread.status |= TS_COMPAT;
+	current_thread_info()->status |= TS_COMPAT;
 #endif
 }
 

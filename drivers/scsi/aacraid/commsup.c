@@ -752,6 +752,8 @@ int aac_hba_send(u8 command, struct fib *fibptr, fib_callback callback,
 	int wait;
 	unsigned long flags = 0;
 	unsigned long mflags = 0;
+	struct aac_hba_cmd_req *hbacmd = (struct aac_hba_cmd_req *)
+			fibptr->hw_fib_va;
 
 	fibptr->flags = (FIB_CONTEXT_FLAG | FIB_CONTEXT_FLAG_NATIVE_HBA);
 	if (callback) {
@@ -762,11 +764,9 @@ int aac_hba_send(u8 command, struct fib *fibptr, fib_callback callback,
 		wait = 1;
 
 
-	if (command == HBA_IU_TYPE_SCSI_CMD_REQ) {
-		struct aac_hba_cmd_req *hbacmd =
-			(struct aac_hba_cmd_req *)fibptr->hw_fib_va;
+	hbacmd->iu_type = command;
 
-		hbacmd->iu_type = command;
+	if (command == HBA_IU_TYPE_SCSI_CMD_REQ) {
 		/* bit1 of request_id must be 0 */
 		hbacmd->request_id =
 			cpu_to_le32((((u32)(fibptr - dev->fibs)) << 2) + 1);
@@ -1530,9 +1530,10 @@ static int _aac_reset_adapter(struct aac_dev *aac, int forced, u8 reset_type)
 	host = aac->scsi_host_ptr;
 	scsi_block_requests(host);
 	aac_adapter_disable_int(aac);
-	if (aac->thread->pid != current->pid) {
+	if (aac->thread && aac->thread->pid != current->pid) {
 		spin_unlock_irq(host->host_lock);
 		kthread_stop(aac->thread);
+		aac->thread = NULL;
 		jafo = 1;
 	}
 
@@ -1583,6 +1584,7 @@ static int _aac_reset_adapter(struct aac_dev *aac, int forced, u8 reset_type)
 	 * will ensure that i/o is queisced and the card is flushed in that
 	 * case.
 	 */
+	aac_free_irq(aac);
 	aac_fib_map_free(aac);
 	dma_free_coherent(&aac->pdev->dev, aac->comm_size, aac->comm_addr,
 			  aac->comm_phys);
@@ -1590,7 +1592,6 @@ static int _aac_reset_adapter(struct aac_dev *aac, int forced, u8 reset_type)
 	aac->comm_phys = 0;
 	kfree(aac->queues);
 	aac->queues = NULL;
-	aac_free_irq(aac);
 	kfree(aac->fsa_dev);
 	aac->fsa_dev = NULL;
 
@@ -1619,6 +1620,7 @@ static int _aac_reset_adapter(struct aac_dev *aac, int forced, u8 reset_type)
 					  aac->name);
 		if (IS_ERR(aac->thread)) {
 			retval = PTR_ERR(aac->thread);
+			aac->thread = NULL;
 			goto out;
 		}
 	}
@@ -1672,14 +1674,7 @@ static int _aac_reset_adapter(struct aac_dev *aac, int forced, u8 reset_type)
 out:
 	aac->in_reset = 0;
 	scsi_unblock_requests(host);
-	/*
-	 * Issue bus rescan to catch any configuration that might have
-	 * occurred
-	 */
-	if (!retval) {
-		dev_info(&aac->pdev->dev, "Issuing bus rescan\n");
-		scsi_scan_host(host);
-	}
+
 	if (jafo) {
 		spin_lock_irq(host->host_lock);
 	}

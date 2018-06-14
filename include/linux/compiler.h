@@ -86,6 +86,11 @@ void ftrace_likely_update(struct ftrace_likely_data *f, int val,
 # define barrier_data(ptr) barrier()
 #endif
 
+/* workaround for GCC PR82365 if needed */
+#ifndef barrier_before_unreachable
+# define barrier_before_unreachable() do { } while (0)
+#endif
+
 /* Unreachable code */
 #ifdef CONFIG_STACK_VALIDATION
 #define annotate_reachable() ({						\
@@ -265,6 +270,10 @@ static __always_inline void __write_once_size(volatile void *p, void *res, int s
 #endif /* __KERNEL__ */
 
 #endif /* __ASSEMBLY__ */
+
+#ifndef __optimize
+# define __optimize(level)
+#endif
 
 /* Compile time object size, -1 for unknown */
 #ifndef __compiletime_object_size
