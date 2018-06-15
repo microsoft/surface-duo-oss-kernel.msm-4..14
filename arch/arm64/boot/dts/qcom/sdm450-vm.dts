@@ -1,0 +1,210 @@
+/dts-v1/;
+
+/memreserve/	0x0000000091400000 0x0000000000002000;
+/ {
+	#address-cells = <0x2>;
+	#size-cells = <0x1>;
+	model = "OKL4 Virtual Platform";
+	compatible = "linux,dummy-virt";
+
+	chosen {
+		bootargs = "console=ttyV1 root=/dev/vblock0 rootfstype=ext4 rootwait vservices.default_debug_mask=0";
+	};
+
+	aliases {
+		serial0 = "/hypervisor/serial@1c";
+	};
+
+	cpus {
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+		okl,vmmu-capability = <0x2>;
+		mmu-type = "okl,microvisor-mmu";
+
+		idle-states {
+			entry-method = "psci";
+
+			VCPU_SLEEP {
+				compatible = "arm,idle-state";
+				phandle = <0x1>;
+				arm,psci-suspend-param = <0x0>;
+				entry-latency-us = <0x1>;
+				exit-latency-us = <0x1>;
+				min-residency-us = <0x2>;
+			};
+		};
+
+		cpu@0 {
+			device_type = "cpu";
+			reg = <0x0>;
+			compatible = "arm,cortex-a53";
+			okl,vcpu-capability = <0x3>;
+			okl,vcpu-ipi-line = <0xffffffff>;
+			status = "okay";
+			cpu-idle-states = <0x1>;
+		};
+
+		cpu@1 {
+			device_type = "cpu";
+			reg = <0x1>;
+			compatible = "arm,cortex-a53";
+			okl,vcpu-capability = <0x4>;
+			okl,vcpu-ipi-line = <0xffffffff>;
+			status = "disabled";
+			enable-method = "psci";
+			cpu-idle-states = <0x1>;
+		};
+
+		cpu@2 {
+			device_type = "cpu";
+			reg = <0x2>;
+			compatible = "arm,cortex-a53";
+			okl,vcpu-capability = <0x5>;
+			okl,vcpu-ipi-line = <0xffffffff>;
+			status = "disabled";
+			enable-method = "psci";
+			cpu-idle-states = <0x1>;
+		};
+
+		cpu@3 {
+			device_type = "cpu";
+			reg = <0x3>;
+			compatible = "arm,cortex-a53";
+			okl,vcpu-capability = <0x6>;
+			okl,vcpu-ipi-line = <0xffffffff>;
+			status = "disabled";
+			enable-method = "psci";
+			cpu-idle-states = <0x1>;
+		};
+	};
+
+	hypervisor {
+		compatible = "okl,microvisor-bus", "simple-bus";
+		guest-id = <0x2>;
+		guest-name = "mlvm";
+		#address-cells = <0x1>;
+		#size-cells = <0x0>;
+		interrupt-parent = <&intc>;
+
+		interrupt-line@21 {
+			compatible = "okl,microvisor-interrupt-line", "okl,microvisor-capability";
+			phandle = <0xa>;
+			reg = <0x21>;
+			label = "mlvm_client_client_reset_virqline";
+		};
+
+		interrupt-line@1f {
+			compatible = "okl,microvisor-interrupt-line", "okl,microvisor-capability";
+			phandle = <0x6>;
+			reg = <0x1f>;
+			label = "mlvm_server_server.hlos_reset_virqline";
+		};
+
+		physical-segment@1 {
+			compatible = "okl,microvisor-segment", "okl,microvisor-capability";
+			phandle = <0x5>;
+			reg = <0x1>;
+			label = "/mlvm";
+			okl,physical-ranges = <0x0 0x91400000 0x7800000>;
+			okl,segment-attachment = <0x0>;
+			okl,rwx = <0x7>;
+		};
+
+		axon@1b {
+			compatible = "okl,microvisor-axon-transport", "okl,microvisor-axon", "okl,microvisor-capability";
+			phandle = <0x9>;
+			reg = <0x1b 0x15>;
+			label = "client";
+			okl,is-axon-sender;
+			interrupts = <0x0 0x4 0x1 0x0 0x3 0x1>;
+			okl,is-axon-receiver;
+			okl,physical-segment = <0x5>;
+
+			virtual-session {
+				compatible = "okl,virtual-session";
+				label = "client";
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				okl,is-client;
+				okl,notify-bits = <0x0 0x1>;
+				interrupts = <0x0 0x5 0x1 0x0 0x6 0x1>;
+				okl,interrupt-lines = <0xa>;
+				okl,queue-length = <0x10>;
+				okl,message-size = <0x3ffe>;
+			};
+		};
+
+		interrupt-line@1e {
+			compatible = "okl,microvisor-interrupt-line", "okl,microvisor-capability";
+			phandle = <0x3>;
+			reg = <0x1e>;
+			label = "reset_line";
+		};
+
+		interrupt-line@20 {
+			compatible = "okl,microvisor-interrupt-line", "okl,microvisor-capability";
+			phandle = <0x7>;
+			reg = <0x20>;
+			label = "mlvm_server_server.hlos_notify0_virqline";
+		};
+
+		serial0: serial@1c {
+			compatible = "okl,pipe-tty", "okl,microvisor-pipe", "okl,microvisor-capability";
+			reg = <0x1c 0x1d>;
+			label = "serial";
+			interrupts = <0x0 0x7 0x1 0x0 0x8 0x1>;
+		};
+
+		axon@1a {
+			compatible = "okl,microvisor-axon-transport", "okl,microvisor-axon", "okl,microvisor-capability";
+			phandle = <0x4>;
+			reg = <0x1a 0x14>;
+			label = "server.hlos";
+			okl,is-axon-sender;
+			interrupts = <0x0 0x1 0x1 0x0 0x0 0x1>;
+			okl,is-axon-receiver;
+			okl,physical-segment = <0x5>;
+
+			virtual-session {
+				compatible = "okl,virtual-session";
+				label = "server";
+				#address-cells = <0x1>;
+				#size-cells = <0x0>;
+				okl,is-server;
+				okl,notify-bits = <0x1 0x0>;
+				interrupts = <0x0 0x2 0x1>;
+				okl,interrupt-lines = <0x6 0x7>;
+				okl,queue-length = <0x10>;
+				okl,message-size = <0x3ffe>;
+			};
+		};
+	};
+
+	power-control {
+		compatible = "arm,psci-1.0", "arm,psci-0.2", "arm,psci-0.1", "arm,psci";
+		method = "hvc";
+		cpu_suspend = <0xc4000001>;
+		cpu_off = <0x84000002>;
+		cpu_on = <0xc4000003>;
+	};
+
+	timer {
+		compatible = "okl,virtual-arm-timer", "arm,armv8-timer", "arm,armv7-timer";
+		always-on;
+		interrupts = <0x1 0x1 0x4 0x1 0x1 0x4 0x1 0x0 0xf04 0x1 0x1 0x4>;
+		interrupt-parent = <&intc>;
+	};
+
+	memory@91400000 {
+		device_type = "memory";
+		reg = <0x0 0x91400000 0x7800000>;
+	};
+
+	intc: interrupt-controller {
+		compatible = "okl,hypervisor-vgic", "arm,cortex-a9-gic", "arm,pl390";
+		interrupt-controller;
+		#interrupt-cells = <0x3>;
+		interrupt-parent = <&intc>;
+		reg = <0x0 0xb000000 0x1000 0x0 0xb002000 0x1000>;
+	};
+};
