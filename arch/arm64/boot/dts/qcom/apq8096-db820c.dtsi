@@ -65,6 +65,7 @@
 	};
 
 	clocks {
+		compatible = "simple-bus";
 		divclk4: divclk4 {
 			compatible = "fixed-clock";
 			#clock-cells = <0>;
@@ -74,6 +75,16 @@
 			pinctrl-names = "default";
 			pinctrl-0 = <&divclk4_pin_a>;
 		};
+
+		div1_mclk: divclk1 {
+                	compatible = "gpio-gate-clock";
+			pinctrl-0 = <&audio_mclk>;
+			pinctrl-names = "default";
+	                clocks = <&rpmcc RPM_SMD_DIV_CLK1>;
+        	        #clock-cells = <0>;
+			enable-gpios = <&pm8994_gpios 15 0>;
+	        };
+
 	};
 
 	soc {
@@ -453,6 +464,16 @@
 			};
 		};
 
+		slim_msm: slim@91c0000 {
+			ngd@1 {
+				wcd9335: codec@1{
+					clock-names = "mclk", "slimbus";
+					clocks = <&div1_mclk>,
+						 <&rpmcc RPM_SMD_BB_CLK1>;
+				};
+			};
+		};
+
 		mdss@900000 {
 			status = "okay";
 
@@ -656,6 +677,7 @@
 	model = "DB820c";
 	audio-routing =
 		"RX_BIAS", "MCLK";
+			
 	mm1-dai-link {
 		link-name = "MultiMedia1";
 		cpu {
