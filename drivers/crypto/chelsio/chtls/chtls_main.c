@@ -216,7 +216,6 @@ static void *chtls_uld_add(const struct cxgb4_lld_info *info)
 	cdev->lldi = lldi;
 	cdev->pdev = lldi->pdev;
 	cdev->tids = lldi->tids;
-	cdev->ports = (struct net_device **)(cdev + 1);
 	cdev->ports = lldi->ports;
 	cdev->mtus = lldi->mtus;
 	cdev->tids = lldi->tids;
@@ -442,7 +441,7 @@ nomem:
 static int do_chtls_getsockopt(struct sock *sk, char __user *optval,
 			       int __user *optlen)
 {
-	struct tls_crypto_info crypto_info;
+	struct tls_crypto_info crypto_info = { 0 };
 
 	crypto_info.version = TLS_1_2_VERSION;
 	if (copy_to_user(optval, &crypto_info, sizeof(struct tls_crypto_info)))
@@ -492,9 +491,13 @@ static int do_chtls_setsockopt(struct sock *sk, int optname,
 
 	switch (tmp_crypto_info.cipher_type) {
 	case TLS_CIPHER_AES_GCM_128: {
-		rc = copy_from_user(crypto_info, optval,
-				    sizeof(struct
-					   tls12_crypto_info_aes_gcm_128));
+		/* Obtain version and type from previous copy */
+		crypto_info[0] = tmp_crypto_info;
+		/* Now copy the following data */
+		rc = copy_from_user((char *)crypto_info + sizeof(*crypto_info),
+				optval + sizeof(*crypto_info),
+				sizeof(struct tls12_crypto_info_aes_gcm_128)
+				- sizeof(*crypto_info));
 
 		if (rc) {
 			rc = -EFAULT;

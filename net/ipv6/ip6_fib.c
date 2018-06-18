@@ -934,6 +934,7 @@ static int fib6_add_rt2node(struct fib6_node *fn, struct fib6_info *rt,
 {
 	struct fib6_info *leaf = rcu_dereference_protected(fn->leaf,
 				    lockdep_is_held(&rt->fib6_table->tb6_lock));
+	enum fib_event_type event = FIB_EVENT_ENTRY_ADD;
 	struct fib6_info *iter = NULL, *match = NULL;
 	struct fib6_info __rcu **ins;
 	int replace = (info->nlh &&
@@ -1013,6 +1014,7 @@ static int fib6_add_rt2node(struct fib6_node *fn, struct fib6_info *rt,
 				       "Can not append to a REJECT route");
 			return -EINVAL;
 		}
+		event = FIB_EVENT_ENTRY_APPEND;
 		rt->fib6_nsiblings = match->fib6_nsiblings;
 		list_add_tail(&rt->fib6_siblings, &match->fib6_siblings);
 		match->fib6_nsiblings++;
@@ -1034,15 +1036,12 @@ static int fib6_add_rt2node(struct fib6_node *fn, struct fib6_info *rt,
 	 *	insert node
 	 */
 	if (!replace) {
-		enum fib_event_type event;
-
 		if (!add)
 			pr_warn("NLM_F_CREATE should be set when creating new route\n");
 
 add:
 		nlflags |= NLM_F_CREATE;
 
-		event = append ? FIB_EVENT_ENTRY_APPEND : FIB_EVENT_ENTRY_ADD;
 		err = call_fib6_entry_notifiers(info->nl_net, event, rt,
 						extack);
 		if (err)
@@ -2229,15 +2228,6 @@ void fib6_gc_cleanup(void)
 }
 
 #ifdef CONFIG_PROC_FS
-
-struct ipv6_route_iter {
-	struct seq_net_private p;
-	struct fib6_walker w;
-	loff_t skip;
-	struct fib6_table *tbl;
-	int sernum;
-};
-
 static int ipv6_route_seq_show(struct seq_file *seq, void *v)
 {
 	struct fib6_info *rt = v;
@@ -2404,17 +2394,10 @@ static void ipv6_route_seq_stop(struct seq_file *seq, void *v)
 	rcu_read_unlock_bh();
 }
 
-static const struct seq_operations ipv6_route_seq_ops = {
+const struct seq_operations ipv6_route_seq_ops = {
 	.start	= ipv6_route_seq_start,
 	.next	= ipv6_route_seq_next,
 	.stop	= ipv6_route_seq_stop,
 	.show	= ipv6_route_seq_show
 };
-
-int ipv6_route_open(struct inode *inode, struct file *file)
-{
-	return seq_open_net(inode, file, &ipv6_route_seq_ops,
-			    sizeof(struct ipv6_route_iter));
-}
-
 #endif /* CONFIG_PROC_FS */

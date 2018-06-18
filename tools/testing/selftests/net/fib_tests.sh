@@ -5,6 +5,8 @@
 # different events.
 
 ret=0
+# Kselftest framework requirement - SKIP code is 4.
+ksft_skip=4
 
 # all tests in this script. Can be overridden with -t option
 TESTS="unregister down carrier nexthop ipv6_rt ipv4_rt ipv6_addr_metric ipv4_addr_metric"
@@ -1396,18 +1398,18 @@ PEER_CMD="ip netns exec ${PEER_NS}"
 
 if [ "$(id -u)" -ne 0 ];then
 	echo "SKIP: Need root privileges"
-	exit 0
+	exit $ksft_skip;
 fi
 
 if [ ! -x "$(command -v ip)" ]; then
 	echo "SKIP: Could not run test without ip tool"
-	exit 0
+	exit $ksft_skip
 fi
 
 ip route help 2>&1 | grep -q fibmatch
 if [ $? -ne 0 ]; then
 	echo "SKIP: iproute2 too old, missing fibmatch"
-	exit 0
+	exit $ksft_skip
 fi
 
 # start clean

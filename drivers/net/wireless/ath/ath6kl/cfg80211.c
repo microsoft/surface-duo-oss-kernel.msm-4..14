@@ -1041,7 +1041,7 @@ static int ath6kl_cfg80211_scan(struct wiphy *wiphy,
 
 		n_channels = request->n_channels;
 
-		channels = kzalloc(n_channels * sizeof(u16), GFP_KERNEL);
+		channels = kcalloc(n_channels, sizeof(u16), GFP_KERNEL);
 		if (channels == NULL) {
 			ath6kl_warn("failed to set scan channels, scan all channels");
 			n_channels = 0;
@@ -3899,16 +3899,19 @@ int ath6kl_cfg80211_init(struct ath6kl *ar)
 	switch (ar->hw.cap) {
 	case WMI_11AN_CAP:
 		ht = true;
+		/* fall through */
 	case WMI_11A_CAP:
 		band_5gig = true;
 		break;
 	case WMI_11GN_CAP:
 		ht = true;
+		/* fall through */
 	case WMI_11G_CAP:
 		band_2gig = true;
 		break;
 	case WMI_11AGN_CAP:
 		ht = true;
+		/* fall through */
 	case WMI_11AG_CAP:
 		band_2gig = true;
 		band_5gig = true;

@@ -360,18 +360,6 @@ static int rt_acct_proc_show(struct seq_file *m, void *v)
 	kfree(dst);
 	return 0;
 }
-
-static int rt_acct_proc_open(struct inode *inode, struct file *file)
-{
-	return single_open(file, rt_acct_proc_show, NULL);
-}
-
-static const struct file_operations rt_acct_proc_fops = {
-	.open		= rt_acct_proc_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= single_release,
-};
 #endif
 
 static int __net_init ip_rt_do_proc_init(struct net *net)
@@ -389,7 +377,8 @@ static int __net_init ip_rt_do_proc_init(struct net *net)
 		goto err2;
 
 #ifdef CONFIG_IP_ROUTE_CLASSID
-	pde = proc_create("rt_acct", 0, net->proc_net, &rt_acct_proc_fops);
+	pde = proc_create_single("rt_acct", 0, net->proc_net,
+			rt_acct_proc_show);
 	if (!pde)
 		goto err3;
 #endif
@@ -660,7 +649,7 @@ static void update_or_create_fnhe(struct fib_nh *nh, __be32 daddr, __be32 gw,
 
 	hash = rcu_dereference(nh->nh_exceptions);
 	if (!hash) {
-		hash = kzalloc(FNHE_HASH_SIZE * sizeof(*hash), GFP_ATOMIC);
+		hash = kcalloc(FNHE_HASH_SIZE, sizeof(*hash), GFP_ATOMIC);
 		if (!hash)
 			goto out_unlock;
 		rcu_assign_pointer(nh->nh_exceptions, hash);
@@ -3157,7 +3146,8 @@ int __init ip_rt_init(void)
 {
 	int cpu;
 
-	ip_idents = kmalloc(IP_IDENTS_SZ * sizeof(*ip_idents), GFP_KERNEL);
+	ip_idents = kmalloc_array(IP_IDENTS_SZ, sizeof(*ip_idents),
+				  GFP_KERNEL);
 	if (!ip_idents)
 		panic("IP: failed to allocate ip_idents\n");
 

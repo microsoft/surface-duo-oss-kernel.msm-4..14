@@ -1324,6 +1324,7 @@ retry:
 		}
 	}
 
+	memset(&cfg, 0, sizeof(cfg));
 	cfg.valid_lft = min_t(__u32, ifp->valid_lft,
 			      idev->cnf.temp_valid_lft + age);
 	cfg.preferred_lft = cnf_temp_preferred_lft + age - idev->desync_factor;
@@ -1357,7 +1358,6 @@ retry:
 
 	cfg.pfx = &addr;
 	cfg.scope = ipv6_addr_scope(cfg.pfx);
-	cfg.rt_priority = 0;
 
 	ift = ipv6_add_addr(idev, &cfg, block, NULL);
 	if (IS_ERR(ift)) {
@@ -4282,22 +4282,10 @@ static const struct seq_operations if6_seq_ops = {
 	.stop	= if6_seq_stop,
 };
 
-static int if6_seq_open(struct inode *inode, struct file *file)
-{
-	return seq_open_net(inode, file, &if6_seq_ops,
-			    sizeof(struct if6_iter_state));
-}
-
-static const struct file_operations if6_fops = {
-	.open		= if6_seq_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release_net,
-};
-
 static int __net_init if6_proc_net_init(struct net *net)
 {
-	if (!proc_create("if_inet6", 0444, net->proc_net, &if6_fops))
+	if (!proc_create_net("if_inet6", 0444, net->proc_net, &if6_seq_ops,
+			sizeof(struct if6_iter_state)))
 		return -ENOMEM;
 	return 0;
 }

@@ -1730,6 +1730,10 @@ process:
 			reqsk_put(req);
 			goto discard_it;
 		}
+		if (tcp_checksum_complete(skb)) {
+			reqsk_put(req);
+			goto csum_error;
+		}
 		if (unlikely(sk->sk_state != TCP_LISTEN)) {
 			inet_csk_reqsk_queue_drop_and_put(sk, req);
 			goto lookup;
@@ -2002,6 +2006,7 @@ EXPORT_SYMBOL(tcp_v4_destroy_sock);
  */
 static void *listening_get_next(struct seq_file *seq, void *cur)
 {
+	struct tcp_seq_afinfo *afinfo = PDE_DATA(file_inode(seq->file));
 	struct tcp_iter_state *st = seq->private;
 	struct net *net = seq_file_net(seq);
 	struct inet_listen_hashbucket *ilb;
@@ -2024,7 +2029,7 @@ get_sk:
 	sk_for_each_from(sk) {
 		if (!net_eq(sock_net(sk), net))
 			continue;
-		if (sk->sk_family == st->family)
+		if (sk->sk_family == afinfo->family)
 			return sk;
 	}
 	spin_unlock(&ilb->lock);
@@ -2061,6 +2066,7 @@ static inline bool empty_bucket(const struct tcp_iter_state *st)
  */
 static void *established_get_first(struct seq_file *seq)
 {
+	struct tcp_seq_afinfo *afinfo = PDE_DATA(file_inode(seq->file));
 	struct tcp_iter_state *st = seq->private;
 	struct net *net = seq_file_net(seq);
 	void *rc = NULL;
@@ -2077,7 +2083,7 @@ static void *established_get_first(struct seq_file *seq)
 
 		spin_lock_bh(lock);
 		sk_nulls_for_each(sk, node, &tcp_hashinfo.ehash[st->bucket].chain) {
-			if (sk->sk_family != st->family ||
+			if (sk->sk_family != afinfo->family ||
 			    !net_eq(sock_net(sk), net)) {
 				continue;
 			}
@@ -2092,6 +2098,7 @@ out:
 
 static void *established_get_next(struct seq_file *seq, void *cur)
 {
+	struct tcp_seq_afinfo *afinfo = PDE_DATA(file_inode(seq->file));
 	struct sock *sk = cur;
 	struct hlist_nulls_node *node;
 	struct tcp_iter_state *st = seq->private;
@@ -2103,7 +2110,8 @@ static void *established_get_next(struct seq_file *seq, void *cur)
 	sk = sk_nulls_next(sk);
 
 	sk_nulls_for_each_from(sk, node) {
-		if (sk->sk_family == st->family && net_eq(sock_net(sk), net))
+		if (sk->sk_family == afinfo->family &&
+		    net_eq(sock_net(sk), net))
 			return sk;
 	}
 
@@ -2176,7 +2184,7 @@ static void *tcp_seek_last_pos(struct seq_file *seq)
 	return rc;
 }
 
-static void *tcp_seq_start(struct seq_file *seq, loff_t *pos)
+void *tcp_seq_start(struct seq_file *seq, loff_t *pos)
 {
 	struct tcp_iter_state *st = seq->private;
 	void *rc;
@@ -2197,8 +2205,9 @@ out:
 	st->last_pos = *pos;
 	return rc;
 }
+EXPORT_SYMBOL(tcp_seq_start);
 
-static void *tcp_seq_next(struct seq_file *seq, void *v, loff_t *pos)
+void *tcp_seq_next(struct seq_file *seq, void *v, loff_t *pos)
 {
 	struct tcp_iter_state *st = seq->private;
 	void *rc = NULL;
@@ -2227,8 +2236,9 @@ out:
 	st->last_pos = *pos;
 	return rc;
 }
+EXPORT_SYMBOL(tcp_seq_next);
 
-static void tcp_seq_stop(struct seq_file *seq, void *v)
+void tcp_seq_stop(struct seq_file *seq, void *v)
 {
 	struct tcp_iter_state *st = seq->private;
 
@@ -2243,47 +2253,7 @@ static void tcp_seq_stop(struct seq_file *seq, void *v)
 		break;
 	}
 }
-
-int tcp_seq_open(struct inode *inode, struct file *file)
-{
-	struct tcp_seq_afinfo *afinfo = PDE_DATA(inode);
-	struct tcp_iter_state *s;
-	int err;
-
-	err = seq_open_net(inode, file, &afinfo->seq_ops,
-			  sizeof(struct tcp_iter_state));
-	if (err < 0)
-		return err;
-
-	s = ((struct seq_file *)file->private_data)->private;
-	s->family		= afinfo->family;
-	s->last_pos		= 0;
-	return 0;
-}
-EXPORT_SYMBOL(tcp_seq_open);
-
-int tcp_proc_register(struct net *net, struct tcp_seq_afinfo *afinfo)
-{
-	int rc = 0;
-	struct proc_dir_entry *p;
-
-	afinfo->seq_ops.start		= tcp_seq_start;
-	afinfo->seq_ops.next		= tcp_seq_next;
-	afinfo->seq_ops.stop		= tcp_seq_stop;
-
-	p = proc_create_data(afinfo->name, 0444, net->proc_net,
-			     afinfo->seq_fops, afinfo);
-	if (!p)
-		rc = -ENOMEM;
-	return rc;
-}
-EXPORT_SYMBOL(tcp_proc_register);
-
-void tcp_proc_unregister(struct net *net, struct tcp_seq_afinfo *afinfo)
-{
-	remove_proc_entry(afinfo->name, net->proc_net);
-}
-EXPORT_SYMBOL(tcp_proc_unregister);
+EXPORT_SYMBOL(tcp_seq_stop);
 
 static void get_openreq4(const struct request_sock *req,
 			 struct seq_file *f, int i)
@@ -2418,30 +2388,28 @@ out:
 	return 0;
 }
 
-static const struct file_operations tcp_afinfo_seq_fops = {
-	.open    = tcp_seq_open,
-	.read    = seq_read,
-	.llseek  = seq_lseek,
-	.release = seq_release_net
+static const struct seq_operations tcp4_seq_ops = {
+	.show		= tcp4_seq_show,
+	.start		= tcp_seq_start,
+	.next		= tcp_seq_next,
+	.stop		= tcp_seq_stop,
 };
 
 static struct tcp_seq_afinfo tcp4_seq_afinfo = {
-	.name		= "tcp",
 	.family		= AF_INET,
-	.seq_fops	= &tcp_afinfo_seq_fops,
-	.seq_ops	= {
-		.show		= tcp4_seq_show,
-	},
 };
 
 static int __net_init tcp4_proc_init_net(struct net *net)
 {
-	return tcp_proc_register(net, &tcp4_seq_afinfo);
+	if (!proc_create_net_data("tcp", 0444, net->proc_net, &tcp4_seq_ops,
+			sizeof(struct tcp_iter_state), &tcp4_seq_afinfo))
+		return -ENOMEM;
+	return 0;
 }
 
 static void __net_exit tcp4_proc_exit_net(struct net *net)
 {
-	tcp_proc_unregister(net, &tcp4_seq_afinfo);
+	remove_proc_entry("tcp", net->proc_net);
 }
 
 static struct pernet_operations tcp4_net_ops = {

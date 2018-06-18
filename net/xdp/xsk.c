@@ -300,10 +300,9 @@ static int xsk_sendmsg(struct socket *sock, struct msghdr *m, size_t total_len)
 	return (xs->zc) ? xsk_zc_xmit(sk) : xsk_generic_xmit(sk, m, total_len);
 }
 
-static unsigned int xsk_poll(struct file *file, struct socket *sock,
-			     struct poll_table_struct *wait)
+static __poll_t xsk_poll_mask(struct socket *sock, __poll_t events)
 {
-	unsigned int mask = datagram_poll(file, sock, wait);
+	__poll_t mask = datagram_poll_mask(sock, events);
 	struct sock *sk = sock->sk;
 	struct xdp_sock *xs = xdp_sk(sk);
 
@@ -644,7 +643,7 @@ static int xsk_getsockopt(struct socket *sock, int level, int optname,
 static int xsk_mmap(struct file *file, struct socket *sock,
 		    struct vm_area_struct *vma)
 {
-	unsigned long offset = vma->vm_pgoff << PAGE_SHIFT;
+	loff_t offset = (loff_t)vma->vm_pgoff << PAGE_SHIFT;
 	unsigned long size = vma->vm_end - vma->vm_start;
 	struct xdp_sock *xs = xdp_sk(sock->sk);
 	struct xsk_queue *q = NULL;
@@ -694,7 +693,7 @@ static const struct proto_ops xsk_proto_ops = {
 	.socketpair	= sock_no_socketpair,
 	.accept		= sock_no_accept,
 	.getname	= sock_no_getname,
-	.poll		= xsk_poll,
+	.poll_mask	= xsk_poll_mask,
 	.ioctl		= sock_no_ioctl,
 	.listen		= sock_no_listen,
 	.shutdown	= sock_no_shutdown,
