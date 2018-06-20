@@ -656,7 +656,7 @@
 		method = "smc";
 	};
 
-	firmware {
+	firmware: firmware {
 		scm {
 			compatible = "qcom,scm-msm8996";
 
