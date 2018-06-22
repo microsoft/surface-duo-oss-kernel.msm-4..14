@@ -813,6 +813,21 @@ config QPNP_MISC
 	  and the driver provides an API to check if this interrupt
 	  is available on the current PMIC chip.
 
+config SCBUF_CLIENT
+	tristate "Client for Secure Camera buffer protocol"
+	depends on OKL4_GUEST
+	select ANON_INODES
+	default n
+	help
+	  Say Y here to enable a driver that communicates with the hypervisor
+	  resource manager to obtain mappings of Secure Camera buffers that
+	  have been exported by a camera driver running in another VM. The
+	  buffers are identified by handles that must be obtained through
+	  another channel, typically a direct IPC channel from the exporting
+	  VM.
+
+	  If in doubt, say N.
+
 config OKL4_USER_VIRQ
 	tristate "User space accessible OKL4 virtual interrupts"
 	depends on OKL4_GUEST
