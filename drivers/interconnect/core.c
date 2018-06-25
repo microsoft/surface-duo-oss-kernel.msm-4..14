@@ -42,10 +42,12 @@ struct icc_req {
 
 /**
  * struct icc_path - interconnect path structure
+ * @tag: path tag
  * @num_nodes: number of hops (nodes)
  * @reqs: array of the requests applicable to this path of nodes
  */
 struct icc_path {
+	u8 tag;
 	size_t num_nodes;
 	struct icc_req reqs[];
 };
@@ -195,7 +197,7 @@ out:
  * implementing its own aggregate() function.
  */
 
-static int aggregate_requests(struct icc_node *node)
+static int aggregate_requests(struct icc_node *node, u8 tag)
 {
 	struct icc_provider *p = node->provider;
 	struct icc_req *r;
@@ -204,7 +206,7 @@ static int aggregate_requests(struct icc_node *node)
 	node->peak_bw = 0;
 
 	hlist_for_each_entry(r, &node->req_list, req_node)
-		p->aggregate(node, r->avg_bw, r->peak_bw,
+		p->aggregate(node, tag, r->avg_bw, r->peak_bw,
 			     &node->avg_bw, &node->peak_bw);
 
 	return 0;
@@ -386,6 +388,23 @@ struct icc_path *of_icc_get(struct device *dev, const char *name)
 EXPORT_SYMBOL_GPL(of_icc_get);
 
 /**
+ * icc_set_tag() - set tag on a path
+ * @path: the path we want to tag
+ * @tag: the tag value
+ *
+ * This function allows consumers to append a tag to the path, so that a
+ * different aggregation could be done based on this tag.
+ */
+void icc_set_tag(struct icc_path *path, u8 tag)
+{
+	if (!path)
+		return;
+
+	path->tag = tag;
+}
+EXPORT_SYMBOL_GPL(icc_set_tag);
+
+/**
  * icc_set_bw() - set bandwidth constraints on an interconnect path
  * @path: reference to the path returned by icc_get()
  * @avg_bw: average bandwidth in kilobytes per second
@@ -423,7 +442,7 @@ int icc_set_bw(struct icc_path *path, u32 avg_bw, u32 peak_bw)
 		path->reqs[i].peak_bw = peak_bw;
 
 		/* aggregate requests for this node */
-		aggregate_requests(node);
+		aggregate_requests(node, path->tag);
 	}
 
 	ret = apply_constraints(path);
@@ -435,7 +454,7 @@ int icc_set_bw(struct icc_path *path, u32 avg_bw, u32 peak_bw)
 			node = path->reqs[i].node;
 			path->reqs[i].avg_bw = old_avg;
 			path->reqs[i].peak_bw = old_peak;
-			aggregate_requests(node);
+			aggregate_requests(node, path->tag);
 		}
 		apply_constraints(path);
 	}
