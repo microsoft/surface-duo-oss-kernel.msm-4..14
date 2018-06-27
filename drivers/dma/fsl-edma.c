@@ -984,7 +984,7 @@ fsl_edma_irq_init(struct platform_device *pdev, struct fsl_edma_engine *fsl_edma
 	}
 
 	for (i = 0; i < socdata->n_irqs; i++) {
-		if (socdata->irqs[i].irqno >= 0)
+		if (socdata->irqs[i].irqno >= 0) {
 			ret = devm_request_irq(&pdev->dev,
 				       socdata->irqs[i].irqno,
 				       socdata->irqs[i].irqhandler,
@@ -997,6 +997,7 @@ fsl_edma_irq_init(struct platform_device *pdev, struct fsl_edma_engine *fsl_edma
 					socdata->irqs[i].name);
 				return  ret;
 			}
+		}
 	}
 
 	return 0;
