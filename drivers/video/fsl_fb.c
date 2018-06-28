@@ -1,6 +1,6 @@
 /*
  * Copyright 2012-2016 Freescale Semiconductor, Inc.
- * Copyright 2017 NXP
+ * Copyright 2017-2018 NXP
  *
  * Freescale fsl-FB device driver
  *
@@ -535,8 +535,7 @@ static int fsl_fb_init(struct fb_info *info)
 		goto put_display_node;
 	}
 
-	timings_np = of_find_node_by_name(display_np,
-					"display-timings");
+	timings_np = of_find_node_by_name(display_np, "display-timings");
 	if (!timings_np) {
 		dev_err(dcufb->dev, "Failed to find display-timings node.\n");
 		ret = -ENOENT;
@@ -561,9 +560,6 @@ static int fsl_fb_init(struct fb_info *info)
 		ret = fb_videomode_from_videomode(&vm, &fb_vm);
 		if (ret < 0)
 			goto put_timings_node;
-
-		/* We need the original pixclock */
-		fb_vm.pixclock = vm.pixelclock / 1000;
 
 		/* Set the FB videomode name, in uppercase */
 		name_len = strlen(timing->name);
