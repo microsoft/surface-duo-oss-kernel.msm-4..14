@@ -845,7 +845,7 @@ static void linflex_shutdown(struct uart_port *port)
 {
 	struct linflex_port *sport = container_of(port,
 					struct linflex_port, port);
-	unsigned long cr, ier;
+	unsigned long ier;
 	unsigned long flags, temp;
 
 	spin_lock_irqsave(&port->lock, flags);
@@ -854,10 +854,6 @@ static void linflex_shutdown(struct uart_port *port)
 	ier = readl(port->membase + LINIER);
 	ier &= ~(LINFLEXD_LINIER_DRIE | LINFLEXD_LINIER_DTIE);
 	writel(ier, port->membase + LINIER);
-
-	cr = readl(port->membase + UARTCR);
-	cr &= ~(LINFLEXD_UARTCR_RXEN |	LINFLEXD_UARTCR_TXEN);
-	writel(ier, port->membase + UARTCR);
 
 	spin_unlock_irqrestore(&port->lock, flags);
 
