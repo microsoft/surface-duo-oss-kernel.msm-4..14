@@ -2384,6 +2384,7 @@ static int arm_smmu_device_remove(struct platform_device *pdev)
 	if (pm_runtime_enabled(smmu->dev))
 		pm_runtime_disable(smmu->dev);
 
+	clk_bulk_disable(smmu->num_clks, smmu->clks);
 	clk_bulk_unprepare(smmu->num_clks, smmu->clks);
 
 	return 0;
