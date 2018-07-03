@@ -93,3 +93,6 @@ endif
 obj-$(CONFIG_ARCH_ZX)			+= zte/
 obj-$(CONFIG_ARCH_ZYNQ)			+= zynq/
 obj-$(CONFIG_ARCH_QCOM)			+= msm/
+ifeq ($(CONFIG_OF),y)
+obj-$(CONFIG_OKL4_GUEST)        += microvisor_of_clk.o
+endif
