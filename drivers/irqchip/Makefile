@@ -76,3 +76,4 @@ obj-$(CONFIG_EZNPS_GIC)			+= irq-eznps.o
 obj-$(CONFIG_ARCH_ASPEED)		+= irq-aspeed-vic.o
 obj-$(CONFIG_STM32_EXTI) 		+= irq-stm32-exti.o
 obj-$(CONFIG_ARCH_QCOM)			+= qcom/
+obj-$(CONFIG_OKL4_HYP_GIC)		+= irq-okl4-hyp-gic.o

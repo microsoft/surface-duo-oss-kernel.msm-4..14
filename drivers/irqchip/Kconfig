@@ -302,3 +302,21 @@ config STM32_EXTI
 	select IRQ_DOMAIN
 
 source "drivers/irqchip/qcom/Kconfig"
+
+config OKL4_HYP_GIC
+	bool "OKL4 paravirt GIC driver"
+	depends on OKL4_GUEST
+	select IRQ_DOMAIN
+	select MULTI_IRQ_HANDLER
+	default n
+	help
+	  This option enables the compilation of OKL4 Hypervisor paravirt GIC
+	  driver which provides improved IRQ performance under certain
+	  conditions.  In order for the proper node to be placed into the device
+	  tree by the weaver for use by the OKL4 GIC driver, the system XML must
+	  NOT define the gicc and giccd virtual devices.
+
+config OKL4_FAKE_IRQ_SET_WAKE
+	bool "Fake irq_set_wake support in OKL4 paravirt GIC"
+	default n
+	depends on OKL4_HYP_GIC
