@@ -1,0 +1,1 @@
+obj-$(CONFIG_OKL4_GUEST_CELL_MANAGER)	+= pm.o

@@ -786,6 +786,14 @@ config OKL4_PARAVIRTUALISED_SPINLOCKS
 	help
 	  Say Y if you want to enable paravirtualised spinlocks in OKL4 guests.
 
+config OKL4_GUEST_CELL_MANAGER
+       bool "Support for OKL4 Cell Manager"
+       depends on OKL4_GUEST
+       default n
+       help
+         Enables basic support for running with a Cell manager. This includes
+         support for signalling reset requests.
+
 config FORCE_MAX_ZONEORDER
 	int
 	default "14" if (ARM64_64K_PAGES && TRANSPARENT_HUGEPAGE)
