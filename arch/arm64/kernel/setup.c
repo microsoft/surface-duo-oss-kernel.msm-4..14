@@ -46,6 +46,11 @@
 #include <linux/platform_device.h>
 #include <linux/mm.h>
 
+#ifdef CONFIG_OKL4_PARAVIRTUALISED_SPINLOCKS
+#include <linux/of.h>
+#include <microvisor/microvisor.h>
+#endif
+
 #include <asm/acpi.h>
 #include <asm/fixmap.h>
 #include <asm/cpu.h>
@@ -102,10 +107,43 @@ static struct resource mem_res[] = {
  */
 u64 __cacheline_aligned boot_args[4];
 
+#ifdef CONFIG_OKL4_PARAVIRTUALISED_SPINLOCKS
+u32 vcpu_caps[NR_CPUS] = { [0 ... NR_CPUS-1] = OKL4_KCAP_INVALID };
+
+static void setup_vcpu_caps(void)
+{
+	struct device_node* cpu_node = NULL;
+	struct device_node* cpus_node = of_find_node_by_path("/cpus");
+
+	if (cpus_node != NULL) {
+		for_each_child_of_node(cpus_node, cpu_node) {
+			u32 hwid;
+			u32 vcpu_cap;
+			int cpu;
+
+			if (of_property_read_u32(cpu_node, "reg", &hwid))
+				continue;
+
+			cpu = get_logical_index(hwid);
+			BUG_ON(cpu >= NR_CPUS);
+
+			if (cpu >= 0 && of_property_read_u32(cpu_node,
+					"okl,vcpu-capability", &vcpu_cap) >= 0) {
+					vcpu_caps[cpu] = vcpu_cap;
+			}
+		}
+	}
+}
+#endif
+
 void __init smp_setup_processor_id(void)
 {
 	u64 mpidr = read_cpuid_mpidr() & MPIDR_HWID_BITMASK;
 	cpu_logical_map(0) = mpidr;
+
+#ifdef CONFIG_OKL4_PARAVIRTUALISED_SPINLOCKS
+	setup_vcpu_caps();
+#endif
 
 	/*
 	 * clear __my_cpu_offset on boot CPU to avoid hang caused by

@@ -779,6 +779,13 @@ config OKL4_GUEST
 	help
 	  Say Y if you want to run Linux as a guest of the OKL4 hypervisor
 
+config OKL4_PARAVIRTUALISED_SPINLOCKS
+	bool "OKL4 Hypervisor paravirtualised spinlock support"
+	depends on OKL4_GUEST
+	default n
+	help
+	  Say Y if you want to enable paravirtualised spinlocks in OKL4 guests.
+
 config FORCE_MAX_ZONEORDER
 	int
 	default "14" if (ARM64_64K_PAGES && TRANSPARENT_HUGEPAGE)

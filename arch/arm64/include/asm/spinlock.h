@@ -20,6 +20,10 @@
 #include <asm/spinlock_types.h>
 #include <asm/processor.h>
 
+#ifdef CONFIG_OKL4_PARAVIRTUALISED_SPINLOCKS
+#include <asm/okl4_spinlock.h>
+#else
+
 /*
  * Spinlock implementation.
  *
@@ -356,6 +360,8 @@ static inline int arch_read_trylock(arch_rwlock_t *rw)
 #define arch_spin_relax(lock)	cpu_relax()
 #define arch_read_relax(lock)	cpu_relax()
 #define arch_write_relax(lock)	cpu_relax()
+
+#endif
 
 /*
  * Accesses appearing in program order before a spin_lock() operation

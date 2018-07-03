@@ -21,6 +21,9 @@
 #endif
 
 #include <linux/types.h>
+#ifdef CONFIG_OKL4_PARAVIRTUALISED_SPINLOCKS
+#include <asm/okl4_spinlock_types.h>
+#else
 
 #define TICKET_SHIFT	16
 
@@ -41,5 +44,7 @@ typedef struct {
 } arch_rwlock_t;
 
 #define __ARCH_RW_LOCK_UNLOCKED		{ 0 }
+
+#endif
 
 #endif
