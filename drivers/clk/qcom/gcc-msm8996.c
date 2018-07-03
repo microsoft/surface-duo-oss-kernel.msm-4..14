@@ -2811,6 +2811,7 @@ static struct clk_branch gcc_ufs_rx_cfg_clk = {
 
 static struct clk_branch gcc_ufs_tx_symbol_0_clk = {
 	.halt_reg = 0x75018,
+	.halt_check = BRANCH_HALT_SKIP,
 	.clkr = {
 		.enable_reg = 0x75018,
 		.enable_mask = BIT(0),
