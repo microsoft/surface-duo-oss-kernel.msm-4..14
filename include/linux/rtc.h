@@ -110,6 +110,7 @@ struct rtc_timer {
 
 /* flags */
 #define RTC_DEV_BUSY 0
+#define RTC_DEV_SLAVE 1
 
 struct rtc_device {
 	struct device dev;
@@ -170,6 +171,7 @@ extern void devm_rtc_device_unregister(struct device *dev,
 
 extern int rtc_read_time(struct rtc_device *rtc, struct rtc_time *tm);
 extern int rtc_set_time(struct rtc_device *rtc, struct rtc_time *tm);
+extern void rtc_update_slaves(struct rtc_device *rtc, struct rtc_time *tm);
 extern int rtc_set_ntp_time(struct timespec64 now);
 int __rtc_read_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm);
 extern int rtc_read_alarm(struct rtc_device *rtc,

@@ -1730,5 +1730,12 @@ config RTC_DRV_HID_SENSOR_TIME
 	  If this driver is compiled as a module, it will be named
 	  rtc-hid-sensor-time.
 
+config OKL4_RTC
+	tristate "OKL4 hypervisor KSP RTC"
+	depends on OKL4_GUEST
+	default n
+	---help---
+	  This device provides read-write access to the virtual RTC provided
+	  by the OKL4 hypevisor's KSP RTC API.
 
 endif # RTC_CLASS

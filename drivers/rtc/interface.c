@@ -57,6 +57,35 @@ int rtc_read_time(struct rtc_device *rtc, struct rtc_time *tm)
 }
 EXPORT_SYMBOL_GPL(rtc_read_time);
 
+void rtc_update_slaves(struct rtc_device *rtc, struct rtc_time *tm)
+{
+	struct class_dev_iter iter;
+	struct device *dev;
+
+	/* don't allow slave clocks to set other slave clocks */
+	if (test_bit(RTC_DEV_SLAVE, &rtc->flags))
+		return;
+
+	if (!rtc_class || !rtc_class->p)
+		return;
+
+	/* iterate over all RTC devices, setting the time in each slave RTC */
+	class_dev_iter_init(&iter, rtc_class, NULL, NULL);
+	while ((dev = class_dev_iter_next(&iter))) {
+		get_device(dev);
+		rtc = to_rtc_device(dev);
+		if (rtc && test_bit(RTC_DEV_SLAVE, &rtc->flags) &&
+				rtc->ops && rtc->ops->set_time &&
+				try_module_get(rtc->owner)) {
+			rtc->ops->set_time(rtc->dev.parent, tm);
+			module_put(rtc->owner);
+		}
+		put_device(dev);
+	}
+
+	class_dev_iter_exit(&iter);
+}
+
 int rtc_set_time(struct rtc_device *rtc, struct rtc_time *tm)
 {
 	int err;
@@ -71,9 +100,12 @@ int rtc_set_time(struct rtc_device *rtc, struct rtc_time *tm)
 
 	if (!rtc->ops)
 		err = -ENODEV;
-	else if (rtc->ops->set_time)
+	else if (rtc->ops->set_time) {
 		err = rtc->ops->set_time(rtc->dev.parent, tm);
-	else if (rtc->ops->set_mmss64) {
+		/* update all slave clocks too */
+		if (!err)
+			rtc_update_slaves(rtc, tm);
+	} else if (rtc->ops->set_mmss64) {
 		time64_t secs64 = rtc_tm_to_time64(tm);
 
 		err = rtc->ops->set_mmss64(rtc->dev.parent, secs64);
