@@ -510,3 +510,7 @@ header-y += msm_dsps.h
 header-y += msm-core-interface.h
 header-y += msm_rotator.h
 header-y += nfc/
+
+ifneq ($(VSERVICES_SUPPORT), "")
+include include/linux/Kbuild.vservices
+endif
