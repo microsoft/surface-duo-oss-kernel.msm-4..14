@@ -2,6 +2,7 @@
  * Freescale Cryptographic Services Engine (CSE3) Device Driver
  *
  * Copyright (c) 2016 Freescale Semiconductor, Inc.
+ * Copyright 2018 NXP
  * CSE3 Linux Crypto API Interface
  *
  * This program is free software; you can redistribute it and/or modify
@@ -279,8 +280,8 @@ static struct cse_cipher_alg cipher_algs[] = {
 		.cra_init         = capi_cra_init,
 		.cra_exit         = capi_cra_exit,
 		.cra_u.ablkcipher = {
-			.min_keysize    = AES_KEYSIZE_128,
-			.max_keysize    = AES_KEYSIZE_128,
+			.min_keysize    = AES_MIN_KEY_SIZE,
+			.max_keysize    = AES_MAX_KEY_SIZE,
 			.setkey         = capi_aes_setkey,
 			.encrypt        = capi_aes_ecb_encrypt,
 			.decrypt        = capi_aes_ecb_decrypt,
@@ -301,8 +302,8 @@ static struct cse_cipher_alg cipher_algs[] = {
 		.cra_init         = capi_cra_init,
 		.cra_exit         = capi_cra_exit,
 		.cra_u.ablkcipher = {
-			.min_keysize    = AES_KEYSIZE_128,
-			.max_keysize    = AES_KEYSIZE_128,
+			.min_keysize    = AES_MIN_KEY_SIZE,
+			.max_keysize    = AES_MAX_KEY_SIZE,
 			.ivsize         = AES_BLOCK_SIZE,
 			.setkey         = capi_aes_setkey,
 			.encrypt        = capi_aes_cbc_encrypt,
