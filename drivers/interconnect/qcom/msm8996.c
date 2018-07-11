@@ -428,8 +428,8 @@ static struct qcom_icc_desc msm8996_a2noc = {
 	.num_nodes = ARRAY_SIZE(msm8996_a2noc_nodes),
 };
 
-static int qcom_icc_aggregate(struct icc_node *node, u32 avg_bw, u32 peak_bw,
-			      u32 *agg_avg, u32 *agg_peak)
+static int qcom_icc_aggregate(struct icc_node *node, u8 tag, u32 avg_bw,
+			      u32 peak_bw, u32 *agg_avg, u32 *agg_peak)
 {
 	*agg_avg += avg_bw;
 	*agg_peak = max(*agg_peak, peak_bw);
@@ -454,7 +454,7 @@ static int qcom_icc_set(struct icc_node *src, struct icc_node *dst)
 	provider = src->provider;
 	qp = to_qcom_provider(provider);
 	list_for_each_entry(n, &provider->nodes, node_list)
-		qcom_icc_aggregate(n, n->avg_bw, n->peak_bw,
+		qcom_icc_aggregate(n, 0, n->avg_bw, n->peak_bw,
 				   &agg_avg, &agg_peak);
 
 	sum_bw = icc_units_to_bps(agg_avg);
