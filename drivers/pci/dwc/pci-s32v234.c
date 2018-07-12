@@ -1,12 +1,13 @@
 /*
  * PCIe host controller driver for Freescale S32V SoCs
  *
- * Copyright (C) 2014-2015 Freescale Semiconductor, Inc. All Rights Reserved.
  * Copyright (C) 2013 Kosagi
  *		http://www.kosagi.com
- * Copyright 2017 NXP
  *
  * Author: Sean Cross <xobs@kosagi.com>
+ *
+ * Copyright (C) 2014-2015 Freescale Semiconductor, Inc. All Rights Reserved.
+ * Copyright 2017-2018 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -36,24 +37,31 @@
 #include <linux/sizes.h>
 #include <linux/of_platform.h>
 #include <linux/rcupdate.h>
+#include <linux/sched/signal.h>
 
 #include <linux/regulator/consumer.h>
 
 #include "pcie-designware.h"
 
-#define to_s32v234_pcie(x)	container_of(x, struct s32v234_pcie, pp)
+/* TODO: across the entire file:
+ * - use dedicated dw_* functions for dbi_base access
+ * - replace function argument struct pcie_port* with struct dw_pcie*
+ * - find duplicate atributes and functions (e.g. related to ATU
+ * inbound/outbound setup)
+ * - update endpoint functionality based on the new dw ep implementation
+ * and types
+ */
+
+#define to_s32v234_from_dw_pcie(x) \
+	container_of(x, struct s32v234_pcie, pcie)
 
 struct s32v234_pcie {
 	bool			is_endpoint;
 	int			soc_revision;
 	int			reset_gpio;
 	int			power_on_gpio;
-	struct clk		*pcie_bus;
-	struct clk		*pcie_phy;
-	struct clk		*pcie;
-	struct pcie_port	pp;
+	struct dw_pcie	pcie;
 	struct regmap		*src;
-	void __iomem		*mem_base;
 };
 #define SETUP_OUTBOUND		_IOWR('S', 1, struct s32v_outbound_region)
 #define SETUP_INBOUND		_IOWR('S', 2, struct s32v_inbound_region)
@@ -255,7 +263,7 @@ struct s32v_outbound_region {
 };
 struct s32v_outbound_region restore_outb_arr[4];
 struct s32v_inbound_region restore_inb_arr[4];
-static struct pcie_port *pcie_port_ep;
+static struct dw_pcie *dw_pcie_ep;
 
 #ifdef CONFIG_PCI_DW_DMA
 static int s32v_store_ll_array(struct pcie_port *pp, void __user *argp)
@@ -263,14 +271,14 @@ static int s32v_store_ll_array(struct pcie_port *pp, void __user *argp)
 	int ret = 0;
 	u32 ll_nr_elem = pp->ll_info.nr_elem;
 
-	if (argp) {
+	if (argp && pp->dma_linked_list) {
 		if (copy_from_user(pp->dma_linked_list, argp,
 			sizeof(struct dma_list) * ll_nr_elem))
 			return -EFAULT;
 	} else {/* Null argument */
 		return -EFAULT;
 	}
-	ret = dw_pcie_dma_load_linked_list(pp, pp->dma_linked_list,
+	ret = dw_pcie_dma_load_linked_list(pp, *pp->dma_linked_list,
 		ll_nr_elem, pp->ll_info.phy_list_addr,
 		pp->ll_info.next_phy_list_addr,
 		pp->ll_info.direction);
@@ -310,8 +318,8 @@ int s32v_store_ll_array_info(struct pcie_port *pp, void __user *argp)
 	/* Make sure it is null before allocating space */
 	if (!pp->dma_linked_list) {
 		pp->dma_linked_list =
-			(struct dma_list(*)[])kzalloc(sizeof(struct dma_list) *
-			pp->ll_info.nr_elem, GFP_KERNEL);
+			(struct dma_list(*)[])kcalloc(pp->ll_info.nr_elem,
+				sizeof(struct dma_list), GFP_KERNEL);
 	}
 
 	return ret;
@@ -367,13 +375,17 @@ int send_signal_to_user(struct pcie_port *pp)
 {
 	int ret = 0;
 
-	rcu_read_lock();
-	task = pid_task(find_pid_ns(pp->user_pid, &init_pid_ns), PIDTYPE_PID);
-	rcu_read_unlock();
+	if (pp->user_pid > 0) {
 
-	ret = send_sig_info(SIGUSR1, &pp->info, task);
-	if (ret < 0)
-		ret = -EFAULT;
+		rcu_read_lock();
+		task = pid_task(find_pid_ns(pp->user_pid, &init_pid_ns),
+						PIDTYPE_PID);
+		rcu_read_unlock();
+
+		ret = send_sig_info(SIGUSR1, &pp->info, task);
+		if (ret < 0)
+			ret = -EFAULT;
+	}
 
 	return ret;
 }
@@ -394,31 +406,32 @@ static int s32v_setup_MSI(struct pcie_port *pp, void __user *argp)
 	int ret = 0;
 	u32 *ptr;
 	u64 msi_addr;
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
 
 	if (argp) {
 		if (copy_from_user(&msi_addr, argp, sizeof(msi_addr)))
 			return -EFAULT;
 	} else {
-		msi_addr = (((u64)(readl(pp->dbi_base + PCIE_MSI_ADDR_UPPER))
-		<< 32) | readl(pp->dbi_base + PCIE_MSI_ADDR_LOWER));
+		msi_addr = (((u64)(readl(pcie->dbi_base + PCIE_MSI_ADDR_UPPER))
+		<< 32) | readl(pcie->dbi_base + PCIE_MSI_ADDR_LOWER));
 	}
 
 	if (!((msi_addr >= PCI_BASE_ADDR) &&
 		(msi_addr < PCI_BASE_DBI))) {
 		/* Region 3 used */
 		writel(PCIE_ATU_REGION_OUTBOUND | MSI_REGION_NR,
-			pp->dbi_base + PCIE_ATU_VIEWPORT);
+			pcie->dbi_base + PCIE_ATU_VIEWPORT);
 		/* Setup last aligned 64K before DBI */
-		writel(MSI_REGION, pp->dbi_base + PCIE_ATU_LOWER_BASE);
-		writel(0, pp->dbi_base + PCIE_ATU_UPPER_BASE);
-		writel(MSI_REGION + SZ_64K, pp->dbi_base + PCIE_ATU_LIMIT);
-		writel(lower_32_bits(msi_addr), pp->dbi_base +
+		writel(MSI_REGION, pcie->dbi_base + PCIE_ATU_LOWER_BASE);
+		writel(0, pcie->dbi_base + PCIE_ATU_UPPER_BASE);
+		writel(MSI_REGION + SZ_64K, pcie->dbi_base + PCIE_ATU_LIMIT);
+		writel(lower_32_bits(msi_addr), pcie->dbi_base +
 			PCIE_ATU_LOWER_TARGET);
-		writel(upper_32_bits(msi_addr), pp->dbi_base +
+		writel(upper_32_bits(msi_addr), pcie->dbi_base +
 			PCIE_ATU_UPPER_TARGET);
-		writel(PCIE_ATU_TYPE_MEM, pp->dbi_base + PCIE_ATU_CR1);
+		writel(PCIE_ATU_TYPE_MEM, pcie->dbi_base + PCIE_ATU_CR1);
 		/* Enable region */
-		writel(PCIE_ATU_ENABLE, pp->dbi_base + PCIE_ATU_CR2);
+		writel(PCIE_ATU_ENABLE, pcie->dbi_base + PCIE_ATU_CR2);
 		ptr = (u32 *)ioremap(MSI_REGION, SZ_4K);
 		*ptr = 0;
 	} else { /* MSI addr is inside outbound region for MSI */
@@ -454,25 +467,26 @@ static int s32v_pcie_iatu_outbound_set(struct pcie_port *pp,
 		struct s32v_outbound_region *ptrOutb)
 {
 	int ret = 0;
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
 
 	if ((ptrOutb->size < (64 * SZ_1K)) ||
 		(ptrOutb->region > NR_REGIONS - 1))
 		return -EINVAL;
 
 	writel(PCIE_ATU_REGION_OUTBOUND | ptrOutb->region,
-		pp->dbi_base + PCIE_ATU_VIEWPORT);
+		pcie->dbi_base + PCIE_ATU_VIEWPORT);
 	writel(lower_32_bits(ptrOutb->base_addr),
-		pp->dbi_base +  PCIE_ATU_LOWER_BASE);
+		pcie->dbi_base +  PCIE_ATU_LOWER_BASE);
 	writel(upper_32_bits(ptrOutb->base_addr),
-		pp->dbi_base + PCIE_ATU_UPPER_BASE);
+		pcie->dbi_base + PCIE_ATU_UPPER_BASE);
 	writel(lower_32_bits(ptrOutb->base_addr + ptrOutb->size - 1),
-		pp->dbi_base + PCIE_ATU_LIMIT);
+		pcie->dbi_base + PCIE_ATU_LIMIT);
 	writel(lower_32_bits(ptrOutb->target_addr),
-		pp->dbi_base + PCIE_ATU_LOWER_TARGET);
+		pcie->dbi_base + PCIE_ATU_LOWER_TARGET);
 	writel(upper_32_bits(ptrOutb->target_addr),
-		pp->dbi_base + PCIE_ATU_UPPER_TARGET);
-	writel(ptrOutb->region_type, pp->dbi_base + PCIE_ATU_CR1);
-	writel(PCIE_ATU_ENABLE, pp->dbi_base + PCIE_ATU_CR2);
+		pcie->dbi_base + PCIE_ATU_UPPER_TARGET);
+	writel(ptrOutb->region_type, pcie->dbi_base + PCIE_ATU_CR1);
+	writel(PCIE_ATU_ENABLE, pcie->dbi_base + PCIE_ATU_CR2);
 
 	return ret;
 }
@@ -481,19 +495,21 @@ static int s32v_pcie_iatu_inbound_set(struct pcie_port *pp,
 		struct s32v_inbound_region *ptrInb)
 {
 	int ret = 0;
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
 
 	if (ptrInb->region > NR_REGIONS - 1)
 		return -EINVAL;
 
 	writel(PCIE_ATU_REGION_INBOUND | ptrInb->region,
-		pp->dbi_base + PCIE_ATU_VIEWPORT);
+		pcie->dbi_base + PCIE_ATU_VIEWPORT);
 	writel(lower_32_bits(ptrInb->target_addr),
-		pp->dbi_base + PCIE_ATU_LOWER_TARGET);
+		pcie->dbi_base + PCIE_ATU_LOWER_TARGET);
 	writel(upper_32_bits(ptrInb->target_addr),
-		pp->dbi_base + PCIE_ATU_UPPER_TARGET);
-	writel(PCIE_ATU_TYPE_MEM, pp->dbi_base + PCIE_ATU_CR1);
+		pcie->dbi_base + PCIE_ATU_UPPER_TARGET);
+	writel(PCIE_ATU_TYPE_MEM, pcie->dbi_base + PCIE_ATU_CR1);
 	writel(PCIE_ATU_ENABLE | PCIE_ATU_BAR_MODE_ENABLE |
-		PCIE_ATU_BAR_NUM(ptrInb->bar_nr), pp->dbi_base + PCIE_ATU_CR2);
+		PCIE_ATU_BAR_NUM(ptrInb->bar_nr),
+		pcie->dbi_base + PCIE_ATU_CR2);
 
 	return ret;
 }
@@ -512,7 +528,8 @@ static bool s32v234_pcie_ignore_err009852(struct pcie_port *pp)
  */
 static bool s32v234_pcie_ignore_err009852(struct pcie_port *pp)
 {
-	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
+	struct s32v234_pcie *s32v234_pcie = to_s32v234_from_dw_pcie(pcie);
 
 	return s32v234_pcie->soc_revision > 0;
 }
@@ -547,25 +564,27 @@ static void restore_outb_atu(struct pcie_port *pp)
 static int s32v_get_bar_info(struct pcie_port *pp, void __user *argp)
 {
 	struct s32v_bar bar_info;
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
 	u8	bar_nr = 0;
 	u32 addr = 0;
 	int ret = 0;
 
 	if (copy_from_user(&bar_info, argp, sizeof(bar_info))) {
-		dev_err(pp->dev, "Error while copying from user\n");
+		dev_err(pcie->dev, "Error while copying from user\n");
 		return -EFAULT;
 	}
 	if (bar_info.bar_nr)
 		bar_nr = bar_info.bar_nr;
 
-	addr = readl(pp->dbi_base + (PCI_BASE_ADDRESS_0 + bar_info.bar_nr * 4));
+	addr = readl(pcie->dbi_base + (PCI_BASE_ADDRESS_0 +
+				bar_info.bar_nr * 4));
 	bar_info.addr = addr & 0xFFFFFFF0;
-	writel(0xFFFFFFFF, pp->dbi_base +
+	writel(0xFFFFFFFF, pcie->dbi_base +
 		(PCI_BASE_ADDRESS_0 + bar_nr * 4));
-	bar_info.size = readl(pp->dbi_base +
+	bar_info.size = readl(pcie->dbi_base +
 		(PCI_BASE_ADDRESS_0 + bar_nr * 4));
 	bar_info.size = ~(bar_info.size & 0xFFFFFFF0) + 1;
-	writel(addr, pp->dbi_base +
+	writel(addr, pcie->dbi_base +
 		(PCI_BASE_ADDRESS_0 + bar_nr * 4));
 
 	if (copy_to_user(argp, &bar_info, sizeof(bar_info)))
@@ -652,29 +671,33 @@ static void s32v234_pcie_set_bar(struct pcie_port *pp,
 				 unsigned int size,
 				 unsigned int init)
 {
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
 	uint32_t mask = (enable) ? ((size - 1) & ~1) : 0;
+
 	/* According to the RM, you have to enable the BAR before you
 	 * can modify the mask value. While it appears that this may
 	 * be ok in a single write anyway, we play it safe.
 	 */
-	writel(1, pp->dbi_base + 0x1000 + baroffset);
+	writel(1, pcie->dbi_base + 0x1000 + baroffset);
 
-	writel(enable | mask, pp->dbi_base + 0x1000 + baroffset);
-	writel(init, pp->dbi_base + baroffset);
+	writel(enable | mask, pcie->dbi_base + 0x1000 + baroffset);
+	writel(init, pcie->dbi_base + baroffset);
 }
 
 static void s32v234_pcie_setup_ep(struct pcie_port *pp)
 {
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
+
 	/* CMD reg:I/O space, MEM space, and Bus Master Enable */
 
 	/*
 	 * configure the class_rev(emulate one memory EP device),
 	 * BAR0 and BAR2 of EP
 	 */
-	writel(readl(pp->dbi_base + PCI_CLASS_REVISION)
+	writel(readl(pcie->dbi_base + PCI_CLASS_REVISION)
 		| ((PCI_BASE_CLASS_PROCESSOR << 24) |
 			     (0x80 /* other */ << 16)),
-		pp->dbi_base + PCI_CLASS_REVISION);
+		pcie->dbi_base + PCI_CLASS_REVISION);
 
 	/* Erratum ERR009852 requires us to avoid
 	 * any memory access from the RC! We solve this
@@ -710,11 +733,11 @@ static void s32v234_pcie_setup_ep(struct pcie_port *pp)
 				     PCIE_ROM_SIZE,
 				     PCIE_ROM_INIT);
 
-		writel(readl(pp->dbi_base + PCI_COMMAND)
+		writel(readl(pcie->dbi_base + PCI_COMMAND)
 				| PCI_COMMAND_IO
 				| PCI_COMMAND_MEMORY
 				| PCI_COMMAND_MASTER,
-				pp->dbi_base + PCI_COMMAND);
+				pcie->dbi_base + PCI_COMMAND);
 	} else {
 		s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_0, 0, 0, 0);
 		s32v234_pcie_set_bar(pp, PCI_BASE_ADDRESS_1,
@@ -738,7 +761,7 @@ int s32v_pcie_setup_outbound(void *data)
 	struct s32v_outbound_region *outbStr =
 			(struct s32v_outbound_region *)data;
 
-	if (!pcie_port_ep)
+	if (!dw_pcie_ep)
 		return -ENODEV;
 
 	if (!data)
@@ -746,7 +769,7 @@ int s32v_pcie_setup_outbound(void *data)
 
 	/* Call to setup outbound region */
 	store_outb_atu(outbStr);
-	ret = s32v_pcie_iatu_outbound_set(pcie_port_ep, outbStr);
+	ret = s32v_pcie_iatu_outbound_set(&dw_pcie_ep->pp, outbStr);
 
 	return ret;
 }
@@ -758,7 +781,7 @@ int s32v_pcie_setup_inbound(void *data)
 	struct s32v_inbound_region *inbStr =
 			(struct s32v_inbound_region *)data;
 
-	if (!pcie_port_ep)
+	if (!dw_pcie_ep)
 		return -ENODEV;
 
 	if (!data)
@@ -766,7 +789,7 @@ int s32v_pcie_setup_inbound(void *data)
 
 	/* Call to setup inbound region */
 	store_inb_atu(inbStr);
-	ret = s32v_pcie_iatu_inbound_set(pcie_port_ep, inbStr);
+	ret = s32v_pcie_iatu_inbound_set(&dw_pcie_ep->pp, inbStr);
 	return ret;
 }
 EXPORT_SYMBOL(s32v_pcie_setup_inbound);
@@ -903,15 +926,16 @@ static int pcie_phy_write(void __iomem *dbi_base, int addr, int data)
 
 static inline bool is_S32V234_pcie(struct s32v234_pcie *s32v234_pcie)
 {
-	struct pcie_port *pp	= &s32v234_pcie->pp;
-	struct device_node *np	= pp->dev->of_node;
+	struct dw_pcie *pcie	= &s32v234_pcie->pcie;
+	struct device_node *np	= pcie->dev->of_node;
 
 	return of_device_is_compatible(np, "fsl,s32v234-pcie");
 }
 
 static int s32v234_pcie_assert_core_reset(struct pcie_port *pp)
 {
-	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
+	struct s32v234_pcie *s32v234_pcie = to_s32v234_from_dw_pcie(pcie);
 
 	if (is_S32V234_pcie(s32v234_pcie)) {
 		regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
@@ -924,7 +948,8 @@ static int s32v234_pcie_assert_core_reset(struct pcie_port *pp)
 
 static int s32v234_pcie_deassert_core_reset(struct pcie_port *pp)
 {
-	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
+	struct s32v234_pcie *s32v234_pcie = to_s32v234_from_dw_pcie(pcie);
 
 	/* allow the clocks to stabilize */
 	mdelay(PCIE_CX_CPL_BASE_TIMER_VALUE);
@@ -943,15 +968,15 @@ static int s32v234_pcie_deassert_core_reset(struct pcie_port *pp)
 /* Perform a soft-reset of the PCIE core. Needed e.g. in the case of a
  * 'link_req_rst_not' interrupt.
  */
-static void s32v234_pcie_soft_reset(struct s32v234_pcie *pcie)
+static void s32v234_pcie_soft_reset(struct s32v234_pcie *s32_pcie)
 {
-	struct pcie_port *pp = &pcie->pp;
+	struct pcie_port *pp = &(s32_pcie->pcie.pp);
 
 	/* Temporarily deassert 'app_ltssm_enable' */
-	regmap_update_bits(pcie->src, SRC_GPR5,
+	regmap_update_bits(s32_pcie->src, SRC_GPR5,
 			   SRC_GPR5_PCIE_APP_LTSSM_ENABLE, 0);
 	mdelay(PCIE_CX_CPL_BASE_TIMER_VALUE);
-	regmap_update_bits(pcie->src, SRC_GPR5,
+	regmap_update_bits(s32_pcie->src, SRC_GPR5,
 			   SRC_GPR5_PCIE_APP_LTSSM_ENABLE,
 			   SRC_GPR5_PCIE_APP_LTSSM_ENABLE);
 
@@ -964,7 +989,8 @@ static void s32v234_pcie_soft_reset(struct s32v234_pcie *pcie)
 
 static int s32v234_pcie_init_phy(struct pcie_port *pp)
 {
-	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
+	struct s32v234_pcie *s32v234_pcie = to_s32v234_from_dw_pcie(pcie);
 
 	regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
 			SRC_GPR5_PCIE_APP_LTSSM_ENABLE, 0 << 10);
@@ -981,16 +1007,17 @@ static int s32v234_pcie_init_phy(struct pcie_port *pp)
 
 static int s32v234_pcie_wait_for_link(struct pcie_port *pp)
 {
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
 	int count	= 1000;
 
-	while (!dw_pcie_link_up(pp)) {
+	while (!dw_pcie_link_up(pcie)) {
 		udelay(100);
 		if (--count)
 			continue;
-		dev_err(pp->dev, "phy link never came up\n");
-		dev_dbg(pp->dev, "DEBUG_R0: 0x%08x, DEBUG_R1: 0x%08x\n",
-			readl(pp->dbi_base + PCIE_PHY_DEBUG_R0),
-			readl(pp->dbi_base + PCIE_PHY_DEBUG_R1));
+		dev_err(pcie->dev, "phy link never came up\n");
+		dev_dbg(pcie->dev, "DEBUG_R0: 0x%08x, DEBUG_R1: 0x%08x\n",
+			readl(pcie->dbi_base + PCIE_PHY_DEBUG_R0),
+			readl(pcie->dbi_base + PCIE_PHY_DEBUG_R1));
 		return -EINVAL;
 	}
 
@@ -1008,7 +1035,8 @@ static irqreturn_t s32v234_pcie_msi_handler(int irq, void *arg)
 
 static int s32v234_pcie_start_link(struct pcie_port *pp)
 {
-	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
+	struct s32v234_pcie *s32v234_pcie = to_s32v234_from_dw_pcie(pcie);
 	uint32_t tmp;
 	int ret, count;
 
@@ -1017,10 +1045,10 @@ static int s32v234_pcie_start_link(struct pcie_port *pp)
 	 * started in Gen2 mode, there is a possibility the devices on the
 	 * bus will not be detected at all.  This happens with PCIe switches.
 	 */
-	tmp = readl(pp->dbi_base + PCIE_RC_LCR);
+	tmp = readl(pcie->dbi_base + PCIE_RC_LCR);
 	tmp &= ~PCIE_RC_LCR_MAX_LINK_SPEEDS_MASK;
 	tmp |= PCIE_RC_LCR_MAX_LINK_SPEEDS_GEN1;
-	writel(tmp, pp->dbi_base + PCIE_RC_LCR);
+	writel(tmp, pcie->dbi_base + PCIE_RC_LCR);
 
 	/* Start LTSSM. */
 
@@ -1035,22 +1063,22 @@ static int s32v234_pcie_start_link(struct pcie_port *pp)
 		goto out;
 
 	/* Allow Gen2 mode after the link is up. */
-	tmp = readl(pp->dbi_base + PCIE_RC_LCR);
+	tmp = readl(pcie->dbi_base + PCIE_RC_LCR);
 	tmp &= ~PCIE_RC_LCR_MAX_LINK_SPEEDS_MASK;
 	tmp |= PCIE_RC_LCR_MAX_LINK_SPEEDS_GEN2;
-	writel(tmp, pp->dbi_base + PCIE_RC_LCR);
+	writel(tmp, pcie->dbi_base + PCIE_RC_LCR);
 
 	/*
 	 * Start Directed Speed Change so the best possible speed both link
 	 * partners support can be negotiated.
 	 */
-	tmp = readl(pp->dbi_base + PCIE_LINK_WIDTH_SPEED_CONTROL);
+	tmp = readl(pcie->dbi_base + PCIE_LINK_WIDTH_SPEED_CONTROL);
 	tmp |= PORT_LOGIC_SPEED_CHANGE;
-	writel(tmp, pp->dbi_base + PCIE_LINK_WIDTH_SPEED_CONTROL);
+	writel(tmp, pcie->dbi_base + PCIE_LINK_WIDTH_SPEED_CONTROL);
 
 	count = 1000;
 	while (count--) {
-		tmp = readl(pp->dbi_base + PCIE_LINK_WIDTH_SPEED_CONTROL);
+		tmp = readl(pcie->dbi_base + PCIE_LINK_WIDTH_SPEED_CONTROL);
 		/* Test if the speed change finished. */
 		if (!(tmp & PORT_LOGIC_SPEED_CHANGE))
 			break;
@@ -1065,86 +1093,96 @@ static int s32v234_pcie_start_link(struct pcie_port *pp)
 
 out:
 	if (ret) {
-		dev_err(pp->dev, "Failed to bring link up!\n");
+		dev_err(pcie->dev, "Failed to bring link up!\n");
 	} else {
-		tmp = readl(pp->dbi_base + 0x80);
-		dev_dbg(pp->dev, "Link up, Gen=%i\n", (tmp >> 16) & 0xf);
+		tmp = readl(pcie->dbi_base + 0x80);
+		dev_dbg(pcie->dev, "Link up, Gen=%i\n", (tmp >> 16) & 0xf);
 	}
 	return ret;
 }
 
-static void s32v234_pcie_host_init(struct pcie_port *pp)
+static int s32v234_pcie_host_init(struct pcie_port *pp)
 {
 	int socmask_info;
-	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
+	struct s32v234_pcie *s32v234_pcie = to_s32v234_from_dw_pcie(pcie);
+	int ret = 0;
 
 	/* enable disp_mix power domain */
-	pm_runtime_get_sync(pp->dev);
+	pm_runtime_get_sync(pcie->dev);
 
 	s32v234_pcie_assert_core_reset(pp);
 
-	if (s32v234_pcie_init_phy(pp) < 0) {
+	ret = s32v234_pcie_init_phy(pp);
+	if (ret < 0) {
 		pr_warn("Error initializing s32v234 pcie phy\n");
-		return;
+		return ret;
 	}
 
-	if (s32v234_pcie_deassert_core_reset(pp) < 0) {
+	ret = s32v234_pcie_deassert_core_reset(pp);
+	if (ret < 0) {
 		pr_warn("Error deasserting core reset\n");
-		return;
+		return ret;
 	}
 
 	/* We set up the ID for all Rev 1.x chips */
 	socmask_info = s32v234_pcie->soc_revision;
 	if (socmask_info >= 0) {
-		dev_info(pp->dev, "SOC revision: 0x%x\n", socmask_info);
+		dev_info(pcie->dev, "SOC revision: 0x%x\n", socmask_info);
 		if ((socmask_info & SOC_REVISION_MAJOR_MASK) == 0) {
 			/*
-			* Vendor ID is Freescale (now NXP): 0x1957
-			* Device ID is split as follows
-			* Family 15:12, Device 11:6, Personality 5:0
-			* S32V is in the automotive family: 0100
-			* S32V is the first auto device with PCIe: 000000
-			* S32V has not export controlled cryptography: 00001
-			*/
-			dev_info(pp->dev,
+			 * Vendor ID is Freescale (now NXP): 0x1957
+			 * Device ID is split as follows
+			 * Family 15:12, Device 11:6, Personality 5:0
+			 * S32V is in the automotive family: 0100
+			 * S32V is the first auto device with PCIe: 000000
+			 * S32V has not export controlled cryptography: 00001
+			 */
+			dev_info(pcie->dev,
 				 "Setting PCIE Vendor and Device ID\n");
 			writel((0x4001 << 16) | 0x1957,
-				pp->dbi_base + PCI_VENDOR_ID);
-	    }
+				pcie->dbi_base + PCI_VENDOR_ID);
+		}
 	}
 	dw_pcie_setup_rc(pp);
 
-	if (s32v234_pcie_start_link(pp) < 0) {
+	ret = s32v234_pcie_start_link(pp);
+	if (ret < 0) {
 		pr_warn("Error starting pcie link\n");
-		return;
+		return ret;
 	}
 
 #ifdef CONFIG_PCI_MSI
 	dw_pcie_msi_init(pp);
 #endif
+
+	return 0;
 }
 
 static void s32v234_pcie_reset_phy(struct pcie_port *pp)
 {
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
 	uint32_t temp;
 
-	pcie_phy_read(pp->dbi_base, PHY_RX_OVRD_IN_LO, &temp);
+	pcie_phy_read(pcie->dbi_base, PHY_RX_OVRD_IN_LO, &temp);
 	temp |= (PHY_RX_OVRD_IN_LO_RX_DATA_EN |
 		 PHY_RX_OVRD_IN_LO_RX_PLL_EN);
-	pcie_phy_write(pp->dbi_base, PHY_RX_OVRD_IN_LO, temp);
+	pcie_phy_write(pcie->dbi_base, PHY_RX_OVRD_IN_LO, temp);
 
 	udelay(2000);
 
-	pcie_phy_read(pp->dbi_base, PHY_RX_OVRD_IN_LO, &temp);
+	pcie_phy_read(pcie->dbi_base, PHY_RX_OVRD_IN_LO, &temp);
 	temp &= ~(PHY_RX_OVRD_IN_LO_RX_DATA_EN |
 		  PHY_RX_OVRD_IN_LO_RX_PLL_EN);
-	pcie_phy_write(pp->dbi_base, PHY_RX_OVRD_IN_LO, temp);
+	pcie_phy_write(pcie->dbi_base, PHY_RX_OVRD_IN_LO, temp);
 }
 
-static int s32v234_pcie_link_up(struct pcie_port *pp)
+static int s32v234_pcie_link_up(struct dw_pcie *pcie)
 {
 	u32 rc, debug_r0, rx_valid;
 	int count = 15000;
+	struct pcie_port *pp = &pcie->pp;
+
 	/*
 	 * Test if the PHY reports that the link is up and also that the LTSSM
 	 * training finished. There are three possible states of the link when
@@ -1162,14 +1200,14 @@ static int s32v234_pcie_link_up(struct pcie_port *pp)
 	 *     The link is up and operating correctly.
 	 */
 	while (1) {
-		rc = readl(pp->dbi_base + PCIE_PHY_DEBUG_R1);
+		rc = readl(pcie->dbi_base + PCIE_PHY_DEBUG_R1);
 		if (!(rc & PCIE_PHY_DEBUG_R1_XMLH_LINK_UP))
 			break;
 		if (!(rc & PCIE_PHY_DEBUG_R1_XMLH_LINK_IN_TRAINING))
 			return 1;
 		if (!count--)
 			break;
-		dev_dbg(pp->dev, "Link is up, but still in training\n");
+		dev_dbg(pcie->dev, "Link is up, but still in training\n");
 		/*
 		 * Wait a little bit, then re-check if the link finished
 		 * the training.
@@ -1183,8 +1221,8 @@ static int s32v234_pcie_link_up(struct pcie_port *pp)
 	 * && (PHY/rx_valid==0) then pulse PHY/rx_reset. Transition
 	 * to gen2 is stuck
 	 */
-	pcie_phy_read(pp->dbi_base, PCIE_PHY_RX_ASIC_OUT, &rx_valid);
-	debug_r0 = readl(pp->dbi_base + PCIE_PHY_DEBUG_R0);
+	pcie_phy_read(pcie->dbi_base, PCIE_PHY_RX_ASIC_OUT, &rx_valid);
+	debug_r0 = readl(pcie->dbi_base + PCIE_PHY_DEBUG_R0);
 
 	if (rx_valid & 0x01)
 		return 0;
@@ -1192,18 +1230,21 @@ static int s32v234_pcie_link_up(struct pcie_port *pp)
 	if ((debug_r0 & 0x3f) != 0x0d)
 		return 0;
 
-	dev_err(pp->dev, "transition to gen2 is stuck, reset PHY!\n");
-	dev_dbg(pp->dev, "debug_r0=%08x debug_r1=%08x\n", debug_r0, rc);
+	dev_err(pcie->dev, "transition to gen2 is stuck, reset PHY!\n");
+	dev_dbg(pcie->dev, "debug_r0=%08x debug_r1=%08x\n", debug_r0, rc);
 
 	s32v234_pcie_reset_phy(pp);
 
 	return 0;
 }
 
-static struct pcie_host_ops s32v234_pcie_host_ops = {
+static struct dw_pcie_ops s32v234_pcie_ops = {
 	.link_up = s32v234_pcie_link_up,
-	.host_init = s32v234_pcie_host_init,
 	.send_signal_to_user = send_signal_to_user,
+};
+
+static struct dw_pcie_host_ops s32v234_pcie_host_ops = {
+	.host_init = s32v234_pcie_host_init,
 };
 
 static int __init s32v234_add_pcie_port(struct pcie_port *pp,
@@ -1225,6 +1266,7 @@ static int __init s32v234_add_pcie_port(struct pcie_port *pp,
 		return -ENODEV;
 	}
 #endif
+
 	pp->root_bus_nr = 0;
 	pp->ops = &s32v234_pcie_host_ops;
 
@@ -1240,16 +1282,19 @@ static int __init s32v234_add_pcie_port(struct pcie_port *pp,
 static void s32v234_pcie_shutdown(struct platform_device *pdev)
 {
 	struct s32v234_pcie *s32v234_pcie = platform_get_drvdata(pdev);
+	struct dw_pcie *pcie = &(s32v234_pcie->pcie);
+
 
 	if (!s32v234_pcie->is_endpoint) {
 		/* bring down link, so bootloader gets clean state
-		 * in case of reboot */
+		 * in case of reboot
+		 */
 
 		devm_free_irq(&pdev->dev,
-			s32v234_pcie->pp.link_req_rst_not_irq,
-			&s32v234_pcie->pp);
+			pcie->pp.link_req_rst_not_irq,
+			&pcie->pp);
 
-		s32v234_pcie_assert_core_reset(&s32v234_pcie->pp);
+		s32v234_pcie_assert_core_reset(&pcie->pp);
 		mdelay(PCIE_CX_CPL_BASE_TIMER_VALUE);
 	}
 }
@@ -1259,7 +1304,8 @@ static irqreturn_t s32v234_pcie_link_req_rst_not_handler(int irq, void *arg)
 {
 	struct pcie_port *pp = arg;
 	u32 rc;
-	struct s32v234_pcie *s32v234_pcie = to_s32v234_pcie(pp);
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
+	struct s32v234_pcie *s32v234_pcie = to_s32v234_from_dw_pcie(pcie);
 
 	regmap_update_bits(s32v234_pcie->src, SRC_PCIE_CONFIG0,
 			   SRC_CONFIG0_PCIE_LNK_REQ_RST_CLR, 1);
@@ -1285,7 +1331,7 @@ static irqreturn_t s32v234_pcie_link_req_rst_not_handler(int irq, void *arg)
 	 * our best heuristic is to look at the PHY link state and only
 	 * if it is down acknowledge the interrupt as ours.
 	 */
-	rc = readl(pp->dbi_base + PCIE_PHY_DEBUG_R1);
+	rc = readl(pcie->dbi_base + PCIE_PHY_DEBUG_R1);
 	if ((rc & PCIE_PHY_DEBUG_R1_XMLH_LINK_UP) ||
 	    (rc & PCIE_PHY_DEBUG_R1_XMLH_LINK_IN_TRAINING))
 		return IRQ_NONE;
@@ -1298,37 +1344,38 @@ done:
 	return IRQ_HANDLED;
 }
 
-static struct pcie_host_ops s32v234_pcie_host_ops_ep = {
-	.send_signal_to_user = send_signal_to_user,
-};
-
-struct pcie_port *s32v_get_pcie_port(void)
+struct dw_pcie *s32v_get_dw_pcie(void)
 {
-	return (struct pcie_port *)pcie_port_ep;
+	return (struct dw_pcie *)dw_pcie_ep;
 }
-EXPORT_SYMBOL(s32v_get_pcie_port);
+EXPORT_SYMBOL(s32v_get_dw_pcie);
 
 static int s32v234_pcie_probe(struct platform_device *pdev)
 {
+	struct device *dev = &pdev->dev;
 	struct s32v234_pcie *s32v234_pcie;
-	struct pcie_port *pp;
 	struct resource *dbi_base;
+	struct dw_pcie *pcie;
+	struct pcie_port *pp;
+
 	int ret;
 	unsigned int src_gpr5, pcie_device_type, ltssm_en;
 
-	s32v234_pcie = devm_kzalloc(&pdev->dev, sizeof(*s32v234_pcie)
-					, GFP_KERNEL);
+	s32v234_pcie = devm_kzalloc(dev, sizeof(*s32v234_pcie), GFP_KERNEL);
 	if (!s32v234_pcie)
 		return -ENOMEM;
 
-	pp = &s32v234_pcie->pp;
-	pp->dev = &pdev->dev;
+	pcie = &(s32v234_pcie->pcie);
+	pp = &(pcie->pp);
+
+	pcie->dev = dev;
+	pcie->ops = &s32v234_pcie_ops;
 
 	/* Added for PCI abort handling */
 	dbi_base = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	pp->dbi_base = devm_ioremap_resource(&pdev->dev, dbi_base);
-	if (IS_ERR(pp->dbi_base))
-		return PTR_ERR(pp->dbi_base);
+	pcie->dbi_base = devm_ioremap_resource(dev, dbi_base);
+	if (IS_ERR(pcie->dbi_base))
+		return PTR_ERR(pcie->dbi_base);
 
 	/* Grab SRC config register range */
 	s32v234_pcie->src =
@@ -1364,7 +1411,7 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 		return -ENODEV;
 	}
 
-	dev_info(pp->dev, "Configuring as %s\n",
+	dev_info(dev, "Configuring as %s\n",
 		 (s32v234_pcie->is_endpoint) ? "EP" : "RC");
 
 	s32v234_pcie->soc_revision = s32v234_pcie_get_soc_revision();
@@ -1376,10 +1423,10 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 	} else {
 		struct dentry *pfile;
 
-		pp->ops = &s32v234_pcie_host_ops_ep;
-		pcie_port_ep = pp;
+		dw_pcie_ep = pcie;
 
 		pp->call_back = NULL;
+		pp->user_pid = 0;
 
 		#ifdef CONFIG_PCI_DW_DMA
 		pp->dma_irq = platform_get_irq_byname(pdev, "dma");
@@ -1404,14 +1451,14 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 
 		pp->dir = debugfs_create_dir("ep_dbgfs", NULL);
 		if (!pp->dir)
-			dev_info(pp->dev, "Creating debugfs dir failed\n");
+			dev_info(dev, "Creating debugfs dir failed\n");
 		pfile = debugfs_create_file("ep_file", 0444, pp->dir,
 			(void *)pp, &s32v_pcie_ep_dbgfs_fops);
 		if (!pfile)
-			dev_info(pp->dev, "debugfs regs for failed\n");
+			dev_info(dev, "debugfs regs for failed\n");
 
-		writel((readl(pp->dbi_base + PCIE_MSI_CAP) | 0x10000),
-			pp->dbi_base +  PCIE_MSI_CAP);
+		writel((readl(pcie->dbi_base + PCIE_MSI_CAP) | 0x10000),
+			pcie->dbi_base +  PCIE_MSI_CAP);
 	}
 
 	pp->link_req_rst_not_irq = platform_get_irq_byname(pdev,
