@@ -1318,6 +1318,7 @@ static int fsl_edma_remove(struct platform_device *pdev)
 
 	fsl_edma_cleanup_vchan(&fsl_edma->dma_dev);
 	fsl_edma_irq_exit(pdev, fsl_edma);
+	fsl_edma_cleanup_vchan(&fsl_edma->dma_dev);
 	of_dma_controller_free(np);
 	dma_async_device_unregister(&fsl_edma->dma_dev);
 	fsl_disable_clocks(fsl_edma, DMAMUX_NR);

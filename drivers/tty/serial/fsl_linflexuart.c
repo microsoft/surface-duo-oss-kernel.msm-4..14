@@ -3,7 +3,7 @@
  *
  * Copyright 2012-2016 Freescale Semiconductor, Inc.
  *
- * (C) Copyright 2017 NXP
+ * (C) Copyright 2017-2018 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -131,7 +131,7 @@
 #define LINFLEXD_UARTSR_PE		(LINFLEXD_UARTSR_PE0|LINFLEXD_UARTSR_PE1|LINFLEXD_UARTSR_PE2|LINFLEXD_UARTSR_PE3)
 
 #define LINFLEXD_GCR_STOP_MASK		BIT(1)
-#define LINFLEXD_GCR_STOP_1SBITS	BIT(1)
+#define LINFLEXD_GCR_STOP_1SBITS	(0 << 1)
 #define LINFLEXD_GCR_STOP_2SBITS	BIT(1)
 
 #define DMA_MAXBURST			(16)
@@ -845,7 +845,7 @@ static void linflex_shutdown(struct uart_port *port)
 {
 	struct linflex_port *sport = container_of(port,
 					struct linflex_port, port);
-	unsigned long cr, ier;
+	unsigned long ier;
 	unsigned long flags, temp;
 
 	spin_lock_irqsave(&port->lock, flags);
@@ -854,10 +854,6 @@ static void linflex_shutdown(struct uart_port *port)
 	ier = readl(port->membase + LINIER);
 	ier &= ~(LINFLEXD_LINIER_DRIE | LINFLEXD_LINIER_DTIE);
 	writel(ier, port->membase + LINIER);
-
-	cr = readl(port->membase + UARTCR);
-	cr &= ~(LINFLEXD_UARTCR_RXEN |	LINFLEXD_UARTCR_TXEN);
-	writel(ier, port->membase + UARTCR);
 
 	spin_unlock_irqrestore(&port->lock, flags);
 
@@ -1033,7 +1029,7 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 
 	/* update the per-port timeout */
 	uart_update_timeout(port, termios->c_cflag, baud);
-	sport->dma_rx_timeout = msecs_to_jiffies(20);
+	sport->dma_rx_timeout = msecs_to_jiffies(DIV_ROUND_UP(10000000, baud));
 
 	/* disable transmit and receive */
 	writel(old_cr & ~(LINFLEXD_UARTCR_RXEN | LINFLEXD_UARTCR_TXEN),

@@ -210,7 +210,7 @@ struct clk *s32gen1_clk_dfs(enum s32gen1_plldig_type type, const char *name,
 		return ERR_PTR(-EINVAL);
 
 	/* check if DFS index is valid for current pll */
-	if (0 <= idx || idx > get_pllx_dfs_nr(type))
+	if (idx <= 0 || idx > get_pllx_dfs_nr(type))
 		return ERR_PTR(-EINVAL);
 
 	dfs = kzalloc(sizeof(*dfs), GFP_KERNEL);

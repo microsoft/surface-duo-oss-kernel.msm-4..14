@@ -43,11 +43,14 @@ static u32 dspi_mux_idx[] = {
 	MC_CGM_MUXn_CSC_SEL_FIRC, MC_CGM_MUXn_CSC_SEL_PERIPH_PLL_PHI7,
 };
 
+PNAME(xbar_sels) = {"firc", "armpll_dfs1", };
+static u32 xbar_mux_idx[] = {
+	MC_CGM_MUXn_CSC_SEL_FIRC,
+	MC_CGM_MUXn_CSC_SEL_ARM_PLL_DFS1,
+};
+
 static struct clk *clk[S32GEN1_CLK_END];
 static struct clk_onecell_data clk_data;
-
-static u32 share_count_linflex0gate, share_count_linflex1gate,
-	   share_count_linflex2gate;
 
 static void __init s32gen1_clocks_init(struct device_node *clocking_node)
 {
@@ -171,6 +174,22 @@ static void __init s32gen1_clocks_init(struct device_node *clocking_node)
 		 "armpll_dfs6", "armpll_vco",
 		 armdfs, 6);
 
+	/* XBAR CLKS */
+	clk[S32GEN1_CLK_XBAR] = s32_clk_mux_table("xbar",
+		CGM_MUXn_CSC(mc_cgm0_base, 0),
+		MC_CGM_MUXn_CSC_SELCTL_OFFSET,
+		MC_CGM_MUXn_CSC_SELCTL_SIZE,
+		xbar_sels, ARRAY_SIZE(xbar_sels), xbar_mux_idx, &s32gen1_lock);
+
+	clk[S32GEN1_CLK_XBAR_DIV2] = s32_clk_fixed_factor("xbar_div2",
+		"xbar", 1, 2);
+	clk[S32GEN1_CLK_XBAR_DIV3] = s32_clk_fixed_factor("xbar_div3",
+		"xbar", 1, 3);
+	clk[S32GEN1_CLK_XBAR_DIV4] = s32_clk_fixed_factor("xbar_div4",
+		"xbar", 1, 4);
+	clk[S32GEN1_CLK_SBSW] = s32_clk_fixed_factor("sbsw",
+		"xbar", 1, 6);
+
 	/* PERIPH_PLL */
 	clk[S32GEN1_CLK_PERIPHPLL_VCO] = s32gen1_clk_plldig(
 		S32GEN1_PLLDIG_PERIPH, "periphpll_vco", "periphpll_sel",
@@ -252,44 +271,12 @@ static void __init s32gen1_clocks_init(struct device_node *clocking_node)
 	clk[S32GEN1_CLK_LIN] = s32_clk_fixed_factor("lin",
 		"lin_baud", 1, 2);
 
-	clk[S32GEN1_CLK_LIN0_BAUD]  = s32gen1_clk_gate2_shared("lin0_baud",
-		"lin_baud", NULL, 0, 0, 1,
-		&share_count_linflex0gate, &s32gen1_lock);
-	clk[S32GEN1_CLK_LIN0] = s32gen1_clk_gate2_shared("lin0",
-		"lin", NULL, 0, 0, 1,
-		&share_count_linflex0gate, &s32gen1_lock);
-	clk[S32GEN1_CLK_LIN1_BAUD]  = s32gen1_clk_gate2_shared("lin1_baud",
-		"lin_baud", NULL, 0, 0, 1,
-		&share_count_linflex1gate, &s32gen1_lock);
-	clk[S32GEN1_CLK_LIN1] = s32gen1_clk_gate2_shared("lin1",
-		"lin", NULL, 0, 0, 1,
-		&share_count_linflex1gate, &s32gen1_lock);
-	clk[S32GEN1_CLK_LIN2_BAUD]  = s32gen1_clk_gate2_shared("lin2_baud",
-		"lin_baud", NULL, 0, 0, 1,
-		&share_count_linflex2gate, &s32gen1_lock);
-	clk[S32GEN1_CLK_LIN2] = s32gen1_clk_gate2_shared("lin2",
-		"lin", NULL, 0, 0, 1,
-		&share_count_linflex2gate, &s32gen1_lock);
-
 	/* DSPI Clock */
-	clk[S32GEN1_CLK_LIN_BAUD] = s32_clk_mux_table("spi_sel",
+	clk[S32GEN1_CLK_DSPI] = s32_clk_mux_table("dspi",
 		CGM_MUXn_CSC(mc_cgm0_base, 16),
 		MC_CGM_MUXn_CSC_SELCTL_OFFSET,
 		MC_CGM_MUXn_CSC_SELCTL_SIZE,
 		dspi_sels, ARRAY_SIZE(dspi_sels), dspi_mux_idx, &s32gen1_lock);
-
-	clk[S32GEN1_CLK_SPI0]  = s32gen1_clk_gate2("spi0",
-		"spi_sel", NULL, 0, 0, 1, &s32gen1_lock);
-	clk[S32GEN1_CLK_SPI1]  = s32gen1_clk_gate2("spi1",
-		"spi_sel", NULL, 0, 0, 1, &s32gen1_lock);
-	clk[S32GEN1_CLK_SPI2]  = s32gen1_clk_gate2("spi2",
-		"spi_sel", NULL, 0, 0, 1, &s32gen1_lock);
-	clk[S32GEN1_CLK_SPI3]  = s32gen1_clk_gate2("spi3",
-		"spi_sel", NULL, 0, 0, 1, &s32gen1_lock);
-	clk[S32GEN1_CLK_SPI4]  = s32gen1_clk_gate2("spi4",
-		"spi_sel", NULL, 0, 0, 1, &s32gen1_lock);
-	clk[S32GEN1_CLK_SPI5]  = s32gen1_clk_gate2("spi5",
-		"spi_sel", NULL, 0, 0, 1, &s32gen1_lock);
 
 	/* DDR_PLL */
 	clk[S32GEN1_CLK_DDRPLL_VCO] = s32gen1_clk_plldig(S32GEN1_PLLDIG_DDR,
@@ -332,19 +319,19 @@ static void __init s32gen1_clocks_init(struct device_node *clocking_node)
 	of_clk_add_provider(clocking_node, of_clk_src_onecell_get, &clk_data);
 }
 
-static void __init s32v344_clocks_init(struct device_node *mc_cgm0_node)
+static void __init s32v344_clocks_init(struct device_node *clks_node)
 {
-	s32gen1_clocks_init(mc_cgm0_node);
+	s32gen1_clocks_init(clks_node);
 }
 
-static void __init s32g275_clocks_init(struct device_node *mc_cgm0_node)
+static void __init s32g275_clocks_init(struct device_node *clks_node)
 {
-	s32gen1_clocks_init(mc_cgm0_node);
+	s32gen1_clocks_init(clks_node);
 }
 
-static void __init s32r45x_clocks_init(struct device_node *mc_cgm0_node)
+static void __init s32r45x_clocks_init(struct device_node *clks_node)
 {
-	s32gen1_clocks_init(mc_cgm0_node);
+	s32gen1_clocks_init(clks_node);
 }
 
 CLK_OF_DECLARE(S32V344, "fsl,s32v344-clocking", s32v344_clocks_init);
