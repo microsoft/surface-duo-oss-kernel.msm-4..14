@@ -684,7 +684,7 @@ static void lio_sync_octeon_time(struct work_struct *work)
 	lt = (struct lio_time *)sc->virtdptr;
 
 	/* Get time of the day */
-	getnstimeofday64(&ts);
+	ktime_get_real_ts64(&ts);
 	lt->sec = ts.tv_sec;
 	lt->nsec = ts.tv_nsec;
 	octeon_swap_8B_data((u64 *)lt, (sizeof(struct lio_time)) / 8);
@@ -2628,7 +2628,7 @@ static int liquidio_vlan_rx_kill_vid(struct net_device *netdev,
 
 	ret = octnet_send_nic_ctrl_pkt(lio->oct_dev, &nctrl);
 	if (ret < 0) {
-		dev_err(&oct->pci_dev->dev, "Add VLAN filter failed in core (ret: 0x%x)\n",
+		dev_err(&oct->pci_dev->dev, "Del VLAN filter failed in core (ret: 0x%x)\n",
 			ret);
 	}
 	return ret;
@@ -3299,7 +3299,9 @@ static int setup_nic_devices(struct octeon_device *octeon_dev)
 {
 	struct lio *lio = NULL;
 	struct net_device *netdev;
-	u8 mac[6], i, j, *fw_ver;
+	u8 mac[6], i, j, *fw_ver, *micro_ver;
+	unsigned long micro;
+	u32 cur_ver;
 	struct octeon_soft_command *sc;
 	struct liquidio_if_cfg_context *ctx;
 	struct liquidio_if_cfg_resp *resp;
@@ -3428,6 +3430,14 @@ static int setup_nic_devices(struct octeon_device *octeon_dev)
 				 "Using auto-loaded firmware version %s.\n",
 				 fw_ver);
 		}
+
+		/* extract micro version field; point past '<maj>.<min>.' */
+		micro_ver = fw_ver + strlen(LIQUIDIO_BASE_VERSION) + 1;
+		if (kstrtoul(micro_ver, 10, &micro) != 0)
+			micro = 0;
+		octeon_dev->fw_info.ver.maj = LIQUIDIO_BASE_MAJOR_VERSION;
+		octeon_dev->fw_info.ver.min = LIQUIDIO_BASE_MINOR_VERSION;
+		octeon_dev->fw_info.ver.rev = micro;
 
 		octeon_swap_8B_data((u64 *)(&resp->cfg_info),
 				    (sizeof(struct liquidio_if_cfg_info)) >> 3);
@@ -3569,9 +3579,8 @@ static int setup_nic_devices(struct octeon_device *octeon_dev)
 		for (j = 0; j < octeon_dev->sriov_info.max_vfs; j++) {
 			u8 vfmac[ETH_ALEN];
 
-			random_ether_addr(&vfmac[0]);
-			if (__liquidio_set_vf_mac(netdev, j,
-						  &vfmac[0], false)) {
+			eth_random_addr(vfmac);
+			if (__liquidio_set_vf_mac(netdev, j, vfmac, false)) {
 				dev_err(&octeon_dev->pci_dev->dev,
 					"Error setting VF%d MAC address\n",
 					j);
@@ -3672,7 +3681,19 @@ static int setup_nic_devices(struct octeon_device *octeon_dev)
 			OCTEON_CN2350_25GB_SUBSYS_ID ||
 		    octeon_dev->subsystem_id ==
 			OCTEON_CN2360_25GB_SUBSYS_ID) {
-			liquidio_get_speed(lio);
+			cur_ver = OCT_FW_VER(octeon_dev->fw_info.ver.maj,
+					     octeon_dev->fw_info.ver.min,
+					     octeon_dev->fw_info.ver.rev);
+
+			/* speed control unsupported in f/w older than 1.7.2 */
+			if (cur_ver < OCT_FW_VER(1, 7, 2)) {
+				dev_info(&octeon_dev->pci_dev->dev,
+					 "speed setting not supported by f/w.");
+				octeon_dev->speed_setting = 25;
+				octeon_dev->no_speed_setting = 1;
+			} else {
+				liquidio_get_speed(lio);
+			}
 
 			if (octeon_dev->speed_setting == 0) {
 				octeon_dev->speed_setting = 25;

@@ -106,7 +106,8 @@ struct tipc_stats {
  * @backlogq: queue for messages waiting to be sent
  * @snt_nxt: next sequence number to use for outbound messages
  * @last_retransmitted: sequence number of most recently retransmitted message
- * @stale_count: # of identical retransmit requests made by peer
+ * @stale_cnt: counter for number of identical retransmit attempts
+ * @stale_limit: time when repeated identical retransmits must force link reset
  * @ackers: # of peers that needs to ack each packet before it can be released
  * @acked: # last packet acked by a certain peer. Used for broadcast.
  * @rcv_nxt: next sequence number to expect for inbound messages
@@ -127,14 +128,17 @@ struct tipc_link {
 	struct net *net;
 
 	/* Management and link supervision data */
-	u32 peer_session;
-	u32 session;
+	u16 peer_session;
+	u16 session;
+	u16 snd_nxt_state;
+	u16 rcv_nxt_state;
 	u32 peer_bearer_id;
 	u32 bearer_id;
 	u32 tolerance;
 	u32 abort_limit;
 	u32 state;
 	u16 peer_caps;
+	bool in_session;
 	bool active;
 	u32 silent_intv_cnt;
 	char if_name[TIPC_MAX_IF_NAME];
@@ -161,7 +165,8 @@ struct tipc_link {
 	u16 snd_nxt;
 	u16 last_retransm;
 	u16 window;
-	u32 stale_count;
+	u16 stale_cnt;
+	unsigned long stale_limit;
 
 	/* Reception */
 	u16 rcv_nxt;
@@ -211,11 +216,6 @@ enum {
  * Interval between NACKs when packets arrive out of order
  */
 #define TIPC_NACK_INTV (TIPC_MIN_LINK_WIN * 2)
-
-/* Wildcard value for link session numbers. When it is known that
- * peer endpoint is down, any session number must be accepted.
- */
-#define ANY_SESSION 0x10000
 
 /* Link FSM states:
  */
@@ -335,6 +335,11 @@ struct sk_buff_head *tipc_link_inputq(struct tipc_link *l)
 char tipc_link_plane(struct tipc_link *l)
 {
 	return l->net_plane;
+}
+
+void tipc_link_update_caps(struct tipc_link *l, u16 capabilities)
+{
+	l->peer_caps = capabilities;
 }
 
 void tipc_link_add_bc_peer(struct tipc_link *snd_l,
@@ -469,7 +474,7 @@ bool tipc_link_create(struct net *net, char *if_name, int bearer_id,
 	l->addr = peer;
 	l->peer_caps = peer_caps;
 	l->net = net;
-	l->peer_session = ANY_SESSION;
+	l->in_session = false;
 	l->bearer_id = bearer_id;
 	l->tolerance = tolerance;
 	l->net_plane = net_plane;
@@ -838,7 +843,7 @@ void link_prepare_wakeup(struct tipc_link *l)
 
 void tipc_link_reset(struct tipc_link *l)
 {
-	l->peer_session = ANY_SESSION;
+	l->in_session = false;
 	l->session++;
 	l->mtu = l->advertised_mtu;
 	__skb_queue_purge(&l->transmq);
@@ -857,10 +862,12 @@ void tipc_link_reset(struct tipc_link *l)
 	l->rcv_unacked = 0;
 	l->snd_nxt = 1;
 	l->rcv_nxt = 1;
+	l->snd_nxt_state = 1;
+	l->rcv_nxt_state = 1;
 	l->acked = 0;
 	l->silent_intv_cnt = 0;
 	l->rst_cnt = 0;
-	l->stale_count = 0;
+	l->stale_cnt = 0;
 	l->bc_peer_is_up = false;
 	memset(&l->mon_state, 0, sizeof(l->mon_state));
 	tipc_link_reset_stats(l);
@@ -997,39 +1004,41 @@ static void link_retransmit_failure(struct tipc_link *l, struct sk_buff *skb)
 		msg_seqno(hdr), msg_prevnode(hdr), msg_orignode(hdr));
 }
 
-int tipc_link_retrans(struct tipc_link *l, struct tipc_link *nacker,
+/* tipc_link_retrans() - retransmit one or more packets
+ * @l: the link to transmit on
+ * @r: the receiving link ordering the retransmit. Same as l if unicast
+ * @from: retransmit from (inclusive) this sequence number
+ * @to: retransmit to (inclusive) this sequence number
+ * xmitq: queue for accumulating the retransmitted packets
+ */
+int tipc_link_retrans(struct tipc_link *l, struct tipc_link *r,
 		      u16 from, u16 to, struct sk_buff_head *xmitq)
 {
 	struct sk_buff *_skb, *skb = skb_peek(&l->transmq);
-	struct tipc_msg *hdr;
-	u16 ack = l->rcv_nxt - 1;
 	u16 bc_ack = l->bc_rcvlink->rcv_nxt - 1;
+	u16 ack = l->rcv_nxt - 1;
+	struct tipc_msg *hdr;
 
 	if (!skb)
 		return 0;
 
 	/* Detect repeated retransmit failures on same packet */
-	if (nacker->last_retransm != buf_seqno(skb)) {
-		nacker->last_retransm = buf_seqno(skb);
-		nacker->stale_count = 1;
-	} else if (++nacker->stale_count > 100) {
+	if (r->last_retransm != buf_seqno(skb)) {
+		r->last_retransm = buf_seqno(skb);
+		r->stale_limit = jiffies + msecs_to_jiffies(l->tolerance);
+	} else if (++r->stale_cnt > 99 && time_after(jiffies, r->stale_limit)) {
 		link_retransmit_failure(l, skb);
-		nacker->stale_count = 0;
 		if (link_is_bc_sndlink(l))
 			return TIPC_LINK_DOWN_EVT;
 		return tipc_link_fsm_evt(l, LINK_FAILURE_EVT);
 	}
 
-	/* Move forward to where retransmission should start */
 	skb_queue_walk(&l->transmq, skb) {
-		if (!less(buf_seqno(skb), from))
-			break;
-	}
-
-	skb_queue_walk_from(&l->transmq, skb) {
-		if (more(buf_seqno(skb), to))
-			break;
 		hdr = buf_msg(skb);
+		if (less(msg_seqno(hdr), from))
+			continue;
+		if (more(msg_seqno(hdr), to))
+			break;
 		_skb = __pskb_copy(skb, MIN_H_SIZE, GFP_ATOMIC);
 		if (!_skb)
 			return 0;
@@ -1063,6 +1072,7 @@ static bool tipc_data_input(struct tipc_link *l, struct sk_buff *skb,
 			skb_queue_tail(mc_inputq, skb);
 			return true;
 		}
+		/* else: fall through */
 	case CONN_MANAGER:
 		skb_queue_tail(inputq, skb);
 		return true;
@@ -1271,6 +1281,7 @@ int tipc_link_rcv(struct tipc_link *l, struct sk_buff *skb,
 
 		/* Forward queues and wake up waiting users */
 		if (likely(tipc_link_release_pkts(l, msg_ack(hdr)))) {
+			l->stale_cnt = 0;
 			tipc_link_advance_backlog(l, xmitq);
 			if (unlikely(!skb_queue_empty(&l->wakeupq)))
 				link_prepare_wakeup(l);
@@ -1347,6 +1358,8 @@ static void tipc_link_build_proto_msg(struct tipc_link *l, int mtyp, bool probe,
 	msg_set_seqno(hdr, l->snd_nxt + U16_MAX / 2);
 
 	if (mtyp == STATE_MSG) {
+		if (l->peer_caps & TIPC_LINK_PROTO_SEQNO)
+			msg_set_seqno(hdr, l->snd_nxt_state++);
 		msg_set_seq_gap(hdr, rcvgap);
 		msg_set_bc_gap(hdr, link_bc_rcv_gap(bcl));
 		msg_set_probe(hdr, probe);
@@ -1438,6 +1451,44 @@ tnl:
 	}
 }
 
+/* tipc_link_validate_msg(): validate message against current link state
+ * Returns true if message should be accepted, otherwise false
+ */
+bool tipc_link_validate_msg(struct tipc_link *l, struct tipc_msg *hdr)
+{
+	u16 curr_session = l->peer_session;
+	u16 session = msg_session(hdr);
+	int mtyp = msg_type(hdr);
+
+	if (msg_user(hdr) != LINK_PROTOCOL)
+		return true;
+
+	switch (mtyp) {
+	case RESET_MSG:
+		if (!l->in_session)
+			return true;
+		/* Accept only RESET with new session number */
+		return more(session, curr_session);
+	case ACTIVATE_MSG:
+		if (!l->in_session)
+			return true;
+		/* Accept only ACTIVATE with new or current session number */
+		return !less(session, curr_session);
+	case STATE_MSG:
+		/* Accept only STATE with current session number */
+		if (!l->in_session)
+			return false;
+		if (session != curr_session)
+			return false;
+		if (!(l->peer_caps & TIPC_LINK_PROTO_SEQNO))
+			return true;
+		/* Accept only STATE with new sequence number */
+		return !less(msg_seqno(hdr), l->rcv_nxt_state);
+	default:
+		return false;
+	}
+}
+
 /* tipc_link_proto_rcv(): receive link level protocol message :
  * Note that network plane id propagates through the network, and may
  * change at any time. The node with lowest numerical id determines
@@ -1471,17 +1522,12 @@ static int tipc_link_proto_rcv(struct tipc_link *l, struct sk_buff *skb,
 	hdr = buf_msg(skb);
 	data = msg_data(hdr);
 
+	if (!tipc_link_validate_msg(l, hdr))
+		goto exit;
+
 	switch (mtyp) {
 	case RESET_MSG:
-
-		/* Ignore duplicate RESET with old session number */
-		if ((less_eq(msg_session(hdr), l->peer_session)) &&
-		    (l->peer_session != ANY_SESSION))
-			break;
-		/* fall thru' */
-
 	case ACTIVATE_MSG:
-
 		/* Complete own link name with peer's interface name */
 		if_name =  strrchr(l->name, ':') + 1;
 		if (sizeof(l->name) - (if_name - l->name) <= TIPC_MAX_IF_NAME)
@@ -1509,12 +1555,14 @@ static int tipc_link_proto_rcv(struct tipc_link *l, struct sk_buff *skb,
 			rc = TIPC_LINK_UP_EVT;
 
 		l->peer_session = msg_session(hdr);
+		l->in_session = true;
 		l->peer_bearer_id = msg_bearer_id(hdr);
 		if (l->mtu > msg_max_pkt(hdr))
 			l->mtu = msg_max_pkt(hdr);
 		break;
 
 	case STATE_MSG:
+		l->rcv_nxt_state = msg_seqno(hdr) + 1;
 
 		/* Update own tolerance if peer indicates a non-zero value */
 		if (in_range(peers_tol, TIPC_MIN_LINK_TOL, TIPC_MAX_LINK_TOL))

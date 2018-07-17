@@ -2132,14 +2132,18 @@ MLXSW_ITEM32(reg, ptar, op, 0x00, 28, 4);
 
 /* reg_ptar_action_set_type
  * Type of action set to be used on this region.
- * For Spectrum, this is always type 2 - "flexible"
+ * For Spectrum and Spectrum-2, this is always type 2 - "flexible"
  * Access: WO
  */
 MLXSW_ITEM32(reg, ptar, action_set_type, 0x00, 16, 8);
 
+enum mlxsw_reg_ptar_key_type {
+	MLXSW_REG_PTAR_KEY_TYPE_FLEX = 0x50, /* Spetrum */
+	MLXSW_REG_PTAR_KEY_TYPE_FLEX2 = 0x51, /* Spectrum-2 */
+};
+
 /* reg_ptar_key_type
  * TCAM key type for the region.
- * For Spectrum, this is always type 0x50 - "FLEX_KEY"
  * Access: WO
  */
 MLXSW_ITEM32(reg, ptar, key_type, 0x00, 0, 8);
@@ -2182,13 +2186,14 @@ MLXSW_ITEM8_INDEXED(reg, ptar, flexible_key_id, 0x20, 0, 8,
 		    MLXSW_REG_PTAR_KEY_ID_LEN, 0x00, false);
 
 static inline void mlxsw_reg_ptar_pack(char *payload, enum mlxsw_reg_ptar_op op,
+				       enum mlxsw_reg_ptar_key_type key_type,
 				       u16 region_size, u16 region_id,
 				       const char *tcam_region_info)
 {
 	MLXSW_REG_ZERO(ptar, payload);
 	mlxsw_reg_ptar_op_set(payload, op);
 	mlxsw_reg_ptar_action_set_type_set(payload, 2); /* "flexible" */
-	mlxsw_reg_ptar_key_type_set(payload, 0x50); /* "FLEX_KEY" */
+	mlxsw_reg_ptar_key_type_set(payload, key_type);
 	mlxsw_reg_ptar_region_size_set(payload, region_size);
 	mlxsw_reg_ptar_region_id_set(payload, region_id);
 	mlxsw_reg_ptar_tcam_region_info_memcpy_to(payload, tcam_region_info);
@@ -2397,6 +2402,15 @@ MLXSW_ITEM32(reg, ptce2, op, 0x00, 20, 3);
  */
 MLXSW_ITEM32(reg, ptce2, offset, 0x00, 0, 16);
 
+/* reg_ptce2_priority
+ * Priority of the rule, higher values win. The range is 1..cap_kvd_size-1.
+ * Note: priority does not have to be unique per rule.
+ * Within a region, higher priority should have lower offset (no limitation
+ * between regions in a multi-region).
+ * Access: RW
+ */
+MLXSW_ITEM32(reg, ptce2, priority, 0x04, 0, 24);
+
 /* reg_ptce2_tcam_region_info
  * Opaque object that represents the TCAM region.
  * Access: Index
@@ -2432,12 +2446,13 @@ MLXSW_ITEM_BUF(reg, ptce2, flex_action_set, 0xE0,
 static inline void mlxsw_reg_ptce2_pack(char *payload, bool valid,
 					enum mlxsw_reg_ptce2_op op,
 					const char *tcam_region_info,
-					u16 offset)
+					u16 offset, u32 priority)
 {
 	MLXSW_REG_ZERO(ptce2, payload);
 	mlxsw_reg_ptce2_v_set(payload, valid);
 	mlxsw_reg_ptce2_op_set(payload, op);
 	mlxsw_reg_ptce2_offset_set(payload, offset);
+	mlxsw_reg_ptce2_priority_set(payload, priority);
 	mlxsw_reg_ptce2_tcam_region_info_memcpy_to(payload, tcam_region_info);
 }
 
@@ -3350,6 +3365,7 @@ MLXSW_ITEM32(reg, ppcnt, pnat, 0x00, 14, 2);
 
 enum mlxsw_reg_ppcnt_grp {
 	MLXSW_REG_PPCNT_IEEE_8023_CNT = 0x0,
+	MLXSW_REG_PPCNT_RFC_2819_CNT = 0x2,
 	MLXSW_REG_PPCNT_EXT_CNT = 0x5,
 	MLXSW_REG_PPCNT_PRIO_CNT = 0x10,
 	MLXSW_REG_PPCNT_TC_CNT = 0x11,
@@ -3507,6 +3523,68 @@ MLXSW_ITEM64(reg, ppcnt, a_pause_mac_ctrl_frames_received,
  */
 MLXSW_ITEM64(reg, ppcnt, a_pause_mac_ctrl_frames_transmitted,
 	     MLXSW_REG_PPCNT_COUNTERS_OFFSET + 0x90, 0, 64);
+
+/* Ethernet RFC 2819 Counter Group */
+
+/* reg_ppcnt_ether_stats_pkts64octets
+ * Access: RO
+ */
+MLXSW_ITEM64(reg, ppcnt, ether_stats_pkts64octets,
+	     MLXSW_REG_PPCNT_COUNTERS_OFFSET + 0x58, 0, 64);
+
+/* reg_ppcnt_ether_stats_pkts65to127octets
+ * Access: RO
+ */
+MLXSW_ITEM64(reg, ppcnt, ether_stats_pkts65to127octets,
+	     MLXSW_REG_PPCNT_COUNTERS_OFFSET + 0x60, 0, 64);
+
+/* reg_ppcnt_ether_stats_pkts128to255octets
+ * Access: RO
+ */
+MLXSW_ITEM64(reg, ppcnt, ether_stats_pkts128to255octets,
+	     MLXSW_REG_PPCNT_COUNTERS_OFFSET + 0x68, 0, 64);
+
+/* reg_ppcnt_ether_stats_pkts256to511octets
+ * Access: RO
+ */
+MLXSW_ITEM64(reg, ppcnt, ether_stats_pkts256to511octets,
+	     MLXSW_REG_PPCNT_COUNTERS_OFFSET + 0x70, 0, 64);
+
+/* reg_ppcnt_ether_stats_pkts512to1023octets
+ * Access: RO
+ */
+MLXSW_ITEM64(reg, ppcnt, ether_stats_pkts512to1023octets,
+	     MLXSW_REG_PPCNT_COUNTERS_OFFSET + 0x78, 0, 64);
+
+/* reg_ppcnt_ether_stats_pkts1024to1518octets
+ * Access: RO
+ */
+MLXSW_ITEM64(reg, ppcnt, ether_stats_pkts1024to1518octets,
+	     MLXSW_REG_PPCNT_COUNTERS_OFFSET + 0x80, 0, 64);
+
+/* reg_ppcnt_ether_stats_pkts1519to2047octets
+ * Access: RO
+ */
+MLXSW_ITEM64(reg, ppcnt, ether_stats_pkts1519to2047octets,
+	     MLXSW_REG_PPCNT_COUNTERS_OFFSET + 0x88, 0, 64);
+
+/* reg_ppcnt_ether_stats_pkts2048to4095octets
+ * Access: RO
+ */
+MLXSW_ITEM64(reg, ppcnt, ether_stats_pkts2048to4095octets,
+	     MLXSW_REG_PPCNT_COUNTERS_OFFSET + 0x90, 0, 64);
+
+/* reg_ppcnt_ether_stats_pkts4096to8191octets
+ * Access: RO
+ */
+MLXSW_ITEM64(reg, ppcnt, ether_stats_pkts4096to8191octets,
+	     MLXSW_REG_PPCNT_COUNTERS_OFFSET + 0x98, 0, 64);
+
+/* reg_ppcnt_ether_stats_pkts8192to10239octets
+ * Access: RO
+ */
+MLXSW_ITEM64(reg, ppcnt, ether_stats_pkts8192to10239octets,
+	     MLXSW_REG_PPCNT_COUNTERS_OFFSET + 0xA0, 0, 64);
 
 /* Ethernet Extended Counter Group Counters */
 
@@ -4337,6 +4415,20 @@ MLXSW_ITEM32(reg, ritr, if_swid, 0x08, 24, 8);
  * Access: RW
  */
 MLXSW_ITEM_BUF(reg, ritr, if_mac, 0x12, 6);
+
+/* reg_ritr_if_vrrp_id_ipv6
+ * VRRP ID for IPv6
+ * Note: Reserved for RIF types other than VLAN, FID and Sub-port.
+ * Access: RW
+ */
+MLXSW_ITEM32(reg, ritr, if_vrrp_id_ipv6, 0x1C, 8, 8);
+
+/* reg_ritr_if_vrrp_id_ipv4
+ * VRRP ID for IPv4
+ * Note: Reserved for RIF types other than VLAN, FID and Sub-port.
+ * Access: RW
+ */
+MLXSW_ITEM32(reg, ritr, if_vrrp_id_ipv4, 0x1C, 0, 8);
 
 /* VLAN Interface */
 

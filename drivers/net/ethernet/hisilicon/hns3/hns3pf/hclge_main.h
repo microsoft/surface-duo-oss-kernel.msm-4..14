@@ -89,6 +89,7 @@
 
 /* Reset related Registers */
 #define HCLGE_MISC_RESET_STS_REG	0x20700
+#define HCLGE_MISC_VECTOR_INT_STS	0x20800
 #define HCLGE_GLOBAL_RESET_REG		0x20A00
 #define HCLGE_GLOBAL_RESET_BIT		0x0
 #define HCLGE_CORE_RESET_BIT		0x1
@@ -128,6 +129,7 @@ enum HCLGE_DEV_STATE {
 	HCLGE_STATE_MBX_SERVICE_SCHED,
 	HCLGE_STATE_MBX_HANDLING,
 	HCLGE_STATE_STATISTICS_UPDATING,
+	HCLGE_STATE_CMD_DISABLE,
 	HCLGE_STATE_MAX
 };
 
@@ -190,7 +192,6 @@ struct hclge_hw {
 	int num_vec;
 	struct hclge_cmq cmq;
 	struct hclge_caps caps;
-	void *back;
 };
 
 /* TQP stats */

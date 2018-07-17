@@ -13,6 +13,7 @@ struct tcf_walker {
 	int	stop;
 	int	skip;
 	int	count;
+	unsigned long cookie;
 	int	(*fn)(struct tcf_proto *, void *node, struct tcf_walker *);
 };
 
@@ -73,11 +74,13 @@ void tcf_block_cb_incref(struct tcf_block_cb *block_cb);
 unsigned int tcf_block_cb_decref(struct tcf_block_cb *block_cb);
 struct tcf_block_cb *__tcf_block_cb_register(struct tcf_block *block,
 					     tc_setup_cb_t *cb, void *cb_ident,
-					     void *cb_priv);
+					     void *cb_priv,
+					     struct netlink_ext_ack *extack);
 int tcf_block_cb_register(struct tcf_block *block,
 			  tc_setup_cb_t *cb, void *cb_ident,
-			  void *cb_priv);
-void __tcf_block_cb_unregister(struct tcf_block_cb *block_cb);
+			  void *cb_priv, struct netlink_ext_ack *extack);
+void __tcf_block_cb_unregister(struct tcf_block *block,
+			       struct tcf_block_cb *block_cb);
 void tcf_block_cb_unregister(struct tcf_block *block,
 			     tc_setup_cb_t *cb, void *cb_ident);
 
@@ -166,7 +169,8 @@ unsigned int tcf_block_cb_decref(struct tcf_block_cb *block_cb)
 static inline
 struct tcf_block_cb *__tcf_block_cb_register(struct tcf_block *block,
 					     tc_setup_cb_t *cb, void *cb_ident,
-					     void *cb_priv)
+					     void *cb_priv,
+					     struct netlink_ext_ack *extack)
 {
 	return NULL;
 }
@@ -174,13 +178,14 @@ struct tcf_block_cb *__tcf_block_cb_register(struct tcf_block *block,
 static inline
 int tcf_block_cb_register(struct tcf_block *block,
 			  tc_setup_cb_t *cb, void *cb_ident,
-			  void *cb_priv)
+			  void *cb_priv, struct netlink_ext_ack *extack)
 {
 	return 0;
 }
 
 static inline
-void __tcf_block_cb_unregister(struct tcf_block_cb *block_cb)
+void __tcf_block_cb_unregister(struct tcf_block *block,
+			       struct tcf_block_cb *block_cb)
 {
 }
 
@@ -601,6 +606,7 @@ struct tc_block_offload {
 	enum tc_block_command command;
 	enum tcf_block_binder_type binder_type;
 	struct tcf_block *block;
+	struct netlink_ext_ack *extack;
 };
 
 struct tc_cls_common_offload {
@@ -776,6 +782,7 @@ struct tc_mqprio_qopt_offload {
 struct tc_cookie {
 	u8  *data;
 	u32 len;
+	struct rcu_head rcu;
 };
 
 struct tc_qopt_offload_stats {

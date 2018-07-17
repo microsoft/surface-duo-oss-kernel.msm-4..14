@@ -584,9 +584,9 @@ nfp_flower_repr_offload(struct nfp_app *app, struct net_device *netdev,
 		return nfp_flower_del_offload(app, netdev, flower, egress);
 	case TC_CLSFLOWER_STATS:
 		return nfp_flower_get_stats(app, netdev, flower, egress);
+	default:
+		return -EOPNOTSUPP;
 	}
-
-	return -EOPNOTSUPP;
 }
 
 int nfp_flower_setup_tc_egress_cb(enum tc_setup_type type, void *type_data,
@@ -638,7 +638,7 @@ static int nfp_flower_setup_tc_block(struct net_device *netdev,
 	case TC_BLOCK_BIND:
 		return tcf_block_cb_register(f->block,
 					     nfp_flower_setup_tc_block_cb,
-					     repr, repr);
+					     repr, repr, f->extack);
 	case TC_BLOCK_UNBIND:
 		tcf_block_cb_unregister(f->block,
 					nfp_flower_setup_tc_block_cb,
