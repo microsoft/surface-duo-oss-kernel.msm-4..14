@@ -716,6 +716,10 @@ int decrypt_skb(struct sock *sk, struct sk_buff *skb,
 	nsg = skb_to_sgvec(skb, &sgin[1],
 			   rxm->offset + tls_ctx->rx.prepend_size,
 			   rxm->full_len - tls_ctx->rx.prepend_size);
+	if (nsg < 0) {
+		ret = nsg;
+		goto out;
+	}
 
 	tls_make_aad(ctx->rx_aad_ciphertext,
 		     rxm->full_len - tls_ctx->rx.overhead_size,
@@ -727,6 +731,7 @@ int decrypt_skb(struct sock *sk, struct sk_buff *skb,
 				rxm->full_len - tls_ctx->rx.overhead_size,
 				skb, sk->sk_allocation);
 
+out:
 	if (sgin != &sgin_arr[0])
 		kfree(sgin);
 
