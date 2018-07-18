@@ -4,16 +4,14 @@ Required properties:
 - compatible :
   - "fsl,s32gen1-reset" for device that has an S32GEN1 compatible reboot
   mechanism
-  - "fsl,s32gen1-mc_rgm" for device that supports functional reset escalation
-- reg : Address and length of the register set for the device
+- reg : A pair of addresses and lengths of the register set for the device. The
+  first one is for the MC RGM registers, the second is for the MC ME registers.
 
 Example:
-mc_me: mc_me@40088000 {
+reset_0: reset@40078000 {
 	compatible = "fsl,s32gen1-reset";
-	reg = <0x0 0x40088000 0x0 0x1000>;
-};
-
-mc_rgm: mc_rgm@40078000 {
-	compatible = "fsl,s32gen1-mc_rgm";
-	reg = <0x0 0x40078000 0x0 0x3000>;
+	      /* MC RGM */
+	reg = <0x0 0x40078000 0x0 0x3000>,
+	      /* MC ME */
+	      <0x0 0x40088000 0x0 0x1000>;
 };
