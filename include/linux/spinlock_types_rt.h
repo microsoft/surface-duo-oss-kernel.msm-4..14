@@ -42,10 +42,7 @@ typedef struct spinlock {
 	{ .lock = __RT_SPIN_INITIALIZER(name.lock),		\
 	  SPIN_DEP_MAP_INIT(name) }
 
-#define __DEFINE_SPINLOCK(name) \
-	spinlock_t name = __SPIN_LOCK_UNLOCKED(name)
-
 #define DEFINE_SPINLOCK(name) \
-	spinlock_t name __cacheline_aligned_in_smp = __SPIN_LOCK_UNLOCKED(name)
+	spinlock_t name = __SPIN_LOCK_UNLOCKED(name)
 
 #endif

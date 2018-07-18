@@ -21,7 +21,7 @@ asmlinkage long sys_ioperm(unsigned long, unsigned long, int);
 asmlinkage long sys_iopl(unsigned int);
 
 /* kernel/ldt.c */
-asmlinkage int sys_modify_ldt(int, void __user *, unsigned long);
+asmlinkage long sys_modify_ldt(int, void __user *, unsigned long);
 
 /* kernel/signal.c */
 asmlinkage long sys_rt_sigreturn(void);
@@ -37,6 +37,7 @@ asmlinkage long sys_get_thread_area(struct user_desc __user *);
 asmlinkage unsigned long sys_sigreturn(void);
 
 /* kernel/vm86_32.c */
+struct vm86_struct;
 asmlinkage long sys_vm86old(struct vm86_struct __user *);
 asmlinkage long sys_vm86(unsigned long, unsigned long);
 

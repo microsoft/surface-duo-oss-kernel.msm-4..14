@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _TICK_SCHED_H
 #define _TICK_SCHED_H
 
@@ -27,6 +28,7 @@ enum tick_nohz_mode {
  *			timer is modified for nohz sleeps. This is necessary
  *			to resume the tick timer operation in the timeline
  *			when the CPU returns from nohz sleep.
+ * @next_tick:		Next tick to be fired when in dynticks mode.
  * @tick_stopped:	Indicator that the idle tick has been stopped
  * @idle_jiffies:	jiffies at the entry to idle for idle time accounting
  * @idle_calls:		Total number of idle calls
@@ -44,6 +46,7 @@ struct tick_sched {
 	unsigned long			check_clocks;
 	enum tick_nohz_mode		nohz_mode;
 	ktime_t				last_tick;
+	ktime_t				next_tick;
 	int				inidle;
 	int				tick_stopped;
 	unsigned long			idle_jiffies;
@@ -57,9 +60,10 @@ struct tick_sched {
 	ktime_t				iowait_sleeptime;
 	ktime_t				sleep_length;
 	unsigned long			last_jiffies;
-	unsigned long			next_jiffies;
+	u64				next_timer;
 	ktime_t				idle_expires;
 	int				do_timer_last;
+	atomic_t			tick_dep_mask;
 };
 
 extern struct tick_sched *tick_get_tick_sched(int cpu);
@@ -69,6 +73,16 @@ extern void tick_setup_sched_timer(void);
 extern void tick_cancel_sched_timer(int cpu);
 #else
 static inline void tick_cancel_sched_timer(int cpu) { }
+#endif
+
+#ifdef CONFIG_GENERIC_CLOCKEVENTS_BROADCAST
+extern int __tick_broadcast_oneshot_control(enum tick_broadcast_state state);
+#else
+static inline int
+__tick_broadcast_oneshot_control(enum tick_broadcast_state state)
+{
+	return -EBUSY;
+}
 #endif
 
 #endif

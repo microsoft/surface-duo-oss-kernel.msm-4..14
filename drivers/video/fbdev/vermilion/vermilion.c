@@ -37,7 +37,7 @@
 #include <linux/mm.h>
 #include <linux/fb.h>
 #include <linux/pci.h>
-#include <asm/cacheflush.h>
+#include <asm/set_memory.h>
 #include <asm/tlbflush.h>
 #include <linux/mmzone.h>
 
@@ -55,7 +55,7 @@ static struct list_head global_has_mode;
 static struct fb_ops vmlfb_ops;
 static struct vml_sys *subsys = NULL;
 static char *vml_default_mode = "1024x768@60";
-static struct fb_videomode defaultmode = {
+static const struct fb_videomode defaultmode = {
 	NULL, 60, 1024, 768, 12896, 144, 24, 29, 3, 136, 6,
 	0, FB_VMODE_NONINTERLACED
 };
@@ -99,7 +99,7 @@ static int vmlfb_alloc_vram_area(struct vram_area *va, unsigned max_order,
 		 * below the first 16MB.
 		 */
 
-		flags = __GFP_DMA | __GFP_HIGH;
+		flags = __GFP_DMA | __GFP_HIGH | __GFP_KSWAPD_RECLAIM;
 		va->logical =
 			 __get_free_pages(flags, --max_order);
 	} while (va->logical == 0 && max_order > min_order);
@@ -1044,7 +1044,7 @@ static struct fb_ops vmlfb_ops = {
 	.fb_setcolreg = vmlfb_setcolreg
 };
 
-static struct pci_device_id vml_ids[] = {
+static const struct pci_device_id vml_ids[] = {
 	{PCI_DEVICE(PCI_VENDOR_ID_INTEL, VML_DEVICE_VDC)},
 	{0}
 };

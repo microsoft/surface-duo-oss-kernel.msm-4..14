@@ -38,6 +38,7 @@ static int warn_unresolved = 0;
 /* How a symbol is exported */
 static int sec_mismatch_count = 0;
 static int sec_mismatch_verbose = 1;
+static int sec_mismatch_fatal = 0;
 /* ignore missing files */
 static int ignore_missing_files;
 
@@ -45,6 +46,12 @@ enum export {
 	export_plain,      export_unused,     export_gpl,
 	export_unused_gpl, export_gpl_future, export_unknown
 };
+
+/* In kernel, this size is defined in linux/module.h;
+ * here we use Elf_Addr instead of long for covering cross-compile
+ */
+
+#define MODULE_NAME_LEN (64 - sizeof(Elf_Addr))
 
 #define PRINTF __attribute__ ((format (printf, 1, 2)))
 
@@ -260,7 +267,17 @@ static enum export export_no(const char *s)
 	return export_unknown;
 }
 
-static const char *sec_name(struct elf_info *elf, int secindex);
+static const char *sech_name(struct elf_info *elf, Elf_Shdr *sechdr)
+{
+	return (void *)elf->hdr +
+		elf->sechdrs[elf->secindex_strings].sh_offset +
+		sechdr->sh_name;
+}
+
+static const char *sec_name(struct elf_info *elf, int secindex)
+{
+	return sech_name(elf, &elf->sechdrs[secindex]);
+}
 
 #define strstarts(str, prefix) (strncmp(str, prefix, strlen(prefix)) == 0)
 
@@ -593,7 +610,8 @@ static int ignore_undef_symbol(struct elf_info *info, const char *symname)
 		if (strncmp(symname, "_restgpr0_", sizeof("_restgpr0_") - 1) == 0 ||
 		    strncmp(symname, "_savegpr0_", sizeof("_savegpr0_") - 1) == 0 ||
 		    strncmp(symname, "_restvr_", sizeof("_restvr_") - 1) == 0 ||
-		    strncmp(symname, "_savevr_", sizeof("_savevr_") - 1) == 0)
+		    strncmp(symname, "_savevr_", sizeof("_savevr_") - 1) == 0 ||
+		    strcmp(symname, ".TOC.") == 0)
 			return 1;
 	/* Do not ignore this symbol */
 	return 0;
@@ -607,6 +625,7 @@ static void handle_modversions(struct module *mod, struct elf_info *info,
 {
 	unsigned int crc;
 	enum export export;
+	bool is_crc = false;
 
 	if ((!is_vmlinux(mod->name) || mod->is_dot_o) &&
 	    strncmp(symname, "__ksymtab", 9) == 0)
@@ -616,7 +635,18 @@ static void handle_modversions(struct module *mod, struct elf_info *info,
 
 	/* CRC'd symbol */
 	if (strncmp(symname, CRC_PFX, strlen(CRC_PFX)) == 0) {
+		is_crc = true;
 		crc = (unsigned int) sym->st_value;
+		if (sym->st_shndx != SHN_UNDEF && sym->st_shndx != SHN_ABS) {
+			unsigned int *crcp;
+
+			/* symbol points to the CRC in the ELF object */
+			crcp = (void *)info->hdr + sym->st_value +
+			       info->sechdrs[sym->st_shndx].sh_offset -
+			       (info->hdr->e_type != ET_REL ?
+				info->sechdrs[sym->st_shndx].sh_addr : 0);
+			crc = *crcp;
+		}
 		sym_update_crc(symname + strlen(CRC_PFX), mod, crc,
 				export);
 	}
@@ -661,6 +691,10 @@ static void handle_modversions(struct module *mod, struct elf_info *info,
 		else
 			symname++;
 #endif
+		if (is_crc) {
+			const char *e = is_vmlinux(mod->name) ?"":".ko";
+			warn("EXPORT symbol \"%s\" [%s%s] version generation failed, symbol will not be versioned.\n", symname + strlen(CRC_PFX), mod->name, e);
+		}
 		mod->unres = alloc_symbol(symname,
 					  ELF_ST_BIND(sym->st_info) == STB_WEAK,
 					  mod->unres);
@@ -757,21 +791,6 @@ static const char *sym_name(struct elf_info *elf, Elf_Sym *sym)
 		return "(unknown)";
 }
 
-static const char *sec_name(struct elf_info *elf, int secindex)
-{
-	Elf_Shdr *sechdrs = elf->sechdrs;
-	return (void *)elf->hdr +
-		elf->sechdrs[elf->secindex_strings].sh_offset +
-		sechdrs[secindex].sh_name;
-}
-
-static const char *sech_name(struct elf_info *elf, Elf_Shdr *sechdr)
-{
-	return (void *)elf->hdr +
-		elf->sechdrs[elf->secindex_strings].sh_offset +
-		sechdr->sh_name;
-}
-
 /* The pattern is an array of simple patterns.
  * "foo" will match an exact string equal to "foo"
  * "*foo" will match a string that ends with "foo"
@@ -833,7 +852,10 @@ static const char *const section_white_list[] =
 	".xt.lit",         /* xtensa */
 	".arcextmap*",			/* arc */
 	".gnu.linkonce.arcext*",	/* arc : modules */
+	".cmem*",			/* EZchip */
+	".fmt_slot*",			/* EZchip */
 	".gnu.lto*",
+	".discard.*",
 	NULL
 };
 
@@ -884,9 +906,10 @@ static void check_section(const char *modname, struct elf_info *elf,
 
 #define DATA_SECTIONS ".data", ".data.rel"
 #define TEXT_SECTIONS ".text", ".text.unlikely", ".sched.text", \
-		".kprobes.text"
+		".kprobes.text", ".cpuidle.text"
 #define OTHER_TEXT_SECTIONS ".ref.text", ".head.text", ".spinlock.text", \
-		".fixup", ".entry.text", ".exception.text", ".text.*"
+		".fixup", ".entry.text", ".exception.text", ".text.*", \
+		".coldtext"
 
 #define INIT_SECTIONS      ".init.*"
 #define MEM_INIT_SECTIONS  ".meminit.*"
@@ -2094,6 +2117,23 @@ static void check_exports(struct module *mod)
 	}
 }
 
+static int check_modname_len(struct module *mod)
+{
+	const char *mod_name;
+
+	mod_name = strrchr(mod->name, '/');
+	if (mod_name == NULL)
+		mod_name = mod->name;
+	else
+		mod_name++;
+	if (strlen(mod_name) >= MODULE_NAME_LEN) {
+		merror("module name is too long [%s.ko]\n", mod->name);
+		return 1;
+	}
+
+	return 0;
+}
+
 /**
  * Header for the generated file
  **/
@@ -2104,6 +2144,7 @@ static void add_header(struct buffer *b, struct module *mod)
 	buf_printf(b, "#include <linux/compiler.h>\n");
 	buf_printf(b, "\n");
 	buf_printf(b, "MODULE_INFO(vermagic, VERMAGIC_STRING);\n");
+	buf_printf(b, "MODULE_INFO(name, KBUILD_MODNAME);\n");
 	buf_printf(b, "\n");
 	buf_printf(b, "__visible struct module __this_module\n");
 	buf_printf(b, "__attribute__((section(\".gnu.linkonce.this_module\"))) = {\n");
@@ -2122,6 +2163,14 @@ static void add_intree_flag(struct buffer *b, int is_intree)
 {
 	if (is_intree)
 		buf_printf(b, "\nMODULE_INFO(intree, \"Y\");\n");
+}
+
+/* Cannot check for assembler */
+static void add_retpoline(struct buffer *b)
+{
+	buf_printf(b, "\n#ifdef RETPOLINE\n");
+	buf_printf(b, "MODULE_INFO(retpoline, \"Y\");\n");
+	buf_printf(b, "#endif\n");
 }
 
 static void add_staging_flag(struct buffer *b, const char *name)
@@ -2175,6 +2224,12 @@ static int add_versions(struct buffer *b, struct module *mod)
 			warn("\"%s\" [%s.ko] has no CRC!\n",
 				s->name, mod->name);
 			continue;
+		}
+		if (strlen(s->name) >= MODULE_NAME_LEN) {
+			merror("too long symbol \"%s\" [%s.ko]\n",
+			       s->name, mod->name);
+			err = 1;
+			break;
 		}
 		buf_printf(b, "\t{ %#8x, __VMLINUX_SYMBOL_STR(%s) },\n",
 			   s->crc, s->name);
@@ -2355,6 +2410,7 @@ static void write_dump(const char *fname)
 		}
 	}
 	write_if_changed(&buf, fname);
+	free(buf.p);
 }
 
 struct ext_sym_list {
@@ -2373,7 +2429,7 @@ int main(int argc, char **argv)
 	struct ext_sym_list *extsym_iter;
 	struct ext_sym_list *extsym_start = NULL;
 
-	while ((opt = getopt(argc, argv, "i:I:e:mnsST:o:awM:K:")) != -1) {
+	while ((opt = getopt(argc, argv, "i:I:e:mnsST:o:awM:K:E")) != -1) {
 		switch (opt) {
 		case 'i':
 			kernel_read = optarg;
@@ -2414,6 +2470,9 @@ int main(int argc, char **argv)
 		case 'w':
 			warn_unresolved = 1;
 			break;
+		case 'E':
+			sec_mismatch_fatal = 1;
+			break;
 		default:
 			exit(1);
 		}
@@ -2452,8 +2511,10 @@ int main(int argc, char **argv)
 
 		buf.pos = 0;
 
+		err |= check_modname_len(mod);
 		add_header(&buf, mod);
 		add_intree_flag(&buf, !external_module);
+		add_retpoline(&buf);
 		add_staging_flag(&buf, mod->name);
 		err |= add_versions(&buf, mod);
 		add_depends(&buf, mod, modules);
@@ -2463,14 +2524,21 @@ int main(int argc, char **argv)
 		sprintf(fname, "%s.mod.c", mod->name);
 		write_if_changed(&buf, fname);
 	}
-
 	if (dump_write)
 		write_dump(dump_write);
-	if (sec_mismatch_count && !sec_mismatch_verbose)
-		warn("modpost: Found %d section mismatch(es).\n"
-		     "To see full details build your kernel with:\n"
-		     "'make CONFIG_DEBUG_SECTION_MISMATCH=y'\n",
-		     sec_mismatch_count);
+	if (sec_mismatch_count) {
+		if (!sec_mismatch_verbose) {
+			warn("modpost: Found %d section mismatch(es).\n"
+			     "To see full details build your kernel with:\n"
+			     "'make CONFIG_DEBUG_SECTION_MISMATCH=y'\n",
+			     sec_mismatch_count);
+		}
+		if (sec_mismatch_fatal) {
+			fatal("modpost: Section mismatches detected.\n"
+			      "Set CONFIG_SECTION_MISMATCH_WARN_ONLY=y to allow them.\n");
+		}
+	}
+	free(buf.p);
 
 	return err;
 }

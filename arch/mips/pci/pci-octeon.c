@@ -59,8 +59,7 @@ union octeon_pci_address {
 	} s;
 };
 
-int __initconst (*octeon_pcibios_map_irq)(const struct pci_dev *dev,
-					 u8 slot, u8 pin);
+int (*octeon_pcibios_map_irq)(const struct pci_dev *dev, u8 slot, u8 pin);
 enum octeon_dma_bar_type octeon_dma_bar_type = OCTEON_DMA_BAR_TYPE_INVALID;
 
 /**
@@ -74,7 +73,7 @@ enum octeon_dma_bar_type octeon_dma_bar_type = OCTEON_DMA_BAR_TYPE_INVALID;
  *		 as it goes through each bridge.
  * Returns Interrupt number for the device
  */
-int __init pcibios_map_irq(const struct pci_dev *dev, u8 slot, u8 pin)
+int pcibios_map_irq(const struct pci_dev *dev, u8 slot, u8 pin)
 {
 	if (octeon_pcibios_map_irq)
 		return octeon_pcibios_map_irq(dev, slot, pin);
@@ -167,7 +166,7 @@ int pcibios_plat_dev_init(struct pci_dev *dev)
 		pci_write_config_dword(dev, pos + PCI_ERR_ROOT_STATUS, dconfig);
 	}
 
-	dev->dev.archdata.dma_ops = octeon_pci_dma_map_ops;
+	dev->dev.dma_ops = octeon_pci_dma_map_ops;
 
 	return 0;
 }
@@ -204,6 +203,8 @@ const char *octeon_get_pci_interrupts(void)
 	 * Interrupt Number (INTA# = 0, INTB# = 1, INTC# = 2, and
 	 * INTD# = 3)
 	 */
+	if (of_machine_is_compatible("dlink,dsr-500n"))
+		return "CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC";
 	switch (octeon_bootinfo->board_type) {
 	case CVMX_BOARD_TYPE_NAO38:
 		/* This is really the NAC38 */

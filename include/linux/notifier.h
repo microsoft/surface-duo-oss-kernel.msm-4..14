@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *	Routines to manage notifier chains for passing status changes to any
  *	interested routines. We need this instead of hard coded call lists so
@@ -44,6 +45,8 @@
  * SRCU notifier chains should be used when the chain will be called very
  * often but notifier_blocks will seldom be removed.
  */
+
+struct notifier_block;
 
 typedef	int (*notifier_fn_t)(struct notifier_block *nb,
 			unsigned long action, void *data);
@@ -117,11 +120,19 @@ extern void srcu_init_notifier_head(struct srcu_notifier_head *nh);
 	struct raw_notifier_head name =				\
 		RAW_NOTIFIER_INIT(name)
 
+#ifdef CONFIG_TREE_SRCU
 #define _SRCU_NOTIFIER_HEAD(name, mod)				\
-	static DEFINE_PER_CPU(struct srcu_struct_array,		\
-			name##_head_srcu_array);		\
+	static DEFINE_PER_CPU(struct srcu_data,			\
+			name##_head_srcu_data);			\
 	mod struct srcu_notifier_head name =			\
-			SRCU_NOTIFIER_INIT(name, name##_head_srcu_array)
+			SRCU_NOTIFIER_INIT(name, name##_head_srcu_data)
+
+#else
+#define _SRCU_NOTIFIER_HEAD(name, mod)				\
+	mod struct srcu_notifier_head name =			\
+			SRCU_NOTIFIER_INIT(name, name)
+
+#endif
 
 #define SRCU_NOTIFIER_HEAD(name)				\
 	_SRCU_NOTIFIER_HEAD(name, )

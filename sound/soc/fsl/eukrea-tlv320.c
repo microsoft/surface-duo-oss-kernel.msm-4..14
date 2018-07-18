@@ -64,7 +64,7 @@ static int eukrea_tlv320_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-static struct snd_soc_ops eukrea_tlv320_snd_ops = {
+static const struct snd_soc_ops eukrea_tlv320_snd_ops = {
 	.hw_params	= eukrea_tlv320_hw_params,
 };
 
@@ -182,7 +182,7 @@ static int eukrea_tlv320_probe(struct platform_device *pdev)
 		);
 	} else {
 		if (np) {
-			/* The eukrea,asoc-tlv320 driver was explicitely
+			/* The eukrea,asoc-tlv320 driver was explicitly
 			 * requested (through the device tree).
 			 */
 			dev_err(&pdev->dev,

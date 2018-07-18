@@ -464,7 +464,7 @@ static int arc_serial_poll_getchar(struct uart_port *port)
 }
 #endif
 
-static struct uart_ops arc_serial_pops = {
+static const struct uart_ops arc_serial_pops = {
 	.tx_empty	= arc_serial_tx_empty,
 	.set_mctrl	= arc_serial_set_mctrl,
 	.get_mctrl	= arc_serial_get_mctrl,
@@ -549,8 +549,8 @@ static struct console arc_console = {
 	.data	= &arc_uart_driver
 };
 
-static __init void arc_early_serial_write(struct console *con, const char *s,
-					  unsigned int n)
+static void arc_early_serial_write(struct console *con, const char *s,
+				   unsigned int n)
 {
 	struct earlycon_device *dev = con->data;
 
@@ -576,7 +576,6 @@ static int __init arc_early_console_setup(struct earlycon_device *dev,
 	dev->con->write = arc_early_serial_write;
 	return 0;
 }
-EARLYCON_DECLARE(arc_uart, arc_early_console_setup);
 OF_EARLYCON_DECLARE(arc_uart, "snps,arc-uart", arc_early_console_setup);
 
 #endif	/* CONFIG_SERIAL_ARC_CONSOLE */

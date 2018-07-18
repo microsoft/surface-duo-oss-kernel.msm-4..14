@@ -25,6 +25,8 @@
 #ifndef _OCFS2_FS_H
 #define _OCFS2_FS_H
 
+#include <linux/magic.h>
+
 /* Version */
 #define OCFS2_MAJOR_REV_LEVEL		0
 #define OCFS2_MINOR_REV_LEVEL          	90
@@ -55,9 +57,6 @@
  */
 #define OCFS2_MIN_BLOCKSIZE		512
 #define OCFS2_MAX_BLOCKSIZE		OCFS2_MIN_CLUSTERSIZE
-
-/* Filesystem magic number */
-#define OCFS2_SUPER_MAGIC		0x7461636f
 
 /* Object signatures */
 #define OCFS2_SUPER_BLOCK_SIGNATURE	"OCFSV2"
@@ -168,7 +167,7 @@
 /* Refcount tree support */
 #define OCFS2_FEATURE_INCOMPAT_REFCOUNT_TREE	0x1000
 
-/* Discontigous block groups */
+/* Discontiguous block groups */
 #define OCFS2_FEATURE_INCOMPAT_DISCONTIG_BG	0x2000
 
 /*
@@ -580,7 +579,7 @@ struct ocfs2_extended_slot {
 /*00*/	__u8	es_valid;
 	__u8	es_reserved1[3];
 	__le32	es_node_num;
-/*10*/
+/*08*/
 };
 
 /*
@@ -939,7 +938,7 @@ struct ocfs2_group_desc
 			/*
 			 * Block groups may be discontiguous when
 			 * OCFS2_FEATURE_INCOMPAT_DISCONTIG_BG is set.
-			 * The extents of a discontigous block group are
+			 * The extents of a discontiguous block group are
 			 * stored in bg_list.  It is a flat list.
 			 * l_tree_depth must always be zero.  A
 			 * discontiguous group is signified by a non-zero

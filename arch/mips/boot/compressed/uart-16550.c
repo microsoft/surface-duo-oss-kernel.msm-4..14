@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * 16550 compatible uart based serial debug support for zboot
  */
@@ -7,7 +8,7 @@
 
 #include <asm/addrspace.h>
 
-#if defined(CONFIG_MACH_LOONGSON) || defined(CONFIG_MIPS_MALTA)
+#if defined(CONFIG_MACH_LOONGSON64) || defined(CONFIG_MIPS_MALTA)
 #define UART_BASE 0x1fd003f8
 #define PORT(offset) (CKSEG1ADDR(UART_BASE) + (offset))
 #endif
@@ -17,7 +18,7 @@
 #define PORT(offset) (CKSEG1ADDR(AR7_REGS_UART0) + (4 * offset))
 #endif
 
-#ifdef CONFIG_MACH_JZ4740
+#if defined(CONFIG_MACH_JZ4740) || defined(CONFIG_MACH_JZ4780)
 #include <asm/mach-jz4740/base.h>
 #define PORT(offset) (CKSEG1ADDR(JZ4740_UART0_BASE_ADDR) + (4 * offset))
 #endif

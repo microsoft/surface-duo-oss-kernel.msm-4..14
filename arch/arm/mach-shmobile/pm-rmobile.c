@@ -12,6 +12,7 @@
  * License.  See the file "COPYING" in the main directory of this archive
  * for more details.
  */
+#include <linux/clk/renesas.h>
 #include <linux/console.h>
 #include <linux/delay.h>
 #include <linux/of.h>
@@ -34,6 +35,12 @@
 #define PSTR_RETRIES	100
 #define PSTR_DELAY_US	10
 
+static inline
+struct rmobile_pm_domain *to_rmobile_pd(struct generic_pm_domain *d)
+{
+	return container_of(d, struct rmobile_pm_domain, genpd);
+}
+
 static int rmobile_pd_power_down(struct generic_pm_domain *genpd)
 {
 	struct rmobile_pm_domain *rmobile_pd = to_rmobile_pd(genpd);
@@ -42,7 +49,7 @@ static int rmobile_pd_power_down(struct generic_pm_domain *genpd)
 	if (rmobile_pd->bit_shift == ~0)
 		return -EBUSY;
 
-	mask = 1 << rmobile_pd->bit_shift;
+	mask = BIT(rmobile_pd->bit_shift);
 	if (rmobile_pd->suspend) {
 		int ret = rmobile_pd->suspend();
 
@@ -79,7 +86,7 @@ static int __rmobile_pd_power_up(struct rmobile_pm_domain *rmobile_pd,
 	if (rmobile_pd->bit_shift == ~0)
 		return 0;
 
-	mask = 1 << rmobile_pd->bit_shift;
+	mask = BIT(rmobile_pd->bit_shift);
 	if (__raw_readl(rmobile_pd->base + PSTR) & mask)
 		goto out;
 
@@ -118,94 +125,19 @@ static bool rmobile_pd_active_wakeup(struct device *dev)
 	return true;
 }
 
-static int rmobile_pd_attach_dev(struct generic_pm_domain *domain,
-				 struct device *dev)
-{
-	int error;
-
-	error = pm_clk_create(dev);
-	if (error) {
-		dev_err(dev, "pm_clk_create failed %d\n", error);
-		return error;
-	}
-
-	error = pm_clk_add(dev, NULL);
-	if (error) {
-		dev_err(dev, "pm_clk_add failed %d\n", error);
-		goto fail;
-	}
-
-	return 0;
-
-fail:
-	pm_clk_destroy(dev);
-	return error;
-}
-
-static void rmobile_pd_detach_dev(struct generic_pm_domain *domain,
-				  struct device *dev)
-{
-	pm_clk_destroy(dev);
-}
-
 static void rmobile_init_pm_domain(struct rmobile_pm_domain *rmobile_pd)
 {
 	struct generic_pm_domain *genpd = &rmobile_pd->genpd;
 	struct dev_power_governor *gov = rmobile_pd->gov;
 
-	genpd->flags = GENPD_FLAG_PM_CLK;
-	pm_genpd_init(genpd, gov ? : &simple_qos_governor, false);
+	genpd->flags |= GENPD_FLAG_PM_CLK;
 	genpd->dev_ops.active_wakeup	= rmobile_pd_active_wakeup;
 	genpd->power_off		= rmobile_pd_power_down;
 	genpd->power_on			= rmobile_pd_power_up;
-	genpd->attach_dev		= rmobile_pd_attach_dev;
-	genpd->detach_dev		= rmobile_pd_detach_dev;
+	genpd->attach_dev		= cpg_mstp_attach_dev;
+	genpd->detach_dev		= cpg_mstp_detach_dev;
 	__rmobile_pd_power_up(rmobile_pd, false);
-}
-
-#ifdef CONFIG_ARCH_SHMOBILE_LEGACY
-
-void rmobile_init_domains(struct rmobile_pm_domain domains[], int num)
-{
-	int j;
-
-	for (j = 0; j < num; j++)
-		rmobile_init_pm_domain(&domains[j]);
-}
-
-void rmobile_add_device_to_domain_td(const char *domain_name,
-				     struct platform_device *pdev,
-				     struct gpd_timing_data *td)
-{
-	struct device *dev = &pdev->dev;
-
-	__pm_genpd_name_add_device(domain_name, dev, td);
-}
-
-void rmobile_add_devices_to_domains(struct pm_domain_device data[],
-				    int size)
-{
-	struct gpd_timing_data latencies = {
-		.stop_latency_ns = DEFAULT_DEV_LATENCY_NS,
-		.start_latency_ns = DEFAULT_DEV_LATENCY_NS,
-		.save_state_latency_ns = DEFAULT_DEV_LATENCY_NS,
-		.restore_state_latency_ns = DEFAULT_DEV_LATENCY_NS,
-	};
-	int j;
-
-	for (j = 0; j < size; j++)
-		rmobile_add_device_to_domain_td(data[j].domain_name,
-						data[j].pdev, &latencies);
-}
-
-#else /* !CONFIG_ARCH_SHMOBILE_LEGACY */
-
-static int rmobile_pd_suspend_busy(void)
-{
-	/*
-	 * This domain should not be turned off.
-	 */
-	return -EBUSY;
+	pm_genpd_init(genpd, gov ? : &simple_qos_governor, false);
 }
 
 static int rmobile_pd_suspend_console(void)
@@ -263,8 +195,7 @@ static void __init add_special_pd(struct device_node *np, enum pd_types type)
 		return;
 	}
 
-	pr_debug("Special PM domain %s type %d for %s\n", pd->name, type,
-		 np->full_name);
+	pr_debug("Special PM domain %s type %d for %pOF\n", pd->name, type, np);
 
 	special_pds[num_special_pds].pd = pd;
 	special_pds[num_special_pds].type = type;
@@ -320,8 +251,7 @@ static void __init rmobile_setup_pm_domain(struct device_node *np,
 		 * only be turned off if the CPU is not in use.
 		 */
 		pr_debug("PM domain %s contains CPU\n", name);
-		pd->gov = &pm_domain_always_on_gov;
-		pd->suspend = rmobile_pd_suspend_busy;
+		pd->genpd.flags |= GENPD_FLAG_ALWAYS_ON;
 		break;
 
 	case PD_CONSOLE:
@@ -337,8 +267,7 @@ static void __init rmobile_setup_pm_domain(struct device_node *np,
 		 * is not in use.
 		 */
 		pr_debug("PM domain %s contains Coresight-ETM\n", name);
-		pd->gov = &pm_domain_always_on_gov;
-		pd->suspend = rmobile_pd_suspend_busy;
+		pd->genpd.flags |= GENPD_FLAG_ALWAYS_ON;
 		break;
 
 	case PD_MEMCTL:
@@ -347,8 +276,7 @@ static void __init rmobile_setup_pm_domain(struct device_node *np,
 		 * should only be turned off if memory is not in use.
 		 */
 		pr_debug("PM domain %s contains MEMCTL\n", name);
-		pd->gov = &pm_domain_always_on_gov;
-		pd->suspend = rmobile_pd_suspend_busy;
+		pd->genpd.flags |= GENPD_FLAG_ALWAYS_ON;
 		break;
 
 	case PD_NORMAL:
@@ -373,8 +301,10 @@ static int __init rmobile_add_pm_domains(void __iomem *base,
 		}
 
 		pd = kzalloc(sizeof(*pd), GFP_KERNEL);
-		if (!pd)
+		if (!pd) {
+			of_node_put(np);
 			return -ENOMEM;
+		}
 
 		pd->genpd.name = np->name;
 		pd->base = base;
@@ -400,13 +330,13 @@ static int __init rmobile_init_pm_domains(void)
 	for_each_compatible_node(np, NULL, "renesas,sysc-rmobile") {
 		base = of_iomap(np, 0);
 		if (!base) {
-			pr_warn("%s cannot map reg 0\n", np->full_name);
+			pr_warn("%pOF cannot map reg 0\n", np);
 			continue;
 		}
 
 		pmd = of_get_child_by_name(np, "pm-domains");
 		if (!pmd) {
-			pr_warn("%s lacks pm-domains node\n", np->full_name);
+			pr_warn("%pOF lacks pm-domains node\n", np);
 			continue;
 		}
 
@@ -430,5 +360,3 @@ static int __init rmobile_init_pm_domains(void)
 }
 
 core_initcall(rmobile_init_pm_domains);
-
-#endif /* !CONFIG_ARCH_SHMOBILE_LEGACY */

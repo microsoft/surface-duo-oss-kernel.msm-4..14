@@ -11,11 +11,10 @@
 #include <linux/interrupt.h>
 #include <linux/clockchips.h>
 #include <linux/clk.h>
-#include <linux/cpu.h>
+#include <linux/cpuhotplug.h>
 #include <linux/of_address.h>
 #include <linux/of_irq.h>
 #include <linux/sched_clock.h>
-#include <linux/slab.h>
 
 /*
  * Each stm takes 0x10 Bytes register space
@@ -42,7 +41,7 @@ struct stm_timer {
 	void __iomem *timer_base;
 	void __iomem *clkevt_base;
 	int irq;
-	int cpu;
+	unsigned int cpu;
 	struct clk *stm_clk;
 	unsigned long cycle_per_jiffy;
 	struct clock_event_device clockevent_stm;
@@ -59,6 +58,17 @@ static inline struct stm_timer *stm_timer_from_evt(
 		struct clock_event_device *evt)
 {
 	return container_of(evt, struct stm_timer, clockevent_stm);
+}
+
+static struct stm_timer *stm_timer_from_cpu(unsigned int cpu)
+{
+	struct stm_timer *stm;
+
+	list_for_each_entry(stm, &stms_list, list)
+		if (stm->cpu == cpu)
+			return stm;
+
+	return NULL;
 }
 
 static inline void stm_timer_enable(struct stm_timer *stm)
@@ -136,22 +146,18 @@ static int stm_set_next_event(unsigned long delta,
 	return 0;
 }
 
-static void stm_set_mode(enum clock_event_mode mode,
-				struct clock_event_device *evt)
+static int stm_shutdown(struct clock_event_device *evt)
+{
+	stm_timer_disable(stm_timer_from_evt(evt));
+	return 0;
+}
+
+static int stm_set_periodic(struct clock_event_device *evt)
 {
 	struct stm_timer *stm = stm_timer_from_evt(evt);
 
-	switch (mode) {
-	case CLOCK_EVT_MODE_PERIODIC:
-		stm_set_next_event(stm->cycle_per_jiffy, evt);
-		break;
-	case CLOCK_EVT_MODE_SHUTDOWN:
-	case CLOCK_EVT_MODE_UNUSED:
-		stm_timer_disable(stm);
-		break;
-	default:
-		break;
-	}
+	stm_set_next_event(stm->cycle_per_jiffy, evt);
+	return 0;
 }
 
 static irqreturn_t stm_timer_interrupt(int irq, void *dev_id)
@@ -166,7 +172,7 @@ static irqreturn_t stm_timer_interrupt(int irq, void *dev_id)
 	 * and start the counter again so software need to disable the timer
 	 * to stop the counter loop in ONESHOT mode.
 	 */
-	if (likely(evt->mode == CLOCK_EVT_MODE_ONESHOT))
+	if (likely(clockevent_state_oneshot(evt)))
 		stm_timer_disable(stm);
 
 	evt->event_handler(evt);
@@ -177,12 +183,15 @@ static irqreturn_t stm_timer_interrupt(int irq, void *dev_id)
 static int stm_clockevent_init(struct stm_timer *stm, unsigned long rate,
 								int irq)
 {
+	int ret;
+
 	__raw_writel(0, stm->clkevt_base + STM_CCR);
 
 	stm->clockevent_stm.name = STM_TIMER_NAME;
 	stm->clockevent_stm.features = CLOCK_EVT_FEAT_PERIODIC |
 					    CLOCK_EVT_FEAT_ONESHOT;
-	stm->clockevent_stm.set_mode = stm_set_mode;
+	stm->clockevent_stm.set_state_shutdown = stm_shutdown;
+	stm->clockevent_stm.set_state_periodic = stm_set_periodic;
 	stm->clockevent_stm.set_next_event = stm_set_next_event;
 	stm->clockevent_stm.rating = CONFIG_STM_CLKEVT_RATE;
 	stm->clockevent_stm.cpumask = cpumask_of(stm->cpu);
@@ -193,83 +202,71 @@ static int stm_clockevent_init(struct stm_timer *stm, unsigned long rate,
 	stm->stm_timer_irq.handler = stm_timer_interrupt;
 	stm->stm_timer_irq.dev_id = &stm->clockevent_stm;
 
-	BUG_ON(setup_irq(irq, &stm->stm_timer_irq));
+	ret = setup_irq(irq, &stm->stm_timer_irq);
+	if (ret)
+		return ret;
 
-	if (stm->cpu == MASTER_CPU)
-		BUG_ON(irq_set_affinity(irq,  cpumask_of(stm->cpu)));
+	ret = irq_force_affinity(irq, cpumask_of(stm->cpu));
+	if (ret)
+		return ret;
 
 	clockevents_config_and_register(&stm->clockevent_stm, rate, 1,
 					0xffffffff);
 
-	if (stm->cpu == MASTER_CPU)
-		__raw_writel(STM_CIR_CIF, stm->clkevt_base + STM_CIR);
+	__raw_writel(STM_CIR_CIF, stm->clkevt_base + STM_CIR);
 
 	return 0;
 }
 
-static int stm_timer_cpu_notify(struct notifier_block *self,
-	unsigned long action, void *hcpu)
+static int stm_timer_starting_cpu(unsigned int cpu)
 {
-	struct stm_timer *stm;
-	int cpu = (long)hcpu;
+	struct stm_timer *stm = stm_timer_from_cpu(cpu);
 
-	list_for_each_entry(stm, &stms_list, list)
-		if (stm->cpu == cpu)
-			break;
+	if (stm)
+		return stm_clockevent_init(stm, stm->cycle_per_jiffy * (HZ),
+					   stm->irq);
 
-	if (stm == NULL || stm->cpu != cpu)
-		return NOTIFY_OK;
-
-	switch (action & ~CPU_TASKS_FROZEN) {
-	case CPU_ONLINE:
-		BUG_ON(irq_set_affinity(stm->irq,
-			    cpumask_of(stm->cpu)));
-		__raw_writel(STM_CIR_CIF,
-			     stm->clkevt_base + STM_CIR);
-	break;
-	case CPU_STARTING:
-		stm_clockevent_init(stm,
-			    stm->cycle_per_jiffy * (HZ),
-			    stm->irq);
-	break;
-	case CPU_DYING:
-		stm_timer_disable(stm);
-	    break;
-	}
-
-	return NOTIFY_OK;
+	return 0;
 }
 
-static struct notifier_block stm_timer_cpu_nb = {
-	.notifier_call = stm_timer_cpu_notify,
-};
+static int stm_timer_dying_cpu(unsigned int cpu)
+{
+	struct stm_timer *stm = stm_timer_from_cpu(cpu);
 
-void __init stm_timer_init(struct device_node *np)
+	if (stm)
+		stm_timer_disable(stm);
+
+	return 0;
+}
+
+static int __init stm_timer_init(struct device_node *np)
 {
 	void __iomem *timer_base;
 	unsigned long clk_rate;
-	int cpu;
+	unsigned int cpu;
+	int ret;
 	struct stm_timer *stm;
 
 	of_property_read_u32(np, "cpu", &cpu);
-	if (cpu < 0 || cpu >= num_possible_cpus()) {
+	if (cpu >= num_possible_cpus()) {
 		pr_err("%s: please specify a cpu number between 0 and %d.\n",
 				STM_TIMER_NAME, num_possible_cpus() - 1);
-		return;
+		return -EINVAL;
 	}
 
 	stm = kzalloc(sizeof(struct stm_timer), GFP_KERNEL);
-	if (stm == NULL) {
-		pr_err("%s: impossible to allocate memory\n", STM_TIMER_NAME);
-		return;
-	}
+	if (stm == NULL)
+		return -ENOMEM;
 
 	list_add_tail(&stm->list, &stms_list);
 
 	stm->cpu = cpu;
 
 	timer_base = of_iomap(np, 0);
-	BUG_ON(!timer_base);
+	if (!timer_base) {
+		pr_err("Failed to iomap\n");
+		return -ENXIO;
+	}
 
 	stm->timer_base = timer_base;
 
@@ -277,24 +274,37 @@ void __init stm_timer_init(struct device_node *np)
 	stm->clkevt_base = timer_base + STM_CH(0);
 
 	stm->irq = irq_of_parse_and_map(np, 0);
-	BUG_ON(stm->irq <= 0);
+	if (stm->irq <= 0)
+		return -EINVAL;
 
 	stm->stm_clk = of_clk_get(np, 0);
-	BUG_ON(IS_ERR(stm->stm_clk));
+	if (IS_ERR(stm->stm_clk))
+		return PTR_ERR(stm->stm_clk);
 
-	BUG_ON(clk_prepare_enable(stm->stm_clk));
+	ret = clk_prepare_enable(stm->stm_clk);
+	if (ret)
+		return ret;
 
 	clk_rate = clk_get_rate(stm->stm_clk);
 	stm->cycle_per_jiffy = clk_rate / (HZ);
 
 	if (registered == false) {
-		BUG_ON(register_cpu_notifier(&stm_timer_cpu_nb));
+		ret = cpuhp_setup_state_nocalls(CPUHP_AP_FSL_STM_TIMER_STARTING,
+			"AP_FSL_STM_TIMER_STARTING",
+			stm_timer_starting_cpu,
+			stm_timer_dying_cpu);
+		if (ret)
+			return ret;
 		registered = true;
 	}
 
 	if (cpu == MASTER_CPU) {
-		BUG_ON(stm_clocksource_init(stm, clk_rate));
-		stm_clockevent_init(stm, clk_rate, stm->irq);
+		ret = stm_clocksource_init(stm, clk_rate);
+		if (ret)
+			return ret;
+		ret = stm_clockevent_init(stm, clk_rate, stm->irq);
+		if (ret)
+			return ret;
 	}
 
 	/* reset counter value */
@@ -302,6 +312,7 @@ void __init stm_timer_init(struct device_node *np)
 	/* enable the stm module */
 	__raw_writel(STM_CR_CPS | STM_CR_FRZ | STM_CR_TEN,
 					timer_base + STM_CR);
+	return 0;
 }
-CLOCKSOURCE_OF_DECLARE(s32v234, "fsl,s32v234-stm", stm_timer_init);
-CLOCKSOURCE_OF_DECLARE(s32gen1, "fsl,s32gen1-stm", stm_timer_init);
+TIMER_OF_DECLARE(s32v234, "fsl,s32v234-stm", stm_timer_init);
+TIMER_OF_DECLARE(s32gen1, "fsl,s32gen1-stm", stm_timer_init);

@@ -48,6 +48,7 @@
 #include <linux/blk-mq.h>
 #include <linux/hdreg.h>
 #include <linux/scatterlist.h>
+#include <linux/idr.h>
 #include <asm/div64.h>
 
 #include "ubi-media.h"
@@ -98,6 +99,8 @@ struct ubiblock {
 
 /* Linked list of all ubiblock instances */
 static LIST_HEAD(ubiblock_devices);
+static DEFINE_IDR(ubiblock_minor_idr);
+/* Protects ubiblock_devices and ubiblock_minor_idr */
 static DEFINE_MUTEX(devices_mutex);
 static int ubiblock_major;
 
@@ -161,7 +164,7 @@ static int __init ubiblock_set_param(const char *val,
 	return 0;
 }
 
-static struct kernel_param_ops ubiblock_param_ops = {
+static const struct kernel_param_ops ubiblock_param_ops = {
 	.set    = ubiblock_set_param,
 };
 module_param_cb(block, &ubiblock_param_ops, NULL, 0);
@@ -312,32 +315,30 @@ static void ubiblock_do_work(struct work_struct *work)
 	ret = ubiblock_read(pdu);
 	rq_flush_dcache_pages(req);
 
-	blk_mq_end_request(req, ret);
+	blk_mq_end_request(req, errno_to_blk_status(ret));
 }
 
-static int ubiblock_queue_rq(struct blk_mq_hw_ctx *hctx,
+static blk_status_t ubiblock_queue_rq(struct blk_mq_hw_ctx *hctx,
 			     const struct blk_mq_queue_data *bd)
 {
 	struct request *req = bd->rq;
 	struct ubiblock *dev = hctx->queue->queuedata;
 	struct ubiblock_pdu *pdu = blk_mq_rq_to_pdu(req);
 
-	if (req->cmd_type != REQ_TYPE_FS)
-		return BLK_MQ_RQ_QUEUE_ERROR;
+	switch (req_op(req)) {
+	case REQ_OP_READ:
+		ubi_sgl_init(&pdu->usgl);
+		queue_work(dev->wq, &pdu->work);
+		return BLK_STS_OK;
+	default:
+		return BLK_STS_IOERR;
+	}
 
-	if (rq_data_dir(req) != READ)
-		return BLK_MQ_RQ_QUEUE_ERROR; /* Write not implemented */
-
-	ubi_sgl_init(&pdu->usgl);
-	queue_work(dev->wq, &pdu->work);
-
-	return BLK_MQ_RQ_QUEUE_OK;
 }
 
-static int ubiblock_init_request(void *data, struct request *req,
-				 unsigned int hctx_idx,
-				 unsigned int request_idx,
-				 unsigned int numa_node)
+static int ubiblock_init_request(struct blk_mq_tag_set *set,
+		struct request *req, unsigned int hctx_idx,
+		unsigned int numa_node)
 {
 	struct ubiblock_pdu *pdu = blk_mq_rq_to_pdu(req);
 
@@ -347,10 +348,9 @@ static int ubiblock_init_request(void *data, struct request *req,
 	return 0;
 }
 
-static struct blk_mq_ops ubiblock_mq_ops = {
+static const struct blk_mq_ops ubiblock_mq_ops = {
 	.queue_rq       = ubiblock_queue_rq,
 	.init_request	= ubiblock_init_request,
-	.map_queue      = blk_mq_map_queue,
 };
 
 int ubiblock_create(struct ubi_volume_info *vi)
@@ -365,14 +365,15 @@ int ubiblock_create(struct ubi_volume_info *vi)
 	/* Check that the volume isn't already handled */
 	mutex_lock(&devices_mutex);
 	if (find_dev_nolock(vi->ubi_num, vi->vol_id)) {
-		mutex_unlock(&devices_mutex);
-		return -EEXIST;
+		ret = -EEXIST;
+		goto out_unlock;
 	}
-	mutex_unlock(&devices_mutex);
 
 	dev = kzalloc(sizeof(struct ubiblock), GFP_KERNEL);
-	if (!dev)
-		return -ENOMEM;
+	if (!dev) {
+		ret = -ENOMEM;
+		goto out_unlock;
+	}
 
 	mutex_init(&dev->dev_mutex);
 
@@ -383,14 +384,20 @@ int ubiblock_create(struct ubi_volume_info *vi)
 	/* Initialize the gendisk of this ubiblock device */
 	gd = alloc_disk(1);
 	if (!gd) {
-		pr_err("UBI: block: alloc_disk failed");
+		pr_err("UBI: block: alloc_disk failed\n");
 		ret = -ENODEV;
 		goto out_free_dev;
 	}
 
 	gd->fops = &ubiblock_ops;
 	gd->major = ubiblock_major;
-	gd->first_minor = dev->ubi_num * UBI_MAX_VOLUMES + dev->vol_id;
+	gd->first_minor = idr_alloc(&ubiblock_minor_idr, dev, 0, 0, GFP_KERNEL);
+	if (gd->first_minor < 0) {
+		dev_err(disk_to_dev(gd),
+			"block: dynamic minor allocation failed");
+		ret = -ENODEV;
+		goto out_put_disk;
+	}
 	gd->private_data = dev;
 	sprintf(gd->disk_name, "ubiblock%d_%d", dev->ubi_num, dev->vol_id);
 	set_capacity(gd, disk_capacity);
@@ -407,7 +414,7 @@ int ubiblock_create(struct ubi_volume_info *vi)
 	ret = blk_mq_alloc_tag_set(&dev->tag_set);
 	if (ret) {
 		dev_err(disk_to_dev(dev->gd), "blk_mq_alloc_tag_set failed");
-		goto out_put_disk;
+		goto out_remove_minor;
 	}
 
 	dev->rq = blk_mq_init_queue(&dev->tag_set);
@@ -431,24 +438,27 @@ int ubiblock_create(struct ubi_volume_info *vi)
 		goto out_free_queue;
 	}
 
-	mutex_lock(&devices_mutex);
 	list_add_tail(&dev->list, &ubiblock_devices);
-	mutex_unlock(&devices_mutex);
 
 	/* Must be the last step: anyone can call file ops from now on */
 	add_disk(dev->gd);
 	dev_info(disk_to_dev(dev->gd), "created from ubi%d:%d(%s)",
 		 dev->ubi_num, dev->vol_id, vi->name);
+	mutex_unlock(&devices_mutex);
 	return 0;
 
 out_free_queue:
 	blk_cleanup_queue(dev->rq);
 out_free_tags:
 	blk_mq_free_tag_set(&dev->tag_set);
+out_remove_minor:
+	idr_remove(&ubiblock_minor_idr, gd->first_minor);
 out_put_disk:
 	put_disk(dev->gd);
 out_free_dev:
 	kfree(dev);
+out_unlock:
+	mutex_unlock(&devices_mutex);
 
 	return ret;
 }
@@ -463,36 +473,43 @@ static void ubiblock_cleanup(struct ubiblock *dev)
 	blk_cleanup_queue(dev->rq);
 	blk_mq_free_tag_set(&dev->tag_set);
 	dev_info(disk_to_dev(dev->gd), "released");
+	idr_remove(&ubiblock_minor_idr, dev->gd->first_minor);
 	put_disk(dev->gd);
 }
 
 int ubiblock_remove(struct ubi_volume_info *vi)
 {
 	struct ubiblock *dev;
+	int ret;
 
 	mutex_lock(&devices_mutex);
 	dev = find_dev_nolock(vi->ubi_num, vi->vol_id);
 	if (!dev) {
-		mutex_unlock(&devices_mutex);
-		return -ENODEV;
+		ret = -ENODEV;
+		goto out_unlock;
 	}
 
 	/* Found a device, let's lock it so we can check if it's busy */
 	mutex_lock(&dev->dev_mutex);
 	if (dev->refcnt > 0) {
-		mutex_unlock(&dev->dev_mutex);
-		mutex_unlock(&devices_mutex);
-		return -EBUSY;
+		ret = -EBUSY;
+		goto out_unlock_dev;
 	}
 
 	/* Remove from device list */
 	list_del(&dev->list);
-	mutex_unlock(&devices_mutex);
-
 	ubiblock_cleanup(dev);
 	mutex_unlock(&dev->dev_mutex);
+	mutex_unlock(&devices_mutex);
+
 	kfree(dev);
 	return 0;
+
+out_unlock_dev:
+	mutex_unlock(&dev->dev_mutex);
+out_unlock:
+	mutex_unlock(&devices_mutex);
+	return ret;
 }
 
 static int ubiblock_resize(struct ubi_volume_info *vi)
@@ -598,7 +615,7 @@ static void __init ubiblock_create_from_param(void)
 		desc = open_volume_desc(p->name, p->ubi_num, p->vol_id);
 		if (IS_ERR(desc)) {
 			pr_err(
-			       "UBI: block: can't open volume on ubi%d_%d, err=%ld",
+			       "UBI: block: can't open volume on ubi%d_%d, err=%ld\n",
 			       p->ubi_num, p->vol_id, PTR_ERR(desc));
 			continue;
 		}
@@ -609,7 +626,7 @@ static void __init ubiblock_create_from_param(void)
 		ret = ubiblock_create(&vi);
 		if (ret) {
 			pr_err(
-			       "UBI: block: can't add '%s' volume on ubi%d_%d, err=%d",
+			       "UBI: block: can't add '%s' volume on ubi%d_%d, err=%d\n",
 			       vi.name, p->ubi_num, p->vol_id, ret);
 			continue;
 		}
@@ -621,6 +638,7 @@ static void ubiblock_remove_all(void)
 	struct ubiblock *next;
 	struct ubiblock *dev;
 
+	mutex_lock(&devices_mutex);
 	list_for_each_entry_safe(dev, next, &ubiblock_devices, list) {
 		/* The module is being forcefully removed */
 		WARN_ON(dev->desc);
@@ -629,6 +647,7 @@ static void ubiblock_remove_all(void)
 		ubiblock_cleanup(dev);
 		kfree(dev);
 	}
+	mutex_unlock(&devices_mutex);
 }
 
 int __init ubiblock_init(void)

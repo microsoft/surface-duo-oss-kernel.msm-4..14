@@ -51,6 +51,12 @@ static void ieee80211_handle_filtered_frame(struct ieee80211_local *local,
 	struct ieee80211_hdr *hdr = (void *)skb->data;
 	int ac;
 
+	if (info->flags & (IEEE80211_TX_CTL_NO_PS_BUFFER |
+			   IEEE80211_TX_CTL_AMPDU)) {
+		ieee80211_free_txskb(&local->hw, skb);
+		return;
+	}
+
 	/*
 	 * This skb 'survived' a round-trip through the driver, and
 	 * hopefully the driver didn't mangle it too badly. However,
@@ -67,7 +73,7 @@ static void ieee80211_handle_filtered_frame(struct ieee80211_local *local,
 		       IEEE80211_TX_INTFL_RETRANSMISSION;
 	info->flags &= ~IEEE80211_TX_TEMPORARY_FLAGS;
 
-	sta->tx_filtered_count++;
+	sta->status_stats.filtered++;
 
 	/*
 	 * Clear more-data bit on filtered frames, it might be set
@@ -90,7 +96,7 @@ static void ieee80211_handle_filtered_frame(struct ieee80211_local *local,
 		 */
 		if (*p & IEEE80211_QOS_CTL_EOSP)
 			*p &= ~IEEE80211_QOS_CTL_EOSP;
-		ac = ieee802_1d_to_ac[tid & 7];
+		ac = ieee80211_ac_from_tid(tid);
 	} else {
 		ac = IEEE80211_AC_BE;
 	}
@@ -101,6 +107,7 @@ static void ieee80211_handle_filtered_frame(struct ieee80211_local *local,
 	 * when it wakes up for the next time.
 	 */
 	set_sta_flag(sta, WLAN_STA_CLEAR_PS_FILT);
+	ieee80211_clear_fast_xmit(sta);
 
 	/*
 	 * This code races in the following way:
@@ -181,8 +188,8 @@ static void ieee80211_frame_acked(struct sta_info *sta, struct sk_buff *skb)
 	struct ieee80211_local *local = sta->local;
 	struct ieee80211_sub_if_data *sdata = sta->sdata;
 
-	if (local->hw.flags & IEEE80211_HW_REPORTS_TX_ACK_STATUS)
-		sta->last_rx = jiffies;
+	if (ieee80211_hw_check(&local->hw, REPORTS_TX_ACK_STATUS))
+		sta->status_stats.last_ack = jiffies;
 
 	if (ieee80211_is_data_qos(mgmt->frame_control)) {
 		struct ieee80211_hdr *hdr = (void *) skb->data;
@@ -193,6 +200,7 @@ static void ieee80211_frame_acked(struct sta_info *sta, struct sk_buff *skb)
 	}
 
 	if (ieee80211_is_action(mgmt->frame_control) &&
+	    !ieee80211_has_protected(mgmt->frame_control) &&
 	    mgmt->u.action.category == WLAN_CATEGORY_HT &&
 	    mgmt->u.action.u.ht_smps.action == WLAN_HT_ACTION_SMPS &&
 	    ieee80211_sdata_running(sdata)) {
@@ -280,7 +288,7 @@ ieee80211_add_tx_radiotap_header(struct ieee80211_local *local,
 	unsigned char *pos;
 	u16 txflags;
 
-	rthdr = (struct ieee80211_radiotap_header *) skb_push(skb, rtap_len);
+	rthdr = skb_push(skb, rtap_len);
 
 	memset(rthdr, 0, rtap_len);
 	rthdr->it_len = cpu_to_le16(rtap_len);
@@ -414,8 +422,7 @@ static void ieee80211_tdls_td_tx_handle(struct ieee80211_local *local,
 
 	if (is_teardown) {
 		/* This mechanism relies on being able to get ACKs */
-		WARN_ON(!(local->hw.flags &
-			  IEEE80211_HW_REPORTS_TX_ACK_STATUS));
+		WARN_ON(!ieee80211_hw_check(&local->hw, REPORTS_TX_ACK_STATUS));
 
 		/* Check if peer has ACKed */
 		if (flags & IEEE80211_TX_STAT_ACK) {
@@ -429,6 +436,72 @@ static void ieee80211_tdls_td_tx_handle(struct ieee80211_local *local,
 	}
 }
 
+static struct ieee80211_sub_if_data *
+ieee80211_sdata_from_skb(struct ieee80211_local *local, struct sk_buff *skb)
+{
+	struct ieee80211_sub_if_data *sdata;
+
+	if (skb->dev) {
+		list_for_each_entry_rcu(sdata, &local->interfaces, list) {
+			if (!sdata->dev)
+				continue;
+
+			if (skb->dev == sdata->dev)
+				return sdata;
+		}
+
+		return NULL;
+	}
+
+	return rcu_dereference(local->p2p_sdata);
+}
+
+static void ieee80211_report_ack_skb(struct ieee80211_local *local,
+				     struct ieee80211_tx_info *info,
+				     bool acked, bool dropped)
+{
+	struct sk_buff *skb;
+	unsigned long flags;
+
+	spin_lock_irqsave(&local->ack_status_lock, flags);
+	skb = idr_remove(&local->ack_status_frames, info->ack_frame_id);
+	spin_unlock_irqrestore(&local->ack_status_lock, flags);
+
+	if (!skb)
+		return;
+
+	if (dropped) {
+		dev_kfree_skb_any(skb);
+		return;
+	}
+
+	if (info->flags & IEEE80211_TX_INTFL_NL80211_FRAME_TX) {
+		u64 cookie = IEEE80211_SKB_CB(skb)->ack.cookie;
+		struct ieee80211_sub_if_data *sdata;
+		struct ieee80211_hdr *hdr = (void *)skb->data;
+
+		rcu_read_lock();
+		sdata = ieee80211_sdata_from_skb(local, skb);
+		if (sdata) {
+			if (ieee80211_is_nullfunc(hdr->frame_control) ||
+			    ieee80211_is_qos_nullfunc(hdr->frame_control))
+				cfg80211_probe_status(sdata->dev, hdr->addr1,
+						      cookie, acked,
+						      GFP_ATOMIC);
+			else
+				cfg80211_mgmt_tx_status(&sdata->wdev, cookie,
+							skb->data, skb->len,
+							acked, GFP_ATOMIC);
+		}
+		rcu_read_unlock();
+
+		dev_kfree_skb_any(skb);
+	} else {
+		/* consumes skb */
+		skb_complete_wifi_ack(skb, acked);
+	}
+}
+
 static void ieee80211_report_used_skb(struct ieee80211_local *local,
 				      struct sk_buff *skb, bool dropped)
 {
@@ -439,32 +512,16 @@ static void ieee80211_report_used_skb(struct ieee80211_local *local,
 	if (dropped)
 		acked = false;
 
-	if (info->flags & (IEEE80211_TX_INTFL_NL80211_FRAME_TX |
-			   IEEE80211_TX_INTFL_MLME_CONN_TX)) {
-		struct ieee80211_sub_if_data *sdata = NULL;
-		struct ieee80211_sub_if_data *iter_sdata;
-		u64 cookie = (unsigned long)skb;
+	if (info->flags & IEEE80211_TX_INTFL_MLME_CONN_TX) {
+		struct ieee80211_sub_if_data *sdata;
 
 		rcu_read_lock();
 
-		if (skb->dev) {
-			list_for_each_entry_rcu(iter_sdata, &local->interfaces,
-						list) {
-				if (!iter_sdata->dev)
-					continue;
-
-				if (skb->dev == iter_sdata->dev) {
-					sdata = iter_sdata;
-					break;
-				}
-			}
-		} else {
-			sdata = rcu_dereference(local->p2p_sdata);
-		}
+		sdata = ieee80211_sdata_from_skb(local, skb);
 
 		if (!sdata) {
 			skb->dev = NULL;
-		} else if (info->flags & IEEE80211_TX_INTFL_MLME_CONN_TX) {
+		} else {
 			unsigned int hdr_size =
 				ieee80211_hdrlen(hdr->frame_control);
 
@@ -478,39 +535,19 @@ static void ieee80211_report_used_skb(struct ieee80211_local *local,
 				ieee80211_mgd_conn_tx_status(sdata,
 							     hdr->frame_control,
 							     acked);
-		} else if (ieee80211_is_nullfunc(hdr->frame_control) ||
-			   ieee80211_is_qos_nullfunc(hdr->frame_control)) {
-			cfg80211_probe_status(sdata->dev, hdr->addr1,
-					      cookie, acked, GFP_ATOMIC);
-		} else {
-			cfg80211_mgmt_tx_status(&sdata->wdev, cookie, skb->data,
-						skb->len, acked, GFP_ATOMIC);
 		}
 
 		rcu_read_unlock();
+	} else if (info->ack_frame_id) {
+		ieee80211_report_ack_skb(local, info, acked, dropped);
 	}
 
-	if (unlikely(info->ack_frame_id)) {
-		struct sk_buff *ack_skb;
-		unsigned long flags;
-
-		spin_lock_irqsave(&local->ack_status_lock, flags);
-		ack_skb = idr_find(&local->ack_status_frames,
-				   info->ack_frame_id);
-		if (ack_skb)
-			idr_remove(&local->ack_status_frames,
-				   info->ack_frame_id);
-		spin_unlock_irqrestore(&local->ack_status_lock, flags);
-
-		if (ack_skb) {
-			if (!dropped) {
-				/* consumes ack_skb */
-				skb_complete_wifi_ack(ack_skb, acked);
-			} else {
-				dev_kfree_skb_any(ack_skb);
-			}
-		}
+	if (!dropped && skb->destructor) {
+		skb->wifi_acked_valid = 1;
+		skb->wifi_acked = acked;
 	}
+
+	ieee80211_led_tx(local);
 }
 
 /*
@@ -527,13 +564,20 @@ static void ieee80211_report_used_skb(struct ieee80211_local *local,
 static void ieee80211_lost_packet(struct sta_info *sta,
 				  struct ieee80211_tx_info *info)
 {
+	/* If driver relies on its own algorithm for station kickout, skip
+	 * mac80211 packet loss mechanism.
+	 */
+	if (ieee80211_hw_check(&sta->local->hw, REPORTS_LOW_ACK))
+		return;
+
 	/* This packet was aggregated but doesn't carry status info */
 	if ((info->flags & IEEE80211_TX_CTL_AMPDU) &&
 	    !(info->flags & IEEE80211_TX_STAT_AMPDU))
 		return;
 
-	sta->lost_packets++;
-	if (!sta->sta.tdls && sta->lost_packets < STA_LOST_PKT_THRESHOLD)
+	sta->status_stats.lost_packets++;
+	if (!sta->sta.tdls &&
+	    sta->status_stats.lost_packets < STA_LOST_PKT_THRESHOLD)
 		return;
 
 	/*
@@ -543,14 +587,15 @@ static void ieee80211_lost_packet(struct sta_info *sta,
 	 * mechanism.
 	 */
 	if (sta->sta.tdls &&
-	    (sta->lost_packets < STA_LOST_TDLS_PKT_THRESHOLD ||
+	    (sta->status_stats.lost_packets < STA_LOST_TDLS_PKT_THRESHOLD ||
 	     time_before(jiffies,
-			 sta->last_tdls_pkt_time + STA_LOST_TDLS_PKT_TIME)))
+			 sta->status_stats.last_tdls_pkt_time +
+			 STA_LOST_TDLS_PKT_TIME)))
 		return;
 
 	cfg80211_cqm_pktloss_notify(sta->sdata->dev, sta->sta.addr,
-				    sta->lost_packets, GFP_ATOMIC);
-	sta->lost_packets = 0;
+				    sta->status_stats.lost_packets, GFP_ATOMIC);
+	sta->status_stats.lost_packets = 0;
 }
 
 static int ieee80211_tx_get_rates(struct ieee80211_hw *hw,
@@ -588,125 +633,115 @@ static int ieee80211_tx_get_rates(struct ieee80211_hw *hw,
 	return rates_idx;
 }
 
-void ieee80211_tx_status_noskb(struct ieee80211_hw *hw,
-			       struct ieee80211_sta *pubsta,
-			       struct ieee80211_tx_info *info)
-{
-	struct ieee80211_local *local = hw_to_local(hw);
-	struct ieee80211_supported_band *sband;
-	int retry_count;
-	int rates_idx;
-	bool acked, noack_success;
-
-	rates_idx = ieee80211_tx_get_rates(hw, info, &retry_count);
-
-	sband = hw->wiphy->bands[info->band];
-
-	acked = !!(info->flags & IEEE80211_TX_STAT_ACK);
-	noack_success = !!(info->flags & IEEE80211_TX_STAT_NOACK_TRANSMITTED);
-
-	if (pubsta) {
-		struct sta_info *sta;
-
-		sta = container_of(pubsta, struct sta_info, sta);
-
-		if (!acked)
-			sta->tx_retry_failed++;
-		sta->tx_retry_count += retry_count;
-
-		if (acked) {
-			sta->last_rx = jiffies;
-
-			if (sta->lost_packets)
-				sta->lost_packets = 0;
-
-			/* Track when last TDLS packet was ACKed */
-			if (test_sta_flag(sta, WLAN_STA_TDLS_PEER_AUTH))
-				sta->last_tdls_pkt_time = jiffies;
-		} else {
-			ieee80211_lost_packet(sta, info);
-		}
-
-		rate_control_tx_status_noskb(local, sband, sta, info);
-	}
-
-	if (acked || noack_success) {
-		    local->dot11TransmittedFrameCount++;
-		    if (!pubsta)
-			    local->dot11MulticastTransmittedFrameCount++;
-		    if (retry_count > 0)
-			    local->dot11RetryCount++;
-		    if (retry_count > 1)
-			    local->dot11MultipleRetryCount++;
-	} else {
-		local->dot11FailedCount++;
-	}
-}
-EXPORT_SYMBOL(ieee80211_tx_status_noskb);
-
-void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
+void ieee80211_tx_monitor(struct ieee80211_local *local, struct sk_buff *skb,
+			  struct ieee80211_supported_band *sband,
+			  int retry_count, int shift, bool send_to_cooked)
 {
 	struct sk_buff *skb2;
-	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
-	struct ieee80211_local *local = hw_to_local(hw);
 	struct ieee80211_tx_info *info = IEEE80211_SKB_CB(skb);
-	__le16 fc;
-	struct ieee80211_supported_band *sband;
 	struct ieee80211_sub_if_data *sdata;
 	struct net_device *prev_dev = NULL;
+	int rtap_len;
+
+	/* send frame to monitor interfaces now */
+	rtap_len = ieee80211_tx_radiotap_len(info);
+	if (WARN_ON_ONCE(skb_headroom(skb) < rtap_len)) {
+		pr_err("ieee80211_tx_status: headroom too small\n");
+		dev_kfree_skb(skb);
+		return;
+	}
+	ieee80211_add_tx_radiotap_header(local, sband, skb, retry_count,
+					 rtap_len, shift);
+
+	/* XXX: is this sufficient for BPF? */
+	skb_reset_mac_header(skb);
+	skb->ip_summed = CHECKSUM_UNNECESSARY;
+	skb->pkt_type = PACKET_OTHERHOST;
+	skb->protocol = htons(ETH_P_802_2);
+	memset(skb->cb, 0, sizeof(skb->cb));
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(sdata, &local->interfaces, list) {
+		if (sdata->vif.type == NL80211_IFTYPE_MONITOR) {
+			if (!ieee80211_sdata_running(sdata))
+				continue;
+
+			if ((sdata->u.mntr.flags & MONITOR_FLAG_COOK_FRAMES) &&
+			    !send_to_cooked)
+				continue;
+
+			if (prev_dev) {
+				skb2 = skb_clone(skb, GFP_ATOMIC);
+				if (skb2) {
+					skb2->dev = prev_dev;
+					netif_rx(skb2);
+				}
+			}
+
+			prev_dev = sdata->dev;
+		}
+	}
+	if (prev_dev) {
+		skb->dev = prev_dev;
+		netif_rx(skb);
+		skb = NULL;
+	}
+	rcu_read_unlock();
+	dev_kfree_skb(skb);
+}
+
+static void __ieee80211_tx_status(struct ieee80211_hw *hw,
+				  struct ieee80211_tx_status *status)
+{
+	struct sk_buff *skb = status->skb;
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
+	struct ieee80211_local *local = hw_to_local(hw);
+	struct ieee80211_tx_info *info = status->info;
 	struct sta_info *sta;
-	struct rhash_head *tmp;
+	__le16 fc;
+	struct ieee80211_supported_band *sband;
 	int retry_count;
 	int rates_idx;
 	bool send_to_cooked;
 	bool acked;
 	struct ieee80211_bar *bar;
-	int rtap_len;
 	int shift = 0;
 	int tid = IEEE80211_NUM_TIDS;
-	const struct bucket_table *tbl;
 
 	rates_idx = ieee80211_tx_get_rates(hw, info, &retry_count);
-
-	rcu_read_lock();
 
 	sband = local->hw.wiphy->bands[info->band];
 	fc = hdr->frame_control;
 
-	tbl = rht_dereference_rcu(local->sta_hash.tbl, &local->sta_hash);
-
-	for_each_sta_info(local, tbl, hdr->addr1, sta, tmp) {
-		/* skip wrong virtual interface */
-		if (!ether_addr_equal(hdr->addr2, sta->sdata->vif.addr))
-			continue;
-
+	if (status->sta) {
+		sta = container_of(status->sta, struct sta_info, sta);
 		shift = ieee80211_vif_get_shift(&sta->sdata->vif);
 
 		if (info->flags & IEEE80211_TX_STATUS_EOSP)
 			clear_sta_flag(sta, WLAN_STA_SP);
 
 		acked = !!(info->flags & IEEE80211_TX_STAT_ACK);
+
+		/* mesh Peer Service Period support */
+		if (ieee80211_vif_is_mesh(&sta->sdata->vif) &&
+		    ieee80211_is_data_qos(fc))
+			ieee80211_mpsp_trigger_process(
+				ieee80211_get_qos_ctl(hdr), sta, true, acked);
+
 		if (!acked && test_sta_flag(sta, WLAN_STA_PS_STA)) {
 			/*
 			 * The STA is in power save mode, so assume
 			 * that this TX packet failed because of that.
 			 */
 			ieee80211_handle_filtered_frame(local, sta, skb);
-			rcu_read_unlock();
 			return;
 		}
 
-		/* mesh Peer Service Period support */
-		if (ieee80211_vif_is_mesh(&sta->sdata->vif) &&
-		    ieee80211_is_data_qos(fc))
-			ieee80211_mpsp_trigger_process(
-					ieee80211_get_qos_ctl(hdr),
-					sta, true, acked);
-
-		if ((local->hw.flags & IEEE80211_HW_HAS_RATE_CONTROL) &&
+		if (ieee80211_hw_check(&local->hw, HAS_RATE_CONTROL) &&
 		    (ieee80211_is_data(hdr->frame_control)) &&
 		    (rates_idx != -1))
-			sta->last_tx_rate = info->status.rates[rates_idx];
+			sta->tx_stats.last_rate =
+				info->status.rates[rates_idx];
 
 		if ((info->flags & IEEE80211_TX_STAT_AMPDU_NO_BACK) &&
 		    (ieee80211_is_data_qos(fc))) {
@@ -748,21 +783,22 @@ void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 
 		if (info->flags & IEEE80211_TX_STAT_TX_FILTERED) {
 			ieee80211_handle_filtered_frame(local, sta, skb);
-			rcu_read_unlock();
 			return;
 		} else {
 			if (!acked)
-				sta->tx_retry_failed++;
-			sta->tx_retry_count += retry_count;
+				sta->status_stats.retry_failed++;
+			sta->status_stats.retry_count += retry_count;
 
 			if (ieee80211_is_data_present(fc)) {
 				if (!acked)
-					sta->tx_msdu_failed[tid]++;
-				sta->tx_msdu_retries[tid] += retry_count;
+					sta->status_stats.msdu_failed[tid]++;
+
+				sta->status_stats.msdu_retries[tid] +=
+					retry_count;
 			}
 		}
 
-		rate_control_tx_status(local, sband, sta, skb);
+		rate_control_tx_status(local, sband, status);
 		if (ieee80211_vif_is_mesh(&sta->sdata->vif))
 			ieee80211s_update_metric(local, sta, skb);
 
@@ -770,30 +806,24 @@ void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 			ieee80211_frame_acked(sta, skb);
 
 		if ((sta->sdata->vif.type == NL80211_IFTYPE_STATION) &&
-		    (local->hw.flags & IEEE80211_HW_REPORTS_TX_ACK_STATUS))
+		    ieee80211_hw_check(&local->hw, REPORTS_TX_ACK_STATUS))
 			ieee80211_sta_tx_notify(sta->sdata, (void *) skb->data,
 						acked, info->status.tx_time);
 
-		if (local->hw.flags & IEEE80211_HW_REPORTS_TX_ACK_STATUS) {
+		if (ieee80211_hw_check(&local->hw, REPORTS_TX_ACK_STATUS)) {
 			if (info->flags & IEEE80211_TX_STAT_ACK) {
-				if (sta->lost_packets)
-					sta->lost_packets = 0;
+				if (sta->status_stats.lost_packets)
+					sta->status_stats.lost_packets = 0;
 
 				/* Track when last TDLS packet was ACKed */
 				if (test_sta_flag(sta, WLAN_STA_TDLS_PEER_AUTH))
-					sta->last_tdls_pkt_time = jiffies;
+					sta->status_stats.last_tdls_pkt_time =
+						jiffies;
 			} else {
 				ieee80211_lost_packet(sta, info);
 			}
 		}
-
-		if (acked)
-			sta->last_ack_signal = info->status.ack_signal;
 	}
-
-	rcu_read_unlock();
-
-	ieee80211_led_tx(local);
 
 	/* SNMP counters
 	 * Fragments are passed to low-level drivers as separate skbs, so these
@@ -802,13 +832,13 @@ void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 	if ((info->flags & IEEE80211_TX_STAT_ACK) ||
 	    (info->flags & IEEE80211_TX_STAT_NOACK_TRANSMITTED)) {
 		if (ieee80211_is_first_frag(hdr->seq_ctrl)) {
-			local->dot11TransmittedFrameCount++;
+			I802_DEBUG_INC(local->dot11TransmittedFrameCount);
 			if (is_multicast_ether_addr(ieee80211_get_DA(hdr)))
-				local->dot11MulticastTransmittedFrameCount++;
+				I802_DEBUG_INC(local->dot11MulticastTransmittedFrameCount);
 			if (retry_count > 0)
-				local->dot11RetryCount++;
+				I802_DEBUG_INC(local->dot11RetryCount);
 			if (retry_count > 1)
-				local->dot11MultipleRetryCount++;
+				I802_DEBUG_INC(local->dot11MultipleRetryCount);
 		}
 
 		/* This counter shall be incremented for an acknowledged MPDU
@@ -818,14 +848,14 @@ void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 		if (!is_multicast_ether_addr(hdr->addr1) ||
 		    ieee80211_is_data(fc) ||
 		    ieee80211_is_mgmt(fc))
-			local->dot11TransmittedFragmentCount++;
+			I802_DEBUG_INC(local->dot11TransmittedFragmentCount);
 	} else {
 		if (ieee80211_is_first_frag(hdr->seq_ctrl))
-			local->dot11FailedCount++;
+			I802_DEBUG_INC(local->dot11FailedCount);
 	}
 
 	if (ieee80211_is_nullfunc(fc) && ieee80211_has_pm(fc) &&
-	    (local->hw.flags & IEEE80211_HW_REPORTS_TX_ACK_STATUS) &&
+	    ieee80211_hw_check(&local->hw, REPORTS_TX_ACK_STATUS) &&
 	    !(info->flags & IEEE80211_TX_CTL_INJECTED) &&
 	    local->ps_sdata && !(local->scanning)) {
 		if (info->flags & IEEE80211_TX_STAT_ACK) {
@@ -854,53 +884,98 @@ void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
 		return;
 	}
 
-	/* send frame to monitor interfaces now */
-	rtap_len = ieee80211_tx_radiotap_len(info);
-	if (WARN_ON_ONCE(skb_headroom(skb) < rtap_len)) {
-		pr_err("ieee80211_tx_status: headroom too small\n");
-		dev_kfree_skb(skb);
-		return;
-	}
-	ieee80211_add_tx_radiotap_header(local, sband, skb, retry_count,
-					 rtap_len, shift);
+	/* send to monitor interfaces */
+	ieee80211_tx_monitor(local, skb, sband, retry_count, shift, send_to_cooked);
+}
 
-	/* XXX: is this sufficient for BPF? */
-	skb_set_mac_header(skb, 0);
-	skb->ip_summed = CHECKSUM_UNNECESSARY;
-	skb->pkt_type = PACKET_OTHERHOST;
-	skb->protocol = htons(ETH_P_802_2);
-	memset(skb->cb, 0, sizeof(skb->cb));
+void ieee80211_tx_status(struct ieee80211_hw *hw, struct sk_buff *skb)
+{
+	struct ieee80211_hdr *hdr = (struct ieee80211_hdr *) skb->data;
+	struct ieee80211_local *local = hw_to_local(hw);
+	struct ieee80211_tx_status status = {
+		.skb = skb,
+		.info = IEEE80211_SKB_CB(skb),
+	};
+	struct rhlist_head *tmp;
+	struct sta_info *sta;
 
 	rcu_read_lock();
-	list_for_each_entry_rcu(sdata, &local->interfaces, list) {
-		if (sdata->vif.type == NL80211_IFTYPE_MONITOR) {
-			if (!ieee80211_sdata_running(sdata))
-				continue;
 
-			if ((sdata->u.mntr_flags & MONITOR_FLAG_COOK_FRAMES) &&
-			    !send_to_cooked)
-				continue;
+	for_each_sta_info(local, hdr->addr1, sta, tmp) {
+		/* skip wrong virtual interface */
+		if (!ether_addr_equal(hdr->addr2, sta->sdata->vif.addr))
+			continue;
 
-			if (prev_dev) {
-				skb2 = skb_clone(skb, GFP_ATOMIC);
-				if (skb2) {
-					skb2->dev = prev_dev;
-					netif_rx(skb2);
-				}
-			}
-
-			prev_dev = sdata->dev;
-		}
+		status.sta = &sta->sta;
+		break;
 	}
-	if (prev_dev) {
-		skb->dev = prev_dev;
-		netif_rx(skb);
-		skb = NULL;
-	}
+
+	__ieee80211_tx_status(hw, &status);
 	rcu_read_unlock();
-	dev_kfree_skb(skb);
 }
 EXPORT_SYMBOL(ieee80211_tx_status);
+
+void ieee80211_tx_status_ext(struct ieee80211_hw *hw,
+			     struct ieee80211_tx_status *status)
+{
+	struct ieee80211_local *local = hw_to_local(hw);
+	struct ieee80211_tx_info *info = status->info;
+	struct ieee80211_sta *pubsta = status->sta;
+	struct ieee80211_supported_band *sband;
+	int retry_count;
+	bool acked, noack_success;
+
+	if (status->skb)
+		return __ieee80211_tx_status(hw, status);
+
+	if (!status->sta)
+		return;
+
+	ieee80211_tx_get_rates(hw, info, &retry_count);
+
+	sband = hw->wiphy->bands[info->band];
+
+	acked = !!(info->flags & IEEE80211_TX_STAT_ACK);
+	noack_success = !!(info->flags & IEEE80211_TX_STAT_NOACK_TRANSMITTED);
+
+	if (pubsta) {
+		struct sta_info *sta;
+
+		sta = container_of(pubsta, struct sta_info, sta);
+
+		if (!acked)
+			sta->status_stats.retry_failed++;
+		sta->status_stats.retry_count += retry_count;
+
+		if (acked) {
+			sta->status_stats.last_ack = jiffies;
+
+			if (sta->status_stats.lost_packets)
+				sta->status_stats.lost_packets = 0;
+
+			/* Track when last TDLS packet was ACKed */
+			if (test_sta_flag(sta, WLAN_STA_TDLS_PEER_AUTH))
+				sta->status_stats.last_tdls_pkt_time = jiffies;
+		} else {
+			ieee80211_lost_packet(sta, info);
+		}
+
+		rate_control_tx_status(local, sband, status);
+	}
+
+	if (acked || noack_success) {
+		I802_DEBUG_INC(local->dot11TransmittedFrameCount);
+		if (!pubsta)
+			I802_DEBUG_INC(local->dot11MulticastTransmittedFrameCount);
+		if (retry_count > 0)
+			I802_DEBUG_INC(local->dot11RetryCount);
+		if (retry_count > 1)
+			I802_DEBUG_INC(local->dot11MultipleRetryCount);
+	} else {
+		I802_DEBUG_INC(local->dot11FailedCount);
+	}
+}
+EXPORT_SYMBOL(ieee80211_tx_status_ext);
 
 void ieee80211_report_low_ack(struct ieee80211_sta *pubsta, u32 num_packets)
 {

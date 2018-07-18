@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * linux/can/dev.h
  *
@@ -14,9 +15,10 @@
 #define _CAN_DEV_H
 
 #include <linux/can.h>
-#include <linux/can/netlink.h>
 #include <linux/can/error.h>
 #include <linux/can/led.h>
+#include <linux/can/netlink.h>
+#include <linux/netdevice.h>
 
 /*
  * CAN mode
@@ -31,11 +33,19 @@ enum can_mode {
  * CAN common private data
  */
 struct can_priv {
+	struct net_device *dev;
 	struct can_device_stats can_stats;
 
 	struct can_bittiming bittiming, data_bittiming;
 	const struct can_bittiming_const *bittiming_const,
 		*data_bittiming_const;
+	const u16 *termination_const;
+	unsigned int termination_const_cnt;
+	u16 termination;
+	const u32 *bitrate_const;
+	unsigned int bitrate_const_cnt;
+	const u32 *data_bitrate_const;
+	unsigned int data_bitrate_const_cnt;
 	struct can_clock clock;
 
 	enum can_state state;
@@ -46,11 +56,12 @@ struct can_priv {
 	u32 ctrlmode_static;	/* static enabled options for driver/hardware */
 
 	int restart_ms;
-	struct timer_list restart_timer;
+	struct delayed_work restart_work;
 
 	int (*do_set_bittiming)(struct net_device *dev);
 	int (*do_set_data_bittiming)(struct net_device *dev);
 	int (*do_set_mode)(struct net_device *dev, enum can_mode mode);
+	int (*do_set_termination)(struct net_device *dev, u16 term);
 	int (*do_get_state)(const struct net_device *dev,
 			    enum can_state *state);
 	int (*do_get_berr_counter)(const struct net_device *dev,
@@ -80,7 +91,7 @@ struct can_priv {
 #define get_canfd_dlc(i)	(min_t(__u8, (i), CANFD_MAX_DLC))
 
 /* Drop a given socketbuffer if it does not contain a valid CAN frame. */
-static inline int can_dropped_invalid_skb(struct net_device *dev,
+static inline bool can_dropped_invalid_skb(struct net_device *dev,
 					  struct sk_buff *skb)
 {
 	const struct canfd_frame *cfd = (struct canfd_frame *)skb->data;
@@ -96,12 +107,12 @@ static inline int can_dropped_invalid_skb(struct net_device *dev,
 	} else
 		goto inval_skb;
 
-	return 0;
+	return false;
 
 inval_skb:
 	kfree_skb(skb);
 	dev->stats.tx_dropped++;
-	return 1;
+	return true;
 }
 
 static inline bool can_is_canfd_skb(const struct sk_buff *skb)

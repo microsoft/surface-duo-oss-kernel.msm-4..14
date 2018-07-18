@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 #ifndef __ARCH_PARISC_POSIX_TYPES_H
 #define __ARCH_PARISC_POSIX_TYPES_H
 
@@ -7,8 +8,10 @@
  * assume GCC is being used.
  */
 
+#ifndef __LP64__
 typedef unsigned short		__kernel_mode_t;
 #define __kernel_mode_t __kernel_mode_t
+#endif
 
 typedef unsigned short		__kernel_ipc_pid_t;
 #define __kernel_ipc_pid_t __kernel_ipc_pid_t

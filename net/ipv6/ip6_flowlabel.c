@@ -29,7 +29,7 @@
 #include <net/rawv6.h>
 #include <net/transp_v6.h>
 
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 
 #define FL_MIN_LINGER	6	/* Minimal linger. It is set to 6sec specified
 				   in old IPv6 RFC. Well, it was reasonable value.
@@ -315,6 +315,7 @@ struct ipv6_txoptions *fl6_merge_options(struct ipv6_txoptions *opt_space,
 	}
 	opt_space->dst1opt = fopt->dst1opt;
 	opt_space->opt_flen = fopt->opt_flen;
+	opt_space->tot_len = fopt->tot_len;
 	return opt_space;
 }
 EXPORT_SYMBOL_GPL(fl6_merge_options);
@@ -372,7 +373,8 @@ fl_create(struct net *net, struct sock *sk, struct in6_flowlabel_req *freq,
 	if (olen > 0) {
 		struct msghdr msg;
 		struct flowi6 flowi6;
-		int junk;
+		struct sockcm_cookie sockc_junk;
+		struct ipcm6_cookie ipc6;
 
 		err = -ENOMEM;
 		fl->opt = kmalloc(sizeof(*fl->opt) + olen, GFP_KERNEL);
@@ -389,8 +391,8 @@ fl_create(struct net *net, struct sock *sk, struct in6_flowlabel_req *freq,
 		msg.msg_control = (void *)(fl->opt+1);
 		memset(&flowi6, 0, sizeof(flowi6));
 
-		err = ip6_datagram_send_ctl(net, sk, &msg, &flowi6, fl->opt,
-					    &junk, &junk, &junk);
+		ipc6.opt = fl->opt;
+		err = ip6_datagram_send_ctl(net, sk, &msg, &flowi6, &ipc6, &sockc_junk);
 		if (err)
 			goto done;
 		err = -EINVAL;
@@ -595,6 +597,10 @@ int ipv6_flowlabel_opt(struct sock *sk, char __user *optval, int optlen)
 
 		if (freq.flr_label & ~IPV6_FLOWLABEL_MASK)
 			return -EINVAL;
+
+		if (net->ipv6.sysctl.flowlabel_state_ranges &&
+		    (freq.flr_label & IPV6_FLOWLABEL_STATELESS_FLAG))
+			return -ERANGE;
 
 		fl = fl_create(net, sk, &freq, optval, optlen, &err);
 		if (!fl)

@@ -41,6 +41,7 @@ static inline void tegra20_das_write(u32 reg, u32 val)
 static inline u32 tegra20_das_read(u32 reg)
 {
 	u32 val;
+
 	regmap_read(das->regmap, reg, &val);
 	return val;
 }
@@ -133,7 +134,7 @@ static const struct regmap_config tegra20_das_regmap_config = {
 
 static int tegra20_das_probe(struct platform_device *pdev)
 {
-	struct resource *res, *region;
+	struct resource *res;
 	void __iomem *regs;
 	int ret = 0;
 
@@ -142,31 +143,15 @@ static int tegra20_das_probe(struct platform_device *pdev)
 
 	das = devm_kzalloc(&pdev->dev, sizeof(struct tegra20_das), GFP_KERNEL);
 	if (!das) {
-		dev_err(&pdev->dev, "Can't allocate tegra20_das\n");
 		ret = -ENOMEM;
 		goto err;
 	}
 	das->dev = &pdev->dev;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!res) {
-		dev_err(&pdev->dev, "No memory resource\n");
-		ret = -ENODEV;
-		goto err;
-	}
-
-	region = devm_request_mem_region(&pdev->dev, res->start,
-					 resource_size(res), pdev->name);
-	if (!region) {
-		dev_err(&pdev->dev, "Memory region already claimed\n");
-		ret = -EBUSY;
-		goto err;
-	}
-
-	regs = devm_ioremap(&pdev->dev, res->start, resource_size(res));
-	if (!regs) {
-		dev_err(&pdev->dev, "ioremap failed\n");
-		ret = -ENOMEM;
+	regs = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(regs)) {
+		ret = PTR_ERR(regs);
 		goto err;
 	}
 

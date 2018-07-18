@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  *  ATI Frame Buffer Device Driver Core Definitions
  */
@@ -182,10 +183,7 @@ struct atyfb_par {
 	unsigned long irq_flags;
 	unsigned int irq;
 	spinlock_t int_lock;
-#ifdef CONFIG_MTRR
-	int mtrr_aper;
-	int mtrr_reg;
-#endif
+	int wc_cookie;
 	u32 mem_cntl;
 	struct crtc saved_crtc;
 	union aty_pll saved_pll;

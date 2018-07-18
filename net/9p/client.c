@@ -32,11 +32,12 @@
 #include <linux/idr.h>
 #include <linux/mutex.h>
 #include <linux/slab.h>
-#include <linux/sched.h>
+#include <linux/sched/signal.h>
 #include <linux/uaccess.h>
 #include <linux/uio.h>
 #include <net/9p/9p.h>
 #include <linux/parser.h>
+#include <linux/seq_file.h>
 #include <net/9p/client.h>
 #include <net/9p/transport.h>
 #include "protocol.h"
@@ -76,6 +77,30 @@ inline int p9_is_proto_dotu(struct p9_client *clnt)
 	return clnt->proto_version == p9_proto_2000u;
 }
 EXPORT_SYMBOL(p9_is_proto_dotu);
+
+int p9_show_client_options(struct seq_file *m, struct p9_client *clnt)
+{
+	if (clnt->msize != 8192)
+		seq_printf(m, ",msize=%u", clnt->msize);
+	seq_printf(m, ",trans=%s", clnt->trans_mod->name);
+
+	switch (clnt->proto_version) {
+	case p9_proto_legacy:
+		seq_puts(m, ",noextend");
+		break;
+	case p9_proto_2000u:
+		seq_puts(m, ",version=9p2000.u");
+		break;
+	case p9_proto_2000L:
+		/* Default */
+		break;
+	}
+
+	if (clnt->trans_mod->show_options)
+		return clnt->trans_mod->show_options(m, clnt);
+	return 0;
+}
+EXPORT_SYMBOL(p9_show_client_options);
 
 /*
  * Some error codes are taken directly from the server replies,
@@ -518,10 +543,10 @@ static int p9_check_errors(struct p9_client *c, struct p9_req_t *req)
 		if (err)
 			goto out_err;
 
-		if (p9_is_proto_dotu(c))
+		if (p9_is_proto_dotu(c) && ecode < 512)
 			err = -ecode;
 
-		if (!err || !IS_ERR_VALUE(err)) {
+		if (!err) {
 			err = p9_errstr2errno(ename, strlen(ename));
 
 			p9_debug(P9_DEBUG_9P, "<<< RERROR (%d) %s\n",
@@ -592,9 +617,8 @@ static int p9_check_zc_errors(struct p9_client *c, struct p9_req_t *req,
 		ename = &req->rc->sdata[req->rc->offset];
 		if (len > inline_len) {
 			/* We have error in external buffer */
-			err = copy_from_iter(ename + inline_len,
-					     len - inline_len, uidata);
-			if (err != len - inline_len) {
+			if (!copy_from_iter_full(ename + inline_len,
+					     len - inline_len, uidata)) {
 				err = -EFAULT;
 				goto out_err;
 			}
@@ -605,10 +629,10 @@ static int p9_check_zc_errors(struct p9_client *c, struct p9_req_t *req,
 		if (err)
 			goto out_err;
 
-		if (p9_is_proto_dotu(c))
+		if (p9_is_proto_dotu(c) && ecode < 512)
 			err = -ecode;
 
-		if (!err || !IS_ERR_VALUE(err)) {
+		if (!err) {
 			err = p9_errstr2errno(ename, strlen(ename));
 
 			p9_debug(P9_DEBUG_9P, "<<< RERROR (%d) %s\n",
@@ -749,8 +773,7 @@ p9_client_rpc(struct p9_client *c, int8_t type, const char *fmt, ...)
 	}
 again:
 	/* Wait for the response */
-	err = wait_event_interruptible(*req->wq,
-				       req->status >= REQ_STATUS_RCVD);
+	err = wait_event_killable(*req->wq, req->status >= REQ_STATUS_RCVD);
 
 	/*
 	 * Make sure our req is coherent with regard to updates in other
@@ -1101,7 +1124,7 @@ void p9_client_begin_disconnect(struct p9_client *clnt)
 EXPORT_SYMBOL(p9_client_begin_disconnect);
 
 struct p9_fid *p9_client_attach(struct p9_client *clnt, struct p9_fid *afid,
-	char *uname, kuid_t n_uname, char *aname)
+	const char *uname, kuid_t n_uname, const char *aname)
 {
 	int err = 0;
 	struct p9_req_t *req;
@@ -1149,7 +1172,7 @@ error:
 EXPORT_SYMBOL(p9_client_attach);
 
 struct p9_fid *p9_client_walk(struct p9_fid *oldfid, uint16_t nwname,
-		char **wnames, int clone)
+		const unsigned char * const *wnames, int clone)
 {
 	int err;
 	struct p9_client *clnt;
@@ -1271,7 +1294,7 @@ error:
 }
 EXPORT_SYMBOL(p9_client_open);
 
-int p9_client_create_dotl(struct p9_fid *ofid, char *name, u32 flags, u32 mode,
+int p9_client_create_dotl(struct p9_fid *ofid, const char *name, u32 flags, u32 mode,
 		kgid_t gid, struct p9_qid *qid)
 {
 	int err = 0;
@@ -1316,7 +1339,7 @@ error:
 }
 EXPORT_SYMBOL(p9_client_create_dotl);
 
-int p9_client_fcreate(struct p9_fid *fid, char *name, u32 perm, int mode,
+int p9_client_fcreate(struct p9_fid *fid, const char *name, u32 perm, int mode,
 		     char *extension)
 {
 	int err;
@@ -1361,8 +1384,8 @@ error:
 }
 EXPORT_SYMBOL(p9_client_fcreate);
 
-int p9_client_symlink(struct p9_fid *dfid, char *name, char *symtgt, kgid_t gid,
-		struct p9_qid *qid)
+int p9_client_symlink(struct p9_fid *dfid, const char *name,
+		const char *symtgt, kgid_t gid, struct p9_qid *qid)
 {
 	int err = 0;
 	struct p9_client *clnt;
@@ -1395,7 +1418,7 @@ error:
 }
 EXPORT_SYMBOL(p9_client_symlink);
 
-int p9_client_link(struct p9_fid *dfid, struct p9_fid *oldfid, char *newname)
+int p9_client_link(struct p9_fid *dfid, struct p9_fid *oldfid, const char *newname)
 {
 	struct p9_client *clnt;
 	struct p9_req_t *req;
@@ -1584,6 +1607,10 @@ p9_client_read(struct p9_fid *fid, u64 offset, struct iov_iter *to, int *err)
 			p9_free_req(clnt, req);
 			break;
 		}
+		if (rsize < count) {
+			pr_err("bogus RREAD count (%d > %d)\n", count, rsize);
+			count = rsize;
+		}
 
 		p9_debug(P9_DEBUG_9P, "<<< RREAD count %d\n", count);
 		if (!count) {
@@ -1651,6 +1678,10 @@ p9_client_write(struct p9_fid *fid, u64 offset, struct iov_iter *from, int *err)
 			trace_9p_protocol_dump(clnt, req->rc);
 			p9_free_req(clnt, req);
 			break;
+		}
+		if (rsize < count) {
+			pr_err("bogus RWRITE count (%d > %d)\n", count, rsize);
+			count = rsize;
 		}
 
 		p9_debug(P9_DEBUG_9P, "<<< RWRITE count %d\n", count);
@@ -2093,6 +2124,10 @@ int p9_client_readdir(struct p9_fid *fid, char *data, u32 count, u64 offset)
 		trace_9p_protocol_dump(clnt, req->rc);
 		goto free_and_error;
 	}
+	if (rsize < count) {
+		pr_err("bogus RREADDIR count (%d > %d)\n", count, rsize);
+		count = rsize;
+	}
 
 	p9_debug(P9_DEBUG_9P, "<<< RREADDIR count %d\n", count);
 
@@ -2109,7 +2144,7 @@ error:
 }
 EXPORT_SYMBOL(p9_client_readdir);
 
-int p9_client_mknod_dotl(struct p9_fid *fid, char *name, int mode,
+int p9_client_mknod_dotl(struct p9_fid *fid, const char *name, int mode,
 			dev_t rdev, kgid_t gid, struct p9_qid *qid)
 {
 	int err;
@@ -2140,7 +2175,7 @@ error:
 }
 EXPORT_SYMBOL(p9_client_mknod_dotl);
 
-int p9_client_mkdir_dotl(struct p9_fid *fid, char *name, int mode,
+int p9_client_mkdir_dotl(struct p9_fid *fid, const char *name, int mode,
 				kgid_t gid, struct p9_qid *qid)
 {
 	int err;

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * ARM specific SMP header, this contains our implementation
  * details.
@@ -106,5 +107,14 @@ static inline u32 mpidr_hash_size(void)
 
 extern int platform_can_secondary_boot(void);
 extern int platform_can_cpu_hotplug(void);
+
+#ifdef CONFIG_HOTPLUG_CPU
+extern int platform_can_hotplug_cpu(unsigned int cpu);
+#else
+static inline int platform_can_hotplug_cpu(unsigned int cpu)
+{
+	return 0;
+}
+#endif
 
 #endif

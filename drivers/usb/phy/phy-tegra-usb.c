@@ -329,6 +329,14 @@ static void utmi_phy_clk_disable(struct tegra_usb_phy *phy)
 	unsigned long val;
 	void __iomem *base = phy->regs;
 
+	/*
+	 * The USB driver may have already initiated the phy clock
+	 * disable so wait to see if the clock turns off and if not
+	 * then proceed with gating the clock.
+	 */
+	if (utmi_wait_register(base + USB_SUSP_CTRL, USB_PHY_CLK_VALID, 0) == 0)
+		return;
+
 	if (phy->is_legacy_phy) {
 		val = readl(base + USB_SUSP_CTRL);
 		val |= USB_SUSP_SET;
@@ -350,6 +358,15 @@ static void utmi_phy_clk_enable(struct tegra_usb_phy *phy)
 {
 	unsigned long val;
 	void __iomem *base = phy->regs;
+
+	/*
+	 * The USB driver may have already initiated the phy clock
+	 * enable so wait to see if the clock turns on and if not
+	 * then proceed with ungating the clock.
+	 */
+	if (utmi_wait_register(base + USB_SUSP_CTRL, USB_PHY_CLK_VALID,
+			       USB_PHY_CLK_VALID) == 0)
+		return;
 
 	if (phy->is_legacy_phy) {
 		val = readl(base + USB_SUSP_CTRL);
@@ -1029,7 +1046,7 @@ static int tegra_usb_phy_probe(struct platform_device *pdev)
 	}
 
 	if (of_find_property(np, "dr_mode", NULL))
-		tegra_phy->mode = of_usb_get_dr_mode(np);
+		tegra_phy->mode = usb_get_dr_mode(&pdev->dev);
 	else
 		tegra_phy->mode = USB_DR_MODE_HOST;
 

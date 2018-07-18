@@ -94,7 +94,7 @@ static int ati_remote2_get_mode_mask(char *buffer,
 
 static unsigned int channel_mask = ATI_REMOTE2_MAX_CHANNEL_MASK;
 #define param_check_channel_mask(name, p) __param_check(name, p, unsigned int)
-static struct kernel_param_ops param_ops_channel_mask = {
+static const struct kernel_param_ops param_ops_channel_mask = {
 	.set = ati_remote2_set_channel_mask,
 	.get = ati_remote2_get_channel_mask,
 };
@@ -103,14 +103,14 @@ MODULE_PARM_DESC(channel_mask, "Bitmask of channels to accept <15:Channel16>...<
 
 static unsigned int mode_mask = ATI_REMOTE2_MAX_MODE_MASK;
 #define param_check_mode_mask(name, p) __param_check(name, p, unsigned int)
-static struct kernel_param_ops param_ops_mode_mask = {
+static const struct kernel_param_ops param_ops_mode_mask = {
 	.set = ati_remote2_set_mode_mask,
 	.get = ati_remote2_get_mode_mask,
 };
 module_param(mode_mask, mode_mask, 0644);
 MODULE_PARM_DESC(mode_mask, "Bitmask of modes to accept <4:PC><3:AUX4><2:AUX3><1:AUX2><0:AUX1>");
 
-static struct usb_device_id ati_remote2_id_table[] = {
+static const struct usb_device_id ati_remote2_id_table[] = {
 	{ USB_DEVICE(0x0471, 0x0602) },	/* ATI Remote Wonder II */
 	{ }
 };

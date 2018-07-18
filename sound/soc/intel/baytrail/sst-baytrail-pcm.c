@@ -309,7 +309,7 @@ static int sst_byt_pcm_mmap(struct snd_pcm_substream *substream,
 	return snd_pcm_lib_default_mmap(substream, vma);
 }
 
-static struct snd_pcm_ops sst_byt_pcm_ops = {
+static const struct snd_pcm_ops sst_byt_pcm_ops = {
 	.open		= sst_byt_pcm_open,
 	.close		= sst_byt_pcm_close,
 	.ioctl		= snd_pcm_lib_ioctl,
@@ -377,6 +377,8 @@ static int sst_byt_pcm_probe(struct snd_soc_platform *platform)
 
 	priv_data = devm_kzalloc(platform->dev, sizeof(*priv_data),
 				 GFP_KERNEL);
+	if (!priv_data)
+		return -ENOMEM;
 	priv_data->byt = plat_data->dsp;
 	snd_soc_platform_set_drvdata(platform, priv_data);
 
@@ -393,7 +395,7 @@ static int sst_byt_pcm_remove(struct snd_soc_platform *platform)
 	return 0;
 }
 
-static struct snd_soc_platform_driver byt_soc_platform = {
+static const struct snd_soc_platform_driver byt_soc_platform = {
 	.probe		= sst_byt_pcm_probe,
 	.remove		= sst_byt_pcm_remove,
 	.ops		= &sst_byt_pcm_ops,

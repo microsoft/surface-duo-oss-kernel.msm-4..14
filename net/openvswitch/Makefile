@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 #
 # Makefile for Open vSwitch.
 #
@@ -15,6 +16,10 @@ openvswitch-y := \
 	vport-internal_dev.o \
 	vport-netdev.o
 
+ifneq ($(CONFIG_NF_CONNTRACK),)
+openvswitch-y += conntrack.o
+endif
+
+obj-$(CONFIG_OPENVSWITCH_VXLAN)+= vport-vxlan.o
 obj-$(CONFIG_OPENVSWITCH_GENEVE)+= vport-geneve.o
-obj-$(CONFIG_OPENVSWITCH_VXLAN)	+= vport-vxlan.o
 obj-$(CONFIG_OPENVSWITCH_GRE)	+= vport-gre.o

@@ -20,17 +20,13 @@
 #include <linux/seq_file.h>
 #include <linux/serial.h>
 
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <asm/irq.h>
 
 #include <platform/simcall.h>
 
 #include <linux/tty.h>
 #include <linux/tty_flip.h>
-
-#ifdef SERIAL_INLINE
-#define _INLINE_ inline
-#endif
 
 #define SERIAL_MAX_NUM_LINES 1
 #define SERIAL_TIMER_VALUE (HZ / 10)

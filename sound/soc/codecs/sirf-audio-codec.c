@@ -370,11 +370,11 @@ static int sirf_audio_codec_trigger(struct snd_pcm_substream *substream,
 	return 0;
 }
 
-struct snd_soc_dai_ops sirf_audio_codec_dai_ops = {
+static const struct snd_soc_dai_ops sirf_audio_codec_dai_ops = {
 	.trigger = sirf_audio_codec_trigger,
 };
 
-struct snd_soc_dai_driver sirf_audio_codec_dai = {
+static struct snd_soc_dai_driver sirf_audio_codec_dai = {
 	.name = "sirf-audio-codec",
 	.playback = {
 		.stream_name = "Playback",
@@ -395,7 +395,7 @@ struct snd_soc_dai_driver sirf_audio_codec_dai = {
 
 static int sirf_audio_codec_probe(struct snd_soc_codec *codec)
 {
-	struct snd_soc_dapm_context *dapm = &codec->dapm;
+	struct snd_soc_dapm_context *dapm = snd_soc_codec_get_dapm(codec);
 
 	pm_runtime_enable(codec->dev);
 
@@ -429,13 +429,15 @@ static int sirf_audio_codec_remove(struct snd_soc_codec *codec)
 	return 0;
 }
 
-static struct snd_soc_codec_driver soc_codec_device_sirf_audio_codec = {
+static const struct snd_soc_codec_driver soc_codec_device_sirf_audio_codec = {
 	.probe = sirf_audio_codec_probe,
 	.remove = sirf_audio_codec_remove,
-	.dapm_widgets = sirf_audio_codec_dapm_widgets,
-	.num_dapm_widgets = ARRAY_SIZE(sirf_audio_codec_dapm_widgets),
-	.dapm_routes = sirf_audio_codec_map,
-	.num_dapm_routes = ARRAY_SIZE(sirf_audio_codec_map),
+	.component_driver = {
+		.dapm_widgets = sirf_audio_codec_dapm_widgets,
+		.num_dapm_widgets = ARRAY_SIZE(sirf_audio_codec_dapm_widgets),
+		.dapm_routes = sirf_audio_codec_map,
+		.num_dapm_routes = ARRAY_SIZE(sirf_audio_codec_map),
+	},
 	.idle_bias_off = true,
 };
 

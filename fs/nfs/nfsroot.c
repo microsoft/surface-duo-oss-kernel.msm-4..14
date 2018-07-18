@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *  Copyright (C) 1995, 1996  Gero Kuhlmann <gero@gkminix.han.de>
  *
@@ -90,7 +91,7 @@
 #define NFS_DEF_OPTIONS		"vers=2,udp,rsize=4096,wsize=4096"
 
 /* Parameters passed from the kernel command line */
-static char nfs_root_parms[256] __initdata = "";
+static char nfs_root_parms[NFS_MAXPATHLEN + 1] __initdata = "";
 
 /* Text-based mount options passed to super.c */
 static char nfs_root_options[256] __initdata = NFS_DEF_OPTIONS;

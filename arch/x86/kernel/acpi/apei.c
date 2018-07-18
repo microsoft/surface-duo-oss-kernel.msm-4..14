@@ -24,9 +24,6 @@ int arch_apei_enable_cmcff(struct acpi_hest_header *hest_hdr, void *data)
 	struct acpi_hest_ia_corrected *cmc;
 	struct acpi_hest_ia_error_bank *mc_bank;
 
-	if (hest_hdr->type != ACPI_HEST_TYPE_IA32_CORRECTED_CHECK)
-		return 0;
-
 	cmc = (struct acpi_hest_ia_corrected *)hest_hdr;
 	if (!cmc->enabled)
 		return 0;
@@ -58,5 +55,5 @@ void arch_apei_report_mem_error(int sev, struct cper_sec_mem_err *mem_err)
 
 void arch_apei_flush_tlb_one(unsigned long addr)
 {
-	__flush_tlb_one(addr);
+	__flush_tlb_one_kernel(addr);
 }

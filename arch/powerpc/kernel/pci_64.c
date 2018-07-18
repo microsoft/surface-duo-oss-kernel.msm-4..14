@@ -38,7 +38,7 @@
  * ISA drivers use hard coded offsets.  If no ISA bus exists nothing
  * is mapped on the first 64K of IO space
  */
-unsigned long pci_io_base = ISA_IO_BASE;
+unsigned long pci_io_base;
 EXPORT_SYMBOL(pci_io_base);
 
 static int __init pcibios_init(void)
@@ -81,7 +81,7 @@ int pcibios_unmap_io_space(struct pci_bus *bus)
 
 	/* If this is not a PHB, we only flush the hash table over
 	 * the area mapped by this bridge. We don't play with the PTE
-	 * mappings since we might have to deal with sub-page alignemnts
+	 * mappings since we might have to deal with sub-page alignments
 	 * so flushing the hash table is the only sane way to make sure
 	 * that no hash entries are covering that removed bridge area
 	 * while still allowing other busses overlapping those pages
@@ -111,7 +111,7 @@ int pcibios_unmap_io_space(struct pci_bus *bus)
 	if (hose->io_base_alloc == NULL)
 		return 0;
 
-	pr_debug("IO unmapping for PHB %s\n", hose->dn->full_name);
+	pr_debug("IO unmapping for PHB %pOF\n", hose->dn);
 	pr_debug("  alloc=0x%p\n", hose->io_base_alloc);
 
 	/* This is a PHB, we fully unmap the IO area */
@@ -151,7 +151,7 @@ static int pcibios_map_phb_io_space(struct pci_controller *hose)
 	hose->io_base_virt = (void __iomem *)(area->addr +
 					      hose->io_base_phys - phys_page);
 
-	pr_debug("IO mapping for PHB %s\n", hose->dn->full_name);
+	pr_debug("IO mapping for PHB %pOF\n", hose->dn);
 	pr_debug("  phys=0x%016llx, virt=0x%p (alloc=0x%p)\n",
 		 hose->io_base_phys, hose->io_base_virt, hose->io_base_alloc);
 	pr_debug("  size=0x%016llx (alloc=0x%016lx)\n",
@@ -159,7 +159,7 @@ static int pcibios_map_phb_io_space(struct pci_controller *hose)
 
 	/* Establish the mapping */
 	if (__ioremap_at(phys_page, area->addr, size_page,
-			 _PAGE_NO_CACHE | _PAGE_GUARDED) == NULL)
+			 pgprot_val(pgprot_noncached(__pgprot(0)))) == NULL)
 		return -ENOMEM;
 
 	/* Fixup hose IO resource */

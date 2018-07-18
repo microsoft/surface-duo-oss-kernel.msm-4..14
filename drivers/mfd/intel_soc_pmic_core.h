@@ -24,9 +24,10 @@ struct intel_soc_pmic_config {
 	struct mfd_cell *cell_dev;
 	int n_cell_devs;
 	const struct regmap_config *regmap_config;
-	struct regmap_irq_chip *irq_chip;
+	const struct regmap_irq_chip *irq_chip;
 };
 
-extern struct intel_soc_pmic_config intel_soc_pmic_config_crc;
+extern struct intel_soc_pmic_config intel_soc_pmic_config_byt_crc;
+extern struct intel_soc_pmic_config intel_soc_pmic_config_cht_crc;
 
 #endif	/* __INTEL_SOC_PMIC_CORE_H__ */

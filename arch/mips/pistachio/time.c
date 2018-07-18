@@ -12,9 +12,9 @@
 #include <linux/clk-provider.h>
 #include <linux/clocksource.h>
 #include <linux/init.h>
-#include <linux/irqchip/mips-gic.h>
 #include <linux/of.h>
 
+#include <asm/mips-cps.h>
 #include <asm/time.h>
 
 unsigned int get_c0_compare_int(void)
@@ -28,13 +28,18 @@ int get_c0_perfcount_int(void)
 }
 EXPORT_SYMBOL_GPL(get_c0_perfcount_int);
 
+int get_c0_fdc_int(void)
+{
+	return gic_get_c0_fdc_int();
+}
+
 void __init plat_time_init(void)
 {
 	struct device_node *np;
 	struct clk *clk;
 
 	of_clk_init(NULL);
-	clocksource_of_init();
+	timer_probe();
 
 	np = of_get_cpu_node(0, NULL);
 	if (!np) {

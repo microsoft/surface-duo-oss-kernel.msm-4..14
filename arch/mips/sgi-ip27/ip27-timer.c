@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copytight (C) 1999, 2000, 05, 06 Ralf Baechle (ralf@linux-mips.org)
  * Copytight (C) 1999, 2000 Silicon Graphics, Inc.
@@ -64,12 +65,6 @@ static int rt_next_event(unsigned long delta, struct clock_event_device *evt)
 	return LOCAL_HUB_L(PI_RT_COUNT) >= cnt ? -ETIME : 0;
 }
 
-static void rt_set_mode(enum clock_event_mode mode,
-		struct clock_event_device *evt)
-{
-	/* Nothing to do ...  */
-}
-
 unsigned int rt_timer_irq;
 
 static DEFINE_PER_CPU(struct clock_event_device, hub_rt_clockevent);
@@ -119,12 +114,13 @@ void hub_rt_clock_event_init(void)
 	cd->features		= CLOCK_EVT_FEAT_ONESHOT;
 	clockevent_set_clock(cd, CYCLES_PER_SEC);
 	cd->max_delta_ns	= clockevent_delta2ns(0xfffffffffffff, cd);
+	cd->max_delta_ticks	= 0xfffffffffffff;
 	cd->min_delta_ns	= clockevent_delta2ns(0x300, cd);
+	cd->min_delta_ticks	= 0x300;
 	cd->rating		= 200;
 	cd->irq			= irq;
 	cd->cpumask		= cpumask_of(cpu);
 	cd->set_next_event	= rt_next_event;
-	cd->set_mode		= rt_set_mode;
 	clockevents_register_device(cd);
 }
 
@@ -147,7 +143,7 @@ static void __init hub_rt_clock_event_global_init(void)
 	setup_irq(irq, &hub_rt_irqaction);
 }
 
-static cycle_t hub_rt_read(struct clocksource *cs)
+static u64 hub_rt_read(struct clocksource *cs)
 {
 	return REMOTE_HUB_L(cputonasid(0), PI_RT_COUNT);
 }

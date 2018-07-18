@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _MIPS_SETUP_H
 #define _MIPS_SETUP_H
 
@@ -21,6 +22,7 @@ extern void *set_vi_handler(int n, vi_handler_t addr);
 
 extern void *set_except_vector(int n, void *addr);
 extern unsigned long ebase;
+extern unsigned int hwrena;
 extern void per_cpu_trap_init(bool);
 extern void cpu_cache_init(void);
 

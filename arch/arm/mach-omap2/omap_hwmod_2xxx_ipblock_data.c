@@ -20,7 +20,7 @@
 #include "prm-regbits-24xx.h"
 #include "wd_timer.h"
 
-struct omap_hwmod_dma_info omap2xxx_dss_sdma_chs[] = {
+static struct omap_hwmod_dma_info omap2xxx_dss_sdma_chs[] = {
 	{ .name = "dispc", .dma_req = 5 },
 	{ .dma_req = -1, },
 };
@@ -55,7 +55,6 @@ static struct omap_hwmod_class_sysconfig omap2xxx_timer_sysc = {
 			   SYSC_HAS_ENAWAKEUP | SYSC_HAS_SOFTRESET |
 			   SYSC_HAS_AUTOIDLE | SYSS_HAS_RESET_STATUS),
 	.idlemodes	= (SIDLE_FORCE | SIDLE_NO | SIDLE_SMART),
-	.clockact       = CLOCKACT_TEST_ICLK,
 	.sysc_fields	= &omap_hwmod_sysc_type1,
 };
 
@@ -569,7 +568,6 @@ struct omap_hwmod omap2xxx_dss_core_hwmod = {
 struct omap_hwmod omap2xxx_dss_dispc_hwmod = {
 	.name		= "dss_dispc",
 	.class		= &omap2_dispc_hwmod_class,
-	.mpu_irqs	= omap2_dispc_irqs,
 	.main_clk	= "dss1_fck",
 	.prcm		= {
 		.omap2 = {
@@ -762,16 +760,8 @@ struct omap_hwmod omap2xxx_gpmc_hwmod = {
 	.name		= "gpmc",
 	.class		= &omap2xxx_gpmc_hwmod_class,
 	.main_clk	= "gpmc_fck",
-	/*
-	 * XXX HWMOD_INIT_NO_RESET should not be needed for this IP
-	 * block.  It is not being added due to any known bugs with
-	 * resetting the GPMC IP block, but rather because any timings
-	 * set by the bootloader are not being correctly programmed by
-	 * the kernel from the board file or DT data.
-	 * HWMOD_INIT_NO_RESET should be removed ASAP.
-	 */
-	.flags		= (HWMOD_INIT_NO_IDLE | HWMOD_INIT_NO_RESET |
-			   HWMOD_NO_IDLEST),
+	/* Skip reset for CONFIG_OMAP_GPMC_DEBUG for bootloader timings */
+	.flags		= HWMOD_NO_IDLEST | DEBUG_OMAP_GPMC_HWMOD_FLAGS,
 	.prcm		= {
 		.omap2	= {
 			.prcm_reg_id = 3,

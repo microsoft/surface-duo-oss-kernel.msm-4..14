@@ -38,7 +38,7 @@
 #include <linux/serial.h>
 #include <linux/serial_reg.h>
 #include <linux/bitops.h>
-#include <asm/io.h>
+#include <linux/io.h>
 
 #include <pcmcia/cistpl.h>
 #include <pcmcia/ciscode.h>
@@ -188,7 +188,7 @@ static void btuart_receive(struct btuart_info *info)
 		info->hdev->stat.byte_rx++;
 
 		/* Allocate packet */
-		if (info->rx_skb == NULL) {
+		if (!info->rx_skb) {
 			info->rx_state = RECV_WAIT_PACKET_TYPE;
 			info->rx_count = 0;
 			info->rx_skb = bt_skb_alloc(HCI_MAX_FRAME_SIZE, GFP_ATOMIC);
@@ -200,9 +200,9 @@ static void btuart_receive(struct btuart_info *info)
 
 		if (info->rx_state == RECV_WAIT_PACKET_TYPE) {
 
-			bt_cb(info->rx_skb)->pkt_type = inb(iobase + UART_RX);
+			hci_skb_pkt_type(info->rx_skb) = inb(iobase + UART_RX);
 
-			switch (bt_cb(info->rx_skb)->pkt_type) {
+			switch (hci_skb_pkt_type(info->rx_skb)) {
 
 			case HCI_EVENT_PKT:
 				info->rx_state = RECV_WAIT_EVENT_HEADER;
@@ -221,9 +221,9 @@ static void btuart_receive(struct btuart_info *info)
 
 			default:
 				/* Unknown packet */
-				BT_ERR("Unknown HCI packet with type 0x%02x received", bt_cb(info->rx_skb)->pkt_type);
+				BT_ERR("Unknown HCI packet with type 0x%02x received",
+				       hci_skb_pkt_type(info->rx_skb));
 				info->hdev->stat.err_rx++;
-				clear_bit(HCI_RUNNING, &(info->hdev->flags));
 
 				kfree_skb(info->rx_skb);
 				info->rx_skb = NULL;
@@ -233,7 +233,7 @@ static void btuart_receive(struct btuart_info *info)
 
 		} else {
 
-			*skb_put(info->rx_skb, 1) = inb(iobase + UART_RX);
+			skb_put_u8(info->rx_skb, inb(iobase + UART_RX));
 			info->rx_count--;
 
 			if (info->rx_count == 0) {
@@ -409,17 +409,12 @@ static int btuart_hci_flush(struct hci_dev *hdev)
 
 static int btuart_hci_open(struct hci_dev *hdev)
 {
-	set_bit(HCI_RUNNING, &(hdev->flags));
-
 	return 0;
 }
 
 
 static int btuart_hci_close(struct hci_dev *hdev)
 {
-	if (!test_and_clear_bit(HCI_RUNNING, &(hdev->flags)))
-		return 0;
-
 	btuart_hci_flush(hdev);
 
 	return 0;
@@ -430,7 +425,7 @@ static int btuart_hci_send_frame(struct hci_dev *hdev, struct sk_buff *skb)
 {
 	struct btuart_info *info = hci_get_drvdata(hdev);
 
-	switch (bt_cb(skb)->pkt_type) {
+	switch (hci_skb_pkt_type(skb)) {
 	case HCI_COMMAND_PKT:
 		hdev->stat.cmd_tx++;
 		break;
@@ -443,7 +438,7 @@ static int btuart_hci_send_frame(struct hci_dev *hdev, struct sk_buff *skb)
 	}
 
 	/* Prepend skb with frame type */
-	memcpy(skb_push(skb, 1), &bt_cb(skb)->pkt_type, 1);
+	memcpy(skb_push(skb, 1), &hci_skb_pkt_type(skb), 1);
 	skb_queue_tail(&(info->txq), skb);
 
 	btuart_write_wakeup(info);
@@ -619,14 +614,16 @@ static int btuart_config(struct pcmcia_device *link)
 	int try;
 
 	/* First pass: look for a config entry that looks normal.
-	   Two tries: without IO aliases, then with aliases */
+	 * Two tries: without IO aliases, then with aliases
+	 */
 	for (try = 0; try < 2; try++)
 		if (!pcmcia_loop_config(link, btuart_check_config, &try))
 			goto found_port;
 
 	/* Second pass: try to find an entry that isn't picky about
-	   its base address, then try to grab any standard serial port
-	   address, and finally try to get any free port. */
+	 * its base address, then try to grab any standard serial port
+	 * address, and finally try to get any free port.
+	 */
 	if (!pcmcia_loop_config(link, btuart_check_config_notpicky, NULL))
 		goto found_port;
 

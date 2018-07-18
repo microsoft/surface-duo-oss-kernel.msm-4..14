@@ -500,7 +500,8 @@ static void start_atl_transfers(struct isp116x *isp116x)
 	if (isp116x->periodic_count) {
 		isp116x->fmindex = index =
 		    (isp116x->fmindex + 1) & (PERIODIC_SIZE - 1);
-		if ((load = isp116x->load[index])) {
+		load = isp116x->load[index];
+		if (load) {
 			/* Bring all int transfers for this frame
 			   into the active queue */
 			isp116x->atl_active = last_ep =
@@ -1510,7 +1511,7 @@ static int isp116x_bus_resume(struct usb_hcd *hcd)
 
 #endif
 
-static struct hc_driver isp116x_hc_driver = {
+static const struct hc_driver isp116x_hc_driver = {
 	.description = hcd_name,
 	.product_desc = "ISP116x Host Controller",
 	.hcd_priv_size = sizeof(struct isp116x),

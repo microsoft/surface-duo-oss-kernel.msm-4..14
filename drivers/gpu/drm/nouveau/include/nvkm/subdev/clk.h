@@ -1,9 +1,15 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __NVKM_CLK_H__
 #define __NVKM_CLK_H__
 #include <core/subdev.h>
 #include <core/notify.h>
+#include <subdev/pci.h>
 struct nvbios_pll;
 struct nvkm_pll_vals;
+
+#define NVKM_CLK_CSTATE_DEFAULT -1 /* POSTed default */
+#define NVKM_CLK_CSTATE_BASE    -2 /* pstate base */
+#define NVKM_CLK_CSTATE_HIGHEST -3 /* highest possible */
 
 enum nv_clk_src {
 	nv_clk_src_crystal,
@@ -38,7 +44,7 @@ enum nv_clk_src {
 	nv_clk_src_hubk06,
 	nv_clk_src_hubk07,
 	nv_clk_src_copy,
-	nv_clk_src_daemon,
+	nv_clk_src_pmu,
 	nv_clk_src_disp,
 	nv_clk_src_vdec,
 
@@ -51,6 +57,7 @@ struct nvkm_cstate {
 	struct list_head head;
 	u8  voltage;
 	u32 domain[nv_clk_src_max];
+	u8  id;
 };
 
 struct nvkm_pstate {
@@ -59,21 +66,25 @@ struct nvkm_pstate {
 	struct nvkm_cstate base;
 	u8 pstate;
 	u8 fanspeed;
+	enum nvkm_pcie_speed pcie_speed;
+	u8 pcie_width;
 };
 
 struct nvkm_domain {
 	enum nv_clk_src name;
 	u8 bios; /* 0xff for none */
-#define NVKM_CLK_DOM_FLAG_CORE 0x01
+#define NVKM_CLK_DOM_FLAG_CORE    0x01
+#define NVKM_CLK_DOM_FLAG_VPSTATE 0x02
 	u8 flags;
 	const char *mname;
 	int mdiv;
 };
 
 struct nvkm_clk {
-	struct nvkm_subdev base;
+	const struct nvkm_clk_func *func;
+	struct nvkm_subdev subdev;
 
-	struct nvkm_domain *domains;
+	const struct nvkm_domain *domains;
 	struct nvkm_pstate bstate;
 
 	struct list_head states;
@@ -89,73 +100,39 @@ struct nvkm_clk {
 	int ustate_ac; /* user-requested (-1 disabled, -2 perfmon) */
 	int ustate_dc; /* user-requested (-1 disabled, -2 perfmon) */
 	int astate; /* perfmon adjustment (base) */
-	int tstate; /* thermal adjustment (max-) */
 	int dstate; /* display adjustment (min+) */
+	u8  temp;
 
 	bool allow_reclock;
-
-	int  (*read)(struct nvkm_clk *, enum nv_clk_src);
-	int  (*calc)(struct nvkm_clk *, struct nvkm_cstate *);
-	int  (*prog)(struct nvkm_clk *);
-	void (*tidy)(struct nvkm_clk *);
+#define NVKM_CLK_BOOST_NONE 0x0
+#define NVKM_CLK_BOOST_BIOS 0x1
+#define NVKM_CLK_BOOST_FULL 0x2
+	u8  boost_mode;
+	u32 base_khz;
+	u32 boost_khz;
 
 	/*XXX: die, these are here *only* to support the completely
-	 *     bat-shit insane what-was-nvkm_hw.c code
+	 *     bat-shit insane what-was-nouveau_hw.c code
 	 */
 	int (*pll_calc)(struct nvkm_clk *, struct nvbios_pll *, int clk,
 			struct nvkm_pll_vals *pv);
 	int (*pll_prog)(struct nvkm_clk *, u32 reg1, struct nvkm_pll_vals *pv);
 };
 
-static inline struct nvkm_clk *
-nvkm_clk(void *obj)
-{
-	return (void *)nvkm_subdev(obj, NVDEV_SUBDEV_CLK);
-}
-
-#define nvkm_clk_create(p,e,o,i,r,s,n,d)                                  \
-	nvkm_clk_create_((p), (e), (o), (i), (r), (s), (n), sizeof(**d),  \
-			      (void **)d)
-#define nvkm_clk_destroy(p) ({                                            \
-	struct nvkm_clk *clk = (p);                                       \
-	_nvkm_clk_dtor(nv_object(clk));                                   \
-})
-#define nvkm_clk_init(p) ({                                               \
-	struct nvkm_clk *clk = (p);                                       \
-	_nvkm_clk_init(nv_object(clk));                                   \
-})
-#define nvkm_clk_fini(p,s) ({                                             \
-	struct nvkm_clk *clk = (p);                                       \
-	_nvkm_clk_fini(nv_object(clk), (s));                              \
-})
-
-int  nvkm_clk_create_(struct nvkm_object *, struct nvkm_object *,
-			   struct nvkm_oclass *,
-			   struct nvkm_domain *, struct nvkm_pstate *,
-			   int, bool, int, void **);
-void _nvkm_clk_dtor(struct nvkm_object *);
-int  _nvkm_clk_init(struct nvkm_object *);
-int  _nvkm_clk_fini(struct nvkm_object *, bool);
-
-extern struct nvkm_oclass nv04_clk_oclass;
-extern struct nvkm_oclass nv40_clk_oclass;
-extern struct nvkm_oclass *nv50_clk_oclass;
-extern struct nvkm_oclass *g84_clk_oclass;
-extern struct nvkm_oclass *mcp77_clk_oclass;
-extern struct nvkm_oclass gt215_clk_oclass;
-extern struct nvkm_oclass gf100_clk_oclass;
-extern struct nvkm_oclass gk104_clk_oclass;
-extern struct nvkm_oclass gk20a_clk_oclass;
-
-int nv04_clk_pll_set(struct nvkm_clk *, u32 type, u32 freq);
-int nv04_clk_pll_calc(struct nvkm_clk *, struct nvbios_pll *, int clk,
-		      struct nvkm_pll_vals *);
-int nv04_clk_pll_prog(struct nvkm_clk *, u32 reg1, struct nvkm_pll_vals *);
-int gt215_clk_pll_calc(struct nvkm_clk *, struct nvbios_pll *,
-		       int clk, struct nvkm_pll_vals *);
-
+int nvkm_clk_read(struct nvkm_clk *, enum nv_clk_src);
 int nvkm_clk_ustate(struct nvkm_clk *, int req, int pwr);
 int nvkm_clk_astate(struct nvkm_clk *, int req, int rel, bool wait);
 int nvkm_clk_dstate(struct nvkm_clk *, int req, int rel);
-int nvkm_clk_tstate(struct nvkm_clk *, int req, int rel);
+int nvkm_clk_tstate(struct nvkm_clk *, u8 temperature);
+
+int nv04_clk_new(struct nvkm_device *, int, struct nvkm_clk **);
+int nv40_clk_new(struct nvkm_device *, int, struct nvkm_clk **);
+int nv50_clk_new(struct nvkm_device *, int, struct nvkm_clk **);
+int g84_clk_new(struct nvkm_device *, int, struct nvkm_clk **);
+int mcp77_clk_new(struct nvkm_device *, int, struct nvkm_clk **);
+int gt215_clk_new(struct nvkm_device *, int, struct nvkm_clk **);
+int gf100_clk_new(struct nvkm_device *, int, struct nvkm_clk **);
+int gk104_clk_new(struct nvkm_device *, int, struct nvkm_clk **);
+int gk20a_clk_new(struct nvkm_device *, int, struct nvkm_clk **);
+int gm20b_clk_new(struct nvkm_device *, int, struct nvkm_clk **);
 #endif

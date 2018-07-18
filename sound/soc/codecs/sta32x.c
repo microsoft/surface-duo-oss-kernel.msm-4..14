@@ -819,7 +819,7 @@ static int sta32x_set_bias_level(struct snd_soc_codec *codec,
 		break;
 
 	case SND_SOC_BIAS_STANDBY:
-		if (codec->dapm.bias_level == SND_SOC_BIAS_OFF) {
+		if (snd_soc_codec_get_bias_level(codec) == SND_SOC_BIAS_OFF) {
 			ret = regulator_bulk_enable(ARRAY_SIZE(sta32x->supplies),
 						    sta32x->supplies);
 			if (ret != 0) {
@@ -847,14 +847,12 @@ static int sta32x_set_bias_level(struct snd_soc_codec *codec,
 		msleep(300);
 		sta32x_watchdog_stop(sta32x);
 
-		if (sta32x->gpiod_nreset)
-			gpiod_set_value(sta32x->gpiod_nreset, 0);
+		gpiod_set_value(sta32x->gpiod_nreset, 0);
 
 		regulator_bulk_disable(ARRAY_SIZE(sta32x->supplies),
 				       sta32x->supplies);
 		break;
 	}
-	codec->dapm.bias_level = level;
 	return 0;
 }
 
@@ -970,7 +968,7 @@ static int sta32x_probe(struct snd_soc_codec *codec)
 	if (sta32x->pdata->needs_esd_watchdog)
 		INIT_DELAYED_WORK(&sta32x->watchdog_work, sta32x_watchdog);
 
-	sta32x_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
+	snd_soc_codec_force_bias_level(codec, SND_SOC_BIAS_STANDBY);
 	/* Bias level configuration will have done an extra enable */
 	regulator_bulk_disable(ARRAY_SIZE(sta32x->supplies), sta32x->supplies);
 
@@ -992,12 +990,14 @@ static const struct snd_soc_codec_driver sta32x_codec = {
 	.remove =		sta32x_remove,
 	.set_bias_level =	sta32x_set_bias_level,
 	.suspend_bias_off =	true,
-	.controls =		sta32x_snd_controls,
-	.num_controls =		ARRAY_SIZE(sta32x_snd_controls),
-	.dapm_widgets =		sta32x_dapm_widgets,
-	.num_dapm_widgets =	ARRAY_SIZE(sta32x_dapm_widgets),
-	.dapm_routes =		sta32x_dapm_routes,
-	.num_dapm_routes =	ARRAY_SIZE(sta32x_dapm_routes),
+	.component_driver = {
+		.controls =		sta32x_snd_controls,
+		.num_controls =		ARRAY_SIZE(sta32x_snd_controls),
+		.dapm_widgets =		sta32x_dapm_widgets,
+		.num_dapm_widgets =	ARRAY_SIZE(sta32x_dapm_widgets),
+		.dapm_routes =		sta32x_dapm_routes,
+		.num_dapm_routes =	ARRAY_SIZE(sta32x_dapm_routes),
+	},
 };
 
 static const struct regmap_config sta32x_regmap = {
@@ -1096,16 +1096,10 @@ static int sta32x_i2c_probe(struct i2c_client *i2c,
 #endif
 
 	/* GPIOs */
-	sta32x->gpiod_nreset = devm_gpiod_get(dev, "reset");
-	if (IS_ERR(sta32x->gpiod_nreset)) {
-		ret = PTR_ERR(sta32x->gpiod_nreset);
-		if (ret != -ENOENT && ret != -ENOSYS)
-			return ret;
-
-		sta32x->gpiod_nreset = NULL;
-	} else {
-		gpiod_direction_output(sta32x->gpiod_nreset, 0);
-	}
+	sta32x->gpiod_nreset = devm_gpiod_get_optional(dev, "reset",
+						       GPIOD_OUT_LOW);
+	if (IS_ERR(sta32x->gpiod_nreset))
+		return PTR_ERR(sta32x->gpiod_nreset);
 
 	/* regulators */
 	for (i = 0; i < ARRAY_SIZE(sta32x->supplies); i++)
@@ -1151,7 +1145,6 @@ MODULE_DEVICE_TABLE(i2c, sta32x_i2c_id);
 static struct i2c_driver sta32x_i2c_driver = {
 	.driver = {
 		.name = "sta32x",
-		.owner = THIS_MODULE,
 		.of_match_table = of_match_ptr(st32x_dt_ids),
 	},
 	.probe =    sta32x_i2c_probe,

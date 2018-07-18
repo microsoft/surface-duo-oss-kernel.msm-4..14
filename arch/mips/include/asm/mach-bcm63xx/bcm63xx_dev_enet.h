@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef BCM63XX_DEV_ENET_H_
 #define BCM63XX_DEV_ENET_H_
 
@@ -22,7 +23,7 @@ struct bcm63xx_enet_platform_data {
 	int has_phy_interrupt;
 	int phy_interrupt;
 
-	/* if has_phy, use autonegociated pause parameters or force
+	/* if has_phy, use autonegotiated pause parameters or force
 	 * them */
 	int pause_auto;
 	int pause_rx;

@@ -52,7 +52,7 @@ MODULE_LICENSE("GPL");
  * TYPEDEFS
  ********************************/
   /* hardware definition */
-static struct snd_pcm_hardware snd_aw2_playback_hw = {
+static const struct snd_pcm_hardware snd_aw2_playback_hw = {
 	.info = (SNDRV_PCM_INFO_MMAP |
 		 SNDRV_PCM_INFO_INTERLEAVED |
 		 SNDRV_PCM_INFO_BLOCK_TRANSFER | SNDRV_PCM_INFO_MMAP_VALID),
@@ -69,7 +69,7 @@ static struct snd_pcm_hardware snd_aw2_playback_hw = {
 	.periods_max = 1024,
 };
 
-static struct snd_pcm_hardware snd_aw2_capture_hw = {
+static const struct snd_pcm_hardware snd_aw2_capture_hw = {
 	.info = (SNDRV_PCM_INFO_MMAP |
 		 SNDRV_PCM_INFO_INTERLEAVED |
 		 SNDRV_PCM_INFO_BLOCK_TRANSFER | SNDRV_PCM_INFO_MMAP_VALID),
@@ -179,7 +179,7 @@ static struct pci_driver aw2_driver = {
 module_pci_driver(aw2_driver);
 
 /* operators for playback PCM alsa interface */
-static struct snd_pcm_ops snd_aw2_playback_ops = {
+static const struct snd_pcm_ops snd_aw2_playback_ops = {
 	.open = snd_aw2_pcm_playback_open,
 	.close = snd_aw2_pcm_playback_close,
 	.ioctl = snd_pcm_lib_ioctl,
@@ -191,7 +191,7 @@ static struct snd_pcm_ops snd_aw2_playback_ops = {
 };
 
 /* operators for capture PCM alsa interface */
-static struct snd_pcm_ops snd_aw2_capture_ops = {
+static const struct snd_pcm_ops snd_aw2_capture_ops = {
 	.open = snd_aw2_pcm_capture_open,
 	.close = snd_aw2_pcm_capture_close,
 	.ioctl = snd_pcm_lib_ioctl,
@@ -202,7 +202,7 @@ static struct snd_pcm_ops snd_aw2_capture_ops = {
 	.pointer = snd_aw2_pcm_pointer_capture,
 };
 
-static struct snd_kcontrol_new aw2_control = {
+static const struct snd_kcontrol_new aw2_control = {
 	.iface = SNDRV_CTL_ELEM_IFACE_MIXER,
 	.name = "PCM Capture Route",
 	.index = 0,
@@ -258,8 +258,8 @@ static int snd_aw2_create(struct snd_card *card,
 	pci_set_master(pci);
 
 	/* check PCI availability (32bit DMA) */
-	if ((pci_set_dma_mask(pci, DMA_BIT_MASK(32)) < 0) ||
-	    (pci_set_consistent_dma_mask(pci, DMA_BIT_MASK(32)) < 0)) {
+	if ((dma_set_mask(&pci->dev, DMA_BIT_MASK(32)) < 0) ||
+	    (dma_set_coherent_mask(&pci->dev, DMA_BIT_MASK(32)) < 0)) {
 		dev_err(card->dev, "Impossible to set 32bit mask DMA\n");
 		pci_disable_device(pci);
 		return -ENXIO;

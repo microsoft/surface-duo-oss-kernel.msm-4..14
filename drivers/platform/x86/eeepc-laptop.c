@@ -37,6 +37,7 @@
 #include <linux/pci_hotplug.h>
 #include <linux/leds.h>
 #include <linux/dmi.h>
+#include <acpi/video.h>
 
 #define EEEPC_LAPTOP_VERSION	"0.1"
 #define EEEPC_LAPTOP_NAME	"Eee PC Hotkey Driver"
@@ -149,6 +150,8 @@ static const struct key_entry eeepc_keymap[] = {
 	{ KE_KEY, 0x32, { KEY_SWITCHVIDEOMODE } },
 	{ KE_KEY, 0x37, { KEY_F13 } }, /* Disable Touchpad */
 	{ KE_KEY, 0x38, { KEY_F14 } },
+	{ KE_IGNORE, 0x50, { KEY_RESERVED } }, /* AC plugged */
+	{ KE_IGNORE, 0x51, { KEY_RESERVED } }, /* AC unplugged */
 	{ KE_END, 0 },
 };
 
@@ -442,7 +445,7 @@ static struct attribute *platform_attributes[] = {
 	NULL
 };
 
-static struct attribute_group platform_attribute_group = {
+static const struct attribute_group platform_attribute_group = {
 	.attrs = platform_attributes
 };
 
@@ -1204,14 +1207,12 @@ static int eeepc_input_init(struct eeepc_laptop *eeepc)
 	error = input_register_device(input);
 	if (error) {
 		pr_err("Unable to register input device\n");
-		goto err_free_keymap;
+		goto err_free_dev;
 	}
 
 	eeepc->inputdev = input;
 	return 0;
 
-err_free_keymap:
-	sparse_keymap_free(input);
 err_free_dev:
 	input_free_device(input);
 	return error;
@@ -1219,10 +1220,8 @@ err_free_dev:
 
 static void eeepc_input_exit(struct eeepc_laptop *eeepc)
 {
-	if (eeepc->inputdev) {
-		sparse_keymap_free(eeepc->inputdev);
+	if (eeepc->inputdev)
 		input_unregister_device(eeepc->inputdev);
-	}
 	eeepc->inputdev = NULL;
 }
 
@@ -1433,12 +1432,10 @@ static int eeepc_acpi_add(struct acpi_device *device)
 	if (result)
 		goto fail_platform;
 
-	if (!acpi_video_backlight_support()) {
+	if (acpi_video_get_backlight_type() == acpi_backlight_vendor) {
 		result = eeepc_backlight_init(eeepc);
 		if (result)
 			goto fail_backlight;
-	} else {
-		pr_info("Backlight controlled by ACPI video driver\n");
 	}
 
 	result = eeepc_input_init(eeepc);

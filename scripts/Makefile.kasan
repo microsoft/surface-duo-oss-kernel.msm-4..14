@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 ifdef CONFIG_KASAN
 ifdef CONFIG_KASAN_INLINE
 	call_threshold := 10000
@@ -5,10 +6,12 @@ else
 	call_threshold := 0
 endif
 
+KASAN_SHADOW_OFFSET ?= $(CONFIG_KASAN_SHADOW_OFFSET)
+
 CFLAGS_KASAN_MINIMAL := -fsanitize=kernel-address
 
 CFLAGS_KASAN := $(call cc-option, -fsanitize=kernel-address \
-		-fasan-shadow-offset=$(CONFIG_KASAN_SHADOW_OFFSET) \
+		-fasan-shadow-offset=$(KASAN_SHADOW_OFFSET) \
 		--param asan-stack=1 --param asan-globals=1 \
 		--param asan-instrumentation-with-call-threshold=$(call_threshold))
 
@@ -26,4 +29,11 @@ else
         CFLAGS_KASAN := $(CFLAGS_KASAN_MINIMAL)
     endif
 endif
+
+ifdef CONFIG_KASAN_EXTRA
+CFLAGS_KASAN += $(call cc-option, -fsanitize-address-use-after-scope)
+endif
+
+CFLAGS_KASAN_NOSANITIZE := -fno-builtin
+
 endif

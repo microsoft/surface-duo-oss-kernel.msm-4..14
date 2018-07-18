@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __PERF_TOP_H
 #define __PERF_TOP_H 1
 
@@ -5,7 +6,7 @@
 #include <linux/types.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include <termios.h>
+#include <sys/ioctl.h>
 
 struct perf_evlist;
 struct perf_evsel;
@@ -27,7 +28,6 @@ struct perf_top {
 	int		   max_stack;
 	bool		   hide_kernel_symbols, hide_user_symbols, zero;
 	bool		   use_tui, use_stdio;
-	bool		   kptr_restrict_warned;
 	bool		   vmlinux_warned;
 	bool		   dump_symtab;
 	struct hist_entry  *sym_filter_entry;

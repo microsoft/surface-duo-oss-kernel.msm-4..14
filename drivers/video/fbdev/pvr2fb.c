@@ -154,7 +154,7 @@ static struct fb_fix_screeninfo pvr2_fix = {
 	.accel =	FB_ACCEL_NONE,
 };
 
-static struct fb_var_screeninfo pvr2_var = {
+static const struct fb_var_screeninfo pvr2_var = {
 	.xres =		640,
 	.yres =		480,
 	.xres_virtual =	640,
@@ -686,8 +686,8 @@ static ssize_t pvr2fb_write(struct fb_info *info, const char *buf,
 	if (!pages)
 		return -ENOMEM;
 
-	ret = get_user_pages_unlocked(current, current->mm, (unsigned long)buf,
-				      nr_pages, WRITE, 0, pages);
+	ret = get_user_pages_unlocked((unsigned long)buf, nr_pages, pages,
+			FOLL_WRITE);
 
 	if (ret < nr_pages) {
 		nr_pages = ret;
@@ -735,7 +735,7 @@ out:
 
 out_unmap:
 	for (i = 0; i < nr_pages; i++)
-		page_cache_release(pages[i]);
+		put_page(pages[i]);
 
 	kfree(pages);
 
@@ -966,7 +966,7 @@ static void pvr2fb_pci_remove(struct pci_dev *pdev)
 	pci_release_regions(pdev);
 }
 
-static struct pci_device_id pvr2fb_pci_tbl[] = {
+static const struct pci_device_id pvr2fb_pci_tbl[] = {
 	{ PCI_VENDOR_ID_NEC, PCI_DEVICE_ID_NEC_NEON250,
 	  PCI_ANY_ID, PCI_ANY_ID, 0, 0, 0 },
 	{ 0, },

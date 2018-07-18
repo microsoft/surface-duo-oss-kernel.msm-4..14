@@ -21,150 +21,114 @@
  *
  * Authors: Ben Skeggs
  */
-#include "nv50.h"
-#include "outpdp.h"
+#include "ior.h"
+#include "head.h"
 
-#include <core/client.h>
 #include <subdev/i2c.h>
 #include <subdev/timer.h>
 
-#include <nvif/class.h>
-#include <nvif/unpack.h>
-
-/******************************************************************************
- * TMDS
- *****************************************************************************/
+static void
+nv50_pior_clock(struct nvkm_ior *pior)
+{
+	struct nvkm_device *device = pior->disp->engine.subdev.device;
+	const u32 poff = nv50_ior_base(pior);
+	nvkm_mask(device, 0x614380 + poff, 0x00000707, 0x00000001);
+}
 
 static int
-nv50_pior_tmds_ctor(struct nvkm_object *parent,
-		    struct nvkm_object *engine,
-		    struct nvkm_oclass *oclass, void *info, u32 index,
-		    struct nvkm_object **pobject)
+nv50_pior_dp_links(struct nvkm_ior *pior, struct nvkm_i2c_aux *aux)
 {
-	struct nvkm_i2c *i2c = nvkm_i2c(parent);
-	struct nvkm_output *outp;
-	int ret;
-
-	ret = nvkm_output_create(parent, engine, oclass, info, index, &outp);
-	*pobject = nv_object(outp);
+	int ret = nvkm_i2c_aux_lnk_ctl(aux, pior->dp.nr, pior->dp.bw,
+					    pior->dp.ef);
 	if (ret)
 		return ret;
-
-	outp->edid = i2c->find_type(i2c, NV_I2C_TYPE_EXTDDC(outp->info.extdev));
-	return 0;
+	return 1;
 }
 
-struct nvkm_output_impl
-nv50_pior_tmds_impl = {
-	.base.handle = DCB_OUTPUT_TMDS | 0x0100,
-	.base.ofuncs = &(struct nvkm_ofuncs) {
-		.ctor = nv50_pior_tmds_ctor,
-		.dtor = _nvkm_output_dtor,
-		.init = _nvkm_output_init,
-		.fini = _nvkm_output_fini,
+static void
+nv50_pior_power_wait(struct nvkm_device *device, u32 poff)
+{
+	nvkm_msec(device, 2000,
+		if (!(nvkm_rd32(device, 0x61e004 + poff) & 0x80000000))
+			break;
+	);
+}
+
+static void
+nv50_pior_power(struct nvkm_ior *pior, bool normal, bool pu,
+	       bool data, bool vsync, bool hsync)
+{
+	struct nvkm_device *device = pior->disp->engine.subdev.device;
+	const u32  poff = nv50_ior_base(pior);
+	const u32 shift = normal ? 0 : 16;
+	const u32 state = 0x80000000 | (0x00000001 * !!pu) << shift;
+	const u32 field = 0x80000000 | (0x00000101 << shift);
+
+	nv50_pior_power_wait(device, poff);
+	nvkm_mask(device, 0x61e004 + poff, field, state);
+	nv50_pior_power_wait(device, poff);
+}
+
+void
+nv50_pior_depth(struct nvkm_ior *ior, struct nvkm_ior_state *state, u32 ctrl)
+{
+	/* GF119 moves this information to per-head methods, which is
+	 * a lot more convenient, and where our shared code expect it.
+	 */
+	if (state->head && state == &ior->asy) {
+		struct nvkm_head *head =
+			nvkm_head_find(ior->disp, __ffs(state->head));
+		if (!WARN_ON(!head)) {
+			struct nvkm_head_state *state = &head->asy;
+			switch ((ctrl & 0x000f0000) >> 16) {
+			case 6: state->or.depth = 30; break;
+			case 5: state->or.depth = 24; break;
+			case 2: state->or.depth = 18; break;
+			case 0: state->or.depth = 18; break; /*XXX*/
+			default:
+				state->or.depth = 18;
+				WARN_ON(1);
+				break;
+			}
+		}
+	}
+}
+
+static void
+nv50_pior_state(struct nvkm_ior *pior, struct nvkm_ior_state *state)
+{
+	struct nvkm_device *device = pior->disp->engine.subdev.device;
+	const u32 coff = pior->id * 8 + (state == &pior->arm) * 4;
+	u32 ctrl = nvkm_rd32(device, 0x610b80 + coff);
+
+	state->proto_evo = (ctrl & 0x00000f00) >> 8;
+	state->rgdiv = 1;
+	switch (state->proto_evo) {
+	case 0: state->proto = TMDS; break;
+	default:
+		state->proto = UNKNOWN;
+		break;
+	}
+
+	state->head = ctrl & 0x00000003;
+	nv50_pior_depth(pior, state, ctrl);
+}
+
+static const struct nvkm_ior_func
+nv50_pior = {
+	.state = nv50_pior_state,
+	.power = nv50_pior_power,
+	.clock = nv50_pior_clock,
+	.dp = {
+		.links = nv50_pior_dp_links,
 	},
 };
-
-/******************************************************************************
- * DisplayPort
- *****************************************************************************/
-
-static int
-nv50_pior_dp_pattern(struct nvkm_output_dp *outp, int pattern)
-{
-	struct nvkm_i2c_port *port = outp->base.edid;
-	if (port && port->func->pattern)
-		return port->func->pattern(port, pattern);
-	return port ? 0 : -ENODEV;
-}
-
-static int
-nv50_pior_dp_lnk_pwr(struct nvkm_output_dp *outp, int nr)
-{
-	return 0;
-}
-
-static int
-nv50_pior_dp_lnk_ctl(struct nvkm_output_dp *outp, int nr, int bw, bool ef)
-{
-	struct nvkm_i2c_port *port = outp->base.edid;
-	if (port && port->func->lnk_ctl)
-		return port->func->lnk_ctl(port, nr, bw, ef);
-	return port ? 0 : -ENODEV;
-}
-
-static int
-nv50_pior_dp_drv_ctl(struct nvkm_output_dp *outp, int ln, int vs, int pe, int pc)
-{
-	struct nvkm_i2c_port *port = outp->base.edid;
-	if (port && port->func->drv_ctl)
-		return port->func->drv_ctl(port, ln, vs, pe);
-	return port ? 0 : -ENODEV;
-}
-
-static int
-nv50_pior_dp_ctor(struct nvkm_object *parent,
-		  struct nvkm_object *engine,
-		  struct nvkm_oclass *oclass, void *info, u32 index,
-		  struct nvkm_object **pobject)
-{
-	struct nvkm_i2c *i2c = nvkm_i2c(parent);
-	struct nvkm_output_dp *outp;
-	int ret;
-
-	ret = nvkm_output_dp_create(parent, engine, oclass, info, index, &outp);
-	*pobject = nv_object(outp);
-	if (ret)
-		return ret;
-
-	outp->base.edid = i2c->find_type(i2c, NV_I2C_TYPE_EXTAUX(
-					 outp->base.info.extdev));
-	return 0;
-}
-
-struct nvkm_output_dp_impl
-nv50_pior_dp_impl = {
-	.base.base.handle = DCB_OUTPUT_DP | 0x0010,
-	.base.base.ofuncs = &(struct nvkm_ofuncs) {
-		.ctor = nv50_pior_dp_ctor,
-		.dtor = _nvkm_output_dp_dtor,
-		.init = _nvkm_output_dp_init,
-		.fini = _nvkm_output_dp_fini,
-	},
-	.pattern = nv50_pior_dp_pattern,
-	.lnk_pwr = nv50_pior_dp_lnk_pwr,
-	.lnk_ctl = nv50_pior_dp_lnk_ctl,
-	.drv_ctl = nv50_pior_dp_drv_ctl,
-};
-
-/******************************************************************************
- * General PIOR handling
- *****************************************************************************/
 
 int
-nv50_pior_power(NV50_DISP_MTHD_V1)
+nv50_pior_new(struct nvkm_disp *disp, int id)
 {
-	const u32 soff = outp->or * 0x800;
-	union {
-		struct nv50_disp_pior_pwr_v0 v0;
-	} *args = data;
-	u32 ctrl, type;
-	int ret;
-
-	nv_ioctl(object, "disp pior pwr size %d\n", size);
-	if (nvif_unpack(args->v0, 0, 0, false)) {
-		nv_ioctl(object, "disp pior pwr vers %d state %d type %x\n",
-			 args->v0.version, args->v0.state, args->v0.type);
-		if (args->v0.type > 0x0f)
-			return -EINVAL;
-		ctrl = !!args->v0.state;
-		type = args->v0.type;
-	} else
-		return ret;
-
-	nv_wait(priv, 0x61e004 + soff, 0x80000000, 0x00000000);
-	nv_mask(priv, 0x61e004 + soff, 0x80000101, 0x80000000 | ctrl);
-	nv_wait(priv, 0x61e004 + soff, 0x80000000, 0x00000000);
-	priv->pior.type[outp->or] = type;
-	return 0;
+	struct nvkm_device *device = disp->engine.subdev.device;
+	if (!(nvkm_rd32(device, 0x610184) & (0x10000000 << id)))
+		return 0;
+	return nvkm_ior_new_(&nv50_pior, disp, PIOR, id);
 }

@@ -19,8 +19,6 @@
 #include <linux/usb/gadget.h>
 #include <linux/usb/g_printer.h>
 
-#include "gadget_chips.h"
-
 USB_GADGET_COMPOSITE_OPTIONS();
 
 #define DRIVER_DESC		"Printer Gadget"
@@ -73,7 +71,7 @@ static struct usb_function *f_printer;
 static struct usb_device_descriptor device_desc = {
 	.bLength =		sizeof device_desc,
 	.bDescriptorType =	USB_DT_DEVICE,
-	.bcdUSB =		cpu_to_le16(0x0200),
+	/* .bcdUSB = DYNAMIC */
 	.bDeviceClass =		USB_CLASS_PER_INTERFACE,
 	.bDeviceSubClass =	0,
 	.bDeviceProtocol =	0,
@@ -82,16 +80,7 @@ static struct usb_device_descriptor device_desc = {
 	.bNumConfigurations =	1
 };
 
-static struct usb_otg_descriptor otg_descriptor = {
-	.bLength =              sizeof otg_descriptor,
-	.bDescriptorType =      USB_DT_OTG,
-	.bmAttributes =         USB_OTG_SRP,
-};
-
-static const struct usb_descriptor_header *otg_desc[] = {
-	(struct usb_descriptor_header *) &otg_descriptor,
-	NULL,
-};
+static const struct usb_descriptor_header *otg_desc[2];
 
 /*-------------------------------------------------------------------------*/
 
@@ -99,8 +88,8 @@ static const struct usb_descriptor_header *otg_desc[] = {
 
 static char				product_desc [40] = DRIVER_DESC;
 static char				serial_num [40] = "1";
-static char				pnp_string[PNP_STRING_LEN] =
-	"XXMFG:linux;MDL:g_printer;CLS:PRINTER;SN:1;";
+static char				*pnp_string =
+	"MFG:linux;MDL:g_printer;CLS:PRINTER;SN:1;";
 
 /* static strings, in UTF-8 */
 static struct usb_string		strings [] = {
@@ -136,7 +125,6 @@ static int printer_do_config(struct usb_configuration *c)
 	usb_gadget_set_selfpowered(gadget);
 
 	if (gadget_is_otg(gadget)) {
-		otg_descriptor.bmAttributes |= USB_OTG_HNP;
 		printer_cfg_driver.descriptors = otg_desc;
 		printer_cfg_driver.bmAttributes |= USB_CONFIG_ATT_WAKEUP;
 	}
@@ -155,39 +143,63 @@ static int printer_do_config(struct usb_configuration *c)
 static int printer_bind(struct usb_composite_dev *cdev)
 {
 	struct f_printer_opts *opts;
-	int ret, len;
+	int ret;
 
 	fi_printer = usb_get_function_instance("printer");
 	if (IS_ERR(fi_printer))
 		return PTR_ERR(fi_printer);
 
-	if (iPNPstring)
-		strlcpy(&pnp_string[2], iPNPstring, PNP_STRING_LEN - 2);
-
-	len = strlen(pnp_string);
-	pnp_string[0] = (len >> 8) & 0xFF;
-	pnp_string[1] = len & 0xFF;
-
 	opts = container_of(fi_printer, struct f_printer_opts, func_inst);
 	opts->minor = 0;
-	memcpy(opts->pnp_string, pnp_string, PNP_STRING_LEN);
 	opts->q_len = QLEN;
+	if (iPNPstring) {
+		opts->pnp_string = kstrdup(iPNPstring, GFP_KERNEL);
+		if (!opts->pnp_string) {
+			ret = -ENOMEM;
+			goto fail_put_func_inst;
+		}
+		opts->pnp_string_allocated = true;
+		/*
+		 * we don't free this memory in case of error
+		 * as printer cleanup func will do this for us
+		 */
+	} else {
+		opts->pnp_string = pnp_string;
+	}
 
 	ret = usb_string_ids_tab(cdev, strings);
-	if (ret < 0) {
-		usb_put_function_instance(fi_printer);
-		return ret;
-	}
+	if (ret < 0)
+		goto fail_put_func_inst;
+
 	device_desc.iManufacturer = strings[USB_GADGET_MANUFACTURER_IDX].id;
 	device_desc.iProduct = strings[USB_GADGET_PRODUCT_IDX].id;
 	device_desc.iSerialNumber = strings[USB_GADGET_SERIAL_IDX].id;
 
-	ret = usb_add_config(cdev, &printer_cfg_driver, printer_do_config);
-	if (ret) {
-		usb_put_function_instance(fi_printer);
-		return ret;
+	if (gadget_is_otg(cdev->gadget) && !otg_desc[0]) {
+		struct usb_descriptor_header *usb_desc;
+
+		usb_desc = usb_otg_descriptor_alloc(cdev->gadget);
+		if (!usb_desc) {
+			ret = -ENOMEM;
+			goto fail_put_func_inst;
+		}
+		usb_otg_descriptor_init(cdev->gadget, usb_desc);
+		otg_desc[0] = usb_desc;
+		otg_desc[1] = NULL;
 	}
+
+	ret = usb_add_config(cdev, &printer_cfg_driver, printer_do_config);
+	if (ret)
+		goto fail_free_otg_desc;
+
 	usb_composite_overwrite_options(cdev, &coverwrite);
+	return ret;
+
+fail_free_otg_desc:
+	kfree(otg_desc[0]);
+	otg_desc[0] = NULL;
+fail_put_func_inst:
+	usb_put_function_instance(fi_printer);
 	return ret;
 }
 
@@ -195,6 +207,9 @@ static int printer_unbind(struct usb_composite_dev *cdev)
 {
 	usb_put_function(f_printer);
 	usb_put_function_instance(fi_printer);
+
+	kfree(otg_desc[0]);
+	otg_desc[0] = NULL;
 
 	return 0;
 }

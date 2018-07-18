@@ -558,12 +558,10 @@ static void snd_card_asihpi_pcm_int_start(struct snd_pcm_substream *substream)
 	struct snd_card_asihpi_pcm *dpcm;
 	struct snd_card_asihpi *card;
 
-	BUG_ON(!substream);
-
 	dpcm = (struct snd_card_asihpi_pcm *)substream->runtime->private_data;
 	card = snd_pcm_substream_chip(substream);
 
-	BUG_ON(in_interrupt());
+	WARN_ON(in_interrupt());
 	tasklet_disable(&card->t);
 	card->llmode_streampriv = dpcm;
 	tasklet_enable(&card->t);
@@ -577,8 +575,6 @@ static void snd_card_asihpi_pcm_int_stop(struct snd_pcm_substream *substream)
 {
 	struct snd_card_asihpi_pcm *dpcm;
 	struct snd_card_asihpi *card;
-
-	BUG_ON(!substream);
 
 	dpcm = (struct snd_card_asihpi_pcm *)substream->runtime->private_data;
 	card = snd_pcm_substream_chip(substream);
@@ -1138,7 +1134,7 @@ static int snd_card_asihpi_playback_close(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static struct snd_pcm_ops snd_card_asihpi_playback_mmap_ops = {
+static const struct snd_pcm_ops snd_card_asihpi_playback_mmap_ops = {
 	.open = snd_card_asihpi_playback_open,
 	.close = snd_card_asihpi_playback_close,
 	.ioctl = snd_card_asihpi_playback_ioctl,
@@ -1305,7 +1301,7 @@ static int snd_card_asihpi_capture_close(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static struct snd_pcm_ops snd_card_asihpi_capture_mmap_ops = {
+static const struct snd_pcm_ops snd_card_asihpi_capture_mmap_ops = {
 	.open = snd_card_asihpi_capture_open,
 	.close = snd_card_asihpi_capture_close,
 	.ioctl = snd_card_asihpi_capture_ioctl,

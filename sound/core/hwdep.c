@@ -25,6 +25,7 @@
 #include <linux/time.h>
 #include <linux/mutex.h>
 #include <linux/module.h>
+#include <linux/sched/signal.h>
 #include <sound/core.h>
 #include <sound/control.h>
 #include <sound/minors.h>
@@ -84,7 +85,7 @@ static int snd_hwdep_open(struct inode *inode, struct file * file)
 	int major = imajor(inode);
 	struct snd_hwdep *hw;
 	int err;
-	wait_queue_t wait;
+	wait_queue_entry_t wait;
 
 	if (major == snd_major) {
 		hw = snd_lookup_minor_data(iminor(inode),
@@ -484,7 +485,7 @@ static int snd_hwdep_dev_disconnect(struct snd_device *device)
 	return 0;
 }
 
-#ifdef CONFIG_PROC_FS
+#ifdef CONFIG_SND_PROC_FS
 /*
  *  Info interface
  */
@@ -521,10 +522,10 @@ static void __exit snd_hwdep_proc_done(void)
 {
 	snd_info_free_entry(snd_hwdep_proc_entry);
 }
-#else /* !CONFIG_PROC_FS */
+#else /* !CONFIG_SND_PROC_FS */
 #define snd_hwdep_proc_init()
 #define snd_hwdep_proc_done()
-#endif /* CONFIG_PROC_FS */
+#endif /* CONFIG_SND_PROC_FS */
 
 
 /*

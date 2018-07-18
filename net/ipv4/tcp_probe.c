@@ -105,8 +105,9 @@ static inline int tcp_probe_avail(void)
  * Note: arguments must match tcp_rcv_established()!
  */
 static void jtcp_rcv_established(struct sock *sk, struct sk_buff *skb,
-				 const struct tcphdr *th, unsigned int len)
+				 const struct tcphdr *th)
 {
+	unsigned int len = skb->len;
 	const struct tcp_sock *tp = tcp_sk(sk);
 	const struct inet_sock *inet = inet_sk(sk);
 
@@ -145,7 +146,7 @@ static void jtcp_rcv_established(struct sock *sk, struct sk_buff *skb,
 				BUG();
 			}
 
-			p->length = skb->len;
+			p->length = len;
 			p->snd_nxt = tp->snd_nxt;
 			p->snd_una = tp->snd_una;
 			p->snd_cwnd = tp->snd_cwnd;
@@ -187,13 +188,13 @@ static int tcpprobe_sprint(char *tbuf, int n)
 {
 	const struct tcp_log *p
 		= tcp_probe.log + tcp_probe.tail;
-	struct timespec tv
-		= ktime_to_timespec(ktime_sub(p->tstamp, tcp_probe.start));
+	struct timespec64 ts
+		= ktime_to_timespec64(ktime_sub(p->tstamp, tcp_probe.start));
 
 	return scnprintf(tbuf, n,
 			"%lu.%09lu %pISpc %pISpc %d %#x %#x %u %u %u %u %u\n",
-			(unsigned long)tv.tv_sec,
-			(unsigned long)tv.tv_nsec,
+			(unsigned long)ts.tv_sec,
+			(unsigned long)ts.tv_nsec,
 			&p->src, &p->dst, p->length, p->snd_nxt, p->snd_una,
 			p->snd_cwnd, p->ssthresh, p->snd_wnd, p->srtt, p->rcv_wnd);
 }

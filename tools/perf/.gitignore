@@ -28,3 +28,8 @@ config.mak.autogen
 *-flex.*
 *.pyc
 *.pyo
+.config-detected
+util/intel-pt-decoder/inat-tables.c
+arch/*/include/generated/
+pmu-events/pmu-events.c
+pmu-events/jevents

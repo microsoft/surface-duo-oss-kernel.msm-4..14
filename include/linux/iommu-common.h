@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _LINUX_IOMMU_COMMON_H
 #define _LINUX_IOMMU_COMMON_H
 
@@ -7,6 +8,7 @@
 
 #define IOMMU_POOL_HASHBITS     4
 #define IOMMU_NR_POOLS          (1 << IOMMU_POOL_HASHBITS)
+#define IOMMU_ERROR_CODE	(~(unsigned long) 0)
 
 struct iommu_pool {
 	unsigned long	start;

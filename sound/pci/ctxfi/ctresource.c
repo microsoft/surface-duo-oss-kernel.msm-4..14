@@ -127,7 +127,7 @@ static int rsc_master(struct rsc *rsc)
 	return rsc->conj = rsc->idx;
 }
 
-static struct rsc_ops rsc_generic_ops = {
+static const struct rsc_ops rsc_generic_ops = {
 	.index		= rsc_index,
 	.output_slot	= audio_ring_slot,
 	.master		= rsc_master,
@@ -258,10 +258,8 @@ error:
 
 int rsc_mgr_uninit(struct rsc_mgr *mgr)
 {
-	if (NULL != mgr->rscs) {
-		kfree(mgr->rscs);
-		mgr->rscs = NULL;
-	}
+	kfree(mgr->rscs);
+	mgr->rscs = NULL;
 
 	if ((NULL != mgr->hw) && (NULL != mgr->ctrl_blk)) {
 		switch (mgr->type) {

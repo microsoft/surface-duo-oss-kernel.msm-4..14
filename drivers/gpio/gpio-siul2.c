@@ -23,7 +23,7 @@
 #include <linux/gpio.h>
 #include <linux/platform_device.h>
 #include <linux/slab.h>
-#include <linux/basic_mmio_gpio.h>
+#include <linux/gpio/driver.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/module.h>
@@ -181,7 +181,7 @@ static int siul2_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 
 	ret = pinctrl_gpio_direction_input(gc->base + eirq);
 	if (ret) {
-		dev_err(gc->dev, "Failed to configure %d pin as input pin\n",
+		dev_err(gc->parent, "Failed to configure %d pin as input pin\n",
 			eirq);
 		return ret;
 	}
@@ -189,7 +189,7 @@ static int siul2_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 	/* SIUL2 GPIO doesn't support level triggering */
 	if ((irq_type & IRQ_TYPE_LEVEL_HIGH)
 	    || (irq_type & IRQ_TYPE_LEVEL_LOW)) {
-		dev_err(gc->dev,
+		dev_err(gc->parent,
 			"Invalid SIUL2 GPIO irq type 0x%x\n", type);
 		return -EINVAL;
 	}
@@ -217,7 +217,7 @@ static int siul2_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 	return 0;
 }
 
-static void siul2_gpio_irq_handler(unsigned int irq, struct irq_desc *desc)
+static void siul2_gpio_irq_handler(struct irq_desc *desc)
 {
 	struct gpio_chip *gc = irq_desc_get_handler_data(desc);
 	struct siul2_gpio_dev *gpio_dev = to_siul2_gpio_dev(gc);
@@ -572,7 +572,7 @@ int siul2_gpio_probe(struct platform_device *pdev)
 	gpio_dev->pin_dir_bitmap = devm_kzalloc(&pdev->dev, bitmap_size,
 						GFP_KERNEL);
 
-	gc->dev = &pdev->dev;
+	gc->parent = &pdev->dev;
 	gc->label = dev_name(&pdev->dev);
 	gc->set = siul2_gpio_set;
 	gc->get = siul2_gpio_get;

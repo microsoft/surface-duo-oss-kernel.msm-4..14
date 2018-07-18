@@ -174,10 +174,9 @@ static const struct snd_soc_dapm_route tlv320aic23_intercon[] = {
 	{"ROUT", NULL, "Output Mixer"},
 
 	/* Inputs */
-	{"Line Input", "NULL", "LLINEIN"},
-	{"Line Input", "NULL", "RLINEIN"},
-
-	{"Mic Input", "NULL", "MICIN"},
+	{"Line Input", NULL, "LLINEIN"},
+	{"Line Input", NULL, "RLINEIN"},
+	{"Mic Input", NULL, "MICIN"},
 
 	/* input mux */
 	{"Capture Source", "Line", "Line Input"},
@@ -506,7 +505,6 @@ static int tlv320aic23_set_bias_level(struct snd_soc_codec *codec,
 		snd_soc_write(codec, TLV320AIC23_PWR, 0x1ff);
 		break;
 	}
-	codec->dapm.bias_level = level;
 	return 0;
 }
 
@@ -578,18 +576,20 @@ static int tlv320aic23_codec_probe(struct snd_soc_codec *codec)
 	return 0;
 }
 
-static struct snd_soc_codec_driver soc_codec_dev_tlv320aic23 = {
+static const struct snd_soc_codec_driver soc_codec_dev_tlv320aic23 = {
 	.probe = tlv320aic23_codec_probe,
 	.resume = tlv320aic23_resume,
 	.set_bias_level = tlv320aic23_set_bias_level,
 	.suspend_bias_off = true,
 
-	.controls = tlv320aic23_snd_controls,
-	.num_controls = ARRAY_SIZE(tlv320aic23_snd_controls),
-	.dapm_widgets = tlv320aic23_dapm_widgets,
-	.num_dapm_widgets = ARRAY_SIZE(tlv320aic23_dapm_widgets),
-	.dapm_routes = tlv320aic23_intercon,
-	.num_dapm_routes = ARRAY_SIZE(tlv320aic23_intercon),
+	.component_driver = {
+		.controls		= tlv320aic23_snd_controls,
+		.num_controls		= ARRAY_SIZE(tlv320aic23_snd_controls),
+		.dapm_widgets		= tlv320aic23_dapm_widgets,
+		.num_dapm_widgets	= ARRAY_SIZE(tlv320aic23_dapm_widgets),
+		.dapm_routes		= tlv320aic23_intercon,
+		.num_dapm_routes	= ARRAY_SIZE(tlv320aic23_intercon),
+	},
 };
 
 int tlv320aic23_probe(struct device *dev, struct regmap *regmap)

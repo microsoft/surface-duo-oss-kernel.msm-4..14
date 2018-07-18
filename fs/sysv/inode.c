@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/fs/sysv/inode.c
  *
@@ -70,7 +71,7 @@ static void sysv_put_super(struct super_block *sb)
 {
 	struct sysv_sb_info *sbi = SYSV_SB(sb);
 
-	if (!(sb->s_flags & MS_RDONLY)) {
+	if (!sb_rdonly(sb)) {
 		/* XXX ext2 also updates the state here */
 		mark_buffer_dirty(sbi->s_bh1);
 		if (sbi->s_bh1 != sbi->s_bh2)
@@ -145,9 +146,7 @@ static inline void write3byte(struct sysv_sb_info *sbi,
 }
 
 static const struct inode_operations sysv_symlink_inode_operations = {
-	.readlink	= generic_readlink,
-	.follow_link	= page_follow_link_light,
-	.put_link	= page_put_link,
+	.get_link	= page_get_link,
 	.getattr	= sysv_getattr,
 };
 
@@ -162,14 +161,9 @@ void sysv_set_inode(struct inode *inode, dev_t rdev)
 		inode->i_fop = &sysv_dir_operations;
 		inode->i_mapping->a_ops = &sysv_aops;
 	} else if (S_ISLNK(inode->i_mode)) {
-		if (inode->i_blocks) {
-			inode->i_op = &sysv_symlink_inode_operations;
-			inode->i_mapping->a_ops = &sysv_aops;
-		} else {
-			inode->i_op = &sysv_fast_symlink_inode_operations;
-			nd_terminate_link(SYSV_I(inode)->i_data, inode->i_size,
-				sizeof(SYSV_I(inode)->i_data) - 1);
-		}
+		inode->i_op = &sysv_symlink_inode_operations;
+		inode_nohighmem(inode);
+		inode->i_mapping->a_ops = &sysv_aops;
 	} else
 		init_special_inode(inode, inode->i_mode, rdev);
 }
@@ -352,7 +346,7 @@ int __init sysv_init_icache(void)
 {
 	sysv_inode_cachep = kmem_cache_create("sysv_inode_cache",
 			sizeof(struct sysv_inode_info), 0,
-			SLAB_RECLAIM_ACCOUNT|SLAB_MEM_SPREAD,
+			SLAB_RECLAIM_ACCOUNT|SLAB_MEM_SPREAD|SLAB_ACCOUNT,
 			init_once);
 	if (!sysv_inode_cachep)
 		return -ENOMEM;

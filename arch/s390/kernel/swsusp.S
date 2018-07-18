@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * S390 64-bit swsusp implementation
  *
@@ -30,6 +31,9 @@ ENTRY(swsusp_arch_suspend)
 	aghi	%r15,-STACK_FRAME_OVERHEAD
 	stg	%r1,__SF_BACKCHAIN(%r15)
 
+	/* Store FPU registers */
+	brasl	%r14,save_fpu_regs
+
 	/* Deactivate DAT */
 	stnsm	__SF_EMPTY(%r15),0xfb
 
@@ -47,23 +51,6 @@ ENTRY(swsusp_arch_suspend)
 
 	/* Store registers */
 	mvc	0x318(4,%r1),__SF_EMPTY(%r15)	/* move prefix to lowcore */
-	stfpc	0x31c(%r1)			/* store fpu control */
-	std	0,0x200(%r1)			/* store f0 */
-	std	1,0x208(%r1)			/* store f1 */
-	std	2,0x210(%r1)			/* store f2 */
-	std	3,0x218(%r1)			/* store f3 */
-	std	4,0x220(%r1)			/* store f4 */
-	std	5,0x228(%r1)			/* store f5 */
-	std	6,0x230(%r1)			/* store f6 */
-	std	7,0x238(%r1)			/* store f7 */
-	std	8,0x240(%r1)			/* store f8 */
-	std	9,0x248(%r1)			/* store f9 */
-	std	10,0x250(%r1)			/* store f10 */
-	std	11,0x258(%r1)			/* store f11 */
-	std	12,0x260(%r1)			/* store f12 */
-	std	13,0x268(%r1)			/* store f13 */
-	std	14,0x270(%r1)			/* store f14 */
-	std	15,0x278(%r1)			/* store f15 */
 	stam	%a0,%a15,0x340(%r1)		/* store access registers */
 	stctg	%c0,%c15,0x380(%r1)		/* store control registers */
 	stmg	%r0,%r15,0x280(%r1)		/* store general registers */
@@ -208,9 +195,9 @@ pgm_check_entry:
 
 	/* Suspend CPU not available -> panic */
 	larl	%r15,init_thread_union
-	ahi	%r15,1<<(PAGE_SHIFT+THREAD_ORDER)
+	ahi	%r15,1<<(PAGE_SHIFT+THREAD_SIZE_ORDER)
 	larl	%r2,.Lpanic_string
-	larl	%r3,_sclp_print_early
+	larl	%r3,sclp_early_printk
 	lghi	%r1,0
 	sam31
 	sigp	%r1,%r0,SIGP_SET_ARCHITECTURE
@@ -248,24 +235,6 @@ restore_registers:
 
 	lctlg	%c0,%c15,0x380(%r13)	/* load control registers */
 	lam	%a0,%a15,0x340(%r13)	/* load access registers */
-
-	lfpc	0x31c(%r13)		/* load fpu control */
-	ld	0,0x200(%r13)		/* load f0 */
-	ld	1,0x208(%r13)		/* load f1 */
-	ld	2,0x210(%r13)		/* load f2 */
-	ld	3,0x218(%r13)		/* load f3 */
-	ld	4,0x220(%r13)		/* load f4 */
-	ld	5,0x228(%r13)		/* load f5 */
-	ld	6,0x230(%r13)		/* load f6 */
-	ld	7,0x238(%r13)		/* load f7 */
-	ld	8,0x240(%r13)		/* load f8 */
-	ld	9,0x248(%r13)		/* load f9 */
-	ld	10,0x250(%r13)		/* load f10 */
-	ld	11,0x258(%r13)		/* load f11 */
-	ld	12,0x260(%r13)		/* load f12 */
-	ld	13,0x268(%r13)		/* load f13 */
-	ld	14,0x270(%r13)		/* load f14 */
-	ld	15,0x278(%r13)		/* load f15 */
 
 	/* Load old stack */
 	lg	%r15,0x2f8(%r13)
@@ -305,7 +274,7 @@ restore_registers:
 .Ldisabled_wait_31:
 	.long  0x000a0000,0x00000000
 .Lpanic_string:
-	.asciz	"Resume not possible because suspend CPU is no longer available"
+	.asciz	"Resume not possible because suspend CPU is no longer available\n"
 	.align	8
 .Lrestart_diag308_psw:
 	.long	0x00080000,0x80000000

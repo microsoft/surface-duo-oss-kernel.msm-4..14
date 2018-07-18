@@ -24,7 +24,6 @@
 #include <linux/dma-mapping.h>
 #include <linux/err.h>
 #include <linux/i2c.h>
-#include <linux/i2c/i2c-sh_mobile.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
 #include <linux/io.h>
@@ -150,6 +149,7 @@ struct sh_mobile_i2c_data {
 
 struct sh_mobile_dt_config {
 	int clks_per_count;
+	void (*setup)(struct sh_mobile_i2c_data *pd);
 };
 
 #define IIC_FLAG_HAS_ICIC67	(1 << 0)
@@ -164,6 +164,7 @@ struct sh_mobile_dt_config {
 #define ICIC			0x0c
 #define ICCL			0x10
 #define ICCH			0x14
+#define ICSTART			0x70
 
 /* Register bits */
 #define ICCR_ICE		0x80
@@ -189,6 +190,8 @@ struct sh_mobile_dt_config {
 #define ICIC_TACKE		0x04
 #define ICIC_WAITE		0x02
 #define ICIC_DTEE		0x01
+
+#define ICSTART_ICSTART		0x10
 
 static void iic_wr(struct sh_mobile_i2c_data *pd, int offs, unsigned char data)
 {
@@ -394,8 +397,7 @@ static void sh_mobile_i2c_get_data(struct sh_mobile_i2c_data *pd,
 {
 	switch (pd->pos) {
 	case -1:
-		*buf = (pd->msg->addr & 0x7f) << 1;
-		*buf |= (pd->msg->flags & I2C_M_RD) ? 1 : 0;
+		*buf = i2c_8bit_addr_from_msg(pd->msg);
 		break;
 	default:
 		*buf = pd->msg->buf[pd->pos];
@@ -559,8 +561,8 @@ static struct dma_chan *sh_mobile_i2c_request_dma_chan(struct device *dev,
 
 	chan = dma_request_slave_channel_reason(dev, chan_name);
 	if (IS_ERR(chan)) {
-		ret = PTR_ERR(chan);
-		dev_dbg(dev, "request_channel failed for %s (%d)\n", chan_name, ret);
+		dev_dbg(dev, "request_channel failed for %s (%ld)\n", chan_name,
+			PTR_ERR(chan));
 		return chan;
 	}
 
@@ -607,7 +609,7 @@ static void sh_mobile_i2c_xfer_dma(struct sh_mobile_i2c_data *pd)
 		return;
 
 	dma_addr = dma_map_single(chan->device->dev, pd->msg->buf, pd->msg->len, dir);
-	if (dma_mapping_error(pd->dev, dma_addr)) {
+	if (dma_mapping_error(chan->device->dev, dma_addr)) {
 		dev_dbg(pd->dev, "dma map failed, using PIO\n");
 		return;
 	}
@@ -726,7 +728,8 @@ static int sh_mobile_i2c_xfer(struct i2c_adapter *adapter,
 	struct sh_mobile_i2c_data *pd = i2c_get_adapdata(adapter);
 	struct i2c_msg	*msg;
 	int err = 0;
-	int i, k;
+	int i;
+	long timeout;
 
 	activate_ch(pd);
 
@@ -745,10 +748,10 @@ static int sh_mobile_i2c_xfer(struct i2c_adapter *adapter,
 			i2c_op(pd, OP_START, 0);
 
 		/* The interrupt handler takes care of the rest... */
-		k = wait_event_timeout(pd->wait,
+		timeout = wait_event_timeout(pd->wait,
 				       pd->sr & (ICSR_TACK | SW_DONE),
-				       5 * HZ);
-		if (!k) {
+				       adapter->timeout);
+		if (!timeout) {
 			dev_err(pd->dev, "Transfer request timed out\n");
 			if (pd->dma_direction != DMA_NONE)
 				sh_mobile_i2c_cleanup_dma(pd);
@@ -777,10 +780,37 @@ static u32 sh_mobile_i2c_func(struct i2c_adapter *adapter)
 	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL | I2C_FUNC_PROTOCOL_MANGLING;
 }
 
-static struct i2c_algorithm sh_mobile_i2c_algorithm = {
+static const struct i2c_algorithm sh_mobile_i2c_algorithm = {
 	.functionality	= sh_mobile_i2c_func,
 	.master_xfer	= sh_mobile_i2c_xfer,
 };
+
+/*
+ * r8a7740 chip has lasting errata on I2C I/O pad reset.
+ * this is work-around for it.
+ */
+static void sh_mobile_i2c_r8a7740_workaround(struct sh_mobile_i2c_data *pd)
+{
+	iic_set_clr(pd, ICCR, ICCR_ICE, 0);
+	iic_rd(pd, ICCR); /* dummy read */
+
+	iic_set_clr(pd, ICSTART, ICSTART_ICSTART, 0);
+	iic_rd(pd, ICSTART); /* dummy read */
+
+	udelay(10);
+
+	iic_wr(pd, ICCR, ICCR_SCP);
+	iic_wr(pd, ICSTART, 0);
+
+	udelay(10);
+
+	iic_wr(pd, ICCR, ICCR_TRS);
+	udelay(10);
+	iic_wr(pd, ICCR, 0);
+	udelay(10);
+	iic_wr(pd, ICCR, ICCR_TRS);
+	udelay(10);
+}
 
 static const struct sh_mobile_dt_config default_dt_config = {
 	.clks_per_count = 1,
@@ -790,15 +820,24 @@ static const struct sh_mobile_dt_config fast_clock_dt_config = {
 	.clks_per_count = 2,
 };
 
+static const struct sh_mobile_dt_config r8a7740_dt_config = {
+	.clks_per_count = 1,
+	.setup = sh_mobile_i2c_r8a7740_workaround,
+};
+
 static const struct of_device_id sh_mobile_i2c_dt_ids[] = {
-	{ .compatible = "renesas,rmobile-iic", .data = &default_dt_config },
 	{ .compatible = "renesas,iic-r8a73a4", .data = &fast_clock_dt_config },
+	{ .compatible = "renesas,iic-r8a7740", .data = &r8a7740_dt_config },
 	{ .compatible = "renesas,iic-r8a7790", .data = &fast_clock_dt_config },
 	{ .compatible = "renesas,iic-r8a7791", .data = &fast_clock_dt_config },
 	{ .compatible = "renesas,iic-r8a7792", .data = &fast_clock_dt_config },
 	{ .compatible = "renesas,iic-r8a7793", .data = &fast_clock_dt_config },
 	{ .compatible = "renesas,iic-r8a7794", .data = &fast_clock_dt_config },
+	{ .compatible = "renesas,rcar-gen2-iic", .data = &fast_clock_dt_config },
+	{ .compatible = "renesas,iic-r8a7795", .data = &fast_clock_dt_config },
+	{ .compatible = "renesas,rcar-gen3-iic", .data = &fast_clock_dt_config },
 	{ .compatible = "renesas,iic-sh73a0", .data = &fast_clock_dt_config },
+	{ .compatible = "renesas,rmobile-iic", .data = &default_dt_config },
 	{},
 };
 MODULE_DEVICE_TABLE(of, sh_mobile_i2c_dt_ids);
@@ -839,10 +878,10 @@ static int sh_mobile_i2c_hook_irqs(struct platform_device *dev, struct sh_mobile
 
 static int sh_mobile_i2c_probe(struct platform_device *dev)
 {
-	struct i2c_sh_mobile_platform_data *pdata = dev_get_platdata(&dev->dev);
 	struct sh_mobile_i2c_data *pd;
 	struct i2c_adapter *adap;
 	struct resource *res;
+	const struct of_device_id *match;
 	int ret;
 	u32 bus_speed;
 
@@ -870,27 +909,18 @@ static int sh_mobile_i2c_probe(struct platform_device *dev)
 	if (IS_ERR(pd->reg))
 		return PTR_ERR(pd->reg);
 
-	/* Use platform data bus speed or STANDARD_MODE */
 	ret = of_property_read_u32(dev->dev.of_node, "clock-frequency", &bus_speed);
 	pd->bus_speed = ret ? STANDARD_MODE : bus_speed;
-
 	pd->clks_per_count = 1;
 
-	if (dev->dev.of_node) {
-		const struct of_device_id *match;
+	match = of_match_device(sh_mobile_i2c_dt_ids, &dev->dev);
+	if (match) {
+		const struct sh_mobile_dt_config *config = match->data;
 
-		match = of_match_device(sh_mobile_i2c_dt_ids, &dev->dev);
-		if (match) {
-			const struct sh_mobile_dt_config *config;
+		pd->clks_per_count = config->clks_per_count;
 
-			config = match->data;
-			pd->clks_per_count = config->clks_per_count;
-		}
-	} else {
-		if (pdata && pdata->bus_speed)
-			pd->bus_speed = pdata->bus_speed;
-		if (pdata && pdata->clks_per_count)
-			pd->clks_per_count = pdata->clks_per_count;
+		if (config->setup)
+			config->setup(pd);
 	}
 
 	/* The IIC blocks on SH-Mobile ARM processors
@@ -940,7 +970,6 @@ static int sh_mobile_i2c_probe(struct platform_device *dev)
 	ret = i2c_add_numbered_adapter(adap);
 	if (ret < 0) {
 		sh_mobile_i2c_release_dma(pd);
-		dev_err(&dev->dev, "cannot add numbered adapter\n");
 		return ret;
 	}
 

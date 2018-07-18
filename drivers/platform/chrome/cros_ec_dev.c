@@ -18,46 +18,65 @@
  */
 
 #include <linux/fs.h>
+#include <linux/mfd/core.h>
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/pm.h>
+#include <linux/slab.h>
 #include <linux/uaccess.h>
 
+#include "cros_ec_debugfs.h"
 #include "cros_ec_dev.h"
 
 /* Device variables */
 #define CROS_MAX_DEV 128
-static struct class *cros_class;
 static int ec_major;
 
+static const struct attribute_group *cros_ec_groups[] = {
+	&cros_ec_attr_group,
+	&cros_ec_lightbar_attr_group,
+	&cros_ec_vbc_attr_group,
+	NULL,
+};
+
+static struct class cros_class = {
+	.owner          = THIS_MODULE,
+	.name           = "chromeos",
+	.dev_groups     = cros_ec_groups,
+};
+
 /* Basic communication */
-static int ec_get_version(struct cros_ec_device *ec, char *str, int maxlen)
+static int ec_get_version(struct cros_ec_dev *ec, char *str, int maxlen)
 {
 	struct ec_response_get_version *resp;
 	static const char * const current_image_name[] = {
 		"unknown", "read-only", "read-write", "invalid",
 	};
-	struct cros_ec_command msg = {
-		.version = 0,
-		.command = EC_CMD_GET_VERSION,
-		.outdata = { 0 },
-		.outsize = 0,
-		.indata = { 0 },
-		.insize = sizeof(*resp),
-	};
+	struct cros_ec_command *msg;
 	int ret;
 
-	ret = cros_ec_cmd_xfer(ec, &msg);
-	if (ret < 0)
-		return ret;
+	msg = kmalloc(sizeof(*msg) + sizeof(*resp), GFP_KERNEL);
+	if (!msg)
+		return -ENOMEM;
 
-	if (msg.result != EC_RES_SUCCESS) {
+	msg->version = 0;
+	msg->command = EC_CMD_GET_VERSION + ec->cmd_offset;
+	msg->insize = sizeof(*resp);
+	msg->outsize = 0;
+
+	ret = cros_ec_cmd_xfer(ec->ec_dev, msg);
+	if (ret < 0)
+		goto exit;
+
+	if (msg->result != EC_RES_SUCCESS) {
 		snprintf(str, maxlen,
 			 "%s\nUnknown EC version: EC returned %d\n",
-			 CROS_EC_DEV_VERSION, msg.result);
-		return 0;
+			 CROS_EC_DEV_VERSION, msg->result);
+		ret = -EINVAL;
+		goto exit;
 	}
 
-	resp = (struct ec_response_get_version *)msg.indata;
+	resp = (struct ec_response_get_version *)msg->data;
 	if (resp->current_image >= ARRAY_SIZE(current_image_name))
 		resp->current_image = 3; /* invalid */
 
@@ -65,14 +84,54 @@ static int ec_get_version(struct cros_ec_device *ec, char *str, int maxlen)
 		 resp->version_string_ro, resp->version_string_rw,
 		 current_image_name[resp->current_image]);
 
-	return 0;
+	ret = 0;
+exit:
+	kfree(msg);
+	return ret;
+}
+
+static int cros_ec_check_features(struct cros_ec_dev *ec, int feature)
+{
+	struct cros_ec_command *msg;
+	int ret;
+
+	if (ec->features[0] == -1U && ec->features[1] == -1U) {
+		/* features bitmap not read yet */
+
+		msg = kmalloc(sizeof(*msg) + sizeof(ec->features), GFP_KERNEL);
+		if (!msg)
+			return -ENOMEM;
+
+		msg->version = 0;
+		msg->command = EC_CMD_GET_FEATURES + ec->cmd_offset;
+		msg->insize = sizeof(ec->features);
+		msg->outsize = 0;
+
+		ret = cros_ec_cmd_xfer(ec->ec_dev, msg);
+		if (ret < 0 || msg->result != EC_RES_SUCCESS) {
+			dev_warn(ec->dev, "cannot get EC features: %d/%d\n",
+				 ret, msg->result);
+			memset(ec->features, 0, sizeof(ec->features));
+		}
+
+		memcpy(ec->features, msg->data, sizeof(ec->features));
+
+		dev_dbg(ec->dev, "EC features %08x %08x\n",
+			ec->features[0], ec->features[1]);
+
+		kfree(msg);
+	}
+
+	return ec->features[feature / 32] & EC_FEATURE_MASK_0(feature);
 }
 
 /* Device file ops */
 static int ec_device_open(struct inode *inode, struct file *filp)
 {
-	filp->private_data = container_of(inode->i_cdev,
-					  struct cros_ec_device, cdev);
+	struct cros_ec_dev *ec = container_of(inode->i_cdev,
+					      struct cros_ec_dev, cdev);
+	filp->private_data = ec;
+	nonseekable_open(inode, filp);
 	return 0;
 }
 
@@ -84,7 +143,7 @@ static int ec_device_release(struct inode *inode, struct file *filp)
 static ssize_t ec_device_read(struct file *filp, char __user *buffer,
 			      size_t length, loff_t *offset)
 {
-	struct cros_ec_device *ec = filp->private_data;
+	struct cros_ec_dev *ec = filp->private_data;
 	char msg[sizeof(struct ec_response_get_version) +
 		 sizeof(CROS_EC_DEV_VERSION)];
 	size_t count;
@@ -107,38 +166,63 @@ static ssize_t ec_device_read(struct file *filp, char __user *buffer,
 }
 
 /* Ioctls */
-static long ec_device_ioctl_xcmd(struct cros_ec_device *ec, void __user *arg)
+static long ec_device_ioctl_xcmd(struct cros_ec_dev *ec, void __user *arg)
 {
 	long ret;
-	struct cros_ec_command s_cmd = { };
+	struct cros_ec_command u_cmd;
+	struct cros_ec_command *s_cmd;
 
-	if (copy_from_user(&s_cmd, arg, sizeof(s_cmd)))
+	if (copy_from_user(&u_cmd, arg, sizeof(u_cmd)))
 		return -EFAULT;
 
-	ret = cros_ec_cmd_xfer(ec, &s_cmd);
+	if ((u_cmd.outsize > EC_MAX_MSG_BYTES) ||
+	    (u_cmd.insize > EC_MAX_MSG_BYTES))
+		return -EINVAL;
+
+	s_cmd = kmalloc(sizeof(*s_cmd) + max(u_cmd.outsize, u_cmd.insize),
+			GFP_KERNEL);
+	if (!s_cmd)
+		return -ENOMEM;
+
+	if (copy_from_user(s_cmd, arg, sizeof(*s_cmd) + u_cmd.outsize)) {
+		ret = -EFAULT;
+		goto exit;
+	}
+
+	if (u_cmd.outsize != s_cmd->outsize ||
+	    u_cmd.insize != s_cmd->insize) {
+		ret = -EINVAL;
+		goto exit;
+	}
+
+	s_cmd->command += ec->cmd_offset;
+	ret = cros_ec_cmd_xfer(ec->ec_dev, s_cmd);
 	/* Only copy data to userland if data was received. */
 	if (ret < 0)
-		return ret;
+		goto exit;
 
-	if (copy_to_user(arg, &s_cmd, sizeof(s_cmd)))
-		return -EFAULT;
-
-	return 0;
+	if (copy_to_user(arg, s_cmd, sizeof(*s_cmd) + s_cmd->insize))
+		ret = -EFAULT;
+exit:
+	kfree(s_cmd);
+	return ret;
 }
 
-static long ec_device_ioctl_readmem(struct cros_ec_device *ec, void __user *arg)
+static long ec_device_ioctl_readmem(struct cros_ec_dev *ec, void __user *arg)
 {
+	struct cros_ec_device *ec_dev = ec->ec_dev;
 	struct cros_ec_readmem s_mem = { };
 	long num;
 
 	/* Not every platform supports direct reads */
-	if (!ec->cmd_readmem)
+	if (!ec_dev->cmd_readmem)
 		return -ENOTTY;
 
 	if (copy_from_user(&s_mem, arg, sizeof(s_mem)))
 		return -EFAULT;
 
-	num = ec->cmd_readmem(ec, s_mem.offset, s_mem.bytes, s_mem.buffer);
+	num = ec_dev->cmd_readmem(ec_dev, s_mem.offset, s_mem.bytes,
+				  s_mem.buffer);
 	if (num <= 0)
 		return num;
 
@@ -151,7 +235,7 @@ static long ec_device_ioctl_readmem(struct cros_ec_device *ec, void __user *arg)
 static long ec_device_ioctl(struct file *filp, unsigned int cmd,
 			    unsigned long arg)
 {
-	struct cros_ec_device *ec = filp->private_data;
+	struct cros_ec_dev *ec = filp->private_data;
 
 	if (_IOC_TYPE(cmd) != CROS_EC_DEV_IOC)
 		return -ENOTTY;
@@ -172,53 +256,245 @@ static const struct file_operations fops = {
 	.release = ec_device_release,
 	.read = ec_device_read,
 	.unlocked_ioctl = ec_device_ioctl,
+#ifdef CONFIG_COMPAT
+	.compat_ioctl = ec_device_ioctl,
+#endif
 };
+
+static void __remove(struct device *dev)
+{
+	struct cros_ec_dev *ec = container_of(dev, struct cros_ec_dev,
+					      class_dev);
+	kfree(ec);
+}
+
+static void cros_ec_sensors_register(struct cros_ec_dev *ec)
+{
+	/*
+	 * Issue a command to get the number of sensor reported.
+	 * Build an array of sensors driver and register them all.
+	 */
+	int ret, i, id, sensor_num;
+	struct mfd_cell *sensor_cells;
+	struct cros_ec_sensor_platform *sensor_platforms;
+	int sensor_type[MOTIONSENSE_TYPE_MAX];
+	struct ec_params_motion_sense *params;
+	struct ec_response_motion_sense *resp;
+	struct cros_ec_command *msg;
+
+	msg = kzalloc(sizeof(struct cros_ec_command) +
+		      max(sizeof(*params), sizeof(*resp)), GFP_KERNEL);
+	if (msg == NULL)
+		return;
+
+	msg->version = 2;
+	msg->command = EC_CMD_MOTION_SENSE_CMD + ec->cmd_offset;
+	msg->outsize = sizeof(*params);
+	msg->insize = sizeof(*resp);
+
+	params = (struct ec_params_motion_sense *)msg->data;
+	params->cmd = MOTIONSENSE_CMD_DUMP;
+
+	ret = cros_ec_cmd_xfer(ec->ec_dev, msg);
+	if (ret < 0 || msg->result != EC_RES_SUCCESS) {
+		dev_warn(ec->dev, "cannot get EC sensor information: %d/%d\n",
+			 ret, msg->result);
+		goto error;
+	}
+
+	resp = (struct ec_response_motion_sense *)msg->data;
+	sensor_num = resp->dump.sensor_count;
+	/* Allocate 2 extra sensors in case lid angle or FIFO are needed */
+	sensor_cells = kzalloc(sizeof(struct mfd_cell) * (sensor_num + 2),
+			       GFP_KERNEL);
+	if (sensor_cells == NULL)
+		goto error;
+
+	sensor_platforms = kzalloc(sizeof(struct cros_ec_sensor_platform) *
+		  (sensor_num + 1), GFP_KERNEL);
+	if (sensor_platforms == NULL)
+		goto error_platforms;
+
+	memset(sensor_type, 0, sizeof(sensor_type));
+	id = 0;
+	for (i = 0; i < sensor_num; i++) {
+		params->cmd = MOTIONSENSE_CMD_INFO;
+		params->info.sensor_num = i;
+		ret = cros_ec_cmd_xfer(ec->ec_dev, msg);
+		if (ret < 0 || msg->result != EC_RES_SUCCESS) {
+			dev_warn(ec->dev, "no info for EC sensor %d : %d/%d\n",
+				 i, ret, msg->result);
+			continue;
+		}
+		switch (resp->info.type) {
+		case MOTIONSENSE_TYPE_ACCEL:
+			sensor_cells[id].name = "cros-ec-accel";
+			break;
+		case MOTIONSENSE_TYPE_BARO:
+			sensor_cells[id].name = "cros-ec-baro";
+			break;
+		case MOTIONSENSE_TYPE_GYRO:
+			sensor_cells[id].name = "cros-ec-gyro";
+			break;
+		case MOTIONSENSE_TYPE_MAG:
+			sensor_cells[id].name = "cros-ec-mag";
+			break;
+		case MOTIONSENSE_TYPE_PROX:
+			sensor_cells[id].name = "cros-ec-prox";
+			break;
+		case MOTIONSENSE_TYPE_LIGHT:
+			sensor_cells[id].name = "cros-ec-light";
+			break;
+		case MOTIONSENSE_TYPE_ACTIVITY:
+			sensor_cells[id].name = "cros-ec-activity";
+			break;
+		default:
+			dev_warn(ec->dev, "unknown type %d\n", resp->info.type);
+			continue;
+		}
+		sensor_platforms[id].sensor_num = i;
+		sensor_cells[id].id = sensor_type[resp->info.type];
+		sensor_cells[id].platform_data = &sensor_platforms[id];
+		sensor_cells[id].pdata_size =
+			sizeof(struct cros_ec_sensor_platform);
+
+		sensor_type[resp->info.type]++;
+		id++;
+	}
+	if (sensor_type[MOTIONSENSE_TYPE_ACCEL] >= 2) {
+		sensor_platforms[id].sensor_num = sensor_num;
+
+		sensor_cells[id].name = "cros-ec-angle";
+		sensor_cells[id].id = 0;
+		sensor_cells[id].platform_data = &sensor_platforms[id];
+		sensor_cells[id].pdata_size =
+			sizeof(struct cros_ec_sensor_platform);
+		id++;
+	}
+	if (cros_ec_check_features(ec, EC_FEATURE_MOTION_SENSE_FIFO)) {
+		sensor_cells[id].name = "cros-ec-ring";
+		id++;
+	}
+
+	ret = mfd_add_devices(ec->dev, 0, sensor_cells, id,
+			      NULL, 0, NULL);
+	if (ret)
+		dev_err(ec->dev, "failed to add EC sensors\n");
+
+	kfree(sensor_platforms);
+error_platforms:
+	kfree(sensor_cells);
+error:
+	kfree(msg);
+}
 
 static int ec_device_probe(struct platform_device *pdev)
 {
-	struct cros_ec_device *ec = dev_get_drvdata(pdev->dev.parent);
-	int retval = -ENOTTY;
-	dev_t devno = MKDEV(ec_major, 0);
+	int retval = -ENOMEM;
+	struct device *dev = &pdev->dev;
+	struct cros_ec_platform *ec_platform = dev_get_platdata(dev);
+	struct cros_ec_dev *ec = kzalloc(sizeof(*ec), GFP_KERNEL);
 
-	/* Instantiate it (and remember the EC) */
+	if (!ec)
+		return retval;
+
+	dev_set_drvdata(dev, ec);
+	ec->ec_dev = dev_get_drvdata(dev->parent);
+	ec->dev = dev;
+	ec->cmd_offset = ec_platform->cmd_offset;
+	ec->features[0] = -1U; /* Not cached yet */
+	ec->features[1] = -1U; /* Not cached yet */
+	device_initialize(&ec->class_dev);
 	cdev_init(&ec->cdev, &fops);
 
-	retval = cdev_add(&ec->cdev, devno, 1);
+	/*
+	 * Add the class device
+	 * Link to the character device for creating the /dev entry
+	 * in devtmpfs.
+	 */
+	ec->class_dev.devt = MKDEV(ec_major, pdev->id);
+	ec->class_dev.class = &cros_class;
+	ec->class_dev.parent = dev;
+	ec->class_dev.release = __remove;
+
+	retval = dev_set_name(&ec->class_dev, "%s", ec_platform->ec_name);
 	if (retval) {
-		dev_err(&pdev->dev, ": failed to add character device\n");
-		return retval;
+		dev_err(dev, "dev_set_name failed => %d\n", retval);
+		goto failed;
 	}
 
-	ec->vdev = device_create(cros_class, NULL, devno, ec,
-				 CROS_EC_DEV_NAME);
-	if (IS_ERR(ec->vdev)) {
-		retval = PTR_ERR(ec->vdev);
-		dev_err(&pdev->dev, ": failed to create device\n");
-		cdev_del(&ec->cdev);
-		return retval;
+	retval = cdev_device_add(&ec->cdev, &ec->class_dev);
+	if (retval) {
+		dev_err(dev, "cdev_device_add failed => %d\n", retval);
+		goto failed;
 	}
 
-	/* Initialize extra interfaces */
-	ec_dev_sysfs_init(ec);
-	ec_dev_lightbar_init(ec);
+	if (cros_ec_debugfs_init(ec))
+		dev_warn(dev, "failed to create debugfs directory\n");
+
+	/* check whether this EC is a sensor hub. */
+	if (cros_ec_check_features(ec, EC_FEATURE_MOTION_SENSE))
+		cros_ec_sensors_register(ec);
+
+	/* Take control of the lightbar from the EC. */
+	lb_manual_suspend_ctrl(ec, 1);
 
 	return 0;
+
+failed:
+	put_device(&ec->class_dev);
+	return retval;
 }
 
 static int ec_device_remove(struct platform_device *pdev)
 {
-	struct cros_ec_device *ec = dev_get_drvdata(pdev->dev.parent);
+	struct cros_ec_dev *ec = dev_get_drvdata(&pdev->dev);
 
-	ec_dev_lightbar_remove(ec);
-	ec_dev_sysfs_remove(ec);
-	device_destroy(cros_class, MKDEV(ec_major, 0));
+	/* Let the EC take over the lightbar again. */
+	lb_manual_suspend_ctrl(ec, 0);
+
+	cros_ec_debugfs_remove(ec);
+
 	cdev_del(&ec->cdev);
+	device_unregister(&ec->class_dev);
 	return 0;
 }
+
+static const struct platform_device_id cros_ec_id[] = {
+	{ "cros-ec-ctl", 0 },
+	{ /* sentinel */ },
+};
+MODULE_DEVICE_TABLE(platform, cros_ec_id);
+
+static __maybe_unused int ec_device_suspend(struct device *dev)
+{
+	struct cros_ec_dev *ec = dev_get_drvdata(dev);
+
+	lb_suspend(ec);
+
+	return 0;
+}
+
+static __maybe_unused int ec_device_resume(struct device *dev)
+{
+	struct cros_ec_dev *ec = dev_get_drvdata(dev);
+
+	lb_resume(ec);
+
+	return 0;
+}
+
+static const struct dev_pm_ops cros_ec_dev_pm_ops = {
+#ifdef CONFIG_PM_SLEEP
+	.suspend = ec_device_suspend,
+	.resume = ec_device_resume,
+#endif
+};
 
 static struct platform_driver cros_ec_dev_driver = {
 	.driver = {
 		.name = "cros-ec-ctl",
+		.pm = &cros_ec_dev_pm_ops,
 	},
 	.probe = ec_device_probe,
 	.remove = ec_device_remove,
@@ -229,10 +505,10 @@ static int __init cros_ec_dev_init(void)
 	int ret;
 	dev_t dev = 0;
 
-	cros_class = class_create(THIS_MODULE, "chromeos");
-	if (IS_ERR(cros_class)) {
+	ret  = class_register(&cros_class);
+	if (ret) {
 		pr_err(CROS_EC_DEV_NAME ": failed to register device class\n");
-		return PTR_ERR(cros_class);
+		return ret;
 	}
 
 	/* Get a range of minor numbers (starting with 0) to work with */
@@ -254,7 +530,7 @@ static int __init cros_ec_dev_init(void)
 failed_devreg:
 	unregister_chrdev_region(MKDEV(ec_major, 0), CROS_MAX_DEV);
 failed_chrdevreg:
-	class_destroy(cros_class);
+	class_unregister(&cros_class);
 	return ret;
 }
 
@@ -262,7 +538,7 @@ static void __exit cros_ec_dev_exit(void)
 {
 	platform_driver_unregister(&cros_ec_dev_driver);
 	unregister_chrdev(ec_major, CROS_EC_DEV_NAME);
-	class_destroy(cros_class);
+	class_unregister(&cros_class);
 }
 
 module_init(cros_ec_dev_init);

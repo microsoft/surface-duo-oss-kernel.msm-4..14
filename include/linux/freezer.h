@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /* Freezer declarations */
 
 #ifndef FREEZER_H_INCLUDED
@@ -231,7 +232,7 @@ static inline long freezable_schedule_timeout_killable_unsafe(long timeout)
  * call this with locks held.
  */
 static inline int freezable_schedule_hrtimeout_range(ktime_t *expires,
-		unsigned long delta, const enum hrtimer_mode mode)
+		u64 delta, const enum hrtimer_mode mode)
 {
 	int __retval;
 	freezer_do_not_count();

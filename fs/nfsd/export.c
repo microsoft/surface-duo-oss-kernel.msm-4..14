@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * NFS exporting and validation.
  *
@@ -486,7 +487,7 @@ secinfo_parse(char **mesg, char *buf, struct svc_export *exp) { return 0; }
 #endif
 
 static inline int
-uuid_parse(char **mesg, char *buf, unsigned char **puuid)
+nfsd_uuid_parse(char **mesg, char *buf, unsigned char **puuid)
 {
 	int len;
 
@@ -586,7 +587,7 @@ static int svc_export_parse(struct cache_detail *cd, char *mesg, int mlen)
 			if (strcmp(buf, "fsloc") == 0)
 				err = fsloc_parse(&mesg, buf, &exp.ex_fslocs);
 			else if (strcmp(buf, "uuid") == 0)
-				err = uuid_parse(&mesg, buf, &exp.ex_uuid);
+				err = nfsd_uuid_parse(&mesg, buf, &exp.ex_uuid);
 			else if (strcmp(buf, "secinfo") == 0)
 				err = secinfo_parse(&mesg, buf, &exp);
 			else
@@ -706,7 +707,7 @@ static void svc_export_init(struct cache_head *cnew, struct cache_head *citem)
 	new->ex_fslocs.locations = NULL;
 	new->ex_fslocs.locations_count = 0;
 	new->ex_fslocs.migrated = 0;
-	new->ex_layout_type = 0;
+	new->ex_layout_types = 0;
 	new->ex_uuid = NULL;
 	new->cd = item->cd;
 }
@@ -731,7 +732,7 @@ static void export_update(struct cache_head *cnew, struct cache_head *citem)
 	item->ex_fslocs.locations_count = 0;
 	new->ex_fslocs.migrated = item->ex_fslocs.migrated;
 	item->ex_fslocs.migrated = 0;
-	new->ex_layout_type = item->ex_layout_type;
+	new->ex_layout_types = item->ex_layout_types;
 	new->ex_nflavors = item->ex_nflavors;
 	for (i = 0; i < MAX_SECINFO_LIST; i++) {
 		new->ex_flavors[i] = item->ex_flavors[i];
@@ -954,6 +955,16 @@ __be32 check_nfsd_access(struct svc_export *exp, struct svc_rqst *rqstp)
 		    rqstp->rq_cred.cr_flavor == RPC_AUTH_UNIX)
 			return 0;
 	}
+
+	/* If the compound op contains a spo_must_allowed op,
+	 * it will be sent with integrity/protection which
+	 * will have to be expressly allowed on mounts that
+	 * don't support it
+	 */
+
+	if (nfsd4_spo_must_allow(rqstp))
+		return 0;
+
 	return nfserr_wrongsec;
 }
 
@@ -1075,73 +1086,6 @@ exp_pseudoroot(struct svc_rqst *rqstp, struct svc_fh *fhp)
 	return rv;
 }
 
-/* Iterator */
-
-static void *e_start(struct seq_file *m, loff_t *pos)
-	__acquires(((struct cache_detail *)m->private)->hash_lock)
-{
-	loff_t n = *pos;
-	unsigned hash, export;
-	struct cache_head *ch;
-	struct cache_detail *cd = m->private;
-	struct cache_head **export_table = cd->hash_table;
-
-	read_lock(&cd->hash_lock);
-	if (!n--)
-		return SEQ_START_TOKEN;
-	hash = n >> 32;
-	export = n & ((1LL<<32) - 1);
-
-	
-	for (ch=export_table[hash]; ch; ch=ch->next)
-		if (!export--)
-			return ch;
-	n &= ~((1LL<<32) - 1);
-	do {
-		hash++;
-		n += 1LL<<32;
-	} while(hash < EXPORT_HASHMAX && export_table[hash]==NULL);
-	if (hash >= EXPORT_HASHMAX)
-		return NULL;
-	*pos = n+1;
-	return export_table[hash];
-}
-
-static void *e_next(struct seq_file *m, void *p, loff_t *pos)
-{
-	struct cache_head *ch = p;
-	int hash = (*pos >> 32);
-	struct cache_detail *cd = m->private;
-	struct cache_head **export_table = cd->hash_table;
-
-	if (p == SEQ_START_TOKEN)
-		hash = 0;
-	else if (ch->next == NULL) {
-		hash++;
-		*pos += 1LL<<32;
-	} else {
-		++*pos;
-		return ch->next;
-	}
-	*pos &= ~((1LL<<32) - 1);
-	while (hash < EXPORT_HASHMAX && export_table[hash] == NULL) {
-		hash++;
-		*pos += 1LL<<32;
-	}
-	if (hash >= EXPORT_HASHMAX)
-		return NULL;
-	++*pos;
-	return export_table[hash];
-}
-
-static void e_stop(struct seq_file *m, void *p)
-	__releases(((struct cache_detail *)m->private)->hash_lock)
-{
-	struct cache_detail *cd = m->private;
-
-	read_unlock(&cd->hash_lock);
-}
-
 static struct flags {
 	int flag;
 	char *name[2];
@@ -1159,6 +1103,7 @@ static struct flags {
 	{ NFSEXP_NOAUTHNLM, {"insecure_locks", ""}},
 	{ NFSEXP_V4ROOT, {"v4root", ""}},
 	{ NFSEXP_PNFS, {"pnfs", ""}},
+	{ NFSEXP_SECURITY_LABEL, {"security_label", ""}},
 	{ 0, {"", ""}}
 };
 
@@ -1270,9 +1215,9 @@ static int e_show(struct seq_file *m, void *p)
 }
 
 const struct seq_operations nfs_exports_op = {
-	.start	= e_start,
-	.next	= e_next,
-	.stop	= e_stop,
+	.start	= cache_seq_start,
+	.next	= cache_seq_next,
+	.stop	= cache_seq_stop,
 	.show	= e_show,
 };
 

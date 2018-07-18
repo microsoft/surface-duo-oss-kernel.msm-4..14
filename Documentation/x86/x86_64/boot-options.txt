@@ -31,9 +31,13 @@ Machine check
 		(e.g. BIOS or hardware monitoring applications), conflicting
 		with OS's error handling, and you cannot deactivate the agent,
 		then this option will be a help.
+   mce=no_lmce
+		Do not opt-in to Local MCE delivery. Use legacy method
+		to broadcast MCEs.
    mce=bootlog
 		Enable logging of machine checks left over from booting.
-		Disabled by default on AMD because some BIOS leave bogus ones.
+		Disabled by default on AMD Fam10h and older because some BIOS
+		leave bogus ones.
 		If your BIOS doesn't do that it's a good idea to enable though
 		to make sure you log even machine check events that result
 		in a reboot. On Intel systems it is enabled by default.
@@ -57,6 +61,8 @@ Machine check
 		threshold to 1. Enabling this may make memory predictive failure
 		analysis less effective if the bios sets thresholds for memory
 		errors since we will not see details for all errors.
+   mce=recovery
+		Force-enable recoverable machine check code paths
 
    nomce (for compatibility with i386): same as mce=off
 
@@ -271,10 +277,6 @@ IOMMU (input/output memory management unit)
     bridge, X servers that access the hardware directly from user
     space might stop working. Use this option if you have devices that
     are accessed from userspace directly on some PCI host bridge.
-
-Debugging
-
-  kstack=N	Print N words from the kernel stack in oops dumps.
 
 Miscellaneous
 

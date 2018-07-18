@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * SCLP line mode console driver
  *
@@ -319,7 +320,8 @@ sclp_console_init(void)
 	int i;
 	int rc;
 
-	if (!CONSOLE_IS_SCLP)
+	/* SCLP consoles are handled together */
+	if (!(CONSOLE_IS_SCLP || CONSOLE_IS_VT220))
 		return 0;
 	rc = sclp_rw_init();
 	if (rc)

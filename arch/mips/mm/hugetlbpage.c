@@ -36,7 +36,8 @@ pte_t *huge_pte_alloc(struct mm_struct *mm, unsigned long addr,
 	return pte;
 }
 
-pte_t *huge_pte_offset(struct mm_struct *mm, unsigned long addr)
+pte_t *huge_pte_offset(struct mm_struct *mm, unsigned long addr,
+		       unsigned long sz)
 {
 	pgd_t *pgd;
 	pud_t *pud;
@@ -49,11 +50,6 @@ pte_t *huge_pte_offset(struct mm_struct *mm, unsigned long addr)
 			pmd = pmd_offset(pud, addr);
 	}
 	return (pte_t *) pmd;
-}
-
-int huge_pmd_unshare(struct mm_struct *mm, unsigned long *addr, pte_t *ptep)
-{
-	return 0;
 }
 
 /*

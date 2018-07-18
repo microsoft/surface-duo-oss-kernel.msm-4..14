@@ -37,42 +37,40 @@
 #define DP_DPCD_SIZE DP_RECEIVER_CAP_SIZE
 
 static char *voltage_names[] = {
-        "0.4V", "0.6V", "0.8V", "1.2V"
+	"0.4V", "0.6V", "0.8V", "1.2V"
 };
 static char *pre_emph_names[] = {
-        "0dB", "3.5dB", "6dB", "9.5dB"
+	"0dB", "3.5dB", "6dB", "9.5dB"
 };
 
 /***** radeon AUX functions *****/
 
-/* Atom needs data in little endian format
- * so swap as appropriate when copying data to
- * or from atom. Note that atom operates on
- * dw units.
+/* Atom needs data in little endian format so swap as appropriate when copying
+ * data to or from atom. Note that atom operates on dw units.
+ *
+ * Use to_le=true when sending data to atom and provide at least
+ * ALIGN(num_bytes,4) bytes in the dst buffer.
+ *
+ * Use to_le=false when receiving data from atom and provide ALIGN(num_bytes,4)
+ * byes in the src buffer.
  */
 void radeon_atom_copy_swap(u8 *dst, u8 *src, u8 num_bytes, bool to_le)
 {
 #ifdef __BIG_ENDIAN
-	u8 src_tmp[20], dst_tmp[20]; /* used for byteswapping */
-	u32 *dst32, *src32;
+	u32 src_tmp[5], dst_tmp[5];
 	int i;
+	u8 align_num_bytes = ALIGN(num_bytes, 4);
 
-	memcpy(src_tmp, src, num_bytes);
-	src32 = (u32 *)src_tmp;
-	dst32 = (u32 *)dst_tmp;
 	if (to_le) {
-		for (i = 0; i < ((num_bytes + 3) / 4); i++)
-			dst32[i] = cpu_to_le32(src32[i]);
-		memcpy(dst, dst_tmp, num_bytes);
+		memcpy(src_tmp, src, num_bytes);
+		for (i = 0; i < align_num_bytes / 4; i++)
+			dst_tmp[i] = cpu_to_le32(src_tmp[i]);
+		memcpy(dst, dst_tmp, align_num_bytes);
 	} else {
-		u8 dws = num_bytes & ~3;
-		for (i = 0; i < ((num_bytes + 3) / 4); i++)
-			dst32[i] = le32_to_cpu(src32[i]);
-		memcpy(dst, dst_tmp, dws);
-		if (num_bytes % 4) {
-			for (i = 0; i < (num_bytes % 4); i++)
-				dst[dws+i] = dst_tmp[dws+i];
-		}
+		memcpy(src_tmp, src, align_num_bytes);
+		for (i = 0; i < align_num_bytes / 4; i++)
+			dst_tmp[i] = le32_to_cpu(src_tmp[i]);
+		memcpy(dst, dst_tmp, num_bytes);
 	}
 #else
 	memcpy(dst, src, num_bytes);
@@ -179,6 +177,7 @@ radeon_dp_aux_transfer_atom(struct drm_dp_aux *aux, struct drm_dp_aux_msg *msg)
 	switch (msg->request & ~DP_AUX_I2C_MOT) {
 	case DP_AUX_NATIVE_WRITE:
 	case DP_AUX_I2C_WRITE:
+	case DP_AUX_I2C_WRITE_STATUS_UPDATE:
 		/* The atom implementation only supports writes with a max payload of
 		 * 12 bytes since it uses 4 bits for the total count (header + payload)
 		 * in the parameter space.  The atom interface supports 16 byte
@@ -388,22 +387,21 @@ bool radeon_dp_getdpcd(struct radeon_connector *radeon_connector)
 {
 	struct radeon_connector_atom_dig *dig_connector = radeon_connector->con_priv;
 	u8 msg[DP_DPCD_SIZE];
-	int ret, i;
+	int ret;
 
-	for (i = 0; i < 7; i++) {
-		ret = drm_dp_dpcd_read(&radeon_connector->ddc_bus->aux, DP_DPCD_REV, msg,
-				       DP_DPCD_SIZE);
-		if (ret == DP_DPCD_SIZE) {
-			memcpy(dig_connector->dpcd, msg, DP_DPCD_SIZE);
+	ret = drm_dp_dpcd_read(&radeon_connector->ddc_bus->aux, DP_DPCD_REV, msg,
+			       DP_DPCD_SIZE);
+	if (ret == DP_DPCD_SIZE) {
+		memcpy(dig_connector->dpcd, msg, DP_DPCD_SIZE);
 
-			DRM_DEBUG_KMS("DPCD: %*ph\n", (int)sizeof(dig_connector->dpcd),
-				      dig_connector->dpcd);
+		DRM_DEBUG_KMS("DPCD: %*ph\n", (int)sizeof(dig_connector->dpcd),
+			      dig_connector->dpcd);
 
-			radeon_dp_probe_oui(radeon_connector);
+		radeon_dp_probe_oui(radeon_connector);
 
-			return true;
-		}
+		return true;
 	}
+
 	dig_connector->dpcd[0] = 0;
 	return false;
 }

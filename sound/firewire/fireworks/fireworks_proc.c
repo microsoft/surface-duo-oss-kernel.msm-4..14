@@ -12,7 +12,7 @@
 static inline const char*
 get_phys_name(struct snd_efw_phys_grp *grp, bool input)
 {
-	const char *const ch_type[] = {
+	static const char *const ch_type[] = {
 		"Analog", "S/PDIF", "ADAT", "S/PDIF or ADAT", "Mirroring",
 		"Headphones", "I2S", "Guitar", "Pirzo Guitar", "Guitar String",
 	};
@@ -188,8 +188,8 @@ proc_read_queues_state(struct snd_info_entry *entry,
 	else
 		consumed = (unsigned int)(efw->push_ptr - efw->pull_ptr);
 
-	snd_iprintf(buffer, "%d %d/%d\n",
-		    efw->resp_queues, consumed, snd_efw_resp_buf_size);
+	snd_iprintf(buffer, "%d/%d\n",
+		    consumed, snd_efw_resp_buf_size);
 }
 
 static void

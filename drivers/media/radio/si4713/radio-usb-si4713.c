@@ -31,7 +31,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-ioctl.h>
 #include <media/v4l2-event.h>
-#include <media/si4713.h>
+#include <linux/platform_data/media/si4713.h>
 
 #include "si4713.h"
 
@@ -49,7 +49,7 @@ MODULE_LICENSE("GPL v2");
 #define USB_RESP_TIMEOUT		50000
 
 /* USB Device ID List */
-static struct usb_device_id usb_si4713_usb_device_table[] = {
+static const struct usb_device_id usb_si4713_usb_device_table[] = {
 	{USB_DEVICE_AND_INTERFACE_INFO(USB_SI4713_VENDOR, USB_SI4713_PRODUCT,
 							USB_CLASS_HID, 0, 0) },
 	{ }						/* Terminating entry */
@@ -402,14 +402,14 @@ static u32 si4713_functionality(struct i2c_adapter *adapter)
 	return I2C_FUNC_I2C | I2C_FUNC_SMBUS_EMUL;
 }
 
-static struct i2c_algorithm si4713_algo = {
+static const struct i2c_algorithm si4713_algo = {
 	.master_xfer   = si4713_transfer,
 	.functionality = si4713_functionality,
 };
 
 /* This name value shows up in the sysfs filename associated
 		with this I2C adapter */
-static struct i2c_adapter si4713_i2c_adapter_template = {
+static const struct i2c_adapter si4713_i2c_adapter_template = {
 	.name   = "si4713-i2c",
 	.owner  = THIS_MODULE,
 	.algo   = &si4713_algo,

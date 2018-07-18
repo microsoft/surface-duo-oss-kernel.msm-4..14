@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * include/linux/buffer_head.h
  *
@@ -43,7 +44,7 @@ enum bh_state_bits {
 			 */
 };
 
-#define MAX_BUF_PER_PAGE (PAGE_CACHE_SIZE / 512)
+#define MAX_BUF_PER_PAGE (PAGE_SIZE / 512)
 
 struct page;
 struct buffer_head;
@@ -77,8 +78,7 @@ struct buffer_head {
 	atomic_t b_count;		/* users using this buffer_head */
 #ifdef CONFIG_PREEMPT_RT_BASE
 	spinlock_t b_uptodate_lock;
-#if defined(CONFIG_JBD) || defined(CONFIG_JBD_MODULE) || \
-	defined(CONFIG_JBD2) || defined(CONFIG_JBD2_MODULE)
+#if IS_ENABLED(CONFIG_JBD2)
 	spinlock_t b_state_lock;
 	spinlock_t b_journal_head_lock;
 #endif
@@ -113,8 +113,7 @@ static inline void buffer_head_init_locks(struct buffer_head *bh)
 {
 #ifdef CONFIG_PREEMPT_RT_BASE
 	spin_lock_init(&bh->b_uptodate_lock);
-#if defined(CONFIG_JBD) || defined(CONFIG_JBD_MODULE) || \
-	defined(CONFIG_JBD2) || defined(CONFIG_JBD2_MODULE)
+#if IS_ENABLED(CONFIG_JBD2)
 	spin_lock_init(&bh->b_state_lock);
 	spin_lock_init(&bh->b_journal_head_lock);
 #endif
@@ -126,15 +125,15 @@ static inline void buffer_head_init_locks(struct buffer_head *bh)
  * and buffer_foo() functions.
  */
 #define BUFFER_FNS(bit, name)						\
-static inline void set_buffer_##name(struct buffer_head *bh)		\
+static __always_inline void set_buffer_##name(struct buffer_head *bh)	\
 {									\
 	set_bit(BH_##bit, &(bh)->b_state);				\
 }									\
-static inline void clear_buffer_##name(struct buffer_head *bh)		\
+static __always_inline void clear_buffer_##name(struct buffer_head *bh)	\
 {									\
 	clear_bit(BH_##bit, &(bh)->b_state);				\
 }									\
-static inline int buffer_##name(const struct buffer_head *bh)		\
+static __always_inline int buffer_##name(const struct buffer_head *bh)	\
 {									\
 	return test_bit(BH_##bit, &(bh)->b_state);			\
 }
@@ -143,11 +142,11 @@ static inline int buffer_##name(const struct buffer_head *bh)		\
  * test_set_buffer_foo() and test_clear_buffer_foo()
  */
 #define TAS_BUFFER_FNS(bit, name)					\
-static inline int test_set_buffer_##name(struct buffer_head *bh)	\
+static __always_inline int test_set_buffer_##name(struct buffer_head *bh) \
 {									\
 	return test_and_set_bit(BH_##bit, &(bh)->b_state);		\
 }									\
-static inline int test_clear_buffer_##name(struct buffer_head *bh)	\
+static __always_inline int test_clear_buffer_##name(struct buffer_head *bh) \
 {									\
 	return test_and_clear_bit(BH_##bit, &(bh)->b_state);		\
 }									\
@@ -193,6 +192,7 @@ void buffer_check_dirty_writeback(struct page *page,
  */
 
 void mark_buffer_dirty(struct buffer_head *bh);
+void mark_buffer_write_io_error(struct buffer_head *bh);
 void init_buffer(struct buffer_head *, bh_end_io_t *, void *);
 void touch_buffer(struct buffer_head *bh);
 void set_bh_page(struct buffer_head *bh,
@@ -212,7 +212,12 @@ int inode_has_buffers(struct inode *);
 void invalidate_inode_buffers(struct inode *);
 int remove_inode_buffers(struct inode *inode);
 int sync_mapping_buffers(struct address_space *mapping);
-void unmap_underlying_metadata(struct block_device *bdev, sector_t block);
+void clean_bdev_aliases(struct block_device *bdev, sector_t block,
+			sector_t len);
+static inline void clean_bdev_bh_alias(struct buffer_head *bh)
+{
+	clean_bdev_aliases(bh->b_bdev, bh->b_blocknr, 1);
+}
 
 void mark_buffer_async_write(struct buffer_head *bh);
 void __wait_on_buffer(struct buffer_head *);
@@ -231,16 +236,17 @@ struct buffer_head *alloc_buffer_head(gfp_t gfp_flags);
 void free_buffer_head(struct buffer_head * bh);
 void unlock_buffer(struct buffer_head *bh);
 void __lock_buffer(struct buffer_head *bh);
-void ll_rw_block(int, int, struct buffer_head * bh[]);
+void ll_rw_block(int, int, int, struct buffer_head * bh[]);
 int sync_dirty_buffer(struct buffer_head *bh);
-int __sync_dirty_buffer(struct buffer_head *bh, int rw);
-void write_dirty_buffer(struct buffer_head *bh, int rw);
-int _submit_bh(int rw, struct buffer_head *bh, unsigned long bio_flags);
-int submit_bh(int, struct buffer_head *);
+int __sync_dirty_buffer(struct buffer_head *bh, int op_flags);
+void write_dirty_buffer(struct buffer_head *bh, int op_flags);
+int submit_bh(int, int, struct buffer_head *);
 void write_boundary_block(struct block_device *bdev,
 			sector_t bblock, unsigned blocksize);
 int bh_uptodate_or_lock(struct buffer_head *bh);
 int bh_submit_read(struct buffer_head *bh);
+loff_t page_cache_seek_hole_data(struct inode *inode, loff_t offset,
+				 loff_t length, int whence);
 
 extern int buffer_heads_over_limit;
 
@@ -252,6 +258,9 @@ void block_invalidatepage(struct page *page, unsigned int offset,
 			  unsigned int length);
 int block_write_full_page(struct page *page, get_block_t *get_block,
 				struct writeback_control *wbc);
+int __block_write_full_page(struct inode *inode, struct page *page,
+			get_block_t *get_block, struct writeback_control *wbc,
+			bh_end_io_t *handler);
 int block_read_full_page(struct page*, get_block_t*);
 int block_is_partially_uptodate(struct page *page, unsigned long from,
 				unsigned long count);
@@ -266,13 +275,12 @@ int generic_write_end(struct file *, struct address_space *,
 				loff_t, unsigned, unsigned,
 				struct page *, void *);
 void page_zero_new_buffers(struct page *page, unsigned from, unsigned to);
+void clean_page_buffers(struct page *page);
 int cont_write_begin(struct file *, struct address_space *, loff_t,
 			unsigned, unsigned, struct page **, void **,
 			get_block_t *, loff_t *);
 int generic_cont_expand_simple(struct inode *inode, loff_t size);
 int block_commit_write(struct page *page, unsigned from, unsigned to);
-int __block_page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf,
-				get_block_t get_block);
 int block_page_mkwrite(struct vm_area_struct *vma, struct vm_fault *vmf,
 				get_block_t get_block);
 /* Convert errno to return value from ->page_mkwrite() call */
@@ -280,12 +288,10 @@ static inline int block_page_mkwrite_return(int err)
 {
 	if (err == 0)
 		return VM_FAULT_LOCKED;
-	if (err == -EFAULT)
+	if (err == -EFAULT || err == -EAGAIN)
 		return VM_FAULT_NOPAGE;
 	if (err == -ENOMEM)
 		return VM_FAULT_OOM;
-	if (err == -EAGAIN)
-		return VM_FAULT_RETRY;
 	/* -ENOSPC, -EDQUOT, -EIO ... */
 	return VM_FAULT_SIGBUS;
 }
@@ -309,7 +315,7 @@ void buffer_init(void);
 static inline void attach_page_buffers(struct page *page,
 		struct buffer_head *head)
 {
-	page_cache_get(page);
+	get_page(page);
 	SetPagePrivate(page);
 	set_page_private(page, (unsigned long)head);
 }

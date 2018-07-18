@@ -28,8 +28,6 @@
 #include <asm/synch.h>
 #include <asm/ppc-opcode.h>
 
-#define smp_mb__after_unlock_lock()	smp_mb()  /* Full ordering for lock. */
-
 #ifdef CONFIG_PPC64
 /* use 0x800000yy when locked, where yy == CPU number */
 #ifdef __BIG_ENDIAN__
@@ -52,6 +50,14 @@
 #else
 #define CLEAR_IO_SYNC
 #define SYNC_IO
+#endif
+
+#ifdef CONFIG_PPC_PSERIES
+#define vcpu_is_preempted vcpu_is_preempted
+static inline bool vcpu_is_preempted(int cpu)
+{
+	return !!(be32_to_cpu(lppaca_of(cpu).yield_count) & 1);
+}
 #endif
 
 static __always_inline int arch_spin_value_unlocked(arch_spinlock_t lock)
@@ -163,13 +169,6 @@ static inline void arch_spin_unlock(arch_spinlock_t *lock)
 				PPC_RELEASE_BARRIER: : :"memory");
 	lock->slock = 0;
 }
-
-#ifdef CONFIG_PPC64
-extern void arch_spin_unlock_wait(arch_spinlock_t *lock);
-#else
-#define arch_spin_unlock_wait(lock) \
-	do { while (arch_spin_is_locked(lock)) cpu_relax(); } while (0)
-#endif
 
 /*
  * Read-write spinlocks, allowing multiple readers
@@ -309,6 +308,9 @@ static inline void arch_write_unlock(arch_rwlock_t *rw)
 #define arch_spin_relax(lock)	__spin_yield(lock)
 #define arch_read_relax(lock)	__rw_yield(lock)
 #define arch_write_relax(lock)	__rw_yield(lock)
+
+/* See include/linux/spinlock.h */
+#define smp_mb__after_spinlock()   smp_mb()
 
 #endif /* __KERNEL__ */
 #endif /* __ASM_SPINLOCK_H */

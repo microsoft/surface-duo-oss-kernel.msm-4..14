@@ -35,12 +35,11 @@
 #include <linux/if_arp.h>
 #include <linux/skbuff.h>
 #include <net/sock.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <linux/mm.h>
 #include <linux/interrupt.h>
 #include <linux/notifier.h>
 #include <linux/stat.h>
-#include <linux/netfilter.h>
 #include <linux/module.h>
 #include <linux/lapb.h>
 #include <linux/init.h>
@@ -307,7 +306,7 @@ static const struct net_device_ops lapbeth_netdev_ops = {
 static void lapbeth_setup(struct net_device *dev)
 {
 	dev->netdev_ops	     = &lapbeth_netdev_ops;
-	dev->destructor	     = free_netdev;
+	dev->needs_free_netdev = true;
 	dev->type            = ARPHRD_X25;
 	dev->hard_header_len = 3;
 	dev->mtu             = 1000;
@@ -347,7 +346,6 @@ out:
 fail:
 	dev_put(dev);
 	free_netdev(ndev);
-	kfree(lapbeth);
 	goto out;
 }
 

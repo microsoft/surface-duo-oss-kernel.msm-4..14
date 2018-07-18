@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _NETNS_NFTABLES_H_
 #define _NETNS_NFTABLES_H_
 
@@ -13,6 +14,7 @@ struct netns_nftables {
 	struct nft_af_info	*inet;
 	struct nft_af_info	*arp;
 	struct nft_af_info	*bridge;
+	struct nft_af_info	*netdev;
 	unsigned int		base_seq;
 	u8			gencursor;
 };

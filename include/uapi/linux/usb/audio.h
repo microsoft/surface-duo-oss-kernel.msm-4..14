@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  * <linux/usb/audio.h> -- USB Audio definitions.
  *
@@ -333,7 +334,7 @@ struct uac_processing_unit_descriptor {
 	__u8 bDescriptorType;
 	__u8 bDescriptorSubtype;
 	__u8 bUnitID;
-	__u16 wProcessType;
+	__le16 wProcessType;
 	__u8 bNrInPins;
 	__u8 baSourceID[];
 } __attribute__ ((packed));
@@ -369,7 +370,7 @@ static inline __u8 uac_processing_unit_bControlSize(struct uac_processing_unit_d
 {
 	return (protocol == UAC_VERSION_1) ?
 		desc->baSourceID[desc->bNrInPins + 4] :
-		desc->baSourceID[desc->bNrInPins + 6];
+		2; /* in UAC2, this value is constant */
 }
 
 static inline __u8 *uac_processing_unit_bmControls(struct uac_processing_unit_descriptor *desc,
@@ -377,7 +378,7 @@ static inline __u8 *uac_processing_unit_bmControls(struct uac_processing_unit_de
 {
 	return (protocol == UAC_VERSION_1) ?
 		&desc->baSourceID[desc->bNrInPins + 5] :
-		&desc->baSourceID[desc->bNrInPins + 7];
+		&desc->baSourceID[desc->bNrInPins + 6];
 }
 
 static inline __u8 uac_processing_unit_iProcessing(struct uac_processing_unit_descriptor *desc,
@@ -491,8 +492,8 @@ struct uac_format_type_ii_ext_descriptor {
 	__u8 bDescriptorType;
 	__u8 bDescriptorSubtype;
 	__u8 bFormatType;
-	__u16 wMaxBitRate;
-	__u16 wSamplesPerFrame;
+	__le16 wMaxBitRate;
+	__le16 wSamplesPerFrame;
 	__u8 bHeaderLength;
 	__u8 bSideBandProtocol;
 } __attribute__((packed));

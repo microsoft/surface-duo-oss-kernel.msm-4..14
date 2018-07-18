@@ -23,7 +23,7 @@
  */
 #include <linux/types.h>
 #include <linux/sched.h>
-#include <linux/ptrace.h>
+#include <linux/sched/task_stack.h>
 
 #define COMPAT_USER_HZ		100
 #ifdef __AARCH64EB__
@@ -215,7 +215,6 @@ typedef struct compat_siginfo {
 } compat_siginfo_t;
 
 #define COMPAT_OFF_T_MAX	0x7fffffff
-#define COMPAT_LOFF_T_MAX	0x7fffffffffffffffL
 
 /*
  * A pointer passed in from user mode. This should not
@@ -234,7 +233,7 @@ static inline compat_uptr_t ptr_to_compat(void __user *uptr)
 	return (u32)(unsigned long)uptr;
 }
 
-#define compat_user_stack_pointer() (user_stack_pointer(current_pt_regs()))
+#define compat_user_stack_pointer() (user_stack_pointer(task_pt_regs(current)))
 
 static inline void __user *arch_compat_alloc_user_space(long len)
 {

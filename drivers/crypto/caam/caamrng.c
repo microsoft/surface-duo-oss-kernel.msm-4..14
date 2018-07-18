@@ -52,7 +52,7 @@
 
 /* length of descriptors */
 #define DESC_JOB_O_LEN			(CAAM_CMD_SZ * 2 + CAAM_PTR_SZ * 2)
-#define DESC_RNG_LEN			(4 * CAAM_CMD_SZ)
+#define DESC_RNG_LEN			(3 * CAAM_CMD_SZ)
 
 /* Buffer, its dma address and lock */
 struct buf_data {
@@ -100,14 +100,17 @@ static void rng_done(struct device *jrdev, u32 *desc, u32 err, void *context)
 {
 	struct buf_data *bd;
 
-	bd = (struct buf_data *)((char *)desc -
-	      offsetof(struct buf_data, hw_desc));
+	bd = container_of(desc, struct buf_data, hw_desc[0]);
 
 	if (err)
 		caam_jr_strstatus(jrdev, err);
 
 	atomic_set(&bd->empty, BUF_NOT_EMPTY);
 	complete(&bd->filled);
+
+	/* Buffer refilled, invalidate cache */
+	dma_sync_single_for_cpu(jrdev, bd->addr, RN_BUF_SIZE, DMA_FROM_DEVICE);
+
 #ifdef DEBUG
 	print_hex_dump(KERN_ERR, "rng refreshed buf@: ",
 		       DUMP_PREFIX_ADDRESS, 16, 4, bd->buf, RN_BUF_SIZE, 1);
@@ -191,9 +194,6 @@ static inline int rng_create_sh_desc(struct caam_rng_ctx *ctx)
 	u32 *desc = ctx->sh_desc;
 
 	init_sh_desc(desc, HDR_SHARE_SERIAL);
-
-	/* Propagate errors from shared to job descriptor */
-	append_cmd(desc, SET_OK_NO_PROP_ERRORS | CMD_LOAD);
 
 	/* Generate random bytes */
 	append_operation(desc, OP_ALG_ALGSEL_RNG | OP_TYPE_CLASS1_ALG);
@@ -285,11 +285,7 @@ static int caam_init_rng(struct caam_rng_ctx *ctx, struct device *jrdev)
 	if (err)
 		return err;
 
-	err = caam_init_buf(ctx, 1);
-	if (err)
-		return err;
-
-	return 0;
+	return caam_init_buf(ctx, 1);
 }
 
 static struct hwrng caam_rng = {
@@ -311,7 +307,7 @@ static int __init caam_rng_init(void)
 	struct device_node *dev_node;
 	struct platform_device *pdev;
 	struct device *ctrldev;
-	void *priv;
+	struct caam_drv_private *priv;
 	int err;
 
 	dev_node = of_find_compatible_node(NULL, NULL, "fsl,sec-v4.0");
@@ -338,20 +334,32 @@ static int __init caam_rng_init(void)
 	if (!priv)
 		return -ENODEV;
 
+	/* Check for an instantiated RNG before registration */
+	if (!(rd_reg32(&priv->ctrl->perfmon.cha_num_ls) & CHA_ID_LS_RNG_MASK))
+		return -ENODEV;
+
 	dev = caam_jr_alloc();
 	if (IS_ERR(dev)) {
 		pr_err("Job Ring Device allocation for transform failed\n");
 		return PTR_ERR(dev);
 	}
-	rng_ctx = kmalloc(sizeof(struct caam_rng_ctx), GFP_DMA);
-	if (!rng_ctx)
-		return -ENOMEM;
+	rng_ctx = kmalloc(sizeof(*rng_ctx), GFP_DMA | GFP_KERNEL);
+	if (!rng_ctx) {
+		err = -ENOMEM;
+		goto free_caam_alloc;
+	}
 	err = caam_init_rng(rng_ctx, dev);
 	if (err)
-		return err;
+		goto free_rng_ctx;
 
 	dev_info(dev, "registering rng-caam\n");
 	return hwrng_register(&caam_rng);
+
+free_rng_ctx:
+	kfree(rng_ctx);
+free_caam_alloc:
+	caam_jr_free(dev);
+	return err;
 }
 
 module_init(caam_rng_init);

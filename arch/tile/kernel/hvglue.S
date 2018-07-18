@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /* Hypervisor call vector addresses; see <hv/hypervisor.h> */
 .macro gensym sym, val, size
 .org \val
@@ -71,4 +72,5 @@ gensym hv_flush_all, 0x6e0, 32
 gensym hv_get_ipi_pte, 0x700, 32
 gensym hv_set_pte_super_shift, 0x720, 32
 gensym hv_console_set_ipi, 0x7e0, 32
-gensym hv_glue_internals, 0x800, 30720
+gensym hv_send_nmi, 0x820, 32
+gensym hv_glue_internals, 0x820, 30688

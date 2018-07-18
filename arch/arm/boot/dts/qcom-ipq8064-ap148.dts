@@ -1,8 +1,17 @@
+// SPDX-License-Identifier: GPL-2.0
 #include "qcom-ipq8064-v1.0.dtsi"
 
 / {
 	model = "Qualcomm IPQ8064/AP148";
 	compatible = "qcom,ipq8064-ap148", "qcom,ipq8064";
+
+	aliases {
+		serial0 = &gsbi4_serial;
+	};
+
+	chosen {
+		stdout-path = "serial0:115200n8";
+	};
 
 	reserved-memory {
 		#address-cells = <1>;
@@ -87,6 +96,7 @@
 		};
 
 		sata@29000000 {
+			ports-implemented = <0x1>;
 			status = "ok";
 		};
 	};

@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -235,11 +235,13 @@ acpi_status acpi_set_gpe(acpi_handle gpe_device, u32 gpe_number, u8 action)
 	case ACPI_GPE_ENABLE:
 
 		status = acpi_hw_low_set_gpe(gpe_event_info, ACPI_GPE_ENABLE);
+		gpe_event_info->disable_for_dispatch = FALSE;
 		break;
 
 	case ACPI_GPE_DISABLE:
 
 		status = acpi_hw_low_set_gpe(gpe_event_info, ACPI_GPE_DISABLE);
+		gpe_event_info->disable_for_dispatch = TRUE;
 		break;
 
 	default:
@@ -254,6 +256,47 @@ unlock_and_exit:
 }
 
 ACPI_EXPORT_SYMBOL(acpi_set_gpe)
+
+/*******************************************************************************
+ *
+ * FUNCTION:    acpi_mask_gpe
+ *
+ * PARAMETERS:  gpe_device          - Parent GPE Device. NULL for GPE0/GPE1
+ *              gpe_number          - GPE level within the GPE block
+ *              is_masked           - Whether the GPE is masked or not
+ *
+ * RETURN:      Status
+ *
+ * DESCRIPTION: Unconditionally mask/unmask the an individual GPE, ex., to
+ *              prevent a GPE flooding.
+ *
+ ******************************************************************************/
+acpi_status acpi_mask_gpe(acpi_handle gpe_device, u32 gpe_number, u8 is_masked)
+{
+	struct acpi_gpe_event_info *gpe_event_info;
+	acpi_status status;
+	acpi_cpu_flags flags;
+
+	ACPI_FUNCTION_TRACE(acpi_mask_gpe);
+
+	flags = acpi_os_acquire_lock(acpi_gbl_gpe_lock);
+
+	/* Ensure that we have a valid GPE number */
+
+	gpe_event_info = acpi_ev_get_gpe_event_info(gpe_device, gpe_number);
+	if (!gpe_event_info) {
+		status = AE_BAD_PARAMETER;
+		goto unlock_and_exit;
+	}
+
+	status = acpi_ev_mask_gpe(gpe_event_info, is_masked);
+
+unlock_and_exit:
+	acpi_os_release_lock(acpi_gbl_gpe_lock, flags);
+	return_ACPI_STATUS(status);
+}
+
+ACPI_EXPORT_SYMBOL(acpi_mask_gpe)
 
 /*******************************************************************************
  *
@@ -392,6 +435,14 @@ acpi_setup_gpe_for_wake(acpi_handle wake_device,
 		 */
 		gpe_event_info->flags =
 		    (ACPI_GPE_DISPATCH_NOTIFY | ACPI_GPE_LEVEL_TRIGGERED);
+	} else if (gpe_event_info->flags & ACPI_GPE_AUTO_ENABLED) {
+		/*
+		 * A reference to this GPE has been added during the GPE block
+		 * initialization, so drop it now to prevent the GPE from being
+		 * permanently enabled and clear its ACPI_GPE_AUTO_ENABLED flag.
+		 */
+		(void)acpi_ev_remove_gpe_reference(gpe_event_info);
+		gpe_event_info->flags &= ~ACPI_GPE_AUTO_ENABLED;
 	}
 
 	/*
@@ -917,7 +968,7 @@ ACPI_EXPORT_SYMBOL(acpi_remove_gpe_block)
  *              the FADT-defined gpe blocks. Otherwise, the GPE block device.
  *
  ******************************************************************************/
-acpi_status acpi_get_gpe_device(u32 index, acpi_handle * gpe_device)
+acpi_status acpi_get_gpe_device(u32 index, acpi_handle *gpe_device)
 {
 	struct acpi_gpe_device_info info;
 	acpi_status status;

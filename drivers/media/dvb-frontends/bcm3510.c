@@ -3,7 +3,7 @@
  *
  *  Copyright (C) 2001-5, B2C2 inc.
  *
- *  GPL/Linux driver written by Patrick Boettcher <patrick.boettcher@desy.de>
+ *  GPL/Linux driver written by Patrick Boettcher <patrick.boettcher@posteo.de>
  *
  *  This driver is "hard-coded" to be used with the 1st generation of
  *  Technisat/B2C2's Air2PC ATSC PCI/USB cards/boxes. The pll-programming
@@ -289,7 +289,7 @@ static int bcm3510_refresh_state(struct bcm3510_state *st)
 	return 0;
 }
 
-static int bcm3510_read_status(struct dvb_frontend *fe, fe_status_t *status)
+static int bcm3510_read_status(struct dvb_frontend *fe, enum fe_status *status)
 {
 	struct bcm3510_state* st = fe->demodulator_priv;
 	bcm3510_refresh_state(st);
@@ -538,6 +538,7 @@ static int bcm3510_set_frontend(struct dvb_frontend *fe)
 			cmd.ACQUIRE0.MODE = 0x9;
 			cmd.ACQUIRE1.SYM_RATE = 0x0;
 			cmd.ACQUIRE1.IF_FREQ = 0x0;
+			break;
 		default:
 			return -EINVAL;
 	}
@@ -685,7 +686,7 @@ static int bcm3510_reset(struct bcm3510_state *st)
 	if ((ret = bcm3510_writeB(st,0xa0,v)) < 0)
 		return ret;
 
-    t = jiffies + 3*HZ;
+	t = jiffies + 3*HZ;
 	while (time_before(jiffies, t)) {
 		msleep(10);
 		if ((ret = bcm3510_readB(st,0xa2,&v)) < 0)
@@ -708,7 +709,7 @@ static int bcm3510_clear_reset(struct bcm3510_state *st)
 	if ((ret = bcm3510_writeB(st,0xa0,v)) < 0)
 		return ret;
 
-    t = jiffies + 3*HZ;
+	t = jiffies + 3*HZ;
 	while (time_before(jiffies, t)) {
 		msleep(10);
 		if ((ret = bcm3510_readB(st,0xa2,&v)) < 0)
@@ -772,7 +773,8 @@ static int bcm3510_init(struct dvb_frontend* fe)
 			deb_info("attempting to download firmware\n");
 			if ((ret = bcm3510_init_cold(st)) < 0)
 				return ret;
-		case JDEC_EEPROM_LOAD_WAIT: /* fall-through is wanted */
+			/* fall-through */
+		case JDEC_EEPROM_LOAD_WAIT:
 			deb_info("firmware is loaded\n");
 			bcm3510_check_firmware_version(st);
 			break;
@@ -788,7 +790,7 @@ static int bcm3510_init(struct dvb_frontend* fe)
 }
 
 
-static struct dvb_frontend_ops bcm3510_ops;
+static const struct dvb_frontend_ops bcm3510_ops;
 
 struct dvb_frontend* bcm3510_attach(const struct bcm3510_config *config,
 				   struct i2c_adapter *i2c)
@@ -834,7 +836,7 @@ error:
 }
 EXPORT_SYMBOL(bcm3510_attach);
 
-static struct dvb_frontend_ops bcm3510_ops = {
+static const struct dvb_frontend_ops bcm3510_ops = {
 	.delsys = { SYS_ATSC, SYS_DVBC_ANNEX_B },
 	.info = {
 		.name = "Broadcom BCM3510 VSB/QAM frontend",
@@ -865,5 +867,5 @@ static struct dvb_frontend_ops bcm3510_ops = {
 };
 
 MODULE_DESCRIPTION("Broadcom BCM3510 ATSC (8VSB/16VSB & ITU J83 AnnexB FEC QAM64/256) demodulator driver");
-MODULE_AUTHOR("Patrick Boettcher <patrick.boettcher@desy.de>");
+MODULE_AUTHOR("Patrick Boettcher <patrick.boettcher@posteo.de>");
 MODULE_LICENSE("GPL");

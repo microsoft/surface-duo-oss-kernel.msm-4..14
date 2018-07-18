@@ -19,6 +19,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 
+#include <linux/capability.h>
 #include <linux/if.h>
 #include <linux/inetdevice.h>
 #include <linux/ip.h>
@@ -61,13 +62,17 @@ static const struct nla_policy xt_osf_policy[OSF_ATTR_MAX + 1] = {
 	[OSF_ATTR_FINGER]	= { .len = sizeof(struct xt_osf_user_finger) },
 };
 
-static int xt_osf_add_callback(struct sock *ctnl, struct sk_buff *skb,
-			       const struct nlmsghdr *nlh,
-			       const struct nlattr * const osf_attrs[])
+static int xt_osf_add_callback(struct net *net, struct sock *ctnl,
+			       struct sk_buff *skb, const struct nlmsghdr *nlh,
+			       const struct nlattr * const osf_attrs[],
+			       struct netlink_ext_ack *extack)
 {
 	struct xt_osf_user_finger *f;
 	struct xt_osf_finger *kf = NULL, *sf;
 	int err = 0;
+
+	if (!capable(CAP_NET_ADMIN))
+		return -EPERM;
 
 	if (!osf_attrs[OSF_ATTR_FINGER])
 		return -EINVAL;
@@ -104,13 +109,18 @@ static int xt_osf_add_callback(struct sock *ctnl, struct sk_buff *skb,
 	return err;
 }
 
-static int xt_osf_remove_callback(struct sock *ctnl, struct sk_buff *skb,
+static int xt_osf_remove_callback(struct net *net, struct sock *ctnl,
+				  struct sk_buff *skb,
 				  const struct nlmsghdr *nlh,
-				  const struct nlattr * const osf_attrs[])
+				  const struct nlattr * const osf_attrs[],
+				  struct netlink_ext_ack *extack)
 {
 	struct xt_osf_user_finger *f;
 	struct xt_osf_finger *sf;
 	int err = -ENOENT;
+
+	if (!capable(CAP_NET_ADMIN))
+		return -EPERM;
 
 	if (!osf_attrs[OSF_ATTR_FINGER])
 		return -EINVAL;
@@ -200,7 +210,7 @@ xt_osf_match_packet(const struct sk_buff *skb, struct xt_action_param *p)
 	unsigned char opts[MAX_IPOPTLEN];
 	const struct xt_osf_finger *kf;
 	const struct xt_osf_user_finger *f;
-	struct net *net = dev_net(p->in ? p->in : p->out);
+	struct net *net = xt_net(p);
 
 	if (!info)
 		return false;
@@ -223,7 +233,6 @@ xt_osf_match_packet(const struct sk_buff *skb, struct xt_action_param *p)
 				sizeof(struct tcphdr), optsize, opts);
 	}
 
-	rcu_read_lock();
 	list_for_each_entry_rcu(kf, &xt_osf_fingers[df], finger_entry) {
 		int foptsize, optnum;
 
@@ -261,7 +270,6 @@ xt_osf_match_packet(const struct sk_buff *skb, struct xt_action_param *p)
 			if (f->opt[optnum].kind == (*optp)) {
 				__u32 len = f->opt[optnum].length;
 				const __u8 *optend = optp + len;
-				int loop_cont = 0;
 
 				fmatch = FMATCH_OK;
 
@@ -274,7 +282,6 @@ xt_osf_match_packet(const struct sk_buff *skb, struct xt_action_param *p)
 					mss = ntohs((__force __be16)mss);
 					break;
 				case OSFOPT_TS:
-					loop_cont = 1;
 					break;
 				}
 
@@ -327,8 +334,8 @@ xt_osf_match_packet(const struct sk_buff *skb, struct xt_action_param *p)
 		fcount++;
 
 		if (info->flags & XT_OSF_LOG)
-			nf_log_packet(net, p->family, p->hooknum, skb,
-				      p->in, p->out, NULL,
+			nf_log_packet(net, xt_family(p), xt_hooknum(p), skb,
+				      xt_in(p), xt_out(p), NULL,
 				      "%s [%s:%s] : %pI4:%d -> %pI4:%d hops=%d\n",
 				      f->genre, f->version, f->subtype,
 				      &ip->saddr, ntohs(tcp->source),
@@ -339,11 +346,10 @@ xt_osf_match_packet(const struct sk_buff *skb, struct xt_action_param *p)
 		    info->loglevel == XT_OSF_LOGLEVEL_FIRST)
 			break;
 	}
-	rcu_read_unlock();
 
 	if (!fcount && (info->flags & XT_OSF_LOG))
-		nf_log_packet(net, p->family, p->hooknum, skb, p->in,
-			      p->out, NULL,
+		nf_log_packet(net, xt_family(p), xt_hooknum(p), skb, xt_in(p),
+			      xt_out(p), NULL,
 			"Remote OS is not known: %pI4:%u -> %pI4:%u\n",
 				&ip->saddr, ntohs(tcp->source),
 				&ip->daddr, ntohs(tcp->dest));

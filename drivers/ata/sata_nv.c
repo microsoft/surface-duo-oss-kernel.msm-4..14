@@ -21,7 +21,7 @@
  *
  *
  *  libata documentation is available via 'make {ps|pdf}docs',
- *  as Documentation/DocBook/libata.*
+ *  as Documentation/driver-api/libata.rst
  *
  *  No hardware documentation available outside of NVIDIA.
  *  This driver programs the NVIDIA SATA controller in a similar
@@ -599,7 +599,7 @@ MODULE_DEVICE_TABLE(pci, nv_pci_tbl);
 MODULE_VERSION(DRV_VERSION);
 
 static bool adma_enabled;
-static bool swncq_enabled = 1;
+static bool swncq_enabled = true;
 static bool msi_enabled;
 
 static void nv_adma_register_mode(struct ata_port *ap)

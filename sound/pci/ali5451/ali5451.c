@@ -1339,7 +1339,7 @@ static int snd_ali_prepare(struct snd_pcm_substream *substream)
 		rate = snd_ali_get_spdif_in_rate(codec);
 		if (rate == 0) {
 			dev_warn(codec->card->dev,
-				 "ali_capture_preapre: spdif rate detect err!\n");
+				 "ali_capture_prepare: spdif rate detect err!\n");
 			rate = 48000;
 		}
 		spin_lock_irq(&codec->reg_lock);
@@ -1408,6 +1408,7 @@ snd_ali_playback_pointer(struct snd_pcm_substream *substream)
 	spin_unlock(&codec->reg_lock);
 	dev_dbg(codec->card->dev, "playback pointer returned cso=%xh.\n", cso);
 
+	cso %= runtime->buffer_size;
 	return cso;
 }
 
@@ -1428,6 +1429,7 @@ static snd_pcm_uframes_t snd_ali_pointer(struct snd_pcm_substream *substream)
 	cso = inw(ALI_REG(codec, ALI_CSO_ALPHA_FMS + 2));
 	spin_unlock(&codec->reg_lock);
 
+	cso %= runtime->buffer_size;
 	return cso;
 }
 
@@ -1538,7 +1540,7 @@ static int snd_ali_close(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static struct snd_pcm_ops snd_ali_playback_ops = {
+static const struct snd_pcm_ops snd_ali_playback_ops = {
 	.open =		snd_ali_playback_open,
 	.close =	snd_ali_playback_close,
 	.ioctl =	snd_pcm_lib_ioctl,
@@ -1549,7 +1551,7 @@ static struct snd_pcm_ops snd_ali_playback_ops = {
 	.pointer =	snd_ali_playback_pointer,
 };
 
-static struct snd_pcm_ops snd_ali_capture_ops = {
+static const struct snd_pcm_ops snd_ali_capture_ops = {
 	.open =		snd_ali_capture_open,
 	.close =	snd_ali_close,
 	.ioctl =	snd_pcm_lib_ioctl,
@@ -1600,8 +1602,8 @@ static struct snd_pcm_hardware snd_ali_modem =
 static int snd_ali_modem_open(struct snd_pcm_substream *substream, int rec,
 			      int channel)
 {
-	static unsigned int rates[] = {8000, 9600, 12000, 16000};
-	static struct snd_pcm_hw_constraint_list hw_constraint_rates = {
+	static const unsigned int rates[] = {8000, 9600, 12000, 16000};
+	static const struct snd_pcm_hw_constraint_list hw_constraint_rates = {
 		.count = ARRAY_SIZE(rates),
 		.list = rates,
 		.mask = 0,
@@ -1624,7 +1626,7 @@ static int snd_ali_modem_capture_open(struct snd_pcm_substream *substream)
 	return snd_ali_modem_open(substream, 1, ALI_MODEM_IN_CHANNEL);
 }
 
-static struct snd_pcm_ops snd_ali_modem_playback_ops = {
+static const struct snd_pcm_ops snd_ali_modem_playback_ops = {
 	.open =		snd_ali_modem_playback_open,
 	.close =	snd_ali_close,
 	.ioctl =	snd_pcm_lib_ioctl,
@@ -1635,7 +1637,7 @@ static struct snd_pcm_ops snd_ali_modem_playback_ops = {
 	.pointer =	snd_ali_pointer,
 };
 
-static struct snd_pcm_ops snd_ali_modem_capture_ops = {
+static const struct snd_pcm_ops snd_ali_modem_capture_ops = {
 	.open =		snd_ali_modem_capture_open,
 	.close =	snd_ali_close,
 	.ioctl =	snd_pcm_lib_ioctl,
@@ -1651,8 +1653,8 @@ struct ali_pcm_description {
 	char *name;
 	unsigned int playback_num;
 	unsigned int capture_num;
-	struct snd_pcm_ops *playback_ops;
-	struct snd_pcm_ops *capture_ops;
+	const struct snd_pcm_ops *playback_ops;
+	const struct snd_pcm_ops *capture_ops;
 	unsigned short class;
 };
 
@@ -2105,8 +2107,8 @@ static int snd_ali_create(struct snd_card *card,
 	if (err < 0)
 		return err;
 	/* check, if we can restrict PCI DMA transfers to 31 bits */
-	if (pci_set_dma_mask(pci, DMA_BIT_MASK(31)) < 0 ||
-	    pci_set_consistent_dma_mask(pci, DMA_BIT_MASK(31)) < 0) {
+	if (dma_set_mask(&pci->dev, DMA_BIT_MASK(31)) < 0 ||
+	    dma_set_coherent_mask(&pci->dev, DMA_BIT_MASK(31)) < 0) {
 		dev_err(card->dev,
 			"architecture does not support 31bit PCI busmaster DMA\n");
 		pci_disable_device(pci);

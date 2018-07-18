@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *  ioctl.c
  *
@@ -19,8 +20,9 @@
 #include <linux/highuid.h>
 #include <linux/vmalloc.h>
 #include <linux/sched.h>
+#include <linux/cred.h>
 
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 
 #include "ncp_fs.h"
 
@@ -525,6 +527,8 @@ static long __ncp_ioctl(struct inode *inode, unsigned int cmd, unsigned long arg
 			switch (rqdata.cmd) {
 				case NCP_LOCK_EX:
 				case NCP_LOCK_SH:
+						if (rqdata.timeout < 0)
+							return -EINVAL;
 						if (rqdata.timeout == 0)
 							rqdata.timeout = NCP_LOCK_DEFAULT_TIMEOUT;
 						else if (rqdata.timeout > NCP_LOCK_MAX_TIMEOUT)

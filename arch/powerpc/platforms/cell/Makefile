@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 obj-$(CONFIG_PPC_CELL_COMMON)		+= cbe_regs.o interrupt.o pervasive.o
 
 obj-$(CONFIG_PPC_CELL_NATIVE)		+= iommu.o setup.o spider-pic.o \
@@ -11,7 +12,6 @@ obj-$(CONFIG_PPC_IBM_CELL_POWERBUTTON)	+= cbe_powerbutton.o
 
 ifeq ($(CONFIG_SMP),y)
 obj-$(CONFIG_PPC_CELL_NATIVE)		+= smp.o
-obj-$(CONFIG_PPC_CELL_QPACE)		+= smp.o
 endif
 
 # needed only when building loadable spufs.ko
@@ -26,6 +26,3 @@ obj-$(CONFIG_SPU_BASE)			+= spu_callbacks.o spu_base.o \
 					   spufs/
 
 obj-$(CONFIG_AXON_MSI)			+= axon_msi.o
-
-# qpace setup
-obj-$(CONFIG_PPC_CELL_QPACE)		+= qpace_setup.o

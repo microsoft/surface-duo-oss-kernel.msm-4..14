@@ -196,34 +196,43 @@ static void sctp_free_local_addr_list(struct net *net)
 
 /* Copy the local addresses which are valid for 'scope' into 'bp'.  */
 int sctp_copy_local_addr_list(struct net *net, struct sctp_bind_addr *bp,
-			      sctp_scope_t scope, gfp_t gfp, int copy_flags)
+			      enum sctp_scope scope, gfp_t gfp, int copy_flags)
 {
 	struct sctp_sockaddr_entry *addr;
+	union sctp_addr laddr;
 	int error = 0;
 
 	rcu_read_lock();
 	list_for_each_entry_rcu(addr, &net->sctp.local_addr_list, list) {
 		if (!addr->valid)
 			continue;
-		if (sctp_in_scope(net, &addr->a, scope)) {
-			/* Now that the address is in scope, check to see if
-			 * the address type is really supported by the local
-			 * sock as well as the remote peer.
-			 */
-			if ((((AF_INET == addr->a.sa.sa_family) &&
-			      (copy_flags & SCTP_ADDR4_PEERSUPP))) ||
-			    (((AF_INET6 == addr->a.sa.sa_family) &&
-			      (copy_flags & SCTP_ADDR6_ALLOWED) &&
-			      (copy_flags & SCTP_ADDR6_PEERSUPP)))) {
-				error = sctp_add_bind_addr(bp, &addr->a,
-						    SCTP_ADDR_SRC, GFP_ATOMIC);
-				if (error)
-					goto end_copy;
-			}
-		}
+		if (!sctp_in_scope(net, &addr->a, scope))
+			continue;
+
+		/* Now that the address is in scope, check to see if
+		 * the address type is really supported by the local
+		 * sock as well as the remote peer.
+		 */
+		if (addr->a.sa.sa_family == AF_INET &&
+		    !(copy_flags & SCTP_ADDR4_PEERSUPP))
+			continue;
+		if (addr->a.sa.sa_family == AF_INET6 &&
+		    (!(copy_flags & SCTP_ADDR6_ALLOWED) ||
+		     !(copy_flags & SCTP_ADDR6_PEERSUPP)))
+			continue;
+
+		laddr = addr->a;
+		/* also works for setting ipv6 address port */
+		laddr.v4.sin_port = htons(bp->port);
+		if (sctp_bind_addr_state(bp, &laddr) != -1)
+			continue;
+
+		error = sctp_add_bind_addr(bp, &addr->a, sizeof(addr->a),
+					   SCTP_ADDR_SRC, GFP_ATOMIC);
+		if (error)
+			break;
 	}
 
-end_copy:
 	rcu_read_unlock();
 	return error;
 }
@@ -232,22 +241,19 @@ end_copy:
 static void sctp_v4_from_skb(union sctp_addr *addr, struct sk_buff *skb,
 			     int is_saddr)
 {
-	void *from;
-	__be16 *port;
-	struct sctphdr *sh;
+	/* Always called on head skb, so this is safe */
+	struct sctphdr *sh = sctp_hdr(skb);
+	struct sockaddr_in *sa = &addr->v4;
 
-	port = &addr->v4.sin_port;
 	addr->v4.sin_family = AF_INET;
 
-	sh = sctp_hdr(skb);
 	if (is_saddr) {
-		*port  = sh->source;
-		from = &ip_hdr(skb)->saddr;
+		sa->sin_port = sh->source;
+		sa->sin_addr.s_addr = ip_hdr(skb)->saddr;
 	} else {
-		*port = sh->dest;
-		from = &ip_hdr(skb)->daddr;
+		sa->sin_port = sh->dest;
+		sa->sin_addr.s_addr = ip_hdr(skb)->daddr;
 	}
-	memcpy(&addr->v4.sin_addr.s_addr, from, sizeof(struct in_addr));
 }
 
 /* Initialize an sctp_addr from a socket. */
@@ -286,7 +292,7 @@ static void sctp_v4_from_addr_param(union sctp_addr *addr,
 static int sctp_v4_to_addr_param(const union sctp_addr *addr,
 				 union sctp_addr_param *param)
 {
-	int length = sizeof(sctp_ipv4addr_param_t);
+	int length = sizeof(struct sctp_ipv4addr_param);
 
 	param->v4.param_hdr.type = SCTP_PARAM_IPV4_ADDRESS;
 	param->v4.param_hdr.length = htons(length);
@@ -394,9 +400,9 @@ static int sctp_v4_available(union sctp_addr *addr, struct sctp_sock *sp)
  * IPv4 scoping can be controlled through sysctl option
  * net.sctp.addr_scope_policy
  */
-static sctp_scope_t sctp_v4_scope(union sctp_addr *addr)
+static enum sctp_scope sctp_v4_scope(union sctp_addr *addr)
 {
-	sctp_scope_t retval;
+	enum sctp_scope retval;
 
 	/* Check for unusable SCTP addresses. */
 	if (IS_IPV4_UNUSABLE_ADDRESS(addr->v4.sin_addr.s_addr)) {
@@ -489,23 +495,41 @@ static void sctp_v4_get_dst(struct sctp_transport *t, union sctp_addr *saddr,
 	 */
 	rcu_read_lock();
 	list_for_each_entry_rcu(laddr, &bp->address_list, list) {
+		struct net_device *odev;
+
 		if (!laddr->valid)
 			continue;
-		if ((laddr->state == SCTP_ADDR_SRC) &&
-		    (AF_INET == laddr->a.sa.sa_family)) {
-			fl4->fl4_sport = laddr->a.v4.sin_port;
-			flowi4_update_output(fl4,
-					     asoc->base.sk->sk_bound_dev_if,
-					     RT_CONN_FLAGS(asoc->base.sk),
-					     daddr->v4.sin_addr.s_addr,
-					     laddr->a.v4.sin_addr.s_addr);
+		if (laddr->state != SCTP_ADDR_SRC ||
+		    AF_INET != laddr->a.sa.sa_family)
+			continue;
 
-			rt = ip_route_output_key(sock_net(sk), fl4);
-			if (!IS_ERR(rt)) {
+		fl4->fl4_sport = laddr->a.v4.sin_port;
+		flowi4_update_output(fl4,
+				     asoc->base.sk->sk_bound_dev_if,
+				     RT_CONN_FLAGS(asoc->base.sk),
+				     daddr->v4.sin_addr.s_addr,
+				     laddr->a.v4.sin_addr.s_addr);
+
+		rt = ip_route_output_key(sock_net(sk), fl4);
+		if (IS_ERR(rt))
+			continue;
+
+		/* Ensure the src address belongs to the output
+		 * interface.
+		 */
+		odev = __ip_dev_find(sock_net(sk), laddr->a.v4.sin_addr.s_addr,
+				     false);
+		if (!odev || odev->ifindex != fl4->flowi4_oif) {
+			if (!dst)
 				dst = &rt->dst;
-				goto out_unlock;
-			}
+			else
+				dst_release(&rt->dst);
+			continue;
 		}
+
+		dst_release(dst);
+		dst = &rt->dst;
+		break;
 	}
 
 out_unlock:
@@ -549,10 +573,11 @@ static int sctp_v4_is_ce(const struct sk_buff *skb)
 
 /* Create and initialize a new sk for the socket returned by accept(). */
 static struct sock *sctp_v4_create_accept_sk(struct sock *sk,
-					     struct sctp_association *asoc)
+					     struct sctp_association *asoc,
+					     bool kern)
 {
 	struct sock *newsk = sk_alloc(sock_net(sk), PF_INET, GFP_KERNEL,
-			sk->sk_prot);
+			sk->sk_prot, kern);
 	struct inet_sock *newinet;
 
 	if (!newsk)
@@ -1006,7 +1031,7 @@ static const struct proto_ops inet_seqpacket_ops = {
 	.setsockopt	   = sock_common_setsockopt, /* IP_SOL IP_OPTION is a problem */
 	.getsockopt	   = sock_common_getsockopt,
 	.sendmsg	   = inet_sendmsg,
-	.recvmsg	   = sock_common_recvmsg,
+	.recvmsg	   = inet_recvmsg,
 	.mmap		   = sock_no_mmap,
 	.sendpage	   = sock_no_sendpage,
 #ifdef CONFIG_COMPAT
@@ -1205,6 +1230,9 @@ static int __net_init sctp_defaults_init(struct net *net)
 	/* Max.Burst		    - 4 */
 	net->sctp.max_burst			= SCTP_DEFAULT_MAX_BURST;
 
+	/* Enable pf state by default */
+	net->sctp.pf_enable = 1;
+
 	/* Association.Max.Retrans  - 10 attempts
 	 * Path.Max.Retrans         - 5  attempts (per destination address)
 	 * Max.Init.Retransmits     - 8  attempts
@@ -1232,6 +1260,9 @@ static int __net_init sctp_defaults_init(struct net *net)
 
 	/* Enable PR-SCTP by default. */
 	net->sctp.prsctp_enable = 1;
+
+	/* Disable RECONF by default. */
+	net->sctp.reconf_enable = 0;
 
 	/* Disable AUTH by default. */
 	net->sctp.auth_enable = 0;
@@ -1407,24 +1438,6 @@ static __init int sctp_init(void)
 	/* Limit the page order by that maximum hash table size */
 	order = min(order, max_entry_order);
 
-	do {
-		sctp_assoc_hashsize = (1UL << order) * PAGE_SIZE /
-					sizeof(struct sctp_hashbucket);
-		if ((sctp_assoc_hashsize > (64 * 1024)) && order > 0)
-			continue;
-		sctp_assoc_hashtable = (struct sctp_hashbucket *)
-			__get_free_pages(GFP_ATOMIC|__GFP_NOWARN, order);
-	} while (!sctp_assoc_hashtable && --order > 0);
-	if (!sctp_assoc_hashtable) {
-		pr_err("Failed association hash alloc\n");
-		status = -ENOMEM;
-		goto err_ahash_alloc;
-	}
-	for (i = 0; i < sctp_assoc_hashsize; i++) {
-		rwlock_init(&sctp_assoc_hashtable[i].lock);
-		INIT_HLIST_HEAD(&sctp_assoc_hashtable[i].chain);
-	}
-
 	/* Allocate and initialize the endpoint hash table.  */
 	sctp_ep_hashsize = 64;
 	sctp_ep_hashtable =
@@ -1446,7 +1459,7 @@ static __init int sctp_init(void)
 	 */
 	do {
 		sctp_port_hashtable = (struct sctp_bind_hashbucket *)
-			__get_free_pages(GFP_ATOMIC|__GFP_NOWARN, order);
+			__get_free_pages(GFP_KERNEL | __GFP_NOWARN, order);
 	} while (!sctp_port_hashtable && --order > 0);
 
 	if (!sctp_port_hashtable) {
@@ -1473,8 +1486,12 @@ static __init int sctp_init(void)
 		INIT_HLIST_HEAD(&sctp_port_hashtable[i].chain);
 	}
 
-	pr_info("Hash tables configured (established %d bind %d/%d)\n",
-		sctp_assoc_hashsize, sctp_port_hashsize, num_entries);
+	status = sctp_transport_hashtable_init();
+	if (status)
+		goto err_thash_alloc;
+
+	pr_info("Hash tables configured (bind %d/%d)\n", sctp_port_hashsize,
+		num_entries);
 
 	sctp_sysctl_register();
 
@@ -1507,6 +1524,9 @@ static __init int sctp_init(void)
 	if (status)
 		goto err_v6_add_protocol;
 
+	if (sctp_offload_init() < 0)
+		pr_crit("%s: Cannot add SCTP protocol offload\n", __func__);
+
 out:
 	return status;
 err_v6_add_protocol:
@@ -1527,12 +1547,10 @@ err_register_defaults:
 		   get_order(sctp_port_hashsize *
 			     sizeof(struct sctp_bind_hashbucket)));
 err_bhash_alloc:
+	sctp_transport_hashtable_destroy();
+err_thash_alloc:
 	kfree(sctp_ep_hashtable);
 err_ehash_alloc:
-	free_pages((unsigned long)sctp_assoc_hashtable,
-		   get_order(sctp_assoc_hashsize *
-			     sizeof(struct sctp_hashbucket)));
-err_ahash_alloc:
 	percpu_counter_destroy(&sctp_sockets_allocated);
 err_percpu_counter_init:
 	kmem_cache_destroy(sctp_chunk_cachep);
@@ -1566,13 +1584,11 @@ static __exit void sctp_exit(void)
 
 	sctp_sysctl_unregister();
 
-	free_pages((unsigned long)sctp_assoc_hashtable,
-		   get_order(sctp_assoc_hashsize *
-			     sizeof(struct sctp_hashbucket)));
-	kfree(sctp_ep_hashtable);
 	free_pages((unsigned long)sctp_port_hashtable,
 		   get_order(sctp_port_hashsize *
 			     sizeof(struct sctp_bind_hashbucket)));
+	kfree(sctp_ep_hashtable);
+	sctp_transport_hashtable_destroy();
 
 	percpu_counter_destroy(&sctp_sockets_allocated);
 

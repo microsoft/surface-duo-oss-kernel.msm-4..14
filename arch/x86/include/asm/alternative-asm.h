@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_X86_ALTERNATIVE_ASM_H
 #define _ASM_X86_ALTERNATIVE_ASM_H
 
@@ -18,6 +19,12 @@
 	.endm
 #endif
 
+/*
+ * Issue one struct alt_instr descriptor entry (need to put it into
+ * the section .altinstructions, see below). This entry contains
+ * enough information for the alternatives patching code to patch an
+ * instruction. See apply_alternatives().
+ */
 .macro altinstruction_entry orig alt feature orig_len alt_len pad_len
 	.long \orig - .
 	.long \alt - .
@@ -27,6 +34,12 @@
 	.byte \pad_len
 .endm
 
+/*
+ * Define an alternative between two instructions. If @feature is
+ * present, early code in apply_alternatives() replaces @oldinstr with
+ * @newinstr. ".skip" directive takes care of proper instruction padding
+ * in case @newinstr is longer than @oldinstr.
+ */
 .macro ALTERNATIVE oldinstr, newinstr, feature
 140:
 	\oldinstr
@@ -50,11 +63,19 @@
 #define new_len2		145f-144f
 
 /*
- * max without conditionals. Idea adapted from:
+ * gas compatible max based on the idea from:
  * http://graphics.stanford.edu/~seander/bithacks.html#IntegerMinOrMax
+ *
+ * The additional "-" is needed because gas uses a "true" value of -1.
  */
 #define alt_max_short(a, b)	((a) ^ (((a) ^ (b)) & -(-((a) < (b)))))
 
+
+/*
+ * Same as ALTERNATIVE macro above but for two alternatives. If CPU
+ * has @feature1, it replaces @oldinstr with @newinstr1. If CPU has
+ * @feature2, it replaces @oldinstr with @feature2.
+ */
 .macro ALTERNATIVE_2 oldinstr, newinstr1, feature1, newinstr2, feature2
 140:
 	\oldinstr

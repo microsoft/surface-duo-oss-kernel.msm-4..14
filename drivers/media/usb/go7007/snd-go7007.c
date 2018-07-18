@@ -52,7 +52,7 @@ struct go7007_snd {
 	int capturing;
 };
 
-static struct snd_pcm_hardware go7007_snd_capture_hw = {
+static const struct snd_pcm_hardware go7007_snd_capture_hw = {
 	.info			= (SNDRV_PCM_INFO_MMAP |
 					SNDRV_PCM_INFO_INTERLEAVED |
 					SNDRV_PCM_INFO_BLOCK_TRANSFER |
@@ -198,7 +198,7 @@ static struct page *go7007_snd_pcm_page(struct snd_pcm_substream *substream,
 	return vmalloc_to_page(substream->runtime->dma_area + offset);
 }
 
-static struct snd_pcm_ops go7007_snd_capture_ops = {
+static const struct snd_pcm_ops go7007_snd_capture_ops = {
 	.open		= go7007_snd_capture_open,
 	.close		= go7007_snd_capture_close,
 	.ioctl		= snd_pcm_lib_ioctl,

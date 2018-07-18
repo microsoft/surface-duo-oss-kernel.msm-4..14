@@ -151,6 +151,7 @@ static int sst_power_control(struct device *dev, bool state)
 		usage_count = GET_USAGE_COUNT(dev);
 		dev_dbg(ctx->dev, "Enable: pm usage count: %d\n", usage_count);
 		if (ret < 0) {
+			pm_runtime_put_sync(dev);
 			dev_err(ctx->dev, "Runtime get failed with err: %d\n", ret);
 			return ret;
 		}
@@ -204,8 +205,10 @@ static int sst_cdev_open(struct device *dev,
 	struct intel_sst_drv *ctx = dev_get_drvdata(dev);
 
 	retval = pm_runtime_get_sync(ctx->dev);
-	if (retval < 0)
+	if (retval < 0) {
+		pm_runtime_put_sync(ctx->dev);
 		return retval;
+	}
 
 	str_id = sst_get_stream(ctx, str_params);
 	if (str_id > 0) {
@@ -404,7 +407,7 @@ static int sst_cdev_caps(struct snd_compr_caps *caps)
 	return 0;
 }
 
-static struct snd_compr_codec_caps caps_mp3 = {
+static const struct snd_compr_codec_caps caps_mp3 = {
 	.num_descriptors = 1,
 	.descriptor[0].max_ch = 2,
 	.descriptor[0].sample_rates[0] = 48000,
@@ -421,7 +424,7 @@ static struct snd_compr_codec_caps caps_mp3 = {
 	.descriptor[0].formats = 0,
 };
 
-static struct snd_compr_codec_caps caps_aac = {
+static const struct snd_compr_codec_caps caps_aac = {
 	.num_descriptors = 2,
 	.descriptor[1].max_ch = 2,
 	.descriptor[0].sample_rates[0] = 48000,
@@ -533,7 +536,7 @@ static inline int sst_calc_tstamp(struct intel_sst_drv *ctx,
 
 	info->buffer_ptr = pointer_samples / substream->runtime->channels;
 
-	info->pcm_delay = delay_frames / substream->runtime->channels;
+	info->pcm_delay = delay_frames;
 	dev_dbg(ctx->dev, "buffer ptr %llu pcm_delay rep: %llu\n",
 			info->buffer_ptr, info->pcm_delay);
 	return 0;
@@ -672,8 +675,10 @@ static int sst_send_byte_stream(struct device *dev,
 	if (NULL == bytes)
 		return -EINVAL;
 	ret_val = pm_runtime_get_sync(ctx->dev);
-	if (ret_val < 0)
+	if (ret_val < 0) {
+		pm_runtime_put_sync(ctx->dev);
 		return ret_val;
+	}
 
 	ret_val = sst_send_byte_stream_mrfld(ctx, bytes);
 	sst_pm_runtime_put(ctx);

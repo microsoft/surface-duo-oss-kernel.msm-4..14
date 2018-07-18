@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 config METAG
 	def_bool y
 	select EMBEDDED
@@ -11,6 +12,7 @@ config METAG
 	select HAVE_DEBUG_KMEMLEAK
 	select HAVE_DEBUG_STACKOVERFLOW
 	select HAVE_DYNAMIC_FTRACE
+	select HAVE_EXIT_THREAD
 	select HAVE_FTRACE_MCOUNT_RECORD
 	select HAVE_FUNCTION_TRACER
 	select HAVE_KERNEL_BZIP2
@@ -25,18 +27,17 @@ config METAG
 	select HAVE_SYSCALL_TRACEPOINTS
 	select HAVE_UNDERSCORE_SYMBOL_PREFIX
 	select IRQ_DOMAIN
+	select GENERIC_IRQ_EFFECTIVE_AFF_MASK
 	select MODULES_USE_ELF_RELA
 	select OF
 	select OF_EARLY_FLATTREE
 	select SPARSE_IRQ
+	select CPU_NO_EFFICIENT_FFS
 
 config STACKTRACE_SUPPORT
 	def_bool y
 
 config LOCKDEP_SUPPORT
-	def_bool y
-
-config HAVE_LATENCYTOP_SUPPORT
 	def_bool y
 
 config RWSEM_GENERIC_SPINLOCK

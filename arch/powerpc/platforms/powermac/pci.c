@@ -783,7 +783,7 @@ static int __init pmac_add_bridge(struct device_node *dev)
 	const int *bus_range;
 	int primary = 1, has_address = 0;
 
-	DBG("Adding PCI host bridge %s\n", dev->full_name);
+	DBG("Adding PCI host bridge %pOF\n", dev);
 
 	/* Fetch host bridge registers address */
 	has_address = (of_address_to_resource(dev, 0, &rsrc) == 0);
@@ -791,8 +791,8 @@ static int __init pmac_add_bridge(struct device_node *dev)
 	/* Get bus range if any */
 	bus_range = of_get_property(dev, "bus-range", &len);
 	if (bus_range == NULL || len < 2 * sizeof(int)) {
-		printk(KERN_WARNING "Can't get bus-range for %s, assume"
-		       " bus 0\n", dev->full_name);
+		printk(KERN_WARNING "Can't get bus-range for %pOF, assume"
+		       " bus 0\n", dev);
 	}
 
 	hose = pcibios_alloc_controller(dev);
@@ -878,6 +878,29 @@ void pmac_pci_irq_fixup(struct pci_dev *dev)
 #endif /* CONFIG_PPC32 */
 }
 
+#ifdef CONFIG_PPC64
+static int pmac_pci_root_bridge_prepare(struct pci_host_bridge *bridge)
+{
+	struct pci_controller *hose = pci_bus_to_host(bridge->bus);
+	struct device_node *np, *child;
+
+	if (hose != u3_agp)
+		return 0;
+
+	/* Fixup the PCI<->OF mapping for U3 AGP due to bus renumbering. We
+	 * assume there is no P2P bridge on the AGP bus, which should be a
+	 * safe assumptions for now. We should do something better in the
+	 * future though
+	 */
+	np = hose->dn;
+	PCI_DN(np)->busno = 0xf0;
+	for_each_child_of_node(np, child)
+		PCI_DN(child)->busno = 0xf0;
+
+	return 0;
+}
+#endif /* CONFIG_PPC64 */
+
 void __init pmac_pci_init(void)
 {
 	struct device_node *np, *root;
@@ -914,20 +937,7 @@ void __init pmac_pci_init(void)
 	if (ht && pmac_add_bridge(ht) != 0)
 		of_node_put(ht);
 
-	/* Setup the linkage between OF nodes and PHBs */
-	pci_devs_phb_init();
-
-	/* Fixup the PCI<->OF mapping for U3 AGP due to bus renumbering. We
-	 * assume there is no P2P bridge on the AGP bus, which should be a
-	 * safe assumptions for now. We should do something better in the
-	 * future though
-	 */
-	if (u3_agp) {
-		struct device_node *np = u3_agp->dn;
-		PCI_DN(np)->busno = 0xf0;
-		for (np = np->child; np; np = np->sibling)
-			PCI_DN(np)->busno = 0xf0;
-	}
+	ppc_md.pcibios_root_bridge_prepare = pmac_pci_root_bridge_prepare;
 	/* pmac_check_ht_link(); */
 
 #else /* CONFIG_PPC64 */

@@ -77,18 +77,18 @@ static int __sigp_conditional_emergency(struct kvm_vcpu *vcpu,
 	const u64 psw_int_mask = PSW_MASK_IO | PSW_MASK_EXT;
 	u16 p_asn, s_asn;
 	psw_t *psw;
-	u32 flags;
+	bool idle;
 
-	flags = atomic_read(&dst_vcpu->arch.sie_block->cpuflags);
+	idle = is_vcpu_idle(vcpu);
 	psw = &dst_vcpu->arch.sie_block->gpsw;
 	p_asn = dst_vcpu->arch.sie_block->gcr[4] & 0xffff;  /* Primary ASN */
 	s_asn = dst_vcpu->arch.sie_block->gcr[3] & 0xffff;  /* Secondary ASN */
 
 	/* Inject the emergency signal? */
-	if (!(flags & CPUSTAT_STOPPED)
+	if (!is_vcpu_stopped(vcpu)
 	    || (psw->mask & psw_int_mask) != psw_int_mask
-	    || ((flags & CPUSTAT_WAIT) && psw->addr != 0)
-	    || (!(flags & CPUSTAT_WAIT) && (asn == p_asn || asn == s_asn))) {
+	    || (idle && psw->addr != 0)
+	    || (!idle && (asn == p_asn || asn == s_asn))) {
 		return __inject_sigp_emergency(vcpu, dst_vcpu);
 	} else {
 		*reg &= 0xffffffff00000000UL;
@@ -155,29 +155,26 @@ static int __sigp_stop_and_store_status(struct kvm_vcpu *vcpu,
 	return rc;
 }
 
-static int __sigp_set_arch(struct kvm_vcpu *vcpu, u32 parameter)
+static int __sigp_set_arch(struct kvm_vcpu *vcpu, u32 parameter,
+			   u64 *status_reg)
 {
-	int rc;
 	unsigned int i;
 	struct kvm_vcpu *v;
+	bool all_stopped = true;
 
-	switch (parameter & 0xff) {
-	case 0:
-		rc = SIGP_CC_NOT_OPERATIONAL;
-		break;
-	case 1:
-	case 2:
-		kvm_for_each_vcpu(i, v, vcpu->kvm) {
-			v->arch.pfault_token = KVM_S390_PFAULT_TOKEN_INVALID;
-			kvm_clear_async_pf_completion_queue(v);
-		}
-
-		rc = SIGP_CC_ORDER_CODE_ACCEPTED;
-		break;
-	default:
-		rc = -EOPNOTSUPP;
+	kvm_for_each_vcpu(i, v, vcpu->kvm) {
+		if (v == vcpu)
+			continue;
+		if (!is_vcpu_stopped(v))
+			all_stopped = false;
 	}
-	return rc;
+
+	*status_reg &= 0xffffffff00000000UL;
+
+	/* Reject set arch order, with czam we're always in z/Arch mode. */
+	*status_reg |= (all_stopped ? SIGP_STATUS_INVALID_PARAMETER :
+					SIGP_STATUS_INCORRECT_STATE);
+	return SIGP_CC_STATUS_STORED;
 }
 
 static int __sigp_set_prefix(struct kvm_vcpu *vcpu, struct kvm_vcpu *dst_vcpu,
@@ -205,9 +202,6 @@ static int __sigp_set_prefix(struct kvm_vcpu *vcpu, struct kvm_vcpu *dst_vcpu,
 		*reg &= 0xffffffff00000000UL;
 		*reg |= SIGP_STATUS_INCORRECT_STATE;
 		return SIGP_CC_STATUS_STORED;
-	} else if (rc == 0) {
-		VCPU_EVENT(vcpu, 4, "set prefix of cpu %02x to %x",
-			   dst_vcpu->vcpu_id, irq.u.prefix.address);
 	}
 
 	return rc;
@@ -242,6 +236,12 @@ static int __sigp_sense_running(struct kvm_vcpu *vcpu,
 {
 	struct kvm_s390_local_interrupt *li;
 	int rc;
+
+	if (!test_kvm_facility(vcpu->kvm, 9)) {
+		*reg &= 0xffffffff00000000UL;
+		*reg |= SIGP_STATUS_INVALID_ORDER;
+		return SIGP_CC_STATUS_STORED;
+	}
 
 	li = &dst_vcpu->arch.local_int;
 	if (atomic_read(li->cpuflags) & CPUSTAT_RUNNING) {
@@ -367,7 +367,8 @@ static int handle_sigp_dst(struct kvm_vcpu *vcpu, u8 order_code,
 	return rc;
 }
 
-static int handle_sigp_order_in_user_space(struct kvm_vcpu *vcpu, u8 order_code)
+static int handle_sigp_order_in_user_space(struct kvm_vcpu *vcpu, u8 order_code,
+					   u16 cpu_addr)
 {
 	if (!vcpu->kvm->arch.user_sigp)
 		return 0;
@@ -410,9 +411,8 @@ static int handle_sigp_order_in_user_space(struct kvm_vcpu *vcpu, u8 order_code)
 	default:
 		vcpu->stat.instruction_sigp_unknown++;
 	}
-
-	VCPU_EVENT(vcpu, 4, "sigp order %u: completely handled in user space",
-		   order_code);
+	VCPU_EVENT(vcpu, 3, "SIGP: order %u for CPU %d handled in userspace",
+		   order_code, cpu_addr);
 
 	return 1;
 }
@@ -431,7 +431,7 @@ int kvm_s390_handle_sigp(struct kvm_vcpu *vcpu)
 		return kvm_s390_inject_program_int(vcpu, PGM_PRIVILEGED_OP);
 
 	order_code = kvm_s390_get_base_disp_rs(vcpu, NULL);
-	if (handle_sigp_order_in_user_space(vcpu, order_code))
+	if (handle_sigp_order_in_user_space(vcpu, order_code, cpu_addr))
 		return -EOPNOTSUPP;
 
 	if (r1 % 2)
@@ -443,7 +443,8 @@ int kvm_s390_handle_sigp(struct kvm_vcpu *vcpu)
 	switch (order_code) {
 	case SIGP_SET_ARCHITECTURE:
 		vcpu->stat.instruction_sigp_arch++;
-		rc = __sigp_set_arch(vcpu, parameter);
+		rc = __sigp_set_arch(vcpu, parameter,
+				     &vcpu->run->s.regs.gprs[r1]);
 		break;
 	default:
 		rc = handle_sigp_dst(vcpu, order_code, cpu_addr,

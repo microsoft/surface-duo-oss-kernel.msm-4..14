@@ -19,8 +19,7 @@
 #include <crypto/ctr.h>
 #include <crypto/lrw.h>
 #include <crypto/xts.h>
-#include <asm/xcr.h>
-#include <asm/xsave.h>
+#include <asm/fpu/api.h>
 #include <asm/crypto/camellia.h>
 #include <asm/crypto/glue_helper.h>
 
@@ -207,6 +206,20 @@ struct crypt_priv {
 	bool fpu_enabled;
 };
 
+#ifdef CONFIG_PREEMPT_RT_FULL
+static void camellia_fpu_end_rt(struct crypt_priv *ctx)
+{
+       bool fpu_enabled = ctx->fpu_enabled;
+
+       if (!fpu_enabled)
+               return;
+       camellia_fpu_end(fpu_enabled);
+       ctx->fpu_enabled = false;
+}
+#else
+static void camellia_fpu_end_rt(struct crypt_priv *ctx) { }
+#endif
+
 static void encrypt_callback(void *priv, u8 *srcdst, unsigned int nbytes)
 {
 	const unsigned int bsize = CAMELLIA_BLOCK_SIZE;
@@ -222,16 +235,19 @@ static void encrypt_callback(void *priv, u8 *srcdst, unsigned int nbytes)
 	}
 
 	if (nbytes >= CAMELLIA_AESNI_PARALLEL_BLOCKS * bsize) {
+		kernel_fpu_resched();
 		camellia_ecb_enc_16way(ctx->ctx, srcdst, srcdst);
 		srcdst += bsize * CAMELLIA_AESNI_PARALLEL_BLOCKS;
 		nbytes -= bsize * CAMELLIA_AESNI_PARALLEL_BLOCKS;
 	}
 
 	while (nbytes >= CAMELLIA_PARALLEL_BLOCKS * bsize) {
+		kernel_fpu_resched();
 		camellia_enc_blk_2way(ctx->ctx, srcdst, srcdst);
 		srcdst += bsize * CAMELLIA_PARALLEL_BLOCKS;
 		nbytes -= bsize * CAMELLIA_PARALLEL_BLOCKS;
 	}
+	camellia_fpu_end_rt(ctx);
 
 	for (i = 0; i < nbytes / bsize; i++, srcdst += bsize)
 		camellia_enc_blk(ctx->ctx, srcdst, srcdst);
@@ -252,16 +268,19 @@ static void decrypt_callback(void *priv, u8 *srcdst, unsigned int nbytes)
 	}
 
 	if (nbytes >= CAMELLIA_AESNI_PARALLEL_BLOCKS * bsize) {
+		kernel_fpu_resched();
 		camellia_ecb_dec_16way(ctx->ctx, srcdst, srcdst);
 		srcdst += bsize * CAMELLIA_AESNI_PARALLEL_BLOCKS;
 		nbytes -= bsize * CAMELLIA_AESNI_PARALLEL_BLOCKS;
 	}
 
 	while (nbytes >= CAMELLIA_PARALLEL_BLOCKS * bsize) {
+		kernel_fpu_resched();
 		camellia_dec_blk_2way(ctx->ctx, srcdst, srcdst);
 		srcdst += bsize * CAMELLIA_PARALLEL_BLOCKS;
 		nbytes -= bsize * CAMELLIA_PARALLEL_BLOCKS;
 	}
+	camellia_fpu_end_rt(ctx);
 
 	for (i = 0; i < nbytes / bsize; i++, srcdst += bsize)
 		camellia_dec_blk(ctx->ctx, srcdst, srcdst);
@@ -561,16 +580,19 @@ static struct crypto_alg cmll_algs[10] = { {
 
 static int __init camellia_aesni_init(void)
 {
-	u64 xcr0;
+	const char *feature_name;
 
-	if (!cpu_has_avx2 || !cpu_has_avx || !cpu_has_aes || !cpu_has_osxsave) {
+	if (!boot_cpu_has(X86_FEATURE_AVX) ||
+	    !boot_cpu_has(X86_FEATURE_AVX2) ||
+	    !boot_cpu_has(X86_FEATURE_AES) ||
+	    !boot_cpu_has(X86_FEATURE_OSXSAVE)) {
 		pr_info("AVX2 or AES-NI instructions are not detected.\n");
 		return -ENODEV;
 	}
 
-	xcr0 = xgetbv(XCR_XFEATURE_ENABLED_MASK);
-	if ((xcr0 & (XSTATE_SSE | XSTATE_YMM)) != (XSTATE_SSE | XSTATE_YMM)) {
-		pr_info("AVX2 detected but unusable.\n");
+	if (!cpu_has_xfeatures(XFEATURE_MASK_SSE | XFEATURE_MASK_YMM,
+				&feature_name)) {
+		pr_info("CPU feature '%s' is not supported.\n", feature_name);
 		return -ENODEV;
 	}
 

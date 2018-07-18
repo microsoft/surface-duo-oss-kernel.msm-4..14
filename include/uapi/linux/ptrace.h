@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 #ifndef _UAPI_LINUX_PTRACE_H
 #define _UAPI_LINUX_PTRACE_H
 /* ptrace.h */
@@ -64,6 +65,8 @@ struct ptrace_peeksiginfo_args {
 #define PTRACE_GETSIGMASK	0x420a
 #define PTRACE_SETSIGMASK	0x420b
 
+#define PTRACE_SECCOMP_GET_FILTER	0x420c
+
 /* Read signals from a shared (process wide) queue */
 #define PTRACE_PEEKSIGINFO_SHARED	(1 << 0)
 
@@ -89,9 +92,11 @@ struct ptrace_peeksiginfo_args {
 #define PTRACE_O_TRACESECCOMP	(1 << PTRACE_EVENT_SECCOMP)
 
 /* eventless options */
-#define PTRACE_O_EXITKILL	(1 << 20)
+#define PTRACE_O_EXITKILL		(1 << 20)
+#define PTRACE_O_SUSPEND_SECCOMP	(1 << 21)
 
-#define PTRACE_O_MASK		(0x000000ff | PTRACE_O_EXITKILL)
+#define PTRACE_O_MASK		(\
+	0x000000ff | PTRACE_O_EXITKILL | PTRACE_O_SUSPEND_SECCOMP)
 
 #include <asm/ptrace.h>
 

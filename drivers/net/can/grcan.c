@@ -15,7 +15,7 @@
  * See "Documentation/ABI/testing/sysfs-class-net-grcan" for information on the
  * sysfs interface.
  *
- * See "Documentation/kernel-parameters.txt" for information on the module
+ * See "Documentation/admin-guide/kernel-parameters.rst" for information on the module
  * parameters.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -1216,11 +1216,12 @@ static int grcan_receive(struct net_device *dev, int budget)
 				cf->data[i] = (u8)(slot[j] >> shift);
 			}
 		}
-		netif_receive_skb(skb);
 
 		/* Update statistics and read pointer */
 		stats->rx_packets++;
 		stats->rx_bytes += cf->can_dlc;
+		netif_receive_skb(skb);
+
 		rd = grcan_ring_add(rd, GRCAN_MSG_SIZE, dma->rx.size);
 	}
 

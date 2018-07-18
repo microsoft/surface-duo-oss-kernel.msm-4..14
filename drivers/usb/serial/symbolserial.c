@@ -60,17 +60,15 @@ static void symbol_int_callback(struct urb *urb)
 
 	usb_serial_debug_data(&port->dev, __func__, urb->actual_length, data);
 
+	/*
+	 * Data from the device comes with a 1 byte header:
+	 *
+	 * <size of data> <data>...
+	 */
 	if (urb->actual_length > 1) {
-		data_length = urb->actual_length - 1;
-
-		/*
-		 * Data from the device comes with a 1 byte header:
-		 *
-		 * <size of data>data...
-		 * 	This is real data to be sent to the tty layer
-		 * we pretty much just ignore the size and send everything
-		 * else to the tty layer.
-		 */
+		data_length = data[0];
+		if (data_length > (urb->actual_length - 1))
+			data_length = urb->actual_length - 1;
 		tty_insert_flip_string(&port->port, &data[1], data_length);
 		tty_flip_buffer_push(&port->port);
 	} else {
@@ -149,16 +147,6 @@ static void symbol_unthrottle(struct tty_struct *tty)
 	}
 }
 
-static int symbol_startup(struct usb_serial *serial)
-{
-	if (!serial->num_interrupt_in) {
-		dev_err(&serial->dev->dev, "no interrupt-in endpoint\n");
-		return -ENODEV;
-	}
-
-	return 0;
-}
-
 static int symbol_port_probe(struct usb_serial_port *port)
 {
 	struct symbol_private *priv;
@@ -190,7 +178,7 @@ static struct usb_serial_driver symbol_device = {
 	},
 	.id_table =		id_table,
 	.num_ports =		1,
-	.attach =		symbol_startup,
+	.num_interrupt_in =	1,
 	.port_probe =		symbol_port_probe,
 	.port_remove =		symbol_port_remove,
 	.open =			symbol_open,

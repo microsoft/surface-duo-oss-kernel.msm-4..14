@@ -14,6 +14,7 @@
 
 #include <linux/module.h>
 #include <linux/blkdev.h>
+#include <linux/backing-dev.h>
 #include <linux/mount.h>
 #include <linux/init.h>
 #include <linux/nls.h>
@@ -70,7 +71,7 @@ void hfs_mark_mdb_dirty(struct super_block *sb)
 	struct hfs_sb_info *sbi = HFS_SB(sb);
 	unsigned long delay;
 
-	if (sb->s_flags & MS_RDONLY)
+	if (sb_rdonly(sb))
 		return;
 
 	spin_lock(&sbi->work_lock);
@@ -114,7 +115,7 @@ static int hfs_remount(struct super_block *sb, int *flags, char *data)
 {
 	sync_filesystem(sb);
 	*flags |= MS_NODIRATIME;
-	if ((*flags & MS_RDONLY) == (sb->s_flags & MS_RDONLY))
+	if ((bool)(*flags & MS_RDONLY) == sb_rdonly(sb))
 		return 0;
 	if (!(*flags & MS_RDONLY)) {
 		if (!(HFS_SB(sb)->mdb->drAtrb & cpu_to_be16(HFS_SB_ATTRIB_UNMNT))) {
@@ -405,6 +406,7 @@ static int hfs_fill_super(struct super_block *sb, void *data, int silent)
 	}
 
 	sb->s_op = &hfs_super_operations;
+	sb->s_xattr = hfs_xattr_handlers;
 	sb->s_flags |= MS_NODIRATIME;
 	mutex_init(&sbi->bitmap_lock);
 
@@ -482,8 +484,8 @@ static int __init init_hfs_fs(void)
 	int err;
 
 	hfs_inode_cachep = kmem_cache_create("hfs_inode_cache",
-		sizeof(struct hfs_inode_info), 0, SLAB_HWCACHE_ALIGN,
-		hfs_init_once);
+		sizeof(struct hfs_inode_info), 0,
+		SLAB_HWCACHE_ALIGN|SLAB_ACCOUNT, hfs_init_once);
 	if (!hfs_inode_cachep)
 		return -ENOMEM;
 	err = register_filesystem(&hfs_fs_type);

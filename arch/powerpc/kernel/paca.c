@@ -10,16 +10,13 @@
 #include <linux/smp.h>
 #include <linux/export.h>
 #include <linux/memblock.h>
+#include <linux/sched/task.h>
 
 #include <asm/lppaca.h>
 #include <asm/paca.h>
 #include <asm/sections.h>
 #include <asm/pgtable.h>
 #include <asm/kexec.h>
-
-/* This symbol is provided by the linker - let it fill in the paca
- * field correctly */
-extern unsigned long __toc_start;
 
 #ifdef CONFIG_PPC_BOOK3S
 
@@ -102,18 +99,27 @@ static inline void free_lppacas(void) { }
  * If you make the number of persistent SLB entries dynamic, please also
  * update PR KVM to flush and restore them accordingly.
  */
-static struct slb_shadow *slb_shadow;
+static struct slb_shadow * __initdata slb_shadow;
 
 static void __init allocate_slb_shadows(int nr_cpus, int limit)
 {
 	int size = PAGE_ALIGN(sizeof(struct slb_shadow) * nr_cpus);
+
+	if (early_radix_enabled())
+		return;
+
 	slb_shadow = __va(memblock_alloc_base(size, PAGE_SIZE, limit));
 	memset(slb_shadow, 0, size);
 }
 
 static struct slb_shadow * __init init_slb_shadow(int cpu)
 {
-	struct slb_shadow *s = &slb_shadow[cpu];
+	struct slb_shadow *s;
+
+	if (early_radix_enabled())
+		return NULL;
+
+	s = &slb_shadow[cpu];
 
 	/*
 	 * When we come through here to initialise boot_paca, the slb_shadow
@@ -149,11 +155,6 @@ EXPORT_SYMBOL(paca);
 
 void __init initialise_paca(struct paca_struct *new_paca, int cpu)
 {
-       /* The TOC register (GPR2) points 32kB into the TOC, so that 64kB
-	* of the TOC can be addressed using a single machine instruction.
-	*/
-	unsigned long kernel_toc = (unsigned long)(&__toc_start) + 0x8000UL;
-
 #ifdef CONFIG_PPC_BOOK3S
 	new_paca->lppaca_ptr = new_lppaca(cpu);
 #else
@@ -161,7 +162,7 @@ void __init initialise_paca(struct paca_struct *new_paca, int cpu)
 #endif
 	new_paca->lock_token = 0x8000;
 	new_paca->paca_index = cpu;
-	new_paca->kernel_toc = kernel_toc;
+	new_paca->kernel_toc = kernel_toc_addr();
 	new_paca->kernelbase = (unsigned long) _stext;
 	/* Only set MSR:IR/DR when MMU is initialized */
 	new_paca->kernel_msr = MSR_KERNEL & ~(MSR_IR | MSR_DR);
@@ -193,7 +194,7 @@ void setup_paca(struct paca_struct *new_paca)
 	 * if we do a GET_PACA() before the feature fixups have been
 	 * applied
 	 */
-	if (cpu_has_feature(CPU_FTR_HVMODE))
+	if (early_cpu_has_feature(CPU_FTR_HVMODE))
 		mtspr(SPRN_SPRG_HPACA, local_paca);
 #endif
 	mtspr(SPRN_SPRG_PACA, local_paca);
@@ -204,21 +205,26 @@ static int __initdata paca_size;
 
 void __init allocate_pacas(void)
 {
-	int cpu, limit;
+	u64 limit;
+	int cpu;
 
+	limit = ppc64_rma_size;
+
+#ifdef CONFIG_PPC_BOOK3S_64
 	/*
 	 * We can't take SLB misses on the paca, and we want to access them
 	 * in real mode, so allocate them within the RMA and also within
 	 * the first segment.
 	 */
-	limit = min(0x10000000ULL, ppc64_rma_size);
+	limit = min(0x10000000ULL, limit);
+#endif
 
 	paca_size = PAGE_ALIGN(sizeof(struct paca_struct) * nr_cpu_ids);
 
 	paca = __va(memblock_alloc_base(paca_size, PAGE_SIZE, limit));
 	memset(paca, 0, paca_size);
 
-	printk(KERN_DEBUG "Allocated %u bytes for %d pacas at %p\n",
+	printk(KERN_DEBUG "Allocated %u bytes for %u pacas at %p\n",
 		paca_size, nr_cpu_ids, paca);
 
 	allocate_lppacas(nr_cpu_ids, limit);
@@ -247,4 +253,25 @@ void __init free_unused_pacas(void)
 	paca_size = new_size;
 
 	free_lppacas();
+}
+
+void copy_mm_to_paca(struct mm_struct *mm)
+{
+#ifdef CONFIG_PPC_BOOK3S
+	mm_context_t *context = &mm->context;
+
+	get_paca()->mm_ctx_id = context->id;
+#ifdef CONFIG_PPC_MM_SLICES
+	VM_BUG_ON(!mm->context.addr_limit);
+	get_paca()->addr_limit = mm->context.addr_limit;
+	get_paca()->mm_ctx_low_slices_psize = context->low_slices_psize;
+	memcpy(&get_paca()->mm_ctx_high_slices_psize,
+	       &context->high_slices_psize, TASK_SLICE_ARRAY_SZ(mm));
+#else /* CONFIG_PPC_MM_SLICES */
+	get_paca()->mm_ctx_user_psize = context->user_psize;
+	get_paca()->mm_ctx_sllp = context->sllp;
+#endif
+#else /* CONFIG_PPC_BOOK3S */
+	return;
+#endif
 }

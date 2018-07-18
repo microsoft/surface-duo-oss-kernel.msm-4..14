@@ -14,17 +14,18 @@
 
 #include <linux/clk.h>
 #include <linux/dma-mapping.h>
+#include <linux/gpio/consumer.h>
 #include <linux/of_platform.h>
-#include <linux/of_gpio.h>
 #include <linux/platform_device.h>
 #include <linux/platform_data/atmel.h>
 #include <linux/io.h>
 #include <linux/kernel.h>
 #include <linux/module.h>
+#include <linux/mfd/syscon.h>
+#include <linux/regmap.h>
 #include <linux/usb.h>
 #include <linux/usb/hcd.h>
-
-#include <asm/gpio.h>
+#include <soc/at91/atmel-sfr.h>
 
 #include "ohci.h"
 
@@ -36,12 +37,23 @@
 #define hcd_to_ohci_at91_priv(h) \
 	((struct ohci_at91_priv *)hcd_to_ohci(h)->priv)
 
+#define AT91_MAX_USBH_PORTS	3
+struct at91_usbh_data {
+	struct gpio_desc *vbus_pin[AT91_MAX_USBH_PORTS];
+	struct gpio_desc *overcurrent_pin[AT91_MAX_USBH_PORTS];
+	u8 ports;				/* number of ports on root hub */
+	u8 overcurrent_supported;
+	u8 overcurrent_status[AT91_MAX_USBH_PORTS];
+	u8 overcurrent_changed[AT91_MAX_USBH_PORTS];
+};
+
 struct ohci_at91_priv {
 	struct clk *iclk;
 	struct clk *fclk;
 	struct clk *hclk;
 	bool clocked;
 	bool wakeup;		/* Saved wake-up state for resume */
+	struct regmap *sfr_regmap;
 };
 /* interface and function clocks; sometimes also an AHB clock */
 
@@ -54,8 +66,6 @@ static struct hc_driver __read_mostly ohci_at91_hc_driver;
 static const struct ohci_driver_overrides ohci_at91_drv_overrides __initconst = {
 	.extra_priv_size = sizeof(struct ohci_at91_priv),
 };
-
-extern int usb_disabled(void);
 
 /*-------------------------------------------------------------------------*/
 
@@ -125,6 +135,17 @@ static void at91_stop_hc(struct platform_device *pdev)
 
 static void usb_hcd_at91_remove (struct usb_hcd *, struct platform_device *);
 
+static struct regmap *at91_dt_syscon_sfr(void)
+{
+	struct regmap *regmap;
+
+	regmap = syscon_regmap_lookup_by_compatible("atmel,sama5d2-sfr");
+	if (IS_ERR(regmap))
+		regmap = NULL;
+
+	return regmap;
+}
+
 /* configure so an HC device and id are always provided */
 /* always called with process context; sleeping is OK */
 
@@ -188,10 +209,20 @@ static int usb_hcd_at91_probe(const struct hc_driver *driver,
 		goto err;
 	}
 
+	ohci_at91->sfr_regmap = at91_dt_syscon_sfr();
+	if (!ohci_at91->sfr_regmap)
+		dev_warn(dev, "failed to find sfr node\n");
+
 	board = hcd->self.controller->platform_data;
 	ohci = hcd_to_ohci(hcd);
 	ohci->num_ports = board->ports;
 	at91_start_hc(pdev);
+
+	/*
+	 * The RemoteWakeupConnected bit has to be set explicitly
+	 * before calling ohci_run. The reset value of this bit is 0.
+	 */
+	ohci->hc_control = OHCI_CTRL_RWC;
 
 	retval = usb_add_hcd(hcd, irq, IRQF_SHARED);
 	if (retval == 0) {
@@ -234,11 +265,7 @@ static void ohci_at91_usb_set_power(struct at91_usbh_data *pdata, int port, int 
 	if (!valid_port(port))
 		return;
 
-	if (!gpio_is_valid(pdata->vbus_pin[port]))
-		return;
-
-	gpio_set_value(pdata->vbus_pin[port],
-		       pdata->vbus_pin_active_low[port] ^ enable);
+	gpiod_set_value(pdata->vbus_pin[port], enable);
 }
 
 static int ohci_at91_usb_get_power(struct at91_usbh_data *pdata, int port)
@@ -246,11 +273,7 @@ static int ohci_at91_usb_get_power(struct at91_usbh_data *pdata, int port)
 	if (!valid_port(port))
 		return -EINVAL;
 
-	if (!gpio_is_valid(pdata->vbus_pin[port]))
-		return -EINVAL;
-
-	return gpio_get_value(pdata->vbus_pin[port]) ^
-		pdata->vbus_pin_active_low[port];
+	return gpiod_get_value(pdata->vbus_pin[port]);
 }
 
 /*
@@ -273,6 +296,28 @@ static int ohci_at91_hub_status_data(struct usb_hcd *hcd, char *buf)
 	return length;
 }
 
+static int ohci_at91_port_suspend(struct regmap *regmap, u8 set)
+{
+	u32 regval;
+	int ret;
+
+	if (!regmap)
+		return 0;
+
+	ret = regmap_read(regmap, AT91_SFR_OHCIICR, &regval);
+	if (ret)
+		return ret;
+
+	if (set)
+		regval |= AT91_OHCIICR_USB_SUSPEND;
+	else
+		regval &= ~AT91_OHCIICR_USB_SUSPEND;
+
+	regmap_write(regmap, AT91_SFR_OHCIICR, regval);
+
+	return 0;
+}
+
 /*
  * Look at the control requests to the root hub and see if we need to override.
  */
@@ -280,6 +325,7 @@ static int ohci_at91_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 				 u16 wIndex, char *buf, u16 wLength)
 {
 	struct at91_usbh_data *pdata = dev_get_platdata(hcd->self.controller);
+	struct ohci_at91_priv *ohci_at91 = hcd_to_ohci_at91_priv(hcd);
 	struct usb_hub_descriptor *desc;
 	int ret = -EINVAL;
 	u32 *data = (u32 *)buf;
@@ -292,7 +338,8 @@ static int ohci_at91_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 
 	switch (typeReq) {
 	case SetPortFeature:
-		if (wValue == USB_PORT_FEAT_POWER) {
+		switch (wValue) {
+		case USB_PORT_FEAT_POWER:
 			dev_dbg(hcd->self.controller, "SetPortFeat: POWER\n");
 			if (valid_port(wIndex)) {
 				ohci_at91_usb_set_power(pdata, wIndex, 1);
@@ -300,6 +347,15 @@ static int ohci_at91_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 			}
 
 			goto out;
+
+		case USB_PORT_FEAT_SUSPEND:
+			dev_dbg(hcd->self.controller, "SetPortFeat: SUSPEND\n");
+			if (valid_port(wIndex) && ohci_at91->sfr_regmap) {
+				ohci_at91_port_suspend(ohci_at91->sfr_regmap,
+						       1);
+				return 0;
+			}
+			break;
 		}
 		break;
 
@@ -333,6 +389,16 @@ static int ohci_at91_hub_control(struct usb_hcd *hcd, u16 typeReq, u16 wValue,
 				ohci_at91_usb_set_power(pdata, wIndex, 0);
 				return 0;
 			}
+			break;
+
+		case USB_PORT_FEAT_SUSPEND:
+			dev_dbg(hcd->self.controller, "ClearPortFeature: SUSPEND\n");
+			if (valid_port(wIndex) && ohci_at91->sfr_regmap) {
+				ohci_at91_port_suspend(ohci_at91->sfr_regmap,
+						       0);
+				return 0;
+			}
+			break;
 		}
 		break;
 	}
@@ -397,16 +463,13 @@ static irqreturn_t ohci_hcd_at91_overcurrent_irq(int irq, void *data)
 {
 	struct platform_device *pdev = data;
 	struct at91_usbh_data *pdata = dev_get_platdata(&pdev->dev);
-	int val, gpio, port;
+	int val, port;
 
 	/* From the GPIO notifying the over-current situation, find
 	 * out the corresponding port */
 	at91_for_each_port(port) {
-		if (gpio_is_valid(pdata->overcurrent_pin[port]) &&
-				gpio_to_irq(pdata->overcurrent_pin[port]) == irq) {
-			gpio = pdata->overcurrent_pin[port];
+		if (gpiod_to_irq(pdata->overcurrent_pin[port]) == irq)
 			break;
-		}
 	}
 
 	if (port == AT91_MAX_USBH_PORTS) {
@@ -414,7 +477,7 @@ static irqreturn_t ohci_hcd_at91_overcurrent_irq(int irq, void *data)
 		return IRQ_HANDLED;
 	}
 
-	val = gpio_get_value(gpio);
+	val = gpiod_get_value(pdata->overcurrent_pin[port]);
 
 	/* When notified of an over-current situation, disable power
 	   on the corresponding port, and mark this port in
@@ -431,7 +494,6 @@ static irqreturn_t ohci_hcd_at91_overcurrent_irq(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-#ifdef CONFIG_OF
 static const struct of_device_id at91_ohci_dt_ids[] = {
 	{ .compatible = "atmel,at91rm9200-ohci" },
 	{ /* sentinel */ }
@@ -439,16 +501,16 @@ static const struct of_device_id at91_ohci_dt_ids[] = {
 
 MODULE_DEVICE_TABLE(of, at91_ohci_dt_ids);
 
-static int ohci_at91_of_init(struct platform_device *pdev)
+/*-------------------------------------------------------------------------*/
+
+static int ohci_hcd_at91_drv_probe(struct platform_device *pdev)
 {
 	struct device_node *np = pdev->dev.of_node;
-	int i, gpio, ret;
-	enum of_gpio_flags flags;
 	struct at91_usbh_data	*pdata;
-	u32 ports;
-
-	if (!np)
-		return 0;
+	int			i;
+	int			ret;
+	int			err;
+	u32			ports;
 
 	/* Right now device-tree probed devices don't get dma_mask set.
 	 * Since shared usb code relies on it, set it here for now.
@@ -462,113 +524,45 @@ static int ohci_at91_of_init(struct platform_device *pdev)
 	if (!pdata)
 		return -ENOMEM;
 
+	pdev->dev.platform_data = pdata;
+
 	if (!of_property_read_u32(np, "num-ports", &ports))
 		pdata->ports = ports;
 
 	at91_for_each_port(i) {
-		gpio = of_get_named_gpio_flags(np, "atmel,vbus-gpio", i, &flags);
-		pdata->vbus_pin[i] = gpio;
-		if (!gpio_is_valid(gpio))
+		if (i >= pdata->ports)
+			break;
+
+		pdata->vbus_pin[i] =
+			devm_gpiod_get_index_optional(&pdev->dev, "atmel,vbus",
+						      i, GPIOD_OUT_HIGH);
+		if (IS_ERR(pdata->vbus_pin[i])) {
+			err = PTR_ERR(pdata->vbus_pin[i]);
+			dev_err(&pdev->dev, "unable to claim gpio \"vbus\": %d\n", err);
 			continue;
-		pdata->vbus_pin_active_low[i] = flags & OF_GPIO_ACTIVE_LOW;
+		}
 	}
 
-	at91_for_each_port(i)
+	at91_for_each_port(i) {
+		if (i >= pdata->ports)
+			break;
+
 		pdata->overcurrent_pin[i] =
-			of_get_named_gpio_flags(np, "atmel,oc-gpio", i, &flags);
-
-	pdev->dev.platform_data = pdata;
-
-	return 0;
-}
-#else
-static int ohci_at91_of_init(struct platform_device *pdev)
-{
-	return 0;
-}
-#endif
-
-/*-------------------------------------------------------------------------*/
-
-static int ohci_hcd_at91_drv_probe(struct platform_device *pdev)
-{
-	struct at91_usbh_data	*pdata;
-	int			i;
-	int			gpio;
-	int			ret;
-
-	ret = ohci_at91_of_init(pdev);
-	if (ret)
-		return ret;
-
-	pdata = dev_get_platdata(&pdev->dev);
-
-	if (pdata) {
-		at91_for_each_port(i) {
-			/*
-			 * do not configure PIO if not in relation with
-			 * real USB port on board
-			 */
-			if (i >= pdata->ports) {
-				pdata->vbus_pin[i] = -EINVAL;
-				pdata->overcurrent_pin[i] = -EINVAL;
-				break;
-			}
-
-			if (!gpio_is_valid(pdata->vbus_pin[i]))
-				continue;
-			gpio = pdata->vbus_pin[i];
-
-			ret = gpio_request(gpio, "ohci_vbus");
-			if (ret) {
-				dev_err(&pdev->dev,
-					"can't request vbus gpio %d\n", gpio);
-				continue;
-			}
-			ret = gpio_direction_output(gpio,
-						!pdata->vbus_pin_active_low[i]);
-			if (ret) {
-				dev_err(&pdev->dev,
-					"can't put vbus gpio %d as output %d\n",
-					gpio, !pdata->vbus_pin_active_low[i]);
-				gpio_free(gpio);
-				continue;
-			}
-
-			ohci_at91_usb_set_power(pdata, i, 1);
+			devm_gpiod_get_index_optional(&pdev->dev, "atmel,oc",
+						      i, GPIOD_IN);
+		if (IS_ERR(pdata->overcurrent_pin[i])) {
+			err = PTR_ERR(pdata->overcurrent_pin[i]);
+			dev_err(&pdev->dev, "unable to claim gpio \"overcurrent\": %d\n", err);
+			continue;
 		}
 
-		at91_for_each_port(i) {
-			if (!gpio_is_valid(pdata->overcurrent_pin[i]))
-				continue;
-			gpio = pdata->overcurrent_pin[i];
-
-			ret = gpio_request(gpio, "ohci_overcurrent");
-			if (ret) {
-				dev_err(&pdev->dev,
-					"can't request overcurrent gpio %d\n",
-					gpio);
-				continue;
-			}
-
-			ret = gpio_direction_input(gpio);
-			if (ret) {
-				dev_err(&pdev->dev,
-					"can't configure overcurrent gpio %d as input\n",
-					gpio);
-				gpio_free(gpio);
-				continue;
-			}
-
-			ret = request_irq(gpio_to_irq(gpio),
-					  ohci_hcd_at91_overcurrent_irq,
-					  IRQF_SHARED, "ohci_overcurrent", pdev);
-			if (ret) {
-				gpio_free(gpio);
-				dev_err(&pdev->dev,
-					"can't get gpio IRQ for overcurrent\n");
-			}
-		}
+		ret = devm_request_irq(&pdev->dev,
+				       gpiod_to_irq(pdata->overcurrent_pin[i]),
+				       ohci_hcd_at91_overcurrent_irq,
+				       IRQF_SHARED,
+				       "ohci_overcurrent", pdev);
+		if (ret)
+			dev_info(&pdev->dev, "failed to request gpio \"overcurrent\" IRQ\n");
 	}
 
 	device_init_wakeup(&pdev->dev, 1);
@@ -581,19 +575,8 @@ static int ohci_hcd_at91_drv_remove(struct platform_device *pdev)
 	int			i;
 
 	if (pdata) {
-		at91_for_each_port(i) {
-			if (!gpio_is_valid(pdata->vbus_pin[i]))
-				continue;
+		at91_for_each_port(i)
 			ohci_at91_usb_set_power(pdata, i, 0);
-			gpio_free(pdata->vbus_pin[i]);
-		}
-
-		at91_for_each_port(i) {
-			if (!gpio_is_valid(pdata->overcurrent_pin[i]))
-				continue;
-			free_irq(gpio_to_irq(pdata->overcurrent_pin[i]), pdev);
-			gpio_free(pdata->overcurrent_pin[i]);
-		}
 	}
 
 	device_init_wakeup(&pdev->dev, 0);
@@ -601,9 +584,7 @@ static int ohci_hcd_at91_drv_remove(struct platform_device *pdev)
 	return 0;
 }
 
-#ifdef CONFIG_PM
-
-static int
+static int __maybe_unused
 ohci_hcd_at91_drv_suspend(struct device *dev)
 {
 	struct usb_hcd	*hcd = dev_get_drvdata(dev);
@@ -621,6 +602,8 @@ ohci_hcd_at91_drv_suspend(struct device *dev)
 	if (ohci_at91->wakeup)
 		enable_irq_wake(hcd->irq);
 
+	ohci_at91_port_suspend(ohci_at91->sfr_regmap, 1);
+
 	ret = ohci_suspend(hcd, ohci_at91->wakeup);
 	if (ret) {
 		if (ohci_at91->wakeup)
@@ -635,9 +618,6 @@ ohci_hcd_at91_drv_suspend(struct device *dev)
 	 * REVISIT: some boards will be able to turn VBUS off...
 	 */
 	if (!ohci_at91->wakeup) {
-		ohci->hc_control = ohci_readl(ohci, &ohci->regs->control);
-		ohci->hc_control &= OHCI_CTRL_RWC;
-		ohci_writel(ohci, ohci->hc_control, &ohci->regs->control);
 		ohci->rh_state = OHCI_RH_HALTED;
 
 		/* flush the writes */
@@ -648,7 +628,8 @@ ohci_hcd_at91_drv_suspend(struct device *dev)
 	return ret;
 }
 
-static int ohci_hcd_at91_drv_resume(struct device *dev)
+static int __maybe_unused
+ohci_hcd_at91_drv_resume(struct device *dev)
 {
 	struct usb_hcd	*hcd = dev_get_drvdata(dev);
 	struct ohci_at91_priv *ohci_at91 = hcd_to_ohci_at91_priv(hcd);
@@ -659,9 +640,11 @@ static int ohci_hcd_at91_drv_resume(struct device *dev)
 	at91_start_clock(ohci_at91);
 
 	ohci_resume(hcd, false);
+
+	ohci_at91_port_suspend(ohci_at91->sfr_regmap, 0);
+
 	return 0;
 }
-#endif
 
 static SIMPLE_DEV_PM_OPS(ohci_hcd_at91_pm_ops, ohci_hcd_at91_drv_suspend,
 					ohci_hcd_at91_drv_resume);
@@ -673,7 +656,7 @@ static struct platform_driver ohci_hcd_at91_driver = {
 	.driver		= {
 		.name	= "at91_ohci",
 		.pm	= &ohci_hcd_at91_pm_ops,
-		.of_match_table	= of_match_ptr(at91_ohci_dt_ids),
+		.of_match_table	= at91_ohci_dt_ids,
 	},
 };
 

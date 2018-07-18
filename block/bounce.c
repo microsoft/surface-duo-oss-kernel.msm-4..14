@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /* bounce buffer handling for block devices
  *
  * - Split from highmem.c
@@ -13,6 +14,7 @@
 #include <linux/pagemap.h>
 #include <linux/mempool.h>
 #include <linux/blkdev.h>
+#include <linux/backing-dev.h>
 #include <linux/init.h>
 #include <linux/hash.h>
 #include <linux/highmem.h>
@@ -21,10 +23,12 @@
 #include <asm/tlbflush.h>
 
 #include <trace/events/block.h>
+#include "blk.h"
 
 #define POOL_SIZE	64
 #define ISA_POOL_SIZE	16
 
+static struct bio_set *bounce_bio_set, *bounce_bio_split;
 static mempool_t *page_pool, *isa_page_pool;
 
 #if defined(CONFIG_HIGHMEM) || defined(CONFIG_NEED_BOUNCE_POOL)
@@ -38,6 +42,14 @@ static __init int init_emergency_pool(void)
 	page_pool = mempool_create_page_pool(POOL_SIZE, 0);
 	BUG_ON(!page_pool);
 	pr_info("pool size: %d pages\n", POOL_SIZE);
+
+	bounce_bio_set = bioset_create(BIO_POOL_SIZE, 0, BIOSET_NEED_BVECS);
+	BUG_ON(!bounce_bio_set);
+	if (bioset_integrity_create(bounce_bio_set, BIO_POOL_SIZE))
+		BUG_ON(1);
+
+	bounce_bio_split = bioset_create(BIO_POOL_SIZE, 0, 0);
+	BUG_ON(!bounce_bio_split);
 
 	return 0;
 }
@@ -122,20 +134,19 @@ static void copy_to_high_bio_irq(struct bio *to, struct bio *from)
 	}
 }
 
-static void bounce_end_io(struct bio *bio, mempool_t *pool, int err)
+static void bounce_end_io(struct bio *bio, mempool_t *pool)
 {
 	struct bio *bio_orig = bio->bi_private;
 	struct bio_vec *bvec, *org_vec;
 	int i;
-
-	if (test_bit(BIO_EOPNOTSUPP, &bio->bi_flags))
-		set_bit(BIO_EOPNOTSUPP, &bio_orig->bi_flags);
+	int start = bio_orig->bi_iter.bi_idx;
 
 	/*
 	 * free up bounce indirect pages used
 	 */
 	bio_for_each_segment_all(bvec, bio, i) {
-		org_vec = bio_orig->bi_io_vec + i;
+		org_vec = bio_orig->bi_io_vec + i + start;
+
 		if (bvec->bv_page == org_vec->bv_page)
 			continue;
 
@@ -143,82 +154,76 @@ static void bounce_end_io(struct bio *bio, mempool_t *pool, int err)
 		mempool_free(bvec->bv_page, pool);
 	}
 
-	bio_endio(bio_orig, err);
+	bio_orig->bi_status = bio->bi_status;
+	bio_endio(bio_orig);
 	bio_put(bio);
 }
 
-static void bounce_end_io_write(struct bio *bio, int err)
+static void bounce_end_io_write(struct bio *bio)
 {
-	bounce_end_io(bio, page_pool, err);
+	bounce_end_io(bio, page_pool);
 }
 
-static void bounce_end_io_write_isa(struct bio *bio, int err)
+static void bounce_end_io_write_isa(struct bio *bio)
 {
 
-	bounce_end_io(bio, isa_page_pool, err);
+	bounce_end_io(bio, isa_page_pool);
 }
 
-static void __bounce_end_io_read(struct bio *bio, mempool_t *pool, int err)
+static void __bounce_end_io_read(struct bio *bio, mempool_t *pool)
 {
 	struct bio *bio_orig = bio->bi_private;
 
-	if (test_bit(BIO_UPTODATE, &bio->bi_flags))
+	if (!bio->bi_status)
 		copy_to_high_bio_irq(bio_orig, bio);
 
-	bounce_end_io(bio, pool, err);
+	bounce_end_io(bio, pool);
 }
 
-static void bounce_end_io_read(struct bio *bio, int err)
+static void bounce_end_io_read(struct bio *bio)
 {
-	__bounce_end_io_read(bio, page_pool, err);
+	__bounce_end_io_read(bio, page_pool);
 }
 
-static void bounce_end_io_read_isa(struct bio *bio, int err)
+static void bounce_end_io_read_isa(struct bio *bio)
 {
-	__bounce_end_io_read(bio, isa_page_pool, err);
+	__bounce_end_io_read(bio, isa_page_pool);
 }
-
-#ifdef CONFIG_NEED_BOUNCE_POOL
-static int must_snapshot_stable_pages(struct request_queue *q, struct bio *bio)
-{
-	if (bio_data_dir(bio) != WRITE)
-		return 0;
-
-	if (!bdi_cap_stable_pages_required(&q->backing_dev_info))
-		return 0;
-
-	return test_bit(BIO_SNAP_STABLE, &bio->bi_flags);
-}
-#else
-static int must_snapshot_stable_pages(struct request_queue *q, struct bio *bio)
-{
-	return 0;
-}
-#endif /* CONFIG_NEED_BOUNCE_POOL */
 
 static void __blk_queue_bounce(struct request_queue *q, struct bio **bio_orig,
-			       mempool_t *pool, int force)
+			       mempool_t *pool)
 {
 	struct bio *bio;
 	int rw = bio_data_dir(*bio_orig);
 	struct bio_vec *to, from;
 	struct bvec_iter iter;
-	unsigned i;
+	unsigned i = 0;
+	bool bounce = false;
+	int sectors = 0;
+	bool passthrough = bio_is_passthrough(*bio_orig);
 
-	if (force)
-		goto bounce;
-	bio_for_each_segment(from, *bio_orig, iter)
-		if (page_to_pfn(from.bv_page) > queue_bounce_pfn(q))
-			goto bounce;
+	bio_for_each_segment(from, *bio_orig, iter) {
+		if (i++ < BIO_MAX_PAGES)
+			sectors += from.bv_len >> 9;
+		if (page_to_pfn(from.bv_page) > q->limits.bounce_pfn)
+			bounce = true;
+	}
+	if (!bounce)
+		return;
 
-	return;
-bounce:
-	bio = bio_clone_bioset(*bio_orig, GFP_NOIO, fs_bio_set);
+	if (!passthrough && sectors < bio_sectors(*bio_orig)) {
+		bio = bio_split(*bio_orig, sectors, GFP_NOIO, bounce_bio_split);
+		bio_chain(bio, *bio_orig);
+		generic_make_request(*bio_orig);
+		*bio_orig = bio;
+	}
+	bio = bio_clone_bioset(*bio_orig, GFP_NOIO, passthrough ? NULL :
+			bounce_bio_set);
 
 	bio_for_each_segment_all(to, bio, i) {
 		struct page *page = to->bv_page;
 
-		if (page_to_pfn(page) <= queue_bounce_pfn(q) && !force)
+		if (page_to_pfn(page) <= q->limits.bounce_pfn)
 			continue;
 
 		to->bv_page = mempool_alloc(pool, q->bounce_gfp);
@@ -256,7 +261,6 @@ bounce:
 
 void blk_queue_bounce(struct request_queue *q, struct bio **bio_orig)
 {
-	int must_bounce;
 	mempool_t *pool;
 
 	/*
@@ -265,15 +269,13 @@ void blk_queue_bounce(struct request_queue *q, struct bio **bio_orig)
 	if (!bio_has_data(*bio_orig))
 		return;
 
-	must_bounce = must_snapshot_stable_pages(q, *bio_orig);
-
 	/*
 	 * for non-isa bounce case, just check if the bounce pfn is equal
 	 * to or bigger than the highest pfn in the system -- in that case,
 	 * don't waste time iterating over bio segments
 	 */
 	if (!(q->bounce_gfp & GFP_DMA)) {
-		if (queue_bounce_pfn(q) >= blk_max_pfn && !must_bounce)
+		if (q->limits.bounce_pfn >= blk_max_pfn)
 			return;
 		pool = page_pool;
 	} else {
@@ -284,7 +286,5 @@ void blk_queue_bounce(struct request_queue *q, struct bio **bio_orig)
 	/*
 	 * slow path
 	 */
-	__blk_queue_bounce(q, bio_orig, pool, must_bounce);
+	__blk_queue_bounce(q, bio_orig, pool);
 }
-
-EXPORT_SYMBOL(blk_queue_bounce);

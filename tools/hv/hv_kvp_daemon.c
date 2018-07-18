@@ -22,8 +22,6 @@
  */
 
 
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <sys/poll.h>
 #include <sys/utsname.h>
 #include <stdio.h>
@@ -33,9 +31,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <arpa/inet.h>
-#include <linux/connector.h>
 #include <linux/hyperv.h>
-#include <linux/netlink.h>
 #include <ifaddrs.h>
 #include <netdb.h>
 #include <syslog.h>
@@ -43,6 +39,7 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <net/if.h>
+#include <limits.h>
 #include <getopt.h>
 
 /*
@@ -79,7 +76,6 @@ enum {
 	DNS
 };
 
-static struct sockaddr_nl addr;
 static int in_hand_shake = 1;
 
 static char *os_name = "";
@@ -98,12 +94,14 @@ static struct utsname uts_buf;
 
 #define KVP_CONFIG_LOC	"/var/lib/hyperv"
 
+#ifndef KVP_SCRIPTS_PATH
+#define KVP_SCRIPTS_PATH "/usr/libexec/hypervkvpd/"
+#endif
+
+#define KVP_NET_DIR "/sys/class/net/"
+
 #define MAX_FILE_NAME 100
 #define ENTRIES_PER_BLOCK 50
-
-#ifndef SOL_NETLINK
-#define SOL_NETLINK 270
-#endif
 
 struct kvp_record {
 	char key[HV_KVP_EXCHANGE_MAX_KEY_SIZE];
@@ -195,11 +193,14 @@ static void kvp_update_mem_state(int pool)
 	for (;;) {
 		readp = &record[records_read];
 		records_read += fread(readp, sizeof(struct kvp_record),
-					ENTRIES_PER_BLOCK * num_blocks,
-					filep);
+				ENTRIES_PER_BLOCK * num_blocks - records_read,
+				filep);
 
 		if (ferror(filep)) {
-			syslog(LOG_ERR, "Failed to read file, pool: %d", pool);
+			syslog(LOG_ERR,
+				"Failed to read file, pool: %d; error: %d %s",
+				 pool, errno, strerror(errno));
+			kvp_release_lock(pool);
 			exit(EXIT_FAILURE);
 		}
 
@@ -212,6 +213,7 @@ static void kvp_update_mem_state(int pool)
 
 			if (record == NULL) {
 				syslog(LOG_ERR, "malloc failed");
+				kvp_release_lock(pool);
 				exit(EXIT_FAILURE);
 			}
 			continue;
@@ -226,15 +228,11 @@ static void kvp_update_mem_state(int pool)
 	fclose(filep);
 	kvp_release_lock(pool);
 }
+
 static int kvp_file_init(void)
 {
 	int  fd;
-	FILE *filep;
-	size_t records_read;
 	char *fname;
-	struct kvp_record *record;
-	struct kvp_record *readp;
-	int num_blocks;
 	int i;
 	int alloc_unit = sizeof(struct kvp_record) * ENTRIES_PER_BLOCK;
 
@@ -248,61 +246,19 @@ static int kvp_file_init(void)
 
 	for (i = 0; i < KVP_POOL_COUNT; i++) {
 		fname = kvp_file_info[i].fname;
-		records_read = 0;
-		num_blocks = 1;
 		sprintf(fname, "%s/.kvp_pool_%d", KVP_CONFIG_LOC, i);
 		fd = open(fname, O_RDWR | O_CREAT | O_CLOEXEC, 0644 /* rw-r--r-- */);
 
 		if (fd == -1)
 			return 1;
 
-
-		filep = fopen(fname, "re");
-		if (!filep) {
-			close(fd);
-			return 1;
-		}
-
-		record = malloc(alloc_unit * num_blocks);
-		if (record == NULL) {
-			fclose(filep);
-			close(fd);
-			return 1;
-		}
-		for (;;) {
-			readp = &record[records_read];
-			records_read += fread(readp, sizeof(struct kvp_record),
-					ENTRIES_PER_BLOCK,
-					filep);
-
-			if (ferror(filep)) {
-				syslog(LOG_ERR, "Failed to read file, pool: %d",
-				       i);
-				exit(EXIT_FAILURE);
-			}
-
-			if (!feof(filep)) {
-				/*
-				 * We have more data to read.
-				 */
-				num_blocks++;
-				record = realloc(record, alloc_unit *
-						num_blocks);
-				if (record == NULL) {
-					fclose(filep);
-					close(fd);
-					return 1;
-				}
-				continue;
-			}
-			break;
-		}
 		kvp_file_info[i].fd = fd;
-		kvp_file_info[i].num_blocks = num_blocks;
-		kvp_file_info[i].records = record;
-		kvp_file_info[i].num_records = records_read;
-		fclose(filep);
-
+		kvp_file_info[i].num_blocks = 1;
+		kvp_file_info[i].records = malloc(alloc_unit);
+		if (kvp_file_info[i].records == NULL)
+			return 1;
+		kvp_file_info[i].num_records = 0;
+		kvp_update_mem_state(i);
 	}
 
 	return 0;
@@ -601,26 +557,21 @@ static char *kvp_get_if_name(char *guid)
 	DIR *dir;
 	struct dirent *entry;
 	FILE    *file;
-	char    *p, *q, *x;
+	char    *p, *x;
 	char    *if_name = NULL;
 	char    buf[256];
-	char *kvp_net_dir = "/sys/class/net/";
-	char dev_id[256];
+	char dev_id[PATH_MAX];
 
-	dir = opendir(kvp_net_dir);
+	dir = opendir(KVP_NET_DIR);
 	if (dir == NULL)
 		return NULL;
-
-	snprintf(dev_id, sizeof(dev_id), "%s", kvp_net_dir);
-	q = dev_id + strlen(kvp_net_dir);
 
 	while ((entry = readdir(dir)) != NULL) {
 		/*
 		 * Set the state for the next pass.
 		 */
-		*q = '\0';
-		strcat(dev_id, entry->d_name);
-		strcat(dev_id, "/device/device_id");
+		snprintf(dev_id, sizeof(dev_id), "%s%s/device/device_id",
+			 KVP_NET_DIR, entry->d_name);
 
 		file = fopen(dev_id, "r");
 		if (file == NULL)
@@ -658,12 +609,12 @@ static char *kvp_if_name_to_mac(char *if_name)
 	FILE    *file;
 	char    *p, *x;
 	char    buf[256];
-	char addr_file[256];
+	char addr_file[PATH_MAX];
 	unsigned int i;
 	char *mac_addr = NULL;
 
-	snprintf(addr_file, sizeof(addr_file), "%s%s%s", "/sys/class/net/",
-		if_name, "/address");
+	snprintf(addr_file, sizeof(addr_file), "%s%s%s", KVP_NET_DIR,
+		 if_name, "/address");
 
 	file = fopen(addr_file, "r");
 	if (file == NULL)
@@ -693,28 +644,22 @@ static char *kvp_mac_to_if_name(char *mac)
 	DIR *dir;
 	struct dirent *entry;
 	FILE    *file;
-	char    *p, *q, *x;
+	char    *p, *x;
 	char    *if_name = NULL;
 	char    buf[256];
-	char *kvp_net_dir = "/sys/class/net/";
-	char dev_id[256];
+	char dev_id[PATH_MAX];
 	unsigned int i;
 
-	dir = opendir(kvp_net_dir);
+	dir = opendir(KVP_NET_DIR);
 	if (dir == NULL)
 		return NULL;
-
-	snprintf(dev_id, sizeof(dev_id), kvp_net_dir);
-	q = dev_id + strlen(kvp_net_dir);
 
 	while ((entry = readdir(dir)) != NULL) {
 		/*
 		 * Set the state for the next pass.
 		 */
-		*q = '\0';
-
-		strcat(dev_id, entry->d_name);
-		strcat(dev_id, "/address");
+		snprintf(dev_id, sizeof(dev_id), "%s%s/address", KVP_NET_DIR,
+			 entry->d_name);
 
 		file = fopen(dev_id, "r");
 		if (file == NULL)
@@ -827,7 +772,7 @@ static void kvp_get_ipconfig_info(char *if_name,
 	 * .
 	 */
 
-	sprintf(cmd, "%s",  "hv_get_dns_info");
+	sprintf(cmd, KVP_SCRIPTS_PATH "%s",  "hv_get_dns_info");
 
 	/*
 	 * Execute the command to gather DNS info.
@@ -844,7 +789,7 @@ static void kvp_get_ipconfig_info(char *if_name,
 	 * Enabled: DHCP enabled.
 	 */
 
-	sprintf(cmd, "%s %s", "hv_get_dhcp_info", if_name);
+	sprintf(cmd, KVP_SCRIPTS_PATH "%s %s", "hv_get_dhcp_info", if_name);
 
 	file = popen(cmd, "r");
 	if (file == NULL)
@@ -1149,7 +1094,7 @@ static int process_ip_string(FILE *f, char *ip_string, int type)
 	int i = 0;
 	int j = 0;
 	char str[256];
-	char sub_str[10];
+	char sub_str[13];
 	int offset = 0;
 
 	memset(addr, 0, sizeof(addr));
@@ -1223,9 +1168,9 @@ static int process_ip_string(FILE *f, char *ip_string, int type)
 static int kvp_set_ip_info(char *if_name, struct hv_kvp_ipaddr_value *new_val)
 {
 	int error = 0;
-	char if_file[128];
+	char if_file[PATH_MAX];
 	FILE *file;
-	char cmd[512];
+	char cmd[PATH_MAX];
 	char *mac_addr;
 
 	/*
@@ -1350,7 +1295,8 @@ static int kvp_set_ip_info(char *if_name, struct hv_kvp_ipaddr_value *new_val)
 	 * invoke the external script to do its magic.
 	 */
 
-	snprintf(cmd, sizeof(cmd), "%s %s", "hv_set_ifconfig", if_file);
+	snprintf(cmd, sizeof(cmd), KVP_SCRIPTS_PATH "%s %s",
+		 "hv_set_ifconfig", if_file);
 	if (system(cmd)) {
 		syslog(LOG_ERR, "Failed to execute cmd '%s'; error: %d %s",
 				cmd, errno, strerror(errno));
@@ -1387,34 +1333,6 @@ kvp_get_domain_name(char *buffer, int length)
 	freeaddrinfo(info);
 }
 
-static int
-netlink_send(int fd, struct cn_msg *msg)
-{
-	struct nlmsghdr nlh = { .nlmsg_type = NLMSG_DONE };
-	unsigned int size;
-	struct msghdr message;
-	struct iovec iov[2];
-
-	size = sizeof(struct cn_msg) + msg->len;
-
-	nlh.nlmsg_pid = getpid();
-	nlh.nlmsg_len = NLMSG_LENGTH(size);
-
-	iov[0].iov_base = &nlh;
-	iov[0].iov_len = sizeof(nlh);
-
-	iov[1].iov_base = msg;
-	iov[1].iov_len = size;
-
-	memset(&message, 0, sizeof(message));
-	message.msg_name = &addr;
-	message.msg_namelen = sizeof(addr);
-	message.msg_iov = iov;
-	message.msg_iovlen = 2;
-
-	return sendmsg(fd, &message, 0);
-}
-
 void print_usage(char *argv[])
 {
 	fprintf(stderr, "Usage: %s [options]\n"
@@ -1425,22 +1343,17 @@ void print_usage(char *argv[])
 
 int main(int argc, char *argv[])
 {
-	int fd, len, nl_group;
+	int kvp_fd, len;
 	int error;
-	struct cn_msg *message;
 	struct pollfd pfd;
-	struct nlmsghdr *incoming_msg;
-	struct cn_msg	*incoming_cn_msg;
-	struct hv_kvp_msg *hv_msg;
-	char	*p;
+	char    *p;
+	struct hv_kvp_msg hv_msg[1];
 	char	*key_value;
 	char	*key_name;
 	int	op;
 	int	pool;
 	char	*if_name;
 	struct hv_kvp_ipaddr_value *kvp_ip_val;
-	char *kvp_recv_buffer;
-	size_t kvp_recv_buffer_len;
 	int daemonize = 1, long_index = 0, opt;
 
 	static struct option long_options[] = {
@@ -1468,12 +1381,14 @@ int main(int argc, char *argv[])
 	openlog("KVP", 0, LOG_USER);
 	syslog(LOG_INFO, "KVP starting; pid is:%d", getpid());
 
-	kvp_recv_buffer_len = NLMSG_LENGTH(0) + sizeof(struct cn_msg) + sizeof(struct hv_kvp_msg);
-	kvp_recv_buffer = calloc(1, kvp_recv_buffer_len);
-	if (!kvp_recv_buffer) {
-		syslog(LOG_ERR, "Failed to allocate netlink buffer");
+	kvp_fd = open("/dev/vmbus/hv_kvp", O_RDWR | O_CLOEXEC);
+
+	if (kvp_fd < 0) {
+		syslog(LOG_ERR, "open /dev/vmbus/hv_kvp failed; error: %d %s",
+			errno, strerror(errno));
 		exit(EXIT_FAILURE);
 	}
+
 	/*
 	 * Retrieve OS release information.
 	 */
@@ -1489,99 +1404,43 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	fd = socket(AF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
-	if (fd < 0) {
-		syslog(LOG_ERR, "netlink socket creation failed; error: %d %s", errno,
-				strerror(errno));
-		exit(EXIT_FAILURE);
-	}
-	addr.nl_family = AF_NETLINK;
-	addr.nl_pad = 0;
-	addr.nl_pid = 0;
-	addr.nl_groups = 0;
-
-
-	error = bind(fd, (struct sockaddr *)&addr, sizeof(addr));
-	if (error < 0) {
-		syslog(LOG_ERR, "bind failed; error: %d %s", errno, strerror(errno));
-		close(fd);
-		exit(EXIT_FAILURE);
-	}
-	nl_group = CN_KVP_IDX;
-
-	if (setsockopt(fd, SOL_NETLINK, NETLINK_ADD_MEMBERSHIP, &nl_group, sizeof(nl_group)) < 0) {
-		syslog(LOG_ERR, "setsockopt failed; error: %d %s", errno, strerror(errno));
-		close(fd);
-		exit(EXIT_FAILURE);
-	}
-
 	/*
 	 * Register ourselves with the kernel.
 	 */
-	message = (struct cn_msg *)kvp_recv_buffer;
-	message->id.idx = CN_KVP_IDX;
-	message->id.val = CN_KVP_VAL;
-
-	hv_msg = (struct hv_kvp_msg *)message->data;
 	hv_msg->kvp_hdr.operation = KVP_OP_REGISTER1;
-	message->ack = 0;
-	message->len = sizeof(struct hv_kvp_msg);
-
-	len = netlink_send(fd, message);
-	if (len < 0) {
-		syslog(LOG_ERR, "netlink_send failed; error: %d %s", errno, strerror(errno));
-		close(fd);
+	len = write(kvp_fd, hv_msg, sizeof(struct hv_kvp_msg));
+	if (len != sizeof(struct hv_kvp_msg)) {
+		syslog(LOG_ERR, "registration to kernel failed; error: %d %s",
+		       errno, strerror(errno));
+		close(kvp_fd);
 		exit(EXIT_FAILURE);
 	}
 
-	pfd.fd = fd;
+	pfd.fd = kvp_fd;
 
 	while (1) {
-		struct sockaddr *addr_p = (struct sockaddr *) &addr;
-		socklen_t addr_l = sizeof(addr);
 		pfd.events = POLLIN;
 		pfd.revents = 0;
 
 		if (poll(&pfd, 1, -1) < 0) {
 			syslog(LOG_ERR, "poll failed; error: %d %s", errno, strerror(errno));
 			if (errno == EINVAL) {
-				close(fd);
+				close(kvp_fd);
 				exit(EXIT_FAILURE);
 			}
 			else
 				continue;
 		}
 
-		len = recvfrom(fd, kvp_recv_buffer, kvp_recv_buffer_len, 0,
-				addr_p, &addr_l);
+		len = read(kvp_fd, hv_msg, sizeof(struct hv_kvp_msg));
 
-		if (len < 0) {
-			int saved_errno = errno;
-			syslog(LOG_ERR, "recvfrom failed; pid:%u error:%d %s",
-					addr.nl_pid, errno, strerror(errno));
+		if (len != sizeof(struct hv_kvp_msg)) {
+			syslog(LOG_ERR, "read failed; error:%d %s",
+			       errno, strerror(errno));
 
-			if (saved_errno == ENOBUFS) {
-				syslog(LOG_ERR, "receive error: ignored");
-				continue;
-			}
-
-			close(fd);
-			return -1;
+			close(kvp_fd);
+			return EXIT_FAILURE;
 		}
-
-		if (addr.nl_pid) {
-			syslog(LOG_WARNING, "Received packet from untrusted pid:%u",
-					addr.nl_pid);
-			continue;
-		}
-
-		incoming_msg = (struct nlmsghdr *)kvp_recv_buffer;
-
-		if (incoming_msg->nlmsg_type != NLMSG_DONE)
-			continue;
-
-		incoming_cn_msg = (struct cn_msg *)NLMSG_DATA(incoming_msg);
-		hv_msg = (struct hv_kvp_msg *)incoming_cn_msg->data;
 
 		/*
 		 * We will use the KVP header information to pass back
@@ -1603,7 +1462,7 @@ int main(int argc, char *argv[])
 			if (lic_version) {
 				strcpy(lic_version, p);
 				syslog(LOG_INFO, "KVP LIC Version: %s",
-					lic_version);
+				       lic_version);
 			} else {
 				syslog(LOG_ERR, "malloc failed");
 			}
@@ -1702,7 +1561,6 @@ int main(int argc, char *argv[])
 			goto kvp_done;
 		}
 
-		hv_msg = (struct hv_kvp_msg *)incoming_cn_msg->data;
 		key_name = (char *)hv_msg->body.kvp_enum_data.data.key;
 		key_value = (char *)hv_msg->body.kvp_enum_data.data.value;
 
@@ -1753,31 +1611,17 @@ int main(int argc, char *argv[])
 			hv_msg->error = HV_S_CONT;
 			break;
 		}
-		/*
-		 * Send the value back to the kernel. The response is
-		 * already in the receive buffer. Update the cn_msg header to
-		 * reflect the key value that has been added to the message
-		 */
+
+		/* Send the value back to the kernel. */
 kvp_done:
-
-		incoming_cn_msg->id.idx = CN_KVP_IDX;
-		incoming_cn_msg->id.val = CN_KVP_VAL;
-		incoming_cn_msg->ack = 0;
-		incoming_cn_msg->len = sizeof(struct hv_kvp_msg);
-
-		len = netlink_send(fd, incoming_cn_msg);
-		if (len < 0) {
-			int saved_errno = errno;
-			syslog(LOG_ERR, "net_link send failed; error: %d %s", errno,
-					strerror(errno));
-
-			if (saved_errno == ENOMEM || saved_errno == ENOBUFS) {
-				syslog(LOG_ERR, "send error: ignored");
-				continue;
-			}
-
+		len = write(kvp_fd, hv_msg, sizeof(struct hv_kvp_msg));
+		if (len != sizeof(struct hv_kvp_msg)) {
+			syslog(LOG_ERR, "write failed; error: %d %s", errno,
+			       strerror(errno));
 			exit(EXIT_FAILURE);
 		}
 	}
 
+	close(kvp_fd);
+	exit(0);
 }

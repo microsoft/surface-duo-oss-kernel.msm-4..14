@@ -18,21 +18,22 @@
 #include <net/ip6_checksum.h>
 #include <net/netfilter/nf_queue.h>
 
-int ip6_route_me_harder(struct sk_buff *skb)
+int ip6_route_me_harder(struct net *net, struct sk_buff *skb)
 {
-	struct net *net = dev_net(skb_dst(skb)->dev);
 	const struct ipv6hdr *iph = ipv6_hdr(skb);
+	struct sock *sk = sk_to_full_sk(skb->sk);
 	unsigned int hh_len;
 	struct dst_entry *dst;
 	struct flowi6 fl6 = {
-		.flowi6_oif = skb->sk ? skb->sk->sk_bound_dev_if : 0,
+		.flowi6_oif = sk ? sk->sk_bound_dev_if : 0,
 		.flowi6_mark = skb->mark,
+		.flowi6_uid = sock_net_uid(net, sk),
 		.daddr = iph->daddr,
 		.saddr = iph->saddr,
 	};
 	int err;
 
-	dst = ip6_route_output(net, skb->sk, &fl6);
+	dst = ip6_route_output(net, sk, &fl6);
 	err = dst->error;
 	if (err) {
 		IP6_INC_STATS(net, ip6_dst_idev(dst), IPSTATS_MIB_OUTNOROUTES);
@@ -50,7 +51,7 @@ int ip6_route_me_harder(struct sk_buff *skb)
 	if (!(IP6CB(skb)->flags & IP6SKB_XFRM_TRANSFORMED) &&
 	    xfrm_decode_session(skb, flowi6_to_flowi(&fl6), AF_INET6) == 0) {
 		skb_dst_set(skb, NULL);
-		dst = xfrm_lookup(net, dst, flowi6_to_flowi(&fl6), skb->sk, 0);
+		dst = xfrm_lookup(net, dst, flowi6_to_flowi(&fl6), sk, 0);
 		if (IS_ERR(dst))
 			return PTR_ERR(dst);
 		skb_dst_set(skb, dst);
@@ -93,7 +94,7 @@ static void nf_ip6_saveroute(const struct sk_buff *skb,
 	}
 }
 
-static int nf_ip6_reroute(struct sk_buff *skb,
+static int nf_ip6_reroute(struct net *net, struct sk_buff *skb,
 			  const struct nf_queue_entry *entry)
 {
 	struct ip6_rt_info *rt_info = nf_queue_entry_reroute(entry);
@@ -103,7 +104,7 @@ static int nf_ip6_reroute(struct sk_buff *skb,
 		if (!ipv6_addr_equal(&iph->daddr, &rt_info->daddr) ||
 		    !ipv6_addr_equal(&iph->saddr, &rt_info->saddr) ||
 		    skb->mark != rt_info->mark)
-			return ip6_route_me_harder(skb);
+			return ip6_route_me_harder(net, skb);
 	}
 	return 0;
 }
@@ -191,6 +192,8 @@ static __sum16 nf_ip6_checksum_partial(struct sk_buff *skb, unsigned int hook,
 
 static const struct nf_ipv6_ops ipv6ops = {
 	.chk_addr	= ipv6_chk_addr,
+	.route_input    = ip6_route_input,
+	.fragment	= ip6_fragment
 };
 
 static const struct nf_afinfo nf_ip6_afinfo = {

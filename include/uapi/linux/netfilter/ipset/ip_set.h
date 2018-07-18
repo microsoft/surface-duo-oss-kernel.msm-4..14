@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /* Copyright (C) 2000-2002 Joakim Axelsson <gozem@linux.nu>
  *                         Patrick Schaaf <bof@bof.de>
  *                         Martin Josefsson <gandalf@wlug.westbo.se>
@@ -15,11 +16,11 @@
 /* The protocol version */
 #define IPSET_PROTOCOL		6
 
-/* The maximum permissible comment length we will accept over netlink */
-#define IPSET_MAX_COMMENT_SIZE	255
-
 /* The max length of strings including NUL: set and type identifiers */
 #define IPSET_MAXNAMELEN	32
+
+/* The maximum permissible comment length we will accept over netlink */
+#define IPSET_MAX_COMMENT_SIZE	255
 
 /* Message types and commands */
 enum ipset_cmd {
@@ -118,6 +119,7 @@ enum {
 	IPSET_ATTR_SKBMARK,
 	IPSET_ATTR_SKBPRIO,
 	IPSET_ATTR_SKBQUEUE,
+	IPSET_ATTR_PAD,
 	__IPSET_ATTR_ADT_MAX,
 };
 #define IPSET_ATTR_ADT_MAX	(__IPSET_ATTR_ADT_MAX - 1)

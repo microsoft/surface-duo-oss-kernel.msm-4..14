@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * linux/arch/arm/mach-sa1100/generic.h
  *
@@ -44,3 +45,5 @@ int sa11x0_pm_init(void);
 #else
 static inline int sa11x0_pm_init(void) { return 0; }
 #endif
+
+int sa11xx_clk_init(void);

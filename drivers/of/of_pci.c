@@ -1,3 +1,5 @@
+#define pr_fmt(fmt)	"OF: PCI: " fmt
+
 #include <linux/kernel.h>
 #include <linux/export.h>
 #include <linux/of.h>
@@ -55,15 +57,14 @@ EXPORT_SYMBOL_GPL(of_pci_find_child_device);
  */
 int of_pci_get_devfn(struct device_node *np)
 {
-	unsigned int size;
-	const __be32 *reg;
+	u32 reg[5];
+	int error;
 
-	reg = of_get_property(np, "reg", &size);
+	error = of_property_read_u32_array(np, "reg", reg, ARRAY_SIZE(reg));
+	if (error)
+		return error;
 
-	if (!reg || size < 5 * sizeof(__be32))
-		return -EINVAL;
-
-	return (be32_to_cpup(reg) >> 8) & 0xff;
+	return (reg[0] >> 8) & 0xff;
 }
 EXPORT_SYMBOL_GPL(of_pci_get_devfn);
 
@@ -76,16 +77,17 @@ EXPORT_SYMBOL_GPL(of_pci_get_devfn);
  */
 int of_pci_parse_bus_range(struct device_node *node, struct resource *res)
 {
-	const __be32 *values;
-	int len;
+	u32 bus_range[2];
+	int error;
 
-	values = of_get_property(node, "bus-range", &len);
-	if (!values || len < sizeof(*values) * 2)
-		return -EINVAL;
+	error = of_property_read_u32_array(node, "bus-range", bus_range,
+					   ARRAY_SIZE(bus_range));
+	if (error)
+		return error;
 
 	res->name = node->name;
-	res->start = be32_to_cpup(values++);
-	res->end = be32_to_cpup(values);
+	res->start = bus_range[0];
+	res->end = bus_range[1];
 	res->flags = IORESOURCE_BUS;
 
 	return 0;
@@ -103,39 +105,62 @@ EXPORT_SYMBOL_GPL(of_pci_parse_bus_range);
  */
 int of_get_pci_domain_nr(struct device_node *node)
 {
-	const __be32 *value;
-	int len;
-	u16 domain;
+	u32 domain;
+	int error;
 
-	value = of_get_property(node, "linux,pci-domain", &len);
-	if (!value || len < sizeof(*value))
-		return -EINVAL;
+	error = of_property_read_u32(node, "linux,pci-domain", &domain);
+	if (error)
+		return error;
 
-	domain = (u16)be32_to_cpup(value);
-
-	return domain;
+	return (u16)domain;
 }
 EXPORT_SYMBOL_GPL(of_get_pci_domain_nr);
 
 /**
- * of_pci_dma_configure - Setup DMA configuration
- * @dev: ptr to pci_dev struct of the PCI device
+ * This function will try to find the limitation of link speed by finding
+ * a property called "max-link-speed" of the given device node.
  *
- * Function to update PCI devices's DMA configuration using the same
- * info from the OF node of host bridge's parent (if any).
+ * @node: device tree node with the max link speed information
+ *
+ * Returns the associated max link speed from DT, or a negative value if the
+ * required property is not found or is invalid.
  */
-void of_pci_dma_configure(struct pci_dev *pci_dev)
+int of_pci_get_max_link_speed(struct device_node *node)
 {
-	struct device *dev = &pci_dev->dev;
-	struct device *bridge = pci_get_host_bridge_device(pci_dev);
+	u32 max_link_speed;
 
-	if (!bridge->parent)
-		return;
+	if (of_property_read_u32(node, "max-link-speed", &max_link_speed) ||
+	    max_link_speed > 4)
+		return -EINVAL;
 
-	of_dma_configure(dev, bridge->parent->of_node);
-	pci_put_host_bridge_device(bridge);
+	return max_link_speed;
 }
-EXPORT_SYMBOL_GPL(of_pci_dma_configure);
+EXPORT_SYMBOL_GPL(of_pci_get_max_link_speed);
+
+/**
+ * of_pci_check_probe_only - Setup probe only mode if linux,pci-probe-only
+ *                           is present and valid
+ */
+void of_pci_check_probe_only(void)
+{
+	u32 val;
+	int ret;
+
+	ret = of_property_read_u32(of_chosen, "linux,pci-probe-only", &val);
+	if (ret) {
+		if (ret == -ENODATA || ret == -EOVERFLOW)
+			pr_warn("linux,pci-probe-only without valid value, ignoring\n");
+		return;
+	}
+
+	if (val)
+		pci_add_flags(PCI_PROBE_ONLY);
+	else
+		pci_clear_flags(PCI_PROBE_ONLY);
+
+	pr_info("PROBE_ONLY %sabled\n", val ? "en" : "dis");
+}
+EXPORT_SYMBOL_GPL(of_pci_check_probe_only);
 
 #if defined(CONFIG_OF_ADDRESS)
 /**
@@ -176,15 +201,15 @@ int of_pci_get_host_bridge_resources(struct device_node *dev,
 	if (!bus_range)
 		return -ENOMEM;
 
-	pr_info("PCI host bridge %s ranges:\n", dev->full_name);
+	pr_info("host bridge %pOF ranges:\n", dev);
 
 	err = of_pci_parse_bus_range(dev, bus_range);
 	if (err) {
 		bus_range->start = busno;
 		bus_range->end = bus_max;
 		bus_range->flags = IORESOURCE_BUS;
-		pr_info("  No bus range found for %s, using %pR\n",
-			dev->full_name, bus_range);
+		pr_info("  No bus range found for %pOF, using %pR\n",
+			dev, bus_range);
 	} else {
 		if (bus_range->end > bus_range->start + bus_max)
 			bus_range->end = bus_range->start + bus_max;
@@ -223,19 +248,21 @@ int of_pci_get_host_bridge_resources(struct device_node *dev,
 		}
 
 		err = of_pci_range_to_resource(&range, dev, res);
-		if (err)
-			goto conversion_failed;
+		if (err) {
+			kfree(res);
+			continue;
+		}
 
 		if (resource_type(res) == IORESOURCE_IO) {
 			if (!io_base) {
-				pr_err("I/O range found for %s. Please provide an io_base pointer to save CPU base address\n",
-					dev->full_name);
+				pr_err("I/O range found for %pOF. Please provide an io_base pointer to save CPU base address\n",
+					dev);
 				err = -EINVAL;
 				goto conversion_failed;
 			}
 			if (*io_base != (resource_size_t)OF_BAD_ADDR)
-				pr_warn("More than one I/O resource converted for %s. CPU base address for old range lost!\n",
-					dev->full_name);
+				pr_warn("More than one I/O resource converted for %pOF. CPU base address for old range lost!\n",
+					dev);
 			*io_base = range.cpu_addr;
 		}
 
@@ -255,47 +282,103 @@ parse_failed:
 EXPORT_SYMBOL_GPL(of_pci_get_host_bridge_resources);
 #endif /* CONFIG_OF_ADDRESS */
 
-#ifdef CONFIG_PCI_MSI
-
-static LIST_HEAD(of_pci_msi_chip_list);
-static DEFINE_MUTEX(of_pci_msi_chip_mutex);
-
-int of_pci_msi_chip_add(struct msi_controller *chip)
+/**
+ * of_pci_map_rid - Translate a requester ID through a downstream mapping.
+ * @np: root complex device node.
+ * @rid: PCI requester ID to map.
+ * @map_name: property name of the map to use.
+ * @map_mask_name: optional property name of the mask to use.
+ * @target: optional pointer to a target device node.
+ * @id_out: optional pointer to receive the translated ID.
+ *
+ * Given a PCI requester ID, look up the appropriate implementation-defined
+ * platform ID and/or the target device which receives transactions on that
+ * ID, as per the "iommu-map" and "msi-map" bindings. Either of @target or
+ * @id_out may be NULL if only the other is required. If @target points to
+ * a non-NULL device node pointer, only entries targeting that node will be
+ * matched; if it points to a NULL value, it will receive the device node of
+ * the first matching target phandle, with a reference held.
+ *
+ * Return: 0 on success or a standard error code on failure.
+ */
+int of_pci_map_rid(struct device_node *np, u32 rid,
+		   const char *map_name, const char *map_mask_name,
+		   struct device_node **target, u32 *id_out)
 {
-	if (!of_property_read_bool(chip->of_node, "msi-controller"))
+	u32 map_mask, masked_rid;
+	int map_len;
+	const __be32 *map = NULL;
+
+	if (!np || !map_name || (!target && !id_out))
 		return -EINVAL;
 
-	mutex_lock(&of_pci_msi_chip_mutex);
-	list_add(&chip->list, &of_pci_msi_chip_list);
-	mutex_unlock(&of_pci_msi_chip_mutex);
-
-	return 0;
-}
-EXPORT_SYMBOL_GPL(of_pci_msi_chip_add);
-
-void of_pci_msi_chip_remove(struct msi_controller *chip)
-{
-	mutex_lock(&of_pci_msi_chip_mutex);
-	list_del(&chip->list);
-	mutex_unlock(&of_pci_msi_chip_mutex);
-}
-EXPORT_SYMBOL_GPL(of_pci_msi_chip_remove);
-
-struct msi_controller *of_pci_find_msi_chip_by_node(struct device_node *of_node)
-{
-	struct msi_controller *c;
-
-	mutex_lock(&of_pci_msi_chip_mutex);
-	list_for_each_entry(c, &of_pci_msi_chip_list, list) {
-		if (c->of_node == of_node) {
-			mutex_unlock(&of_pci_msi_chip_mutex);
-			return c;
-		}
+	map = of_get_property(np, map_name, &map_len);
+	if (!map) {
+		if (target)
+			return -ENODEV;
+		/* Otherwise, no map implies no translation */
+		*id_out = rid;
+		return 0;
 	}
-	mutex_unlock(&of_pci_msi_chip_mutex);
 
-	return NULL;
+	if (!map_len || map_len % (4 * sizeof(*map))) {
+		pr_err("%pOF: Error: Bad %s length: %d\n", np,
+			map_name, map_len);
+		return -EINVAL;
+	}
+
+	/* The default is to select all bits. */
+	map_mask = 0xffffffff;
+
+	/*
+	 * Can be overridden by "{iommu,msi}-map-mask" property.
+	 * If of_property_read_u32() fails, the default is used.
+	 */
+	if (map_mask_name)
+		of_property_read_u32(np, map_mask_name, &map_mask);
+
+	masked_rid = map_mask & rid;
+	for ( ; map_len > 0; map_len -= 4 * sizeof(*map), map += 4) {
+		struct device_node *phandle_node;
+		u32 rid_base = be32_to_cpup(map + 0);
+		u32 phandle = be32_to_cpup(map + 1);
+		u32 out_base = be32_to_cpup(map + 2);
+		u32 rid_len = be32_to_cpup(map + 3);
+
+		if (rid_base & ~map_mask) {
+			pr_err("%pOF: Invalid %s translation - %s-mask (0x%x) ignores rid-base (0x%x)\n",
+				np, map_name, map_name,
+				map_mask, rid_base);
+			return -EFAULT;
+		}
+
+		if (masked_rid < rid_base || masked_rid >= rid_base + rid_len)
+			continue;
+
+		phandle_node = of_find_node_by_phandle(phandle);
+		if (!phandle_node)
+			return -ENODEV;
+
+		if (target) {
+			if (*target)
+				of_node_put(phandle_node);
+			else
+				*target = phandle_node;
+
+			if (*target != phandle_node)
+				continue;
+		}
+
+		if (id_out)
+			*id_out = masked_rid - rid_base + out_base;
+
+		pr_debug("%pOF: %s, using mask %08x, rid-base: %08x, out-base: %08x, length: %08x, rid: %08x -> %08x\n",
+			np, map_name, map_mask, rid_base, out_base,
+			rid_len, rid, *id_out);
+		return 0;
+	}
+
+	pr_err("%pOF: Invalid %s translation - no match for rid 0x%x on %pOF\n",
+		np, map_name, rid, target && *target ? *target : NULL);
+	return -EFAULT;
 }
-EXPORT_SYMBOL_GPL(of_pci_find_msi_chip_by_node);
-
-#endif /* CONFIG_PCI_MSI */

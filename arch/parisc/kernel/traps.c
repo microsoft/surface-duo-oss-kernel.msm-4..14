@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/arch/parisc/traps.c
  *
@@ -11,6 +12,7 @@
  */
 
 #include <linux/sched.h>
+#include <linux/sched/debug.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
 #include <linux/errno.h>
@@ -284,11 +286,8 @@ void die_if_kernel(char *str, struct pt_regs *regs, long err)
 	if (in_interrupt())
 		panic("Fatal exception in interrupt");
 
-	if (panic_on_oops) {
-		printk(KERN_EMERG "Fatal exception: panic in 5 seconds\n");
-		ssleep(5);
+	if (panic_on_oops)
 		panic("Fatal exception");
-	}
 
 	oops_exit();
 	do_exit(SIGSEGV);
@@ -461,8 +460,8 @@ void parisc_terminate(char *msg, struct pt_regs *regs, int code, unsigned long o
 	}
 
 	printk("\n");
-	printk(KERN_CRIT "%s: Code=%d regs=%p (Addr=" RFMT ")\n",
-			msg, code, regs, offset);
+	pr_crit("%s: Code=%d (%s) regs=%p (Addr=" RFMT ")\n",
+		msg, code, trap_name(code), regs, offset);
 	show_regs(regs);
 
 	spin_unlock(&terminate_lock);
@@ -810,7 +809,7 @@ void notrace handle_interruption(int code, struct pt_regs *regs)
 }
 
 
-int __init check_ivt(void *iva)
+void __init initialize_ivt(const void *iva)
 {
 	extern u32 os_hpmc_size;
 	extern const u32 os_hpmc[];
@@ -819,15 +818,23 @@ int __init check_ivt(void *iva)
 	u32 check = 0;
 	u32 *ivap;
 	u32 *hpmcp;
-	u32 length;
+	u32 length, instr;
 
-	if (strcmp((char *)iva, "cows can fly"))
-		return -1;
+	if (strcmp((const char *)iva, "cows can fly"))
+		panic("IVT invalid");
 
 	ivap = (u32 *)iva;
 
 	for (i = 0; i < 8; i++)
 	    *ivap++ = 0;
+
+	/*
+	 * Use PDC_INSTR firmware function to get instruction that invokes
+	 * PDCE_CHECK in HPMC handler.  See programming note at page 1-31 of
+	 * the PA 1.1 Firmware Architecture document.
+	 */
+	if (pdc_instr(&instr) == PDC_OK)
+		ivap[0] = instr;
 
 	/* Compute Checksum for HPMC handler */
 	length = os_hpmc_size;
@@ -842,28 +849,23 @@ int __init check_ivt(void *iva)
 	    check += ivap[i];
 
 	ivap[5] = -check;
-
-	return 0;
 }
 	
+
+/* early_trap_init() is called before we set up kernel mappings and
+ * write-protect the kernel */
+void  __init early_trap_init(void)
+{
+	extern const void fault_vector_20;
+
 #ifndef CONFIG_64BIT
-extern const void fault_vector_11;
+	extern const void fault_vector_11;
+	initialize_ivt(&fault_vector_11);
 #endif
-extern const void fault_vector_20;
+
+	initialize_ivt(&fault_vector_20);
+}
 
 void __init trap_init(void)
 {
-	void *iva;
-
-	if (boot_cpu_data.cpu_type >= pcxu)
-		iva = (void *) &fault_vector_20;
-	else
-#ifdef CONFIG_64BIT
-		panic("Can't boot 64-bit OS on PA1.1 processor!");
-#else
-		iva = (void *) &fault_vector_11;
-#endif
-
-	if (check_ivt(iva))
-		panic("IVT invalid");
 }

@@ -21,10 +21,10 @@
  *
  * Authors: Ben Skeggs
  */
-#include "gf100.h"
+#define gf100_ram(p) container_of((p), struct gf100_ram, base)
+#include "ram.h"
 #include "ramfuc.h"
 
-#include <core/device.h>
 #include <core/option.h>
 #include <subdev/bios.h>
 #include <subdev/bios/pll.h>
@@ -108,9 +108,10 @@ static void
 gf100_ram_train(struct gf100_ramfuc *fuc, u32 magic)
 {
 	struct gf100_ram *ram = container_of(fuc, typeof(*ram), fuc);
-	struct nvkm_fb *pfb = nvkm_fb(ram);
-	u32 part = nv_rd32(pfb, 0x022438), i;
-	u32 mask = nv_rd32(pfb, 0x022554);
+	struct nvkm_fb *fb = ram->base.fb;
+	struct nvkm_device *device = fb->subdev.device;
+	u32 part = nvkm_rd32(device, 0x022438), i;
+	u32 mask = nvkm_rd32(device, 0x022554);
 	u32 addr = 0x110974;
 
 	ram_wr32(fuc, 0x10f910, magic);
@@ -123,13 +124,15 @@ gf100_ram_train(struct gf100_ramfuc *fuc, u32 magic)
 	}
 }
 
-static int
-gf100_ram_calc(struct nvkm_fb *pfb, u32 freq)
+int
+gf100_ram_calc(struct nvkm_ram *base, u32 freq)
 {
-	struct nvkm_clk *clk = nvkm_clk(pfb);
-	struct nvkm_bios *bios = nvkm_bios(pfb);
-	struct gf100_ram *ram = (void *)pfb->ram;
+	struct gf100_ram *ram = gf100_ram(base);
 	struct gf100_ramfuc *fuc = &ram->fuc;
+	struct nvkm_subdev *subdev = &ram->base.fb->subdev;
+	struct nvkm_device *device = subdev->device;
+	struct nvkm_clk *clk = device->clk;
+	struct nvkm_bios *bios = device->bios;
 	struct nvbios_ramcfg cfg;
 	u8  ver, cnt, len, strap;
 	struct {
@@ -145,37 +148,37 @@ gf100_ram_calc(struct nvkm_fb *pfb, u32 freq)
 	rammap.data = nvbios_rammapEm(bios, freq / 1000, &ver, &rammap.size,
 				      &cnt, &ramcfg.size, &cfg);
 	if (!rammap.data || ver != 0x10 || rammap.size < 0x0e) {
-		nv_error(pfb, "invalid/missing rammap entry\n");
+		nvkm_error(subdev, "invalid/missing rammap entry\n");
 		return -EINVAL;
 	}
 
 	/* locate specific data set for the attached memory */
-	strap = nvbios_ramcfg_index(nv_subdev(pfb));
+	strap = nvbios_ramcfg_index(subdev);
 	if (strap >= cnt) {
-		nv_error(pfb, "invalid ramcfg strap\n");
+		nvkm_error(subdev, "invalid ramcfg strap\n");
 		return -EINVAL;
 	}
 
 	ramcfg.data = rammap.data + rammap.size + (strap * ramcfg.size);
 	if (!ramcfg.data || ver != 0x10 || ramcfg.size < 0x0e) {
-		nv_error(pfb, "invalid/missing ramcfg entry\n");
+		nvkm_error(subdev, "invalid/missing ramcfg entry\n");
 		return -EINVAL;
 	}
 
 	/* lookup memory timings, if bios says they're present */
-	strap = nv_ro08(bios, ramcfg.data + 0x01);
+	strap = nvbios_rd08(bios, ramcfg.data + 0x01);
 	if (strap != 0xff) {
 		timing.data = nvbios_timingEe(bios, strap, &ver, &timing.size,
 					      &cnt, &len);
 		if (!timing.data || ver != 0x10 || timing.size < 0x19) {
-			nv_error(pfb, "invalid/missing timing entry\n");
+			nvkm_error(subdev, "invalid/missing timing entry\n");
 			return -EINVAL;
 		}
 	} else {
 		timing.data = 0;
 	}
 
-	ret = ram_init(fuc, pfb);
+	ret = ram_init(fuc, ram->base.fb);
 	if (ret)
 		return ret;
 
@@ -184,9 +187,9 @@ gf100_ram_calc(struct nvkm_fb *pfb, u32 freq)
 
 	/* determine target mclk configuration */
 	if (!(ram_rd32(fuc, 0x137300) & 0x00000100))
-		ref = clk->read(clk, nv_clk_src_sppll0);
+		ref = nvkm_clk_read(clk, nv_clk_src_sppll0);
 	else
-		ref = clk->read(clk, nv_clk_src_sppll1);
+		ref = nvkm_clk_read(clk, nv_clk_src_sppll1);
 	div = max(min((ref * 2) / freq, (u32)65), (u32)2) - 2;
 	out = (ref * 2) / (div + 2);
 	mode = freq != out;
@@ -210,10 +213,10 @@ gf100_ram_calc(struct nvkm_fb *pfb, u32 freq)
 
 	if (mode == 1 && from == 0) {
 		/* calculate refpll */
-		ret = gt215_pll_calc(nv_subdev(pfb), &ram->refpll,
-				     ram->mempll.refclk, &N1, NULL, &M1, &P);
+		ret = gt215_pll_calc(subdev, &ram->refpll, ram->mempll.refclk,
+				     &N1, NULL, &M1, &P);
 		if (ret <= 0) {
-			nv_error(pfb, "unable to calc refpll\n");
+			nvkm_error(subdev, "unable to calc refpll\n");
 			return ret ? ret : -ERANGE;
 		}
 
@@ -225,10 +228,10 @@ gf100_ram_calc(struct nvkm_fb *pfb, u32 freq)
 		ram_wait(fuc, 0x137390, 0x00020000, 0x00020000, 64000);
 
 		/* calculate mempll */
-		ret = gt215_pll_calc(nv_subdev(pfb), &ram->mempll, freq,
+		ret = gt215_pll_calc(subdev, &ram->mempll, freq,
 				     &N1, NULL, &M1, &P);
 		if (ret <= 0) {
-			nv_error(pfb, "unable to calc refpll\n");
+			nvkm_error(subdev, "unable to calc refpll\n");
 			return ret ? ret : -ERANGE;
 		}
 
@@ -401,60 +404,57 @@ gf100_ram_calc(struct nvkm_fb *pfb, u32 freq)
 	return 0;
 }
 
-static int
-gf100_ram_prog(struct nvkm_fb *pfb)
+int
+gf100_ram_prog(struct nvkm_ram *base)
 {
-	struct nvkm_device *device = nv_device(pfb);
-	struct gf100_ram *ram = (void *)pfb->ram;
-	struct gf100_ramfuc *fuc = &ram->fuc;
-	ram_exec(fuc, nvkm_boolopt(device->cfgopt, "NvMemExec", true));
+	struct gf100_ram *ram = gf100_ram(base);
+	struct nvkm_device *device = ram->base.fb->subdev.device;
+	ram_exec(&ram->fuc, nvkm_boolopt(device->cfgopt, "NvMemExec", true));
 	return 0;
 }
 
-static void
-gf100_ram_tidy(struct nvkm_fb *pfb)
+void
+gf100_ram_tidy(struct nvkm_ram *base)
 {
-	struct gf100_ram *ram = (void *)pfb->ram;
-	struct gf100_ramfuc *fuc = &ram->fuc;
-	ram_exec(fuc, false);
+	struct gf100_ram *ram = gf100_ram(base);
+	ram_exec(&ram->fuc, false);
 }
 
-extern const u8 gf100_pte_storage_type_map[256];
-
 void
-gf100_ram_put(struct nvkm_fb *pfb, struct nvkm_mem **pmem)
+gf100_ram_put(struct nvkm_ram *ram, struct nvkm_mem **pmem)
 {
-	struct nvkm_ltc *ltc = nvkm_ltc(pfb);
+	struct nvkm_ltc *ltc = ram->fb->subdev.device->ltc;
 	struct nvkm_mem *mem = *pmem;
 
 	*pmem = NULL;
 	if (unlikely(mem == NULL))
 		return;
 
-	mutex_lock(&pfb->base.mutex);
+	mutex_lock(&ram->fb->subdev.mutex);
 	if (mem->tag)
-		ltc->tags_free(ltc, &mem->tag);
-	__nv50_ram_put(pfb, mem);
-	mutex_unlock(&pfb->base.mutex);
+		nvkm_ltc_tags_free(ltc, &mem->tag);
+	__nv50_ram_put(ram, mem);
+	mutex_unlock(&ram->fb->subdev.mutex);
 
 	kfree(mem);
 }
 
 int
-gf100_ram_get(struct nvkm_fb *pfb, u64 size, u32 align, u32 ncmin,
+gf100_ram_get(struct nvkm_ram *ram, u64 size, u32 align, u32 ncmin,
 	      u32 memtype, struct nvkm_mem **pmem)
 {
-	struct nvkm_mm *mm = &pfb->vram;
-	struct nvkm_mm_node *r;
+	struct nvkm_ltc *ltc = ram->fb->subdev.device->ltc;
+	struct nvkm_mm *mm = &ram->vram;
+	struct nvkm_mm_node **node, *r;
 	struct nvkm_mem *mem;
 	int type = (memtype & 0x0ff);
 	int back = (memtype & 0x800);
 	const bool comp = gf100_pte_storage_type_map[type] != type;
 	int ret;
 
-	size  >>= 12;
-	align >>= 12;
-	ncmin >>= 12;
+	size  >>= NVKM_RAM_MM_SHIFT;
+	align >>= NVKM_RAM_MM_SHIFT;
+	ncmin >>= NVKM_RAM_MM_SHIFT;
 	if (!ncmin)
 		ncmin = size;
 
@@ -462,17 +462,14 @@ gf100_ram_get(struct nvkm_fb *pfb, u64 size, u32 align, u32 ncmin,
 	if (!mem)
 		return -ENOMEM;
 
-	INIT_LIST_HEAD(&mem->regions);
 	mem->size = size;
 
-	mutex_lock(&pfb->base.mutex);
+	mutex_lock(&ram->fb->subdev.mutex);
 	if (comp) {
-		struct nvkm_ltc *ltc = nvkm_ltc(pfb);
-
 		/* compression only works with lpages */
-		if (align == (1 << (17 - 12))) {
+		if (align == (1 << (17 - NVKM_RAM_MM_SHIFT))) {
 			int n = size >> 5;
-			ltc->tags_alloc(ltc, n, &mem->tag);
+			nvkm_ltc_tags_alloc(ltc, n, &mem->tag);
 		}
 
 		if (unlikely(!mem->tag))
@@ -480,182 +477,197 @@ gf100_ram_get(struct nvkm_fb *pfb, u64 size, u32 align, u32 ncmin,
 	}
 	mem->memtype = type;
 
+	node = &mem->mem;
 	do {
 		if (back)
 			ret = nvkm_mm_tail(mm, 0, 1, size, ncmin, align, &r);
 		else
 			ret = nvkm_mm_head(mm, 0, 1, size, ncmin, align, &r);
 		if (ret) {
-			mutex_unlock(&pfb->base.mutex);
-			pfb->ram->put(pfb, &mem);
+			mutex_unlock(&ram->fb->subdev.mutex);
+			ram->func->put(ram, &mem);
 			return ret;
 		}
 
-		list_add_tail(&r->rl_entry, &mem->regions);
+		*node = r;
+		node = &r->next;
 		size -= r->length;
 	} while (size);
-	mutex_unlock(&pfb->base.mutex);
+	mutex_unlock(&ram->fb->subdev.mutex);
 
-	r = list_first_entry(&mem->regions, struct nvkm_mm_node, rl_entry);
-	mem->offset = (u64)r->offset << 12;
+	mem->offset = (u64)mem->mem->offset << NVKM_RAM_MM_SHIFT;
 	*pmem = mem;
 	return 0;
 }
 
 int
-gf100_ram_create_(struct nvkm_object *parent, struct nvkm_object *engine,
-		  struct nvkm_oclass *oclass, u32 maskaddr, int size,
-		  void **pobject)
+gf100_ram_init(struct nvkm_ram *base)
 {
-	struct nvkm_fb *pfb = nvkm_fb(parent);
-	struct nvkm_bios *bios = nvkm_bios(pfb);
-	struct nvkm_ram *ram;
-	const u32 rsvd_head = ( 256 * 1024) >> 12; /* vga memory */
-	const u32 rsvd_tail = (1024 * 1024) >> 12; /* vbios etc */
-	u32 parts = nv_rd32(pfb, 0x022438);
-	u32 pmask = nv_rd32(pfb, maskaddr);
-	u32 bsize = nv_rd32(pfb, 0x10f20c);
-	u32 offset, length;
-	bool uniform = true;
-	int ret, part;
+	static const u8  train0[] = {
+		0x00, 0xff, 0x55, 0xaa, 0x33, 0xcc,
+		0x00, 0xff, 0xff, 0x00, 0xff, 0x00,
+	};
+	static const u32 train1[] = {
+		0x00000000, 0xffffffff,
+		0x55555555, 0xaaaaaaaa,
+		0x33333333, 0xcccccccc,
+		0xf0f0f0f0, 0x0f0f0f0f,
+		0x00ff00ff, 0xff00ff00,
+		0x0000ffff, 0xffff0000,
+	};
+	struct gf100_ram *ram = gf100_ram(base);
+	struct nvkm_device *device = ram->base.fb->subdev.device;
+	int i;
 
-	ret = nvkm_ram_create_(parent, engine, oclass, size, pobject);
-	ram = *pobject;
-	if (ret)
-		return ret;
+	switch (ram->base.type) {
+	case NVKM_RAM_TYPE_GDDR5:
+		break;
+	default:
+		return 0;
+	}
 
-	nv_debug(pfb, "0x100800: 0x%08x\n", nv_rd32(pfb, 0x100800));
-	nv_debug(pfb, "parts 0x%08x mask 0x%08x\n", parts, pmask);
+	/* prepare for ddr link training, and load training patterns */
+	for (i = 0; i < 0x30; i++) {
+		nvkm_wr32(device, 0x10f968, 0x00000000 | (i << 8));
+		nvkm_wr32(device, 0x10f96c, 0x00000000 | (i << 8));
+		nvkm_wr32(device, 0x10f920, 0x00000100 | train0[i % 12]);
+		nvkm_wr32(device, 0x10f924, 0x00000100 | train0[i % 12]);
+		nvkm_wr32(device, 0x10f918,              train1[i % 12]);
+		nvkm_wr32(device, 0x10f91c,              train1[i % 12]);
+		nvkm_wr32(device, 0x10f920, 0x00000000 | train0[i % 12]);
+		nvkm_wr32(device, 0x10f924, 0x00000000 | train0[i % 12]);
+		nvkm_wr32(device, 0x10f918,              train1[i % 12]);
+		nvkm_wr32(device, 0x10f91c,              train1[i % 12]);
+	}
 
-	ram->type = nvkm_fb_bios_memtype(bios);
-	ram->ranks = (nv_rd32(pfb, 0x10f200) & 0x00000004) ? 2 : 1;
+	return 0;
+}
 
-	/* read amount of vram attached to each memory controller */
-	for (part = 0; part < parts; part++) {
-		if (!(pmask & (1 << part))) {
-			u32 psize = nv_rd32(pfb, 0x11020c + (part * 0x1000));
-			if (psize != bsize) {
-				if (psize < bsize)
-					bsize = psize;
-				uniform = false;
-			}
+u32
+gf100_ram_probe_fbpa_amount(struct nvkm_device *device, int fbpa)
+{
+	return nvkm_rd32(device, 0x11020c + (fbpa * 0x1000));
+}
 
-			nv_debug(pfb, "%d: mem_amount 0x%08x\n", part, psize);
-			ram->size += (u64)psize << 20;
+u32
+gf100_ram_probe_fbp_amount(const struct nvkm_ram_func *func, u32 fbpao,
+			   struct nvkm_device *device, int fbp, int *pltcs)
+{
+	if (!(fbpao & BIT(fbp))) {
+		*pltcs = 1;
+		return func->probe_fbpa_amount(device, fbp);
+	}
+	return 0;
+}
+
+u32
+gf100_ram_probe_fbp(const struct nvkm_ram_func *func,
+		    struct nvkm_device *device, int fbp, int *pltcs)
+{
+	u32 fbpao = nvkm_rd32(device, 0x022554);
+	return func->probe_fbp_amount(func, fbpao, device, fbp, pltcs);
+}
+
+int
+gf100_ram_ctor(const struct nvkm_ram_func *func, struct nvkm_fb *fb,
+	       struct nvkm_ram *ram)
+{
+	struct nvkm_subdev *subdev = &fb->subdev;
+	struct nvkm_device *device = subdev->device;
+	struct nvkm_bios *bios = device->bios;
+	const u32 rsvd_head = ( 256 * 1024); /* vga memory */
+	const u32 rsvd_tail = (1024 * 1024); /* vbios etc */
+	enum nvkm_ram_type type = nvkm_fb_bios_memtype(bios);
+	u32 fbps = nvkm_rd32(device, 0x022438);
+	u64 total = 0, lcomm = ~0, lower, ubase, usize;
+	int ret, fbp, ltcs, ltcn = 0;
+
+	nvkm_debug(subdev, "%d FBP(s)\n", fbps);
+	for (fbp = 0; fbp < fbps; fbp++) {
+		u32 size = func->probe_fbp(func, device, fbp, &ltcs);
+		if (size) {
+			nvkm_debug(subdev, "FBP %d: %4d MiB, %d LTC(s)\n",
+				   fbp, size, ltcs);
+			lcomm  = min(lcomm, (u64)(size / ltcs) << 20);
+			total += (u64) size << 20;
+			ltcn  += ltcs;
+		} else {
+			nvkm_debug(subdev, "FBP %d: disabled\n", fbp);
 		}
 	}
 
-	/* if all controllers have the same amount attached, there's no holes */
-	if (uniform) {
-		offset = rsvd_head;
-		length = (ram->size >> 12) - rsvd_head - rsvd_tail;
-		ret = nvkm_mm_init(&pfb->vram, offset, length, 1);
-	} else {
-		/* otherwise, address lowest common amount from 0GiB */
-		ret = nvkm_mm_init(&pfb->vram, rsvd_head,
-				   (bsize << 8) * parts - rsvd_head, 1);
+	lower = lcomm * ltcn;
+	ubase = lcomm + func->upper;
+	usize = total - lower;
+
+	nvkm_debug(subdev, "Lower: %4lld MiB @ %010llx\n", lower >> 20, 0ULL);
+	nvkm_debug(subdev, "Upper: %4lld MiB @ %010llx\n", usize >> 20, ubase);
+	nvkm_debug(subdev, "Total: %4lld MiB\n", total >> 20);
+
+	ret = nvkm_ram_ctor(func, fb, type, total, 0, ram);
+	if (ret)
+		return ret;
+
+	nvkm_mm_fini(&ram->vram);
+
+	/* Some GPUs are in what's known as a "mixed memory" configuration.
+	 *
+	 * This is either where some FBPs have more memory than the others,
+	 * or where LTCs have been disabled on a FBP.
+	 */
+	if (lower != total) {
+		/* The common memory amount is addressed normally. */
+		ret = nvkm_mm_init(&ram->vram, rsvd_head >> NVKM_RAM_MM_SHIFT,
+				   (lower - rsvd_head) >> NVKM_RAM_MM_SHIFT, 1);
 		if (ret)
 			return ret;
 
-		/* and the rest starting from (8GiB + common_size) */
-		offset = (0x0200000000ULL >> 12) + (bsize << 8);
-		length = (ram->size >> 12) - ((bsize * parts) << 8) - rsvd_tail;
-
-		ret = nvkm_mm_init(&pfb->vram, offset, length, 1);
+		/* And the rest is much higher in the physical address
+		 * space, and may not be usable for certain operations.
+		 */
+		ret = nvkm_mm_init(&ram->vram, ubase >> NVKM_RAM_MM_SHIFT,
+				   (usize - rsvd_tail) >> NVKM_RAM_MM_SHIFT, 1);
 		if (ret)
-			nvkm_mm_fini(&pfb->vram);
-	}
-
-	if (ret)
-		return ret;
-
-	ram->get = gf100_ram_get;
-	ram->put = gf100_ram_put;
-	return 0;
-}
-
-static int
-gf100_ram_init(struct nvkm_object *object)
-{
-	struct nvkm_fb *pfb = (void *)object->parent;
-	struct gf100_ram *ram = (void *)object;
-	int ret, i;
-
-	ret = nvkm_ram_init(&ram->base);
-	if (ret)
-		return ret;
-
-	/* prepare for ddr link training, and load training patterns */
-	switch (ram->base.type) {
-	case NV_MEM_TYPE_GDDR5: {
-		static const u8  train0[] = {
-			0x00, 0xff, 0x55, 0xaa, 0x33, 0xcc,
-			0x00, 0xff, 0xff, 0x00, 0xff, 0x00,
-		};
-		static const u32 train1[] = {
-			0x00000000, 0xffffffff,
-			0x55555555, 0xaaaaaaaa,
-			0x33333333, 0xcccccccc,
-			0xf0f0f0f0, 0x0f0f0f0f,
-			0x00ff00ff, 0xff00ff00,
-			0x0000ffff, 0xffff0000,
-		};
-
-		for (i = 0; i < 0x30; i++) {
-			nv_wr32(pfb, 0x10f968, 0x00000000 | (i << 8));
-			nv_wr32(pfb, 0x10f96c, 0x00000000 | (i << 8));
-			nv_wr32(pfb, 0x10f920, 0x00000100 | train0[i % 12]);
-			nv_wr32(pfb, 0x10f924, 0x00000100 | train0[i % 12]);
-			nv_wr32(pfb, 0x10f918,              train1[i % 12]);
-			nv_wr32(pfb, 0x10f91c,              train1[i % 12]);
-			nv_wr32(pfb, 0x10f920, 0x00000000 | train0[i % 12]);
-			nv_wr32(pfb, 0x10f924, 0x00000000 | train0[i % 12]);
-			nv_wr32(pfb, 0x10f918,              train1[i % 12]);
-			nv_wr32(pfb, 0x10f91c,              train1[i % 12]);
-		}
-	}	break;
-	default:
-		break;
+			return ret;
+	} else {
+		/* GPUs without mixed-memory are a lot nicer... */
+		ret = nvkm_mm_init(&ram->vram, rsvd_head >> NVKM_RAM_MM_SHIFT,
+				   (total - rsvd_head - rsvd_tail) >>
+				   NVKM_RAM_MM_SHIFT, 1);
+		if (ret)
+			return ret;
 	}
 
 	return 0;
 }
 
-static int
-gf100_ram_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
-	       struct nvkm_oclass *oclass, void *data, u32 size,
-	       struct nvkm_object **pobject)
+int
+gf100_ram_new_(const struct nvkm_ram_func *func,
+	       struct nvkm_fb *fb, struct nvkm_ram **pram)
 {
-	struct nvkm_bios *bios = nvkm_bios(parent);
+	struct nvkm_subdev *subdev = &fb->subdev;
+	struct nvkm_bios *bios = subdev->device->bios;
 	struct gf100_ram *ram;
 	int ret;
 
-	ret = gf100_ram_create(parent, engine, oclass, 0x022554, &ram);
-	*pobject = nv_object(ram);
+	if (!(ram = kzalloc(sizeof(*ram), GFP_KERNEL)))
+		return -ENOMEM;
+	*pram = &ram->base;
+
+	ret = gf100_ram_ctor(func, fb, &ram->base);
 	if (ret)
 		return ret;
 
 	ret = nvbios_pll_parse(bios, 0x0c, &ram->refpll);
 	if (ret) {
-		nv_error(ram, "mclk refpll data not found\n");
+		nvkm_error(subdev, "mclk refpll data not found\n");
 		return ret;
 	}
 
 	ret = nvbios_pll_parse(bios, 0x04, &ram->mempll);
 	if (ret) {
-		nv_error(ram, "mclk pll data not found\n");
+		nvkm_error(subdev, "mclk pll data not found\n");
 		return ret;
-	}
-
-	switch (ram->base.type) {
-	case NV_MEM_TYPE_GDDR5:
-		ram->base.calc = gf100_ram_calc;
-		ram->base.prog = gf100_ram_prog;
-		ram->base.tidy = gf100_ram_tidy;
-		break;
-	default:
-		nv_warn(ram, "reclocking of this ram type unsupported\n");
-		return 0;
 	}
 
 	ram->fuc.r_0x10fe20 = ramfuc_reg(0x10fe20);
@@ -719,13 +731,22 @@ gf100_ram_ctor(struct nvkm_object *parent, struct nvkm_object *engine,
 	return 0;
 }
 
-struct nvkm_oclass
-gf100_ram_oclass = {
-	.handle = 0,
-	.ofuncs = &(struct nvkm_ofuncs) {
-		.ctor = gf100_ram_ctor,
-		.dtor = _nvkm_ram_dtor,
-		.init = gf100_ram_init,
-		.fini = _nvkm_ram_fini,
-	}
+static const struct nvkm_ram_func
+gf100_ram = {
+	.upper = 0x0200000000,
+	.probe_fbp = gf100_ram_probe_fbp,
+	.probe_fbp_amount = gf100_ram_probe_fbp_amount,
+	.probe_fbpa_amount = gf100_ram_probe_fbpa_amount,
+	.init = gf100_ram_init,
+	.get = gf100_ram_get,
+	.put = gf100_ram_put,
+	.calc = gf100_ram_calc,
+	.prog = gf100_ram_prog,
+	.tidy = gf100_ram_tidy,
 };
+
+int
+gf100_ram_new(struct nvkm_fb *fb, struct nvkm_ram **pram)
+{
+	return gf100_ram_new_(&gf100_ram, fb, pram);
+}

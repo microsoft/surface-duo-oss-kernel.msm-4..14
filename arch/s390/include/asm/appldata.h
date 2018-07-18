@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Copyright IBM Corp. 2006
  *
@@ -7,6 +8,7 @@
 #ifndef _ASM_S390_APPLDATA_H
 #define _ASM_S390_APPLDATA_H
 
+#include <asm/diag.h>
 #include <asm/io.h>
 
 #define APPLDATA_START_INTERVAL_REC	0x80
@@ -53,6 +55,7 @@ static inline int appldata_asm(struct appldata_product_id *id,
 	parm_list.buffer_length = length;
 	parm_list.product_id_addr = (unsigned long) id;
 	parm_list.buffer_addr = virt_to_phys(buffer);
+	diag_stat_inc(DIAG_STAT_X0DC);
 	asm volatile(
 		"	diag	%1,%0,0xdc"
 		: "=d" (ry)

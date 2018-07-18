@@ -42,8 +42,6 @@
  *     aggregated as a single large packet
  * napi: This parameter used to enable/disable NAPI (polling Rx)
  *     Possible values '1' for enable and '0' for disable. Default is '1'
- * ufo: This parameter used to enable/disable UDP Fragmentation Offload(UFO)
- *      Possible values '1' for enable and '0' for disable. Default is '0'
  * vlan_tag_strip: This can be used to enable or disable vlan stripping.
  *                 Possible values '1' for enable , '0' for disable.
  *                 Default is '2' - which means disable in promisc mode
@@ -453,7 +451,6 @@ S2IO_PARM_INT(lro_max_pkts, 0xFFFF);
 S2IO_PARM_INT(indicate_max_pkts, 0);
 
 S2IO_PARM_INT(napi, 1);
-S2IO_PARM_INT(ufo, 0);
 S2IO_PARM_INT(vlan_tag_strip, NO_STRIP_IN_PROMISC);
 
 static unsigned int tx_fifo_len[MAX_TX_FIFOS] =
@@ -2459,7 +2456,6 @@ static int fill_rx_buffers(struct s2io_nic *nic, struct ring_info *ring,
 	struct buffAdd *ba;
 	struct RxD_t *first_rxdp = NULL;
 	u64 Buffer0_ptr = 0, Buffer1_ptr = 0;
-	int rxd_index = 0;
 	struct RxD1 *rxdp1;
 	struct RxD3 *rxdp3;
 	struct swStat *swstats = &ring->nic->mac_control.stats_info->sw_stat;
@@ -2473,10 +2469,6 @@ static int fill_rx_buffers(struct s2io_nic *nic, struct ring_info *ring,
 		off = ring->rx_curr_put_info.offset;
 
 		rxdp = ring->rx_blocks[block_no].rxds[off].virt_addr;
-
-		rxd_index = off + 1;
-		if (block_no)
-			rxd_index += (block_no * ring->rxd_count);
 
 		if ((block_no == block_no1) &&
 		    (off == ring->rx_curr_get_info.offset) &&
@@ -2783,7 +2775,7 @@ static int s2io_poll_msix(struct napi_struct *napi, int budget)
 	s2io_chk_rx_buffers(nic, ring);
 
 	if (pkts_processed < budget_org) {
-		napi_complete(napi);
+		napi_complete_done(napi, pkts_processed);
 		/*Re Enable MSI-Rx Vector*/
 		addr = (u8 __iomem *)&bar0->xmsi_mask_reg;
 		addr += 7 - ring->ring_no;
@@ -2817,7 +2809,7 @@ static int s2io_poll_inta(struct napi_struct *napi, int budget)
 			break;
 	}
 	if (pkts_processed < budget_org) {
-		napi_complete(napi);
+		napi_complete_done(napi, pkts_processed);
 		/* Re enable the Rx interrupts for the ring */
 		writeq(0, &bar0->rx_traffic_mask);
 		readl(&bar0->rx_traffic_mask);
@@ -4021,7 +4013,6 @@ static netdev_tx_t s2io_xmit(struct sk_buff *skb, struct net_device *dev)
 	unsigned long flags = 0;
 	u16 vlan_tag = 0;
 	struct fifo_info *fifo = NULL;
-	int do_spin_lock = 1;
 	int offload_type;
 	int enable_per_list_interrupt = 0;
 	struct config_param *config = &sp->config;
@@ -4074,7 +4065,6 @@ static netdev_tx_t s2io_xmit(struct sk_buff *skb, struct net_device *dev)
 					queue += sp->udp_fifo_idx;
 					if (skb->len > 1024)
 						enable_per_list_interrupt = 1;
-					do_spin_lock = 0;
 				}
 			}
 		}
@@ -4135,32 +4125,6 @@ static netdev_tx_t s2io_xmit(struct sk_buff *skb, struct net_device *dev)
 	}
 
 	frg_len = skb_headlen(skb);
-	if (offload_type == SKB_GSO_UDP) {
-		int ufo_size;
-
-		ufo_size = s2io_udp_mss(skb);
-		ufo_size &= ~7;
-		txdp->Control_1 |= TXD_UFO_EN;
-		txdp->Control_1 |= TXD_UFO_MSS(ufo_size);
-		txdp->Control_1 |= TXD_BUFFER0_SIZE(8);
-#ifdef __BIG_ENDIAN
-		/* both variants do cpu_to_be64(be32_to_cpu(...)) */
-		fifo->ufo_in_band_v[put_off] =
-			(__force u64)skb_shinfo(skb)->ip6_frag_id;
-#else
-		fifo->ufo_in_band_v[put_off] =
-			(__force u64)skb_shinfo(skb)->ip6_frag_id << 32;
-#endif
-		txdp->Host_Control = (unsigned long)fifo->ufo_in_band_v;
-		txdp->Buffer_Pointer = pci_map_single(sp->pdev,
-						      fifo->ufo_in_band_v,
-						      sizeof(u64),
-						      PCI_DMA_TODEVICE);
-		if (pci_dma_mapping_error(sp->pdev, txdp->Buffer_Pointer))
-			goto pci_map_failed;
-		txdp++;
-	}
-
 	txdp->Buffer_Pointer = pci_map_single(sp->pdev, skb->data,
 					      frg_len, PCI_DMA_TODEVICE);
 	if (pci_dma_mapping_error(sp->pdev, txdp->Buffer_Pointer))
@@ -4168,8 +4132,6 @@ static netdev_tx_t s2io_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	txdp->Host_Control = (unsigned long)skb;
 	txdp->Control_1 |= TXD_BUFFER0_SIZE(frg_len);
-	if (offload_type == SKB_GSO_UDP)
-		txdp->Control_1 |= TXD_UFO_EN;
 
 	frg_cnt = skb_shinfo(skb)->nr_frags;
 	/* For fragmented SKB. */
@@ -4184,13 +4146,8 @@ static netdev_tx_t s2io_xmit(struct sk_buff *skb, struct net_device *dev)
 							     skb_frag_size(frag),
 							     DMA_TO_DEVICE);
 		txdp->Control_1 = TXD_BUFFER0_SIZE(skb_frag_size(frag));
-		if (offload_type == SKB_GSO_UDP)
-			txdp->Control_1 |= TXD_UFO_EN;
 	}
 	txdp->Control_1 |= TXD_GATHER_CODE_LAST;
-
-	if (offload_type == SKB_GSO_UDP)
-		frg_cnt++; /* as Txd0 was used for inband header */
 
 	tx_fifo = mac_control->tx_FIFO_start[queue];
 	val64 = fifo->list_info[put_off].list_phy_addr;
@@ -5302,9 +5259,10 @@ static int do_s2io_prog_unicast(struct net_device *dev, u8 *addr)
 }
 
 /**
- * s2io_ethtool_sset - Sets different link parameters.
- * @sp : private member of the device structure, which is a pointer to the  * s2io_nic structure.
- * @info: pointer to the structure with parameters given by ethtool to set
+ * s2io_ethtool_set_link_ksettings - Sets different link parameters.
+ * @sp : private member of the device structure, which is a pointer to the
+ * s2io_nic structure.
+ * @cmd: pointer to the structure with parameters given by ethtool to set
  * link information.
  * Description:
  * The function sets different link parameters provided by the user onto
@@ -5313,13 +5271,14 @@ static int do_s2io_prog_unicast(struct net_device *dev, u8 *addr)
  * 0 on success.
  */
 
-static int s2io_ethtool_sset(struct net_device *dev,
-			     struct ethtool_cmd *info)
+static int
+s2io_ethtool_set_link_ksettings(struct net_device *dev,
+				const struct ethtool_link_ksettings *cmd)
 {
 	struct s2io_nic *sp = netdev_priv(dev);
-	if ((info->autoneg == AUTONEG_ENABLE) ||
-	    (ethtool_cmd_speed(info) != SPEED_10000) ||
-	    (info->duplex != DUPLEX_FULL))
+	if ((cmd->base.autoneg == AUTONEG_ENABLE) ||
+	    (cmd->base.speed != SPEED_10000) ||
+	    (cmd->base.duplex != DUPLEX_FULL))
 		return -EINVAL;
 	else {
 		s2io_close(sp->dev);
@@ -5330,10 +5289,10 @@ static int s2io_ethtool_sset(struct net_device *dev,
 }
 
 /**
- * s2io_ethtol_gset - Return link specific information.
+ * s2io_ethtol_get_link_ksettings - Return link specific information.
  * @sp : private member of the device structure, pointer to the
  *      s2io_nic structure.
- * @info : pointer to the structure with parameters given by ethtool
+ * @cmd : pointer to the structure with parameters given by ethtool
  * to return link information.
  * Description:
  * Returns link specific information like speed, duplex etc.. to ethtool.
@@ -5341,25 +5300,31 @@ static int s2io_ethtool_sset(struct net_device *dev,
  * return 0 on success.
  */
 
-static int s2io_ethtool_gset(struct net_device *dev, struct ethtool_cmd *info)
+static int
+s2io_ethtool_get_link_ksettings(struct net_device *dev,
+				struct ethtool_link_ksettings *cmd)
 {
 	struct s2io_nic *sp = netdev_priv(dev);
-	info->supported = (SUPPORTED_10000baseT_Full | SUPPORTED_FIBRE);
-	info->advertising = (SUPPORTED_10000baseT_Full | SUPPORTED_FIBRE);
-	info->port = PORT_FIBRE;
 
-	/* info->transceiver */
-	info->transceiver = XCVR_EXTERNAL;
+	ethtool_link_ksettings_zero_link_mode(cmd, supported);
+	ethtool_link_ksettings_add_link_mode(cmd, supported, 10000baseT_Full);
+	ethtool_link_ksettings_add_link_mode(cmd, supported, FIBRE);
+
+	ethtool_link_ksettings_zero_link_mode(cmd, advertising);
+	ethtool_link_ksettings_add_link_mode(cmd, advertising, 10000baseT_Full);
+	ethtool_link_ksettings_add_link_mode(cmd, advertising, FIBRE);
+
+	cmd->base.port = PORT_FIBRE;
 
 	if (netif_carrier_ok(sp->dev)) {
-		ethtool_cmd_speed_set(info, SPEED_10000);
-		info->duplex = DUPLEX_FULL;
+		cmd->base.speed = SPEED_10000;
+		cmd->base.duplex = DUPLEX_FULL;
 	} else {
-		ethtool_cmd_speed_set(info, SPEED_UNKNOWN);
-		info->duplex = DUPLEX_UNKNOWN;
+		cmd->base.speed = SPEED_UNKNOWN;
+		cmd->base.duplex = DUPLEX_UNKNOWN;
 	}
 
-	info->autoneg = AUTONEG_DISABLE;
+	cmd->base.autoneg = AUTONEG_DISABLE;
 	return 0;
 }
 
@@ -5383,8 +5348,6 @@ static void s2io_ethtool_gdrvinfo(struct net_device *dev,
 	strlcpy(info->driver, s2io_driver_name, sizeof(info->driver));
 	strlcpy(info->version, s2io_driver_version, sizeof(info->version));
 	strlcpy(info->bus_info, pci_name(sp->pdev), sizeof(info->bus_info));
-	info->regdump_len = XENA_REG_SPACE;
-	info->eedump_len = XENA_EEPROM_SPACE;
 }
 
 /**
@@ -5393,7 +5356,7 @@ static void s2io_ethtool_gdrvinfo(struct net_device *dev,
  *  s2io_nic structure.
  *  @regs : pointer to the structure with parameters given by ethtool for
  *  dumping the registers.
- *  @reg_space: The input argumnet into which all the registers are dumped.
+ *  @reg_space: The input argument into which all the registers are dumped.
  *  Description:
  *  Dumps the entire register space of xFrame NIC into the user given
  *  buffer area.
@@ -5788,7 +5751,8 @@ static void s2io_vpd_read(struct s2io_nic *nic)
 
 /**
  *  s2io_ethtool_geeprom  - reads the value stored in the Eeprom.
- *  @sp : private member of the device structure, which is a pointer to the *       s2io_nic structure.
+ *  @sp : private member of the device structure, which is a pointer to the
+ *  s2io_nic structure.
  *  @eeprom : pointer to the user level structure provided by ethtool,
  *  containing all relevant information.
  *  @data_buf : user defined value to be written into Eeprom.
@@ -6628,8 +6592,6 @@ static int s2io_set_features(struct net_device *dev, netdev_features_t features)
 }
 
 static const struct ethtool_ops netdev_ethtool_ops = {
-	.get_settings = s2io_ethtool_gset,
-	.set_settings = s2io_ethtool_sset,
 	.get_drvinfo = s2io_ethtool_gdrvinfo,
 	.get_regs_len = s2io_ethtool_get_regs_len,
 	.get_regs = s2io_ethtool_gregs,
@@ -6645,6 +6607,8 @@ static const struct ethtool_ops netdev_ethtool_ops = {
 	.set_phys_id = s2io_ethtool_set_led,
 	.get_ethtool_stats = s2io_get_ethtool_stats,
 	.get_sset_count = s2io_get_sset_count,
+	.get_link_ksettings = s2io_ethtool_get_link_ksettings,
+	.set_link_ksettings = s2io_ethtool_set_link_ksettings,
 };
 
 /**
@@ -6679,11 +6643,6 @@ static int s2io_change_mtu(struct net_device *dev, int new_mtu)
 {
 	struct s2io_nic *sp = netdev_priv(dev);
 	int ret = 0;
-
-	if ((new_mtu < MIN_MTU) || (new_mtu > S2IO_JUMBO_SIZE)) {
-		DBG_PRINT(ERR_DBG, "%s: MTU size is invalid.\n", dev->name);
-		return -EPERM;
-	}
 
 	dev->mtu = new_mtu;
 	if (netif_running(dev)) {
@@ -7414,7 +7373,7 @@ static int rx_osm_handler(struct ring_info *ring_data, struct RxD_t * rxdp)
 
 	if ((rxdp->Control_1 & TCP_OR_UDP_FRAME) &&
 	    ((!ring_data->lro) ||
-	     (ring_data->lro && (!(rxdp->Control_1 & RXD_FRAME_IP_FRAG)))) &&
+	     (!(rxdp->Control_1 & RXD_FRAME_IP_FRAG))) &&
 	    (dev->features & NETIF_F_RXCSUM)) {
 		l3_csum = RXD_GET_L3_CKSUM(rxdp->Control_1);
 		l4_csum = RXD_GET_L4_CKSUM(rxdp->Control_1);
@@ -7915,11 +7874,6 @@ s2io_init_nic(struct pci_dev *pdev, const struct pci_device_id *pre)
 		NETIF_F_RXCSUM | NETIF_F_LRO;
 	dev->features |= dev->hw_features |
 		NETIF_F_HW_VLAN_CTAG_TX | NETIF_F_HW_VLAN_CTAG_RX;
-	if (sp->device_type & XFRAME_II_DEVICE) {
-		dev->hw_features |= NETIF_F_UFO;
-		if (ufo)
-			dev->features |= NETIF_F_UFO;
-	}
 	if (sp->high_dma_flag == true)
 		dev->features |= NETIF_F_HIGHDMA;
 	dev->watchdog_timeo = WATCH_DOG_TIMEOUT;
@@ -8020,6 +7974,10 @@ s2io_init_nic(struct pci_dev *pdev, const struct pci_device_id *pre)
 		config->max_mac_addr = S2IO_HERC_MAX_MAC_ADDRESSES;
 		config->mc_start_offset = S2IO_HERC_MC_ADDR_START_OFFSET;
 	}
+
+	/* MTU range: 46 - 9600 */
+	dev->min_mtu = MIN_MTU;
+	dev->max_mtu = S2IO_JUMBO_SIZE;
 
 	/* store mac addresses from CAM to s2io_nic structure */
 	do_s2io_store_unicast_mc(sp);
@@ -8148,10 +8106,6 @@ s2io_init_nic(struct pci_dev *pdev, const struct pci_device_id *pre)
 
 	DBG_PRINT(ERR_DBG, "%s: Large receive offload enabled\n",
 		  dev->name);
-	if (ufo)
-		DBG_PRINT(ERR_DBG,
-			  "%s: UDP Fragmentation Offload(UFO) enabled\n",
-			  dev->name);
 	/* Initialize device name */
 	snprintf(sp->name, sizeof(sp->name), "%s Neterion %s", dev->name,
 		 sp->product_name);
@@ -8219,31 +8173,7 @@ static void s2io_rem_nic(struct pci_dev *pdev)
 	pci_disable_device(pdev);
 }
 
-/**
- * s2io_starter - Entry point for the driver
- * Description: This function is the entry point for the driver. It verifies
- * the module loadable parameters and initializes PCI configuration space.
- */
-
-static int __init s2io_starter(void)
-{
-	return pci_register_driver(&s2io_driver);
-}
-
-/**
- * s2io_closer - Cleanup routine for the driver
- * Description: This function is the cleanup routine for the driver. It
- * unregisters the driver.
- */
-
-static __exit void s2io_closer(void)
-{
-	pci_unregister_driver(&s2io_driver);
-	DBG_PRINT(INIT_DBG, "cleanup done\n");
-}
-
-module_init(s2io_starter);
-module_exit(s2io_closer);
+module_pci_driver(s2io_driver);
 
 static int check_L2_lro_capable(u8 *buffer, struct iphdr **ip,
 				struct tcphdr **tcp, struct RxD_t *rxdp,

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 #include <linux/console.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
@@ -17,6 +18,7 @@
 #include <asm/intel-mid.h>
 #include <asm/pgtable.h>
 #include <linux/usb/ehci_def.h>
+#include <linux/usb/xhci-dbgp.h>
 #include <linux/efi.h>
 #include <asm/efi.h>
 #include <asm/pci_x86.h>
@@ -175,7 +177,9 @@ static __init void early_serial_init(char *s)
 	}
 
 	if (*s) {
-		if (kstrtoul(s, 0, &baud) < 0 || baud == 0)
+		baud = simple_strtoull(s, &e, 0);
+
+		if (baud == 0 || s == e)
 			baud = DEFAULT_BAUD;
 	}
 
@@ -193,14 +197,14 @@ static __init void early_serial_init(char *s)
 #ifdef CONFIG_PCI
 static void mem32_serial_out(unsigned long addr, int offset, int value)
 {
-	u32 *vaddr = (u32 *)addr;
+	u32 __iomem *vaddr = (u32 __iomem *)addr;
 	/* shift implied by pointer type */
 	writel(value, vaddr + offset);
 }
 
 static unsigned int mem32_serial_in(unsigned long addr, int offset)
 {
-	u32 *vaddr = (u32 *)addr;
+	u32 __iomem *vaddr = (u32 __iomem *)addr;
 	/* shift implied by pointer type */
 	return readl(vaddr + offset);
 }
@@ -285,7 +289,7 @@ static __init void early_pci_serial_init(char *s)
 	}
 
 	/*
-	 * Lastly, initalize the hardware
+	 * Lastly, initialize the hardware
 	 */
 	if (*s) {
 		if (strcmp(s, "nocfg") == 0)
@@ -314,7 +318,7 @@ static struct console early_serial_console = {
 	.index =	-1,
 };
 
-static inline void early_console_register(struct console *con, int keep_early)
+static void early_console_register(struct console *con, int keep_early)
 {
 	if (con->index != -1) {
 		printk(KERN_CRIT "ERROR: earlyprintk= %s already used\n",
@@ -378,6 +382,10 @@ static int __init setup_early_printk(char *buf)
 #ifdef CONFIG_EARLY_PRINTK_EFI
 		if (!strncmp(buf, "efi", 3))
 			early_console_register(&early_efi_console, keep);
+#endif
+#ifdef CONFIG_EARLY_PRINTK_USB_XDBC
+		if (!strncmp(buf, "xdbc", 4))
+			early_xdbc_parse_parameter(buf + 4);
 #endif
 
 		buf++;

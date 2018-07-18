@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -137,8 +137,8 @@ acpi_ds_init_callbacks(struct acpi_walk_state *walk_state, u32 pass_number)
  ******************************************************************************/
 
 acpi_status
-acpi_ds_load1_begin_op(struct acpi_walk_state * walk_state,
-		       union acpi_parse_object ** out_op)
+acpi_ds_load1_begin_op(struct acpi_walk_state *walk_state,
+		       union acpi_parse_object **out_op)
 {
 	union acpi_parse_object *op;
 	struct acpi_namespace_node *node;
@@ -315,10 +315,19 @@ acpi_ds_load1_begin_op(struct acpi_walk_state * walk_state,
 		flags = ACPI_NS_NO_UPSEARCH;
 		if ((walk_state->opcode != AML_SCOPE_OP) &&
 		    (!(walk_state->parse_flags & ACPI_PARSE_DEFERRED_OP))) {
-			flags |= ACPI_NS_ERROR_IF_FOUND;
-			ACPI_DEBUG_PRINT((ACPI_DB_DISPATCH,
-					  "[%s] Cannot already exist\n",
-					  acpi_ut_get_type_name(object_type)));
+			if (walk_state->namespace_override) {
+				flags |= ACPI_NS_OVERRIDE_IF_FOUND;
+				ACPI_DEBUG_PRINT((ACPI_DB_DISPATCH,
+						  "[%s] Override allowed\n",
+						  acpi_ut_get_type_name
+						  (object_type)));
+			} else {
+				flags |= ACPI_NS_ERROR_IF_FOUND;
+				ACPI_DEBUG_PRINT((ACPI_DB_DISPATCH,
+						  "[%s] Cannot already exist\n",
+						  acpi_ut_get_type_name
+						  (object_type)));
+			}
 		} else {
 			ACPI_DEBUG_PRINT((ACPI_DB_DISPATCH,
 					  "[%s] Both Find or Create allowed\n",
@@ -379,7 +388,7 @@ acpi_ds_load1_begin_op(struct acpi_walk_state * walk_state,
 
 		/* Create a new op */
 
-		op = acpi_ps_alloc_op(walk_state->opcode);
+		op = acpi_ps_alloc_op(walk_state->opcode, walk_state->aml);
 		if (!op) {
 			return_ACPI_STATUS(AE_NO_MEMORY);
 		}
@@ -388,7 +397,7 @@ acpi_ds_load1_begin_op(struct acpi_walk_state * walk_state,
 	/* Initialize the op */
 
 #if (defined (ACPI_NO_METHOD_EXECUTION) || defined (ACPI_CONSTANT_EVAL_ONLY))
-	op->named.path = ACPI_CAST_PTR(u8, path);
+	op->named.path = path;
 #endif
 
 	if (node) {
@@ -424,6 +433,10 @@ acpi_status acpi_ds_load1_end_op(struct acpi_walk_state *walk_state)
 	union acpi_parse_object *op;
 	acpi_object_type object_type;
 	acpi_status status = AE_OK;
+
+#ifdef ACPI_ASL_COMPILER
+	u8 param_count;
+#endif
 
 	ACPI_FUNCTION_TRACE(ds_load1_end_op);
 
@@ -467,13 +480,9 @@ acpi_status acpi_ds_load1_end_op(struct acpi_walk_state *walk_state)
 			status =
 			    acpi_ex_create_region(op->named.data,
 						  op->named.length,
-						  (acpi_adr_space_type) ((op->
-									  common.
-									  value.
-									  arg)->
-									 common.
-									 value.
-									 integer),
+						  (acpi_adr_space_type)
+						  ((op->common.value.arg)->
+						   common.value.integer),
 						  walk_state);
 			if (ACPI_FAILURE(status)) {
 				return_ACPI_STATUS(status);
@@ -509,6 +518,38 @@ acpi_status acpi_ds_load1_end_op(struct acpi_walk_state *walk_state)
 			}
 		}
 	}
+#ifdef ACPI_ASL_COMPILER
+	/*
+	 * For external opcode, get the object type from the argument and
+	 * get the parameter count from the argument's next.
+	 */
+	if (acpi_gbl_disasm_flag &&
+	    op->common.node && op->common.aml_opcode == AML_EXTERNAL_OP) {
+		/*
+		 * Note, if this external is not a method
+		 * Op->Common.Value.Arg->Common.Next->Common.Value.Integer == 0
+		 * Therefore, param_count will be 0.
+		 */
+		param_count =
+		    (u8)op->common.value.arg->common.next->common.value.integer;
+		object_type = (u8)op->common.value.arg->common.value.integer;
+		op->common.node->flags |= ANOBJ_IS_EXTERNAL;
+		op->common.node->type = (u8)object_type;
+
+		acpi_dm_create_subobject_for_external((u8)object_type,
+						      &op->common.node,
+						      param_count);
+
+		/*
+		 * Add the external to the external list because we may be
+		 * emitting code based off of the items within the external list.
+		 */
+		acpi_dm_add_op_to_external_list(op, op->named.path,
+						(u8)object_type, param_count,
+						ACPI_EXT_ORIGIN_FROM_OPCODE |
+						ACPI_EXT_RESOLVED_REFERENCE);
+	}
+#endif
 
 	/*
 	 * If we are executing a method, do not create any namespace objects
@@ -558,7 +599,9 @@ acpi_status acpi_ds_load1_end_op(struct acpi_walk_state *walk_state)
 
 	/* Pop the scope stack (only if loading a table) */
 
-	if (!walk_state->method_node && acpi_ns_opens_scope(object_type)) {
+	if (!walk_state->method_node &&
+	    op->common.aml_opcode != AML_EXTERNAL_OP &&
+	    acpi_ns_opens_scope(object_type)) {
 		ACPI_DEBUG_PRINT((ACPI_DB_DISPATCH,
 				  "(%s): Popping scope for Op %p\n",
 				  acpi_ut_get_type_name(object_type), op));

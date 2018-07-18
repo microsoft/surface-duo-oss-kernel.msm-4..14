@@ -834,7 +834,7 @@ static int snd_atiixp_pcm_hw_free(struct snd_pcm_substream *substream)
 /*
  * pcm hardware definition, identical for all DMA types
  */
-static struct snd_pcm_hardware snd_atiixp_pcm_hw =
+static const struct snd_pcm_hardware snd_atiixp_pcm_hw =
 {
 	.info =			(SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_INTERLEAVED |
 				 SNDRV_PCM_INFO_BLOCK_TRANSFER |
@@ -860,8 +860,8 @@ static int snd_atiixp_pcm_open(struct snd_pcm_substream *substream,
 	struct atiixp_modem *chip = snd_pcm_substream_chip(substream);
 	struct snd_pcm_runtime *runtime = substream->runtime;
 	int err;
-	static unsigned int rates[] = { 8000,  9600, 12000, 16000 };
-	static struct snd_pcm_hw_constraint_list hw_constraints_rates = {
+	static const unsigned int rates[] = { 8000,  9600, 12000, 16000 };
+	static const struct snd_pcm_hw_constraint_list hw_constraints_rates = {
 		.count = ARRAY_SIZE(rates),
 		.list = rates,
 		.mask = 0,
@@ -947,7 +947,7 @@ static int snd_atiixp_capture_close(struct snd_pcm_substream *substream)
 
 
 /* AC97 playback */
-static struct snd_pcm_ops snd_atiixp_playback_ops = {
+static const struct snd_pcm_ops snd_atiixp_playback_ops = {
 	.open =		snd_atiixp_playback_open,
 	.close =	snd_atiixp_playback_close,
 	.ioctl =	snd_pcm_lib_ioctl,
@@ -959,7 +959,7 @@ static struct snd_pcm_ops snd_atiixp_playback_ops = {
 };
 
 /* AC97 capture */
-static struct snd_pcm_ops snd_atiixp_capture_ops = {
+static const struct snd_pcm_ops snd_atiixp_capture_ops = {
 	.open =		snd_atiixp_capture_open,
 	.close =	snd_atiixp_capture_close,
 	.ioctl =	snd_pcm_lib_ioctl,
@@ -970,7 +970,7 @@ static struct snd_pcm_ops snd_atiixp_capture_ops = {
 	.pointer =	snd_atiixp_pcm_pointer,
 };
 
-static struct atiixp_dma_ops snd_atiixp_playback_dma_ops = {
+static const struct atiixp_dma_ops snd_atiixp_playback_dma_ops = {
 	.type = ATI_DMA_PLAYBACK,
 	.llp_offset = ATI_REG_MODEM_OUT_DMA1_LINKPTR,
 	.dt_cur = ATI_REG_MODEM_OUT_DMA1_DT_CUR,
@@ -979,7 +979,7 @@ static struct atiixp_dma_ops snd_atiixp_playback_dma_ops = {
 	.flush_dma = atiixp_out_flush_dma,
 };
 	
-static struct atiixp_dma_ops snd_atiixp_capture_dma_ops = {
+static const struct atiixp_dma_ops snd_atiixp_capture_dma_ops = {
 	.type = ATI_DMA_CAPTURE,
 	.llp_offset = ATI_REG_MODEM_IN_DMA_LINKPTR,
 	.dt_cur = ATI_REG_MODEM_IN_DMA_DT_CUR,
@@ -1156,7 +1156,6 @@ static SIMPLE_DEV_PM_OPS(snd_atiixp_pm, snd_atiixp_suspend, snd_atiixp_resume);
 #define SND_ATIIXP_PM_OPS	NULL
 #endif /* CONFIG_PM_SLEEP */
 
-#ifdef CONFIG_PROC_FS
 /*
  * proc interface for register dump
  */
@@ -1178,9 +1177,6 @@ static void snd_atiixp_proc_init(struct atiixp_modem *chip)
 	if (! snd_card_proc_new(chip->card, "atiixp-modem", &entry))
 		snd_info_set_text_ops(entry, chip, snd_atiixp_proc_read);
 }
-#else
-#define snd_atiixp_proc_init(chip)
-#endif
 
 
 /*

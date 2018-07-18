@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Allocator for I/O pins. All pins are allocated to GPIO at bootup.
  * Unassigned pins and GPIO pins can be allocated to a fixed interface
@@ -46,6 +47,8 @@ static int __crisv32_pinmux_alloc(int port, int first_pin, int last_pin,
 		pins[port][i] = mode;
 
 	crisv32_pinmux_set(port);
+
+	return 0;
 }
 
 static int crisv32_pinmux_init(void)
@@ -93,6 +96,7 @@ int crisv32_pinmux_alloc_fixed(enum fixed_function function)
 	int ret = -EINVAL;
 	char saved[sizeof pins];
 	unsigned long flags;
+	reg_pinmux_rw_hwprot hwprot;
 
 	spin_lock_irqsave(&pinmux_lock, flags);
 
@@ -101,7 +105,7 @@ int crisv32_pinmux_alloc_fixed(enum fixed_function function)
 
 	crisv32_pinmux_init();	/* Must be done before we read rw_hwprot */
 
-	reg_pinmux_rw_hwprot hwprot = REG_RD(pinmux, regi_pinmux, rw_hwprot);
+	hwprot = REG_RD(pinmux, regi_pinmux, rw_hwprot);
 
 	switch (function) {
 	case pinmux_ser1:
@@ -227,6 +231,7 @@ int crisv32_pinmux_dealloc_fixed(enum fixed_function function)
 	int ret = -EINVAL;
 	char saved[sizeof pins];
 	unsigned long flags;
+	reg_pinmux_rw_hwprot hwprot;
 
 	spin_lock_irqsave(&pinmux_lock, flags);
 
@@ -235,7 +240,7 @@ int crisv32_pinmux_dealloc_fixed(enum fixed_function function)
 
 	crisv32_pinmux_init();	/* Must be done before we read rw_hwprot */
 
-	reg_pinmux_rw_hwprot hwprot = REG_RD(pinmux, regi_pinmux, rw_hwprot);
+	hwprot = REG_RD(pinmux, regi_pinmux, rw_hwprot);
 
 	switch (function) {
 	case pinmux_ser1:

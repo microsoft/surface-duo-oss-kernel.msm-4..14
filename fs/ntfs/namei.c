@@ -35,7 +35,7 @@
  * ntfs_lookup - find the inode represented by a dentry in a directory inode
  * @dir_ino:	directory inode in which to look for the inode
  * @dent:	dentry representing the inode to look for
- * @nd:		lookup nameidata
+ * @flags:	lookup flags
  *
  * In short, ntfs_lookup() looks for the inode represented by the dentry @dent
  * in the directory inode @dir_ino and if found attaches the inode to the
@@ -159,7 +159,7 @@ static struct dentry *ntfs_lookup(struct inode *dir_ino, struct dentry *dent,
 					PTR_ERR(dent_inode));
 		kfree(name);
 		/* Return the error code. */
-		return (struct dentry *)dent_inode;
+		return ERR_CAST(dent_inode);
 	}
 	/* It is guaranteed that @name is no longer allocated at this point. */
 	if (MREF_ERR(mref) == -ENOENT) {
@@ -253,7 +253,7 @@ handle_name:
 		err = (signed)nls_name.len;
 		goto err_out;
 	}
-	nls_name.hash = full_name_hash(nls_name.name, nls_name.len);
+	nls_name.hash = full_name_hash(dent, nls_name.name, nls_name.len);
 
 	dent = d_add_ci(dent, dent_inode, &nls_name);
 	kfree(nls_name.name);

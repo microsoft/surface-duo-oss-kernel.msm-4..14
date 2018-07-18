@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __ASM_METAG_ELF_H
 #define __ASM_METAG_ELF_H
 
@@ -11,7 +12,7 @@
 #define R_METAG_RELBRANCH                4
 #define R_METAG_GETSETOFF                5
 
-/* Backward compatability */
+/* Backward compatibility */
 #define R_METAG_REG32OP1                 6
 #define R_METAG_REG32OP2                 7
 #define R_METAG_REG32OP3                 8

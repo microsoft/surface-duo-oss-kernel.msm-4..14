@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 # trace-cmd version
 EP_VERSION = 1
 EP_PATCHLEVEL = 1
@@ -23,6 +24,7 @@ endef
 # Allow setting CC and AR, or setting CROSS_COMPILE as a prefix.
 $(call allow-override,CC,$(CROSS_COMPILE)gcc)
 $(call allow-override,AR,$(CROSS_COMPILE)ar)
+$(call allow-override,NM,$(CROSS_COMPILE)nm)
 
 EXT = -std=gnu99
 INSTALL = install
@@ -34,9 +36,15 @@ INSTALL = install
 DESTDIR ?=
 DESTDIR_SQ = '$(subst ','\'',$(DESTDIR))'
 
+LP64 := $(shell echo __LP64__ | ${CC} ${CFLAGS} -E -x c - | tail -n 1)
+ifeq ($(LP64), 1)
+  libdir_relative = lib64
+else
+  libdir_relative = lib
+endif
+
 prefix ?= /usr/local
-bindir_relative = bin
-bindir = $(prefix)/$(bindir_relative)
+libdir = $(prefix)/$(libdir_relative)
 man_dir = $(prefix)/share/man
 man_dir_SQ = '$(subst ','\'',$(man_dir))'
 
@@ -58,7 +66,7 @@ ifeq ($(prefix),$(HOME))
 override plugin_dir = $(HOME)/.traceevent/plugins
 set_plugin_dir := 0
 else
-override plugin_dir = $(prefix)/lib/traceevent/plugins
+override plugin_dir = $(libdir)/traceevent/plugins
 endif
 endif
 
@@ -79,20 +87,18 @@ ifndef VERBOSE
 endif
 
 ifeq ($(srctree),)
-srctree := $(patsubst %/,%,$(dir $(shell pwd)))
+srctree := $(patsubst %/,%,$(dir $(CURDIR)))
 srctree := $(patsubst %/,%,$(dir $(srctree)))
 srctree := $(patsubst %/,%,$(dir $(srctree)))
 #$(info Determined 'srctree' to be $(srctree))
 endif
 
-export prefix bindir src obj
+export prefix libdir src obj
 
 # Shell quotes
-bindir_SQ = $(subst ','\'',$(bindir))
-bindir_relative_SQ = $(subst ','\'',$(bindir_relative))
+libdir_SQ = $(subst ','\'',$(libdir))
+libdir_relative_SQ = $(subst ','\'',$(libdir_relative))
 plugin_dir_SQ = $(subst ','\'',$(plugin_dir))
-
-LIB_FILE = libtraceevent.a libtraceevent.so
 
 CONFIG_INCLUDES = 
 CONFIG_LIBS	=
@@ -106,6 +112,9 @@ OBJ		= $@
 N		=
 
 EVENT_PARSE_VERSION = $(EP_VERSION).$(EP_PATCHLEVEL).$(EP_EXTRAVERSION)
+
+LIB_TARGET  = libtraceevent.a libtraceevent.so.$(EVENT_PARSE_VERSION)
+LIB_INSTALL = libtraceevent.a libtraceevent.so*
 
 INCLUDES = -I. -I $(srctree)/tools/include $(CONFIG_INCLUDES)
 
@@ -127,7 +136,7 @@ else
   Q = @
 endif
 
-# Disable command line variables (CFLAGS) overide from top
+# Disable command line variables (CFLAGS) override from top
 # level Makefile (perf), otherwise build Makefile will get
 # the same command line setup.
 MAKEOVERRIDES=
@@ -149,10 +158,11 @@ PLUGINS += plugin_cfg80211.so
 PLUGINS    := $(addprefix $(OUTPUT),$(PLUGINS))
 PLUGINS_IN := $(PLUGINS:.so=-in.o)
 
-TE_IN    := $(OUTPUT)libtraceevent-in.o
-LIB_FILE := $(addprefix $(OUTPUT),$(LIB_FILE))
+TE_IN      := $(OUTPUT)libtraceevent-in.o
+LIB_TARGET := $(addprefix $(OUTPUT),$(LIB_TARGET))
+DYNAMIC_LIST_FILE := $(OUTPUT)libtraceevent-dynamic-list
 
-CMD_TARGETS = $(LIB_FILE) $(PLUGINS)
+CMD_TARGETS = $(LIB_TARGET) $(PLUGINS) $(DYNAMIC_LIST_FILE)
 
 TARGETS = $(CMD_TARGETS)
 
@@ -163,11 +173,16 @@ all_cmd: $(CMD_TARGETS)
 $(TE_IN): force
 	$(Q)$(MAKE) $(build)=libtraceevent
 
-$(OUTPUT)libtraceevent.so: $(TE_IN)
-	$(QUIET_LINK)$(CC) --shared $^ -o $@
+$(OUTPUT)libtraceevent.so.$(EVENT_PARSE_VERSION): $(TE_IN)
+	$(QUIET_LINK)$(CC) --shared $^ -Wl,-soname,libtraceevent.so.$(EP_VERSION) -o $@
+	@ln -sf $(@F) $(OUTPUT)libtraceevent.so
+	@ln -sf $(@F) $(OUTPUT)libtraceevent.so.$(EP_VERSION)
 
 $(OUTPUT)libtraceevent.a: $(TE_IN)
 	$(QUIET_LINK)$(RM) $@; $(AR) rcs $@ $^
+
+$(OUTPUT)libtraceevent-dynamic-list: $(PLUGINS)
+	$(QUIET_GEN)$(call do_generate_dynamic_list_file, $(PLUGINS), $@)
 
 plugins: $(PLUGINS)
 
@@ -225,11 +240,15 @@ TAGS:	force
 	find . -name '*.[ch]' | xargs etags \
 	--regex='/_PE(\([^,)]*\).*/PEVENT_ERRNO__\1/'
 
+define do_install_mkdir
+	if [ ! -d '$(DESTDIR_SQ)$1' ]; then		\
+		$(INSTALL) -d -m 755 '$(DESTDIR_SQ)$1';	\
+	fi
+endef
+
 define do_install
-	if [ ! -d '$(DESTDIR_SQ)$2' ]; then		\
-		$(INSTALL) -d -m 755 '$(DESTDIR_SQ)$2';	\
-	fi;						\
-	$(INSTALL) $1 '$(DESTDIR_SQ)$2'
+	$(call do_install_mkdir,$2);			\
+	$(INSTALL) $(if $3,-m $3,) $1 '$(DESTDIR_SQ)$2'
 endef
 
 define do_install_plugins
@@ -238,19 +257,39 @@ define do_install_plugins
 	done
 endef
 
+define do_generate_dynamic_list_file
+	symbol_type=`$(NM) -u -D $1 | awk 'NF>1 {print $$1}' | \
+	xargs echo "U W w" | tr ' ' '\n' | sort -u | xargs echo`;\
+	if [ "$$symbol_type" = "U W w" ];then				\
+		(echo '{';						\
+		$(NM) -u -D $1 | awk 'NF>1 {print "\t"$$2";"}' | sort -u;\
+		echo '};';						\
+		) > $2;							\
+	else								\
+		(echo Either missing one of [$1] or bad version of $(NM)) 1>&2;\
+	fi
+endef
+
 install_lib: all_cmd install_plugins
-	$(call QUIET_INSTALL, $(LIB_FILE)) \
-		$(call do_install,$(LIB_FILE),$(bindir_SQ))
+	$(call QUIET_INSTALL, $(LIB_TARGET)) \
+		$(call do_install_mkdir,$(libdir_SQ)); \
+		cp -fpR $(LIB_INSTALL) $(DESTDIR)$(libdir_SQ)
 
 install_plugins: $(PLUGINS)
 	$(call QUIET_INSTALL, trace_plugins) \
 		$(call do_install_plugins, $(PLUGINS))
 
+install_headers:
+	$(call QUIET_INSTALL, headers) \
+		$(call do_install,event-parse.h,$(prefix)/include/traceevent,644); \
+		$(call do_install,event-utils.h,$(prefix)/include/traceevent,644); \
+		$(call do_install,kbuffer.h,$(prefix)/include/traceevent,644)
+
 install: install_lib
 
 clean:
 	$(call QUIET_CLEAN, libtraceevent) \
-		$(RM) *.o *~ $(TARGETS) *.a *.so $(VERSION_FILES) .*.d \
+		$(RM) *.o *~ $(TARGETS) *.a *.so $(VERSION_FILES) .*.d .*.cmd \
 		$(RM) TRACEEVENT-CFLAGS tags TAGS
 
 PHONY += force plugins

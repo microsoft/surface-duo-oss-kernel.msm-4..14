@@ -40,7 +40,7 @@
 #include <arch/sim.h>
 
 /*
- * This file containes the routines to search for PCI buses,
+ * This file contains the routines to search for PCI buses,
  * enumerate the buses, and configure any attached devices.
  */
 
@@ -108,15 +108,6 @@ static struct pci_ops tile_cfg_ops;
 /* Mask of CPUs that should receive PCIe interrupts. */
 static struct cpumask intr_cpus_map;
 
-/* We don't need to worry about the alignment of resources. */
-resource_size_t pcibios_align_resource(void *data, const struct resource *res,
-				       resource_size_t size,
-				       resource_size_t align)
-{
-	return res->start;
-}
-EXPORT_SYMBOL(pcibios_align_resource);
-
 /*
  * Pick a CPU to receive and handle the PCIe interrupts, based on the IRQ #.
  * For now, we simply send interrupts to non-dataplane CPUs.
@@ -131,7 +122,7 @@ static int tile_irq_cpu(int irq)
 
 	count = cpumask_weight(&intr_cpus_map);
 	if (unlikely(count == 0)) {
-		pr_warn("intr_cpus_map empty, interrupts will be delievered to dataplane tiles\n");
+		pr_warn("intr_cpus_map empty, interrupts will be delivered to dataplane tiles\n");
 		return irq % (smp_height * smp_width);
 	}
 
@@ -304,7 +295,7 @@ static struct irq_chip tilegx_legacy_irq_chip = {
  * to Linux which just calls handle_level_irq() after clearing the
  * MAC INTx Assert status bit associated with this interrupt.
  */
-static void trio_handle_level_irq(unsigned int irq, struct irq_desc *desc)
+static void trio_handle_level_irq(struct irq_desc *desc)
 {
 	struct pci_controller *controller = irq_desc_get_handler_data(desc);
 	gxio_trio_context_t *trio_context = controller->trio;
@@ -313,7 +304,7 @@ static void trio_handle_level_irq(unsigned int irq, struct irq_desc *desc)
 	unsigned int reg_offset;
 	uint64_t level_mask;
 
-	handle_level_irq(irq, desc);
+	handle_level_irq(desc);
 
 	/*
 	 * Clear the INTx Level status, otherwise future interrupts are
@@ -434,7 +425,7 @@ int __init tile_pci_init(void)
 
 	/*
 	 * Now determine which PCIe ports are configured to operate in RC
-	 * mode. There is a differece in the port configuration capability
+	 * mode. There is a difference in the port configuration capability
 	 * between the Gx36 and Gx72 devices.
 	 *
 	 * The Gx36 has configuration capability for each of the 3 PCIe
@@ -669,6 +660,7 @@ int __init pcibios_init(void)
 	resource_size_t offset;
 	LIST_HEAD(resources);
 	int next_busno;
+	struct pci_host_bridge *bridge;
 	int i;
 
 	tile_pci_init();
@@ -881,14 +873,24 @@ int __init pcibios_init(void)
 					controller->mem_offset);
 		pci_add_resource(&resources, &controller->io_space);
 		controller->first_busno = next_busno;
-		bus = pci_scan_root_bus(NULL, next_busno, controller->ops,
-					controller, &resources);
+
+		bridge = pci_alloc_host_bridge(0);
+		if (!bridge)
+			break;
+
+		list_splice_init(&resources, &bridge->windows);
+		bridge->dev.parent = NULL;
+		bridge->sysdata = controller;
+		bridge->busnr = next_busno;
+		bridge->ops = controller->ops;
+		bridge->swizzle_irq = pci_common_swizzle;
+		bridge->map_irq = tile_map_irq;
+
+		pci_scan_root_bus_bridge(bridge);
+		bus = bridge->bus;
 		controller->root_bus = bus;
 		next_busno = bus->busn_res.end + 1;
 	}
-
-	/* Do machine dependent PCI interrupt routing */
-	pci_fixup_irqs(pci_common_swizzle, tile_map_irq);
 
 	/*
 	 * This comes from the generic Linux PCI driver.
@@ -1037,11 +1039,6 @@ alloc_mem_map_failed:
 	return 0;
 }
 subsys_initcall(pcibios_init);
-
-/* No bus fixups needed. */
-void pcibios_fixup_bus(struct pci_bus *bus)
-{
-}
 
 /* Process any "pci=" kernel boot arguments. */
 char *__init pcibios_setup(char *str)
@@ -1326,7 +1323,7 @@ invalid_device:
 
 
 /*
- * See tile_cfg_read() for relevent comments.
+ * See tile_cfg_read() for relevant comments.
  * Note that "val" is the value to write, not a pointer to that value.
  */
 static int tile_cfg_write(struct pci_bus *bus, unsigned int devfn, int offset,
@@ -1442,7 +1439,7 @@ static struct pci_ops tile_cfg_ops = {
 /* MSI support starts here. */
 static unsigned int tilegx_msi_startup(struct irq_data *d)
 {
-	if (d->msi_desc)
+	if (irq_data_get_msi_desc(d))
 		pci_msi_unmask_irq(d);
 
 	return 0;

@@ -1,13 +1,17 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _TSO_H
 #define _TSO_H
 
 #include <net/ip.h>
+
+#define TSO_HEADER_SIZE		128
 
 struct tso_t {
 	int next_frag_idx;
 	void *data;
 	size_t size;
 	u16 ip_id;
+	bool ipv6;
 	u32 tcp_seq;
 };
 

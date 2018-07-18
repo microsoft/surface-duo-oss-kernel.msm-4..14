@@ -307,7 +307,7 @@ static int s32v_pmx_gpio_request_enable(struct pinctrl_dev *pctldev,
 	config = readl(ipctl->base + S32V_PAD_CONFIG(pin->pin_id));
 
 	/* Save current configuration */
-	gpio_pin = kmalloc(GFP_KERNEL, sizeof(*gpio_pin));
+	gpio_pin = kmalloc(sizeof(*gpio_pin), GFP_KERNEL);
 	if (!gpio_pin)
 		return -ENOMEM;
 

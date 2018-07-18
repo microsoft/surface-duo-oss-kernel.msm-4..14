@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 #ifndef _UAPI_ASM_CRIS_UNISTD_H_
 #define _UAPI_ASM_CRIS_UNISTD_H_
 
@@ -356,5 +357,13 @@
 #define __NR_process_vm_writev	349
 #define __NR_kcmp		350
 #define __NR_finit_module	351
+#define __NR_sched_setattr	352
+#define __NR_sched_getattr	353
+#define __NR_renameat2		354
+#define __NR_seccomp		355
+#define __NR_getrandom		356
+#define __NR_memfd_create	357
+#define __NR_bpf		358
+#define __NR_execveat		359
 
 #endif /* _UAPI_ASM_CRIS_UNISTD_H_ */

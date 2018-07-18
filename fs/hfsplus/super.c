@@ -11,6 +11,7 @@
 #include <linux/init.h>
 #include <linux/pagemap.h>
 #include <linux/blkdev.h>
+#include <linux/backing-dev.h>
 #include <linux/fs.h>
 #include <linux/slab.h>
 #include <linux/vfs.h>
@@ -66,6 +67,7 @@ struct inode *hfsplus_iget(struct super_block *sb, unsigned long ino)
 		return inode;
 
 	INIT_LIST_HEAD(&HFSPLUS_I(inode)->open_dir_list);
+	spin_lock_init(&HFSPLUS_I(inode)->open_dir_lock);
 	mutex_init(&HFSPLUS_I(inode)->extents_lock);
 	HFSPLUS_I(inode)->flags = 0;
 	HFSPLUS_I(inode)->extent_state = 0;
@@ -218,7 +220,8 @@ static int hfsplus_sync_fs(struct super_block *sb, int wait)
 
 	error2 = hfsplus_submit_bio(sb,
 				   sbi->part_start + HFSPLUS_VOLHEAD_SECTOR,
-				   sbi->s_vhdr_buf, NULL, WRITE_SYNC);
+				   sbi->s_vhdr_buf, NULL, REQ_OP_WRITE,
+				   REQ_SYNC);
 	if (!error)
 		error = error2;
 	if (!write_backup)
@@ -226,7 +229,8 @@ static int hfsplus_sync_fs(struct super_block *sb, int wait)
 
 	error2 = hfsplus_submit_bio(sb,
 				  sbi->part_start + sbi->sect_count - 2,
-				  sbi->s_backup_vhdr_buf, NULL, WRITE_SYNC);
+				  sbi->s_backup_vhdr_buf, NULL, REQ_OP_WRITE,
+				  REQ_SYNC);
 	if (!error)
 		error2 = error;
 out:
@@ -260,7 +264,7 @@ void hfsplus_mark_mdb_dirty(struct super_block *sb)
 	struct hfsplus_sb_info *sbi = HFSPLUS_SB(sb);
 	unsigned long delay;
 
-	if (sb->s_flags & MS_RDONLY)
+	if (sb_rdonly(sb))
 		return;
 
 	spin_lock(&sbi->work_lock);
@@ -280,7 +284,7 @@ static void hfsplus_put_super(struct super_block *sb)
 
 	cancel_delayed_work_sync(&sbi->sync_work);
 
-	if (!(sb->s_flags & MS_RDONLY) && sbi->s_vhdr) {
+	if (!sb_rdonly(sb) && sbi->s_vhdr) {
 		struct hfsplus_vh *vhdr = sbi->s_vhdr;
 
 		vhdr->modify_date = hfsp_now2mt();
@@ -325,7 +329,7 @@ static int hfsplus_statfs(struct dentry *dentry, struct kstatfs *buf)
 static int hfsplus_remount(struct super_block *sb, int *flags, char *data)
 {
 	sync_filesystem(sb);
-	if ((*flags & MS_RDONLY) == (sb->s_flags & MS_RDONLY))
+	if ((bool)(*flags & MS_RDONLY) == sb_rdonly(sb))
 		return 0;
 	if (!(*flags & MS_RDONLY)) {
 		struct hfsplus_vh *vhdr = HFSPLUS_SB(sb)->s_vhdr;
@@ -437,7 +441,7 @@ static int hfsplus_fill_super(struct super_block *sb, void *data, int silent)
 	err = -EFBIG;
 	last_fs_block = sbi->total_blocks - 1;
 	last_fs_page = (last_fs_block << sbi->alloc_blksz_shift) >>
-			PAGE_CACHE_SHIFT;
+			PAGE_SHIFT;
 
 	if ((last_fs_block > (sector_t)(~0ULL) >> (sbi->alloc_blksz_shift - 9)) ||
 	    (last_fs_page > (pgoff_t)(~0ULL))) {
@@ -458,7 +462,7 @@ static int hfsplus_fill_super(struct super_block *sb, void *data, int silent)
 		pr_warn("Filesystem is marked locked, mounting read-only.\n");
 		sb->s_flags |= MS_RDONLY;
 	} else if ((vhdr->attributes & cpu_to_be32(HFSPLUS_VOL_JOURNALED)) &&
-			!(sb->s_flags & MS_RDONLY)) {
+			!sb_rdonly(sb)) {
 		pr_warn("write access to a journaled filesystem is not supported, use the force option at your own risk, mounting read-only.\n");
 		sb->s_flags |= MS_RDONLY;
 	}
@@ -531,7 +535,7 @@ static int hfsplus_fill_super(struct super_block *sb, void *data, int silent)
 	} else
 		hfs_find_exit(&fd);
 
-	if (!(sb->s_flags & MS_RDONLY)) {
+	if (!sb_rdonly(sb)) {
 		/*
 		 * H+LX == hfsplusutils, H+Lx == this driver, H+lx is unused
 		 * all three are registered with Apple for our use
@@ -662,7 +666,7 @@ static int __init init_hfsplus_fs(void)
 	int err;
 
 	hfsplus_inode_cachep = kmem_cache_create("hfsplus_icache",
-		HFSPLUS_INODE_SIZE, 0, SLAB_HWCACHE_ALIGN,
+		HFSPLUS_INODE_SIZE, 0, SLAB_HWCACHE_ALIGN|SLAB_ACCOUNT,
 		hfsplus_init_once);
 	if (!hfsplus_inode_cachep)
 		return -ENOMEM;

@@ -295,14 +295,24 @@ static int rspi_set_config_register(struct rspi_data *rspi, int access_size)
 static int rspi_rz_set_config_register(struct rspi_data *rspi, int access_size)
 {
 	int spbr;
+	int div = 0;
+	unsigned long clksrc;
 
 	/* Sets output mode, MOSI signal, and (optionally) loopback */
 	rspi_write8(rspi, rspi->sppcr, RSPI_SPPCR);
 
+	clksrc = clk_get_rate(rspi->clk);
+	while (div < 3) {
+		if (rspi->max_speed_hz >= clksrc/4) /* 4=(CLK/2)/2 */
+			break;
+		div++;
+		clksrc /= 2;
+	}
+
 	/* Sets transfer bit rate */
-	spbr = DIV_ROUND_UP(clk_get_rate(rspi->clk),
-			    2 * rspi->max_speed_hz) - 1;
+	spbr = DIV_ROUND_UP(clksrc, 2 * rspi->max_speed_hz) - 1;
 	rspi_write8(rspi, clamp(spbr, 0, 255), RSPI_SPBR);
+	rspi->spcmd |= div << 2;
 
 	/* Disable dummy transmission, set byte access */
 	rspi_write8(rspi, SPDCR_SPLBYTE, RSPI_SPDCR);
@@ -383,7 +393,8 @@ static void qspi_update(const struct rspi_data *rspi, u8 mask, u8 val, u8 reg)
 	rspi_write8(rspi, data, reg);
 }
 
-static int qspi_set_send_trigger(struct rspi_data *rspi, unsigned int len)
+static unsigned int qspi_set_send_trigger(struct rspi_data *rspi,
+					  unsigned int len)
 {
 	unsigned int n;
 
@@ -402,7 +413,7 @@ static int qspi_set_send_trigger(struct rspi_data *rspi, unsigned int len)
 	return n;
 }
 
-static void qspi_set_receive_trigger(struct rspi_data *rspi, unsigned int len)
+static int qspi_set_receive_trigger(struct rspi_data *rspi, unsigned int len)
 {
 	unsigned int n;
 
@@ -417,6 +428,7 @@ static void qspi_set_receive_trigger(struct rspi_data *rspi, unsigned int len)
 		qspi_update(rspi, SPBFCR_RXTRG_MASK,
 			     SPBFCR_RXTRG_1B, QSPI_SPBFCR);
 	}
+	return n;
 }
 
 #define set_config_register(spi, n) spi->ops->set_config_register(spi, n)
@@ -665,15 +677,12 @@ static bool rspi_can_dma(struct spi_master *master, struct spi_device *spi,
 static int rspi_dma_check_then_transfer(struct rspi_data *rspi,
 					 struct spi_transfer *xfer)
 {
-	if (rspi->master->can_dma && __rspi_can_dma(rspi, xfer)) {
-		/* rx_buf can be NULL on RSPI on SH in TX-only Mode */
-		int ret = rspi_dma_transfer(rspi, &xfer->tx_sg,
-					xfer->rx_buf ? &xfer->rx_sg : NULL);
-		if (ret != -EAGAIN)
-			return 0;
-	}
+	if (!rspi->master->can_dma || !__rspi_can_dma(rspi, xfer))
+		return -EAGAIN;
 
-	return -EAGAIN;
+	/* rx_buf can be NULL on RSPI on SH in TX-only Mode */
+	return rspi_dma_transfer(rspi, &xfer->tx_sg,
+				xfer->rx_buf ? &xfer->rx_sg : NULL);
 }
 
 static int rspi_common_transfer(struct rspi_data *rspi,
@@ -724,28 +733,28 @@ static int rspi_rz_transfer_one(struct spi_master *master,
 	return rspi_common_transfer(rspi, xfer);
 }
 
-static int qspi_trigger_transfer_out_int(struct rspi_data *rspi, const u8 *tx,
+static int qspi_trigger_transfer_out_in(struct rspi_data *rspi, const u8 *tx,
 					u8 *rx, unsigned int len)
 {
-	int i, n, ret;
-	int error;
+	unsigned int i, n;
+	int ret;
 
 	while (len > 0) {
 		n = qspi_set_send_trigger(rspi, len);
 		qspi_set_receive_trigger(rspi, len);
 		if (n == QSPI_BUFFER_SIZE) {
-			error = rspi_wait_for_tx_empty(rspi);
-			if (error < 0) {
+			ret = rspi_wait_for_tx_empty(rspi);
+			if (ret < 0) {
 				dev_err(&rspi->master->dev, "transmit timeout\n");
-				return error;
+				return ret;
 			}
 			for (i = 0; i < n; i++)
 				rspi_write_data(rspi, *tx++);
 
-			error = rspi_wait_for_rx_full(rspi);
-			if (error < 0) {
+			ret = rspi_wait_for_rx_full(rspi);
+			if (ret < 0) {
 				dev_err(&rspi->master->dev, "receive timeout\n");
-				return error;
+				return ret;
 			}
 			for (i = 0; i < n; i++)
 				*rx++ = rspi_read_data(rspi);
@@ -771,16 +780,15 @@ static int qspi_transfer_out_in(struct rspi_data *rspi,
 	if (ret != -EAGAIN)
 		return ret;
 
-	ret = qspi_trigger_transfer_out_int(rspi, xfer->tx_buf,
+	return qspi_trigger_transfer_out_in(rspi, xfer->tx_buf,
 					    xfer->rx_buf, xfer->len);
-	if (ret < 0)
-		return ret;
-
-	return 0;
 }
 
 static int qspi_transfer_out(struct rspi_data *rspi, struct spi_transfer *xfer)
 {
+	const u8 *tx = xfer->tx_buf;
+	unsigned int n = xfer->len;
+	unsigned int i, len;
 	int ret;
 
 	if (rspi->master->can_dma && __rspi_can_dma(rspi, xfer)) {
@@ -789,9 +797,23 @@ static int qspi_transfer_out(struct rspi_data *rspi, struct spi_transfer *xfer)
 			return ret;
 	}
 
-	ret = rspi_pio_transfer(rspi, xfer->tx_buf, NULL, xfer->len);
-	if (ret < 0)
-		return ret;
+	while (n > 0) {
+		len = qspi_set_send_trigger(rspi, n);
+		if (len == QSPI_BUFFER_SIZE) {
+			ret = rspi_wait_for_tx_empty(rspi);
+			if (ret < 0) {
+				dev_err(&rspi->master->dev, "transmit timeout\n");
+				return ret;
+			}
+			for (i = 0; i < len; i++)
+				rspi_write_data(rspi, *tx++);
+		} else {
+			ret = rspi_pio_transfer(rspi, tx, NULL, len);
+			if (ret < 0)
+				return ret;
+		}
+		n -= len;
+	}
 
 	/* Wait for the last transmission */
 	rspi_wait_for_tx_empty(rspi);
@@ -801,13 +823,36 @@ static int qspi_transfer_out(struct rspi_data *rspi, struct spi_transfer *xfer)
 
 static int qspi_transfer_in(struct rspi_data *rspi, struct spi_transfer *xfer)
 {
+	u8 *rx = xfer->rx_buf;
+	unsigned int n = xfer->len;
+	unsigned int i, len;
+	int ret;
+
 	if (rspi->master->can_dma && __rspi_can_dma(rspi, xfer)) {
 		int ret = rspi_dma_transfer(rspi, NULL, &xfer->rx_sg);
 		if (ret != -EAGAIN)
 			return ret;
 	}
 
-	return rspi_pio_transfer(rspi, NULL, xfer->rx_buf, xfer->len);
+	while (n > 0) {
+		len = qspi_set_receive_trigger(rspi, n);
+		if (len == QSPI_BUFFER_SIZE) {
+			ret = rspi_wait_for_rx_full(rspi);
+			if (ret < 0) {
+				dev_err(&rspi->master->dev, "receive timeout\n");
+				return ret;
+			}
+			for (i = 0; i < len; i++)
+				*rx++ = rspi_read_data(rspi);
+		} else {
+			ret = rspi_pio_transfer(rspi, NULL, rx, len);
+			if (ret < 0)
+				return ret;
+		}
+		n -= len;
+	}
+
+	return 0;
 }
 
 static int qspi_transfer_one(struct spi_master *master, struct spi_device *spi,
@@ -1181,10 +1226,8 @@ static int rspi_probe(struct platform_device *pdev)
 	const struct spi_ops *ops;
 
 	master = spi_alloc_master(&pdev->dev, sizeof(struct rspi_data));
-	if (master == NULL) {
-		dev_err(&pdev->dev, "spi_alloc_master error.\n");
+	if (master == NULL)
 		return -ENOMEM;
-	}
 
 	of_id = of_match_device(rspi_of_match, &pdev->dev);
 	if (of_id) {
@@ -1300,7 +1343,7 @@ error1:
 	return ret;
 }
 
-static struct platform_device_id spi_driver_ids[] = {
+static const struct platform_device_id spi_driver_ids[] = {
 	{ "rspi",	(kernel_ulong_t)&rspi_ops },
 	{ "rspi-rz",	(kernel_ulong_t)&rspi_rz_ops },
 	{ "qspi",	(kernel_ulong_t)&qspi_ops },

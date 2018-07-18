@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Discontiguous memory support, Kanoj Sarcar, SGI, Nov 1999
  */
@@ -7,6 +8,7 @@
 #include <linux/mmzone.h>
 #include <linux/mm_types.h>
 #include <asm/dma.h>
+#include <asm/processor.h>
 
 /*
  *  simple boot-time physical memory area allocator.
@@ -19,6 +21,10 @@ extern unsigned long min_low_pfn;
  * highest page
  */
 extern unsigned long max_pfn;
+/*
+ * highest possible page
+ */
+extern unsigned long long max_possible_pfn;
 
 #ifndef CONFIG_NO_BOOTMEM
 /*
@@ -79,40 +85,44 @@ extern void *__alloc_bootmem(unsigned long size,
 			     unsigned long goal);
 extern void *__alloc_bootmem_nopanic(unsigned long size,
 				     unsigned long align,
-				     unsigned long goal);
+				     unsigned long goal) __malloc;
 extern void *__alloc_bootmem_node(pg_data_t *pgdat,
 				  unsigned long size,
 				  unsigned long align,
-				  unsigned long goal);
+				  unsigned long goal) __malloc;
 void *__alloc_bootmem_node_high(pg_data_t *pgdat,
 				  unsigned long size,
 				  unsigned long align,
-				  unsigned long goal);
+				  unsigned long goal) __malloc;
 extern void *__alloc_bootmem_node_nopanic(pg_data_t *pgdat,
 				  unsigned long size,
 				  unsigned long align,
-				  unsigned long goal);
+				  unsigned long goal) __malloc;
 void *___alloc_bootmem_node_nopanic(pg_data_t *pgdat,
 				  unsigned long size,
 				  unsigned long align,
 				  unsigned long goal,
-				  unsigned long limit);
+				  unsigned long limit) __malloc;
 extern void *__alloc_bootmem_low(unsigned long size,
 				 unsigned long align,
-				 unsigned long goal);
+				 unsigned long goal) __malloc;
 void *__alloc_bootmem_low_nopanic(unsigned long size,
 				 unsigned long align,
-				 unsigned long goal);
+				 unsigned long goal) __malloc;
 extern void *__alloc_bootmem_low_node(pg_data_t *pgdat,
 				      unsigned long size,
 				      unsigned long align,
-				      unsigned long goal);
+				      unsigned long goal) __malloc;
 
 #ifdef CONFIG_NO_BOOTMEM
 /* We are using top down, so it is safe to use 0 here */
 #define BOOTMEM_LOW_LIMIT 0
 #else
 #define BOOTMEM_LOW_LIMIT __pa(MAX_DMA_ADDRESS)
+#endif
+
+#ifndef ARCH_LOW_ADDRESS_LIMIT
+#define ARCH_LOW_ADDRESS_LIMIT  0xffffffffUL
 #endif
 
 #define alloc_bootmem(x) \
@@ -175,10 +185,6 @@ static inline void * __init memblock_virt_alloc_nopanic(
 						    BOOTMEM_ALLOC_ACCESSIBLE,
 						    NUMA_NO_NODE);
 }
-
-#ifndef ARCH_LOW_ADDRESS_LIMIT
-#define ARCH_LOW_ADDRESS_LIMIT  0xffffffffUL
-#endif
 
 static inline void * __init memblock_virt_alloc_low(
 					phys_addr_t size, phys_addr_t align)
@@ -353,16 +359,17 @@ extern void *alloc_large_system_hash(const char *tablename,
 #define HASH_EARLY	0x00000001	/* Allocating during early boot? */
 #define HASH_SMALL	0x00000002	/* sub-page allocation allowed, min
 					 * shift passed via *_hash_shift */
+#define HASH_ZERO	0x00000004	/* Zero allocated hash table */
 
 /* Only NUMA needs hash distribution. 64bit NUMA architectures have
  * sufficient vmalloc space.
  */
-#if defined(CONFIG_NUMA) && defined(CONFIG_64BIT)
-#define HASHDIST_DEFAULT 1
-#else
-#define HASHDIST_DEFAULT 0
-#endif
+#ifdef CONFIG_NUMA
+#define HASHDIST_DEFAULT IS_ENABLED(CONFIG_64BIT)
 extern int hashdist;		/* Distribute hashes across NUMA nodes? */
+#else
+#define hashdist (0)
+#endif
 
 
 #endif /* _LINUX_BOOTMEM_H */

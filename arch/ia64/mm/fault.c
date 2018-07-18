@@ -1,12 +1,14 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * MMU fault handling support.
  *
  * Copyright (C) 1998-2002 Hewlett-Packard Co
  *	David Mosberger-Tang <davidm@hpl.hp.com>
  */
-#include <linux/sched.h>
+#include <linux/sched/signal.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
+#include <linux/extable.h>
 #include <linux/interrupt.h>
 #include <linux/kprobes.h>
 #include <linux/kdebug.h>
@@ -15,6 +17,7 @@
 
 #include <asm/pgtable.h>
 #include <asm/processor.h>
+#include <asm/exception.h>
 
 extern int die(char *, struct pt_regs *, long);
 
@@ -159,7 +162,7 @@ retry:
 	 * sure we exit gracefully rather than endlessly redo the
 	 * fault.
 	 */
-	fault = handle_mm_fault(mm, vma, address, flags);
+	fault = handle_mm_fault(vma, address, flags);
 
 	if ((fault & VM_FAULT_RETRY) && fatal_signal_pending(current))
 		return;

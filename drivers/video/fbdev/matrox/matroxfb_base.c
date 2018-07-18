@@ -370,12 +370,9 @@ static void matroxfb_remove(struct matrox_fb_info *minfo, int dummy)
 	matroxfb_unregister_device(minfo);
 	unregister_framebuffer(&minfo->fbcon);
 	matroxfb_g450_shutdown(minfo);
-#ifdef CONFIG_MTRR
-	if (minfo->mtrr.vram_valid)
-		mtrr_del(minfo->mtrr.vram, minfo->video.base, minfo->video.len);
-#endif
-	mga_iounmap(minfo->mmio.vbase);
-	mga_iounmap(minfo->video.vbase);
+	arch_phys_wc_del(minfo->wc_cookie);
+	iounmap(minfo->mmio.vbase.vaddr);
+	iounmap(minfo->video.vbase.vaddr);
 	release_mem_region(minfo->video.base, minfo->video.len_maximum);
 	release_mem_region(minfo->mmio.base, 16384);
 	kfree(minfo);
@@ -591,12 +588,8 @@ static int matroxfb_decode_var(const struct matrox_fb_info *minfo,
 			unsigned int max_yres;
 
 			while (m1) {
-				int t;
-
 				while (m2 >= m1) m2 -= m1;
-				t = m1;
-				m1 = m2;
-				m2 = t;
+				swap(m1, m2);
 			}
 			m2 = linelen * PAGE_SIZE / m2;
 			*ydstorg = m2 = 0x400000 % m2;
@@ -1205,7 +1198,7 @@ static int matroxfb_blank(int blank, struct fb_info *info)
 	return 0;
 }
 
-static struct fb_ops matroxfb_ops = {
+static const struct fb_ops matroxfb_ops = {
 	.owner =	THIS_MODULE,
 	.fb_open =	matroxfb_open,
 	.fb_release =	matroxfb_release,
@@ -1256,9 +1249,7 @@ static int nobios;			/* "matroxfb:nobios" */
 static int noinit = 1;			/* "matroxfb:init" */
 static int inverse;			/* "matroxfb:inverse" */
 static int sgram;			/* "matroxfb:sgram" */
-#ifdef CONFIG_MTRR
 static int mtrr = 1;			/* "matroxfb:nomtrr" */
-#endif
 static int grayscale;			/* "matroxfb:grayscale" */
 static int dev = -1;			/* "matroxfb:dev:xxxxx" */
 static unsigned int vesa = ~0;		/* "matroxfb:vesa:xxxxx" */
@@ -1582,14 +1573,14 @@ static struct board {
 		NULL}};
 
 #ifndef MODULE
-static struct fb_videomode defaultmode = {
+static const struct fb_videomode defaultmode = {
 	/* 640x480 @ 60Hz, 31.5 kHz */
 	NULL, 60, 640, 480, 39721, 40, 24, 32, 11, 96, 2,
 	0, FB_VMODE_NONINTERLACED
 };
-#endif /* !MODULE */
 
 static int hotplug = 0;
+#endif /* !MODULE */
 
 static void setDefaultOutputs(struct matrox_fb_info *minfo)
 {
@@ -1632,7 +1623,7 @@ static int initMatrox2(struct matrox_fb_info *minfo, struct board *b)
 	unsigned int memsize;
 	int err;
 
-	static struct pci_device_id intel_82437[] = {
+	static const struct pci_device_id intel_82437[] = {
 		{ PCI_DEVICE(PCI_VENDOR_ID_INTEL, PCI_DEVICE_ID_INTEL_82437) },
 		{ },
 	};
@@ -1717,14 +1708,17 @@ static int initMatrox2(struct matrox_fb_info *minfo, struct board *b)
 	if (mem && (mem < memsize))
 		memsize = mem;
 	err = -ENOMEM;
-	if (mga_ioremap(ctrlptr_phys, 16384, MGA_IOREMAP_MMIO, &minfo->mmio.vbase)) {
+
+	minfo->mmio.vbase.vaddr = ioremap_nocache(ctrlptr_phys, 16384);
+	if (!minfo->mmio.vbase.vaddr) {
 		printk(KERN_ERR "matroxfb: cannot ioremap(%lX, 16384), matroxfb disabled\n", ctrlptr_phys);
 		goto failVideoMR;
 	}
 	minfo->mmio.base = ctrlptr_phys;
 	minfo->mmio.len = 16384;
 	minfo->video.base = video_base_phys;
-	if (mga_ioremap(video_base_phys, memsize, MGA_IOREMAP_FB, &minfo->video.vbase)) {
+	minfo->video.vbase.vaddr = ioremap_wc(video_base_phys, memsize);
+	if (!minfo->video.vbase.vaddr) {
 		printk(KERN_ERR "matroxfb: cannot ioremap(%lX, %d), matroxfb disabled\n",
 			video_base_phys, memsize);
 		goto failCtrlIO;
@@ -1772,13 +1766,9 @@ static int initMatrox2(struct matrox_fb_info *minfo, struct board *b)
 	minfo->video.len_usable = minfo->video.len;
 	if (minfo->video.len_usable > b->base->maxdisplayable)
 		minfo->video.len_usable = b->base->maxdisplayable;
-#ifdef CONFIG_MTRR
-	if (mtrr) {
-		minfo->mtrr.vram = mtrr_add(video_base_phys, minfo->video.len, MTRR_TYPE_WRCOMB, 1);
-		minfo->mtrr.vram_valid = 1;
-		printk(KERN_INFO "matroxfb: MTRR's turned on\n");
-	}
-#endif	/* CONFIG_MTRR */
+	if (mtrr)
+		minfo->wc_cookie = arch_phys_wc_add(video_base_phys,
+						    minfo->video.len);
 
 	if (!minfo->devflags.novga)
 		request_region(0x3C0, 32, "matrox");
@@ -1804,9 +1794,7 @@ static int initMatrox2(struct matrox_fb_info *minfo, struct board *b)
 	minfo->fbops = matroxfb_ops;
 	minfo->fbcon.fbops = &minfo->fbops;
 	minfo->fbcon.pseudo_palette = minfo->cmap;
-	/* after __init time we are like module... no logo */
-	minfo->fbcon.flags = hotplug ? FBINFO_FLAG_MODULE : FBINFO_FLAG_DEFAULT;
-	minfo->fbcon.flags |= FBINFO_PARTIAL_PAN_OK | 	 /* Prefer panning for scroll under MC viewer/edit */
+	minfo->fbcon.flags = FBINFO_PARTIAL_PAN_OK | 	 /* Prefer panning for scroll under MC viewer/edit */
 				      FBINFO_HWACCEL_COPYAREA |  /* We have hw-assisted bmove */
 				      FBINFO_HWACCEL_FILLRECT |  /* And fillrect */
 				      FBINFO_HWACCEL_IMAGEBLIT | /* And imageblit */
@@ -1947,9 +1935,9 @@ static int initMatrox2(struct matrox_fb_info *minfo, struct board *b)
 	return 0;
 failVideoIO:;
 	matroxfb_g450_shutdown(minfo);
-	mga_iounmap(minfo->video.vbase);
+	iounmap(minfo->video.vbase.vaddr);
 failCtrlIO:;
-	mga_iounmap(minfo->mmio.vbase);
+	iounmap(minfo->mmio.vbase.vaddr);
 failVideoMR:;
 	release_mem_region(video_base_phys, minfo->video.len_maximum);
 failCtrlMR:;
@@ -2011,7 +1999,7 @@ static void matroxfb_register_device(struct matrox_fb_info* minfo) {
 	for (drv = matroxfb_driver_l(matroxfb_driver_list.next);
 	     drv != matroxfb_driver_l(&matroxfb_driver_list);
 	     drv = matroxfb_driver_l(drv->node.next)) {
-		if (drv && drv->probe) {
+		if (drv->probe) {
 			void *p = drv->probe(minfo);
 			if (p) {
 				minfo->drivers_data[i] = p;
@@ -2126,7 +2114,7 @@ static void pci_remove_matrox(struct pci_dev* pdev) {
 	matroxfb_remove(minfo, 1);
 }
 
-static struct pci_device_id matroxfb_devices[] = {
+static const struct pci_device_id matroxfb_devices[] = {
 #ifdef CONFIG_FB_MATROX_MILLENIUM
 	{PCI_VENDOR_ID_MATROX,	PCI_DEVICE_ID_MATROX_MIL,
 		PCI_ANY_ID,	PCI_ANY_ID,	0, 0, 0},
@@ -2443,10 +2431,8 @@ static int __init matroxfb_setup(char *options) {
 				nobios = !value;
 			else if (!strcmp(this_opt, "init"))
 				noinit = !value;
-#ifdef CONFIG_MTRR
 			else if (!strcmp(this_opt, "mtrr"))
 				mtrr = value;
-#endif
 			else if (!strcmp(this_opt, "inv24"))
 				inv24 = value;
 			else if (!strcmp(this_opt, "cross4MB"))
@@ -2515,10 +2501,8 @@ module_param(noinit, int, 0);
 MODULE_PARM_DESC(noinit, "Disables W/SG/SD-RAM and bus interface initialization (0 or 1=do not initialize) (default=0)");
 module_param(memtype, int, 0);
 MODULE_PARM_DESC(memtype, "Memory type for G200/G400 (see Documentation/fb/matroxfb.txt for explanation) (default=3 for G200, 0 for G400)");
-#ifdef CONFIG_MTRR
 module_param(mtrr, int, 0);
 MODULE_PARM_DESC(mtrr, "This speeds up video memory accesses (0=disabled or 1) (default=1)");
-#endif
 module_param(sgram, int, 0);
 MODULE_PARM_DESC(sgram, "Indicates that G100/G200/G400 has SGRAM memory (0=SDRAM, 1=SGRAM) (default=0)");
 module_param(inv24, int, 0);

@@ -23,17 +23,18 @@ struct vsp1_device;
 struct vsp1_rwpf;
 
 #define BRU_PAD_SINK(n)				(n)
-#define BRU_PAD_SOURCE				4
 
 struct vsp1_bru {
 	struct vsp1_entity entity;
+	unsigned int base;
 
 	struct v4l2_ctrl_handler ctrls;
 
 	struct {
 		struct vsp1_rwpf *rpf;
-		struct v4l2_rect compose;
-	} inputs[4];
+	} inputs[VSP1_MAX_RPF];
+
+	u32 bgcolor;
 };
 
 static inline struct vsp1_bru *to_bru(struct v4l2_subdev *subdev)
@@ -41,6 +42,7 @@ static inline struct vsp1_bru *to_bru(struct v4l2_subdev *subdev)
 	return container_of(subdev, struct vsp1_bru, entity.subdev);
 }
 
-struct vsp1_bru *vsp1_bru_create(struct vsp1_device *vsp1);
+struct vsp1_bru *vsp1_bru_create(struct vsp1_device *vsp1,
+				 enum vsp1_entity_type type);
 
 #endif /* __VSP1_BRU_H__ */

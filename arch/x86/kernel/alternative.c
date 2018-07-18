@@ -11,6 +11,7 @@
 #include <linux/stop_machine.h>
 #include <linux/slab.h>
 #include <linux/kdebug.h>
+#include <asm/text-patching.h>
 #include <asm/alternative.h>
 #include <asm/sections.h>
 #include <asm/pgtable.h>
@@ -20,6 +21,10 @@
 #include <asm/tlbflush.h>
 #include <asm/io.h>
 #include <asm/fixmap.h>
+
+int __read_mostly alternatives_patched;
+
+EXPORT_SYMBOL_GPL(alternatives_patched);
 
 #define MAX_PATCH_LEN (255-1)
 
@@ -40,17 +45,6 @@ static int __init setup_noreplace_smp(char *str)
 	return 1;
 }
 __setup("noreplace-smp", setup_noreplace_smp);
-
-#ifdef CONFIG_PARAVIRT
-static int __initdata_or_module noreplace_paravirt = 0;
-
-static int __init setup_noreplace_paravirt(char *str)
-{
-	noreplace_paravirt = 1;
-	return 1;
-}
-__setup("noreplace-paravirt", setup_noreplace_paravirt);
-#endif
 
 #define DPRINTK(fmt, args...)						\
 do {									\
@@ -227,6 +221,15 @@ void __init arch_init_ideal_nops(void)
 #endif
 		}
 		break;
+
+	case X86_VENDOR_AMD:
+		if (boot_cpu_data.x86 > 0xf) {
+			ideal_nops = p6_nops;
+			return;
+		}
+
+		/* fall through */
+
 	default:
 #ifdef CONFIG_X86_64
 		ideal_nops = k8_nops;
@@ -323,16 +326,22 @@ done:
 		n_dspl, (unsigned long)orig_insn + n_dspl + repl_len);
 }
 
-static void __init_or_module optimize_nops(struct alt_instr *a, u8 *instr)
+/*
+ * "noinline" to cause control flow change and thus invalidate I$ and
+ * cause refetch after modification.
+ */
+static void __init_or_module noinline optimize_nops(struct alt_instr *a, u8 *instr)
 {
 	unsigned long flags;
+	int i;
 
-	if (instr[0] != 0x90)
-		return;
+	for (i = 0; i < a->padlen; i++) {
+		if (instr[i] != 0x90)
+			return;
+	}
 
 	local_irq_save(flags);
 	add_nops(instr + (a->instrlen - a->padlen), a->padlen);
-	sync_core();
 	local_irq_restore(flags);
 
 	DUMP_BYTES(instr, a->instrlen, "%p: [%d:%d) optimized NOPs: ",
@@ -345,9 +354,12 @@ static void __init_or_module optimize_nops(struct alt_instr *a, u8 *instr)
  * This implies that asymmetric systems where APs have less capabilities than
  * the boot processor are not handled. Tough. Make sure you disable such
  * features by hand.
+ *
+ * Marked "noinline" to cause control flow change and thus insn cache
+ * to refetch changed I$ lines.
  */
-void __init_or_module apply_alternatives(struct alt_instr *start,
-					 struct alt_instr *end)
+void __init_or_module noinline apply_alternatives(struct alt_instr *start,
+						  struct alt_instr *end)
 {
 	struct alt_instr *a;
 	u8 *instr, *replacement;
@@ -389,8 +401,13 @@ void __init_or_module apply_alternatives(struct alt_instr *start,
 		memcpy(insnbuf, replacement, a->replacementlen);
 		insnbuf_sz = a->replacementlen;
 
-		/* 0xe8 is a relative jump; fix the offset. */
-		if (*insnbuf == 0xe8 && a->replacementlen == 5) {
+		/*
+		 * 0xe8 is a relative jump; fix the offset.
+		 *
+		 * Instruction length is checked before the opcode to avoid
+		 * accessing uninitialized bytes for zero-length replacements.
+		 */
+		if (a->replacementlen == 5 && *insnbuf == 0xe8) {
 			*(s32 *)(insnbuf + 1) += replacement - instr;
 			DPRINTK("Fix CALL offset: 0x%x, CALL 0x%lx",
 				*(s32 *)(insnbuf + 1),
@@ -571,9 +588,6 @@ void __init_or_module apply_paravirt(struct paravirt_patch_site *start,
 	struct paravirt_patch_site *p;
 	char insnbuf[MAX_PATCH_LEN];
 
-	if (noreplace_paravirt)
-		return;
-
 	for (p = start; p < end; p++) {
 		unsigned int used;
 
@@ -632,6 +646,7 @@ void __init alternative_instructions(void)
 	apply_paravirt(__parainstructions, __parainstructions_end);
 
 	restart_nmi();
+	alternatives_patched = 1;
 }
 
 /**
@@ -652,7 +667,6 @@ void *__init_or_module text_poke_early(void *addr, const void *opcode,
 	unsigned long flags;
 	local_irq_save(flags);
 	memcpy(addr, opcode, len);
-	sync_core();
 	local_irq_restore(flags);
 	/* Could also do a CLFLUSH here to speed up CPU recovery; but
 	   that causes hangs on some VIA CPUs. */
@@ -717,7 +731,16 @@ static void *bp_int3_handler, *bp_int3_addr;
 
 int poke_int3_handler(struct pt_regs *regs)
 {
-	/* bp_patching_in_progress */
+	/*
+	 * Having observed our INT3 instruction, we now must observe
+	 * bp_patching_in_progress.
+	 *
+	 * 	in_progress = TRUE		INT3
+	 * 	WMB				RMB
+	 * 	write INT3			if (in_progress)
+	 *
+	 * Idem for bp_int3_handler.
+	 */
 	smp_rmb();
 
 	if (likely(!bp_patching_in_progress))
@@ -763,9 +786,8 @@ void *text_poke_bp(void *addr, const void *opcode, size_t len, void *handler)
 	bp_int3_addr = (u8 *)addr + sizeof(int3);
 	bp_patching_in_progress = true;
 	/*
-	 * Corresponding read barrier in int3 notifier for
-	 * making sure the in_progress flags is correctly ordered wrt.
-	 * patching
+	 * Corresponding read barrier in int3 notifier for making sure the
+	 * in_progress and handler are correctly ordered wrt. patching.
 	 */
 	smp_wmb();
 
@@ -790,9 +812,11 @@ void *text_poke_bp(void *addr, const void *opcode, size_t len, void *handler)
 	text_poke(addr, opcode, sizeof(int3));
 
 	on_each_cpu(do_sync_core, NULL, 1);
-
+	/*
+	 * sync_core() implies an smp_mb() and orders this store against
+	 * the writing of the new instruction.
+	 */
 	bp_patching_in_progress = false;
-	smp_wmb();
 
 	return addr;
 }

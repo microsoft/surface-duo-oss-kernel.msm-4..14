@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * XLP8XX Device Tree Source for EVP boards
  */
@@ -109,6 +110,18 @@
 				reg = <0xf00000 0x100000>; /* 1M */
 				read-only;
 			};
+		};
+
+		gpio: xlp_gpio@34100 {
+			compatible = "netlogic,xlp832-gpio";
+			reg = <0 0x34100 0x1000>;
+			#gpio-cells = <2>;
+			gpio-controller;
+
+			#interrupt-cells = <2>;
+			interrupt-parent = <&pic>;
+			interrupts = <39>;
+			interrupt-controller;
 		};
 	};
 

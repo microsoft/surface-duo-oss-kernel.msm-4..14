@@ -94,6 +94,7 @@ static const struct usb_device_id ath3k_table[] = {
 	{ USB_DEVICE(0x04CA, 0x300f) },
 	{ USB_DEVICE(0x04CA, 0x3010) },
 	{ USB_DEVICE(0x04CA, 0x3014) },
+	{ USB_DEVICE(0x04CA, 0x3018) },
 	{ USB_DEVICE(0x0930, 0x0219) },
 	{ USB_DEVICE(0x0930, 0x021c) },
 	{ USB_DEVICE(0x0930, 0x0220) },
@@ -122,6 +123,8 @@ static const struct usb_device_id ath3k_table[] = {
 	{ USB_DEVICE(0x13d3, 0x3432) },
 	{ USB_DEVICE(0x13d3, 0x3472) },
 	{ USB_DEVICE(0x13d3, 0x3474) },
+	{ USB_DEVICE(0x13d3, 0x3487) },
+	{ USB_DEVICE(0x13d3, 0x3490) },
 
 	/* Atheros AR5BBU12 with sflash firmware */
 	{ USB_DEVICE(0x0489, 0xE02C) },
@@ -137,7 +140,8 @@ MODULE_DEVICE_TABLE(usb, ath3k_table);
 
 #define BTUSB_ATH3012		0x80
 /* This table is to load patch and sysconfig files
- * for AR3012 */
+ * for AR3012
+ */
 static const struct usb_device_id ath3k_blist_tbl[] = {
 
 	/* Atheros AR3012 with sflash firmware*/
@@ -160,6 +164,7 @@ static const struct usb_device_id ath3k_blist_tbl[] = {
 	{ USB_DEVICE(0x04ca, 0x300f), .driver_info = BTUSB_ATH3012 },
 	{ USB_DEVICE(0x04ca, 0x3010), .driver_info = BTUSB_ATH3012 },
 	{ USB_DEVICE(0x04ca, 0x3014), .driver_info = BTUSB_ATH3012 },
+	{ USB_DEVICE(0x04ca, 0x3018), .driver_info = BTUSB_ATH3012 },
 	{ USB_DEVICE(0x0930, 0x0219), .driver_info = BTUSB_ATH3012 },
 	{ USB_DEVICE(0x0930, 0x021c), .driver_info = BTUSB_ATH3012 },
 	{ USB_DEVICE(0x0930, 0x0220), .driver_info = BTUSB_ATH3012 },
@@ -188,6 +193,8 @@ static const struct usb_device_id ath3k_blist_tbl[] = {
 	{ USB_DEVICE(0x13d3, 0x3432), .driver_info = BTUSB_ATH3012 },
 	{ USB_DEVICE(0x13d3, 0x3472), .driver_info = BTUSB_ATH3012 },
 	{ USB_DEVICE(0x13d3, 0x3474), .driver_info = BTUSB_ATH3012 },
+	{ USB_DEVICE(0x13d3, 0x3487), .driver_info = BTUSB_ATH3012 },
+	{ USB_DEVICE(0x13d3, 0x3490), .driver_info = BTUSB_ATH3012 },
 
 	/* Atheros AR5BBU22 with sflash firmware */
 	{ USB_DEVICE(0x0489, 0xE036), .driver_info = BTUSB_ATH3012 },
@@ -206,7 +213,8 @@ static int ath3k_load_firmware(struct usb_device *udev,
 				const struct firmware *firmware)
 {
 	u8 *send_buf;
-	int err, pipe, len, size, sent = 0;
+	int len = 0;
+	int err, pipe, size, sent = 0;
 	int count = firmware->size;
 
 	BT_DBG("udev %p", udev);
@@ -302,7 +310,8 @@ static int ath3k_load_fwfile(struct usb_device *udev,
 		const struct firmware *firmware)
 {
 	u8 *send_buf;
-	int err, pipe, len, size, count, sent = 0;
+	int len = 0;
+	int err, pipe, size, count, sent = 0;
 	int ret;
 
 	count = firmware->size;
@@ -505,6 +514,7 @@ static int ath3k_probe(struct usb_interface *intf,
 	/* match device ID in ath3k blacklist table */
 	if (!id->driver_info) {
 		const struct usb_device_id *match;
+
 		match = usb_match_id(intf, ath3k_blist_tbl);
 		if (match)
 			id = match;

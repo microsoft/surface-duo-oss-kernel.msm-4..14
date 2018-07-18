@@ -1,7 +1,7 @@
 #include <linux/linkage.h>
-#include <asm/dwarf2.h>
-#include <asm/cpufeature.h>
+#include <asm/cpufeatures.h>
 #include <asm/alternative-asm.h>
+#include <asm/export.h>
 
 /*
  * Most CPUs support enhanced REP MOVSB/STOSB instructions. It is
@@ -14,22 +14,15 @@
  * Zero a page.
  * %rdi	- page
  */
-ENTRY(clear_page)
-	CFI_STARTPROC
-
-	ALTERNATIVE_2 "jmp clear_page_orig", "", X86_FEATURE_REP_GOOD, \
-		      "jmp clear_page_c_e", X86_FEATURE_ERMS
-
+ENTRY(clear_page_rep)
 	movl $4096/8,%ecx
 	xorl %eax,%eax
 	rep stosq
 	ret
-	CFI_ENDPROC
-ENDPROC(clear_page)
+ENDPROC(clear_page_rep)
+EXPORT_SYMBOL_GPL(clear_page_rep)
 
 ENTRY(clear_page_orig)
-	CFI_STARTPROC
-
 	xorl   %eax,%eax
 	movl   $4096/64,%ecx
 	.p2align 4
@@ -48,14 +41,13 @@ ENTRY(clear_page_orig)
 	jnz	.Lloop
 	nop
 	ret
-	CFI_ENDPROC
 ENDPROC(clear_page_orig)
+EXPORT_SYMBOL_GPL(clear_page_orig)
 
-ENTRY(clear_page_c_e)
-	CFI_STARTPROC
+ENTRY(clear_page_erms)
 	movl $4096,%ecx
 	xorl %eax,%eax
 	rep stosb
 	ret
-	CFI_ENDPROC
-ENDPROC(clear_page_c_e)
+ENDPROC(clear_page_erms)
+EXPORT_SYMBOL_GPL(clear_page_erms)

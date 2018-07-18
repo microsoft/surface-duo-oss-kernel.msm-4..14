@@ -61,7 +61,7 @@ static int vexpress_osc_set_rate(struct clk_hw *hw, unsigned long rate,
 	return regmap_write(osc->reg, 0, rate);
 }
 
-static struct clk_ops vexpress_osc_ops = {
+static const struct clk_ops vexpress_osc_ops = {
 	.recalc_rate = vexpress_osc_recalc_rate,
 	.round_rate = vexpress_osc_round_rate,
 	.set_rate = vexpress_osc_set_rate,
@@ -94,7 +94,7 @@ static int vexpress_osc_probe(struct platform_device *pdev)
 		init.name = dev_name(&pdev->dev);
 
 	init.ops = &vexpress_osc_ops;
-	init.flags = CLK_IS_ROOT;
+	init.flags = 0;
 	init.num_parents = 0;
 
 	osc->hw.init = &init;

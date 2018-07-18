@@ -24,7 +24,7 @@
 #include <linux/kernel.h>
 #include <linux/watchdog.h>
 #include <linux/platform_device.h>
-#include <linux/i2c/twl.h>
+#include <linux/mfd/twl.h>
 
 #define TWL4030_WATCHDOG_CFG_REG_OFFS	0x3
 
@@ -83,6 +83,7 @@ static int twl4030_wdt_probe(struct platform_device *pdev)
 	wdt->timeout		= 30;
 	wdt->min_timeout	= 1;
 	wdt->max_timeout	= 30;
+	wdt->parent = &pdev->dev;
 
 	watchdog_set_nowayout(wdt, nowayout);
 	platform_set_drvdata(pdev, wdt);

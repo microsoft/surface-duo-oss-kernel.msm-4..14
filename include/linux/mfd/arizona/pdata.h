@@ -12,6 +12,8 @@
 #define _ARIZONA_PDATA_H
 
 #include <dt-bindings/mfd/arizona.h>
+#include <linux/regulator/arizona-ldo1.h>
+#include <linux/regulator/arizona-micsupp.h>
 
 #define ARIZONA_GPN_DIR_MASK                     0x8000  /* GPN_DIR */
 #define ARIZONA_GPN_DIR_SHIFT                        15  /* GPN_DIR */
@@ -76,13 +78,12 @@ struct arizona_micd_range {
 
 struct arizona_pdata {
 	int reset;      /** GPIO controlling /RESET, if any */
-	int ldoena;     /** GPIO controlling LODENA, if any */
 
 	/** Regulator configuration for MICVDD */
-	struct regulator_init_data *micvdd;
+	struct arizona_micsupp_pdata micvdd;
 
 	/** Regulator configuration for LDO1 */
-	struct regulator_init_data *ldo1;
+	struct arizona_ldo1_pdata ldo1;
 
 	/** If a direct 32kHz clock is provided on an MCLK specify it here */
 	int clk32k_src;
@@ -101,7 +102,7 @@ struct arizona_pdata {
 	 * useful for systems where and I2S bus with multiple data
 	 * lines is mastered.
 	 */
-	int max_channels_clocked[ARIZONA_MAX_AIF];
+	unsigned int max_channels_clocked[ARIZONA_MAX_AIF];
 
 	/** GPIO5 is used for jack detection */
 	bool jd_gpio5;
@@ -121,23 +122,29 @@ struct arizona_pdata {
 	/** GPIO used for mic isolation with HPDET */
 	int hpdet_id_gpio;
 
+	/** Channel to use for headphone detection */
+	unsigned int hpdet_channel;
+
+	/** Use software comparison to determine mic presence */
+	bool micd_software_compare;
+
 	/** Extra debounce timeout used during initial mic detection (ms) */
-	int micd_detect_debounce;
+	unsigned int micd_detect_debounce;
 
 	/** GPIO for mic detection polarity */
 	int micd_pol_gpio;
 
 	/** Mic detect ramp rate */
-	int micd_bias_start_time;
+	unsigned int micd_bias_start_time;
 
 	/** Mic detect sample rate */
-	int micd_rate;
+	unsigned int micd_rate;
 
 	/** Mic detect debounce level */
-	int micd_dbtime;
+	unsigned int micd_dbtime;
 
 	/** Mic detect timeout (ms) */
-	int micd_timeout;
+	unsigned int micd_timeout;
 
 	/** Force MICBIAS on for mic detect */
 	bool micd_force_micbias;
@@ -156,11 +163,16 @@ struct arizona_pdata {
 	/** MICBIAS configurations */
 	struct arizona_micbias micbias[ARIZONA_MAX_MICBIAS];
 
-	/** Mode of input structures */
+	/**
+	 * Mode of input structures
+	 * One of the ARIZONA_INMODE_xxx values
+	 * wm5102/wm5110/wm8280/wm8997: [0]=IN1 [1]=IN2 [2]=IN3 [3]=IN4
+	 * wm8998: [0]=IN1A [1]=IN2A [2]=IN1B [3]=IN2B
+	 */
 	int inmode[ARIZONA_MAX_INPUT];
 
 	/** Mode for outputs */
-	bool out_mono[ARIZONA_MAX_OUTPUT];
+	int out_mono[ARIZONA_MAX_OUTPUT];
 
 	/** PDM speaker mute setting */
 	unsigned int spk_mute[ARIZONA_MAX_PDM_SPK];
@@ -173,6 +185,9 @@ struct arizona_pdata {
 
 	/** GPIO for primary IRQ (used for edge triggered emulation) */
 	int irq_gpio;
+
+	/** General purpose switch control */
+	unsigned int gpsw;
 };
 
 #endif

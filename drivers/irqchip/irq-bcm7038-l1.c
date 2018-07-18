@@ -12,7 +12,6 @@
 #define pr_fmt(fmt)	KBUILD_MODNAME	": " fmt
 
 #include <linux/bitops.h>
-#include <linux/kconfig.h>
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/interrupt.h>
@@ -29,9 +28,8 @@
 #include <linux/slab.h>
 #include <linux/smp.h>
 #include <linux/types.h>
+#include <linux/irqchip.h>
 #include <linux/irqchip/chained_irq.h>
-
-#include "irqchip.h"
 
 #define IRQS_PER_WORD		32
 #define REG_BYTES_PER_IRQ_WORD	(sizeof(u32) * 4)
@@ -116,7 +114,7 @@ static inline void l1_writel(u32 val, void __iomem *reg)
 		writel(val, reg);
 }
 
-static void bcm7038_l1_irq_handle(unsigned int irq, struct irq_desc *desc)
+static void bcm7038_l1_irq_handle(struct irq_desc *desc)
 {
 	struct bcm7038_l1_chip *intc = irq_desc_get_handler_data(desc);
 	struct bcm7038_l1_cpu *cpu;
@@ -214,7 +212,34 @@ static int bcm7038_l1_set_affinity(struct irq_data *d,
 		__bcm7038_l1_unmask(d, first_cpu);
 
 	raw_spin_unlock_irqrestore(&intc->lock, flags);
+	irq_data_update_effective_affinity(d, cpumask_of(first_cpu));
+
 	return 0;
+}
+
+static void bcm7038_l1_cpu_offline(struct irq_data *d)
+{
+	struct cpumask *mask = irq_data_get_affinity_mask(d);
+	int cpu = smp_processor_id();
+	cpumask_t new_affinity;
+
+	/* This CPU was not on the affinity mask */
+	if (!cpumask_test_cpu(cpu, mask))
+		return;
+
+	if (cpumask_weight(mask) > 1) {
+		/*
+		 * Multiple CPU affinity, remove this CPU from the affinity
+		 * mask
+		 */
+		cpumask_copy(&new_affinity, mask);
+		cpumask_clear_cpu(cpu, &new_affinity);
+	} else {
+		/* Only CPU, put on the lowest online CPU */
+		cpumask_clear(&new_affinity);
+		cpumask_set_cpu(cpumask_first(cpu_online_mask), &new_affinity);
+	}
+	irq_set_affinity_locked(d, &new_affinity, false);
 }
 
 static int __init bcm7038_l1_init_one(struct device_node *dn,
@@ -257,8 +282,8 @@ static int __init bcm7038_l1_init_one(struct device_node *dn,
 		pr_err("failed to map parent interrupt %d\n", parent_irq);
 		return -EINVAL;
 	}
-	irq_set_handler_data(parent_irq, intc);
-	irq_set_chained_handler(parent_irq, bcm7038_l1_irq_handle);
+	irq_set_chained_handler_and_data(parent_irq, bcm7038_l1_irq_handle,
+					 intc);
 
 	return 0;
 }
@@ -268,6 +293,7 @@ static struct irq_chip bcm7038_l1_irq_chip = {
 	.irq_mask		= bcm7038_l1_mask,
 	.irq_unmask		= bcm7038_l1_unmask,
 	.irq_set_affinity	= bcm7038_l1_set_affinity,
+	.irq_cpu_offline	= bcm7038_l1_cpu_offline,
 };
 
 static int bcm7038_l1_map(struct irq_domain *d, unsigned int virq,
@@ -275,6 +301,7 @@ static int bcm7038_l1_map(struct irq_domain *d, unsigned int virq,
 {
 	irq_set_chip_and_handler(virq, &bcm7038_l1_irq_chip, handle_level_irq);
 	irq_set_chip_data(virq, d->host_data);
+	irqd_set_single_target(irq_desc_get_irq_data(irq_to_desc(virq)));
 	return 0;
 }
 

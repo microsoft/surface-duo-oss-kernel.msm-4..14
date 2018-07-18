@@ -369,7 +369,7 @@ static int tdo24m_probe(struct spi_device *spi)
 
 	spi_message_init(m);
 
-	x->cs_change = 1;
+	x->cs_change = 0;
 	x->tx_buf = &lcd->buf[0];
 	spi_message_add_tail(x, m);
 
@@ -437,7 +437,6 @@ static void tdo24m_shutdown(struct spi_device *spi)
 static struct spi_driver tdo24m_driver = {
 	.driver = {
 		.name		= "tdo24m",
-		.owner		= THIS_MODULE,
 		.pm		= &tdo24m_pm_ops,
 	},
 	.probe		= tdo24m_probe,

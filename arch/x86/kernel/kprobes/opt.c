@@ -24,18 +24,23 @@
 #include <linux/slab.h>
 #include <linux/hardirq.h>
 #include <linux/preempt.h>
-#include <linux/module.h>
+#include <linux/extable.h>
 #include <linux/kdebug.h>
 #include <linux/kallsyms.h>
 #include <linux/ftrace.h>
+#include <linux/frame.h>
 
+#include <asm/text-patching.h>
 #include <asm/cacheflush.h>
 #include <asm/desc.h>
 #include <asm/pgtable.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <asm/alternative.h>
 #include <asm/insn.h>
 #include <asm/debugreg.h>
+#include <asm/set_memory.h>
+#include <asm/sections.h>
+#include <asm/nospec-branch.h>
 
 #include "common.h"
 
@@ -64,7 +69,10 @@ found:
 	 * overwritten by jump destination address. In this case, original
 	 * bytes must be recovered from op->optinsn.copied_insn buffer.
 	 */
-	memcpy(buf, (void *)addr, MAX_INSN_SIZE * sizeof(kprobe_opcode_t));
+	if (probe_kernel_read(buf, (void *)addr,
+		MAX_INSN_SIZE * sizeof(kprobe_opcode_t)))
+		return 0UL;
+
 	if (addr == (unsigned long)kp->addr) {
 		buf[0] = kp->opcode;
 		memcpy(buf + 1, op->optinsn.copied_insn, RELATIVE_ADDR_SIZE);
@@ -89,6 +97,7 @@ static void synthesize_set_arg1(kprobe_opcode_t *addr, unsigned long val)
 }
 
 asm (
+			"optprobe_template_func:\n"
 			".global optprobe_template_entry\n"
 			"optprobe_template_entry:\n"
 #ifdef CONFIG_X86_64
@@ -126,7 +135,12 @@ asm (
 			"	popf\n"
 #endif
 			".global optprobe_template_end\n"
-			"optprobe_template_end:\n");
+			"optprobe_template_end:\n"
+			".type optprobe_template_func, @function\n"
+			".size optprobe_template_func, .-optprobe_template_func\n");
+
+void optprobe_template_func(void);
+STACK_FRAME_NON_STANDARD(optprobe_template_func);
 
 #define TMPL_MOVE_IDX \
 	((long)&optprobe_template_val - (long)&optprobe_template_entry)
@@ -173,11 +187,12 @@ NOKPROBE_SYMBOL(optimized_callback);
 
 static int copy_optimized_instructions(u8 *dest, u8 *src)
 {
+	struct insn insn;
 	int len = 0, ret;
 
 	while (len < RELATIVEJUMP_SIZE) {
-		ret = __copy_instruction(dest + len, src + len);
-		if (!ret || !can_boost(dest + len))
+		ret = __copy_instruction(dest + len, src + len, &insn);
+		if (!ret || !can_boost(&insn, src + len))
 			return -EINVAL;
 		len += ret;
 	}
@@ -191,7 +206,7 @@ static int copy_optimized_instructions(u8 *dest, u8 *src)
 }
 
 /* Check whether insn is indirect jump */
-static int insn_is_indirect_jump(struct insn *insn)
+static int __insn_is_indirect_jump(struct insn *insn)
 {
 	return ((insn->opcode.bytes[0] == 0xff &&
 		(X86_MODRM_REG(insn->modrm.value) & 6) == 4) || /* Jump */
@@ -225,6 +240,26 @@ static int insn_jump_into_range(struct insn *insn, unsigned long start, int len)
 	return (start <= target && target <= start + len);
 }
 
+static int insn_is_indirect_jump(struct insn *insn)
+{
+	int ret = __insn_is_indirect_jump(insn);
+
+#ifdef CONFIG_RETPOLINE
+	/*
+	 * Jump to x86_indirect_thunk_* is treated as an indirect jump.
+	 * Note that even with CONFIG_RETPOLINE=y, the kernel compiled with
+	 * older gcc may use indirect jump. So we add this check instead of
+	 * replace indirect-jump check.
+	 */
+	if (!ret)
+		ret = insn_jump_into_range(insn,
+				(unsigned long)__indirect_thunk_start,
+				(unsigned long)__indirect_thunk_end -
+				(unsigned long)__indirect_thunk_start);
+#endif
+	return ret;
+}
+
 /* Decode whole function to ensure any instructions don't jump into target */
 static int can_optimize(unsigned long paddr)
 {
@@ -238,10 +273,12 @@ static int can_optimize(unsigned long paddr)
 
 	/*
 	 * Do not optimize in the entry code due to the unstable
-	 * stack handling.
+	 * stack handling and registers setup.
 	 */
-	if ((paddr >= (unsigned long)__entry_text_start) &&
-	    (paddr <  (unsigned long)__entry_text_end))
+	if (((paddr >= (unsigned long)__entry_text_start) &&
+	     (paddr <  (unsigned long)__entry_text_end)) ||
+	    ((paddr >= (unsigned long)__irqentry_text_start) &&
+	     (paddr <  (unsigned long)__irqentry_text_end)))
 		return 0;
 
 	/* Check there is enough space for a relative jump. */
@@ -349,6 +386,7 @@ int arch_prepare_optimized_kprobe(struct optimized_kprobe *op,
 	}
 
 	buf = (u8 *)op->optinsn.insn;
+	set_memory_rw((unsigned long)buf & PAGE_MASK, 1);
 
 	/* Copy instructions into the out-of-line buffer */
 	ret = copy_optimized_instructions(buf + TMPL_END_IDX, op->kp.addr);
@@ -370,6 +408,8 @@ int arch_prepare_optimized_kprobe(struct optimized_kprobe *op,
 	/* Set returning jmp instruction at the tail of out-of-line buffer */
 	synthesize_reljump(buf + TMPL_END_IDX + op->optinsn.size,
 			   (u8 *)op->kp.addr + op->optinsn.size);
+
+	set_memory_ro((unsigned long)buf & PAGE_MASK, 1);
 
 	flush_icache_range((unsigned long) buf,
 			   (unsigned long) buf + TMPL_END_IDX +

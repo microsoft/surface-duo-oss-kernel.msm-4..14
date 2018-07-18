@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __LINUX_GENERIC_NETLINK_H
 #define __LINUX_GENERIC_NETLINK_H
 
@@ -8,7 +9,7 @@
 extern void genl_lock(void);
 extern void genl_unlock(void);
 #ifdef CONFIG_LOCKDEP
-extern int lockdep_genl_is_held(void);
+extern bool lockdep_genl_is_held(void);
 #endif
 
 /* for synchronisation between af_netlink and genetlink */

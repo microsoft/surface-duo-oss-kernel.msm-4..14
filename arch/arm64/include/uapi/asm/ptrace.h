@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  * Based on arch/arm/include/asm/ptrace.h
  *
@@ -44,6 +45,8 @@
 #define PSR_I_BIT	0x00000080
 #define PSR_A_BIT	0x00000100
 #define PSR_D_BIT	0x00000200
+#define PSR_PAN_BIT	0x00400000
+#define PSR_UAO_BIT	0x00800000
 #define PSR_Q_BIT	0x08000000
 #define PSR_V_BIT	0x10000000
 #define PSR_C_BIT	0x20000000
@@ -75,6 +78,7 @@ struct user_fpsimd_state {
 	__uint128_t	vregs[32];
 	__u32		fpsr;
 	__u32		fpcr;
+	__u32		__reserved[2];
 };
 
 struct user_hwdebug_state {

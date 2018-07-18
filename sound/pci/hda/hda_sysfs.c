@@ -587,8 +587,7 @@ static void parse_model_mode(char *buf, struct hda_bus *bus,
 static void parse_chip_name_mode(char *buf, struct hda_bus *bus,
 				 struct hda_codec **codecp)
 {
-	kfree((*codecp)->core.chip_name);
-	(*codecp)->core.chip_name = kstrdup(buf, GFP_KERNEL);
+	snd_hda_codec_set_name(*codecp, buf);
 }
 
 #define DEFINE_PARSE_ID_MODE(name) \
@@ -762,7 +761,7 @@ static struct attribute *hda_dev_attrs[] = {
 	NULL
 };
 
-static struct attribute_group hda_dev_attr_group = {
+static const struct attribute_group hda_dev_attr_group = {
 	.attrs	= hda_dev_attrs,
 };
 

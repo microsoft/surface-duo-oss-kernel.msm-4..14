@@ -189,16 +189,13 @@ And for string fields they are:
 
 ==, !=, ~
 
-The glob (~) only accepts a wild card character (*) at the start and or
-end of the string. For example:
+The glob (~) accepts a wild card character (*,?) and character classes
+([). For example:
 
   prev_comm ~ "*sh"
   prev_comm ~ "sh*"
   prev_comm ~ "*sh*"
-
-But does not allow for it to be within the string:
-
-  prev_comm ~ "ba*sh"   <-- is invalid
+  prev_comm ~ "ba*sh"
 
 5.2 Setting filters
 -------------------
@@ -287,6 +284,24 @@ their old filters):
 prev_pid == 0
 # cat sched_wakeup/filter
 common_pid == 0
+
+5.4 PID filtering
+-----------------
+
+The set_event_pid file in the same directory as the top events directory
+exists, will filter all events from tracing any task that does not have the
+PID listed in the set_event_pid file.
+
+# cd /sys/kernel/debug/tracing
+# echo $$ > set_event_pid
+# echo 1 > events/enabled
+
+Will only trace events for the current task.
+
+To add more PIDs without losing the PIDs already included, use '>>'.
+
+# echo 123 244 1 >> set_event_pid
+
 
 6. Event triggers
 =================
@@ -494,3 +509,12 @@ The following commands are supported:
 
   Note that there can be only one traceon or traceoff trigger per
   triggering event.
+
+- hist
+
+  This command aggregates event hits into a hash table keyed on one or
+  more trace event format fields (or stacktrace) and a set of running
+  totals derived from one or more trace event format fields and/or
+  event counts (hitcount).
+
+  See Documentation/trace/histogram.txt for details and examples.

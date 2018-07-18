@@ -58,7 +58,7 @@
  * About SOFTNET:
  * Most of the changes were pretty obvious and basically done by HE already.
  *
- * One problem of the isdn net device code is that is uses struct net_device
+ * One problem of the isdn net device code is that it uses struct net_device
  * for masters and slaves. However, only master interface are registered to
  * the network layer, and therefore, it only makes sense to call netif_*
  * functions on them.
@@ -1153,7 +1153,7 @@ static void isdn_net_tx_timeout(struct net_device *ndev)
 		 * ever called   --KG
 		 */
 	}
-	ndev->trans_start = jiffies;
+	netif_trans_update(ndev);
 	netif_wake_queue(ndev);
 }
 
@@ -1291,7 +1291,7 @@ isdn_net_start_xmit(struct sk_buff *skb, struct net_device *ndev)
 			}
 		} else {
 			/* Device is connected to an ISDN channel */
-			ndev->trans_start = jiffies;
+			netif_trans_update(ndev);
 			if (!lp->dialstate) {
 				/* ISDN connection is established, try sending */
 				int ret;
@@ -2611,10 +2611,9 @@ isdn_net_newslave(char *parm)
 	char newname[10];
 
 	if (p) {
-		/* Slave-Name MUST not be empty */
-		if (!strlen(p + 1))
+		/* Slave-Name MUST not be empty or overflow 'newname' */
+		if (strscpy(newname, p + 1, sizeof(newname)) <= 0)
 			return NULL;
-		strcpy(newname, p + 1);
 		*p = 0;
 		/* Master must already exist */
 		if (!(n = isdn_net_findif(parm)))

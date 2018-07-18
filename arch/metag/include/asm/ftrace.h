@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _ASM_METAG_FTRACE
 #define _ASM_METAG_FTRACE
 
@@ -6,7 +7,7 @@
 
 #ifndef __ASSEMBLY__
 extern void mcount_wrapper(void);
-#define MCOUNT_ADDR		((long)(mcount_wrapper))
+#define MCOUNT_ADDR		((unsigned long)(mcount_wrapper))
 
 static inline unsigned long ftrace_call_adjust(unsigned long addr)
 {

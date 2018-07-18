@@ -25,10 +25,10 @@
 
 #define DEBUG_VARIABLE debug
 
-#include <media/saa7146_vv.h>
+#include <media/drv-intf/saa7146_vv.h>
 #include <media/tuner.h>
 #include <media/v4l2-common.h>
-#include <media/saa7115.h>
+#include <media/i2c/saa7115.h>
 #include <linux/module.h>
 
 #include "tea6415c.h"
@@ -819,7 +819,7 @@ static struct saa7146_pci_extension_data mxb = {
 	.ext = &extension,
 };
 
-static struct pci_device_id pci_tbl[] = {
+static const struct pci_device_id pci_tbl[] = {
 	{
 		.vendor    = PCI_VENDOR_ID_PHILIPS,
 		.device	   = PCI_DEVICE_ID_PHILIPS_SAA7146,

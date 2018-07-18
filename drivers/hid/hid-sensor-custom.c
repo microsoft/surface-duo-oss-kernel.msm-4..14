@@ -276,7 +276,7 @@ static struct attribute *enable_sensor_attrs[] = {
 	NULL,
 };
 
-static struct attribute_group enable_sensor_attr_group = {
+static const struct attribute_group enable_sensor_attr_group = {
 	.attrs = enable_sensor_attrs,
 };
 
@@ -292,11 +292,11 @@ static ssize_t show_value(struct device *dev, struct device_attribute *attr,
 	bool input = false;
 	int value = 0;
 
-	if (sscanf(attr->attr.name, "feature-%d-%x-%s", &index, &usage,
+	if (sscanf(attr->attr.name, "feature-%x-%x-%s", &index, &usage,
 		   name) == 3) {
 		feature = true;
 		field_index = index + sensor_inst->input_field_count;
-	} else if (sscanf(attr->attr.name, "input-%d-%x-%s", &index, &usage,
+	} else if (sscanf(attr->attr.name, "input-%x-%x-%s", &index, &usage,
 		   name) == 3) {
 		input = true;
 		field_index = index;
@@ -398,7 +398,7 @@ static ssize_t store_value(struct device *dev, struct device_attribute *attr,
 	char name[HID_CUSTOM_NAME_LENGTH];
 	int value;
 
-	if (sscanf(attr->attr.name, "feature-%d-%x-%s", &index, &usage,
+	if (sscanf(attr->attr.name, "feature-%x-%x-%s", &index, &usage,
 		   name) == 3) {
 		field_index = index + sensor_inst->input_field_count;
 	} else
@@ -823,7 +823,7 @@ static int hid_sensor_custom_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static struct platform_device_id hid_sensor_custom_ids[] = {
+static const struct platform_device_id hid_sensor_custom_ids[] = {
 	{
 		.name = "HID-SENSOR-2000e1",
 	},

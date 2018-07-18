@@ -1,9 +1,13 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * arch/arm/mach-omap1/include/mach/memory.h
  */
 
 #ifndef __ASM_ARCH_MEMORY_H
 #define __ASM_ARCH_MEMORY_H
+
+/* REVISIT: omap1 legacy drivers still rely on this */
+#include <mach/soc.h>
 
 /*
  * Bus address is physical address, except for OMAP-1510 Local Bus.
@@ -14,7 +18,6 @@
  * because of the strncmp().
  */
 #if defined(CONFIG_ARCH_OMAP15XX) && !defined(__ASSEMBLER__)
-#include <mach/soc.h>
 
 /*
  * OMAP-1510 Local Bus address offset

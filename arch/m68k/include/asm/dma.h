@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _M68K_DMA_H
 #define _M68K_DMA_H 1
 
@@ -18,7 +19,7 @@
  * AUG/22/2000 : added support for 32-bit Dual-Address-Mode (K) 2000
  *               Oliver Kamphenkel (O.Kamphenkel@tu-bs.de)
  *
- * AUG/25/2000 : addad support for 8, 16 and 32-bit Single-Address-Mode (K)2000
+ * AUG/25/2000 : added support for 8, 16 and 32-bit Single-Address-Mode (K)2000
  *               Oliver Kamphenkel (O.Kamphenkel@tu-bs.de)
  *
  * APR/18/2002 : added proper support for MCF5272 DMA controller.

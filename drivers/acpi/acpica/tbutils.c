@@ -5,7 +5,7 @@
  *****************************************************************************/
 
 /*
- * Copyright (C) 2000 - 2015, Intel Corp.
+ * Copyright (C) 2000 - 2017, Intel Corp.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -68,57 +68,34 @@ acpi_tb_get_root_table_entry(u8 *table_entry, u32 table_entry_size);
 
 acpi_status acpi_tb_initialize_facs(void)
 {
-	struct acpi_table_facs *facs32;
-	struct acpi_table_facs *facs64;
+	struct acpi_table_facs *facs;
 
 	/* If Hardware Reduced flag is set, there is no FACS */
 
 	if (acpi_gbl_reduced_hardware) {
 		acpi_gbl_FACS = NULL;
 		return (AE_OK);
+	} else if (acpi_gbl_FADT.Xfacs &&
+		   (!acpi_gbl_FADT.facs
+		    || !acpi_gbl_use32_bit_facs_addresses)) {
+		(void)acpi_get_table_by_index(acpi_gbl_xfacs_index,
+					      ACPI_CAST_INDIRECT_PTR(struct
+								     acpi_table_header,
+								     &facs));
+		acpi_gbl_FACS = facs;
+	} else if (acpi_gbl_FADT.facs) {
+		(void)acpi_get_table_by_index(acpi_gbl_facs_index,
+					      ACPI_CAST_INDIRECT_PTR(struct
+								     acpi_table_header,
+								     &facs));
+		acpi_gbl_FACS = facs;
 	}
 
-	(void)acpi_get_table_by_index(ACPI_TABLE_INDEX_FACS,
-				      ACPI_CAST_INDIRECT_PTR(struct
-							     acpi_table_header,
-							     &facs32));
-	(void)acpi_get_table_by_index(ACPI_TABLE_INDEX_X_FACS,
-				      ACPI_CAST_INDIRECT_PTR(struct
-							     acpi_table_header,
-							     &facs64));
-
-	if (acpi_gbl_use32_bit_facs_addresses) {
-		acpi_gbl_FACS = facs32 ? facs32 : facs64;
-	} else {
-		acpi_gbl_FACS = facs64 ? facs64 : facs32;
-	}
+	/* If there is no FACS, just continue. There was already an error msg */
 
 	return (AE_OK);
 }
 #endif				/* !ACPI_REDUCED_HARDWARE */
-
-/*******************************************************************************
- *
- * FUNCTION:    acpi_tb_tables_loaded
- *
- * PARAMETERS:  None
- *
- * RETURN:      TRUE if required ACPI tables are loaded
- *
- * DESCRIPTION: Determine if the minimum required ACPI tables are present
- *              (FADT, FACS, DSDT)
- *
- ******************************************************************************/
-
-u8 acpi_tb_tables_loaded(void)
-{
-
-	if (acpi_gbl_root_table_list.current_table_count >= 4) {
-		return (TRUE);
-	}
-
-	return (FALSE);
-}
 
 /*******************************************************************************
  *
@@ -144,6 +121,7 @@ void acpi_tb_check_dsdt_header(void)
 		ACPI_BIOS_ERROR((AE_INFO,
 				 "The DSDT has been corrupted or replaced - "
 				 "old, new headers below"));
+
 		acpi_tb_print_table_header(0, &acpi_gbl_original_dsdt_header);
 		acpi_tb_print_table_header(0, acpi_gbl_DSDT);
 
@@ -163,9 +141,9 @@ void acpi_tb_check_dsdt_header(void)
  *
  * FUNCTION:    acpi_tb_copy_dsdt
  *
- * PARAMETERS:  table_desc          - Installed table to copy
+ * PARAMETERS:  table_index         - Index of installed table to copy
  *
- * RETURN:      None
+ * RETURN:      The copied DSDT
  *
  * DESCRIPTION: Implements a subsystem option to copy the DSDT to local memory.
  *              Some very bad BIOSs are known to either corrupt the DSDT or
@@ -187,18 +165,16 @@ struct acpi_table_header *acpi_tb_copy_dsdt(u32 table_index)
 		return (NULL);
 	}
 
-	ACPI_MEMCPY(new_table, table_desc->pointer, table_desc->length);
+	memcpy(new_table, table_desc->pointer, table_desc->length);
 	acpi_tb_uninstall_table(table_desc);
 
 	acpi_tb_init_table_descriptor(&acpi_gbl_root_table_list.
-				      tables[ACPI_TABLE_INDEX_DSDT],
+				      tables[acpi_gbl_dsdt_index],
 				      ACPI_PTR_TO_PHYSADDR(new_table),
 				      ACPI_TABLE_ORIGIN_INTERNAL_VIRTUAL,
 				      new_table);
 
-	ACPI_INFO((AE_INFO,
-		   "Forced DSDT copy: length 0x%05X copied locally, original unmapped",
-		   new_table->length));
+	ACPI_INFO(("Forced DSDT copy: length 0x%05X copied locally, original unmapped", new_table->length));
 
 	return (new_table);
 }
@@ -255,7 +231,7 @@ acpi_tb_get_root_table_entry(u8 *table_entry, u32 table_entry_size)
 					   ACPI_FORMAT_UINT64(address64)));
 		}
 #endif
-		return ((acpi_physical_address) (address64));
+		return ((acpi_physical_address)(address64));
 	}
 }
 
@@ -263,7 +239,7 @@ acpi_tb_get_root_table_entry(u8 *table_entry, u32 table_entry_size)
  *
  * FUNCTION:    acpi_tb_parse_root_table
  *
- * PARAMETERS:  rsdp                    - Pointer to the RSDP
+ * PARAMETERS:  rsdp_address        - Pointer to the RSDP
  *
  * RETURN:      Status
  *
@@ -276,7 +252,8 @@ acpi_tb_get_root_table_entry(u8 *table_entry, u32 table_entry_size)
  *
  ******************************************************************************/
 
-acpi_status __init acpi_tb_parse_root_table(acpi_physical_address rsdp_address)
+acpi_status ACPI_INIT_FUNCTION
+acpi_tb_parse_root_table(acpi_physical_address rsdp_address)
 {
 	struct acpi_table_rsdp *rsdp;
 	u32 table_entry_size;
@@ -311,12 +288,12 @@ acpi_status __init acpi_tb_parse_root_table(acpi_physical_address rsdp_address)
 		 * the XSDT if the revision is > 1 and the XSDT pointer is present,
 		 * as per the ACPI specification.
 		 */
-		address = (acpi_physical_address) rsdp->xsdt_physical_address;
+		address = (acpi_physical_address)rsdp->xsdt_physical_address;
 		table_entry_size = ACPI_XSDT_ENTRY_SIZE;
 	} else {
 		/* Root table is an RSDT (32-bit physical addresses) */
 
-		address = (acpi_physical_address) rsdp->rsdt_physical_address;
+		address = (acpi_physical_address)rsdp->rsdt_physical_address;
 		table_entry_size = ACPI_RSDT_ENTRY_SIZE;
 	}
 
@@ -368,13 +345,6 @@ acpi_status __init acpi_tb_parse_root_table(acpi_physical_address rsdp_address)
 			    table_entry_size);
 	table_entry = ACPI_ADD_PTR(u8, table, sizeof(struct acpi_table_header));
 
-	/*
-	 * First three entries in the table array are reserved for the DSDT
-	 * and 32bit/64bit FACS, which are not actually present in the
-	 * RSDT/XSDT - they come from the FADT
-	 */
-	acpi_gbl_root_table_list.current_table_count = 3;
-
 	/* Initialize the root table array from the RSDT/XSDT */
 
 	for (i = 0; i < table_count; i++) {
@@ -399,7 +369,8 @@ acpi_status __init acpi_tb_parse_root_table(acpi_physical_address rsdp_address)
 		    ACPI_COMPARE_NAME(&acpi_gbl_root_table_list.
 				      tables[table_index].signature,
 				      ACPI_SIG_FADT)) {
-			acpi_tb_parse_fadt(table_index);
+			acpi_gbl_fadt_index = table_index;
+			acpi_tb_parse_fadt();
 		}
 
 next_table:
@@ -408,6 +379,102 @@ next_table:
 	}
 
 	acpi_os_unmap_memory(table, length);
-
 	return_ACPI_STATUS(AE_OK);
+}
+
+/*******************************************************************************
+ *
+ * FUNCTION:    acpi_tb_get_table
+ *
+ * PARAMETERS:  table_desc          - Table descriptor
+ *              out_table           - Where the pointer to the table is returned
+ *
+ * RETURN:      Status and pointer to the requested table
+ *
+ * DESCRIPTION: Increase a reference to a table descriptor and return the
+ *              validated table pointer.
+ *              If the table descriptor is an entry of the root table list,
+ *              this API must be invoked with ACPI_MTX_TABLES acquired.
+ *
+ ******************************************************************************/
+
+acpi_status
+acpi_tb_get_table(struct acpi_table_desc *table_desc,
+		  struct acpi_table_header **out_table)
+{
+	acpi_status status;
+
+	ACPI_FUNCTION_TRACE(acpi_tb_get_table);
+
+	if (table_desc->validation_count == 0) {
+
+		/* Table need to be "VALIDATED" */
+
+		status = acpi_tb_validate_table(table_desc);
+		if (ACPI_FAILURE(status)) {
+			return_ACPI_STATUS(status);
+		}
+	}
+
+	if (table_desc->validation_count < ACPI_MAX_TABLE_VALIDATIONS) {
+		table_desc->validation_count++;
+
+		/*
+		 * Detect validation_count overflows to ensure that the warning
+		 * message will only be printed once.
+		 */
+		if (table_desc->validation_count >= ACPI_MAX_TABLE_VALIDATIONS) {
+			ACPI_WARNING((AE_INFO,
+				      "Table %p, Validation count overflows\n",
+				      table_desc));
+		}
+	}
+
+	*out_table = table_desc->pointer;
+	return_ACPI_STATUS(AE_OK);
+}
+
+/*******************************************************************************
+ *
+ * FUNCTION:    acpi_tb_put_table
+ *
+ * PARAMETERS:  table_desc          - Table descriptor
+ *
+ * RETURN:      None
+ *
+ * DESCRIPTION: Decrease a reference to a table descriptor and release the
+ *              validated table pointer if no references.
+ *              If the table descriptor is an entry of the root table list,
+ *              this API must be invoked with ACPI_MTX_TABLES acquired.
+ *
+ ******************************************************************************/
+
+void acpi_tb_put_table(struct acpi_table_desc *table_desc)
+{
+
+	ACPI_FUNCTION_TRACE(acpi_tb_put_table);
+
+	if (table_desc->validation_count < ACPI_MAX_TABLE_VALIDATIONS) {
+		table_desc->validation_count--;
+
+		/*
+		 * Detect validation_count underflows to ensure that the warning
+		 * message will only be printed once.
+		 */
+		if (table_desc->validation_count >= ACPI_MAX_TABLE_VALIDATIONS) {
+			ACPI_WARNING((AE_INFO,
+				      "Table %p, Validation count underflows\n",
+				      table_desc));
+			return_VOID;
+		}
+	}
+
+	if (table_desc->validation_count == 0) {
+
+		/* Table need to be "INVALIDATED" */
+
+		acpi_tb_invalidate_table(table_desc);
+	}
+
+	return_VOID;
 }

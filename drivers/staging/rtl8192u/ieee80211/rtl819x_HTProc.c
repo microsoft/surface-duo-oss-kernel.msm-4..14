@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 
 //As this function is mainly ported from Windows driver, so leave the name little changed. If any confusion caused, tell me. Created by WB. 2008.05.08
 #include "ieee80211.h"
@@ -176,7 +177,7 @@ void HTDebugHTInfo(u8 *InfoIE, u8 *TitleString)
 	IEEE80211_DEBUG(IEEE80211_DL_HT, "<Log HT Information Element>. Called by %s\n", TitleString);
 
 	IEEE80211_DEBUG(IEEE80211_DL_HT, "\tPrimary channel = %d\n", pHTInfoEle->ControlChl);
-	IEEE80211_DEBUG(IEEE80211_DL_HT, "\tSenondary channel =");
+	IEEE80211_DEBUG(IEEE80211_DL_HT, "\tSecondary channel =");
 	switch (pHTInfoEle->ExtChlOffset)
 	{
 		case 0:
@@ -224,9 +225,9 @@ static bool IsHTHalfNmode40Bandwidth(struct ieee80211_device *ieee)
 	bool			retValue = false;
 	PRT_HIGH_THROUGHPUT	 pHTInfo = ieee->pHTInfo;
 
-	if(pHTInfo->bCurrentHTSupport == false )	// wireless is n mode
+	if(!pHTInfo->bCurrentHTSupport)		// wireless is n mode
 		retValue = false;
-	else if(pHTInfo->bRegBW40MHz == false)	// station supports 40 bw
+	else if(!pHTInfo->bRegBW40MHz)		// station supports 40 bw
 		retValue = false;
 	else if(!ieee->GetHalfNmodeSupportByAPsHandler(ieee->dev))	// station in half n mode
 		retValue = false;
@@ -243,7 +244,7 @@ static bool IsHTHalfNmodeSGI(struct ieee80211_device *ieee, bool is40MHz)
 	bool			retValue = false;
 	PRT_HIGH_THROUGHPUT	 pHTInfo = ieee->pHTInfo;
 
-	if(pHTInfo->bCurrentHTSupport == false )	// wireless is n mode
+	if(!pHTInfo->bCurrentHTSupport)		// wireless is n mode
 		retValue = false;
 	else if(!ieee->GetHalfNmodeSupportByAPsHandler(ieee->dev))	// station in half n mode
 		retValue = false;
@@ -675,7 +676,7 @@ void HTConstructInfoElement(struct ieee80211_device *ieee, u8 *posHTInfo, u8 *le
 	if ( (ieee->iw_mode == IW_MODE_ADHOC) || (ieee->iw_mode == IW_MODE_MASTER)) //ap mode is not currently supported
 	{
 		pHTInfoEle->ControlChl			= ieee->current_network.channel;
-		pHTInfoEle->ExtChlOffset			= ((pHT->bRegBW40MHz == false)?HT_EXTCHNL_OFFSET_NO_EXT:
+		pHTInfoEle->ExtChlOffset			= ((!pHT->bRegBW40MHz)?HT_EXTCHNL_OFFSET_NO_EXT:
 											(ieee->current_network.channel<=6)?
 												HT_EXTCHNL_OFFSET_UPPER:HT_EXTCHNL_OFFSET_LOWER);
 		pHTInfoEle->RecommemdedTxWidth	= pHT->bRegBW40MHz;
@@ -945,7 +946,7 @@ void HTOnAssocRsp(struct ieee80211_device *ieee)
 	static u8				EWC11NHTCap[] = {0x00, 0x90, 0x4c, 0x33};		// For 11n EWC definition, 2007.07.17, by Emily
 	static u8				EWC11NHTInfo[] = {0x00, 0x90, 0x4c, 0x34};	// For 11n EWC definition, 2007.07.17, by Emily
 
-	if (pHTInfo->bCurrentHTSupport == false) {
+	if (!pHTInfo->bCurrentHTSupport) {
 		IEEE80211_DEBUG(IEEE80211_DL_ERR, "<=== HTOnAssocRsp(): HT_DISABLE\n");
 		return;
 	}
@@ -956,7 +957,7 @@ void HTOnAssocRsp(struct ieee80211_device *ieee)
 //	HTDebugHTCapability(pHTInfo->PeerHTCapBuf,"HTOnAssocRsp_wq");
 //	HTDebugHTInfo(pHTInfo->PeerHTInfoBuf,"HTOnAssocRsp_wq");
 	//
-	if(!memcmp(pHTInfo->PeerHTCapBuf,EWC11NHTCap, sizeof(EWC11NHTCap)))
+	if (!memcmp(pHTInfo->PeerHTCapBuf, EWC11NHTCap, sizeof(EWC11NHTCap)))
 		pPeerHTCap = (PHT_CAPABILITY_ELE)(&pHTInfo->PeerHTCapBuf[4]);
 	else
 		pPeerHTCap = (PHT_CAPABILITY_ELE)(pHTInfo->PeerHTCapBuf);
@@ -976,17 +977,16 @@ void HTOnAssocRsp(struct ieee80211_device *ieee)
 	//
 	HTSetConnectBwMode(ieee, (HT_CHANNEL_WIDTH)(pPeerHTCap->ChlWidth), (HT_EXTCHNL_OFFSET)(pPeerHTInfo->ExtChlOffset));
 
-//	if(pHTInfo->bCurBW40MHz == true)
-		pHTInfo->bCurTxBW40MHz = ((pPeerHTInfo->RecommemdedTxWidth == 1)?true:false);
+	pHTInfo->bCurTxBW40MHz = (pPeerHTInfo->RecommemdedTxWidth == 1);
 
 	//
 	// Update short GI/ long GI setting
 	//
 	// TODO:
-	pHTInfo->bCurShortGI20MHz=
-		((pHTInfo->bRegShortGI20MHz)?((pPeerHTCap->ShortGI20Mhz==1)?true:false):false);
-	pHTInfo->bCurShortGI40MHz=
-		((pHTInfo->bRegShortGI40MHz)?((pPeerHTCap->ShortGI40Mhz==1)?true:false):false);
+	pHTInfo->bCurShortGI20MHz = pHTInfo->bRegShortGI20MHz &&
+				    (pPeerHTCap->ShortGI20Mhz == 1);
+	pHTInfo->bCurShortGI40MHz = pHTInfo->bRegShortGI40MHz &&
+				   (pPeerHTCap->ShortGI40Mhz == 1);
 
 	//
 	// Config TX STBC setting
@@ -997,8 +997,8 @@ void HTOnAssocRsp(struct ieee80211_device *ieee)
 	// Config DSSS/CCK  mode in 40MHz mode
 	//
 	// TODO:
-	pHTInfo->bCurSuppCCK =
-		((pHTInfo->bRegSuppCCK)?((pPeerHTCap->DssCCk==1)?true:false):false);
+	pHTInfo->bCurSuppCCK = pHTInfo->bRegSuppCCK &&
+			       (pPeerHTCap->DssCCk == 1);
 
 
 	//
@@ -1341,7 +1341,7 @@ void HTSetConnectBwMode(struct ieee80211_device *ieee, HT_CHANNEL_WIDTH	Bandwidt
 	PRT_HIGH_THROUGHPUT pHTInfo = ieee->pHTInfo;
 //	u32 flags = 0;
 
-	if(pHTInfo->bRegBW40MHz == false)
+	if(!pHTInfo->bRegBW40MHz)
 		return;
 
 

@@ -34,6 +34,13 @@
 #include <net/netfilter/ipv6/nf_defrag_ipv6.h>
 #include <net/netfilter/nf_log.h>
 
+static int conntrack6_net_id;
+static DEFINE_MUTEX(register_ipv6_hooks);
+
+struct conntrack6_net {
+	unsigned int users;
+};
+
 static bool ipv6_pkt_to_tuple(const struct sk_buff *skb, unsigned int nhoff,
 			      struct nf_conntrack_tuple *tuple)
 {
@@ -58,13 +65,6 @@ static bool ipv6_invert_tuple(struct nf_conntrack_tuple *tuple,
 	memcpy(tuple->dst.u3.ip6, orig->src.u3.ip6, sizeof(tuple->dst.u3.ip6));
 
 	return true;
-}
-
-static void ipv6_print_tuple(struct seq_file *s,
-			    const struct nf_conntrack_tuple *tuple)
-{
-	seq_printf(s, "src=%pI6 dst=%pI6 ",
-		   tuple->src.u3.ip6, tuple->dst.u3.ip6);
 }
 
 static int ipv6_get_l4proto(const struct sk_buff *skb, unsigned int nhoff,
@@ -95,7 +95,7 @@ static int ipv6_get_l4proto(const struct sk_buff *skb, unsigned int nhoff,
 	return NF_ACCEPT;
 }
 
-static unsigned int ipv6_helper(const struct nf_hook_ops *ops,
+static unsigned int ipv6_helper(void *priv,
 				struct sk_buff *skb,
 				const struct nf_hook_state *state)
 {
@@ -115,7 +115,7 @@ static unsigned int ipv6_helper(const struct nf_hook_ops *ops,
 	help = nfct_help(ct);
 	if (!help)
 		return NF_ACCEPT;
-	/* rcu_read_lock()ed by nf_hook_slow */
+	/* rcu_read_lock()ed by nf_hook_thresh */
 	helper = rcu_dereference(help->helper);
 	if (!helper)
 		return NF_ACCEPT;
@@ -131,7 +131,7 @@ static unsigned int ipv6_helper(const struct nf_hook_ops *ops,
 	return helper->help(skb, protoff, ct, ctinfo);
 }
 
-static unsigned int ipv6_confirm(const struct nf_hook_ops *ops,
+static unsigned int ipv6_confirm(void *priv,
 				 struct sk_buff *skb,
 				 const struct nf_hook_state *state)
 {
@@ -165,14 +165,14 @@ out:
 	return nf_conntrack_confirm(skb);
 }
 
-static unsigned int ipv6_conntrack_in(const struct nf_hook_ops *ops,
+static unsigned int ipv6_conntrack_in(void *priv,
 				      struct sk_buff *skb,
 				      const struct nf_hook_state *state)
 {
-	return nf_conntrack_in(dev_net(state->in), PF_INET6, ops->hooknum, skb);
+	return nf_conntrack_in(state->net, PF_INET6, state->hook, skb);
 }
 
-static unsigned int ipv6_conntrack_local(const struct nf_hook_ops *ops,
+static unsigned int ipv6_conntrack_local(void *priv,
 					 struct sk_buff *skb,
 					 const struct nf_hook_state *state)
 {
@@ -181,48 +181,42 @@ static unsigned int ipv6_conntrack_local(const struct nf_hook_ops *ops,
 		net_notice_ratelimited("ipv6_conntrack_local: packet too short\n");
 		return NF_ACCEPT;
 	}
-	return nf_conntrack_in(dev_net(state->out), PF_INET6, ops->hooknum, skb);
+	return nf_conntrack_in(state->net, PF_INET6, state->hook, skb);
 }
 
-static struct nf_hook_ops ipv6_conntrack_ops[] __read_mostly = {
+static const struct nf_hook_ops ipv6_conntrack_ops[] = {
 	{
 		.hook		= ipv6_conntrack_in,
-		.owner		= THIS_MODULE,
 		.pf		= NFPROTO_IPV6,
 		.hooknum	= NF_INET_PRE_ROUTING,
 		.priority	= NF_IP6_PRI_CONNTRACK,
 	},
 	{
 		.hook		= ipv6_conntrack_local,
-		.owner		= THIS_MODULE,
 		.pf		= NFPROTO_IPV6,
 		.hooknum	= NF_INET_LOCAL_OUT,
 		.priority	= NF_IP6_PRI_CONNTRACK,
 	},
 	{
 		.hook		= ipv6_helper,
-		.owner		= THIS_MODULE,
 		.pf		= NFPROTO_IPV6,
 		.hooknum	= NF_INET_POST_ROUTING,
 		.priority	= NF_IP6_PRI_CONNTRACK_HELPER,
 	},
 	{
 		.hook		= ipv6_confirm,
-		.owner		= THIS_MODULE,
 		.pf		= NFPROTO_IPV6,
 		.hooknum	= NF_INET_POST_ROUTING,
 		.priority	= NF_IP6_PRI_LAST,
 	},
 	{
 		.hook		= ipv6_helper,
-		.owner		= THIS_MODULE,
 		.pf		= NFPROTO_IPV6,
 		.hooknum	= NF_INET_LOCAL_IN,
 		.priority	= NF_IP6_PRI_CONNTRACK_HELPER,
 	},
 	{
 		.hook		= ipv6_confirm,
-		.owner		= THIS_MODULE,
 		.pf		= NFPROTO_IPV6,
 		.hooknum	= NF_INET_LOCAL_IN,
 		.priority	= NF_IP6_PRI_LAST-1,
@@ -232,26 +226,33 @@ static struct nf_hook_ops ipv6_conntrack_ops[] __read_mostly = {
 static int
 ipv6_getorigdst(struct sock *sk, int optval, void __user *user, int *len)
 {
-	const struct inet_sock *inet = inet_sk(sk);
+	struct nf_conntrack_tuple tuple = { .src.l3num = NFPROTO_IPV6 };
 	const struct ipv6_pinfo *inet6 = inet6_sk(sk);
+	const struct inet_sock *inet = inet_sk(sk);
 	const struct nf_conntrack_tuple_hash *h;
 	struct sockaddr_in6 sin6;
-	struct nf_conntrack_tuple tuple = { .src.l3num = NFPROTO_IPV6 };
 	struct nf_conn *ct;
+	__be32 flow_label;
+	int bound_dev_if;
 
+	lock_sock(sk);
 	tuple.src.u3.in6 = sk->sk_v6_rcv_saddr;
 	tuple.src.u.tcp.port = inet->inet_sport;
 	tuple.dst.u3.in6 = sk->sk_v6_daddr;
 	tuple.dst.u.tcp.port = inet->inet_dport;
 	tuple.dst.protonum = sk->sk_protocol;
+	bound_dev_if = sk->sk_bound_dev_if;
+	flow_label = inet6->flow_label;
+	release_sock(sk);
 
-	if (sk->sk_protocol != IPPROTO_TCP && sk->sk_protocol != IPPROTO_SCTP)
+	if (tuple.dst.protonum != IPPROTO_TCP &&
+	    tuple.dst.protonum != IPPROTO_SCTP)
 		return -ENOPROTOOPT;
 
 	if (*len < 0 || (unsigned int) *len < sizeof(sin6))
 		return -EINVAL;
 
-	h = nf_conntrack_find_get(sock_net(sk), NF_CT_DEFAULT_ZONE, &tuple);
+	h = nf_conntrack_find_get(sock_net(sk), &nf_ct_zone_dflt, &tuple);
 	if (!h) {
 		pr_debug("IP6T_SO_ORIGINAL_DST: Can't find %pI6c/%u-%pI6c/%u.\n",
 			 &tuple.src.u3.ip6, ntohs(tuple.src.u.tcp.port),
@@ -263,14 +264,13 @@ ipv6_getorigdst(struct sock *sk, int optval, void __user *user, int *len)
 
 	sin6.sin6_family = AF_INET6;
 	sin6.sin6_port = ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u.tcp.port;
-	sin6.sin6_flowinfo = inet6->flow_label & IPV6_FLOWINFO_MASK;
+	sin6.sin6_flowinfo = flow_label & IPV6_FLOWINFO_MASK;
 	memcpy(&sin6.sin6_addr,
 		&ct->tuplehash[IP_CT_DIR_ORIGINAL].tuple.dst.u3.in6,
 					sizeof(sin6.sin6_addr));
 
 	nf_ct_put(ct);
-	sin6.sin6_scope_id = ipv6_iface_scope_id(&sin6.sin6_addr,
-						 sk->sk_bound_dev_if);
+	sin6.sin6_scope_id = ipv6_iface_scope_id(&sin6.sin6_addr, bound_dev_if);
 	return copy_to_user(user, &sin6, sizeof(sin6)) ? -EFAULT : 0;
 }
 
@@ -307,26 +307,58 @@ static int ipv6_nlattr_to_tuple(struct nlattr *tb[],
 
 	return 0;
 }
-
-static int ipv6_nlattr_tuple_size(void)
-{
-	return nla_policy_len(ipv6_nla_policy, CTA_IP_MAX + 1);
-}
 #endif
+
+static int ipv6_hooks_register(struct net *net)
+{
+	struct conntrack6_net *cnet = net_generic(net, conntrack6_net_id);
+	int err = 0;
+
+	mutex_lock(&register_ipv6_hooks);
+	cnet->users++;
+	if (cnet->users > 1)
+		goto out_unlock;
+
+	err = nf_defrag_ipv6_enable(net);
+	if (err < 0) {
+		cnet->users = 0;
+		goto out_unlock;
+	}
+
+	err = nf_register_net_hooks(net, ipv6_conntrack_ops,
+				    ARRAY_SIZE(ipv6_conntrack_ops));
+	if (err)
+		cnet->users = 0;
+ out_unlock:
+	mutex_unlock(&register_ipv6_hooks);
+	return err;
+}
+
+static void ipv6_hooks_unregister(struct net *net)
+{
+	struct conntrack6_net *cnet = net_generic(net, conntrack6_net_id);
+
+	mutex_lock(&register_ipv6_hooks);
+	if (cnet->users && (--cnet->users == 0))
+		nf_unregister_net_hooks(net, ipv6_conntrack_ops,
+					ARRAY_SIZE(ipv6_conntrack_ops));
+	mutex_unlock(&register_ipv6_hooks);
+}
 
 struct nf_conntrack_l3proto nf_conntrack_l3proto_ipv6 __read_mostly = {
 	.l3proto		= PF_INET6,
-	.name			= "ipv6",
 	.pkt_to_tuple		= ipv6_pkt_to_tuple,
 	.invert_tuple		= ipv6_invert_tuple,
-	.print_tuple		= ipv6_print_tuple,
 	.get_l4proto		= ipv6_get_l4proto,
 #if IS_ENABLED(CONFIG_NF_CT_NETLINK)
 	.tuple_to_nlattr	= ipv6_tuple_to_nlattr,
-	.nlattr_tuple_size	= ipv6_nlattr_tuple_size,
 	.nlattr_to_tuple	= ipv6_nlattr_to_tuple,
 	.nla_policy		= ipv6_nla_policy,
+	.nla_size		= NLA_ALIGN(NLA_HDRLEN + sizeof(u32[4])) +
+				  NLA_ALIGN(NLA_HDRLEN + sizeof(u32[4])),
 #endif
+	.net_ns_get		= ipv6_hooks_register,
+	.net_ns_put		= ipv6_hooks_unregister,
 	.me			= THIS_MODULE,
 };
 
@@ -342,52 +374,38 @@ static struct nf_sockopt_ops so_getorigdst6 = {
 	.owner		= THIS_MODULE,
 };
 
+static struct nf_conntrack_l4proto *builtin_l4proto6[] = {
+	&nf_conntrack_l4proto_tcp6,
+	&nf_conntrack_l4proto_udp6,
+	&nf_conntrack_l4proto_icmpv6,
+#ifdef CONFIG_NF_CT_PROTO_DCCP
+	&nf_conntrack_l4proto_dccp6,
+#endif
+#ifdef CONFIG_NF_CT_PROTO_SCTP
+	&nf_conntrack_l4proto_sctp6,
+#endif
+#ifdef CONFIG_NF_CT_PROTO_UDPLITE
+	&nf_conntrack_l4proto_udplite6,
+#endif
+};
+
 static int ipv6_net_init(struct net *net)
 {
-	int ret = 0;
-
-	ret = nf_ct_l4proto_pernet_register(net, &nf_conntrack_l4proto_tcp6);
-	if (ret < 0) {
-		pr_err("nf_conntrack_tcp6: pernet registration failed\n");
-		goto out;
-	}
-	ret = nf_ct_l4proto_pernet_register(net, &nf_conntrack_l4proto_udp6);
-	if (ret < 0) {
-		pr_err("nf_conntrack_udp6: pernet registration failed\n");
-		goto cleanup_tcp6;
-	}
-	ret = nf_ct_l4proto_pernet_register(net, &nf_conntrack_l4proto_icmpv6);
-	if (ret < 0) {
-		pr_err("nf_conntrack_icmp6: pernet registration failed\n");
-		goto cleanup_udp6;
-	}
-	ret = nf_ct_l3proto_pernet_register(net, &nf_conntrack_l3proto_ipv6);
-	if (ret < 0) {
-		pr_err("nf_conntrack_ipv6: pernet registration failed.\n");
-		goto cleanup_icmpv6;
-	}
-	return 0;
- cleanup_icmpv6:
-	nf_ct_l4proto_pernet_unregister(net, &nf_conntrack_l4proto_icmpv6);
- cleanup_udp6:
-	nf_ct_l4proto_pernet_unregister(net, &nf_conntrack_l4proto_udp6);
- cleanup_tcp6:
-	nf_ct_l4proto_pernet_unregister(net, &nf_conntrack_l4proto_tcp6);
- out:
-	return ret;
+	return nf_ct_l4proto_pernet_register(net, builtin_l4proto6,
+					     ARRAY_SIZE(builtin_l4proto6));
 }
 
 static void ipv6_net_exit(struct net *net)
 {
-	nf_ct_l3proto_pernet_unregister(net, &nf_conntrack_l3proto_ipv6);
-	nf_ct_l4proto_pernet_unregister(net, &nf_conntrack_l4proto_icmpv6);
-	nf_ct_l4proto_pernet_unregister(net, &nf_conntrack_l4proto_udp6);
-	nf_ct_l4proto_pernet_unregister(net, &nf_conntrack_l4proto_tcp6);
+	nf_ct_l4proto_pernet_unregister(net, builtin_l4proto6,
+					ARRAY_SIZE(builtin_l4proto6));
 }
 
 static struct pernet_operations ipv6_net_ops = {
 	.init = ipv6_net_init,
 	.exit = ipv6_net_exit,
+	.id = &conntrack6_net_id,
+	.size = sizeof(struct conntrack6_net),
 };
 
 static int __init nf_conntrack_l3proto_ipv6_init(void)
@@ -395,7 +413,12 @@ static int __init nf_conntrack_l3proto_ipv6_init(void)
 	int ret = 0;
 
 	need_conntrack();
-	nf_defrag_ipv6_enable();
+
+#if IS_ENABLED(CONFIG_NF_CT_NETLINK)
+	if (WARN_ON(nla_policy_len(ipv6_nla_policy, CTA_IP_MAX + 1) !=
+	    nf_conntrack_l3proto_ipv6.nla_size))
+		return -EINVAL;
+#endif
 
 	ret = nf_register_sockopt(&so_getorigdst6);
 	if (ret < 0) {
@@ -407,47 +430,20 @@ static int __init nf_conntrack_l3proto_ipv6_init(void)
 	if (ret < 0)
 		goto cleanup_sockopt;
 
-	ret = nf_register_hooks(ipv6_conntrack_ops,
-				ARRAY_SIZE(ipv6_conntrack_ops));
-	if (ret < 0) {
-		pr_err("nf_conntrack_ipv6: can't register pre-routing defrag "
-		       "hook.\n");
+	ret = nf_ct_l4proto_register(builtin_l4proto6,
+				     ARRAY_SIZE(builtin_l4proto6));
+	if (ret < 0)
 		goto cleanup_pernet;
-	}
-
-	ret = nf_ct_l4proto_register(&nf_conntrack_l4proto_tcp6);
-	if (ret < 0) {
-		pr_err("nf_conntrack_ipv6: can't register tcp6 proto.\n");
-		goto cleanup_hooks;
-	}
-
-	ret = nf_ct_l4proto_register(&nf_conntrack_l4proto_udp6);
-	if (ret < 0) {
-		pr_err("nf_conntrack_ipv6: can't register udp6 proto.\n");
-		goto cleanup_tcp6;
-	}
-
-	ret = nf_ct_l4proto_register(&nf_conntrack_l4proto_icmpv6);
-	if (ret < 0) {
-		pr_err("nf_conntrack_ipv6: can't register icmpv6 proto.\n");
-		goto cleanup_udp6;
-	}
 
 	ret = nf_ct_l3proto_register(&nf_conntrack_l3proto_ipv6);
 	if (ret < 0) {
 		pr_err("nf_conntrack_ipv6: can't register ipv6 proto.\n");
-		goto cleanup_icmpv6;
+		goto cleanup_l4proto;
 	}
 	return ret;
-
- cleanup_icmpv6:
-	nf_ct_l4proto_unregister(&nf_conntrack_l4proto_icmpv6);
- cleanup_udp6:
-	nf_ct_l4proto_unregister(&nf_conntrack_l4proto_udp6);
- cleanup_tcp6:
-	nf_ct_l4proto_unregister(&nf_conntrack_l4proto_tcp6);
- cleanup_hooks:
-	nf_unregister_hooks(ipv6_conntrack_ops, ARRAY_SIZE(ipv6_conntrack_ops));
+cleanup_l4proto:
+	nf_ct_l4proto_unregister(builtin_l4proto6,
+				 ARRAY_SIZE(builtin_l4proto6));
  cleanup_pernet:
 	unregister_pernet_subsys(&ipv6_net_ops);
  cleanup_sockopt:
@@ -459,10 +455,8 @@ static void __exit nf_conntrack_l3proto_ipv6_fini(void)
 {
 	synchronize_net();
 	nf_ct_l3proto_unregister(&nf_conntrack_l3proto_ipv6);
-	nf_ct_l4proto_unregister(&nf_conntrack_l4proto_tcp6);
-	nf_ct_l4proto_unregister(&nf_conntrack_l4proto_udp6);
-	nf_ct_l4proto_unregister(&nf_conntrack_l4proto_icmpv6);
-	nf_unregister_hooks(ipv6_conntrack_ops, ARRAY_SIZE(ipv6_conntrack_ops));
+	nf_ct_l4proto_unregister(builtin_l4proto6,
+				 ARRAY_SIZE(builtin_l4proto6));
 	unregister_pernet_subsys(&ipv6_net_ops);
 	nf_unregister_sockopt(&so_getorigdst6);
 }

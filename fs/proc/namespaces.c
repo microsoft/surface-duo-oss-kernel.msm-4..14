@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 #include <linux/proc_fs.h>
 #include <linux/nsproxy.h>
 #include <linux/ptrace.h>
@@ -23,20 +24,28 @@ static const struct proc_ns_operations *ns_entries[] = {
 #endif
 #ifdef CONFIG_PID_NS
 	&pidns_operations,
+	&pidns_for_children_operations,
 #endif
 #ifdef CONFIG_USER_NS
 	&userns_operations,
 #endif
 	&mntns_operations,
+#ifdef CONFIG_CGROUPS
+	&cgroupns_operations,
+#endif
 };
 
-static void *proc_ns_follow_link(struct dentry *dentry, struct nameidata *nd)
+static const char *proc_ns_get_link(struct dentry *dentry,
+				    struct inode *inode,
+				    struct delayed_call *done)
 {
-	struct inode *inode = d_inode(dentry);
 	const struct proc_ns_operations *ns_ops = PROC_I(inode)->ns_ops;
 	struct task_struct *task;
 	struct path ns_path;
 	void *error = ERR_PTR(-EACCES);
+
+	if (!dentry)
+		return ERR_PTR(-ECHILD);
 
 	task = get_proc_task(inode);
 	if (!task)
@@ -45,7 +54,7 @@ static void *proc_ns_follow_link(struct dentry *dentry, struct nameidata *nd)
 	if (ptrace_may_access(task, PTRACE_MODE_READ_FSCREDS)) {
 		error = ns_get_path(&ns_path, task, ns_ops);
 		if (!error)
-			nd_jump_link(nd, &ns_path);
+			nd_jump_link(&ns_path);
 	}
 	put_task_struct(task);
 	return error;
@@ -74,7 +83,7 @@ static int proc_ns_readlink(struct dentry *dentry, char __user *buffer, int bufl
 
 static const struct inode_operations proc_ns_link_inode_operations = {
 	.readlink	= proc_ns_readlink,
-	.follow_link	= proc_ns_follow_link,
+	.get_link	= proc_ns_get_link,
 	.setattr	= proc_setattr,
 };
 
@@ -85,12 +94,11 @@ static int proc_ns_instantiate(struct inode *dir,
 	struct inode *inode;
 	struct proc_inode *ei;
 
-	inode = proc_pid_make_inode(dir->i_sb, task);
+	inode = proc_pid_make_inode(dir->i_sb, task, S_IFLNK | S_IRWXUGO);
 	if (!inode)
 		goto out;
 
 	ei = PROC_I(inode);
-	inode->i_mode = S_IFLNK|S_IRWXUGO;
 	inode->i_op = &proc_ns_link_inode_operations;
 	ei->ns_ops = ns_ops;
 
@@ -132,7 +140,8 @@ out:
 
 const struct file_operations proc_ns_dir_operations = {
 	.read		= generic_read_dir,
-	.iterate	= proc_ns_dir_readdir,
+	.iterate_shared	= proc_ns_dir_readdir,
+	.llseek		= generic_file_llseek,
 };
 
 static struct dentry *proc_ns_dir_lookup(struct inode *dir,

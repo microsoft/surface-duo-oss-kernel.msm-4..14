@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef ARCH_X86_CPU_H
 #define ARCH_X86_CPU_H
 
@@ -13,6 +14,7 @@ struct cpu_dev {
 	void		(*c_init)(struct cpuinfo_x86 *);
 	void		(*c_identify)(struct cpuinfo_x86 *);
 	void		(*c_detect_tlb)(struct cpuinfo_x86 *);
+	void		(*c_bsp_resume)(struct cpuinfo_x86 *);
 	int		c_x86_vendor;
 #ifdef CONFIG_X86_32
 	/* Optional vendor specific routine to obtain the cache size. */
@@ -45,4 +47,7 @@ extern const struct cpu_dev *const __x86_cpu_dev_start[],
 
 extern void get_cpu_cap(struct cpuinfo_x86 *c);
 extern void cpu_detect_cache_sizes(struct cpuinfo_x86 *c);
+
+unsigned int aperfmperf_get_khz(int cpu);
+
 #endif /* ARCH_X86_CPU_H */

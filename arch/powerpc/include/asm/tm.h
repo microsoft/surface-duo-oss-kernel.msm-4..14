@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Transactional memory support routines to reclaim and recheckpoint
  * transactional process state.
@@ -8,11 +9,6 @@
 #include <uapi/asm/tm.h>
 
 #ifndef __ASSEMBLY__
-
-#ifdef CONFIG_PPC_TRANSACTIONAL_MEM
-extern void do_load_up_transact_fpu(struct thread_struct *thread);
-extern void do_load_up_transact_altivec(struct thread_struct *thread);
-#endif
 
 extern void tm_enable(void);
 extern void tm_reclaim(struct thread_struct *thread,

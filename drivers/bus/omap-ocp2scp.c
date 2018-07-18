@@ -70,8 +70,10 @@ static int omap_ocp2scp_probe(struct platform_device *pdev)
 	if (!of_device_is_compatible(np, "ti,am437x-ocp2scp")) {
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 		regs = devm_ioremap_resource(&pdev->dev, res);
-		if (IS_ERR(regs))
-			goto err0;
+		if (IS_ERR(regs)) {
+			ret = PTR_ERR(regs);
+			goto err1;
+		}
 
 		pm_runtime_get_sync(&pdev->dev);
 		reg = readl_relaxed(regs + OCP2SCP_TIMING);
@@ -82,6 +84,9 @@ static int omap_ocp2scp_probe(struct platform_device *pdev)
 	}
 
 	return 0;
+
+err1:
+	pm_runtime_disable(&pdev->dev);
 
 err0:
 	device_for_each_child(&pdev->dev, NULL, ocp2scp_remove_devices);
@@ -117,7 +122,7 @@ static struct platform_driver omap_ocp2scp_driver = {
 
 module_platform_driver(omap_ocp2scp_driver);
 
-MODULE_ALIAS("platform: omap-ocp2scp");
+MODULE_ALIAS("platform:omap-ocp2scp");
 MODULE_AUTHOR("Texas Instruments Inc.");
 MODULE_DESCRIPTION("OMAP OCP2SCP driver");
 MODULE_LICENSE("GPL v2");

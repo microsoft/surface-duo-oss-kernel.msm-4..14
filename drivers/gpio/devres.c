@@ -11,7 +11,7 @@
  *
  * This file is based on kernel/irq/devres.c
  *
- * Copyright (c) 2011 John Crispin <blogic@openwrt.org>
+ * Copyright (c) 2011 John Crispin <john@phrozen.org>
  */
 
 #include <linux/module.h>
@@ -20,6 +20,8 @@
 #include <linux/gpio/consumer.h>
 #include <linux/device.h>
 #include <linux/gfp.h>
+
+#include "gpiolib.h"
 
 static void devm_gpiod_release(struct device *dev, void *res)
 {
@@ -59,13 +61,13 @@ static int devm_gpiod_match_array(struct device *dev, void *res, void *data)
  * automatically disposed on driver detach. See gpiod_get() for detailed
  * information about behavior and return values.
  */
-struct gpio_desc *__must_check __devm_gpiod_get(struct device *dev,
+struct gpio_desc *__must_check devm_gpiod_get(struct device *dev,
 					      const char *con_id,
 					      enum gpiod_flags flags)
 {
 	return devm_gpiod_get_index(dev, con_id, 0, flags);
 }
-EXPORT_SYMBOL(__devm_gpiod_get);
+EXPORT_SYMBOL(devm_gpiod_get);
 
 /**
  * devm_gpiod_get_optional - Resource-managed gpiod_get_optional()
@@ -77,13 +79,13 @@ EXPORT_SYMBOL(__devm_gpiod_get);
  * are automatically disposed on driver detach. See gpiod_get_optional() for
  * detailed information about behavior and return values.
  */
-struct gpio_desc *__must_check __devm_gpiod_get_optional(struct device *dev,
+struct gpio_desc *__must_check devm_gpiod_get_optional(struct device *dev,
 						       const char *con_id,
 						       enum gpiod_flags flags)
 {
 	return devm_gpiod_get_index_optional(dev, con_id, 0, flags);
 }
-EXPORT_SYMBOL(__devm_gpiod_get_optional);
+EXPORT_SYMBOL(devm_gpiod_get_optional);
 
 /**
  * devm_gpiod_get_index - Resource-managed gpiod_get_index()
@@ -96,7 +98,7 @@ EXPORT_SYMBOL(__devm_gpiod_get_optional);
  * automatically disposed on driver detach. See gpiod_get_index() for detailed
  * information about behavior and return values.
  */
-struct gpio_desc *__must_check __devm_gpiod_get_index(struct device *dev,
+struct gpio_desc *__must_check devm_gpiod_get_index(struct device *dev,
 						    const char *con_id,
 						    unsigned int idx,
 						    enum gpiod_flags flags)
@@ -120,22 +122,30 @@ struct gpio_desc *__must_check __devm_gpiod_get_index(struct device *dev,
 
 	return desc;
 }
-EXPORT_SYMBOL(__devm_gpiod_get_index);
+EXPORT_SYMBOL(devm_gpiod_get_index);
 
 /**
- * devm_get_gpiod_from_child - get a GPIO descriptor from a device's child node
+ * devm_fwnode_get_index_gpiod_from_child - get a GPIO descriptor from a
+ *					    device's child node
  * @dev:	GPIO consumer
  * @con_id:	function within the GPIO consumer
+ * @index:	index of the GPIO to obtain in the consumer
  * @child:	firmware node (child of @dev)
+ * @flags:	GPIO initialization flags
+ * @label:	label to attach to the requested GPIO
  *
  * GPIO descriptors returned from this function are automatically disposed on
  * driver detach.
+ *
+ * On successful request the GPIO pin is configured in accordance with
+ * provided @flags.
  */
-struct gpio_desc *devm_get_gpiod_from_child(struct device *dev,
-					    const char *con_id,
-					    struct fwnode_handle *child)
+struct gpio_desc *devm_fwnode_get_index_gpiod_from_child(struct device *dev,
+						const char *con_id, int index,
+						struct fwnode_handle *child,
+						enum gpiod_flags flags,
+						const char *label)
 {
-	static const char * const suffixes[] = { "gpios", "gpio" };
 	char prop_name[32]; /* 32 is max size of property name */
 	struct gpio_desc **dr;
 	struct gpio_desc *desc;
@@ -146,16 +156,17 @@ struct gpio_desc *devm_get_gpiod_from_child(struct device *dev,
 	if (!dr)
 		return ERR_PTR(-ENOMEM);
 
-	for (i = 0; i < ARRAY_SIZE(suffixes); i++) {
+	for (i = 0; i < ARRAY_SIZE(gpio_suffixes); i++) {
 		if (con_id)
 			snprintf(prop_name, sizeof(prop_name), "%s-%s",
-					    con_id, suffixes[i]);
+					    con_id, gpio_suffixes[i]);
 		else
 			snprintf(prop_name, sizeof(prop_name), "%s",
-							       suffixes[i]);
+					    gpio_suffixes[i]);
 
-		desc = fwnode_get_named_gpiod(child, prop_name);
-		if (!IS_ERR(desc) || (PTR_ERR(desc) == -EPROBE_DEFER))
+		desc = fwnode_get_named_gpiod(child, prop_name, index, flags,
+					      label);
+		if (!IS_ERR(desc) || (PTR_ERR(desc) != -ENOENT))
 			break;
 	}
 	if (IS_ERR(desc)) {
@@ -168,7 +179,7 @@ struct gpio_desc *devm_get_gpiod_from_child(struct device *dev,
 
 	return desc;
 }
-EXPORT_SYMBOL(devm_get_gpiod_from_child);
+EXPORT_SYMBOL(devm_fwnode_get_index_gpiod_from_child);
 
 /**
  * devm_gpiod_get_index_optional - Resource-managed gpiod_get_index_optional()
@@ -182,10 +193,10 @@ EXPORT_SYMBOL(devm_get_gpiod_from_child);
  * gpiod_get_index_optional() for detailed information about behavior and
  * return values.
  */
-struct gpio_desc *__must_check __devm_gpiod_get_index_optional(struct device *dev,
+struct gpio_desc *__must_check devm_gpiod_get_index_optional(struct device *dev,
 							     const char *con_id,
 							     unsigned int index,
-							 enum gpiod_flags flags)
+							     enum gpiod_flags flags)
 {
 	struct gpio_desc *desc;
 
@@ -197,7 +208,7 @@ struct gpio_desc *__must_check __devm_gpiod_get_index_optional(struct device *de
 
 	return desc;
 }
-EXPORT_SYMBOL(__devm_gpiod_get_index_optional);
+EXPORT_SYMBOL(devm_gpiod_get_index_optional);
 
 /**
  * devm_gpiod_get_array - Resource-managed gpiod_get_array()
@@ -261,6 +272,7 @@ EXPORT_SYMBOL(devm_gpiod_get_array_optional);
 
 /**
  * devm_gpiod_put - Resource-managed gpiod_put()
+ * @dev:	GPIO consumer
  * @desc:	GPIO descriptor to dispose of
  *
  * Dispose of a GPIO descriptor obtained with devm_gpiod_get() or
@@ -276,6 +288,7 @@ EXPORT_SYMBOL(devm_gpiod_put);
 
 /**
  * devm_gpiod_put_array - Resource-managed gpiod_put_array()
+ * @dev:	GPIO consumer
  * @descs:	GPIO descriptor array to dispose of
  *
  * Dispose of an array of GPIO descriptors obtained with devm_gpiod_get_array().

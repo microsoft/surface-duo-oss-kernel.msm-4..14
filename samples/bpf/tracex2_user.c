@@ -1,10 +1,15 @@
+// SPDX-License-Identifier: GPL-2.0
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <signal.h>
 #include <linux/bpf.h>
+#include <string.h>
+#include <sys/resource.h>
+
 #include "libbpf.h"
 #include "bpf_load.h"
+#include "bpf_util.h"
 
 #define MAX_INDEX	64
 #define MAX_STARS	38
@@ -20,23 +25,47 @@ static void stars(char *str, long val, long max, int width)
 	str[i] = '\0';
 }
 
-static void print_hist(int fd)
+struct task {
+	char comm[16];
+	__u64 pid_tgid;
+	__u64 uid_gid;
+};
+
+struct hist_key {
+	struct task t;
+	__u32 index;
+};
+
+#define SIZE sizeof(struct task)
+
+static void print_hist_for_pid(int fd, void *task)
 {
-	int key;
+	unsigned int nr_cpus = bpf_num_possible_cpus();
+	struct hist_key key = {}, next_key;
+	long values[nr_cpus];
+	char starstr[MAX_STARS];
 	long value;
 	long data[MAX_INDEX] = {};
-	char starstr[MAX_STARS];
-	int i;
 	int max_ind = -1;
 	long max_value = 0;
+	int i, ind;
 
-	for (key = 0; key < MAX_INDEX; key++) {
-		bpf_lookup_elem(fd, &key, &value);
-		data[key] = value;
-		if (value && key > max_ind)
-			max_ind = key;
+	while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
+		if (memcmp(&next_key, task, SIZE)) {
+			key = next_key;
+			continue;
+		}
+		bpf_map_lookup_elem(fd, &next_key, values);
+		value = 0;
+		for (i = 0; i < nr_cpus; i++)
+			value += values[i];
+		ind = next_key.index;
+		data[ind] = value;
+		if (value && ind > max_ind)
+			max_ind = ind;
 		if (value > max_value)
 			max_value = value;
+		key = next_key;
 	}
 
 	printf("           syscall write() stats\n");
@@ -48,6 +77,35 @@ static void print_hist(int fd)
 		       MAX_STARS, starstr);
 	}
 }
+
+static void print_hist(int fd)
+{
+	struct hist_key key = {}, next_key;
+	static struct task tasks[1024];
+	int task_cnt = 0;
+	int i;
+
+	while (bpf_map_get_next_key(fd, &key, &next_key) == 0) {
+		int found = 0;
+
+		for (i = 0; i < task_cnt; i++)
+			if (memcmp(&tasks[i], &next_key, SIZE) == 0)
+				found = 1;
+		if (!found)
+			memcpy(&tasks[task_cnt++], &next_key, SIZE);
+		key = next_key;
+	}
+
+	for (i = 0; i < task_cnt; i++) {
+		printf("\npid %d cmd %s uid %d\n",
+		       (__u32) tasks[i].pid_tgid,
+		       tasks[i].comm,
+		       (__u32) tasks[i].uid_gid);
+		print_hist_for_pid(fd, &tasks[i]);
+	}
+
+}
+
 static void int_exit(int sig)
 {
 	print_hist(map_fd[1]);
@@ -56,6 +114,7 @@ static void int_exit(int sig)
 
 int main(int ac, char **argv)
 {
+	struct rlimit r = {1024*1024, RLIM_INFINITY};
 	char filename[256];
 	long key, next_key, value;
 	FILE *f;
@@ -63,7 +122,13 @@ int main(int ac, char **argv)
 
 	snprintf(filename, sizeof(filename), "%s_kern.o", argv[0]);
 
+	if (setrlimit(RLIMIT_MEMLOCK, &r)) {
+		perror("setrlimit(RLIMIT_MEMLOCK)");
+		return 1;
+	}
+
 	signal(SIGINT, int_exit);
+	signal(SIGTERM, int_exit);
 
 	/* start 'ping' in the background to have some kfree_skb events */
 	f = popen("ping -c5 localhost", "r");
@@ -80,8 +145,8 @@ int main(int ac, char **argv)
 
 	for (i = 0; i < 5; i++) {
 		key = 0;
-		while (bpf_get_next_key(map_fd[0], &key, &next_key) == 0) {
-			bpf_lookup_elem(map_fd[0], &next_key, &value);
+		while (bpf_map_get_next_key(map_fd[0], &key, &next_key) == 0) {
+			bpf_map_lookup_elem(map_fd[0], &next_key, &value);
 			printf("location 0x%lx count %ld\n", next_key, value);
 			key = next_key;
 		}

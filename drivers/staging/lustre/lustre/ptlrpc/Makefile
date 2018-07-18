@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: GPL-2.0
+subdir-ccflags-y += -I$(srctree)/drivers/staging/lustre/include
+subdir-ccflags-y += -I$(srctree)/drivers/staging/lustre/lustre/include
+
 obj-$(CONFIG_LUSTRE_FS) += ptlrpc.o
 LDLM := ../../lustre/ldlm/
 
@@ -15,6 +19,5 @@ ptlrpc_objs += pers.o lproc_ptlrpc.o wiretest.o layout.o
 ptlrpc_objs += sec.o sec_bulk.o sec_gc.o sec_config.o
 ptlrpc_objs += sec_null.o sec_plain.o nrs.o nrs_fifo.o
 
-ptlrpc-y := $(ldlm_objs) $(ptlrpc_objs)
-ptlrpc-$(CONFIG_PROC_FS) += sec_lproc.o
+ptlrpc-y := $(ldlm_objs) $(ptlrpc_objs) sec_lproc.o
 ptlrpc-$(CONFIG_LUSTRE_TRANSLATE_ERRNOS) += errno.o

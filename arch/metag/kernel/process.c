@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (C) 2005,2006,2007,2008,2009,2010,2011 Imagination Technologies
  *
@@ -8,6 +9,9 @@
 #include <linux/errno.h>
 #include <linux/export.h>
 #include <linux/sched.h>
+#include <linux/sched/debug.h>
+#include <linux/sched/task.h>
+#include <linux/sched/task_stack.h>
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/unistd.h>
@@ -345,10 +349,10 @@ void flush_thread(void)
 /*
  * Free current thread data structures etc.
  */
-void exit_thread(void)
+void exit_thread(struct task_struct *tsk)
 {
-	clear_fpu(&current->thread);
-	clear_dsp(&current->thread);
+	clear_fpu(&tsk->thread);
+	clear_dsp(&tsk->thread);
 }
 
 /* TODO: figure out how to unwind the kernel stack here to figure out

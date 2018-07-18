@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 
 #ifndef _BCACHE_UTIL_H
 #define _BCACHE_UTIL_H
@@ -5,6 +6,7 @@
 #include <linux/blkdev.h>
 #include <linux/errno.h>
 #include <linux/kernel.h>
+#include <linux/sched/clock.h>
 #include <linux/llist.h>
 #include <linux/ratelimit.h>
 #include <linux/vmalloc.h>
@@ -42,20 +44,13 @@ struct closure;
 	(heap)->used = 0;						\
 	(heap)->size = (_size);						\
 	_bytes = (heap)->size * sizeof(*(heap)->data);			\
-	(heap)->data = NULL;						\
-	if (_bytes < KMALLOC_MAX_SIZE)					\
-		(heap)->data = kmalloc(_bytes, (gfp));			\
-	if ((!(heap)->data) && ((gfp) & GFP_KERNEL))			\
-		(heap)->data = vmalloc(_bytes);				\
+	(heap)->data = kvmalloc(_bytes, (gfp) & GFP_KERNEL);		\
 	(heap)->data;							\
 })
 
 #define free_heap(heap)							\
 do {									\
-	if (is_vmalloc_addr((heap)->data))				\
-		vfree((heap)->data);					\
-	else								\
-		kfree((heap)->data);					\
+	kvfree((heap)->data);						\
 	(heap)->data = NULL;						\
 } while (0)
 
@@ -138,12 +133,8 @@ do {									\
 									\
 	(fifo)->mask = _allocated_size - 1;				\
 	(fifo)->front = (fifo)->back = 0;				\
-	(fifo)->data = NULL;						\
 									\
-	if (_bytes < KMALLOC_MAX_SIZE)					\
-		(fifo)->data = kmalloc(_bytes, (gfp));			\
-	if ((!(fifo)->data) && ((gfp) & GFP_KERNEL))			\
-		(fifo)->data = vmalloc(_bytes);				\
+	(fifo)->data = kvmalloc(_bytes, (gfp) & GFP_KERNEL);		\
 	(fifo)->data;							\
 })
 
@@ -163,10 +154,7 @@ do {									\
 
 #define free_fifo(fifo)							\
 do {									\
-	if (is_vmalloc_addr((fifo)->data))				\
-		vfree((fifo)->data);					\
-	else								\
-		kfree((fifo)->data);					\
+	kvfree((fifo)->data);						\
 	(fifo)->data = NULL;						\
 } while (0)
 
@@ -576,10 +564,10 @@ static inline sector_t bdev_sectors(struct block_device *bdev)
 	return bdev->bd_inode->i_size >> 9;
 }
 
-#define closure_bio_submit(bio, cl, dev)				\
+#define closure_bio_submit(bio, cl)					\
 do {									\
 	closure_get(cl);						\
-	bch_generic_make_request(bio, &(dev)->bio_split_hook);		\
+	generic_make_request(bio);					\
 } while (0)
 
 uint64_t bch_crc64_update(uint64_t, const void *, size_t);

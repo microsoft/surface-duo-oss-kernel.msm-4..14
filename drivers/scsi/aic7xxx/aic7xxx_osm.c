@@ -812,7 +812,6 @@ struct scsi_host_template aic7xxx_driver_template = {
 	.slave_configure	= ahc_linux_slave_configure,
 	.target_alloc		= ahc_linux_target_alloc,
 	.target_destroy		= ahc_linux_target_destroy,
-	.use_blk_tags		= 1,
 };
 
 /**************************** Tasklet Handler *********************************/
@@ -2328,11 +2327,6 @@ done:
 	} else
 		ahc_unlock(ahc, &flags);
 	return (retval);
-}
-
-void
-ahc_platform_dump_card_state(struct ahc_softc *ahc)
-{
 }
 
 static void ahc_linux_set_width(struct scsi_target *starget, int width)

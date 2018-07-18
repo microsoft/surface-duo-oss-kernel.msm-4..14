@@ -21,7 +21,7 @@
 
 static void mark_dirty(struct super_block *s, int remount)
 {
-	if (hpfs_sb(s)->sb_chkdsk && (remount || !(s->s_flags & MS_RDONLY))) {
+	if (hpfs_sb(s)->sb_chkdsk && (remount || !sb_rdonly(s))) {
 		struct buffer_head *bh;
 		struct hpfs_spare_block *sb;
 		if ((sb = hpfs_map_sector(s, 17, &bh, 0))) {
@@ -41,7 +41,7 @@ static void unmark_dirty(struct super_block *s)
 {
 	struct buffer_head *bh;
 	struct hpfs_spare_block *sb;
-	if (s->s_flags & MS_RDONLY) return;
+	if (sb_rdonly(s)) return;
 	sync_blockdev(s->s_bdev);
 	if ((sb = hpfs_map_sector(s, 17, &bh, 0))) {
 		sb->dirty = hpfs_sb(s)->sb_chkdsk > 1 - hpfs_sb(s)->sb_was_error;
@@ -73,14 +73,14 @@ void hpfs_error(struct super_block *s, const char *fmt, ...)
 			mark_dirty(s, 0);
 			panic("HPFS panic");
 		} else if (hpfs_sb(s)->sb_err == 1) {
-			if (s->s_flags & MS_RDONLY)
+			if (sb_rdonly(s))
 				pr_cont("; already mounted read-only\n");
 			else {
 				pr_cont("; remounting read-only\n");
 				mark_dirty(s, 0);
 				s->s_flags |= MS_RDONLY;
 			}
-		} else if (s->s_flags & MS_RDONLY)
+		} else if (sb_rdonly(s))
 				pr_cont("; going on - but anything won't be destroyed because it's read-only\n");
 		else
 			pr_cont("; corrupted filesystem mounted read/write - your computer will explode within 20 seconds ... but you wanted it so!\n");
@@ -200,12 +200,39 @@ static int hpfs_statfs(struct dentry *dentry, struct kstatfs *buf)
 	return 0;
 }
 
+
+long hpfs_ioctl(struct file *file, unsigned cmd, unsigned long arg)
+{
+	switch (cmd) {
+		case FITRIM: {
+			struct fstrim_range range;
+			secno n_trimmed;
+			int r;
+			if (!capable(CAP_SYS_ADMIN))
+				return -EPERM;
+			if (copy_from_user(&range, (struct fstrim_range __user *)arg, sizeof(range)))
+				return -EFAULT;
+			r = hpfs_trim_fs(file_inode(file)->i_sb, range.start >> 9, (range.start + range.len) >> 9, (range.minlen + 511) >> 9, &n_trimmed);
+			if (r)
+				return r;
+			range.len = (u64)n_trimmed << 9;
+			if (copy_to_user((struct fstrim_range __user *)arg, &range, sizeof(range)))
+				return -EFAULT;
+			return 0;
+		}
+		default: {
+			return -ENOIOCTLCMD;
+		}
+	}
+}
+
+
 static struct kmem_cache * hpfs_inode_cachep;
 
 static struct inode *hpfs_alloc_inode(struct super_block *sb)
 {
 	struct hpfs_inode_info *ei;
-	ei = (struct hpfs_inode_info *)kmem_cache_alloc(hpfs_inode_cachep, GFP_NOFS);
+	ei = kmem_cache_alloc(hpfs_inode_cachep, GFP_NOFS);
 	if (!ei)
 		return NULL;
 	ei->vfs_inode.i_version = 1;
@@ -235,7 +262,7 @@ static int init_inodecache(void)
 	hpfs_inode_cachep = kmem_cache_create("hpfs_inode_cache",
 					     sizeof(struct hpfs_inode_info),
 					     0, (SLAB_RECLAIM_ACCOUNT|
-						SLAB_MEM_SPREAD),
+						SLAB_MEM_SPREAD|SLAB_ACCOUNT),
 					     init_once);
 	if (hpfs_inode_cachep == NULL)
 		return -ENOMEM;
@@ -580,8 +607,7 @@ static int hpfs_fill_super(struct super_block *s, void *options, int silent)
 	}
 
 	/* Check version */
-	if (!(s->s_flags & MS_RDONLY) &&
-	      superblock->funcversion != 2 && superblock->funcversion != 3) {
+	if (!sb_rdonly(s) && superblock->funcversion != 2 && superblock->funcversion != 3) {
 		pr_err("Bad version %d,%d. Mount readonly to go around\n",
 			(int)superblock->version, (int)superblock->funcversion);
 		pr_err("please try recent version of HPFS driver at http://artax.karlin.mff.cuni.cz/~mikulas/vyplody/hpfs/index-e.cgi and if it still can't understand this format, contact author - mikulas@artax.karlin.mff.cuni.cz\n");
@@ -623,6 +649,9 @@ static int hpfs_fill_super(struct super_block *s, void *options, int silent)
 		goto bail4;
 	}
 
+	if (spareblock->n_spares_used)
+		hpfs_load_hotfix_map(s, spareblock);
+
 	/* Load bitmap directory */
 	if (!(sbi->sb_bmp_dir = hpfs_load_bitmap_directory(s, le32_to_cpu(superblock->bitmaps))))
 		goto bail4;
@@ -636,24 +665,12 @@ static int hpfs_fill_super(struct super_block *s, void *options, int silent)
 		hpfs_error(s, "improperly stopped");
 	}
 
-	if (!(s->s_flags & MS_RDONLY)) {
+	if (!sb_rdonly(s)) {
 		spareblock->dirty = 1;
 		spareblock->old_wrote = 0;
 		mark_buffer_dirty(bh2);
 	}
 
-	if (spareblock->hotfixes_used || spareblock->n_spares_used) {
-		if (errs >= 2) {
-			pr_err("Hotfixes not supported here, try chkdsk\n");
-			mark_dirty(s, 0);
-			goto bail4;
-		}
-		hpfs_error(s, "hotfixes not supported here, try chkdsk");
-		if (errs == 0)
-			pr_err("Proceeding, but your filesystem will be probably corrupted by this driver...\n");
-		else
-			pr_err("This driver may read bad files or crash when operating on disk with hotfixes.\n");
-	}
 	if (le32_to_cpu(spareblock->n_dnode_spares) != le32_to_cpu(spareblock->n_dnode_spares_free)) {
 		if (errs >= 2) {
 			pr_err("Spare dnodes used, try chkdsk\n");

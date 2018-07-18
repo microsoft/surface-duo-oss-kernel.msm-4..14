@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *  arch/cris/mm/fault.c
  *
@@ -6,8 +7,9 @@
 
 #include <linux/mm.h>
 #include <linux/interrupt.h>
-#include <linux/module.h>
+#include <linux/extable.h>
 #include <linux/wait.h>
+#include <linux/sched/signal.h>
 #include <linux/uaccess.h>
 #include <arch/system.h>
 
@@ -168,7 +170,7 @@ retry:
 	 * the fault.
 	 */
 
-	fault = handle_mm_fault(mm, vma, address, flags);
+	fault = handle_mm_fault(vma, address, flags);
 
 	if ((fault & VM_FAULT_RETRY) && fatal_signal_pending(current))
 		return;

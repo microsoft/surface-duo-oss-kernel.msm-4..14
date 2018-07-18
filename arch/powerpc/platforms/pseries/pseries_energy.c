@@ -208,19 +208,19 @@ static ssize_t percpu_deactivate_hint_show(struct device *dev,
  *	Per-cpu value of the hint
  */
 
-struct device_attribute attr_cpu_activate_hint_list =
+static struct device_attribute attr_cpu_activate_hint_list =
 		__ATTR(pseries_activate_hint_list, 0444,
 		cpu_activate_hint_list_show, NULL);
 
-struct device_attribute attr_cpu_deactivate_hint_list =
+static struct device_attribute attr_cpu_deactivate_hint_list =
 		__ATTR(pseries_deactivate_hint_list, 0444,
 		cpu_deactivate_hint_list_show, NULL);
 
-struct device_attribute attr_percpu_activate_hint =
+static struct device_attribute attr_percpu_activate_hint =
 		__ATTR(pseries_activate_hint, 0444,
 		percpu_activate_hint_show, NULL);
 
-struct device_attribute attr_percpu_deactivate_hint =
+static struct device_attribute attr_percpu_deactivate_hint =
 		__ATTR(pseries_deactivate_hint, 0444,
 		percpu_deactivate_hint_show, NULL);
 
@@ -229,10 +229,9 @@ static int __init pseries_energy_init(void)
 	int cpu, err;
 	struct device *cpu_dev;
 
-	if (!firmware_has_feature(FW_FEATURE_BEST_ENERGY)) {
-		printk(KERN_INFO "Hypercall H_BEST_ENERGY not supported\n");
-		return 0;
-	}
+	if (!firmware_has_feature(FW_FEATURE_BEST_ENERGY))
+		return 0; /* H_BEST_ENERGY hcall not supported */
+
 	/* Create the sysfs files */
 	err = device_create_file(cpu_subsys.dev_root,
 				&attr_cpu_activate_hint_list);

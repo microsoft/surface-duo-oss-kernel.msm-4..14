@@ -27,7 +27,7 @@
 
 	.globl opal_tracepoint_refcount
 opal_tracepoint_refcount:
-	.llong	0
+	.8byte	0
 
 	.section	".text"
 
@@ -39,8 +39,8 @@ opal_tracepoint_refcount:
 BEGIN_FTR_SECTION;						\
 	b	1f;						\
 END_FTR_SECTION(0, 1);						\
-	ld	r12,opal_tracepoint_refcount@toc(r2);		\
-	cmpdi	r12,0;						\
+	ld	r11,opal_tracepoint_refcount@toc(r2);		\
+	cmpdi	r11,0;						\
 	bne-	LABEL;						\
 1:
 
@@ -50,23 +50,16 @@ END_FTR_SECTION(0, 1);						\
 #define OPAL_BRANCH(LABEL)
 #endif
 
-/* TODO:
- *
- * - Trace irqs in/off (needs saving/restoring all args, argh...)
- * - Get r11 feed up by Dave so I can have better register usage
+/*
+ * DO_OPAL_CALL assumes:
+ * r0  = opal call token
+ * r12 = msr
+ * LR has been saved
  */
-
-#define OPAL_CALL(name, token)		\
- _GLOBAL_TOC(name);			\
-	mflr	r0;			\
-	std	r0,16(r1);		\
-	li	r0,token;		\
-	OPAL_BRANCH(opal_tracepoint_entry) \
-	mfcr	r12;			\
-	stw	r12,8(r1);		\
-	std	r1,PACAR1(r13);		\
+#define DO_OPAL_CALL()			\
+	mfcr	r11;			\
+	stw	r11,8(r1);		\
 	li	r11,0;			\
-	mfmsr	r12;			\
 	ori	r11,r11,MSR_EE;		\
 	std	r12,PACASAVEDMSR(r13);	\
 	andc	r12,r12,r11;		\
@@ -82,6 +75,18 @@ END_FTR_SECTION(0, 1);						\
 	mtspr	SPRN_HSRR0,r12;		\
 	hrfid
 
+#define OPAL_CALL(name, token)		\
+ _GLOBAL_TOC(name);			\
+	mfmsr	r12;			\
+	mflr	r0;			\
+	andi.	r11,r12,MSR_IR|MSR_DR; 	\
+	std	r0,PPC_LR_STKOFF(r1);	\
+	li	r0,token;		\
+	beq	opal_real_call;         \
+	OPAL_BRANCH(opal_tracepoint_entry) \
+	DO_OPAL_CALL()
+
+
 opal_return:
 	/*
 	 * Fixup endian on OPAL return... we should be able to simplify
@@ -92,12 +97,36 @@ opal_return:
 	FIXUP_ENDIAN
 	ld	r2,PACATOC(r13);
 	lwz	r4,8(r1);
-	ld	r5,16(r1);
+	ld	r5,PPC_LR_STKOFF(r1);
 	ld	r6,PACASAVEDMSR(r13);
-	mtspr	SPRN_SRR0,r5;
-	mtspr	SPRN_SRR1,r6;
 	mtcr	r4;
-	rfid
+	mtspr	SPRN_HSRR0,r5;
+	mtspr	SPRN_HSRR1,r6;
+	hrfid
+
+opal_real_call:
+	mfcr	r11
+	stw	r11,8(r1)
+	/* Set opal return address */
+	LOAD_REG_ADDR(r11, opal_return_realmode)
+	mtlr	r11
+	li	r11,MSR_LE
+	andc	r12,r12,r11
+	mtspr	SPRN_HSRR1,r12
+	LOAD_REG_ADDR(r11,opal)
+	ld	r12,8(r11)
+	ld	r2,0(r11)
+	mtspr	SPRN_HSRR0,r12
+	hrfid
+
+opal_return_realmode:
+	FIXUP_ENDIAN
+	ld	r2,PACATOC(r13);
+	lwz	r11,8(r1);
+	ld	r12,PPC_LR_STKOFF(r1)
+	mtcr	r11;
+	mtlr	r12
+	blr
 
 #ifdef CONFIG_TRACEPOINTS
 opal_tracepoint_entry:
@@ -123,32 +152,18 @@ opal_tracepoint_entry:
 	ld	r8,STK_REG(R29)(r1)
 	ld	r9,STK_REG(R30)(r1)
 	ld	r10,STK_REG(R31)(r1)
+
+	/* setup LR so we return via tracepoint_return */
 	LOAD_REG_ADDR(r11,opal_tracepoint_return)
-	mfcr	r12
 	std	r11,16(r1)
-	stw	r12,8(r1)
-	std	r1,PACAR1(r13)
-	li	r11,0
+
 	mfmsr	r12
-	ori	r11,r11,MSR_EE
-	std	r12,PACASAVEDMSR(r13)
-	andc	r12,r12,r11
-	mtmsrd	r12,1
-	LOAD_REG_ADDR(r11,opal_return)
-	mtlr	r11
-	li	r11,MSR_DR|MSR_IR|MSR_LE
-	andc	r12,r12,r11
-	mtspr	SPRN_HSRR1,r12
-	LOAD_REG_ADDR(r11,opal)
-	ld	r12,8(r11)
-	ld	r2,0(r11)
-	mtspr	SPRN_HSRR0,r12
-	hrfid
+	DO_OPAL_CALL()
 
 opal_tracepoint_return:
 	std	r3,STK_REG(R31)(r1)
 	mr	r4,r3
-	ld	r0,STK_REG(R23)(r1)
+	ld	r3,STK_REG(R23)(r1)
 	bl	__trace_opal_exit
 	ld	r3,STK_REG(R31)(r1)
 	addi	r1,r1,STACKFRAMESIZE
@@ -157,42 +172,6 @@ opal_tracepoint_return:
 	blr
 #endif
 
-/*
- * Make opal call in realmode. This is a generic function to be called
- * from realmode. It handles endianness.
- *
- * r13 - paca pointer
- * r1  - stack pointer
- * r0  - opal token
- */
-_GLOBAL(opal_call_realmode)
-	mflr	r12
-	std	r12,PPC_LR_STKOFF(r1)
-	ld	r2,PACATOC(r13)
-	/* Set opal return address */
-	LOAD_REG_ADDR(r12,return_from_opal_call)
-	mtlr	r12
-
-	mfmsr	r12
-#ifdef __LITTLE_ENDIAN__
-	/* Handle endian-ness */
-	li	r11,MSR_LE
-	andc	r12,r12,r11
-#endif
-	mtspr	SPRN_HSRR1,r12
-	LOAD_REG_ADDR(r11,opal)
-	ld	r12,8(r11)
-	ld	r2,0(r11)
-	mtspr	SPRN_HSRR0,r12
-	hrfid
-
-return_from_opal_call:
-#ifdef __LITTLE_ENDIAN__
-	FIXUP_ENDIAN
-#endif
-	ld	r12,PPC_LR_STKOFF(r1)
-	mtlr	r12
-	blr
 
 OPAL_CALL(opal_invalid_call,			OPAL_INVALID_CALL);
 OPAL_CALL(opal_console_write,			OPAL_CONSOLE_WRITE);
@@ -202,6 +181,7 @@ OPAL_CALL(opal_rtc_read,			OPAL_RTC_READ);
 OPAL_CALL(opal_rtc_write,			OPAL_RTC_WRITE);
 OPAL_CALL(opal_cec_power_down,			OPAL_CEC_POWER_DOWN);
 OPAL_CALL(opal_cec_reboot,			OPAL_CEC_REBOOT);
+OPAL_CALL(opal_cec_reboot2,			OPAL_CEC_REBOOT2);
 OPAL_CALL(opal_read_nvram,			OPAL_READ_NVRAM);
 OPAL_CALL(opal_write_nvram,			OPAL_WRITE_NVRAM);
 OPAL_CALL(opal_handle_interrupt,		OPAL_HANDLE_INTERRUPT);
@@ -249,6 +229,7 @@ OPAL_CALL(opal_pci_reinit,			OPAL_PCI_REINIT);
 OPAL_CALL(opal_pci_mask_pe_error,		OPAL_PCI_MASK_PE_ERROR);
 OPAL_CALL(opal_set_slot_led_status,		OPAL_SET_SLOT_LED_STATUS);
 OPAL_CALL(opal_get_epow_status,			OPAL_GET_EPOW_STATUS);
+OPAL_CALL(opal_get_dpo_status,			OPAL_GET_DPO_STATUS);
 OPAL_CALL(opal_set_system_attention_led,	OPAL_SET_SYSTEM_ATTENTION_LED);
 OPAL_CALL(opal_pci_next_error,			OPAL_PCI_NEXT_ERROR);
 OPAL_CALL(opal_pci_poll,			OPAL_PCI_POLL);
@@ -276,6 +257,7 @@ OPAL_CALL(opal_dump_info2,			OPAL_DUMP_INFO2);
 OPAL_CALL(opal_dump_read,			OPAL_DUMP_READ);
 OPAL_CALL(opal_dump_ack,			OPAL_DUMP_ACK);
 OPAL_CALL(opal_get_msg,				OPAL_GET_MSG);
+OPAL_CALL(opal_write_oppanel_async,		OPAL_WRITE_OPPANEL_ASYNC);
 OPAL_CALL(opal_check_completion,		OPAL_CHECK_ASYNC_COMPLETION);
 OPAL_CALL(opal_dump_resend_notification,	OPAL_DUMP_RESEND);
 OPAL_CALL(opal_sync_host_reboot,		OPAL_SYNC_HOST_REBOOT);
@@ -283,6 +265,7 @@ OPAL_CALL(opal_sensor_read,			OPAL_SENSOR_READ);
 OPAL_CALL(opal_get_param,			OPAL_GET_PARAM);
 OPAL_CALL(opal_set_param,			OPAL_SET_PARAM);
 OPAL_CALL(opal_handle_hmi,			OPAL_HANDLE_HMI);
+OPAL_CALL(opal_config_cpu_idle_state,		OPAL_CONFIG_CPU_IDLE_STATE);
 OPAL_CALL(opal_slw_set_reg,			OPAL_SLW_SET_REG);
 OPAL_CALL(opal_register_dump_region,		OPAL_REGISTER_DUMP_REGION);
 OPAL_CALL(opal_unregister_dump_region,		OPAL_UNREGISTER_DUMP_REGION);
@@ -295,3 +278,44 @@ OPAL_CALL(opal_i2c_request,			OPAL_I2C_REQUEST);
 OPAL_CALL(opal_flash_read,			OPAL_FLASH_READ);
 OPAL_CALL(opal_flash_write,			OPAL_FLASH_WRITE);
 OPAL_CALL(opal_flash_erase,			OPAL_FLASH_ERASE);
+OPAL_CALL(opal_prd_msg,				OPAL_PRD_MSG);
+OPAL_CALL(opal_leds_get_ind,			OPAL_LEDS_GET_INDICATOR);
+OPAL_CALL(opal_leds_set_ind,			OPAL_LEDS_SET_INDICATOR);
+OPAL_CALL(opal_console_flush,			OPAL_CONSOLE_FLUSH);
+OPAL_CALL(opal_get_device_tree,			OPAL_GET_DEVICE_TREE);
+OPAL_CALL(opal_pci_get_presence_state,		OPAL_PCI_GET_PRESENCE_STATE);
+OPAL_CALL(opal_pci_get_power_state,		OPAL_PCI_GET_POWER_STATE);
+OPAL_CALL(opal_pci_set_power_state,		OPAL_PCI_SET_POWER_STATE);
+OPAL_CALL(opal_int_get_xirr,			OPAL_INT_GET_XIRR);
+OPAL_CALL(opal_int_set_cppr,			OPAL_INT_SET_CPPR);
+OPAL_CALL(opal_int_eoi,				OPAL_INT_EOI);
+OPAL_CALL(opal_int_set_mfrr,			OPAL_INT_SET_MFRR);
+OPAL_CALL(opal_pci_tce_kill,			OPAL_PCI_TCE_KILL);
+OPAL_CALL(opal_nmmu_set_ptcr,			OPAL_NMMU_SET_PTCR);
+OPAL_CALL(opal_xive_reset,			OPAL_XIVE_RESET);
+OPAL_CALL(opal_xive_get_irq_info,		OPAL_XIVE_GET_IRQ_INFO);
+OPAL_CALL(opal_xive_get_irq_config,		OPAL_XIVE_GET_IRQ_CONFIG);
+OPAL_CALL(opal_xive_set_irq_config,		OPAL_XIVE_SET_IRQ_CONFIG);
+OPAL_CALL(opal_xive_get_queue_info,		OPAL_XIVE_GET_QUEUE_INFO);
+OPAL_CALL(opal_xive_set_queue_info,		OPAL_XIVE_SET_QUEUE_INFO);
+OPAL_CALL(opal_xive_donate_page,		OPAL_XIVE_DONATE_PAGE);
+OPAL_CALL(opal_xive_alloc_vp_block,		OPAL_XIVE_ALLOCATE_VP_BLOCK);
+OPAL_CALL(opal_xive_free_vp_block,		OPAL_XIVE_FREE_VP_BLOCK);
+OPAL_CALL(opal_xive_allocate_irq,		OPAL_XIVE_ALLOCATE_IRQ);
+OPAL_CALL(opal_xive_free_irq,			OPAL_XIVE_FREE_IRQ);
+OPAL_CALL(opal_xive_get_vp_info,		OPAL_XIVE_GET_VP_INFO);
+OPAL_CALL(opal_xive_set_vp_info,		OPAL_XIVE_SET_VP_INFO);
+OPAL_CALL(opal_xive_sync,			OPAL_XIVE_SYNC);
+OPAL_CALL(opal_xive_dump,			OPAL_XIVE_DUMP);
+OPAL_CALL(opal_npu_init_context,		OPAL_NPU_INIT_CONTEXT);
+OPAL_CALL(opal_npu_destroy_context,		OPAL_NPU_DESTROY_CONTEXT);
+OPAL_CALL(opal_npu_map_lpar,			OPAL_NPU_MAP_LPAR);
+OPAL_CALL(opal_imc_counters_init,		OPAL_IMC_COUNTERS_INIT);
+OPAL_CALL(opal_imc_counters_start,		OPAL_IMC_COUNTERS_START);
+OPAL_CALL(opal_imc_counters_stop,		OPAL_IMC_COUNTERS_STOP);
+OPAL_CALL(opal_pci_set_p2p,			OPAL_PCI_SET_P2P);
+OPAL_CALL(opal_get_powercap,			OPAL_GET_POWERCAP);
+OPAL_CALL(opal_set_powercap,			OPAL_SET_POWERCAP);
+OPAL_CALL(opal_get_power_shift_ratio,		OPAL_GET_POWER_SHIFT_RATIO);
+OPAL_CALL(opal_set_power_shift_ratio,		OPAL_SET_POWER_SHIFT_RATIO);
+OPAL_CALL(opal_sensor_group_clear,		OPAL_SENSOR_GROUP_CLEAR);

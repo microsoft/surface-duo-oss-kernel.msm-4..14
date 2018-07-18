@@ -65,20 +65,24 @@
 					 V4L2_MBUS_CSI2_CHANNEL_2 | V4L2_MBUS_CSI2_CHANNEL_3)
 
 /**
- * v4l2_mbus_type - media bus type
+ * enum v4l2_mbus_type - media bus type
  * @V4L2_MBUS_PARALLEL:	parallel interface with hsync and vsync
  * @V4L2_MBUS_BT656:	parallel interface with embedded synchronisation, can
  *			also be used for BT.1120
+ * @V4L2_MBUS_CSI1:	MIPI CSI-1 serial interface
+ * @V4L2_MBUS_CCP2:	CCP2 (Compact Camera Port 2)
  * @V4L2_MBUS_CSI2:	MIPI CSI-2 serial interface
  */
 enum v4l2_mbus_type {
 	V4L2_MBUS_PARALLEL,
 	V4L2_MBUS_BT656,
+	V4L2_MBUS_CSI1,
+	V4L2_MBUS_CCP2,
 	V4L2_MBUS_CSI2,
 };
 
 /**
- * v4l2_mbus_config - media bus configuration
+ * struct v4l2_mbus_config - media bus configuration
  * @type:	in: interface type
  * @flags:	in / out: configuration flags, depending on @type
  */
@@ -96,6 +100,7 @@ static inline void v4l2_fill_pix_format(struct v4l2_pix_format *pix_fmt,
 	pix_fmt->colorspace = mbus_fmt->colorspace;
 	pix_fmt->ycbcr_enc = mbus_fmt->ycbcr_enc;
 	pix_fmt->quantization = mbus_fmt->quantization;
+	pix_fmt->xfer_func = mbus_fmt->xfer_func;
 }
 
 static inline void v4l2_fill_mbus_format(struct v4l2_mbus_framefmt *mbus_fmt,
@@ -108,7 +113,34 @@ static inline void v4l2_fill_mbus_format(struct v4l2_mbus_framefmt *mbus_fmt,
 	mbus_fmt->colorspace = pix_fmt->colorspace;
 	mbus_fmt->ycbcr_enc = pix_fmt->ycbcr_enc;
 	mbus_fmt->quantization = pix_fmt->quantization;
+	mbus_fmt->xfer_func = pix_fmt->xfer_func;
 	mbus_fmt->code = code;
+}
+
+static inline void v4l2_fill_pix_format_mplane(
+				struct v4l2_pix_format_mplane *pix_mp_fmt,
+				const struct v4l2_mbus_framefmt *mbus_fmt)
+{
+	pix_mp_fmt->width = mbus_fmt->width;
+	pix_mp_fmt->height = mbus_fmt->height;
+	pix_mp_fmt->field = mbus_fmt->field;
+	pix_mp_fmt->colorspace = mbus_fmt->colorspace;
+	pix_mp_fmt->ycbcr_enc = mbus_fmt->ycbcr_enc;
+	pix_mp_fmt->quantization = mbus_fmt->quantization;
+	pix_mp_fmt->xfer_func = mbus_fmt->xfer_func;
+}
+
+static inline void v4l2_fill_mbus_format_mplane(
+				struct v4l2_mbus_framefmt *mbus_fmt,
+				const struct v4l2_pix_format_mplane *pix_mp_fmt)
+{
+	mbus_fmt->width = pix_mp_fmt->width;
+	mbus_fmt->height = pix_mp_fmt->height;
+	mbus_fmt->field = pix_mp_fmt->field;
+	mbus_fmt->colorspace = pix_mp_fmt->colorspace;
+	mbus_fmt->ycbcr_enc = pix_mp_fmt->ycbcr_enc;
+	mbus_fmt->quantization = pix_mp_fmt->quantization;
+	mbus_fmt->xfer_func = pix_mp_fmt->xfer_func;
 }
 
 #endif

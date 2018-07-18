@@ -15,19 +15,19 @@
 #include <linux/iio/iio.h>
 #include <linux/regulator/consumer.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
 #include <asm/unaligned.h>
 #include <linux/iio/common/st_sensors.h>
 
-
-#define ST_SENSORS_WAI_ADDRESS		0x0f
+#include "st_sensors_core.h"
 
 static inline u32 st_sensors_get_unaligned_le24(const u8 *p)
 {
 	return (s32)((p[0] | p[1] << 8 | p[2] << 16) << 8) >> 8;
 }
 
-static int st_sensors_write_data_with_mask(struct iio_dev *indio_dev,
-						u8 reg_addr, u8 mask, u8 data)
+int st_sensors_write_data_with_mask(struct iio_dev *indio_dev,
+				    u8 reg_addr, u8 mask, u8 data)
 {
 	int err;
 	u8 new_data;
@@ -43,6 +43,28 @@ static int st_sensors_write_data_with_mask(struct iio_dev *indio_dev,
 st_sensors_write_data_with_mask_error:
 	return err;
 }
+
+int st_sensors_debugfs_reg_access(struct iio_dev *indio_dev,
+				  unsigned reg, unsigned writeval,
+				  unsigned *readval)
+{
+	struct st_sensor_data *sdata = iio_priv(indio_dev);
+	u8 readdata;
+	int err;
+
+	if (!readval)
+		return sdata->tf->write_byte(&sdata->tb, sdata->dev,
+					     (u8)reg, (u8)writeval);
+
+	err = sdata->tf->read_byte(&sdata->tb, sdata->dev, (u8)reg, &readdata);
+	if (err < 0)
+		return err;
+
+	*readval = (unsigned)readdata;
+
+	return 0;
+}
+EXPORT_SYMBOL(st_sensors_debugfs_reg_access);
 
 static int st_sensors_match_odr(struct st_sensor_settings *sensor_settings,
 			unsigned int odr, struct st_sensor_odr_avl *odr_out)
@@ -126,6 +148,9 @@ static int st_sensors_set_fullscale(struct iio_dev *indio_dev, unsigned int fs)
 	int err, i = 0;
 	struct st_sensor_data *sdata = iio_priv(indio_dev);
 
+	if (sdata->sensor_settings->fs.addr == 0)
+		return 0;
+
 	err = st_sensors_match_fs(sdata->sensor_settings, fs, &i);
 	if (err < 0)
 		goto st_accel_set_fullscale_error;
@@ -204,27 +229,42 @@ int st_sensors_set_axis_enable(struct iio_dev *indio_dev, u8 axis_enable)
 }
 EXPORT_SYMBOL(st_sensors_set_axis_enable);
 
-void st_sensors_power_enable(struct iio_dev *indio_dev)
+int st_sensors_power_enable(struct iio_dev *indio_dev)
 {
 	struct st_sensor_data *pdata = iio_priv(indio_dev);
 	int err;
 
 	/* Regulators not mandatory, but if requested we should enable them. */
-	pdata->vdd = devm_regulator_get_optional(indio_dev->dev.parent, "vdd");
-	if (!IS_ERR(pdata->vdd)) {
-		err = regulator_enable(pdata->vdd);
-		if (err != 0)
-			dev_warn(&indio_dev->dev,
-				 "Failed to enable specified Vdd supply\n");
+	pdata->vdd = devm_regulator_get(indio_dev->dev.parent, "vdd");
+	if (IS_ERR(pdata->vdd)) {
+		dev_err(&indio_dev->dev, "unable to get Vdd supply\n");
+		return PTR_ERR(pdata->vdd);
+	}
+	err = regulator_enable(pdata->vdd);
+	if (err != 0) {
+		dev_warn(&indio_dev->dev,
+			 "Failed to enable specified Vdd supply\n");
+		return err;
 	}
 
-	pdata->vdd_io = devm_regulator_get_optional(indio_dev->dev.parent, "vddio");
-	if (!IS_ERR(pdata->vdd_io)) {
-		err = regulator_enable(pdata->vdd_io);
-		if (err != 0)
-			dev_warn(&indio_dev->dev,
-				 "Failed to enable specified Vdd_IO supply\n");
+	pdata->vdd_io = devm_regulator_get(indio_dev->dev.parent, "vddio");
+	if (IS_ERR(pdata->vdd_io)) {
+		dev_err(&indio_dev->dev, "unable to get Vdd_IO supply\n");
+		err = PTR_ERR(pdata->vdd_io);
+		goto st_sensors_disable_vdd;
 	}
+	err = regulator_enable(pdata->vdd_io);
+	if (err != 0) {
+		dev_warn(&indio_dev->dev,
+			 "Failed to enable specified Vdd_IO supply\n");
+		goto st_sensors_disable_vdd;
+	}
+
+	return 0;
+
+st_sensors_disable_vdd:
+	regulator_disable(pdata->vdd);
+	return err;
 }
 EXPORT_SYMBOL(st_sensors_power_enable);
 
@@ -232,11 +272,8 @@ void st_sensors_power_disable(struct iio_dev *indio_dev)
 {
 	struct st_sensor_data *pdata = iio_priv(indio_dev);
 
-	if (!IS_ERR(pdata->vdd))
-		regulator_disable(pdata->vdd);
-
-	if (!IS_ERR(pdata->vdd_io))
-		regulator_disable(pdata->vdd_io);
+	regulator_disable(pdata->vdd);
+	regulator_disable(pdata->vdd_io);
 }
 EXPORT_SYMBOL(st_sensors_power_disable);
 
@@ -244,6 +281,16 @@ static int st_sensors_set_drdy_int_pin(struct iio_dev *indio_dev,
 					struct st_sensors_platform_data *pdata)
 {
 	struct st_sensor_data *sdata = iio_priv(indio_dev);
+
+	/* Sensor does not support interrupts */
+	if (sdata->sensor_settings->drdy_irq.addr == 0) {
+		if (pdata->drdy_int_pin)
+			dev_info(&indio_dev->dev,
+				 "DRDY on pin INT%d specified, but sensor "
+				 "does not support interrupts\n",
+				 pdata->drdy_int_pin);
+		return 0;
+	}
 
 	switch (pdata->drdy_int_pin) {
 	case 1:
@@ -267,6 +314,14 @@ static int st_sensors_set_drdy_int_pin(struct iio_dev *indio_dev,
 		return -EINVAL;
 	}
 
+	if (pdata->open_drain) {
+		if (!sdata->sensor_settings->drdy_irq.addr_od)
+			dev_err(&indio_dev->dev,
+				"open drain requested but unsupported.\n");
+		else
+			sdata->int_pin_open_drain = true;
+	}
+
 	return 0;
 }
 
@@ -285,10 +340,42 @@ static struct st_sensors_platform_data *st_sensors_of_probe(struct device *dev,
 	if (!of_property_read_u32(np, "st,drdy-int-pin", &val) && (val <= 2))
 		pdata->drdy_int_pin = (u8) val;
 	else
-		pdata->drdy_int_pin = defdata ? defdata->drdy_int_pin : 1;
+		pdata->drdy_int_pin = defdata ? defdata->drdy_int_pin : 0;
+
+	pdata->open_drain = of_property_read_bool(np, "drive-open-drain");
 
 	return pdata;
 }
+
+/**
+ * st_sensors_of_name_probe() - device tree probe for ST sensor name
+ * @dev: driver model representation of the device.
+ * @match: the OF match table for the device, containing compatible strings
+ *	but also a .data field with the corresponding internal kernel name
+ *	used by this sensor.
+ * @name: device name buffer reference.
+ * @len: device name buffer length.
+ *
+ * In effect this function matches a compatible string to an internal kernel
+ * name for a certain sensor device, so that the rest of the autodetection can
+ * rely on that name from this point on. I2C/SPI devices will be renamed
+ * to match the internal kernel convention.
+ */
+void st_sensors_of_name_probe(struct device *dev,
+			      const struct of_device_id *match,
+			      char *name, int len)
+{
+	const struct of_device_id *of_id;
+
+	of_id = of_match_device(match, dev);
+	if (!of_id || !of_id->data)
+		return;
+
+	/* The name from the OF match takes precedence if present */
+	strncpy(name, of_id->data, len);
+	name[len - 1] = '\0';
+}
+EXPORT_SYMBOL(st_sensors_of_name_probe);
 #else
 static struct st_sensors_platform_data *st_sensors_of_probe(struct device *dev,
 		struct st_sensors_platform_data *defdata)
@@ -319,6 +406,11 @@ int st_sensors_init_sensor(struct iio_dev *indio_dev,
 	if (err < 0)
 		return err;
 
+	/* Disable DRDY, this might be still be enabled after reboot. */
+	err = st_sensors_set_dataready_irq(indio_dev, false);
+	if (err < 0)
+		return err;
+
 	if (sdata->current_fullscale) {
 		err = st_sensors_set_fullscale(indio_dev,
 						sdata->current_fullscale->num);
@@ -332,11 +424,32 @@ int st_sensors_init_sensor(struct iio_dev *indio_dev,
 		return err;
 
 	/* set BDU */
-	err = st_sensors_write_data_with_mask(indio_dev,
+	if (sdata->sensor_settings->bdu.addr) {
+		err = st_sensors_write_data_with_mask(indio_dev,
 					sdata->sensor_settings->bdu.addr,
 					sdata->sensor_settings->bdu.mask, true);
-	if (err < 0)
-		return err;
+		if (err < 0)
+			return err;
+	}
+
+	/* set DAS */
+	if (sdata->sensor_settings->das.addr) {
+		err = st_sensors_write_data_with_mask(indio_dev,
+					sdata->sensor_settings->das.addr,
+					sdata->sensor_settings->das.mask, 1);
+		if (err < 0)
+			return err;
+	}
+
+	if (sdata->int_pin_open_drain) {
+		dev_info(&indio_dev->dev,
+			 "set interrupt line to open drain mode\n");
+		err = st_sensors_write_data_with_mask(indio_dev,
+				sdata->sensor_settings->drdy_irq.addr_od,
+				sdata->sensor_settings->drdy_irq.mask_od, 1);
+		if (err < 0)
+			return err;
+	}
 
 	err = st_sensors_set_axis_enable(indio_dev, ST_SENSORS_ENABLE_ALL_AXIS);
 
@@ -350,8 +463,17 @@ int st_sensors_set_dataready_irq(struct iio_dev *indio_dev, bool enable)
 	u8 drdy_mask;
 	struct st_sensor_data *sdata = iio_priv(indio_dev);
 
-	if (!sdata->sensor_settings->drdy_irq.addr)
+	if (!sdata->sensor_settings->drdy_irq.addr) {
+		/*
+		 * there are some devices (e.g. LIS3MDL) where drdy line is
+		 * routed to a given pin and it is not possible to select a
+		 * different one. Take into account irq status register
+		 * to understand if irq trigger can be properly supported
+		 */
+		if (sdata->sensor_settings->drdy_irq.stat_drdy.addr)
+			sdata->hw_irq_trigger = enable;
 		return 0;
+	}
 
 	/* Enable/Disable the interrupt generator 1. */
 	if (sdata->sensor_settings->drdy_irq.ig1.en_addr > 0) {
@@ -367,6 +489,9 @@ int st_sensors_set_dataready_irq(struct iio_dev *indio_dev, bool enable)
 		drdy_mask = sdata->sensor_settings->drdy_irq.mask_int1;
 	else
 		drdy_mask = sdata->sensor_settings->drdy_irq.mask_int2;
+
+	/* Flag to the poll function that the hardware trigger is in use */
+	sdata->hw_irq_trigger = enable;
 
 	/* Enable/Disable the interrupt generator for data ready. */
 	err = st_sensors_write_data_with_mask(indio_dev,
@@ -407,8 +532,10 @@ static int st_sensors_read_axis_data(struct iio_dev *indio_dev,
 	int err;
 	u8 *outdata;
 	struct st_sensor_data *sdata = iio_priv(indio_dev);
-	unsigned int byte_for_channel = ch->scan_type.storagebits >> 3;
+	unsigned int byte_for_channel;
 
+	byte_for_channel = DIV_ROUND_UP(ch->scan_type.realbits +
+					ch->scan_type.shift, 8);
 	outdata = kmalloc(byte_for_channel, GFP_KERNEL);
 	if (!outdata)
 		return -ENOMEM;
@@ -419,7 +546,9 @@ static int st_sensors_read_axis_data(struct iio_dev *indio_dev,
 	if (err < 0)
 		goto st_sensors_free_memory;
 
-	if (byte_for_channel == 2)
+	if (byte_for_channel == 1)
+		*data = (s8)*outdata;
+	else if (byte_for_channel == 2)
 		*data = (s16)get_unaligned_le16(outdata);
 	else if (byte_for_channel == 3)
 		*data = (s32)st_sensors_get_unaligned_le24(outdata);
@@ -461,49 +590,80 @@ out:
 }
 EXPORT_SYMBOL(st_sensors_read_info_raw);
 
+static int st_sensors_init_interface_mode(struct iio_dev *indio_dev,
+			const struct st_sensor_settings *sensor_settings)
+{
+	struct st_sensor_data *sdata = iio_priv(indio_dev);
+	struct device_node *np = sdata->dev->of_node;
+	struct st_sensors_platform_data *pdata;
+
+	pdata = (struct st_sensors_platform_data *)sdata->dev->platform_data;
+	if (((np && of_property_read_bool(np, "spi-3wire")) ||
+	     (pdata && pdata->spi_3wire)) && sensor_settings->sim.addr) {
+		int err;
+
+		err = sdata->tf->write_byte(&sdata->tb, sdata->dev,
+					    sensor_settings->sim.addr,
+					    sensor_settings->sim.value);
+		if (err < 0) {
+			dev_err(&indio_dev->dev,
+				"failed to init interface mode\n");
+			return err;
+		}
+	}
+
+	return 0;
+}
+
 int st_sensors_check_device_support(struct iio_dev *indio_dev,
 			int num_sensors_list,
 			const struct st_sensor_settings *sensor_settings)
 {
+	int i, n, err = 0;
 	u8 wai;
-	int i, n, err;
 	struct st_sensor_data *sdata = iio_priv(indio_dev);
 
-	err = sdata->tf->read_byte(&sdata->tb, sdata->dev,
-					ST_SENSORS_DEFAULT_WAI_ADDRESS, &wai);
-	if (err < 0) {
-		dev_err(&indio_dev->dev, "failed to read Who-Am-I register.\n");
-		goto read_wai_error;
-	}
-
 	for (i = 0; i < num_sensors_list; i++) {
-		if (sensor_settings[i].wai == wai)
+		for (n = 0; n < ST_SENSORS_MAX_4WAI; n++) {
+			if (strcmp(indio_dev->name,
+				sensor_settings[i].sensors_supported[n]) == 0) {
+				break;
+			}
+		}
+		if (n < ST_SENSORS_MAX_4WAI)
 			break;
 	}
-	if (i == num_sensors_list)
-		goto device_not_supported;
+	if (i == num_sensors_list) {
+		dev_err(&indio_dev->dev, "device name %s not recognized.\n",
+							indio_dev->name);
+		return -ENODEV;
+	}
 
-	for (n = 0; n < ARRAY_SIZE(sensor_settings[i].sensors_supported); n++) {
-		if (strcmp(indio_dev->name,
-				&sensor_settings[i].sensors_supported[n][0]) == 0)
-			break;
-	}
-	if (n == ARRAY_SIZE(sensor_settings[i].sensors_supported)) {
-		dev_err(&indio_dev->dev, "device name and WhoAmI mismatch.\n");
-		goto sensor_name_mismatch;
+	err = st_sensors_init_interface_mode(indio_dev, &sensor_settings[i]);
+	if (err < 0)
+		return err;
+
+	if (sensor_settings[i].wai_addr) {
+		err = sdata->tf->read_byte(&sdata->tb, sdata->dev,
+					   sensor_settings[i].wai_addr, &wai);
+		if (err < 0) {
+			dev_err(&indio_dev->dev,
+				"failed to read Who-Am-I register.\n");
+			return err;
+		}
+
+		if (sensor_settings[i].wai != wai) {
+			dev_err(&indio_dev->dev,
+				"%s: WhoAmI mismatch (0x%x).\n",
+				indio_dev->name, wai);
+			return -EINVAL;
+		}
 	}
 
 	sdata->sensor_settings =
 			(struct st_sensor_settings *)&sensor_settings[i];
 
 	return i;
-
-device_not_supported:
-	dev_err(&indio_dev->dev, "device not supported: WhoAmI (0x%x).\n", wai);
-sensor_name_mismatch:
-	err = -ENODEV;
-read_wai_error:
-	return err;
 }
 EXPORT_SYMBOL(st_sensors_check_device_support);
 
@@ -532,7 +692,7 @@ EXPORT_SYMBOL(st_sensors_sysfs_sampling_frequency_avail);
 ssize_t st_sensors_sysfs_scale_avail(struct device *dev,
 				struct device_attribute *attr, char *buf)
 {
-	int i, len = 0;
+	int i, len = 0, q, r;
 	struct iio_dev *indio_dev = dev_get_drvdata(dev);
 	struct st_sensor_data *sdata = iio_priv(indio_dev);
 
@@ -541,8 +701,10 @@ ssize_t st_sensors_sysfs_scale_avail(struct device *dev,
 		if (sdata->sensor_settings->fs.fs_avl[i].num == 0)
 			break;
 
-		len += scnprintf(buf + len, PAGE_SIZE - len, "0.%06u ",
-				sdata->sensor_settings->fs.fs_avl[i].gain);
+		q = sdata->sensor_settings->fs.fs_avl[i].gain / 1000000;
+		r = sdata->sensor_settings->fs.fs_avl[i].gain % 1000000;
+
+		len += scnprintf(buf + len, PAGE_SIZE - len, "%u.%06u ", q, r);
 	}
 	mutex_unlock(&indio_dev->mlock);
 	buf[len - 1] = '\n';

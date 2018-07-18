@@ -12,8 +12,8 @@
 #ifndef __RT5677_H__
 #define __RT5677_H__
 
-#include <sound/rt5677.h>
 #include <linux/gpio/driver.h>
+#include <linux/gpio/consumer.h>
 
 /* Info */
 #define RT5677_RESET				0x00
@@ -1446,6 +1446,16 @@
 #define RT5677_DSP_OB_4_7_CLK_SEL_MASK		(0xf << 8)
 #define RT5677_DSP_OB_4_7_CLK_SEL_SFT		8
 
+/* ASRC Control 8 (0x8a) */
+#define RT5677_I2S1_CLK_SEL_MASK		(0xf << 12)
+#define RT5677_I2S1_CLK_SEL_SFT			12
+#define RT5677_I2S2_CLK_SEL_MASK		(0xf << 8)
+#define RT5677_I2S2_CLK_SEL_SFT			8
+#define RT5677_I2S3_CLK_SEL_MASK		(0xf << 4)
+#define RT5677_I2S3_CLK_SEL_SFT			4
+#define RT5677_I2S4_CLK_SEL_MASK		(0xf)
+#define RT5677_I2S4_CLK_SEL_SFT			0
+
 /* VAD Function Control 4 (0x9f) */
 #define RT5677_VAD_SRC_MASK			(0x7 << 8)
 #define RT5677_VAD_SRC_SFT			8
@@ -1744,6 +1754,39 @@ enum {
 	RT5677_AD_MONO_R_FILTER = (0x1 << 12),
 	RT5677_DSP_OB_0_3_FILTER = (0x1 << 13),
 	RT5677_DSP_OB_4_7_FILTER = (0x1 << 14),
+	RT5677_I2S1_SOURCE = (0x1 << 15),
+	RT5677_I2S2_SOURCE = (0x1 << 16),
+	RT5677_I2S3_SOURCE = (0x1 << 17),
+	RT5677_I2S4_SOURCE = (0x1 << 18),
+};
+
+enum rt5677_dmic2_clk {
+	RT5677_DMIC_CLK1 = 0,
+	RT5677_DMIC_CLK2 = 1,
+};
+
+struct rt5677_platform_data {
+	/* IN1/IN2/LOUT1/LOUT2/LOUT3 can optionally be differential */
+	bool in1_diff;
+	bool in2_diff;
+	bool lout1_diff;
+	bool lout2_diff;
+	bool lout3_diff;
+	/* DMIC2 clock source selection */
+	enum rt5677_dmic2_clk dmic2_clk_pin;
+
+	/* configures GPIO, 0 - floating, 1 - pulldown, 2 - pullup */
+	u8 gpio_config[6];
+
+	/* jd1 can select 0 ~ 3 as OFF, GPIO1, GPIO2 and GPIO3 respectively */
+	unsigned int jd1_gpio;
+	/* jd2 and jd3 can select 0 ~ 3 as
+		OFF, GPIO4, GPIO5 and GPIO6 respectively */
+	unsigned int jd2_gpio;
+	unsigned int jd3_gpio;
+
+	/* Set MICBIAS1 VDD 1v8 or 3v3 */
+	bool micbias1_vdd_3v3;
 };
 
 struct rt5677_priv {
@@ -1761,7 +1804,8 @@ struct rt5677_priv {
 	int pll_src;
 	int pll_in;
 	int pll_out;
-	int pow_ldo2; /* POW_LDO2 pin */
+	struct gpio_desc *pow_ldo2; /* POW_LDO2 pin */
+	struct gpio_desc *reset_pin; /* RESET pin */
 	enum rt5677_type type;
 #ifdef CONFIG_GPIOLIB
 	struct gpio_chip gpio_chip;

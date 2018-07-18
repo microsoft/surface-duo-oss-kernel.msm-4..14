@@ -586,7 +586,7 @@ static struct attribute *cbaf_dev_attrs[] = {
 	NULL,
 };
 
-static struct attribute_group cbaf_dev_attr_group = {
+static const struct attribute_group cbaf_dev_attr_group = {
 	.name = NULL,	/* we want them in the same directory */
 	.attrs = cbaf_dev_attrs,
 };
@@ -610,8 +610,7 @@ static int cbaf_probe(struct usb_interface *iface,
 	cbaf->usb_iface = usb_get_intf(iface);
 	result = cbaf_check(cbaf);
 	if (result < 0) {
-		dev_err(dev, "This device is not WUSB-CBAF compliant"
-			"and is not supported yet.\n");
+		dev_err(dev, "This device is not WUSB-CBAF compliant and is not supported yet.\n");
 		goto error_check;
 	}
 

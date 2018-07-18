@@ -20,7 +20,7 @@
 #include <linux/in.h>
 #include <linux/slab.h>
 #include <linux/kernel.h>
-#include <linux/sched.h>
+#include <linux/sched/signal.h>
 #include <linux/spinlock.h>
 #include <linux/timer.h>
 #include <linux/string.h>
@@ -34,7 +34,7 @@
 #include <linux/if_arp.h>
 #include <linux/skbuff.h>
 #include <net/sock.h>
-#include <asm/uaccess.h>
+#include <linux/uaccess.h>
 #include <linux/fcntl.h>
 #include <linux/termios.h>
 #include <linux/mm.h>
@@ -192,7 +192,8 @@ static void rose_kill_by_device(struct net_device *dev)
 
 		if (rose->device == dev) {
 			rose_disconnect(s, ENETUNREACH, ROSE_OUT_OF_ORDER, 0);
-			rose->neighbour->use--;
+			if (rose->neighbour)
+				rose->neighbour->use--;
 			rose->device = NULL;
 		}
 	}
@@ -520,7 +521,7 @@ static int rose_create(struct net *net, struct socket *sock, int protocol,
 	if (sock->type != SOCK_SEQPACKET || protocol != 0)
 		return -ESOCKTNOSUPPORT;
 
-	sk = sk_alloc(net, PF_ROSE, GFP_ATOMIC, &rose_proto);
+	sk = sk_alloc(net, PF_ROSE, GFP_ATOMIC, &rose_proto, kern);
 	if (sk == NULL)
 		return -ENOMEM;
 
@@ -559,7 +560,7 @@ static struct sock *rose_make_new(struct sock *osk)
 	if (osk->sk_type != SOCK_SEQPACKET)
 		return NULL;
 
-	sk = sk_alloc(sock_net(osk), PF_ROSE, GFP_ATOMIC, &rose_proto);
+	sk = sk_alloc(sock_net(osk), PF_ROSE, GFP_ATOMIC, &rose_proto, 0);
 	if (sk == NULL)
 		return NULL;
 
@@ -870,7 +871,8 @@ out_release:
 	return err;
 }
 
-static int rose_accept(struct socket *sock, struct socket *newsock, int flags)
+static int rose_accept(struct socket *sock, struct socket *newsock, int flags,
+		       bool kern)
 {
 	struct sk_buff *skb;
 	struct sock *newsk;

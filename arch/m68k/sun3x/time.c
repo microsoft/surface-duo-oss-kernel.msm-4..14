@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *  linux/arch/m68k/sun3x/time.c
  *
@@ -15,10 +16,10 @@
 
 #include <asm/irq.h>
 #include <asm/io.h>
+#include <asm/machdep.h>
 #include <asm/traps.h>
 #include <asm/sun3x.h>
 #include <asm/sun3ints.h>
-#include <asm/rtc.h>
 
 #include "time.h"
 

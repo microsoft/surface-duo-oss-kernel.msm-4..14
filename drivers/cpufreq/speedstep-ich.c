@@ -18,6 +18,8 @@
  *                        SPEEDSTEP - DEFINITIONS                    *
  *********************************************************************/
 
+#define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
+
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/init.h>
@@ -68,13 +70,13 @@ static int speedstep_find_register(void)
 	/* get PMBASE */
 	pci_read_config_dword(speedstep_chipset_dev, 0x40, &pmbase);
 	if (!(pmbase & 0x01)) {
-		printk(KERN_ERR "speedstep-ich: could not find speedstep register\n");
+		pr_err("could not find speedstep register\n");
 		return -ENODEV;
 	}
 
 	pmbase &= 0xFFFFFFFE;
 	if (!pmbase) {
-		printk(KERN_ERR "speedstep-ich: could not find speedstep register\n");
+		pr_err("could not find speedstep register\n");
 		return -ENODEV;
 	}
 
@@ -136,7 +138,7 @@ static void speedstep_set_state(unsigned int state)
 		pr_debug("change to %u MHz succeeded\n",
 			speedstep_get_frequency(speedstep_processor) / 1000);
 	else
-		printk(KERN_ERR "cpufreq: change failed - I/O error\n");
+		pr_err("change failed - I/O error\n");
 
 	return;
 }
@@ -205,7 +207,7 @@ static unsigned int speedstep_detect_chipset(void)
 		 * 8100 which use a pretty old revision of the 82815
 		 * host bridge. Abort on these systems.
 		 */
-		static struct pci_dev *hostbridge;
+		struct pci_dev *hostbridge;
 
 		hostbridge  = pci_get_subsys(PCI_VENDOR_ID_INTEL,
 			      PCI_DEVICE_ID_INTEL_82815_MC,
@@ -292,7 +294,7 @@ static int speedstep_cpu_init(struct cpufreq_policy *policy)
 
 	/* only run on CPU to be set, or on its sibling */
 #ifdef CONFIG_SMP
-	cpumask_copy(policy->cpus, cpu_sibling_mask(policy->cpu));
+	cpumask_copy(policy->cpus, topology_sibling_cpumask(policy->cpu));
 #endif
 	policy_cpu = cpumask_any_and(policy->cpus, cpu_online_mask);
 

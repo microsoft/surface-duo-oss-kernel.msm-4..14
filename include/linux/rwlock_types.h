@@ -47,7 +47,6 @@ typedef struct {
 				RW_DEP_MAP_INIT(lockname) }
 #endif
 
-#define DEFINE_RWLOCK(name) \
-	rwlock_t name __cacheline_aligned_in_smp = __RW_LOCK_UNLOCKED(name)
+#define DEFINE_RWLOCK(x)	rwlock_t x = __RW_LOCK_UNLOCKED(x)
 
 #endif /* __LINUX_RWLOCK_TYPES_H */

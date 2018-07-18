@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 /*
  * Glibc independent futex library for testing kernel functionality.
  * Shamelessly stolen from Darren Hart <dvhltc@us.ibm.com>
@@ -56,6 +57,24 @@ futex_wake(u_int32_t *uaddr, int nr_wake, int opflags)
 }
 
 /**
+ * futex_lock_pi() - block on uaddr as a PI mutex
+ */
+static inline int
+futex_lock_pi(u_int32_t *uaddr, struct timespec *timeout, int opflags)
+{
+	return futex(uaddr, FUTEX_LOCK_PI, 0, timeout, NULL, 0, opflags);
+}
+
+/**
+ * futex_unlock_pi() - release uaddr as a PI mutex, waking the top waiter
+ */
+static inline int
+futex_unlock_pi(u_int32_t *uaddr, int opflags)
+{
+	return futex(uaddr, FUTEX_UNLOCK_PI, 0, NULL, NULL, 0, opflags);
+}
+
+/**
 * futex_cmp_requeue() - requeue tasks from uaddr to uaddr2
 * @nr_wake:        wake up to this many tasks
 * @nr_requeue:        requeue up to this many tasks
@@ -70,13 +89,11 @@ futex_cmp_requeue(u_int32_t *uaddr, u_int32_t val, u_int32_t *uaddr2, int nr_wak
 
 #ifndef HAVE_PTHREAD_ATTR_SETAFFINITY_NP
 #include <pthread.h>
-static inline int pthread_attr_setaffinity_np(pthread_attr_t *attr,
-					      size_t cpusetsize,
-					      cpu_set_t *cpuset)
+#include <linux/compiler.h>
+static inline int pthread_attr_setaffinity_np(pthread_attr_t *attr __maybe_unused,
+					      size_t cpusetsize __maybe_unused,
+					      cpu_set_t *cpuset __maybe_unused)
 {
-	attr = attr;
-	cpusetsize = cpusetsize;
-	cpuset = cpuset;
 	return 0;
 }
 #endif

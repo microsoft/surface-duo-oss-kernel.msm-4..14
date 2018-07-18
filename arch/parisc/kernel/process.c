@@ -39,10 +39,14 @@
 #include <linux/kernel.h>
 #include <linux/mm.h>
 #include <linux/fs.h>
+#include <linux/cpu.h>
 #include <linux/module.h>
 #include <linux/personality.h>
 #include <linux/ptrace.h>
 #include <linux/sched.h>
+#include <linux/sched/debug.h>
+#include <linux/sched/task.h>
+#include <linux/sched/task_stack.h>
 #include <linux/slab.h>
 #include <linux/stddef.h>
 #include <linux/unistd.h>
@@ -50,6 +54,7 @@
 #include <linux/uaccess.h>
 #include <linux/rcupdate.h>
 #include <linux/random.h>
+#include <linux/nmi.h>
 
 #include <asm/io.h>
 #include <asm/asm-offsets.h>
@@ -139,17 +144,15 @@ void machine_power_off(void)
 
 	printk(KERN_EMERG "System shut down completed.\n"
 	       "Please power this system off now.");
+
+	/* prevent soft lockup/stalled CPU messages for endless loop. */
+	rcu_sysrq_start();
+	lockup_detector_soft_poweroff();
+	for (;;);
 }
 
 void (*pm_power_off)(void) = machine_power_off;
 EXPORT_SYMBOL(pm_power_off);
-
-/*
- * Free current thread data structures etc..
- */
-void exit_thread(void)
-{
-}
 
 void flush_thread(void)
 {
@@ -180,6 +183,44 @@ int dump_task_fpu (struct task_struct *tsk, elf_fpregset_t *r)
 	memcpy(r, tsk->thread.regs.fr, sizeof(*r));
 	return 1;
 }
+
+/*
+ * Idle thread support
+ *
+ * Detect when running on QEMU with SeaBIOS PDC Firmware and let
+ * QEMU idle the host too.
+ */
+
+int running_on_qemu __read_mostly;
+
+void __cpuidle arch_cpu_idle_dead(void)
+{
+	/* nop on real hardware, qemu will offline CPU. */
+	asm volatile("or %%r31,%%r31,%%r31\n":::);
+}
+
+void __cpuidle arch_cpu_idle(void)
+{
+	local_irq_enable();
+
+	/* nop on real hardware, qemu will idle sleep. */
+	asm volatile("or %%r10,%%r10,%%r10\n":::);
+}
+
+static int __init parisc_idle_init(void)
+{
+	const char *marker;
+
+	/* check QEMU/SeaBIOS marker in PAGE0 */
+	marker = (char *) &PAGE0->pad0;
+	running_on_qemu = (memcmp(marker, "SeaBIOS", 8) == 0);
+
+	if (!running_on_qemu)
+		cpu_idle_poll_ctrl(1);
+
+	return 0;
+}
+arch_initcall(parisc_idle_init);
 
 /*
  * Copy architecture-specific thread state
@@ -239,11 +280,6 @@ copy_thread(unsigned long clone_flags, unsigned long usp,
 	return 0;
 }
 
-unsigned long thread_saved_pc(struct task_struct *t)
-{
-	return t->thread.regs.kpc;
-}
-
 unsigned long
 get_wchan(struct task_struct *p)
 {
@@ -283,11 +319,7 @@ void *dereference_function_descriptor(void *ptr)
 
 static inline unsigned long brk_rnd(void)
 {
-	/* 8MB for 32bit, 1GB for 64bit */
-	if (is_32bit_task())
-		return (get_random_int() & 0x7ffUL) << PAGE_SHIFT;
-	else
-		return (get_random_int() & 0x3ffffUL) << PAGE_SHIFT;
+	return (get_random_int() & BRK_RND_MASK) << PAGE_SHIFT;
 }
 
 unsigned long arch_randomize_brk(struct mm_struct *mm)

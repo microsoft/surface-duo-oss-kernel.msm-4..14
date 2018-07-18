@@ -33,7 +33,7 @@
 #include <linux/time.h>
 #include "kfd_priv.h"
 #include <linux/mm.h>
-#include <uapi/asm-generic/mman-common.h>
+#include <linux/mman.h>
 #include <asm/processor.h>
 
 /*
@@ -304,7 +304,7 @@ int kfd_init_apertures(struct kfd_process *process)
 		id < NUM_OF_SUPPORTED_GPUS) {
 
 		pdd = kfd_create_process_device_data(dev, process);
-		if (pdd == NULL) {
+		if (!pdd) {
 			pr_err("Failed to create process device data\n");
 			return -1;
 		}

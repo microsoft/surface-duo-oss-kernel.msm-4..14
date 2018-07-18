@@ -154,8 +154,10 @@ static int ec_i2c_parse_response(const u8 *buf, struct i2c_msg i2c_msgs[],
 	resp = (const struct ec_response_i2c_passthru *)buf;
 	if (resp->i2c_status & EC_I2C_STATUS_TIMEOUT)
 		return -ETIMEDOUT;
+	else if (resp->i2c_status & EC_I2C_STATUS_NAK)
+		return -ENXIO;
 	else if (resp->i2c_status & EC_I2C_STATUS_ERROR)
-		return -EREMOTEIO;
+		return -EIO;
 
 	/* Other side could send us back fewer messages, but not more */
 	if (resp->num_msgs > *num)
@@ -182,8 +184,9 @@ static int ec_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg i2c_msgs[],
 	const u16 bus_num = bus->remote_bus;
 	int request_len;
 	int response_len;
+	int alloc_size;
 	int result;
-	struct cros_ec_command msg = { };
+	struct cros_ec_command *msg;
 
 	request_len = ec_i2c_count_message(i2c_msgs, num);
 	if (request_len < 0) {
@@ -198,25 +201,37 @@ static int ec_i2c_xfer(struct i2c_adapter *adap, struct i2c_msg i2c_msgs[],
 		return response_len;
 	}
 
-	result = ec_i2c_construct_message(msg.outdata, i2c_msgs, num, bus_num);
-	if (result)
-		return result;
+	alloc_size = max(request_len, response_len);
+	msg = kmalloc(sizeof(*msg) + alloc_size, GFP_KERNEL);
+	if (!msg)
+		return -ENOMEM;
 
-	msg.version = 0;
-	msg.command = EC_CMD_I2C_PASSTHRU;
-	msg.outsize = request_len;
-	msg.insize = response_len;
+	result = ec_i2c_construct_message(msg->data, i2c_msgs, num, bus_num);
+	if (result) {
+		dev_err(dev, "Error constructing EC i2c message %d\n", result);
+		goto exit;
+	}
 
-	result = cros_ec_cmd_xfer(bus->ec, &msg);
+	msg->version = 0;
+	msg->command = EC_CMD_I2C_PASSTHRU;
+	msg->outsize = request_len;
+	msg->insize = response_len;
+
+	result = cros_ec_cmd_xfer_status(bus->ec, msg);
+	if (result < 0) {
+		dev_err(dev, "Error transferring EC i2c message %d\n", result);
+		goto exit;
+	}
+
+	result = ec_i2c_parse_response(msg->data, i2c_msgs, &num);
 	if (result < 0)
-		return result;
-
-	result = ec_i2c_parse_response(msg.indata, i2c_msgs, &num);
-	if (result < 0)
-		return result;
+		goto exit;
 
 	/* Indicate success by saying how many messages were sent */
-	return num;
+	result = num;
+exit:
+	kfree(msg);
+	return result;
 }
 
 static u32 ec_i2c_functionality(struct i2c_adapter *adap)
@@ -266,10 +281,8 @@ static int ec_i2c_probe(struct platform_device *pdev)
 	bus->adap.retries = I2C_MAX_RETRIES;
 
 	err = i2c_add_adapter(&bus->adap);
-	if (err) {
-		dev_err(dev, "cannot register i2c adapter\n");
+	if (err)
 		return err;
-	}
 	platform_set_drvdata(pdev, bus);
 
 	return err;

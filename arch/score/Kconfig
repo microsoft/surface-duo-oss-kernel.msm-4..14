@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0
 menu "Machine selection"
 
 config SCORE
@@ -14,6 +15,7 @@ config SCORE
 	select VIRT_TO_BUS
 	select MODULES_USE_ELF_REL
 	select CLONE_BACKWARDS
+	select CPU_NO_EFFICIENT_FFS
 
 choice
 	prompt "System type"

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef _METAG_CHECKSUM_H
 #define _METAG_CHECKSUM_H
 
@@ -59,8 +60,7 @@ extern __sum16 ip_fast_csum(const void *iph, unsigned int ihl);
  * returns a 16-bit checksum, already complemented
  */
 static inline __wsum csum_tcpudp_nofold(__be32 saddr, __be32 daddr,
-					unsigned short len,
-					unsigned short proto,
+					__u32 len, __u8 proto,
 					__wsum sum)
 {
 	unsigned long len_proto = (proto + len) << 8;
@@ -78,8 +78,8 @@ static inline __wsum csum_tcpudp_nofold(__be32 saddr, __be32 daddr,
 }
 
 static inline __sum16
-csum_tcpudp_magic(__be32 saddr, __be32 daddr, unsigned short len,
-		  unsigned short proto, __wsum sum)
+csum_tcpudp_magic(__be32 saddr, __be32 daddr, __u32 len,
+		  __u8 proto, __wsum sum)
 {
 	return csum_fold(csum_tcpudp_nofold(saddr, daddr, len, proto, sum));
 }

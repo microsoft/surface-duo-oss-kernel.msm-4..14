@@ -263,7 +263,8 @@ static int gxfb_map_video_memory(struct fb_info *info, struct pci_dev *dev)
 
 	info->fix.smem_start = pci_resource_start(dev, 0);
 	info->fix.smem_len = vram ? vram : gx_frame_buffer_size();
-	info->screen_base = ioremap(info->fix.smem_start, info->fix.smem_len);
+	info->screen_base = ioremap_wc(info->fix.smem_start,
+				       info->fix.smem_len);
 	if (!info->screen_base)
 		return -ENOMEM;
 
@@ -473,7 +474,7 @@ static void gxfb_remove(struct pci_dev *pdev)
 	framebuffer_release(info);
 }
 
-static struct pci_device_id gxfb_id_table[] = {
+static const struct pci_device_id gxfb_id_table[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_NS, PCI_DEVICE_ID_NS_GX_VIDEO) },
 	{ 0, }
 };
