@@ -73,5 +73,9 @@
 #define S32GEN1_CLK_XBAR_DIV4			51
 #define S32GEN1_CLK_SBSW			52
 
-#define	S32GEN1_CLK_END				53
+/* SDHC Clock */
+#define S32GEN1_CLK_SDHC_SEL			53
+#define S32GEN1_CLK_SDHC			54
+
+#define	S32GEN1_CLK_END				55
 #endif /* __DT_BINDINGS_CLOCK_S32GEN1_H */
