@@ -18,6 +18,7 @@ Required properties:
 	       "fsl,imx7d-usdhc"
 	       "fsl,sac58r-usdhc"
 	       "fsl,s32v234-usdhc"
+	       "fsl,s32gen1-usdhc"
 
 Optional properties:
 - fsl,wp-controller : Indicate to use controller internal write protection
