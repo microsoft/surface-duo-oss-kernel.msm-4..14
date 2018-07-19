@@ -20,6 +20,7 @@
 #include <linux/log2.h>
 #include <linux/module.h>
 #include <linux/of.h>
+#include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/reboot.h>
 #include <linux/regmap.h>
@@ -38,12 +39,16 @@
 #define  PON_PS_HOLD_TYPE_HARD_RESET	7
 
 #define PON_PULL_CTL			0x70
-#define  PON_RESIN_PULL_UP		BIT(0)
 #define  PON_KPDPWR_PULL_UP		BIT(1)
+#define  PON_RESIN_PULL_UP		BIT(0)
 
 #define PON_DBC_CTL			0x71
 #define  PON_DBC_DELAY_MASK		0x7
 
+struct pm8941_data {
+	unsigned int pull_up_bit;
+	unsigned int status_bit;
+};
 
 struct pm8941_pwrkey {
 	struct device *dev;
@@ -54,7 +59,9 @@ struct pm8941_pwrkey {
 
 	unsigned int revision;
 	struct notifier_block reboot_notifier;
-	unsigned int resin_code;
+
+	u32 code;
+	const struct pm8941_data *data;
 };
 
 static int pm8941_reboot_notify(struct notifier_block *nb,
@@ -127,26 +134,8 @@ static irqreturn_t pm8941_pwrkey_irq(int irq, void *_data)
 	if (error)
 		return IRQ_HANDLED;
 
-	input_report_key(pwrkey->input, KEY_POWER, !!(sts & PON_KPDPWR_N_SET));
-	input_sync(pwrkey->input);
-
-	return IRQ_HANDLED;
-}
-
-static irqreturn_t pm8941_resin_irq(int irq, void *_data)
-{
-	struct pm8941_pwrkey *pwrkey = _data;
-	unsigned int sts;
-	int error;
-
-	error = regmap_read(pwrkey->regmap,
-			    pwrkey->baseaddr + PON_RT_STS, &sts);
-	if (error)
-		return IRQ_HANDLED;
-
-	input_report_key(pwrkey->input, pwrkey->resin_code,
-			 !!(sts & PON_RESIN_N_SET));
-
+	input_report_key(pwrkey->input, pwrkey->code,
+			 sts & pwrkey->data->status_bit);
 	input_sync(pwrkey->input);
 
 	return IRQ_HANDLED;
@@ -175,50 +164,11 @@ static int __maybe_unused pm8941_pwrkey_resume(struct device *dev)
 static SIMPLE_DEV_PM_OPS(pm8941_pwr_key_pm_ops,
 			 pm8941_pwrkey_suspend, pm8941_pwrkey_resume);
 
-static void pm8941_resin_setup(struct platform_device *pdev,
-				struct pm8941_pwrkey *pwrkey)
-{
-	int irq, error;
-	bool pull_up;
-	u32 code;
-
-	irq = platform_get_irq(pdev, 1);
-	if (irq < 0)
-		return;
-
-	pull_up = of_property_read_bool(pdev->dev.of_node, "resin-pull-up");
-
-	error = regmap_update_bits(pwrkey->regmap,
-				   pwrkey->baseaddr + PON_PULL_CTL,
-				   PON_RESIN_PULL_UP,
-				   pull_up ? PON_RESIN_PULL_UP : 0);
-	if (error) {
-		dev_err(&pdev->dev, "failed to set pull: %d\n", error);
-		return;
-	}
-
-	error = of_property_read_u32(pdev->dev.of_node, "linux,code", &code);
-	if (error) {
-		dev_err(&pdev->dev, "resin no linux,code %d\n", error);
-		return;
-	}
-
-	pwrkey->resin_code = code;
-
-	input_set_capability(pwrkey->input, EV_KEY, code);
-
-	error = devm_request_threaded_irq(&pdev->dev, irq,
-					  NULL, pm8941_resin_irq,
-					  IRQF_ONESHOT,
-					  "pm8941_resin", pwrkey);
-	if (error)
-		dev_err(&pdev->dev, "failed requesting IRQ: %d\n", error);
-}
-
 static int pm8941_pwrkey_probe(struct platform_device *pdev)
 {
 	struct pm8941_pwrkey *pwrkey;
 	bool pull_up;
+	struct device *parent;
 	u32 req_delay;
 	int error;
 
@@ -237,23 +187,36 @@ static int pm8941_pwrkey_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	pwrkey->dev = &pdev->dev;
+	pwrkey->data = of_device_get_match_data(&pdev->dev);
 
-	pwrkey->regmap = dev_get_regmap(pdev->dev.parent, NULL);
+	parent = pdev->dev.parent;
+	pwrkey->regmap = dev_get_regmap(parent, NULL);
 	if (!pwrkey->regmap) {
-		dev_err(&pdev->dev, "failed to locate regmap\n");
-		return -ENODEV;
+		/*
+		 * we failed to get regmap for parent
+		 * Check if we are child on pon and read regmap and reg from
+		 * parent
+		 */
+		pwrkey->regmap = dev_get_regmap(parent->parent, NULL);
+		if (!pwrkey->regmap) {
+			dev_err(&pdev->dev, "failed to locate regmap\n");
+			return -ENODEV;
+		}
+
+		error = of_property_read_u32(parent->of_node,
+					     "reg", &pwrkey->baseaddr);
+	} else {
+		error = of_property_read_u32(pdev->dev.of_node, "reg",
+					     &pwrkey->baseaddr);
 	}
+	if (error)
+		return error;
 
 	pwrkey->irq = platform_get_irq(pdev, 0);
 	if (pwrkey->irq < 0) {
 		dev_err(&pdev->dev, "failed to get irq\n");
 		return pwrkey->irq;
 	}
-
-	error = of_property_read_u32(pdev->dev.of_node, "reg",
-				     &pwrkey->baseaddr);
-	if (error)
-		return error;
 
 	error = regmap_read(pwrkey->regmap, pwrkey->baseaddr + PON_REV2,
 			    &pwrkey->revision);
@@ -262,13 +225,20 @@ static int pm8941_pwrkey_probe(struct platform_device *pdev)
 		return error;
 	}
 
+	error = of_property_read_u32(pdev->dev.of_node, "linux,code",
+				     &pwrkey->code);
+	if (error) {
+		dev_info(&pdev->dev, "no linux,code assuming power%d\n", error);
+		pwrkey->code = KEY_POWER;
+	}
+
 	pwrkey->input = devm_input_allocate_device(&pdev->dev);
 	if (!pwrkey->input) {
 		dev_dbg(&pdev->dev, "unable to allocate input device\n");
 		return -ENOMEM;
 	}
 
-	input_set_capability(pwrkey->input, EV_KEY, KEY_POWER);
+	input_set_capability(pwrkey->input, EV_KEY, pwrkey->code);
 
 	pwrkey->input->name = "pm8941_pwrkey";
 	pwrkey->input->phys = "pm8941_pwrkey/input0";
@@ -287,8 +257,8 @@ static int pm8941_pwrkey_probe(struct platform_device *pdev)
 
 	error = regmap_update_bits(pwrkey->regmap,
 				   pwrkey->baseaddr + PON_PULL_CTL,
-				   PON_KPDPWR_PULL_UP,
-				   pull_up ? PON_KPDPWR_PULL_UP : 0);
+				   pwrkey->data->pull_up_bit,
+				   pull_up ? pwrkey->data->pull_up_bit : 0);
 	if (error) {
 		dev_err(&pdev->dev, "failed to set pull: %d\n", error);
 		return error;
@@ -302,8 +272,6 @@ static int pm8941_pwrkey_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "failed requesting IRQ: %d\n", error);
 		return error;
 	}
-
-	pm8941_resin_setup(pdev, pwrkey);
 
 	error = input_register_device(pwrkey->input);
 	if (error) {
@@ -335,8 +303,19 @@ static int pm8941_pwrkey_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static const struct pm8941_data pwrkey_data = {
+	.pull_up_bit = PON_KPDPWR_PULL_UP,
+	.status_bit = PON_KPDPWR_N_SET,
+};
+
+static const struct pm8941_data resin_data = {
+	.pull_up_bit = PON_RESIN_PULL_UP,
+	.status_bit = PON_RESIN_N_SET,
+};
+
 static const struct of_device_id pm8941_pwr_key_id_table[] = {
-	{ .compatible = "qcom,pm8941-pwrkey" },
+	{ .compatible = "qcom,pm8941-pwrkey", .data = &pwrkey_data },
+	{ .compatible = "qcom,pm8941-resin", .data = &resin_data },
 	{ }
 };
 MODULE_DEVICE_TABLE(of, pm8941_pwr_key_id_table);
