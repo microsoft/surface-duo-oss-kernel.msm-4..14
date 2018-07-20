@@ -113,6 +113,17 @@ config POWER_RESET_MSM
 	help
 	  Power off and restart support for Qualcomm boards.
 
+config POWER_RESET_QCOM_PON
+	tristate "Qualcomm power-on driver"
+	depends on ARCH_QCOM
+	depends on MFD_SPMI_PMIC
+	select REBOOT_MODE
+	help
+	  Power On support for Qualcomm boards.
+	  If you have a Qualcomm platform and need support for
+	  power-on and reboot reason, Say Y.
+	  If unsure, Say N.
+
 config POWER_RESET_PIIX4_POWEROFF
 	tristate "Intel PIIX4 power-off driver"
 	depends on PCI
