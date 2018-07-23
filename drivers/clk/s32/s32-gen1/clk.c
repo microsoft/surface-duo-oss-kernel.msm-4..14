@@ -180,11 +180,15 @@ static void __init s32gen1_clocks_init(struct device_node *clocking_node)
 		 armdfs, 6);
 
 	/* XBAR CLKS */
-	clk[S32GEN1_CLK_XBAR] = s32_clk_mux_table("xbar",
+	clk[S32GEN1_CLK_XBAR_SEL] = s32_clk_mux_table("xbar_sel",
 		CGM_MUXn_CSC(mc_cgm0_base, 0),
 		MC_CGM_MUXn_CSC_SELCTL_OFFSET,
 		MC_CGM_MUXn_CSC_SELCTL_SIZE,
 		xbar_sels, ARRAY_SIZE(xbar_sels), xbar_mux_idx, &s32gen1_lock);
+
+	clk[S32GEN1_CLK_XBAR] = s32_clk_divider("xbar", "xbar_sel",
+		CGM_MUXn_DC(mc_cgm0_base, 0), MC_CGM_MUX_DCn_DIV_OFFSET,
+		MC_CGM_MUX_DCn_DIV_SIZE, &s32gen1_lock);
 
 	clk[S32GEN1_CLK_XBAR_DIV2] = s32_clk_fixed_factor("xbar_div2",
 		"xbar", 1, 2);
