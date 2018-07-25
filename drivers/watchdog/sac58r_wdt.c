@@ -270,6 +270,7 @@ static void sac58r_wdt_shutdown(struct platform_device *pdev)
 static const struct of_device_id sac58r_wdt_dt_ids[] = {
 	{.compatible = "fsl,sac58r-wdt",},
 	{.compatible = "fsl,s32v234-wdt",},
+	{.compatible = "fsl,s32gen1-wdt",},
 	{ /* sentinel */ }
 };
 
