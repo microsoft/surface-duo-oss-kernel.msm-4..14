@@ -641,6 +641,7 @@ typedef unsigned char *sk_buff_data_t;
  *	@no_fcs:  Request NIC to treat last 4 bytes as Ethernet FCS
  *	@csum_not_inet: use CRC32c to resolve CHECKSUM_PARTIAL
  *	@dst_pending_confirm: need to confirm neighbour
+ *	@decrypted: Decrypted SKB
   *	@napi_id: id of the NAPI struct this skb came from
  *	@secmark: security marking
  *	@mark: Generic packet mark
@@ -678,7 +679,8 @@ struct sk_buff {
 				int			ip_defrag_offset;
 			};
 		};
-		struct rb_node	rbnode; /* used in netem & tcp stack */
+		struct rb_node		rbnode; /* used in netem & tcp stack */
+		struct list_head	list;
 	};
 	struct sock		*sk;
 
@@ -790,6 +792,9 @@ struct sk_buff {
 	__u8			tc_at_ingress:1;
 	__u8			tc_redirected:1;
 	__u8			tc_from_ingress:1;
+#endif
+#ifdef CONFIG_TLS_DEVICE
+	__u8			decrypted:1;
 #endif
 
 #ifdef CONFIG_NET_SCHED

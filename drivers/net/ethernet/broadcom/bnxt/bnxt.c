@@ -1727,7 +1727,7 @@ static int bnxt_async_event_process(struct bnxt *bp,
 					    speed);
 		}
 		set_bit(BNXT_LINK_SPEED_CHNG_SP_EVENT, &bp->sp_event);
-		/* fall thru */
+		/* fall through */
 	}
 	case ASYNC_EVENT_CMPL_EVENT_ID_LINK_STATUS_CHANGE:
 		set_bit(BNXT_LINK_CHNG_SP_EVENT, &bp->sp_event);
@@ -3012,13 +3012,6 @@ static void bnxt_free_hwrm_resources(struct bnxt *bp)
 			  bp->hwrm_cmd_resp_dma_addr);
 
 	bp->hwrm_cmd_resp_addr = NULL;
-	if (bp->hwrm_dbg_resp_addr) {
-		dma_free_coherent(&pdev->dev, HWRM_DBG_REG_BUF_SIZE,
-				  bp->hwrm_dbg_resp_addr,
-				  bp->hwrm_dbg_resp_dma_addr);
-
-		bp->hwrm_dbg_resp_addr = NULL;
-	}
 }
 
 static int bnxt_alloc_hwrm_resources(struct bnxt *bp)
@@ -3030,12 +3023,6 @@ static int bnxt_alloc_hwrm_resources(struct bnxt *bp)
 						   GFP_KERNEL);
 	if (!bp->hwrm_cmd_resp_addr)
 		return -ENOMEM;
-	bp->hwrm_dbg_resp_addr = dma_alloc_coherent(&pdev->dev,
-						    HWRM_DBG_REG_BUF_SIZE,
-						    &bp->hwrm_dbg_resp_dma_addr,
-						    GFP_KERNEL);
-	if (!bp->hwrm_dbg_resp_addr)
-		netdev_warn(bp->dev, "fail to alloc debug register dma mem\n");
 
 	return 0;
 }
@@ -7991,7 +7978,7 @@ static int bnxt_setup_tc_block(struct net_device *dev,
 	switch (f->command) {
 	case TC_BLOCK_BIND:
 		return tcf_block_cb_register(f->block, bnxt_setup_tc_block_cb,
-					     bp, bp);
+					     bp, bp, f->extack);
 	case TC_BLOCK_UNBIND:
 		tcf_block_cb_unregister(f->block, bnxt_setup_tc_block_cb, bp);
 		return 0;
