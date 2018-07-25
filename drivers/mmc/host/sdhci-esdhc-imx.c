@@ -282,6 +282,7 @@ static inline int is_s32v234_usdhc(struct pltfm_imx_data *data)
 static inline int is_s32gen1_usdhc(struct pltfm_imx_data *data)
 {
 	return data->socdata == &usdhc_s32gen1_data;
+}
 
 static inline int esdhc_is_usdhc(struct pltfm_imx_data *data)
 {
