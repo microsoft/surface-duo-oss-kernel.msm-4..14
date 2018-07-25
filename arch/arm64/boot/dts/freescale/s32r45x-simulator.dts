@@ -130,6 +130,22 @@
 	status = "okay";
 };
 
+&swt3 {
+	status = "okay";
+};
+
+&swt4 {
+	status = "okay";
+};
+
+&swt5 {
+	status = "okay";
+};
+
+&swt6 {
+	status = "okay";
+};
+
 &pit0 {
 	status = "okay";
 };
