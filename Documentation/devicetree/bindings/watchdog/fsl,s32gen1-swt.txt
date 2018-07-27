@@ -1,0 +1,16 @@
+* NXP S32-Gen1 Watchdog Timer (WDT) Controller
+
+Required properties:
+- compatible : Should be "fsl,s32gen1-wdt"
+- reg : Should contain WDT registers location and length
+- clocks: Should contain WDT clock source
+
+Examples:
+
+swt3: swt@4010C000 {
+	compatible = "fsl,s32gen1-wdt", "fsl,sac58r-wdt";
+	reg = <0x0 0x4010C000 0x0 0x1000>;
+	clocks = <&clks S32GEN1_CLK_FIRC>;
+	clock-names = "swt";
+	status = "disabled";
+};
