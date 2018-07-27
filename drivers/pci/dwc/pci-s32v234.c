@@ -112,6 +112,8 @@ struct s32v234_pcie {
 #define PCIE_RC_LCR_MAX_LINK_SPEEDS_GEN2	0x2
 #define PCIE_RC_LCR_MAX_LINK_SPEEDS_MASK	0xf
 
+#define PCIE_RC_LCSR			0x80
+
 /* PCIe Port Logic registers (memory-mapped) */
 #define PL_OFFSET 0x700
 #define PCIE_PL_PFLR (PL_OFFSET + 0x08)
@@ -932,7 +934,7 @@ static inline bool is_S32V234_pcie(struct s32v234_pcie *s32v234_pcie)
 	return of_device_is_compatible(np, "fsl,s32v234-pcie");
 }
 
-static int s32v234_pcie_assert_core_reset(struct pcie_port *pp)
+static void s32v234_pcie_assert_core_reset(struct pcie_port *pp)
 {
 	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
 	struct s32v234_pcie *s32v234_pcie = to_s32v234_from_dw_pcie(pcie);
@@ -942,11 +944,9 @@ static int s32v234_pcie_assert_core_reset(struct pcie_port *pp)
 				SRC_GPR5_GPR_PCIE_BUTTON_RST_N,
 				SRC_GPR5_GPR_PCIE_BUTTON_RST_N);
 	}
-
-	return 0;
 }
 
-static int s32v234_pcie_deassert_core_reset(struct pcie_port *pp)
+static void s32v234_pcie_deassert_core_reset(struct pcie_port *pp)
 {
 	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
 	struct s32v234_pcie *s32v234_pcie = to_s32v234_from_dw_pcie(pcie);
@@ -961,8 +961,6 @@ static int s32v234_pcie_deassert_core_reset(struct pcie_port *pp)
 		regmap_update_bits(s32v234_pcie->src, SRC_GPR5,
 		SRC_GPR5_GPR_PCIE_BUTTON_RST_N, 0);
 	mdelay(PCIE_CX_CPL_BASE_TIMER_VALUE);
-	return 0;
-
 }
 
 /* Perform a soft-reset of the PCIE core. Needed e.g. in the case of a
@@ -1008,20 +1006,16 @@ static int s32v234_pcie_init_phy(struct pcie_port *pp)
 static int s32v234_pcie_wait_for_link(struct pcie_port *pp)
 {
 	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
-	int count	= 1000;
 
-	while (!dw_pcie_link_up(pcie)) {
-		udelay(100);
-		if (--count)
-			continue;
-		dev_err(pcie->dev, "phy link never came up\n");
-		dev_dbg(pcie->dev, "DEBUG_R0: 0x%08x, DEBUG_R1: 0x%08x\n",
-			readl(pcie->dbi_base + PCIE_PHY_DEBUG_R0),
-			readl(pcie->dbi_base + PCIE_PHY_DEBUG_R1));
-		return -EINVAL;
-	}
+	/* check if the link is up or not */
+	if (!dw_pcie_wait_for_link(pcie))
+		return 0;
 
-	return 0;
+	dev_err(pcie->dev, "phy link never came up\n");
+	dev_info(pcie->dev, "DEBUG_R0: 0x%08x, DEBUG_R1: 0x%08x\n",
+		dw_pcie_readl_dbi(pcie, PCIE_PHY_DEBUG_R0),
+		dw_pcie_readl_dbi(pcie, PCIE_PHY_DEBUG_R1));
+	return -ETIMEDOUT;
 }
 
 #ifdef CONFIG_PCI_MSI
@@ -1045,10 +1039,10 @@ static int s32v234_pcie_start_link(struct pcie_port *pp)
 	 * started in Gen2 mode, there is a possibility the devices on the
 	 * bus will not be detected at all.  This happens with PCIe switches.
 	 */
-	tmp = readl(pcie->dbi_base + PCIE_RC_LCR);
+	tmp = dw_pcie_readl_dbi(pcie, PCIE_RC_LCR);
 	tmp &= ~PCIE_RC_LCR_MAX_LINK_SPEEDS_MASK;
 	tmp |= PCIE_RC_LCR_MAX_LINK_SPEEDS_GEN1;
-	writel(tmp, pcie->dbi_base + PCIE_RC_LCR);
+	dw_pcie_writel_dbi(pcie, PCIE_RC_LCR, tmp);
 
 	/* Start LTSSM. */
 
@@ -1063,39 +1057,41 @@ static int s32v234_pcie_start_link(struct pcie_port *pp)
 		goto out;
 
 	/* Allow Gen2 mode after the link is up. */
-	tmp = readl(pcie->dbi_base + PCIE_RC_LCR);
+	tmp = dw_pcie_readl_dbi(pcie, PCIE_RC_LCR);
 	tmp &= ~PCIE_RC_LCR_MAX_LINK_SPEEDS_MASK;
 	tmp |= PCIE_RC_LCR_MAX_LINK_SPEEDS_GEN2;
-	writel(tmp, pcie->dbi_base + PCIE_RC_LCR);
+	dw_pcie_writel_dbi(pcie, PCIE_RC_LCR, tmp);
 
 	/*
 	 * Start Directed Speed Change so the best possible speed both link
 	 * partners support can be negotiated.
 	 */
-	tmp = readl(pcie->dbi_base + PCIE_LINK_WIDTH_SPEED_CONTROL);
+	tmp = dw_pcie_readl_dbi(pcie, PCIE_LINK_WIDTH_SPEED_CONTROL);
 	tmp |= PORT_LOGIC_SPEED_CHANGE;
-	writel(tmp, pcie->dbi_base + PCIE_LINK_WIDTH_SPEED_CONTROL);
+	dw_pcie_writel_dbi(pcie, PCIE_LINK_WIDTH_SPEED_CONTROL, tmp);
 
 	count = 1000;
 	while (count--) {
-		tmp = readl(pcie->dbi_base + PCIE_LINK_WIDTH_SPEED_CONTROL);
+		tmp = dw_pcie_readl_dbi(pcie, PCIE_LINK_WIDTH_SPEED_CONTROL);
 		/* Test if the speed change finished. */
 		if (!(tmp & PORT_LOGIC_SPEED_CHANGE))
 			break;
-		udelay(150);
+		usleep_range(100, 1000);
 	}
 
 	/* Make sure link training is finished as well! */
 	if (count)
 		ret = s32v234_pcie_wait_for_link(pp);
-	else
+	else {
+		dev_err(pcie->dev, "Speed change timeout\n");
 		ret = -EINVAL;
+	}
 
 out:
 	if (ret) {
 		dev_err(pcie->dev, "Failed to bring link up!\n");
 	} else {
-		tmp = readl(pcie->dbi_base + 0x80);
+		tmp = dw_pcie_readl_dbi(pcie, PCIE_RC_LCSR);
 		dev_dbg(pcie->dev, "Link up, Gen=%i\n", (tmp >> 16) & 0xf);
 	}
 	return ret;
@@ -1106,24 +1102,13 @@ static int s32v234_pcie_host_init(struct pcie_port *pp)
 	int socmask_info;
 	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
 	struct s32v234_pcie *s32v234_pcie = to_s32v234_from_dw_pcie(pcie);
-	int ret = 0;
 
 	/* enable disp_mix power domain */
 	pm_runtime_get_sync(pcie->dev);
 
 	s32v234_pcie_assert_core_reset(pp);
-
-	ret = s32v234_pcie_init_phy(pp);
-	if (ret < 0) {
-		pr_warn("Error initializing s32v234 pcie phy\n");
-		return ret;
-	}
-
-	ret = s32v234_pcie_deassert_core_reset(pp);
-	if (ret < 0) {
-		pr_warn("Error deasserting core reset\n");
-		return ret;
-	}
+	s32v234_pcie_init_phy(pp);
+	s32v234_pcie_deassert_core_reset(pp);
 
 	/* We set up the ID for all Rev 1.x chips */
 	socmask_info = s32v234_pcie->soc_revision;
@@ -1140,17 +1125,13 @@ static int s32v234_pcie_host_init(struct pcie_port *pp)
 			 */
 			dev_info(pcie->dev,
 				 "Setting PCIE Vendor and Device ID\n");
-			writel((0x4001 << 16) | 0x1957,
-				pcie->dbi_base + PCI_VENDOR_ID);
+			dw_pcie_writel_dbi(pcie, PCI_VENDOR_ID,
+				(0x4001 << 16) | 0x1957);
 		}
 	}
 	dw_pcie_setup_rc(pp);
 
-	ret = s32v234_pcie_start_link(pp);
-	if (ret < 0) {
-		pr_warn("Error starting pcie link\n");
-		return ret;
-	}
+	s32v234_pcie_start_link(pp);
 
 #ifdef CONFIG_PCI_MSI
 	dw_pcie_msi_init(pp);
@@ -1265,6 +1246,8 @@ static int __init s32v234_add_pcie_port(struct pcie_port *pp,
 		dev_err(&pdev->dev, "failed to request MSI irq\n");
 		return -ENODEV;
 	}
+	dev_info(&pdev->dev, "Allocated line %d for interrupt %d",
+		ret, pp->msi_irq);
 #endif
 
 	pp->root_bus_nr = 0;
