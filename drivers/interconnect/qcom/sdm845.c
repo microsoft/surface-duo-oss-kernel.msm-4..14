@@ -632,7 +632,7 @@ static void qcom_icc_bcm_aggregate(struct qcom_icc_bcm *bcm)
 	bcm->dirty = false;
 }
 
-static int qcom_icc_aggregate(struct icc_node *node, u32 avg_bw,
+static int qcom_icc_aggregate(struct icc_node *node, u8 tag, u32 avg_bw,
 				u32 peak_bw, u32 *agg_avg, u32 *agg_peak)
 {
 	size_t i;
