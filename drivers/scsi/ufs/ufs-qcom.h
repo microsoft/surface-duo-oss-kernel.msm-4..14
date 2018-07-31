@@ -239,8 +239,8 @@ struct ufs_qcom_host {
 	/* Bitmask for enabling debug prints */
 	u32 dbg_print_en;
 	struct ufs_qcom_testbus testbus;
-
 	struct reset_controller_dev rcdev;
+	bool is_phy_init;
 };
 
 static inline u32
