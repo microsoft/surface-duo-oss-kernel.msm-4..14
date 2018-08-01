@@ -10,6 +10,7 @@
 #include <sound/soc-dapm.h>
 #include <sound/pcm.h>
 #include <uapi/linux/input-event-codes.h>
+#include "common.h"
 
 #define SLIM_MAX_TX_PORTS 16
 #define SLIM_MAX_RX_PORTS 16
@@ -129,101 +130,19 @@ static int apq8096_init(struct snd_soc_pcm_runtime *rtd)
 	return 0;
 }
 
-static int apq8096_sbc_parse_of(struct snd_soc_card *card)
+static void apq8096_add_be_ops(struct snd_soc_card *card)
 {
-	struct device_node *np, *codec, *platform, *cpu, *node;
-	struct device *dev = card->dev;
-	struct snd_soc_dai_link *link;
-	int ret, num_links;
+	struct snd_soc_dai_link *link = card->dai_link;
+	int i, num_links = card->num_links;
 
-	ret = snd_soc_of_parse_card_name(card, "qcom,model");
-	if (ret) {
-		dev_err(dev, "Error parsing card name: %d\n", ret);
-		return ret;
-	}
-
-	node = dev->of_node;
-
-	/* DAPM routes */
-	if (of_property_read_bool(node, "qcom,audio-routing")) {
-		ret = snd_soc_of_parse_audio_routing(card,
-					"qcom,audio-routing");
-		if (ret)
-			return ret;
-	}
-
-	/* Populate links */
-	num_links = of_get_child_count(node);
-
-	/* Allocate the DAI link array */
-	card->dai_link = kcalloc(num_links, sizeof(*link), GFP_KERNEL);
-	if (!card->dai_link)
-		return -ENOMEM;
-
-	card->num_links	= num_links;
-	link = card->dai_link;
-
-	for_each_child_of_node(node, np) {
-		cpu = of_get_child_by_name(np, "cpu");
-		platform = of_get_child_by_name(np, "platform");
-		codec = of_get_child_by_name(np, "codec");
-
-		if (!cpu) {
-			dev_err(dev, "Can't find cpu DT node\n");
-			return -EINVAL;
-		}
-
-		link->cpu_of_node = of_parse_phandle(cpu, "sound-dai", 0);
-		if (!link->cpu_of_node) {
-			dev_err(card->dev, "error getting cpu phandle\n");
-			return -EINVAL;
-		}
-
-		link->platform_of_node = of_parse_phandle(platform,
-							  "sound-dai", 0);
-		if (!link->platform_of_node) {
-			dev_err(card->dev, "error getting platform phandle\n");
-			return -EINVAL;
-		}
-
-		ret = snd_soc_of_get_dai_name(cpu, &link->cpu_dai_name);
-		if (ret) {
-			dev_err(card->dev, "error getting cpu dai name\n");
-			return ret;
-		}
-
-		if (codec) {
-			ret = snd_soc_of_get_dai_link_codecs(dev, codec, link);
-
-			if (ret < 0) {
-				dev_err(card->dev, "error getting codec dai name\n");
-				return ret;
-			}
-			link->no_pcm = 1;
-			link->ignore_suspend = 1;
-			link->ignore_pmdown_time = 1;
+	for (i = 0; i < num_links; i++) {
+		if (link->no_pcm == 1) {
 			link->be_hw_params_fixup = apq8096_be_hw_params_fixup;
 			link->init = apq8096_init;
 			link->ops = &apq8096_ops;
-		} else {
-			link->codec_dai_name = "snd-soc-dummy-dai";
-			link->codec_name = "snd-soc-dummy";
-			link->dynamic = 1;
 		}
-
-		ret = of_property_read_string(np, "link-name", &link->name);
-		if (ret) {
-			dev_err(card->dev, "error getting codec dai_link name\n");
-			return ret;
-		}
-
-		link->dpcm_playback = 1;
-		link->dpcm_capture = 1;
-		link->stream_name = link->name;
 		link++;
 	}
-
-	return ret;
 }
 
 static int apq8096_platform_probe(struct platform_device *pdev)
@@ -246,18 +165,21 @@ static int apq8096_platform_probe(struct platform_device *pdev)
 	card->dev = dev;
 	dev_set_drvdata(dev, card);
 	snd_soc_card_set_drvdata(card, data);
-	ret = apq8096_sbc_parse_of(card);
+	ret = qcom_snd_parse_of(card);
 	if (ret) {
 		dev_err(dev, "Error parsing OF data\n");
 		return ret;
 	}
 
+	apq8096_add_be_ops(card);
 	ret = snd_soc_register_card(card);
 	if (ret)
-		goto err;
+		goto err_card_register;
 
 	return 0;
 
+err_card_register:
+	kfree(card->dai_link);
 err:
 	kfree(card);
 	kfree(data);
