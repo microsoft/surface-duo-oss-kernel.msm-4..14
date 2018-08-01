@@ -134,6 +134,18 @@
 		      <0x0 0x40088000 0x0 0x1000>;
 	};
 
+	fccu: fccu@4030C000 {
+		compatible = "fsl,s32gen1-fccu";
+		reg = <0x0 0x4030C000 0x0 0x3000>;
+		clocks = <&clks S32GEN1_CLK_XBAR_DIV3>;
+		clock-names = "fccu";
+		/* Address offset and configuration value for */
+		/* NCF_E1 and NCFS_CFG2*/
+		cfg_reg_off = <0x98 0x54>;
+		cfg_reg_val = <0x78 0x1540>;
+		status = "disabled";
+	};
+
 	siul2_0 {
 		compatible = "simple-mfd";
 		#address-cells = <2>;
