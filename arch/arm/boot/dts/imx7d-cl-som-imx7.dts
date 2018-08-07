@@ -86,6 +86,15 @@
 		enable-active-high;
 	};
 
+	bt_en_reg: fixedregulator-bt_en {
+		compatible = "regulator-fixed";
+		regulator-name = "bt_en_fixed";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		gpio = <&pca9555 1 GPIO_ACTIVE_HIGH>;
+		startup-delay-us = <1000>;
+		enable-active-high;
+	};
 	/* Regulators - end */
 
 	leds {
@@ -134,6 +143,15 @@
 			system-clock-direction = "in";
 		};
 	};
+
+	bt_enable: bt_enable@0 {
+		compatible = "userspace-consumer-wrapper";
+		comment = "Enable/disbale bluetooth regulator bt_en_reg";
+
+		regulator-name = "bt_en_fixed";
+		us-folder-num = <0>;
+	};
+
 };
 
 &clks {
