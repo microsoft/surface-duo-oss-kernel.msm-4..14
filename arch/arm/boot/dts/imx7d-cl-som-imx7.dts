@@ -85,19 +85,8 @@
 		startup-delay-us = <70000>;
 		enable-active-high;
 	};
+
 	/* Regulators - end */
-
-	kim {
-		compatible = "kim";
-		nshutdown_gpio = <&pca9555 1 GPIO_ACTIVE_HIGH>;
-		dev_name = "/dev/ttymxc2";
-		flow_cntrl = <1>;
-		baud_rate = <3000000>;
-	};
-
-	btwilink {
-		compatible = "btwilink";
-	};
 
 	leds {
 		compatible = "gpio-leds";
