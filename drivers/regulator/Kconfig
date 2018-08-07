@@ -54,6 +54,15 @@ config REGULATOR_USERSPACE_CONSUMER
 
 	  If unsure, say no.
 
+config REGULATOR_USERSPACE_CONSUMER_WRAPPER
+	tristate "Userspace consumer device tree wrapper"
+	depends on REGULATOR_USERSPACE_CONSUMER
+	help
+	  Add the ability to control the userspace consumer driver from device
+	  tree.
+
+	  If unsure, say no.
+
 config REGULATOR_88PM800
 	tristate "Marvell 88PM800 Power regulators"
 	depends on MFD_88PM800
