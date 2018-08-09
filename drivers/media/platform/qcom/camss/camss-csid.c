@@ -372,9 +372,12 @@ static u32 csid_find_code(u32 *code, unsigned int n_code,
 static u32 csid_src_pad_code(struct csid_device *csid, u32 sink_code,
 			    unsigned int index, u32 src_req_code)
 {
-	if (csid->camss->version == CAMSS_8x16)
+	if (csid->camss->version == CAMSS_8x16) {
+		if (index > 0)
+			return 0;
+
 		return sink_code;
-	else if (csid->camss->version == CAMSS_8x96)
+	} else if (csid->camss->version == CAMSS_8x96) {
 		switch (sink_code) {
 		case MEDIA_BUS_FMT_SBGGR10_1X10:
 		{
@@ -402,8 +405,9 @@ static u32 csid_src_pad_code(struct csid_device *csid, u32 sink_code,
 
 			return sink_code;
 		}
-	else
+	} else {
 		return 0;
+	}
 }
 
 static const struct csid_format *csid_get_fmt_entry(
