@@ -13,83 +13,82 @@
 
 #include "camss-vfe.h"
 
-
 #define VFE_0_HW_VERSION		0x000
 
 #define VFE_0_GLOBAL_RESET_CMD		0x018
-#define VFE_0_GLOBAL_RESET_CMD_CORE	(1 << 0)
-#define VFE_0_GLOBAL_RESET_CMD_CAMIF	(1 << 1)
-#define VFE_0_GLOBAL_RESET_CMD_BUS	(1 << 2)
-#define VFE_0_GLOBAL_RESET_CMD_BUS_BDG	(1 << 3)
-#define VFE_0_GLOBAL_RESET_CMD_REGISTER	(1 << 4)
-#define VFE_0_GLOBAL_RESET_CMD_PM	(1 << 5)
-#define VFE_0_GLOBAL_RESET_CMD_BUS_MISR	(1 << 6)
-#define VFE_0_GLOBAL_RESET_CMD_TESTGEN	(1 << 7)
-#define VFE_0_GLOBAL_RESET_CMD_DSP	(1 << 8)
-#define VFE_0_GLOBAL_RESET_CMD_IDLE_CGC	(1 << 9)
+#define VFE_0_GLOBAL_RESET_CMD_CORE	BIT(0)
+#define VFE_0_GLOBAL_RESET_CMD_CAMIF	BIT(1)
+#define VFE_0_GLOBAL_RESET_CMD_BUS	BIT(2)
+#define VFE_0_GLOBAL_RESET_CMD_BUS_BDG	BIT(3)
+#define VFE_0_GLOBAL_RESET_CMD_REGISTER	BIT(4)
+#define VFE_0_GLOBAL_RESET_CMD_PM	BIT(5)
+#define VFE_0_GLOBAL_RESET_CMD_BUS_MISR	BIT(6)
+#define VFE_0_GLOBAL_RESET_CMD_TESTGEN	BIT(7)
+#define VFE_0_GLOBAL_RESET_CMD_DSP	BIT(8)
+#define VFE_0_GLOBAL_RESET_CMD_IDLE_CGC	BIT(9)
 
 #define VFE_0_MODULE_LENS_EN		0x040
-#define VFE_0_MODULE_LENS_EN_DEMUX		(1 << 2)
-#define VFE_0_MODULE_LENS_EN_CHROMA_UPSAMPLE	(1 << 3)
+#define VFE_0_MODULE_LENS_EN_DEMUX		BIT(2)
+#define VFE_0_MODULE_LENS_EN_CHROMA_UPSAMPLE	BIT(3)
 
 #define VFE_0_MODULE_ZOOM_EN		0x04c
-#define VFE_0_MODULE_ZOOM_EN_SCALE_ENC		(1 << 1)
-#define VFE_0_MODULE_ZOOM_EN_CROP_ENC		(1 << 2)
-#define VFE_0_MODULE_ZOOM_EN_REALIGN_BUF	(1 << 9)
+#define VFE_0_MODULE_ZOOM_EN_SCALE_ENC		BIT(1)
+#define VFE_0_MODULE_ZOOM_EN_CROP_ENC		BIT(2)
+#define VFE_0_MODULE_ZOOM_EN_REALIGN_BUF	BIT(9)
 
 #define VFE_0_CORE_CFG			0x050
 #define VFE_0_CORE_CFG_PIXEL_PATTERN_YCBYCR	0x4
 #define VFE_0_CORE_CFG_PIXEL_PATTERN_YCRYCB	0x5
 #define VFE_0_CORE_CFG_PIXEL_PATTERN_CBYCRY	0x6
 #define VFE_0_CORE_CFG_PIXEL_PATTERN_CRYCBY	0x7
-#define VFE_0_CORE_CFG_COMPOSITE_REG_UPDATE_EN	(1 << 4)
+#define VFE_0_CORE_CFG_COMPOSITE_REG_UPDATE_EN	BIT(4)
 
 #define VFE_0_IRQ_CMD			0x058
-#define VFE_0_IRQ_CMD_GLOBAL_CLEAR	(1 << 0)
+#define VFE_0_IRQ_CMD_GLOBAL_CLEAR	BIT(0)
 
 #define VFE_0_IRQ_MASK_0		0x05c
-#define VFE_0_IRQ_MASK_0_CAMIF_SOF			(1 << 0)
-#define VFE_0_IRQ_MASK_0_CAMIF_EOF			(1 << 1)
-#define VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(n)		(1 << ((n) + 5))
+#define VFE_0_IRQ_MASK_0_CAMIF_SOF			BIT(0)
+#define VFE_0_IRQ_MASK_0_CAMIF_EOF			BIT(1)
+#define VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(n)		BIT((n) + 5)
 #define VFE_0_IRQ_MASK_0_line_n_REG_UPDATE(n)		\
-	((n) == VFE_LINE_PIX ? (1 << 4) : VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(n))
-#define VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(n)	(1 << ((n) + 8))
-#define VFE_0_IRQ_MASK_0_IMAGE_COMPOSITE_DONE_n(n)	(1 << ((n) + 25))
-#define VFE_0_IRQ_MASK_0_RESET_ACK			(1 << 31)
+	((n) == VFE_LINE_PIX ? BIT(4) : VFE_0_IRQ_MASK_0_RDIn_REG_UPDATE(n))
+#define VFE_0_IRQ_MASK_0_IMAGE_MASTER_n_PING_PONG(n)	BIT((n) + 8)
+#define VFE_0_IRQ_MASK_0_IMAGE_COMPOSITE_DONE_n(n)	BIT((n) + 25)
+#define VFE_0_IRQ_MASK_0_RESET_ACK			BIT(31)
 #define VFE_0_IRQ_MASK_1		0x060
-#define VFE_0_IRQ_MASK_1_CAMIF_ERROR			(1 << 0)
-#define VFE_0_IRQ_MASK_1_VIOLATION			(1 << 7)
-#define VFE_0_IRQ_MASK_1_BUS_BDG_HALT_ACK		(1 << 8)
-#define VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(n)	(1 << ((n) + 9))
-#define VFE_0_IRQ_MASK_1_RDIn_SOF(n)			(1 << ((n) + 29))
+#define VFE_0_IRQ_MASK_1_CAMIF_ERROR			BIT(0)
+#define VFE_0_IRQ_MASK_1_VIOLATION			BIT(7)
+#define VFE_0_IRQ_MASK_1_BUS_BDG_HALT_ACK		BIT(8)
+#define VFE_0_IRQ_MASK_1_IMAGE_MASTER_n_BUS_OVERFLOW(n)	BIT((n) + 9)
+#define VFE_0_IRQ_MASK_1_RDIn_SOF(n)			BIT((n) + 29)
 
 #define VFE_0_IRQ_CLEAR_0		0x064
 #define VFE_0_IRQ_CLEAR_1		0x068
 
 #define VFE_0_IRQ_STATUS_0		0x06c
-#define VFE_0_IRQ_STATUS_0_CAMIF_SOF			(1 << 0)
-#define VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(n)		(1 << ((n) + 5))
+#define VFE_0_IRQ_STATUS_0_CAMIF_SOF			BIT(0)
+#define VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(n)		BIT((n) + 5)
 #define VFE_0_IRQ_STATUS_0_line_n_REG_UPDATE(n)		\
-	((n) == VFE_LINE_PIX ? (1 << 4) : VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(n))
-#define VFE_0_IRQ_STATUS_0_IMAGE_MASTER_n_PING_PONG(n)	(1 << ((n) + 8))
-#define VFE_0_IRQ_STATUS_0_IMAGE_COMPOSITE_DONE_n(n)	(1 << ((n) + 25))
-#define VFE_0_IRQ_STATUS_0_RESET_ACK			(1 << 31)
+	((n) == VFE_LINE_PIX ? BIT(4) : VFE_0_IRQ_STATUS_0_RDIn_REG_UPDATE(n))
+#define VFE_0_IRQ_STATUS_0_IMAGE_MASTER_n_PING_PONG(n)	BIT((n) + 8)
+#define VFE_0_IRQ_STATUS_0_IMAGE_COMPOSITE_DONE_n(n)	BIT((n) + 25)
+#define VFE_0_IRQ_STATUS_0_RESET_ACK			BIT(31)
 #define VFE_0_IRQ_STATUS_1		0x070
-#define VFE_0_IRQ_STATUS_1_VIOLATION			(1 << 7)
-#define VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK		(1 << 8)
-#define VFE_0_IRQ_STATUS_1_RDIn_SOF(n)			(1 << ((n) + 29))
+#define VFE_0_IRQ_STATUS_1_VIOLATION			BIT(7)
+#define VFE_0_IRQ_STATUS_1_BUS_BDG_HALT_ACK		BIT(8)
+#define VFE_0_IRQ_STATUS_1_RDIn_SOF(n)			BIT((n) + 29)
 
 #define VFE_0_IRQ_COMPOSITE_MASK_0	0x074
 #define VFE_0_VIOLATION_STATUS		0x07c
 
 #define VFE_0_BUS_CMD			0x80
-#define VFE_0_BUS_CMD_Mx_RLD_CMD(x)	(1 << (x))
+#define VFE_0_BUS_CMD_Mx_RLD_CMD(x)	BIT(x)
 
 #define VFE_0_BUS_CFG			0x084
 
 #define VFE_0_BUS_XBAR_CFG_x(x)		(0x90 + 0x4 * ((x) / 2))
-#define VFE_0_BUS_XBAR_CFG_x_M_PAIR_STREAM_EN			(1 << 2)
-#define VFE_0_BUS_XBAR_CFG_x_M_REALIGN_BUF_EN			(1 << 3)
+#define VFE_0_BUS_XBAR_CFG_x_M_PAIR_STREAM_EN			BIT(2)
+#define VFE_0_BUS_XBAR_CFG_x_M_REALIGN_BUF_EN			BIT(3)
 #define VFE_0_BUS_XBAR_CFG_x_M_PAIR_STREAM_SWAP_INTRA		(0x1 << 4)
 #define VFE_0_BUS_XBAR_CFG_x_M_PAIR_STREAM_SWAP_INTER		(0x2 << 4)
 #define VFE_0_BUS_XBAR_CFG_x_M_PAIR_STREAM_SWAP_INTER_INTRA	(0x3 << 4)
@@ -158,16 +157,16 @@
 #define VFE_0_RDI_CFG_x_RDI_STREAM_SEL_MASK	(0xf << 28)
 #define VFE_0_RDI_CFG_x_RDI_M0_SEL_SHIFT	4
 #define VFE_0_RDI_CFG_x_RDI_M0_SEL_MASK		(0xf << 4)
-#define VFE_0_RDI_CFG_x_RDI_EN_BIT		(1 << 2)
+#define VFE_0_RDI_CFG_x_RDI_EN_BIT		BIT(2)
 #define VFE_0_RDI_CFG_x_MIPI_EN_BITS		0x3
 
 #define VFE_0_CAMIF_CMD				0x478
 #define VFE_0_CAMIF_CMD_DISABLE_FRAME_BOUNDARY	0
 #define VFE_0_CAMIF_CMD_ENABLE_FRAME_BOUNDARY	1
 #define VFE_0_CAMIF_CMD_NO_CHANGE		3
-#define VFE_0_CAMIF_CMD_CLEAR_CAMIF_STATUS	(1 << 2)
+#define VFE_0_CAMIF_CMD_CLEAR_CAMIF_STATUS	BIT(2)
 #define VFE_0_CAMIF_CFG				0x47c
-#define VFE_0_CAMIF_CFG_VFE_OUTPUT_EN		(1 << 6)
+#define VFE_0_CAMIF_CFG_VFE_OUTPUT_EN		BIT(6)
 #define VFE_0_CAMIF_FRAME_CFG			0x484
 #define VFE_0_CAMIF_WINDOW_WIDTH_CFG		0x488
 #define VFE_0_CAMIF_WINDOW_HEIGHT_CFG		0x48c
@@ -175,10 +174,10 @@
 #define VFE_0_CAMIF_IRQ_FRAMEDROP_PATTERN	0x498
 #define VFE_0_CAMIF_IRQ_SUBSAMPLE_PATTERN	0x49c
 #define VFE_0_CAMIF_STATUS			0x4a4
-#define VFE_0_CAMIF_STATUS_HALT			(1 << 31)
+#define VFE_0_CAMIF_STATUS_HALT			BIT(31)
 
 #define VFE_0_REG_UPDATE		0x4ac
-#define VFE_0_REG_UPDATE_RDIn(n)		(1 << (1 + (n)))
+#define VFE_0_REG_UPDATE_RDIn(n)		BIT(1 + (n))
 #define VFE_0_REG_UPDATE_line_n(n)		\
 			((n) == VFE_LINE_PIX ? 1 : VFE_0_REG_UPDATE_RDIn(n))
 
@@ -227,10 +226,9 @@
 #define VFE_0_CLAMP_ENC_MIN_CFG_CH2		(0x0 << 16)
 
 #define VFE_0_REALIGN_BUF_CFG			0xaac
-#define VFE_0_REALIGN_BUF_CFG_CB_ODD_PIXEL     (1 << 2)
-#define VFE_0_REALIGN_BUF_CFG_CR_ODD_PIXEL     (1 << 3)
-#define VFE_0_REALIGN_BUF_CFG_HSUB_ENABLE      (1 << 4)
-
+#define VFE_0_REALIGN_BUF_CFG_CB_ODD_PIXEL     BIT(2)
+#define VFE_0_REALIGN_BUF_CFG_CR_ODD_PIXEL     BIT(3)
+#define VFE_0_REALIGN_BUF_CFG_HSUB_ENABLE      BIT(4)
 
 #define CAMIF_TIMEOUT_SLEEP_US 1000
 #define CAMIF_TIMEOUT_ALL_US 1000000
@@ -322,7 +320,7 @@ static void vfe_wm_frame_based(struct vfe_device *vfe, u8 wm, u8 enable)
 
 #define CALC_WORD(width, M, N) (((width) * (M) + (N) - 1) / (N))
 
-static int vfe_word_per_line_by_pixel(uint32_t format, uint32_t pixel_per_line)
+static int vfe_word_per_line_by_pixel(u32 format, u32 pixel_per_line)
 {
 	int val = 0;
 
@@ -344,7 +342,7 @@ static int vfe_word_per_line_by_pixel(uint32_t format, uint32_t pixel_per_line)
 	return val;
 }
 
-static int vfe_word_per_line_by_bytes(uint32_t bytes_per_line)
+static int vfe_word_per_line_by_bytes(u32 bytes_per_line)
 {
 	return CALC_WORD(bytes_per_line, 1, 8);
 }

@@ -29,7 +29,7 @@
 #define CAMSS_CLOCK_MARGIN_NUMERATOR 105
 #define CAMSS_CLOCK_MARGIN_DENOMINATOR 100
 
-static const struct resources csiphy_res_msm8916[] = {
+static const struct resources csiphy_res_8x16[] = {
 	/* CSIPHY0 */
 	{
 		.regulator = { NULL },
@@ -55,7 +55,7 @@ static const struct resources csiphy_res_msm8916[] = {
 	}
 };
 
-static const struct resources csid_res_msm8916[] = {
+static const struct resources csid_res_8x16[] = {
 	/* CSID0 */
 	{
 		.regulator = { "vdda" },
@@ -91,7 +91,7 @@ static const struct resources csid_res_msm8916[] = {
 	},
 };
 
-static const struct resources_ispif ispif_res_msm8916 = {
+static const struct resources_ispif ispif_res_8x16 = {
 	/* ISPIF */
 	.clock = { "top_ahb", "ahb", "ispif_ahb",
 		   "csi0", "csi0_pix", "csi0_rdi",
@@ -102,7 +102,7 @@ static const struct resources_ispif ispif_res_msm8916 = {
 
 };
 
-static const struct resources vfe_res_msm8916[] = {
+static const struct resources vfe_res_8x16[] = {
 	/* VFE0 */
 	{
 		.regulator = { NULL },
@@ -124,7 +124,7 @@ static const struct resources vfe_res_msm8916[] = {
 	}
 };
 
-static const struct resources csiphy_res_msm8996[] = {
+static const struct resources csiphy_res_8x96[] = {
 	/* CSIPHY0 */
 	{
 		.regulator = { NULL },
@@ -162,7 +162,7 @@ static const struct resources csiphy_res_msm8996[] = {
 	}
 };
 
-static const struct resources csid_res_msm8996[] = {
+static const struct resources csid_res_8x96[] = {
 	/* CSID0 */
 	{
 		.regulator = { "vdda" },
@@ -232,7 +232,7 @@ static const struct resources csid_res_msm8996[] = {
 	}
 };
 
-static const struct resources_ispif ispif_res_msm8996 = {
+static const struct resources_ispif ispif_res_8x96 = {
 	/* ISPIF */
 	.clock = { "top_ahb", "ahb", "ispif_ahb",
 		   "csi0", "csi0_pix", "csi0_rdi",
@@ -244,7 +244,7 @@ static const struct resources_ispif ispif_res_msm8996 = {
 	.interrupt = "ispif"
 };
 
-static const struct resources vfe_res_msm8996[] = {
+static const struct resources vfe_res_8x96[] = {
 	/* VFE0 */
 	{
 		.regulator = { NULL },
@@ -281,7 +281,6 @@ static const struct resources vfe_res_msm8996[] = {
 		.interrupt = { "vfe1" }
 	}
 };
-
 
 /*
  * camss_add_clock_margin - Add margin to clock frequency rate
@@ -421,7 +420,8 @@ static int camss_of_parse_endpoint_node(struct device *dev,
 	lncfg->clk.pol = mipi_csi2->lane_polarities[0];
 	lncfg->num_data = mipi_csi2->num_data_lanes;
 
-	lncfg->data = devm_kzalloc(dev, lncfg->num_data * sizeof(*lncfg->data),
+	lncfg->data = devm_kcalloc(dev,
+				   lncfg->num_data, sizeof(*lncfg->data),
 				   GFP_KERNEL);
 	if (!lncfg->data)
 		return -ENOMEM;
@@ -514,15 +514,15 @@ static int camss_init_subdevices(struct camss *camss)
 	int ret;
 
 	if (camss->version == CAMSS_8x16) {
-		csiphy_res = csiphy_res_msm8916;
-		csid_res = csid_res_msm8916;
-		ispif_res = &ispif_res_msm8916;
-		vfe_res = vfe_res_msm8916;
+		csiphy_res = csiphy_res_8x16;
+		csid_res = csid_res_8x16;
+		ispif_res = &ispif_res_8x16;
+		vfe_res = vfe_res_8x16;
 	} else if (camss->version == CAMSS_8x96) {
-		csiphy_res = csiphy_res_msm8996;
-		csid_res = csid_res_msm8996;
-		ispif_res = &ispif_res_msm8996;
-		vfe_res = vfe_res_msm8996;
+		csiphy_res = csiphy_res_8x96;
+		csid_res = csid_res_8x96;
+		ispif_res = &ispif_res_8x96;
+		vfe_res = vfe_res_8x96;
 	} else {
 		return -EINVAL;
 	}
@@ -610,7 +610,8 @@ static int camss_register_entities(struct camss *camss)
 	}
 
 	for (i = 0; i < camss->vfe_num; i++) {
-		ret = msm_vfe_register_entities(&camss->vfe[i], &camss->v4l2_dev);
+		ret = msm_vfe_register_entities(&camss->vfe[i],
+						&camss->v4l2_dev);
 		if (ret < 0) {
 			dev_err(camss->dev,
 				"Failed to register vfe%d entities: %d\n",
@@ -816,7 +817,8 @@ static int camss_probe(struct platform_device *pdev)
 		camss->csiphy_num = 2;
 		camss->csid_num = 2;
 		camss->vfe_num = 1;
-	} else if (of_device_is_compatible(dev->of_node, "qcom,msm8996-camss")) {
+	} else if (of_device_is_compatible(dev->of_node,
+					   "qcom,msm8996-camss")) {
 		camss->version = CAMSS_8x96;
 		camss->csiphy_num = 3;
 		camss->csid_num = 4;
@@ -825,18 +827,17 @@ static int camss_probe(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	camss->csiphy = kzalloc(camss->csiphy_num * sizeof(*camss->csiphy),
+	camss->csiphy = kcalloc(camss->csiphy_num, sizeof(*camss->csiphy),
 				GFP_KERNEL);
 	if (!camss->csiphy)
 		return -ENOMEM;
 
-	camss->csid = kzalloc(camss->csid_num * sizeof(*camss->csid),
+	camss->csid = kcalloc(camss->csid_num, sizeof(*camss->csid),
 			      GFP_KERNEL);
 	if (!camss->csid)
 		return -ENOMEM;
 
-	camss->vfe = kzalloc(camss->vfe_num * sizeof(*camss->vfe),
-			      GFP_KERNEL);
+	camss->vfe = kcalloc(camss->vfe_num, sizeof(*camss->vfe), GFP_KERNEL);
 	if (!camss->vfe)
 		return -ENOMEM;
 
