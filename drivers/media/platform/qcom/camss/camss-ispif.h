@@ -61,7 +61,7 @@ struct ispif_device {
 	struct mutex power_lock;
 	struct ispif_intf_cmd_reg intf_cmd[MSM_ISPIF_VFE_NUM];
 	struct mutex config_lock;
-	int line_num;
+	unsigned int line_num;
 	struct ispif_line *line;
 };
 

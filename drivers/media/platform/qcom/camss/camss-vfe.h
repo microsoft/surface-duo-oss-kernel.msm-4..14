@@ -89,8 +89,10 @@ struct vfe_hw_ops {
 			      struct v4l2_pix_format_mplane *pix,
 			      u8 plane, u32 enable);
 	void (*wm_set_framedrop_period)(struct vfe_device *vfe, u8 wm, u8 per);
-	void (*wm_set_framedrop_pattern)(struct vfe_device *vfe, u8 wm, u32 pattern);
-	void (*wm_set_ub_cfg)(struct vfe_device *vfe, u8 wm, u16 offset, u16 depth);
+	void (*wm_set_framedrop_pattern)(struct vfe_device *vfe, u8 wm,
+					 u32 pattern);
+	void (*wm_set_ub_cfg)(struct vfe_device *vfe, u8 wm, u16 offset,
+			      u16 depth);
 	void (*bus_reload_wm)(struct vfe_device *vfe, u8 wm);
 	void (*wm_set_ping_addr)(struct vfe_device *vfe, u8 wm, u32 addr);
 	void (*wm_set_pong_addr)(struct vfe_device *vfe, u8 wm, u32 addr);
@@ -103,15 +105,17 @@ struct vfe_hw_ops {
 					   enum vfe_line_id id);
 	void (*set_xbar_cfg)(struct vfe_device *vfe, struct vfe_output *output,
 			     u8 enable);
+	void (*set_rdi_cid)(struct vfe_device *vfe, enum vfe_line_id id,
+			    u8 cid);
 	void (*set_realign_cfg)(struct vfe_device *vfe, struct vfe_line *line,
 				u8 enable);
-	void (*set_rdi_cid)(struct vfe_device *vfe, enum vfe_line_id id, u8 cid);
 	void (*reg_update)(struct vfe_device *vfe, enum vfe_line_id line_id);
-	void (*reg_update_clear)(struct vfe_device *vfe, enum vfe_line_id line_id);
+	void (*reg_update_clear)(struct vfe_device *vfe,
+				 enum vfe_line_id line_id);
 	void (*enable_irq_wm_line)(struct vfe_device *vfe, u8 wm,
 				   enum vfe_line_id line_id, u8 enable);
 	void (*enable_irq_pix_line)(struct vfe_device *vfe, u8 comp,
-				     enum vfe_line_id line_id, u8 enable);
+				    enum vfe_line_id line_id, u8 enable);
 	void (*enable_irq_common)(struct vfe_device *vfe);
 	void (*set_demux_cfg)(struct vfe_device *vfe, struct vfe_line *line);
 	void (*set_scale_cfg)(struct vfe_device *vfe, struct vfe_line *line);

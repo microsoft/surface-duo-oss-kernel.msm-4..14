@@ -24,7 +24,6 @@
 #include "camss-vfe.h"
 #include "camss.h"
 
-
 #define MSM_VFE_NAME "msm_vfe"
 
 #define vfe_line_array(ptr_line)	\
@@ -799,7 +798,8 @@ static int vfe_disable_output(struct vfe_line *line)
 
 	if (line->id != VFE_LINE_PIX) {
 		ops->wm_frame_based(vfe, output->wm_idx[0], 0);
-		ops->bus_disconnect_wm_from_rdi(vfe, output->wm_idx[0], line->id);
+		ops->bus_disconnect_wm_from_rdi(vfe, output->wm_idx[0],
+						line->id);
 		ops->enable_irq_wm_line(vfe, output->wm_idx[0], line->id, 0);
 		ops->set_cgc_override(vfe, output->wm_idx[0], 0);
 		spin_unlock_irqrestore(&vfe->output_lock, flags);
@@ -2012,7 +2012,7 @@ int msm_vfe_subdev_init(struct camss *camss, struct vfe_device *vfe,
 	while (res->clock[vfe->nclocks])
 		vfe->nclocks++;
 
-	vfe->clock = devm_kzalloc(dev, vfe->nclocks * sizeof(*vfe->clock),
+	vfe->clock = devm_kcalloc(dev, vfe->nclocks, sizeof(*vfe->clock),
 				  GFP_KERNEL);
 	if (!vfe->clock)
 		return -ENOMEM;
@@ -2035,8 +2035,10 @@ int msm_vfe_subdev_init(struct camss *camss, struct vfe_device *vfe,
 			continue;
 		}
 
-		clock->freq = devm_kzalloc(dev, clock->nfreqs *
-					   sizeof(*clock->freq), GFP_KERNEL);
+		clock->freq = devm_kcalloc(dev,
+					   clock->nfreqs,
+					   sizeof(*clock->freq),
+					   GFP_KERNEL);
 		if (!clock->freq)
 			return -ENOMEM;
 

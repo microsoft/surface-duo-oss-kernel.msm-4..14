@@ -25,7 +25,6 @@
 #define CAMSS_CSI_PHY_GLBL_T_INIT_CFG0		0x1ec
 #define CAMSS_CSI_PHY_T_WAKEUP_CFG0		0x1f4
 
-
 static void csiphy_hw_version_read(struct csiphy_device *csiphy,
 				   struct device *dev)
 {
@@ -60,7 +59,6 @@ static void csiphy_reset(struct csiphy_device *csiphy)
 static u8 csiphy_settle_cnt_calc(u32 pixel_clock, u8 bpp, u8 num_lanes,
 				 u32 timer_clk_rate)
 {
-
 	u32 mipi_clock; /* Hz */
 	u32 ui; /* ps */
 	u32 timer_period; /* ps */
@@ -176,4 +174,3 @@ const struct csiphy_hw_ops csiphy_ops_2ph_1_0 = {
 	.lanes_disable = csiphy_lanes_disable,
 	.isr = csiphy_isr,
 };
-
