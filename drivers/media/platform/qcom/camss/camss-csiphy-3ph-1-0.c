@@ -44,7 +44,6 @@
 #define CSIPHY_3PH_CMN_CSI_COMMON_CTRL6_SHOW_REV_ID	BIT(1)
 #define CSIPHY_3PH_CMN_CSI_COMMON_STATUSn(n)	(0x8b0 + 0x4 * (n))
 
-
 static void csiphy_hw_version_read(struct csiphy_device *csiphy,
 				   struct device *dev)
 {
@@ -56,11 +55,11 @@ static void csiphy_hw_version_read(struct csiphy_device *csiphy,
 	hw_version = readl_relaxed(csiphy->base +
 				   CSIPHY_3PH_CMN_CSI_COMMON_STATUSn(12));
 	hw_version |= readl_relaxed(csiphy->base +
-				    CSIPHY_3PH_CMN_CSI_COMMON_STATUSn(13)) << 8;
+				   CSIPHY_3PH_CMN_CSI_COMMON_STATUSn(13)) << 8;
 	hw_version |= readl_relaxed(csiphy->base +
-				    CSIPHY_3PH_CMN_CSI_COMMON_STATUSn(14)) << 16;
+				   CSIPHY_3PH_CMN_CSI_COMMON_STATUSn(14)) << 16;
 	hw_version |= readl_relaxed(csiphy->base +
-				    CSIPHY_3PH_CMN_CSI_COMMON_STATUSn(15)) << 24;
+				   CSIPHY_3PH_CMN_CSI_COMMON_STATUSn(15)) << 24;
 
 	dev_err(dev, "CSIPHY 3PH HW Version = 0x%08x\n", hw_version);
 }
@@ -75,7 +74,6 @@ static void csiphy_reset(struct csiphy_device *csiphy)
 	usleep_range(5000, 8000);
 	writel_relaxed(0x0, csiphy->base + CSIPHY_3PH_CMN_CSI_COMMON_CTRLn(0));
 }
-
 
 static irqreturn_t csiphy_isr(int irq, void *dev)
 {
@@ -115,7 +113,6 @@ static irqreturn_t csiphy_isr(int irq, void *dev)
 static u8 csiphy_settle_cnt_calc(u32 pixel_clock, u8 bpp, u8 num_lanes,
 				 u32 timer_clk_rate)
 {
-
 	u32 mipi_clock; /* Hz */
 	u32 ui; /* ps */
 	u32 timer_period; /* ps */
@@ -249,7 +246,6 @@ static void csiphy_lanes_disable(struct csiphy_device *csiphy,
 	writel_relaxed(0, csiphy->base +
 			  CSIPHY_3PH_CMN_CSI_COMMON_CTRLn(6));
 }
-
 
 const struct csiphy_hw_ops csiphy_ops_3ph_1_0 = {
 	.hw_version_read = csiphy_hw_version_read,

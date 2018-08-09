@@ -29,8 +29,10 @@
 #define CAMSS_CSID_CORE_CTRL_0		0x004
 #define CAMSS_CSID_CORE_CTRL_1		0x008
 #define CAMSS_CSID_RST_CMD(v)		((v) == CAMSS_8x16 ? 0x00c : 0x010)
-#define CAMSS_CSID_CID_LUT_VC_n(v, n)	(((v) == CAMSS_8x16 ? 0x010 : 0x014) + 0x4 * (n))
-#define CAMSS_CSID_CID_n_CFG(v, n)	(((v) == CAMSS_8x16 ? 0x020 : 0x024) + 0x4 * (n))
+#define CAMSS_CSID_CID_LUT_VC_n(v, n)	\
+			(((v) == CAMSS_8x16 ? 0x010 : 0x014) + 0x4 * (n))
+#define CAMSS_CSID_CID_n_CFG(v, n)	\
+			(((v) == CAMSS_8x16 ? 0x020 : 0x024) + 0x4 * (n))
 #define CAMSS_CSID_CID_n_CFG_ISPIF_EN	BIT(0)
 #define CAMSS_CSID_CID_n_CFG_RDI_EN	BIT(1)
 #define CAMSS_CSID_CID_n_CFG_DECODE_FORMAT_SHIFT	4
@@ -49,9 +51,12 @@
 #define CAMSS_CSID_TG_VC_CFG(v)		((v) == CAMSS_8x16 ? 0x0a4 : 0x0ac)
 #define CAMSS_CSID_TG_VC_CFG_H_BLANKING		0x3ff
 #define CAMSS_CSID_TG_VC_CFG_V_BLANKING		0x7f
-#define CAMSS_CSID_TG_DT_n_CGG_0(v, n)	(((v) == CAMSS_8x16 ? 0x0ac : 0x0b4) + 0xc * (n))
-#define CAMSS_CSID_TG_DT_n_CGG_1(v, n)	(((v) == CAMSS_8x16 ? 0x0b0 : 0x0b8) + 0xc * (n))
-#define CAMSS_CSID_TG_DT_n_CGG_2(v, n)	(((v) == CAMSS_8x16 ? 0x0b4 : 0x0bc) + 0xc * (n))
+#define CAMSS_CSID_TG_DT_n_CGG_0(v, n)	\
+			(((v) == CAMSS_8x16 ? 0x0ac : 0x0b4) + 0xc * (n))
+#define CAMSS_CSID_TG_DT_n_CGG_1(v, n)	\
+			(((v) == CAMSS_8x16 ? 0x0b0 : 0x0b8) + 0xc * (n))
+#define CAMSS_CSID_TG_DT_n_CGG_2(v, n)	\
+			(((v) == CAMSS_8x16 ? 0x0b4 : 0x0bc) + 0xc * (n))
 
 #define DATA_TYPE_EMBEDDED_DATA_8BIT	0x12
 #define DATA_TYPE_YUV422_8BIT		0x1e
@@ -370,7 +375,7 @@ static u32 csid_find_code(u32 *code, unsigned int n_code,
 }
 
 static u32 csid_src_pad_code(struct csid_device *csid, u32 sink_code,
-			    unsigned int index, u32 src_req_code)
+			     unsigned int index, u32 src_req_code)
 {
 	if (csid->camss->version == CAMSS_8x16) {
 		if (index > 0)
@@ -467,9 +472,9 @@ static int csid_set_clock_rates(struct csid_device *csid)
 		struct camss_clock *clock = &csid->clock[i];
 
 		if (!strcmp(clock->name, "csi0") ||
-			!strcmp(clock->name, "csi1") ||
-			!strcmp(clock->name, "csi2") ||
-			!strcmp(clock->name, "csi3")) {
+		    !strcmp(clock->name, "csi1") ||
+		    !strcmp(clock->name, "csi2") ||
+		    !strcmp(clock->name, "csi3")) {
 			const struct csid_format *f = csid_get_fmt_entry(
 				csid->formats,
 				csid->nformats,
@@ -1127,7 +1132,7 @@ int msm_csid_subdev_init(struct camss *camss, struct csid_device *csid,
 	while (res->clock[csid->nclocks])
 		csid->nclocks++;
 
-	csid->clock = devm_kzalloc(dev, csid->nclocks * sizeof(*csid->clock),
+	csid->clock = devm_kcalloc(dev, csid->nclocks, sizeof(*csid->clock),
 				    GFP_KERNEL);
 	if (!csid->clock)
 		return -ENOMEM;
@@ -1150,8 +1155,10 @@ int msm_csid_subdev_init(struct camss *camss, struct csid_device *csid,
 			continue;
 		}
 
-		clock->freq = devm_kzalloc(dev, clock->nfreqs *
-					   sizeof(*clock->freq), GFP_KERNEL);
+		clock->freq = devm_kcalloc(dev,
+					   clock->nfreqs,
+					   sizeof(*clock->freq),
+					   GFP_KERNEL);
 		if (!clock->freq)
 			return -ENOMEM;
 

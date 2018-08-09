@@ -116,8 +116,8 @@ static int csiphy_set_clock_rates(struct csiphy_device *csiphy)
 		struct camss_clock *clock = &csiphy->clock[i];
 
 		if (!strcmp(clock->name, "csiphy0_timer") ||
-			!strcmp(clock->name, "csiphy1_timer") ||
-			!strcmp(clock->name, "csiphy2_timer")) {
+		    !strcmp(clock->name, "csiphy1_timer") ||
+		    !strcmp(clock->name, "csiphy2_timer")) {
 			u8 bpp = csiphy_get_bpp(csiphy->formats,
 					csiphy->nformats,
 					csiphy->fmt[MSM_CSIPHY_PAD_SINK].code);
@@ -587,7 +587,6 @@ int msm_csiphy_subdev_init(struct camss *camss,
 
 	ret = devm_request_irq(dev, csiphy->irq, csiphy->ops->isr,
 			       IRQF_TRIGGER_RISING, csiphy->irq_name, csiphy);
-
 	if (ret < 0) {
 		dev_err(dev, "request_irq failed: %d\n", ret);
 		return ret;
@@ -601,8 +600,9 @@ int msm_csiphy_subdev_init(struct camss *camss,
 	while (res->clock[csiphy->nclocks])
 		csiphy->nclocks++;
 
-	csiphy->clock = devm_kzalloc(dev, csiphy->nclocks *
-				     sizeof(*csiphy->clock), GFP_KERNEL);
+	csiphy->clock = devm_kcalloc(dev,
+				     csiphy->nclocks, sizeof(*csiphy->clock),
+				     GFP_KERNEL);
 	if (!csiphy->clock)
 		return -ENOMEM;
 
@@ -624,8 +624,10 @@ int msm_csiphy_subdev_init(struct camss *camss,
 			continue;
 		}
 
-		clock->freq = devm_kzalloc(dev, clock->nfreqs *
-					   sizeof(*clock->freq), GFP_KERNEL);
+		clock->freq = devm_kcalloc(dev,
+					   clock->nfreqs,
+					   sizeof(*clock->freq),
+					   GFP_KERNEL);
 		if (!clock->freq)
 			return -ENOMEM;
 
