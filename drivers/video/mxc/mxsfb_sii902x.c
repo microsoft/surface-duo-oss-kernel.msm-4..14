@@ -269,13 +269,13 @@ static void sii902x_chip_id(struct sii902x_data *sii902x)
 
 	/* read device ID */
 	val = sii902x_read(client, 0x1B);
-	printk("Sii902x: read id = 0x%02X", val);
+	dev_info(&client->dev, "read id = 0x%02X", val);
 	val = sii902x_read(client, 0x1C);
-	printk("-0x%02X", val);
+	dev_info(&client->dev, "-0x%02X", val);
 	val = sii902x_read(client, 0x1D);
-	printk("-0x%02X", val);
+	dev_info(&client->dev, "-0x%02X", val);
 	val = sii902x_read(client, 0x30);
-	printk("-0x%02X\n", val);
+	dev_info(&client->dev, "-0x%02X\n", val);
 }
 
 
