@@ -300,12 +300,12 @@ static int ispif_reset(struct ispif_device *ispif)
 		msecs_to_jiffies(ISPIF_RESET_TIMEOUT_MS));
 	if (!time) {
 		dev_err(to_device(ispif), "ISPIF reset timeout\n");
-		return -EIO;
+		ret = -EIO;
 	}
 
 	camss_disable_clocks(ispif->nclocks_for_reset, ispif->clock_for_reset);
 
-	return 0;
+	return ret;
 }
 
 /*
