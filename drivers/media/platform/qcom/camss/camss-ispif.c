@@ -331,14 +331,19 @@ static int ispif_set_power(struct v4l2_subdev *sd, int on)
 			goto exit;
 		}
 
-		pm_runtime_get_sync(dev);
-
-		ret = camss_enable_clocks(ispif->nclocks, ispif->clock, dev);
+		ret = pm_runtime_get_sync(dev);
 		if (ret < 0)
 			goto exit;
 
+		ret = camss_enable_clocks(ispif->nclocks, ispif->clock, dev);
+		if (ret < 0) {
+			pm_runtime_put_sync(dev);
+			goto exit;
+		}
+
 		ret = ispif_reset(ispif);
 		if (ret < 0) {
+			pm_runtime_put_sync(dev);
 			camss_disable_clocks(ispif->nclocks, ispif->clock);
 			goto exit;
 		}
