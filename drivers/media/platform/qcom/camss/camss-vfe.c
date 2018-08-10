@@ -1246,7 +1246,9 @@ static int vfe_get(struct vfe_device *vfe)
 	mutex_lock(&vfe->power_lock);
 
 	if (vfe->power_count == 0) {
-		pm_runtime_get_sync(vfe->camss->dev);
+		ret = pm_runtime_get_sync(vfe->camss->dev);
+		if (ret < 0)
+			goto error_pm_runtime_get;
 
 		ret = vfe_set_clock_rates(vfe);
 		if (ret < 0)
@@ -1279,6 +1281,9 @@ error_reset:
 	camss_disable_clocks(vfe->nclocks, vfe->clock);
 
 error_clocks:
+	pm_runtime_put_sync(vfe->camss->dev);
+
+error_pm_runtime_get:
 	mutex_unlock(&vfe->power_lock);
 
 	return ret;
