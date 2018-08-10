@@ -23,9 +23,6 @@
 
 #define MSM_CSIPHY_NAME "msm_csiphy"
 
-extern struct csiphy_hw_ops csiphy_ops_2ph_1_0;
-extern struct csiphy_hw_ops csiphy_ops_3ph_1_0;
-
 struct csiphy_format {
 	u32 code;
 	u8 bpp;

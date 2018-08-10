@@ -45,9 +45,6 @@
 
 #define SCALER_RATIO_MAX 16
 
-extern struct vfe_hw_ops vfe_ops_4_1;
-extern struct vfe_hw_ops vfe_ops_4_7;
-
 struct vfe_format {
 	u32 code;
 	u8 bpp;
@@ -661,7 +658,7 @@ static int vfe_enable_output(struct vfe_line *line)
 {
 	struct vfe_device *vfe = to_vfe(line);
 	struct vfe_output *output = &line->output;
-	struct vfe_hw_ops *ops = vfe->ops;
+	const struct vfe_hw_ops *ops = vfe->ops;
 	unsigned long flags;
 	unsigned int i;
 	u16 ub_size;
@@ -766,7 +763,7 @@ static int vfe_disable_output(struct vfe_line *line)
 {
 	struct vfe_device *vfe = to_vfe(line);
 	struct vfe_output *output = &line->output;
-	struct vfe_hw_ops *ops = vfe->ops;
+	const struct vfe_hw_ops *ops = vfe->ops;
 	unsigned long flags;
 	unsigned long time;
 	unsigned int i;

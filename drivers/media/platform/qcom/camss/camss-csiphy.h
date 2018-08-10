@@ -70,7 +70,7 @@ struct csiphy_device {
 	u32 timer_clk_rate;
 	struct csiphy_config cfg;
 	struct v4l2_mbus_framefmt fmt[MSM_CSIPHY_PADS_NUM];
-	struct csiphy_hw_ops *ops;
+	const struct csiphy_hw_ops *ops;
 	const struct csiphy_format *formats;
 	unsigned int nformats;
 };
@@ -85,5 +85,8 @@ int msm_csiphy_register_entity(struct csiphy_device *csiphy,
 			       struct v4l2_device *v4l2_dev);
 
 void msm_csiphy_unregister_entity(struct csiphy_device *csiphy);
+
+extern const struct csiphy_hw_ops csiphy_ops_2ph_1_0;
+extern const struct csiphy_hw_ops csiphy_ops_3ph_1_0;
 
 #endif /* QC_MSM_CAMSS_CSIPHY_H */
