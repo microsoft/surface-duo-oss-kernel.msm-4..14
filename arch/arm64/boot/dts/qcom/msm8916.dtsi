@@ -299,7 +299,7 @@
 		hwlocks = <&tcsr_mutex 3>;
 	};
 
-	firmware {
+	firmware: firmware {
 		scm: scm {
 			compatible = "qcom,scm";
 			clocks = <&gcc GCC_CRYPTO_CLK>, <&gcc GCC_CRYPTO_AXI_CLK>, <&gcc GCC_CRYPTO_AHB_CLK>;
