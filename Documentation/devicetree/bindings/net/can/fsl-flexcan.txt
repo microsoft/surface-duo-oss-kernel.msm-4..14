@@ -8,6 +8,8 @@ Required properties:
   that it is fully backwards compatible with:
 
   - fsl,p1010-flexcan
+  - fsl,s32v234-flexcan
+  - fsl,s32gen1-flexcan
 
 - reg : Offset and length of the register set for this device
 - interrupts : Interrupt tuple for this device
