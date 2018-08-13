@@ -1542,6 +1542,8 @@ static void vfe_try_format(struct vfe_line *line,
 
 		*fmt = *__vfe_get_format(line, cfg, MSM_VFE_PAD_SINK, which);
 
+		fmt->code = vfe_src_pad_code(line, fmt->code, 0, code);
+
 		if (line->id == VFE_LINE_PIX) {
 			struct v4l2_rect *rect;
 
@@ -1549,8 +1551,6 @@ static void vfe_try_format(struct vfe_line *line,
 
 			fmt->width = rect->width;
 			fmt->height = rect->height;
-
-			fmt->code = vfe_src_pad_code(line, fmt->code, 0, code);
 		}
 
 		break;
