@@ -28,6 +28,7 @@
 #include "wcn36xx.h"
 #include "testmode.h"
 
+#define MAC_ADDR_0 "wlan/macaddr0"
 unsigned int wcn36xx_dbg_mask;
 module_param_named(debug_mask, wcn36xx_dbg_mask, uint, 0644);
 MODULE_PARM_DESC(debug_mask, "Debugging mask");
@@ -1295,6 +1296,40 @@ put_mmio_node:
 	return ret;
 }
 
+static int wcn36xx_msm_get_hw_mac(struct wcn36xx *wcn, u8 *addr)
+{
+	const struct firmware *addr_file = NULL;
+	int status;
+	u8 tmp[18];
+	static const u8 qcom_oui[3] = {0x00, 0x0A, 0xF5};
+	static const char *files = {MAC_ADDR_0};
+
+        wcn36xx_dbg(WCN36XX_DBG_MAC, "OK: reading firmware file\n");
+	status = request_firmware(&addr_file, files, wcn->dev);
+        // status = request_firmware(&wcn->nv, WLAN_NV_FILE, wcn->dev);
+	if (status < 0) {
+		/* Assign a random mac with Qualcomm oui */
+		wcn36xx_dbg(WCN36XX_DBG_MAC, "Failed (%d) to read macaddress"
+			"file %s, using a random address instead", status, files);
+		memcpy(addr, qcom_oui, 3);
+		get_random_bytes(addr + 3, 3);
+	} else {
+		memset(tmp, 0, sizeof(tmp));
+		memcpy(tmp, addr_file->data, sizeof(tmp) - 1);
+		sscanf(tmp, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+		       &addr[0],
+		       &addr[1],
+		       &addr[2],
+		       &addr[3],
+		       &addr[4],
+		       &addr[5]);
+
+		release_firmware(addr_file);
+	}
+wcn36xx_dbg(WCN36XX_DBG_MAC, "OK: got mac address: %pM\n", addr);
+	return 0;
+}
+
 static int wcn36xx_probe(struct platform_device *pdev)
 {
 	struct ieee80211_hw *hw;
@@ -1302,8 +1337,9 @@ static int wcn36xx_probe(struct platform_device *pdev)
 	void *wcnss;
 	int ret;
 	const u8 *addr;
+        u8 addr2[18];
 
-	wcn36xx_dbg(WCN36XX_DBG_MAC, "platform probe\n");
+	wcn36xx_dbg(WCN36XX_DBG_MAC, "OK:platform probe\n");
 
 	wcnss = dev_get_drvdata(pdev->dev.parent);
 
@@ -1336,17 +1372,25 @@ static int wcn36xx_probe(struct platform_device *pdev)
 		ret = PTR_ERR(wcn->smd_channel);
 		goto out_wq;
 	}
-
+        wcn36xx_dbg(WCN36XX_DBG_MAC, "OK:checking for address\n");
 	addr = of_get_property(pdev->dev.of_node, "local-mac-address", &ret);
 	if (addr && ret != ETH_ALEN) {
+wcn36xx_dbg(WCN36XX_DBG_MAC, "OK:invalid address\n");
 		wcn36xx_err("invalid local-mac-address\n");
 		ret = -EINVAL;
 		goto out_wq;
 	} else if (addr) {
+                wcn36xx_dbg(WCN36XX_DBG_MAC, "OK:mac address: %pM\n", addr);
 		wcn36xx_info("mac address: %pM\n", addr);
 		SET_IEEE80211_PERM_ADDR(wcn->hw, addr);
-	}
-
+	} else {
+               wcn36xx_dbg(WCN36XX_DBG_MAC, "OK:trying to read mac address from firmware file\n");
+               wcn36xx_msm_get_hw_mac(wcn, addr2);
+               wcn36xx_dbg(WCN36XX_DBG_MAC, "OK:mac address: %pM\n", addr2);
+               wcn36xx_info("mac address: %pM\n", addr2);
+               SET_IEEE80211_PERM_ADDR(wcn->hw, addr2);
+        }
+        wcn36xx_dbg(WCN36XX_DBG_MAC, "OK:checking for address-done\n");
 	ret = wcn36xx_platform_get_resources(wcn, pdev);
 	if (ret)
 		goto out_wq;
@@ -1411,3 +1455,4 @@ module_platform_driver(wcn36xx_driver);
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_AUTHOR("Eugene Krasnikov k.eugene.e@gmail.com");
 MODULE_FIRMWARE(WLAN_NV_FILE);
+MODULE_FIRMWARE(MAC_ADDR_0);
