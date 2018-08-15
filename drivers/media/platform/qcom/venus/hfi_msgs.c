@@ -198,28 +198,8 @@ static void hfi_sys_init_done(struct venus_core *core, struct venus_inst *inst,
 
 	data = (u8 *)&pkt->data[0];
 
-	if (core->res->hfi_version == HFI_VERSION_3XX) {
-		/*
-		* hardcode supported codecs until the capability parser is
-		* reworked to cover all venus fw versions.
-		*/
-		core->dec_codecs = HFI_VIDEO_CODEC_DIVX  |
-				   HFI_VIDEO_CODEC_MPEG1 |
-				   HFI_VIDEO_CODEC_MPEG2 |
-				   HFI_VIDEO_CODEC_MPEG4 |
-				   HFI_VIDEO_CODEC_H263  |
-				   HFI_VIDEO_CODEC_H264  |
-				   HFI_VIDEO_CODEC_HEVC  |
-				   HFI_VIDEO_CODEC_VP8   |
-				   HFI_VIDEO_CODEC_VP9;
-		core->enc_codecs = HFI_VIDEO_CODEC_H263  |
-				   HFI_VIDEO_CODEC_H264  |
-				   HFI_VIDEO_CODEC_HEVC  |
-				   HFI_VIDEO_CODEC_MPEG4 |
-				   HFI_VIDEO_CODEC_VP8;
-		core->max_sessions_supported = 16;
+	if (core->res->hfi_version == HFI_VERSION_3XX)
 		goto err_no_prop;
-	}
 
 	while (num_properties && rem_bytes >= sizeof(u32)) {
 		ptype = *((u32 *)data);
