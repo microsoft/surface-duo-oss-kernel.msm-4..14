@@ -108,7 +108,25 @@
 	};
 };
 
+&cluster0_l2_cache {
+	status = "okay";
+};
 
+&cpu0 {
+	next-level-cache = <&cluster0_l2_cache>;
+};
+
+&cpu1 {
+	next-level-cache = <&cluster0_l2_cache>;
+};
+
+&cpu2 {
+	next-level-cache = <&cluster0_l2_cache>;
+};
+
+&cpu3 {
+	next-level-cache = <&cluster0_l2_cache>;
+};
 
 &i2c0 {
 	status = "okay";
