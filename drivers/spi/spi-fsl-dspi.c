@@ -34,7 +34,12 @@
 #define TRAN_STATE_TX_VOID		0x02
 #define TRAN_STATE_WORD_ODD_NUM	0x04
 
-#define DSPI_FIFO_SIZE_DEFAULT		4
+#ifdef CONFIG_M5441x
+#define DSPI_FIFO_SIZE			16
+#else
+#define DSPI_FIFO_SIZE			4
+#endif
+
 #define DSPI_DMA_BUFSIZE(dspi)		(dspi->fifo_size * 1024)
 
 /* Module Configuration Register (SPI_MCR) */
@@ -637,6 +642,7 @@ static int dspi_eoq_write(struct fsl_dspi *dspi)
 	unsigned int fifo_entries_used = 0;
 	unsigned int fifo_entries_per_frm = 0;
 	unsigned int tx_frames_count = 0;
+	u16 xfer_cmd = dspi->tx_cmd;
 	u32 dspi_pushr = 0;
 	enum frame_mode tx_frame_mode = get_frame_mode(dspi);
 
@@ -645,6 +651,7 @@ static int dspi_eoq_write(struct fsl_dspi *dspi)
 	while (dspi->len &&
 	       dspi->fifo_size - fifo_entries_used >= fifo_entries_per_frm) {
 
+		dspi->tx_cmd = xfer_cmd;
 		switch (tx_frame_mode) {
 		case FM_BYTES_4:
 			fifo_entries_used++;
@@ -1153,7 +1160,7 @@ static int dspi_probe(struct platform_device *pdev)
 
 	ret = of_property_read_u32(np, "spi-fifo-size", &val);
 	if (ret < 0)
-		dspi->fifo_size = DSPI_FIFO_SIZE_DEFAULT;
+		dspi->fifo_size = DSPI_FIFO_SIZE;
 	else
 		dspi->fifo_size = val;
 
