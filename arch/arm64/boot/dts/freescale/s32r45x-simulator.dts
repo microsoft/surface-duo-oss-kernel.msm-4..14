@@ -164,22 +164,6 @@
 	status = "okay";
 };
 
-&can4 {
-	status = "okay";
-};
-
-&can5 {
-	status = "okay";
-};
-
-&can6 {
-	status = "okay";
-};
-
-&can7 {
-	status = "okay";
-};
-
 &stm0 {
 	status = "okay";
 };
