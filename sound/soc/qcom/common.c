@@ -3,7 +3,23 @@
 // Copyright (c) 2018, The Linux Foundation. All rights reserved.
 
 #include <linux/module.h>
+#include <sound/pcm_params.h>
 #include "common.h"
+
+static int qcom_snd_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
+				       struct snd_pcm_hw_params *params)
+{
+	struct snd_interval *rate = hw_param_interval(params,
+					SNDRV_PCM_HW_PARAM_RATE);
+	struct snd_interval *channels = hw_param_interval(params,
+					SNDRV_PCM_HW_PARAM_CHANNELS);
+
+	rate->min = rate->max = 48000;
+	channels->min = channels->max = 2;
+	params_set_format(params, SNDRV_PCM_FORMAT_S16_LE);
+
+	return 0;
+}
 
 int qcom_snd_parse_of(struct snd_soc_card *card)
 {
@@ -79,6 +95,7 @@ int qcom_snd_parse_of(struct snd_soc_card *card)
 			}
 			link->no_pcm = 1;
 			link->ignore_pmdown_time = 1;
+			link->be_hw_params_fixup = qcom_snd_be_hw_params_fixup;
 		} else {
 			link->platform_of_node = link->cpu_of_node;
 			link->codec_dai_name = "snd-soc-dummy-dai";
