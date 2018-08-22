@@ -2,7 +2,7 @@
 # FCCU device configuration
 #
 
-config FCCU_S32V234
+config FCCU
 	tristate "Fault Collection and Control Unit"
 	depends on SOC_S32V234 || SOC_S32GEN1
 	default y

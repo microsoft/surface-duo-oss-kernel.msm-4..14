@@ -1,5 +1,5 @@
 /*
- * FCCU driver for S32V234 SoC
+ * FCCU driver for S32 SoC
  *
  * Copyright 2018 NXP.
  *
