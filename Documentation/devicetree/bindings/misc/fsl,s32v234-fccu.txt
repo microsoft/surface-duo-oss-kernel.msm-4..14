@@ -1,4 +1,4 @@
-S32V234 Fault Collection and Control Unit
+Fault Collection and Control Unit in S32v234 or S32-Gen1 Soc
 
 This is a module, it used to collect and control fault signals from
 peripherals. It requires a correct configuration to enable reception and react
@@ -9,7 +9,7 @@ reset system. If a signal is generated before FCCU is configured, the signal
 will be ignored.
 
 Required properties:
- - compatible: 		should be set to "fsl,s32v234-fccu"
+ - compatible: 		should be set to "fsl,s32v234-fccu" or "fsl,s32gen1-fccu"
  - cfg_reg_off: 	the offsets of NCF_CFGn and NCF_Sn register
  - cfg_reg_val: 	the values of NCF_CFGn and NCF_Sn register
  - reg:				the address range

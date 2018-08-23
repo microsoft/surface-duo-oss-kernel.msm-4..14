@@ -1,5 +1,5 @@
 /*
- * FCCU driver for S32V234 SoC
+ * FCCU driver for S32 SoC
  *
  * Copyright 2018 NXP.
  *
@@ -303,6 +303,7 @@ static int __exit s32v234_fccu_remove(struct platform_device *pdev)
 
 static const struct of_device_id s32v234_fccu_dt_ids[] = {
 	{.compatible = "fsl,s32v234-fccu",},
+	{.compatible = "fsl,s32gen1-fccu",},
 	{ /* sentinel */ }
 };
 

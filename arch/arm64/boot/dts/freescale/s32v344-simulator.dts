@@ -172,6 +172,10 @@
 	status = "okay";
 };
 
+&fccu {
+	status = "okay";
+};
+
 &stm1 {
 	status = "okay";
 };
