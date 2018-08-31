@@ -198,10 +198,10 @@ static int ufs_qcom_link_startup_post_change(struct ufs_hba *hba)
 	if (err)
 		goto out;
 
-	err = ufs_qcom_phy_set_tx_lane_enable(phy, tx_lanes);
-	if (err)
-		dev_err(hba->dev, "%s: ufs_qcom_phy_set_tx_lane_enable failed\n",
-			__func__);
+//	err = ufs_qcom_phy_set_tx_lane_enable(phy, tx_lanes);
+//	if (err)
+//		dev_err(hba->dev, "%s: ufs_qcom_phy_set_tx_lane_enable failed\n",
+//			__func__);
 
 out:
 	return err;
@@ -1003,12 +1003,12 @@ static int ufs_qcom_pwr_change_notify(struct ufs_hba *hba,
 		}
 
 		val = ~(MAX_U32 << dev_req_params->lane_tx);
-		res = ufs_qcom_phy_set_tx_lane_enable(phy, val);
-		if (res) {
-			dev_err(hba->dev, "%s: ufs_qcom_phy_set_tx_lane_enable() failed res = %d\n",
-				__func__, res);
-			ret = res;
-		}
+//		res = ufs_qcom_phy_set_tx_lane_enable(phy, val);
+//		if (res) {
+//			dev_err(hba->dev, "%s: ufs_qcom_phy_set_tx_lane_enable() failed res = %d\n",
+//				__func__, res);
+//			ret = res;
+//		}
 
 		/* cache the power mode parameters to use internally */
 		memcpy(&host->dev_req_params,
