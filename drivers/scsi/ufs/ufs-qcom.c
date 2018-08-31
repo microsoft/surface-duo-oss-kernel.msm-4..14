@@ -180,7 +180,7 @@ static int ufs_qcom_init_lane_clks(struct ufs_qcom_host *host)
 		if (err)
 			goto out;
 
-		err = ufs_qcom_host_clk_get(dev, "tx_lane1_sync_clk",
+		ufs_qcom_host_clk_get(dev, "tx_lane1_sync_clk",
 			&host->tx_l1_sync_clk);
 	}
 out:
