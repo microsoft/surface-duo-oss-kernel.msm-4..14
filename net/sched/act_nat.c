@@ -292,19 +292,11 @@ static int tcf_nat_walker(struct net *net, struct sk_buff *skb,
 	return tcf_generic_walker(tn, skb, cb, type, ops, extack);
 }
 
-static int tcf_nat_search(struct net *net, struct tc_action **a, u32 index,
-			  struct netlink_ext_ack *extack)
+static int tcf_nat_search(struct net *net, struct tc_action **a, u32 index)
 {
 	struct tc_action_net *tn = net_generic(net, nat_net_id);
 
 	return tcf_idr_search(tn, a, index);
-}
-
-static int tcf_nat_delete(struct net *net, u32 index)
-{
-	struct tc_action_net *tn = net_generic(net, nat_net_id);
-
-	return tcf_idr_delete_index(tn, index);
 }
 
 static struct tc_action_ops act_nat_ops = {
@@ -316,7 +308,6 @@ static struct tc_action_ops act_nat_ops = {
 	.init		=	tcf_nat_init,
 	.walk		=	tcf_nat_walker,
 	.lookup		=	tcf_nat_search,
-	.delete		=	tcf_nat_delete,
 	.size		=	sizeof(struct tcf_nat),
 };
 

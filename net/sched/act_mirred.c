@@ -338,8 +338,7 @@ static int tcf_mirred_walker(struct net *net, struct sk_buff *skb,
 	return tcf_generic_walker(tn, skb, cb, type, ops, extack);
 }
 
-static int tcf_mirred_search(struct net *net, struct tc_action **a, u32 index,
-			     struct netlink_ext_ack *extack)
+static int tcf_mirred_search(struct net *net, struct tc_action **a, u32 index)
 {
 	struct tc_action_net *tn = net_generic(net, mirred_net_id);
 
@@ -395,13 +394,6 @@ static void tcf_mirred_put_dev(struct net_device *dev)
 	dev_put(dev);
 }
 
-static int tcf_mirred_delete(struct net *net, u32 index)
-{
-	struct tc_action_net *tn = net_generic(net, mirred_net_id);
-
-	return tcf_idr_delete_index(tn, index);
-}
-
 static struct tc_action_ops act_mirred_ops = {
 	.kind		=	"mirred",
 	.type		=	TCA_ACT_MIRRED,
@@ -416,7 +408,6 @@ static struct tc_action_ops act_mirred_ops = {
 	.size		=	sizeof(struct tcf_mirred),
 	.get_dev	=	tcf_mirred_get_dev,
 	.put_dev	=	tcf_mirred_put_dev,
-	.delete		=	tcf_mirred_delete,
 };
 
 static __net_init int mirred_init_net(struct net *net)

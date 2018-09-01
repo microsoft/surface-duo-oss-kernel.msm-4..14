@@ -956,7 +956,7 @@ static void ip6_rt_init_dst(struct rt6_info *rt, struct fib6_info *ort)
 	rt->dst.error = 0;
 	rt->dst.output = ip6_output;
 
-	if (ort->fib6_type == RTN_LOCAL) {
+	if (ort->fib6_type == RTN_LOCAL || ort->fib6_type == RTN_ANYCAST) {
 		rt->dst.input = ip6_input;
 	} else if (ipv6_addr_type(&ort->fib6_dst.addr) & IPV6_ADDR_MULTICAST) {
 		rt->dst.input = ip6_mc_input;
@@ -3137,8 +3137,6 @@ install_route:
 	rt->fib6_nh.nh_flags |= (cfg->fc_flags & RTNH_F_ONLINK);
 	rt->fib6_nh.nh_dev = dev;
 	rt->fib6_table = table;
-
-	cfg->fc_nlinfo.nl_net = dev_net(dev);
 
 	if (idev)
 		in6_dev_put(idev);

@@ -291,19 +291,11 @@ static int tcf_skbedit_walker(struct net *net, struct sk_buff *skb,
 	return tcf_generic_walker(tn, skb, cb, type, ops, extack);
 }
 
-static int tcf_skbedit_search(struct net *net, struct tc_action **a, u32 index,
-			      struct netlink_ext_ack *extack)
+static int tcf_skbedit_search(struct net *net, struct tc_action **a, u32 index)
 {
 	struct tc_action_net *tn = net_generic(net, skbedit_net_id);
 
 	return tcf_idr_search(tn, a, index);
-}
-
-static int tcf_skbedit_delete(struct net *net, u32 index)
-{
-	struct tc_action_net *tn = net_generic(net, skbedit_net_id);
-
-	return tcf_idr_delete_index(tn, index);
 }
 
 static struct tc_action_ops act_skbedit_ops = {
@@ -316,7 +308,6 @@ static struct tc_action_ops act_skbedit_ops = {
 	.cleanup	=	tcf_skbedit_cleanup,
 	.walk		=	tcf_skbedit_walker,
 	.lookup		=	tcf_skbedit_search,
-	.delete		=	tcf_skbedit_delete,
 	.size		=	sizeof(struct tcf_skbedit),
 };
 
