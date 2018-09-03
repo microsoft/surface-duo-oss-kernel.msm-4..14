@@ -1,0 +1,69 @@
+/*
+ * Copyright (C) 2017 CompuLab Ltd.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 as
+ * published by the Free Software Foundation.
+ */
+
+#include "imx7d-sbc-imx7.dts"
+
+/ {
+	mipi_dsi_reset: mipi-dsi-reset {
+		compatible = "gpio-reset";
+		/* Unused gpio - routed to P4_21 */
+		reset-gpios = <&gpio1 8 GPIO_ACTIVE_LOW>;
+		reset-delay-us = <100>;
+		#reset-cells = <0>;
+	};
+
+	regulators {
+		reg_mipi_dsi_pwr_on: mipi_dsi_pwr_on {
+			compatible = "regulator-fixed";
+			regulator-name = "mipi_dsi_pwr_on";
+			/* Unused gpio - routed to P4_23 */
+			gpio = <&gpio1 9 GPIO_ACTIVE_HIGH>;
+			enable-active-high;
+		};
+	};
+};
+
+&lcdif {
+	disp-dev = "mipi_dsi_samsung";
+};
+
+&mipi_dsi {
+	lcd_panel = "SN65DSI_default";
+	disp-power-on-supply = <&reg_mipi_dsi_pwr_on>;
+	resets = <&mipi_dsi_reset>;
+	status = "okay";
+};
+
+&i2c2 {
+	ti_bridge: sn65dsi83@2c {
+		compatible = "ti,sn65dsi83";
+		reg = <0x2c>;
+		enable-gpios = <&pca9555 2 GPIO_ACTIVE_HIGH>;
+		status = "okay";
+		lvds_panel {
+			/* Ampire 7"-AM-1280800P */
+			lvds-bpp = <24>;
+			lvds-format = <0>;
+			display-timings {
+				clock-frequency = <62500000>;
+				hactive = <1280>;
+				vactive = <800>;
+				hback-porch = <6>;
+				hfront-porch = <5>;
+				vback-porch = <2>;
+				vfront-porch = <3>;
+				hsync-len = <2>;
+				vsync-len = <1>;
+				hsync-active = <0>;
+				vsync-active = <0>;
+				de-active = <0>;
+				pixelclk-active = <0>;
+			};
+		};
+	};
+};
