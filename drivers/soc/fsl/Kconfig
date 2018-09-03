@@ -16,3 +16,14 @@ config FSL_GUTS
 	  Initially only reading SVR and registering soc device are supported.
 	  Other guts accesses, such as reading RCW, should eventually be moved
 	  into this driver as well.
+
+menu "NXP SoC drivers"
+
+config S32_DEBUG_REGACCESS
+	bool "Userspace access to SoC registers"
+	help
+	  Enabling this option leads to the creation of entries in
+	  /sys/kernel/s32_regaccess which can be used to read and write
+	  SoC registers from userspace.
+
+endmenu
