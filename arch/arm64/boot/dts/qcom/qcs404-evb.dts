@@ -6,6 +6,7 @@
 /dts-v1/;
 
 #include "qcs404.dtsi"
+#include "pms405.dtsi"
 
 / {
 	model = "Qualcomm Technologies, Inc. QCS404 EVB 1000";
