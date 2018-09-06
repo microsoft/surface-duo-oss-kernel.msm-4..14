@@ -26,7 +26,6 @@
 #define AFE_PORT_CMD_DEVICE_START	0x000100E5
 #define AFE_PORT_CMD_DEVICE_STOP	0x000100E6
 #define AFE_PORT_CMD_SET_PARAM_V2	0x000100EF
-#define AFE_SVC_CMD_SET_PARAM		0x000100f3
 #define AFE_PORT_CMDRSP_GET_PARAM_V2	0x00010106
 #define AFE_PARAM_ID_HDMI_CONFIG	0x00010210
 #define AFE_MODULE_AUDIO_DEV_INTERFACE	0x0001020C
@@ -69,11 +68,6 @@
 #define AFE_PORT_ID_MULTICHAN_HDMI_RX	0x100E
 
 #define AFE_API_VERSION_SLIMBUS_CONFIG 0x1
-/* Clock set API version */
-#define AFE_API_VERSION_CLOCK_SET 1
-#define Q6AFE_LPASS_CLK_CONFIG_API_VERSION	0x1
-#define AFE_MODULE_CLOCK_SET		0x0001028F
-#define AFE_PARAM_ID_CLOCK_SET		0x00010290
 
 /* SLIMbus Rx port on channel 0. */
 #define AFE_PORT_ID_SLIMBUS_MULTI_CHAN_0_RX      0x4000
@@ -152,13 +146,6 @@ struct afe_port_param_data_v2 {
 	u16 reserved;
 } __packed;
 
-struct afe_svc_cmd_set_param {
-	uint32_t payload_size;
-	uint32_t payload_address_lsw;
-	uint32_t payload_address_msw;
-	uint32_t mem_map_handle;
-} __packed;
-
 struct afe_port_cmd_set_param_v2 {
 	u16 port_id;
 	u16 payload_size;
@@ -219,23 +206,6 @@ struct afe_param_id_slimbus_cfg {
  */
 } __packed;
 
-struct afe_clk_cfg {
-	u32                  i2s_cfg_minor_version;
-	u32                  clk_val1;
-	u32                  clk_val2;
-	u16                  clk_src;
-	u16                  clk_root;
-	u16                  clk_set_mode;
-	u16                  reserved;
-} __packed;
-
-struct afe_digital_clk_cfg {
-	u32                  i2s_cfg_minor_version;
-	u32                  clk_val;
-	u16                  clk_root;
-	u16                  reserved;
-} __packed;
-
 struct afe_param_id_i2s_cfg {
 	u32	i2s_cfg_minor_version;
 	u16	bit_width;
@@ -253,43 +223,9 @@ union afe_port_config {
 	struct afe_param_id_i2s_cfg	i2s_cfg;
 } __packed;
 
-
-struct afe_clk_set {
-	uint32_t clk_set_minor_version;
-	uint32_t clk_id;
-	uint32_t clk_freq_in_hz;
-	uint16_t clk_attri;
-	uint16_t clk_root;
-	uint32_t enable;
-};
-
-struct afe_lpass_clk_config_command {
-	struct apr_hdr			 hdr;
-	struct afe_port_cmd_set_param_v2 param;
-	struct afe_port_param_data_v2    pdata;
-	struct afe_clk_cfg clk_cfg;
-} __packed;
-
-struct afe_lpass_clk_config_command_v2 {
-	struct apr_hdr			hdr;
-	struct afe_svc_cmd_set_param	param;
-	struct afe_port_param_data_v2    pdata;
-	struct afe_clk_set		clk_cfg;
-} __packed;
-
-
-
-struct afe_lpass_digital_clk_config_command {
-	struct apr_hdr			 hdr;
-	struct afe_port_cmd_set_param_v2 param;
-	struct afe_port_param_data_v2    pdata;
-	struct afe_digital_clk_cfg clk_cfg;
-} __packed;
-
 struct q6afe_port {
 	wait_queue_head_t wait;
 	union afe_port_config port_cfg;
-	struct aprv2_ibasic_rsp_result_t result;
 	int token;
 	int id;
 	int cfg_type;
@@ -386,7 +322,6 @@ static int q6afe_callback(struct apr_device *adev,
 		case AFE_PORT_CMD_SET_PARAM_V2:
 		case AFE_PORT_CMD_DEVICE_STOP:
 		case AFE_PORT_CMD_DEVICE_START:
-		case AFE_SVC_CMD_SET_PARAM:
 			port = afe_find_port(afe, data->token);
 			if (port) {
 				port->result = *res;
@@ -458,46 +393,6 @@ err:
 	return ret;
 }
 
-static int q6afe_port_set_param(struct q6afe_port *port, void *data,
-				   int param_id, int module_id, int psize)
-{
-	struct apr_hdr *hdr;
-	struct afe_svc_cmd_set_param *param;
-	struct afe_port_param_data_v2 *pdata;
-	struct q6afe *afe = port->afe;
-	u16 port_id = port->id;
-	int ret;
-
-	hdr = data;
-	param = data + sizeof(*hdr);
-	pdata = data + sizeof(*hdr) + sizeof(*param);
-
-	hdr->hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
-					      APR_HDR_LEN(APR_HDR_SIZE),
-					      APR_PKT_VER);
-	hdr->pkt_size = sizeof(*hdr) + sizeof(*param) +
-			sizeof(*pdata) + psize;
-	hdr->src_port = 0;
-	hdr->dest_port = 0;
-	hdr->token = port->token;
-	hdr->opcode = AFE_SVC_CMD_SET_PARAM;
-
-	param->payload_size = sizeof(*pdata) + psize;
-	param->payload_address_lsw = 0x00;
-	param->payload_address_msw = 0x00;
-	param->mem_map_handle = 0x00;
-	pdata->module_id = module_id;
-	pdata->param_id = param_id;
-	pdata->param_size = psize;
-
-	ret = afe_apr_send_pkt(afe, data, port);
-	if (ret)
-		dev_err(afe->dev, "AFE enable for port 0x%x failed %d\n",
-		       port_id, ret);
-
-	return ret;
-}
-
 static int q6afe_port_set_param_v2(struct q6afe_port *port, void *data,
 				   int param_id, int psize)
 {
@@ -538,110 +433,6 @@ static int q6afe_port_set_param_v2(struct q6afe_port *port, void *data,
 
 	return ret;
 }
-
-static int q6afe_set_lpass_clock(struct q6afe_port *port,
-				 struct afe_clk_cfg *cfg)
-{
-	struct afe_lpass_clk_config_command clk_cfg = {0};
-	int param_id = AFE_PARAM_ID_LPAIF_CLK_CONFIG;
-	struct q6afe *afe = port->afe;
-
-	if (!cfg) {
-		dev_err(afe->dev, "clock cfg is NULL\n");
-		return -EINVAL;
-	}
-
-	clk_cfg.clk_cfg = *cfg;
-
-	return q6afe_port_set_param_v2(port, &clk_cfg, param_id, sizeof(*cfg));
-}
-
-static int q6afe_set_lpass_clock_v2(struct q6afe_port *port,
-				 struct afe_clk_set *cfg)
-{
-	struct afe_lpass_clk_config_command_v2 clk_cfg = {0};
-	int param_id = AFE_PARAM_ID_CLOCK_SET;
-	int module_id = AFE_MODULE_CLOCK_SET;
-	struct q6afe *afe = port->afe;
-
-	if (!cfg) {
-		dev_err(afe->dev, "clock cfg is NULL\n");
-		return -EINVAL;
-	}
-
-	clk_cfg.clk_cfg = *cfg;
-
-	return q6afe_port_set_param(port, &clk_cfg, param_id,
-				       module_id, sizeof(*cfg));
-}
-
-static int q6afe_set_digital_codec_core_clock(struct q6afe_port *port,
-					      struct afe_digital_clk_cfg *cfg)
-{
-	struct afe_lpass_digital_clk_config_command clk_cfg = {0};
-	int param_id = AFE_PARAM_ID_INTERNAL_DIGITAL_CDC_CLK_CONFIG;
-	struct q6afe *afe = port->afe;
-
-	if (!cfg) {
-		dev_err(afe->dev, "clock cfg is NULL\n");
-		return -EINVAL;
-	}
-
-	clk_cfg.clk_cfg = *cfg;
-
-	return q6afe_port_set_param_v2(port, &clk_cfg, param_id, sizeof(*cfg));
-}
-
-int q6afe_port_set_sysclk(struct q6afe_port *port, int clk_id,
-			  int clk_src, int clk_root,
-			  unsigned int freq, int dir)
-{
-	struct afe_clk_cfg ccfg = {0,};
-	struct afe_clk_set cset = {0,};
-	struct afe_digital_clk_cfg dcfg = {0,};
-	int ret;
-
-	switch (clk_id) {
-	case LPAIF_DIG_CLK:
-		dcfg.i2s_cfg_minor_version = AFE_API_VERSION_I2S_CONFIG;
-		dcfg.clk_val = freq;
-		dcfg.clk_root = clk_root;
-		ret = q6afe_set_digital_codec_core_clock(port, &dcfg);
-		break;
-	case LPAIF_BIT_CLK:
-		ccfg.i2s_cfg_minor_version = AFE_API_VERSION_I2S_CONFIG;
-		ccfg.clk_val1 = freq;
-		ccfg.clk_src = clk_src;
-		ccfg.clk_root = clk_root;
-		ccfg.clk_set_mode = Q6AFE_LPASS_MODE_CLK1_VALID;
-		ret = q6afe_set_lpass_clock(port, &ccfg);
-		break;
-
-	case LPAIF_OSR_CLK:
-		ccfg.i2s_cfg_minor_version = AFE_API_VERSION_I2S_CONFIG;
-		ccfg.clk_val2 = freq;
-		ccfg.clk_src = clk_src;
-		ccfg.clk_root = clk_root;
-		ccfg.clk_set_mode = Q6AFE_LPASS_MODE_CLK2_VALID;
-		ret = q6afe_set_lpass_clock(port, &ccfg);
-		break;
-	case Q6AFE_LPASS_CLK_ID_PRI_MI2S_IBIT ... Q6AFE_LPASS_CLK_ID_INT_MCLK_1:
-		cset.clk_set_minor_version = AFE_API_VERSION_CLOCK_SET;
-		cset.clk_id = clk_id;
-		cset.clk_freq_in_hz = freq;
-		cset.clk_attri = clk_src;
-		cset.clk_root = clk_root;
-		cset.enable = !!freq;
-		ret = q6afe_set_lpass_clock_v2(port, &cset);
-		break;
-	default:
-		ret = -EINVAL;
-		break;
-	}
-
-	return ret;
-}
-EXPORT_SYMBOL_GPL(q6afe_port_set_sysclk);
 
 /**
  * q6afe_port_stop() - Stop a afe port
@@ -735,7 +526,8 @@ EXPORT_SYMBOL_GPL(q6afe_hdmi_port_prepare);
  *
  * @port: Instance of afe port
  * @cfg: I2S configuration for the afe port
- * Return: Will be an negative on error and zero on success.
+ *
+  Return: Will be an negative on error and zero on success.
  */
 int q6afe_i2s_port_prepare(struct q6afe_port *port, struct q6afe_i2s_cfg *cfg)
 {
