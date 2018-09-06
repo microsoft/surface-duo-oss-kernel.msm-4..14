@@ -738,22 +738,14 @@ static int q6afe_dai_dev_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static const struct of_device_id q6afe_dai_of_match[] = {
-	{ .compatible = "qcom,q6afe-dai"},
-	{ },
-};
-MODULE_DEVICE_TABLE(of, q6afe_dai_of_match);
-
 static struct platform_driver q6afe_dai_platform_driver = {
 	.driver = {
 		.name = "q6afe-dai",
-		.of_match_table = q6afe_dai_of_match,
 	},
 	.probe = q6afe_dai_dev_probe,
 	.remove = q6afe_dai_dev_remove,
 };
 module_platform_driver(q6afe_dai_platform_driver);
 
-MODULE_ALIAS("platform:q6afe-dai");
 MODULE_DESCRIPTION("Q6 Audio Fronend dai driver");
 MODULE_LICENSE("GPL v2");
