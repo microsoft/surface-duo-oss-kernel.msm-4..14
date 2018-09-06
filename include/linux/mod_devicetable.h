@@ -452,17 +452,6 @@ struct spi_device_id {
 	kernel_ulong_t driver_data;	/* Data private to the driver */
 };
 
-#define APR_NAME_SIZE	32
-#define APR_MODULE_PREFIX "apr:"
-
-struct apr_device_id {
-	char name[APR_NAME_SIZE];
-	__u32 domain_id;
-	__u32 svc_id;
-	__u32 svc_version;
-	kernel_ulong_t driver_data;	/* Data private to the driver */
-};
-
 /* SLIMbus */
 
 #define SLIMBUS_NAME_SIZE	32
