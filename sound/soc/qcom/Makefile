@@ -18,6 +18,3 @@ snd-soc-apq8096-objs := apq8096.o
 obj-$(CONFIG_SND_SOC_STORM) += snd-soc-storm.o
 obj-$(CONFIG_SND_SOC_APQ8016_SBC) += snd-soc-apq8016-sbc.o
 obj-$(CONFIG_SND_SOC_MSM8996) += snd-soc-apq8096.o
-
-#DSP lib
-obj-$(CONFIG_SND_SOC_QDSP6) += qdsp6/
