@@ -319,7 +319,6 @@ static struct copp *adm_find_matching_copp(struct q6adm *adm,
 		    (mode == c->mode) && (rate == c->rate) &&
 		    (bit_width == c->bit_width) && (app_type == c->app_type)) {
 			spin_unlock_irqrestore(&adm->copps_list_lock, flags);
-			kref_get(&c->refcount);
 			return c;
 		}
 	}
@@ -420,6 +419,8 @@ int q6adm_open(struct device *dev, int port_id, int path, int rate,
 		if (ret < 0)
 			return ret;
 	}
+
+	kref_get(&copp->refcount);
 
 	return copp->copp_idx;
 }
