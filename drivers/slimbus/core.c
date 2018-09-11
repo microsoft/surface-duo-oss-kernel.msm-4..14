@@ -460,7 +460,7 @@ static int slim_device_alloc_laddr(struct slim_device *sbdev,
 
 	slim_device_update_status(sbdev, SLIM_DEVICE_STATUS_UP);
 
-	dev_dbg(ctrl->dev, "setting slimbus l-addr:%x, ea:%x,%x,%x,%x\n",
+	dev_info(&sbdev->dev, "setting slimbus l-addr:%x, ea:%x,%x,%x,%x\n",
 		laddr, sbdev->e_addr.manf_id, sbdev->e_addr.prod_code,
 		sbdev->e_addr.dev_index, sbdev->e_addr.instance);
 
