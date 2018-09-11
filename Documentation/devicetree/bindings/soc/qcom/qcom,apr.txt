@@ -9,9 +9,9 @@ used for audio/voice services on the QDSP.
 	Value type: <stringlist>
 	Definition: must be "qcom,apr-v<VERSION-NUMBER>", example "qcom,apr-v2"
 
-- qcom,apr-dest-domain-id
+- reg
 	Usage: required
-	Value type: <prop-encoded-array>
+	Value type: <u32>
 	Definition: Destination processor ID.
 	Possible values are :
 			1 - APR simulator
@@ -28,10 +28,10 @@ of the nodes are not important. The properties of these nodes are defined
 by the individual bindings for the specific service
 - All APR services MUST contain the following property:
 
-- qcom,apr-svc-id
+- reg
 	Usage: required
-	Value type: <prop-encoded-array>
-	Definition: APR Service ID, used for matching the service.
+	Value type: <u32>
+	Definition: APR Service ID
 	Possible values are :
 			3 - DSP Core Service
 			4 - Audio Front End Service.
@@ -45,41 +45,40 @@ by the individual bindings for the specific service
 			12 - Ultrasound stream manager.
 			13 - Listen stream manager.
 
-- qcom,apr-svc-name
-	Usage: required
-	Value type: <stringlist>
-	Definition: User readable name of a APR service.
-
 = EXAMPLE
 The following example represents a QDSP based sound card on a MSM8996 device
 which uses apr as communication between Apps and QDSP.
 
-	apr {
+	apr@4 {
 		compatible = "qcom,apr-v2";
-		qcom,smd-channels = "apr_audio_svc";
-		qcom,apr-dest-domain-id = <APR_DOMAIN_ADSP>;
+		reg = <APR_DOMAIN_ADSP>;
 
-		q6core {
+		q6core@3 {
 			compatible = "qcom,q6core";
-			qcom,apr-svc-name = "CORE";
-			qcom,apr-svc-id = <APR_SVC_ADSP_CORE>;
+			reg = <APR_SVC_ADSP_CORE>;
 		};
 
-		q6afe {
+		q6afe@4 {
 			compatible = "qcom,q6afe";
-			qcom,apr-svc-name = "AFE";
-			qcom,apr-svc-id = <APR_SVC_AFE>;
+			reg = <APR_SVC_AFE>;
+
+			dais {
+				#sound-dai-cells = <1>;
+				hdmi@1 {
+					reg = <1>;
+				};
+			};
 		};
 
-		q6asm {
+		q6asm@7 {
 			compatible = "qcom,q6asm";
-			qcom,apr-svc-name = "ASM";
-			qcom,apr-svc-id = <APR_SVC_ASM>;
+			reg = <APR_SVC_ASM>;
+			...
 		};
 
-		q6adm {
+		q6adm@8 {
 			compatible = "qcom,q6adm";
-			qcom,apr-svc-name = "ADM";
-			qcom,apr-svc-id = <APR_SVC_ADM>;
+			reg = <APR_SVC_ADM>;
+			...
 		};
 	};

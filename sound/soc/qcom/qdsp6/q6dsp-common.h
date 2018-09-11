@@ -1,11 +1,11 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 
 #ifndef __Q6DSP_COMMON_H__
 #define __Q6DSP_COMMON_H__
 
 #include <linux/kernel.h>
 
-#define PCM_FORMAT_MAX_NUM_CHANNEL  8
+#define PCM_MAX_NUM_CHANNEL  8
 #define PCM_CHANNEL_NULL 0
 
 #define PCM_CHANNEL_FL    1	/* Front left channel. */
@@ -19,6 +19,6 @@
 #define PCM_CHANNEL_RB   9	/* Right back channel; Rear right channel. */
 #define PCM_CHANNELS   10	/* Top surround channel. */
 
-int q6dsp_map_channels(u8 ch_map[PCM_FORMAT_MAX_NUM_CHANNEL], int ch);
+int q6dsp_map_channels(u8 ch_map[PCM_MAX_NUM_CHANNEL], int ch);
 
 #endif /* __Q6DSP_COMMON_H__ */

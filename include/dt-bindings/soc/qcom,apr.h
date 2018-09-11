@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __DT_BINDINGS_QCOM_APR_H
 #define __DT_BINDINGS_QCOM_APR_H
 

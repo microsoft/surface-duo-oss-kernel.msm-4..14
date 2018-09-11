@@ -590,14 +590,23 @@ struct snd_soc_component *snd_soc_rtdcom_lookup(struct snd_soc_pcm_runtime *rtd,
 {
 	struct snd_soc_rtdcom_list *rtdcom;
 
+	if (!driver_name)
+		return NULL;
+
 	for_each_rtdcom(rtd, rtdcom) {
-		if ((rtdcom->component->driver->name == driver_name) ||
-		    strcmp(rtdcom->component->driver->name, driver_name) == 0)
+		const char *component_name = rtdcom->component->driver->name;
+
+		if (!component_name)
+			continue;
+
+		if ((component_name == driver_name) ||
+		    strcmp(component_name, driver_name) == 0)
 			return rtdcom->component;
 	}
 
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(snd_soc_rtdcom_lookup);
 
 struct snd_pcm_substream *snd_soc_get_dai_substream(struct snd_soc_card *card,
 		const char *dai_link, int stream)
@@ -614,6 +623,8 @@ struct snd_pcm_substream *snd_soc_get_dai_substream(struct snd_soc_card *card,
 }
 EXPORT_SYMBOL_GPL(snd_soc_get_dai_substream);
 
+static const struct snd_soc_ops null_snd_soc_ops;
+
 static struct snd_soc_pcm_runtime *soc_new_pcm_runtime(
 	struct snd_soc_card *card, struct snd_soc_dai_link *dai_link)
 {
@@ -626,6 +637,9 @@ static struct snd_soc_pcm_runtime *soc_new_pcm_runtime(
 	INIT_LIST_HEAD(&rtd->component_list);
 	rtd->card = card;
 	rtd->dai_link = dai_link;
+	if (!rtd->dai_link->ops)
+		rtd->dai_link->ops = &null_snd_soc_ops;
+
 	rtd->codec_dais = kzalloc(sizeof(struct snd_soc_dai *) *
 					dai_link->num_codecs,
 					GFP_KERNEL);
@@ -1185,11 +1199,6 @@ static int soc_bind_dai_link(struct snd_soc_card *card,
 		}
 
 		rtd->platform = platform;
-	}
-	if (!rtd->platform) {
-		dev_err(card->dev, "ASoC: platform %s not registered\n",
-			dai_link->platform_name);
-		goto _err_defer;
 	}
 
 	soc_add_pcm_runtime(card, rtd);
@@ -2902,6 +2911,28 @@ int snd_soc_dai_set_channel_map(struct snd_soc_dai *dai,
 EXPORT_SYMBOL_GPL(snd_soc_dai_set_channel_map);
 
 /**
+ * snd_soc_dai_get_channel_map - Get DAI audio channel map
+ * @dai: DAI
+ * @tx_num: how many TX channels
+ * @tx_slot: pointer to an array which imply the TX slot number channel
+ *           0~num-1 uses
+ * @rx_num: how many RX channels
+ * @rx_slot: pointer to an array which imply the RX slot number channel
+ *           0~num-1 uses
+ */
+int snd_soc_dai_get_channel_map(struct snd_soc_dai *dai,
+	unsigned int *tx_num, unsigned int *tx_slot,
+	unsigned int *rx_num, unsigned int *rx_slot)
+{
+	if (dai->driver->ops->get_channel_map)
+		return dai->driver->ops->get_channel_map(dai, tx_num, tx_slot,
+			rx_num, rx_slot);
+	else
+		return -ENOTSUPP;
+}
+EXPORT_SYMBOL_GPL(snd_soc_dai_get_channel_map);
+
+/**
  * snd_soc_dai_set_tristate - configure DAI system or master clock.
  * @dai: DAI
  * @tristate: tristate enable
@@ -3250,6 +3281,22 @@ static int snd_soc_component_stream_event(struct snd_soc_dapm_context *dapm,
 	return component->driver->stream_event(component, event);
 }
 
+static int snd_soc_component_drv_pcm_new(struct snd_soc_component *component,
+					struct snd_soc_pcm_runtime *rtd)
+{
+	if (component->driver->pcm_new)
+		return component->driver->pcm_new(rtd);
+
+	return 0;
+}
+
+static void snd_soc_component_drv_pcm_free(struct snd_soc_component *component,
+					  struct snd_pcm *pcm)
+{
+	if (component->driver->pcm_free)
+		component->driver->pcm_free(pcm);
+}
+
 static int snd_soc_component_initialize(struct snd_soc_component *component,
 	const struct snd_soc_component_driver *driver, struct device *dev)
 {
@@ -3270,6 +3317,8 @@ static int snd_soc_component_initialize(struct snd_soc_component *component,
 	component->set_sysclk = component->driver->set_sysclk;
 	component->set_pll = component->driver->set_pll;
 	component->set_jack = component->driver->set_jack;
+	component->pcm_new = snd_soc_component_drv_pcm_new;
+	component->pcm_free = snd_soc_component_drv_pcm_free;
 
 	dapm = snd_soc_component_get_dapm(component);
 	dapm->dev = dev;
@@ -3462,6 +3511,26 @@ static void snd_soc_platform_drv_remove(struct snd_soc_component *component)
 	platform->driver->remove(platform);
 }
 
+static int snd_soc_platform_drv_pcm_new(struct snd_soc_component *component,
+					struct snd_soc_pcm_runtime *rtd)
+{
+	struct snd_soc_platform *platform = snd_soc_component_to_platform(component);
+
+	if (platform->driver->pcm_new)
+		return platform->driver->pcm_new(rtd);
+
+	return 0;
+}
+
+static void snd_soc_platform_drv_pcm_free(struct snd_soc_component *component,
+					  struct snd_pcm *pcm)
+{
+	struct snd_soc_platform *platform = snd_soc_component_to_platform(component);
+
+	if (platform->driver->pcm_free)
+		platform->driver->pcm_free(pcm);
+}
+
 /**
  * snd_soc_add_platform - Add a platform to the ASoC core
  * @dev: The parent device for the platform
@@ -3485,6 +3554,10 @@ int snd_soc_add_platform(struct device *dev, struct snd_soc_platform *platform,
 		platform->component.probe = snd_soc_platform_drv_probe;
 	if (platform_drv->remove)
 		platform->component.remove = snd_soc_platform_drv_remove;
+	if (platform_drv->pcm_new)
+		platform->component.pcm_new = snd_soc_platform_drv_pcm_new;
+	if (platform_drv->pcm_free)
+		platform->component.pcm_free = snd_soc_platform_drv_pcm_free;
 
 #ifdef CONFIG_DEBUG_FS
 	platform->component.debugfs_prefix = "platform";

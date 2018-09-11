@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
-// Copyright (c) 2011-2017, The Linux Foundation
+// Copyright (c) 2011-2017, The Linux Foundation. All rights reserved.
 // Copyright (c) 2018, Linaro Limited
 
 #include <linux/slab.h>
@@ -66,16 +66,16 @@ struct q6core {
 	bool is_version_requested;
 };
 
-struct q6core *g_core;
+static struct q6core *g_core;
 
-static int q6core_callback(struct apr_device *adev,
-			 struct apr_client_message *data)
+static int q6core_callback(struct apr_device *adev, struct apr_resp_pkt *data)
 {
 	struct q6core *core = dev_get_drvdata(&adev->dev);
 	struct aprv2_ibasic_rsp_result_t *result;
+	struct apr_hdr *hdr = &data->hdr;
 
 	result = data->payload;
-	switch (data->opcode) {
+	switch (hdr->opcode) {
 	case APR_BASIC_RSP_RESULT:{
 		result = data->payload;
 		switch (result->opcode) {
@@ -102,7 +102,6 @@ static int q6core_callback(struct apr_device *adev,
 		int bytes;
 
 		fwk = data->payload;
-		core->fwk_version_supported = true;
 		bytes = sizeof(*fwk) + fwk->num_services *
 				sizeof(fwk->svc_api_info[0]);
 
@@ -112,6 +111,7 @@ static int q6core_callback(struct apr_device *adev,
 
 		memcpy(core->fwk_version, data->payload, bytes);
 
+		core->fwk_version_supported = true;
 		core->resp_received = true;
 
 		break;
@@ -121,7 +121,6 @@ static int q6core_callback(struct apr_device *adev,
 		int len;
 
 		v = data->payload;
-		core->get_version_supported = true;
 
 		len = sizeof(*v) + v->num_services * sizeof(v->svc_api_info[0]);
 
@@ -131,6 +130,7 @@ static int q6core_callback(struct apr_device *adev,
 
 		memcpy(core->svc_version, data->payload, len);
 
+		core->get_version_supported = true;
 		core->resp_received = true;
 
 		break;
@@ -143,7 +143,7 @@ static int q6core_callback(struct apr_device *adev,
 		break;
 	default:
 		dev_err(&adev->dev, "Message id from adsp core svc: 0x%x\n",
-			data->opcode);
+			hdr->opcode);
 		break;
 	}
 
@@ -156,15 +156,15 @@ static int q6core_callback(struct apr_device *adev,
 static int q6core_get_fwk_versions(struct q6core *core)
 {
 	struct apr_device *adev = core->adev;
-	struct apr_hdr hdr = {0};
+	struct apr_pkt pkt;
 	int rc;
 
-	hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
+	pkt.hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
 				      APR_HDR_LEN(APR_HDR_SIZE), APR_PKT_VER);
-	hdr.pkt_size = APR_HDR_SIZE;
-	hdr.opcode = AVCS_CMD_GET_FWK_VERSION;
+	pkt.hdr.pkt_size = APR_HDR_SIZE;
+	pkt.hdr.opcode = AVCS_CMD_GET_FWK_VERSION;
 
-	rc = apr_send_pkt(adev, &hdr);
+	rc = apr_send_pkt(adev, &pkt);
 	if (rc < 0)
 		return rc;
 
@@ -186,16 +186,15 @@ static int q6core_get_fwk_versions(struct q6core *core)
 static int q6core_get_svc_versions(struct q6core *core)
 {
 	struct apr_device *adev = core->adev;
-	struct apr_hdr hdr = {0};
+	struct apr_pkt pkt;
 	int rc;
 
-	core->get_version_supported = true;
-	hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
+	pkt.hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
 				      APR_HDR_LEN(APR_HDR_SIZE), APR_PKT_VER);
-	hdr.pkt_size = APR_HDR_SIZE;
-	hdr.opcode = AVCS_GET_VERSIONS;
+	pkt.hdr.pkt_size = APR_HDR_SIZE;
+	pkt.hdr.opcode = AVCS_GET_VERSIONS;
 
-	rc = apr_send_pkt(adev, &hdr);
+	rc = apr_send_pkt(adev, &pkt);
 	if (rc < 0)
 		return rc;
 
@@ -212,17 +211,17 @@ static int q6core_get_svc_versions(struct q6core *core)
 static bool __q6core_is_adsp_ready(struct q6core *core)
 {
 	struct apr_device *adev = core->adev;
-	struct apr_hdr hdr = {0};
+	struct apr_pkt pkt;
 	int rc;
 
 	core->get_state_supported = false;
 
-	hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
+	pkt.hdr.hdr_field = APR_HDR_FIELD(APR_MSG_TYPE_SEQ_CMD,
 				      APR_HDR_LEN(APR_HDR_SIZE), APR_PKT_VER);
-	hdr.pkt_size = APR_HDR_SIZE;
-	hdr.opcode = AVCS_CMD_ADSP_EVENT_GET_STATE;
+	pkt.hdr.pkt_size = APR_HDR_SIZE;
+	pkt.hdr.opcode = AVCS_CMD_ADSP_EVENT_GET_STATE;
 
-	rc = apr_send_pkt(adev, &hdr);
+	rc = apr_send_pkt(adev, &pkt);
 	if (rc < 0)
 		return false;
 
@@ -231,7 +230,7 @@ static bool __q6core_is_adsp_ready(struct q6core *core)
 	if (rc > 0 && core->resp_received) {
 		core->resp_received = false;
 
-		if (core->avcs_state == 0x1)
+		if (core->avcs_state)
 			return true;
 	}
 
@@ -246,7 +245,7 @@ static bool __q6core_is_adsp_ready(struct q6core *core)
  * q6core_get_svc_api_info() - Get version number of a service.
  *
  * @svc_id: service id of the service.
- * @info: Valid struct pointer to fill svc api information.
+ * @ainfo: Valid struct pointer to fill svc api information.
  *
  * Return: zero on success and error code on failure or unsupported
  */
@@ -354,8 +353,8 @@ static int q6core_exit(struct apr_device *adev)
 	if (core->get_version_supported)
 		kfree(core->svc_version);
 
-	kfree(core);
 	g_core = NULL;
+	kfree(core);
 
 	return 0;
 }

@@ -795,6 +795,10 @@ struct snd_soc_component_driver {
 	int (*suspend)(struct snd_soc_component *);
 	int (*resume)(struct snd_soc_component *);
 
+	/* pcm creation and destruction */
+	int (*pcm_new)(struct snd_soc_pcm_runtime *);
+	void (*pcm_free)(struct snd_pcm *);
+
 	/* component wide operations */
 	int (*set_sysclk)(struct snd_soc_component *component,
 			  int clk_id, int source, unsigned int freq, int dir);
@@ -812,6 +816,9 @@ struct snd_soc_component_driver {
 	void (*seq_notifier)(struct snd_soc_component *, enum snd_soc_dapm_type,
 		int subseq);
 	int (*stream_event)(struct snd_soc_component *, int event);
+
+	const struct snd_pcm_ops *ops;
+	const struct snd_compr_ops *compr_ops;
 
 	/* probe ordering - for components with runtime dependencies */
 	int probe_order;
@@ -872,6 +879,8 @@ struct snd_soc_component {
 	void (*remove)(struct snd_soc_component *);
 	int (*suspend)(struct snd_soc_component *);
 	int (*resume)(struct snd_soc_component *);
+	int (*pcm_new)(struct snd_soc_component *, struct snd_soc_pcm_runtime *);
+	void (*pcm_free)(struct snd_soc_component *, struct snd_pcm *);
 
 	int (*set_sysclk)(struct snd_soc_component *component,
 			  int clk_id, int source, unsigned int freq, int dir);
@@ -1452,6 +1461,19 @@ static inline struct snd_soc_codec *snd_soc_dapm_kcontrol_codec(
 	return snd_soc_dapm_to_codec(snd_soc_dapm_kcontrol_dapm(kcontrol));
 }
 
+/**
+ * snd_soc_dapm_kcontrol_component() - Returns the component associated to a kcontrol
+ * @kcontrol: The kcontrol
+ *
+ * This function must only be used on DAPM contexts that are known to be part of
+ * a COMPONENT (e.g. in a COMPONENT driver). Otherwise the behavior is undefined.
+ */
+static inline struct snd_soc_component *snd_soc_dapm_kcontrol_component(
+	struct snd_kcontrol *kcontrol)
+{
+	return snd_soc_dapm_to_component(snd_soc_dapm_kcontrol_dapm(kcontrol));
+}
+
 /* codec IO */
 unsigned int snd_soc_read(struct snd_soc_codec *codec, unsigned int reg);
 int snd_soc_write(struct snd_soc_codec *codec, unsigned int reg,
@@ -1471,6 +1493,8 @@ static inline int snd_soc_cache_sync(struct snd_soc_codec *codec)
 /* component IO */
 int snd_soc_component_read(struct snd_soc_component *component,
 	unsigned int reg, unsigned int *val);
+unsigned int snd_soc_component_read32(struct snd_soc_component *component,
+				      unsigned int reg);
 int snd_soc_component_write(struct snd_soc_component *component,
 	unsigned int reg, unsigned int val);
 int snd_soc_component_update_bits(struct snd_soc_component *component,
@@ -1487,6 +1511,8 @@ int snd_soc_component_set_sysclk(struct snd_soc_component *component,
 int snd_soc_component_set_pll(struct snd_soc_component *component, int pll_id,
 			      int source, unsigned int freq_in,
 			      unsigned int freq_out);
+int snd_soc_component_set_jack(struct snd_soc_component *component,
+			       struct snd_soc_jack *jack, void *data);
 
 #ifdef CONFIG_REGMAP
 

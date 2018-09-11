@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
+/* SPDX-License-Identifier: GPL-2.0 */
 #ifndef __Q6_ASM_H__
 #define __Q6_ASM_H__
 #include "q6dsp-common.h"
@@ -28,7 +28,7 @@ enum {
 	ULL_POST_PROCESSING_PCM_MODE,
 };
 
-#define MAX_SESSIONS	16
+#define MAX_SESSIONS	8
 #define NO_TIMESTAMP    0xFF00
 #define FORMAT_LINEAR_PCM   0x0000
 
@@ -52,7 +52,7 @@ int q6asm_read(struct audio_client *ac);
 
 int q6asm_media_format_block_multi_ch_pcm(struct audio_client *ac,
 					  uint32_t rate, uint32_t channels,
-					  u8 channel_map[PCM_FORMAT_MAX_NUM_CHANNEL],
+					  u8 channel_map[PCM_MAX_NUM_CHANNEL],
 					  uint16_t bits_per_sample);
 int q6asm_run(struct audio_client *ac, uint32_t flags, uint32_t msw_ts,
 	      uint32_t lsw_ts);

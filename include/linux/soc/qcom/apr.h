@@ -1,8 +1,4 @@
-// SPDX-License-Identifier: GPL-2.0
-/*
- * Copyright (c) 2011-2017, The Linux Foundation
- * Copyright (c) 2018, Linaro Limited
- */
+/* SPDX-License-Identifier: GPL-2.0 */
 
 #ifndef __QCOM_APR_H_
 #define __QCOM_APR_H_
@@ -11,6 +7,8 @@
 #include <linux/device.h>
 #include <linux/mod_devicetable.h>
 #include <dt-bindings/soc/qcom,apr.h>
+
+extern struct bus_type aprbus;
 
 #define APR_HDR_LEN(hdr_len) ((hdr_len)/4)
 
@@ -64,19 +62,17 @@ struct apr_hdr {
 	uint16_t dest_port;
 	uint32_t token;
 	uint32_t opcode;
+} __packed;
+
+struct apr_pkt {
+	struct apr_hdr hdr;
+	uint8_t payload[];
 };
 
-struct apr_client_message {
-	uint16_t payload_size;
-	uint16_t hdr_len;
-	uint16_t msg_type;
-	uint16_t src;
-	uint16_t dest_svc;
-	uint16_t src_port;
-	uint16_t dest_port;
-	uint32_t token;
-	uint32_t opcode;
+struct apr_resp_pkt {
+	struct apr_hdr hdr;
 	void *payload;
+	int payload_size;
 };
 
 /* Bits 0 to 15 -- Minor version,  Bits 16 to 31 -- Major version */
@@ -99,7 +95,7 @@ struct apr_driver {
 	int	(*probe)(struct apr_device *sl);
 	int	(*remove)(struct apr_device *sl);
 	int	(*callback)(struct apr_device *a,
-			    struct apr_client_message *d);
+			    struct apr_resp_pkt *d);
 	struct device_driver		driver;
 	const struct apr_device_id	*id_table;
 };
@@ -127,6 +123,6 @@ void apr_driver_unregister(struct apr_driver *drv);
 	module_driver(__apr_driver, apr_driver_register, \
 			apr_driver_unregister)
 
-int apr_send_pkt(struct apr_device *adev, void *buf);
+int apr_send_pkt(struct apr_device *adev, struct apr_pkt *pkt);
 
 #endif /* __QCOM_APR_H_ */

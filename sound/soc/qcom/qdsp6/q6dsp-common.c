@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0
-// Copyright (c) 2011-2017, The Linux Foundation
+// Copyright (c) 2011-2017, The Linux Foundation. All rights reserved.
 // Copyright (c) 2018, Linaro Limited
 
 #include "q6dsp-common.h"
@@ -8,9 +8,9 @@
 #include <linux/string.h>
 #include <linux/errno.h>
 
-int q6dsp_map_channels(u8 ch_map[PCM_FORMAT_MAX_NUM_CHANNEL], int ch)
+int q6dsp_map_channels(u8 ch_map[PCM_MAX_NUM_CHANNEL], int ch)
 {
-	memset(ch_map, 0, PCM_FORMAT_MAX_NUM_CHANNEL);
+	memset(ch_map, 0, PCM_MAX_NUM_CHANNEL);
 
 	switch (ch) {
 	case 1:
