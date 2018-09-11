@@ -40,8 +40,15 @@ static int slim_device_probe(struct device *dev)
 {
 	struct slim_device	*sbdev = to_slim_device(dev);
 	struct slim_driver	*sbdrv = to_slim_driver(dev->driver);
+	struct slim_controller *ctrl = sbdev->ctrl;
+	int ret;
 
-	return sbdrv->probe(sbdev);
+	/* Make sure that the status is not updated in the middle of probe */
+	mutex_lock(&ctrl->lock);
+	ret = sbdrv->probe(sbdev);
+	mutex_unlock(&ctrl->lock);
+
+	return ret;
 }
 
 static int slim_device_remove(struct device *dev)
