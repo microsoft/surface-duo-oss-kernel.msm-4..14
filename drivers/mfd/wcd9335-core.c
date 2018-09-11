@@ -257,40 +257,6 @@ static int wcd9335_irq_init(struct wcd9335 *wcd)
 	return ret;
 }
 
-static int wcd9335_slim_probe(struct slim_device *slim)
-{
-	struct device *dev = &slim->dev;
-	struct wcd9335 *wcd;
-	int ret;
-
-	/* Interface device */
-	if (slim->e_addr.dev_index == WCD9335_SLIM_INTERFACE_DEVICE_INDEX)
-		return 0;
-
-	wcd = devm_kzalloc(dev, sizeof(*wcd), GFP_KERNEL);
-	if (!wcd)
-		return	-ENOMEM;
-
-	wcd->dev = dev;
-
-	ret = wcd9335_parse_dt(wcd);
-	if (ret) {
-		dev_err(dev, "Error parsing DT: %d\n", ret);
-		return ret;
-	}
-
-	ret = wcd9335_power_on_reset(wcd);
-	if (ret)
-		return ret;
-
-	wcd->slim = slim;
-	wcd->intf_type = WCD9335_INTERFACE_TYPE_SLIMBUS;
-
-	dev_set_drvdata(dev, wcd);
-
-	return 0;
-}
-
 static const struct mfd_cell wcd9335_devices[] = {
 	{ .name = "wcd9335-codec", },
 };
@@ -350,14 +316,56 @@ static int wcd9335_slim_status(struct slim_device *sdev,
 	return ret;
 }
 
+static int wcd9335_slim_probe(struct slim_device *slim)
+{
+	struct device *dev = &slim->dev;
+	struct wcd9335 *wcd;
+	int ret;
+
+	/* Interface device */
+	if (slim->e_addr.dev_index == WCD9335_SLIM_INTERFACE_DEVICE_INDEX)
+		return 0;
+
+	wcd = devm_kzalloc(dev, sizeof(*wcd), GFP_KERNEL);
+	if (!wcd)
+		return	-ENOMEM;
+
+	dev_set_drvdata(dev, wcd);
+	wcd->dev = dev;
+	wcd->slim = slim;
+	wcd->intf_type = WCD9335_INTERFACE_TYPE_SLIMBUS;
+
+	ret = wcd9335_parse_dt(wcd);
+	if (ret) {
+		dev_err(dev, "Error parsing DT: %d\n", ret);
+		return ret;
+	}
+
+	ret = wcd9335_power_on_reset(wcd);
+	if (ret)
+		return ret;
+
+	if (slim->status == SLIM_DEVICE_STATUS_UP)
+		return wcd9335_slim_status(slim, slim->status);
+
+	return ret;
+}
+
 static const struct slim_device_id wcd9335_slim_id[] = {
 	{SLIM_MANF_ID_QCOM, SLIM_PROD_CODE_WCD9335, 0x1, 0x0},
 	{}
 };
 
+static const struct of_device_id wcd9335_device_id[]  = {
+	{ .compatible = "slim217,1a0" },
+	{},
+};
+MODULE_DEVICE_TABLE(of, wcd9335_device_id);
+
 static struct slim_driver wcd9335_slim_driver = {
 	.driver = {
 		.name = "wcd9335-slim",
+		.of_match_table = of_match_ptr(wcd9335_device_id),
 	},
 	.probe = wcd9335_slim_probe,
 	.device_status = wcd9335_slim_status,
