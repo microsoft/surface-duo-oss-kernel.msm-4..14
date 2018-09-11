@@ -1720,6 +1720,68 @@
 			};
 		};
 
+		slimbam:dma@9184000
+		{
+			compatible = "qcom,bam-v1.7.0";
+			qcom,controlled-remotely;
+			reg = <0x9184000 0x32000>;
+			num-channels  = <31>;
+			interrupts = <0 164 IRQ_TYPE_LEVEL_HIGH>;
+			#dma-cells = <1>;
+			qcom,ee = <1>;
+			qcom,num-ees = <2>;
+		};
+
+		slim_msm: slim@91c0000 {
+			compatible = "qcom,slim-ngd-v1.5.0";
+			pinctrl-0 = <&cdc_reset_active>;
+			pinctrl-1 = <&cdc_reset_sleep>;
+			pinctrl-names = "default", "sleep";
+
+			reg = <0x91c0000 0x2C000>;
+			reg-names = "ctrl";
+			interrupts = <0 163 IRQ_TYPE_LEVEL_HIGH>;
+			qcom,apps-ch-pipes = <0x60000000>;
+			qcom,ea-pc = <0x160>;
+			dmas =	<&slimbam 3>, <&slimbam 4>,
+				<&slimbam 5>, <&slimbam 6>;
+			dma-names = "rx", "tx", "tx2", "rx2";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			ngd@1 {
+				reg = <1>;
+				#address-cells = <1>;
+				#size-cells = <1>;
+				tasha_ifd: tas-ifd {
+					compatible = "slim217,1a0";
+					reg  = <0 0>;
+				};
+
+				wcd9335: codec@1{
+					pinctrl-0 = <&wcd_intr_default>;
+					pinctrl-names = "default";
+					compatible = "slim217,1a0";
+					reg  = <1 0>;
+
+					interrupt-parent = <&msmgpio>;
+					interrupts = <54 IRQ_TYPE_LEVEL_HIGH>,
+						     <53 IRQ_TYPE_LEVEL_HIGH>;
+					interrupt-names  = "intr1", "intr2";
+					interrupt-controller;
+					#interrupt-cells = <1>;
+					reset-gpios = <&msmgpio 64 0>;
+					slim-ifc-dev  = <&tasha_ifd>;
+					vdd-buck-supply = <&pm8994_s4>;
+					vdd-buck-sido-supply = <&pm8994_s4>;
+					vdd-tx-supply = <&pm8994_s4>;
+					vdd-rx-supply = <&pm8994_s4>;
+					vdd-io-supply = <&pm8994_s4>;
+					#sound-dai-cells = <1>;
+				};
+
+			};
+		};
+
 		adreno_smmu: arm,smmu@b40000 {
 			compatible = "qcom,msm8996-smmu-v2", "qcom,smmu-v2";
 			reg = <0xb40000 0x10000>;
@@ -1887,6 +1949,7 @@
 
 				phys = <&hdmi_phy>;
 				phy-names = "hdmi_phy";
+				#sound-dai-cells = <1>;
 
 				ports {
 					#address-cells = <1>;
@@ -2130,46 +2193,52 @@
 			qcom,ipc = <&apcs 16 8>;
 			qcom,smd-edge = <1>;
 			qcom,remote-pid = <2>;
+			#address-cells = <1>;
+			#size-cells = <0>;
 
 			apr {
+	                        power-domains = <&gcc HLOS1_VOTE_LPASS_ADSP_GDSC>;
 				compatible = "qcom,apr-v2";
 				qcom,smd-channels = "apr_audio_svc";
-				qcom,apr-dest-domain-id = <APR_DOMAIN_ADSP>;
+				reg = <APR_DOMAIN_ADSP>;
+				#address-cells = <1>;
+				#size-cells = <0>;
 
 				q6core {
-					qcom,apr-svc-name = "CORE";
-					qcom,apr-svc-id = <APR_SVC_ADSP_CORE>;
+					reg = <APR_SVC_ADSP_CORE>;
 					compatible = "qcom,q6core";
 				};
 
 				q6afe: q6afe {
 					compatible = "qcom,q6afe";
-					qcom,apr-svc-name = "AFE";
-					qcom,apr-svc-id = <APR_SVC_AFE>;
+					reg = <APR_SVC_AFE>;
 					q6afedai: dais {
-						compatible = "qcom,q6afe-dai";
+						compatible = "qcom,q6afe-dais";
+						#address-cells = <1>;
+						#size-cells = <0>;
 						#sound-dai-cells = <1>;
+						hdmi@1 {
+							reg = <1>;
+						};
 					};
 				};
 
 				q6asm: q6asm {
 					compatible = "qcom,q6asm";
-					qcom,apr-svc-name = "ASM";
-					qcom,apr-svc-id = <APR_SVC_ASM>;
+					reg = <APR_SVC_ASM>;
 					q6asmdai: dais {
-						compatible = "qcom,q6asm-dai";
+						compatible = "qcom,q6asm-dais";
 						#sound-dai-cells = <1>;
-						power-domains = <&gcc HLOS1_VOTE_LPASS_ADSP_GDSC>;
 						iommus = <&lpass_q6_smmu 1>;
+
 					};
 				};
 
 				q6adm: q6adm {
 					compatible = "qcom,q6adm";
-					qcom,apr-svc-name = "ADM";
-					qcom,apr-svc-id = <APR_SVC_ADM>;
+					reg = <APR_SVC_ADM>;
 					q6routing: routing {
-						compatible = "q6routing";
+						compatible = "qcom,q6adm-routing";
 						#sound-dai-cells = <0>;
 					};
 				};
