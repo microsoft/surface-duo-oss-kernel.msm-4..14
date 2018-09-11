@@ -3,7 +3,7 @@
 # SLIMbus driver configuration
 #
 menuconfig SLIMBUS
-	tristate "SLIMbus support"
+	bool "SLIMbus support"
 	help
 	  SLIMbus is standard interface between System-on-Chip and audio codec,
 	  and other peripheral components in typical embedded systems.

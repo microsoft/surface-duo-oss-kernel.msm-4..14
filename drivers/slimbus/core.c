@@ -290,7 +290,7 @@ static void slim_device_update_status(struct slim_device *sbdev,
 		return;
 
 	sbdev->status = status;
-	if (!sbdev->dev.driver)
+	if (!device_is_bound(&sbdev->dev))
 		return;
 
 	sbdrv = to_slim_driver(sbdev->dev.driver);
