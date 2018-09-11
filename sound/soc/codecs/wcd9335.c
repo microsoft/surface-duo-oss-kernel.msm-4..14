@@ -5223,8 +5223,17 @@ static int wcd9335_probe(struct platform_device *pdev)
 					       ARRAY_SIZE(wcd9335_slim_dais));
 }
 
+static const struct platform_device_id wcd9335_driver_ids[] = {
+        {
+                .name           = "wcd9335-codec",
+        },
+        {},
+};
+MODULE_DEVICE_TABLE(platform, wcd9335_driver_ids);
+
 static struct platform_driver wcd9335_codec_driver = {
 	.probe = wcd9335_probe,
+        .id_table = wcd9335_driver_ids,
 	.driver = {
 		.name = "wcd9335-codec",
 	},
