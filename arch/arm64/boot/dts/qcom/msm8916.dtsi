@@ -519,6 +519,8 @@
 			pinctrl-names = "default", "sleep";
 			pinctrl-0 = <&i2c2_default>;
 			pinctrl-1 = <&i2c2_sleep>;
+			interconnect-names = "i2c-mem";
+			interconnects = <&pnoc MASTER_BLSP_1 &bimc SLAVE_EBI_CH0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -534,6 +536,8 @@
 			pinctrl-names = "default", "sleep";
 			pinctrl-0 = <&i2c4_default>;
 			pinctrl-1 = <&i2c4_sleep>;
+			interconnect-names = "i2c-mem";
+			interconnects = <&pnoc MASTER_BLSP_1 &bimc SLAVE_EBI_CH0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
@@ -549,6 +553,8 @@
 			pinctrl-names = "default", "sleep";
 			pinctrl-0 = <&i2c6_default>;
 			pinctrl-1 = <&i2c6_sleep>;
+			interconnect-names = "i2c-mem";
+			interconnects = <&pnoc MASTER_BLSP_1 &bimc SLAVE_EBI_CH0>;
 			#address-cells = <1>;
 			#size-cells = <0>;
 			status = "disabled";
