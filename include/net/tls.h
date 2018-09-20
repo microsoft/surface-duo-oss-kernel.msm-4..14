@@ -124,6 +124,8 @@ struct tls_sw_context_rx {
 	struct sk_buff *recv_pkt;
 	u8 control;
 	bool decrypted;
+	atomic_t decrypt_pending;
+	bool async_notify;
 };
 
 struct tls_record_info {
@@ -171,15 +173,14 @@ struct cipher_context {
 	char *rec_seq;
 };
 
+union tls_crypto_context {
+	struct tls_crypto_info info;
+	struct tls12_crypto_info_aes_gcm_128 aes_gcm_128;
+};
+
 struct tls_context {
-	union {
-		struct tls_crypto_info crypto_send;
-		struct tls12_crypto_info_aes_gcm_128 crypto_send_aes_gcm_128;
-	};
-	union {
-		struct tls_crypto_info crypto_recv;
-		struct tls12_crypto_info_aes_gcm_128 crypto_recv_aes_gcm_128;
-	};
+	union tls_crypto_context crypto_send;
+	union tls_crypto_context crypto_recv;
 
 	struct list_head list;
 	struct net_device *netdev;
@@ -367,8 +368,8 @@ static inline void tls_fill_prepend(struct tls_context *ctx,
 	 * size KTLS_DTLS_HEADER_SIZE + KTLS_DTLS_NONCE_EXPLICIT_SIZE
 	 */
 	buf[0] = record_type;
-	buf[1] = TLS_VERSION_MINOR(ctx->crypto_send.version);
-	buf[2] = TLS_VERSION_MAJOR(ctx->crypto_send.version);
+	buf[1] = TLS_VERSION_MINOR(ctx->crypto_send.info.version);
+	buf[2] = TLS_VERSION_MAJOR(ctx->crypto_send.info.version);
 	/* we can use IV for nonce explicit according to spec */
 	buf[3] = pkt_len >> 8;
 	buf[4] = pkt_len & 0xFF;

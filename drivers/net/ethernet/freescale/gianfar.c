@@ -102,8 +102,6 @@
 #include <linux/phy_fixed.h>
 #include <linux/of.h>
 #include <linux/of_net.h>
-#include <linux/of_address.h>
-#include <linux/of_irq.h>
 
 #include "gianfar.h"
 
@@ -1814,8 +1812,8 @@ static int init_phy(struct net_device *dev)
 	phydev->supported &= (GFAR_SUPPORTED | gigabit_support);
 	phydev->advertising = phydev->supported;
 
-	/* Add support for flow control, but don't advertise it by default */
-	phydev->supported |= (SUPPORTED_Pause | SUPPORTED_Asym_Pause);
+	/* Add support for flow control */
+	phy_support_asym_pause(phydev);
 
 	/* disable EEE autoneg, EEE not supported by eTSEC */
 	memset(&edata, 0, sizeof(struct ethtool_eee));

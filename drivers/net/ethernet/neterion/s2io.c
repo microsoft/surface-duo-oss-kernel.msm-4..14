@@ -75,6 +75,7 @@
 #include <linux/tcp.h>
 #include <linux/uaccess.h>
 #include <linux/io.h>
+#include <linux/io-64-nonatomic-lo-hi.h>
 #include <linux/slab.h>
 #include <linux/prefetch.h>
 #include <net/tcp.h>
@@ -491,7 +492,7 @@ static struct pci_driver s2io_driver = {
 };
 
 /* A simplifier macro used both by init and free shared_mem Fns(). */
-#define TXD_MEM_PAGE_CNT(len, per_each) ((len+per_each - 1) / per_each)
+#define TXD_MEM_PAGE_CNT(len, per_each) DIV_ROUND_UP(len, per_each)
 
 /* netqueue manipulation helper functions */
 static inline void s2io_stop_all_tx_queue(struct s2io_nic *sp)
