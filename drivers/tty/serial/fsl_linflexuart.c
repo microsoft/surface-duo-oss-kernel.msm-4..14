@@ -928,7 +928,6 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 	 * supported mode:
 	 *	- (7,e/o,1)
 	 *	- (8,n,1)
-	 *	- (8,m/s,1)
 	 *	- (8,e/o,1)
 	 */
 	/* enter the UART into configuration mode */
@@ -984,20 +983,13 @@ linflex_set_termios(struct uart_port *port, struct ktermios *termios,
 		termios->c_cflag |= PARENB;
 
 	if ((termios->c_cflag & PARENB)) {
-		if (termios->c_cflag & CMSPAR) {
-			cr &= ~LINFLEXD_UARTCR_PCE;
-
-		} else {
-
-			cr |= LINFLEXD_UARTCR_PCE;
-			if ((termios->c_cflag & CSIZE) == CS8)
-			{
-				if (termios->c_cflag & PARODD)
-					cr = (cr | LINFLEXD_UARTCR_PC0 )&(~LINFLEXD_UARTCR_PC1);
-				else
-					cr = cr & (~LINFLEXD_UARTCR_PC1 & ~LINFLEXD_UARTCR_PC0);
-			}
-		}
+		cr |= LINFLEXD_UARTCR_PCE;
+		if (termios->c_cflag & PARODD)
+			cr = (cr | LINFLEXD_UARTCR_PC0)&(~LINFLEXD_UARTCR_PC1);
+		else
+			cr = cr & (~LINFLEXD_UARTCR_PC1 & ~LINFLEXD_UARTCR_PC0);
+	} else {
+		cr &= ~LINFLEXD_UARTCR_PCE;
 	}
 
 	/* ask the core to calculate the divisor */
