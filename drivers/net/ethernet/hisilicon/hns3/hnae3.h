@@ -84,10 +84,11 @@ struct hnae3_queue {
 
 /*hnae3 loop mode*/
 enum hnae3_loop {
-	HNAE3_MAC_INTER_LOOP_MAC,
-	HNAE3_MAC_INTER_LOOP_SERDES,
-	HNAE3_MAC_INTER_LOOP_PHY,
-	HNAE3_MAC_LOOP_NONE,
+	HNAE3_LOOP_APP,
+	HNAE3_LOOP_SERIAL_SERDES,
+	HNAE3_LOOP_PARALLEL_SERDES,
+	HNAE3_LOOP_PHY,
+	HNAE3_LOOP_NONE,
 };
 
 enum hnae3_client_type {
@@ -107,6 +108,7 @@ enum hnae3_media_type {
 	HNAE3_MEDIA_TYPE_FIBER,
 	HNAE3_MEDIA_TYPE_COPPER,
 	HNAE3_MEDIA_TYPE_BACKPLANE,
+	HNAE3_MEDIA_TYPE_NONE,
 };
 
 enum hnae3_reset_notify_type {
@@ -337,6 +339,8 @@ struct hnae3_ae_ops {
 	void (*get_mac_addr)(struct hnae3_handle *handle, u8 *p);
 	int (*set_mac_addr)(struct hnae3_handle *handle, void *p,
 			    bool is_first);
+	int (*do_ioctl)(struct hnae3_handle *handle,
+			struct ifreq *ifr, int cmd);
 	int (*add_uc_addr)(struct hnae3_handle *handle,
 			   const unsigned char *addr);
 	int (*rm_uc_addr)(struct hnae3_handle *handle,
@@ -399,7 +403,7 @@ struct hnae3_ae_ops {
 	void (*get_channels)(struct hnae3_handle *handle,
 			     struct ethtool_channels *ch);
 	void (*get_tqps_and_rss_info)(struct hnae3_handle *h,
-				      u16 *free_tqps, u16 *max_rss_size);
+				      u16 *alloc_tqps, u16 *max_rss_size);
 	int (*set_channels)(struct hnae3_handle *handle, u32 new_tqps_num);
 	void (*get_flowctrl_adv)(struct hnae3_handle *handle,
 				 u32 *flowctrl_adv);
@@ -408,7 +412,6 @@ struct hnae3_ae_ops {
 	void (*get_link_mode)(struct hnae3_handle *handle,
 			      unsigned long *supported,
 			      unsigned long *advertising);
-	void (*get_port_type)(struct hnae3_handle *handle, u8 *port_type);
 };
 
 struct hnae3_dcb_ops {
@@ -476,10 +479,11 @@ struct hnae3_unic_private_info {
 	struct hnae3_queue **tqp;  /* array base of all TQPs of this instance */
 };
 
-#define HNAE3_SUPPORT_MAC_LOOPBACK    BIT(0)
+#define HNAE3_SUPPORT_APP_LOOPBACK    BIT(0)
 #define HNAE3_SUPPORT_PHY_LOOPBACK    BIT(1)
-#define HNAE3_SUPPORT_SERDES_LOOPBACK BIT(2)
+#define HNAE3_SUPPORT_SERDES_SERIAL_LOOPBACK	BIT(2)
 #define HNAE3_SUPPORT_VF	      BIT(3)
+#define HNAE3_SUPPORT_SERDES_PARALLEL_LOOPBACK	BIT(4)
 
 struct hnae3_handle {
 	struct hnae3_client *client;
@@ -521,4 +525,7 @@ void hnae3_register_ae_algo(struct hnae3_ae_algo *ae_algo);
 
 void hnae3_unregister_client(struct hnae3_client *client);
 int hnae3_register_client(struct hnae3_client *client);
+
+void hnae3_set_client_init_flag(struct hnae3_client *client,
+				struct hnae3_ae_dev *ae_dev, int inited);
 #endif

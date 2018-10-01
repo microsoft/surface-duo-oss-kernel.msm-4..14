@@ -1295,7 +1295,7 @@ new_segment:
 			copy = size_goal;
 
 			/* All packets are restored as if they have
-			 * already been sent. skb_mstamp isn't set to
+			 * already been sent. skb_mstamp_ns isn't set to
 			 * avoid wrong rtt estimation.
 			 */
 			if (tp->repair)
@@ -2595,6 +2595,8 @@ int tcp_disconnect(struct sock *sk, int flags)
 	tp->compressed_ack = 0;
 	tp->bytes_sent = 0;
 	tp->bytes_retrans = 0;
+	tp->duplicate_sack[0].start_seq = 0;
+	tp->duplicate_sack[0].end_seq = 0;
 	tp->dsack_dups = 0;
 	tp->reord_seen = 0;
 
@@ -3894,8 +3896,8 @@ void __init tcp_init(void)
 	init_net.ipv4.sysctl_tcp_wmem[2] = max(64*1024, max_wshare);
 
 	init_net.ipv4.sysctl_tcp_rmem[0] = SK_MEM_QUANTUM;
-	init_net.ipv4.sysctl_tcp_rmem[1] = 87380;
-	init_net.ipv4.sysctl_tcp_rmem[2] = max(87380, max_rshare);
+	init_net.ipv4.sysctl_tcp_rmem[1] = 131072;
+	init_net.ipv4.sysctl_tcp_rmem[2] = max(131072, max_rshare);
 
 	pr_info("Hash tables configured (established %u bind %u)\n",
 		tcp_hashinfo.ehash_mask + 1, tcp_hashinfo.bhash_size);

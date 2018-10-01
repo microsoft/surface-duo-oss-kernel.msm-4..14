@@ -1000,7 +1000,6 @@ static void ip6_rt_copy_init(struct rt6_info *rt, struct fib6_info *ort)
 #ifdef CONFIG_IPV6_SUBTREES
 	rt->rt6i_src = ort->fib6_src;
 #endif
-	rt->rt6i_prefsrc = ort->fib6_prefsrc;
 }
 
 static struct fib6_node* fib6_backtrack(struct fib6_node *fn,
@@ -1454,11 +1453,6 @@ static int rt6_insert_exception(struct rt6_info *nrt,
 	if (ort->fib6_src.plen)
 		src_key = &nrt->rt6i_src.addr;
 #endif
-
-	/* Update rt6i_prefsrc as it could be changed
-	 * in rt6_remove_prefsrc()
-	 */
-	nrt->rt6i_prefsrc = ort->fib6_prefsrc;
 	/* rt6_mtu_change() might lower mtu on ort.
 	 * Only insert this exception route if its mtu
 	 * is less than ort's mtu value.
@@ -1638,25 +1632,6 @@ static void rt6_update_exception_stamp_rt(struct rt6_info *rt)
 		rt6_ex->stamp = jiffies;
 
 	rcu_read_unlock();
-}
-
-static void rt6_exceptions_remove_prefsrc(struct fib6_info *rt)
-{
-	struct rt6_exception_bucket *bucket;
-	struct rt6_exception *rt6_ex;
-	int i;
-
-	bucket = rcu_dereference_protected(rt->rt6i_exception_bucket,
-					lockdep_is_held(&rt6_exception_lock));
-
-	if (bucket) {
-		for (i = 0; i < FIB6_EXCEPTION_BUCKET_SIZE; i++) {
-			hlist_for_each_entry(rt6_ex, &bucket->chain, hlist) {
-				rt6_ex->rt6i->rt6i_prefsrc.plen = 0;
-			}
-			bucket++;
-		}
-	}
 }
 
 static bool rt6_mtu_change_route_allowed(struct inet6_dev *idev,
@@ -2103,7 +2078,8 @@ struct dst_entry *ip6_route_output_flags(struct net *net, const struct sock *sk,
 {
 	bool any_src;
 
-	if (rt6_need_strict(&fl6->daddr)) {
+	if (ipv6_addr_type(&fl6->daddr) &
+	    (IPV6_ADDR_MULTICAST | IPV6_ADDR_LINKLOCAL)) {
 		struct dst_entry *dst;
 
 		dst = l3mdev_link_scope_lookup(net, fl6);
@@ -3142,8 +3118,6 @@ install_route:
 	rt->fib6_nh.nh_dev = dev;
 	rt->fib6_table = table;
 
-	cfg->fc_nlinfo.nl_net = dev_net(dev);
-
 	if (idev)
 		in6_dev_put(idev);
 
@@ -3800,8 +3774,6 @@ static int fib6_remove_prefsrc(struct fib6_info *rt, void *arg)
 		spin_lock_bh(&rt6_exception_lock);
 		/* remove prefsrc entry */
 		rt->fib6_prefsrc.plen = 0;
-		/* need to update cache as well */
-		rt6_exceptions_remove_prefsrc(rt);
 		spin_unlock_bh(&rt6_exception_lock);
 	}
 	return 0;

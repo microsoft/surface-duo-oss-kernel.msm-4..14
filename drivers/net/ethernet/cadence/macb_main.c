@@ -544,14 +544,13 @@ static int macb_mii_probe(struct net_device *dev)
 
 	/* mask with MAC supported features */
 	if (macb_is_gem(bp) && bp->caps & MACB_CAPS_GIGABIT_MODE_AVAILABLE)
-		phydev->supported &= PHY_GBIT_FEATURES;
+		phy_set_max_speed(phydev, SPEED_1000);
 	else
-		phydev->supported &= PHY_BASIC_FEATURES;
+		phy_set_max_speed(phydev, SPEED_100);
 
 	if (bp->caps & MACB_CAPS_NO_GIGABIT_HALF)
-		phydev->supported &= ~SUPPORTED_1000baseT_Half;
-
-	phydev->advertising = phydev->supported;
+		phy_remove_link_mode(phydev,
+				     ETHTOOL_LINK_MODE_1000baseT_Half_BIT);
 
 	bp->link = 0;
 	bp->speed = 0;
@@ -2160,6 +2159,7 @@ static void macb_configure_dma(struct macb *bp)
 		else
 			dmacfg &= ~GEM_BIT(TXCOEN);
 
+		dmacfg &= ~GEM_BIT(ADDR64);
 #ifdef CONFIG_ARCH_DMA_ADDR_T_64BIT
 		if (bp->hw_dma_cap & HW_DMA_CAP_64B)
 			dmacfg |= GEM_BIT(ADDR64);
