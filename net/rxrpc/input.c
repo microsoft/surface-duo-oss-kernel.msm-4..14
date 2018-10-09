@@ -259,7 +259,7 @@ static void rxrpc_rotate_tx_window(struct rxrpc_call *call, rxrpc_seq_t to,
 	while (list) {
 		skb = list;
 		list = skb->next;
-		skb->next = NULL;
+		skb_mark_not_on_list(skb);
 		rxrpc_free_skb(skb, rxrpc_skb_tx_freed);
 	}
 }
@@ -1176,7 +1176,7 @@ void rxrpc_data_ready(struct sock *udp_sk)
 		static int lose;
 		if ((lose++ & 7) == 7) {
 			trace_rxrpc_rx_lose(sp);
-			rxrpc_lose_skb(skb, rxrpc_skb_rx_lost);
+			rxrpc_free_skb(skb, rxrpc_skb_rx_lost);
 			return;
 		}
 	}

@@ -29,6 +29,7 @@
 #include <linux/list.h>
 #include <linux/slab.h>
 
+#include <net/ip.h>
 #include <net/ipv6.h>
 #include <net/ndisc.h>
 #include <net/addrconf.h>
@@ -160,8 +161,6 @@ struct fib6_info *fib6_info_alloc(gfp_t gfp_flags)
 	}
 
 	INIT_LIST_HEAD(&f6i->fib6_siblings);
-	f6i->fib6_metrics = (struct dst_metrics *)&dst_default_metrics;
-
 	atomic_inc(&f6i->fib6_ref);
 
 	return f6i;
@@ -171,7 +170,6 @@ void fib6_info_destroy_rcu(struct rcu_head *head)
 {
 	struct fib6_info *f6i = container_of(head, struct fib6_info, rcu);
 	struct rt6_exception_bucket *bucket;
-	struct dst_metrics *m;
 
 	WARN_ON(f6i->fib6_node);
 
@@ -203,9 +201,7 @@ void fib6_info_destroy_rcu(struct rcu_head *head)
 	if (f6i->fib6_nh.nh_dev)
 		dev_put(f6i->fib6_nh.nh_dev);
 
-	m = f6i->fib6_metrics;
-	if (m != &dst_default_metrics && refcount_dec_and_test(&m->refcnt))
-		kfree(m);
+	ip_fib_metrics_put(f6i->fib6_metrics);
 
 	kfree(f6i);
 }
@@ -568,6 +564,7 @@ static int fib6_dump_table(struct fib6_table *table, struct sk_buff *skb,
 
 static int inet6_dump_fib(struct sk_buff *skb, struct netlink_callback *cb)
 {
+	const struct nlmsghdr *nlh = cb->nlh;
 	struct net *net = sock_net(skb->sk);
 	unsigned int h, s_h;
 	unsigned int e = 0, s_e;
@@ -576,6 +573,13 @@ static int inet6_dump_fib(struct sk_buff *skb, struct netlink_callback *cb)
 	struct fib6_table *tb;
 	struct hlist_head *head;
 	int res = 0;
+
+	if (cb->strict_check) {
+		int err = ip_valid_fib_dump_req(nlh, cb->extack);
+
+		if (err < 0)
+			return err;
+	}
 
 	s_h = cb->args[0];
 	s_e = cb->args[1];

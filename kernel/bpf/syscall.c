@@ -30,7 +30,6 @@
 #include <linux/cred.h>
 #include <linux/timekeeping.h>
 #include <linux/ctype.h>
-#include <linux/btf.h>
 #include <linux/nospec.h>
 
 #define IS_FD_ARRAY(map) ((map)->map_type == BPF_MAP_TYPE_PROG_ARRAY || \
@@ -687,7 +686,8 @@ static int map_lookup_elem(union bpf_attr *attr)
 
 	if (map->map_type == BPF_MAP_TYPE_PERCPU_HASH ||
 	    map->map_type == BPF_MAP_TYPE_LRU_PERCPU_HASH ||
-	    map->map_type == BPF_MAP_TYPE_PERCPU_ARRAY)
+	    map->map_type == BPF_MAP_TYPE_PERCPU_ARRAY ||
+	    map->map_type == BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE)
 		value_size = round_up(map->value_size, 8) * num_possible_cpus();
 	else if (IS_FD_MAP(map))
 		value_size = sizeof(u32);
@@ -706,6 +706,8 @@ static int map_lookup_elem(union bpf_attr *attr)
 		err = bpf_percpu_hash_copy(map, key, value);
 	} else if (map->map_type == BPF_MAP_TYPE_PERCPU_ARRAY) {
 		err = bpf_percpu_array_copy(map, key, value);
+	} else if (map->map_type == BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE) {
+		err = bpf_percpu_cgroup_storage_copy(map, key, value);
 	} else if (map->map_type == BPF_MAP_TYPE_STACK_TRACE) {
 		err = bpf_stackmap_copy(map, key, value);
 	} else if (IS_FD_ARRAY(map)) {
@@ -775,7 +777,8 @@ static int map_update_elem(union bpf_attr *attr)
 
 	if (map->map_type == BPF_MAP_TYPE_PERCPU_HASH ||
 	    map->map_type == BPF_MAP_TYPE_LRU_PERCPU_HASH ||
-	    map->map_type == BPF_MAP_TYPE_PERCPU_ARRAY)
+	    map->map_type == BPF_MAP_TYPE_PERCPU_ARRAY ||
+	    map->map_type == BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE)
 		value_size = round_up(map->value_size, 8) * num_possible_cpus();
 	else
 		value_size = map->value_size;
@@ -810,6 +813,9 @@ static int map_update_elem(union bpf_attr *attr)
 		err = bpf_percpu_hash_update(map, key, value, attr->flags);
 	} else if (map->map_type == BPF_MAP_TYPE_PERCPU_ARRAY) {
 		err = bpf_percpu_array_update(map, key, value, attr->flags);
+	} else if (map->map_type == BPF_MAP_TYPE_PERCPU_CGROUP_STORAGE) {
+		err = bpf_percpu_cgroup_storage_update(map, key, value,
+						       attr->flags);
 	} else if (IS_FD_ARRAY(map)) {
 		rcu_read_lock();
 		err = bpf_fd_array_map_update_elem(map, f.file, key, value,
@@ -989,10 +995,15 @@ static int find_prog_type(enum bpf_prog_type type, struct bpf_prog *prog)
 /* drop refcnt on maps used by eBPF program and free auxilary data */
 static void free_used_maps(struct bpf_prog_aux *aux)
 {
+	enum bpf_cgroup_storage_type stype;
 	int i;
 
-	if (aux->cgroup_storage)
-		bpf_cgroup_storage_release(aux->prog, aux->cgroup_storage);
+	for_each_cgroup_storage_type(stype) {
+		if (!aux->cgroup_storage[stype])
+			continue;
+		bpf_cgroup_storage_release(aux->prog,
+					   aux->cgroup_storage[stype]);
+	}
 
 	for (i = 0; i < aux->used_map_cnt; i++)
 		bpf_map_put(aux->used_maps[i]);
@@ -1616,6 +1627,9 @@ static int bpf_prog_attach(const union bpf_attr *attr)
 	case BPF_LIRC_MODE2:
 		ptype = BPF_PROG_TYPE_LIRC_MODE2;
 		break;
+	case BPF_FLOW_DISSECTOR:
+		ptype = BPF_PROG_TYPE_FLOW_DISSECTOR;
+		break;
 	default:
 		return -EINVAL;
 	}
@@ -1636,6 +1650,9 @@ static int bpf_prog_attach(const union bpf_attr *attr)
 		break;
 	case BPF_PROG_TYPE_LIRC_MODE2:
 		ret = lirc_prog_attach(attr, prog);
+		break;
+	case BPF_PROG_TYPE_FLOW_DISSECTOR:
+		ret = skb_flow_dissector_bpf_prog_attach(attr, prog);
 		break;
 	default:
 		ret = cgroup_bpf_prog_attach(attr, ptype, prog);
@@ -1689,6 +1706,8 @@ static int bpf_prog_detach(const union bpf_attr *attr)
 		return sockmap_get_from_fd(attr, BPF_PROG_TYPE_SK_SKB, NULL);
 	case BPF_LIRC_MODE2:
 		return lirc_prog_detach(attr);
+	case BPF_FLOW_DISSECTOR:
+		return skb_flow_dissector_bpf_prog_detach(attr);
 	default:
 		return -EINVAL;
 	}

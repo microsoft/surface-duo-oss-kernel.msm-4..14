@@ -31,16 +31,15 @@ static inline struct hclgevf_dev *hclgevf_ae_get_hdev(
 
 static int hclgevf_tqps_update_stats(struct hnae3_handle *handle)
 {
+	struct hnae3_knic_private_info *kinfo = &handle->kinfo;
 	struct hclgevf_dev *hdev = hclgevf_ae_get_hdev(handle);
-	struct hnae3_queue *queue;
 	struct hclgevf_desc desc;
 	struct hclgevf_tqp *tqp;
 	int status;
 	int i;
 
-	for (i = 0; i < hdev->num_tqps; i++) {
-		queue = handle->kinfo.tqp[i];
-		tqp = container_of(queue, struct hclgevf_tqp, q);
+	for (i = 0; i < kinfo->num_tqps; i++) {
+		tqp = container_of(kinfo->tqp[i], struct hclgevf_tqp, q);
 		hclgevf_cmd_setup_basic_desc(&desc,
 					     HCLGEVF_OPC_QUERY_RX_STATUS,
 					     true);
@@ -77,17 +76,16 @@ static int hclgevf_tqps_update_stats(struct hnae3_handle *handle)
 static u64 *hclgevf_tqps_get_stats(struct hnae3_handle *handle, u64 *data)
 {
 	struct hnae3_knic_private_info *kinfo = &handle->kinfo;
-	struct hclgevf_dev *hdev = hclgevf_ae_get_hdev(handle);
 	struct hclgevf_tqp *tqp;
 	u64 *buff = data;
 	int i;
 
-	for (i = 0; i < hdev->num_tqps; i++) {
-		tqp = container_of(handle->kinfo.tqp[i], struct hclgevf_tqp, q);
+	for (i = 0; i < kinfo->num_tqps; i++) {
+		tqp = container_of(kinfo->tqp[i], struct hclgevf_tqp, q);
 		*buff++ = tqp->tqp_stats.rcb_tx_ring_pktnum_rcd;
 	}
 	for (i = 0; i < kinfo->num_tqps; i++) {
-		tqp = container_of(handle->kinfo.tqp[i], struct hclgevf_tqp, q);
+		tqp = container_of(kinfo->tqp[i], struct hclgevf_tqp, q);
 		*buff++ = tqp->tqp_stats.rcb_rx_ring_pktnum_rcd;
 	}
 
@@ -96,29 +94,29 @@ static u64 *hclgevf_tqps_get_stats(struct hnae3_handle *handle, u64 *data)
 
 static int hclgevf_tqps_get_sset_count(struct hnae3_handle *handle, int strset)
 {
-	struct hclgevf_dev *hdev = hclgevf_ae_get_hdev(handle);
+	struct hnae3_knic_private_info *kinfo = &handle->kinfo;
 
-	return hdev->num_tqps * 2;
+	return kinfo->num_tqps * 2;
 }
 
 static u8 *hclgevf_tqps_get_strings(struct hnae3_handle *handle, u8 *data)
 {
-	struct hclgevf_dev *hdev = hclgevf_ae_get_hdev(handle);
+	struct hnae3_knic_private_info *kinfo = &handle->kinfo;
 	u8 *buff = data;
 	int i = 0;
 
-	for (i = 0; i < hdev->num_tqps; i++) {
-		struct hclgevf_tqp *tqp = container_of(handle->kinfo.tqp[i],
-			struct hclgevf_tqp, q);
-		snprintf(buff, ETH_GSTRING_LEN, "txq#%d_pktnum_rcd",
+	for (i = 0; i < kinfo->num_tqps; i++) {
+		struct hclgevf_tqp *tqp = container_of(kinfo->tqp[i],
+						       struct hclgevf_tqp, q);
+		snprintf(buff, ETH_GSTRING_LEN, "txq%d_pktnum_rcd",
 			 tqp->index);
 		buff += ETH_GSTRING_LEN;
 	}
 
-	for (i = 0; i < hdev->num_tqps; i++) {
-		struct hclgevf_tqp *tqp = container_of(handle->kinfo.tqp[i],
-			struct hclgevf_tqp, q);
-		snprintf(buff, ETH_GSTRING_LEN, "rxq#%d_pktnum_rcd",
+	for (i = 0; i < kinfo->num_tqps; i++) {
+		struct hclgevf_tqp *tqp = container_of(kinfo->tqp[i],
+						       struct hclgevf_tqp, q);
+		snprintf(buff, ETH_GSTRING_LEN, "rxq%d_pktnum_rcd",
 			 tqp->index);
 		buff += ETH_GSTRING_LEN;
 	}
@@ -182,7 +180,7 @@ static int hclgevf_get_tc_info(struct hclgevf_dev *hdev)
 	return 0;
 }
 
-static int hclge_get_queue_info(struct hclgevf_dev *hdev)
+static int hclgevf_get_queue_info(struct hclgevf_dev *hdev)
 {
 #define HCLGEVF_TQPS_RSS_INFO_LEN	8
 	u8 resp_msg[HCLGEVF_TQPS_RSS_INFO_LEN];
@@ -298,6 +296,9 @@ void hclgevf_update_link_status(struct hclgevf_dev *hdev, int link_state)
 	struct hnae3_client *client;
 
 	client = handle->client;
+
+	link_state =
+		test_bit(HCLGEVF_STATE_DOWN, &hdev->state) ? 0 : link_state;
 
 	if (link_state != hdev->hw.mac.link) {
 		client->ops->link_status_change(handle, !!link_state);
@@ -735,136 +736,14 @@ static int hclgevf_get_queue_id(struct hnae3_queue *queue)
 
 static void hclgevf_reset_tqp_stats(struct hnae3_handle *handle)
 {
-	struct hclgevf_dev *hdev = hclgevf_ae_get_hdev(handle);
-	struct hnae3_queue *queue;
+	struct hnae3_knic_private_info *kinfo = &handle->kinfo;
 	struct hclgevf_tqp *tqp;
 	int i;
 
-	for (i = 0; i < hdev->num_tqps; i++) {
-		queue = handle->kinfo.tqp[i];
-		tqp = container_of(queue, struct hclgevf_tqp, q);
+	for (i = 0; i < kinfo->num_tqps; i++) {
+		tqp = container_of(kinfo->tqp[i], struct hclgevf_tqp, q);
 		memset(&tqp->tqp_stats, 0, sizeof(tqp->tqp_stats));
 	}
-}
-
-static int hclgevf_cfg_func_mta_type(struct hclgevf_dev *hdev)
-{
-	u8 resp_msg = HCLGEVF_MTA_TYPE_SEL_MAX;
-	int ret;
-
-	ret = hclgevf_send_mbx_msg(hdev, HCLGE_MBX_SET_MULTICAST,
-				   HCLGE_MBX_MAC_VLAN_MTA_TYPE_READ,
-				   NULL, 0, true, &resp_msg, sizeof(u8));
-
-	if (ret) {
-		dev_err(&hdev->pdev->dev,
-			"Read mta type fail, ret=%d.\n", ret);
-		return ret;
-	}
-
-	if (resp_msg > HCLGEVF_MTA_TYPE_SEL_MAX) {
-		dev_err(&hdev->pdev->dev,
-			"Read mta type invalid, resp=%d.\n", resp_msg);
-		return -EINVAL;
-	}
-
-	hdev->mta_mac_sel_type = resp_msg;
-
-	return 0;
-}
-
-static u16 hclgevf_get_mac_addr_to_mta_index(struct hclgevf_dev *hdev,
-					     const u8 *addr)
-{
-	u32 rsh = HCLGEVF_MTA_TYPE_SEL_MAX - hdev->mta_mac_sel_type;
-	u16 high_val = addr[1] | (addr[0] << 8);
-
-	return (high_val >> rsh) & 0xfff;
-}
-
-static int hclgevf_do_update_mta_status(struct hclgevf_dev *hdev,
-					unsigned long *status)
-{
-#define HCLGEVF_MTA_STATUS_MSG_SIZE 13
-#define HCLGEVF_MTA_STATUS_MSG_BITS \
-			(HCLGEVF_MTA_STATUS_MSG_SIZE * BITS_PER_BYTE)
-#define HCLGEVF_MTA_STATUS_MSG_END_BITS \
-			(HCLGEVF_MTA_TBL_SIZE % HCLGEVF_MTA_STATUS_MSG_BITS)
-	u16 tbl_cnt;
-	u16 tbl_idx;
-	u8 msg_cnt;
-	u8 msg_idx;
-	int ret;
-
-	msg_cnt = DIV_ROUND_UP(HCLGEVF_MTA_TBL_SIZE,
-			       HCLGEVF_MTA_STATUS_MSG_BITS);
-	tbl_idx = 0;
-	msg_idx = 0;
-	while (msg_cnt--) {
-		u8 msg[HCLGEVF_MTA_STATUS_MSG_SIZE + 1];
-		u8 *p = &msg[1];
-		u8 msg_ofs;
-		u8 msg_bit;
-
-		memset(msg, 0, sizeof(msg));
-
-		/* set index field */
-		msg[0] = 0x7F & msg_idx;
-
-		/* set end flag field */
-		if (msg_cnt == 0) {
-			msg[0] |= 0x80;
-			tbl_cnt = HCLGEVF_MTA_STATUS_MSG_END_BITS;
-		} else {
-			tbl_cnt = HCLGEVF_MTA_STATUS_MSG_BITS;
-		}
-
-		/* set status field */
-		msg_ofs = 0;
-		msg_bit = 0;
-		while (tbl_cnt--) {
-			if (test_bit(tbl_idx, status))
-				p[msg_ofs] |= BIT(msg_bit);
-
-			tbl_idx++;
-
-			msg_bit++;
-			if (msg_bit == BITS_PER_BYTE) {
-				msg_bit = 0;
-				msg_ofs++;
-			}
-		}
-
-		ret = hclgevf_send_mbx_msg(hdev, HCLGE_MBX_SET_MULTICAST,
-					   HCLGE_MBX_MAC_VLAN_MTA_STATUS_UPDATE,
-					   msg, sizeof(msg), false, NULL, 0);
-		if (ret)
-			break;
-
-		msg_idx++;
-	}
-
-	return ret;
-}
-
-static int hclgevf_update_mta_status(struct hnae3_handle *handle)
-{
-	unsigned long mta_status[BITS_TO_LONGS(HCLGEVF_MTA_TBL_SIZE)];
-	struct hclgevf_dev *hdev = hclgevf_ae_get_hdev(handle);
-	struct net_device *netdev = hdev->nic.kinfo.netdev;
-	struct netdev_hw_addr *ha;
-	u16 tbl_idx;
-
-	/* clear status */
-	memset(mta_status, 0, sizeof(mta_status));
-
-	/* update status from mc addr list */
-	netdev_for_each_mc_addr(ha, netdev) {
-		tbl_idx = hclgevf_get_mac_addr_to_mta_index(hdev, ha->addr);
-		set_bit(tbl_idx, mta_status);
-	}
-
-	return hclgevf_do_update_mta_status(hdev, mta_status);
 }
 
 static void hclgevf_get_mac_addr(struct hnae3_handle *handle, u8 *p)
@@ -1341,8 +1220,10 @@ static int hclgevf_configure(struct hclgevf_dev *hdev)
 {
 	int ret;
 
+	hdev->hw.mac.media_type = HNAE3_MEDIA_TYPE_NONE;
+
 	/* get queue configuration from PF */
-	ret = hclge_get_queue_info(hdev);
+	ret = hclgevf_get_queue_info(hdev);
 	if (ret)
 		return ret;
 	/* get tc configuration from PF */
@@ -1417,12 +1298,13 @@ static int hclgevf_init_vlan_config(struct hclgevf_dev *hdev)
 
 static int hclgevf_ae_start(struct hnae3_handle *handle)
 {
+	struct hnae3_knic_private_info *kinfo = &handle->kinfo;
 	struct hclgevf_dev *hdev = hclgevf_ae_get_hdev(handle);
 	int i, queue_id;
 
-	for (i = 0; i < handle->kinfo.num_tqps; i++) {
+	for (i = 0; i < kinfo->num_tqps; i++) {
 		/* ring enable */
-		queue_id = hclgevf_get_queue_id(handle->kinfo.tqp[i]);
+		queue_id = hclgevf_get_queue_id(kinfo->tqp[i]);
 		if (queue_id < 0) {
 			dev_warn(&hdev->pdev->dev,
 				 "Get invalid queue id, ignore it\n");
@@ -1445,12 +1327,15 @@ static int hclgevf_ae_start(struct hnae3_handle *handle)
 
 static void hclgevf_ae_stop(struct hnae3_handle *handle)
 {
+	struct hnae3_knic_private_info *kinfo = &handle->kinfo;
 	struct hclgevf_dev *hdev = hclgevf_ae_get_hdev(handle);
 	int i, queue_id;
 
-	for (i = 0; i < hdev->num_tqps; i++) {
+	set_bit(HCLGEVF_STATE_DOWN, &hdev->state);
+
+	for (i = 0; i < kinfo->num_tqps; i++) {
 		/* Ring disable */
-		queue_id = hclgevf_get_queue_id(handle->kinfo.tqp[i]);
+		queue_id = hclgevf_get_queue_id(kinfo->tqp[i]);
 		if (queue_id < 0) {
 			dev_warn(&hdev->pdev->dev,
 				 "Get invalid queue id, ignore it\n");
@@ -1619,17 +1504,22 @@ static int hclgevf_init_client_instance(struct hnae3_client *client,
 
 		ret = client->ops->init_instance(&hdev->nic);
 		if (ret)
-			return ret;
+			goto clear_nic;
+
+		hnae3_set_client_init_flag(client, ae_dev, 1);
 
 		if (hdev->roce_client && hnae3_dev_roce_supported(hdev)) {
 			struct hnae3_client *rc = hdev->roce_client;
 
 			ret = hclgevf_init_roce_base_info(hdev);
 			if (ret)
-				return ret;
+				goto clear_roce;
 			ret = rc->ops->init_instance(&hdev->roce);
 			if (ret)
-				return ret;
+				goto clear_roce;
+
+			hnae3_set_client_init_flag(hdev->roce_client, ae_dev,
+						   1);
 		}
 		break;
 	case HNAE3_CLIENT_UNIC:
@@ -1638,7 +1528,9 @@ static int hclgevf_init_client_instance(struct hnae3_client *client,
 
 		ret = client->ops->init_instance(&hdev->nic);
 		if (ret)
-			return ret;
+			goto clear_nic;
+
+		hnae3_set_client_init_flag(client, ae_dev, 1);
 		break;
 	case HNAE3_CLIENT_ROCE:
 		if (hnae3_dev_roce_supported(hdev)) {
@@ -1649,15 +1541,29 @@ static int hclgevf_init_client_instance(struct hnae3_client *client,
 		if (hdev->roce_client && hdev->nic_client) {
 			ret = hclgevf_init_roce_base_info(hdev);
 			if (ret)
-				return ret;
+				goto clear_roce;
 
 			ret = client->ops->init_instance(&hdev->roce);
 			if (ret)
-				return ret;
+				goto clear_roce;
 		}
+
+		hnae3_set_client_init_flag(client, ae_dev, 1);
+		break;
+	default:
+		return -EINVAL;
 	}
 
 	return 0;
+
+clear_nic:
+	hdev->nic_client = NULL;
+	hdev->nic.client = NULL;
+	return ret;
+clear_roce:
+	hdev->roce_client = NULL;
+	hdev->roce.client = NULL;
+	return ret;
 }
 
 static void hclgevf_uninit_client_instance(struct hnae3_client *client,
@@ -1666,13 +1572,19 @@ static void hclgevf_uninit_client_instance(struct hnae3_client *client,
 	struct hclgevf_dev *hdev = ae_dev->priv;
 
 	/* un-init roce, if it exists */
-	if (hdev->roce_client)
+	if (hdev->roce_client) {
 		hdev->roce_client->ops->uninit_instance(&hdev->roce, 0);
+		hdev->roce_client = NULL;
+		hdev->roce.client = NULL;
+	}
 
 	/* un-init nic/unic, if this was not called by roce client */
-	if ((client->ops->uninit_instance) &&
-	    (client->type != HNAE3_CLIENT_ROCE))
+	if (client->ops->uninit_instance && hdev->nic_client &&
+	    client->type != HNAE3_CLIENT_ROCE) {
 		client->ops->uninit_instance(&hdev->nic, 0);
+		hdev->nic_client = NULL;
+		hdev->nic.client = NULL;
+	}
 }
 
 static int hclgevf_pci_init(struct hclgevf_dev *hdev)
@@ -1839,14 +1751,6 @@ static int hclgevf_init_hdev(struct hclgevf_dev *hdev)
 		goto err_config;
 	}
 
-	/* Initialize mta type for this VF */
-	ret = hclgevf_cfg_func_mta_type(hdev);
-	if (ret) {
-		dev_err(&hdev->pdev->dev,
-			"failed(%d) to initialize MTA type\n", ret);
-		goto err_config;
-	}
-
 	/* Initialize RSS for this VF */
 	ret = hclgevf_rss_init_hw(hdev);
 	if (ret) {
@@ -1943,11 +1847,11 @@ static void hclgevf_get_channels(struct hnae3_handle *handle,
 }
 
 static void hclgevf_get_tqps_and_rss_info(struct hnae3_handle *handle,
-					  u16 *free_tqps, u16 *max_rss_size)
+					  u16 *alloc_tqps, u16 *max_rss_size)
 {
 	struct hclgevf_dev *hdev = hclgevf_ae_get_hdev(handle);
 
-	*free_tqps = 0;
+	*alloc_tqps = hdev->num_tqps;
 	*max_rss_size = hdev->rss_size_max;
 }
 
@@ -1979,6 +1883,14 @@ void hclgevf_update_speed_duplex(struct hclgevf_dev *hdev, u32 speed,
 	hdev->hw.mac.duplex = duplex;
 }
 
+static void hclgevf_get_media_type(struct hnae3_handle *handle,
+				  u8 *media_type)
+{
+	struct hclgevf_dev *hdev = hclgevf_ae_get_hdev(handle);
+	if (media_type)
+		*media_type = hdev->hw.mac.media_type;
+}
+
 static const struct hnae3_ae_ops hclgevf_ops = {
 	.init_ae_dev = hclgevf_init_ae_dev,
 	.uninit_ae_dev = hclgevf_uninit_ae_dev,
@@ -1998,7 +1910,6 @@ static const struct hnae3_ae_ops hclgevf_ops = {
 	.rm_uc_addr = hclgevf_rm_uc_addr,
 	.add_mc_addr = hclgevf_add_mc_addr,
 	.rm_mc_addr = hclgevf_rm_mc_addr,
-	.update_mta_status = hclgevf_update_mta_status,
 	.get_stats = hclgevf_get_stats,
 	.update_stats = hclgevf_update_stats,
 	.get_strings = hclgevf_get_strings,
@@ -2016,6 +1927,7 @@ static const struct hnae3_ae_ops hclgevf_ops = {
 	.get_tqps_and_rss_info = hclgevf_get_tqps_and_rss_info,
 	.get_status = hclgevf_get_status,
 	.get_ksettings_an_result = hclgevf_get_ksettings_an_result,
+	.get_media_type = hclgevf_get_media_type,
 };
 
 static struct hnae3_ae_algo ae_algovf = {

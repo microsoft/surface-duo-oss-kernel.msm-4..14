@@ -4527,9 +4527,13 @@ F:	drivers/soc/fsl/dpio
 
 DPAA2 ETHERNET DRIVER
 M:	Ioana Radulescu <ruxandra.radulescu@nxp.com>
-L:	linux-kernel@vger.kernel.org
+L:	netdev@vger.kernel.org
 S:	Maintained
-F:	drivers/staging/fsl-dpaa2/ethernet
+F:	drivers/net/ethernet/freescale/dpaa2/dpaa2-eth*
+F:	drivers/net/ethernet/freescale/dpaa2/dpni*
+F:	drivers/net/ethernet/freescale/dpaa2/dpkg.h
+F:	drivers/net/ethernet/freescale/dpaa2/Makefile
+F:	drivers/net/ethernet/freescale/dpaa2/Kconfig
 
 DPAA2 ETHERNET SWITCH DRIVER
 M:	Ioana Radulescu <ruxandra.radulescu@nxp.com>
@@ -4540,9 +4544,10 @@ F:	drivers/staging/fsl-dpaa2/ethsw
 
 DPAA2 PTP CLOCK DRIVER
 M:	Yangbo Lu <yangbo.lu@nxp.com>
-L:	linux-kernel@vger.kernel.org
+L:	netdev@vger.kernel.org
 S:	Maintained
-F:	drivers/staging/fsl-dpaa2/rtc
+F:	drivers/net/ethernet/freescale/dpaa2/dpaa2-ptp*
+F:	drivers/net/ethernet/freescale/dpaa2/dprtc*
 
 DPT_I2O SCSI RAID DRIVER
 M:	Adaptec OEM Raid Solutions <aacraid@microsemi.com>
@@ -7348,7 +7353,7 @@ F:	Documentation/networking/ixgb.txt
 F:	Documentation/networking/ixgbe.txt
 F:	Documentation/networking/ixgbevf.txt
 F:	Documentation/networking/i40e.txt
-F:	Documentation/networking/i40evf.txt
+F:	Documentation/networking/iavf.txt
 F:	Documentation/networking/ice.txt
 F:	drivers/net/ethernet/intel/
 F:	drivers/net/ethernet/intel/*/
@@ -8183,6 +8188,15 @@ S:	Maintained
 F:	net/l3mdev
 F:	include/net/l3mdev.h
 
+LANTIQ / INTEL Ethernet drivers
+M:	Hauke Mehrtens <hauke@hauke-m.de>
+L:	netdev@vger.kernel.org
+S:	Maintained
+F:	net/dsa/tag_gswip.c
+F:	drivers/net/ethernet/lantiq_xrx200.c
+F:	drivers/net/dsa/lantiq_pce.h
+F:	drivers/net/dsa/lantiq_gswip.c
+
 LANTIQ MIPS ARCHITECTURE
 M:	John Crispin <john@phrozen.org>
 L:	linux-mips@linux-mips.org
@@ -8743,7 +8757,7 @@ M:	Vivien Didelot <vivien.didelot@savoirfairelinux.com>
 L:	netdev@vger.kernel.org
 S:	Maintained
 F:	drivers/net/dsa/mv88e6xxx/
-F:	linux/platform_data/mv88e6xxx.h
+F:	include/linux/platform_data/mv88e6xxx.h
 F:	Documentation/devicetree/bindings/net/dsa/marvell.txt
 
 MARVELL ARMADA DRM SUPPORT

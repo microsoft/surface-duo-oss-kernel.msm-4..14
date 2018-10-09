@@ -264,7 +264,6 @@
  * %NFP_NET_CFG_BPF_ADDR:	DMA address of the buffer with JITed BPF code
  */
 #define NFP_NET_CFG_BPF_ABI		0x0080
-#define   NFP_NET_BPF_ABI		2
 #define NFP_NET_CFG_BPF_CAP		0x0081
 #define   NFP_NET_BPF_CAP_RELO		(1 << 0) /* seamless reload */
 #define NFP_NET_CFG_BPF_MAX_LEN		0x0082
@@ -489,12 +488,20 @@
  * %NFP_NET_CFG_TLV_TYPE_MBOX:
  * Variable, mailbox area.  Overwrites the default location which is
  * %NFP_NET_CFG_MBOX_BASE and length %NFP_NET_CFG_MBOX_VAL_MAX_SZ.
+ *
+ * %NFP_NET_CFG_TLV_TYPE_EXPERIMENTAL0:
+ * %NFP_NET_CFG_TLV_TYPE_EXPERIMENTAL1:
+ * Variable, experimental IDs.  IDs designated for internal development and
+ * experiments before a stable TLV ID has been allocated to a feature.  Should
+ * never be present in production firmware.
  */
 #define NFP_NET_CFG_TLV_TYPE_UNKNOWN		0
 #define NFP_NET_CFG_TLV_TYPE_RESERVED		1
 #define NFP_NET_CFG_TLV_TYPE_END		2
 #define NFP_NET_CFG_TLV_TYPE_ME_FREQ		3
 #define NFP_NET_CFG_TLV_TYPE_MBOX		4
+#define NFP_NET_CFG_TLV_TYPE_EXPERIMENTAL0	5
+#define NFP_NET_CFG_TLV_TYPE_EXPERIMENTAL1	6
 
 struct device;
 

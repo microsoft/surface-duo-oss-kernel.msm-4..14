@@ -373,6 +373,7 @@ static inline bool fib4_rules_early_flow_dissect(struct net *net,
 extern const struct nla_policy rtm_ipv4_policy[];
 void ip_fib_init(void);
 __be32 fib_compute_spec_dst(struct sk_buff *skb);
+bool fib_info_nh_uses_dev(struct fib_info *fi, const struct net_device *dev);
 int fib_validate_source(struct sk_buff *skb, __be32 src, __be32 dst,
 			u8 tos, int oif, struct net_device *dev,
 			struct in_device *idev, u32 *itag);
@@ -451,4 +452,6 @@ static inline void fib_proc_exit(struct net *net)
 
 u32 ip_mtu_from_fib_result(struct fib_result *res, __be32 daddr);
 
+int ip_valid_fib_dump_req(const struct nlmsghdr *nlh,
+			  struct netlink_ext_ack *extack);
 #endif  /* _NET_FIB_H */
