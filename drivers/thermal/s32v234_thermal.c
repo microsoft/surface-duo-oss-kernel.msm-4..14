@@ -247,12 +247,6 @@ static int tmu_average_temperature(struct device *dev,
 	return -1;
 }
 
-static ssize_t tmu_show_driver_name(struct device *dev,
-		struct device_attribute *attr, char *buffer)
-{
-	return snprintf(buffer, PAGE_SIZE, DRIVER_NAME "\n");
-}
-
 static ssize_t tmu_show_immediate_label(struct device *dev,
 		struct device_attribute *attr, char *buffer)
 {
@@ -292,7 +286,6 @@ static ssize_t tmu_show_average(struct device *dev,
 }
 
 static struct device_attribute dev_attrs[] = {
-	__ATTR(name,        S_IRUGO, tmu_show_driver_name,     NULL),
 	__ATTR(temp1_label, S_IRUGO, tmu_show_immediate_label, NULL),
 	__ATTR(temp1_input, S_IRUGO, tmu_show_immediate,       NULL),
 	__ATTR(temp2_label, S_IRUGO, tmu_show_average_label,   NULL),
@@ -435,14 +428,15 @@ static int tmu_probe(struct platform_device *pd)
 		return return_code;
 	}
 
-	tmu_dd->hwmon_device = (struct device *)hwmon_device_register(&pd->dev);
+	tmu_dd->hwmon_device =
+		hwmon_device_register_with_info(
+			&pd->dev, DRIVER_NAME, tmu_dd, NULL, NULL);
 	if (IS_ERR(tmu_dd->hwmon_device)) {
 		return_code = PTR_ERR(tmu_dd->hwmon_device);
 		dev_err(&pd->dev, "Cannot register hwmon device: %d\n",
 			return_code);
 		goto hwmon_register_failed;
 	}
-	dev_set_drvdata(tmu_dd->hwmon_device, tmu_dd);
 
 	for (i = 0; i < ARRAY_SIZE(dev_attrs); i++) {
 		return_code = device_create_file(tmu_dd->hwmon_device,
