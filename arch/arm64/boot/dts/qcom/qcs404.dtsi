@@ -168,6 +168,44 @@
 			reg = <0x60000 0x6000>;
 		};
 
+		usb_nop_phy: usb_nop_phy {
+			compatible = "usb-nop-xceiv";
+		};
+
+		usb2: usb@78c0000 {
+			compatible = "qcom,dwc3";
+			reg = <0x079B8800 0x400>;
+			#address-cells = <1>;
+			#size-cells = <1>;
+			ranges;
+
+			clocks = <&gcc GCC_USB_HS_SYSTEM_CLK>,
+				 <&gcc GCC_PCNOC_USB2_CLK>,
+				 <&gcc GCC_USB_HS_INACTIVITY_TIMERS_CLK>,
+				 <&gcc GCC_USB20_MOCK_UTMI_CLK>;
+
+			clock-names = "core", "iface", "sleep", "mock_utmi";
+
+			assigned-clocks = <&gcc GCC_USB20_MOCK_UTMI_CLK>,
+					  <&gcc GCC_USB_HS_SYSTEM_CLK_SRC>;
+			assigned-clock-rates = <19200000>, <133333333>;
+
+			status = "disabled";
+
+			dwc3@78c000 {
+				compatible = "snps,dwc3";
+				reg = <0x78c0000 0xcc00>;
+				interrupts = <GIC_SPI 44 IRQ_TYPE_LEVEL_HIGH>;
+				//phys = <&usb_phy0>, <&usb_nop_phy>;
+				phys = <&usb_nop_phy>;
+				phy-names = "usb2-phy";
+				snps,has-lpm-erratum;
+				snps,hird-threshold = /bits/ 8 <0x10>;
+				snps,usb3_lpm_capable;
+				dr_mode = "otg";
+			};
+		};
+
 		intc: interrupt-controller@b000000 {
 			compatible = "qcom,msm-qgic2";
 			interrupt-controller;
