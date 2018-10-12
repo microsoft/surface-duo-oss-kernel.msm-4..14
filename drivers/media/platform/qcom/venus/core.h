@@ -21,6 +21,14 @@ struct freq_tbl {
 	unsigned long freq;
 };
 
+struct bw_tbl {
+	u32 mbs_per_sec;
+	u32 avg;
+	u32 peak;
+	u32 avg_10bit;
+	u32 peak_10bit;
+};
+
 struct reg_val {
 	u32 reg;
 	u32 value;
@@ -30,6 +38,10 @@ struct venus_resources {
 	u64 dma_mask;
 	const struct freq_tbl *freq_tbl;
 	unsigned int freq_tbl_size;
+	const struct bw_tbl *bw_tbl_enc;
+	unsigned int bw_tbl_enc_size;
+	const struct bw_tbl *bw_tbl_dec;
+	unsigned int bw_tbl_dec_size;
 	const struct reg_val *reg_tbl;
 	unsigned int reg_tbl_size;
 	const char * const clks[VIDC_CLKS_NUM_MAX];
@@ -114,6 +126,7 @@ struct venus_core {
 	struct clk *core1_clk;
 	struct clk *core0_bus_clk;
 	struct clk *core1_bus_clk;
+	struct icc_path *video_path;
 	struct video_device *vdev_dec;
 	struct video_device *vdev_enc;
 	struct v4l2_device v4l2_dev;

@@ -5,6 +5,7 @@
  */
 #include <linux/clk.h>
 #include <linux/init.h>
+#include <linux/interconnect.h>
 #include <linux/ioctl.h>
 #include <linux/list.h>
 #include <linux/module.h>
@@ -239,6 +240,10 @@ static int venus_probe(struct platform_device *pdev)
 	if (IS_ERR(core->base))
 		return PTR_ERR(core->base);
 
+	core->video_path = of_icc_get(dev, "video");
+	if (IS_ERR(core->video_path))
+		return PTR_ERR(core->video_path);
+
 	core->irq = platform_get_irq(pdev, 0);
 	if (core->irq < 0)
 		return core->irq;
@@ -355,6 +360,8 @@ static int venus_remove(struct platform_device *pdev)
 	pm_runtime_put_sync(dev);
 	pm_runtime_disable(dev);
 
+	icc_put(core->video_path);
+
 	v4l2_device_unregister(&core->v4l2_dev);
 
 	return ret;
@@ -404,6 +411,22 @@ static const struct freq_tbl msm8916_freq_table[] = {
 	{ 108000, 100000000 },	/* 1280x720 @ 30 */
 };
 
+static const struct bw_tbl msm8916_bw_table_enc[] = {
+	{ 244800, 908600, 1537600, 0, 0 },
+	{ 216000, 908600, 1537600, 0, 0 },
+	{ 108000, 400900, 1079000, 0, 0 },
+	{  72000, 400900, 1079000, 0, 0 },
+	{  36000, 133600,  674400, 0, 0 },
+};
+
+static const struct bw_tbl msm8916_bw_table_dec[] = {
+	{ 244800, 677600, 1331000, 0, 0 },
+	{ 216000, 677600, 1331000, 0, 0 },
+	{ 108000, 298900,  831900, 0, 0 },
+	{  72000, 298900,  831900, 0, 0 },
+	{  36000,  99600,  831900, 0, 0 },
+};
+
 static const struct reg_val msm8916_reg_preset[] = {
 	{ 0xe0020, 0x05555556 },
 	{ 0xe0024, 0x05555556 },
@@ -413,6 +436,10 @@ static const struct reg_val msm8916_reg_preset[] = {
 static const struct venus_resources msm8916_res = {
 	.freq_tbl = msm8916_freq_table,
 	.freq_tbl_size = ARRAY_SIZE(msm8916_freq_table),
+	.bw_tbl_enc = msm8916_bw_table_enc,
+	.bw_tbl_enc_size = ARRAY_SIZE(msm8916_bw_table_enc),
+	.bw_tbl_dec = msm8916_bw_table_dec,
+	.bw_tbl_dec_size = ARRAY_SIZE(msm8916_bw_table_dec),
 	.reg_tbl = msm8916_reg_preset,
 	.reg_tbl_size = ARRAY_SIZE(msm8916_reg_preset),
 	.clks = { "core", "iface", "bus", },
@@ -464,9 +491,27 @@ static const struct freq_tbl sdm845_freq_table[] = {
 	{  244800, 100000000 },	/* 1920x1080@30 */
 };
 
+static const struct bw_tbl sdm845_bw_table_enc[] = {
+	{ 1944000, 1612000, 0, 2416000, 0 },	/* 3840x2160@60 h264*/
+	{  972000,  951000, 0, 1434000, 0 },	/* 3840x2160@30 h264*/
+	{  489600,  723000, 0,  973000, 0 },	/* 1920x1080@60 h264 */
+	{  244800,  370000, 0,	495000, 0 },	/* 1920x1080@30 h264 */
+};
+
+static const struct bw_tbl sdm845_bw_table_dec[] = {
+	{ 2073600, 3929000, 0, 5551000, 0 },	/* 4096x2160@60 h264 */
+	{ 1036800, 1987000, 0, 2797000, 0 },	/* 4096x2160@30 h264 */
+	{  489600, 1040000, 0, 1298000, 0 },	/* 1920x1080@60 h264 */
+	{  244800,  530000, 0,  659000, 0 },	/* 1920x1080@30 h264 */
+};
+
 static const struct venus_resources sdm845_res = {
 	.freq_tbl = sdm845_freq_table,
 	.freq_tbl_size = ARRAY_SIZE(sdm845_freq_table),
+	.bw_tbl_enc = sdm845_bw_table_enc,
+	.bw_tbl_enc_size = ARRAY_SIZE(sdm845_bw_table_enc),
+	.bw_tbl_dec = sdm845_bw_table_dec,
+	.bw_tbl_dec_size = ARRAY_SIZE(sdm845_bw_table_dec),
 	.clks = {"core", "iface", "bus" },
 	.clks_num = 3,
 	.max_load = 2563200,
