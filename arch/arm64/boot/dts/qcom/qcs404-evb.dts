@@ -68,6 +68,7 @@
 		vreg_l3_1p05: l3 {
 			regulator-min-microvolt = <976000>;
 			regulator-max-microvolt = <1160000>;
+			regulator-always-on;
 		};
 
 		vreg_l4_1p2: l4 {
@@ -78,6 +79,7 @@
 		vreg_l5_1p8: l5 {
 			regulator-min-microvolt = <1800000>;
 			regulator-max-microvolt = <1800000>;
+			regulator-always-on;
 		};
 
 		vreg_l6_1p8: l6 {

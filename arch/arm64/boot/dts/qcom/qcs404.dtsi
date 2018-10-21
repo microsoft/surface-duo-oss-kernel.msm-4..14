@@ -3,6 +3,7 @@
 
 #include <dt-bindings/interrupt-controller/arm-gic.h>
 #include <dt-bindings/clock/qcom,gcc-qcs404.h>
+#include <dt-bindings/gpio/gpio.h>
 
 / {
 	interrupt-parent = <&intc>;
@@ -222,6 +223,7 @@
 			compatible = "qcom,gcc-qcs404";
 			reg = <0x1800000 0x80000>;
 			#clock-cells = <1>;
+			#reset-cells = <1>;
 
 			assigned-clocks = <&gcc GCC_APSS_AHB_CLK_SRC>;
 			assigned-clock-rates = <19200000>;
@@ -363,6 +365,24 @@
 			#gpio-cells = <2>;
 			interrupt-controller;
 			#interrupt-cells = <2>;
+
+			perst_state: perst {
+				pins = "gpio43";
+				function = "gpio";
+
+				bias-pull-down;
+				drive-strength = <2>;
+				output-high;
+			};
+
+			pcie_dis_state: pcie-disable {
+				pins = "gpio44";
+				function = "gpio";
+
+				bias-pull-down;
+				drive-strength = <8>;
+				output-low;
+			};
 		};
 
 		sdcc1: sdcc@7804000 {
@@ -380,6 +400,87 @@
 			clock-names = "core", "iface", "xo";
 
 			status = "disabled";
+		};
+
+		pcie0: pci@10000000 {
+			compatible = "qcom,pcie-qcs404", "snps,dw-pcie";
+			reg =  <0x10000000 0xf1d
+				0x10000f20 0xa8
+				0x07780000 0x2000
+				0x10001000 0x2000>;
+			reg-names = "dbi", "elbi", "parf", "config";
+			device_type = "pci";
+			linux,pci-domain = <0>;
+			bus-range = <0x00 0xff>;
+			num-lanes = <1>;
+			#address-cells = <3>;
+			#size-cells = <2>;
+
+			ranges = <0x81000000 0 0          0x10003000 0 0x00010000   /* I/O */
+				  0x82000000 0 0x10013000 0x10013000 0 0x007ed000>; /* memory */
+
+			interrupts = <GIC_SPI 266 IRQ_TYPE_EDGE_RISING>;
+			interrupt-names = "msi";
+			#interrupt-cells = <1>;
+			interrupt-map-mask = <0 0 0 0x7>;
+			interrupt-map = <0 0 0 1 &intc GIC_SPI 68 IRQ_TYPE_LEVEL_HIGH>, /* int_a */
+					<0 0 0 2 &intc GIC_SPI 224 IRQ_TYPE_LEVEL_HIGH>, /* int_b */
+					<0 0 0 3 &intc GIC_SPI 267 IRQ_TYPE_LEVEL_HIGH>, /* int_c */
+					<0 0 0 4 &intc GIC_SPI 268 IRQ_TYPE_LEVEL_HIGH>; /* int_d */
+			clocks = <&gcc GCC_PCIE_0_AUX_CLK>,
+			         <&gcc GCC_PCIE_0_MSTR_AXI_CLK>,
+				 <&gcc GCC_PCIE_0_SLV_AXI_CLK>,
+				 <&gcc GCC_PCIE_0_CFG_AHB_CLK>;
+			clock-names = "aux", "master_bus", "slave_bus", "cfg";
+
+			resets = <&gcc GCC_PCIE_0_AXI_MASTER_ARES>,
+			         <&gcc GCC_PCIE_0_AXI_SLAVE_ARES>,
+				 <&gcc GCC_PCIE_0_PIPE_ARES>,
+				 // <&gcc >,
+				 // <&gcc >,
+				 // <&gcc >,
+				 <&gcc GCC_PCIE_0_PHY_BCR>,
+				 <&gcc GCC_PCIE_0_AXI_MASTER_STICKY_ARES>,
+				 <&gcc GCC_PCIE_0_CORE_STICKY_ARES>,
+				 <&gcc GCC_PCIE_0_BCR>,
+				 <&gcc GCC_PCIE_0_AHB_ARES>,
+				 <&gcc GCC_PCIEPHY_0_PHY_BCR>;
+			reset-names = "axi_m",
+				      "axi_s",
+				      "pipe",
+				      // "axi_m_vmid", no
+				      // "axi_s_xpu", no
+				      // "parf", no
+				      "phy",
+				      "axi_m_sticky",
+				      "pipe_sticky", // core_sticky?
+				      "pwr", // PCIE_0_BCR or SLEEP_ARES
+				      "ahb",
+				      "phy_ahb";
+
+			phys = <&pcie_phy>;
+			phy-names = "pciephy";
+
+			perst-gpio = <&tlmm 43 GPIO_ACTIVE_LOW>;
+
+			pinctrl-names = "default";
+			pinctrl-0 = <&perst_state>, <&pcie_dis_state>;
+
+//			status = "disabled";
+		};
+
+		pcie_phy: phy@07786000 {
+			compatible = "qcom,pcie2-phy";
+			reg = <0x07786000 0xb8>;
+
+			clocks = <&gcc GCC_PCIE_0_PIPE_CLK>;
+			clock-names = "pipe";
+
+			resets = <&gcc GCC_PCIE_0_PIPE_ARES>;
+			reset-names = "pipe";
+
+			clock-output-names = "pcie_0_pipe_clk";
+			#phy-cells = <0>;
 		};
 	};
 
