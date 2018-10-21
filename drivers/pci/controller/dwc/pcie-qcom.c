@@ -119,6 +119,7 @@ struct qcom_pcie_resources_2_4_0 {
 	struct clk *aux_clk;
 	struct clk *master_clk;
 	struct clk *slave_clk;
+	struct clk *cfg_clk;
 	struct reset_control *axi_m_reset;
 	struct reset_control *axi_s_reset;
 	struct reset_control *pipe_reset;
@@ -667,6 +668,10 @@ static int qcom_pcie_get_resources_2_4_0(struct qcom_pcie *pcie)
 	struct dw_pcie *pci = pcie->pci;
 	struct device *dev = pci->dev;
 
+	res->cfg_clk = devm_clk_get(dev, "cfg");
+	if (IS_ERR(res->cfg_clk))
+		return PTR_ERR(res->cfg_clk);
+
 	res->aux_clk = devm_clk_get(dev, "aux");
 	if (IS_ERR(res->aux_clk))
 		return PTR_ERR(res->aux_clk);
@@ -750,6 +755,7 @@ static void qcom_pcie_deinit_2_4_0(struct qcom_pcie *pcie)
 	clk_disable_unprepare(res->aux_clk);
 	clk_disable_unprepare(res->master_clk);
 	clk_disable_unprepare(res->slave_clk);
+	clk_disable_unprepare(res->cfg_clk);
 }
 
 static int qcom_pcie_init_2_4_0(struct qcom_pcie *pcie)
@@ -759,6 +765,12 @@ static int qcom_pcie_init_2_4_0(struct qcom_pcie *pcie)
 	struct device *dev = pci->dev;
 	u32 val;
 	int ret;
+
+	ret = clk_prepare_enable(res->cfg_clk);
+	if (ret) {
+		dev_err(dev, "cannot prepare/enable cfg clock\n");
+		return ret;
+	}
 
 	ret = reset_control_assert(res->axi_m_reset);
 	if (ret) {
