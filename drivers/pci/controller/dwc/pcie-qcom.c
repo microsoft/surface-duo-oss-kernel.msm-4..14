@@ -123,9 +123,6 @@ struct qcom_pcie_resources_2_4_0 {
 	struct reset_control *axi_m_reset;
 	struct reset_control *axi_s_reset;
 	struct reset_control *pipe_reset;
-	struct reset_control *axi_m_vmid_reset;
-	struct reset_control *axi_s_xpu_reset;
-	struct reset_control *parf_reset;
 	struct reset_control *phy_reset;
 	struct reset_control *axi_m_sticky_reset;
 	struct reset_control *pipe_sticky_reset;
@@ -695,20 +692,6 @@ static int qcom_pcie_get_resources_2_4_0(struct qcom_pcie *pcie)
 	res->pipe_reset = devm_reset_control_get_exclusive(dev, "pipe");
 	if (IS_ERR(res->pipe_reset))
 		return PTR_ERR(res->pipe_reset);
-
-	res->axi_m_vmid_reset = devm_reset_control_get_exclusive(dev,
-								 "axi_m_vmid");
-	if (IS_ERR(res->axi_m_vmid_reset))
-		return PTR_ERR(res->axi_m_vmid_reset);
-
-	res->axi_s_xpu_reset = devm_reset_control_get_exclusive(dev,
-								"axi_s_xpu");
-	if (IS_ERR(res->axi_s_xpu_reset))
-		return PTR_ERR(res->axi_s_xpu_reset);
-
-	res->parf_reset = devm_reset_control_get_exclusive(dev, "parf");
-	if (IS_ERR(res->parf_reset))
-		return PTR_ERR(res->parf_reset);
 
 	res->phy_reset = devm_reset_control_get_exclusive(dev, "phy");
 	if (IS_ERR(res->phy_reset))
