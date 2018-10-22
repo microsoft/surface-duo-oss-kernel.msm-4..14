@@ -362,6 +362,7 @@
 				clock-names = "dspi";
 				spi-num-chipselects = <8>;
 				bus-num = <0>;
+				spi-fifo-size = <5>;
 				spi-cpol;
 				spi-cpha;
 				status = "disabled";
@@ -375,6 +376,7 @@
 				clock-names = "dspi";
 				spi-num-chipselects = <4>;
 				bus-num = <2>;
+				spi-fifo-size = <5>;
 				spi-cpol;
 				spi-cpha;
 				status = "disabled";
@@ -642,6 +644,7 @@
 				clock-names = "dspi";
 				spi-num-chipselects = <4>;
 				bus-num = <1>;
+				spi-fifo-size = <5>;
 				spi-cpol;
 				spi-cpha;
 				status = "disabled";
@@ -655,6 +658,7 @@
 				clock-names = "dspi";
 				spi-num-chipselects = <4>;
 				bus-num = <3>;
+				spi-fifo-size = <5>;
 				spi-cpol;
 				spi-cpha;
 				status = "disabled";

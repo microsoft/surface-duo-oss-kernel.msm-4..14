@@ -42,13 +42,8 @@
 #define TRAN_STATE_TX_VOID		0x02
 #define TRAN_STATE_WORD_ODD_NUM	0x04
 
-#if defined(CONFIG_SOC_S32V234)
-#define DSPI_FIFO_SIZE			5
-#else
-#define DSPI_FIFO_SIZE			4
-#endif
-
-#define DSPI_DMA_BUFSIZE		(DSPI_FIFO_SIZE * 1024)
+#define DSPI_FIFO_SIZE_DEFAULT		4
+#define DSPI_DMA_BUFSIZE(dspi)		(dspi->fifo_size * 1024)
 
 /* Module Configuration Register (SPI_MCR) */
 #define SPI_MCR			0x00
@@ -217,7 +212,7 @@ static const struct fsl_dspi_devtype_data s32_data = {
 };
 
 struct fsl_dspi_dma {
-	/* Length of transfer in words of DSPI_FIFO_SIZE */
+	/* Length of transfer in words of fifo_size */
 	u32 curr_xfer_len;
 
 	u32 *tx_dma_buf;
@@ -256,6 +251,7 @@ struct fsl_dspi {
 	u32			cs_change;
 	const struct fsl_dspi_devtype_data *devtype_data;
 	size_t			queue_size;
+	size_t			fifo_size;
 
 	wait_queue_head_t	waitq;
 	u32			waitflags;
@@ -418,7 +414,7 @@ static int dspi_dma_xfer(struct fsl_dspi *dspi)
 	if (is_double_byte_mode(dspi))
 		word = 2;
 	curr_remaining_bytes = dspi->len;
-	bytes_per_buffer = DSPI_DMA_BUFSIZE / DSPI_FIFO_SIZE;
+	bytes_per_buffer = DSPI_DMA_BUFSIZE(dspi) / dspi->fifo_size;
 	while (curr_remaining_bytes) {
 		/* Check if current transfer fits the DMA buffer */
 		dma->curr_xfer_len = curr_remaining_bytes / word;
@@ -466,14 +462,14 @@ static int dspi_request_dma(struct fsl_dspi *dspi, phys_addr_t phy_addr)
 		goto err_tx_channel;
 	}
 
-	dma->tx_dma_buf = dma_alloc_coherent(dev, DSPI_DMA_BUFSIZE,
+	dma->tx_dma_buf = dma_alloc_coherent(dev, DSPI_DMA_BUFSIZE(dspi),
 					&dma->tx_dma_phys, GFP_KERNEL);
 	if (!dma->tx_dma_buf) {
 		ret = -ENOMEM;
 		goto err_tx_dma_buf;
 	}
 
-	dma->rx_dma_buf = dma_alloc_coherent(dev, DSPI_DMA_BUFSIZE,
+	dma->rx_dma_buf = dma_alloc_coherent(dev, DSPI_DMA_BUFSIZE(dspi),
 					&dma->rx_dma_phys, GFP_KERNEL);
 	if (!dma->rx_dma_buf) {
 		ret = -ENOMEM;
@@ -510,10 +506,10 @@ static int dspi_request_dma(struct fsl_dspi *dspi, phys_addr_t phy_addr)
 	return 0;
 
 err_slave_config:
-	dma_free_coherent(dev, DSPI_DMA_BUFSIZE,
+	dma_free_coherent(dev, DSPI_DMA_BUFSIZE(dspi),
 			dma->rx_dma_buf, dma->rx_dma_phys);
 err_rx_dma_buf:
-	dma_free_coherent(dev, DSPI_DMA_BUFSIZE,
+	dma_free_coherent(dev, DSPI_DMA_BUFSIZE(dspi),
 			dma->tx_dma_buf, dma->tx_dma_phys);
 err_tx_dma_buf:
 	dma_release_channel(dma->chan_tx);
@@ -534,13 +530,14 @@ static void dspi_release_dma(struct fsl_dspi *dspi)
 	if (dma) {
 		if (dma->chan_tx) {
 			dma_unmap_single(dev, dma->tx_dma_phys,
-					DSPI_DMA_BUFSIZE, DMA_TO_DEVICE);
+					DSPI_DMA_BUFSIZE(dspi), DMA_TO_DEVICE);
 			dma_release_channel(dma->chan_tx);
 		}
 
 		if (dma->chan_rx) {
 			dma_unmap_single(dev, dma->rx_dma_phys,
-					DSPI_DMA_BUFSIZE, DMA_FROM_DEVICE);
+					DSPI_DMA_BUFSIZE(dspi),
+					DMA_FROM_DEVICE);
 			dma_release_channel(dma->chan_rx);
 		}
 	}
@@ -673,7 +670,7 @@ static int dspi_eoq_write(struct fsl_dspi *dspi)
 	fifo_entries_per_frm = (tx_frame_mode == FM_BYTES_4) ? 2 : 1;
 
 	while (dspi->len &&
-	       DSPI_FIFO_SIZE - fifo_entries_used >= fifo_entries_per_frm) {
+	       dspi->fifo_size - fifo_entries_used >= fifo_entries_per_frm) {
 
 		switch (tx_frame_mode) {
 		case FM_BYTES_4:
@@ -695,7 +692,8 @@ static int dspi_eoq_write(struct fsl_dspi *dspi)
 		tx_frames_count++;
 
 		if (dspi->len == 0 ||
-		    DSPI_FIFO_SIZE - fifo_entries_used < fifo_entries_per_frm) {
+		    dspi->fifo_size - fifo_entries_used <
+		    fifo_entries_per_frm) {
 
 			/* last transfer in the transfer */
 			dspi_pushr |= SPI_PUSHR_EOQ;
@@ -1117,6 +1115,7 @@ static int dspi_probe(struct platform_device *pdev)
 	struct fsl_dspi *dspi;
 	struct resource *res;
 	int ret = 0, cs_num, bus_num;
+	u32 val;
 
 	master = spi_alloc_master(&pdev->dev, sizeof(struct fsl_dspi));
 	if (!master)
@@ -1156,6 +1155,12 @@ static int dspi_probe(struct platform_device *pdev)
 		ret = -EFAULT;
 		goto out_master_put;
 	}
+
+	ret = of_property_read_u32(np, "spi-fifo-size", &val);
+	if (ret < 0)
+		dspi->fifo_size = DSPI_FIFO_SIZE_DEFAULT;
+	else
+		dspi->fifo_size = val;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	dspi->base = devm_ioremap_resource(&pdev->dev, res);
