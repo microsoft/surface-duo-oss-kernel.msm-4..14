@@ -131,18 +131,14 @@
 #define SPI_TXFR1		0x40
 #define SPI_TXFR2		0x44
 #define SPI_TXFR3		0x48
-#if defined(CONFIG_SOC_S32V234)
 #define SPI_TXFR4		0x4C
-#endif
 
 /* Receive FIFO Registers (SPI_RXFRn) */
 #define SPI_RXFR0		0x7c
 #define SPI_RXFR1		0x80
 #define SPI_RXFR2		0x84
 #define SPI_RXFR3		0x88
-#if defined(CONFIG_SOC_S32V234)
 #define SPI_RXFR4		0x8C
-#endif
 
 /* Clock and Transfer Attribute Register Extended (SPI_CTAREn) */
 #define SPI_CTARE(x)		(0x11c + (((x) & 0x3) * 4))
