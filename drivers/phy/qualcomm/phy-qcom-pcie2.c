@@ -131,7 +131,7 @@ static int qcom_pcie2_phy_power_on(struct phy *phy)
 		goto out;
 	}
 
-	clk_set_rate(qphy->pipe_clk, 125000000);
+	clk_set_rate(qphy->pipe_clk, 250000000);
 
 	ret = clk_prepare_enable(qphy->pipe_clk);
 	if (ret) {
@@ -197,8 +197,8 @@ static int phy_pipe_clk_register(struct qcom_phy *qphy)
 
         init.ops = &clk_fixed_rate_ops;
 
-        /* controllers using QMP phys use 125MHz pipe clock interface */
-        fixed->fixed_rate = 125000000;
+        /* controllers using QMP phys use 250MHz pipe clock interface */
+        fixed->fixed_rate = 250000000;
         fixed->hw.init = &init;
 
         return devm_clk_hw_register(qphy->dev, &fixed->hw);
