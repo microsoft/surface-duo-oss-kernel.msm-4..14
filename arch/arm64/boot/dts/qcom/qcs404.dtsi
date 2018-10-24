@@ -407,7 +407,7 @@
 			reg =  <0x10000000 0xf1d
 				0x10000f20 0xa8
 				0x07780000 0x2000
-				0x10100000 0x1000>;
+				0x10001000 0x2000>;
 			reg-names = "dbi", "elbi", "parf", "config";
 			device_type = "pci";
 			linux,pci-domain = <0>;
@@ -416,8 +416,8 @@
 			#address-cells = <3>;
 			#size-cells = <2>;
 
-			ranges = <0x81000000 0 0x10200000 0x10200000 0 0x00100000
-				  0x82000000 0 0x18000000 0x18000000 0 0x10000000>;
+			ranges = <0x81000000 0 0          0x10003000 0 0x00010000   /* I/O */
+				  0x82000000 0 0x10013000 0x10013000 0 0x007ed000>; /* memory */
 
 			interrupts = <GIC_SPI 266 IRQ_TYPE_EDGE_RISING>;
 			interrupt-names = "msi";
