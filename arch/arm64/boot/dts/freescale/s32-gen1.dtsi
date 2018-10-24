@@ -307,6 +307,7 @@
 		spi-num-chipselects = <5>;
 		bus-num = <0>;
 		spi-fifo-size = <5>;
+		spi-extended-mode;
 		spi-cpol;
 		spi-cpha;
 		status = "disabled";
@@ -321,6 +322,7 @@
 		spi-num-chipselects = <5>;
 		bus-num = <1>;
 		spi-fifo-size = <5>;
+		spi-extended-mode;
 		spi-cpol;
 		spi-cpha;
 		status = "disabled";
@@ -335,6 +337,7 @@
 		spi-num-chipselects = <5>;
 		bus-num = <2>;
 		spi-fifo-size = <5>;
+		spi-extended-mode;
 		spi-cpol;
 		spi-cpha;
 		status = "disabled";
@@ -476,6 +479,7 @@
 		spi-num-chipselects = <5>;
 		bus-num = <3>;
 		spi-fifo-size = <5>;
+		spi-extended-mode;
 		spi-cpol;
 		spi-cpha;
 		status = "disabled";
@@ -490,6 +494,7 @@
 		spi-num-chipselects = <5>;
 		bus-num = <4>;
 		spi-fifo-size = <5>;
+		spi-extended-mode;
 		spi-cpol;
 		spi-cpha;
 		status = "disabled";
@@ -504,6 +509,7 @@
 		spi-num-chipselects = <5>;
 		bus-num = <5>;
 		spi-fifo-size = <5>;
+		spi-extended-mode;
 		spi-cpol;
 		spi-cpha;
 		status = "disabled";

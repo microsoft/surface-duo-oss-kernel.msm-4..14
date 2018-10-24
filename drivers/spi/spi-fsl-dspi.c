@@ -111,18 +111,10 @@
 #define SPI_POPR_RXDATA_32(x)   ((x) & 0xffffffff)
 
 /* Transmit FIFO Registers (SPI_TXFRn) */
-#define SPI_TXFR0		0x3c
-#define SPI_TXFR1		0x40
-#define SPI_TXFR2		0x44
-#define SPI_TXFR3		0x48
-#define SPI_TXFR4		0x4C
+#define SPI_TXFR(x)		(0x3c + (((x) & 0xf) << 2))
 
 /* Receive FIFO Registers (SPI_RXFRn) */
-#define SPI_RXFR0		0x7c
-#define SPI_RXFR1		0x80
-#define SPI_RXFR2		0x84
-#define SPI_RXFR3		0x88
-#define SPI_RXFR4		0x8C
+#define SPI_RXFR(x)		(0x7c + (((x) & 0xf) << 2))
 
 /* Clock and Transfer Attribute Register Extended (SPI_CTAREn) */
 #define SPI_CTARE(x)		(0x11c + (((x) & 0x3) * 4))
@@ -168,36 +160,26 @@ enum dspi_trans_mode {
 struct fsl_dspi_devtype_data {
 	enum dspi_trans_mode trans_mode;
 	u8 max_clock_factor;
-	u8 extended_mode;
-	unsigned int max_register;
 };
 
 static const struct fsl_dspi_devtype_data vf610_data = {
 	.trans_mode = DSPI_DMA_MODE,
 	.max_clock_factor = 2,
-	.extended_mode = 0,
-	.max_register = 0x88,
 };
 
 static const struct fsl_dspi_devtype_data ls1021a_v1_data = {
 	.trans_mode = DSPI_TCFQ_MODE,
 	.max_clock_factor = 8,
-	.extended_mode = 0,
-	.max_register = 0x88,
 };
 
 static const struct fsl_dspi_devtype_data ls2085a_data = {
 	.trans_mode = DSPI_TCFQ_MODE,
 	.max_clock_factor = 8,
-	.extended_mode = 0,
-	.max_register = 0x88,
 };
 
 static const struct fsl_dspi_devtype_data s32_data = {
 	.trans_mode = DSPI_EOQ_MODE,
 	.max_clock_factor = 1,
-	.extended_mode = 1,
-	.max_register = 0x13c,
 };
 
 struct fsl_dspi_dma {
@@ -242,6 +224,7 @@ struct fsl_dspi {
 	size_t			queue_size;
 	size_t			fifo_size;
 	u32			pcs_mask;
+	bool			extended_mode;
 
 	wait_queue_head_t	waitq;
 	u32			waitflags;
@@ -891,7 +874,7 @@ static int dspi_setup(struct spi_device *spi)
 	unsigned long clkrate;
 
 	if ((spi->bits_per_word >= 4 && spi->bits_per_word <= 16) ||
-	    (dspi->devtype_data->extended_mode && spi->bits_per_word <= 32)) {
+	    (dspi->extended_mode && spi->bits_per_word <= 32)) {
 		fmsz = spi->bits_per_word - 1;
 	} else {
 		pr_err("Invalid wordsize\n");
@@ -939,7 +922,7 @@ static int dspi_setup(struct spi_device *spi)
 
 	spi_set_ctldata(spi, chip);
 
-	if (dspi->devtype_data->extended_mode && fmsz >= 16) {
+	if (dspi->extended_mode && fmsz >= 16) {
 		chip->mcr_val |= SPI_MCR_XSPI;
 
 		/* Support for multiple data frames with a single command frame
@@ -1153,6 +1136,8 @@ static int dspi_probe(struct platform_device *pdev)
 	else
 		dspi->fifo_size = val;
 
+	dspi->extended_mode = of_property_read_bool(np, "spi-extended-mode");
+
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	dspi->base = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR(dspi->base)) {
@@ -1160,7 +1145,10 @@ static int dspi_probe(struct platform_device *pdev)
 		goto out_master_put;
 	}
 
-	dspi_regmap_config.max_register = dspi->devtype_data->max_register;
+	if (dspi->extended_mode)
+		dspi_regmap_config.max_register = SPI_SREX;
+	else
+		dspi_regmap_config.max_register = SPI_RXFR(dspi->fifo_size - 1);
 	dspi->regmap = devm_regmap_init_mmio_clk(&pdev->dev, NULL, dspi->base,
 						&dspi_regmap_config);
 	if (IS_ERR(dspi->regmap)) {
