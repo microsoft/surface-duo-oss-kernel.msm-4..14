@@ -873,6 +873,12 @@ static int qcom_pcie_init_2_4_0(struct qcom_pcie *pcie)
 
 	usleep_range(10000, 12000);
 
+	ret = clk_set_rate(res->aux_clk, 1200751);
+	if (ret) {
+		dev_err(dev, "cannot set rate on aux clk\n");
+		goto err_clk_aux;
+	}
+
 	ret = clk_prepare_enable(res->aux_clk);
 	if (ret) {
 		dev_err(dev, "cannot prepare/enable iface clock\n");
