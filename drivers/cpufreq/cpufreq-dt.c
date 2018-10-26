@@ -32,6 +32,9 @@ struct private_data {
 	struct device *cpu_dev;
 	struct thermal_cooling_device *cdev;
 	const char *reg_name;
+	struct notifier_block opp_nb;
+	struct mutex lock;
+	unsigned long opp_freq;
 };
 
 static struct freq_attr *cpufreq_dt_attr[] = {
@@ -49,6 +52,9 @@ static int set_target(struct cpufreq_policy *policy, unsigned int index)
 	ret = dev_pm_opp_set_rate(priv->cpu_dev, freq * 1000);
 
 	if (!ret) {
+		mutex_lock(&priv->lock);
+		priv->opp_freq = freq * 1000;
+		mutex_unlock(&priv->lock);
 		arch_set_freq_scale(policy->related_cpus, freq,
 				    policy->cpuinfo.max_freq);
 	}
@@ -92,6 +98,39 @@ static const char *find_supply_name(struct device *dev)
 node_put:
 	of_node_put(np);
 	return name;
+}
+
+static int opp_notifier(struct notifier_block *nb, unsigned long event,
+			void *data)
+{
+	struct dev_pm_opp *opp = data;
+	struct private_data *priv = container_of(nb, struct private_data,
+						 opp_nb);
+	struct device *cpu_dev = priv->cpu_dev;
+	struct regulator *cpu_reg;
+	unsigned long volt, freq;
+	int ret = 0;
+
+	if (event == OPP_EVENT_ADJUST_VOLTAGE) {
+		cpu_reg = dev_pm_opp_get_regulator(cpu_dev);
+		if (IS_ERR(cpu_reg)) {
+			ret = PTR_ERR(cpu_reg);
+			goto out;
+		}
+		volt = dev_pm_opp_get_voltage(opp);
+		freq = dev_pm_opp_get_freq(opp);
+
+		mutex_lock(&priv->lock);
+		if (freq == priv->opp_freq) {
+			ret = regulator_set_voltage_triplet(cpu_reg, volt, volt, volt);
+		}
+		mutex_unlock(&priv->lock);
+		if (ret)
+			dev_err(cpu_dev, "failed to scale voltage: %d\n", ret);
+	}
+
+out:
+	return notifier_from_errno(ret);
 }
 
 static int resources_available(void)
@@ -246,13 +285,21 @@ static int cpufreq_init(struct cpufreq_policy *policy)
 		goto out_free_opp;
 	}
 
+	mutex_init(&priv->lock);
+
+	priv->opp_nb.notifier_call = opp_notifier;
+	ret = dev_pm_opp_register_notifier(cpu_dev, &priv->opp_nb);
+
+	if (ret)
+		goto out_free_priv;
+
 	priv->reg_name = name;
 	priv->opp_table = opp_table;
 
 	ret = dev_pm_opp_init_cpufreq_table(cpu_dev, &freq_table);
 	if (ret) {
 		dev_err(cpu_dev, "failed to init cpufreq table: %d\n", ret);
-		goto out_free_priv;
+		goto out_unregister_nb;
 	}
 
 	priv->cpu_dev = cpu_dev;
@@ -282,6 +329,8 @@ static int cpufreq_init(struct cpufreq_policy *policy)
 
 out_free_cpufreq_table:
 	dev_pm_opp_free_cpufreq_table(cpu_dev, &freq_table);
+out_unregister_nb:
+	dev_pm_opp_unregister_notifier(cpu_dev, &priv->opp_nb);
 out_free_priv:
 	kfree(priv);
 out_free_opp:
