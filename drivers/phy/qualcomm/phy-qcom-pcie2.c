@@ -181,27 +181,27 @@ static const struct phy_ops qcom_pcie2_ops = {
 static int phy_pipe_clk_register(struct qcom_phy *qphy)
 {
 	struct device_node *np = qphy->dev->of_node;
-        struct clk_fixed_rate *fixed;
-        struct clk_init_data init = { };
-        int ret;
+	struct clk_fixed_rate *fixed;
+	struct clk_init_data init = { };
+	int ret;
 
-        ret = of_property_read_string(np, "clock-output-names", &init.name);
-        if (ret) {
-                dev_err(qphy->dev, "%s: No clock-output-names\n", np->name);
-                return ret;
-        }
+	ret = of_property_read_string(np, "clock-output-names", &init.name);
+	if (ret) {
+		dev_err(qphy->dev, "%s: No clock-output-names\n", np->name);
+		return ret;
+	}
 
-        fixed = devm_kzalloc(qphy->dev, sizeof(*fixed), GFP_KERNEL);
-        if (!fixed)
-                return -ENOMEM;
+	fixed = devm_kzalloc(qphy->dev, sizeof(*fixed), GFP_KERNEL);
+	if (!fixed)
+		return -ENOMEM;
 
-        init.ops = &clk_fixed_rate_ops;
+	init.ops = &clk_fixed_rate_ops;
 
-        /* controllers using QMP phys use 250MHz pipe clock interface */
-        fixed->fixed_rate = 250000000;
-        fixed->hw.init = &init;
+	/* controllers using QMP phys use 250MHz pipe clock interface */
+	fixed->fixed_rate = 250000000;
+	fixed->hw.init = &init;
 
-        return devm_clk_hw_register(qphy->dev, &fixed->hw);
+	return devm_clk_hw_register(qphy->dev, &fixed->hw);
 }
 
 static int qcom_pcie2_phy_probe(struct platform_device *pdev)
