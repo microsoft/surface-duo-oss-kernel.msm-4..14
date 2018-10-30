@@ -454,11 +454,11 @@ static void __init s32v234_clocks_init(struct device_node *mc_cgm0_node)
 		MC_CGM_ACn_SEL_SIZE,
 		h264dcd_sels, ARRAY_SIZE(h264dcd_sels), &s32v234_lock);
 	clk[S32V234_CLK_H264DCD_DIV] = s32_clk_divider("h264dcd_div",
-		"h264dec_sel", CGM_ACn_DCm(mc_cgm0_base, 12, 0),
+		"h264dcd_sel", CGM_ACn_DCm(mc_cgm0_base, 12, 0),
 		MC_CGM_ACn_DCm_PREDIV_OFFSET,
 		MC_CGM_ACn_DCm_PREDIV_SIZE, &s32v234_lock);
 	clk[S32V234_CLK_H264DCD] = s32v234_clk_gate2_shared("h264dcd",
-		"h264dec_div", mc_me_base, H264DEC_PCTL, 0, 1,
+		"h264dcd_div", mc_me_base, H264DEC_PCTL, 0, 1,
 		&share_count_h264dcdgate, &s32v234_lock);
 	clk[S32V234_CLK_H264DCD_IPS] = s32v234_clk_gate2_shared("h264dcd_ips",
 		"sys6", mc_me_base, H264DEC_PCTL, 0, 1,
