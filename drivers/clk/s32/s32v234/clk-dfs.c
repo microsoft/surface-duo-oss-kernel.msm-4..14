@@ -33,7 +33,6 @@ struct clk_dfs {
 	enum s32v234_plldig_type plltype;
 	u8		idx;
 	u32		mfn;
-	u32		plldv_rfdphi1;
 };
 
 #define to_clk_dfs(_hw) container_of(_hw, struct clk_dfs, hw)
