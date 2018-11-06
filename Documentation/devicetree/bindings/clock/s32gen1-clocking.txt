@@ -9,7 +9,6 @@ The internal clocks are generated from one of these input clock sources:
 	- PERIPH_PLL (Non-FM)
 	- DDR_PLL (Non-FM)
 	- ACCEL_PLL (FM)
-	- AURORA_PLL (Non-FM)
 - DFS blocks:
 	- CORE_PLL DFS
 	- PERIPH_PLL DFS
@@ -33,7 +32,6 @@ clks: clocking@40038000 {
 		<0x0 0x4003C000 0x0 0x3000>, /*periphpll*/
 		<0x0 0x40040000 0x0 0x3000>, /*accelpll*/
 		<0x0 0x40044000 0x0 0x3000>, /*ddrpll*/
-		<0x0 0x40048000 0x0 0x3000>, /*aurorapll*/
 		<0x0 0x40050000 0x0 0x3000>, /*xosc*/
 		<0x0 0x40054000 0x0 0x3000>, /*armdfs*/
 		<0x0 0x40058000 0x0 0x3000>; /*periphdfs*/
