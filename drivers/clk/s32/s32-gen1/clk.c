@@ -111,15 +111,15 @@ static void __init s32gen1_clocks_init(struct device_node *clocking_node)
 		return;
 
 	aurorapll = of_iomap(np, 4);
-	if (WARN_ON(!accelpll))
+	if (WARN_ON(!aurorapll))
 		return;
 
 	armdfs = of_iomap(np, 5);
-	if (WARN_ON(!accelpll))
+	if (WARN_ON(!armdfs))
 		return;
 
 	periphdfs = of_iomap(np, 6);
-	if (WARN_ON(!accelpll))
+	if (WARN_ON(!periphdfs))
 		return;
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,s32gen1-mc_cgm0");
