@@ -73,6 +73,11 @@ struct s32_pinctrl_soc_info {
 	struct s32_pmx_func *functions;
 	unsigned int nfunctions;
 	unsigned int flags;
+	unsigned int grp_index;
+	unsigned int mscr_base_pin;
+	unsigned int mscr_end_pin;
+	unsigned int imcr_base_pin;
+	unsigned int imcr_end_pin;
 };
 
 #define S32_PINCTRL_PIN(pin)	PINCTRL_PIN(pin, #pin)
@@ -80,10 +85,8 @@ struct s32_pinctrl_soc_info {
 #define S32_PAD_CONFIG(idx)	((idx) * 4)
 #define S32_PIN_SIZE		(8)
 
-
 int s32_pinctrl_probe(struct platform_device *pdev,
-			struct s32_pinctrl_soc_info *info,
-			enum s32_pinctrl_version vers);
+			struct s32_pinctrl_soc_info *info);
 int s32_pinctrl_remove(struct platform_device *pdev);
 #endif /* __DRIVERS_PINCTRL_S32_H */
 
