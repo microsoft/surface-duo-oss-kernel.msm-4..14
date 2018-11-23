@@ -747,7 +747,6 @@ static size_t __process_echoes(struct tty_struct *tty)
 #if defined(CONFIG_TTY_FLUSH_LOCAL_ECHO)
 	if (ldata->echo_commit != tail) {
 		if (!tty->delayed_work) {
-			INIT_DELAYED_WORK(&tty->echo_delayed_work, continue_process_echoes);
 			schedule_delayed_work(&tty->echo_delayed_work, 1);
 		}
 		tty->delayed_work = 1;
@@ -1889,6 +1888,8 @@ static void n_tty_close(struct tty_struct *tty)
 	if (tty->link)
 		n_tty_packet_mode_flush(tty);
 
+	cancel_delayed_work_sync(&tty->echo_delayed_work);
+
 	vfree(ldata);
 	tty->disc_data = NULL;
 }
@@ -1924,6 +1925,7 @@ static int n_tty_open(struct tty_struct *tty)
 	ldata->no_room = 0;
 	ldata->lnext = 0;
 	tty->closing = 0;
+	INIT_DELAYED_WORK(&tty->echo_delayed_work, continue_process_echoes);
 	/* indicate buffer work may resume */
 	clear_bit(TTY_LDISC_HALTED, &tty->flags);
 	n_tty_set_termios(tty, NULL);
