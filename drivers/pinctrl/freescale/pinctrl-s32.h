@@ -78,7 +78,7 @@ struct s32_pinctrl_soc_info {
 #define S32_PINCTRL_PIN(pin)	PINCTRL_PIN(pin, #pin)
 #define S32_MSCR_OFFSET	(0x240)
 #define S32_PAD_CONFIG(idx)	((idx) * 4)
-#define S32_PIN_SIZE		(sizeof(struct s32_pin))
+#define S32_PIN_SIZE		(8)
 
 
 int s32_pinctrl_probe(struct platform_device *pdev,
