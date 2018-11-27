@@ -126,6 +126,7 @@ enum hclge_opcode_type {
 	HCLGE_OPC_TM_PRI_SCH_MODE_CFG   = 0x0813,
 	HCLGE_OPC_TM_QS_SCH_MODE_CFG    = 0x0814,
 	HCLGE_OPC_TM_BP_TO_QSET_MAPPING = 0x0815,
+	HCLGE_OPC_ETS_TC_WEIGHT		= 0x0843,
 
 	/* Packet buffer allocate commands */
 	HCLGE_OPC_TX_BUFF_ALLOC		= 0x0901,
@@ -152,6 +153,7 @@ enum hclge_opcode_type {
 
 	/* TSO command */
 	HCLGE_OPC_TSO_GENERIC_CONFIG	= 0x0C01,
+	HCLGE_OPC_GRO_GENERIC_CONFIG    = 0x0C10,
 
 	/* RSS commands */
 	HCLGE_OPC_RSS_GENERIC_CONFIG	= 0x0D01,
@@ -756,6 +758,12 @@ struct hclge_cfg_tso_status_cmd {
 	__le16 tso_mss_min;
 	__le16 tso_mss_max;
 	u8 rsv[20];
+};
+
+#define HCLGE_GRO_EN_B		0
+struct hclge_cfg_gro_status_cmd {
+	__le16 gro_en;
+	u8 rsv[22];
 };
 
 #define HCLGE_TSO_MSS_MIN	256
