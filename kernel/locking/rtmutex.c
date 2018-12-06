@@ -1141,6 +1141,7 @@ void __sched rt_spin_lock_slowunlock(struct rt_mutex *lock)
 
 void __lockfunc rt_spin_lock(spinlock_t *lock)
 {
+	sleeping_lock_inc();
 	migrate_disable();
 	spin_acquire(&lock->dep_map, 0, 0, _RET_IP_);
 	rt_spin_lock_fastlock(&lock->lock, rt_spin_lock_slowlock);
@@ -1155,6 +1156,7 @@ void __lockfunc __rt_spin_lock(struct rt_mutex *lock)
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 void __lockfunc rt_spin_lock_nested(spinlock_t *lock, int subclass)
 {
+	sleeping_lock_inc();
 	migrate_disable();
 	spin_acquire(&lock->dep_map, subclass, 0, _RET_IP_);
 	rt_spin_lock_fastlock(&lock->lock, rt_spin_lock_slowlock);
@@ -1168,6 +1170,7 @@ void __lockfunc rt_spin_unlock(spinlock_t *lock)
 	spin_release(&lock->dep_map, 1, _RET_IP_);
 	rt_spin_lock_fastunlock(&lock->lock, rt_spin_lock_slowunlock);
 	migrate_enable();
+	sleeping_lock_dec();
 }
 EXPORT_SYMBOL(rt_spin_unlock);
 
@@ -1193,12 +1196,15 @@ int __lockfunc rt_spin_trylock(spinlock_t *lock)
 {
 	int ret;
 
+	sleeping_lock_inc();
 	migrate_disable();
 	ret = __rt_mutex_trylock(&lock->lock);
-	if (ret)
+	if (ret) {
 		spin_acquire(&lock->dep_map, 0, 1, _RET_IP_);
-	else
+	} else {
 		migrate_enable();
+		sleeping_lock_dec();
+	}
 	return ret;
 }
 EXPORT_SYMBOL(rt_spin_trylock);
@@ -1210,6 +1216,7 @@ int __lockfunc rt_spin_trylock_bh(spinlock_t *lock)
 	local_bh_disable();
 	ret = __rt_mutex_trylock(&lock->lock);
 	if (ret) {
+		sleeping_lock_inc();
 		migrate_disable();
 		spin_acquire(&lock->dep_map, 0, 1, _RET_IP_);
 	} else
@@ -1225,6 +1232,7 @@ int __lockfunc rt_spin_trylock_irqsave(spinlock_t *lock, unsigned long *flags)
 	*flags = 0;
 	ret = __rt_mutex_trylock(&lock->lock);
 	if (ret) {
+		sleeping_lock_inc();
 		migrate_disable();
 		spin_acquire(&lock->dep_map, 0, 1, _RET_IP_);
 	}
@@ -2017,17 +2025,32 @@ int __sched __rt_mutex_lock_state(struct rt_mutex *lock, int state)
  * @lock:      The rt_mutex to be locked
  * @state:     The state to set when blocking on the rt_mutex
  */
-static int __sched rt_mutex_lock_state(struct rt_mutex *lock, int state)
+static int __sched rt_mutex_lock_state(struct rt_mutex *lock, int state, unsigned int subclass)
 {
 	int ret;
 
-	mutex_acquire(&lock->dep_map, 0, 0, _RET_IP_);
+	mutex_acquire(&lock->dep_map, subclass, 0, _RET_IP_);
 	ret = __rt_mutex_lock_state(lock, state);
 	if (ret)
 		mutex_release(&lock->dep_map, 1, _RET_IP_);
 	return ret;
 }
 
+#ifdef CONFIG_DEBUG_LOCK_ALLOC
+/**
+ * rt_mutex_lock_nested - lock a rt_mutex
+ *
+ * @lock: the rt_mutex to be locked
+ * @subclass: the lockdep subclass
+ */
+void __sched rt_mutex_lock_nested(struct rt_mutex *lock, unsigned int subclass)
+{
+	rt_mutex_lock_state(lock, TASK_UNINTERRUPTIBLE, subclass);
+}
+EXPORT_SYMBOL_GPL(rt_mutex_lock_nested);
+#endif
+
+#ifndef CONFIG_DEBUG_LOCK_ALLOC
 /**
  * rt_mutex_lock - lock a rt_mutex
  *
@@ -2035,9 +2058,10 @@ static int __sched rt_mutex_lock_state(struct rt_mutex *lock, int state)
  */
 void __sched rt_mutex_lock(struct rt_mutex *lock)
 {
-	rt_mutex_lock_state(lock, TASK_UNINTERRUPTIBLE);
+	rt_mutex_lock_state(lock, TASK_UNINTERRUPTIBLE,  0);
 }
 EXPORT_SYMBOL_GPL(rt_mutex_lock);
+#endif
 
 /**
  * rt_mutex_lock_interruptible - lock a rt_mutex interruptible
@@ -2050,7 +2074,7 @@ EXPORT_SYMBOL_GPL(rt_mutex_lock);
  */
 int __sched rt_mutex_lock_interruptible(struct rt_mutex *lock)
 {
-	return rt_mutex_lock_state(lock, TASK_INTERRUPTIBLE);
+	return rt_mutex_lock_state(lock, TASK_INTERRUPTIBLE, 0);
 }
 EXPORT_SYMBOL_GPL(rt_mutex_lock_interruptible);
 
@@ -2079,7 +2103,7 @@ int __sched __rt_mutex_futex_trylock(struct rt_mutex *lock)
  */
 int __sched rt_mutex_lock_killable(struct rt_mutex *lock)
 {
-	return rt_mutex_lock_state(lock, TASK_KILLABLE);
+	return rt_mutex_lock_state(lock, TASK_KILLABLE, 0);
 }
 EXPORT_SYMBOL_GPL(rt_mutex_lock_killable);
 

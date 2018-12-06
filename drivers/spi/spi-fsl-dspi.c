@@ -1173,14 +1173,14 @@ static int dspi_probe(struct platform_device *pdev)
 	if (dspi->irq < 0) {
 		dev_err(&pdev->dev, "can't get platform irq\n");
 		ret = dspi->irq;
-		goto out_master_put;
+		goto out_clk_put;
 	}
 
 	ret = devm_request_irq(&pdev->dev, dspi->irq, dspi_interrupt, 0,
 			pdev->name, dspi);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "Unable to attach DSPI interrupt\n");
-		goto out_master_put;
+		goto out_clk_put;
 	}
 
 	if (dspi->devtype_data->trans_mode == DSPI_DMA_MODE) {

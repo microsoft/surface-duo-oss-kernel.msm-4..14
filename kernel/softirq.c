@@ -147,7 +147,7 @@ void softirq_check_pending_idle(void)
 {
 	static int rate_limit;
 
-	if (rate_limit < 10 &&
+	if (rate_limit < 10 && !in_softirq() &&
 			(local_softirq_pending() & SOFTIRQ_STOP_IDLE_MASK)) {
 		printk(KERN_ERR "NOHZ: local_softirq_pending %02x\n",
 		       local_softirq_pending());
@@ -210,12 +210,16 @@ static void handle_softirq(unsigned int vec_nr)
 #ifndef CONFIG_PREEMPT_RT_FULL
 /*
  * If ksoftirqd is scheduled, we do not want to process pending softirqs
- * right now. Let ksoftirqd handle this at its own rate, to get fairness.
+ * right now. Let ksoftirqd handle this at its own rate, to get fairness,
+ * unless we're doing some of the synchronous softirqs.
  */
-static bool ksoftirqd_running(void)
+#define SOFTIRQ_NOW_MASK ((1 << HI_SOFTIRQ) | (1 << TASKLET_SOFTIRQ))
+static bool ksoftirqd_running(unsigned long pending)
 {
 	struct task_struct *tsk = __this_cpu_read(ksoftirqd);
 
+	if (pending & SOFTIRQ_NOW_MASK)
+		return false;
 	return tsk && (tsk->state == TASK_RUNNING);
 }
 
@@ -465,7 +469,7 @@ asmlinkage __visible void do_softirq(void)
 
 	pending = local_softirq_pending();
 
-	if (pending && !ksoftirqd_running())
+	if (pending && !ksoftirqd_running(pending))
 		do_softirq_own_stack();
 
 	local_irq_restore(flags);
@@ -796,7 +800,7 @@ void irq_enter(void)
 static inline void invoke_softirq(void)
 {
 #ifndef CONFIG_PREEMPT_RT_FULL
-	if (ksoftirqd_running())
+	if (ksoftirqd_running(local_softirq_pending()))
 		return;
 
 	if (!force_irqthreads) {
@@ -838,14 +842,9 @@ static inline void tick_irq_exit(void)
 	int cpu = smp_processor_id();
 
 	/* Make sure that timer wheel updates are propagated */
-#ifdef CONFIG_PREEMPT_RT_BASE
 	if ((idle_cpu(cpu) || tick_nohz_full_cpu(cpu)) &&
-	    !need_resched() && !local_softirq_pending())
-#else
-	if ((idle_cpu(cpu) && !need_resched()) || tick_nohz_full_cpu(cpu))
-#endif
-	{
-		if (!in_interrupt())
+	    !need_resched() && !local_softirq_pending()) {
+		if (!in_irq())
 			tick_nohz_irq_exit();
 	}
 #endif
