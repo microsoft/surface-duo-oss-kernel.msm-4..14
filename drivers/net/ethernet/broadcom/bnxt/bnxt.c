@@ -6190,7 +6190,8 @@ int bnxt_hwrm_func_resc_qcaps(struct bnxt *bp, bool all)
 	req.fid = cpu_to_le16(0xffff);
 
 	mutex_lock(&bp->hwrm_cmd_lock);
-	rc = _hwrm_send_message(bp, &req, sizeof(req), HWRM_CMD_TIMEOUT);
+	rc = _hwrm_send_message_silent(bp, &req, sizeof(req),
+				       HWRM_CMD_TIMEOUT);
 	if (rc) {
 		rc = -EIO;
 		goto hwrm_func_resc_qcaps_exit;
@@ -9617,7 +9618,7 @@ static int bnxt_bridge_getlink(struct sk_buff *skb, u32 pid, u32 seq,
 }
 
 static int bnxt_bridge_setlink(struct net_device *dev, struct nlmsghdr *nlh,
-			       u16 flags)
+			       u16 flags, struct netlink_ext_ack *extack)
 {
 	struct bnxt *bp = netdev_priv(dev);
 	struct nlattr *attr, *br_spec;
