@@ -2,6 +2,7 @@
  * SIUL2 GPIO support.
  *
  * Copyright (c) 2016 Freescale Semiconductor, Inc.
+ * Copyright 2018 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 or
@@ -497,7 +498,7 @@ static int siul2_gpio_get(struct gpio_chip *chip, unsigned offset)
 
 	spin_unlock_irqrestore(&gpio_dev->lock, flags);
 
-	return data;
+	return data ? 1 : 0;
 }
 
 
