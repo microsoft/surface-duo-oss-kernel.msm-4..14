@@ -9,6 +9,7 @@
 
 /dts-v1/;
 #include "s32-gen1.dtsi"
+#include <dt-bindings/pinctrl/s32r45x-pinctrl.h>
 / {
 	model = "Freescale S32R45X";
 	compatible = "fsl,s32r45x-simu", "fsl,s32r45x",
@@ -44,66 +45,335 @@
 		#clock-cells = <1>;
 	};
 
+	siul2_0 {
+		compatible = "simple-mfd";
+		#address-cells = <2>;
+		#size-cells = <2>;
+		status = "okay";
+			  /* PINCTRL */
+		ranges = <1 0 0x0 0x4009C240 0x0 0x198>,
+			 /* IMCR range */
+			 <2 0 0x0 0x4009CA40 0x0 0x150>;
+		pinctrl0: siul2-pinctrl0@4009C000 {
+			compatible = "fsl,s32r45x-siul2_0-pinctrl";
+			#pinctrl-cells = <2>;
+			reg = <0x1 0x0 0x0 0x198>,
+			<0x2 0x0 0x0 0x150>;
+			/* MSCR range */
+			pins = <&pinctrl0 0 101>,
+			/* IMCR range */
+			<&pinctrl0 512 595>;
+			status = "okay";
+		};
+		/*
+		 * Note gpio controller nodes are split into sections
+		 * of contiguous GPIO numbering at this
+		 * point in time, functions working with gpio chips
+		 * assume this for many things.
+		 */
+		gpioeirq0: siul2-gpio0@4009C002 {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+				/* GPIO 0 */
+			gpio-ranges = <&pinctrl0 0 0 1>,
+				/* EIRQ pins */
+				<&pinctrl1 696 696 1>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			regmap2 = <&irq_regs>;
+			interrupt-controller;
+			interrupts = <0 0 4>;
+			pinctrl-names = "default";
+			pinctrl-0 = <&pinctrl_gpioeirq0>;
+			status = "okay";
+		};
+		gpioother0: siul2-gpio0@4009C004 {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl0 0 1 2>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			status = "okay";
+		};
+		gpioeirq1: siul2-gpio0@4009C006 {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+				/* GPIO 3-11 */
+			gpio-ranges = <&pinctrl0 0 3 9>,
+				/* EIRQ pins */
+				<&pinctrl1 697 697 9>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			regmap2 = <&irq_regs>;
+			interrupt-controller;
+			interrupts = <0 1 4>;
+			status = "okay";
+		};
+		gpioother1: siul2-gpio0@4009C008 {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl0 0 12 1>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			status = "okay";
+		};
+		gpioeirq2: siul2-gpio0@4009C00A {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+				/* GPIO 13 */
+			gpio-ranges = <&pinctrl0 0 13 1>,
+				/* EIRQ pins */
+				<&pinctrl1 706 706 1>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			regmap2 = <&irq_regs>;
+			interrupt-controller;
+			interrupts = <0 10 4>;
+			status = "okay";
+		};
+		gpioother2: siul2-gpio0@4009C00C {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl0 0 14 2>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			status = "okay";
+		};
+		gpioeirq3: siul2-gpio0@4009C00E {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+				/* GPIO 16-18 */
+			gpio-ranges = <&pinctrl0 0 16 3>,
+				/* EIRQ pins */
+				<&pinctrl1 707 707 3>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			regmap2 = <&irq_regs>;
+			interrupt-controller;
+			interrupts = <0 11 4>;
+			status = "okay";
+		};
+		gpioother3: siul2-gpio0@4009C010 {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl0 0 19 1>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			status = "okay";
+		};
+		gpioeirq4: siul2-gpio0@4009C012 {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+				/* GPIO 20 */
+			gpio-ranges = <&pinctrl0 0 20 1>,
+				/* EIRQ pins */
+				<&pinctrl1 710 710 3>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			regmap2 = <&irq_regs>;
+			interrupt-controller;
+			interrupts = <0 14 4>;
+			status = "okay";
+		};
+		gpioother4: siul2-gpio0@4009C014 {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl0 0 21 1>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			status = "okay";
+		};
+		gpioeirq5: siul2-gpio0@4009C016 {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+				/* GPIO 22 */
+			gpio-ranges = <&pinctrl0 0 22 2>,
+				/* EIRQ pins */
+				<&pinctrl1 711 711 2>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			regmap2 = <&irq_regs>;
+			interrupt-controller;
+			interrupts = <0 15 4>;
+			status = "okay";
+		};
+		gpioother5: siul2-gpio0@4009C018 {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl0 0 24 1>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			status = "okay";
+		};
+		gpioeirq6: siul2-gpio0@4009C01A {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+				/* GPIO 25-33 */
+			gpio-ranges = <&pinctrl0 0 25 9>,
+				/* EIRQ pins */
+				<&pinctrl1 713 713 9>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			regmap2 = <&irq_regs>;
+			interrupt-controller;
+			interrupts = <0 17 4>;
+			status = "okay";
+		};
+		gpioother6: siul2-gpio0@4009C01C {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl0 0 34 2>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			status = "okay";
+		};
+		gpioeirq7: siul2-gpio0@4009C01E {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+				/* GPIO 36-40 */
+			gpio-ranges = <&pinctrl0 0 36 5>,
+				/* EIRQ pins */
+				<&pinctrl1 722 722 5>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			regmap2 = <&irq_regs>;
+			interrupt-controller;
+			interrupts = <0 26 4>;
+			status = "okay";
+		};
+		gpioother7: siul2-gpio0@4009C020 {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl0 0 41 3>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			status = "okay";
+		};
+		gpioeirq8: siul2-gpio0@4009C022 {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+				/* GPIO 44 */
+			gpio-ranges = <&pinctrl0 0 44 1>,
+				/* EIRQ pins */
+				<&pinctrl1 727 727 1>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			regmap2 = <&irq_regs>;
+			interrupt-controller;
+			interrupts = <0 31 4>;
+			status = "okay";
+		};
+		gpioother8: siul2-gpio0@4009C024 {
+			compatible = "fsl,s32gen1-siul2-gpio";
+			gpio-controller;
+			#gpio-cells = <2>;
+			gpio-ranges = <&pinctrl0 0 45 57>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad0_regs>;
+			regmap1 = <&ipad0_regs>;
+			status = "okay";
+		};
+	};
+
 	siul2_1 {
 		compatible = "simple-mfd";
 		#address-cells = <2>;
 		#size-cells = <2>;
-
-			  /* 32 EIRQs*/
-		ranges = <0 0 0x0 0x4403C000 0x0 0xC4>,
+		status = "okay";
 			  /* PINCTRL */
-			 <1 0 0x0 0x4403C240 0x0 0xA00>,
-			  /* Pad Data Output Register */
-			 <2 0 0x0 0x4403D300 0x0 0x90>,
-			  /* Pad Data Input Register */
-			 <3 0 0x0 0x4403D500 0x0 0x90>,
-			  /* Parallel GPIO Pad Data
-			     Out/Input Register */
-			 <4 0 0x0 0x4403D700 0x0 0x54>;
+		ranges = <1 0 0x0 0x4403C240 0x0 0x80>,
+			 /* IMCR range */
+			 <2 0 0x0 0x4403CBAC 0x0 0x2CC>;
 
 		pinctrl1: siul2-pinctrl1@4403C000 {
 			compatible =
-				"fsl,s32r45x-siul2-pinctrl";
-			reg = <0x1 0x0 0x0 0xA00>;
-			status = "disabled";
+				"fsl,s32r45x-siul2_1-pinctrl";
+			#pinctrl-cells = <2>;
+			reg = <0x1 0x0 0x0 0x80>,
+			<0x2 0x0 0x0 0x2CC>;
+			/* MSCR range */
+			pins = <&pinctrl1 102 133>,
+			/* IMCR range */
+			<&pinctrl1 603 781>;
+			status = "okay";
 		};
+		/*
+		 * Note gpio controller nodes are split into sections
+		 * of contiguous GPIO numbering at this
+		 * point in time, functions working with gpio chips
+		 * assume this for many things.
+		 */
 
-		gpioeirq1: siul2-gpio1@4403C000 {
+		gpioother9: siul2-gpio0@4403C002 {
 			compatible = "fsl,s32gen1-siul2-gpio";
 			gpio-controller;
 			#gpio-cells = <2>;
-				/* GPIO 0-31 */
-			gpio-ranges = <&pinctrl1 0 0 32>,
-				/* EIRQ pins */
-				<&pinctrl1 590 590 32>; //TODO
-				/* Output pad */
-			reg = <0x4 0x0 0x0 0x4>,
-				/* Input Pad */
-				<0x4 0x40 0x0 0x4>,
-				/* Reserved */
-				<0x2 0x0 0x0 0x1C>,
-				<0x3 0x0 0x0 0x1C>,
-				/* EIRQ */
-				<0x0 0x0 0x0 0xC4>;
-			interrupt-controller;
-			interrupts = <0 237 4>;
-			status = "disabled";
+			gpio-ranges = <&pinctrl1 0 102 32>;
+				/* Pad Data I/0 Registers */
+			regmap0 = <&opad1_regs>;
+			regmap1 = <&ipad1_regs>;
+			status = "okay";
 		};
+	};
 
-		gpioother1: siul2-gpio1@4403C704 {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-			gpio-ranges = <&pinctrl1 0 32 131>;
-				/* Output pad */
-			reg = <0x4 0x4 0x0 0x10>,
-				/* Input Pad */
-				<0x4 0x44 0x0 0x10>,
-				/* Reserved */
-				<0x2 0x1C 0x0 0x74>,
-				<0x3 0x1C 0x0 0x74>;
-			status = "disabled";
-		};
+	irq_regs: siul2_reg@0x4403C000 {
+		compatible = "fsl,irq_reqs-s32gen1","syscon","simple-mfd";
+		reg = <0x0 0x4403C000 0x0 0x40>;
+		little-endian;
+	};
+	opad0_regs: siul2_reg@0x4009D700 {
+		compatible = "fsl,opad0_reqs-s32gen1","syscon","simple-mfd";
+		reg = <0x0 0x4009D700 0x0 0x10>;
+		big-endian;
+	};
+	ipad0_regs: siul2_reg@0x4009D740 {
+		compatible = "fsl,ipad0_reqs-s32gen1","syscon","simple-mfd";
+		reg = <0x0 0x4009D740 0x0 0x10>;
+		big-endian;
+	};
+	opad1_regs: siul2_reg@0x4403D70C {
+		compatible = "fsl,opad0_reqs-s32gen1","syscon","simple-mfd";
+		reg = <0x0 0x4403D70C 0x0 0x14>;
+		big-endian;
+	};
+	ipad1_regs: siul2_reg@0x4403D74C {
+		compatible = "fsl,ipad0_reqs-s32gen1","syscon","simple-mfd";
+		reg = <0x0 0x4403D74C 0x0 0x14>;
+		big-endian;
 	};
 };
 
@@ -197,6 +467,196 @@
 
 &pit1 {
 	status = "okay";
+};
+
+&pinctrl0 {
+	status = "okay";
+	s32r45x-simu {
+		pinctrl_gpio0: gpiogrp0 {
+			fsl,pins = <
+				S32_GEN1_PAD_PA0__SIUL_GPIO0
+				S32_GEN1_PAD_PA1__SIUL_GPIO1
+				S32_GEN1_PAD_PA2__SIUL_GPIO2
+				S32_GEN1_PAD_PA3__SIUL_GPIO3
+				S32_GEN1_PAD_PA4__SIUL_GPIO4
+				S32_GEN1_PAD_PA5__SIUL_GPIO5
+				S32_GEN1_PAD_PA6__SIUL_GPIO6
+				S32_GEN1_PAD_PA7__SIUL_GPIO7
+				S32_GEN1_PAD_PA8__SIUL_GPIO8
+				S32_GEN1_PAD_PA9__SIUL_GPIO9
+				S32_GEN1_PAD_PA10__SIUL_GPIO10
+				S32_GEN1_PAD_PA11__SIUL_GPIO11
+				S32_GEN1_PAD_PA12__SIUL_GPIO12
+				S32_GEN1_PAD_PA13__SIUL_GPIO13
+				S32_GEN1_PAD_PA14__SIUL_GPIO14
+				S32_GEN1_PAD_PA15__SIUL_GPIO15
+				S32_GEN1_PAD_PB0__SIUL_GPIO16
+				S32_GEN1_PAD_PB1__SIUL_GPIO17
+				S32_GEN1_PAD_PB2__SIUL_GPIO18
+				S32_GEN1_PAD_PB3__SIUL_GPIO19
+				S32_GEN1_PAD_PB4__SIUL_GPIO20
+				S32_GEN1_PAD_PB5__SIUL_GPIO21
+				S32_GEN1_PAD_PB6__SIUL_GPIO22
+				S32_GEN1_PAD_PB7__SIUL_GPIO23
+				S32_GEN1_PAD_PB8__SIUL_GPIO24
+				S32_GEN1_PAD_PB9__SIUL_GPIO25
+				S32_GEN1_PAD_PB10__SIUL_GPIO26
+				S32_GEN1_PAD_PB11__SIUL_GPIO27
+				S32_GEN1_PAD_PB12__SIUL_GPIO28
+				S32_GEN1_PAD_PB13__SIUL_GPIO29
+				S32_GEN1_PAD_PB14__SIUL_GPIO30
+				S32_GEN1_PAD_PB15__SIUL_GPIO31
+				S32_GEN1_PAD_PC0__SIUL_GPIO32
+				S32_GEN1_PAD_PC1__SIUL_GPIO33
+				S32_GEN1_PAD_PC2__SIUL_GPIO34
+				S32_GEN1_PAD_PC3__SIUL_GPIO35
+				S32_GEN1_PAD_PC4__SIUL_GPIO36
+				S32_GEN1_PAD_PC5__SIUL_GPIO37
+				S32_GEN1_PAD_PC6__SIUL_GPIO38
+				S32_GEN1_PAD_PC7__SIUL_GPIO39
+				S32_GEN1_PAD_PC8__SIUL_GPIO40
+				S32_GEN1_PAD_PC9__SIUL_GPIO41
+				S32_GEN1_PAD_PC10__SIUL_GPIO42
+				S32_GEN1_PAD_PC11__SIUL_GPIO43
+				S32_GEN1_PAD_PC12__SIUL_GPIO44
+				S32_GEN1_PAD_PC13__SIUL_GPIO45
+				S32_GEN1_PAD_PC14__SIUL_GPIO46
+				S32_GEN1_PAD_PC15__SIUL_GPIO47
+				S32_GEN1_PAD_PD0__SIUL_GPIO48
+				S32_GEN1_PAD_PD1__SIUL_GPIO49
+				S32_GEN1_PAD_PD2__SIUL_GPIO50
+				S32_GEN1_PAD_PD3__SIUL_GPIO51
+				S32_GEN1_PAD_PD4__SIUL_GPIO52
+				S32_GEN1_PAD_PD5__SIUL_GPIO53
+				S32_GEN1_PAD_PD6__SIUL_GPIO54
+				S32_GEN1_PAD_PD7__SIUL_GPIO55
+				S32_GEN1_PAD_PD8__SIUL_GPIO56
+				S32_GEN1_PAD_PD9__SIUL_GPIO57
+				S32_GEN1_PAD_PD10__SIUL_GPIO58
+				S32_GEN1_PAD_PD11__SIUL_GPIO59
+				S32_GEN1_PAD_PD12__SIUL_GPIO60
+				S32_GEN1_PAD_PD13__SIUL_GPIO61
+				S32_GEN1_PAD_PD14__SIUL_GPIO62
+				S32_GEN1_PAD_PD15__SIUL_GPIO63
+				S32_GEN1_PAD_PE0__SIUL_GPIO64
+				S32_GEN1_PAD_PE1__SIUL_GPIO65
+				S32_GEN1_PAD_PE2__SIUL_GPIO66
+				S32_GEN1_PAD_PE3__SIUL_GPIO67
+				S32_GEN1_PAD_PE4__SIUL_GPIO68
+				S32_GEN1_PAD_PE5__SIUL_GPIO69
+				S32_GEN1_PAD_PE6__SIUL_GPIO70
+				S32_GEN1_PAD_PE7__SIUL_GPIO71
+				S32_GEN1_PAD_PE8__SIUL_GPIO72
+				S32_GEN1_PAD_PE9__SIUL_GPIO73
+				S32_GEN1_PAD_PE10__SIUL_GPIO74
+				S32_GEN1_PAD_PE11__SIUL_GPIO75
+				S32_GEN1_PAD_PE12__SIUL_GPIO76
+				S32_GEN1_PAD_PE13__SIUL_GPIO77
+				S32_GEN1_PAD_PE14__SIUL_GPIO78
+				S32_GEN1_PAD_PE15__SIUL_GPIO79
+				S32_GEN1_PAD_PF0__SIUL_GPIO80
+				S32_GEN1_PAD_PF1__SIUL_GPIO81
+				S32_GEN1_PAD_PF2__SIUL_GPIO82
+				S32_GEN1_PAD_PF3__SIUL_GPIO83
+				S32_GEN1_PAD_PF4__SIUL_GPIO84
+				S32_GEN1_PAD_PF5__SIUL_GPIO85
+				S32_GEN1_PAD_PF6__SIUL_GPIO86
+				S32_GEN1_PAD_PF7__SIUL_GPIO87
+				S32_GEN1_PAD_PF8__SIUL_GPIO88
+				S32_GEN1_PAD_PF9__SIUL_GPIO89
+				S32_GEN1_PAD_PF10__SIUL_GPIO90
+				S32_GEN1_PAD_PF11__SIUL_GPIO91
+				S32_GEN1_PAD_PF12__SIUL_GPIO92
+				S32_GEN1_PAD_PF13__SIUL_GPIO93
+				S32_GEN1_PAD_PF14__SIUL_GPIO94
+				S32_GEN1_PAD_PF15__SIUL_GPIO95
+				S32_GEN1_PAD_PG0__SIUL_GPIO96
+				S32_GEN1_PAD_PG1__SIUL_GPIO97
+				S32_GEN1_PAD_PG2__SIUL_GPIO98
+				S32_GEN1_PAD_PG3__SIUL_GPIO99
+				S32_GEN1_PAD_PG4__SIUL_GPIO100
+				S32_GEN1_PAD_PG5__SIUL_GPIO101
+				>;
+		};
+	};
+};
+
+&pinctrl1 {
+	status = "okay";
+	s32r45x-simu {
+		pinctrl_gpio1: gpiogrp1 {
+			fsl,pins = <
+				S32_GEN1_PAD_PG6__SIUL_GPIO102
+				S32_GEN1_PAD_PG7__SIUL_GPIO103
+				S32_GEN1_PAD_PG8__SIUL_GPIO104
+				S32_GEN1_PAD_PG9__SIUL_GPIO105
+				S32_GEN1_PAD_PG10__SIUL_GPIO106
+				S32_GEN1_PAD_PG11__SIUL_GPIO107
+				S32_GEN1_PAD_PG12__SIUL_GPIO108
+				S32_GEN1_PAD_PG13__SIUL_GPIO109
+				S32_GEN1_PAD_PG14__SIUL_GPIO110
+				S32_GEN1_PAD_PG15__SIUL_GPIO111
+				S32_GEN1_PAD_PH0__SIUL_GPIO112
+				S32_GEN1_PAD_PH1__SIUL_GPIO113
+				S32_GEN1_PAD_PH2__SIUL_GPIO114
+				S32_GEN1_PAD_PH3__SIUL_GPIO115
+				S32_GEN1_PAD_PH4__SIUL_GPIO116
+				S32_GEN1_PAD_PH5__SIUL_GPIO117
+				S32_GEN1_PAD_PH6__SIUL_GPIO118
+				S32_GEN1_PAD_PH7__SIUL_GPIO119
+				S32_GEN1_PAD_PH8__SIUL_GPIO120
+				S32_GEN1_PAD_PH9__SIUL_GPIO121
+				S32_GEN1_PAD_PH10__SIUL_GPIO122
+				S32_GEN1_PAD_PH11__SIUL_GPIO123
+				S32_GEN1_PAD_PH12__SIUL_GPIO124
+				S32_GEN1_PAD_PH13__SIUL_GPIO125
+				S32_GEN1_PAD_PH14__SIUL_GPIO126
+				S32_GEN1_PAD_PH15__SIUL_GPIO127
+				S32_GEN1_PAD_PJ0__SIUL_GPIO128
+				S32_GEN1_PAD_PJ1__SIUL_GPIO129
+				S32_GEN1_PAD_PJ2__SIUL_GPIO129
+				S32_GEN1_PAD_PJ3__SIUL_GPIO131
+				S32_GEN1_PAD_PJ4__SIUL_GPIO132
+				S32_GEN1_PAD_PJ5__SIUL_GPIO133
+				>;
+		};
+		pinctrl_gpioeirq0: gpioeirqgrp0 {
+			fsl,pins = <
+				S32_GEN1_PAD_PA0__SIUL_EIRQ0
+				S32_GEN1_PAD_PA3__SIUL_EIRQ1
+				S32_GEN1_PAD_PA4__SIUL_EIRQ2
+				S32_GEN1_PAD_PA5__SIUL_EIRQ3
+				S32_GEN1_PAD_PA6__SIUL_EIRQ4
+				S32_GEN1_PAD_PA7__SIUL_EIRQ5
+				S32_GEN1_PAD_PA8__SIUL_EIRQ6
+				S32_GEN1_PAD_PA9__SIUL_EIRQ7
+				S32_GEN1_PAD_PA10__SIUL_EIRQ8
+				S32_GEN1_PAD_PA11__SIUL_EIRQ9
+				S32_GEN1_PAD_PA13__SIUL_EIRQ10
+				S32_GEN1_PAD_PB0__SIUL_EIRQ11
+				S32_GEN1_PAD_PB1__SIUL_EIRQ12
+				S32_GEN1_PAD_PB2__SIUL_EIRQ13
+				S32_GEN1_PAD_PB4__SIUL_EIRQ14
+				S32_GEN1_PAD_PB6__SIUL_EIRQ15
+				S32_GEN1_PAD_PB7__SIUL_EIRQ16
+				S32_GEN1_PAD_PB9__SIUL_EIRQ17
+				S32_GEN1_PAD_PB10__SIUL_EIRQ18
+				S32_GEN1_PAD_PB11__SIUL_EIRQ19
+				S32_GEN1_PAD_PB12__SIUL_EIRQ20
+				S32_GEN1_PAD_PB13__SIUL_EIRQ21
+				S32_GEN1_PAD_PB14__SIUL_EIRQ22
+				S32_GEN1_PAD_PB15__SIUL_EIRQ23
+				S32_GEN1_PAD_PC0__SIUL_EIRQ24
+				S32_GEN1_PAD_PC1__SIUL_EIRQ25
+				S32_GEN1_PAD_PC4__SIUL_EIRQ26
+				S32_GEN1_PAD_PC5__SIUL_EIRQ27
+				S32_GEN1_PAD_PC6__SIUL_EIRQ28
+				S32_GEN1_PAD_PC7__SIUL_EIRQ29
+				S32_GEN1_PAD_PC8__SIUL_EIRQ30
+				S32_GEN1_PAD_PC12__SIUL_EIRQ31
+				>;
+		};
+	};
 };
 
 &edma0 {

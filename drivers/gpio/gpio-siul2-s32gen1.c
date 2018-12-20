@@ -30,6 +30,8 @@
 #include <linux/gpio/driver.h>
 #include <asm-generic/bug.h>
 #include <linux/bitmap.h>
+#include <linux/regmap.h>
+#include <linux/mfd/syscon.h>
 
 /* DMA/Interrupt Status Flag Register */
 #define SIUL2_DISR0			0x10
@@ -53,7 +55,11 @@
 /* Only for chips with interrupt controller */
 #define SIUL2_GPIO_INTERRUPTS_RANGE	4
 
-#define SIUL2_GPIO_PAD_SIZE		32
+#define SIUL2_GPIO_32_PAD_SIZE		32
+#define SIUL2_GPIO_16_PAD_SIZE		16
+#define SIUL2_GPIO_PAD_SPACE		32
+
+#define SIUL2_0_MAX_16_PAD_BANK_NUM	6
 
 /**
  * enum gpio_dir - GPIO pin mode
@@ -82,9 +88,12 @@ struct siul2_gpio_dev {
 
 	void __iomem *irq_base;
 	unsigned int eirq_npins;
+	int hwirq_base;
 
 	unsigned long *pin_dir_bitmap;
-
+	struct regmap *opadmap;
+	struct regmap *ipadmap;
+	struct regmap *irqmap;
 	struct gpio_chip gc;
 	spinlock_t lock;
 };
@@ -92,7 +101,7 @@ struct siul2_gpio_dev {
 static inline int siul2_get_gpio_pinspec(
 	struct platform_device *pdev,
 	struct of_phandle_args *pinspec,
-	unsigned range_index)
+	unsigned int range_index)
 {
 	struct device_node *np = pdev->dev.of_node;
 	int ret = of_parse_phandle_with_fixed_args(np, "gpio-ranges", 3,
@@ -155,12 +164,12 @@ static int siul2_gpio_dir_out(struct gpio_chip *chip, unsigned int gpio,
 	return ret;
 }
 
-static int siul2_gpio_request(struct gpio_chip *chip, unsigned gpio_pin)
+static int siul2_gpio_request(struct gpio_chip *chip, unsigned int gpio_pin)
 {
 	return pinctrl_request_gpio(chip->base + gpio_pin);
 }
 
-static void siul2_gpio_free(struct gpio_chip *chip, unsigned offset)
+static void siul2_gpio_free(struct gpio_chip *chip, unsigned int offset)
 {
 	pinctrl_free_gpio(chip->base + offset);
 }
@@ -185,6 +194,7 @@ static int siul2_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 			eirq);
 		return ret;
 	}
+	eirq += gpio_dev->hwirq_base;
 
 	/* SIUL2 GPIO doesn't support level triggering */
 	if ((irq_type & IRQ_TYPE_LEVEL_HIGH)
@@ -196,8 +206,8 @@ static int siul2_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 
 	spin_lock_irqsave(&gpio_dev->lock, flags);
 
-	ireer0_val = readl(gpio_dev->irq_base + SIUL2_IREER0);
-	ifeer0_val = readl(gpio_dev->irq_base + SIUL2_IFEER0);
+	regmap_read(gpio_dev->irqmap, SIUL2_IREER0, &ireer0_val);
+	regmap_read(gpio_dev->irqmap, SIUL2_IFEER0, &ifeer0_val);
 
 	if (irq_type & IRQ_TYPE_EDGE_RISING)
 		ireer0_val |= BIT(eirq);
@@ -209,8 +219,8 @@ static int siul2_gpio_irq_set_type(struct irq_data *d, unsigned int type)
 	else
 		ifeer0_val &= ~BIT(eirq);
 
-	writel(ireer0_val, gpio_dev->irq_base + SIUL2_IREER0);
-	writel(ifeer0_val, gpio_dev->irq_base + SIUL2_IFEER0);
+	regmap_write(gpio_dev->irqmap, SIUL2_IREER0, ireer0_val);
+	regmap_write(gpio_dev->irqmap, SIUL2_IFEER0, ifeer0_val);
 
 	spin_unlock_irqrestore(&gpio_dev->lock, flags);
 
@@ -222,22 +232,25 @@ static void siul2_gpio_irq_handler(struct irq_desc *desc)
 	struct gpio_chip *gc = irq_desc_get_handler_data(desc);
 	struct siul2_gpio_dev *gpio_dev = to_siul2_gpio_dev(gc);
 	struct irq_chip *irq_chip = irq_desc_get_chip(desc);
-	unsigned pin;
-	unsigned long disr0_val;
+	unsigned int pin;
+	uint32_t disr0_val;
+	unsigned long disr0_val_long;
 
 	chained_irq_enter(irq_chip, desc);
 
 	/* Go through the entire GPIO bank and handle all interrupts */
-	disr0_val = readl(gpio_dev->irq_base + SIUL2_DISR0);
+	regmap_read(gpio_dev->irqmap, SIUL2_DISR0, &disr0_val);
+	disr0_val_long = disr0_val;
 
-	for_each_set_bit(pin, &disr0_val, BITS_PER_BYTE * sizeof(disr0_val)) {
+	for_each_set_bit(pin, &disr0_val_long,
+					 BITS_PER_BYTE * sizeof(disr0_val)) {
 		int child_irq = irq_find_mapping(gc->irqdomain, pin);
 
 		/*
 		 * Clear the interrupt before invoking the
 		 * handler, so we do not leave any window
 		 */
-		writel(BIT(pin), gpio_dev->irq_base + SIUL2_DISR0);
+		regmap_write(gpio_dev->irqmap, SIUL2_DISR0, BIT(pin));
 
 		generic_handle_irq(child_irq);
 	}
@@ -259,20 +272,20 @@ static void siul2_gpio_irq_unmask(struct irq_data *data)
 
 	spin_lock_irqsave(&gpio_dev->lock, flags);
 
-	direr0_val = readl(gpio_dev->irq_base + SIUL2_DIRER0);
+	regmap_read(gpio_dev->irqmap, SIUL2_DIRER0, &direr0_val);
 
 	/* Disable interrupt */
 	direr0_val &= ~BIT(eirq);
 	/* Clear status flag */
 	disr0_val = BIT(eirq);
 
-	writel(direr0_val, gpio_dev->irq_base + SIUL2_DIRER0);
-	writel(disr0_val, gpio_dev->irq_base + SIUL2_DISR0);
+	regmap_write(gpio_dev->irqmap, SIUL2_DIRER0, direr0_val);
+	regmap_write(gpio_dev->irqmap, SIUL2_DISR0, disr0_val);
 
 	/* Enable Interrupt */
 	direr0_val |= BIT(eirq);
 
-	writel(direr0_val, gpio_dev->irq_base + SIUL2_DIRER0);
+	regmap_write(gpio_dev->irqmap, SIUL2_DIRER0, direr0_val);
 
 	spin_unlock_irqrestore(&gpio_dev->lock, flags);
 }
@@ -289,6 +302,7 @@ static void siul2_gpio_irq_mask(struct irq_data *data)
 
 	if (eirq < 0 || eirq >= gpio_dev->eirq_npins)
 		return;
+	eirq += gpio_dev->hwirq_base;
 
 	err = siul2_gpio_irq_set_type(data, IRQ_TYPE_NONE);
 	if (err)
@@ -296,15 +310,15 @@ static void siul2_gpio_irq_mask(struct irq_data *data)
 
 	spin_lock_irqsave(&gpio_dev->lock, flags);
 
-	direr0_val = readl(gpio_dev->irq_base + SIUL2_DIRER0);
+	regmap_read(gpio_dev->irqmap, SIUL2_DIRER0, &direr0_val);
 
 	/* Disable interrupt */
 	direr0_val &= ~BIT(eirq);
 	/* Clean status flag */
 	disr0_val = BIT(eirq);
 
-	writel(direr0_val, gpio_dev->irq_base + SIUL2_DIRER0);
-	writel(disr0_val, gpio_dev->irq_base + SIUL2_DISR0);
+	regmap_write(gpio_dev->irqmap, SIUL2_DIRER0, direr0_val);
+	regmap_write(gpio_dev->irqmap, SIUL2_DISR0, disr0_val);
 
 	spin_unlock_irqrestore(&gpio_dev->lock, flags);
 }
@@ -320,54 +334,70 @@ static struct irq_chip siul2_gpio_irq_chip = {
 static int siul2_irq_setup(struct platform_device *pdev,
 			  struct siul2_gpio_dev *gpio_dev)
 {
-	int err;
-	const void *intspec;
+	int err, ret = 0;
+	const int *intspec;
 	int intlen;
-	struct resource *iores;
 	struct of_phandle_args pinspec;
 	int irq;
+	unsigned long flags;
+	/*
+	 * Allow multiple instances of the gpio driver to only
+	 * initialize the irq control registers only once.
+	 */
+	static int init_flag;
 
 	/* Skip gpio node without interrupts */
 	intspec = of_get_property(pdev->dev.of_node, "interrupts", &intlen);
 	if (!intspec)
 		return 0;
 
-	/* Interrupt controller */
-	iores = platform_get_resource(pdev, IORESOURCE_MEM,
-				      SIUL2_GPIO_INTERRUPTS_RANGE);
-	gpio_dev->irq_base = devm_ioremap_resource(&pdev->dev, iores);
-	if (IS_ERR(gpio_dev->irq_base))
-		return PTR_ERR(gpio_dev->irq_base);
+	gpio_dev->hwirq_base = cpu_to_be32(intspec[1]);
+
+	gpio_dev->irqmap = syscon_regmap_lookup_by_phandle(
+						pdev->dev.of_node, "regmap2");
+	if (IS_ERR(gpio_dev->irqmap))
+		return PTR_ERR(gpio_dev->irqmap);
 
 	/* EIRQ pins */
 	err = siul2_get_gpio_pinspec(pdev, &pinspec, 1);
 	if (err) {
 		dev_err(&pdev->dev,
 			"unable to get pinspec from device tree\n");
-		return -EIO;
+		ret = -EIO;
+		goto irq_setup_err;
 	}
 
 	/* Request IRQ */
 	irq = platform_get_irq(pdev, 0);
 	if (irq <= 0) {
 		dev_err(&pdev->dev, "failed to get irq resource.\n");
-		return irq;
+		ret = irq;
+		goto irq_setup_err;
 	}
 
 	/* Number of pins */
 	gpio_dev->eirq_npins = pinspec.args[2];
+	spin_lock_irqsave(&gpio_dev->lock, flags);
 
-	/* Disable the interrupts and clear the status */
-	writel(0, gpio_dev->irq_base + SIUL2_DIRER0);
-	writel(~0, gpio_dev->irq_base + SIUL2_DISR0);
+	if (!init_flag) {
+		/* Disable the interrupts and clear the status */
+		regmap_write(gpio_dev->irqmap, SIUL2_DIRER0, 0);
+		regmap_write(gpio_dev->irqmap, SIUL2_DISR0, ~0);
 
-	/* Select interrupts by default */
-	writel(0, gpio_dev->irq_base + SIUL2_DIRSR0);
+		/* Select interrupts by default */
+		regmap_write(gpio_dev->irqmap, SIUL2_DIRSR0, 0);
 
-	/* Disable rising-edge events */
-	writel(0, gpio_dev->irq_base + SIUL2_IREER0);
-	/* Disable falling-edge events */
-	writel(0, gpio_dev->irq_base + SIUL2_IFEER0);
+		/* Disable rising-edge events */
+		regmap_write(gpio_dev->irqmap, SIUL2_IREER0, 0);
+		/* Disable falling-edge events */
+		regmap_write(gpio_dev->irqmap, SIUL2_IFEER0, 0);
+
+		/* set flag after successful initialization */
+		init_flag = 1;
+
+	}
+
+	spin_unlock_irqrestore(&gpio_dev->lock, flags);
 
 	/* Setup irq domain on top of the generic chip. */
 	err = gpiochip_irqchip_add(&gpio_dev->gc,
@@ -377,7 +407,8 @@ static int siul2_irq_setup(struct platform_device *pdev,
 				   IRQ_TYPE_NONE);
 	if (err) {
 		dev_err(&pdev->dev, "could not connect irqchip to gpiochip\n");
-		return err;
+		ret = err;
+		goto irq_setup_err;
 	}
 
 	gpiochip_set_chained_irqchip(&gpio_dev->gc,
@@ -385,10 +416,12 @@ static int siul2_irq_setup(struct platform_device *pdev,
 				     irq,
 				     siul2_gpio_irq_handler);
 
-	return 0;
+irq_setup_err:
+
+	return ret;
 }
 
-static int siul2_gpio_remove(struct platform_device *pdev)
+int siul2_gpio_remove(struct platform_device *pdev)
 {
 	struct siul2_gpio_dev *gpio_dev = platform_get_drvdata(pdev);
 	int err = 0;
@@ -400,136 +433,143 @@ static int siul2_gpio_remove(struct platform_device *pdev)
 	return err;
 }
 
-
 static const struct of_device_id siul2_gpio_dt_ids[] = {
-	{ .compatible = "fsl,s32v234-siul2-gpio" },
+	{ .compatible = "fsl,s32gen1-siul2-gpio" },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, siul2_gpio_dt_ids);
 
-static inline unsigned siul2_pin2mask(int pin, struct siul2_gpio_dev *gpio_dev)
+static unsigned int siul2_pin2mask(int pin, struct siul2_gpio_dev *gpio_dev)
 {
-	unsigned pad_size;
+	unsigned int pad_size;
 
-	pad_size = SIUL2_GPIO_PAD_SIZE;
+	pad_size = SIUL2_GPIO_32_PAD_SIZE;
 	pin %= pad_size;
 	return (1 << (pad_size - 1 - pin));
 }
 
-static inline unsigned siul2_pin2pad(int pin, struct siul2_gpio_dev *gpio_dev)
+static unsigned int siul2_pin2pad(int pin, struct siul2_gpio_dev *gpio_dev)
 {
-	unsigned pad_size;
+	unsigned int pad_16_size = SIUL2_GPIO_16_PAD_SIZE;
+	unsigned int pad_32_size = SIUL2_GPIO_32_PAD_SIZE;
 
-	pad_size = SIUL2_GPIO_PAD_SIZE;
-	return pin / pad_size;
+	/*
+	 * Wrap pad after last 16 bit pad on SIUL2_0
+	 * To reset offset on SIUL2_1
+	 */
+	if (pin / pad_16_size > SIUL2_0_MAX_16_PAD_BANK_NUM)
+		return pin / pad_32_size - 3;
+	return pin / pad_32_size;
 }
 
-static inline void __iomem *siul2_get_pad_addr(void __iomem *pads, unsigned pad)
+static inline u32 siul2_get_pad_offset(unsigned int pad)
 {
-	u32 pad_offset = (SIUL2_GPIO_PAD_SIZE / BITS_PER_BYTE) * pad;
-	void __iomem *opad_reg = pads + pad_offset;
+	u32 pad_offset = (SIUL2_GPIO_32_PAD_SIZE / BITS_PER_BYTE) * pad;
 
-	return opad_reg;
+	return pad_offset;
 }
 
-static inline void __iomem *siul2_get_opad_addr(void __iomem *opads,
-						unsigned pad)
+static inline u32 siul2_get_opad_offset(unsigned int pad)
 {
-	return siul2_get_pad_addr(opads, pad);
+	return siul2_get_pad_offset(pad);
 }
 
-static inline void __iomem *siul2_get_ipad_addr(void __iomem *ipads,
-						unsigned pad)
+static inline u32 siul2_get_ipad_offset(unsigned int pad)
 {
-	return siul2_get_pad_addr(ipads, pad);
+	return siul2_get_pad_offset(pad);
 }
 
-static void siul2_gpio_set(struct gpio_chip *chip, unsigned offset, int value)
+static void siul2_gpio_set(
+	struct gpio_chip *chip, unsigned int offset, int value)
 {
 	struct siul2_gpio_dev *gpio_dev = to_siul2_gpio_dev(chip);
-	void __iomem *reg;
-	unsigned long flags, data;
-
-	unsigned mask = siul2_pin2mask(offset, gpio_dev);
-	unsigned pad = siul2_pin2pad(offset, gpio_dev);
+	unsigned long flags;
+	unsigned int data, mask, pad, reg_offset;
 	enum gpio_dir dir;
 
 	dir = gpio_get_direction(gpio_dev, offset);
 	if (dir == IN)
 		return;
 
-	reg = siul2_get_opad_addr(gpio_dev->opads, pad);
+	offset = offset + chip->base;
+
+	mask = siul2_pin2mask(offset, gpio_dev);
+	pad = siul2_pin2pad(offset, gpio_dev);
+
+	reg_offset = siul2_get_pad_offset(pad);
 
 	spin_lock_irqsave(&gpio_dev->lock, flags);
 
-	data = readl(reg);
+	regmap_read(gpio_dev->opadmap, reg_offset, &data);
+
+	data = cpu_to_be32(data);
+
 	if (value)
 		data |= mask;
 	else
 		data &= ~mask;
 
-	writel(data, reg);
+	data = be32_to_cpu(data);
+	/* Force a little endian write to opad register */
+	data = cpu_to_le32(data);
+	regmap_write(gpio_dev->opadmap, reg_offset, data);
 
 	spin_unlock_irqrestore(&gpio_dev->lock, flags);
 }
 
-static int siul2_gpio_get(struct gpio_chip *chip, unsigned offset)
+static int siul2_gpio_get(struct gpio_chip *chip, unsigned int offset)
 {
 	struct siul2_gpio_dev *gpio_dev = to_siul2_gpio_dev(chip);
-	void __iomem *reg;
-	unsigned long flags, data = 0;
+	unsigned long flags;
+	unsigned int mask, pad, reg_offset, data = 0;
 	enum gpio_dir dir;
-
-	unsigned mask = siul2_pin2mask(offset, gpio_dev);
-	unsigned pad = siul2_pin2pad(offset, gpio_dev);
 
 	dir = gpio_get_direction(gpio_dev, offset);
 
+	offset = offset + chip->base;
+
+	mask = siul2_pin2mask(offset, gpio_dev);
+	pad = siul2_pin2pad(offset, gpio_dev);
+
+	reg_offset = siul2_get_pad_offset(pad);
+
+	spin_lock_irqsave(&(gpio_dev->lock), flags);
+
 	if (dir == OUT)
-		reg = siul2_get_opad_addr(gpio_dev->opads, pad);
+		regmap_read(gpio_dev->opadmap, reg_offset, &data);
 	else
-		reg = siul2_get_ipad_addr(gpio_dev->ipads, pad);
+		regmap_read(gpio_dev->ipadmap, reg_offset, &data);
 
-	spin_lock_irqsave(&gpio_dev->lock, flags);
+	spin_unlock_irqrestore(&(gpio_dev->lock), flags);
 
-	data = readl(reg) & mask;
+	data = cpu_to_be32(data);
+	data &= mask;
 
-	spin_unlock_irqrestore(&gpio_dev->lock, flags);
-
-	return data;
+	return !!data;
 }
-
 
 static int siul2_gpio_pads_init(struct platform_device *pdev,
 				     struct siul2_gpio_dev *gpio_dev)
 {
-	struct resource *ores, *ires;
 
-	/* GPIO Output Pad Data */
-	ores = platform_get_resource(pdev, IORESOURCE_MEM,
-				     SIUL2_GPIO_OUTPUT_RANGE);
-	if (!ores)
-		goto res_error;
+	gpio_dev->opadmap =
+		syscon_regmap_lookup_by_phandle(
+		 pdev->dev.of_node, "regmap0");
+	if (IS_ERR(gpio_dev->opadmap)) {
+		dev_err(&pdev->dev,
+			"unable to get opadmap from device tree\n");
+		return PTR_ERR(gpio_dev->opadmap);
+	}
 
-	gpio_dev->opads = devm_ioremap_resource(&pdev->dev, ores);
-	if (IS_ERR(gpio_dev->opads))
-		return PTR_ERR(gpio_dev->opads);
+	regcache_cache_bypass(gpio_dev->opadmap, true);
 
-	/* GPIO Input Pad Data */
-	ires = platform_get_resource(pdev, IORESOURCE_MEM,
-				     SIUL2_GPIO_INPUT_RANGE);
-	if (!ores)
-		goto res_error;
-
-	gpio_dev->ipads = devm_ioremap_resource(&pdev->dev, ires);
-	if (IS_ERR(gpio_dev->ipads))
-		return PTR_ERR(gpio_dev->ipads);
+	gpio_dev->ipadmap =
+		syscon_regmap_lookup_by_phandle(
+		 pdev->dev.of_node, "regmap1");
+	if (IS_ERR(gpio_dev->ipadmap))
+		return PTR_ERR(gpio_dev->ipadmap);
 
 	return 0;
-
-res_error:
-	dev_err(&pdev->dev, "can't fetch device resource info\n");
-	return -EIO;
 }
 
 int siul2_gpio_probe(struct platform_device *pdev)
@@ -573,9 +613,9 @@ int siul2_gpio_probe(struct platform_device *pdev)
 
 	gc->parent = &pdev->dev;
 	gc->label = dev_name(&pdev->dev);
+
 	gc->set = siul2_gpio_set;
 	gc->get = siul2_gpio_get;
-
 	gc->request = siul2_gpio_request;
 	gc->free = siul2_gpio_free;
 	gc->direction_output = siul2_gpio_dir_out;
@@ -600,7 +640,7 @@ int siul2_gpio_probe(struct platform_device *pdev)
 
 static struct platform_driver siul2_gpio_driver = {
 	.driver		= {
-		.name	= "siul2-gpio",
+		.name	= "s32-gen1-siul2-gpio",
 		.owner = THIS_MODULE,
 		.of_match_table = siul2_gpio_dt_ids,
 	},
@@ -621,6 +661,7 @@ void siul2_gpio_exit(void)
 module_exit(siul2_gpio_exit);
 
 
-MODULE_AUTHOR("Freescale Semiconductor");
-MODULE_DESCRIPTION("Freescale SIUL2 GPIO");
+MODULE_AUTHOR("NXP");
+MODULE_DESCRIPTION("NXP SIUL2 GPIO");
 MODULE_LICENSE("GPL");
+
