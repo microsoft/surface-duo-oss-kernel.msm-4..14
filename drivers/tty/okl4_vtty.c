@@ -459,7 +459,9 @@ vtty_read_task(struct work_struct *work)
 	struct vtty_port *port = container_of(work, struct vtty_port,
 			read_work);
 	struct tty_struct *tty = tty_port_tty_get(&port->port);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 2)
 	bool pushed = false;
+#endif
 
 	if (!tty)
 		return;
@@ -476,6 +478,7 @@ vtty_read_task(struct work_struct *work)
 		space = tty_buffer_request_room(&port->port,
 				port->max_msg_size);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 2)
 		if (space == 0) {
 			BUG_ON(pushed);
 			tty_flip_buffer_push(&port->port);
@@ -484,6 +487,20 @@ vtty_read_task(struct work_struct *work)
 		} else {
 			pushed = false;
 		}
+#else
+		if (space == 0) {
+			/*
+			 * From Linux version 3.14.2, tty_flip_buffer_push() always
+			 * schedules flush_to_ldisc(), whereas before it would have been
+			 * called directly if low_latency was set.
+			 * Hence now it cannot be assumed that space becomes available
+			 * immediately anymore, so this function puts itself back onto
+			 * the queue and tries again later.
+			 */
+			queue_work(read_workqueue, &port->read_work);
+			break;
+		}
+#endif
 
 		if (port->read_buf_pos == port->read_buf_len) {
 			/*
