@@ -1,0 +1,35 @@
+* NXP S32Gen1 SIUL2 GPIO controller
+
+Required properties:
+- compatible :
+	* "fsl,irq_reqs-s32gen1"
+	* "fsl,opad0_reqs-s32gen1"
+	* "fsl,ipad0_reqs-s32gen1"
+- interrupts : Should be the port interrupt shared by all 32 EIRQs
+- gpio-controller : Marks the device node as a gpio controller.
+- #gpio-cells : Should be two.  The first cell is the pin number and
+  the second cell is used to specify the gpio polarity:
+      0 = active high
+      1 = active low
+- interrupt-controller: Marks the device node as an interrupt controller.
+- gpio-ranges : Interaction with the PINCTRL subsystem.
+
+Example:
+
+gpioeirq0: siul2-gpio0@4009C004 {
+	compatible = "fsl,s32gen1-siul2-gpio";
+	gpio-controller;
+	#gpio-cells = <2>;
+		/* GPIO 0-15,27-32 */
+	gpio-ranges = <&pinctrl0 0 19 11>,
+		/* EIRQ pins */
+		<&pinctrl1 910 910 11>;
+		/* Pad Data I/0 Registers */
+	regmap0 = <&opad0_regs>;
+	regmap1 = <&ipad0_regs>;
+	regmap2 = <&irq_regs>;
+	interrupts = <0 0 4>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_gpioeirq0>;
+	status = "okay";
+};
