@@ -82,35 +82,26 @@ struct fccu_pri_data_t {
 	void __iomem *base;
 };
 
-static int is_config_timeout(void __iomem *base)
-{
-	return (FCCU_CFG_DEFAULT == __raw_readl(base + FCCU_CFG));
-}
-
-static int wait_reg_with_timeout(void __iomem *base, unsigned int reg_off,
-			unsigned int mask, unsigned int val, unsigned int cond)
+static void fccu_wait_and_get_ops(void __iomem *base, u32 *ops_val_out)
 {
 	u32 reg = 0;
 
-	while (0 == is_config_timeout(base)) {
-		reg = __raw_readl(base + reg_off);
-
-		if (cond == DIFF_MODE) {
-			if ((reg & mask) != val)
-				return 0;
-		} else if (cond == EQUAL_MODE) {
-			if ((reg & mask) == val)
-				return 0;
-		}
+	while (true) {
+		reg = __raw_readl(base + FCCU_CTRL);
+		if ((reg & FCCU_CTRL_OPS_MASK) != FCCU_CTRL_OPS_INPROGRESS)
+			break;
 	}
 
-	return -1;
+	if (ops_val_out != NULL)
+		*ops_val_out = reg & FCCU_CTRL_OPS_MASK;
 }
 
 static int wait_fccu_op_success(void __iomem *base)
 {
-	if (0 != wait_reg_with_timeout(base, FCCU_CTRL, FCCU_CTRL_OPS_MASK,
-		FCCU_CTRL_OPS_SUCCESS, EQUAL_MODE))
+	u32 ops_val = 0;
+
+	fccu_wait_and_get_ops(base, &ops_val);
+	if (ops_val != FCCU_CTRL_OPS_SUCCESS)
 		return -1;
 
 	return 0;
@@ -118,23 +109,24 @@ static int wait_fccu_op_success(void __iomem *base)
 
 static int wait_fccu_become_normal_st(void __iomem *base)
 {
+	u32 ops_val = 0;
+	u32 status = 0;
+
 	if (IS_ERR_OR_NULL(base)) {
 		dev_err(fccu_miscdev.parent,
 			"%s, %d, invalid argument\n", __func__, __LINE__);
 		return -EINVAL;
 	}
 
-	if (0 != wait_reg_with_timeout(base, FCCU_CTRL,
-		FCCU_CTRL_OPS_MASK, FCCU_CTRL_OPS_INPROGRESS, DIFF_MODE))
-		return -1;
+	fccu_wait_and_get_ops(base, &ops_val);
 
 	__raw_writel(FCCU_CTRL_OPR_OP3, base + FCCU_CTRL);
 
 	if (0 != wait_fccu_op_success(base))
 		return -1;
 
-	if (0 != wait_reg_with_timeout(base, FCCU_STAT,
-		FCCU_STAT_STATUS_MASK, FCCU_STAT_STATUS_NORMAL, EQUAL_MODE))
+	status = __raw_readl(base + FCCU_STAT) & FCCU_STAT_STATUS_MASK;
+	if (status != FCCU_STAT_STATUS_NORMAL)
 		return -1;
 
 	return 0;
