@@ -18,7 +18,6 @@
 #include <linux/of.h>
 #include <linux/of_platform.h>
 #include <linux/platform_device.h>
-#include <linux/regmap.h>
 #include <linux/mailbox_controller.h>
 
 #define QCOM_APCS_IPC_BITS	32
@@ -27,16 +26,8 @@ struct qcom_apcs_ipc {
 	struct mbox_controller mbox;
 	struct mbox_chan mbox_chans[QCOM_APCS_IPC_BITS];
 
-	struct regmap *regmap;
+	void __iomem *reg;
 	unsigned long offset;
-};
-
-static const struct regmap_config apcs_regmap_config = {
-	.reg_bits = 32,
-	.reg_stride = 4,
-	.val_bits = 32,
-	.max_register = 0x1000,
-	.fast_io = true,
 };
 
 static int qcom_apcs_ipc_send_data(struct mbox_chan *chan, void *data)
@@ -45,7 +36,9 @@ static int qcom_apcs_ipc_send_data(struct mbox_chan *chan, void *data)
 						  struct qcom_apcs_ipc, mbox);
 	unsigned long idx = (unsigned long)chan->con_priv;
 
-	return regmap_write(apcs->regmap, apcs->offset, BIT(idx));
+	writel(BIT(idx), apcs->reg);
+
+	return 0;
 }
 
 static const struct mbox_chan_ops qcom_apcs_ipc_ops = {
@@ -54,9 +47,7 @@ static const struct mbox_chan_ops qcom_apcs_ipc_ops = {
 
 static int qcom_apcs_ipc_probe(struct platform_device *pdev)
 {
-	struct device_node *np = pdev->dev.of_node;
 	struct qcom_apcs_ipc *apcs;
-	struct regmap *regmap;
 	struct resource *res;
 	unsigned long offset;
 	void __iomem *base;
@@ -72,14 +63,9 @@ static int qcom_apcs_ipc_probe(struct platform_device *pdev)
 	if (IS_ERR(base))
 		return PTR_ERR(base);
 
-	regmap = devm_regmap_init_mmio(&pdev->dev, base, &apcs_regmap_config);
-	if (IS_ERR(regmap))
-		return PTR_ERR(regmap);
-
 	offset = (unsigned long)of_device_get_match_data(&pdev->dev);
 
-	apcs->regmap = regmap;
-	apcs->offset = offset;
+	apcs->reg = base + offset;
 
 	/* Initialize channel identifiers */
 	for (i = 0; i < ARRAY_SIZE(apcs->mbox_chans); i++)
