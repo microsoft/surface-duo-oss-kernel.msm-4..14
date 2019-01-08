@@ -49,10 +49,11 @@ static int qcom_apcs_msm8916_clk_probe(struct platform_device *pdev)
 	struct clk_regmap_mux_div *a53cc;
 	struct regmap *regmap;
 	struct clk_init_data init = { };
-	int ret = -ENODEV;
+	int ret;
 
 	regmap = dev_get_regmap(parent, NULL);
-	if (!regmap) {
+	if (IS_ERR(regmap)) {
+		ret = PTR_ERR(regmap);
 		dev_err(dev, "failed to get regmap: %d\n", ret);
 		return ret;
 	}
