@@ -829,8 +829,6 @@ struct snd_soc_component_driver {
 	const struct snd_pcm_ops *ops;
 	const struct snd_compr_ops *compr_ops;
 
-	const struct snd_pcm_ops *ops;
-
 	/* probe ordering - for components with runtime dependencies */
 	int probe_order;
 	int remove_order;
