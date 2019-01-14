@@ -1,0 +1,22 @@
+* NXP S32-Gen1 GPR Model
+
+The SoC has a dedicated set of Cluster GPR (General Purpose Registers)
+modules for the A53 cores.
+These registers provide cluster and core level configurations
+as well as event generation mechanisms.
+Other cores may also have dedicated Cluster GPR modules
+(e.g. the Cortex M7 cores).
+
+Required properties:
+- compatible:
+	Should be:
+	- "fsl,s32gen1-a53gpr" for the A53 clusters
+- reg:
+	Location and length of the register set
+
+Example:
+
+a53_gpr: a53_gpr@4007C400 {
+	compatible = "fsl,s32gen1-a53gpr";
+	reg = <0x0 0x4007C400 0x0 0x100>;
+};
