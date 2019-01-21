@@ -597,4 +597,11 @@
 		device_type = "memory";
 		reg = <0 0xc0000000 0 0x40000000>;
 	};
+
+	rtc0: rtc@40060000 {
+		compatible = "fsl,s32gen1-rtc";
+		#interrupt-cells = <3>;
+		reg = <0x0 0x40060000 0x0 0x1000>;
+		interrupts = <0 121 4>; // RTC irq - GIC 153
+	};
 };

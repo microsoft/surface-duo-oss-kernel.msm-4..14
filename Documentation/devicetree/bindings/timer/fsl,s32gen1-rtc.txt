@@ -1,0 +1,16 @@
+Freescale S32GEN1 family Device Tree Bindings
+---------------------------------------------
+
+Required properties:
+
+- compatible : should be "fsl,s32gen1-rtc"
+- reg : the size of the memory address space of the device.
+- interrupts : specifies the Real Time Clock interrupts id
+
+Example:
+rtc0: rtc@40060000 {
+		compatible = "fsl,s32gen1-rtc";
+		#interrupt-cells = <3>;
+		reg = <0x0 0x40060000 0x0 0x1000>;
+		interrupts = <0 121 4>; // RTC irq - GIC 153
+};
