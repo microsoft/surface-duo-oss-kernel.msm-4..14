@@ -1003,6 +1003,7 @@ enum station_parameters_apply_mask {
  * @support_p2p_ps: information if station supports P2P PS mechanism
  * @he_capa: HE capabilities of station
  * @he_capa_len: the length of the HE capabilities
+ * @airtime_weight: airtime scheduler weight for this station
  */
 struct station_parameters {
 	const u8 *supported_rates;
@@ -1032,6 +1033,7 @@ struct station_parameters {
 	int support_p2p_ps;
 	const struct ieee80211_he_cap_elem *he_capa;
 	u8 he_capa_len;
+	u16 airtime_weight;
 };
 
 /**
@@ -1300,6 +1302,8 @@ struct cfg80211_tid_stats {
  *	from this peer
  * @connected_to_gate: true if mesh STA has a path to mesh gate
  * @rx_duration: aggregate PPDU duration(usecs) for all the frames from a peer
+ * @tx_duration: aggregate PPDU duration(usecs) for all the frames to a peer
+ * @airtime_weight: current airtime scheduling weight
  * @pertid: per-TID statistics, see &struct cfg80211_tid_stats, using the last
  *	(IEEE80211_NUM_TIDS) index for MSDUs not encapsulated in QoS-MPDUs.
  *	Note that this doesn't use the @filled bit, but is used if non-NULL.
@@ -1350,14 +1354,17 @@ struct station_info {
 
 	u32 expected_throughput;
 
-	u64 rx_beacon;
+	u64 tx_duration;
 	u64 rx_duration;
+	u64 rx_beacon;
 	u8 rx_beacon_signal_avg;
 	u8 connected_to_gate;
 
 	struct cfg80211_tid_stats *pertid;
 	s8 ack_signal;
 	s8 avg_ack_signal;
+
+	u16 airtime_weight;
 
 	u32 rx_mpdu_count;
 	u32 fcs_err_count;
@@ -1422,6 +1429,7 @@ enum monitor_flags {
  * @MPATH_INFO_DISCOVERY_TIMEOUT: @discovery_timeout filled
  * @MPATH_INFO_DISCOVERY_RETRIES: @discovery_retries filled
  * @MPATH_INFO_FLAGS: @flags filled
+ * @MPATH_INFO_HOP_COUNT: @hop_count filled
  */
 enum mpath_info_flags {
 	MPATH_INFO_FRAME_QLEN		= BIT(0),
@@ -1431,6 +1439,8 @@ enum mpath_info_flags {
 	MPATH_INFO_DISCOVERY_TIMEOUT	= BIT(4),
 	MPATH_INFO_DISCOVERY_RETRIES	= BIT(5),
 	MPATH_INFO_FLAGS		= BIT(6),
+	MPATH_INFO_HOP_COUNT		= BIT(7),
+	MPATH_INFO_PATH_CHANGE		= BIT(8),
 };
 
 /**
@@ -1450,6 +1460,8 @@ enum mpath_info_flags {
  *	This number should increase every time the list of mesh paths
  *	changes, i.e. when a station is added or removed, so that
  *	userspace can tell whether it got a consistent snapshot.
+ * @hop_count: hops to destination
+ * @path_change_count: total number of path changes to destination
  */
 struct mpath_info {
 	u32 filled;
@@ -1460,6 +1472,8 @@ struct mpath_info {
 	u32 discovery_timeout;
 	u8 discovery_retries;
 	u8 flags;
+	u8 hop_count;
+	u32 path_change_count;
 
 	int generation;
 };
@@ -2390,6 +2404,8 @@ enum wiphy_params_flags {
 	WIPHY_PARAM_TXQ_MEMORY_LIMIT	= 1 << 7,
 	WIPHY_PARAM_TXQ_QUANTUM		= 1 << 8,
 };
+
+#define IEEE80211_DEFAULT_AIRTIME_WEIGHT	256
 
 /**
  * struct cfg80211_pmksa - PMK Security Association
