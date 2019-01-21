@@ -37,8 +37,6 @@
 #include <linux/uaccess.h>
 #include <linux/of.h>
 
-#include <asm/irq.h>
-
 MODULE_DESCRIPTION("PHY library");
 MODULE_AUTHOR("Andy Fleming");
 MODULE_LICENSE("GPL");
@@ -560,12 +558,31 @@ static const struct device_type mdio_bus_phy_type = {
 	.pm = MDIO_BUS_PHY_PM_OPS,
 };
 
+static int phy_request_driver_module(struct phy_device *dev, int phy_id)
+{
+	int ret;
+
+	ret = request_module(MDIO_MODULE_PREFIX MDIO_ID_FMT,
+			     MDIO_ID_ARGS(phy_id));
+	/* we only check for failures in executing the usermode binary,
+	 * not whether a PHY driver module exists for the PHY ID
+	 */
+	if (IS_ENABLED(CONFIG_MODULES) && ret < 0) {
+		phydev_err(dev, "error %d loading PHY driver module for ID 0x%08x\n",
+			   ret, phy_id);
+		return ret;
+	}
+
+	return 0;
+}
+
 struct phy_device *phy_device_create(struct mii_bus *bus, int addr, int phy_id,
 				     bool is_c45,
 				     struct phy_c45_device_ids *c45_ids)
 {
 	struct phy_device *dev;
 	struct mdio_device *mdiodev;
+	int ret = 0;
 
 	/* We allocate the device, and initialize the default values */
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
@@ -622,15 +639,21 @@ struct phy_device *phy_device_create(struct mii_bus *bus, int addr, int phy_id,
 			if (!(c45_ids->devices_in_package & (1 << i)))
 				continue;
 
-			request_module(MDIO_MODULE_PREFIX MDIO_ID_FMT,
-				       MDIO_ID_ARGS(c45_ids->device_ids[i]));
+			ret = phy_request_driver_module(dev,
+						c45_ids->device_ids[i]);
+			if (ret)
+				break;
 		}
 	} else {
-		request_module(MDIO_MODULE_PREFIX MDIO_ID_FMT,
-			       MDIO_ID_ARGS(phy_id));
+		ret = phy_request_driver_module(dev, phy_id);
 	}
 
-	device_initialize(&mdiodev->dev);
+	if (!ret) {
+		device_initialize(&mdiodev->dev);
+	} else {
+		kfree(dev);
+		dev = ERR_PTR(ret);
+	}
 
 	return dev;
 }
@@ -762,15 +785,8 @@ static int get_phy_id(struct mii_bus *bus, int addr, u32 *phy_id,
 	/* Grab the bits from PHYIR1, and put them in the upper half */
 	phy_reg = mdiobus_read(bus, addr, MII_PHYSID1);
 	if (phy_reg < 0) {
-		/* if there is no device, return without an error so scanning
-		 * the bus works properly
-		 */
-		if (phy_reg == -EIO || phy_reg == -ENODEV) {
-			*phy_id = 0xffffffff;
-			return 0;
-		}
-
-		return -EIO;
+		/* returning -ENODEV doesn't stop bus scanning */
+		return (phy_reg == -EIO || phy_reg == -ENODEV) ? -ENODEV : -EIO;
 	}
 
 	*phy_id = (phy_reg & 0xffff) << 16;
@@ -831,13 +847,13 @@ int phy_device_register(struct phy_device *phydev)
 	/* Run all of the fixups for this PHY */
 	err = phy_scan_fixups(phydev);
 	if (err) {
-		pr_err("PHY %d failed to initialize\n", phydev->mdio.addr);
+		phydev_err(phydev, "failed to initialize\n");
 		goto out;
 	}
 
 	err = device_add(&phydev->mdio.dev);
 	if (err) {
-		pr_err("PHY %d failed to add\n", phydev->mdio.addr);
+		phydev_err(phydev, "failed to add\n");
 		goto out;
 	}
 
@@ -995,10 +1011,11 @@ EXPORT_SYMBOL(phy_connect);
  */
 void phy_disconnect(struct phy_device *phydev)
 {
-	if (phydev->irq > 0)
-		phy_stop_interrupts(phydev);
+	if (phy_is_started(phydev))
+		phy_stop(phydev);
 
-	phy_stop_machine(phydev);
+	if (phy_interrupt_is_valid(phydev))
+		free_irq(phydev->irq, phydev);
 
 	phydev->adjust_link = NULL;
 
@@ -1291,6 +1308,36 @@ struct phy_device *phy_attach(struct net_device *dev, const char *bus_id,
 }
 EXPORT_SYMBOL(phy_attach);
 
+static bool phy_driver_is_genphy_kind(struct phy_device *phydev,
+				      struct device_driver *driver)
+{
+	struct device *d = &phydev->mdio.dev;
+	bool ret = false;
+
+	if (!phydev->drv)
+		return ret;
+
+	get_device(d);
+	ret = d->driver == driver;
+	put_device(d);
+
+	return ret;
+}
+
+bool phy_driver_is_genphy(struct phy_device *phydev)
+{
+	return phy_driver_is_genphy_kind(phydev,
+					 &genphy_driver.mdiodrv.driver);
+}
+EXPORT_SYMBOL_GPL(phy_driver_is_genphy);
+
+bool phy_driver_is_genphy_10g(struct phy_device *phydev)
+{
+	return phy_driver_is_genphy_kind(phydev,
+					 &genphy_10g_driver.mdiodrv.driver);
+}
+EXPORT_SYMBOL_GPL(phy_driver_is_genphy_10g);
+
 /**
  * phy_detach - detach a PHY device from its network device
  * @phydev: target phy_device struct
@@ -1322,8 +1369,8 @@ void phy_detach(struct phy_device *phydev)
 	 * from the generic driver so that there's a chance a
 	 * real driver could be loaded
 	 */
-	if (phydev->mdio.dev.driver == &genphy_10g_driver.mdiodrv.driver ||
-	    phydev->mdio.dev.driver == &genphy_driver.mdiodrv.driver)
+	if (phy_driver_is_genphy(phydev) ||
+	    phy_driver_is_genphy_10g(phydev))
 		device_release_driver(&phydev->mdio.dev);
 
 	/*
@@ -2266,14 +2313,6 @@ int phy_driver_register(struct phy_driver *new_driver, struct module *owner)
 	new_driver->mdiodrv.driver.probe = phy_probe;
 	new_driver->mdiodrv.driver.remove = phy_remove;
 	new_driver->mdiodrv.driver.owner = owner;
-
-	/* The following works around an issue where the PHY driver doesn't bind
-	 * to the device, resulting in the genphy driver being used instead of
-	 * the dedicated driver. The root cause of the issue isn't known yet
-	 * and seems to be in the base driver core. Once this is fixed we may
-	 * remove this workaround.
-	 */
-	new_driver->mdiodrv.driver.probe_type = PROBE_FORCE_SYNCHRONOUS;
 
 	retval = driver_register(&new_driver->mdiodrv.driver);
 	if (retval) {
