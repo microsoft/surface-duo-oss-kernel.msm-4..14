@@ -152,6 +152,7 @@ static int msm_rng_probe(struct platform_device *pdev)
 	rng->hwrng.init = msm_rng_init,
 	rng->hwrng.cleanup = msm_rng_cleanup,
 	rng->hwrng.read = msm_rng_read,
+	rng->hwrng.quality = 700;
 
 	ret = devm_hwrng_register(&pdev->dev, &rng->hwrng);
 	if (ret) {
