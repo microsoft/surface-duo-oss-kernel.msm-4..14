@@ -557,6 +557,7 @@ const struct nla_policy nl80211_policy[NUM_NL80211_ATTR] = {
 	[NL80211_ATTR_PEER_MEASUREMENTS] =
 		NLA_POLICY_NESTED(NL80211_PMSR_ATTR_MAX,
 				  nl80211_pmsr_attr_policy),
+	[NL80211_ATTR_AIRTIME_WEIGHT] = NLA_POLICY_MIN(NLA_U16, 1),
 };
 
 /* policy for the key attributes */
@@ -2276,6 +2277,15 @@ static int nl80211_send_wiphy(struct cfg80211_registered_device *rdev,
 		break;
 	case 14:
 		if (nl80211_send_pmsr_capa(rdev, msg))
+			goto nla_put_failure;
+
+		state->split_start++;
+		break;
+	case 15:
+		if (rdev->wiphy.akm_suites &&
+		    nla_put(msg, NL80211_ATTR_AKM_SUITES,
+			    sizeof(u32) * rdev->wiphy.n_akm_suites,
+			    rdev->wiphy.akm_suites))
 			goto nla_put_failure;
 
 		/* done */
@@ -4540,6 +4550,9 @@ static int nl80211_start_ap(struct sk_buff *skb, struct genl_info *info)
 
 	nl80211_calculate_ap_params(&params);
 
+	if (info->attrs[NL80211_ATTR_EXTERNAL_AUTH_SUPPORT])
+		params.flags |= AP_SETTINGS_EXTERNAL_AUTH_SUPPORT;
+
 	wdev_lock(wdev);
 	err = rdev_start_ap(rdev, dev, &params);
 	if (!err) {
@@ -4851,6 +4864,11 @@ static int nl80211_send_station(struct sk_buff *msg, u32 cmd, u32 portid,
 	PUT_SINFO(PLID, plid, u16);
 	PUT_SINFO(PLINK_STATE, plink_state, u8);
 	PUT_SINFO_U64(RX_DURATION, rx_duration);
+	PUT_SINFO_U64(TX_DURATION, tx_duration);
+
+	if (wiphy_ext_feature_isset(&rdev->wiphy,
+				    NL80211_EXT_FEATURE_AIRTIME_FAIRNESS))
+		PUT_SINFO(AIRTIME_WEIGHT, airtime_weight, u16);
 
 	switch (rdev->wiphy.signal_type) {
 	case CFG80211_SIGNAL_TYPE_MBM:
@@ -5470,6 +5488,15 @@ static int nl80211_set_station(struct sk_buff *skb, struct genl_info *info)
 			nla_get_u8(info->attrs[NL80211_ATTR_OPMODE_NOTIF]);
 	}
 
+	if (info->attrs[NL80211_ATTR_AIRTIME_WEIGHT])
+		params.airtime_weight =
+			nla_get_u16(info->attrs[NL80211_ATTR_AIRTIME_WEIGHT]);
+
+	if (params.airtime_weight &&
+	    !wiphy_ext_feature_isset(&rdev->wiphy,
+				     NL80211_EXT_FEATURE_AIRTIME_FAIRNESS))
+		return -EOPNOTSUPP;
+
 	/* Include parameters for TDLS peer (will check later) */
 	err = nl80211_set_station_tdls(info, &params);
 	if (err)
@@ -5597,6 +5624,15 @@ static int nl80211_new_station(struct sk_buff *skb, struct genl_info *info)
 	if (info->attrs[NL80211_ATTR_STA_PLINK_ACTION])
 		params.plink_action =
 			nla_get_u8(info->attrs[NL80211_ATTR_STA_PLINK_ACTION]);
+
+	if (info->attrs[NL80211_ATTR_AIRTIME_WEIGHT])
+		params.airtime_weight =
+			nla_get_u16(info->attrs[NL80211_ATTR_AIRTIME_WEIGHT]);
+
+	if (params.airtime_weight &&
+	    !wiphy_ext_feature_isset(&rdev->wiphy,
+				     NL80211_EXT_FEATURE_AIRTIME_FAIRNESS))
+		return -EOPNOTSUPP;
 
 	err = nl80211_parse_sta_channel_info(info, &params);
 	if (err)
@@ -5803,7 +5839,13 @@ static int nl80211_send_mpath(struct sk_buff *msg, u32 portid, u32 seq,
 			 pinfo->discovery_timeout)) ||
 	    ((pinfo->filled & MPATH_INFO_DISCOVERY_RETRIES) &&
 	     nla_put_u8(msg, NL80211_MPATH_INFO_DISCOVERY_RETRIES,
-			pinfo->discovery_retries)))
+			pinfo->discovery_retries)) ||
+	    ((pinfo->filled & MPATH_INFO_HOP_COUNT) &&
+	     nla_put_u8(msg, NL80211_MPATH_INFO_HOP_COUNT,
+			pinfo->hop_count)) ||
+	    ((pinfo->filled & MPATH_INFO_PATH_CHANGE) &&
+	     nla_put_u32(msg, NL80211_MPATH_INFO_PATH_CHANGE,
+			 pinfo->path_change_count)))
 		goto nla_put_failure;
 
 	nla_nest_end(msg, pinfoattr);
@@ -9857,7 +9899,10 @@ static int nl80211_setdel_pmksa(struct sk_buff *skb, struct genl_info *info)
 	}
 
 	if (dev->ieee80211_ptr->iftype != NL80211_IFTYPE_STATION &&
-	    dev->ieee80211_ptr->iftype != NL80211_IFTYPE_P2P_CLIENT)
+	    dev->ieee80211_ptr->iftype != NL80211_IFTYPE_P2P_CLIENT &&
+	    !(dev->ieee80211_ptr->iftype == NL80211_IFTYPE_AP &&
+	      wiphy_ext_feature_isset(&rdev->wiphy,
+				      NL80211_EXT_FEATURE_AP_PMKSA_CACHING)))
 		return -EOPNOTSUPP;
 
 	switch (info->genlhdr->cmd) {
@@ -13047,7 +13092,9 @@ static int nl80211_external_auth(struct sk_buff *skb, struct genl_info *info)
 	if (!rdev->ops->external_auth)
 		return -EOPNOTSUPP;
 
-	if (!info->attrs[NL80211_ATTR_SSID])
+	if (!info->attrs[NL80211_ATTR_SSID] &&
+	    dev->ieee80211_ptr->iftype != NL80211_IFTYPE_AP &&
+	    dev->ieee80211_ptr->iftype != NL80211_IFTYPE_P2P_GO)
 		return -EINVAL;
 
 	if (!info->attrs[NL80211_ATTR_BSSID])
@@ -13058,17 +13105,23 @@ static int nl80211_external_auth(struct sk_buff *skb, struct genl_info *info)
 
 	memset(&params, 0, sizeof(params));
 
-	params.ssid.ssid_len = nla_len(info->attrs[NL80211_ATTR_SSID]);
-	if (params.ssid.ssid_len == 0 ||
-	    params.ssid.ssid_len > IEEE80211_MAX_SSID_LEN)
-		return -EINVAL;
-	memcpy(params.ssid.ssid, nla_data(info->attrs[NL80211_ATTR_SSID]),
-	       params.ssid.ssid_len);
+	if (info->attrs[NL80211_ATTR_SSID]) {
+		params.ssid.ssid_len = nla_len(info->attrs[NL80211_ATTR_SSID]);
+		if (params.ssid.ssid_len == 0 ||
+		    params.ssid.ssid_len > IEEE80211_MAX_SSID_LEN)
+			return -EINVAL;
+		memcpy(params.ssid.ssid,
+		       nla_data(info->attrs[NL80211_ATTR_SSID]),
+		       params.ssid.ssid_len);
+	}
 
 	memcpy(params.bssid, nla_data(info->attrs[NL80211_ATTR_BSSID]),
 	       ETH_ALEN);
 
 	params.status = nla_get_u16(info->attrs[NL80211_ATTR_STATUS_CODE]);
+
+	if (info->attrs[NL80211_ATTR_PMKID])
+		params.pmkid = nla_data(info->attrs[NL80211_ATTR_PMKID]);
 
 	return rdev_external_auth(rdev, dev, &params);
 }

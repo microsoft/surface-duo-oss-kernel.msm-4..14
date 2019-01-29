@@ -127,6 +127,16 @@ enum ieee80211_agg_stop_reason {
 	AGG_STOP_DESTROY_STA,
 };
 
+/* Debugfs flags to enable/disable use of RX/TX airtime in scheduler */
+#define AIRTIME_USE_TX		BIT(0)
+#define AIRTIME_USE_RX		BIT(1)
+
+struct airtime_info {
+	u64 rx_airtime;
+	u64 tx_airtime;
+	s64 deficit;
+};
+
 struct sta_info;
 
 /**
@@ -343,6 +353,7 @@ struct ieee80211_fast_rx {
 
 /* we use only values in the range 0-100, so pick a large precision */
 DECLARE_EWMA(mesh_fail_avg, 20, 8)
+DECLARE_EWMA(mesh_tx_rate_avg, 8, 16)
 
 /**
  * struct mesh_sta - mesh STA information
@@ -366,6 +377,7 @@ DECLARE_EWMA(mesh_fail_avg, 20, 8)
  *	processed
  * @connected_to_gate: true if mesh STA has a path to a mesh gate
  * @fail_avg: moving percentage of failed MSDUs
+ * @tx_rate_avg: moving average of tx bitrate
  */
 struct mesh_sta {
 	struct timer_list plink_timer;
@@ -394,6 +406,8 @@ struct mesh_sta {
 
 	/* moving percentage of failed MSDUs */
 	struct ewma_mesh_fail_avg fail_avg;
+	/* moving average of tx bitrate */
+	struct ewma_mesh_tx_rate_avg tx_rate_avg;
 };
 
 DECLARE_EWMA(signal, 10, 8)
@@ -564,6 +578,9 @@ struct sta_info {
 		u64 msdu[IEEE80211_NUM_TIDS + 1];
 	} tx_stats;
 	u16 tid_seq[IEEE80211_QOS_CTL_TID_MASK + 1];
+
+	struct airtime_info airtime[IEEE80211_NUM_ACS];
+	u16 airtime_weight;
 
 	/*
 	 * Aggregation information, locked with lock.
