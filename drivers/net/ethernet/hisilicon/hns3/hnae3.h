@@ -124,6 +124,7 @@ enum hnae3_reset_notify_type {
 	HNAE3_DOWN_CLIENT,
 	HNAE3_INIT_CLIENT,
 	HNAE3_UNINIT_CLIENT,
+	HNAE3_RESTORE_CLIENT,
 };
 
 enum hnae3_reset_type {
@@ -432,7 +433,8 @@ struct hnae3_ae_ops {
 			     struct ethtool_channels *ch);
 	void (*get_tqps_and_rss_info)(struct hnae3_handle *h,
 				      u16 *alloc_tqps, u16 *max_rss_size);
-	int (*set_channels)(struct hnae3_handle *handle, u32 new_tqps_num);
+	int (*set_channels)(struct hnae3_handle *handle, u32 new_tqps_num,
+			    bool rxfh_configured);
 	void (*get_flowctrl_adv)(struct hnae3_handle *handle,
 				 u32 *flowctrl_adv);
 	int (*set_led_id)(struct hnae3_handle *handle,
@@ -475,7 +477,6 @@ struct hnae3_dcb_ops {
 	u8   (*getdcbx)(struct hnae3_handle *);
 	u8   (*setdcbx)(struct hnae3_handle *, u8);
 
-	int (*map_update)(struct hnae3_handle *);
 	int (*setup_tc)(struct hnae3_handle *, u8, u8 *);
 };
 
@@ -500,6 +501,7 @@ struct hnae3_tc_info {
 struct hnae3_knic_private_info {
 	struct net_device *netdev; /* Set by KNIC client when init instance */
 	u16 rss_size;		   /* Allocated RSS queues */
+	u16 req_rss_size;
 	u16 rx_buf_len;
 	u16 num_desc;
 
