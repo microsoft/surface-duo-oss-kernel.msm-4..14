@@ -91,3 +91,14 @@ config PHY_QCOM_USB_HS_SNPS_28NM
 	  Enable this to support the Synopsys 28nm Femto USB PHY on Qualcomm
 	  chips. This driver supports the high-speed PHY which is usually
 	  paired with either the ChipIdea or Synopsys DWC3 USB IPs on MSM SOCs.
+
+config PHY_QCOM_USB_SS
+	tristate "Qualcomm USB SS PHY driver"
+	depends on ARCH_QCOM || COMPILE_TEST
+	depends on EXTCON || !EXTCON # if EXTCON=m, this cannot be built-in
+	select GENERIC_PHY
+	help
+	  Enable this to support the Super-Speed USB transceiver on Qualcomm
+	  chips. This driver supports the PHY which uses the QSCRATCH-based
+	  register set for its control sequences, normally paired with newer
+	  DWC3-based Super-Speed controllers on Qualcomm SoCs.
