@@ -1,6 +1,3 @@
-# Recreate any symlinks created since the orig.
-[ ! -L 'arch/arm64/boot/dts/broadcom/bcm283x-rpi-lan7515.dtsi' ] && ln -sf '../../../../arm/boot/dts/bcm283x-rpi-lan7515.dtsi' 'arch/arm64/boot/dts/broadcom/bcm283x-rpi-lan7515.dtsi'
-[ ! -L 'arch/arm64/boot/dts/overlays' ] && ln -sf '../../../arm/boot/dts/overlays' 'arch/arm64/boot/dts/overlays'
 # Remove any files deleted from the orig.
 rm -f 'Documentation/devicetree/bindings/display/panel/toppoly,td028ttec1.txt'
 rm -f 'arch/arm/include/asm/kvm_psci.h'
