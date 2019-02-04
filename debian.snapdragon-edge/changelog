@@ -1,6 +1,6 @@
-linux-raspi2 (4.15.0-1031.33) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1031.33) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1031.33 -proposed tracker (LP: #1811420)
+  * linux-snapdragon-edge: 4.15.0-1031.33 -proposed tracker (LP: #1811420)
 
   [ Ubuntu: 4.15.0-44.47 ]
 
@@ -802,9 +802,9 @@ linux-raspi2 (4.15.0-1031.33) bionic; urgency=medium
 
  -- Khalid Elmously <khalid.elmously@canonical.com>  Wed, 16 Jan 2019 04:14:43 +0000
 
-linux-raspi2 (4.15.0-1030.32) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1030.32) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1030.32 -proposed tracker (LP: #1806661)
+  * linux-snapdragon-edge: 4.15.0-1030.32 -proposed tracker (LP: #1806661)
 
   * Ethernet not working on rpi3 b+ (LP: #1806108)
     - lan78xx: Move enabling of EEE into PHY init code
@@ -849,9 +849,9 @@ linux-raspi2 (4.15.0-1030.32) bionic; urgency=medium
 
  -- Khalid Elmously <khalid.elmously@canonical.com>  Thu, 06 Dec 2018 17:38:20 +0000
 
-linux-raspi2 (4.15.0-1029.31) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1029.31) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1029.31 -proposed tracker (LP: #1802555)
+  * linux-snapdragon-edge: 4.15.0-1029.31 -proposed tracker (LP: #1802555)
 
   [ Ubuntu: 4.15.0-42.45 ]
 
@@ -1072,9 +1072,9 @@ linux-raspi2 (4.15.0-1029.31) bionic; urgency=medium
 
  -- Khalid Elmously <khalid.elmously@canonical.com>  Thu, 15 Nov 2018 18:53:51 -0500
 
-linux-raspi2 (4.15.0-1028.30) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1028.30) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1028.30 -proposed tracker (LP: #1799412)
+  * linux-snapdragon-edge: 4.15.0-1028.30 -proposed tracker (LP: #1799412)
 
   [ Ubuntu: 4.15.0-39.42 ]
 
@@ -1171,18 +1171,18 @@ linux-raspi2 (4.15.0-1028.30) bionic; urgency=medium
 
  -- Khalid Elmously <khalid.elmously@canonical.com>  Sun, 28 Oct 2018 03:43:35 +0000
 
-linux-raspi2 (4.15.0-1027.29) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1027.29) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1027.29 -proposed tracker (LP: #1799655)
+  * linux-snapdragon-edge: 4.15.0-1027.29 -proposed tracker (LP: #1799655)
 
   * rpi3b+: ethernet not working (LP: #1797406)
     - lan78xx: Don't reset the interface on open
 
  -- Kleber Sacilotto de Souza <kleber.souza@canonical.com>  Wed, 24 Oct 2018 08:31:00 +0000
 
-linux-raspi2 (4.15.0-1026.28) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1026.28) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1026.28 -proposed tracker (LP: #1797073)
+  * linux-snapdragon-edge: 4.15.0-1026.28 -proposed tracker (LP: #1797073)
 
   [ Ubuntu: 4.15.0-38.41 ]
 
@@ -1195,9 +1195,9 @@ linux-raspi2 (4.15.0-1026.28) bionic; urgency=medium
 
  -- Stefan Bader <stefan.bader@canonical.com>  Wed, 10 Oct 2018 15:31:01 +0200
 
-linux-raspi2 (4.15.0-1025.27) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1025.27) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1025.27 -proposed tracker (LP: #1795565)
+  * linux-snapdragon-edge: 4.15.0-1025.27 -proposed tracker (LP: #1795565)
 
   [ Ubuntu: 4.15.0-37.40 ]
 
@@ -1541,7 +1541,7 @@ linux-raspi2 (4.15.0-1025.27) bionic; urgency=medium
 
  -- Stefan Bader <stefan.bader@canonical.com>  Tue, 02 Oct 2018 21:13:41 +0200
 
-linux-raspi2 (4.15.0-1024.26) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1024.26) bionic; urgency=medium
 
   [ Ubuntu: 4.15.0-36.39 ]
 
@@ -1552,9 +1552,9 @@ linux-raspi2 (4.15.0-1024.26) bionic; urgency=medium
 
  -- Kleber Sacilotto de Souza <kleber.souza@canonical.com>  Mon, 24 Sep 2018 17:29:26 +0200
 
-linux-raspi2 (4.15.0-1023.25) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1023.25) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1023.25 -proposed tracker (LP: #1791720)
+  * linux-snapdragon-edge: 4.15.0-1023.25 -proposed tracker (LP: #1791720)
 
   * [Bionic] Spectre v4 mitigation (Speculative Store Bypass Disable) support
     for arm64 using SMC firmware call to set a hardware chicken bit
@@ -1987,9 +1987,9 @@ linux-raspi2 (4.15.0-1023.25) bionic; urgency=medium
 
  -- Kleber Sacilotto de Souza <kleber.souza@canonical.com>  Wed, 12 Sep 2018 16:00:43 +0200
 
-linux-raspi2 (4.15.0-1022.24) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1022.24) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1022.24 -proposed tracker (LP: #1788747)
+  * linux-snapdragon-edge: 4.15.0-1022.24 -proposed tracker (LP: #1788747)
 
   * snapcraft.yaml: fix kernel snap creation (LP: #1788191)
     - snapcraft.yaml: fix kernel snap creation
@@ -2561,12 +2561,12 @@ linux-raspi2 (4.15.0-1022.24) bionic; urgency=medium
 
  -- Khalid Elmously <khalid.elmously@canonical.com>  Wed, 29 Aug 2018 02:11:24 -0400
 
-linux-raspi2 (4.15.0-1021.23) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1021.23) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1021.23 -proposed tracker (LP: #1787151)
+  * linux-snapdragon-edge: 4.15.0-1021.23 -proposed tracker (LP: #1787151)
 
   * Bionic update: upstream stable patchset 2018-06-26 (LP: #1778759)
-    - [Config] raspi2: CONFIG_ARM64_ERRATUM_1024718=y
+    - [Config] snapdragon-edge: CONFIG_ARM64_ERRATUM_1024718=y
 
   * arm64: overlays don't get applied (LP: #1782121)
     - SAUCE: arm64: dtbs: Add symbols when compiling dtb
@@ -3186,7 +3186,7 @@ linux-raspi2 (4.15.0-1021.23) bionic; urgency=medium
 
  -- Kleber Sacilotto de Souza <kleber.souza@canonical.com>  Wed, 15 Aug 2018 19:24:22 +0200
 
-linux-raspi2 (4.15.0-1020.22) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1020.22) bionic; urgency=medium
 
   [ Ubuntu: 4.15.0-32.35 ]
 
@@ -3298,7 +3298,7 @@ linux-raspi2 (4.15.0-1020.22) bionic; urgency=medium
 
  -- Thadeu Lima de Souza Cascardo <cascardo@canonical.com>  Fri, 10 Aug 2018 15:56:36 -0300
 
-linux-raspi2 (4.15.0-1018.19) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1018.19) bionic; urgency=medium
 
   [ Ubuntu: 4.15.0-30.32 ]
 
@@ -3311,9 +3311,9 @@ linux-raspi2 (4.15.0-1018.19) bionic; urgency=medium
 
  -- Stefan Bader <stefan.bader@canonical.com>  Thu, 26 Jul 2018 19:34:11 +0200
 
-linux-raspi2 (4.15.0-1017.18) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1017.18) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1017.18 -proposed tracker (LP: #1782175)
+  * linux-snapdragon-edge: 4.15.0-1017.18 -proposed tracker (LP: #1782175)
 
 
   [ Ubuntu: 4.15.0-29.31 ]
@@ -3356,9 +3356,9 @@ linux-raspi2 (4.15.0-1017.18) bionic; urgency=medium
 
  -- Khalid Elmously <khalid.elmously@canonical.com>  Wed, 18 Jul 2018 02:09:17 +0000
 
-linux-raspi2 (4.15.0-1016.17) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1016.17) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1016.17 -proposed tracker (LP: #1781063)
+  * linux-snapdragon-edge: 4.15.0-1016.17 -proposed tracker (LP: #1781063)
 
 
   [ Ubuntu: 4.15.0-27.29 ]
@@ -3371,9 +3371,9 @@ linux-raspi2 (4.15.0-1016.17) bionic; urgency=medium
 
  -- Khalid Elmously <khalid.elmously@canonical.com>  Tue, 10 Jul 2018 21:03:43 -0400
 
-linux-raspi2 (4.15.0-1015.16) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1015.16) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1015.16 -proposed tracker (LP: #1780113)
+  * linux-snapdragon-edge: 4.15.0-1015.16 -proposed tracker (LP: #1780113)
 
 
   [ Ubuntu: 4.15.0-26.28 ]
@@ -3385,9 +3385,9 @@ linux-raspi2 (4.15.0-1015.16) bionic; urgency=medium
 
  -- Khalid Elmously <khalid.elmously@canonical.com>  Wed, 04 Jul 2018 21:24:48 -0400
 
-linux-raspi2 (4.15.0-1014.15) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1014.15) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1014.15 -proposed tracker (LP: #1779355)
+  * linux-snapdragon-edge: 4.15.0-1014.15 -proposed tracker (LP: #1779355)
 
   [ Ubuntu: 4.15.0-25.27 ]
 
@@ -3418,9 +3418,9 @@ linux-raspi2 (4.15.0-1014.15) bionic; urgency=medium
 
  -- Khalid Elmously <khalid.elmously@canonical.com>  Mon, 02 Jul 2018 01:35:30 +0000
 
-linux-raspi2 (4.15.0-1013.14) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1013.14) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1013.14 -proposed tracker (LP: #1776339)
+  * linux-snapdragon-edge: 4.15.0-1013.14 -proposed tracker (LP: #1776339)
 
 
   [ Ubuntu: 4.15.0-24.26 ]
@@ -4263,9 +4263,9 @@ linux-raspi2 (4.15.0-1013.14) bionic; urgency=medium
 
  -- Khalid Elmously <khalid.elmously@canonical.com>  Thu, 14 Jun 2018 00:44:00 -0400
 
-linux-raspi2 (4.15.0-1012.13) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1012.13) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1012.13 -proposed tracker (LP: #1772929)
+  * linux-snapdragon-edge: 4.15.0-1012.13 -proposed tracker (LP: #1772929)
 
   * Switch Build-Depends: transfig to fig2dev (LP: #1770770)
     - [Config] update Build-Depends: transfig to fig2dev
@@ -4515,9 +4515,9 @@ linux-raspi2 (4.15.0-1012.13) bionic; urgency=medium
 
  -- Khalid Elmously <khalid.elmously@canonical.com>  Thu, 24 May 2018 02:17:36 +0000
 
-linux-raspi2 (4.15.0-1011.12) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1011.12) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1011.12 -proposed tracker (LP: #1767408)
+  * linux-snapdragon-edge: 4.15.0-1011.12 -proposed tracker (LP: #1767408)
 
   * linux-image-4.15.0-20-generic install after upgrade from xenial breaks
     (LP: #1767133)
@@ -4542,9 +4542,9 @@ linux-raspi2 (4.15.0-1011.12) bionic; urgency=medium
 
  -- Thadeu Lima de Souza Cascardo <cascardo@canonical.com>  Tue, 08 May 2018 09:01:20 -0300
 
-linux-raspi2 (4.15.0-1010.11) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1010.11) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1010.11 -proposed tracker (LP: #1766453)
+  * linux-snapdragon-edge: 4.15.0-1010.11 -proposed tracker (LP: #1766453)
 
   [ Ubuntu: 4.15.0-20.21 ]
 
@@ -4556,9 +4556,9 @@ linux-raspi2 (4.15.0-1010.11) bionic; urgency=medium
 
  -- Seth Forshee <seth.forshee@canonical.com>  Tue, 24 Apr 2018 00:15:19 -0500
 
-linux-raspi2 (4.15.0-1009.10) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1009.10) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1009.10 -proposed tracker (LP: #1766022)
+  * linux-snapdragon-edge: 4.15.0-1009.10 -proposed tracker (LP: #1766022)
 
   [ Ubuntu: 4.15.0-19.20 ]
 
@@ -4569,9 +4569,9 @@ linux-raspi2 (4.15.0-1009.10) bionic; urgency=medium
 
  -- Seth Forshee <seth.forshee@canonical.com>  Sat, 21 Apr 2018 18:00:54 -0500
 
-linux-raspi2 (4.15.0-1008.9) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1008.9) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1008.9 -proposed tracker (LP: #1765491)
+  * linux-snapdragon-edge: 4.15.0-1008.9 -proposed tracker (LP: #1765491)
 
 
   [ Ubuntu: 4.15.0-18.19 ]
@@ -4608,9 +4608,9 @@ linux-raspi2 (4.15.0-1008.9) bionic; urgency=medium
 
  -- Thadeu Lima de Souza Cascardo <cascardo@canonical.com>  Fri, 20 Apr 2018 09:33:35 -0300
 
-linux-raspi2 (4.15.0-1007.8) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1007.8) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1007.8 -proposed tracker (LP: #1764499)
+  * linux-snapdragon-edge: 4.15.0-1007.8 -proposed tracker (LP: #1764499)
 
   * Miscellaneous Ubuntu changes
     - [Config] update configs after rebase to 4.15.0-17.18
@@ -5289,9 +5289,9 @@ linux-raspi2 (4.15.0-1007.8) bionic; urgency=medium
 
  -- Seth Forshee <seth.forshee@canonical.com>  Mon, 16 Apr 2018 15:23:06 -0500
 
-linux-raspi2 (4.15.0-1006.7) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1006.7) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1006.7 -proposed tracker (LP: #1761178)
+  * linux-snapdragon-edge: 4.15.0-1006.7 -proposed tracker (LP: #1761178)
 
   [ Ubuntu: 4.15.0-15.16 ]
 
@@ -5995,9 +5995,9 @@ linux-raspi2 (4.15.0-1006.7) bionic; urgency=medium
 
  -- Seth Forshee <seth.forshee@canonical.com>  Wed, 04 Apr 2018 09:03:40 -0500
 
-linux-raspi2 (4.15.0-1005.6) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1005.6) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1005.6 -proposed tracker (LP: #1756447)
+  * linux-snapdragon-edge: 4.15.0-1005.6 -proposed tracker (LP: #1756447)
 
   * Miscellaneous Ubuntu changes
     - [Config] disable retpoline checks for first upload
@@ -6577,18 +6577,18 @@ linux-raspi2 (4.15.0-1005.6) bionic; urgency=medium
 
  -- Seth Forshee <seth.forshee@canonical.com>  Fri, 16 Mar 2018 16:38:18 -0500
 
-linux-raspi2 (4.15.0-1004.5) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1004.5) bionic; urgency=medium
 
-  * linux-raspi2: 4.15.0-1004.4 -proposed tracker (LP: #1755842)
+  * linux-snapdragon-edge: 4.15.0-1004.4 -proposed tracker (LP: #1755842)
 
   * Miscellaneous Ubuntu changes
     - SAUCE: Remove execute permissions from source files
-    - [Packaging] Refresh raspi2 packaging with changes from master
+    - [Packaging] Refresh snapdragon-edge packaging with changes from master
     - [Packaging] skip cloud tools packaging when not building package
 
  -- Seth Forshee <seth.forshee@canonical.com>  Thu, 15 Mar 2018 13:12:38 -0500
 
-linux-raspi2 (4.15.0-1003.3) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1003.3) bionic; urgency=medium
 
   * Miscellaneous Ubuntu changes
     - [Config] ALTERA_MSGDMA=m
@@ -6661,24 +6661,24 @@ linux-raspi2 (4.15.0-1003.3) bionic; urgency=medium
 
  -- Paolo Pisati <paolo.pisati@canonical.com>  Thu, 08 Mar 2018 12:25:15 +0000
 
-linux-raspi2 (4.15.0-1002.2) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1002.2) bionic; urgency=medium
 
   * Import rpi patches from https://github.com/raspberrypi/linux rpi-4.15.y
     up to commit 938a71bd53e1ff3bd3ad7bd257ec701584c8d78e
 
-  * Initial raspi2 packaging and configs for bionic
+  * Initial snapdragon-edge packaging and configs for bionic
 
  -- Paolo Pisati <paolo.pisati@canonical.com>  Mon, 05 Mar 2018 15:52:17 +0000
 
-linux-raspi2 (4.15.0-1001.1) bionic; urgency=medium
+linux-snapdragon-edge (4.15.0-1001.1) bionic; urgency=medium
 
   * Dummy entry
 
  -- Paolo Pisati <paolo.pisati@canonical.com>  Mon, 05 Mar 2018 15:52:17 +0000
 
-linux-raspi2 (4.13.0-1008.8) artful; urgency=low
+linux-snapdragon-edge (4.13.0-1008.8) artful; urgency=low
 
-  * linux-raspi2: 4.13.0-1008.8 -proposed tracker (LP: #1736125)
+  * linux-snapdragon-edge: 4.13.0-1008.8 -proposed tracker (LP: #1736125)
 
   [ Ubuntu: 4.13.0-19.22 ]
 
@@ -6688,12 +6688,12 @@ linux-raspi2 (4.13.0-1008.8) artful; urgency=low
 
  -- Stefan Bader <stefan.bader@canonical.com>  Mon, 04 Dec 2017 14:06:40 +0100
 
-linux-raspi2 (4.13.0-1007.7) artful; urgency=low
+linux-snapdragon-edge (4.13.0-1007.7) artful; urgency=low
 
-  * linux-raspi2: 4.13.0-1007.7 -proposed tracker (LP: #1733536)
+  * linux-snapdragon-edge: 4.13.0-1007.7 -proposed tracker (LP: #1733536)
 
   * Dropped "staging: bcm2835-audio: Fix memory corruption" from the
-    raspi2 tree in favour of the upstream change with the same name
+    snapdragon-edge tree in favour of the upstream change with the same name
     but slightly different content (LP: #1731951).
 
   [ Ubuntu: 4.13.0-18.21 ]
@@ -6958,9 +6958,9 @@ linux-raspi2 (4.13.0-1007.7) artful; urgency=low
 
  -- Stefan Bader <stefan.bader@canonical.com>  Wed, 22 Nov 2017 10:25:10 +0100
 
-linux-raspi2 (4.13.0-1006.6) artful; urgency=low
+linux-snapdragon-edge (4.13.0-1006.6) artful; urgency=low
 
-  * linux-raspi2: 4.13.0-1006.6 -proposed tracker (LP: #1730611)
+  * linux-snapdragon-edge: 4.13.0-1006.6 -proposed tracker (LP: #1730611)
 
   * Artful update to v4.13.5 stable release (LP: #1721777)
     - [Config] Updating config after rebasing
@@ -7355,7 +7355,7 @@ linux-raspi2 (4.13.0-1006.6) artful; urgency=low
 
  -- Khalid Elmously <khalid.elmously@canonical.com>  Wed, 08 Nov 2017 12:45:39 -0500
 
-linux-raspi2 (4.13.0-1005.5) artful; urgency=low
+linux-snapdragon-edge (4.13.0-1005.5) artful; urgency=low
 
   [ Ubuntu: 4.13.0-16.17 ]
 
@@ -7364,9 +7364,9 @@ linux-raspi2 (4.13.0-1005.5) artful; urgency=low
 
  -- Seth Forshee <seth.forshee@canonical.com>  Tue, 10 Oct 2017 11:58:16 -0500
 
-linux-raspi2 (4.13.0-1004.4) artful; urgency=low
+linux-snapdragon-edge (4.13.0-1004.4) artful; urgency=low
 
-  * linux-raspi2: 4.13.0-1004.4 -proposed tracker (LP: #1721562)
+  * linux-snapdragon-edge: 4.13.0-1004.4 -proposed tracker (LP: #1721562)
 
   * Miscellaneous Ubuntu changes
     - [Config] update configs follwing rebase to Ubuntu-4.13.0-15.16
@@ -7792,9 +7792,9 @@ linux-raspi2 (4.13.0-1004.4) artful; urgency=low
 
  -- Seth Forshee <seth.forshee@canonical.com>  Thu, 05 Oct 2017 09:57:27 -0500
 
-linux-raspi2 (4.13.0-1003.3) artful; urgency=low
+linux-snapdragon-edge (4.13.0-1003.3) artful; urgency=low
 
-  * linux-raspi2: 4.13.0-1003.3 -proposed tracker (LP: #1720134)
+  * linux-snapdragon-edge: 4.13.0-1003.3 -proposed tracker (LP: #1720134)
 
   * Snapcraft.yaml update (LP: #1700577)
     - snapcraft.yaml: various improvements
@@ -7939,16 +7939,16 @@ linux-raspi2 (4.13.0-1003.3) artful; urgency=low
 
  -- Seth Forshee <seth.forshee@canonical.com>  Thu, 28 Sep 2017 09:21:41 -0400
 
-linux-raspi2 (4.13.0-1002.2) artful; urgency=low
+linux-snapdragon-edge (4.13.0-1002.2) artful; urgency=low
 
-  * Initial raspi2 topic branch based off unstable/master @ 9f3b2f8
+  * Initial snapdragon-edge topic branch based off unstable/master @ 9f3b2f8
   * RaspberryPI BSP from rpi-4.13.y @ 3137073
 
  -- Paolo Pisati <paolo.pisati@canonical.com>  Fri, 25 Aug 2017 17:11:54 +0200
 
-linux-raspi2 (4.11.0-1004.5) artful; urgency=low
+linux-snapdragon-edge (4.11.0-1004.5) artful; urgency=low
 
-  * linux-raspi2: 4.11.0-1004.5 -proposed tracker (LP: #1704188)
+  * linux-snapdragon-edge: 4.11.0-1004.5 -proposed tracker (LP: #1704188)
 
   * Miscellaneous Ubuntu changes
     - rebase to Ubuntu-4.11.0-11.16
@@ -8184,9 +8184,9 @@ linux-raspi2 (4.11.0-1004.5) artful; urgency=low
 
  -- Andy Whitcroft <apw@canonical.com>  Thu, 13 Jul 2017 17:52:36 +0100
 
-linux-raspi2 (4.11.0-1003.4) artful; urgency=low
+linux-snapdragon-edge (4.11.0-1003.4) artful; urgency=low
 
-  * linux-raspi2: 4.11.0-1003.4 -proposed tracker (LP: #1702168)
+  * linux-snapdragon-edge: 4.11.0-1003.4 -proposed tracker (LP: #1702168)
 
   * Cherry pick updates from https://github.com/raspberrypi/linux rpi-4.11.y
     up to commit 64b5f5825a998d745801c2682e686423e88a0e93
@@ -8262,9 +8262,9 @@ linux-raspi2 (4.11.0-1003.4) artful; urgency=low
 
  -- Seth Forshee <seth.forshee@canonical.com>  Mon, 03 Jul 2017 15:05:50 -0500
 
-linux-raspi2 (4.11.0-1002.3) artful; urgency=low
+linux-snapdragon-edge (4.11.0-1002.3) artful; urgency=low
 
-  * linux-raspi2: 4.11.0-1002.3 -proposed tracker (LP: #1700612)
+  * linux-snapdragon-edge: 4.11.0-1002.3 -proposed tracker (LP: #1700612)
 
   * Cherry pick updates from https://github.com/raspberrypi/linux rpi-4.11.y
     up to commit 13a75e97dca4e3f3ca286a44162629bd32bfe4c8
@@ -8413,9 +8413,9 @@ linux-raspi2 (4.11.0-1002.3) artful; urgency=low
 
  -- Seth Forshee <seth.forshee@canonical.com>  Mon, 26 Jun 2017 12:16:43 -0500
 
-linux-raspi2 (4.11.0-1001.2) artful; urgency=low
+linux-snapdragon-edge (4.11.0-1001.2) artful; urgency=low
 
-  * linux-raspi2: 4.11.0-1001.2 -proposed tracker (LP: #1699556)
+  * linux-snapdragon-edge: 4.11.0-1001.2 -proposed tracker (LP: #1699556)
 
   [ Ubuntu: 4.11.0-8.13 ]
 
@@ -8638,7 +8638,7 @@ linux-raspi2 (4.11.0-1001.2) artful; urgency=low
 
  -- Seth Forshee <seth.forshee@canonical.com>  Wed, 21 Jun 2017 11:57:53 -0500
 
-linux-raspi2 (4.11.0-1000.1) artful; urgency=low
+linux-snapdragon-edge (4.11.0-1000.1) artful; urgency=low
 
   [ Seth Forshee ]
 
@@ -8648,7 +8648,7 @@ linux-raspi2 (4.11.0-1000.1) artful; urgency=low
   * Import rpi patchs from https://github.com/raspberrypi/linux rpi-4.11.y
     up to commit 935308cd9976d3ced653ffd73be5fdeb2e8c71b5
 
-  * Initial raspi2 packaging and configs
+  * Initial snapdragon-edge packaging and configs
 
   [ Ubuntu: 4.11.0-6.11 ]
 
@@ -8849,7 +8849,7 @@ linux-raspi2 (4.11.0-1000.1) artful; urgency=low
 
  -- Seth Forshee <seth.forshee@canonical.com>  Wed, 14 Jun 2017 09:13:02 -0500
 
-linux-raspi2 (4.11.0-1000.0) artful; urgency=low
+linux-snapdragon-edge (4.11.0-1000.0) artful; urgency=low
 
   * Dummy Entry
 
