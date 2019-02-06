@@ -306,11 +306,6 @@ struct phy_device *mdiobus_scan(struct mii_bus *bus, int addr);
  * - irq or timer will set NOLINK if link goes down
  * - phy_stop moves to HALTED
  *
- * CHANGELINK: PHY experienced a change in link state
- * - timer moves to RUNNING if link
- * - timer moves to NOLINK if the link is down
- * - phy_stop moves to HALTED
- *
  * HALTED: PHY is up, but no polling or interrupts are done. Or
  * PHY is in an error state.
  *
@@ -329,7 +324,6 @@ enum phy_state {
 	PHY_RUNNING,
 	PHY_NOLINK,
 	PHY_FORCING,
-	PHY_CHANGELINK,
 	PHY_RESUMING
 };
 
@@ -959,7 +953,6 @@ int phy_aneg_done(struct phy_device *phydev);
 int phy_speed_down(struct phy_device *phydev, bool sync);
 int phy_speed_up(struct phy_device *phydev);
 
-int phy_stop_interrupts(struct phy_device *phydev);
 int phy_restart_aneg(struct phy_device *phydev);
 int phy_reset_after_clk_enable(struct phy_device *phydev);
 
@@ -1054,7 +1047,7 @@ void phy_ethtool_ksettings_get(struct phy_device *phydev,
 int phy_ethtool_ksettings_set(struct phy_device *phydev,
 			      const struct ethtool_link_ksettings *cmd);
 int phy_mii_ioctl(struct phy_device *phydev, struct ifreq *ifr, int cmd);
-int phy_start_interrupts(struct phy_device *phydev);
+void phy_request_interrupt(struct phy_device *phydev);
 void phy_print_status(struct phy_device *phydev);
 int phy_set_max_speed(struct phy_device *phydev, u32 max_speed);
 void phy_remove_link_mode(struct phy_device *phydev, u32 link_mode);
@@ -1184,5 +1177,8 @@ module_exit(phy_module_exit)
 
 #define module_phy_driver(__phy_drivers)				\
 	phy_module_driver(__phy_drivers, ARRAY_SIZE(__phy_drivers))
+
+bool phy_driver_is_genphy(struct phy_device *phydev);
+bool phy_driver_is_genphy_10g(struct phy_device *phydev);
 
 #endif /* __PHY_H */

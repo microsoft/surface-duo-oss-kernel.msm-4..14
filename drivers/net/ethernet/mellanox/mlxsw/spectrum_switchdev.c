@@ -2027,6 +2027,7 @@ mlxsw_sp_bridge_8021q_vxlan_join(struct mlxsw_sp_bridge_device *bridge_device,
 		return 0;
 
 	if (mlxsw_sp_fid_vni_is_set(fid)) {
+		NL_SET_ERR_MSG_MOD(extack, "VNI is already set on FID");
 		err = -EINVAL;
 		goto err_vni_exists;
 	}
@@ -2213,10 +2214,13 @@ mlxsw_sp_bridge_8021d_vxlan_join(struct mlxsw_sp_bridge_device *bridge_device,
 	int err;
 
 	fid = mlxsw_sp_fid_8021d_lookup(mlxsw_sp, bridge_device->dev->ifindex);
-	if (!fid)
+	if (!fid) {
+		NL_SET_ERR_MSG_MOD(extack, "Did not find a corresponding FID");
 		return -EINVAL;
+	}
 
 	if (mlxsw_sp_fid_vni_is_set(fid)) {
+		NL_SET_ERR_MSG_MOD(extack, "VNI is already set on FID");
 		err = -EINVAL;
 		goto err_vni_exists;
 	}
@@ -2443,7 +2447,7 @@ static void mlxsw_sp_fdb_vxlan_call_notifiers(struct net_device *dev,
 	ether_addr_copy(info.eth_addr, mac);
 	info.vni = vni;
 	info.offloaded = adding;
-	call_switchdev_notifiers(type, dev, &info.info);
+	call_switchdev_notifiers(type, dev, &info.info, NULL);
 }
 
 static void mlxsw_sp_fdb_nve_call_notifiers(struct net_device *dev,
@@ -2468,7 +2472,7 @@ mlxsw_sp_fdb_call_notifiers(enum switchdev_notifier_type type,
 	info.addr = mac;
 	info.vid = vid;
 	info.offloaded = offloaded;
-	call_switchdev_notifiers(type, dev, &info.info);
+	call_switchdev_notifiers(type, dev, &info.info, NULL);
 }
 
 static void mlxsw_sp_fdb_notify_mac_process(struct mlxsw_sp *mlxsw_sp,
@@ -2819,7 +2823,7 @@ mlxsw_sp_switchdev_bridge_vxlan_fdb_event(struct mlxsw_sp *mlxsw_sp,
 			return;
 		vxlan_fdb_info.offloaded = true;
 		call_switchdev_notifiers(SWITCHDEV_VXLAN_FDB_OFFLOADED, dev,
-					 &vxlan_fdb_info.info);
+					 &vxlan_fdb_info.info, NULL);
 		mlxsw_sp_fdb_call_notifiers(SWITCHDEV_FDB_OFFLOADED,
 					    vxlan_fdb_info.eth_addr,
 					    fdb_info->vid, dev, true);
@@ -2832,7 +2836,7 @@ mlxsw_sp_switchdev_bridge_vxlan_fdb_event(struct mlxsw_sp *mlxsw_sp,
 						     false);
 		vxlan_fdb_info.offloaded = false;
 		call_switchdev_notifiers(SWITCHDEV_VXLAN_FDB_OFFLOADED, dev,
-					 &vxlan_fdb_info.info);
+					 &vxlan_fdb_info.info, NULL);
 		break;
 	}
 }
@@ -2977,7 +2981,7 @@ mlxsw_sp_switchdev_vxlan_fdb_add(struct mlxsw_sp *mlxsw_sp,
 		}
 		vxlan_fdb_info->offloaded = true;
 		call_switchdev_notifiers(SWITCHDEV_VXLAN_FDB_OFFLOADED, dev,
-					 &vxlan_fdb_info->info);
+					 &vxlan_fdb_info->info, NULL);
 		mlxsw_sp_fid_put(fid);
 		return;
 	}
@@ -2998,7 +3002,7 @@ mlxsw_sp_switchdev_vxlan_fdb_add(struct mlxsw_sp *mlxsw_sp,
 		goto err_fdb_tunnel_uc_op;
 	vxlan_fdb_info->offloaded = true;
 	call_switchdev_notifiers(SWITCHDEV_VXLAN_FDB_OFFLOADED, dev,
-				 &vxlan_fdb_info->info);
+				 &vxlan_fdb_info->info, NULL);
 	mlxsw_sp_fdb_call_notifiers(SWITCHDEV_FDB_OFFLOADED,
 				    vxlan_fdb_info->eth_addr, vid, dev, true);
 
@@ -3099,23 +3103,34 @@ mlxsw_sp_switchdev_vxlan_work_prepare(struct mlxsw_sp_switchdev_event_work *
 	struct vxlan_dev *vxlan = netdev_priv(switchdev_work->dev);
 	struct switchdev_notifier_vxlan_fdb_info *vxlan_fdb_info;
 	struct vxlan_config *cfg = &vxlan->cfg;
+	struct netlink_ext_ack *extack;
 
+	extack = switchdev_notifier_info_to_extack(info);
 	vxlan_fdb_info = container_of(info,
 				      struct switchdev_notifier_vxlan_fdb_info,
 				      info);
 
-	if (vxlan_fdb_info->remote_port != cfg->dst_port)
+	if (vxlan_fdb_info->remote_port != cfg->dst_port) {
+		NL_SET_ERR_MSG_MOD(extack, "VxLAN: FDB: Non-default remote port is not supported");
 		return -EOPNOTSUPP;
-	if (vxlan_fdb_info->remote_vni != cfg->vni)
+	}
+	if (vxlan_fdb_info->remote_vni != cfg->vni ||
+	    vxlan_fdb_info->vni != cfg->vni) {
+		NL_SET_ERR_MSG_MOD(extack, "VxLAN: FDB: Non-default VNI is not supported");
 		return -EOPNOTSUPP;
-	if (vxlan_fdb_info->vni != cfg->vni)
+	}
+	if (vxlan_fdb_info->remote_ifindex) {
+		NL_SET_ERR_MSG_MOD(extack, "VxLAN: FDB: Local interface is not supported");
 		return -EOPNOTSUPP;
-	if (vxlan_fdb_info->remote_ifindex)
+	}
+	if (is_multicast_ether_addr(vxlan_fdb_info->eth_addr)) {
+		NL_SET_ERR_MSG_MOD(extack, "VxLAN: FDB: Multicast MAC addresses not supported");
 		return -EOPNOTSUPP;
-	if (is_multicast_ether_addr(vxlan_fdb_info->eth_addr))
+	}
+	if (vxlan_addr_multicast(&vxlan_fdb_info->remote_ip)) {
+		NL_SET_ERR_MSG_MOD(extack, "VxLAN: FDB: Multicast destination IP is not supported");
 		return -EOPNOTSUPP;
-	if (vxlan_addr_multicast(&vxlan_fdb_info->remote_ip))
-		return -EOPNOTSUPP;
+	}
 
 	switchdev_work->vxlan_fdb_info = *vxlan_fdb_info;
 
@@ -3220,8 +3235,10 @@ mlxsw_sp_switchdev_vxlan_vlan_add(struct mlxsw_sp *mlxsw_sp,
 	 * the lookup function to return 'vxlan_dev'
 	 */
 	if (flag_untagged && flag_pvid &&
-	    mlxsw_sp_bridge_8021q_vxlan_dev_find(bridge_device->dev, vid))
+	    mlxsw_sp_bridge_8021q_vxlan_dev_find(bridge_device->dev, vid)) {
+		NL_SET_ERR_MSG_MOD(extack, "VLAN already mapped to a different VNI");
 		return -EINVAL;
+	}
 
 	if (!netif_running(vxlan_dev))
 		return 0;

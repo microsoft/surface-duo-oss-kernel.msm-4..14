@@ -630,6 +630,7 @@ struct netdev_queue {
 } ____cacheline_aligned_in_smp;
 
 extern int sysctl_fb_tunnels_only_for_init_net;
+extern int sysctl_devconf_inherit_init_net;
 
 static inline bool net_has_fallback_tunnels(const struct net *net)
 {
@@ -1152,7 +1153,8 @@ struct dev_ifalias {
  *
  * int (*ndo_fdb_add)(struct ndmsg *ndm, struct nlattr *tb[],
  *		      struct net_device *dev,
- *		      const unsigned char *addr, u16 vid, u16 flags)
+ *		      const unsigned char *addr, u16 vid, u16 flags,
+ *		      struct netlink_ext_ack *extack);
  *	Adds an FDB entry to dev for addr.
  * int (*ndo_fdb_del)(struct ndmsg *ndm, struct nlattr *tb[],
  *		      struct net_device *dev,
@@ -1376,7 +1378,8 @@ struct net_device_ops {
 					       struct net_device *dev,
 					       const unsigned char *addr,
 					       u16 vid,
-					       u16 flags);
+					       u16 flags,
+					       struct netlink_ext_ack *extack);
 	int			(*ndo_fdb_del)(struct ndmsg *ndm,
 					       struct nlattr *tb[],
 					       struct net_device *dev,
@@ -4660,22 +4663,22 @@ static inline const char *netdev_reg_state(const struct net_device *dev)
 	return " (unknown)";
 }
 
-__printf(3, 4)
+__printf(3, 4) __cold
 void netdev_printk(const char *level, const struct net_device *dev,
 		   const char *format, ...);
-__printf(2, 3)
+__printf(2, 3) __cold
 void netdev_emerg(const struct net_device *dev, const char *format, ...);
-__printf(2, 3)
+__printf(2, 3) __cold
 void netdev_alert(const struct net_device *dev, const char *format, ...);
-__printf(2, 3)
+__printf(2, 3) __cold
 void netdev_crit(const struct net_device *dev, const char *format, ...);
-__printf(2, 3)
+__printf(2, 3) __cold
 void netdev_err(const struct net_device *dev, const char *format, ...);
-__printf(2, 3)
+__printf(2, 3) __cold
 void netdev_warn(const struct net_device *dev, const char *format, ...);
-__printf(2, 3)
+__printf(2, 3) __cold
 void netdev_notice(const struct net_device *dev, const char *format, ...);
-__printf(2, 3)
+__printf(2, 3) __cold
 void netdev_info(const struct net_device *dev, const char *format, ...);
 
 #define netdev_level_once(level, dev, fmt, ...)			\
