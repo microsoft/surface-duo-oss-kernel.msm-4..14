@@ -1,10 +1,10 @@
-name: pc-kernel
+name: dragonboard-edge-kernel
 version: null
 version-script: |
     . debian/debian.env
     dpkg-parsechangelog -l $DEBIAN/changelog -S version
-summary: The Ubuntu generic Linux kernel
-description: This Ubuntu generic Linux kernel
+summary: The Canonical snapdragon arm64 kernel
+description: The Canonical snapdragon arm64 kernel
 grade: stable
 confinement: strict
 type: kernel
@@ -14,23 +14,31 @@ parts:
     plugin: kernel
     source: .
     source-type: git
-    kconfigflavour: generic
+    kconfigflavour: snapdragon-edge
     kconfigs:
       - CONFIG_DEBUG_INFO=n
+    kernel-image-target: Image
+    kernel-with-firmware: false
     override-build: |
       cp debian/scripts/retpoline-extract-one \
         $SNAPCRAFT_PART_BUILD/scripts/ubuntu-retpoline-extract-one
       snapcraftctl build
-    kernel-with-firmware: false
+      cp $SNAPCRAFT_PART_INSTALL/dtbs/qcom/*.dtb $SNAPCRAFT_PART_INSTALL/dtbs/
   firmware:
     plugin: nil
     stage-packages:
       - linux-firmware
+      - linux-firmware-snapdragon
     organize:
       lib/firmware: firmware
     prime:
       - -usr
       - -lib
+    override-build: |
+      snapcraftctl build
+      mkdir -p $SNAPCRAFT_PART_INSTALL/firmware/wlan
+      ln -s /run/macaddr0 $SNAPCRAFT_PART_INSTALL/firmware/wlan/
     build-packages:
       - cpio
       - libssl-dev
+      - dpkg-dev
