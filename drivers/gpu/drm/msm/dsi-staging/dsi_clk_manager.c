@@ -178,6 +178,10 @@ int dsi_clk_update_parent(struct dsi_clk_link_set *parent,
 {
 	int rc = 0;
 
+	//workaround, force parent to update
+	clk_set_parent(child->byte_clk, NULL);
+	clk_set_parent(child->pixel_clk, NULL);
+
 	rc = clk_set_parent(child->byte_clk, parent->byte_clk);
 	if (rc) {
 		pr_err("failed to set byte clk parent\n");
@@ -354,6 +358,10 @@ static int dsi_link_hs_clk_set_rate(struct dsi_link_hs_clk_info *link_hs_clks,
 	 */
 	if (mngr->is_cont_splash_enabled)
 		return 0;
+
+	//workaround, force clk to update
+	clk_set_rate(link_hs_clks->byte_clk, 0);
+	clk_set_rate(link_hs_clks->pixel_clk, 0);
 
 	rc = clk_set_rate(link_hs_clks->byte_clk,
 		l_clks->freq.byte_clk_rate);
