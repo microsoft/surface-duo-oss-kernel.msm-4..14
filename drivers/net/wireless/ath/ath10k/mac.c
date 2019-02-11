@@ -1,7 +1,7 @@
 /*
  * Copyright (c) 2005-2011 Atheros Communications Inc.
  * Copyright (c) 2011-2017 Qualcomm Atheros, Inc.
- * Copyright (c) 2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -250,24 +250,24 @@ static int ath10k_send_key(struct ath10k_vif *arvif,
 
 	switch (key->cipher) {
 	case WLAN_CIPHER_SUITE_CCMP:
-		arg.key_cipher = WMI_CIPHER_AES_CCM;
+		arg.key_cipher = ar->wmi_key_cipher[WMI_CIPHER_AES_CCM];
 		key->flags |= IEEE80211_KEY_FLAG_GENERATE_IV_MGMT;
 		break;
 	case WLAN_CIPHER_SUITE_TKIP:
-		arg.key_cipher = WMI_CIPHER_TKIP;
+		arg.key_cipher = ar->wmi_key_cipher[WMI_CIPHER_TKIP];
 		arg.key_txmic_len = 8;
 		arg.key_rxmic_len = 8;
 		break;
 	case WLAN_CIPHER_SUITE_WEP40:
 	case WLAN_CIPHER_SUITE_WEP104:
-		arg.key_cipher = WMI_CIPHER_WEP;
+		arg.key_cipher = ar->wmi_key_cipher[WMI_CIPHER_WEP];
 		break;
 	case WLAN_CIPHER_SUITE_CCMP_256:
-		arg.key_cipher = WMI_CIPHER_AES_CCM;
+		arg.key_cipher = ar->wmi_key_cipher[WMI_CIPHER_AES_CCM];
 		break;
 	case WLAN_CIPHER_SUITE_GCMP:
 	case WLAN_CIPHER_SUITE_GCMP_256:
-		arg.key_cipher = WMI_CIPHER_AES_GCM;
+		arg.key_cipher = ar->wmi_key_cipher[WMI_CIPHER_AES_GCM];
 		break;
 	case WLAN_CIPHER_SUITE_BIP_GMAC_128:
 	case WLAN_CIPHER_SUITE_BIP_GMAC_256:
@@ -284,7 +284,7 @@ static int ath10k_send_key(struct ath10k_vif *arvif,
 		key->flags |= IEEE80211_KEY_FLAG_GENERATE_IV;
 
 	if (cmd == DISABLE_KEY) {
-		arg.key_cipher = WMI_CIPHER_NONE;
+		arg.key_cipher = ar->wmi_key_cipher[WMI_CIPHER_NONE];
 		arg.key_data = NULL;
 	}
 
@@ -3863,7 +3863,7 @@ void ath10k_mgmt_over_wmi_tx_work(struct work_struct *work)
 				ath10k_warn(ar, "failed to transmit management frame by ref via WMI: %d\n",
 					    ret);
 				dma_unmap_single(ar->dev, paddr, skb->len,
-						 DMA_FROM_DEVICE);
+						 DMA_TO_DEVICE);
 				ieee80211_free_txskb(ar->hw, skb);
 			}
 		} else {
@@ -4549,7 +4549,8 @@ static struct ieee80211_sta_ht_cap ath10k_get_ht_cap(struct ath10k *ar)
 		ht_cap.cap |= stbc;
 	}
 
-	if (ar->ht_cap_info & WMI_HT_CAP_LDPC)
+	if (ar->ht_cap_info & WMI_HT_CAP_LDPC || (ar->ht_cap_info &
+	    WMI_HT_CAP_RX_LDPC && (ar->ht_cap_info & WMI_HT_CAP_TX_LDPC)))
 		ht_cap.cap |= IEEE80211_HT_CAP_LDPC_CODING;
 
 	if (ar->ht_cap_info & WMI_HT_CAP_L_SIG_TXOP_PROT)
@@ -4704,7 +4705,7 @@ static int ath10k_start(struct ieee80211_hw *hw)
 		goto err;
 	}
 
-	ret = ath10k_hif_power_up(ar);
+	ret = ath10k_hif_power_up(ar, ATH10K_FIRMWARE_MODE_NORMAL);
 	if (ret) {
 		ath10k_err(ar, "Could not init hif: %d\n", ret);
 		goto err_off;

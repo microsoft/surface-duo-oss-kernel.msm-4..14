@@ -2075,6 +2075,8 @@ enum wmi_channel_change_cause {
 #define WMI_HT_CAP_MPDU_DENSITY           0x0700   /* MPDU Density */
 #define WMI_HT_CAP_MPDU_DENSITY_MASK_SHIFT 8
 #define WMI_HT_CAP_HT40_SGI               0x0800
+#define WMI_HT_CAP_RX_LDPC                0x1000   /* LDPC RX support */
+#define WMI_HT_CAP_TX_LDPC                0x2000   /* LDPC TX support */
 
 #define WMI_HT_CAP_DEFAULT_ALL (WMI_HT_CAP_ENABLED       | \
 				WMI_HT_CAP_HT20_SGI      | \
@@ -4083,6 +4085,10 @@ struct wmi_pdev_set_param_cmd {
 	__le32 param_value;
 } __packed;
 
+struct wmi_pdev_set_base_macaddr_cmd {
+	struct wmi_mac_addr mac_addr;
+} __packed;
+
 /* valid period is 1 ~ 60000ms, unit in millisecond */
 #define WMI_PDEV_PARAM_CAL_PERIOD_MAX 60000
 
@@ -4929,15 +4935,30 @@ struct wmi_key_seq_counter {
 	__le32 key_seq_counter_h;
 } __packed;
 
-#define WMI_CIPHER_NONE     0x0 /* clear key */
-#define WMI_CIPHER_WEP      0x1
-#define WMI_CIPHER_TKIP     0x2
-#define WMI_CIPHER_AES_OCB  0x3
-#define WMI_CIPHER_AES_CCM  0x4
-#define WMI_CIPHER_WAPI     0x5
-#define WMI_CIPHER_CKIP     0x6
-#define WMI_CIPHER_AES_CMAC 0x7
-#define WMI_CIPHER_AES_GCM  0x8
+enum wmi_cipher_suites {
+	WMI_CIPHER_NONE,
+	WMI_CIPHER_WEP,
+	WMI_CIPHER_TKIP,
+	WMI_CIPHER_AES_OCB,
+	WMI_CIPHER_AES_CCM,
+	WMI_CIPHER_WAPI,
+	WMI_CIPHER_CKIP,
+	WMI_CIPHER_AES_CMAC,
+	WMI_CIPHER_AES_GCM,
+};
+
+enum wmi_tlv_cipher_suites {
+	WMI_TLV_CIPHER_NONE,
+	WMI_TLV_CIPHER_WEP,
+	WMI_TLV_CIPHER_TKIP,
+	WMI_TLV_CIPHER_AES_OCB,
+	WMI_TLV_CIPHER_AES_CCM,
+	WMI_TLV_CIPHER_WAPI,
+	WMI_TLV_CIPHER_CKIP,
+	WMI_TLV_CIPHER_AES_CMAC,
+	WMI_TLV_CIPHER_ANY,
+	WMI_TLV_CIPHER_AES_GCM,
+};
 
 struct wmi_vdev_install_key_cmd {
 	__le32 vdev_id;
@@ -6688,6 +6709,12 @@ struct wmi_tlv_mgmt_tx_compl_ev_arg {
 	__le32 pdev_id;
 };
 
+struct wmi_tlv_mgmt_tx_bundle_compl_ev_arg {
+	__le32 num_reports;
+	const __le32 *desc_ids;
+	const __le32 *status;
+};
+
 struct wmi_mgmt_rx_ev_arg {
 	__le32 channel;
 	__le32 snr;
@@ -7244,6 +7271,7 @@ int ath10k_wmi_start_scan_verify(const struct wmi_start_scan_arg *arg);
 int ath10k_wmi_event_scan(struct ath10k *ar, struct sk_buff *skb);
 int ath10k_wmi_event_mgmt_rx(struct ath10k *ar, struct sk_buff *skb);
 int ath10k_wmi_event_mgmt_tx_compl(struct ath10k *ar, struct sk_buff *skb);
+int ath10k_wmi_event_mgmt_tx_bundle_compl(struct ath10k *ar, struct sk_buff *skb);
 void ath10k_wmi_event_chan_info(struct ath10k *ar, struct sk_buff *skb);
 void ath10k_wmi_event_echo(struct ath10k *ar, struct sk_buff *skb);
 int ath10k_wmi_event_debug_mesg(struct ath10k *ar, struct sk_buff *skb);

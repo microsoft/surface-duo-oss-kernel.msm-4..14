@@ -561,7 +561,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.hw_ops = &wcn3990_ops,
 		.decap_align_bytes = 1,
 		.num_peers = TARGET_HL_10_TLV_NUM_PEERS,
-		.n_cipher_suites = 8,
+		.n_cipher_suites = 11,
 		.ast_skid_limit = TARGET_HL_10_TLV_AST_SKID_LIMIT,
 		.num_wds_entries = TARGET_HL_10_TLV_NUM_WDS_ENTRIES,
 		.target_64bit = true,
@@ -2309,7 +2309,11 @@ static int ath10k_core_init_firmware_features(struct ath10k *ar)
 		ar->max_num_stations = TARGET_TLV_NUM_STATIONS;
 		ar->max_num_vdevs = TARGET_TLV_NUM_VDEVS;
 		ar->max_num_tdls_vdevs = TARGET_TLV_NUM_TDLS_VDEVS;
-		ar->htt.max_num_pending_tx = TARGET_TLV_NUM_MSDU_DESC;
+		if (ar->hif.bus == ATH10K_BUS_SDIO)
+			ar->htt.max_num_pending_tx =
+				TARGET_TLV_NUM_MSDU_DESC_HL;
+		else
+			ar->htt.max_num_pending_tx = TARGET_TLV_NUM_MSDU_DESC;
 		ar->wow.max_num_patterns = TARGET_TLV_NUM_WOW_PATTERNS;
 		ar->fw_stats_req_mask = WMI_STAT_PDEV | WMI_STAT_VDEV |
 			WMI_STAT_PEER;
@@ -2556,6 +2560,12 @@ int ath10k_core_start(struct ath10k *ar, enum ath10k_firmware_mode mode,
 		goto err_hif_stop;
 	}
 
+	status = ath10k_hif_swap_mailbox(ar);
+	if (status) {
+		ath10k_err(ar, "failed to swap mailbox: %d\n", status);
+		goto err_hif_stop;
+	}
+
 	if (mode == ATH10K_FIRMWARE_MODE_NORMAL) {
 		status = ath10k_htt_connect(&ar->htt);
 		if (status) {
@@ -2646,6 +2656,13 @@ int ath10k_core_start(struct ath10k *ar, enum ath10k_firmware_mode mode,
 	status = ath10k_core_compat_services(ar);
 	if (status) {
 		ath10k_err(ar, "compat services failed: %d\n", status);
+		goto err_hif_stop;
+	}
+
+	status = ath10k_wmi_pdev_set_base_macaddr(ar, ar->mac_addr);
+	if (status && status != -EOPNOTSUPP) {
+		ath10k_err(ar,
+			   "failed to set base mac address: %d\n", status);
 		goto err_hif_stop;
 	}
 
@@ -2763,7 +2780,7 @@ static int ath10k_core_probe_fw(struct ath10k *ar)
 	struct bmi_target_info target_info;
 	int ret = 0;
 
-	ret = ath10k_hif_power_up(ar);
+	ret = ath10k_hif_power_up(ar, ATH10K_FIRMWARE_MODE_NORMAL);
 	if (ret) {
 		ath10k_err(ar, "could not power on hif bus (%d)\n", ret);
 		return ret;
@@ -2977,8 +2994,9 @@ err:
 int ath10k_core_register(struct ath10k *ar,
 			 const struct ath10k_bus_params *bus_params)
 {
-	ar->chip_id = bus_params->chip_id;
-	ar->dev_type = bus_params->dev_type;
+	ar->bus_param.chip_id = bus_params->chip_id;
+	ar->bus_param.dev_type = bus_params->dev_type;
+	ar->bus_param.link_can_suspend = bus_params->link_can_suspend;
 	queue_work(ar->workqueue, &ar->register_work);
 
 	return 0;
