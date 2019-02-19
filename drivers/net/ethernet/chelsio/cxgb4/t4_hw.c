@@ -4105,6 +4105,9 @@ static inline fw_port_cap32_t cc_to_fwcap_fec(enum cc_fec cc_fec)
  *	@mbox: the Firmware Mailbox to use
  *	@port: the Port ID
  *	@lc: the Port's Link Configuration
+ *	@sleep_ok: if true we may sleep while awaiting command completion
+ *	@timeout: time to wait for command to finish before timing out
+ *		(negative implies @sleep_ok=false)
  *
  *	Set up a port's MAC and PHY according to a desired link configuration.
  *	- If the PHY can auto-negotiate first decide what to advertise, then
@@ -4124,6 +4127,7 @@ int t4_link_l1cfg_core(struct adapter *adapter, unsigned int mbox,
 	int ret;
 
 	fw_mdi = (FW_PORT_CAP32_MDI_V(FW_PORT_CAP32_MDI_AUTO) & lc->pcaps);
+
 	/* Convert driver coding of Pause Frame Flow Control settings into the
 	 * Firmware's API.
 	 */
@@ -4143,8 +4147,13 @@ int t4_link_l1cfg_core(struct adapter *adapter, unsigned int mbox,
 	fw_fec = cc_to_fwcap_fec(cc_fec);
 
 	/* Figure out what our Requested Port Capabilities are going to be.
+	 * Note parallel structure in t4_handle_get_port_info() and
+	 * init_link_config().
 	 */
 	if (!(lc->pcaps & FW_PORT_CAP32_ANEG)) {
+		if (lc->autoneg == AUTONEG_ENABLE)
+			return -EINVAL;
+
 		rcap = lc->acaps | fw_fc | fw_fec;
 		lc->fc = lc->requested_fc & ~PAUSE_AUTONEG;
 		lc->fec = cc_fec;
@@ -4156,7 +4165,11 @@ int t4_link_l1cfg_core(struct adapter *adapter, unsigned int mbox,
 		rcap = lc->acaps | fw_fc | fw_fec | fw_mdi;
 	}
 
-	/* Note that older Firmware doesn't have FW_PORT_CAP32_FORCE_PAUSE, so
+	/* Some Requested Port Capabilities are trivially wrong if they exceed
+	 * the Physical Port Capabilities.  We can check that here and provide
+	 * moderately useful feedback in the system log.
+	 *
+	 * Note that older Firmware doesn't have FW_PORT_CAP32_FORCE_PAUSE, so
 	 * we need to exclude this from this check in order to maintain
 	 * compatibility ...
 	 */
@@ -4185,6 +4198,13 @@ int t4_link_l1cfg_core(struct adapter *adapter, unsigned int mbox,
 
 	ret = t4_wr_mbox_meat_timeout(adapter, mbox, &cmd, sizeof(cmd), NULL,
 				      sleep_ok, timeout);
+
+	/* Unfortunately, even if the Requested Port Capabilities "fit" within
+	 * the Physical Port Capabilities, some combinations of features may
+	 * still not be leagal.  For example, 40Gb/s and Reed-Solomon Forward
+	 * Error Correction.  So if the Firmware rejects the L1 Configure
+	 * request, flag that here.
+	 */
 	if (ret) {
 		dev_err(adapter->pdev_dev,
 			"Requested Port Capabilities %#x rejected, error %d\n",
@@ -6693,6 +6713,47 @@ int t4_sge_ctxt_flush(struct adapter *adap, unsigned int mbox, int ctxt_type)
 }
 
 /**
+ *	t4_read_sge_dbqtimers - reag SGE Doorbell Queue Timer values
+ *	@adap - the adapter
+ *	@ndbqtimers: size of the provided SGE Doorbell Queue Timer table
+ *	@dbqtimers: SGE Doorbell Queue Timer table
+ *
+ *	Reads the SGE Doorbell Queue Timer values into the provided table.
+ *	Returns 0 on success (Firmware and Hardware support this feature),
+ *	an error on failure.
+ */
+int t4_read_sge_dbqtimers(struct adapter *adap, unsigned int ndbqtimers,
+			  u16 *dbqtimers)
+{
+	int ret, dbqtimerix;
+
+	ret = 0;
+	dbqtimerix = 0;
+	while (dbqtimerix < ndbqtimers) {
+		int nparams, param;
+		u32 params[7], vals[7];
+
+		nparams = ndbqtimers - dbqtimerix;
+		if (nparams > ARRAY_SIZE(params))
+			nparams = ARRAY_SIZE(params);
+
+		for (param = 0; param < nparams; param++)
+			params[param] =
+			  (FW_PARAMS_MNEM_V(FW_PARAMS_MNEM_DEV) |
+			   FW_PARAMS_PARAM_X_V(FW_PARAMS_PARAM_DEV_DBQ_TIMER) |
+			   FW_PARAMS_PARAM_Y_V(dbqtimerix + param));
+		ret = t4_query_params(adap, adap->mbox, adap->pf, 0,
+				      nparams, params, vals);
+		if (ret)
+			break;
+
+		for (param = 0; param < nparams; param++)
+			dbqtimers[dbqtimerix++] = vals[param];
+	}
+	return ret;
+}
+
+/**
  *      t4_fw_hello - establish communication with FW
  *      @adap: the adapter
  *      @mbox: mailbox to use for the FW command
@@ -8461,6 +8522,10 @@ void t4_handle_get_port_info(struct port_info *pi, const __be64 *rpl)
 	fc = fwcap_to_cc_pause(linkattr);
 	speed = fwcap_to_speed(linkattr);
 
+	/* Reset state for communicating new Transceiver Module status and
+	 * whether the OS-dependent layer wants us to redo the current
+	 * "sticky" L1 Configure Link Parameters.
+	 */
 	lc->new_module = false;
 	lc->redo_l1cfg = false;
 
@@ -8497,9 +8562,15 @@ void t4_handle_get_port_info(struct port_info *pi, const __be64 *rpl)
 		 */
 		pi->port_type = port_type;
 
+		/* Record new Module Type information.
+		 */
 		pi->mod_type = mod_type;
 
+		/* Let the OS-dependent layer know if we have a new
+		 * Transceiver Module inserted.
+		 */
 		lc->new_module = t4_is_inserted_mod_type(mod_type);
+
 		t4_os_portmod_changed(adapter, pi->port_id);
 	}
 
@@ -8507,8 +8578,10 @@ void t4_handle_get_port_info(struct port_info *pi, const __be64 *rpl)
 	    fc != lc->fc || fec != lc->fec) {	/* something changed */
 		if (!link_ok && lc->link_ok) {
 			lc->link_down_rc = linkdnrc;
-			dev_warn(adapter->pdev_dev, "Port %d link down, reason: %s\n",
-				 pi->tx_chan, t4_link_down_rc_str(linkdnrc));
+			dev_warn_ratelimited(adapter->pdev_dev,
+					     "Port %d link down, reason: %s\n",
+					     pi->tx_chan,
+					     t4_link_down_rc_str(linkdnrc));
 		}
 		lc->link_ok = link_ok;
 		lc->speed = speed;
@@ -8518,6 +8591,11 @@ void t4_handle_get_port_info(struct port_info *pi, const __be64 *rpl)
 		lc->lpacaps = lpacaps;
 		lc->acaps = acaps & ADVERT_MASK;
 
+		/* If we're not physically capable of Auto-Negotiation, note
+		 * this as Auto-Negotiation disabled.  Otherwise, we track
+		 * what Auto-Negotiation settings we have.  Note parallel
+		 * structure in t4_link_l1cfg_core() and init_link_config().
+		 */
 		if (!(lc->acaps & FW_PORT_CAP32_ANEG)) {
 			lc->autoneg = AUTONEG_DISABLE;
 		} else if (lc->acaps & FW_PORT_CAP32_ANEG) {
@@ -8535,6 +8613,10 @@ void t4_handle_get_port_info(struct port_info *pi, const __be64 *rpl)
 		t4_os_link_changed(adapter, pi->port_id, link_ok);
 	}
 
+	/* If we have a new Transceiver Module and the OS-dependent code has
+	 * told us that it wants us to redo whatever "sticky" L1 Configuration
+	 * Link Parameters are set, do that now.
+	 */
 	if (lc->new_module && lc->redo_l1cfg) {
 		struct link_config old_lc;
 		int ret;

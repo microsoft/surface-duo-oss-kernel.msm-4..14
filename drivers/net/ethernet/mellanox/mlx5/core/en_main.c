@@ -51,6 +51,7 @@
 #include "en/xdp.h"
 #include "lib/eq.h"
 #include "en/monitor_stats.h"
+#include "en/reporter.h"
 
 struct mlx5e_rq_param {
 	u32			rqc[MLX5_ST_SZ_DW(rqc)];
@@ -171,8 +172,7 @@ static u8 mlx5e_mpwqe_get_log_stride_size(struct mlx5_core_dev *mdev,
 	if (mlx5e_rx_mpwqe_is_linear_skb(mdev, params))
 		return order_base_2(mlx5e_rx_get_linear_frag_sz(params));
 
-	return MLX5E_MPWQE_STRIDE_SZ(mdev,
-		MLX5E_GET_PFLAG(params, MLX5E_PFLAG_RX_CQE_COMPRESS));
+	return MLX5_MPWRQ_DEF_LOG_STRIDE_SZ(mdev);
 }
 
 static u8 mlx5e_mpwqe_get_log_num_strides(struct mlx5_core_dev *mdev,
@@ -1160,7 +1160,7 @@ static int mlx5e_alloc_txqsq_db(struct mlx5e_txqsq *sq, int numa)
 	return 0;
 }
 
-static void mlx5e_sq_recover(struct work_struct *work);
+static void mlx5e_tx_err_cqe_work(struct work_struct *recover_work);
 static int mlx5e_alloc_txqsq(struct mlx5e_channel *c,
 			     int txq_ix,
 			     struct mlx5e_params *params,
@@ -1182,7 +1182,7 @@ static int mlx5e_alloc_txqsq(struct mlx5e_channel *c,
 	sq->uar_map   = mdev->mlx5e_res.bfreg.map;
 	sq->min_inline_mode = params->tx_min_inline_mode;
 	sq->stats     = &c->priv->channel_stats[c->ix].sq[tc];
-	INIT_WORK(&sq->recover.recover_work, mlx5e_sq_recover);
+	INIT_WORK(&sq->recover_work, mlx5e_tx_err_cqe_work);
 	if (MLX5_IPSEC_DEV(c->priv->mdev))
 		set_bit(MLX5E_SQ_STATE_IPSEC, &sq->state);
 	if (mlx5_accel_is_tls_device(c->priv->mdev))
@@ -1270,15 +1270,8 @@ static int mlx5e_create_sq(struct mlx5_core_dev *mdev,
 	return err;
 }
 
-struct mlx5e_modify_sq_param {
-	int curr_state;
-	int next_state;
-	bool rl_update;
-	int rl_index;
-};
-
-static int mlx5e_modify_sq(struct mlx5_core_dev *mdev, u32 sqn,
-			   struct mlx5e_modify_sq_param *p)
+int mlx5e_modify_sq(struct mlx5_core_dev *mdev, u32 sqn,
+		    struct mlx5e_modify_sq_param *p)
 {
 	void *in;
 	void *sqc;
@@ -1376,17 +1369,7 @@ err_free_txqsq:
 	return err;
 }
 
-static void mlx5e_reset_txqsq_cc_pc(struct mlx5e_txqsq *sq)
-{
-	WARN_ONCE(sq->cc != sq->pc,
-		  "SQ 0x%x: cc (0x%x) != pc (0x%x)\n",
-		  sq->sqn, sq->cc, sq->pc);
-	sq->cc = 0;
-	sq->dma_fifo_cc = 0;
-	sq->pc = 0;
-}
-
-static void mlx5e_activate_txqsq(struct mlx5e_txqsq *sq)
+void mlx5e_activate_txqsq(struct mlx5e_txqsq *sq)
 {
 	sq->txq = netdev_get_tx_queue(sq->channel->netdev, sq->txq_ix);
 	clear_bit(MLX5E_SQ_STATE_RECOVERING, &sq->state);
@@ -1395,7 +1378,7 @@ static void mlx5e_activate_txqsq(struct mlx5e_txqsq *sq)
 	netif_tx_start_queue(sq->txq);
 }
 
-static inline void netif_tx_disable_queue(struct netdev_queue *txq)
+void mlx5e_tx_disable_queue(struct netdev_queue *txq)
 {
 	__netif_tx_lock_bh(txq);
 	netif_tx_stop_queue(txq);
@@ -1411,7 +1394,7 @@ static void mlx5e_deactivate_txqsq(struct mlx5e_txqsq *sq)
 	/* prevent netif_tx_wake_queue */
 	napi_synchronize(&c->napi);
 
-	netif_tx_disable_queue(sq->txq);
+	mlx5e_tx_disable_queue(sq->txq);
 
 	/* last doorbell out, godspeed .. */
 	if (mlx5e_wqc_has_room_for(wq, sq->cc, sq->pc, 1)) {
@@ -1431,6 +1414,7 @@ static void mlx5e_close_txqsq(struct mlx5e_txqsq *sq)
 	struct mlx5_rate_limit rl = {0};
 
 	cancel_work_sync(&sq->dim.work);
+	cancel_work_sync(&sq->recover_work);
 	mlx5e_destroy_sq(mdev, sq->sqn);
 	if (sq->rate_limit) {
 		rl.rate = sq->rate_limit;
@@ -1440,105 +1424,12 @@ static void mlx5e_close_txqsq(struct mlx5e_txqsq *sq)
 	mlx5e_free_txqsq(sq);
 }
 
-static int mlx5e_wait_for_sq_flush(struct mlx5e_txqsq *sq)
+static void mlx5e_tx_err_cqe_work(struct work_struct *recover_work)
 {
-	unsigned long exp_time = jiffies + msecs_to_jiffies(2000);
+	struct mlx5e_txqsq *sq = container_of(recover_work, struct mlx5e_txqsq,
+					      recover_work);
 
-	while (time_before(jiffies, exp_time)) {
-		if (sq->cc == sq->pc)
-			return 0;
-
-		msleep(20);
-	}
-
-	netdev_err(sq->channel->netdev,
-		   "Wait for SQ 0x%x flush timeout (sq cc = 0x%x, sq pc = 0x%x)\n",
-		   sq->sqn, sq->cc, sq->pc);
-
-	return -ETIMEDOUT;
-}
-
-static int mlx5e_sq_to_ready(struct mlx5e_txqsq *sq, int curr_state)
-{
-	struct mlx5_core_dev *mdev = sq->channel->mdev;
-	struct net_device *dev = sq->channel->netdev;
-	struct mlx5e_modify_sq_param msp = {0};
-	int err;
-
-	msp.curr_state = curr_state;
-	msp.next_state = MLX5_SQC_STATE_RST;
-
-	err = mlx5e_modify_sq(mdev, sq->sqn, &msp);
-	if (err) {
-		netdev_err(dev, "Failed to move sq 0x%x to reset\n", sq->sqn);
-		return err;
-	}
-
-	memset(&msp, 0, sizeof(msp));
-	msp.curr_state = MLX5_SQC_STATE_RST;
-	msp.next_state = MLX5_SQC_STATE_RDY;
-
-	err = mlx5e_modify_sq(mdev, sq->sqn, &msp);
-	if (err) {
-		netdev_err(dev, "Failed to move sq 0x%x to ready\n", sq->sqn);
-		return err;
-	}
-
-	return 0;
-}
-
-static void mlx5e_sq_recover(struct work_struct *work)
-{
-	struct mlx5e_txqsq_recover *recover =
-		container_of(work, struct mlx5e_txqsq_recover,
-			     recover_work);
-	struct mlx5e_txqsq *sq = container_of(recover, struct mlx5e_txqsq,
-					      recover);
-	struct mlx5_core_dev *mdev = sq->channel->mdev;
-	struct net_device *dev = sq->channel->netdev;
-	u8 state;
-	int err;
-
-	err = mlx5_core_query_sq_state(mdev, sq->sqn, &state);
-	if (err) {
-		netdev_err(dev, "Failed to query SQ 0x%x state. err = %d\n",
-			   sq->sqn, err);
-		return;
-	}
-
-	if (state != MLX5_RQC_STATE_ERR) {
-		netdev_err(dev, "SQ 0x%x not in ERROR state\n", sq->sqn);
-		return;
-	}
-
-	netif_tx_disable_queue(sq->txq);
-
-	if (mlx5e_wait_for_sq_flush(sq))
-		return;
-
-	/* If the interval between two consecutive recovers per SQ is too
-	 * short, don't recover to avoid infinite loop of ERR_CQE -> recover.
-	 * If we reached this state, there is probably a bug that needs to be
-	 * fixed. let's keep the queue close and let tx timeout cleanup.
-	 */
-	if (jiffies_to_msecs(jiffies - recover->last_recover) <
-	    MLX5E_SQ_RECOVER_MIN_INTERVAL) {
-		netdev_err(dev, "Recover SQ 0x%x canceled, too many error CQEs\n",
-			   sq->sqn);
-		return;
-	}
-
-	/* At this point, no new packets will arrive from the stack as TXQ is
-	 * marked with QUEUE_STATE_DRV_XOFF. In addition, NAPI cleared all
-	 * pending WQEs.  SQ can safely reset the SQ.
-	 */
-	if (mlx5e_sq_to_ready(sq, state))
-		return;
-
-	mlx5e_reset_txqsq_cc_pc(sq);
-	sq->stats->recover++;
-	recover->last_recover = jiffies;
-	mlx5e_activate_txqsq(sq);
+	mlx5e_tx_reporter_err_cqe(sq);
 }
 
 static int mlx5e_open_icosq(struct mlx5e_channel *c,
@@ -1950,6 +1841,29 @@ static int mlx5e_set_tx_maxrate(struct net_device *dev, int index, u32 rate)
 	return err;
 }
 
+static int mlx5e_alloc_xps_cpumask(struct mlx5e_channel *c,
+				   struct mlx5e_params *params)
+{
+	int num_comp_vectors = mlx5_comp_vectors_count(c->mdev);
+	int irq;
+
+	if (!zalloc_cpumask_var(&c->xps_cpumask, GFP_KERNEL))
+		return -ENOMEM;
+
+	for (irq = c->ix; irq < num_comp_vectors; irq += params->num_channels) {
+		int cpu = cpumask_first(mlx5_comp_irq_get_affinity_mask(c->mdev, irq));
+
+		cpumask_set_cpu(cpu, c->xps_cpumask);
+	}
+
+	return 0;
+}
+
+static void mlx5e_free_xps_cpumask(struct mlx5e_channel *c)
+{
+	free_cpumask_var(c->xps_cpumask);
+}
+
 static int mlx5e_open_channel(struct mlx5e_priv *priv, int ix,
 			      struct mlx5e_params *params,
 			      struct mlx5e_channel_param *cparam,
@@ -1982,8 +1896,11 @@ static int mlx5e_open_channel(struct mlx5e_priv *priv, int ix,
 	c->num_tc   = params->num_tc;
 	c->xdp      = !!params->xdp_prog;
 	c->stats    = &priv->channel_stats[ix].ch;
-
 	c->irq_desc = irq_to_desc(irq);
+
+	err = mlx5e_alloc_xps_cpumask(c, params);
+	if (err)
+		goto err_free_channel;
 
 	netif_napi_add(netdev, &c->napi, mlx5e_napi_poll, 64);
 
@@ -2067,6 +1984,9 @@ err_close_icosq_cq:
 
 err_napi_del:
 	netif_napi_del(&c->napi);
+	mlx5e_free_xps_cpumask(c);
+
+err_free_channel:
 	kvfree(c);
 
 	return err;
@@ -2079,7 +1999,7 @@ static void mlx5e_activate_channel(struct mlx5e_channel *c)
 	for (tc = 0; tc < c->num_tc; tc++)
 		mlx5e_activate_txqsq(&c->sq[tc]);
 	mlx5e_activate_rq(&c->rq);
-	netif_set_xps_queue(c->netdev, get_cpu_mask(c->cpu), c->ix);
+	netif_set_xps_queue(c->netdev, c->xps_cpumask, c->ix);
 }
 
 static void mlx5e_deactivate_channel(struct mlx5e_channel *c)
@@ -2107,6 +2027,7 @@ static void mlx5e_close_channel(struct mlx5e_channel *c)
 	mlx5e_close_tx_cqs(c);
 	mlx5e_close_cq(&c->icosq.cq);
 	netif_napi_del(&c->napi);
+	mlx5e_free_xps_cpumask(c);
 
 	kvfree(c);
 }
@@ -3209,6 +3130,7 @@ static void mlx5e_cleanup_nic_tx(struct mlx5e_priv *priv)
 {
 	int tc;
 
+	mlx5e_tx_reporter_destroy(priv);
 	for (tc = 0; tc < priv->profile->max_tc; tc++)
 		mlx5e_destroy_tis(priv->mdev, priv->tisn[tc]);
 }
@@ -3494,11 +3416,32 @@ static int mlx5e_setup_tc(struct net_device *dev, enum tc_setup_type type,
 	}
 }
 
+void mlx5e_fold_sw_stats64(struct mlx5e_priv *priv, struct rtnl_link_stats64 *s)
+{
+	int i;
+
+	for (i = 0; i < mlx5e_get_netdev_max_channels(priv->netdev); i++) {
+		struct mlx5e_channel_stats *channel_stats = &priv->channel_stats[i];
+		struct mlx5e_rq_stats *rq_stats = &channel_stats->rq;
+		int j;
+
+		s->rx_packets   += rq_stats->packets;
+		s->rx_bytes     += rq_stats->bytes;
+
+		for (j = 0; j < priv->max_opened_tc; j++) {
+			struct mlx5e_sq_stats *sq_stats = &channel_stats->sq[j];
+
+			s->tx_packets    += sq_stats->packets;
+			s->tx_bytes      += sq_stats->bytes;
+			s->tx_dropped    += sq_stats->dropped;
+		}
+	}
+}
+
 void
 mlx5e_get_stats(struct net_device *dev, struct rtnl_link_stats64 *stats)
 {
 	struct mlx5e_priv *priv = netdev_priv(dev);
-	struct mlx5e_sw_stats *sstats = &priv->stats.sw;
 	struct mlx5e_vport_stats *vstats = &priv->stats.vport;
 	struct mlx5e_pport_stats *pstats = &priv->stats.pport;
 
@@ -3513,12 +3456,7 @@ mlx5e_get_stats(struct net_device *dev, struct rtnl_link_stats64 *stats)
 		stats->tx_packets = PPORT_802_3_GET(pstats, a_frames_transmitted_ok);
 		stats->tx_bytes   = PPORT_802_3_GET(pstats, a_octets_transmitted_ok);
 	} else {
-		mlx5e_grp_sw_update_stats(priv);
-		stats->rx_packets = sstats->rx_packets;
-		stats->rx_bytes   = sstats->rx_bytes;
-		stats->tx_packets = sstats->tx_packets;
-		stats->tx_bytes   = sstats->tx_bytes;
-		stats->tx_dropped = sstats->tx_queue_dropped;
+		mlx5e_fold_sw_stats64(priv, stats);
 	}
 
 	stats->rx_dropped = priv->stats.qcnt.rx_out_of_buffer;
@@ -4180,31 +4118,13 @@ netdev_features_t mlx5e_features_check(struct sk_buff *skb,
 	return features;
 }
 
-static bool mlx5e_tx_timeout_eq_recover(struct net_device *dev,
-					struct mlx5e_txqsq *sq)
-{
-	struct mlx5_eq_comp *eq = sq->cq.mcq.eq;
-	u32 eqe_count;
-
-	netdev_err(dev, "EQ 0x%x: Cons = 0x%x, irqn = 0x%x\n",
-		   eq->core.eqn, eq->core.cons_index, eq->core.irqn);
-
-	eqe_count = mlx5_eq_poll_irq_disabled(eq);
-	if (!eqe_count)
-		return false;
-
-	netdev_err(dev, "Recover %d eqes on EQ 0x%x\n", eqe_count, eq->core.eqn);
-	sq->channel->stats->eq_rearm++;
-	return true;
-}
-
 static void mlx5e_tx_timeout_work(struct work_struct *work)
 {
 	struct mlx5e_priv *priv = container_of(work, struct mlx5e_priv,
 					       tx_timeout_work);
-	struct net_device *dev = priv->netdev;
-	bool reopen_channels = false;
-	int i, err;
+	bool report_failed = false;
+	int err;
+	int i;
 
 	rtnl_lock();
 	mutex_lock(&priv->state_lock);
@@ -4213,31 +4133,22 @@ static void mlx5e_tx_timeout_work(struct work_struct *work)
 		goto unlock;
 
 	for (i = 0; i < priv->channels.num * priv->channels.params.num_tc; i++) {
-		struct netdev_queue *dev_queue = netdev_get_tx_queue(dev, i);
+		struct netdev_queue *dev_queue =
+			netdev_get_tx_queue(priv->netdev, i);
 		struct mlx5e_txqsq *sq = priv->txq2sq[i];
 
 		if (!netif_xmit_stopped(dev_queue))
 			continue;
 
-		netdev_err(dev,
-			   "TX timeout on queue: %d, SQ: 0x%x, CQ: 0x%x, SQ Cons: 0x%x SQ Prod: 0x%x, usecs since last trans: %u\n",
-			   i, sq->sqn, sq->cq.mcq.cqn, sq->cc, sq->pc,
-			   jiffies_to_usecs(jiffies - dev_queue->trans_start));
-
-		/* If we recover a lost interrupt, most likely TX timeout will
-		 * be resolved, skip reopening channels
-		 */
-		if (!mlx5e_tx_timeout_eq_recover(dev, sq)) {
-			clear_bit(MLX5E_SQ_STATE_ENABLED, &sq->state);
-			reopen_channels = true;
-		}
+		if (mlx5e_tx_reporter_timeout(sq))
+			report_failed = true;
 	}
 
-	if (!reopen_channels)
+	if (!report_failed)
 		goto unlock;
 
-	mlx5e_close_locked(dev);
-	err = mlx5e_open_locked(dev);
+	mlx5e_close_locked(priv->netdev);
+	err = mlx5e_open_locked(priv->netdev);
 	if (err)
 		netdev_err(priv->netdev,
 			   "mlx5e_open_locked failed recovering from a tx_timeout, err(%d).\n",
@@ -4253,6 +4164,12 @@ static void mlx5e_tx_timeout(struct net_device *dev)
 	struct mlx5e_priv *priv = netdev_priv(dev);
 
 	netdev_err(dev, "TX timeout detected\n");
+
+	if (IS_ERR_OR_NULL(priv->tx_reporter)) {
+		netdev_err_once(priv->netdev, "tx timeout will not be handled, no valid tx reporter\n");
+		return;
+	}
+
 	queue_work(priv->wq, &priv->tx_timeout_work);
 }
 
@@ -4910,6 +4827,7 @@ static int mlx5e_init_nic_tx(struct mlx5e_priv *priv)
 #ifdef CONFIG_MLX5_CORE_EN_DCB
 	mlx5e_dcbnl_initialize(priv);
 #endif
+	mlx5e_tx_reporter_create(priv);
 	return 0;
 }
 
