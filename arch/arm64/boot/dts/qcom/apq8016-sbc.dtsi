@@ -642,6 +642,13 @@
 				mnt_flags = "ro" ;
 				fsmgr_flags = "wait";
 			};
+			vendor {
+				compatible = "android,vendor";
+				dev = "/dev/block/platform/soc/7824900.sdhci/by-name/cache";
+				type = "ext4";
+				mnt_flags = "ro" ;
+				fsmgr_flags = "wait";
+			};
 		};
 	};
 };
