@@ -19,22 +19,31 @@
 #include <linux/err.h>
 #include <linux/platform_device.h>
 #include <linux/of.h>
+#include <linux/rtc.h>
 
 #include "rtc-s32gen1.h"
 
-#define DRIVER_NAME			"rtc_s32gen1"
+#define DRIVER_NAME		"rtc_s32gen1"
 #define DRIVER_VERSION		"0.1"
+#define ENABLE_WAKEUP		1
 
 /**
  * struct rtc_s32gen1_priv - RTC driver private data
  * @rtc_base: rtc base address
  * @dt_irq_id: rtc interrupt id
  * @res: rtc resource
+ * @rtc_s32gen1_kobj: sysfs kernel object
+ * @rtc_s32gen1_attr: sysfs command attributes
+ * @pdev: platform device structure
  */
 struct rtc_s32gen1_priv {
 	void __iomem *rtc_base;
 	unsigned int dt_irq_id;
 	struct resource *res;
+	struct kobject *rtc_s32gen1_kobj;
+	struct kobj_attribute rtc_s32gen1_attr;
+	struct platform_device *pdev;
+	struct rtc_device *rdev;
 };
 
 static void print_rtc(struct platform_device *pdev)
@@ -65,9 +74,60 @@ static irqreturn_t rtc_handler(int irq, void *dev)
 	return IRQ_HANDLED;
 }
 
+static int s32gen1_rtc_read_time(struct device *dev, struct rtc_time *tm)
+{
+	struct rtc_s32gen1_priv *priv = dev_get_drvdata(dev);
+
+	return 0;
+}
+
+static int s32gen1_rtc_set_time(struct device *dev, struct rtc_time *t)
+{
+	struct rtc_s32gen1_priv *priv = dev_get_drvdata(dev);
+
+	return 0;
+}
+
+static int s32gen1_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *t)
+{
+	struct rtc_s32gen1_priv *priv = dev_get_drvdata(dev);
+
+	return 0;
+}
+
+static int s32gen1_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *t)
+{
+	struct rtc_s32gen1_priv *priv = dev_get_drvdata(dev);
+
+	return 0;
+}
+
+static int s32gen1_alarm_irq_enable(struct device *dev, unsigned int enabled)
+{
+	struct rtc_s32gen1_priv *priv = dev_get_drvdata(dev);
+	u32 rtcc_val;
+
+	if (!priv->dt_irq_id)
+		return -EIO;
+
+	rtcc_val = ioread32((u8 *)priv->rtc_base + RTCC_OFFSET);
+	iowrite32(rtcc_val | CNTEN | RTCIE, (u8 *)priv->rtc_base + RTCC_OFFSET);
+
+	rtcc_val = ioread32((u8 *)priv->rtc_base + RTCC_OFFSET);
+
+	return (rtcc_val & RTCIE) ? 0 : -EFAULT;
+}
+
+static const struct rtc_class_ops s32gen1_rtc_ops = {
+	.read_time = s32gen1_rtc_read_time,
+	.set_time = s32gen1_rtc_set_time,
+	.read_alarm = s32gen1_rtc_read_alarm,
+	.set_alarm = s32gen1_rtc_set_alarm,
+	.alarm_irq_enable = s32gen1_alarm_irq_enable,
+};
+
 static int s32gen1_rtc_probe(struct platform_device *pdev)
 {
-	u32 rtcc_val;
 	struct rtc_s32gen1_priv *priv = NULL;
 	struct device_node *rtc_node;
 	int err = 0;
@@ -98,6 +158,10 @@ static int s32gen1_rtc_probe(struct platform_device *pdev)
 	dev_dbg(&pdev->dev, "RTC successfully mapped to 0x%p\n",
 		priv->rtc_base);
 
+	priv->rdev = devm_rtc_device_register(&pdev->dev, "s32gen1_rtc",
+					&s32gen1_rtc_ops, THIS_MODULE);
+	device_init_wakeup(&pdev->dev, ENABLE_WAKEUP);
+
 	rtc_node = of_find_compatible_node(NULL, NULL, "fsl,s32gen1-rtc");
 	if (!rtc_node) {
 		dev_err(&pdev->dev, "Unable to find RTC node\n");
@@ -125,10 +189,7 @@ static int s32gen1_rtc_probe(struct platform_device *pdev)
 		goto err_release_res;
 	}
 
-	iowrite32(RTCVAL_VALUE, (u8 *)priv->rtc_base + RTCVAL_OFFSET);
-	rtcc_val = ioread32((u8 *)priv->rtc_base + RTCC_OFFSET);
-	iowrite32(rtcc_val | CNTEN | RTCIE, (u8 *)priv->rtc_base + RTCC_OFFSET);
-
+	priv->pdev = pdev;
 	print_rtc(pdev);
 
 	return 0;
@@ -167,7 +228,6 @@ static struct platform_driver s32gen1_rtc_driver = {
 		.of_match_table	= of_match_ptr(s32gen1_rtc_of_match),
 	},
 };
-
 module_platform_driver(s32gen1_rtc_driver);
 
 MODULE_AUTHOR("NXP");
