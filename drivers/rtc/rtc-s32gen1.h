@@ -34,6 +34,4 @@
 #define APIF			BIT(13)
 #define ROVRF			BIT(10)
 
-#define RTCVAL_VALUE	0xfff00ul
-
 #endif /* RTC_S32GEN1_H_ */
