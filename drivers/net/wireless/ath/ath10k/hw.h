@@ -593,6 +593,9 @@ struct ath10k_hw_params {
 	/* target supporting shadow register for ce write */
 	bool shadow_reg_support;
 
+	/* need to set uart pin if disable uart print */
+	bool uart_print_check;
+
 	/* target supporting retention restore on ddr */
 	bool rri_on_ddr;
 
