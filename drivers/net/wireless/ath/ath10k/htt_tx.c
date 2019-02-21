@@ -144,6 +144,9 @@ void ath10k_htt_tx_dec_pending(struct ath10k_htt *htt)
 {
 	lockdep_assert_held(&htt->tx_lock);
 
+	if (htt->ar->hif.bus == ATH10K_BUS_USB)
+		return;
+
 	htt->num_pending_tx--;
 	if (htt->num_pending_tx == htt->max_num_pending_tx - 1)
 		ath10k_mac_tx_unlock(htt->ar, ATH10K_TX_PAUSE_Q_FULL);
@@ -152,6 +155,9 @@ void ath10k_htt_tx_dec_pending(struct ath10k_htt *htt)
 int ath10k_htt_tx_inc_pending(struct ath10k_htt *htt)
 {
 	lockdep_assert_held(&htt->tx_lock);
+
+	if (htt->ar->hif.bus == ATH10K_BUS_USB)
+		return 0;
 
 	if (htt->num_pending_tx >= htt->max_num_pending_tx)
 		return -EBUSY;
@@ -543,7 +549,8 @@ void ath10k_htt_tx_free(struct ath10k_htt *htt)
 
 void ath10k_htt_htc_tx_complete(struct ath10k *ar, struct sk_buff *skb)
 {
-	dev_kfree_skb_any(skb);
+	if (!(ar->hif.bus == ATH10K_BUS_SDIO))
+		dev_kfree_skb_any(skb);
 }
 
 void ath10k_htt_hif_tx_complete(struct ath10k *ar, struct sk_buff *skb)
