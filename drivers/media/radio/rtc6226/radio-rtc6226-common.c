@@ -1,5 +1,4 @@
-/*
- *  drivers/media/radio/rtc6226/radio-rtc6226-common.c
+/*  drivers/media/radio/rtc6226/radio-rtc6226-common.c
  *
  *  Driver for Richwave RTC6226 FM Tuner
  *
@@ -34,18 +33,18 @@
  *		- switched from bit structs to bit masks
  *		- header file cleaned and integrated
  * 2008-01-14	Tobias Lorenz <tobias.lorenz@gmx.net>
- * 		Version 1.0.2
- * 		- hex values are now lower case
- * 		- commented USB ID for ADS/Tech moved on todo list
- * 		- blacklisted in hid-quirks.c
- * 		- rds buffer handling functions integrated into *_work, *_read
- * 		- rds_command exchanged against simple retval
- * 		- check for firmware version 15
- * 		- code order and prototypes still remain the same
- * 		- spacing and bottom of band codes remain the same
+ *		Version 1.0.2
+ *		- hex values are now lower case
+ *		- commented USB ID for ADS/Tech moved on todo list
+ *		- blacklisted in hid-quirks.c
+ *		- rds buffer handling functions integrated into *_work, *_read
+ *		- rds_command exchanged against simple retval
+ *		- check for firmware version 15
+ *		- code order and prototypes still remain the same
+ *		- spacing and bottom of band codes remain the same
  * 2008-01-16	Tobias Lorenz <tobias.lorenz@gmx.net>
  *		Version 1.0.3
- * 		- code reordered to avoid function prototypes
+ *		- code reordered to avoid function prototypes
  *		- switch/case defaults are now more user-friendly
  *		- unified comment style
  *		- applied all checkpatch.pl v1.12 suggestions
@@ -89,8 +88,8 @@
  *		- more safety checks, get_freq return errno
  *		- vidioc behavior corrected according to v4l2 spec
  * 2008-10-20	Alexey Klimov <klimov.linux@gmail.com>
- * 		- add support for KWorld USB FM Radio FM700
- * 		- blacklisted KWorld radio in hid-core.c and hid-ids.h
+ *		- add support for KWorld USB FM Radio FM700
+ *		- blacklisted KWorld radio in hid-core.c and hid-ids.h
  * 2008-12-03	Mark Lord <mlord@pobox.com>
  *		- add support for DealExtreme USB Radio
  * 2009-01-31	Bob Ross <pigiron@gmx.com>
@@ -113,23 +112,18 @@
 #include <linux/delay.h>
 #include <linux/i2c.h>
 #include "radio-rtc6226.h"
-#define SEEK_TIME_OUT_VALUE 13000
 /**************************************************************************
  * Module Parameters
  **************************************************************************/
-
-/* Spacing (kHz) */
-/* 0: 200 kHz (USA, Australia) */
-/* 1: 100 kHz (Europe, Japan) */
-/* 2:  50 kHz */
-static unsigned short space = 1;
-module_param(space, ushort, 0444);
-MODULE_PARM_DESC(space, "Spacing: 0=200kHz *1=100kHz* 2=50kHz");
 
 /* Bottom of Band (MHz) */
 /* 0: 87.5 - 108 MHz (USA, Europe)*/
 /* 1: 76   - 108 MHz (Japan wide band) */
 /* 2: 76   -  90 MHz (Japan) */
+static unsigned short space = 1;
+module_param(space, ushort, 0444);
+MODULE_PARM_DESC(space, "Spacing: 0=200kHz *1=100kHz* 2=50kHz");
+
 static unsigned short band = 0;
 module_param(band, ushort, 0444);
 MODULE_PARM_DESC(band, "Band: *0=87.5-108MHz* 1=76-108MHz 2=76-91MHz 3=65-76MHz");
@@ -138,18 +132,7 @@ MODULE_PARM_DESC(band, "Band: *0=87.5-108MHz* 1=76-108MHz 2=76-91MHz 3=65-76MHz"
 /* 0: 75 us (USA) */
 /* 1: 50 us (Europe, Australia, Japan) */
 static unsigned short de;
-module_param(de, ushort, 0444);
 MODULE_PARM_DESC(de, "De-emphasis: *0=75us* 1=50us");
-
-/* Tune timeout */
-static unsigned int tune_timeout = 3000;
-module_param(tune_timeout, uint, 0644);
-MODULE_PARM_DESC(tune_timeout, "Tune timeout: *3000*");
-
-/* Seek timeout */
-static unsigned int seek_timeout = SEEK_TIME_OUT_VALUE;
-module_param(seek_timeout, uint, 0644);
-MODULE_PARM_DESC(seek_timeout, "Seek timeout: *13000*");
 
 static const struct v4l2_frequency_band bands[] = {
 	{
@@ -238,11 +221,11 @@ void rtc6226_q_event(struct rtc6226_device *radio,
 static int rtc6226_set_chan(struct rtc6226_device *radio, unsigned short chan)
 {
 	int retval;
-	bool timed_out = 0;
 	unsigned short current_chan =
 		radio->registers[CHANNEL] & CHANNEL_CSR0_CH;
 
-	pr_info("%s CHAN=%d chan=%d\n",__func__, radio->registers[CHANNEL], chan);
+	pr_info("%s CHAN=%d chan=%d\n", __func__, radio->registers[CHANNEL],
+						chan);
 
 	/* start tuning */
 	radio->registers[CHANNEL] &= ~CHANNEL_CSR0_CH;
@@ -252,33 +235,9 @@ static int rtc6226_set_chan(struct rtc6226_device *radio, unsigned short chan)
 		radio->registers[CHANNEL] = current_chan;
 		goto done;
 	}
-	reinit_completion(&radio->completion);
-	retval = wait_for_completion_timeout(&radio->completion,
-			msecs_to_jiffies(tune_timeout));
-	if (!retval)
-		timed_out = true;
 
-	if ((radio->registers[STATUS] & STATUS_STD) == 0)
-		pr_info("%s tune does not complete\n", __func__);
-	else {
-		radio->seek_tune_status = TUNE_PENDING;
-		rtc6226_q_event(radio, RTC6226_EVT_TUNE_SUCC);
-	}
-	if (timed_out)
-		pr_info("%s tune timed out after %u ms\n", __func__ ,tune_timeout);
-
-	/* stop tuning */
-	current_chan = radio->registers[CHANNEL] & CHANNEL_CSR0_CH;
-
-	radio->registers[CHANNEL] &= ~CHANNEL_CSR0_TUNE;
-	retval = rtc6226_set_register(radio, CHANNEL);
-	if (retval < 0)	{
-		radio->registers[CHANNEL] = current_chan;
-		goto done;
-	}
-
-	done:
-	pr_info("%s exit %d\n", __func__, retval);
+done:
+	pr_info("%s exit tuning process is done %d\n", __func__, retval);
 	return retval;
 }
 
@@ -287,23 +246,19 @@ static int rtc6226_set_chan(struct rtc6226_device *radio, unsigned short chan)
  */
 static int rtc6226_get_freq(struct rtc6226_device *radio, unsigned int *freq)
 {
-	unsigned int spacing, band_bottom;
 	unsigned short chan;
-	unsigned short rssi;
+	unsigned short rssi = 0;
 	int retval;
 
 	pr_info("%s enter\n", __func__);
-	spacing = ((radio->registers[RADIOCFG] & CHANNEL_CSR0_CHSPACE) >> 8) * 10;
-	band_bottom = (radio->registers[RADIOSEEKCFG2] & CHANNEL_CSR0_FREQ_BOT) * 10;
 
 	/* read channel */
 	retval = rtc6226_get_register(radio, CHANNEL1);
-	if (retval < 0){
+	if (retval < 0) {
 		pr_info("%s fail to get register\n", __func__);
 		goto end;
 	}
 	chan = radio->registers[CHANNEL1] & STATUS_READCH;
-	#ifdef andrew
 	retval = rtc6226_get_register(radio, RSSI);
 	if (retval < 0){
 		pr_err("%s read fail to RSSI\n", __func__);
@@ -311,11 +266,9 @@ static int rtc6226_get_freq(struct rtc6226_device *radio, unsigned int *freq)
 	}
 
 	rssi = radio->registers[RSSI] & RSSI_RSSI;
-	#endif
-
 	pr_info("%s chan %d\n", __func__, chan);
-	*freq = chan * 10;
-	pr_info("FMRICHWAVE, freq= %d, rssi= %d dBuV\n", rssi);
+	*freq = chan * TUNE_STEP_SIZE;
+	pr_info("FMRICHWAVE, freq= %d, rssi= %d dBuV\n", *freq, rssi);
 
 end:
 	return retval;
@@ -327,36 +280,33 @@ end:
  */
 int rtc6226_set_freq(struct rtc6226_device *radio, unsigned int freq)
 {
-	unsigned int spacing, band_bottom;
+	unsigned int band_bottom;
 	unsigned short chan;
 	unsigned char i;
 	int retval = 0;
 
 	pr_info("%s enter freq:%d\n", __func__, freq);
-	/*
-	spacing = ((radio->registers[RADIOCFG] &
-		CHANNEL_CSR0_CHSPACE) >> 8) * 10;*/
 
 	band_bottom = (radio->registers[RADIOSEEKCFG2] &
-		CHANNEL_CSR0_FREQ_BOT) * 10;
+		CHANNEL_CSR0_FREQ_BOT) * TUNE_STEP_SIZE;
 
 	if (freq < band_bottom)
 		freq = band_bottom;
 
 	/* Chan = Freq (Mhz) / 10 */
-	chan = freq / 10;
+	chan = (u16)(freq / TUNE_STEP_SIZE);
 
-	pr_info("%s chan:%d freq:%d  band_bottom:%d  spacing:%d\n", __func__,
-			chan, freq, band_bottom, spacing);
+	pr_info("%s chan:%d freq:%d  band_bottom:%d\n", __func__,
+			chan, freq, band_bottom);
 	retval = rtc6226_set_chan(radio, chan);
-	if (retval < 0){
+	if (retval < 0) {
 		pr_info("%s fail to set chan\n", __func__);
 		goto end;
 	}
 
 	for (i = 0x12; i < RADIO_REGISTER_NUM; i++) {
 		retval = rtc6226_get_register(radio, i);
-		if (retval < 0){
+		if (retval < 0) {
 			pr_info("%s fail to get register\n", __func__);
 			goto end;
 		}
@@ -374,11 +324,10 @@ static int rtc6226_set_seek(struct rtc6226_device *radio,
 	 unsigned int seek_up, unsigned int seek_wrap)
 {
 	int retval = 0;
-	bool timed_out = 0;
 	unsigned short seekcfg1_val = radio->registers[SEEKCFG1];
-	int i;
 
-	pr_info("%s enter up:%d wrap:%d, th:%d\n", __func__, seek_up, seek_wrap, seekcfg1_val);
+	pr_info("%s enter up:%d wrap:%d, th:%x\n", __func__, seek_up, seek_wrap,
+						seekcfg1_val);
 	if (seek_wrap)
 		radio->registers[SEEKCFG1] &= ~SEEKCFG1_CSR0_SKMODE;
 	else
@@ -405,30 +354,6 @@ static int rtc6226_set_seek(struct rtc6226_device *radio,
 	}
 
 	reinit_completion(&radio->completion);
-	retval = wait_for_completion_timeout(&radio->completion,
-			msecs_to_jiffies(seek_timeout));
-	if (!retval){
-		timed_out = true;
-		pr_err("%s timeout\n",__func__);
-		rtc6226_get_all_registers(radio);
-		for(i = 0; i < 16; i++ )
-			pr_info("%s registers[%d]:%x\n", __func__, i,radio->registers[i]);
-	}
-
-	if ((radio->registers[STATUS] & STATUS_STD) == 0)
-		pr_info(" %s seek does not complete\n", __func__);
-	if (radio->registers[STATUS] & STATUS_SF) {
-		pr_info(" %s seek failed / band limit reached\n", __func__);
-		//retval = -ESPIPE;
-	}
-
-	/* stop seeking : clear STD*/
-	radio->registers[SEEKCFG1] &= ~SEEKCFG1_CSR0_SEEK;
-	retval = rtc6226_set_register(radio, SEEKCFG1);
-
-	if (retval == 0 && timed_out)
-		retval = -EAGAIN;
-
 done:
 	pr_info("%s exit %d\n", __func__, retval);
 	return retval;
@@ -437,14 +362,13 @@ done:
 static void rtc6226_update_search_list(struct rtc6226_device *radio, int freq)
 {
 	int temp_freq = freq;
+	int index = radio->srch_list.num_stations_found;
 
 	temp_freq = temp_freq -
 		(radio->recv_conf.band_low_limit * TUNE_STEP_SIZE);
 	temp_freq = temp_freq / 50;
-	radio->srch_list.rel_freq[radio->srch_list.num_stations_found].
-		rel_freq_lsb = GET_LSB(temp_freq);
-	radio->srch_list.rel_freq[radio->srch_list.num_stations_found].
-		rel_freq_msb = GET_MSB(temp_freq);
+	radio->srch_list.rel_freq[index].rel_freq_lsb = GET_LSB(temp_freq);
+	radio->srch_list.rel_freq[index].rel_freq_msb = GET_MSB(temp_freq);
 	radio->srch_list.num_stations_found++;
 }
 
@@ -456,21 +380,31 @@ void rtc6226_scan(struct work_struct *work)
 	int len = 0;
 	u32 next_freq_khz;
 	int retval = 0;
+	int i;
 
 	pr_info("%s enter\n", __func__);
 
 	radio = container_of(work, struct rtc6226_device, work_scan.work);
-	radio->seek_tune_status = SEEK_PENDING;
 
 	retval = rtc6226_get_freq(radio, &current_freq_khz);
-	if(retval < 0){
-		pr_err("%s fail to get freq\n",__func__);
+	if (retval < 0) {
+		pr_err("%s fail to get freq\n", __func__);
 		goto seek_tune_fail;
 	}
 	pr_info("%s cuurent freq %d\n", __func__, current_freq_khz);
+		/* tune to lowest freq of the band */
+	radio->seek_tune_status = SCAN_PENDING;
+	retval = rtc6226_set_freq(radio,
+	radio->recv_conf.band_low_limit * TUNE_STEP_SIZE);
+	if (retval < 0)
+		goto seek_tune_fail;
+	/* wait for tune to complete. */
+	if (!wait_for_completion_timeout(&radio->completion,
+				msecs_to_jiffies(WAIT_TIMEOUT_MSEC)))
+		pr_err("In %s, didn't receive STC for tune\n", __func__);
 
-	while(1) {
-		if (radio->is_search_cancelled == true) {
+	while (1) {
+		if (radio->is_search_cancelled) {
 			pr_err("%s: scan cancelled\n", __func__);
 			if (radio->g_search_mode == SCAN_FOR_STRONG)
 				goto seek_tune_fail;
@@ -479,7 +413,7 @@ void rtc6226_scan(struct work_struct *work)
 			goto seek_cancelled;
 		} else if (radio->mode != FM_RECV) {
 			pr_err("%s: FM is not in proper state\n", __func__);
-			return ;
+			return;
 		}
 
 		retval = rtc6226_set_seek(radio, SRCH_UP, WRAP_DISABLE);
@@ -487,45 +421,47 @@ void rtc6226_scan(struct work_struct *work)
 			pr_err("%s seek fail %d\n", __func__, retval);
 			goto seek_tune_fail;
 		}
-
-		if (radio->registers[STATUS] & STATUS_SF){
-			pr_err("%s band limit reached. Seek one more.\n",__func__);
-			seek_timeout = 1000;
-			retval = rtc6226_set_seek(radio, SRCH_UP, WRAP_ENABLE);
-			seek_timeout = SEEK_TIME_OUT_VALUE;
-			if (retval < 0) {
-				pr_err("%s seek fail %d\n", __func__, retval);
-				goto seek_tune_fail;
-			}
-			retval = rtc6226_get_freq(radio, &next_freq_khz);
-			if(retval < 0){
-				pr_err("%s fail to get freq\n",__func__);
-				goto seek_tune_fail;
-			}
-			pr_info("%s next freq %d\n", __func__, next_freq_khz);
-			rtc6226_q_event(radio, RTC6226_EVT_TUNE_SUCC);
-			break;
-		}
+			/* wait for seek to complete */
+		if (!wait_for_completion_timeout(&radio->completion,
+					msecs_to_jiffies(WAIT_TIMEOUT_MSEC))) {
+			pr_err("%s:timeout didn't receive STC for seek\n", __func__);
+			rtc6226_get_all_registers(radio);
+			for (i = 0; i < 16; i++)
+			pr_info("%s registers[%d]:%x\n", __func__, i,
+					radio->registers[i]);
+			/* FM is not correct state or scan is cancelled */
+			continue;
+		} else
+			pr_err("%s: received STC for seek\n", __func__);
 
 		retval = rtc6226_get_freq(radio, &next_freq_khz);
-		if(retval < 0){
-			pr_err("%s fail to get freq\n",__func__);
+		if (retval < 0) {
+			pr_err("%s fail to get freq\n", __func__);
 			goto seek_tune_fail;
 		}
 		pr_info("%s next freq %d\n", __func__, next_freq_khz);
 
 		retval = rtc6226_get_register(radio, RSSI);
-		if (retval < 0){
+		if (retval < 0) {
 			pr_err("%s read fail to RSSI\n", __func__);
 			goto seek_tune_fail;
 		}
 
-		pr_info("%s valid channel %d, rssi %d\n", __func__, next_freq_khz, radio->registers[RSSI] & RSSI_RSSI);
+		pr_info("%s valid channel %d, rssi %d\n", __func__,
+			next_freq_khz, radio->registers[RSSI] & RSSI_RSSI);
 
+		if (radio->registers[STATUS] & STATUS_SF) {
+			pr_err("%s band limit reached. Seek one more.\n",
+					__func__);
+			break;
+		}
 		if (radio->g_search_mode == SCAN)
 			rtc6226_q_event(radio, RTC6226_EVT_TUNE_SUCC);
-
-		if (radio->is_search_cancelled == true) {
+		/*
+		 * If scan is cancelled or FM is not ON, break ASAP so that we
+		 * don't need to sleep for dwell time.
+		 */
+		if (radio->is_search_cancelled) {
 			pr_err("%s: scan cancelled\n", __func__);
 			if (radio->g_search_mode == SCAN_FOR_STRONG)
 				goto seek_tune_fail;
@@ -534,14 +470,15 @@ void rtc6226_scan(struct work_struct *work)
 			goto seek_cancelled;
 		} else if (radio->mode != FM_RECV) {
 			pr_err("%s: FM is not in proper state\n", __func__);
-			return ;
+			return;
 		}
 		pr_info("%s update search list %d\n", __func__, next_freq_khz);
 		if (radio->g_search_mode == SCAN) {
 			/* sleep for dwell period */
 			msleep(radio->dwell_time_sec * 1000);
 			/* need to queue the event when the seek completes */
-			pr_info("%s frequency update list %d\n", __func__, next_freq_khz/16);
+			pr_info("%s frequency update list %d\n", __func__,
+				next_freq_khz);
 			rtc6226_q_event(radio, RTC6226_EVT_SCAN_NEXT);
 		} else if (radio->g_search_mode == SCAN_FOR_STRONG) {
 			rtc6226_update_search_list(radio, next_freq_khz);
@@ -558,13 +495,22 @@ seek_tune_fail:
 				&radio->buf_lock[RTC6226_FM_BUF_SRCH_LIST]);
 		rtc6226_q_event(radio, RTC6226_EVT_NEW_SRCH_LIST);
 	}
-	pr_err("%s seek tune fail %d",__func__, retval);
-
+	/* tune to original frequency */
+	retval = rtc6226_set_freq(radio, current_freq_khz);
+	if (retval < 0)
+		pr_err("%s: Tune to orig freq failed with error %d\n", __func__, retval);
+	else {
+		if (!wait_for_completion_timeout(&radio->completion,
+			msecs_to_jiffies(WAIT_TIMEOUT_MSEC)))
+			pr_err("%s: didn't receive STD for tune\n", __func__);
+		else
+			pr_err("%s: received STD for tune\n", __func__);
+	}
 seek_cancelled:
 	rtc6226_q_event(radio, RTC6226_EVT_SEEK_COMPLETE);
 	radio->seek_tune_status = NO_SEEK_TUNE_PENDING;
-	pr_err("%s seek cancelled %d",__func__, retval);
-	return ;
+	pr_err("%s seek cancelled %d\n", __func__, retval);
+	return;
 
 }
 
@@ -572,7 +518,7 @@ int rtc6226_cancel_seek(struct rtc6226_device *radio)
 {
 	int retval = 0;
 
-	pr_info("%s enter\n",__func__);
+	pr_info("%s enter\n", __func__);
 	mutex_lock(&radio->lock);
 
 	/* stop seeking */
@@ -626,7 +572,7 @@ int rtc6226_start(struct rtc6226_device *radio)
 	}
 
 	if (retval < 0)	{
-		pr_err("%s set to fail retval = %d\n",__func__,	retval);
+		pr_err("%s set to fail retval = %d\n", __func__, retval);
 		/* goto done;*/
 	}
 	msleep(30);
@@ -641,9 +587,8 @@ int rtc6226_start(struct rtc6226_device *radio)
 		i2c_error++;
 	}
 
-	if (retval < 0) {
-		pr_err("%s set to fail 0x96AA %d\n",__func__, retval);
-	}
+	if (retval < 0)
+		pr_err("%s set to fail 0x96AA %d\n", __func__, retval);
 	msleep(30);
 
 	/* get device and chip versions */
@@ -658,7 +603,8 @@ int rtc6226_start(struct rtc6226_device *radio)
 	if (retval < 0)
 		goto done;
 
-	pr_info("%s rtc6226_power_up1: DeviceID=0x%4.4hx ChipID=0x%4.4hx\n", __func__,
+	pr_info("%s rtc6226_power_up1: DeviceID=0x%4.4hx ChipID=0x%4.4hx\n",
+		__func__,
 		radio->registers[DEVICEID], radio->registers[CHIPID]);
 	pr_info("%s rtc6226_power_up2: Reg2=0x%4.4hx Reg3=0x%4.4hx\n", __func__,
 		radio->registers[MPXCFG], radio->registers[CHANNEL]);
@@ -691,6 +637,20 @@ int rtc6226_start(struct rtc6226_device *radio)
 	retval = rtc6226_set_serial_registers(radio, initbuf, 0x8E);
 	if (retval < 0)
 		goto done;
+
+	/* initial patch 03 */
+	initbuf[0] = 0x0300;
+	retval = rtc6226_set_serial_registers(radio, initbuf, 0x60);
+	if (retval < 0)
+		goto done;
+
+	/* initial patch 04 */
+	initbuf[0] = 0x80CE;
+	retval = rtc6226_set_serial_registers(radio, initbuf, 0x59);
+	if (retval < 0)
+		goto done;
+
+	pr_info("%s set bit 07 \n", __func__);
 
 done:
 	return retval;
@@ -737,7 +697,7 @@ static void rtc6226_get_rds(struct rtc6226_device *radio)
 	retval = rtc6226_get_all_registers(radio);
 
 	if (retval < 0) {
-		pr_err("%s read fail%d\n",__func__, retval);
+		pr_err("%s read fail%d\n", __func__, retval);
 		mutex_unlock(&radio->lock);
 		return;
 	}
@@ -746,8 +706,10 @@ static void rtc6226_get_rds(struct rtc6226_device *radio)
 	radio->block[2] = radio->registers[BC_DATA];
 	radio->block[3] = radio->registers[BD_DATA];
 
-	for(i = 0; i < 4; i++)
-		pr_info("%s block[%d] %x \n", __func__, i, radio->block[i]);
+#if 0
+	for (i = 0; i < 4; i++)
+		pr_info("%s block[%d] %x\n", __func__, i, radio->block[i]);
+#endif
 
 	radio->bler[0] = (radio->registers[RSSI] & RSSI_RDS_BA_ERRS) >> 14;
 	radio->bler[1] = (radio->registers[RSSI] & RSSI_RDS_BB_ERRS) >> 12;
@@ -763,17 +725,18 @@ static void rtc6226_pi_check(struct rtc6226_device *radio, u16 current_pi)
 				, __func__, current_pi, radio->pi);
 		radio->pi = current_pi;
 	} else {
-		pr_info("%s Received same PI code\n",__func__);
+		pr_info("%s Received same PI code\n", __func__);
 	}
 }
 
 static void rtc6226_pty_check(struct rtc6226_device *radio, u8 current_pty)
 {
 	if (radio->pty != current_pty) {
-		pr_info("%s PTY code of radio->block[1] = %x\n", __func__, current_pty);
+		pr_info("%s PTY code of radio->block[1] = %x\n",
+			__func__, current_pty);
 		radio->pty = current_pty;
 	} else {
-		pr_info("%s PTY repeated\n",__func__);
+		pr_info("%s PTY repeated\n", __func__);
 	}
 }
 
@@ -869,8 +832,7 @@ static void rtc6226_update_af_list(struct rtc6226_device *radio)
 			radio->af_info2.pi = radio->pi;
 
 			pr_info("%s: current freq is %u, AF cnt is %u\n",
-					__func__, tuned_freq_khz, radio->af_info2.cnt);
-
+				__func__, tuned_freq_khz, radio->af_info2.cnt);
 		} else if (af_data >= MIN_AF_FREQ_CODE &&
 				af_data <= MAX_AF_FREQ_CODE &&
 				radio->af_info2.orig_freq_khz != 0 &&
@@ -878,14 +840,14 @@ static void rtc6226_update_af_list(struct rtc6226_device *radio)
 
 			af_freq_khz = SCALE_AF_CODE_TO_FREQ_KHZ(af_data);
 			retval = is_valid_freq(radio, af_freq_khz);
-			if (retval == false) {
+			if (!retval) {
 				pr_info("%s: Invalid AF\n", __func__);
 				radio->af_info2.inval_freq_cnt++;
 				continue;
 			}
 
 			retval = is_new_freq(radio, af_freq_khz);
-			if (retval == false) {
+			if (!retval) {
 				pr_info("%s: Duplicate AF\n", __func__);
 				radio->af_info2.inval_freq_cnt++;
 				continue;
@@ -896,8 +858,8 @@ static void rtc6226_update_af_list(struct rtc6226_device *radio)
 				af_freq_khz;
 			pr_info("%s: AF is %u\n", __func__, af_freq_khz);
 			if ((radio->af_info2.size +
-						radio->af_info2.inval_freq_cnt ==
-						radio->af_info2.cnt) &&
+					radio->af_info2.inval_freq_cnt ==
+					radio->af_info2.cnt) &&
 					is_different_af_list(radio)) {
 
 				/* Copy the list to af_info1. */
@@ -906,13 +868,12 @@ static void rtc6226_update_af_list(struct rtc6226_device *radio)
 				radio->af_info1.pi = radio->af_info2.pi;
 				radio->af_info1.orig_freq_khz =
 					radio->af_info2.orig_freq_khz;
-				memset(radio->af_info1.af_list,
-						0,
-						sizeof(radio->af_info1.af_list));
+				memset(radio->af_info1.af_list, 0,
+					sizeof(radio->af_info1.af_list));
 
 				memcpy(radio->af_info1.af_list,
-						radio->af_info2.af_list,
-						sizeof(radio->af_info2.af_list));
+					radio->af_info2.af_list,
+					sizeof(radio->af_info2.af_list));
 
 				/* AF list changed, post it to user space */
 				memset(&ev, 0, sizeof(struct af_list_ev));
@@ -932,7 +893,7 @@ static void rtc6226_update_af_list(struct rtc6226_device *radio)
 						GET_AF_EVT_LEN(ev.af_size),
 						&lock);
 
-				pr_info("%s: posting AF list evt, curr freq %u\n",
+				pr_info("%s: posting AF list evt,currfreq %u\n",
 						__func__, ev.tune_freq_khz);
 
 				rtc6226_q_event(radio,
@@ -950,7 +911,7 @@ static void rtc6226_update_ps(struct rtc6226_device *radio, u8 addr, u8 ps)
 	u8 *data;
 	struct kfifo *data_b;
 
-	pr_info("%s enter addr:%x ps:%x \n",__func__, addr, ps);
+	pr_info("%s enter addr:%x ps:%x\n", __func__, addr, ps);
 
 	if (radio->ps_tmp0[addr] == ps) {
 		if (radio->ps_cnt[addr] < PS_VALIDATE_LIMIT) {
@@ -984,7 +945,8 @@ static void rtc6226_update_ps(struct rtc6226_device *radio, u8 addr, u8 ps)
 
 	for (i = 0; i < MAX_PS_LEN; i++) {
 		if (radio->ps_cnt[i] < PS_VALIDATE_LIMIT) {
-			pr_info("%s ps_cnt[%d] %d\n",__func__, i ,radio->ps_cnt[i]);
+			pr_info("%s ps_cnt[%d] %d\n", __func__, i,
+				radio->ps_cnt[i]);
 			ps_cmplt = false;
 			return;
 		}
@@ -992,10 +954,10 @@ static void rtc6226_update_ps(struct rtc6226_device *radio, u8 addr, u8 ps)
 
 	if (ps_cmplt) {
 		for (i = 0; (i < MAX_PS_LEN) &&
-				(radio->ps_display[i] == radio->ps_tmp0[i]); i++)
+			(radio->ps_display[i] == radio->ps_tmp0[i]); i++)
 			;
 		if (i == MAX_PS_LEN) {
-			pr_info("%s Same PS string repeated\n",__func__);
+			pr_info("%s Same PS string repeated\n", __func__);
 			return;
 		}
 
@@ -1013,12 +975,13 @@ static void rtc6226_update_ps(struct rtc6226_device *radio, u8 addr, u8 ps)
 					radio->ps_tmp0, MAX_PS_LEN);
 			data_b = &radio->data_buf[RTC6226_FM_BUF_PS_RDS];
 			kfifo_in_locked(data_b, data, PS_EVT_DATA_LEN,
-					&radio->buf_lock[RTC6226_FM_BUF_PS_RDS]);
+				&radio->buf_lock[RTC6226_FM_BUF_PS_RDS]);
 			pr_info("%s Q the PS event\n", __func__);
 			rtc6226_q_event(radio, RTC6226_EVT_NEW_PS_RDS);
 			kfree(data);
 		} else {
-			pr_err("%s Memory allocation failed for PTY\n", __func__);
+			pr_err("%s Memory allocation failed for PTY\n",
+				__func__);
 		}
 	}
 }
@@ -1030,7 +993,7 @@ static void display_rt(struct rtc6226_device *radio)
 	struct kfifo *data_b;
 	bool rt_cmplt = true;
 
-	pr_info("%s enter\n",__func__);
+	pr_info("%s enter\n", __func__);
 
 	for (i = 0; i < MAX_RT_LEN; i++) {
 		if (radio->rt_cnt[i] < RT_VALIDATE_LIMIT) {
@@ -1046,9 +1009,9 @@ static void display_rt(struct rtc6226_device *radio)
 			len++;
 
 		for (i = 0; (i < len) &&
-				(radio->rt_display[i] == radio->rt_tmp0[i]); i++);
+			(radio->rt_display[i] == radio->rt_tmp0[i]); i++);
 		if (i == len) {
-			pr_info("%s Same RT string repeated\n",__func__);
+			pr_info("%s Same RT string repeated\n", __func__);
 			return;
 		}
 		for (i = 0; i < len; i++)
@@ -1063,12 +1026,13 @@ static void display_rt(struct rtc6226_device *radio)
 			memcpy(data + OFFSET_OF_RT, radio->rt_display, len);
 			data_b = &radio->data_buf[RTC6226_FM_BUF_RT_RDS];
 			kfifo_in_locked(data_b, data, OFFSET_OF_RT + len,
-					&radio->buf_lock[RTC6226_FM_BUF_RT_RDS]);
+				&radio->buf_lock[RTC6226_FM_BUF_RT_RDS]);
 			pr_info("%s Q the RT event\n", __func__);
 			rtc6226_q_event(radio, RTC6226_EVT_NEW_RT_RDS);
 			kfree(data);
 		} else {
-			pr_err("%s Memory allocation failed for PTY\n", __func__);
+			pr_err("%s Memory allocation failed for PTY\n",
+				__func__);
 		}
 	}
 }
@@ -1077,9 +1041,9 @@ static void rt_handler(struct rtc6226_device *radio, u8 ab_flg,
 		u8 cnt, u8 addr, u8 *rt)
 {
 	u8 i, errcnt, blermax;
-	bool rt_txt_chg = 0;
+	bool rt_txt_chg = false;
 
-	pr_info("%s enter\n",__func__);
+	pr_info("%s enter\n", __func__);
 
 	if (ab_flg != radio->rt_flag && radio->valid_rt_flg) {
 		for (i = 0; i < sizeof(radio->rt_cnt); i++) {
@@ -1097,29 +1061,33 @@ static void rt_handler(struct rtc6226_device *radio, u8 ab_flg,
 	radio->valid_rt_flg = true;
 
 	for (i = 0; i < cnt; i++) {
-		if((i < 2) && (cnt > 2)){
+		if ((i < 2) && (cnt > 2)) {
 			errcnt = radio->bler[2];
 			blermax = CORRECTED_THREE_TO_FIVE;
 		} else {
 			errcnt = radio->bler[3];
 			blermax = CORRECTED_THREE_TO_FIVE;
 		}
-		if(errcnt <= blermax) {
-			if(!rt[i])
+		if (errcnt <= blermax) {
+			if (!rt[i])
 				rt[i] = ' ';
 			if (radio->rt_tmp0[addr+i] == rt[i]) {
 				if (radio->rt_cnt[addr+i] < RT_VALIDATE_LIMIT) {
 					radio->rt_cnt[addr+i]++;
 				} else {
-					radio->rt_cnt[addr+i] = RT_VALIDATE_LIMIT;
+					radio->rt_cnt[addr+i] =
+						RT_VALIDATE_LIMIT;
 					radio->rt_tmp1[addr+i] = rt[i];
 				}
 			} else if (radio->rt_tmp1[addr+i] == rt[i]) {
-				if (radio->rt_cnt[addr+i] >= RT_VALIDATE_LIMIT) {
+				if (radio->rt_cnt[addr+i] >=
+					RT_VALIDATE_LIMIT) {
 					rt_txt_chg = true;
-					radio->rt_cnt[addr+i] = RT_VALIDATE_LIMIT + 1;
+					radio->rt_cnt[addr+i] =
+						RT_VALIDATE_LIMIT + 1;
 				} else {
-					radio->rt_cnt[addr+i] = RT_VALIDATE_LIMIT;
+					radio->rt_cnt[addr+i] =
+						RT_VALIDATE_LIMIT;
 				}
 				radio->rt_tmp1[addr+i] = radio->rt_tmp0[addr+i];
 				radio->rt_tmp0[addr+i] = rt[i];
@@ -1148,30 +1116,30 @@ static void rtc6226_raw_rds(struct rtc6226_device *radio)
 	aid = radio->block[3];
 	app_grp_typ = radio->block[1] & APP_GRP_typ_MASK;
 	pr_info("%s app_grp_typ = %x\n", __func__, app_grp_typ);
-	pr_info("%s AID = %x", __func__, aid);
+	pr_info("%s AID = %x\n", __func__, aid);
 
 	switch (aid) {
-		case ERT_AID:
-			radio->utf_8_flag = (radio->block[2] & 1);
-			radio->formatting_dir = EXTRACT_BIT(radio->block[2],
-					ERT_FORMAT_DIR_BIT);
-			if (radio->ert_carrier != app_grp_typ) {
-				rtc6226_q_event(radio, RTC6226_EVT_NEW_ODA);
-				radio->ert_carrier = app_grp_typ;
-			}
-			break;
-		case RT_PLUS_AID:
-			/*Extract 5th bit of MSB (b7b6b5b4b3b2b1b0)*/
-			radio->rt_ert_flag = EXTRACT_BIT(radio->block[2],
-					RT_ERT_FLAG_BIT);
-			if (radio->rt_plus_carrier != app_grp_typ) {
-				rtc6226_q_event(radio, RTC6226_EVT_NEW_ODA);
-				radio->rt_plus_carrier = app_grp_typ;
-			}
-			break;
-		default:
-			pr_info("%s Not handling the AID of %x\n", __func__, aid);
-			break;
+	case ERT_AID:
+		radio->utf_8_flag = (radio->block[2] & 1);
+		radio->formatting_dir = EXTRACT_BIT(radio->block[2],
+			ERT_FORMAT_DIR_BIT);
+		if (radio->ert_carrier != app_grp_typ) {
+			rtc6226_q_event(radio, RTC6226_EVT_NEW_ODA);
+			radio->ert_carrier = app_grp_typ;
+		}
+		break;
+	case RT_PLUS_AID:
+		/*Extract 5th bit of MSB (b7b6b5b4b3b2b1b0)*/
+		radio->rt_ert_flag = EXTRACT_BIT(radio->block[2],
+				RT_ERT_FLAG_BIT);
+		if (radio->rt_plus_carrier != app_grp_typ) {
+			rtc6226_q_event(radio, RTC6226_EVT_NEW_ODA);
+			radio->rt_plus_carrier = app_grp_typ;
+		}
+		break;
+	default:
+		pr_info("%s Not handling the AID of %x\n", __func__, aid);
+		break;
 	}
 }
 
@@ -1186,6 +1154,7 @@ static void rtc6226_ev_ert(struct rtc6226_device *radio)
 	pr_info("%s enter\n", __func__);
 	data = kmalloc((radio->ert_len + ERT_OFFSET), GFP_ATOMIC);
 	if (data != NULL) {
+		pr_info("%s ert : %s\n", __func__, radio->ert_buf);
 		data[0] = radio->ert_len;
 		data[1] = radio->utf_8_flag;
 		data[2] = radio->formatting_dir;
@@ -1220,7 +1189,8 @@ static void rtc6226_buff_ert(struct rtc6226_device *radio)
 			radio->ert_buf[radio->ert_len + 1] =
 				radio->block[i] & 0xFF;
 			radio->ert_len += ERT_CNT_PER_BLK;
-			pr_info("%s utf_8_flag = %d\n", __func__, radio->utf_8_flag);
+			pr_info("%s utf_8_flag = %d\n", __func__,
+				radio->utf_8_flag);
 			if ((radio->utf_8_flag == 0) &&
 					(info_byte == END_OF_RT)) {
 				radio->ert_len -= ERT_CNT_PER_BLK;
@@ -1241,6 +1211,7 @@ static void rtc6226_buff_ert(struct rtc6226_device *radio)
 		if ((byte_pair_index == MAX_ERT_SEGMENT) ||
 				(info_byte == END_OF_RT)) {
 			rtc6226_ev_ert(radio);
+			memset(radio->ert_buf, 0, MAX_ERT_LEN);
 			radio->c_byt_pair_index = 0;
 			radio->ert_len = 0;
 		}
@@ -1348,14 +1319,14 @@ void rtc6226_rds_handler(struct work_struct *worker)
 
 	rtc6226_get_rds(radio);
 
-	if(radio->bler[0] < CORRECTED_THREE_TO_FIVE)
+	if (radio->bler[0] < CORRECTED_THREE_TO_FIVE)
 		rtc6226_pi_check(radio, radio->block[0]);
 
-	if(radio->bler[1] < CORRECTED_ONE_TO_TWO){
+	if (radio->bler[1] < CORRECTED_ONE_TO_TWO) {
 		grp_type = radio->block[1] >> OFFSET_OF_GRP_TYP;
-		pr_info("%s grp_type = %d\n", __func__, grp_type);
+		pr_info("%s grp_type = %x\n", __func__, grp_type);
 	} else {
-		pr_err("%s invalid data %d\n",__func__, radio->bler[1]);
+		pr_err("%s invalid data %d\n", __func__, radio->bler[1]);
 		return;
 	}
 	if (grp_type & 0x01)
@@ -1364,48 +1335,50 @@ void rtc6226_rds_handler(struct work_struct *worker)
 	rtc6226_pty_check(radio, (radio->block[1] >> OFFSET_OF_PTY) & PTY_MASK);
 
 	switch (grp_type) {
-		case RDS_TYPE_0A:
-			if(radio->bler[2] <= CORRECTED_THREE_TO_FIVE)
-				rtc6226_update_af_list(radio);
-			/*  fall through */
-		case RDS_TYPE_0B:
-			addr = (radio->block[1] & PS_MASK) * NO_OF_CHARS_IN_EACH_ADD;
-			pr_info("%s RDS is PS\n", __func__);
-			if(radio->bler[3] <= CORRECTED_THREE_TO_FIVE){
-				rtc6226_update_ps(radio, addr+0, radio->block[3] >> 8);
-				rtc6226_update_ps(radio, addr+1, radio->block[3] & 0xff);
-			}
-			break;
-		case RDS_TYPE_2A:
-			pr_info("%s RDS is RT 2A group\n", __func__);
-			rt_blks[0] = (u8)(radio->block[2] >> 8);
-			rt_blks[1] = (u8)(radio->block[2] & 0xFF);
-			rt_blks[2] = (u8)(radio->block[3] >> 8);
-			rt_blks[3] = (u8)(radio->block[3] & 0xFF);
-			addr = (radio->block[1] & 0xf) * 4;
-			ab_flg = (radio->block[1] & 0x0010) >> 4;
-			rt_handler(radio, ab_flg, CNT_FOR_2A_GRP_RT, addr, rt_blks);
-			break;
-		case RDS_TYPE_2B:
-			pr_info("%s RDS is RT 2B group\n",__func__);
-			rt_blks[0] = (u8)(radio->block[3] >> 8);
-			rt_blks[1] = (u8)(radio->block[3] & 0xFF);
-			rt_blks[2] = 0;
-			rt_blks[3] = 0;
-			addr = (radio->block[1] & 0xf) * 2;
-			ab_flg = (radio->block[1] & 0x0010) >> 4;
-			radio->rt_tmp0[MAX_LEN_2B_GRP_RT] = END_OF_RT;
-			radio->rt_tmp1[MAX_LEN_2B_GRP_RT] = END_OF_RT;
-			radio->rt_cnt[MAX_LEN_2B_GRP_RT] = RT_VALIDATE_LIMIT;
-			rt_handler(radio, ab_flg, CNT_FOR_2B_GRP_RT, addr, rt_blks);
-			break;
-		case RDS_TYPE_3A:
-			pr_info("%s RDS is 3A group\n",__func__);
-			rtc6226_raw_rds(radio);
-			break;
-		default:
-			pr_err("%s Not handling the group type %d\n", __func__, grp_type);
-			break;
+	case RDS_TYPE_0A:
+		if (radio->bler[2] <= CORRECTED_THREE_TO_FIVE)
+			rtc6226_update_af_list(radio);
+		/*  fall through */
+	case RDS_TYPE_0B:
+		addr = (radio->block[1] & PS_MASK) * NO_OF_CHARS_IN_EACH_ADD;
+		pr_info("%s RDS is PS\n", __func__);
+		if (radio->bler[3] <= CORRECTED_THREE_TO_FIVE) {
+			rtc6226_update_ps(radio, addr+0, radio->block[3] >> 8);
+			rtc6226_update_ps(radio, addr+1,
+				radio->block[3] & 0xff);
+		}
+		break;
+	case RDS_TYPE_2A:
+		pr_info("%s RDS is RT 2A group\n", __func__);
+		rt_blks[0] = (u8)(radio->block[2] >> 8);
+		rt_blks[1] = (u8)(radio->block[2] & 0xFF);
+		rt_blks[2] = (u8)(radio->block[3] >> 8);
+		rt_blks[3] = (u8)(radio->block[3] & 0xFF);
+		addr = (radio->block[1] & 0xf) * 4;
+		ab_flg = (radio->block[1] & 0x0010) >> 4;
+		rt_handler(radio, ab_flg, CNT_FOR_2A_GRP_RT, addr, rt_blks);
+		break;
+	case RDS_TYPE_2B:
+		pr_info("%s RDS is RT 2B group\n", __func__);
+		rt_blks[0] = (u8)(radio->block[3] >> 8);
+		rt_blks[1] = (u8)(radio->block[3] & 0xFF);
+		rt_blks[2] = 0;
+		rt_blks[3] = 0;
+		addr = (radio->block[1] & 0xf) * 2;
+		ab_flg = (radio->block[1] & 0x0010) >> 4;
+		radio->rt_tmp0[MAX_LEN_2B_GRP_RT] = END_OF_RT;
+		radio->rt_tmp1[MAX_LEN_2B_GRP_RT] = END_OF_RT;
+		radio->rt_cnt[MAX_LEN_2B_GRP_RT] = RT_VALIDATE_LIMIT;
+		rt_handler(radio, ab_flg, CNT_FOR_2B_GRP_RT, addr, rt_blks);
+		break;
+	case RDS_TYPE_3A:
+		pr_info("%s RDS is 3A group\n", __func__);
+		rtc6226_raw_rds(radio);
+		break;
+	default:
+		pr_err("%s Not handling the group type %d\n", __func__,
+			grp_type);
+		break;
 	}
 	pr_info("%s rt_plus_carrier = %x\n", __func__, radio->rt_plus_carrier);
 	pr_info("%s ert_carrier = %x\n", __func__, radio->ert_carrier);
@@ -1413,7 +1386,6 @@ void rtc6226_rds_handler(struct work_struct *worker)
 		rtc6226_rt_plus(radio);
 	else if (radio->ert_carrier && (grp_type == radio->ert_carrier))
 		rtc6226_buff_ert(radio);
-	return;
 }
 
 /*
@@ -1436,23 +1408,33 @@ static int rtc6226_rds_on(struct rtc6226_device *radio)
 
 int rtc6226_reset_rds_data(struct rtc6226_device *radio)
 {
-	int retval = 0;
-
 	mutex_lock(&radio->lock);
 
 	radio->wr_index = 0;
 	radio->rd_index = 0;
 	memset(radio->buffer, 0, radio->buf_size);
+	memset(radio->rt_display, 0, MAX_RT_LEN);
+	memset(radio->rt_tmp0, 0, MAX_RT_LEN);
+	memset(radio->rt_tmp1, 0, MAX_RT_LEN);
+	memset(radio->rt_cnt, 0, MAX_RT_LEN);
+
+	memset(radio->ps_display, 0, MAX_PS_LEN);
+	memset(radio->ps_tmp0, 0, MAX_PS_LEN);
+	memset(radio->ps_tmp1, 0, MAX_PS_LEN);
+	memset(radio->ps_cnt, 0, MAX_PS_LEN);
+
+	memset(radio->ert_buf, 0, MAX_ERT_LEN);
+
 	mutex_unlock(&radio->lock);
 
-	return retval;
+	return 0;
 }
 
 int rtc6226_power_down(struct rtc6226_device *radio)
 {
 	int retval = 0;
 
-	pr_info("%s enter\n",__func__);
+	pr_info("%s enter\n", __func__);
 
 	mutex_lock(&radio->lock);
 		/* stop radio */
@@ -1468,7 +1450,7 @@ int rtc6226_power_down(struct rtc6226_device *radio)
 int rtc6226_power_up(struct rtc6226_device *radio)
 {
 	int retval = 0;
-
+	u16 initbuf[] = {0x0000};
 	mutex_lock(&radio->lock);
 
 	pr_info("%s enter\n", __func__);
@@ -1478,29 +1460,6 @@ int rtc6226_power_up(struct rtc6226_device *radio)
 	if (retval < 0)
 		goto done;
 	pr_info("%s : after initialization\n", __func__);
-
-	/* mpxconfig */
-	/* Disable Softmute / Disable Mute / De-emphasis / Volume 8 */
-	radio->registers[MPXCFG] = 0x0000 |
-		MPXCFG_CSR0_DIS_SMUTE | MPXCFG_CSR0_DIS_MUTE |
-		((de << 12) & MPXCFG_CSR0_DEEM);
-	retval = rtc6226_set_register(radio, MPXCFG);
-	if (retval < 0)
-		goto done;
-
-	/* enable RDS / STC interrupt */
-	radio->registers[SYSCFG] |= SYSCFG_CSR0_RDSIRQEN;
-	radio->registers[SYSCFG] |= SYSCFG_CSR0_STDIRQEN;
-	/*radio->registers[SYSCFG] |= SYSCFG_CSR0_RDS_EN;*/
-	retval = rtc6226_set_register(radio, SYSCFG);
-	if (retval < 0)
-		goto done;
-
-	radio->registers[PADCFG] &= ~PADCFG_CSR0_GPIO;
-	radio->registers[PADCFG] |= 0x1 << 2;
-	retval = rtc6226_set_register(radio, PADCFG);
-	if (retval < 0)
-		goto done;
 
 	/* channel */
 	/* Top Frequency 108.0MHZ */
@@ -1522,7 +1481,7 @@ int rtc6226_power_up(struct rtc6226_device *radio)
 	if (retval < 0)
 		goto done;
 
- 	/* Default channel 90.1Mhz */
+	/* Default channel 90.1Mhz */
 	radio->registers[CHANNEL] = 0x2232;
 	retval = rtc6226_set_register(radio, CHANNEL);
 	if (retval < 0)
@@ -1534,19 +1493,19 @@ int rtc6226_power_up(struct rtc6226_device *radio)
 	if (retval < 0)
 		goto done;
 
-
-	/* powerconfig */
-	/* Enable FM */
-	radio->registers[POWERCFG] = POWERCFG_CSR0_ENABLE;
-	retval = rtc6226_set_register(radio, POWERCFG);
+	/*set default rssi thresold*/
+	radio->rssi_th = DEFAULT_RSSI_TH;
+	radio->registers[SEEKCFG1] &= ~SEEKCFG1_CSR0_RSSI_LOW_TH;
+	radio->registers[SEEKCFG1] |= radio->rssi_th << 8;
+	retval = rtc6226_set_register(radio, SEEKCFG1);
 	if (retval < 0)
-		goto done;
+		pr_err("%s fail to set rssi\n", __func__);
 
 	retval = rtc6226_get_all_registers(radio);
 	if (retval < 0)
 		goto done;
 
-	pr_info("%s : DeviceID=0x%4.4hx ChipID=0x%4.4hx\n", __func__,
+	pr_info("%s : himta befre DeviceID=0x%4.4hx ChipID=0x%4.4hx\n", __func__,
 		radio->registers[DEVICEID], radio->registers[CHIPID]);
 	pr_info("%s : Reg2=0x%4.4hx Reg3=0x%4.4hx\n", __func__,
 		radio->registers[MPXCFG], radio->registers[CHANNEL]);
@@ -1562,6 +1521,86 @@ int rtc6226_power_up(struct rtc6226_device *radio)
 		radio->registers[12], radio->registers[13]);
 	pr_info("%s : regE=0x%4.4hx RegF=0x%4.4hx\n", __func__,
 		radio->registers[14], radio->registers[15]);
+	pr_info("%s : reg16=0x%4.4hx Reg17=0x%4.4hx\n", __func__,
+		radio->registers[16], radio->registers[17]);
+	pr_info("%s : reg18=0x%4.4hx Reg19=0x%4.4hx\n", __func__,
+		radio->registers[18], radio->registers[19]);
+	pr_info("%s : reg20=0x%4.4hx Reg21=0x%4.4hx\n", __func__,
+		radio->registers[20], radio->registers[21]);
+	pr_info("%s : reg22=0x%4.4hx Reg23=0x%4.4hx\n", __func__,
+		radio->registers[22], radio->registers[23]);
+	pr_info("%s : reg24=0x%4.4hx Reg25=0x%4.4hx\n", __func__,
+		radio->registers[24], radio->registers[25]);
+	pr_info("%s : reg26=0x%4.4hx Reg27=0x%4.4hx\n", __func__,
+		radio->registers[26], radio->registers[27]);
+	pr_info("%s : reg28=0x%4.4hx Re29F=0x%4.4hx\n", __func__,
+		radio->registers[28], radio->registers[29]);
+	/* powerconfig */
+	/* Enable FM */
+	radio->registers[POWERCFG] = POWERCFG_CSR0_ENABLE;
+	retval = rtc6226_set_register(radio, POWERCFG);
+	if (retval < 0)
+		goto done;
+
+	usleep_range(50, 30000);
+	retval = rtc6226_get_all_registers(radio);
+	if (retval < 0)
+		goto done;
+
+	/* mpxconfig */
+	/* Disable Softmute / Disable Mute / De-emphasis / Volume 8 */
+	radio->registers[MPXCFG] = 0x0008 |
+		MPXCFG_CSR0_DIS_SMUTE | MPXCFG_CSR0_DIS_MUTE |
+		((de << 12) & MPXCFG_CSR0_DEEM);
+	retval = rtc6226_set_register(radio, MPXCFG);
+	if (retval < 0)
+		goto done;
+
+	/* enable RDS / STC interrupt */
+	radio->registers[SYSCFG] |= SYSCFG_CSR0_RDSIRQEN;
+	radio->registers[SYSCFG] |= SYSCFG_CSR0_STDIRQEN;
+	/*radio->registers[SYSCFG] |= SYSCFG_CSR0_RDS_EN;*/
+	retval = rtc6226_set_register(radio, SYSCFG);
+	if (retval < 0)
+		goto done;
+
+	radio->registers[PADCFG] &= ~PADCFG_CSR0_GPIO;
+	radio->registers[PADCFG] |= 0x1 << 2;
+	retval = rtc6226_set_register(radio, PADCFG);
+	if (retval < 0)
+		goto done;
+
+
+	pr_info("%s :himta after  DeviceID=0x%4.4hx ChipID=0x%4.4hx\n", __func__,
+		radio->registers[DEVICEID], radio->registers[CHIPID]);
+	pr_info("%s : Reg2=0x%4.4hx Reg3=0x%4.4hx\n", __func__,
+		radio->registers[MPXCFG], radio->registers[CHANNEL]);
+	pr_info("%s : Reg4=0x%4.4hx Reg5=0x%4.4hx\n", __func__,
+		radio->registers[SYSCFG], radio->registers[SEEKCFG1]);
+	pr_info("%s : Reg6=0x%4.4hx Reg7=0x%4.4hx\n", __func__,
+		radio->registers[POWERCFG], radio->registers[PADCFG]);
+	pr_info("%s : Reg8=0x%4.4hx Reg9=0x%4.4hx\n", __func__,
+		radio->registers[8], radio->registers[9]);
+	pr_info("%s : regA=0x%4.4hx RegB=0x%4.4hx\n", __func__,
+		radio->registers[10], radio->registers[11]);
+	pr_info("%s : regC=0x%4.4hx RegD=0x%4.4hx\n", __func__,
+		radio->registers[12], radio->registers[13]);
+	pr_info("%s : regE=0x%4.4hx RegF=0x%4.4hx\n", __func__,
+		radio->registers[14], radio->registers[15]);
+	pr_info("%s : reg16=0x%4.4hx Reg17=0x%4.4hx\n", __func__,
+		radio->registers[16], radio->registers[17]);
+	pr_info("%s : reg18=0x%4.4hx Reg19=0x%4.4hx\n", __func__,
+		radio->registers[18], radio->registers[19]);
+	pr_info("%s : reg20=0x%4.4hx Reg21=0x%4.4hx\n", __func__,
+		radio->registers[20], radio->registers[21]);
+	pr_info("%s : reg22=0x%4.4hx Reg23=0x%4.4hx\n", __func__,
+		radio->registers[22], radio->registers[23]);
+	pr_info("%s : reg24=0x%4.4hx Reg25=0x%4.4hx\n", __func__,
+		radio->registers[24], radio->registers[25]);
+	pr_info("%s : reg26=0x%4.4hx Reg27=0x%4.4hx\n", __func__,
+		radio->registers[26], radio->registers[27]);
+	pr_info("%s : reg28=0x%4.4hx Re29F=0x%4.4hx\n", __func__,
+		radio->registers[28], radio->registers[29]);
 
 done:
 	pr_info("%s exit %d\n", __func__, retval);
@@ -1659,12 +1698,14 @@ static unsigned int rtc6226_fops_poll(struct file *file,
 }
 
 /* static */
-int rtc6226_vidioc_g_ctrl(struct file *file, void *priv, struct v4l2_control *ctrl)
+int rtc6226_vidioc_g_ctrl(struct file *file, void *priv,
+	struct v4l2_control *ctrl)
 {
 	struct rtc6226_device *radio = video_drvdata(file);
 	int retval = 0;
 
-	pr_info("%s enter, ctrl->id: %x, value:%d \n", __func__, ctrl->id, ctrl->value);
+	pr_info("%s enter, ctrl->id: %x, value:%d\n", __func__,
+		ctrl->id, ctrl->value);
 
 	mutex_lock(&radio->lock);
 
@@ -1732,7 +1773,7 @@ static int rtc6226_vidioc_dqbuf(struct file *file, void *priv,
 	int len = 0, retval = -1;
 
 	if ((radio == NULL) || (buffer == NULL)) {
-		pr_err("%s radio/buffer is NULL\n",__func__);
+		pr_err("%s radio/buffer is NULL\n", __func__);
 		return -ENXIO;
 	}
 
@@ -1750,19 +1791,20 @@ static int rtc6226_vidioc_dqbuf(struct file *file, void *priv,
 			}
 		}
 	} else {
-		pr_err("%s invalid buffer type\n",__func__);
+		pr_err("%s invalid buffer type\n", __func__);
 		return -EINVAL;
 	}
 	if (len <= STD_BUF_SIZE) {
 		buffer->bytesused = kfifo_out_locked(data_fifo, &buf_fifo[0],
 				len, &radio->buf_lock[buf_type]);
 	} else {
-		pr_err("%s kfifo_out_locked can not use len more than 128\n",__func__);
+		pr_err("%s kfifo_out_locked can not use len more than 128\n",
+			__func__);
 		return -EINVAL;
 	}
 	retval = copy_to_user(buf, &buf_fifo[0], buffer->bytesused);
 	if (retval > 0) {
-		pr_err("%s Failed to copy %d bytes of data\n", __func__, retval);
+		pr_err("%s Failed to copy %d bytes data\n", __func__, retval);
 		return -EAGAIN;
 	}
 
@@ -1790,13 +1832,13 @@ static int rtc6226_disable(struct rtc6226_device *radio)
 	radio->registers[SYSCFG] &= ~SYSCFG_CSR0_RDSIRQEN;
 	radio->registers[SYSCFG] &= ~SYSCFG_CSR0_STDIRQEN;
 	retval = rtc6226_set_register(radio, SYSCFG);
-	if(retval < 0){
-		pr_err("%s fail to disable RDS/SCT interrupt\n",__func__);
+	if (retval < 0) {
+		pr_err("%s fail to disable RDS/SCT interrupt\n", __func__);
 		goto done;
 	}
 	retval = rtc6226_power_down(radio);
-	if(retval < 0){
-		pr_err("%s fail to turn off fmradio\n",__func__);
+	if (retval < 0) {
+		pr_err("%s fail to turn off fmradio\n", __func__);
 		goto done;
 	}
 
@@ -1816,21 +1858,19 @@ static int rtc6226_enable(struct rtc6226_device *radio)
 {
 	int retval = 0;
 
-	retval = rtc6226_get_register(radio, POWERCFG);
-	if((radio->registers[POWERCFG] & POWERCFG_CSR0_ENABLE)== 0){
-		rtc6226_power_up(radio);
-	} else {
-		pr_info("%s already turn on\n",__func__);
-	}
+	rtc6226_get_register(radio, POWERCFG);
+	retval = rtc6226_power_up(radio);
+	if (retval < 0)
+	goto done;
 
-	if((radio->registers[SYSCFG] &  SYSCFG_CSR0_STDIRQEN ) == 0){
+	if ((radio->registers[SYSCFG] &  SYSCFG_CSR0_STDIRQEN) == 0) {
 		radio->registers[SYSCFG] |= SYSCFG_CSR0_RDSIRQEN;
 		radio->registers[SYSCFG] |= SYSCFG_CSR0_STDIRQEN;
 		retval = rtc6226_set_register(radio, SYSCFG);
 		if (retval < 0) {
-			pr_err("%s set register fail\n",__func__);
+			pr_err("%s set register fail\n", __func__);
 			goto done;
-		} else{
+		} else {
 			rtc6226_q_event(radio, RTC6226_EVT_RADIO_READY);
 			radio->mode = FM_RECV;
 		}
@@ -1847,189 +1887,204 @@ bool rtc6226_is_valid_srch_mode(int srch_mode)
 {
 	if ((srch_mode >= RTC6226_MIN_SRCH_MODE) &&
 			(srch_mode <= RTC6226_MAX_SRCH_MODE))
-		return 1;
+		return true;
 	else
-		return 0;
+		return false;
 }
 
 /*
  * rtc6226_vidioc_s_ctrl - set the value of a control
  */
-int rtc6226_vidioc_s_ctrl(struct file *file, void *priv, struct v4l2_control *ctrl)
+int rtc6226_vidioc_s_ctrl(struct file *file, void *priv,
+	struct v4l2_control *ctrl)
 {
 	struct rtc6226_device *radio = video_drvdata(file);
 	int retval = 0;
 	int space_s = 0;
-	pr_info("%s enter, ctrl->id: %x, value:%d \n", __func__, ctrl->id, ctrl->value);
+
+	pr_info("%s enter, ctrl->id: %x, value:%d\n", __func__,
+		ctrl->id, ctrl->value);
 
 	switch (ctrl->id) {
-		case V4L2_CID_PRIVATE_RTC6226_STATE:
-			if (ctrl->value == FM_RECV) {
-				if (check_mode(radio) != 0) {
-					pr_err("%s: fm is not in proper state\n",
-							__func__);
-					retval = -EINVAL;
-					goto end;
-				}
-				radio->mode = FM_RECV_TURNING_ON;
-
-				retval = rtc6226_enable(radio);
-				if (retval < 0) {
-					pr_err("%s Error while enabling RECV FM %d\n",
-							__func__, retval);
-					radio->mode = FM_OFF;
-					goto end;
-				}
-			} else if (ctrl->value == FM_OFF) {
-				radio->mode = FM_TURNING_OFF;
-				retval = rtc6226_disable(radio);
-				if (retval < 0) {
-					pr_err("Err on disable recv FM %d\n", retval);
-					radio->mode = FM_RECV;
-					goto end;
-				}
-			}
-			break;
-		case V4L2_CID_PRIVATE_RTC6226_SET_AUDIO_PATH:
-		case V4L2_CID_PRIVATE_RTC6226_SRCH_ALGORITHM:
-		case V4L2_CID_PRIVATE_RTC6226_REGION:
-			retval = 0;
-			break;
-		case V4L2_CID_PRIVATE_RTC6226_EMPHASIS:
-			if (ctrl->value == 1)
-				radio->registers[MPXCFG] |= MPXCFG_CSR0_DEEM;
-			else
-				radio->registers[MPXCFG] &= ~MPXCFG_CSR0_DEEM;
-			retval = rtc6226_set_register(radio, MPXCFG);
-			break;
-		case V4L2_CID_PRIVATE_RTC6226_RDS_STD:
-			/* enable RDS / STC interrupt */
-			radio->registers[SYSCFG] |= SYSCFG_CSR0_RDSIRQEN;
-			radio->registers[SYSCFG] |= SYSCFG_CSR0_STDIRQEN;
-			/*radio->registers[SYSCFG] |= SYSCFG_CSR0_RDS_EN;*/
-			retval = rtc6226_set_register(radio, SYSCFG);
-			break;
-		case V4L2_CID_PRIVATE_RTC6226_SPACING:
-			space_s = ctrl->value;
-			radio->space = ctrl->value;
-			radio->registers[CHANNEL] &= ~CHANNEL_CSR0_CHSPACE;
-			radio->registers[CHANNEL] |= (space_s << 10);
-			retval = rtc6226_set_register(radio, CHANNEL);
-			break;			
-		case V4L2_CID_PRIVATE_RTC6226_SRCHON:
-				rtc6226_search(radio, (bool)ctrl->value);
-				break;
-		case V4L2_CID_PRIVATE_RTC6226_LP_MODE:
-		case V4L2_CID_PRIVATE_RTC6226_ANTENNA:
-		case V4L2_CID_PRIVATE_RTC6226_RDSON:
-		case V4L2_CID_PRIVATE_RTC6226_AF_JUMP:
-		case V4L2_CID_PRIVATE_RTC6226_SRCH_CNT:
-		case V4L2_CID_PRIVATE_RTC6226_RXREPEATCOUNT:
-			retval = 0;
-			break;
-		case V4L2_CID_PRIVATE_RTC6226_RSSI_TH:
-		case V4L2_CID_PRIVATE_RTC6226_SINR_THRESHOLD:
-
-			radio->rssi_th = ctrl->value >> 16;
-			radio->registers[SEEKCFG1] &= ~SEEKCFG1_CSR0_RSSI_LOW_TH;
-			radio->registers[SEEKCFG1] |= radio->rssi_th;
-			retval = rtc6226_set_register(radio, SEEKCFG1);
-			if(retval < 0)
-				pr_err("%s fail to set rssi\n",__func__);
-			rtc6226_get_register(radio, SEEKCFG1);
-			pr_info("FMRICHWAVE RSSI_TH : Decimal = %d , Hexa = %x\n",radio->registers[SEEKCFG1] & 0xFF , radio->registers[SEEKCFG1] & 0xFF);
-			break;
-		/* case V4L2_CID_PRIVATE_RTC6226_OFS_THRESHOLD: */
-		case V4L2_CID_PRIVATE_RTC6226_SPUR_FREQ_RMSSI:
-			break;
-		case V4L2_CID_PRIVATE_RTC6226_RDSGROUP_MASK:
-		case V4L2_CID_PRIVATE_RTC6226_RDSGROUP_PROC:
-			if((radio->registers[SYSCFG] & SYSCFG_CSR0_RDS_EN) == 0)
-			rtc6226_rds_on(radio);
-			retval = 0;
-			break;
-		case V4L2_CID_PRIVATE_RTC6226_SRCHMODE:
-			if (rtc6226_is_valid_srch_mode(ctrl->value)) {
-				radio->g_search_mode = ctrl->value;
-			} else {
-				pr_err("%s: srch mode is not valid\n", __func__);
+	case V4L2_CID_PRIVATE_RTC6226_STATE:
+		if (ctrl->value == FM_RECV) {
+			if (check_mode(radio)) {
+				pr_err("%s:fm is not in proper state\n",
+						__func__);
 				retval = -EINVAL;
 				goto end;
 			}
-			break;
-		case V4L2_CID_PRIVATE_RTC6226_PSALL:
-			break;
-		case V4L2_CID_PRIVATE_RTC6226_SCANDWELL:
-			if ((ctrl->value >= MIN_DWELL_TIME) &&
-					(ctrl->value <= MAX_DWELL_TIME)) {
-				radio->dwell_time_sec = ctrl->value;
-			} else {
-				pr_err("%s: scandwell period is not valid\n", __func__);
-				retval = -EINVAL;
+			radio->mode = FM_RECV_TURNING_ON;
+			retval = rtc6226_enable(radio);
+			if (retval < 0) {
+				pr_err(
+				"%s Error while enabling RECV FM %d\n",
+					__func__, retval);
+				radio->mode = FM_OFF;
+				goto end;
 			}
-			break;
-		case V4L2_CID_PRIVATE_CSR0_ENABLE:
-			pr_info("V4L2_CID_PRIVATE_CSR0_ENABLE val=%d\n",
+		} else if (ctrl->value == FM_OFF) {
+			radio->mode = FM_TURNING_OFF;
+			retval = rtc6226_disable(radio);
+			if (retval < 0) {
+				pr_err("Err on disable recv FM %d\n", retval);
+				radio->mode = FM_RECV;
+				goto end;
+			}
+		}
+		break;
+	case V4L2_CID_PRIVATE_RTC6226_SET_AUDIO_PATH:
+	case V4L2_CID_PRIVATE_RTC6226_SRCH_ALGORITHM:
+	case V4L2_CID_PRIVATE_RTC6226_REGION:
+		retval = 0;
+		break;
+	case V4L2_CID_PRIVATE_RTC6226_EMPHASIS:
+		if (ctrl->value == 1)
+			radio->registers[MPXCFG] |= MPXCFG_CSR0_DEEM;
+		else
+			radio->registers[MPXCFG] &= ~MPXCFG_CSR0_DEEM;
+		retval = rtc6226_set_register(radio, MPXCFG);
+		break;
+	case V4L2_CID_PRIVATE_RTC6226_RDS_STD:
+		/* enable RDS / STC interrupt */
+		radio->registers[SYSCFG] |= SYSCFG_CSR0_RDSIRQEN;
+		radio->registers[SYSCFG] |= SYSCFG_CSR0_STDIRQEN;
+		/*radio->registers[SYSCFG] |= SYSCFG_CSR0_RDS_EN;*/
+		retval = rtc6226_set_register(radio, SYSCFG);
+		break;
+	case V4L2_CID_PRIVATE_RTC6226_SPACING:
+		space_s = ctrl->value;
+		radio->space = ctrl->value;
+		radio->registers[CHANNEL] &= ~CHANNEL_CSR0_CHSPACE;
+		radio->registers[CHANNEL] |= (space_s << 10);
+		retval = rtc6226_set_register(radio, CHANNEL);
+		break;
+	case V4L2_CID_PRIVATE_RTC6226_SRCHON:
+		rtc6226_search(radio, (bool)ctrl->value);
+		break;
+	case V4L2_CID_PRIVATE_RTC6226_LP_MODE:
+		if (ctrl->value) {
+			/* disable RDS interrupts */
+			radio->registers[SYSCFG] &= ~SYSCFG_CSR0_RDSIRQEN;
+			retval = rtc6226_set_register(radio, SYSCFG);
+		} else {
+			/* enable RDS interrupts */
+			radio->registers[SYSCFG] |= SYSCFG_CSR0_RDSIRQEN;
+			retval = rtc6226_set_register(radio, SYSCFG);
+		}
+		break;
+	case V4L2_CID_PRIVATE_RTC6226_ANTENNA:
+	case V4L2_CID_PRIVATE_RTC6226_AF_JUMP:
+	case V4L2_CID_PRIVATE_RTC6226_SRCH_CNT:
+	case V4L2_CID_PRIVATE_RTC6226_RXREPEATCOUNT:
+		retval = 0;
+		break;
+	case V4L2_CID_PRIVATE_RTC6226_RSSI_TH:
+	case V4L2_CID_PRIVATE_RTC6226_SINR_THRESHOLD:
+		radio->rssi_th = ctrl->value >> 16;
+		radio->registers[SEEKCFG1] &= ~SEEKCFG1_CSR0_RSSI_LOW_TH;
+		radio->registers[SEEKCFG1] |= radio->rssi_th;
+		retval = rtc6226_set_register(radio, SEEKCFG1);
+		if (retval < 0)
+			pr_err("%s fail to set rssi\n", __func__);
+		rtc6226_get_register(radio, SEEKCFG1);
+		pr_info("FMRICHWAVE RSSI_TH: Dec = %d, Hexa = %x\n",
+			radio->registers[SEEKCFG1] & 0xFF,
+			radio->registers[SEEKCFG1] & 0xFF);
+		break;
+	/* case V4L2_CID_PRIVATE_RTC6226_OFS_THRESHOLD: */
+	case V4L2_CID_PRIVATE_RTC6226_SPUR_FREQ_RMSSI:
+		break;
+	case V4L2_CID_PRIVATE_RTC6226_RDSD_BUF:
+	case V4L2_CID_PRIVATE_RTC6226_RDSGROUP_MASK:
+	case V4L2_CID_PRIVATE_RTC6226_RDSGROUP_PROC:
+		if ((radio->registers[SYSCFG] & SYSCFG_CSR0_RDS_EN) == 0)
+			rtc6226_rds_on(radio);
+		retval = 0;
+		break;
+	case V4L2_CID_PRIVATE_RTC6226_SRCHMODE:
+		if (rtc6226_is_valid_srch_mode(ctrl->value)) {
+			radio->g_search_mode = ctrl->value;
+		} else {
+			pr_err("%s:srch mode is not valid\n", __func__);
+			retval = -EINVAL;
+			goto end;
+		}
+		break;
+	case V4L2_CID_PRIVATE_RTC6226_PSALL:
+		break;
+	case V4L2_CID_PRIVATE_RTC6226_SCANDWELL:
+		if ((ctrl->value >= MIN_DWELL_TIME) &&
+				(ctrl->value <= MAX_DWELL_TIME)) {
+			radio->dwell_time_sec = ctrl->value;
+		} else {
+			pr_err(
+			"%s:scandwell period is not valid\n", __func__);
+			retval = -EINVAL;
+		}
+		break;
+	case V4L2_CID_PRIVATE_CSR0_ENABLE:
+		pr_info("V4L2_CID_PRIVATE_CSR0_ENABLE val=%d\n",
+			ctrl->value);
+		retval = rtc6226_power_up(radio);
+		/* must keep below line */
+		ctrl->value = 0;
+		break;
+	case V4L2_CID_PRIVATE_CSR0_DISABLE:
+		pr_info("V4L2_CID_PRIVATE_CSR0_DISABLE val=%d\n",
+			ctrl->value);
+		retval = rtc6226_power_down(radio);
+		/* must keep below line */
+		ctrl->value = 0;
+		break;
+	case V4L2_CID_PRIVATE_DEVICEID:
+		pr_info("V4L2_CID_PRIVATE_DEVICEID val=%d\n", ctrl->value);
+		break;
+	case V4L2_CID_PRIVATE_CSR0_VOLUME:
+	case V4L2_CID_AUDIO_VOLUME:
+		pr_info("MPXCFG=0x%4.4hx POWERCFG=0x%4.4hx\n",
+		radio->registers[MPXCFG], radio->registers[POWERCFG]);
+		radio->registers[MPXCFG] &= ~MPXCFG_CSR0_VOLUME;
+		radio->registers[MPXCFG] |=
+			(ctrl->value > 15) ? 8 : ctrl->value;
+		pr_info("MPXCFG=0x%4.4hx POWERCFG=0x%4.4hx\n",
+		radio->registers[MPXCFG], radio->registers[POWERCFG]);
+		retval = rtc6226_set_register(radio, MPXCFG);
+		break;
+	case V4L2_CID_PRIVATE_CSR0_DIS_MUTE:
+	case V4L2_CID_AUDIO_MUTE:
+		if (ctrl->value == 1)
+			radio->registers[MPXCFG] &= ~MPXCFG_CSR0_DIS_MUTE;
+		else
+			radio->registers[MPXCFG] |= MPXCFG_CSR0_DIS_MUTE;
+		retval = rtc6226_set_register(radio, MPXCFG);
+		break;
+	case V4L2_CID_PRIVATE_RTC6226_SOFT_MUTE:
+		pr_info("V4L2_CID_PRIVATE_RTC6226_SOFT_MUTE\n");
+		if (ctrl->value == 1)
+			radio->registers[MPXCFG] &= ~MPXCFG_CSR0_DIS_SMUTE;
+		else
+			radio->registers[MPXCFG] |= MPXCFG_CSR0_DIS_SMUTE;
+		retval = rtc6226_set_register(radio, MPXCFG);
+		break;
+	case V4L2_CID_PRIVATE_CSR0_DEEM:
+		pr_info("V4L2_CID_PRIVATE_CSR0_DEEM\n");
+		if (ctrl->value == 1)
+			radio->registers[MPXCFG] |= MPXCFG_CSR0_DEEM;
+		else
+			radio->registers[MPXCFG] &= ~MPXCFG_CSR0_DEEM;
+		retval = rtc6226_set_register(radio, MPXCFG);
+		break;
+	case V4L2_CID_PRIVATE_CSR0_BLNDADJUST:
+		pr_info("V4L2_CID_PRIVATE_CSR0_BLNDADJUST val=%d\n",
 				ctrl->value);
-			retval = rtc6226_power_up(radio);
-			/* must keep below line */
-			ctrl->value = 0;
-			break;
-		case V4L2_CID_PRIVATE_CSR0_DISABLE:
-			pr_info("V4L2_CID_PRIVATE_CSR0_DISABLE val=%d\n",
-				ctrl->value);
-			retval = rtc6226_power_down(radio);
-			/* must keep below line */
-			ctrl->value = 0;
-			break;
-		case V4L2_CID_PRIVATE_DEVICEID:
-			pr_info("V4L2_CID_PRIVATE_DEVICEID val=%d\n",
-				ctrl->value);
-			break;
-		case V4L2_CID_PRIVATE_CSR0_VOLUME:
-		case V4L2_CID_AUDIO_VOLUME:
-			pr_info("V4L2_CID_AUDIO_VOLUME : MPXCFG=0x%4.4hx POWERCFG=0x%4.4hx\n",
-				radio->registers[MPXCFG], radio->registers[POWERCFG]);
-			radio->registers[MPXCFG] &= ~MPXCFG_CSR0_VOLUME;
-			radio->registers[MPXCFG] |=
-				(ctrl->value > 15) ? 8 : ctrl->value;
-			pr_info("V4L2_CID_AUDIO_VOLUME : MPXCFG=0x%4.4hx POWERCFG=0x%4.4hx\n",
-					radio->registers[MPXCFG], radio->registers[POWERCFG]);
-			retval = rtc6226_set_register(radio, MPXCFG);
-			break;
-		case V4L2_CID_PRIVATE_CSR0_DIS_MUTE:
-		case V4L2_CID_AUDIO_MUTE:
-			if (ctrl->value == 1)
-				radio->registers[MPXCFG] &= ~MPXCFG_CSR0_DIS_MUTE;
-			else
-				radio->registers[MPXCFG] |= MPXCFG_CSR0_DIS_MUTE;
-			retval = rtc6226_set_register(radio, MPXCFG);
-			break;
-		case V4L2_CID_PRIVATE_CSR0_DIS_SMUTE:
-			pr_info("V4L2_CID_PRIVATE_CSR0_DIS_SMUTE : before V4L2_CID_PRIVATE_CSR0_DIS_SMUTE\n");
-			if (ctrl->value == 1)
-				radio->registers[MPXCFG] &= ~MPXCFG_CSR0_DIS_SMUTE;
-			else
-				radio->registers[MPXCFG] |= MPXCFG_CSR0_DIS_SMUTE;
-			retval = rtc6226_set_register(radio, MPXCFG);
-			break;
-		case V4L2_CID_PRIVATE_CSR0_DEEM:
-			pr_info("V4L2_CID_PRIVATE_CSR0_DEEM : before V4L2_CID_PRIVATE_CSR0_DEEM\n");
-			if (ctrl->value == 1)
-				radio->registers[MPXCFG] |= MPXCFG_CSR0_DEEM;
-			else
-				radio->registers[MPXCFG] &= ~MPXCFG_CSR0_DEEM;
-			retval = rtc6226_set_register(radio, MPXCFG);
-			break;
-		case V4L2_CID_PRIVATE_CSR0_BLNDADJUST:
-			pr_info("V4L2_CID_PRIVATE_CSR0_BLNDADJUST val=%d\n",
-					ctrl->value);
-			break;
+		break;
 	case V4L2_CID_PRIVATE_CSR0_BAND:
-		pr_info("V4L2_CID_PRIVATE_CSR0_BAND : FREQ_TOP=%d FREQ_BOT=%d %d\n",
+		pr_info(
+		"V4L2_CID_PRIVATE_CSR0_BAND : FREQ_TOP=%d FREQ_BOT=%d %d\n",
 			radio->registers[RADIOSEEKCFG1],
 			radio->registers[RADIOSEEKCFG2], ctrl->value);
-		switch(ctrl->value) {
+		switch (ctrl->value) {
 		case FMBAND_87_108_MHZ:
 			radio->registers[RADIOSEEKCFG1] = 10800;
 			radio->registers[RADIOSEEKCFG2] = 8750;
@@ -2050,7 +2105,8 @@ int rtc6226_vidioc_s_ctrl(struct file *file, void *priv, struct v4l2_control *ct
 			retval = -EINVAL;
 			break;
 		}
-		pr_info("V4L2_CID_PRIVATE_CSR0_BAND : FREQ_TOP=%d FREQ_BOT=%d %d\n",
+		pr_info(
+		"V4L2_CID_PRIVATE_CSR0_BAND : FREQ_TOP=%d FREQ_BOT=%d %d\n",
 			radio->registers[RADIOSEEKCFG1],
 			radio->registers[RADIOSEEKCFG2], ctrl->value);
 		radio->band = ctrl->value;
@@ -2060,7 +2116,7 @@ int rtc6226_vidioc_s_ctrl(struct file *file, void *priv, struct v4l2_control *ct
 	case V4L2_CID_PRIVATE_CSR0_CHSPACE:
 		pr_info("V4L2_CID_PRIVATE_CSR0_CHSPACE : FM_SPACE=%d %d\n",
 			radio->registers[RADIOCFG], ctrl->value);
-		switch(ctrl->value) {
+		switch (ctrl->value) {
 		case FMSPACE_200_KHZ:
 			radio->registers[RADIOCFG] = 20;
 			break;
@@ -2079,40 +2135,42 @@ int rtc6226_vidioc_s_ctrl(struct file *file, void *priv, struct v4l2_control *ct
 			radio->registers[RADIOCFG], ctrl->value);
 		retval = rtc6226_set_register(radio, RADIOCFG);
 		break;
-		case V4L2_CID_PRIVATE_CSR0_DIS_AGC:
-			pr_info("V4L2_CID_PRIVATE_CSR0_DIS_AGC val=%d\n",
-				ctrl->value);
-			break;
-		case V4L2_CID_PRIVATE_CSR0_RDS_EN:
-			pr_info("V4L2_CID_PRIVATE_CSR0_RDS_EN : CHANNEL=0x%4.4hx SYSCFG=0x%4.4hx\n",
-				radio->registers[CHANNEL],
-				radio->registers[SYSCFG]);
-			rtc6226_reset_rds_data(radio);
-			radio->registers[SYSCFG] &= ~SYSCFG_CSR0_RDS_EN;
-			radio->registers[SYSCFG] &= ~SYSCFG_CSR0_RDSIRQEN;
-			radio->registers[SYSCFG] |= (ctrl->value << 15);
-			radio->registers[SYSCFG] |= (ctrl->value << 12);
-			pr_info("V4L2_CID_PRIVATE_CSR0_RDS_EN : CHANNEL=0x%4.4hx SYSCFG=0x%4.4hx\n",
-				radio->registers[CHANNEL],
-				radio->registers[SYSCFG]);
-			retval = rtc6226_set_register(radio, SYSCFG);
-			break;
-		case V4L2_CID_PRIVATE_SEEK_CANCEL:
-			rtc6226_search(radio, (bool)ctrl->value);
-			break;
-		case V4L2_CID_PRIVATE_CSR0_SEEKRSSITH:
-			radio->registers[SEEKCFG1] &= ~SEEKCFG1_CSR0_RSSI_LOW_TH;
-			radio->registers[SEEKCFG1] |= ctrl->value;
-			retval = rtc6226_set_register(radio, SEEKCFG1);
-			break;
-		default:
-			pr_info("%s id: %x in default\n",__func__, ctrl->id);
-			retval = -EINVAL;
-			break;
+	case V4L2_CID_PRIVATE_CSR0_DIS_AGC:
+		pr_info("V4L2_CID_PRIVATE_CSR0_DIS_AGC val=%d\n",
+			ctrl->value);
+		break;
+	case V4L2_CID_PRIVATE_RTC6226_RDSON:
+		pr_info(
+		"V4L2_CSR0_RDS_EN:CHANNEL=0x%4.4hx SYSCFG=0x%4.4hx\n",
+			radio->registers[CHANNEL],
+			radio->registers[SYSCFG]);
+		rtc6226_reset_rds_data(radio);
+		radio->registers[SYSCFG] &= ~SYSCFG_CSR0_RDS_EN;
+		radio->registers[SYSCFG] &= ~SYSCFG_CSR0_RDSIRQEN;
+		radio->registers[SYSCFG] |= (ctrl->value << 15);
+		radio->registers[SYSCFG] |= (ctrl->value << 12);
+		pr_info
+		("V4L2_CSR0_RDS_EN : CHANNEL=0x%4.4hx SYSCFG=0x%4.4hx\n",
+			radio->registers[CHANNEL],
+			radio->registers[SYSCFG]);
+		retval = rtc6226_set_register(radio, SYSCFG);
+		break;
+	case V4L2_CID_PRIVATE_SEEK_CANCEL:
+		rtc6226_search(radio, (bool)ctrl->value);
+		break;
+	case V4L2_CID_PRIVATE_CSR0_SEEKRSSITH:
+		radio->registers[SEEKCFG1] &= ~SEEKCFG1_CSR0_RSSI_LOW_TH;
+		radio->registers[SEEKCFG1] |= ctrl->value;
+		retval = rtc6226_set_register(radio, SEEKCFG1);
+		break;
+	default:
+		pr_info("%s id: %x in default\n", __func__, ctrl->id);
+		retval = -EINVAL;
+		break;
 	}
 
 end:
-	pr_info("%s exit id: %x , ret: %d\n",__func__, ctrl->id, retval);
+	pr_info("%s exit id: %x , ret: %d\n", __func__, ctrl->id, retval);
 
 	return retval;
 }
@@ -2125,7 +2183,7 @@ static int rtc6226_vidioc_g_audio(struct file *file, void *priv,
 {
 	/* driver constants */
 	audio->index = 0;
-	strcpy(audio->name, "Radio");
+	strlcpy(audio->name, "Radio", sizeof(audio->name));
 	audio->capability = V4L2_AUDCAP_STEREO;
 	audio->mode = 0;
 
@@ -2145,6 +2203,7 @@ static int rtc6226_vidioc_g_tuner(struct file *file, void *priv,
 	pr_info("%s enter\n", __func__);
 
 	if (tuner->index != 0) {
+		pr_info("%s index :%d\n", __func__, tuner->index);
 		retval = -EINVAL;
 		goto done;
 	}
@@ -2154,7 +2213,7 @@ static int rtc6226_vidioc_g_tuner(struct file *file, void *priv,
 		goto done;
 
 	/* driver constants */
-	strcpy(tuner->name, "FM");
+	strlcpy(tuner->name, "FM", sizeof(tuner->name));
 	tuner->type = V4L2_TUNER_RADIO;
 	tuner->capability = V4L2_TUNER_CAP_LOW | V4L2_TUNER_CAP_STEREO |
 		V4L2_TUNER_CAP_RDS | V4L2_TUNER_CAP_RDS_BLOCK_IO;
@@ -2170,8 +2229,9 @@ static int rtc6226_vidioc_g_tuner(struct file *file, void *priv,
 	else
 		tuner->rxsubchans = V4L2_TUNER_SUB_MONO | V4L2_TUNER_SUB_STEREO;
 	/* If there is a reliable method of detecting an RDS channel,
-	   then this code should check for that before setting this
-	   RDS subchannel. */
+	 * then this code should check for that before setting this
+	 * RDS subchannel.
+	 */
 	tuner->rxsubchans |= V4L2_TUNER_SUB_RDS;
 
 	/* mono/stereo selector */
@@ -2198,11 +2258,12 @@ static int rtc6226_vidioc_s_tuner(struct file *file, void *priv,
 {
 	struct rtc6226_device *radio = video_drvdata(file);
 	int retval = 0;
+	int bandIndex = -1;
 
 	pr_info("%s entry\n", __func__);
 
-	if (tuner->index != 0){
-		pr_info("%s index :%d\n",__func__, tuner->index);
+	if (tuner->index != 0) {
+		pr_info("%s index :%d\n", __func__, tuner->index);
 		goto done;
 	}
 
@@ -2220,29 +2281,27 @@ static int rtc6226_vidioc_s_tuner(struct file *file, void *priv,
 
 	retval = rtc6226_set_register(radio, MPXCFG);
 
-	pr_info("%s low:%d high:%d\n", __func__, tuner->rangelow, tuner->rangehigh);
+	pr_info("%s low:%d high:%d\n", __func__,
+		tuner->rangelow, tuner->rangehigh);
 
 	/* set band */
 	if (tuner->rangelow || tuner->rangehigh) {
-		for (band = 0; band < ARRAY_SIZE(bands); band++) {
-			if (bands[band].rangelow  == tuner->rangelow &&
-					bands[band].rangehigh == tuner->rangehigh)
+		for (bandIndex = 0; bandIndex < ARRAY_SIZE(bands); bandIndex++) {
+			if (bands[bandIndex].rangelow  == tuner->rangelow &&
+				bands[bandIndex].rangehigh == tuner->rangehigh)
 				break;
 		}
-		if (band == ARRAY_SIZE(bands)){
-			pr_err("%s err\n",__func__);
-			band = 0;
+		if (bandIndex == ARRAY_SIZE(bands)) {
+			pr_err("%s err\n", __func__);
 		}
-	} else
-		band = 0; /* If nothing is specified seek 87.5 - 108 Mhz */
-
-	if (radio->band != band) {
+	} 
+	if (radio->band != bandIndex) {
 		radio->registers[CHANNEL] |= (band  << 12);
 		rtc6226_set_register(radio, MPXCFG);
-		radio->band = band;
+		radio->band = bandIndex;
 	}
 done:
-	pr_info("%s exit %d\n",__func__, retval);
+	pr_info("%s exit %d\n", __func__, retval);
 	return retval;
 }
 
@@ -2255,12 +2314,15 @@ static int rtc6226_vidioc_g_frequency(struct file *file, void *priv,
 {
 	struct rtc6226_device *radio = video_drvdata(file);
 	int retval = 0;
+	unsigned int frq;
 
 	pr_info("%s enter freq %d\n", __func__, freq->frequency);
 
 	freq->type = V4L2_TUNER_RADIO;
-	retval = rtc6226_get_freq(radio, &freq->frequency);
-	pr_info(" %s *freq=%d, ret %d\n",__func__, freq->frequency, retval);
+	retval = rtc6226_get_freq(radio, &frq);
+	freq->frequency = frq * TUNE_PARAM;
+	radio->tuned_freq_khz = frq * TUNE_STEP_SIZE;
+	pr_info(" %s *freq=%d, ret %d\n", __func__, freq->frequency, retval);
 
 	if (retval < 0)
 		pr_err(" %s get frequency failed with %d\n", __func__, retval);
@@ -2277,13 +2339,31 @@ static int rtc6226_vidioc_s_frequency(struct file *file, void *priv,
 {
 	struct rtc6226_device *radio = video_drvdata(file);
 	int retval = 0;
+	u32 f = 0;
 
-	pr_info("%s enter freq = %d\n", __func__ ,freq->frequency);
+	pr_info("%s enter freq = %d\n", __func__, freq->frequency);
+	if (unlikely(freq == NULL)) {
+		pr_err("%s:freq is null", __func__);
+		return -EINVAL;
+	}
+	if (freq->type != V4L2_TUNER_RADIO)
+		return -EINVAL;
+	f = (freq->frequency)/TUNE_PARAM;
 
-	retval = rtc6226_set_freq(radio, freq->frequency);
-
+	radio->seek_tune_status = TUNE_PENDING;
+	retval = rtc6226_get_register(radio, SYSCFG);
+	pr_info("%s : himta befre SYSCFG=0x%4.4hx\n", __func__,
+		radio->registers[SYSCFG]);
+	radio->registers[SYSCFG] &= ~SYSCFG_CSR0_RDS_EN;
+	radio->registers[SYSCFG] &= ~SYSCFG_CSR0_RDSIRQEN;
+	retval = rtc6226_set_register(radio, SYSCFG);
+	pr_info("%s : himta after SYSCFG=0x%4.4hx\n", __func__,
+		radio->registers[SYSCFG]);
+	retval = rtc6226_set_freq(radio, f);
 	if (retval < 0)
 		pr_err("%s set frequency failed with %d\n", __func__, retval);
+	else
+		radio->tuned_freq_khz = f;
 
 	return retval;
 }
@@ -2307,23 +2387,24 @@ static int rtc6226_vidioc_s_hw_freq_seek(struct file *file, void *priv,
 
 	if (radio->g_search_mode == SEEK) {
 		/* seek */
-		pr_info("%s starting seek\n",__func__);
+		pr_info("%s starting seek\n", __func__);
+	radio->registers[SYSCFG] &= ~SYSCFG_CSR0_RDS_EN;
+	radio->registers[SYSCFG] &= ~SYSCFG_CSR0_RDSIRQEN;
+	retval = rtc6226_set_register(radio, SYSCFG);
 		radio->seek_tune_status = SEEK_PENDING;
-		retval = rtc6226_set_seek(radio, seek->seek_upward, WRAP_ENABLE);
-		rtc6226_q_event(radio, RTC6226_EVT_TUNE_SUCC);
-		radio->seek_tune_status = NO_SEEK_TUNE_PENDING;
-		rtc6226_q_event(radio, RTC6226_EVT_SCAN_NEXT);
+		retval = rtc6226_set_seek(radio, seek->seek_upward,
+				WRAP_ENABLE);
 	} else if ((radio->g_search_mode == SCAN) ||
 			(radio->g_search_mode == SCAN_FOR_STRONG)) {
 		/* scan */
 		if (radio->g_search_mode == SCAN_FOR_STRONG) {
-			pr_info("%s starting search list\n",__func__);
+			pr_info("%s starting search list\n", __func__);
 			memset(&radio->srch_list, 0,
 					sizeof(struct rtc6226_srch_list_compl));
 		} else {
-			pr_info("%s starting scan\n",__func__);
+			pr_info("%s starting scan\n", __func__);
 		}
-		rtc6226_search(radio, 1);
+		rtc6226_search(radio, START_SCAN);
 	} else {
 		retval = -EINVAL;
 		pr_err("In %s, invalid search mode %d\n",
@@ -2333,21 +2414,11 @@ static int rtc6226_vidioc_s_hw_freq_seek(struct file *file, void *priv,
 	return retval;
 }
 
-#ifndef RW_Kernel_ENG
 static int rtc6226_vidioc_g_fmt_type_private(struct file *file, void *priv,
 						struct v4l2_format *f)
 {
 	return 0;
 }
-#endif
-
-#if 0
-/* v4l2_subdev_ops v4l2_ctrl_ops v4l2_ioctl_ops was addpted*/
-const struct v4l2_ctrl_ops rtc6226_ctrl_ops = {
-	.g_volatile_ctrl            =   rtc6226_vidioc_g_ctrl,
-	.s_ctrl                     =   rtc6226_vidioc_s_ctrl,
-};
-#endif
 
 static const struct v4l2_file_operations rtc6226_fops = {
 	.owner			= THIS_MODULE,
@@ -2370,14 +2441,14 @@ const struct v4l2_ioctl_ops rtc6226_ioctl_ops = {
 	.vidioc_g_audio             =   rtc6226_vidioc_g_audio,
 	.vidioc_g_tuner             =   rtc6226_vidioc_g_tuner,
 	.vidioc_s_tuner             =   rtc6226_vidioc_s_tuner,
-	.vidioc_g_ctrl				= 	rtc6226_vidioc_g_ctrl,
-	.vidioc_s_ctrl 				= 	rtc6226_vidioc_s_ctrl,
+	.vidioc_g_ctrl              =   rtc6226_vidioc_g_ctrl,
+	.vidioc_s_ctrl              =   rtc6226_vidioc_s_ctrl,
 	.vidioc_g_frequency         =   rtc6226_vidioc_g_frequency,
 	.vidioc_s_frequency         =   rtc6226_vidioc_s_frequency,
 	.vidioc_s_hw_freq_seek      =   rtc6226_vidioc_s_hw_freq_seek,
-	.vidioc_dqbuf       		= 	rtc6226_vidioc_dqbuf,
+	.vidioc_dqbuf               =   rtc6226_vidioc_dqbuf,
 #ifndef RW_Kernel_ENG
-	.vidioc_g_fmt_type_private	= 	rtc6226_vidioc_g_fmt_type_private,
+	.vidioc_g_fmt_type_private  =	rtc6226_vidioc_g_fmt_type_private,
 #endif
 };
 
@@ -2400,7 +2471,7 @@ struct video_device rtc6226_viddev_template = {
  */
 static __init int rtc6226_init(void)
 {
-	pr_info(KERN_INFO DRIVER_DESC ", Version " DRIVER_VERSION "\n");
+	pr_info(DRIVER_DESC ", Version " DRIVER_VERSION "\n");
 	return rtc6226_i2c_init();
 }
 

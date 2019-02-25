@@ -1,11 +1,10 @@
-/*
- *  drivers/media/radio/rtc6226/radio-rtc6226.h
+/*  drivers/media/radio/rtc6226/radio-rtc6226.h
  *
  *  Driver for Richwave RTC6226 FM Tuner
  *
  *  Copyright (c) 2009 Tobias Lorenz <tobias.lorenz@gmx.net>
  *  Copyright (c) 2012 Hans de Goede <hdegoede@redhat.com>
- *  Copyright (c) 2018 LG Electronics, Inc. 
+ *  Copyright (c) 2018 LG Electronics, Inc.
  *  Copyright (c) 2018 Richwave Technology Co.Ltd
  *
  * This program is free software; you can redistribute it and/or modify
@@ -147,33 +146,43 @@
 #define CHANNEL_CSR0_CHSPACE        0x1f00  /* [12:08] Channel Sapcing */
 
 #define RADIOSEEKCFG1				0x14
-#define CHANNEL_CSR0_FREQ_TOP       0x7fff  /* [14:00] FM Seek Top CH, Unit 10KHz */
+/* [14:00] FM Seek Top CH, Unit 10KHz */
+#define CHANNEL_CSR0_FREQ_TOP       0x7fff
 
 #define RADIOSEEKCFG2				0x15
-#define CHANNEL_CSR0_FREQ_BOT       0x7fff  /* [14:00] FM Seek Bottom CH, Unit 10KHz */
+/*[14:00] FM Seek Bottom CH, Unit 10KHz */
+#define CHANNEL_CSR0_FREQ_BOT       0x7fff
 
-#define I2SCFG						0x1c
-#define I2S_DSP_SEL              	0x2000  /* [13:13] I2S DSP Mode(0:Normal, 1:Special) */
-#define I2S_BCLK_POL                0x1000  /* [12:12] BCLK Polarity(0:Falling, 1:Rising) */
-#define I2S_WD_SEL                  0x0c00  /* [11:10] Word Bits Select(0:8b, 1:16b, 2:20b, 3:24b) */
-#define I2S_RCH_SEL                 0x0300  /* [09:08] Right CH Control(0:On, 1:Off, 1x:Auto) */
-#define I2S_EN             			0x0080  /* [07:07] I2S Enable */
+#define I2SCFG			    0x1c
+/* [13:13] I2S DSP Mode(0:Normal, 1:Special) */
+#define I2S_DSP_SEL                 0x2000
+/* [12:12] BCLK Polarity(0:Falling, 1:Rising) */
+#define I2S_BCLK_POL                0x1000
+/* [11:10] Word Bits Select(0:8b, 1:16b, 2:20b, 3:24b) */
+#define I2S_WD_SEL                  0x0c00
+/* [09:08] Right CH Control(0:On, 1:Off, 1x:Auto) */
+#define I2S_RCH_SEL                 0x0300
+/* [07:07] I2S Enable */
+#define I2S_EN			    0x0080  /* [07:07] I2S Enable */
 #define I2S_MSEL                    0x0040  /* [06:06] I2S Master */
-#define I2S_MODE                    0x0030  /* [05:04] I2S Output Mode(0:I2S, 1:LJ, 2:DSPA, 3:DSPB) */
-#define I2S_FS_AUD_SEL              0x000c  /* [03:02] I2S Sample Rate(0:32K, 1:44.1K, 2:48K) */
-#define I2S_BCLK_AUD_SEL            0x0030  /* [05:04] I2S BCLK Ratio(0:M32, 1:M64, 2:M128, 3:M256) */
+/* [05:04] I2S Output Mode(0:I2S, 1:LJ, 2:DSPA, 3:DSPB) */
+#define I2S_MODE                    0x0030
+/* [03:02] I2S Sample Rate(0:32K, 1:44.1K, 2:48K) */
+#define I2S_FS_AUD_SEL              0x000c
+/* [05:04] I2S BCLK Ratio(0:M32, 1:M64, 2:M128, 3:M256) */
+#define I2S_BCLK_AUD_SEL            0x0030
 
-#define CHANNEL1					0x1e
-#define STATUS_READCH				0x7fff  /* [14:00] Read Channel */
+#define CHANNEL1		    0x1e
+#define STATUS_READCH		    0x7fff  /* [14:00] Read Channel */
 
 #define TURN_ON 1
 #define TURN_OFF 0
 #define SRCH_UP          1
-#define SRCH_DOWN       `0
+#define SRCH_DOWN        0
 
 #define WRAP_ENABLE      1
 #define WRAP_DISABLE     0
-
+#define DEFAULT_RSSI_TH 2
 /* Standard buffer size */
 #define STD_BUF_SIZE     256
 
@@ -182,6 +191,8 @@
 #define TUNE_PENDING 1
 #define SEEK_PENDING 2
 #define SCAN_PENDING 3
+#define START_SCAN 1
+#define WAIT_TIMEOUT_MSEC 7000
 
 #define RTC6226_MIN_SRCH_MODE 0x00
 #define RTC6226_MAX_SRCH_MODE 0x02
@@ -238,7 +249,7 @@
 #define CORRECTED_NONE          0
 #define CORRECTED_ONE_TO_TWO    1
 #define CORRECTED_THREE_TO_FIVE 2
-#define ERRORS_CORRECTED(data,block) ((data>>block)&0x03)
+#define ERRORS_CORRECTED(data, block) ((data>>block)&0x03)
 /*Block Errors are reported in .5% increments*/
 #define BLER_SCALE_MAX 200
 
@@ -340,12 +351,11 @@
 #define V4L2_CID_PRIVATE_RDS_SYNC	    (RW_PRIBASE + (CHIPID<<4) + 5)
 #define V4L2_CID_PRIVATE_SI	            (RW_PRIBASE + (CHIPID<<4) + 6)
 
-#define WAIT_OVER			0
-#define SEEK_WAITING		1
 #define NO_WAIT				2
-#define TUNE_WAITING		4
 #define RDS_WAITING			5
 #define SEEK_CANCEL			6
+#define TUNE_PARAM 16
+
 /**************************************************************************
  * General Driver Definitions
  **************************************************************************/
@@ -374,7 +384,7 @@ enum rtc6226_evt_t {
 	RTC6226_EVT_BELOW_TH,
 	RTC6226_EVT_ABOVE_TH,
 	RTC6226_EVT_STEREO,
-	RTC6226_EVT_MONO,
+	RTC6226_EVT_MONO = 11,				
 	RTC6226_EVT_RDS_AVAIL,
 	RTC6226_EVT_RDS_NOT_AVAIL,
 	RTC6226_EVT_NEW_SRCH_LIST,
@@ -574,9 +584,9 @@ enum v4l2_cid_private_rtc6226_t {
 	V4L2_CID_PRIVATE_RTC6226_HLSI,
 
 	/*
-	* Here we have IOCTl's that are specific to IRIS
-	* (V4L2_CID_PRIVATE_BASE + 0x1E to V4L2_CID_PRIVATE_BASE + 0x28)
-	*/
+	 * Here we have IOCTl's that are specific to IRIS
+	 * (V4L2_CID_PRIVATE_BASE + 0x1E to V4L2_CID_PRIVATE_BASE + 0x28)
+	 */
 	V4L2_CID_PRIVATE_RTC6226_SOFT_MUTE,/* 0x800001E*/
 	V4L2_CID_PRIVATE_RTC6226_RIVA_ACCS_ADDR,
 	V4L2_CID_PRIVATE_RTC6226_RIVA_ACCS_LEN,
@@ -595,8 +605,11 @@ enum v4l2_cid_private_rtc6226_t {
 	V4L2_CID_PRIVATE_RTC6226_GET_SINR, /* 0x800002C : IRIS */
 	V4L2_CID_PRIVATE_RTC6226_INTF_LOW_THRESHOLD, /* 0x800002D */
 	V4L2_CID_PRIVATE_RTC6226_INTF_HIGH_THRESHOLD, /* 0x800002E */
-	V4L2_CID_PRIVATE_RTC6226_SINR_THRESHOLD, /* 0x800002F : IRIS, For Richwave Spike TH */
-	/* V4L2_CID_PRIVATE_RTC6226_QLT_THRESHOLD,  */ /* 0x800002F : IRIS, For Richwave Spike TH  */
+	/* 0x800002F : IRIS, For Richwave Spike TH */
+	V4L2_CID_PRIVATE_RTC6226_SINR_THRESHOLD,
+	/* V4L2_CID_PRIVATE_RTC6226_QLT_THRESHOLD,
+	 */ /* 0x800002F : IRIS, For Richwave Spike TH
+	 */
 	V4L2_CID_PRIVATE_RTC6226_SINR_SAMPLES, /* 0x8000030 : IRIS */
 	V4L2_CID_PRIVATE_RTC6226_SPUR_FREQ,
 	V4L2_CID_PRIVATE_RTC6226_SPUR_FREQ_RMSSI, /* For Richwave DC TH */
@@ -616,7 +629,8 @@ enum v4l2_cid_private_rtc6226_t {
 	V4L2_CID_PRIVATE_RTC6226_AF_JUMP_RSSI_TH /* 0x800003F */
 };
 
-enum FMBAND {FMBAND_87_108_MHZ, FMBAND_76_108_MHZ, FMBAND_76_91_MHZ, FMBAND_64_76_MHZ};
+enum FMBAND {FMBAND_87_108_MHZ, FMBAND_76_108_MHZ, FMBAND_76_91_MHZ,
+							FMBAND_64_76_MHZ};
 enum FMSPACE {FMSPACE_200_KHZ, FMSPACE_100_KHZ, FMSPACE_50_KHZ};
 
 
@@ -653,3 +667,4 @@ void rtc6226_scan(struct work_struct *work);
 void rtc6226_search(struct rtc6226_device *radio, bool on);
 int rtc6226_cancel_seek(struct rtc6226_device *radio);
 void rtc6226_rds_handler(struct work_struct *worker);
+void rtc6226_q_event(struct rtc6226_device *radio, enum rtc6226_evt_t event);
