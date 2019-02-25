@@ -1,0 +1,34 @@
+Device Tree bindings for Freescale DEC200 Driver
+
+Required properties:
+- compatible:		Should be one of
+	* "fsl,s32v234-dec200_dec".
+	* "fsl,s32v234-dec200_enc".
+
+- reg:			Address and length of the register set for dec200.
+- clocks:		Handle to "dcu", "sys3" and "sys6" clock.
+			See ../clock/clock-bindings.txt for details.
+- clock-names:		Should be "dcu", "sys6" for dec200_dec and
+                                "sys3" and "sys6" for dec200_dec
+			See ../clock/clock-bindings.txt for details.
+
+Examples:
+dec200_dec: dec200@40026000 {
+        compatible = "fsl,s32v234-dec200_dec";
+        reg = <0x0 0x40026000 0x0 0x1000>;
+        interrupts = <0 97 4>;
+        clocks = <&clks S32V234_CLK_DCU_AXI>,
+                        <&clks S32V234_CLK_DEC200_ENC_IPS>;
+        clock-names = "dcu", "sys6";
+        status = "disabled";
+};
+
+dec200_enc: dec200@40027000 {
+        compatible = "fsl,s32v234-dec200_enc";
+        reg = <0x0 0x40027000 0x0 0x1000>;
+        interrupts = <0 98 4>;
+        clocks = <&clks S32V234_CLK_DEC200_ENC_AHB>,
+                        <&clks S32V234_CLK_DEC200_ENC_IPS>;
+        clock-names = "sys3", "sys6";
+        status = "disabled";
+};

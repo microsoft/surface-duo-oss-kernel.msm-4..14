@@ -67,9 +67,7 @@ static struct clk_onecell_data clk_data;
 static u32 share_count_csi0gate;
 static u32 share_count_csi1gate;
 static u32 share_count_dcugate;
-#if defined(DEC200_CLK)
 static u32 share_count_dec200gate;
-#endif
 static u32 share_count_h264dcdgate;
 static u32 share_count_h264encgate;
 static u32 share_count_jpegdecgate;
@@ -229,7 +227,6 @@ static void __init s32v234_clocks_init(struct device_node *mc_cgm0_node)
 	clk[S32V234_CLK_IIC2] = s32v234_clk_gate2("iic2", "sys6",
 		mc_me_base, IIC2_PCTL, 0, 1, &s32v234_lock);
 
-#if defined(DEC200_CLK)
 	clk[S32V234_CLK_DEC200_ENC_AHB] = s32v234_clk_gate2_shared(
 		"dec200_enc_ahb", "sys3", mc_me_base,
 		DEC200_PCTL, 0, 1,
@@ -239,7 +236,6 @@ static void __init s32v234_clocks_init(struct device_node *mc_cgm0_node)
 		"dec200_enc_ips", "sys6", mc_me_base,
 		DEC200_PCTL, 0, 1,
 		&share_count_dec200gate, &s32v234_lock);
-#endif
 
 	clk[S32V234_CLK_DMACHMUX0] = s32v234_clk_gate2("dmachmux0", "sys6",
 		mc_me_base, DMACHMUX0_PCTL, 0, 1, &s32v234_lock);
