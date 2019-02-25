@@ -9,6 +9,7 @@ obj-$(CONFIG_LOGO)		  += logo/
 obj-y				  += backlight/
 obj-y				  += fbdev/
 
+obj-$(CONFIG_DEC200_FSL)	  += fsl_dec200_linux.o
 obj-$(CONFIG_DCU_FSL)		  += fsl_dcu.o
 fsl_dcu-y			  := fsl_dcu_linux.o fsl_dcu_core.o
 fsl_dcu-objs			  := $(fsl_dcu-y)
