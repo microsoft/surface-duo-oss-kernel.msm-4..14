@@ -1,4 +1,4 @@
-name: dragonboard-edge-kernel
+name: dragonboard-kernel
 version: null
 version-script: |
     . debian/debian.env
@@ -14,7 +14,7 @@ parts:
     plugin: kernel
     source: .
     source-type: git
-    kconfigflavour: snapdragon-edge
+    kconfigflavour: snapdragon
     kconfigs:
       - CONFIG_DEBUG_INFO=n
     kernel-image-target: Image
