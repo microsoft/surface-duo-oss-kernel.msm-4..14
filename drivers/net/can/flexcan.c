@@ -216,6 +216,8 @@
 
 #define FLEXCAN_TIMEOUT_US		(50)
 
+#define FLEXCAN_WORDS_TOUCHED(bytes)	(((bytes) + 3) / 4)
+
 /* FLEXCAN hardware feature flags
  *
  * Below is some version info we got:
@@ -607,9 +609,9 @@ static int flexcan_start_xmit(struct sk_buff *skb, struct net_device *dev)
 
 	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CAN_FD &&
 	    can_is_canfd_skb(skb)) {
-		u32 i;
+		u8 i, data_words = FLEXCAN_WORDS_TOUCHED(cf->len);
 
-		for (i = 0; i < 16; i++) {
+		for (i = 0; i < data_words; i++) {
 			data = be32_to_cpup((__be32 *)&cf->data[i * 4]);
 			flexcan_write(data, &priv->tx_fdmb->data[i]);
 		}
@@ -1109,7 +1111,8 @@ static int flexcan_read_frame(struct net_device *dev, u32 msgid)
 	const struct flexcan_priv *priv = netdev_priv(dev);
 	struct flexcan_regs __iomem *regs = priv->regs;
 	struct flexcan_fdmb __iomem *mb = &regs->fdmb[msgid];
-	u32 reg_ctrl, reg_id, i;
+	u32 reg_ctrl, reg_id;
+	u8 i, data_words;
 
 	reg_ctrl = flexcan_read(&mb->can_ctrl);
 
@@ -1139,7 +1142,8 @@ static int flexcan_read_frame(struct net_device *dev, u32 msgid)
 		cf->can_id |= CAN_RTR_FLAG;
 	cf->len = can_dlc2len((reg_ctrl >> 16) & 0xf);
 
-	for (i = 0; i < 16; i++)
+	data_words = FLEXCAN_WORDS_TOUCHED(cf->len);
+	for (i = 0; i < data_words; i++)
 		*(__be32 *)(cf->data + 4 * i) =
 		cpu_to_be32(flexcan_read(&mb->data[i]));
 
