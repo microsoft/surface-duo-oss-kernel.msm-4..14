@@ -5,7 +5,7 @@
  * Copyright (c) 2009 Sascha Hauer, Pengutronix
  * Copyright (c) 2010-2017 Pengutronix, Marc Kleine-Budde <kernel@pengutronix.de>
  * Copyright (c) 2014 David Jander, Protonic Holland
- * Copyright 2018 NXP
+ * Copyright 2018,2019 NXP
  *
  * Based on code originally by Andrey Volkov <avolkov@varma-el.com>
  *
@@ -585,10 +585,10 @@ static int flexcan_get_berr_counter(const struct net_device *dev,
 static int flexcan_start_xmit(struct sk_buff *skb, struct net_device *dev)
 {
 	const struct flexcan_priv *priv = netdev_priv(dev);
-	struct can_frame *cf = (struct can_frame *)skb->data;
+	struct canfd_frame *cf = (struct canfd_frame *)skb->data;
 	u32 can_id;
 	u32 data;
-	u32 ctrl = FLEXCAN_MB_CODE_TX_DATA | (can_len2dlc(cf->can_dlc) << 16);
+	u32 ctrl = FLEXCAN_MB_CODE_TX_DATA | (can_len2dlc(cf->len) << 16);
 
 	if (can_dropped_invalid_skb(dev, skb))
 		return NETDEV_TX_OK;
@@ -605,7 +605,8 @@ static int flexcan_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	if (cf->can_id & CAN_RTR_FLAG)
 		ctrl |= FLEXCAN_MB_CNT_RTR;
 
-	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CAN_FD) {
+	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CAN_FD &&
+	    can_is_canfd_skb(skb)) {
 		u32 i;
 
 		for (i = 0; i < 16; i++) {
@@ -614,11 +615,11 @@ static int flexcan_start_xmit(struct sk_buff *skb, struct net_device *dev)
 		}
 		ctrl |= FLEXCAN_MB_CNT_EDL;
 	} else {
-		if (cf->can_dlc > 0) {
+		if (cf->len > 0) {
 			data = be32_to_cpup((__be32 *)&cf->data[0]);
 			flexcan_write(data, &priv->tx_mb->data[0]);
 		}
-		if (cf->can_dlc > 4) {
+		if (cf->len > 4) {
 			data = be32_to_cpup((__be32 *)&cf->data[4]);
 			flexcan_write(data, &priv->tx_mb->data[1]);
 		}
@@ -1100,16 +1101,33 @@ static int flexcan_poll_bus_err(struct net_device *dev, u32 reg_esr)
 	return 1;
 }
 
-static void flexcan_read_fd_frame(
-	const struct net_device *dev,
-	struct canfd_frame *cf, u32 msgid)
+static int flexcan_read_frame(struct net_device *dev, u32 msgid)
 {
+	struct net_device_stats *stats = &dev->stats;
+	struct canfd_frame *cf;
+	struct sk_buff *skb;
 	const struct flexcan_priv *priv = netdev_priv(dev);
 	struct flexcan_regs __iomem *regs = priv->regs;
 	struct flexcan_fdmb __iomem *mb = &regs->fdmb[msgid];
 	u32 reg_ctrl, reg_id, i;
 
 	reg_ctrl = flexcan_read(&mb->can_ctrl);
+
+	if ((reg_ctrl & FLEXCAN_MB_CODE_MASK) == FLEXCAN_MB_CODE_RX_OVERRUN) {
+		stats->rx_over_errors++;
+		stats->rx_errors++;
+	}
+
+	if (reg_ctrl & FLEXCAN_MB_CNT_EDL)
+		skb = alloc_canfd_skb(dev, &cf);
+	else
+		skb = alloc_can_skb(dev, (struct can_frame **)&cf);
+
+	if (unlikely(!skb)) {
+		dev->stats.rx_dropped++;
+		return 0;
+	}
+
 	reg_id = flexcan_read(&mb->can_id);
 
 	if (reg_ctrl & FLEXCAN_MB_CNT_IDE)
@@ -1126,23 +1144,9 @@ static void flexcan_read_fd_frame(
 		cpu_to_be32(flexcan_read(&mb->data[i]));
 
 	/* mark as read */
-	flexcan_write(1 << msgid, &regs->iflag1);
+	flexcan_write(FLEXCAN_IFLAG_MB(msgid), &regs->iflag1);
 	flexcan_read(&regs->timer);
-}
 
-static int flexcan_read_frame(struct net_device *dev, u32 msgid)
-{
-	struct net_device_stats *stats = &dev->stats;
-	struct canfd_frame *cf;
-	struct sk_buff *skb;
-
-	skb = alloc_canfd_skb(dev, &cf);
-	if (unlikely(!skb)) {
-		stats->rx_dropped++;
-		return 0;
-	}
-
-	flexcan_read_fd_frame(dev, cf, msgid);
 	netif_rx_ni(skb);
 	stats->rx_packets++;
 	stats->rx_bytes += cf->len;
@@ -1173,7 +1177,7 @@ static int flexcan_poll(struct napi_struct *napi, int quota)
 	reg_iflag1 = flexcan_read(&regs->iflag1);
 
 	for (i = priv->offload.mb_first; i <= priv->offload.mb_last; i++) {
-		if (((1 << i) & reg_iflag1) && work_done < quota) {
+		if ((FLEXCAN_IFLAG_MB(i) & reg_iflag1) && work_done < quota) {
 			work_done += flexcan_read_frame(dev, i);
 			reg_iflag1 = flexcan_read(&regs->iflag1);
 			temp_imask1 |= 1 << i;
