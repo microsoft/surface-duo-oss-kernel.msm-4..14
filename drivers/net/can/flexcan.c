@@ -206,14 +206,6 @@
 #define FLEXCAN_MB_CNT_LENGTH(x)	(((x) & 0xf) << 16)
 #define FLEXCAN_MB_CNT_TIMESTAMP(x)	((x) & 0xffff)
 
-#define FLEXCAN_MB_ID_EXT_MASK		0x3ffffu
-#define FLEXCAN_MB_ID_EXT_SHIFT		0
-#define FLEXCAN_MB_ID_EXT_WIDTH		18
-
-#define FLEXCAN_MB_ID_STD_MASK		0x1ffc0000u
-#define FLEXCAN_MB_ID_STD_SHIFT		18
-#define FLEXCAN_MB_ID_STD_WIDTH		11
-
 #define FLEXCAN_TIMEOUT_US		(50)
 
 #define FLEXCAN_WORDS_TOUCHED(bytes)	(((bytes) + 3) / 4)
@@ -1388,13 +1380,7 @@ static int flexcan_chip_start(struct net_device *dev)
 					FLEXCAN_MB_CNT_IDE,
 					 &regs->fdmb[i].can_ctrl);
 			}
-
-			flexcan_write((i << FLEXCAN_MB_ID_STD_SHIFT) &
-						   FLEXCAN_MB_ID_STD_MASK,
-						   &regs->rximr[i]);
-			flexcan_write((i << FLEXCAN_MB_ID_EXT_SHIFT) &
-						   FLEXCAN_MB_ID_EXT_MASK,
-						   &regs->rximr[i]);
+			flexcan_write(0, &regs->rximr[i]);
 		}
 	} else {
 		/* clear acceptance filters */
