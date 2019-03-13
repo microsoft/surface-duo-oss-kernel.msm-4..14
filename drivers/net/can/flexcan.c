@@ -1016,13 +1016,6 @@ static void flexcan_set_bittiming(struct net_device *dev)
 		flexcan_write(reg, &regs->ctrl);
 	}
 
-	if (priv->can.ctrlmode & CAN_CTRLMODE_LOOPBACK)
-		reg |= FLEXCAN_CTRL_LPB;
-	if (priv->can.ctrlmode & CAN_CTRLMODE_LISTENONLY)
-		reg |= FLEXCAN_CTRL_LOM;
-	if (priv->can.ctrlmode & CAN_CTRLMODE_3_SAMPLES)
-		reg |= FLEXCAN_CTRL_SMP;
-
 	/* print chip status */
 	netdev_dbg(dev, "%s: mcr=0x%08x ctrl=0x%08x\n", __func__,
 				flexcan_read(&regs->mcr),
