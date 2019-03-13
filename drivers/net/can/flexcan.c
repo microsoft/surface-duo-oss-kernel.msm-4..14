@@ -34,6 +34,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/of_address.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 
@@ -210,6 +211,10 @@
 
 #define FLEXCAN_WORDS_TOUCHED(bytes)	(((bytes) + 3) / 4)
 
+/* OTP Bank0 Word4 (OCOTP_CFG3) address and bits */
+#define OCOTP_CFG3			0x440
+#define OCOTP_CFG3_CAN_FD_DISABLE	BIT(7)
+
 /* FLEXCAN hardware feature flags
  *
  * Below is some version info we got:
@@ -329,6 +334,7 @@ struct flexcan_priv {
 	u32 reg_ctrl_default;
 	u32 reg_imask1_default;
 	u32 reg_imask2_default;
+	bool enable_fd;
 
 	struct clk *clk_ipg;
 	struct clk *clk_per;
@@ -416,6 +422,36 @@ static inline void flexcan_write(u32 val, void __iomem *addr)
 	writel(val, addr);
 }
 #endif
+
+static inline bool flexcan_request_fd(struct device *dev)
+{
+	struct device_node *otp_node;
+	u32 cfg3;
+	void __iomem *otp_regs;
+
+	if (!of_device_is_compatible(dev->of_node, "fsl,s32v234-flexcan"))
+		return true;
+
+	otp_node = of_parse_phandle(dev->of_node, "s32v234-ocotp", 0);
+	if (!otp_node) {
+		dev_warn(dev, "OCOTP node not found. CAN FD support is disabled.\n");
+		return false;
+	}
+
+	otp_regs = of_iomap(otp_node, 0);
+	if (!otp_regs) {
+		dev_warn(dev, "Cannot map OCOTP registers. CAN FD support is disabled.\n");
+		return false;
+	}
+
+	cfg3 = readl(otp_regs + OCOTP_CFG3);
+	if (cfg3 & OCOTP_CFG3_CAN_FD_DISABLE) {
+		dev_warn(dev, "CAN FD is not supported by hardware.\n");
+		return false;
+	}
+
+	return true;
+}
 
 static inline void flexcan_error_irq_enable(const struct flexcan_priv *priv)
 {
@@ -599,8 +635,7 @@ static int flexcan_start_xmit(struct sk_buff *skb, struct net_device *dev)
 	if (cf->can_id & CAN_RTR_FLAG)
 		ctrl |= FLEXCAN_MB_CNT_RTR;
 
-	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CAN_FD &&
-	    can_is_canfd_skb(skb)) {
+	if (priv->enable_fd && can_is_canfd_skb(skb)) {
 		u8 i, data_words = FLEXCAN_WORDS_TOUCHED(cf->len);
 
 		for (i = 0; i < data_words; i++) {
@@ -727,7 +762,7 @@ static int flexcan_irq_state(struct net_device *dev, u32 reg_esr)
 	if (unlikely(new_state == CAN_STATE_BUS_OFF))
 		can_bus_off(dev);
 
-	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CAN_FD) {
+	if (priv->enable_fd) {
 		netif_receive_skb(skb);
 
 		dev->stats.rx_packets++;
@@ -854,7 +889,7 @@ static irqreturn_t flexcan_irq(int irq, void *dev_id)
 			if (!ret)
 				break;
 		}
-	} else if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CAN_FD) {
+	} else if (priv->enable_fd) {
 		if ((reg_iflag1 & FLEXCAN_FD_IFLAG_RX_DATA_AVAILABLE) ||
 		    (reg_esr & FLEXCAN_ESR_ERR_STATE) ||
 		    flexcan_handle_berr(priv, reg_esr)) {
@@ -965,7 +1000,7 @@ static void flexcan_set_bittiming(struct net_device *dev)
 	struct flexcan_regs __iomem *regs = priv->regs;
 	u32 reg, fdreg;
 
-	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CAN_FD) {
+	if (priv->enable_fd) {
 		reg = flexcan_read(&regs->cbt);
 		reg &= ~(FLEXCAN_CBT_EPRESDIV(0x3ff) |
 			FLEXCAN_CBT_ERJW(0x01f) |
@@ -1232,7 +1267,7 @@ static int flexcan_chip_start(struct net_device *dev)
 	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_USE_OFF_TIMESTAMP) {
 		reg_mcr &= ~FLEXCAN_MCR_FEN;
 		reg_mcr |= FLEXCAN_MCR_MAXMB(priv->offload.mb_last);
-	} else if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CAN_FD) {
+	} else if (priv->enable_fd) {
 		reg_mcr &= ~FLEXCAN_MCR_FEN;
 		reg_mcr |= FLEXCAN_MCR_FDEN |
 				   FLEXCAN_MCR_MAXMB(priv->offload.mb_last);
@@ -1291,7 +1326,7 @@ static int flexcan_chip_start(struct net_device *dev)
 		flexcan_write(reg_ctrl2, &regs->ctrl2);
 	}
 
-	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CAN_FD) {
+	if (priv->enable_fd) {
 		u32 reg_fdctrl;
 
 		reg_ctrl2 = flexcan_read(&regs->ctrl2);
@@ -1359,7 +1394,7 @@ static int flexcan_chip_start(struct net_device *dev)
 	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_DISABLE_RXFG)
 		flexcan_write(0x0, &regs->rxfgmask);
 
-	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CAN_FD) {
+	if (priv->enable_fd) {
 		/* clear acceptance filters */
 		for (i = priv->offload.mb_first;
 			i <= priv->offload.mb_last; i++) {
@@ -1486,7 +1521,7 @@ static int flexcan_open(struct net_device *dev)
 
 	can_led_event(dev, CAN_LED_EVENT_OPEN);
 
-	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CAN_FD)
+	if (priv->enable_fd)
 		napi_enable(&priv->offload.napi);
 	else
 		can_rx_offload_enable(&priv->offload);
@@ -1511,7 +1546,7 @@ static int flexcan_close(struct net_device *dev)
 	struct flexcan_priv *priv = netdev_priv(dev);
 
 	netif_stop_queue(dev);
-	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CAN_FD)
+	if (priv->enable_fd)
 		napi_disable(&priv->offload.napi);
 	else
 		can_rx_offload_disable(&priv->offload);
@@ -1717,7 +1752,12 @@ static int flexcan_probe(struct platform_device *pdev)
 	priv->devtype_data = devtype_data;
 	priv->reg_xceiver = reg_xceiver;
 
-	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CAN_FD) {
+	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SUPPORT_CAN_FD)
+		priv->enable_fd = flexcan_request_fd(&pdev->dev);
+	else
+		priv->enable_fd = false;
+
+	if (priv->enable_fd) {
 		priv->can.ctrlmode_supported = CAN_CTRLMODE_FD;
 		priv->can.data_bittiming_const =
 			&flex_canfd_data_bittiming_const;
@@ -1756,8 +1796,7 @@ static int flexcan_probe(struct platform_device *pdev)
 		priv->reg_imask2_default |= imask >> 32;
 
 		err = can_rx_offload_add_timestamp(dev, &priv->offload);
-	} else if (priv->devtype_data->quirks &
-			   FLEXCAN_QUIRK_SUPPORT_CAN_FD) {
+	} else if (priv->enable_fd) {
 		u64 imask;
 
 		priv->offload.mb_first = FLEXCAN_RX_MB_OFF_TIMESTAMP_FIRST;
