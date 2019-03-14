@@ -43,6 +43,9 @@
 /* 8 for RX fifo and 2 error handling */
 #define FLEXCAN_NAPI_WEIGHT		(8 + 2)
 
+/* 6 for standard format MBs + 6 for extended format MBs + 2 error handling */
+#define FLEXCAN_FD_NAPI_WEIGHT		(6 + 6 + 2)
+
 /* FLEXCAN module configuration register (CANMCR) bits */
 #define FLEXCAN_MCR_MDIS		BIT(31)
 #define FLEXCAN_MCR_FRZ			BIT(30)
@@ -168,6 +171,11 @@
 	(FLEXCAN_ESR_TWRN_INT | FLEXCAN_ESR_RWRN_INT | \
 	 FLEXCAN_ESR_BOFF_INT | FLEXCAN_ESR_ERR_INT)
 
+#define FLEXCAN_RAM_BLOCKS		2
+#define FLEXCAN_64B_MBS_PER_BLOCK	7
+#define FLEXCAN_FDMB(regs, index)	(&regs->blocks[(index) / \
+	FLEXCAN_64B_MBS_PER_BLOCK].fdmb[(index) % FLEXCAN_64B_MBS_PER_BLOCK])
+
 /* FLEXCAN interrupt flag register (IFLAG) bits */
 /* Errata ERR005829 step7: Reserve first valid MB */
 #define FLEXCAN_TX_MB_RESERVED_OFF_FIFO	8
@@ -175,7 +183,9 @@
 #define FLEXCAN_TX_MB_RESERVED_OFF_TIMESTAMP	0
 #define FLEXCAN_TX_MB_OFF_TIMESTAMP		1
 #define FLEXCAN_RX_MB_OFF_TIMESTAMP_FIRST	(FLEXCAN_TX_MB_OFF_TIMESTAMP + 1)
-#define FLEXCAN_FD_RX_MB_OFF_TIMESTAMP_LAST	6
+#define FLEXCAN_FD_RX_MB_OFF_TIMESTAMP_LAST	(FLEXCAN_RAM_BLOCKS * \
+	FLEXCAN_64B_MBS_PER_BLOCK - 1)
+#define FLEXCAN_FD_RX_MB_STANDARD_ID_LAST	7
 #define FLEXCAN_RX_MB_OFF_TIMESTAMP_LAST	63
 #define FLEXCAN_IFLAG_MB(x)		BIT(x)
 #define FLEXCAN_IFLAG_RX_FIFO_OVERFLOW	BIT(7)
@@ -281,7 +291,10 @@ struct flexcan_regs {
 	/* 0x80 */
 	union {
 		struct flexcan_mb mb[64];
-		struct flexcan_fdmb fdmb[14];
+		struct {
+			struct flexcan_fdmb fdmb[FLEXCAN_64B_MBS_PER_BLOCK];
+			u32 _reserved[2];
+		} blocks[FLEXCAN_RAM_BLOCKS];
 	};
 	/* FIFO-mode:
 	 *			MB
@@ -1130,7 +1143,7 @@ static int flexcan_read_frame(struct net_device *dev, u32 msgid)
 	struct sk_buff *skb;
 	const struct flexcan_priv *priv = netdev_priv(dev);
 	struct flexcan_regs __iomem *regs = priv->regs;
-	struct flexcan_fdmb __iomem *mb = &regs->fdmb[msgid];
+	struct flexcan_fdmb __iomem *mb = FLEXCAN_FDMB(regs, msgid);
 	u32 reg_ctrl, reg_id;
 	u8 i, data_words;
 
@@ -1340,16 +1353,17 @@ static int flexcan_chip_start(struct net_device *dev)
 		flexcan_write(reg_fdctrl, &regs->fdctrl);
 
 		/* clear and invalidate all mailboxes first */
-		for (i = priv->tx_mb_idx; i < ARRAY_SIZE(regs->fdmb); i++) {
+		for (i = priv->tx_mb_idx; i < FLEXCAN_RAM_BLOCKS *
+			FLEXCAN_64B_MBS_PER_BLOCK; i++) {
 			flexcan_write(
 				FLEXCAN_MB_CODE_RX_INACTIVE,
-				&regs->fdmb[i].can_ctrl);
+				&FLEXCAN_FDMB(regs, i)->can_ctrl);
 		}
 
 		for (i = priv->offload.mb_first; i <= priv->offload.mb_last; i++)
 			flexcan_write(
 				FLEXCAN_MB_CODE_RX_EMPTY,
-				&regs->fdmb[i].can_ctrl);
+				&FLEXCAN_FDMB(regs, i)->can_ctrl);
 
 		/* Errata ERR005829: mark first TX mailbox as INACTIVE */
 		flexcan_write(
@@ -1395,18 +1409,17 @@ static int flexcan_chip_start(struct net_device *dev)
 		flexcan_write(0x0, &regs->rxfgmask);
 
 	if (priv->enable_fd) {
-		/* clear acceptance filters */
 		for (i = priv->offload.mb_first;
 			i <= priv->offload.mb_last; i++) {
-			if (i < 4) {
+			if (i <= FLEXCAN_FD_RX_MB_STANDARD_ID_LAST) {
 				flexcan_write(
 					FLEXCAN_MB_CODE_RX_EMPTY,
-					&regs->fdmb[i].can_ctrl);
+					&FLEXCAN_FDMB(regs, i)->can_ctrl);
 			} else {
 				flexcan_write(
 					FLEXCAN_MB_CODE_RX_EMPTY |
 					FLEXCAN_MB_CNT_IDE,
-					 &regs->fdmb[i].can_ctrl);
+					&FLEXCAN_FDMB(regs, i)->can_ctrl);
 			}
 			flexcan_write(0, &regs->rximr[i]);
 		}
@@ -1765,8 +1778,9 @@ static int flexcan_probe(struct platform_device *pdev)
 
 		priv->tx_mb_idx = FLEXCAN_TX_MB_OFF_TIMESTAMP;
 		priv->tx_fdmb_reserved =
-			&regs->fdmb[FLEXCAN_TX_MB_RESERVED_OFF_TIMESTAMP];
-		priv->tx_fdmb = &regs->fdmb[priv->tx_mb_idx];
+			FLEXCAN_FDMB(regs,
+				     FLEXCAN_TX_MB_RESERVED_OFF_TIMESTAMP);
+		priv->tx_fdmb = FLEXCAN_FDMB(regs, priv->tx_mb_idx);
 
 	} else if (priv->devtype_data->quirks &
 			   FLEXCAN_QUIRK_USE_OFF_TIMESTAMP) {
@@ -1809,7 +1823,7 @@ static int flexcan_probe(struct platform_device *pdev)
 		priv->reg_imask2_default |= 0;
 		netif_napi_add(
 			dev, &priv->offload.napi,
-			flexcan_poll, FLEXCAN_NAPI_WEIGHT);
+			flexcan_poll, FLEXCAN_FD_NAPI_WEIGHT);
 		err = 0;
 	} else {
 		priv->reg_imask1_default |= FLEXCAN_IFLAG_RX_FIFO_OVERFLOW |
