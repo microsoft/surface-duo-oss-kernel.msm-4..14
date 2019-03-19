@@ -78,6 +78,17 @@ static int s32gen1_rtc_read_time(struct device *dev, struct rtc_time *tm)
 {
 	struct rtc_s32gen1_priv *priv = dev_get_drvdata(dev);
 
+	/* Dummy reading so we appease rtc_valid_tm(); note that this means
+	 * we won't have a monotonic timestamp, in case someone wants to use
+	 * this RTC as the system timer.
+	 */
+	if (!tm)
+		return -EINVAL;
+	tm->tm_year = 118;	/* 2018 */
+	tm->tm_mon = 7;		/* August */
+	tm->tm_mday = 10;
+	tm->tm_hour = 18;
+
 	return 0;
 }
 
