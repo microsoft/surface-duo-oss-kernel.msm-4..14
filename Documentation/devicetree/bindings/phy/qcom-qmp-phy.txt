@@ -34,7 +34,9 @@ Required properties:
 	   one for each entry in reset-names.
  - reset-names: "phy" for reset of phy block,
 		"common" for phy common block reset,
-		"cfg" for phy's ahb cfg block reset (Optional).
+		"cfg" for phy's ahb cfg block reset,
+		"ufsphy" for the PHY reset in the UFS controller.
+
 		For "qcom,msm8996-qmp-pcie-phy" must contain:
 		 "phy", "common", "cfg".
 		For "qcom,msm8996-qmp-usb3-phy" must contain
