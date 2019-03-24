@@ -155,7 +155,7 @@ static int s32gen1_rtc_probe(struct platform_device *pdev)
 	if (!priv->res) {
 		dev_err(&pdev->dev, "Failed to get resource");
 		err = -ENOMEM;
-		goto err_free_priv_data;
+		goto err_platform_get_resource;
 	}
 
 	priv->rtc_base = (u8 *)devm_ioremap_nocache(&pdev->dev,
@@ -164,40 +164,50 @@ static int s32gen1_rtc_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Failed to map IO address 0x%016llx\n",
 			priv->res->start);
 		err = -ENOMEM;
-		goto err_release_res;
+		goto err_ioremap_nocache;
 	}
 	dev_dbg(&pdev->dev, "RTC successfully mapped to 0x%p\n",
 		priv->rtc_base);
 
 	priv->rdev = devm_rtc_device_register(&pdev->dev, "s32gen1_rtc",
 					&s32gen1_rtc_ops, THIS_MODULE);
-	device_init_wakeup(&pdev->dev, ENABLE_WAKEUP);
+	if (IS_ERR_OR_NULL(priv->rdev)) {
+		dev_err(&pdev->dev, "devm_rtc_device_register error %ld\n",
+			PTR_ERR(priv->rdev));
+		err = -ENXIO;
+		goto err_devm_rtc_device_register;
+	}
+
+	err = device_init_wakeup(&pdev->dev, ENABLE_WAKEUP);
+	if (err) {
+		dev_err(&pdev->dev, "device_init_wakeup err %d\n", err);
+		err = -ENXIO;
+		goto err_device_init_wakeup;
+	}
 
 	rtc_node = of_find_compatible_node(NULL, NULL, "fsl,s32gen1-rtc");
 	if (!rtc_node) {
 		dev_err(&pdev->dev, "Unable to find RTC node\n");
 		err = -ENXIO;
-		goto err_release_res;
+		goto err_of_find_compatible;
 	}
-
 	priv->dt_irq_id = of_irq_get(rtc_node, 0);
 	of_node_put(rtc_node);
 
 	if (priv->dt_irq_id <= 0) {
 		err = -ENXIO;
-		goto err_release_res;
+		goto err_of_irq_get;
 	}
 
 	platform_set_drvdata(pdev, priv);
 
 	err = devm_request_irq(&pdev->dev, priv->dt_irq_id, rtc_handler, 0,
 		"rtc", pdev);
-
 	if (err) {
 		dev_err(&pdev->dev, "Request interrupt %d failed\n",
 			priv->dt_irq_id);
 		err = -ENXIO;
-		goto err_release_res;
+		goto err_devm_request_irq;
 	}
 
 	priv->pdev = pdev;
@@ -205,10 +215,14 @@ static int s32gen1_rtc_probe(struct platform_device *pdev)
 
 	return 0;
 
-err_release_res:
+err_devm_request_irq:
+err_of_irq_get:
+err_of_find_compatible:
+err_device_init_wakeup:
+err_devm_rtc_device_register:
+err_ioremap_nocache:
 	release_resource(priv->res);
-err_free_priv_data:
-	kfree(priv);
+err_platform_get_resource:
 	return err;
 }
 
@@ -221,7 +235,6 @@ static int s32gen1_rtc_remove(struct platform_device *pdev)
 	iowrite32(rtcc_val & (~CNTEN), (u8 *)priv->rtc_base + RTCC_OFFSET);
 
 	release_resource(priv->res);
-	kfree(priv);
 
 	dev_info(&pdev->dev, "Removed successfully\n");
 	return 0;
