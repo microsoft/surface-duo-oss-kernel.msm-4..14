@@ -780,6 +780,8 @@ static int flexcan_irq_state(struct net_device *dev, u32 reg_esr)
 
 		dev->stats.rx_packets++;
 		dev->stats.rx_bytes += cf->can_dlc;
+
+		can_led_event(dev, CAN_LED_EVENT_RX);
 	} else {
 		can_rx_offload_irq_queue_err_skb(&priv->offload, skb);
 	}
