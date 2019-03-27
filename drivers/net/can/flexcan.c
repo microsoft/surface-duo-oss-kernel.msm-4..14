@@ -913,8 +913,7 @@ static irqreturn_t flexcan_irq(int irq, void *dev_id)
 			 */
 			priv->reg_esr = reg_esr & FLEXCAN_ESR_ERR_BUS;
 			flexcan_write(priv->reg_imask1_default &
-				~(FLEXCAN_FD_IFLAG_RX_DATA_AVAILABLE &
-				  reg_iflag1),
+				~FLEXCAN_FD_IFLAG_RX_DATA_AVAILABLE,
 				&regs->imask1);
 			flexcan_write(priv->reg_ctrl_default &
 				~FLEXCAN_CTRL_ERR_ALL,
@@ -1200,10 +1199,9 @@ static int flexcan_poll(struct napi_struct *napi, int quota)
 	struct net_device *dev = napi->dev;
 	const struct flexcan_priv *priv = netdev_priv(dev);
 	struct flexcan_regs __iomem *regs = priv->regs;
-	u32 i, reg_iflag1, reg_esr, temp_imask1;
+	u32 i, reg_iflag1, reg_esr;
 	int work_done = 0;
 
-	temp_imask1 = 0;
 	/* The error bits are cleared on read,
 	 * use saved value from irq handler.
 	 */
@@ -1219,7 +1217,6 @@ static int flexcan_poll(struct napi_struct *napi, int quota)
 		if ((FLEXCAN_IFLAG_MB(i) & reg_iflag1) && work_done < quota) {
 			work_done += flexcan_read_frame(dev, i);
 			reg_iflag1 = flexcan_read(&regs->iflag1);
-			temp_imask1 |= 1 << i;
 		}
 	}
 
@@ -1230,7 +1227,7 @@ static int flexcan_poll(struct napi_struct *napi, int quota)
 	if (work_done < quota) {
 		napi_complete(napi);
 		/* enable IRQs */
-		flexcan_write(temp_imask1, &regs->imask1);
+		flexcan_write(priv->reg_imask1_default, &regs->imask1);
 		flexcan_write(priv->reg_ctrl_default, &regs->ctrl);
 	}
 
