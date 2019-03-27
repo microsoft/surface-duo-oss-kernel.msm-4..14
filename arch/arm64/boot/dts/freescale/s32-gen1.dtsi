@@ -533,6 +533,10 @@
 		bus-width = <8>;
 		status = "disabled";
 	};
+	
+	hse: hse@40334000 {
+		compatible = "fsl,s32gen1-hse";
+	};
 
 	can4: flexcan@44000000{
 		compatible = "fsl,s32gen1-flexcan";
