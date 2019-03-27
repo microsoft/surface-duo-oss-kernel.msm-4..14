@@ -32,6 +32,7 @@
 
 #include <linux/tcp.h>
 #include <linux/if_vlan.h>
+#include <net/geneve.h>
 #include <net/dsfield.h>
 #include "en.h"
 #include "ipoib/ipoib.h"
@@ -110,11 +111,10 @@ static inline int mlx5e_get_dscp_up(struct mlx5e_priv *priv, struct sk_buff *skb
 #endif
 
 u16 mlx5e_select_queue(struct net_device *dev, struct sk_buff *skb,
-		       struct net_device *sb_dev,
-		       select_queue_fallback_t fallback)
+		       struct net_device *sb_dev)
 {
+	int channel_ix = netdev_pick_tx(dev, skb, NULL);
 	struct mlx5e_priv *priv = netdev_priv(dev);
-	int channel_ix = fallback(dev, skb, NULL);
 	u16 num_channels;
 	int up = 0;
 
@@ -392,6 +392,10 @@ netdev_tx_t mlx5e_sq_xmit(struct mlx5e_txqsq *sq, struct sk_buff *skb,
 	eseg = &wqe->eth;
 	dseg =  wqe->data;
 
+#if IS_ENABLED(CONFIG_GENEVE)
+	if (skb->encapsulation)
+		mlx5e_tx_tunnel_accel(skb, eseg);
+#endif
 	mlx5e_txwqe_build_eseg_csum(sq, skb, eseg);
 
 	eseg->mss = mss;

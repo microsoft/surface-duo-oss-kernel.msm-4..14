@@ -1691,8 +1691,7 @@ static netdev_tx_t team_xmit(struct sk_buff *skb, struct net_device *dev)
 }
 
 static u16 team_select_queue(struct net_device *dev, struct sk_buff *skb,
-			     struct net_device *sb_dev,
-			     select_queue_fallback_t fallback)
+			     struct net_device *sb_dev)
 {
 	/*
 	 * This helper function exists to help dev_pick_tx get the correct
@@ -2726,24 +2725,20 @@ static const struct genl_ops team_nl_ops[] = {
 	{
 		.cmd = TEAM_CMD_NOOP,
 		.doit = team_nl_cmd_noop,
-		.policy = team_nl_policy,
 	},
 	{
 		.cmd = TEAM_CMD_OPTIONS_SET,
 		.doit = team_nl_cmd_options_set,
-		.policy = team_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 	},
 	{
 		.cmd = TEAM_CMD_OPTIONS_GET,
 		.doit = team_nl_cmd_options_get,
-		.policy = team_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 	},
 	{
 		.cmd = TEAM_CMD_PORT_LIST_GET,
 		.doit = team_nl_cmd_port_list_get,
-		.policy = team_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 	},
 };
@@ -2756,6 +2751,7 @@ static struct genl_family team_nl_family __ro_after_init = {
 	.name		= TEAM_GENL_NAME,
 	.version	= TEAM_GENL_VERSION,
 	.maxattr	= TEAM_ATTR_MAX,
+	.policy = team_nl_policy,
 	.netnsok	= true,
 	.module		= THIS_MODULE,
 	.ops		= team_nl_ops,

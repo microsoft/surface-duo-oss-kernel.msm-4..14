@@ -47,6 +47,9 @@
 #define ICE_TX_FLAGS_VLAN_M	0xffff0000
 #define ICE_TX_FLAGS_VLAN_S	16
 
+#define ICE_RX_DMA_ATTR \
+	(DMA_ATTR_SKIP_CPU_SYNC | DMA_ATTR_WEAK_ORDERING)
+
 struct ice_tx_buf {
 	struct ice_tx_desc *next_to_watch;
 	struct sk_buff *skb;
@@ -73,6 +76,7 @@ struct ice_rx_buf {
 	dma_addr_t dma;
 	struct page *page;
 	unsigned int page_offset;
+	u16 pagecnt_bias;
 };
 
 struct ice_q_stats {
@@ -125,6 +129,7 @@ enum ice_rx_dtype {
 #define ITR_IS_DYNAMIC(setting) (!!((setting) & ICE_ITR_DYNAMIC))
 #define ITR_TO_REG(setting)	((setting) & ~ICE_ITR_DYNAMIC)
 #define ICE_ITR_GRAN_S		1	/* Assume ITR granularity is 2us */
+#define ICE_ITR_GRAN_US		BIT(ICE_ITR_GRAN_S)
 #define ICE_ITR_MASK		0x1FFE	/* ITR register value alignment mask */
 #define ITR_REG_ALIGN(setting)	__ALIGN_MASK(setting, ~ICE_ITR_MASK)
 

@@ -24,6 +24,7 @@ static inline bool ice_is_tc_ena(u8 bitmap, u8 tc)
 /* debug masks - set these bits in hw->debug_mask to control output */
 #define ICE_DBG_INIT		BIT_ULL(1)
 #define ICE_DBG_LINK		BIT_ULL(4)
+#define ICE_DBG_PHY		BIT_ULL(5)
 #define ICE_DBG_QCTX		BIT_ULL(6)
 #define ICE_DBG_NVM		BIT_ULL(7)
 #define ICE_DBG_LAN		BIT_ULL(8)
@@ -209,6 +210,9 @@ struct ice_nvm_info {
 #define ICE_MAX_TRAFFIC_CLASS 8
 #define ICE_TXSCHED_MAX_BRANCHES ICE_MAX_TRAFFIC_CLASS
 
+#define ice_for_each_traffic_class(_i)	\
+	for ((_i) = 0; (_i) < ICE_MAX_TRAFFIC_CLASS; (_i)++)
+
 struct ice_sched_node {
 	struct ice_sched_node *parent;
 	struct ice_sched_node *sibling; /* next sibling in the same layer */
@@ -247,7 +251,6 @@ struct ice_sched_vsi_info {
 	struct ice_sched_node *ag_node[ICE_MAX_TRAFFIC_CLASS];
 	struct list_head list_entry;
 	u16 max_lanq[ICE_MAX_TRAFFIC_CLASS];
-	u16 vsi_id;
 };
 
 /* driver defines the policy */

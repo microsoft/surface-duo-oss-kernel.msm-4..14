@@ -168,6 +168,39 @@ static bool ice_vsi_fltr_changed(struct ice_vsi *vsi)
 }
 
 /**
+ * ice_cfg_promisc - Enable or disable promiscuous mode for a given PF
+ * @vsi: the VSI being configured
+ * @promisc_m: mask of promiscuous config bits
+ * @set_promisc: enable or disable promisc flag request
+ *
+ */
+static int ice_cfg_promisc(struct ice_vsi *vsi, u8 promisc_m, bool set_promisc)
+{
+	struct ice_hw *hw = &vsi->back->hw;
+	enum ice_status status = 0;
+
+	if (vsi->type != ICE_VSI_PF)
+		return 0;
+
+	if (vsi->vlan_ena) {
+		status = ice_set_vlan_vsi_promisc(hw, vsi->idx, promisc_m,
+						  set_promisc);
+	} else {
+		if (set_promisc)
+			status = ice_set_vsi_promisc(hw, vsi->idx, promisc_m,
+						     0);
+		else
+			status = ice_clear_vsi_promisc(hw, vsi->idx, promisc_m,
+						       0);
+	}
+
+	if (status)
+		return -EIO;
+
+	return 0;
+}
+
+/**
  * ice_vsi_sync_fltr - Update the VSI filter list to the HW
  * @vsi: ptr to the VSI
  *
@@ -182,6 +215,7 @@ static int ice_vsi_sync_fltr(struct ice_vsi *vsi)
 	struct ice_hw *hw = &pf->hw;
 	enum ice_status status = 0;
 	u32 changed_flags = 0;
+	u8 promisc_m;
 	int err = 0;
 
 	if (!vsi->netdev)
@@ -245,8 +279,35 @@ static int ice_vsi_sync_fltr(struct ice_vsi *vsi)
 		}
 	}
 	/* check for changes in promiscuous modes */
-	if (changed_flags & IFF_ALLMULTI)
-		netdev_warn(netdev, "Unsupported configuration\n");
+	if (changed_flags & IFF_ALLMULTI) {
+		if (vsi->current_netdev_flags & IFF_ALLMULTI) {
+			if (vsi->vlan_ena)
+				promisc_m = ICE_MCAST_VLAN_PROMISC_BITS;
+			else
+				promisc_m = ICE_MCAST_PROMISC_BITS;
+
+			err = ice_cfg_promisc(vsi, promisc_m, true);
+			if (err) {
+				netdev_err(netdev, "Error setting Multicast promiscuous mode on VSI %i\n",
+					   vsi->vsi_num);
+				vsi->current_netdev_flags &= ~IFF_ALLMULTI;
+				goto out_promisc;
+			}
+		} else if (!(vsi->current_netdev_flags & IFF_ALLMULTI)) {
+			if (vsi->vlan_ena)
+				promisc_m = ICE_MCAST_VLAN_PROMISC_BITS;
+			else
+				promisc_m = ICE_MCAST_PROMISC_BITS;
+
+			err = ice_cfg_promisc(vsi, promisc_m, false);
+			if (err) {
+				netdev_err(netdev, "Error clearing Multicast promiscuous mode on VSI %i\n",
+					   vsi->vsi_num);
+				vsi->current_netdev_flags |= IFF_ALLMULTI;
+				goto out_promisc;
+			}
+		}
+	}
 
 	if (((changed_flags & IFF_PROMISC) || promisc_forced_on) ||
 	    test_bit(ICE_VSI_FLAG_PROMISC_CHANGED, vsi->flags)) {
@@ -322,7 +383,7 @@ static void ice_sync_fltr_subtask(struct ice_pf *pf)
 
 	clear_bit(ICE_FLAG_FLTR_SYNC, pf->flags);
 
-	for (v = 0; v < pf->num_alloc_vsi; v++)
+	ice_for_each_vsi(pf, v)
 		if (pf->vsi[v] && ice_vsi_fltr_changed(pf->vsi[v]) &&
 		    ice_vsi_sync_fltr(pf->vsi[v])) {
 			/* come back and try again later */
@@ -394,6 +455,7 @@ static void ice_do_reset(struct ice_pf *pf, enum ice_reset_req reset_type)
 		ice_rebuild(pf);
 		clear_bit(__ICE_PREPARED_FOR_RESET, pf->state);
 		clear_bit(__ICE_PFR_REQ, pf->state);
+		ice_reset_all_vfs(pf, true);
 	}
 }
 
@@ -416,8 +478,14 @@ static void ice_reset_subtask(struct ice_pf *pf)
 	 * for the reset now), poll for reset done, rebuild and return.
 	 */
 	if (test_bit(__ICE_RESET_OICR_RECV, pf->state)) {
-		clear_bit(__ICE_GLOBR_RECV, pf->state);
-		clear_bit(__ICE_CORER_RECV, pf->state);
+		/* Perform the largest reset requested */
+		if (test_and_clear_bit(__ICE_CORER_RECV, pf->state))
+			reset_type = ICE_RESET_CORER;
+		if (test_and_clear_bit(__ICE_GLOBR_RECV, pf->state))
+			reset_type = ICE_RESET_GLOBR;
+		/* return if no valid reset type requested */
+		if (reset_type == ICE_RESET_INVAL)
+			return;
 		if (!test_bit(__ICE_PREPARED_FOR_RESET, pf->state))
 			ice_prepare_for_reset(pf);
 
@@ -436,6 +504,7 @@ static void ice_reset_subtask(struct ice_pf *pf)
 			clear_bit(__ICE_PFR_REQ, pf->state);
 			clear_bit(__ICE_CORER_REQ, pf->state);
 			clear_bit(__ICE_GLOBR_REQ, pf->state);
+			ice_reset_all_vfs(pf, true);
 		}
 
 		return;
@@ -635,16 +704,67 @@ static void ice_watchdog_subtask(struct ice_pf *pf)
 
 	pf->serv_tmr_prev = jiffies;
 
-	if (ice_link_event(pf, pf->hw.port_info))
-		dev_dbg(&pf->pdev->dev, "ice_link_event failed\n");
-
 	/* Update the stats for active netdevs so the network stack
 	 * can look at updated numbers whenever it cares to
 	 */
 	ice_update_pf_stats(pf);
-	for (i = 0; i < pf->num_alloc_vsi; i++)
+	ice_for_each_vsi(pf, i)
 		if (pf->vsi[i] && pf->vsi[i]->netdev)
 			ice_update_vsi_stats(pf->vsi[i]);
+}
+
+/**
+ * ice_init_link_events - enable/initialize link events
+ * @pi: pointer to the port_info instance
+ *
+ * Returns -EIO on failure, 0 on success
+ */
+static int ice_init_link_events(struct ice_port_info *pi)
+{
+	u16 mask;
+
+	mask = ~((u16)(ICE_AQ_LINK_EVENT_UPDOWN | ICE_AQ_LINK_EVENT_MEDIA_NA |
+		       ICE_AQ_LINK_EVENT_MODULE_QUAL_FAIL));
+
+	if (ice_aq_set_event_mask(pi->hw, pi->lport, mask, NULL)) {
+		dev_dbg(ice_hw_to_dev(pi->hw),
+			"Failed to set link event mask for port %d\n",
+			pi->lport);
+		return -EIO;
+	}
+
+	if (ice_aq_get_link_info(pi, true, NULL, NULL)) {
+		dev_dbg(ice_hw_to_dev(pi->hw),
+			"Failed to enable link events for port %d\n",
+			pi->lport);
+		return -EIO;
+	}
+
+	return 0;
+}
+
+/**
+ * ice_handle_link_event - handle link event via ARQ
+ * @pf: pf that the link event is associated with
+ *
+ * Return -EINVAL if port_info is null
+ * Return status on success
+ */
+static int ice_handle_link_event(struct ice_pf *pf)
+{
+	struct ice_port_info *port_info;
+	int status;
+
+	port_info = pf->hw.port_info;
+	if (!port_info)
+		return -EINVAL;
+
+	status = ice_link_event(pf, port_info);
+	if (status)
+		dev_dbg(&pf->pdev->dev,
+			"Could not process link event, error %d\n", status);
+
+	return status;
 }
 
 /**
@@ -750,6 +870,11 @@ static int __ice_clean_ctrlq(struct ice_pf *pf, enum ice_ctl_q q_type)
 		opcode = le16_to_cpu(event.desc.opcode);
 
 		switch (opcode) {
+		case ice_aqc_opc_get_link_status:
+			if (ice_handle_link_event(pf))
+				dev_err(&pf->pdev->dev,
+					"Could not handle link event\n");
+			break;
 		case ice_mbx_opc_send_msg_to_pf:
 			ice_vc_process_vf_msg(pf, &event);
 			break;
@@ -1111,8 +1236,9 @@ static void ice_set_ctrlq_len(struct ice_hw *hw)
  * This is a callback function used by the irq_set_affinity_notifier function
  * so that we may register to receive changes to the irq affinity masks.
  */
-static void ice_irq_affinity_notify(struct irq_affinity_notify *notify,
-				    const cpumask_t *mask)
+static void
+ice_irq_affinity_notify(struct irq_affinity_notify *notify,
+			const cpumask_t *mask)
 {
 	struct ice_q_vector *q_vector =
 		container_of(notify, struct ice_q_vector, affinity_notify);
@@ -1184,10 +1310,9 @@ static int ice_vsi_req_irq_msix(struct ice_vsi *vsi, char *basename)
 			/* skip this unused q_vector */
 			continue;
 		}
-		err = devm_request_irq(&pf->pdev->dev,
-				       pf->msix_entries[base + vector].vector,
-				       vsi->irq_handler, 0, q_vector->name,
-				       q_vector);
+		err = devm_request_irq(&pf->pdev->dev, irq_num,
+				       vsi->irq_handler, 0,
+				       q_vector->name, q_vector);
 		if (err) {
 			netdev_err(vsi->netdev,
 				   "MSIX request_irq failed, error: %d\n", err);
@@ -1656,11 +1781,13 @@ ice_pf_vsi_setup(struct ice_pf *pf, struct ice_port_info *pi)
  *
  * net_device_ops implementation for adding vlan ids
  */
-static int ice_vlan_rx_add_vid(struct net_device *netdev,
-			       __always_unused __be16 proto, u16 vid)
+static int
+ice_vlan_rx_add_vid(struct net_device *netdev, __always_unused __be16 proto,
+		    u16 vid)
 {
 	struct ice_netdev_priv *np = netdev_priv(netdev);
 	struct ice_vsi *vsi = np->vsi;
+	int ret;
 
 	if (vid >= VLAN_N_VID) {
 		netdev_err(netdev, "VLAN id requested %d is out of range %d\n",
@@ -1673,8 +1800,7 @@ static int ice_vlan_rx_add_vid(struct net_device *netdev,
 
 	/* Enable VLAN pruning when VLAN 0 is added */
 	if (unlikely(!vid)) {
-		int ret = ice_cfg_vlan_pruning(vsi, true);
-
+		ret = ice_cfg_vlan_pruning(vsi, true, false);
 		if (ret)
 			return ret;
 	}
@@ -1683,7 +1809,13 @@ static int ice_vlan_rx_add_vid(struct net_device *netdev,
 	 * needed to continue allowing all untagged packets since VLAN prune
 	 * list is applied to all packets by the switch
 	 */
-	return ice_vsi_add_vlan(vsi, vid);
+	ret = ice_vsi_add_vlan(vsi, vid);
+	if (!ret) {
+		vsi->vlan_ena = true;
+		set_bit(ICE_VSI_FLAG_VLAN_FLTR_CHANGED, vsi->flags);
+	}
+
+	return ret;
 }
 
 /**
@@ -1694,12 +1826,13 @@ static int ice_vlan_rx_add_vid(struct net_device *netdev,
  *
  * net_device_ops implementation for removing vlan ids
  */
-static int ice_vlan_rx_kill_vid(struct net_device *netdev,
-				__always_unused __be16 proto, u16 vid)
+static int
+ice_vlan_rx_kill_vid(struct net_device *netdev, __always_unused __be16 proto,
+		     u16 vid)
 {
 	struct ice_netdev_priv *np = netdev_priv(netdev);
 	struct ice_vsi *vsi = np->vsi;
-	int status;
+	int ret;
 
 	if (vsi->info.pvid)
 		return -EINVAL;
@@ -1707,15 +1840,17 @@ static int ice_vlan_rx_kill_vid(struct net_device *netdev,
 	/* Make sure ice_vsi_kill_vlan is successful before updating VLAN
 	 * information
 	 */
-	status = ice_vsi_kill_vlan(vsi, vid);
-	if (status)
-		return status;
+	ret = ice_vsi_kill_vlan(vsi, vid);
+	if (ret)
+		return ret;
 
 	/* Disable VLAN pruning when VLAN 0 is removed */
 	if (unlikely(!vid))
-		status = ice_cfg_vlan_pruning(vsi, false);
+		ret = ice_cfg_vlan_pruning(vsi, false, false);
 
-	return status;
+	vsi->vlan_ena = false;
+	set_bit(ICE_VSI_FLAG_VLAN_FLTR_CHANGED, vsi->flags);
+	return ret;
 }
 
 /**
@@ -2033,23 +2168,6 @@ static int ice_init_interrupt_scheme(struct ice_pf *pf)
 }
 
 /**
- * ice_verify_itr_gran - verify driver's assumption of ITR granularity
- * @pf: pointer to the PF structure
- *
- * There is no error returned here because the driver will be able to handle a
- * different ITR granularity, but interrupt moderation will not be accurate if
- * the driver's assumptions are not verified. This assumption is made so we can
- * use constants in the hot path instead of accessing structure members.
- */
-static void ice_verify_itr_gran(struct ice_pf *pf)
-{
-	if (pf->hw.itr_gran != (ICE_ITR_GRAN_S << 1))
-		dev_warn(&pf->pdev->dev,
-			 "%d ITR granularity assumption is invalid, actual ITR granularity is %d. Interrupt moderation will be inaccurate!\n",
-			 (ICE_ITR_GRAN_S << 1), pf->hw.itr_gran);
-}
-
-/**
  * ice_verify_cacheline_size - verify driver's assumption of 64 Byte cache lines
  * @pf: pointer to the PF structure
  *
@@ -2072,9 +2190,10 @@ static void ice_verify_cacheline_size(struct ice_pf *pf)
  *
  * Returns 0 on success, negative on failure
  */
-static int ice_probe(struct pci_dev *pdev,
-		     const struct pci_device_id __always_unused *ent)
+static int
+ice_probe(struct pci_dev *pdev, const struct pci_device_id __always_unused *ent)
 {
+	struct device *dev = &pdev->dev;
 	struct ice_pf *pf;
 	struct ice_hw *hw;
 	int err;
@@ -2086,20 +2205,20 @@ static int ice_probe(struct pci_dev *pdev,
 
 	err = pcim_iomap_regions(pdev, BIT(ICE_BAR0), pci_name(pdev));
 	if (err) {
-		dev_err(&pdev->dev, "BAR0 I/O map error %d\n", err);
+		dev_err(dev, "BAR0 I/O map error %d\n", err);
 		return err;
 	}
 
-	pf = devm_kzalloc(&pdev->dev, sizeof(*pf), GFP_KERNEL);
+	pf = devm_kzalloc(dev, sizeof(*pf), GFP_KERNEL);
 	if (!pf)
 		return -ENOMEM;
 
 	/* set up for high or low dma */
-	err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(64));
+	err = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(64));
 	if (err)
-		err = dma_set_mask_and_coherent(&pdev->dev, DMA_BIT_MASK(32));
+		err = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(32));
 	if (err) {
-		dev_err(&pdev->dev, "DMA configuration failed: 0x%x\n", err);
+		dev_err(dev, "DMA configuration failed: 0x%x\n", err);
 		return err;
 	}
 
@@ -2133,12 +2252,12 @@ static int ice_probe(struct pci_dev *pdev,
 
 	err = ice_init_hw(hw);
 	if (err) {
-		dev_err(&pdev->dev, "ice_init_hw failed: %d\n", err);
+		dev_err(dev, "ice_init_hw failed: %d\n", err);
 		err = -EIO;
 		goto err_exit_unroll;
 	}
 
-	dev_info(&pdev->dev, "firmware %d.%d.%05d api %d.%d\n",
+	dev_info(dev, "firmware %d.%d.%05d api %d.%d\n",
 		 hw->fw_maj_ver, hw->fw_min_ver, hw->fw_build,
 		 hw->api_maj_ver, hw->api_min_ver);
 
@@ -2152,8 +2271,8 @@ static int ice_probe(struct pci_dev *pdev,
 		goto err_init_pf_unroll;
 	}
 
-	pf->vsi = devm_kcalloc(&pdev->dev, pf->num_alloc_vsi,
-			       sizeof(*pf->vsi), GFP_KERNEL);
+	pf->vsi = devm_kcalloc(dev, pf->num_alloc_vsi, sizeof(*pf->vsi),
+			       GFP_KERNEL);
 	if (!pf->vsi) {
 		err = -ENOMEM;
 		goto err_init_pf_unroll;
@@ -2161,8 +2280,7 @@ static int ice_probe(struct pci_dev *pdev,
 
 	err = ice_init_interrupt_scheme(pf);
 	if (err) {
-		dev_err(&pdev->dev,
-			"ice_init_interrupt_scheme failed: %d\n", err);
+		dev_err(dev, "ice_init_interrupt_scheme failed: %d\n", err);
 		err = -EIO;
 		goto err_init_interrupt_unroll;
 	}
@@ -2178,15 +2296,13 @@ static int ice_probe(struct pci_dev *pdev,
 	if (test_bit(ICE_FLAG_MSIX_ENA, pf->flags)) {
 		err = ice_req_irq_msix_misc(pf);
 		if (err) {
-			dev_err(&pdev->dev,
-				"setup of misc vector failed: %d\n", err);
+			dev_err(dev, "setup of misc vector failed: %d\n", err);
 			goto err_init_interrupt_unroll;
 		}
 	}
 
 	/* create switch struct for the switch element created by FW on boot */
-	pf->first_sw = devm_kzalloc(&pdev->dev, sizeof(*pf->first_sw),
-				    GFP_KERNEL);
+	pf->first_sw = devm_kzalloc(dev, sizeof(*pf->first_sw), GFP_KERNEL);
 	if (!pf->first_sw) {
 		err = -ENOMEM;
 		goto err_msix_misc_unroll;
@@ -2204,8 +2320,7 @@ static int ice_probe(struct pci_dev *pdev,
 
 	err = ice_setup_pf_sw(pf);
 	if (err) {
-		dev_err(&pdev->dev,
-			"probe failed due to setup pf switch:%d\n", err);
+		dev_err(dev, "probe failed due to setup pf switch:%d\n", err);
 		goto err_alloc_sw_unroll;
 	}
 
@@ -2214,8 +2329,13 @@ static int ice_probe(struct pci_dev *pdev,
 	/* since everything is good, start the service timer */
 	mod_timer(&pf->serv_tmr, round_jiffies(jiffies + pf->serv_tmr_period));
 
+	err = ice_init_link_events(pf->hw.port_info);
+	if (err) {
+		dev_err(dev, "ice_init_link_events failed: %d\n", err);
+		goto err_alloc_sw_unroll;
+	}
+
 	ice_verify_cacheline_size(pf);
-	ice_verify_itr_gran(pf);
 
 	return 0;
 
@@ -2227,7 +2347,7 @@ err_msix_misc_unroll:
 	ice_free_irq_msix_misc(pf);
 err_init_interrupt_unroll:
 	ice_clear_interrupt_scheme(pf);
-	devm_kfree(&pdev->dev, pf->vsi);
+	devm_kfree(dev, pf->vsi);
 err_init_pf_unroll:
 	ice_deinit_pf(pf);
 	ice_deinit_hw(hw);
@@ -2512,9 +2632,10 @@ ice_fdb_add(struct ndmsg *ndm, struct nlattr __always_unused *tb[],
  * @addr: the MAC address entry being added
  * @vid: VLAN id
  */
-static int ice_fdb_del(struct ndmsg *ndm, __always_unused struct nlattr *tb[],
-		       struct net_device *dev, const unsigned char *addr,
-		       __always_unused u16 vid)
+static int
+ice_fdb_del(struct ndmsg *ndm, __always_unused struct nlattr *tb[],
+	    struct net_device *dev, const unsigned char *addr,
+	    __always_unused u16 vid)
 {
 	int err;
 
@@ -2538,8 +2659,8 @@ static int ice_fdb_del(struct ndmsg *ndm, __always_unused struct nlattr *tb[],
  * @netdev: ptr to the netdev being adjusted
  * @features: the feature set that the stack is suggesting
  */
-static int ice_set_features(struct net_device *netdev,
-			    netdev_features_t features)
+static int
+ice_set_features(struct net_device *netdev, netdev_features_t features)
 {
 	struct ice_netdev_priv *np = netdev_priv(netdev);
 	struct ice_vsi *vsi = np->vsi;
@@ -2666,7 +2787,7 @@ static int ice_up_complete(struct ice_vsi *vsi)
 
 	ice_service_task_schedule(pf);
 
-	return err;
+	return 0;
 }
 
 /**
@@ -2693,8 +2814,8 @@ int ice_up(struct ice_vsi *vsi)
  * This function fetches stats from the ring considering the atomic operations
  * that needs to be performed to read u64 values in 32 bit machine.
  */
-static void ice_fetch_u64_stats_per_ring(struct ice_ring *ring, u64 *pkts,
-					 u64 *bytes)
+static void
+ice_fetch_u64_stats_per_ring(struct ice_ring *ring, u64 *pkts, u64 *bytes)
 {
 	unsigned int start;
 	*pkts = 0;
@@ -3276,7 +3397,7 @@ static void ice_vsi_release_all(struct ice_pf *pf)
 	if (!pf->vsi)
 		return;
 
-	for (i = 0; i < pf->num_alloc_vsi; i++) {
+	ice_for_each_vsi(pf, i) {
 		if (!pf->vsi[i])
 			continue;
 
@@ -3375,14 +3496,10 @@ static int ice_vsi_rebuild_all(struct ice_pf *pf)
 	int i;
 
 	/* loop through pf->vsi array and reinit the VSI if found */
-	for (i = 0; i < pf->num_alloc_vsi; i++) {
+	ice_for_each_vsi(pf, i) {
 		int err;
 
 		if (!pf->vsi[i])
-			continue;
-
-		/* VF VSI rebuild isn't supported yet */
-		if (pf->vsi[i]->type == ICE_VSI_VF)
 			continue;
 
 		err = ice_vsi_rebuild(pf->vsi[i]);
@@ -3412,7 +3529,7 @@ static int ice_vsi_replay_all(struct ice_pf *pf)
 	int i;
 
 	/* loop through pf->vsi array and replay the VSI if found */
-	for (i = 0; i < pf->num_alloc_vsi; i++) {
+	ice_for_each_vsi(pf, i) {
 		if (!pf->vsi[i])
 			continue;
 
@@ -3521,9 +3638,7 @@ static void ice_rebuild(struct ice_pf *pf)
 		goto err_vsi_rebuild;
 	}
 
-	ice_reset_all_vfs(pf, true);
-
-	for (i = 0; i < pf->num_alloc_vsi; i++) {
+	ice_for_each_vsi(pf, i) {
 		bool link_up;
 
 		if (!pf->vsi[i] || pf->vsi[i]->type != ICE_VSI_PF)

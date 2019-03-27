@@ -42,10 +42,21 @@
 
 extern const char ice_drv_ver[];
 #define ICE_BAR0		0
-#define ICE_DFLT_NUM_DESC	128
 #define ICE_REQ_DESC_MULTIPLE	32
 #define ICE_MIN_NUM_DESC	ICE_REQ_DESC_MULTIPLE
 #define ICE_MAX_NUM_DESC	8160
+/* set default number of Rx/Tx descriptors to the minimum between
+ * ICE_MAX_NUM_DESC and the number of descriptors to fill up an entire page
+ */
+#define ICE_DFLT_NUM_RX_DESC	min_t(u16, ICE_MAX_NUM_DESC, \
+				      ALIGN(PAGE_SIZE / \
+					    sizeof(union ice_32byte_rx_desc), \
+					    ICE_REQ_DESC_MULTIPLE))
+#define ICE_DFLT_NUM_TX_DESC	min_t(u16, ICE_MAX_NUM_DESC, \
+				      ALIGN(PAGE_SIZE / \
+					    sizeof(struct ice_tx_desc), \
+					    ICE_REQ_DESC_MULTIPLE))
+
 #define ICE_DFLT_TRAFFIC_CLASS	BIT(0)
 #define ICE_INT_NAME_STR_LEN	(IFNAMSIZ + 16)
 #define ICE_ETHTOOL_FWVER_LEN	32
@@ -113,6 +124,23 @@ extern const char ice_drv_ver[];
 
 #define ice_for_each_q_vector(vsi, i) \
 	for ((i) = 0; (i) < (vsi)->num_q_vectors; (i)++)
+
+#define ICE_UCAST_PROMISC_BITS (ICE_PROMISC_UCAST_TX | ICE_PROMISC_MCAST_TX | \
+				ICE_PROMISC_UCAST_RX | ICE_PROMISC_MCAST_RX)
+
+#define ICE_UCAST_VLAN_PROMISC_BITS (ICE_PROMISC_UCAST_TX | \
+				     ICE_PROMISC_MCAST_TX | \
+				     ICE_PROMISC_UCAST_RX | \
+				     ICE_PROMISC_MCAST_RX | \
+				     ICE_PROMISC_VLAN_TX  | \
+				     ICE_PROMISC_VLAN_RX)
+
+#define ICE_MCAST_PROMISC_BITS (ICE_PROMISC_MCAST_TX | ICE_PROMISC_MCAST_RX)
+
+#define ICE_MCAST_VLAN_PROMISC_BITS (ICE_PROMISC_MCAST_TX | \
+				     ICE_PROMISC_MCAST_RX | \
+				     ICE_PROMISC_VLAN_TX  | \
+				     ICE_PROMISC_VLAN_RX)
 
 struct ice_tc_info {
 	u16 qoffset;
@@ -247,6 +275,7 @@ struct ice_vsi {
 	u8 irqs_ready;
 	u8 current_isup;		 /* Sync 'link up' logging */
 	u8 stat_offsets_loaded;
+	u8 vlan_ena;
 
 	/* queue information */
 	u8 tx_mapping_mode;		 /* ICE_MAP_MODE_[CONTIG|SCATTER] */
@@ -257,7 +286,8 @@ struct ice_vsi {
 	u16 num_txq;			 /* Used Tx queues */
 	u16 alloc_rxq;			 /* Allocated Rx queues */
 	u16 num_rxq;			 /* Used Rx queues */
-	u16 num_desc;
+	u16 num_rx_desc;
+	u16 num_tx_desc;
 	struct ice_tc_cfg tc_cfg;
 } ____cacheline_internodealigned_in_smp;
 
@@ -355,8 +385,9 @@ struct ice_netdev_priv {
  * @vsi: pointer to vsi struct, can be NULL
  * @q_vector: pointer to q_vector, can be NULL
  */
-static inline void ice_irq_dynamic_ena(struct ice_hw *hw, struct ice_vsi *vsi,
-				       struct ice_q_vector *q_vector)
+static inline void
+ice_irq_dynamic_ena(struct ice_hw *hw, struct ice_vsi *vsi,
+		    struct ice_q_vector *q_vector)
 {
 	u32 vector = (vsi && q_vector) ? vsi->hw_base_vector + q_vector->v_idx :
 				((struct ice_pf *)hw->back)->hw_oicr_idx;
