@@ -1,4 +1,4 @@
-Freescale S32GEN1 family Device Tree Bindings
+NXP S32GEN1 family Device Tree Bindings
 ---------------------------------------------
 
 Required properties:
@@ -6,6 +6,11 @@ Required properties:
 - compatible : should be "fsl,s32gen1-rtc"
 - reg : the size of the memory address space of the device.
 - interrupts : specifies the Real Time Clock interrupts id
+- clksel : input clock selector; choose one of: 0-SIRC, 2-FIRC
+- dividers : an array of two u32 elements, the former encoding DIV512,
+  the latter encoding DIV32. These are dividers that can be enabled
+  individually, or cascaded. Use 0 to disable the respective divider,
+  and 1 to enable it.
 
 Example:
 rtc0: rtc@40060000 {
@@ -13,4 +18,6 @@ rtc0: rtc@40060000 {
 		#interrupt-cells = <3>;
 		reg = <0x0 0x40060000 0x0 0x1000>;
 		interrupts = <0 121 4>; // RTC irq - GIC 153
+		clksel = <2>; // FIRC
+		dividers = <1 0>; // div512 enabled, div32 disabled
 };
