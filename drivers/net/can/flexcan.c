@@ -911,6 +911,7 @@ static irqreturn_t flexcan_irq(int irq, void *dev_id)
 			/* The error bits are cleared on read,
 			 * save them for later use.
 			 */
+			handled = IRQ_HANDLED;
 			priv->reg_esr = reg_esr & FLEXCAN_ESR_ERR_BUS;
 			flexcan_write(priv->reg_imask1_default &
 				~FLEXCAN_FD_IFLAG_RX_DATA_AVAILABLE,
