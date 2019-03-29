@@ -6196,7 +6196,7 @@ CONFIG_MEMSTICK_REALTEK_USB                     policy<{'amd64': 'm', 'arm64': '
 
 # Menu: Device Drivers >> Sound card support
 CONFIG_SOUND                                    policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'y', 'i386': 'm', 'ppc64el': 'm', 's390x': 'n'}>
-CONFIG_SOUND_OSS_CORE_PRECLAIM                  policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'n', 'i386': 'n', 'ppc64el': 'n'}>
+CONFIG_SOUND_OSS_CORE_PRECLAIM                  policy<{'amd64': 'n', 'arm64': '-', 'armhf': 'n', 'i386': 'n', 'ppc64el': 'n'}>
 #
 CONFIG_SOUND                                    note<not autoloadable on omap>
 CONFIG_SOUND_OSS_CORE_PRECLAIM                  mark<ENFORCED> note<LP#1105230 LP#1385510>
@@ -9284,7 +9284,7 @@ CONFIG_LTPC                                     policy<{'i386': 'm'}>
 CONFIG_COPS                                     policy<{'i386': 'm'}>
 CONFIG_COPS_DAYNA                               policy<{'i386': 'y'}>
 CONFIG_COPS_TANGENT                             policy<{'i386': 'y'}>
-CONFIG_IPDDP                                    policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'n', 'i386': 'n', 'ppc64el': 'n'}>
+CONFIG_IPDDP                                    policy<{'amd64': 'n', 'arm64': '-', 'armhf': 'n', 'i386': 'n', 'ppc64el': 'n'}>
 #
 CONFIG_IPDDP                                    mark<ENFORCED> note<LP:1559772>
 
