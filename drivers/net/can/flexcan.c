@@ -892,18 +892,7 @@ static irqreturn_t flexcan_irq(int irq, void *dev_id)
 	reg_esr = flexcan_read(&regs->esr);
 
 	/* reception interrupt */
-	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_USE_OFF_TIMESTAMP) {
-		u64 reg_iflag;
-		int ret;
-
-		while ((reg_iflag = flexcan_read_reg_iflag_rx(priv))) {
-			handled = IRQ_HANDLED;
-			ret = can_rx_offload_irq_offload_timestamp(&priv->offload,
-								   reg_iflag);
-			if (!ret)
-				break;
-		}
-	} else if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
+	if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
 		if ((reg_iflag1 & FLEXCAN_FD_IFLAG_RX_DATA_AVAILABLE) ||
 		    (reg_esr & FLEXCAN_ESR_ERR_STATE) ||
 		    flexcan_handle_berr(priv, reg_esr)) {
@@ -919,6 +908,18 @@ static irqreturn_t flexcan_irq(int irq, void *dev_id)
 				~FLEXCAN_CTRL_ERR_ALL,
 				&regs->ctrl);
 			napi_schedule(&priv->offload.napi);
+		}
+	} else if (priv->devtype_data->quirks &
+		   FLEXCAN_QUIRK_USE_OFF_TIMESTAMP) {
+		u64 reg_iflag;
+		int ret;
+
+		while ((reg_iflag = flexcan_read_reg_iflag_rx(priv))) {
+			handled = IRQ_HANDLED;
+			ret = can_rx_offload_irq_offload_timestamp(
+				&priv->offload, reg_iflag);
+			if (!ret)
+				break;
 		}
 	} else {
 		if (reg_iflag1 & FLEXCAN_IFLAG_RX_FIFO_AVAILABLE) {
@@ -1276,13 +1277,14 @@ static int flexcan_chip_start(struct net_device *dev)
 		FLEXCAN_MCR_WRN_EN | FLEXCAN_MCR_SRX_DIS | FLEXCAN_MCR_IRMQ |
 		FLEXCAN_MCR_IDAM_C;
 
-	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_USE_OFF_TIMESTAMP) {
-		reg_mcr &= ~FLEXCAN_MCR_FEN;
-		reg_mcr |= FLEXCAN_MCR_MAXMB(priv->offload.mb_last);
-	} else if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
+	if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
 		reg_mcr &= ~FLEXCAN_MCR_FEN;
 		reg_mcr |= FLEXCAN_MCR_FDEN |
 				   FLEXCAN_MCR_MAXMB(priv->offload.mb_last);
+	} else if (priv->devtype_data->quirks &
+		   FLEXCAN_QUIRK_USE_OFF_TIMESTAMP) {
+		reg_mcr &= ~FLEXCAN_MCR_FEN;
+		reg_mcr |= FLEXCAN_MCR_MAXMB(priv->offload.mb_last);
 	} else {
 		reg_mcr |= FLEXCAN_MCR_FEN |
 			FLEXCAN_MCR_MAXMB(priv->tx_mb_idx);
