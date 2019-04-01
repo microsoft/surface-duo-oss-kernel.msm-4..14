@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 NXP
+ * Copyright 2017-2019 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,11 @@
 		linux,initrd-start = <0x84000000>;
 		linux,initrd-end = <0x8A000000>;
 
+	};
+
+	psci {
+		compatible = "arm,psci-1.0";
+		method = "smc";
 	};
 
 	sysclk: clk10000000 {
