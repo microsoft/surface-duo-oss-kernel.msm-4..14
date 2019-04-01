@@ -20,6 +20,7 @@
 #define VENDOR_LACIE		0x00d04b
 #define VENDOR_TASCAM		0x00022e
 #define OUI_STANTON		0x001260
+#define OUI_APOGEE		0x0003db
 
 #define MODEL_SATELLITE		0x00200f
 
@@ -49,7 +50,6 @@ static bool detect_loud_models(struct fw_unit *unit)
 		"Tapco LINK.firewire 4x6",
 		"U.420"};
 	char model[32];
-	unsigned int i;
 	int err;
 
 	err = fw_csr_string(unit->directory, CSR_MODEL,
@@ -57,12 +57,7 @@ static bool detect_loud_models(struct fw_unit *unit)
 	if (err < 0)
 		return false;
 
-	for (i = 0; i < ARRAY_SIZE(models); i++) {
-		if (strcmp(models[i], model) == 0)
-			break;
-	}
-
-	return (i < ARRAY_SIZE(models));
+	return match_string(models, ARRAY_SIZE(models), model) >= 0;
 }
 
 static int name_card(struct snd_oxfw *oxfw)
@@ -441,6 +436,13 @@ static const struct ieee1394_device_id oxfw_id_table[] = {
 				  IEEE1394_MATCH_MODEL_ID,
 		.vendor_id	= OUI_STANTON,
 		.model_id	= 0x002000,
+	},
+	// APOGEE, duet FireWire
+	{
+		.match_flags	= IEEE1394_MATCH_VENDOR_ID |
+				  IEEE1394_MATCH_MODEL_ID,
+		.vendor_id	= OUI_APOGEE,
+		.model_id	= 0x01dddd,
 	},
 	{ }
 };

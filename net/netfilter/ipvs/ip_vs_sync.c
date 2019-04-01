@@ -459,7 +459,7 @@ static inline bool in_persistence(struct ip_vs_conn *cp)
 static int ip_vs_sync_conn_needed(struct netns_ipvs *ipvs,
 				  struct ip_vs_conn *cp, int pkts)
 {
-	unsigned long orig = ACCESS_ONCE(cp->sync_endtime);
+	unsigned long orig = READ_ONCE(cp->sync_endtime);
 	unsigned long now = jiffies;
 	unsigned long n = (now + cp->timeout) & ~3UL;
 	unsigned int sync_refresh_period;
@@ -1003,12 +1003,9 @@ static void ip_vs_process_message_v0(struct netns_ipvs *ipvs, const char *buffer
 				continue;
 			}
 		} else {
-			/* protocol in templates is not used for state/timeout */
-			if (state > 0) {
-				IP_VS_DBG(2, "BACKUP v0, Invalid template state %u\n",
-					state);
-				state = 0;
-			}
+			if (state >= IP_VS_CTPL_S_LAST)
+				IP_VS_DBG(7, "BACKUP v0, Invalid tpl state %u\n",
+					  state);
 		}
 
 		ip_vs_conn_fill_param(ipvs, AF_INET, s->protocol,
@@ -1166,12 +1163,9 @@ static inline int ip_vs_proc_sync_conn(struct netns_ipvs *ipvs, __u8 *p, __u8 *m
 			goto out;
 		}
 	} else {
-		/* protocol in templates is not used for state/timeout */
-		if (state > 0) {
-			IP_VS_DBG(3, "BACKUP, Invalid template state %u\n",
-				state);
-			state = 0;
-		}
+		if (state >= IP_VS_CTPL_S_LAST)
+			IP_VS_DBG(7, "BACKUP, Invalid tpl state %u\n",
+				  state);
 	}
 	if (ip_vs_conn_fill_param_sync(ipvs, af, s, &param, pe_data,
 				       pe_data_len, pe_name, pe_name_len)) {
@@ -1616,17 +1610,14 @@ static int
 ip_vs_receive(struct socket *sock, char *buffer, const size_t buflen)
 {
 	struct msghdr		msg = {NULL,};
-	struct kvec		iov;
+	struct kvec		iov = {buffer, buflen};
 	int			len;
 
 	EnterFunction(7);
 
 	/* Receive a packet */
-	iov.iov_base     = buffer;
-	iov.iov_len      = (size_t)buflen;
-
-	len = kernel_recvmsg(sock, &msg, &iov, 1, buflen, MSG_DONTWAIT);
-
+	iov_iter_kvec(&msg.msg_iter, READ | ITER_KVEC, &iov, 1, buflen);
+	len = sock_recvmsg(sock, &msg, MSG_DONTWAIT);
 	if (len < 0)
 		return len;
 

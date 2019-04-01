@@ -65,7 +65,7 @@ u64 ring_buffer_event_time_stamp(struct ring_buffer_event *event);
 
 /*
  * ring_buffer_discard_commit will remove an event that has not
- *   ben committed yet. If this is used, then ring_buffer_unlock_commit
+ *   been committed yet. If this is used, then ring_buffer_unlock_commit
  *   must not be called on the discarded event. This function
  *   will try to remove the event from the ring buffer completely
  *   if another event has not been written after it.
@@ -98,7 +98,7 @@ __ring_buffer_alloc(unsigned long size, unsigned flags, struct lock_class_key *k
 })
 
 int ring_buffer_wait(struct ring_buffer *buffer, int cpu, bool full);
-int ring_buffer_poll_wait(struct ring_buffer *buffer, int cpu,
+__poll_t ring_buffer_poll_wait(struct ring_buffer *buffer, int cpu,
 			  struct file *filp, poll_table *poll_table);
 
 
@@ -164,8 +164,8 @@ void ring_buffer_record_disable(struct ring_buffer *buffer);
 void ring_buffer_record_enable(struct ring_buffer *buffer);
 void ring_buffer_record_off(struct ring_buffer *buffer);
 void ring_buffer_record_on(struct ring_buffer *buffer);
-int ring_buffer_record_is_on(struct ring_buffer *buffer);
-int ring_buffer_record_is_set_on(struct ring_buffer *buffer);
+bool ring_buffer_record_is_on(struct ring_buffer *buffer);
+bool ring_buffer_record_is_set_on(struct ring_buffer *buffer);
 void ring_buffer_record_disable_cpu(struct ring_buffer *buffer, int cpu);
 void ring_buffer_record_enable_cpu(struct ring_buffer *buffer, int cpu);
 

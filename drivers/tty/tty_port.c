@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Tty port functions
  */
@@ -78,7 +79,7 @@ EXPORT_SYMBOL(tty_port_init);
  * @driver: tty_driver for this device
  * @index: index of the tty
  *
- * Provide the tty layer wit ha link from a tty (specified by @index) to a
+ * Provide the tty layer with a link from a tty (specified by @index) to a
  * tty_port (@port). Use this only if neither tty_port_register_device nor
  * tty_port_install is used in the driver. If used, this has to be called before
  * tty_register_driver.
@@ -235,7 +236,7 @@ EXPORT_SYMBOL(tty_port_free_xmit_buf);
 
 /**
  * tty_port_destroy -- destroy inited port
- * @port: tty port to be doestroyed
+ * @port: tty port to be destroyed
  *
  * When a port was initialized using tty_port_init, one has to destroy the
  * port by this function. Either indirectly by using tty_port refcounting
@@ -639,7 +640,8 @@ void tty_port_close(struct tty_port *port, struct tty_struct *tty,
 	if (tty_port_close_start(port, tty, filp) == 0)
 		return;
 	tty_port_shutdown(port, tty);
-	set_bit(TTY_IO_ERROR, &tty->flags);
+	if (!port->console)
+		set_bit(TTY_IO_ERROR, &tty->flags);
 	tty_port_close_end(port, tty);
 	tty_port_tty_set(port, NULL);
 }

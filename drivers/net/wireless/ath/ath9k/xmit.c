@@ -62,7 +62,7 @@ static void ath_tx_rc_status(struct ath_softc *sc, struct ath_buf *bf,
 			     struct ath_tx_status *ts, int nframes, int nbad,
 			     int txok);
 static void ath_tx_update_baw(struct ath_softc *sc, struct ath_atx_tid *tid,
-			      int seqno);
+			      struct ath_buf *bf);
 static struct ath_buf *ath_tx_setup_buffer(struct ath_softc *sc,
 					   struct ath_txq *txq,
 					   struct ath_atx_tid *tid,
@@ -253,7 +253,7 @@ ath_tid_pull(struct ath_atx_tid *tid)
 	}
 
 	return skb;
- }
+}
 
 
 static bool ath_tid_has_buffered(struct ath_atx_tid *tid)
@@ -296,7 +296,7 @@ static void ath_tx_flush_tid(struct ath_softc *sc, struct ath_atx_tid *tid)
 		}
 
 		if (fi->baw_tracked) {
-			ath_tx_update_baw(sc, tid, bf->bf_state.seqno);
+			ath_tx_update_baw(sc, tid, bf);
 			sendbar = true;
 		}
 
@@ -312,9 +312,14 @@ static void ath_tx_flush_tid(struct ath_softc *sc, struct ath_atx_tid *tid)
 }
 
 static void ath_tx_update_baw(struct ath_softc *sc, struct ath_atx_tid *tid,
-			      int seqno)
+			      struct ath_buf *bf)
 {
+	struct ath_frame_info *fi = get_frame_info(bf->bf_mpdu);
+	u16 seqno = bf->bf_state.seqno;
 	int index, cindex;
+
+	if (!fi->baw_tracked)
+		return;
 
 	index  = ATH_BA_INDEX(tid->seq_start, seqno);
 	cindex = (tid->baw_head + index) & (ATH_TID_MAX_BUFS - 1);
@@ -335,6 +340,9 @@ static void ath_tx_addto_baw(struct ath_softc *sc, struct ath_atx_tid *tid,
 	struct ath_frame_info *fi = get_frame_info(bf->bf_mpdu);
 	u16 seqno = bf->bf_state.seqno;
 	int index, cindex;
+
+	if (fi->baw_tracked)
+		return;
 
 	index  = ATH_BA_INDEX(tid->seq_start, seqno);
 	cindex = (tid->baw_head + index) & (ATH_TID_MAX_BUFS - 1);
@@ -612,7 +620,7 @@ static void ath_tx_complete_aggr(struct ath_softc *sc, struct ath_txq *txq,
 			 * complete the acked-ones/xretried ones; update
 			 * block-ack window
 			 */
-			ath_tx_update_baw(sc, tid, seqno);
+			ath_tx_update_baw(sc, tid, bf);
 
 			if (rc_update && (acked_cnt == 1 || txfail_cnt == 1)) {
 				memcpy(tx_info->control.rates, rates, sizeof(rates));
@@ -621,7 +629,7 @@ static void ath_tx_complete_aggr(struct ath_softc *sc, struct ath_txq *txq,
 				if (bf == bf->bf_lastbf)
 					ath_dynack_sample_tx_ts(sc->sc_ah,
 								bf->bf_mpdu,
-								ts);
+								ts, sta);
 			}
 
 			ath_tx_complete_buf(sc, bf, txq, &bf_head, sta, ts,
@@ -642,7 +650,7 @@ static void ath_tx_complete_aggr(struct ath_softc *sc, struct ath_txq *txq,
 				 * run out of tx buf.
 				 */
 				if (!tbf) {
-					ath_tx_update_baw(sc, tid, seqno);
+					ath_tx_update_baw(sc, tid, bf);
 
 					ath_tx_complete_buf(sc, bf, txq,
 							    &bf_head, NULL, ts,
@@ -765,7 +773,8 @@ static void ath_tx_process_buffer(struct ath_softc *sc, struct ath_txq *txq,
 			memcpy(info->control.rates, bf->rates,
 			       sizeof(info->control.rates));
 			ath_tx_rc_status(sc, bf, ts, 1, txok ? 0 : 1, txok);
-			ath_dynack_sample_tx_ts(sc->sc_ah, bf->bf_mpdu, ts);
+			ath_dynack_sample_tx_ts(sc->sc_ah, bf->bf_mpdu, ts,
+						sta);
 		}
 		ath_tx_complete_buf(sc, bf, txq, bf_head, sta, ts, txok);
 	} else
@@ -970,7 +979,8 @@ ath_tx_get_tid_subframe(struct ath_softc *sc, struct ath_txq *txq,
 		bf->bf_lastbf = bf;
 
 		tx_info = IEEE80211_SKB_CB(skb);
-		tx_info->flags &= ~IEEE80211_TX_CTL_CLEAR_PS_FILT;
+		tx_info->flags &= ~(IEEE80211_TX_CTL_CLEAR_PS_FILT |
+				    IEEE80211_TX_STATUS_EOSP);
 
 		/*
 		 * No aggregation session is running, but there may be frames
@@ -1010,10 +1020,13 @@ ath_tx_get_tid_subframe(struct ath_softc *sc, struct ath_txq *txq,
 
 			INIT_LIST_HEAD(&bf_head);
 			list_add(&bf->list, &bf_head);
-			ath_tx_update_baw(sc, tid, seqno);
+			ath_tx_update_baw(sc, tid, bf);
 			ath_tx_complete_buf(sc, bf, txq, &bf_head, NULL, &ts, 0);
 			continue;
 		}
+
+		if (bf_isampdu(bf))
+			ath_tx_addto_baw(sc, tid, bf);
 
 		return bf;
 	}
@@ -1072,8 +1085,6 @@ ath_tx_form_aggr(struct ath_softc *sc, struct ath_txq *txq,
 		bf->bf_next = NULL;
 
 		/* link buffers of this frame to the aggregate */
-		if (!fi->baw_tracked)
-			ath_tx_addto_baw(sc, tid, bf);
 		bf->bf_state.ndelim = ndelim;
 
 		list_add_tail(&bf->list, bf_q);
@@ -1660,6 +1671,22 @@ void ath_tx_aggr_wakeup(struct ath_softc *sc, struct ath_node *an)
 	}
 }
 
+
+static void
+ath9k_set_moredata(struct ath_softc *sc, struct ath_buf *bf, bool val)
+{
+	struct ieee80211_hdr *hdr;
+	u16 mask = cpu_to_le16(IEEE80211_FCTL_MOREDATA);
+	u16 mask_val = mask * val;
+
+	hdr = (struct ieee80211_hdr *) bf->bf_mpdu->data;
+	if ((hdr->frame_control & mask) != mask_val) {
+		hdr->frame_control = (hdr->frame_control & ~mask) | mask_val;
+		dma_sync_single_for_device(sc->dev, bf->bf_buf_addr,
+			sizeof(*hdr), DMA_TO_DEVICE);
+	}
+}
+
 void ath9k_release_buffered_frames(struct ieee80211_hw *hw,
 				   struct ieee80211_sta *sta,
 				   u16 tids, int nframes,
@@ -1690,12 +1717,11 @@ void ath9k_release_buffered_frames(struct ieee80211_hw *hw,
 			if (!bf)
 				break;
 
+			ath9k_set_moredata(sc, bf, true);
 			list_add_tail(&bf->list, &bf_q);
 			ath_set_rates(tid->an->vif, tid->an->sta, bf);
-			if (bf_isampdu(bf)) {
-				ath_tx_addto_baw(sc, tid, bf);
+			if (bf_isampdu(bf))
 				bf->bf_state.bf_type &= ~BUF_AGGR;
-			}
 			if (bf_tail)
 				bf_tail->bf_next = bf;
 
@@ -1712,6 +1738,9 @@ void ath9k_release_buffered_frames(struct ieee80211_hw *hw,
 
 	if (list_empty(&bf_q))
 		return;
+
+	if (!more_data)
+		ath9k_set_moredata(sc, bf_tail, false);
 
 	info = IEEE80211_SKB_CB(bf_tail->bf_mpdu);
 	info->flags |= IEEE80211_TX_STATUS_EOSP;
@@ -2408,7 +2437,6 @@ void ath_tx_cabq(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 		.txq = sc->beacon.cabq
 	};
 	struct ath_tx_info info = {};
-	struct ieee80211_hdr *hdr;
 	struct ath_buf *bf_tail = NULL;
 	struct ath_buf *bf;
 	LIST_HEAD(bf_q);
@@ -2452,15 +2480,10 @@ void ath_tx_cabq(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 	if (list_empty(&bf_q))
 		return;
 
+	bf = list_last_entry(&bf_q, struct ath_buf, list);
+	ath9k_set_moredata(sc, bf, false);
+
 	bf = list_first_entry(&bf_q, struct ath_buf, list);
-	hdr = (struct ieee80211_hdr *) bf->bf_mpdu->data;
-
-	if (hdr->frame_control & cpu_to_le16(IEEE80211_FCTL_MOREDATA)) {
-		hdr->frame_control &= ~cpu_to_le16(IEEE80211_FCTL_MOREDATA);
-		dma_sync_single_for_device(sc->dev, bf->bf_buf_addr,
-			sizeof(*hdr), DMA_TO_DEVICE);
-	}
-
 	ath_txq_lock(sc, txctl.txq);
 	ath_tx_fill_desc(sc, bf, txctl.txq, 0);
 	ath_tx_txqaddbuf(sc, txctl.txq, &bf_q, false);

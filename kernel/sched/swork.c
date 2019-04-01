@@ -12,7 +12,7 @@
 #include <linux/spinlock.h>
 #include <linux/export.h>
 
-#define SWORK_EVENT_PENDING     (1 << 0)
+#define SWORK_EVENT_PENDING     1
 
 static DEFINE_MUTEX(worker_mutex);
 static struct sworker *glob_worker;
@@ -46,8 +46,8 @@ static int swork_kthread(void *arg)
 	struct sworker *worker = arg;
 
 	for (;;) {
-		swait_event_interruptible(worker->wq,
-					swork_readable(worker));
+		swait_event_interruptible_exclusive(worker->wq,
+						    swork_readable(worker));
 		if (kthread_should_stop())
 			break;
 
@@ -117,7 +117,7 @@ bool swork_queue(struct swork_event *sev)
 	list_add_tail(&sev->item, &glob_worker->events);
 	raw_spin_unlock_irqrestore(&glob_worker->lock, flags);
 
-	swake_up(&glob_worker->wq);
+	swake_up_one(&glob_worker->wq);
 	return true;
 }
 EXPORT_SYMBOL_GPL(swork_queue);

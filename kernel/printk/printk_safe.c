@@ -22,7 +22,6 @@
 #include <linux/cpumask.h>
 #include <linux/irq_work.h>
 #include <linux/printk.h>
-#include <linux/console.h>
 
 #include "internal.h"
 
@@ -40,7 +39,7 @@
  * There are situations when we want to make sure that all buffers
  * were handled or when IRQs are blocked.
  */
-static int printk_safe_irq_ready;
+static int printk_safe_irq_ready __read_mostly;
 
 #define SAFE_LOG_BUF_LEN ((1 << CONFIG_PRINTK_SAFE_LOG_BUF_SHIFT) -	\
 				sizeof(atomic_t) -			\
@@ -64,11 +63,8 @@ static DEFINE_PER_CPU(struct printk_safe_seq_buf, nmi_print_seq);
 /* Get flushed in a more safe context. */
 static void queue_flush_work(struct printk_safe_seq_buf *s)
 {
-	if (printk_safe_irq_ready) {
-		/* Make sure that IRQ work is really initialized. */
-		smp_rmb();
+	if (printk_safe_irq_ready)
 		irq_work_queue(&s->work);
-	}
 }
 
 /*
@@ -76,7 +72,7 @@ static void queue_flush_work(struct printk_safe_seq_buf *s)
  * have dedicated buffers, because otherwise printk-safe preempted by
  * NMI-printk would have overwritten the NMI messages.
  *
- * The messages are fushed from irq work (or from panic()), possibly,
+ * The messages are flushed from irq work (or from panic()), possibly,
  * from other CPU, concurrently with printk_safe_log_store(). Should this
  * happen, printk_safe_log_store() will notice the buffer->len mismatch
  * and repeat the write.
@@ -374,74 +370,8 @@ void __printk_safe_exit(void)
 	this_cpu_dec(printk_context);
 }
 
-#ifdef CONFIG_EARLY_PRINTK
-struct console *early_console;
-
-static void early_vprintk(const char *fmt, va_list ap)
-{
-	if (early_console) {
-		char buf[512];
-		int n = vscnprintf(buf, sizeof(buf), fmt, ap);
-
-		early_console->write(early_console, buf, n);
-	}
-}
-
-asmlinkage void early_printk(const char *fmt, ...)
-{
-	va_list ap;
-
-	va_start(ap, fmt);
-	early_vprintk(fmt, ap);
-	va_end(ap);
-}
-
-/*
- * This is independent of any log levels - a global
- * kill switch that turns off all of printk.
- *
- * Used by the NMI watchdog if early-printk is enabled.
- */
-static bool __read_mostly printk_killswitch;
-
-static int __init force_early_printk_setup(char *str)
-{
-	printk_killswitch = true;
-	return 0;
-}
-early_param("force_early_printk", force_early_printk_setup);
-
-void printk_kill(void)
-{
-	printk_killswitch = true;
-}
-
-#ifdef CONFIG_PRINTK
-static int forced_early_printk(const char *fmt, va_list ap)
-{
-	if (!printk_killswitch)
-		return 0;
-	early_vprintk(fmt, ap);
-	return 1;
-}
-#endif
-
-#else
-static inline int forced_early_printk(const char *fmt, va_list ap)
-{
-	return 0;
-}
-#endif
-
 __printf(1, 0) int vprintk_func(const char *fmt, va_list args)
 {
-	/*
-	 * Fall back to early_printk if a debugging subsystem has
-	 * killed printk output
-	 */
-	if (unlikely(forced_early_printk(fmt, args)))
-		return 1;
-
 	/*
 	 * Try to use the main logbuf even in NMI. But avoid calling console
 	 * drivers that might have their own locks.
@@ -484,8 +414,12 @@ void __init printk_safe_init(void)
 #endif
 	}
 
-	/* Make sure that IRQ works are initialized before enabling. */
-	smp_wmb();
+	/*
+	 * In the highly unlikely event that a NMI were to trigger at
+	 * this moment. Make sure IRQ work is set up before this
+	 * variable is set.
+	 */
+	barrier();
 	printk_safe_irq_ready = 1;
 
 	/* Flush pending messages that did not have scheduled IRQ works. */

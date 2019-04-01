@@ -275,6 +275,10 @@ static int set_next_request(void);
 #define fd_dma_mem_alloc(size) __get_dma_pages(GFP_KERNEL, get_order(size))
 #endif
 
+#ifndef fd_cacheflush
+#define fd_cacheflush(addr, size) /* nothing... */
+#endif
+
 static inline void fallback_on_nodma_alloc(char **addr, size_t l)
 {
 #ifdef FLOPPY_CAN_FALLBACK_ON_NODMA
@@ -899,9 +903,13 @@ static void unlock_fdc(void)
 }
 
 /* switches the motor off after a given timeout */
-static void motor_off_callback(unsigned long nr)
+static void motor_off_callback(struct timer_list *t)
 {
+	unsigned long nr = t - motor_off_timer;
 	unsigned char mask = ~(0x10 << UNIT(nr));
+
+	if (WARN_ON_ONCE(nr >= N_DRIVE))
+		return;
 
 	set_dor(FDC(nr), mask, 0);
 }
@@ -1453,7 +1461,6 @@ static void setup_rw_floppy(void)
 	int i;
 	int r;
 	int flags;
-	int dflags;
 	unsigned long ready_date;
 	void (*function)(void);
 
@@ -1477,8 +1484,6 @@ static void setup_rw_floppy(void)
 		if (fd_wait_for_completion(ready_date, function))
 			return;
 	}
-	dflags = DRS->flags;
-
 	if ((flags & FD_RAW_READ) || (flags & FD_RAW_WRITE))
 		setup_DMA();
 
@@ -3043,7 +3048,7 @@ static void raw_cmd_done(int flag)
 		else
 			raw_cmd->flags &= ~FD_RAW_DISK_CHANGE;
 		if (raw_cmd->flags & FD_RAW_NO_MOTOR_AFTER)
-			motor_off_callback(current_drive);
+			motor_off_callback(&motor_off_timer[current_drive]);
 
 		if (raw_cmd->next &&
 		    (!(raw_cmd->flags & FD_RAW_FAILURE) ||
@@ -4146,10 +4151,11 @@ static int __floppy_read_block_0(struct block_device *bdev, int drive)
 	bio.bi_end_io = floppy_rb0_cb;
 	bio_set_op_attrs(&bio, REQ_OP_READ, 0);
 
+	init_completion(&cbdata.complete);
+
 	submit_bio(&bio);
 	process_fd_request();
 
-	init_completion(&cbdata.complete);
 	wait_for_completion(&cbdata.complete);
 
 	__free_page(page);
@@ -4445,7 +4451,7 @@ static ssize_t floppy_cmos_show(struct device *dev,
 	return sprintf(buf, "%X\n", UDP->cmos);
 }
 
-static DEVICE_ATTR(cmos, S_IRUGO, floppy_cmos_show, NULL);
+static DEVICE_ATTR(cmos, 0444, floppy_cmos_show, NULL);
 
 static struct attribute *floppy_dev_attrs[] = {
 	&dev_attr_cmos.attr,
@@ -4500,7 +4506,7 @@ static struct kobject *floppy_find(dev_t dev, int *part, void *data)
 	if (((*part >> 2) & 0x1f) >= ARRAY_SIZE(floppy_type))
 		return NULL;
 	*part = 0;
-	return get_disk(disks[drive]);
+	return get_disk_and_module(disks[drive]);
 }
 
 static int __init do_floppy_init(void)
@@ -4541,7 +4547,7 @@ static int __init do_floppy_init(void)
 		disks[drive]->fops = &floppy_fops;
 		sprintf(disks[drive]->disk_name, "fd%d", drive);
 
-		setup_timer(&motor_off_timer[drive], motor_off_callback, drive);
+		timer_setup(&motor_off_timer[drive], motor_off_callback, 0);
 	}
 
 	err = register_blkdev(FLOPPY_MAJOR, "fd");

@@ -1,18 +1,12 @@
+// SPDX-License-Identifier: LGPL-2.1
 /*
  * Copyright (c) 2012 Taobao.
  * Written by Tao Ma <boyu.mt@taobao.com>
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of version 2.1 of the GNU Lesser General Public License
- * as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  */
 
+#include <linux/iomap.h>
 #include <linux/fiemap.h>
+#include <linux/iversion.h>
 
 #include "ext4_jbd2.h"
 #include "ext4.h"
@@ -711,8 +705,11 @@ int ext4_try_to_write_inline_data(struct address_space *mapping,
 
 	if (!PageUptodate(page)) {
 		ret = ext4_read_inline_page(inode, page);
-		if (ret < 0)
+		if (ret < 0) {
+			unlock_page(page);
+			put_page(page);
 			goto out_up_read;
+		}
 	}
 
 	ret = 1;
@@ -869,7 +866,7 @@ int ext4_da_write_inline_data_begin(struct address_space *mapping,
 	handle_t *handle;
 	struct page *page;
 	struct ext4_iloc iloc;
-	int retries;
+	int retries = 0;
 
 	ret = ext4_get_inode_loc(inode, &iloc);
 	if (ret)
@@ -1051,7 +1048,7 @@ static int ext4_add_dirent_to_inline(handle_t *handle,
 	 */
 	dir->i_mtime = dir->i_ctime = current_time(dir);
 	ext4_update_dx_flag(dir);
-	dir->i_version++;
+	inode_inc_iversion(dir);
 	return 1;
 }
 
@@ -1503,7 +1500,7 @@ int ext4_read_inline_dir(struct file *file,
 	 * dirent right now.  Scan from the start of the inline
 	 * dir to make sure.
 	 */
-	if (file->f_version != inode->i_version) {
+	if (!inode_eq_iversion(inode, file->f_version)) {
 		for (i = 0; i < extra_size && i < offset;) {
 			/*
 			 * "." is with offset 0 and
@@ -1535,7 +1532,7 @@ int ext4_read_inline_dir(struct file *file,
 		}
 		offset = i;
 		ctx->pos = offset;
-		file->f_version = inode->i_version;
+		file->f_version = inode_query_iversion(inode);
 	}
 
 	while (ctx->pos < extra_size) {
@@ -1829,6 +1826,38 @@ int ext4_destroy_inline_data(handle_t *handle, struct inode *inode)
 	return ret;
 }
 
+int ext4_inline_data_iomap(struct inode *inode, struct iomap *iomap)
+{
+	__u64 addr;
+	int error = -EAGAIN;
+	struct ext4_iloc iloc;
+
+	down_read(&EXT4_I(inode)->xattr_sem);
+	if (!ext4_has_inline_data(inode))
+		goto out;
+
+	error = ext4_get_inode_loc(inode, &iloc);
+	if (error)
+		goto out;
+
+	addr = (__u64)iloc.bh->b_blocknr << inode->i_sb->s_blocksize_bits;
+	addr += (char *)ext4_raw_inode(&iloc) - iloc.bh->b_data;
+	addr += offsetof(struct ext4_inode, i_block);
+
+	brelse(iloc.bh);
+
+	iomap->addr = addr;
+	iomap->offset = 0;
+	iomap->length = min_t(loff_t, ext4_get_inline_size(inode),
+			      i_size_read(inode));
+	iomap->type = IOMAP_INLINE;
+	iomap->flags = 0;
+
+out:
+	up_read(&EXT4_I(inode)->xattr_sem);
+	return error;
+}
+
 int ext4_inline_data_fiemap(struct inode *inode,
 			    struct fiemap_extent_info *fieinfo,
 			    int *has_inline, __u64 start, __u64 len)
@@ -1861,12 +1890,12 @@ int ext4_inline_data_fiemap(struct inode *inode,
 	physical += (char *)ext4_raw_inode(&iloc) - iloc.bh->b_data;
 	physical += offsetof(struct ext4_inode, i_block);
 
-	if (physical)
-		error = fiemap_fill_next_extent(fieinfo, start, physical,
-						inline_len, flags);
 	brelse(iloc.bh);
 out:
 	up_read(&EXT4_I(inode)->xattr_sem);
+	if (physical)
+		error = fiemap_fill_next_extent(fieinfo, start, physical,
+						inline_len, flags);
 	return (error < 0 ? error : 0);
 }
 

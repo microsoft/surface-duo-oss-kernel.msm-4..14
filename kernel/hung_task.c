@@ -33,12 +33,17 @@ int __read_mostly sysctl_hung_task_check_count = PID_MAX_LIMIT;
  * is disabled during the critical section. It also controls the size of
  * the RCU grace period. So it needs to be upper-bound.
  */
-#define HUNG_TASK_BATCHING 1024
+#define HUNG_TASK_LOCK_BREAK (HZ / 10)
 
 /*
  * Zero means infinite timeout - no checking done:
  */
 unsigned long __read_mostly sysctl_hung_task_timeout_secs = CONFIG_DEFAULT_HUNG_TASK_TIMEOUT;
+
+/*
+ * Zero (default value) means use sysctl_hung_task_timeout_secs:
+ */
+unsigned long __read_mostly sysctl_hung_task_check_interval_secs;
 
 int __read_mostly sysctl_hung_task_warnings = 10;
 
@@ -98,13 +103,19 @@ static void check_hung_task(struct task_struct *t, unsigned long timeout)
 
 	if (switch_count != t->last_switch_count) {
 		t->last_switch_count = switch_count;
+		t->last_switch_time = jiffies;
 		return;
 	}
+	if (time_is_after_jiffies(t->last_switch_time + timeout * HZ))
+		return;
 
 	trace_sched_process_hang(t);
 
-	if (!sysctl_hung_task_warnings && !sysctl_hung_task_panic)
-		return;
+	if (sysctl_hung_task_panic) {
+		console_verbose();
+		hung_task_show_lock = true;
+		hung_task_call_panic = true;
+	}
 
 	/*
 	 * Ok, the task did not get scheduled for more than 2 minutes,
@@ -126,11 +137,6 @@ static void check_hung_task(struct task_struct *t, unsigned long timeout)
 	}
 
 	touch_nmi_watchdog();
-
-	if (sysctl_hung_task_panic) {
-		hung_task_show_lock = true;
-		hung_task_call_panic = true;
-	}
 }
 
 /*
@@ -164,7 +170,7 @@ static bool rcu_lock_break(struct task_struct *g, struct task_struct *t)
 static void check_hung_uninterruptible_tasks(unsigned long timeout)
 {
 	int max_count = sysctl_hung_task_check_count;
-	int batch_count = HUNG_TASK_BATCHING;
+	unsigned long last_break = jiffies;
 	struct task_struct *g, *t;
 
 	/*
@@ -179,10 +185,10 @@ static void check_hung_uninterruptible_tasks(unsigned long timeout)
 	for_each_process_thread(g, t) {
 		if (!max_count--)
 			goto unlock;
-		if (!--batch_count) {
-			batch_count = HUNG_TASK_BATCHING;
+		if (time_after(jiffies, last_break + HUNG_TASK_LOCK_BREAK)) {
 			if (!rcu_lock_break(g, t))
 				goto unlock;
+			last_break = jiffies;
 		}
 		/* use "==" to skip the TASK_KILLABLE tasks waiting on NFS */
 		if (t->state == TASK_UNINTERRUPTIBLE)
@@ -245,8 +251,13 @@ static int watchdog(void *dummy)
 
 	for ( ; ; ) {
 		unsigned long timeout = sysctl_hung_task_timeout_secs;
-		long t = hung_timeout_jiffies(hung_last_checked, timeout);
+		unsigned long interval = sysctl_hung_task_check_interval_secs;
+		long t;
 
+		if (interval == 0)
+			interval = timeout;
+		interval = min_t(unsigned long, interval, timeout);
+		t = hung_timeout_jiffies(hung_last_checked, interval);
 		if (t <= 0) {
 			if (!atomic_xchg(&reset_hung_task, 0))
 				check_hung_uninterruptible_tasks(timeout);

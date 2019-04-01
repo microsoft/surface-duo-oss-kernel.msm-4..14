@@ -28,7 +28,7 @@ static unsigned long __count_nat_entries(struct f2fs_sb_info *sbi)
 
 static unsigned long __count_free_nids(struct f2fs_sb_info *sbi)
 {
-	long count = NM_I(sbi)->nid_cnt[FREE_NID_LIST] - MAX_FREE_NIDS;
+	long count = NM_I(sbi)->nid_cnt[FREE_NID] - MAX_FREE_NIDS;
 
 	return count > 0 ? count : 0;
 }
@@ -109,11 +109,11 @@ unsigned long f2fs_shrink_scan(struct shrinker *shrink,
 
 		/* shrink clean nat cache entries */
 		if (freed < nr)
-			freed += try_to_free_nats(sbi, nr - freed);
+			freed += f2fs_try_to_free_nats(sbi, nr - freed);
 
 		/* shrink free nids cache entries */
 		if (freed < nr)
-			freed += try_to_free_nids(sbi, nr - freed);
+			freed += f2fs_try_to_free_nids(sbi, nr - freed);
 
 		spin_lock(&f2fs_list_lock);
 		p = p->next;
@@ -138,6 +138,6 @@ void f2fs_leave_shrinker(struct f2fs_sb_info *sbi)
 	f2fs_shrink_extent_tree(sbi, __count_extent_cache(sbi));
 
 	spin_lock(&f2fs_list_lock);
-	list_del(&sbi->s_list);
+	list_del_init(&sbi->s_list);
 	spin_unlock(&f2fs_list_lock);
 }

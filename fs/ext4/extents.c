@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * Copyright (c) 2003-2006, Cluster File Systems, Inc, info@clusterfs.com
  * Written by Alex Tomas <alex@clusterfs.com>
@@ -5,19 +6,6 @@
  * Architecture independence:
  *   Copyright (c) 2005, Bull S.A.
  *   Written by Pierre Peiffer <pierre.peiffer@bull.net>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-
  */
 
 /*
@@ -589,7 +577,7 @@ int ext4_ext_precache(struct inode *inode)
 	down_read(&ei->i_data_sem);
 	depth = ext_depth(inode);
 
-	path = kzalloc(sizeof(struct ext4_ext_path) * (depth + 1),
+	path = kcalloc(depth + 1, sizeof(struct ext4_ext_path),
 		       GFP_NOFS);
 	if (path == NULL) {
 		up_read(&ei->i_data_sem);
@@ -897,7 +885,7 @@ ext4_find_extent(struct inode *inode, ext4_lblk_t block,
 	}
 	if (!path) {
 		/* account possible depth increase */
-		path = kzalloc(sizeof(struct ext4_ext_path) * (depth + 2),
+		path = kcalloc(depth + 2, sizeof(struct ext4_ext_path),
 				GFP_NOFS);
 		if (unlikely(!path))
 			return ERR_PTR(-ENOMEM);
@@ -1081,7 +1069,7 @@ static int ext4_ext_split(handle_t *handle, struct inode *inode,
 	 * We need this to handle errors and free blocks
 	 * upon them.
 	 */
-	ablocks = kzalloc(sizeof(ext4_fsblk_t) * depth, GFP_NOFS);
+	ablocks = kcalloc(depth, sizeof(ext4_fsblk_t), GFP_NOFS);
 	if (!ablocks)
 		return -ENOMEM;
 
@@ -2939,7 +2927,7 @@ again:
 			path[k].p_block =
 				le16_to_cpu(path[k].p_hdr->eh_entries)+1;
 	} else {
-		path = kzalloc(sizeof(struct ext4_ext_path) * (depth + 1),
+		path = kcalloc(depth + 1, sizeof(struct ext4_ext_path),
 			       GFP_NOFS);
 		if (path == NULL) {
 			ext4_journal_stop(handle);
@@ -4814,7 +4802,6 @@ static long ext4_zero_range(struct file *file, loff_t offset,
 		flags |= EXT4_GET_BLOCKS_KEEP_SIZE;
 
 	/* Wait all existing dio workers, newcomers will block on i_mutex */
-	ext4_inode_block_unlocked_dio(inode);
 	inode_dio_wait(inode);
 
 	/* Preallocate the range including the unaligned edges */
@@ -4825,7 +4812,7 @@ static long ext4_zero_range(struct file *file, loff_t offset,
 				 round_down(offset, 1 << blkbits)) >> blkbits,
 				new_size, flags);
 		if (ret)
-			goto out_dio;
+			goto out_mutex;
 
 	}
 
@@ -4839,10 +4826,17 @@ static long ext4_zero_range(struct file *file, loff_t offset,
 		 * released from page cache.
 		 */
 		down_write(&EXT4_I(inode)->i_mmap_sem);
+
+		ret = ext4_break_layouts(inode);
+		if (ret) {
+			up_write(&EXT4_I(inode)->i_mmap_sem);
+			goto out_mutex;
+		}
+
 		ret = ext4_update_disksize_before_punch(inode, offset, len);
 		if (ret) {
 			up_write(&EXT4_I(inode)->i_mmap_sem);
-			goto out_dio;
+			goto out_mutex;
 		}
 		/* Now release the pages and zero block aligned part of pages */
 		truncate_pagecache_range(inode, start, end - 1);
@@ -4852,10 +4846,10 @@ static long ext4_zero_range(struct file *file, loff_t offset,
 					     flags);
 		up_write(&EXT4_I(inode)->i_mmap_sem);
 		if (ret)
-			goto out_dio;
+			goto out_mutex;
 	}
 	if (!partial_begin && !partial_end)
-		goto out_dio;
+		goto out_mutex;
 
 	/*
 	 * In worst case we have to writeout two nonadjacent unwritten
@@ -4868,7 +4862,7 @@ static long ext4_zero_range(struct file *file, loff_t offset,
 	if (IS_ERR(handle)) {
 		ret = PTR_ERR(handle);
 		ext4_std_error(inode->i_sb, ret);
-		goto out_dio;
+		goto out_mutex;
 	}
 
 	inode->i_mtime = inode->i_ctime = current_time(inode);
@@ -4893,8 +4887,6 @@ static long ext4_zero_range(struct file *file, loff_t offset,
 		ext4_handle_sync(handle);
 
 	ext4_journal_stop(handle);
-out_dio:
-	ext4_inode_resume_unlocked_dio(inode);
 out_mutex:
 	inode_unlock(inode);
 	return ret;
@@ -4982,11 +4974,9 @@ long ext4_fallocate(struct file *file, int mode, loff_t offset, loff_t len)
 	}
 
 	/* Wait all existing dio workers, newcomers will block on i_mutex */
-	ext4_inode_block_unlocked_dio(inode);
 	inode_dio_wait(inode);
 
 	ret = ext4_alloc_file_blocks(file, lblk, max_blocks, new_size, flags);
-	ext4_inode_resume_unlocked_dio(inode);
 	if (ret)
 		goto out;
 
@@ -5509,7 +5499,6 @@ int ext4_collapse_range(struct inode *inode, loff_t offset, loff_t len)
 	}
 
 	/* Wait for existing dio to complete */
-	ext4_inode_block_unlocked_dio(inode);
 	inode_dio_wait(inode);
 
 	/*
@@ -5517,6 +5506,11 @@ int ext4_collapse_range(struct inode *inode, loff_t offset, loff_t len)
 	 * page cache.
 	 */
 	down_write(&EXT4_I(inode)->i_mmap_sem);
+
+	ret = ext4_break_layouts(inode);
+	if (ret)
+		goto out_mmap;
+
 	/*
 	 * Need to round down offset to be aligned with page size boundary
 	 * for page size > block size.
@@ -5586,7 +5580,6 @@ out_stop:
 	ext4_journal_stop(handle);
 out_mmap:
 	up_write(&EXT4_I(inode)->i_mmap_sem);
-	ext4_inode_resume_unlocked_dio(inode);
 out_mutex:
 	inode_unlock(inode);
 	return ret;
@@ -5659,7 +5652,6 @@ int ext4_insert_range(struct inode *inode, loff_t offset, loff_t len)
 	}
 
 	/* Wait for existing dio to complete */
-	ext4_inode_block_unlocked_dio(inode);
 	inode_dio_wait(inode);
 
 	/*
@@ -5667,6 +5659,11 @@ int ext4_insert_range(struct inode *inode, loff_t offset, loff_t len)
 	 * page cache.
 	 */
 	down_write(&EXT4_I(inode)->i_mmap_sem);
+
+	ret = ext4_break_layouts(inode);
+	if (ret)
+		goto out_mmap;
+
 	/*
 	 * Need to round down to align start offset to page size boundary
 	 * for page size > block size.
@@ -5761,7 +5758,6 @@ out_stop:
 	ext4_journal_stop(handle);
 out_mmap:
 	up_write(&EXT4_I(inode)->i_mmap_sem);
-	ext4_inode_resume_unlocked_dio(inode);
 out_mutex:
 	inode_unlock(inode);
 	return ret;
@@ -5775,7 +5771,7 @@ out_mutex:
  * @lblk1:	Start block for first inode
  * @lblk2:	Start block for second inode
  * @count:	Number of blocks to swap
- * @mark_unwritten: Mark second inode's extents as unwritten after swap
+ * @unwritten: Mark second inode's extents as unwritten after swap
  * @erp:	Pointer to save error value
  *
  * This helper routine does exactly what is promise "swap extents". All other
@@ -5789,7 +5785,7 @@ out_mutex:
  */
 int
 ext4_swap_extents(handle_t *handle, struct inode *inode1,
-		     struct inode *inode2, ext4_lblk_t lblk1, ext4_lblk_t lblk2,
+		  struct inode *inode2, ext4_lblk_t lblk1, ext4_lblk_t lblk2,
 		  ext4_lblk_t count, int unwritten, int *erp)
 {
 	struct ext4_ext_path *path1 = NULL;

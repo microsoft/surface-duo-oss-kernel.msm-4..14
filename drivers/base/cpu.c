@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * CPU subsystem support
  */
@@ -18,6 +19,7 @@
 #include <linux/cpufeature.h>
 #include <linux/tick.h>
 #include <linux/pm_qos.h>
+#include <linux/sched/isolation.h>
 
 #include "base.h"
 
@@ -271,8 +273,16 @@ static ssize_t print_cpus_isolated(struct device *dev,
 				  struct device_attribute *attr, char *buf)
 {
 	int n = 0, len = PAGE_SIZE-2;
+	cpumask_var_t isolated;
 
-	n = scnprintf(buf, len, "%*pbl\n", cpumask_pr_args(cpu_isolated_map));
+	if (!alloc_cpumask_var(&isolated, GFP_KERNEL))
+		return -ENOMEM;
+
+	cpumask_andnot(isolated, cpu_possible_mask,
+		       housekeeping_cpumask(HK_FLAG_DOMAIN));
+	n = scnprintf(buf, len, "%*pbl\n", cpumask_pr_args(isolated));
+
+	free_cpumask_var(isolated);
 
 	return n;
 }
@@ -372,12 +382,15 @@ int register_cpu(struct cpu *cpu, int num)
 	if (cpu->hotpluggable)
 		cpu->dev.groups = hotplugable_cpu_attr_groups;
 	error = device_register(&cpu->dev);
-	if (error)
+	if (error) {
+		put_device(&cpu->dev);
 		return error;
+	}
 
 	per_cpu(cpu_sys_devices, num) = &cpu->dev;
 	register_cpu_under_node(num, cpu_to_node(num));
-	dev_pm_qos_expose_latency_limit(&cpu->dev, 0);
+	dev_pm_qos_expose_latency_limit(&cpu->dev,
+					PM_QOS_RESUME_LATENCY_NO_CONSTRAINT);
 
 	return 0;
 }

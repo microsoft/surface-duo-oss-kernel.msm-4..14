@@ -188,6 +188,7 @@ int acpi_ec_ecdt_probe(void);
 int acpi_ec_dsdt_probe(void);
 void acpi_ec_block_transactions(void);
 void acpi_ec_unblock_transactions(void);
+void acpi_ec_dispatch_gpe(void);
 int acpi_ec_add_query_handler(struct acpi_ec *ec, u8 query_bit,
 			      acpi_handle handle, acpi_ec_query_func func,
 			      void *data);
@@ -247,6 +248,12 @@ static inline void acpi_extract_apple_properties(struct acpi_device *adev) {}
 void acpi_watchdog_init(void);
 #else
 static inline void acpi_watchdog_init(void) {}
+#endif
+
+#ifdef CONFIG_ACPI_LPIT
+void acpi_init_lpit(void);
+#else
+static inline void acpi_init_lpit(void) { }
 #endif
 
 #endif /* _ACPI_INTERNAL_H_ */

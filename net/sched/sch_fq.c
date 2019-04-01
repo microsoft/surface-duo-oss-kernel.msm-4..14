@@ -698,7 +698,8 @@ static const struct nla_policy fq_policy[TCA_FQ_MAX + 1] = {
 	[TCA_FQ_LOW_RATE_THRESHOLD]	= { .type = NLA_U32 },
 };
 
-static int fq_change(struct Qdisc *sch, struct nlattr *opt)
+static int fq_change(struct Qdisc *sch, struct nlattr *opt,
+		     struct netlink_ext_ack *extack)
 {
 	struct fq_sched_data *q = qdisc_priv(sch);
 	struct nlattr *tb[TCA_FQ_MAX + 1];
@@ -801,7 +802,8 @@ static void fq_destroy(struct Qdisc *sch)
 	qdisc_watchdog_cancel(&q->watchdog);
 }
 
-static int fq_init(struct Qdisc *sch, struct nlattr *opt)
+static int fq_init(struct Qdisc *sch, struct nlattr *opt,
+		   struct netlink_ext_ack *extack)
 {
 	struct fq_sched_data *q = qdisc_priv(sch);
 	int err;
@@ -824,7 +826,7 @@ static int fq_init(struct Qdisc *sch, struct nlattr *opt)
 	qdisc_watchdog_init(&q->watchdog, sch);
 
 	if (opt)
-		err = fq_change(sch, opt);
+		err = fq_change(sch, opt, extack);
 	else
 		err = fq_resize(sch, q->fq_trees_log);
 

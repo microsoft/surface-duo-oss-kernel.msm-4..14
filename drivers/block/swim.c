@@ -798,7 +798,7 @@ static struct kobject *floppy_find(dev_t dev, int *part, void *data)
 		return NULL;
 
 	*part = 0;
-	return get_disk(swd->unit[drive].disk);
+	return get_disk_and_module(swd->unit[drive].disk);
 }
 
 static int swim_add_floppy(struct swim_priv *swd, enum drive_location location)
@@ -887,8 +887,17 @@ static int swim_floppy_init(struct swim_priv *swd)
 
 exit_put_disks:
 	unregister_blkdev(FLOPPY_MAJOR, "fd");
-	while (drive--)
-		put_disk(swd->unit[drive].disk);
+	do {
+		struct gendisk *disk = swd->unit[drive].disk;
+
+		if (disk) {
+			if (disk->queue) {
+				blk_cleanup_queue(disk->queue);
+				disk->queue = NULL;
+			}
+			put_disk(disk);
+		}
+	} while (drive--);
 	return err;
 }
 

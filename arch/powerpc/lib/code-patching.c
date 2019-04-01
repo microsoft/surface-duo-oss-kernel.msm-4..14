@@ -22,7 +22,6 @@
 #include <asm/page.h>
 #include <asm/code-patching.h>
 #include <asm/setup.h>
-#include <asm/sections.h>
 
 static int __patch_instruction(unsigned int *exec_addr, unsigned int instr,
 			       unsigned int *patch_addr)
@@ -204,6 +203,22 @@ NOKPROBE_SYMBOL(patch_instruction);
 int patch_branch(unsigned int *addr, unsigned long target, int flags)
 {
 	return patch_instruction(addr, create_branch(addr, target, flags));
+}
+
+int patch_branch_site(s32 *site, unsigned long target, int flags)
+{
+	unsigned int *addr;
+
+	addr = (unsigned int *)((unsigned long)site + *site);
+	return patch_instruction(addr, create_branch(addr, target, flags));
+}
+
+int patch_instruction_site(s32 *site, unsigned int instr)
+{
+	unsigned int *addr;
+
+	addr = (unsigned int *)((unsigned long)site + *site);
+	return patch_instruction(addr, instr);
 }
 
 bool is_offset_in_branch_range(long offset)

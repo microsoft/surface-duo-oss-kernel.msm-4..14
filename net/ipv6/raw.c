@@ -620,7 +620,7 @@ out:
 
 static int rawv6_send_hdrinc(struct sock *sk, struct msghdr *msg, int length,
 			struct flowi6 *fl6, struct dst_entry **dstp,
-			unsigned int flags)
+			unsigned int flags, const struct sockcm_cookie *sockc)
 {
 	struct ipv6_pinfo *np = inet6_sk(sk);
 	struct net *net = sock_net(sk);
@@ -650,6 +650,7 @@ static int rawv6_send_hdrinc(struct sock *sk, struct msghdr *msg, int length,
 	skb->protocol = htons(ETH_P_IPV6);
 	skb->priority = sk->sk_priority;
 	skb->mark = sk->sk_mark;
+	skb->tstamp = sockc->transmit_time;
 
 	skb_put(skb, length);
 	skb_reset_network_header(skb);
@@ -777,7 +778,6 @@ static int rawv6_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 	struct dst_entry *dst = NULL;
 	struct raw6_frag_vec rfv;
 	struct flowi6 fl6;
-	struct sockcm_cookie sockc;
 	struct ipcm6_cookie ipc6;
 	int addr_len = msg->msg_namelen;
 	u16 proto;
@@ -801,10 +801,8 @@ static int rawv6_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 	fl6.flowi6_mark = sk->sk_mark;
 	fl6.flowi6_uid = sk->sk_uid;
 
-	ipc6.hlimit = -1;
-	ipc6.tclass = -1;
-	ipc6.dontfrag = -1;
-	ipc6.opt = NULL;
+	ipcm6_init(&ipc6);
+	ipc6.sockc.tsflags = sk->sk_tsflags;
 
 	if (sin6) {
 		if (addr_len < SIN6_LEN_RFC2133)
@@ -858,14 +856,13 @@ static int rawv6_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 	if (fl6.flowi6_oif == 0)
 		fl6.flowi6_oif = sk->sk_bound_dev_if;
 
-	sockc.tsflags = sk->sk_tsflags;
 	if (msg->msg_controllen) {
 		opt = &opt_space;
 		memset(opt, 0, sizeof(struct ipv6_txoptions));
 		opt->tot_len = sizeof(struct ipv6_txoptions);
 		ipc6.opt = opt;
 
-		err = ip6_datagram_send_ctl(sock_net(sk), sk, msg, &fl6, &ipc6, &sockc);
+		err = ip6_datagram_send_ctl(sock_net(sk), sk, msg, &fl6, &ipc6);
 		if (err < 0) {
 			fl6_sock_release(flowlabel);
 			return err;
@@ -932,13 +929,14 @@ static int rawv6_sendmsg(struct sock *sk, struct msghdr *msg, size_t len)
 
 back_from_confirm:
 	if (inet->hdrincl)
-		err = rawv6_send_hdrinc(sk, msg, len, &fl6, &dst, msg->msg_flags);
+		err = rawv6_send_hdrinc(sk, msg, len, &fl6, &dst,
+					msg->msg_flags, &ipc6.sockc);
 	else {
 		ipc6.opt = opt;
 		lock_sock(sk);
 		err = ip6_append_data(sk, raw6_getfrag, &rfv,
 			len, 0, &ipc6, &fl6, (struct rt6_info *)dst,
-			msg->msg_flags, &sockc);
+			msg->msg_flags);
 
 		if (err)
 			ip6_flush_pending_frames(sk);
@@ -1066,6 +1064,7 @@ static int rawv6_setsockopt(struct sock *sk, int level, int optname,
 		if (optname == IPV6_CHECKSUM ||
 		    optname == IPV6_HDRINCL)
 			break;
+		/* fall through */
 	default:
 		return ipv6_setsockopt(sk, level, optname, optval, optlen);
 	}
@@ -1088,6 +1087,7 @@ static int compat_rawv6_setsockopt(struct sock *sk, int level, int optname,
 		if (optname == IPV6_CHECKSUM ||
 		    optname == IPV6_HDRINCL)
 			break;
+		/* fall through */
 	default:
 		return compat_ipv6_setsockopt(sk, level, optname,
 					      optval, optlen);
@@ -1149,6 +1149,7 @@ static int rawv6_getsockopt(struct sock *sk, int level, int optname,
 		if (optname == IPV6_CHECKSUM ||
 		    optname == IPV6_HDRINCL)
 			break;
+		/* fall through */
 	default:
 		return ipv6_getsockopt(sk, level, optname, optval, optlen);
 	}
@@ -1171,6 +1172,7 @@ static int compat_rawv6_getsockopt(struct sock *sk, int level, int optname,
 		if (optname == IPV6_CHECKSUM ||
 		    optname == IPV6_HDRINCL)
 			break;
+		/* fall through */
 	default:
 		return compat_ipv6_getsockopt(sk, level, optname,
 					      optval, optlen);
@@ -1279,6 +1281,8 @@ struct proto rawv6_prot = {
 	.hash		   = raw_hash_sk,
 	.unhash		   = raw_unhash_sk,
 	.obj_size	   = sizeof(struct raw6_sock),
+	.useroffset	   = offsetof(struct raw6_sock, filter),
+	.usersize	   = sizeof_field(struct raw6_sock, filter),
 	.h.raw_hash	   = &raw_v6_hashinfo,
 #ifdef CONFIG_COMPAT
 	.compat_setsockopt = compat_rawv6_setsockopt,
@@ -1309,22 +1313,10 @@ static const struct seq_operations raw6_seq_ops = {
 	.show =		raw6_seq_show,
 };
 
-static int raw6_seq_open(struct inode *inode, struct file *file)
-{
-	return raw_seq_open(inode, file, &raw_v6_hashinfo, &raw6_seq_ops);
-}
-
-static const struct file_operations raw6_seq_fops = {
-	.owner =	THIS_MODULE,
-	.open =		raw6_seq_open,
-	.read =		seq_read,
-	.llseek =	seq_lseek,
-	.release =	seq_release_net,
-};
-
 static int __net_init raw6_init_net(struct net *net)
 {
-	if (!proc_create("raw6", S_IRUGO, net->proc_net, &raw6_seq_fops))
+	if (!proc_create_net_data("raw6", 0444, net->proc_net, &raw6_seq_ops,
+			sizeof(struct raw_iter_state), &raw_v6_hashinfo))
 		return -ENOMEM;
 
 	return 0;

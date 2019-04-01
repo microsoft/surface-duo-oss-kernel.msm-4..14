@@ -628,7 +628,7 @@ static long watchdog_ioctl(struct file *file, unsigned int cmd,
 
 		if (new_options & WDIOS_ENABLECARD)
 			return watchdog_start();
-
+		/* fall through */
 
 	case WDIOC_KEEPALIVE:
 		watchdog_keepalive();
@@ -642,7 +642,7 @@ static long watchdog_ioctl(struct file *file, unsigned int cmd,
 			return -EINVAL;
 
 		watchdog_keepalive();
-		/* Fall */
+		/* fall through */
 
 	case WDIOC_GETTIMEOUT:
 		return put_user(watchdog.timeout, uarg.i);

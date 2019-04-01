@@ -14,6 +14,18 @@ sha1-ce-y := sha1-ce-glue.o sha1-ce-core.o
 obj-$(CONFIG_CRYPTO_SHA2_ARM64_CE) += sha2-ce.o
 sha2-ce-y := sha2-ce-glue.o sha2-ce-core.o
 
+obj-$(CONFIG_CRYPTO_SHA512_ARM64_CE) += sha512-ce.o
+sha512-ce-y := sha512-ce-glue.o sha512-ce-core.o
+
+obj-$(CONFIG_CRYPTO_SHA3_ARM64) += sha3-ce.o
+sha3-ce-y := sha3-ce-glue.o sha3-ce-core.o
+
+obj-$(CONFIG_CRYPTO_SM3_ARM64_CE) += sm3-ce.o
+sm3-ce-y := sm3-ce-glue.o sm3-ce-core.o
+
+obj-$(CONFIG_CRYPTO_SM4_ARM64_CE) += sm4-ce.o
+sm4-ce-y := sm4-ce-glue.o sm4-ce-core.o
+
 obj-$(CONFIG_CRYPTO_GHASH_ARM64_CE) += ghash-ce.o
 ghash-ce-y := ghash-ce-glue.o ghash-ce-core.o
 
@@ -50,9 +62,6 @@ aes-arm64-y := aes-cipher-core.o aes-cipher-glue.o
 obj-$(CONFIG_CRYPTO_AES_ARM64_BS) += aes-neon-bs.o
 aes-neon-bs-y := aes-neonbs-core.o aes-neonbs-glue.o
 
-AFLAGS_aes-ce.o		:= -DINTERLEAVE=4
-AFLAGS_aes-neon.o	:= -DINTERLEAVE=4
-
 CFLAGS_aes-glue-ce.o	:= -DUSE_V8_CRYPTO_EXTENSIONS
 
 $(obj)/aes-glue-%.o: $(src)/aes-glue.c FORCE
@@ -69,4 +78,4 @@ $(src)/sha512-core.S_shipped: $(src)/sha512-armv8.pl
 	$(call cmd,perlasm)
 endif
 
-.PRECIOUS: $(obj)/sha256-core.S $(obj)/sha512-core.S
+targets += sha256-core.S sha512-core.S

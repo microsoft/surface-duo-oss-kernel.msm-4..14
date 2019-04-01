@@ -663,8 +663,8 @@ static void ps3_find_and_add_device(u64 bus_id, u64 dev_id)
 		if (rem)
 			break;
 	}
-	pr_warning("%s:%u: device %llu:%llu not found\n", __func__, __LINE__,
-		   bus_id, dev_id);
+	pr_warn("%s:%u: device %llu:%llu not found\n",
+		__func__, __LINE__, bus_id, dev_id);
 	return;
 
 found:
@@ -752,8 +752,8 @@ static int ps3_notification_read_write(struct ps3_notification_device *dev,
 	}
 	pr_debug("%s:%u: notification %s issued\n", __func__, __LINE__, op);
 
-	res = swait_event_interruptible(dev->done.wait,
-				       dev->done.done || kthread_should_stop());
+	res = swait_event_interruptible_exclusive(dev->done.wait,
+						  dev->done.done || kthread_should_stop());
 	if (kthread_should_stop())
 		res = -EINTR;
 	if (res) {
@@ -859,11 +859,9 @@ static int ps3_probe_thread(void *data)
 
 		if (notify_event->event_type != notify_region_probe ||
 		    notify_event->bus_id != dev.sbd.bus_id) {
-			pr_warning("%s:%u: bad notify_event: event %llu, "
-				   "dev_id %llu, dev_type %llu\n",
-				   __func__, __LINE__, notify_event->event_type,
-				   notify_event->dev_id,
-				   notify_event->dev_type);
+			pr_warn("%s:%u: bad notify_event: event %llu, dev_id %llu, dev_type %llu\n",
+				__func__, __LINE__, notify_event->event_type,
+				notify_event->dev_id, notify_event->dev_type);
 			continue;
 		}
 

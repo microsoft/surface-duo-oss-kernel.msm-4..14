@@ -1,5 +1,6 @@
 /*
  */
+#include <linux/blkdev.h>
 #include <linux/rwsem.h>
 #include <linux/sched/debug.h>
 #include <linux/sched/signal.h>
@@ -79,13 +80,22 @@ int __down_read_trylock(struct rw_semaphore *sem)
 	return 0;
 }
 
-void __sched __down_read(struct rw_semaphore *sem)
+static int __sched __down_read_common(struct rw_semaphore *sem, int state)
 {
 	struct rt_mutex *m = &sem->rtmutex;
 	struct rt_mutex_waiter waiter;
+	int ret;
 
 	if (__down_read_trylock(sem))
-		return;
+		return 0;
+	/*
+	 * If rt_mutex blocks, the function sched_submit_work will not call
+	 * blk_schedule_flush_plug (because tsk_is_pi_blocked would be true).
+	 * We must call blk_schedule_flush_plug here, if we don't call it,
+	 * a deadlock in I/O may happen.
+	 */
+	if (unlikely(blk_needs_flush_plug(current)))
+		blk_schedule_flush_plug(current);
 
 	might_sleep();
 	raw_spin_lock_irq(&m->wait_lock);
@@ -96,7 +106,7 @@ void __sched __down_read(struct rw_semaphore *sem)
 	if (atomic_read(&sem->readers) != WRITER_BIAS) {
 		atomic_inc(&sem->readers);
 		raw_spin_unlock_irq(&m->wait_lock);
-		return;
+		return 0;
 	}
 
 	/*
@@ -129,19 +139,42 @@ void __sched __down_read(struct rw_semaphore *sem)
 	 * Reader2 to call up_read() which might be unbound.
 	 */
 	rt_mutex_init_waiter(&waiter, false);
-	rt_mutex_slowlock_locked(m, TASK_UNINTERRUPTIBLE, NULL,
-				 RT_MUTEX_MIN_CHAINWALK, NULL,
-				 &waiter);
+	ret = rt_mutex_slowlock_locked(m, state, NULL, RT_MUTEX_MIN_CHAINWALK,
+				       NULL, &waiter);
 	/*
-	 * The slowlock() above is guaranteed to return with the rtmutex is
-	 * now held, so there can't be a writer active. Increment the reader
-	 * count and immediately drop the rtmutex again.
+	 * The slowlock() above is guaranteed to return with the rtmutex (for
+	 * ret = 0) is now held, so there can't be a writer active. Increment
+	 * the reader count and immediately drop the rtmutex again.
+	 * For ret != 0 we don't hold the rtmutex and need unlock the wait_lock.
+	 * We don't own the lock then.
 	 */
-	atomic_inc(&sem->readers);
+	if (!ret)
+		atomic_inc(&sem->readers);
 	raw_spin_unlock_irq(&m->wait_lock);
-	__rt_mutex_unlock(m);
+	if (!ret)
+		__rt_mutex_unlock(m);
 
 	debug_rt_mutex_free_waiter(&waiter);
+	return ret;
+}
+
+void __down_read(struct rw_semaphore *sem)
+{
+	int ret;
+
+	ret = __down_read_common(sem, TASK_UNINTERRUPTIBLE);
+	WARN_ON_ONCE(ret);
+}
+
+int __down_read_killable(struct rw_semaphore *sem)
+{
+	int ret;
+
+	ret = __down_read_common(sem, TASK_KILLABLE);
+	if (likely(!ret))
+		return ret;
+	WARN_ONCE(ret != -EINTR, "Unexpected state: %d\n", ret);
+	return -EINTR;
 }
 
 void __up_read(struct rw_semaphore *sem)

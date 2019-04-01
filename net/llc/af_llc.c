@@ -730,7 +730,6 @@ static int llc_ui_recvmsg(struct socket *sock, struct msghdr *msg, size_t len,
 	struct sk_buff *skb = NULL;
 	struct sock *sk = sock->sk;
 	struct llc_sock *llc = llc_sk(sk);
-	unsigned long cpu_flags;
 	size_t copied = 0;
 	u32 peek_seq = 0;
 	u32 *seq, skb_len;
@@ -855,9 +854,8 @@ static int llc_ui_recvmsg(struct socket *sock, struct msghdr *msg, size_t len,
 			goto copy_uaddr;
 
 		if (!(flags & MSG_PEEK)) {
-			spin_lock_irqsave(&sk->sk_receive_queue.lock, cpu_flags);
-			sk_eat_skb(sk, skb);
-			spin_unlock_irqrestore(&sk->sk_receive_queue.lock, cpu_flags);
+			skb_unlink(skb, &sk->sk_receive_queue);
+			kfree_skb(skb);
 			*seq = 0;
 		}
 
@@ -878,9 +876,8 @@ copy_uaddr:
 		llc_cmsg_rcv(msg, skb);
 
 	if (!(flags & MSG_PEEK)) {
-		spin_lock_irqsave(&sk->sk_receive_queue.lock, cpu_flags);
-		sk_eat_skb(sk, skb);
-		spin_unlock_irqrestore(&sk->sk_receive_queue.lock, cpu_flags);
+		skb_unlink(skb, &sk->sk_receive_queue);
+		kfree_skb(skb);
 		*seq = 0;
 	}
 
@@ -984,7 +981,7 @@ release:
  *	Return the address information of a socket.
  */
 static int llc_ui_getname(struct socket *sock, struct sockaddr *uaddr,
-			  int *uaddrlen, int peer)
+			  int peer)
 {
 	struct sockaddr_llc sllc;
 	struct sock *sk = sock->sk;
@@ -995,7 +992,6 @@ static int llc_ui_getname(struct socket *sock, struct sockaddr *uaddr,
 	lock_sock(sk);
 	if (sock_flag(sk, SOCK_ZAPPED))
 		goto out;
-	*uaddrlen = sizeof(sllc);
 	if (peer) {
 		rc = -ENOTCONN;
 		if (sk->sk_state != TCP_ESTABLISHED)
@@ -1016,9 +1012,9 @@ static int llc_ui_getname(struct socket *sock, struct sockaddr *uaddr,
 			       IFHWADDRLEN);
 		}
 	}
-	rc = 0;
 	sllc.sllc_family = AF_LLC;
 	memcpy(uaddr, &sllc, sizeof(sllc));
+	rc = sizeof(sllc);
 out:
 	release_sock(sk);
 	return rc;

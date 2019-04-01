@@ -96,12 +96,6 @@ static void flush_context(unsigned int cpu)
 	/* Update the list of reserved ASIDs and the ASID bitmap. */
 	bitmap_clear(asid_map, 0, NUM_USER_ASIDS);
 
-	/*
-	 * Ensure the generation bump is observed before we xchg the
-	 * active_asids.
-	 */
-	smp_wmb();
-
 	for_each_possible_cpu(i) {
 		asid = atomic64_xchg_relaxed(&per_cpu(active_asids, i), 0);
 		/*
@@ -117,7 +111,10 @@ static void flush_context(unsigned int cpu)
 		per_cpu(reserved_asids, i) = asid;
 	}
 
-	/* Queue a TLB invalidate and flush the I-cache if necessary. */
+	/*
+	 * Queue a TLB invalidation for each CPU to perform on next
+	 * context-switch
+	 */
 	cpumask_setall(&tlb_flush_pending);
 }
 
@@ -197,19 +194,29 @@ set_asid:
 void check_and_switch_context(struct mm_struct *mm, unsigned int cpu)
 {
 	unsigned long flags;
-	u64 asid;
+	u64 asid, old_active_asid;
 
 	asid = atomic64_read(&mm->context.id);
 
 	/*
-	 * The memory ordering here is subtle. We rely on the control
-	 * dependency between the generation read and the update of
-	 * active_asids to ensure that we are synchronised with a
-	 * parallel rollover (i.e. this pairs with the smp_wmb() in
-	 * flush_context).
+	 * The memory ordering here is subtle.
+	 * If our active_asids is non-zero and the ASID matches the current
+	 * generation, then we update the active_asids entry with a relaxed
+	 * cmpxchg. Racing with a concurrent rollover means that either:
+	 *
+	 * - We get a zero back from the cmpxchg and end up waiting on the
+	 *   lock. Taking the lock synchronises with the rollover and so
+	 *   we are forced to see the updated generation.
+	 *
+	 * - We get a valid ASID back from the cmpxchg, which means the
+	 *   relaxed xchg in flush_context will treat us as reserved
+	 *   because atomic RmWs are totally ordered for a given location.
 	 */
-	if (!((asid ^ atomic64_read(&asid_generation)) >> asid_bits)
-	    && atomic64_xchg_relaxed(&per_cpu(active_asids, cpu), asid))
+	old_active_asid = atomic64_read(&per_cpu(active_asids, cpu));
+	if (old_active_asid &&
+	    !((asid ^ atomic64_read(&asid_generation)) >> asid_bits) &&
+	    atomic64_cmpxchg_relaxed(&per_cpu(active_asids, cpu),
+				     old_active_asid, asid))
 		goto switch_mm_fastpath;
 
 	raw_spin_lock_irqsave(&cpu_asid_lock, flags);
@@ -256,7 +263,7 @@ static int asids_init(void)
 	 */
 	WARN_ON(NUM_USER_ASIDS - 1 <= num_possible_cpus());
 	atomic64_set(&asid_generation, ASID_FIRST_VERSION);
-	asid_map = kzalloc(BITS_TO_LONGS(NUM_USER_ASIDS) * sizeof(*asid_map),
+	asid_map = kcalloc(BITS_TO_LONGS(NUM_USER_ASIDS), sizeof(*asid_map),
 			   GFP_KERNEL);
 	if (!asid_map)
 		panic("Failed to allocate bitmap for %lu ASIDs\n",

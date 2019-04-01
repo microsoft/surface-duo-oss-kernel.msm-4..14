@@ -1,19 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * trace_events_trigger - trace event triggers
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * Copyright (C) 2013 Tom Zanussi <tom.zanussi@linux.intel.com>
  */
@@ -34,7 +21,9 @@ void trigger_data_free(struct event_trigger_data *data)
 	if (data->cmd_ops->set_filter)
 		data->cmd_ops->set_filter(NULL, data, NULL);
 
-	synchronize_sched(); /* make sure current triggers exit before free */
+	/* make sure current triggers exit before free */
+	tracepoint_synchronize_unregister();
+
 	kfree(data);
 }
 
@@ -97,7 +86,6 @@ EXPORT_SYMBOL_GPL(event_triggers_call);
  * event_triggers_post_call - Call 'post_triggers' for a trace event
  * @file: The trace_event_file associated with the event
  * @tt: enum event_trigger_type containing a set bit for each trigger to invoke
- * @rec: The trace entry for the event
  *
  * For each trigger associated with an event, invoke the trigger
  * function registered with the associated trigger command, if the
@@ -108,8 +96,7 @@ EXPORT_SYMBOL_GPL(event_triggers_call);
  */
 void
 event_triggers_post_call(struct trace_event_file *file,
-			 enum event_trigger_type tt,
-			 void *rec, struct ring_buffer_event *event)
+			 enum event_trigger_type tt)
 {
 	struct event_trigger_data *data;
 
@@ -117,7 +104,7 @@ event_triggers_post_call(struct trace_event_file *file,
 		if (data->paused)
 			continue;
 		if (data->cmd_ops->trigger_type & tt)
-			data->ops->func(data, rec, event);
+			data->ops->func(data, NULL, NULL);
 	}
 }
 EXPORT_SYMBOL_GPL(event_triggers_post_call);
@@ -581,9 +568,9 @@ out:
  * Usually used directly as the @unreg method in event command
  * implementations.
  */
-void unregister_trigger(char *glob, struct event_trigger_ops *ops,
-			struct event_trigger_data *test,
-			struct trace_event_file *file)
+static void unregister_trigger(char *glob, struct event_trigger_ops *ops,
+			       struct event_trigger_data *test,
+			       struct trace_event_file *file)
 {
 	struct event_trigger_data *data;
 	bool unregistered = false;
@@ -745,8 +732,10 @@ int set_trigger_filter(char *filter_str,
 
 	/* The filter is for the 'trigger' event, not the triggered event */
 	ret = create_event_filter(file->event_call, filter_str, false, &filter);
-	if (ret)
-		goto out;
+	/*
+	 * If create_event_filter() fails, filter still needs to be freed.
+	 * Which the calling code will do with data->filter.
+	 */
  assign:
 	tmp = rcu_access_pointer(data->filter);
 
@@ -754,7 +743,7 @@ int set_trigger_filter(char *filter_str,
 
 	if (tmp) {
 		/* Make sure the call is done with the filter */
-		synchronize_sched();
+		tracepoint_synchronize_unregister();
 		free_event_filter(tmp);
 	}
 
@@ -1147,13 +1136,22 @@ static __init int register_trigger_snapshot_cmd(void) { return 0; }
 #endif /* CONFIG_TRACER_SNAPSHOT */
 
 #ifdef CONFIG_STACKTRACE
-/*
- * Skip 3:
- *   stacktrace_trigger()
+#ifdef CONFIG_UNWINDER_ORC
+/* Skip 2:
  *   event_triggers_post_call()
  *   trace_event_raw_event_xxx()
  */
-#define STACK_SKIP 3
+# define STACK_SKIP 2
+#else
+/*
+ * Skip 4:
+ *   stacktrace_trigger()
+ *   event_triggers_post_call()
+ *   trace_event_buffer_commit()
+ *   trace_event_raw_event_xxx()
+ */
+#define STACK_SKIP 4
+#endif
 
 static void
 stacktrace_trigger(struct event_trigger_data *data, void *rec,

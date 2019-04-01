@@ -213,12 +213,12 @@ static void rpcb_set_local(struct net *net, struct rpc_clnt *clnt,
 	sn->rpcb_local_clnt = clnt;
 	sn->rpcb_local_clnt4 = clnt4;
 	sn->rpcb_is_af_local = is_af_local ? 1 : 0;
-	smp_wmb(); 
+	smp_wmb();
 	sn->rpcb_users = 1;
 	dprintk("RPC:       created new rpcb local clients (rpcb_local_clnt: "
-			"%p, rpcb_local_clnt4: %p) for net %p%s\n",
-			sn->rpcb_local_clnt, sn->rpcb_local_clnt4,
-			net, (net == &init_net) ? " (init_net)" : "");
+		"%p, rpcb_local_clnt4: %p) for net %x%s\n",
+		sn->rpcb_local_clnt, sn->rpcb_local_clnt4,
+		net->ns.inum, (net == &init_net) ? " (init_net)" : "");
 }
 
 /*
@@ -771,6 +771,12 @@ void rpcb_getport_async(struct rpc_task *task)
 	case RPCBVERS_3:
 		map->r_netid = xprt->address_strings[RPC_DISPLAY_NETID];
 		map->r_addr = rpc_sockaddr2uaddr(sap, GFP_ATOMIC);
+		if (!map->r_addr) {
+			status = -ENOMEM;
+			dprintk("RPC: %5u %s: no memory available\n",
+				task->tk_pid, __func__);
+			goto bailout_free_args;
+		}
 		map->r_owner = "";
 		break;
 	case RPCBVERS_2:
@@ -793,6 +799,8 @@ void rpcb_getport_async(struct rpc_task *task)
 	rpc_put_task(child);
 	return;
 
+bailout_free_args:
+	kfree(map);
 bailout_release_client:
 	rpc_release_client(rpcb_clnt);
 bailout_nofree:

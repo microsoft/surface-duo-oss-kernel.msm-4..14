@@ -52,8 +52,8 @@
  */
 
 #ifndef __ARCH_IRQ_STAT
-irq_cpustat_t irq_stat[NR_CPUS] ____cacheline_aligned;
-EXPORT_SYMBOL(irq_stat);
+DEFINE_PER_CPU_ALIGNED(irq_cpustat_t, irq_stat);
+EXPORT_PER_CPU_SYMBOL(irq_stat);
 #endif
 
 static struct softirq_action softirq_vec[NR_SOFTIRQS] __cacheline_aligned_in_smp;
@@ -92,6 +92,34 @@ static inline void softirq_clr_runner(unsigned int sirq)
 	sr->runner[sirq] = NULL;
 }
 
+static bool softirq_check_runner_tsk(struct task_struct *tsk,
+				     unsigned int *pending)
+{
+	bool ret = false;
+
+	if (!tsk)
+		return ret;
+
+	/*
+	 * The wakeup code in rtmutex.c wakes up the task
+	 * _before_ it sets pi_blocked_on to NULL under
+	 * tsk->pi_lock. So we need to check for both: state
+	 * and pi_blocked_on.
+	 * The test against UNINTERRUPTIBLE + ->sleeping_lock is in case the
+	 * task does cpu_chill().
+	 */
+	raw_spin_lock(&tsk->pi_lock);
+	if (tsk->pi_blocked_on || tsk->state == TASK_RUNNING ||
+	    (tsk->state == TASK_UNINTERRUPTIBLE && tsk->sleeping_lock)) {
+		/* Clear all bits pending in that task */
+		*pending &= ~(tsk->softirqs_raised);
+		ret = true;
+	}
+	raw_spin_unlock(&tsk->pi_lock);
+
+	return ret;
+}
+
 /*
  * On preempt-rt a softirq running context might be blocked on a
  * lock. There might be no other runnable task on this CPU because the
@@ -104,6 +132,7 @@ static inline void softirq_clr_runner(unsigned int sirq)
  */
 void softirq_check_pending_idle(void)
 {
+	struct task_struct *tsk;
 	static int rate_limit;
 	struct softirq_runner *sr = this_cpu_ptr(&softirq_runners);
 	u32 warnpending;
@@ -113,24 +142,23 @@ void softirq_check_pending_idle(void)
 		return;
 
 	warnpending = local_softirq_pending() & SOFTIRQ_STOP_IDLE_MASK;
+	if (!warnpending)
+		return;
 	for (i = 0; i < NR_SOFTIRQS; i++) {
-		struct task_struct *tsk = sr->runner[i];
+		tsk = sr->runner[i];
 
-		/*
-		 * The wakeup code in rtmutex.c wakes up the task
-		 * _before_ it sets pi_blocked_on to NULL under
-		 * tsk->pi_lock. So we need to check for both: state
-		 * and pi_blocked_on.
-		 */
-		if (tsk) {
-			raw_spin_lock(&tsk->pi_lock);
-			if (tsk->pi_blocked_on || tsk->state == TASK_RUNNING) {
-				/* Clear all bits pending in that task */
-				warnpending &= ~(tsk->softirqs_raised);
-				warnpending &= ~(1 << i);
-			}
-			raw_spin_unlock(&tsk->pi_lock);
-		}
+		if (softirq_check_runner_tsk(tsk, &warnpending))
+			warnpending &= ~(1 << i);
+	}
+
+	if (warnpending) {
+		tsk = __this_cpu_read(ksoftirqd);
+		softirq_check_runner_tsk(tsk, &warnpending);
+	}
+
+	if (warnpending) {
+		tsk = __this_cpu_read(ktimer_softirqd);
+		softirq_check_runner_tsk(tsk, &warnpending);
 	}
 
 	if (warnpending) {
@@ -147,7 +175,7 @@ void softirq_check_pending_idle(void)
 {
 	static int rate_limit;
 
-	if (rate_limit < 10 && !in_softirq() &&
+	if (rate_limit < 10 &&
 			(local_softirq_pending() & SOFTIRQ_STOP_IDLE_MASK)) {
 		printk(KERN_ERR "NOHZ: local_softirq_pending %02x\n",
 		       local_softirq_pending());
@@ -258,7 +286,7 @@ static void run_ksoftirqd(unsigned int cpu)
 	if (ksoftirqd_softirq_pending()) {
 		__do_softirq();
 		local_irq_enable();
-		cond_resched_rcu_qs();
+		cond_resched();
 		return;
 	}
 	local_irq_enable();
@@ -313,16 +341,19 @@ EXPORT_SYMBOL(__local_bh_disable_ip);
 
 static void __local_bh_enable(unsigned int cnt)
 {
-	WARN_ON_ONCE(!irqs_disabled());
+	lockdep_assert_irqs_disabled();
+
+	if (preempt_count() == cnt)
+		trace_preempt_on(CALLER_ADDR0, get_lock_parent_ip());
 
 	if (softirq_count() == (cnt & SOFTIRQ_MASK))
 		trace_softirqs_on(_RET_IP_);
-	preempt_count_sub(cnt);
+
+	__preempt_count_sub(cnt);
 }
 
 /*
- * Special-case - softirqs can safely be enabled in
- * cond_resched_softirq(), or by __do_softirq(),
+ * Special-case - softirqs can safely be enabled by __do_softirq(),
  * without processing still-pending softirqs:
  */
 void _local_bh_enable(void)
@@ -334,7 +365,8 @@ EXPORT_SYMBOL(_local_bh_enable);
 
 void __local_bh_enable_ip(unsigned long ip, unsigned int cnt)
 {
-	WARN_ON_ONCE(in_irq() || irqs_disabled());
+	WARN_ON_ONCE(in_irq());
+	lockdep_assert_irqs_enabled();
 #ifdef CONFIG_TRACE_IRQFLAGS
 	local_irq_disable();
 #endif
@@ -632,7 +664,7 @@ static void run_ksoftirqd(unsigned int cpu)
 	do_current_softirqs();
 	current->softirq_nestcnt--;
 	local_irq_enable();
-	cond_resched_rcu_qs();
+	cond_resched();
 }
 
 /*
@@ -842,8 +874,7 @@ static inline void tick_irq_exit(void)
 	int cpu = smp_processor_id();
 
 	/* Make sure that timer wheel updates are propagated */
-	if ((idle_cpu(cpu) || tick_nohz_full_cpu(cpu)) &&
-	    !need_resched() && !local_softirq_pending()) {
+	if ((idle_cpu(cpu) && !need_resched()) || tick_nohz_full_cpu(cpu)) {
 		if (!in_irq())
 			tick_nohz_irq_exit();
 	}
@@ -858,9 +889,8 @@ void irq_exit(void)
 #ifndef __ARCH_IRQ_EXIT_IRQS_DISABLED
 	local_irq_disable();
 #else
-	WARN_ON_ONCE(!irqs_disabled());
+	lockdep_assert_irqs_disabled();
 #endif
-
 	account_irq_exit_time(current);
 	preempt_count_sub(HARDIRQ_OFFSET);
 	if (!in_interrupt() && local_softirq_pending())
@@ -896,56 +926,60 @@ struct tasklet_head {
 static DEFINE_PER_CPU(struct tasklet_head, tasklet_vec);
 static DEFINE_PER_CPU(struct tasklet_head, tasklet_hi_vec);
 
-static void inline
-__tasklet_common_schedule(struct tasklet_struct *t, struct tasklet_head *head, unsigned int nr)
+static void __tasklet_schedule_common(struct tasklet_struct *t,
+				      struct tasklet_head __percpu *headp,
+				      unsigned int softirq_nr)
 {
-	if (tasklet_trylock(t)) {
-again:
-		/* We may have been preempted before tasklet_trylock
-		 * and __tasklet_action may have already run.
-		 * So double check the sched bit while the takslet
-		 * is locked before adding it to the list.
-		 */
-		if (test_bit(TASKLET_STATE_SCHED, &t->state)) {
-			t->next = NULL;
-			*head->tail = t;
-			head->tail = &(t->next);
-			raise_softirq_irqoff(nr);
-			tasklet_unlock(t);
-		} else {
-			/* This is subtle. If we hit the corner case above
-			 * It is possible that we get preempted right here,
-			 * and another task has successfully called
-			 * tasklet_schedule(), then this function, and
-			 * failed on the trylock. Thus we must be sure
-			 * before releasing the tasklet lock, that the
-			 * SCHED_BIT is clear. Otherwise the tasklet
-			 * may get its SCHED_BIT set, but not added to the
-			 * list
-			 */
-			if (!tasklet_tryunlock(t))
-				goto again;
-		}
+	struct tasklet_head *head;
+	unsigned long flags;
+
+	local_irq_save(flags);
+	if (!tasklet_trylock(t)) {
+		local_irq_restore(flags);
+		return;
 	}
+
+	head = this_cpu_ptr(headp);
+again:
+	/* We may have been preempted before tasklet_trylock
+	 * and __tasklet_action may have already run.
+	 * So double check the sched bit while the takslet
+	 * is locked before adding it to the list.
+	 */
+	if (test_bit(TASKLET_STATE_SCHED, &t->state)) {
+		t->next = NULL;
+		*head->tail = t;
+		head->tail = &(t->next);
+		raise_softirq_irqoff(softirq_nr);
+		tasklet_unlock(t);
+	} else {
+		/* This is subtle. If we hit the corner case above
+		 * It is possible that we get preempted right here,
+		 * and another task has successfully called
+		 * tasklet_schedule(), then this function, and
+		 * failed on the trylock. Thus we must be sure
+		 * before releasing the tasklet lock, that the
+		 * SCHED_BIT is clear. Otherwise the tasklet
+		 * may get its SCHED_BIT set, but not added to the
+		 * list
+		 */
+		if (!tasklet_tryunlock(t))
+			goto again;
+	}
+	local_irq_restore(flags);
 }
 
 void __tasklet_schedule(struct tasklet_struct *t)
 {
-	unsigned long flags;
-
-	local_irq_save(flags);
-	__tasklet_common_schedule(t, this_cpu_ptr(&tasklet_vec), TASKLET_SOFTIRQ);
-	local_irq_restore(flags);
+	__tasklet_schedule_common(t, &tasklet_vec,
+				  TASKLET_SOFTIRQ);
 }
 EXPORT_SYMBOL(__tasklet_schedule);
 
 void __tasklet_hi_schedule(struct tasklet_struct *t)
 {
-	unsigned long flags;
-
-	local_irq_save(flags);
-	__tasklet_common_schedule(t, this_cpu_ptr(&tasklet_hi_vec), HI_SOFTIRQ);
-	local_irq_restore(flags);
+	__tasklet_schedule_common(t, &tasklet_hi_vec,
+				  HI_SOFTIRQ);
 }
 EXPORT_SYMBOL(__tasklet_hi_schedule);
 
@@ -958,16 +992,23 @@ void tasklet_enable(struct tasklet_struct *t)
 }
 EXPORT_SYMBOL(tasklet_enable);
 
-static void __tasklet_action(struct softirq_action *a,
-			     struct tasklet_struct *list)
+static void tasklet_action_common(struct softirq_action *a,
+				  struct tasklet_head *tl_head,
+				  unsigned int softirq_nr)
 {
+	struct tasklet_struct *list;
 	int loops = 1000000;
+
+	local_irq_disable();
+	list = tl_head->head;
+	tl_head->head = NULL;
+	tl_head->tail = &tl_head->head;
+	local_irq_enable();
 
 	while (list) {
 		struct tasklet_struct *t = list;
 
 		list = list->next;
-
 		/*
 		 * Should always succeed - after a tasklist got on the
 		 * list (after getting the SCHED bit set from 0 to 1),
@@ -981,11 +1022,6 @@ static void __tasklet_action(struct softirq_action *a,
 
 		t->next = NULL;
 
-		/*
-		 * If we cannot handle the tasklet because it's disabled,
-		 * mark it as pending. tasklet_enable() will later
-		 * re-schedule the tasklet.
-		 */
 		if (unlikely(atomic_read(&t->count))) {
 out_disabled:
 			/* implicit unlock: */
@@ -993,7 +1029,6 @@ out_disabled:
 			t->state = TASKLET_STATEF_PENDING;
 			continue;
 		}
-
 		/*
 		 * After this point on the tasklet might be rescheduled
 		 * on another CPU, but it can only be added to another
@@ -1002,15 +1037,9 @@ out_disabled:
 		 */
 		if (!test_and_clear_bit(TASKLET_STATE_SCHED, &t->state))
 			WARN_ON(1);
-
 again:
 		t->func(t->data);
 
-		/*
-		 * Try to unlock the tasklet. We must use cmpxchg, because
-		 * another CPU might have scheduled or disabled the tasklet.
-		 * We only allow the STATE_RUN -> 0 transition here.
-		 */
 		while (!tasklet_tryunlock(t)) {
 			/*
 			 * If it got disabled meanwhile, bail out:
@@ -1035,28 +1064,12 @@ again:
 
 static __latent_entropy void tasklet_action(struct softirq_action *a)
 {
-	struct tasklet_struct *list;
-
-	local_irq_disable();
-	list = __this_cpu_read(tasklet_vec.head);
-	__this_cpu_write(tasklet_vec.head, NULL);
-	__this_cpu_write(tasklet_vec.tail, this_cpu_ptr(&tasklet_vec.head));
-	local_irq_enable();
-
-	__tasklet_action(a, list);
+	tasklet_action_common(a, this_cpu_ptr(&tasklet_vec), TASKLET_SOFTIRQ);
 }
 
 static __latent_entropy void tasklet_hi_action(struct softirq_action *a)
 {
-	struct tasklet_struct *list;
-
-	local_irq_disable();
-	list = __this_cpu_read(tasklet_hi_vec.head);
-	__this_cpu_write(tasklet_hi_vec.head, NULL);
-	__this_cpu_write(tasklet_hi_vec.tail, this_cpu_ptr(&tasklet_hi_vec.head));
-	local_irq_enable();
-
-	__tasklet_action(a, list);
+	tasklet_action_common(a, this_cpu_ptr(&tasklet_hi_vec), HI_SOFTIRQ);
 }
 
 void tasklet_init(struct tasklet_struct *t,
@@ -1084,6 +1097,57 @@ void tasklet_kill(struct tasklet_struct *t)
 	clear_bit(TASKLET_STATE_SCHED, &t->state);
 }
 EXPORT_SYMBOL(tasklet_kill);
+
+/*
+ * tasklet_hrtimer
+ */
+
+/*
+ * The trampoline is called when the hrtimer expires. It schedules a tasklet
+ * to run __tasklet_hrtimer_trampoline() which in turn will call the intended
+ * hrtimer callback, but from softirq context.
+ */
+static enum hrtimer_restart __hrtimer_tasklet_trampoline(struct hrtimer *timer)
+{
+	struct tasklet_hrtimer *ttimer =
+		container_of(timer, struct tasklet_hrtimer, timer);
+
+	tasklet_hi_schedule(&ttimer->tasklet);
+	return HRTIMER_NORESTART;
+}
+
+/*
+ * Helper function which calls the hrtimer callback from
+ * tasklet/softirq context
+ */
+static void __tasklet_hrtimer_trampoline(unsigned long data)
+{
+	struct tasklet_hrtimer *ttimer = (void *)data;
+	enum hrtimer_restart restart;
+
+	restart = ttimer->function(&ttimer->timer);
+	if (restart != HRTIMER_NORESTART)
+		hrtimer_restart(&ttimer->timer);
+}
+
+/**
+ * tasklet_hrtimer_init - Init a tasklet/hrtimer combo for softirq callbacks
+ * @ttimer:	 tasklet_hrtimer which is initialized
+ * @function:	 hrtimer callback function which gets called from softirq context
+ * @which_clock: clock id (CLOCK_MONOTONIC/CLOCK_REALTIME)
+ * @mode:	 hrtimer mode (HRTIMER_MODE_ABS/HRTIMER_MODE_REL)
+ */
+void tasklet_hrtimer_init(struct tasklet_hrtimer *ttimer,
+			  enum hrtimer_restart (*function)(struct hrtimer *),
+			  clockid_t which_clock, enum hrtimer_mode mode)
+{
+	hrtimer_init(&ttimer->timer, which_clock, mode);
+	ttimer->timer.function = __hrtimer_tasklet_trampoline;
+	tasklet_init(&ttimer->tasklet, __tasklet_hrtimer_trampoline,
+		     (unsigned long)ttimer);
+	ttimer->function = function;
+}
+EXPORT_SYMBOL_GPL(tasklet_hrtimer_init);
 
 void __init softirq_init(void)
 {

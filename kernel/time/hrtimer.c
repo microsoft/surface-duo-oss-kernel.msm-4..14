@@ -37,7 +37,6 @@
 #include <linux/hrtimer.h>
 #include <linux/notifier.h>
 #include <linux/syscalls.h>
-#include <linux/kallsyms.h>
 #include <linux/interrupt.h>
 #include <linux/tick.h>
 #include <linux/seq_file.h>
@@ -205,7 +204,7 @@ struct hrtimer_cpu_base *get_target_base(struct hrtimer_cpu_base *base,
 					 int pinned)
 {
 #if defined(CONFIG_SMP) && defined(CONFIG_NO_HZ_COMMON)
-	if (static_branch_unlikely(&timers_migration_enabled) && !pinned)
+	if (static_branch_likely(&timers_migration_enabled) && !pinned)
 		return &per_cpu(hrtimer_bases, get_nohz_timer_target());
 #endif
 	return base;
@@ -491,6 +490,7 @@ __next_base(struct hrtimer_cpu_base *cpu_base, unsigned int *active)
 	while ((base = __next_base((cpu_base), &(active))))
 
 static ktime_t __hrtimer_next_event_base(struct hrtimer_cpu_base *cpu_base,
+					 const struct hrtimer *exclude,
 					 unsigned int active,
 					 ktime_t expires_next)
 {
@@ -503,9 +503,22 @@ static ktime_t __hrtimer_next_event_base(struct hrtimer_cpu_base *cpu_base,
 
 		next = timerqueue_getnext(&base->active);
 		timer = container_of(next, struct hrtimer, node);
+		if (timer == exclude) {
+			/* Get to the next timer in the queue. */
+			next = timerqueue_iterate_next(next);
+			if (!next)
+				continue;
+
+			timer = container_of(next, struct hrtimer, node);
+		}
 		expires = ktime_sub(hrtimer_get_expires(timer), base->offset);
 		if (expires < expires_next) {
 			expires_next = expires;
+
+			/* Skip cpu_base update if a timer is being excluded. */
+			if (exclude)
+				continue;
+
 			if (timer->is_soft)
 				cpu_base->softirq_next_timer = timer;
 			else
@@ -549,7 +562,8 @@ __hrtimer_get_next_event(struct hrtimer_cpu_base *cpu_base, unsigned int active_
 	if (!cpu_base->softirq_activated && (active_mask & HRTIMER_ACTIVE_SOFT)) {
 		active = cpu_base->active_bases & HRTIMER_ACTIVE_SOFT;
 		cpu_base->softirq_next_timer = NULL;
-		expires_next = __hrtimer_next_event_base(cpu_base, active, KTIME_MAX);
+		expires_next = __hrtimer_next_event_base(cpu_base, NULL,
+							 active, KTIME_MAX);
 
 		next_timer = cpu_base->softirq_next_timer;
 	}
@@ -557,7 +571,8 @@ __hrtimer_get_next_event(struct hrtimer_cpu_base *cpu_base, unsigned int active_
 	if (active_mask & HRTIMER_ACTIVE_HARD) {
 		active = cpu_base->active_bases & HRTIMER_ACTIVE_HARD;
 		cpu_base->next_timer = next_timer;
-		expires_next = __hrtimer_next_event_base(cpu_base, active, expires_next);
+		expires_next = __hrtimer_next_event_base(cpu_base, NULL, active,
+							 expires_next);
 	}
 
 	return expires_next;
@@ -703,8 +718,8 @@ static void hrtimer_switch_to_hres(void)
 	struct hrtimer_cpu_base *base = this_cpu_ptr(&hrtimer_bases);
 
 	if (tick_init_highres()) {
-		printk(KERN_WARNING "Could not switch to high resolution "
-				    "mode on CPU %d\n", base->cpu);
+		pr_warn("Could not switch to high resolution mode on CPU %u\n",
+			base->cpu);
 		return;
 	}
 	base->hres_active = 1;
@@ -880,9 +895,7 @@ void clock_was_set(void)
  */
 void hrtimers_resume(void)
 {
-	WARN_ONCE(!irqs_disabled(),
-		  KERN_INFO "hrtimers_resume() called with IRQs enabled!");
-
+	lockdep_assert_irqs_disabled();
 	/* Retrigger on the local CPU */
 	retrigger_next_event(NULL);
 	/* And schedule a retrigger for all others */
@@ -1258,6 +1271,39 @@ u64 hrtimer_get_next_event(void)
 
 	return expires;
 }
+
+/**
+ * hrtimer_next_event_without - time until next expiry event w/o one timer
+ * @exclude:	timer to exclude
+ *
+ * Returns the next expiry time over all timers except for the @exclude one or
+ * KTIME_MAX if none of them is pending.
+ */
+u64 hrtimer_next_event_without(const struct hrtimer *exclude)
+{
+	struct hrtimer_cpu_base *cpu_base = this_cpu_ptr(&hrtimer_bases);
+	u64 expires = KTIME_MAX;
+	unsigned long flags;
+
+	raw_spin_lock_irqsave(&cpu_base->lock, flags);
+
+	if (__hrtimer_hres_active(cpu_base)) {
+		unsigned int active;
+
+		if (!cpu_base->softirq_activated) {
+			active = cpu_base->active_bases & HRTIMER_ACTIVE_SOFT;
+			expires = __hrtimer_next_event_base(cpu_base, exclude,
+							    active, KTIME_MAX);
+		}
+		active = cpu_base->active_bases & HRTIMER_ACTIVE_HARD;
+		expires = __hrtimer_next_event_base(cpu_base, exclude, active,
+						    expires);
+	}
+
+	raw_spin_unlock_irqrestore(&cpu_base->lock, flags);
+
+	return expires;
+}
 #endif
 
 static inline int hrtimer_clockid_to_base(clockid_t clock_id)
@@ -1403,7 +1449,7 @@ static void __run_hrtimer(struct hrtimer_cpu_base *cpu_base,
 		timer->is_rel = false;
 
 	/*
-	 * The timer is marked as running in the cpu base, so it is
+	 * The timer is marked as running in the CPU base, so it is
 	 * protected against migration to a different CPU even if the lock
 	 * is dropped.
 	 */
@@ -1588,8 +1634,7 @@ retry:
 	else
 		expires_next = ktime_add(now, delta);
 	tick_program_event(expires_next, 1);
-	printk_once(KERN_WARNING "hrtimer: interrupt took %llu ns\n",
-		    ktime_to_ns(delta));
+	pr_warn_once("hrtimer: interrupt took %llu ns\n", ktime_to_ns(delta));
 }
 
 /* called with interrupts disabled */
@@ -1664,19 +1709,6 @@ static enum hrtimer_restart hrtimer_wakeup(struct hrtimer *timer)
 	return HRTIMER_NORESTART;
 }
 
-#ifdef CONFIG_PREEMPT_RT_FULL
-static bool task_is_realtime(struct task_struct *tsk)
-{
-	int policy = tsk->policy;
-
-	if (policy == SCHED_FIFO || policy == SCHED_RR)
-		return true;
-	if (policy == SCHED_DEADLINE)
-		return true;
-	return false;
-}
-#endif
-
 static void __hrtimer_init_sleeper(struct hrtimer_sleeper *sl,
 				   clockid_t clock_id,
 				   enum hrtimer_mode mode,
@@ -1726,7 +1758,7 @@ EXPORT_SYMBOL_GPL(hrtimer_init_sleeper_on_stack);
 int nanosleep_copyout(struct restart_block *restart, struct timespec64 *ts)
 {
 	switch(restart->nanosleep.type) {
-#ifdef CONFIG_COMPAT
+#ifdef CONFIG_COMPAT_32BIT_TIME
 	case TT_COMPAT:
 		if (compat_put_timespec64(ts, restart->nanosleep.compat_rmtp))
 			return -EFAULT;
@@ -1753,12 +1785,12 @@ static int __sched do_nanosleep(struct hrtimer_sleeper *t, enum hrtimer_mode mod
 		if (likely(t->task))
 			freezable_schedule();
 
+		__set_current_state(TASK_RUNNING);
 		hrtimer_cancel(&t->timer);
 		mode = HRTIMER_MODE_ABS;
 
 	} while (t->task && !signal_pending(current));
 
-	__set_current_state(TASK_RUNNING);
 
 	if (!t->task)
 		return 0;
@@ -1823,8 +1855,10 @@ out:
 	return ret;
 }
 
-SYSCALL_DEFINE2(nanosleep, struct timespec __user *, rqtp,
-		struct timespec __user *, rmtp)
+#if !defined(CONFIG_64BIT_TIME) || defined(CONFIG_64BIT)
+
+SYSCALL_DEFINE2(nanosleep, struct __kernel_timespec __user *, rqtp,
+		struct __kernel_timespec __user *, rmtp)
 {
 	struct timespec64 tu;
 
@@ -1839,7 +1873,9 @@ SYSCALL_DEFINE2(nanosleep, struct timespec __user *, rqtp,
 	return hrtimer_nanosleep(&tu, HRTIMER_MODE_REL, CLOCK_MONOTONIC);
 }
 
-#ifdef CONFIG_COMPAT
+#endif
+
+#ifdef CONFIG_COMPAT_32BIT_TIME
 
 COMPAT_SYSCALL_DEFINE2(nanosleep, struct compat_timespec __user *, rqtp,
 		       struct compat_timespec __user *, rmtp)
@@ -1864,17 +1900,28 @@ COMPAT_SYSCALL_DEFINE2(nanosleep, struct compat_timespec __user *, rqtp,
  */
 void cpu_chill(void)
 {
-	ktime_t chill_time;
 	unsigned int freeze_flag = current->flags & PF_NOFREEZE;
+	struct task_struct *self = current;
+	ktime_t chill_time;
+
+	raw_spin_lock_irq(&self->pi_lock);
+	self->saved_state = self->state;
+	__set_current_state_no_track(TASK_UNINTERRUPTIBLE);
+	raw_spin_unlock_irq(&self->pi_lock);
 
 	chill_time = ktime_set(0, NSEC_PER_MSEC);
-	set_current_state(TASK_UNINTERRUPTIBLE);
+
 	current->flags |= PF_NOFREEZE;
 	sleeping_lock_inc();
 	schedule_hrtimeout(&chill_time, HRTIMER_MODE_REL_HARD);
 	sleeping_lock_dec();
 	if (!freeze_flag)
 		current->flags &= ~PF_NOFREEZE;
+
+	raw_spin_lock_irq(&self->pi_lock);
+	__set_current_state_no_track(self->saved_state);
+	self->saved_state = TASK_RUNNING;
+	raw_spin_unlock_irq(&self->pi_lock);
 }
 EXPORT_SYMBOL(cpu_chill);
 #endif

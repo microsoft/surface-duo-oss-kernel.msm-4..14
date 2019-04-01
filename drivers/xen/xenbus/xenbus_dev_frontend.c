@@ -430,6 +430,10 @@ static int xenbus_write_transaction(unsigned msg_type,
 {
 	int rc;
 	struct xenbus_transaction_holder *trans = NULL;
+	struct {
+		struct xsd_sockmsg hdr;
+		char body[];
+	} *msg = (void *)u->u.buffer;
 
 	if (msg_type == XS_TRANSACTION_START) {
 		trans = kzalloc(sizeof(*trans), GFP_KERNEL);
@@ -438,11 +442,15 @@ static int xenbus_write_transaction(unsigned msg_type,
 			goto out;
 		}
 		list_add(&trans->list, &u->transactions);
-	} else if (u->u.msg.tx_id != 0 &&
-		   !xenbus_get_transaction(u, u->u.msg.tx_id))
+	} else if (msg->hdr.tx_id != 0 &&
+		   !xenbus_get_transaction(u, msg->hdr.tx_id))
 		return xenbus_command_reply(u, XS_ERROR, "ENOENT");
+	else if (msg_type == XS_TRANSACTION_END &&
+		 !(msg->hdr.len == 2 &&
+		   (!strcmp(msg->body, "T") || !strcmp(msg->body, "F"))))
+		return xenbus_command_reply(u, XS_ERROR, "EINVAL");
 
-	rc = xenbus_dev_request_and_reply(&u->u.msg, u);
+	rc = xenbus_dev_request_and_reply(&msg->hdr, u);
 	if (rc && trans) {
 		list_del(&trans->list);
 		kfree(trans);
@@ -646,13 +654,13 @@ static int xenbus_file_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-static unsigned int xenbus_file_poll(struct file *file, poll_table *wait)
+static __poll_t xenbus_file_poll(struct file *file, poll_table *wait)
 {
 	struct xenbus_file_priv *u = file->private_data;
 
 	poll_wait(file, &u->read_waitq, wait);
 	if (!list_empty(&u->read_buffers))
-		return POLLIN | POLLRDNORM;
+		return EPOLLIN | EPOLLRDNORM;
 	return 0;
 }
 

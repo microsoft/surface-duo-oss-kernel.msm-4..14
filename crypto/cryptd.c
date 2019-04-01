@@ -32,7 +32,9 @@
 #include <linux/sched.h>
 #include <linux/slab.h>
 
-#define CRYPTD_MAX_CPU_QLEN 1000
+static unsigned int cryptd_max_cpu_qlen = 1000;
+module_param(cryptd_max_cpu_qlen, uint, 0);
+MODULE_PARM_DESC(cryptd_max_cpu_qlen, "Set cryptd Max queue depth");
 
 struct cryptd_cpu_queue {
 	struct crypto_queue queue;
@@ -118,6 +120,7 @@ static int cryptd_init_queue(struct cryptd_queue *queue,
 		INIT_WORK(&cpu_queue->work, cryptd_queue_worker);
 		spin_lock_init(&cpu_queue->qlock);
 	}
+	pr_info("cryptd: max_cpu_qlen set to %d\n", max_cpu_qlen);
 	return 0;
 }
 
@@ -139,7 +142,6 @@ static int cryptd_enqueue_request(struct cryptd_queue *queue,
 	int cpu, err;
 	struct cryptd_cpu_queue *cpu_queue;
 	atomic_t *refcnt;
-	bool may_backlog;
 
 	cpu_queue = raw_cpu_ptr(queue->cpu_queue);
 	spin_lock_bh(&cpu_queue->qlock);
@@ -148,9 +150,8 @@ static int cryptd_enqueue_request(struct cryptd_queue *queue,
 	err = crypto_enqueue_request(&cpu_queue->queue, request);
 
 	refcnt = crypto_tfm_ctx(request->tfm);
-	may_backlog = request->flags & CRYPTO_TFM_REQ_MAY_BACKLOG;
 
-	if (err == -EBUSY && !may_backlog)
+	if (err == -ENOSPC)
 		goto out_put_cpu;
 
 	queue_work_on(cpu, kcrypto_wq, &cpu_queue->work);
@@ -1373,7 +1374,7 @@ static int __init cryptd_init(void)
 {
 	int err;
 
-	err = cryptd_init_queue(&queue, CRYPTD_MAX_CPU_QLEN);
+	err = cryptd_init_queue(&queue, cryptd_max_cpu_qlen);
 	if (err)
 		return err;
 

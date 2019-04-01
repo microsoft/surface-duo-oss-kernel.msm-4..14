@@ -669,6 +669,16 @@ int ahci_stop_engine(struct ata_port *ap)
 	if ((tmp & (PORT_CMD_START | PORT_CMD_LIST_ON)) == 0)
 		return 0;
 
+	/*
+	 * Don't try to issue commands but return with ENODEV if the
+	 * AHCI controller not available anymore (e.g. due to PCIe hot
+	 * unplugging). Otherwise a 500ms delay for each port is added.
+	 */
+	if (tmp == 0xffffffff) {
+		dev_err(ap->host->dev, "AHCI controller unavailable!\n");
+		return -ENODEV;
+	}
+
 	/* setting HBA to idle */
 	tmp &= ~PORT_CMD_START;
 	writel(tmp, port_mmio + PORT_CMD);
@@ -791,6 +801,8 @@ static int ahci_set_lpm(struct ata_link *link, enum ata_lpm_policy policy,
 			cmd |= PORT_CMD_ALPE;
 			if (policy == ATA_LPM_MIN_POWER)
 				cmd |= PORT_CMD_ASP;
+			else if (policy == ATA_LPM_MIN_POWER_WITH_PARTIAL)
+				cmd &= ~PORT_CMD_ASP;
 
 			/* write out new cmd value */
 			writel(cmd, port_mmio + PORT_CMD);
@@ -801,7 +813,8 @@ static int ahci_set_lpm(struct ata_link *link, enum ata_lpm_policy policy,
 	if ((hpriv->cap2 & HOST_CAP2_SDS) &&
 	    (hpriv->cap2 & HOST_CAP2_SADM) &&
 	    (link->device->flags & ATA_DFLAG_DEVSLP)) {
-		if (policy == ATA_LPM_MIN_POWER)
+		if (policy == ATA_LPM_MIN_POWER ||
+		    policy == ATA_LPM_MIN_POWER_WITH_PARTIAL)
 			ahci_set_aggressive_devslp(ap, true);
 		else
 			ahci_set_aggressive_devslp(ap, false);
@@ -973,12 +986,12 @@ static void ahci_sw_activity(struct ata_link *link)
 		mod_timer(&emp->timer, jiffies + msecs_to_jiffies(10));
 }
 
-static void ahci_sw_activity_blink(unsigned long arg)
+static void ahci_sw_activity_blink(struct timer_list *t)
 {
-	struct ata_link *link = (struct ata_link *)arg;
+	struct ahci_em_priv *emp = from_timer(emp, t, timer);
+	struct ata_link *link = emp->link;
 	struct ata_port *ap = link->ap;
-	struct ahci_port_priv *pp = ap->private_data;
-	struct ahci_em_priv *emp = &pp->em_priv[link->pmp];
+
 	unsigned long led_message = emp->led_state;
 	u32 activity_led_state;
 	unsigned long flags;
@@ -1025,7 +1038,8 @@ static void ahci_init_sw_activity(struct ata_link *link)
 
 	/* init activity stats, setup timer */
 	emp->saved_activity = emp->activity = 0;
-	setup_timer(&emp->timer, ahci_sw_activity_blink, (unsigned long)link);
+	emp->link = link;
+	timer_setup(&emp->timer, ahci_sw_activity_blink, 0);
 
 	/* check our blink policy and set flag for link if it's enabled */
 	if (emp->blink_policy)
@@ -1641,7 +1655,7 @@ static void ahci_qc_prep(struct ata_queued_cmd *qc)
 	 * Fill in command table information.  First, the header,
 	 * a SATA Register - Host to Device command FIS.
 	 */
-	cmd_tbl = pp->cmd_tbl + qc->tag * AHCI_CMD_TBL_SZ;
+	cmd_tbl = pp->cmd_tbl + qc->hw_tag * AHCI_CMD_TBL_SZ;
 
 	ata_tf_to_fis(&qc->tf, qc->dev->link->pmp, 1, cmd_tbl);
 	if (is_atapi) {
@@ -1662,7 +1676,7 @@ static void ahci_qc_prep(struct ata_queued_cmd *qc)
 	if (is_atapi)
 		opts |= AHCI_CMD_ATAPI | AHCI_CMD_PREFETCH;
 
-	ahci_fill_cmd_slot(pp, qc->tag, opts);
+	ahci_fill_cmd_slot(pp, qc->hw_tag, opts);
 }
 
 static void ahci_fbs_dec_intr(struct ata_port *ap)
@@ -1998,7 +2012,7 @@ unsigned int ahci_qc_issue(struct ata_queued_cmd *qc)
 	pp->active_link = qc->dev->link;
 
 	if (ata_is_ncq(qc->tf.protocol))
-		writel(1 << qc->tag, port_mmio + PORT_SCR_ACT);
+		writel(1 << qc->hw_tag, port_mmio + PORT_SCR_ACT);
 
 	if (pp->fbs_enabled && pp->fbs_last_dev != qc->dev->link->pmp) {
 		u32 fbs = readl(port_mmio + PORT_FBS);
@@ -2008,7 +2022,7 @@ unsigned int ahci_qc_issue(struct ata_queued_cmd *qc)
 		pp->fbs_last_dev = qc->dev->link->pmp;
 	}
 
-	writel(1 << qc->tag, port_mmio + PORT_CMD_ISSUE);
+	writel(1 << qc->hw_tag, port_mmio + PORT_CMD_ISSUE);
 
 	ahci_sw_activity(qc->dev->link);
 
@@ -2432,6 +2446,8 @@ static void ahci_port_stop(struct ata_port *ap)
 	 * re-enabling INTx.
 	 */
 	writel(1 << ap->port_no, host_mmio + HOST_IRQ_STAT);
+
+	ahci_rpm_put_port(ap);
 }
 
 void ahci_print_info(struct ata_host *host, const char *scc_s)

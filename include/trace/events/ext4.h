@@ -225,6 +225,26 @@ TRACE_EVENT(ext4_drop_inode,
 		  (unsigned long) __entry->ino, __entry->drop)
 );
 
+TRACE_EVENT(ext4_nfs_commit_metadata,
+	TP_PROTO(struct inode *inode),
+
+	TP_ARGS(inode),
+
+	TP_STRUCT__entry(
+		__field(	dev_t,	dev			)
+		__field(	ino_t,	ino			)
+	),
+
+	TP_fast_assign(
+		__entry->dev	= inode->i_sb->s_dev;
+		__entry->ino	= inode->i_ino;
+	),
+
+	TP_printk("dev %d,%d ino %lu",
+		  MAJOR(__entry->dev), MINOR(__entry->dev),
+		  (unsigned long) __entry->ino)
+);
+
 TRACE_EVENT(ext4_mark_inode_dirty,
 	TP_PROTO(struct inode *inode, unsigned long IP),
 
@@ -2584,6 +2604,49 @@ DEFINE_EVENT(ext4_getfsmap_class, name, \
 DEFINE_GETFSMAP_EVENT(ext4_getfsmap_low_key);
 DEFINE_GETFSMAP_EVENT(ext4_getfsmap_high_key);
 DEFINE_GETFSMAP_EVENT(ext4_getfsmap_mapping);
+
+TRACE_EVENT(ext4_shutdown,
+	TP_PROTO(struct super_block *sb, unsigned long flags),
+
+	TP_ARGS(sb, flags),
+
+	TP_STRUCT__entry(
+		__field(	dev_t,	dev			)
+		__field(     unsigned,	flags			)
+	),
+
+	TP_fast_assign(
+		__entry->dev	= sb->s_dev;
+		__entry->flags	= flags;
+	),
+
+	TP_printk("dev %d,%d flags %u",
+		  MAJOR(__entry->dev), MINOR(__entry->dev),
+		  __entry->flags)
+);
+
+TRACE_EVENT(ext4_error,
+	TP_PROTO(struct super_block *sb, const char *function,
+		 unsigned int line),
+
+	TP_ARGS(sb, function, line),
+
+	TP_STRUCT__entry(
+		__field(	dev_t,	dev			)
+		__field( const char *,	function		)
+		__field(     unsigned,	line			)
+	),
+
+	TP_fast_assign(
+		__entry->dev	= sb->s_dev;
+		__entry->function = function;
+		__entry->line	= line;
+	),
+
+	TP_printk("dev %d,%d function %s line %u",
+		  MAJOR(__entry->dev), MINOR(__entry->dev),
+		  __entry->function, __entry->line)
+);
 
 #endif /* _TRACE_EXT4_H */
 

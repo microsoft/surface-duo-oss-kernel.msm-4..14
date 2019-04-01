@@ -93,8 +93,6 @@ static void print_speed(unsigned long speed)
 		if (speed > 1000000)
 			printf("%u.%06u GHz", ((unsigned int) speed/1000000),
 				((unsigned int) speed%1000000));
-		else if (speed > 100000)
-			printf("%u MHz", (unsigned int) speed);
 		else if (speed > 1000)
 			printf("%u.%03u MHz", ((unsigned int) speed/1000),
 				(unsigned int) (speed%1000));
@@ -202,6 +200,8 @@ static int get_boost_mode(unsigned int cpu)
 		printf(_("    Boost States: %d\n"), b_states);
 		printf(_("    Total States: %d\n"), pstate_no);
 		for (i = 0; i < pstate_no; i++) {
+			if (!pstates[i])
+				continue;
 			if (i < b_states)
 				printf(_("    Pstate-Pb%d: %luMHz (boost state)"
 					 "\n"), i, pstates[i]);

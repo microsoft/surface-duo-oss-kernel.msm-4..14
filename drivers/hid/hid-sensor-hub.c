@@ -299,7 +299,8 @@ EXPORT_SYMBOL_GPL(sensor_hub_get_feature);
 int sensor_hub_input_attr_get_raw_value(struct hid_sensor_hub_device *hsdev,
 					u32 usage_id,
 					u32 attr_usage_id, u32 report_id,
-					enum sensor_hub_read_flags flag)
+					enum sensor_hub_read_flags flag,
+					bool is_signed)
 {
 	struct sensor_hub_data *data = hid_get_drvdata(hsdev->hdev);
 	unsigned long flags;
@@ -331,10 +332,16 @@ int sensor_hub_input_attr_get_raw_value(struct hid_sensor_hub_device *hsdev,
 						&hsdev->pending.ready, HZ*5);
 		switch (hsdev->pending.raw_size) {
 		case 1:
-			ret_val = *(u8 *)hsdev->pending.raw_data;
+			if (is_signed)
+				ret_val = *(s8 *)hsdev->pending.raw_data;
+			else
+				ret_val = *(u8 *)hsdev->pending.raw_data;
 			break;
 		case 2:
-			ret_val = *(u16 *)hsdev->pending.raw_data;
+			if (is_signed)
+				ret_val = *(s16 *)hsdev->pending.raw_data;
+			else
+				ret_val = *(u16 *)hsdev->pending.raw_data;
 			break;
 		case 4:
 			ret_val = *(u32 *)hsdev->pending.raw_data;
@@ -646,7 +653,8 @@ static int sensor_hub_probe(struct hid_device *hdev,
 		ret = -EINVAL;
 		goto err_stop_hw;
 	}
-	sd->hid_sensor_hub_client_devs = devm_kzalloc(&hdev->dev, dev_cnt *
+	sd->hid_sensor_hub_client_devs = devm_kcalloc(&hdev->dev,
+						      dev_cnt,
 						      sizeof(struct mfd_cell),
 						      GFP_KERNEL);
 	if (sd->hid_sensor_hub_client_devs == NULL) {

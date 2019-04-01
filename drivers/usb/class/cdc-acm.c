@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
  * cdc-acm.c
  *
@@ -12,20 +13,6 @@
  * USB Abstract Control Model driver for USB modems and ISDN adapters
  *
  * Sponsored by SuSE
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
  */
 
 #undef DEBUG
@@ -249,7 +236,7 @@ static int acm_start_wb(struct acm *acm, struct acm_wb *wb)
 /*
  * attributes exported through sysfs
  */
-static ssize_t show_caps
+static ssize_t bmCapabilities_show
 (struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct usb_interface *intf = to_usb_interface(dev);
@@ -257,9 +244,9 @@ static ssize_t show_caps
 
 	return sprintf(buf, "%d", acm->ctrl_caps);
 }
-static DEVICE_ATTR(bmCapabilities, S_IRUGO, show_caps, NULL);
+static DEVICE_ATTR_RO(bmCapabilities);
 
-static ssize_t show_country_codes
+static ssize_t wCountryCodes_show
 (struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct usb_interface *intf = to_usb_interface(dev);
@@ -269,9 +256,9 @@ static ssize_t show_country_codes
 	return acm->country_code_size;
 }
 
-static DEVICE_ATTR(wCountryCodes, S_IRUGO, show_country_codes, NULL);
+static DEVICE_ATTR_RO(wCountryCodes);
 
-static ssize_t show_country_rel_date
+static ssize_t iCountryCodeRelDate_show
 (struct device *dev, struct device_attribute *attr, char *buf)
 {
 	struct usb_interface *intf = to_usb_interface(dev);
@@ -280,7 +267,7 @@ static ssize_t show_country_rel_date
 	return sprintf(buf, "%d", acm->country_rel_date);
 }
 
-static DEVICE_ATTR(iCountryCodeRelDate, S_IRUGO, show_country_rel_date, NULL);
+static DEVICE_ATTR_RO(iCountryCodeRelDate);
 /*
  * Interrupt handlers for various ACM device responses
  */
@@ -289,6 +276,7 @@ static void acm_process_notification(struct acm *acm, unsigned char *buf)
 {
 	int newctrl;
 	int difference;
+	unsigned long flags;
 	struct usb_cdc_notification *dr = (struct usb_cdc_notification *)buf;
 	unsigned char *data = buf + sizeof(struct usb_cdc_notification);
 
@@ -316,25 +304,25 @@ static void acm_process_notification(struct acm *acm, unsigned char *buf)
 		}
 
 		difference = acm->ctrlin ^ newctrl;
-		spin_lock(&acm->read_lock);
+		spin_lock_irqsave(&acm->read_lock, flags);
 		acm->ctrlin = newctrl;
 		acm->oldcount = acm->iocount;
 
 		if (difference & ACM_CTRL_DSR)
 			acm->iocount.dsr++;
-		if (difference & ACM_CTRL_BRK)
-			acm->iocount.brk++;
-		if (difference & ACM_CTRL_RI)
-			acm->iocount.rng++;
 		if (difference & ACM_CTRL_DCD)
 			acm->iocount.dcd++;
-		if (difference & ACM_CTRL_FRAMING)
+		if (newctrl & ACM_CTRL_BRK)
+			acm->iocount.brk++;
+		if (newctrl & ACM_CTRL_RI)
+			acm->iocount.rng++;
+		if (newctrl & ACM_CTRL_FRAMING)
 			acm->iocount.frame++;
-		if (difference & ACM_CTRL_PARITY)
+		if (newctrl & ACM_CTRL_PARITY)
 			acm->iocount.parity++;
-		if (difference & ACM_CTRL_OVERRUN)
+		if (newctrl & ACM_CTRL_OVERRUN)
 			acm->iocount.overrun++;
-		spin_unlock(&acm->read_lock);
+		spin_unlock_irqrestore(&acm->read_lock, flags);
 
 		if (difference)
 			wake_up_all(&acm->wioctl);
@@ -367,7 +355,6 @@ static void acm_ctrl_irq(struct urb *urb)
 	case -ENOENT:
 	case -ESHUTDOWN:
 		/* this urb is terminated, clean up */
-		acm->nb_index = 0;
 		dev_dbg(&acm->control->dev,
 			"%s - urb shutting down with status: %d\n",
 			__func__, status);
@@ -593,6 +580,13 @@ static int acm_tty_install(struct tty_driver *driver, struct tty_struct *tty)
 	retval = tty_standard_install(driver, tty);
 	if (retval)
 		goto error_init_termios;
+
+	/*
+	 * Suppress initial echoing for some devices which might send data
+	 * immediately after acm driver has been installed.
+	 */
+	if (acm->quirks & DISABLE_ECHO)
+		tty->termios.c_lflag &= ~ECHO;
 
 	tty->driver_data = acm;
 
@@ -1320,6 +1314,9 @@ made_compressed_probe:
 	if (acm == NULL)
 		goto alloc_fail;
 
+	tty_port_init(&acm->port);
+	acm->port.ops = &acm_port_ops;
+
 	minor = acm_alloc_minor(acm);
 	if (minor < 0)
 		goto alloc_fail1;
@@ -1355,22 +1352,20 @@ made_compressed_probe:
 		acm->out = usb_sndintpipe(usb_dev, epwrite->bEndpointAddress);
 	else
 		acm->out = usb_sndbulkpipe(usb_dev, epwrite->bEndpointAddress);
-	tty_port_init(&acm->port);
-	acm->port.ops = &acm_port_ops;
 	init_usb_anchor(&acm->delayed);
 	acm->quirks = quirks;
 
 	buf = usb_alloc_coherent(usb_dev, ctrlsize, GFP_KERNEL, &acm->ctrl_dma);
 	if (!buf)
-		goto alloc_fail2;
+		goto alloc_fail1;
 	acm->ctrl_buffer = buf;
 
 	if (acm_write_buffers_alloc(acm) < 0)
-		goto alloc_fail4;
+		goto alloc_fail2;
 
 	acm->ctrlurb = usb_alloc_urb(0, GFP_KERNEL);
 	if (!acm->ctrlurb)
-		goto alloc_fail5;
+		goto alloc_fail3;
 
 	for (i = 0; i < num_rx_buf; i++) {
 		struct acm_rb *rb = &(acm->read_buffers[i]);
@@ -1379,13 +1374,13 @@ made_compressed_probe:
 		rb->base = usb_alloc_coherent(acm->dev, readsize, GFP_KERNEL,
 								&rb->dma);
 		if (!rb->base)
-			goto alloc_fail6;
+			goto alloc_fail4;
 		rb->index = i;
 		rb->instance = acm;
 
 		urb = usb_alloc_urb(0, GFP_KERNEL);
 		if (!urb)
-			goto alloc_fail6;
+			goto alloc_fail4;
 
 		urb->transfer_flags |= URB_NO_TRANSFER_DMA_MAP;
 		urb->transfer_dma = rb->dma;
@@ -1407,7 +1402,7 @@ made_compressed_probe:
 
 		snd->urb = usb_alloc_urb(0, GFP_KERNEL);
 		if (snd->urb == NULL)
-			goto alloc_fail7;
+			goto alloc_fail5;
 
 		if (usb_endpoint_xfer_int(epwrite))
 			usb_fill_int_urb(snd->urb, usb_dev, acm->out,
@@ -1425,7 +1420,7 @@ made_compressed_probe:
 
 	i = device_create_file(&intf->dev, &dev_attr_bmCapabilities);
 	if (i < 0)
-		goto alloc_fail7;
+		goto alloc_fail5;
 
 	if (h.usb_cdc_country_functional_desc) { /* export the country data */
 		struct usb_cdc_country_functional_desc * cfd =
@@ -1484,7 +1479,7 @@ skip_countries:
 			&control_interface->dev);
 	if (IS_ERR(tty_dev)) {
 		rv = PTR_ERR(tty_dev);
-		goto alloc_fail8;
+		goto alloc_fail6;
 	}
 
 	if (quirks & CLEAR_HALT_CONDITIONS) {
@@ -1493,7 +1488,7 @@ skip_countries:
 	}
 
 	return 0;
-alloc_fail8:
+alloc_fail6:
 	if (acm->country_codes) {
 		device_remove_file(&acm->control->dev,
 				&dev_attr_wCountryCodes);
@@ -1502,23 +1497,21 @@ alloc_fail8:
 		kfree(acm->country_codes);
 	}
 	device_remove_file(&acm->control->dev, &dev_attr_bmCapabilities);
-alloc_fail7:
+alloc_fail5:
 	usb_set_intfdata(intf, NULL);
 	for (i = 0; i < ACM_NW; i++)
 		usb_free_urb(acm->wb[i].urb);
-alloc_fail6:
+alloc_fail4:
 	for (i = 0; i < num_rx_buf; i++)
 		usb_free_urb(acm->read_urbs[i]);
 	acm_read_buffers_free(acm);
 	usb_free_urb(acm->ctrlurb);
-alloc_fail5:
+alloc_fail3:
 	acm_write_buffers_free(acm);
-alloc_fail4:
-	usb_free_coherent(usb_dev, ctrlsize, acm->ctrl_buffer, acm->ctrl_dma);
 alloc_fail2:
-	acm_release_minor(acm);
+	usb_free_coherent(usb_dev, ctrlsize, acm->ctrl_buffer, acm->ctrl_dma);
 alloc_fail1:
-	kfree(acm);
+	tty_port_put(&acm->port);
 alloc_fail:
 	return rv;
 }
@@ -1655,6 +1648,7 @@ static int acm_pre_reset(struct usb_interface *intf)
 	struct acm *acm = usb_get_intfdata(intf);
 
 	clear_bit(EVENT_RX_STALL, &acm->flags);
+	acm->nb_index = 0; /* pending control transfers are lost */
 
 	return 0;
 }
@@ -1684,6 +1678,9 @@ static const struct usb_device_id acm_ids[] = {
 	},
 	{ USB_DEVICE(0x0e8d, 0x0003), /* FIREFLY, MediaTek Inc; andrey.arapov@gmail.com */
 	.driver_info = NO_UNION_NORMAL, /* has no union descriptor */
+	},
+	{ USB_DEVICE(0x0e8d, 0x2000), /* MediaTek Inc Preloader */
+	.driver_info = DISABLE_ECHO, /* DISABLE ECHO in termios flag */
 	},
 	{ USB_DEVICE(0x0e8d, 0x3329), /* MediaTek Inc GPS */
 	.driver_info = NO_UNION_NORMAL, /* has no union descriptor */
@@ -1722,6 +1719,9 @@ static const struct usb_device_id acm_ids[] = {
 	.driver_info = NO_UNION_NORMAL, /* has no union descriptor */
 	},
 	{ USB_DEVICE(0x0572, 0x1328), /* Shiro / Aztech USB MODEM UM-3100 */
+	.driver_info = NO_UNION_NORMAL, /* has no union descriptor */
+	},
+	{ USB_DEVICE(0x0572, 0x1349), /* Hiro (Conexant) USB MODEM H50228 */
 	.driver_info = NO_UNION_NORMAL, /* has no union descriptor */
 	},
 	{ USB_DEVICE(0x20df, 0x0001), /* Simtec Electronics Entropy Key */
@@ -1878,6 +1878,13 @@ static const struct usb_device_id acm_ids[] = {
 	/* Exclude Infineon Flash Loader utility */
 	{ USB_DEVICE(0x058b, 0x0041),
 	.driver_info = IGNORE_DEVICE,
+	},
+
+	{ USB_DEVICE(0x1bc7, 0x0021), /* Telit 3G ACM only composition */
+	.driver_info = SEND_ZERO_PACKET,
+	},
+	{ USB_DEVICE(0x1bc7, 0x0023), /* Telit 3G ACM + ECM composition */
+	.driver_info = SEND_ZERO_PACKET,
 	},
 
 	/* control interfaces without any protocol set */

@@ -1,15 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * trace_events_hist - trace event hist triggers
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
  *
  * Copyright (C) 2015 Tom Zanussi <tom.zanussi@linux.intel.com>
  */
@@ -393,7 +384,7 @@ static void hist_err_event(char *str, char *system, char *event, char *var)
 	else if (system)
 		snprintf(err, MAX_FILTER_STR_VAL, "%s.%s", system, event);
 	else
-		strncpy(err, var, MAX_FILTER_STR_VAL);
+		strscpy(err, var, MAX_FILTER_STR_VAL);
 
 	hist_err(str, err);
 }
@@ -747,15 +738,29 @@ static void free_synth_field(struct synth_field *field)
 	kfree(field);
 }
 
-static struct synth_field *parse_synth_field(char *field_type,
-					     char *field_name)
+static struct synth_field *parse_synth_field(int argc, char **argv,
+					     int *consumed)
 {
 	struct synth_field *field;
+	const char *prefix = NULL;
+	char *field_type = argv[0], *field_name;
 	int len, ret = 0;
 	char *array;
 
 	if (field_type[0] == ';')
 		field_type++;
+
+	if (!strcmp(field_type, "unsigned")) {
+		if (argc < 3)
+			return ERR_PTR(-EINVAL);
+		prefix = "unsigned ";
+		field_type = argv[1];
+		field_name = argv[2];
+		*consumed = 3;
+	} else {
+		field_name = argv[1];
+		*consumed = 2;
+	}
 
 	len = strlen(field_name);
 	if (field_name[len - 1] == ';')
@@ -769,11 +774,15 @@ static struct synth_field *parse_synth_field(char *field_type,
 	array = strchr(field_name, '[');
 	if (array)
 		len += strlen(array);
+	if (prefix)
+		len += strlen(prefix);
 	field->type = kzalloc(len, GFP_KERNEL);
 	if (!field->type) {
 		ret = -ENOMEM;
 		goto free;
 	}
+	if (prefix)
+		strcat(field->type, prefix);
 	strcat(field->type, field_type);
 	if (array) {
 		strcat(field->type, array);
@@ -1018,7 +1027,7 @@ static int create_synth_event(int argc, char **argv)
 	struct synth_field *field, *fields[SYNTH_FIELDS_MAX];
 	struct synth_event *event = NULL;
 	bool delete_event = false;
-	int i, n_fields = 0, ret = 0;
+	int i, consumed = 0, n_fields = 0, ret = 0;
 	char *name;
 
 	mutex_lock(&synth_event_mutex);
@@ -1054,8 +1063,10 @@ static int create_synth_event(int argc, char **argv)
 		event = NULL;
 		ret = -EEXIST;
 		goto out;
-	} else if (delete_event)
+	} else if (delete_event) {
+		ret = -ENOENT;
 		goto out;
+	}
 
 	if (argc < 2) {
 		ret = -EINVAL;
@@ -1070,16 +1081,16 @@ static int create_synth_event(int argc, char **argv)
 			goto err;
 		}
 
-		field = parse_synth_field(argv[i], argv[i + 1]);
+		field = parse_synth_field(argc - i, &argv[i], &consumed);
 		if (IS_ERR(field)) {
 			ret = PTR_ERR(field);
 			goto err;
 		}
-		fields[n_fields] = field;
-		i++; n_fields++;
+		fields[n_fields++] = field;
+		i += consumed - 1;
 	}
 
-	if (i < argc) {
+	if (i < argc && strcmp(argv[i], ";") != 0) {
 		ret = -EINVAL;
 		goto err;
 	}
@@ -2592,7 +2603,7 @@ static struct hist_field *parse_unary(struct hist_trigger_data *hist_data,
 	int ret = 0;
 	char *s;
 
-	// we support only -(xxx) i.e. explicit parens required
+	/* we support only -(xxx) i.e. explicit parens required */
 
 	if (level > 3) {
 		hist_err("Too many subexpressions (3 max): ", str);
@@ -2600,7 +2611,7 @@ static struct hist_field *parse_unary(struct hist_trigger_data *hist_data,
 		goto free;
 	}
 
-	str++; // skip leading '-'
+	str++; /* skip leading '-' */
 
 	s = strchr(str, '(');
 	if (s)
@@ -2614,7 +2625,7 @@ static struct hist_field *parse_unary(struct hist_trigger_data *hist_data,
 	if (s)
 		*s = '\0';
 	else {
-		ret = -EINVAL; // no closing ')'
+		ret = -EINVAL; /* no closing ')' */
 		goto free;
 	}
 
@@ -2732,7 +2743,7 @@ static struct hist_field *parse_expr(struct hist_trigger_data *hist_data,
 		goto free;
 	}
 
-	// rest of string could be another expression e.g. b+c in a+b+c
+	/* rest of string could be another expression e.g. b+c in a+b+c */
 	operand_flags = 0;
 	operand2 = parse_expr(hist_data, file, str, operand_flags, NULL, ++level);
 	if (IS_ERR(operand2)) {
@@ -2865,7 +2876,7 @@ static struct trace_event_file *event_file(struct trace_array *tr,
 {
 	struct trace_event_file *file;
 
-	file = find_event_file(tr, system, event_name);
+	file = __find_event_file(tr, system, event_name);
 	if (!file)
 		return ERR_PTR(-EINVAL);
 
@@ -4838,7 +4849,7 @@ static void hist_trigger_show(struct seq_file *m,
 			      struct event_trigger_data *data, int n)
 {
 	struct hist_trigger_data *hist_data;
-	int n_entries, ret = 0;
+	int n_entries;
 
 	if (n > 0)
 		seq_puts(m, "\n\n");
@@ -4849,10 +4860,8 @@ static void hist_trigger_show(struct seq_file *m,
 
 	hist_data = data->private_data;
 	n_entries = print_entries(m, hist_data);
-	if (n_entries < 0) {
-		ret = n_entries;
+	if (n_entries < 0)
 		n_entries = 0;
-	}
 
 	seq_printf(m, "\nTotals:\n    Hits: %llu\n    Entries: %u\n    Dropped: %llu\n",
 		   (u64)atomic64_read(&hist_data->map->hits),
@@ -5143,7 +5152,7 @@ static void hist_clear(struct event_trigger_data *data)
 	if (data->name)
 		pause_named_trigger(data);
 
-	synchronize_sched();
+	tracepoint_synchronize_unregister();
 
 	tracing_map_clear(hist_data->map);
 

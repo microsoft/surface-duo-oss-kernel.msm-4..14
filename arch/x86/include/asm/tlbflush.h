@@ -185,10 +185,14 @@ struct tlb_state {
 
 #define LOADED_MM_SWITCHING ((struct mm_struct *)1)
 
+	/* Last user mm for optimizing IBPB */
+	union {
+		struct mm_struct	*last_user_mm;
+		unsigned long		last_user_mm_ibpb;
+	};
+
 	u16 loaded_mm_asid;
 	u16 next_asid;
-	/* last user mm's ctx id */
-	u64 last_ctx_id;
 
 	/*
 	 * We can be in one of several states:
@@ -292,40 +296,43 @@ static inline void cr4_init_shadow(void)
 	this_cpu_write(cpu_tlbstate.cr4, __read_cr4());
 }
 
+static inline void __cr4_set(unsigned long cr4)
+{
+	lockdep_assert_irqs_disabled();
+	this_cpu_write(cpu_tlbstate.cr4, cr4);
+	__write_cr4(cr4);
+}
+
 /* Set in this cpu's CR4. */
 static inline void cr4_set_bits(unsigned long mask)
 {
-	unsigned long cr4;
+	unsigned long cr4, flags;
 
+	local_irq_save(flags);
 	cr4 = this_cpu_read(cpu_tlbstate.cr4);
-	if ((cr4 | mask) != cr4) {
-		cr4 |= mask;
-		this_cpu_write(cpu_tlbstate.cr4, cr4);
-		__write_cr4(cr4);
-	}
+	if ((cr4 | mask) != cr4)
+		__cr4_set(cr4 | mask);
+	local_irq_restore(flags);
 }
 
 /* Clear in this cpu's CR4. */
 static inline void cr4_clear_bits(unsigned long mask)
 {
-	unsigned long cr4;
+	unsigned long cr4, flags;
 
+	local_irq_save(flags);
 	cr4 = this_cpu_read(cpu_tlbstate.cr4);
-	if ((cr4 & ~mask) != cr4) {
-		cr4 &= ~mask;
-		this_cpu_write(cpu_tlbstate.cr4, cr4);
-		__write_cr4(cr4);
-	}
+	if ((cr4 & ~mask) != cr4)
+		__cr4_set(cr4 & ~mask);
+	local_irq_restore(flags);
 }
 
-static inline void cr4_toggle_bits(unsigned long mask)
+static inline void cr4_toggle_bits_irqsoff(unsigned long mask)
 {
 	unsigned long cr4;
 
 	cr4 = this_cpu_read(cpu_tlbstate.cr4);
-	cr4 ^= mask;
-	this_cpu_write(cpu_tlbstate.cr4, cr4);
-	__write_cr4(cr4);
+	__cr4_set(cr4 ^ mask);
 }
 
 /* Read the CR4 shadow. */
@@ -466,6 +473,12 @@ static inline void __native_flush_tlb_one_user(unsigned long addr)
  */
 static inline void __flush_tlb_all(void)
 {
+	/*
+	 * This is to catch users with enabled preemption and the PGE feature
+	 * and don't trigger the warning in __native_flush_tlb().
+	 */
+	VM_WARN_ON_ONCE(preemptible());
+
 	if (boot_cpu_has(X86_FEATURE_PGE)) {
 		__flush_tlb_global();
 	} else {
@@ -589,6 +602,9 @@ extern void arch_tlbbatch_flush(struct arch_tlbflush_unmap_batch *batch);
 #ifndef CONFIG_PARAVIRT
 #define flush_tlb_others(mask, info)	\
 	native_flush_tlb_others(mask, info)
+
+#define paravirt_tlb_remove_table(tlb, page) \
+	tlb_remove_page(tlb, (void *)(page))
 #endif
 
 #endif /* _ASM_X86_TLBFLUSH_H */

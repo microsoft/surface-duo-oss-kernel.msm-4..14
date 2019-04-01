@@ -42,6 +42,7 @@ static void xfrm_state_gc_task(struct work_struct *work);
 
 static unsigned int xfrm_state_hashmax __read_mostly = 1 * 1024 * 1024;
 static __read_mostly seqcount_t xfrm_state_hash_generation = SEQCNT_ZERO(xfrm_state_hash_generation);
+static struct kmem_cache *xfrm_state_cache __ro_after_init;
 
 static DECLARE_WORK(xfrm_state_gc_work, xfrm_state_gc_task);
 static HLIST_HEAD(xfrm_state_gc_list);
@@ -317,7 +318,7 @@ retry:
 
 	if (!type && try_load) {
 		request_module("xfrm-offload-%d-%d", family, proto);
-		try_load = 0;
+		try_load = false;
 		goto retry;
 	}
 
@@ -425,9 +426,15 @@ static void xfrm_put_mode(struct xfrm_mode *mode)
 	module_put(mode->owner);
 }
 
+void xfrm_state_free(struct xfrm_state *x)
+{
+	kmem_cache_free(xfrm_state_cache, x);
+}
+EXPORT_SYMBOL(xfrm_state_free);
+
 static void xfrm_state_gc_destroy(struct xfrm_state *x)
 {
-	hrtimer_cancel(&x->mtimer);
+	tasklet_hrtimer_cancel(&x->mtimer);
 	del_timer_sync(&x->rtimer);
 	kfree(x->aead);
 	kfree(x->aalg);
@@ -451,7 +458,7 @@ static void xfrm_state_gc_destroy(struct xfrm_state *x)
 	}
 	xfrm_dev_state_free(x);
 	security_xfrm_state_free(x);
-	kfree(x);
+	xfrm_state_free(x);
 }
 
 static void xfrm_state_gc_task(struct work_struct *work)
@@ -472,10 +479,10 @@ static void xfrm_state_gc_task(struct work_struct *work)
 
 static enum hrtimer_restart xfrm_timer_handler(struct hrtimer *me)
 {
-	struct xfrm_state *x = container_of(me, struct xfrm_state, mtimer);
-	enum hrtimer_restart ret = HRTIMER_NORESTART;
-	unsigned long now = get_seconds();
-	long next = LONG_MAX;
+	struct tasklet_hrtimer *thr = container_of(me, struct tasklet_hrtimer, timer);
+	struct xfrm_state *x = container_of(thr, struct xfrm_state, mtimer);
+	time64_t now = ktime_get_real_seconds();
+	time64_t next = TIME64_MAX;
 	int warn = 0;
 	int err = 0;
 
@@ -536,9 +543,8 @@ static enum hrtimer_restart xfrm_timer_handler(struct hrtimer *me)
 	if (warn)
 		km_state_expired(x, 0, 0);
 resched:
-	if (next != LONG_MAX) {
-		hrtimer_forward_now(&x->mtimer, ktime_set(next, 0));
-		ret = HRTIMER_RESTART;
+	if (next != TIME64_MAX) {
+		tasklet_hrtimer_start(&x->mtimer, ktime_set(next, 0), HRTIMER_MODE_REL);
 	}
 
 	goto out;
@@ -555,16 +561,16 @@ expired:
 
 out:
 	spin_unlock(&x->lock);
-	return ret;
+	return HRTIMER_NORESTART;
 }
 
-static void xfrm_replay_timer_handler(unsigned long data);
+static void xfrm_replay_timer_handler(struct timer_list *t);
 
 struct xfrm_state *xfrm_state_alloc(struct net *net)
 {
 	struct xfrm_state *x;
 
-	x = kzalloc(sizeof(struct xfrm_state), GFP_ATOMIC);
+	x = kmem_cache_alloc(xfrm_state_cache, GFP_ATOMIC | __GFP_ZERO);
 
 	if (x) {
 		write_pnet(&x->xs_net, net);
@@ -574,11 +580,10 @@ struct xfrm_state *xfrm_state_alloc(struct net *net)
 		INIT_HLIST_NODE(&x->bydst);
 		INIT_HLIST_NODE(&x->bysrc);
 		INIT_HLIST_NODE(&x->byspi);
-		hrtimer_init(&x->mtimer, CLOCK_BOOTTIME, HRTIMER_MODE_ABS_SOFT);
-		x->mtimer.function = xfrm_timer_handler;
-		setup_timer(&x->rtimer, xfrm_replay_timer_handler,
-				(unsigned long)x);
-		x->curlft.add_time = get_seconds();
+		tasklet_hrtimer_init(&x->mtimer, xfrm_timer_handler,
+					CLOCK_BOOTTIME, HRTIMER_MODE_ABS);
+		timer_setup(&x->rtimer, xfrm_replay_timer_handler, 0);
+		x->curlft.add_time = ktime_get_real_seconds();
 		x->lft.soft_byte_limit = XFRM_INF;
 		x->lft.soft_packet_limit = XFRM_INF;
 		x->lft.hard_byte_limit = XFRM_INF;
@@ -736,10 +741,9 @@ restart:
 	}
 out:
 	spin_unlock_bh(&net->xfrm.xfrm_state_lock);
-	if (cnt) {
+	if (cnt)
 		err = 0;
-		xfrm_policy_cache_flush();
-	}
+
 	return err;
 }
 EXPORT_SYMBOL(xfrm_state_flush);
@@ -790,7 +794,7 @@ void xfrm_sad_getinfo(struct net *net, struct xfrmk_sadinfo *si)
 {
 	spin_lock_bh(&net->xfrm.xfrm_state_lock);
 	si->sadcnt = net->xfrm.state_num;
-	si->sadhcnt = net->xfrm.state_hmask;
+	si->sadhcnt = net->xfrm.state_hmask + 1;
 	si->sadhmcnt = xfrm_state_hashmax;
 	spin_unlock_bh(&net->xfrm.xfrm_state_lock);
 }
@@ -932,7 +936,7 @@ struct xfrm_state *
 xfrm_state_find(const xfrm_address_t *daddr, const xfrm_address_t *saddr,
 		const struct flowi *fl, struct xfrm_tmpl *tmpl,
 		struct xfrm_policy *pol, int *err,
-		unsigned short family)
+		unsigned short family, u32 if_id)
 {
 	static xfrm_address_t saddr_wildcard = { };
 	struct net *net = xp_net(pol);
@@ -956,6 +960,7 @@ xfrm_state_find(const xfrm_address_t *daddr, const xfrm_address_t *saddr,
 		if (x->props.family == encap_family &&
 		    x->props.reqid == tmpl->reqid &&
 		    (mark & x->mark.m) == x->mark.v &&
+		    x->if_id == if_id &&
 		    !(x->props.flags & XFRM_STATE_WILDRECV) &&
 		    xfrm_state_addr_check(x, daddr, saddr, encap_family) &&
 		    tmpl->mode == x->props.mode &&
@@ -972,6 +977,7 @@ xfrm_state_find(const xfrm_address_t *daddr, const xfrm_address_t *saddr,
 		if (x->props.family == encap_family &&
 		    x->props.reqid == tmpl->reqid &&
 		    (mark & x->mark.m) == x->mark.v &&
+		    x->if_id == if_id &&
 		    !(x->props.flags & XFRM_STATE_WILDRECV) &&
 		    xfrm_addr_equal(&x->id.daddr, daddr, encap_family) &&
 		    tmpl->mode == x->props.mode &&
@@ -1011,6 +1017,7 @@ found:
 		 * to current session. */
 		xfrm_init_tempstate(x, fl, tmpl, daddr, saddr, family);
 		memcpy(&x->mark, &pol->mark, sizeof(x->mark));
+		x->if_id = if_id;
 
 		error = security_xfrm_state_alloc_acquire(x, pol->security, fl->flowi_secid);
 		if (error) {
@@ -1032,9 +1039,7 @@ found:
 				hlist_add_head_rcu(&x->byspi, net->xfrm.state_byspi + h);
 			}
 			x->lft.hard_add_expires_seconds = net->xfrm.sysctl_acq_expires;
-			hrtimer_start(&x->mtimer,
-				      ktime_set(net->xfrm.sysctl_acq_expires, 0),
-				      HRTIMER_MODE_REL_SOFT);
+			tasklet_hrtimer_start(&x->mtimer, ktime_set(net->xfrm.sysctl_acq_expires, 0), HRTIMER_MODE_REL);
 			net->xfrm.state_num++;
 			xfrm_hash_grow_check(net, x->bydst.next != NULL);
 			spin_unlock_bh(&net->xfrm.xfrm_state_lock);
@@ -1070,7 +1075,7 @@ out:
 }
 
 struct xfrm_state *
-xfrm_stateonly_find(struct net *net, u32 mark,
+xfrm_stateonly_find(struct net *net, u32 mark, u32 if_id,
 		    xfrm_address_t *daddr, xfrm_address_t *saddr,
 		    unsigned short family, u8 mode, u8 proto, u32 reqid)
 {
@@ -1083,6 +1088,7 @@ xfrm_stateonly_find(struct net *net, u32 mark,
 		if (x->props.family == family &&
 		    x->props.reqid == reqid &&
 		    (mark & x->mark.m) == x->mark.v &&
+		    x->if_id == if_id &&
 		    !(x->props.flags & XFRM_STATE_WILDRECV) &&
 		    xfrm_state_addr_check(x, daddr, saddr, family) &&
 		    mode == x->props.mode &&
@@ -1145,7 +1151,7 @@ static void __xfrm_state_insert(struct xfrm_state *x)
 		hlist_add_head_rcu(&x->byspi, net->xfrm.state_byspi + h);
 	}
 
-	hrtimer_start(&x->mtimer, ktime_set(1, 0), HRTIMER_MODE_REL_SOFT);
+	tasklet_hrtimer_start(&x->mtimer, ktime_set(1, 0), HRTIMER_MODE_REL);
 	if (x->replay_maxage)
 		mod_timer(&x->rtimer, jiffies + x->replay_maxage);
 
@@ -1163,11 +1169,13 @@ static void __xfrm_state_bump_genids(struct xfrm_state *xnew)
 	struct xfrm_state *x;
 	unsigned int h;
 	u32 mark = xnew->mark.v & xnew->mark.m;
+	u32 if_id = xnew->if_id;
 
 	h = xfrm_dst_hash(net, &xnew->id.daddr, &xnew->props.saddr, reqid, family);
 	hlist_for_each_entry(x, net->xfrm.state_bydst+h, bydst) {
 		if (x->props.family	== family &&
 		    x->props.reqid	== reqid &&
+		    x->if_id		== if_id &&
 		    (mark & x->mark.m) == x->mark.v &&
 		    xfrm_addr_equal(&x->id.daddr, &xnew->id.daddr, family) &&
 		    xfrm_addr_equal(&x->props.saddr, &xnew->props.saddr, family))
@@ -1190,7 +1198,7 @@ EXPORT_SYMBOL(xfrm_state_insert);
 static struct xfrm_state *__find_acq_core(struct net *net,
 					  const struct xfrm_mark *m,
 					  unsigned short family, u8 mode,
-					  u32 reqid, u8 proto,
+					  u32 reqid, u32 if_id, u8 proto,
 					  const xfrm_address_t *daddr,
 					  const xfrm_address_t *saddr,
 					  int create)
@@ -1245,13 +1253,12 @@ static struct xfrm_state *__find_acq_core(struct net *net,
 		x->props.family = family;
 		x->props.mode = mode;
 		x->props.reqid = reqid;
+		x->if_id = if_id;
 		x->mark.v = m->v;
 		x->mark.m = m->m;
 		x->lft.hard_add_expires_seconds = net->xfrm.sysctl_acq_expires;
 		xfrm_state_hold(x);
-		hrtimer_start(&x->mtimer,
-			      ktime_set(net->xfrm.sysctl_acq_expires, 0),
-			      HRTIMER_MODE_REL_SOFT);
+		tasklet_hrtimer_start(&x->mtimer, ktime_set(net->xfrm.sysctl_acq_expires, 0), HRTIMER_MODE_REL);
 		list_add(&x->km.all, &net->xfrm.state_all);
 		hlist_add_head_rcu(&x->bydst, net->xfrm.state_bydst + h);
 		h = xfrm_src_hash(net, daddr, saddr, family);
@@ -1301,7 +1308,7 @@ int xfrm_state_add(struct xfrm_state *x)
 
 	if (use_spi && !x1)
 		x1 = __find_acq_core(net, &x->mark, family, x->props.mode,
-				     x->props.reqid, x->id.proto,
+				     x->props.reqid, x->if_id, x->id.proto,
 				     &x->id.daddr, &x->props.saddr, 0);
 
 	__xfrm_state_bump_genids(x);
@@ -1400,6 +1407,7 @@ static struct xfrm_state *xfrm_state_clone(struct xfrm_state *orig,
 	x->props.flags = orig->props.flags;
 	x->props.extra_flags = orig->props.extra_flags;
 
+	x->if_id = orig->if_id;
 	x->tfcpad = orig->tfcpad;
 	x->replay_maxdiff = orig->replay_maxdiff;
 	x->replay_maxage = orig->replay_maxage;
@@ -1541,8 +1549,12 @@ out:
 	err = -EINVAL;
 	spin_lock_bh(&x1->lock);
 	if (likely(x1->km.state == XFRM_STATE_VALID)) {
-		if (x->encap && x1->encap)
+		if (x->encap && x1->encap &&
+		    x->encap->encap_type == x1->encap->encap_type)
 			memcpy(x1->encap, x->encap, sizeof(*x1->encap));
+		else if (x->encap || x1->encap)
+			goto fail;
+
 		if (x->coaddr && x1->coaddr) {
 			memcpy(x1->coaddr, x->coaddr, sizeof(*x1->coaddr));
 		}
@@ -1551,15 +1563,29 @@ out:
 		memcpy(&x1->lft, &x->lft, sizeof(x1->lft));
 		x1->km.dying = 0;
 
-		hrtimer_start(&x1->mtimer, ktime_set(1, 0),
-			      HRTIMER_MODE_REL_SOFT);
+		tasklet_hrtimer_start(&x1->mtimer, ktime_set(1, 0), HRTIMER_MODE_REL);
 		if (x1->curlft.use_time)
 			xfrm_state_check_expire(x1);
+
+		if (x->props.smark.m || x->props.smark.v || x->if_id) {
+			spin_lock_bh(&net->xfrm.xfrm_state_lock);
+
+			if (x->props.smark.m || x->props.smark.v)
+				x1->props.smark = x->props.smark;
+
+			if (x->if_id)
+				x1->if_id = x->if_id;
+
+			__xfrm_state_bump_genids(x1);
+			spin_unlock_bh(&net->xfrm.xfrm_state_lock);
+		}
 
 		err = 0;
 		x->km.state = XFRM_STATE_DEAD;
 		__xfrm_state_put(x);
 	}
+
+fail:
 	spin_unlock_bh(&x1->lock);
 
 	xfrm_state_put(x1);
@@ -1571,12 +1597,12 @@ EXPORT_SYMBOL(xfrm_state_update);
 int xfrm_state_check_expire(struct xfrm_state *x)
 {
 	if (!x->curlft.use_time)
-		x->curlft.use_time = get_seconds();
+		x->curlft.use_time = ktime_get_real_seconds();
 
 	if (x->curlft.bytes >= x->lft.hard_byte_limit ||
 	    x->curlft.packets >= x->lft.hard_packet_limit) {
 		x->km.state = XFRM_STATE_EXPIRED;
-		hrtimer_start(&x->mtimer, 0, HRTIMER_MODE_REL_SOFT);
+		tasklet_hrtimer_start(&x->mtimer, 0, HRTIMER_MODE_REL);
 		return -EINVAL;
 	}
 
@@ -1619,13 +1645,13 @@ EXPORT_SYMBOL(xfrm_state_lookup_byaddr);
 
 struct xfrm_state *
 xfrm_find_acq(struct net *net, const struct xfrm_mark *mark, u8 mode, u32 reqid,
-	      u8 proto, const xfrm_address_t *daddr,
+	      u32 if_id, u8 proto, const xfrm_address_t *daddr,
 	      const xfrm_address_t *saddr, int create, unsigned short family)
 {
 	struct xfrm_state *x;
 
 	spin_lock_bh(&net->xfrm.xfrm_state_lock);
-	x = __find_acq_core(net, mark, family, mode, reqid, proto, daddr, saddr, create);
+	x = __find_acq_core(net, mark, family, mode, reqid, if_id, proto, daddr, saddr, create);
 	spin_unlock_bh(&net->xfrm.xfrm_state_lock);
 
 	return x;
@@ -1887,9 +1913,9 @@ void xfrm_state_walk_done(struct xfrm_state_walk *walk, struct net *net)
 }
 EXPORT_SYMBOL(xfrm_state_walk_done);
 
-static void xfrm_replay_timer_handler(unsigned long data)
+static void xfrm_replay_timer_handler(struct timer_list *t)
 {
-	struct xfrm_state *x = (struct xfrm_state *)data;
+	struct xfrm_state *x = from_timer(x, t, rtimer);
 
 	spin_lock(&x->lock);
 
@@ -2176,6 +2202,12 @@ struct xfrm_state_afinfo *xfrm_state_get_afinfo(unsigned int family)
 	return afinfo;
 }
 
+void xfrm_flush_gc(void)
+{
+	flush_work(&xfrm_state_gc_work);
+}
+EXPORT_SYMBOL(xfrm_flush_gc);
+
 /* Temporarily located here until net/xfrm/xfrm_tunnel.c is created */
 void xfrm_state_delete_tunnel(struct xfrm_state *x)
 {
@@ -2285,8 +2317,6 @@ int __xfrm_init_state(struct xfrm_state *x, bool init_replay, bool offload)
 			goto error;
 	}
 
-	x->km.state = XFRM_STATE_VALID;
-
 error:
 	return err;
 }
@@ -2295,7 +2325,13 @@ EXPORT_SYMBOL(__xfrm_init_state);
 
 int xfrm_init_state(struct xfrm_state *x)
 {
-	return __xfrm_init_state(x, true, false);
+	int err;
+
+	err = __xfrm_init_state(x, true, false);
+	if (!err)
+		x->km.state = XFRM_STATE_VALID;
+
+	return err;
 }
 
 EXPORT_SYMBOL(xfrm_init_state);
@@ -2303,6 +2339,10 @@ EXPORT_SYMBOL(xfrm_init_state);
 int __net_init xfrm_state_init(struct net *net)
 {
 	unsigned int sz;
+
+	if (net_eq(net, &init_net))
+		xfrm_state_cache = KMEM_CACHE(xfrm_state,
+					      SLAB_HWCACHE_ALIGN | SLAB_PANIC);
 
 	INIT_LIST_HEAD(&net->xfrm.state_all);
 

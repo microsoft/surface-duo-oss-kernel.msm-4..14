@@ -15,6 +15,8 @@
 #include <linux/module.h>
 #include <linux/slab.h>
 #include <linux/rpmsg.h>
+#include <linux/of.h>
+
 #include <linux/soc/qcom/wcnss_ctrl.h>
 #include <linux/platform_device.h>
 
@@ -63,6 +65,7 @@ static int btqcomsmd_cmd_callback(struct rpmsg_device *rpdev, void *data,
 {
 	struct btqcomsmd *btq = priv;
 
+	btq->hdev->stat.byte_rx += count;
 	return btqcomsmd_recv(btq->hdev, HCI_EVENT_PKT, data, count);
 }
 
@@ -74,12 +77,21 @@ static int btqcomsmd_send(struct hci_dev *hdev, struct sk_buff *skb)
 	switch (hci_skb_pkt_type(skb)) {
 	case HCI_ACLDATA_PKT:
 		ret = rpmsg_send(btq->acl_channel, skb->data, skb->len);
+		if (ret) {
+			hdev->stat.err_tx++;
+			break;
+		}
 		hdev->stat.acl_tx++;
 		hdev->stat.byte_tx += skb->len;
 		break;
 	case HCI_COMMAND_PKT:
 		ret = rpmsg_send(btq->cmd_channel, skb->data, skb->len);
+		if (ret) {
+			hdev->stat.err_tx++;
+			break;
+		}
 		hdev->stat.cmd_tx++;
+		hdev->stat.byte_tx += skb->len;
 		break;
 	default:
 		ret = -EILSEQ;
@@ -156,6 +168,15 @@ static int btqcomsmd_probe(struct platform_device *pdev)
 						   btqcomsmd_cmd_callback, btq);
 	if (IS_ERR(btq->cmd_channel))
 		return PTR_ERR(btq->cmd_channel);
+
+	/* The local-bd-address property is usually injected by the
+	 * bootloader which has access to the allocated BD address.
+	 */
+	if (!of_property_read_u8_array(pdev->dev.of_node, "local-bd-address",
+				       (u8 *)&btq->bdaddr, sizeof(bdaddr_t))) {
+		dev_info(&pdev->dev, "BD address %pMR retrieved from device-tree",
+			 &btq->bdaddr);
+	}
 
 	hdev = hci_alloc_dev();
 	if (!hdev)

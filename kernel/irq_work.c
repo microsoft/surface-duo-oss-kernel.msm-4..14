@@ -37,7 +37,7 @@ static bool irq_work_claim(struct irq_work *work)
 	 */
 	flags = work->flags & ~IRQ_WORK_PENDING;
 	for (;;) {
-		nflags = flags | IRQ_WORK_FLAGS;
+		nflags = flags | IRQ_WORK_CLAIMED;
 		oflags = cmpxchg(&work->flags, flags, nflags);
 		if (oflags == flags)
 			break;
@@ -57,7 +57,6 @@ void __weak arch_irq_work_raise(void)
 	 */
 }
 
-#ifdef CONFIG_SMP
 /*
  * Enqueue the irq_work @work on @cpu unless it's already pending
  * somewhere.
@@ -70,6 +69,8 @@ bool irq_work_queue_on(struct irq_work *work, int cpu)
 
 	/* All work should have been flushed before going offline */
 	WARN_ON_ONCE(cpu_is_offline(cpu));
+
+#ifdef CONFIG_SMP
 
 	/* Arch remote IPI send/receive backend aren't NMI safe */
 	WARN_ON_ONCE(in_nmi());
@@ -86,10 +87,12 @@ bool irq_work_queue_on(struct irq_work *work, int cpu)
 	if (llist_add(&work->llnode, list))
 		arch_send_call_function_single_ipi(cpu);
 
+#else /* #ifdef CONFIG_SMP */
+	irq_work_queue(work);
+#endif /* #else #ifdef CONFIG_SMP */
+
 	return true;
 }
-EXPORT_SYMBOL_GPL(irq_work_queue_on);
-#endif
 
 /* Enqueue the irq work @work on the current CPU */
 bool irq_work_queue(struct irq_work *work)
@@ -140,21 +143,21 @@ bool irq_work_needs_cpu(void)
 
 static void irq_work_run_list(struct llist_head *list)
 {
-	unsigned long flags;
-	struct irq_work *work;
+	struct irq_work *work, *tmp;
 	struct llist_node *llnode;
+	unsigned long flags;
 
-	BUG_ON_NONRT(!irqs_disabled());
-
+#ifndef CONFIG_PREEMPT_RT_FULL
+	/*
+	 * nort: On RT IRQ-work may run in SOFTIRQ context.
+	 */
+	BUG_ON(!irqs_disabled());
+#endif
 	if (llist_empty(list))
 		return;
 
 	llnode = llist_del_all(list);
-	while (llnode != NULL) {
-		work = llist_entry(llnode, struct irq_work, llnode);
-
-		llnode = llist_next(llnode);
-
+	llist_for_each_entry_safe(work, tmp, llnode, llnode) {
 		/*
 		 * Clear the PENDING bit, after this point the @work
 		 * can be re-used.
@@ -218,7 +221,7 @@ void irq_work_tick_soft(void)
  */
 void irq_work_sync(struct irq_work *work)
 {
-	WARN_ON_ONCE(irqs_disabled());
+	lockdep_assert_irqs_enabled();
 
 	while (work->flags & IRQ_WORK_BUSY)
 		cpu_relax();

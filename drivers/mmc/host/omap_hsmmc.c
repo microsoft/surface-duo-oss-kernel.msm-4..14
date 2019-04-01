@@ -147,10 +147,6 @@
 #define OMAP_MMC_MAX_CLOCK	52000000
 #define DRIVER_NAME		"omap_hsmmc"
 
-#define VDD_1V8			1800000		/* 180000 uV */
-#define VDD_3V0			3000000		/* 300000 uV */
-#define VDD_165_195		(ffs(MMC_VDD_165_195) - 1)
-
 /*
  * One controller can have multiple slots, like on some omap boards using
  * omap.c controller driver. Luckily this is not currently done on any known
@@ -308,8 +304,7 @@ err_set_ocr:
 	return ret;
 }
 
-static int omap_hsmmc_set_pbias(struct omap_hsmmc_host *host, bool power_on,
-				int vdd)
+static int omap_hsmmc_set_pbias(struct omap_hsmmc_host *host, bool power_on)
 {
 	int ret;
 
@@ -317,17 +312,6 @@ static int omap_hsmmc_set_pbias(struct omap_hsmmc_host *host, bool power_on,
 		return 0;
 
 	if (power_on) {
-		if (vdd <= VDD_165_195)
-			ret = regulator_set_voltage(host->pbias, VDD_1V8,
-						    VDD_1V8);
-		else
-			ret = regulator_set_voltage(host->pbias, VDD_3V0,
-						    VDD_3V0);
-		if (ret < 0) {
-			dev_err(host->dev, "pbias set voltage fail\n");
-			return ret;
-		}
-
 		if (host->pbias_enabled == 0) {
 			ret = regulator_enable(host->pbias);
 			if (ret) {
@@ -350,8 +334,7 @@ static int omap_hsmmc_set_pbias(struct omap_hsmmc_host *host, bool power_on,
 	return 0;
 }
 
-static int omap_hsmmc_set_power(struct omap_hsmmc_host *host, int power_on,
-				int vdd)
+static int omap_hsmmc_set_power(struct omap_hsmmc_host *host, int power_on)
 {
 	struct mmc_host *mmc = host->mmc;
 	int ret = 0;
@@ -363,7 +346,7 @@ static int omap_hsmmc_set_power(struct omap_hsmmc_host *host, int power_on,
 	if (IS_ERR(mmc->supply.vmmc))
 		return 0;
 
-	ret = omap_hsmmc_set_pbias(host, false, 0);
+	ret = omap_hsmmc_set_pbias(host, false);
 	if (ret)
 		return ret;
 
@@ -385,7 +368,7 @@ static int omap_hsmmc_set_power(struct omap_hsmmc_host *host, int power_on,
 		if (ret)
 			return ret;
 
-		ret = omap_hsmmc_set_pbias(host, true, vdd);
+		ret = omap_hsmmc_set_pbias(host, true);
 		if (ret)
 			goto err_set_voltage;
 	} else {
@@ -462,7 +445,7 @@ static int omap_hsmmc_reg_get(struct omap_hsmmc_host *host)
 
 
 	ret = mmc_regulator_get_supply(mmc);
-	if (ret == -EPROBE_DEFER)
+	if (ret)
 		return ret;
 
 	/* Allow an aux regulator */
@@ -1220,11 +1203,11 @@ static int omap_hsmmc_switch_opcond(struct omap_hsmmc_host *host, int vdd)
 		clk_disable_unprepare(host->dbclk);
 
 	/* Turn the power off */
-	ret = omap_hsmmc_set_power(host, 0, 0);
+	ret = omap_hsmmc_set_power(host, 0);
 
 	/* Turn the power ON with given VDD 1.8 or 3.0v */
 	if (!ret)
-		ret = omap_hsmmc_set_power(host, 1, vdd);
+		ret = omap_hsmmc_set_power(host, 1);
 	if (host->dbclk)
 		clk_prepare_enable(host->dbclk);
 
@@ -1621,10 +1604,10 @@ static void omap_hsmmc_set_ios(struct mmc_host *mmc, struct mmc_ios *ios)
 	if (ios->power_mode != host->power_mode) {
 		switch (ios->power_mode) {
 		case MMC_POWER_OFF:
-			omap_hsmmc_set_power(host, 0, 0);
+			omap_hsmmc_set_power(host, 0);
 			break;
 		case MMC_POWER_UP:
-			omap_hsmmc_set_power(host, 1, ios->vdd);
+			omap_hsmmc_set_power(host, 1);
 			break;
 		case MMC_POWER_ON:
 			do_send_init_stream = 1;
@@ -2083,7 +2066,6 @@ static int omap_hsmmc_probe(struct platform_device *pdev)
 	mmc->max_blk_size = 512;       /* Block Length at max can be 1024 */
 	mmc->max_blk_count = 0xFFFF;    /* No. of Blocks is 16 bits */
 	mmc->max_req_size = mmc->max_blk_size * mmc->max_blk_count;
-	mmc->max_seg_size = mmc->max_req_size;
 
 	mmc->caps |= MMC_CAP_MMC_HIGHSPEED | MMC_CAP_SD_HIGHSPEED |
 		     MMC_CAP_WAIT_WHILE_BUSY | MMC_CAP_ERASE | MMC_CAP_CMD23;
@@ -2112,6 +2094,17 @@ static int omap_hsmmc_probe(struct platform_device *pdev)
 		ret = PTR_ERR(host->tx_chan);
 		goto err_irq;
 	}
+
+	/*
+	 * Limit the maximum segment size to the lower of the request size
+	 * and the DMA engine device segment size limits.  In reality, with
+	 * 32-bit transfers, the DMA engine can do longer segments than this
+	 * but there is no way to represent that in the DMA model - if we
+	 * increase this figure here, we get warnings from the DMA API debug.
+	 */
+	mmc->max_seg_size = min3(mmc->max_req_size,
+			dma_get_max_seg_size(host->rx_chan->device->dev),
+			dma_get_max_seg_size(host->tx_chan->device->dev));
 
 	/* Request IRQ for MMC operations */
 	ret = devm_request_irq(&pdev->dev, host->irq, omap_hsmmc_irq, 0,

@@ -16,9 +16,6 @@
  * GNU General Public License for more details.
  */
 
-/* We need to access legacy defines from linux/media.h */
-#define __NEED_MEDIA_LEGACY_API
-
 #include <linux/compat.h>
 #include <linux/export.h>
 #include <linux/idr.h>
@@ -28,12 +25,23 @@
 #include <linux/types.h>
 #include <linux/pci.h>
 #include <linux/usb.h>
+#include <linux/version.h>
 
 #include <media/media-device.h>
 #include <media/media-devnode.h>
 #include <media/media-entity.h>
 
 #ifdef CONFIG_MEDIA_CONTROLLER
+
+/*
+ * Legacy defines from linux/media.h. This is the only place we need this
+ * so we just define it here. The media.h header doesn't expose it to the
+ * kernel to prevent it from being used by drivers, but here (and only here!)
+ * we need it to handle the legacy behavior.
+ */
+#define MEDIA_ENT_SUBTYPE_MASK			0x0000ffff
+#define MEDIA_ENT_T_DEVNODE_UNKNOWN		(MEDIA_ENT_F_OLD_BASE | \
+						 MEDIA_ENT_SUBTYPE_MASK)
 
 /* -----------------------------------------------------------------------------
  * Userspace API
@@ -191,6 +199,7 @@ static long media_device_enum_links(struct media_device *mdev, void *arg)
 			ulink_desc++;
 		}
 	}
+	memset(links->reserved, 0, sizeof(links->reserved));
 
 	return 0;
 }
@@ -218,6 +227,8 @@ static long media_device_setup_link(struct media_device *mdev, void *arg)
 				      &sink->pads[linkd->sink.index]);
 	if (link == NULL)
 		return -EINVAL;
+
+	memset(linkd->reserved, 0, sizeof(linkd->reserved));
 
 	/* Setup the link on both entities. */
 	return __media_entity_setup_link(link, linkd->flags);
@@ -256,7 +267,8 @@ static long media_device_get_topology(struct media_device *mdev, void *arg)
 		memset(&kentity, 0, sizeof(kentity));
 		kentity.id = entity->graph_obj.id;
 		kentity.function = entity->function;
-		strncpy(kentity.name, entity->name,
+		kentity.flags = entity->flags;
+		strlcpy(kentity.name, entity->name,
 			sizeof(kentity.name));
 
 		if (copy_to_user(uentity, &kentity, sizeof(kentity)))
@@ -264,6 +276,7 @@ static long media_device_get_topology(struct media_device *mdev, void *arg)
 		uentity++;
 	}
 	topo->num_entities = i;
+	topo->reserved1 = 0;
 
 	/* Get interfaces and number of interfaces */
 	i = 0;
@@ -299,6 +312,7 @@ static long media_device_get_topology(struct media_device *mdev, void *arg)
 		uintf++;
 	}
 	topo->num_interfaces = i;
+	topo->reserved2 = 0;
 
 	/* Get pads and number of pads */
 	i = 0;
@@ -319,12 +333,14 @@ static long media_device_get_topology(struct media_device *mdev, void *arg)
 		kpad.id = pad->graph_obj.id;
 		kpad.entity_id = pad->entity->graph_obj.id;
 		kpad.flags = pad->flags;
+		kpad.index = pad->index;
 
 		if (copy_to_user(upad, &kpad, sizeof(kpad)))
 			ret = -EFAULT;
 		upad++;
 	}
 	topo->num_pads = i;
+	topo->reserved3 = 0;
 
 	/* Get links and number of links */
 	i = 0;
@@ -356,6 +372,7 @@ static long media_device_get_topology(struct media_device *mdev, void *arg)
 		ulink++;
 	}
 	topo->num_links = i;
+	topo->reserved4 = 0;
 
 	return ret;
 }
@@ -568,18 +585,12 @@ int __must_check media_device_register_entity(struct media_device *mdev,
 	entity->num_links = 0;
 	entity->num_backlinks = 0;
 
-	if (!ida_pre_get(&mdev->entity_internal_idx, GFP_KERNEL))
-		return -ENOMEM;
+	ret = ida_alloc_min(&mdev->entity_internal_idx, 1, GFP_KERNEL);
+	if (ret < 0)
+		return ret;
+	entity->internal_idx = ret;
 
 	mutex_lock(&mdev->graph_mutex);
-
-	ret = ida_get_new_above(&mdev->entity_internal_idx, 1,
-				&entity->internal_idx);
-	if (ret < 0) {
-		mutex_unlock(&mdev->graph_mutex);
-		return ret;
-	}
-
 	mdev->entity_internal_idx_max =
 		max(mdev->entity_internal_idx_max, entity->internal_idx);
 
@@ -625,7 +636,7 @@ static void __media_device_unregister_entity(struct media_entity *entity)
 	struct media_interface *intf;
 	unsigned int i;
 
-	ida_simple_remove(&mdev->entity_internal_idx, entity->internal_idx);
+	ida_free(&mdev->entity_internal_idx, entity->internal_idx);
 
 	/* Remove all interface links pointing to this entity */
 	list_for_each_entry(intf, &mdev->interfaces, graph_obj.list) {

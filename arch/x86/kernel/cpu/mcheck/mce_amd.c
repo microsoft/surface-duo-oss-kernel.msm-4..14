@@ -23,6 +23,7 @@
 #include <linux/string.h>
 
 #include <asm/amd_nb.h>
+#include <asm/traps.h>
 #include <asm/apic.h>
 #include <asm/mce.h>
 #include <asm/msr.h>
@@ -56,7 +57,7 @@
 /* Threshold LVT offset is at MSR0xC0000410[15:12] */
 #define SMCA_THR_LVT_OFF	0xF000
 
-static bool thresholding_en;
+static bool thresholding_irq_en;
 
 static const char * const th_names[] = {
 	"load_store",
@@ -99,7 +100,7 @@ static u32 smca_bank_addrs[MAX_NR_BANKS][NR_BLOCKS] __ro_after_init =
 	[0 ... MAX_NR_BANKS - 1] = { [0 ... NR_BLOCKS - 1] = -1 }
 };
 
-const char *smca_get_name(enum smca_bank_types t)
+static const char *smca_get_name(enum smca_bank_types t)
 {
 	if (t >= N_SMCA_BANK_TYPES)
 		return NULL;
@@ -430,12 +431,13 @@ static void deferred_error_interrupt_enable(struct cpuinfo_x86 *c)
 	    (deferred_error_int_vector != amd_deferred_error_interrupt))
 		deferred_error_int_vector = amd_deferred_error_interrupt;
 
-	low = (low & ~MASK_DEF_INT_TYPE) | DEF_INT_TYPE_APIC;
+	if (!mce_flags.smca)
+		low = (low & ~MASK_DEF_INT_TYPE) | DEF_INT_TYPE_APIC;
+
 	wrmsr(MSR_CU_DEF_ERR, low, high);
 }
 
-static u32 smca_get_block_address(unsigned int cpu, unsigned int bank,
-				  unsigned int block)
+static u32 smca_get_block_address(unsigned int bank, unsigned int block)
 {
 	u32 low, high;
 	u32 addr = 0;
@@ -454,13 +456,13 @@ static u32 smca_get_block_address(unsigned int cpu, unsigned int bank,
 	 * For SMCA enabled processors, BLKPTR field of the first MISC register
 	 * (MCx_MISC0) indicates presence of additional MISC regs set (MISC1-4).
 	 */
-	if (rdmsr_safe_on_cpu(cpu, MSR_AMD64_SMCA_MCx_CONFIG(bank), &low, &high))
+	if (rdmsr_safe(MSR_AMD64_SMCA_MCx_CONFIG(bank), &low, &high))
 		goto out;
 
 	if (!(low & MCI_CONFIG_MCAX))
 		goto out;
 
-	if (!rdmsr_safe_on_cpu(cpu, MSR_AMD64_SMCA_MCx_MISC(bank), &low, &high) &&
+	if (!rdmsr_safe(MSR_AMD64_SMCA_MCx_MISC(bank), &low, &high) &&
 	    (low & MASK_BLKPTR_LO))
 		addr = MSR_AMD64_SMCA_MCx_MISCy(bank, block - 1);
 
@@ -469,7 +471,7 @@ out:
 	return addr;
 }
 
-static u32 get_block_address(unsigned int cpu, u32 current_addr, u32 low, u32 high,
+static u32 get_block_address(u32 current_addr, u32 low, u32 high,
 			     unsigned int bank, unsigned int block)
 {
 	u32 addr = 0, offset = 0;
@@ -478,7 +480,7 @@ static u32 get_block_address(unsigned int cpu, u32 current_addr, u32 low, u32 hi
 		return addr;
 
 	if (mce_flags.smca)
-		return smca_get_block_address(cpu, bank, block);
+		return smca_get_block_address(bank, block);
 
 	/* Fall back to method we used for older processors: */
 	switch (block) {
@@ -533,9 +535,8 @@ prepare_threshold_block(unsigned int bank, unsigned int block, u32 addr,
 
 set_offset:
 	offset = setup_APIC_mce_threshold(offset, new);
-
-	if ((offset == new) && (mce_threshold_vector != amd_threshold_interrupt))
-		mce_threshold_vector = amd_threshold_interrupt;
+	if (offset == new)
+		thresholding_irq_en = true;
 
 done:
 	mce_threshold_block_init(&b, offset);
@@ -556,7 +557,7 @@ void mce_amd_feature_init(struct cpuinfo_x86 *c)
 			smca_configure(bank, cpu);
 
 		for (block = 0; block < NR_BLOCKS; ++block) {
-			address = get_block_address(cpu, address, low, high, bank, block);
+			address = get_block_address(address, low, high, bank, block);
 			if (!address)
 				break;
 
@@ -824,7 +825,7 @@ static void __log_error(unsigned int bank, u64 status, u64 addr, u64 misc)
 	mce_log(&m);
 }
 
-asmlinkage __visible void __irq_entry smp_deferred_error_interrupt(void)
+asmlinkage __visible void __irq_entry smp_deferred_error_interrupt(struct pt_regs *regs)
 {
 	entering_irq();
 	trace_deferred_error_apic_entry(DEFERRED_ERROR_VECTOR);
@@ -1173,7 +1174,7 @@ static int allocate_threshold_blocks(unsigned int cpu, unsigned int bank,
 	if (err)
 		goto out_free;
 recurse:
-	address = get_block_address(cpu, address, low, high, bank, ++block);
+	address = get_block_address(address, low, high, bank, ++block);
 	if (!address)
 		return 0;
 
@@ -1356,9 +1357,6 @@ int mce_threshold_remove_device(unsigned int cpu)
 {
 	unsigned int bank;
 
-	if (!thresholding_en)
-		return 0;
-
 	for (bank = 0; bank < mca_cfg.banks; ++bank) {
 		if (!(per_cpu(bank_map, cpu) & (1 << bank)))
 			continue;
@@ -1376,14 +1374,11 @@ int mce_threshold_create_device(unsigned int cpu)
 	struct threshold_bank **bp;
 	int err = 0;
 
-	if (!thresholding_en)
-		return 0;
-
 	bp = per_cpu(threshold_banks, cpu);
 	if (bp)
 		return 0;
 
-	bp = kzalloc(sizeof(struct threshold_bank *) * mca_cfg.banks,
+	bp = kcalloc(mca_cfg.banks, sizeof(struct threshold_bank *),
 		     GFP_KERNEL);
 	if (!bp)
 		return -ENOMEM;
@@ -1407,9 +1402,6 @@ static __init int threshold_init_device(void)
 {
 	unsigned lcpu = 0;
 
-	if (mce_threshold_vector == amd_threshold_interrupt)
-		thresholding_en = true;
-
 	/* to hit CPUs online before the notifier is up */
 	for_each_online_cpu(lcpu) {
 		int err = mce_threshold_create_device(lcpu);
@@ -1417,6 +1409,9 @@ static __init int threshold_init_device(void)
 		if (err)
 			return err;
 	}
+
+	if (thresholding_irq_en)
+		mce_threshold_vector = amd_threshold_interrupt;
 
 	return 0;
 }

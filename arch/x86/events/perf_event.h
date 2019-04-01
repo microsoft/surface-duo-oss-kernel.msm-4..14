@@ -69,7 +69,7 @@ struct event_constraint {
 #define PERF_X86_EVENT_RDPMC_ALLOWED	0x0100 /* grant rdpmc permission */
 #define PERF_X86_EVENT_EXCL_ACCT	0x0200 /* accounted EXCL event */
 #define PERF_X86_EVENT_AUTO_RELOAD	0x0400 /* use PEBS auto-reload */
-#define PERF_X86_EVENT_FREERUNNING	0x0800 /* use freerunning PEBS */
+#define PERF_X86_EVENT_LARGE_PEBS	0x0800 /* use large PEBS */
 
 
 struct amd_nb {
@@ -88,12 +88,13 @@ struct amd_nb {
  * REGS_USER can be handled for events limited to ring 3.
  *
  */
-#define PEBS_FREERUNNING_FLAGS \
+#define LARGE_PEBS_FLAGS \
 	(PERF_SAMPLE_IP | PERF_SAMPLE_TID | PERF_SAMPLE_ADDR | \
 	PERF_SAMPLE_ID | PERF_SAMPLE_CPU | PERF_SAMPLE_STREAM_ID | \
 	PERF_SAMPLE_DATA_SRC | PERF_SAMPLE_IDENTIFIER | \
 	PERF_SAMPLE_TRANSACTION | PERF_SAMPLE_PHYS_ADDR | \
-	PERF_SAMPLE_REGS_INTR | PERF_SAMPLE_REGS_USER)
+	PERF_SAMPLE_REGS_INTR | PERF_SAMPLE_REGS_USER | \
+	PERF_SAMPLE_PERIOD)
 
 #define PEBS_REGS \
 	(PERF_REG_X86_AX | \
@@ -162,6 +163,7 @@ struct intel_excl_cntrs {
 	unsigned	core_id;	/* per-core: core id */
 };
 
+struct x86_perf_task_context;
 #define MAX_LBR_ENTRIES		32
 
 enum {
@@ -213,6 +215,8 @@ struct cpu_hw_events {
 	struct perf_branch_entry	lbr_entries[MAX_LBR_ENTRIES];
 	struct er_account		*lbr_sel;
 	u64				br_sel;
+	struct x86_perf_task_context	*last_task_ctx;
+	int				last_log_id;
 
 	/*
 	 * Intel host/guest exclude bits
@@ -519,6 +523,7 @@ struct x86_pmu {
 	void		(*disable)(struct perf_event *);
 	void		(*add)(struct perf_event *);
 	void		(*del)(struct perf_event *);
+	void		(*read)(struct perf_event *event);
 	int		(*hw_config)(struct perf_event *event);
 	int		(*schedule_events)(struct cpu_hw_events *cpuc, int n, int *assign);
 	unsigned	eventsel;
@@ -607,7 +612,7 @@ struct x86_pmu {
 	struct event_constraint *pebs_constraints;
 	void		(*pebs_aliases)(struct perf_event *event);
 	int 		max_pebs_events;
-	unsigned long	free_running_flags;
+	unsigned long	large_pebs_flags;
 
 	/*
 	 * Intel LBR
@@ -639,6 +644,11 @@ struct x86_pmu {
 	 * Intel host/guest support (KVM)
 	 */
 	struct perf_guest_switch_msr *(*guest_get_msrs)(int *nr);
+
+	/*
+	 * Check period value for PERF_EVENT_IOC_PERIOD ioctl.
+	 */
+	int (*check_period) (struct perf_event *event, u64 period);
 };
 
 struct x86_perf_task_context {
@@ -649,6 +659,7 @@ struct x86_perf_task_context {
 	int valid_lbrs;
 	int lbr_callstack_users;
 	int lbr_stack_state;
+	int log_id;
 };
 
 #define x86_add_quirk(func_)						\
@@ -667,6 +678,7 @@ do {									\
 #define PMU_FL_HAS_RSP_1	0x2 /* has 2 equivalent offcore_rsp regs   */
 #define PMU_FL_EXCL_CNTRS	0x4 /* has exclusive counter requirements  */
 #define PMU_FL_EXCL_ENABLED	0x8 /* exclusive counter active */
+#define PMU_FL_PEBS_ALL		0x10 /* all events are valid PEBS events */
 
 #define EVENT_VAR(_id)  event_attr_##_id
 #define EVENT_PTR(_id) &event_attr_##_id.attr.attr
@@ -848,13 +860,25 @@ static inline int amd_pmu_init(void)
 
 #ifdef CONFIG_CPU_SUP_INTEL
 
+static inline bool intel_pmu_has_bts_period(struct perf_event *event, u64 period)
+{
+	struct hw_perf_event *hwc = &event->hw;
+	unsigned int hw_event, bts_event;
+
+	if (event->attr.freq)
+		return false;
+
+	hw_event = hwc->config & INTEL_ARCH_EVENT_MASK;
+	bts_event = x86_pmu.event_map(PERF_COUNT_HW_BRANCH_INSTRUCTIONS);
+
+	return hw_event == bts_event && period == 1;
+}
+
 static inline bool intel_pmu_has_bts(struct perf_event *event)
 {
-	if (event->attr.config == PERF_COUNT_HW_BRANCH_INSTRUCTIONS &&
-	    !event->attr.freq && event->hw.sample_period == 1)
-		return true;
+	struct hw_perf_event *hwc = &event->hw;
 
-	return false;
+	return intel_pmu_has_bts_period(event, hwc->sample_period);
 }
 
 int intel_pmu_save_and_restart(struct perf_event *event);
@@ -922,6 +946,8 @@ void intel_pmu_pebs_enable_all(void);
 void intel_pmu_pebs_disable_all(void);
 
 void intel_pmu_pebs_sched_task(struct perf_event_context *ctx, bool sched_in);
+
+void intel_pmu_auto_reload_read(struct perf_event *event);
 
 void intel_ds_init(void);
 

@@ -153,7 +153,4 @@ static inline void assert_spin_locked(spinlock_t *lock)
 	BUG_ON(!spin_is_locked(lock));
 }
 
-#define atomic_dec_and_lock(atomic, lock) \
-	atomic_dec_and_spin_lock(atomic, lock)
-
 #endif

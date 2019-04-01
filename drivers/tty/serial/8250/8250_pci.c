@@ -1,13 +1,10 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  *  Probe module for 8250/16550-type PCI serial ports.
  *
  *  Based on drivers/char/serial.c, by Linus Torvalds, Theodore Ts'o.
  *
  *  Copyright (C) 2001 Russell King, All Rights Reserved.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License.
  */
 #undef DEBUG
 #include <linux/module.h>
@@ -1688,9 +1685,6 @@ pci_wch_ch38x_setup(struct serial_private *priv,
 #define PCI_DEVICE_ID_BROADCOM_TRUMANAGE 0x160a
 #define PCI_DEVICE_ID_AMCC_ADDIDATA_APCI7800 0x818e
 
-#define PCI_VENDOR_ID_SUNIX		0x1fd4
-#define PCI_DEVICE_ID_SUNIX_1999	0x1999
-
 #define PCIE_VENDOR_ID_WCH		0x1c00
 #define PCIE_DEVICE_ID_WCH_CH382_2S1P	0x3250
 #define PCIE_DEVICE_ID_WCH_CH384_4S	0x3470
@@ -3366,6 +3360,7 @@ static const struct pci_device_id blacklist[] = {
 	{ PCI_VDEVICE(INTEL, 0x081c), },
 	{ PCI_VDEVICE(INTEL, 0x081d), },
 	{ PCI_VDEVICE(INTEL, 0x1191), },
+	{ PCI_VDEVICE(INTEL, 0x18d8), },
 	{ PCI_VDEVICE(INTEL, 0x19d8), },
 
 	/* Intel platforms with DesignWare UART */
@@ -3425,6 +3420,17 @@ static int
 serial_pci_guess_board(struct pci_dev *dev, struct pciserial_board *board)
 {
 	int num_iomem, num_port, first_port = -1, i;
+	int rc;
+
+	rc = serial_pci_is_class_communication(dev);
+	if (rc)
+		return rc;
+
+	/*
+	 * Should we try to make guesses for multiport serial devices later?
+	 */
+	if ((dev->class >> 8) == PCI_CLASS_COMMUNICATION_MULTISERIAL)
+		return -ENODEV;
 
 	/*
 	 * Should we try to make guesses for multiport serial devices later?
@@ -3651,10 +3657,6 @@ pciserial_init_one(struct pci_dev *dev, const struct pci_device_id *ent)
 	}
 
 	board = &pci_boards[ent->driver_data];
-
-	rc = serial_pci_is_class_communication(dev);
-	if (rc)
-		return rc;
 
 	rc = serial_pci_is_blacklisted(dev);
 	if (rc)

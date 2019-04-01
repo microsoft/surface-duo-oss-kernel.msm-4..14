@@ -2041,15 +2041,15 @@ static void intel_pmu_disable_event(struct perf_event *event)
 	cpuc->intel_ctrl_host_mask &= ~(1ull << hwc->idx);
 	cpuc->intel_cp_status &= ~(1ull << hwc->idx);
 
+	if (unlikely(event->attr.precise_ip))
+		intel_pmu_pebs_disable(event);
+
 	if (unlikely(hwc->config_base == MSR_ARCH_PERFMON_FIXED_CTR_CTRL)) {
 		intel_pmu_disable_fixed(hwc);
 		return;
 	}
 
 	x86_pmu_disable_event(event);
-
-	if (unlikely(event->attr.precise_ip))
-		intel_pmu_pebs_disable(event);
 }
 
 static void intel_pmu_del_event(struct perf_event *event)
@@ -2060,17 +2060,27 @@ static void intel_pmu_del_event(struct perf_event *event)
 		intel_pmu_pebs_del(event);
 }
 
-static void intel_pmu_enable_fixed(struct hw_perf_event *hwc)
+static void intel_pmu_read_event(struct perf_event *event)
 {
+	if (event->hw.flags & PERF_X86_EVENT_AUTO_RELOAD)
+		intel_pmu_auto_reload_read(event);
+	else
+		x86_perf_event_update(event);
+}
+
+static void intel_pmu_enable_fixed(struct perf_event *event)
+{
+	struct hw_perf_event *hwc = &event->hw;
 	int idx = hwc->idx - INTEL_PMC_IDX_FIXED;
-	u64 ctrl_val, bits, mask;
+	u64 ctrl_val, mask, bits = 0;
 
 	/*
-	 * Enable IRQ generation (0x8),
+	 * Enable IRQ generation (0x8), if not PEBS,
 	 * and enable ring-3 counting (0x2) and ring-0 counting (0x1)
 	 * if requested:
 	 */
-	bits = 0x8ULL;
+	if (!event->attr.precise_ip)
+		bits |= 0x8;
 	if (hwc->config & ARCH_PERFMON_EVENTSEL_USR)
 		bits |= 0x2;
 	if (hwc->config & ARCH_PERFMON_EVENTSEL_OS)
@@ -2112,13 +2122,13 @@ static void intel_pmu_enable_event(struct perf_event *event)
 	if (unlikely(event_is_checkpointed(event)))
 		cpuc->intel_cp_status |= (1ull << hwc->idx);
 
-	if (unlikely(hwc->config_base == MSR_ARCH_PERFMON_FIXED_CTR_CTRL)) {
-		intel_pmu_enable_fixed(hwc);
-		return;
-	}
-
 	if (unlikely(event->attr.precise_ip))
 		intel_pmu_pebs_enable(event);
+
+	if (unlikely(hwc->config_base == MSR_ARCH_PERFMON_FIXED_CTR_CTRL)) {
+		intel_pmu_enable_fixed(event);
+		return;
+	}
 
 	__x86_pmu_enable_event(hwc, ARCH_PERFMON_EVENTSEL_ENABLE);
 }
@@ -2272,7 +2282,10 @@ again:
 	 * counters from the GLOBAL_STATUS mask and we always process PEBS
 	 * events via drain_pebs().
 	 */
-	status &= ~(cpuc->pebs_enabled & PEBS_COUNTER_MASK);
+	if (x86_pmu.flags & PMU_FL_PEBS_ALL)
+		status &= ~cpuc->pebs_enabled;
+	else
+		status &= ~(cpuc->pebs_enabled & PEBS_COUNTER_MASK);
 
 	/*
 	 * PEBS overflow sets bit 62 in the global status register
@@ -2345,16 +2358,7 @@ done:
 static struct event_constraint *
 intel_bts_constraints(struct perf_event *event)
 {
-	struct hw_perf_event *hwc = &event->hw;
-	unsigned int hw_event, bts_event;
-
-	if (event->attr.freq)
-		return NULL;
-
-	hw_event = hwc->config & INTEL_ARCH_EVENT_MASK;
-	bts_event = x86_pmu.event_map(PERF_COUNT_HW_BRANCH_INSTRUCTIONS);
-
-	if (unlikely(hw_event == bts_event && hwc->sample_period == 1))
+	if (unlikely(intel_pmu_has_bts(event)))
 		return &bts_constraint;
 
 	return NULL;
@@ -2960,9 +2964,9 @@ static void intel_pebs_aliases_skl(struct perf_event *event)
 	return intel_pebs_aliases_precdist(event);
 }
 
-static unsigned long intel_pmu_free_running_flags(struct perf_event *event)
+static unsigned long intel_pmu_large_pebs_flags(struct perf_event *event)
 {
-	unsigned long flags = x86_pmu.free_running_flags;
+	unsigned long flags = x86_pmu.large_pebs_flags;
 
 	if (event->attr.use_clockid)
 		flags &= ~PERF_SAMPLE_TIME;
@@ -2973,6 +2977,43 @@ static unsigned long intel_pmu_free_running_flags(struct perf_event *event)
 	return flags;
 }
 
+static int intel_pmu_bts_config(struct perf_event *event)
+{
+	struct perf_event_attr *attr = &event->attr;
+
+	if (unlikely(intel_pmu_has_bts(event))) {
+		/* BTS is not supported by this architecture. */
+		if (!x86_pmu.bts_active)
+			return -EOPNOTSUPP;
+
+		/* BTS is currently only allowed for user-mode. */
+		if (!attr->exclude_kernel)
+			return -EOPNOTSUPP;
+
+		/* BTS is not allowed for precise events. */
+		if (attr->precise_ip)
+			return -EOPNOTSUPP;
+
+		/* disallow bts if conflicting events are present */
+		if (x86_add_exclusive(x86_lbr_exclusive_lbr))
+			return -EBUSY;
+
+		event->destroy = hw_perf_lbr_event_destroy;
+	}
+
+	return 0;
+}
+
+static int core_pmu_hw_config(struct perf_event *event)
+{
+	int ret = x86_pmu_hw_config(event);
+
+	if (ret)
+		return ret;
+
+	return intel_pmu_bts_config(event);
+}
+
 static int intel_pmu_hw_config(struct perf_event *event)
 {
 	int ret = x86_pmu_hw_config(event);
@@ -2980,15 +3021,22 @@ static int intel_pmu_hw_config(struct perf_event *event)
 	if (ret)
 		return ret;
 
+	ret = intel_pmu_bts_config(event);
+	if (ret)
+		return ret;
+
 	if (event->attr.precise_ip) {
 		if (!event->attr.freq) {
 			event->hw.flags |= PERF_X86_EVENT_AUTO_RELOAD;
 			if (!(event->attr.sample_type &
-			      ~intel_pmu_free_running_flags(event)))
-				event->hw.flags |= PERF_X86_EVENT_FREERUNNING;
+			      ~intel_pmu_large_pebs_flags(event)))
+				event->hw.flags |= PERF_X86_EVENT_LARGE_PEBS;
 		}
 		if (x86_pmu.pebs_aliases)
 			x86_pmu.pebs_aliases(event);
+
+		if (event->attr.sample_type & PERF_SAMPLE_CALLCHAIN)
+			event->attr.sample_type |= __PERF_SAMPLE_CALLCHAIN_EARLY;
 	}
 
 	if (needs_branch_stack(event)) {
@@ -2999,7 +3047,7 @@ static int intel_pmu_hw_config(struct perf_event *event)
 		/*
 		 * BTS is set up earlier in this path, so don't account twice
 		 */
-		if (!intel_pmu_has_bts(event)) {
+		if (!unlikely(intel_pmu_has_bts(event))) {
 			/* disallow lbr if conflicting events are present */
 			if (x86_add_exclusive(x86_lbr_exclusive_lbr))
 				return -EBUSY;
@@ -3392,6 +3440,11 @@ static void free_excl_cntrs(int cpu)
 
 static void intel_pmu_cpu_dying(int cpu)
 {
+	fini_debug_store_on_cpu(cpu);
+}
+
+static void intel_pmu_cpu_dead(int cpu)
+{
 	struct cpu_hw_events *cpuc = &per_cpu(cpu_hw_events, cpu);
 	struct intel_shared_regs *pc;
 
@@ -3403,8 +3456,6 @@ static void intel_pmu_cpu_dying(int cpu)
 	}
 
 	free_excl_cntrs(cpu);
-
-	fini_debug_store_on_cpu(cpu);
 }
 
 static void intel_pmu_sched_task(struct perf_event_context *ctx,
@@ -3412,6 +3463,11 @@ static void intel_pmu_sched_task(struct perf_event_context *ctx,
 {
 	intel_pmu_pebs_sched_task(ctx, sched_in);
 	intel_pmu_lbr_sched_task(ctx, sched_in);
+}
+
+static int intel_pmu_check_period(struct perf_event *event, u64 value)
+{
+	return intel_pmu_has_bts_period(event, value) ? -EINVAL : 0;
 }
 
 PMU_FORMAT_ATTR(offcore_rsp, "config1:0-63");
@@ -3462,14 +3518,14 @@ static __initconst const struct x86_pmu core_pmu = {
 	.enable_all		= core_pmu_enable_all,
 	.enable			= core_pmu_enable_event,
 	.disable		= x86_pmu_disable_event,
-	.hw_config		= x86_pmu_hw_config,
+	.hw_config		= core_pmu_hw_config,
 	.schedule_events	= x86_schedule_events,
 	.eventsel		= MSR_ARCH_PERFMON_EVENTSEL0,
 	.perfctr		= MSR_ARCH_PERFMON_PERFCTR0,
 	.event_map		= intel_pmu_event_map,
 	.max_events		= ARRAY_SIZE(intel_perfmon_event_map),
 	.apic			= 1,
-	.free_running_flags	= PEBS_FREERUNNING_FLAGS,
+	.large_pebs_flags	= LARGE_PEBS_FLAGS,
 
 	/*
 	 * Intel PMCs cannot be accessed sanely above 32-bit width,
@@ -3493,6 +3549,9 @@ static __initconst const struct x86_pmu core_pmu = {
 	.cpu_prepare		= intel_pmu_cpu_prepare,
 	.cpu_starting		= intel_pmu_cpu_starting,
 	.cpu_dying		= intel_pmu_cpu_dying,
+	.cpu_dead		= intel_pmu_cpu_dead,
+
+	.check_period		= intel_pmu_check_period,
 };
 
 static struct attribute *intel_pmu_attrs[];
@@ -3506,6 +3565,7 @@ static __initconst const struct x86_pmu intel_pmu = {
 	.disable		= intel_pmu_disable_event,
 	.add			= intel_pmu_add_event,
 	.del			= intel_pmu_del_event,
+	.read			= intel_pmu_read_event,
 	.hw_config		= intel_pmu_hw_config,
 	.schedule_events	= x86_schedule_events,
 	.eventsel		= MSR_ARCH_PERFMON_EVENTSEL0,
@@ -3513,7 +3573,7 @@ static __initconst const struct x86_pmu intel_pmu = {
 	.event_map		= intel_pmu_event_map,
 	.max_events		= ARRAY_SIZE(intel_perfmon_event_map),
 	.apic			= 1,
-	.free_running_flags	= PEBS_FREERUNNING_FLAGS,
+	.large_pebs_flags	= LARGE_PEBS_FLAGS,
 	/*
 	 * Intel PMCs cannot be accessed sanely above 32 bit width,
 	 * so we install an artificial 1<<31 period regardless of
@@ -3532,8 +3592,12 @@ static __initconst const struct x86_pmu intel_pmu = {
 	.cpu_prepare		= intel_pmu_cpu_prepare,
 	.cpu_starting		= intel_pmu_cpu_starting,
 	.cpu_dying		= intel_pmu_cpu_dying,
+	.cpu_dead		= intel_pmu_cpu_dead,
+
 	.guest_get_msrs		= intel_guest_get_msrs,
 	.sched_task		= intel_pmu_sched_task,
+
+	.check_period		= intel_pmu_check_period,
 };
 
 static __init void intel_clovertown_quirk(void)
@@ -4060,7 +4124,6 @@ __init int intel_pmu_init(void)
 		intel_pmu_lbr_init_skl();
 
 		x86_pmu.event_constraints = intel_slm_event_constraints;
-		x86_pmu.pebs_constraints = intel_glp_pebs_event_constraints;
 		x86_pmu.extra_regs = intel_glm_extra_regs;
 		/*
 		 * It's recommended to use CPU_CLK_UNHALTED.CORE_P + NPEBS
@@ -4070,6 +4133,7 @@ __init int intel_pmu_init(void)
 		x86_pmu.pebs_prec_dist = true;
 		x86_pmu.lbr_pt_coexist = true;
 		x86_pmu.flags |= PMU_FL_HAS_RSP_1;
+		x86_pmu.flags |= PMU_FL_PEBS_ALL;
 		x86_pmu.get_event_constraints = glp_get_event_constraints;
 		x86_pmu.cpu_events = glm_events_attrs;
 		/* Goldmont Plus has 4-wide pipeline */

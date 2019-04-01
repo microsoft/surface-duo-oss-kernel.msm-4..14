@@ -1,19 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * OF NUMA Parsing support.
  *
  * Copyright (C) 2015 - 2016 Cavium Inc.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define pr_fmt(fmt) "OF: NUMA: " fmt
@@ -126,9 +115,14 @@ static int __init of_numa_parse_distance_map_v1(struct device_node *map)
 		distance = of_read_number(matrix, 1);
 		matrix++;
 
+		if ((nodea == nodeb && distance != LOCAL_DISTANCE) ||
+		    (nodea != nodeb && distance <= LOCAL_DISTANCE)) {
+			pr_err("Invalid distance[node%d -> node%d] = %d\n",
+			       nodea, nodeb, distance);
+			return -EINVAL;
+		}
+
 		numa_set_distance(nodea, nodeb, distance);
-		pr_debug("distance[node%d -> node%d] = %d\n",
-			 nodea, nodeb, distance);
 
 		/* Set default distance of node B->A same as A->B */
 		if (nodeb > nodea)
@@ -174,8 +168,8 @@ int of_node_to_nid(struct device_node *device)
 		np = of_get_next_parent(np);
 	}
 	if (np && r)
-		pr_warn("Invalid \"numa-node-id\" property in node %s\n",
-			np->name);
+		pr_warn("Invalid \"numa-node-id\" property in node %pOFn\n",
+			np);
 	of_node_put(np);
 
 	/*
@@ -188,7 +182,6 @@ int of_node_to_nid(struct device_node *device)
 
 	return NUMA_NO_NODE;
 }
-EXPORT_SYMBOL(of_node_to_nid);
 
 int __init of_numa_init(void)
 {

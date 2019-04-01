@@ -234,7 +234,7 @@ static int init_chipset_ali15x3(struct pci_dev *dev)
 
 	isa_dev = pci_get_device(PCI_VENDOR_ID_AL, PCI_DEVICE_ID_AL_M1533, NULL);
 
-	local_irq_save_nort(flags);
+	local_irq_save(flags);
 
 	if (m5229_revision < 0xC2) {
 		/*
@@ -323,9 +323,9 @@ out:
 
 		pci_write_config_byte(dev, 0x53, tmpbyte);
 	}
+	local_irq_restore(flags);
 	pci_dev_put(north);
 	pci_dev_put(isa_dev);
-	local_irq_restore_nort(flags);
 	return 0;
 }
 

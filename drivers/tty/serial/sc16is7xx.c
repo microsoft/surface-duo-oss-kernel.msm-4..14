@@ -1,14 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
  * SC16IS7xx tty serial driver - Copyright (C) 2014 GridPoint
  * Author: Jon Ringle <jringle@gridpoint.com>
  *
  *  Based on max310x.c, by Alexander Shiyan <shc_work@mail.ru>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- *
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -662,7 +657,7 @@ static void sc16is7xx_handle_tx(struct uart_port *port)
 		uart_write_wakeup(port);
 }
 
-static void sc16is7xx_port_irq(struct sc16is7xx_port *s, int portno)
+static bool sc16is7xx_port_irq(struct sc16is7xx_port *s, int portno)
 {
 	struct uart_port *port = &s->p[portno].port;
 
@@ -671,7 +666,7 @@ static void sc16is7xx_port_irq(struct sc16is7xx_port *s, int portno)
 
 		iir = sc16is7xx_port_read(port, SC16IS7XX_IIR_REG);
 		if (iir & SC16IS7XX_IIR_NO_INT_BIT)
-			break;
+			return false;
 
 		iir &= SC16IS7XX_IIR_ID_MASK;
 
@@ -693,16 +688,23 @@ static void sc16is7xx_port_irq(struct sc16is7xx_port *s, int portno)
 					    port->line, iir);
 			break;
 		}
-	} while (1);
+	} while (0);
+	return true;
 }
 
 static void sc16is7xx_ist(struct kthread_work *ws)
 {
 	struct sc16is7xx_port *s = to_sc16is7xx_port(ws, irq_work);
-	int i;
 
-	for (i = 0; i < s->devtype->nr_uart; ++i)
-		sc16is7xx_port_irq(s, i);
+	while (1) {
+		bool keep_polling = false;
+		int i;
+
+		for (i = 0; i < s->devtype->nr_uart; ++i)
+			keep_polling |= sc16is7xx_port_irq(s, i);
+		if (!keep_polling)
+			break;
+	}
 }
 
 static irqreturn_t sc16is7xx_irq(int irq, void *dev_id)
@@ -1173,7 +1175,10 @@ static int sc16is7xx_probe(struct device *dev,
 		else
 			return PTR_ERR(s->clk);
 	} else {
-		clk_prepare_enable(s->clk);
+		ret = clk_prepare_enable(s->clk);
+		if (ret)
+			return ret;
+
 		freq = clk_get_rate(s->clk);
 	}
 

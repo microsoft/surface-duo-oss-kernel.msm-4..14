@@ -306,9 +306,9 @@ static int dummy_systimer_prepare(struct snd_pcm_substream *substream)
 	return 0;
 }
 
-static void dummy_systimer_callback(unsigned long data)
+static void dummy_systimer_callback(struct timer_list *t)
 {
-	struct dummy_systimer_pcm *dpcm = (struct dummy_systimer_pcm *)data;
+	struct dummy_systimer_pcm *dpcm = from_timer(dpcm, t, timer);
 	unsigned long flags;
 	int elapsed = 0;
 	
@@ -343,8 +343,7 @@ static int dummy_systimer_create(struct snd_pcm_substream *substream)
 	if (!dpcm)
 		return -ENOMEM;
 	substream->runtime->private_data = dpcm;
-	setup_timer(&dpcm->timer, dummy_systimer_callback,
-			(unsigned long) dpcm);
+	timer_setup(&dpcm->timer, dummy_systimer_callback, 0);
 	spin_lock_init(&dpcm->lock);
 	dpcm->substream = substream;
 	return 0;
@@ -828,7 +827,7 @@ static int snd_dummy_capsrc_put(struct snd_kcontrol *kcontrol, struct snd_ctl_el
 static int snd_dummy_iobox_info(struct snd_kcontrol *kcontrol,
 				struct snd_ctl_elem_info *info)
 {
-	const char *const names[] = { "None", "CD Player" };
+	static const char *const names[] = { "None", "CD Player" };
 
 	return snd_ctl_enum_info(info, 1, 2, names);
 }
@@ -1043,7 +1042,7 @@ static void dummy_proc_init(struct snd_dummy *chip)
 	if (!snd_card_proc_new(chip->card, "dummy_pcm", &entry)) {
 		snd_info_set_text_ops(entry, chip, dummy_proc_read);
 		entry->c.text.write = dummy_proc_write;
-		entry->mode |= S_IWUSR;
+		entry->mode |= 0200;
 		entry->private_data = chip;
 	}
 }

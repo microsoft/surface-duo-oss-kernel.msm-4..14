@@ -233,6 +233,7 @@ static const struct sdhci_pltfm_data sdhci_bcm2835_pltfm_data = {
 		  SDHCI_QUIRK_DATA_TIMEOUT_USES_SDCLK |
 		  SDHCI_QUIRK_MISSING_CAPS |
 		  SDHCI_QUIRK_NO_HISPD_BIT,
+	.quirks2 = SDHCI_QUIRK2_PRESET_VALUE_BROKEN,
 	.ops = &sdhci_iproc_32only_ops,
 };
 
@@ -278,7 +279,10 @@ static int sdhci_iproc_probe(struct platform_device *pdev)
 
 	iproc_host->data = iproc_data;
 
-	mmc_of_parse(host->mmc);
+	ret = mmc_of_parse(host->mmc);
+	if (ret)
+		goto err;
+
 	sdhci_get_of_property(pdev);
 
 	host->mmc->caps |= iproc_host->data->mmc_caps;

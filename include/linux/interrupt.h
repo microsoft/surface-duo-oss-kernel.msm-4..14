@@ -4,9 +4,7 @@
 #define _LINUX_INTERRUPT_H
 
 #include <linux/kernel.h>
-#include <linux/linkage.h>
 #include <linux/bitops.h>
-#include <linux/preempt.h>
 #include <linux/cpumask.h>
 #include <linux/irqreturn.h>
 #include <linux/irqnr.h>
@@ -210,7 +208,7 @@ extern void devm_free_irq(struct device *dev, unsigned int irq, void *dev_id);
 #ifdef CONFIG_LOCKDEP
 # define local_irq_enable_in_hardirq()	do { } while (0)
 #else
-# define local_irq_enable_in_hardirq()	local_irq_enable_nort()
+# define local_irq_enable_in_hardirq()	local_irq_enable()
 #endif
 
 extern void disable_irq_nosync(unsigned int irq);
@@ -437,19 +435,26 @@ extern int irq_set_irqchip_state(unsigned int irq, enum irqchip_irq_state which,
 				 bool state);
 
 #ifdef CONFIG_IRQ_FORCED_THREADING
-# ifndef CONFIG_PREEMPT_RT_BASE
-extern bool force_irqthreads;
-# else
+# ifdef CONFIG_PREEMPT_RT_BASE
 #  define force_irqthreads	(true)
+# else
+extern bool force_irqthreads;
 # endif
 #else
-#define force_irqthreads	(false)
+#define force_irqthreads	(0)
 #endif
 
-#ifndef __ARCH_SET_SOFTIRQ_PENDING
-#define set_softirq_pending(x) (local_softirq_pending() = (x))
-#define or_softirq_pending(x)  (local_softirq_pending() |= (x))
+#ifndef local_softirq_pending
+
+#ifndef local_softirq_pending_ref
+#define local_softirq_pending_ref irq_stat.__softirq_pending
 #endif
+
+#define local_softirq_pending()	(__this_cpu_read(local_softirq_pending_ref))
+#define set_softirq_pending(x)	(__this_cpu_write(local_softirq_pending_ref, (x)))
+#define or_softirq_pending(x)	(__this_cpu_or(local_softirq_pending_ref, (x)))
+
+#endif /* local_softirq_pending */
 
 /* Some architectures might implement lazy enabling/disabling of
  * interrupts. In some cases, such as stop_machine, we might want
@@ -653,6 +658,31 @@ extern void softirq_early_init(void);
 #else
 static inline void softirq_early_init(void) { }
 #endif
+
+struct tasklet_hrtimer {
+	struct hrtimer		timer;
+	struct tasklet_struct	tasklet;
+	enum hrtimer_restart	(*function)(struct hrtimer *);
+};
+
+extern void
+tasklet_hrtimer_init(struct tasklet_hrtimer *ttimer,
+		     enum hrtimer_restart (*function)(struct hrtimer *),
+		     clockid_t which_clock, enum hrtimer_mode mode);
+
+static inline
+void tasklet_hrtimer_start(struct tasklet_hrtimer *ttimer, ktime_t time,
+			   const enum hrtimer_mode mode)
+{
+	hrtimer_start(&ttimer->timer, time, mode);
+}
+
+static inline
+void tasklet_hrtimer_cancel(struct tasklet_hrtimer *ttimer)
+{
+	hrtimer_cancel(&ttimer->timer);
+	tasklet_kill(&ttimer->tasklet);
+}
 
 /*
  * Autoprobing for irqs:

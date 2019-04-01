@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0
 /*
  * drivers/base/core.c - core driver model code (device registration, etc)
  *
@@ -5,9 +6,6 @@
  * Copyright (c) 2002-3 Open Source Development Labs
  * Copyright (c) 2006 Greg Kroah-Hartman <gregkh@suse.de>
  * Copyright (c) 2006 Novell, Inc.
- *
- * This file is released under the GPLv2
- *
  */
 
 #include <linux/device.h>
@@ -22,7 +20,6 @@
 #include <linux/of.h>
 #include <linux/of_device.h>
 #include <linux/genhd.h>
-#include <linux/kallsyms.h>
 #include <linux/mutex.h>
 #include <linux/pm_runtime.h>
 #include <linux/netdevice.h>
@@ -108,7 +105,7 @@ static int device_is_dependent(struct device *dev, void *target)
 	struct device_link *link;
 	int ret;
 
-	if (WARN_ON(dev == target))
+	if (dev == target)
 		return 1;
 
 	ret = device_for_each_child(dev, target, device_is_dependent);
@@ -116,7 +113,7 @@ static int device_is_dependent(struct device *dev, void *target)
 		return ret;
 
 	list_for_each_entry(link, &dev->links.consumers, s_node) {
-		if (WARN_ON(link->consumer == target))
+		if (link->consumer == target)
 			return 1;
 
 		ret = device_is_dependent(link->consumer, target);
@@ -148,6 +145,26 @@ static int device_reorder_to_tail(struct device *dev, void *not_used)
 }
 
 /**
+ * device_pm_move_to_tail - Move set of devices to the end of device lists
+ * @dev: Device to move
+ *
+ * This is a device_reorder_to_tail() wrapper taking the requisite locks.
+ *
+ * It moves the @dev along with all of its children and all of its consumers
+ * to the ends of the device_kset and dpm_list, recursively.
+ */
+void device_pm_move_to_tail(struct device *dev)
+{
+	int idx;
+
+	idx = device_links_read_lock();
+	device_pm_lock();
+	device_reorder_to_tail(dev, NULL);
+	device_pm_unlock();
+	device_links_read_unlock(idx);
+}
+
+/**
  * device_link_add - Create a link between two devices.
  * @consumer: Consumer end of the link.
  * @supplier: Supplier end of the link.
@@ -161,10 +178,10 @@ static int device_reorder_to_tail(struct device *dev, void *not_used)
  * of the link.  If DL_FLAG_PM_RUNTIME is not set, DL_FLAG_RPM_ACTIVE will be
  * ignored.
  *
- * If the DL_FLAG_AUTOREMOVE is set, the link will be removed automatically
- * when the consumer device driver unbinds from it.  The combination of both
- * DL_FLAG_AUTOREMOVE and DL_FLAG_STATELESS set is invalid and will cause NULL
- * to be returned.
+ * If the DL_FLAG_AUTOREMOVE_CONSUMER is set, the link will be removed
+ * automatically when the consumer device driver unbinds from it.
+ * The combination of both DL_FLAG_AUTOREMOVE_CONSUMER and DL_FLAG_STATELESS
+ * set is invalid and will cause NULL to be returned.
  *
  * A side effect of the link creation is re-ordering of dpm_list and the
  * devices_kset list by moving the consumer device and all devices depending
@@ -181,7 +198,8 @@ struct device_link *device_link_add(struct device *consumer,
 	struct device_link *link;
 
 	if (!consumer || !supplier ||
-	    ((flags & DL_FLAG_STATELESS) && (flags & DL_FLAG_AUTOREMOVE)))
+	    ((flags & DL_FLAG_STATELESS) &&
+	     (flags & DL_FLAG_AUTOREMOVE_CONSUMER)))
 		return NULL;
 
 	device_links_write_lock();
@@ -199,8 +217,10 @@ struct device_link *device_link_add(struct device *consumer,
 	}
 
 	list_for_each_entry(link, &supplier->links.consumers, s_node)
-		if (link->consumer == consumer)
+		if (link->consumer == consumer) {
+			kref_get(&link->kref);
 			goto out;
+		}
 
 	link = kzalloc(sizeof(*link), GFP_KERNEL);
 	if (!link)
@@ -232,6 +252,7 @@ struct device_link *device_link_add(struct device *consumer,
 	link->consumer = consumer;
 	INIT_LIST_HEAD(&link->c_node);
 	link->flags = flags;
+	kref_init(&link->kref);
 
 	/* Determine the initial link state. */
 	if (flags & DL_FLAG_STATELESS) {
@@ -302,8 +323,10 @@ static void __device_link_free_srcu(struct rcu_head *rhead)
 	device_link_free(container_of(rhead, struct device_link, rcu_head));
 }
 
-static void __device_link_del(struct device_link *link)
+static void __device_link_del(struct kref *kref)
 {
+	struct device_link *link = container_of(kref, struct device_link, kref);
+
 	dev_info(link->consumer, "Dropping the link to %s\n",
 		 dev_name(link->supplier));
 
@@ -315,8 +338,10 @@ static void __device_link_del(struct device_link *link)
 	call_srcu(&device_links_srcu, &link->rcu_head, __device_link_free_srcu);
 }
 #else /* !CONFIG_SRCU */
-static void __device_link_del(struct device_link *link)
+static void __device_link_del(struct kref *kref)
 {
+	struct device_link *link = container_of(kref, struct device_link, kref);
+
 	dev_info(link->consumer, "Dropping the link to %s\n",
 		 dev_name(link->supplier));
 
@@ -334,17 +359,49 @@ static void __device_link_del(struct device_link *link)
  * @link: Device link to delete.
  *
  * The caller must ensure proper synchronization of this function with runtime
- * PM.
+ * PM.  If the link was added multiple times, it needs to be deleted as often.
+ * Care is required for hotplugged devices:  Their links are purged on removal
+ * and calling device_link_del() is then no longer allowed.
  */
 void device_link_del(struct device_link *link)
 {
 	device_links_write_lock();
 	device_pm_lock();
-	__device_link_del(link);
+	kref_put(&link->kref, __device_link_del);
 	device_pm_unlock();
 	device_links_write_unlock();
 }
 EXPORT_SYMBOL_GPL(device_link_del);
+
+/**
+ * device_link_remove - remove a link between two devices.
+ * @consumer: Consumer end of the link.
+ * @supplier: Supplier end of the link.
+ *
+ * The caller must ensure proper synchronization of this function with runtime
+ * PM.
+ */
+void device_link_remove(void *consumer, struct device *supplier)
+{
+	struct device_link *link;
+
+	if (WARN_ON(consumer == supplier))
+		return;
+
+	device_links_write_lock();
+	device_pm_lock();
+
+	list_for_each_entry(link, &supplier->links.consumers, s_node) {
+		if (link->consumer == consumer) {
+			kref_put(&link->kref, __device_link_del);
+			break;
+		}
+	}
+
+	device_pm_unlock();
+	device_links_write_unlock();
+}
+EXPORT_SYMBOL_GPL(device_link_remove);
 
 static void device_links_missing_supplier(struct device *dev)
 {
@@ -453,8 +510,8 @@ static void __device_links_no_driver(struct device *dev)
 		if (link->flags & DL_FLAG_STATELESS)
 			continue;
 
-		if (link->flags & DL_FLAG_AUTOREMOVE)
-			__device_link_del(link);
+		if (link->flags & DL_FLAG_AUTOREMOVE_CONSUMER)
+			kref_put(&link->kref, __device_link_del);
 		else if (link->status != DL_STATE_SUPPLIER_UNBIND)
 			WRITE_ONCE(link->status, DL_STATE_AVAILABLE);
 	}
@@ -489,8 +546,18 @@ void device_links_driver_cleanup(struct device *dev)
 		if (link->flags & DL_FLAG_STATELESS)
 			continue;
 
-		WARN_ON(link->flags & DL_FLAG_AUTOREMOVE);
+		WARN_ON(link->flags & DL_FLAG_AUTOREMOVE_CONSUMER);
 		WARN_ON(link->status != DL_STATE_SUPPLIER_UNBIND);
+
+		/*
+		 * autoremove the links between this @dev and its consumer
+		 * devices that are not active, i.e. where the link state
+		 * has moved to DL_STATE_SUPPLIER_UNBIND.
+		 */
+		if (link->status == DL_STATE_SUPPLIER_UNBIND &&
+		    link->flags & DL_FLAG_AUTOREMOVE_SUPPLIER)
+			kref_put(&link->kref, __device_link_del);
+
 		WRITE_ONCE(link->status, DL_STATE_DORMANT);
 	}
 
@@ -607,13 +674,13 @@ static void device_links_purge(struct device *dev)
 
 	list_for_each_entry_safe_reverse(link, ln, &dev->links.suppliers, c_node) {
 		WARN_ON(link->status == DL_STATE_ACTIVE);
-		__device_link_del(link);
+		__device_link_del(&link->kref);
 	}
 
 	list_for_each_entry_safe_reverse(link, ln, &dev->links.consumers, s_node) {
 		WARN_ON(link->status != DL_STATE_DORMANT &&
 			link->status != DL_STATE_NONE);
-		__device_link_del(link);
+		__device_link_del(&link->kref);
 	}
 
 	device_links_write_unlock();
@@ -678,7 +745,7 @@ const char *dev_driver_string(const struct device *dev)
 	 * so be careful about accessing it.  dev->bus and dev->class should
 	 * never change once they are set, so they don't need special care.
 	 */
-	drv = ACCESS_ONCE(dev->driver);
+	drv = READ_ONCE(dev->driver);
 	return drv ? drv->name :
 			(dev->bus ? dev->bus->name :
 			(dev->class ? dev->class->name : ""));
@@ -697,8 +764,8 @@ static ssize_t dev_attr_show(struct kobject *kobj, struct attribute *attr,
 	if (dev_attr->show)
 		ret = dev_attr->show(dev, dev_attr, buf);
 	if (ret >= (ssize_t)PAGE_SIZE) {
-		print_symbol("dev_attr_show: %s returned bad count\n",
-				(unsigned long)dev_attr->show);
+		printk("dev_attr_show: %pS returned bad count\n",
+				dev_attr->show);
 	}
 	return ret;
 }
@@ -840,10 +907,19 @@ static const void *device_namespace(struct kobject *kobj)
 	return ns;
 }
 
+static void device_get_ownership(struct kobject *kobj, kuid_t *uid, kgid_t *gid)
+{
+	struct device *dev = kobj_to_dev(kobj);
+
+	if (dev->class && dev->class->get_ownership)
+		dev->class->get_ownership(dev, uid, gid);
+}
+
 static struct kobj_type device_ktype = {
 	.release	= device_release,
 	.sysfs_ops	= &dev_sysfs_ops,
 	.namespace	= device_namespace,
+	.get_ownership	= device_get_ownership,
 };
 
 
@@ -991,8 +1067,14 @@ out:
 static ssize_t uevent_store(struct device *dev, struct device_attribute *attr,
 			    const char *buf, size_t count)
 {
-	if (kobject_synth_uevent(&dev->kobj, buf, count))
+	int rc;
+
+	rc = kobject_synth_uevent(&dev->kobj, buf, count);
+
+	if (rc) {
 		dev_err(dev, "uevent: failed to send synthetic uevent\n");
+		return rc;
+	}
 
 	return count;
 }
@@ -1571,6 +1653,8 @@ static void cleanup_glue_dir(struct device *dev, struct kobject *glue_dir)
 		return;
 
 	mutex_lock(&gdp_mutex);
+	if (!kobject_has_children(glue_dir))
+		kobject_del(glue_dir);
 	kobject_put(glue_dir);
 	mutex_unlock(&gdp_mutex);
 }
@@ -1581,7 +1665,7 @@ static int device_add_class_symlinks(struct device *dev)
 	int error;
 
 	if (of_node) {
-		error = sysfs_create_link(&dev->kobj, &of_node->kobj,"of_node");
+		error = sysfs_create_link(&dev->kobj, of_node_kobj(of_node), "of_node");
 		if (error)
 			dev_warn(dev, "Error %d creating of_node link\n",error);
 		/* An error here doesn't warrant bringing down the device */
@@ -1710,7 +1794,7 @@ static void device_remove_sys_dev_entry(struct device *dev)
 	}
 }
 
-int device_private_init(struct device *dev)
+static int device_private_init(struct device *dev)
 {
 	dev->p = kzalloc(sizeof(*dev->p), GFP_KERNEL);
 	if (!dev->p)
@@ -1973,7 +2057,6 @@ void device_del(struct device *dev)
 		blocking_notifier_call_chain(&dev->bus->p->bus_notifier,
 					     BUS_NOTIFY_DEL_DEVICE, dev);
 
-	device_links_purge(dev);
 	dpm_sysfs_remove(dev);
 	if (parent)
 		klist_del(&dev->p->knode_parent);
@@ -2001,6 +2084,7 @@ void device_del(struct device *dev)
 	device_pm_remove(dev);
 	driver_deferred_probe_del(dev);
 	device_remove_properties(dev);
+	device_links_purge(dev);
 
 	/* Notify the platform of the removal, in case they
 	 * need to do anything...
@@ -2131,7 +2215,7 @@ int device_for_each_child(struct device *parent, void *data,
 		return 0;
 
 	klist_iter_init(&parent->p->klist_children, &i);
-	while ((child = next_device(&i)) && !error)
+	while (!error && (child = next_device(&i)))
 		error = fn(child, data);
 	klist_iter_exit(&i);
 	return error;
@@ -2412,7 +2496,7 @@ static void device_create_release(struct device *dev)
 	kfree(dev);
 }
 
-static struct device *
+static __printf(6, 0) struct device *
 device_create_groups_vargs(struct class *class, struct device *parent,
 			   dev_t devt, void *drvdata,
 			   const struct attribute_group **groups,
@@ -2690,7 +2774,7 @@ static int device_move_class_links(struct device *dev,
 /**
  * device_move - moves a device to a new parent
  * @dev: the pointer to the struct device to be moved
- * @new_parent: the new parent of the device (can by NULL)
+ * @new_parent: the new parent of the device (can be NULL)
  * @dpm_order: how to reorder the dpm_list
  */
 int device_move(struct device *dev, struct device *new_parent,
@@ -2979,12 +3063,12 @@ void func(const struct device *dev, const char *fmt, ...)	\
 }								\
 EXPORT_SYMBOL(func);
 
-define_dev_printk_level(dev_emerg, KERN_EMERG);
-define_dev_printk_level(dev_alert, KERN_ALERT);
-define_dev_printk_level(dev_crit, KERN_CRIT);
-define_dev_printk_level(dev_err, KERN_ERR);
-define_dev_printk_level(dev_warn, KERN_WARNING);
-define_dev_printk_level(dev_notice, KERN_NOTICE);
+define_dev_printk_level(_dev_emerg, KERN_EMERG);
+define_dev_printk_level(_dev_alert, KERN_ALERT);
+define_dev_printk_level(_dev_crit, KERN_CRIT);
+define_dev_printk_level(_dev_err, KERN_ERR);
+define_dev_printk_level(_dev_warn, KERN_WARNING);
+define_dev_printk_level(_dev_notice, KERN_NOTICE);
 define_dev_printk_level(_dev_info, KERN_INFO);
 
 #endif

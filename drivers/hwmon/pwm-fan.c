@@ -180,7 +180,7 @@ static int pwm_fan_of_get_cooling_data(struct device *dev,
 	}
 
 	num = ret;
-	ctx->pwm_fan_cooling_levels = devm_kzalloc(dev, num * sizeof(u32),
+	ctx->pwm_fan_cooling_levels = devm_kcalloc(dev, num, sizeof(u32),
 						   GFP_KERNEL);
 	if (!ctx->pwm_fan_cooling_levels)
 		return -ENOMEM;
@@ -290,9 +290,19 @@ static int pwm_fan_remove(struct platform_device *pdev)
 static int pwm_fan_suspend(struct device *dev)
 {
 	struct pwm_fan_ctx *ctx = dev_get_drvdata(dev);
+	struct pwm_args args;
+	int ret;
 
-	if (ctx->pwm_value)
+	pwm_get_args(ctx->pwm, &args);
+
+	if (ctx->pwm_value) {
+		ret = pwm_config(ctx->pwm, 0, args.period);
+		if (ret < 0)
+			return ret;
+
 		pwm_disable(ctx->pwm);
+	}
+
 	return 0;
 }
 

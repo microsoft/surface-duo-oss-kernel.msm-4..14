@@ -33,6 +33,7 @@
 #include <linux/etherdevice.h>
 #include <linux/mlx5/driver.h>
 #include <linux/mlx5/mlx5_ifc.h>
+#include <linux/mlx5/eswitch.h>
 #include "mlx5_core.h"
 #include "eswitch.h"
 #include "lib/mpfs.h"

@@ -93,17 +93,22 @@ void ftrace_likely_update(struct ftrace_likely_data *f, int val,
 
 /* Unreachable code */
 #ifdef CONFIG_STACK_VALIDATION
+/*
+ * These macros help objtool understand GCC code flow for unreachable code.
+ * The __COUNTER__ based labels are a hack to make each instance of the macros
+ * unique, to convince GCC not to merge duplicate inline asm statements.
+ */
 #define annotate_reachable() ({						\
-	asm("%c0:\n\t"							\
-	    ".pushsection .discard.reachable\n\t"			\
-	    ".long %c0b - .\n\t"					\
-	    ".popsection\n\t" : : "i" (__COUNTER__));			\
+	asm volatile("%c0:\n\t"						\
+		     ".pushsection .discard.reachable\n\t"		\
+		     ".long %c0b - .\n\t"				\
+		     ".popsection\n\t" : : "i" (__COUNTER__));		\
 })
 #define annotate_unreachable() ({					\
-	asm("%c0:\n\t"							\
-	    ".pushsection .discard.unreachable\n\t"			\
-	    ".long %c0b - .\n\t"					\
-	    ".popsection\n\t" : : "i" (__COUNTER__));			\
+	asm volatile("%c0:\n\t"						\
+		     ".pushsection .discard.unreachable\n\t"		\
+		     ".long %c0b - .\n\t"				\
+		     ".popsection\n\t" : : "i" (__COUNTER__));		\
 })
 #define ASM_UNREACHABLE							\
 	"999:\n\t"							\
@@ -185,23 +190,21 @@ void __read_once_size(const volatile void *p, void *res, int size)
 
 #ifdef CONFIG_KASAN
 /*
- * This function is not 'inline' because __no_sanitize_address confilcts
+ * We can't declare function 'inline' because __no_sanitize_address confilcts
  * with inlining. Attempt to inline it may cause a build failure.
  * 	https://gcc.gnu.org/bugzilla/show_bug.cgi?id=67368
  * '__maybe_unused' allows us to avoid defined-but-not-used warnings.
  */
-static __no_sanitize_address __maybe_unused
-void __read_once_size_nocheck(const volatile void *p, void *res, int size)
-{
-	__READ_ONCE_SIZE;
-}
+# define __no_kasan_or_inline __no_sanitize_address __maybe_unused
 #else
-static __always_inline
+# define __no_kasan_or_inline __always_inline
+#endif
+
+static __no_kasan_or_inline
 void __read_once_size_nocheck(const volatile void *p, void *res, int size)
 {
 	__READ_ONCE_SIZE;
 }
-#endif
 
 static __always_inline void __write_once_size(volatile void *p, void *res, int size)
 {
@@ -220,26 +223,27 @@ static __always_inline void __write_once_size(volatile void *p, void *res, int s
 /*
  * Prevent the compiler from merging or refetching reads or writes. The
  * compiler is also forbidden from reordering successive instances of
- * READ_ONCE, WRITE_ONCE and ACCESS_ONCE (see below), but only when the
- * compiler is aware of some particular ordering.  One way to make the
- * compiler aware of ordering is to put the two invocations of READ_ONCE,
- * WRITE_ONCE or ACCESS_ONCE() in different C statements.
+ * READ_ONCE and WRITE_ONCE, but only when the compiler is aware of some
+ * particular ordering. One way to make the compiler aware of ordering is to
+ * put the two invocations of READ_ONCE or WRITE_ONCE in different C
+ * statements.
  *
- * In contrast to ACCESS_ONCE these two macros will also work on aggregate
- * data types like structs or unions. If the size of the accessed data
- * type exceeds the word size of the machine (e.g., 32 bits or 64 bits)
- * READ_ONCE() and WRITE_ONCE() will fall back to memcpy(). There's at
- * least two memcpy()s: one for the __builtin_memcpy() and then one for
- * the macro doing the copy of variable - '__u' allocated on the stack.
+ * These two macros will also work on aggregate data types like structs or
+ * unions. If the size of the accessed data type exceeds the word size of
+ * the machine (e.g., 32 bits or 64 bits) READ_ONCE() and WRITE_ONCE() will
+ * fall back to memcpy(). There's at least two memcpy()s: one for the
+ * __builtin_memcpy() and then one for the macro doing the copy of variable
+ * - '__u' allocated on the stack.
  *
  * Their two major use cases are: (1) Mediating communication between
  * process-level code and irq/NMI handlers, all running on the same CPU,
- * and (2) Ensuring that the compiler does not  fold, spindle, or otherwise
+ * and (2) Ensuring that the compiler does not fold, spindle, or otherwise
  * mutilate accesses that either do not require ordering or that interact
  * with an explicit memory barrier or atomic instruction that provides the
  * required ordering.
  */
 #include <asm/barrier.h>
+#include <linux/kasan-checks.h>
 
 #define __READ_ONCE(x, check)						\
 ({									\
@@ -259,6 +263,13 @@ static __always_inline void __write_once_size(volatile void *p, void *res, int s
  */
 #define READ_ONCE_NOCHECK(x) __READ_ONCE(x, 0)
 
+static __no_kasan_or_inline
+unsigned long read_word_at_a_time(const void *addr)
+{
+	kasan_check_read(addr, 1);
+	return *(unsigned long *)addr;
+}
+
 #define WRITE_ONCE(x, val) \
 ({							\
 	union { typeof(x) __val; char __c[1]; } __u =	\
@@ -268,6 +279,25 @@ static __always_inline void __write_once_size(volatile void *p, void *res, int s
 })
 
 #endif /* __KERNEL__ */
+
+/*
+ * Force the compiler to emit 'sym' as a symbol, so that we can reference
+ * it from inline assembler. Necessary in case 'sym' could be inlined
+ * otherwise, or eliminated entirely due to lack of references that are
+ * visible to the compiler.
+ */
+#define __ADDRESSABLE(sym) \
+	static void * __attribute__((section(".discard.addressable"), used)) \
+		__PASTE(__addressable_##sym, __LINE__) = (void *)&sym;
+
+/**
+ * offset_to_ptr - convert a relative memory offset to an absolute pointer
+ * @off:	the address of the 32-bit offset value
+ */
+static inline void *offset_to_ptr(const int *off)
+{
+	return (void *)((unsigned long)off + *off);
+}
 
 #endif /* __ASSEMBLY__ */
 
@@ -302,7 +332,7 @@ static __always_inline void __write_once_size(volatile void *p, void *res, int s
 #ifdef __OPTIMIZE__
 # define __compiletime_assert(condition, msg, prefix, suffix)		\
 	do {								\
-		bool __cond = !(condition);				\
+		int __cond = !(condition);				\
 		extern void prefix ## suffix(void) __compiletime_error(msg); \
 		if (__cond)						\
 			prefix ## suffix();				\
@@ -330,50 +360,5 @@ static __always_inline void __write_once_size(volatile void *p, void *res, int s
 #define compiletime_assert_atomic_type(t)				\
 	compiletime_assert(__native_word(t),				\
 		"Need native word sized stores/loads for atomicity.")
-
-/*
- * Prevent the compiler from merging or refetching accesses.  The compiler
- * is also forbidden from reordering successive instances of ACCESS_ONCE(),
- * but only when the compiler is aware of some particular ordering.  One way
- * to make the compiler aware of ordering is to put the two invocations of
- * ACCESS_ONCE() in different C statements.
- *
- * ACCESS_ONCE will only work on scalar types. For union types, ACCESS_ONCE
- * on a union member will work as long as the size of the member matches the
- * size of the union and the size is smaller than word size.
- *
- * The major use cases of ACCESS_ONCE used to be (1) Mediating communication
- * between process-level code and irq/NMI handlers, all running on the same CPU,
- * and (2) Ensuring that the compiler does not  fold, spindle, or otherwise
- * mutilate accesses that either do not require ordering or that interact
- * with an explicit memory barrier or atomic instruction that provides the
- * required ordering.
- *
- * If possible use READ_ONCE()/WRITE_ONCE() instead.
- */
-#define __ACCESS_ONCE(x) ({ \
-	 __maybe_unused typeof(x) __var = (__force typeof(x)) 0; \
-	(volatile typeof(x) *)&(x); })
-#define ACCESS_ONCE(x) (*__ACCESS_ONCE(x))
-
-/**
- * lockless_dereference() - safely load a pointer for later dereference
- * @p: The pointer to load
- *
- * Similar to rcu_dereference(), but for situations where the pointed-to
- * object's lifetime is managed by something other than RCU.  That
- * "something other" might be reference counting or simple immortality.
- *
- * The seemingly unused variable ___typecheck_p validates that @p is
- * indeed a pointer type by using a pointer to typeof(*p) as the type.
- * Taking a pointer to typeof(*p) again is needed in case p is void *.
- */
-#define lockless_dereference(p) \
-({ \
-	typeof(p) _________p1 = READ_ONCE(p); \
-	typeof(*(p)) *___typecheck_p __maybe_unused; \
-	smp_read_barrier_depends(); /* Dependency order vs. p above. */ \
-	(_________p1); \
-})
 
 #endif /* __LINUX_COMPILER_H */

@@ -342,9 +342,7 @@ static int ahash_op_unaligned(struct ahash_request *req,
 		return err;
 
 	err = op(req);
-	if (err == -EINPROGRESS ||
-	    (err == -EBUSY && (ahash_request_flags(req) &
-			       CRYPTO_TFM_REQ_MAY_BACKLOG)))
+	if (err == -EINPROGRESS || err == -EBUSY)
 		return err;
 
 	ahash_restore_req(req, err);
@@ -407,9 +405,7 @@ static int ahash_def_finup_finish1(struct ahash_request *req, int err)
 	req->base.complete = ahash_def_finup_done2;
 
 	err = crypto_ahash_reqtfm(req)->final(req);
-	if (err == -EINPROGRESS ||
-	    (err == -EBUSY && (ahash_request_flags(req) &
-			       CRYPTO_TFM_REQ_MAY_BACKLOG)))
+	if (err == -EINPROGRESS || err == -EBUSY)
 		return err;
 
 out:
@@ -445,22 +441,10 @@ static int ahash_def_finup(struct ahash_request *req)
 		return err;
 
 	err = tfm->update(req);
-	if (err == -EINPROGRESS ||
-	    (err == -EBUSY && (ahash_request_flags(req) &
-			       CRYPTO_TFM_REQ_MAY_BACKLOG)))
+	if (err == -EINPROGRESS || err == -EBUSY)
 		return err;
 
 	return ahash_def_finup_finish1(req, err);
-}
-
-static int ahash_no_export(struct ahash_request *req, void *out)
-{
-	return -ENOSYS;
-}
-
-static int ahash_no_import(struct ahash_request *req, const void *in)
-{
-	return -ENOSYS;
 }
 
 static int crypto_ahash_init_tfm(struct crypto_tfm *tfm)
@@ -469,8 +453,6 @@ static int crypto_ahash_init_tfm(struct crypto_tfm *tfm)
 	struct ahash_alg *alg = crypto_ahash_alg(hash);
 
 	hash->setkey = ahash_nosetkey;
-	hash->export = ahash_no_export;
-	hash->import = ahash_no_import;
 
 	if (tfm->__crt_alg->cra_type != &crypto_ahash_type)
 		return crypto_init_shash_ops_async(tfm);
@@ -480,16 +462,14 @@ static int crypto_ahash_init_tfm(struct crypto_tfm *tfm)
 	hash->final = alg->final;
 	hash->finup = alg->finup ?: ahash_def_finup;
 	hash->digest = alg->digest;
+	hash->export = alg->export;
+	hash->import = alg->import;
 
 	if (alg->setkey) {
 		hash->setkey = alg->setkey;
 		if (!(alg->halg.base.cra_flags & CRYPTO_ALG_OPTIONAL_KEY))
 			crypto_ahash_set_flags(hash, CRYPTO_TFM_NEED_KEY);
 	}
-	if (alg->export)
-		hash->export = alg->export;
-	if (alg->import)
-		hash->import = alg->import;
 
 	return 0;
 }

@@ -26,9 +26,12 @@
 
 #include "ad7606.h"
 
-/* Scales are computed as 2.5/2**16 and 5/2**16 respectively */
+/*
+ * Scales are computed as 5000/32768 and 10000/32768 respectively,
+ * so that when applied to the raw values they provide mV values
+ */
 static const unsigned int scale_avail[2][2] = {
-	{0, 38147}, {0, 76294}
+	{0, 152588}, {0, 305176}
 };
 
 static int ad7606_reset(struct ad7606_state *st)
@@ -373,26 +376,22 @@ static irqreturn_t ad7606_interrupt(int irq, void *dev_id)
 };
 
 static const struct iio_info ad7606_info_no_os_or_range = {
-	.driver_module = THIS_MODULE,
 	.read_raw = &ad7606_read_raw,
 };
 
 static const struct iio_info ad7606_info_os_and_range = {
-	.driver_module = THIS_MODULE,
 	.read_raw = &ad7606_read_raw,
 	.write_raw = &ad7606_write_raw,
 	.attrs = &ad7606_attribute_group_os_and_range,
 };
 
 static const struct iio_info ad7606_info_os = {
-	.driver_module = THIS_MODULE,
 	.read_raw = &ad7606_read_raw,
 	.write_raw = &ad7606_write_raw,
 	.attrs = &ad7606_attribute_group_os,
 };
 
 static const struct iio_info ad7606_info_range = {
-	.driver_module = THIS_MODULE,
 	.read_raw = &ad7606_read_raw,
 	.write_raw = &ad7606_write_raw,
 	.attrs = &ad7606_attribute_group_range,

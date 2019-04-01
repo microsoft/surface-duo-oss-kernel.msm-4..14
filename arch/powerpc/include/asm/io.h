@@ -33,8 +33,6 @@ extern struct pci_dev *isa_bridge_pcidev;
 #include <asm/mmu.h>
 #include <asm/ppc_asm.h>
 
-#include <asm-generic/iomap.h>
-
 #ifdef CONFIG_PPC64
 #include <asm/paca.h>
 #endif
@@ -287,19 +285,13 @@ extern void _memcpy_toio(volatile void __iomem *dest, const void *src,
  * their hooks, a bitfield is reserved for use by the platform near the
  * top of MMIO addresses (not PIO, those have to cope the hard way).
  *
- * This bit field is 12 bits and is at the top of the IO virtual
- * addresses PCI_IO_INDIRECT_TOKEN_MASK.
+ * The highest address in the kernel virtual space are:
  *
- * The kernel virtual space is thus:
+ *  d0003fffffffffff	# with Hash MMU
+ *  c00fffffffffffff	# with Radix MMU
  *
- *  0xD000000000000000		: vmalloc
- *  0xD000080000000000		: PCI PHB IO space
- *  0xD000080080000000		: ioremap
- *  0xD0000fffffffffff		: end of ioremap region
- *
- * Since the top 4 bits are reserved as the region ID, we use thus
- * the next 12 bits and keep 4 bits available for the future if the
- * virtual address space is ever to be extended.
+ * The top 4 bits are reserved as the region ID on hash, leaving us 8 bits
+ * that can be used for the field.
  *
  * The direct IO mapping operations will then mask off those bits
  * before doing the actual access, though that only happen when
@@ -311,8 +303,8 @@ extern void _memcpy_toio(volatile void __iomem *dest, const void *src,
  */
 
 #ifdef CONFIG_PPC_INDIRECT_MMIO
-#define PCI_IO_IND_TOKEN_MASK	0x0fff000000000000ul
-#define PCI_IO_IND_TOKEN_SHIFT	48
+#define PCI_IO_IND_TOKEN_SHIFT	52
+#define PCI_IO_IND_TOKEN_MASK	(0xfful << PCI_IO_IND_TOKEN_SHIFT)
 #define PCI_FIX_ADDR(addr)						\
 	((PCI_IO_ADDR)(((unsigned long)(addr)) & ~PCI_IO_IND_TOKEN_MASK))
 #define PCI_GET_ADDR_TOKEN(addr)					\
@@ -369,6 +361,11 @@ static inline void __raw_writeq(unsigned long v, volatile void __iomem *addr)
 	*(volatile unsigned long __force *)PCI_FIX_ADDR(addr) = v;
 }
 
+static inline void __raw_writeq_be(unsigned long v, volatile void __iomem *addr)
+{
+	__raw_writeq((__force unsigned long)cpu_to_be64(v), addr);
+}
+
 /*
  * Real mode versions of the above. Those instructions are only supposed
  * to be used in hypervisor real mode as per the architecture spec.
@@ -395,6 +392,11 @@ static inline void __raw_rm_writeq(u64 val, volatile void __iomem *paddr)
 {
 	__asm__ __volatile__("stdcix %0,0,%1"
 		: : "r" (val), "r" (paddr) : "memory");
+}
+
+static inline void __raw_rm_writeq_be(u64 val, volatile void __iomem *paddr)
+{
+	__raw_rm_writeq((__force u64)cpu_to_be64(val), paddr);
 }
 
 static inline u8 __raw_rm_readb(volatile void __iomem *paddr)
@@ -662,6 +664,8 @@ static inline void name at					\
 #define writew_relaxed(v, addr)	writew(v, addr)
 #define writel_relaxed(v, addr)	writel(v, addr)
 #define writeq_relaxed(v, addr)	writeq(v, addr)
+
+#include <asm-generic/iomap.h>
 
 #ifdef CONFIG_PPC32
 #define mmiowb()

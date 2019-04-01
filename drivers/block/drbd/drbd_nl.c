@@ -668,14 +668,15 @@ drbd_set_role(struct drbd_device *const device, enum drbd_role new_role, int for
 		if (rv == SS_TWO_PRIMARIES) {
 			/* Maybe the peer is detected as dead very soon...
 			   retry at most once more in this case. */
-			int timeo;
-			rcu_read_lock();
-			nc = rcu_dereference(connection->net_conf);
-			timeo = nc ? (nc->ping_timeo + 1) * HZ / 10 : 1;
-			rcu_read_unlock();
-			schedule_timeout_interruptible(timeo);
-			if (try < max_tries)
+			if (try < max_tries) {
+				int timeo;
 				try = max_tries - 1;
+				rcu_read_lock();
+				nc = rcu_dereference(connection->net_conf);
+				timeo = nc ? (nc->ping_timeo + 1) * HZ / 10 : 1;
+				rcu_read_unlock();
+				schedule_timeout_interruptible(timeo);
+			}
 			continue;
 		}
 		if (rv < SS_SUCCESS) {
@@ -1212,10 +1213,10 @@ static void decide_on_discard_support(struct drbd_device *device,
 		 * topology on all peers. */
 		blk_queue_discard_granularity(q, 512);
 		q->limits.max_discard_sectors = drbd_max_discard_sectors(connection);
-		queue_flag_set_unlocked(QUEUE_FLAG_DISCARD, q);
+		blk_queue_flag_set(QUEUE_FLAG_DISCARD, q);
 		q->limits.max_write_zeroes_sectors = drbd_max_discard_sectors(connection);
 	} else {
-		queue_flag_clear_unlocked(QUEUE_FLAG_DISCARD, q);
+		blk_queue_flag_clear(QUEUE_FLAG_DISCARD, q);
 		blk_queue_discard_granularity(q, 0);
 		q->limits.max_discard_sectors = 0;
 		q->limits.max_write_zeroes_sectors = 0;

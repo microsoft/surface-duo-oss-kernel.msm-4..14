@@ -116,6 +116,8 @@ struct msi_desc {
 	list_first_entry(dev_to_msi_list((dev)), struct msi_desc, list)
 #define for_each_msi_entry(desc, dev)	\
 	list_for_each_entry((desc), dev_to_msi_list((dev)), list)
+#define for_each_msi_entry_safe(desc, tmp, dev)	\
+	list_for_each_entry_safe((desc), (tmp), dev_to_msi_list((dev)), list)
 
 #ifdef CONFIG_PCI_MSI
 #define first_pci_msi_entry(pdev)	first_msi_entry(&(pdev)->dev)
@@ -284,6 +286,13 @@ enum {
 	MSI_FLAG_PCI_MSIX		= (1 << 3),
 	/* Needs early activate, required for PCI */
 	MSI_FLAG_ACTIVATE_EARLY		= (1 << 4),
+	/*
+	 * Must reactivate when irq is started even when
+	 * MSI_FLAG_ACTIVATE_EARLY has been set.
+	 */
+	MSI_FLAG_MUST_REACTIVATE	= (1 << 5),
+	/* Is level-triggered capable, using two messages */
+	MSI_FLAG_LEVEL_CAPABLE		= (1 << 6),
 };
 
 int msi_domain_set_affinity(struct irq_data *data, const struct cpumask *mask,

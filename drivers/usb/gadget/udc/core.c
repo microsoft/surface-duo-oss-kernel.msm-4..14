@@ -1,20 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0
 /**
  * udc.c - Core UDC Framework
  *
  * Copyright (C) 2010 Texas Instruments
  * Author: Felipe Balbi <balbi@ti.com>
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2  of
- * the License as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/kernel.h>
@@ -98,6 +87,8 @@ EXPORT_SYMBOL_GPL(usb_ep_set_maxpacket_limit);
  * configurable, with more generic names like "ep-a".  (remember that for
  * USB, "in" means "towards the USB master".)
  *
+ * This routine must be called in process context.
+ *
  * returns zero, or a negative error code.
  */
 int usb_ep_enable(struct usb_ep *ep)
@@ -129,6 +120,8 @@ EXPORT_SYMBOL_GPL(usb_ep_enable);
  * indicating disconnect (-ESHUTDOWN) before this call returns.
  * gadget drivers must call usb_ep_enable() again before queueing
  * requests to the endpoint.
+ *
+ * This routine must be called in process context.
  *
  * returns zero, or a negative error code.
  */
@@ -252,9 +245,17 @@ EXPORT_SYMBOL_GPL(usb_ep_free_request);
  * Note that @req's ->complete() callback must never be called from
  * within usb_ep_queue() as that can create deadlock situations.
  *
+ * This routine may be called in interrupt context.
+ *
  * Returns zero, or a negative error code.  Endpoints that are not enabled
  * report errors; errors will also be
  * reported when the usb peripheral is disconnected.
+ *
+ * If and only if @req is successfully queued (the return value is zero),
+ * @req->complete() will be called exactly once, when the Gadget core and
+ * UDC are finished with the request.  When the completion function is called,
+ * control of the request is returned to the device driver which submitted it.
+ * The completion handler may then immediately free or reuse @req.
  */
 int usb_ep_queue(struct usb_ep *ep,
 			       struct usb_request *req, gfp_t gfp_flags)
@@ -289,6 +290,8 @@ EXPORT_SYMBOL_GPL(usb_ep_queue);
  * at the head of the queue) except as part of disconnecting from usb. Such
  * restrictions prevent drivers from supporting configuration changes,
  * even to configuration zero (a "chapter 9" requirement).
+ *
+ * This routine may be called in interrupt context.
  */
 int usb_ep_dequeue(struct usb_ep *ep, struct usb_request *req)
 {
@@ -316,6 +319,8 @@ EXPORT_SYMBOL_GPL(usb_ep_dequeue);
  * current altsetting, see usb_ep_clear_halt().  When switching altsettings,
  * it's simplest to use usb_ep_enable() or usb_ep_disable() for the endpoints.
  *
+ * This routine may be called in interrupt context.
+ *
  * Returns zero, or a negative error code.  On success, this call sets
  * underlying hardware state that blocks data transfers.
  * Attempts to halt IN endpoints will fail (returning -EAGAIN) if any
@@ -341,6 +346,8 @@ EXPORT_SYMBOL_GPL(usb_ep_set_halt);
  * for endpoints that aren't reconfigured, after clearing any other state
  * in the endpoint's i/o queue.
  *
+ * This routine may be called in interrupt context.
+ *
  * Returns zero, or a negative error code.  On success, this call clears
  * the underlying hardware state reflecting endpoint halt and data toggle.
  * Note that some hardware can't support this request (like pxa2xx_udc),
@@ -364,6 +371,8 @@ EXPORT_SYMBOL_GPL(usb_ep_clear_halt);
  * Use this to stall an endpoint and ignore CLEAR_FEATURE(HALT_ENDPOINT)
  * requests. If the gadget driver clears the halt status, it will
  * automatically unwedge the endpoint.
+ *
+ * This routine may be called in interrupt context.
  *
  * Returns zero on success, else negative errno.
  */
@@ -393,6 +402,8 @@ EXPORT_SYMBOL_GPL(usb_ep_set_wedge);
  * written OUT to it by the host.  Drivers that need precise handling for
  * fault reporting or recovery may need to use this call.
  *
+ * This routine may be called in interrupt context.
+ *
  * This returns the number of such bytes in the fifo, or a negative
  * errno if the endpoint doesn't use a FIFO or doesn't support such
  * precise handling.
@@ -420,6 +431,8 @@ EXPORT_SYMBOL_GPL(usb_ep_fifo_status);
  * an endpoint fifo after abnormal transaction terminations.  The call
  * must never be used except when endpoint is not being used for any
  * protocol translation.
+ *
+ * This routine may be called in interrupt context.
  */
 void usb_ep_fifo_flush(struct usb_ep *ep)
 {
@@ -915,7 +928,7 @@ int usb_gadget_ep_match_desc(struct usb_gadget *gadget,
 		return 0;
 
 	type = usb_endpoint_type(desc);
-	max = 0x7ff & usb_endpoint_maxp(desc);
+	max = usb_endpoint_maxp(desc);
 
 	if (usb_endpoint_dir_in(desc) && !ep->caps.dir_in)
 		return 0;
@@ -1431,7 +1444,7 @@ EXPORT_SYMBOL_GPL(usb_gadget_unregister_driver);
 
 /* ------------------------------------------------------------------------- */
 
-static ssize_t usb_udc_srp_store(struct device *dev,
+static ssize_t srp_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t n)
 {
 	struct usb_udc		*udc = container_of(dev, struct usb_udc, dev);
@@ -1441,9 +1454,9 @@ static ssize_t usb_udc_srp_store(struct device *dev,
 
 	return n;
 }
-static DEVICE_ATTR(srp, S_IWUSR, NULL, usb_udc_srp_store);
+static DEVICE_ATTR_WO(srp);
 
-static ssize_t usb_udc_softconn_store(struct device *dev,
+static ssize_t soft_connect_store(struct device *dev,
 		struct device_attribute *attr, const char *buf, size_t n)
 {
 	struct usb_udc		*udc = container_of(dev, struct usb_udc, dev);
@@ -1467,7 +1480,7 @@ static ssize_t usb_udc_softconn_store(struct device *dev,
 
 	return n;
 }
-static DEVICE_ATTR(soft_connect, S_IWUSR, NULL, usb_udc_softconn_store);
+static DEVICE_ATTR_WO(soft_connect);
 
 static ssize_t state_show(struct device *dev, struct device_attribute *attr,
 			  char *buf)
@@ -1496,7 +1509,7 @@ ssize_t name##_show(struct device *dev,					\
 		struct device_attribute *attr, char *buf)		\
 {									\
 	struct usb_udc *udc = container_of(dev, struct usb_udc, dev);	\
-	return snprintf(buf, PAGE_SIZE, "%s\n",				\
+	return scnprintf(buf, PAGE_SIZE, "%s\n",			\
 			usb_speed_string(udc->gadget->param));		\
 }									\
 static DEVICE_ATTR_RO(name)
@@ -1511,7 +1524,7 @@ ssize_t name##_show(struct device *dev,				\
 	struct usb_udc		*udc = container_of(dev, struct usb_udc, dev); \
 	struct usb_gadget	*gadget = udc->gadget;		\
 								\
-	return snprintf(buf, PAGE_SIZE, "%d\n", gadget->name);	\
+	return scnprintf(buf, PAGE_SIZE, "%d\n", gadget->name);	\
 }								\
 static DEVICE_ATTR_RO(name)
 

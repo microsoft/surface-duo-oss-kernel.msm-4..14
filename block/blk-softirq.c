@@ -147,6 +147,7 @@ do_local:
 	local_irq_restore(flags);
 	preempt_check_resched_rt();
 }
+EXPORT_SYMBOL(__blk_complete_request);
 
 /**
  * blk_complete_request - end I/O on a request

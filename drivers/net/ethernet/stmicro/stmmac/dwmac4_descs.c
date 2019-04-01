@@ -189,9 +189,12 @@ static void dwmac4_set_tx_owner(struct dma_desc *p)
 	p->des3 |= cpu_to_le32(TDES3_OWN);
 }
 
-static void dwmac4_set_rx_owner(struct dma_desc *p)
+static void dwmac4_set_rx_owner(struct dma_desc *p, int disable_rx_ic)
 {
-	p->des3 |= cpu_to_le32(RDES3_OWN);
+	p->des3 = cpu_to_le32(RDES3_OWN | RDES3_BUFFER1_VALID_ADDR);
+
+	if (!disable_rx_ic)
+		p->des3 |= cpu_to_le32(RDES3_INT_ON_COMPLETION_EN);
 }
 
 static int dwmac4_get_tx_ls(struct dma_desc *p)
@@ -223,7 +226,7 @@ static int dwmac4_wrback_get_tx_timestamp_status(struct dma_desc *p)
 	return 0;
 }
 
-static inline u64 dwmac4_get_timestamp(void *desc, u32 ats)
+static inline void dwmac4_get_timestamp(void *desc, u32 ats, u64 *ts)
 {
 	struct dma_desc *p = (struct dma_desc *)desc;
 	u64 ns;
@@ -232,21 +235,24 @@ static inline u64 dwmac4_get_timestamp(void *desc, u32 ats)
 	/* convert high/sec time stamp value to nanosecond */
 	ns += le32_to_cpu(p->des1) * 1000000000ULL;
 
-	return ns;
+	*ts = ns;
 }
 
 static int dwmac4_rx_check_timestamp(void *desc)
 {
 	struct dma_desc *p = (struct dma_desc *)desc;
+	unsigned int rdes0 = le32_to_cpu(p->des0);
+	unsigned int rdes1 = le32_to_cpu(p->des1);
+	unsigned int rdes3 = le32_to_cpu(p->des3);
 	u32 own, ctxt;
 	int ret = 1;
 
-	own = p->des3 & RDES3_OWN;
-	ctxt = ((p->des3 & RDES3_CONTEXT_DESCRIPTOR)
+	own = rdes3 & RDES3_OWN;
+	ctxt = ((rdes3 & RDES3_CONTEXT_DESCRIPTOR)
 		>> RDES3_CONTEXT_DESCRIPTOR_SHIFT);
 
 	if (likely(!own && ctxt)) {
-		if ((p->des0 == 0xffffffff) && (p->des1 == 0xffffffff))
+		if ((rdes0 == 0xffffffff) && (rdes1 == 0xffffffff))
 			/* Corrupted value */
 			ret = -EINVAL;
 		else
@@ -292,10 +298,7 @@ exit:
 static void dwmac4_rd_init_rx_desc(struct dma_desc *p, int disable_rx_ic,
 				   int mode, int end)
 {
-	p->des3 = cpu_to_le32(RDES3_OWN | RDES3_BUFFER1_VALID_ADDR);
-
-	if (!disable_rx_ic)
-		p->des3 |= cpu_to_le32(RDES3_INT_ON_COMPLETION_EN);
+	dwmac4_set_rx_owner(p, disable_rx_ic);
 }
 
 static void dwmac4_rd_init_tx_desc(struct dma_desc *p, int mode, int end)
@@ -334,7 +337,7 @@ static void dwmac4_rd_prepare_tx_desc(struct dma_desc *p, int is_fs, int len,
 	if (tx_own)
 		tdes3 |= TDES3_OWN;
 
-	if (is_fs & tx_own)
+	if (is_fs && tx_own)
 		/* When the own bit, for the first frame, has to be set, all
 		 * descriptors for the same frame has to be set before, to
 		 * avoid race condition.
@@ -377,7 +380,7 @@ static void dwmac4_rd_prepare_tso_tx_desc(struct dma_desc *p, int is_fs,
 	if (tx_own)
 		tdes3 |= TDES3_OWN;
 
-	if (is_fs & tx_own)
+	if (is_fs && tx_own)
 		/* When the own bit, for the first frame, has to be set, all
 		 * descriptors for the same frame has to be set before, to
 		 * avoid race condition.
@@ -389,6 +392,8 @@ static void dwmac4_rd_prepare_tso_tx_desc(struct dma_desc *p, int is_fs,
 
 static void dwmac4_release_tx_desc(struct dma_desc *p, int mode)
 {
+	p->des0 = 0;
+	p->des1 = 0;
 	p->des2 = 0;
 	p->des3 = 0;
 }
@@ -406,7 +411,7 @@ static void dwmac4_display_ring(void *head, unsigned int size, bool rx)
 	pr_info("%s descriptor ring:\n", rx ? "RX" : "TX");
 
 	for (i = 0; i < size; i++) {
-		pr_info("%d [0x%x]: 0x%x 0x%x 0x%x 0x%x\n",
+		pr_info("%03d [0x%x]: 0x%x 0x%x 0x%x 0x%x\n",
 			i, (unsigned int)virt_to_phys(p),
 			le32_to_cpu(p->des0), le32_to_cpu(p->des1),
 			le32_to_cpu(p->des2), le32_to_cpu(p->des3));
@@ -420,6 +425,25 @@ static void dwmac4_set_mss_ctxt(struct dma_desc *p, unsigned int mss)
 	p->des1 = 0;
 	p->des2 = cpu_to_le32(mss);
 	p->des3 = cpu_to_le32(TDES3_CONTEXT_TYPE | TDES3_CTXT_TCMSSV);
+}
+
+static void dwmac4_get_addr(struct dma_desc *p, unsigned int *addr)
+{
+	*addr = le32_to_cpu(p->des0);
+}
+
+static void dwmac4_set_addr(struct dma_desc *p, dma_addr_t addr)
+{
+	p->des0 = cpu_to_le32(addr);
+	p->des1 = 0;
+}
+
+static void dwmac4_clear(struct dma_desc *p)
+{
+	p->des0 = 0;
+	p->des1 = 0;
+	p->des2 = 0;
+	p->des3 = 0;
 }
 
 const struct stmmac_desc_ops dwmac4_desc_ops = {
@@ -443,6 +467,9 @@ const struct stmmac_desc_ops dwmac4_desc_ops = {
 	.init_tx_desc = dwmac4_rd_init_tx_desc,
 	.display_ring = dwmac4_display_ring,
 	.set_mss = dwmac4_set_mss_ctxt,
+	.get_addr = dwmac4_get_addr,
+	.set_addr = dwmac4_set_addr,
+	.clear = dwmac4_clear,
 };
 
 const struct stmmac_mode_ops dwmac4_ring_mode_ops = { };

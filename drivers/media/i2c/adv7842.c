@@ -1,21 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * adv7842 - Analog Devices ADV7842 video decoder driver
  *
  * Copyright 2013 Cisco Systems, Inc. and/or its affiliates. All rights reserved.
- *
- * This program is free software; you may redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; version 2 of the License.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
- *
  */
 
 /*
@@ -676,7 +663,7 @@ static const struct v4l2_dv_timings_cap adv7842_timings_cap_analog = {
 	.type = V4L2_DV_BT_656_1120,
 	/* keep this initialization for compatibility with GCC < 4.4.6 */
 	.reserved = { 0 },
-	V4L2_INIT_BT_TIMINGS(0, 1920, 0, 1200, 25000000, 170000000,
+	V4L2_INIT_BT_TIMINGS(640, 1920, 350, 1200, 25000000, 170000000,
 		V4L2_DV_BT_STD_CEA861 | V4L2_DV_BT_STD_DMT |
 			V4L2_DV_BT_STD_GTF | V4L2_DV_BT_STD_CVT,
 		V4L2_DV_BT_CAP_PROGRESSIVE | V4L2_DV_BT_CAP_REDUCED_BLANKING |
@@ -687,7 +674,7 @@ static const struct v4l2_dv_timings_cap adv7842_timings_cap_digital = {
 	.type = V4L2_DV_BT_656_1120,
 	/* keep this initialization for compatibility with GCC < 4.4.6 */
 	.reserved = { 0 },
-	V4L2_INIT_BT_TIMINGS(0, 1920, 0, 1200, 25000000, 225000000,
+	V4L2_INIT_BT_TIMINGS(640, 1920, 350, 1200, 25000000, 225000000,
 		V4L2_DV_BT_STD_CEA861 | V4L2_DV_BT_STD_DMT |
 			V4L2_DV_BT_STD_GTF | V4L2_DV_BT_STD_CVT,
 		V4L2_DV_BT_CAP_PROGRESSIVE | V4L2_DV_BT_CAP_REDUCED_BLANKING |
@@ -799,8 +786,10 @@ static int edid_write_hdmi_segment(struct v4l2_subdev *sd, u8 port)
 	/* Disable I2C access to internal EDID ram from HDMI DDC ports */
 	rep_write_and_or(sd, 0x77, 0xf3, 0x00);
 
-	if (!state->hdmi_edid.present)
+	if (!state->hdmi_edid.present) {
+		cec_phys_addr_invalidate(state->cec_adap);
 		return 0;
+	}
 
 	pa = cec_get_edid_phys_addr(edid, 256, &spa_loc);
 	err = cec_phys_addr_validate(pa, &pa, NULL);
@@ -3115,7 +3104,7 @@ static int adv7842_ddr_ram_test(struct v4l2_subdev *sd)
 	sdp_write(sd, 0x12, 0x00); /* Disable 3D comb, Frame TBC & 3DNR */
 	io_write(sd, 0xFF, 0x04);  /* Reset memory controller */
 
-	mdelay(5);
+	usleep_range(5000, 6000);
 
 	sdp_write(sd, 0x12, 0x00);    /* Disable 3D Comb, Frame TBC & 3DNR */
 	sdp_io_write(sd, 0x2A, 0x01); /* Memory BIST Initialisation */
@@ -3129,12 +3118,12 @@ static int adv7842_ddr_ram_test(struct v4l2_subdev *sd)
 	sdp_io_write(sd, 0x7d, 0x00); /* Memory BIST Initialisation */
 	sdp_io_write(sd, 0x7e, 0x1a); /* Memory BIST Initialisation */
 
-	mdelay(5);
+	usleep_range(5000, 6000);
 
 	sdp_io_write(sd, 0xd9, 0xd5); /* Enable BIST Test */
 	sdp_write(sd, 0x12, 0x05); /* Enable FRAME TBC & 3D COMB */
 
-	mdelay(20);
+	msleep(20);
 
 	for (i = 0; i < 10; i++) {
 		u8 result = sdp_io_read(sd, 0xdb);
@@ -3145,7 +3134,7 @@ static int adv7842_ddr_ram_test(struct v4l2_subdev *sd)
 			else
 				pass++;
 		}
-		mdelay(20);
+		msleep(20);
 	}
 
 	v4l2_dbg(1, debug, sd,
@@ -3467,11 +3456,9 @@ static int adv7842_probe(struct i2c_client *client,
 		return -ENODEV;
 	}
 
-	state = devm_kzalloc(&client->dev, sizeof(struct adv7842_state), GFP_KERNEL);
-	if (!state) {
-		v4l_err(client, "Could not allocate adv7842_state memory!\n");
+	state = devm_kzalloc(&client->dev, sizeof(*state), GFP_KERNEL);
+	if (!state)
 		return -ENOMEM;
-	}
 
 	/* platform data */
 	state->pdata = *pdata;
@@ -3556,6 +3543,7 @@ static int adv7842_probe(struct i2c_client *client,
 	INIT_DELAYED_WORK(&state->delayed_work_enable_hotplug,
 			adv7842_delayed_work_enable_hotplug);
 
+	sd->entity.function = MEDIA_ENT_F_DV_DECODER;
 	state->pad.flags = MEDIA_PAD_FL_SOURCE;
 	err = media_entity_pads_init(&sd->entity, 1, &state->pad);
 	if (err)

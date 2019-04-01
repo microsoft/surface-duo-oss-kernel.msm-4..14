@@ -59,10 +59,12 @@
 #include <asm/unistd_32_ia32.h>
 #endif
 
+#include "process.h"
+
 __visible DEFINE_PER_CPU(unsigned long, rsp_scratch);
 
 /* Prints also some state that isn't saved in the pt_regs */
-void __show_regs(struct pt_regs *regs, int all)
+void __show_regs(struct pt_regs *regs, enum show_regs_mode mode)
 {
 	unsigned long cr0 = 0L, cr2 = 0L, cr3 = 0L, cr4 = 0L, fs, gs, shadowgs;
 	unsigned long d0, d1, d2, d3, d6, d7;
@@ -87,8 +89,16 @@ void __show_regs(struct pt_regs *regs, int all)
 	printk(KERN_DEFAULT "R13: %016lx R14: %016lx R15: %016lx\n",
 	       regs->r13, regs->r14, regs->r15);
 
-	if (!all)
+	if (mode == SHOW_REGS_SHORT)
 		return;
+
+	if (mode == SHOW_REGS_USER) {
+		rdmsrl(MSR_FS_BASE, fs);
+		rdmsrl(MSR_KERNEL_GS_BASE, shadowgs);
+		printk(KERN_DEFAULT "FS:  %016lx GS:  %016lx\n",
+		       fs, shadowgs);
+		return;
+	}
 
 	asm("movl %%ds,%0" : "=r" (ds));
 	asm("movl %%cs,%0" : "=r" (cs));
@@ -204,6 +214,20 @@ static __always_inline void save_fsgs(struct task_struct *task)
 	save_base_legacy(task, task->thread.fsindex, FS);
 	save_base_legacy(task, task->thread.gsindex, GS);
 }
+
+#if IS_ENABLED(CONFIG_KVM)
+/*
+ * While a process is running,current->thread.fsbase and current->thread.gsbase
+ * may not match the corresponding CPU registers (see save_base_legacy()). KVM
+ * wants an efficient way to save and restore FSBASE and GSBASE.
+ * When FSGSBASE extensions are enabled, this will have to use RD{FS,GS}BASE.
+ */
+void save_fsgs_for_kvm(void)
+{
+	save_fsgs(current);
+}
+EXPORT_SYMBOL_GPL(save_fsgs_for_kvm);
+#endif
 
 static __always_inline void loadseg(enum which_selector which,
 				    unsigned short sel)
@@ -400,7 +424,6 @@ __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 	struct fpu *prev_fpu = &prev->fpu;
 	struct fpu *next_fpu = &next->fpu;
 	int cpu = smp_processor_id();
-	struct tss_struct *tss = &per_cpu(cpu_tss_rw, cpu);
 
 	WARN_ON_ONCE(IS_ENABLED(CONFIG_DEBUG_ENTRY) &&
 		     this_cpu_read(irq_count) != -1);
@@ -465,14 +488,9 @@ __switch_to(struct task_struct *prev_p, struct task_struct *next_p)
 	this_cpu_write(cpu_current_top_of_stack, task_top_of_stack(next_p));
 
 	/* Reload sp0. */
-	update_sp0(next_p);
+	update_task_stack(next_p);
 
-	/*
-	 * Now maybe reload the debug registers and handle I/O bitmaps
-	 */
-	if (unlikely(task_thread_info(next_p)->flags & _TIF_WORK_CTXSW_NEXT ||
-		     task_thread_info(prev_p)->flags & _TIF_WORK_CTXSW_PREV))
-		__switch_to_xtra(prev_p, next_p, tss);
+	switch_to_extra(prev_p, next_p);
 
 #ifdef CONFIG_XEN_PV
 	/*
