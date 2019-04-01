@@ -41,7 +41,7 @@
  * @rtc_hz: current frequency of the timer
  */
 struct rtc_s32gen1_priv {
-	void __iomem *rtc_base;
+	u8 __iomem *rtc_base;
 	unsigned int dt_irq_id;
 	struct resource *res;
 	struct kobject *rtc_s32gen1_kobj;
@@ -59,17 +59,17 @@ static void print_rtc(struct platform_device *pdev)
 	struct rtc_s32gen1_priv *priv = platform_get_drvdata(pdev);
 
 	dev_dbg(&pdev->dev, "RTCSUPV = 0x%08x\n",
-		ioread32((u8 *)priv->rtc_base + RTCSUPV_OFFSET));
+		ioread32(priv->rtc_base + RTCSUPV_OFFSET));
 	dev_dbg(&pdev->dev, "RTCC = 0x%08x\n",
-		ioread32((u8 *)priv->rtc_base + RTCC_OFFSET));
+		ioread32(priv->rtc_base + RTCC_OFFSET));
 	dev_dbg(&pdev->dev, "RTCS = 0x%08x\n",
-		ioread32((u8 *)priv->rtc_base + RTCS_OFFSET));
+		ioread32(priv->rtc_base + RTCS_OFFSET));
 	dev_dbg(&pdev->dev, "RTCCNT = 0x%08x\n",
-		ioread32((u8 *)priv->rtc_base + RTCCNT_OFFSET));
+		ioread32(priv->rtc_base + RTCCNT_OFFSET));
 	dev_dbg(&pdev->dev, "APIVAL = 0x%08x\n",
-		ioread32((u8 *)priv->rtc_base + APIVAL_OFFSET));
+		ioread32(priv->rtc_base + APIVAL_OFFSET));
 	dev_dbg(&pdev->dev, "RTCVAL = 0x%08x\n",
-		ioread32((u8 *)priv->rtc_base + RTCVAL_OFFSET));
+		ioread32(priv->rtc_base + RTCVAL_OFFSET));
 }
 
 /* Convert a number of seconds to a value suitable for RTCVAL in our clock's
@@ -93,7 +93,7 @@ static int s32gen1_sec_to_rtcval(const struct rtc_s32gen1_priv *priv,
 	 * too much before we get to enable the interrupt)
 	 */
 	delta_cnt = seconds * priv->rtc_hz;
-	rtccnt = ioread32((u8 *)priv->rtc_base + RTCCNT_OFFSET);
+	rtccnt = ioread32(priv->rtc_base + RTCCNT_OFFSET);
 	/* ~rtccnt just stands for (ULONG_MAX - rtccnt) */
 	if (~rtccnt < delta_cnt)
 		target_cnt = (delta_cnt - ~rtccnt);
@@ -113,7 +113,7 @@ static irqreturn_t s32gen1_rtc_handler(int irq, void *dev)
 	struct rtc_s32gen1_priv *priv = platform_get_drvdata(dev);
 
 	/* Clear the IRQ */
-	iowrite32(RTCS_RTCF, (u8 *)priv->rtc_base + RTCS_OFFSET);
+	iowrite32(RTCS_RTCF, priv->rtc_base + RTCS_OFFSET);
 
 	return IRQ_HANDLED;
 }
@@ -154,12 +154,12 @@ static int s32gen1_alarm_irq_enable(struct device *dev, unsigned int enabled)
 	if (!priv->dt_irq_id)
 		return -EIO;
 
-	rtcc_val = ioread32((u8 *)priv->rtc_base + RTCC_OFFSET);
+	rtcc_val = ioread32(priv->rtc_base + RTCC_OFFSET);
 	if (enabled)
 		rtcc_val |= RTCC_RTCIE;
 	else
 		rtcc_val &= ~RTCC_RTCIE;
-	iowrite32(rtcc_val, (u8 *)priv->rtc_base + RTCC_OFFSET);
+	iowrite32(rtcc_val, priv->rtc_base + RTCC_OFFSET);
 
 	return 0;
 }
@@ -198,7 +198,7 @@ static int s32gen1_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alrm)
 		dev_warn(dev, "Alarm too far in the future\n");
 		goto err_sec_to_rtcval;
 	}
-	iowrite32(rtcval, (u8 *)priv->rtc_base + RTCVAL_OFFSET);
+	iowrite32(rtcval, priv->rtc_base + RTCVAL_OFFSET);
 
 err_sec_to_rtcval:
 	ret = s32gen1_alarm_irq_enable(dev, !!alrm->enabled);
@@ -214,18 +214,18 @@ static const struct rtc_class_ops s32gen1_rtc_ops = {
 
 static void s32gen1_rtc_disable(struct rtc_s32gen1_priv *priv)
 {
-	u32 rtcc = ioread32((u8 *)priv->rtc_base + RTCC_OFFSET);
+	u32 rtcc = ioread32(priv->rtc_base + RTCC_OFFSET);
 
 	rtcc &= ~RTCC_CNTEN;
-	iowrite32(rtcc, (u8 *)priv->rtc_base + RTCC_OFFSET);
+	iowrite32(rtcc, priv->rtc_base + RTCC_OFFSET);
 }
 
 static void s32gen1_rtc_enable(struct rtc_s32gen1_priv *priv)
 {
-	u32 rtcc = ioread32((u8 *)priv->rtc_base + RTCC_OFFSET);
+	u32 rtcc = ioread32(priv->rtc_base + RTCC_OFFSET);
 
 	rtcc |= RTCC_CNTEN;
-	iowrite32(rtcc, (u8 *)priv->rtc_base + RTCC_OFFSET);
+	iowrite32(rtcc, priv->rtc_base + RTCC_OFFSET);
 }
 
 static unsigned long s32gen1_get_firc_hz(void)
@@ -280,7 +280,7 @@ static int s32gen1_rtc_init(struct rtc_s32gen1_priv *priv)
 	}
 
 	rtcc |= RTCC_RTCIE;
-	iowrite32(rtcc, (u8 *)priv->rtc_base + RTCC_OFFSET);
+	iowrite32(rtcc, priv->rtc_base + RTCC_OFFSET);
 
 	return 0;
 }
@@ -351,7 +351,7 @@ static int s32gen1_rtc_probe(struct platform_device *pdev)
 		goto err_platform_get_resource;
 	}
 
-	priv->rtc_base = (u8 *)devm_ioremap_nocache(&pdev->dev,
+	priv->rtc_base = devm_ioremap_nocache(&pdev->dev,
 		priv->res->start, (priv->res->end - priv->res->start));
 	if (!priv->rtc_base) {
 		dev_err(&pdev->dev, "Failed to map IO address 0x%016llx\n",
@@ -421,8 +421,8 @@ static int s32gen1_rtc_remove(struct platform_device *pdev)
 	u32 rtcc_val;
 	struct rtc_s32gen1_priv *priv = platform_get_drvdata(pdev);
 
-	rtcc_val = ioread32((u8 *)priv->rtc_base + RTCC_OFFSET);
-	iowrite32(rtcc_val & (~RTCC_CNTEN), (u8 *)priv->rtc_base + RTCC_OFFSET);
+	rtcc_val = ioread32(priv->rtc_base + RTCC_OFFSET);
+	iowrite32(rtcc_val & (~RTCC_CNTEN), priv->rtc_base + RTCC_OFFSET);
 
 	release_resource(priv->res);
 
