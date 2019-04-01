@@ -124,13 +124,16 @@ static int s32gen1_rtc_read_time(struct device *dev, struct rtc_time *tm)
 	 * we won't have a monotonic timestamp, in case someone wants to use
 	 * this RTC as the system timer.
 	 */
+	static struct rtc_time stm = {
+		.tm_year = 118,	/* 2018 */
+		.tm_mon = 7,	/* August */
+		.tm_mday = 10,
+		.tm_hour = 18,
+	};
+
 	if (!tm)
 		return -EINVAL;
-	memset(tm, 0, sizeof(*tm));
-	tm->tm_year = 118;	/* 2018 */
-	tm->tm_mon = 7;		/* August */
-	tm->tm_mday = 10;
-	tm->tm_hour = 18;
+	*tm = stm;
 
 	return 0;
 }
