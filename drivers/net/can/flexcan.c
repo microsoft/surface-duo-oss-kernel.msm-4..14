@@ -139,7 +139,9 @@
 #define FLEXCAN_TX_MB_RESERVED_OFF_FIFO		8
 #define FLEXCAN_TX_MB_RESERVED_OFF_TIMESTAMP	0
 #define FLEXCAN_RX_MB_OFF_TIMESTAMP_FIRST	(FLEXCAN_TX_MB_RESERVED_OFF_TIMESTAMP + 1)
-#define FLEXCAN_IFLAG_MB(x)		BIT(x & 0x1f)
+#define FLEXCAN_IFLAG1_MB_NUM		32
+#define FLEXCAN_IFLAG1_MB(x)		BIT(x)
+#define FLEXCAN_IFLAG2_MB(x)		BIT((x) & 0x1f)
 #define FLEXCAN_IFLAG_RX_FIFO_OVERFLOW	BIT(7)
 #define FLEXCAN_IFLAG_RX_FIFO_WARN	BIT(6)
 #define FLEXCAN_IFLAG_RX_FIFO_AVAILABLE	BIT(5)
@@ -765,14 +767,12 @@ static unsigned int flexcan_mailbox_read(struct can_rx_offload *offload,
 	return 1;
 }
 
-
 static inline u64 flexcan_read_reg_iflag_rx(struct flexcan_priv *priv)
 {
 	struct flexcan_regs __iomem *regs = priv->regs;
 	u32 iflag1, iflag2;
 
-	iflag2 = priv->read(&regs->iflag2) & priv->reg_imask2_default &
-		~FLEXCAN_IFLAG_MB(priv->tx_mb_idx);
+	iflag2 = priv->read(&regs->iflag2) & priv->reg_imask2_default;
 	iflag1 = priv->read(&regs->iflag1) & priv->reg_imask1_default;
 
 	return (u64)iflag2 << 32 | iflag1;
@@ -785,7 +785,8 @@ static irqreturn_t flexcan_irq(int irq, void *dev_id)
 	struct flexcan_priv *priv = netdev_priv(dev);
 	struct flexcan_regs __iomem *regs = priv->regs;
 	irqreturn_t handled = IRQ_NONE;
-	u32 reg_iflag2, reg_esr;
+	u32 reg_tx_iflag, tx_iflag_mask, reg_esr;
+	u32 __iomem *reg_iflag_ptr;
 	enum can_state last_state = priv->can.state;
 
 	/* reception interrupt */
@@ -819,10 +820,18 @@ static irqreturn_t flexcan_irq(int irq, void *dev_id)
 		}
 	}
 
-	reg_iflag2 = priv->read(&regs->iflag2);
+	if (priv->tx_mb_idx >= FLEXCAN_IFLAG1_MB_NUM) {
+		reg_tx_iflag = priv->read(&regs->iflag2);
+		tx_iflag_mask = FLEXCAN_IFLAG2_MB(priv->tx_mb_idx);
+		reg_iflag_ptr = &regs->iflag2;
+	} else {
+		reg_tx_iflag = priv->read(&regs->iflag1);
+		tx_iflag_mask = FLEXCAN_IFLAG1_MB(priv->tx_mb_idx);
+		reg_iflag_ptr = &regs->iflag1;
+	}
 
 	/* transmission complete interrupt */
-	if (reg_iflag2 & FLEXCAN_IFLAG_MB(priv->tx_mb_idx)) {
+	if (reg_tx_iflag & tx_iflag_mask) {
 		u32 reg_ctrl = priv->read(&priv->tx_mb->can_ctrl);
 
 		handled = IRQ_HANDLED;
@@ -834,7 +843,7 @@ static irqreturn_t flexcan_irq(int irq, void *dev_id)
 		/* after sending a RTR frame MB is in RX mode */
 		priv->write(FLEXCAN_MB_CODE_TX_INACTIVE,
 			    &priv->tx_mb->can_ctrl);
-		priv->write(FLEXCAN_IFLAG_MB(priv->tx_mb_idx), &regs->iflag2);
+		priv->write(tx_iflag_mask, reg_iflag_ptr);
 		netif_wake_queue(dev);
 	}
 
@@ -1172,8 +1181,13 @@ static int flexcan_open(struct net_device *dev)
 	priv->tx_mb_idx = priv->mb_count - 1;
 	priv->tx_mb = flexcan_get_mb(priv, priv->tx_mb_idx);
 
-	priv->reg_imask1_default = 0;
-	priv->reg_imask2_default = FLEXCAN_IFLAG_MB(priv->tx_mb_idx);
+	if (priv->tx_mb_idx >= FLEXCAN_IFLAG1_MB_NUM) {
+		priv->reg_imask1_default = 0;
+		priv->reg_imask2_default = FLEXCAN_IFLAG2_MB(priv->tx_mb_idx);
+	} else {
+		priv->reg_imask1_default = FLEXCAN_IFLAG1_MB(priv->tx_mb_idx);
+		priv->reg_imask2_default = 0;
+	}
 
 	priv->offload.mailbox_read = flexcan_mailbox_read;
 
