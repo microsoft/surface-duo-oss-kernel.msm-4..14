@@ -3,7 +3,7 @@
  * driver by Fugang Duan <B38611@freescale.com>)
  *
  * Copyright 2013 Freescale Semiconductor, Inc.
- * Copyright 2017 NXP
+ * Copyright 2017-2019 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -534,7 +534,6 @@ static int s32v_write_raw(struct iio_dev *indio_dev,
 }
 
 static const struct iio_info s32v_adc_iio_info = {
-	.driver_module = THIS_MODULE,
 	.read_raw = &s32v_read_raw,
 	.write_raw = &s32v_write_raw,
 };
