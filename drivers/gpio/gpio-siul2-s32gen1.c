@@ -2,6 +2,7 @@
  * SIUL2 GPIO support.
  *
  * Copyright (c) 2016 Freescale Semiconductor, Inc.
+ * Copyright 2019 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 or
@@ -166,12 +167,12 @@ static int siul2_gpio_dir_out(struct gpio_chip *chip, unsigned int gpio,
 
 static int siul2_gpio_request(struct gpio_chip *chip, unsigned int gpio_pin)
 {
-	return pinctrl_request_gpio(chip->base + gpio_pin);
+	return pinctrl_gpio_request(chip->base + gpio_pin);
 }
 
 static void siul2_gpio_free(struct gpio_chip *chip, unsigned int offset)
 {
-	pinctrl_free_gpio(chip->base + offset);
+	pinctrl_gpio_free(chip->base + offset);
 }
 
 static int siul2_gpio_irq_set_type(struct irq_data *d, unsigned int type)
@@ -244,7 +245,7 @@ static void siul2_gpio_irq_handler(struct irq_desc *desc)
 
 	for_each_set_bit(pin, &disr0_val_long,
 					 BITS_PER_BYTE * sizeof(disr0_val)) {
-		int child_irq = irq_find_mapping(gc->irqdomain, pin);
+		int child_irq = irq_find_mapping(gc->irq.domain, pin);
 
 		/*
 		 * Clear the interrupt before invoking the
