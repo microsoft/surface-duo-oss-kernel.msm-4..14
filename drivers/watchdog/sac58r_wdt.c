@@ -2,7 +2,7 @@
  * Watchdog driver for SAC58R SoC
  *
  *  Copyright (C) 2014 Freescale Semiconductor, Inc.
- *  Copyright 2017-2018 NXP.
+ *  Copyright 2017-2019 NXP.
  *
  * Based on imx2_wdt.c
  * Drives the Software Watchdog Timer module
@@ -17,6 +17,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
+#include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/watchdog.h>
 #include <linux/clk.h>
@@ -98,14 +99,14 @@ static int sac58r_wdt_ping(struct watchdog_device *wdog)
 	return 0;
 }
 
-static void sac58r_wdt_timer_ping(unsigned long arg)
+static void sac58r_wdt_timer_ping(struct timer_list *t)
 {
-	struct watchdog_device *wdog = (struct watchdog_device *)arg;
-	struct sac58r_wdt_device *wdev = watchdog_get_drvdata(wdog);
+	struct sac58r_wdt_device *wdev = from_timer(wdev, t, timer);
+	struct watchdog_device wdog = wdev->wdog;
 
-	sac58r_wdt_ping(wdog);
+	sac58r_wdt_ping(&wdog);
 	mod_timer(&wdev->timer,
-		jiffies + wdog->timeout * (unsigned long)HZ / 2);
+		jiffies + wdog.timeout * (unsigned long)HZ / 2);
 }
 
 static void sac58r_wdt_setup(struct watchdog_device *wdog)
@@ -160,7 +161,9 @@ static int sac58r_wdt_start(struct watchdog_device *wdog)
 
 static int sac58r_wdt_stop(struct watchdog_device *wdog)
 {
-	sac58r_wdt_timer_ping((unsigned long)wdog);
+	struct sac58r_wdt_device *wdev = watchdog_get_drvdata(wdog);
+
+	sac58r_wdt_timer_ping(&wdev->timer);
 
 	return 0;
 }
@@ -216,7 +219,7 @@ static int __init sac58r_wdt_probe(struct platform_device *pdev)
 		dev_warn(&pdev->dev, "timeout out of range! Clamped from %u to %u\n",
 			timeout, wdog->timeout);
 
-	setup_timer(&wdev->timer, sac58r_wdt_timer_ping, (unsigned long)wdog);
+	timer_setup(&wdev->timer, sac58r_wdt_timer_ping, 0);
 
 	platform_set_drvdata(pdev, wdog);
 	watchdog_set_drvdata(wdog, wdev);
