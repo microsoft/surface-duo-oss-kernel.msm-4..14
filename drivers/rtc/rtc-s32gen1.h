@@ -14,26 +14,32 @@
 #define RTC_S32GEN1_H_
 
 #define RTCSUPV_OFFSET	0x0ul
-#define RTCC_OFFSET		0x4ul
-#define RTCS_OFFSET		0x8ul
+#define RTCC_OFFSET	0x4ul
+#define RTCS_OFFSET	0x8ul
 #define RTCCNT_OFFSET	0xCul
 #define APIVAL_OFFSET	0x10ul
 #define RTCVAL_OFFSET	0x14ul
 
-#define SUPV			BIT(31)
-#define CNTEN			BIT(31)
-#define RTCIE			BIT(30)
-#define ROVREN			BIT(28)
-#define APIEN			BIT(15)
-#define APIIE			BIT(14)
-#define CLKSEL_MASK		(BIT(12) | BIT(13))
-#define CLKSEL(n)		((n << 12) & CLKSEL_MASK)
-#define DIV512EN		BIT(11)
-#define DIV32EN			BIT(10)
-#define RTCF			BIT(29)
-#define APIF			BIT(13)
-#define ROVRF			BIT(10)
+/* RTCSUPV fields */
+#define RTCSUPV_SUPV		BIT(31)
+/* RTCC fields */
+#define RTCC_CNTEN		BIT(31)
+#define RTCC_RTCIE_SHIFT	30
+#define RTCC_RTCIE		BIT(RTCC_RTCIE_SHIFT)
+#define RTCC_ROVREN		BIT(28)
+#define RTCC_APIEN		BIT(15)
+#define RTCC_APIIE		BIT(14)
+#define RTCC_CLKSEL_MASK	(BIT(12) | BIT(13))
+#define RTCC_CLKSEL(n)		((n << 12) & RTCC_CLKSEL_MASK)
+#define RTCC_DIV512EN		BIT(11)
+#define RTCC_DIV32EN		BIT(10)
+/* RTCS fields */
+#define RTCS_RTCF		BIT(29)
+#define RTCS_APIF		BIT(13)
+#define RTCS_ROVRF		BIT(10)
 
-#define RTCVAL_VALUE	0xfff00ul
+/* Clock sources - usable with RTCC_CLKSEL */
+#define S32GEN1_RTC_SOURCE_FIRC	0x2
+#define S32GEN1_RTC_SOURCE_SIRC	0x0
 
 #endif /* RTC_S32GEN1_H_ */
