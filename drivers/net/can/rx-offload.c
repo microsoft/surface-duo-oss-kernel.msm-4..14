@@ -55,11 +55,11 @@ static int can_rx_offload_napi_poll(struct napi_struct *napi, int quota)
 
 	while ((work_done < quota) &&
 	       (skb = skb_dequeue(&offload->skb_queue))) {
-		struct can_frame *cf = (struct can_frame *)skb->data;
+		struct canfd_frame *cf = (struct canfd_frame *)skb->data;
 
 		work_done++;
 		stats->rx_packets++;
-		stats->rx_bytes += cf->can_dlc;
+		stats->rx_bytes += cf->len;
 		netif_receive_skb(skb);
 	}
 
@@ -120,16 +120,20 @@ static struct sk_buff *can_rx_offload_offload_one(struct can_rx_offload *offload
 {
 	struct sk_buff *skb = NULL;
 	struct can_rx_offload_cb *cb;
-	struct can_frame *cf;
+	struct canfd_frame *cf;
 	int ret;
 
 	/* If queue is full or skb not available, read to discard mailbox */
 	if (likely(skb_queue_len(&offload->skb_queue) <=
-		   offload->skb_queue_len_max))
-		skb = alloc_can_skb(offload->dev, &cf);
+		   offload->skb_queue_len_max)) {
+		if (offload->is_canfd)
+			skb = alloc_canfd_skb(offload->dev, &cf);
+		else
+			skb = alloc_can_skb(offload->dev, (struct can_frame **)&cf);
+	}
 
 	if (!skb) {
-		struct can_frame cf_overflow;
+		struct canfd_frame cf_overflow;
 		u32 timestamp;
 
 		ret = offload->mailbox_read(offload, &cf_overflow,
