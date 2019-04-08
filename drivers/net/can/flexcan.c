@@ -798,12 +798,13 @@ static inline struct flexcan_priv *rx_offload_to_priv(struct can_rx_offload *off
 }
 
 static unsigned int flexcan_mailbox_read(struct can_rx_offload *offload,
-					 struct canfd_frame *cf,
+					 bool drop, struct sk_buff **skb,
 					 u32 *timestamp, unsigned int n)
 {
 	struct flexcan_priv *priv = rx_offload_to_priv(offload);
 	struct flexcan_regs __iomem *regs = priv->regs;
 	struct flexcan_mb __iomem *mb;
+	struct canfd_frame *cf;
 	u32 reg_ctrl, reg_id, reg_iflag1;
 	int i, j;
 
@@ -835,37 +836,50 @@ static unsigned int flexcan_mailbox_read(struct can_rx_offload *offload,
 		reg_ctrl = priv->read(&mb->can_ctrl);
 	}
 
-	/* increase timstamp to full 32 bit */
-	*timestamp = reg_ctrl << 16;
+	if (!drop) {
+		if (reg_ctrl & FLEXCAN_MB_CNT_EDL)
+			*skb = alloc_canfd_skb(offload->dev, &cf);
+		else
+			*skb = alloc_can_skb(offload->dev,
+					     (struct can_frame **)&cf);
 
-	reg_id = priv->read(&mb->can_id);
-	if (reg_ctrl & FLEXCAN_MB_CNT_IDE)
-		cf->can_id = ((reg_id >> 0) & CAN_EFF_MASK) | CAN_EFF_FLAG;
-	else
-		cf->can_id = (reg_id >> 18) & CAN_SFF_MASK;
+		if (!*skb)
+			goto ack_mailbox;
 
-	if (reg_ctrl & FLEXCAN_MB_CNT_EDL) {
-		cf->len = can_dlc2len((reg_ctrl >> 16) & 0x0F);
+		/* increase timstamp to full 32 bit */
+		*timestamp = reg_ctrl << 16;
 
-		if (reg_ctrl & FLEXCAN_MB_CNT_BRS)
-			cf->flags |= CANFD_BRS;
-	} else {
-		cf->len = get_can_dlc((reg_ctrl >> 16) & 0x0F);
+		reg_id = priv->read(&mb->can_id);
+		if (reg_ctrl & FLEXCAN_MB_CNT_IDE)
+			cf->can_id = ((reg_id >> 0) & CAN_EFF_MASK) |
+				     CAN_EFF_FLAG;
+		else
+			cf->can_id = (reg_id >> 18) & CAN_SFF_MASK;
 
-		if (reg_ctrl & FLEXCAN_MB_CNT_RTR)
-			cf->can_id |= CAN_RTR_FLAG;
+		if (reg_ctrl & FLEXCAN_MB_CNT_EDL) {
+			cf->len = can_dlc2len((reg_ctrl >> 16) & 0x0F);
+
+			if (reg_ctrl & FLEXCAN_MB_CNT_BRS)
+				cf->flags |= CANFD_BRS;
+		} else {
+			cf->len = get_can_dlc((reg_ctrl >> 16) & 0x0F);
+
+			if (reg_ctrl & FLEXCAN_MB_CNT_RTR)
+				cf->can_id |= CAN_RTR_FLAG;
+		}
+
+		if (reg_ctrl & FLEXCAN_MB_CNT_ESI) {
+			cf->flags |= CANFD_ESI;
+			netdev_warn(priv->can.dev, "ESI Error\n");
+		}
+
+		for (i = 0, j = 0; i < cf->len; i += sizeof(u32), j++) {
+			__be32 data = cpu_to_be32(priv->read(&mb->data[j]));
+			*(__be32 *)(cf->data + i) = data;
+		}
 	}
 
-	if (reg_ctrl & FLEXCAN_MB_CNT_ESI) {
-		cf->flags |= CANFD_ESI;
-		netdev_warn(priv->can.dev, "ESI Error\n");
-	}
-
-	for (i = 0, j = 0; i < cf->len; i += sizeof(u32), j++) {
-		__be32 data = cpu_to_be32(priv->read(&mb->data[j]));
-		*(__be32 *)(cf->data + i) = data;
-	}
-
+ack_mailbox:
 	/* mark as read */
 	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_USE_OFF_TIMESTAMP) {
 		/* Clear IRQ */
@@ -1209,8 +1223,6 @@ static int flexcan_chip_start(struct net_device *dev)
 			priv->write(reg_ctrl2 | FLEXCAN_CTRL2_ISOCANFDEN, &regs->ctrl2);
 		else
 			priv->write(reg_ctrl2 & ~FLEXCAN_CTRL2_ISOCANFDEN, &regs->ctrl2);
-
-		priv->offload.is_canfd = true;
 	}
 
 	if ((priv->devtype_data->quirks & FLEXCAN_QUIRK_ENABLE_EACEN_RRS)) {
@@ -1649,7 +1661,6 @@ static int flexcan_probe(struct platform_device *pdev)
 	priv->clk_per = clk_per;
 	priv->devtype_data = devtype_data;
 	priv->reg_xceiver = reg_xceiver;
-	priv->offload.is_canfd = false;
 
 	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_TIMESTAMP_SUPPORT_FD) {
 		if (!(priv->devtype_data->quirks &
