@@ -6,7 +6,7 @@
 // Copyright (c) 2009 Sascha Hauer, Pengutronix
 // Copyright (c) 2010-2017 Pengutronix, Marc Kleine-Budde <kernel@pengutronix.de>
 // Copyright (c) 2014 David Jander, Protonic Holland
-// Copyright 2015,2018 NXP
+// Copyright 2015,2018,2019 NXP
 //
 // Based on code originally by Andrey Volkov <avolkov@varma-el.com>
 
@@ -23,6 +23,7 @@
 #include <linux/module.h>
 #include <linux/of.h>
 #include <linux/of_device.h>
+#include <linux/of_address.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/consumer.h>
 
@@ -196,6 +197,10 @@
 
 #define FLEXCAN_TIMEOUT_US		(50)
 
+/* OTP Bank0 Word4 (OCOTP_CFG3) address and bits */
+#define OCOTP_CFG3			0x440
+#define OCOTP_CFG3_CAN_FD_DISABLE	BIT(7)
+
 /* FLEXCAN hardware feature flags
  *
  * Below is some version info we got:
@@ -344,7 +349,9 @@ static const struct flexcan_devtype_data fsl_ls1021a_r2_devtype_data = {
 };
 
 static struct flexcan_devtype_data fsl_s32v234_devtype_data = {
-	.quirks = FLEXCAN_QUIRK_DISABLE_RXFG | FLEXCAN_QUIRK_DISABLE_MECR,
+	.quirks = FLEXCAN_QUIRK_DISABLE_RXFG | FLEXCAN_QUIRK_DISABLE_MECR |
+		FLEXCAN_QUIRK_USE_OFF_TIMESTAMP |
+		FLEXCAN_QUIRK_TIMESTAMP_SUPPORT_FD,
 };
 
 static struct flexcan_devtype_data fsl_s32gen1_devtype_data = {
@@ -418,6 +425,41 @@ static inline u32 flexcan_read_le(void __iomem *addr)
 static inline void flexcan_write_le(u32 val, void __iomem *addr)
 {
 	iowrite32(val, addr);
+}
+
+static inline int flexcan_request_fd(struct device *dev, bool *allowed)
+{
+	struct device_node *otp_node;
+	u32 cfg3;
+	void __iomem *otp_regs;
+
+	*allowed = false;
+
+	if (!of_device_is_compatible(dev->of_node, "fsl,s32v234-flexcan")) {
+		*allowed = true;
+		return 0;
+	}
+
+	otp_node = of_parse_phandle(dev->of_node, "s32v234-ocotp", 0);
+	if (!otp_node) {
+		dev_info(dev, "OCOTP node not found. CAN FD support is disabled.\n");
+		return 0;
+	}
+
+	otp_regs = of_iomap(otp_node, 0);
+	if (!otp_regs) {
+		dev_warn(dev, "Cannot map OCOTP registers. CAN FD support is disabled.\n");
+		return -ENOMEM;
+	}
+
+	cfg3 = readl(otp_regs + OCOTP_CFG3);
+	if (cfg3 & OCOTP_CFG3_CAN_FD_DISABLE) {
+		dev_info(dev, "CAN FD is not supported by hardware.\n");
+		return 0;
+	}
+
+	*allowed = true;
+	return 0;
 }
 
 static struct flexcan_mb __iomem *flexcan_get_mb(const struct flexcan_priv *priv,
@@ -1527,6 +1569,7 @@ static int flexcan_probe(struct platform_device *pdev)
 	struct flexcan_regs __iomem *regs;
 	int err, irq;
 	u32 clock_freq = 0;
+	bool fd_allowed;
 
 	reg_xceiver = devm_regulator_get(&pdev->dev, "xceiver");
 	if (PTR_ERR(reg_xceiver) == -EPROBE_DEFER)
@@ -1615,9 +1658,18 @@ static int flexcan_probe(struct platform_device *pdev)
 			err = -EINVAL;
 			goto failed_fd_check;
 		}
-		priv->can.ctrlmode_supported |= CAN_CTRLMODE_FD | CAN_CTRLMODE_FD_NON_ISO;
-		priv->can.bittiming_const = &flexcan_fd_bittiming_const;
-		priv->can.data_bittiming_const = &flexcan_fd_data_bittiming_const;
+
+		err = flexcan_request_fd(&pdev->dev, &fd_allowed);
+		if (err)
+			goto failed_fd_check;
+
+		if (fd_allowed) {
+			priv->can.ctrlmode_supported |= CAN_CTRLMODE_FD |
+				CAN_CTRLMODE_FD_NON_ISO;
+			priv->can.bittiming_const = &flexcan_fd_bittiming_const;
+			priv->can.data_bittiming_const =
+				&flexcan_fd_data_bittiming_const;
+		}
 	}
 
 	err = register_flexcandev(dev);
