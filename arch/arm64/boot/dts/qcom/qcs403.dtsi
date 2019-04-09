@@ -28,9 +28,9 @@
 		clocks = <&clock_cpu APCS_MUX_CLK>;
 
 		qcom,cpufreq-table =
-			 < 1094400 >,
-			 < 1248000 >,
-			 < 1401600 >;
+			< 1094400 >,
+			< 1248000 >,
+			< 1401600 >;
 	};
 
 	/delete-node/ qcom,cpu0-computemon;
