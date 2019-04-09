@@ -134,7 +134,7 @@ static void notify_netlink_uevent(const char *iface, struct idletimer_tg *timer)
 		return;
 	}
 
-	get_monotonic_boottime(&ts);
+	ts = ktime_to_timespec(ktime_get_boottime());
 	state = check_for_delayed_trigger(timer, &ts);
 	res = snprintf(state_msg, NLMSG_MAX_SIZE, "STATE=%s",
 			state ? "active" : "inactive");
@@ -173,8 +173,6 @@ static
 struct idletimer_tg *__idletimer_tg_find_by_label(const char *label)
 {
 	struct idletimer_tg *entry;
-
-	BUG_ON(!label);
 
 	list_for_each_entry(entry, &idletimer_tg_list, entry) {
 		if (!strcmp(label, entry->attr.attr.name))
@@ -244,7 +242,8 @@ static int idletimer_resume(struct notifier_block *notifier,
 		return NOTIFY_DONE;
 	switch (pm_event) {
 	case PM_SUSPEND_PREPARE:
-		get_monotonic_boottime(&timer->last_suspend_time);
+		timer->last_suspend_time =
+			ktime_to_timespec(ktime_get_boottime());
 		break;
 	case PM_POST_SUSPEND:
 		spin_lock_bh(&timestamp_lock);
@@ -255,7 +254,7 @@ static int idletimer_resume(struct notifier_block *notifier,
 		/* since jiffies are not updated when suspended now represents
 		 * the time it would have suspended */
 		if (time_after(timer->timer.expires, now)) {
-			get_monotonic_boottime(&ts);
+			ts = ktime_to_timespec(ktime_get_boottime());
 			ts = timespec_sub(ts, timer->last_suspend_time);
 			time_diff = timespec_to_jiffies(&ts);
 			if (timer->timer.expires > (time_diff + now)) {
@@ -277,6 +276,22 @@ static int idletimer_resume(struct notifier_block *notifier,
 	return NOTIFY_DONE;
 }
 
+static int idletimer_check_sysfs_name(const char *name, unsigned int size)
+{
+	int ret;
+
+	ret = xt_check_proc_name(name, size);
+	if (ret < 0)
+		return ret;
+
+	if (!strcmp(name, "power") ||
+	    !strcmp(name, "subsystem") ||
+	    !strcmp(name, "uevent"))
+		return -EINVAL;
+
+	return 0;
+}
+
 static int idletimer_tg_create(struct idletimer_tg_info *info)
 {
 	int ret;
@@ -286,6 +301,10 @@ static int idletimer_tg_create(struct idletimer_tg_info *info)
 		ret = -ENOMEM;
 		goto out;
 	}
+
+	ret = idletimer_check_sysfs_name(info->label, sizeof(info->label));
+	if (ret < 0)
+		goto out_free_timer;
 
 	sysfs_attr_init(&info->timer->attr.attr);
 	info->timer->attr.attr.name = kstrdup(info->label, GFP_KERNEL);
@@ -314,7 +333,7 @@ static int idletimer_tg_create(struct idletimer_tg_info *info)
 	info->timer->delayed_timer_trigger.tv_nsec = 0;
 	info->timer->work_pending = false;
 	info->timer->uid = 0;
-	get_monotonic_boottime(&info->timer->last_modified_timer);
+	info->timer->last_modified_timer = ktime_to_timespec(ktime_get_boottime());
 
 	info->timer->pm_nb.notifier_call = idletimer_resume;
 	ret = register_pm_notifier(&info->timer->pm_nb);
@@ -367,7 +386,7 @@ static void reset_timer(const struct idletimer_tg_info *info,
 		}
 	}
 
-	get_monotonic_boottime(&timer->last_modified_timer);
+	timer->last_modified_timer = ktime_to_timespec(ktime_get_boottime());
 	mod_timer(&timer->timer,
 			msecs_to_jiffies(info->timeout * 1000) + now);
 	spin_unlock_bh(&timestamp_lock);
