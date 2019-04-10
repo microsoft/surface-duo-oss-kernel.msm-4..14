@@ -18,6 +18,8 @@
  * General Public License.
  */
 
+#include <uapi/linux/mount.h>
+
 #include "sdcardfs.h"
 
 /*
