@@ -31,7 +31,7 @@ struct dcu_fb_data {
  ****************************************/
 struct mfb_info {
 	int index;
-	unsigned long pseudo_palette[16];
+	u32 pseudo_palette[256];
 	unsigned char alpha;
 	unsigned char blend;
 	unsigned int count;
