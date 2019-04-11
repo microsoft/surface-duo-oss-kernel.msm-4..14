@@ -252,7 +252,7 @@ static int fsl_fb_setcolreg(unsigned regno, unsigned red, unsigned green,
 		 * 16-bit True Colour. We encode the RGB value
 		 * according to the RGB bitfield information.
 		 */
-		if (regno < 16) {
+		if (regno < 256) {
 			u32 *pal = info->pseudo_palette;
 
 			red = CNVT_TOHW(red, info->var.red.length);
@@ -287,6 +287,10 @@ int fsl_fb_setcmap(struct fb_cmap *cmap, struct fb_info *info)
 	struct dcu_fb_data *dcufb = mfbi->parent;
 	int ret = 0;
 
+	int i, start;
+	u16 *red, *green, *blue, *transp;
+	u_int hred, hgreen, hblue, htransp = 0xffff;
+
 	__TRACE__;
 
 	if (!cmap)
@@ -296,6 +300,25 @@ int fsl_fb_setcmap(struct fb_cmap *cmap, struct fb_info *info)
 
 	if (ret == 0)
 		ret = fb_copy_cmap(cmap, &info->cmap);
+
+	if (ret == 0) {
+		red	= cmap->red;
+		green	= cmap->green;
+		blue	= cmap->blue;
+		transp	= cmap->transp;
+		start	= cmap->start;
+
+		for (i = 0; i < cmap->len; i++) {
+			hred	= *red++;
+			hgreen	= *green++;
+			hblue	= *blue++;
+			if (transp)
+				htransp = *transp++;
+			if (fsl_fb_setcolreg(start++, hred, hgreen, hblue,
+						htransp, info))
+				break;
+		}
+	}
 
 	/* CLUT layout will be 256 entries per layer for up to 8 layers */
 	if (mfbi->index >= 8) {
@@ -601,13 +624,7 @@ static int fsl_fb_install(struct fb_info *info,
 	info->var.activate = FB_ACTIVATE_NOW;
 	info->fbops = &fsl_dcu_ops;
 	info->flags = FBINFO_FLAG_DEFAULT;
-	info->pseudo_palette = &mfbi->pseudo_palette;
-
-	ret = register_framebuffer(info);
-	if (ret < 0) {
-		dev_err(dcufb->dev, "Failed to register framebuffer device.\n");
-		goto fb_install_failed;
-	}
+	info->pseudo_palette = mfbi->pseudo_palette;
 
 	fb_alloc_cmap(&info->cmap, 16, 0);
 
@@ -659,6 +676,12 @@ static int fsl_fb_install(struct fb_info *info,
 			fb_vformat != NULL ? fb_vformat->surf_format_idx : 0);
 	fsl_fb_check_var(&info->var, info);
 
+	ret = register_framebuffer(info);
+	if (ret < 0) {
+		dev_err(dcufb->dev, "Failed to register framebuffer device.\n");
+		return ret;
+	}
+
 	dev_info(fsl_dcu_get_dcufb()->dev,
 		"Selected video mode on </dev/fb%d> : <%d x %d>\n",
 		mfbi->index, info->var.xres, info->var.yres);
@@ -666,7 +689,6 @@ static int fsl_fb_install(struct fb_info *info,
 	return 0;
 
 fb_install_failed:
-	unregister_framebuffer(info);
 	return ret;
 }
 
