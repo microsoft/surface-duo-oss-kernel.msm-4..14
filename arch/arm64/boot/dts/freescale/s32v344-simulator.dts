@@ -204,7 +204,7 @@
 };
 
 &generic_timer {
-	clock-frequency = <40000000>;
+	clock-frequency = <1200000>;
 };
 
 &i2c0 {
