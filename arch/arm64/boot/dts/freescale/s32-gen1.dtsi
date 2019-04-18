@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 NXP
+ * Copyright 2017-2019 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -82,9 +82,8 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		fxosc {
+		fxosc: fxosc {
 			compatible = "fixed-clock";
-			clock-frequency = <40000000>;
 			#clock-cells = <0>;
 		};
 		firc {
@@ -107,13 +106,12 @@
 			     <0 0x3f 0x4>;
 	};
 
-	timer {
+	generic_timer: timer {
 		compatible = "arm,armv8-timer";
 		interrupts = <1 13 0xf08>,
 			     <1 14 0xf08>,
 			     <1 11 0xf08>,
 			     <1 10 0xf08>;
-		clock-frequency = <10000000>;
 	};
 
 	mc_cgm0: mc_cgm0@40030000 {
