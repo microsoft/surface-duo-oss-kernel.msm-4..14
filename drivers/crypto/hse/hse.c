@@ -10,6 +10,7 @@
 #include <linux/platform_device.h>
 
 #include "hse-mu.h"
+#include "hse-hash.h"
 
 /**
  * struct hse_drvdata - HSE driver private data
@@ -22,6 +23,7 @@ struct hse_drvdata {
 static int hse_probe(struct platform_device *pdev)
 {
 	struct hse_drvdata *pdata;
+	int err;
 
 	dev_info(&pdev->dev, "probing HSE device %s\n", pdev->name);
 
@@ -35,6 +37,10 @@ static int hse_probe(struct platform_device *pdev)
 	if (IS_ERR(pdata->mu_inst))
 		return PTR_ERR(pdata->mu_inst);
 
+	err = hse_hash_init(&pdev->dev, pdata->mu_inst);
+	if (err)
+		return err;
+
 	dev_info(&pdev->dev, "HSE device %s initialized\n", pdev->name);
 
 	return 0;
@@ -44,6 +50,7 @@ static int hse_remove(struct platform_device *pdev)
 {
 	struct hse_drvdata *pdata = platform_get_drvdata(pdev);
 
+	hse_hash_free();
 	hse_mu_free(pdata->mu_inst);
 
 	dev_info(&pdev->dev, "HSE device %s removed", pdev->name);
