@@ -26,10 +26,12 @@ struct mcp25xxfd_fifo {
 struct mcp25xxfd_obj_ts {
 	s32 ts; /* using signed to handle rollover correctly when sorting */
 	u16 fifo;
+	s16 is_rx;
 };
 
 /* general info on each fifo */
 struct mcp25xxfd_fifo_info {
+	u32 is_rx;
 	u32 offset;
 	u32 priority;
 };
@@ -95,10 +97,18 @@ struct mcp25xxfd_can_priv {
 
 		/* infos on fifo layout */
 
+		/* TEF */
+		struct {
+			u32 count;
+			u32 size;
+			u32 index;
+		} tef;
+
 		/* info on each fifo */
 		struct mcp25xxfd_fifo_info info[32];
 
-		/* extra info on rx fifo groups */
+		/* extra info on rx/tx fifo groups */
+		struct mcp25xxfd_fifo tx;
 		struct mcp25xxfd_fifo rx;
 
 		/* queue of can frames that need to get submitted
@@ -109,6 +119,9 @@ struct mcp25xxfd_can_priv {
 		 */
 		struct mcp25xxfd_obj_ts submit_queue[32];
 		int  submit_queue_count;
+
+		/* the tx queue of spi messages */
+		struct mcp25xxfd_tx_spi_message_queue *tx_queue;
 	} fifos;
 
 	/* bus state */
