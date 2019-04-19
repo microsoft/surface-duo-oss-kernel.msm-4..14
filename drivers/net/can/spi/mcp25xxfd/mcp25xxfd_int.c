@@ -8,6 +8,7 @@
 #include <linux/kernel.h>
 #include <linux/spi/spi.h>
 
+#include "mcp25xxfd_can_int.h"
 #include "mcp25xxfd_crc.h"
 #include "mcp25xxfd_ecc.h"
 #include "mcp25xxfd_int.h"
@@ -21,7 +22,11 @@ int mcp25xxfd_int_clear(struct mcp25xxfd_priv *priv)
 	if (ret)
 		return ret;
 
-	return mcp25xxfd_crc_clear_int(priv);
+	ret = mcp25xxfd_crc_clear_int(priv);
+	if (ret)
+		return ret;
+
+	return mcp25xxfd_can_int_clear(priv);
 }
 
 int mcp25xxfd_int_enable(struct mcp25xxfd_priv *priv, bool enable)
@@ -47,11 +52,18 @@ int mcp25xxfd_int_enable(struct mcp25xxfd_priv *priv, bool enable)
 	if (ret)
 		goto out_crc;
 
+	ret = mcp25xxfd_can_int_enable(priv, enable);
+	if (ret)
+		goto out_ecc;
+
 	/* If we disable interrupts, then clear interrupt flags last */
 	if (!enable)
 		mcp25xxfd_int_clear(priv);
 
 	return 0;
+
+out_ecc:
+	mcp25xxfd_ecc_enable_int(priv, false);
 
 out_crc:
 	mcp25xxfd_crc_enable_int(priv, false);

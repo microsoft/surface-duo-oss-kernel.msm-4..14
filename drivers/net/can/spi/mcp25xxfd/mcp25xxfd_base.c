@@ -123,6 +123,11 @@ static int mcp25xxfd_base_probe(struct spi_device *spi)
 	if (ret)
 		goto out_power;
 
+	/* setting up CAN */
+	ret = mcp25xxfd_can_setup(priv);
+	if (ret)
+		goto out_power;
+
 	dev_info(&spi->dev,
 		 "MCP%04x successfully initialized.\n", model);
 	return 0;
@@ -140,6 +145,7 @@ static int mcp25xxfd_base_remove(struct spi_device *spi)
 {
 	struct mcp25xxfd_priv *priv = spi_get_drvdata(spi);
 
+	mcp25xxfd_can_remove(priv);
 	mcp25xxfd_base_power_enable(priv->power, 0);
 	clk_disable_unprepare(priv->clk);
 
