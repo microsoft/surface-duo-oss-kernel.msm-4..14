@@ -23,6 +23,7 @@
 #include "mcp25xxfd_can_int.h"
 #include "mcp25xxfd_can_priv.h"
 #include "mcp25xxfd_can_rx.h"
+#include "mcp25xxfd_can_tx.h"
 #include "mcp25xxfd_cmd.h"
 #include "mcp25xxfd_ecc.h"
 
@@ -80,7 +81,9 @@ static int mcp25xxfd_can_int_submit_frames(struct mcp25xxfd_can_priv *cpriv)
 	/* now submit the fifos  */
 	for (i = 0; i < count; i++) {
 		fifo = queue[i].fifo;
-		ret = mcp25xxfd_can_rx_submit_frame(cpriv, fifo);
+		ret = (queue[i].is_rx) ?
+			mcp25xxfd_can_rx_submit_frame(cpriv, fifo) :
+			mcp25xxfd_can_tx_submit_frame(cpriv, fifo);
 		if (ret)
 			return ret;
 	}
@@ -100,6 +103,9 @@ static int mcp25xxfd_can_int_submit_frames(struct mcp25xxfd_can_priv *cpriv)
 	}
 
 out:
+	/* enable tx_queue if necessary */
+	mcp25xxfd_can_tx_queue_restart(cpriv);
+
 	return 0;
 }
 
@@ -496,6 +502,9 @@ static int mcp25xxfd_can_int_error_handling(struct mcp25xxfd_can_priv *cpriv)
 			cpriv->can.can_stats.bus_off++;
 			can_bus_off(cpriv->can.dev);
 		}
+	} else {
+		/* restart the tx queue if needed */
+		mcp25xxfd_can_tx_queue_restart(cpriv);
 	}
 
 	return 0;
@@ -530,6 +539,16 @@ static int mcp25xxfd_can_int_handle_status(struct mcp25xxfd_can_priv *cpriv)
 
 	/* handle the rx */
 	ret = mcp25xxfd_can_rx_handle_int_rxif(cpriv);
+	if (ret)
+		return ret;
+
+	/* handle aborted TX FIFOs */
+	ret = mcp25xxfd_can_tx_handle_int_txatif(cpriv);
+	if (ret)
+		return ret;
+
+	/* handle the TEF */
+	ret = mcp25xxfd_can_tx_handle_int_tefif(cpriv);
 	if (ret)
 		return ret;
 
