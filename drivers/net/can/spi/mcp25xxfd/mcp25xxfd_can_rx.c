@@ -163,7 +163,7 @@ static int mcp25xxfd_can_rx_read_frame(struct mcp25xxfd_can_priv *cpriv,
 	memset(rx->data + len, 0, ((net->mtu == CANFD_MTU) ? 64 : 8) - len);
 
 	/* add the fifo to the process queues */
-	mcp25xxfd_can_queue_frame(cpriv, fifo, rx->ts);
+	mcp25xxfd_can_queue_frame(cpriv, fifo, rx->ts, true);
 
 	/* and clear the interrupt flag for that fifo */
 	return mcp25xxfd_cmd_write_mask(spi, MCP25XXFD_CAN_FIFOCON(fifo),

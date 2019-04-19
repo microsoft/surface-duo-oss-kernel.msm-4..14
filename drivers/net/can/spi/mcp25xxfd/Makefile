@@ -4,6 +4,7 @@ mcp25xxfd-objs                  += mcp25xxfd_can.o
 mcp25xxfd-objs                  += mcp25xxfd_can_fifo.o
 mcp25xxfd-objs                  += mcp25xxfd_can_int.o
 mcp25xxfd-objs                  += mcp25xxfd_can_rx.o
+mcp25xxfd-objs                  += mcp25xxfd_can_tx.o
 mcp25xxfd-objs                  += mcp25xxfd_cmd.o
 mcp25xxfd-objs                  += mcp25xxfd_crc.o
 mcp25xxfd-objs                  += mcp25xxfd_ecc.o
