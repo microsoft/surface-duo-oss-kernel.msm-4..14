@@ -375,14 +375,20 @@ static struct tipc_node *tipc_node_create(struct net *net, u32 addr,
 		if (n->capabilities == capabilities)
 			goto exit;
 		/* Same node may come back with new capabilities */
-		write_lock_bh(&n->lock);
+		tipc_node_write_lock(n);
 		n->capabilities = capabilities;
 		for (bearer_id = 0; bearer_id < MAX_BEARERS; bearer_id++) {
 			l = n->links[bearer_id].link;
 			if (l)
 				tipc_link_update_caps(l, capabilities);
 		}
-		write_unlock_bh(&n->lock);
+		tipc_node_write_unlock_fast(n);
+
+		/* Calculate cluster capabilities */
+		tn->capabilities = TIPC_NODE_CAPABILITIES;
+		list_for_each_entry_rcu(temp_node, &tn->node_list, list) {
+			tn->capabilities &= temp_node->capabilities;
+		}
 		goto exit;
 	}
 	n = kzalloc(sizeof(*n), GFP_ATOMIC);
@@ -433,6 +439,11 @@ static struct tipc_node *tipc_node_create(struct net *net, u32 addr,
 			break;
 	}
 	list_add_tail_rcu(&n->list, &temp_node->list);
+	/* Calculate cluster capabilities */
+	tn->capabilities = TIPC_NODE_CAPABILITIES;
+	list_for_each_entry_rcu(temp_node, &tn->node_list, list) {
+		tn->capabilities &= temp_node->capabilities;
+	}
 	trace_tipc_node_create(n, true, " ");
 exit:
 	spin_unlock_bh(&tn->node_list_lock);
@@ -589,6 +600,7 @@ static void  tipc_node_clear_links(struct tipc_node *node)
  */
 static bool tipc_node_cleanup(struct tipc_node *peer)
 {
+	struct tipc_node *temp_node;
 	struct tipc_net *tn = tipc_net(peer->net);
 	bool deleted = false;
 
@@ -604,6 +616,13 @@ static bool tipc_node_cleanup(struct tipc_node *peer)
 		deleted = true;
 	}
 	tipc_node_write_unlock(peer);
+
+	/* Calculate cluster capabilities */
+	tn->capabilities = TIPC_NODE_CAPABILITIES;
+	list_for_each_entry_rcu(temp_node, &tn->node_list, list) {
+		tn->capabilities &= temp_node->capabilities;
+	}
+
 	spin_unlock_bh(&tn->node_list_lock);
 	return deleted;
 }

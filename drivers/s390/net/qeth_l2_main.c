@@ -149,24 +149,20 @@ static int qeth_l2_remove_mac(struct qeth_card *card, u8 *mac)
 	return rc;
 }
 
-static void qeth_l2_del_all_macs(struct qeth_card *card)
+static void qeth_l2_drain_rx_mode_cache(struct qeth_card *card)
 {
 	struct qeth_mac *mac;
 	struct hlist_node *tmp;
 	int i;
 
-	spin_lock_bh(&card->mclock);
 	hash_for_each_safe(card->mac_htable, i, tmp, mac, hnode) {
 		hash_del(&mac->hnode);
 		kfree(mac);
 	}
-	spin_unlock_bh(&card->mclock);
 }
 
-static int qeth_l2_get_cast_type(struct qeth_card *card, struct sk_buff *skb)
+static int qeth_l2_get_cast_type(struct sk_buff *skb)
 {
-	if (card->info.type == QETH_CARD_TYPE_OSN)
-		return RTN_UNICAST;
 	if (is_broadcast_ether_addr(skb->data))
 		return RTN_BROADCAST;
 	if (is_multicast_ether_addr(skb->data))
@@ -292,14 +288,16 @@ static void qeth_l2_stop_card(struct qeth_card *card)
 
 	qeth_set_allowed_threads(card, 0, 1);
 
+	cancel_work_sync(&card->rx_mode_work);
+	qeth_l2_drain_rx_mode_cache(card);
+
 	if (card->state == CARD_STATE_SOFTSETUP) {
-		qeth_l2_del_all_macs(card);
 		qeth_clear_ipacmd_list(card);
 		card->state = CARD_STATE_HARDSETUP;
 	}
 	if (card->state == CARD_STATE_HARDSETUP) {
 		qeth_qdio_clear_card(card, 0);
-		qeth_clear_qdio_buffers(card);
+		qeth_drain_output_queues(card);
 		qeth_clear_working_pool_list(card);
 		card->state = CARD_STATE_DOWN;
 	}
@@ -515,9 +513,11 @@ static void qeth_l2_add_mac(struct qeth_card *card, struct netdev_hw_addr *ha)
 	hash_add(card->mac_htable, &mac->hnode, mac_hash);
 }
 
-static void qeth_l2_set_rx_mode(struct net_device *dev)
+static void qeth_l2_rx_mode_work(struct work_struct *work)
 {
-	struct qeth_card *card = dev->ml_priv;
+	struct qeth_card *card = container_of(work, struct qeth_card,
+					      rx_mode_work);
+	struct net_device *dev = card->dev;
 	struct netdev_hw_addr *ha;
 	struct qeth_mac *mac;
 	struct hlist_node *tmp;
@@ -526,12 +526,12 @@ static void qeth_l2_set_rx_mode(struct net_device *dev)
 
 	QETH_CARD_TEXT(card, 3, "setmulti");
 
-	spin_lock_bh(&card->mclock);
-
+	netif_addr_lock_bh(dev);
 	netdev_for_each_mc_addr(ha, dev)
 		qeth_l2_add_mac(card, ha);
 	netdev_for_each_uc_addr(ha, dev)
 		qeth_l2_add_mac(card, ha);
+	netif_addr_unlock_bh(dev);
 
 	hash_for_each_safe(card->mac_htable, i, tmp, mac, hnode) {
 		switch (mac->disp_flag) {
@@ -553,8 +553,6 @@ static void qeth_l2_set_rx_mode(struct net_device *dev)
 			mac->disp_flag = QETH_DISP_ADDR_DELETE;
 		}
 	}
-
-	spin_unlock_bh(&card->mclock);
 
 	if (qeth_adp_supported(card, IPA_SETADP_SET_PROMISC_MODE))
 		qeth_setadp_promisc_mode(card);
@@ -603,35 +601,42 @@ static netdev_tx_t qeth_l2_hard_start_xmit(struct sk_buff *skb,
 					   struct net_device *dev)
 {
 	struct qeth_card *card = dev->ml_priv;
-	int cast_type = qeth_l2_get_cast_type(card, skb);
-	int ipv = qeth_get_ip_version(skb);
+	u16 txq = skb_get_queue_mapping(skb);
 	struct qeth_qdio_out_q *queue;
 	int tx_bytes = skb->len;
 	int rc;
 
-	queue = qeth_get_tx_queue(card, skb, ipv, cast_type);
-
-	netif_stop_queue(dev);
+	if (IS_IQD(card))
+		txq = qeth_iqd_translate_txq(dev, txq);
+	queue = card->qdio.out_qs[txq];
 
 	if (IS_OSN(card))
 		rc = qeth_l2_xmit_osn(card, skb, queue);
 	else
-		rc = qeth_xmit(card, skb, queue, ipv, cast_type,
-			       qeth_l2_fill_header);
+		rc = qeth_xmit(card, skb, queue, qeth_get_ip_version(skb),
+			       qeth_l2_get_cast_type(skb), qeth_l2_fill_header);
 
 	if (!rc) {
 		QETH_TXQ_STAT_INC(queue, tx_packets);
 		QETH_TXQ_STAT_ADD(queue, tx_bytes, tx_bytes);
-		netif_wake_queue(dev);
 		return NETDEV_TX_OK;
-	} else if (rc == -EBUSY) {
-		return NETDEV_TX_BUSY;
-	} /* else fall through */
+	}
 
 	QETH_TXQ_STAT_INC(queue, tx_dropped);
 	kfree_skb(skb);
-	netif_wake_queue(dev);
 	return NETDEV_TX_OK;
+}
+
+static u16 qeth_l2_select_queue(struct net_device *dev, struct sk_buff *skb,
+				struct net_device *sb_dev)
+{
+	struct qeth_card *card = dev->ml_priv;
+
+	if (IS_IQD(card))
+		return qeth_iqd_select_queue(dev, skb,
+					     qeth_l2_get_cast_type(skb),
+					     sb_dev);
+	return qeth_get_priority_queue(card, skb);
 }
 
 static const struct device_type qeth_l2_devtype = {
@@ -653,6 +658,7 @@ static int qeth_l2_probe_device(struct ccwgroup_device *gdev)
 	}
 
 	hash_init(card->mac_htable);
+	INIT_WORK(&card->rx_mode_work, qeth_l2_rx_mode_work);
 	return 0;
 }
 
@@ -673,12 +679,20 @@ static void qeth_l2_remove_device(struct ccwgroup_device *cgdev)
 		unregister_netdev(card->dev);
 }
 
+static void qeth_l2_set_rx_mode(struct net_device *dev)
+{
+	struct qeth_card *card = dev->ml_priv;
+
+	schedule_work(&card->rx_mode_work);
+}
+
 static const struct net_device_ops qeth_l2_netdev_ops = {
 	.ndo_open		= qeth_open,
 	.ndo_stop		= qeth_stop,
 	.ndo_get_stats64	= qeth_get_stats64,
 	.ndo_start_xmit		= qeth_l2_hard_start_xmit,
 	.ndo_features_check	= qeth_features_check,
+	.ndo_select_queue	= qeth_l2_select_queue,
 	.ndo_validate_addr	= qeth_l2_validate_addr,
 	.ndo_set_rx_mode	= qeth_l2_set_rx_mode,
 	.ndo_do_ioctl		= qeth_do_ioctl,
@@ -1042,13 +1056,13 @@ static int qeth_osn_send_control_data(struct qeth_card *card, int len,
 
 	QETH_CARD_TEXT(card, 5, "osndctrd");
 
-	wait_event(card->wait_q,
-		   atomic_cmpxchg(&channel->irq_pending, 0, 1) == 0);
-	qeth_prepare_control_data(card, len, iob);
+	wait_event(card->wait_q, qeth_trylock_channel(channel));
+	iob->finalize(card, iob, len);
+	QETH_DBF_HEX(CTRL, 2, iob->data, min(len, QETH_DBF_CTRL_LEN));
 	QETH_CARD_TEXT(card, 6, "osnoirqp");
 	spin_lock_irq(get_ccwdev_lock(channel->ccwdev));
 	rc = ccw_device_start_timeout(channel->ccwdev, channel->ccw,
-				      (addr_t) iob, 0, 0, QETH_IPA_TIMEOUT);
+				      (addr_t) iob, 0, 0, iob->timeout);
 	spin_unlock_irq(get_ccwdev_lock(channel->ccwdev));
 	if (rc) {
 		QETH_DBF_MESSAGE(2, "qeth_osn_send_control_data: "
