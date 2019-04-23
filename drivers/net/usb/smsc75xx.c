@@ -29,6 +29,7 @@
 #include <linux/crc32.h>
 #include <linux/usb/usbnet.h>
 #include <linux/slab.h>
+#include <linux/firmware.h>
 #include <linux/of_net.h>
 #include "smsc75xx.h"
 
@@ -768,6 +769,32 @@ static int smsc75xx_ioctl(struct net_device *netdev, struct ifreq *rq, int cmd)
 	return generic_mii_ioctl(&dev->mii, if_mii(rq), cmd, NULL);
 }
 
+#define MAC_BASENAME	"smsc75xx/ethmacaddr"
+
+static int smsc75xx_get_hw_mac(struct usbnet *dev)
+{
+	const struct firmware *fp = NULL;
+	int ret;
+	u8 tmp[32];
+
+	snprintf(tmp, sizeof(tmp), "%s-%s", MAC_BASENAME, dev->udev->devpath);
+	ret = request_firmware(&fp, tmp, &dev->udev->dev);
+	if (!ret) {
+		memset(tmp, 0, sizeof(tmp));
+		memcpy(tmp, fp->data, sizeof(tmp) - 1);
+		sscanf(tmp, "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+			&dev->net->dev_addr[0],
+			&dev->net->dev_addr[1],
+			&dev->net->dev_addr[2],
+			&dev->net->dev_addr[3],
+			&dev->net->dev_addr[4],
+			&dev->net->dev_addr[5]);
+
+		release_firmware(fp);
+	}
+	return ret;
+}
+
 static void smsc75xx_init_mac_address(struct usbnet *dev)
 {
 	const u8 *mac_addr;
@@ -788,6 +815,11 @@ static void smsc75xx_init_mac_address(struct usbnet *dev)
 				  "MAC address read from EEPROM\n");
 			return;
 		}
+	}
+
+	if (!smsc75xx_get_hw_mac(dev) && is_valid_ether_addr(dev->net->dev_addr)) {
+		netif_dbg(dev, ifup, dev->net, "MAC address read from file\n");
+		return;
 	}
 
 	/* no useful static MAC address found. generate a random one */
