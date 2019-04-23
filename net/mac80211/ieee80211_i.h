@@ -179,6 +179,7 @@ struct ieee80211_tx_data {
 	struct ieee80211_tx_rate rate;
 
 	unsigned int flags;
+	unsigned int hdrlen;
 };
 
 
@@ -1269,7 +1270,7 @@ struct ieee80211_local {
 
 	/*
 	 * Key mutex, protects sdata's key_list and sta_info's
-	 * key pointers (write access, they're RCU.)
+	 * key pointers and ptk_idx (write access, they're RCU.)
 	 */
 	struct mutex key_mtx;
 
@@ -1384,6 +1385,7 @@ struct ieee80211_local {
 		struct dentry *rcdir;
 		struct dentry *keys;
 	} debugfs;
+	bool force_tx_status;
 #endif
 
 	/*
@@ -1505,7 +1507,6 @@ struct ieee802_11_elems {
 	const struct ieee80211_bss_max_idle_period_ie *max_idle_period_ie;
 	const struct ieee80211_multiple_bssid_configuration *mbssid_config_ie;
 	const struct ieee80211_bssid_index *bssid_index;
-	const u8 *nontransmitted_bssid_profile;
 	u8 max_bssid_indicator;
 	u8 dtim_count;
 	u8 dtim_period;

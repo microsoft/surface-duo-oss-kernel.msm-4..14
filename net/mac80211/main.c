@@ -1051,6 +1051,15 @@ int ieee80211_register_hw(struct ieee80211_hw *hw)
 		}
 	}
 
+	/* Enable Extended Key IDs when driver allowed it, or when it
+	 * supports neither HW crypto nor A-MPDUs
+	 */
+	if ((!local->ops->set_key &&
+	     !ieee80211_hw_check(hw, AMPDU_AGGREGATION)) ||
+	    ieee80211_hw_check(&local->hw, EXT_KEY_ID_NATIVE))
+		wiphy_ext_feature_set(local->hw.wiphy,
+				      NL80211_EXT_FEATURE_EXT_KEY_ID);
+
 	/*
 	 * Calculate scan IE length -- we need this to alloc
 	 * memory and to subtract from the driver limit. It
