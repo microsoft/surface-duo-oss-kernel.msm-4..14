@@ -1041,6 +1041,7 @@ static void esdhc_set_uhs_signaling(struct sdhci_host *host, unsigned timing)
 	case MMC_TIMING_UHS_SDR25:
 	case MMC_TIMING_UHS_SDR50:
 	case MMC_TIMING_UHS_SDR104:
+	case MMC_TIMING_MMC_HS:
 	case MMC_TIMING_MMC_HS200:
 		writel(m, host->ioaddr + ESDHC_MIX_CTRL);
 		break;
@@ -1163,9 +1164,9 @@ static void sdhci_esdhc_imx_hwinit(struct sdhci_host *host)
 			 * erratum ESDHC_FLAG_ERR004536 fix for MX6Q TO1.2
 			 * and MX6DL TO1.1, it's harmless for MX6SL
 			 */
-			writel(readl(host->ioaddr + 0x6c) | BIT(7),
+			writel(readl(host->ioaddr + 0x6c) & ~BIT(7),
 				host->ioaddr + 0x6c);
-			}
+		}
 
 		/* disable DLL_CTRL delay line settings */
 		writel(0x0, host->ioaddr + ESDHC_DLL_CTRL);
