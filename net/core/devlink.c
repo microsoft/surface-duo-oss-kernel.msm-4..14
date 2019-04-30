@@ -19,6 +19,7 @@
 #include <linux/device.h>
 #include <linux/list.h>
 #include <linux/netdevice.h>
+#include <linux/spinlock.h>
 #include <rdma/ib_verbs.h>
 #include <net/netlink.h>
 #include <net/genetlink.h>
@@ -543,12 +544,14 @@ static int devlink_nl_port_fill(struct sk_buff *msg, struct devlink *devlink,
 		goto nla_put_failure;
 	if (nla_put_u32(msg, DEVLINK_ATTR_PORT_INDEX, devlink_port->index))
 		goto nla_put_failure;
+
+	spin_lock(&devlink_port->type_lock);
 	if (nla_put_u16(msg, DEVLINK_ATTR_PORT_TYPE, devlink_port->type))
-		goto nla_put_failure;
+		goto nla_put_failure_type_locked;
 	if (devlink_port->desired_type != DEVLINK_PORT_TYPE_NOTSET &&
 	    nla_put_u16(msg, DEVLINK_ATTR_PORT_DESIRED_TYPE,
 			devlink_port->desired_type))
-		goto nla_put_failure;
+		goto nla_put_failure_type_locked;
 	if (devlink_port->type == DEVLINK_PORT_TYPE_ETH) {
 		struct net_device *netdev = devlink_port->type_dev;
 
@@ -557,7 +560,7 @@ static int devlink_nl_port_fill(struct sk_buff *msg, struct devlink *devlink,
 				 netdev->ifindex) ||
 		     nla_put_string(msg, DEVLINK_ATTR_PORT_NETDEV_NAME,
 				    netdev->name)))
-			goto nla_put_failure;
+			goto nla_put_failure_type_locked;
 	}
 	if (devlink_port->type == DEVLINK_PORT_TYPE_IB) {
 		struct ib_device *ibdev = devlink_port->type_dev;
@@ -565,14 +568,17 @@ static int devlink_nl_port_fill(struct sk_buff *msg, struct devlink *devlink,
 		if (ibdev &&
 		    nla_put_string(msg, DEVLINK_ATTR_PORT_IBDEV_NAME,
 				   ibdev->name))
-			goto nla_put_failure;
+			goto nla_put_failure_type_locked;
 	}
+	spin_unlock(&devlink_port->type_lock);
 	if (devlink_nl_port_attrs_put(msg, devlink_port))
 		goto nla_put_failure;
 
 	genlmsg_end(msg, hdr);
 	return 0;
 
+nla_put_failure_type_locked:
+	spin_unlock(&devlink_port->type_lock);
 nla_put_failure:
 	genlmsg_cancel(msg, hdr);
 	return -EMSGSIZE;
@@ -1041,14 +1047,15 @@ out:
 
 static int devlink_sb_pool_set(struct devlink *devlink, unsigned int sb_index,
 			       u16 pool_index, u32 size,
-			       enum devlink_sb_threshold_type threshold_type)
+			       enum devlink_sb_threshold_type threshold_type,
+			       struct netlink_ext_ack *extack)
 
 {
 	const struct devlink_ops *ops = devlink->ops;
 
 	if (ops->sb_pool_set)
 		return ops->sb_pool_set(devlink, sb_index, pool_index,
-					size, threshold_type);
+					size, threshold_type, extack);
 	return -EOPNOTSUPP;
 }
 
@@ -1076,7 +1083,8 @@ static int devlink_nl_cmd_sb_pool_set_doit(struct sk_buff *skb,
 
 	size = nla_get_u32(info->attrs[DEVLINK_ATTR_SB_POOL_SIZE]);
 	return devlink_sb_pool_set(devlink, devlink_sb->index,
-				   pool_index, size, threshold_type);
+				   pool_index, size, threshold_type,
+				   info->extack);
 }
 
 static int devlink_nl_sb_port_pool_fill(struct sk_buff *msg,
@@ -1237,14 +1245,15 @@ out:
 
 static int devlink_sb_port_pool_set(struct devlink_port *devlink_port,
 				    unsigned int sb_index, u16 pool_index,
-				    u32 threshold)
+				    u32 threshold,
+				    struct netlink_ext_ack *extack)
 
 {
 	const struct devlink_ops *ops = devlink_port->devlink->ops;
 
 	if (ops->sb_port_pool_set)
 		return ops->sb_port_pool_set(devlink_port, sb_index,
-					     pool_index, threshold);
+					     pool_index, threshold, extack);
 	return -EOPNOTSUPP;
 }
 
@@ -1267,7 +1276,7 @@ static int devlink_nl_cmd_sb_port_pool_set_doit(struct sk_buff *skb,
 
 	threshold = nla_get_u32(info->attrs[DEVLINK_ATTR_SB_THRESHOLD]);
 	return devlink_sb_port_pool_set(devlink_port, devlink_sb->index,
-					pool_index, threshold);
+					pool_index, threshold, info->extack);
 }
 
 static int
@@ -1466,7 +1475,8 @@ out:
 static int devlink_sb_tc_pool_bind_set(struct devlink_port *devlink_port,
 				       unsigned int sb_index, u16 tc_index,
 				       enum devlink_sb_pool_type pool_type,
-				       u16 pool_index, u32 threshold)
+				       u16 pool_index, u32 threshold,
+				       struct netlink_ext_ack *extack)
 
 {
 	const struct devlink_ops *ops = devlink_port->devlink->ops;
@@ -1474,7 +1484,7 @@ static int devlink_sb_tc_pool_bind_set(struct devlink_port *devlink_port,
 	if (ops->sb_tc_pool_bind_set)
 		return ops->sb_tc_pool_bind_set(devlink_port, sb_index,
 						tc_index, pool_type,
-						pool_index, threshold);
+						pool_index, threshold, extack);
 	return -EOPNOTSUPP;
 }
 
@@ -1509,7 +1519,7 @@ static int devlink_nl_cmd_sb_tc_pool_bind_set_doit(struct sk_buff *skb,
 	threshold = nla_get_u32(info->attrs[DEVLINK_ATTR_SB_THRESHOLD]);
 	return devlink_sb_tc_pool_bind_set(devlink_port, devlink_sb->index,
 					   tc_index, pool_type,
-					   pool_index, threshold);
+					   pool_index, threshold, info->extack);
 }
 
 static int devlink_nl_cmd_sb_occ_snapshot_doit(struct sk_buff *skb,
@@ -1661,7 +1671,7 @@ int devlink_dpipe_match_put(struct sk_buff *skb,
 	struct devlink_dpipe_field *field = &header->fields[match->field_id];
 	struct nlattr *match_attr;
 
-	match_attr = nla_nest_start(skb, DEVLINK_ATTR_DPIPE_MATCH);
+	match_attr = nla_nest_start_noflag(skb, DEVLINK_ATTR_DPIPE_MATCH);
 	if (!match_attr)
 		return -EMSGSIZE;
 
@@ -1686,7 +1696,8 @@ static int devlink_dpipe_matches_put(struct devlink_dpipe_table *table,
 {
 	struct nlattr *matches_attr;
 
-	matches_attr = nla_nest_start(skb, DEVLINK_ATTR_DPIPE_TABLE_MATCHES);
+	matches_attr = nla_nest_start_noflag(skb,
+					     DEVLINK_ATTR_DPIPE_TABLE_MATCHES);
 	if (!matches_attr)
 		return -EMSGSIZE;
 
@@ -1708,7 +1719,7 @@ int devlink_dpipe_action_put(struct sk_buff *skb,
 	struct devlink_dpipe_field *field = &header->fields[action->field_id];
 	struct nlattr *action_attr;
 
-	action_attr = nla_nest_start(skb, DEVLINK_ATTR_DPIPE_ACTION);
+	action_attr = nla_nest_start_noflag(skb, DEVLINK_ATTR_DPIPE_ACTION);
 	if (!action_attr)
 		return -EMSGSIZE;
 
@@ -1733,7 +1744,8 @@ static int devlink_dpipe_actions_put(struct devlink_dpipe_table *table,
 {
 	struct nlattr *actions_attr;
 
-	actions_attr = nla_nest_start(skb, DEVLINK_ATTR_DPIPE_TABLE_ACTIONS);
+	actions_attr = nla_nest_start_noflag(skb,
+					     DEVLINK_ATTR_DPIPE_TABLE_ACTIONS);
 	if (!actions_attr)
 		return -EMSGSIZE;
 
@@ -1755,7 +1767,7 @@ static int devlink_dpipe_table_put(struct sk_buff *skb,
 	u64 table_size;
 
 	table_size = table->table_ops->size_get(table->priv);
-	table_attr = nla_nest_start(skb, DEVLINK_ATTR_DPIPE_TABLE);
+	table_attr = nla_nest_start_noflag(skb, DEVLINK_ATTR_DPIPE_TABLE);
 	if (!table_attr)
 		return -EMSGSIZE;
 
@@ -1835,7 +1847,7 @@ start_again:
 
 	if (devlink_nl_put_handle(skb, devlink))
 		goto nla_put_failure;
-	tables_attr = nla_nest_start(skb, DEVLINK_ATTR_DPIPE_TABLES);
+	tables_attr = nla_nest_start_noflag(skb, DEVLINK_ATTR_DPIPE_TABLES);
 	if (!tables_attr)
 		goto nla_put_failure;
 
@@ -1936,8 +1948,8 @@ static int devlink_dpipe_action_values_put(struct sk_buff *skb,
 	int err;
 
 	for (i = 0; i < values_count; i++) {
-		action_attr = nla_nest_start(skb,
-					     DEVLINK_ATTR_DPIPE_ACTION_VALUE);
+		action_attr = nla_nest_start_noflag(skb,
+						    DEVLINK_ATTR_DPIPE_ACTION_VALUE);
 		if (!action_attr)
 			return -EMSGSIZE;
 		err = devlink_dpipe_action_value_put(skb, &values[i]);
@@ -1973,8 +1985,8 @@ static int devlink_dpipe_match_values_put(struct sk_buff *skb,
 	int err;
 
 	for (i = 0; i < values_count; i++) {
-		match_attr = nla_nest_start(skb,
-					    DEVLINK_ATTR_DPIPE_MATCH_VALUE);
+		match_attr = nla_nest_start_noflag(skb,
+						   DEVLINK_ATTR_DPIPE_MATCH_VALUE);
 		if (!match_attr)
 			return -EMSGSIZE;
 		err = devlink_dpipe_match_value_put(skb, &values[i]);
@@ -1995,7 +2007,7 @@ static int devlink_dpipe_entry_put(struct sk_buff *skb,
 	struct nlattr *entry_attr, *matches_attr, *actions_attr;
 	int err;
 
-	entry_attr = nla_nest_start(skb, DEVLINK_ATTR_DPIPE_ENTRY);
+	entry_attr = nla_nest_start_noflag(skb, DEVLINK_ATTR_DPIPE_ENTRY);
 	if (!entry_attr)
 		return  -EMSGSIZE;
 
@@ -2007,8 +2019,8 @@ static int devlink_dpipe_entry_put(struct sk_buff *skb,
 				      entry->counter, DEVLINK_ATTR_PAD))
 			goto nla_put_failure;
 
-	matches_attr = nla_nest_start(skb,
-				      DEVLINK_ATTR_DPIPE_ENTRY_MATCH_VALUES);
+	matches_attr = nla_nest_start_noflag(skb,
+					     DEVLINK_ATTR_DPIPE_ENTRY_MATCH_VALUES);
 	if (!matches_attr)
 		goto nla_put_failure;
 
@@ -2020,8 +2032,8 @@ static int devlink_dpipe_entry_put(struct sk_buff *skb,
 	}
 	nla_nest_end(skb, matches_attr);
 
-	actions_attr = nla_nest_start(skb,
-				      DEVLINK_ATTR_DPIPE_ENTRY_ACTION_VALUES);
+	actions_attr = nla_nest_start_noflag(skb,
+					     DEVLINK_ATTR_DPIPE_ENTRY_ACTION_VALUES);
 	if (!actions_attr)
 		goto nla_put_failure;
 
@@ -2078,8 +2090,8 @@ int devlink_dpipe_entry_ctx_prepare(struct devlink_dpipe_dump_ctx *dump_ctx)
 	devlink = dump_ctx->info->user_ptr[0];
 	if (devlink_nl_put_handle(dump_ctx->skb, devlink))
 		goto nla_put_failure;
-	dump_ctx->nest = nla_nest_start(dump_ctx->skb,
-					DEVLINK_ATTR_DPIPE_ENTRIES);
+	dump_ctx->nest = nla_nest_start_noflag(dump_ctx->skb,
+					       DEVLINK_ATTR_DPIPE_ENTRIES);
 	if (!dump_ctx->nest)
 		goto nla_put_failure;
 	return 0;
@@ -2189,7 +2201,8 @@ static int devlink_dpipe_fields_put(struct sk_buff *skb,
 
 	for (i = 0; i < header->fields_count; i++) {
 		field = &header->fields[i];
-		field_attr = nla_nest_start(skb, DEVLINK_ATTR_DPIPE_FIELD);
+		field_attr = nla_nest_start_noflag(skb,
+						   DEVLINK_ATTR_DPIPE_FIELD);
 		if (!field_attr)
 			return -EMSGSIZE;
 		if (nla_put_string(skb, DEVLINK_ATTR_DPIPE_FIELD_NAME, field->name) ||
@@ -2212,7 +2225,7 @@ static int devlink_dpipe_header_put(struct sk_buff *skb,
 	struct nlattr *fields_attr, *header_attr;
 	int err;
 
-	header_attr = nla_nest_start(skb, DEVLINK_ATTR_DPIPE_HEADER);
+	header_attr = nla_nest_start_noflag(skb, DEVLINK_ATTR_DPIPE_HEADER);
 	if (!header_attr)
 		return -EMSGSIZE;
 
@@ -2221,7 +2234,8 @@ static int devlink_dpipe_header_put(struct sk_buff *skb,
 	    nla_put_u8(skb, DEVLINK_ATTR_DPIPE_HEADER_GLOBAL, header->global))
 		goto nla_put_failure;
 
-	fields_attr = nla_nest_start(skb, DEVLINK_ATTR_DPIPE_HEADER_FIELDS);
+	fields_attr = nla_nest_start_noflag(skb,
+					    DEVLINK_ATTR_DPIPE_HEADER_FIELDS);
 	if (!fields_attr)
 		goto nla_put_failure;
 
@@ -2268,7 +2282,7 @@ start_again:
 
 	if (devlink_nl_put_handle(skb, devlink))
 		goto nla_put_failure;
-	headers_attr = nla_nest_start(skb, DEVLINK_ATTR_DPIPE_HEADERS);
+	headers_attr = nla_nest_start_noflag(skb, DEVLINK_ATTR_DPIPE_HEADERS);
 	if (!headers_attr)
 		goto nla_put_failure;
 
@@ -2492,7 +2506,7 @@ static int devlink_resource_put(struct devlink *devlink, struct sk_buff *skb,
 	struct nlattr *child_resource_attr;
 	struct nlattr *resource_attr;
 
-	resource_attr = nla_nest_start(skb, DEVLINK_ATTR_RESOURCE);
+	resource_attr = nla_nest_start_noflag(skb, DEVLINK_ATTR_RESOURCE);
 	if (!resource_attr)
 		return -EMSGSIZE;
 
@@ -2516,7 +2530,8 @@ static int devlink_resource_put(struct devlink *devlink, struct sk_buff *skb,
 		       resource->size_valid))
 		goto nla_put_failure;
 
-	child_resource_attr = nla_nest_start(skb, DEVLINK_ATTR_RESOURCE_LIST);
+	child_resource_attr = nla_nest_start_noflag(skb,
+						    DEVLINK_ATTR_RESOURCE_LIST);
 	if (!child_resource_attr)
 		goto nla_put_failure;
 
@@ -2567,7 +2582,8 @@ start_again:
 	if (devlink_nl_put_handle(skb, devlink))
 		goto nla_put_failure;
 
-	resources_attr = nla_nest_start(skb, DEVLINK_ATTR_RESOURCE_LIST);
+	resources_attr = nla_nest_start_noflag(skb,
+					       DEVLINK_ATTR_RESOURCE_LIST);
 	if (!resources_attr)
 		goto nla_put_failure;
 
@@ -2821,7 +2837,8 @@ devlink_nl_param_value_fill_one(struct sk_buff *msg,
 {
 	struct nlattr *param_value_attr;
 
-	param_value_attr = nla_nest_start(msg, DEVLINK_ATTR_PARAM_VALUE);
+	param_value_attr = nla_nest_start_noflag(msg,
+						 DEVLINK_ATTR_PARAM_VALUE);
 	if (!param_value_attr)
 		goto nla_put_failure;
 
@@ -2912,7 +2929,7 @@ static int devlink_nl_param_fill(struct sk_buff *msg, struct devlink *devlink,
 		if (nla_put_u32(msg, DEVLINK_ATTR_PORT_INDEX, port_index))
 			goto genlmsg_cancel;
 
-	param_attr = nla_nest_start(msg, DEVLINK_ATTR_PARAM);
+	param_attr = nla_nest_start_noflag(msg, DEVLINK_ATTR_PARAM);
 	if (!param_attr)
 		goto genlmsg_cancel;
 	if (nla_put_string(msg, DEVLINK_ATTR_PARAM_NAME, param->name))
@@ -2926,7 +2943,8 @@ static int devlink_nl_param_fill(struct sk_buff *msg, struct devlink *devlink,
 	if (nla_put_u8(msg, DEVLINK_ATTR_PARAM_TYPE, nla_type))
 		goto param_nest_cancel;
 
-	param_values_list = nla_nest_start(msg, DEVLINK_ATTR_PARAM_VALUES_LIST);
+	param_values_list = nla_nest_start_noflag(msg,
+						  DEVLINK_ATTR_PARAM_VALUES_LIST);
 	if (!param_values_list)
 		goto param_nest_cancel;
 
@@ -3326,7 +3344,7 @@ static int devlink_nl_region_snapshot_id_put(struct sk_buff *msg,
 	struct nlattr *snap_attr;
 	int err;
 
-	snap_attr = nla_nest_start(msg, DEVLINK_ATTR_REGION_SNAPSHOT);
+	snap_attr = nla_nest_start_noflag(msg, DEVLINK_ATTR_REGION_SNAPSHOT);
 	if (!snap_attr)
 		return -EINVAL;
 
@@ -3350,7 +3368,8 @@ static int devlink_nl_region_snapshots_id_put(struct sk_buff *msg,
 	struct nlattr *snapshots_attr;
 	int err;
 
-	snapshots_attr = nla_nest_start(msg, DEVLINK_ATTR_REGION_SNAPSHOTS);
+	snapshots_attr = nla_nest_start_noflag(msg,
+					       DEVLINK_ATTR_REGION_SNAPSHOTS);
 	if (!snapshots_attr)
 		return -EINVAL;
 
@@ -3566,7 +3585,7 @@ static int devlink_nl_cmd_region_read_chunk_fill(struct sk_buff *msg,
 	struct nlattr *chunk_attr;
 	int err;
 
-	chunk_attr = nla_nest_start(msg, DEVLINK_ATTR_REGION_CHUNK);
+	chunk_attr = nla_nest_start_noflag(msg, DEVLINK_ATTR_REGION_CHUNK);
 	if (!chunk_attr)
 		return -EINVAL;
 
@@ -3640,7 +3659,6 @@ static int devlink_nl_cmd_region_read_dumpit(struct sk_buff *skb,
 					     struct netlink_callback *cb)
 {
 	u64 ret_offset, start_offset, end_offset = 0;
-	const struct genl_ops *ops = cb->data;
 	struct devlink_region *region;
 	struct nlattr *chunks_attr;
 	const char *region_name;
@@ -3656,8 +3674,10 @@ static int devlink_nl_cmd_region_read_dumpit(struct sk_buff *skb,
 	if (!attrs)
 		return -ENOMEM;
 
-	err = nlmsg_parse(cb->nlh, GENL_HDRLEN + devlink_nl_family.hdrsize,
-			  attrs, DEVLINK_ATTR_MAX, ops->policy, cb->extack);
+	err = nlmsg_parse_deprecated(cb->nlh,
+				     GENL_HDRLEN + devlink_nl_family.hdrsize,
+				     attrs, DEVLINK_ATTR_MAX,
+				     devlink_nl_family.policy, cb->extack);
 	if (err)
 		goto out_free;
 
@@ -3699,7 +3719,7 @@ static int devlink_nl_cmd_region_read_dumpit(struct sk_buff *skb,
 	if (err)
 		goto nla_put_failure;
 
-	chunks_attr = nla_nest_start(skb, DEVLINK_ATTR_REGION_CHUNKS);
+	chunks_attr = nla_nest_start_noflag(skb, DEVLINK_ATTR_REGION_CHUNKS);
 	if (!chunks_attr) {
 		err = -EMSGSIZE;
 		goto nla_put_failure;
@@ -3775,7 +3795,7 @@ static int devlink_info_version_put(struct devlink_info_req *req, int attr,
 	struct nlattr *nest;
 	int err;
 
-	nest = nla_nest_start(req->msg, attr);
+	nest = nla_nest_start_noflag(req->msg, attr);
 	if (!nest)
 		return -EMSGSIZE;
 
@@ -4303,7 +4323,7 @@ devlink_fmsg_prepare_skb(struct devlink_fmsg *fmsg, struct sk_buff *skb,
 	int i = 0;
 	int err;
 
-	fmsg_nlattr = nla_nest_start(skb, DEVLINK_ATTR_FMSG);
+	fmsg_nlattr = nla_nest_start_noflag(skb, DEVLINK_ATTR_FMSG);
 	if (!fmsg_nlattr)
 		return -EMSGSIZE;
 
@@ -4491,6 +4511,7 @@ devlink_health_reporter_destroy(struct devlink_health_reporter *reporter)
 {
 	mutex_lock(&reporter->devlink->lock);
 	list_del(&reporter->list);
+	mutex_destroy(&reporter->dump_lock);
 	mutex_unlock(&reporter->devlink->lock);
 	if (reporter->dump_fmsg)
 		devlink_fmsg_free(reporter->dump_fmsg);
@@ -4654,7 +4675,8 @@ devlink_nl_health_reporter_fill(struct sk_buff *msg,
 	if (devlink_nl_put_handle(msg, devlink))
 		goto genlmsg_cancel;
 
-	reporter_attr = nla_nest_start(msg, DEVLINK_ATTR_HEALTH_REPORTER);
+	reporter_attr = nla_nest_start_noflag(msg,
+					      DEVLINK_ATTR_HEALTH_REPORTER);
 	if (!reporter_attr)
 		goto genlmsg_cancel;
 	if (nla_put_string(msg, DEVLINK_ATTR_HEALTH_REPORTER_NAME,
@@ -4926,293 +4948,293 @@ static const struct nla_policy devlink_nl_policy[DEVLINK_ATTR_MAX + 1] = {
 static const struct genl_ops devlink_nl_ops[] = {
 	{
 		.cmd = DEVLINK_CMD_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_get_doit,
 		.dumpit = devlink_nl_cmd_get_dumpit,
-		.policy = devlink_nl_policy,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_PORT_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_port_get_doit,
 		.dumpit = devlink_nl_cmd_port_get_dumpit,
-		.policy = devlink_nl_policy,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_PORT,
 		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_PORT_SET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_port_set_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_PORT,
 	},
 	{
 		.cmd = DEVLINK_CMD_PORT_SPLIT,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_port_split_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK |
 				  DEVLINK_NL_FLAG_NO_LOCK,
 	},
 	{
 		.cmd = DEVLINK_CMD_PORT_UNSPLIT,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_port_unsplit_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK |
 				  DEVLINK_NL_FLAG_NO_LOCK,
 	},
 	{
 		.cmd = DEVLINK_CMD_SB_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_sb_get_doit,
 		.dumpit = devlink_nl_cmd_sb_get_dumpit,
-		.policy = devlink_nl_policy,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK |
 				  DEVLINK_NL_FLAG_NEED_SB,
 		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_SB_POOL_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_sb_pool_get_doit,
 		.dumpit = devlink_nl_cmd_sb_pool_get_dumpit,
-		.policy = devlink_nl_policy,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK |
 				  DEVLINK_NL_FLAG_NEED_SB,
 		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_SB_POOL_SET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_sb_pool_set_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK |
 				  DEVLINK_NL_FLAG_NEED_SB,
 	},
 	{
 		.cmd = DEVLINK_CMD_SB_PORT_POOL_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_sb_port_pool_get_doit,
 		.dumpit = devlink_nl_cmd_sb_port_pool_get_dumpit,
-		.policy = devlink_nl_policy,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_PORT |
 				  DEVLINK_NL_FLAG_NEED_SB,
 		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_SB_PORT_POOL_SET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_sb_port_pool_set_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_PORT |
 				  DEVLINK_NL_FLAG_NEED_SB,
 	},
 	{
 		.cmd = DEVLINK_CMD_SB_TC_POOL_BIND_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_sb_tc_pool_bind_get_doit,
 		.dumpit = devlink_nl_cmd_sb_tc_pool_bind_get_dumpit,
-		.policy = devlink_nl_policy,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_PORT |
 				  DEVLINK_NL_FLAG_NEED_SB,
 		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_SB_TC_POOL_BIND_SET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_sb_tc_pool_bind_set_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_PORT |
 				  DEVLINK_NL_FLAG_NEED_SB,
 	},
 	{
 		.cmd = DEVLINK_CMD_SB_OCC_SNAPSHOT,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_sb_occ_snapshot_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK |
 				  DEVLINK_NL_FLAG_NEED_SB,
 	},
 	{
 		.cmd = DEVLINK_CMD_SB_OCC_MAX_CLEAR,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_sb_occ_max_clear_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK |
 				  DEVLINK_NL_FLAG_NEED_SB,
 	},
 	{
 		.cmd = DEVLINK_CMD_ESWITCH_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_eswitch_get_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 	},
 	{
 		.cmd = DEVLINK_CMD_ESWITCH_SET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_eswitch_set_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK |
 				  DEVLINK_NL_FLAG_NO_LOCK,
 	},
 	{
 		.cmd = DEVLINK_CMD_DPIPE_TABLE_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_dpipe_table_get,
-		.policy = devlink_nl_policy,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_DPIPE_ENTRIES_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_dpipe_entries_get,
-		.policy = devlink_nl_policy,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_DPIPE_HEADERS_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_dpipe_headers_get,
-		.policy = devlink_nl_policy,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_DPIPE_TABLE_COUNTERS_SET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_dpipe_table_counters_set,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 	},
 	{
 		.cmd = DEVLINK_CMD_RESOURCE_SET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_resource_set,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 	},
 	{
 		.cmd = DEVLINK_CMD_RESOURCE_DUMP,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_resource_dump,
-		.policy = devlink_nl_policy,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_RELOAD,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_reload,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK |
 				  DEVLINK_NL_FLAG_NO_LOCK,
 	},
 	{
 		.cmd = DEVLINK_CMD_PARAM_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_param_get_doit,
 		.dumpit = devlink_nl_cmd_param_get_dumpit,
-		.policy = devlink_nl_policy,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_PARAM_SET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_param_set_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 	},
 	{
 		.cmd = DEVLINK_CMD_PORT_PARAM_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_port_param_get_doit,
 		.dumpit = devlink_nl_cmd_port_param_get_dumpit,
-		.policy = devlink_nl_policy,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_PORT,
 		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_PORT_PARAM_SET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_port_param_set_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_PORT,
 	},
 	{
 		.cmd = DEVLINK_CMD_REGION_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_region_get_doit,
 		.dumpit = devlink_nl_cmd_region_get_dumpit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 	},
 	{
 		.cmd = DEVLINK_CMD_REGION_DEL,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_region_del,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 	},
 	{
 		.cmd = DEVLINK_CMD_REGION_READ,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.dumpit = devlink_nl_cmd_region_read_dumpit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 	},
 	{
 		.cmd = DEVLINK_CMD_INFO_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_info_get_doit,
 		.dumpit = devlink_nl_cmd_info_get_dumpit,
-		.policy = devlink_nl_policy,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_HEALTH_REPORTER_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_health_reporter_get_doit,
 		.dumpit = devlink_nl_cmd_health_reporter_get_dumpit,
-		.policy = devlink_nl_policy,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 		/* can be retrieved by unprivileged users */
 	},
 	{
 		.cmd = DEVLINK_CMD_HEALTH_REPORTER_SET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_health_reporter_set_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 	},
 	{
 		.cmd = DEVLINK_CMD_HEALTH_REPORTER_RECOVER,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_health_reporter_recover_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 	},
 	{
 		.cmd = DEVLINK_CMD_HEALTH_REPORTER_DIAGNOSE,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_health_reporter_diagnose_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 	},
 	{
 		.cmd = DEVLINK_CMD_HEALTH_REPORTER_DUMP_GET,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_health_reporter_dump_get_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK |
 				  DEVLINK_NL_FLAG_NO_LOCK,
 	},
 	{
 		.cmd = DEVLINK_CMD_HEALTH_REPORTER_DUMP_CLEAR,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_health_reporter_dump_clear_doit,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK |
 				  DEVLINK_NL_FLAG_NO_LOCK,
 	},
 	{
 		.cmd = DEVLINK_CMD_FLASH_UPDATE,
+		.validate = GENL_DONT_VALIDATE_STRICT | GENL_DONT_VALIDATE_DUMP,
 		.doit = devlink_nl_cmd_flash_update,
-		.policy = devlink_nl_policy,
 		.flags = GENL_ADMIN_PERM,
 		.internal_flags = DEVLINK_NL_FLAG_NEED_DEVLINK,
 	},
@@ -5222,6 +5244,7 @@ static struct genl_family devlink_nl_family __ro_after_init = {
 	.name		= DEVLINK_GENL_NAME,
 	.version	= DEVLINK_GENL_VERSION,
 	.maxattr	= DEVLINK_ATTR_MAX,
+	.policy = devlink_nl_policy,
 	.netnsok	= true,
 	.pre_doit	= devlink_nl_pre_doit,
 	.post_doit	= devlink_nl_post_doit,
@@ -5303,6 +5326,7 @@ EXPORT_SYMBOL_GPL(devlink_unregister);
  */
 void devlink_free(struct devlink *devlink)
 {
+	mutex_destroy(&devlink->lock);
 	WARN_ON(!list_empty(&devlink->reporter_list));
 	WARN_ON(!list_empty(&devlink->region_list));
 	WARN_ON(!list_empty(&devlink->param_list));
@@ -5340,6 +5364,7 @@ int devlink_port_register(struct devlink *devlink,
 	devlink_port->devlink = devlink;
 	devlink_port->index = port_index;
 	devlink_port->registered = true;
+	spin_lock_init(&devlink_port->type_lock);
 	list_add_tail(&devlink_port->list, &devlink->port_list);
 	INIT_LIST_HEAD(&devlink_port->param_list);
 	mutex_unlock(&devlink->lock);
@@ -5368,8 +5393,12 @@ static void __devlink_port_type_set(struct devlink_port *devlink_port,
 				    enum devlink_port_type type,
 				    void *type_dev)
 {
+	if (WARN_ON(!devlink_port->registered))
+		return;
+	spin_lock(&devlink_port->type_lock);
 	devlink_port->type = type;
 	devlink_port->type_dev = type_dev;
+	spin_unlock(&devlink_port->type_lock);
 	devlink_port_notify(devlink_port, DEVLINK_CMD_PORT_NEW);
 }
 
@@ -5382,8 +5411,39 @@ static void __devlink_port_type_set(struct devlink_port *devlink_port,
 void devlink_port_type_eth_set(struct devlink_port *devlink_port,
 			       struct net_device *netdev)
 {
-	return __devlink_port_type_set(devlink_port,
-				       DEVLINK_PORT_TYPE_ETH, netdev);
+	const struct net_device_ops *ops = netdev->netdev_ops;
+
+	/* If driver registers devlink port, it should set devlink port
+	 * attributes accordingly so the compat functions are called
+	 * and the original ops are not used.
+	 */
+	if (ops->ndo_get_phys_port_name) {
+		/* Some drivers use the same set of ndos for netdevs
+		 * that have devlink_port registered and also for
+		 * those who don't. Make sure that ndo_get_phys_port_name
+		 * returns -EOPNOTSUPP here in case it is defined.
+		 * Warn if not.
+		 */
+		char name[IFNAMSIZ];
+		int err;
+
+		err = ops->ndo_get_phys_port_name(netdev, name, sizeof(name));
+		WARN_ON(err != -EOPNOTSUPP);
+	}
+	if (ops->ndo_get_port_parent_id) {
+		/* Some drivers use the same set of ndos for netdevs
+		 * that have devlink_port registered and also for
+		 * those who don't. Make sure that ndo_get_port_parent_id
+		 * returns -EOPNOTSUPP here in case it is defined.
+		 * Warn if not.
+		 */
+		struct netdev_phys_item_id ppid;
+		int err;
+
+		err = ops->ndo_get_port_parent_id(netdev, &ppid);
+		WARN_ON(err != -EOPNOTSUPP);
+	}
+	__devlink_port_type_set(devlink_port, DEVLINK_PORT_TYPE_ETH, netdev);
 }
 EXPORT_SYMBOL_GPL(devlink_port_type_eth_set);
 
@@ -5396,8 +5456,7 @@ EXPORT_SYMBOL_GPL(devlink_port_type_eth_set);
 void devlink_port_type_ib_set(struct devlink_port *devlink_port,
 			      struct ib_device *ibdev)
 {
-	return __devlink_port_type_set(devlink_port,
-				       DEVLINK_PORT_TYPE_IB, ibdev);
+	__devlink_port_type_set(devlink_port, DEVLINK_PORT_TYPE_IB, ibdev);
 }
 EXPORT_SYMBOL_GPL(devlink_port_type_ib_set);
 
@@ -5408,8 +5467,7 @@ EXPORT_SYMBOL_GPL(devlink_port_type_ib_set);
  */
 void devlink_port_type_clear(struct devlink_port *devlink_port)
 {
-	return __devlink_port_type_set(devlink_port,
-				       DEVLINK_PORT_TYPE_NOTSET, NULL);
+	__devlink_port_type_set(devlink_port, DEVLINK_PORT_TYPE_NOTSET, NULL);
 }
 EXPORT_SYMBOL_GPL(devlink_port_type_clear);
 
@@ -5423,25 +5481,40 @@ EXPORT_SYMBOL_GPL(devlink_port_type_clear);
  *	@split: indicates if this is split port
  *	@split_subport_number: if the port is split, this is the number
  *	                       of subport.
+ *	@switch_id: if the port is part of switch, this is buffer with ID,
+ *	            otwerwise this is NULL
+ *	@switch_id_len: length of the switch_id buffer
  */
 void devlink_port_attrs_set(struct devlink_port *devlink_port,
 			    enum devlink_port_flavour flavour,
 			    u32 port_number, bool split,
-			    u32 split_subport_number)
+			    u32 split_subport_number,
+			    const unsigned char *switch_id,
+			    unsigned char switch_id_len)
 {
 	struct devlink_port_attrs *attrs = &devlink_port->attrs;
 
+	if (WARN_ON(devlink_port->registered))
+		return;
 	attrs->set = true;
 	attrs->flavour = flavour;
 	attrs->port_number = port_number;
 	attrs->split = split;
 	attrs->split_subport_number = split_subport_number;
-	devlink_port_notify(devlink_port, DEVLINK_CMD_PORT_NEW);
+	if (switch_id) {
+		attrs->switch_port = true;
+		if (WARN_ON(switch_id_len > MAX_PHYS_ITEM_ID_LEN))
+			switch_id_len = MAX_PHYS_ITEM_ID_LEN;
+		memcpy(attrs->switch_id.id, switch_id, switch_id_len);
+		attrs->switch_id.id_len = switch_id_len;
+	} else {
+		attrs->switch_port = false;
+	}
 }
 EXPORT_SYMBOL_GPL(devlink_port_attrs_set);
 
-int devlink_port_get_phys_port_name(struct devlink_port *devlink_port,
-				    char *name, size_t len)
+static int __devlink_port_phys_port_name_get(struct devlink_port *devlink_port,
+					     char *name, size_t len)
 {
 	struct devlink_port_attrs *attrs = &devlink_port->attrs;
 	int n = 0;
@@ -5471,7 +5544,6 @@ int devlink_port_get_phys_port_name(struct devlink_port *devlink_port,
 
 	return 0;
 }
-EXPORT_SYMBOL_GPL(devlink_port_get_phys_port_name);
 
 int devlink_sb_register(struct devlink *devlink, unsigned int sb_index,
 			u32 size, u16 ingress_pools_count,
@@ -6447,17 +6519,15 @@ void devlink_compat_running_version(struct net_device *dev,
 	dev_hold(dev);
 	rtnl_unlock();
 
-	mutex_lock(&devlink_mutex);
 	devlink = netdev_to_devlink(dev);
 	if (!devlink || !devlink->ops->info_get)
-		goto unlock_list;
+		goto out;
 
 	mutex_lock(&devlink->lock);
 	__devlink_compat_running_version(devlink, buf, len);
 	mutex_unlock(&devlink->lock);
-unlock_list:
-	mutex_unlock(&devlink_mutex);
 
+out:
 	rtnl_lock();
 	dev_put(dev);
 }
@@ -6465,26 +6535,63 @@ unlock_list:
 int devlink_compat_flash_update(struct net_device *dev, const char *file_name)
 {
 	struct devlink *devlink;
-	int ret = -EOPNOTSUPP;
+	int ret;
 
 	dev_hold(dev);
 	rtnl_unlock();
 
-	mutex_lock(&devlink_mutex);
 	devlink = netdev_to_devlink(dev);
-	if (!devlink || !devlink->ops->flash_update)
-		goto unlock_list;
+	if (!devlink || !devlink->ops->flash_update) {
+		ret = -EOPNOTSUPP;
+		goto out;
+	}
 
 	mutex_lock(&devlink->lock);
 	ret = devlink->ops->flash_update(devlink, file_name, NULL, NULL);
 	mutex_unlock(&devlink->lock);
-unlock_list:
-	mutex_unlock(&devlink_mutex);
 
+out:
 	rtnl_lock();
 	dev_put(dev);
 
 	return ret;
+}
+
+int devlink_compat_phys_port_name_get(struct net_device *dev,
+				      char *name, size_t len)
+{
+	struct devlink_port *devlink_port;
+
+	/* RTNL mutex is held here which ensures that devlink_port
+	 * instance cannot disappear in the middle. No need to take
+	 * any devlink lock as only permanent values are accessed.
+	 */
+	ASSERT_RTNL();
+
+	devlink_port = netdev_to_devlink_port(dev);
+	if (!devlink_port)
+		return -EOPNOTSUPP;
+
+	return __devlink_port_phys_port_name_get(devlink_port, name, len);
+}
+
+int devlink_compat_switch_id_get(struct net_device *dev,
+				 struct netdev_phys_item_id *ppid)
+{
+	struct devlink_port *devlink_port;
+
+	/* RTNL mutex is held here which ensures that devlink_port
+	 * instance cannot disappear in the middle. No need to take
+	 * any devlink lock as only permanent values are accessed.
+	 */
+	ASSERT_RTNL();
+	devlink_port = netdev_to_devlink_port(dev);
+	if (!devlink_port || !devlink_port->attrs.switch_port)
+		return -EOPNOTSUPP;
+
+	memcpy(ppid, &devlink_port->attrs.switch_id, sizeof(*ppid));
+
+	return 0;
 }
 
 static int __init devlink_init(void)
