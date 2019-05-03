@@ -214,10 +214,6 @@ static void phy_sanitize_settings(struct phy_device *phydev)
 {
 	const struct phy_setting *setting;
 
-	/* Sanitize settings based on PHY capabilities */
-	if (linkmode_test_bit(ETHTOOL_LINK_MODE_Autoneg_BIT, phydev->supported))
-		phydev->autoneg = AUTONEG_DISABLE;
-
 	setting = phy_find_valid(phydev->speed, phydev->duplex,
 				 phydev->supported);
 	if (setting) {
@@ -891,9 +887,6 @@ void phy_state_machine(struct work_struct *work)
 
 	old_state = phydev->state;
 
-	if (phydev->drv && phydev->drv->link_change_notify)
-		phydev->drv->link_change_notify(phydev);
-
 	switch (phydev->state) {
 	case PHY_DOWN:
 	case PHY_READY:
@@ -940,10 +933,13 @@ void phy_state_machine(struct work_struct *work)
 	if (err < 0)
 		phy_error(phydev);
 
-	if (old_state != phydev->state)
+	if (old_state != phydev->state) {
 		phydev_dbg(phydev, "PHY state change %s -> %s\n",
 			   phy_state_to_str(old_state),
 			   phy_state_to_str(phydev->state));
+		if (phydev->drv && phydev->drv->link_change_notify)
+			phydev->drv->link_change_notify(phydev);
+	}
 
 	/* Only re-schedule a PHY state machine change if we are polling the
 	 * PHY, if PHY_IGNORE_INTERRUPT is set, then we will be moving
