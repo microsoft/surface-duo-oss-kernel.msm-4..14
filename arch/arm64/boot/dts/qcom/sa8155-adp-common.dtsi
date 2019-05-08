@@ -76,14 +76,9 @@
 	};
 };
 
-&qupv3_se20_i2c {
-	status = "ok";
-};
-
 &pil_modem {
 	status = "disabled";
 };
-
 
 &soc {
 	qcom,lpass@17300000 {
@@ -248,4 +243,8 @@
 	qcom,param-override-seq = <0x01 0xb0>;
 	pinctrl-names = "default";
 	pinctrl-0 = <&usb2phy_ac_en2_default>;
+};
+
+&shared_meta {
+	parts = "vbmeta,boot,system,vendor,dtbo";
 };

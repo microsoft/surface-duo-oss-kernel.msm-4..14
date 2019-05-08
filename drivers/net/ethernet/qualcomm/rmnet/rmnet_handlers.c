@@ -25,11 +25,9 @@
 #include "rmnet_vnd.h"
 #include "rmnet_map.h"
 #include "rmnet_handlers.h"
-#ifdef CONFIG_QCOM_QMI_HELPERS
+
 #include <soc/qcom/rmnet_qmi.h>
 #include <soc/qcom/qmi_rmnet.h>
-
-#endif
 
 #define RMNET_IP_VERSION_4 0x40
 #define RMNET_IP_VERSION_6 0x60
@@ -48,6 +46,9 @@ EXPORT_TRACEPOINT_SYMBOL(rmnet_perf_err);
 EXPORT_TRACEPOINT_SYMBOL(rmnet_low);
 EXPORT_TRACEPOINT_SYMBOL(rmnet_high);
 EXPORT_TRACEPOINT_SYMBOL(rmnet_err);
+EXPORT_TRACEPOINT_SYMBOL(rmnet_freq_update);
+EXPORT_TRACEPOINT_SYMBOL(rmnet_freq_reset);
+EXPORT_TRACEPOINT_SYMBOL(rmnet_freq_boost);
 
 /* Helper Functions */
 

@@ -147,7 +147,8 @@ static void cam_isp_ctx_dump_req(struct cam_isp_ctx_req *req_isp)
 			}
 			remain_len = len - req_isp->cfg[i].offset;
 
-			if (req_isp->cfg[i].len > remain_len) {
+			if ((req_isp->cfg[i].len > remain_len) ||
+				(req_isp->cfg[i].len == 0)) {
 				CAM_ERR(CAM_ISP, "Invalid offset");
 				need_put = true;
 			}
@@ -1680,6 +1681,11 @@ static int __cam_isp_ctx_apply_req_in_activated_state(
 		CAM_ERR_RATE_LIMIT(CAM_ISP,
 			"Invalid Request Id asking %llu existing %llu",
 			apply->request_id, req->request_id);
+		if (ctx_isp->last_applied_req_id + 1 != req->request_id) {
+			/*ignore remain mismatching apply req_id for pause*/
+			ctx_isp->last_applied_req_id = apply->request_id;
+			return rc;
+		}
 		rc = -EFAULT;
 		goto end;
 	}

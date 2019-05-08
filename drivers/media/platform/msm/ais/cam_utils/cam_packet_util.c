@@ -147,6 +147,7 @@ int cam_packet_util_get_kmd_buffer(struct cam_packet *packet,
 	}
 
 	cpu_addr += (cmd_desc->offset / 4) + (packet->kmd_cmd_buf_offset / 4);
+	remain_len -= packet->kmd_cmd_buf_offset;
 	CAM_DBG(CAM_UTIL, "total size %d, cmd size: %d, KMD buffer size: %d",
 		cmd_desc->size, cmd_desc->length,
 		cmd_desc->size - cmd_desc->length);
