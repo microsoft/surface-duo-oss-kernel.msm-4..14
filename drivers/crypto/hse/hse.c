@@ -5,6 +5,7 @@
 
 #include <linux/module.h>
 #include <linux/platform_device.h>
+#include <linux/mod_devicetable.h>
 
 static int hse_probe(struct platform_device *pdev)
 {
