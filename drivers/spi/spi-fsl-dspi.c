@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 //
-// Copyright 2013 Freescale Semiconductor, Inc.
+// Copyright 2013-2016 Freescale Semiconductor, Inc.
+// Copyright 2017-2019 NXP
 //
 // Freescale DSPI driver
 // This file contains a driver for the Freescale DSPI
@@ -100,8 +101,8 @@
 #define SPI_PUSHR_EOQ		(SPI_PUSHR_CMD_EOQ << 16)
 #define SPI_PUSHR_CMD_CTCNT	(1 << 10)
 #define SPI_PUSHR_CTCNT		(SPI_PUSHR_CMD_CTCNT << 16)
-#define SPI_PUSHR_CMD_PCS(x)   ((1 << x) & 0x003f)
-#define SPI_PUSHR_PCS(x)       (((1 << x) & 0x0000003f) << 16)
+#define SPI_PUSHR_CMD_PCS(x, y)	((1 << (x)) & (y))
+#define SPI_PUSHR_PCS(x, y)	(SPI_PUSHR_CMD_PCS(x, y) << 16)
 #define SPI_PUSHR_TXDATA(x)	((x) & 0x0000ffff)
 
 #define SPI_PUSHR_SLAVE		0x34
@@ -782,7 +783,7 @@ static int dspi_transfer_one_message(struct spi_master *master,
 		dspi->cur_chip = spi_get_ctldata(spi);
 		/* Prepare command word for CMD FIFO */
 		dspi->tx_cmd = SPI_PUSHR_CMD_CTAS(0) |
-			SPI_PUSHR_CMD_PCS(spi->chip_select);
+			SPI_PUSHR_CMD_PCS(spi->chip_select, dspi->pcs_mask);
 		if (list_is_last(&dspi->cur_transfer->transfer_list,
 				 &dspi->cur_msg->transfers)) {
 			/* Leave PCS activated after last transfer when
