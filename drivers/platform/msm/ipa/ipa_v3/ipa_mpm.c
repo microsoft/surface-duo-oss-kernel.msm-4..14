@@ -68,6 +68,9 @@
 #define IPA_MPM_MHI_HOST_DL_CHANNEL  5
 #define DEFAULT_AGGR_TIME_LIMIT 1000 /* 1ms */
 #define DEFAULT_AGGR_PKT_LIMIT 0
+#define TETH_AGGR_TIME_LIMIT 10000
+#define TETH_AGGR_BYTE_LIMIT 24
+#define TETH_AGGR_DL_BYTE_LIMIT 16
 #define TRE_BUFF_SIZE 32768
 #define IPA_HOLB_TMR_EN 0x1
 #define IPA_HOLB_TMR_DIS 0x0
@@ -209,14 +212,49 @@ static struct ipa_ep_cfg mhip_dl_teth_ep_cfg = {
 	.mode = {
 		.mode = IPA_BASIC,
 		.dst = IPA_CLIENT_MHI_PRIME_TETH_CONS,
-	}
+	},
+	.hdr = {
+		.hdr_len = 4,
+		.hdr_ofst_metadata_valid = 1,
+		.hdr_ofst_metadata = 1,
+		.hdr_ofst_pkt_size_valid = 1,
+		.hdr_ofst_pkt_size = 2,
+	},
+	.hdr_ext = {
+		.hdr_total_len_or_pad_valid = true,
+		.hdr_payload_len_inc_padding = true,
+	},
+	.aggr = {
+		.aggr_en = IPA_BYPASS_AGGR, /* temporarily disabled */
+		.aggr = IPA_QCMAP,
+		.aggr_byte_limit = TETH_AGGR_DL_BYTE_LIMIT,
+		.aggr_time_limit = TETH_AGGR_TIME_LIMIT,
+	},
 };
 
 static struct ipa_ep_cfg mhip_ul_teth_ep_cfg = {
 	.mode = {
 		.mode = IPA_BASIC,
 		.dst = IPA_CLIENT_MHI_PRIME_TETH_PROD,
-	}
+	},
+	.hdr = {
+		.hdr_len = 4,
+		.hdr_ofst_metadata_valid = 1,
+		.hdr_ofst_metadata = 0,
+		.hdr_ofst_pkt_size_valid = 1,
+		.hdr_ofst_pkt_size = 2,
+	},
+	.hdr_ext = {
+		.hdr_total_len_or_pad_valid = true,
+		.hdr_payload_len_inc_padding = true,
+	},
+	.aggr = {
+		.aggr_en = IPA_ENABLE_AGGR,
+		.aggr = IPA_QCMAP,
+		.aggr_byte_limit = TETH_AGGR_BYTE_LIMIT,
+		.aggr_time_limit = TETH_AGGR_TIME_LIMIT,
+	},
+
 };
 
 /* WARNING!! Temporary for rndis intgration only */
@@ -484,7 +522,7 @@ static dma_addr_t ipa_mpm_smmu_map(void *va_addr,
 
 		/* Flush the cache with dma_map_single for IPA AP CB */
 		*ap_cb_iova = dma_map_single(ipa3_ctx->pdev, va_addr,
-						sz, dir);
+						IPA_MPM_RING_TOTAL_SIZE, dir);
 		ret = ipa3_iommu_map(ipa_smmu_domain, iova_p,
 					pa_p, size_p, prot);
 		if (ret) {
@@ -506,7 +544,8 @@ static dma_addr_t ipa_mpm_smmu_map(void *va_addr,
 		iova = iova_p;
 		cb->next_addr = iova_p + size_p;
 	} else {
-		iova = dma_map_single(ipa3_ctx->pdev, va_addr, sz, dir);
+		iova = dma_map_single(ipa3_ctx->pdev, va_addr,
+					IPA_MPM_RING_TOTAL_SIZE, dir);
 		*ap_cb_iova = iova;
 	}
 	return iova;
@@ -563,9 +602,10 @@ static void ipa_mpm_smmu_unmap(dma_addr_t carved_iova, int sz, int dir,
 
 		cb->next_addr -= size_p;
 		dma_unmap_single(ipa3_ctx->pdev, ap_cb_iova,
-			size_p, dir);
+			IPA_MPM_RING_TOTAL_SIZE, dir);
 	} else {
-		dma_unmap_single(ipa3_ctx->pdev, ap_cb_iova, sz, dir);
+		dma_unmap_single(ipa3_ctx->pdev, ap_cb_iova,
+			IPA_MPM_RING_TOTAL_SIZE, dir);
 	}
 }
 

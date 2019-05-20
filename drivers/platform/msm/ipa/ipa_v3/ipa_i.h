@@ -1585,6 +1585,11 @@ struct ipa3_char_device_context {
 	struct cdev cdev;
 };
 
+struct ipa3_pc_mbox_data {
+	struct mbox_client mbox_client;
+	struct mbox_chan *mbox;
+};
+
 /**
  * struct ipa3_context - IPA context
  * @cdev: cdev context
@@ -1828,8 +1833,7 @@ struct ipa3_context {
 	u32 sd_state;
 	void __iomem *reg_collection_base;
 	struct ipa3_wdi2_ctx wdi2_ctx;
-	struct mbox_client mbox_client;
-	struct mbox_chan *mbox;
+	struct ipa3_pc_mbox_data pc_mbox;
 	atomic_t ipa_clk_vote;
 	int gsi_chk_intset_value;
 	int uc_mailbox17_chk;
@@ -2161,8 +2165,9 @@ int ipa3_xdci_disconnect(u32 clnt_hdl, bool should_force_clear, u32 qmi_req_id);
 
 void ipa3_xdci_ep_delay_rm(u32 clnt_hdl);
 void ipa3_register_client_callback(int (*client_cb)(bool),
-		bool (*teth_port_state)(void), u32 ipa_ep_idx);
-void ipa3_deregister_client_callback(u32 ipa_ep_idx);
+		bool (*teth_port_state)(void),
+		enum ipa_client_type client_type);
+void ipa3_deregister_client_callback(enum ipa_client_type client_type);
 int ipa3_set_reset_client_prod_pipe_delay(bool set_reset,
 		enum ipa_client_type client);
 int ipa3_start_stop_client_prod_gsi_chnl(enum ipa_client_type client,
@@ -2479,6 +2484,8 @@ int ipa_create_uc_smmu_mapping(int res_idx, bool wlan_smmu_en,
 int ipa_create_gsi_smmu_mapping(int res_idx, bool wlan_smmu_en,
 		phys_addr_t pa, struct sg_table *sgt, size_t len, bool device,
 		unsigned long *iova);
+
+void ipa3_release_wdi3_gsi_smmu_mappings(u8 dir);
 
 /*
  * Tethering bridge (Rmnet / MBIM)

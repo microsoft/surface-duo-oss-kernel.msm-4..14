@@ -1899,7 +1899,7 @@ static int diag_switch_logging(struct diag_logging_mode_param_t *param)
 		"Switch logging to %d mask:%0x\n", new_mode, peripheral_mask);
 
 	/* Update to take peripheral_mask */
-	if (new_mode != DIAG_MEMORY_DEVICE_MODE ||
+	if (new_mode != DIAG_MEMORY_DEVICE_MODE &&
 		new_mode != DIAG_MULTI_MODE) {
 		diag_update_real_time_vote(DIAG_PROC_MEMORY_DEVICE,
 					   MODE_REALTIME, ALL_PROC);
@@ -4239,6 +4239,7 @@ static int __init diagchar_init(void)
 	mutex_init(&driver->hdlc_recovery_mutex);
 	for (i = 0; i < NUM_PERIPHERALS; i++) {
 		mutex_init(&driver->diagfwd_channel_mutex[i]);
+		mutex_init(&driver->rpmsginfo_mutex[i]);
 		driver->diag_id_sent[i] = 0;
 	}
 	init_waitqueue_head(&driver->wait_q);

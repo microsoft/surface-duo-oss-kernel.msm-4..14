@@ -5234,7 +5234,7 @@ static int sde_crtc_atomic_check(struct drm_crtc *crtc,
 	struct drm_plane *plane;
 	struct drm_display_mode *mode;
 
-	int cnt = 0, rc = 0, mixer_width, i, z_pos;
+	int cnt = 0, rc = 0, mixer_width, i, z_pos, mixer_height;
 
 	struct sde_multirect_plane_states *multirect_plane = NULL;
 	int multirect_count = 0;
@@ -5293,13 +5293,31 @@ static int sde_crtc_atomic_check(struct drm_crtc *crtc,
 
 	drm_connector_list_iter_begin(dev, &conn_iter);
 	drm_for_each_connector_iter(conn, &conn_iter)
-		if (conn->state && conn->state->crtc == crtc &&
-				cstate->num_connectors < MAX_CONNECTORS) {
+		if ((state->connector_mask & (1 << drm_connector_index(conn)))
+				&& cstate->num_connectors < MAX_CONNECTORS) {
 			cstate->connectors[cstate->num_connectors++] = conn;
 		}
 	drm_connector_list_iter_end(&conn_iter);
 
 	mixer_width = sde_crtc_get_mixer_width(sde_crtc, cstate, mode);
+	mixer_height = sde_crtc_get_mixer_height(sde_crtc, cstate, mode);
+
+	if (cstate->num_ds_enabled) {
+		if (!state->state)
+			goto end;
+
+		drm_atomic_crtc_state_for_each_plane_state(plane,
+							pstate, state) {
+			if ((pstate->crtc_h > mixer_height) ||
+					(pstate->crtc_w > mixer_width)) {
+				SDE_ERROR("plane w/h:%x*%x > mixer w/h:%x*%x\n",
+					pstate->crtc_w, pstate->crtc_h,
+					mixer_width, mixer_height);
+				return -E2BIG;
+				goto end;
+			}
+		}
+	}
 
 	_sde_crtc_setup_is_ppsplit(state);
 	_sde_crtc_setup_lm_bounds(crtc, state);
