@@ -242,7 +242,7 @@ struct hse_hash_srv {
  */
 struct hse_skcipher_srv {
 	u8 access_mode;
-	u8 reseved0[1];
+	u8 reserved0[1];
 	u8 cipher_algo;
 	u8 block_mode;
 	u8 cipher_dir;
