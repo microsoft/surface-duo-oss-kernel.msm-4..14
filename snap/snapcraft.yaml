@@ -1,5 +1,4 @@
 name: dragonboard-kernel
-version-script: echo $(make kernelversion)
 summary: Snapdragon kernel for snappy
 description: This is a snapdragon snapped kernel, based off linaro kernel
 grade: stable
@@ -98,6 +97,7 @@ parts:
             - -firmware/ath10k/QCA9984/hw1.0/board-2.bin
             - -firmware/ath10k/QCA9984/hw1.0/firmware-5.bin
             - -firmware/ath10k/QCA6174/hw3.0/firmware-6.bin
+            - -firmware/ath10k/QCA6174/hw3.0/board-2.bin
             - -firmware/wcnss.b00
             - -firmware/wcnss.b01
             - -firmware/wcnss.b02
@@ -128,24 +128,32 @@ parts:
     firmware-ath:
         after:
             - kernel
-        plugin: nil
+        plugin: dump
         source: http://cdn-fastly.deb.debian.org/debian/pool/non-free/f/firmware-nonfree/firmware-atheros_20190114-1_all.deb
+        stage:
+           - -usr
         organize:
             lib/firmware: firmware
 
     firmware-db820c:
         after:
             - kernel
-        plugin: nil
+        plugin: dump
         source: http://obs.linaro.org/linaro-overlay-buster/buster/all/firmware-qcom-dragonboard820c_01700.1-2_all.deb
+        stage:
+            - -usr
         organize:
             lib/firmware: firmware
 
     firmware-db410c:
         after:
             - kernel
-        plugin: nil
+        plugin: dump
         source: http://obs.linaro.org/linaro-overlay-buster/buster/all/firmware-qcom-dragonboard410c_1034.2.1-3_all.deb
+        stage:
+            - -boot
+            - -etc
+            - -usr
         organize:
             lib/firmware: firmware
 
