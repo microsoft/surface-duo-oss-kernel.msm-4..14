@@ -23,3 +23,4 @@ for cryptographic use cases, as well as programming examples.
    crypto_engine
    api
    api-samples
+   fsl/hse
