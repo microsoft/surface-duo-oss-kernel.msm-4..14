@@ -41,6 +41,15 @@ int hse_err_decode(u32 srv_rsp)
 	case HSE_SRV_RSP_NOT_ENOUGH_SPACE:
 		err = -ENOMEM;
 		break;
+	case HSE_SRV_RSP_KEY_NOT_AVAILABLE:
+	case HSE_SRV_RSP_KEY_EMPTY:
+		err = -ENOKEY;
+		break;
+	case HSE_SRV_RSP_KEY_INVALID:
+	case HSE_SRV_RSP_KEY_WRITE_PROTECTED:
+	case HSE_SRV_RSP_KEY_UPDATE_ERROR:
+		err = -EKEYREJECTED;
+		break;
 	case HSE_SRV_RSP_CANCELED:
 		err = -ECANCELED;
 		break;
@@ -73,6 +82,10 @@ static int hse_probe(struct platform_device *pdev)
 	if (err)
 		return err;
 
+	err = hse_skcipher_init(&pdev->dev);
+	if (err)
+		return err;
+
 	dev_info(&pdev->dev, "HSE device %s initialized\n", pdev->name);
 
 	return 0;
@@ -83,6 +96,7 @@ static int hse_remove(struct platform_device *pdev)
 	struct hse_drvdata *pdata = platform_get_drvdata(pdev);
 
 	hse_hash_free(&pdev->dev);
+	hse_skcipher_free();
 	hse_mu_free(pdata->mu_inst);
 
 	dev_info(&pdev->dev, "HSE device %s removed", pdev->name);
