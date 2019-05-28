@@ -41,29 +41,25 @@
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0x0 0x0>;
-			enable-method = "spin-table";
-			cpu-release-addr = <0x0 0x8000fff8>;
+			/* enable-method (psci/spin-table) and the
+			   cpu-release-addr (if the latter) will be fixed up
+			   by u-boot, unless explicitly specified here.
+			*/
 		};
 		cpu1: cpu@1 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0x0 0x1>;
-			enable-method = "spin-table";
-			cpu-release-addr = <0x0 0x8000fff8>;
 		};
 		cpu2: cpu@100 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0x0 0x100>;
-			enable-method = "spin-table";
-			cpu-release-addr = <0x0 0x8000fff8>;
 		};
 		cpu3: cpu@101 {
 			device_type = "cpu";
 			compatible = "arm,armv8";
 			reg = <0x0 0x101>;
-			enable-method = "spin-table";
-			cpu-release-addr = <0x0 0x8000fff8>;
 		};
 
 		cluster0_l2_cache: l2-cache0 {
