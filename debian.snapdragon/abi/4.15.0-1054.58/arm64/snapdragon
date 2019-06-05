@@ -18900,6 +18900,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_dw_read_comp_param
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_for_each_dev
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_generic_gpio_recovery
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_generic_scl_recovery
+EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_get_dma_safe_msg_buf
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_handle_smbus_host_notify
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_match_id
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_new_device
@@ -18910,6 +18911,7 @@ EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_of_match_device
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_parse_fw_timings
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_probe_func_quick_read
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_recover_bus
+EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_release_dma_safe_msg_buf
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_setup_smbus_alert
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_slave_register
 EXPORT_SYMBOL_GPL vmlinux 0x00000000	i2c_slave_unregister
