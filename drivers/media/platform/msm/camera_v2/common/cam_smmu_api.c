@@ -149,6 +149,8 @@ struct cam_dma_buff_info {
 
 struct cam_sec_buff_info {
 	struct dma_buf *dmabuf;
+	struct dma_buf_attachment *attach;
+	struct sg_table *table;
 	enum dma_data_direction dir;
 	int ref_count;
 	dma_addr_t paddr;
@@ -1020,6 +1022,9 @@ static int cam_smmu_map_buffer_and_add_to_list(int idx, int ion_fd,
 		goto err_put;
 	}
 
+	/* cache flush/invalidation is done by buffer provider */
+	attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
+
 	table = dma_buf_map_attachment(attach, dma_dir);
 	if (IS_ERR_OR_NULL(table)) {
 		rc = PTR_ERR(table);
@@ -1101,6 +1106,9 @@ static int cam_smmu_unmap_buf_and_remove_from_list(
 			(void *)mapping_info->attach);
 		return -EINVAL;
 	}
+
+	/* skip cache operations */
+	mapping_info->attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
 
 	/* iommu buffer clean up */
 	dma_buf_unmap_attachment(mapping_info->attach,
@@ -1225,6 +1233,9 @@ int cam_smmu_ops(int handle, enum cam_smmu_ops_param ops)
 	int ret = 0, idx;
 
 	CDBG("E: ops = %d\n", ops);
+	if (iommu_cb_set.camera_secure_sid)
+		return ret;
+
 	idx = GET_SMMU_TABLE_IDX(handle);
 	if (handle == HANDLE_INIT || idx < 0 || idx >= iommu_cb_set.cb_num) {
 		pr_err("Error: handle or index invalid. idx = %d hdl = %x\n",
@@ -1258,17 +1269,11 @@ int cam_smmu_ops(int handle, enum cam_smmu_ops_param ops)
 		break;
 	}
 	case CAM_SMMU_ATTACH_SEC_CPP: {
-		if (iommu_cb_set.camera_secure_sid == false)
-			ret = cam_smmu_attach_sec_cpp(idx);
-		else
-			iommu_cb_set.cb_info[idx].state = CAM_SMMU_ATTACH;
+		ret = cam_smmu_attach_sec_cpp(idx);
 		break;
 	}
 	case CAM_SMMU_DETACH_SEC_CPP: {
-		if (iommu_cb_set.camera_secure_sid == false)
-			ret = cam_smmu_detach_sec_cpp(idx);
-		else
-			iommu_cb_set.cb_info[idx].state = CAM_SMMU_DETACH;
+		ret = cam_smmu_detach_sec_cpp(idx);
 		break;
 	}
 	case CAM_SMMU_VOTE:
@@ -1659,11 +1664,27 @@ static int cam_smmu_secure_unmap_buf_and_remove_from_list(
 		struct cam_sec_buff_info *mapping_info,
 		int idx)
 {
-	if (!mapping_info) {
-		pr_err("Error: List doesn't exist\n");
+	if ((!mapping_info->dmabuf) || (!mapping_info->table) ||
+		(!mapping_info->attach)) {
+		pr_err("Error: Invalid params dev = %pK, table = %pK",
+			(void *)iommu_cb_set.cb_info[idx].dev,
+			(void *)mapping_info->table);
+		pr_err("Error:dma_buf = %pK, attach = %pK\n",
+			(void *)mapping_info->dmabuf,
+			(void *)mapping_info->attach);
 		return -EINVAL;
 	}
+
+	/* skip cache operations */
+	mapping_info->attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
+
+	/* iommu buffer clean up */
+	dma_buf_unmap_attachment(mapping_info->attach,
+	mapping_info->table, mapping_info->dir);
+	dma_buf_detach(mapping_info->dmabuf, mapping_info->attach);
 	dma_buf_put(mapping_info->dmabuf);
+	mapping_info->dmabuf = NULL;
+
 	list_del_init(&mapping_info->list);
 
 	/* free one buffer */
@@ -1783,6 +1804,8 @@ static int cam_smmu_map_stage2_buffer_and_add_to_list(int idx, int ion_fd,
 	mapping_info->dir = dma_dir;
 	mapping_info->ref_count = 1;
 	mapping_info->dmabuf = dmabuf;
+	mapping_info->attach = attach;
+	mapping_info->table = table;
 
 	CDBG("ion_fd = %d, dev = %pK, paddr= %pK, len = %u\n", ion_fd,
 			(void *)iommu_cb_set.cb_info[idx].dev,
@@ -2208,6 +2231,12 @@ static int cam_populate_smmu_context_banks(struct device *dev,
 	iommu_set_fault_handler(cb->mapping->domain,
 			cam_smmu_iommu_fault_handler,
 			(void *)cb->name);
+
+	if (iommu_cb_set.camera_secure_sid) {
+		rc = cam_smmu_attach(iommu_cb_set.cb_init_count);
+		if (rc)
+			pr_err("Error: SMMU attach failed for %s\n", cb->name);
+	}
 
 	/* increment count to next bank */
 	iommu_cb_set.cb_init_count++;

@@ -1610,6 +1610,28 @@ int adreno_clear_pending_transactions(struct kgsl_device *device)
 
 	if (adreno_has_gbif(adreno_dev)) {
 
+		/* This is taken care by GMU firmware if GMU is enabled */
+		if (!gmu_core_gpmu_isenabled(device)) {
+			/* Halt GBIF GX traffic and poll for halt ack */
+			if (adreno_is_a615_family(adreno_dev)) {
+				adreno_writereg(adreno_dev,
+					ADRENO_REG_RBBM_GPR0_CNTL,
+					GBIF_HALT_REQUEST);
+				ret = adreno_wait_for_halt_ack(device,
+					A6XX_RBBM_VBIF_GX_RESET_STATUS,
+					VBIF_RESET_ACK_MASK);
+			} else {
+				adreno_writereg(adreno_dev,
+					ADRENO_REG_RBBM_GBIF_HALT,
+					gpudev->gbif_gx_halt_mask);
+				ret = adreno_wait_for_halt_ack(device,
+					ADRENO_REG_RBBM_GBIF_HALT_ACK,
+					gpudev->gbif_gx_halt_mask);
+			}
+			if (ret)
+				return ret;
+		}
+
 		/* Halt new client requests */
 		adreno_writereg(adreno_dev, ADRENO_REG_GBIF_HALT,
 				gpudev->gbif_client_halt_mask);
@@ -2287,10 +2309,13 @@ static inline bool adreno_try_soft_reset(struct kgsl_device *device, int fault)
 	 * needs a reset too) and also for below gpu
 	 * A304: It can't do SMMU programming of any kind after a soft reset
 	 * A612: IPC protocol between RGMU and CP will not restart after reset
+	 * A610: An across chip issue with reset line in all 11nm chips,
+	 * resulting in recommendation to not use soft reset.
 	 */
 
 	if ((fault & ADRENO_IOMMU_PAGE_FAULT) || adreno_is_a304(adreno_dev) ||
-			adreno_is_a612(adreno_dev))
+			adreno_is_a612(adreno_dev) ||
+			adreno_is_a610(adreno_dev))
 		return false;
 
 	return true;
@@ -2319,8 +2344,9 @@ int adreno_reset(struct kgsl_device *device, int fault)
 		if (ret == 0) {
 			ret = adreno_soft_reset(device);
 			if (ret)
-				KGSL_DEV_ERR_ONCE(device,
-					"Device soft reset failed\n");
+				KGSL_DRV_ERR(device,
+					"Device soft reset failed: ret=%d\n",
+					ret);
 		}
 	}
 	if (ret) {

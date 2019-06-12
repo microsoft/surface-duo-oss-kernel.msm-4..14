@@ -166,6 +166,7 @@ struct rmnet_ipa3_context {
 		tether_device
 		[IPACM_MAX_CLIENT_DEVICE_TYPES];
 	bool dl_csum_offload_enabled;
+	atomic_t ap_suspend;
 };
 
 static struct rmnet_ipa3_context *rmnet_ipa3_ctx;
@@ -1157,14 +1158,27 @@ static int ipa3_wwan_xmit(struct sk_buff *skb, struct net_device *dev)
 	}
 
 	qmap_check = RMNET_MAP_GET_CD_BIT(skb);
+	spin_lock_irqsave(&wwan_ptr->lock, flags);
+	/* There can be a race between enabling the wake queue and
+	 * suspend in progress. Check if suspend is pending and
+	 * return from here itself.
+	 */
+	if (atomic_read(&rmnet_ipa3_ctx->ap_suspend)) {
+		netif_stop_queue(dev);
+		spin_unlock_irqrestore(&wwan_ptr->lock, flags);
+		return NETDEV_TX_BUSY;
+	}
 	if (netif_queue_stopped(dev)) {
 		if (qmap_check &&
 			atomic_read(&wwan_ptr->outstanding_pkts) <
 					outstanding_high_ctl) {
-			pr_err("[%s]Queue stop, send ctrl pkts\n", dev->name);
+			IPAWANERR("[%s]Queue stop, send ctrl pkts\n",
+							dev->name);
 			goto send;
 		} else {
-			pr_err("[%s]fatal: %s stopped\n", dev->name, __func__);
+			IPAWANERR("[%s]fatal: %s stopped\n", dev->name,
+							__func__);
+			spin_unlock_irqrestore(&wwan_ptr->lock, flags);
 			return NETDEV_TX_BUSY;
 		}
 	}
@@ -1179,12 +1193,12 @@ static int ipa3_wwan_xmit(struct sk_buff *skb, struct net_device *dev)
 				netif_queue_stopped(dev));
 			IPAWANDBG_LOW("qmap_chk(%d)\n", qmap_check);
 			netif_stop_queue(dev);
+			spin_unlock_irqrestore(&wwan_ptr->lock, flags);
 			return NETDEV_TX_BUSY;
 		}
 	}
 
 send:
-	spin_lock_irqsave(&wwan_ptr->lock, flags);
 	/* IPA_RM checking start */
 	if (ipa3_ctx->use_ipa_pm) {
 		/* activate the modem pm for clock scaling */
@@ -1200,7 +1214,7 @@ send:
 		return NETDEV_TX_BUSY;
 	}
 	if (ret) {
-		pr_err("[%s] fatal: ipa rm timer request resource failed %d\n",
+		IPAWANERR("[%s] fatal: ipa rm timer req resource failed %d\n",
 		       dev->name, ret);
 		dev_kfree_skb_any(skb);
 		dev->stats.tx_dropped++;
@@ -1758,13 +1772,18 @@ static int ipa3_wwan_ioctl(struct net_device *dev, struct ifreq *ifr, int cmd)
 			break;
 		/*  Get driver name  */
 		case RMNET_IOCTL_GET_DRIVER_NAME:
-			memcpy(&ext_ioctl_data.u.if_name,
-				IPA_NETDEV()->name, IFNAMSIZ);
-			ext_ioctl_data.u.if_name[IFNAMSIZ - 1] = '\0';
-			if (copy_to_user((u8 *)ifr->ifr_ifru.ifru_data,
+			if (IPA_NETDEV() != NULL) {
+				memcpy(&ext_ioctl_data.u.if_name,
+					IPA_NETDEV()->name, IFNAMSIZ);
+				ext_ioctl_data.u.if_name[IFNAMSIZ - 1] = '\0';
+				if (copy_to_user(ifr->ifr_ifru.ifru_data,
 					&ext_ioctl_data,
 					sizeof(struct rmnet_ioctl_extended_s)))
+					rc = -EFAULT;
+			} else {
+				IPAWANDBG("IPA_NETDEV is NULL\n");
 				rc = -EFAULT;
+			}
 			break;
 		/*  Add MUX ID  */
 		case RMNET_IOCTL_ADD_MUX_CHANNEL:
@@ -2222,6 +2241,7 @@ static void ipa3_wake_tx_queue(struct work_struct *work)
 {
 	if (IPA_NETDEV()) {
 		__netif_tx_lock_bh(netdev_get_tx_queue(IPA_NETDEV(), 0));
+		IPAWANDBG("Waking up the workqueue.\n");
 		netif_wake_queue(IPA_NETDEV());
 		__netif_tx_unlock_bh(netdev_get_tx_queue(IPA_NETDEV(), 0));
 	}
@@ -2633,6 +2653,7 @@ static int ipa3_wwan_probe(struct platform_device *pdev)
 		ipa3_proxy_clk_unvote();
 	}
 	atomic_set(&rmnet_ipa3_ctx->is_ssr, 0);
+	atomic_set(&rmnet_ipa3_ctx->ap_suspend, 0);
 	ipa3_update_ssr_state(false);
 
 	IPAWANERR("rmnet_ipa completed initialization\n");
@@ -2750,11 +2771,18 @@ static int rmnet_ipa_ap_suspend(struct device *dev)
 		goto bail;
 	}
 
+	/*
+	 * Rmnert supend and xmit are executing at the same time, In those
+	 * scenarios observing the data was processed when IPA clock are off.
+	 * Added changes to synchronize rmnet supend and xmit.
+	 */
+	atomic_set(&rmnet_ipa3_ctx->ap_suspend, 1);
 	spin_lock_irqsave(&wwan_ptr->lock, flags);
 	/* Do not allow A7 to suspend in case there are outstanding packets */
 	if (atomic_read(&wwan_ptr->outstanding_pkts) != 0) {
 		IPAWANDBG("Outstanding packets, postponing AP suspend.\n");
 		ret = -EAGAIN;
+		atomic_set(&rmnet_ipa3_ctx->ap_suspend, 0);
 		spin_unlock_irqrestore(&wwan_ptr->lock, flags);
 		goto bail;
 	}
@@ -2766,6 +2794,7 @@ static int rmnet_ipa_ap_suspend(struct device *dev)
 		dev_put(netdev);
 	spin_unlock_irqrestore(&wwan_ptr->lock, flags);
 
+	IPAWANDBG("De-activating the PM/RM resource.\n");
 	if (ipa3_ctx->use_ipa_pm)
 		ipa_pm_deactivate_sync(rmnet_ipa3_ctx->pm_hdl);
 	else
@@ -2791,6 +2820,8 @@ static int rmnet_ipa_ap_resume(struct device *dev)
 	struct net_device *netdev = IPA_NETDEV();
 
 	IPAWANDBG("Enter...\n");
+	/* Clear the suspend in progress flag. */
+	atomic_set(&rmnet_ipa3_ctx->ap_suspend, 0);
 	if (netdev) {
 		netif_wake_queue(netdev);
 		/* Starting Watch dog timer, pipe was changes to resume state */
