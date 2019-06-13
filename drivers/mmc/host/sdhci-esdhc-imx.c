@@ -1423,9 +1423,6 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 
 	sdhci_esdhc_imx_hwinit(host);
 
-	if (is_s32v234_usdhc(imx_data) || is_s32gen1_usdhc(imx_data))
-		host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
-
 	if (host->mmc->pm_caps & MMC_PM_KEEP_POWER &&
 		host->mmc->pm_caps & MMC_PM_WAKE_SDIO_IRQ)
 		device_init_wakeup(&pdev->dev, 1);
