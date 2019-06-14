@@ -36,3 +36,7 @@ The following Kconfig options are available:
   a different key type. This option specifies which key group is used by driver
   for programming AES 256-bit keys into HSE, depending on how catalog was
   initialized by firmware. Default value is 1.
+
+- Number of AES Key Slots in Key Group (CONFIG_CRYPTO_DEV_NXP_HSE_AES_KEY_GSIZE):
+  Each Key Group can store up to 256 keys and this option configures the number
+  of keys that can be stored in the AES 256-bit key group.
