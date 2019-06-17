@@ -36,6 +36,10 @@
 
 #include "analogix-anx7625.h"
 
+#include <soc/qcom/boot_stats.h>
+
+static bool bfore_hibernation = 1;
+
 #define TX_P0			0x70
 #define TX_P1			0x7A
 #define TX_P2			0x72
@@ -1072,6 +1076,13 @@ static void DSI_DSC_Configuration(struct anx7625 *anx7625,
 
 static int anx7625_start(struct anx7625 *anx7625)
 {
+#ifdef CONFIG_HIBERNATION
+/* For Display up KPI marker, post Hibernate Image
+ * Restore relies on this value being 0
+ */
+static bool enter_hib_restore = 0;
+#endif /* CONFIG_HIBERNATION */
+
 	/*not support HDCP*/
 	sp_write_reg_and(RX_P1, 0xee, 0x9f);
 
@@ -1085,6 +1096,13 @@ static int anx7625_start(struct anx7625 *anx7625)
 	else
 		DSI_DSC_Configuration(anx7625, anx7625->mode_idx);
 
+#ifdef CONFIG_HIBERNATION
+	if (!bfore_hibernation && !enter_hib_restore) {
+		bfore_hibernation = 1;
+		enter_hib_restore = 1;
+		place_marker("Hiber: Display up");
+	}
+#endif /* CONFIG_HIBERNATION */
 	return 0;
 }
 
@@ -1553,6 +1571,8 @@ static int anx7625_restore(struct device *dev)
 		/* wait until ocm is initialized */
 		usleep_range(10000, 11000);
 
+		if (bfore_hibernation)
+			bfore_hibernation = 0;
 		anx7625_start(anx7625);
 	}
 
