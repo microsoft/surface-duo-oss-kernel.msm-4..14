@@ -37,6 +37,7 @@
 
 #include "power.h"
 
+extern void update_bootloader_stats(void);
 
 static int nocompress;
 static int noresume;
@@ -47,6 +48,7 @@ static char resume_file[256] = CONFIG_PM_STD_PARTITION;
 dev_t swsusp_resume_device;
 sector_t swsusp_resume_block;
 __visible int in_suspend __nosavedata;
+__visible bool before_hibernation = 1;
 
 enum {
 	HIBERNATION_INVALID,
@@ -307,10 +309,16 @@ static int create_image(int platform_mode)
 	trace_suspend_resume(TPS("machine_suspend"), PM_EVENT_HIBERNATE, true);
 	error = swsusp_arch_suspend();
 	/* Restore control flow magically appears here */
+	if (!in_suspend)
+		place_marker("Kernel Start");
+
+	before_hibernation = 0;
 	restore_processor_state();
 	trace_suspend_resume(TPS("machine_suspend"), PM_EVENT_HIBERNATE, false);
-	if (error)
+	if (error) {
+		before_hibernation = 1;
 		pr_err("Error %d creating hibernation image\n", error);
+	}
 
 	if (!in_suspend) {
 		events_check_enabled = false;
@@ -335,6 +343,7 @@ static int create_image(int platform_mode)
  Platform_finish:
 	platform_finish(platform_mode);
 
+	place_marker("Hiber: start device resume");
 	dpm_resume_start(in_suspend ?
 		(error ? PMSG_RECOVER : PMSG_THAW) : PMSG_RESTORE);
 
@@ -410,7 +419,7 @@ int hibernation_snapshot(int platform_mode)
 
 	resume_console();
 	dpm_complete(msg);
-
+	place_marker("Hiber: end device resume");
  Close:
 	platform_end(platform_mode);
 	return error;
@@ -765,6 +774,7 @@ int hibernate(void)
 			error = load_image_and_restore();
 	}
 	thaw_processes();
+	place_marker("Hiber: process thaw done");
 
 	/* Don't bother checking whether freezer_test_done is true */
 	freezer_test_done = false;
@@ -775,6 +785,7 @@ int hibernate(void)
  Unlock:
 	unlock_system_sleep();
 	place_marker("PM: Hibernation Exit!");
+	update_bootloader_stats();
 	pr_info("hibernation exit\n");
 
 	return error;
