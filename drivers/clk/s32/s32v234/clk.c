@@ -92,27 +92,33 @@ static void __init s32v234_clocks_init(struct device_node *mc_cgm0_node)
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,s32v234-mc_me");
 	mc_me_base = of_iomap(np, 0);
-	BUG_ON(!mc_me_base);
+	if (WARN_ON(!mc_me_base))
+		return;
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,s32v234-src");
 	src_base = of_iomap(np, 0);
-	BUG_ON(!src_base);
+	if (WARN_ON(!src_base))
+		return;
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,s32v234-mc_cgm1");
 	mc_cgm1_base = of_iomap(np, 0);
-	BUG_ON(!mc_cgm1_base);
+	if (WARN_ON(!mc_cgm1_base))
+		return;
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,s32v234-mc_cgm2");
 	mc_cgm2_base = of_iomap(np, 0);
-	BUG_ON(!mc_cgm2_base);
+	if (WARN_ON(!mc_cgm2_base))
+		return;
 
 	np = of_find_compatible_node(NULL, NULL, "fsl,s32v234-mc_cgm3");
 	mc_cgm3_base = of_iomap(np, 0);
-	BUG_ON(!mc_cgm3_base);
+	if (WARN_ON(!mc_cgm3_base))
+		return;
 
 	np = mc_cgm0_node;
 	mc_cgm0_base = of_iomap(np, 0);
-	BUG_ON(!mc_cgm0_base);
+	if (WARN_ON(!mc_cgm0_base))
+		return;
 
 	enable_cpumodes_onperipheralconfig(mc_me_base, MC_ME_RUN_PCn_DRUN |
 					    MC_ME_RUN_PCn_RUN0 |
