@@ -1054,6 +1054,12 @@
 			specified address. The serial port must already be
 			setup and configured. Options are not yet supported.
 
+		linflex,<addr>
+			Use early console provided by Freescale LinFlex UART
+			serial driver for NXP S32 SoC family. A valid base
+			address must be provided, and the serial port must
+			already be setup and configured.
+
 	earlyprintk=	[X86,SH,ARM,M68k,S390]
 			earlyprintk=vga
 			earlyprintk=efi

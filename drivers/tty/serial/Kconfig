@@ -1419,6 +1419,7 @@ config SERIAL_FSL_LINFLEXUART_CONSOLE
 	bool "Console on Freescale linflexuart serial port"
 	depends on SERIAL_FSL_LINFLEXUART=y
 	select SERIAL_CORE_CONSOLE
+	select SERIAL_EARLYCON
 	help
 	  If you have enabled the lpuart serial port on the Freescale SoCs,
 	  you can make it the console by answering Y to this option.
