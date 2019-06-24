@@ -702,9 +702,38 @@ static void name_msix_vecs(struct adapter *adap)
 	}
 }
 
+int cxgb4_set_msix_aff(struct adapter *adap, unsigned short vec,
+		       cpumask_var_t *aff_mask, int idx)
+{
+	int rv;
+
+	if (!zalloc_cpumask_var(aff_mask, GFP_KERNEL)) {
+		dev_err(adap->pdev_dev, "alloc_cpumask_var failed\n");
+		return -ENOMEM;
+	}
+
+	cpumask_set_cpu(cpumask_local_spread(idx, dev_to_node(adap->pdev_dev)),
+			*aff_mask);
+
+	rv = irq_set_affinity_hint(vec, *aff_mask);
+	if (rv)
+		dev_warn(adap->pdev_dev,
+			 "irq_set_affinity_hint %u failed %d\n",
+			 vec, rv);
+
+	return 0;
+}
+
+void cxgb4_clear_msix_aff(unsigned short vec, cpumask_var_t aff_mask)
+{
+	irq_set_affinity_hint(vec, NULL);
+	free_cpumask_var(aff_mask);
+}
+
 static int request_msix_queue_irqs(struct adapter *adap)
 {
 	struct sge *s = &adap->sge;
+	struct msix_info *minfo;
 	int err, ethqidx;
 	int msi_index = 2;
 
@@ -714,32 +743,77 @@ static int request_msix_queue_irqs(struct adapter *adap)
 		return err;
 
 	for_each_ethrxq(s, ethqidx) {
-		err = request_irq(adap->msix_info[msi_index].vec,
+		minfo = &adap->msix_info[msi_index];
+		err = request_irq(minfo->vec,
 				  t4_sge_intr_msix, 0,
-				  adap->msix_info[msi_index].desc,
+				  minfo->desc,
 				  &s->ethrxq[ethqidx].rspq);
 		if (err)
 			goto unwind;
+
+		cxgb4_set_msix_aff(adap, minfo->vec,
+				   &minfo->aff_mask, ethqidx);
 		msi_index++;
 	}
 	return 0;
 
 unwind:
-	while (--ethqidx >= 0)
-		free_irq(adap->msix_info[--msi_index].vec,
-			 &s->ethrxq[ethqidx].rspq);
+	while (--ethqidx >= 0) {
+		msi_index--;
+		minfo = &adap->msix_info[msi_index];
+		cxgb4_clear_msix_aff(minfo->vec, minfo->aff_mask);
+		free_irq(minfo->vec, &s->ethrxq[ethqidx].rspq);
+	}
 	free_irq(adap->msix_info[1].vec, &s->fw_evtq);
 	return err;
 }
 
 static void free_msix_queue_irqs(struct adapter *adap)
 {
-	int i, msi_index = 2;
 	struct sge *s = &adap->sge;
+	struct msix_info *minfo;
+	int i, msi_index = 2;
 
 	free_irq(adap->msix_info[1].vec, &s->fw_evtq);
-	for_each_ethrxq(s, i)
-		free_irq(adap->msix_info[msi_index++].vec, &s->ethrxq[i].rspq);
+	for_each_ethrxq(s, i) {
+		minfo = &adap->msix_info[msi_index++];
+		cxgb4_clear_msix_aff(minfo->vec, minfo->aff_mask);
+		free_irq(minfo->vec, &s->ethrxq[i].rspq);
+	}
+}
+
+static int setup_ppod_edram(struct adapter *adap)
+{
+	unsigned int param, val;
+	int ret;
+
+	/* Driver sends FW_PARAMS_PARAM_DEV_PPOD_EDRAM read command to check
+	 * if firmware supports ppod edram feature or not. If firmware
+	 * returns 1, then driver can enable this feature by sending
+	 * FW_PARAMS_PARAM_DEV_PPOD_EDRAM write command with value 1 to
+	 * enable ppod edram feature.
+	 */
+	param = (FW_PARAMS_MNEM_V(FW_PARAMS_MNEM_DEV) |
+		FW_PARAMS_PARAM_X_V(FW_PARAMS_PARAM_DEV_PPOD_EDRAM));
+
+	ret = t4_query_params(adap, adap->mbox, adap->pf, 0, 1, &param, &val);
+	if (ret < 0) {
+		dev_warn(adap->pdev_dev,
+			 "querying PPOD_EDRAM support failed: %d\n",
+			 ret);
+		return -1;
+	}
+
+	if (val != 1)
+		return -1;
+
+	ret = t4_set_params(adap, adap->mbox, adap->pf, 0, 1, &param, &val);
+	if (ret < 0) {
+		dev_err(adap->pdev_dev,
+			"setting PPOD_EDRAM failed: %d\n", ret);
+		return -1;
+	}
+	return 0;
 }
 
 /**
@@ -1645,6 +1719,18 @@ unsigned int cxgb4_port_chan(const struct net_device *dev)
 	return netdev2pinfo(dev)->tx_chan;
 }
 EXPORT_SYMBOL(cxgb4_port_chan);
+
+/**
+ *      cxgb4_port_e2cchan - get the HW c-channel of a port
+ *      @dev: the net device for the port
+ *
+ *      Return the HW RX c-channel of the given port.
+ */
+unsigned int cxgb4_port_e2cchan(const struct net_device *dev)
+{
+	return netdev2pinfo(dev)->rx_cchan;
+}
+EXPORT_SYMBOL(cxgb4_port_e2cchan);
 
 unsigned int cxgb4_dbfifo_count(const struct net_device *dev, int lpfifo)
 {
@@ -3905,14 +3991,14 @@ static int adap_init0_phy(struct adapter *adap)
  */
 static int adap_init0_config(struct adapter *adapter, int reset)
 {
-	struct fw_caps_config_cmd caps_cmd;
-	const struct firmware *cf;
-	unsigned long mtype = 0, maddr = 0;
-	u32 finiver, finicsum, cfcsum;
-	int ret;
-	int config_issued = 0;
 	char *fw_config_file, fw_config_file_path[256];
+	u32 finiver, finicsum, cfcsum, param, val;
+	struct fw_caps_config_cmd caps_cmd;
+	unsigned long mtype = 0, maddr = 0;
+	const struct firmware *cf;
 	char *config_name = NULL;
+	int config_issued = 0;
+	int ret;
 
 	/*
 	 * Reset device if necessary.
@@ -4020,6 +4106,24 @@ static int adap_init0_config(struct adapter *adapter, int reset)
 			goto bye;
 	}
 
+	val = 0;
+
+	/* Ofld + Hash filter is supported. Older fw will fail this request and
+	 * it is fine.
+	 */
+	param = (FW_PARAMS_MNEM_V(FW_PARAMS_MNEM_DEV) |
+		 FW_PARAMS_PARAM_X_V(FW_PARAMS_PARAM_DEV_HASHFILTER_WITH_OFLD));
+	ret = t4_set_params(adapter, adapter->mbox, adapter->pf, 0,
+			    1, &param, &val);
+
+	/* FW doesn't know about Hash filter + ofld support,
+	 * it's not a problem, don't return an error.
+	 */
+	if (ret < 0) {
+		dev_warn(adapter->pdev_dev,
+			 "Hash filter with ofld is not supported by FW\n");
+	}
+
 	/*
 	 * Issue a Capability Configuration command to the firmware to get it
 	 * to parse the Configuration File.  We don't use t4_fw_config_file()
@@ -4095,6 +4199,13 @@ static int adap_init0_config(struct adapter *adapter, int reset)
 	if (ret)
 		dev_err(adapter->pdev_dev,
 			"HMA configuration failed with error %d\n", ret);
+
+	if (is_t6(adapter->params.chip)) {
+		ret = setup_ppod_edram(adapter);
+		if (!ret)
+			dev_info(adapter->pdev_dev, "Successfully enabled "
+				 "ppod edram feature\n");
+	}
 
 	/*
 	 * And finally tell the firmware to initialize itself using the
@@ -4580,6 +4691,13 @@ static int adap_init0(struct adapter *adap)
 	if (ret < 0)
 		goto bye;
 
+	/* hash filter has some mandatory register settings to be tested and for
+	 * that it needs to test whether offload is enabled or not, hence
+	 * checking and setting it here.
+	 */
+	if (caps_cmd.ofldcaps)
+		adap->params.offload = 1;
+
 	if (caps_cmd.ofldcaps ||
 	    (caps_cmd.niccaps & htons(FW_CAPS_CONFIG_NIC_HASHFILTER))) {
 		/* query offload-related parameters */
@@ -4619,11 +4737,8 @@ static int adap_init0(struct adapter *adap)
 		adap->params.ofldq_wr_cred = val[5];
 
 		if (caps_cmd.niccaps & htons(FW_CAPS_CONFIG_NIC_HASHFILTER)) {
-			ret = init_hash_filter(adap);
-			if (ret < 0)
-				goto bye;
+			init_hash_filter(adap);
 		} else {
-			adap->params.offload = 1;
 			adap->num_ofld_uld += 1;
 		}
 	}
@@ -4715,6 +4830,22 @@ static int adap_init0(struct adapter *adap)
 			goto bye;
 		adap->vres.iscsi.start = val[0];
 		adap->vres.iscsi.size = val[1] - val[0] + 1;
+		if (is_t6(adap->params.chip)) {
+			params[0] = FW_PARAM_PFVF(PPOD_EDRAM_START);
+			params[1] = FW_PARAM_PFVF(PPOD_EDRAM_END);
+			ret = t4_query_params(adap, adap->mbox, adap->pf, 0, 2,
+					      params, val);
+			if (!ret) {
+				adap->vres.ppod_edram.start = val[0];
+				adap->vres.ppod_edram.size =
+					val[1] - val[0] + 1;
+
+				dev_info(adap->pdev_dev,
+					 "ppod edram start 0x%x end 0x%x size 0x%x\n",
+					 val[0], val[1],
+					 adap->vres.ppod_edram.size);
+			}
+		}
 		/* LIO target and cxgb4i initiaitor */
 		adap->num_ofld_uld += 2;
 	}
