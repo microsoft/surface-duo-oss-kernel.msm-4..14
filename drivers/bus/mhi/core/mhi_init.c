@@ -1428,6 +1428,10 @@ int mhi_prepare_for_power_up(struct mhi_controller *mhi_cntrl)
 		} else {
 			MHI_ERR("Don't do memset_io for qcn7605\n");
 		}
+
+
+		if (mhi_cntrl->rddm_image)
+			mhi_rddm_prepare(mhi_cntrl, mhi_cntrl->rddm_image);
 	}
 
 	mhi_cntrl->pre_init = true;
