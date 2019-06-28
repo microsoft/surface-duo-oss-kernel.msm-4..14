@@ -12,7 +12,6 @@
 /memreserve/ 0x8000fff8 0x00010000;
 
 / {
-	compatible = "arm,vexpress";
 	interrupt-parent = <&gic>;
 	#address-cells = <2>;
 	#size-cells = <2>;
@@ -39,28 +38,28 @@
 
 		cpu0: cpu@0 {
 			device_type = "cpu";
-			compatible = "arm,armv8";
+			compatible = "arm,cortex-a53";
 			reg = <0x0 0x0>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0x0 0x8000fff8>;
 		};
 		cpu1: cpu@1 {
 			device_type = "cpu";
-			compatible = "arm,armv8";
+			compatible = "arm,cortex-a53";
 			reg = <0x0 0x1>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0x0 0x8000fff8>;
 		};
 		cpu2: cpu@100 {
 			device_type = "cpu";
-			compatible = "arm,armv8";
+			compatible = "arm,cortex-a53";
 			reg = <0x0 0x100>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0x0 0x8000fff8>;
 		};
 		cpu3: cpu@101 {
 			device_type = "cpu";
-			compatible = "arm,armv8";
+			compatible = "arm,cortex-a53";
 			reg = <0x0 0x101>;
 			enable-method = "spin-table";
 			cpu-release-addr = <0x0 0x8000fff8>;

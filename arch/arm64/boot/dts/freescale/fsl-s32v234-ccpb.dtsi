@@ -10,8 +10,7 @@
 #include "fsl-s32v234.dtsi"
 / {
 	model = "Freescale S32V234";
-	compatible = "fsl,s32v234-ccpb", "fsl,s32v234",
-		"arm,vexpress,v2p-aarch64", "arm,vexpress";
+	compatible = "fsl,s32v234-ccpb", "fsl,s32v234";
 
 	chosen {
 		bootargs = "console=ttyLF0,115200";
@@ -700,7 +699,7 @@
 };
 
 &usdhc0 {
-	no-1-8-V;
+	no-1-8-v;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_usdhc0>;
 	status = "okay";

@@ -1,5 +1,8 @@
 * Freescale SIUL2 iomux controller
 
+See chapter 20 ("System Integration Unit Lite2 (SIUL2)") in the reference
+manual[1].
+
 Based on fsl,imx-pincontrol implementation.
 
 Required properties:
@@ -17,4 +20,6 @@ Required properties:
 
   Even though IMCR register should be used as input register, it can be
   set and addressed in the same way as MSCR, only instead of passing the
-  IMCR index, IMCR_IDX + 512 is passed.
+  IMCR index, IMCR_IDX + 512 is passed[1].
+
+[1] https://www.nxp.com/webapp/Download?colCode=S32V234RM
