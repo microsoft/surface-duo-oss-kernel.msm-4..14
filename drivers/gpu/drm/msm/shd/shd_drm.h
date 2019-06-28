@@ -77,5 +77,9 @@ void drm_minor_release(struct drm_minor *minor);
 void *sde_encoder_phys_shd_init(enum sde_intf_type type,
 			u32 controller_id, void *phys_init_params);
 
+/* helper for seamless plane handoff */
+bool shd_is_crtc_shared(struct drm_crtc *crtc1,
+			struct drm_crtc *crtc2, bool check_roi);
+void shd_update_shared_plane(struct drm_plane *plane, struct drm_crtc *crtc);
 
 #endif /* _SHD_DRM_H_ */
