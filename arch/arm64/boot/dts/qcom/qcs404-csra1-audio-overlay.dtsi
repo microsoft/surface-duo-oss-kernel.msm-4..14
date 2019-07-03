@@ -75,7 +75,7 @@
 };
 
 &qcs405_snd {
-	qcom,model = "qcs404-csra1-snd-card";
+	qcom,model = "qcs405-csra1-snd-card";
 	qcom,va-bolero-codec = <1>;
 	qcom,tasha-codec = <1>;
 	qcom,csra-codec = <1>;
