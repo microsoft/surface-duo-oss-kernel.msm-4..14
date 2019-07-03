@@ -41,7 +41,7 @@
 #include <linux/semaphore.h>
 #include <linux/slab.h>
 #include <linux/vmalloc.h>
-#include <linux/radix-tree.h>
+#include <linux/xarray.h>
 #include <linux/workqueue.h>
 #include <linux/mempool.h>
 #include <linux/interrupt.h>
@@ -53,6 +53,7 @@
 #include <linux/mlx5/eq.h>
 #include <linux/timecounter.h>
 #include <linux/ptp_clock_kernel.h>
+#include <net/devlink.h>
 
 enum {
 	MLX5_BOARD_ID_LEN = 64,
@@ -107,6 +108,7 @@ enum {
 	MLX5_REG_FPGA_CAP	 = 0x4022,
 	MLX5_REG_FPGA_CTRL	 = 0x4023,
 	MLX5_REG_FPGA_ACCESS_REG = 0x4024,
+	MLX5_REG_CORE_DUMP	 = 0x402e,
 	MLX5_REG_PCAP		 = 0x5001,
 	MLX5_REG_PMTU		 = 0x5003,
 	MLX5_REG_PTYS		 = 0x5004,
@@ -433,13 +435,18 @@ struct mlx5_core_health {
 	struct timer_list		timer;
 	u32				prev;
 	int				miss_counter;
-	bool				sick;
+	u8				synd;
+	u32				fatal_error;
+	u32				crdump_size;
 	/* wq spinlock to synchronize draining */
 	spinlock_t			wq_lock;
 	struct workqueue_struct	       *wq;
 	unsigned long			flags;
-	struct work_struct		work;
+	struct work_struct		fatal_report_work;
+	struct work_struct		report_work;
 	struct delayed_work		recover_work;
+	struct devlink_health_reporter *fw_reporter;
+	struct devlink_health_reporter *fw_fatal_reporter;
 };
 
 struct mlx5_qp_table {
@@ -448,13 +455,6 @@ struct mlx5_qp_table {
 	/* protect radix tree
 	 */
 	spinlock_t		lock;
-	struct radix_tree_root	tree;
-};
-
-struct mlx5_mkey_table {
-	/* protect radix tree
-	 */
-	rwlock_t		lock;
 	struct radix_tree_root	tree;
 };
 
@@ -469,6 +469,7 @@ struct mlx5_core_sriov {
 	struct mlx5_vf_context	*vfs_ctx;
 	int			num_vfs;
 	int			enabled_vfs;
+	u16			max_vfs;
 };
 
 struct mlx5_fc_stats {
@@ -490,6 +491,7 @@ struct mlx5_eswitch;
 struct mlx5_lag;
 struct mlx5_devcom;
 struct mlx5_eq_table;
+struct mlx5_irq_table;
 
 struct mlx5_rate_limit {
 	u32			rate;
@@ -519,6 +521,8 @@ struct mlx5_core_roce {
 };
 
 struct mlx5_priv {
+	/* IRQ table valid only for real pci devices PF or VF */
+	struct mlx5_irq_table   *irq_table;
 	struct mlx5_eq_table	*eq_table;
 
 	/* pages stuff */
@@ -541,9 +545,7 @@ struct mlx5_priv {
 	struct dentry	       *cmdif_debugfs;
 	/* end: qp staff */
 
-	/* start: mkey staff */
-	struct mlx5_mkey_table	mkey_table;
-	/* end: mkey staff */
+	struct xarray           mkey_table;
 
 	/* start: alloc staff */
 	/* protect buffer alocation according to numa node */
@@ -580,6 +582,7 @@ struct mlx5_priv {
 };
 
 enum mlx5_device_state {
+	MLX5_DEVICE_STATE_UNINITIALIZED,
 	MLX5_DEVICE_STATE_UP,
 	MLX5_DEVICE_STATE_INTERNAL_ERROR,
 };
@@ -646,6 +649,7 @@ struct mlx5_clock {
 
 struct mlx5_fw_tracer;
 struct mlx5_vxlan;
+struct mlx5_geneve;
 
 struct mlx5_core_dev {
 	struct device *device;
@@ -680,6 +684,7 @@ struct mlx5_core_dev {
 	u32			issi;
 	struct mlx5e_resources  mlx5e_res;
 	struct mlx5_vxlan       *vxlan;
+	struct mlx5_geneve      *geneve;
 	struct {
 		struct mlx5_rsvd_gids	reserved_gids;
 		u32			roce_en;
@@ -690,6 +695,7 @@ struct mlx5_core_dev {
 	struct mlx5_clock        clock;
 	struct mlx5_ib_clock_info  *clock_info;
 	struct mlx5_fw_tracer   *tracer;
+	u32                      vsc_addr;
 };
 
 struct mlx5_db {
@@ -901,7 +907,6 @@ void mlx5_start_health_poll(struct mlx5_core_dev *dev);
 void mlx5_stop_health_poll(struct mlx5_core_dev *dev, bool disable_health);
 void mlx5_drain_health_wq(struct mlx5_core_dev *dev);
 void mlx5_trigger_health_work(struct mlx5_core_dev *dev);
-void mlx5_drain_health_recovery(struct mlx5_core_dev *dev);
 int mlx5_buf_alloc_node(struct mlx5_core_dev *dev, int size,
 			struct mlx5_frag_buf *buf, int node);
 int mlx5_buf_alloc(struct mlx5_core_dev *dev,
@@ -1102,13 +1107,9 @@ static inline bool mlx5_ecpf_vport_exists(struct mlx5_core_dev *dev)
 	return mlx5_core_is_pf(dev) && MLX5_CAP_ESW(dev, ecpf_vport_exists);
 }
 
-#define MLX5_HOST_PF_MAX_VFS	(127u)
 static inline u16 mlx5_core_max_vfs(struct mlx5_core_dev *dev)
 {
-	if (mlx5_core_is_ecpf_esw_manager(dev))
-		return MLX5_HOST_PF_MAX_VFS;
-	else
-		return pci_sriov_get_totalvfs(dev->pdev);
+	return dev->priv.sriov.max_vfs;
 }
 
 static inline int mlx5_get_gid_table_len(u16 param)
