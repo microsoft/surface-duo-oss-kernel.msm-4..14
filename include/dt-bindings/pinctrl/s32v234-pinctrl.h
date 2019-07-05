@@ -1,6 +1,6 @@
 /*
  * Copyright 2015-2016 by Freescale Semiconductor
- * Copyright 2016-2017 NXP
+ * Copyright 2016-2017,2019 NXP
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -219,10 +219,12 @@
  */
 
 /* UART configuration */
-#define S32V234_PAD_PA12__UART0_TXD_OUT     12  PAD_CTL_UART_TX
+#define S32V234_PAD_PA12__UART0_TXD         12  PAD_CTL_UART_TX
+#define S32V234_PAD_PA11__UART0_RXD_OUT     11  PAD_CTL_UART_RX_MSCR
 #define S32V234_PAD_PA11__UART0_RXD_IN      712 PAD_CTL_UART_RX_IMCR
 
-#define S32V234_PAD_PA14__UART1_TXD_OUT     14  PAD_CTL_UART_TX
+#define S32V234_PAD_PA14__UART1_TXD         14  PAD_CTL_UART_TX
+#define S32V234_PAD_PA13__UART1_RXD_OUT     13  PAD_CTL_UART_RX_MSCR
 #define S32V234_PAD_PA13__UART1_RXD_IN      714 PAD_CTL_UART_RX_IMCR
 
 /* CAN0 configuration */

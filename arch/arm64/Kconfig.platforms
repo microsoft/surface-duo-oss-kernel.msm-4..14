@@ -19,7 +19,7 @@ config ARCH_FSL_LS2085A
 	  This enables support for Freescale LS2085A SOC.
 
 config ARCH_S32
-	bool "Freescale S32 family" if ARCH_VEXPRESS
+	bool "Freescale S32 family"
 	select PINCTRL
 	select ARCH_S32_CLK
 	help

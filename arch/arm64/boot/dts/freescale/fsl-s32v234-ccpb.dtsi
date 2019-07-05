@@ -1,6 +1,5 @@
 /*
- * Copyright 2015-2016 Freescale Semiconductor, Inc.
- * Copyright 2016-2018 NXP
+ * Copyright 2018-2019 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -8,13 +7,23 @@
  * (at your option) any later version.
  */
 
-#include "s32v234.dtsi"
+#include "fsl-s32v234.dtsi"
 / {
 	model = "Freescale S32V234";
-	compatible = "fsl,s32v234-evb2016q4", "fsl,s32v234", "arm,vexpress";
+	compatible = "fsl,s32v234-ccpb", "fsl,s32v234";
 
 	chosen {
 		bootargs = "console=ttyLF0,115200";
+	};
+
+	memory_DDR0@80000000 {
+		device_type = "memory";
+		reg = <0 0x80000000 0 0x40000000>;
+	};
+
+	memory_DDR1@c0000000 {
+		device_type = "memory";
+		reg = <0 0xc0000000 0 0x40000000>;
 	};
 };
 
@@ -31,14 +40,6 @@
 };
 
 &cse3 {
-	status = "okay";
-};
-
-&dec200_dec {
-	status = "okay";
-};
-
-&dec200_enc {
 	status = "okay";
 };
 
@@ -188,12 +189,6 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_i2c0>;
 	status = "okay";
-};
-
-&i2c1 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl_i2c1>;
-	status = "okay";
 
 	hdmi: sii9022a@39 {
 		compatible = "fsl,sii902x";
@@ -201,10 +196,24 @@
 	};
 };
 
+&i2c1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_i2c1>;
+	status = "okay";
+};
+
 &i2c2 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_i2c2>;
 	status = "okay";
+
+	rtc@51 {
+		compatible = "nxp,pcf85263";
+		reg = <0x51>;
+
+		quartz-load-capacitance = <2>;
+		quartz-drive-strength = <1>;
+	};
 };
 
 &jpegdecoder {
@@ -234,14 +243,22 @@
 &pinctrl {
 	status = "okay";
 
-	s32v234-evb {
-
+	s32v234-ccpb {
 		pinctrl_can0: can0grp {
 			fsl,pins = <
 				S32V234_PAD_PA2__CAN_FD0_TXD
 				S32V234_PAD_PA3__CAN_FD0_RXD_OUT
 				S32V234_PAD_PA3__CAN_FD0_RXD_IN
-			>;
+				/*
+				 * Configure pin C12 as GPIO[6] in MSCR#6.
+				 * Effect: the S-pin at CAN is not longer
+				 * flowting at ~0.75V, but driven to low ~0.0V.
+				 */
+				6	(PAD_CTL_MUX_MODE_ALT0 \
+						|PAD_CTL_OBE \
+						|PAD_CTL_DSE_34 \
+						|PAD_CTL_PUS_33K_UP)
+				>;
 		};
 
 		pinctrl_can1: can1grp {
@@ -249,20 +266,68 @@
 				S32V234_PAD_PA4__CAN_FD1_TXD
 				S32V234_PAD_PA5__CAN_FD1_RXD_OUT
 				S32V234_PAD_PA5__CAN_FD1_RXD_IN
+				/*
+				 * Configure pin C11 as GPIO[7] in MSCR#7.
+				 * Effect: the S-pin at CAN is not longer
+				 * flowting at ~0.39V, but driven to low ~0.0V.
+				 */
+				7	(PAD_CTL_MUX_MODE_ALT0 \
+						|PAD_CTL_OBE \
+						|PAD_CTL_DSE_34 \
+						|PAD_CTL_PUS_33K_UP)
+				>;
+		};
+
+		pinctrl_dcu: dcugrp {
+			fsl,pins = <
+				S32V234_PAD_PH8__DCU_HSYNC_C1
+				S32V234_PAD_PH9__DCU_VSYNC_C2
+				S32V234_PAD_PH10__DCU_DE_C3
+				S32V234_PAD_PH12__DCU_PCLK_D1_DSE_80
+				S32V234_PAD_PH13__DCU_R0_D2
+				S32V234_PAD_PH14__DCU_R1_D3
+				S32V234_PAD_PH15__DCU_R2_D4
+				S32V234_PAD_PJ0__DCU_R3_D5
+				S32V234_PAD_PJ1__DCU_R4_D6
+				S32V234_PAD_PJ2__DCU_R5_D7
+				S32V234_PAD_PJ3__DCU_R6_D8
+				S32V234_PAD_PJ4__DCU_R7_D9
+				S32V234_PAD_PJ5__DCU_G0_D10
+				S32V234_PAD_PJ6__DCU_G1_D11
+				S32V234_PAD_PJ7__DCU_G2_D12
+				S32V234_PAD_PJ8__DCU_G3_D13
+				S32V234_PAD_PJ9__DCU_G4_D14
+				S32V234_PAD_PJ10__DCU_G5_D15
+				S32V234_PAD_PJ11__DCU_G6_D16
+				S32V234_PAD_PJ12__DCU_G7_D17
+				S32V234_PAD_PJ13__DCU_B0_D18
+				S32V234_PAD_PJ14__DCU_B1_D19
+				S32V234_PAD_PJ15__DCU_B2_D20
+				S32V234_PAD_PK0__DCU_B3_D21
+				S32V234_PAD_PK1__DCU_B4_D22
+				S32V234_PAD_PK2__DCU_B5_D23
+				S32V234_PAD_PK3__DCU_B6_D24
+				S32V234_PAD_PK4__DCU_B7_D25
 			>;
 		};
 
 		pinctrl_dspi0: dspi0grp {
 			fsl,pins = <
 				S32V234_PAD_PB8__SPI0_CS0_OUT
-				S32V234_PAD_PC0__SPI0_CS4_OUT
-				S32V234_PAD_PC1__SPI0_CS5_OUT
-				S32V234_PAD_PC2__SPI0_CS6_OUT
-				S32V234_PAD_PC3__SPI0_CS7_OUT
 				S32V234_PAD_PB6__SPI0_SOUT_OUT
 				S32V234_PAD_PB5__SPI0_SCK_OUT
 				S32V234_PAD_PB7__SPI0_SIN_OUT
 				S32V234_PAD_PB7__SPI0_SIN_IN
+			>;
+		};
+
+		pinctrl_dspi3: dspi3grp {
+			fsl,pins = <
+				S32V234_PAD_PC4__SPI3_CS0_OUT
+				S32V234_PAD_PC2__SPI3_SOUT_OUT
+				S32V234_PAD_PC1__SPI3_SCK_OUT
+				S32V234_PAD_PC3__SPI3_SIN_OUT
+				S32V234_PAD_PC3__SPI3_SIN_IN
 			>;
 		};
 
@@ -458,7 +523,7 @@
 				S32V234_PAD_PL0__SIUL_GPIO160
 				S32V234_PAD_PL1__SIUL_GPIO161
 				S32V234_PAD_PL2__SIUL_GPIO162
-				>;
+			>;
 		};
 
 		pinctrl_gpioeirq: gpioeirqgrp {
@@ -500,10 +565,10 @@
 
 		pinctrl_i2c0: i2c0grp {
 			fsl,pins = <
-				S32V234_PAD_PG3__I2C0_DATA_OUT
-				S32V234_PAD_PG3__I2C0_DATA_IN
-				S32V234_PAD_PG4__I2C0_SCLK_OUT
-				S32V234_PAD_PG4__I2C0_SCLK_IN
+				S32V234_PAD_PA15__I2C0_DATA_OUT
+				S32V234_PAD_PA15__I2C0_DATA_IN
+				S32V234_PAD_PB0__I2C0_SCLK_OUT
+				S32V234_PAD_PB0__I2C0_SCLK_IN
 			>;
 		};
 
@@ -527,14 +592,16 @@
 
 		pinctrl_uart0: uart0grp {
 			fsl,pins = <
-				S32V234_PAD_PA12__UART0_TXD_OUT
+				S32V234_PAD_PA12__UART0_TXD
+				S32V234_PAD_PA11__UART0_RXD_OUT
 				S32V234_PAD_PA11__UART0_RXD_IN
 			>;
 		};
 
 		pinctrl_uart1: uart1grp {
 			fsl,pins = <
-				S32V234_PAD_PA14__UART1_TXD_OUT
+				S32V234_PAD_PA14__UART1_TXD
+				S32V234_PAD_PA13__UART1_RXD_OUT
 				S32V234_PAD_PA13__UART1_RXD_IN
 			>;
 		};
@@ -571,22 +638,24 @@
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_dspi0>;
 	status = "okay";
-
-	tja1145_0: spidev@6 {
-		compatible = "spidev";
-		spi-max-frequency = <4000000>;
-		reg = <6>;
-	};
-
-	tja1145_1: spidev@7 {
-		compatible = "spidev";
-		spi-max-frequency = <4000000>;
-		reg = <7>;
-	};
 };
 
-&tmu {
+&spi3 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl_dspi3>;
 	status = "okay";
+
+	/* This is an example entry to illustrate SPI device setup.
+	 * To be hooked up to the expansion port SPI3 CS0 for testing.
+	 */
+	spidev0: spidev@0 {
+		compatible = "spidev";
+		spi-max-frequency = <4000000>;
+		reg = <0>;
+	};
 };
 
 &stm0 {
@@ -630,12 +699,16 @@
 };
 
 &usdhc0 {
-	no-1-8-V;
+	no-1-8-v;
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl_usdhc0>;
 	status = "okay";
 };
 
 &vseq {
+	status = "okay";
+};
+
+&tmu {
 	status = "okay";
 };
