@@ -386,6 +386,7 @@ ath9k_hw
 ati_remote
 ati_remote2
 atl1
+atl1c
 atl1e
 atl2
 atlas-ph-sensor
@@ -1165,6 +1166,7 @@ extcon-palmas
 extcon-qcom-spmi-misc
 extcon-rt8973a
 extcon-sm5502
+extcon-usb-gpio
 extcon-usbc-cros-ec
 ezusb
 f2fs
@@ -1321,6 +1323,7 @@ gcc-msm8660
 gcc-msm8960
 gcc-msm8974
 gcc-msm8994
+gcc-msm8996
 gdmtty
 gdmulte
 gen_probe
@@ -2506,6 +2509,7 @@ mmc_spi
 mmcc-apq8084
 mmcc-msm8960
 mmcc-msm8974
+mmcc-msm8996
 mms114
 mn88472
 mn88473
@@ -3065,6 +3069,9 @@ phy-qcom-apq8064-sata
 phy-qcom-ipq806x-sata
 phy-qcom-qmp
 phy-qcom-qusb2
+phy-qcom-ufs
+phy-qcom-ufs-qmp-14nm
+phy-qcom-ufs-qmp-20nm
 phy-qcom-usb-hsic
 phy-sun4i-usb
 phy-tahvo
@@ -3083,6 +3090,7 @@ pinctrl-mdm9615
 pinctrl-msm8660
 pinctrl-msm8960
 pinctrl-msm8994
+pinctrl-msm8996
 pinctrl-msm8x74
 pinctrl-qdf2xxx
 pinctrl-rk805
@@ -3197,6 +3205,8 @@ qcom-vadc-common
 qcom-wdt
 qcom_adsp_pil
 qcom_common
+qcom_glink_native
+qcom_glink_rpm
 qcom_glink_smem
 qcom_gsbi
 qcom_nandc
@@ -4282,6 +4292,9 @@ target_core_iblock
 target_core_mod
 target_core_pscsi
 target_core_user
+tc-dwc-g210
+tc-dwc-g210-pci
+tc-dwc-g210-pltfrm
 tc358767
 tc3589x-keypad
 tc654
@@ -4542,6 +4555,11 @@ udp_diag
 udp_tunnel
 ueagle-atm
 ufs
+ufs-qcom
+ufshcd
+ufshcd-dwc
+ufshcd-pci
+ufshcd-pltfrm
 uhid
 uio
 uio_aec
