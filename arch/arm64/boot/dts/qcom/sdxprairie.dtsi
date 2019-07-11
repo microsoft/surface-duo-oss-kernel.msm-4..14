@@ -27,7 +27,7 @@
 / {
 	model = "Qualcomm Technologies, Inc. SDXPRAIRIE";
 	compatible = "qcom,sdxprairie";
-	qcom,msm-id = <357 0x10000>, <368 0x10000>;
+	qcom,msm-id = <357 0x10000>, <368 0x10000>, <418 0x10000>;
 	interrupt-parent = <&pdc>;
 
 	aliases {
@@ -555,6 +555,7 @@
 		qcom,bandwidth-vote-for-ipa;
 		qcom,msm-bus,name = "ipa";
 		qcom,ipa-wdi3-over-gsi;
+		qcom,ipa-endp-delay-wa;
 		qcom,msm-bus,num-cases = <5>;
 		qcom,msm-bus,num-paths = <5>;
 		qcom,msm-bus,vectors-KBps =

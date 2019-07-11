@@ -21,6 +21,10 @@
 	qcom,proxy-reg-names = "vdd_cx";
 };
 
+&pcie1 {
+	dma-coherent;
+};
+
 &mhi_0 {
 	esoc-names = "mdm";
 	esoc-0 = <&mdm3>;
@@ -28,6 +32,13 @@
 	qcom,addr-win = <0x0 0x20000000 0x0 0x2fffffff>;
 
 	mhi_channels {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		mhi_chan@9 {
+			mhi,num-elements = <128>;
+		};
+
 		mhi_chan@25 {
 			status = "disabled";
 		};
@@ -115,6 +126,8 @@
 		qcom,testbus-collection-on-crash;
 		qcom,non-tn-collection-on-crash;
 		qcom,secure-debug-check-action = <0>;
+		qcom,scaling-exceptions = "USB DPL", "0", "600",
+			"1000", "ODL", "0", "600", "1000";
 	};
 
 	qcom,ipa_fws {

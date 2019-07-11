@@ -281,6 +281,7 @@ struct dwc3_msm {
 	unsigned int		max_power;
 	bool			charging_disabled;
 	enum dwc3_drd_state	drd_state;
+	enum bus_vote		default_bus_vote;
 	enum bus_vote		override_bus_vote;
 	u32			bus_perf_client;
 	struct msm_bus_scale_pdata	*bus_scale_table;
@@ -326,6 +327,8 @@ struct dwc3_msm {
 	struct notifier_block	dpdm_nb;
 	struct regulator	*dpdm_reg;
 
+	u64			dummy_gsi_db;
+	dma_addr_t		dummy_gsi_db_dma;
 };
 
 #define USB_HSPHY_3P3_VOL_MIN		3050000 /* uV */
@@ -976,11 +979,20 @@ static void gsi_store_ringbase_dbl_info(struct usb_ep *ep,
 		GSI_RING_BASE_ADDR_L(mdwc->gsi_reg[RING_BASE_ADDR_L], (n)),
 		dwc3_trb_dma_offset(dep, &dep->trb_pool[0]));
 
+	if (request->mapped_db_reg_phs_addr_lsb &&
+			dwc->sysdev != request->dev) {
+		dma_unmap_resource(request->dev,
+			request->mapped_db_reg_phs_addr_lsb,
+			PAGE_SIZE, DMA_BIDIRECTIONAL, 0);
+		request->mapped_db_reg_phs_addr_lsb = 0;
+	}
+
 	if (!request->mapped_db_reg_phs_addr_lsb) {
 		request->mapped_db_reg_phs_addr_lsb =
 			dma_map_resource(dwc->sysdev,
 				(phys_addr_t)request->db_reg_phs_addr_lsb,
 				PAGE_SIZE, DMA_BIDIRECTIONAL, 0);
+		request->dev = dwc->sysdev;
 		if (dma_mapping_error(dwc->sysdev,
 				request->mapped_db_reg_phs_addr_lsb))
 			dev_err(mdwc->dev, "mapping error for db_reg_phs_addr_lsb\n");
@@ -993,6 +1005,14 @@ static void gsi_store_ringbase_dbl_info(struct usb_ep *ep,
 	dbg_log_string("ep:%s dbl_addr_lsb:%x mapped_addr:%llx\n",
 		ep->name, request->db_reg_phs_addr_lsb,
 		(unsigned long long)request->mapped_db_reg_phs_addr_lsb);
+
+	/*
+	 * Replace dummy doorbell address with real one as IPA connection
+	 * is setup now and GSI must be ready to handle doorbell updates.
+	 */
+	dwc3_msm_write_reg_field(mdwc->base,
+			GSI_DBL_ADDR_H(mdwc->gsi_reg[DBL_ADDR_H], (n)),
+			~0x0, 0x0);
 
 	dwc3_msm_write_reg(mdwc->base,
 		GSI_DBL_ADDR_L(mdwc->gsi_reg[DBL_ADDR_L], (n)),
@@ -1270,8 +1290,21 @@ static void gsi_configure_ep(struct usb_ep *ep, struct usb_gsi_request *request)
 	struct dwc3_gadget_ep_cmd_params params;
 	const struct usb_endpoint_descriptor *desc = ep->desc;
 	const struct usb_ss_ep_comp_descriptor *comp_desc = ep->comp_desc;
+	int n = ep->ep_intr_num - 1;
 	u32 reg;
 	int ret;
+
+	/* setup dummy doorbell as IPA connection isn't setup yet */
+	dwc3_msm_write_reg_field(mdwc->base,
+			GSI_DBL_ADDR_H(mdwc->gsi_reg[DBL_ADDR_H], (n)),
+			~0x0, (u32)((u64)mdwc->dummy_gsi_db_dma >> 32));
+
+	dwc3_msm_write_reg_field(mdwc->base,
+			GSI_DBL_ADDR_L(mdwc->gsi_reg[DBL_ADDR_L], (n)),
+			~0x0, (u32)mdwc->dummy_gsi_db_dma);
+	dev_dbg(mdwc->dev, "Dummy DB Addr %pK: %llx %llx (LSB)\n",
+		&mdwc->dummy_gsi_db, mdwc->dummy_gsi_db_dma,
+		(u32)mdwc->dummy_gsi_db_dma);
 
 	memset(&params, 0x00, sizeof(params));
 
@@ -1963,6 +1996,19 @@ static void dwc3_msm_notify_event(struct dwc3 *dwc, unsigned int event,
 			}
 			mdwc->gsi_ev_buff[i] = evt;
 		}
+		/*
+		 * Set-up dummy buffer to use as doorbell while IPA GSI
+		 * connection is in progress.
+		 */
+		mdwc->dummy_gsi_db_dma = dma_map_single(dwc->sysdev,
+						&mdwc->dummy_gsi_db,
+						sizeof(mdwc->dummy_gsi_db),
+						DMA_FROM_DEVICE);
+
+		if (dma_mapping_error(dwc->sysdev, mdwc->dummy_gsi_db_dma)) {
+			dev_err(dwc->dev, "failed to map dummy doorbell buffer\n");
+			mdwc->dummy_gsi_db_dma = (dma_addr_t)NULL;
+		}
 		break;
 	case DWC3_GSI_EVT_BUF_SETUP:
 		dev_dbg(mdwc->dev, "DWC3_GSI_EVT_BUF_SETUP\n");
@@ -2035,6 +2081,12 @@ static void dwc3_msm_notify_event(struct dwc3 *dwc, unsigned int event,
 			if (evt)
 				dma_free_coherent(dwc->sysdev, evt->length,
 							evt->buf, evt->dma);
+		}
+		if (mdwc->dummy_gsi_db_dma) {
+			dma_unmap_single(dwc->sysdev, mdwc->dummy_gsi_db_dma,
+					 sizeof(mdwc->dummy_gsi_db),
+					 DMA_FROM_DEVICE);
+			mdwc->dummy_gsi_db_dma = (dma_addr_t)NULL;
 		}
 		break;
 	case DWC3_CONTROLLER_NOTIFY_DISABLE_UPDXFER:
@@ -2318,7 +2370,7 @@ static int dwc3_msm_update_bus_bw(struct dwc3_msm *mdwc, enum bus_vote bv)
 	 * from userspace.
 	 */
 	if (bv >= mdwc->bus_scale_table->num_usecases)
-		bv_index = BUS_VOTE_NOMINAL;
+		bv_index = mdwc->default_bus_vote;
 	else if (bv == BUS_VOTE_NONE)
 		bv_index = BUS_VOTE_NONE;
 
@@ -2541,6 +2593,13 @@ static int dwc3_msm_resume(struct dwc3_msm *mdwc)
 
 	dev_dbg(mdwc->dev, "%s: exiting lpm\n", __func__);
 
+	/*
+	 * If h/w exited LPM without any events, ensure
+	 * h/w is reset before processing any new events.
+	 */
+	if (!mdwc->vbus_active && mdwc->id_state)
+		set_bit(WAIT_FOR_LPM, &mdwc->inputs);
+
 	mutex_lock(&mdwc->suspend_resume_mutex);
 	if (!atomic_read(&dwc->in_lpm)) {
 		dev_dbg(mdwc->dev, "%s: Already resumed\n", __func__);
@@ -2553,7 +2612,7 @@ static int dwc3_msm_resume(struct dwc3_msm *mdwc)
 	if (mdwc->in_host_mode && mdwc->max_rh_port_speed == USB_SPEED_HIGH)
 		dwc3_msm_update_bus_bw(mdwc, BUS_VOTE_SVS);
 	else
-		dwc3_msm_update_bus_bw(mdwc, BUS_VOTE_NOMINAL);
+		dwc3_msm_update_bus_bw(mdwc, mdwc->default_bus_vote);
 
 	/* Vote for TCXO while waking up USB HSPHY */
 	ret = clk_prepare_enable(mdwc->xo_clk);
@@ -3413,7 +3472,7 @@ static ssize_t bus_vote_store(struct device *dev,
 			&& (mdwc->max_rh_port_speed == USB_SPEED_HIGH))
 			bv = BUS_VOTE_SVS;
 		else
-			bv = BUS_VOTE_NOMINAL;
+			bv = mdwc->default_bus_vote;
 
 		dwc3_msm_update_bus_bw(mdwc, bv);
 	}
@@ -3695,10 +3754,20 @@ static int dwc3_msm_probe(struct platform_device *pdev)
 		goto put_dwc3;
 	}
 
+	/* use default as nominal bus voting */
+	mdwc->default_bus_vote = BUS_VOTE_NOMINAL;
+	ret = of_property_read_u32(node, "qcom,default-bus-vote",
+			&mdwc->default_bus_vote);
+
 	mdwc->bus_scale_table = msm_bus_cl_get_pdata(pdev);
 	if (mdwc->bus_scale_table) {
 		mdwc->bus_perf_client =
 			msm_bus_scale_register_client(mdwc->bus_scale_table);
+
+		/* default_bus_vote is out of range, use nominal bus voting */
+		if (mdwc->default_bus_vote >=
+				mdwc->bus_scale_table->num_usecases)
+			mdwc->default_bus_vote = BUS_VOTE_NOMINAL;
 	}
 
 	dwc = platform_get_drvdata(mdwc->dwc3);
@@ -3974,7 +4043,7 @@ static int dwc3_msm_host_notifier(struct notifier_block *nb,
 			dev_dbg(mdwc->dev, "set core clk rate %ld\n",
 				mdwc->core_clk_rate);
 			mdwc->max_rh_port_speed = USB_SPEED_UNKNOWN;
-			dwc3_msm_update_bus_bw(mdwc, BUS_VOTE_NOMINAL);
+			dwc3_msm_update_bus_bw(mdwc, mdwc->default_bus_vote);
 		}
 	}
 

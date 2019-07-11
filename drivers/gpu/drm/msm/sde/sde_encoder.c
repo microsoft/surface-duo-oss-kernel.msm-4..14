@@ -1966,7 +1966,8 @@ static int _sde_encoder_update_rsc_client(
 			SDE_EVTLOG_FUNC_ENTRY);
 
 	if (crtc->base.id != wait_vblank_crtc_id) {
-		primary_crtc = drm_crtc_find(drm_enc->dev, wait_vblank_crtc_id);
+		primary_crtc = drm_crtc_find(drm_enc->dev,
+				NULL, wait_vblank_crtc_id);
 		if (!primary_crtc) {
 			SDE_ERROR_ENC(sde_enc,
 					"failed to find primary crtc id %d\n",
@@ -2691,8 +2692,6 @@ static void sde_encoder_virt_mode_set(struct drm_encoder *drm_enc,
 	struct sde_kms *sde_kms;
 	struct list_head *connector_list;
 	struct drm_connector *conn = NULL, *conn_iter;
-	struct sde_connector_state *sde_conn_state = NULL;
-	struct sde_connector *sde_conn = NULL;
 	struct sde_rm_hw_iter dsc_iter, pp_iter, qdss_iter;
 	struct sde_rm_hw_request request_hw;
 	bool is_cmd_mode = false;
@@ -2739,20 +2738,6 @@ static void sde_encoder_virt_mode_set(struct drm_encoder *drm_enc,
 	} else if (!conn->state) {
 		SDE_ERROR_ENC(sde_enc, "invalid connector state\n");
 		return;
-	}
-
-	sde_conn = to_sde_connector(conn);
-	sde_conn_state = to_sde_connector_state(conn->state);
-	if (sde_conn && sde_conn_state) {
-		ret = sde_conn->ops.get_mode_info(&sde_conn->base, adj_mode,
-				&sde_conn_state->mode_info,
-				sde_kms->catalog->max_mixer_width,
-				sde_conn->display);
-		if (ret) {
-			SDE_ERROR_ENC(sde_enc,
-				"failed to get mode info from the display\n");
-			return;
-		}
 	}
 
 	/* release resources before seamless mode change */
@@ -3042,6 +3027,12 @@ void sde_encoder_virt_restore(struct drm_encoder *drm_enc)
 		return;
 	}
 	sde_enc = to_sde_encoder_virt(drm_enc);
+
+	if (!sde_enc->cur_master) {
+		SDE_ERROR("virt encoder has no master\n");
+		return;
+	}
+
 	memset(&sde_enc->cur_master->intf_cfg_v1, 0,
 			sizeof(sde_enc->cur_master->intf_cfg_v1));
 	sde_enc->idle_pc_restore = true;
@@ -5643,7 +5634,8 @@ int sde_encoder_update_caps_for_cont_splash(struct drm_encoder *encoder,
 	return ret;
 }
 
-int sde_encoder_display_failure_notification(struct drm_encoder *enc)
+int sde_encoder_display_failure_notification(struct drm_encoder *enc,
+	bool skip_pre_kickoff)
 {
 	struct msm_drm_thread *event_thread = NULL;
 	struct msm_drm_private *priv = NULL;
@@ -5669,9 +5661,11 @@ int sde_encoder_display_failure_notification(struct drm_encoder *enc)
 
 	event_thread = &priv->event_thread[sde_enc->crtc->index];
 
-	kthread_queue_work(&event_thread->worker,
-			   &sde_enc->esd_trigger_work);
-	kthread_flush_work(&sde_enc->esd_trigger_work);
+	if (!skip_pre_kickoff) {
+		kthread_queue_work(&event_thread->worker,
+				   &sde_enc->esd_trigger_work);
+		kthread_flush_work(&sde_enc->esd_trigger_work);
+	}
 
 	/**
 	 * panel may stop generating te signal (vsync) during esd failure. rsc
@@ -5680,7 +5674,8 @@ int sde_encoder_display_failure_notification(struct drm_encoder *enc)
 	 */
 	_sde_encoder_switch_to_watchdog_vsync(enc);
 
-	sde_encoder_wait_for_event(enc, MSM_ENC_TX_COMPLETE);
+	if (!skip_pre_kickoff)
+		sde_encoder_wait_for_event(enc, MSM_ENC_TX_COMPLETE);
 
 	return 0;
 }

@@ -891,6 +891,11 @@ static void ipa_pm_sys_pipe_cb(void *p, enum ipa_pm_cb_event event)
 			usleep_range(SUSPEND_MIN_SLEEP_RX,
 				SUSPEND_MAX_SLEEP_RX);
 			IPA_ACTIVE_CLIENTS_DEC_SPECIAL("PIPE_SUSPEND_LAN");
+		} else if (sys->ep->client == IPA_CLIENT_ODL_DPL_CONS) {
+			IPA_ACTIVE_CLIENTS_INC_SPECIAL("PIPE_SUSPEND_ODL");
+			usleep_range(SUSPEND_MIN_SLEEP_RX,
+				SUSPEND_MAX_SLEEP_RX);
+			IPA_ACTIVE_CLIENTS_DEC_SPECIAL("PIPE_SUSPEND_ODL");
 		} else
 			IPAERR("Unexpected event %d\n for client %d\n",
 				event, sys->ep->client);
@@ -1635,8 +1640,8 @@ int ipa3_tx_dp(enum ipa_client_type dst, struct sk_buff *skb,
 	sys = ipa3_ctx->ep[src_ep_idx].sys;
 
 	if (!sys || !sys->ep->valid) {
-		IPAERR_RL("pipe not valid\n");
-		goto fail_gen;
+		IPAERR_RL("pipe %d not valid\n", src_ep_idx);
+		goto fail_pipe_not_valid;
 	}
 
 	num_frags = skb_shinfo(skb)->nr_frags;
@@ -1804,6 +1809,8 @@ fail_mem:
 		kfree(desc);
 fail_gen:
 	return -EFAULT;
+fail_pipe_not_valid:
+	return -EPIPE;
 }
 
 static void ipa3_wq_handle_rx(struct work_struct *work)
@@ -3040,6 +3047,13 @@ static struct sk_buff *handle_skb_completion(struct gsi_chan_xfer_notify
 	if (notify->veid >= GSI_VEID_MAX) {
 		WARN_ON(1);
 		return NULL;
+	}
+
+	/*Assesrt when WAN consumer channel receive EOB event*/
+	if (notify->evt_id == GSI_CHAN_EVT_EOB &&
+		sys->ep->client == IPA_CLIENT_APPS_WAN_CONS) {
+		IPAERR("EOB event received on WAN consumer channel\n");
+		ipa_assert();
 	}
 
 	head = &rx_pkt->sys->pending_pkts[notify->veid];

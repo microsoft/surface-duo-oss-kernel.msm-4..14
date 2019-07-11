@@ -15,6 +15,10 @@
 	qcom,mdm-link-info = "0305_01.01.00";
 };
 
+&pil_modem {
+	qcom,poff-depends-on = "esoc0";
+};
+
 &wil6210 {
 	status = "disabled";
 };
@@ -245,6 +249,10 @@
 };
 
 &soc {
+	ipa_hw: qcom,ipa@1e00000 {
+		qcom,ipa-mhi-proxy;
+	};
+
 	imp: qcom,ipa-mhi-proxy {
 		compatible = "qcom,ipa-mhi-proxy";
 		qcom,mhi-chdb-base = <0x40300300>;

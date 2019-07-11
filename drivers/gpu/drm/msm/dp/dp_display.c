@@ -731,7 +731,8 @@ static void dp_display_host_init(struct dp_display_private *dp)
 	if (dp->hpd->orientation == ORIENTATION_CC2)
 		flip = true;
 
-	reset = dp->debug->sim_mode ? false : !dp->hpd->multi_func;
+	reset = dp->debug->sim_mode ? false :
+		(!dp->hpd->multi_func || !dp->hpd->peer_usb_comm);
 
 	dp->power->init(dp->power, flip);
 	dp->hpd->host_init(dp->hpd, &dp->catalog->hpd);
@@ -784,6 +785,8 @@ static int dp_display_process_hpd_high(struct dp_display_private *dp)
 
 	dp->dp_display.max_pclk_khz = min(dp->parser->max_pclk_khz,
 					dp->debug->max_pclk_khz);
+	dp->dp_display.max_hdisplay = dp->parser->max_hdisplay;
+	dp->dp_display.max_vdisplay = dp->parser->max_vdisplay;
 
 	dp_display_host_init(dp);
 
@@ -1972,6 +1975,16 @@ static enum drm_mode_status dp_display_validate_mode(
 		goto end;
 	}
 
+	if (dp_display->max_hdisplay > 0 && dp_display->max_vdisplay > 0 &&
+			((mode->hdisplay > dp_display->max_hdisplay) ||
+			(mode->vdisplay > dp_display->max_vdisplay))) {
+		DP_MST_DEBUG("hdisplay:%d, max-hdisplay:%d",
+			mode->hdisplay, dp_display->max_hdisplay);
+		DP_MST_DEBUG(" vdisplay:%d, max-vdisplay:%d\n",
+			mode->vdisplay, dp_display->max_vdisplay);
+		goto end;
+	}
+
 	/*
 	 * If the connector exists in the mst connector list and if debug is
 	 * enabled for that connector, use the mst connector settings from the
@@ -2543,6 +2556,28 @@ static int dp_display_get_mst_caps(struct dp_display *dp_display,
 	return rc;
 }
 
+static void dp_display_wakeup_phy_layer(struct dp_display *dp_display,
+		bool wakeup)
+{
+	struct dp_display_private *dp;
+	struct dp_hpd *hpd;
+
+	if (!dp_display) {
+		pr_err("invalid input\n");
+		return;
+	}
+
+	dp = container_of(dp_display, struct dp_display_private, dp_display);
+	if (!dp->mst.drm_registered) {
+		pr_debug("drm mst not registered\n");
+		return;
+	}
+
+	hpd = dp->hpd;
+	if (hpd && hpd->wakeup_phy)
+		hpd->wakeup_phy(hpd, wakeup);
+}
+
 static int dp_display_probe(struct platform_device *pdev)
 {
 	int rc = 0;
@@ -2615,6 +2650,8 @@ static int dp_display_probe(struct platform_device *pdev)
 					dp_display_mst_get_connector_info;
 	g_dp_display->mst_get_fixed_topology_port =
 					dp_display_mst_get_fixed_topology_port;
+	g_dp_display->wakeup_phy_layer =
+					dp_display_wakeup_phy_layer;
 
 	rc = component_add(&pdev->dev, &dp_display_comp_ops);
 	if (rc) {

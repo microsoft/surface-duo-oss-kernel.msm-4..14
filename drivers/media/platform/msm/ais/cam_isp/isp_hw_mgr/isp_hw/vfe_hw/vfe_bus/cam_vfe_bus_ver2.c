@@ -199,6 +199,7 @@ struct cam_vfe_bus_ver2_priv {
 	struct cam_vfe_bus_ver2_common_data common_data;
 	uint32_t                            num_client;
 	uint32_t                            num_out;
+	uint32_t                            is_lite;
 
 	struct cam_isp_resource_node  bus_client[CAM_VFE_BUS_VER2_MAX_CLIENTS];
 	struct cam_isp_resource_node  comp_grp[CAM_VFE_BUS_VER2_COMP_GRP_MAX];
@@ -922,8 +923,20 @@ static int cam_vfe_bus_acquire_wm(
 	CAM_DBG(CAM_ISP, "WM %d width %d height %d", rsrc_data->index,
 		rsrc_data->width, rsrc_data->height);
 
-	if (rsrc_data->index < 3) {
+	if (rsrc_data->index < 3 ||
+		(ver2_bus_priv->is_lite && rsrc_data->index == 3)) {
 		/* Write master 0-2 refers to RDI 0/ RDI 1/RDI 2 */
+		if ((out_port_info->reserved >> 8) & 0x01) {
+			/* frame based mode as default */
+			rsrc_data->width =
+			CAM_VFE_RDI_BUS_DEFAULT_WIDTH;
+			rsrc_data->height = 0;
+			rsrc_data->stride =
+			CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
+			rsrc_data->en_cfg = 0x3;
+		} else {
+			rsrc_data->en_cfg = 0x1;
+		}
 		switch (rsrc_data->format) {
 		case CAM_FORMAT_MIPI_RAW_6:
 		case CAM_FORMAT_MIPI_RAW_8:
@@ -933,31 +946,24 @@ static int cam_vfe_bus_acquire_wm(
 		case CAM_FORMAT_MIPI_RAW_16:
 		case CAM_FORMAT_MIPI_RAW_20:
 		case CAM_FORMAT_PLAIN128:
-			rsrc_data->width = CAM_VFE_RDI_BUS_DEFAULT_WIDTH;
-			rsrc_data->height = 0;
-			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
 			rsrc_data->pack_fmt = 0x0;
-			rsrc_data->en_cfg = 0x3;
 			break;
 		case CAM_FORMAT_PLAIN8:
-			rsrc_data->en_cfg = 0x1;
 			rsrc_data->pack_fmt = 0x1;
-			rsrc_data->width = rsrc_data->width * 2;
-			rsrc_data->stride = rsrc_data->width;
 			break;
 		case CAM_FORMAT_PLAIN16_10:
+			rsrc_data->pack_fmt = 0x2;
+			break;
 		case CAM_FORMAT_PLAIN16_12:
+			rsrc_data->pack_fmt = 0x3;
+			break;
 		case CAM_FORMAT_PLAIN16_14:
+			rsrc_data->pack_fmt = 0x4;
+			break;
 		case CAM_FORMAT_PLAIN16_16:
-		case CAM_FORMAT_PLAIN32_20:
-			rsrc_data->width = CAM_VFE_RDI_BUS_DEFAULT_WIDTH;
-			rsrc_data->height = 0;
-			rsrc_data->stride = CAM_VFE_RDI_BUS_DEFAULT_STRIDE;
-			rsrc_data->pack_fmt = 0x0;
-			rsrc_data->en_cfg = 0x3;
+			rsrc_data->pack_fmt = 0x5;
 			break;
 		case CAM_FORMAT_PLAIN64:
-			rsrc_data->en_cfg = 0x1;
 			rsrc_data->pack_fmt = 0xA;
 			break;
 		default:
@@ -2886,13 +2892,14 @@ static int cam_vfe_bus_update_wm(void *priv, void *cmd_args,
 				io_cfg->planes[i].plane_stride,
 				val);
 
-		if (wm_data->index >= 3) {
+		/* override stride only if in line based mode */
+		if (wm_data->en_cfg == 0x1) {
 			CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-				wm_data->hw_regs->stride,
-				io_cfg->planes[i].plane_stride);
+					wm_data->hw_regs->stride,
+					io_cfg->planes[i].plane_stride);
 			wm_data->stride = val;
 			CAM_DBG(CAM_ISP, "WM %d image stride 0x%x",
-				wm_data->index, reg_val_pair[j-1]);
+					wm_data->index, reg_val_pair[j-1]);
 		}
 
 		if (wm_data->en_ubwc) {
@@ -3415,6 +3422,7 @@ int cam_vfe_bus_ver2_init(
 
 	bus_priv->num_client                     = ver2_hw_info->num_client;
 	bus_priv->num_out                        = ver2_hw_info->num_out;
+	bus_priv->is_lite                        = ver2_hw_info->is_lite;
 	bus_priv->common_data.num_sec_out        = 0;
 	bus_priv->common_data.secure_mode        = CAM_SECURE_MODE_NON_SECURE;
 	bus_priv->common_data.core_index         = soc_info->index;

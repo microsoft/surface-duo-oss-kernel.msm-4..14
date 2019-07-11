@@ -101,7 +101,9 @@ endif
 
 dtb-$(CONFIG_QTI_GVM) += sa8155-vm.dtb \
 	sa8155-vm-lv.dtb \
-	sa6155p-vm.dtb
+	sa8155-vm-lv-mt.dtb \
+	sa6155p-vm.dtb \
+	sa8195-vm.dtb
 
 ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
 	dtbo-$(CONFIG_ARCH_SDMSHRIKE) += \
@@ -243,11 +245,14 @@ endif
 
 ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
 	dtbo-$(CONFIG_ARCH_ATOLL) += \
-		atoll-rumi-overlay.dtbo\
+		atoll-idp-overlay.dtbo\
+		atoll-rumi-overlay.dtbo
 
+atoll-idp-overlay.dtbo-base := atoll.dtb
 atoll-rumi-overlay.dtbo-base := atoll.dtb
 else
-dtb-$(CONFIG_ARCH_ATOLL)	+= atoll-rumi.dtb
+dtb-$(CONFIG_ARCH_ATOLL)	+= atoll-idp.dtb\
+	atoll-rumi.dtb
 endif
 
 dtb-$(CONFIG_ARCH_SDXPRAIRIE) += sdxprairie-rumi.dtb \
@@ -255,9 +260,14 @@ dtb-$(CONFIG_ARCH_SDXPRAIRIE) += sdxprairie-rumi.dtb \
 	sdxprairie-dsda-cdp.dtb \
 	sdxprairie-mtp.dtb \
 	sdxprairie-pcie-ep-mtp.dtb \
+	sdxprairie-mtp-cpe.dtb \
+	sdxprairie-cdp-cpe.dtb \
 	sdxprairie-cdp-256.dtb \
 	sdxprairie-mtp-256.dtb \
-	sdxprairie-mtp-aqc.dtb
+	sdxprairie-mtp-aqc.dtb \
+	sdxprairie-dsda-mtp.dtb \
+	sdxprairie-v2-cdp.dtb \
+	sdxprairie-v2-mtp.dtb
 
 ifeq ($(CONFIG_ARM64),y)
 always		:= $(dtb-y)

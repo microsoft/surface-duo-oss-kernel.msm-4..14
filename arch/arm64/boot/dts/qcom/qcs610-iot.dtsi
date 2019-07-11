@@ -44,6 +44,17 @@
 			power-source = <0>;
 		};
 	};
+
+	irled {
+		irled_pwm: irled_pwm_default {
+			pins = "gpio6";
+			function = "func1";
+			qcom,drive-strength = <2>;
+			power-source = <0>;
+			bias-disable;
+			output-low;
+		};
+	};
 };
 
 &soc {
@@ -166,6 +177,7 @@
 		drive-strength = <2>;
 		};
 	};
+
 &emac_phy_reset_state {
 	mux {
 		pins = "gpio36";
@@ -178,6 +190,7 @@
 		drive-strength = <16>;
 		};
 	};
+
 &pm6150l_wled {
 	qcom,string-cfg= <3>;
 	qcom,leds-per-string = <7>;
@@ -186,6 +199,10 @@
 
 &pm6150l_lcdb {
 	status = "ok";
+};
+
+&pm6150l_pwm_1 {
+	status = "okay";
 };
 
 &pm6150_qg {
@@ -393,6 +410,9 @@
 	};
 };
 
+&dsi_ext_bridge_hdmi_1080p {
+	qcom,mdss-dsi-ext-bridge = <0>;
+};
 
 &soc {
 	ext_dsi_bridge_display: qcom,dsi-display@50 {

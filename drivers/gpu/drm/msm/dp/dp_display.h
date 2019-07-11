@@ -76,6 +76,8 @@ struct dp_display {
 	bool is_sst_connected;
 	bool is_mst_supported;
 	u32 max_pclk_khz;
+	u32 max_hdisplay;
+	u32 max_vdisplay;
 	void *dp_mst_prv_info;
 
 	int (*enable)(struct dp_display *dp_display, void *panel);
@@ -125,6 +127,8 @@ struct dp_display {
 			struct dp_display_mode *dp_mode);
 	int (*update_pps)(struct dp_display *dp_display,
 			struct drm_connector *connector, char *pps_cmd);
+	void (*wakeup_phy_layer)(struct dp_display *dp_display,
+			bool wakeup);
 };
 
 int dp_display_get_num_of_displays(void);
