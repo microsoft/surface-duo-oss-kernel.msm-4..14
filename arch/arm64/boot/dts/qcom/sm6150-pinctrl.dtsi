@@ -1093,7 +1093,7 @@
 			ter_i2s_sck_sleep: ter_i2s_sck_sleep {
 				mux {
 					pins = "gpio115", "gpio116";
-					function = "ter_mi2s";
+					function = "gpio";
 				};
 
 				config {
@@ -1122,7 +1122,7 @@
 			ter_i2s_data0_sleep: ter_i2s_data0_sleep {
 				mux {
 					pins = "gpio117";
-					function = "ter_mi2s";
+					function = "gpio";
 				};
 
 				config {
@@ -1151,7 +1151,7 @@
 			ter_i2s_data1_sleep: ter_i2s_data1_sleep {
 				mux {
 					pins = "gpio118";
-					function = "ter_mi2s";
+					function = "gpio";
 				};
 
 				config {
