@@ -43,6 +43,7 @@ rmnet_get_frag_descriptor(struct rmnet_port *port)
 	struct rmnet_frag_descriptor_pool *pool = port->frag_desc_pool;
 	struct rmnet_frag_descriptor *frag_desc;
 
+	spin_lock(&port->desc_pool_lock);
 	if (!list_empty(&pool->free_list)) {
 		frag_desc = list_first_entry(&pool->free_list,
 					     struct rmnet_frag_descriptor,
@@ -51,13 +52,15 @@ rmnet_get_frag_descriptor(struct rmnet_port *port)
 	} else {
 		frag_desc = kzalloc(sizeof(*frag_desc), GFP_ATOMIC);
 		if (!frag_desc)
-			return NULL;
+			goto out;
 
 		INIT_LIST_HEAD(&frag_desc->list);
 		INIT_LIST_HEAD(&frag_desc->sub_frags);
 		pool->pool_size++;
 	}
 
+out:
+	spin_unlock(&port->desc_pool_lock);
 	return frag_desc;
 }
 EXPORT_SYMBOL(rmnet_get_frag_descriptor);
@@ -73,12 +76,14 @@ void rmnet_recycle_frag_descriptor(struct rmnet_frag_descriptor *frag_desc,
 	memset(frag_desc, 0, sizeof(*frag_desc));
 	INIT_LIST_HEAD(&frag_desc->list);
 	INIT_LIST_HEAD(&frag_desc->sub_frags);
+	spin_lock(&port->desc_pool_lock);
 	list_add_tail(&frag_desc->list, &pool->free_list);
+	spin_unlock(&port->desc_pool_lock);
 }
 EXPORT_SYMBOL(rmnet_recycle_frag_descriptor);
 
-void rmnet_descriptor_add_frag(struct rmnet_port *port, struct page *p,
-			       u32 page_offset, u32 len)
+void rmnet_descriptor_add_frag(struct rmnet_port *port, struct list_head *list,
+			       struct page *p, u32 page_offset, u32 len)
 {
 	struct rmnet_frag_descriptor *frag_desc;
 
@@ -87,8 +92,7 @@ void rmnet_descriptor_add_frag(struct rmnet_port *port, struct page *p,
 		return;
 
 	rmnet_frag_fill(frag_desc, p, page_offset, len);
-	list_add_tail(&frag_desc->list, &port->rmnet_desc->frags);
-	port->rmnet_desc->nr_frags++;
+	list_add_tail(&frag_desc->list, list);
 }
 EXPORT_SYMBOL(rmnet_descriptor_add_frag);
 
@@ -197,17 +201,25 @@ static void rmnet_frag_send_ack(struct rmnet_map_header *qmap,
 	netif_tx_unlock(dev);
 }
 
-static void rmnet_frag_process_flow_start(struct rmnet_map_control_command *cmd,
-					  struct rmnet_port *port,
-					  u16 cmd_len)
+static void
+rmnet_frag_process_flow_start(struct rmnet_map_control_command_header *cmd,
+			      struct rmnet_port *port,
+			      u16 cmd_len)
 {
 	struct rmnet_map_dl_ind_hdr *dlhdr;
+	u32 data_format;
+	bool is_dl_mark_v2;
 
-	if (cmd_len < RMNET_DL_IND_HDR_SIZE)
+	if (cmd_len + sizeof(struct rmnet_map_header) < RMNET_DL_IND_HDR_SIZE)
 		return;
 
+	data_format = port->data_format;
+	is_dl_mark_v2 = data_format & RMNET_INGRESS_FORMAT_DL_MARKER_V2;
 	dlhdr = (struct rmnet_map_dl_ind_hdr *)((char *)cmd + sizeof(*cmd));
 
+	port->stats.dl_hdr_last_ep_id = cmd->source_id;
+	port->stats.dl_hdr_last_qmap_vers = cmd->reserved;
+	port->stats.dl_hdr_last_trans_id = cmd->transaction_id;
 	port->stats.dl_hdr_last_seq = dlhdr->le.seq;
 	port->stats.dl_hdr_last_bytes = dlhdr->le.bytes;
 	port->stats.dl_hdr_last_pkts = dlhdr->le.pkts;
@@ -216,24 +228,41 @@ static void rmnet_frag_process_flow_start(struct rmnet_map_control_command *cmd,
 	port->stats.dl_hdr_total_pkts += port->stats.dl_hdr_last_pkts;
 	port->stats.dl_hdr_count++;
 
-	rmnet_map_dl_hdr_notify(port, dlhdr);
+	/* If a target is taking frag path, we can assume DL marker v2 is in
+	 * play
+	 */
+	if (is_dl_mark_v2)
+		rmnet_map_dl_hdr_notify_v2(port, dlhdr, cmd);
+	else
+		rmnet_map_dl_hdr_notify(port, dlhdr);
 }
 
-static void rmnet_frag_process_flow_end(struct rmnet_map_control_command *cmd,
-					struct rmnet_port *port,
-					u16 cmd_len)
+static void
+rmnet_frag_process_flow_end(struct rmnet_map_control_command_header *cmd,
+			    struct rmnet_port *port, u16 cmd_len)
 {
 	struct rmnet_map_dl_ind_trl *dltrl;
+	u32 data_format;
+	bool is_dl_mark_v2;
 
-	if (cmd_len < RMNET_DL_IND_TRL_SIZE)
+
+	if (cmd_len + sizeof(struct rmnet_map_header) < RMNET_DL_IND_TRL_SIZE)
 		return;
 
+	data_format = port->data_format;
+	is_dl_mark_v2 = data_format & RMNET_INGRESS_FORMAT_DL_MARKER_V2;
 	dltrl = (struct rmnet_map_dl_ind_trl *)((char *)cmd + sizeof(*cmd));
 
 	port->stats.dl_trl_last_seq = dltrl->seq_le;
 	port->stats.dl_trl_count++;
 
-	rmnet_map_dl_trl_notify(port, dltrl);
+	/* If a target is taking frag path, we can assume DL marker v2 is in
+	 * play
+	 */
+	if (is_dl_mark_v2)
+		rmnet_map_dl_trl_notify_v2(port, dltrl, cmd);
+	else
+		rmnet_map_dl_trl_notify(port, dltrl);
 }
 
 /* Process MAP command frame and send N/ACK message as appropriate. Message cmd
@@ -269,10 +298,10 @@ void rmnet_frag_command(struct rmnet_map_header *qmap, struct rmnet_port *port)
 int rmnet_frag_flow_command(struct rmnet_map_header *qmap,
 			    struct rmnet_port *port, u16 pkt_len)
 {
-	struct rmnet_map_control_command *cmd;
+	struct rmnet_map_control_command_header *cmd;
 	unsigned char command_name;
 
-	cmd = (struct rmnet_map_control_command *)
+	cmd = (struct rmnet_map_control_command_header *)
 	      ((char *)qmap + sizeof(*qmap));
 	command_name = cmd->command_name;
 
@@ -293,7 +322,8 @@ int rmnet_frag_flow_command(struct rmnet_map_header *qmap,
 }
 EXPORT_SYMBOL(rmnet_frag_flow_command);
 
-void rmnet_frag_deaggregate(skb_frag_t *frag, struct rmnet_port *port)
+void rmnet_frag_deaggregate(skb_frag_t *frag, struct rmnet_port *port,
+			    struct list_head *list)
 {
 	struct rmnet_map_header *maph;
 	u8 *data = skb_frag_address(frag);
@@ -335,7 +365,7 @@ void rmnet_frag_deaggregate(skb_frag_t *frag, struct rmnet_port *port)
 		if ((int)skb_frag_size(frag) - (int)packet_len < 0)
 			return;
 
-		rmnet_descriptor_add_frag(port, skb_frag_page(frag),
+		rmnet_descriptor_add_frag(port, list, skb_frag_page(frag),
 					  frag->page_offset + offset,
 					  packet_len);
 
@@ -409,10 +439,12 @@ static struct sk_buff *rmnet_alloc_skb(struct rmnet_frag_descriptor *frag_desc,
 	if (frag_desc->hdrs_valid) {
 		u16 hdr_len = frag_desc->ip_len + frag_desc->trans_len;
 
-		head_skb = alloc_skb(hdr_len, GFP_ATOMIC);
+		head_skb = alloc_skb(hdr_len + RMNET_MAP_DEAGGR_HEADROOM,
+				     GFP_ATOMIC);
 		if (!head_skb)
 			return NULL;
 
+		skb_reserve(head_skb, RMNET_MAP_DEAGGR_HEADROOM);
 		skb_put_data(head_skb, frag_desc->hdr_ptr, hdr_len);
 		skb_reset_network_header(head_skb);
 		if (frag_desc->trans_len)
@@ -431,9 +463,12 @@ static struct sk_buff *rmnet_alloc_skb(struct rmnet_frag_descriptor *frag_desc,
 		/* Allocate enough space to avoid penalties in the stack
 		 * from __pskb_pull_tail()
 		 */
-		head_skb = alloc_skb(256, GFP_ATOMIC);
+		head_skb = alloc_skb(256 + RMNET_MAP_DEAGGR_HEADROOM,
+				     GFP_ATOMIC);
 		if (!head_skb)
 			return NULL;
+
+		skb_reserve(head_skb, RMNET_MAP_DEAGGR_HEADROOM);
 	}
 
 	/* Add main fragment */
@@ -547,17 +582,21 @@ static void __rmnet_frag_segment_data(struct rmnet_frag_descriptor *coal_desc,
 	struct rmnet_priv *priv = netdev_priv(coal_desc->dev);
 	struct rmnet_frag_descriptor *new_frag;
 	u8 *hdr_start = rmnet_frag_data_ptr(coal_desc);
+	u32 offset;
 
 	new_frag = rmnet_get_frag_descriptor(port);
 	if (!new_frag)
 		return;
 
+	/* Account for header lengths to access the data start */
+	offset = coal_desc->frag.page_offset + coal_desc->ip_len +
+		 coal_desc->trans_len + coal_desc->data_offset;
+
 	/* Header information and most metadata is the same as the original */
 	memcpy(new_frag, coal_desc, sizeof(*coal_desc));
 	INIT_LIST_HEAD(&new_frag->list);
 	INIT_LIST_HEAD(&new_frag->sub_frags);
-	rmnet_frag_fill(new_frag, skb_frag_page(&coal_desc->frag),
-			coal_desc->frag.page_offset + coal_desc->data_offset,
+	rmnet_frag_fill(new_frag, skb_frag_page(&coal_desc->frag), offset,
 			coal_desc->gso_size * coal_desc->gso_segs);
 
 	if (coal_desc->trans_proto == IPPROTO_TCP) {
@@ -970,6 +1009,7 @@ void rmnet_frag_ingress_handler(struct sk_buff *skb,
 				struct rmnet_port *port)
 {
 	rmnet_perf_chain_hook_t rmnet_perf_opt_chain_end;
+	LIST_HEAD(desc_list);
 
 	/* Deaggregation and freeing of HW originating
 	 * buffers is done within here
@@ -977,19 +1017,18 @@ void rmnet_frag_ingress_handler(struct sk_buff *skb,
 	while (skb) {
 		struct sk_buff *skb_frag;
 
-		rmnet_frag_deaggregate(skb_shinfo(skb)->frags, port);
-		if (port->rmnet_desc->nr_frags) {
+		rmnet_frag_deaggregate(skb_shinfo(skb)->frags, port,
+				       &desc_list);
+		if (!list_empty(&desc_list)) {
 			struct rmnet_frag_descriptor *frag_desc, *tmp;
 
-			list_for_each_entry_safe(frag_desc, tmp,
-						 &port->rmnet_desc->frags,
+			list_for_each_entry_safe(frag_desc, tmp, &desc_list,
 						 list) {
 				list_del_init(&frag_desc->list);
 				__rmnet_frag_ingress_handler(frag_desc, port);
 			}
 		}
 
-		port->rmnet_desc->nr_frags = 0;
 		skb_frag = skb_shinfo(skb)->frag_list;
 		skb_shinfo(skb)->frag_list = NULL;
 		consume_skb(skb);
@@ -1016,22 +1055,14 @@ void rmnet_descriptor_deinit(struct rmnet_port *port)
 	}
 
 	kfree(pool);
-	kfree(port->rmnet_desc);
 }
 
 int rmnet_descriptor_init(struct rmnet_port *port)
 {
-	struct rmnet_descriptor *rmnet_desc;
 	struct rmnet_frag_descriptor_pool *pool;
 	int i;
 
-	rmnet_desc = kzalloc(sizeof(*rmnet_desc), GFP_ATOMIC);
-	if (!rmnet_desc)
-		return -ENOMEM;
-
-	INIT_LIST_HEAD(&rmnet_desc->frags);
-	port->rmnet_desc = rmnet_desc;
-
+	spin_lock_init(&port->desc_pool_lock);
 	pool = kzalloc(sizeof(*pool), GFP_ATOMIC);
 	if (!pool)
 		return -ENOMEM;

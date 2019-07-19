@@ -40,6 +40,13 @@
 		#size-cells = <1>;
 		ranges;
 
+		mpss_adsp_mem: mpss_adsp_region@90c00000 {
+			compatible = "removed-dma-pool";
+			no-map;
+			reg = <0x90c00000 0xd400000>;
+			label = "mpss_adsp_mem";
+		};
+
 		tz_apps_mem: tz_apps_region@0x90000000 {
 			no-map;
 			reg = <0x90000000 0xc00000>;
@@ -86,13 +93,6 @@
 			no-map;
 			reg = <0x8ef00000 0x800000>;
 			label = "mpss_debug_mem";
-		};
-
-		mpss_adsp_mem: mpss_adsp_region@82300000 {
-			compatible = "removed-dma-pool";
-			no-map;
-			reg = <0x82300000 0xcc00000>;
-			label = "mpss_adsp_mem";
 		};
 
 		qseecom_mem: qseecom_region@0 {
@@ -555,6 +555,7 @@
 		qcom,bandwidth-vote-for-ipa;
 		qcom,msm-bus,name = "ipa";
 		qcom,ipa-wdi3-over-gsi;
+		qcom,ipa-endp-delay-wa;
 		qcom,msm-bus,num-cases = <5>;
 		qcom,msm-bus,num-paths = <5>;
 		qcom,msm-bus,vectors-KBps =
@@ -1348,6 +1349,10 @@
 
 		qcom,restore-after-cx-collapse;
 
+		/* DLL HSR settings. Refer go/hsr - <Target> DLL settings */
+		qcom,dll-hsr-list = <0x0007642c 0xa800 0x10
+					0x2c010800 0x80040868>;
+
 		status = "disabled";
 	};
 
@@ -1460,7 +1465,7 @@
 				0x0007c 0x4e        /* PORT0_STATUS */
 				0x00094 0x4e        /* PORT6_STATUS */
 			>;
-			qcom,link-intr-gpio = <84>;
+			qcom,link-intr-gpio = <90>;
 			qcom,switch-cpu-bmp = <0x01>;    /* cpu port bitmap */
 			qcom,switch-lan-bmp = <0x3e>;    /* lan port bitmap */
 			qcom,switch-wan-bmp = <0x0>;     /* wan port bitmap */
