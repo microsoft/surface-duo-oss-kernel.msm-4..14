@@ -18,7 +18,7 @@ dec200_dec: dec200@40026000 {
         reg = <0x0 0x40026000 0x0 0x1000>;
         interrupts = <0 97 4>;
         clocks = <&clks S32V234_CLK_DCU_AXI>,
-                        <&clks S32V234_CLK_DEC200_ENC_IPS>;
+                        <&clks S32V234_CLK_SYS6>;
         clock-names = "dcu", "sys6";
         status = "disabled";
 };
