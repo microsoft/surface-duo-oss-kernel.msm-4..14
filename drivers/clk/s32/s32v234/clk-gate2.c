@@ -1,7 +1,7 @@
 /*
  * Copyright (C) 2010-2011 Canonical Ltd <jeremy.kerr@canonical.com>
  * Copyright (C) 2011-2012 Mike Turquette, Linaro Ltd <mturquette@linaro.org>
- * Copyright (C) 2016-2018 NXP
+ * Copyright (C) 2016-2019 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -88,21 +88,15 @@ out:
 	spin_unlock_irqrestore(gate->lock, flags);
 }
 
-static int clk_gate2_reg_is_enabled(void __iomem *reg, u8 bit_idx)
-{
-	u8 val = readb(reg);
-
-	if (((val >> bit_idx) & GATE_MASK))
-		return 1;
-
-	return 0;
-}
-
 static int clk_gate2_is_enabled(struct clk_hw *hw)
 {
 	struct clk_gate2 *gate = to_clk_gate2(hw);
+	u8 val = readb(MC_ME_PCTLn(gate->reg, gate->pctln));
 
-	return clk_gate2_reg_is_enabled(gate->reg, gate->bit_idx);
+	if (((val >> gate->bit_idx) & GATE_MASK))
+		return 1;
+
+	return 0;
 }
 
 static void s32v234_clk_gate2_disable_unused(struct clk_hw *hw)
