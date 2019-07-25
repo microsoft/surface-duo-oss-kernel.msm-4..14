@@ -34,6 +34,8 @@ Build-Depends:
  automake <!stage1>,
  libtool <!stage1>,
  uuid-dev <!stage1>,
+ dkms <!stage1>,
+ wget <!stage1>,
 Build-Depends-Indep:
  xmlto <!stage1>,
  docbook-utils <!stage1>,
