@@ -603,6 +603,16 @@
 		#size-cells = <2>;
 		ranges;
 
+		abl_mem: abl_mem {
+			no-map;
+			reg = <0x2 0x7ED19000 0x0 0x1000000>;
+		};
+
+		abl_unmapped_mem: abl_unmapped_mem {
+			no-map;
+			reg = <0x0 0x85f40000 0x0 0xc0000>;
+		};
+
 		hyp_mem: hyp_mem {
 			no-map;
 			reg = <0x0 0x85700000 0x0 0x600000>;
