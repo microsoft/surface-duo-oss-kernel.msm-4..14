@@ -49,6 +49,18 @@
 	};
 };
 
+&adsp_pas {
+	status = "okay";
+};
+
+&cdsp_pas {
+	status = "okay";
+};
+
+&mpss_pas {
+	status = "okay";
+};
+
 &apps_rsc {
 	pm8150-rpmh-regulators {
 		compatible = "qcom,pm8150-rpmh-regulators";
