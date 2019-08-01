@@ -1,5 +1,9 @@
 * Freescale Linflex UART
 
+The LINFlexD controller implements several LIN protocol versions, as well as
+support for full-duplex UART communication through 8-bit and 9-bit frames. The
+Linflex UART driver enables operation only in UART mode.
+
 See chapter 47 ("LINFlexD") in the reference manual[1].
 
 Required properties:
