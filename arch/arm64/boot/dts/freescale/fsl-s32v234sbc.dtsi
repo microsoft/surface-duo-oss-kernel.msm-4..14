@@ -15,7 +15,7 @@
 	compatible = "fsl,s32v234-sbc", "fsl,s32v234";
 
 	chosen {
-		bootargs = "console=ttyLF0,115200";
+		stdout-path = "serial0:115200n8";
 	};
 
 	memory_DDR0@80000000 {
