@@ -80,7 +80,7 @@ struct hse_hash_template {
 
 /**
  * hse_halg - hash algorithm data
- * @entry: list of suported algorithms
+ * @entry: list of supported algorithms
  * @alg_type: HSE algorithm type (hash/hmac)
  * @srv_id: HSE service ID
  * @ahash_alg: hash algorithm
@@ -480,6 +480,22 @@ err_free_buf:
 }
 
 /**
+ * HSE doesn't support import/export operations
+ */
+static int hse_ahash_export(struct ahash_request *req, void *out)
+{
+	return -EOPNOTSUPP;
+}
+
+/**
+ * HSE doesn't support import/export operations
+ */
+static int hse_ahash_import(struct ahash_request *req, const void *in)
+{
+	return -EOPNOTSUPP;
+}
+
+/**
  * hse_ahash_setkey - asynchronous hash setkey operation
  * @tfm: crypto ahash transformation
  * @key: input key
@@ -563,6 +579,7 @@ static int hse_ahash_cra_init(struct crypto_tfm *gtfm)
 	struct crypto_ahash *tfm = __crypto_ahash_cast(gtfm);
 	struct hse_ahash_state *state = crypto_ahash_ctx(tfm);
 	struct hse_halg *halg = hse_get_halg(tfm);
+	struct hse_drvdata *drv = dev_get_drvdata(halg->dev);
 
 	crypto_ahash_set_reqsize(tfm, sizeof(struct hse_ahash_ctx));
 
@@ -570,13 +587,16 @@ static int hse_ahash_cra_init(struct crypto_tfm *gtfm)
 		return 0;
 
 	/* remove key slot from hmac ring */
+	spin_lock(&drv->key_lock);
 	state->crt_key = list_first_entry_or_null(halg->hmac_keys,
 						  struct hse_key, entry);
 	if (IS_ERR_OR_NULL(state->crt_key)) {
 		dev_dbg(halg->dev, "%s: cannot acquire key slot\n", __func__);
+		spin_unlock(&drv->key_lock);
 		return -ENOKEY;
 	}
 	list_del(&state->crt_key->entry);
+	spin_unlock(&drv->key_lock);
 
 	return 0;
 }
@@ -657,6 +677,8 @@ static struct hse_halg *hse_hash_alloc(struct device *dev, bool keyed,
 	halg->ahash_alg.final = hse_ahash_final;
 	halg->ahash_alg.finup = hse_ahash_finup;
 	halg->ahash_alg.digest = hse_ahash_digest;
+	halg->ahash_alg.export = hse_ahash_export;
+	halg->ahash_alg.import = hse_ahash_import;
 	halg->ahash_alg.halg.statesize = sizeof(struct hse_ahash_state);
 
 	if (keyed) {

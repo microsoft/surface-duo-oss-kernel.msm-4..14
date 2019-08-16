@@ -19,8 +19,11 @@ Features & Offloads
 ===================
 Currently the driver supports offloading the following crypto operations:
 
-- hashing: SHA1, MD5 
-- symmetric key ciphering: AES-CBC
+- Hashing: SHA1, MD5
+- Symmetric Key Ciphering: AES-CBC
+- Message Authentication: HMAC(MD5), HMAC(SHA1)
+- Authenticated Encryption with Associated Data: AES-GCM
+- True Random Number Generator
 
 Configuration
 =============
@@ -30,7 +33,10 @@ The following Kconfig options are available:
   There are 4 Messaging Units available for interfacing processor subsystems 
   with HSE and user can configure which one is used by Linux driver for sending
   and receiving crypto requests.
-  
+
+- HSE hardware True RNG support (CONFIG_CRYPTO_DEV_NXP_HSE_HWRNG):
+  Enable/disable HSE True RNG support. Default value is yes.
+
 - AES Key Group ID within HSE Key Catalog (CONFIG_CRYPTO_DEV_NXP_HSE_AES_KEY_GID):
   There can be up to 256 key groups within HSE RAM Key Catalog, each one storing
   a different key type. This option specifies which key group is used by driver
@@ -40,3 +46,13 @@ The following Kconfig options are available:
 - Number of AES Key Slots in Key Group (CONFIG_CRYPTO_DEV_NXP_HSE_AES_KEY_GSIZE):
   Each Key Group can store up to 256 keys and this option configures the number
   of keys that can be stored in the AES 256-bit key group.
+
+- HMAC Key Group ID within HSE Key Catalog (CONFIG_CRYPTO_DEV_NXP_HSE_HMAC_KEY_GID):
+  There can be up to 256 key groups within HSE RAM Key Catalog, each one storing
+  a different key type. This option specifies which key group is used by driver
+  for programming HMAC keys into HSE, depending on how catalog was initialized
+  by firmware. Default value is 2.
+
+- Number of HMAC Key Slots in Key Group (CONFIG_CRYPTO_DEV_NXP_HSE_HMAC_KEY_GSIZE):
+  Each Key Group can store up to 256 keys and this option configures the number
+  of keys that can be stored in the HMAC key group.
