@@ -1,7 +1,7 @@
 VERSION = 4
 PATCHLEVEL = 9
 SUBLEVEL = 11
-EXTRAVERSION = -cl-som-imx7-5.1_docker
+#EXTRAVERSION =
 NAME = Roaring Lionus
 
 # *DOCUMENTATION*
