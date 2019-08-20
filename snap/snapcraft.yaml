@@ -1,0 +1,107 @@
+name: cl-som-imx7-kernel
+summary: CompuLab Deveices kernel for cl-som-imx7
+description: CompuLab Deveices kernel for cl-som-imx7
+type: kernel
+adopt-info: kernel
+architectures:
+    - armhf
+
+parts:
+    kernel:
+        plugin: kernel
+        source: .
+        source-branch: imx7-som-4.9
+        source-type: git
+        source-depth: 1
+        kdefconfig: [compulab_imx7_defconfig]
+        kconfigs:
+            - CONFIG_LOCALVERSION="-uc-2"
+            - CONFIG_DEBUG_INFO=n
+            - CONFIG_SQUASHFS=y
+            - CONFIG_SQUASHFS_LZ4=y
+            - CONFIG_SQUASHFS_LZO=y
+            - CONFIG_SQUASHFS_XZ=y
+            - CONFIG_SQUASHFS_4K_DEVBLK_SIZE=y
+            - CONFIG_SQUASHFS_EMBEDDED=y
+            - CONFIG_ENCRYPTED_KEYS=y
+            - CONFIG_SQUASHFS_XATTR=y
+            - CONFIG_DEVPTS_MULTIPLE_INSTANCES=y
+            - CONFIG_CGROUP_DEBUG=y
+            - CONFIG_CGROUP_FREEZER=y
+            - CONFIG_CGROUP_DEVICE=y
+            - CONFIG_CPUSETS=y
+            - CONFIG_CGROUP_CPUACCT=y
+            - CONFIG_MEMCG=y
+            - CONFIG_MEMCG_SWAP=y
+            - CONFIG_CGROUP_PERF=y
+            - CONFIG_BLK_CGROUP=y
+            - CONFIG_DEBUG_BLK_CGROUP=y
+            - CONFIG_SECURITY=y
+            - CONFIG_SECURITY_APPARMOR=y
+            - CONFIG_SYN_COOKIES=y
+            - CONFIG_STRICT_DEVMEM=y
+            - CONFIG_DEFAULT_SECURITY_APPARMOR=y
+            - CONFIG_SECCOMP=y
+            - CONFIG_SECCOMP_FILTER=y
+            - CONFIG_CC_STACKPROTECTOR=y
+            - CONFIG_CC_STACKPROTECTOR_STRONG=y
+            - CONFIG_DEBUG_RODATA=y
+            - CONFIG_DEBUG_SET_MODULE_RONX=y
+            - CONFIG_DEVTMPFS=y
+            - CONFIG_DEVTMPFS_MOUNT=y
+            - CONFIG_IPV6=y
+            - CONFIG_SYSVIPC=y
+            - CONFIG_SYSVIPC_SYSCTL=y
+            - CONFIG_VFAT_FS=y
+            - CONFIG_NLS_CODEPAGE_437=y
+            - CONFIG_NLS_ISO8859_1=y
+            - CONFIG_INOTIFY_USER=y
+            - CONFIG_SIGNALFD=y
+            - CONFIG_TIMERFD=y
+            - CONFIG_EPOLL=y
+            - CONFIG_NET=y
+            - CONFIG_SYSFS=y
+            - CONFIG_PROC_FS=y
+            - CONFIG_FHANDLE=y
+            - CONFIG_BLK_DEV_BSG=y
+            - CONFIG_NET_NS=y
+            - CONFIG_AUTOFS4_FS=y
+            - CONFIG_TMPFS_POSIX_ACL=y
+            - CONFIG_TMPFS_XATTR=y
+        kernel-image-target: zImage
+        kernel-device-trees:
+             - imx7d-sbc-iot-imx7
+             - imx7d-sbc-imx7
+        build-packages:
+            - bc
+            - kmod
+            - cpio
+            - lzop
+        override-build: |
+            snapcraftctl build
+            snapcraftctl set-version $(make kernelversion)
+
+    firmware:
+        source: git://git.ti.com/wilink8-wlan/linux-firmware.git
+        plugin: dump
+        organize:
+           LICENCE.ti-connectivity: firmware/LICENCE.ti-connectivity
+           ti-connectivity: firmware/ti-connectivity
+        stage:
+           - firmware/*
+
+    firmware-bt:
+        source: git://git.ti.com/ti-bt/service-packs.git
+        plugin: dump
+        organize:
+             initscripts/TIInit_11.8.32.bts: firmware/ti-connectivity/TIInit_11.8.32.bts
+        stage:
+           - firmware/*
+
+    firmware-wifi:
+        source: git://git.ti.com/wilink8-wlan/18xx-ti-utils.git
+        plugin: dump
+        organize:
+             wlconf/wl18xx-conf-default.bin: firmware/ti-connectivity/wl18xx-conf.bin
+        stage:
+           - firmware/*
