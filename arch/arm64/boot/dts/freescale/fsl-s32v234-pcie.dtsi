@@ -14,7 +14,7 @@
 	compatible = "fsl,s32v234-pcie", "fsl,s32v234";
 
 	chosen {
-		bootargs = "console=ttyLF1,115200";
+		stdout-path = "serial1:115200n8";
 	};
 
 	memory_DDR0@80000000 {
