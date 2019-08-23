@@ -553,6 +553,12 @@ struct rtw_hw_reg_offset {
 	u8 offset;
 };
 
+struct rtw_ltecoex_addr {
+	u32 ctrl;
+	u32 wdata;
+	u32 rdata;
+};
+
 struct rtw_backup_info {
 	u8 len;
 	u32 reg;
@@ -1138,6 +1144,7 @@ struct rtw_chip_info {
 	u32 rf_sipi_addr[2];
 	struct rtw_rf_sipi_addr *rf_sipi_read_addr;
 	u8 fix_rf_phy_num;
+	struct rtw_ltecoex_addr *ltecoex_addr;
 
 	const struct rtw_table *mac_tbl;
 	const struct rtw_table *agc_tbl;
