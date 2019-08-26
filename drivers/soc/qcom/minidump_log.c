@@ -21,6 +21,7 @@
 #include <asm/sections.h>
 #include <linux/mm.h>
 #include <linux/sched/task.h>
+#include <linux/kthread.h>
 
 static void __init register_log_buf(void)
 {
@@ -163,10 +164,21 @@ void dump_stack_minidump(u64 sp)
 		pr_err("Failed to add current task %d in Minidump\n", cpu);
 }
 
-static int __init msm_minidump_log_init(void)
+static int msm_minidump_log_init_thread(void *arg)
 {
 	register_kernel_sections();
 	register_log_buf();
 	return 0;
+}
+
+static int __init msm_minidump_log_init(void)
+{
+	struct task_struct *msm_minidump_log_task =
+		kthread_run(msm_minidump_log_init_thread, NULL,
+				"msm_minidump_log_init_thread");
+	if(IS_ERR(msm_minidump_log_task))
+		return PTR_ERR(msm_minidump_log_task);
+	else
+		return 0;
 }
 late_initcall(msm_minidump_log_init);
