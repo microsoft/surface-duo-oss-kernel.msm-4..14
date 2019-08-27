@@ -516,7 +516,8 @@ static int hse_ahash_setkey(struct crypto_ahash *tfm, const u8 *key,
 	int err;
 
 	/* do not update the key if already imported */
-	if (!crypto_memneq(key, state->keybuf, keylen))
+	if (keylen == state->keylen &&
+	    unlikely(!crypto_memneq(key, state->keybuf, keylen)))
 		return 0;
 
 	if (keylen > blocksize) {
@@ -548,8 +549,8 @@ static int hse_ahash_setkey(struct crypto_ahash *tfm, const u8 *key,
 		memset(state->keybuf + keylen, 0u, state->keylen - keylen);
 	}
 
-	state->key_info.key_flags = HSE_KF_MU_INST | HSE_KF_USAGE_SIGN;
-	state->key_info.key_bit_len = state->keylen << 3;
+	state->key_info.key_flags = HSE_KF_USAGE_SIGN;
+	state->key_info.key_bit_len = state->keylen * BITS_PER_BYTE;
 	state->key_info.key_type = HSE_KEY_TYPE_HMAC;
 
 	state->srv_desc.srv_id = HSE_SRV_ID_IMPORT_KEY;
