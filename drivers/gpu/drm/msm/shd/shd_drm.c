@@ -35,6 +35,7 @@
 #include "sde_crtc.h"
 #include "sde_plane.h"
 #include "shd_drm.h"
+#include "shd_hw.h"
 
 static LIST_HEAD(g_base_list);
 
@@ -475,6 +476,76 @@ static int shd_crtc_atomic_set_property(struct drm_crtc *crtc,
 
 	return shd_crtc->orig_funcs->atomic_set_property(crtc,
 		state, property, val);
+}
+
+bool shd_is_crtc_shared(struct drm_crtc *crtc1,
+			struct drm_crtc *crtc2, bool check_roi)
+{
+	struct sde_crtc *sde_crtc1, *sde_crtc2;
+	struct shd_crtc *shd_crtc1, *shd_crtc2;
+
+	if (crtc1 == crtc2)
+		return false;
+
+	if (!crtc1 && !crtc2)
+		return true;
+
+	if ((crtc1 && !crtc2) || (!crtc1 && crtc2))
+		return false;
+
+	if (crtc1->helper_private->atomic_check !=
+			shd_crtc_atomic_check ||
+		crtc2->helper_private->atomic_check !=
+			shd_crtc_atomic_check)
+		return false;
+
+	sde_crtc1 = to_sde_crtc(crtc1);
+	shd_crtc1 = sde_crtc1->priv_handle;
+	sde_crtc2 = to_sde_crtc(crtc2);
+	shd_crtc2 = sde_crtc2->priv_handle;
+
+	if (shd_crtc1->display->base == shd_crtc2->display->base) {
+		if (check_roi)
+			return shd_crtc1->display->roi.x ==
+				shd_crtc2->display->roi.x &&
+			shd_crtc1->display->roi.y ==
+				shd_crtc2->display->roi.y &&
+			shd_crtc1->display->roi.w ==
+				shd_crtc2->display->roi.w &&
+			shd_crtc1->display->roi.h ==
+				shd_crtc2->display->roi.h;
+		else
+			return true;
+	}
+
+	return false;
+}
+
+void shd_update_shared_plane(struct drm_plane *plane,
+		struct drm_crtc *crtc)
+{
+	struct sde_crtc *sde_crtc;
+	struct shd_crtc *shd_crtc;
+	enum sde_sspp sspp;
+	int i;
+
+	if (!plane || !crtc) {
+		SDE_ERROR("invalid plane or crtc\n");
+		return;
+	}
+
+	if (crtc->funcs->atomic_set_property !=
+		shd_crtc_atomic_set_property) {
+		SDE_ERROR("not shared crtc\n");
+		return;
+	}
+
+	sde_crtc = to_sde_crtc(crtc);
+	shd_crtc = sde_crtc->priv_handle;
+	sspp = sde_plane_pipe(plane);
+
+	for (i = 0; i < sde_crtc->num_ctls; i++)
+		sde_shd_hw_skip_sspp_clear(sde_crtc->mixers[i].hw_ctl, sspp);
 }
 
 static void shd_display_prepare_commit(struct msm_kms *kms,
