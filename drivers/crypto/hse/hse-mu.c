@@ -9,18 +9,14 @@
  */
 
 #include <linux/kernel.h>
+#include <linux/platform_device.h>
 #include <linux/interrupt.h>
-#include <linux/of.h>
-#include <linux/of_irq.h>
-#include <linux/of_address.h>
-#include <linux/of_platform.h>
 #include <linux/io.h>
 
 #include "hse-mu.h"
 
-#define HSE_MU_INST    "mu" __stringify(CONFIG_CRYPTO_DEV_NXP_HSE_MU_ID) "b"
-#define HSE_RX_IRQ     "hse-" HSE_MU_INST "-rx"
-#define HSE_ERR_IRQ    "hse-" HSE_MU_INST "-err"
+#define HSE_MU_RX_IRQ     "hse-" HSE_MU_INST "-rx"
+#define HSE_MU_ERR_IRQ    "hse-" HSE_MU_INST "-err"
 
 #define HSE_STREAM_COUNT    2u /* number of usable streams per MU instance */
 #define HSE_NUM_CHANNELS    16u /* number of available service channels */
@@ -531,16 +527,29 @@ int hse_mu_sync_req(void *mu_inst, u8 channel, u32 srv_desc)
 
 /**
  * hse_mu_rx_handler - ISR for HSE_MU_INT_RESPONSE type interrupts
- * @irq: interrupt index
+ * @irq: interrupt line
  * @mu_inst: MU instance
  */
 static irqreturn_t hse_mu_rx_handler(int irq, void *mu_inst)
 {
+	hse_mu_irq_disable(mu_inst, HSE_MU_INT_RESPONSE, HSE_CH_MASK_ALL);
+
+	return IRQ_WAKE_THREAD;
+}
+
+/**
+ * hse_rx_soft_handler - deferred handler for HSE_MU_INT_RESPONSE interrupts
+ * @irq: interrupt line
+ * @mu_inst: MU instance
+ *
+ * For each pending service response, execute the upper layer callback in case
+ * of an asynchronous request or signal completion of a synchronous request.
+ */
+static irqreturn_t hse_rx_soft_handler(int irq, void *mu_inst)
+{
 	struct hse_mu_data *priv = mu_inst;
 	u8 channel;
 	void *ctx;
-
-	hse_mu_irq_disable(mu_inst, HSE_MU_INT_RESPONSE, HSE_CH_MASK_ALL);
 
 	for (channel = 0; channel < HSE_NUM_CHANNELS; channel++)
 		if (hse_mu_response_ready(mu_inst, channel)) {
@@ -574,17 +583,19 @@ u16 hse_mu_status(void *mu_inst)
 
 /**
  * hse_mu_err_handler - ISR for HSE_MU_INT_SYS_EVENT type interrupts
- * @irq: interrupt index
+ * @irq: interrupt line
  * @mu_inst: MU instance
  */
 static irqreturn_t hse_mu_err_handler(int irq, void *mu_inst)
 {
 	struct hse_mu_data *priv = mu_inst;
 	u16 status = hse_mu_status(mu_inst);
+	u32 gsrval = ioread32(&priv->regs->gsr);
 
-	hse_mu_irq_clear(mu_inst, HSE_MU_INT_SYS_EVENT, HSE_CH_MASK_ALL);
+	dev_crit(priv->dev, "system error 0x%x reported, status 0x%04x\n",
+		 gsrval, status);
 
-	dev_crit(priv->dev, "system error reported, status 0x%04X\n", status);
+	hse_mu_irq_clear(mu_inst, HSE_MU_INT_SYS_EVENT, gsrval);
 
 	return IRQ_HANDLED;
 }
@@ -598,13 +609,13 @@ static irqreturn_t hse_mu_err_handler(int irq, void *mu_inst)
  */
 void *hse_mu_init(struct device *dev, int (*decode)(u32 srv_rsp))
 {
+	struct platform_device *pdev = to_platform_device(dev);
 	struct hse_mu_data *mu_inst;
-	struct device_node *mu_node;
-	int rx_irq, err_irq, err;
-	struct resource mu_reg;
+	struct resource *res;
+	int irq, err;
 	u8 channel;
 
-	if (!dev || !decode)
+	if (unlikely(!dev || !decode))
 		return ERR_PTR(-EINVAL);
 
 	mu_inst = devm_kzalloc(dev, sizeof(*mu_inst), GFP_KERNEL);
@@ -613,43 +624,10 @@ void *hse_mu_init(struct device *dev, int (*decode)(u32 srv_rsp))
 	mu_inst->dev = dev;
 	mu_inst->decode = decode;
 
-	mu_node = of_get_child_by_name(dev->of_node, HSE_MU_INST);
-	if (IS_ERR_OR_NULL(mu_node)) {
-		dev_err(dev, "invalid instance hse-%s\n", HSE_MU_INST);
-		return ERR_PTR(-ENODEV);
-	}
-
-	if (unlikely(!of_device_is_available(mu_node))) {
-		err = -ENODEV;
-		goto err_node_put;
-	}
-
-	err = of_address_to_resource(mu_node, 0, &mu_reg);
-	if (unlikely(err)) {
-		err = -EFAULT;
-		goto err_node_put;
-	}
-
-	rx_irq = of_irq_get_byname(mu_node, HSE_RX_IRQ);
-	if (unlikely(rx_irq <= 0)) {
-		err = -ENXIO;
-		goto err_node_put;
-	}
-
-	err_irq = of_irq_get_byname(mu_node, HSE_ERR_IRQ);
-	if (unlikely(err_irq <= 0)) {
-		err = -ENXIO;
-		goto err_node_put;
-	}
-
-	dev_info(dev, "using instance %s\n", mu_node->full_name);
-
-	of_node_put(mu_node);
-
-	mu_inst->regs = devm_ioremap_resource(dev, &mu_reg);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	mu_inst->regs = devm_ioremap_resource(&pdev->dev, res);
 	if (IS_ERR_OR_NULL(mu_inst->regs)) {
-		dev_err(dev, "failed to map hse-%s register space @0x%08llx\n",
-			HSE_MU_INST, mu_reg.start);
+		dev_err(dev, "failed to map %s register space\n", HSE_MU_INST);
 		return ERR_PTR(-ENOMEM);
 	}
 
@@ -662,19 +640,22 @@ void *hse_mu_init(struct device *dev, int (*decode)(u32 srv_rsp))
 	hse_mu_irq_disable(mu_inst, HSE_MU_INT_RESPONSE, HSE_CH_MASK_ALL);
 	hse_mu_irq_disable(mu_inst, HSE_MU_INT_SYS_EVENT, HSE_CH_MASK_ALL);
 
-	err = devm_request_irq(dev, rx_irq, hse_mu_rx_handler, 0,
-			       HSE_RX_IRQ, mu_inst);
+	irq = platform_get_irq_byname(pdev, HSE_MU_RX_IRQ);
+	err = devm_request_threaded_irq(dev, irq, hse_mu_rx_handler,
+					hse_rx_soft_handler, IRQF_TRIGGER_NONE,
+					HSE_MU_RX_IRQ, mu_inst);
 	if (unlikely(err)) {
 		dev_err(dev, "failed to register %s irq, line %d\n",
-			HSE_RX_IRQ, rx_irq);
+			HSE_MU_RX_IRQ, irq);
 		return ERR_PTR(-ENXIO);
 	}
 
-	err = devm_request_irq(dev, err_irq, hse_mu_err_handler, 0,
-			       HSE_ERR_IRQ, mu_inst);
+	irq = platform_get_irq_byname(pdev, HSE_MU_ERR_IRQ);
+	err = devm_request_irq(dev, irq, hse_mu_err_handler, IRQF_TRIGGER_NONE,
+			       HSE_MU_ERR_IRQ, mu_inst);
 	if (unlikely(err)) {
 		dev_err(dev, "failed to register %s irq, line %d\n",
-			HSE_ERR_IRQ, err_irq);
+			HSE_MU_ERR_IRQ, irq);
 		return ERR_PTR(-ENXIO);
 	}
 
@@ -688,9 +669,6 @@ void *hse_mu_init(struct device *dev, int (*decode)(u32 srv_rsp))
 	hse_mu_irq_enable(mu_inst, HSE_MU_INT_SYS_EVENT, HSE_CH_MASK_ALL);
 
 	return mu_inst;
-err_node_put:
-	of_node_put(mu_node);
-	return ERR_PTR(err);
 }
 
 /**
@@ -699,7 +677,7 @@ err_node_put:
  */
 void hse_mu_free(void *mu_inst)
 {
-	if (!mu_inst)
+	if (unlikely(!mu_inst))
 		return;
 
 	/* disable all interrupt sources */
