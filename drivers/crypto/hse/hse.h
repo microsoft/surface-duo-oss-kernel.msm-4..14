@@ -39,33 +39,6 @@ struct hse_drvdata {
 };
 
 /**
- * Translate address with 512MB, as seen by HSE
- */
-static inline dma_addr_t _hse_addr(dma_addr_t addr)
-{
-	return addr - 0x20000000ull;
-}
-
-/**
- * hse_addr - HSE Address Translation
- * @virt_addr: virtual address to be translated
- *
- * This function only admits addresses from the kernel linear address space.
- *
- * Return: physical address as seen by HSE, zero for failed translation
- */
-static __always_inline phys_addr_t hse_addr(void *virt_addr)
-{
-	phys_addr_t addr = virt_to_phys(virt_addr);
-
-	/* translate DDR addresses */
-	if (addr >= 0x80000000ull && addr <= 0xFFFFFFFFull)
-		return _hse_addr(addr);
-
-	return 0ull;
-}
-
-/*
  * check_aes_keylen - validate key length for AES algorithms
  * @keylen: AES key length
  *
