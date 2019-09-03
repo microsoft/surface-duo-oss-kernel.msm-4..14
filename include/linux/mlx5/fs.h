@@ -75,6 +75,7 @@ enum mlx5_flow_namespace_type {
 	MLX5_FLOW_NAMESPACE_SNIFFER_TX,
 	MLX5_FLOW_NAMESPACE_EGRESS,
 	MLX5_FLOW_NAMESPACE_RDMA_RX,
+	MLX5_FLOW_NAMESPACE_RDMA_RX_KERNEL,
 };
 
 enum {
@@ -124,6 +125,11 @@ struct mlx5_flow_destination {
 			u8		flags;
 		} vport;
 	};
+};
+
+struct mod_hdr_tbl {
+	struct mutex lock; /* protects hlist */
+	DECLARE_HASHTABLE(hlist, 8);
 };
 
 struct mlx5_flow_namespace *
