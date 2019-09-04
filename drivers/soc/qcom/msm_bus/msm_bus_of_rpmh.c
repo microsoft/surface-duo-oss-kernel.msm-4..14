@@ -408,7 +408,7 @@ static struct msm_bus_node_info_type *get_node_info_data(
 		node_info->connections = 0;
 	}
 
-	for (i = 0; i < node_info->num_connections; i++) {
+	for (i = 0; i < node_info->num_connections && node_info->connections; i++) {
 		con_node = of_parse_phandle(dev_node, "qcom,connections", i);
 		if (IS_ERR_OR_NULL(con_node))
 			goto node_info_err;
@@ -428,7 +428,7 @@ static struct msm_bus_node_info_type *get_node_info_data(
 		node_info->bl_cons = 0;
 	}
 
-	for (i = 0; i < node_info->num_blist; i++) {
+	for (i = 0; i < node_info->num_blist && node_info->bl_cons; i++) {
 		con_node = of_parse_phandle(dev_node, "qcom,blacklist", i);
 		if (IS_ERR_OR_NULL(con_node))
 			goto node_info_err;
@@ -462,7 +462,7 @@ static struct msm_bus_node_info_type *get_node_info_data(
 		node_info->bcm_devs = 0;
 	}
 
-	for (i = 0; i < node_info->num_bcm_devs; i++) {
+	for (i = 0; i < node_info->num_bcm_devs && node_info->bcm_dev_ids; i++) {
 		bcm_dev = of_parse_phandle(dev_node, "qcom,bcms", i);
 		if (IS_ERR_OR_NULL(bcm_dev))
 			goto node_info_err;
@@ -485,7 +485,7 @@ static struct msm_bus_node_info_type *get_node_info_data(
 		node_info->rsc_devs = 0;
 	}
 
-	for (i = 0; i < node_info->num_rsc_devs; i++) {
+	for (i = 0; i < node_info->num_rsc_devs && node_info->rsc_dev_ids; i++) {
 		rsc_dev = of_parse_phandle(dev_node, "qcom,rscs", i);
 		if (IS_ERR_OR_NULL(rsc_dev))
 			goto node_info_err;
@@ -821,7 +821,7 @@ static int msm_bus_of_get_ids(struct platform_device *pdev,
 	}
 
 	*dev_ids = ids;
-	for (i = 0; i < *num_ids; i++) {
+	for (i = 0; i < *num_ids && ids; i++) {
 		rule_node = of_parse_phandle(dev_node, prop_name, i);
 		if (IS_ERR_OR_NULL(rule_node)) {
 			dev_err(&pdev->dev, "Can't get rule node id");
