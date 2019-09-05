@@ -444,6 +444,15 @@ struct qsmmuv500_tbu_device {
 	u32				halt_count;
 	unsigned int			*irqs;
 };
+struct hyp_assign_data {
+	int dest_vmid;
+	phys_addr_t addr;
+	u64 size;
+	struct list_head assigned_elem;
+};
+
+LIST_HEAD(hyp_assign_list);
+DEFINE_MUTEX(assign_list_mutex);
 
 static atomic_t cavium_smmu_context_count = ATOMIC_INIT(0);
 
@@ -2697,6 +2706,7 @@ static int arm_smmu_assign_table(struct arm_smmu_domain *smmu_domain)
 	int dest_perms[2] = {PERM_READ | PERM_WRITE, PERM_READ};
 	int source_vmid = VMID_HLOS;
 	struct arm_smmu_pte_info *pte_info, *temp;
+	struct hyp_assign_data *data;
 
 	if (!arm_smmu_is_master_side_secure(smmu_domain))
 		return ret;
@@ -2707,10 +2717,19 @@ static int arm_smmu_assign_table(struct arm_smmu_domain *smmu_domain)
 				      dest_vmids, dest_perms, 2);
 		if (WARN_ON(ret))
 			break;
+		data = kzalloc(sizeof(*data), GFP_KERNEL);
+		if (!data)
+			return -ENOMEM;
+		data->dest_vmid = dest_vmids[1];
+		data->addr = virt_to_phys(pte_info->virt_addr);
+		data->size = PAGE_SIZE;
+		mutex_lock(&assign_list_mutex);
+		list_add_tail(&data->assigned_elem, &hyp_assign_list);
+		mutex_unlock(&assign_list_mutex);
 	}
 
 	list_for_each_entry_safe(pte_info, temp, &smmu_domain->pte_info_list,
-								entry) {
+				 entry) {
 		list_del(&pte_info->entry);
 		kfree(pte_info);
 	}
@@ -2724,6 +2743,7 @@ static void arm_smmu_unassign_table(struct arm_smmu_domain *smmu_domain)
 	int dest_perms = PERM_READ | PERM_WRITE | PERM_EXEC;
 	int source_vmlist[2] = {VMID_HLOS, smmu_domain->secure_vmid};
 	struct arm_smmu_pte_info *pte_info, *temp;
+	struct hyp_assign_data *data;
 
 	if (!arm_smmu_is_master_side_secure(smmu_domain))
 		return;
@@ -2734,6 +2754,17 @@ static void arm_smmu_unassign_table(struct arm_smmu_domain *smmu_domain)
 				      &dest_vmids, &dest_perms, 1);
 		if (WARN_ON(ret))
 			break;
+		BUG_ON(list_empty(&hyp_assign_list));
+		list_for_each_entry(data, &hyp_assign_list, assigned_elem) {
+			if (data->dest_vmid == source_vmlist[1] &&
+			    data->addr == virt_to_phys(pte_info->virt_addr)) {
+				mutex_lock(&assign_list_mutex);
+				list_del(&data->assigned_elem);
+				mutex_unlock(&assign_list_mutex);
+				kfree(data);
+			}
+		}
+
 		free_pages_exact(pte_info->virt_addr, pte_info->size);
 	}
 
