@@ -635,6 +635,7 @@ static int apr_probe(struct rpmsg_device *rpdev)
 			   &resp);
 	if (ret < 0) {
 		pr_err("QMI tx init failed , ret - %d\n", ret);
+		qmi_handle_release(&apr->qmi);
 		return ret;
 	}
 
@@ -650,18 +651,21 @@ static int apr_probe(struct rpmsg_device *rpdev)
 	if (ret < 0) {
 		pr_err("QMI send req failed, ret - %d\n", ret);
 		qmi_txn_cancel(&txn);
+		qmi_handle_release(&apr->qmi);
 		return ret;
 	}
 
 	ret = qmi_txn_wait(&txn, msecs_to_jiffies(SERVER_TIMEOUT));
 	if (ret < 0) {
 		pr_err("QMI qmi txn wait failed, ret - %d\n", ret);
+		qmi_handle_release(&apr->qmi);
 		return ret;
 	}
 
 	/* Check the response */
 	if (resp.resp.result != QMI_RESULT_SUCCESS_V01) {
 		pr_err("QMI request failed 0x%x\n", resp.resp.error);
+		qmi_handle_release(&apr->qmi);
 		return -EREMOTEIO;
 	} else {
 		pr_err("QMI request succeeded 0x%x\n", resp.resp.error);
@@ -673,6 +677,7 @@ static int apr_probe(struct rpmsg_device *rpdev)
 		ret = wait_for_completion_timeout(&apr->ind_comp, 10 * HZ);
 		if (!ret) {
 			pr_err("timed out waiting for PD UP\n");
+			qmi_handle_release(&apr->qmi);
 			return ret;
 		}
 	}
