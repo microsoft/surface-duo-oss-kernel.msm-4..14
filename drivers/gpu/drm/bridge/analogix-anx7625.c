@@ -1098,7 +1098,6 @@ static bool enter_hib_restore = 0;
 
 #ifdef CONFIG_HIBERNATION
 	if (!bfore_hibernation && !enter_hib_restore) {
-		bfore_hibernation = 1;
 		enter_hib_restore = 1;
 		place_marker("Hiber: Display up");
 	}
