@@ -903,6 +903,7 @@ struct nosave_region {
 };
 
 static LIST_HEAD(nosave_regions);
+static LIST_HEAD(hyp_nosave_regions);
 
 static void recycle_zone_bm_rtree(struct mem_zone_bm_rtree *zone)
 {
@@ -968,9 +969,38 @@ void __init __register_nosave_region(unsigned long start_pfn,
 	list_add_tail(&region->list, &nosave_regions);
  Report:
 	printk(KERN_INFO "PM: Registered nosave memory: [mem %#010llx-%#010llx]\n",
-		(unsigned long long) start_pfn << PAGE_SHIFT,
-		((unsigned long long) end_pfn << PAGE_SHIFT) - 1);
+	        (unsigned long long) start_pfn << PAGE_SHIFT,
+	        ((unsigned long long) end_pfn << PAGE_SHIFT) - 1);
 }
+
+void register_hyp_nosave_region(unsigned long start_pfn, unsigned long end_pfn)
+{
+	struct nosave_region *region;
+
+	if (start_pfn >= end_pfn)
+		return;
+
+	if (!list_empty(&hyp_nosave_regions)) {
+		/* Try to extend the previous region (they should be sorted) */
+		region = list_entry(hyp_nosave_regions.prev,
+					struct nosave_region, list);
+		if (region->end_pfn == start_pfn) {
+			region->end_pfn = end_pfn;
+			goto Report;
+		}
+	}
+	region = kmalloc(sizeof(struct nosave_region), GFP_KERNEL);
+	BUG_ON(!region);
+	region->start_pfn = start_pfn;
+	region->end_pfn = end_pfn;
+	list_add_tail(&region->list, &hyp_nosave_regions);
+ Report:
+	printk(KERN_INFO "PM: Registered hyp nosave memory: [mem %#010llx-%#010llx]\n",
+	       (unsigned long long) start_pfn << PAGE_SHIFT,
+	       ((unsigned long long) end_pfn << PAGE_SHIFT) - 1);
+}
+
+
 
 /*
  * Set bits in this map correspond to the page frames the contents of which
@@ -1057,6 +1087,34 @@ static void mark_nosave_pages(struct memory_bitmap *bm)
 	}
 }
 
+static void mark_hyp_nosave_pages(struct memory_bitmap *bm)
+{
+	struct nosave_region *region;
+
+	if (list_empty(&hyp_nosave_regions))
+		return;
+
+	list_for_each_entry(region, &hyp_nosave_regions, list) {
+		unsigned long pfn;
+
+		pr_debug("PM: Marking nosave pages: [mem %#010llx-%#010llx]\n",
+			 (unsigned long long) region->start_pfn << PAGE_SHIFT,
+			 ((unsigned long long) region->end_pfn << PAGE_SHIFT)
+				- 1);
+
+		for (pfn = region->start_pfn; pfn < region->end_pfn; pfn++)
+			if (pfn_valid(pfn)) {
+				/*
+				 * It is safe to ignore the result of
+				 * mem_bm_set_bit_check() here, since we won't
+				 * touch the PFNs for which the error is
+				 * returned anyway.
+				 */
+				mem_bm_set_bit_check(bm, pfn);
+			}
+	}
+}
+
 /**
  * create_basic_memory_bitmaps - Create bitmaps to hold basic page information.
  *
@@ -1094,6 +1152,7 @@ int create_basic_memory_bitmaps(void)
 	forbidden_pages_map = bm1;
 	free_pages_map = bm2;
 	mark_nosave_pages(forbidden_pages_map);
+	mark_hyp_nosave_pages(forbidden_pages_map);
 
 	pr_debug("PM: Basic memory bitmaps created\n");
 

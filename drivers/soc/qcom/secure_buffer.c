@@ -25,6 +25,11 @@
 #include <soc/qcom/secure_buffer.h>
 
 DEFINE_MUTEX(secure_buffer_mutex);
+DEFINE_MUTEX(hyp_nosave_reg);
+/* TODO: Ideally we should check if pages are already marked for nosave region
+ * instead of using this buggy hack. This is for quick testing purpose only
+ * and this should go away soon! */
+extern bool before_hibernation;
 
 struct cp2_mem_chunks {
 	u32 chunk_list;
@@ -354,13 +359,45 @@ out_free_source:
 	return ret;
 }
 
+extern void register_hyp_nosave_region(unsigned long b, unsigned long e);
+
 int hyp_assign_table(struct sg_table *table,
 			u32 *source_vm_list, int source_nelems,
 			int *dest_vmids, int *dest_perms,
 			int dest_nelems)
 {
-	return __hyp_assign_table(table, source_vm_list, source_nelems,
-				  dest_vmids, dest_perms, dest_nelems, false);
+	int i, ret;
+	unsigned long start_pfn, end_pfn;
+	bool mark_nosave = 1;
+	unsigned long num_pages;
+	struct scatterlist *sg;
+
+	ret = __hyp_assign_table(table, source_vm_list, source_nelems,
+				 dest_vmids, dest_perms, dest_nelems, false);
+	if (ret)
+		return ret;
+
+	/* If destination vmid does not contain HLOS we will mark
+	 * corresponding pages in nosave list. */
+	for (i = 0; i < dest_nelems; i++) {
+		if (dest_vmids[i] == VMID_HLOS) {
+			mark_nosave = 0;
+			break;
+		}
+	}
+	if (mark_nosave && before_hibernation) {
+		for_each_sg(table->sgl, sg, table->nents, i) {
+			start_pfn = page_to_pfn(sg_page(sg));
+			num_pages = sg->length / PAGE_SIZE;
+			if (sg->length % PAGE_SIZE)
+				num_pages++;
+			end_pfn = start_pfn + num_pages;
+			mutex_lock(&hyp_nosave_reg);
+			register_hyp_nosave_region(start_pfn, end_pfn);
+			mutex_unlock(&hyp_nosave_reg);
+		}
+	}
+	return 0;
 }
 
 int try_hyp_assign_table(struct sg_table *table,
@@ -368,8 +405,38 @@ int try_hyp_assign_table(struct sg_table *table,
 			int *dest_vmids, int *dest_perms,
 			int dest_nelems)
 {
-	return __hyp_assign_table(table, source_vm_list, source_nelems,
-				  dest_vmids, dest_perms, dest_nelems, true);
+	int i, ret;
+	unsigned long start_pfn, end_pfn;
+	bool mark_nosave = 1;
+	unsigned long num_pages;
+	struct scatterlist *sg;
+
+	ret = __hyp_assign_table(table, source_vm_list, source_nelems,
+				 dest_vmids, dest_perms, dest_nelems, true);
+	if (ret)
+		return ret;
+
+	/* If destination vmid does not contain HLOS we will mark
+	 * corresponding pages in nosave list. */
+	for (i = 0; i < dest_nelems; i++) {
+		if (dest_vmids[i] == VMID_HLOS) {
+			mark_nosave = 0;
+			break;
+		}
+	}
+	if (mark_nosave && before_hibernation) {
+		for_each_sg(table->sgl, sg, table->nents, i) {
+			start_pfn = page_to_pfn(sg_page(sg));
+			num_pages = sg->length / PAGE_SIZE;
+			if (sg->length % PAGE_SIZE)
+				num_pages++;
+			end_pfn = start_pfn + num_pages;
+			mutex_lock(&hyp_nosave_reg);
+			register_hyp_nosave_region(start_pfn, end_pfn);
+			mutex_unlock(&hyp_nosave_reg);
+		}
+	}
+	return 0;
 }
 
 int hyp_assign_phys(phys_addr_t addr, u64 size, u32 *source_vm_list,
