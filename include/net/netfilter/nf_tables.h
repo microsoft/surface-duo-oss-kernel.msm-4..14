@@ -2,6 +2,7 @@
 #ifndef _NET_NF_TABLES_H
 #define _NET_NF_TABLES_H
 
+#include <asm/unaligned.h>
 #include <linux/list.h>
 #include <linux/netfilter.h>
 #include <linux/netfilter/nfnetlink.h>
@@ -25,6 +26,7 @@ struct nft_pktinfo {
 	struct xt_action_param		xt;
 };
 
+#if IS_ENABLED(CONFIG_NETFILTER)
 static inline struct net *nft_net(const struct nft_pktinfo *pkt)
 {
 	return pkt->xt.state->net;
@@ -57,6 +59,7 @@ static inline void nft_set_pktinfo(struct nft_pktinfo *pkt,
 	pkt->skb = skb;
 	pkt->xt.state = state;
 }
+#endif
 
 static inline void nft_set_pktinfo_unspec(struct nft_pktinfo *pkt,
 					  struct sk_buff *skb)
@@ -100,18 +103,12 @@ struct nft_regs {
 	};
 };
 
-/* Store/load an u16 or u8 integer to/from the u32 data register.
+/* Store/load an u8, u16 or u64 integer to/from the u32 data register.
  *
  * Note, when using concatenations, register allocation happens at 32-bit
  * level. So for store instruction, pad the rest part with zero to avoid
  * garbage values.
  */
-
-static inline void nft_reg_store16(u32 *dreg, u16 val)
-{
-	*dreg = 0;
-	*(u16 *)dreg = val;
-}
 
 static inline void nft_reg_store8(u32 *dreg, u8 val)
 {
@@ -119,14 +116,30 @@ static inline void nft_reg_store8(u32 *dreg, u8 val)
 	*(u8 *)dreg = val;
 }
 
+static inline u8 nft_reg_load8(u32 *sreg)
+{
+	return *(u8 *)sreg;
+}
+
+static inline void nft_reg_store16(u32 *dreg, u16 val)
+{
+	*dreg = 0;
+	*(u16 *)dreg = val;
+}
+
 static inline u16 nft_reg_load16(u32 *sreg)
 {
 	return *(u16 *)sreg;
 }
 
-static inline u8 nft_reg_load8(u32 *sreg)
+static inline void nft_reg_store64(u32 *dreg, u64 val)
 {
-	return *(u8 *)sreg;
+	put_unaligned(val, (u64 *)dreg);
+}
+
+static inline u64 nft_reg_load64(u32 *sreg)
+{
+	return get_unaligned((u64 *)sreg);
 }
 
 static inline void nft_data_copy(u32 *dst, const struct nft_data *src,
@@ -289,17 +302,23 @@ struct nft_expr;
  *	struct nft_set_ops - nf_tables set operations
  *
  *	@lookup: look up an element within the set
+ *	@update: update an element if exists, add it if doesn't exist
+ *	@delete: delete an element
  *	@insert: insert new element into set
  *	@activate: activate new element in the next generation
  *	@deactivate: lookup for element and deactivate it in the next generation
  *	@flush: deactivate element in the next generation
  *	@remove: remove element from set
- *	@walk: iterate over all set elemeennts
+ *	@walk: iterate over all set elements
  *	@get: get set elements
  *	@privsize: function to return size of set private data
  *	@init: initialize private data of new set instance
  *	@destroy: destroy private data of set instance
  *	@elemsize: element private size
+ *
+ *	Operations lookup, update and delete have simpler interfaces, are faster
+ *	and currently only used in the packet path. All the rest are slower,
+ *	control plane functions.
  */
 struct nft_set_ops {
 	bool				(*lookup)(const struct net *net,
@@ -314,6 +333,8 @@ struct nft_set_ops {
 						  const struct nft_expr *expr,
 						  struct nft_regs *regs,
 						  const struct nft_set_ext **ext);
+	bool				(*delete)(const struct nft_set *set,
+						  const u32 *key);
 
 	int				(*insert)(const struct net *net,
 						  const struct nft_set *set,
@@ -926,9 +947,11 @@ struct nft_chain_type {
 	int				family;
 	struct module			*owner;
 	unsigned int			hook_mask;
+#if IS_ENABLED(CONFIG_NETFILTER)
 	nf_hookfn			*hooks[NF_MAX_HOOKS];
 	int				(*ops_register)(struct net *net, const struct nf_hook_ops *ops);
 	void				(*ops_unregister)(struct net *net, const struct nf_hook_ops *ops);
+#endif
 };
 
 int nft_chain_validate_dependency(const struct nft_chain *chain,
@@ -954,7 +977,9 @@ struct nft_stats {
  *	@flow_block: flow block (for hardware offload)
  */
 struct nft_base_chain {
+#if IS_ENABLED(CONFIG_NETFILTER)
 	struct nf_hook_ops		ops;
+#endif
 	const struct nft_chain_type	*type;
 	u8				policy;
 	u8				flags;
@@ -1102,6 +1127,7 @@ struct nft_object_type {
  *	@init: initialize object from netlink attributes
  *	@destroy: release existing stateful object
  *	@dump: netlink dump stateful object
+ *	@update: update stateful object
  */
 struct nft_object_ops {
 	void				(*eval)(struct nft_object *obj,
@@ -1116,6 +1142,8 @@ struct nft_object_ops {
 	int				(*dump)(struct sk_buff *skb,
 						struct nft_object *obj,
 						bool reset);
+	void				(*update)(struct nft_object *obj,
+						  struct nft_object *newobj);
 	const struct nft_object_type	*type;
 };
 
@@ -1151,7 +1179,9 @@ struct nft_flowtable {
 					use:30;
 	u64				handle;
 	/* runtime data below here */
+#if IS_ENABLED(CONFIG_NETFILTER)
 	struct nf_hook_ops		*ops ____cacheline_aligned;
+#endif
 	struct nf_flowtable		data;
 };
 
@@ -1205,6 +1235,8 @@ void nft_trace_notify(struct nft_traceinfo *info);
 
 #define MODULE_ALIAS_NFT_OBJ(type) \
 	MODULE_ALIAS("nft-obj-" __stringify(type))
+
+#if IS_ENABLED(CONFIG_NF_TABLES)
 
 /*
  * The gencursor defines two generations, the currently active and the
@@ -1278,6 +1310,8 @@ static inline void nft_set_elem_change_active(const struct net *net,
 {
 	ext->genmask ^= nft_genmask_next(net);
 }
+
+#endif /* IS_ENABLED(CONFIG_NF_TABLES) */
 
 /*
  * We use a free bit in the genmask field to indicate the element
@@ -1398,10 +1432,16 @@ struct nft_trans_elem {
 
 struct nft_trans_obj {
 	struct nft_object		*obj;
+	struct nft_object		*newobj;
+	bool				update;
 };
 
 #define nft_trans_obj(trans)	\
 	(((struct nft_trans_obj *)trans->data)->obj)
+#define nft_trans_obj_newobj(trans) \
+	(((struct nft_trans_obj *)trans->data)->newobj)
+#define nft_trans_obj_update(trans)	\
+	(((struct nft_trans_obj *)trans->data)->update)
 
 struct nft_trans_flowtable {
 	struct nft_flowtable		*flowtable;

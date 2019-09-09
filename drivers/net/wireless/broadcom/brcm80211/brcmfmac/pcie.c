@@ -794,7 +794,8 @@ static void brcmf_pcie_bus_console_read(struct brcmf_pciedev_info *devinfo,
 		if (ch == '\n') {
 			console->log_str[console->log_idx] = 0;
 			if (error)
-				brcmf_err(bus, "CONSOLE: %s", console->log_str);
+				__brcmf_err(bus, __func__, "CONSOLE: %s",
+					    console->log_str);
 			else
 				pr_debug("CONSOLE: %s", console->log_str);
 			console->log_idx = 0;
@@ -1768,6 +1769,12 @@ static void brcmf_pcie_setup(struct device *dev, int ret,
 	nvram = fwreq->items[BRCMF_PCIE_FW_NVRAM].nv_data.data;
 	nvram_len = fwreq->items[BRCMF_PCIE_FW_NVRAM].nv_data.len;
 	kfree(fwreq);
+
+	ret = brcmf_chip_get_raminfo(devinfo->ci);
+	if (ret) {
+		brcmf_err(bus, "Failed to get RAM info\n");
+		goto fail;
+	}
 
 	/* Some of the firmwares have the size of the memory of the device
 	 * defined inside the firmware. This is because part of the memory in

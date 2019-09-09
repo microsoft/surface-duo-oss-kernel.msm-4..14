@@ -4,18 +4,18 @@
 #ifndef _ICE_TYPE_H_
 #define _ICE_TYPE_H_
 
+#define ICE_BYTES_PER_WORD	2
+#define ICE_BYTES_PER_DWORD	4
+
 #include "ice_status.h"
 #include "ice_hw_autogen.h"
 #include "ice_osdep.h"
 #include "ice_controlq.h"
 #include "ice_lan_tx_rx.h"
 
-#define ICE_BYTES_PER_WORD	2
-#define ICE_BYTES_PER_DWORD	4
-
-static inline bool ice_is_tc_ena(u8 bitmap, u8 tc)
+static inline bool ice_is_tc_ena(unsigned long bitmap, u8 tc)
 {
-	return test_bit(tc, (unsigned long *)&bitmap);
+	return test_bit(tc, &bitmap);
 }
 
 /* Driver always calls main vsi_handle first */
@@ -139,6 +139,9 @@ struct ice_phy_info {
 /* Common HW capabilities for SW use */
 struct ice_hw_common_caps {
 	u32 valid_functions;
+	/* DCB capabilities */
+	u32 active_tc_bitmap;
+	u32 maxtc;
 
 	/* Tx/Rx queues */
 	u16 num_rxq;		/* Number/Total Rx queues */
@@ -347,6 +350,8 @@ struct ice_port_info {
 	struct ice_mac_info mac;
 	struct ice_phy_info phy;
 	struct mutex sched_lock;	/* protect access to TXSched tree */
+	struct ice_sched_node *
+		sib_head[ICE_MAX_TRAFFIC_CLASS][ICE_AQC_TOPO_MAX_LEVEL_NUM];
 	struct ice_dcbx_cfg local_dcbx_cfg;	/* Oper/Local Cfg */
 	/* DCBX info */
 	struct ice_dcbx_cfg remote_dcbx_cfg;	/* Peer Cfg */
