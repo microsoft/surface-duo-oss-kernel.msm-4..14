@@ -73,7 +73,9 @@
 #include <uapi/linux/virtio_mmio.h>
 #include <linux/virtio_ring.h>
 
-
+#ifdef CONFIG_QTI_GVM_QUIN
+#include <linux/virtio_ids.h>
+#endif
 
 /* The alignment to use between consumer and producer parts of vring.
  * Currently hardcoded to the page size. */
@@ -458,6 +460,11 @@ static int vm_find_vqs(struct virtio_device *vdev, unsigned nvqs,
 			dev_name(&vdev->dev), vm_dev);
 	if (err)
 		return err;
+
+#ifdef CONFIG_QTI_GVM_QUIN
+	if (vdev && (vdev->id.device == VIRTIO_ID_INPUT))
+		enable_irq_wake(irq);
+#endif
 
 	for (i = 0; i < nvqs; ++i) {
 		vqs[i] = vm_setup_vq(vdev, i, callbacks[i], names[i],
