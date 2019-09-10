@@ -12,7 +12,18 @@ Required properties:
   - fsl,s32gen1-flexcan
 
 - reg : Offset and length of the register set for this device
-- interrupts : Interrupt tuple for this device
+- interrupts : Interrupt tuple(s) for this device. If interrupt-names are
+               missing, these should specify, in order:
+               - for S32V234:
+                 1. ERRINT | BOFFINT | BOFFDONEINT | TWRNINT | RWRNINT;
+                 2. MB0-63 interrupts;
+               - for S32GEN1:
+                 1. BOFFINT | BOFFDONEINT | TWRNINT | RWRNINT;
+                 2. ERRINT;
+                 3. MB0-7 interrupts;
+                 4. MB8-127 interrupts;
+               - for all the other SoCs:
+                 1. all interrupts combined.
 
 Optional properties:
 
@@ -26,11 +37,22 @@ Optional properties:
               if this property is present then controller is assumed to be big
               endian.
 
+- interrupt-names: Allows the interrupt specifiers in "interrupts" to be stated
+                   in any order, one for each name in here. Can contain:
+                   "state" - BOFFINT | BOFFDONEINT | TWRNINT | RWRNINT;
+                   "berr" - ERRINT;
+                   "mb_0-7" - MB0-7 interrupts;
+                   "mb_8-127" - MB8-127 interrupts;
+                   "state-berr" - ERRINT | BOFFINT | BOFFDONEINT | TWRNINT |
+                                  RWRNINT;
+                   "mb" - all MB interrupts;
+                   "all" - all interrupts combined.
+
 - s32v234-ocotp: On S32V234 SoCs, phandle pointer to the On-Chip One Time
                  Programmable (OCOTP) node, if CAN FD support is desired on
                  compatible parts
 
-Example:
+Examples:
 
 	can@1c000 {
 		compatible = "fsl,p1010-flexcan";
@@ -38,4 +60,16 @@ Example:
 		interrupts = <48 0x2>;
 		interrupt-parent = <&mpic>;
 		clock-frequency = <200000000>; // filled in by bootloader
+	};
+
+	flexcan@40055000 {
+		compatible = "fsl,s32v234-flexcan";
+		reg = <0x0 0x40055000 0x0 0x1000>;
+		interrupts = <0 41 4>,
+			     <0 42 4>;
+		interrupt-names = "state-berr", "mb";
+		clocks = <&clks S32V234_CLK_CAN0>,
+			 <&clks S32V234_CLK_CAN>;
+		clock-names = "ipg", "per";
+		s32v234-ocotp = <&ocotp>;
 	};
