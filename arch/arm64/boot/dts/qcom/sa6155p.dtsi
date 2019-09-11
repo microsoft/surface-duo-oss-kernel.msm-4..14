@@ -109,6 +109,9 @@
 		read-only;
 		ranges;
 	};
+	qcom,adsp_vote {
+		compatible = "qcom,adsp_manual_vote";
+	};
 };
 
 &ipa_hw {
