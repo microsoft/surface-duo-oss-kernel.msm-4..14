@@ -1666,7 +1666,14 @@ static int _sde_kms_drm_obj_init(struct sde_kms *sde_kms)
 	if (!_sde_kms_get_displays(sde_kms))
 		(void)_sde_kms_setup_displays(dev, priv, sde_kms);
 
-	max_crtc_count = min(catalog->mixer_count, priv->num_encoders);
+	/*
+	 * if there are crtc lessees, the number of crtcs should be bound
+	 * to number of encoders instead of physical layer mixers.
+	 */
+	if (of_property_read_bool(dev->dev->of_node, "qcom,sde-has-crtc-lease"))
+		max_crtc_count = priv->num_encoders;
+	else
+		max_crtc_count = min(catalog->mixer_count, priv->num_encoders);
 
 	/* Create the planes */
 	for (i = 0; i < catalog->sspp_count; i++) {
