@@ -2039,13 +2039,18 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 		case SENSOR_CUSTOM_GPIO2:
 
 			if (!gpio_num_info->valid[pd->seq_type])
+			{
+
+				CAM_INFO(CAM_SENSOR, "continuing without reset");
 				continue;
+			}
 
-			cam_res_mgr_gpio_set_value(
-				gpio_num_info->gpio_num
-				[pd->seq_type],
-				(int) pd->config_val);
+			gpio_free(gpio_num_info->gpio_num[pd->seq_type]);
 
+			ret = gpio_request_one(gpio_num_info->gpio_num[pd->seq_type],
+								   (int)pd->config_val, NULL);
+
+			gpio_free(gpio_num_info->gpio_num[pd->seq_type]);
 			break;
 		case SENSOR_VANA:
 		case SENSOR_VDIG:

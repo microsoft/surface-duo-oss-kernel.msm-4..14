@@ -135,7 +135,7 @@ static int sde_backlight_setup(struct sde_connector *c_conn,
 	if (!c_conn || !dev || !dev->dev) {
 		SDE_ERROR("invalid param\n");
 		return -EINVAL;
-	} else if (c_conn->connector_type != DRM_MODE_CONNECTOR_DSI) {
+	} else if (!c_conn->ops.set_backlight) {
 		return 0;
 	}
 
@@ -1155,7 +1155,7 @@ static int sde_connector_atomic_set_property(struct drm_connector *connector,
 
 		/* convert fb val to drm framebuffer and prepare it */
 		c_state->out_fb =
-			drm_framebuffer_lookup(connector->dev, val);
+			drm_framebuffer_lookup(connector->dev, NULL, val);
 		if (!c_state->out_fb && val) {
 			SDE_ERROR("failed to look up fb %lld\n", val);
 			rc = -EFAULT;
@@ -1522,6 +1522,7 @@ static ssize_t _sde_debugfs_conn_cmd_tx_sts_read(struct file *file,
 		return 0;
 	}
 
+	blen = min_t(size_t, MAX_CMD_PAYLOAD_SIZE, count);
 	if (copy_to_user(buf, buffer, blen)) {
 		SDE_ERROR("copy to user buffer failed\n");
 		return -EFAULT;

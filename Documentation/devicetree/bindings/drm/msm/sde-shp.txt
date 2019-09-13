@@ -1,0 +1,58 @@
+QTI Snapdragon Display Engine (SDE) shared plane
+
+This driver allows to create multiple virtual planes from the same
+physical plane. Only one plane can be activated at a time.
+
+Required properties:
+- compatible:		"qcom,sde-shared-plane"
+- qcom,add-planes:	Shared planes to add to the DRM system. Each child
+			represents a new plane, which has the properties of:
+	qcom,plane-parent: required string, name of parent plane
+			where this plane is created from.
+	qcom,plane-name: optional string, name of the new plane.
+	qcom,plane-seamless-mode: optional string, seamless mode when plane being
+			displayed can be handed off to another plane or not.
+			The candidate modes are:
+			"restrict": default mode, handoff can only happen
+				between connectors that are sharing the same ROI
+				of the same physical display.
+			"shared": handoff can only happen between connectors that
+				are sharing the same physical displays. ROI will
+				not be checked in this mode.
+			"none": handoff can only happen when plane is detached
+				from display. No seamless handoff is allowed.
+	qcom,plane-init-handoff: optional boolean, if set, the plane is inited
+			to handoff state at system bootup. For planes with the
+			same parent, only one can set to init-handoff or
+			init-active state.
+	qcom,plane-init-active: optional boolean, if set, the plane is inited to
+			active state at system bootup. For planes with the same
+			parent, only one can set to init-handoff or init-active
+			state.
+	qcom,plane-detach-handoff: optional boolean, if set, the plane is set to
+			handoff state whenever it is detached.
+
+
+Example:
+
+/ {
+	...
+
+	qcom,sde-shared-plane {
+		compatible = "qcom,sde-shared-plane";
+		qcom,add-planes {
+			plane@0 {
+				qcom,plane-name = "plane-0-splash";
+				qcom,plane-parent = "plane-0";
+				qcom,plane-init-handoff;
+				qcom,plane-seamless-mode = "shared";
+			};
+			plane@1 {
+				qcom,plane-name = "plane-1-splash";
+				qcom,plane-parent = "plane-1";
+				qcom,plane-init-handoff;
+				qcom,plane-seamless-mode = "shared";
+			};
+		};
+	};
+};
