@@ -1448,7 +1448,8 @@ static int qcom_qmp_phy_com_exit(struct qcom_qmp *qmp)
 	return 0;
 }
 
-static int qcom_qmp_phy_enable(struct phy *phy)
+/* PHY Initialization */
+static int qcom_qmp_phy_init(struct phy *phy)
 {
 	struct qmp_phy *qphy = phy_get_drvdata(phy);
 	struct qcom_qmp *qmp = qphy->qmp;
@@ -1527,6 +1528,14 @@ static int qcom_qmp_phy_enable(struct phy *phy)
 		goto err_lane_rst;
 
 	/*
+	 * UFS PHY requires the deassert of software reset before serdes start.
+	 * For UFS PHYs that do not have software reset control bits, defer
+	 * starting serdes until the power on callback.
+	 */
+	if ((cfg->type == PHY_TYPE_UFS) && cfg->no_pcs_sw_reset)
+		goto out;
+
+	/*
 	 * Pull out PHY from POWER DOWN state.
 	 * This is active low enable signal to power-down PHY.
 	 */
@@ -1537,9 +1546,7 @@ static int qcom_qmp_phy_enable(struct phy *phy)
 		usleep_range(cfg->pwrdn_delay_min, cfg->pwrdn_delay_max);
 
 	/* Pull PHY out of reset state */
-	if (!cfg->no_pcs_sw_reset)
-		qphy_clrbits(pcs, cfg->regs[QPHY_SW_RESET], SW_RESET);
-
+	qphy_clrbits(pcs, cfg->regs[QPHY_SW_RESET], SW_RESET);
 	if (cfg->has_phy_dp_com_ctrl)
 		qphy_clrbits(dp_com, QPHY_V3_DP_COM_SW_RESET, SW_RESET);
 
@@ -1556,10 +1563,11 @@ static int qcom_qmp_phy_enable(struct phy *phy)
 		goto err_pcs_ready;
 	}
 	qmp->phy_initialized = true;
-	return 0;
+
+out:
+	return ret;
 
 err_pcs_ready:
-	reset_control_assert(qmp->ufs_reset);
 	clk_disable_unprepare(qphy->pipe_clk);
 err_clk_enable:
 	if (cfg->has_lane_rst)
@@ -1570,7 +1578,7 @@ err_lane_rst:
 	return ret;
 }
 
-static int qcom_qmp_phy_disable(struct phy *phy)
+static int qcom_qmp_phy_exit(struct phy *phy)
 {
 	struct qmp_phy *qphy = phy_get_drvdata(phy);
 	struct qcom_qmp *qmp = qphy->qmp;
@@ -1596,6 +1604,44 @@ static int qcom_qmp_phy_disable(struct phy *phy)
 	qmp->phy_initialized = false;
 
 	return 0;
+}
+
+static int qcom_qmp_phy_poweron(struct phy *phy)
+{
+	struct qmp_phy *qphy = phy_get_drvdata(phy);
+	struct qcom_qmp *qmp = qphy->qmp;
+	const struct qmp_phy_cfg *cfg = qmp->cfg;
+	void __iomem *pcs = qphy->pcs;
+	void __iomem *status;
+	unsigned int mask, val;
+	int ret = 0;
+
+	if (cfg->type != PHY_TYPE_UFS)
+		return 0;
+
+	/*
+	 * For UFS PHY that has not software reset control, serdes start
+	 * should only happen when UFS driver explicitly calls phy_power_on
+	 * after it deasserts software reset.
+	 */
+	if (cfg->no_pcs_sw_reset && !qmp->phy_initialized &&
+	    (qmp->init_count != 0)) {
+		/* start SerDes and Phy-Coding-Sublayer */
+		qphy_setbits(pcs, cfg->regs[QPHY_START_CTRL], cfg->start_ctrl);
+
+		status = pcs + cfg->regs[QPHY_PCS_READY_STATUS];
+		mask = cfg->mask_pcs_ready;
+
+		ret = readl_poll_timeout(status, val, !(val & mask), 1,
+					 PHY_INIT_COMPLETE_TIMEOUT);
+		if (ret) {
+			dev_err(qmp->dev, "phy initialization timed-out\n");
+			return ret;
+		}
+		qmp->phy_initialized = true;
+	}
+
+	return ret;
 }
 
 static int qcom_qmp_phy_set_mode(struct phy *phy,
@@ -1847,15 +1893,9 @@ static int phy_pipe_clk_register(struct qcom_qmp *qmp, struct device_node *np)
 }
 
 static const struct phy_ops qcom_qmp_phy_gen_ops = {
-	.init		= qcom_qmp_phy_enable,
-	.exit		= qcom_qmp_phy_disable,
-	.set_mode	= qcom_qmp_phy_set_mode,
-	.owner		= THIS_MODULE,
-};
-
-static const struct phy_ops qcom_qmp_ufs_ops = {
-	.power_on	= qcom_qmp_phy_enable,
-	.power_off	= qcom_qmp_phy_disable,
+	.init		= qcom_qmp_phy_init,
+	.exit		= qcom_qmp_phy_exit,
+	.power_on	= qcom_qmp_phy_poweron,
 	.set_mode	= qcom_qmp_phy_set_mode,
 	.owner		= THIS_MODULE,
 };
@@ -1866,7 +1906,6 @@ int qcom_qmp_phy_create(struct device *dev, struct device_node *np, int id)
 	struct qcom_qmp *qmp = dev_get_drvdata(dev);
 	struct phy *generic_phy;
 	struct qmp_phy *qphy;
-	const struct phy_ops *ops = &qcom_qmp_phy_gen_ops;
 	char prop_name[MAX_PROP_NAME];
 	int ret;
 
@@ -1953,10 +1992,7 @@ int qcom_qmp_phy_create(struct device *dev, struct device_node *np, int id)
 		}
 	}
 
-	if (qmp->cfg->type == PHY_TYPE_UFS)
-		ops = &qcom_qmp_ufs_ops;
-
-	generic_phy = devm_phy_create(dev, np, ops);
+	generic_phy = devm_phy_create(dev, np, &qcom_qmp_phy_gen_ops);
 	if (IS_ERR(generic_phy)) {
 		ret = PTR_ERR(generic_phy);
 		dev_err(dev, "failed to create qphy %d\n", ret);

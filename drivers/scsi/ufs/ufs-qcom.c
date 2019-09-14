@@ -548,11 +548,19 @@ static int ufs_qcom_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 		 */
 		ufs_qcom_disable_lane_clks(host);
 		phy_power_off(phy);
-
-	} else if (!ufs_qcom_is_link_active(hba)) {
-		ufs_qcom_disable_lane_clks(host);
+		goto out;
 	}
 
+	/*
+	 * If UniPro link is not active, PHY ref_clk, main PHY analog power
+	 * rail and low noise analog power rail for PLL can be switched off.
+	 */
+	if (!ufs_qcom_is_link_active(hba)) {
+		ufs_qcom_disable_lane_clks(host);
+		phy_power_off(phy);
+	}
+
+out:
 	return ret;
 }
 
@@ -562,26 +570,21 @@ static int ufs_qcom_resume(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 	struct phy *phy = host->generic_phy;
 	int err;
 
-	if (ufs_qcom_is_link_off(hba)) {
-		err = phy_power_on(phy);
-		if (err) {
-			dev_err(hba->dev, "%s: failed PHY power on: %d\n",
-				__func__, err);
-			return err;
-		}
-
-		err = ufs_qcom_enable_lane_clks(host);
-		if (err)
-			return err;
-
-	} else if (!ufs_qcom_is_link_active(hba)) {
-		err = ufs_qcom_enable_lane_clks(host);
-		if (err)
-			return err;
+	err = phy_power_on(phy);
+	if (err) {
+		dev_err(hba->dev, "%s: failed enabling regs, err = %d\n",
+			__func__, err);
+		goto out;
 	}
 
+	err = ufs_qcom_enable_lane_clks(host);
+	if (err)
+		goto out;
+
 	hba->is_sys_suspended = false;
-	return 0;
+
+out:
+	return err;
 }
 
 struct ufs_qcom_dev_params {
@@ -1121,6 +1124,9 @@ static int ufs_qcom_setup_clocks(struct ufs_hba *hba, bool on,
 		if (!ufs_qcom_is_link_active(hba)) {
 			/* disable device ref_clk */
 			ufs_qcom_dev_ref_clk_ctrl(host, false);
+
+			/* powering off PHY during aggressive clk gating */
+			phy_power_off(host->generic_phy);
 		}
 
 		vote = host->bus_vote.min_bw_vote;
