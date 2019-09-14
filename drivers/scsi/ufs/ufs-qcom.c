@@ -255,6 +255,11 @@ static int ufs_qcom_power_up_sequence(struct ufs_hba *hba)
 	if (is_rate_B)
 		phy_set_mode(phy, PHY_MODE_UFS_HS_B);
 
+	/* Assert PHY reset and apply PHY calibration values */
+	ufs_qcom_assert_reset(hba);
+	/* provide 1ms delay to let the reset pulse propagate */
+	usleep_range(1000, 1100);
+
 	/* phy initialization - calibrate the phy */
 	ret = phy_init(phy);
 	if (ret) {
@@ -263,6 +268,15 @@ static int ufs_qcom_power_up_sequence(struct ufs_hba *hba)
 		goto out;
 	}
 	host->is_phy_init = true;
+
+	/* De-assert PHY reset and start serdes */
+	ufs_qcom_deassert_reset(hba);
+
+	/*
+	 * after reset deassertion, phy will need all ref clocks,
+	 * voltage, current to settle down before starting serdes.
+	 */
+	usleep_range(1000, 1100);
 
 	/* De-assert PHY reset and start serdes */
 	ufs_qcom_deassert_reset(hba);
@@ -286,6 +300,7 @@ static int ufs_qcom_power_up_sequence(struct ufs_hba *hba)
 	return 0;
 
 out_disable_phy:
+	ufs_qcom_assert_reset(hba);
 	phy_exit(phy);
 out:
 	return ret;
@@ -548,6 +563,9 @@ static int ufs_qcom_suspend(struct ufs_hba *hba, enum ufs_pm_op pm_op)
 		 */
 		ufs_qcom_disable_lane_clks(host);
 		phy_power_off(phy);
+
+		/* Assert PHY soft reset */
+		ufs_qcom_assert_reset(hba);
 		goto out;
 	}
 
