@@ -894,6 +894,12 @@ config QCOM_AOP_DDRSS_COMMANDS
 	help
 	  This driver allows messages to be sent to the AOP to affect the DDRSS
 	  behavior.
+
+config QCOM_ADSP_MANUAL_VOTE
+	bool "Send commands to ADSP to unvote and vote during Suspend and resume"
+	help
+          This driver sends messages to the ADSP to release ADSP vote while suspending
+          and acquire ADSP vote while resuming
 endmenu
 
 config QCOM_HYP_CORE_CTL
