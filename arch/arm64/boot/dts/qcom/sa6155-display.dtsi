@@ -278,7 +278,7 @@
    sde_card1: qcom,sde-kms-lease@0 {
            compatible = "qcom,sde-kms-lease";
            qcom,dev-name = "msm_drm";
-           qcom,lease-connectors = "DSI-2","DP-1","DP-2";
+           qcom,lease-connectors = "DSI-2","DP-1","DP-2","DP-3";
            qcom,lease-planes = "plane-0", "plane-1", "plane-2","plane-3","plane-4", "plane-5", "plane-6","plane-7","plane-8","plane-9";
    };
    sde_card2: qcom,sde-kms-lease@1 {
@@ -296,6 +296,7 @@
 
 &mdss_mdp {
 	qcom,sde-reg-dma-version = <0>;
+	qcom,sde-has-crtc-lease;
 	connectors = <&sde_rscc &dsi_dp1 &sde_wb &sde_dp>;
 };
 
