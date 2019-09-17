@@ -10805,9 +10805,11 @@ static int cfg80211_cqm_rssi_update(struct cfg80211_registered_device *rdev,
 	hyst = wdev->cqm_config->rssi_hyst;
 	n = wdev->cqm_config->n_rssi_thresholds;
 
-	for (i = 0; i < n; i++)
+	for (i = 0; i < n; i++) {
+		i = array_index_nospec(i, n);
 		if (last < wdev->cqm_config->rssi_thresholds[i])
 			break;
+	}
 
 	low_index = i - 1;
 	if (low_index >= 0) {
@@ -14997,12 +14999,10 @@ void nl80211_common_reg_change_event(enum nl80211_commands cmd_id,
 		return;
 
 	hdr = nl80211hdr_put(msg, 0, 0, 0, cmd_id);
-	if (!hdr) {
-		nlmsg_free(msg);
-		return;
-	}
+	if (!hdr)
+		goto nla_put_failure;
 
-	if (nl80211_reg_change_event_fill(msg, request) == false)
+	if (!nl80211_reg_change_event_fill(msg, request))
 		goto nla_put_failure;
 
 	genlmsg_end(msg, hdr);
