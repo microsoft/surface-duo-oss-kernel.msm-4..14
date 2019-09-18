@@ -19,7 +19,8 @@
 #include <linux/soc/qcom/qmi.h>
 #include <linux/slab.h>
 #include <linux/iommu.h>
-
+#include <linux/cpu_pm.h>
+#include <linux/pm.h>
 #include "prod_qmi_svc_v01.h"
 
 #define PGS_TIMEOUT			msecs_to_jiffies(3000)
@@ -159,8 +160,7 @@ static struct qmi_ops adsp_qmi_ops = {
 };
 
 static const struct dev_pm_ops adsp_manual_vote_dev_pm_ops = {
-        .suspend = send_adsp_manual_unvote,
-        .resume = send_adsp_manual_vote,
+	SET_NOIRQ_SYSTEM_SLEEP_PM_OPS(send_adsp_manual_unvote,send_adsp_manual_vote)
 };
 
 static int adsp_manual_vote_driver_probe(struct platform_device *pdev){
