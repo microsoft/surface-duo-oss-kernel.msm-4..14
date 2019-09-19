@@ -89,6 +89,9 @@
 			| DMA_AXI_BLEN_32 | DMA_AXI_BLEN_64 \
 			| DMA_AXI_BLEN_128 | DMA_AXI_BLEN_256)
 
+/* quirk bits definition for quirk_mask_id */
+#define QUIRK_MASK_ERRATA_E50082	(1 << 0)
+
 /* Platfrom data for platform device structure's platform_data field */
 
 struct stmmac_mdio_bus_data {
@@ -193,5 +196,6 @@ struct plat_stmmacenet_data {
 	int mac_port_sel_speed;
 	bool en_tx_lpi_clockgating;
 	int has_xgmac;
+	u32 quirk_mask_id;
 };
 #endif

@@ -179,6 +179,10 @@
 #define DMA_CHAN_INTR_DEFAULT_MASK_4_10	(DMA_CHAN_INTR_NORMAL_4_10 | \
 					 DMA_CHAN_INTR_ABNORMAL_4_10)
 
+/* RX watchdog interrupt timer bits */
+#define DMA_CHAN_RX_WATCHDOG_RWT	GENMASK(7, 0)
+#define DMA_CHAN_RX_WATCHDOG_RWTU	GENMASK(17, 16)
+
 /* channel 0 specific fields */
 #define DMA_CHAN0_DBG_STAT_TPS		GENMASK(15, 12)
 #define DMA_CHAN0_DBG_STAT_TPS_SHIFT	12
