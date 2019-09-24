@@ -2257,7 +2257,7 @@ static struct msm_dir_conn sdmshrike_dir_conn[] = {
 	{-1, 209},
 };
 
-static const struct msm_pinctrl_soc_data sdmshrike_pinctrl = {
+static struct msm_pinctrl_soc_data sdmshrike_pinctrl = {
 	.pins = sdmshrike_pins,
 	.npins = ARRAY_SIZE(sdmshrike_pins),
 	.functions = sdmshrike_functions,
@@ -2270,8 +2270,61 @@ static const struct msm_pinctrl_soc_data sdmshrike_pinctrl = {
 	.dir_conn_irq_base = 216,
 };
 
+static int sdmshrike_pinctrl_dir_conn_probe(struct platform_device *pdev)
+{
+	const __be32 *prop;
+	struct msm_dir_conn *dir_conn_list;
+	uint32_t dir_conn_length, iterator = 0;
+	int i, length, *dir_conn_entries, num_dir_conns;
+
+	prop = of_get_property(pdev->dev.of_node, "dirconn-list",
+			&length);
+
+	dir_conn_length = length / sizeof(u32);
+
+	dir_conn_entries = devm_kzalloc(&pdev->dev,
+				dir_conn_length*sizeof(uint32_t), GFP_KERNEL);
+	if (!dir_conn_entries)
+		return -ENOMEM;
+
+	for (i = 0; i < dir_conn_length; i++)
+		dir_conn_entries[i] = be32_to_cpu(prop[i]);
+
+	num_dir_conns = (dir_conn_length / 3);
+
+	dir_conn_list = devm_kzalloc(&pdev->dev,
+			num_dir_conns * sizeof(*dir_conn_list), GFP_KERNEL);
+	if (!dir_conn_list)
+		return -ENOMEM;
+
+	for (i = 0; i < num_dir_conns; i++) {
+		dir_conn_list[i].gpio = dir_conn_entries[iterator++];
+		dir_conn_list[i].hwirq = dir_conn_entries[iterator++];
+		dir_conn_list[i].tlmm_dc = dir_conn_entries[iterator++];
+		pr_err("%s: gpio = %d, hwirq = %d, tlmm_dc = %d\n", __func__,
+				dir_conn_list[i].gpio, dir_conn_list[i].hwirq,
+				dir_conn_list[i].tlmm_dc);
+	}
+
+	sdmshrike_pinctrl.dir_conn = dir_conn_list;
+	sdmshrike_pinctrl.n_dir_conns = num_dir_conns;
+
+	return 0;
+}
+
 static int sdmshrike_pinctrl_probe(struct platform_device *pdev)
 {
+	int len, ret;
+
+	if (of_find_property(pdev->dev.of_node, "dirconn-list", &len)) {
+		ret = sdmshrike_pinctrl_dir_conn_probe(pdev);
+		if (ret) {
+			dev_err(&pdev->dev,
+				"Unable to parse TLMM direct connects\n");
+			return ret;
+		}
+	}
+
 	return msm_pinctrl_probe(pdev, &sdmshrike_pinctrl);
 }
 
