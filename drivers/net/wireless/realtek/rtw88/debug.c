@@ -10,6 +10,7 @@
 #include "fw.h"
 #include "debug.h"
 #include "phy.h"
+#include "sar.h"
 
 #ifdef CONFIG_RTW88_DEBUGFS
 
@@ -763,6 +764,16 @@ static ssize_t rtw_debugfs_set_edcca_enable(struct file *filp,
 	return count;
 }
 
+static int rtw_debugfs_get_sar(struct seq_file *m, void *v)
+{
+	struct rtw_debugfs_priv *debugfs_priv = m->private;
+	struct rtw_dev *rtwdev = debugfs_priv->rtwdev;
+
+	rtw_sar_dump_via_debugfs(rtwdev, m);
+
+	return 0;
+}
+
 #define rtw_debug_impl_mac(page, addr)				\
 static struct rtw_debugfs_priv rtw_debug_priv_mac_ ##page = {	\
 	.cb_read = rtw_debug_get_mac_page,			\
@@ -866,6 +877,10 @@ static struct rtw_debugfs_priv rtw_debug_priv_edcca_enable = {
 	.cb_write = rtw_debugfs_set_edcca_enable,
 };
 
+static struct rtw_debugfs_priv rtw_debug_priv_sar = {
+	.cb_read = rtw_debugfs_get_sar,
+};
+
 #define rtw_debugfs_add_core(name, mode, fopname, parent)		\
 	do {								\
 		rtw_debug_priv_ ##name.rtwdev = rtwdev;			\
@@ -898,6 +913,7 @@ void rtw_debugfs_init(struct rtw_dev *rtwdev)
 	rtw_debugfs_add_r(phy_info);
 	rtw_debugfs_add_r(coex_info);
 	rtw_debugfs_add_rw(coex_enable);
+	rtw_debugfs_add_r(sar);
 	rtw_debugfs_add_r(mac_0);
 	rtw_debugfs_add_r(mac_1);
 	rtw_debugfs_add_r(mac_2);
