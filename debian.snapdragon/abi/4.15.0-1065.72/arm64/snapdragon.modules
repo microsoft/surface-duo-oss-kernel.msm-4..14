@@ -1948,6 +1948,7 @@ irlan
 irnet
 irtty-sir
 iscsi_boot_sysfs
+iscsi_ibft
 iscsi_target_mod
 iscsi_tcp
 isdn
