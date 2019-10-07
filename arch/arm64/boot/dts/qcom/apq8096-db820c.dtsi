@@ -185,14 +185,6 @@
 			pinctrl-0 = <&usb2_vbus_det_gpio>;
 		};
 
-		ufsphy@627000 {
-			status = "okay";
-		};
-
-		ufshc@624000 {
-			status = "okay";
-		};
-
 	        wlan_en: wlan-en-1-8v {
 			pinctrl-names = "default";
 			pinctrl-0 = <&wlan_en_gpios>;
