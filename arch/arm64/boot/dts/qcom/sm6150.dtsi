@@ -1480,6 +1480,7 @@
 		qcom,pm-qos-cmdq-latency-us = <67 67>, <67 67>;
 		qcom,pm-qos-legacy-latency-us = <67 67>, <67 67>;
 
+		qcom,restore-after-cx-collapse;
 		clocks = <&clock_gcc GCC_SDCC1_AHB_CLK>,
 			<&clock_gcc GCC_SDCC1_APPS_CLK>,
 			<&clock_gcc GCC_SDCC1_ICE_CORE_CLK>;
