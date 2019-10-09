@@ -382,8 +382,8 @@ static int sja1105_init_l2_forwarding_params(struct sja1105_private *priv)
 static int sja1105_init_general_params(struct sja1105_private *priv)
 {
 	struct sja1105_general_params_entry default_general_params = {
-		/* Disallow dynamic changing of the mirror port */
-		.mirr_ptacu = 0,
+		/* Allow dynamic changing of the mirror port */
+		.mirr_ptacu = true,
 		.switchid = priv->ds->index,
 		/* Priority queue for link-local management frames
 		 * (both ingress to and egress from CPU - PTP, STP etc)
@@ -403,8 +403,8 @@ static int sja1105_init_general_params(struct sja1105_private *priv)
 		 * by installing a temporary 'management route'
 		 */
 		.host_port = dsa_upstream_port(priv->ds, 0),
-		/* Same as host port */
-		.mirr_port = dsa_upstream_port(priv->ds, 0),
+		/* Default to an invalid value */
+		.mirr_port = SJA1105_NUM_PORTS,
 		/* Link-local traffic received on casc_port will be forwarded
 		 * to host_port without embedding the source port and device ID
 		 * info in the destination MAC address (presumably because it
@@ -458,9 +458,8 @@ static int sja1105_init_general_params(struct sja1105_private *priv)
 
 #define SJA1105_RATE_MBPS(speed) (((speed) * 64000) / 1000)
 
-static inline void
-sja1105_setup_policer(struct sja1105_l2_policing_entry *policing,
-		      int index)
+static void sja1105_setup_policer(struct sja1105_l2_policing_entry *policing,
+				  int index)
 {
 	policing[index].sharindx = index;
 	policing[index].smax = 65535; /* Burst size in bytes */
@@ -951,7 +950,7 @@ sja1105_static_fdb_change(struct sja1105_private *priv, int port,
  * For the placement of a newly learnt FDB entry, the switch selects the bin
  * based on a hash function, and the way within that bin incrementally.
  */
-static inline int sja1105et_fdb_index(int bin, int way)
+static int sja1105et_fdb_index(int bin, int way)
 {
 	return bin * SJA1105ET_FDB_BIN_SIZE + way;
 }
@@ -2073,6 +2072,84 @@ static int sja1105_port_setup_tc(struct dsa_switch *ds, int port,
 	}
 }
 
+/* We have a single mirror (@to) port, but can configure ingress and egress
+ * mirroring on all other (@from) ports.
+ * We need to allow mirroring rules only as long as the @to port is always the
+ * same, and we need to unset the @to port from mirr_port only when there is no
+ * mirroring rule that references it.
+ */
+static int sja1105_mirror_apply(struct sja1105_private *priv, int from, int to,
+				bool ingress, bool enabled)
+{
+	struct sja1105_general_params_entry *general_params;
+	struct sja1105_mac_config_entry *mac;
+	struct sja1105_table *table;
+	bool already_enabled;
+	u64 new_mirr_port;
+	int rc;
+
+	table = &priv->static_config.tables[BLK_IDX_GENERAL_PARAMS];
+	general_params = table->entries;
+
+	mac = priv->static_config.tables[BLK_IDX_MAC_CONFIG].entries;
+
+	already_enabled = (general_params->mirr_port != SJA1105_NUM_PORTS);
+	if (already_enabled && enabled && general_params->mirr_port != to) {
+		dev_err(priv->ds->dev,
+			"Delete mirroring rules towards port %llu first\n",
+			general_params->mirr_port);
+		return -EBUSY;
+	}
+
+	new_mirr_port = to;
+	if (!enabled) {
+		bool keep = false;
+		int port;
+
+		/* Anybody still referencing mirr_port? */
+		for (port = 0; port < SJA1105_NUM_PORTS; port++) {
+			if (mac[port].ing_mirr || mac[port].egr_mirr) {
+				keep = true;
+				break;
+			}
+		}
+		/* Unset already_enabled for next time */
+		if (!keep)
+			new_mirr_port = SJA1105_NUM_PORTS;
+	}
+	if (new_mirr_port != general_params->mirr_port) {
+		general_params->mirr_port = new_mirr_port;
+
+		rc = sja1105_dynamic_config_write(priv, BLK_IDX_GENERAL_PARAMS,
+						  0, general_params, true);
+		if (rc < 0)
+			return rc;
+	}
+
+	if (ingress)
+		mac[from].ing_mirr = enabled;
+	else
+		mac[from].egr_mirr = enabled;
+
+	return sja1105_dynamic_config_write(priv, BLK_IDX_MAC_CONFIG, from,
+					    &mac[from], true);
+}
+
+static int sja1105_mirror_add(struct dsa_switch *ds, int port,
+			      struct dsa_mall_mirror_tc_entry *mirror,
+			      bool ingress)
+{
+	return sja1105_mirror_apply(ds->priv, port, mirror->to_local_port,
+				    ingress, true);
+}
+
+static void sja1105_mirror_del(struct dsa_switch *ds, int port,
+			       struct dsa_mall_mirror_tc_entry *mirror)
+{
+	sja1105_mirror_apply(ds->priv, port, mirror->to_local_port,
+			     mirror->ingress, false);
+}
+
 static const struct dsa_switch_ops sja1105_switch_ops = {
 	.get_tag_protocol	= sja1105_get_tag_protocol,
 	.setup			= sja1105_setup,
@@ -2106,6 +2183,8 @@ static const struct dsa_switch_ops sja1105_switch_ops = {
 	.port_rxtstamp		= sja1105_port_rxtstamp,
 	.port_txtstamp		= sja1105_port_txtstamp,
 	.port_setup_tc		= sja1105_port_setup_tc,
+	.port_mirror_add	= sja1105_mirror_add,
+	.port_mirror_del	= sja1105_mirror_del,
 };
 
 static int sja1105_check_device_id(struct sja1105_private *priv)
@@ -2113,23 +2192,22 @@ static int sja1105_check_device_id(struct sja1105_private *priv)
 	const struct sja1105_regs *regs = priv->info->regs;
 	u8 prod_id[SJA1105_SIZE_DEVICE_ID] = {0};
 	struct device *dev = &priv->spidev->dev;
-	u64 device_id;
+	u32 device_id;
 	u64 part_no;
 	int rc;
 
-	rc = sja1105_spi_send_int(priv, SPI_READ, regs->device_id,
-				  &device_id, SJA1105_SIZE_DEVICE_ID);
+	rc = sja1105_xfer_u32(priv, SPI_READ, regs->device_id, &device_id);
 	if (rc < 0)
 		return rc;
 
 	if (device_id != priv->info->device_id) {
-		dev_err(dev, "Expected device ID 0x%llx but read 0x%llx\n",
+		dev_err(dev, "Expected device ID 0x%llx but read 0x%x\n",
 			priv->info->device_id, device_id);
 		return -ENODEV;
 	}
 
-	rc = sja1105_spi_send_packed_buf(priv, SPI_READ, regs->prod_id,
-					 prod_id, SJA1105_SIZE_DEVICE_ID);
+	rc = sja1105_xfer_buf(priv, SPI_READ, regs->prod_id, prod_id,
+			      SJA1105_SIZE_DEVICE_ID);
 	if (rc < 0)
 		return rc;
 
