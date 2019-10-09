@@ -836,7 +836,8 @@ static void rtw8822b_query_rx_desc(struct rtw_dev *rtwdev, u8 *rx_desc,
 	pkt_stat->phy_status = GET_RX_DESC_PHYST(rx_desc);
 	pkt_stat->icv_err = GET_RX_DESC_ICV_ERR(rx_desc);
 	pkt_stat->crc_err = GET_RX_DESC_CRC32(rx_desc);
-	pkt_stat->decrypted = !GET_RX_DESC_SWDEC(rx_desc);
+	pkt_stat->decrypted = !GET_RX_DESC_SWDEC(rx_desc) &&
+			      GET_RX_DESC_ENC_TYPE(rx_desc) != RX_DESC_ENC_NONE;
 	pkt_stat->is_c2h = GET_RX_DESC_C2H(rx_desc);
 	pkt_stat->pkt_len = GET_RX_DESC_PKT_LEN(rx_desc);
 	pkt_stat->drv_info_sz = GET_RX_DESC_DRV_INFO_SIZE(rx_desc);
@@ -1977,6 +1978,7 @@ struct rtw_chip_info rtw8822b_hw_spec = {
 	.dig_min = 0x1c,
 	.ht_supported = true,
 	.vht_supported = true,
+	.lps_deep_mode_supported = BIT(LPS_DEEP_MODE_LCLK),
 	.sys_func_en = 0xDC,
 	.pwr_on_seq = card_enable_flow_8822b,
 	.pwr_off_seq = card_disable_flow_8822b,
