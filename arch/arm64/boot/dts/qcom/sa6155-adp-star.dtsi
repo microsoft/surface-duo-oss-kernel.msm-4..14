@@ -35,6 +35,7 @@
 &soc {
 	qcom,lpass@62400000 {
 		status = "ok";
+		qcom,pil-force-shutdown;
 	};
 
 	qcom,glink {
@@ -44,7 +45,7 @@
 	};
 
 	hsi2s: qcom,hsi2s {
-		compatible = "qcom,hsi2s";
+		compatible = "qcom,sa6155-hsi2s", "qcom,hsi2s";
 		number-of-interfaces = <2>;
 		reg = <0x1B40000 0x28000>;
 		reg-names = "lpa_if";
@@ -57,6 +58,8 @@
 		clock-names = "core_clk", "wr0_mem_clk",
 			      "wr1_mem_clk", "wr2_mem_clk",
 			      "csr_hclk";
+		number-of-rate-detectors = <2>;
+		rate-detector-interfaces = <0 1>;
 
 		sdr0: qcom,hs0_i2s {
 			compatible = "qcom,hsi2s-interface";
@@ -71,6 +74,11 @@
 			iommus = <&apps_smmu 0x035C 0x0>;
 			qcom,smmu-s1-bypass;
 			qcom,iova-mapping = <0x0 0xFFFFFFFF>;
+			bit-clock-hz = <12288000>;
+			data-buffer-ms = <10>;
+			bit-depth = <32>;
+			spkr-channel-count = <2>;
+			mic-channel-count = <2>;
 		};
 
 		sdr1: qcom,hs1_i2s {
@@ -86,6 +94,11 @@
 			iommus = <&apps_smmu 0x035D 0x0>;
 			qcom,smmu-s1-bypass;
 			qcom,iova-mapping = <0x0 0xFFFFFFFF>;
+			bit-clock-hz = <12288000>;
+			data-buffer-ms = <10>;
+			bit-depth = <32>;
+			spkr-channel-count = <2>;
+			mic-channel-count = <2>;
 		};
 	};
 

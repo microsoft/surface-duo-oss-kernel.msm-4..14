@@ -51,7 +51,7 @@
 #define IPA_V4_2_CLK_RATE_NOMINAL (201 * 1000 * 1000UL)
 #define IPA_V4_2_CLK_RATE_TURBO (240 * 1000 * 1000UL)
 
-#define IPA_V3_0_MAX_HOLB_TMR_VAL (4294967296 - 1)
+#define IPA_MAX_HOLB_TMR_VAL (4294967296 - 1)
 
 #define IPA_V3_0_BW_THRESHOLD_TURBO_MBPS (1000)
 #define IPA_V3_0_BW_THRESHOLD_NOMINAL_MBPS (600)
@@ -2527,7 +2527,7 @@ static const struct ipa_ep_configuration ipa3_ep_mapping
 			IPA_DPS_HPS_SEQ_TYPE_INVALID,
 			QMB_MASTER_SELECT_DDR,
 			{ 16, 10, 9, 9, IPA_EE_AP, GSI_ESCAPE_BUF_ONLY, 0 } },
-	[IPA_4_5][IPA_CLIENT_USB_DPL_CONS]        = {
+	[IPA_4_5_MHI][IPA_CLIENT_USB_DPL_CONS]        = {
 			true, IPA_v4_5_MHI_GROUP_DDR,
 			false,
 			IPA_DPS_HPS_SEQ_TYPE_INVALID,
@@ -3514,8 +3514,8 @@ static void ipa_cfg_qtime(void)
 
 	/* Configure timestamp resolution */
 	memset(&ts_cfg, 0, sizeof(ts_cfg));
-	ts_cfg.dpl_timestamp_lsb = 0;
-	ts_cfg.dpl_timestamp_sel = false; /* DPL: use legacy 1ms resolution */
+	ts_cfg.dpl_timestamp_lsb = IPA_TAG_TIMER_TIMESTAMP_SHFT;
+	ts_cfg.dpl_timestamp_sel = true;
 	ts_cfg.tag_timestamp_lsb = IPA_TAG_TIMER_TIMESTAMP_SHFT;
 	ts_cfg.nat_timestamp_lsb = IPA_NAT_TIMER_TIMESTAMP_SHFT;
 	val = ipahal_read_reg(IPA_QTIME_TIMESTAMP_CFG);
@@ -5646,6 +5646,7 @@ int ipa3_controller_static_bind(struct ipa3_controller *ctrl,
 	ctrl->ipa_init_sram = _ipa_init_sram_v3;
 	ctrl->ipa_sram_read_settings = _ipa_sram_settings_read_v3_0;
 	ctrl->ipa_init_hdr = _ipa_init_hdr_v3_0;
+	ctrl->max_holb_tmr_val = IPA_MAX_HOLB_TMR_VAL;
 
 	if (ipa3_ctx->ipa_hw_type >= IPA_HW_v4_0)
 		ctrl->ipa3_read_ep_reg = _ipa_read_ep_reg_v4_0;
@@ -5958,6 +5959,8 @@ int ipa3_tag_process(struct ipa3_desc desc[],
 	struct ipa3_tag_completion *comp;
 	int ep_idx;
 	u32 retry_cnt = 0;
+	struct ipahal_reg_valmask valmask;
+	struct ipahal_imm_cmd_register_write reg_write_coal_close;
 
 	/* Not enough room for the required descriptors for the tag process */
 	if (IPA_TAG_MAX_DESC - descs_num < REQUIRED_TAG_PROCESS_DESCRIPTORS) {
@@ -5986,6 +5989,31 @@ int ipa3_tag_process(struct ipa3_desc desc[],
 		memcpy(&(tag_desc[0]), desc, descs_num *
 			sizeof(tag_desc[0]));
 		desc_idx += descs_num;
+	} else
+		goto fail_free_tag_desc;
+
+	/* IC to close the coal frame before HPS Clear if coal is enabled */
+	if (ipa3_get_ep_mapping(IPA_CLIENT_APPS_WAN_COAL_CONS) != -1) {
+		ep_idx = ipa3_get_ep_mapping(IPA_CLIENT_APPS_WAN_COAL_CONS);
+		reg_write_coal_close.skip_pipeline_clear = false;
+		reg_write_coal_close.pipeline_clear_options = IPAHAL_HPS_CLEAR;
+		reg_write_coal_close.offset = ipahal_get_reg_ofst(
+			IPA_AGGR_FORCE_CLOSE);
+		ipahal_get_aggr_force_close_valmask(ep_idx, &valmask);
+		reg_write_coal_close.value = valmask.val;
+		reg_write_coal_close.value_mask = valmask.mask;
+		cmd_pyld = ipahal_construct_imm_cmd(
+			IPA_IMM_CMD_REGISTER_WRITE,
+			&reg_write_coal_close, false);
+		if (!cmd_pyld) {
+			IPAERR("failed to construct coal close IC\n");
+			res = -ENOMEM;
+			goto fail_free_tag_desc;
+		}
+		ipa3_init_imm_cmd_desc(&tag_desc[desc_idx], cmd_pyld);
+		desc[desc_idx].callback = ipa3_tag_destroy_imm;
+		desc[desc_idx].user1 = cmd_pyld;
+		++desc_idx;
 	}
 
 	/* NO-OP IC for ensuring that IPA pipeline is empty */
@@ -5994,7 +6022,7 @@ int ipa3_tag_process(struct ipa3_desc desc[],
 	if (!cmd_pyld) {
 		IPAERR("failed to construct NOP imm cmd\n");
 		res = -ENOMEM;
-		goto fail_free_tag_desc;
+		goto fail_free_desc;
 	}
 	ipa3_init_imm_cmd_desc(&tag_desc[desc_idx], cmd_pyld);
 	tag_desc[desc_idx].callback = ipa3_tag_destroy_imm;
@@ -6384,6 +6412,28 @@ int ipa3_disable_apps_wan_cons_deaggr(uint32_t agg_size, uint32_t agg_count)
 	return res;
 }
 
+/**
+ * ipa3_check_idr_if_freed()-
+ * To iterate through the list and check if ptr exists
+ *
+ * Return value: true/false depending upon found/not
+ */
+bool ipa3_check_idr_if_freed(void *ptr)
+{
+	int id;
+	void *iter_ptr;
+
+	spin_lock(&ipa3_ctx->idr_lock);
+	idr_for_each_entry(&ipa3_ctx->ipa_idr, iter_ptr, id) {
+		if ((uintptr_t)ptr == (uintptr_t)iter_ptr) {
+			spin_unlock(&ipa3_ctx->idr_lock);
+			return false;
+		}
+	}
+	spin_unlock(&ipa3_ctx->idr_lock);
+	return true;
+}
+
 static void *ipa3_get_ipc_logbuf(void)
 {
 	if (ipa3_ctx)
@@ -6652,6 +6702,14 @@ int ipa3_bind_api_controller(enum ipa_hw_type ipa_hw_type,
 		ipa3_register_client_callback;
 	api_ctrl->ipa_deregister_client_callback =
 		ipa3_deregister_client_callback;
+	api_ctrl->ipa_uc_debug_stats_alloc =
+		ipa3_uc_debug_stats_alloc;
+	api_ctrl->ipa_uc_debug_stats_dealloc =
+		ipa3_uc_debug_stats_dealloc;
+	api_ctrl->ipa_get_gsi_stats =
+		ipa3_get_gsi_stats;
+	api_ctrl->ipa_get_prot_id =
+		ipa3_get_prot_id;
 	return 0;
 }
 
@@ -7153,7 +7211,9 @@ static int __ipa3_stop_gsi_channel(u32 clnt_hdl)
 	memset(&mem, 0, sizeof(mem));
 
 	/* stop uC gsi dbg stats monitor */
-	if (ipa3_ctx->ipa_hw_type >= IPA_HW_v4_5) {
+	if (ipa3_ctx->ipa_hw_type >= IPA_HW_v4_5 ||
+		(ipa3_ctx->ipa_hw_type == IPA_HW_v4_1 &&
+		ipa3_ctx->platform_type == IPA_PLAT_TYPE_APQ)) {
 		switch (client_type) {
 		case IPA_CLIENT_MHI_PRIME_TETH_PROD:
 			gsi_info = &ipa3_ctx->gsi_info[IPA_HW_PROTOCOL_MHIP];
@@ -8133,3 +8193,98 @@ u32 ipa3_get_r_rev_version(void)
 
 	return r_rev;
 }
+
+/**
+ * ipa3_get_gsi_stats() - Query gsi stats from uc
+ * @prot_id: IPA_HW_FEATURE_OFFLOAD protocol id
+ * @stats:	[inout] stats blob from client populated by driver
+ *
+ * @note Cannot be called from atomic context
+ *
+ */
+void ipa3_get_gsi_stats(int prot_id,
+	struct ipa_uc_dbg_ring_stats *stats)
+{
+	switch (prot_id) {
+	case IPA_HW_PROTOCOL_AQC:
+		stats->num_ch = MAX_AQC_CHANNELS;
+		ipa3_get_aqc_gsi_stats(stats);
+		break;
+	case IPA_HW_PROTOCOL_11ad:
+		break;
+	case IPA_HW_PROTOCOL_WDI:
+		stats->num_ch = MAX_WDI2_CHANNELS;
+		ipa3_get_wdi_gsi_stats(stats);
+		break;
+	case IPA_HW_PROTOCOL_WDI3:
+		stats->num_ch = MAX_WDI3_CHANNELS;
+		ipa3_get_wdi3_gsi_stats(stats);
+		break;
+	case IPA_HW_PROTOCOL_ETH:
+		break;
+	case IPA_HW_PROTOCOL_MHIP:
+		stats->num_ch = MAX_MHIP_CHANNELS;
+		ipa3_get_mhip_gsi_stats(stats);
+		break;
+	case IPA_HW_PROTOCOL_USB:
+		stats->num_ch = MAX_USB_CHANNELS;
+		ipa3_get_usb_gsi_stats(stats);
+		break;
+	default:
+		IPAERR("unsupported HW feature %d\n", prot_id);
+	}
+}
+
+/**
+ * ipa3_get_prot_id() - Query gsi protocol id
+ * @client: ipa_client_type
+ *
+ * return the prot_id based on the client type,
+ * return -EINVAL when no such mapping exists.
+ */
+int ipa3_get_prot_id(enum ipa_client_type client)
+{
+	int prot_id = -EINVAL;
+
+	switch (client) {
+	case IPA_CLIENT_AQC_ETHERNET_CONS:
+	case IPA_CLIENT_AQC_ETHERNET_PROD:
+		prot_id = IPA_HW_PROTOCOL_AQC;
+		break;
+	case IPA_CLIENT_MHI_PRIME_TETH_PROD:
+	case IPA_CLIENT_MHI_PRIME_TETH_CONS:
+	case IPA_CLIENT_MHI_PRIME_RMNET_PROD:
+	case IPA_CLIENT_MHI_PRIME_RMNET_CONS:
+		prot_id = IPA_HW_PROTOCOL_MHIP;
+		break;
+	case IPA_CLIENT_WLAN1_PROD:
+	case IPA_CLIENT_WLAN1_CONS:
+		prot_id = IPA_HW_PROTOCOL_WDI;
+		break;
+	case IPA_CLIENT_WLAN2_PROD:
+	case IPA_CLIENT_WLAN2_CONS:
+		prot_id = IPA_HW_PROTOCOL_WDI3;
+		break;
+	case IPA_CLIENT_USB_PROD:
+	case IPA_CLIENT_USB_CONS:
+		prot_id = IPA_HW_PROTOCOL_USB;
+		break;
+	case IPA_CLIENT_ETHERNET_PROD:
+	case IPA_CLIENT_ETHERNET_CONS:
+		prot_id = IPA_HW_PROTOCOL_ETH;
+		break;
+	case IPA_CLIENT_WIGIG_PROD:
+	case IPA_CLIENT_WIGIG1_CONS:
+	case IPA_CLIENT_WIGIG2_CONS:
+	case IPA_CLIENT_WIGIG3_CONS:
+	case IPA_CLIENT_WIGIG4_CONS:
+		prot_id = IPA_HW_PROTOCOL_11ad;
+		break;
+	default:
+		IPAERR("unknown prot_id for client %d\n",
+			client);
+	}
+
+	return prot_id;
+}
+

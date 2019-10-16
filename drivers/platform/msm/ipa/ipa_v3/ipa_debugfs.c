@@ -356,15 +356,15 @@ static ssize_t ipa3_write_keep_awake(struct file *file, const char __user *buf,
 		break;
 	case 2:
 		IPA_ACTIVE_CLIENTS_INC_SIMPLE();
-		bw_mbps = 350;
+		bw_mbps = 700;
 		break;
 	case 3:
 		IPA_ACTIVE_CLIENTS_INC_SIMPLE();
-		bw_mbps = 690;
+		bw_mbps = 3000;
 		break;
 	case 4:
 		IPA_ACTIVE_CLIENTS_INC_SIMPLE();
-		bw_mbps = 1200;
+		bw_mbps = 7000;
 		break;
 	default:
 		pr_err("Not support this vote (%d)\n", option);
@@ -1984,11 +1984,13 @@ static ssize_t ipa3_read_ipahal_regs(struct file *file, char __user *ubuf,
 static ssize_t ipa3_read_wdi_gsi_stats(struct file *file,
 		char __user *ubuf, size_t count, loff_t *ppos)
 {
-	struct ipa3_uc_dbg_ring_stats stats;
+	struct ipa_uc_dbg_ring_stats stats;
 	int nbytes;
 	int cnt = 0;
 
-	if (ipa3_ctx->ipa_hw_type < IPA_HW_v4_5) {
+	if (ipa3_ctx->ipa_hw_type < IPA_HW_v4_5
+		&& (ipa3_ctx->ipa_hw_type != IPA_HW_v4_1
+		|| ipa3_ctx->platform_type != IPA_PLAT_TYPE_APQ)) {
 		nbytes = scnprintf(dbg_buff, IPA_MAX_MSG_LEN,
 				"This feature only support on IPA4.5+\n");
 		cnt += nbytes;
@@ -2032,11 +2034,13 @@ done:
 static ssize_t ipa3_read_wdi3_gsi_stats(struct file *file,
 		char __user *ubuf, size_t count, loff_t *ppos)
 {
-	struct ipa3_uc_dbg_ring_stats stats;
+	struct ipa_uc_dbg_ring_stats stats;
 	int nbytes;
 	int cnt = 0;
 
-	if (ipa3_ctx->ipa_hw_type < IPA_HW_v4_5) {
+	if (ipa3_ctx->ipa_hw_type < IPA_HW_v4_5
+		&& (ipa3_ctx->ipa_hw_type != IPA_HW_v4_1
+		|| ipa3_ctx->platform_type != IPA_PLAT_TYPE_APQ)) {
 		nbytes = scnprintf(dbg_buff, IPA_MAX_MSG_LEN,
 				"This feature only support on IPA4.5+\n");
 		cnt += nbytes;
@@ -2083,7 +2087,9 @@ static ssize_t ipa3_read_11ad_gsi_stats(struct file *file,
 	int nbytes;
 	int cnt = 0;
 
-	if (ipa3_ctx->ipa_hw_type < IPA_HW_v4_5) {
+	if (ipa3_ctx->ipa_hw_type < IPA_HW_v4_5
+		&& (ipa3_ctx->ipa_hw_type != IPA_HW_v4_1
+		|| ipa3_ctx->platform_type != IPA_PLAT_TYPE_APQ)) {
 		nbytes = scnprintf(dbg_buff, IPA_MAX_MSG_LEN,
 				"This feature only support on IPA4.5+\n");
 		cnt += nbytes;
@@ -2097,16 +2103,48 @@ done:
 static ssize_t ipa3_read_aqc_gsi_stats(struct file *file,
 		char __user *ubuf, size_t count, loff_t *ppos)
 {
+	struct ipa_uc_dbg_ring_stats stats;
 	int nbytes;
 	int cnt = 0;
 
-	if (ipa3_ctx->ipa_hw_type < IPA_HW_v4_5) {
+	if (ipa3_ctx->ipa_hw_type < IPA_HW_v4_5
+		&& (ipa3_ctx->ipa_hw_type != IPA_HW_v4_1
+		|| ipa3_ctx->platform_type != IPA_PLAT_TYPE_APQ)) {
 		nbytes = scnprintf(dbg_buff, IPA_MAX_MSG_LEN,
 				"This feature only support on IPA4.5+\n");
 		cnt += nbytes;
 		goto done;
 	}
-	return 0;
+	if (!ipa3_get_aqc_gsi_stats(&stats)) {
+		nbytes = scnprintf(dbg_buff, IPA_MAX_MSG_LEN,
+			"TX ringFull=%u\n"
+			"TX ringEmpty=%u\n"
+			"TX ringUsageHigh=%u\n"
+			"TX ringUsageLow=%u\n"
+			"TX RingUtilCount=%u\n",
+			stats.ring[1].ringFull,
+			stats.ring[1].ringEmpty,
+			stats.ring[1].ringUsageHigh,
+			stats.ring[1].ringUsageLow,
+			stats.ring[1].RingUtilCount);
+		cnt += nbytes;
+		nbytes = scnprintf(dbg_buff + cnt, IPA_MAX_MSG_LEN - cnt,
+			"RX ringFull=%u\n"
+			"RX ringEmpty=%u\n"
+			"RX ringUsageHigh=%u\n"
+			"RX ringUsageLow=%u\n"
+			"RX RingUtilCount=%u\n",
+			stats.ring[0].ringFull,
+			stats.ring[0].ringEmpty,
+			stats.ring[0].ringUsageHigh,
+			stats.ring[0].ringUsageLow,
+			stats.ring[0].RingUtilCount);
+		cnt += nbytes;
+	} else {
+		nbytes = scnprintf(dbg_buff, IPA_MAX_MSG_LEN,
+			"Fail to read AQC GSI stats\n");
+		cnt += nbytes;
+	}
 done:
 	return simple_read_from_buffer(ubuf, count, ppos, dbg_buff, cnt);
 }
@@ -2114,11 +2152,13 @@ done:
 static ssize_t ipa3_read_mhip_gsi_stats(struct file *file,
 	char __user *ubuf, size_t count, loff_t *ppos)
 {
-	struct ipa3_uc_dbg_ring_stats stats;
+	struct ipa_uc_dbg_ring_stats stats;
 	int nbytes;
 	int cnt = 0;
 
-	if (ipa3_ctx->ipa_hw_type < IPA_HW_v4_5) {
+	if (ipa3_ctx->ipa_hw_type < IPA_HW_v4_5
+		&& (ipa3_ctx->ipa_hw_type != IPA_HW_v4_1
+		|| ipa3_ctx->platform_type != IPA_PLAT_TYPE_APQ)) {
 		nbytes = scnprintf(dbg_buff, IPA_MAX_MSG_LEN,
 			"This feature only support on IPA4.5+\n");
 		cnt += nbytes;
@@ -2186,11 +2226,13 @@ done:
 static ssize_t ipa3_read_usb_gsi_stats(struct file *file,
 	char __user *ubuf, size_t count, loff_t *ppos)
 {
-	struct ipa3_uc_dbg_ring_stats stats;
+	struct ipa_uc_dbg_ring_stats stats;
 	int nbytes;
 	int cnt = 0;
 
-	if (ipa3_ctx->ipa_hw_type < IPA_HW_v4_5) {
+	if (ipa3_ctx->ipa_hw_type < IPA_HW_v4_5
+		&& (ipa3_ctx->ipa_hw_type != IPA_HW_v4_1
+		|| ipa3_ctx->platform_type != IPA_PLAT_TYPE_APQ)) {
 		nbytes = scnprintf(dbg_buff, IPA_MAX_MSG_LEN,
 			"This feature only support on IPA4.5+\n");
 		cnt += nbytes;

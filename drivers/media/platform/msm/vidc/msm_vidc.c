@@ -1613,6 +1613,12 @@ int msm_vidc_private(void *vidc_inst, unsigned int cmd,
 	int rc = 0;
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)vidc_inst;
 
+	if (cmd != VIDIOC_VIDEO_CMD) {
+		dprintk(VIDC_ERR,
+			"%s: invalid private cmd %#x\n", __func__, cmd);
+		return -ENOIOCTLCMD;
+	}
+
 	if (!inst || !arg) {
 		dprintk(VIDC_ERR, "%s: invalid args\n", __func__);
 		return -EINVAL;
@@ -1646,6 +1652,7 @@ static int msm_vidc_op_s_ctrl(struct v4l2_ctrl *ctrl)
 
 	int rc = 0, c = 0;
 	struct msm_vidc_inst *inst;
+	const char *ctrl_name = NULL;
 
 	if (!ctrl) {
 		dprintk(VIDC_ERR, "%s invalid parameters for ctrl\n", __func__);
@@ -1669,9 +1676,12 @@ static int msm_vidc_op_s_ctrl(struct v4l2_ctrl *ctrl)
 			}
 		}
 	}
-	if (rc)
+	if (rc) {
+		ctrl_name = v4l2_ctrl_get_name(ctrl->id);
 		dprintk(VIDC_ERR, "Failed setting control: Inst = %pK (%s)\n",
-				inst, v4l2_ctrl_get_name(ctrl->id));
+			inst, ctrl_name ? ctrl_name : "Invalid ctrl");
+	}
+
 	return rc;
 }
 static int try_get_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
@@ -1901,6 +1911,7 @@ void *msm_vidc_open(int core_id, int session_type)
 	inst->profile = V4L2_MPEG_VIDEO_H264_PROFILE_BASELINE;
 	inst->level = V4L2_MPEG_VIDEO_H264_LEVEL_1_0;
 	inst->entropy_mode = V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CAVLC;
+	inst->max_filled_length = 0;
 	for (i = SESSION_MSG_INDEX(SESSION_MSG_START);
 		i <= SESSION_MSG_INDEX(SESSION_MSG_END); i++) {
 		init_completion(&inst->completions[i]);
@@ -2055,6 +2066,8 @@ static void msm_vidc_cleanup_instance(struct msm_vidc_inst *inst)
 	mutex_unlock(&inst->registeredbufs.lock);
 
 	del_timer(&inst->batch_timer);
+
+	cancel_work_sync(&inst->batch_work);
 
 	msm_comm_free_freq_table(inst);
 

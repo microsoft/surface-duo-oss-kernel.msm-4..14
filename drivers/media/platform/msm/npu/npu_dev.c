@@ -1178,10 +1178,14 @@ int npu_enable_sys_cache(struct npu_device *npu_dev)
 
 		pr_debug("prior to activate sys cache\n");
 		rc = llcc_slice_activate(npu_dev->sys_cache);
-		if (rc)
-			pr_err("failed to activate sys cache\n");
-		else
-			pr_debug("sys cache activated\n");
+		if (rc) {
+			pr_warn("failed to activate sys cache\n");
+			llcc_slice_putd(npu_dev->sys_cache);
+			npu_dev->sys_cache = NULL;
+			return 0;
+		}
+
+		pr_debug("sys cache activated\n");
 	}
 
 	return rc;
@@ -1483,6 +1487,11 @@ static int npu_exec_network(struct npu_client *client,
 		return -EINVAL;
 	}
 
+	if (!req.patching_required) {
+		pr_err("Only support patched network");
+		return -EINVAL;
+	}
+
 	ret = npu_host_exec_network(client, &req);
 
 	if (ret) {
@@ -1513,7 +1522,8 @@ static int npu_exec_network_v2(struct npu_client *client,
 		return -EFAULT;
 	}
 
-	if (req.patch_buf_info_num > NPU_MAX_PATCH_NUM) {
+	if ((req.patch_buf_info_num > NPU_MAX_PATCH_NUM) ||
+		(req.patch_buf_info_num == 0)) {
 		pr_err("Invalid patch buf info num %d[max:%d]\n",
 			req.patch_buf_info_num, NPU_MAX_PATCH_NUM);
 		return -EINVAL;
@@ -2144,6 +2154,7 @@ static int npu_probe(struct platform_device *pdev)
 		return -EFAULT;
 
 	npu_dev->pdev = pdev;
+	mutex_init(&npu_dev->dev_lock);
 
 	platform_set_drvdata(pdev, npu_dev);
 	res = platform_get_resource_byname(pdev,
@@ -2321,8 +2332,6 @@ static int npu_probe(struct platform_device *pdev)
 		pr_err("arm_iommu_attach_device failed\n");
 		goto error_driver_init;
 	}
-
-	mutex_init(&npu_dev->dev_lock);
 
 	rc = npu_host_init(npu_dev);
 	if (rc) {

@@ -128,6 +128,7 @@ enum {
 	WEAK_ADAPTER_WA			= BIT(2),
 	USBIN_OV_WA			= BIT(3),
 	CHG_TERMINATION_WA		= BIT(4),
+	USBIN_ADC_WA			= BIT(5),
 };
 
 enum jeita_cfg_stat {
@@ -390,6 +391,7 @@ struct smb_charger {
 	struct mutex		ps_change_lock;
 	struct mutex		dr_lock;
 	struct mutex		irq_status_lock;
+	struct mutex		adc_lock;
 
 	/* power supplies */
 	struct power_supply		*batt_psy;
@@ -531,7 +533,9 @@ struct smb_charger {
 	bool			hw_die_temp_mitigation;
 	bool			hw_connector_mitigation;
 	bool			hw_skin_temp_mitigation;
+	bool			en_skin_therm_mitigation;
 	int			connector_pull_up;
+	int			smb_pull_up;
 	int			aicl_5v_threshold_mv;
 	int			default_aicl_5v_threshold_mv;
 	int			aicl_cont_threshold_mv;
@@ -718,7 +722,9 @@ int smblib_get_pe_start(struct smb_charger *chg,
 int smblib_get_prop_charger_temp(struct smb_charger *chg,
 				union power_supply_propval *val);
 int smblib_get_prop_die_health(struct smb_charger *chg);
+int smblib_get_prop_smb_health(struct smb_charger *chg);
 int smblib_get_prop_connector_health(struct smb_charger *chg);
+int smblib_get_skin_temp_status(struct smb_charger *chg);
 int smblib_get_prop_vph_voltage_now(struct smb_charger *chg,
 				union power_supply_propval *val);
 int smblib_set_prop_pd_current_max(struct smb_charger *chg,

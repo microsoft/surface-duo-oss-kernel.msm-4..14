@@ -176,9 +176,11 @@ int cnss_request_bus_bandwidth(struct device *dev, int bandwidth)
 
 	switch (bandwidth) {
 	case CNSS_BUS_WIDTH_NONE:
+	case CNSS_BUS_WIDTH_IDLE:
 	case CNSS_BUS_WIDTH_LOW:
 	case CNSS_BUS_WIDTH_MEDIUM:
 	case CNSS_BUS_WIDTH_HIGH:
+	case CNSS_BUS_WIDTH_VERY_HIGH:
 		ret = msm_bus_scale_client_update_request(
 			bus_bw_info->bus_client, bandwidth);
 		if (!ret)
@@ -660,7 +662,7 @@ int cnss_idle_restart(struct device *dev)
 
 	ret = cnss_driver_event_post(plat_priv,
 				     CNSS_DRIVER_EVENT_IDLE_RESTART,
-				     CNSS_EVENT_SYNC, NULL);
+				     CNSS_EVENT_SYNC_UNINTERRUPTIBLE, NULL);
 	if (ret)
 		goto out;
 
@@ -714,7 +716,7 @@ int cnss_idle_shutdown(struct device *dev)
 skip_wait:
 	return cnss_driver_event_post(plat_priv,
 				      CNSS_DRIVER_EVENT_IDLE_SHUTDOWN,
-				      CNSS_EVENT_SYNC, NULL);
+				      CNSS_EVENT_SYNC_UNINTERRUPTIBLE, NULL);
 }
 EXPORT_SYMBOL(cnss_idle_shutdown);
 
@@ -1211,6 +1213,26 @@ int cnss_force_collect_rddm(struct device *dev)
 	return ret;
 }
 EXPORT_SYMBOL(cnss_force_collect_rddm);
+
+int cnss_qmi_send_get(struct device *dev)
+{
+	return 0;
+}
+EXPORT_SYMBOL(cnss_qmi_send_get);
+
+int cnss_qmi_send_put(struct device *dev)
+{
+	return 0;
+}
+EXPORT_SYMBOL(cnss_qmi_send_put);
+
+int cnss_qmi_send(struct device *dev, int type, void *cmd,
+		  int cmd_len, void *cb_ctx,
+		  int (*cb)(void *ctx, void *event, int event_len))
+{
+	return -EINVAL;
+}
+EXPORT_SYMBOL(cnss_qmi_send);
 
 static int cnss_cold_boot_cal_start_hdlr(struct cnss_plat_data *plat_priv)
 {

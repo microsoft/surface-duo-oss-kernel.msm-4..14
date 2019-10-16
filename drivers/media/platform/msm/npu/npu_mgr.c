@@ -436,7 +436,8 @@ static void npu_destroy_wq(struct npu_host_ctx *host_ctx)
 static struct workqueue_struct *npu_create_wq(struct npu_host_ctx *host_ctx,
 	const char *name)
 {
-	struct workqueue_struct *wq = create_workqueue(name);
+	struct workqueue_struct *wq =
+		alloc_workqueue(name, WQ_HIGHPRI | WQ_UNBOUND, 0);
 
 	INIT_WORK(&host_ctx->irq_work, host_irq_wq);
 	INIT_DELAYED_WORK(&host_ctx->fw_deinit_work, fw_deinit_wq);
@@ -793,7 +794,7 @@ static void app_msg_proc(struct npu_host_ctx *host_ctx, uint32_t *msg)
 			break;
 		}
 
-		pr_debug("network id : %d\n", network->id);
+		pr_debug("network id : %llu\n", network->id);
 		stats_size = exe_rsp_pkt->header.size - sizeof(*exe_rsp_pkt);
 		pr_debug("stats_size %d:%d\n", exe_rsp_pkt->header.size,
 			stats_size);
@@ -1078,8 +1079,16 @@ int32_t npu_host_get_info(struct npu_device *npu_dev,
 int32_t npu_host_map_buf(struct npu_client *client,
 			struct msm_npu_map_buf_ioctl *map_ioctl)
 {
-	return npu_mem_map(client, map_ioctl->buf_ion_hdl, map_ioctl->size,
+	struct npu_device *npu_dev = client->npu_dev;
+	struct npu_host_ctx *host_ctx = &npu_dev->host_ctx;
+	int ret;
+
+	mutex_lock(&host_ctx->lock);
+	ret = npu_mem_map(client, map_ioctl->buf_ion_hdl, map_ioctl->size,
 		&map_ioctl->npu_phys_addr);
+	mutex_unlock(&host_ctx->lock);
+
+	return ret;
 }
 
 int32_t npu_host_unmap_buf(struct npu_client *client,
@@ -1097,8 +1106,10 @@ int32_t npu_host_unmap_buf(struct npu_client *client,
 		&host_ctx->fw_deinit_done, NW_CMD_TIMEOUT))
 		pr_warn("npu: wait for fw_deinit_done time out\n");
 
+	mutex_lock(&host_ctx->lock);
 	npu_mem_unmap(client, unmap_ioctl->buf_ion_hdl,
 		unmap_ioctl->npu_phys_addr);
+	mutex_unlock(&host_ctx->lock);
 	return 0;
 }
 
@@ -1116,7 +1127,7 @@ static int npu_send_network_cmd(struct npu_device *npu_dev,
 		pr_err("Another cmd is pending\n");
 		ret = -EBUSY;
 	} else {
-		pr_debug("Send cmd %d network id %d\n",
+		pr_debug("Send cmd %d network id %lld\n",
 			((struct ipc_cmd_header_pkt *)cmd_ptr)->cmd_type,
 			network->id);
 		network->cmd_async = async;
@@ -1657,7 +1668,7 @@ int32_t npu_host_unload_network(struct npu_client *client,
 		goto free_network;
 	}
 
-	pr_debug("Unload network %d\n", network->id);
+	pr_debug("Unload network %lld\n", network->id);
 	/* prepare IPC packet for UNLOAD */
 	unload_packet.header.cmd_type = NPU_IPC_CMD_UNLOAD;
 	unload_packet.header.size = sizeof(struct ipc_cmd_unload_pkt);
@@ -1773,7 +1784,7 @@ int32_t npu_host_exec_network(struct npu_client *client,
 		goto exec_done;
 	}
 
-	pr_debug("execute network %d\n", network->id);
+	pr_debug("execute network %lld\n", network->id);
 	memset(&exec_packet, 0, sizeof(exec_packet));
 	if (exec_ioctl->patching_required) {
 		if ((exec_ioctl->input_layer_num != 1) ||
@@ -1908,7 +1919,7 @@ int32_t npu_host_exec_network_v2(struct npu_client *client,
 		goto exec_v2_done;
 	}
 
-	pr_debug("execute_v2 network %d\n", network->id);
+	pr_debug("execute_v2 network %lld\n", network->id);
 	num_patch_params = exec_ioctl->patch_buf_info_num;
 	pkt_size = num_patch_params * sizeof(struct npu_patch_params_v2) +
 		sizeof(*exec_packet);

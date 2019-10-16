@@ -626,7 +626,6 @@ struct adreno_device {
  * attached and enabled
  * @ADRENO_DEVICE_CACHE_FLUSH_TS_SUSPENDED - Set if a CACHE_FLUSH_TS irq storm
  * is in progress
- * @ADRENO_DEVICE_HARD_RESET - Set if soft reset fails and hard reset is needed
  */
 enum adreno_device_flags {
 	ADRENO_DEVICE_PWRON = 0,
@@ -643,8 +642,7 @@ enum adreno_device_flags {
 	ADRENO_DEVICE_GPMU_INITIALIZED = 11,
 	ADRENO_DEVICE_ISDB_ENABLED = 12,
 	ADRENO_DEVICE_CACHE_FLUSH_TS_SUSPENDED = 13,
-	ADRENO_DEVICE_HARD_RESET = 14,
-	ADRENO_DEVICE_CORESIGHT_CX = 16,
+	ADRENO_DEVICE_CORESIGHT_CX = 14,
 };
 
 /**
@@ -1013,6 +1011,7 @@ struct adreno_gpudev {
 				struct adreno_device *adreno_dev,
 				unsigned int *cmds);
 	int (*preemption_init)(struct adreno_device *);
+	void (*preemption_close)(struct adreno_device *);
 	void (*preemption_schedule)(struct adreno_device *);
 	int (*preemption_context_init)(struct kgsl_context *);
 	void (*preemption_context_destroy)(struct kgsl_context *);
