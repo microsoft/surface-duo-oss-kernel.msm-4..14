@@ -1,5 +1,5 @@
 /*
- * Copyright 2018 NXP
+ * Copyright 2018-2019 NXP
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -67,8 +67,7 @@
 #define PAD_CTL_QSPI_B_DATA0_7    (PAD_CTL_QSPI_BASE | PAD_CTL_SRC_SIG_SEL2)
 
 /* EIRQ configuration */
-#define PAD_CTL_EIRQ            (PAD_CTL_SRC_SIG_SEL2 | PAD_CTL_IBE | \
-				 PAD_CTL_PUE)
+#define PAD_CTL_EIRQ            PAD_CTL_SRC_SIG_SEL2
 
 /* I2C0 - Serial Data Input */
 #define PAD_CTL_I2C0_MSCR_SDA   (PAD_CTL_SRC_SIG_SEL1 | PAD_CTL_OBE | \
