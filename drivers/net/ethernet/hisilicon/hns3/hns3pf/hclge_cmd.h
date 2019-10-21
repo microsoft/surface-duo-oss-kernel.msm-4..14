@@ -5,6 +5,7 @@
 #define __HCLGE_CMD_H
 #include <linux/types.h>
 #include <linux/io.h>
+#include <linux/etherdevice.h>
 
 #define HCLGE_CMDQ_TX_TIMEOUT		30000
 
@@ -244,7 +245,7 @@ enum hclge_opcode_type {
 	/* QCN commands */
 	HCLGE_OPC_QCN_MOD_CFG		= 0x1A01,
 	HCLGE_OPC_QCN_GRP_TMPLT_CFG	= 0x1A02,
-	HCLGE_OPC_QCN_SHAPPING_IR_CFG	= 0x1A03,
+	HCLGE_OPC_QCN_SHAPPING_CFG	= 0x1A03,
 	HCLGE_OPC_QCN_SHAPPING_BS_CFG	= 0x1A04,
 	HCLGE_OPC_QCN_QSET_LINK_CFG	= 0x1A05,
 	HCLGE_OPC_QCN_RP_STATUS_GET	= 0x1A06,
@@ -712,8 +713,7 @@ struct hclge_mac_mgr_tbl_entry_cmd {
 	u8      flags;
 	u8      resp_code;
 	__le16  vlan_tag;
-	__le32  mac_addr_hi32;
-	__le16  mac_addr_lo16;
+	u8      mac_addr[ETH_ALEN];
 	__le16  rsv1;
 	__le16  ethter_type;
 	__le16  egress_port;
@@ -1089,9 +1089,6 @@ int hclge_cmd_send(struct hclge_hw *hw, struct hclge_desc *desc, int num);
 void hclge_cmd_setup_basic_desc(struct hclge_desc *desc,
 				enum hclge_opcode_type opcode, bool is_read);
 void hclge_cmd_reuse_desc(struct hclge_desc *desc, bool is_read);
-
-int hclge_cmd_set_promisc_mode(struct hclge_dev *hdev,
-			       struct hclge_promisc_param *param);
 
 enum hclge_cmd_status hclge_cmd_mdio_write(struct hclge_hw *hw,
 					   struct hclge_desc *desc);
