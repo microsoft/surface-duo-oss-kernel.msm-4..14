@@ -11,11 +11,13 @@
 #include <linux/average.h>
 #include <linux/bitops.h>
 #include <linux/bitfield.h>
+#include <linux/interrupt.h>
 
 #include "util.h"
 
 #define RTW_MAX_MAC_ID_NUM		32
 #define RTW_MAX_SEC_CAM_NUM		32
+#define MAX_PG_CAM_BACKUP_NUM		8
 
 #define RTW_WATCH_DOG_DELAY_TIME	round_jiffies_relative(HZ * 2)
 
@@ -27,6 +29,7 @@
 #define RTW_RF_PATH_MAX			4
 #define HW_FEATURE_LEN			13
 
+extern unsigned int rtw_fw_lps_deep_mode;
 extern unsigned int rtw_debug_mask;
 extern const struct ieee80211_ops rtw_ops;
 extern struct rtw_chip_info rtw8822b_hw_spec;
@@ -50,6 +53,7 @@ struct rtw_hci {
 	enum rtw_hci_type type;
 
 	u32 rpwm_addr;
+	u32 cpwm_addr;
 
 	u8 bulkout_num;
 };
@@ -303,12 +307,18 @@ enum rtw_regulatory_domains {
 	RTW_REGD_MAX
 };
 
+enum rtw_txq_flags {
+	RTW_TXQ_AMPDU,
+	RTW_TXQ_BLOCK_BA,
+};
+
 enum rtw_flags {
 	RTW_FLAG_RUNNING,
 	RTW_FLAG_FW_RUNNING,
 	RTW_FLAG_SCANNING,
 	RTW_FLAG_INACTIVE_PS,
 	RTW_FLAG_LEISURE_PS,
+	RTW_FLAG_LEISURE_PS_DEEP,
 	RTW_FLAG_DIG_DISABLE,
 	RTW_FLAG_BUSY_TRAFFIC,
 
@@ -480,6 +490,7 @@ struct rtw_tx_pkt_info {
 	bool fs;
 	bool short_gi;
 	bool report;
+	bool rts;
 };
 
 struct rtw_rx_pkt_stat {
@@ -526,6 +537,12 @@ enum rtw_lps_mode {
 	RTW_MODE_WMM_PS	= 2,
 };
 
+enum rtw_lps_deep_mode {
+	LPS_DEEP_MODE_NONE	= 0,
+	LPS_DEEP_MODE_LCLK	= 1,
+	LPS_DEEP_MODE_PG	= 2,
+};
+
 enum rtw_pwr_state {
 	RTW_RF_OFF	= 0x0,
 	RTW_RF_ON	= 0x4,
@@ -533,14 +550,14 @@ enum rtw_pwr_state {
 };
 
 struct rtw_lps_conf {
-	/* the interface to enter lps */
-	struct rtw_vif *rtwvif;
 	enum rtw_lps_mode mode;
+	enum rtw_lps_deep_mode deep_mode;
 	enum rtw_pwr_state state;
 	u8 awake_interval;
 	u8 rlbm;
 	u8 smart_ps;
 	u8 port_id;
+	bool sec_cam_backup;
 };
 
 enum rtw_hw_key_type {
@@ -576,6 +593,19 @@ struct rtw_tx_report {
 	struct timer_list purge_timer;
 };
 
+struct rtw_ra_report {
+	struct rate_info txrate;
+	u32 bit_rate;
+	u8 desc_rate;
+};
+
+struct rtw_txq {
+	struct list_head list;
+
+	unsigned long flags;
+	unsigned long last_push;
+};
+
 #define RTW_BC_MC_MACID 1
 DECLARE_EWMA(rssi, 10, 16);
 
@@ -598,6 +628,10 @@ struct rtw_sta_info {
 	bool updated;
 	u8 init_ra_lv;
 	u64 ra_mask;
+
+	DECLARE_BITMAP(tid_ba, IEEE80211_NUM_TIDS);
+
+	struct rtw_ra_report ra_report;
 };
 
 struct rtw_vif {
@@ -608,6 +642,7 @@ struct rtw_vif {
 	u8 bssid[ETH_ALEN];
 	u8 port;
 	u8 bcn_ctrl;
+	struct ieee80211_tx_queue_params tx_params[IEEE80211_NUM_ACS];
 	const struct rtw_vif_port *conf;
 
 	struct rtw_traffic_stats stats;
@@ -747,6 +782,7 @@ enum rtw_dma_mapping {
 	RTW_DMA_MAPPING_NORMAL	= 2,
 	RTW_DMA_MAPPING_HIGH	= 3,
 
+	RTW_DMA_MAPPING_MAX,
 	RTW_DMA_MAPPING_UNDEF,
 };
 
@@ -844,6 +880,7 @@ struct rtw_chip_info {
 
 	bool ht_supported;
 	bool vht_supported;
+	u8 lps_deep_mode_supported;
 
 	/* init values */
 	u8 sys_func_en;
@@ -1252,7 +1289,7 @@ struct rtw_fifo_conf {
 	u16 rsvd_cpu_instr_addr;
 	u16 rsvd_fw_txbuf_addr;
 	u16 rsvd_csibuf_addr;
-	enum rtw_dma_mapping pq_map[RTW_PQ_MAP_NUM];
+	struct rtw_rqpn *rqpn;
 };
 
 struct rtw_fw_state {
@@ -1349,6 +1386,12 @@ struct rtw_dev {
 	struct sk_buff_head c2h_queue;
 	struct work_struct c2h_work;
 
+	/* used to protect txqs list */
+	spinlock_t txq_lock;
+	struct list_head txqs;
+	struct tasklet_struct tx_tasklet;
+	struct work_struct ba_work;
+
 	struct rtw_tx_report tx_report;
 
 	struct {
@@ -1361,11 +1404,12 @@ struct rtw_dev {
 
 	/* lps power state & handler work */
 	struct rtw_lps_conf lps_conf;
-	struct delayed_work lps_work;
+	bool ps_enabled;
 
 	struct dentry *debugfs;
 
 	u8 sta_cnt;
+	u32 rts_threshold;
 
 	DECLARE_BITMAP(mac_id_map, RTW_MAX_MAC_ID_NUM);
 	DECLARE_BITMAP(flags, NUM_OF_RTW_FLAGS);
@@ -1378,24 +1422,23 @@ struct rtw_dev {
 
 #include "hci.h"
 
-static inline bool rtw_flag_check(struct rtw_dev *rtwdev, enum rtw_flags flag)
-{
-	return test_bit(flag, rtwdev->flags);
-}
-
-static inline void rtw_flag_clear(struct rtw_dev *rtwdev, enum rtw_flags flag)
-{
-	clear_bit(flag, rtwdev->flags);
-}
-
-static inline void rtw_flag_set(struct rtw_dev *rtwdev, enum rtw_flags flag)
-{
-	set_bit(flag, rtwdev->flags);
-}
-
 static inline bool rtw_is_assoc(struct rtw_dev *rtwdev)
 {
 	return !!rtwdev->sta_cnt;
+}
+
+static inline struct ieee80211_txq *rtwtxq_to_txq(struct rtw_txq *rtwtxq)
+{
+	void *p = rtwtxq;
+
+	return container_of(p, struct ieee80211_txq, drv_priv);
+}
+
+static inline struct ieee80211_vif *rtwvif_to_vif(struct rtw_vif *rtwvif)
+{
+	void *p = rtwvif;
+
+	return container_of(p, struct ieee80211_vif, drv_priv);
 }
 
 void rtw_get_channel_params(struct cfg80211_chan_def *chandef,
@@ -1405,6 +1448,7 @@ bool ltecoex_read_reg(struct rtw_dev *rtwdev, u16 offset, u32 *val);
 bool ltecoex_reg_write(struct rtw_dev *rtwdev, u16 offset, u32 value);
 void rtw_restore_reg(struct rtw_dev *rtwdev,
 		     struct rtw_backup_info *bckp, u32 num);
+void rtw_desc_to_mcsrate(u16 rate, u8 *mcs, u8 *nss);
 void rtw_set_channel(struct rtw_dev *rtwdev);
 void rtw_vif_port_config(struct rtw_dev *rtwdev, struct rtw_vif *rtwvif,
 			 u32 config);
@@ -1417,5 +1461,6 @@ int rtw_core_init(struct rtw_dev *rtwdev);
 void rtw_core_deinit(struct rtw_dev *rtwdev);
 int rtw_register_hw(struct rtw_dev *rtwdev, struct ieee80211_hw *hw);
 void rtw_unregister_hw(struct rtw_dev *rtwdev, struct ieee80211_hw *hw);
+u16 rtw_desc_to_bitrate(u8 desc_rate);
 
 #endif

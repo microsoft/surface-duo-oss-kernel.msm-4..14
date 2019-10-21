@@ -12,16 +12,18 @@
 #include "phy.h"
 #include "reg.h"
 #include "efuse.h"
+#include "tx.h"
 #include "debug.h"
 
-static bool rtw_fw_support_lps;
+unsigned int rtw_fw_lps_deep_mode;
+EXPORT_SYMBOL(rtw_fw_lps_deep_mode);
 unsigned int rtw_debug_mask;
 EXPORT_SYMBOL(rtw_debug_mask);
 
-module_param_named(support_lps, rtw_fw_support_lps, bool, 0644);
+module_param_named(lps_deep_mode, rtw_fw_lps_deep_mode, uint, 0644);
 module_param_named(debug_mask, rtw_debug_mask, uint, 0644);
 
-MODULE_PARM_DESC(support_lps, "Set Y to enable Leisure Power Save support, to turn radio off between beacons");
+MODULE_PARM_DESC(lps_deep_mode, "Deeper PS mode. If 0, deep PS is disabled");
 MODULE_PARM_DESC(debug_mask, "Debugging mask");
 
 static struct ieee80211_channel rtw_channeltable_2g[] = {
@@ -84,6 +86,18 @@ static struct ieee80211_rate rtw_ratetable[] = {
 	{.bitrate = 540, .hw_value = 0x0b,},
 };
 
+u16 rtw_desc_to_bitrate(u8 desc_rate)
+{
+	struct ieee80211_rate rate;
+
+	if (WARN(desc_rate >= ARRAY_SIZE(rtw_ratetable), "invalid desc rate\n"))
+		return 0;
+
+	rate = rtw_ratetable[desc_rate];
+
+	return rate.bitrate;
+}
+
 static struct ieee80211_supported_band rtw_band_2ghz = {
 	.band = NL80211_BAND_2GHZ,
 
@@ -113,8 +127,6 @@ static struct ieee80211_supported_band rtw_band_5ghz = {
 
 struct rtw_watch_dog_iter_data {
 	struct rtw_vif *rtwvif;
-	bool active;
-	u8 assoc_cnt;
 };
 
 static void rtw_vif_watch_dog_iter(void *data, u8 *mac,
@@ -123,18 +135,9 @@ static void rtw_vif_watch_dog_iter(void *data, u8 *mac,
 	struct rtw_watch_dog_iter_data *iter_data = data;
 	struct rtw_vif *rtwvif = (struct rtw_vif *)vif->drv_priv;
 
-	if (vif->type == NL80211_IFTYPE_STATION) {
-		if (vif->bss_conf.assoc) {
-			iter_data->assoc_cnt++;
+	if (vif->type == NL80211_IFTYPE_STATION)
+		if (vif->bss_conf.assoc)
 			iter_data->rtwvif = rtwvif;
-		}
-		if (rtwvif->stats.tx_cnt > RTW_LPS_THRESHOLD ||
-		    rtwvif->stats.rx_cnt > RTW_LPS_THRESHOLD)
-			iter_data->active = true;
-	} else {
-		/* only STATION mode can enter lps */
-		iter_data->active = true;
-	}
 
 	rtwvif->stats.tx_unicast = 0;
 	rtwvif->stats.rx_unicast = 0;
@@ -150,21 +153,30 @@ static void rtw_watch_dog_work(struct work_struct *work)
 	struct rtw_dev *rtwdev = container_of(work, struct rtw_dev,
 					      watch_dog_work.work);
 	struct rtw_watch_dog_iter_data data = {};
-	bool busy_traffic = rtw_flag_check(rtwdev, RTW_FLAG_BUSY_TRAFFIC);
+	bool busy_traffic = test_bit(RTW_FLAG_BUSY_TRAFFIC, rtwdev->flags);
+	bool ps_active;
 
-	if (!rtw_flag_check(rtwdev, RTW_FLAG_RUNNING))
-		return;
+	mutex_lock(&rtwdev->mutex);
+
+	if (!test_bit(RTW_FLAG_RUNNING, rtwdev->flags))
+		goto unlock;
 
 	ieee80211_queue_delayed_work(rtwdev->hw, &rtwdev->watch_dog_work,
 				     RTW_WATCH_DOG_DELAY_TIME);
 
 	if (rtwdev->stats.tx_cnt > 100 || rtwdev->stats.rx_cnt > 100)
-		rtw_flag_set(rtwdev, RTW_FLAG_BUSY_TRAFFIC);
+		set_bit(RTW_FLAG_BUSY_TRAFFIC, rtwdev->flags);
 	else
-		rtw_flag_clear(rtwdev, RTW_FLAG_BUSY_TRAFFIC);
+		clear_bit(RTW_FLAG_BUSY_TRAFFIC, rtwdev->flags);
 
-	if (busy_traffic != rtw_flag_check(rtwdev, RTW_FLAG_BUSY_TRAFFIC))
+	if (busy_traffic != test_bit(RTW_FLAG_BUSY_TRAFFIC, rtwdev->flags))
 		rtw_coex_wl_status_change_notify(rtwdev);
+
+	if (rtwdev->stats.tx_cnt > RTW_LPS_THRESHOLD ||
+	    rtwdev->stats.rx_cnt > RTW_LPS_THRESHOLD)
+		ps_active = true;
+	else
+		ps_active = false;
 
 	/* reset tx/rx statictics */
 	rtwdev->stats.tx_unicast = 0;
@@ -172,23 +184,33 @@ static void rtw_watch_dog_work(struct work_struct *work)
 	rtwdev->stats.tx_cnt = 0;
 	rtwdev->stats.rx_cnt = 0;
 
+	if (test_bit(RTW_FLAG_SCANNING, rtwdev->flags))
+		goto unlock;
+
+	/* make sure BB/RF is working for dynamic mech */
+	rtw_leave_lps(rtwdev);
+
+	rtw_phy_dynamic_mechanism(rtwdev);
+
 	/* use atomic version to avoid taking local->iflist_mtx mutex */
 	rtw_iterate_vifs_atomic(rtwdev, rtw_vif_watch_dog_iter, &data);
 
 	/* fw supports only one station associated to enter lps, if there are
 	 * more than two stations associated to the AP, then we can not enter
 	 * lps, because fw does not handle the overlapped beacon interval
+	 *
+	 * mac80211 should iterate vifs and determine if driver can enter
+	 * ps by passing IEEE80211_CONF_PS to us, all we need to do is to
+	 * get that vif and check if device is having traffic more than the
+	 * threshold.
 	 */
-	if (rtw_fw_support_lps &&
-	    data.rtwvif && !data.active && data.assoc_cnt == 1)
-		rtw_enter_lps(rtwdev, data.rtwvif);
-
-	if (rtw_flag_check(rtwdev, RTW_FLAG_SCANNING))
-		return;
-
-	rtw_phy_dynamic_mechanism(rtwdev);
+	if (rtwdev->ps_enabled && data.rtwvif && !ps_active)
+		rtw_enter_lps(rtwdev, data.rtwvif->port);
 
 	rtwdev->watch_dog_cnt++;
+
+unlock:
+	mutex_unlock(&rtwdev->mutex);
 }
 
 static void rtw_c2h_work(struct work_struct *work)
@@ -201,6 +223,40 @@ static void rtw_c2h_work(struct work_struct *work)
 		rtw_fw_c2h_cmd_handle(rtwdev, skb);
 		dev_kfree_skb_any(skb);
 	}
+}
+
+struct rtw_txq_ba_iter_data {
+};
+
+static void rtw_txq_ba_iter(void *data, struct ieee80211_sta *sta)
+{
+	struct rtw_sta_info *si = (struct rtw_sta_info *)sta->drv_priv;
+	int ret;
+	u8 tid;
+
+	tid = find_first_bit(si->tid_ba, IEEE80211_NUM_TIDS);
+	while (tid != IEEE80211_NUM_TIDS) {
+		clear_bit(tid, si->tid_ba);
+		ret = ieee80211_start_tx_ba_session(sta, tid, 0);
+		if (ret == -EINVAL) {
+			struct ieee80211_txq *txq;
+			struct rtw_txq *rtwtxq;
+
+			txq = sta->txq[tid];
+			rtwtxq = (struct rtw_txq *)txq->drv_priv;
+			set_bit(RTW_TXQ_BLOCK_BA, &rtwtxq->flags);
+		}
+
+		tid = find_first_bit(si->tid_ba, IEEE80211_NUM_TIDS);
+	}
+}
+
+static void rtw_txq_ba_work(struct work_struct *work)
+{
+	struct rtw_dev *rtwdev = container_of(work, struct rtw_dev, ba_work);
+	struct rtw_txq_ba_iter_data data;
+
+	rtw_iterate_stas_atomic(rtwdev, rtw_txq_ba_iter, &data);
 }
 
 void rtw_get_channel_params(struct cfg80211_chan_def *chandef,
@@ -311,7 +367,7 @@ void rtw_set_channel(struct rtw_dev *rtwdev)
 	if (hal->current_band_type == RTW_BAND_5G) {
 		rtw_coex_switchband_notify(rtwdev, COEX_SWITCH_TO_5G);
 	} else {
-		if (rtw_flag_check(rtwdev, RTW_FLAG_SCANNING))
+		if (test_bit(RTW_FLAG_SCANNING, rtwdev->flags))
 			rtw_coex_switchband_notify(rtwdev, COEX_SWITCH_TO_24G);
 		else
 			rtw_coex_switchband_notify(rtwdev, COEX_SWITCH_TO_24G_NOFORSCAN);
@@ -737,7 +793,7 @@ int rtw_core_start(struct rtw_dev *rtwdev)
 	ieee80211_queue_delayed_work(rtwdev->hw, &rtwdev->watch_dog_work,
 				     RTW_WATCH_DOG_DELAY_TIME);
 
-	rtw_flag_set(rtwdev, RTW_FLAG_RUNNING);
+	set_bit(RTW_FLAG_RUNNING, rtwdev->flags);
 
 	return 0;
 }
@@ -752,8 +808,8 @@ void rtw_core_stop(struct rtw_dev *rtwdev)
 {
 	struct rtw_coex *coex = &rtwdev->coex;
 
-	rtw_flag_clear(rtwdev, RTW_FLAG_RUNNING);
-	rtw_flag_clear(rtwdev, RTW_FLAG_FW_RUNNING);
+	clear_bit(RTW_FLAG_RUNNING, rtwdev->flags);
+	clear_bit(RTW_FLAG_FW_RUNNING, rtwdev->flags);
 
 	cancel_delayed_work_sync(&rtwdev->watch_dog_work);
 	cancel_delayed_work_sync(&coex->bt_relink_work);
@@ -914,6 +970,7 @@ static int rtw_chip_parameter_setup(struct rtw_dev *rtwdev)
 	switch (rtw_hci_type(rtwdev)) {
 	case RTW_HCI_TYPE_PCIE:
 		rtwdev->hci.rpwm_addr = 0x03d9;
+		rtwdev->hci.cpwm_addr = 0x03da;
 		break;
 	default:
 		rtw_err(rtwdev, "unsupported hci type\n");
@@ -1020,7 +1077,8 @@ static int rtw_dump_hw_feature(struct rtw_dev *rtwdev)
 
 	rtw_hw_config_rf_ant_num(rtwdev, efuse->hw_cap.ant_num);
 
-	if (efuse->hw_cap.nss == EFUSE_HW_CAP_IGNORE)
+	if (efuse->hw_cap.nss == EFUSE_HW_CAP_IGNORE ||
+	    efuse->hw_cap.nss > rtwdev->hal.rf_path_num)
 		efuse->hw_cap.nss = rtwdev->hal.rf_path_num;
 
 	rtw_dbg(rtwdev, RTW_DBG_EFUSE,
@@ -1047,19 +1105,19 @@ static int rtw_chip_efuse_info_setup(struct rtw_dev *rtwdev)
 	/* power on mac to read efuse */
 	ret = rtw_chip_efuse_enable(rtwdev);
 	if (ret)
-		goto out;
+		goto out_unlock;
 
 	ret = rtw_parse_efuse_map(rtwdev);
 	if (ret)
-		goto out;
+		goto out_disable;
 
 	ret = rtw_dump_hw_feature(rtwdev);
 	if (ret)
-		goto out;
+		goto out_disable;
 
 	ret = rtw_check_supported_rfe(rtwdev);
 	if (ret)
-		goto out;
+		goto out_disable;
 
 	if (efuse->crystal_cap == 0xff)
 		efuse->crystal_cap = 0;
@@ -1086,9 +1144,10 @@ static int rtw_chip_efuse_info_setup(struct rtw_dev *rtwdev)
 	efuse->ext_pa_5g = efuse->pa_type_5g & BIT(0) ? 1 : 0;
 	efuse->ext_lna_2g = efuse->lna_type_5g & BIT(3) ? 1 : 0;
 
+out_disable:
 	rtw_chip_efuse_disable(rtwdev);
 
-out:
+out_unlock:
 	mutex_unlock(&rtwdev->mutex);
 	return ret;
 }
@@ -1143,20 +1202,24 @@ EXPORT_SYMBOL(rtw_chip_info_setup);
 
 int rtw_core_init(struct rtw_dev *rtwdev)
 {
+	struct rtw_chip_info *chip = rtwdev->chip;
 	struct rtw_coex *coex = &rtwdev->coex;
 	int ret;
 
 	INIT_LIST_HEAD(&rtwdev->rsvd_page_list);
+	INIT_LIST_HEAD(&rtwdev->txqs);
 
 	timer_setup(&rtwdev->tx_report.purge_timer,
 		    rtw_tx_report_purge_timer, 0);
+	tasklet_init(&rtwdev->tx_tasklet, rtw_tx_tasklet,
+		     (unsigned long)rtwdev);
 
 	INIT_DELAYED_WORK(&rtwdev->watch_dog_work, rtw_watch_dog_work);
-	INIT_DELAYED_WORK(&rtwdev->lps_work, rtw_lps_work);
 	INIT_DELAYED_WORK(&coex->bt_relink_work, rtw_coex_bt_relink_work);
 	INIT_DELAYED_WORK(&coex->bt_reenable_work, rtw_coex_bt_reenable_work);
 	INIT_DELAYED_WORK(&coex->defreeze_work, rtw_coex_defreeze_work);
 	INIT_WORK(&rtwdev->c2h_work, rtw_c2h_work);
+	INIT_WORK(&rtwdev->ba_work, rtw_txq_ba_work);
 	skb_queue_head_init(&rtwdev->c2h_queue);
 	skb_queue_head_init(&rtwdev->coex.queue);
 	skb_queue_head_init(&rtwdev->tx_report.queue);
@@ -1164,6 +1227,7 @@ int rtw_core_init(struct rtw_dev *rtwdev)
 	spin_lock_init(&rtwdev->dm_lock);
 	spin_lock_init(&rtwdev->rf_lock);
 	spin_lock_init(&rtwdev->h2c.lock);
+	spin_lock_init(&rtwdev->txq_lock);
 	spin_lock_init(&rtwdev->tx_report.q_lock);
 
 	mutex_init(&rtwdev->mutex);
@@ -1175,6 +1239,10 @@ int rtw_core_init(struct rtw_dev *rtwdev)
 	rtwdev->sec.total_cam_num = 32;
 	rtwdev->hal.current_channel = 1;
 	set_bit(RTW_BC_MC_MACID, rtwdev->mac_id_map);
+	if (!(BIT(rtw_fw_lps_deep_mode) & chip->lps_deep_mode_supported))
+		rtwdev->lps_conf.deep_mode = LPS_DEEP_MODE_NONE;
+	else
+		rtwdev->lps_conf.deep_mode = rtw_fw_lps_deep_mode;
 
 	mutex_lock(&rtwdev->mutex);
 	rtw_add_rsvd_page(rtwdev, RSVD_BEACON, false);
@@ -1204,6 +1272,7 @@ void rtw_core_deinit(struct rtw_dev *rtwdev)
 	if (fw->firmware)
 		release_firmware(fw->firmware);
 
+	tasklet_kill(&rtwdev->tx_tasklet);
 	spin_lock_irqsave(&rtwdev->tx_report.q_lock, flags);
 	skb_queue_purge(&rtwdev->tx_report.queue);
 	spin_unlock_irqrestore(&rtwdev->tx_report.q_lock, flags);
@@ -1229,6 +1298,7 @@ int rtw_register_hw(struct rtw_dev *rtwdev, struct ieee80211_hw *hw)
 
 	hw->extra_tx_headroom = max_tx_headroom;
 	hw->queues = IEEE80211_NUM_ACS;
+	hw->txq_data_size = sizeof(struct rtw_txq);
 	hw->sta_data_size = sizeof(struct rtw_sta_info);
 	hw->vif_data_size = sizeof(struct rtw_vif);
 
@@ -1241,6 +1311,8 @@ int rtw_register_hw(struct rtw_dev *rtwdev, struct ieee80211_hw *hw)
 	ieee80211_hw_set(hw, SUPPORTS_DYNAMIC_PS);
 	ieee80211_hw_set(hw, SUPPORT_FAST_XMIT);
 	ieee80211_hw_set(hw, SUPPORTS_AMSDU_IN_AMPDU);
+	ieee80211_hw_set(hw, HAS_RATE_CONTROL);
+	ieee80211_hw_set(hw, TX_AMSDU);
 
 	hw->wiphy->interface_modes = BIT(NL80211_IFTYPE_STATION) |
 				     BIT(NL80211_IFTYPE_AP) |
@@ -1251,6 +1323,8 @@ int rtw_register_hw(struct rtw_dev *rtwdev, struct ieee80211_hw *hw)
 			    WIPHY_FLAG_TDLS_EXTERNAL_SETUP;
 
 	hw->wiphy->features |= NL80211_FEATURE_SCAN_RANDOM_MAC_ADDR;
+
+	wiphy_ext_feature_set(hw->wiphy, NL80211_EXT_FEATURE_CAN_REPLACE_PTK0);
 
 	rtw_set_supported_band(hw, rtwdev->chip);
 	SET_IEEE80211_PERM_ADDR(hw, rtwdev->efuse.addr);

@@ -1088,8 +1088,8 @@ static void rtw8822c_phy_set_param(struct rtw_dev *rtwdev)
 #define WLAN_AMPDU_MAX_TIME		0x70
 #define WLAN_RTS_LEN_TH			0xFF
 #define WLAN_RTS_TX_TIME_TH		0x08
-#define WLAN_MAX_AGG_PKT_LIMIT		0x20
-#define WLAN_RTS_MAX_AGG_PKT_LIMIT	0x20
+#define WLAN_MAX_AGG_PKT_LIMIT		0x3f
+#define WLAN_RTS_MAX_AGG_PKT_LIMIT	0x3f
 #define WLAN_PRE_TXCNT_TIME_TH		0x1E0
 #define FAST_EDCA_VO_TH		0x06
 #define FAST_EDCA_VI_TH		0x06
@@ -1112,6 +1112,7 @@ static void rtw8822c_phy_set_param(struct rtw_dev *rtwdev)
 #define WLAN_RTS_RATE_FB_RATE4_H	0x400003E0
 #define WLAN_RTS_RATE_FB_RATE5		0x0600F015
 #define WLAN_RTS_RATE_FB_RATE5_H	0x000000E0
+#define WLAN_MULTI_ADDR			0xFFFFFFFF
 
 #define WLAN_TX_FUNC_CFG1		0x30
 #define WLAN_TX_FUNC_CFG2		0x30
@@ -1221,6 +1222,8 @@ static int rtw8822c_mac_init(struct rtw_dev *rtwdev)
 	rtw_write8(rtwdev, REG_BCN_MAX_ERR, WLAN_BCN_MAX_ERR);
 
 	/* WMAC configuration */
+	rtw_write32(rtwdev, REG_MAR, WLAN_MULTI_ADDR);
+	rtw_write32(rtwdev, REG_MAR + 4, WLAN_MULTI_ADDR);
 	rtw_write8(rtwdev, REG_BBPSF_CTRL + 2, WLAN_RESP_TXRATE);
 	rtw_write8(rtwdev, REG_ACKTO, WLAN_ACK_TO);
 	rtw_write8(rtwdev, REG_ACKTO_CCK, WLAN_ACK_TO_CCK);
@@ -1704,7 +1707,8 @@ static void rtw8822c_query_rx_desc(struct rtw_dev *rtwdev, u8 *rx_desc,
 	pkt_stat->phy_status = GET_RX_DESC_PHYST(rx_desc);
 	pkt_stat->icv_err = GET_RX_DESC_ICV_ERR(rx_desc);
 	pkt_stat->crc_err = GET_RX_DESC_CRC32(rx_desc);
-	pkt_stat->decrypted = !GET_RX_DESC_SWDEC(rx_desc);
+	pkt_stat->decrypted = !GET_RX_DESC_SWDEC(rx_desc) &&
+			      GET_RX_DESC_ENC_TYPE(rx_desc) != RX_DESC_ENC_NONE;
 	pkt_stat->is_c2h = GET_RX_DESC_C2H(rx_desc);
 	pkt_stat->pkt_len = GET_RX_DESC_PKT_LEN(rx_desc);
 	pkt_stat->drv_info_sz = GET_RX_DESC_DRV_INFO_SIZE(rx_desc);
@@ -2603,9 +2607,9 @@ static bool rtw8822c_dpk_coef_iq_check(struct rtw_dev *rtwdev,
 {
 	if (coef_i == 0x1000 || coef_i == 0x0fff ||
 	    coef_q == 0x1000 || coef_q == 0x0fff)
-		return 1;
-	else
-		return 0;
+		return true;
+
+	return false;
 }
 
 static u32 rtw8822c_dpk_coef_transfer(struct rtw_dev *rtwdev)
@@ -3747,6 +3751,7 @@ struct rtw_chip_info rtw8822c_hw_spec = {
 	.dig_min = 0x20,
 	.ht_supported = true,
 	.vht_supported = true,
+	.lps_deep_mode_supported = BIT(LPS_DEEP_MODE_LCLK) | BIT(LPS_DEEP_MODE_PG),
 	.sys_func_en = 0xD8,
 	.pwr_on_seq = card_enable_flow_8822c,
 	.pwr_off_seq = card_disable_flow_8822c,
