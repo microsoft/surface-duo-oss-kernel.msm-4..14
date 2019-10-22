@@ -5013,6 +5013,7 @@ EXPORT_SYMBOL net/wireless/cfg80211 0x00000000	cfg80211_get_p2p_attr
 EXPORT_SYMBOL net/wireless/cfg80211 0x00000000	cfg80211_get_station
 EXPORT_SYMBOL net/wireless/cfg80211 0x00000000	cfg80211_gtk_rekey_notify
 EXPORT_SYMBOL net/wireless/cfg80211 0x00000000	cfg80211_ibss_joined
+EXPORT_SYMBOL net/wireless/cfg80211 0x00000000	cfg80211_iftype_allowed
 EXPORT_SYMBOL net/wireless/cfg80211 0x00000000	cfg80211_inform_bss_data
 EXPORT_SYMBOL net/wireless/cfg80211 0x00000000	cfg80211_inform_bss_frame_data
 EXPORT_SYMBOL net/wireless/cfg80211 0x00000000	cfg80211_iter_combinations
@@ -7086,6 +7087,7 @@ EXPORT_SYMBOL vmlinux 0x00000000	drm_crtc_helper_set_mode
 EXPORT_SYMBOL vmlinux 0x00000000	drm_crtc_init
 EXPORT_SYMBOL vmlinux 0x00000000	drm_crtc_init_with_planes
 EXPORT_SYMBOL vmlinux 0x00000000	drm_crtc_send_vblank_event
+EXPORT_SYMBOL vmlinux 0x00000000	drm_crtc_set_max_vblank_count
 EXPORT_SYMBOL vmlinux 0x00000000	drm_crtc_vblank_count
 EXPORT_SYMBOL vmlinux 0x00000000	drm_crtc_vblank_count_and_time
 EXPORT_SYMBOL vmlinux 0x00000000	drm_crtc_vblank_get
