@@ -2568,10 +2568,11 @@ static const struct flash_info spi_nor_ids[] = {
 			SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ |
 			SPI_NOR_4B_OPCODES | SPI_NOR_HAS_LOCK)
 			.fixups = &is25lp256_fixups },
-	{ "is25wp256d", INFO(0x9d7019, 0, 64 * 1024, 512,
-			SECT_4K | SPI_NOR_DUAL_READ |
-			SPI_NOR_QUAD_READ | SPI_NOR_HAS_LOCK |
-			SPI_NOR_4B_OPCODES) },
+	{ "is25wp256", INFO(0x9d7019, 0, 64 * 1024, 512,
+			    SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ |
+			    SPI_NOR_4B_OPCODES)
+		       .fixups = &is25lp256_fixups },
+
 	{ "is25wp032",  INFO(0x9d7016, 0, 64 * 1024,  64,
 			SECT_4K | SPI_NOR_DUAL_READ | SPI_NOR_QUAD_READ |
 			SPI_NOR_HAS_LOCK) },
