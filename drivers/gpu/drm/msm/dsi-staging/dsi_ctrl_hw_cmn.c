@@ -347,7 +347,7 @@ void dsi_ctrl_hw_cmn_set_video_timing(struct dsi_ctrl_hw *ctrl,
 	DSI_W32(ctrl, DSI_VIDEO_MODE_VSYNC_VPOS, reg);
 
 	/* TODO: HS TIMER value? */
-	DSI_W32(ctrl, DSI_HS_TIMER_CTRL, 0x3FD08);
+	DSI_W32(ctrl, DSI_HS_TIMER_CTRL, (0x3FD08 * 2));
 	DSI_W32(ctrl, DSI_MISR_VIDEO_CTRL, 0x10100);
 	DSI_W32(ctrl, DSI_DSI_TIMING_FLUSH, 0x1);
 	pr_debug("[DSI_%d] ctrl video parameters updated\n", ctrl->index);

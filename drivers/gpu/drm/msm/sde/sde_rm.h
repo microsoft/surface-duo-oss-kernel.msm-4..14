@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -101,6 +101,7 @@ struct sde_rm_topology_def {
 	int num_intf;
 	int num_ctl;
 	int needs_split_display;
+	bool wide_lm;
 };
 
 /**

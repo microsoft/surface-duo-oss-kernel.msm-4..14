@@ -2831,6 +2831,8 @@ static int dsi_panel_parse_topology(
 parse_done:
 	memcpy(&priv_info->topology, &topology[top_sel],
 		sizeof(struct msm_display_topology));
+	priv_info->wide_lm_enabled = utils->read_bool(utils->data, "qcom,dsi-wide-lm");
+
 parse_fail:
 	kfree(topology);
 read_fail:

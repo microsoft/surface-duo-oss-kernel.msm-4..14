@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -397,6 +397,12 @@ int dp_connector_get_mode_info(struct drm_connector *connector,
 		pr_err("error getting mixer count, rc:%d\n", rc);
 		return rc;
 	}
+
+	if (!mode_info->wide_lm_enabled)
+		topology->num_lm = (max_mixer_width <= drm_mode->hdisplay) ?
+							dual_lm : single_lm;
+	else
+		topology->num_lm = single_lm;
 
 	topology->num_enc = no_enc;
 	topology->num_intf = single_intf;

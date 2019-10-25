@@ -5728,7 +5728,10 @@ static int dsi_display_ext_get_mode_info(struct drm_connector *connector,
 	mode_info->vtotal = drm_mode->vtotal;
 
 	topology = &mode_info->topology;
-	topology->num_lm = (max_mixer_width <= drm_mode->hdisplay) ? 2 : 1;
+
+	if (!mode_info->wide_lm_enabled)
+		topology->num_lm = (max_mixer_width <= drm_mode->hdisplay) ? 2 : 1;
+
 	topology->num_enc = 0;
 	topology->num_intf = topology->num_lm;
 
