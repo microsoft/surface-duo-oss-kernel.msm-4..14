@@ -98,6 +98,7 @@ struct sde_rm_topology_def {
 	int num_intf;
 	int num_ctl;
 	int needs_split_display;
+	bool wide_lm;
 };
 
 /**
