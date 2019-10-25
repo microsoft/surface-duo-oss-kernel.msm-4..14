@@ -518,6 +518,10 @@ int dsi_conn_get_mode_info(struct drm_connector *connector,
 
 	memcpy(&mode_info->topology, &dsi_mode.priv_info->topology,
 			sizeof(struct msm_display_topology));
+	mode_info->wide_lm_enabled = dsi_mode.priv_info->wide_lm_enabled;
+
+	if (!mode_info->wide_lm_enabled)
+		mode_info->topology.num_lm = (max_mixer_width <= drm_mode->hdisplay) ? 2 : 1;
 
 	mode_info->comp_info.comp_type = MSM_DISPLAY_COMPRESSION_NONE;
 	if (dsi_mode.priv_info->dsc_enabled) {

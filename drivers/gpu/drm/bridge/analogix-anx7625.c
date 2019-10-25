@@ -496,6 +496,11 @@ static struct MIPI_Video_Format mipi_video_timing_table[] = {
 			{ 0,   0,  0,	 0, 0,  0, 0,  0,  0,  0 }
 		}
 	},
+	{/*DSI*/
+		16, "3840x1080p@30", 3,  139050000, 0xCE0000, 0x0A0000, 0x03,
+		         0x37,   0,   VIDEO_3D_NONE, NULL,  NULL, NULL,
+		  { { 4120, 3840, 1125, 1080, 88, 44, 148, 4, 5, 36 } }
+	},
 };
 
 static inline struct anx7625 *bridge_to_anx7625(struct drm_bridge *bridge)
@@ -1164,9 +1169,6 @@ static int anx7625_get_mode_idx(const struct drm_display_mode *mode)
 {
 	struct MIPI_Video_Format *fmt;
 	int mode_idx = -1, categoly = 0, i;
-
-	if (mode->htotal >= 3840)
-		categoly = 1;
 
 	for (i = 6; i < sizeof(mipi_video_timing_table) /
 			sizeof(mipi_video_timing_table[0]); i++) {

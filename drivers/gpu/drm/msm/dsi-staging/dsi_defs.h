@@ -438,6 +438,7 @@ struct dsi_mode_info {
 	bool dsc_enabled;
 	struct msm_display_dsc_info *dsc;
 	struct msm_roi_caps roi_caps;
+	bool wide_lm_enable;
 };
 
 /**
@@ -613,6 +614,7 @@ struct dsi_display_mode_priv_info {
 	struct msm_display_dsc_info dsc;
 	bool dsc_enabled;
 	struct msm_roi_caps roi_caps;
+	bool wide_lm_enabled;
 };
 
 /**

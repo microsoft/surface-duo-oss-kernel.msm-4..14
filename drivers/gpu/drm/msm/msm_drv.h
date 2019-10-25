@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -474,6 +474,7 @@ struct msm_mode_info {
 	u32 mdp_transfer_time_us;
 	u32 vpadding;
 	u32 overlap_pixels;
+	bool wide_lm_enabled;
 };
 
 /**

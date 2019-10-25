@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -659,7 +659,8 @@ static bool _sde_rm_check_lm_and_get_connected_blks(
 		struct sde_rm_hw_blk **dspp,
 		struct sde_rm_hw_blk **ds,
 		struct sde_rm_hw_blk **pp,
-		struct sde_rm_hw_blk *primary_lm)
+		struct sde_rm_hw_blk *primary_lm,
+		bool wide_lm_enabled)
 {
 	const struct sde_lm_cfg *lm_cfg = to_sde_hw_mixer(lm->hw)->cap;
 	const struct sde_pingpong_cfg *pp_cfg;
@@ -673,7 +674,7 @@ static bool _sde_rm_check_lm_and_get_connected_blks(
 	display_pref = lm_cfg->features & BIT(SDE_DISP_PRIMARY_PREF);
 	cwb_pref = lm_cfg->features & BIT(SDE_DISP_CWB_PREF);
 
-	SDE_DEBUG("check lm %d: dspp %d ds %d pp %d disp_pref: %d cwb_pref%d\n",
+       SDE_DEBUG("check lm %d: dspp %d ds %d pp %d disp_pref: %d cwb_pref%d\n",
 		lm_cfg->id, lm_cfg->dspp, lm_cfg->ds,
 		lm_cfg->pingpong, display_pref, cwb_pref);
 
@@ -762,7 +763,8 @@ static bool _sde_rm_check_lm_and_get_connected_blks(
 		}
 	}
 
-	if (lm_cfg->ds != DS_MAX) {
+	if (!wide_lm_enabled &&
+		lm_cfg->ds != DS_MAX) {
 		sde_rm_init_hw_iter(&iter, 0, SDE_HW_BLK_DS);
 		while (_sde_rm_get_hw_locked(rm, &iter)) {
 			if (iter.blk->id == lm_cfg->ds) {
@@ -806,7 +808,7 @@ static bool _sde_rm_check_lm_and_get_connected_blks(
 	}
 
 	pp_cfg = to_sde_hw_pingpong((*pp)->hw)->caps;
-	if ((reqs->topology->top_name == SDE_RM_TOPOLOGY_PPSPLIT) &&
+	if ((reqs->topology->top_name == SDE_RM_TOPOLOGY_PPSPLIT || wide_lm_enabled) &&
 			!(test_bit(SDE_PINGPONG_SPLIT, &pp_cfg->features))) {
 		SDE_DEBUG("pp %d doesn't support ppsplit\n", pp_cfg->id);
 		*dspp = NULL;
@@ -821,7 +823,7 @@ static int _sde_rm_reserve_lms(
 		struct sde_rm *rm,
 		struct sde_rm_rsvp *rsvp,
 		struct sde_rm_requirements *reqs,
-		u8 *_lm_ids)
+		u8 *_lm_ids, bool wide_lm_enabled)
 
 {
 	struct sde_rm_hw_blk *lm[MAX_BLOCKS];
@@ -860,7 +862,7 @@ static int _sde_rm_reserve_lms(
 		if (!_sde_rm_check_lm_and_get_connected_blks(
 				rm, rsvp, reqs, lm[lm_count],
 				&dspp[lm_count], &ds[lm_count],
-				&pp[lm_count], NULL))
+				&pp[lm_count], NULL, wide_lm_enabled))
 			continue;
 
 		++lm_count;
@@ -876,7 +878,7 @@ static int _sde_rm_reserve_lms(
 			if (!_sde_rm_check_lm_and_get_connected_blks(
 					rm, rsvp, reqs, iter_j.blk,
 					&dspp[lm_count], &ds[lm_count],
-					&pp[lm_count], iter_i.blk))
+					&pp[lm_count], iter_i.blk, wide_lm_enabled))
 				continue;
 
 			lm[lm_count] = iter_j.blk;
@@ -914,7 +916,8 @@ static int _sde_rm_reserve_lms(
 				ds[i] ? ds[i]->id : 0);
 	}
 
-	if (reqs->topology->top_name == SDE_RM_TOPOLOGY_PPSPLIT) {
+	if (reqs->topology->top_name == SDE_RM_TOPOLOGY_PPSPLIT ||
+		wide_lm_enabled) {
 		/* reserve a free PINGPONG_SLAVE block */
 		rc = -ENAVAIL;
 		sde_rm_init_hw_iter(&iter_i, 0, SDE_HW_BLK_PINGPONG);
@@ -923,8 +926,14 @@ static int _sde_rm_reserve_lms(
 					to_sde_hw_pingpong(iter_i.blk->hw);
 			const struct sde_pingpong_cfg *pp_cfg = pp->caps;
 
-			if (!(test_bit(SDE_PINGPONG_SLAVE, &pp_cfg->features)))
+			if (reqs->topology->top_name == SDE_RM_TOPOLOGY_PPSPLIT &&
+				!(test_bit(SDE_PINGPONG_SLAVE, &pp_cfg->features)))
 				continue;
+
+			if (wide_lm_enabled &&
+				!(test_bit(SDE_PINGPONG_SPLIT, &pp_cfg->features)))
+				continue;
+
 			if (RESERVED_BY_OTHER(iter_i.blk, rsvp))
 				continue;
 
@@ -1215,6 +1224,8 @@ static int _sde_rm_make_next_rsvp(
 {
 	int ret;
 	struct sde_rm_topology_def topology;
+	struct sde_connector_state *sde_conn_state = to_sde_connector_state(conn_state);
+
 
 	/* Create reservation info, tag reserved blocks with it as we go */
 	rsvp->seq = ++rm->rsvp_next_seq;
@@ -1228,10 +1239,10 @@ static int _sde_rm_make_next_rsvp(
 	 * - Check mixers without DSPPs
 	 * - Only then allow to grab from mixers with DSPP capability
 	 */
-	ret = _sde_rm_reserve_lms(rm, rsvp, reqs, NULL);
+	ret = _sde_rm_reserve_lms(rm, rsvp, reqs, NULL, sde_conn_state->mode_info.wide_lm_enabled);
 	if (ret && !RM_RQ_DSPP(reqs)) {
 		reqs->top_ctrl |= BIT(SDE_RM_TOPCTL_DSPP);
-		ret = _sde_rm_reserve_lms(rm, rsvp, reqs, NULL);
+		ret = _sde_rm_reserve_lms(rm, rsvp, reqs, NULL, sde_conn_state->mode_info.wide_lm_enabled);
 	}
 
 	if (ret) {
@@ -1425,6 +1436,7 @@ static int _sde_rm_make_next_rsvp_for_cont_splash(
 	struct msm_drm_private *priv;
 	struct sde_kms *sde_kms;
 	struct sde_splash_display *splash_display = NULL;
+	struct sde_connector_state *sde_conn_state = to_sde_connector_state(conn_state);
 	int i;
 
 	if (!enc->dev || !enc->dev->dev_private) {
@@ -1470,11 +1482,13 @@ static int _sde_rm_make_next_rsvp_for_cont_splash(
 	 * - Only then allow to grab from mixers with DSPP capability
 	 */
 	ret = _sde_rm_reserve_lms(rm, rsvp, reqs,
-				splash_display->lm_ids);
+				splash_display->lm_ids,
+				sde_conn_state->mode_info.wide_lm_enabled);
 	if (ret && !RM_RQ_DSPP(reqs)) {
 		reqs->top_ctrl |= BIT(SDE_RM_TOPCTL_DSPP);
 		ret = _sde_rm_reserve_lms(rm, rsvp, reqs,
-					splash_display->lm_ids);
+					splash_display->lm_ids,
+					sde_conn_state->mode_info.wide_lm_enabled);
 	}
 
 	if (ret) {
