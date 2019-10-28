@@ -148,6 +148,7 @@
 /* A clock frequency higher than this rate requires strobe dll control */
 #define ESDHC_STROBE_DLL_CLK_FREQ	100000000
 
+
 struct esdhc_soc_data {
 	u32 flags;
 };
@@ -202,15 +203,19 @@ static struct esdhc_soc_data usdhc_s32v234_data = {
 };
 
 static struct esdhc_soc_data usdhc_s32gen1_data = {
-	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MULTIBLK_READ_ACMD12,
+	.flags = ESDHC_FLAG_USDHC | ESDHC_FLAG_MULTIBLK_READ_ACMD12
+			| ESDHC_FLAG_HS200,
 };
 
 struct pltfm_imx_data {
 	u32 scratchpad;
+#if !defined(CONFIG_SOC_S32GEN1)
+	/* FIXME: we skip pinctrl initialization as it is incomplete and crashes probing */
 	struct pinctrl *pinctrl;
 	struct pinctrl_state *pins_default;
 	struct pinctrl_state *pins_100mhz;
 	struct pinctrl_state *pins_200mhz;
+#endif
 	const struct esdhc_soc_data *socdata;
 	struct esdhc_platform_data boarddata;
 	struct clk *clk_ipg;
@@ -370,6 +375,7 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 			if (imx_data->socdata->flags & ESDHC_FLAG_HS400)
 				val |= SDHCI_SUPPORT_HS400;
 
+#if !defined(CONFIG_SOC_S32GEN1)
 			/*
 			 * Do not advertise faster UHS modes if there are no
 			 * pinctrl states for 100MHz/200MHz.
@@ -378,6 +384,7 @@ static u32 esdhc_readl_le(struct sdhci_host *host, int reg)
 			    IS_ERR_OR_NULL(imx_data->pins_200mhz))
 				val &= ~(SDHCI_SUPPORT_SDR50 | SDHCI_SUPPORT_DDR50
 					 | SDHCI_SUPPORT_SDR104 | SDHCI_SUPPORT_HS400);
+#endif
 		}
 	}
 
@@ -820,8 +827,11 @@ static inline void esdhc_pltfm_set_clock(struct sdhci_host *host,
 		writel(val | ESDHC_VENDOR_SPEC_FRC_SDCLK_ON,
 			host->ioaddr + ESDHC_VENDOR_SPEC);
 	}
-
+#if defined(CONFIG_S32GEN1_EMULATOR)
+	udelay(1);
+#else
 	mdelay(1);
+#endif
 }
 
 static unsigned int esdhc_pltfm_get_ro(struct sdhci_host *host)
@@ -868,7 +878,12 @@ static void esdhc_prepare_tuning(struct sdhci_host *host, u32 val)
 	u32 reg;
 
 	/* FIXME: delay a bit for card to be ready for next tuning due to errors */
+
+#if defined(CONFIG_S32GEN1_EMULATOR)
+	udelay(1);
+#else
 	mdelay(1);
+#endif
 
 	reg = readl(host->ioaddr + ESDHC_MIX_CTRL);
 	reg |= ESDHC_MIX_CTRL_EXE_TUNE | ESDHC_MIX_CTRL_SMPCLK_SEL |
@@ -926,6 +941,7 @@ static int esdhc_executing_tuning(struct sdhci_host *host, u32 opcode)
 	return ret;
 }
 
+#if !defined(CONFIG_SOC_S32GEN1)
 static int esdhc_change_pinstate(struct sdhci_host *host,
 						unsigned int uhs)
 {
@@ -958,6 +974,7 @@ static int esdhc_change_pinstate(struct sdhci_host *host,
 
 	return pinctrl_select_state(imx_data->pinctrl, pinctrl);
 }
+#endif
 
 /*
  * For HS400 eMMC, there is a data_strobe line. This signal is generated
@@ -1074,7 +1091,9 @@ static void esdhc_set_uhs_signaling(struct sdhci_host *host, unsigned timing)
 		break;
 	}
 
+#if !defined(CONFIG_SOC_S32GEN1)
 	esdhc_change_pinstate(host, timing);
+#endif
 }
 
 static void esdhc_reset(struct sdhci_host *host, u8 mask)
@@ -1159,7 +1178,7 @@ static void sdhci_esdhc_imx_hwinit(struct sdhci_host *host)
 			| ESDHC_BURST_LEN_EN_INCR,
 			host->ioaddr + SDHCI_HOST_CONTROL);
 
-		if (!is_s32v234_usdhc(imx_data)) {
+		if (!is_s32v234_usdhc(imx_data) && !is_s32gen1_usdhc(imx_data)) {
 			/*
 			 * erratum ESDHC_FLAG_ERR004536 fix for MX6Q TO1.2
 			 * and MX6DL TO1.1, it's harmless for MX6SL
@@ -1228,12 +1247,13 @@ sdhci_esdhc_imx_probe_dt(struct platform_device *pdev,
 
 	mmc_of_parse_voltage(np, &host->ocr_mask);
 
+#if !defined(CONFIG_SOC_S32GEN1)
 	/* UHS-I support: sac58r does not have pinctrl driver
 	 * however, there's 1.8V support.
 	 * So, ignore the pinctrl lookup.
 	 * FIXME: there must be a better way to handle this!
 	 */
-	if (!is_sac58r_usdhc(imx_data) && !is_s32v234_usdhc(imx_data)) {
+	if (!is_sac58r_usdhc(imx_data) && !is_s32v234_usdhc(imx_data) && !is_s32gen1_usdhc(imx_data)) {
 		if (esdhc_is_usdhc(imx_data) && !IS_ERR(imx_data->pins_default)) {
 			imx_data->pins_100mhz = pinctrl_lookup_state(imx_data->pinctrl,
 							ESDHC_PINCTRL_STATE_100MHZ);
@@ -1241,6 +1261,7 @@ sdhci_esdhc_imx_probe_dt(struct platform_device *pdev,
 							ESDHC_PINCTRL_STATE_200MHZ);
 		}
 	}
+#endif
 
 	/* call to generic mmc_of_parse to support additional capabilities */
 	ret = mmc_of_parse(host->mmc);
@@ -1378,6 +1399,7 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 	if (err)
 		goto disable_ipg_clk;
 
+#if !defined(CONFIG_SOC_S32GEN1)
 	imx_data->pinctrl = devm_pinctrl_get(&pdev->dev);
 	if (IS_ERR(imx_data->pinctrl)) {
 		err = PTR_ERR(imx_data->pinctrl);
@@ -1388,6 +1410,7 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 						PINCTRL_STATE_DEFAULT);
 	if (IS_ERR(imx_data->pins_default))
 		dev_warn(mmc_dev(host->mmc), "could not get default state\n");
+#endif
 
 	if (esdhc_is_usdhc(imx_data)) {
 		host->quirks2 |= SDHCI_QUIRK2_PRESET_VALUE_BROKEN;
@@ -1422,6 +1445,9 @@ static int sdhci_esdhc_imx_probe(struct platform_device *pdev)
 		goto disable_ahb_clk;
 
 	sdhci_esdhc_imx_hwinit(host);
+
+	if (is_s32v234_usdhc(imx_data) || is_s32gen1_usdhc(imx_data))
+		host->quirks2 |= SDHCI_QUIRK2_NO_1_8_V;
 
 	if (host->mmc->pm_caps & MMC_PM_KEEP_POWER &&
 		host->mmc->pm_caps & MMC_PM_WAKE_SDIO_IRQ)
