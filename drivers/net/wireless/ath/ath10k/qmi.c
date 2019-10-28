@@ -746,6 +746,7 @@ static void ath10k_qmi_event_server_arrive(struct ath10k_qmi *qmi)
 	if (ret)
 		return;
 
+	msleep(20);
 	ret = ath10k_qmi_setup_msa_permissions(qmi);
 	if (ret)
 		return;
