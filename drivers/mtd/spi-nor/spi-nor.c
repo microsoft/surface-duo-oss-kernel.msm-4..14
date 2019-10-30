@@ -2889,7 +2889,7 @@ static int spi_nor_read(struct mtd_info *mtd, loff_t from, size_t len,
 			size_t *retlen, u_char *buf)
 {
 	struct spi_nor *nor = mtd_to_spi_nor(mtd);
-	int ret;
+	ssize_t ret;
 	u32 offset = from;
 	u32 stack_shift = 0;
 	u32 read_len = 0;
