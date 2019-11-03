@@ -317,6 +317,8 @@ static void sdhci_do_reset(struct sdhci_host *host, u8 mask)
 		/* Resetting the controller clears many */
 		host->preset_enabled = false;
 	}
+	if (host->is_crypto_en)
+		host->crypto_reset_reqd = true;
 }
 
 static void sdhci_set_default_irqs(struct sdhci_host *host)
@@ -1839,15 +1841,14 @@ static int sdhci_crypto_cfg(struct sdhci_host *host, struct mmc_request *mrq,
 {
 	int err = 0;
 
-	if (host->mmc->inlinecrypt_reset_needed &&
-			host->ops->crypto_engine_reset) {
+	if (host->crypto_reset_reqd && host->ops->crypto_engine_reset) {
 		err = host->ops->crypto_engine_reset(host);
 		if (err) {
 			pr_err("%s: crypto reset failed\n",
 					mmc_hostname(host->mmc));
 			goto out;
 		}
-		host->mmc->inlinecrypt_reset_needed = false;
+		host->crypto_reset_reqd = false;
 	}
 
 	if (host->ops->crypto_engine_cfg) {
@@ -4093,14 +4094,14 @@ static int sdhci_cmdq_crypto_cfg(struct mmc_host *mmc,
 	if (!host->is_crypto_en)
 		return 0;
 
-	if (mmc->inlinecrypt_reset_needed && host->ops->crypto_engine_reset) {
+	if (host->crypto_reset_reqd && host->ops->crypto_engine_reset) {
 		err = host->ops->crypto_engine_reset(host);
 		if (err) {
 			pr_err("%s: crypto reset failed\n",
 					mmc_hostname(host->mmc));
 			goto out;
 		}
-		mmc->inlinecrypt_reset_needed = false;
+		host->crypto_reset_reqd = false;
 	}
 
 	if (host->ops->crypto_engine_cmdq_cfg) {
