@@ -1723,6 +1723,38 @@ static int jtag_mm_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int jtag_mm_freeze(struct device *dev)
+{
+	int i;
+
+	for_each_possible_cpu(i) {
+		if (!etm[i]->save_restore_disabled) {
+			etm[i]->save_restore_disabled = true;
+			clk_disable_unprepare(clock[i]);
+		}
+	}
+	return 0;
+}
+
+static int jtag_mm_restore(struct device *dev)
+{
+	int i;
+
+	for_each_possible_cpu(i) {
+		if (etm[i]->save_restore_disabled) {
+			clk_prepare_enable(clock[i]);
+			etm[i]->save_restore_disabled = false;
+		}
+	}
+	return 0;
+}
+
+static const struct dev_pm_ops jtag_mm_pm_ops = {
+	.freeze = jtag_mm_freeze,
+	.restore = jtag_mm_restore,
+	.thaw = jtag_mm_restore,
+};
+
 static const struct of_device_id msm_qdss_mm_match[] = {
 	{ .compatible = "qcom,jtagv8-mm"},
 	{}
@@ -1735,6 +1767,7 @@ static struct platform_driver jtag_mm_driver = {
 		.name   = "msm-jtagv8-mm",
 		.owner	= THIS_MODULE,
 		.of_match_table	= msm_qdss_mm_match,
+		.pm = &jtag_mm_pm_ops,
 		},
 };
 
