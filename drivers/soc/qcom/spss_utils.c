@@ -22,7 +22,6 @@
  * 2. SPSS HW version (selected via Device Tree).
  *
  */
-
 #define pr_fmt(fmt)	"spss_utils [%s]: " fmt, __func__
 
 #include <linux/kernel.h>   /* min() */
@@ -330,7 +329,9 @@ static int spss_parse_dt(struct device_node *node)
 		firmware_type = SPSS_FW_TYPE_TEST;
 	else
 		firmware_type = SPSS_FW_TYPE_PROD;
-
+#ifdef CONFIG_HIBERNATION
+	firmware_type = SPSS_FW_TYPE_NONE;
+#endif
 	iounmap(spss_fuse1_reg);
 	iounmap(spss_fuse2_reg);
 
@@ -407,13 +408,25 @@ static int spss_probe(struct platform_device *pdev)
 
 	switch (firmware_type) {
 	case SPSS_FW_TYPE_DEV:
+#ifdef CONFIG_HIBERNATION
+		firmware_name = none_firmware_name;
+#else
 		firmware_name = dev_firmware_name;
+#endif
 		break;
 	case SPSS_FW_TYPE_TEST:
+#ifdef CONFIG_HIBERNATION
+		firmware_name = none_firmware_name;
+#else
 		firmware_name = test_firmware_name;
+#endif
 		break;
 	case SPSS_FW_TYPE_PROD:
+#ifdef CONFIG_HIBERNATION
+		firmware_name = none_firmware_name;
+#else
 		firmware_name = prod_firmware_name;
+#endif
 		break;
 	case SPSS_FW_TYPE_NONE:
 		firmware_name = none_firmware_name;
