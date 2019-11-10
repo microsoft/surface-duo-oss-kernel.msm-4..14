@@ -59,6 +59,7 @@
 #include <net/netns/generic.h>
 #include <linux/rhashtable.h>
 #include <net/genetlink.h>
+#include <net/netns/hash.h>
 
 struct tipc_node;
 struct tipc_bearer;
@@ -67,6 +68,9 @@ struct tipc_link;
 struct tipc_name_table;
 struct tipc_topsrv;
 struct tipc_monitor;
+#ifdef CONFIG_TIPC_CRYPTO
+struct tipc_crypto;
+#endif
 
 #define TIPC_MOD_VER "2.0.0"
 
@@ -128,6 +132,11 @@ struct tipc_net {
 
 	/* Tracing of node internal messages */
 	struct packet_type loopback_pt;
+
+#ifdef CONFIG_TIPC_CRYPTO
+	/* TX crypto handler */
+	struct tipc_crypto *crypto_tx;
+#endif
 };
 
 static inline struct tipc_net *tipc_net(struct net *net)
@@ -183,6 +192,11 @@ static inline int less(u16 left, u16 right)
 static inline int in_range(u16 val, u16 min, u16 max)
 {
 	return !less(val, min) && !more(val, max);
+}
+
+static inline u32 tipc_net_hash_mixes(struct net *net, int tn_rand)
+{
+	return net_hash_mix(&init_net) ^ net_hash_mix(net) ^ tn_rand;
 }
 
 #ifdef CONFIG_SYSCTL
