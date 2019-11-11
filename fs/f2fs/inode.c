@@ -74,7 +74,7 @@ static int __written_first_block(struct f2fs_sb_info *sbi,
 	if (!__is_valid_data_blkaddr(addr))
 		return 1;
 	if (!f2fs_is_valid_blkaddr(sbi, addr, DATA_GENERIC_ENHANCE))
-		return -EFAULT;
+		return -EFSCORRUPTED;
 	return 0;
 }
 
@@ -374,7 +374,7 @@ static int do_read_inode(struct inode *inode)
 
 	if (!sanity_check_inode(inode, node_page)) {
 		f2fs_put_page(node_page, 1);
-		return -EINVAL;
+		return -EFSCORRUPTED;
 	}
 
 	/* check data exist */
@@ -722,7 +722,7 @@ no_delete:
 	if (unlikely(is_inode_flag_set(inode, FI_DIRTY_INODE))) {
 		f2fs_inode_synced(inode);
 		f2fs_msg(sbi->sb, KERN_WARNING,
-			 "inconsistent dirty inode:%u entry found during eviction\n",
+			 "inconsistent dirty inode:%lu entry found during eviction\n",
 			 inode->i_ino);
 		if (!is_set_ckpt_flags(sbi, CP_ERROR_FLAG) &&
 		    !is_sbi_flag_set(sbi, SBI_CP_DISABLED))

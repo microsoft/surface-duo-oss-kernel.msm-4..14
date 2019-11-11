@@ -2270,7 +2270,7 @@ static struct msm_pinctrl_soc_data sdmshrike_pinctrl = {
 	.dir_conn_irq_base = 216,
 };
 
-static int sdmshrike_pinctrl_dir_conn_probe(struct platform_device *pdev)
+static int sdmshrike_pinctrl_parse_dt(struct platform_device *pdev)
 {
 	const __be32 *prop;
 	struct msm_dir_conn *dir_conn_list;
@@ -2282,18 +2282,24 @@ static int sdmshrike_pinctrl_dir_conn_probe(struct platform_device *pdev)
 
 	dir_conn_length = length / sizeof(u32);
 
-	dir_conn_entries = devm_kzalloc(&pdev->dev,
-				dir_conn_length*sizeof(uint32_t), GFP_KERNEL);
+	dir_conn_entries = devm_kcalloc(&pdev->dev,
+				dir_conn_length, sizeof(uint32_t), GFP_KERNEL);
 	if (!dir_conn_entries)
 		return -ENOMEM;
 
 	for (i = 0; i < dir_conn_length; i++)
 		dir_conn_entries[i] = be32_to_cpu(prop[i]);
 
+	if (dir_conn_length % 3) {
+		dev_err(&pdev->dev,
+			"Can't parse an entry with fewer than three values\n");
+		return -EINVAL;
+	};
+
 	num_dir_conns = (dir_conn_length / 3);
 
-	dir_conn_list = devm_kzalloc(&pdev->dev,
-			num_dir_conns * sizeof(*dir_conn_list), GFP_KERNEL);
+	dir_conn_list = devm_kcalloc(&pdev->dev,
+			num_dir_conns, sizeof(*dir_conn_list), GFP_KERNEL);
 	if (!dir_conn_list)
 		return -ENOMEM;
 
@@ -2301,9 +2307,6 @@ static int sdmshrike_pinctrl_dir_conn_probe(struct platform_device *pdev)
 		dir_conn_list[i].gpio = dir_conn_entries[iterator++];
 		dir_conn_list[i].hwirq = dir_conn_entries[iterator++];
 		dir_conn_list[i].tlmm_dc = dir_conn_entries[iterator++];
-		pr_err("%s: gpio = %d, hwirq = %d, tlmm_dc = %d\n", __func__,
-				dir_conn_list[i].gpio, dir_conn_list[i].hwirq,
-				dir_conn_list[i].tlmm_dc);
 	}
 
 	sdmshrike_pinctrl.dir_conn = dir_conn_list;
@@ -2317,7 +2320,7 @@ static int sdmshrike_pinctrl_probe(struct platform_device *pdev)
 	int len, ret;
 
 	if (of_find_property(pdev->dev.of_node, "dirconn-list", &len)) {
-		ret = sdmshrike_pinctrl_dir_conn_probe(pdev);
+		ret = sdmshrike_pinctrl_parse_dt(pdev);
 		if (ret) {
 			dev_err(&pdev->dev,
 				"Unable to parse TLMM direct connects\n");

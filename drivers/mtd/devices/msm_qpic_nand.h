@@ -258,6 +258,9 @@ struct msm_nand_chip {
 	uint32_t ecc_bch_cfg;
 	uint32_t ecc_cfg_raw;
 	uint32_t qpic_version; /* To store the qpic controller version */
+	uint32_t caps; /* General host capabilities */
+#define MSM_NAND_CAP_PAGE_SCOPE_READ   BIT(0)
+#define MSM_NAND_CAP_MULTI_PAGE_READ   BIT(1)
 };
 
 /* Structure that defines an SPS end point for a NANDc BAM pipe. */
@@ -399,7 +402,7 @@ struct onfi_param_page {
 #define FLASH_PTABLE_V3		3
 #define FLASH_PTABLE_V4		4
 #define FLASH_PTABLE_MAX_PARTS_V3 16
-#define FLASH_PTABLE_MAX_PARTS_V4 32
+#define FLASH_PTABLE_MAX_PARTS_V4 48
 #define FLASH_PTABLE_HDR_LEN (4*sizeof(uint32_t))
 #define FLASH_PTABLE_ENTRY_NAME_SIZE 16
 

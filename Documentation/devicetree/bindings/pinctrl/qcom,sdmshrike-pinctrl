@@ -50,7 +50,7 @@ sdmshrike platform.
 - dirconn-list:
 	Usage: optional
 	Value type: <prop-encoded-array>
-	Definition: a 3-tuple list which contains mapping of GPIO pin to
+	Definition: a 3-tuple list which contains the mapping of GPIO pin to
 		    hardware IRQ, and a boolean for enabling the TLMM direct
 		    connect interrupt for the pin.
 

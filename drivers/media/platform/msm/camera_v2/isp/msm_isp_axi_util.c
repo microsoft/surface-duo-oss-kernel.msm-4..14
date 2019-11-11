@@ -2409,14 +2409,14 @@ int msm_isp_drop_frame(struct vfe_device *vfe_dev,
 		/*this notify is per ping and pong buffer*/
 		done_buf->is_drop_reconfig = 1;
 		stream_info->current_framedrop_period = 1;
-		/*Avoid Multiple request frames for single SOF*/
-		vfe_dev->axi_data.src_info[VFE_PIX_0].accept_frame = false;
 
 		if (stream_info->current_framedrop_period !=
 			stream_info->requested_framedrop_period) {
 			msm_isp_cfg_framedrop_reg(stream_info);
 		}
 	}
+	/* Avoid Multiple request frames for single SOF */
+	vfe_dev->axi_data.src_info[VFE_PIX_0].accept_frame = false;
 	spin_unlock_irqrestore(&stream_info->lock, flags);
 
 	/* if buf done will not come, we need to process it ourself */
@@ -3669,7 +3669,7 @@ static int msm_isp_return_empty_buffer(struct vfe_device *vfe_dev,
 	buf->buf_debug.put_state[buf->buf_debug.put_state_last] =
 		MSM_ISP_BUFFER_STATE_DROP_REG;
 	buf->buf_debug.put_state_last ^= 1;
-	rc = vfe_dev->buf_mgr->ops->buf_done(vfe_dev->buf_mgr,
+	rc = vfe_dev->buf_mgr->ops->buf_err(vfe_dev->buf_mgr,
 		buf->bufq_handle, buf->buf_idx,
 		&timestamp.buf_time, frame_id,
 		stream_info->runtime_output_format);
