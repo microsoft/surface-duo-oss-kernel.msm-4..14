@@ -481,6 +481,21 @@ int mhi_driver_register(struct mhi_driver *mhi_drv);
 void mhi_driver_unregister(struct mhi_driver *mhi_drv);
 
 /**
+ * mhi_device_configure - Configure ECA or CCA context. For offload channels
+ *                        that the client manages, call this function to
+ *                        configure channel context or event context array
+ *                        associated with the channel
+ * @mhi_div: Device associated with the channels
+ * @dir: Direction of the channel
+ * @mhi_buf: Configuration data
+ * @elements: # of configuration elements
+ */
+int mhi_device_configure(struct mhi_device *mhi_div,
+			 enum dma_data_direction dir,
+			 struct mhi_buf *mhi_buf,
+			 int elements);
+
+/**
  * mhi_device_get - Disable device low power mode
  * @mhi_dev: Device associated with the channel
  */
@@ -498,6 +513,41 @@ int mhi_device_get_sync(struct mhi_device *mhi_dev);
  * @mhi_dev: Device associated with the channel
  */
 void mhi_device_put(struct mhi_device *mhi_dev);
+
+/**
+ * mhi_prepare_for_transfer - Setup channel for data transfer
+ * @mhi_dev: Device associated with the channels
+ */
+int mhi_prepare_for_transfer(struct mhi_device *mhi_dev);
+
+/**
+ * mhi_unprepare_from_transfer - Unprepare the channels
+ * @mhi_dev: Device associated with the channels
+ */
+void mhi_unprepare_from_transfer(struct mhi_device *mhi_dev);
+
+/**
+ * mhi_get_no_free_descriptors - Get the # of TDs available to queue buffers
+ * @mhi_dev: Device associated with the channels
+ * @dir: Direction of the channel
+ */
+int mhi_get_no_free_descriptors(struct mhi_device *mhi_dev,
+				enum dma_data_direction dir);
+
+/**
+ * mhi_poll - Poll for any available data in DL direction
+ * @mhi_dev: Device associated with the channels
+ * @budget: # of events to process
+ */
+int mhi_poll(struct mhi_device *mhi_dev, u32 budget);
+
+/**
+ * mhi_ioctl - User space IOCTL support for MHI channels
+ * @mhi_dev: Device associated with the channels
+ * @cmd: IOCTL cmd
+ * @arg: Optional parameter, iotcl cmd specific
+ */
+long mhi_ioctl(struct mhi_device *mhi_dev, unsigned int cmd, unsigned long arg);
 
 /**
  * mhi_alloc_controller - Allocate mhi_controller structure.
