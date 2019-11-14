@@ -19,6 +19,8 @@ struct mhi_chan;
 struct mhi_event;
 struct mhi_ctxt;
 struct mhi_cmd;
+struct image_info;
+struct bhi_vec_entry;
 struct mhi_buf_info;
 
 /**
@@ -59,6 +61,17 @@ enum mhi_device_type {
 	MHI_DEVICE_XFER,
 	MHI_DEVICE_TIMESYNC,
 	MHI_DEVICE_CONTROLLER,
+};
+
+/**
+ * struct image_info - Firmware and RDDM table table
+ * @mhi_buf - Buffer for firmware and RDDM table
+ * @entries - # of entries in table
+ */
+struct image_info {
+	struct mhi_buf *mhi_buf;
+	struct bhi_vec_entry *bhi_vec;
+	u32 entries;
 };
 
 /**
@@ -211,6 +224,9 @@ struct mhi_controller_config {
  * @dev_id: Device ID of the controller
  * @bus_id: Physical bus instance used by the controller
  * @regs: Base address of MHI MMIO register space
+ * @bhi: Points to base of MHI BHI register space
+ * @bhie: Points to base of MHI BHIe register space
+ * @wake_db: MHI WAKE doorbell register address
  * @iova_start: IOMMU starting address for data
  * @iova_stop: IOMMU stop address for data
  * @fw_image: Firmware image name for normal booting
@@ -219,6 +235,8 @@ struct mhi_controller_config {
  * @rddm_size: RAM dump size that host should allocate for debugging purpose
  * @sbl_size: SBL image size
  * @seg_len: BHIe vector size
+ * @fbc_image: Points to firmware image buffer
+ * @rddm_image: Points to RAM dump buffer
  * @max_chan: Maximum number of channels the controller supports
  * @mhi_chan: Points to the channel configuration table
  * @lpm_chans: List of channels that require LPM notifications
@@ -272,6 +290,9 @@ struct mhi_controller {
 	u32 dev_id;
 	u32 bus_id;
 	void __iomem *regs;
+	void __iomem *bhi;
+	void __iomem *bhie;
+	void __iomem *wake_db;
 	dma_addr_t iova_start;
 	dma_addr_t iova_stop;
 	const char *fw_image;
@@ -280,6 +301,8 @@ struct mhi_controller {
 	size_t rddm_size;
 	size_t sbl_size;
 	size_t seg_len;
+	struct image_info *fbc_image;
+	struct image_info *rddm_image;
 	u32 max_chan;
 	struct mhi_chan *mhi_chan;
 	struct list_head lpm_chans;
@@ -337,6 +360,8 @@ struct mhi_controller {
  * struct mhi_device - Structure representing a MHI device which binds
  *                     to channels
  * @dev: Driver model device node for the MHI device
+ * @ul_chan_id: MHI channel id for UL transfer
+ * @dl_chan_id: MHI channel id for DL transfer
  * @tiocm: Device current terminal settings
  * @id: Pointer to MHI device ID struct
  * @chan_name: Name of the channel to which the device binds
@@ -348,6 +373,8 @@ struct mhi_controller {
  */
 struct mhi_device {
 	struct device dev;
+	int ul_chan_id;
+	int dl_chan_id;
 	u32 tiocm;
 	const struct mhi_device_id *id;
 	const char *chan_name;
@@ -370,6 +397,22 @@ struct mhi_result {
 	enum dma_data_direction dir;
 	size_t bytes_xferd;
 	int transaction_status;
+};
+
+/**
+ * struct mhi_buf - MHI Buffer description
+ * @buf: Virtual address of the buffer
+ * @dma_addr: IOMMU address of the buffer
+ * @len: # of bytes
+ * @name: Buffer label. For offload channel, configurations name must be:
+ *        ECA - Event context array data
+ *        CCA - Channel context array data
+ */
+struct mhi_buf {
+	void *buf;
+	dma_addr_t dma_addr;
+	size_t len;
+	const char *name;
 };
 
 /**
@@ -438,6 +481,25 @@ int mhi_driver_register(struct mhi_driver *mhi_drv);
 void mhi_driver_unregister(struct mhi_driver *mhi_drv);
 
 /**
+ * mhi_device_get - Disable device low power mode
+ * @mhi_dev: Device associated with the channel
+ */
+void mhi_device_get(struct mhi_device *mhi_dev);
+
+/**
+ * mhi_device_get_sync - Disable device low power mode. Synchronously
+ *                       take the controller out of suspended state
+ * @mhi_dev: Device associated with the channel
+ */
+int mhi_device_get_sync(struct mhi_device *mhi_dev);
+
+/**
+ * mhi_device_put - Re-enable device low power mode
+ * @mhi_dev: Device associated with the channel
+ */
+void mhi_device_put(struct mhi_device *mhi_dev);
+
+/**
  * mhi_alloc_controller - Allocate mhi_controller structure.
  */
 struct mhi_controller *mhi_alloc_controller(void);
@@ -466,5 +528,73 @@ int mhi_register_controller(struct mhi_controller *mhi_cntrl,
  * @mhi_cntrl: MHI controller to unregister
  */
 void mhi_unregister_controller(struct mhi_controller *mhi_cntrl);
+
+/**
+ * mhi_get_controller - Look up a registered controller
+ * @dev_name: Device name to lookup
+ */
+struct mhi_controller *mhi_get_controller(const char *dev_name);
+
+/**
+ * mhi_prepare_for_power_up - Do pre-initialization before power up.
+ *                            This is optional, call this before power up if
+ *                            the controller does not want bus framework to
+ *                            automatically free any allocated memory during
+ *                            shutdown process.
+ * @mhi_cntrl: MHI controller
+ */
+int mhi_prepare_for_power_up(struct mhi_controller *mhi_cntrl);
+
+/**
+ * mhi_async_power_up - Start MHI power up sequence
+ * @mhi_cntrl: MHI controller
+ */
+int mhi_async_power_up(struct mhi_controller *mhi_cntrl);
+
+/**
+ * mhi_sync_power_up - Start MHI power up sequence and wait till the device
+ *                     device enters valid EE state
+ * @mhi_cntrl: MHI controller
+ */
+int mhi_sync_power_up(struct mhi_controller *mhi_cntrl);
+
+/**
+ * mhi_power_down - Start MHI power down sequence
+ * @mhi_cntrl: MHI controller
+ * @graceful: Link is still accessible, so do a graceful shutdown process
+ */
+void mhi_power_down(struct mhi_controller *mhi_cntrl, bool graceful);
+
+/**
+ * mhi_unprepare_after_power_down - Free any allocated memory after power down
+ * @mhi_cntrl: MHI controller
+ */
+void mhi_unprepare_after_power_down(struct mhi_controller *mhi_cntrl);
+
+/**
+ * mhi_pm_suspend - Move MHI into a suspended state
+ * @mhi_cntrl: MHI controller
+ */
+int mhi_pm_suspend(struct mhi_controller *mhi_cntrl);
+
+/**
+ * mhi_pm_resume - Resume MHI from suspended state
+ * @mhi_cntrl: MHI controller
+ */
+int mhi_pm_resume(struct mhi_controller *mhi_cntrl);
+
+/**
+ * mhi_download_rddm_img - Download ramdump image from device for
+ *                         debugging purpose.
+ * @mhi_cntrl: MHI controller
+ * @in_panic: Download rddm image during kernel panic
+ */
+int mhi_download_rddm_img(struct mhi_controller *mhi_cntrl, bool in_panic);
+
+/**
+ * mhi_force_rddm_mode - Force device into rddm mode
+ * @mhi_cntrl: MHI controller
+ */
+int mhi_force_rddm_mode(struct mhi_controller *mhi_cntrl);
 
 #endif /* _MHI_H_ */
