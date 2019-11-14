@@ -1,0 +1,6 @@
+#
+# Makefile for the MHI stack
+#
+
+# core layer
+obj-y += core/
