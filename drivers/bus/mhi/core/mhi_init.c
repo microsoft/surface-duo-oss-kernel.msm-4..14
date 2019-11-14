@@ -538,6 +538,66 @@ int mhi_init_chan_ctxt(struct mhi_controller *mhi_cntrl,
 	return 0;
 }
 
+int mhi_device_configure(struct mhi_device *mhi_dev,
+			 enum dma_data_direction dir,
+			 struct mhi_buf *cfg_tbl,
+			 int elements)
+{
+	struct mhi_controller *mhi_cntrl = mhi_dev->mhi_cntrl;
+	struct mhi_chan *mhi_chan;
+	struct mhi_event_ctxt *er_ctxt;
+	struct mhi_chan_ctxt *ch_ctxt;
+	int er_index, chan;
+
+	switch (dir) {
+	case DMA_TO_DEVICE:
+		mhi_chan = mhi_dev->ul_chan;
+		break;
+	case DMA_BIDIRECTIONAL:
+	case DMA_FROM_DEVICE:
+	case DMA_NONE:
+		mhi_chan = mhi_dev->dl_chan;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	er_index = mhi_chan->er_index;
+	chan = mhi_chan->chan;
+
+	for (; elements > 0; elements--, cfg_tbl++) {
+		/* update event context array */
+		if (!strcmp(cfg_tbl->name, "ECA")) {
+			er_ctxt = &mhi_cntrl->mhi_ctxt->er_ctxt[er_index];
+			if (sizeof(*er_ctxt) != cfg_tbl->len) {
+				dev_err(mhi_cntrl->dev,
+					"Invalid ECA size, expected:%zu actual%zu\n",
+					sizeof(*er_ctxt), cfg_tbl->len);
+				return -EINVAL;
+			}
+			memcpy((void *)er_ctxt, cfg_tbl->buf, sizeof(*er_ctxt));
+			continue;
+		}
+
+		/* update channel context array */
+		if (!strcmp(cfg_tbl->name, "CCA")) {
+			ch_ctxt = &mhi_cntrl->mhi_ctxt->chan_ctxt[chan];
+			if (cfg_tbl->len != sizeof(*ch_ctxt)) {
+				dev_err(mhi_cntrl->dev,
+					"Invalid CCA size, expected:%zu actual:%zu\n",
+					sizeof(*ch_ctxt), cfg_tbl->len);
+				return -EINVAL;
+			}
+			memcpy((void *)ch_ctxt, cfg_tbl->buf, sizeof(*ch_ctxt));
+			continue;
+		}
+
+		return -EINVAL;
+	}
+
+	return 0;
+}
+
 static int parse_ev_cfg(struct mhi_controller *mhi_cntrl,
 			struct mhi_controller_config *config)
 {
@@ -1013,6 +1073,8 @@ static int mhi_driver_probe(struct device *dev)
 	struct mhi_event *mhi_event;
 	struct mhi_chan *ul_chan = mhi_dev->ul_chan;
 	struct mhi_chan *dl_chan = mhi_dev->dl_chan;
+	bool auto_start = false;
+	int ret;
 
 	if (ul_chan) {
 		/*
@@ -1027,6 +1089,7 @@ static int mhi_driver_probe(struct device *dev)
 			return -EINVAL;
 
 		ul_chan->xfer_cb = mhi_drv->ul_xfer_cb;
+		auto_start = ul_chan->auto_start;
 	}
 
 	if (dl_chan) {
@@ -1052,10 +1115,18 @@ static int mhi_driver_probe(struct device *dev)
 			return -EINVAL;
 
 		dl_chan->xfer_cb = mhi_drv->dl_xfer_cb;
+
+		auto_start = (auto_start || dl_chan->auto_start);
 	}
 
 	/* Call the user provided probe function */
-	return mhi_drv->probe(mhi_dev, mhi_dev->id);
+	ret = mhi_drv->probe(mhi_dev, mhi_dev->id);
+
+	/* If this is an autostart channel, start the transfer */
+	if (!ret && auto_start)
+		mhi_prepare_for_transfer(mhi_dev);
+
+	return ret;
 }
 
 static int mhi_driver_remove(struct device *dev)
@@ -1093,6 +1164,10 @@ static int mhi_driver_remove(struct device *dev)
 		ch_state[dir] = mhi_chan->ch_state;
 		mhi_chan->ch_state = MHI_CH_STATE_DISABLED;
 		write_unlock_irq(&mhi_chan->lock);
+
+		/* Reset the non-offload channel */
+		if (!mhi_chan->offload_ch)
+			mhi_reset_chan(mhi_cntrl, mhi_chan);
 	}
 
 	mhi_drv->remove(mhi_dev);
