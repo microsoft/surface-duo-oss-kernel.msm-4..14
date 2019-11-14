@@ -11,3 +11,5 @@ config MHI_BUS
 	 Driver for MHI protocol. Modem Host Interface (MHI) is a communication
 	 protocol used by the host processors to control and communicate with
 	 modem devices over a high speed peripheral bus or shared memory.
+
+source "drivers/bus/mhi/controllers/Kconfig"
