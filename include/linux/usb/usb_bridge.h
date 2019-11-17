@@ -17,12 +17,30 @@
 #include <linux/netdevice.h>
 #include <linux/usb.h>
 
-#define MAX_BRIDGE_DEVICES 4
-#define BRIDGE_NAME_MAX_LEN 20
+#define MAX_INST_NAME_LEN 40
+
+enum bridge_id {
+	USB_BRIDGE_QDSS,
+	USB_BRIDGE_DPL,
+	MAX_BRIDGE_DEVICES,
+};
+
+static int bridge_name_to_id(const char *name)
+{
+	if (!name)
+		goto fail;
+
+	if (!strncasecmp(name, "qdss", MAX_INST_NAME_LEN))
+		return USB_BRIDGE_QDSS;
+	if (!strncasecmp(name, "dpl", MAX_INST_NAME_LEN))
+		return USB_BRIDGE_DPL;
+
+fail:
+	return -EINVAL;
+}
 
 struct bridge_ops {
 	int (*send_pkt)(void *, void *, size_t actual);
-	void (*send_cbits)(void *, unsigned int);
 
 	/* flow control */
 	void (*unthrottle_tx)(void *);
@@ -85,8 +103,8 @@ struct timestamp_buf {
 	rwlock_t	lck;   /* lock */
 };
 
-#if defined(CONFIG_USB_QCOM_MDM_BRIDGE) ||	\
-	defined(CONFIG_USB_QCOM_MDM_BRIDGE_MODULE)
+#if defined(CONFIG_USB_QTI_MDM_DATA_BRIDGE) ||	\
+	defined(CONFIG_USB_QTI_MDM_DATA_BRIDGE_MODULE)
 
 /* Bridge APIs called by gadget driver */
 int data_bridge_open(struct bridge *brdg);
