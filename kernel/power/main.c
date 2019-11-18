@@ -500,6 +500,10 @@ static ssize_t state_store(struct kobject *kobj, struct kobj_attribute *attr,
 			state = mem_sleep_current;
 
 		error = pm_suspend(state);
+		if(error == -EOPNOTSUPP){
+			error = 0;
+		printk(KERN_ERR "PM: suspend is failed \n");
+	}
 	} else if (state == PM_SUSPEND_MAX) {
 		error = hibernate();
 	} else {
