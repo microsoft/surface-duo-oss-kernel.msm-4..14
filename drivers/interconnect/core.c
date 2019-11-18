@@ -498,6 +498,9 @@ int icc_set_bw(struct icc_path *path, u32 avg_bw, u32 peak_bw)
 	if (!path || !path->num_nodes)
 		return 0;
 
+	if (WARN_ON(IS_ERR(path)))
+		return -EINVAL;
+
 	mutex_lock(&icc_lock);
 
 	old_avg = path->reqs[0].avg_bw;
