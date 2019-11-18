@@ -4,6 +4,7 @@
 #include <linux/list.h>
 #include <linux/mutex.h>
 #include <linux/phylink.h>
+#include <linux/property.h>
 #include <linux/rtnetlink.h>
 #include <linux/slab.h>
 
@@ -328,10 +329,19 @@ static void sfp_bus_release(struct kref *kref)
 	kfree(bus);
 }
 
-static void sfp_bus_put(struct sfp_bus *bus)
+/**
+ * sfp_bus_put() - put a reference on the &struct sfp_bus
+ * @bus: the &struct sfp_bus found via sfp_bus_find_fwnode()
+ *
+ * Put a reference on the &struct sfp_bus and free the underlying structure
+ * if this was the last reference.
+ */
+void sfp_bus_put(struct sfp_bus *bus)
 {
-	kref_put_mutex(&bus->kref, sfp_bus_release, &sfp_mutex);
+	if (bus)
+		kref_put_mutex(&bus->kref, sfp_bus_release, &sfp_mutex);
 }
+EXPORT_SYMBOL_GPL(sfp_bus_put);
 
 static int sfp_register_bus(struct sfp_bus *bus)
 {
@@ -347,11 +357,11 @@ static int sfp_register_bus(struct sfp_bus *bus)
 				return ret;
 		}
 	}
+	bus->registered = true;
 	bus->socket_ops->attach(bus->sfp);
 	if (bus->started)
 		bus->socket_ops->start(bus->sfp);
 	bus->upstream_ops->attach(bus->upstream, bus);
-	bus->registered = true;
 	return 0;
 }
 
@@ -445,64 +455,111 @@ static void sfp_upstream_clear(struct sfp_bus *bus)
 }
 
 /**
- * sfp_register_upstream() - Register the neighbouring device
- * @fwnode: firmware node for the SFP bus
- * @upstream: the upstream private data
- * @ops: the upstream's &struct sfp_upstream_ops
+ * sfp_bus_find_fwnode() - parse and locate the SFP bus from fwnode
+ * @fwnode: firmware node for the parent device (MAC or PHY)
  *
- * Register the upstream device (eg, PHY) with the SFP bus. MAC drivers
- * should use phylink, which will call this function for them. Returns
- * a pointer to the allocated &struct sfp_bus.
+ * Parse the parent device's firmware node for a SFP bus, and locate
+ * the sfp_bus structure, incrementing its reference count.  This must
+ * be put via sfp_bus_put() when done.
  *
- * On error, returns %NULL.
+ * Returns: on success, a pointer to the sfp_bus structure,
+ *	    %NULL if no SFP is specified,
+ * 	    on failure, an error pointer value:
+ * 		corresponding to the errors detailed for
+ * 		fwnode_property_get_reference_args().
+ * 	        %-ENOMEM if we failed to allocate the bus.
+ *		an error from the upstream's connect_phy() method.
  */
-struct sfp_bus *sfp_register_upstream(struct fwnode_handle *fwnode,
-				      void *upstream,
-				      const struct sfp_upstream_ops *ops)
+struct sfp_bus *sfp_bus_find_fwnode(struct fwnode_handle *fwnode)
 {
-	struct sfp_bus *bus = sfp_bus_get(fwnode);
-	int ret = 0;
+	struct fwnode_reference_args ref;
+	struct sfp_bus *bus;
+	int ret;
 
-	if (bus) {
-		rtnl_lock();
-		bus->upstream_ops = ops;
-		bus->upstream = upstream;
+	ret = fwnode_property_get_reference_args(fwnode, "sfp", NULL,
+						 0, 0, &ref);
+	if (ret == -ENOENT)
+		return NULL;
+	else if (ret < 0)
+		return ERR_PTR(ret);
 
-		if (bus->sfp) {
-			ret = sfp_register_bus(bus);
-			if (ret)
-				sfp_upstream_clear(bus);
-		}
-		rtnl_unlock();
-	}
-
-	if (ret) {
-		sfp_bus_put(bus);
-		bus = NULL;
-	}
+	bus = sfp_bus_get(ref.fwnode);
+	fwnode_handle_put(ref.fwnode);
+	if (!bus)
+		return ERR_PTR(-ENOMEM);
 
 	return bus;
 }
-EXPORT_SYMBOL_GPL(sfp_register_upstream);
+EXPORT_SYMBOL_GPL(sfp_bus_find_fwnode);
 
 /**
- * sfp_unregister_upstream() - Unregister sfp bus
- * @bus: a pointer to the &struct sfp_bus structure for the sfp module
+ * sfp_bus_add_upstream() - parse and register the neighbouring device
+ * @bus: the &struct sfp_bus found via sfp_bus_find_fwnode()
+ * @upstream: the upstream private data
+ * @ops: the upstream's &struct sfp_upstream_ops
  *
- * Unregister a previously registered upstream connection for the SFP
- * module. @bus is returned from sfp_register_upstream().
+ * Add upstream driver for the SFP bus, and if the bus is complete, register
+ * the SFP bus using sfp_register_upstream().  This takes a reference on the
+ * bus, so it is safe to put the bus after this call.
+ *
+ * Returns: on success, a pointer to the sfp_bus structure,
+ *	    %NULL if no SFP is specified,
+ * 	    on failure, an error pointer value:
+ * 		corresponding to the errors detailed for
+ * 		fwnode_property_get_reference_args().
+ * 	        %-ENOMEM if we failed to allocate the bus.
+ *		an error from the upstream's connect_phy() method.
  */
-void sfp_unregister_upstream(struct sfp_bus *bus)
+int sfp_bus_add_upstream(struct sfp_bus *bus, void *upstream,
+			 const struct sfp_upstream_ops *ops)
 {
+	int ret;
+
+	/* If no bus, return success */
+	if (!bus)
+		return 0;
+
 	rtnl_lock();
-	if (bus->sfp)
-		sfp_unregister_bus(bus);
-	sfp_upstream_clear(bus);
+	kref_get(&bus->kref);
+	bus->upstream_ops = ops;
+	bus->upstream = upstream;
+
+	if (bus->sfp) {
+		ret = sfp_register_bus(bus);
+		if (ret)
+			sfp_upstream_clear(bus);
+	} else {
+		ret = 0;
+	}
 	rtnl_unlock();
 
-	sfp_bus_put(bus);
+	if (ret)
+		sfp_bus_put(bus);
+
+	return ret;
 }
-EXPORT_SYMBOL_GPL(sfp_unregister_upstream);
+EXPORT_SYMBOL_GPL(sfp_bus_add_upstream);
+
+/**
+ * sfp_bus_del_upstream() - Delete a sfp bus
+ * @bus: a pointer to the &struct sfp_bus structure for the sfp module
+ *
+ * Delete a previously registered upstream connection for the SFP
+ * module. @bus should have been added by sfp_bus_add_upstream().
+ */
+void sfp_bus_del_upstream(struct sfp_bus *bus)
+{
+	if (bus) {
+		rtnl_lock();
+		if (bus->sfp)
+			sfp_unregister_bus(bus);
+		sfp_upstream_clear(bus);
+		rtnl_unlock();
+
+		sfp_bus_put(bus);
+	}
+}
+EXPORT_SYMBOL_GPL(sfp_bus_del_upstream);
 
 /* Socket driver entry points */
 int sfp_add_phy(struct sfp_bus *bus, struct phy_device *phydev)
