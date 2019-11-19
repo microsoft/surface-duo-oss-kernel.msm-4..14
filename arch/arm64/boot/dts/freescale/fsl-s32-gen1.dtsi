@@ -649,8 +649,9 @@
 		interrupt-parent = <&gic>;
 		interrupts = <0 57 4>;
 		interrupt-names = "macirq";
-		clocks = <&clks S32GEN1_CLK_XBAR>, <&clks S32GEN1_CLK_XBAR>;
-		clock-names = "stmmaceth", "pclk";
+		clocks = <&clks S32GEN1_CLK_XBAR>, <&clks S32GEN1_CLK_XBAR>,
+			     <&clks S32GEN1_CLK_GMAC_TX>;
+		clock-names = "stmmaceth", "pclk", "tx";
 		phy-mode = "rgmii";
 		phy-handle = <&phy4>;
 		mdio0 {
