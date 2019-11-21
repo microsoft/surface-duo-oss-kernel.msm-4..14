@@ -1737,7 +1737,8 @@ static void _sde_crtc_program_lm_output_roi(struct drm_crtc *crtc)
 	struct sde_crtc_state *crtc_state;
 	const struct sde_rect *lm_roi;
 	struct sde_hw_mixer *hw_lm;
-	int lm_idx, lm_horiz_position;
+	bool right_mixer = false;
+	int lm_idx;
 
 	if (!crtc)
 		return;
@@ -1745,26 +1746,27 @@ static void _sde_crtc_program_lm_output_roi(struct drm_crtc *crtc)
 	sde_crtc = to_sde_crtc(crtc);
 	crtc_state = to_sde_crtc_state(crtc->state);
 
-	lm_horiz_position = 0;
 	for (lm_idx = 0; lm_idx < sde_crtc->num_mixers; lm_idx++) {
 		struct sde_hw_mixer_cfg cfg;
 
 		lm_roi = &crtc_state->lm_roi[lm_idx];
 		hw_lm = sde_crtc->mixers[lm_idx].hw_lm;
+		right_mixer = lm_idx % CRTC_DUAL_MIXERS;
 
 		SDE_EVT32(DRMID(crtc_state->base.crtc), lm_idx,
-			lm_roi->x, lm_roi->y, lm_roi->w, lm_roi->h);
+				lm_roi->x, lm_roi->y, lm_roi->w, lm_roi->h,
+				right_mixer);
 
 		if (sde_kms_rect_is_null(lm_roi))
 			continue;
 
 		hw_lm->cfg.out_width = lm_roi->w;
 		hw_lm->cfg.out_height = lm_roi->h;
-		hw_lm->cfg.right_mixer = lm_horiz_position;
+		hw_lm->cfg.right_mixer = right_mixer;
 
 		cfg.out_width = lm_roi->w;
 		cfg.out_height = lm_roi->h;
-		cfg.right_mixer = lm_horiz_position++;
+		cfg.right_mixer = right_mixer;
 		cfg.flags = 0;
 		hw_lm->ops.setup_mixer_out(hw_lm, &cfg);
 	}
@@ -1861,6 +1863,7 @@ static int _sde_crtc_validate_src_split_order(struct drm_crtc *crtc,
 	struct sde_kms *sde_kms;
 	int32_t left_pid, right_pid;
 	int32_t stage;
+	int32_t left_layout, right_layout;
 	int i, rc = 0;
 
 	sde_kms = _sde_crtc_get_kms(crtc);
@@ -1874,6 +1877,14 @@ static int _sde_crtc_validate_src_split_order(struct drm_crtc *crtc,
 		cur_pstate = &pstates[i];
 
 		if (prv_pstate->stage != cur_pstate->stage)
+			continue;
+
+		left_layout = sde_plane_get_property(prv_pstate->sde_pstate,
+				PLANE_PROP_LAYOUT);
+		right_layout = sde_plane_get_property(cur_pstate->sde_pstate,
+				PLANE_PROP_LAYOUT);
+
+		if (left_layout != right_layout)
 			continue;
 
 		stage = cur_pstate->stage;
@@ -2013,8 +2024,8 @@ static void _sde_crtc_blend_setup_mixer(struct drm_crtc *crtc,
 	struct sde_hw_stage_cfg *stage_cfg;
 	struct sde_rect plane_crtc_roi;
 	uint32_t prefill;
-	uint32_t stage_idx, lm_idx;
-	int zpos_cnt[SDE_STAGE_MAX + 1] = { 0 };
+	uint32_t stage_idx, lm_idx, layout_idx;
+	int zpos_cnt[CRTC_DUAL_MIXERS][SDE_STAGE_MAX + 1] = { { 0 } };
 	int i, rot_id = 0, cnt = 0;
 	bool bg_alpha_enable = false;
 
@@ -2025,7 +2036,6 @@ static void _sde_crtc_blend_setup_mixer(struct drm_crtc *crtc,
 
 	ctl = mixer->hw_ctl;
 	lm = mixer->hw_lm;
-	stage_cfg = &sde_crtc->stage_cfg;
 	cstate = to_sde_crtc_state(crtc->state);
 
 	cstate->sbuf_prefill_line = _sde_crtc_calc_inline_prefill(crtc);
@@ -2091,7 +2101,10 @@ static void _sde_crtc_blend_setup_mixer(struct drm_crtc *crtc,
 				state->crtc_w, state->crtc_h,
 				rot_id != 0);
 
-		stage_idx = zpos_cnt[pstate->stage]++;
+		layout_idx = (sde_plane_get_property(pstate,
+				PLANE_PROP_LAYOUT) > SDE_LAYOUT_LEFT);
+		stage_cfg = &sde_crtc->stage_cfg[layout_idx];
+		stage_idx = zpos_cnt[layout_idx][pstate->stage]++;
 		stage_cfg->stage[pstate->stage][stage_idx] =
 					sde_plane_pipe(plane);
 		stage_cfg->multirect_index[pstate->stage][stage_idx] =
@@ -2121,6 +2134,8 @@ static void _sde_crtc_blend_setup_mixer(struct drm_crtc *crtc,
 		pstates[cnt].drm_pstate = state;
 		pstates[cnt].stage = sde_plane_get_property(
 				pstates[cnt].sde_pstate, PLANE_PROP_ZPOS);
+		/* combine stage with layout to simplify src split cfg */
+		pstates[cnt].stage = (pstates[cnt].stage << 1) | layout_idx;
 		pstates[cnt].pipe_id = sde_plane_pipe(plane);
 
 		cnt++;
@@ -2258,7 +2273,12 @@ static void _sde_crtc_blend_setup(struct drm_crtc *crtc,
 	_sde_crtc_swap_mixers_for_right_partial_update(crtc);
 
 	/* initialize stage cfg */
-	memset(&sde_crtc->stage_cfg, 0, sizeof(struct sde_hw_stage_cfg));
+	if (sde_crtc->num_mixers > 2)
+		memset(&sde_crtc->stage_cfg, 0,
+				sizeof(sde_crtc->stage_cfg));
+	else
+		memset(&sde_crtc->stage_cfg, 0,
+				sizeof(struct sde_hw_stage_cfg));
 
 	if (add_planes)
 		_sde_crtc_blend_setup_mixer(crtc, old_state, sde_crtc, mixer);
@@ -2290,7 +2310,7 @@ static void _sde_crtc_blend_setup(struct drm_crtc *crtc,
 			cfg.pending_flush_mask);
 
 		ctl->ops.setup_blendstage(ctl, mixer[i].hw_lm->idx,
-			&sde_crtc->stage_cfg);
+				&sde_crtc->stage_cfg[i >> 1]);
 	}
 
 	_sde_crtc_program_lm_output_roi(crtc);
