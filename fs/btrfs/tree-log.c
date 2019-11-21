@@ -2731,9 +2731,8 @@ static noinline int walk_down_log_tree(struct btrfs_trans_handle *trans,
 
 				WARN_ON(root_owner !=
 					BTRFS_TREE_LOG_OBJECTID);
-				ret = btrfs_free_and_pin_reserved_extent(
-							fs_info, bytenr,
-							blocksize);
+				ret = btrfs_pin_reserved_extent(fs_info,
+							bytenr, blocksize);
 				if (ret) {
 					free_extent_buffer(next);
 					return ret;
@@ -2814,8 +2813,7 @@ static noinline int walk_up_log_tree(struct btrfs_trans_handle *trans,
 				}
 
 				WARN_ON(root_owner != BTRFS_TREE_LOG_OBJECTID);
-				ret = btrfs_free_and_pin_reserved_extent(
-						fs_info,
+				ret = btrfs_pin_reserved_extent(fs_info,
 						path->nodes[*level]->start,
 						path->nodes[*level]->len);
 				if (ret)
@@ -2897,8 +2895,8 @@ static int walk_log_tree(struct btrfs_trans_handle *trans,
 
 			WARN_ON(log->root_key.objectid !=
 				BTRFS_TREE_LOG_OBJECTID);
-			ret = btrfs_free_and_pin_reserved_extent(fs_info,
-							next->start, next->len);
+			ret = btrfs_pin_reserved_extent(fs_info, next->start,
+							next->len);
 			if (ret)
 				goto out;
 		}
