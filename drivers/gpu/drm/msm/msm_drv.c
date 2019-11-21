@@ -501,7 +501,6 @@ static int msm_drm_init(struct device *dev, struct drm_driver *drv)
 	struct msm_kms *kms;
 	struct sde_dbg_power_ctrl dbg_power_ctrl = { 0 };
 	int ret, i;
-	struct sched_param param;
 
 	ddev = drm_dev_alloc(drv, dev);
 	if (!ddev) {
@@ -614,7 +613,6 @@ static int msm_drm_init(struct device *dev, struct drm_driver *drv)
 	 * realtime scheduling to process display updates and interact with
 	 * other real time and normal priority task
 	 */
-	param.sched_priority = 16;
 	for (i = 0; i < priv->num_crtcs; i++) {
 
 		/* initialize display thread */
@@ -625,11 +623,6 @@ static int msm_drm_init(struct device *dev, struct drm_driver *drv)
 			kthread_run(kthread_worker_fn,
 				&priv->disp_thread[i].worker,
 				"crtc_commit:%d", priv->disp_thread[i].crtc_id);
-		ret = sched_setscheduler(priv->disp_thread[i].thread,
-							SCHED_FIFO, &param);
-		if (ret)
-			pr_warn("display thread priority update failed: %d\n",
-									ret);
 
 		if (IS_ERR(priv->disp_thread[i].thread)) {
 			dev_err(dev, "failed to create crtc_commit kthread\n");
@@ -651,11 +644,6 @@ static int msm_drm_init(struct device *dev, struct drm_driver *drv)
 		 * frame_pending counters beyond 2. This can lead to commit
 		 * failure at crtc commit level.
 		 */
-		ret = sched_setscheduler(priv->event_thread[i].thread,
-							SCHED_FIFO, &param);
-		if (ret)
-			pr_warn("display event thread priority update failed: %d\n",
-									ret);
 
 		if (IS_ERR(priv->event_thread[i].thread)) {
 			dev_err(dev, "failed to create crtc_event kthread\n");
@@ -690,12 +678,6 @@ static int msm_drm_init(struct device *dev, struct drm_driver *drv)
 	kthread_init_worker(&priv->pp_event_worker);
 	priv->pp_event_thread = kthread_run(kthread_worker_fn,
 			&priv->pp_event_worker, "pp_event");
-
-	ret = sched_setscheduler(priv->pp_event_thread,
-						SCHED_FIFO, &param);
-	if (ret)
-		pr_warn("pp_event thread priority update failed: %d\n",
-								ret);
 
 	if (IS_ERR(priv->pp_event_thread)) {
 		dev_err(dev, "failed to create pp_event kthread\n");
