@@ -3250,10 +3250,15 @@ out:
 		if ((ret || !logical_len) &&
 		    clear_reserved_extent &&
 		    !test_bit(BTRFS_ORDERED_NOCOW, &ordered_extent->flags) &&
-		    !test_bit(BTRFS_ORDERED_PREALLOC, &ordered_extent->flags))
+		    !test_bit(BTRFS_ORDERED_PREALLOC, &ordered_extent->flags)) {
 			btrfs_free_reserved_extent(fs_info,
 						   ordered_extent->start,
 						   ordered_extent->disk_len, 1);
+			if (ret && btrfs_test_opt(fs_info, DISCARD))
+				btrfs_discard_extent(fs_info,
+						ordered_extent->start,
+						ordered_extent->disk_len, NULL);
+		}
 	}
 
 
