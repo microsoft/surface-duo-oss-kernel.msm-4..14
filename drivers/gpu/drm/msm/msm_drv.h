@@ -460,6 +460,7 @@ struct msm_mode_info {
 	bool wide_bus_en;
 	u32 mdp_transfer_time_us;
 	u32 vpadding;
+	bool wide_lm_enabled;
 };
 
 /**
