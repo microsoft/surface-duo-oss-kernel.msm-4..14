@@ -2863,6 +2863,9 @@ void dwc3_stop_active_transfer(struct dwc3_ep *dep, bool force,
 	WARN_ON_ONCE(ret);
 	dep->resource_index = 0;
 
+        if (!interrupt)
+                dep->flags &= ~DWC3_EP_TRANSFER_STARTED;
+
 	/*
 	 * when transfer is stopped with force rm bit false, it can be
 	 * restarted by passing resource_index in params; don't loose it
