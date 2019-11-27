@@ -650,6 +650,8 @@
 		interrupt-parent = <&gic>;
 		interrupts = <0 57 4>;
 		interrupt-names = "macirq";
+		tx-fifo-depth = <20480>;
+		rx-fifo-depth = <20480>;
 		clocks = <&clks S32GEN1_CLK_XBAR>, <&clks S32GEN1_CLK_XBAR>,
 			     <&clks S32GEN1_CLK_GMAC_TX>;
 		clock-names = "stmmaceth", "pclk", "tx";
