@@ -582,8 +582,12 @@ static int ath10k_qmi_host_cap_send_sync(struct ath10k_qmi *qmi)
 	struct wlfw_host_cap_resp_msg_v01 resp = {};
 	struct wlfw_host_cap_req_msg_v01 req = {};
 	struct ath10k *ar = qmi->ar;
+	struct ath10k_snoc *ar_snoc = ath10k_snoc_priv(ar);
 	struct qmi_txn txn;
 	int ret;
+
+	if (test_bit(ATH10K_SNOC_FLAG_SKIP_HOST_CAP_QUIRK, &ar_snoc->flags))
+		return 0;
 
 	req.daemon_support_valid = 1;
 	req.daemon_support = 0;
@@ -739,6 +743,7 @@ static void ath10k_qmi_event_server_arrive(struct ath10k_qmi *qmi)
 	if (ret)
 		return;
 
+	msleep(20);
 	ret = ath10k_qmi_setup_msa_permissions(qmi);
 	if (ret)
 		return;
