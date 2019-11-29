@@ -189,6 +189,7 @@ static const struct ath10k_hw_params ath10k_hw_params_list[] = {
 		.num_wds_entries = 0x20,
 		.uart_pin_workaround = true,
 		.tx_stats_over_pktlog = false,
+		.bmi_large_size_download = true,
 	},
 	{
 		.id = QCA6174_HW_2_1_VERSION,
@@ -711,18 +712,6 @@ static int ath10k_init_sdio(struct ath10k *ar, enum ath10k_firmware_mode mode)
 		param |= HI_ACS_FLAGS_SDIO_SWAP_MAILBOX_SET;
 
 	ret = ath10k_bmi_write32(ar, hi_acs_flags, param);
-	if (ret)
-		return ret;
-
-	/* Explicitly set fwlog prints to zero as target may turn it on
-	 * based on scratch registers.
-	 */
-	ret = ath10k_bmi_read32(ar, hi_option_flag, &param);
-	if (ret)
-		return ret;
-
-	param |= HI_OPTION_DISABLE_DBGLOG;
-	ret = ath10k_bmi_write32(ar, hi_option_flag, param);
 	if (ret)
 		return ret;
 
