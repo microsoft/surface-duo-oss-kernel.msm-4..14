@@ -155,6 +155,8 @@ static int sdw_program_slave_port_params(struct sdw_bus *bus,
 		addr6 = SDW_DPN_LANECTRL_B0(t_params->port_num);
 	}
 
+#if 0
+	//Do not program these for SDW_STREAM_PDM type
 	/* Program DPN_PortCtrl register */
 	wbuf = p_params->data_mode << SDW_REG_SHIFT(SDW_DPN_PORTCTRL_DATAMODE);
 	wbuf |= p_params->flow_mode;
@@ -176,6 +178,7 @@ static int sdw_program_slave_port_params(struct sdw_bus *bus,
 		return ret;
 	}
 
+#endif
 	/* Program DPN_SampleCtrl1 register */
 	wbuf = (t_params->sample_interval - 1) & SDW_DPN_SAMPLECTRL_LOW;
 	ret = sdw_write(s_rt->slave, addr3, wbuf);
@@ -689,9 +692,12 @@ static int sdw_bank_switch(struct sdw_bus *bus, int m_rt_count)
 	}
 
 	if (!multi_link) {
-		kfree(wr_msg);
-		kfree(wbuf);
-		bus->defer_msg.msg = NULL;
+		if (bus->defer_msg.msg) {
+			kfree(bus->defer_msg.msg->buf);
+			kfree(bus->defer_msg.msg);
+			bus->defer_msg.msg = NULL;
+		}
+
 		bus->params.curr_bank = !bus->params.curr_bank;
 		bus->params.next_bank = !bus->params.next_bank;
 	}
@@ -701,7 +707,11 @@ static int sdw_bank_switch(struct sdw_bus *bus, int m_rt_count)
 error:
 	kfree(wbuf);
 error_1:
-	kfree(wr_msg);
+	if (bus->defer_msg.msg) {
+		kfree(bus->defer_msg.msg);
+		bus->defer_msg.msg = NULL;
+	}
+
 	return ret;
 }
 
@@ -734,6 +744,7 @@ static int sdw_ml_sync_bank_switch(struct sdw_bus *bus)
 	if (bus->defer_msg.msg) {
 		kfree(bus->defer_msg.msg->buf);
 		kfree(bus->defer_msg.msg);
+		bus->defer_msg.msg = NULL;
 	}
 
 	return 0;
@@ -825,9 +836,11 @@ static int do_bank_switch(struct sdw_stream_runtime *stream)
 error:
 	list_for_each_entry(m_rt, &stream->master_list, stream_node) {
 		bus = m_rt->bus;
-
-		kfree(bus->defer_msg.msg->buf);
-		kfree(bus->defer_msg.msg);
+		if (bus->defer_msg.msg) {
+			kfree(bus->defer_msg.msg->buf);
+			kfree(bus->defer_msg.msg);
+			bus->defer_msg.msg = NULL;
+		}
 	}
 
 msg_unlock:
