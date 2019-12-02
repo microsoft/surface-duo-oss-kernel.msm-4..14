@@ -1182,15 +1182,8 @@ static int clk_rcg2_dp_set_rate_and_parent(struct clk_hw *hw,
 static int clk_rcg2_dp_determine_rate(struct clk_hw *hw,
 				struct clk_rate_request *req)
 {
-	struct clk_rate_request parent_req = *req;
-	int ret;
-
-	ret = __clk_determine_rate(clk_hw_get_parent(hw), &parent_req);
-	if (ret)
-		return ret;
-
-	req->best_parent_rate = parent_req.rate;
-
+	req->best_parent_rate = clk_hw_round_rate(req->best_parent_hw,
+						  req->best_parent_rate);
 	return 0;
 }
 
