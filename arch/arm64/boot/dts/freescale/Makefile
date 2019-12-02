@@ -27,6 +27,7 @@ dtb-$(CONFIG_ARCH_S32) += fsl-s32g275-simulator.dtb
 dtb-$(CONFIG_ARCH_S32) += fsl-s32g274a-emu.dtb
 dtb-$(CONFIG_ARCH_S32) += fsl-s32g274a-evb.dtb
 dtb-$(CONFIG_ARCH_S32) += fsl-s32r45x-simulator.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32r45x-emu.dtb
 dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-ccpb.dtb
 dtb-$(CONFIG_ARCH_S32) += fsl-s32v234sbc.dtb
 dtb-$(CONFIG_ARCH_FSL_LS2085A) += fsl-ls2085a-simu.dtb
