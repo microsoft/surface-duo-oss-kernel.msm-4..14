@@ -122,6 +122,36 @@
 &pinctrl0 {
 	status = "okay";
 	s32r45x-evb {
+		pinctrl0_dspi1: dspi1grp {
+			fsl,pins = <
+				S32_GEN1_PAD_PB6__SPI1_SOUT_OUT
+				S32_GEN1_PAD_PB5__SPI1_SIN_OUT
+				S32_GEN1_PAD_PB4__SPI1_SCK_OUT
+				S32_GEN1_PAD_PB7__SPI1_CS0_OUT
+				S32_GEN1_PAD_PB8__SPI1_CS1_OUT
+			>;
+		};
+
+		pinctrl0_dspi2: dspi2grp {
+			fsl,pins = <
+				S32_GEN1_PAD_PB13__SPI2_SOUT_OUT
+				S32_GEN1_PAD_PC01__SPI2_SIN_OUT
+				S32_GEN1_PAD_PB11__SPI2_SCK_OUT
+				S32_GEN1_PAD_PB14__SPI2_CS0_OUT
+				S32_GEN1_PAD_PB15__SPI2_CS1_OUT
+			>;
+		};
+
+		pinctrl0_dspi3: dspi3grp {
+			fsl,pins = <
+				S32_GEN1_PAD_PC13__SPI3_SOUT_OUT
+				S32_GEN1_PAD_PC6__SPI3_SIN_OUT
+				S32_GEN1_PAD_PC4__SPI3_SCK_OUT
+				S32_GEN1_PAD_PC7__SPI3_CS0_OUT
+				S32_GEN1_PAD_PC8__SPI3_CS1_OUT
+			>;
+		};
+
 		pinctrl_gpio0: gpiogrp0 {
 			fsl,pins = <
 				S32_GEN1_PAD_PA0__SIUL_GPIO0
@@ -234,6 +264,34 @@
 &pinctrl1 {
 	status = "okay";
 	s32r45x-evb {
+		pinctrl1_dspi1: dspi1grp {
+			fsl,pins = <
+				S32_GEN1_PAD_PB5__SPI1_SIN_IN
+			>;
+		};
+
+		pinctrl1_dspi2: dspi2grp {
+			fsl,pins = <
+				S32_GEN1_PAD_PC01__SPI2_SIN_IN
+			>;
+		};
+
+		pinctrl1_dspi3: dspi3grp {
+			fsl,pins = <
+				S32_GEN1_PAD_PC6__SPI3_SIN_IN
+			>;
+		};
+
+		pinctrl1_dspi5: dspi5grp {
+			fsl,pins = <
+				S32_GEN1_PAD_PK05__SPI5_SOUT_OUT
+				S32_GEN1_PAD_PK04__SPI5_SIN_OUT
+				S32_GEN1_PAD_PK04__SPI5_SIN_IN
+				S32_GEN1_PAD_PK00__SPI5_SCK_OUT
+				S32_GEN1_PAD_PK03__SPI5_CS0_OUT
+			>;
+		};
+
 		pinctrl_gpio1: gpiogrp1 {
 			fsl,pins = <
 				S32_GEN1_PAD_PG6__SIUL_GPIO102
@@ -322,21 +380,39 @@
 };
 
 &spi1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl0_dspi1>, <&pinctrl1_dspi1>;
 	status = "okay";
 };
 
 &spi2 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl0_dspi2>, <&pinctrl1_dspi2>;
 	status = "okay";
 };
 
 &spi3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl0_dspi3>, <&pinctrl1_dspi3>;
 	status = "okay";
-};
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
 
-&spi4 {
-	status = "okay";
+	spidev0: spidev@0 {
+		compatible = "spidev";
+		spi-max-frequency = <4000000>;
+		reg = <0>;
+	};
+
 };
 
 &spi5 {
+	pinctrl-names = "default";
+	pinctrl-0 =  <&pinctrl1_dspi5>;
 	status = "okay";
 };
+
+
+
+
