@@ -220,7 +220,8 @@ static void __init s32gen1_clocks_init(struct device_node *clocking_node)
 		"xbar", 1, 3);
 	clk[S32GEN1_CLK_XBAR_DIV4] = s32_clk_fixed_factor("xbar_div4",
 		"xbar", 1, 4);
-	clk[S32GEN1_CLK_SBSW] = s32_clk_fixed_factor("sbsw",
+
+	clk[S32GEN1_CLK_XBAR_DIV6] = s32_clk_fixed_factor("xbar_div6",
 		"xbar", 1, 6);
 
 	/* PERIPH_PLL */
