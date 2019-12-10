@@ -433,6 +433,73 @@ static void shd_display_complete(struct sde_kms *sde_kms,
 	}
 }
 
+static int shd_display_pm_suspend(struct device *dev)
+{
+	struct drm_device *ddev;
+	struct drm_crtc_state *crtc_state;
+	struct drm_connector_state *conn_state;
+	struct sde_kms *sde_kms;
+	struct shd_display_base *base;
+	struct drm_atomic_state *state;
+	struct drm_atomic_state *suspend_state;
+	int ret;
+
+	ret = g_shd_kms->orig_funcs->pm_suspend(dev);
+	if (ret)
+		return ret;
+
+	ddev = dev_get_drvdata(dev);
+	sde_kms = to_sde_kms(ddev_to_msm_kms(ddev));
+
+	state = drm_atomic_state_alloc(ddev);
+	if (!state)
+		return -ENOMEM;
+
+	suspend_state = sde_kms->suspend_state;
+
+	/* initialize connectors structure */
+	state->connectors = kcalloc(suspend_state->num_connector,
+			sizeof(*state->connectors), GFP_KERNEL);
+	if (!state->connectors) {
+		ret = -ENOMEM;
+		goto clear;
+	}
+	state->num_connector = suspend_state->num_connector;
+
+	/*
+	 * move base states to temp state and clear later
+	 */
+	list_for_each_entry(base, &g_base_list, head) {
+		crtc_state = drm_atomic_get_existing_crtc_state(
+			suspend_state, base->crtc);
+		if (crtc_state) {
+			int index = drm_crtc_index(base->crtc);
+
+			state->crtcs[index] =
+				suspend_state->crtcs[index];
+			memset(&suspend_state->crtcs[index],
+				0, sizeof(*suspend_state->crtcs));
+		}
+
+		conn_state = drm_atomic_get_existing_connector_state(
+			suspend_state, base->connector);
+		if (conn_state) {
+			int index = drm_connector_index(base->connector);
+
+			state->connectors[index] =
+				suspend_state->connectors[index];
+			memset(&suspend_state->connectors[index],
+				0, sizeof(*suspend_state->connectors));
+		}
+	}
+
+clear:
+	/* clear base states */
+	drm_atomic_state_put(state);
+
+	return ret;
+}
+
 static int shd_crtc_validate_shared_display(struct drm_crtc *crtc,
 		struct drm_crtc_state *state)
 {
@@ -1140,6 +1207,7 @@ static int shd_drm_base_init(struct drm_device *ddev,
 		g_shd_kms->orig_funcs = priv->kms->funcs;
 		g_shd_kms->funcs.prepare_commit = shd_display_prepare_commit;
 		g_shd_kms->funcs.complete_commit = shd_display_complete_commit;
+		g_shd_kms->funcs.pm_suspend = shd_display_pm_suspend;
 		priv->kms->funcs = &g_shd_kms->funcs;
 	}
 
