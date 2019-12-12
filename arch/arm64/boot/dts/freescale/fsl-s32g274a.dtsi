@@ -46,6 +46,19 @@
 		reg = <0x0 0x44018000 0x0 0x3000>;
 	};
 
+	pfe: ethernet@46080000 {
+		compatible = "fsl,s32g275-pfe";
+		reg = <0x0 0x46000000 0x0 0x1000000>;
+		interrupt-parent = <&gic>;
+		interrupts =  <0 190 1>, /* hif0 */
+		              <0 191 1>, /* hif1 */
+		              <0 192 1>, /* hif2 */
+		              <0 193 1>, /* hif3 */
+		              <0 194 1>; /* bmu */
+		interrupt-names = "hif0", "hif1", "hif2", "hif3",
+		                  "bmu";
+	};
+
 	siul2_0 {
 		compatible = "simple-mfd";
 		#address-cells = <2>;
