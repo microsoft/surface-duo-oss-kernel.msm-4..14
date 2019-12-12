@@ -94,7 +94,7 @@ config PCI_S32V234_IGNORE_ERR009852
 
 config PCI_DW_DMA
 	bool "Freescale S32V234 PCIe DW DMA"
-	depends on OF && (ARM || ARM64)
+	depends on OF && (ARM || ARM64) && PCI_S32V234
 	help
 	If you're using a S32V234 based board and want to use Internal DMA
 	engine in PCIe mode, you want this enabled.
