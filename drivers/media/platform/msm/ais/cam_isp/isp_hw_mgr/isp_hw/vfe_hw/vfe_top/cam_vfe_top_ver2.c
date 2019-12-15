@@ -283,6 +283,22 @@ static int cam_vfe_top_fs_update(
 	return 0;
 }
 
+static int cam_vfe_top_fps_config(
+	struct cam_vfe_top_ver2_priv *top_priv,
+	void *cmd_args, uint32_t arg_size)
+{
+	struct cam_vfe_fps_config_args *cmd_update = NULL;
+
+	cmd_update =
+		(struct cam_vfe_fps_config_args *)cmd_args;
+
+	if (cmd_update->node_res->process_cmd)
+		return cmd_update->node_res->process_cmd(cmd_update->node_res,
+			CAM_ISP_HW_CMD_FPS_CONFIG, cmd_args, arg_size);
+
+	return 0;
+}
+
 static int cam_vfe_top_clock_update(
 	struct cam_vfe_top_ver2_priv *top_priv,
 	void *cmd_args, uint32_t arg_size)
@@ -436,6 +452,19 @@ static int cam_vfe_top_mux_get_reg_update(
 			CAM_ISP_HW_CMD_GET_REG_UPDATE, cmd_args, arg_size);
 
 	return -EINVAL;
+}
+
+static int cam_vfe_get_irq_register_dump(
+	struct cam_vfe_top_ver2_priv *top_priv,
+	void *cmd_args, uint32_t arg_size)
+{
+	struct cam_isp_hw_get_cmd_update  *cmd_update = cmd_args;
+
+	if (cmd_update->res->process_cmd)
+		cmd_update->res->process_cmd(cmd_update->res,
+		CAM_ISP_HW_CMD_GET_IRQ_REGISTER_DUMP, cmd_args, arg_size);
+
+	return 0;
 }
 
 int cam_vfe_top_get_hw_caps(void *device_priv,
@@ -722,6 +751,14 @@ int cam_vfe_top_process_cmd(void *device_priv, uint32_t cmd_type,
 		break;
 	case CAM_ISP_HW_CMD_BW_CONTROL:
 		rc = cam_vfe_top_bw_control(top_priv, cmd_args, arg_size);
+		break;
+	case CAM_ISP_HW_CMD_GET_IRQ_REGISTER_DUMP:
+		rc = cam_vfe_get_irq_register_dump(top_priv,
+				cmd_args, arg_size);
+		break;
+	case CAM_ISP_HW_CMD_FPS_CONFIG:
+		rc = cam_vfe_top_fps_config(top_priv, cmd_args,
+			arg_size);
 		break;
 	default:
 		rc = -EINVAL;
