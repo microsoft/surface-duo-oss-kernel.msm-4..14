@@ -734,10 +734,10 @@ static int addrm_unknown_feature_attrs(struct btrfs_fs_info *fs_info, bool add)
 
 static void __btrfs_sysfs_remove_fsid(struct btrfs_fs_devices *fs_devs)
 {
-	if (fs_devs->device_dir_kobj) {
-		kobject_del(fs_devs->device_dir_kobj);
-		kobject_put(fs_devs->device_dir_kobj);
-		fs_devs->device_dir_kobj = NULL;
+	if (fs_devs->devices_kobj) {
+		kobject_del(fs_devs->devices_kobj);
+		kobject_put(fs_devs->devices_kobj);
+		fs_devs->devices_kobj = NULL;
 	}
 
 	if (fs_devs->fsid_kobj.state_initialized) {
@@ -969,15 +969,14 @@ int btrfs_sysfs_rm_device_link(struct btrfs_fs_devices *fs_devices,
 	struct hd_struct *disk;
 	struct kobject *disk_kobj;
 
-	if (!fs_devices->device_dir_kobj)
+	if (!fs_devices->devices_kobj)
 		return -EINVAL;
 
 	if (one_device && one_device->bdev) {
 		disk = one_device->bdev->bd_part;
 		disk_kobj = &part_to_dev(disk)->kobj;
 
-		sysfs_remove_link(fs_devices->device_dir_kobj,
-						disk_kobj->name);
+		sysfs_remove_link(fs_devices->devices_kobj, disk_kobj->name);
 	}
 
 	if (one_device)
@@ -990,21 +989,8 @@ int btrfs_sysfs_rm_device_link(struct btrfs_fs_devices *fs_devices,
 		disk = one_device->bdev->bd_part;
 		disk_kobj = &part_to_dev(disk)->kobj;
 
-		sysfs_remove_link(fs_devices->device_dir_kobj,
-						disk_kobj->name);
+		sysfs_remove_link(fs_devices->devices_kobj, disk_kobj->name);
 	}
-
-	return 0;
-}
-
-int btrfs_sysfs_add_device(struct btrfs_fs_devices *fs_devs)
-{
-	if (!fs_devs->device_dir_kobj)
-		fs_devs->device_dir_kobj = kobject_create_and_add("devices",
-						&fs_devs->fsid_kobj);
-
-	if (!fs_devs->device_dir_kobj)
-		return -ENOMEM;
 
 	return 0;
 }
@@ -1028,7 +1014,7 @@ int btrfs_sysfs_add_device_link(struct btrfs_fs_devices *fs_devices,
 		disk = dev->bdev->bd_part;
 		disk_kobj = &part_to_dev(disk)->kobj;
 
-		error = sysfs_create_link(fs_devices->device_dir_kobj,
+		error = sysfs_create_link(fs_devices->devices_kobj,
 					  disk_kobj, disk_kobj->name);
 		if (error)
 			break;
@@ -1067,21 +1053,31 @@ void btrfs_sysfs_update_sprout_fsid(struct btrfs_fs_devices *fs_devices,
 static struct kset *btrfs_kset;
 
 /*
+ * Creates:
+ *		/sys/fs/btrfs/UUID
+ *
  * Can be called by the device discovery thread.
- * And parent can be specified for seed device
  */
-int btrfs_sysfs_add_fsid(struct btrfs_fs_devices *fs_devs,
-				struct kobject *parent)
+int btrfs_sysfs_add_fsid(struct btrfs_fs_devices *fs_devs)
 {
 	int error;
 
 	init_completion(&fs_devs->kobj_unregister);
 	fs_devs->fsid_kobj.kset = btrfs_kset;
-	error = kobject_init_and_add(&fs_devs->fsid_kobj,
-				&btrfs_ktype, parent, "%pU", fs_devs->fsid);
+	error = kobject_init_and_add(&fs_devs->fsid_kobj, &btrfs_ktype, NULL,
+				     "%pU", fs_devs->fsid);
 	if (error) {
 		kobject_put(&fs_devs->fsid_kobj);
 		return error;
+	}
+
+	fs_devs->devices_kobj = kobject_create_and_add("devices",
+						       &fs_devs->fsid_kobj);
+	if (!fs_devs->devices_kobj) {
+		btrfs_err(fs_devs->fs_info,
+			  "failed to init sysfs device interface");
+		kobject_put(&fs_devs->fsid_kobj);
+		return -ENOMEM;
 	}
 
 	return 0;
