@@ -66,6 +66,7 @@ const struct btrfs_raid_attr btrfs_raid_array[BTRFS_NR_RAID_TYPES] = {
 		.tolerated_failures = 2,
 		.devs_increment	= 3,
 		.ncopies	= 3,
+		.nparity        = 0,
 		.raid_name	= "raid1c3",
 		.bg_flag	= BTRFS_BLOCK_GROUP_RAID1C3,
 		.mindev_error	= BTRFS_ERROR_DEV_RAID1C3_MIN_NOT_MET,
@@ -78,6 +79,7 @@ const struct btrfs_raid_attr btrfs_raid_array[BTRFS_NR_RAID_TYPES] = {
 		.tolerated_failures = 3,
 		.devs_increment	= 4,
 		.ncopies	= 4,
+		.nparity        = 0,
 		.raid_name	= "raid1c4",
 		.bg_flag	= BTRFS_BLOCK_GROUP_RAID1C4,
 		.mindev_error	= BTRFS_ERROR_DEV_RAID1C4_MIN_NOT_MET,
@@ -1064,11 +1066,6 @@ static void btrfs_close_bdev(struct btrfs_device *device)
 static void btrfs_close_one_device(struct btrfs_device *device)
 {
 	struct btrfs_fs_devices *fs_devices = device->fs_devices;
-	struct btrfs_device *new_device;
-	struct rcu_string *name;
-
-	if (device->bdev)
-		fs_devices->open_devices--;
 
 	if (test_bit(BTRFS_DEV_STATE_WRITEABLE, &device->dev_state) &&
 	    device->devid != BTRFS_DEV_REPLACE_DEVID) {
@@ -1080,23 +1077,21 @@ static void btrfs_close_one_device(struct btrfs_device *device)
 		fs_devices->missing_devices--;
 
 	btrfs_close_bdev(device);
-
-	new_device = btrfs_alloc_device(NULL, &device->devid,
-					device->uuid);
-	BUG_ON(IS_ERR(new_device)); /* -ENOMEM */
-
-	/* Safe because we are under uuid_mutex */
-	if (device->name) {
-		name = rcu_string_strdup(device->name->str, GFP_NOFS);
-		BUG_ON(!name); /* -ENOMEM */
-		rcu_assign_pointer(new_device->name, name);
+	if (device->bdev) {
+		fs_devices->open_devices--;
+		device->bdev = NULL;
 	}
+	clear_bit(BTRFS_DEV_STATE_WRITEABLE, &device->dev_state);
 
-	list_replace_rcu(&device->dev_list, &new_device->dev_list);
-	new_device->fs_devices = device->fs_devices;
+	atomic_set(&device->dev_stats_ccnt, 0);
+	extent_io_tree_release(&device->alloc_state);
 
-	synchronize_rcu();
-	btrfs_free_device(device);
+	/* Verify the device is back in a pristine state  */
+	ASSERT(!test_bit(BTRFS_DEV_STATE_FLUSH_SENT, &device->dev_state));
+	ASSERT(!test_bit(BTRFS_DEV_STATE_REPLACE_TGT, &device->dev_state));
+	ASSERT(list_empty(&device->dev_alloc_list));
+	ASSERT(list_empty(&device->post_commit_list));
+	ASSERT(atomic_read(&device->reada_in_flight) == 0);
 }
 
 static int close_fs_devices(struct btrfs_fs_devices *fs_devices)
@@ -2130,7 +2125,6 @@ void btrfs_destroy_dev_replace_tgtdev(struct btrfs_device *tgtdev)
 {
 	struct btrfs_fs_devices *fs_devices = tgtdev->fs_info->fs_devices;
 
-	WARN_ON(!tgtdev);
 	mutex_lock(&fs_devices->device_list_mutex);
 
 	btrfs_sysfs_rm_device_link(fs_devices, tgtdev);
@@ -6476,19 +6470,14 @@ static u64 calc_stripe_length(u64 type, u64 chunk_len, int num_stripes)
 {
 	int index = btrfs_bg_flags_to_raid_index(type);
 	int ncopies = btrfs_raid_array[index].ncopies;
+	const int nparity = btrfs_raid_array[index].nparity;
 	int data_stripes;
 
-	switch (type & BTRFS_BLOCK_GROUP_PROFILE_MASK) {
-	case BTRFS_BLOCK_GROUP_RAID5:
-		data_stripes = num_stripes - 1;
-		break;
-	case BTRFS_BLOCK_GROUP_RAID6:
-		data_stripes = num_stripes - 2;
-		break;
-	default:
+	if (nparity)
+		data_stripes = num_stripes - nparity;
+	else
 		data_stripes = num_stripes / ncopies;
-		break;
-	}
+
 	return div_u64(chunk_len, data_stripes);
 }
 

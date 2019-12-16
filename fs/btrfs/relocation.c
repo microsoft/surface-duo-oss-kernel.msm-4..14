@@ -4291,6 +4291,15 @@ static void describe_relocation(struct btrfs_fs_info *fs_info,
 		   block_group->start, buf);
 }
 
+static const char *stage_to_string(int stage)
+{
+	if (stage == MOVE_DATA_EXTENTS)
+		return "move data extents";
+	if (stage == UPDATE_DATA_PTRS)
+		return "update data pointers";
+	return "unknown";
+}
+
 /*
  * function to relocate all extents in a block group.
  */
@@ -4365,12 +4374,15 @@ int btrfs_relocate_block_group(struct btrfs_fs_info *fs_info, u64 group_start)
 				 rc->block_group->length);
 
 	while (1) {
+		int finishes_stage;
+
 		mutex_lock(&fs_info->cleaner_mutex);
 		ret = relocate_block_group(rc);
 		mutex_unlock(&fs_info->cleaner_mutex);
 		if (ret < 0)
 			err = ret;
 
+		finishes_stage = rc->stage;
 		/*
 		 * We may have gotten ENOSPC after we already dirtied some
 		 * extents.  If writeout happens while we're relocating a
@@ -4396,8 +4408,8 @@ int btrfs_relocate_block_group(struct btrfs_fs_info *fs_info, u64 group_start)
 		if (rc->extents_found == 0)
 			break;
 
-		btrfs_info(fs_info, "found %llu extents", rc->extents_found);
-
+		btrfs_info(fs_info, "found %llu extents, stage: %s",
+			   rc->extents_found, stage_to_string(finishes_stage));
 	}
 
 	WARN_ON(rc->block_group->pinned > 0);
@@ -4615,7 +4627,7 @@ int btrfs_reloc_clone_csums(struct inode *inode, u64 file_pos, u64 len)
 	LIST_HEAD(list);
 
 	ordered = btrfs_lookup_ordered_extent(inode, file_pos);
-	BUG_ON(ordered->file_offset != file_pos || ordered->len != len);
+	BUG_ON(ordered->file_offset != file_pos || ordered->num_bytes != len);
 
 	disk_bytenr = file_pos + BTRFS_I(inode)->index_cnt;
 	ret = btrfs_lookup_csums_range(fs_info->csum_root, disk_bytenr,
@@ -4639,7 +4651,7 @@ int btrfs_reloc_clone_csums(struct inode *inode, u64 file_pos, u64 len)
 		 * disk_len vs real len like with real inodes since it's all
 		 * disk length.
 		 */
-		new_bytenr = ordered->start + (sums->bytenr - disk_bytenr);
+		new_bytenr = ordered->disk_bytenr + sums->bytenr - disk_bytenr;
 		sums->bytenr = new_bytenr;
 
 		btrfs_add_ordered_sum(ordered, sums);
