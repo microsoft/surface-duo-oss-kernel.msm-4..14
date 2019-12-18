@@ -43,9 +43,11 @@
  *     M0 -> FW_DL_ERR
  *     M0 -> M3_ENTER -> M3 -> M3_EXIT --> M0
  * L1: SYS_ERR_DETECT -> SYS_ERR_PROCESS --> POR
- * L2: SHUTDOWN_PROCESS -> DISABLE
+ * L2: SHUTDOWN_PROCESS -> LD_ERR_FATAL_DETECT
+ *     SHUTDOWN_PROCESS -> DISABLE
  * L3: LD_ERR_FATAL_DETECT <--> LD_ERR_FATAL_DETECT
- *     LD_ERR_FATAL_DETECT -> SHUTDOWN_PROCESS
+ *     LD_ERR_FATAL_DETECT -> SHUTDOWN_NO_ACCESS
+ *     SHUTDOWN_NO_ACCESS -> DISABLE
  */
 static struct mhi_pm_transitions const mhi_state_transitions[] = {
 	/* L0 States */
@@ -57,49 +59,52 @@ static struct mhi_pm_transitions const mhi_state_transitions[] = {
 		MHI_PM_POR,
 		MHI_PM_POR | MHI_PM_DISABLE | MHI_PM_M0 |
 		MHI_PM_SYS_ERR_DETECT | MHI_PM_SHUTDOWN_PROCESS |
-		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_FW_DL_ERR
+		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_FW_DL_ERR |
+		MHI_PM_SHUTDOWN_NO_ACCESS
 	},
 	{
 		MHI_PM_M0,
 		MHI_PM_M0 | MHI_PM_M2 | MHI_PM_M3_ENTER |
 		MHI_PM_SYS_ERR_DETECT | MHI_PM_SHUTDOWN_PROCESS |
-		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_FW_DL_ERR
+		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_FW_DL_ERR |
+		MHI_PM_SHUTDOWN_NO_ACCESS
 	},
 	{
 		MHI_PM_M2,
 		MHI_PM_M0 | MHI_PM_SYS_ERR_DETECT | MHI_PM_SHUTDOWN_PROCESS |
-		MHI_PM_LD_ERR_FATAL_DETECT
+		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_SHUTDOWN_NO_ACCESS
 	},
 	{
 		MHI_PM_M3_ENTER,
 		MHI_PM_M3 | MHI_PM_SYS_ERR_DETECT | MHI_PM_SHUTDOWN_PROCESS |
-		MHI_PM_LD_ERR_FATAL_DETECT
+		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_SHUTDOWN_NO_ACCESS
 	},
 	{
 		MHI_PM_M3,
 		MHI_PM_M3_EXIT | MHI_PM_SYS_ERR_DETECT |
-		MHI_PM_SHUTDOWN_PROCESS | MHI_PM_LD_ERR_FATAL_DETECT
+		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_SHUTDOWN_NO_ACCESS
 	},
 	{
 		MHI_PM_M3_EXIT,
 		MHI_PM_M0 | MHI_PM_SYS_ERR_DETECT | MHI_PM_SHUTDOWN_PROCESS |
-		MHI_PM_LD_ERR_FATAL_DETECT
+		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_SHUTDOWN_NO_ACCESS
 	},
 	{
 		MHI_PM_FW_DL_ERR,
 		MHI_PM_FW_DL_ERR | MHI_PM_SYS_ERR_DETECT |
-		MHI_PM_SHUTDOWN_PROCESS | MHI_PM_LD_ERR_FATAL_DETECT
+		MHI_PM_SHUTDOWN_PROCESS | MHI_PM_LD_ERR_FATAL_DETECT |
+		MHI_PM_SHUTDOWN_NO_ACCESS
 	},
 	/* L1 States */
 	{
 		MHI_PM_SYS_ERR_DETECT,
 		MHI_PM_SYS_ERR_PROCESS | MHI_PM_SHUTDOWN_PROCESS |
-		MHI_PM_LD_ERR_FATAL_DETECT
+		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_SHUTDOWN_NO_ACCESS
 	},
 	{
 		MHI_PM_SYS_ERR_PROCESS,
 		MHI_PM_POR | MHI_PM_SHUTDOWN_PROCESS |
-		MHI_PM_LD_ERR_FATAL_DETECT
+		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_SHUTDOWN_NO_ACCESS
 	},
 	/* L2 States */
 	{
@@ -109,7 +114,11 @@ static struct mhi_pm_transitions const mhi_state_transitions[] = {
 	/* L3 States */
 	{
 		MHI_PM_LD_ERR_FATAL_DETECT,
-		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_SHUTDOWN_PROCESS
+		MHI_PM_LD_ERR_FATAL_DETECT | MHI_PM_SHUTDOWN_NO_ACCESS
+	},
+	{
+		MHI_PM_SHUTDOWN_NO_ACCESS,
+		MHI_PM_DISABLE
 	},
 };
 
@@ -144,9 +153,6 @@ enum MHI_PM_STATE __must_check mhi_tryset_pm_state(
 
 	MHI_VERB("Transition to pm state from:%s to:%s\n",
 		 to_mhi_pm_state_str(cur_state), to_mhi_pm_state_str(state));
-
-	if (MHI_REG_ACCESS_VALID(cur_state) && MHI_REG_ACCESS_VALID(state))
-		mhi_timesync_log(mhi_cntrl);
 
 	mhi_cntrl->pm_state = state;
 	return mhi_cntrl->pm_state;
@@ -211,7 +217,8 @@ void mhi_deassert_dev_wake(struct mhi_controller *mhi_cntrl, bool override)
 {
 	unsigned long flags;
 
-	MHI_ASSERT(atomic_read(&mhi_cntrl->dev_wake) == 0, "dev_wake == 0");
+	MHI_ASSERT((mhi_is_active(mhi_cntrl->mhi_dev) &&
+		   atomic_read(&mhi_cntrl->dev_wake) == 0), "dev_wake == 0");
 
 	/* resources not dropping to 0, decrement and exit */
 	if (likely(atomic_add_unless(&mhi_cntrl->dev_wake, -1, 1)))
@@ -441,22 +448,24 @@ int mhi_pm_m3_transition(struct mhi_controller *mhi_cntrl)
 static int mhi_pm_mission_mode_transition(struct mhi_controller *mhi_cntrl)
 {
 	int i, ret;
+	enum mhi_ee ee = 0;
 	struct mhi_event *mhi_event;
 
 	MHI_LOG("Processing Mission Mode Transition\n");
 
 	write_lock_irq(&mhi_cntrl->pm_lock);
 	if (MHI_REG_ACCESS_VALID(mhi_cntrl->pm_state))
-		mhi_cntrl->ee = mhi_get_exec_env(mhi_cntrl);
+		ee = mhi_get_exec_env(mhi_cntrl);
 	write_unlock_irq(&mhi_cntrl->pm_lock);
 
-	if (!MHI_IN_MISSION_MODE(mhi_cntrl->ee))
+	if (!MHI_IN_MISSION_MODE(ee))
 		return -EIO;
-
-	wake_up_all(&mhi_cntrl->state_event);
 
 	mhi_cntrl->status_cb(mhi_cntrl, mhi_cntrl->priv_data,
 			     MHI_CB_EE_MISSION_MODE);
+	mhi_cntrl->ee = ee;
+
+	wake_up_all(&mhi_cntrl->state_event);
 
 	/* force MHI to be in M0 state before continuing */
 	ret = __mhi_device_get_sync(mhi_cntrl);
@@ -494,6 +503,9 @@ static int mhi_pm_mission_mode_transition(struct mhi_controller *mhi_cntrl)
 
 	/* setup support for time sync */
 	mhi_init_timesync(mhi_cntrl);
+
+	if (MHI_REG_ACCESS_VALID(mhi_cntrl->pm_state))
+		mhi_timesync_log(mhi_cntrl);
 
 	MHI_LOG("Adding new devices\n");
 
@@ -762,10 +774,8 @@ void mhi_low_priority_worker(struct work_struct *work)
 		 TO_MHI_EXEC_STR(mhi_cntrl->ee));
 
 	/* check low priority event rings and process events */
-	list_for_each_entry(mhi_event, &mhi_cntrl->lp_ev_rings, node) {
-		if (MHI_IN_MISSION_MODE(mhi_cntrl->ee))
-			mhi_event->process_event(mhi_cntrl, mhi_event, U32_MAX);
-	}
+	list_for_each_entry(mhi_event, &mhi_cntrl->lp_ev_rings, node)
+		mhi_event->process_event(mhi_cntrl, mhi_event, U32_MAX);
 }
 
 void mhi_pm_sys_err_worker(struct work_struct *work)
@@ -832,6 +842,7 @@ int mhi_async_power_up(struct mhi_controller *mhi_cntrl)
 	u32 val;
 	enum mhi_ee current_ee;
 	enum MHI_ST_TRANSITION next_state;
+	struct mhi_device *mhi_dev = mhi_cntrl->mhi_dev;
 
 	MHI_LOG("Requested to power on\n");
 
@@ -846,6 +857,10 @@ int mhi_async_power_up(struct mhi_controller *mhi_cntrl)
 		mhi_cntrl->wake_toggle = (mhi_cntrl->db_access & MHI_PM_M2) ?
 			mhi_toggle_dev_wake_nop : mhi_toggle_dev_wake;
 	}
+
+	/* clear votes before proceeding for power up */
+	atomic_set(&mhi_dev->dev_vote, 0);
+	atomic_set(&mhi_dev->bus_vote, 0);
 
 	mutex_lock(&mhi_cntrl->pm_mutex);
 	mhi_cntrl->pm_state = MHI_PM_DISABLE;
@@ -968,6 +983,7 @@ EXPORT_SYMBOL(mhi_control_error);
 void mhi_power_down(struct mhi_controller *mhi_cntrl, bool graceful)
 {
 	enum MHI_PM_STATE cur_state;
+	enum MHI_PM_STATE transition_state = MHI_PM_SHUTDOWN_PROCESS;
 
 	/* if it's not graceful shutdown, force MHI to a linkdown state */
 	if (!graceful) {
@@ -981,8 +997,10 @@ void mhi_power_down(struct mhi_controller *mhi_cntrl, bool graceful)
 			MHI_ERR("Failed to move to state:%s from:%s\n",
 				to_mhi_pm_state_str(MHI_PM_LD_ERR_FATAL_DETECT),
 				to_mhi_pm_state_str(mhi_cntrl->pm_state));
+
+		transition_state = MHI_PM_SHUTDOWN_NO_ACCESS;
 	}
-	mhi_pm_disable_transition(mhi_cntrl, MHI_PM_SHUTDOWN_PROCESS);
+	mhi_pm_disable_transition(mhi_cntrl, transition_state);
 
 	mhi_deinit_debugfs(mhi_cntrl);
 

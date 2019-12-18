@@ -21,6 +21,7 @@
 #include <linux/of_platform.h>
 #include <linux/poll.h>
 #include <linux/regulator/consumer.h>
+#include <linux/sizes.h>
 #include <linux/thermal.h>
 #include <linux/soc/qcom/llcc-qcom.h>
 #include <soc/qcom/devfreq_devbw.h>
@@ -34,8 +35,8 @@
  */
 #define CLASS_NAME              "npu"
 #define DRIVER_NAME             "msm_npu"
-#define DDR_MAPPED_START_ADDR   0x80000000
-#define DDR_MAPPED_SIZE         0x60000000
+#define DDR_MAPPED_START_ADDR   0x00000000
+#define DDR_MAPPED_SIZE         (SZ_1G * 4ULL)
 
 #define MBOX_OP_TIMEOUTMS 1000
 
@@ -1326,28 +1327,6 @@ static int npu_exec_network_v2(struct npu_client *client,
 	return ret;
 }
 
-static int npu_process_kevent(struct npu_kevent *kevt)
-{
-	int ret = 0;
-
-	switch (kevt->evt.type) {
-	case MSM_NPU_EVENT_TYPE_EXEC_V2_DONE:
-		ret = copy_to_user((void __user *)kevt->reserved[1],
-			(void *)&kevt->reserved[0],
-			kevt->evt.u.exec_v2_done.stats_buf_size);
-		if (ret) {
-			NPU_ERR("fail to copy to user\n");
-			kevt->evt.u.exec_v2_done.stats_buf_size = 0;
-			ret = -EFAULT;
-		}
-		break;
-	default:
-		break;
-	}
-
-	return ret;
-}
-
 static int npu_receive_event(struct npu_client *client,
 	unsigned long arg)
 {
@@ -1363,7 +1342,7 @@ static int npu_receive_event(struct npu_client *client,
 		kevt = list_first_entry(&client->evt_list,
 			struct npu_kevent, list);
 		list_del(&kevt->list);
-		npu_process_kevent(kevt);
+		npu_process_kevent(client, kevt);
 		ret = copy_to_user(argp, &kevt->evt,
 			sizeof(struct msm_npu_event));
 		if (ret) {
@@ -1478,6 +1457,21 @@ static int npu_get_property(struct npu_client *client,
 		break;
 	case MSM_NPU_PROP_ID_HARDWARE_VERSION:
 		prop.prop_param[0] = npu_dev->hw_version;
+		break;
+	case MSM_NPU_PROP_ID_IPC_QUEUE_INFO:
+		ret = npu_host_get_ipc_queue_size(npu_dev,
+			prop.prop_param[0]);
+		if (ret < 0) {
+			NPU_ERR("Can't get ipc queue %d size\n",
+				prop.prop_param[0]);
+			return ret;
+		}
+
+		prop.prop_param[1] = ret;
+		break;
+	case MSM_NPU_PROP_ID_DRV_FEATURE:
+		prop.prop_param[0] = MSM_NPU_FEATURE_MULTI_EXECUTE |
+			MSM_NPU_FEATURE_ASYNC_EXECUTE;
 		break;
 	default:
 		ret = npu_host_get_fw_property(client->npu_dev, &prop);

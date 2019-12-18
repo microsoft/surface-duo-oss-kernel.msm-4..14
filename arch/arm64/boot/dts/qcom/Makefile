@@ -27,7 +27,10 @@ dtb-$(CONFIG_ARCH_QCS405) += qcs405-iot-sku1.dtb \
 		qcs405-iot-sku12.dtb \
 		qcs407-iot-sku12.dtb \
 		sa2150p-ccard-emmc.dtb \
-		sa2150p-ccard-nand.dtb
+		sa2150p-ccard-nand.dtb \
+		qcs405-iot-sku13.dtb \
+		qcs407-iot-sku13.dtb \
+		qcs405-iot-robot-reference-board.dtb
 
 ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
 	dtbo-$(CONFIG_ARCH_SM8150) += \
@@ -258,9 +261,12 @@ ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
 		atoll-wcd937x-idp-overlay.dtbo\
 		atoll-usbc-idp-overlay.dtbo\
 		atoll-rumi-overlay.dtbo\
-		atollp-idp-overlay.dtbo \
-		atollp-atp-overlay.dtbo \
-		atollp-qrd-overlay.dtbo
+		atollp-idp-overlay.dtbo\
+		atollp-atp-overlay.dtbo\
+		atollp-qrd-overlay.dtbo\
+		atoll-ab-idp-overlay.dtbo\
+		atoll-ab-atp-overlay.dtbo\
+		atoll-ab-qrd-overlay.dtbo
 
 atoll-idp-overlay.dtbo-base := atoll.dtb
 atoll-atp-overlay.dtbo-base := atoll.dtb
@@ -271,6 +277,9 @@ atoll-usbc-idp-overlay.dtbo-base := atoll.dtb
 atollp-idp-overlay.dtbo-base := atollp.dtb
 atollp-atp-overlay.dtbo-base := atollp.dtb
 atollp-qrd-overlay.dtbo-base := atollp.dtb
+atoll-ab-idp-overlay.dtbo-base := atoll-ab.dtb
+atoll-ab-atp-overlay.dtbo-base := atoll-ab.dtb
+atoll-ab-qrd-overlay.dtbo-base := atoll-ab.dtb
 else
 dtb-$(CONFIG_ARCH_ATOLL)	+= atoll-idp.dtb\
 	atoll-atp.dtb\
@@ -280,7 +289,10 @@ dtb-$(CONFIG_ARCH_ATOLL)	+= atoll-idp.dtb\
 	atoll-rumi.dtb\
 	atollp-idp.dtb\
 	atollp-atp.dtb\
-	atollp-qrd.dtb
+	atollp-qrd.dtb\
+	atoll-ab-idp.dtb\
+	atoll-ab-atp.dtb\
+	atoll-ab-qrd.dtb
 endif
 
 dtb-$(CONFIG_ARCH_SDXPRAIRIE) += sdxprairie-rumi.dtb \
@@ -293,6 +305,9 @@ dtb-$(CONFIG_ARCH_SDXPRAIRIE) += sdxprairie-rumi.dtb \
 	sdxprairie-cdp-cpe.dtb \
 	sdxprairie-mtp-v1.1-cpe.dtb \
 	sdxprairie-cdp-v1.1-cpe.dtb \
+	sdxprairie-v2-mtp-v1.1-cpe.dtb \
+	sdxprairie-mtp-v1.1.dtb \
+	sdxprairie-v2-mtp-v1.1.dtb \
 	sdxprairie-mtp-le-cpe.dtb \
 	sdxprairie-v2-mtp-le-cpe.dtb \
 	sdxprairie-cdp-256.dtb \
@@ -301,12 +316,21 @@ dtb-$(CONFIG_ARCH_SDXPRAIRIE) += sdxprairie-rumi.dtb \
 	sdxprairie-dsda-mtp.dtb \
 	sdxprairie-v2-cdp.dtb \
 	sdxprairie-v2-mtp.dtb \
+        sa515m-v2-ttp.dtb \
+        sa515m-v2-ttp-usb-ep.dtb \
+        sa515m-v2-ttp-pcie-ep.dtb \
+        sa515m-v2-ttp-flashless-usb-ep.dtb \
+        sa515m-v2-ttp-flashless-pcie-ep.dtb \
 	sa515m-ccard.dtb \
 	sa515m-ccard-pcie-ep.dtb \
 	sa515m-ccard-usb-ep.dtb \
+        sa515m-v2-ccard-flashless-pcie-ep.dtb \
+        sa515m-v2-ccard-flashless-usb-ep.dtb \
 	sa515m-v2-ccard.dtb \
 	sa515m-v2-ccard-pcie-ep.dtb \
 	sa515m-v2-ccard-usb-ep.dtb
+
+dtb-$(CONFIG_ARCH_MDM9607) += mdm9607-mtp.dtb
 
 ifeq ($(CONFIG_ARM64),y)
 always		:= $(dtb-y)
@@ -318,6 +342,14 @@ targets += $(addprefix ../, $(dtb-y))
 $(obj)/../%.dtb: $(src)/%.dts FORCE
 	$(call if_changed_dep,dtc)
 
+ifeq ($(CONFIG_BUILD_ARM64_DT_OVERLAY),y)
+$(obj)/%.dtbo:$(src)/../../../../arm64/boot/dts/qcom/%.dts FORCE
+	$(call if_changed_dep,dtc)
+	$(call if_changed,dtbo_verify)
+
+dtbs: $(addprefix $(obj)/,$(dtb-y)) $(addprefix $(obj)/,$(dtbo-y))
+else
 dtbs: $(addprefix $(obj)/../,$(dtb-y))
+endif
 endif
 clean-files	:= *.dtb *.dtbo
