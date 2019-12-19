@@ -1,0 +1,18 @@
+PFE BMU subsystem
+-----------------
+
+This binding describes the reserved memory for PFE.
+The PFE BMU subsystem requires memory allocation under 0xB0000000,
+so it can be added to the CMA subsystem and be linked with the
+pfe driver.
+
+
+Example:
+
+	pfe_reserved: pfebufs@83400000 {
+		compatible = "fsl,s32g-pfe-ddr";
+		reg = <0 0x83400000 0 0xc00000>;
+		no-map;
+		status = "okay";
+	};
+
