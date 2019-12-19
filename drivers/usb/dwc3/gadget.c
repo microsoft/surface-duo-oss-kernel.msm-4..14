@@ -2771,6 +2771,7 @@ static void dwc3_endpoint_interrupt(struct dwc3 *dwc,
 		cmd = DEPEVT_PARAMETER_CMD(event->parameters);
 
 		if (cmd == DWC3_DEPCMD_ENDTRANSFER) {
+			dep->flags &= ~DWC3_EP_END_TRANSFER_PENDING;
 			dep->flags &= ~DWC3_EP_TRANSFER_STARTED;
 			dwc3_gadget_ep_cleanup_cancelled_requests(dep);
 		}
@@ -2827,7 +2828,8 @@ void dwc3_stop_active_transfer(struct dwc3_ep *dep, bool force,
 	u32 cmd;
 	int ret;
 
-	if (!(dep->flags & DWC3_EP_TRANSFER_STARTED))
+	if (!(dep->flags & DWC3_EP_TRANSFER_STARTED) ||
+	    (dep->flags & DWC3_EP_END_TRANSFER_PENDING))
 		return;
 
 	/*
@@ -2872,6 +2874,8 @@ void dwc3_stop_active_transfer(struct dwc3_ep *dep, bool force,
 
         if (!interrupt)
                 dep->flags &= ~DWC3_EP_TRANSFER_STARTED;
+        else
+                dep->flags |= DWC3_EP_END_TRANSFER_PENDING;
 
 	/*
 	 * when transfer is stopped with force rm bit false, it can be
