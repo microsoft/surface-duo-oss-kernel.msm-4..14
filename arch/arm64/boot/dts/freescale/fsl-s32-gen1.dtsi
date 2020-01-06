@@ -608,16 +608,6 @@
 		interrupts = <1 9 0xf04>;
 	};
 
-	memory_DDR0@80000000 {
-		device_type = "memory";
-		reg = <0 0x80000000 0 0x40000000>;
-	};
-
-	memory_DDR1@c0000000 {
-		device_type = "memory";
-		reg = <0 0xc0000000 0 0x40000000>;
-	};
-
 	rtc0: rtc@40060000 {
 		compatible = "fsl,s32gen1-rtc";
 		#interrupt-cells = <3>;
