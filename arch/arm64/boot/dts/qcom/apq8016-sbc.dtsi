@@ -518,6 +518,7 @@
 
 		wcnss@a21b000 {
 			status = "okay";
+			firmware-name = "qcom/msm8916/wcnss.mdt";
 		};
 
 		tpiu@820000 { status = "okay"; };
@@ -633,6 +634,11 @@
 			};
 		};
 	};
+};
+
+&mpss {
+	status = "okay";
+	firmware-name = "qcom/msm8916/mba.mbn", "qcom/msm8916/modem.mdt";
 };
 
 &spmi_bus {
