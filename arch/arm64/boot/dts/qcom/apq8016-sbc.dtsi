@@ -494,6 +494,7 @@
 
 		wcnss@a21b000 {
 			status = "okay";
+			firmware-name = "qcom/msm8916/wcnss.mdt";
 		};
 	};
 
@@ -536,6 +537,11 @@
 			gpios = <&msmgpio 107 GPIO_ACTIVE_LOW>;
 		};
 	};
+};
+
+&mpss {
+	status = "okay";
+	firmware-name = "qcom/msm8916/mba.mbn", "qcom/msm8916/modem.mdt";
 };
 
 &spmi_bus {
