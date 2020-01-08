@@ -1577,7 +1577,7 @@ static int qcom_qmp_phy_poweron(struct phy *phy)
 	const struct qmp_phy_cfg *cfg = qmp->cfg;
 	void __iomem *pcs = qphy->pcs;
 	void __iomem *status;
-	unsigned int mask, val;
+	unsigned int mask, val, ready;
 	int ret = 0;
 
 	if (cfg->type != PHY_TYPE_UFS)
@@ -1593,10 +1593,17 @@ static int qcom_qmp_phy_poweron(struct phy *phy)
 		/* start SerDes and Phy-Coding-Sublayer */
 		qphy_setbits(pcs, cfg->regs[QPHY_START_CTRL], cfg->start_ctrl);
 
-		status = pcs + cfg->regs[QPHY_PCS_READY_STATUS];
-		mask = cfg->mask_pcs_ready;
+		if (cfg->type == PHY_TYPE_UFS) {
+			status = pcs + cfg->regs[QPHY_PCS_READY_STATUS];
+			mask = PCS_READY;
+			ready = PCS_READY;
+		} else {
+			status = pcs + cfg->regs[QPHY_PCS_STATUS];
+			mask = PHYSTATUS;
+			ready = 0;
+		}
 
-		ret = readl_poll_timeout(status, val, !(val & mask), 1,
+		ret = readl_poll_timeout(status, val, (val & mask) == ready, 10,
 					 PHY_INIT_COMPLETE_TIMEOUT);
 		if (ret) {
 			dev_err(qmp->dev, "phy initialization timed-out\n");
