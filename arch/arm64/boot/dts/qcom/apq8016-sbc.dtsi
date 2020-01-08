@@ -301,6 +301,11 @@
 	status = "okay";
 };
 
+&mpss {
+	status = "okay";
+	firmware-name = "qcom/msm8916/mba.mbn", "qcom/msm8916/modem.mdt";
+};
+
 &pm8916_resin {
 	status = "okay";
 	linux,code = <KEY_VOLUMEDOWN>;
@@ -308,6 +313,7 @@
 
 &pronto {
 	status = "okay";
+	firmware-name = "qcom/msm8916/wcnss.mdt";
 };
 
 &sdhc_1 {
