@@ -413,6 +413,9 @@
 	status = "okay";
 };
 
+&usdhc0 {
+	status = "okay";
+};
 
 
 
