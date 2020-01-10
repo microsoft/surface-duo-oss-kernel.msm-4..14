@@ -97,7 +97,6 @@ struct qcom_swrm_ctrl {
 	/* Port alloc/free lock */
 	struct mutex port_lock;
 	struct clk *hclk;
-	void __iomem *base;
 	u8 wr_cmd_id;
 	u8 rd_cmd_id;
 	int irq;
@@ -133,22 +132,6 @@ static int qcom_swrm_abh_reg_read(struct qcom_swrm_ctrl *ctrl, int reg,
 		return SDW_CMD_FAIL;
 
 	return SDW_CMD_OK;
-}
-
-static int qcom_swrm_mmio_reg_read(struct qcom_swrm_ctrl *ctrl, int reg,
-				   u32 *val)
-{
-	*val = readl_relaxed(ctrl->base + reg);
-
-	return 0;
-}
-
-static int qcom_swrm_mmio_reg_write(struct qcom_swrm_ctrl *ctrl,
-				    int reg, int val)
-{
-	writel_relaxed(val, ctrl->base + reg);
-
-	return 0;
 }
 
 static int qcom_swrm_ahb_reg_write(struct qcom_swrm_ctrl *ctrl,
@@ -232,10 +215,7 @@ static int qcom_swrm_cmd_fifo_rd_cmd(struct qcom_swrm_ctrl *ctrl,
 	}
 
 	for (i = 0; i < len; i++) {
-		ret = ctrl->reg_read(ctrl, SWRM_CMD_FIFO_RD_FIFO_ADDR, &val);
-		if (ret)
-			return ret;
-
+		ctrl->reg_read(ctrl, SWRM_CMD_FIFO_RD_FIFO_ADDR, &val);
 		rval[i] = val & 0xFF;
 	}
 
@@ -367,11 +347,8 @@ static int qcom_swrm_pre_bank_switch(struct sdw_bus *bus)
 	u32 reg = SWRM_MCP_FRAME_CTRL_BANK_ADDR(bus->params.next_bank);
 	struct qcom_swrm_ctrl *ctrl = to_qcom_sdw(bus);
 	u32 val;
-	int ret;
 
-	ret = ctrl->reg_read(ctrl, reg, &val);
-	if (ret)
-		return ret;
+	ctrl->reg_read(ctrl, reg, &val);
 
 	val &= ~SWRM_MCP_FRAME_CTRL_BANK_COL_CTRL_BMSK;
 	val &= ~SWRM_MCP_FRAME_CTRL_BANK_ROW_CTRL_BMSK;
@@ -413,16 +390,13 @@ static int qcom_swrm_port_enable(struct sdw_bus *bus,
 	u32 reg = SWRM_DP_PORT_CTRL_BANK(enable_ch->port_num, bank);
 	struct qcom_swrm_ctrl *ctrl = to_qcom_sdw(bus);
 	u32 val;
-	int ret;
 
-	ret = ctrl->reg_read(ctrl, reg, &val);
-	if (ret)
-		return ret;
+	ctrl->reg_read(ctrl, reg, &val);
 
 	if (enable_ch->enable)
 		val |= (enable_ch->ch_mask << SWRM_DP_PORT_CTRL_EN_CHAN_SHFT);
 	else
-		val &= ~(enable_ch->ch_mask << SWRM_DP_PORT_CTRL_EN_CHAN_SHFT);
+		val &= ~(0xff << SWRM_DP_PORT_CTRL_EN_CHAN_SHFT);
 
 	return ctrl->reg_write(ctrl, reg, val);
 }
@@ -485,16 +459,6 @@ static void qcom_swrm_slave_wq(struct work_struct *work)
 	sdw_handle_slave_status(&ctrl->bus, ctrl->status);
 }
 
-static int qcom_swrm_prepare(struct snd_pcm_substream *substream,
-			     struct snd_soc_dai *dai)
-{
-	struct qcom_swrm_ctrl *ctrl = dev_get_drvdata(dai->dev);
-
-	if (!ctrl->sruntime[dai->id])
-		return -EINVAL;
-
-	return sdw_enable_stream(ctrl->sruntime[dai->id]);
-}
 
 static void qcom_swrm_stream_free_ports(struct qcom_swrm_ctrl *ctrl,
 					struct sdw_stream_runtime *stream)
@@ -563,6 +527,7 @@ static int qcom_swrm_stream_alloc_ports(struct qcom_swrm_ctrl *ctrl,
 	else
 		sconfig.direction = SDW_DATA_DIR_RX;
 
+	/* hw parameters wil be ignored as we only support PDM */
 	sconfig.ch_count = 1;
 	sconfig.frame_rate = params_rate(params);
 	sconfig.type = stream->type;
@@ -591,10 +556,6 @@ static int qcom_swrm_hw_params(struct snd_pcm_substream *substream,
 	ret = qcom_swrm_stream_alloc_ports(ctrl, sruntime, params,
 					   substream->stream);
 	if (ret)
-		return ret;
-
-	ret = sdw_prepare_stream(sruntime);
-	if (ret)
 		qcom_swrm_stream_free_ports(ctrl, sruntime);
 
 	return ret;
@@ -608,14 +569,12 @@ static int qcom_swrm_hw_free(struct snd_pcm_substream *substream,
 
 	qcom_swrm_stream_free_ports(ctrl, sruntime);
 	sdw_stream_remove_master(&ctrl->bus, sruntime);
-	sdw_deprepare_stream(sruntime);
-	sdw_disable_stream(sruntime);
 
 	return 0;
 }
 
 static int qcom_swrm_set_sdw_stream(struct snd_soc_dai *dai,
-                                   void *stream, int direction)
+				    void *stream, int direction)
 {
 	struct qcom_swrm_ctrl *ctrl = dev_get_drvdata(dai->dev);
 
@@ -624,11 +583,11 @@ static int qcom_swrm_set_sdw_stream(struct snd_soc_dai *dai,
 	return 0;
 }
 
-static int qcom_swrm_startup(struct snd_pcm_substream *stream,
+static int qcom_swrm_startup(struct snd_pcm_substream *substream,
 			     struct snd_soc_dai *dai)
 {
 	struct qcom_swrm_ctrl *ctrl = dev_get_drvdata(dai->dev);
-	struct snd_soc_pcm_runtime *rtd = stream->private_data;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
 	struct sdw_stream_runtime *sruntime;
 	int ret, i;
 
@@ -640,7 +599,7 @@ static int qcom_swrm_startup(struct snd_pcm_substream *stream,
 
 	for (i = 0; i < rtd->num_codecs; i++) {
 		ret = snd_soc_dai_set_sdw_stream(rtd->codec_dais[i], sruntime,
-						 stream->stream);
+						 substream->stream);
 		if (ret < 0 && ret != -ENOTSUPP) {
 			dev_err(dai->dev, "Failed to set sdw stream on %s",
 				rtd->codec_dais[i]->name);
@@ -652,7 +611,7 @@ static int qcom_swrm_startup(struct snd_pcm_substream *stream,
 	return 0;
 }
 
-static void qcom_swrm_shutdown(struct snd_pcm_substream *stream,
+static void qcom_swrm_shutdown(struct snd_pcm_substream *substream,
 			       struct snd_soc_dai *dai)
 {
 	struct qcom_swrm_ctrl *ctrl = dev_get_drvdata(dai->dev);
@@ -663,15 +622,14 @@ static void qcom_swrm_shutdown(struct snd_pcm_substream *stream,
 
 static const struct snd_soc_dai_ops qcom_swrm_pdm_dai_ops = {
 	.hw_params = qcom_swrm_hw_params,
-	.prepare = qcom_swrm_prepare,
 	.hw_free = qcom_swrm_hw_free,
 	.startup = qcom_swrm_startup,
 	.shutdown = qcom_swrm_shutdown,
-        .set_sdw_stream = qcom_swrm_set_sdw_stream,
+	.set_sdw_stream = qcom_swrm_set_sdw_stream,
 };
 
 static const struct snd_soc_component_driver qcom_swrm_dai_component = {
-	.name           = "soundwire",
+	.name = "soundwire",
 };
 
 static int qcom_swrm_register_dais(struct qcom_swrm_ctrl *ctrl)
@@ -692,18 +650,10 @@ static int qcom_swrm_register_dais(struct qcom_swrm_ctrl *ctrl)
 		if (!dais[i].name)
 			return -ENOMEM;
 
-		if (i < ctrl->num_dout_ports) {
+		if (i < ctrl->num_dout_ports)
 			stream = &dais[i].playback;
-			stream->stream_name = devm_kasprintf(dev, GFP_KERNEL,
-							     "SDW Tx%d", i);
-		} else {
+		else
 			stream = &dais[i].capture;
-			stream->stream_name = devm_kasprintf(dev, GFP_KERNEL,
-							     "SDW Rx%d", i);
-		}
-
-		if (!stream->stream_name)
-			return -ENOMEM;
 
 		stream->channels_min = 1;
 		stream->channels_max = 1;
@@ -727,9 +677,7 @@ static int qcom_swrm_get_port_config(struct qcom_swrm_ctrl *ctrl)
 	u8 si[QCOM_SDW_MAX_PORTS];
 	int i, ret, nports, val;
 
-	ret = ctrl->reg_read(ctrl, SWRM_COMP_PARAMS, &val);
-	if (ret)
-		return ret;
+	ctrl->reg_read(ctrl, SWRM_COMP_PARAMS, &val);
 
 	ctrl->num_dout_ports = val & SWRM_COMP_PARAMS_DOUT_PORTS_MASK;
 	ctrl->num_din_ports = (val & SWRM_COMP_PARAMS_DIN_PORTS_MASK) >> 5;
@@ -784,7 +732,6 @@ static int qcom_swrm_probe(struct platform_device *pdev)
 	struct sdw_master_prop *prop;
 	struct sdw_bus_params *params;
 	struct qcom_swrm_ctrl *ctrl;
-	struct resource *res;
 	int ret;
 	u32 val;
 
@@ -799,12 +746,8 @@ static int qcom_swrm_probe(struct platform_device *pdev)
 		if (!ctrl->regmap)
 			return -EINVAL;
 	} else {
-		ctrl->reg_read = qcom_swrm_mmio_reg_read;
-		ctrl->reg_write = qcom_swrm_mmio_reg_write;
-		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-		ctrl->base = devm_ioremap_resource(dev, res);
-		if (IS_ERR(ctrl->base))
-			return PTR_ERR(ctrl->base);
+		/* Only WCD based SoundWire controller is supported */
+		return -ENOTSUPP;
 	}
 
 	ctrl->irq = of_irq_get(dev->of_node, 0);
@@ -892,29 +835,8 @@ static int qcom_swrm_remove(struct platform_device *pdev)
 	return 0;
 }
 
-static int qcom_swrm_runtime_suspend(struct device *device)
-{
-	/* TBD */
-	return 0;
-}
-
-static int qcom_swrm_runtime_resume(struct device *device)
-{
-	/* TBD */
-	return 0;
-}
-
-static const struct dev_pm_ops qcom_swrm_dev_pm_ops = {
-	SET_RUNTIME_PM_OPS(qcom_swrm_runtime_suspend,
-			   qcom_swrm_runtime_resume,
-			   NULL
-	)
-};
-
 static const struct of_device_id qcom_swrm_of_match[] = {
-	{ .compatible = "qcom,soundwire-v1.3.0",},
-	{ .compatible = "qcom,soundwire-v1.5.0",},
-	{ .compatible = "qcom,soundwire-v1.6.0",},
+	{ .compatible = "qcom,soundwire-v1.3.0", },
 	{/* sentinel */},
 };
 
@@ -926,7 +848,6 @@ static struct platform_driver qcom_swrm_driver = {
 	.driver = {
 		.name	= "qcom-soundwire",
 		.of_match_table = qcom_swrm_of_match,
-		.pm = &qcom_swrm_dev_pm_ops,
 	}
 };
 module_platform_driver(qcom_swrm_driver);
