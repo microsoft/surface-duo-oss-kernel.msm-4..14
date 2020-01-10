@@ -2850,19 +2850,12 @@
 
 			qcom,apps-ch-pipes = <0x780000>;
 			qcom,ea-pc = <0x270>;
-
+			status = "okay";
 			dmas =	<&slimbam 3>, <&slimbam 4>,
 				<&slimbam 5>, <&slimbam 6>;
 			dma-names = "rx", "tx", "tx2", "rx2";
 
 			iommus = <&apps_smmu 0x1806 0x0>;
-#if 0
-			iommus =
-				 <&apps_smmu 0x1806 0x0>, /* Audio SB NGD1 RX, TX */
-				 <&apps_smmu 0x180d 0x0>, /* data Pipe 11 reserved apps*/
-				<&apps_smmu 0x180e 0x1>, /* audio SB data piple 12, 13  SVA*/
-				 <&apps_smmu 0x1810 0x1>; /* audio SB data pipe 14 2 ch rx */
-#endif
 			#address-cells = <1>;
 			#size-cells = <0>;
 			ngd@1 {
@@ -2877,7 +2870,7 @@
 	
 				wcd9340: codec@1{
 					pinctrl-0 = <&wcd_intr_default>;
-					pinctrl-names = "default";//, "reset_active", "reset_sleep";
+					pinctrl-names = "default";
 					compatible = "slim217,250";
 					reg  = <1 0>;
 					reset-gpios = <&tlmm 64 0>;
@@ -2887,23 +2880,24 @@
 
 					interrupt-parent = <&tlmm>;
 					interrupts = <54 IRQ_TYPE_LEVEL_HIGH>;
-					interrupt-names  = "intr1";
 					interrupt-controller;
 					#interrupt-cells = <1>;
 
 					#clock-cells = <0>;
 					clock-frequency = <9600000>;
 					clock-output-names = "mclk";
-					qcom,micbias1-lvl = <1800>;
-					qcom,micbias2-lvl = <1800>;
-					qcom,micbias3-lvl = <1800>;
-					qcom,micbias4-lvl = <1800>;
-						
+					qcom,micbias1-millivolt = <1800>;
+					qcom,micbias2-millivolt = <1800>;
+					qcom,micbias3-millivolt = <1800>;
+					qcom,micbias4-millivolt = <1800>;
+				
+					#address-cells = <1>;
+					#size-cells = <1>;
+
 					wcdpinctrl: wcd-pinctrl@42 {
-						compatible = "qcom,wcd9340-pinctrl";
+						compatible = "qcom,wcd9340-gpio";
 						gpio-controller;
 						#gpio-cells = <2>;
-						gpio-ranges = <&wcdpinctrl 0 0 5>;
 						reg = <0x42 0x2>;
 
 						spkr_1_wcd_en_active: spkr_1_wcd_en_active {
@@ -2969,8 +2963,6 @@
 						interrupt-parent = <&wcd9340>;
 						interrupts = <20 IRQ_TYPE_EDGE_RISING>;
 						interrupt-names = "soundwire";
-						pinctrl-0 = <&spkr_1_wcd_en_active &spkr_2_wcd_en_active>;
-						pinctrl-names = "default";
 
 						qcom,dout-ports	= <6>;
 						qcom,din-ports	= <2>;
@@ -2981,21 +2973,9 @@
 						#sound-dai-cells = <1>;
 						clocks = <&wcd9340>;
 						clock-names = "iface";
+                                                #address-cells = <2>;
+                                                #size-cells = <0>;
 
-						left_spkr:wsa8810-left{
-							compatible = "sdw10,0217,2010,0";
-							sdw-instance-id = <1>;
-							pd-gpios = <&wcdpinctrl 2 0>;
-							#thermal-sensor-cells = <0>;
-
-						};
-
-						right_spkr:wsa8810-right{
-							compatible = "sdw10,0217,2010,0";
-							sdw-instance-id = <2>;
-							pd-gpios = <&wcdpinctrl 2 0>;
-							#thermal-sensor-cells = <0>;
-						};
 
 					};
 				};

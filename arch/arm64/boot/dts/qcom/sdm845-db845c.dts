@@ -221,7 +221,6 @@
 &slim_msm {
 	ngd@1 {
 		wcd9340: codec@1{
-			//clock-names = "mclk", "slimbus";
 			clock-names = "extclk";
 			clocks = <&rpmhcc RPMH_LN_BB_CLK2>;
 			vdd-buck-supply = <&vreg_s4a_1p8>;
@@ -230,6 +229,25 @@
 			vdd-rx-supply = <&vreg_s4a_1p8>;
 			vdd-io-supply = <&vreg_s4a_1p8>;
 
+			swm: swm@c85 {
+				left_spkr:wsa8810-left{
+            				compatible = "sdw10217201000";
+					reg = <0 1>;
+					powerdown-gpios = <&wcdpinctrl 2 0>;
+					#thermal-sensor-cells = <0>;
+					sound-name-prefix = "SpkrLeft";
+					#sound-dai-cells = <0>;
+				};
+
+				right_spkr:wsa8810-right{
+            				compatible = "sdw10217201000";
+					powerdown-gpios = <&wcdpinctrl 2 0>;
+					reg = <0 2>;
+					#thermal-sensor-cells = <0>;
+					sound-name-prefix = "SpkrRight";
+					#sound-dai-cells = <0>;
+				};
+			};
 		};
 	};
 };
@@ -486,17 +504,16 @@
 	audio-routing =
 		"RX_BIAS", "MCLK",
 		"AMIC1", "MIC BIAS1",
-		"MIC BIAS1", "Analog Mic1",
+		"AMIC2", "MIC BIAS2",
 		"DMIC0", "MIC BIAS1",
-		"MIC BIAS1", "Digital Mic0",
 		"DMIC1", "MIC BIAS1",
-		"MIC BIAS1", "Digital Mic1",
 		"DMIC2", "MIC BIAS3",
-		"MIC BIAS1", "Digital Mic2",
 		"DMIC3", "MIC BIAS3",
-		"MIC BIAS3", "Digital Mic3",
 		"SpkrLeft IN", "SPK1 OUT",
-		"SpkrRight IN", "SPK2 OUT";
+		"SpkrRight IN", "SPK2 OUT",
+		"MM_DL1",  "MultiMedia1 Playback",
+		"MM_DL2",  "MultiMedia2 Playback",
+		"MultiMedia3 Capture", "MM_UL3";
 
 	mm1-dai-link {
 		link-name = "MultiMedia1";
@@ -533,6 +550,7 @@
 			sound-dai = <&lt9611_codec 0>;
 		};
 	};
+
 	slim-dai-link {
 		link-name = "SLIM Playback";
 		cpu {
@@ -544,7 +562,9 @@
 		};
 
 		codec {
-			sound-dai = <&wcd9340 0>, <&swm 0>;
+			sound-dai =  <&left_spkr>, <&right_spkr>, <&swm 0>, <&wcd9340 0>;
+			//sound-dai =  <&left_spkr>, <&right_spkr>, <&wcd9340 0>;
+			//sound-dai = <&swm 0>,<&wcd9340 0>, <&left_spkr>, <&right_spkr>;
 		};
 	};
 
@@ -563,7 +583,6 @@
 		};
 	};
 };
-
 &i2c10 {
 	status = "okay";
 	clock-frequency = <400000>;
