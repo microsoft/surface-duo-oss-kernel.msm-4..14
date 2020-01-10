@@ -18,19 +18,18 @@
 #include <linux/slimbus.h>
 
 static const struct mfd_cell wcd934x_devices[] = {
-	{ /* Audio Codec */
+	{
 		.name = "wcd934x-codec",
-	}, { /* Pin controller */
-		.name = "wcd934x-pinctrl",
-		.of_compatible = "qcom,wcd9340-pinctrl",
-	}, { /* Soundwire Controller */
+	}, {
+		.name = "wcd934x-gpio",
+		.of_compatible = "qcom,wcd9340-gpio",
+	}, {
 		.name = "wcd934x-soundwire",
 		.of_compatible = "qcom,soundwire-v1.3.0",
 	},
 };
 
 static const struct regmap_irq wcd934x_irqs[] = {
-	/* INTR_REG 0 */
 	[WCD934X_IRQ_SLIMBUS] = {
 		.reg_offset = 0,
 		.mask = BIT(0),
@@ -94,7 +93,6 @@ static bool wcd934x_is_volatile_register(struct device *dev, unsigned int reg)
 	default:
 		return false;
 	}
-
 };
 
 static const struct regmap_range_cfg wcd934x_ranges[] = {
@@ -120,55 +118,142 @@ static struct regmap_config wcd934x_regmap_config = {
 	.volatile_reg = wcd934x_is_volatile_register,
 };
 
-static int wcd934x_parse_resources(struct wcd934x_data *wcd)
+static int wcd934x_bring_up(struct wcd934x_ddata *ddata)
 {
-	struct device *dev = wcd->dev;
-	struct device_node *np = dev->of_node;
+	struct regmap *regmap = ddata->regmap;
+	u16 id_minor, id_major;
 	int ret;
 
-	wcd->irq = of_irq_get(wcd->dev->of_node, 0);
-	if (wcd->irq < 0) {
-		if (wcd->irq != -EPROBE_DEFER)
-			dev_err(wcd->dev, "Failed to get IRQ: err = %d\n",
-				wcd->irq);
-		return wcd->irq;
-	}
-
-	wcd->reset_gpio = of_get_named_gpio(np,	"reset-gpios", 0);
-	if (wcd->reset_gpio < 0) {
-		dev_err(dev, "Failed to get reset gpio: err = %d\n",
-			wcd->reset_gpio);
-		return wcd->reset_gpio;
-	}
-
-	wcd->extclk = devm_clk_get(dev, "extclk");
-	if (IS_ERR(wcd->extclk)) {
-		dev_err(dev, "Failed to get extclk");
-		return PTR_ERR(wcd->extclk);
-	}
-
-	wcd->supplies[0].supply = "vdd-buck";
-	wcd->supplies[1].supply = "vdd-buck-sido";
-	wcd->supplies[2].supply = "vdd-tx";
-	wcd->supplies[3].supply = "vdd-rx";
-	wcd->supplies[4].supply = "vdd-io";
-
-	ret = regulator_bulk_get(dev, WCD934X_MAX_SUPPLY, wcd->supplies);
-	if (ret != 0) {
-		dev_err(dev, "Failed to get supplies: err = %d\n", ret);
+	ret = regmap_bulk_read(regmap, WCD934X_CHIP_TIER_CTRL_CHIP_ID_BYTE0,
+			       (u8 *)&id_minor, sizeof(u16));
+	if (ret)
 		return ret;
+
+	ret = regmap_bulk_read(regmap, WCD934X_CHIP_TIER_CTRL_CHIP_ID_BYTE2,
+			       (u8 *)&id_major, sizeof(u16));
+	if (ret)
+		return ret;
+
+	dev_info(ddata->dev, "WCD934x chip id major 0x%x, minor 0x%x\n",
+		 id_major, id_minor);
+
+	regmap_write(regmap, WCD934X_CODEC_RPM_RST_CTL, 0x01);
+	regmap_write(regmap, WCD934X_SIDO_NEW_VOUT_A_STARTUP, 0x19);
+	regmap_write(regmap, WCD934X_SIDO_NEW_VOUT_D_STARTUP, 0x15);
+	/* Add 1msec delay for VOUT to settle */
+	usleep_range(1000, 1100);
+	regmap_write(regmap, WCD934X_CODEC_RPM_PWR_CDC_DIG_HM_CTL, 0x5);
+	regmap_write(regmap, WCD934X_CODEC_RPM_PWR_CDC_DIG_HM_CTL, 0x7);
+	regmap_write(regmap, WCD934X_CODEC_RPM_RST_CTL, 0x3);
+	regmap_write(regmap, WCD934X_CODEC_RPM_RST_CTL, 0x7);
+	regmap_write(regmap, WCD934X_CODEC_RPM_PWR_CDC_DIG_HM_CTL, 0x3);
+
+	return 0;
+}
+
+static int wcd934x_slim_status_up(struct slim_device *sdev)
+{
+	struct device *dev = &sdev->dev;
+	struct wcd934x_ddata *ddata;
+	int ret;
+
+	ddata = dev_get_drvdata(dev);
+
+	ddata->regmap = regmap_init_slimbus(sdev, &wcd934x_regmap_config);
+	if (IS_ERR(ddata->regmap)) {
+		dev_err(dev, "Error allocating slim regmap\n");
+		return PTR_ERR(ddata->regmap);
+	}
+
+	ret = wcd934x_bring_up(ddata);
+	if (ret) {
+		dev_err(dev, "Failed to bring up WCD934X: err = %d\n", ret);
+		return ret;
+	}
+
+	ret = devm_regmap_add_irq_chip(dev, ddata->regmap, ddata->irq,
+				       IRQF_TRIGGER_HIGH, 0,
+				       &wcd934x_regmap_irq_chip,
+				       &ddata->irq_data);
+	if (ret) {
+		dev_err(dev, "Failed to add IRQ chip: err = %d\n", ret);
+		return ret;
+	}
+
+	ret = mfd_add_devices(dev, PLATFORM_DEVID_AUTO, wcd934x_devices,
+			      ARRAY_SIZE(wcd934x_devices), NULL, 0, NULL);
+	if (ret) {
+		dev_err(dev, "Failed to add child devices: err = %d\n",
+			ret);
+		return ret;
+	}
+
+	return ret;
+}
+
+static int wcd934x_slim_status(struct slim_device *sdev,
+			       enum slim_device_status status)
+{
+	switch (status) {
+	case SLIM_DEVICE_STATUS_UP:
+		return wcd934x_slim_status_up(sdev);
+	case SLIM_DEVICE_STATUS_DOWN:
+		mfd_remove_devices(&sdev->dev);
+		break;
+	default:
+		return -EINVAL;
 	}
 
 	return 0;
 }
 
-static int wcd934x_power_on_reset(struct wcd934x_data *wcd)
+static int wcd934x_slim_probe(struct slim_device *sdev)
 {
-	int ret;
+	struct device *dev = &sdev->dev;
+	struct device_node *np = dev->of_node;
+	struct wcd934x_ddata *ddata;
+	int reset_gpio, ret;
 
-	ret = regulator_bulk_enable(WCD934X_MAX_SUPPLY, wcd->supplies);
-	if (ret != 0) {
-		dev_err(wcd->dev, "Failed to get supplies: err = %d\n", ret);
+	ddata = devm_kzalloc(dev, sizeof(*ddata), GFP_KERNEL);
+	if (!ddata)
+		return	-ENOMEM;
+
+	ddata->irq = of_irq_get(np, 0);
+	if (ddata->irq < 0) {
+		if (ddata->irq != -EPROBE_DEFER)
+			dev_err(ddata->dev, "Failed to get IRQ: err = %d\n",
+				ddata->irq);
+		return ddata->irq;
+	}
+
+	reset_gpio = of_get_named_gpio(np, "reset-gpios", 0);
+	if (reset_gpio < 0) {
+		dev_err(dev, "Failed to get reset gpio: err = %d\n",
+			reset_gpio);
+		return reset_gpio;
+	}
+
+	ddata->extclk = devm_clk_get(dev, "extclk");
+	if (IS_ERR(ddata->extclk)) {
+		dev_err(dev, "Failed to get extclk");
+		return PTR_ERR(ddata->extclk);
+	}
+
+	ddata->supplies[0].supply = "vdd-buck";
+	ddata->supplies[1].supply = "vdd-buck-sido";
+	ddata->supplies[2].supply = "vdd-tx";
+	ddata->supplies[3].supply = "vdd-rx";
+	ddata->supplies[4].supply = "vdd-io";
+
+	ret = regulator_bulk_get(dev, WCD934X_MAX_SUPPLY, ddata->supplies);
+	if (ret) {
+		dev_err(dev, "Failed to get supplies: err = %d\n", ret);
+		return ret;
+	}
+
+	ret = regulator_bulk_enable(WCD934X_MAX_SUPPLY, ddata->supplies);
+	if (ret) {
+		dev_err(dev, "Failed to enable supplies: err = %d\n", ret);
 		return ret;
 	}
 
@@ -178,139 +263,29 @@ static int wcd934x_power_on_reset(struct wcd934x_data *wcd)
 	 * SYS_RST_N shouldn't be pulled high during this time
 	 */
 	usleep_range(600, 650);
-	gpio_direction_output(wcd->reset_gpio, 0);
+	gpio_direction_output(reset_gpio, 0);
 	msleep(20);
-	gpio_set_value(wcd->reset_gpio, 1);
+	gpio_set_value(reset_gpio, 1);
 	msleep(20);
 
-	return 0;
-}
-
-static int wcd934x_slim_probe(struct slim_device *sdev)
-{
-	struct device *dev = &sdev->dev;
-	struct wcd934x_data *wcd;
-	int ret = 0;
-
-	wcd = devm_kzalloc(dev, sizeof(*wcd), GFP_KERNEL);
-	if (!wcd)
-		return	-ENOMEM;
-
-	wcd->dev = dev;
-	ret = wcd934x_parse_resources(wcd);
-	if (ret) {
-		dev_err(dev, "Error parsing DT: err = %d\n", ret);
-		return ret;
-	}
-
-	ret = wcd934x_power_on_reset(wcd);
-	if (ret) {
-		dev_err(dev, "Error Power resetting device: err = %d\n", ret);
-		return ret;
-	}
-
-	wcd->sdev = sdev;
-	dev_set_drvdata(dev, wcd);
-
-	return 0;
-}
-
-static int wcd934x_bring_up(struct wcd934x_data *wcd)
-{
-	struct regmap *rm = wcd->regmap;
-	u16 id_minor, id_major;
-	int ret;
-
-	ret = regmap_bulk_read(rm, WCD934X_CHIP_TIER_CTRL_CHIP_ID_BYTE0,
-			       (u8 *)&id_minor, sizeof(u16));
-	if (ret)
-		return -EINVAL;
-
-	ret = regmap_bulk_read(rm, WCD934X_CHIP_TIER_CTRL_CHIP_ID_BYTE2,
-			       (u8 *)&id_major, sizeof(u16));
-	if (ret)
-		return -EINVAL;
-
-	dev_info(wcd->dev, "wcd934x chip id major 0x%x, minor 0x%x\n",
-		 id_major, id_minor);
-
-	regmap_write(rm, WCD934X_CODEC_RPM_RST_CTL, 0x01);
-	regmap_write(rm, WCD934X_SIDO_NEW_VOUT_A_STARTUP, 0x19);
-	regmap_write(rm, WCD934X_SIDO_NEW_VOUT_D_STARTUP, 0x15);
-	/* Add 1msec delay for VOUT to settle */
-	usleep_range(1000, 1100);
-	regmap_write(rm, WCD934X_CODEC_RPM_PWR_CDC_DIG_HM_CTL, 0x5);
-	regmap_write(rm, WCD934X_CODEC_RPM_PWR_CDC_DIG_HM_CTL, 0x7);
-	regmap_write(rm, WCD934X_CODEC_RPM_RST_CTL, 0x3);
-	regmap_write(rm, WCD934X_CODEC_RPM_RST_CTL, 0x7);
-	regmap_write(rm, WCD934X_CODEC_RPM_PWR_CDC_DIG_HM_CTL, 0x3);
-
-	return 0;
-
-}
-
-static int wcd934x_slim_status(struct slim_device *sdev,
-			       enum slim_device_status status)
-{
-	struct device *dev = &sdev->dev;
-	struct wcd934x_data *wcd;
-	int ret;
-
-	wcd = dev_get_drvdata(dev);
-
-	switch (status) {
-	case SLIM_DEVICE_STATUS_UP:
-		wcd->regmap = regmap_init_slimbus(sdev, &wcd934x_regmap_config);
-		if (IS_ERR(wcd->regmap)) {
-			dev_err(dev, "Error allocating slim regmap\n");
-			return PTR_ERR(wcd->regmap);
-		}
-
-		ret = wcd934x_bring_up(wcd);
-		if (ret) {
-			dev_err(dev, "Error WCD934X bringup: err = %d\n", ret);
-			return ret;
-		}
-
-		ret = devm_regmap_add_irq_chip(wcd->dev, wcd->regmap, wcd->irq,
-					       IRQF_TRIGGER_HIGH, 0,
-					       &wcd934x_regmap_irq_chip,
-					       &wcd->irq_data);
-		if (ret) {
-			dev_err(wcd->dev, "Error adding irq_chip: err = %d\n",
-				ret);
-			return ret;
-		}
-
-		ret = mfd_add_devices(wcd->dev, 0, wcd934x_devices,
-				      ARRAY_SIZE(wcd934x_devices),
-				      NULL, 0, NULL);
-		if (ret) {
-			dev_err(wcd->dev, "Error add mfd devices: err = %d\n",
-				ret);
-			return ret;
-		}
-		break;
-	case SLIM_DEVICE_STATUS_DOWN:
-		mfd_remove_devices(wcd->dev);
-		break;
-	default:
-		return -EINVAL;
-	}
+	ddata->dev = dev;
+	dev_set_drvdata(dev, ddata);
 
 	return 0;
 }
 
 static void wcd934x_slim_remove(struct slim_device *sdev)
 {
-	struct wcd934x_data *wcd = dev_get_drvdata(&sdev->dev);
+	struct wcd934x_ddata *ddata = dev_get_drvdata(&sdev->dev);
 
+	regulator_bulk_disable(WCD934X_MAX_SUPPLY, ddata->supplies);
 	mfd_remove_devices(&sdev->dev);
-	kfree(wcd);
+	kfree(ddata);
 }
 
 static const struct slim_device_id wcd934x_slim_id[] = {
-	{SLIM_MANF_ID_QCOM, SLIM_PROD_CODE_WCD9340, 0x1, 0x0},
+	{ SLIM_MANF_ID_QCOM, SLIM_PROD_CODE_WCD9340,
+	  SLIM_DEV_IDX_WCD9340, SLIM_DEV_INSTANCE_ID_WCD9340 },
 	{}
 };
 
@@ -328,3 +303,4 @@ module_slim_driver(wcd934x_slim_driver);
 MODULE_DESCRIPTION("WCD934X slim driver");
 MODULE_LICENSE("GPL v2");
 MODULE_ALIAS("slim:217:250:*");
+MODULE_AUTHOR("Srinivas Kandagatla <srinivas.kandagatla@linaro.org>");
