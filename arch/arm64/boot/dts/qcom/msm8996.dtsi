@@ -2433,7 +2433,7 @@
 	sound: sound {
 	};
 
-	adsp-pil {
+	adsp: adsp-pil {
 		compatible = "qcom,msm8996-adsp-pil";
 
 		interrupts-extended = <&intc 0 162 IRQ_TYPE_EDGE_RISING>,

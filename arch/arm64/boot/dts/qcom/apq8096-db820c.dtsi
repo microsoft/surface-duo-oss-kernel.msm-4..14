@@ -669,6 +669,16 @@
 	};
 };
 
+&adsp {
+	status = "okay";
+	firmware-name = "qcom/msm8996/adsp.mbn";
+};
+
+&mpss {
+	status = "okay";
+	firmware-name = "qcom/msm8996/mba.mbn", "qcom/msm8996/modem.mbn";
+};
+
 &spmi_bus {
 	pmic@0 {
 		pon@800 {
