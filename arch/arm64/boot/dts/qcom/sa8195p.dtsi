@@ -240,6 +240,10 @@
 	};
 };
 
+&usb0 {
+	qcom,default-mode-none;
+};
+
 &usb1 {
 	qcom,default-mode-host;
 	status = "ok";
@@ -328,6 +332,10 @@
 
 &pil_lpass {
 	vdd_cx-supply = <&VDD_CX_LEVEL>;
+	status = "ok";
+};
+
+&pil_spss {
 	status = "ok";
 };
 
