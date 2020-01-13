@@ -1040,6 +1040,13 @@ static int __ref kernel_init(void *unused)
 	      "See Linux Documentation/admin-guide/init.rst for guidance.");
 }
 
+static int launch_early_services_thread(void *arg)
+{
+	pr_err("Early Services thread launched\n");
+	launch_early_services();
+	return 0;
+}
+
 static noinline void __init kernel_init_freeable(void)
 {
 	/*
@@ -1092,8 +1099,8 @@ static noinline void __init kernel_init_freeable(void)
 	if (sys_access((const char __user *) ramdisk_execute_command, 0) != 0) {
 		ramdisk_execute_command = NULL;
 		prepare_namespace();
-		launch_early_services();
 	}
+	kthread_run(launch_early_services_thread, NULL, "early_services");
 
 	/*
 	 * Ok, we have completed the initial bootup, and
