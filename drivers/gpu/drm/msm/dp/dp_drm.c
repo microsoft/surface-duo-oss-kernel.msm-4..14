@@ -600,8 +600,9 @@ static void dp_bond_fixup_tile_mode(struct drm_connector *connector)
 	INIT_LIST_HEAD(&tile_modes);
 
 	list_for_each_entry(mode, &connector->probed_modes, head) {
-		if (mode->hdisplay != connector->tile_h_size ||
-			mode->vdisplay != connector->tile_v_size)
+		if (!dp_display->force_bond_mode &&
+			(mode->hdisplay != connector->tile_h_size ||
+			mode->vdisplay != connector->tile_v_size))
 			continue;
 
 		newmode = drm_mode_duplicate(connector->dev, mode);
@@ -653,6 +654,13 @@ static bool dp_bond_check_connector(struct drm_connector *connector,
 		if (!p->is_sst_connected)
 			return false;
 
+		if (dp_display->force_bond_mode) {
+			if (p->force_bond_mode)
+				continue;
+			else
+				return false;
+		}
+
 		p_conn = p->base_connector;
 		if (!p_conn->has_tile || !p_conn->tile_group ||
 			p_conn->tile_group->id != connector->tile_group->id)
@@ -660,6 +668,35 @@ static bool dp_bond_check_connector(struct drm_connector *connector,
 	}
 
 	return true;
+}
+
+static void dp_bond_check_force_mode(struct drm_connector *connector)
+{
+	struct sde_connector *c_conn = to_sde_connector(connector);
+	struct dp_display *dp_display = c_conn->display;
+	enum dp_bond_type type, preferred_type = DP_BOND_MAX;
+
+	if (!dp_display->dp_bond_prv_info || !dp_display->force_bond_mode)
+		return;
+
+	if (connector->has_tile && connector->tile_group)
+		return;
+
+	connector->has_tile = false;
+
+	for (type = DP_BOND_DUAL; type < DP_BOND_MAX; type++) {
+		if (!dp_bond_check_connector(connector, type))
+			continue;
+
+		preferred_type = type;
+	}
+
+	if (preferred_type == DP_BOND_MAX)
+		return;
+
+	connector->has_tile = true;
+	connector->num_h_tile = preferred_type + 2;
+	connector->num_v_tile = 1;
 }
 
 int dp_connector_config_hdr(struct drm_connector *connector, void *display,
@@ -854,6 +891,8 @@ enum drm_connector_status dp_connector_detect(struct drm_connector *conn,
 	if (dp_display->dp_bond_prv_info &&
 			status == connector_status_connected) {
 		enum dp_bond_type type;
+
+		dp_bond_check_force_mode(conn);
 
 		type = dp_bond_get_bond_type(conn);
 		if (type == DP_BOND_MAX)
