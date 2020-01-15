@@ -504,3 +504,11 @@
 &spi5 {
 	status = "okay";
 };
+
+/*
+ * Temporary disables SIUL2_1 pinmuxing due to overlapping
+ * IMCR and MSCR spaces.
+ */
+&pinctrl1 {
+	status = "disabled";
+};
