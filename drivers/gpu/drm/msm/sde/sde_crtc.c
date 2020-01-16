@@ -1217,6 +1217,19 @@ static bool _sde_crtc_setup_is_3dmux_dsc(struct drm_crtc_state *state)
 			SDE_RM_TOPOLOGY_QUADPIPE_3DMERGE_DSC);
 }
 
+static bool _sde_crtc_setup_is_quad_pipe(struct drm_crtc_state *state)
+{
+	struct sde_crtc_state *cstate;
+
+	cstate = to_sde_crtc_state(state);
+
+	return (cstate->topology_name == SDE_RM_TOPOLOGY_QUADPIPE_3DMERGE ||
+			cstate->topology_name ==
+			SDE_RM_TOPOLOGY_QUADPIPE_DSCMERGE ||
+			cstate->topology_name ==
+			SDE_RM_TOPOLOGY_QUADPIPE_3DMERGE_DSC);
+}
+
 static int _sde_crtc_set_crtc_roi(struct drm_crtc *crtc,
 		struct drm_crtc_state *state)
 {
@@ -5278,6 +5291,58 @@ static int _sde_crtc_check_secure_state(struct drm_crtc *crtc,
 	return 0;
 }
 
+static int _sde_crtc_check_plane_layout(struct drm_crtc *crtc,
+		struct drm_crtc_state *crtc_state)
+{
+	struct drm_plane *plane;
+	struct drm_plane_state *plane_state;
+	struct sde_plane_state *pstate;
+	enum sde_layout layout;
+	int layout_split;
+
+	if (!_sde_crtc_setup_is_quad_pipe(crtc_state))
+		return 0;
+
+	drm_atomic_crtc_state_for_each_plane(plane, crtc_state) {
+		plane_state = drm_atomic_get_existing_plane_state(
+				crtc_state->state, plane);
+		if (!plane_state)
+			continue;
+
+		pstate = to_sde_plane_state(plane_state);
+		layout = sde_plane_get_property(pstate, PLANE_PROP_LAYOUT);
+		layout_split = crtc_state->mode.hdisplay >> 1;
+
+		/* update layout if global coordinate is used */
+		if (layout == SDE_LAYOUT_NONE) {
+			if (plane_state->crtc_x >= layout_split) {
+				layout = SDE_LAYOUT_RIGHT;
+				plane_state->crtc_x -= layout_split;
+				pstate->layout_offset = layout_split;
+			} else {
+				layout = SDE_LAYOUT_LEFT;
+				pstate->layout_offset = -1;
+			}
+			pstate->property_values[PLANE_PROP_LAYOUT].value =
+					layout;
+			SDE_DEBUG("plane%d updated: crtc_x=%d layout=%d\n",
+				DRMID(plane), plane_state->crtc_x, layout);
+		}
+
+		/* check layout boundary */
+		if (CHECK_LAYER_BOUNDS(plane_state->crtc_x,
+				plane_state->crtc_w, layout_split)) {
+			SDE_ERROR("invalid horizontal destination\n");
+			SDE_ERROR("x:%d w:%d hdisp:%d layout:%d\n",
+				plane_state->crtc_x, plane_state->crtc_w,
+				layout_split, layout);
+			return -E2BIG;
+		}
+	}
+
+	return 0;
+}
+
 static int sde_crtc_atomic_check(struct drm_crtc *crtc,
 		struct drm_crtc_state *state)
 {
@@ -5348,6 +5413,13 @@ static int sde_crtc_atomic_check(struct drm_crtc *crtc,
 	rc = _sde_crtc_check_dest_scaler_data(crtc, state);
 	if (rc) {
 		SDE_ERROR("crtc%d failed dest scaler check %d\n",
+			crtc->base.id, rc);
+		goto end;
+	}
+
+	rc = _sde_crtc_check_plane_layout(crtc, state);
+	if (rc) {
+		SDE_ERROR("crtc%d failed plane layout check %d\n",
 			crtc->base.id, rc);
 		goto end;
 	}
