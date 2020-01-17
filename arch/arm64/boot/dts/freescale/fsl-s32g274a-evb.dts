@@ -1,5 +1,5 @@
 /*
- * Copyright 2019 NXP
+ * Copyright 2019-2020 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -464,10 +464,6 @@
 	status = "okay";
 };
 
-&spi0 {
-	status = "okay";
-};
-
 &spi1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl0_dspi1>, <&pinctrl1_dspi1>;
@@ -480,18 +476,6 @@
 		spi-max-frequency = <4000000>;
 		reg = <0>;
 	};
-};
-
-&spi2 {
-	status = "okay";
-};
-
-&spi3 {
-	status = "okay";
-};
-
-&spi4 {
-	status = "okay";
 };
 
 &spi5 {
