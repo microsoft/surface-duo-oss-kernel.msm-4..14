@@ -2,7 +2,7 @@
 /*
  * PCIe host controller driver for NXP S32Gen1 SoCs
  *
- * Copyright 2019 NXP
+ * Copyright 2020 NXP
  */
 
 #include <linux/clk.h>
@@ -41,8 +41,6 @@
 //#define DEBUG_RW
 #define CONFIG_PCIE_RC_MSI
 //#define CONFIG_PCIE_RC_INT
-#define CONFIG_PCIE_EP_MSI
-
 #ifdef DEBUG
 #ifdef pr_debug
 #undef pr_debug
@@ -466,6 +464,22 @@ static u8 dw_pcie_iatu_unroll_enabled(struct dw_pcie *pci)
 	return 0;
 }
 
+#ifdef CONFIG_PCI_S32GEN1_EP_MSI
+/* Chained MSI interrupt service routine, for EP */
+static void dw_ep_chained_msi_isr(struct irq_desc *desc)
+{
+	struct irq_chip *chip = irq_desc_get_chip(desc);
+	struct pcie_port *pp;
+
+	chained_irq_enter(chip, desc);
+
+	pp = irq_desc_get_handler_data(desc);
+	dw_handle_msi_irq(pp);
+
+	chained_irq_exit(chip, desc);
+}
+#endif
+
 static void s32gen1_pcie_ep_init(struct dw_pcie_ep *ep)
 {
 	struct dw_pcie *pcie = to_dw_pcie_from_ep(ep);
@@ -473,6 +487,10 @@ static void s32gen1_pcie_ep_init(struct dw_pcie_ep *ep)
 	int bar;
 #ifdef CONFIG_PCI_S32GEN1_INIT_EP_BARS
 	int ret = 0;
+#endif
+#ifdef CONFIG_PCI_S32GEN1_EP_MSI
+	u32 val, ctrl, num_ctrls;
+	struct pcie_port *pp = &(pcie->pp); 
 #endif
 
 	DEBUG_FUNC
@@ -506,6 +524,49 @@ static void s32gen1_pcie_ep_init(struct dw_pcie_ep *ep)
 	BSET32(pcie, dbi, PCI_CLASS_REVISION,
 		((PCI_BASE_CLASS_PROCESSOR << 24) |
 			     (0x80 /* other */ << 16)));
+
+#ifdef CONFIG_PCI_S32GEN1_EP_MSI
+	pp->num_vectors = MSI_DEF_NUM_VECTORS;
+	ret = dw_pcie_allocate_domains(pp);
+	if (ret)
+		dev_err(pcie->dev, "Unable to setup MSI domain for EP\n");
+
+	if (pp->msi_irq)
+		irq_set_chained_handler_and_data(pp->msi_irq,
+						dw_ep_chained_msi_isr,
+						pp);
+
+	num_ctrls = pp->num_vectors / MAX_MSI_IRQS_PER_CTRL;
+
+	/* Initialize IRQ Status array */
+	for (ctrl = 0; ctrl < num_ctrls; ctrl++) {
+		dw_pcie_writel_dbi(pcie, PCIE_MSI_INTR0_MASK +
+					(ctrl * MSI_REG_CTRL_BLOCK_SIZE), ~0);
+		dw_pcie_writel_dbi(pcie, PCIE_MSI_INTR0_ENABLE +
+					(ctrl * MSI_REG_CTRL_BLOCK_SIZE), ~0);
+		pcie->pp.irq_status[ctrl] = 0;
+	}
+
+	/* Setup interrupt pins */
+	val = dw_pcie_readl_dbi(pcie, PCI_INTERRUPT_LINE);
+	val &= 0xffff00ff;
+	val |= 0x00000100;
+	dw_pcie_writel_dbi(pcie, PCI_INTERRUPT_LINE, val);
+
+	dw_pcie_msi_init(&pcie->pp);
+#else
+	pr_debug("%s: Enable MSI/MSI-X capabilities\n", __func__);
+
+	/* Enable MSIs by setting the capability bit */
+	BSET32(pcie, dbi, PCI_MSI_CAP, MSI_EN);
+
+	/* Enable MSI-Xs by setting the capability bit */
+	BSET32(pcie, dbi, PCI_MSIX_CAP, MSIX_EN);
+#endif /* CONFIG_PCI_S32GEN1_EP_MSI */
+
+	dw_pcie_dbi_ro_wr_dis(pcie);
+
+	epc->features |= EPC_FEATURE_MSIX_AVAILABLE;
 
 #ifdef CONFIG_PCI_S32GEN1_INIT_EP_BARS
 	
@@ -903,8 +964,6 @@ static int __init s32gen1_add_pcie_port(struct pcie_port *pp,
 	}
 #endif
 
-	pp->ops = &s32gen1_pcie_host_ops;
-
 	ret = dw_pcie_host_init(pp);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to initialize host\n");
@@ -962,7 +1021,17 @@ static int __init s32gen1_add_pcie_ep(struct s32gen1_pcie *s32_pp,
 	struct resource *res;
 
 	DEBUG_FUNC
-	
+
+#ifdef CONFIG_PCI_S32GEN1_EP_MSI
+
+	ret = s32gen1_pcie_config_irq(&(pcie->pp.msi_irq), "msi", pdev,
+			s32gen1_pcie_msi_handler, &(pcie->pp));
+	if (ret) {
+		dev_err(&pdev->dev, "failed to request msi irq\n");
+		return ret;
+	}
+#endif
+
 	ep->ops = &pcie_ep_ops;
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "addr_space");
@@ -1141,6 +1210,8 @@ static int s32gen1_pcie_probe(struct platform_device *pdev)
 	
 	dev_info(dev, "Configuring as %s\n",
 			PCIE_EP_RC_MODE(s32_pp->is_endpoint));
+
+	pp->ops = &s32gen1_pcie_host_ops;
 
 	if (!s32_pp->is_endpoint) {
 		ret = s32gen1_add_pcie_port(pp, pdev);
