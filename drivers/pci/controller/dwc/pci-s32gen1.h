@@ -75,17 +75,6 @@ struct s32gen1_pcie {
 	struct dw_pcie	pcie;
 	struct dentry	*dir;
 
-	/* available interrupts:
-	 * "link_req_stat", "dma","msi",
-	 * "phy_link_down", "phy_link_up", "misc",
-	 * "pcs", "tlp_req_no_comp"
-	 */
-	int link_req_stat_irq;
-	int phy_link_down_irq;
-	int phy_link_up_irq;
-	int misc_irq;
-	int pcs_irq;
-	int tlp_req_no_comp_irq;
 
 	/* we have cfg in struct pcie_port and
 	 * dbi in struct dw_pcie, so define only ctrl here

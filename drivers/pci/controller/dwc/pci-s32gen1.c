@@ -40,7 +40,6 @@
 //#define DEBUG
 //#define DEBUG_RW
 #define CONFIG_PCIE_RC_MSI
-//#define CONFIG_PCIE_RC_INT
 #ifdef DEBUG
 #ifdef pr_debug
 #undef pr_debug
@@ -821,74 +820,6 @@ static irqreturn_t s32gen1_pcie_msi_handler(int irq, void *arg)
 }
 #endif
 
-#ifdef CONFIG_PCIE_RC_INT
-
-/* link_req_stat IRQ handler
- * irq - interrupt number
- * arg - pointer to the "struct s32gen1_pcie" object
- */
-static irqreturn_t s32gen1_pcie_link_req_stat_handler(int irq, void *arg)
-{
-	DEBUG_FUNC
-
-	return IRQ_HANDLED;
-}
-
-/* phy_link_down IRQ handler
- * irq - interrupt number
- * arg - pointer to the "struct s32gen1_pcie" object
- */
-static irqreturn_t s32gen1_pcie_phy_link_down_handler(int irq, void *arg)
-{
-	DEBUG_FUNC
-
-	return IRQ_HANDLED;
-}
-
-/* phy_link_up IRQ handler
- * irq - interrupt number
- * arg - pointer to the "struct s32gen1_pcie" object
- */
-static irqreturn_t s32gen1_pcie_phy_link_up_handler(int irq, void *arg)
-{
-	DEBUG_FUNC
-	
-	return IRQ_HANDLED;
-}
-
-/* misc IRQ handler
- * irq - interrupt number
- * arg - pointer to the "struct s32gen1_pcie" object
- */
-static irqreturn_t s32gen1_pcie_misc_handler(int irq, void *arg)
-{
-	DEBUG_FUNC
-	
-	return IRQ_HANDLED;
-}
-
-/* pcs IRQ handler
- * irq - interrupt number
- * arg - pointer to the "struct s32gen1_pcie" object
- */
-static irqreturn_t s32gen1_pcie_pcs_handler(int irq, void *arg)
-{
-	DEBUG_FUNC
-	
-	return IRQ_HANDLED;
-}
-
-/* misc IRQ handler
- * irq - interrupt number
- * arg - pointer to the "struct s32gen1_pcie" object
- */
-static irqreturn_t s32gen1_pcie_tlp_req_no_comp_handler(int irq, void *arg)
-{
-	DEBUG_FUNC
-	
-	return IRQ_HANDLED;
-}
-#endif /* CONFIG_PCIE_RC_INT */
 
 static int s32gen1_pcie_host_init(struct pcie_port *pp)
 {
@@ -1061,39 +992,6 @@ static void s32gen1_pcie_shutdown(struct platform_device *pdev)
 		 * in case of reboot
 		 */
 
-		if (s32_pp->link_req_stat_irq > 0)
-			devm_free_irq(&pdev->dev,
-					s32_pp->link_req_stat_irq,
-					s32_pp);
-
-		if (s32_pp->pcie.pp.msi_irq > 0)
-			devm_free_irq(&pdev->dev,
-					s32_pp->pcie.pp.msi_irq,
-					s32_pp);
-
-		if (s32_pp->phy_link_down_irq > 0)
-			devm_free_irq(&pdev->dev,
-					s32_pp->phy_link_down_irq,
-					s32_pp);
-
-		if (s32_pp->phy_link_up_irq > 0)
-			devm_free_irq(&pdev->dev,
-					s32_pp->phy_link_up_irq,
-					s32_pp);
-
-		if (s32_pp->misc_irq > 0)
-			devm_free_irq(&pdev->dev,
-					s32_pp->misc_irq,
-					s32_pp);
-		if (s32_pp->pcs_irq > 0)
-			devm_free_irq(&pdev->dev,
-					s32_pp->misc_irq,
-					s32_pp);
-		if (s32_pp->tlp_req_no_comp_irq > 0)
-			devm_free_irq(&pdev->dev,
-					s32_pp->misc_irq,
-					s32_pp);
-
 		s32gen1_pcie_stop_link(&s32_pp->pcie);
 
 		pm_runtime_put_sync(&pdev->dev);
@@ -1217,52 +1115,7 @@ static int s32gen1_pcie_probe(struct platform_device *pdev)
 		ret = s32gen1_add_pcie_port(pp, pdev);
 		if (ret < 0)
 			goto err;
-		
-#ifdef CONFIG_PCIE_RC_INT
-		ret = s32gen1_pcie_config_irq(&s32_pp->link_req_stat_irq,
-				"link_req_stat", pdev,
-				s32gen1_pcie_link_req_stat_handler, s32_pp);
-		if (ret) {
-			dev_err(&pdev->dev, "failed to request link_req_stat irq\n");
-			goto err;
-		}
-		ret = s32gen1_pcie_config_irq(&s32_pp->phy_link_down_irq,
-				"phy_link_down", pdev,
-				s32gen1_pcie_phy_link_down_handler, s32_pp);
-		if (ret) {
-			dev_err(&pdev->dev, "failed to request phy_link_down irq\n");
-			goto err;
-		}
-		ret = s32gen1_pcie_config_irq(&s32_pp->phy_link_up_irq,
-				"phy_link_up", pdev,
-				s32gen1_pcie_phy_link_up_handler, s32_pp);
-		if (ret) {
-			dev_err(&pdev->dev, "failed to request phy_link_up irq\n");
-			goto err;
-		}
-		ret = s32gen1_pcie_config_irq(&s32_pp->misc_irq,
-				"misc", pdev,
-				s32gen1_pcie_misc_handler, s32_pp);
-		if (ret) {
-			dev_err(&pdev->dev, "failed to request misc irq\n");
-			goto err;
-		}
-		ret = s32gen1_pcie_config_irq(&s32_pp->pcs_irq,
-				"pcs", pdev,
-				s32gen1_pcie_pcs_handler, s32_pp);
-		if (ret) {
-			dev_err(&pdev->dev, "failed to request pcs irq\n");
-			goto err;
-		}
-		ret = s32gen1_pcie_config_irq(&s32_pp->tlp_req_no_comp_irq,
-				"tlp_req_no_comp", pdev,
-				s32gen1_pcie_tlp_req_no_comp_handler, s32_pp);
-		if (ret) {
-			dev_err(&pdev->dev, "failed to request ptlp_req_no_compcs irq\n");
-			goto err;
-		}
-#endif /* CONFIG_PCIE_RC_INT */
-	
+
 	} else {
 		struct dentry *pfile;
 
