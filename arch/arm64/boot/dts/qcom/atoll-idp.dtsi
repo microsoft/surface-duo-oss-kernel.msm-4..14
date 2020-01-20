@@ -179,8 +179,11 @@
 	dpdm-supply = <&qusb_phy0>;
 	qcom,charger-temp-max = <800>;
 	qcom,smb-temp-max = <800>;
+	qcom,fcc-step-delay-ms = <100>;
+	qcom,fcc-step-size-ua = <100000>;
 	qcom,disable-sw-thermal-regulation;
 	qcom,disable-fcc-restriction;
+	qcom,smb-internal-pull-kohm = <0>;
 };
 
 &pm6150l_gpios {
@@ -259,6 +262,17 @@
 	qcom,mdss-dsi-bl-max-level = <255>;
 	qcom,platform-te-gpio = <&tlmm 10 0>;
 	qcom,platform-reset-gpio = <&pm6150l_gpios 3 0>;
+};
+
+&dsi_nt36672c_video {
+	qcom,panel-supply-entries = <&dsi_panel_pwr_supply_no_labibb>;
+	qcom,mdss-dsi-bl-pmic-control-type = "bl_ctrl_dcs";
+	qcom,mdss-dsi-bl-min-level = <1>;
+	qcom,mdss-dsi-bl-max-level = <255>;
+	qcom,platform-te-gpio = <&tlmm 10 0>;
+	qcom,platform-reset-gpio = <&pm6150l_gpios 3 0>;
+	qcom,platform-bklight-en-gpio = <&pm6150l_gpios 10 0>;
+	qcom,platform-en-gpio = <&pm6150l_gpios 4 0>;
 };
 
 &qupv3_se0_i2c {

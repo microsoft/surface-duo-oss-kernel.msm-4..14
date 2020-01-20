@@ -1,4 +1,4 @@
-/* Copyright (c) 2019, The Linux Foundation.All rights reserved.
+/* Copyright (c) 2019-2020, The Linux Foundation.All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -38,7 +38,7 @@
 
 	mem-offline {
 		compatible = "qcom,mem-offline";
-		offline-sizes = <0x1 0x40000000 0x0 0x80000000>,
+		offline-sizes = <0x1 0x40000000 0x0 0x40000000>,
 						<0x1 0xc0000000 0x0 0xc0000000>,
 						<0x2 0xc0000000 0x1 0x40000000>;
 		granule = <512>;
@@ -431,7 +431,7 @@
 				1996800	1562
 				2112000	1801
 				2208000	2000
-				2304000	2326
+				2323200	2341
 				2400000	2568
 			>;
 			idle-cost-data = <
@@ -471,7 +471,7 @@
 				1996800	54
 				2112000	60
 				2208000	61
-				2304000	62
+				2323200	62
 				2400000	63
 			>;
 			idle-cost-data = <
@@ -640,7 +640,7 @@
 		};
 
 		disp_rdump_memory: disp_rdump_region@9c000000 {
-			reg = <0x0 0x9c000000 0x0 0x01800000>;
+			reg = <0x0 0x9c000000 0x0 0x01700000>;
 			label = "disp_rdump_region";
 		};
 
@@ -1513,6 +1513,13 @@
 		qcom,aux-minidump-ids = <4>;
 		qcom,complete-ramdump;
 
+		qcom,msm-bus,name = "pil-modem";
+		qcom,msm-bus,num-cases = <2>;
+		qcom,msm-bus,num-paths = <1>;
+		qcom,msm-bus,vectors-KBps =
+				<129 512 0 0>,
+				<129 512 0 1041408>;
+
 		/* Inputs from mss */
 		interrupts-extended = <&pdc GIC_SPI 266 IRQ_TYPE_EDGE_RISING>,
 				      <&modem_smp2p_in 0 IRQ_TYPE_NONE>,
@@ -1539,6 +1546,8 @@
 		compatible = "qcom,pil-tz-generic";
 		reg = <0x9800000 0x800000>;
 
+		qcom,ssctl-instance-id = <0x18>;
+		qcom,smem-id = <622>;
 		qcom,pas-id = <23>;
 		qcom,firmware-name = "npu";
 		memory-region = <&pil_npu_mem>;
@@ -2520,7 +2529,7 @@
 		compatible = "qcom,smp2p";
 		qcom,smem = <617>, <616>;
 		interrupts = <GIC_SPI 589 IRQ_TYPE_EDGE_RISING>;
-		mboxes = <&apcs_glb2 6>;
+		mboxes = <&msm_npu 6>;
 		qcom,local-pid = <0>;
 		qcom,remote-pid = <10>;
 
@@ -2970,6 +2979,7 @@
 			    "tsens_tm_physical";
 		interrupts = <0 506 0>, <0 508 0>;
 		interrupt-names = "tsens-upper-lower", "tsens-critical";
+		tsens-reinit-wa;
 		#thermal-sensor-cells = <1>;
 	};
 
@@ -2981,6 +2991,7 @@
 			    "tsens_tm_physical";
 		interrupts = <0 507 0>, <0 509 0>;
 		interrupt-names = "tsens-upper-lower", "tsens-critical";
+		tsens-reinit-wa;
 		#thermal-sensor-cells = <1>;
 	};
 
@@ -3065,7 +3076,7 @@
 		interrupt-names = "slimbus_irq", "slimbus_bam_irq";
 		qcom,apps-ch-pipes = <0x700000>;
 		qcom,ea-pc = <0x340>;
-		qcom,iommu-s1-bypass;
+		qcom,iommu-atomic-ctx;
 		status = "ok";
 
 		iommu_slim_aud_ctrl_cb: qcom,iommu_slim_ctrl_cb {
@@ -3398,6 +3409,8 @@
 		compatible = "qcom,bimc-bwmon4";
 		reg = <0x00060400 0x300>, <0x00060300 0x200>;
 		reg-names = "base", "global_base";
+		qcom,msm_bus = <MSM_BUS_MASTER_NPU MSM_BUS_SLAVE_CDSP_GEM_NOC>;
+		qcom,msm_bus_name = "npu_bwmon_cdsp";
 		clocks = <&clock_gcc GCC_NPU_BWMON_DMA_CFG_AHB_CLK>,
 				<&clock_gcc GCC_NPU_BWMON_AXI_CLK>;
 		clock-names = "gcc_npu_bwmon_dma_cfg_ahb_clk",
@@ -3417,13 +3430,15 @@
 		governor = "performance";
 		qcom,src-dst-ports = <MSM_BUS_MASTER_NPU MSM_BUS_SLAVE_EBI_CH0>;
 		operating-points-v2 = <&suspendable_ddr_bw_opp_table>;
-		status = "disabled";
+		status = "ok";
 	};
 
 	npudsp_npu_ddr_bwmon: qcom,npudsp-npu-ddr-bwmon@70300 {
 		compatible = "qcom,bimc-bwmon4";
 		reg = <0x00070300 0x300>, <0x00070200 0x200>;
 		reg-names = "base", "global_base";
+		qcom,msm_bus = <MSM_BUS_MASTER_NPU MSM_BUS_SLAVE_CDSP_GEM_NOC>;
+		qcom,msm_bus_name = "npudsp_bwmon_cdsp";
 		clocks = <&clock_gcc GCC_NPU_BWMON_DSP_CFG_AHB_CLK>,
 				<&clock_gcc GCC_NPU_BWMON_AXI_CLK>;
 		clock-names = "gcc_npu_bwmon_dsp_cfg_ahb_clk",
@@ -3435,7 +3450,7 @@
 		qcom,hw-timer-hz = <19200000>;
 		qcom,target-dev = <&npudsp_npu_ddr_bw>;
 		qcom,count-unit = <0x10000>;
-		status = "disabled";
+		status = "ok";
 	};
 
 	/delete-node/gpu-bw-tbl;
@@ -3872,6 +3887,79 @@
 				qcom,bus-max = <0>;
 			};
 		};
+
+		qcom,gpu-pwrlevels-5 {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			qcom,speed-bin = <159>;
+
+			qcom,initial-pwrlevel = <5>;
+			qcom,ca-target-pwrlevel = <4>;
+
+			/* NOM_L1 */
+			qcom,gpu-pwrlevel@0 {
+				reg = <0>;
+				qcom,gpu-freq = <750000000>;
+				qcom,bus-freq = <11>;
+				qcom,bus-min = <10>;
+				qcom,bus-max = <11>;
+			};
+
+			/* NOM_L1 */
+			qcom,gpu-pwrlevel@1 {
+				reg = <1>;
+				qcom,gpu-freq = <650000000>;
+				qcom,bus-freq = <10>;
+				qcom,bus-min = <8>;
+				qcom,bus-max = <11>;
+			};
+
+			/* NOM */
+			qcom,gpu-pwrlevel@2 {
+				reg = <2>;
+				qcom,gpu-freq = <565000000>;
+				qcom,bus-freq = <9>;
+				qcom,bus-min = <8>;
+				qcom,bus-max = <11>;
+			};
+
+			/* SVS_L1 */
+			qcom,gpu-pwrlevel@3 {
+				reg = <3>;
+				qcom,gpu-freq = <430000000>;
+				qcom,bus-freq = <8>;
+				qcom,bus-min = <7>;
+				qcom,bus-max = <10>;
+			};
+
+			/* SVS */
+			qcom,gpu-pwrlevel@4 {
+				reg = <4>;
+				qcom,gpu-freq = <355000000>;
+				qcom,bus-freq = <7>;
+				qcom,bus-min = <5>;
+				qcom,bus-max = <8>;
+			};
+
+			/* LOW SVS */
+			qcom,gpu-pwrlevel@5 {
+				reg = <5>;
+				qcom,gpu-freq = <267000000>;
+				qcom,bus-freq = <5>;
+				qcom,bus-min = <4>;
+				qcom,bus-max = <7>;
+			};
+
+			/* XO */
+			qcom,gpu-pwrlevel@6 {
+				reg = <6>;
+				qcom,gpu-freq = <0>;
+				qcom,bus-freq = <0>;
+				qcom,bus-min = <0>;
+				qcom,bus-max = <0>;
+			};
+		};
 	};
 };
 
@@ -4022,10 +4110,29 @@
 	};
 };
 
+&spmi_bus {
+	qcom,pm6150@0 {
+		pm6150_adc_tm_iio: adc_tm@3400 {
+			compatible = "qcom,adc-tm5-iio";
+			reg = <0x3400 0x100>;
+			#thermal-sensor-cells = <1>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			io-channels = <&pm6150_vadc ADC_GPIO1_PU2>;
+
+			nvm_therm {
+				reg = <ADC_GPIO1_PU2>;
+				qcom,ratiometric;
+				qcom,hw-settle-time = <200>;
+			};
+		};
+	};
+};
+
 &pm6150_adc_tm {
 	io-channels = <&pm6150_vadc ADC_XO_THERM_PU2>,
 			<&pm6150_vadc ADC_AMUX_THM1_PU2>,
-			<&pm6150_vadc ADC_GPIO1_PU2>,
+			<&pm6150_vadc ADC_AMUX_THM3_PU2>,
 			<&pm6150_vadc ADC_GPIO2_PU2>;
 
 	/* Channel nodes */
@@ -4041,8 +4148,8 @@
 		qcom,hw-settle-time = <200>;
 	};
 
-	nvm_therm {
-		reg = <ADC_GPIO1_PU2>;
+	conn_therm {
+		reg = <ADC_AMUX_THM3_PU2>;
 		qcom,ratiometric;
 		qcom,hw-settle-time = <200>;
 	};

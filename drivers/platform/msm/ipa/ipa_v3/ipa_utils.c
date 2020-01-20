@@ -2841,12 +2841,8 @@ static struct ipa3_mem_partition ipa_4_5_mem_part = {
 	.apps_hdr_proc_ctx_ofst		= 0x15f0,
 	.apps_hdr_proc_ctx_size		= 0x200,
 	.apps_hdr_proc_ctx_size_ddr	= 0x0,
-	.nat_tbl_ofst			= 0x1800,
-	.nat_tbl_size			= 0x800,
-	.nat_index_tbl_ofst		= 0x2000,
-	.nat_index_tbl_size		= 0x100,
-	.nat_exp_tbl_ofst		= 0x2100,
-	.nat_exp_tbl_size		= 0x400,
+	.nat_tbl_ofst            = 0x00001800,
+	.nat_tbl_size            = 0x00000D00,
 	.stats_quota_ofst		= 0x2510,
 	.stats_quota_size		= 0x78,
 	.stats_tethering_ofst		= 0x2588,
@@ -5076,7 +5072,8 @@ int ipa3_write_qmap_id(struct ipa_ioc_write_qmapid *param_in)
 	    param_in->client == IPA_CLIENT_HSIC1_PROD ||
 	    param_in->client == IPA_CLIENT_ODU_PROD ||
 	    param_in->client == IPA_CLIENT_ETHERNET_PROD ||
-		param_in->client == IPA_CLIENT_WIGIG_PROD) {
+		param_in->client == IPA_CLIENT_WIGIG_PROD ||
+		param_in->client == IPA_CLIENT_AQC_ETHERNET_PROD) {
 		result = ipa3_cfg_ep_metadata(ipa_ep_idx, &meta);
 	} else if (param_in->client == IPA_CLIENT_WLAN1_PROD ||
 			   param_in->client == IPA_CLIENT_WLAN2_PROD) {
@@ -5465,32 +5462,12 @@ int ipa3_init_mem_partition(enum ipa_hw_type type)
 	}
 
 	IPADBG("NAT TBL OFST 0x%x SIZE 0x%x\n",
-		IPA_MEM_PART(nat_tbl_ofst),
-		IPA_MEM_PART(nat_tbl_size));
+		   IPA_MEM_PART(nat_tbl_ofst),
+		   IPA_MEM_PART(nat_tbl_size));
 
 	if (IPA_MEM_PART(nat_tbl_ofst) & 31) {
-		IPAERR("NAT TBL OFST 0x%x is unaligned\n",
-			IPA_MEM_PART(nat_tbl_ofst));
-		return -ENODEV;
-	}
-
-	IPADBG("NAT INDEX TBL OFST 0x%x SIZE 0x%x\n",
-		IPA_MEM_PART(nat_index_tbl_ofst),
-		IPA_MEM_PART(nat_index_tbl_size));
-
-	if (IPA_MEM_PART(nat_index_tbl_ofst) & 3) {
-		IPAERR("NAT INDEX TBL OFST 0x%x is unaligned\n",
-			IPA_MEM_PART(nat_index_tbl_ofst));
-		return -ENODEV;
-	}
-
-	IPADBG("NAT EXP TBL OFST 0x%x SIZE 0x%x\n",
-		IPA_MEM_PART(nat_exp_tbl_ofst),
-		IPA_MEM_PART(nat_exp_tbl_size));
-
-	if (IPA_MEM_PART(nat_exp_tbl_ofst) & 31) {
-		IPAERR("NAT EXP TBL OFST 0x%x is unaligned\n",
-			IPA_MEM_PART(nat_exp_tbl_ofst));
+		IPAERR("NAT TBL OFST 0x%x is not aligned properly\n",
+			   IPA_MEM_PART(nat_tbl_ofst));
 		return -ENODEV;
 	}
 
@@ -8270,3 +8247,48 @@ int ipa3_get_prot_id(enum ipa_client_type client)
 	return prot_id;
 }
 
+int ipa3_app_clk_vote(
+	enum ipa_app_clock_vote_type vote_type)
+{
+	const char *str_ptr = "APP_VOTE";
+	int ret = 0;
+
+	IPADBG("In\n");
+
+	mutex_lock(&ipa3_ctx->app_clock_vote.mutex);
+
+	switch (vote_type) {
+	case IPA_APP_CLK_VOTE:
+		if ((ipa3_ctx->app_clock_vote.cnt + 1) <= IPA_APP_VOTE_MAX) {
+			ipa3_ctx->app_clock_vote.cnt++;
+			IPA_ACTIVE_CLIENTS_INC_SPECIAL(str_ptr);
+		} else {
+			IPAERR_RL("App vote count max hit\n");
+			ret = -EPERM;
+			break;
+		}
+		break;
+	case IPA_APP_CLK_DEVOTE:
+		if (ipa3_ctx->app_clock_vote.cnt) {
+			ipa3_ctx->app_clock_vote.cnt--;
+			IPA_ACTIVE_CLIENTS_DEC_SPECIAL(str_ptr);
+		}
+		break;
+	case IPA_APP_CLK_RESET_VOTE:
+		while (ipa3_ctx->app_clock_vote.cnt > 0) {
+			IPA_ACTIVE_CLIENTS_DEC_SPECIAL(str_ptr);
+			ipa3_ctx->app_clock_vote.cnt--;
+		}
+		break;
+	default:
+		IPAERR_RL("Unknown vote_type(%u)\n", vote_type);
+		ret = -EPERM;
+		break;
+	}
+
+	mutex_unlock(&ipa3_ctx->app_clock_vote.mutex);
+
+	IPADBG("Out\n");
+
+	return ret;
+}
