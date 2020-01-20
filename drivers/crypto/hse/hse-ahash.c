@@ -3,9 +3,9 @@
  * NXP HSE Driver - Asynchronous Hash Support
  *
  * This file contains the implementation of the hash algorithms and hash-based
- * message authentication codes that benefit from hardware acceleration via HSE.
+ * message authentication codes supported for hardware offloading via HSE.
  *
- * Copyright 2019 NXP
+ * Copyright 2019-2020 NXP
  */
 
 #include <linux/kernel.h>
@@ -17,44 +17,47 @@
 #include <crypto/sha.h>
 #include <crypto/scatterwalk.h>
 
-#include "hse.h"
-#include "hse-mu.h"
 #include "hse-abi.h"
+#include "hse-core.h"
 
 #define HSE_AHASH_MAX_BLOCK_SIZE     SHA512_BLOCK_SIZE
 #define HSE_AHASH_MAX_DIGEST_SIZE    SHA512_DIGEST_SIZE
 
 /**
- * struct hse_ahash_req_ctx - crypto request context
- * @srv_desc: service descriptor for hash/hmac ops
- * @srv_desc_dma: service descriptor DMA address
- * @streaming_mode: request in streaming mode
- * @stream: acquired MU stream type channel
- * @cache: block-sized cache for small input fragments
- * @cache_idx: current written byte index in the cache
- * @buf: dynamically allocated linearized input buffer
- * @buf_dma: linearized input buffer DMA address
- * @buflen: size of current linearized input buffer
- * @outlen: result buffer size, equal to digest size
- * @outlen_dma: result buffer size DMA address
- * @result: result buffer containing message digest
- * @result_dma: result buffer DMA address
+ * struct hse_ahash_tpl - algorithm template
+ * @hash_name: hash algorithm name
+ * @hash_drv: hash driver name
+ * @hmac_name: hmac algorithm name
+ * @hmac_drv: hmac driver name
+ * @blocksize: block size
+ * @ahash_tpl: ahash template
+ * @alg_type: hash algorithm type
  */
-struct hse_ahash_req_ctx {
-	struct hse_srv_desc srv_desc;
-	dma_addr_t srv_desc_dma;
-	bool streaming_mode;
-	u8 stream;
-	u8 cache[HSE_AHASH_MAX_BLOCK_SIZE];
-	u32 cache_idx;
-	void *buf;
-	dma_addr_t buf_dma;
-	u32 buflen;
-	u32 outlen;
-	dma_addr_t outlen_dma;
-	u8 result[HSE_AHASH_MAX_DIGEST_SIZE] ____cacheline_aligned;
-	dma_addr_t result_dma;
-} ____cacheline_aligned;
+struct hse_ahash_tpl {
+	char hash_name[CRYPTO_MAX_ALG_NAME];
+	char hash_drv[CRYPTO_MAX_ALG_NAME];
+	char hmac_name[CRYPTO_MAX_ALG_NAME];
+	char hmac_drv[CRYPTO_MAX_ALG_NAME];
+	unsigned int blocksize;
+	struct ahash_alg ahash_tpl;
+	enum hse_hash_algorithm alg_type;
+};
+
+/**
+ * struct hse_ahash_alg - algorithm private data
+ * @ahash: ahash algorithm
+ * @entry: position in supported algorithms list
+ * @srv_id: HSE service ID
+ * @alg_type: hash algorithm type
+ * @dev: HSE device
+ */
+struct hse_ahash_alg {
+	struct ahash_alg ahash;
+	struct list_head entry;
+	u32 srv_id;
+	enum hse_hash_algorithm alg_type;
+	struct device *dev;
+};
 
 /**
  * struct hse_ahash_tfm_ctx - crypto transformation context
@@ -81,44 +84,38 @@ struct hse_ahash_tfm_ctx {
 } ____cacheline_aligned;
 
 /**
- * struct hse_ahash_tpl - algorithm template
- * @hash_name: hash algorithm name
- * @hash_drv: hash driver name
- * @hmac_name: hmac algorithm name
- * @hmac_drv: hmac driver name
- * @blocksize: block size
- * @ahash_tpl: ahash template
- * @alg_type: HSE algorithm type
+ * struct hse_ahash_req_ctx - crypto request context
+ * @srv_desc: service descriptor for hash/hmac ops
+ * @srv_desc_dma: service descriptor DMA address
+ * @streaming_mode: request in streaming mode
+ * @access_mode: streaming mode stage of request
+ * @stream: acquired MU stream type channel
+ * @cache: block-sized cache for small input fragments
+ * @cache_idx: current written byte index in the cache
+ * @buf: dynamically allocated linearized input buffer
+ * @buf_dma: linearized input buffer DMA address
+ * @buflen: size of current linearized input buffer
+ * @outlen: result buffer size, equal to digest size
+ * @outlen_dma: result buffer size DMA address
+ * @result: result buffer containing message digest
+ * @result_dma: result buffer DMA address
  */
-struct hse_ahash_tpl {
-	char hash_name[CRYPTO_MAX_ALG_NAME];
-	char hash_drv[CRYPTO_MAX_ALG_NAME];
-	char hmac_name[CRYPTO_MAX_ALG_NAME];
-	char hmac_drv[CRYPTO_MAX_ALG_NAME];
-	unsigned int blocksize;
-	struct ahash_alg ahash_tpl;
-	u8 alg_type;
-};
-
-/**
- * struct hse_ahash_alg - algorithm private data
- * @ahash: ahash algorithm
- * @entry: position in supported algorithms list
- * @srv_id: HSE service ID
- * @alg_type: HSE algorithm type
- * @dev: HSE device
- * @mu_inst: MU instance
- * @hmac_keys: keys available for hmac
- */
-struct hse_ahash_alg {
-	struct ahash_alg ahash;
-	struct list_head entry;
-	u32 srv_id;
-	u8 alg_type;
-	struct device *dev;
-	void *mu_inst;
-	struct list_head *hmac_keys;
-};
+struct hse_ahash_req_ctx {
+	struct hse_srv_desc srv_desc;
+	dma_addr_t srv_desc_dma;
+	bool streaming_mode;
+	enum hse_srv_access_mode access_mode;
+	u8 stream;
+	u8 cache[HSE_AHASH_MAX_BLOCK_SIZE];
+	u32 cache_idx;
+	void *buf;
+	dma_addr_t buf_dma;
+	u32 buflen;
+	u32 outlen;
+	dma_addr_t outlen_dma;
+	u8 result[HSE_AHASH_MAX_DIGEST_SIZE] ____cacheline_aligned;
+	dma_addr_t result_dma;
+} ____cacheline_aligned;
 
 /**
  * hse_ahash_get_alg - get hash algorithm data from crypto ahash transformation
@@ -135,34 +132,31 @@ static inline struct hse_ahash_alg *hse_ahash_get_alg(struct crypto_ahash *tfm)
 }
 
 /**
- * hse_ahash_done - asynchronous hash request rx callback
- * @mu_inst: MU instance
- * @channel: service channel index
+ * hse_ahash_done - asynchronous hash request done callback
+ * @err: service response error code
  * @req: asynchronous hash request
  *
- * Common rx callback for hash/hmac service requests in any access mode.
+ * Common callback for all hash and MAC service requests in any access mode.
  */
-static void hse_ahash_done(void *mu_inst, u8 channel, void *req)
+static void hse_ahash_done(int err, void *req)
 {
 	struct hse_ahash_req_ctx *rctx = ahash_request_ctx(req);
 	struct crypto_ahash *tfm = crypto_ahash_reqtfm(req);
 	struct hse_ahash_alg *alg = hse_ahash_get_alg(tfm);
-	u8 access_mode;
-	int err;
+	enum hse_srv_access_mode access_mode;
 
 	if (alg->srv_id == HSE_SRV_ID_HASH)
 		access_mode = rctx->srv_desc.hash_req.access_mode;
 	else
 		access_mode = rctx->srv_desc.mac_req.access_mode;
 
-	err = hse_mu_async_req_recv(mu_inst, channel);
 	if (unlikely(err)) {
 		dev_dbg(alg->dev, "%s: %s request in mode %d failed: %d\n",
 			__func__, crypto_ahash_alg_name(tfm), access_mode, err);
 
 		switch (access_mode) {
 		case HSE_ACCESS_MODE_FINISH:
-			hse_mu_channel_release(alg->mu_inst, rctx->stream);
+			hse_channel_release(alg->dev, rctx->stream);
 			/* fall through */
 		case HSE_ACCESS_MODE_ONE_PASS:
 			dma_unmap_single(alg->dev, rctx->outlen_dma,
@@ -188,7 +182,7 @@ static void hse_ahash_done(void *mu_inst, u8 channel, void *req)
 		rctx->streaming_mode = true;
 		break;
 	case HSE_ACCESS_MODE_FINISH:
-		hse_mu_channel_release(alg->mu_inst, rctx->stream);
+		hse_channel_release(alg->dev, rctx->stream);
 		/* fall through */
 	case HSE_ACCESS_MODE_ONE_PASS:
 		dma_unmap_single(alg->dev, rctx->srv_desc_dma,
@@ -257,7 +251,7 @@ static int hse_ahash_init(struct ahash_request *req)
 	rctx->cache_idx = 0;
 	rctx->streaming_mode = false;
 
-	err = hse_mu_channel_acquire(alg->mu_inst, &rctx->stream, true);
+	err = hse_channel_acquire(alg->dev, HSE_CH_TYPE_STREAM, &rctx->stream);
 	if (err)
 		goto err_free_buf;
 
@@ -342,11 +336,12 @@ static int hse_ahash_update(struct ahash_request *req)
 		break;
 	}
 
+	/* sync and issue request */
 	dma_sync_single_for_device(alg->dev, rctx->srv_desc_dma,
 				   sizeof(rctx->srv_desc), DMA_TO_DEVICE);
-	err = hse_mu_async_req_send(alg->mu_inst, rctx->stream,
-				    lower_32_bits(rctx->srv_desc_dma),
-				    req, hse_ahash_done);
+
+	err = hse_srv_req_async(alg->dev, rctx->stream, rctx->srv_desc_dma,
+				req, hse_ahash_done);
 	if (unlikely(err))
 		goto err_release_channel;
 
@@ -357,7 +352,7 @@ static int hse_ahash_update(struct ahash_request *req)
 
 	return -EINPROGRESS;
 err_release_channel:
-	hse_mu_channel_release(alg->mu_inst, rctx->stream);
+	hse_channel_release(alg->dev, rctx->stream);
 	dma_free_coherent(alg->dev, rctx->buflen, rctx->buf, rctx->buf_dma);
 	dma_unmap_single(alg->dev, rctx->srv_desc_dma, sizeof(rctx->srv_desc),
 			 DMA_TO_DEVICE);
@@ -397,8 +392,8 @@ static int hse_ahash_final(struct ahash_request *req)
 
 	/* use ONE-PASS access mode if no START request has been issued */
 	if (!rctx->streaming_mode) {
-		hse_mu_channel_release(alg->mu_inst, rctx->stream);
-		rctx->stream = HSE_ANY_CHANNEL;
+		hse_channel_release(alg->dev, rctx->stream);
+		rctx->stream = HSE_CHANNEL_ANY;
 		rctx->srv_desc.priority = HSE_SRV_PRIO_LOW;
 	}
 
@@ -425,11 +420,12 @@ static int hse_ahash_final(struct ahash_request *req)
 		break;
 	}
 
+	/* sync and issue request */
 	dma_sync_single_for_device(alg->dev, rctx->srv_desc_dma,
 				   sizeof(rctx->srv_desc), DMA_TO_DEVICE);
-	err = hse_mu_async_req_send(alg->mu_inst, rctx->stream,
-				    lower_32_bits(rctx->srv_desc_dma),
-				    req, hse_ahash_done);
+
+	err = hse_srv_req_async(alg->dev, rctx->stream, rctx->srv_desc_dma,
+				req, hse_ahash_done);
 	if (unlikely(err))
 		goto err_unmap_outlen;
 
@@ -441,7 +437,7 @@ err_unmap_result:
 	dma_unmap_single(alg->dev, rctx->result_dma, rctx->outlen,
 			 DMA_FROM_DEVICE);
 err_release_channel:
-	hse_mu_channel_release(alg->mu_inst, rctx->stream);
+	hse_channel_release(alg->dev, rctx->stream);
 	dma_free_coherent(alg->dev, rctx->buflen, rctx->buf, rctx->buf_dma);
 	dma_unmap_single(alg->dev, rctx->srv_desc_dma, sizeof(rctx->srv_desc),
 			 DMA_TO_DEVICE);
@@ -502,8 +498,8 @@ static int hse_ahash_finup(struct ahash_request *req)
 
 	/* use ONE-PASS access mode if no START request has been issued */
 	if (!rctx->streaming_mode) {
-		hse_mu_channel_release(alg->mu_inst, rctx->stream);
-		rctx->stream = HSE_ANY_CHANNEL;
+		hse_channel_release(alg->dev, rctx->stream);
+		rctx->stream = HSE_CHANNEL_ANY;
 		rctx->srv_desc.priority = HSE_SRV_PRIO_LOW;
 	}
 
@@ -530,11 +526,12 @@ static int hse_ahash_finup(struct ahash_request *req)
 		break;
 	}
 
+	/* sync and issue request */
 	dma_sync_single_for_device(alg->dev, rctx->srv_desc_dma,
 				   sizeof(rctx->srv_desc), DMA_TO_DEVICE);
-	err = hse_mu_async_req_send(alg->mu_inst, rctx->stream,
-				    lower_32_bits(rctx->srv_desc_dma),
-				    req, hse_ahash_done);
+
+	err = hse_srv_req_async(alg->dev, rctx->stream, rctx->srv_desc_dma,
+				req, hse_ahash_done);
 	if (unlikely(err))
 		goto err_unmap_outlen;
 
@@ -546,7 +543,7 @@ err_unmap_result:
 	dma_unmap_single(alg->dev, rctx->result_dma, rctx->outlen,
 			 DMA_FROM_DEVICE);
 err_release_channel:
-	hse_mu_channel_release(alg->mu_inst, rctx->stream);
+	hse_channel_release(alg->dev, rctx->stream);
 	dma_free_coherent(alg->dev, rctx->buflen, rctx->buf, rctx->buf_dma);
 	dma_unmap_single(alg->dev, rctx->srv_desc_dma, sizeof(rctx->srv_desc),
 			 DMA_TO_DEVICE);
@@ -618,6 +615,7 @@ static int hse_ahash_digest(struct ahash_request *req)
 		break;
 	}
 
+	/* sync and issue request */
 	rctx->srv_desc_dma = dma_map_single(alg->dev, &rctx->srv_desc,
 					    sizeof(rctx->srv_desc),
 					    DMA_TO_DEVICE);
@@ -626,9 +624,8 @@ static int hse_ahash_digest(struct ahash_request *req)
 		goto err_free_buf;
 	}
 
-	err = hse_mu_async_req_send(alg->mu_inst, HSE_ANY_CHANNEL,
-				    lower_32_bits(rctx->srv_desc_dma),
-				    req, hse_ahash_done);
+	err = hse_srv_req_async(alg->dev, HSE_CHANNEL_ANY, rctx->srv_desc_dma,
+				req, hse_ahash_done);
 	if (unlikely(err))
 		goto err_unmap_srv_desc;
 
@@ -659,7 +656,7 @@ static int hse_ahash_export(struct ahash_request *req, void *out)
 
 	dev_err(alg->dev, "%s: partial hash ops not supported\n", __func__);
 
-	hse_mu_channel_release(alg->mu_inst, rctx->stream);
+	hse_channel_release(alg->dev, rctx->stream);
 	dma_free_coherent(alg->dev, rctx->buflen, rctx->buf, rctx->buf_dma);
 	dma_unmap_single(alg->dev, rctx->srv_desc_dma, sizeof(rctx->srv_desc),
 			 DMA_TO_DEVICE);
@@ -684,12 +681,13 @@ static int hse_ahash_import(struct ahash_request *req, const void *in)
  * hse_ahash_setkey - asynchronous hash setkey operation
  * @tfm: crypto ahash transformation
  * @key: input key
- * @keylen: input key size
+ * @keylen: input key length, in bytes
  *
  * The maximum hmac key size supported by HSE is equal to the hash algorithm
  * block size. Any key exceeding this size is shortened by hashing it before
  * being imported into the key store, in accordance with hmac specification.
  * Zero padding shall be added to keys shorter than HSE_KEY_HMAC_MIN_SIZE.
+ * Key buffers and information must be located in the 32-bit address range.
  */
 static int hse_ahash_setkey(struct crypto_ahash *tfm, const u8 *key,
 			    unsigned int keylen)
@@ -708,6 +706,7 @@ static int hse_ahash_setkey(struct crypto_ahash *tfm, const u8 *key,
 		void *tmp_keybuf;
 		dma_addr_t tmp_keybuf_dma;
 
+		/* make sure key is located in a DMAable area */
 		tmp_keybuf = kmemdup(key, keylen, GFP_KERNEL);
 		if (IS_ERR_OR_NULL(tmp_keybuf))
 			return -ENOMEM;
@@ -737,8 +736,8 @@ static int hse_ahash_setkey(struct crypto_ahash *tfm, const u8 *key,
 					   sizeof(tctx->srv_desc),
 					   DMA_TO_DEVICE);
 
-		err = hse_mu_sync_req(alg->mu_inst, HSE_ANY_CHANNEL,
-				      lower_32_bits(tctx->srv_desc_dma));
+		err = hse_srv_req_sync(alg->dev, HSE_CHANNEL_ANY,
+				       tctx->srv_desc_dma);
 		memzero_explicit(&tctx->srv_desc, sizeof(tctx->srv_desc));
 		dma_unmap_single(alg->dev, tmp_keybuf_dma, keylen,
 				 DMA_TO_DEVICE);
@@ -751,8 +750,9 @@ static int hse_ahash_setkey(struct crypto_ahash *tfm, const u8 *key,
 		dma_sync_single_for_cpu(alg->dev, tctx->keylen_dma,
 					sizeof(tctx->keylen), DMA_FROM_DEVICE);
 	} else {
-		tctx->keylen = max(HSE_KEY_HMAC_MIN_SIZE, keylen);
+		/* make sure key is located in a DMAable area */
 		memcpy(tctx->keybuf, key, keylen);
+		tctx->keylen = max(HSE_KEY_HMAC_MIN_SIZE, keylen);
 		memzero_explicit(tctx->keybuf + keylen, tctx->keylen - keylen);
 		dma_sync_single_for_device(alg->dev, tctx->keybuf_dma,
 					   tctx->keylen, DMA_TO_DEVICE);
@@ -769,16 +769,15 @@ static int hse_ahash_setkey(struct crypto_ahash *tfm, const u8 *key,
 	tctx->srv_desc.priority = HSE_SRV_PRIO_HIGH;
 	tctx->srv_desc.import_key_req.key_handle = tctx->key_slot->handle;
 	tctx->srv_desc.import_key_req.key_info = tctx->keyinf_dma;
-	tctx->srv_desc.import_key_req.key = tctx->keybuf_dma;
-	tctx->srv_desc.import_key_req.key_len = tctx->keylen;
+	tctx->srv_desc.import_key_req.sym.key = tctx->keybuf_dma;
+	tctx->srv_desc.import_key_req.sym.keylen = tctx->keylen;
 	tctx->srv_desc.import_key_req.cipher_key = HSE_INVALID_KEY_HANDLE;
 	tctx->srv_desc.import_key_req.auth_key = HSE_INVALID_KEY_HANDLE;
 
 	dma_sync_single_for_device(alg->dev, tctx->srv_desc_dma,
 				   sizeof(tctx->srv_desc), DMA_TO_DEVICE);
 
-	err = hse_mu_sync_req(alg->mu_inst, HSE_ANY_CHANNEL,
-			      lower_32_bits(tctx->srv_desc_dma));
+	err = hse_srv_req_sync(alg->dev, HSE_CHANNEL_ANY, tctx->srv_desc_dma);
 	if (unlikely(err))
 		dev_dbg(alg->dev, "%s: key import request failed for %s: %d\n",
 			__func__, crypto_ahash_alg_name(tfm), err);
@@ -787,7 +786,7 @@ static int hse_ahash_setkey(struct crypto_ahash *tfm, const u8 *key,
 }
 
 /**
- * hse_ahash_cra_init - crypto algorithm init
+ * hse_ahash_cra_init - crypto transformation init
  * @gtfm: generic crypto transformation
  */
 static int hse_ahash_cra_init(struct crypto_tfm *gtfm)
@@ -795,7 +794,6 @@ static int hse_ahash_cra_init(struct crypto_tfm *gtfm)
 	struct crypto_ahash *tfm = __crypto_ahash_cast(gtfm);
 	struct hse_ahash_tfm_ctx *tctx = crypto_ahash_ctx(tfm);
 	struct hse_ahash_alg *alg = hse_ahash_get_alg(tfm);
-	struct hse_drvdata *drv = dev_get_drvdata(alg->dev);
 	int err;
 
 	crypto_ahash_set_reqsize(tfm, sizeof(struct hse_ahash_req_ctx));
@@ -803,18 +801,12 @@ static int hse_ahash_cra_init(struct crypto_tfm *gtfm)
 	if (alg->srv_id != HSE_SRV_ID_MAC)
 		return 0;
 
-	/* remove key slot from hmac ring */
-	spin_lock(&drv->key_lock);
-	tctx->key_slot = list_first_entry_or_null(alg->hmac_keys,
-						  struct hse_key, entry);
+	tctx->key_slot = hse_key_slot_acquire(alg->dev, HSE_KEY_TYPE_HMAC);
 	if (IS_ERR_OR_NULL(tctx->key_slot)) {
 		dev_dbg(alg->dev, "%s: cannot acquire key slot for %s\n",
 			__func__, crypto_ahash_alg_name(tfm));
-		spin_unlock(&drv->key_lock);
-		return -ENOKEY;
+		return PTR_ERR(tctx->key_slot);
 	}
-	list_del(&tctx->key_slot->entry);
-	spin_unlock(&drv->key_lock);
 
 	tctx->srv_desc_dma = dma_map_single_attrs(alg->dev, &tctx->srv_desc,
 						  sizeof(tctx->srv_desc),
@@ -865,12 +857,12 @@ err_unmap_srv_desc:
 			       sizeof(tctx->srv_desc), DMA_TO_DEVICE,
 			       DMA_ATTR_SKIP_CPU_SYNC);
 err_release_key_slot:
-	list_add_tail(&tctx->key_slot->entry, alg->hmac_keys);
+	hse_key_slot_release(alg->dev, tctx->key_slot);
 	return err;
 }
 
 /**
- * hse_ahash_cra_exit - crypto algorithm exit
+ * hse_ahash_cra_exit - crypto transformation exit
  * @gtfm: generic crypto transformation
  */
 static void hse_ahash_cra_exit(struct crypto_tfm *gtfm)
@@ -882,8 +874,7 @@ static void hse_ahash_cra_exit(struct crypto_tfm *gtfm)
 	if (alg->srv_id != HSE_SRV_ID_MAC)
 		return;
 
-	/* add key slot back to hmac ring */
-	list_add_tail(&tctx->key_slot->entry, alg->hmac_keys);
+	hse_key_slot_release(alg->dev, tctx->key_slot);
 
 	dma_unmap_single_attrs(alg->dev, tctx->srv_desc_dma,
 			       sizeof(tctx->srv_desc), DMA_TO_DEVICE,
@@ -969,7 +960,6 @@ static const struct hse_ahash_tpl hse_ahash_algs_tpl[] = {
 static struct hse_ahash_alg *hse_ahash_alloc(struct device *dev, bool keyed,
 					     const struct hse_ahash_tpl *tpl)
 {
-	struct hse_drvdata *drvdata = dev_get_drvdata(dev);
 	struct hse_ahash_alg *alg;
 	struct crypto_alg *base;
 	const char *name, *drvname;
@@ -983,8 +973,6 @@ static struct hse_ahash_alg *hse_ahash_alloc(struct device *dev, bool keyed,
 
 	alg->alg_type = tpl->alg_type;
 	alg->dev = dev;
-	alg->mu_inst = drvdata->mu_inst;
-	alg->hmac_keys = &drvdata->hmac_keys;
 
 	alg->ahash.init = hse_ahash_init;
 	alg->ahash.update = hse_ahash_update;
@@ -1016,9 +1004,8 @@ static struct hse_ahash_alg *hse_ahash_alloc(struct device *dev, bool keyed,
 	base->cra_ctxsize = sizeof(struct hse_ahash_tfm_ctx);
 	base->cra_priority = HSE_CRA_PRIORITY;
 	base->cra_blocksize = tpl->blocksize;
-	base->cra_alignmask = 0;
-	base->cra_flags = CRYPTO_ALG_ASYNC | CRYPTO_ALG_TYPE_AHASH;
-	base->cra_type = &crypto_ahash_type;
+	base->cra_alignmask = 0u;
+	base->cra_flags = CRYPTO_ALG_ASYNC | CRYPTO_ALG_KERN_DRIVER_ONLY;
 
 	return alg;
 }
@@ -1026,13 +1013,13 @@ static struct hse_ahash_alg *hse_ahash_alloc(struct device *dev, bool keyed,
 /**
  * hse_ahash_register - register hash and hmac algorithms
  * @dev: HSE device
+ * @alg_list: list of registered algorithms
  */
-void hse_ahash_register(struct device *dev)
+void hse_ahash_register(struct device *dev, struct list_head *alg_list)
 {
-	struct hse_drvdata *drvdata = dev_get_drvdata(dev);
 	int i, err = 0;
 
-	INIT_LIST_HEAD(&drvdata->ahash_algs);
+	INIT_LIST_HEAD(alg_list);
 
 	/* register crypto algorithms supported by device */
 	for (i = 0; i < ARRAY_SIZE(hse_ahash_algs_tpl); i++) {
@@ -1052,7 +1039,7 @@ void hse_ahash_register(struct device *dev)
 				tpl->hash_name, err);
 			continue;
 		} else {
-			list_add_tail(&alg->entry, &drvdata->ahash_algs);
+			list_add_tail(&alg->entry, alg_list);
 		}
 
 		/* register hmac version */
@@ -1069,7 +1056,7 @@ void hse_ahash_register(struct device *dev)
 				tpl->hmac_name, err);
 			continue;
 		} else {
-			list_add_tail(&alg->entry, &drvdata->ahash_algs);
+			list_add_tail(&alg->entry, alg_list);
 		}
 
 		dev_info(dev, "registered algs %s,%s\n", tpl->hash_name,
@@ -1079,23 +1066,17 @@ void hse_ahash_register(struct device *dev)
 
 /**
  * hse_ahash_unregister - unregister hash and hmac algorithms
- * @dev: HSE device
+ * @alg_list: list of registered algorithms
  */
-void hse_ahash_unregister(struct device *dev)
+void hse_ahash_unregister(struct list_head *alg_list)
 {
-	struct hse_drvdata *drvdata = dev_get_drvdata(dev);
 	struct hse_ahash_alg *alg, *tmp;
-	int err;
 
-	if (unlikely(!drvdata->ahash_algs.next))
+	if (unlikely(!alg_list->next))
 		return;
 
-	list_for_each_entry_safe(alg, tmp, &drvdata->ahash_algs, entry) {
-		err = crypto_unregister_ahash(&alg->ahash);
-		if (unlikely(err))
-			dev_warn(dev, "failed to unregister %s: %d\n",
-				 alg->ahash.halg.base.cra_name, err);
-		else
-			list_del(&alg->entry);
+	list_for_each_entry_safe(alg, tmp, alg_list, entry) {
+		crypto_unregister_ahash(&alg->ahash);
+		list_del(&alg->entry);
 	}
 }

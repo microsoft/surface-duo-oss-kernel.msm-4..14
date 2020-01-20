@@ -4,17 +4,15 @@
  *
  * This file contains hw_random framework support for HSE hardware true RNG.
  *
- * Copyright 2019 NXP
+ * Copyright 2019-2020 NXP
  */
 
 #include <linux/kernel.h>
 #include <linux/dma-mapping.h>
-#include <linux/crypto.h>
 #include <linux/hw_random.h>
 
-#include "hse.h"
 #include "hse-abi.h"
-#include "hse-mu.h"
+#include "hse-core.h"
 
 #define HSE_RNG_QUALITY    1024u /* number of entropy bits per 1024 bits */
 
@@ -22,13 +20,11 @@
  * struct hse_rng_ctx - hwrng context
  * @srv_desc: HSE service descriptor
  * @dev: HSE device
- * @mu_inst: MU instance
- * @req_lock: descriptor mutex
+ * @req_lock: service descriptor mutex
  */
 struct hse_rng_ctx {
 	struct hse_srv_desc srv_desc;
 	struct device *dev;
-	void *mu_inst;
 	struct mutex req_lock; /* descriptor mutex */
 };
 
@@ -58,7 +54,7 @@ static int hse_hwrng_read(struct hwrng *rng, void *data, size_t max, bool wait)
 		return 0;
 
 	ctx->srv_desc.srv_id = HSE_SRV_ID_GET_RANDOM_NUM;
-	ctx->srv_desc.priority = HSE_SRV_PRIO_MED;
+	ctx->srv_desc.priority = HSE_SRV_PRIO_LOW;
 	ctx->srv_desc.rng_req.rng_class = HSE_RNG_CLASS_PTG3;
 	ctx->srv_desc.rng_req.random_num_len = max;
 	ctx->srv_desc.rng_req.random_num = data_dma;
@@ -70,8 +66,7 @@ static int hse_hwrng_read(struct hwrng *rng, void *data, size_t max, bool wait)
 		return 0;
 	}
 
-	err = hse_mu_sync_req(ctx->mu_inst, HSE_ANY_CHANNEL,
-			      lower_32_bits(srv_desc_dma));
+	err = hse_srv_req_sync(ctx->dev, HSE_CHANNEL_ANY, srv_desc_dma);
 	if (unlikely(err))
 		dev_dbg(ctx->dev, "%s: request failed: %d\n", __func__, err);
 
@@ -96,7 +91,6 @@ static struct hwrng hse_rng = {
  */
 void hse_hwrng_register(struct device *dev)
 {
-	struct hse_drvdata *drvdata = dev_get_drvdata(dev);
 	struct hse_rng_ctx *ctx;
 	int err;
 
@@ -105,7 +99,6 @@ void hse_hwrng_register(struct device *dev)
 		return;
 
 	ctx->dev = dev;
-	ctx->mu_inst = drvdata->mu_inst;
 
 	mutex_init(&ctx->req_lock);
 
@@ -114,7 +107,6 @@ void hse_hwrng_register(struct device *dev)
 	err = devm_hwrng_register(dev, &hse_rng);
 	if (err) {
 		dev_err(dev, "failed to register %s: %d", hse_rng.name, err);
-		kfree(ctx);
 		return;
 	}
 
