@@ -39,7 +39,6 @@
 
 //#define DEBUG
 //#define DEBUG_RW
-#define CONFIG_PCIE_RC_MSI
 #ifdef DEBUG
 #ifdef pr_debug
 #undef pr_debug
@@ -807,7 +806,7 @@ static void s32gen1_pcie_stop_link(struct dw_pcie *pcie)
 	s32gen1_pcie_disable_ltssm(s32_pp);
 }
 
-#ifdef CONFIG_PCIE_RC_MSI
+#ifdef CONFIG_PCI_MSI
 /* msi IRQ handler
  * irq - interrupt number
  * arg - pointer to the "struct pcie_port" object
@@ -815,7 +814,13 @@ static void s32gen1_pcie_stop_link(struct dw_pcie *pcie)
 static irqreturn_t s32gen1_pcie_msi_handler(int irq, void *arg)
 {
 	struct pcie_port *pp = arg;
-	
+#ifdef DEBUG
+	struct dw_pcie *pcie = to_dw_pcie_from_pp(pp);
+	struct s32gen1_pcie *s32_pci = to_s32gen1_from_dw_pcie(pcie);
+
+	pr_debug("%s(pcie%d)\n", __func__, s32_pci->id);
+#endif
+
 	return dw_handle_msi_irq(pp);
 }
 #endif
@@ -832,12 +837,21 @@ static int s32gen1_pcie_host_init(struct pcie_port *pp)
 	s32gen1_pcie_start_link(pcie);
 	dw_pcie_wait_for_link(pcie);
 
-#ifdef CONFIG_PCIE_RC_MSI
+#ifdef CONFIG_PCI_MSI
 	dw_pcie_msi_init(pp);
 #endif
-	
+
 	return 0;
 }
+
+#ifdef CONFIG_PCI_MSI
+static void s32gen1_pcie_set_num_vectors(struct pcie_port *pp)
+{
+	DEBUG_FUNC
+
+	pp->num_vectors = MAX_MSI_IRQS;
+}
+#endif
 
 static struct dw_pcie_ops s32_pcie_ops = {
 	.link_up = s32gen1_pcie_link_is_up,
@@ -851,6 +865,9 @@ static struct dw_pcie_ops s32_pcie_ops = {
 
 static struct dw_pcie_host_ops s32gen1_pcie_host_ops = {
 	.host_init = s32gen1_pcie_host_init,
+#ifdef CONFIG_PCI_MSI
+	.set_num_vectors = s32gen1_pcie_set_num_vectors
+#endif
 };
 
 #define MAX_IRQ_NAME_SIZE 32
@@ -862,20 +879,20 @@ static int s32gen1_pcie_config_irq(int *irq_id, char *irq_name,
 	char irq_display_name[MAX_IRQ_NAME_SIZE];
 
 	DEBUG_FUNC
-	
-	*irq_id = platform_get_irq_byname(pdev, irq_name);
-	if (*irq_id <= 0) {
+
+	*(irq_id) = platform_get_irq_byname(pdev, irq_name);
+	if (*(irq_id) <= 0) {
 		dev_err(&pdev->dev, "failed to get %s irq\n", irq_name);
 		return -ENODEV;
 	}
 	snprintf(irq_display_name, MAX_IRQ_NAME_SIZE, "s32gen1-pcie-%s", irq_name);
-	ret = devm_request_irq(&pdev->dev, *irq_id, irq_handler,
+	ret = devm_request_irq(&pdev->dev, *(irq_id), irq_handler,
 			IRQF_SHARED,  irq_name, irq_arg);
 	if (ret)
 		return ret;
 
 	dev_info(&pdev->dev, "Allocated line %d for interrupt %d (%s)",
-		ret, *irq_id, irq_name);
+		ret, *(irq_id), irq_name);
 
 	return 0;
 }
@@ -886,8 +903,8 @@ static int __init s32gen1_add_pcie_port(struct pcie_port *pp,
 	int ret;
 	
 	DEBUG_FUNC
-	
-#ifdef CONFIG_PCIE_RC_MSI
+
+#ifdef CONFIG_PCI_MSI
 	ret = s32gen1_pcie_config_irq(&pp->msi_irq, "msi", pdev, s32gen1_pcie_msi_handler, pp);
 	if (ret) {
 		dev_err(&pdev->dev, "failed to request msi irq\n");
@@ -904,34 +921,23 @@ static int __init s32gen1_add_pcie_port(struct pcie_port *pp,
 	return 0;
 }
 
-static void s32gen1_pcie_raise_legacy_irq(struct s32gen1_pcie *s32_pp)
+static int s32gen1_pcie_ep_raise_irq(struct dw_pcie_ep *ep, u8 func_no,
+				     enum pci_epc_irq_type type,
+				     u16 interrupt_num)
 {
-	// TODO
-}
-
-static void s32gen1_pcie_raise_msi_irq(struct s32gen1_pcie *s32_pp,
-				      u8 interrupt_num)
-{
-	// TODO
-}
-
-static int s32gen1_pcie_raise_irq(struct dw_pcie_ep *ep, u8 func_no,
-				 enum pci_epc_irq_type type, u16 interrupt_num)
-{
-	struct dw_pcie *pcie = to_dw_pcie_from_ep(ep);
-	struct s32gen1_pcie *s32_pp = to_s32gen1_from_dw_pcie(pcie);
+	struct dw_pcie *pci = to_dw_pcie_from_ep(ep);
 
 	DEBUG_FUNC
-	
+
 	switch (type) {
 	case PCI_EPC_IRQ_LEGACY:
-		s32gen1_pcie_raise_legacy_irq(s32_pp);
-		break;
+		return dw_pcie_ep_raise_legacy_irq(ep, func_no);
 	case PCI_EPC_IRQ_MSI:
-		s32gen1_pcie_raise_msi_irq(s32_pp, interrupt_num);
-		break;
+		return dw_pcie_ep_raise_msi_irq(ep, func_no, interrupt_num);
+	case PCI_EPC_IRQ_MSIX:
+		return dw_pcie_ep_raise_msix_irq(ep, func_no, interrupt_num);
 	default:
-		dev_err(pcie->dev, "UNKNOWN IRQ type\n");
+		dev_err(pci->dev, "UNKNOWN IRQ type\n");
 	}
 
 	return 0;
@@ -939,7 +945,7 @@ static int s32gen1_pcie_raise_irq(struct dw_pcie_ep *ep, u8 func_no,
 
 static struct dw_pcie_ep_ops pcie_ep_ops = {
 	.ep_init = s32gen1_pcie_ep_init,
-	.raise_irq = s32gen1_pcie_raise_irq,
+	.raise_irq = s32gen1_pcie_ep_raise_irq,
 };
 
 static int __init s32gen1_add_pcie_ep(struct s32gen1_pcie *s32_pp,
@@ -1030,6 +1036,8 @@ static int s32gen1_pcie_probe(struct platform_device *pdev)
 
 	pcie->dev = dev;
 	pcie->ops = &s32_pcie_ops;
+
+	of_property_read_u32(np, "id", &s32_pp->id);
 
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "dbi");
 	pcie->dbi_base = devm_ioremap_resource(dev, res);
