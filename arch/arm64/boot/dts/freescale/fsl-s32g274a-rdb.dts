@@ -50,25 +50,6 @@
 &pfe {
 	status = "okay";
 	memory-region = <&pfe_reserved>;
-	mdio {
-		#address-cells = <1>;
-		#size-cells = <0>;
-
-		phy2: ethernet-phy@2 {
-			reg = <2>;
-		};
-		phy3: ethernet-phy@3 {
-			reg = <3>;
-		};
-		phy6: ethernet-phy@6 {
-			reg = <6>;
-			max-speed = <100>;
-		};
-		phy7: ethernet-phy@7 {
-			reg = <7>;
-			max-speed = <100>;
-		};
-	};
 };
 
 &fxosc {
@@ -197,6 +178,39 @@
 				S32_GEN1_PAD_PA9__SPI5_SCK_OUT
 				S32_GEN1_PAD_PA10__SPI5_SIN_OUT
 			>;
+		};
+
+		pinctrl0_mdio_c: mdiocgrp {
+			fsl,pins = <
+				S32_GEN1_PAD_PD12__MDC
+				S32_GEN1_PAD_PD13__MDIO_OUT
+				S32_GEN1_PAD_PD13__MDIO_IN
+			>;
+		};
+
+		pinctrl0_rgmii_c: rgmiicgrp {
+			fsl,pins = <
+				S32_GEN1_PAD_PE2__TXCLK_OUT
+				S32_GEN1_PAD_PE2__TXCLK_IN
+				S32_GEN1_PAD_PE3__TX_EN_OUT
+				S32_GEN1_PAD_PE4__TX_D0_OUT
+				S32_GEN1_PAD_PE5__TX_D1_OUT
+				S32_GEN1_PAD_PE6__TX_D2_OUT
+				S32_GEN1_PAD_PE7__TX_D3_OUT
+				S32_GEN1_PAD_PE8__RXCLK_OUT
+				S32_GEN1_PAD_PE8__RXCLK_IN
+				S32_GEN1_PAD_PE9__RX_DV_OUT
+				S32_GEN1_PAD_PE9__RX_DV_IN
+				S32_GEN1_PAD_PE10__RX_D0_OUT
+				S32_GEN1_PAD_PE10__RX_D0_IN
+				S32_GEN1_PAD_PE11__RX_D1_OUT
+				S32_GEN1_PAD_PE11__RX_D1_IN
+				S32_GEN1_PAD_PE12__RX_D2_OUT
+				S32_GEN1_PAD_PE12__RX_D2_IN
+				S32_GEN1_PAD_PE13__RX_D3_OUT
+				S32_GEN1_PAD_PE13__RX_D3_IN
+			>;
+
 		};
 
 		pinctrl_gpio0: gpiogrp0 {
@@ -496,5 +510,48 @@
 		compatible = "spidev";
 		spi-max-frequency = <4000000>;
 		reg = <0>;
+	};
+};
+
+&gmac0 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl0_rgmii_c>, <&pinctrl0_mdio_c>;
+	phy-mode = "rgmii";
+	status = "okay";
+	/* direct connect to SJA1105Q P0 */
+	fixed-link {
+		speed = <1000>;
+		full-duplex;
+	};
+};
+
+&gmac0_mdio {
+	/* TJA1102 over SJA1105Q P1 */
+	mdio_c_phy4: ethernet-phy@4 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <4>;
+		max-speed = <100>;
+	};
+	/* TJA1102 over SJA1105Q P2 */
+	mdio_c_phy5: ethernet-phy@5 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <5>;
+		max-speed = <100>;
+	};
+	/* TJA1102 over SJA1105Q P3 */
+	mdio_c_phy6: ethernet-phy@6 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <6>;
+		max-speed = <100>;
+	};
+	/* TJA1102 over SJA1105Q P4 */
+	mdio_c_phy7: ethernet-phy@7 {
+		#address-cells = <1>;
+		#size-cells = <0>;
+		reg = <7>;
+		max-speed = <100>;
 	};
 };
