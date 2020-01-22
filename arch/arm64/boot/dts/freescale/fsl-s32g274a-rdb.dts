@@ -2,7 +2,7 @@
 /*
  * Device Tree file for S32G274ARDB Board.
  *
- * Copyright 2019 NXP
+ * Copyright 2019-2020 NXP
  *
  */
 
@@ -15,7 +15,7 @@
 				 "arm,vexpress,v2p-aarch64", "arm,vexpress";
 
 	chosen {
-		stdout-path = "serial1:115200n8";
+		stdout-path = "serial0:115200n8";
 	};
 
 	memory_DDR0@80000000 {
