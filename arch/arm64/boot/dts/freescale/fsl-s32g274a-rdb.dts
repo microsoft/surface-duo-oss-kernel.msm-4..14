@@ -442,39 +442,9 @@
 	status = "okay";
 };
 
-&spi0 {
-	status = "okay";
-};
-
 &spi1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&pinctrl0_dspi1>, <&pinctrl1_dspi1>;
-	#address-cells = <1>;
-	#size-cells = <0>;
-	status = "okay";
-
-	spidev0: spidev@0 {
-		compatible = "spidev";
-		spi-max-frequency = <4000000>;
-		reg = <0>;
-	};
-};
-
-&spi2 {
-	status = "okay";
-};
-
-&spi3 {
-	status = "okay";
-};
-
-&spi4 {
-	status = "okay";
-};
-
-&spi5 {
-	pinctrl-names = "default";
-	pinctrl-0 = <&pinctrl0_dspi5>, <&pinctrl1_dspi5>;
 	#address-cells = <1>;
 	#size-cells = <0>;
 	status = "okay";
@@ -504,13 +474,27 @@
 		};
 		port-3 {
 			is-host = <0x0>;
-			null-phy = <0x0>;
-			phy-ref = < &phy2 >;
+			null-phy = <0x1>;
+			phy-ref = < 0 >;
 		};
 		port-4 {
 			is-host = <0x0>;
-			null-phy = <0x0>;
-			phy-ref = < &phy3 >;
+			null-phy = <0x1>;
+			phy-ref = < 0 >;
 		};
+	};
+};
+
+&spi5 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&pinctrl0_dspi5>, <&pinctrl1_dspi5>;
+	#address-cells = <1>;
+	#size-cells = <0>;
+	status = "okay";
+
+	spidev0: sja1110@0 {
+		compatible = "spidev";
+		spi-max-frequency = <4000000>;
+		reg = <0>;
 	};
 };
