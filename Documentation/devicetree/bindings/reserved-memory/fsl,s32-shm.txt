@@ -1,0 +1,29 @@
+* NXP Reserved Shared Memory regions *
+
+Shared reserved memory is specified as a node under the /reserved-memory node.
+The operating system shall exclude reserved memory from normal usage
+one can create child nodes describing particular reserved (excluded from
+normal use) memory regions. Such memory regions are usually designed for
+the special usage by various device drivers.
+tese nodes can be referenced from other nodes.
+
+Required properties:
+- compatible:
+  - "fsl,s32v234-shm", for S32V234 SoCs
+  - "fsl,s32gen1-shm", for S32Gen1 SoCs
+- reg: base address and length of the shared mem block
+
+Example:
+
+  reserved-memory {
+    #address-cells = <2>;
+    #size-cells = <2>;
+    ranges;
+
+    /* 4Mb shared memory for PCIe shared mem transfers, EP mode */
+    pci_shared_memory: shm@0xc0000000 {
+      compatible = "fsl,s32gen1-shm";
+      reg = <0x0 0xc0000000 0x0 0x400000>;    /* 4 MB */
+      no-map;
+    };
+  };
