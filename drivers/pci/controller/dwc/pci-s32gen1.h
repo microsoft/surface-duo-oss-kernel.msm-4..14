@@ -73,23 +73,17 @@ struct s32gen1_pcie {
 	bool is_endpoint;
 	int soc_revision;
 	struct dw_pcie	pcie;
-	struct dentry	*dir;
-
 
 	/* we have cfg in struct pcie_port and
 	 * dbi in struct dw_pcie, so define only ctrl here
 	 */
 	void __iomem *ctrl_base;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+#if KERNEL_VERSION(5, 0, 0) > LINUX_VERSION_CODE
 	void __iomem *atu_base;
 #endif
 
 	int id;
-	bool enabled;
-	bool clk_int;
 	enum pcie_link_speed linkspeed;
-	int atu_out_num;
-	int atu_in_num;
 
 #ifdef CONFIG_PCI_DW_DMA
 	int dma_irq;
@@ -97,6 +91,7 @@ struct s32gen1_pcie {
 #endif
 
 #ifdef CONFIG_PCI_S32GEN1_ACCESS_FROM_USER
+	struct dentry	*dir;
 	struct userspace_info uspace;
 #endif
 
@@ -114,11 +109,13 @@ struct s32_outbound_region {
 	u64 base_addr;
 	u32 size;
 	u32 region;
-	u32 region_type; /* for backwards compatibility;
-		 must be PCIE_ATU_TYPE_MEM */
+	/* region_type - for backwards compatibility;
+	 * must be PCIE_ATU_TYPE_MEM
+	 */
+	u32 region_type;
 };
 
 void dw_pcie_writel_ctrl(struct s32gen1_pcie *pci, u32 reg, u32 val);
 u32 dw_pcie_readl_ctrl(struct s32gen1_pcie *pci, u32 reg);
 
-#endif  /* 	PCIE_S32GEN1_H */
+#endif  /* PCIE_S32GEN1_H */
