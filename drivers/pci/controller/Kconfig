@@ -92,12 +92,58 @@ config PCI_S32V234_IGNORE_ERR009852
 
 	If unsure, select 'no'.
 
-config PCI_DW_DMA
-	bool "Freescale S32V234 PCIe DW DMA"
-	depends on OF && (ARM || ARM64) && PCI_S32V234
+config PCI_S32GEN1
+	bool "NXP S32GEN1 PCIe Host controller"
+	depends on OF && ARM64
+	depends on SOC_S32GEN1 && (!S32GEN1_SIMULATOR)
+	select PCIEPORTBUS
+	select PCIE_DW
 	help
-	If you're using a S32V234 based board and want to use Internal DMA
-	engine in PCIe mode, you want this enabled.
+	If you're using a S32GEN1 based board, either in Root Complex
+	or EP mode, you should enable this.
+	Otherwise you should set it to 'no'
+
+config PCI_S32GEN1_INIT_EP_BARS
+	bool "Initialize BARs in EP mode for S32GEN1 PCIe"
+	depends on PCI_S32GEN1
+	help
+	Initialize BARs and inbound windows in EP mode, using as base address
+	a reserved memory area defined in the device tree
+
+config PCI_S32GEN1_EP_MSI
+	bool "Enable MSI support in EP mode for S32GEN1 PCIe"
+	depends on PCI_S32GEN1 && PCI_MSI
+	help
+	Experimental: Enable MSI support in EP mode for S32GEN1 PCIe.
+	This is not enforced by PCIe standard, but all the required registers
+	are there for the EP mode too.
+
+config PCI_S32GEN1_DEBUG
+	bool "Enable basic debug by printing for S32GEN1 PCIe module"
+	depends on PCI_S32GEN1
+	help
+	Enable basic debug by printing for S32GEN1 PCIe module.
+
+config PCI_S32GEN1_DEBUG_WRITES
+	bool "Enable dumping register writes performed by the S32GEN1 PCIe module"
+	depends on PCI_S32GEN1 && PCI_S32GEN1_DEBUG
+	help
+	Enable dumping register writes performed by the S32GEN1 PCIe module.
+	Register writes done by the DW code is not dumped.
+
+config PCI_S32GEN1_DEBUG_READS
+	bool "Enable dumping register reads performed by the S32GEN1 PCIe module"
+	depends on PCI_S32GEN1 && PCI_S32GEN1_DEBUG
+	help
+	Enable dumping register reads performed by the S32GEN1 PCIe module.
+	Register reads done by the DW code is not dumped.
+
+config PCI_DW_DMA
+	bool "Freescale S32 PCIe DW DMA"
+	depends on OF && ARM64 && (PCI_S32V234 || PCI_S32GEN1)
+	help
+	If you're using a S32V234 or S32GEN1 based board and want to use
+	Internal DMA engine in PCIe mode, you want this enabled.
 	Otherwise you should set it to 'no'
 
 config PCI_TEGRA
