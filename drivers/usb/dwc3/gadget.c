@@ -2800,8 +2800,16 @@ void dwc3_stop_active_transfer(struct dwc3_ep *dep, bool force,
 	else
 		dep->flags |= DWC3_EP_END_TRANSFER_PENDING;
 
-	if (dwc3_is_usb31(dwc) || dwc->revision < DWC3_REVISION_310A)
+	if (dwc3_is_usb31(dwc) || dwc->revision < DWC3_REVISION_310A) {
+		/*
+		 * CMD COMPLETE interrupt is not getting generated for isoc
+		 * endpoints, so don't set DWC3_EP_END_TRANSFER_PENDING flag
+		 */
+		if (!usb_endpoint_xfer_isoc(dep->endpoint.desc))
+			dep->flags |= DWC3_EP_END_TRANSFER_PENDING;
+
 		udelay(100);
+	}
 }
 
 static void dwc3_clear_stall_all_ep(struct dwc3 *dwc)
