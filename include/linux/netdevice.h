@@ -849,6 +849,7 @@ enum tc_setup_type {
 	TC_SETUP_QDISC_GRED,
 	TC_SETUP_QDISC_TAPRIO,
 	TC_SETUP_FT,
+	TC_SETUP_QDISC_ETS,
 };
 
 /* These structures hold the attributes of bpf state that are being passed
@@ -875,6 +876,7 @@ enum bpf_netdev_command {
 struct bpf_prog_offload_ops;
 struct netlink_ext_ack;
 struct xdp_umem;
+struct xdp_dev_bulk_queue;
 
 struct netdev_bpf {
 	enum bpf_netdev_command command;
@@ -1014,7 +1016,7 @@ int netdev_name_node_alt_destroy(struct net_device *dev, const char *name);
  *	Called when a user wants to change the Maximum Transfer Unit
  *	of a device.
  *
- * void (*ndo_tx_timeout)(struct net_device *dev);
+ * void (*ndo_tx_timeout)(struct net_device *dev, unsigned int txqueue);
  *	Callback used when the transmitter has not made any progress
  *	for dev->watchdog ticks.
  *
@@ -1281,7 +1283,8 @@ struct net_device_ops {
 						  int new_mtu);
 	int			(*ndo_neigh_setup)(struct net_device *dev,
 						   struct neigh_parms *);
-	void			(*ndo_tx_timeout) (struct net_device *dev);
+	void			(*ndo_tx_timeout) (struct net_device *dev,
+						   unsigned int txqueue);
 
 	void			(*ndo_get_stats64)(struct net_device *dev,
 						   struct rtnl_link_stats64 *storage);
@@ -1707,6 +1710,7 @@ enum netdev_priv_flags {
  *	@miniq_ingress:		ingress/clsact qdisc specific data for
  *				ingress processing
  *	@ingress_queue:		XXX: need comments on this one
+ *	@nf_hooks_ingress:	netfilter hooks executed for ingress packets
  *	@broadcast:		hw bcast address
  *
  *	@rx_cpu_rmap:	CPU reverse-mapping for RX completion interrupts,
@@ -1983,12 +1987,10 @@ struct net_device {
 	unsigned int		num_tx_queues;
 	unsigned int		real_num_tx_queues;
 	struct Qdisc		*qdisc;
-#ifdef CONFIG_NET_SCHED
-	DECLARE_HASHTABLE	(qdisc_hash, 4);
-#endif
 	unsigned int		tx_queue_len;
 	spinlock_t		tx_global_lock;
-	int			watchdog_timeo;
+
+	struct xdp_dev_bulk_queue __percpu *xdp_bulkq;
 
 #ifdef CONFIG_XPS
 	struct xps_dev_maps __rcu *xps_cpus_map;
@@ -1998,11 +2000,15 @@ struct net_device {
 	struct mini_Qdisc __rcu	*miniq_egress;
 #endif
 
+#ifdef CONFIG_NET_SCHED
+	DECLARE_HASHTABLE	(qdisc_hash, 4);
+#endif
 	/* These may be needed for future network-power-down code. */
 	struct timer_list	watchdog_timer;
+	int			watchdog_timeo;
 
-	int __percpu		*pcpu_refcnt;
 	struct list_head	todo_list;
+	int __percpu		*pcpu_refcnt;
 
 	struct list_head	link_watch_list;
 
@@ -2823,16 +2829,16 @@ static inline bool __skb_gro_checksum_convert_check(struct sk_buff *skb)
 }
 
 static inline void __skb_gro_checksum_convert(struct sk_buff *skb,
-					      __sum16 check, __wsum pseudo)
+					      __wsum pseudo)
 {
 	NAPI_GRO_CB(skb)->csum = ~pseudo;
 	NAPI_GRO_CB(skb)->csum_valid = 1;
 }
 
-#define skb_gro_checksum_try_convert(skb, proto, check, compute_pseudo)	\
+#define skb_gro_checksum_try_convert(skb, proto, compute_pseudo)	\
 do {									\
 	if (__skb_gro_checksum_convert_check(skb))			\
-		__skb_gro_checksum_convert(skb, check,			\
+		__skb_gro_checksum_convert(skb, 			\
 					   compute_pseudo(skb, proto));	\
 } while (0)
 
@@ -4390,6 +4396,15 @@ struct netdev_notifier_bonding_info {
 
 void netdev_bonding_info_change(struct net_device *dev,
 				struct netdev_bonding_info *bonding_info);
+
+#if IS_ENABLED(CONFIG_ETHTOOL_NETLINK)
+void ethtool_notify(struct net_device *dev, unsigned int cmd, const void *data);
+#else
+static inline void ethtool_notify(struct net_device *dev, unsigned int cmd,
+				  const void *data)
+{
+}
+#endif
 
 static inline
 struct sk_buff *skb_gso_segment(struct sk_buff *skb, netdev_features_t features)
