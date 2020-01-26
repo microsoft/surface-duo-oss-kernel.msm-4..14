@@ -114,4 +114,8 @@ config OF_CONFIGFS
 
 	  If unsure, say N.
 
+config OF_DMA_DEFAULT_COHERENT
+	# arches should select this if DMA is coherent by default for OF devices
+	bool
+
 endif # OF
