@@ -1,4 +1,4 @@
-/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2021, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -396,6 +396,7 @@ static int ipa_adpl_open(struct inode *inode, struct file *filp)
 	int ret = 0;
 
 	IPADBG("Called the function :\n");
+	mutex_lock(&ipa3_odl_ctx->pipe_lock);
 	if (ipa3_odl_ctx->odl_state.odl_init &&
 				!ipa3_odl_ctx->odl_state.adpl_open) {
 		/* Activate ipa_pm*/
@@ -409,6 +410,7 @@ static int ipa_adpl_open(struct inode *inode, struct file *filp)
 		print_ipa_odl_state_bit_mask();
 		ret = -ENODEV;
 	}
+	mutex_unlock(&ipa3_odl_ctx->pipe_lock);
 
 	return ret;
 }
@@ -417,10 +419,12 @@ static int ipa_adpl_release(struct inode *inode, struct file *filp)
 {
 	int ret = 0;
 	/* Deactivate ipa_pm */
+	mutex_lock(&ipa3_odl_ctx->pipe_lock);
 	ret = ipa_pm_deactivate_sync(ipa3_odl_ctx->odl_pm_hdl);
 	if (ret)
 		IPAERR("failed to activate pm\n");
 	ipa3_odl_pipe_cleanup(false);
+	mutex_unlock(&ipa3_odl_ctx->pipe_lock);
 	return ret;
 }
 
@@ -636,6 +640,7 @@ int ipa_odl_init(void)
 	odl_cdev = ipa3_odl_ctx->odl_cdev;
 	INIT_LIST_HEAD(&ipa3_odl_ctx->adpl_msg_list);
 	mutex_init(&ipa3_odl_ctx->adpl_msg_lock);
+	mutex_init(&ipa3_odl_ctx->pipe_lock);
 
 	odl_cdev[loop].class = class_create(THIS_MODULE, "ipa_adpl");
 
