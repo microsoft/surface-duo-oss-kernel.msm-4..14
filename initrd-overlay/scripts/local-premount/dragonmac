@@ -1,0 +1,64 @@
+#!/bin/sh -e
+# initramfs local-premount script to set a
+# mac address on the dragonboard
+
+PREREQ=""
+
+# Output pre-requisites
+prereqs()
+{
+        echo "$PREREQ"
+}
+
+case "$1" in
+    prereqs)
+        prereqs
+        exit 0
+        ;;
+esac
+
+
+if [ -e /proc/device-tree/model ]; then
+    if grep -q "APQ 8016" /proc/device-tree/model; then
+        for i in $(cat /proc/cmdline); do
+            case "$i" in
+                androidboot.serialno=*)
+                    echo "a0200${i#androidboot.serialno=}"| \
+                      sed 's/.\{2\}/&:/g;s/.$//' >/run/macaddr-wcn36xx
+                    echo "b0200${i#androidboot.serialno=}"| \
+                      sed 's/.\{2\}/&:/g;s/.$//' >/run/macaddr-smsc75xx-0
+                    echo "c0200${i#androidboot.serialno=}"| \
+                      sed 's/.\{2\}/&:/g;s/.$//' >/run/macaddr-smsc75xx-1
+                echo "initrd:mac addresses set based on serial number" >/dev/kmsg || true
+                ;;
+            esac
+        done
+        volume=$(findfs "PARTLABEL='serials'" 2>/dev/null || :)
+        if [ -n "${volume}" ]; then
+            syspath="$(dirname $(realpath /sys/class/block/$(basename ${volume})))"
+            device="$(realpath /dev/block/$(cat $syspath/dev))"
+            eval $(sgdisk -p  ${device} | while read  line
+                do
+                    val=$(echo $line | grep '^Logical sector size'| sed 's/^.*: //g;s/ .*$//') && [ -n "${val}" ] && echo "sector='${val}'"
+                    val=$(echo $line | grep -w "serials" | awk '{print $2}') && [ -n "${val}" ] && echo "part_start='${val}'"
+                done)
+            offset=$(awk -v p=${part_start} -v s=${sector} 'BEGIN{ print p*s}')
+            printf "%s 0x%x 0x1000\n%s 0x%x 0x1000" ${device} ${offset} ${device} ${offset} > /env.config
+            cp /env.config /run/
+            fw_printenv -c /env.config | while read  line
+                do
+                    case "$line" in
+                        eth0_macaddress=*)
+                            echo ${line#*=} >/run/macaddr-smsc75xx-0
+                            ;;
+                        eth1_macaddress=*)
+                            echo ${line#*=} >/run/macaddr-smsc75xx-1
+                            ;;
+                        wifi_macaddress=*)
+                            echo ${line#*=} >/run/macaddr-wcn36xx
+                            ;;
+                    esac
+                done
+        fi
+    fi
+fi
