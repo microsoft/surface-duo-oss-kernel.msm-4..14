@@ -1,36 +1,190 @@
-name: pc-kernel
-version: null
-version-script: |
-    . debian/debian.env
-    dpkg-parsechangelog -l $DEBIAN/changelog -S version
-summary: The Ubuntu generic Linux kernel
-description: This Ubuntu generic Linux kernel
+name: dragonboard-kernel
+summary: Snapdragon kernel for snappy
+description: This is a snapdragon snapped kernel, based off linaro kernel
 grade: stable
 confinement: strict
 type: kernel
+adopt-info: kernel
+
+architectures:
+  - build-on: [amd64, arm64]
+    run-on: arm64
+
+build-base: core18
 
 parts:
-  kernel:
-    plugin: kernel
-    source: .
-    source-type: git
-    kconfigflavour: snapdragon
-    kconfigs:
-      - CONFIG_DEBUG_INFO=n
-    override-build: |
-      cp debian/scripts/retpoline-extract-one \
-        $SNAPCRAFT_PART_BUILD/scripts/ubuntu-retpoline-extract-one
-      snapcraftctl build
-    kernel-with-firmware: false
-  firmware:
-    plugin: nil
-    stage-packages:
-      - linux-firmware
-    organize:
-      lib/firmware: firmware
-    prime:
-      - -usr
-      - -lib
-    build-packages:
-      - cpio
-      - libssl-dev
+    kernel:
+        after:
+            - skales
+            - firmware
+            - firmware-ath10k
+            - firmware-dragonboard410c
+            - firmware-dragonboard820c
+            - firmware-dragonboard845c
+            - firmware-qcom-media
+        plugin: kernel
+        source: .
+        source-type: git
+        source-depth: 1
+        kconfigflavour: snapdragon
+        kernel-with-firmware: false
+        kernel-image-target: Image.gz
+        kconfigs:
+            - CONFIG_DEBUG_INFO=n
+        override-pull: |
+            snapcraftctl pull
+        override-build: |
+            cp debian/scripts/retpoline-extract-one \
+                ${SNAPCRAFT_PART_BUILD}/scripts/ubuntu-retpoline-extract-one
+            snapcraftctl build
+            cp ${SNAPCRAFT_PART_INSTALL}/dtbs/qcom/*.dtb ${SNAPCRAFT_PART_INSTALL}/dtbs/
+            mkdir -p ${SNAPCRAFT_PART_INSTALL}/lib
+            ln -sf ../modules ${SNAPCRAFT_PART_INSTALL}/lib/modules
+            snapcraftctl set-version $(git describe --tags | cut -c 19-)
+        organize:
+            initrd.img: initrd
+        prime:
+            - -initrd*
+            - -Image*
+            - -kernel.img
+
+    initrd-overlay:
+        plugin: nil
+        source: initrd-overlay
+        after:
+            - kernel
+        override-build: |
+            echo "Preparing overlay initrd"
+            find . | cpio --quiet -o -H newc | lzma -7 > $SNAPCRAFT_PART_INSTALL/initrd-overlay.img
+            cat $SNAPCRAFT_STAGE/initrd $SNAPCRAFT_PART_INSTALL/initrd-overlay.img > $SNAPCRAFT_PART_INSTALL/initrd.img
+        prime:
+            - initrd.img
+
+    bootimg-db845:
+        plugin: nil
+        source: ubuntu
+        after:
+            - kernel
+            - initrd-overlay
+        override-build: |
+            cat ${SNAPCRAFT_STAGE}/kernel.img ${SNAPCRAFT_STAGE}/dtbs/qcom/sdm845-db845c.dtb > Image.gz+dtb845
+            mkbootimg \
+                --kernel Image.gz+dtb845 \
+                --ramdisk ${SNAPCRAFT_STAGE}/initrd.img \
+                --output ${SNAPCRAFT_PART_INSTALL}/boot.img \
+                --pagesize 4096 \
+                --base 0x80000000 \
+                --kernel_offset 0x8000 \
+                --ramdisk_offset 0x1000000 \
+                --tags_offset 0x100 \
+                --cmdline 'console=tty0 console=ttyMSM0,115200n8 root=/dev/disk/by-partlabel/writable init=/lib/systemd/systemd ro rng_core.default_quality=700 panic=-1 fixrtc clk_ignore_unused pd_ignore_unused'
+        prime:
+            - boot.img
+
+    skales:
+        plugin: dump
+        source: git://codeaurora.org/quic/kernel/skales
+        prime:
+            - -*
+
+    bootimg:
+        plugin: nil
+        source: ubuntu
+        after:
+            - kernel
+            - skales
+            - initrd-overlay
+        override-build: |
+            python3 ${SNAPCRAFT_STAGE}/dtbTool -o dt.img -s 4096 ${SNAPCRAFT_STAGE}/dtbs/qcom/
+            python3 ${SNAPCRAFT_STAGE}/mkbootimg \
+                --kernel=${SNAPCRAFT_STAGE}/kernel.img \
+                --dt=dt.img \
+                --pagesize 4096 \
+                --base 0x80000000 \
+                --ramdisk=${SNAPCRAFT_STAGE}/initrd.img \
+                --cmdline="console=ttyMSM0,115200n8 console=tty0 root=/dev/disk/by-label/writable init=/lib/systemd/systemd ro rng_core.default_quality=700 panic=-1 fixrtc" \
+                --output=${SNAPCRAFT_PART_INSTALL}/boot-db820c.img
+            ln -f ${SNAPCRAFT_PART_INSTALL}/boot-db820c.img ${SNAPCRAFT_PART_INSTALL}/boot-db410c.img
+        prime:
+            - boot-db410c.img
+            - boot-db820c.img
+
+    firmware:
+        plugin: nil
+        source: ubuntu
+        stage-packages:
+            - linux-firmware
+            - linux-firmware-snapdragon:arm64
+        override-build: |
+            snapcraftctl build
+            mkdir -p ${SNAPCRAFT_PART_INSTALL}/firmware/wlan ${SNAPCRAFT_PART_INSTALL}/firmware/smsc75xx ${SNAPCRAFT_PART_INSTALL}/lib
+            ln -s ../firmware ${SNAPCRAFT_PART_INSTALL}/lib/firmware
+        stage:
+            - -firmware/ath10k/QCA988X/hw2.0/firmware-5.bin
+            - -firmware/ath10k/QCA4019/hw1.0/board-2.bin
+            - -firmware/ath10k/QCA4019/hw1.0/firmware-5.bin
+            - -firmware/ath10k/QCA6174/hw3.0/board-2.bin
+            - -firmware/ath10k/QCA9377/hw1.0/firmware-5.bin
+            - -firmware/ath10k/QCA9887/hw1.0/firmware-5.bin
+            - -firmware/ath10k/QCA9888/hw2.0/board-2.bin
+            - -firmware/ath10k/QCA9888/hw2.0/firmware-5.bin
+            - -firmware/ath10k/QCA9984/hw1.0/board-2.bin
+            - -firmware/ath10k/QCA9984/hw1.0/firmware-5.bin
+            - -firmware/ath3k-1.fw
+            - -firmware/wil6210.brd
+            - -firmware/wil6210.fw
+            - -firmware/a300_pfp.fw
+            - -firmware/a300_pm4.fw
+            - -firmware/qca/nvm_usb_00000302.bin
+            - -firmware/qca/rampatch_usb_00000302.bin
+        organize:
+            lib/firmware: firmware
+        prime:
+            - -usr
+            - -lib
+
+    firmware-ath10k:
+        plugin: dump
+        source: http://obs.linaro.org/linaro-overlay-buster/buster/all/firmware-atheros_20190114-2+linaro2_all.deb
+        source-type: deb
+        organize:
+            lib/firmware: firmware
+
+    firmware-dragonboard410c:
+        plugin: dump
+        source: http://obs.linaro.org/linaro-overlay-buster/buster/all/firmware-qcom-dragonboard410c_1034.2.1-4_all.deb
+        source-type: deb
+        organize:
+            lib/firmware: firmware
+        stage:
+            - -boot
+
+    firmware-dragonboard820c:
+        plugin: dump
+        source: http://obs.linaro.org/linaro-overlay-buster/buster/all/firmware-qcom-dragonboard820c_01700.1-3_all.deb
+        source-type: deb
+        organize:
+            lib/firmware: firmware
+
+    firmware-dragonboard845c:
+        plugin: dump
+        source: http://obs.linaro.org/linaro-overlay-buster/buster/all/firmware-qcom-dragonboard845c_20190529180356-v4+linaro1_all.deb
+        source-type: deb
+        organize:
+            lib/firmware: firmware
+
+    firmware-qcom-media:
+        plugin: dump
+        source: http://obs.linaro.org/linaro-overlay-buster/buster/all/firmware-qcom-media_20190114-2+linaro2_all.deb
+        source-type: deb
+        organize:
+            lib/firmware: firmware
+
+build-packages:
+    - dpkg-dev
+    - android-tools-mkbootimg
+    - libssl-dev
+    - libfdt-dev
+    - cpio
+    - flex
+    - bison
