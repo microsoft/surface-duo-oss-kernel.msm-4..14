@@ -117,7 +117,7 @@ parts:
             ln -sf ../modules ${SNAPCRAFT_PART_INSTALL}/lib/modules
             kernel_version=$(make kernelversion)
             commit=$(git log --pretty=format:'%h' -n 1)
-            snapcraftctl set-version ${kernel_version}-g${commit}-lk
+            snapcraftctl set-version ${kernel_version}-focal-g${commit}
         organize:
             initrd.img: initrd
         prime:
