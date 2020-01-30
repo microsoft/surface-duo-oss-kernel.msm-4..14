@@ -14,7 +14,7 @@ parts:
     plugin: kernel
     source: .
     source-type: git
-    kconfigflavour: generic
+    kconfigflavour: snapdragon
     kconfigs:
       - CONFIG_DEBUG_INFO=n
     override-build: |
