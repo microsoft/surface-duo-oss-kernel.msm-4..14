@@ -4,7 +4,7 @@
 HSE crypto offloading engine driver
 ===================================
 
-:Copyright: 2019 NXP
+:Copyright: 2019-2020 NXP
 
 Overview
 ========
@@ -23,7 +23,7 @@ Supported Algorithms
 This driver currently supports the following crypto operations:
 
 - Hashing: MD5, SHA1, SHA2
-- Symmetric Key Ciphering: AES-CBC
+- Symmetric Key Ciphering: AES-CTR, AES-CBC, AES-ECB, AES-CFB
 - Message Authentication Codes: HMAC(MD5), HMAC(SHA1), HMAC(SHA2)
 - Authenticated Encryption with Associated Data: AES-GCM
 - True Random Number Generator: PTG.3 class
