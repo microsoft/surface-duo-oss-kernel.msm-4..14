@@ -79,7 +79,7 @@ struct sifive_fu540_macb_mgmt {
  * false amba_error in TX path from the DMA assuming there is not enough
  * space in the SRAM (16KB) even when there is.
  */
-#define GEM_MAX_TX_LEN		(unsigned int)(0x3FC0)
+#define GEM_MAX_TX_LEN		((unsigned int)((1 << GEM_TX_FRMLEN_SIZE) - 1) & ~((unsigned int)(MACB_TX_LEN_ALIGN - 1)))
 
 #define GEM_MTU_MIN_SIZE	ETH_MIN_MTU
 #define MACB_NETIF_LSO		NETIF_F_TSO
