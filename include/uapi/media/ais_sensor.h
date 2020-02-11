@@ -18,6 +18,7 @@
 
 
 #define AIS_MAX_POWER_SEQ 12
+#define AIS_MAX_INTR_GPIO 3
 
 
 struct ais_sensor_event_data {
