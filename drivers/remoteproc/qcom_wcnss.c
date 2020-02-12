@@ -85,6 +85,7 @@ struct qcom_wcnss {
 
 	struct completion start_done;
 	struct completion stop_done;
+	struct completion iris_assigned;
 
 	phys_addr_t mem_phys;
 	phys_addr_t mem_reloc;
@@ -139,6 +140,7 @@ void qcom_wcnss_assign_iris(struct qcom_wcnss *wcnss,
 
 	wcnss->iris = iris;
 	wcnss->use_48mhz_xo = use_48mhz_xo;
+	complete(&wcnss->iris_assigned);
 
 	mutex_unlock(&wcnss->iris_lock);
 }
@@ -220,6 +222,10 @@ static int wcnss_start(struct rproc *rproc)
 {
 	struct qcom_wcnss *wcnss = (struct qcom_wcnss *)rproc->priv;
 	int ret;
+
+	/* Grant some time for iris registration */
+	wait_for_completion_timeout(&wcnss->iris_assigned,
+				    msecs_to_jiffies(5000));
 
 	mutex_lock(&wcnss->iris_lock);
 	if (!wcnss->iris) {
@@ -503,6 +509,7 @@ static int wcnss_probe(struct platform_device *pdev)
 
 	init_completion(&wcnss->start_done);
 	init_completion(&wcnss->stop_done);
+	init_completion(&wcnss->iris_assigned);
 
 	mutex_init(&wcnss->iris_lock);
 
