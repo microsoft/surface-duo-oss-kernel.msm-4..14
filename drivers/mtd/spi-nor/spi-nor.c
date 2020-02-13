@@ -5272,7 +5272,7 @@ static struct flash_info *spi_nor_get_flash_info(struct spi_nor *nor,
 
 		jinfo = spi_nor_read_id(nor);
 		if (IS_ERR(jinfo)) {
-			return jinfo;
+			return (struct flash_info *)jinfo;
 		} else if (jinfo != info) {
 			/*
 			 * JEDEC knows better, so overwrite platform ID. We
@@ -5287,7 +5287,7 @@ static struct flash_info *spi_nor_get_flash_info(struct spi_nor *nor,
 		}
 	}
 
-	return info;
+	return (struct flash_info *)info;
 }
 
 int spi_nor_scan(struct spi_nor *nor, const char *name,
