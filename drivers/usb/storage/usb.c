@@ -15,6 +15,8 @@
  * usb_device_id support by Adam J. Richter (adam@yggdrasil.com):
  *   (c) 2000 Yggdrasil Computing, Inc.
  *
+ * Copyright 2020 NXP
+ *
  * This driver is based on the 'USB Mass Storage Class' document. This
  * describes in detail the protocol used to communicate with such
  * devices.  Clearly, the designers had SCSI and ATAPI commands in
@@ -125,6 +127,10 @@ static struct us_unusual_dev us_unusual_dev_list[] = {
 #	include "unusual_devs.h"
 	{ }		/* Terminating entry */
 };
+
+
+#define QUIRK_ALL_DEV "*:*:"
+#define QUIRK_ALL_DEV_SIZE (sizeof(QUIRK_ALL_DEV) - 1)
 
 static struct us_unusual_dev for_dynamic_ids =
 		USUAL_DEV(USB_SC_SCSI, USB_PR_BULK);
@@ -471,12 +477,8 @@ static int associate_dev(struct us_data *us, struct usb_interface *intf)
 /* Works only for digits and letters, but small and fast */
 #define TOLOWER(x) ((x) | 0x20)
 
-/* Adjust device flags based on the "quirks=" module parameter */
-void usb_stor_adjust_quirks(struct usb_device *udev, unsigned long *fflags)
+static void collect_flags(char *p,  unsigned long *fflags)
 {
-	char *p;
-	u16 vid = le16_to_cpu(udev->descriptor.idVendor);
-	u16 pid = le16_to_cpu(udev->descriptor.idProduct);
 	unsigned f = 0;
 	unsigned int mask = (US_FL_SANE_SENSE | US_FL_BAD_SENSE |
 			US_FL_FIX_CAPACITY | US_FL_IGNORE_UAS |
@@ -489,24 +491,6 @@ void usb_stor_adjust_quirks(struct usb_device *udev, unsigned long *fflags)
 			US_FL_NO_ATA_1X | US_FL_NO_REPORT_OPCODES |
 			US_FL_MAX_SECTORS_240 | US_FL_NO_REPORT_LUNS |
 			US_FL_ALWAYS_SYNC);
-
-	p = quirks;
-	while (*p) {
-		/* Each entry consists of VID:PID:flags */
-		if (vid == simple_strtoul(p, &p, 16) &&
-				*p == ':' &&
-				pid == simple_strtoul(p+1, &p, 16) &&
-				*p == ':')
-			break;
-
-		/* Move forward to the next entry */
-		while (*p) {
-			if (*p++ == ',')
-				break;
-		}
-	}
-	if (!*p)	/* No match */
-		return;
 
 	/* Collect the flags */
 	while (*++p && *p != ',') {
@@ -577,7 +561,40 @@ void usb_stor_adjust_quirks(struct usb_device *udev, unsigned long *fflags)
 		/* Ignore unrecognized flag characters */
 		}
 	}
-	*fflags = (*fflags & ~mask) | f;
+
+	*fflags |= (*fflags & ~mask) | f;
+}
+
+/* Adjust device flags based on the "quirks=" module parameter */
+void usb_stor_adjust_quirks(struct usb_device *udev, unsigned long *fflags)
+{
+	char *p;
+	u16 vid = le16_to_cpu(udev->descriptor.idVendor);
+	u16 pid = le16_to_cpu(udev->descriptor.idProduct);
+
+	*fflags = 0;
+	p = quirks;
+	while (*p) {
+		/* Each entry consists of VID:PID:flags */
+		if (vid == simple_strtoul(p, &p, 16) &&
+				*p == ':' &&
+				pid == simple_strtoul(p+1, &p, 16) &&
+				*p == ':')
+			break;
+
+		if (!strncmp(QUIRK_ALL_DEV, p, QUIRK_ALL_DEV_SIZE))
+			collect_flags(p, fflags);
+
+		/* Move forward to the next entry */
+		while (*p) {
+			if (*p++ == ',')
+				break;
+		}
+	}
+	if (!*p)	/* No match */
+		return;
+
+	collect_flags(p, fflags);
 }
 EXPORT_SYMBOL_GPL(usb_stor_adjust_quirks);
 
