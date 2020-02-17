@@ -68,10 +68,7 @@ This driver is affected by the following known issues:
   or key buffers allocated by the driver in this range are going to cause
   a system reset when the respective requests are being sent to HSE firmware.
   The default DDR size used by Linux on S32G274A has been temporarily reduced
-  to 1.5G in order to circumvent this limitation.
-
-- HSE does not currently support partial hash operations (the import/export
-  functions of the asynchronous hash API).
+  in order to circumvent this limitation.
 
 - The crypto driver does not currently support the RNG non-blocking mode of
   operation (the wait parameter from hwrng_read is ignored).
