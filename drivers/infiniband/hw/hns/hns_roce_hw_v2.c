@@ -1967,6 +1967,13 @@ static int hns_roce_v2_profile(struct hns_roce_dev *hr_dev)
 		}
 	}
 
+	ret = hns_roce_alloc_vf_resource(hr_dev);
+	if (ret) {
+		dev_err(hr_dev->dev, "Allocate vf resource fail, ret = %d.\n",
+			ret);
+		return ret;
+	}
+
 	hr_dev->vendor_part_id = hr_dev->pci_dev->device;
 	hr_dev->sys_image_guid = be64_to_cpu(hr_dev->ib_dev.node_guid);
 
