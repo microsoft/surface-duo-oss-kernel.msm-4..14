@@ -777,7 +777,7 @@ static ssize_t measured_fps_show(struct device *device,
 {
 	struct drm_crtc *crtc;
 	struct sde_crtc *sde_crtc;
-	unsigned int fps_int, fps_decimal;
+	uint64_t fps_int, fps_decimal;
 	u64 fps = 0, frame_count = 0;
 	ktime_t current_time;
 	int i = 0, current_time_index;
@@ -854,7 +854,7 @@ static ssize_t measured_fps_show(struct device *device,
 		}
 	}
 
-	fps_int = (unsigned int) sde_crtc->fps_info.measured_fps;
+	fps_int = (uint64_t) sde_crtc->fps_info.measured_fps;
 	fps_decimal = do_div(fps_int, 10);
 	return scnprintf(buf, PAGE_SIZE,
 	"fps: %d.%d duration:%d frame_count:%llu\n", fps_int, fps_decimal,
@@ -5427,7 +5427,7 @@ static int sde_crtc_atomic_check(struct drm_crtc *crtc,
 			SDE_ERROR("plane w/h:%x*%x > mixer w/h:%x*%x\n",
 				pstate->crtc_w, pstate->crtc_h,
 				mixer_width, mixer_height);
-			return -E2BIG;
+			rc = -E2BIG;
 			goto end;
 		}
 	}

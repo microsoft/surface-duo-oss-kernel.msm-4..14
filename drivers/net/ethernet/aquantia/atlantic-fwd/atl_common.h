@@ -18,73 +18,20 @@
 #include <linux/netdevice.h>
 #include <linux/moduleparam.h>
 
-#define ATL_VERSION "1.0.25"
+#define ATL_VERSION "1.0.30"
 
 struct atl_nic;
 enum atl_fwd_notify;
 
 #include "atl_compat.h"
 #include "atl_hw.h"
+#include "atl_log.h"
+#include "atl_ring_desc.h"
+#include "atl_stats.h"
 
 #define ATL_MAX_QUEUES 8
 
 #include "atl_fwd.h"
-
-struct atl_rx_ring_stats {
-	uint64_t packets;
-	uint64_t bytes;
-	uint64_t linear_dropped;
-	uint64_t alloc_skb_failed;
-	uint64_t reused_head_page;
-	uint64_t reused_data_page;
-	uint64_t alloc_head_page;
-	uint64_t alloc_data_page;
-	uint64_t alloc_head_page_failed;
-	uint64_t alloc_data_page_failed;
-	uint64_t non_eop_descs;
-	uint64_t mac_err;
-	uint64_t csum_err;
-	uint64_t multicast;
-};
-
-struct atl_tx_ring_stats {
-	uint64_t packets;
-	uint64_t bytes;
-	uint64_t tx_busy;
-	uint64_t tx_restart;
-	uint64_t dma_map_failed;
-};
-
-struct atl_ring_stats {
-	union {
-		struct atl_rx_ring_stats rx;
-		struct atl_tx_ring_stats tx;
-	};
-};
-
-struct atl_ether_stats {
-	uint64_t rx_pause;
-	uint64_t tx_pause;
-	uint64_t rx_ether_drops;
-	uint64_t rx_ether_octets;
-	uint64_t rx_ether_pkts;
-	uint64_t rx_ether_broacasts;
-	uint64_t rx_ether_multicasts;
-	uint64_t rx_ether_crc_align_errs;
-	uint64_t rx_filter_host;
-	uint64_t rx_filter_lost;
-};
-
-struct atl_global_stats {
-	struct atl_rx_ring_stats rx;
-	struct atl_tx_ring_stats tx;
-
-	/* MSM counters can't be reset without full HW reset, so
-	 * store them in relative form:
-	 * eth[i] == HW_counter - eth_base[i] */
-	struct atl_ether_stats eth;
-	struct atl_ether_stats eth_base;
-};
 
 enum {
 	ATL_RXF_VLAN_BASE = 0,
@@ -214,6 +161,18 @@ struct atl_fwd {
 	struct blocking_notifier_head nh_clients;
 };
 
+#ifdef CONFIG_ATLFWD_FWD_NETLINK
+struct atl_fwdnl {
+	struct atl_desc_ring ring_desc[ATL_NUM_FWD_RINGS * 2];
+	/* State of forced redirections */
+	int force_icmp_via;
+	int force_tx_via;
+	/* Deferred TX head cleanup */
+	struct delayed_work *tx_cleanup_wq;
+	u32 tx_bunch;
+};
+#endif /* CONFIG_ATLFWD_FWD_NETLINK */
+
 struct atl_nic {
 	struct net_device *ndev;
 
@@ -224,7 +183,7 @@ struct atl_nic {
 	uint32_t priv_flags;
 	struct timer_list work_timer;
 	int max_mtu;
-	int requested_nvecs;
+	unsigned int requested_nvecs;
 	int requested_rx_size;
 	int requested_tx_size;
 	int rx_intr_delay;
@@ -235,6 +194,9 @@ struct atl_nic {
 
 #ifdef CONFIG_ATLFWD_FWD
 	struct atl_fwd fwd;
+#endif
+#ifdef CONFIG_ATLFWD_FWD_NETLINK
+	struct atl_fwdnl fwdnl;
 #endif
 
 	struct atl_rxf_ntuple rxf_ntuple;
@@ -304,52 +266,19 @@ enum atl_priv_flag_bits {
 extern const char atl_driver_name[];
 
 extern const struct ethtool_ops atl_ethtool_ops;
+#ifdef NETIF_F_HW_MACSEC
+extern const struct macsec_ops atl_macsec_ops;
+#endif
 
-extern int atl_max_queues;
+extern unsigned int atl_max_queues;
+extern unsigned int atl_max_queues_non_msi;
 extern unsigned atl_rx_linear;
 extern unsigned atl_min_intr_delay;
-extern int atl_enable_msi;
-
-/* Logging conviniency macros.
- *
- * atl_dev_xxx are for low-level contexts and implicitly reference
- * struct atl_hw *hw;
- *
- * atl_nic_xxx are for high-level contexts and implicitly reference
- * struct atl_nic *nic; */
-#define atl_dev_dbg(fmt, args...)			\
-	dev_dbg(&hw->pdev->dev, fmt, ## args)
-#define atl_dev_info(fmt, args...)			\
-	dev_info(&hw->pdev->dev, fmt, ## args)
-#define atl_dev_warn(fmt, args...)			\
-	dev_warn(&hw->pdev->dev, fmt, ## args)
-#define atl_dev_err(fmt, args...)			\
-	dev_err(&hw->pdev->dev, fmt, ## args)
-
-#define atl_nic_dbg(fmt, args...)		\
-	dev_dbg(&nic->hw.pdev->dev, fmt, ## args)
-#define atl_nic_info(fmt, args...)		\
-	dev_info(&nic->hw.pdev->dev, fmt, ## args)
-#define atl_nic_warn(fmt, args...)		\
-	dev_warn(&nic->hw.pdev->dev, fmt, ## args)
-#define atl_nic_err(fmt, args...)		\
-	dev_err(&nic->hw.pdev->dev, fmt, ## args)
-
-#define atl_dev_init_warn(fmt, args...)					\
-do {									\
-	if (hw)								\
-		atl_dev_warn(fmt, ## args);				\
-	else								\
-		printk(KERN_WARNING "%s: " fmt, atl_driver_name, ##args); \
-} while(0)
-
-#define atl_dev_init_err(fmt, args...)					\
-do {									\
-	if (hw)								\
-		atl_dev_warn(fmt, ## args);				\
-	else								\
-		printk(KERN_ERR "%s: " fmt, atl_driver_name, ##args);	\
-} while(0)
+extern bool atl_enable_msi;
+extern bool atl_wq_non_msi;
+extern unsigned int atl_tx_clean_budget;
+extern unsigned int atl_tx_free_low;
+extern unsigned int atl_tx_free_high;
 
 #define atl_module_param(_name, _type, _mode)			\
 	module_param_named(_name, atl_ ## _name, _type, _mode)
@@ -384,6 +313,7 @@ void atl_clear_tdm_cache(struct atl_nic *nic);
 int atl_alloc_rings(struct atl_nic *nic);
 void atl_free_rings(struct atl_nic *nic);
 irqreturn_t atl_ring_irq(int irq, void *priv);
+void atl_ring_work(struct work_struct *work);
 void atl_start_hw_global(struct atl_nic *nic);
 int atl_intr_init(struct atl_nic *nic);
 void atl_intr_release(struct atl_nic *nic);
@@ -413,16 +343,6 @@ static inline int atl_fwd_suspend_rings(struct atl_nic *nic) { return 0; }
 static inline int atl_fwd_resume_rings(struct atl_nic *nic) { return 0; }
 #endif
 int atl_get_lpi_timer(struct atl_nic *nic, uint32_t *lpi_delay);
-int atl_mdio_hwsem_get(struct atl_hw *hw);
-void atl_mdio_hwsem_put(struct atl_hw *hw);
-int __atl_mdio_read(struct atl_hw *hw, uint8_t prtad, uint8_t mmd,
-	uint16_t addr, uint16_t *val);
-int atl_mdio_read(struct atl_hw *hw, uint8_t prtad, uint8_t mmd,
-	uint16_t addr, uint16_t *val);
-int __atl_mdio_write(struct atl_hw *hw, uint8_t prtad, uint8_t mmd,
-	uint16_t addr, uint16_t val);
-int atl_mdio_write(struct atl_hw *hw, uint8_t prtad, uint8_t mmd,
-	uint16_t addr, uint16_t val);
 void atl_refresh_rxfs(struct atl_nic *nic);
 void atl_schedule_work(struct atl_nic *nic);
 int atl_hwmon_init(struct atl_nic *nic);
@@ -430,5 +350,12 @@ int atl_update_thermal(struct atl_hw *hw);
 int atl_update_thermal_flag(struct atl_hw *hw, int bit, bool val);
 int atl_verify_thermal_limits(struct atl_hw *hw, struct atl_thermal *thermal);
 int atl_do_reset(struct atl_nic *nic);
+int atl_set_media_detect(struct atl_nic *nic, bool on);
+int atl_init_macsec(struct atl_hw *hw);
+void atl_macsec_work(struct atl_nic *nic);
+int atl_macsec_rx_sa_cnt(struct atl_hw *hw);
+int atl_macsec_tx_sc_cnt(struct atl_hw *hw);
+int atl_macsec_tx_sa_cnt(struct atl_hw *hw);
+int atl_macsec_update_stats(struct atl_hw *hw);
 
 #endif
