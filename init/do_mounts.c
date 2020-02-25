@@ -44,6 +44,7 @@ static int root_wait;
 #ifdef CONFIG_EARLY_SERVICES
 static char saved_modem_name[64];
 static char saved_early_userspace[64];
+static char *early_userspace_dev;
 static char init_prog[128] = "/early_services/init_early";
 static char *init_prog_argv[2] = { init_prog, NULL };
 #define EARLY_SERVICES_MOUNT_POINT "/early_services"
@@ -638,18 +639,28 @@ static int mount_partition(char *part_name, char *mnt_point)
 void launch_early_services(void)
 {
 	int rc = 0;
+	dev_t EARLY_USERSPACE_DEV;
 
-	rc = mount_partition(saved_early_userspace, EARLY_SERVICES_MOUNT_POINT);
-	place_marker("Early Services Partition ready");
+	early_userspace_dev = saved_early_userspace;
+	EARLY_USERSPACE_DEV = name_to_dev_t(early_userspace_dev);
+        if (strncmp(early_userspace_dev, "/dev/", 5) == 0)
+		early_userspace_dev += 5;
+	if (EARLY_USERSPACE_DEV == 0)
+		return;
+	rc = create_dev("/dev/early_userspace" , EARLY_USERSPACE_DEV);
 	if (!rc) {
-		rc = mount_partition(saved_modem_name, FIRMWARE_MOUNT_PATH);
-		if (!rc)
-			place_marker("firmwares Partition ready");
-		rc = call_usermodehelper(init_prog, init_prog_argv, NULL, 0);
-		if (!rc)
-			pr_info("early_init launched\n");
-		else
-			pr_err("early_init failed\n");
+		rc = mount_partition("/dev/early_userspace", EARLY_SERVICES_MOUNT_POINT);
+		place_marker("Early Services Partition ready");
+		if (!rc) {
+			rc = mount_partition(saved_modem_name, FIRMWARE_MOUNT_PATH);
+			if (!rc)
+				place_marker("firmwares Partition ready");
+			rc = call_usermodehelper(init_prog, init_prog_argv, NULL, 0);
+			if (!rc)
+				pr_info("early_init launched\n");
+			else
+				pr_err("early_init failed\n");
+		}
 	}
 }
 #else
@@ -679,6 +690,7 @@ void __init prepare_namespace(void)
 
 	md_run_setup();
 	dm_run_setup();
+        dm_run_es_setup(); /*setup Early Services verity*/
 
 	if (saved_root_name[0]) {
 		root_device_name = saved_root_name;
