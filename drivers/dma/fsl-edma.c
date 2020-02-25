@@ -2,7 +2,7 @@
  * drivers/dma/fsl-edma.c
  *
  * Copyright 2013-2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2018 NXP
+ * Copyright 2017-2018, 2020 NXP
  *
  * Driver for the Freescale eDMA engine with flexible channel multiplexing
  * capability for DMA request sources. The eDMA block can be found on some
@@ -1241,23 +1241,7 @@ static int fsl_edma_probe(struct platform_device *pdev)
 		fsl_chan->idle = true;
 		fsl_chan->vchan.desc_free = fsl_edma_free_desc;
 		vchan_init(&fsl_chan->vchan, &fsl_edma->dma_dev);
-
-		hw_tcd = (struct fsl_edma_hw_tcd *)
-			fsl_edma->socdata->ops->edma_get_tcd_addr(fsl_chan);
-
-		edma_writew(fsl_edma, 0x0, &hw_tcd->csr);
-		fsl_edma_chan_mux(fsl_chan, 0, false);
 	}
-
-	if (is_s32gen1_edma(fsl_edma))
-		for (ch = 0; ch < fsl_edma->n_chans; ch++)
-			edma_writel(fsl_edma, ~0, fsl_edma->membase + EDMA3_CHn_INT(ch));
-	else
-		edma_writel(fsl_edma, ~0, fsl_edma->membase + EDMA_INTR);
-
-	ret = fsl_edma_irq_init(pdev, fsl_edma);
-	if (ret)
-		return ret;
 
 	dma_cap_set(DMA_PRIVATE, fsl_edma->dma_dev.cap_mask);
 	dma_cap_set(DMA_SLAVE, fsl_edma->dma_dev.cap_mask);
@@ -1290,6 +1274,27 @@ static int fsl_edma_probe(struct platform_device *pdev)
 		fsl_disable_clocks(fsl_edma, DMAMUX_NR);
 		return ret;
 	}
+
+	for (i = 0; i < fsl_edma->n_chans; i++) {
+		struct fsl_edma_chan *fsl_chan = &fsl_edma->chans[i];
+
+		hw_tcd = (struct fsl_edma_hw_tcd *)
+			fsl_edma->socdata->ops->edma_get_tcd_addr(fsl_chan);
+
+		edma_writew(fsl_edma, 0x0, &hw_tcd->csr);
+		fsl_edma_chan_mux(fsl_chan, 0, false);
+	}
+
+	if (is_s32gen1_edma(fsl_edma))
+		for (ch = 0; ch < fsl_edma->n_chans; ch++)
+			edma_writel(fsl_edma, EDMA3_CHn_INT_INT,
+				    fsl_edma->membase + EDMA3_CHn_INT(ch));
+	else
+		edma_writel(fsl_edma, ~0, fsl_edma->membase + EDMA_INTR);
+
+	ret = fsl_edma_irq_init(pdev, fsl_edma);
+	if (ret)
+		return ret;
 
 	ret = of_dma_controller_register(np, fsl_edma_xlate, fsl_edma);
 	if (ret) {
