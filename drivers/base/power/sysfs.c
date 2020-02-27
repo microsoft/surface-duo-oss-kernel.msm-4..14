@@ -511,6 +511,14 @@ static ssize_t wakeup_last_time_show(struct device *dev,
 	return enabled ? sprintf(buf, "%lld\n", msec) : sprintf(buf, "\n");
 }
 
+static inline int dpm_sysfs_wakeup_change_owner(struct device *dev, kuid_t kuid,
+						kgid_t kgid)
+{
+	if (dev->power.wakeup && dev->power.wakeup->dev)
+		return device_change_owner(dev->power.wakeup->dev, kuid, kgid);
+	return 0;
+}
+
 static DEVICE_ATTR(wakeup_last_time_ms, 0444, wakeup_last_time_show, NULL);
 
 #ifdef CONFIG_PM_AUTOSLEEP
@@ -533,7 +541,13 @@ static ssize_t wakeup_prevent_sleep_time_show(struct device *dev,
 static DEVICE_ATTR(wakeup_prevent_sleep_time_ms, 0444,
 		   wakeup_prevent_sleep_time_show, NULL);
 #endif /* CONFIG_PM_AUTOSLEEP */
-#endif /* CONFIG_PM_SLEEP */
+#else /* CONFIG_PM_SLEEP */
+static inline int dpm_sysfs_wakeup_change_owner(struct device *dev, kuid_t kuid,
+						kgid_t kgid)
+{
+	return 0;
+}
+#endif
 
 #ifdef CONFIG_PM_ADVANCED_DEBUG
 static ssize_t rtpm_usagecount_show(struct device *dev,
@@ -722,6 +736,45 @@ int dpm_sysfs_add(struct device *dev)
  err_out:
 	sysfs_remove_group(&dev->kobj, &pm_attr_group);
 	return rc;
+}
+
+int dpm_sysfs_change_owner(struct device *dev, kuid_t kuid, kgid_t kgid)
+{
+	int rc;
+
+	if (device_pm_not_required(dev))
+		return 0;
+
+	rc = sysfs_group_change_owner(&dev->kobj, &pm_attr_group, kuid, kgid);
+	if (rc)
+		return rc;
+
+	if (pm_runtime_callbacks_present(dev)) {
+		rc = sysfs_group_change_owner(
+			&dev->kobj, &pm_runtime_attr_group, kuid, kgid);
+		if (rc)
+			return rc;
+	}
+
+	if (device_can_wakeup(dev)) {
+		rc = sysfs_group_change_owner(&dev->kobj, &pm_wakeup_attr_group,
+					      kuid, kgid);
+		if (rc)
+			return rc;
+
+		rc = dpm_sysfs_wakeup_change_owner(dev, kuid, kgid);
+		if (rc)
+			return rc;
+	}
+
+	if (dev->power.set_latency_tolerance) {
+		rc = sysfs_group_change_owner(
+			&dev->kobj, &pm_qos_latency_tolerance_attr_group, kuid,
+			kgid);
+		if (rc)
+			return rc;
+	}
+	return 0;
 }
 
 int wakeup_sysfs_add(struct device *dev)
