@@ -222,7 +222,7 @@
 #define IPA_FLT_EXT_L2TP_UDP_TCP_SYN        (1ul << 0)
 #define IPA_FLT_EXT_L2TP_UDP_INNER_ETHER_TYPE       (1ul << 1)
 #define IPA_FLT_EXT_MTU     (1ul << 2)
-
+#define IPA_FLT_EXT_L2TP_UDP_INNER_NEXT_HDR		(1ul << 3)
 
 /**
  * maximal number of NAT PDNs in the PDN config table
@@ -721,7 +721,14 @@ enum ipa_peripheral_event {
 #define WIGIG_FST_SWITCH (WIGIG_CLIENT_CONNECT + 1)
 #define WIGIG_EVENT_MAX (WIGIG_FST_SWITCH + 1)
 
-#define IPA_EVENT_MAX_NUM (WIGIG_EVENT_MAX)
+enum ipa_sockv5_event {
+	IPA_SOCKV5_ADD = WIGIG_EVENT_MAX,
+	IPA_SOCKV5_DEL,
+	IPA_SOCKV5_EVENT_MAX
+#define IPA_SOCKV5_EVENT_MAX IPA_SOCKV5_EVENT_MAX
+};
+
+#define IPA_EVENT_MAX_NUM (IPA_SOCKV5_EVENT_MAX)
 #define IPA_EVENT_MAX ((int)IPA_EVENT_MAX_NUM)
 
 /**
@@ -841,6 +848,7 @@ enum ipa_hw_type {
  * @vlan_id: vlan id value
  * @payload_length: Payload length.
  * @ext_attrib_mask: Extended attributes.
+ * @l2tp_udp_next_hdr: next header in L2TP tunneling
  */
 struct ipa_rule_attrib {
 	uint32_t attrib_mask;
@@ -884,6 +892,7 @@ struct ipa_rule_attrib {
 	uint16_t vlan_id;
 	uint16_t payload_length;
 	uint32_t ext_attrib_mask;
+	uint8_t l2tp_udp_next_hdr;
 };
 
 /*! @brief The maximum number of Mask Equal 32 Eqns */
@@ -2457,6 +2466,56 @@ struct ipa_wan_msg {
 	enum ipa_ip_type ip;
 	uint32_t ipv4_addr_gw;
 	uint32_t ipv6_addr_gw[IPA_WAN_MSG_IPv6_ADDR_GW_LEN];
+};
+
+/**
+ * struct ipacm_socksv5_info - To hold information about socksv5 connections
+ * @ip_type: ip type
+ * @ipv4_src: ipv4 src address
+ * @ipv4_dst: ipv4 dst address
+ * @ipv6_src: ipv6 src address
+ * @ipv6_dst: ipv6 dst address
+ * @src_port: src port number
+ * @dst_port: dst port number
+ * @index: the uc activation tbl index
+ */
+
+struct ipacm_socksv5_info {
+	/* ip-type */
+	enum ipa_ip_type ip_type;
+
+	/* ipv4 */
+	uint32_t ipv4_src;
+	uint32_t ipv4_dst;
+
+	/* ipv6 */
+	uint32_t ipv6_src[4];
+	uint32_t ipv6_dst[4];
+
+	/* 2B src/dst port */
+	uint16_t src_port;
+	uint16_t dst_port;
+
+	/* uc-tbl index */
+	uint16_t index;
+};
+
+/**
+ * struct ipa_socksv5_msg - To hold information about socksv5 client
+ * @ul_in: uplink connection info
+ * @dl_in: downlink connection info
+ * @handle: used for ipacm to distinguish connections
+ *
+ * CnE need to pass the name of default wan iface when connected/disconnected.
+ * CNE need to pass the gw info in wlan AP+STA mode.
+ * netmgr need to pass the name of wan eMBMS iface when connected.
+ */
+struct ipa_socksv5_msg {
+	struct ipacm_socksv5_info ul_in;
+	struct ipacm_socksv5_info dl_in;
+
+	/* handle (index) */
+	uint16_t handle;
 };
 
 /**

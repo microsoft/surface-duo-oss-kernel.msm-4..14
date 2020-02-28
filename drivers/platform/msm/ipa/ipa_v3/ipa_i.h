@@ -91,6 +91,9 @@
 /*Bit pattern for SW to identify PC restoration completed */
 #define PC_RESTORE_CONTEXT_STATUS_SUCCESS       0xCAFECAFE
 
+#define IPA_WDI2_OVER_GSI() (ipa3_ctx->ipa_wdi2_over_gsi \
+		&& (ipa3_get_wdi_version() == IPA_WDI_2))
+
 #define IPADBG(fmt, args...) \
 	do { \
 		pr_debug(DRV_NAME " %s:%d " fmt, __func__, __LINE__, ## args);\
@@ -1376,6 +1379,7 @@ struct ipa3_stats {
 	u32 flow_enable;
 	u32 flow_disable;
 	u32 tx_non_linear;
+	u32 rx_page_drop_cnt;
 	struct ipa3_page_recycle_stats page_recycle_stats[2];
 };
 
@@ -2353,6 +2357,8 @@ int ipa3_clear_endpoint_delay(u32 clnt_hdl);
  */
 int ipa3_cfg_ep(u32 clnt_hdl, const struct ipa_ep_cfg *ipa_ep_cfg);
 
+int ipa3_cfg_ep_seq(u32 clnt_hdl, const struct ipa_ep_cfg_seq *seq_cfg);
+
 int ipa3_cfg_ep_nat(u32 clnt_hdl, const struct ipa_ep_cfg_nat *ipa_ep_cfg);
 
 int ipa3_cfg_ep_conn_track(u32 clnt_hdl,
@@ -2901,6 +2907,7 @@ int ipa3_tag_aggr_force_close(int pipe_num);
 
 void ipa3_active_clients_unlock(void);
 int ipa3_wdi_init(void);
+int ipa3_get_wdi_version(void);
 int ipa3_write_qmapid_gsi_wdi_pipe(u32 clnt_hdl, u8 qmap_id);
 int ipa3_write_qmapid_wdi_pipe(u32 clnt_hdl, u8 qmap_id);
 int ipa3_write_qmapid_wdi3_gsi_pipe(u32 clnt_hdl, u8 qmap_id);

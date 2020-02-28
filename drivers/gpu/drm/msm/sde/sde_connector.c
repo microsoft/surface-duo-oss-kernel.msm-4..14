@@ -357,7 +357,7 @@ int sde_connector_get_dither_cfg(struct drm_connector *conn,
 					CONNECTOR_PROP_PP_DITHER);
 	/* if user config data doesn't exist, use default dither blob */
 	if (*cfg == NULL && c_conn->blob_dither) {
-		*cfg = &c_conn->blob_dither->data;
+		*cfg = c_conn->blob_dither->data;
 		dither_sz = c_conn->blob_dither->length;
 	}
 	*len = dither_sz;
@@ -1864,10 +1864,10 @@ static int sde_connector_atomic_check(struct drm_connector *connector,
 		return -EINVAL;
 	}
 
-	if (new_conn_state->crtc) {
-		c_conn = to_sde_connector(connector);
-		c_state = to_sde_connector_state(new_conn_state);
+	c_conn = to_sde_connector(connector);
+	c_state = to_sde_connector_state(new_conn_state);
 
+	if (new_conn_state->crtc) {
 		crtc_state = drm_atomic_get_new_crtc_state(
 			new_conn_state->state, new_conn_state->crtc);
 
