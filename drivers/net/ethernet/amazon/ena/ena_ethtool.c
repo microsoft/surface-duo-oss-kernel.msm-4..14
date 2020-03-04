@@ -404,7 +404,6 @@ static void ena_get_drvinfo(struct net_device *dev,
 	struct ena_adapter *adapter = netdev_priv(dev);
 
 	strlcpy(info->driver, DRV_MODULE_NAME, sizeof(info->driver));
-	strlcpy(info->version, DRV_MODULE_VERSION, sizeof(info->version));
 	strlcpy(info->bus_info, pci_name(adapter->pdev),
 		sizeof(info->bus_info));
 }
@@ -674,7 +673,6 @@ static int ena_get_rxfh(struct net_device *netdev, u32 *indir, u8 *key,
 	 * supports getting/setting the hash function.
 	 */
 	rc = ena_com_get_hash_function(adapter->ena_dev, &ena_func, key);
-
 	if (rc) {
 		if (rc == -EOPNOTSUPP) {
 			key = NULL;
@@ -684,9 +682,6 @@ static int ena_get_rxfh(struct net_device *netdev, u32 *indir, u8 *key,
 
 		return rc;
 	}
-
-	if (rc)
-		return rc;
 
 	switch (ena_func) {
 	case ENA_ADMIN_TOEPLITZ:
