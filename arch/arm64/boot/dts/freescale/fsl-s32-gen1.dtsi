@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2019 NXP
+ * Copyright 2017-2020 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -314,7 +314,7 @@
 		interrupts = <0 85 4>;
 		clocks = <&clks S32GEN1_CLK_DSPI>;
 		clock-names = "dspi";
-		spi-num-chipselects = <5>;
+		spi-num-chipselects = <8>;
 		bus-num = <0>;
 		spi-fifo-size = <5>;
 		spi-extended-mode;
