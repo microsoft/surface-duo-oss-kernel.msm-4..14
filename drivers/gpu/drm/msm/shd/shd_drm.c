@@ -386,7 +386,6 @@ void shd_update_shared_plane(struct drm_plane *plane,
 static int shd_display_atomic_check(struct msm_kms *kms,
 		struct drm_atomic_state *state)
 {
-	struct msm_drm_private *priv;
 	struct drm_crtc *crtc;
 	struct drm_crtc_state *old_crtc_state, *new_crtc_state;
 	struct drm_connector_state *conn_state;
@@ -420,7 +419,7 @@ static int shd_display_atomic_check(struct msm_kms *kms,
 	}
 
 	if (!base_mask)
-		return g_shd_kms->orig_funcs->atomic_check(kms, state);
+		goto end;
 
 	/*
 	 * If base display need to be enabled/disabled, add state
@@ -440,6 +439,12 @@ static int shd_display_atomic_check(struct msm_kms *kms,
 				active_mask |= drm_crtc_mask(display->crtc);
 		}
 
+		/* always add base crtc into state */
+		new_crtc_state = drm_atomic_get_crtc_state(state,
+				base->crtc);
+		if (IS_ERR(new_crtc_state))
+			return PTR_ERR(new_crtc_state);
+
 		/* apply changes in state */
 		active_mask |= (enable_mask & crtc_mask);
 		active_mask &= ~disable_mask;
@@ -448,11 +453,6 @@ static int shd_display_atomic_check(struct msm_kms *kms,
 		/* skip if there is no change */
 		if (base->crtc->state->active == active)
 			continue;
-
-		new_crtc_state = drm_atomic_get_crtc_state(state,
-				base->crtc);
-		if (IS_ERR(new_crtc_state))
-			return PTR_ERR(new_crtc_state);
 
 		new_crtc_state->active = active;
 
@@ -474,21 +474,13 @@ static int shd_display_atomic_check(struct msm_kms *kms,
 			SDE_ERROR("failed to set crtc for connector\n");
 			return rc;
 		}
+
+		SDE_DEBUG("set base crtc%d mode=%s active=%d\n",
+				base->crtc->base.id, base->mode.name, active);
 	}
 
-	rc = g_shd_kms->orig_funcs->atomic_check(kms, state);
-	if (rc)
-		return rc;
-
-	/* wait if there is base thread running */
-	priv = state->dev->dev_private;
-	spin_lock(&priv->pending_crtcs_event.lock);
-	wait_event_interruptible_locked(
-			priv->pending_crtcs_event,
-			!(priv->pending_crtcs & base_mask));
-	spin_unlock(&priv->pending_crtcs_event.lock);
-
-	return 0;
+end:
+	return g_shd_kms->orig_funcs->atomic_check(kms, state);
 }
 
 static int shd_connector_get_info(struct drm_connector *connector,
