@@ -88,11 +88,9 @@ static int dsa_slave_open(struct net_device *dev)
 			goto clear_allmulti;
 	}
 
-	err = dsa_port_enable(dp, dev->phydev);
+	err = dsa_port_enable_rt(dp, dev->phydev);
 	if (err)
 		goto clear_promisc;
-
-	phylink_start(dp->pl);
 
 	return 0;
 
@@ -114,9 +112,7 @@ static int dsa_slave_close(struct net_device *dev)
 	struct net_device *master = dsa_slave_to_master(dev);
 	struct dsa_port *dp = dsa_slave_to_port(dev);
 
-	phylink_stop(dp->pl);
-
-	dsa_port_disable(dp);
+	dsa_port_disable_rt(dp);
 
 	dev_mc_unsync(master, dev);
 	dev_uc_unsync(master, dev);
@@ -865,6 +861,10 @@ static int dsa_slave_add_cls_matchall(struct net_device *dev,
 	if (!flow_offload_has_one_action(&cls->rule->action))
 		return err;
 
+	if (!flow_action_basic_hw_stats_types_check(&cls->rule->action,
+						    cls->common.extack))
+		return err;
+
 	act = &cls->rule->action.entries[0];
 
 	if (act->id == FLOW_ACTION_MIRRED && protocol == htons(ETH_P_ALL)) {
@@ -946,6 +946,64 @@ static int dsa_slave_setup_tc_cls_matchall(struct net_device *dev,
 	}
 }
 
+static int dsa_slave_add_cls_flower(struct net_device *dev,
+				    struct flow_cls_offload *cls,
+				    bool ingress)
+{
+	struct dsa_port *dp = dsa_slave_to_port(dev);
+	struct dsa_switch *ds = dp->ds;
+	int port = dp->index;
+
+	if (!ds->ops->cls_flower_add)
+		return -EOPNOTSUPP;
+
+	return ds->ops->cls_flower_add(ds, port, cls, ingress);
+}
+
+static int dsa_slave_del_cls_flower(struct net_device *dev,
+				    struct flow_cls_offload *cls,
+				    bool ingress)
+{
+	struct dsa_port *dp = dsa_slave_to_port(dev);
+	struct dsa_switch *ds = dp->ds;
+	int port = dp->index;
+
+	if (!ds->ops->cls_flower_del)
+		return -EOPNOTSUPP;
+
+	return ds->ops->cls_flower_del(ds, port, cls, ingress);
+}
+
+static int dsa_slave_stats_cls_flower(struct net_device *dev,
+				      struct flow_cls_offload *cls,
+				      bool ingress)
+{
+	struct dsa_port *dp = dsa_slave_to_port(dev);
+	struct dsa_switch *ds = dp->ds;
+	int port = dp->index;
+
+	if (!ds->ops->cls_flower_stats)
+		return -EOPNOTSUPP;
+
+	return ds->ops->cls_flower_stats(ds, port, cls, ingress);
+}
+
+static int dsa_slave_setup_tc_cls_flower(struct net_device *dev,
+					 struct flow_cls_offload *cls,
+					 bool ingress)
+{
+	switch (cls->command) {
+	case FLOW_CLS_REPLACE:
+		return dsa_slave_add_cls_flower(dev, cls, ingress);
+	case FLOW_CLS_DESTROY:
+		return dsa_slave_del_cls_flower(dev, cls, ingress);
+	case FLOW_CLS_STATS:
+		return dsa_slave_stats_cls_flower(dev, cls, ingress);
+	default:
+		return -EOPNOTSUPP;
+	}
+}
+
 static int dsa_slave_setup_tc_block_cb(enum tc_setup_type type, void *type_data,
 				       void *cb_priv, bool ingress)
 {
@@ -957,6 +1015,8 @@ static int dsa_slave_setup_tc_block_cb(enum tc_setup_type type, void *type_data,
 	switch (type) {
 	case TC_SETUP_CLSMATCHALL:
 		return dsa_slave_setup_tc_cls_matchall(dev, type_data, ingress);
+	case TC_SETUP_CLSFLOWER:
+		return dsa_slave_setup_tc_cls_flower(dev, type_data, ingress);
 	default:
 		return -EOPNOTSUPP;
 	}

@@ -786,7 +786,9 @@ static void sja1105_mac_link_down(struct dsa_switch *ds, int port,
 static void sja1105_mac_link_up(struct dsa_switch *ds, int port,
 				unsigned int mode,
 				phy_interface_t interface,
-				struct phy_device *phydev)
+				struct phy_device *phydev,
+				int speed, int duplex,
+				bool tx_pause, bool rx_pause)
 {
 	sja1105_inhibit_tx(ds->priv, BIT(port), false);
 }
@@ -822,6 +824,7 @@ static void sja1105_phylink_validate(struct dsa_switch *ds, int port,
 	phylink_set(mask, MII);
 	phylink_set(mask, 10baseT_Full);
 	phylink_set(mask, 100baseT_Full);
+	phylink_set(mask, 100baseT1_Full);
 	if (mii->xmii_mode[port] == XMII_MODE_RGMII)
 		phylink_set(mask, 1000baseT_Full);
 
@@ -1741,7 +1744,8 @@ static void sja1105_teardown(struct dsa_switch *ds)
 		if (!dsa_is_user_port(ds, port))
 			continue;
 
-		kthread_destroy_worker(sp->xmit_worker);
+		if (sp->xmit_worker)
+			kthread_destroy_worker(sp->xmit_worker);
 	}
 
 	sja1105_tas_teardown(ds);
