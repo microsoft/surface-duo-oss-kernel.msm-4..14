@@ -4876,11 +4876,6 @@
 				y = ALWAYS_SYNC (issue a SYNCHRONIZE_CACHE
 					even if the device claims no cache)
 			Example: quirks=0419:aaf5:rl,0421:0433:rc
-			It's also possible to apply a set of flags for all
-			devices in case of a limitation of the controller
-			using *:*:Flags.
-			Example: quirks=*:*:r,0419:aaf5:l,0421:0433:c
-			is equivalent of quirks=0419:aaf5:rl,0421:0433:rc
 
 	user_debug=	[KNL,ARM]
 			Format: <int>
