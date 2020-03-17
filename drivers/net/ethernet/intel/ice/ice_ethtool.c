@@ -157,6 +157,7 @@ struct ice_priv_flag {
 static const struct ice_priv_flag ice_gstrings_priv_flags[] = {
 	ICE_PRIV_FLAG("link-down-on-close", ICE_FLAG_LINK_DOWN_ON_CLOSE_ENA),
 	ICE_PRIV_FLAG("fw-lldp-agent", ICE_FLAG_FW_LLDP_AGENT),
+	ICE_PRIV_FLAG("mdd-auto-reset-vf", ICE_FLAG_MDD_AUTO_RESET_VF),
 	ICE_PRIV_FLAG("legacy-rx", ICE_FLAG_LEGACY_RX),
 };
 
@@ -172,8 +173,8 @@ ice_get_drvinfo(struct net_device *netdev, struct ethtool_drvinfo *drvinfo)
 	struct ice_hw *hw = &pf->hw;
 	u16 oem_build;
 
-	strlcpy(drvinfo->driver, KBUILD_MODNAME, sizeof(drvinfo->driver));
-	strlcpy(drvinfo->version, ice_drv_ver, sizeof(drvinfo->version));
+	strscpy(drvinfo->driver, KBUILD_MODNAME, sizeof(drvinfo->driver));
+	strscpy(drvinfo->version, ice_drv_ver, sizeof(drvinfo->version));
 
 	/* Display NVM version (from which the firmware version can be
 	 * determined) which contains more pertinent information.
@@ -184,7 +185,7 @@ ice_get_drvinfo(struct net_device *netdev, struct ethtool_drvinfo *drvinfo)
 		 "%x.%02x 0x%x %d.%d.%d", nvm_ver_hi, nvm_ver_lo,
 		 hw->nvm.eetrack, oem_ver, oem_build, oem_patch);
 
-	strlcpy(drvinfo->bus_info, pci_name(pf->pdev),
+	strscpy(drvinfo->bus_info, pci_name(pf->pdev),
 		sizeof(drvinfo->bus_info));
 	drvinfo->n_priv_flags = ICE_PRIV_FLAG_ARRAY_SIZE;
 }
@@ -462,7 +463,7 @@ static int ice_lbtest_prepare_rings(struct ice_vsi *vsi)
 	if (status)
 		goto err_setup_rx_ring;
 
-	status = ice_vsi_start_rx_rings(vsi);
+	status = ice_vsi_start_all_rx_rings(vsi);
 	if (status)
 		goto err_start_rx_ring;
 
@@ -494,7 +495,7 @@ static int ice_lbtest_disable_rings(struct ice_vsi *vsi)
 		netdev_err(vsi->netdev, "Failed to stop Tx rings, VSI %d error %d\n",
 			   vsi->vsi_num, status);
 
-	status = ice_vsi_stop_rx_rings(vsi);
+	status = ice_vsi_stop_all_rx_rings(vsi);
 	if (status)
 		netdev_err(vsi->netdev, "Failed to stop Rx rings, VSI %d error %d\n",
 			   vsi->vsi_num, status);
@@ -672,7 +673,7 @@ static u64 ice_loopback_test(struct net_device *netdev)
 
 	test_vsi = ice_lb_vsi_setup(pf, pf->hw.port_info);
 	if (!test_vsi) {
-		netdev_err(netdev, "Failed to create a VSI for the loopback test");
+		netdev_err(netdev, "Failed to create a VSI for the loopback test\n");
 		return 1;
 	}
 
@@ -731,7 +732,7 @@ lbtest_free_frame:
 	devm_kfree(dev, tx_frame);
 remove_mac_filters:
 	if (ice_remove_mac(&pf->hw, &tmp_list))
-		netdev_err(netdev, "Could not remove MAC filter for the test VSI");
+		netdev_err(netdev, "Could not remove MAC filter for the test VSI\n");
 free_mac_list:
 	ice_free_fltr_list(dev, &tmp_list);
 lbtest_mac_dis:
@@ -744,7 +745,7 @@ lbtest_rings_dis:
 lbtest_vsi_close:
 	test_vsi->netdev = NULL;
 	if (ice_vsi_release(test_vsi))
-		netdev_err(netdev, "Failed to remove the test VSI");
+		netdev_err(netdev, "Failed to remove the test VSI\n");
 
 	return ret;
 }
@@ -834,7 +835,7 @@ ice_self_test(struct net_device *netdev, struct ethtool_test *eth_test,
 			int status = ice_open(netdev);
 
 			if (status) {
-				dev_err(dev, "Could not open device %s, err %d",
+				dev_err(dev, "Could not open device %s, err %d\n",
 					pf->int_name, status);
 			}
 		}
@@ -1091,7 +1092,6 @@ ice_get_fecparam(struct net_device *netdev, struct ethtool_fecparam *fecparam)
 		fecparam->active_fec = ETHTOOL_FEC_BASER;
 		break;
 	case ICE_AQ_LINK_25G_RS_528_FEC_EN:
-		/* fall through */
 	case ICE_AQ_LINK_25G_RS_544_FEC_EN:
 		fecparam->active_fec = ETHTOOL_FEC_RS;
 		break;
@@ -1129,6 +1129,33 @@ ice_get_fecparam(struct net_device *netdev, struct ethtool_fecparam *fecparam)
 done:
 	kfree(caps);
 	return err;
+}
+
+/**
+ * ice_nway_reset - restart autonegotiation
+ * @netdev: network interface device structure
+ */
+static int ice_nway_reset(struct net_device *netdev)
+{
+	struct ice_netdev_priv *np = netdev_priv(netdev);
+	struct ice_vsi *vsi = np->vsi;
+	struct ice_port_info *pi;
+	enum ice_status status;
+
+	pi = vsi->port_info;
+	/* If VSI state is up, then restart autoneg with link up */
+	if (!test_bit(__ICE_DOWN, vsi->back->state))
+		status = ice_aq_set_link_restart_an(pi, true, NULL);
+	else
+		status = ice_aq_set_link_restart_an(pi, false, NULL);
+
+	if (status) {
+		netdev_info(netdev, "link restart failed, err %d aq_err %d\n",
+			    status, pi->hw->adminq.sq_last_status);
+		return -EIO;
+	}
+
+	return 0;
 }
 
 /**
@@ -1264,6 +1291,8 @@ static int ice_set_priv_flags(struct net_device *netdev, u32 flags)
 			status = ice_cfg_lldp_mib_change(&pf->hw, true);
 			if (status)
 				dev_dbg(dev, "Fail to enable MIB change events\n");
+
+			ice_nway_reset(netdev);
 		}
 	}
 	if (test_bit(ICE_FLAG_LEGACY_RX, change_flags)) {
@@ -1781,7 +1810,6 @@ ice_get_settings_link_up(struct ethtool_link_ksettings *ks,
 						     Asym_Pause);
 		break;
 	case ICE_FC_PFC:
-		/* fall through */
 	default:
 		ethtool_link_ksettings_del_link_mode(ks, lp_advertising, Pause);
 		ethtool_link_ksettings_del_link_mode(ks, lp_advertising,
@@ -2776,30 +2804,6 @@ done:
 	return err;
 }
 
-static int ice_nway_reset(struct net_device *netdev)
-{
-	/* restart autonegotiation */
-	struct ice_netdev_priv *np = netdev_priv(netdev);
-	struct ice_vsi *vsi = np->vsi;
-	struct ice_port_info *pi;
-	enum ice_status status;
-
-	pi = vsi->port_info;
-	/* If VSI state is up, then restart autoneg with link up */
-	if (!test_bit(__ICE_DOWN, vsi->back->state))
-		status = ice_aq_set_link_restart_an(pi, true, NULL);
-	else
-		status = ice_aq_set_link_restart_an(pi, false, NULL);
-
-	if (status) {
-		netdev_info(netdev, "link restart failed, err %d aq_err %d\n",
-			    status, pi->hw->adminq.sq_last_status);
-		return -EIO;
-	}
-
-	return 0;
-}
-
 /**
  * ice_get_pauseparam - Get Flow Control status
  * @netdev: network interface device structure
@@ -3453,12 +3457,6 @@ ice_set_rc_coalesce(enum ice_container_type c_type, struct ethtool_coalesce *ec,
 
 		break;
 	case ICE_TX_CONTAINER:
-		if (ec->tx_coalesce_usecs_high) {
-			netdev_info(vsi->netdev, "setting %s-usecs-high is not supported\n",
-				    c_type_str);
-			return -EINVAL;
-		}
-
 		use_adaptive_coalesce = ec->use_adaptive_tx_coalesce;
 		coalesce_usecs = ec->tx_coalesce_usecs;
 
@@ -3535,53 +3533,6 @@ ice_set_q_coalesce(struct ice_vsi *vsi, struct ethtool_coalesce *ec, int q_num)
 }
 
 /**
- * ice_is_coalesce_param_invalid - check for unsupported coalesce parameters
- * @netdev: pointer to the netdev associated with this query
- * @ec: ethtool structure to fill with driver's coalesce settings
- *
- * Print netdev info if driver doesn't support one of the parameters
- * and return error. When any parameters will be implemented, remove only
- * this parameter from param array.
- */
-static int
-ice_is_coalesce_param_invalid(struct net_device *netdev,
-			      struct ethtool_coalesce *ec)
-{
-	struct ice_ethtool_not_used {
-		u32 value;
-		const char *name;
-	} param[] = {
-		{ec->stats_block_coalesce_usecs, "stats-block-usecs"},
-		{ec->rate_sample_interval, "sample-interval"},
-		{ec->pkt_rate_low, "pkt-rate-low"},
-		{ec->pkt_rate_high, "pkt-rate-high"},
-		{ec->rx_max_coalesced_frames, "rx-frames"},
-		{ec->rx_coalesce_usecs_irq, "rx-usecs-irq"},
-		{ec->rx_max_coalesced_frames_irq, "rx-frames-irq"},
-		{ec->tx_max_coalesced_frames, "tx-frames"},
-		{ec->tx_coalesce_usecs_irq, "tx-usecs-irq"},
-		{ec->tx_max_coalesced_frames_irq, "tx-frames-irq"},
-		{ec->rx_coalesce_usecs_low, "rx-usecs-low"},
-		{ec->rx_max_coalesced_frames_low, "rx-frames-low"},
-		{ec->tx_coalesce_usecs_low, "tx-usecs-low"},
-		{ec->tx_max_coalesced_frames_low, "tx-frames-low"},
-		{ec->rx_max_coalesced_frames_high, "rx-frames-high"},
-		{ec->tx_max_coalesced_frames_high, "tx-frames-high"}
-	};
-	int i;
-
-	for (i = 0; i < ARRAY_SIZE(param); i++) {
-		if (param[i].value) {
-			netdev_info(netdev, "Setting %s not supported\n",
-				    param[i].name);
-			return -EINVAL;
-		}
-	}
-
-	return 0;
-}
-
-/**
  * ice_print_if_odd_usecs - print message if user tries to set odd [tx|rx]-usecs
  * @netdev: netdev used for print
  * @itr_setting: previous user setting
@@ -3620,9 +3571,6 @@ __ice_set_coalesce(struct net_device *netdev, struct ethtool_coalesce *ec,
 {
 	struct ice_netdev_priv *np = netdev_priv(netdev);
 	struct ice_vsi *vsi = np->vsi;
-
-	if (ice_is_coalesce_param_invalid(netdev, ec))
-		return -EINVAL;
 
 	if (q_num < 0) {
 		struct ice_q_vector *q_vector = vsi->q_vectors[0];
@@ -3818,6 +3766,9 @@ ice_get_module_eeprom(struct net_device *netdev,
 }
 
 static const struct ethtool_ops ice_ethtool_ops = {
+	.supported_coalesce_params = ETHTOOL_COALESCE_USECS |
+				     ETHTOOL_COALESCE_USE_ADAPTIVE |
+				     ETHTOOL_COALESCE_RX_USECS_HIGH,
 	.get_link_ksettings	= ice_get_link_ksettings,
 	.set_link_ksettings	= ice_set_link_ksettings,
 	.get_drvinfo		= ice_get_drvinfo,
@@ -3867,6 +3818,7 @@ static const struct ethtool_ops ice_ethtool_safe_mode_ops = {
 	.get_regs		= ice_get_regs,
 	.get_msglevel		= ice_get_msglevel,
 	.set_msglevel		= ice_set_msglevel,
+	.get_link		= ethtool_op_get_link,
 	.get_eeprom_len		= ice_get_eeprom_len,
 	.get_eeprom		= ice_get_eeprom,
 	.get_strings		= ice_get_strings,

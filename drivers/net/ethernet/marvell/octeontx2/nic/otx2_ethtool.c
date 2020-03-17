@@ -253,6 +253,45 @@ fail:
 	return err;
 }
 
+static void otx2_get_pauseparam(struct net_device *netdev,
+				struct ethtool_pauseparam *pause)
+{
+	struct otx2_nic *pfvf = netdev_priv(netdev);
+	struct cgx_pause_frm_cfg *req, *rsp;
+
+	req = otx2_mbox_alloc_msg_cgx_cfg_pause_frm(&pfvf->mbox);
+	if (!req)
+		return;
+
+	if (!otx2_sync_mbox_msg(&pfvf->mbox)) {
+		rsp = (struct cgx_pause_frm_cfg *)
+		       otx2_mbox_get_rsp(&pfvf->mbox.mbox, 0, &req->hdr);
+		pause->rx_pause = rsp->rx_pause;
+		pause->tx_pause = rsp->tx_pause;
+	}
+}
+
+static int otx2_set_pauseparam(struct net_device *netdev,
+			       struct ethtool_pauseparam *pause)
+{
+	struct otx2_nic *pfvf = netdev_priv(netdev);
+
+	if (pause->autoneg)
+		return -EOPNOTSUPP;
+
+	if (pause->rx_pause)
+		pfvf->flags |= OTX2_FLAG_RX_PAUSE_ENABLED;
+	else
+		pfvf->flags &= ~OTX2_FLAG_RX_PAUSE_ENABLED;
+
+	if (pause->tx_pause)
+		pfvf->flags |= OTX2_FLAG_TX_PAUSE_ENABLED;
+	else
+		pfvf->flags &= ~OTX2_FLAG_TX_PAUSE_ENABLED;
+
+	return otx2_config_pause_frm(pfvf);
+}
+
 static void otx2_get_ringparam(struct net_device *netdev,
 			       struct ethtool_ringparam *ring)
 {
@@ -328,17 +367,6 @@ static int otx2_set_coalesce(struct net_device *netdev,
 	struct otx2_nic *pfvf = netdev_priv(netdev);
 	struct otx2_hw *hw = &pfvf->hw;
 	int qidx;
-
-	if (ec->use_adaptive_rx_coalesce || ec->use_adaptive_tx_coalesce ||
-	    ec->rx_coalesce_usecs_irq || ec->rx_max_coalesced_frames_irq ||
-	    ec->tx_coalesce_usecs_irq || ec->tx_max_coalesced_frames_irq ||
-	    ec->stats_block_coalesce_usecs || ec->pkt_rate_low ||
-	    ec->rx_coalesce_usecs_low || ec->rx_max_coalesced_frames_low ||
-	    ec->tx_coalesce_usecs_low || ec->tx_max_coalesced_frames_low ||
-	    ec->pkt_rate_high || ec->rx_coalesce_usecs_high ||
-	    ec->rx_max_coalesced_frames_high || ec->tx_coalesce_usecs_high ||
-	    ec->tx_max_coalesced_frames_high || ec->rate_sample_interval)
-		return -EOPNOTSUPP;
 
 	if (!ec->rx_max_coalesced_frames || !ec->tx_max_coalesced_frames)
 		return 0;
@@ -635,6 +663,8 @@ static u32 otx2_get_link(struct net_device *netdev)
 }
 
 static const struct ethtool_ops otx2_ethtool_ops = {
+	.supported_coalesce_params = ETHTOOL_COALESCE_USECS |
+				     ETHTOOL_COALESCE_MAX_FRAMES,
 	.get_link		= otx2_get_link,
 	.get_drvinfo		= otx2_get_drvinfo,
 	.get_strings		= otx2_get_strings,
@@ -654,6 +684,8 @@ static const struct ethtool_ops otx2_ethtool_ops = {
 	.set_rxfh		= otx2_set_rxfh,
 	.get_msglevel		= otx2_get_msglevel,
 	.set_msglevel		= otx2_set_msglevel,
+	.get_pauseparam		= otx2_get_pauseparam,
+	.set_pauseparam		= otx2_set_pauseparam,
 };
 
 void otx2_set_ethtool_ops(struct net_device *netdev)
