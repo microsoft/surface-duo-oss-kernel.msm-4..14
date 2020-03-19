@@ -1,4 +1,4 @@
-/* Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2015-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -337,6 +337,8 @@ static void sde_encoder_phys_shd_mode_set(
 	sde_conn = to_sde_connector(connector);
 	display = sde_conn->display;
 	encoder = display->base->encoder;
+	if (!encoder)
+		return;
 
 	if (_sde_encoder_phys_shd_rm_reserve(phys_enc, display))
 		return;
