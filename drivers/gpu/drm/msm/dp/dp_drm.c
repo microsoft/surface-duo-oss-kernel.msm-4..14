@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -131,6 +131,11 @@ static void dp_bridge_pre_enable(struct drm_bridge *drm_bridge)
 		       bridge->id, rc);
 		dp->unprepare(dp, bridge->dp_panel);
 	}
+
+	rc = dp_display_splash_res_cleanup(dp);
+	if (rc)
+		pr_err("Continuous splash pipeline cleanup failed, rc=%d\n",
+									rc);
 }
 
 static void dp_bridge_enable(struct drm_bridge *drm_bridge)

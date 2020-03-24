@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2019 The Linux Foundation. All rights reserved.
+ * Copyright (C) 2014-2020 The Linux Foundation. All rights reserved.
  * Copyright (C) 2013 Red Hat
  * Author: Rob Clark <robdclark@gmail.com>
  *
@@ -3591,7 +3591,7 @@ static int _sde_plane_validate_shared_crtc(struct sde_plane *psde,
 	if (!sde_kms || !state->crtc)
 		return 0;
 
-	for (i = 0; i < MAX_DSI_DISPLAYS; i++) {
+	for (i = 0; i < SDE_MAX_DISPLAYS; i++) {
 		splash_display = &sde_kms->splash_data.splash_display[i];
 
 		if (splash_display && splash_display->cont_splash_enabled &&
