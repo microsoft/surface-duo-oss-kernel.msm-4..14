@@ -202,4 +202,6 @@ static inline void cpu_smt_disable(bool force) { }
 static inline void cpu_smt_check_topology(void) { }
 #endif
 
+extern unsigned int logical_bootcpu_id;
+
 #endif /* _LINUX_CPU_H_ */
