@@ -32,7 +32,9 @@
  *
  * The primary PLL is what drives the CPU clk, except for times
  * when we are reprogramming the PLL itself (for rate changes) when
- * we temporarily switch to an alternate PLL.
+ * we temporarily switch to an alternate PLL. A subsequent patch adds
+ * support to switch between primary and alternate PLL during rate
+ * changes.
  *
  * The primary PLL operates on a single VCO range, between 600MHz
  * and 3GHz. However the CPUs do support OPPs with frequencies
@@ -44,6 +46,7 @@
  *  Primary PLL --> PLL_EARLY --> PMUX(1) --> CPU clk
  * and for frequencies between 300MHz and 600MHz we follow
  *  Primary PLL --> PLL/2 --> SMUX(1) --> PMUX(0) --> CPU clk
+ * Support for this is added in a subsequent patch as well.
  *
  * ACD stands for Adaptive Clock Distribution and is used to
  * detect voltage droops.
@@ -534,5 +537,6 @@ static struct platform_driver qcom_cpu_clk_msm8996_driver = {
 };
 module_platform_driver(qcom_cpu_clk_msm8996_driver);
 
+MODULE_ALIAS("platform:msm8996-apcc");
 MODULE_DESCRIPTION("QCOM MSM8996 CPU Clock Driver");
 MODULE_LICENSE("GPL v2");
