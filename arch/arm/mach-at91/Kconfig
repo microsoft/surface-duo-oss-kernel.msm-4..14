@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: GPL-2.0-only
 menuconfig ARCH_AT91
 	bool "AT91/Microchip SoCs"
 	depends on ARCH_MULTI_V4T || ARCH_MULTI_V5 || ARCH_MULTI_V7 || ARM_SINGLE_ARMV7M
@@ -21,7 +22,6 @@ config SOC_SAMA5D2
 	depends on ARCH_MULTI_V7
 	select SOC_SAMA5
 	select CACHE_L2X0
-	select HAVE_FB_ATMEL
 	select HAVE_AT91_UTMI
 	select HAVE_AT91_USB_CLK
 	select HAVE_AT91_H32MX
@@ -36,7 +36,6 @@ config SOC_SAMA5D3
 	bool "SAMA5D3 family"
 	depends on ARCH_MULTI_V7
 	select SOC_SAMA5
-	select HAVE_FB_ATMEL
 	select HAVE_AT91_UTMI
 	select HAVE_AT91_SMD
 	select HAVE_AT91_USB_CLK
@@ -50,7 +49,6 @@ config SOC_SAMA5D4
 	depends on ARCH_MULTI_V7
 	select SOC_SAMA5
 	select CACHE_L2X0
-	select HAVE_FB_ATMEL
 	select HAVE_AT91_UTMI
 	select HAVE_AT91_SMD
 	select HAVE_AT91_USB_CLK
@@ -121,10 +119,8 @@ config ATMEL_CLOCKSOURCE_PIT
 
 config ATMEL_CLOCKSOURCE_TCB
 	bool "Timer Counter Blocks (TCB) support"
-	depends on SOC_AT91RM9200 || SOC_AT91SAM9 || SOC_SAMA5 || COMPILE_TEST
 	default SOC_AT91RM9200 || SOC_AT91SAM9 || SOC_SAMA5
-	depends on !ATMEL_TCLIB
-	select ATMEL_ARM_TCB_CLKSRC
+	select ATMEL_TCB_CLKSRC
 	help
 	  Select this to get a high precision clocksource based on a
 	  TC block with a 5+ MHz base clock rate.

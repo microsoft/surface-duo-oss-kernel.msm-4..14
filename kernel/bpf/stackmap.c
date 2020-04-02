@@ -1,8 +1,5 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /* Copyright (c) 2016 Facebook
- *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of version 2 of the GNU General Public
- * License as published by the Free Software Foundation.
  */
 #include <linux/bpf.h>
 #include <linux/jhash.h>
@@ -42,6 +39,9 @@ struct stack_map_irq_work {
 static void do_up_read(struct irq_work *entry)
 {
 	struct stack_map_irq_work *work;
+
+	if (WARN_ON_ONCE(IS_ENABLED(CONFIG_PREEMPT_RT)))
+		return;
 
 	work = container_of(entry, struct stack_map_irq_work, irq_work);
 	up_read_non_owner(work->sem);
@@ -89,6 +89,7 @@ static struct bpf_map *stack_map_alloc(union bpf_attr *attr)
 {
 	u32 value_size = attr->value_size;
 	struct bpf_stack_map *smap;
+	struct bpf_map_memory mem;
 	u64 cost, n_buckets;
 	int err;
 
@@ -116,40 +117,37 @@ static struct bpf_map *stack_map_alloc(union bpf_attr *attr)
 	n_buckets = roundup_pow_of_two(attr->max_entries);
 
 	cost = n_buckets * sizeof(struct stack_map_bucket *) + sizeof(*smap);
-	if (cost >= U32_MAX - PAGE_SIZE)
-		return ERR_PTR(-E2BIG);
+	cost += n_buckets * (value_size + sizeof(struct stack_map_bucket));
+	err = bpf_map_charge_init(&mem, cost);
+	if (err)
+		return ERR_PTR(err);
 
 	smap = bpf_map_area_alloc(cost, bpf_map_attr_numa_node(attr));
-	if (!smap)
+	if (!smap) {
+		bpf_map_charge_finish(&mem);
 		return ERR_PTR(-ENOMEM);
-
-	err = -E2BIG;
-	cost += n_buckets * (value_size + sizeof(struct stack_map_bucket));
-	if (cost >= U32_MAX - PAGE_SIZE)
-		goto free_smap;
+	}
 
 	bpf_map_init_from_attr(&smap->map, attr);
 	smap->map.value_size = value_size;
 	smap->n_buckets = n_buckets;
-	smap->map.pages = round_up(cost, PAGE_SIZE) >> PAGE_SHIFT;
-
-	err = bpf_map_precharge_memlock(smap->map.pages);
-	if (err)
-		goto free_smap;
 
 	err = get_callchain_buffers(sysctl_perf_event_max_stack);
 	if (err)
-		goto free_smap;
+		goto free_charge;
 
 	err = prealloc_elems_and_freelist(smap);
 	if (err)
 		goto put_buffers;
 
+	bpf_map_charge_move(&smap->map.memory, &mem);
+
 	return &smap->map;
 
 put_buffers:
 	put_callchain_buffers();
-free_smap:
+free_charge:
+	bpf_map_charge_finish(&mem);
 	bpf_map_area_free(smap);
 	return ERR_PTR(err);
 }
@@ -292,16 +290,25 @@ static void stack_map_get_build_id_offset(struct bpf_stack_build_id *id_offs,
 	bool irq_work_busy = false;
 	struct stack_map_irq_work *work = NULL;
 
-	if (in_nmi()) {
-		work = this_cpu_ptr(&up_read_work);
-		if (work->irq_work.flags & IRQ_WORK_BUSY)
-			/* cannot queue more up_read, fallback */
+	if (irqs_disabled()) {
+		if (!IS_ENABLED(CONFIG_PREEMPT_RT)) {
+			work = this_cpu_ptr(&up_read_work);
+			if (work->irq_work.flags & IRQ_WORK_BUSY)
+				/* cannot queue more up_read, fallback */
+				irq_work_busy = true;
+		} else {
+			/*
+			 * PREEMPT_RT does not allow to trylock mmap sem in
+			 * interrupt disabled context. Force the fallback code.
+			 */
 			irq_work_busy = true;
+		}
 	}
 
 	/*
-	 * We cannot do up_read() in nmi context. To do build_id lookup
-	 * in nmi context, we need to run up_read() in irq_work. We use
+	 * We cannot do up_read() when the irq is disabled, because of
+	 * risk to deadlock with rq_lock. To do build_id lookup when the
+	 * irqs are disabled, we need to run up_read() in irq_work. We use
 	 * a percpu variable to do the irq_work. If the irq_work is
 	 * already used by another lookup, we fall back to report ips.
 	 *
@@ -517,7 +524,7 @@ const struct bpf_func_proto bpf_get_stack_proto = {
 /* Called from eBPF program */
 static void *stack_map_lookup_elem(struct bpf_map *map, void *key)
 {
-	return NULL;
+	return ERR_PTR(-EOPNOTSUPP);
 }
 
 /* Called from syscall */
@@ -612,7 +619,7 @@ static void stack_map_free(struct bpf_map *map)
 	put_callchain_buffers();
 }
 
-const struct bpf_map_ops stack_map_ops = {
+const struct bpf_map_ops stack_trace_map_ops = {
 	.map_alloc = stack_map_alloc,
 	.map_free = stack_map_free,
 	.map_get_next_key = stack_map_get_next_key,

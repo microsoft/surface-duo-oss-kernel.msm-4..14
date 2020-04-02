@@ -37,7 +37,31 @@ static inline void invalidate_kernel_vmap_range(void *vaddr, int size)
 
 /* declarations for linux/mm/highmem.c */
 unsigned int nr_free_highpages(void);
-extern unsigned long totalhigh_pages;
+extern atomic_long_t _totalhigh_pages;
+static inline unsigned long totalhigh_pages(void)
+{
+	return (unsigned long)atomic_long_read(&_totalhigh_pages);
+}
+
+static inline void totalhigh_pages_inc(void)
+{
+	atomic_long_inc(&_totalhigh_pages);
+}
+
+static inline void totalhigh_pages_dec(void)
+{
+	atomic_long_dec(&_totalhigh_pages);
+}
+
+static inline void totalhigh_pages_add(long count)
+{
+	atomic_long_add(count, &_totalhigh_pages);
+}
+
+static inline void totalhigh_pages_set(long val)
+{
+	atomic_long_set(&_totalhigh_pages, val);
+}
 
 void kmap_flush_unused(void);
 
@@ -52,7 +76,7 @@ static inline struct page *kmap_to_page(void *addr)
 	return virt_to_page(addr);
 }
 
-#define totalhigh_pages 0UL
+static inline unsigned long totalhigh_pages(void) { return 0UL; }
 
 #ifndef ARCH_HAS_KMAP
 static inline void *kmap(struct page *page)
@@ -88,13 +112,13 @@ static inline void __kunmap_atomic(void *addr)
 
 #if defined(CONFIG_HIGHMEM) || defined(CONFIG_X86_32)
 
-#ifndef CONFIG_PREEMPT_RT_FULL
+#ifndef CONFIG_PREEMPT_RT
 DECLARE_PER_CPU(int, __kmap_atomic_idx);
 #endif
 
 static inline int kmap_atomic_idx_push(void)
 {
-#ifndef CONFIG_PREEMPT_RT_FULL
+#ifndef CONFIG_PREEMPT_RT
 	int idx = __this_cpu_inc_return(__kmap_atomic_idx) - 1;
 
 # ifdef CONFIG_DEBUG_HIGHMEM
@@ -111,7 +135,7 @@ static inline int kmap_atomic_idx_push(void)
 
 static inline int kmap_atomic_idx(void)
 {
-#ifndef CONFIG_PREEMPT_RT_FULL
+#ifndef CONFIG_PREEMPT_RT
 	return __this_cpu_read(__kmap_atomic_idx) - 1;
 #else
 	return current->kmap_idx - 1;
@@ -120,7 +144,7 @@ static inline int kmap_atomic_idx(void)
 
 static inline void kmap_atomic_idx_pop(void)
 {
-#ifndef CONFIG_PREEMPT_RT_FULL
+#ifndef CONFIG_PREEMPT_RT
 # ifdef CONFIG_DEBUG_HIGHMEM
 	int idx = __this_cpu_dec_return(__kmap_atomic_idx);
 

@@ -207,11 +207,8 @@ static void __of_attach_node(struct device_node *np)
 
 	if (!of_node_check_flag(np, OF_OVERLAY)) {
 		np->name = __of_get_property(np, "name", NULL);
-		np->type = __of_get_property(np, "device_type", NULL);
 		if (!np->name)
 			np->name = "<NULL>";
-		if (!np->type)
-			np->type = "<NULL>";
 
 		phandle = __of_get_property(np, "phandle", &sz);
 		if (!phandle)
@@ -279,7 +276,7 @@ void __of_detach_node(struct device_node *np)
 	of_node_set_flag(np, OF_DETACHED);
 
 	/* race with of_find_node_by_phandle() prevented by devtree_lock */
-	__of_free_phandle_cache_entry(np->phandle);
+	__of_phandle_cache_inv_entry(np->phandle);
 }
 
 /**

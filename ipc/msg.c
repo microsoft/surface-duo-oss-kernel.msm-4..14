@@ -377,7 +377,7 @@ copy_msqid_from_user(struct msqid64_ds *out, void __user *buf, int version)
  * NOTE: no locks must be held, the rwsem is taken inside this function.
  */
 static int msgctl_down(struct ipc_namespace *ns, int msqid, int cmd,
-			struct msqid64_ds *msqid64)
+			struct ipc64_perm *perm, int msg_qbytes)
 {
 	struct kern_ipc_perm *ipcp;
 	struct msg_queue *msq;
@@ -387,7 +387,7 @@ static int msgctl_down(struct ipc_namespace *ns, int msqid, int cmd,
 	rcu_read_lock();
 
 	ipcp = ipcctl_obtain_check(ns, &msg_ids(ns), msqid, cmd,
-				      &msqid64->msg_perm, msqid64->msg_qbytes);
+				      perm, msg_qbytes);
 	if (IS_ERR(ipcp)) {
 		err = PTR_ERR(ipcp);
 		goto out_unlock1;
@@ -409,18 +409,18 @@ static int msgctl_down(struct ipc_namespace *ns, int msqid, int cmd,
 	{
 		DEFINE_WAKE_Q(wake_q);
 
-		if (msqid64->msg_qbytes > ns->msg_ctlmnb &&
+		if (msg_qbytes > ns->msg_ctlmnb &&
 		    !capable(CAP_SYS_RESOURCE)) {
 			err = -EPERM;
 			goto out_unlock1;
 		}
 
 		ipc_lock_object(&msq->q_perm);
-		err = ipc_update_perm(&msqid64->msg_perm, ipcp);
+		err = ipc_update_perm(perm, ipcp);
 		if (err)
 			goto out_unlock0;
 
-		msq->q_qbytes = msqid64->msg_qbytes;
+		msq->q_qbytes = msg_qbytes;
 
 		msq->q_ctime = ktime_get_real_seconds();
 		/*
@@ -567,9 +567,8 @@ out_unlock:
 	return err;
 }
 
-long ksys_msgctl(int msqid, int cmd, struct msqid_ds __user *buf)
+static long ksys_msgctl(int msqid, int cmd, struct msqid_ds __user *buf, int version)
 {
-	int version;
 	struct ipc_namespace *ns;
 	struct msqid64_ds msqid64;
 	int err;
@@ -577,7 +576,6 @@ long ksys_msgctl(int msqid, int cmd, struct msqid_ds __user *buf)
 	if (msqid < 0 || cmd < 0)
 		return -EINVAL;
 
-	version = ipc_parse_version(&cmd);
 	ns = current->nsproxy->ipc_ns;
 
 	switch (cmd) {
@@ -603,9 +601,10 @@ long ksys_msgctl(int msqid, int cmd, struct msqid_ds __user *buf)
 	case IPC_SET:
 		if (copy_msqid_from_user(&msqid64, buf, version))
 			return -EFAULT;
-		/* fallthru */
+		return msgctl_down(ns, msqid, cmd, &msqid64.msg_perm,
+				   msqid64.msg_qbytes);
 	case IPC_RMID:
-		return msgctl_down(ns, msqid, cmd, &msqid64);
+		return msgctl_down(ns, msqid, cmd, NULL, 0);
 	default:
 		return  -EINVAL;
 	}
@@ -613,8 +612,22 @@ long ksys_msgctl(int msqid, int cmd, struct msqid_ds __user *buf)
 
 SYSCALL_DEFINE3(msgctl, int, msqid, int, cmd, struct msqid_ds __user *, buf)
 {
-	return ksys_msgctl(msqid, cmd, buf);
+	return ksys_msgctl(msqid, cmd, buf, IPC_64);
 }
+
+#ifdef CONFIG_ARCH_WANT_IPC_PARSE_VERSION
+long ksys_old_msgctl(int msqid, int cmd, struct msqid_ds __user *buf)
+{
+	int version = ipc_parse_version(&cmd);
+
+	return ksys_msgctl(msqid, cmd, buf, version);
+}
+
+SYSCALL_DEFINE3(old_msgctl, int, msqid, int, cmd, struct msqid_ds __user *, buf)
+{
+	return ksys_old_msgctl(msqid, cmd, buf);
+}
+#endif
 
 #ifdef CONFIG_COMPAT
 
@@ -622,9 +635,9 @@ struct compat_msqid_ds {
 	struct compat_ipc_perm msg_perm;
 	compat_uptr_t msg_first;
 	compat_uptr_t msg_last;
-	compat_time_t msg_stime;
-	compat_time_t msg_rtime;
-	compat_time_t msg_ctime;
+	old_time32_t msg_stime;
+	old_time32_t msg_rtime;
+	old_time32_t msg_ctime;
 	compat_ulong_t msg_lcbytes;
 	compat_ulong_t msg_lqbytes;
 	unsigned short msg_cbytes;
@@ -689,12 +702,11 @@ static int copy_compat_msqid_to_user(void __user *buf, struct msqid64_ds *in,
 	}
 }
 
-long compat_ksys_msgctl(int msqid, int cmd, void __user *uptr)
+static long compat_ksys_msgctl(int msqid, int cmd, void __user *uptr, int version)
 {
 	struct ipc_namespace *ns;
 	int err;
 	struct msqid64_ds msqid64;
-	int version = compat_ipc_parse_version(&cmd);
 
 	ns = current->nsproxy->ipc_ns;
 
@@ -724,9 +736,9 @@ long compat_ksys_msgctl(int msqid, int cmd, void __user *uptr)
 	case IPC_SET:
 		if (copy_compat_msqid_from_user(&msqid64, uptr, version))
 			return -EFAULT;
-		/* fallthru */
+		return msgctl_down(ns, msqid, cmd, &msqid64.msg_perm, msqid64.msg_qbytes);
 	case IPC_RMID:
-		return msgctl_down(ns, msqid, cmd, &msqid64);
+		return msgctl_down(ns, msqid, cmd, NULL, 0);
 	default:
 		return -EINVAL;
 	}
@@ -734,8 +746,22 @@ long compat_ksys_msgctl(int msqid, int cmd, void __user *uptr)
 
 COMPAT_SYSCALL_DEFINE3(msgctl, int, msqid, int, cmd, void __user *, uptr)
 {
-	return compat_ksys_msgctl(msqid, cmd, uptr);
+	return compat_ksys_msgctl(msqid, cmd, uptr, IPC_64);
 }
+
+#ifdef CONFIG_ARCH_WANT_COMPAT_IPC_PARSE_VERSION
+long compat_ksys_old_msgctl(int msqid, int cmd, void __user *uptr)
+{
+	int version = compat_ipc_parse_version(&cmd);
+
+	return compat_ksys_msgctl(msqid, cmd, uptr, version);
+}
+
+COMPAT_SYSCALL_DEFINE3(old_msgctl, int, msqid, int, cmd, void __user *, uptr)
+{
+	return compat_ksys_old_msgctl(msqid, cmd, uptr);
+}
+#endif
 #endif
 
 static int testmsg(struct msg_msg *msg, long type, int mode)

@@ -55,6 +55,7 @@ void kthread_bind_mask(struct task_struct *k, const struct cpumask *mask);
 int kthread_stop(struct task_struct *k);
 bool kthread_should_stop(void);
 bool kthread_should_park(void);
+bool __kthread_should_park(struct task_struct *k);
 bool kthread_freezable_should_stop(bool *was_frozen);
 void *kthread_data(struct task_struct *k);
 void *kthread_probe_data(struct task_struct *k);
@@ -163,9 +164,8 @@ extern void __kthread_init_worker(struct kthread_worker *worker,
 #define kthread_init_delayed_work(dwork, fn)				\
 	do {								\
 		kthread_init_work(&(dwork)->work, (fn));		\
-		__init_timer(&(dwork)->timer,				\
-			     kthread_delayed_work_timer_fn,		\
-			     TIMER_IRQSAFE);				\
+		timer_setup(&(dwork)->timer,				\
+			     kthread_delayed_work_timer_fn, 0);		\
 	} while (0)
 
 int kthread_worker_fn(void *worker_ptr);
@@ -197,10 +197,14 @@ bool kthread_cancel_delayed_work_sync(struct kthread_delayed_work *work);
 
 void kthread_destroy_worker(struct kthread_worker *worker);
 
-extern struct kthread_worker kthread_global_worker;
-void kthread_init_global_worker(void);
+struct cgroup_subsys_state;
 
-static inline bool kthread_schedule_work(struct kthread_work *work)
+#ifdef CONFIG_BLK_CGROUP
+void kthread_associate_blkcg(struct cgroup_subsys_state *css);
+struct cgroup_subsys_state *kthread_blkcg(void);
+#else
+static inline void kthread_associate_blkcg(struct cgroup_subsys_state *css) { }
+static inline struct cgroup_subsys_state *kthread_blkcg(void)
 {
 	return kthread_queue_work(&kthread_global_worker, work);
 }

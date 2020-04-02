@@ -145,6 +145,7 @@ static inline int con_debug_leave(void)
 struct console {
 	char	name[16];
 	void	(*write)(struct console *, const char *, unsigned);
+	void	(*write_atomic)(struct console *, const char *, unsigned);
 	int	(*read)(struct console *, char *, unsigned);
 	struct tty_driver *(*device)(struct console *, int *);
 	void	(*unblank)(void);
@@ -153,6 +154,8 @@ struct console {
 	short	flags;
 	short	index;
 	int	cflag;
+	unsigned long printk_seq;
+	int	wrote_history;
 	void	*data;
 	struct	 console *next;
 };
@@ -166,6 +169,11 @@ struct console {
 extern int console_set_on_cmdline;
 extern struct console *early_console;
 
+enum con_flush_mode {
+	CONSOLE_FLUSH_PENDING,
+	CONSOLE_REPLAY_ALL,
+};
+
 extern int add_preferred_console(char *name, int idx, char *options);
 extern void register_console(struct console *);
 extern int unregister_console(struct console *);
@@ -175,7 +183,7 @@ extern int console_trylock(void);
 extern void console_unlock(void);
 extern void console_conditional_schedule(void);
 extern void console_unblank(void);
-extern void console_flush_on_panic(void);
+extern void console_flush_on_panic(enum con_flush_mode mode);
 extern struct tty_driver *console_device(int *);
 extern void console_stop(struct console *);
 extern void console_start(struct console *);
@@ -228,5 +236,8 @@ extern void console_init(void);
 /* For deferred console takeover */
 void dummycon_register_output_notifier(struct notifier_block *nb);
 void dummycon_unregister_output_notifier(struct notifier_block *nb);
+
+extern void console_atomic_lock(unsigned int *flags);
+extern void console_atomic_unlock(unsigned int flags);
 
 #endif /* _LINUX_CONSOLE_H */

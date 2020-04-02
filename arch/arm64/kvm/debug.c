@@ -1,20 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * Debug and Guest Debug support
  *
  * Copyright (C) 2015 - Linaro Ltd
  * Author: Alex Bennée <alex.bennee@linaro.org>
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License version 2 as
- * published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <linux/kvm_host.h>
@@ -76,7 +65,7 @@ static void restore_guest_debug_regs(struct kvm_vcpu *vcpu)
 
 void kvm_arm_init_debug(void)
 {
-	__this_cpu_write(mdcr_el2, kvm_call_hyp(__kvm_get_mdcr_el2));
+	__this_cpu_write(mdcr_el2, kvm_call_hyp_ret(__kvm_get_mdcr_el2));
 }
 
 /**
@@ -112,7 +101,7 @@ void kvm_arm_reset_debug_ptr(struct kvm_vcpu *vcpu)
 void kvm_arm_setup_debug(struct kvm_vcpu *vcpu)
 {
 	bool trap_debug = !(vcpu->arch.flags & KVM_ARM64_DEBUG_DIRTY);
-	unsigned long mdscr;
+	unsigned long mdscr, orig_mdcr_el2 = vcpu->arch.mdcr_el2;
 
 	trace_kvm_arm_setup_debug(vcpu, vcpu->guest_debug);
 
@@ -208,6 +197,10 @@ void kvm_arm_setup_debug(struct kvm_vcpu *vcpu)
 	if (vcpu_read_sys_reg(vcpu, MDSCR_EL1) & (DBG_MDSCR_KDE | DBG_MDSCR_MDE))
 		vcpu->arch.flags |= KVM_ARM64_DEBUG_DIRTY;
 
+	/* Write mdcr_el2 changes since vcpu_load on VHE systems */
+	if (has_vhe() && orig_mdcr_el2 != vcpu->arch.mdcr_el2)
+		write_sysreg(vcpu->arch.mdcr_el2, mdcr_el2);
+
 	trace_kvm_arm_set_dreg32("MDCR_EL2", vcpu->arch.mdcr_el2);
 	trace_kvm_arm_set_dreg32("MDSCR_EL1", vcpu_read_sys_reg(vcpu, MDSCR_EL1));
 }
@@ -235,25 +228,4 @@ void kvm_arm_clear_debug(struct kvm_vcpu *vcpu)
 						&vcpu->arch.debug_ptr->dbg_wvr[0]);
 		}
 	}
-}
-
-
-/*
- * After successfully emulating an instruction, we might want to
- * return to user space with a KVM_EXIT_DEBUG. We can only do this
- * once the emulation is complete, though, so for userspace emulations
- * we have to wait until we have re-entered KVM before calling this
- * helper.
- *
- * Return true (and set exit_reason) to return to userspace or false
- * if no further action is required.
- */
-bool kvm_arm_handle_step_debug(struct kvm_vcpu *vcpu, struct kvm_run *run)
-{
-	if (vcpu->guest_debug & KVM_GUESTDBG_SINGLESTEP) {
-		run->exit_reason = KVM_EXIT_DEBUG;
-		run->debug.arch.hsr = ESR_ELx_EC_SOFTSTP_LOW << ESR_ELx_EC_SHIFT;
-		return true;
-	}
-	return false;
 }

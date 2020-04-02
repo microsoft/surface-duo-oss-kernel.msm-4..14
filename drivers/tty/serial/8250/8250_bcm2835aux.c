@@ -56,10 +56,8 @@ static int bcm2835aux_serial_probe(struct platform_device *pdev)
 
 	/* get the interrupt */
 	ret = platform_get_irq(pdev, 0);
-	if (ret < 0) {
-		dev_err(&pdev->dev, "irq not found - %i", ret);
+	if (ret < 0)
 		return ret;
-	}
 	data->uart.port.irq = ret;
 
 	/* map the main registers */
@@ -115,7 +113,7 @@ static int bcm2835aux_serial_remove(struct platform_device *pdev)
 {
 	struct bcm2835aux_data *data = platform_get_drvdata(pdev);
 
-	serial8250_unregister_port(data->uart.port.line);
+	serial8250_unregister_port(data->line);
 	clk_disable_unprepare(data->clk);
 
 	return 0;

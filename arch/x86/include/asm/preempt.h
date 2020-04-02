@@ -8,6 +8,9 @@
 
 DECLARE_PER_CPU(int, __preempt_count);
 
+/* We use the MSB mostly because its available */
+#define PREEMPT_NEED_RESCHED	0x80000000
+
 /*
  * We use the PREEMPT_NEED_RESCHED bit as an inverted NEED_RESCHED such
  * that a decrement hitting 0 means we can and should reschedule.
@@ -88,7 +91,22 @@ static __always_inline void __preempt_count_sub(int val)
  */
 static __always_inline bool ____preempt_count_dec_and_test(void)
 {
-	GEN_UNARY_RMWcc("decl", __preempt_count, __percpu_arg(0), e);
+	return GEN_UNARY_RMWcc("decl", __preempt_count, e, __percpu_arg([var]));
+}
+
+static __always_inline bool __preempt_count_dec_and_test(void)
+{
+	if (____preempt_count_dec_and_test())
+		return true;
+#ifdef CONFIG_PREEMPT_LAZY
+	if (preempt_count())
+		return false;
+	if (current_thread_info()->preempt_lazy_count)
+		return false;
+	return test_thread_flag(TIF_NEED_RESCHED_LAZY);
+#else
+	return false;
+#endif
 }
 
 static __always_inline bool __preempt_count_dec_and_test(void)
@@ -111,7 +129,6 @@ static __always_inline bool should_resched(int preempt_offset)
 {
 #ifdef CONFIG_PREEMPT_LAZY
 	u32 tmp;
-
 	tmp = raw_cpu_read_4(__preempt_count);
 	if (tmp == preempt_offset)
 		return true;
@@ -120,6 +137,7 @@ static __always_inline bool should_resched(int preempt_offset)
 	tmp &= ~PREEMPT_NEED_RESCHED;
 	if (tmp != preempt_offset)
 		return false;
+	/* XXX PREEMPT_LOCK_OFFSET */
 	if (current_thread_info()->preempt_lazy_count)
 		return false;
 	return test_thread_flag(TIF_NEED_RESCHED_LAZY);
@@ -128,7 +146,7 @@ static __always_inline bool should_resched(int preempt_offset)
 #endif
 }
 
-#ifdef CONFIG_PREEMPT
+#ifdef CONFIG_PREEMPTION
   extern asmlinkage void ___preempt_schedule(void);
 # define __preempt_schedule() \
 	asm volatile ("call ___preempt_schedule" : ASM_CALL_CONSTRAINT)

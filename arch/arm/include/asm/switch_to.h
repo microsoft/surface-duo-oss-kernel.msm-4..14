@@ -4,7 +4,7 @@
 
 #include <linux/thread_info.h>
 
-#if defined CONFIG_PREEMPT_RT_FULL && defined CONFIG_HIGHMEM
+#if defined CONFIG_PREEMPT_RT && defined CONFIG_HIGHMEM
 void switch_kmaps(struct task_struct *prev_p, struct task_struct *next_p);
 #else
 static inline void
@@ -17,7 +17,7 @@ switch_kmaps(struct task_struct *prev_p, struct task_struct *next_p) { }
  * to ensure that the maintenance completes in case we migrate to another
  * CPU.
  */
-#if defined(CONFIG_PREEMPT) && defined(CONFIG_SMP) && defined(CONFIG_CPU_V7)
+#if defined(CONFIG_PREEMPTION) && defined(CONFIG_SMP) && defined(CONFIG_CPU_V7)
 #define __complete_pending_tlbi()	dsb(ish)
 #else
 #define __complete_pending_tlbi()

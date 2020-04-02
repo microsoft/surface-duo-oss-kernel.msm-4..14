@@ -1,13 +1,10 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  * linux/include/linux/jbd2.h
  *
  * Written by Stephen C. Tweedie <sct@redhat.com>
  *
  * Copyright 1998-2000 Red Hat, Inc --- All Rights Reserved
- *
- * This file is part of the Linux kernel and is made available under
- * the terms of the GNU General Public License, version 2, or at your
- * option, any later version, incorporated herein by reference.
  *
  * Definitions for transaction data structures for the buffer cache
  * filesystem journaling support.
@@ -316,7 +313,6 @@ enum jbd_state_bits {
 	BH_Revoked,		/* Has been revoked from the log */
 	BH_RevokeValid,		/* Revoked flag is valid */
 	BH_JBDDirty,		/* Is dirty but journaled */
-	BH_State,		/* Pins most journal_head state */
 	BH_JournalHead,		/* Pins bh->b_private and jh->b_bh */
 	BH_Shadow,		/* IO on shadow buffer is running */
 	BH_Verified,		/* Metadata block has been verified ok */
@@ -343,42 +339,6 @@ static inline struct buffer_head *jh2bh(struct journal_head *jh)
 static inline struct journal_head *bh2jh(struct buffer_head *bh)
 {
 	return bh->b_private;
-}
-
-static inline void jbd_lock_bh_state(struct buffer_head *bh)
-{
-#ifndef CONFIG_PREEMPT_RT_BASE
-	bit_spin_lock(BH_State, &bh->b_state);
-#else
-	spin_lock(&bh->b_state_lock);
-#endif
-}
-
-static inline int jbd_trylock_bh_state(struct buffer_head *bh)
-{
-#ifndef CONFIG_PREEMPT_RT_BASE
-	return bit_spin_trylock(BH_State, &bh->b_state);
-#else
-	return spin_trylock(&bh->b_state_lock);
-#endif
-}
-
-static inline int jbd_is_locked_bh_state(struct buffer_head *bh)
-{
-#ifndef CONFIG_PREEMPT_RT_BASE
-	return bit_spin_is_locked(BH_State, &bh->b_state);
-#else
-	return spin_is_locked(&bh->b_state_lock);
-#endif
-}
-
-static inline void jbd_unlock_bh_state(struct buffer_head *bh)
-{
-#ifndef CONFIG_PREEMPT_RT_BASE
-	bit_spin_unlock(BH_State, &bh->b_state);
-#else
-	spin_unlock(&bh->b_state_lock);
-#endif
 }
 
 static inline void jbd_lock_bh_journal_head(struct buffer_head *bh)
@@ -478,6 +438,22 @@ struct jbd2_inode {
 	 * @i_flags: Flags of inode [j_list_lock]
 	 */
 	unsigned long i_flags;
+
+	/**
+	 * @i_dirty_start:
+	 *
+	 * Offset in bytes where the dirty range for this inode starts.
+	 * [j_list_lock]
+	 */
+	loff_t i_dirty_start;
+
+	/**
+	 * @i_dirty_end:
+	 *
+	 * Inclusive offset in bytes where the dirty range for this inode
+	 * ends. [j_list_lock]
+	 */
+	loff_t i_dirty_end;
 };
 
 struct jbd2_revoke_table_s;
@@ -567,9 +543,9 @@ struct transaction_chp_stats_s {
  *      ->jbd_lock_bh_journal_head()	(This is "innermost")
  *
  *    j_state_lock
- *    ->jbd_lock_bh_state()
+ *    ->b_state_lock
  *
- *    jbd_lock_bh_state()
+ *    b_state_lock
  *    ->j_list_lock
  *
  *    j_state_lock
@@ -599,6 +575,7 @@ struct transaction_s
 	enum {
 		T_RUNNING,
 		T_LOCKED,
+		T_SWITCH,
 		T_FLUSH,
 		T_COMMIT,
 		T_COMMIT_DFLUSH,
@@ -686,13 +663,13 @@ struct transaction_s
 
 	/*
 	 * Number of outstanding updates running on this transaction
-	 * [t_handle_lock]
+	 * [none]
 	 */
 	atomic_t		t_updates;
 
 	/*
 	 * Number of buffers reserved for use by all handles in this transaction
-	 * handle but not yet modified. [t_handle_lock]
+	 * handle but not yet modified. [none]
 	 */
 	atomic_t		t_outstanding_credits;
 
@@ -714,7 +691,7 @@ struct transaction_s
 	ktime_t			t_start_time;
 
 	/*
-	 * How many handles used this transaction? [t_handle_lock]
+	 * How many handles used this transaction? [none]
 	 */
 	atomic_t		t_handle_count;
 
@@ -1267,7 +1244,7 @@ JBD2_FEATURE_INCOMPAT_FUNCS(csum3,		CSUM_V3)
 
 /* Filing buffers */
 extern void jbd2_journal_unfile_buffer(journal_t *, struct journal_head *);
-extern void __jbd2_journal_refile_buffer(struct journal_head *);
+extern bool __jbd2_journal_refile_buffer(struct journal_head *);
 extern void jbd2_journal_refile_buffer(journal_t *, struct journal_head *);
 extern void __jbd2_journal_file_buffer(struct journal_head *, transaction_t *, int);
 extern void __journal_free_buffer(struct journal_head *bh);
@@ -1383,7 +1360,6 @@ void		 jbd2_journal_set_triggers(struct buffer_head *,
 					   struct jbd2_buffer_trigger_type *type);
 extern int	 jbd2_journal_dirty_metadata (handle_t *, struct buffer_head *);
 extern int	 jbd2_journal_forget (handle_t *, struct buffer_head *);
-extern void	 journal_sync_buffer (struct buffer_head *);
 extern int	 jbd2_journal_invalidatepage(journal_t *,
 				struct page *, unsigned int, unsigned int);
 extern int	 jbd2_journal_try_to_free_buffers(journal_t *, struct page *, gfp_t);
@@ -1421,8 +1397,12 @@ extern int	   jbd2_journal_clear_err  (journal_t *);
 extern int	   jbd2_journal_bmap(journal_t *, unsigned long, unsigned long long *);
 extern int	   jbd2_journal_force_commit(journal_t *);
 extern int	   jbd2_journal_force_commit_nested(journal_t *);
-extern int	   jbd2_journal_inode_add_write(handle_t *handle, struct jbd2_inode *inode);
-extern int	   jbd2_journal_inode_add_wait(handle_t *handle, struct jbd2_inode *inode);
+extern int	   jbd2_journal_inode_ranged_write(handle_t *handle,
+			struct jbd2_inode *inode, loff_t start_byte,
+			loff_t length);
+extern int	   jbd2_journal_inode_ranged_wait(handle_t *handle,
+			struct jbd2_inode *inode, loff_t start_byte,
+			loff_t length);
 extern int	   jbd2_journal_begin_ordered_truncate(journal_t *journal,
 				struct jbd2_inode *inode, loff_t new_size);
 extern void	   jbd2_journal_init_jbd_inode(struct jbd2_inode *jinode, struct inode *inode);
@@ -1589,7 +1569,7 @@ static inline int jbd2_space_needed(journal_t *journal)
 static inline unsigned long jbd2_log_space_left(journal_t *journal)
 {
 	/* Allow for rounding errors */
-	unsigned long free = journal->j_free - 32;
+	long free = journal->j_free - 32;
 
 	if (journal->j_committing_transaction) {
 		unsigned long committing = atomic_read(&journal->
@@ -1598,7 +1578,7 @@ static inline unsigned long jbd2_log_space_left(journal_t *journal)
 		/* Transaction + control blocks */
 		free -= committing + (committing >> JBD2_CONTROL_BLOCKS_SHIFT);
 	}
-	return free;
+	return max_t(long, free, 0);
 }
 
 /*
@@ -1631,7 +1611,6 @@ static inline u32 jbd2_chksum(journal_t *journal, u32 crc,
 		JBD_MAX_CHECKSUM_SIZE);
 
 	desc.shash.tfm = journal->j_chksum_driver;
-	desc.shash.flags = 0;
 	*(u32 *)desc.ctx = crc;
 
 	err = crypto_shash_update(&desc.shash, address, length);

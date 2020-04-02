@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * linux/fs/9p/trans_rdma.c
  *
@@ -8,22 +9,6 @@
  *  Copyright (C) 2004-2005 by Latchesar Ionkov <lucho@ionkov.net>
  *  Copyright (C) 2004-2008 by Eric Van Hensbergen <ericvh@gmail.com>
  *  Copyright (C) 1997-2002 by Ron Minnich <rminnich@sarnoff.com>
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License version 2
- *  as published by the Free Software Foundation.
- *
- *  This program is distributed in the hope that it will be useful,
- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- *  GNU General Public License for more details.
- *
- *  You should have received a copy of the GNU General Public License
- *  along with this program; if not, write to:
- *  Free Software Foundation
- *  51 Franklin Street, Fifth Floor
- *  Boston, MA  02111-1301  USA
- *
  */
 
 #define pr_fmt(fmt) KBUILD_MODNAME ": " fmt
@@ -319,6 +304,7 @@ recv_done(struct ib_cq *cq, struct ib_wc *wc)
 	if (wc->status != IB_WC_SUCCESS)
 		goto err_out;
 
+	c->rc.size = wc->byte_len;
 	err = p9_parse_header(&c->rc, NULL, NULL, &tag, 1);
 	if (err)
 		goto err_out;
@@ -699,9 +685,9 @@ rdma_create_trans(struct p9_client *client, const char *addr, char *args)
 		goto error;
 
 	/* Create the Completion Queue */
-	rdma->cq = ib_alloc_cq(rdma->cm_id->device, client,
-			opts.sq_depth + opts.rq_depth + 1,
-			0, IB_POLL_SOFTIRQ);
+	rdma->cq = ib_alloc_cq_any(rdma->cm_id->device, client,
+				   opts.sq_depth + opts.rq_depth + 1,
+				   IB_POLL_SOFTIRQ);
 	if (IS_ERR(rdma->cq))
 		goto error;
 

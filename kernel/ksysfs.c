@@ -1,11 +1,9 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * kernel/ksysfs.c - sysfs attributes in /sys/kernel, which
  * 		     are not related to any other subsystem
  *
  * Copyright (C) 2004 Kay Sievers <kay.sievers@vrfy.org>
- * 
- * This file is release under the GPLv2
- *
  */
 
 #include <linux/kobject.h>
@@ -140,7 +138,7 @@ KERNEL_ATTR_RO(vmcoreinfo);
 
 #endif /* CONFIG_CRASH_CORE */
 
-#if defined(CONFIG_PREEMPT_RT_FULL)
+#if defined(CONFIG_PREEMPT_RT)
 static ssize_t realtime_show(struct kobject *kobj,
 			     struct kobj_attribute *attr, char *buf)
 {
@@ -240,7 +238,7 @@ static struct attribute * kernel_attrs[] = {
 	&rcu_expedited_attr.attr,
 	&rcu_normal_attr.attr,
 #endif
-#ifdef CONFIG_PREEMPT_RT_FULL
+#ifdef CONFIG_PREEMPT_RT
 	&realtime_attr.attr,
 #endif
 	NULL

@@ -1,8 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * PlayStation 1/2 joypads via SPI interface Driver
  *
  * Copyright (C) 2017 Tomohiro Yoshidomi <sylph23k@gmail.com>
- * Licensed under the GPL-2 or later.
  *
  * PlayStation 1/2 joypad's plug (not socket)
  *  123 456 789
@@ -292,7 +292,7 @@ static int psxpad_spi_probe(struct spi_device *spi)
 	if (!pad)
 		return -ENOMEM;
 
-	pdev = input_allocate_polled_device();
+	pdev = devm_input_allocate_polled_device(&spi->dev);
 	if (!pdev) {
 		dev_err(&spi->dev, "failed to allocate input device\n");
 		return -ENOMEM;

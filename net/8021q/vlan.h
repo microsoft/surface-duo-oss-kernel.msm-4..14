@@ -92,6 +92,18 @@ static inline struct net_device *vlan_find_dev(struct net_device *real_dev,
 	return NULL;
 }
 
+static inline netdev_features_t vlan_tnl_features(struct net_device *real_dev)
+{
+	netdev_features_t ret;
+
+	ret = real_dev->hw_enc_features &
+	      (NETIF_F_CSUM_MASK | NETIF_F_ALL_TSO | NETIF_F_GSO_ENCAP_ALL);
+
+	if ((ret & NETIF_F_GSO_ENCAP_ALL) && (ret & NETIF_F_CSUM_MASK))
+		return (ret & ~NETIF_F_CSUM_MASK) | NETIF_F_HW_CSUM;
+	return 0;
+}
+
 #define vlan_group_for_each_dev(grp, i, dev) \
 	for ((i) = 0; i < VLAN_PROTO_NUM * VLAN_N_VID; i++) \
 		if (((dev) = __vlan_group_get_device((grp), (i) / VLAN_N_VID, \
@@ -114,6 +126,7 @@ int vlan_check_real_dev(struct net_device *real_dev,
 void vlan_setup(struct net_device *dev);
 int register_vlan_dev(struct net_device *dev, struct netlink_ext_ack *extack);
 void unregister_vlan_dev(struct net_device *dev, struct list_head *head);
+void vlan_dev_uninit(struct net_device *dev);
 bool vlan_dev_inherit_address(struct net_device *dev,
 			      struct net_device *real_dev);
 

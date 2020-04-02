@@ -1,13 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
 /*
  * Pulse Eight HDMI CEC driver
  *
  * Copyright 2016 Hans Verkuil <hverkuil@xs4all.nl
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version of 2 of the License, or (at your
- * option) any later version. See the file COPYING in the main directory of
- * this archive for more details.
  */
 
 /*
@@ -121,6 +116,7 @@ struct pulse8 {
 	unsigned int vers;
 	struct completion cmd_done;
 	struct work_struct work;
+	u8 work_result;
 	struct delayed_work ping_eeprom_work;
 	struct cec_msg rx_msg;
 	u8 data[DATA_SIZE];
@@ -142,8 +138,10 @@ static void pulse8_irq_work_handler(struct work_struct *work)
 {
 	struct pulse8 *pulse8 =
 		container_of(work, struct pulse8, work);
+	u8 result = pulse8->work_result;
 
-	switch (pulse8->data[0] & 0x3f) {
+	pulse8->work_result = 0;
+	switch (result & 0x3f) {
 	case MSGCODE_FRAME_DATA:
 		cec_received_msg(pulse8->adap, &pulse8->rx_msg);
 		break;
@@ -177,12 +175,12 @@ static irqreturn_t pulse8_interrupt(struct serio *serio, unsigned char data,
 		pulse8->escape = false;
 	} else if (data == MSGEND) {
 		struct cec_msg *msg = &pulse8->rx_msg;
+		u8 msgcode = pulse8->buf[0];
 
 		if (debug)
 			dev_info(pulse8->dev, "received: %*ph\n",
 				 pulse8->idx, pulse8->buf);
-		pulse8->data[0] = pulse8->buf[0];
-		switch (pulse8->buf[0] & 0x3f) {
+		switch (msgcode & 0x3f) {
 		case MSGCODE_FRAME_START:
 			msg->len = 1;
 			msg->msg[0] = pulse8->buf[1];
@@ -191,14 +189,20 @@ static irqreturn_t pulse8_interrupt(struct serio *serio, unsigned char data,
 			if (msg->len == CEC_MAX_MSG_SIZE)
 				break;
 			msg->msg[msg->len++] = pulse8->buf[1];
-			if (pulse8->buf[0] & MSGCODE_FRAME_EOM)
+			if (msgcode & MSGCODE_FRAME_EOM) {
+				WARN_ON(pulse8->work_result);
+				pulse8->work_result = msgcode;
 				schedule_work(&pulse8->work);
+				break;
+			}
 			break;
 		case MSGCODE_TRANSMIT_SUCCEEDED:
 		case MSGCODE_TRANSMIT_FAILED_LINE:
 		case MSGCODE_TRANSMIT_FAILED_ACK:
 		case MSGCODE_TRANSMIT_FAILED_TIMEOUT_DATA:
 		case MSGCODE_TRANSMIT_FAILED_TIMEOUT_LINE:
+			WARN_ON(pulse8->work_result);
+			pulse8->work_result = msgcode;
 			schedule_work(&pulse8->work);
 			break;
 		case MSGCODE_HIGH_ERROR:
@@ -435,7 +439,7 @@ static int pulse8_setup(struct pulse8 *pulse8, struct serio *serio,
 	err = pulse8_send_and_wait(pulse8, cmd, 1, cmd[0], 0);
 	if (err)
 		return err;
-	strncpy(log_addrs->osd_name, data, 13);
+	strscpy(log_addrs->osd_name, data, sizeof(log_addrs->osd_name));
 	dev_dbg(pulse8->dev, "OSD name: %s\n", log_addrs->osd_name);
 
 	return 0;
@@ -566,12 +570,13 @@ static int pulse8_cec_adap_log_addr(struct cec_adapter *adap, u8 log_addr)
 		char *osd_str = cmd + 1;
 
 		cmd[0] = MSGCODE_SET_OSD_NAME;
-		strncpy(cmd + 1, adap->log_addrs.osd_name, 13);
+		strscpy(cmd + 1, adap->log_addrs.osd_name, sizeof(cmd) - 1);
 		if (osd_len < 4) {
 			memset(osd_str + osd_len, ' ', 4 - osd_len);
 			osd_len = 4;
 			osd_str[osd_len] = '\0';
-			strcpy(adap->log_addrs.osd_name, osd_str);
+			strscpy(adap->log_addrs.osd_name, osd_str,
+				sizeof(adap->log_addrs.osd_name));
 		}
 		err = pulse8_send_and_wait(pulse8, cmd, 1 + osd_len,
 					   MSGCODE_COMMAND_ACCEPTED, 0);
@@ -585,7 +590,7 @@ unlock:
 	else
 		pulse8->config_pending = true;
 	mutex_unlock(&pulse8->config_lock);
-	return err;
+	return log_addr == CEC_LOG_ADDR_INVALID ? 0 : err;
 }
 
 static int pulse8_cec_adap_transmit(struct cec_adapter *adap, u8 attempts,

@@ -55,6 +55,7 @@ static inline void ndelay(unsigned long x)
 
 extern unsigned long lpj_fine;
 void calibrate_delay(void);
+void __attribute__((weak)) calibration_delay_done(void);
 void msleep(unsigned int msecs);
 unsigned long msleep_interruptible(unsigned int msecs);
 void usleep_range(unsigned long min, unsigned long max);
@@ -64,7 +65,7 @@ static inline void ssleep(unsigned int seconds)
 	msleep(seconds * 1000);
 }
 
-#ifdef CONFIG_PREEMPT_RT_FULL
+#ifdef CONFIG_PREEMPT_RT
 extern void cpu_chill(void);
 #else
 # define cpu_chill()	cpu_relax()

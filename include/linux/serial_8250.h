@@ -1,16 +1,13 @@
+/* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
  *  linux/include/linux/serial_8250.h
  *
  *  Copyright (C) 2004 Russell King
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
  */
 #ifndef _LINUX_SERIAL_8250_H
 #define _LINUX_SERIAL_8250_H
 
+#include <linux/atomic.h>
 #include <linux/serial_core.h>
 #include <linux/serial_reg.h>
 #include <linux/platform_device.h>
@@ -114,6 +111,7 @@ struct uart_8250_port {
 						 *   if no_console_suspend
 						 */
 	unsigned char		probe;
+	struct mctrl_gpios	*gpios;
 #define UART_PROBE_RSA	(1 << 0)
 
 	/*
@@ -126,6 +124,8 @@ struct uart_8250_port {
 #define MSR_SAVE_FLAGS UART_MSR_ANY_DELTA
 	unsigned char		msr_saved_flags;
 
+	atomic_t		console_printing;
+
 	struct uart_8250_dma	*dma;
 	const struct uart_8250_ops *ops;
 
@@ -134,6 +134,10 @@ struct uart_8250_port {
 	void			(*dl_write)(struct uart_8250_port *, int);
 
 	struct uart_8250_em485 *em485;
+
+	/* Serial port overrun backoff */
+	struct delayed_work overrun_backoff;
+	u32 overrun_backoff_time_ms;
 };
 
 static inline struct uart_8250_port *up_to_u8250p(struct uart_port *up)
@@ -173,6 +177,8 @@ void serial8250_init_port(struct uart_8250_port *up);
 void serial8250_set_defaults(struct uart_8250_port *up);
 void serial8250_console_write(struct uart_8250_port *up, const char *s,
 			      unsigned int count);
+void serial8250_console_write_atomic(struct uart_8250_port *up, const char *s,
+				     unsigned int count);
 int serial8250_console_setup(struct uart_port *port, char *options, bool probe);
 
 extern void serial8250_set_isa_configurator(void (*v)

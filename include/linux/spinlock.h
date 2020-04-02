@@ -57,6 +57,7 @@
 #include <linux/stringify.h>
 #include <linux/bottom_half.h>
 #include <asm/barrier.h>
+#include <asm/mmiowb.h>
 
 
 /*
@@ -178,6 +179,7 @@ static inline void do_raw_spin_lock(raw_spinlock_t *lock) __acquires(lock)
 {
 	__acquire(lock);
 	arch_spin_lock(&lock->raw_lock);
+	mmiowb_spin_lock();
 }
 
 #ifndef arch_spin_lock_flags
@@ -189,15 +191,22 @@ do_raw_spin_lock_flags(raw_spinlock_t *lock, unsigned long *flags) __acquires(lo
 {
 	__acquire(lock);
 	arch_spin_lock_flags(&lock->raw_lock, *flags);
+	mmiowb_spin_lock();
 }
 
 static inline int do_raw_spin_trylock(raw_spinlock_t *lock)
 {
-	return arch_spin_trylock(&(lock)->raw_lock);
+	int ret = arch_spin_trylock(&(lock)->raw_lock);
+
+	if (ret)
+		mmiowb_spin_lock();
+
+	return ret;
 }
 
 static inline void do_raw_spin_unlock(raw_spinlock_t *lock) __releases(lock)
 {
+	mmiowb_spin_unlock();
 	arch_spin_unlock(&lock->raw_lock);
 	__release(lock);
 }
@@ -205,7 +214,7 @@ static inline void do_raw_spin_unlock(raw_spinlock_t *lock) __releases(lock)
 
 /*
  * Define the various spin_lock methods.  Note we define these
- * regardless of whether CONFIG_SMP or CONFIG_PREEMPT are set. The
+ * regardless of whether CONFIG_SMP or CONFIG_PREEMPTION are set. The
  * various methods are defined as nops in the case they are not
  * required.
  */
@@ -298,7 +307,7 @@ static inline void do_raw_spin_unlock(raw_spinlock_t *lock) __releases(lock)
 })
 
 /* Include rwlock functions */
-#ifdef CONFIG_PREEMPT_RT_FULL
+#ifdef CONFIG_PREEMPT_RT
 # include <linux/rwlock_rt.h>
 #else
 # include <linux/rwlock.h>
@@ -313,9 +322,9 @@ static inline void do_raw_spin_unlock(raw_spinlock_t *lock) __releases(lock)
 # include <linux/spinlock_api_up.h>
 #endif
 
-#ifdef CONFIG_PREEMPT_RT_FULL
+#ifdef CONFIG_PREEMPT_RT
 # include <linux/spinlock_rt.h>
-#else /* PREEMPT_RT_FULL */
+#else /* PREEMPT_RT */
 
 /*
  * Map the spin_lock functions to the raw variants for PREEMPT_RT=n
@@ -437,7 +446,7 @@ static __always_inline int spin_is_contended(spinlock_t *lock)
 
 #define assert_spin_locked(lock)	assert_raw_spin_locked(&(lock)->rlock)
 
-#endif /* !PREEMPT_RT_FULL */
+#endif /* !PREEMPT_RT */
 
 /*
  * Pull the atomic_t declaration:

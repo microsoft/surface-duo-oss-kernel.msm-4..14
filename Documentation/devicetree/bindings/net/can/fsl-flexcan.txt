@@ -37,22 +37,24 @@ Optional properties:
               if this property is present then controller is assumed to be big
               endian.
 
-- interrupt-names: Allows the interrupt specifiers in "interrupts" to be stated
-                   in any order, one for each name in here. Can contain:
-                   "state" - BOFFINT | BOFFDONEINT | TWRNINT | RWRNINT;
-                   "berr" - ERRINT;
-                   "mb_0-7" - MB0-7 interrupts;
-                   "mb_8-127" - MB8-127 interrupts;
-                   "state-berr" - ERRINT | BOFFINT | BOFFDONEINT | TWRNINT |
-                                  RWRNINT;
-                   "mb" - all MB interrupts;
-                   "all" - all interrupts combined.
+- fsl,stop-mode: register bits of stop mode control, the format is
+		 <&gpr req_gpr req_bit ack_gpr ack_bit>.
+		 gpr is the phandle to general purpose register node.
+		 req_gpr is the gpr register offset of CAN stop request.
+		 req_bit is the bit offset of CAN stop request.
+		 ack_gpr is the gpr register offset of CAN stop acknowledge.
+		 ack_bit is the bit offset of CAN stop acknowledge.
 
-- s32v234-ocotp: On S32V234 SoCs, phandle pointer to the On-Chip One Time
-                 Programmable (OCOTP) node, if CAN FD support is desired on
-                 compatible parts
+- fsl,clk-source: Select the clock source to the CAN Protocol Engine (PE).
+		  It's SoC Implementation dependent. Refer to RM for detailed
+		  definition. If this property is not set in device tree node
+		  then driver selects clock source 1 by default.
+		  0: clock source 0 (oscillator clock)
+		  1: clock source 1 (peripheral clock)
 
-Examples:
+- wakeup-source: enable CAN remote wakeup
+
+Example:
 
 	can@1c000 {
 		compatible = "fsl,p1010-flexcan";
@@ -60,6 +62,7 @@ Examples:
 		interrupts = <48 0x2>;
 		interrupt-parent = <&mpic>;
 		clock-frequency = <200000000>; // filled in by bootloader
+		fsl,clk-source = <0>; // select clock source 0 for PE
 	};
 
 	flexcan@40055000 {

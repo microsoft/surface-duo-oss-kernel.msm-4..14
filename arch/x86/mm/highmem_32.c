@@ -1,7 +1,8 @@
+// SPDX-License-Identifier: GPL-2.0-only
 #include <linux/highmem.h>
 #include <linux/export.h>
 #include <linux/swap.h> /* for totalram_pages */
-#include <linux/bootmem.h>
+#include <linux/memblock.h>
 
 void *kmap(struct page *page)
 {
@@ -46,7 +47,7 @@ void *kmap_atomic_prot(struct page *page, pgprot_t prot)
 	idx = type + KM_TYPE_NR*smp_processor_id();
 	vaddr = __fix_to_virt(FIX_KMAP_BEGIN + idx);
 	BUG_ON(!pte_none(*(kmap_pte-idx)));
-#ifdef CONFIG_PREEMPT_RT_FULL
+#ifdef CONFIG_PREEMPT_RT
 	current->kmap_pte[type] = pte;
 #endif
 	set_pte(kmap_pte-idx, pte);
@@ -92,7 +93,7 @@ void __kunmap_atomic(void *kvaddr)
 		 * is a bad idea also, in case the page changes cacheability
 		 * attributes or becomes a protected page in a hypervisor.
 		 */
-#ifdef CONFIG_PREEMPT_RT_FULL
+#ifdef CONFIG_PREEMPT_RT
 		current->kmap_pte[type] = __pte(0);
 #endif
 		kpte_clear_flush(kmap_pte-idx, vaddr);
@@ -118,7 +119,7 @@ void __init set_highmem_pages_init(void)
 
 	/*
 	 * Explicitly reset zone->managed_pages because set_highmem_pages_init()
-	 * is invoked before free_all_bootmem()
+	 * is invoked before memblock_free_all()
 	 */
 	reset_all_zones_managed_pages();
 	for_each_zone(zone) {

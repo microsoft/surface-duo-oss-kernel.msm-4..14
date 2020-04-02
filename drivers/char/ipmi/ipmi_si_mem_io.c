@@ -51,7 +51,7 @@ static unsigned char mem_inq(const struct si_sm_io *io, unsigned int offset)
 static void mem_outq(const struct si_sm_io *io, unsigned int offset,
 		     unsigned char b)
 {
-	writeq(b << io->regshift, (io->addr)+(offset * io->regspacing));
+	writeq((u64)b << io->regshift, (io->addr)+(offset * io->regspacing));
 }
 #endif
 
@@ -118,7 +118,7 @@ int ipmi_si_mem_setup(struct si_sm_io *io)
 	 */
 	for (idx = 0; idx < io->io_size; idx++) {
 		if (request_mem_region(addr + idx * io->regspacing,
-				       io->regsize, DEVICE_NAME) == NULL) {
+				       io->regsize, SI_DEVICE_NAME) == NULL) {
 			/* Undo allocations */
 			mem_region_cleanup(io, idx);
 			return -EIO;

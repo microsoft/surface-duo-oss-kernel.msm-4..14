@@ -455,8 +455,6 @@ void musb_g_tx(struct musb *musb, u8 epnum)
 
 		trace_musb_req_tx(req);
 
-		trace_musb_req_tx(req);
-
 		if (dma && (csr & MUSB_TXCSR_DMAENAB)) {
 			csr |= MUSB_TXCSR_P_WZC_BITS;
 			csr &= ~(MUSB_TXCSR_DMAENAB | MUSB_TXCSR_P_UNDERRUN |
