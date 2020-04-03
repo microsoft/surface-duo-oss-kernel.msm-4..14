@@ -96,6 +96,8 @@
 #include <asm/cacheflush.h>
 #include <soc/qcom/boot_stats.h>
 
+#include "do_mounts.h"
+
 static int kernel_init(void *);
 
 extern void init_IRQ(void);
@@ -1009,6 +1011,13 @@ static int __ref kernel_init(void *unused)
 	rcu_end_inkernel_boot();
 	place_marker("M - DRIVER Kernel Boot Done");
 
+#ifdef CONFIG_EARLY_SERVICES
+	{
+		struct kstat stat;
+		/* Wait for early services SE policy load completion signal */
+		while (vfs_stat("/dev/sedone", &stat) != 0);
+	}
+#endif
 	if (ramdisk_execute_command) {
 		ret = run_init_process(ramdisk_execute_command);
 		if (!ret)
@@ -1038,6 +1047,13 @@ static int __ref kernel_init(void *unused)
 
 	panic("No working init found.  Try passing init= option to kernel. "
 	      "See Linux Documentation/admin-guide/init.rst for guidance.");
+}
+
+static int launch_early_services_thread(void *arg)
+{
+	pr_err("Early Services thread launched\n");
+	launch_early_services();
+	return 0;
 }
 
 static noinline void __init kernel_init_freeable(void)
@@ -1092,8 +1108,8 @@ static noinline void __init kernel_init_freeable(void)
 	if (sys_access((const char __user *) ramdisk_execute_command, 0) != 0) {
 		ramdisk_execute_command = NULL;
 		prepare_namespace();
-		launch_early_services();
 	}
+	kthread_run(launch_early_services_thread, NULL, "early_services");
 
 	/*
 	 * Ok, we have completed the initial bootup, and

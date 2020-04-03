@@ -104,9 +104,6 @@ struct cam_vfe_bus_ver2_common_data {
 	void                                       *vfe_irq_controller;
 	struct cam_vfe_bus_ver2_reg_offset_common  *common_reg;
 	struct cam_vfe_bus_ver2_reg_data           *reg_data;
-	uint32_t                                    io_buf_update[
-		MAX_REG_VAL_PAIR_SIZE];
-
 	struct cam_vfe_bus_irq_evt_payload          evt_payload[
 		CAM_VFE_BUS_VER2_PAYLOAD_MAX];
 	struct list_head                            free_payload_list;
@@ -123,6 +120,8 @@ struct cam_vfe_bus_ver2_wm_resource_data {
 	struct cam_vfe_bus_ver2_common_data            *common_data;
 	struct cam_vfe_bus_ver2_reg_offset_bus_client  *hw_regs;
 	void                                *ctx;
+	uint32_t                                    io_buf_update[
+		MAX_REG_VAL_PAIR_SIZE];
 
 	uint32_t             irq_enabled;
 
@@ -2828,7 +2827,6 @@ end:
 static int cam_vfe_bus_update_wm(void *priv, void *cmd_args,
 	uint32_t arg_size)
 {
-	struct cam_vfe_bus_ver2_priv             *bus_priv;
 	struct cam_isp_hw_get_cmd_update         *update_buf;
 	struct cam_buf_io_cfg                    *io_cfg;
 	struct cam_vfe_bus_ver2_vfe_out_data     *vfe_out_data = NULL;
@@ -2839,7 +2837,6 @@ static int cam_vfe_bus_update_wm(void *priv, void *cmd_args,
 	uint32_t  frame_inc = 0, val;
 	uint32_t loop_size = 0;
 
-	bus_priv = (struct cam_vfe_bus_ver2_priv  *) priv;
 	update_buf =  (struct cam_isp_hw_get_cmd_update *) cmd_args;
 
 	vfe_out_data = (struct cam_vfe_bus_ver2_vfe_out_data *)
@@ -2857,7 +2854,6 @@ static int cam_vfe_bus_update_wm(void *priv, void *cmd_args,
 		return -EINVAL;
 	}
 
-	reg_val_pair = &vfe_out_data->common_data->io_buf_update[0];
 	io_cfg = update_buf->wm_update->io_cfg;
 
 	for (i = 0, j = 0; i < vfe_out_data->num_wm; i++) {
@@ -2869,7 +2865,9 @@ static int cam_vfe_bus_update_wm(void *priv, void *cmd_args,
 		}
 
 		wm_data = vfe_out_data->wm_res[i]->res_priv;
+		reg_val_pair = &wm_data->io_buf_update[0];
 		ubwc_client = wm_data->hw_regs->ubwc_regs;
+
 		/* update width register */
 		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
 			wm_data->hw_regs->buffer_width_cfg,
@@ -2948,12 +2946,12 @@ static int cam_vfe_bus_update_wm(void *priv, void *cmd_args,
 					io_cfg->planes[i].meta_size +
 					k * frame_inc);
 			else
-				CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
-					wm_data->hw_regs->image_addr,
-					update_buf->wm_update->image_buf[i] +
-					wm_data->offset + k * frame_inc);
-			CAM_DBG(CAM_ISP, "WM %d image address 0x%x",
-				wm_data->index, reg_val_pair[j-1]);
+				CAM_VFE_ADD_REG_VAL_PAIR(
+				reg_val_pair,
+				j,
+				wm_data->hw_regs->image_addr,
+				update_buf->wm_update->image_buf[i] +
+				wm_data->offset + k * frame_inc);
 		}
 
 		CAM_VFE_ADD_REG_VAL_PAIR(reg_val_pair, j,
@@ -3010,7 +3008,7 @@ static int cam_vfe_bus_update_hfr(void *priv, void *cmd_args,
 		return -EINVAL;
 	}
 
-	reg_val_pair = &vfe_out_data->common_data->io_buf_update[0];
+
 	hfr_cfg = update_hfr->hfr_update;
 
 	for (i = 0, j = 0; i < vfe_out_data->num_wm; i++) {
@@ -3022,6 +3020,8 @@ static int cam_vfe_bus_update_hfr(void *priv, void *cmd_args,
 		}
 
 		wm_data = vfe_out_data->wm_res[i]->res_priv;
+
+		reg_val_pair = &wm_data->io_buf_update[0];
 
 		if (wm_data->index <= 2 && hfr_cfg->subsample_period > 3) {
 			CAM_ERR(CAM_ISP,

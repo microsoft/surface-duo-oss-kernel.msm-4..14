@@ -28,7 +28,6 @@
 #include <linux/slab.h>
 #include <linux/ramfs.h>
 #include <linux/shmem_fs.h>
-
 #include <linux/nfs_fs.h>
 #include <linux/nfs_fs_sb.h>
 #include <linux/nfs_mount.h>
@@ -43,8 +42,9 @@ static char * __initdata root_device_name;
 static char __initdata saved_root_name[64];
 static int root_wait;
 #ifdef CONFIG_EARLY_SERVICES
-static char saved_modem_name[64] __initdata;
-static char saved_early_userspace[64] __initdata;
+static char saved_modem_name[64];
+static char saved_early_userspace[64];
+static char *early_userspace_dev;
 static char init_prog[128] = "/early_services/init_early";
 static char *init_prog_argv[2] = { init_prog, NULL };
 #define EARLY_SERVICES_MOUNT_POINT "/early_services"
@@ -381,9 +381,28 @@ static void __init get_fs_names(char *page)
 			s[-1] = '\0';
 		}
 	}
+
 	*s = '\0';
 }
 
+#ifdef CONFIG_EARLY_SERVICES
+static void get_fs_names_runtime(char *page)
+{
+	char *s = page;
+	int len = get_filesystem_list_runtime(page);
+	char *p, *next;
+	page[len] = '\0';
+	for (p = page-1; p; p = next) {
+		next = strchr(++p, '\n');
+		if (*p++ != '\t')
+			continue;
+		while ((*s++ = *p++) != '\n')
+			;
+		s[-1] = '\0';
+	}
+	*s = '\0';
+}
+#endif
 static int __init do_mount_root(char *name, char *fs, int flags, void *data)
 {
 	struct super_block *s;
@@ -411,7 +430,7 @@ static int __init do_mount_root(char *name, char *fs, int flags, void *data)
 	return 0;
 }
 #ifdef CONFIG_EARLY_SERVICES
-static int __init do_mount_part(char *name, char *fs, int flags,
+static int do_mount_part(char *name, char *fs, int flags,
 				void *data, char *mnt_point)
 {
 	int err;
@@ -591,14 +610,18 @@ void __init mount_root(void)
 }
 
 #ifdef CONFIG_EARLY_SERVICES
-static int __init mount_partition(char *part_name, char *mnt_point)
+static int mount_partition(char *part_name, char *mnt_point)
 {
 	struct page *page = alloc_page(GFP_KERNEL);
 	char *fs_names = page_address(page);
 	char *p;
 	int err = -EPERM;
+	if (!part_name[0]) {
+		pr_err("Unknown partition\n");
+		return -ENOENT;
+	}
 
-	get_fs_names(fs_names);
+	get_fs_names_runtime(fs_names);
 	for (p = fs_names; *p; p += strlen(p)+1) {
 		err = do_mount_part(part_name, p, root_mountflags,
 					NULL, mnt_point);
@@ -609,31 +632,39 @@ static int __init mount_partition(char *part_name, char *mnt_point)
 		case -EINVAL:
 			continue;
 		}
-		printk_all_partitions();
 		return err;
 	}
 	return err;
 }
-void __init launch_early_services(void)
+void launch_early_services(void)
 {
 	int rc = 0;
+	dev_t EARLY_USERSPACE_DEV;
 
-	rc = mount_partition(saved_early_userspace, EARLY_SERVICES_MOUNT_POINT);
-	place_marker("Early Services Partition ready");
+	early_userspace_dev = saved_early_userspace;
+	EARLY_USERSPACE_DEV = name_to_dev_t(early_userspace_dev);
+        if (strncmp(early_userspace_dev, "/dev/", 5) == 0)
+		early_userspace_dev += 5;
+	if (EARLY_USERSPACE_DEV == 0)
+		return;
+	rc = create_dev("/dev/early_userspace" , EARLY_USERSPACE_DEV);
 	if (!rc) {
-		rc = call_usermodehelper(init_prog, init_prog_argv, NULL, 0);
-		if (!rc)
-			pr_info("early_init launched\n");
-		else
-			pr_err("early_init failed\n");
-	}
-	rc = mount_partition(saved_modem_name, FIRMWARE_MOUNT_PATH);
-	if (!rc) {
-		place_marker("firmwares Partition ready");
+		rc = mount_partition("/dev/early_userspace", EARLY_SERVICES_MOUNT_POINT);
+		place_marker("Early Services Partition ready");
+		if (!rc) {
+			rc = mount_partition(saved_modem_name, FIRMWARE_MOUNT_PATH);
+			if (!rc)
+				place_marker("firmwares Partition ready");
+			rc = call_usermodehelper(init_prog, init_prog_argv, NULL, 0);
+			if (!rc)
+				pr_info("early_init launched\n");
+			else
+				pr_err("early_init failed\n");
+		}
 	}
 }
 #else
-void __init launch_early_services(void) { }
+void launch_early_services(void) { }
 #endif
 /*
  * Prepare the namespace - decide what/where to mount, load ramdisks, etc.
@@ -659,6 +690,7 @@ void __init prepare_namespace(void)
 
 	md_run_setup();
 	dm_run_setup();
+        dm_run_es_setup(); /*setup Early Services verity*/
 
 	if (saved_root_name[0]) {
 		root_device_name = saved_root_name;
