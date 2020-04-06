@@ -1929,6 +1929,16 @@ config RTC_DRV_GOLDFISH
 	  Goldfish is a code name for the virtual platform developed by Google
 	  for Android emulation.
 
+config RTC_DRV_S32GEN1
+	bool "RTC driver for S32GEN1"
+	depends on TARGET_S32V344 || TARGET_S32G275 || TARGET_S32R45X || SOC_S32GEN1
+	default y
+	help
+	  Say yes to enable RTC driver for platforms based on the
+	  S32GEN1 SoC family.
+	  It supports both physical SoCs (S32R45X and S32G274A) and
+	  emulated/simulated SoCs.
+
 config RTC_DRV_WILCO_EC
 	tristate "Wilco EC RTC"
 	depends on WILCO_EC
