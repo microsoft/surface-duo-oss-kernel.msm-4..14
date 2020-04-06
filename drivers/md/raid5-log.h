@@ -52,11 +52,6 @@ static inline bool raid5_has_log(struct r5conf *conf)
 	return test_bit(MD_HAS_JOURNAL, &conf->mddev->flags);
 }
 
-static inline bool raid5_has_log(struct r5conf *conf)
-{
-	return test_bit(MD_HAS_JOURNAL, &conf->mddev->flags);
-}
-
 static inline bool raid5_has_ppl(struct r5conf *conf)
 {
 	return test_bit(MD_HAS_PPL, &conf->mddev->flags);

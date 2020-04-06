@@ -76,9 +76,6 @@ _GLOBAL(isa300_idle_stop_mayloss)
 	PPC_STOP
 	b	.	/* catch bugs */
 
-/* Reuse an unused pt_regs slot for IAMR */
-#define PNV_POWERSAVE_IAMR	_DAR
-
 /*
  * Desired return value in r3
  *

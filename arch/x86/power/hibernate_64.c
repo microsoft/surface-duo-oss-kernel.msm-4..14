@@ -12,7 +12,6 @@
 #include <linux/suspend.h>
 #include <linux/scatterlist.h>
 #include <linux/kdebug.h>
-#include <linux/cpu.h>
 
 #include <crypto/hash.h>
 

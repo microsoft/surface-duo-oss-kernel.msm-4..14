@@ -487,14 +487,9 @@ static void can_can_gw_rcv(struct sk_buff *skb, void *data)
 		/* check for checksum updates */
 		if (gwj->mod.csumfunc.crc8)
 			(*gwj->mod.csumfunc.crc8)(cf, &gwj->mod.csum.crc8);
-		}
 
-		if (gwj->mod.csumfunc.xor) {
-			if (cf->can_dlc > 8)
-				goto out_delete;
-
+		if (gwj->mod.csumfunc.xor)
 			(*gwj->mod.csumfunc.xor)(cf, &gwj->mod.csum.xor);
-		}
 	}
 
 	/* clear the skb timestamp if not configured the other way */
@@ -506,14 +501,6 @@ static void can_can_gw_rcv(struct sk_buff *skb, void *data)
 		gwj->dropped_frames++;
 	else
 		gwj->handled_frames++;
-
-	return;
-
- out_delete:
-	/* delete frame due to misconfiguration */
-	gwj->deleted_frames++;
-	kfree_skb(nskb);
-	return;
 }
 
 static inline int cgw_register_filter(struct net *net, struct cgw_job *gwj)

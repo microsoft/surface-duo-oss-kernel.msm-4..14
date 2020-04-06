@@ -1738,8 +1738,6 @@ static inline bool ext4_verity_in_progress(struct inode *inode)
 
 extern void ext4_update_dynamic_rev(struct super_block *sb);
 
-extern void ext4_update_dynamic_rev(struct super_block *sb);
-
 #define EXT4_FEATURE_COMPAT_FUNCS(name, flagname) \
 static inline bool ext4_has_feature_##name(struct super_block *sb) \
 { \

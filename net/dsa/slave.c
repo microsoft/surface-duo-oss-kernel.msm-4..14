@@ -1367,9 +1367,6 @@ int dsa_slave_resume(struct net_device *slave_dev)
 	if (!netif_running(slave_dev))
 		return 0;
 
-	if (!netif_running(slave_dev))
-		return 0;
-
 	netif_device_attach(slave_dev);
 
 	rtnl_lock();

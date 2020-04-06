@@ -216,6 +216,4 @@ mutex_trylock_recursive(struct mutex *lock);
 
 #endif /* !PREEMPT_RT */
 
-#endif /* !PREEMPT_RT_FULL */
-
 #endif /* __LINUX_MUTEX_H */

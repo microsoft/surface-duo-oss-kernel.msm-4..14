@@ -17,7 +17,6 @@
 #include <linux/pm.h>
 #include <linux/thermal.h>
 #include <linux/debugfs.h>
-#include <linux/swork.h>
 #include <asm/cpu_device_id.h>
 #include <asm/mce.h>
 
@@ -305,7 +304,7 @@ static void pkg_thermal_schedule_work(int cpu, struct delayed_work *work)
 	schedule_delayed_work_on(cpu, work, ms);
 }
 
-static void pkg_thermal_notify_work(struct swork_event *event)
+static int pkg_thermal_notify(u64 msr_val)
 {
 	int cpu = smp_processor_id();
 	struct zone_device *zonedev;
@@ -326,30 +325,6 @@ static void pkg_thermal_notify_work(struct swork_event *event)
 	raw_spin_unlock_irqrestore(&pkg_temp_lock, flags);
 	return 0;
 }
-
-static void pkg_thermal_notify_work_cleanup(void)
-{
-	swork_put();
-}
-
-static int pkg_thermal_notify(u64 msr_val)
-{
-	swork_queue(&notify_work);
-	return 0;
-}
-
-#else  /* !CONFIG_PREEMPT_RT_FULL */
-
-static int pkg_thermal_notify_work_init(void) { return 0; }
-
-static void pkg_thermal_notify_work_cleanup(void) {  }
-
-static int pkg_thermal_notify(u64 msr_val)
-{
-	pkg_thermal_notify_work(NULL);
-	return 0;
-}
-#endif /* CONFIG_PREEMPT_RT_FULL */
 
 static int pkg_temp_thermal_device_add(unsigned int cpu)
 {

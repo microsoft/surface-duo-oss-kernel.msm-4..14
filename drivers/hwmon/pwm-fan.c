@@ -370,7 +370,7 @@ static int pwm_fan_probe(struct platform_device *pdev)
 
 	ret = pwm_fan_of_get_cooling_data(dev, ctx);
 	if (ret)
-		goto err_pwm_disable;
+		return ret;
 
 	ctx->pwm_fan_state = ctx->pwm_fan_max_state;
 	if (IS_ENABLED(CONFIG_THERMAL)) {

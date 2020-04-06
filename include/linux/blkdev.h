@@ -27,7 +27,6 @@
 #include <linux/percpu-refcount.h>
 #include <linux/scatterlist.h>
 #include <linux/blkzoned.h>
-#include <linux/swork.h>
 
 struct module;
 struct scsi_ioctl_command;
@@ -132,9 +131,6 @@ enum mq_rq_state {
  */
 struct request {
 	struct request_queue *q;
-#ifdef CONFIG_PREEMPT_RT_FULL
-	struct work_struct work;
-#endif
 	struct blk_mq_ctx *mq_ctx;
 	struct blk_mq_hw_ctx *mq_hctx;
 

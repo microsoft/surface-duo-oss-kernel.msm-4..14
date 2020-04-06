@@ -969,21 +969,13 @@ int common_timer_del(struct k_itimer *timer)
 	return 0;
 }
 
-static int timer_delete_hook(struct k_itimer *timer)
+static inline int timer_delete_hook(struct k_itimer *timer)
 {
 	const struct k_clock *kc = timer->kclock;
-	int ret;
 
 	if (WARN_ON_ONCE(!kc || !kc->timer_del))
 		return -EINVAL;
-	ret = kc->timer_del(timer);
-	if (ret == TIMER_RETRY) {
-		rcu_read_lock();
-		spin_unlock_irq(&timer->it_lock);
-		timer_wait_for_callback(kc, timer);
-		rcu_read_unlock();
-	}
-	return ret;
+	return kc->timer_del(timer);
 }
 
 /* Delete a POSIX.1b interval timer. */
@@ -1002,6 +994,7 @@ retry_delete:
 		/* Unlocks and relocks the timer if it still exists */
 		timer = timer_wait_running(timer, &flags);
 		goto retry_delete;
+	}
 
 	spin_lock(&current->sighand->siglock);
 	list_del(&timer->list);
@@ -1028,7 +1021,7 @@ retry_delete:
 	if (timer_delete_hook(timer) == TIMER_RETRY) {
 		spin_unlock_irq(&timer->it_lock);
 		goto retry_delete;
-
+	}
 	list_del(&timer->list);
 
 	spin_unlock_irq(&timer->it_lock);

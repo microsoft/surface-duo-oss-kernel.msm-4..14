@@ -449,21 +449,12 @@ void blk_queue_exit(struct request_queue *q)
 	percpu_ref_put(&q->q_usage_counter);
 }
 
-static void blk_queue_usage_counter_release_swork(struct swork_event *sev)
-{
-	struct request_queue *q =
-		container_of(sev, struct request_queue, mq_pcpu_wake);
-
-	wake_up_all(&q->mq_freeze_wq);
-}
-
 static void blk_queue_usage_counter_release(struct percpu_ref *ref)
 {
 	struct request_queue *q =
 		container_of(ref, struct request_queue, q_usage_counter);
 
-	if (wq_has_sleeper(&q->mq_freeze_wq))
-		swork_queue(&q->mq_pcpu_wake);
+	wake_up_all(&q->mq_freeze_wq);
 }
 
 static void blk_rq_timed_out_timer(struct timer_list *t)
@@ -1097,7 +1088,6 @@ blk_qc_t generic_make_request(struct bio *bio)
 				bio_wouldblock_error(bio);
 			else
 				bio_io_error(bio);
-			q = NULL;
 		}
 		bio = bio_list_pop(&bio_list_on_stack[0]);
 	} while (bio);

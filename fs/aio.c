@@ -128,7 +128,6 @@ struct kioctx {
 	long			nr_pages;
 
 	struct rcu_work		free_rwork;	/* see free_ioctx() */
-	struct swork_event	free_swork;	/* see free_ioctx() */
 
 	/*
 	 * signals when all in-flight requests are done
@@ -270,7 +269,6 @@ static int __init aio_setup(void)
 		.init_fs_context = aio_init_fs_context,
 		.kill_sb	= kill_anon_super,
 	};
-	BUG_ON(swork_get());
 	aio_mnt = kern_mount(&aio_fs);
 	if (IS_ERR(aio_mnt))
 		panic("Failed to create aio fs mount.");
@@ -612,9 +610,9 @@ static void free_ioctx_reqs(struct percpu_ref *ref)
  * and ctx->users has dropped to 0, so we know no more kiocbs can be submitted -
  * now it's safe to cancel any that need to be.
  */
-static void free_ioctx_users_work(struct swork_event *sev)
+static void free_ioctx_users(struct percpu_ref *ref)
 {
-	struct kioctx *ctx = container_of(sev, struct kioctx, free_swork);
+	struct kioctx *ctx = container_of(ref, struct kioctx, users);
 	struct aio_kiocb *req;
 
 	spin_lock_irq(&ctx->ctx_lock);
@@ -630,14 +628,6 @@ static void free_ioctx_users_work(struct swork_event *sev)
 
 	percpu_ref_kill(&ctx->reqs);
 	percpu_ref_put(&ctx->reqs);
-}
-
-static void free_ioctx_users(struct percpu_ref *ref)
-{
-	struct kioctx *ctx = container_of(ref, struct kioctx, users);
-
-	INIT_SWORK(&ctx->free_swork, free_ioctx_users_work);
-	swork_queue(&ctx->free_swork);
 }
 
 static int ioctx_add_table(struct kioctx *ctx, struct mm_struct *mm)
@@ -1855,46 +1845,37 @@ static int __io_submit_one(struct kioctx *ctx, const struct iocb *iocb,
 	}
 }
 
-static int __io_submit_one(struct kioctx *ctx, const struct iocb *iocb,
-			   struct iocb __user *user_iocb, bool compat)
+static int io_submit_one(struct kioctx *ctx, struct iocb __user *user_iocb,
+			 bool compat)
 {
 	struct aio_kiocb *req;
 	struct iocb iocb;
 	int err;
 
+	if (unlikely(copy_from_user(&iocb, user_iocb, sizeof(iocb))))
+		return -EFAULT;
+
 	/* enforce forwards compatibility on users */
-	if (unlikely(iocb->aio_reserved2)) {
+	if (unlikely(iocb.aio_reserved2)) {
 		pr_debug("EINVAL: reserve field set\n");
 		return -EINVAL;
 	}
 
 	/* prevent overflows */
 	if (unlikely(
-	    (iocb->aio_buf != (unsigned long)iocb->aio_buf) ||
-	    (iocb->aio_nbytes != (size_t)iocb->aio_nbytes) ||
-	    ((ssize_t)iocb->aio_nbytes < 0)
+	    (iocb.aio_buf != (unsigned long)iocb.aio_buf) ||
+	    (iocb.aio_nbytes != (size_t)iocb.aio_nbytes) ||
+	    ((ssize_t)iocb.aio_nbytes < 0)
 	   )) {
 		pr_debug("EINVAL: overflow check\n");
 		return -EINVAL;
 	}
 
-	if (!get_reqs_available(ctx))
-		return -EAGAIN;
-
-	ret = -EAGAIN;
 	req = aio_get_req(ctx);
 	if (unlikely(!req))
-		goto out_put_reqs_available;
-
-	req->ki_filp = fget(iocb->aio_fildes);
-	ret = -EBADF;
-	if (unlikely(!req->ki_filp))
-		goto out_put_req;
+		return -EAGAIN;
 
 	err = __io_submit_one(ctx, &iocb, user_iocb, req, compat);
-
-	/* Done with the synchronous reference */
-	iocb_put(req);
 
 	/* Done with the synchronous reference */
 	iocb_put(req);
@@ -1909,17 +1890,6 @@ static int __io_submit_one(struct kioctx *ctx, const struct iocb *iocb,
 		put_reqs_available(ctx, 1);
 	}
 	return err;
-}
-
-static int io_submit_one(struct kioctx *ctx, struct iocb __user *user_iocb,
-			 bool compat)
-{
-	struct iocb iocb;
-
-	if (unlikely(copy_from_user(&iocb, user_iocb, sizeof(iocb))))
-		return -EFAULT;
-
-	return __io_submit_one(ctx, &iocb, user_iocb, compat);
 }
 
 /* sys_io_submit:

@@ -1786,7 +1786,6 @@ static int qeth_send_control_data(struct qeth_card *card,
 		qeth_dequeue_cmd(card, iob);
 		qeth_put_cmd(iob);
 		atomic_set(&channel->irq_pending, 0);
-		qeth_release_buffer(channel, iob);
 		wake_up(&card->wait_q);
 		goto out;
 	}
@@ -5706,7 +5705,6 @@ err_disc:
 err_load:
 err_chp_desc:
 	free_netdev(card->dev);
-err_chp_desc:
 err_card:
 	qeth_core_free_card(card);
 err_dev:

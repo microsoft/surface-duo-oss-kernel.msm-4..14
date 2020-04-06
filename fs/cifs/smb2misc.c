@@ -245,13 +245,6 @@ smb2_check_message(char *buf, unsigned int len, struct TCP_Server_Info *srvr)
 			return 0;
 
 		/*
-		 * Some windows servers (win2016) will pad also the final
-		 * PDU in a compound to 8 bytes.
-		 */
-		if (((clc_len + 7) & ~7) == len)
-			return 0;
-
-		/*
 		 * MacOS server pads after SMB2.1 write response with 3 bytes
 		 * of junk. Other servers match RFC1001 len to actual
 		 * SMB2/SMB3 frame length (header + smb2 response specific data)
@@ -665,13 +658,6 @@ smb2_is_valid_oplock_break(char *buffer, struct TCP_Server_Info *server)
 
 	if (rsp->sync_hdr.Command != SMB2_OPLOCK_BREAK)
 		return false;
-
-	if (rsp->sync_hdr.CreditRequest) {
-		spin_lock(&server->req_lock);
-		server->credits += le16_to_cpu(rsp->sync_hdr.CreditRequest);
-		spin_unlock(&server->req_lock);
-		wake_up(&server->request_q);
-	}
 
 	if (rsp->StructureSize !=
 				smb2_rsp_struct_sizes[SMB2_OPLOCK_BREAK_HE]) {

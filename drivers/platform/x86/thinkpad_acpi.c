@@ -4101,12 +4101,6 @@ static bool hotkey_notify_6xxx(const u32 hkey,
 		 * via netlink for consumption */
 		return true;
 
-	case TP_HKEY_EV_PALM_DETECTED:
-	case TP_HKEY_EV_PALM_UNDETECTED:
-		/* palm detected hovering the keyboard, forward to user-space
-		 * via netlink for consumption */
-		return true;
-
 	default:
 		/* report simply as unknown, no sensor dump */
 		return false;

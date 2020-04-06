@@ -286,7 +286,6 @@ int rcu_read_lock_held(void)
 }
 EXPORT_SYMBOL_GPL(rcu_read_lock_held);
 
-#ifndef CONFIG_PREEMPT_RT_FULL
 /**
  * rcu_read_lock_bh_held() - might we be in RCU-bh read-side critical section?
  *
@@ -311,7 +310,6 @@ int rcu_read_lock_bh_held(void)
 	return in_softirq() || irqs_disabled();
 }
 EXPORT_SYMBOL_GPL(rcu_read_lock_bh_held);
-#endif
 
 int rcu_read_lock_any_held(void)
 {

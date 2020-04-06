@@ -102,9 +102,6 @@ static struct cache_head *sunrpc_cache_add_entry(struct cache_detail *detail,
 			if (cache_is_expired(detail, tmp)) {
 				hlist_del_init_rcu(&tmp->cache_list);
 				detail->entries --;
-				if (cache_is_valid(tmp) == -EAGAIN)
-					set_bit(CACHE_NEGATIVE, &tmp->flags);
-				cache_fresh_locked(tmp, 0, detail);
 				freeme = tmp;
 				break;
 			}

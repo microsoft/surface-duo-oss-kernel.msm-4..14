@@ -34,7 +34,6 @@
 #include <linux/slab.h>
 #include <linux/rculist.h>
 #include <linux/llist.h>
-#include <linux/delay.h>
 
 #include "rds_single_path.h"
 #include "ib_mr.h"

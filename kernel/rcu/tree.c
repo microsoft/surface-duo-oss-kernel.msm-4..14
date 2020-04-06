@@ -223,7 +223,6 @@ void rcu_softirq_qs(void)
 	rcu_qs();
 	rcu_preempt_deferred_qs(current);
 }
-#endif
 
 /*
  * Record entry into an extended quiescent state.  This is only to be
@@ -530,7 +529,6 @@ static struct rcu_node *rcu_get_root(void)
 	return &rcu_state.node[0];
 }
 
-#ifndef CONFIG_PREEMPT_RT_FULL
 /*
  * Convert a ->gp_state value to a character string.
  */
@@ -2438,7 +2436,6 @@ static int rcu_cpu_kthread_should_run(unsigned int cpu)
 	return __this_cpu_read(rcu_data.rcu_cpu_has_work);
 }
 
-static DEFINE_PER_CPU(struct task_struct *, rcu_cpu_kthread_task);
 /*
  * Per-CPU kernel thread that invokes RCU callbacks.  This replaces
  * the RCU softirq used in configurations of RCU that do not support RCU
@@ -2618,7 +2615,6 @@ __call_rcu(struct rcu_head *head, rcu_callback_t func, bool lazy)
 	}
 }
 
-#ifndef CONFIG_PREEMPT_RT_FULL
 /**
  * call_rcu() - Queue an RCU callback for invocation after a grace period.
  * @head: structure to be used for queueing the RCU updates.

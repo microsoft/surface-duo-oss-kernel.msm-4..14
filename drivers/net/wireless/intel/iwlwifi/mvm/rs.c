@@ -2676,7 +2676,7 @@ void rs_update_last_rssi(struct iwl_mvm *mvm,
 static void rs_initialize_lq(struct iwl_mvm *mvm,
 			     struct ieee80211_sta *sta,
 			     struct iwl_lq_sta *lq_sta,
-			     enum nl80211_band band, bool update)
+			     enum nl80211_band band)
 {
 	struct iwl_scale_tbl_info *tbl;
 	struct rs_rate *rate;
@@ -2955,7 +2955,7 @@ void iwl_mvm_update_frame_stats(struct iwl_mvm *mvm, u32 rate, bool agg)
  * Called after adding a new station to initialize rate scaling
  */
 static void rs_drv_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
-			     enum nl80211_band band, bool update)
+			     enum nl80211_band band)
 {
 	int i, j;
 	struct ieee80211_hw *hw = mvm->hw;
@@ -3037,7 +3037,7 @@ static void rs_drv_rate_init(struct iwl_mvm *mvm, struct ieee80211_sta *sta,
 #ifdef CONFIG_IWLWIFI_DEBUGFS
 	iwl_mvm_reset_frame_stats(mvm);
 #endif
-	rs_initialize_lq(mvm, sta, lq_sta, band, update);
+	rs_initialize_lq(mvm, sta, lq_sta, band);
 }
 
 static void rs_drv_rate_update(void *mvm_r,

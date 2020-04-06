@@ -216,7 +216,8 @@ static DEFINE_PER_CPU(struct timer_base, timer_bases[NR_BASES]);
 static DEFINE_STATIC_KEY_FALSE(timers_nohz_active);
 static DEFINE_MUTEX(timer_keys_mutex);
 
-static struct swork_event timer_update_swork;
+static void timer_update_keys(struct work_struct *work);
+static DECLARE_WORK(timer_update_work, timer_update_keys);
 
 #ifdef CONFIG_SMP
 unsigned int sysctl_timer_migration = 1;
@@ -234,7 +235,7 @@ static void timers_update_migration(void)
 static inline void timers_update_migration(void) { }
 #endif /* !CONFIG_SMP */
 
-static void timer_update_keys(struct swork_event *event)
+static void timer_update_keys(struct work_struct *work)
 {
 	mutex_lock(&timer_keys_mutex);
 	timers_update_migration();
@@ -244,16 +245,8 @@ static void timer_update_keys(struct swork_event *event)
 
 void timers_update_nohz(void)
 {
-	swork_queue(&timer_update_swork);
+	schedule_work(&timer_update_work);
 }
-
-static __init int hrtimer_init_thread(void)
-{
-	WARN_ON(swork_get());
-	INIT_SWORK(&timer_update_swork, timer_update_keys);
-	return 0;
-}
-early_initcall(hrtimer_init_thread);
 
 int timer_migration_handler(struct ctl_table *table, int write,
 			    void __user *buffer, size_t *lenp,
@@ -1212,25 +1205,6 @@ int del_timer(struct timer_list *timer)
 }
 EXPORT_SYMBOL(del_timer);
 
-static int __try_to_del_timer_sync(struct timer_list *timer,
-				   struct timer_base **basep)
-{
-	struct timer_base *base;
-	unsigned long flags;
-	int ret = -1;
-
-	debug_assert_init(timer);
-
-	*basep = base = lock_timer_base(timer, &flags);
-
-	if (base->running_timer != timer)
-		ret = detach_if_pending(timer, base, true);
-
-	raw_spin_unlock_irqrestore(&base->lock, flags);
-
-	return ret;
-}
-
 /**
  * try_to_del_timer_sync - Try to deactivate a timer
  * @timer: timer to delete
@@ -1241,8 +1215,19 @@ static int __try_to_del_timer_sync(struct timer_list *timer,
 int try_to_del_timer_sync(struct timer_list *timer)
 {
 	struct timer_base *base;
+	unsigned long flags;
+	int ret = -1;
 
-	return __try_to_del_timer_sync(timer, &base);
+	debug_assert_init(timer);
+
+	base = lock_timer_base(timer, &flags);
+
+	if (base->running_timer != timer)
+		ret = detach_if_pending(timer, base, true);
+
+	raw_spin_unlock_irqrestore(&base->lock, flags);
+
+	return ret;
 }
 EXPORT_SYMBOL(try_to_del_timer_sync);
 
@@ -1454,8 +1439,7 @@ static void expire_timers(struct timer_base *base, struct hlist_head *head)
 
 		fn = timer->function;
 
-		if (!IS_ENABLED(CONFIG_PREEMPT_RT_FULL) &&
-		    timer->flags & TIMER_IRQSAFE) {
+		if (timer->flags & TIMER_IRQSAFE) {
 			raw_spin_unlock(&base->lock);
 			call_timer_fn(timer, fn, baseclk);
 			base->running_timer = NULL;

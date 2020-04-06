@@ -402,12 +402,6 @@ void radix_tree_preload_end(void)
 }
 EXPORT_SYMBOL(radix_tree_preload_end);
 
-void radix_tree_preload_end(void)
-{
-	local_unlock(radix_tree_preloads_lock);
-}
-EXPORT_SYMBOL(radix_tree_preload_end);
-
 static unsigned radix_tree_load_root(const struct radix_tree_root *root,
 		struct radix_tree_node **nodep, unsigned long *maxindex)
 {

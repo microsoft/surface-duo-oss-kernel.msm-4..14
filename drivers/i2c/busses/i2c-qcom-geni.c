@@ -602,13 +602,6 @@ static int geni_i2c_probe(struct platform_device *pdev)
 
 	dev_dbg(&pdev->dev, "Geni-I2C adaptor successfully added\n");
 
-	ret = i2c_add_adapter(&gi2c->adap);
-	if (ret) {
-		dev_err(&pdev->dev, "Error adding i2c adapter %d\n", ret);
-		pm_runtime_disable(gi2c->se.dev);
-		return ret;
-	}
-
 	return 0;
 }
 

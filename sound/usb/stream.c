@@ -635,8 +635,6 @@ snd_usb_find_input_terminal_descriptor(struct usb_host_interface *ctrl_iface,
 				       int terminal_id, int protocol)
 {
 	struct uac2_input_terminal_descriptor *term = NULL;
-	size_t minlen = uac23 ? sizeof(struct uac2_input_terminal_descriptor) :
-		sizeof(struct uac_input_terminal_descriptor);
 
 	while ((term = snd_usb_find_csint_desc(ctrl_iface->extra,
 					       ctrl_iface->extralen,

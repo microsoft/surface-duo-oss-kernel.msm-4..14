@@ -720,9 +720,6 @@ void ice_print_link_msg(struct ice_vsi *vsi, bool isup)
 	case ICE_FC_NONE:
 		fc = "None";
 		break;
-	case ICE_FC_NONE:
-		fc = "None";
-		break;
 	default:
 		fc = "Unknown";
 		break;

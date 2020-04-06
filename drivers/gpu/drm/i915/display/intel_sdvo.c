@@ -1717,32 +1717,6 @@ static void intel_sdvo_enable_audio(struct intel_sdvo *intel_sdvo,
 				   SDVO_AUDIO_PRESENCE_DETECT);
 }
 
-static void intel_sdvo_disable_audio(struct intel_sdvo *intel_sdvo)
-{
-	intel_sdvo_set_audio_state(intel_sdvo, 0);
-}
-
-static void intel_sdvo_enable_audio(struct intel_sdvo *intel_sdvo,
-				    const struct intel_crtc_state *crtc_state,
-				    const struct drm_connector_state *conn_state)
-{
-	const struct drm_display_mode *adjusted_mode =
-		&crtc_state->base.adjusted_mode;
-	struct drm_connector *connector = conn_state->connector;
-	u8 *eld = connector->eld;
-
-	eld[6] = drm_av_sync_delay(connector, adjusted_mode) / 2;
-
-	intel_sdvo_set_audio_state(intel_sdvo, 0);
-
-	intel_sdvo_write_infoframe(intel_sdvo, SDVO_HBUF_INDEX_ELD,
-				   SDVO_HBUF_TX_DISABLED,
-				   eld, drm_eld_size(eld));
-
-	intel_sdvo_set_audio_state(intel_sdvo, SDVO_AUDIO_ELD_VALID |
-				   SDVO_AUDIO_PRESENCE_DETECT);
-}
-
 static void intel_disable_sdvo(struct intel_encoder *encoder,
 			       const struct intel_crtc_state *old_crtc_state,
 			       const struct drm_connector_state *conn_state)

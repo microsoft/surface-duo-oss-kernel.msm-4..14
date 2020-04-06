@@ -175,12 +175,6 @@ struct tlb_state {
 		unsigned long		last_user_mm_ibpb;
 	};
 
-	/* Last user mm for optimizing IBPB */
-	union {
-		struct mm_struct	*last_user_mm;
-		unsigned long		last_user_mm_ibpb;
-	};
-
 	u16 loaded_mm_asid;
 	u16 next_asid;
 

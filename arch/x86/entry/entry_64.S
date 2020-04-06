@@ -291,7 +291,6 @@ ENTRY(__switch_to_asm)
 	pushq	%r13
 	pushq	%r14
 	pushq	%r15
-	pushfq
 
 	/* switch stack */
 	movq	%rsp, TASK_threadsp(%rdi)
@@ -314,7 +313,6 @@ ENTRY(__switch_to_asm)
 #endif
 
 	/* restore callee-saved registers */
-	popfq
 	popq	%r15
 	popq	%r14
 	popq	%r13
@@ -885,20 +883,6 @@ apicinterrupt IRQ_WORK_VECTOR			irq_work_interrupt		smp_irq_work_interrupt
 #define CPU_TSS_IST(x) PER_CPU_VAR(cpu_tss_rw) + (TSS_ist + (x) * 8)
 
 .macro idtentry_part do_sym, has_error_code:req, read_cr2:req, paranoid:req, shift_ist=-1, ist_offset=0
-
-	.if \create_gap == 1
-	/*
-	 * If coming from kernel space, create a 6-word gap to allow the
-	 * int3 handler to emulate a call instruction.
-	 */
-	testb	$3, CS-ORIG_RAX(%rsp)
-	jnz	.Lfrom_usermode_no_gap_\@
-	.rept	6
-	pushq	5*8(%rsp)
-	.endr
-	UNWIND_HINT_IRET_REGS offset=8
-.Lfrom_usermode_no_gap_\@:
-	.endif
 
 	.if \paranoid
 	call	paranoid_entry

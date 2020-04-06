@@ -46,8 +46,6 @@
 
 #include <linux/nospec.h>
 
-#include <linux/nospec.h>
-
 #include "i915_drv.h"
 #include "gvt.h"
 

@@ -1701,20 +1701,6 @@ void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask)
 		set_next_task(rq, p);
 }
 
-void do_set_cpus_allowed(struct task_struct *p, const struct cpumask *new_mask)
-{
-#if defined(CONFIG_SMP) && defined(CONFIG_PREEMPT_RT_BASE)
-	if (__migrate_disabled(p)) {
-		lockdep_assert_held(&p->pi_lock);
-
-		cpumask_copy(&p->cpus_mask, new_mask);
-		p->migrate_disable_update = 1;
-		return;
-	}
-#endif
-	__do_set_cpus_allowed_tail(p, new_mask);
-}
-
 /*
  * Change a given task's CPU affinity. Migrate the thread to a
  * proper CPU and schedule it away if the CPU it's executing on
@@ -1777,8 +1763,6 @@ static int __set_cpus_allowed_ptr(struct task_struct *p,
 	if (cpumask_test_cpu(task_cpu(p), new_mask) ||
 	    p->cpus_ptr != &p->cpus_mask)
 		goto out;
-	}
-#endif
 
 	if (task_running(rq, p) || p->state == TASK_WAKING) {
 		struct migration_arg arg = { p, dest_cpu };
@@ -1973,18 +1957,6 @@ out:
 	return ret;
 }
 #endif /* CONFIG_NUMA_BALANCING */
-
-static bool check_task_state(struct task_struct *p, long match_state)
-{
-	bool match = false;
-
-	raw_spin_lock_irq(&p->pi_lock);
-	if (p->state == match_state || p->saved_state == match_state)
-		match = true;
-	raw_spin_unlock_irq(&p->pi_lock);
-
-	return match;
-}
 
 static bool check_task_state(struct task_struct *p, long match_state)
 {
@@ -6648,14 +6620,6 @@ int sched_cpu_deactivate(unsigned int cpu)
 		static_branch_dec_cpuslocked(&sched_smt_present);
 #endif
 
-#ifdef CONFIG_SCHED_SMT
-	/*
-	 * When going down, decrement the number of cores with SMT present.
-	 */
-	if (cpumask_weight(cpu_smt_mask(cpu)) == 2)
-		static_branch_dec_cpuslocked(&sched_smt_present);
-#endif
-
 	if (!sched_smp_initialized)
 		return 0;
 
@@ -6721,14 +6685,11 @@ void __init sched_init_smp(void)
 	/*
 	 * There's no userspace yet to cause hotplug operations; hence all the
 	 * CPU masks are stable and all blatant races in the below code cannot
-	 * happen. The hotplug lock is nevertheless taken to satisfy lockdep,
-	 * but there won't be any contention on it.
+	 * happen.
 	 */
-	cpus_read_lock();
 	mutex_lock(&sched_domains_mutex);
 	sched_init_domains(cpu_active_mask);
 	mutex_unlock(&sched_domains_mutex);
-	cpus_read_unlock();
 
 	/* Move init over to a non-isolated CPU */
 	if (set_cpus_allowed_ptr(current, housekeeping_cpumask(HK_FLAG_DOMAIN)) < 0)

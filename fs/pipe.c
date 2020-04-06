@@ -241,14 +241,6 @@ static const struct pipe_buf_operations anon_pipe_buf_nomerge_ops = {
 	.get = generic_pipe_buf_get,
 };
 
-static const struct pipe_buf_operations anon_pipe_buf_nomerge_ops = {
-	.can_merge = 0,
-	.confirm = generic_pipe_buf_confirm,
-	.release = anon_pipe_buf_release,
-	.steal = anon_pipe_buf_steal,
-	.get = generic_pipe_buf_get,
-};
-
 static const struct pipe_buf_operations packet_pipe_buf_ops = {
 	.confirm = generic_pipe_buf_confirm,
 	.release = anon_pipe_buf_release,

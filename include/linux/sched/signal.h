@@ -447,10 +447,6 @@ static inline void clear_tsk_restore_sigmask(struct task_struct *task)
 {
 	task->restore_sigmask = false;
 }
-static inline void clear_tsk_restore_sigmask(struct task_struct *tsk)
-{
-	tsk->restore_sigmask = false;
-}
 static inline void clear_restore_sigmask(void)
 {
 	current->restore_sigmask = false;

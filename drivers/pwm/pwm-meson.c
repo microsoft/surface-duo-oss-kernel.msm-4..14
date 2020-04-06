@@ -233,8 +233,6 @@ static void meson_pwm_enable(struct meson_pwm *meson, struct pwm_device *pwm)
 
 	spin_lock_irqsave(&meson->lock, flags);
 
-	spin_lock_irqsave(&meson->lock, flags);
-
 	value = readl(meson->base + REG_MISC_AB);
 	value &= ~(MISC_CLK_DIV_MASK << channel_data->clk_div_shift);
 	value |= channel->pre_div << channel_data->clk_div_shift;
@@ -256,8 +254,6 @@ static void meson_pwm_disable(struct meson_pwm *meson, struct pwm_device *pwm)
 {
 	unsigned long flags;
 	u32 value;
-
-	spin_lock_irqsave(&meson->lock, flags);
 
 	spin_lock_irqsave(&meson->lock, flags);
 

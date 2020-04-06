@@ -7280,13 +7280,6 @@ int kvm_arch_init(void *opaque)
 		goto out_free_x86_fpu_cache;
 	}
 
-#ifdef CONFIG_PREEMPT_RT_FULL
-	if (!boot_cpu_has(X86_FEATURE_CONSTANT_TSC)) {
-		printk(KERN_ERR "RT requires X86_FEATURE_CONSTANT_TSC\n");
-		return -EOPNOTSUPP;
-	}
-#endif
-
 	r = kvm_mmu_module_init();
 	if (r)
 		goto out_free_percpu;

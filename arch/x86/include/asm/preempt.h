@@ -109,19 +109,6 @@ static __always_inline bool __preempt_count_dec_and_test(void)
 #endif
 }
 
-static __always_inline bool __preempt_count_dec_and_test(void)
-{
-	if (____preempt_count_dec_and_test())
-		return true;
-#ifdef CONFIG_PREEMPT_LAZY
-	if (current_thread_info()->preempt_lazy_count)
-		return false;
-	return test_thread_flag(TIF_NEED_RESCHED_LAZY);
-#else
-	return false;
-#endif
-}
-
 /*
  * Returns true when we need to resched and can (barring IRQ state).
  */

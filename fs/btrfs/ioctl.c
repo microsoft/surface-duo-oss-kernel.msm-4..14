@@ -3782,7 +3782,6 @@ static noinline int btrfs_clone_files(struct file *file, struct file *file_src,
 	 */
 	if (off + len == src->i_size)
 		len = ALIGN(src->i_size, bs) - off;
-	}
 
 	if (destoff > inode->i_size) {
 		const u64 wb_start = ALIGN_DOWN(inode->i_size, bs);

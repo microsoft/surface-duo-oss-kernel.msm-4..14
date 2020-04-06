@@ -418,6 +418,7 @@ retry_ipi:
  */
 static void sync_rcu_exp_select_cpus(void)
 {
+	int cpu;
 	struct rcu_node *rnp;
 
 	trace_rcu_exp_grace_period(rcu_state.name, rcu_exp_gp_seq_endval(), TPS("reset"));

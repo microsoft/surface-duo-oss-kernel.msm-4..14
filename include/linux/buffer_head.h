@@ -78,41 +78,6 @@ struct buffer_head {
 					 * buffers in the page */
 };
 
-static inline unsigned long bh_uptodate_lock_irqsave(struct buffer_head *bh)
-{
-	unsigned long flags;
-
-#ifndef CONFIG_PREEMPT_RT_BASE
-	local_irq_save(flags);
-	bit_spin_lock(BH_Uptodate_Lock, &bh->b_state);
-#else
-	spin_lock_irqsave(&bh->b_uptodate_lock, flags);
-#endif
-	return flags;
-}
-
-static inline void
-bh_uptodate_unlock_irqrestore(struct buffer_head *bh, unsigned long flags)
-{
-#ifndef CONFIG_PREEMPT_RT_BASE
-	bit_spin_unlock(BH_Uptodate_Lock, &bh->b_state);
-	local_irq_restore(flags);
-#else
-	spin_unlock_irqrestore(&bh->b_uptodate_lock, flags);
-#endif
-}
-
-static inline void buffer_head_init_locks(struct buffer_head *bh)
-{
-#ifdef CONFIG_PREEMPT_RT_BASE
-	spin_lock_init(&bh->b_uptodate_lock);
-#if IS_ENABLED(CONFIG_JBD2)
-	spin_lock_init(&bh->b_state_lock);
-	spin_lock_init(&bh->b_journal_head_lock);
-#endif
-#endif
-}
-
 /*
  * macro tricks to expand the set_buffer_foo(), clear_buffer_foo()
  * and buffer_foo() functions.

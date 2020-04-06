@@ -297,8 +297,6 @@ static void walk_pagetables(struct pg_state *st)
 	unsigned long addr = st->start_address & PGDIR_MASK;
 	pgd_t *pgd = pgd_offset_k(addr);
 
-	addr = st->start_address;
-
 	/*
 	 * Traverse the linux pagetable structure and dump pages that are in
 	 * the hash pagetable.

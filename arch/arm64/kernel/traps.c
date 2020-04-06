@@ -407,7 +407,6 @@ asmlinkage void __exception do_undefinstr(struct pt_regs *regs)
 
 	BUG_ON(!user_mode(regs));
 	force_signal_inject(SIGILL, ILL_ILLOPC, regs->pc);
-	BUG_ON(!user_mode(regs));
 }
 
 #define __user_cache_maint(insn, address, res)			\

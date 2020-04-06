@@ -33,7 +33,6 @@
 #include <linux/memcontrol.h>
 #include <linux/gfp.h>
 #include <linux/uio.h>
-#include <linux/locallock.h>
 #include <linux/hugetlb.h>
 #include <linux/page_idle.h>
 
@@ -68,8 +67,6 @@ static DEFINE_PER_CPU_PAGEVEC(lru_lazyfree_pvecs);
 #ifdef CONFIG_SMP
 static DEFINE_PER_CPU_PAGEVEC(activate_page_pvecs);
 #endif
-static DEFINE_LOCAL_IRQ_LOCK(rotate_lock);
-DEFINE_LOCAL_IRQ_LOCK(swapvec_lock);
 
 static inline
 struct swap_pagevec *lock_swap_pvec(struct swap_pagevec __percpu *p)

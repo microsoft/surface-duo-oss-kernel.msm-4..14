@@ -639,9 +639,6 @@ static int vhost_vsock_dev_release(struct inode *inode, struct file *file)
 	/* Wait for other CPUs to finish using vsock */
 	synchronize_rcu();
 
-	/* Wait for other CPUs to finish using vsock */
-	synchronize_rcu();
-
 	/* Iterating over all connections for all CIDs to find orphans is
 	 * inefficient.  Room for improvement here. */
 	vsock_for_each_connected_socket(vhost_vsock_reset_orphans);

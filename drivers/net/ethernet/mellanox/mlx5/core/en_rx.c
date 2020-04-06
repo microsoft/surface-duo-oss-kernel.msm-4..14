@@ -902,8 +902,6 @@ mlx5e_skb_csum_fixup(struct sk_buff *skb, int network_depth, __be16 proto,
 	tail_padding_csum(skb, pkt_len, stats);
 }
 
-#define short_frame(size) ((size) <= ETH_ZLEN + ETH_FCS_LEN)
-
 static inline void mlx5e_handle_csum(struct net_device *netdev,
 				     struct mlx5_cqe64 *cqe,
 				     struct mlx5e_rq *rq,

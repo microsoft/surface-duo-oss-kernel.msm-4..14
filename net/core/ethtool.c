@@ -1359,9 +1359,6 @@ static int ethtool_get_regs(struct net_device *dev, char __user *useraddr)
 	if (regs.len < reglen)
 		reglen = regs.len;
 
-	if (regs.len < reglen)
-		reglen = regs.len;
-
 	ops->get_regs(dev, &regs, regbuf);
 
 	ret = -EFAULT;

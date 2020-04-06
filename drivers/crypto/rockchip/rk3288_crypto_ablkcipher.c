@@ -297,14 +297,6 @@ static void rk_iv_copyback(struct rk_crypto_info *dev)
 	struct crypto_ablkcipher *tfm = crypto_ablkcipher_reqtfm(req);
 	struct rk_cipher_ctx *ctx = crypto_ablkcipher_ctx(tfm);
 	u32 ivsize = crypto_ablkcipher_ivsize(tfm);
-	u8 *new_iv = NULL;
-
-	if (ctx->mode & RK_CRYPTO_DEC) {
-		new_iv = ctx->iv;
-	} else {
-		new_iv = page_address(sg_page(dev->sg_dst)) +
-			 dev->sg_dst->offset + dev->sg_dst->length - ivsize;
-	}
 
 	/* Update the IV buffer to contain the next IV for encryption mode. */
 	if (!(ctx->mode & RK_CRYPTO_DEC)) {

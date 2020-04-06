@@ -619,7 +619,6 @@ static int imx274_write_table(struct stimx274 *priv, const struct reg_8 table[])
 
 static inline int imx274_write_reg(struct stimx274 *priv, u16 addr, u8 val)
 {
-	unsigned int uint_val;
 	int err;
 
 	err = regmap_write(priv->regmap, addr, val);

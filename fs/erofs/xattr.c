@@ -378,9 +378,6 @@ static int inline_getxattr(struct inode *inode, struct getxattr_iter *it)
 		ret = xattr_foreach(&it->it, &find_xattr_handlers, &remaining);
 		if (ret != -ENOATTR)
 			break;
-
-		if (ret != -ENOATTR)	/* -ENOMEM, -EIO, etc. */
-			break;
 	}
 	xattr_iter_end_final(&it->it);
 
@@ -415,9 +412,6 @@ static int shared_getxattr(struct inode *inode, struct getxattr_iter *it)
 
 		ret = xattr_foreach(&it->it, &find_xattr_handlers, NULL);
 		if (ret != -ENOATTR)
-			break;
-
-		if (ret != -ENOATTR)	/* -ENOMEM, -EIO, etc. */
 			break;
 	}
 	if (vi->xattr_shared_count)

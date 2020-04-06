@@ -206,7 +206,7 @@ struct cgroup_subsys_state *kthread_blkcg(void);
 static inline void kthread_associate_blkcg(struct cgroup_subsys_state *css) { }
 static inline struct cgroup_subsys_state *kthread_blkcg(void)
 {
-	return kthread_queue_work(&kthread_global_worker, work);
+	return NULL;
 }
-
+#endif
 #endif /* _LINUX_KTHREAD_H */

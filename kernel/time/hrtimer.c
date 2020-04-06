@@ -741,29 +741,6 @@ static void hrtimer_switch_to_hres(void)
 	retrigger_next_event(NULL);
 }
 
-#ifdef CONFIG_PREEMPT_RT_FULL
-
-static struct swork_event clock_set_delay_work;
-
-static void run_clock_set_delay(struct swork_event *event)
-{
-	clock_was_set();
-}
-
-void clock_was_set_delayed(void)
-{
-	swork_queue(&clock_set_delay_work);
-}
-
-static __init int create_clock_set_delay_thread(void)
-{
-	WARN_ON(swork_get());
-	INIT_SWORK(&clock_set_delay_work, run_clock_set_delay);
-	return 0;
-}
-early_initcall(create_clock_set_delay_thread);
-#else /* PREEMPT_RT_FULL */
-
 static void clock_was_set_work(struct work_struct *work)
 {
 	clock_was_set();
@@ -779,7 +756,6 @@ void clock_was_set_delayed(void)
 {
 	schedule_work(&hrtimer_work);
 }
-#endif
 
 #else
 
@@ -973,16 +949,6 @@ u64 hrtimer_forward(struct hrtimer *timer, ktime_t now, ktime_t interval)
 	return orun;
 }
 EXPORT_SYMBOL_GPL(hrtimer_forward);
-
-void hrtimer_grab_expiry_lock(const struct hrtimer *timer)
-{
-	struct hrtimer_clock_base *base = timer->base;
-
-	if (base && base->cpu_base) {
-		spin_lock(&base->cpu_base->softirq_expiry_lock);
-		spin_unlock(&base->cpu_base->softirq_expiry_lock);
-	}
-}
 
 /*
  * enqueue_hrtimer - internal function to (re)start a timer
@@ -1422,13 +1388,6 @@ static void __hrtimer_init(struct hrtimer *timer, clockid_t clock_id,
 	 */
 	if (IS_ENABLED(CONFIG_PREEMPT_RT) && !(mode & HRTIMER_MODE_HARD))
 		softtimer = true;
-
-	softtimer = !!(mode & HRTIMER_MODE_SOFT);
-#ifdef CONFIG_PREEMPT_RT_FULL
-	if (!softtimer && !(mode & HRTIMER_MODE_HARD))
-		softtimer = true;
-#endif
-	base = softtimer ? HRTIMER_MAX_CLOCK_BASES / 2 : 0;
 
 	memset(timer, 0, sizeof(struct hrtimer));
 
@@ -1882,34 +1841,7 @@ void hrtimer_init_sleeper(struct hrtimer_sleeper *sl, clockid_t clock_id,
 	__hrtimer_init_sleeper(sl, clock_id, mode);
 
 }
-
-/**
- * hrtimer_init_sleeper - initialize sleeper to the given clock
- * @sl:		sleeper to be initialized
- * @clock_id:	the clock to be used
- * @mode:	timer mode abs/rel
- * @task:	the task to wake up
- */
-void hrtimer_init_sleeper(struct hrtimer_sleeper *sl, clockid_t clock_id,
-			  enum hrtimer_mode mode, struct task_struct *task)
-{
-	debug_init(&sl->timer, clock_id, mode);
-	__hrtimer_init_sleeper(sl, clock_id, mode, task);
-
-}
 EXPORT_SYMBOL_GPL(hrtimer_init_sleeper);
-
-#ifdef CONFIG_DEBUG_OBJECTS_TIMERS
-void hrtimer_init_sleeper_on_stack(struct hrtimer_sleeper *sl,
-				   clockid_t clock_id,
-				   enum hrtimer_mode mode,
-				   struct task_struct *task)
-{
-	debug_object_init_on_stack(&sl->timer, &hrtimer_debug_descr);
-	__hrtimer_init_sleeper(sl, clock_id, mode, task);
-}
-EXPORT_SYMBOL_GPL(hrtimer_init_sleeper_on_stack);
-#endif
 
 int nanosleep_copyout(struct restart_block *restart, struct timespec64 *ts)
 {
@@ -1941,12 +1873,12 @@ static int __sched do_nanosleep(struct hrtimer_sleeper *t, enum hrtimer_mode mod
 		if (likely(t->task))
 			freezable_schedule();
 
-		__set_current_state(TASK_RUNNING);
 		hrtimer_cancel(&t->timer);
 		mode = HRTIMER_MODE_ABS;
 
 	} while (t->task && !signal_pending(current));
 
+	__set_current_state(TASK_RUNNING);
 
 	if (!t->task)
 		return 0;

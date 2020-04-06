@@ -172,9 +172,6 @@ static void dctcp_cwnd_event(struct sock *sk, enum tcp_ca_event ev)
 	case CA_EVENT_LOSS:
 		dctcp_react_to_loss(sk);
 		break;
-	case CA_EVENT_LOSS:
-		dctcp_react_to_loss(sk);
-		break;
 	default:
 		/* Don't care for the rest. */
 		break;

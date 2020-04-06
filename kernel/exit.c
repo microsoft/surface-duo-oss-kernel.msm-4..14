@@ -226,7 +226,6 @@ repeat:
 	}
 
 	write_unlock_irq(&tasklist_lock);
-	cgroup_release(p);
 	release_thread(p);
 	put_task_struct_rcu_user(p);
 

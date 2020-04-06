@@ -524,15 +524,6 @@ void rcu_fwd_progress_check(unsigned long j);
 void rcu_force_quiescent_state(void);
 extern struct workqueue_struct *rcu_gp_wq;
 extern struct workqueue_struct *rcu_par_gp_wq;
-
-#ifdef CONFIG_PREEMPT_RT_FULL
-#define rcu_bh_get_gp_seq		rcu_get_gp_seq
-#define rcu_bh_force_quiescent_state	rcu_force_quiescent_state
-#else
-unsigned long rcu_bh_get_gp_seq(void);
-void rcu_bh_force_quiescent_state(void);
-#endif
-
 #endif /* #else #ifdef CONFIG_TINY_RCU */
 
 #ifdef CONFIG_RCU_NOCB_CPU

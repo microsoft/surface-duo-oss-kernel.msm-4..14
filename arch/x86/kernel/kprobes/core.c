@@ -783,8 +783,6 @@ __used __visible void *trampoline_handler(struct pt_regs *regs)
 #ifdef CONFIG_X86_32
 	regs->cs |= get_kernel_rpl();
 	regs->gs = 0;
-	/* On x86-32, we use pt_regs->flags for return address holder. */
-	frame_pointer = &regs->flags;
 #endif
 	/* We use pt_regs->sp for return address holder. */
 	frame_pointer = &regs->sp;

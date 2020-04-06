@@ -54,7 +54,6 @@ struct sugov_cpu {
 	u64			last_update;
 
 	unsigned long		bw_dl;
-	unsigned long		min;
 	unsigned long		max;
 
 	/* The field below is for single-CPU policies only: */

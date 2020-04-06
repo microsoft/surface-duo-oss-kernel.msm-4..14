@@ -7031,7 +7031,6 @@ void mem_cgroup_swapout(struct page *page, swp_entry_t entry)
 
 	if (!mem_cgroup_is_root(memcg))
 		css_put_many(&memcg->css, nr_entries);
-	local_unlock_irqrestore(event_lock, flags);
 }
 
 /**

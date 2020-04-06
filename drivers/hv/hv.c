@@ -75,8 +75,6 @@ int hv_synic_alloc(void)
 {
 	int cpu;
 	struct hv_per_cpu_context *hv_cpu;
-	struct pt_regs *regs = get_irq_regs();
-	u64 ip = regs ? instruction_pointer(regs) : 0;
 
 	/*
 	 * First, zero all per-cpu memory areas so hv_synic_free() can

@@ -573,8 +573,6 @@ static int axxia_i2c_xfer_msg(struct axxia_i2c_dev *idev, struct i2c_msg *msg,
 
 	writel(WT_EN | wt_value, idev->base + WAIT_TIMER_CONTROL);
 
-	writel(WT_EN | wt_value, idev->base + WAIT_TIMER_CONTROL);
-
 	i2c_int_enable(idev, int_mask);
 
 	time_left = wait_for_completion_timeout(&idev->msg_complete,

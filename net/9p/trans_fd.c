@@ -310,7 +310,9 @@ static void p9_read_work(struct work_struct *work)
 	if ((!m->rreq) && (m->rc.offset == m->rc.capacity)) {
 		p9_debug(P9_DEBUG_TRANS, "got new header\n");
 
-		err = p9_parse_header(&m->rc, NULL, NULL, NULL, 0);
+		/* Header size */
+		m->rc.size = 7;
+		err = p9_parse_header(&m->rc, &m->rc.size, NULL, NULL, 0);
 		if (err) {
 			p9_debug(P9_DEBUG_ERROR,
 				 "error parsing header: %d\n", err);

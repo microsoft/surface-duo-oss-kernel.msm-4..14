@@ -840,9 +840,6 @@ static int imx_thermal_probe(struct platform_device *pdev)
 	data->irq_enabled = true;
 	data->mode = THERMAL_DEVICE_ENABLED;
 
-	data->irq_enabled = true;
-	data->mode = THERMAL_DEVICE_ENABLED;
-
 	ret = devm_request_threaded_irq(&pdev->dev, data->irq,
 			imx_thermal_alarm_irq, imx_thermal_alarm_irq_thread,
 			0, "imx_thermal", data);

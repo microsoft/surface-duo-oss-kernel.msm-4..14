@@ -292,7 +292,7 @@ int glue_xts_req_128bit(const struct common_glue_ctx *gctx,
 
 	/* set minimum length to bsize, for tweak_fn */
 	fpu_enabled = glue_fpu_begin(bsize, gctx->fpu_blocks_limit,
-				     &walk, false,
+				     &walk, fpu_enabled,
 				     nbytes < bsize ? bsize : nbytes);
 
 	/* calculate first value of T */

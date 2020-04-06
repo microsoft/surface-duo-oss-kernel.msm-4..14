@@ -1681,7 +1681,6 @@ static int tb_switch_set_uuid(struct tb_switch *sw)
 	u32 uuid[4];
 	int ret;
 
-	ret = 0;
 	if (sw->uuid)
 		return 0;
 

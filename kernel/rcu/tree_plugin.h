@@ -1228,7 +1228,7 @@ static void rcu_prepare_kthreads(int cpu)
 
 #endif /* #else #ifdef CONFIG_RCU_BOOST */
 
-#if !defined(CONFIG_RCU_FAST_NO_HZ) || defined(CONFIG_PREEMPT_RT_FULL)
+#if !defined(CONFIG_RCU_FAST_NO_HZ)
 
 /*
  * Check to see if any future non-offloaded RCU-related work will need
@@ -1245,9 +1245,7 @@ int rcu_needs_cpu(u64 basemono, u64 *nextevt)
 	return !rcu_segcblist_empty(&this_cpu_ptr(&rcu_data)->cblist) &&
 	       !rcu_segcblist_is_offloaded(&this_cpu_ptr(&rcu_data)->cblist);
 }
-#endif /* !defined(CONFIG_RCU_FAST_NO_HZ) || defined(CONFIG_PREEMPT_RT_FULL) */
 
-#if !defined(CONFIG_RCU_FAST_NO_HZ)
 /*
  * Because we do not have RCU_FAST_NO_HZ, don't bother cleaning up
  * after it.
@@ -1331,8 +1329,6 @@ static bool __maybe_unused rcu_try_advance_all_cbs(void)
 	return cbs_ready;
 }
 
-#ifndef CONFIG_PREEMPT_RT_FULL
-
 /*
  * Allow the CPU to enter dyntick-idle mode unless it has callbacks ready
  * to invoke.  If the CPU has callbacks, try to advance them.  Tell the
@@ -1374,7 +1370,6 @@ int rcu_needs_cpu(u64 basemono, u64 *nextevt)
 	*nextevt = basemono + dj * TICK_NSEC;
 	return 0;
 }
-#endif /* #ifndef CONFIG_PREEMPT_RT_FULL */
 
 /*
  * Prepare a CPU for idle from an RCU perspective.  The first major task

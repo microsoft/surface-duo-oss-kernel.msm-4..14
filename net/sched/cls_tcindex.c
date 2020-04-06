@@ -288,9 +288,6 @@ static int tcindex_alloc_perfect_hash(struct net *net, struct tcindex_data *cp)
 				    TCA_TCINDEX_ACT, TCA_TCINDEX_POLICE);
 		if (err < 0)
 			goto errout;
-#ifdef CONFIG_NET_CLS_ACT
-		cp->perfect[i].exts.net = net;
-#endif
 	}
 
 	return 0;

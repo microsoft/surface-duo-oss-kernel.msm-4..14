@@ -2904,7 +2904,6 @@ void drain_local_pages(struct zone *zone)
 	drain_cpu_pages(cpu, zone);
 }
 
-#ifndef CONFIG_PREEMPT_RT_BASE
 static void drain_local_pages_wq(struct work_struct *work)
 {
 	struct pcpu_drain *drain;
@@ -2922,7 +2921,6 @@ static void drain_local_pages_wq(struct work_struct *work)
 	drain_local_pages(drain->zone);
 	preempt_enable();
 }
-#endif
 
 /*
  * Spill all the per-cpu pages from all CPUs back into the buddy allocator.
@@ -7688,9 +7686,8 @@ void __init free_area_init(unsigned long *zones_size)
 
 static int page_alloc_cpu_dead(unsigned int cpu)
 {
-	local_lock_irq_on(swapvec_lock, cpu);
+
 	lru_add_drain_cpu(cpu);
-	local_unlock_irq_on(swapvec_lock, cpu);
 	drain_pages(cpu);
 
 	/*

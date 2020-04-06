@@ -3191,11 +3191,6 @@ convert_color_depth_from_display_info(const struct drm_connector *connector,
 		bpc = bpc - (bpc & 1);
 	}
 
-	/* TODO: Remove this when there's support for max_bpc in drm */
-	if (dm_conn_state && bpc > dm_conn_state->max_bpc)
-		/* Round down to nearest even number. */
-		bpc = dm_conn_state->max_bpc - (dm_conn_state->max_bpc & 1);
-
 	switch (bpc) {
 	case 0:
 		/*
@@ -5071,9 +5066,6 @@ void amdgpu_dm_connector_init_helper(struct amdgpu_display_manager *dm,
 	drm_object_attach_property(&aconnector->base.base,
 				adev->mode_info.underscan_vborder_property,
 				0);
-	drm_object_attach_property(&aconnector->base.base,
-				adev->mode_info.max_bpc_property,
-				0);
 
 	drm_connector_attach_max_bpc_property(&aconnector->base, 8, 16);
 
@@ -6116,7 +6108,6 @@ static int amdgpu_dm_atomic_commit(struct drm_device *dev,
 		    (!dm_new_crtc_state->interrupts_enabled ||
 		     drm_atomic_crtc_needs_modeset(new_crtc_state)))
 			manage_dm_interrupts(adev, acrtc, false);
-		}
 	}
 	/*
 	 * Add check here for SoC's that support hardware cursor plane, to

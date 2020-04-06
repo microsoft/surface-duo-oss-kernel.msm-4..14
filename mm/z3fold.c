@@ -417,12 +417,6 @@ static unsigned short handle_to_chunks(unsigned long handle)
 	return (addr & ~PAGE_MASK) >> BUDDY_SHIFT;
 }
 
-/* only for LAST bud, returns zero otherwise */
-static unsigned short handle_to_chunks(unsigned long handle)
-{
-	return (handle & ~PAGE_MASK) >> BUDDY_SHIFT;
-}
-
 /*
  * (handle & BUDDY_MASK) < zhdr->first_num is possible in encode_handle
  *  but that doesn't matter. because the masking will result in the

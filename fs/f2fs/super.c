@@ -2216,19 +2216,6 @@ static int f2fs_dquot_commit_info(struct super_block *sb, int type)
 	return ret;
 }
 
-static void f2fs_truncate_quota_inode_pages(struct super_block *sb)
-{
-	struct quota_info *dqopt = sb_dqopt(sb);
-	int type;
-
-	for (type = 0; type < MAXQUOTAS; type++) {
-		if (!dqopt->files[type])
-			continue;
-		f2fs_inode_synced(dqopt->files[type]);
-	}
-}
-
-
 static int f2fs_get_projid(struct inode *inode, kprojid_t *projid)
 {
 	*projid = F2FS_I(inode)->i_projid;

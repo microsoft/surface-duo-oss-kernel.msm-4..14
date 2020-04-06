@@ -168,9 +168,6 @@ static int tcf_mirred_init(struct net *net, struct nlattr *nla,
 	if (err < 0)
 		goto release_idr;
 
-	if (ret == ACT_P_CREATED)
-		INIT_LIST_HEAD(&m->tcfm_list);
-
 	spin_lock_bh(&m->tcf_lock);
 
 	if (parm->ifindex) {

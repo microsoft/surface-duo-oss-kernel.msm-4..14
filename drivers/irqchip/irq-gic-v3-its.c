@@ -2109,7 +2109,7 @@ static u64 its_clear_vpend_valid(void __iomem *vlpi_base)
 	return val;
 }
 
-static u64 its_clear_vpend_valid(void __iomem *vlpi_base)
+static void its_cpu_init_lpis(void)
 {
 	void __iomem *rbase = gic_data_rdist_rd_base();
 	struct page *pend_page;

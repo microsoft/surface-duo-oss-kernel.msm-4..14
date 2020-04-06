@@ -142,6 +142,7 @@ static void req_done(struct virtqueue *vq)
 		if (len) {
 			req->rc.size = len;
 			p9_client_cb(chan->client, req, REQ_STATUS_RCVD);
+		}
 	}
 	spin_unlock_irqrestore(&chan->lock, flags);
 	/* Wakeup if anyone waiting for VirtIO ring space. */

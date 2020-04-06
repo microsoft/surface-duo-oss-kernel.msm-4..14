@@ -3751,9 +3751,6 @@ void nvme_remove_namespaces(struct nvme_ctrl *ctrl)
 	struct nvme_ns *ns, *next;
 	LIST_HEAD(ns_list);
 
-	/* prevent racing with ns scanning */
-	flush_work(&ctrl->scan_work);
-
 	/*
 	 * make sure to requeue I/O to all namespaces as these
 	 * might result from the scan itself and must complete

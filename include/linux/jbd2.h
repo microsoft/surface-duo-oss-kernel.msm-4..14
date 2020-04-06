@@ -343,20 +343,12 @@ static inline struct journal_head *bh2jh(struct buffer_head *bh)
 
 static inline void jbd_lock_bh_journal_head(struct buffer_head *bh)
 {
-#ifndef CONFIG_PREEMPT_RT_BASE
 	bit_spin_lock(BH_JournalHead, &bh->b_state);
-#else
-	spin_lock(&bh->b_journal_head_lock);
-#endif
 }
 
 static inline void jbd_unlock_bh_journal_head(struct buffer_head *bh)
 {
-#ifndef CONFIG_PREEMPT_RT_BASE
 	bit_spin_unlock(BH_JournalHead, &bh->b_state);
-#else
-	spin_unlock(&bh->b_journal_head_lock);
-#endif
 }
 
 #define J_ASSERT(assert)	BUG_ON(!(assert))

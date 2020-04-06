@@ -1353,8 +1353,6 @@ static void cpu_hyp_reinit(void)
 
 	kvm_arm_init_debug();
 
-	kvm_arm_init_debug();
-
 	if (vgic_present)
 		kvm_vgic_init_cpu_hardware();
 }

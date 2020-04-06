@@ -36,7 +36,6 @@ DEFINE_PER_CPU(int, __kmap_atomic_idx);
 EXPORT_PER_CPU_SYMBOL(__kmap_atomic_idx);
 #endif
 #endif
-#endif
 
 /*
  * Virtual_count is not a pure "count".

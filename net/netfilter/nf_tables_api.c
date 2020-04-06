@@ -3917,32 +3917,6 @@ void nf_tables_destroy_set(const struct nft_ctx *ctx, struct nft_set *set)
 }
 EXPORT_SYMBOL_GPL(nf_tables_destroy_set);
 
-void nf_tables_deactivate_set(const struct nft_ctx *ctx, struct nft_set *set,
-			      struct nft_set_binding *binding,
-			      enum nft_trans_phase phase)
-{
-	switch (phase) {
-	case NFT_TRANS_PREPARE:
-		set->use--;
-		return;
-	case NFT_TRANS_ABORT:
-	case NFT_TRANS_RELEASE:
-		set->use--;
-		/* fall through */
-	default:
-		nf_tables_unbind_set(ctx, set, binding,
-				     phase == NFT_TRANS_COMMIT);
-	}
-}
-EXPORT_SYMBOL_GPL(nf_tables_deactivate_set);
-
-void nf_tables_destroy_set(const struct nft_ctx *ctx, struct nft_set *set)
-{
-	if (list_empty(&set->bindings) && nft_set_is_anonymous(set))
-		nft_set_destroy(set);
-}
-EXPORT_SYMBOL_GPL(nf_tables_destroy_set);
-
 const struct nft_set_ext_type nft_set_ext_types[] = {
 	[NFT_SET_EXT_KEY]		= {
 		.align	= __alignof__(u32),

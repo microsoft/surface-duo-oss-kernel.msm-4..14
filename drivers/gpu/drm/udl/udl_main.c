@@ -370,10 +370,3 @@ void udl_fini(struct drm_device *dev)
 
 	udl_fbdev_cleanup(dev);
 }
-
-void udl_driver_release(struct drm_device *dev)
-{
-	udl_modeset_cleanup(dev);
-	drm_dev_fini(dev);
-	kfree(dev);
-}

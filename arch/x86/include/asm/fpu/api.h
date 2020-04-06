@@ -21,7 +21,6 @@
  */
 extern void kernel_fpu_begin(void);
 extern void kernel_fpu_end(void);
-extern void kernel_fpu_resched(void);
 extern bool irq_fpu_usable(void);
 extern void fpregs_mark_activate(void);
 extern void kernel_fpu_resched(void);

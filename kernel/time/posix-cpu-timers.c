@@ -1127,20 +1127,6 @@ static inline bool fastpath_timer_check(struct task_struct *tsk)
 	return false;
 }
 
-static DEFINE_PER_CPU(spinlock_t, cpu_timer_expiry_lock) = __SPIN_LOCK_UNLOCKED(cpu_timer_expiry_lock);
-
-void cpu_timers_grab_expiry_lock(struct k_itimer *timer)
-{
-	int cpu = timer->it.cpu.firing_cpu;
-
-	if (cpu >= 0) {
-		spinlock_t *expiry_lock = per_cpu_ptr(&cpu_timer_expiry_lock, cpu);
-
-		spin_lock_irq(expiry_lock);
-		spin_unlock_irq(expiry_lock);
-	}
-}
-
 /*
  * This is called from the timer interrupt handler.  The irq handler has
  * already updated our counts.  We need to check if any timers fire now.
@@ -1360,49 +1346,6 @@ void run_posix_cpu_timers(void)
 	__run_posix_cpu_timers(current);
 }
 #endif /* CONFIG_PREEMPT_RT */
-
-static void posix_cpu_kthread_setup(unsigned int cpu)
-{
-	struct sched_param sp;
-
-	sp.sched_priority = MAX_RT_PRIO - 1;
-	sched_setscheduler_nocheck(current, SCHED_FIFO, &sp);
-	posix_cpu_kthread_unpark(cpu);
-}
-
-static struct smp_hotplug_thread posix_cpu_thread = {
-	.store			= &posix_timer_task,
-	.thread_should_run	= posix_cpu_kthread_should_run,
-	.thread_fn		= posix_cpu_kthread_fn,
-	.thread_comm		= "posixcputmr/%u",
-	.setup			= posix_cpu_kthread_setup,
-	.park			= posix_cpu_kthread_park,
-	.unpark			= posix_cpu_kthread_unpark,
-};
-
-static int __init posix_cpu_thread_init(void)
-{
-	/* Start one for boot CPU. */
-	unsigned long cpu;
-	int ret;
-
-	/* init the per-cpu posix_timer_tasklets */
-	for_each_possible_cpu(cpu)
-		per_cpu(posix_timer_tasklist, cpu) = NULL;
-
-	ret = smpboot_register_percpu_thread(&posix_cpu_thread);
-	WARN_ON(ret);
-
-	return 0;
-}
-early_initcall(posix_cpu_thread_init);
-#else /* CONFIG_PREEMPT_RT_BASE */
-void run_posix_cpu_timers(struct task_struct *tsk)
-{
-	lockdep_assert_irqs_disabled();
-	__run_posix_cpu_timers(tsk);
-}
-#endif /* CONFIG_PREEMPT_RT_BASE */
 
 /*
  * Set one of the process-wide special case CPU timers or RLIMIT_CPU.

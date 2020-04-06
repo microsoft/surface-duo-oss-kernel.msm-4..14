@@ -1355,8 +1355,6 @@ void brcmf_detach(struct device *dev)
 		drvr->mon_if = NULL;
 	}
 
-	brcmf_proto_detach_pre_delif(drvr);
-
 	/* make sure primary interface removed last */
 	for (i = BRCMF_MAX_IFS - 1; i > -1; i--) {
 		if (drvr->iflist[i])

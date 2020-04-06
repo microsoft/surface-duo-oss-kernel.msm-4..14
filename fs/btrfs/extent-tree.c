@@ -3637,11 +3637,6 @@ static int find_free_extent_unclustered(struct btrfs_block_group_cache *bg,
 	}
 	ffe_ctl->found_offset = offset;
 	return 0;
-
-owner_mismatch:
-	btrfs_err_rl(fs_info, "unexpected tree owner, have %llu expect %llu",
-		     btrfs_header_owner(eb), root->root_key.objectid);
-	return -EUCLEAN;
 }
 
 /*

@@ -1027,15 +1027,6 @@ static int fsl_esai_probe(struct platform_device *pdev)
 	regmap_write(esai_priv->regmap, REG_ESAI_RSMA, 0);
 	regmap_write(esai_priv->regmap, REG_ESAI_RSMB, 0);
 
-	esai_priv->tx_mask = 0xFFFFFFFF;
-	esai_priv->rx_mask = 0xFFFFFFFF;
-
-	/* Clear the TSMA, TSMB, RSMA, RSMB */
-	regmap_write(esai_priv->regmap, REG_ESAI_TSMA, 0);
-	regmap_write(esai_priv->regmap, REG_ESAI_TSMB, 0);
-	regmap_write(esai_priv->regmap, REG_ESAI_RSMA, 0);
-	regmap_write(esai_priv->regmap, REG_ESAI_RSMB, 0);
-
 	ret = devm_snd_soc_register_component(&pdev->dev, &fsl_esai_component,
 					      &fsl_esai_dai, 1);
 	if (ret) {

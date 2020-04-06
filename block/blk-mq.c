@@ -571,17 +571,6 @@ void blk_mq_end_request(struct request *rq, blk_status_t error)
 }
 EXPORT_SYMBOL(blk_mq_end_request);
 
-#ifdef CONFIG_PREEMPT_RT_FULL
-
-void __blk_mq_complete_request_remote_work(struct work_struct *work)
-{
-	struct request *rq = container_of(work, struct request, work);
-
-	rq->q->softirq_done_fn(rq);
-}
-
-#else
-
 static void __blk_mq_complete_request_remote(void *data)
 {
 	struct request *rq = data;
@@ -589,7 +578,6 @@ static void __blk_mq_complete_request_remote(void *data)
 
 	q->mq_ops->complete(rq);
 }
-#endif
 
 static void __blk_mq_complete_request(struct request *rq)
 {
@@ -636,18 +624,10 @@ static void __blk_mq_complete_request(struct request *rq)
 #endif
 
 	if (cpu != ctx->cpu && !shared && cpu_online(ctx->cpu)) {
-#ifdef CONFIG_PREEMPT_RT_FULL
-		/*
-		 * We could force QUEUE_FLAG_SAME_FORCE then we would not get in
-		 * here. But we could try to invoke it one the CPU like this.
-		 */
-		schedule_work_on(ctx->cpu, &rq->work);
-#else
 		rq->csd.func = __blk_mq_complete_request_remote;
 		rq->csd.info = rq;
 		rq->csd.flags = 0;
 		smp_call_function_single_async(ctx->cpu, &rq->csd);
-#endif
 	} else {
 		q->mq_ops->complete(rq);
 	}

@@ -223,8 +223,6 @@ void etnaviv_core_dump(struct etnaviv_gem_submit *submit)
 					 obj->base.size);
 	}
 
-	mutex_unlock(&gpu->mmu->lock);
-
 	etnaviv_core_dump_header(&iter, ETDUMP_BUF_END, iter.data);
 
 	dev_coredumpv(gpu->dev, iter.start, iter.data - iter.start, GFP_KERNEL);

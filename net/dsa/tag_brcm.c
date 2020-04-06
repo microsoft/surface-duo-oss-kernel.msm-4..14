@@ -137,9 +137,6 @@ static struct sk_buff *brcm_tag_rcv_ll(struct sk_buff *skb,
 	if (!skb->dev)
 		return NULL;
 
-	if (unlikely(ds->cpu_port_mask & BIT(source_port)))
-		return NULL;
-
 	/* Remove Broadcom tag and update checksum */
 	skb_pull_rcsum(skb, BRCM_TAG_LEN);
 

@@ -129,7 +129,6 @@ mwifiex_11n_dispatch_pkt_until_start_win(struct mwifiex_private *priv,
 		}
 	}
 
-	spin_lock_irqsave(&priv->rx_reorder_tbl_lock, flags);
 	/*
 	 * We don't have a circular buffer, hence use rotation to simulate
 	 * circular buffer
@@ -166,17 +165,13 @@ mwifiex_11n_scan_and_dispatch(struct mwifiex_private *priv,
 	spin_lock_bh(&priv->rx_reorder_tbl_lock);
 
 	for (i = 0; i < tbl->win_size; ++i) {
-		spin_lock_irqsave(&priv->rx_reorder_tbl_lock, flags);
-		if (!tbl->rx_reorder_ptr[i]) {
-			spin_unlock_irqrestore(&priv->rx_reorder_tbl_lock,
-					       flags);
+		if (!tbl->rx_reorder_ptr[i])
 			break;
 		skb = tbl->rx_reorder_ptr[i];
 		__skb_queue_tail(&list, skb);
 		tbl->rx_reorder_ptr[i] = NULL;
 	}
 
-	spin_lock_irqsave(&priv->rx_reorder_tbl_lock, flags);
 	/*
 	 * We don't have a circular buffer, hence use rotation to simulate
 	 * circular buffer
@@ -247,7 +242,6 @@ struct mwifiex_rx_reorder_tbl *
 mwifiex_11n_get_rx_reorder_tbl(struct mwifiex_private *priv, int tid, u8 *ta)
 {
 	struct mwifiex_rx_reorder_tbl *tbl;
-	unsigned long flags;
 
 	spin_lock_bh(&priv->rx_reorder_tbl_lock);
 	list_for_each_entry(tbl, &priv->rx_reorder_tbl_ptr, list) {

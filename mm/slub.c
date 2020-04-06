@@ -3769,7 +3769,6 @@ static void list_slab_objects(struct kmem_cache *s, struct page *page,
 	bitmap_free(map);
 #endif
 #endif
-#endif
 }
 
 

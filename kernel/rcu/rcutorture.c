@@ -463,7 +463,6 @@ static struct rcu_torture_ops rcu_ops = {
 	.name		= "rcu"
 };
 
-#ifndef CONFIG_PREEMPT_RT_FULL
 /*
  * Don't even think about trying any of these in real life!!!
  * The names includes "busted", and they really means it!

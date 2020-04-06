@@ -98,15 +98,6 @@ static ssize_t tpm_try_transmit(struct tpm_chip *chip, void *buf, size_t bufsiz)
 		rc = 0;
 	}
 
-	/* A sanity check. send() should just return zero on success e.g.
-	 * not the command length.
-	 */
-	if (rc > 0) {
-		dev_warn(&chip->dev,
-			 "%s: send(): invalid value %d\n", __func__, rc);
-		rc = 0;
-	}
-
 	if (chip->flags & TPM_CHIP_FLAG_IRQ)
 		goto out_recv;
 

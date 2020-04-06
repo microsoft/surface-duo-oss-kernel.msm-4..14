@@ -333,10 +333,6 @@ int fsnotify(struct inode *to_tell, __u32 mask, const void *data, int data_is,
 	if (mask & FS_EVENT_ON_CHILD)
 		mnt_or_sb_mask = 0;
 
-	/* An event "on child" is not intended for a mount mark */
-	if (mask & FS_EVENT_ON_CHILD)
-		mnt = NULL;
-
 	/*
 	 * Optimization: srcu_read_lock() has a memory barrier which can
 	 * be expensive.  It protects walking the *_fsnotify_marks lists.

@@ -96,14 +96,6 @@ static int vti_rcv_tunnel(struct sk_buff *skb)
 	return vti_rcv(skb, ip_hdr(skb)->saddr, true);
 }
 
-static int vti_rcv_ipip(struct sk_buff *skb)
-{
-	XFRM_SPI_SKB_CB(skb)->family = AF_INET;
-	XFRM_SPI_SKB_CB(skb)->daddroff = offsetof(struct iphdr, daddr);
-
-	return vti_input_ipip(skb, ip_hdr(skb)->protocol, ip_hdr(skb)->saddr, 0);
-}
-
 static int vti_rcv_cb(struct sk_buff *skb, int err)
 {
 	unsigned short family;

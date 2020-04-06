@@ -139,11 +139,6 @@ static noinline int bad_access(struct pt_regs *regs, unsigned long address)
 	return __bad_area(regs, address, SEGV_ACCERR);
 }
 
-static noinline int bad_access(struct pt_regs *regs, unsigned long address)
-{
-	return __bad_area(regs, address, SEGV_ACCERR);
-}
-
 static int do_sigbus(struct pt_regs *regs, unsigned long address,
 		     vm_fault_t fault)
 {

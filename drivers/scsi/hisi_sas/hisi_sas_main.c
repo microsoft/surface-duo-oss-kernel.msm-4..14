@@ -5,7 +5,6 @@
  */
 
 #include "hisi_sas.h"
-#include "../libsas/sas_internal.h"
 #define DRV_NAME "hisi_sas"
 
 #define DEV_IS_GONE(dev) \

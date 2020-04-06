@@ -65,8 +65,6 @@
 
 #include <linux/nospec.h>
 
-#include <linux/nospec.h>
-
 struct ipmr_rule {
 	struct fib_rule		common;
 };

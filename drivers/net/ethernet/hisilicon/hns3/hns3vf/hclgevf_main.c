@@ -446,9 +446,6 @@ void hclgevf_update_link_status(struct hclgevf_dev *hdev, int link_state)
 	link_state =
 		test_bit(HCLGEVF_STATE_DOWN, &hdev->state) ? 0 : link_state;
 
-	link_state =
-		test_bit(HCLGEVF_STATE_DOWN, &hdev->state) ? 0 : link_state;
-
 	if (link_state != hdev->hw.mac.link) {
 		client->ops->link_status_change(handle, !!link_state);
 		if (rclient && rclient->ops->link_status_change)
@@ -1555,8 +1552,6 @@ static int hclgevf_reset(struct hclgevf_dev *hdev)
 	ret = hclgevf_reset_prepare_wait(hdev);
 	if (ret)
 		goto err_reset;
-
-	rtnl_unlock();
 
 	/* check if VF could successfully fetch the hardware reset completion
 	 * status from the hardware

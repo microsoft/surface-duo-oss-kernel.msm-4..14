@@ -1145,8 +1145,6 @@ static void tcmu_handle_completion(struct tcmu_cmd *cmd, struct tcmu_cmd_entry *
 
 	list_del_init(&cmd->queue_entry);
 
-	list_del_init(&cmd->queue_entry);
-
 	tcmu_cmd_reset_dbi_cur(cmd);
 
 	if (entry->hdr.uflags & TCMU_UFLAG_UNKNOWN_OP) {

@@ -165,8 +165,6 @@ int mipi_dbi_command_buf(struct mipi_dbi *dbi, u8 cmd, u8 *data, size_t len)
 
 	kfree(cmdbuf);
 
-	kfree(cmdbuf);
-
 	return ret;
 }
 EXPORT_SYMBOL(mipi_dbi_command_buf);

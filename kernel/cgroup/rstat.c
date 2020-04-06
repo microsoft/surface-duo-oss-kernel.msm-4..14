@@ -160,7 +160,6 @@ static void cgroup_rstat_flush_locked(struct cgroup *cgrp)
 		raw_spinlock_t *cpu_lock = per_cpu_ptr(&cgroup_rstat_cpu_lock,
 						       cpu);
 		struct cgroup *pos = NULL;
-		unsigned long flags;
 
 		raw_spin_lock_irq(cpu_lock);
 		while ((pos = cgroup_rstat_cpu_pop_updated(pos, cgrp, cpu)))

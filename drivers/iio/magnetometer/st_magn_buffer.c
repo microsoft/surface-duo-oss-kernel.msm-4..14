@@ -52,7 +52,7 @@ static int st_magn_buffer_predisable(struct iio_dev *indio_dev)
 {
 	int err, err2;
 
-	err = iio_triggered_buffer_predisable(indio_dev);
+	err = st_sensors_set_enable(indio_dev, false);
 
 	err2 = iio_triggered_buffer_predisable(indio_dev);
 	if (!err)
