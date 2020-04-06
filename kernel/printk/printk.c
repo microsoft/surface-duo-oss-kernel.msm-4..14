@@ -1809,15 +1809,6 @@ out:
 	kfree(buf);
 }
 
-#else
-
-static int console_trylock_spinning(void)
-{
-	return console_trylock();
-}
-
-#endif
-
 /*
  * Call the console drivers, asking them to write out
  * log_buf[start] to log_buf[end - 1].
@@ -1834,12 +1825,6 @@ static void call_console_drivers(u64 seq, const char *ext_text, size_t ext_len,
 	if (!console_drivers)
 		return;
 
-	if (IS_ENABLED(CONFIG_PREEMPT_RT_BASE)) {
-		if (in_irq() || in_nmi())
-			return;
-	}
-
-	migrate_disable();
 	for_each_console(con) {
 		if (!(con->flags & CON_ENABLED))
 			continue;
@@ -1880,7 +1865,6 @@ static void call_console_drivers(u64 seq, const char *ext_text, size_t ext_len,
 		else
 			con->write(con, text, len);
 	}
-	migrate_enable();
 }
 
 static inline u32 printk_caller_id(void)
