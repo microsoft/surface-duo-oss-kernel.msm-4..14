@@ -278,8 +278,8 @@
 /* MediaTek BTIF */
 #define PORT_MTK_BTIF	117
 
-/* RDA UART */
-#define PORT_RDA	118
+/* Freescale Linflex UART */
+#define PORT_LINFLEXUART	118
 
 /* Socionext Milbeaut UART */
 #define PORT_MLB_USIO	119
@@ -289,8 +289,5 @@
 
 /* Sunix UART */
 #define PORT_SUNIX	121
-
-/* Freescale Linflex UART */
-#define PORT_LINFLEXUART	122
 
 #endif /* _UAPILINUX_SERIAL_CORE_H */
