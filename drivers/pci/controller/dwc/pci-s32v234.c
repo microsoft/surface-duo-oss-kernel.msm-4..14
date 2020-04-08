@@ -38,6 +38,7 @@
 #include <linux/of_platform.h>
 #include <linux/rcupdate.h>
 #include <linux/sched/signal.h>
+#include <linux/version.h>
 
 #include <linux/regulator/consumer.h>
 
@@ -73,26 +74,9 @@
 #define PCIE_MSI_ADDR_UPPER		0x58
 #define PCIE_MSI_DATA			0x5C
 #define PCIE_ATU_VIEWPORT		0x900
-#define PCIE_ATU_REGION_INBOUND		(0x1 << 31)
-#define PCIE_ATU_REGION_OUTBOUND	(0x0 << 31)
-#define PCIE_ATU_REGION_INDEX1		(0x1 << 0)
-#define PCIE_ATU_REGION_INDEX0		(0x0 << 0)
 #define PCIE_ATU_CR1			0x904
-#define PCIE_ATU_TYPE_MEM		(0x0 << 0)
-#define PCIE_ATU_TYPE_IO		(0x2 << 0)
-#define PCIE_ATU_TYPE_CFG0		(0x4 << 0)
-#define PCIE_ATU_TYPE_CFG1		(0x5 << 0)
 #define PCIE_ATU_CR2			0x908
-#define PCIE_ATU_ENABLE			(0x1 << 31)
-#define PCIE_ATU_BAR_MODE_ENABLE	(0x1 << 30)
 #define PCIE_ATU_BAR_NUM(bar)	((bar) << 8)
-#define PCIE_ATU_LOWER_BASE		0x90C
-#define PCIE_ATU_UPPER_BASE		0x910
-#define PCIE_ATU_LIMIT			0x914
-#define PCIE_ATU_LOWER_TARGET		0x918
-#define PCIE_ATU_BUS(x)			(((x) & 0xff) << 24)
-#define PCIE_ATU_DEV(x)			(((x) & 0x1f) << 19)
-#define PCIE_ATU_FUNC(x)		(((x) & 0x7) << 16)
 #define PCIE_ATU_UPPER_TARGET		0x91C
 
 /* PCIe Root Complex registers (memory-mapped) */
@@ -124,7 +108,6 @@
 #define PCIE_PHY_STAT_ACK_LOC 16
 
 #define PCIE_LINK_WIDTH_SPEED_CONTROL	0x80C
-#define PORT_LOGIC_SPEED_CHANGE		(0x1 << 17)
 
 /* PHY registers (not memory-mapped) */
 #define PCIE_PHY_RX_ASIC_OUT 0x100D
@@ -612,7 +595,9 @@ static ssize_t s32v234_ioctl(struct file *filp, u32 cmd,
 	int ret = 0;
 	void __user *argp = (void __user *)data;
 	struct s32v234_pcie *s32v234_pp = (struct s32v234_pcie *)(filp->private_data);
+#ifdef CONFIG_PCI_DW_DMA
 	struct dma_info *di = &(s32v234_pp->dma);
+#endif
 	struct s32v_inbound_region	inbStr;
 	struct s32v_outbound_region	outbStr;
 
