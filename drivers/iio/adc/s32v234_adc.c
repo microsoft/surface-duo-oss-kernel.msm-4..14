@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0+
 /*
  * NXP S32V234 SAR-ADC driver (adapted from Freescale Vybrid vf610 ADC
  * driver by Fugang Duan <B38611@freescale.com>)
@@ -34,10 +35,18 @@
 #include <linux/regulator/consumer.h>
 #include <linux/of_platform.h>
 #include <linux/err.h>
+#include <linux/version.h>
 
 #include <linux/iio/iio.h>
 #include <linux/iio/sysfs.h>
 #include <linux/iio/driver.h>
+
+#include <linux/time64.h>
+
+/* Macros below help to keep compatibility with earlier kernel versions */
+#define timeval timespec64
+#define do_gettimeofday  ktime_get_ts64
+#define tv_usec tv_nsec
 
 /* This will be the driver name the kernel reports */
 #define DRIVER_NAME "s32v234-adc"
