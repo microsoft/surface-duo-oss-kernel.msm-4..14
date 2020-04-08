@@ -21,6 +21,8 @@
 #define MXC_CPU_MX35		35
 #define MXC_CPU_MX51		51
 #define MXC_CPU_MX53		53
+#define MXC_CPU_SAC58R		58
+
 #define MXC_CPU_IMX6SL		0x60
 #define MXC_CPU_IMX6DL		0x61
 #define MXC_CPU_IMX6SX		0x62
