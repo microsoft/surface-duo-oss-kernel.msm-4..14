@@ -32,3 +32,24 @@ dtb-$(CONFIG_ARCH_MXC) += imx8mq-zii-ultra-rmb3.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8mq-zii-ultra-zest.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qxp-ai_ml.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek.dtb
+
+dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-bbmini.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-evb28899.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-evb.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-evbbcm.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-palladium.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-pciebcm.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-pcie.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-simulator.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-tmdp.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32v344-simulator.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32g275-simulator.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32g274a-emu.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32g274a-evb.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32g274a-rdb.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32r45x-simulator.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32r45x-emu.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32r45x-evb.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-ccpb.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32v234sbc.dtb
+
