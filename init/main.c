@@ -998,7 +998,7 @@ static inline void mark_readonly(void)
 static int __ref kernel_init(void *unused)
 {
 	int ret;
-
+	int recovery = is_recovery_boot();
 	kernel_init_freeable();
 	/* need to finish all async __init code before freeing the memory */
 	async_synchronize_full();
@@ -1012,7 +1012,7 @@ static int __ref kernel_init(void *unused)
 	place_marker("M - DRIVER Kernel Boot Done");
 
 #ifdef CONFIG_EARLY_SERVICES
-	{
+	if (recovery) {
 		struct kstat stat;
 		/* Wait for early services SE policy load completion signal */
 		while (vfs_stat("/dev/sedone", &stat) != 0);

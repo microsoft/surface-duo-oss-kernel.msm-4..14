@@ -619,6 +619,11 @@ static int __init skip_initramfs_param(char *str)
 }
 __setup("skip_initramfs", skip_initramfs_param);
 
+int __init is_recovery_boot(void)
+{
+	return do_skip_initramfs;
+}
+
 static int __init populate_rootfs(void)
 {
 	char *err;
