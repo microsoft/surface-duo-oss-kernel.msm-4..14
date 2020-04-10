@@ -1791,50 +1791,6 @@ void fec_set_phy_callback(void (*fec_callback)(int status_change,
 }
 EXPORT_SYMBOL(fec_set_phy_callback);
 
-#define EBERR 1
-static int fec_enec_clear_eberr(struct fec_enet_private *fep)
-{
-	u32 ievent = readl(fep->hwp + FEC_IEVENT);
-	u32 ecntrl = readl(fep->hwp + FEC_ECNTRL);
-
-	if ((ievent & FEC_ENET_EBERR) && !(ecntrl & FEC_ENET_ETHEREN)) {
-		netdev_dbg(fep->netdev, "Ethernet Bus Error\n");
-		napi_disable(&fep->napi);
-		netif_tx_lock_bh(fep->netdev);
-		fec_restart(fep->netdev);
-		netif_wake_queue(fep->netdev);
-		netif_tx_unlock_bh(fep->netdev);
-		napi_enable(&fep->napi);
-
-		return -EBERR;
-	}
-
-	return 0;
-}
-
-/**
- * Waits for completion of a MDIO read/write operation
- * @param fep  Driver private data
- * @return    -EBERR if an ethernet buss error occurred, 0 for success and
- *            -ETIMEDOUT for any other errors
- */
-static int fec_enet_wait_transfer(struct fec_enet_private *fep)
-{
-	int ret = 0;
-	unsigned long time_left = wait_for_completion_timeout(&fep->mdio_done,
-			usecs_to_jiffies(FEC_MII_TIMEOUT));
-
-	if (time_left == 0) {
-		fep->mii_timeout = 1;
-		netdev_err(fep->netdev, "MDIO timeout\n");
-		ret = fec_enec_clear_eberr(fep);
-		if (!ret)
-			return -ETIMEDOUT;
-	}
-
-	return ret;
-}
-
 static int fec_enet_mdio_read(struct mii_bus *bus, int mii_id, int regnum)
 {
 	struct fec_enet_private *fep = bus->priv;
