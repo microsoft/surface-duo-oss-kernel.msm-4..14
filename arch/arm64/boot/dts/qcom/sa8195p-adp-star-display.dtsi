@@ -375,6 +375,7 @@
 		 compatible = "qcom,shared-display";
 		 qcom,shared-display-base = <&sde_sh_base0>;
 		 qcom,blend-stage-range = <0 8>;
+		 qcom,shared-display-name = "shared-disp-0";
 		 qcom,display-type = "primary";
 		 qcom,shared-display-src-mode {
 			 qcom,mode-h-active = <1920>;
@@ -392,6 +393,7 @@
 		 compatible = "qcom,shared-display";
 		 qcom,shared-display-base = <&sde_sh_base0>;
 		 qcom,blend-stage-range = <8 1>;
+		 qcom,shared-display-name = "shared-disp-1";
 		 qcom,shared-display-src-mode {
 			 qcom,mode-h-active = <1920>;
 			 qcom,mode-v-active = <1080>;
@@ -408,6 +410,7 @@
 		 compatible = "qcom,shared-display";
 		 qcom,shared-display-base = <&sde_sh_base0>;
 		 qcom,blend-stage-range = <9 1>;
+		 qcom,shared-display-name = "shared-disp-2";
 		 qcom,shared-display-src-mode {
 			 qcom,mode-h-active = <1920>;
 			 qcom,mode-v-active = <1080>;
@@ -443,6 +446,7 @@
 		 compatible = "qcom,shared-display";
 		 qcom,shared-display-base = <&sde_sh_base1>;
 		 qcom,blend-stage-range = <0 9>;
+		 qcom,shared-display-name = "shared-disp-3";
 		 qcom,shared-display-src-mode {
 			 qcom,mode-h-active = <1920>;
 			 qcom,mode-v-active = <1080>;
@@ -459,6 +463,7 @@
 		 compatible = "qcom,shared-display";
 		 qcom,shared-display-base = <&sde_sh_base1>;
 		 qcom,blend-stage-range = <9 1>;
+		 qcom,shared-display-name = "shared-disp-4";
 		 qcom,shared-display-src-mode {
 			 qcom,mode-h-active = <1920>;
 			 qcom,mode-v-active = <1080>;
