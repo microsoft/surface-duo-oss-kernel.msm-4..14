@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2016-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1796,7 +1796,7 @@ static bool sde_rm_is_display_in_cont_splash(struct sde_kms *sde_kms,
 	int i;
 	struct sde_splash_display *splash_dpy;
 
-	for (i = 0; i < MAX_DSI_DISPLAYS; i++) {
+	for (i = 0; i < SDE_MAX_DISPLAYS; i++) {
 		splash_dpy = &sde_kms->splash_data.splash_display[i];
 		if (splash_dpy->encoder ==  enc)
 			return splash_dpy->cont_splash_enabled;

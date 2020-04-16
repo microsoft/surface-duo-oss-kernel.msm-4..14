@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -243,10 +243,12 @@ static int dp_power_clk_set_rate(struct dp_power_private *power,
 	mp = &power->parser->mp[module];
 
 	if (enable) {
-		rc = msm_dss_clk_set_rate(mp->clk_config, mp->num_clk);
-		if (rc) {
-			pr_err("failed to set clks rate.\n");
-			goto exit;
+		if (!power->parser->is_cont_splash_enabled) {
+			rc = msm_dss_clk_set_rate(mp->clk_config, mp->num_clk);
+			if (rc) {
+				pr_err("failed to set clks rate.\n");
+				goto exit;
+			}
 		}
 
 		rc = msm_dss_enable_clk(mp->clk_config, mp->num_clk, 1);
@@ -288,7 +290,7 @@ static int dp_power_clk_enable(struct dp_power *dp_power,
 		return -EINVAL;
 	}
 
-	if (enable) {
+	if (enable && !(power->parser->is_cont_splash_enabled)) {
 		if (pm_type == DP_CORE_PM && power->core_clks_on) {
 			pr_debug("core clks already enabled\n");
 			return 0;
@@ -329,6 +331,11 @@ static int dp_power_clk_enable(struct dp_power *dp_power,
 			enable ? "enable" : "disable",
 			dp_parser_pm_name(pm_type), rc);
 			goto error;
+	}
+
+	if (!enable && power->parser->is_cont_splash_enabled) {
+		pr_debug("splash enabled, skip clk status update\n");
+		return rc;
 	}
 
 	if (pm_type == DP_CORE_PM)

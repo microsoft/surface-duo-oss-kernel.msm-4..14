@@ -1,4 +1,4 @@
-/* Copyright (c) 2016-2018, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2016-2018, 2020 The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -627,6 +627,10 @@ int dp_vco_prepare_14nm(struct clk_hw *hw)
 	struct dp_pll_vco_clk *vco = to_dp_vco_hw(hw);
 	struct mdss_pll_resources *dp_res = vco->priv;
 
+	/* skip vco recalculation for continuous splash use case */
+	if (dp_res->handoff_resources == true)
+		return 0;
+
 	pr_debug("rate=%ld\n", vco->rate);
 	rc = mdss_pll_resource_enable(dp_res, true);
 	if (rc) {
@@ -674,7 +678,10 @@ void dp_vco_unprepare_14nm(struct clk_hw *hw)
 		pr_err("pll resource can't be enabled\n");
 		return;
 	}
-	dp_res->vco_cached_rate = vco->rate;
+
+	if (!dp_res->handoff_resources)
+		dp_res->vco_cached_rate = vco->rate;
+
 	dp_pll_disable_14nm(hw);
 
 	dp_res->handoff_resources = false;
@@ -724,6 +731,12 @@ unsigned long dp_vco_recalc_rate_14nm(struct clk_hw *hw,
 	if (rc) {
 		pr_err("Failed to enable mdss DP pll=%d\n", dp_res->index);
 		return rc;
+	}
+
+	dp_res->handoff_resources = false;
+	if (dp_14nm_pll_lock_status(dp_res) == true) {
+		pr_debug("PLL is enabled\n");
+		dp_res->handoff_resources = true;
 	}
 
 	div = MDSS_PLL_REG_R(dp_res->pll_base, QSERDES_COM_HSCLK_SEL);

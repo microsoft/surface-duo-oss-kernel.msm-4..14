@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -22,10 +22,20 @@
 #include "dp_panel.h"
 
 #define DP_MST_SIM_MAX_PORTS	2
+#define MAX_DP_ACTIVE_DISPLAY   1
+#define MAX_CMDLINE_PARAM_LEN	 512
 
 enum dp_drv_state {
 	PM_DEFAULT,
 	PM_SUSPEND,
+};
+
+struct dp_display_boot_param {
+	char name[MAX_CMDLINE_PARAM_LEN];
+	char *boot_param;
+	bool boot_disp_en;
+	struct device_node *node;
+	void *disp;
 };
 
 struct dp_mst_hpd_info {
@@ -129,7 +139,22 @@ struct dp_display {
 			bool wakeup);
 };
 
+int dp_display_get_num_of_boot_displays(void);
 int dp_display_get_num_of_displays(void);
 int dp_display_get_displays(void **displays, int count);
 int dp_display_get_num_of_streams(void);
+/**
+ * dp_display_cont_splash_config() - initialize splash resources
+ * @display:         Handle to display
+ *
+ * Return: Zero on Success
+ */
+int dp_display_cont_splash_config(void *display);
+
+/**
+ * dp_display_splash_res_cleanup() - cleanup for continuous splash
+ * @display:	pointer to dsi display
+ * return:	zero on success
+ */
+int dp_display_splash_res_cleanup(struct dp_display *dp_display);
 #endif /* _DP_DISPLAY_H_ */
