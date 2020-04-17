@@ -2197,7 +2197,7 @@
 	};
 
 	cluster0_opp: opp_table0 {
-		compatible = "operating-points-v2-kryo-cpu";
+		compatible = "operating-points-v2-qcom-cpu";
 		nvmem-cells = <&speedbin_efuse>;
 		opp-shared;
 
@@ -2286,7 +2286,7 @@
 	};
 
 	cluster1_opp: opp_table1 {
-		compatible = "operating-points-v2-kryo-cpu";
+		compatible = "operating-points-v2-qcom-cpu";
 		nvmem-cells = <&speedbin_efuse>;
 		opp-shared;
 
