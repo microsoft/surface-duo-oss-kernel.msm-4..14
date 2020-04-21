@@ -12997,7 +12997,7 @@ CONFIG_MARCH_Z14                                policy<{'s390x': 'n'}>
 CONFIG_MARCH_Z15                                policy<{'s390x': 'n'}>
 
 # Menu: Processor type and features >> Select NUMA modes
-CONFIG_NUMA_EMU                                 policy<{'amd64': 'n', 's390x': 'n'}>
+CONFIG_NUMA_EMU                                 policy<{'amd64': 'n'}>
 #
 CONFIG_NUMA_EMU                                 note<LP:1557690> mark<ENFORCED>
 CONFIG_NUMA_EMU                                 note<LP:1864198>
