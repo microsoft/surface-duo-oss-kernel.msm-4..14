@@ -12378,13 +12378,13 @@ CONFIG_ARCH_ZYNQMP                              policy<{'arm64': 'y'}>
 CONFIG_SUSPEND                                  policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y'}>
 CONFIG_SUSPEND_FREEZER                          policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y'}>
 CONFIG_SUSPEND_SKIP_SYNC                        policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'n', 'i386': 'n', 'ppc64el': 'n'}>
-CONFIG_HIBERNATION                              policy<{'amd64': 'y', 'arm64': 'n', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'n', 's390x': 'n'}>
+CONFIG_HIBERNATION                              policy<{'amd64': 'y', 'arm64': 'n', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'n'}>
 CONFIG_PM_STD_PARTITION                         policy<{'amd64': '""', 'armhf': '""', 'i386': '""'}>
 CONFIG_PM_AUTOSLEEP                             policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'n', 'i386': 'n', 'ppc64el': 'n'}>
 CONFIG_PM_WAKELOCKS                             policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y'}>
 CONFIG_PM_WAKELOCKS_LIMIT                       policy<{'amd64': '100', 'arm64': '100', 'armhf': '100', 'i386': '100', 'ppc64el': '100'}>
 CONFIG_PM_WAKELOCKS_GC                          policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y'}>
-CONFIG_PM                                       policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y', 's390x': 'n'}>
+CONFIG_PM                                       policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y'}>
 CONFIG_PM_TRACE_RTC                             policy<{'amd64': 'y', 'i386': 'y'}>
 CONFIG_APM_EMULATION                            policy<{'armhf': 'n'}>
 CONFIG_WQ_POWER_EFFICIENT_DEFAULT               policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y'}>
