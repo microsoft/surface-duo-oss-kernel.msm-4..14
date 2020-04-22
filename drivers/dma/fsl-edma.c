@@ -378,6 +378,13 @@ static struct fsl_edma_soc_data fsl_edma_vf610_data = {
 	.ops = &fsl_edma_ops,
 };
 
+static struct fsl_edma_drvdata imx7ulp_data = {
+	.version = v3,
+	.dmamuxs = 1,
+	.has_dmaclk = true,
+	.setup_irq = fsl_edma2_irq_init,
+};
+
 static const struct of_device_id fsl_edma_dt_ids[] = {
 	{
 	  .compatible = "fsl,s32gen1-edma",
@@ -391,6 +398,8 @@ static const struct of_device_id fsl_edma_dt_ids[] = {
 	  .compatible = "fsl,vf610-edma",
 	  .data = &fsl_edma_vf610_data,
 	},
+	{ .compatible = "fsl,imx7ulp-edma",
+	  .data = &imx7ulp_data},
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, fsl_edma_dt_ids);
@@ -417,26 +426,6 @@ static void fsl_disable_clocks(struct fsl_edma_engine *fsl_edma, int nr_clocks)
 	for (i = 0; i < nr_clocks; i++)
 		clk_disable_unprepare(fsl_edma->muxclk[i]);
 }
-
-static struct fsl_edma_drvdata vf610_data = {
-	.version = v1,
-	.dmamuxs = DMAMUX_NR,
-	.setup_irq = fsl_edma_irq_init,
-};
-
-static struct fsl_edma_drvdata imx7ulp_data = {
-	.version = v3,
-	.dmamuxs = 1,
-	.has_dmaclk = true,
-	.setup_irq = fsl_edma2_irq_init,
-};
-
-static const struct of_device_id fsl_edma_dt_ids[] = {
-	{ .compatible = "fsl,vf610-edma", .data = &vf610_data},
-	{ .compatible = "fsl,imx7ulp-edma", .data = &imx7ulp_data},
-	{ /* sentinel */ }
-};
-MODULE_DEVICE_TABLE(of, fsl_edma_dt_ids);
 
 static int fsl_edma_probe(struct platform_device *pdev)
 {
