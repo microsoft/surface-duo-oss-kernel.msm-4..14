@@ -385,6 +385,8 @@ static struct fsl_edma_ops fsl_edma3_ops = {
 };
 
 static struct fsl_edma_drvdata fsl_edma_s32gen1_data = {
+	.version = v1,
+	.dmamuxs = DMAMUX_NR,
 	.n_irqs = ARRAY_SIZE(s32gen1_edma_irqs),
 	.irqs = s32gen1_edma_irqs,
 	.mux_channel_mapping = s32v234_mux_channel_mapping,
@@ -392,6 +394,8 @@ static struct fsl_edma_drvdata fsl_edma_s32gen1_data = {
 };
 
 static struct fsl_edma_drvdata fsl_edma_s32v234_data = {
+	.version = v1,
+	.dmamuxs = DMAMUX_NR,
 	.n_irqs = ARRAY_SIZE(s32v234_edma_irqs),
 	.irqs = s32v234_edma_irqs,
 	.mux_channel_mapping = s32v234_mux_channel_mapping,
@@ -399,6 +403,8 @@ static struct fsl_edma_drvdata fsl_edma_s32v234_data = {
 };
 
 static struct fsl_edma_soc_data fsl_edma_vf610_data = {
+	.version = v1,
+	.dmamuxs = DMAMUX_NR,
 	.n_irqs = ARRAY_SIZE(vf610_edma_irqs),
 	.irqs = vf610_edma_irqs,
 	.mux_channel_mapping = vf610_mux_channel_mapping,
