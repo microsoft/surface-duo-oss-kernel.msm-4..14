@@ -11,7 +11,17 @@
 #include <linux/platform_device.h>
 #include "virt-dma.h"
 
-/* edma2 regs. */
+/* edma3 regs. */
+#define EDMA3_MP_CSR			0x00
+#define EDMA3_MP_ES			0x04
+
+#define EDMA3_CHn_CSR(ch)	(0x4000 + (ch) * 0x1000)
+#define EDMA3_CHn_ES(ch)	(0x4004 + (ch) * 0x1000)
+#define EDMA3_CHn_INT(ch)	(0x4008 + (ch) * 0x1000)
+
+#define EDMA3_TCD(ch)		(0x4020 + 0x1000 * (ch))
+
+/* edma2 fields. */
 #define EDMA_CR			0x00
 #define EDMA_ES			0x04
 #define EDMA_ERQ		0x0C
@@ -42,6 +52,31 @@
 #define EDMA_CINT_CINT(x)	((x) & GENMASK(4, 0))
 #define EDMA_CERR_CERR(x)	((x) & GENMASK(4, 0))
 
+/* edma3 fields. */
+#define EDMA3_MP_CSR_ERCA	BIT(2)
+#define EDMA3_MP_ES_VLD(x)	((x) & 0x80000000)
+
+#define EDMA3_CHn_CSR_ERQ	BIT(0)
+#define EDMA3_CHn_CSR_EEI	BIT(2)
+#define EDMA3_CHn_ES_ERR	BIT(31)
+#define EDMA3_CHn_INT_INT	BIT(0)
+
+/* edma2 & edma3 TCD fields. */
+#define EDMA_TCD_SADDR(tcd)		(0x00 + (tcd))
+#define EDMA_TCD_SOFF(tcd)		(0x04 + (tcd))
+#define EDMA_TCD_ATTR(tcd)		(0x06 + (tcd))
+#define EDMA_TCD_NBYTES(tcd)		(0x08 + (tcd))
+#define EDMA_TCD_SLAST(tcd)		(0x0C + (tcd))
+#define EDMA_TCD_DADDR(tcd)		(0x10 + (tcd))
+#define EDMA_TCD_DOFF(tcd)		(0x14 + (tcd))
+#define EDMA_TCD_CITER_ELINK(tcd)	(0x16 + (tcd))
+#define EDMA_TCD_CITER(tcd)		(0x16 + (tcd))
+#define EDMA_TCD_DLAST_SGA(tcd)		(0x18 + (tcd))
+#define EDMA_TCD_CSR(tcd)		(0x1C + (tcd))
+#define EDMA_TCD_BITER_ELINK(tcd)	(0x1E + (tcd))
+#define EDMA_TCD_BITER(tcd)		(0x1E + (tcd))
+
+/* edma2 & edma3 defines. */
 #define EDMA_TCD_ATTR_DSIZE(x)		(((x) & GENMASK(2, 0)))
 #define EDMA_TCD_ATTR_DMOD(x)		(((x) & GENMASK(4, 0)) << 3)
 #define EDMA_TCD_ATTR_SSIZE(x)		(((x) & GENMASK(2, 0)) << 8)
@@ -166,6 +201,14 @@ struct fsl_edma_drvdata {
 	bool			has_dmaclk;
 	int			(*setup_irq)(struct platform_device *pdev,
 					     struct fsl_edma_engine *fsl_edma);
+	struct		fsl_edma_ops	*ops;
+};
+
+struct fsl_edma_ops {
+	void    (*edma_enable_request)(struct fsl_edma_chan *fsl_chan);
+	void    (*edma_disable_request)(struct fsl_edma_chan *fsl_chan);
+	void    (*edma_enable_arbitration)(struct fsl_edma_engine *edma);
+	void __iomem*    (*edma_get_tcd_addr)(struct fsl_edma_chan *fsl_chan);
 };
 
 struct fsl_edma_engine {
