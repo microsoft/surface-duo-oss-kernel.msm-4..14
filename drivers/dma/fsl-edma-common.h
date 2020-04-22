@@ -2,6 +2,7 @@
 /*
  * Copyright 2013-2014 Freescale Semiconductor, Inc.
  * Copyright 2018 Angelo Dureghello <angelo@sysam.it>
+ * Copyright 2020 NXP
  */
 #ifndef _FSL_EDMA_COMMON_H_
 #define _FSL_EDMA_COMMON_H_
@@ -9,6 +10,22 @@
 #include <linux/dma-direction.h>
 #include <linux/platform_device.h>
 #include "virt-dma.h"
+
+/* edma2 regs. */
+#define EDMA_CR			0x00
+#define EDMA_ES			0x04
+#define EDMA_ERQ		0x0C
+#define EDMA_EEI		0x14
+#define EDMA_SERQ		0x1B
+#define EDMA_CERQ		0x1A
+#define EDMA_SEEI		0x19
+#define EDMA_CEEI		0x18
+#define EDMA_CINT		0x1F
+#define EDMA_CERR		0x1E
+#define EDMA_SSRT		0x1D
+#define EDMA_CDNE		0x1C
+#define EDMA_INTR		0x24
+#define EDMA_ERR		0x2C
 
 #define EDMA_CR_EDBG		BIT(1)
 #define EDMA_CR_ERCA		BIT(2)

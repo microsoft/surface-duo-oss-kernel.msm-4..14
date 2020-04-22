@@ -21,6 +21,8 @@
 
 #include "fsl-edma-common.h"
 
+#define EDMA_TCD(ch)		(0x1000 + 32 * (ch))
+
 static void fsl_edma_synchronize(struct dma_chan *chan)
 {
 	struct fsl_edma_chan *fsl_chan = to_fsl_edma_chan(chan);
