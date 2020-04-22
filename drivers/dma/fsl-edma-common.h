@@ -198,10 +198,18 @@ enum edma_version {
 struct fsl_edma_drvdata {
 	enum edma_version	version;
 	u32			dmamuxs;
+	int			n_irqs;
+	struct		fsl_edma_irq	*irqs;
 	bool			has_dmaclk;
 	int			(*setup_irq)(struct platform_device *pdev,
 					     struct fsl_edma_engine *fsl_edma);
 	struct		fsl_edma_ops	*ops;
+};
+
+struct fsl_edma_irq {
+	char *name;
+	irqreturn_t (*irqhandler)(int irq, void *data);
+	int irqno;
 };
 
 struct fsl_edma_ops {
