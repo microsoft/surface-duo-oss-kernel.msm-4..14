@@ -3,7 +3,7 @@
  * drivers/dma/fsl-edma.c
  *
  * Copyright 2013-2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2018, 2020 NXP
+ * Copyright 2017-2020 NXP
  *
  * Driver for the Freescale eDMA engine with flexible channel multiplexing
  * capability for DMA request sources. The eDMA block can be found on some
@@ -109,6 +109,14 @@ static irqreturn_t fsl_edma3_tx_handler(int irq, void *dev_id)
 			fsl_chan = &fsl_edma->chans[ch];
 
 			spin_lock(&fsl_chan->vchan.lock);
+			/* It is possible that fsl_edma_terminate_all() has
+			 * canceled transfers on this channel
+			 */
+			if (!fsl_chan->edesc) {
+				spin_unlock(&fsl_chan->vchan.lock);
+				continue;
+			}
+
 			if (!fsl_chan->edesc->iscyclic) {
 				list_del(&fsl_chan->edesc->vdesc.node);
 				vchan_cookie_complete(&fsl_chan->edesc->vdesc);
