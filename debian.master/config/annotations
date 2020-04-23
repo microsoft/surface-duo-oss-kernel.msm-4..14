@@ -66,7 +66,7 @@ CONFIG_ACPI_APEI_EINJ                           policy<{'amd64': 'm', 'arm64': '
 CONFIG_ACPI_APEI_ERST_DEBUG                     policy<{'amd64': 'n', 'arm64': 'n', 'i386': 'n'}>
 
 # Menu: ACPI (Advanced Configuration and Power Interface) Support >> PMIC (Power Management Integrated Circuit) operation region support
-CONFIG_PMIC_OPREGION                            policy<{'amd64': 'n', 'arm64': 'n', 'i386': 'n'}>
+CONFIG_PMIC_OPREGION                            policy<{'amd64': 'y', 'arm64': 'n', 'i386': 'n'}>
 
 # Menu: ARM Accelerated Cryptographic Algorithms
 CONFIG_CRYPTO_CHACHA20_NEON                     policy<{'arm64': 'm', 'armhf': 'm'}>
@@ -1531,7 +1531,7 @@ CONFIG_GPIO_ARIZONA                             policy<{'amd64': 'm', 'arm64': '
 CONFIG_GPIO_BD70528                             policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm'}>
 CONFIG_GPIO_BD71828                             policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm'}>
 CONFIG_GPIO_BD9571MWV                           policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
-CONFIG_GPIO_CRYSTAL_COVE                        policy<{'amd64': 'm', 'i386': 'm'}>
+CONFIG_GPIO_CRYSTAL_COVE                        policy<{'amd64': 'y', 'i386': 'm'}>
 CONFIG_GPIO_CS5535                              policy<{'i386': 'm'}>
 CONFIG_GPIO_DA9052                              policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
 CONFIG_GPIO_DA9055                              policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
