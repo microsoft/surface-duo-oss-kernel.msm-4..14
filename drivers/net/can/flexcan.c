@@ -1852,7 +1852,7 @@ static int flexcan_probe(struct platform_device *pdev)
 	priv->reg_xceiver = reg_xceiver;
 	priv->irq_nos = irq_nos;
 
-	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_TIMESTAMP_SUPPORT_FD) {
+	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SETUP_STOP_MODE) {
 		if (!(priv->devtype_data->quirks &
 		      FLEXCAN_QUIRK_USE_OFF_TIMESTAMP)) {
 			dev_err(&pdev->dev, "canfd mode can't work on fifo mode\n");
