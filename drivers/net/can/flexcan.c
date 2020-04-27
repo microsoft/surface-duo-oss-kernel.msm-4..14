@@ -1178,7 +1178,7 @@ static int flexcan_chip_start(struct net_device *dev)
 {
 	struct flexcan_priv *priv = netdev_priv(dev);
 	struct flexcan_regs __iomem *regs = priv->regs;
-	u32 reg_mcr, reg_ctrl, reg_ctrl2, reg_mecr, reg_fdctrl;
+	u32 reg_mcr, reg_ctrl, reg_ctrl2, reg_mecr;
 	int err, i;
 	struct flexcan_mb __iomem *mb;
 
@@ -1209,17 +1209,6 @@ static int flexcan_chip_start(struct net_device *dev)
 	reg_mcr |= FLEXCAN_MCR_FRZ | FLEXCAN_MCR_HALT | FLEXCAN_MCR_SUPV |
 		FLEXCAN_MCR_WRN_EN | FLEXCAN_MCR_IRMQ | FLEXCAN_MCR_IDAM_C |
 		FLEXCAN_MCR_MAXMB(priv->tx_mb_idx);
-
-	/* MCR
-	 *
-	 * FIFO:
-	 * - disable for timestamp mode
-	 * - enable for FIFO mode
-	 */
-	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_USE_OFF_TIMESTAMP)
-		reg_mcr &= ~FLEXCAN_MCR_FEN;
-	else
-		reg_mcr |= FLEXCAN_MCR_FEN;
 
 	/* MCR
 	 *
@@ -1273,28 +1262,6 @@ static int flexcan_chip_start(struct net_device *dev)
 	reg_ctrl &= ~FLEXCAN_CTRL_ERR_ALL;
 	netdev_dbg(dev, "%s: writing ctrl=0x%08x", __func__, reg_ctrl);
 	priv->write(reg_ctrl, &regs->ctrl);
-
-	/* FDCTRL
-	 *
-	 * support BRS when set CAN FD mode
-	 * 64 bytes payload per MB and 7 MBs per RAM block by default
-	 * enable CAN FD mode
-	 */
-	if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
-		reg_fdctrl = priv->read(&regs->fdctrl);
-		reg_fdctrl |= FLEXCAN_FDCTRL_FDRATE;
-		reg_fdctrl |= FLEXCAN_FDCTRL_MBDSR3(3) | FLEXCAN_FDCTRL_MBDSR2(3) |
-				FLEXCAN_FDCTRL_MBDSR1(3) | FLEXCAN_FDCTRL_MBDSR0(3);
-		priv->write(reg_fdctrl, &regs->fdctrl);
-		reg_mcr = priv->read(&regs->mcr);
-		priv->write(reg_mcr | FLEXCAN_MCR_FDEN, &regs->mcr);
-
-		reg_ctrl2 = priv->read(&regs->ctrl2);
-		if (!(priv->can.ctrlmode & CAN_CTRLMODE_FD_NON_ISO))
-			priv->write(reg_ctrl2 | FLEXCAN_CTRL2_ISOCANFDEN, &regs->ctrl2);
-		else
-			priv->write(reg_ctrl2 & ~FLEXCAN_CTRL2_ISOCANFDEN, &regs->ctrl2);
-	}
 
 	if ((priv->devtype_data->quirks & FLEXCAN_QUIRK_ENABLE_EACEN_RRS)) {
 		reg_ctrl2 = priv->read(&regs->ctrl2);
