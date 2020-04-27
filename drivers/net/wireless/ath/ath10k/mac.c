@@ -4529,17 +4529,18 @@ static int ath10k_get_antenna(struct ieee80211_hw *hw, u32 *tx_ant, u32 *rx_ant)
 	return 0;
 }
 
-static void ath10k_check_chain_mask(struct ath10k *ar, u32 cm, const char *dbg)
+static bool ath10k_check_chain_mask(struct ath10k *ar, u32 cm, const char *dbg)
 {
 	/* It is not clear that allowing gaps in chainmask
 	 * is helpful.  Probably it will not do what user
 	 * is hoping for, so warn in that case.
 	 */
 	if (cm == 15 || cm == 7 || cm == 3 || cm == 1 || cm == 0)
-		return;
+		return true;
 
-	ath10k_warn(ar, "mac %s antenna chainmask may be invalid: 0x%x.  Suggested values: 15, 7, 3, 1 or 0.\n",
+	ath10k_warn(ar, "mac %s antenna chainmask is invalid: 0x%x.  Suggested values: 15, 7, 3, 1 or 0.\n",
 		    dbg, cm);
+	return false;
 }
 
 static int ath10k_mac_get_vht_cap_bf_sts(struct ath10k *ar)
@@ -4722,11 +4723,15 @@ static void ath10k_mac_setup_ht_vht_cap(struct ath10k *ar)
 static int __ath10k_set_antenna(struct ath10k *ar, u32 tx_ant, u32 rx_ant)
 {
 	int ret;
+	bool is_valid_tx_chain_mask, is_valid_rx_chain_mask;
 
 	lockdep_assert_held(&ar->conf_mutex);
 
-	ath10k_check_chain_mask(ar, tx_ant, "tx");
-	ath10k_check_chain_mask(ar, rx_ant, "rx");
+	is_valid_tx_chain_mask = ath10k_check_chain_mask(ar, tx_ant, "tx");
+	is_valid_rx_chain_mask = ath10k_check_chain_mask(ar, rx_ant, "rx");
+
+	if (!is_valid_tx_chain_mask || !is_valid_rx_chain_mask)
+		return -EINVAL;
 
 	ar->cfg_tx_chainmask = tx_ant;
 	ar->cfg_rx_chainmask = rx_ant;
@@ -7224,6 +7229,7 @@ static void ath10k_flush(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
 					ath10k_wmi_peer_flush(ar, arvif->vdev_id,
 							      arvif->bssid, bitmap);
 			}
+			ath10k_htt_flush_tx(&ar->htt);
 		}
 		return;
 	}
@@ -8305,6 +8311,8 @@ static void ath10k_sta_statistics(struct ieee80211_hw *hw,
 	if (!ath10k_peer_stats_enabled(ar))
 		return;
 
+	ath10k_debug_fw_stats_request(ar);
+
 	sinfo->rx_duration = arsta->rx_duration;
 	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_RX_DURATION);
 
@@ -8320,6 +8328,13 @@ static void ath10k_sta_statistics(struct ieee80211_hw *hw,
 	}
 	sinfo->txrate.flags = arsta->txrate.flags;
 	sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_BITRATE);
+
+	if (ar->htt.disable_tx_comp) {
+		sinfo->tx_retries = arsta->tx_retries;
+		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_RETRIES);
+		sinfo->tx_failed = arsta->tx_failed;
+		sinfo->filled |= BIT_ULL(NL80211_STA_INFO_TX_FAILED);
+	}
 }
 
 static const struct ieee80211_ops ath10k_ops = {
