@@ -1428,13 +1428,8 @@ static int flexcan_open(struct net_device *dev)
 	priv->tx_mb_idx = priv->mb_count - 1;
 	priv->tx_mb = flexcan_get_mb(priv, priv->tx_mb_idx);
 
-	if (priv->tx_mb_idx >= FLEXCAN_IFLAG1_MB_NUM) {
-		priv->reg_imask1_default = 0;
-		priv->reg_imask2_default = FLEXCAN_IFLAG2_MB(priv->tx_mb_idx);
-	} else {
-		priv->reg_imask1_default = FLEXCAN_IFLAG1_MB(priv->tx_mb_idx);
-		priv->reg_imask2_default = 0;
-	}
+	priv->reg_imask1_default = 0;
+	priv->reg_imask2_default = FLEXCAN_IFLAG_MB(priv->tx_mb_idx);
 
 	priv->offload.mailbox_read = flexcan_mailbox_read;
 
