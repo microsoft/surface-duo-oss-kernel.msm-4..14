@@ -726,7 +726,7 @@ static netdev_tx_t flexcan_start_xmit(struct sk_buff *skb, struct net_device *de
 	struct canfd_frame *cf = (struct canfd_frame *)skb->data;
 	u32 can_id;
 	u32 data;
-	u32 ctrl = FLEXCAN_MB_CODE_TX_DATA | (cf->can_dlc << 16);
+	u32 ctrl = FLEXCAN_MB_CODE_TX_DATA | ((can_len2dlc(cf->len)) << 16);
 	int i, j;
 
 	if (can_dropped_invalid_skb(dev, skb))
@@ -744,9 +744,9 @@ static netdev_tx_t flexcan_start_xmit(struct sk_buff *skb, struct net_device *de
 	if (cf->can_id & CAN_RTR_FLAG)
 		ctrl |= FLEXCAN_MB_CNT_RTR;
 
-	for (i = 0; i < cf->can_dlc; i += sizeof(u32)) {
+	for (i = 0, j = 0; i < cf->len; i += sizeof(u32), j++) {
 		data = be32_to_cpup((__be32 *)&cf->data[i]);
-		priv->write(data, &priv->tx_mb->data[i / sizeof(u32)]);
+		priv->write(data, &priv->tx_mb->data[j]);
 	}
 
 	can_put_echo_skb(skb, dev, 0);
@@ -948,6 +948,7 @@ static unsigned int flexcan_mailbox_read(struct can_rx_offload *offload,
 	struct flexcan_priv *priv = rx_offload_to_priv(offload);
 	struct flexcan_regs __iomem *regs = priv->regs;
 	struct flexcan_mb __iomem *mb;
+	struct canfd_frame *cf;
 	u32 reg_ctrl, reg_id, reg_iflag1;
 	int i, j;
 	unsigned long flags;
@@ -1008,10 +1009,10 @@ static unsigned int flexcan_mailbox_read(struct can_rx_offload *offload,
 		if (reg_ctrl & FLEXCAN_MB_CNT_EDL) {
 			cf->len = can_dlc2len((reg_ctrl >> 16) & 0x0F);
 
-	for (i = 0; i < cf->can_dlc; i += sizeof(u32)) {
-		__be32 data = cpu_to_be32(priv->read(&mb->data[i / sizeof(u32)]));
-		*(__be32 *)(cf->data + i) = data;
-	}
+			if (reg_ctrl & FLEXCAN_MB_CNT_BRS)
+				cf->flags |= CANFD_BRS;
+		} else {
+			cf->len = get_can_dlc((reg_ctrl >> 16) & 0x0F);
 
 			if (reg_ctrl & FLEXCAN_MB_CNT_RTR)
 				cf->can_id |= CAN_RTR_FLAG;

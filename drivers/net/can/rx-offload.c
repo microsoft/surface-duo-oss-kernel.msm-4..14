@@ -2,6 +2,7 @@
 /*
  * Copyright (c) 2014 David Jander, Protonic Holland
  * Copyright (C) 2014-2017 Pengutronix, Marc Kleine-Budde <kernel@pengutronix.de>
+ * Copyright 2019-2020 NXP
  */
 
 #include <linux/can/dev.h>
@@ -107,95 +108,25 @@ static int can_rx_offload_compare(struct sk_buff *a, struct sk_buff *b)
 	return cb_b->timestamp - cb_a->timestamp;
 }
 
-/**
- * can_rx_offload_offload_one() - Read one CAN frame from HW
- * @offload: pointer to rx_offload context
- * @n: number of mailbox to read
- *
- * The task of this function is to read a CAN frame from mailbox @n
- * from the device and return the mailbox's content as a struct
- * sk_buff.
- *
- * If the struct can_rx_offload::skb_queue exceeds the maximal queue
- * length (struct can_rx_offload::skb_queue_len_max) or no skb can be
- * allocated, the mailbox contents is discarded by reading it into an
- * overflow buffer. This way the mailbox is marked as free by the
- * driver.
- *
- * Return: A pointer to skb containing the CAN frame on success.
- *
- *         NULL if the mailbox @n is empty.
- *
- *         ERR_PTR() in case of an error
- */
-static struct sk_buff *
-can_rx_offload_offload_one(struct can_rx_offload *offload, unsigned int n)
+static struct sk_buff *can_rx_offload_offload_one(struct can_rx_offload
+		*offload, unsigned int n)
 {
-	struct sk_buff *skb = NULL, *skb_error = NULL;
-	struct can_rx_offload_cb *cb;
-	struct can_frame *cf;
-	int ret;
+	struct sk_buff *skb = NULL;
+	u32 timestamp;
+	bool drop;
 
-	if (likely(skb_queue_len(&offload->skb_queue) <
-		   offload->skb_queue_len_max)) {
-		skb = alloc_can_skb(offload->dev, &cf);
-		if (unlikely(!skb))
-			skb_error = ERR_PTR(-ENOMEM);	/* skb alloc failed */
-	} else {
-		skb_error = ERR_PTR(-ENOBUFS);		/* skb_queue is full */
-	}
+	drop = unlikely(skb_queue_len(&offload->skb_queue) >
+			offload->skb_queue_len_max);
 
-	/* If queue is full or skb not available, drop by reading into
-	 * overflow buffer.
-	 */
-	if (unlikely(skb_error)) {
-		struct can_frame cf_overflow;
-		u32 timestamp;
-
-		ret = offload->mailbox_read(offload, &cf_overflow,
-					    &timestamp, n);
-
-		/* Mailbox was empty. */
-		if (unlikely(!ret))
-			return NULL;
-
-		/* Mailbox has been read and we're dropping it or
-		 * there was a problem reading the mailbox.
-		 *
-		 * Increment error counters in any case.
-		 */
+	if (offload->mailbox_read(offload, drop, &skb, &timestamp, n) && !skb)
 		offload->dev->stats.rx_dropped++;
-		offload->dev->stats.rx_fifo_errors++;
 
-		/* There was a problem reading the mailbox, propagate
-		 * error value.
-		 */
-		if (unlikely(ret < 0))
-			return ERR_PTR(ret);
+	if (skb) {
+		struct can_rx_offload_cb *cb = can_rx_offload_get_cb(skb);
 
-		return skb_error;
+		cb->timestamp = timestamp;
 	}
 
-	cb = can_rx_offload_get_cb(skb);
-	ret = offload->mailbox_read(offload, cf, &cb->timestamp, n);
-
-	/* Mailbox was empty. */
-	if (unlikely(!ret)) {
-		kfree_skb(skb);
-		return NULL;
-	}
-
-	/* There was a problem reading the mailbox, propagate error value. */
-	if (unlikely(ret < 0)) {
-		kfree_skb(skb);
-
-		offload->dev->stats.rx_dropped++;
-		offload->dev->stats.rx_fifo_errors++;
-
-		return ERR_PTR(ret);
-	}
-
-	/* Mailbox was read. */
 	return skb;
 }
 

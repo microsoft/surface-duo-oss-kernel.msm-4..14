@@ -4,6 +4,7 @@
  *
  * Copyright (c) 2014 David Jander, Protonic Holland
  * Copyright (c) 2014-2017 Pengutronix, Marc Kleine-Budde <kernel@pengutronix.de>
+ * Copyright 2019-2020 NXP
  */
 
 #ifndef _CAN_RX_OFFLOAD_H
@@ -15,9 +16,9 @@
 struct can_rx_offload {
 	struct net_device *dev;
 
-	unsigned int (*mailbox_read)(struct can_rx_offload *offload,
-				     struct can_frame *cf,
-				     u32 *timestamp, unsigned int mb);
+	unsigned int (*mailbox_read)(struct can_rx_offload *offload, bool drop,
+				     struct sk_buff **skb, u32 *timestamp,
+					 unsigned int mb);
 
 	struct sk_buff_head skb_queue;
 	u32 skb_queue_len_max;
