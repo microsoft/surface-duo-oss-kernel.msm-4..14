@@ -6,7 +6,7 @@
 // Copyright (c) 2009 Sascha Hauer, Pengutronix
 // Copyright (c) 2010-2017 Pengutronix, Marc Kleine-Budde <kernel@pengutronix.de>
 // Copyright (c) 2014 David Jander, Protonic Holland
-// Copyright 2015,2018,2019 NXP
+// Copyright 2015,2018-2020 NXP
 //
 // Based on code originally by Andrey Volkov <avolkov@varma-el.com>
 
@@ -172,6 +172,10 @@
 #define FLEXCAN_MB_CNT_TIMESTAMP(x)	((x) & 0xffff)
 
 #define FLEXCAN_TIMEOUT_US		(250)
+
+/* OTP Bank0 Word4 (OCOTP_CFG3) address and bits */
+#define OCOTP_CFG3					0x440
+#define OCOTP_CFG3_CAN_FD_DISABLE	BIT(7)
 
 /* FLEXCAN hardware feature flags
  *
@@ -463,6 +467,41 @@ static inline u32 flexcan_read_le(void __iomem *addr)
 static inline void flexcan_write_le(u32 val, void __iomem *addr)
 {
 	iowrite32(val, addr);
+}
+
+static inline int flexcan_request_fd(struct device *dev, bool *allowed)
+{
+	struct device_node *otp_node;
+	u32 cfg3;
+	void __iomem *otp_regs;
+
+	*allowed = false;
+
+	if (!of_device_is_compatible(dev->of_node, "fsl,s32v234-flexcan")) {
+		*allowed = true;
+		return 0;
+	}
+
+	otp_node = of_parse_phandle(dev->of_node, "s32v234-ocotp", 0);
+	if (!otp_node) {
+		dev_info(dev, "OCOTP node not found. CAN FD support is disabled.\n");
+		return 0;
+	}
+
+	otp_regs = of_iomap(otp_node, 0);
+	if (!otp_regs) {
+		dev_warn(dev, "Cannot map OCOTP registers. CAN FD support is disabled.\n");
+		return -ENOMEM;
+	}
+
+	cfg3 = readl(otp_regs + OCOTP_CFG3);
+	if (cfg3 & OCOTP_CFG3_CAN_FD_DISABLE) {
+		dev_info(dev, "CAN FD is not supported by hardware.\n");
+		return 0;
+	}
+
+	*allowed = true;
+	return 0;
 }
 
 static struct flexcan_mb __iomem *flexcan_get_mb(const struct flexcan_priv *priv,
@@ -1838,12 +1877,8 @@ static int flexcan_probe(struct platform_device *pdev)
 
 	priv->dev = &pdev->dev;
 	priv->can.clock.freq = clock_freq;
-	priv->can.bittiming_const = &flexcan_bittiming_const;
 	priv->can.do_set_mode = flexcan_set_mode;
 	priv->can.do_get_berr_counter = flexcan_get_berr_counter;
-	priv->can.ctrlmode_supported = CAN_CTRLMODE_LOOPBACK |
-		CAN_CTRLMODE_LISTENONLY	| CAN_CTRLMODE_3_SAMPLES |
-		CAN_CTRLMODE_BERR_REPORTING;
 	priv->regs = regs;
 	priv->clk_ipg = clk_ipg;
 	priv->clk_per = clk_per;
@@ -1854,11 +1889,24 @@ static int flexcan_probe(struct platform_device *pdev)
 
 	if (priv->devtype_data->quirks & FLEXCAN_QUIRK_SETUP_STOP_MODE) {
 		if (!(priv->devtype_data->quirks &
-		      FLEXCAN_QUIRK_USE_OFF_TIMESTAMP)) {
+			  FLEXCAN_QUIRK_USE_OFF_TIMESTAMP)) {
 			dev_err(&pdev->dev, "canfd mode can't work on fifo mode\n");
 			err = -EINVAL;
-			goto failed_fd_check;
+			goto failed_register;
 		}
+
+		err = flexcan_request_fd(&pdev->dev, &fd_allowed);
+		if (err)
+			goto failed_register;
+
+		if (fd_allowed) {
+			priv->can.ctrlmode_supported |= CAN_CTRLMODE_FD |
+				CAN_CTRLMODE_FD_NON_ISO;
+			priv->can.bittiming_const = &flexcan_fd_bittiming_const;
+			priv->can.data_bittiming_const =
+				&flexcan_fd_data_bittiming_const;
+		}
+	}
 
 	pm_runtime_get_noresume(&pdev->dev);
 	pm_runtime_set_active(&pdev->dev);
