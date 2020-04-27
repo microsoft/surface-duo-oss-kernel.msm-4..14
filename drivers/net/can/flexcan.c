@@ -1135,12 +1135,25 @@ static void flexcan_set_bittiming(struct net_device *dev)
 {
 	const struct flexcan_priv *priv = netdev_priv(dev);
 	const struct can_bittiming *bt = &priv->can.bittiming;
-	const struct can_bittiming *dbt = &priv->can.data_bittiming;
 	struct flexcan_regs __iomem *regs = priv->regs;
 	u32 reg;
 
 	reg = priv->read(&regs->ctrl);
-	reg &= ~(FLEXCAN_CTRL_LPB | FLEXCAN_CTRL_SMP | FLEXCAN_CTRL_LOM);
+	reg &= ~(FLEXCAN_CTRL_PRESDIV(0xff) |
+		 FLEXCAN_CTRL_RJW(0x3) |
+		 FLEXCAN_CTRL_PSEG1(0x7) |
+		 FLEXCAN_CTRL_PSEG2(0x7) |
+		 FLEXCAN_CTRL_PROPSEG(0x7) |
+		 FLEXCAN_CTRL_LPB |
+		 FLEXCAN_CTRL_SMP |
+		 FLEXCAN_CTRL_LOM);
+
+	reg |= FLEXCAN_CTRL_PRESDIV(bt->brp - 1) |
+		FLEXCAN_CTRL_PSEG1(bt->phase_seg1 - 1) |
+		FLEXCAN_CTRL_PSEG2(bt->phase_seg2 - 1) |
+		FLEXCAN_CTRL_RJW(bt->sjw - 1) |
+		FLEXCAN_CTRL_PROPSEG(bt->prop_seg - 1);
+
 	if (priv->can.ctrlmode & CAN_CTRLMODE_LOOPBACK)
 		reg |= FLEXCAN_CTRL_LPB;
 	if (priv->can.ctrlmode & CAN_CTRLMODE_LISTENONLY)
@@ -1151,63 +1164,9 @@ static void flexcan_set_bittiming(struct net_device *dev)
 	netdev_dbg(dev, "writing ctrl=0x%08x\n", reg);
 	priv->write(reg, &regs->ctrl);
 
-	if (priv->can.ctrlmode_supported & CAN_CTRLMODE_FD) {
-		reg = FLEXCAN_CBT_EPRESDIV(bt->brp - 1) |
-			FLEXCAN_CBT_EPSEG1(bt->phase_seg1 - 1) |
-			FLEXCAN_CBT_EPSEG2(bt->phase_seg2 - 1) |
-			FLEXCAN_CBT_ERJW(bt->sjw - 1) |
-			FLEXCAN_CBT_EPROPSEG(bt->prop_seg - 1) |
-			FLEXCAN_CBT_BTF;
-		priv->write(reg, &regs->cbt);
-
-		netdev_dbg(dev, "bt: prediv %d seg1 %d seg2 %d rjw %d propseg %d\n",
-			   bt->brp - 1, bt->phase_seg1 - 1, bt->phase_seg2 - 1,
-			   bt->sjw - 1, bt->prop_seg - 1);
-
-		if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
-			reg = FLEXCAN_FDCBT_FPRESDIV(dbt->brp - 1) |
-				FLEXCAN_FDCBT_FPSEG1(dbt->phase_seg1 - 1) |
-				FLEXCAN_FDCBT_FPSEG2(dbt->phase_seg2 - 1) |
-				FLEXCAN_FDCBT_FRJW(dbt->sjw - 1) |
-				FLEXCAN_FDCBT_FPROPSEG(dbt->prop_seg);
-			priv->write(reg, &regs->fdcbt);
-
-			if (bt->brp != dbt->brp)
-				netdev_warn(dev, "PRESDIV not the same, may risk transfer errors\n");
-
-			netdev_dbg(dev, "fdbt: prediv %d seg1 %d seg2 %d rjw %d propseg %d\n",
-				   dbt->brp - 1, dbt->phase_seg1 - 1, dbt->phase_seg2 - 1,
-				   dbt->sjw - 1, dbt->prop_seg);
-
-			netdev_dbg(dev, "%s: mcr=0x%08x ctrl=0x%08x cbt=0x%08x fdcbt=0x%08x\n",
-				   __func__, priv->read(&regs->mcr),
-				   priv->read(&regs->ctrl),
-				   priv->read(&regs->cbt),
-				   priv->read(&regs->fdcbt));
-		}
-	} else {
-		reg = priv->read(&regs->ctrl);
-		reg &= ~(FLEXCAN_CTRL_PRESDIV(0xff) |
-			 FLEXCAN_CTRL_RJW(0x3) |
-			 FLEXCAN_CTRL_PSEG1(0x7) |
-			 FLEXCAN_CTRL_PSEG2(0x7) |
-			 FLEXCAN_CTRL_PROPSEG(0x7));
-
-		reg |= FLEXCAN_CTRL_PRESDIV(bt->brp - 1) |
-			FLEXCAN_CTRL_PSEG1(bt->phase_seg1 - 1) |
-			FLEXCAN_CTRL_PSEG2(bt->phase_seg2 - 1) |
-			FLEXCAN_CTRL_RJW(bt->sjw - 1) |
-			FLEXCAN_CTRL_PROPSEG(bt->prop_seg - 1);
-		priv->write(reg, &regs->ctrl);
-
-		netdev_dbg(dev, "bt: prediv %d seg1 %d seg2 %d rjw %d propseg %d\n",
-			   bt->brp - 1, bt->phase_seg1 - 1, bt->phase_seg2 - 1,
-			   bt->sjw - 1, bt->prop_seg - 1);
-
-		/* print chip status */
-		netdev_dbg(dev, "%s: mcr=0x%08x ctrl=0x%08x\n", __func__,
-			   priv->read(&regs->mcr), priv->read(&regs->ctrl));
-	}
+	/* print chip status */
+	netdev_dbg(dev, "%s: mcr=0x%08x ctrl=0x%08x\n", __func__,
+		   priv->read(&regs->mcr), priv->read(&regs->ctrl));
 }
 
 /* flexcan_chip_start
