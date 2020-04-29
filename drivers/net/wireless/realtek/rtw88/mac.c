@@ -1072,7 +1072,8 @@ static int set_trx_fifo_info(struct rtw_dev *rtwdev)
 }
 
 static int __priority_queue_cfg(struct rtw_dev *rtwdev,
-				struct rtw_page_table *pg_tbl, u16 pubq_num)
+				const struct rtw_page_table *pg_tbl,
+				u16 pubq_num)
 {
 	struct rtw_fifo_conf *fifo = &rtwdev->fifo;
 	struct rtw_chip_info *chip = rtwdev->chip;
@@ -1102,7 +1103,8 @@ static int __priority_queue_cfg(struct rtw_dev *rtwdev,
 }
 
 static int __priority_queue_cfg_legacy(struct rtw_dev *rtwdev,
-				       struct rtw_page_table *pg_tbl, u16 pubq_num)
+				       const struct rtw_page_table *pg_tbl,
+				       u16 pubq_num)
 {
 	struct rtw_fifo_conf *fifo = &rtwdev->fifo;
 	struct rtw_chip_info *chip = rtwdev->chip;
