@@ -99,6 +99,7 @@ CONFIG_DRM_PANEL_ORIENTATION_QUIRKS=m
 # CONFIG_ENCLOSURE_SERVICES is not set
 # CONFIG_ETHOC is not set
 # CONFIG_EVM_LOAD_X509 is not set
+# CONFIG_EXFAT_FS is not set
 # CONFIG_EXTCON is not set
 # CONFIG_F2FS_FS is not set
 # CONFIG_FB_3DFX is not set
