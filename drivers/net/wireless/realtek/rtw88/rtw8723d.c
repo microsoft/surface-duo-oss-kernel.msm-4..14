@@ -2308,7 +2308,7 @@ static struct rtw_pwr_seq_cmd trans_cardemu_to_act_8723d[] = {
 	 RTW_PWR_CMD_END, 0, 0},
 };
 
-static struct rtw_pwr_seq_cmd *card_enable_flow_8723d[] = {
+const static struct rtw_pwr_seq_cmd *card_enable_flow_8723d[] = {
 	trans_carddis_to_cardemu_8723d,
 	trans_cardemu_to_act_8723d,
 	NULL
@@ -2524,7 +2524,7 @@ static struct rtw_pwr_seq_cmd trans_act_to_post_carddis_8723d[] = {
 	 RTW_PWR_CMD_END, 0, 0},
 };
 
-static struct rtw_pwr_seq_cmd *card_disable_flow_8723d[] = {
+const static struct rtw_pwr_seq_cmd *card_disable_flow_8723d[] = {
 	trans_act_to_lps_8723d,
 	trans_act_to_pre_carddis_8723d,
 	trans_act_to_cardemu_8723d,
