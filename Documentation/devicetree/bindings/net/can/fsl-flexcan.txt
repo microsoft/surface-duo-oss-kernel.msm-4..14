@@ -54,7 +54,18 @@ Optional properties:
 
 - wakeup-source: enable CAN remote wakeup
 
-Example:
+- interrupt-names: Allows the interrupt specifiers in "interrupts" to be stated
+                   in any order, one for each name in here. Can contain:
+                   "state" - BOFFINT | BOFFDONEINT | TWRNINT | RWRNINT;
+                   "berr" - ERRINT;
+                   "mb_0-7" - MB0-7 interrupts;
+                   "mb_8-127" - MB8-127 interrupts;
+                   "state-berr" - ERRINT | BOFFINT | BOFFDONEINT | TWRNINT |
+                                  RWRNINT;
+                   "mb" - all MB interrupts;
+                   "all" - all interrupts combined.
+
+Examples:
 
 	can@1c000 {
 		compatible = "fsl,p1010-flexcan";
