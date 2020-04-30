@@ -33,6 +33,7 @@
 
 #define DSPI_DMA_BUFSIZE(dspi)	(dspi->fifo_size * 1024)
 
+/* Module Configuration Register (SPI_MCR) */
 #define SPI_MCR				0x00
 #define SPI_MCR_MASTER			BIT(31)
 #define SPI_MCR_PCSIS(x)		((x) << 16)
@@ -41,9 +42,11 @@
 #define SPI_MCR_XSPI			BIT(3)
 #define SPI_MCR_HALT			BIT(0)
 
+/* Transfer Count Register (SPI_TCR) */
 #define SPI_TCR				0x08
 #define SPI_TCR_GET_TCNT(x)		(((x) & GENMASK(31, 16)) >> 16)
 
+/* Clock and Transfer Attribute Register (SPI_CTARn) - Master Mode */
 #define SPI_CTAR(x)			(0x0c + (((x) & GENMASK(1, 0)) * 4))
 #define SPI_CTAR_FMSZ(x)		(((x) << 27) & GENMASK(30, 27))
 #define SPI_CTAR_CPOL			BIT(26)
@@ -61,6 +64,7 @@
 
 #define SPI_CTAR0_SLAVE			0x0c
 
+/* Status Register (SPI_SR) */
 #define SPI_SR				0x2c
 #define SPI_SR_TCFQF			BIT(31)
 #define SPI_SR_EOQF			BIT(28)
@@ -79,6 +83,7 @@
 					SPI_SR_RFOF | SPI_SR_TFIWF | \
 					SPI_SR_RFDF | SPI_SR_CMDFFF)
 
+/* DMA/Interrupts Request Select and Enable Register (SPI_RSER) */
 #define SPI_RSER_TFFFE			BIT(25)
 #define SPI_RSER_TFFFD			BIT(24)
 #define SPI_RSER_RFDFE			BIT(17)
@@ -88,11 +93,13 @@
 #define SPI_RSER_TCFQE			BIT(31)
 #define SPI_RSER_EOQFE			BIT(28)
 
+/* PUSH TX FIFO Register in Master Mode (SPI_PUSHR) */
 #define SPI_PUSHR			0x34
 #define SPI_PUSHR_CMD_CONT		BIT(15)
 #define SPI_PUSHR_CMD_CTAS(x)		(((x) << 12 & GENMASK(14, 12)))
 #define SPI_PUSHR_CMD_EOQ		BIT(11)
 #define SPI_PUSHR_CMD_CTCNT		BIT(10)
+#define SPI_PUSHR_CTCNT		 (SPI_PUSHR_CMD_CTCNT << 16)
 #define SPI_PUSHR_CMD_PCS(x, y)        ((BIT(x)) & (y))
 #define SPI_PUSHR_PCS(x, y)    (SPI_PUSHR_CMD_PCS(x, y) << 16)
 
