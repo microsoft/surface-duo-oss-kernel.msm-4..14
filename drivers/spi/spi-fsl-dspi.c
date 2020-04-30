@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 //
 // Copyright 2013-2016 Freescale Semiconductor, Inc.
-// Copyright 2017-2019 NXP
+// Copyright 2017-2020 NXP
 //
 // Freescale DSPI driver
 // This file contains a driver for the Freescale DSPI
@@ -35,7 +35,7 @@
 
 #define SPI_MCR				0x00
 #define SPI_MCR_MASTER			BIT(31)
-#define SPI_MCR_PCSIS			(0x3F << 16)
+#define SPI_MCR_PCSIS(x)		((x) << 16)
 #define SPI_MCR_CLR_TXF			BIT(11)
 #define SPI_MCR_CLR_RXF			BIT(10)
 #define SPI_MCR_XSPI			BIT(3)
@@ -214,6 +214,7 @@ struct fsl_dspi {
 	u8					bytes_per_word;
 	const struct fsl_dspi_devtype_data	*devtype_data;
 	size_t                  fifo_size;
+	u32                     pcs_mask;
 
 	wait_queue_head_t			waitq;
 	u32					waitflags;
@@ -1106,7 +1107,7 @@ static const struct regmap_config dspi_xspi_regmap_config[] = {
 
 static void dspi_init(struct fsl_dspi *dspi)
 {
-	unsigned int mcr = SPI_MCR_PCSIS;
+	unsigned int mcr = SPI_MCR_PCSIS(0x3F);
 
 	if (dspi->devtype_data->xspi_mode)
 		mcr |= SPI_MCR_XSPI;
