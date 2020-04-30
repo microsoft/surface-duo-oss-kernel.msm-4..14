@@ -822,6 +822,10 @@ static const struct of_device_id usbmisc_imx_dt_ids[] = {
 		.data = &imx7d_usbmisc_ops,
 	},
 	{
+		.compatible = "fsl,s32g274a-usbmisc",
+		.data = &s32g274a_usbmisc_ops,
+	},
+	{
 		.compatible = "fsl,imx7ulp-usbmisc",
 		.data = &imx7d_usbmisc_ops,
 	},
