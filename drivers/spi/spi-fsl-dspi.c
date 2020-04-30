@@ -31,6 +31,8 @@
 #define DSPI_FIFO_SIZE			4
 #endif
 
+#define DSPI_DMA_BUFSIZE(dspi)	(dspi->fifo_size * 1024)
+
 #define SPI_MCR				0x00
 #define SPI_MCR_MASTER			BIT(31)
 #define SPI_MCR_PCSIS			(0x3F << 16)
@@ -174,7 +176,7 @@ static const struct fsl_dspi_devtype_data coldfire_data = {
 };
 
 struct fsl_dspi_dma {
-	/* Length of transfer in words of DSPI_FIFO_SIZE */
+	/* Length of transfer in words of fifo_size */
 	u32					curr_xfer_len;
 
 	u32					*tx_dma_buf;
@@ -211,6 +213,7 @@ struct fsl_dspi {
 	u8					bits_per_word;
 	u8					bytes_per_word;
 	const struct fsl_dspi_devtype_data	*devtype_data;
+	size_t                  fifo_size;
 
 	wait_queue_head_t			waitq;
 	u32					waitflags;
@@ -441,14 +444,14 @@ static int dspi_request_dma(struct fsl_dspi *dspi, phys_addr_t phy_addr)
 		goto err_tx_channel;
 	}
 
-	dma->tx_dma_buf = dma_alloc_coherent(dev, DSPI_DMA_BUFSIZE,
+	dma->tx_dma_buf = dma_alloc_coherent(dev, DSPI_DMA_BUFSIZE(dspi),
 					     &dma->tx_dma_phys, GFP_KERNEL);
 	if (!dma->tx_dma_buf) {
 		ret = -ENOMEM;
 		goto err_tx_dma_buf;
 	}
 
-	dma->rx_dma_buf = dma_alloc_coherent(dev, DSPI_DMA_BUFSIZE,
+	dma->rx_dma_buf = dma_alloc_coherent(dev, DSPI_DMA_BUFSIZE(dspi),
 					     &dma->rx_dma_phys, GFP_KERNEL);
 	if (!dma->rx_dma_buf) {
 		ret = -ENOMEM;
@@ -511,13 +514,13 @@ static void dspi_release_dma(struct fsl_dspi *dspi)
 
 	if (dma->chan_tx) {
 		dma_unmap_single(dev, dma->tx_dma_phys,
-				 DSPI_DMA_BUFSIZE, DMA_TO_DEVICE);
+				 DSPI_DMA_BUFSIZE(dspi), DMA_TO_DEVICE);
 		dma_release_channel(dma->chan_tx);
 	}
 
 	if (dma->chan_rx) {
 		dma_unmap_single(dev, dma->rx_dma_phys,
-				 DSPI_DMA_BUFSIZE, DMA_FROM_DEVICE);
+				 DSPI_DMA_BUFSIZE(dspi), DMA_FROM_DEVICE);
 		dma_release_channel(dma->chan_rx);
 	}
 }
@@ -1124,6 +1127,7 @@ static int dspi_probe(struct platform_device *pdev)
 	struct fsl_dspi *dspi;
 	struct resource *res;
 	void __iomem *base;
+	u32 val;
 
 	ctlr = spi_alloc_master(&pdev->dev, sizeof(struct fsl_dspi));
 	if (!ctlr)
@@ -1184,6 +1188,12 @@ static int dspi_probe(struct platform_device *pdev)
 		ctlr->bits_per_word_mask = SPI_BPW_RANGE_MASK(4, 32);
 	else
 		ctlr->bits_per_word_mask = SPI_BPW_RANGE_MASK(4, 16);
+
+	ret = of_property_read_u32(np, "spi-fifo-size", &val);
+	if (ret < 0)
+		dspi->fifo_size = DSPI_FIFO_SIZE_DEFAULT;
+	else
+		dspi->fifo_size = val;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	base = devm_ioremap_resource(&pdev->dev, res);
