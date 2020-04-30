@@ -109,10 +109,13 @@
 #define SPI_RXFR2			0x84
 #define SPI_RXFR3			0x88
 
-#define SPI_CTARE(x)			(0x11c + (((x) & GENMASK(1, 0)) * 4))
-#define SPI_CTARE_FMSZE(x)		(((x) & 0x1) << 16)
+/* Clock and Transfer Attribute Register Extended (SPI_CTAREn) */
+#define SPI_CTARE(x)			(0x11c + (((x) & 0x3) * 4))
+#define SPI_CTARE_FMSZE(x)		(((x) & 0x00000010) << 12)
+#define SPI_CTARE_FMSZE_MASK	SPI_CTARE_FMSZE(0x10)
 #define SPI_CTARE_DTCP(x)		((x) & 0x7ff)
 
+/* Status Register Extended */
 #define SPI_SREX			0x13c
 
 #define SPI_FRAME_BITS(bits)		SPI_CTAR_FMSZ((bits) - 1)
@@ -246,14 +249,7 @@ static inline enum frame_mode get_frame_mode(struct fsl_dspi *dspi)
 
 static inline int bytes_per_frame(enum frame_mode fm)
 {
-	u16 cmd = dspi->tx_cmd, data = dspi_pop_tx(dspi);
-
-	if (spi_controller_is_slave(dspi->ctlr))
-		return data;
-
-	if (dspi->len > 0)
-		cmd |= SPI_PUSHR_CMD_CONT;
-	return cmd << 16 | data;
+	return 1 << (int)fm;
 }
 
 static inline int is_double_byte_mode(struct fsl_dspi *dspi)
