@@ -93,7 +93,8 @@
 #define SPI_PUSHR_CMD_CTAS(x)		(((x) << 12 & GENMASK(14, 12)))
 #define SPI_PUSHR_CMD_EOQ		BIT(11)
 #define SPI_PUSHR_CMD_CTCNT		BIT(10)
-#define SPI_PUSHR_CMD_PCS(x)		(BIT(x) & GENMASK(5, 0))
+#define SPI_PUSHR_CMD_PCS(x, y)        ((BIT(x)) & (y))
+#define SPI_PUSHR_PCS(x, y)    (SPI_PUSHR_CMD_PCS(x, y) << 16)
 
 #define SPI_PUSHR_SLAVE			0x34
 
@@ -819,7 +820,8 @@ static int dspi_transfer_one_message(struct spi_controller *ctlr,
 		dspi->cur_chip = spi_get_ctldata(spi);
 		/* Prepare command word for CMD FIFO */
 		dspi->tx_cmd = SPI_PUSHR_CMD_CTAS(0) |
-			       SPI_PUSHR_CMD_PCS(spi->chip_select);
+			       SPI_PUSHR_CMD_PCS(spi->chip_select,
+						 dspi->pcs_mask);
 		if (list_is_last(&dspi->cur_transfer->transfer_list,
 				 &dspi->cur_msg->transfers)) {
 			/* Leave PCS activated after last transfer when
