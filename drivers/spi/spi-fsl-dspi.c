@@ -39,6 +39,7 @@
 #define SPI_MCR_CLR_TXF			BIT(11)
 #define SPI_MCR_CLR_RXF			BIT(10)
 #define SPI_MCR_XSPI			BIT(3)
+#define SPI_MCR_HALT			BIT(0)
 
 #define SPI_TCR				0x08
 #define SPI_TCR_GET_TCNT(x)		(((x) & GENMASK(31, 16)) >> 16)
@@ -65,6 +66,7 @@
 #define SPI_SR_EOQF			BIT(28)
 #define SPI_SR_TFUF			BIT(27)
 #define SPI_SR_TFFF			BIT(25)
+#define SPI_SR_TXRXS		BIT(30)
 #define SPI_SR_CMDTCF			BIT(23)
 #define SPI_SR_SPEF			BIT(21)
 #define SPI_SR_RFOF			BIT(19)
@@ -807,6 +809,7 @@ static int dspi_transfer_one_message(struct spi_controller *ctlr,
 	enum dspi_trans_mode trans_mode;
 	struct spi_transfer *transfer;
 	int status = 0;
+	unsigned int val;
 
 	message->actual_length = 0;
 
@@ -884,6 +887,9 @@ static int dspi_transfer_one_message(struct spi_controller *ctlr,
 			regmap_write(dspi->regmap, SPI_RSER,
 				     SPI_RSER_TFFFE | SPI_RSER_TFFFD |
 				     SPI_RSER_RFDFE | SPI_RSER_RFDFD);
+			regmap_write(dspi->regmap, SPI_MCR,
+					 dspi->cur_chip->mcr_val |
+					 SPI_MCR_CLR_TXF | SPI_MCR_CLR_RXF);
 			status = dspi_dma_xfer(dspi);
 			break;
 		default:
