@@ -47,11 +47,9 @@ EXPORT_SYMBOL(ath11k_core_get_hw_mac_id);
 static int ath11k_core_create_board_name(struct ath11k_base *ab, char *name,
 					 size_t name_len)
 {
-	/* Note: bus is fixed to ahb. When other bus type supported,
-	 * make it to dynamic.
-	 */
 	scnprintf(name, name_len,
-		  "bus=ahb,qmi-chip-id=%d,qmi-board-id=%d",
+		  "bus=%s,qmi-chip-id=%d,qmi-board-id=%d",
+		  ath11k_bus_str(ab->hif.bus),
 		  ab->qmi.target.chip_id,
 		  ab->qmi.target.board_id);
 
@@ -793,6 +791,7 @@ struct ath11k_base *ath11k_core_alloc(struct device *dev, size_t priv_size,
 	INIT_WORK(&ab->restart_work, ath11k_core_restart);
 	timer_setup(&ab->rx_replenish_retry, ath11k_ce_rx_replenish_retry, 0);
 	ab->dev = dev;
+	ab->hif.bus = bus;
 
 	return ab;
 
