@@ -661,6 +661,7 @@ struct ath11k_base {
 	/* Round robbin based TCL ring selector */
 	atomic_t tcl_ring_selector;
 
+	bool mhi_support;
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
 };
