@@ -1202,9 +1202,9 @@ static int dspi_probe(struct platform_device *pdev)
 	ret = of_property_read_u32(np, "spi-num-chipselects", &cs_num);
 	if (ret < 0) {
 		dev_err(&pdev->dev, "can't get spi-num-chipselects\n");
-		goto out_master_put;
+		goto out_ctlr_put;
 	}
-	master->num_chipselect = cs_num;
+	ctlr->num_chipselect = cs_num;
 	dspi->pcs_mask = (1 << cs_num) - 1;
 	pdata = dev_get_platdata(&pdev->dev);
 	if (pdata) {
