@@ -235,6 +235,7 @@ struct fsl_dspi {
 	u8					bits_per_word;
 	u8					bytes_per_word;
 	const struct fsl_dspi_devtype_data	*devtype_data;
+	size_t					queue_size;
 	size_t                  fifo_size;
 	u32                     pcs_mask;
 
@@ -667,20 +668,65 @@ static int dspi_eoq_write(struct fsl_dspi *dspi)
 	u32 dspi_pushr = 0;
 	enum frame_mode tx_frame_mode = get_frame_mode(dspi);
 
-	if (dspi->devtype_data->xspi_mode && dspi->bits_per_word > 16) {
-		/* Write the CMD FIFO entry first, and then the two
-		 * corresponding TX FIFO entries.
-		 */
-		u32 data = dspi_pop_tx(dspi);
+	fifo_entries_per_frm = (tx_frame_mode == FM_BYTES_4) ? 2 : 1;
 
-		cmd_fifo_write(dspi);
-		tx_fifo_write(dspi, data & 0xFFFF);
-		tx_fifo_write(dspi, data >> 16);
-	} else {
-		/* Write one entry to both TX FIFO and CMD FIFO
-		 * simultaneously.
-		 */
-		fifo_write(dspi);
+	while (dspi->len &&
+	       dspi->fifo_size - fifo_entries_used >= fifo_entries_per_frm) {
+
+		dspi->tx_cmd = xfer_cmd;
+		switch (tx_frame_mode) {
+		case FM_BYTES_4:
+			fifo_entries_used++;
+			/* Fall through and prepare the register to push the
+			 * least significant 16 bits only. We'll push the other
+			 * 16 bits after we have written to the CMD-FIFO.
+			 */
+		case FM_BYTES_2:
+			dspi_pushr = dspi_data_to_pushr(dspi, 1);
+			break;
+
+		default:
+			dspi_pushr = dspi_data_to_pushr(dspi, 0);
+			break;
+		}
+
+		fifo_entries_used++;
+		tx_frames_count++;
+
+		if (dspi->len == 0 ||
+		    dspi->fifo_size - fifo_entries_used <
+		    fifo_entries_per_frm) {
+
+			/* last transfer in the transfer */
+			dspi_pushr |= SPI_PUSHR_EOQ;
+			dspi->queue_size = tx_frames_count;
+
+		} else if ((tx_frame_mode == FM_BYTES_2 && dspi->len == 1) ||
+			   (tx_frame_mode == FM_BYTES_4 && dspi->len < 4)) {
+			dspi_pushr |= SPI_PUSHR_EOQ;
+			dspi->queue_size = tx_frames_count;
+		}
+
+		if (first) {
+			first = 0;
+			dspi_pushr |= SPI_PUSHR_CTCNT; /* clear counter */
+		}
+
+		regmap_write(dspi->regmap, SPI_PUSHR, dspi_pushr);
+
+		if (tx_frame_mode == FM_BYTES_4) {
+
+			/* regmap does not seem to support 16-bit write access
+			 * to 32-bit registers.
+			 * This currently applies only to S32V234 SPI, which is
+			 * known to be little-endian.
+			 */
+
+			dspi_pushr = dspi_data_to_pushr(dspi, 1);
+			/* Only write the TXDATA part of the register */
+			writew(SPI_PUSHR_TXDATA(dspi_pushr),
+			       dspi->base + SPI_PUSHR);
+		}
 	}
 
 	return initial_len - dspi->len;
