@@ -4,6 +4,7 @@
  */
 
 #include <linux/module.h>
+#include <linux/msi.h>
 #include <linux/pci.h>
 
 #include "ahb.h"
@@ -19,9 +20,86 @@ static const struct pci_device_id ath11k_pci_id_table[] = {
 
 MODULE_DEVICE_TABLE(pci, ath11k_pci_id_table);
 
+static struct ath11k_msi_config msi_config = {
+	.total_vectors = 32,
+	.total_users = 4,
+	.users = (struct ath11k_msi_user[]) {
+		{ .name = "MHI", .num_vectors = 3, .base_vector = 0 },
+		{ .name = "CE", .num_vectors = 10, .base_vector = 3 },
+		{ .name = "WAKE", .num_vectors = 1, .base_vector = 13 },
+		{ .name = "DP", .num_vectors = 18, .base_vector = 14 },
+	},
+};
+
+static int ath11k_pci_get_msi_assignment(struct ath11k_pci *ab_pci)
+{
+	ab_pci->msi_config = &msi_config;
+
+	return 0;
+}
+
 static inline struct ath11k_pci *ath11k_pci_priv(struct ath11k_base *ab)
 {
 	return (struct ath11k_pci *)ab->drv_priv;
+}
+
+static int ath11k_pci_enable_msi(struct ath11k_pci *ab_pci)
+{
+	struct ath11k_base *ab = ab_pci->ab;
+	struct ath11k_msi_config *msi_config;
+	struct msi_desc *msi_desc;
+	int num_vectors;
+	int ret;
+
+	ret = ath11k_pci_get_msi_assignment(ab_pci);
+	if (ret) {
+		ath11k_err(ab, "failed to get MSI assignment, err = %d\n", ret);
+		goto out;
+	}
+
+	msi_config = ab_pci->msi_config;
+	if (!msi_config) {
+		ath11k_err(ab, "msi_config is NULL!\n");
+		ret = -EINVAL;
+		goto out;
+	}
+
+	num_vectors = pci_alloc_irq_vectors(ab_pci->pdev,
+					    msi_config->total_vectors,
+					    msi_config->total_vectors,
+					    PCI_IRQ_MSI);
+	if (num_vectors != msi_config->total_vectors) {
+		ath11k_err(ab, "failed to get enough MSI vectors (%d), available vectors = %d",
+			   msi_config->total_vectors, num_vectors);
+		if (num_vectors >= 0)
+			ret = -EINVAL;
+		goto reset_msi_config;
+	}
+
+	msi_desc = irq_get_msi_desc(ab_pci->pdev->irq);
+	if (!msi_desc) {
+		ath11k_err(ab, "msi_desc is NULL!\n");
+		ret = -EINVAL;
+		goto free_msi_vector;
+	}
+
+	ab_pci->msi_ep_base_data = msi_desc->msg.data;
+
+	ath11k_dbg(ab, ATH11K_DBG_PCI, "msi base data is %d\n", ab_pci->msi_ep_base_data);
+
+	return 0;
+
+free_msi_vector:
+	pci_free_irq_vectors(ab_pci->pdev);
+reset_msi_config:
+	ab_pci->msi_config = NULL;
+out:
+	return ret;
+}
+
+static void ath11k_pci_disable_msi(struct ath11k_pci *ab_pci)
+{
+	pci_free_irq_vectors(ab_pci->pdev);
 }
 
 static int ath11k_pci_claim(struct ath11k_pci *ab_pci, struct pci_dev *pdev)
@@ -139,6 +217,8 @@ static int ath11k_pci_probe(struct pci_dev *pdev,
 	ab_pci = ath11k_pci_priv(ab);
 	ab_pci->dev_id = pci_dev->device;
 	ab_pci->ab = ab;
+	ab_pci->dev = &pdev->dev;
+	ab_pci->pdev = pdev;
 	ab->dev = &pdev->dev;
 	ab->hw_rev = hw_rev;
 	pci_set_drvdata(pdev, ab);
@@ -149,10 +229,20 @@ static int ath11k_pci_probe(struct pci_dev *pdev,
 		goto err_free_core;
 	}
 
+	ret = ath11k_pci_enable_msi(ab_pci);
+	if (ret) {
+		ath11k_err(ab, "failed to enable  msi: %d\n", ret);
+		goto err_pci_free_region;
+	}
+
 	return 0;
+
+err_pci_free_region:
+	ath11k_pci_free_region(ab_pci);
 
 err_free_core:
 	ath11k_core_free(ab);
+
 	return ret;
 }
 
@@ -162,6 +252,7 @@ static void ath11k_pci_remove(struct pci_dev *pdev)
 	struct ath11k_pci *ab_pci = ath11k_pci_priv(ab);
 
 	set_bit(ATH11K_FLAG_UNREGISTERING, &ab->dev_flags);
+	ath11k_pci_disable_msi(ab_pci);
 	ath11k_pci_free_region(ab_pci);
 	ath11k_core_free(ab);
 }
