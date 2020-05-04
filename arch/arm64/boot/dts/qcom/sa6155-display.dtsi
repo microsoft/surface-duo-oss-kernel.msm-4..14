@@ -342,12 +342,14 @@
                         qcom,plane-name = "plane-3-splash";
                         qcom,plane-parent = "plane-3";
 			qcom,plane-init-handoff;
+			qcom,plane-seamless-mode = "shared";
                         qcom,plane-init-active;
                 };
                 plane@2 {
                         qcom,plane-name = "plane-4-splash";
                         qcom,plane-parent = "plane-4";
 			qcom,plane-init-handoff;
+			qcom,plane-seamless-mode = "shared";
                         qcom,plane-init-active;
                 };
 
@@ -364,14 +366,14 @@
    sde_card2: qcom,sde-kms-lease@1 {
             compatible = "qcom,sde-kms-lease";
             qcom,dev-name = "msm_drm1";
-            qcom,lease-connectors = "DSI-3";
+            qcom,lease-connectors = "DSI-4";
             qcom,lease-planes = "plane-2-splash";
     };
 
    sde_card3: qcom,sde-kms-lease@2 {
             compatible = "qcom,sde-kms-lease";
             qcom,dev-name = "msm_drm2";
-            qcom,lease-connectors = "DSI-4", "DP-5";
+            qcom,lease-connectors = "DSI-3", "DP-5";
             qcom,lease-planes = "plane-3-splash", "plane-4-splash";
     };
 
