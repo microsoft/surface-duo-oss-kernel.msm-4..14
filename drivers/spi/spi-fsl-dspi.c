@@ -107,14 +107,8 @@
 
 #define SPI_POPR			0x38
 
-#define SPI_TXFR0			0x3c
-#define SPI_TXFR1			0x40
-#define SPI_TXFR2			0x44
-#define SPI_TXFR3			0x48
-#define SPI_RXFR0			0x7c
-#define SPI_RXFR1			0x80
-#define SPI_RXFR2			0x84
-#define SPI_RXFR3			0x88
+#define SPI_TXFR(x)            (0x3c + (((x) & 0xf) << 2))
+#define SPI_RXFR(x)            (0x7c + (((x) & 0xf) << 2))
 
 /* Clock and Transfer Attribute Register Extended (SPI_CTAREn) */
 #define SPI_CTARE(x)			(0x11c + (((x) & 0x3) * 4))
@@ -155,45 +149,38 @@ enum dspi_trans_mode {
 struct fsl_dspi_devtype_data {
 	enum dspi_trans_mode	trans_mode;
 	u8			max_clock_factor;
-	u8			extended_mode;
 	bool			xspi_mode;
 };
 
 static const struct fsl_dspi_devtype_data vf610_data = {
 	.trans_mode		= DSPI_DMA_MODE,
 	.max_clock_factor	= 2,
-	.extended_mode = 0,
 };
 
 static const struct fsl_dspi_devtype_data ls1021a_v1_data = {
 	.trans_mode		= DSPI_TCFQ_MODE,
 	.max_clock_factor	= 8,
 	.xspi_mode		= true,
-	.extended_mode = 0,
 };
 
 static const struct fsl_dspi_devtype_data ls2085a_data = {
 	.trans_mode		= DSPI_TCFQ_MODE,
 	.max_clock_factor	= 8,
-	.extended_mode = 0,
 };
 
 static const struct fsl_dspi_devtype_data s32_data = {
 	.trans_mode = DSPI_EOQ_MODE,
 	.max_clock_factor = 1,
-	.extended_mode = 1,
 };
 
 static const struct fsl_dspi_devtype_data s32r45_data = {
 	.trans_mode = DSPI_TCFQ_MODE,
 	.max_clock_factor = 1,
-	.extended_mode = 1,
 };
 
 static const struct fsl_dspi_devtype_data coldfire_data = {
 	.trans_mode		= DSPI_EOQ_MODE,
 	.max_clock_factor	= 8,
-	.extended_mode = 0,
 };
 
 struct fsl_dspi_dma {
@@ -238,6 +225,7 @@ struct fsl_dspi {
 	size_t					queue_size;
 	size_t                  fifo_size;
 	u32                     pcs_mask;
+	bool					extended_mode;
 
 	wait_queue_head_t			waitq;
 	u32					waitflags;
@@ -1125,7 +1113,7 @@ static SIMPLE_DEV_PM_OPS(dspi_pm, dspi_suspend, dspi_resume);
 static const struct regmap_range dspi_volatile_ranges[] = {
 	regmap_reg_range(SPI_MCR, SPI_TCR),
 	regmap_reg_range(SPI_SR, SPI_SR),
-	regmap_reg_range(SPI_PUSHR, SPI_RXFR3),
+	regmap_reg_range(SPI_PUSHR, SPI_RXFR(0x83)),
 };
 
 static const struct regmap_access_table dspi_volatile_table = {
@@ -1144,7 +1132,7 @@ static const struct regmap_config dspi_regmap_config = {
 static const struct regmap_range dspi_xspi_volatile_ranges[] = {
 	regmap_reg_range(SPI_MCR, SPI_TCR),
 	regmap_reg_range(SPI_SR, SPI_SR),
-	regmap_reg_range(SPI_PUSHR, SPI_RXFR3),
+	regmap_reg_range(SPI_PUSHR, SPI_RXFR(0x83)),
 	regmap_reg_range(SPI_SREX, SPI_SREX),
 };
 
@@ -1261,6 +1249,8 @@ static int dspi_probe(struct platform_device *pdev)
 		dspi->fifo_size = DSPI_FIFO_SIZE_DEFAULT;
 	else
 		dspi->fifo_size = val;
+
+	dspi->extended_mode = of_property_read_bool(np, "spi-extended-mode");
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	dspi->base = devm_ioremap_resource(&pdev->dev, res);
