@@ -142,6 +142,7 @@ enum frame_mode {
 
 struct chip_data {
 	u32			ctar_val;
+	u32			ctare_val;
 	u16			void_write_data;
 };
 
@@ -154,38 +155,45 @@ enum dspi_trans_mode {
 struct fsl_dspi_devtype_data {
 	enum dspi_trans_mode	trans_mode;
 	u8			max_clock_factor;
+	u8			extended_mode;
 	bool			xspi_mode;
 };
 
 static const struct fsl_dspi_devtype_data vf610_data = {
 	.trans_mode		= DSPI_DMA_MODE,
 	.max_clock_factor	= 2,
+	.extended_mode = 0,
 };
 
 static const struct fsl_dspi_devtype_data ls1021a_v1_data = {
 	.trans_mode		= DSPI_TCFQ_MODE,
 	.max_clock_factor	= 8,
 	.xspi_mode		= true,
+	.extended_mode = 0,
 };
 
 static const struct fsl_dspi_devtype_data ls2085a_data = {
 	.trans_mode		= DSPI_TCFQ_MODE,
 	.max_clock_factor	= 8,
+	.extended_mode = 0,
 };
 
 static const struct fsl_dspi_devtype_data s32_data = {
 	.trans_mode = DSPI_EOQ_MODE,
 	.max_clock_factor = 1,
+	.extended_mode = 1,
 };
 
 static const struct fsl_dspi_devtype_data s32r45_data = {
 	.trans_mode = DSPI_TCFQ_MODE,
 	.max_clock_factor = 1,
+	.extended_mode = 1,
 };
 
 static const struct fsl_dspi_devtype_data coldfire_data = {
 	.trans_mode		= DSPI_EOQ_MODE,
 	.max_clock_factor	= 8,
+	.extended_mode = 0,
 };
 
 struct fsl_dspi_dma {
@@ -869,8 +877,7 @@ static int dspi_transfer_one_message(struct spi_controller *ctlr,
 
 		if (dspi->cur_chip->mcr_val & SPI_MCR_XSPI)
 			regmap_write(dspi->regmap, SPI_CTARE(0),
-				     SPI_FRAME_EBITS(transfer->bits_per_word) |
-				     SPI_CTARE_DTCP(1));
+				     dspi->cur_chip->ctare_val);
 
 		trans_mode = dspi->devtype_data->trans_mode;
 		switch (trans_mode) {
@@ -1155,6 +1162,8 @@ static int dspi_probe(struct platform_device *pdev)
 
 	ctlr->cleanup = dspi_cleanup;
 	ctlr->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LSB_FIRST;
+	ctlr->bits_per_word_mask = SPI_BPW_MASK(4) | SPI_BPW_MASK(8) |
+				   SPI_BPW_MASK(16) | SPI_BPW_MASK(32);
 
 	ret = of_property_read_u32(np, "spi-num-chipselects", &cs_num);
 	if (ret < 0) {
