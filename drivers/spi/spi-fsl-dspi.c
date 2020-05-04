@@ -219,6 +219,7 @@ struct fsl_dspi {
 
 	struct regmap				*regmap;
 	struct regmap				*regmap_pushr;
+	void __iomem				*base;
 	int					irq;
 	struct clk				*clk;
 
@@ -1145,7 +1146,6 @@ static int dspi_probe(struct platform_device *pdev)
 	int ret, cs_num, bus_num;
 	struct fsl_dspi *dspi;
 	struct resource *res;
-	void __iomem *base;
 	u32 val;
 
 	ctlr = spi_alloc_master(&pdev->dev, sizeof(struct fsl_dspi));
@@ -1217,9 +1217,9 @@ static int dspi_probe(struct platform_device *pdev)
 		dspi->fifo_size = val;
 
 	res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	base = devm_ioremap_resource(&pdev->dev, res);
-	if (IS_ERR(base)) {
-		ret = PTR_ERR(base);
+	dspi->base = devm_ioremap_resource(&pdev->dev, res);
+	if (IS_ERR(dspi->base)) {
+		ret = PTR_ERR(dspi->base);
 		goto out_ctlr_put;
 	}
 
@@ -1238,7 +1238,7 @@ static int dspi_probe(struct platform_device *pdev)
 
 	if (dspi->devtype_data->xspi_mode) {
 		dspi->regmap_pushr = devm_regmap_init_mmio(
-			&pdev->dev, base + SPI_PUSHR,
+			&pdev->dev, dspi->base + SPI_PUSHR,
 			&dspi_xspi_regmap_config[1]);
 		if (IS_ERR(dspi->regmap_pushr)) {
 			dev_err(&pdev->dev,
