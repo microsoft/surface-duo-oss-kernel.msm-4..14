@@ -346,7 +346,6 @@ ams369fg06
 analog
 analogix-anx78xx
 analogix_dp
-anatop-regulator
 ansi_cprng
 anubis
 aoe
@@ -695,6 +694,7 @@ cdns-pltfrm
 cdns3
 cdns3-pci-wrap
 cec
+cec-gpio
 ceph
 cfag12864b
 cfag12864bfb
@@ -819,6 +819,7 @@ crc7
 crc8
 crct10dif-pclmul
 cros-ec-cec
+cros-ec-sensorhub
 cros_ec
 cros_ec_accel_legacy
 cros_ec_baro
@@ -832,14 +833,15 @@ cros_ec_lid_angle
 cros_ec_light_prox
 cros_ec_lightbar
 cros_ec_lpcs
-cros_ec_sensorhub
 cros_ec_sensors
 cros_ec_sensors_core
 cros_ec_spi
 cros_ec_sysfs
+cros_ec_typec
 cros_kbd_led_backlight
 cros_usbpd-charger
 cros_usbpd_logger
+cros_usbpd_notify
 crvml
 cryptd
 crypto_engine
@@ -1170,6 +1172,7 @@ dwc3
 dwc3-haps
 dwc3-pci
 dwmac-generic
+dwmac-intel
 dyna_pci10xx
 dynapro
 e100
@@ -1283,7 +1286,6 @@ ethoc
 eurotechwdt
 evbug
 exc3000
-exfat
 extcon-adc-jack
 extcon-arizona
 extcon-axp288
@@ -1815,7 +1817,6 @@ hostap_plx
 hp-wireless
 hp-wmi
 hp03
-hp100
 hp206c
 hp_accel
 hpfs
@@ -1841,8 +1842,6 @@ hv_sock
 hv_storvsc
 hv_utils
 hv_vmbus
-hwa-hc
-hwa-rc
 hwmon-vid
 hwpoison-inject
 hx711
@@ -1852,8 +1851,6 @@ hyperbus-core
 hyperv-keyboard
 hyperv_fb
 i10nm_edac
-i1480-dfu-usb
-i1480-est
 i2400m
 i2400m-usb
 i2c-algo-bit
@@ -1970,6 +1967,7 @@ ieee802154
 ieee802154_6lowpan
 ieee802154_socket
 ifb
+ifcvf
 ife
 ifi_canfd
 iforce
@@ -2736,6 +2734,7 @@ mdio-gpio
 mdio-i2c
 mdio-mscc-miim
 mdio-thunder
+mdio-xpcs
 me4000
 me_daq
 megaraid
@@ -2822,13 +2821,7 @@ mn88472
 mn88473
 mos7720
 mos7840
-most_cdev
 most_core
-most_i2c
-most_net
-most_sound
-most_usb
-most_video
 moxa
 mp8859
 mpc624
@@ -2913,7 +2906,6 @@ mtdram
 mtdswap
 mtip32xx
 mtk-pmic-keys
-mtk-quadspi
 mtk-sd
 mtouch
 multipath
@@ -3035,7 +3027,6 @@ nf_socket_ipv4
 nf_socket_ipv6
 nf_synproxy_core
 nf_tables
-nf_tables_set
 nf_tproxy_ipv4
 nf_tproxy_ipv6
 nfc
@@ -3753,6 +3744,7 @@ rc-vega-s9x
 rc-videomate-m1f
 rc-videomate-s350
 rc-videomate-tv-pvr
+rc-videostrong-kii-pro
 rc-wetek-hub
 rc-wetek-play2
 rc-winfast
@@ -3971,8 +3963,6 @@ rtsx_pci_sdmmc
 rtsx_usb
 rtsx_usb_ms
 rtsx_usb_sdmmc
-rtw88
-rtwpci
 rx51_battery
 rxrpc
 s1d13xxxfb
@@ -4478,6 +4468,7 @@ snd-soc-rk3328
 snd-soc-rl6231
 snd-soc-rl6347a
 snd-soc-rt1011
+snd-soc-rt1015
 snd-soc-rt1308-sdw
 snd-soc-rt286
 snd-soc-rt298
@@ -4699,6 +4690,7 @@ spi_ks8995
 spidev
 spinand
 spmi
+sprd_serial
 sps30
 sr030pc30
 sr9700
@@ -5135,7 +5127,6 @@ uio_sercos3
 uleds
 uli526x
 ulpi
-umc
 umem
 ums-alauda
 ums-cypress
@@ -5215,7 +5206,6 @@ uss720
 uv_mmtimer
 uvcvideo
 uvesafb
-uwb
 v4l2-dv-timings
 v4l2-flash-led-class
 v4l2-fwnode
@@ -5225,6 +5215,8 @@ vboxvideo
 vcan
 vcnl4000
 vcnl4035
+vdpa
+vdpa_sim
 veml6030
 veml6070
 ves1820
@@ -5237,6 +5229,7 @@ vgem
 vgg2432a4
 vhci-hcd
 vhost
+vhost_iotlb
 vhost_net
 vhost_scsi
 vhost_vsock
@@ -5388,9 +5381,6 @@ wdat_wdt
 wdt87xx_i2c
 wdt_pci
 wfx
-whc-rc
-whci
-whci-hcd
 whiteheat
 wil6210
 wilc1000
@@ -5439,9 +5429,6 @@ wm97xx-ts
 wmi
 wmi-bmof
 wp512
-wusb-cbaf
-wusb-wa
-wusbcore
 x25
 x25_asy
 x38_edac
@@ -5601,5 +5588,4 @@ zpa2326_spi
 zr364xx
 zram
 zstd
-zstd_compress
 zx-tdm

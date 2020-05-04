@@ -6,7 +6,7 @@ repo_list=(
 	"http://ppa.launchpad.net/canonical-kernel-team/ppa/ubuntu/pool/main/l/linux"
 	"http://ppa.launchpad.net/canonical-kernel-team/unstable/ubuntu/pool/main/l/linux"
 	"http://ppa.launchpad.net/canonical-kernel-team/bootstrap/ubuntu/pool/main/l/linux"
-	"http://ppa.launchpad.net/canonical-kernel-team/bootstrap/ubuntu/pool/main/l/linux-5.6"
+	"http://ppa.launchpad.net/canonical-kernel-team/bootstrap/ubuntu/pool/main/l/linux-5.7"
 )
 
 package_prefixes linux-buildinfo

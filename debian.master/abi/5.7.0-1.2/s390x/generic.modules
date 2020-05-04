@@ -65,6 +65,7 @@ authencesn
 bcache
 bcm-phy-lib
 bcm7xxx
+bcm84881
 bcm87xx
 bfq
 binfmt_misc
@@ -399,6 +400,7 @@ libphy
 libpoly1305
 libsas
 linear
+ll_temac
 llc
 lockd
 lru_cache
@@ -449,6 +451,7 @@ mlxsw_switchib
 mlxsw_switchx2
 monreader
 monwriter
+most_core
 mpls_gso
 mpls_iptunnel
 mpls_router
@@ -509,7 +512,6 @@ nf_socket_ipv4
 nf_socket_ipv6
 nf_synproxy_core
 nf_tables
-nf_tables_set
 nf_tproxy_ipv4
 nf_tproxy_ipv6
 nfnetlink
@@ -851,6 +853,7 @@ vfio_iommu_type1
 vfio_mdev
 vfio_virqfd
 vhost
+vhost_iotlb
 vhost_net
 vhost_scsi
 vhost_vsock
