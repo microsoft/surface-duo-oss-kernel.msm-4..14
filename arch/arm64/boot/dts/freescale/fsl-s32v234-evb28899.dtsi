@@ -1,6 +1,6 @@
 /*
  * Copyright 2015-2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2019 NXP
+ * Copyright 2017-2020 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -741,7 +741,7 @@
 	 * To be hooked up to the expansion port SPI3 CS0 for testing.
 	 */
 	spidev0: spidev@0 {
-		compatible = "spidev";
+		compatible = "rohm,dh2228fv";
 		spi-max-frequency = <4000000>;
 		reg = <0>;
 	};

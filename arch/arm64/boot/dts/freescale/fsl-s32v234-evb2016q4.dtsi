@@ -1,6 +1,6 @@
 /*
  * Copyright 2015-2016 Freescale Semiconductor, Inc.
- * Copyright 2016-2019 NXP
+ * Copyright 2016-2020 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -575,13 +575,13 @@
 	status = "okay";
 
 	tja1145_0: spidev@6 {
-		compatible = "spidev";
+		compatible = "rohm,dh2228fv";
 		spi-max-frequency = <4000000>;
 		reg = <6>;
 	};
 
 	tja1145_1: spidev@7 {
-		compatible = "spidev";
+		compatible = "rohm,dh2228fv";
 		spi-max-frequency = <4000000>;
 		reg = <7>;
 	};
