@@ -1229,8 +1229,7 @@ static int dspi_probe(struct platform_device *pdev)
 
 	ctlr->cleanup = dspi_cleanup;
 	ctlr->mode_bits = SPI_CPOL | SPI_CPHA | SPI_LSB_FIRST;
-	ctlr->bits_per_word_mask = SPI_BPW_MASK(4) | SPI_BPW_MASK(8) |
-				   SPI_BPW_MASK(16) | SPI_BPW_MASK(32);
+	ctlr->bits_per_word_mask = SPI_BPW_RANGE_MASK(4, 32);
 
 	ret = of_property_read_u32(np, "spi-num-chipselects", &cs_num);
 	if (ret < 0) {
@@ -1271,11 +1270,6 @@ static int dspi_probe(struct platform_device *pdev)
 			goto out_ctlr_put;
 		}
 	}
-
-	if (dspi->devtype_data->xspi_mode)
-		ctlr->bits_per_word_mask = SPI_BPW_RANGE_MASK(4, 32);
-	else
-		ctlr->bits_per_word_mask = SPI_BPW_RANGE_MASK(4, 16);
 
 	ret = of_property_read_u32(np, "spi-fifo-size", &val);
 	if (ret < 0)
