@@ -49,9 +49,9 @@
 /* Clock and Transfer Attribute Register (SPI_CTARn) - Master Mode */
 #define SPI_CTAR(x)			(0x0c + (((x) & GENMASK(1, 0)) * 4))
 #define SPI_CTAR_FMSZ(x)		(((x) << 27) & GENMASK(30, 27))
-#define SPI_CTAR_CPOL			BIT(26)
-#define SPI_CTAR_CPHA			BIT(25)
-#define SPI_CTAR_LSBFE			BIT(24)
+#define SPI_CTAR_CPOL(x)		((x) << 26)
+#define SPI_CTAR_CPHA(x)		((x) << 25)
+#define SPI_CTAR_LSBFE(x)		((x) << 24)
 #define SPI_CTAR_PCSSCK(x)		(((x) << 22) & GENMASK(23, 22))
 #define SPI_CTAR_PASC(x)		(((x) << 20) & GENMASK(21, 20))
 #define SPI_CTAR_PDT(x)			(((x) << 18) & GENMASK(19, 18))
@@ -1060,11 +1060,9 @@ static int dspi_setup(struct spi_device *spi)
 	/* Set After SCK delay scale values */
 	ns_delay_scale(&pasc, &asc, sck_cs_delay, clkrate);
 
-	chip->ctar_val = 0;
-	if (spi->mode & SPI_CPOL)
-		chip->ctar_val |= SPI_CTAR_CPOL;
-	if (spi->mode & SPI_CPHA)
-		chip->ctar_val |= SPI_CTAR_CPHA;
+	chip->ctar_val = SPI_CTAR_FMSZ(fmsz)
+		| SPI_CTAR_CPOL(spi->mode & SPI_CPOL ? 1 : 0)
+		| SPI_CTAR_CPHA(spi->mode & SPI_CPHA ? 1 : 0);
 
 	if (!spi_controller_is_slave(dspi->ctlr)) {
 		chip->ctar_val |= SPI_CTAR_PCSSCK(pcssck) |
@@ -1074,8 +1072,8 @@ static int dspi_setup(struct spi_device *spi)
 				  SPI_CTAR_PBR(pbr) |
 				  SPI_CTAR_BR(br);
 
-		if (spi->mode & SPI_LSB_FIRST)
-			chip->ctar_val |= SPI_CTAR_LSBFE;
+		chip->ctar_val |= SPI_CTAR_LSBFE(spi->mode &
+						 SPI_LSB_FIRST ? 1 : 0);
 	}
 
 	spi_set_ctldata(spi, chip);
