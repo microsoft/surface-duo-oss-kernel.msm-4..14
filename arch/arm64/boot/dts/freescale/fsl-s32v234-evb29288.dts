@@ -221,7 +221,7 @@
 		};
 	};
 
-	sja1105p@1 {
+	sja1105p@5 {
 		compatible = "nxp,sja1105p-switch";
 		spi-max-frequency = <0x3D0900>;
 		spi-cpha;
