@@ -20,7 +20,7 @@ Optional properties:
 - big-endian: If present the dspi device's registers are implemented
   in big endian mode, otherwise in native mode(same with CPU), for more
   detail please see: Documentation/devicetree/bindings/regmap/regmap.txt.
-- compatible = "spidev" if a spidev driver is used to interface the spi
+- compatible = "rohm,dh2228fv" if a spidev driver is used to interface the spi
   from userspace
 - spi-fifo-size: the number of FIFO buffer entries, for both TX and RX. Defaults
   to 4.
