@@ -17,6 +17,7 @@
 #include <asm/unaligned.h>
 #include <linux/iio/buffer.h>
 #include <linux/of.h>
+#include <asm/arch_timer.h>
 
 #include "st_asm330lhh.h"
 
@@ -92,6 +93,9 @@ static inline int st_asm330lhh_reset_hwts(struct st_asm330lhh_hw *hw)
 	hw->val_ts_old = 0;
 	hw->hw_ts_high = 0;
 	hw->tsample = 0ull;
+
+	if (hw->asm330_hrtimer)
+		st_asm330lhh_set_cpu_idle_state(true);
 
 	return hw->tf->write(hw->dev, ST_ASM330LHH_REG_TS2_ADDR, sizeof(data),
 			     &data);
@@ -227,6 +231,7 @@ static void store_acc_gyro_boot_sample(struct st_asm330lhh_sensor *sensor,
 	if (false == sensor->buffer_asm_samples)
 		return;
 
+	mutex_lock(&sensor->sensor_buff);
 	sensor->timestamp = (ktime_t)tsample;
 	x = iio_buf[1]<<8|iio_buf[0];
 	y = iio_buf[3]<<8|iio_buf[2];
@@ -249,6 +254,7 @@ static void store_acc_gyro_boot_sample(struct st_asm330lhh_sensor *sensor,
 				sensor->id, sensor->bufsample_cnt);
 		sensor->buffer_asm_samples = false;
 	}
+	mutex_unlock(&sensor->sensor_buff);
 }
 #else
 static void store_acc_gyro_boot_sample(struct st_asm330lhh_sensor *sensor,
@@ -306,7 +312,6 @@ static int st_asm330lhh_read_fifo(struct st_asm330lhh_hw *hw)
 					     word_len, buf);
 		if (err < 0)
 			return err;
-
 		for (i = 0; i < word_len; i += ST_ASM330LHH_FIFO_SAMPLE_SIZE) {
 			ptr = &buf[i + ST_ASM330LHH_TAG_SIZE];
 			tag = buf[i] >> 3;
@@ -353,7 +358,6 @@ static int st_asm330lhh_read_fifo(struct st_asm330lhh_hw *hw)
 					>= ST_ASM330LHH_SAMPLE_DISCHARD)) {
 					continue;
 				}
-
 				memcpy(iio_buf, ptr, ST_ASM330LHH_SAMPLE_SIZE);
 
 				hw->tsample = min_t(s64,
@@ -502,6 +506,9 @@ static irqreturn_t st_asm330lhh_handler_irq(int irq, void *private)
 	hw->delta_ts = ts - hw->ts;
 	hw->ts = ts;
 
+	if (hw->asm330_hrtimer)
+		st_asm330lhh_hrtimer_reset(hw, hw->delta_ts);
+
 	return IRQ_WAKE_THREAD;
 }
 
@@ -513,6 +520,9 @@ static irqreturn_t st_asm330lhh_handler_thread(int irq, void *private)
 	st_asm330lhh_read_fifo(hw);
 	clear_bit(ST_ASM330LHH_HW_FLUSH, &hw->state);
 	mutex_unlock(&hw->fifo_lock);
+
+	if (hw->asm330_hrtimer)
+		st_asm330lhh_set_cpu_idle_state(false);
 
 	return IRQ_HANDLED;
 }

@@ -16,7 +16,10 @@
 #include <linux/pm.h>
 #include <linux/version.h>
 #include <linux/of.h>
+#include <linux/of_gpio.h>
 #include <linux/regulator/consumer.h>
+#include <linux/of_gpio.h>
+#include <linux/cpu.h>
 
 #include <linux/platform_data/st_sensors_pdata.h>
 
@@ -76,6 +79,9 @@
 #define ST_ASM330LHH_TEMP_GAIN			256
 #define ST_ASM330LHH_TEMP_FS_GAIN		(1000000 / ST_ASM330LHH_TEMP_GAIN)
 #define ST_ASM330LHH_OFFSET			(6400)
+
+/* Turn on of sensor in ms */
+#define ST_ASM330LHH_TURN_ON_TIME		35
 
 static int asm330_check_regulator;
 
@@ -190,6 +196,33 @@ static const struct iio_chan_spec st_asm330lhh_temp_channels[] = {
 		.scan_index = -1,
 	},
 };
+
+void st_asm330lhh_set_cpu_idle_state(bool value)
+{
+	cpu_idle_poll_ctrl(value);
+}
+static enum hrtimer_restart st_asm330lhh_timer_function(
+		struct hrtimer *timer)
+{
+	st_asm330lhh_set_cpu_idle_state(true);
+
+	return HRTIMER_NORESTART;
+}
+void st_asm330lhh_hrtimer_reset(struct st_asm330lhh_hw *hw,
+		s64 irq_delta_ts)
+{
+	hrtimer_cancel(&hw->st_asm330lhh_hrtimer);
+	/*forward HRTIMER just before 1ms of irq arrival*/
+	hrtimer_forward(&hw->st_asm330lhh_hrtimer, ktime_get(),
+			ns_to_ktime(irq_delta_ts - 1000000));
+	hrtimer_restart(&hw->st_asm330lhh_hrtimer);
+}
+static void st_asm330lhh_hrtimer_init(struct st_asm330lhh_hw *hw)
+{
+	hrtimer_init(&hw->st_asm330lhh_hrtimer, CLOCK_MONOTONIC,
+			HRTIMER_MODE_REL);
+	hw->st_asm330lhh_hrtimer.function = st_asm330lhh_timer_function;
+}
 
 int st_asm330lhh_write_with_mask(struct st_asm330lhh_hw *hw, u8 addr, u8 mask,
 				 u8 val)
@@ -538,8 +571,9 @@ static int asm_read_bootsampl(struct st_asm330lhh_sensor  *sensor,
 {
 	int i = 0;
 
+	sensor->buffer_asm_samples = false;
+
 	if (enable_read) {
-		sensor->buffer_asm_samples = false;
 		for (i = 0; i < sensor->bufsample_cnt; i++) {
 			dev_dbg(sensor->hw->dev,
 				"sensor:%d count:%d x=%d,y=%d,z=%d,tsec=%d,nsec=%lld\n",
@@ -566,7 +600,6 @@ static int asm_read_bootsampl(struct st_asm330lhh_sensor  *sensor,
 			for (i = 0; i < ASM_MAXSAMPLE; i++)
 				kmem_cache_free(sensor->asm_cachepool,
 					sensor->asm_samplist[i]);
-			kmem_cache_destroy(sensor->asm_cachepool);
 			sensor->bufsample_cnt = 0;
 		}
 
@@ -603,10 +636,15 @@ static ssize_t read_gyro_boot_sample_store(struct device *dev,
 				"Invalid value of input, input=%ld\n", enable);
 		return -EINVAL;
 	}
+
+	mutex_lock(&sensor->sensor_buff);
 	err = asm_read_bootsampl(sensor, enable);
+	mutex_unlock(&sensor->sensor_buff);
 	if (err)
 		return err;
+
 	sensor->read_boot_sample = enable;
+
 	return count;
 
 }
@@ -638,10 +676,15 @@ static ssize_t read_acc_boot_sample_store(struct device *dev,
 				"Invalid value of input, input=%ld\n", enable);
 		return -EINVAL;
 	}
+
+	mutex_lock(&sensor->sensor_buff);
 	err = asm_read_bootsampl(sensor, enable);
+	mutex_unlock(&sensor->sensor_buff);
 	if (err)
 		return err;
+
 	sensor->read_boot_sample = enable;
+
 	return count;
 }
 #endif
@@ -1033,6 +1076,8 @@ static int asm330_acc_gyro_early_buff_init(struct st_asm330lhh_hw *hw)
 
 	acc->buffer_asm_samples = true;
 	gyro->buffer_asm_samples = true;
+	mutex_init(&acc->sensor_buff);
+	mutex_init(&gyro->sensor_buff);
 
 	return 1;
 clean_exit5:
@@ -1099,8 +1144,8 @@ static int st_asm330lhh_regulator_init(struct st_asm330lhh_hw *hw)
 
 static int st_asm330lhh_regulator_power_up(struct st_asm330lhh_hw *hw)
 {
-	u32 vdd_voltage[2] = {3000000, 3600000};
-	u32 vio_voltage[2] = {1620000, 3600000};
+	u32 vdd_voltage[2] = {1800000, 1900000};
+	u32 vio_voltage[2] = {1800000, 1900000};
 	u32 vdd_current = 30000;
 	u32 vio_current = 30000;
 	int err = 0;
@@ -1191,6 +1236,19 @@ int st_asm330lhh_probe(struct device *dev, int irq,
 	hw->tf = tf_ops;
 	np = hw->dev->of_node;
 
+	hw->enable_gpio = of_get_named_gpio(np, "asm330-enable-gpio", 0);
+	if (gpio_is_valid(hw->enable_gpio)) {
+		err = gpio_request(hw->enable_gpio, "asm330_enable");
+		if (err < 0) {
+			dev_err(hw->dev,
+					"failed to request gpio %d: %d\n",
+					hw->enable_gpio, err);
+			return err;
+		}
+		gpio_direction_output(hw->enable_gpio, 1);
+		msleep(ST_ASM330LHH_TURN_ON_TIME);
+	}
+
 	dev_info(hw->dev, "Ver: %s\n", ST_ASM330LHH_VERSION);
 
 	/* use qtimer if property is enabled */
@@ -1216,6 +1274,10 @@ int st_asm330lhh_probe(struct device *dev, int irq,
 		usleep_range(1000, 2000);
 	}
 
+	/* use hrtimer if property is enabled */
+	hw->asm330_hrtimer = of_property_read_bool(np, "qcom,asm330_hrtimer");
+
+	dev_info(hw->dev, "Ver: %s\n", ST_ASM330LHH_VERSION);
 	err = st_asm330lhh_check_whoami(hw);
 	if (err < 0)
 		goto regulator_shutdown;
@@ -1254,6 +1316,9 @@ int st_asm330lhh_probe(struct device *dev, int irq,
 	err = asm330_acc_gyro_early_buff_init(hw);
 	if (!err)
 		return err;
+
+	if (hw->asm330_hrtimer)
+		st_asm330lhh_hrtimer_init(hw);
 
 	st_asm330lhh_enable_acc_gyro(hw);
 
