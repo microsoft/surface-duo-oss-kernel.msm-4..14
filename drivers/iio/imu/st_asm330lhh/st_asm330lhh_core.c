@@ -719,7 +719,7 @@ static const struct attribute_group st_asm330lhh_acc_attribute_group = {
 };
 
 static const struct iio_info st_asm330lhh_acc_info = {
-	//.driver_module = THIS_MODULE,
+	.driver_module = THIS_MODULE,
 	.attrs = &st_asm330lhh_acc_attribute_group,
 	.read_raw = st_asm330lhh_read_raw,
 	.write_raw = st_asm330lhh_write_raw,
@@ -739,7 +739,7 @@ static const struct attribute_group st_asm330lhh_gyro_attribute_group = {
 };
 
 static const struct iio_info st_asm330lhh_gyro_info = {
-	//.driver_module = THIS_MODULE,
+	.driver_module = THIS_MODULE,
 	.attrs = &st_asm330lhh_gyro_attribute_group,
 	.read_raw = st_asm330lhh_read_raw,
 	.write_raw = st_asm330lhh_write_raw,
@@ -759,7 +759,7 @@ static const struct attribute_group st_asm330lhh_temp_attribute_group = {
 };
 
 static const struct iio_info st_asm330lhh_temp_info = {
-	//.driver_module = THIS_MODULE,
+	.driver_module = THIS_MODULE,
 	.attrs = &st_asm330lhh_temp_attribute_group,
 	.read_raw = st_asm330lhh_read_raw,
 	.write_raw = st_asm330lhh_write_raw,
