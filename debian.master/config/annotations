@@ -12825,7 +12825,7 @@ CONFIG_X86_REBOOTFIXUPS                         policy<{'i386': 'y'}>
 CONFIG_X86_MSR                                  policy<{'amd64': 'm', 'i386': 'm'}>
 CONFIG_X86_CPUID                                policy<{'amd64': 'm', 'i386': 'm'}>
 CONFIG_X86_PAE                                  policy<{'i386': 'y'}>
-CONFIG_X86_5LEVEL                               policy<{'amd64': 'n'}>
+CONFIG_X86_5LEVEL                               policy<{'amd64': 'y'}>
 CONFIG_X86_CPA_STATISTICS                       policy<{'amd64': 'n', 'i386': 'n'}>
 CONFIG_AMD_MEM_ENCRYPT                          policy<{'amd64': 'y'}>
 CONFIG_AMD_MEM_ENCRYPT_ACTIVE_BY_DEFAULT        policy<{'amd64': 'n'}>
