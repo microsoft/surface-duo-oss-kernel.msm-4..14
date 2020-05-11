@@ -2,7 +2,7 @@
  * SIUL2 GPIO support.
  *
  * Copyright (c) 2016 Freescale Semiconductor, Inc.
- * Copyright 2019 NXP
+ * Copyright 2019-2020 NXP
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 or
@@ -96,6 +96,7 @@ struct siul2_gpio_dev {
 	struct regmap *ipadmap;
 	struct regmap *irqmap;
 	struct gpio_chip gc;
+	struct irq_chip irqchip;
 	spinlock_t lock;
 };
 
@@ -324,14 +325,6 @@ static void siul2_gpio_irq_mask(struct irq_data *data)
 	spin_unlock_irqrestore(&gpio_dev->lock, flags);
 }
 
-static struct irq_chip siul2_gpio_irq_chip = {
-	.name			= "siul2-gpio",
-	.irq_ack		= siul2_gpio_irq_mask,
-	.irq_mask		= siul2_gpio_irq_mask,
-	.irq_unmask		= siul2_gpio_irq_unmask,
-	.irq_set_type		= siul2_gpio_irq_set_type,
-};
-
 static int siul2_irq_setup(struct platform_device *pdev,
 			  struct siul2_gpio_dev *gpio_dev)
 {
@@ -402,7 +395,7 @@ static int siul2_irq_setup(struct platform_device *pdev,
 
 	/* Setup irq domain on top of the generic chip. */
 	err = gpiochip_irqchip_add(&gpio_dev->gc,
-				   &siul2_gpio_irq_chip,
+				   &gpio_dev->irqchip,
 				   0,
 				   handle_simple_irq,
 				   IRQ_TYPE_NONE);
@@ -413,7 +406,7 @@ static int siul2_irq_setup(struct platform_device *pdev,
 	}
 
 	gpiochip_set_chained_irqchip(&gpio_dev->gc,
-				     &siul2_gpio_irq_chip,
+				     &gpio_dev->irqchip,
 				     irq,
 				     siul2_gpio_irq_handler);
 
@@ -588,6 +581,12 @@ int siul2_gpio_probe(struct platform_device *pdev)
 	err = siul2_gpio_pads_init(pdev, gpio_dev);
 	if (err)
 		return err;
+
+	gpio_dev->irqchip.name = "siul2-gpio";
+	gpio_dev->irqchip.irq_ack = siul2_gpio_irq_mask;
+	gpio_dev->irqchip.irq_mask = siul2_gpio_irq_mask;
+	gpio_dev->irqchip.irq_unmask = siul2_gpio_irq_unmask;
+	gpio_dev->irqchip.irq_set_type = siul2_gpio_irq_set_type;
 
 	gc = &gpio_dev->gc;
 
