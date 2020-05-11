@@ -647,7 +647,7 @@ int fsl_dcu_map_vram(struct fb_info *info)
 
 	info->fix.smem_len = smem_len;
 
-	info->screen_base = dma_alloc_writecombine(info->device,
+	info->screen_base = dma_alloc_wc(info->device,
 		info->fix.smem_len, (dma_addr_t *)&info->fix.smem_start,
 		GFP_KERNEL);
 	if (!info->screen_base) {
@@ -672,7 +672,7 @@ void fsl_dcu_unmap_vram(struct fb_info *info)
 	if (!info->screen_base)
 		return;
 
-	dma_free_writecombine(info->device, info->fix.smem_len,
+	dma_free_wc(info->device, info->fix.smem_len,
 		info->screen_base, info->fix.smem_start);
 
 	info->screen_base = NULL;
