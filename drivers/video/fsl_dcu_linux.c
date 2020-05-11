@@ -1,6 +1,6 @@
 /*
  * Copyright 2012-2016 Freescale Semiconductor, Inc.
- * Copyright 2017-2018 NXP
+ * Copyright 2017-2020 NXP
  *
  * Freescale fsl-DCU device driver
  *
@@ -43,7 +43,6 @@
 #include <video/videomode.h>
 
 #include <asm/current.h>
-#include <asm/segment.h>
 
 #include <uapi/video/fsl_dcu_ioctl.h>
 
