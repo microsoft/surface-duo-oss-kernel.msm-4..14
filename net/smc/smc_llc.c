@@ -750,7 +750,6 @@ static int smc_llc_cli_conf_link(struct smc_link *link,
 				 enum smc_lgr_type lgr_new_t)
 {
 	struct smc_link_group *lgr = link->lgr;
-	struct smc_llc_msg_del_link *del_llc;
 	struct smc_llc_qentry *qentry = NULL;
 	int rc = 0;
 
@@ -764,7 +763,6 @@ static int smc_llc_cli_conf_link(struct smc_link *link,
 	}
 	if (qentry->msg.raw.hdr.common.type != SMC_LLC_CONFIRM_LINK) {
 		/* received DELETE_LINK instead */
-		del_llc = &qentry->msg.delete_link;
 		qentry->msg.raw.hdr.flags |= SMC_LLC_FLAG_RESP;
 		smc_llc_send_message(link, &qentry->msg);
 		smc_llc_flow_qentry_del(&lgr->llc_flow_lcl);
@@ -870,7 +868,7 @@ int smc_llc_cli_add_link(struct smc_link *link, struct smc_llc_qentry *qentry)
 	if (!rc)
 		goto out;
 out_clear_lnk:
-	smcr_link_clear(lnk_new);
+	smcr_link_clear(lnk_new, false);
 out_reject:
 	smc_llc_cli_add_link_reject(qentry);
 out:
@@ -977,7 +975,7 @@ static void smc_llc_delete_asym_link(struct smc_link_group *lgr)
 	}
 	smc_llc_flow_qentry_del(&lgr->llc_flow_lcl);
 out_free:
-	smcr_link_clear(lnk_asym);
+	smcr_link_clear(lnk_asym, true);
 }
 
 static int smc_llc_srv_rkey_exchange(struct smc_link *link,
@@ -1121,7 +1119,7 @@ int smc_llc_srv_add_link(struct smc_link *link)
 		goto out_err;
 	return 0;
 out_err:
-	smcr_link_clear(link_new);
+	smcr_link_clear(link_new, false);
 	return rc;
 }
 
@@ -1227,7 +1225,7 @@ static void smc_llc_process_cli_delete_link(struct smc_link_group *lgr)
 		smc_switch_conns(lgr, lnk_del, false);
 		smc_wr_tx_wait_no_pending_sends(lnk_del);
 	}
-	smcr_link_clear(lnk_del);
+	smcr_link_clear(lnk_del, true);
 
 	active_links = smc_llc_active_link_count(lgr);
 	if (lnk_del == lnk_asym) {
@@ -1308,19 +1306,15 @@ static void smc_llc_process_srv_delete_link(struct smc_link_group *lgr)
 		 * enqueued DELETE_LINK request (forward it)
 		 */
 		if (!smc_llc_send_message(lnk, &qentry->msg)) {
-			struct smc_llc_msg_del_link *del_llc_resp;
 			struct smc_llc_qentry *qentry2;
 
 			qentry2 = smc_llc_wait(lgr, lnk, SMC_LLC_WAIT_TIME,
 					       SMC_LLC_DELETE_LINK);
-			if (!qentry2) {
-			} else {
-				del_llc_resp = &qentry2->msg.delete_link;
+			if (qentry2)
 				smc_llc_flow_qentry_del(&lgr->llc_flow_lcl);
-			}
 		}
 	}
-	smcr_link_clear(lnk_del);
+	smcr_link_clear(lnk_del, true);
 
 	active_links = smc_llc_active_link_count(lgr);
 	if (active_links == 1) {
@@ -1711,6 +1705,12 @@ int smc_llc_link_init(struct smc_link *link)
 
 void smc_llc_link_active(struct smc_link *link)
 {
+	pr_warn_ratelimited("smc: SMC-R lg %*phN link added: id %*phN, "
+			    "peerid %*phN, ibdev %s, ibport %d\n",
+			    SMC_LGR_ID_SIZE, &link->lgr->id,
+			    SMC_LGR_ID_SIZE, &link->link_uid,
+			    SMC_LGR_ID_SIZE, &link->peer_link_uid,
+			    link->smcibdev->ibdev->name, link->ibport);
 	link->state = SMC_LNK_ACTIVE;
 	if (link->lgr->llc_testlink_time) {
 		link->llc_testlink_time = link->lgr->llc_testlink_time * HZ;
@@ -1720,8 +1720,15 @@ void smc_llc_link_active(struct smc_link *link)
 }
 
 /* called in worker context */
-void smc_llc_link_clear(struct smc_link *link)
+void smc_llc_link_clear(struct smc_link *link, bool log)
 {
+	if (log)
+		pr_warn_ratelimited("smc: SMC-R lg %*phN link removed: id %*phN"
+				    ", peerid %*phN, ibdev %s, ibport %d\n",
+				    SMC_LGR_ID_SIZE, &link->lgr->id,
+				    SMC_LGR_ID_SIZE, &link->link_uid,
+				    SMC_LGR_ID_SIZE, &link->peer_link_uid,
+				    link->smcibdev->ibdev->name, link->ibport);
 	complete(&link->llc_testlink_resp);
 	cancel_delayed_work_sync(&link->llc_testlink_wrk);
 	smc_wr_wakeup_reg_wait(link);

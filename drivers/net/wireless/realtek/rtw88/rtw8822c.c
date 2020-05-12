@@ -4297,6 +4297,7 @@ struct rtw_chip_info rtw8822c_hw_spec = {
 	.rqpn_table = rqpn_table_8822c,
 	.intf_table = &phy_para_table_8822c,
 	.dig = rtw8822c_dig,
+	.dig_cck = NULL,
 	.rf_base_addr = {0x3c00, 0x4c00},
 	.rf_sipi_addr = {0x1808, 0x4108},
 	.mac_tbl = &rtw8822c_mac_tbl,
@@ -4312,6 +4313,7 @@ struct rtw_chip_info rtw8822c_hw_spec = {
 	.iqk_threshold = 8,
 	.bfer_su_max_num = 2,
 	.bfer_mu_max_num = 1,
+	.rx_ldpc = true,
 
 #ifdef CONFIG_PM
 	.wow_fw_name = "rtw88/rtw8822c_wow_fw.bin",

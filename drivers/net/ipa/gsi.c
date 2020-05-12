@@ -834,18 +834,18 @@ int gsi_channel_stop(struct gsi *gsi, u32 channel_id)
 }
 
 /* Reset and reconfigure a channel (possibly leaving doorbell disabled) */
-void gsi_channel_reset(struct gsi *gsi, u32 channel_id, bool db_enable)
+void gsi_channel_reset(struct gsi *gsi, u32 channel_id, bool legacy)
 {
 	struct gsi_channel *channel = &gsi->channel[channel_id];
 
 	mutex_lock(&gsi->mutex);
 
-	/* Due to a hardware quirk we need to reset RX channels twice. */
 	gsi_channel_reset_command(channel);
-	if (!channel->toward_ipa)
+	/* Due to a hardware quirk we may need to reset RX channels twice. */
+	if (legacy && !channel->toward_ipa)
 		gsi_channel_reset_command(channel);
 
-	gsi_channel_program(channel, db_enable);
+	gsi_channel_program(channel, legacy);
 	gsi_channel_trans_cancel_pending(channel);
 
 	mutex_unlock(&gsi->mutex);
@@ -1063,6 +1063,7 @@ static void gsi_isr_gp_int1(struct gsi *gsi)
 
 	complete(&gsi->completion);
 }
+
 /* Inter-EE interrupt handler */
 static void gsi_isr_glob_ee(struct gsi *gsi)
 {
@@ -1455,7 +1456,7 @@ static void gsi_evt_ring_teardown(struct gsi *gsi)
 
 /* Setup function for a single channel */
 static int gsi_channel_setup_one(struct gsi *gsi, u32 channel_id,
-				 bool db_enable)
+				 bool legacy)
 {
 	struct gsi_channel *channel = &gsi->channel[channel_id];
 	u32 evt_ring_id = channel->evt_ring_id;
@@ -1474,7 +1475,7 @@ static int gsi_channel_setup_one(struct gsi *gsi, u32 channel_id,
 	if (ret)
 		goto err_evt_ring_de_alloc;
 
-	gsi_channel_program(channel, db_enable);
+	gsi_channel_program(channel, legacy);
 
 	if (channel->toward_ipa)
 		netif_tx_napi_add(&gsi->dummy_dev, &channel->napi,
@@ -1515,6 +1516,12 @@ static int gsi_generic_command(struct gsi *gsi, u32 channel_id,
 	struct completion *completion = &gsi->completion;
 	u32 val;
 
+	/* First zero the result code field */
+	val = ioread32(gsi->virt + GSI_CNTXT_SCRATCH_0_OFFSET);
+	val &= ~GENERIC_EE_RESULT_FMASK;
+	iowrite32(val, gsi->virt + GSI_CNTXT_SCRATCH_0_OFFSET);
+
+	/* Now issue the command */
 	val = u32_encode_bits(opcode, GENERIC_OPCODE_FMASK);
 	val |= u32_encode_bits(channel_id, GENERIC_CHID_FMASK);
 	val |= u32_encode_bits(GSI_EE_MODEM, GENERIC_EE_FMASK);
@@ -1545,7 +1552,7 @@ static void gsi_modem_channel_halt(struct gsi *gsi, u32 channel_id)
 }
 
 /* Setup function for channels */
-static int gsi_channel_setup(struct gsi *gsi, bool db_enable)
+static int gsi_channel_setup(struct gsi *gsi, bool legacy)
 {
 	u32 channel_id = 0;
 	u32 mask;
@@ -1557,7 +1564,7 @@ static int gsi_channel_setup(struct gsi *gsi, bool db_enable)
 	mutex_lock(&gsi->mutex);
 
 	do {
-		ret = gsi_channel_setup_one(gsi, channel_id, db_enable);
+		ret = gsi_channel_setup_one(gsi, channel_id, legacy);
 		if (ret)
 			goto err_unwind;
 	} while (++channel_id < gsi->channel_count);
@@ -1643,7 +1650,7 @@ static void gsi_channel_teardown(struct gsi *gsi)
 }
 
 /* Setup function for GSI.  GSI firmware must be loaded and initialized */
-int gsi_setup(struct gsi *gsi, bool db_enable)
+int gsi_setup(struct gsi *gsi, bool legacy)
 {
 	u32 val;
 
@@ -1686,7 +1693,7 @@ int gsi_setup(struct gsi *gsi, bool db_enable)
 	/* Writing 1 indicates IRQ interrupts; 0 would be MSI */
 	iowrite32(1, gsi->virt + GSI_CNTXT_INTSET_OFFSET);
 
-	return gsi_channel_setup(gsi, db_enable);
+	return gsi_channel_setup(gsi, legacy);
 }
 
 /* Inverse of gsi_setup() */
@@ -1820,9 +1827,9 @@ static int gsi_channel_init_one(struct gsi *gsi,
 
 	/* Worst case we need an event for every outstanding TRE */
 	if (data->channel.tre_count > data->channel.event_count) {
-		dev_warn(gsi->dev, "channel %u limited to %u TREs\n",
-			data->channel_id, data->channel.tre_count);
 		tre_count = data->channel.event_count;
+		dev_warn(gsi->dev, "channel %u limited to %u TREs\n",
+			 data->channel_id, tre_count);
 	} else {
 		tre_count = data->channel.tre_count;
 	}

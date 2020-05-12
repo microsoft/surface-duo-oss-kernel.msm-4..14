@@ -424,7 +424,7 @@ struct enetc_psfp {
 	spinlock_t psfp_lock; /* spinlock for the struct enetc_psfp r/w */
 };
 
-struct actions_fwd enetc_act_fwd[] = {
+static struct actions_fwd enetc_act_fwd[] = {
 	{
 		BIT(FLOW_ACTION_GATE),
 		BIT(FLOW_DISSECTOR_KEY_ETH_ADDRS),
@@ -903,7 +903,7 @@ static void stream_filter_unref(struct enetc_ndev_priv *priv, u32 index)
 		enetc_streamfilter_hw_set(priv, sfi, false);
 		hlist_del(&sfi->node);
 		kfree(sfi);
-		clear_bit(sfi->index, epsfp.psfp_sfi_bitmap);
+		clear_bit(index, epsfp.psfp_sfi_bitmap);
 	}
 }
 
@@ -963,7 +963,8 @@ revert_sid:
 	return err;
 }
 
-struct actions_fwd *enetc_check_flow_actions(u64 acts, unsigned int inputkeys)
+static struct actions_fwd *enetc_check_flow_actions(u64 acts,
+						    unsigned int inputkeys)
 {
 	int i;
 
