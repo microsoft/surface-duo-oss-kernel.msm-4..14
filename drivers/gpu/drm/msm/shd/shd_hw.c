@@ -35,7 +35,7 @@
 
 #define CTL_SSPP_FLUSH_MASK              0x3041807
 
-#define CTL_MIXER_FLUSH_MASK             0x00207C0
+#define FLUSH_MASK_ALL                   0xfffffff
 
 #define   CTL_LAYER(lm)                 \
 		(((lm) == LM_5) ? (0x024) : (((lm) - LM_0) * 0x004))
@@ -400,7 +400,7 @@ void sde_shd_hw_flush(struct sde_hw_ctl *ctl_ctx,
 
 	spin_lock_irqsave(&hw_ctl_lock, lock_flags);
 
-	SDE_REG_WRITE(c, CTL_FLUSH_MASK, CTL_MIXER_FLUSH_MASK);
+	SDE_REG_WRITE(c, CTL_FLUSH_MASK, FLUSH_MASK_ALL);
 
 	_sde_shd_flush_hw_ctl(ctl_ctx);
 
