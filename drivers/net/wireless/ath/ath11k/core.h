@@ -60,9 +60,14 @@ static inline enum wme_ac ath11k_tid_to_ac(u32 tid)
 		WME_AC_VO);
 }
 
+enum ath11k_skb_flags {
+	ATH11K_SKB_HW_80211_ENCAP = BIT(0),
+};
+
 struct ath11k_skb_cb {
 	dma_addr_t paddr;
 	u8 eid;
+	u8 flags;
 	struct ath11k *ar;
 	struct ieee80211_vif *vif;
 } __packed;
@@ -392,6 +397,7 @@ struct ath11k_debug {
 	u32 pktlog_mode;
 	u32 pktlog_peer_valid;
 	u8 pktlog_peer_addr[ETH_ALEN];
+	u32 rx_filter;
 };
 
 struct ath11k_per_peer_tx_stats {
@@ -601,7 +607,9 @@ struct ath11k_base {
 	void __iomem *mem;
 	unsigned long mem_len;
 
-	const struct ath11k_hif_ops *hif_ops;
+	struct {
+		const struct ath11k_hif_ops *ops;
+	} hif;
 
 	struct ath11k_ce ce;
 	struct timer_list rx_replenish_retry;
@@ -656,6 +664,12 @@ struct ath11k_base {
 		u32 fw_crash_counter;
 	} stats;
 	u32 pktlog_defs_checksum;
+
+	/* Round robbin based TCL ring selector */
+	atomic_t tcl_ring_selector;
+
+	/* must be last */
+	u8 drv_priv[0] __aligned(sizeof(void *));
 };
 
 struct ath11k_fw_stats_pdev {
@@ -792,7 +806,8 @@ struct ath11k_peer *ath11k_peer_find_by_id(struct ath11k_base *ab, int peer_id);
 int ath11k_core_qmi_firmware_ready(struct ath11k_base *ab);
 int ath11k_core_init(struct ath11k_base *ath11k);
 void ath11k_core_deinit(struct ath11k_base *ath11k);
-struct ath11k_base *ath11k_core_alloc(struct device *dev);
+struct ath11k_base *ath11k_core_alloc(struct device *dev, size_t priv_size,
+				      enum ath11k_bus bus);
 void ath11k_core_free(struct ath11k_base *ath11k);
 int ath11k_core_fetch_bdf(struct ath11k_base *ath11k,
 			  struct ath11k_board_data *bd);

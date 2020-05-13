@@ -25,7 +25,7 @@ static void rtw_fw_c2h_cmd_handle_ext(struct rtw_dev *rtwdev,
 
 	switch (sub_cmd_id) {
 	case C2H_CCX_RPT:
-		rtw_tx_report_handle(rtwdev, skb);
+		rtw_tx_report_handle(rtwdev, skb, C2H_CCX_RPT);
 		break;
 	default:
 		break;
@@ -142,6 +142,9 @@ void rtw_fw_c2h_cmd_handle(struct rtw_dev *rtwdev, struct sk_buff *skb)
 		goto unlock;
 
 	switch (c2h->id) {
+	case C2H_CCX_TX_RPT:
+		rtw_tx_report_handle(rtwdev, skb, C2H_CCX_TX_RPT);
+		break;
 	case C2H_BT_INFO:
 		rtw_coex_bt_info_notify(rtwdev, c2h->payload, len);
 		break;
@@ -155,6 +158,7 @@ void rtw_fw_c2h_cmd_handle(struct rtw_dev *rtwdev, struct sk_buff *skb)
 		rtw_fw_ra_report_handle(rtwdev, c2h->payload, len);
 		break;
 	default:
+		rtw_dbg(rtwdev, RTW_DBG_FW, "C2H 0x%x isn't handled\n", c2h->id);
 		break;
 	}
 
@@ -228,9 +232,9 @@ static void rtw_fw_send_h2c_command(struct rtw_dev *rtwdev,
 		goto out;
 	}
 
-	ret = read_poll_timeout(rtw_read8, box_state,
-				!((box_state >> box) & 0x1), 100, 3000, false,
-				rtwdev, REG_HMETFR);
+	ret = read_poll_timeout_atomic(rtw_read8, box_state,
+				       !((box_state >> box) & 0x1), 100, 3000,
+				       false, rtwdev, REG_HMETFR);
 
 	if (ret) {
 		rtw_err(rtwdev, "failed to send h2c command\n");

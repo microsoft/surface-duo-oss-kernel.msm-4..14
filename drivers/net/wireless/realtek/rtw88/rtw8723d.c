@@ -172,6 +172,281 @@ static int rtw8723d_read_efuse(struct rtw_dev *rtwdev, u8 *log_map)
 	return 0;
 }
 
+static void query_phy_status_page0(struct rtw_dev *rtwdev, u8 *phy_status,
+				   struct rtw_rx_pkt_stat *pkt_stat)
+{
+	struct rtw_dm_info *dm_info = &rtwdev->dm_info;
+	s8 min_rx_power = -120;
+	u8 pwdb = GET_PHY_STAT_P0_PWDB(phy_status);
+
+	pkt_stat->rx_power[RF_PATH_A] = pwdb - 97;
+	pkt_stat->rssi = rtw_phy_rf_power_2_rssi(pkt_stat->rx_power, 1);
+	pkt_stat->bw = RTW_CHANNEL_WIDTH_20;
+	pkt_stat->signal_power = max(pkt_stat->rx_power[RF_PATH_A],
+				     min_rx_power);
+	dm_info->rssi[RF_PATH_A] = pkt_stat->rssi;
+}
+
+static void query_phy_status_page1(struct rtw_dev *rtwdev, u8 *phy_status,
+				   struct rtw_rx_pkt_stat *pkt_stat)
+{
+	struct rtw_dm_info *dm_info = &rtwdev->dm_info;
+	u8 rxsc, bw;
+	s8 min_rx_power = -120;
+	s8 rx_evm;
+
+	if (pkt_stat->rate > DESC_RATE11M && pkt_stat->rate < DESC_RATEMCS0)
+		rxsc = GET_PHY_STAT_P1_L_RXSC(phy_status);
+	else
+		rxsc = GET_PHY_STAT_P1_HT_RXSC(phy_status);
+
+	if (GET_PHY_STAT_P1_RF_MODE(phy_status) == 0)
+		bw = RTW_CHANNEL_WIDTH_20;
+	else if ((rxsc == 1) || (rxsc == 2))
+		bw = RTW_CHANNEL_WIDTH_20;
+	else
+		bw = RTW_CHANNEL_WIDTH_40;
+
+	pkt_stat->rx_power[RF_PATH_A] = GET_PHY_STAT_P1_PWDB_A(phy_status) - 110;
+	pkt_stat->rssi = rtw_phy_rf_power_2_rssi(pkt_stat->rx_power, 1);
+	pkt_stat->bw = bw;
+	pkt_stat->signal_power = max(pkt_stat->rx_power[RF_PATH_A],
+				     min_rx_power);
+	pkt_stat->rx_evm[RF_PATH_A] = GET_PHY_STAT_P1_RXEVM_A(phy_status);
+	pkt_stat->rx_snr[RF_PATH_A] = GET_PHY_STAT_P1_RXSNR_A(phy_status);
+	pkt_stat->cfo_tail[RF_PATH_A] = GET_PHY_STAT_P1_CFO_TAIL_A(phy_status);
+
+	dm_info->curr_rx_rate = pkt_stat->rate;
+	dm_info->rssi[RF_PATH_A] = pkt_stat->rssi;
+	dm_info->rx_snr[RF_PATH_A] = pkt_stat->rx_snr[RF_PATH_A] >> 1;
+	dm_info->cfo_tail[RF_PATH_A] = (pkt_stat->cfo_tail[RF_PATH_A] * 5) >> 1;
+
+	rx_evm = clamp_t(s8, -pkt_stat->rx_evm[RF_PATH_A] >> 1, 0, 64);
+	rx_evm &= 0x3F;	/* 64->0: second path of 1SS rate is 64 */
+	dm_info->rx_evm_dbm[RF_PATH_A] = rx_evm;
+}
+
+static void query_phy_status(struct rtw_dev *rtwdev, u8 *phy_status,
+			     struct rtw_rx_pkt_stat *pkt_stat)
+{
+	u8 page;
+
+	page = *phy_status & 0xf;
+
+	switch (page) {
+	case 0:
+		query_phy_status_page0(rtwdev, phy_status, pkt_stat);
+		break;
+	case 1:
+		query_phy_status_page1(rtwdev, phy_status, pkt_stat);
+		break;
+	default:
+		rtw_warn(rtwdev, "unused phy status page (%d)\n", page);
+		return;
+	}
+}
+
+static void rtw8723d_query_rx_desc(struct rtw_dev *rtwdev, u8 *rx_desc,
+				   struct rtw_rx_pkt_stat *pkt_stat,
+				   struct ieee80211_rx_status *rx_status)
+{
+	struct ieee80211_hdr *hdr;
+	u32 desc_sz = rtwdev->chip->rx_pkt_desc_sz;
+	u8 *phy_status = NULL;
+
+	memset(pkt_stat, 0, sizeof(*pkt_stat));
+
+	pkt_stat->phy_status = GET_RX_DESC_PHYST(rx_desc);
+	pkt_stat->icv_err = GET_RX_DESC_ICV_ERR(rx_desc);
+	pkt_stat->crc_err = GET_RX_DESC_CRC32(rx_desc);
+	pkt_stat->decrypted = !GET_RX_DESC_SWDEC(rx_desc) &&
+			      GET_RX_DESC_ENC_TYPE(rx_desc) != RX_DESC_ENC_NONE;
+	pkt_stat->is_c2h = GET_RX_DESC_C2H(rx_desc);
+	pkt_stat->pkt_len = GET_RX_DESC_PKT_LEN(rx_desc);
+	pkt_stat->drv_info_sz = GET_RX_DESC_DRV_INFO_SIZE(rx_desc);
+	pkt_stat->shift = GET_RX_DESC_SHIFT(rx_desc);
+	pkt_stat->rate = GET_RX_DESC_RX_RATE(rx_desc);
+	pkt_stat->cam_id = GET_RX_DESC_MACID(rx_desc);
+	pkt_stat->ppdu_cnt = 0;
+	pkt_stat->tsf_low = GET_RX_DESC_TSFL(rx_desc);
+
+	/* drv_info_sz is in unit of 8-bytes */
+	pkt_stat->drv_info_sz *= 8;
+
+	/* c2h cmd pkt's rx/phy status is not interested */
+	if (pkt_stat->is_c2h)
+		return;
+
+	hdr = (struct ieee80211_hdr *)(rx_desc + desc_sz + pkt_stat->shift +
+				       pkt_stat->drv_info_sz);
+	if (pkt_stat->phy_status) {
+		phy_status = rx_desc + desc_sz + pkt_stat->shift;
+		query_phy_status(rtwdev, phy_status, pkt_stat);
+	}
+
+	rtw_rx_fill_rx_status(rtwdev, pkt_stat, hdr, rx_status, phy_status);
+}
+
+static bool rtw8723d_check_spur_ov_thres(struct rtw_dev *rtwdev,
+					 u8 channel, u32 thres)
+{
+	u32 freq;
+	bool ret = false;
+
+	if (channel == 13)
+		freq = FREQ_CH13;
+	else if (channel == 14)
+		freq = FREQ_CH14;
+	else
+		return false;
+
+	rtw_write32(rtwdev, REG_ANALOG_P4, DIS_3WIRE);
+	rtw_write32(rtwdev, REG_PSDFN, freq);
+	rtw_write32(rtwdev, REG_PSDFN, START_PSD | freq);
+
+	msleep(30);
+	if (rtw_read32(rtwdev, REG_PSDRPT) >= thres)
+		ret = true;
+
+	rtw_write32(rtwdev, REG_PSDFN, freq);
+	rtw_write32(rtwdev, REG_ANALOG_P4, EN_3WIRE);
+
+	return ret;
+}
+
+static void rtw8723d_cfg_notch(struct rtw_dev *rtwdev, u8 channel, bool notch)
+{
+	if (!notch) {
+		rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_MASK_RXDSP, 0x1f);
+		rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_EN_RXDSP, 0x0);
+		rtw_write32(rtwdev, REG_OFDM1_CSI1, 0x00000000);
+		rtw_write32(rtwdev, REG_OFDM1_CSI2, 0x00000000);
+		rtw_write32(rtwdev, REG_OFDM1_CSI3, 0x00000000);
+		rtw_write32(rtwdev, REG_OFDM1_CSI4, 0x00000000);
+		rtw_write32_mask(rtwdev, REG_OFDM1_CFOTRK, BIT_EN_CFOTRK, 0x0);
+		return;
+	}
+
+	switch (channel) {
+	case 13:
+		rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_MASK_RXDSP, 0xb);
+		rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_EN_RXDSP, 0x1);
+		rtw_write32(rtwdev, REG_OFDM1_CSI1, 0x04000000);
+		rtw_write32(rtwdev, REG_OFDM1_CSI2, 0x00000000);
+		rtw_write32(rtwdev, REG_OFDM1_CSI3, 0x00000000);
+		rtw_write32(rtwdev, REG_OFDM1_CSI4, 0x00000000);
+		rtw_write32_mask(rtwdev, REG_OFDM1_CFOTRK, BIT_EN_CFOTRK, 0x1);
+		break;
+	case 14:
+		rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_MASK_RXDSP, 0x5);
+		rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_EN_RXDSP, 0x1);
+		rtw_write32(rtwdev, REG_OFDM1_CSI1, 0x00000000);
+		rtw_write32(rtwdev, REG_OFDM1_CSI2, 0x00000000);
+		rtw_write32(rtwdev, REG_OFDM1_CSI3, 0x00000000);
+		rtw_write32(rtwdev, REG_OFDM1_CSI4, 0x00080000);
+		rtw_write32_mask(rtwdev, REG_OFDM1_CFOTRK, BIT_EN_CFOTRK, 0x1);
+		break;
+	default:
+		rtw_write32_mask(rtwdev, REG_OFDM0_RXDSP, BIT_EN_RXDSP, 0x0);
+		rtw_write32_mask(rtwdev, REG_OFDM1_CFOTRK, BIT_EN_CFOTRK, 0x0);
+		break;
+	}
+}
+
+static void rtw8723d_spur_cal(struct rtw_dev *rtwdev, u8 channel)
+{
+	bool notch;
+
+	if (channel < 13) {
+		rtw8723d_cfg_notch(rtwdev, channel, false);
+		return;
+	}
+
+	notch = rtw8723d_check_spur_ov_thres(rtwdev, channel, SPUR_THRES);
+	rtw8723d_cfg_notch(rtwdev, channel, notch);
+}
+
+static void rtw8723d_set_channel_rf(struct rtw_dev *rtwdev, u8 channel, u8 bw)
+{
+	u32 rf_cfgch_a, rf_cfgch_b;
+
+	rf_cfgch_a = rtw_read_rf(rtwdev, RF_PATH_A, RF_CFGCH, RFREG_MASK);
+	rf_cfgch_b = rtw_read_rf(rtwdev, RF_PATH_B, RF_CFGCH, RFREG_MASK);
+
+	rf_cfgch_a &= ~RFCFGCH_CHANNEL_MASK;
+	rf_cfgch_b &= ~RFCFGCH_CHANNEL_MASK;
+	rf_cfgch_a |= (channel & RFCFGCH_CHANNEL_MASK);
+	rf_cfgch_b |= (channel & RFCFGCH_CHANNEL_MASK);
+
+	rf_cfgch_a &= ~RFCFGCH_BW_MASK;
+	switch (bw) {
+	case RTW_CHANNEL_WIDTH_20:
+		rf_cfgch_a |= RFCFGCH_BW_20M;
+		break;
+	case RTW_CHANNEL_WIDTH_40:
+		rf_cfgch_a |= RFCFGCH_BW_40M;
+		break;
+	default:
+		break;
+	}
+
+	rtw_write_rf(rtwdev, RF_PATH_A, RF_CFGCH, RFREG_MASK, rf_cfgch_a);
+	rtw_write_rf(rtwdev, RF_PATH_B, RF_CFGCH, RFREG_MASK, rf_cfgch_b);
+
+	rtw8723d_spur_cal(rtwdev, channel);
+}
+
+static const struct rtw_backup_info cck_dfir_cfg[][CCK_DFIR_NR] = {
+	[0] = {
+		{ .len = 4, .reg = 0xA24, .val = 0x64B80C1C },
+		{ .len = 4, .reg = 0xA28, .val = 0x00008810 },
+		{ .len = 4, .reg = 0xAAC, .val = 0x01235667 },
+	},
+	[1] = {
+		{ .len = 4, .reg = 0xA24, .val = 0x0000B81C },
+		{ .len = 4, .reg = 0xA28, .val = 0x00000000 },
+		{ .len = 4, .reg = 0xAAC, .val = 0x00003667 },
+	},
+};
+
+static void rtw8723d_set_channel_bb(struct rtw_dev *rtwdev, u8 channel, u8 bw,
+				    u8 primary_ch_idx)
+{
+	const struct rtw_backup_info *cck_dfir;
+	int i;
+
+	cck_dfir = channel <= 13 ? cck_dfir_cfg[0] : cck_dfir_cfg[1];
+
+	for (i = 0; i < CCK_DFIR_NR; i++, cck_dfir++)
+		rtw_write32(rtwdev, cck_dfir->reg, cck_dfir->val);
+
+	switch (bw) {
+	case RTW_CHANNEL_WIDTH_20:
+		rtw_write32_mask(rtwdev, REG_FPGA0_RFMOD, BIT_MASK_RFMOD, 0x0);
+		rtw_write32_mask(rtwdev, REG_FPGA1_RFMOD, BIT_MASK_RFMOD, 0x0);
+		rtw_write32_mask(rtwdev, REG_BBRX_DFIR, BIT_RXBB_DFIR_EN, 1);
+		rtw_write32_mask(rtwdev, REG_BBRX_DFIR, BIT_MASK_RXBB_DFIR, 0xa);
+		break;
+	case RTW_CHANNEL_WIDTH_40:
+		rtw_write32_mask(rtwdev, REG_FPGA0_RFMOD, BIT_MASK_RFMOD, 0x1);
+		rtw_write32_mask(rtwdev, REG_FPGA1_RFMOD, BIT_MASK_RFMOD, 0x1);
+		rtw_write32_mask(rtwdev, REG_BBRX_DFIR, BIT_RXBB_DFIR_EN, 0);
+		rtw_write32_mask(rtwdev, REG_CCK0_SYS, BIT_CCK_SIDE_BAND,
+				 (primary_ch_idx == RTW_SC_20_UPPER ? 1 : 0));
+		break;
+	default:
+		break;
+	}
+}
+
+static void rtw8723d_set_channel(struct rtw_dev *rtwdev, u8 channel, u8 bw,
+				 u8 primary_chan_idx)
+{
+	rtw8723d_set_channel_rf(rtwdev, channel, bw);
+	rtw_set_channel_mac(rtwdev, channel, bw, primary_chan_idx);
+	rtw8723d_set_channel_bb(rtwdev, channel, bw, primary_chan_idx);
+}
+
 #define BIT_CFENDFORM		BIT(9)
 #define BIT_WMAC_TCR_ERR0	BIT(12)
 #define BIT_WMAC_TCR_ERR1	BIT(13)
@@ -264,9 +539,75 @@ static void rtw8723d_efuse_grant(struct rtw_dev *rtwdev, bool on)
 	}
 }
 
+static void rtw8723d_false_alarm_statistics(struct rtw_dev *rtwdev)
+{
+	struct rtw_dm_info *dm_info = &rtwdev->dm_info;
+	u32 cck_fa_cnt;
+	u32 ofdm_fa_cnt;
+	u32 crc32_cnt;
+	u32 val32;
+
+	/* hold counter */
+	rtw_write32_mask(rtwdev, REG_OFDM_FA_HOLDC_11N, BIT_MASK_OFDM_FA_KEEP, 1);
+	rtw_write32_mask(rtwdev, REG_OFDM_FA_RSTD_11N, BIT_MASK_OFDM_FA_KEEP1, 1);
+	rtw_write32_mask(rtwdev, REG_CCK_FA_RST_11N, BIT_MASK_CCK_CNT_KEEP, 1);
+	rtw_write32_mask(rtwdev, REG_CCK_FA_RST_11N, BIT_MASK_CCK_FA_KEEP, 1);
+
+	cck_fa_cnt = rtw_read32_mask(rtwdev, REG_CCK_FA_LSB_11N, MASKBYTE0);
+	cck_fa_cnt += rtw_read32_mask(rtwdev, REG_CCK_FA_MSB_11N, MASKBYTE3) << 8;
+
+	val32 = rtw_read32(rtwdev, REG_OFDM_FA_TYPE1_11N);
+	ofdm_fa_cnt = u32_get_bits(val32, BIT_MASK_OFDM_FF_CNT);
+	ofdm_fa_cnt += u32_get_bits(val32, BIT_MASK_OFDM_SF_CNT);
+	val32 = rtw_read32(rtwdev, REG_OFDM_FA_TYPE2_11N);
+	dm_info->ofdm_cca_cnt = u32_get_bits(val32, BIT_MASK_OFDM_CCA_CNT);
+	ofdm_fa_cnt += u32_get_bits(val32, BIT_MASK_OFDM_PF_CNT);
+	val32 = rtw_read32(rtwdev, REG_OFDM_FA_TYPE3_11N);
+	ofdm_fa_cnt += u32_get_bits(val32, BIT_MASK_OFDM_RI_CNT);
+	ofdm_fa_cnt += u32_get_bits(val32, BIT_MASK_OFDM_CRC_CNT);
+	val32 = rtw_read32(rtwdev, REG_OFDM_FA_TYPE4_11N);
+	ofdm_fa_cnt += u32_get_bits(val32, BIT_MASK_OFDM_MNS_CNT);
+
+	dm_info->cck_fa_cnt = cck_fa_cnt;
+	dm_info->ofdm_fa_cnt = ofdm_fa_cnt;
+	dm_info->total_fa_cnt = cck_fa_cnt + ofdm_fa_cnt;
+
+	dm_info->cck_err_cnt = rtw_read32(rtwdev, REG_IGI_C_11N);
+	dm_info->cck_ok_cnt = rtw_read32(rtwdev, REG_IGI_D_11N);
+	crc32_cnt = rtw_read32(rtwdev, REG_OFDM_CRC32_CNT_11N);
+	dm_info->ofdm_err_cnt = u32_get_bits(crc32_cnt, BIT_MASK_OFDM_LCRC_ERR);
+	dm_info->ofdm_ok_cnt = u32_get_bits(crc32_cnt, BIT_MASK_OFDM_LCRC_OK);
+	crc32_cnt = rtw_read32(rtwdev, REG_HT_CRC32_CNT_11N);
+	dm_info->ht_err_cnt = u32_get_bits(crc32_cnt, BIT_MASK_HT_CRC_ERR);
+	dm_info->ht_ok_cnt = u32_get_bits(crc32_cnt, BIT_MASK_HT_CRC_OK);
+	dm_info->vht_err_cnt = 0;
+	dm_info->vht_ok_cnt = 0;
+
+	val32 = rtw_read32(rtwdev, REG_CCK_CCA_CNT_11N);
+	dm_info->cck_cca_cnt = (u32_get_bits(val32, BIT_MASK_CCK_FA_MSB) << 8) |
+			       u32_get_bits(val32, BIT_MASK_CCK_FA_LSB);
+	dm_info->total_cca_cnt = dm_info->cck_cca_cnt + dm_info->ofdm_cca_cnt;
+
+	/* reset counter */
+	rtw_write32_mask(rtwdev, REG_OFDM_FA_RSTC_11N, BIT_MASK_OFDM_FA_RST, 1);
+	rtw_write32_mask(rtwdev, REG_OFDM_FA_RSTC_11N, BIT_MASK_OFDM_FA_RST, 0);
+	rtw_write32_mask(rtwdev, REG_OFDM_FA_RSTD_11N, BIT_MASK_OFDM_FA_RST1, 1);
+	rtw_write32_mask(rtwdev, REG_OFDM_FA_RSTD_11N, BIT_MASK_OFDM_FA_RST1, 0);
+	rtw_write32_mask(rtwdev, REG_OFDM_FA_HOLDC_11N, BIT_MASK_OFDM_FA_KEEP, 0);
+	rtw_write32_mask(rtwdev, REG_OFDM_FA_RSTD_11N, BIT_MASK_OFDM_FA_KEEP1, 0);
+	rtw_write32_mask(rtwdev, REG_CCK_FA_RST_11N, BIT_MASK_CCK_CNT_KPEN, 0);
+	rtw_write32_mask(rtwdev, REG_CCK_FA_RST_11N, BIT_MASK_CCK_CNT_KPEN, 2);
+	rtw_write32_mask(rtwdev, REG_CCK_FA_RST_11N, BIT_MASK_CCK_FA_KPEN, 0);
+	rtw_write32_mask(rtwdev, REG_CCK_FA_RST_11N, BIT_MASK_CCK_FA_KPEN, 2);
+	rtw_write32_mask(rtwdev, REG_PAGE_F_RST_11N, BIT_MASK_F_RST_ALL, 1);
+	rtw_write32_mask(rtwdev, REG_PAGE_F_RST_11N, BIT_MASK_F_RST_ALL, 0);
+}
+
 static struct rtw_chip_ops rtw8723d_ops = {
 	.phy_set_param		= rtw8723d_phy_set_param,
 	.read_efuse		= rtw8723d_read_efuse,
+	.query_rx_desc		= rtw8723d_query_rx_desc,
+	.set_channel		= rtw8723d_set_channel,
 	.mac_init		= rtw8723d_mac_init,
 	.read_rf		= rtw_phy_read_rf_sipi,
 	.write_rf		= rtw_phy_write_rf_reg_sipi,
@@ -274,6 +615,7 @@ static struct rtw_chip_ops rtw8723d_ops = {
 	.set_antenna		= NULL,
 	.cfg_ldo25		= rtw8723d_cfg_ldo25,
 	.efuse_grant		= rtw8723d_efuse_grant,
+	.false_alarm_statistics	= rtw8723d_false_alarm_statistics,
 	.config_bfee		= NULL,
 	.set_gid_table		= NULL,
 	.cfg_csi_rate		= NULL,
@@ -706,6 +1048,35 @@ static const struct rtw_rqpn rqpn_table_8723d[] = {
 	 RTW_DMA_MAPPING_EXTRA, RTW_DMA_MAPPING_HIGH},
 };
 
+static const struct rtw_intf_phy_para pcie_gen1_param_8723d[] = {
+	{0x0008, 0x4a22,
+	 RTW_IP_SEL_PHY,
+	 RTW_INTF_PHY_CUT_ALL,
+	 RTW_INTF_PHY_PLATFORM_ALL},
+	{0x0009, 0x1000,
+	 RTW_IP_SEL_PHY,
+	 ~(RTW_INTF_PHY_CUT_A | RTW_INTF_PHY_CUT_B),
+	 RTW_INTF_PHY_PLATFORM_ALL},
+	{0xFFFF, 0x0000,
+	 RTW_IP_SEL_PHY,
+	 RTW_INTF_PHY_CUT_ALL,
+	 RTW_INTF_PHY_PLATFORM_ALL},
+};
+
+static const struct rtw_intf_phy_para_table phy_para_table_8723d = {
+	.gen1_para	= pcie_gen1_param_8723d,
+	.n_gen1_para	= ARRAY_SIZE(pcie_gen1_param_8723d),
+};
+
+static const struct rtw_hw_reg rtw8723d_dig[] = {
+	[0] = { .addr = 0xc50, .mask = 0x7f },
+	[1] = { .addr = 0xc50, .mask = 0x7f },
+};
+
+static const struct rtw_hw_reg rtw8723d_dig_cck[] = {
+	[0] = { .addr = 0xa0c, .mask = 0x3f00 },
+};
+
 static const struct rtw_rf_sipi_addr rtw8723d_rf_sipi_addr[] = {
 	[RF_PATH_A] = { .hssi_1 = 0x820, .lssi_read    = 0x8a0,
 			.hssi_2 = 0x824, .lssi_read_pi = 0x8b8},
@@ -738,6 +1109,7 @@ struct rtw_chip_info rtw8723d_hw_spec = {
 	.csi_buf_pg_num = 0,
 	.band = RTW_BAND_2G,
 	.page_size = 128,
+	.dig_min = 0x20,
 	.ht_supported = true,
 	.vht_supported = false,
 	.lps_deep_mode_supported = 0,
@@ -746,6 +1118,9 @@ struct rtw_chip_info rtw8723d_hw_spec = {
 	.pwr_off_seq = card_disable_flow_8723d,
 	.page_table = page_table_8723d,
 	.rqpn_table = rqpn_table_8723d,
+	.intf_table = &phy_para_table_8723d,
+	.dig = rtw8723d_dig,
+	.dig_cck = rtw8723d_dig_cck,
 	.rf_sipi_addr = {0x840, 0x844},
 	.rf_sipi_read_addr = rtw8723d_rf_sipi_addr,
 	.fix_rf_phy_num = 2,
@@ -755,6 +1130,7 @@ struct rtw_chip_info rtw8723d_hw_spec = {
 	.rf_tbl = {&rtw8723d_rf_a_tbl},
 	.rfe_defs = rtw8723d_rfe_defs,
 	.rfe_defs_size = ARRAY_SIZE(rtw8723d_rfe_defs),
+	.rx_ldpc = false,
 };
 EXPORT_SYMBOL(rtw8723d_hw_spec);
 
