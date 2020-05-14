@@ -984,7 +984,7 @@ int rt6_route_rcv(struct net_device *dev, u8 *opt, int len,
 					gwaddr, dev);
 
 	if (rt && !lifetime) {
-		ip6_del_rt(net, rt);
+		ip6_del_rt(net, rt, false);
 		rt = NULL;
 	}
 
@@ -1377,7 +1377,7 @@ static struct rt6_info *ip6_rt_pcpu_alloc(const struct fib6_result *res)
 
 	rcu_read_lock();
 	dev = ip6_rt_get_dev_rcu(res);
-	pcpu_rt = ip6_dst_alloc(dev_net(dev), dev, flags);
+	pcpu_rt = ip6_dst_alloc(dev_net(dev), dev, flags | DST_NOCOUNT);
 	rcu_read_unlock();
 	if (!pcpu_rt) {
 		fib6_info_release(f6i);
@@ -3195,6 +3195,9 @@ static int ip6_dst_gc(struct dst_ops *ops)
 	int entries;
 
 	entries = dst_entries_get_fast(ops);
+	if (entries > rt_max_size)
+		entries = dst_entries_get_slow(ops);
+
 	if (time_after(rt_last_gc + rt_min_interval, jiffies) &&
 	    entries <= rt_max_size)
 		goto out;
@@ -3754,9 +3757,12 @@ out:
 	return err;
 }
 
-int ip6_del_rt(struct net *net, struct fib6_info *rt)
+int ip6_del_rt(struct net *net, struct fib6_info *rt, bool skip_notify)
 {
-	struct nl_info info = { .nl_net = net };
+	struct nl_info info = {
+		.nl_net = net,
+		.skip_notify = skip_notify
+	};
 
 	return __ip6_del_rt(rt, &info);
 }
@@ -4277,7 +4283,7 @@ restart:
 		    (!idev || idev->cnf.accept_ra != 2) &&
 		    fib6_info_hold_safe(rt)) {
 			rcu_read_unlock();
-			ip6_del_rt(net, rt);
+			ip6_del_rt(net, rt, false);
 			goto restart;
 		}
 	}
@@ -5579,7 +5585,8 @@ static int rt6_fill_node(struct net *net, struct sk_buff *skb,
 		if (nexthop_is_blackhole(rt->nh))
 			rtm->rtm_type = RTN_BLACKHOLE;
 
-		if (rt6_fill_node_nexthop(skb, rt->nh, &nh_flags) < 0)
+		if (net->ipv4.sysctl_nexthop_compat_mode &&
+		    rt6_fill_node_nexthop(skb, rt->nh, &nh_flags) < 0)
 			goto nla_put_failure;
 
 		rtm->rtm_flags |= nh_flags;
@@ -6113,9 +6120,8 @@ static int rt6_stats_seq_show(struct seq_file *seq, void *v)
 
 #ifdef CONFIG_SYSCTL
 
-static
-int ipv6_sysctl_rtcache_flush(struct ctl_table *ctl, int write,
-			      void __user *buffer, size_t *lenp, loff_t *ppos)
+static int ipv6_sysctl_rtcache_flush(struct ctl_table *ctl, int write,
+			      void *buffer, size_t *lenp, loff_t *ppos)
 {
 	struct net *net;
 	int delay;
