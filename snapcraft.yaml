@@ -1,36 +1,93 @@
-name: pc-kernel
-version: null
-version-script: |
-    . debian/debian.env
-    dpkg-parsechangelog -l $DEBIAN/changelog -S version
-summary: The Ubuntu generic Linux kernel
-description: This Ubuntu generic Linux kernel
+name: xilinx-kernel
+summary: Xilinx kernel for snappy
+description: This is a Xilinx snapped kernel
 grade: stable
 confinement: strict
 type: kernel
+adopt-info: kernel
+architectures:
+  - build-on: [amd64, arm64]
+    run-on: arm64
+
+build-base: core18
 
 parts:
   kernel:
+    after:
+      - firmware
     plugin: kernel
     source: .
     source-type: git
-    kconfigflavour: generic
+    kdefconfig: [ "defconfig", "xilinx_zynqmp_defconfig" ]
+    kernel-with-firmware: false
+    kernel-image-target: Image
     kconfigs:
       - CONFIG_DEBUG_INFO=n
     override-build: |
       cp debian/scripts/retpoline-extract-one \
         $SNAPCRAFT_PART_BUILD/scripts/ubuntu-retpoline-extract-one
       snapcraftctl build
-    kernel-with-firmware: false
+      cp ${SNAPCRAFT_PART_INSTALL}/dtbs/xilinx/*.dtb ${SNAPCRAFT_PART_INSTALL}/dtbs/
+      mkdir -p ${SNAPCRAFT_PART_INSTALL}/lib
+      ln -sf ../modules ${SNAPCRAFT_PART_INSTALL}/lib/modules
+      snapcraftctl set-version $(git describe --tags | cut -c 15-)
+    organize:
+      initrd.img: initrd
+      kernel.img: Image
+    prime:
+      - -initrd*
+      - -Image*
+
+  initrd-overlay:
+    plugin: nil
+    source: initrd-overlay
+    after:
+      - kernel
+    stage-packages:
+      - wireless-regdb
+    override-build: |
+      echo "Preparing overlay initrd"
+      mkdir lib
+      cp -r ${SNAPCRAFT_PART_INSTALL}/lib/firmware lib/
+      find . | cpio --quiet -o -H newc | lzma -7 > $SNAPCRAFT_PART_INSTALL/initrd-overlay.img
+      cat $SNAPCRAFT_STAGE/initrd $SNAPCRAFT_PART_INSTALL/initrd-overlay.img > $SNAPCRAFT_PART_INSTALL/initrd.img
+    organize:
+      lib/firmware/: firmware/
+    prime:
+      - initrd.img
+      - firmware
+
   firmware:
     plugin: nil
     stage-packages:
       - linux-firmware
+    override-build: |
+      snapcraftctl build
+      ln -s ../firmware ${SNAPCRAFT_PART_INSTALL}/lib/firmware
     organize:
       lib/firmware: firmware
     prime:
       - -usr
       - -lib
-    build-packages:
-      - cpio
-      - libssl-dev
+
+  fit-image:
+    plugin: nil
+    after:
+      - kernel
+      - initrd-overlay
+    override-build: |
+      cp ${SNAPCRAFT_STAGE}/Image .
+      cp ${SNAPCRAFT_STAGE}/initrd.img .
+      cp -r ${SNAPCRAFT_STAGE}/dtbs .
+      cp ${SNAPCRAFT_PROJECT_DIR}/image.its .
+      mkimage -D "-I dts -O dtb -p 2000" -f image.its -r ${SNAPCRAFT_PART_INSTALL}/kernel.img
+
+build-packages:
+    - dpkg-dev
+    - libssl-dev
+    - libfdt-dev
+    - cpio
+    - flex
+    - bison
+    - u-boot-tools
+    - device-tree-compiler
