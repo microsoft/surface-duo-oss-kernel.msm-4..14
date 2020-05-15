@@ -77,7 +77,6 @@ parts:
 
 build-packages:
     - dpkg-dev
-    - android-tools-mkbootimg
     - libssl-dev
     - libfdt-dev
     - cpio
