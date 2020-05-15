@@ -1,29 +1,72 @@
-name: pc-kernel
-version: null
-version-script: |
-    . debian/debian.env
-    dpkg-parsechangelog -l $DEBIAN/changelog -S version
+name: xilinx-kernel
 summary: The Ubuntu generic Linux kernel
 description: This Ubuntu generic Linux kernel
 grade: stable
 confinement: strict
 type: kernel
+build-base: core18
+adopt-info: kernel
 
 parts:
   kernel:
     plugin: kernel
     source: .
     source-type: git
-    kconfigflavour: generic
+    kconfigflavour: xilinx-zynqmp
+    kernel-image-target: Image
     kconfigs:
       - CONFIG_DEBUG_INFO=n
     override-build: |
       cp debian/scripts/retpoline-extract-one \
         $SNAPCRAFT_PART_BUILD/scripts/ubuntu-retpoline-extract-one
       snapcraftctl build
+      cp ${SNAPCRAFT_PART_INSTALL}/dtbs/xilinx/*.dtb ${SNAPCRAFT_PART_INSTALL}/dtbs/
+      mkdir -p ${SNAPCRAFT_PART_INSTALL}/lib
+      ln -sf ../modules ${SNAPCRAFT_PART_INSTALL}/lib/modules
+      snapcraftctl set-version $(git describe --tags | cut -c 8-)
     kernel-with-firmware: false
+    organize:
+      initrd.img: initrd
+      kernel.img: Image
+    prime:
+      - -initrd*
+      - -Image*
+
+  initrd-overlay:
+    plugin: nil
+    source: initrd-overlay
+    after:
+      - kernel
+    stage-packages:
+      - wireless-regdb
+    override-build: |
+      echo "Preparing overlay initrd"
+      mkdir lib
+      cp -r ${SNAPCRAFT_PART_INSTALL}/lib/firmware lib/
+      find . | cpio --quiet -o -H newc | lzma -7 > $SNAPCRAFT_PART_INSTALL/initrd-overlay.img
+      cat $SNAPCRAFT_STAGE/initrd $SNAPCRAFT_PART_INSTALL/initrd-overlay.img > $SNAPCRAFT_PART_INSTALL/initrd.img
+    organize:
+      lib/firmware/: firmware/
+    prime:
+      - initrd.img
+      - firmware
+
+  fit-image:
+    plugin: nil
+    source: debian
+    after:
+      - kernel
+      - initrd-overlay
+    override-build: |
+      cp ${SNAPCRAFT_STAGE}/Image .
+      cp ${SNAPCRAFT_STAGE}/initrd.img .
+      cp -r ${SNAPCRAFT_STAGE}/dtbs .
+      cp ${SNAPCRAFT_PROJECT_DIR}/image.its .
+      mkimage -D "-I dts -O dtb -p 2000" -f image.its -r ${SNAPCRAFT_PART_INSTALL}/kernel.img
+
   firmware:
     plugin: nil
+    source: debian
     stage-packages:
       - linux-firmware
     organize:
@@ -31,6 +74,14 @@ parts:
     prime:
       - -usr
       - -lib
-    build-packages:
-      - cpio
-      - libssl-dev
+
+build-packages:
+    - dpkg-dev
+    - android-tools-mkbootimg
+    - libssl-dev
+    - libfdt-dev
+    - cpio
+    - flex
+    - bison
+    - u-boot-tools
+    - device-tree-compiler
