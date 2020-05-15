@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -2640,13 +2640,23 @@ static int dp_panel_hw_cfg(struct dp_panel *dp_panel, bool enable)
 	panel->catalog->stream_id = dp_panel->stream_id;
 
 	if (enable) {
-		dp_panel_config_ctrl(dp_panel);
-		dp_panel_config_misc(dp_panel);
-		dp_panel_config_msa(dp_panel);
-		dp_panel_config_dsc(dp_panel, enable);
-		dp_panel_config_tr_unit(dp_panel);
-		dp_panel_config_timing(dp_panel);
-		dp_panel_resolution_info(panel);
+		if (!panel->parser->is_cont_splash_enabled) {
+			dp_panel_config_ctrl(dp_panel);
+			dp_panel_config_misc(dp_panel);
+			dp_panel_config_msa(dp_panel);
+			dp_panel_config_dsc(dp_panel, enable);
+			dp_panel_config_tr_unit(dp_panel);
+			dp_panel_config_timing(dp_panel);
+			dp_panel_resolution_info(panel);
+		} else {
+			/*
+			 * update panel_on software state as enabled since
+			 * dp_panel_config_timing() is skipped during
+			 * continuous splash.
+			 */
+			pr_debug("splash enabled, skip panel hw cfg\n");
+			panel->panel_on = true;
+		}
 	}
 
 	panel->catalog->config_dto(panel->catalog, !enable);

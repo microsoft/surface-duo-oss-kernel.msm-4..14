@@ -134,7 +134,9 @@ extern unsigned int reset_devices;
 void setup_arch(char **);
 void prepare_namespace(void);
 void launch_early_services(void);
+#ifdef CONFIG_EARLY_SERVICES
 int __init is_recovery_boot(void);
+#endif
 void __init load_default_modules(void);
 int __init init_rootfs(void);
 

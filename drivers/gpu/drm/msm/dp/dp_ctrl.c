@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -581,6 +581,16 @@ static int dp_ctrl_link_setup(struct dp_ctrl_private *ctrl, bool shallow)
 
 	catalog = ctrl->catalog;
 	link_params = &ctrl->link->link_params;
+
+	if (ctrl->parser->is_cont_splash_enabled) {
+		pr_debug("splash enabled, skip main link setup\n");
+		rc = ctrl->power->clk_enable(ctrl->power, DP_LINK_PM, true);
+		if (rc) {
+			pr_err("Unable to start link clocks\n");
+			rc = -EINVAL;
+		}
+		return rc;
+	}
 
 	catalog->phy_lane_cfg(catalog, ctrl->orientation,
 				link_params->lane_count);
