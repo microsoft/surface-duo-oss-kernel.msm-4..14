@@ -51,7 +51,7 @@ static dev_t dma_heap_devt;
 static struct class *dma_heap_class;
 static DEFINE_XARRAY_ALLOC(dma_heap_minors);
 
-static struct dma_heap *dma_heap_find(const char *name)
+struct dma_heap *dma_heap_find(const char *name)
 {
 	struct dma_heap *h;
 
@@ -66,11 +66,14 @@ static struct dma_heap *dma_heap_find(const char *name)
 	mutex_unlock(&heap_list_lock);
 	return NULL;
 }
+EXPORT_SYMBOL_GPL(dma_heap_find);
+
 
 void dma_heap_buffer_free(struct dma_buf *dmabuf)
 {
 	dma_buf_put(dmabuf);
 }
+EXPORT_SYMBOL_GPL(dma_heap_buffer_free);
 
 struct dma_buf *dma_heap_buffer_alloc(struct dma_heap *heap, size_t len,
 				      unsigned int fd_flags,
@@ -91,6 +94,7 @@ struct dma_buf *dma_heap_buffer_alloc(struct dma_heap *heap, size_t len,
 
 	return heap->ops->allocate(heap, len, fd_flags, heap_flags);
 }
+EXPORT_SYMBOL_GPL(dma_heap_buffer_alloc);
 
 int dma_heap_bufferfd_alloc(struct dma_heap *heap, size_t len,
 			    unsigned int fd_flags,
@@ -112,6 +116,7 @@ int dma_heap_bufferfd_alloc(struct dma_heap *heap, size_t len,
 	return fd;
 
 }
+EXPORT_SYMBOL_GPL(dma_heap_bufferfd_alloc);
 
 static int dma_heap_open(struct inode *inode, struct file *file)
 {
@@ -233,6 +238,7 @@ void *dma_heap_get_drvdata(struct dma_heap *heap)
 {
 	return heap->priv;
 }
+EXPORT_SYMBOL_GPL(dma_heap_get_drvdata);
 
 static void dma_heap_release(struct kref *ref)
 {
@@ -259,6 +265,7 @@ void dma_heap_put(struct dma_heap *h)
 	kref_put(&h->refcount, dma_heap_release);
 	mutex_unlock(&heap_list_lock);
 }
+EXPORT_SYMBOL_GPL(dma_heap_put);
 
 /**
  * dma_heap_get_dev() - get device struct for the heap
@@ -271,6 +278,7 @@ struct device *dma_heap_get_dev(struct dma_heap *heap)
 {
 	return heap->heap_dev;
 }
+EXPORT_SYMBOL_GPL(dma_heap_get_dev);
 
 /**
  * dma_heap_get_name() - get heap name
@@ -283,6 +291,7 @@ const char *dma_heap_get_name(struct dma_heap *heap)
 {
 	return heap->name;
 }
+EXPORT_SYMBOL_GPL(dma_heap_get_name);
 
 struct dma_heap *dma_heap_add(const struct dma_heap_export_info *exp_info)
 {
@@ -367,6 +376,7 @@ err0:
 	kfree(heap);
 	return err_ret;
 }
+EXPORT_SYMBOL_GPL(dma_heap_add);
 
 static char *dma_heap_devnode(struct device *dev, umode_t *mode)
 {
