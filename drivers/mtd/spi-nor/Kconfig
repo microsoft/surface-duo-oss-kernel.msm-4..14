@@ -10,6 +10,11 @@ menuconfig MTD_SPI_NOR
 
 if MTD_SPI_NOR
 
+config SPI_FLASH_MACRONIX
+	bool "Macronix SPI flash support"
+	help
+	  Add support for various Macronix SPI flash chips (MX25Lxxx)
+
 config MTD_SPI_NOR_USE_4K_SECTORS
 	bool "Use small 4096 B erase sectors"
 	default y

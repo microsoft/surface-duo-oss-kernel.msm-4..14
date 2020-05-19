@@ -5,6 +5,7 @@
  *
  * Copyright (C) 2005, Intec Automation Inc.
  * Copyright (C) 2014, Freescale Semiconductor, Inc.
+ * Copyright 2020 NXP
  */
 
 #include <linux/err.h>
@@ -196,7 +197,7 @@ struct flash_info {
 	u16		page_size;
 	u16		addr_width;
 
-	u16		flags;
+	u32		flags;
 #define SECT_4K			BIT(0)	/* SPINOR_OP_BE_4K works uniformly */
 #define SPI_NOR_NO_ERASE	BIT(1)	/* No erase command needed */
 #define SST_WRITE		BIT(2)	/* use SST byte programming */
@@ -232,7 +233,9 @@ struct flash_info {
 #define NO_CHIP_ERASE		BIT(12) /* Chip does not support chip erase */
 #define SPI_NOR_SKIP_SFDP	BIT(13)	/* Skip parsing of SFDP tables */
 #define USE_CLSR		BIT(14)	/* use CLSR command */
-#define SPI_NOR_OCTAL_READ	BIT(15)	/* Flash supports Octal Read */
+#define SPI_NOR_HAS_SST26LOCK	BIT(15) /* Flash supports lock/unlock via BPR */
+#define SPI_NOR_OCTAL_READ		BIT(16) /* Flash supports Octal Read */
+#define SPI_NOR_OCTAL_DTR_READ	BIT(17) /* Flash supports DTR Octal Read */
 
 	/* Part specific fixup hooks. */
 	const struct spi_nor_fixups *fixups;
@@ -935,8 +938,10 @@ static int spi_nor_erase_sector(struct spi_nor *nor, u32 addr)
 
 	addr = spi_nor_convert_addr(nor, addr);
 
+#ifndef CONFIG_SOC_S32GEN1
 	if (nor->erase)
 		return nor->erase(nor, addr);
+#endif
 
 	if (nor->spimem) {
 		struct spi_mem_op op =
@@ -2826,6 +2831,7 @@ static int spi_nor_hwcaps_read2cmd(u32 hwcaps)
 		{ SNOR_HWCAPS_READ_1_8_8,	SNOR_CMD_READ_1_8_8 },
 		{ SNOR_HWCAPS_READ_8_8_8,	SNOR_CMD_READ_8_8_8 },
 		{ SNOR_HWCAPS_READ_1_8_8_DTR,	SNOR_CMD_READ_1_8_8_DTR },
+		{ SNOR_HWCAPS_READ_8_8_8_DTR,   SNOR_CMD_READ_8_8_8_DTR },
 	};
 
 	return spi_nor_hwcaps2cmd(hwcaps, hwcaps_read2cmd,
@@ -4520,6 +4526,14 @@ static void spi_nor_info_init_params(struct spi_nor *nor)
 	spi_nor_set_pp_settings(&params->page_programs[SNOR_CMD_PP],
 				SPINOR_OP_PP, SNOR_PROTO_1_1_1);
 
+	if (info->flags & SPI_NOR_OCTAL_DTR_READ) {
+		params->hwcaps.mask |= SNOR_HWCAPS_READ_8_8_8_DTR;
+		spi_nor_set_read_settings(
+				&params->reads[SNOR_CMD_READ_8_8_8_DTR],
+				0, 20, SPINOR_OP_READ_8_8_8_DTR,
+				SNOR_PROTO_8_8_8_DTR);
+	}
+
 	/*
 	 * Sector Erase settings. Sort Erase Types in ascending order, with the
 	 * smallest erase size starting at BIT(0).
@@ -4800,6 +4814,7 @@ static const struct flash_info *spi_nor_get_flash_info(struct spi_nor *nor,
 	 * If caller has specified name of flash model that can normally be
 	 * detected using JEDEC, let's verify it.
 	 */
+#ifndef CONFIG_SOC_S32GEN1
 	if (name && info->id_len) {
 		const struct flash_info *jinfo;
 
@@ -4819,6 +4834,7 @@ static const struct flash_info *spi_nor_get_flash_info(struct spi_nor *nor,
 			info = jinfo;
 		}
 	}
+#endif
 
 	return info;
 }
@@ -4831,6 +4847,11 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 	struct mtd_info *mtd = &nor->mtd;
 	struct device_node *np = spi_nor_get_flash_node(nor);
 	struct spi_nor_flash_parameter *params = &nor->params;
+#ifdef CONFIG_SOC_S32GEN1
+	struct spi_nor_hwcaps hwcaps_s32gen1 = {
+		.mask = SNOR_HWCAPS_PP,
+	};
+#endif
 	int ret;
 	int i;
 
@@ -4842,6 +4863,15 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 	nor->reg_proto = SNOR_PROTO_1_1_1;
 	nor->read_proto = SNOR_PROTO_1_1_1;
 	nor->write_proto = SNOR_PROTO_1_1_1;
+
+#ifdef CONFIG_SOC_S32GEN1
+	hwcaps_s32gen1.mask |= SNOR_HWCAPS_READ_1_1_8;
+	hwcaps_s32gen1.mask |= (SNOR_HWCAPS_READ_1_8_8 |
+			SNOR_HWCAPS_READ_1_8_8_DTR |
+			SNOR_HWCAPS_READ_8_8_8_DTR |
+			SNOR_HWCAPS_PP_1_1_8 |
+			SNOR_HWCAPS_PP_1_8_8);
+#endif
 
 	/*
 	 * We need the bounce buffer early to read/write registers when going
@@ -4939,7 +4969,11 @@ int spi_nor_scan(struct spi_nor *nor, const char *name,
 	 * - set the number of dummy cycles (mode cycles + wait states).
 	 * - set the SPI protocols for register and memory accesses.
 	 */
+#ifdef CONFIG_SOC_S32GEN1
+	ret = spi_nor_setup(nor, &hwcaps_s32gen1);
+#else
 	ret = spi_nor_setup(nor, hwcaps);
+#endif
 	if (ret)
 		return ret;
 
