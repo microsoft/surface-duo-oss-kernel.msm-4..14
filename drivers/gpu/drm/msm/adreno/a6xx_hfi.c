@@ -281,6 +281,77 @@ static void a618_build_bw_table(struct a6xx_hfi_msg_bw_table *msg)
 	msg->cnoc_cmds_data[1][0] =  0x60000001;
 }
 
+static void a650_build_bw_table(struct a6xx_hfi_msg_bw_table *pmsg)
+{
+	struct a6xx_hfi_msg_bw_table msg = { 0 };
+
+	msg.bw_level_num = 12;
+
+	msg.ddr_cmds_num = 3;
+	msg.ddr_wait_bitmask = 0;
+
+	msg.ddr_cmds_addrs[0] = 0x50000;
+	msg.ddr_cmds_addrs[1] = 0x50004;
+	msg.ddr_cmds_addrs[2] = 0x5007c;
+
+	msg.ddr_cmds_data[0][0] =  0x40000000;
+	msg.ddr_cmds_data[0][1] =  0x40000000;
+	msg.ddr_cmds_data[0][2] =  0x40000000;
+
+	msg.ddr_cmds_data[1][0] =  0x60000485;
+	msg.ddr_cmds_data[1][1] =  0x6000030d;
+	msg.ddr_cmds_data[1][2] =  0x60000008;
+
+	msg.ddr_cmds_data[2][0] =  0x600006c8;
+	msg.ddr_cmds_data[2][1] =  0x60000493;
+	msg.ddr_cmds_data[2][2] =  0x60000008;
+
+	msg.ddr_cmds_data[3][0] =  0x60000a31;
+	msg.ddr_cmds_data[3][1] =  0x600006e1;
+	msg.ddr_cmds_data[3][2] =  0x60000008;
+
+	msg.ddr_cmds_data[4][0] =  0x60000c5d;
+	msg.ddr_cmds_data[4][1] =  0x60000858;
+	msg.ddr_cmds_data[4][2] =  0x60000008;
+
+	msg.ddr_cmds_data[5][0] =  0x60000f64;
+	msg.ddr_cmds_data[5][1] =  0x60000a64;
+	msg.ddr_cmds_data[5][2] =  0x60000008;
+
+	msg.ddr_cmds_data[6][0] =  0x6000115c;
+	msg.ddr_cmds_data[6][1] =  0x60000bb8;
+	msg.ddr_cmds_data[6][2] =  0x60000008;
+
+	msg.ddr_cmds_data[7][0] =  0x600016fd;
+	msg.ddr_cmds_data[7][1] =  0x60000f84;
+	msg.ddr_cmds_data[7][2] =  0x60000008;
+
+	msg.ddr_cmds_data[8][0] =  0x60001e95;
+	msg.ddr_cmds_data[8][1] =  0x600014a5;
+	msg.ddr_cmds_data[8][2] =  0x60000008;
+
+	msg.ddr_cmds_data[9][0] =  0x60002326;
+	msg.ddr_cmds_data[9][1] =  0x600017ba;
+	msg.ddr_cmds_data[9][2] =  0x60000008;
+
+	msg.ddr_cmds_data[10][0] =  0x600028c7;
+	msg.ddr_cmds_data[10][1] =  0x60001b86;
+	msg.ddr_cmds_data[10][2] =  0x60000008;
+
+	msg.ddr_cmds_data[11][0] =  0x60002f4a;
+	msg.ddr_cmds_data[11][1] =  0x60001feb;
+	msg.ddr_cmds_data[11][2] =  0x60000008;
+
+	msg.cnoc_cmds_num = 1;
+	msg.cnoc_wait_bitmask = 0;
+
+	msg.cnoc_cmds_addrs[0] = 0x500a4;
+	msg.cnoc_cmds_data[0][0] =  0x40000000;
+	msg.cnoc_cmds_data[1][0] =  0x60000001;
+
+	*pmsg = msg;
+}
+
 static void a6xx_build_bw_table(struct a6xx_hfi_msg_bw_table *msg)
 {
 	/* Send a single "off" entry since the 630 GMU doesn't do bus scaling */
@@ -327,6 +398,8 @@ static int a6xx_hfi_send_bw_table(struct a6xx_gmu *gmu)
 
 	if (adreno_is_a618(adreno_gpu))
 		a618_build_bw_table(&msg);
+	else if (adreno_is_a650(adreno_gpu))
+		a650_build_bw_table(&msg);
 	else
 		a6xx_build_bw_table(&msg);
 
