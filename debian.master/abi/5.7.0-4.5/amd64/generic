@@ -11385,6 +11385,7 @@ EXPORT_SYMBOL_GPL	 arch/x86/kvm/kvm 0x00000000	kvm_put_kvm
 EXPORT_SYMBOL_GPL	 arch/x86/kvm/kvm 0x00000000	kvm_put_kvm_no_destroy
 EXPORT_SYMBOL_GPL	 arch/x86/kvm/kvm 0x00000000	kvm_queue_exception
 EXPORT_SYMBOL_GPL	 arch/x86/kvm/kvm 0x00000000	kvm_queue_exception_e
+EXPORT_SYMBOL_GPL	 arch/x86/kvm/kvm 0x00000000	kvm_queue_exception_p
 EXPORT_SYMBOL_GPL	 arch/x86/kvm/kvm 0x00000000	kvm_rdpmc
 EXPORT_SYMBOL_GPL	 arch/x86/kvm/kvm 0x00000000	kvm_read_guest
 EXPORT_SYMBOL_GPL	 arch/x86/kvm/kvm 0x00000000	kvm_read_guest_cached
@@ -17323,6 +17324,7 @@ EXPORT_SYMBOL_GPL	 net/sunrpc/sunrpc 0x00000000	unix_domain_find
 EXPORT_SYMBOL_GPL	 net/sunrpc/sunrpc 0x00000000	write_bytes_to_xdr_buf
 EXPORT_SYMBOL_GPL	 net/sunrpc/sunrpc 0x00000000	xdr_buf_from_iov
 EXPORT_SYMBOL_GPL	 net/sunrpc/sunrpc 0x00000000	xdr_buf_subsegment
+EXPORT_SYMBOL_GPL	 net/sunrpc/sunrpc 0x00000000	xdr_buf_trim
 EXPORT_SYMBOL_GPL	 net/sunrpc/sunrpc 0x00000000	xdr_commit_encode
 EXPORT_SYMBOL_GPL	 net/sunrpc/sunrpc 0x00000000	xdr_decode_array2
 EXPORT_SYMBOL_GPL	 net/sunrpc/sunrpc 0x00000000	xdr_decode_netobj

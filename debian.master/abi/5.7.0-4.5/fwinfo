@@ -29,10 +29,8 @@ firmware:       amdgpu/arcturus_mec.bin
 firmware:       amdgpu/arcturus_mec2.bin
 firmware:       amdgpu/arcturus_rlc.bin
 firmware:       amdgpu/arcturus_sdma.bin
-firmware:       amdgpu/arcturus_smc.bin
 firmware:       amdgpu/arcturus_sos.bin
 firmware:       amdgpu/arcturus_ta.bin
-firmware:       amdgpu/arcturus_vcn.bin
 firmware:       amdgpu/banks_k_2_smc.bin
 firmware:       amdgpu/bonaire_ce.bin
 firmware:       amdgpu/bonaire_k_smc.bin
@@ -140,10 +138,8 @@ firmware:       amdgpu/navi12_pfp.bin
 firmware:       amdgpu/navi12_rlc.bin
 firmware:       amdgpu/navi12_sdma.bin
 firmware:       amdgpu/navi12_sdma1.bin
-firmware:       amdgpu/navi12_smc.bin
 firmware:       amdgpu/navi12_sos.bin
 firmware:       amdgpu/navi12_ta.bin
-firmware:       amdgpu/navi12_vcn.bin
 firmware:       amdgpu/navi14_asd.bin
 firmware:       amdgpu/navi14_ce.bin
 firmware:       amdgpu/navi14_ce_wks.bin
