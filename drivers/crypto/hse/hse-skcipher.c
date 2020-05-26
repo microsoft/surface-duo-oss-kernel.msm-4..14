@@ -129,7 +129,7 @@ static void hse_skcipher_done(int err, void *skreq)
 	struct hse_skcipher_req_ctx *rctx = skcipher_request_ctx(req);
 	struct crypto_skcipher *tfm = crypto_skcipher_reqtfm(req);
 	struct hse_skcipher_alg *alg = hse_skcipher_get_alg(tfm);
-	int nbytes, ivsize = crypto_skcipher_ivsize(tfm);
+	unsigned int nbytes, ivsize = crypto_skcipher_ivsize(tfm);
 
 	dma_unmap_single(alg->dev, rctx->srv_desc_dma, sizeof(rctx->srv_desc),
 			 DMA_TO_DEVICE);
@@ -305,7 +305,7 @@ static int hse_skcipher_setkey(struct crypto_skcipher *tfm, const u8 *key,
 		return 0;
 
 	if (alg->cipher_type == HSE_CIPHER_ALGO_AES) {
-		err = hse_check_aes_keylen(keylen);
+		err = aes_check_keylen(keylen);
 		if (err) {
 			crypto_skcipher_set_flags(tfm,
 						  CRYPTO_TFM_RES_BAD_KEY_LEN);
@@ -427,16 +427,6 @@ static void hse_skcipher_exit(struct crypto_skcipher *tfm)
 
 static const struct hse_skcipher_tpl hse_skcipher_algs_tpl[] = {
 	{
-		.cipher_name = "ctr(aes)",
-		.cipher_drv = "ctr-aes-hse",
-		.blocksize = 1u,
-		.min_keysize = AES_MIN_KEY_SIZE,
-		.max_keysize = AES_MAX_KEY_SIZE,
-		.ivsize = AES_BLOCK_SIZE,
-		.cipher_type = HSE_CIPHER_ALGO_AES,
-		.block_mode = HSE_CIPHER_BLOCK_MODE_CTR,
-		.key_type = HSE_KEY_TYPE_AES,
-	}, {
 		.cipher_name = "cbc(aes)",
 		.cipher_drv = "cbc-aes-hse",
 		.blocksize = AES_BLOCK_SIZE,

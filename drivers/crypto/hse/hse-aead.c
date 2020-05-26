@@ -128,19 +128,7 @@ static int hse_aead_setauthsize(struct crypto_aead *tfm, unsigned int authsize)
 
 	switch (alg->auth_mode) {
 	case HSE_AUTH_CIPHER_MODE_GCM:
-		switch (authsize) {
-		case 4:
-		case 8:
-		case 12:
-		case 13:
-		case 14:
-		case 15:
-		case 16:
-			break;
-		default:
-			return -EINVAL;
-		}
-		break;
+		return crypto_gcm_check_authsize(authsize);
 	default:
 		return -EINVAL;
 	}
@@ -328,7 +316,7 @@ static int hse_aead_setkey(struct crypto_aead *tfm, const u8 *key,
 	    unlikely(!crypto_memneq(key, tctx->keybuf, keylen)))
 		return 0;
 
-	err = hse_check_aes_keylen(keylen);
+	err = aes_check_keylen(keylen);
 	if (err) {
 		crypto_aead_set_flags(tfm, CRYPTO_TFM_RES_BAD_KEY_LEN);
 		return err;

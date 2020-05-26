@@ -38,26 +38,6 @@ struct hse_key {
 	enum hse_key_type type;
 };
 
-/**
- * hse_check_aes_keylen - validate key length for AES algorithms
- * @keylen: AES key length
- *
- * Return: 0 on success, -EINVAL otherwise
- */
-static inline int hse_check_aes_keylen(u32 keylen)
-{
-	switch (keylen) {
-	case AES_KEYSIZE_128:
-	case AES_KEYSIZE_192:
-	case AES_KEYSIZE_256:
-		break;
-	default:
-		return -EINVAL;
-	}
-
-	return 0;
-}
-
 struct hse_key *hse_key_slot_acquire(struct device *dev,
 				     enum hse_key_type type);
 void hse_key_slot_release(struct device *dev, struct hse_key *slot);
