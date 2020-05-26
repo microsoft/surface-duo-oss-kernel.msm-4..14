@@ -1668,7 +1668,16 @@ static int ath11k_qmi_respond_fw_mem_request(struct ath11k_base *ab)
 	} else {
 		req->mem_seg_len = ab->qmi.mem_seg_count;
 
+		ath11k_dbg(ab, ATH11K_DBG_QMI, "qmi no need to delay mem_request %d\n",
+			   ab->qmi.mem_seg_count);
+
 		for (i = 0; i < req->mem_seg_len ; i++) {
+			ath11k_dbg(ab, ATH11K_DBG_QMI,
+				   "qmi mem_seg %d paddr 0x%x size %d type %d\n",
+				   ab->qmi.target_mem[i].paddr,
+				   ab->qmi.target_mem[i].size,
+				   ab->qmi.target_mem[i].type);
+
 			req->mem_seg[i].addr = ab->qmi.target_mem[i].paddr;
 			req->mem_seg[i].size = ab->qmi.target_mem[i].size;
 			req->mem_seg[i].type = ab->qmi.target_mem[i].type;
@@ -2328,6 +2337,8 @@ ath11k_qmi_driver_event_post(struct ath11k_qmi *qmi,
 {
 	struct ath11k_qmi_driver_event *event;
 
+	printk("%s(): type %d\n", __func__, type);
+
 	event = kzalloc(sizeof(*event), GFP_ATOMIC);
 	if (!event)
 		return -ENOMEM;
@@ -2555,6 +2566,8 @@ static void ath11k_qmi_driver_event_work(struct work_struct *work)
 					 struct ath11k_qmi_driver_event, list);
 		list_del(&event->list);
 		spin_unlock(&qmi->event_lock);
+
+		ath11k_info(ab, "%s() event->type %d", __func__, event->type);
 
 		if (test_bit(ATH11K_FLAG_UNREGISTERING, &ab->dev_flags))
 			return;
