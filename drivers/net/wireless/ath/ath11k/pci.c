@@ -1088,6 +1088,9 @@ static int ath11k_pci_probe(struct pci_dev *pdev,
 		ath11k_err(ab, "failed to enable  msi: %d\n", ret);
 		goto err_pci_free_region;
 	}
+
+	ath11k_info(ab, "msi succesfully enabled\n");
+
 	ret = ath11k_pci_register_mhi(ab_pci);
 	if (ret) {
 		ath11k_err(ab, "failed to register  mhi: %d\n", ret);
@@ -1119,6 +1122,9 @@ static int ath11k_pci_probe(struct pci_dev *pdev,
 		ath11k_err(ab, "failed to init core: %d\n", ret);
 		goto err_free_irq;
 	}
+
+	ath11k_info(ab, "pci succesfully probed\n");
+
 	return 0;
 
 err_free_irq:
