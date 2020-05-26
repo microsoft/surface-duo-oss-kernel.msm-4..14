@@ -1082,7 +1082,6 @@ static int ath11k_pci_probe(struct pci_dev *pdev,
 		goto err_free_core;
 	}
 
-	ret = ath11k_pci_enable_msi(ab_pci);
 	ab->mem = ab_pci->mem;
 	ab->mem_len = ab_pci->mem_len;
 	ret = ath11k_pci_enable_msi(ab_pci);
