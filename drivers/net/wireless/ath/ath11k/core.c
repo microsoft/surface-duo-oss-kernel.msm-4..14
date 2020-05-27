@@ -42,7 +42,8 @@ static const struct ath11k_hw_params ath11k_hw_params_list[] = {
 		.internal_sleep_clock = true,
 		.single_pdev_only = true,
 		.hw_ops = &ath11k_hw_ops_qca6x90,
-		.misc_caps = MISC_CAPS_HOST2FW_RXBUF_RING,
+		.misc_caps = MISC_CAPS_HOST2FW_RXBUF_RING |
+			     MISC_CAPS_TCL_0_ONLY,
 		.rxdma1_enable = false,
 		.num_rxmda_per_pdev = 2,
 		.vdev_start_delay = true,
