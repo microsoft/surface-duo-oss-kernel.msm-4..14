@@ -717,7 +717,7 @@ static int ath11k_ahb_ext_irq_config(struct ath11k_base *ab)
 						- ath11k_core_get_hw_mac_id(ab, j);
 				}
 
-				if (rx_mon_status_ring_mask[i] & BIT(j)) {
+				if (ath11k_rx_mon_status_ring_mask[i] & BIT(j)) {
 					irq_grp->irqs[num_irq++] =
 						ppdu_end_interrupts_mac1 -
 						ath11k_core_get_hw_mac_id(ab, j);
