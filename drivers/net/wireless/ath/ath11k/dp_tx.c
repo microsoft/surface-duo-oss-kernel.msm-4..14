@@ -113,6 +113,10 @@ tcl_ring_sel:
 	ti.ring_id = ring_selector % DP_TCL_NUM_RING_MAX;
 	ring_map |= BIT(ti.ring_id);
 
+	/* FIXME_KVALO: QCA6390 needs to use MISC_CAPS_TCL_0_ONLY and
+	 * ti.ring_id = 0
+	 */
+
 	tx_ring = &dp->tx_ring[ti.ring_id];
 
 	spin_lock_bh(&tx_ring->tx_idr_lock);
