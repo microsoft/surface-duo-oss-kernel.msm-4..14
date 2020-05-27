@@ -6,6 +6,8 @@
 #ifndef ATH11K_HW_H
 #define ATH11K_HW_H
 
+#include "wmi.h"
+
 /* Target configuration defines */
 
 /* Num VDEVS per radio */
@@ -104,6 +106,13 @@ enum ath11k_bus {
 	ATH11K_BUS_PCI,
 };
 
+/* Defines chip specific functions here */
+struct ath11k_hw_ops {
+	void (*wmi_init_config)(struct ath11k_base *ab,
+				struct target_resource_config *config);
+
+};
+
 struct ath11k_hw_params {
 	const char *name;
 	u16 dev_id;
@@ -114,6 +123,7 @@ struct ath11k_hw_params {
 	} fw;
 	bool internal_sleep_clock;
 	bool single_pdev_only;
+	const struct ath11k_hw_ops *hw_ops;
 };
 
 struct ath11k_fw_ie {
@@ -179,5 +189,8 @@ struct ath11k_hw_regs {
 
 extern const struct ath11k_hw_regs ipq8074_regs;
 extern const struct ath11k_hw_regs qca6x90_regs;
+
+extern const struct ath11k_hw_ops ath11k_hw_ops_ipq8074;
+extern const struct ath11k_hw_ops ath11k_hw_ops_qca6x90;
 
 #endif
