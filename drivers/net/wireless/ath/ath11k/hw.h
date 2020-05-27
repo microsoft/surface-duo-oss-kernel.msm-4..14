@@ -80,7 +80,8 @@
 #define ATH11K_DEFAULT_BOARD_FILE	"bdwlan.bin"
 #define ATH11K_DEFAULT_CAL_FILE		"caldata.bin"
 
-#define MISC_CAPS_BAND_TO_MAC       BIT(0)
+#define MISC_CAPS_BAND_TO_MAC           BIT(0)
+#define MISC_CAPS_HOST2FW_RXBUF_RING    BIT(1)
 
 enum ath11k_hw_rate_cck {
 	ATH11K_HW_RATE_CCK_LP_11M = 0,
@@ -112,6 +113,8 @@ enum ath11k_bus {
 struct ath11k_hw_ops {
 	void (*wmi_init_config)(struct ath11k_base *ab,
 				struct target_resource_config *config);
+	int (*mac_id_to_pdev_id)(int mac_id);
+	int (*mac_id_to_srng_id)(int mac_id);
 
 };
 
@@ -132,6 +135,7 @@ struct ath11k_hw_params {
 	 */
 	u32 misc_caps;
 	bool rxdma1_enable;
+	int num_rxmda_per_pdev;
 };
 
 struct ath11k_fw_ie {
