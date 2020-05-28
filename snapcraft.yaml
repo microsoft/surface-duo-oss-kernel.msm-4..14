@@ -18,7 +18,7 @@ parts:
     plugin: kernel
     source: .
     source-type: git
-    kdefconfig: [ "defconfig", "xilinx_zynqmp_defconfig" ]
+    kdefconfig: [ "defconfig", "xilinx_versal_defconfig" ]
     kernel-with-firmware: false
     kernel-image-target: Image
     kconfigs:
