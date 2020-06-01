@@ -1225,6 +1225,7 @@ EXPORT_SYMBOL	 drivers/net/ethernet/mellanox/mlx5/core/mlx5_core 0x00000000	mlx5
 EXPORT_SYMBOL	 drivers/net/ethernet/mellanox/mlx5/core/mlx5_core 0x00000000	mlx5_cmd_free_uar
 EXPORT_SYMBOL	 drivers/net/ethernet/mellanox/mlx5/core/mlx5_core 0x00000000	mlx5_cmd_init
 EXPORT_SYMBOL	 drivers/net/ethernet/mellanox/mlx5/core/mlx5_core 0x00000000	mlx5_cmd_init_async_ctx
+EXPORT_SYMBOL	 drivers/net/ethernet/mellanox/mlx5/core/mlx5_core 0x00000000	mlx5_cmd_set_state
 EXPORT_SYMBOL	 drivers/net/ethernet/mellanox/mlx5/core/mlx5_core 0x00000000	mlx5_comp_irq_get_affinity_mask
 EXPORT_SYMBOL	 drivers/net/ethernet/mellanox/mlx5/core/mlx5_core 0x00000000	mlx5_comp_vectors_count
 EXPORT_SYMBOL	 drivers/net/ethernet/mellanox/mlx5/core/mlx5_core 0x00000000	mlx5_core_alloc_pd
@@ -2480,7 +2481,7 @@ EXPORT_SYMBOL	 net/rxrpc/rxrpc 0x00000000	rxrpc_kernel_end_call
 EXPORT_SYMBOL	 net/rxrpc/rxrpc 0x00000000	rxrpc_kernel_get_epoch
 EXPORT_SYMBOL	 net/rxrpc/rxrpc 0x00000000	rxrpc_kernel_get_peer
 EXPORT_SYMBOL	 net/rxrpc/rxrpc 0x00000000	rxrpc_kernel_get_reply_time
-EXPORT_SYMBOL	 net/rxrpc/rxrpc 0x00000000	rxrpc_kernel_get_rtt
+EXPORT_SYMBOL	 net/rxrpc/rxrpc 0x00000000	rxrpc_kernel_get_srtt
 EXPORT_SYMBOL	 net/rxrpc/rxrpc 0x00000000	rxrpc_kernel_new_call_notification
 EXPORT_SYMBOL	 net/rxrpc/rxrpc 0x00000000	rxrpc_kernel_recv_data
 EXPORT_SYMBOL	 net/rxrpc/rxrpc 0x00000000	rxrpc_kernel_send_data
