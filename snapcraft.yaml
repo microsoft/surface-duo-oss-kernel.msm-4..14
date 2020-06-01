@@ -26,7 +26,7 @@ parts:
         source: .
         source-type: git
         source-depth: 1
-        kconfigflavour: snapdragon
+        kconfigflavour: snapdragon-lowlatency
         kernel-with-firmware: false
         kernel-image-target: Image.gz
         kconfigs:
