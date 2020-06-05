@@ -120,6 +120,8 @@ struct ath11k_hw_params {
 	} fw;
 
 	const struct ath11k_hw_ops *hw_ops;
+
+	bool internal_sleep_clock;
 };
 
 extern const struct ath11k_hw_ops ipq8074_ops;
