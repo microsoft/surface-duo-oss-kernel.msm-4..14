@@ -7,7 +7,9 @@
 #include "debug.h"
 #include "hif.h"
 
-static const struct ce_attr host_ce_config_wlan[] = {
+#define host_ce_config_wlan ab->ce.host_ce_config
+
+static const struct ce_attr host_ce_config_wlan_ipq8074[] = {
 	/* CE0: host->target HTC control and raw streams */
 	{
 		.flags = CE_ATTR_FLAGS,
@@ -107,6 +109,84 @@ static const struct ce_attr host_ce_config_wlan[] = {
 		.src_sz_max = 0,
 		.dest_nentries = 0,
 	},
+};
+
+static const struct ce_attr host_ce_config_wlan_qca6x90[] = {
+	/* CE0: host->target HTC control and raw streams */
+	{
+		.flags = CE_ATTR_FLAGS,
+		.src_nentries = 16,
+		.src_sz_max = 2048,
+		.dest_nentries = 0,
+	},
+
+	/* CE1: target->host HTT + HTC control */
+	{
+		.flags = CE_ATTR_FLAGS,
+		.src_nentries = 0,
+		.src_sz_max = 2048,
+		.dest_nentries = 512,
+		.recv_cb = ath11k_htc_rx_completion_handler,
+	},
+
+	/* CE2: target->host WMI */
+	{
+		.flags = CE_ATTR_FLAGS,
+		.src_nentries = 0,
+		.src_sz_max = 2048,
+		.dest_nentries = 512,
+		.recv_cb = ath11k_htc_rx_completion_handler,
+	},
+
+	/* CE3: host->target WMI (mac0) */
+	{
+		.flags = CE_ATTR_FLAGS,
+		.src_nentries = 32,
+		.src_sz_max = 2048,
+		.dest_nentries = 0,
+	},
+
+	/* CE4: host->target HTT */
+	{
+		.flags = CE_ATTR_FLAGS | CE_ATTR_DIS_INTR,
+		.src_nentries = 2048,
+		.src_sz_max = 256,
+		.dest_nentries = 0,
+	},
+
+	/* CE5: target->host pktlog */
+	{
+		.flags = CE_ATTR_FLAGS,
+		.src_nentries = 0,
+		.src_sz_max = 2048,
+		.dest_nentries = 512,
+		.recv_cb = ath11k_dp_htt_htc_t2h_msg_handler,
+	},
+
+	/* CE6: target autonomous hif_memcpy */
+	{
+		.flags = CE_ATTR_FLAGS | CE_ATTR_DIS_INTR,
+		.src_nentries = 0,
+		.src_sz_max = 0,
+		.dest_nentries = 0,
+	},
+
+	/* CE7: host->target WMI (mac1) */
+	{
+		.flags = CE_ATTR_FLAGS,
+		.src_nentries = 32,
+		.src_sz_max = 2048,
+		.dest_nentries = 0,
+	},
+
+	/* CE8: target autonomous hif_memcpy */
+	{
+		.flags = CE_ATTR_FLAGS,
+		.src_nentries = 0,
+		.src_sz_max = 0,
+		.dest_nentries = 0,
+	},
+
 };
 
 static int ath11k_ce_rx_buf_enqueue_pipe(struct ath11k_ce_pipe *pipe,
@@ -635,6 +715,24 @@ static void ath11k_ce_rx_pipe_cleanup(struct ath11k_ce_pipe *pipe)
 	}
 }
 
+int ath11k_ce_attr_attach(struct ath11k_base *ab)
+{
+	switch (ab->hw_rev) {
+	case ATH11K_HW_IPQ8074:
+		ab->ce.host_ce_config = host_ce_config_wlan_ipq8074;
+		ab->ce.ce_count = 12;
+		break;
+	case ATH11K_HW_QCA6390:
+		ab->ce.host_ce_config = host_ce_config_wlan_qca6x90;
+		ab->ce.ce_count = 9;
+		break;
+	default:
+		ath11k_warn(ab, "unknown hw_rev:%d\n", ab->hw_rev);
+		return -ENOTSUPP;
+	}
+	return 0;
+}
+
 void ath11k_ce_cleanup_pipes(struct ath11k_base *ab)
 {
 	struct ath11k_ce_pipe *pipe;
@@ -834,7 +932,7 @@ void ath11k_ce_byte_swap(void *mem, u32 len)
 	}
 }
 
-int ath11k_ce_get_attr_flags(int ce_id)
+int ath11k_ce_get_attr_flags(struct ath11k_base *ab, int ce_id)
 {
 	if (ce_id >= CE_COUNT)
 		return -EINVAL;

@@ -323,7 +323,7 @@ static void ath11k_ahb_kill_tasklets(struct ath11k_base *ab)
 	for (i = 0; i < CE_COUNT; i++) {
 		struct ath11k_ce_pipe *ce_pipe = &ab->ce.ce_pipe[i];
 
-		if (ath11k_ce_get_attr_flags(i) & CE_ATTR_DIS_INTR)
+		if (ath11k_ce_get_attr_flags(ab, i) & CE_ATTR_DIS_INTR)
 			continue;
 
 		tasklet_kill(&ce_pipe->intr_tq);
@@ -412,7 +412,7 @@ static void ath11k_ahb_sync_ce_irqs(struct ath11k_base *ab)
 	int irq_idx;
 
 	for (i = 0; i < CE_COUNT; i++) {
-		if (ath11k_ce_get_attr_flags(i) & CE_ATTR_DIS_INTR)
+		if (ath11k_ce_get_attr_flags(ab, i) & CE_ATTR_DIS_INTR)
 			continue;
 
 		irq_idx = ATH11K_IRQ_CE0_OFFSET + i;
@@ -440,7 +440,7 @@ static void ath11k_ahb_ce_irqs_enable(struct ath11k_base *ab)
 	int i;
 
 	for (i = 0; i < CE_COUNT; i++) {
-		if (ath11k_ce_get_attr_flags(i) & CE_ATTR_DIS_INTR)
+		if (ath11k_ce_get_attr_flags(ab, i) & CE_ATTR_DIS_INTR)
 			continue;
 		ath11k_ahb_ce_irq_enable(ab, i);
 	}
@@ -451,7 +451,7 @@ static void ath11k_ahb_ce_irqs_disable(struct ath11k_base *ab)
 	int i;
 
 	for (i = 0; i < CE_COUNT; i++) {
-		if (ath11k_ce_get_attr_flags(i) & CE_ATTR_DIS_INTR)
+		if (ath11k_ce_get_attr_flags(ab, i) & CE_ATTR_DIS_INTR)
 			continue;
 		ath11k_ahb_ce_irq_disable(ab, i);
 	}
@@ -538,7 +538,7 @@ static void ath11k_ahb_free_irq(struct ath11k_base *ab)
 	int i;
 
 	for (i = 0; i < CE_COUNT; i++) {
-		if (ath11k_ce_get_attr_flags(i) & CE_ATTR_DIS_INTR)
+		if (ath11k_ce_get_attr_flags(ab, i) & CE_ATTR_DIS_INTR)
 			continue;
 		irq_idx = ATH11K_IRQ_CE0_OFFSET + i;
 		free_irq(ab->irq_num[irq_idx], &ab->ce.ce_pipe[i]);
@@ -695,7 +695,7 @@ static int ath11k_ahb_config_irq(struct ath11k_base *ab)
 	for (i = 0; i < CE_COUNT; i++) {
 		struct ath11k_ce_pipe *ce_pipe = &ab->ce.ce_pipe[i];
 
-		if (ath11k_ce_get_attr_flags(i) & CE_ATTR_DIS_INTR)
+		if (ath11k_ce_get_attr_flags(ab, i) & CE_ATTR_DIS_INTR)
 			continue;
 
 		irq_idx = ATH11K_IRQ_CE0_OFFSET + i;
@@ -813,6 +813,10 @@ static int ath11k_ahb_probe(struct platform_device *pdev)
 	ab->fixed_bdf_addr = true;
 	ab->fixed_mem_region = true;
 	platform_set_drvdata(pdev, ab);
+
+	ret = ath11k_core_pre_init(ab);
+	if (ret)
+		goto err_core_free;
 
 	ret = ath11k_hal_srng_init(ab);
 	if (ret)

@@ -740,6 +740,24 @@ static int ath11k_init_hw_params(struct ath11k_base *ab)
 	return 0;
 }
 
+int ath11k_core_pre_init(struct ath11k_base *ab)
+{
+	switch (ab->hw_rev) {
+	case ATH11K_HW_IPQ8074:
+		ab->regs = &ipq8074_regs;
+		break;
+	case ATH11K_HW_QCA6390:
+		ab->regs = &qca6x90_regs;
+		break;
+	default:
+		ath11k_err(ab, "unsupported core hardware revision %d\n",
+			   ab->hw_rev);
+		return -ENOTSUPP;
+	}
+	return 0;
+}
+EXPORT_SYMBOL(ath11k_core_pre_init);
+
 static int ath11k_core_get_rproc_hdl(struct ath11k_base *ab)
 {
 	struct device *dev = ab->dev;
