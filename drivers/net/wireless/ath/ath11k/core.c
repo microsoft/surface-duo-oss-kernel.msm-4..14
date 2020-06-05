@@ -750,6 +750,21 @@ int ath11k_core_pre_init(struct ath11k_base *ab)
 		return ret;
 	}
 
+	switch (ab->hw_rev) {
+	case ATH11K_HW_IPQ8074:
+		ab->regs = &ipq8074_regs;
+		break;
+	case ATH11K_HW_QCA6390_HW20:
+		ab->regs = &qca6390_regs;
+		break;
+	default:
+		ath11k_err(ab, "unsupported core hardware revision %d\n",
+			   ab->hw_rev);
+		return -ENOTSUPP;
+	}
+
+	ret = ath11k_ce_attr_attach(ab);
+
 	return 0;
 }
 EXPORT_SYMBOL(ath11k_core_pre_init);
