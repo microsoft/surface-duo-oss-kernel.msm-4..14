@@ -136,6 +136,7 @@ struct ath11k_hw_params {
 	u32 misc_caps;
 	bool rxdma1_enable;
 	int num_rxmda_per_pdev;
+	bool vdev_start_delay;
 };
 
 struct ath11k_fw_ie {
