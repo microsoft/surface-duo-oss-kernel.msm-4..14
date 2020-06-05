@@ -113,6 +113,7 @@ struct ath11k_hw_params {
 		size_t cal_size;
 	} fw;
 	bool internal_sleep_clock;
+	bool single_pdev_only;
 };
 
 struct ath11k_fw_ie {
