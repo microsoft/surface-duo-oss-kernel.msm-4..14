@@ -80,6 +80,7 @@
 #define MISC_CAPS_BAND_TO_MAC           BIT(0)
 #define MISC_CAPS_HOST2FW_RXBUF_RING    BIT(1)
 #define MISC_CAPS_V2_MAP                BIT(2)
+#define MISC_CAPS_TCL_0_ONLY            BIT(3)
 
 enum ath11k_hw_rate_cck {
 	ATH11K_HW_RATE_CCK_LP_11M = 0,
