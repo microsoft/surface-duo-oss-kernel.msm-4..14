@@ -927,13 +927,20 @@ int ath11k_dp_htt_connect(struct ath11k_dp *dp)
 
 static void ath11k_dp_update_vdev_search(struct ath11k_vif *arvif)
 {
-	 /* For STA mode, enable address search index,
-	  * tcl uses ast_hash value in the descriptor.
+	 /* When v2_map_support is true:for STA mode, enable address
+	  * search index, tcl uses ast_hash value in the descriptor.
+	  * When v2_map_support is false: for STA mode, dont' enable
+	  * address search index.
 	  */
 	switch (arvif->vdev_type) {
 	case WMI_VDEV_TYPE_STA:
-		arvif->hal_addr_search_flags = HAL_TX_ADDRX_EN;
-		arvif->search_type = HAL_TX_ADDR_SEARCH_INDEX;
+		if (arvif->ar->ab->hw_params.misc_caps & MISC_CAPS_V2_MAP) {
+			arvif->hal_addr_search_flags = HAL_TX_ADDRX_EN;
+			arvif->search_type = HAL_TX_ADDR_SEARCH_INDEX;
+		} else {
+			arvif->hal_addr_search_flags = HAL_TX_ADDRY_EN;
+			arvif->search_type = HAL_TX_ADDR_SEARCH_DEFAULT;
+		}
 		break;
 	case WMI_VDEV_TYPE_AP:
 	case WMI_VDEV_TYPE_IBSS:
