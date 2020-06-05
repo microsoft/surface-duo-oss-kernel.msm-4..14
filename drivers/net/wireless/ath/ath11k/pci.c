@@ -941,11 +941,19 @@ static void ath11k_pci_read_mhi_version(struct ath11k_base *ab)
 static int ath11k_pci_power_up(struct ath11k_base *ab)
 {
 	struct ath11k_pci *ab_pci;
+	u8 aspm;
 	int ret;
 
 	ath11k_pci_read_mhi_version(ab);
 
 	ab_pci = ath11k_pci_priv(ab);
+
+	pci_read_config_byte(ab_pci->pdev, 0x80, &aspm);
+	pci_write_config_byte(ab_pci->pdev, 0x80, aspm & 0xfd);
+
+	ath11k_info(ab, "aspm 0x%x changed to 0x%x\n",
+		    aspm, aspm & 0xfd);
+
 	ret = ath11k_pci_qca6x90_powerup(ab_pci);
 	if (ret)
 		ath11k_err(ab, "failed to power on  mhi: %d\n", ret);
