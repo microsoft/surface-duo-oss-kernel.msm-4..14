@@ -105,15 +105,6 @@ enum ath11k_firmware_mode {
 #define ATH11K_EXT_IRQ_GRP_NUM_MAX 11
 #define ATH11K_EXT_IRQ_NUM_MAX	16
 
-extern const u8 ath11k_reo_status_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
-extern const u8 ath11k_tx_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
-extern const u8 ath11k_rx_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
-extern const u8 ath11k_rx_err_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
-extern const u8 ath11k_rx_wbm_rel_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
-extern const u8 ath11k_rxdma2host_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
-extern const u8 ath11k_host2rxdma_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
-extern const u8 rx_mon_status_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
-
 struct ath11k_ext_irq_grp {
 	struct ath11k_base *ab;
 	u32 irqs[ATH11K_EXT_IRQ_NUM_MAX];
@@ -632,6 +623,17 @@ struct ath11k_soc_dp_stats {
 	struct ath11k_dp_ring_bp_stats bp_stats;
 };
 
+struct ring_mask_config {
+	u8 tx_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+	u8 rx_mon_status_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+	u8 rx_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+	u8 rx_err_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+	u8 rx_wbm_rel_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+	u8 reo_status_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+	u8 rxdma2host_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+	u8 host2rxdma_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+};
+
 /* Master structure to hold the hw data which may be used in core module */
 struct ath11k_base {
 	enum ath11k_hw_rev hw_rev;
@@ -675,6 +677,7 @@ struct ath11k_base {
 	u32 wlan_init_status;
 	int irq_num[ATH11K_IRQ_NUM_MAX];
 	struct ath11k_ext_irq_grp ext_irq_grp[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+	struct ring_mask_config ring_mask;
 	struct napi_struct *napi;
 	struct ath11k_targ_cap target_caps;
 	u32 ext_service_bitmap[WMI_SERVICE_EXT_BM_SIZE];
