@@ -214,6 +214,48 @@ static const struct service_to_pipe target_service_to_ce_map_wlan[] = {
 	},
 };
 
+static inline void ath11k_pci_select_window(struct ath11k_pci *ab_pci, u32 offset)
+{
+	u32 window = (offset >> WINDOW_SHIFT) & WINDOW_VALUE_MASK;
+
+	if (window != ab_pci->register_window) {
+		iowrite32(WINDOW_ENABLE_BIT | window,
+			  ab_pci->mem + WINDOW_REG_ADDRESS);
+		ab_pci->register_window = window;
+	}
+}
+
+static void ath11k_pci_write32(struct ath11k_base *ab, u32 offset, u32 value)
+{
+	struct ath11k_pci *ab_pci = ath11k_pci_priv(ab);
+
+	if (!ab->use_register_windowing || offset < MAX_UNWINDOWED_ADDRESS) {
+		iowrite32(value, ab_pci->mem  + offset);
+	} else {
+		spin_lock_bh(&ab_pci->window_lock);
+		ath11k_pci_select_window(ab_pci, offset);
+		iowrite32(value, ab_pci->mem + WINDOW_START + (offset & WINDOW_RANGE_MASK));
+		spin_unlock_bh(&ab_pci->window_lock);
+	}
+}
+
+static u32 ath11k_pci_read32(struct ath11k_base *ab, u32 offset)
+{
+	struct ath11k_pci *ab_pci = ath11k_pci_priv(ab);
+	u32 val;
+
+	if (!ab->use_register_windowing || offset < MAX_UNWINDOWED_ADDRESS) {
+		val = ioread32(ab_pci->mem + offset);
+	} else {
+		spin_lock_bh(&ab_pci->window_lock);
+		ath11k_pci_select_window(ab_pci, offset);
+		val = ioread32(ab_pci->mem + WINDOW_START + (offset & WINDOW_RANGE_MASK));
+		spin_unlock_bh(&ab_pci->window_lock);
+	}
+
+	return val;
+}
+
 int ath11k_pci_get_msi_irq(struct device *dev, unsigned int vector)
 {
 	struct pci_dev *pci_dev = to_pci_dev(dev);
@@ -512,6 +554,8 @@ static int ath11k_pci_start(struct ath11k_base *ab)
 static const struct ath11k_hif_ops ath11k_pci_hif_ops = {
 	.start = ath11k_pci_start,
 	.stop = ath11k_pci_stop,
+	.read32 = ath11k_pci_read32,
+	.write32 = ath11k_pci_write32,
 	.power_down = ath11k_pci_power_down,
 	.power_up = ath11k_pci_power_up,
 };
@@ -558,6 +602,8 @@ static int ath11k_pci_probe(struct pci_dev *pdev,
 	ab->fixed_bdf_addr = false;
 	ab->m3_fw_support = true;
 	ab->fixed_mem_region = false;
+	ab->use_register_windowing = true;
+	spin_lock_init(&ab_pci->window_lock);
 
 	ret = ath11k_pci_claim(ab_pci, pdev);
 	if (ret) {
