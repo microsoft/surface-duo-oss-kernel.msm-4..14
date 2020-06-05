@@ -205,10 +205,34 @@ static void ath11k_init_wmi_config_ipq8074(struct ath11k_base *ab,
 	config->twt_ap_sta_count = 1000;
 }
 
+static int ath11k_mac_id_to_pdev_id_ipq8074(int mac_id)
+{
+	return mac_id;
+}
+
+static int ath11k_mac_id_to_srng_id_ipq8074(int mac_id)
+{
+	return 0;
+}
+
+static int ath11k_mac_id_to_pdev_id_qca6x90(int mac_id)
+{
+	return 0;
+}
+
+static int ath11k_mac_id_to_srng_id_qca6x90(int mac_id)
+{
+	return mac_id;
+}
+
 const struct ath11k_hw_ops ath11k_hw_ops_qca6x90 = {
 	.wmi_init_config = ath11k_init_wmi_config_qca6x90,
+	.mac_id_to_pdev_id = ath11k_mac_id_to_pdev_id_qca6x90,
+	.mac_id_to_srng_id = ath11k_mac_id_to_srng_id_qca6x90,
 };
 
 const struct ath11k_hw_ops ath11k_hw_ops_ipq8074 = {
 	.wmi_init_config = ath11k_init_wmi_config_ipq8074,
+	.mac_id_to_pdev_id = ath11k_mac_id_to_pdev_id_ipq8074,
+	.mac_id_to_srng_id = ath11k_mac_id_to_srng_id_ipq8074,
 };
