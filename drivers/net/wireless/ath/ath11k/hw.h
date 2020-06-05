@@ -112,6 +112,7 @@ struct ath11k_hw_params {
 		size_t board_size;
 		size_t cal_size;
 	} fw;
+	bool internal_sleep_clock;
 };
 
 struct ath11k_fw_ie {
