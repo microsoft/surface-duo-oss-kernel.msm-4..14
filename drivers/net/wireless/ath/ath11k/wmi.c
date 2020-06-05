@@ -3181,7 +3181,7 @@ static int ath11k_init_cmd_send(struct ath11k_pdev_wmi *wmi,
 			      (param->num_band_to_mac * sizeof(*band_to_mac));
 
 	len = sizeof(*cmd) + TLV_HDR_SIZE + sizeof(*cfg) + hw_mode_len +
-	      (sizeof(*host_mem_chunks) * WMI_MAX_MEM_REQS);
+	      (param->num_mem_chunks ? (sizeof(*host_mem_chunks) * WMI_MAX_MEM_REQS) : 0);
 
 	skb = ath11k_wmi_alloc_skb(wmi->wmi_ab, len);
 	if (!skb)
@@ -3386,6 +3386,11 @@ int ath11k_wmi_cmd_init(struct ath11k_base *ab)
 	config.peer_map_unmap_v2_support = 1;
 	config.twt_ap_pdev_count = ab->num_radios;
 	config.twt_ap_sta_count = 1000;
+
+	/* FIXME_KVALO: there was a conflict here, make sure all settings
+	 * are correctly moved to wmi_init_config()
+	 */
+	ab->hw_params.hw_ops->wmi_init_config(ab, &config);
 
 	memcpy(&wmi_sc->wlan_resource_config, &config, sizeof(config));
 
@@ -3662,8 +3667,8 @@ static int ath11k_wmi_tlv_hw_mode_caps_parse(struct ath11k_base *soc,
 	return 0;
 }
 
-static int ath11k_wmi_tlv_hw_mode_caps(struct ath11k_base *soc,
-				       u16 len, const void *ptr, void *data)
+static int ath11k_wmi_tlv_hw_mode_caps(struct ath11k_base *soc, u16 len,
+				       const void *ptr, void *data)
 {
 	struct wmi_tlv_svc_rdy_ext_parse *svc_rdy_ext = data;
 	struct wmi_hw_mode_capabilities *hw_mode_caps;
