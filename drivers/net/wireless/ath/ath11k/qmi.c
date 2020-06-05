@@ -9,6 +9,8 @@
 #include <linux/of.h>
 #include <linux/firmware.h>
 
+#define ATH11K_DEFAULT_M3_FILE_NAME	"m3.bin"
+
 static struct qmi_elem_info qmi_wlanfw_host_cap_req_msg_v01_ei[] = {
 	{
 		.data_type	= QMI_OPT_FLAG,
@@ -1516,11 +1518,17 @@ static int ath11k_qmi_host_cap_send(struct ath11k_base *ab)
 	req.bdf_support_valid = 1;
 	req.bdf_support = 1;
 
-	req.m3_support_valid = 0;
-	req.m3_support = 0;
-
-	req.m3_cache_support_valid = 0;
-	req.m3_cache_support = 0;
+	if (ab->m3_fw_support) {
+		req.m3_support_valid = 1;
+		req.m3_support = 1;
+		req.m3_cache_support_valid = 1;
+		req.m3_cache_support = 1;
+	} else {
+		req.m3_support_valid = 0;
+		req.m3_support = 0;
+		req.m3_cache_support_valid = 0;
+		req.m3_cache_support = 0;
+	}
 
 	req.cal_done_valid = 1;
 	req.cal_done = ab->qmi.cal_done;
@@ -1908,8 +1916,45 @@ out:
 	return ret;
 }
 
+static int ath11k_load_m3_bin(struct ath11k_base *ab)
+{
+	struct m3_mem_region *m3_mem = &ab->qmi.m3_mem;
+	char filename[ATH11K_MAX_M3_FILE_NAME_LENGTH];
+	const struct firmware *fw_entry;
+	int ret;
+
+	if (!m3_mem->vaddr && !m3_mem->size) {
+		snprintf(filename, sizeof(filename), ATH11K_DEFAULT_M3_FILE_NAME);
+		ret = request_firmware(&fw_entry, filename,
+				       ab->dev);
+		if (ret) {
+			ath11k_err(ab, "Failed to load M3 image: %s\n", filename);
+			return ret;
+		}
+
+		m3_mem->vaddr = dma_alloc_coherent(ab->dev,
+						   fw_entry->size, &m3_mem->paddr,
+						   GFP_KERNEL);
+		if (!m3_mem->vaddr) {
+			ath11k_err(ab, "Failed to allocate memory for M3, size: 0x%zx\n",
+				   fw_entry->size);
+			release_firmware(fw_entry);
+			return -ENOMEM;
+		}
+
+		ath11k_err(ab, " memory for M3, size: 0x%zx\n",
+			   fw_entry->size);
+		memcpy(m3_mem->vaddr, fw_entry->data, fw_entry->size);
+		m3_mem->size = fw_entry->size;
+		release_firmware(fw_entry);
+	}
+
+	return 0;
+}
+
 static int ath11k_qmi_wlanfw_m3_info_send(struct ath11k_base *ab)
 {
+	struct m3_mem_region *m3_mem = &ab->qmi.m3_mem;
 	struct qmi_wlanfw_m3_info_req_msg_v01 req;
 	struct qmi_wlanfw_m3_info_resp_msg_v01 resp;
 	struct qmi_txn txn = {};
@@ -1917,8 +1962,15 @@ static int ath11k_qmi_wlanfw_m3_info_send(struct ath11k_base *ab)
 
 	memset(&req, 0, sizeof(req));
 	memset(&resp, 0, sizeof(resp));
-	req.addr = 0;
-	req.size = 0;
+
+	if (ab->m3_fw_support) {
+		ath11k_load_m3_bin(ab);
+		req.addr = m3_mem->paddr;
+		req.size = m3_mem->size;
+	} else {
+		req.addr = 0;
+		req.size = 0;
+	}
 
 	ret = qmi_txn_init(&ab->qmi.handle, &txn,
 			   qmi_wlanfw_m3_info_resp_msg_v01_ei, &resp);
@@ -2381,6 +2433,18 @@ static void ath11k_qmi_driver_event_work(struct work_struct *work)
 	spin_unlock(&qmi->event_lock);
 }
 
+static void ath11k_free_m3_bin(struct ath11k_base *ab)
+{
+	struct m3_mem_region *m3_mem = &ab->qmi.m3_mem;
+
+	if (!ab->m3_fw_support || !m3_mem->vaddr)
+		return;
+
+	dma_free_coherent(ab->dev, m3_mem->size,
+			  m3_mem->vaddr, m3_mem->paddr);
+	m3_mem->vaddr = NULL;
+}
+
 int ath11k_qmi_init_service(struct ath11k_base *ab)
 {
 	int ret;
@@ -2424,5 +2488,6 @@ void ath11k_qmi_deinit_service(struct ath11k_base *ab)
 	qmi_handle_release(&ab->qmi.handle);
 	cancel_work_sync(&ab->qmi.event_work);
 	destroy_workqueue(ab->qmi.event_wq);
+	ath11k_free_m3_bin(ab);
 }
 
