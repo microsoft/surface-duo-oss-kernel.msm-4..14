@@ -107,6 +107,131 @@ void ath11k_dp_srng_cleanup(struct ath11k_base *ab, struct dp_srng *ring)
 	ring->vaddr_unaligned = NULL;
 }
 
+static int ath11k_dp_srng_find_ring_in_mask(int ring_num, const u8 *grp_mask)
+{
+	int ext_group_num;
+	u8 mask = 1 << ring_num;
+
+	for (ext_group_num = 0; ext_group_num < ATH11K_EXT_IRQ_GRP_NUM_MAX;
+	     ext_group_num++) {
+		if (mask & grp_mask[ext_group_num])
+			return ext_group_num;
+	}
+
+	return -ENOENT;
+}
+
+static int ath11k_dp_srng_calculate_msi_group(struct ath11k_base *ab,
+					      enum hal_ring_type type, int ring_num)
+{
+	const u8 *grp_mask;
+
+	switch (type) {
+	case HAL_WBM2SW_RELEASE:
+		if (ring_num < 3) {
+			grp_mask = &ab->ring_mask.tx_ring_mask[0];
+		} else if (ring_num == 3) {
+			grp_mask = &ab->ring_mask.rx_wbm_rel_ring_mask[0];
+			ring_num = 0;
+		} else {
+			return -ENOENT;
+		}
+	break;
+
+	case HAL_REO_EXCEPTION:
+		grp_mask = &ab->ring_mask.rx_err_ring_mask[0];
+	break;
+
+	case HAL_REO_DST:
+		grp_mask = &ab->ring_mask.rx_ring_mask[0];
+	break;
+
+	case HAL_REO_STATUS:
+		grp_mask = &ab->ring_mask.reo_status_ring_mask[0];
+	break;
+
+	case HAL_RXDMA_MONITOR_STATUS:
+	case HAL_RXDMA_MONITOR_DST:
+		grp_mask = &ab->ring_mask.rx_mon_status_ring_mask[0];
+	break;
+
+	case HAL_RXDMA_DST:
+		grp_mask = &ab->ring_mask.rxdma2host_ring_mask[0];
+	break;
+
+	case HAL_RXDMA_BUF:
+		grp_mask = &ab->ring_mask.host2rxdma_ring_mask[0];
+	break;
+
+	case HAL_RXDMA_MONITOR_BUF:
+		return -ENOENT;
+	break;
+
+	case HAL_TCL_DATA:
+	case HAL_TCL_CMD:
+	case HAL_REO_CMD:
+	case HAL_SW2WBM_RELEASE:
+	case HAL_WBM_IDLE_LINK:
+		return -ENOENT;
+	break;
+
+	case HAL_TCL_STATUS:
+	case HAL_REO_REINJECT:
+		return -ENOENT;
+	break;
+
+	case HAL_CE_SRC:
+	case HAL_CE_DST:
+	case HAL_CE_DST_STATUS:
+	default:
+		return -ENOENT;
+	break;
+	}
+
+	return ath11k_dp_srng_find_ring_in_mask(ring_num, grp_mask);
+}
+
+static void ath11k_dp_srng_msi_setup(struct ath11k_base *ab,
+				     struct hal_srng_params *ring_params,
+				     enum hal_ring_type type, int ring_num)
+{
+	int msi_group_number;
+	int msi_data_count;
+	u32 msi_data_start, msi_irq_start, addr_lo, addr_hi;
+	int ret = -EINVAL;
+
+	ret = ath11k_get_user_msi_vector(ab, "DP",
+					 &msi_data_count, &msi_data_start,
+					 &msi_irq_start);
+	if (ret)
+		return;
+
+	msi_group_number = ath11k_dp_srng_calculate_msi_group(ab, type,
+							      ring_num);
+	if (msi_group_number < 0) {
+		ath11k_dbg(ab, ATH11K_DBG_PCI,
+			   "ring not part of an ext_group; ring_type: %d,ring_num %d",
+			   type, ring_num);
+		ring_params->msi_addr = 0;
+		ring_params->msi_data = 0;
+		return;
+	}
+
+	if (msi_group_number > msi_data_count) {
+		ath11k_dbg(ab, ATH11K_DBG_PCI,
+			   "multiple msi_groups share one msi, msi_group_num %d",
+			   msi_group_number);
+	}
+
+	ath11k_get_msi_address(ab, &addr_lo, &addr_hi);
+
+	ring_params->msi_addr = addr_lo;
+	ring_params->msi_addr |= (dma_addr_t)(((uint64_t)addr_hi) << 32);
+	ring_params->msi_data = (msi_group_number % msi_data_count)
+		+ msi_data_start;
+	ring_params->flags |= HAL_SRNG_FLAGS_MSI_INTR;
+}
+
 int ath11k_dp_srng_setup(struct ath11k_base *ab, struct dp_srng *ring,
 			 enum hal_ring_type type, int ring_num,
 			 int mac_id, int num_entries)
@@ -136,6 +261,7 @@ int ath11k_dp_srng_setup(struct ath11k_base *ab, struct dp_srng *ring,
 	params.ring_base_vaddr = ring->vaddr;
 	params.ring_base_paddr = ring->paddr;
 	params.num_entries = num_entries;
+	ath11k_dp_srng_msi_setup(ab, &params, type, ring_num + mac_id);
 
 	switch (type) {
 	case HAL_REO_DST:

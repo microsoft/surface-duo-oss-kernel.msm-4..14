@@ -15,6 +15,49 @@
 
 #define QCA6390_DEVICE_ID		0x1101
 
+static const u8 ath11k_tx_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	ATH11K_TX_RING_MASK_0,
+	ATH11K_TX_RING_MASK_1,
+	ATH11K_TX_RING_MASK_2,
+};
+
+static const u8 ath11k_rx_mon_status_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	0, 0, 0, 0,
+	ATH11K_RX_MON_STATUS_RING_MASK_0,
+	ATH11K_RX_MON_STATUS_RING_MASK_1,
+	ATH11K_RX_MON_STATUS_RING_MASK_2,
+};
+
+static const u8 ath11k_rx_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	0, 0, 0, 0, 0, 0, 0,
+	ATH11K_RX_RING_MASK_0,
+	ATH11K_RX_RING_MASK_1,
+	ATH11K_RX_RING_MASK_2,
+	ATH11K_RX_RING_MASK_3,
+};
+
+static const u8 ath11k_rx_err_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	ATH11K_RX_ERR_RING_MASK_0,
+};
+
+static const u8 ath11k_rx_wbm_rel_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	ATH11K_RX_WBM_REL_RING_MASK_0,
+};
+
+static const u8 ath11k_reo_status_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	ATH11K_REO_STATUS_RING_MASK_0,
+};
+
+static const u8 ath11k_rxdma2host_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	ATH11K_RXDMA2HOST_RING_MASK_0,
+	ATH11K_RXDMA2HOST_RING_MASK_1,
+	ATH11K_RXDMA2HOST_RING_MASK_2,
+};
+
+static const u8 ath11k_host2rxdma_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	0,
+};
+
 static const struct pci_device_id ath11k_pci_id_table[] = {
 	{ PCI_VDEVICE(QCOM, QCA6390_DEVICE_ID) },
 	{0}
@@ -385,6 +428,20 @@ static int ath11k_get_user_msi_assignment(struct ath11k_base *ab, char *user_nam
 						  base_vector);
 }
 
+static void ath11k_pci_free_ext_irq(struct ath11k_base *ab)
+{
+	int i, j;
+
+	for (i = 0; i < ATH11K_EXT_IRQ_GRP_NUM_MAX; i++) {
+		struct ath11k_ext_irq_grp *irq_grp = &ab->ext_irq_grp[i];
+
+		for (j = 0; j < irq_grp->num_irq; j++)
+			free_irq(ab->irq_num[irq_grp->irqs[j]], irq_grp);
+
+		netif_napi_del(&irq_grp->napi);
+	}
+}
+
 static void ath11k_pci_free_irq(struct ath11k_base *ab)
 {
 	int irq_idx;
@@ -396,6 +453,8 @@ static void ath11k_pci_free_irq(struct ath11k_base *ab)
 		irq_idx = ATH11K_IRQ_CE0_OFFSET + i;
 		free_irq(ab->irq_num[irq_idx], &ab->ce.ce_pipe[i]);
 	}
+
+	ath11k_pci_free_ext_irq(ab);
 }
 
 static void ath11k_pci_ce_irq_enable(struct ath11k_base *ab, u16 ce_id)
@@ -458,6 +517,180 @@ static irqreturn_t ath11k_pci_ce_interrupt_handler(int irq, void *arg)
 	return IRQ_HANDLED;
 }
 
+static void ath11k_pci_ext_grp_disable(struct ath11k_ext_irq_grp *irq_grp)
+{
+	int i;
+
+	for (i = 0; i < irq_grp->num_irq; i++)
+		disable_irq_nosync(irq_grp->ab->irq_num[irq_grp->irqs[i]]);
+}
+
+static void __ath11k_pci_ext_irq_disable(struct ath11k_base *sc)
+{
+	int i;
+
+	for (i = 0; i < ATH11K_EXT_IRQ_GRP_NUM_MAX; i++) {
+		struct ath11k_ext_irq_grp *irq_grp = &sc->ext_irq_grp[i];
+
+		ath11k_pci_ext_grp_disable(irq_grp);
+
+		napi_synchronize(&irq_grp->napi);
+		napi_disable(&irq_grp->napi);
+	}
+}
+
+static void ath11k_pci_ext_grp_enable(struct ath11k_ext_irq_grp *irq_grp)
+{
+	int i;
+
+	for (i = 0; i < irq_grp->num_irq; i++)
+		enable_irq(irq_grp->ab->irq_num[irq_grp->irqs[i]]);
+}
+
+static void ath11k_pci_ext_irq_enable(struct ath11k_base *ab)
+{
+	int i;
+
+	for (i = 0; i < ATH11K_EXT_IRQ_GRP_NUM_MAX; i++) {
+		struct ath11k_ext_irq_grp *irq_grp = &ab->ext_irq_grp[i];
+
+		napi_enable(&irq_grp->napi);
+		ath11k_pci_ext_grp_enable(irq_grp);
+	}
+}
+
+static void ath11k_pci_sync_ext_irqs(struct ath11k_base *ab)
+{
+	int i, j;
+	int irq_idx;
+
+	for (i = 0; i < ATH11K_EXT_IRQ_GRP_NUM_MAX; i++) {
+		struct ath11k_ext_irq_grp *irq_grp = &ab->ext_irq_grp[i];
+
+		for (j = 0; j < irq_grp->num_irq; j++) {
+			irq_idx = irq_grp->irqs[j];
+			synchronize_irq(ab->irq_num[irq_idx]);
+		}
+	}
+}
+
+static void ath11k_pci_ext_irq_disable(struct ath11k_base *ab)
+{
+	__ath11k_pci_ext_irq_disable(ab);
+	ath11k_pci_sync_ext_irqs(ab);
+}
+
+static int ath11k_pci_ext_grp_napi_poll(struct napi_struct *napi, int budget)
+{
+	struct ath11k_ext_irq_grp *irq_grp = container_of(napi,
+						struct ath11k_ext_irq_grp,
+						napi);
+	struct ath11k_base *ab = irq_grp->ab;
+	int work_done;
+
+	work_done = ath11k_dp_service_srng(ab, irq_grp, budget);
+	if (work_done < budget) {
+		napi_complete_done(napi, work_done);
+		ath11k_pci_ext_grp_enable(irq_grp);
+	}
+
+	if (work_done > budget)
+		work_done = budget;
+
+	return work_done;
+}
+
+static irqreturn_t ath11k_pci_ext_interrupt_handler(int irq, void *arg)
+{
+	struct ath11k_ext_irq_grp *irq_grp = arg;
+
+	ath11k_dbg(irq_grp->ab, ATH11K_DBG_PCI, "ext irq:%d\n", irq);
+
+	ath11k_pci_ext_grp_disable(irq_grp);
+
+	napi_schedule(&irq_grp->napi);
+
+	return IRQ_HANDLED;
+}
+
+static void ath11k_pci_ext_ring_mask_config(struct ath11k_base *ab)
+{
+	int i;
+
+	for (i = 0; i < ATH11K_EXT_IRQ_GRP_NUM_MAX; i++) {
+		ab->ring_mask.tx_ring_mask[i] = ath11k_tx_ring_mask[i];
+		ab->ring_mask.rx_mon_status_ring_mask[i] =
+			ath11k_rx_mon_status_ring_mask[i];
+		ab->ring_mask.rx_ring_mask[i] = ath11k_rx_ring_mask[i];
+		ab->ring_mask.rx_err_ring_mask[i] = ath11k_rx_err_ring_mask[i];
+		ab->ring_mask.rx_wbm_rel_ring_mask[i] = ath11k_rx_wbm_rel_ring_mask[i];
+		ab->ring_mask.reo_status_ring_mask[i] = ath11k_reo_status_ring_mask[i];
+		ab->ring_mask.rxdma2host_ring_mask[i] = ath11k_rxdma2host_ring_mask[i];
+		ab->ring_mask.host2rxdma_ring_mask[i] = ath11k_host2rxdma_ring_mask[i];
+	}
+}
+
+static int ath11k_pci_ext_irq_config(struct ath11k_base *ab)
+{
+	int i, j;
+	int ret;
+	int num_vectors = 0;
+	u32 user_base_data = 0, base_vector = 0;
+
+	ath11k_pci_ext_ring_mask_config(ab);
+
+	ath11k_pci_get_user_msi_assignment(ath11k_pci_priv(ab), "DP",
+					   &num_vectors, &user_base_data,
+					   &base_vector);
+
+	for (i = 0; i < ATH11K_EXT_IRQ_GRP_NUM_MAX; i++) {
+		struct ath11k_ext_irq_grp *irq_grp = &ab->ext_irq_grp[i];
+		u32 num_irq = 0;
+
+		irq_grp->ab = ab;
+		irq_grp->grp_id = i;
+		init_dummy_netdev(&irq_grp->napi_ndev);
+		netif_napi_add(&irq_grp->napi_ndev, &irq_grp->napi,
+			       ath11k_pci_ext_grp_napi_poll, NAPI_POLL_WEIGHT);
+
+		if (ath11k_tx_ring_mask[i] ||
+		    ath11k_rx_ring_mask[i] ||
+		    ath11k_rx_err_ring_mask[i] ||
+		    ath11k_rx_wbm_rel_ring_mask[i] ||
+		    ath11k_reo_status_ring_mask[i] ||
+		    ath11k_rxdma2host_ring_mask[i] ||
+		    ath11k_host2rxdma_ring_mask[i] ||
+		    ath11k_rx_mon_status_ring_mask[i]) {
+			num_irq = 1;
+		}
+
+		irq_grp->num_irq = num_irq;
+		irq_grp->irqs[0] = base_vector + i;
+
+		for (j = 0; j < irq_grp->num_irq; j++) {
+			int irq_idx = irq_grp->irqs[j];
+			int vector = (i % num_vectors) + base_vector;
+			int irq = ath11k_pci_get_msi_irq(ab->dev, vector);
+
+			ab->irq_num[irq_idx] = irq;
+
+			ath11k_dbg(ab, ATH11K_DBG_PCI,
+				   "irq:%d group:%d\n", irq, i);
+			ret = request_irq(irq, ath11k_pci_ext_interrupt_handler,
+					  IRQF_SHARED,
+					  "DP_EXT_IRQ", irq_grp);
+			if (ret) {
+				ath11k_err(ab, "failed request_irq for %d\n",
+					   vector);
+			}
+
+			disable_irq_nosync(ab->irq_num[irq_idx]);
+		}
+	}
+
+	return 0;
+}
+
 static int ath11k_pci_config_irq(struct ath11k_base *ab)
 {
 	struct ath11k_ce_pipe *ce_pipe;
@@ -483,6 +716,9 @@ static int ath11k_pci_config_irq(struct ath11k_base *ab)
 
 		irq_idx = ATH11K_IRQ_CE0_OFFSET + i;
 
+		ath11k_info(ab, "%s irq:%d, irq_idx:%d\n",
+			    __func__, irq, irq_idx);
+
 		tasklet_init(&ce_pipe->intr_tq, ath11k_pci_ce_tasklet,
 			     (unsigned long)ce_pipe);
 
@@ -491,12 +727,12 @@ static int ath11k_pci_config_irq(struct ath11k_base *ab)
 				  ce_pipe);
 		if (ret)
 			return ret;
-
 		ab->irq_num[irq_idx] = irq;
 		ath11k_pci_ce_irq_disable(ab, i);
 	}
 
 	/* To Do Configure external interrupts */
+	ath11k_pci_ext_irq_config(ab);
 
 	return ret;
 }
@@ -785,6 +1021,8 @@ static const struct ath11k_hif_ops ath11k_pci_hif_ops = {
 	.write32 = ath11k_pci_write32,
 	.power_down = ath11k_pci_power_down,
 	.power_up = ath11k_pci_power_up,
+	.irq_enable = ath11k_pci_ext_irq_enable,
+	.irq_disable = ath11k_pci_ext_irq_disable,
 	.get_msi_address =  ath11k_pci_get_msi_address,
 	.get_user_msi_vector = ath11k_get_user_msi_assignment,
 	.map_service_to_pipe = ath11k_pci_map_service_to_pipe,
