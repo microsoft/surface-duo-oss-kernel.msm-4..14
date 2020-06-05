@@ -78,6 +78,7 @@ static struct mhi_event_config ath11k_mhi_events[] = {
 		.irq_moderation_ms = 0,
 		.irq = 1,
 		.mode = MHI_DB_BRST_DISABLE,
+		.data_type = MHI_ER_CTRL,
 		.hardware_event = false,
 		.client_managed = false,
 		.offload_channel = false,
