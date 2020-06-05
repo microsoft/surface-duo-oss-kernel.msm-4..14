@@ -652,6 +652,7 @@ struct ath11k_base {
 	unsigned long mem_len;
 
 	struct {
+	enum ath11k_bus bus;
 		const struct ath11k_hif_ops *ops;
 	} hif;
 
@@ -717,6 +718,8 @@ struct ath11k_base {
 
 	bool mhi_support;
 	bool m3_fw_support;
+	bool fixed_bdf_addr;
+	bool fixed_mem_region;
 
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
@@ -906,6 +909,18 @@ static inline void ath11k_core_create_firmware_path(struct ath11k_base *ab,
 {
 	snprintf(buf, buf_len, "%s/%s/%s", ATH11K_FW_DIR,
 		 ab->hw_params.fw.dir, filename);
+}
+
+static inline const char *ath11k_bus_str(enum ath11k_bus bus)
+{
+	switch (bus) {
+	case ATH11K_BUS_PCI:
+		return "pci";
+	case ATH11K_BUS_AHB:
+		return "ahb";
+	}
+
+	return "unknown";
 }
 
 #endif /* _CORE_H_ */

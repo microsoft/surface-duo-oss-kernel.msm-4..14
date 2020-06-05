@@ -84,7 +84,7 @@ struct target_mem_chunk {
 	u32 size;
 	u32 type;
 	dma_addr_t paddr;
-	u32 vaddr;
+	u32 *vaddr;
 };
 
 struct target_info {
