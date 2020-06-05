@@ -32,7 +32,8 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.hw_ops = &ipq8074_ops,
 		.internal_sleep_clock = false,
 		.single_pdev_only = false,
-		.misc_caps = MISC_CAPS_BAND_TO_MAC,
+		.misc_caps = MISC_CAPS_BAND_TO_MAC |
+			     MISC_CAPS_V2_MAP,
 		.rxdma1_enable = true,
 		.num_rxmda_per_pdev = 1,
 		.vdev_start_delay = false,
