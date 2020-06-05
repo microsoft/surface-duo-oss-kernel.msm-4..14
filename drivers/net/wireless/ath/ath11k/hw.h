@@ -133,6 +133,7 @@ struct ath11k_hw_params {
 	 * misc_caps is for these differences.
 	 */
 	u32 misc_caps;
+	bool rxdma1_enable;
 };
 
 extern const struct ath11k_hw_ops ipq8074_ops;
