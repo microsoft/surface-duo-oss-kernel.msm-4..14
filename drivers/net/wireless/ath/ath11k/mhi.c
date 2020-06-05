@@ -135,6 +135,20 @@ static int ath11k_pci_get_mhi_msi(struct ath11k_pci *ab_pci)
 	return 0;
 }
 
+static int ath11k_mhi_op_runtime_get(struct mhi_controller *mhi_cntrl)
+{
+	return 0;
+}
+
+static void ath11k_mhi_op_runtime_put(struct mhi_controller *mhi_cntrl)
+{
+}
+
+static void ath11k_mhi_op_status_cb(struct mhi_controller *mhi_cntrl,
+				    enum mhi_callback cb)
+{
+}
+
 int ath11k_pci_register_mhi(struct ath11k_pci *ab_pci)
 {
 	struct ath11k_base *ab = ab_pci->ab;
@@ -146,6 +160,7 @@ int ath11k_pci_register_mhi(struct ath11k_pci *ab_pci)
 		return PTR_ERR(mhi_ctrl);
 
 	ab_pci->mhi_ctrl = mhi_ctrl;
+	mhi_ctrl->cntrl_dev = ab->dev;
 	mhi_ctrl->fw_image = ATH11K_PCI_FW_FILE_NAME;
 	mhi_ctrl->regs = ab_pci->mem;
 
@@ -161,6 +176,9 @@ int ath11k_pci_register_mhi(struct ath11k_pci *ab_pci)
 	mhi_ctrl->sbl_size = SZ_512K;
 	mhi_ctrl->seg_len = SZ_512K;
 	mhi_ctrl->fbc_download = true;
+	mhi_ctrl->runtime_get = ath11k_mhi_op_runtime_get;
+	mhi_ctrl->runtime_put = ath11k_mhi_op_runtime_put;
+	mhi_ctrl->status_cb = ath11k_mhi_op_status_cb;
 
 	ret = mhi_register_controller(mhi_ctrl, &ath11k_mhi_config);
 	if (ret) {
