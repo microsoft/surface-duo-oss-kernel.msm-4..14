@@ -32,6 +32,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.hw_ops = &ipq8074_ops,
 		.internal_sleep_clock = false,
 		.single_pdev_only = false,
+		.misc_caps = MISC_CAPS_BAND_TO_MAC,
 	},
 	{
 		.name = "qca6390 hw2.0",
@@ -46,6 +47,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.hw_ops = &qca6390_ops,
 		.internal_sleep_clock = true,
 		.single_pdev_only = true,
+		.misc_caps = 0,
 	},
 };
 
