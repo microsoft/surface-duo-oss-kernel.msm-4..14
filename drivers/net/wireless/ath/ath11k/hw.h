@@ -77,6 +77,8 @@
 #define ATH11K_DEFAULT_BOARD_FILE	"board.bin"
 #define ATH11K_DEFAULT_CAL_FILE		"caldata.bin"
 
+#define MISC_CAPS_BAND_TO_MAC       BIT(0)
+
 enum ath11k_hw_rate_cck {
 	ATH11K_HW_RATE_CCK_LP_11M = 0,
 	ATH11K_HW_RATE_CCK_LP_5_5M,
@@ -125,6 +127,12 @@ struct ath11k_hw_params {
 
 	bool internal_sleep_clock;
 	bool single_pdev_only;
+
+	/* there are some small differences from chip to chip,
+	 * and driver needs to address the difference only once.
+	 * misc_caps is for these differences.
+	 */
+	u32 misc_caps;
 };
 
 extern const struct ath11k_hw_ops ipq8074_ops;
