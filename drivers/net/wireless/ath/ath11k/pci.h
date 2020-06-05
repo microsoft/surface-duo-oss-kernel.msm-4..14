@@ -22,6 +22,12 @@
 /* FIXME_KVALO: this should be in hw_params */
 /* #define ATH11K_IRQ_CE0_OFFSET 3 */
 
+#define TCSR_SOC_HW_VERSION                          (0x0224)
+#define HW_MAJOR_VERSION_MASK                        (0xFF00)
+#define HW_MAJOR_VERSION_SHIFT                       (0x08)
+#define HW_MINOR_VERSION_MASK                        (0xFF)
+#define HW_MINOR_VERSION_SHIFT                       (0x0)
+
 struct ath11k_msi_user {
 	char *name;
 	int num_vectors;

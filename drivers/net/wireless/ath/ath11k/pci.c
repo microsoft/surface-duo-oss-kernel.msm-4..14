@@ -922,10 +922,28 @@ static void ath11k_pci_free_region(struct ath11k_pci *ab_pci)
 		pci_disable_device(pci_dev);
 }
 
+static void ath11k_pci_read_mhi_version(struct ath11k_base *ab)
+{
+	struct ath11k_pci *ab_pci;
+	u32 val;
+	u32 major_v, minor_v;
+
+	ab_pci = ath11k_pci_priv(ab);
+
+	val     = ioread32(ab_pci->mem + TCSR_SOC_HW_VERSION);
+	major_v = (val & HW_MAJOR_VERSION_MASK) >> HW_MAJOR_VERSION_SHIFT;
+	minor_v = (val & HW_MINOR_VERSION_MASK) >> HW_MINOR_VERSION_SHIFT;
+
+	ath11k_info(ab, "Read HST HW Major Version %d, minor revision %d\n",
+		    major_v, minor_v);
+}
+
 static int ath11k_pci_power_up(struct ath11k_base *ab)
 {
 	struct ath11k_pci *ab_pci;
 	int ret;
+
+	ath11k_pci_read_mhi_version(ab);
 
 	ab_pci = ath11k_pci_priv(ab);
 	ret = ath11k_pci_qca6x90_powerup(ab_pci);
