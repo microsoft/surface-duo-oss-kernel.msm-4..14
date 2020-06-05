@@ -749,7 +749,7 @@ int ath11k_dp_service_srng(struct ath11k_base *ab,
 	struct napi_struct *napi = &irq_grp->napi;
 	int grp_id = irq_grp->grp_id;
 	int work_done = 0;
-	int i = 0;
+	int i = 0, j;
 	int tot_work_done = 0;
 
 	while (ab->ring_mask.tx_ring_mask[grp_id] >> i) {
@@ -788,17 +788,23 @@ int ath11k_dp_service_srng(struct ath11k_base *ab,
 	}
 
 	if (ab->ring_mask.rx_mon_status_ring_mask[grp_id]) {
-		for (i = 0; i <  ab->num_radios; i++) {
-			if (ab->ring_mask.rx_mon_status_ring_mask[grp_id] & BIT(i)) {
-				work_done =
-				ath11k_dp_rx_process_mon_rings(ab,
-							       i, napi,
-							       budget);
-				budget -= work_done;
-				tot_work_done += work_done;
+		for (i = 0; i < ab->num_radios; i++) {
+			for (j = 0; j < NUM_RXDMA_PER_PDEV; j++) {
+				int id = i * NUM_RXDMA_PER_PDEV + j;
+
+				if (ab->ring_mask.rx_mon_status_ring_mask[grp_id] &
+					BIT(id)) {
+					work_done =
+					ath11k_dp_rx_process_mon_rings(ab,
+								       id,
+								       napi, budget);
+					budget -= work_done;
+					tot_work_done += work_done;
+
+					if (budget <= 0)
+						goto done;
+				}
 			}
-			if (budget <= 0)
-				goto done;
 		}
 	}
 
@@ -806,22 +812,27 @@ int ath11k_dp_service_srng(struct ath11k_base *ab,
 		ath11k_dp_process_reo_status(ab);
 
 	for (i = 0; i < ab->num_radios; i++) {
-		if (ab->ring_mask.rxdma2host_ring_mask[grp_id] & BIT(i)) {
-			work_done = ath11k_dp_process_rxdma_err(ab, i, budget);
-			budget -= work_done;
-			tot_work_done += work_done;
-		}
+		for (j = 0; j < NUM_RXDMA_PER_PDEV; j++) {
+			int id = i * NUM_RXDMA_PER_PDEV + j;
 
-		if (budget <= 0)
-			goto done;
+			if (ab->ring_mask.rxdma2host_ring_mask[grp_id] & BIT(id)) {
+				work_done = ath11k_dp_process_rxdma_err(ab, id, budget);
+				budget -= work_done;
+				tot_work_done += work_done;
+			}
 
-		if (ab->ring_mask.host2rxdma_ring_mask[grp_id] & BIT(i)) {
-			struct ath11k_pdev_dp *dp = &ab->pdevs[i].ar->dp;
-			struct dp_rxdma_ring *rx_ring = &dp->rx_refill_buf_ring;
+			if (budget <= 0)
+				goto done;
 
-			ath11k_dp_rxbufs_replenish(ab, i, rx_ring, 0,
-						   HAL_RX_BUF_RBM_SW3_BM,
-						   GFP_ATOMIC);
+			if (ab->ring_mask.host2rxdma_ring_mask[grp_id] & BIT(id)) {
+				struct ath11k *ar = ab->pdevs[MAC_ID_TO_PDEV_ID(id)].ar;
+				struct ath11k_pdev_dp *dp = &ar->dp;
+				struct dp_rxdma_ring *rx_ring = &dp->rx_refill_buf_ring;
+
+				ath11k_dp_rxbufs_replenish(ab, id, rx_ring, 0,
+							   HAL_RX_BUF_RBM_SW3_BM,
+							   GFP_ATOMIC);
+			}
 		}
 	}
 	/* TODO: Implement handler for other interrupts */
