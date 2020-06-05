@@ -3399,13 +3399,14 @@ int ath11k_wmi_cmd_init(struct ath11k_base *ab)
 	init_param.hw_mode_id = wmi_sc->preferred_hw_mode;
 	init_param.mem_chunks = wmi_sc->mem_chunks;
 
-	if (wmi_sc->preferred_hw_mode == WMI_HOST_HW_MODE_SINGLE ||
-	    ab->hw_params.single_pdev_only)
+	if (wmi_sc->preferred_hw_mode == WMI_HOST_HW_MODE_SINGLE)
 		init_param.hw_mode_id = WMI_HOST_HW_MODE_MAX;
 
-	init_param.num_band_to_mac = ab->num_radios;
-
-	ath11k_fill_band_to_mac_param(ab, init_param.band_to_mac);
+	/* for QCA6390, band_to_mac_config is false and fw does the map */
+	if (ab->hw_params.misc_caps & MISC_CAPS_BAND_TO_MAC) {
+		init_param.num_band_to_mac = ab->num_radios;
+		ath11k_fill_band_to_mac_param(ab, init_param.band_to_mac);
+	}
 
 	return ath11k_init_cmd_send(&wmi_sc->wmi[0], &init_param);
 }
