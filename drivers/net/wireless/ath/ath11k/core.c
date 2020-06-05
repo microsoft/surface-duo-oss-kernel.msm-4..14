@@ -31,6 +31,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.bdf_addr = 0x4B0C0000,
 		.hw_ops = &ipq8074_ops,
 		.internal_sleep_clock = false,
+		.single_pdev_only = false,
 	},
 	{
 		.name = "qca6390 hw2.0",
@@ -44,6 +45,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.bdf_addr = 0x4B0C0000,
 		.hw_ops = &qca6390_ops,
 		.internal_sleep_clock = true,
+		.single_pdev_only = true,
 	},
 };
 
