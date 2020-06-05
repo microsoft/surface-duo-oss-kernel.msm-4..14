@@ -306,6 +306,51 @@ enum ext_irq_num {
 	tcl2host_status_ring,
 };
 
+static const u8 ath11k_tx_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	ATH11K_TX_RING_MASK_0,
+	ATH11K_TX_RING_MASK_1,
+	ATH11K_TX_RING_MASK_2,
+};
+
+static const u8 ath11k_rx_mon_status_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	0, 0, 0, 0,
+	ATH11K_RX_MON_STATUS_RING_MASK_0,
+	ATH11K_RX_MON_STATUS_RING_MASK_1,
+	ATH11K_RX_MON_STATUS_RING_MASK_2,
+};
+
+static const u8 ath11k_rx_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	0, 0, 0, 0, 0, 0, 0,
+	ATH11K_RX_RING_MASK_0,
+	ATH11K_RX_RING_MASK_1,
+	ATH11K_RX_RING_MASK_2,
+	ATH11K_RX_RING_MASK_3,
+};
+
+static const u8 ath11k_rx_err_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	ATH11K_RX_ERR_RING_MASK_0,
+};
+
+static const u8 ath11k_rx_wbm_rel_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	ATH11K_RX_WBM_REL_RING_MASK_0,
+};
+
+static const u8 ath11k_reo_status_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	ATH11K_REO_STATUS_RING_MASK_0,
+};
+
+static const u8 ath11k_rxdma2host_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	ATH11K_RXDMA2HOST_RING_MASK_0,
+	ATH11K_RXDMA2HOST_RING_MASK_1,
+	ATH11K_RXDMA2HOST_RING_MASK_2,
+};
+
+static const u8 ath11k_host2rxdma_ring_mask[ATH11K_EXT_IRQ_GRP_NUM_MAX] = {
+	ATH11K_HOST2RXDMA_RING_MASK_0,
+	ATH11K_HOST2RXDMA_RING_MASK_1,
+	ATH11K_HOST2RXDMA_RING_MASK_2,
+};
+
 static inline u32 ath11k_ahb_read32(struct ath11k_base *ab, u32 offset)
 {
 	return ioread32(ab->mem + offset);
@@ -604,12 +649,31 @@ static irqreturn_t ath11k_ahb_ext_interrupt_handler(int irq, void *arg)
 	return IRQ_HANDLED;
 }
 
+static void ath11k_abh_ext_ring_mask_config(struct ath11k_base *ab)
+{
+	int i;
+
+	for (i = 0; i < ATH11K_EXT_IRQ_GRP_NUM_MAX; i++) {
+		ab->ring_mask.tx_ring_mask[i] = ath11k_tx_ring_mask[i];
+		ab->ring_mask.rx_mon_status_ring_mask[i] =
+			ath11k_rx_mon_status_ring_mask[i];
+		ab->ring_mask.rx_ring_mask[i] = ath11k_rx_ring_mask[i];
+		ab->ring_mask.rx_err_ring_mask[i] = ath11k_rx_err_ring_mask[i];
+		ab->ring_mask.rx_wbm_rel_ring_mask[i] = ath11k_rx_wbm_rel_ring_mask[i];
+		ab->ring_mask.reo_status_ring_mask[i] = ath11k_reo_status_ring_mask[i];
+		ab->ring_mask.rxdma2host_ring_mask[i] = ath11k_rxdma2host_ring_mask[i];
+		ab->ring_mask.host2rxdma_ring_mask[i] = ath11k_host2rxdma_ring_mask[i];
+	}
+}
+
 static int ath11k_ahb_ext_irq_config(struct ath11k_base *ab)
 {
 	struct ath11k_hw_params *hw = &ab->hw_params;
 	int i, j;
 	int irq;
 	int ret;
+
+	ath11k_abh_ext_ring_mask_config(ab);
 
 	for (i = 0; i < ATH11K_EXT_IRQ_GRP_NUM_MAX; i++) {
 		struct ath11k_ext_irq_grp *irq_grp = &ab->ext_irq_grp[i];
@@ -654,7 +718,7 @@ static int ath11k_ahb_ext_irq_config(struct ath11k_base *ab)
 						ath11k_hw_get_mac_from_pdev_id(hw, j);
 				}
 
-				if (rx_mon_status_ring_mask[i] & BIT(j)) {
+				if (ath11k_rx_mon_status_ring_mask[i] & BIT(j)) {
 					irq_grp->irqs[num_irq++] =
 						ppdu_end_interrupts_mac1 -
 						ath11k_hw_get_mac_from_pdev_id(hw, j);
