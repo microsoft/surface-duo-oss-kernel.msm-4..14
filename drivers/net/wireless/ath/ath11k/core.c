@@ -31,6 +31,7 @@ static const struct ath11k_hw_params ath11k_hw_params_list[] = {
 		.single_pdev_only = false,
 		.hw_ops = &ath11k_hw_ops_ipq8074,
 		.misc_caps = MISC_CAPS_BAND_TO_MAC,
+		.rxdma1_enable = true,
 	},
 	{
 		.name = "qca6390",
@@ -39,6 +40,7 @@ static const struct ath11k_hw_params ath11k_hw_params_list[] = {
 		.single_pdev_only = true,
 		.hw_ops = &ath11k_hw_ops_qca6x90,
 		.misc_caps = 0,
+		.rxdma1_enable = false,
 	}
 };
 

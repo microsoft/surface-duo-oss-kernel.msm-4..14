@@ -131,6 +131,7 @@ struct ath11k_hw_params {
 	 * misc_caps is for these differences.
 	 */
 	u32 misc_caps;
+	bool rxdma1_enable;
 };
 
 struct ath11k_fw_ie {
