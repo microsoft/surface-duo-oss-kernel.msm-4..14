@@ -1041,6 +1041,7 @@ static int ath11k_pci_probe(struct pci_dev *pdev,
 	switch (pci_dev->device) {
 	case QCA6290_DEVICE_ID:
 		hw_rev = ATH11K_HW_QCA6290;
+		break;
 	case QCA6390_DEVICE_ID:
 		hw_rev = ATH11K_HW_QCA6390;
 		break;
