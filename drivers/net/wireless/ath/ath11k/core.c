@@ -32,6 +32,7 @@ static const struct ath11k_hw_params ath11k_hw_params_list[] = {
 		.hw_ops = &ath11k_hw_ops_ipq8074,
 		.misc_caps = MISC_CAPS_BAND_TO_MAC,
 		.rxdma1_enable = true,
+		.num_rxmda_per_pdev = 1,
 	},
 	{
 		.name = "qca6390",
@@ -39,8 +40,9 @@ static const struct ath11k_hw_params ath11k_hw_params_list[] = {
 		.internal_sleep_clock = true,
 		.single_pdev_only = true,
 		.hw_ops = &ath11k_hw_ops_qca6x90,
-		.misc_caps = 0,
+		.misc_caps = MISC_CAPS_HOST2FW_RXBUF_RING,
 		.rxdma1_enable = false,
+		.num_rxmda_per_pdev = 2,
 	}
 };
 
