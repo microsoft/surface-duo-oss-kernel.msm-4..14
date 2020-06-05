@@ -601,6 +601,7 @@ struct ath11k_base {
 	unsigned long mem_len;
 
 	struct {
+	enum ath11k_bus bus;
 		const struct ath11k_hif_ops *ops;
 	} hif;
 
@@ -663,6 +664,9 @@ struct ath11k_base {
 
 	bool mhi_support;
 	bool m3_fw_support;
+	bool fixed_bdf_addr;
+	bool fixed_mem_region;
+
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
 };
@@ -843,4 +847,15 @@ static inline struct ath11k_vif *ath11k_vif_to_arvif(struct ieee80211_vif *vif)
 	return (struct ath11k_vif *)vif->drv_priv;
 }
 
+static inline const char *ath11k_bus_str(enum ath11k_bus bus)
+{
+	switch (bus) {
+	case ATH11K_BUS_PCI:
+		return "pci";
+	case ATH11K_BUS_AHB:
+		return "ahb";
+	}
+
+	return "unknown";
+}
 #endif /* _CORE_H_ */
