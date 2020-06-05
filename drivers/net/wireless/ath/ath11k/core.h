@@ -721,6 +721,7 @@ struct ath11k_base {
 	bool fixed_bdf_addr;
 	bool fixed_mem_region;
 
+	bool use_register_windowing;
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
 };
