@@ -722,6 +722,8 @@ struct ath11k_base {
 	bool fixed_mem_region;
 
 	bool use_register_windowing;
+	const struct ath11k_hw_regs *regs;
+
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
 };
