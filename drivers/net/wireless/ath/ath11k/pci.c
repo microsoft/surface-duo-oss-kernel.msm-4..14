@@ -554,7 +554,9 @@ static int ath11k_pci_probe(struct pci_dev *pdev,
 	ab->hif.ops = &ath11k_pci_hif_ops;
 	pci_set_drvdata(pdev, ab);
 	ab->mhi_support = true;
+	ab->fixed_bdf_addr = false;
 	ab->m3_fw_support = true;
+	ab->fixed_mem_region = false;
 
 	ret = ath11k_pci_claim(ab_pci, pdev);
 	if (ret) {
