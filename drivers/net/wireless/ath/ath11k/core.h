@@ -722,6 +722,8 @@ struct ath11k_base {
 	bool fixed_mem_region;
 
 	bool use_register_windowing;
+	const struct ath11k_hw_regs *regs;
+
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
 };
@@ -871,6 +873,8 @@ void ath11k_core_halt(struct ath11k *ar);
 
 const struct firmware *ath11k_core_firmware_request(struct ath11k_base *ab,
 						    const char *filename);
+
+int ath11k_core_pre_init(struct ath11k_base *ab);
 
 static inline const char *ath11k_scan_state_str(enum ath11k_scan_state state)
 {
