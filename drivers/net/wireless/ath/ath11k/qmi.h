@@ -31,6 +31,7 @@
 #define QMI_WLANFW_MAX_DATA_SIZE_V01		6144
 #define ATH11K_FIRMWARE_MODE_OFF		4
 #define ATH11K_QMI_TARGET_MEM_MODE_DEFAULT	0
+#define ATH11K_MAX_M3_FILE_NAME_LENGTH		13
 
 struct ath11k_base;
 
@@ -96,6 +97,12 @@ struct target_info {
 	char fw_build_id[ATH11K_QMI_WLANFW_MAX_BUILD_ID_LEN_V01 + 1];
 };
 
+struct m3_mem_region {
+	u32 size;
+	dma_addr_t paddr;
+	void *vaddr;
+};
+
 struct ath11k_qmi {
 	struct ath11k_base *ab;
 	struct qmi_handle handle;
@@ -110,6 +117,7 @@ struct ath11k_qmi {
 	u32 target_mem_mode;
 	u8 cal_done;
 	struct target_info target;
+	struct m3_mem_region m3_mem;
 };
 
 #define QMI_WLANFW_HOST_CAP_REQ_MSG_V01_MAX_LEN		189
