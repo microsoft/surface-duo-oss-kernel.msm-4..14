@@ -716,6 +716,7 @@ struct ath11k_base {
 	u32 num_db_cap;
 
 	bool mhi_support;
+	bool m3_fw_support;
 
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
