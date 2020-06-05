@@ -805,8 +805,12 @@ static int ath11k_pci_enable_msi(struct ath11k_pci *ab_pci)
 	if (num_vectors != msi_config->total_vectors) {
 		ath11k_err(ab, "failed to get enough MSI vectors (%d), available vectors = %d",
 			   msi_config->total_vectors, num_vectors);
+
 		if (num_vectors >= 0)
 			ret = -EINVAL;
+		else
+			ret = num_vectors;
+
 		goto reset_msi_config;
 	}
 
