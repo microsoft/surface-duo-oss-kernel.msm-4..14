@@ -75,7 +75,12 @@ modules.order
 #
 # Snap directory (make snap-pkg)
 #
-/snap/
+parts
+stage
+prime
+snap/.snapcraft/
+snap/plugins/__pycache__/
+*.snap
 
 #
 # tar directory (make tar*-pkg)
