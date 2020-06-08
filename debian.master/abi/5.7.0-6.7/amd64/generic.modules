@@ -59,6 +59,7 @@ acenic
 acer-wireless
 acer-wmi
 acerhdf
+acp3x-rn
 acp_audio_dma
 acpi-als
 acpi_configfs
@@ -4255,6 +4256,7 @@ snd
 snd-ac97-codec
 snd-acp3x-i2s
 snd-acp3x-pcm-dma
+snd-acp3x-pdm-dma
 snd-ad1889
 snd-ak4113
 snd-ak4114
@@ -4374,6 +4376,7 @@ snd-riptide
 snd-rme32
 snd-rme96
 snd-rme9652
+snd-rn-pci-acp3x
 snd-sb-common
 snd-seq
 snd-seq-device
@@ -5256,6 +5259,8 @@ v4l2-flash-led-class
 v4l2-fwnode
 v4l2-mem2mem
 v4l2-tpg
+vboxguest
+vboxsf
 vboxvideo
 vcan
 vcnl4000
