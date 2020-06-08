@@ -4,6 +4,10 @@ linux-5.7 (5.7.0-7.8) UNRELEASED; urgency=medium
   CHANGELOG: Use the printchanges target to see the curent changes.
   CHANGELOG: Use the insertchanges target to create the final log.
 
+  [ Upstream Kernel Changes ]
+
+  * Rebase to v5.7.1
+
  -- Paolo Pisati <paolo.pisati@canonical.com>  Mon, 08 Jun 2020 11:10:43 +0200
 
 linux-5.7 (5.7.0-6.7) groovy; urgency=medium
