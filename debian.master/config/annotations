@@ -8752,13 +8752,6 @@ CONFIG_PHY_ROCKCHIP_DPHY_RX0                    policy<{'arm64': 'm', 'armhf': '
 CONFIG_VIDEO_ROCKCHIP_ISP1                      policy<{'arm64': 'm', 'armhf': 'm'}>
 
 # Menu: Device Drivers >> Staging drivers >> Media staging drivers >> SoC camera support
-CONFIG_SOC_CAMERA                               policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
-CONFIG_SOC_CAMERA_MT9M111                       policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
-CONFIG_SOC_CAMERA_MT9V022                       policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
-CONFIG_SOC_CAMERA_OV5642                        policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
-CONFIG_SOC_CAMERA_OV9740                        policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
-CONFIG_SOC_CAMERA_IMX074                        policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
-CONFIG_SOC_CAMERA_MT9T031                       policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
 
 # Menu: Device Drivers >> Staging drivers >> Media staging drivers >> i.MX5/6/7 Media Sub devices
 CONFIG_VIDEO_IMX_CSI                            policy<{'armhf-generic': 'm'}>
