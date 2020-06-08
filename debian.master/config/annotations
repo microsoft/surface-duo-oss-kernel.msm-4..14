@@ -12305,7 +12305,7 @@ CONFIG_PM                                       policy<{'amd64': 'y', 'arm64': '
 CONFIG_PM_TRACE_RTC                             policy<{'amd64': 'y', 'i386': 'y'}>
 CONFIG_APM_EMULATION                            policy<{'armhf': 'n'}>
 CONFIG_WQ_POWER_EFFICIENT_DEFAULT               policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y'}>
-CONFIG_ENERGY_MODEL                             policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'n', 'i386': 'n', 'ppc64el': 'n'}>
+CONFIG_ENERGY_MODEL                             policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y'}>
 CONFIG_KVM_GUEST                                policy<{'amd64': 'y', 'i386': 'y', 'ppc64el': 'y'}>
 CONFIG_SFI                                      policy<{'amd64': 'y', 'i386': 'y'}>
 CONFIG_INTEL_IDLE                               policy<{'amd64': 'y', 'i386': 'y'}>
