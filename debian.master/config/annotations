@@ -3679,7 +3679,6 @@ CONFIG_SERIO_ALTERA_PS2                         policy<{'amd64': 'm', 'arm64': '
 CONFIG_SERIO_PS2MULT                            policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
 CONFIG_SERIO_ARC_PS2                            policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
 CONFIG_SERIO_APBPS2                             policy<{'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm'}>
-CONFIG_SERIO_OLPC_APSP                          policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
 CONFIG_HYPERV_KEYBOARD                          policy<{'amd64': 'm', 'i386': 'm'}>
 CONFIG_SERIO_SUN4I_PS2                          policy<{'arm64': 'n'}>
 CONFIG_SERIO_GPIO_PS2                           policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
