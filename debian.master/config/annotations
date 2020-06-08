@@ -431,7 +431,6 @@ CONFIG_CRYPTO_DEV_ROCKCHIP                      policy<{'arm64': 'm', 'armhf': '
 CONFIG_CRYPTO_DEV_MEDIATEK                      policy<{'armhf': 'm'}>
 CONFIG_CRYPTO_DEV_CHELSIO                       policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
 CONFIG_CHELSIO_IPSEC_INLINE                     policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y'}>
-CONFIG_CRYPTO_DEV_CHELSIO_TLS                   policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'ppc64el': 'm'}>
 CONFIG_CRYPTO_DEV_VIRTIO                        policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm', 's390x': 'm'}>
 CONFIG_CRYPTO_DEV_BCM_SPU                       policy<{'arm64': 'm'}>
 CONFIG_CRYPTO_DEV_SAFEXCEL                      policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm', 's390x': 'n'}>
