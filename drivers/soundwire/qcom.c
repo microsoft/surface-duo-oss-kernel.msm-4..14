@@ -769,13 +769,18 @@ static int qcom_swrm_probe(struct platform_device *pdev)
 	if (!ctrl)
 		return -ENOMEM;
 
+#ifdef CONFIG_SLIMBUS
 	if (dev->parent->bus == &slimbus_bus) {
+#else
+	if (false) {
+#endif
 		ctrl->reg_read = qcom_swrm_ahb_reg_read;
 		ctrl->reg_write = qcom_swrm_ahb_reg_write;
 		ctrl->regmap = dev_get_regmap(dev->parent, NULL);
 		if (!ctrl->regmap)
 			return -EINVAL;
 	} else {
+
 		res = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 
 		ctrl->reg_read = qcom_swrm_cpu_reg_read;
