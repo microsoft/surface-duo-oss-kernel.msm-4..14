@@ -150,6 +150,22 @@ static void ath11k_mhi_op_status_cb(struct mhi_controller *mhi_cntrl,
 {
 }
 
+static int ath11k_mhi_op_read_reg(struct mhi_controller *mhi_cntrl,
+				  void __iomem *addr,
+				  u32 *out)
+{
+	*out = readl(addr);
+
+	return 0;
+}
+
+static void ath11k_mhi_op_write_reg(struct mhi_controller *mhi_cntrl,
+				    void __iomem *addr,
+				    u32 val)
+{
+	writel(val, addr);
+}
+
 int ath11k_pci_register_mhi(struct ath11k_pci *ab_pci)
 {
 	struct ath11k_base *ab = ab_pci->ab;
@@ -180,6 +196,8 @@ int ath11k_pci_register_mhi(struct ath11k_pci *ab_pci)
 	mhi_ctrl->runtime_get = ath11k_mhi_op_runtime_get;
 	mhi_ctrl->runtime_put = ath11k_mhi_op_runtime_put;
 	mhi_ctrl->status_cb = ath11k_mhi_op_status_cb;
+	mhi_ctrl->read_reg = ath11k_mhi_op_read_reg;
+	mhi_ctrl->write_reg = ath11k_mhi_op_write_reg;
 
 	ret = mhi_register_controller(mhi_ctrl, &ath11k_mhi_config);
 	if (ret) {
