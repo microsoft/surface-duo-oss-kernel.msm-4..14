@@ -2502,6 +2502,9 @@ enum nl80211_commands {
  *	first channel segment specified in %NL80211_ATTR_CENTER_FREQ1.
  * @NL80211_ATTR_SCAN_FREQ_KHZ: nested attribute with KHz frequencies
  *
+ * @NL80211_ATTR_HE_6GHZ_CAPABILITY: HE 6 GHz Band Capability element (from
+ *	association request when used with NL80211_CMD_NEW_STATION).
+ *
  * @NUM_NL80211_ATTR: total number of nl80211_attrs available
  * @NL80211_ATTR_MAX: highest attribute number currently defined
  * @__NL80211_ATTR_AFTER_LAST: internal use
@@ -2981,6 +2984,8 @@ enum nl80211_attrs {
 	NL80211_ATTR_WIPHY_FREQ_OFFSET,
 	NL80211_ATTR_CENTER_FREQ1_OFFSET,
 	NL80211_ATTR_SCAN_FREQ_KHZ,
+
+	NL80211_ATTR_HE_6GHZ_CAPABILITY,
 
 	/* add attributes here, update the policy in nl80211.c */
 
@@ -3560,6 +3565,8 @@ enum nl80211_mpath_info {
  *     defined in HE capabilities IE
  * @NL80211_BAND_IFTYPE_ATTR_MAX: highest band HE capability attribute currently
  *     defined
+ * @NL80211_BAND_IFTYPE_ATTR_HE_6GHZ_CAPA: HE 6GHz band capabilities (__le16),
+ *	given for all 6 GHz band channels
  * @__NL80211_BAND_IFTYPE_ATTR_AFTER_LAST: internal use
  */
 enum nl80211_band_iftype_attr {
@@ -3570,6 +3577,7 @@ enum nl80211_band_iftype_attr {
 	NL80211_BAND_IFTYPE_ATTR_HE_CAP_PHY,
 	NL80211_BAND_IFTYPE_ATTR_HE_CAP_MCS_SET,
 	NL80211_BAND_IFTYPE_ATTR_HE_CAP_PPE,
+	NL80211_BAND_IFTYPE_ATTR_HE_6GHZ_CAPA,
 
 	/* keep last */
 	__NL80211_BAND_IFTYPE_ATTR_AFTER_LAST,
@@ -5388,6 +5396,8 @@ enum plink_actions {
 
 #define NL80211_KCK_LEN			16
 #define NL80211_KEK_LEN			16
+#define NL80211_KCK_EXT_LEN		24
+#define NL80211_KEK_EXT_LEN		32
 #define NL80211_REPLAY_CTR_LEN		8
 
 /**
@@ -5396,6 +5406,7 @@ enum plink_actions {
  * @NL80211_REKEY_DATA_KEK: key encryption key (binary)
  * @NL80211_REKEY_DATA_KCK: key confirmation key (binary)
  * @NL80211_REKEY_DATA_REPLAY_CTR: replay counter (binary)
+ * @NL80211_REKEY_DATA_AKM: AKM data (OUI, suite type)
  * @NUM_NL80211_REKEY_DATA: number of rekey attributes (internal)
  * @MAX_NL80211_REKEY_DATA: highest rekey attribute (internal)
  */
@@ -5404,6 +5415,7 @@ enum nl80211_rekey_data {
 	NL80211_REKEY_DATA_KEK,
 	NL80211_REKEY_DATA_KCK,
 	NL80211_REKEY_DATA_REPLAY_CTR,
+	NL80211_REKEY_DATA_AKM,
 
 	/* keep last */
 	NUM_NL80211_REKEY_DATA,
