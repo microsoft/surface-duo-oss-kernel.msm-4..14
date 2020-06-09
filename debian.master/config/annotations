@@ -6571,7 +6571,7 @@ CONFIG_OMAP_USB2                                policy<{'arm64': 'm', 'armhf': '
 CONFIG_TI_PIPE3                                 policy<{'armhf': 'm'}>
 CONFIG_PHY_TUSB1210                             policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
 CONFIG_TWL4030_USB                              policy<{'armhf': 'm'}>
-CONFIG_PHY_INTEL_EMMC                           policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm', 's390x': 'm'}>
+CONFIG_PHY_INTEL_EMMC                           policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm', 's390x': 'n'}>
 
 # Menu: Device Drivers >> PPS support
 CONFIG_PPS                                      policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y', 's390x': 'm'}>
