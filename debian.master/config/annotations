@@ -10689,7 +10689,6 @@ CONFIG_EARLY_PRINTK                             policy<{'amd64': 'y', 'i386': 'y
 
 # Menu: Kernel hacking >> $(SRCARCH) Debugging >> Architecture: arm
 CONFIG_DEBUG_USER                               policy<{'armhf': 'n'}>
-CONFIG_DEBUG_IMX_UART_PORT                      policy<{'armhf-generic': '1'}>
 CONFIG_DEBUG_VF_UART_PORT                       policy<{'armhf-generic': '1'}>
 CONFIG_ARM_KPROBES_TEST                         policy<{'armhf': 'm'}>
 CONFIG_ARM_PTDUMP_DEBUGFS                       policy<{'armhf': 'n'}>
