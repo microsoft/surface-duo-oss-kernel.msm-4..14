@@ -13232,7 +13232,7 @@ CONFIG_MACH_MESON6                              policy<{'armhf': 'y'}>
 CONFIG_MACH_MESON8                              policy<{'armhf': 'y'}>
 
 # Menu: System Type >> Architecture: arm
-CONFIG_DEBUG_ALIGN_RODATA                       policy<{'arm64': 'n', 'armhf': 'y'}>
+CONFIG_DEBUG_ALIGN_RODATA                       policy<{'armhf': 'y'}>
 CONFIG_ARCH_VIRT                                policy<{'armhf': 'y'}>
 CONFIG_ARCH_AXXIA                               policy<{'armhf-generic-lpae': 'y'}>
 CONFIG_ARCH_DIGICOLOR                           policy<{'armhf': 'n'}>
