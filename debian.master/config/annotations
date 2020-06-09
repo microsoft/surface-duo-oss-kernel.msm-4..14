@@ -12621,6 +12621,8 @@ CONFIG_ARM64_HW_AFDBM                           policy<{'arm64': 'y'}>
 CONFIG_ARM64_PAN                                policy<{'arm64': 'y'}>
 CONFIG_ARM64_USE_LSE_ATOMICS                    policy<{'arm64': 'y'}>
 CONFIG_ARM64_VHE                                policy<{'arm64': 'y'}>
+#
+CONFIG_ARM64_USE_LSE_ATOMICS                    mark<ENFORCED> note<LP:1691614>
 
 # Menu: Processor type and features >> ARMv8.2 architectural features >> Architecture: arm64
 CONFIG_ARM64_UAO                                policy<{'arm64': 'y'}>
@@ -13572,8 +13574,6 @@ CONFIG_APPLDATA_NET_SUM                         policy<{'s390x': 'm'}>
 
 ## v- UNMATCHED CONFIGS
 
-CONFIG_ARM64_LSE_ATOMICS                        mark<ENFORCED> note<LP:1691614>
-CONFIG_ARM64_LSE_ATOMICS                        policy<{'arm64': 'y'}>
 CONFIG_CAPI_TRACE                               policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y'}>
 CONFIG_HNS                                      policy<{'arm64': 'm', 'armhf': 'm'}>
 CONFIG_ISDN_CAPI                                policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y'}>
