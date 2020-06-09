@@ -452,7 +452,6 @@ mlxsw_switchib
 mlxsw_switchx2
 monreader
 monwriter
-most_core
 mpls_gso
 mpls_iptunnel
 mpls_router
