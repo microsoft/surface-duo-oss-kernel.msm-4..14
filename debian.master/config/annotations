@@ -13526,8 +13526,8 @@ CONFIG_HIO                                      policy<{'amd64': 'm', 'arm64': '
 CONFIG_HIO                                      mark<ENFORCED> note <LP:1635594>
 
 # Menu: Virtualization
-CONFIG_VIRTUALIZATION                           policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y', 's390x': 'y'}>
-CONFIG_KVM                                      policy<{'amd64': 'm', 'arm64': 'y', 'armhf-generic-lpae': 'y', 'i386': 'm', 'ppc64el': 'y', 's390x': 'y'}>
+CONFIG_VIRTUALIZATION                           policy<{'amd64': 'y', 'arm64': 'y', 'i386': 'y', 'ppc64el': 'y', 's390x': 'y'}>
+CONFIG_KVM                                      policy<{'amd64': 'm', 'arm64': 'y', 'i386': 'm', 'ppc64el': 'y', 's390x': 'y'}>
 #
 CONFIG_KVM                                      note <LP:1532886>
 
