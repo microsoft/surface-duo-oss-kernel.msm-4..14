@@ -518,6 +518,34 @@ out:
 	return ret;
 }
 
+static int soc_compr_set_codec_params(struct snd_compr_stream *cstream,
+				      struct snd_codec *codec)
+{
+	struct snd_soc_pcm_runtime *rtd = cstream->private_data;
+	struct snd_soc_component *component;
+	struct snd_soc_dai *cpu_dai = asoc_rtd_to_cpu(rtd, 0);
+	int i, ret;
+
+	mutex_lock_nested(&rtd->card->pcm_mutex, rtd->card->pcm_subclass);
+
+	ret = snd_soc_dai_compr_set_codec_params(cpu_dai, cstream, codec);
+	if (ret < 0)
+		goto err;
+
+	for_each_rtd_components(rtd, i, component) {
+		if (!component->driver->compress_ops ||
+		    !component->driver->compress_ops->set_codec_params)
+			continue;
+
+		ret = component->driver->compress_ops->set_codec_params(component, cstream,
+								     codec);
+		break;
+	}
+err:
+	mutex_unlock(&rtd->card->pcm_mutex);
+	return ret;
+}
+
 static int soc_compr_get_params(struct snd_compr_stream *cstream,
 				struct snd_codec *params)
 {
@@ -728,6 +756,7 @@ static struct snd_compr_ops soc_compr_ops = {
 	.open		= soc_compr_open,
 	.free		= soc_compr_free,
 	.set_params	= soc_compr_set_params,
+	.set_codec_params = soc_compr_set_codec_params,
 	.set_metadata   = soc_compr_set_metadata,
 	.get_metadata	= soc_compr_get_metadata,
 	.get_params	= soc_compr_get_params,
@@ -744,6 +773,7 @@ static struct snd_compr_ops soc_compr_dyn_ops = {
 	.free		= soc_compr_free_fe,
 	.set_params	= soc_compr_set_params_fe,
 	.get_params	= soc_compr_get_params,
+	.set_codec_params = soc_compr_set_codec_params,
 	.set_metadata   = soc_compr_set_metadata,
 	.get_metadata	= soc_compr_get_metadata,
 	.trigger	= soc_compr_trigger_fe,

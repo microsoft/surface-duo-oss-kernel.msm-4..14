@@ -193,6 +193,9 @@ int snd_soc_dai_compr_trigger(struct snd_soc_dai *dai,
 int snd_soc_dai_compr_set_params(struct snd_soc_dai *dai,
 				 struct snd_compr_stream *cstream,
 				 struct snd_compr_params *params);
+int snd_soc_dai_compr_set_codec_params(struct snd_soc_dai *dai,
+				 struct snd_compr_stream *cstream,
+				 struct snd_codec *codec);
 int snd_soc_dai_compr_get_params(struct snd_soc_dai *dai,
 				 struct snd_compr_stream *cstream,
 				 struct snd_codec *params);
@@ -293,6 +296,8 @@ struct snd_soc_cdai_ops {
 			struct snd_soc_dai *);
 	int (*set_params)(struct snd_compr_stream *,
 			struct snd_compr_params *, struct snd_soc_dai *);
+	int (*set_codec_params)(struct snd_compr_stream *,
+			struct snd_codec *, struct snd_soc_dai *);
 	int (*get_params)(struct snd_compr_stream *,
 			struct snd_codec *, struct snd_soc_dai *);
 	int (*set_metadata)(struct snd_compr_stream *,

@@ -634,6 +634,20 @@ int snd_soc_dai_compr_get_params(struct snd_soc_dai *dai,
 }
 EXPORT_SYMBOL_GPL(snd_soc_dai_compr_get_params);
 
+int snd_soc_dai_compr_set_codec_params(struct snd_soc_dai *dai,
+					struct snd_compr_stream *cstream,
+					struct snd_codec *codec)
+{	int ret = 0;
+
+	if (dai->driver->cops &&
+	    dai->driver->cops->set_codec_params)
+		ret = dai->driver->cops->set_codec_params(cstream, codec, dai);
+
+	return soc_dai_ret(dai, ret);
+
+}
+EXPORT_SYMBOL_GPL(snd_soc_dai_compr_set_codec_params);
+
 int snd_soc_dai_compr_ack(struct snd_soc_dai *dai,
 			  struct snd_compr_stream *cstream,
 			  size_t bytes)

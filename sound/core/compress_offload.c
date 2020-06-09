@@ -566,6 +566,18 @@ static int snd_compr_allocate_buffer(struct snd_compr_stream *stream,
 	return 0;
 }
 
+static int snd_compress_check_codec_params(struct snd_codec *codec)
+{
+	/* now codec parameters */
+	if (codec->id == 0 || codec->id > SND_AUDIOCODEC_MAX)
+		return -EINVAL;
+
+	if (codec->ch_in == 0 || codec->ch_out == 0)
+		return -EINVAL;
+
+	return 0;
+}
+
 static int snd_compress_check_input(struct snd_compr_params *params)
 {
 	/* first let's check the buffer parameter's */
@@ -574,14 +586,41 @@ static int snd_compress_check_input(struct snd_compr_params *params)
 	    params->buffer.fragments == 0)
 		return -EINVAL;
 
-	/* now codec parameters */
-	if (params->codec.id == 0 || params->codec.id > SND_AUDIOCODEC_MAX)
-		return -EINVAL;
+	return snd_compress_check_codec_params(&params->codec);
 
-	if (params->codec.ch_in == 0 || params->codec.ch_out == 0)
-		return -EINVAL;
+}
 
-	return 0;
+static int snd_compr_set_codec_params(struct snd_compr_stream *stream,
+				      unsigned long arg)
+{
+	struct snd_codec *params;
+	int retval;
+
+	if (!stream->ops->set_codec_params)
+		return -EPERM;
+
+	if (stream->runtime->state != SNDRV_PCM_STATE_RUNNING)
+		return -EPERM;
+
+	/* codec params can be only set when next track has been signalled */
+	if (stream->next_track == false)
+		return -EPERM;
+
+	params = memdup_user((void __user *)arg, sizeof(*params));
+	if (IS_ERR(params))
+		return PTR_ERR(params);
+
+	retval = snd_compress_check_codec_params(params);
+	if (retval)
+		goto out;
+
+	retval = stream->ops->set_codec_params(stream, params);
+	if (retval)
+		goto out;
+
+out:
+	kfree(params);
+	return retval;
 }
 
 static int
@@ -963,6 +1002,9 @@ static long snd_compr_ioctl(struct file *f, unsigned int cmd, unsigned long arg)
 #endif
 	case _IOC_NR(SNDRV_COMPRESS_SET_PARAMS):
 		retval = snd_compr_set_params(stream, arg);
+		break;
+	case _IOC_NR(SNDRV_COMPRESS_SET_CODEC_PARAMS):
+		retval = snd_compr_set_codec_params(stream, arg);
 		break;
 	case _IOC_NR(SNDRV_COMPRESS_GET_PARAMS):
 		retval = snd_compr_get_params(stream, arg);
