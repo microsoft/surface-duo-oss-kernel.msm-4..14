@@ -175,6 +175,43 @@ static int qcom_vadc_map_voltage_temp(const struct vadc_map_pt *pts,
 	return 0;
 }
 
+static s32 qcom_vadc_map_temp_voltage(const struct vadc_map_pt *pts,
+				      u32 tablesize, int input)
+{
+	bool descending = 1;
+	u32 i = 0;
+
+	/* Check if table is descending or ascending */
+	if (tablesize > 1) {
+		if (pts[0].y < pts[1].y)
+			descending = 0;
+	}
+
+	while (i < tablesize) {
+		if ((descending) && (pts[i].y < input)) {
+			/* table entry is less than measured*/
+			 /* value and table is descending, stop */
+			break;
+		} else if ((!descending) &&
+				(pts[i].y > input)) {
+			/* table entry is greater than measured*/
+			/*value and table is ascending, stop */
+			break;
+		}
+		i++;
+	}
+
+	if (i == 0)
+		return pts[0].x;
+	if (i == tablesize)
+		return pts[tablesize - 1].x;
+
+	/* result is between search_index and search_index-1 */
+	/* interpolate linearly */
+	return fixp_linear_interpolate(pts[i - 1].y, pts[i - 1].x,
+			pts[i].y, pts[i].x, input);
+}
+
 static void qcom_vadc_scale_calib(const struct vadc_linear_graph *calib_graph,
 				  u16 adc_code,
 				  bool absolute,
@@ -270,6 +307,19 @@ static int qcom_vadc_scale_chg_temp(const struct vadc_linear_graph *calib_graph,
 	*result_mdec = result;
 
 	return 0;
+}
+
+static u16 qcom_vadc_scale_voltage_code(int voltage,
+				const struct vadc_prescale_ratio *prescale,
+				const u32 full_scale_code_volt,
+				unsigned int factor)
+{
+	s64 volt = voltage, adc_vdd_ref_mv = 1875;
+
+	volt *= prescale->num * factor * full_scale_code_volt;
+	volt = div64_s64(volt, (s64)prescale->den * adc_vdd_ref_mv * 1000);
+
+	return volt;
 }
 
 static int qcom_vadc_scale_code_voltage_factor(u16 adc_code,
@@ -394,6 +444,19 @@ int qcom_vadc_scale(enum vadc_scale_fn_type scaletype,
 	}
 }
 EXPORT_SYMBOL(qcom_vadc_scale);
+
+u16 qcom_adc_tm5_temp_volt_scale(unsigned int prescale_ratio,
+		u32 full_scale_code_volt, int temp)
+{
+	const struct vadc_prescale_ratio *prescale = &adc5_prescale_ratios[prescale_ratio];
+	s32 voltage;
+
+	voltage = qcom_vadc_map_temp_voltage(adcmap_100k_104ef_104fb_1875_vref,
+				 ARRAY_SIZE(adcmap_100k_104ef_104fb_1875_vref),
+				 temp);
+	return qcom_vadc_scale_voltage_code(voltage, prescale, full_scale_code_volt, 1000);
+}
+EXPORT_SYMBOL(qcom_adc_tm5_temp_volt_scale);
 
 int qcom_adc5_hw_scale(enum vadc_scale_fn_type scaletype,
 		    unsigned int prescale_ratio,
