@@ -34,7 +34,7 @@ cp -f "$dest_d"/vmlinuz-* "$fit_d"/zImage
 cp -f "$fit_its" "$fit_d"
 
 cd "$fit_d"
-mkimage -D "-I dts -O dtb -p 2000" -f "${fit_its##*/}" fit-"$KERNEL_VERSION".fit
+mkimage -D "-I dts -O dtb -p 4000" -f "${fit_its##*/}" fit-"$KERNEL_VERSION".fit
 cd -
 
 rm -rf "$fit_d"/"$initrd_f" "$fit_d"/dtbs/ "$fit_d"/zImage "$fit_d"/"${fit_its##*/}"
