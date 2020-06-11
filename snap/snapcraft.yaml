@@ -39,6 +39,11 @@ parts:
     prime:
       - -usr
       - -lib
-    build-packages:
-      - cpio
-      - libssl-dev
+
+build-packages:
+    - dpkg-dev
+    - libssl-dev
+    - libfdt-dev
+    - cpio
+    - flex
+    - bison
