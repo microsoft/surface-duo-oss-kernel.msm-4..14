@@ -534,12 +534,11 @@ static void compress_event_handler(uint32_t opcode, uint32_t token,
 		prtd->copied_total += bytes_written;
 		snd_compr_fragment_elapsed(substream);
 
-		if (prtd->state != Q6ASM_STREAM_RUNNING) {
+		avail = prtd->bytes_received - prtd->bytes_sent;
+		if (prtd->state != Q6ASM_STREAM_RUNNING || avail <= 0) {
 			spin_unlock_irqrestore(&prtd->lock, flags);
 			break;
 		}
-
-		avail = prtd->bytes_received - prtd->bytes_sent;
 
 		if (avail >= prtd->pcm_count) {
 			q6asm_write_async(prtd->audio_client, prtd->stream_id,
