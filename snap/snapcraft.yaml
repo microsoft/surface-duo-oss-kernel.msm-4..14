@@ -34,6 +34,30 @@ parts:
     plugin: nil
     stage-packages:
       - linux-firmware
+      - wireless-regdb
+    override-build: |
+      snapcraftctl build
+            mkdir -p ${SNAPCRAFT_PART_INSTALL}/firmware/wlan ${SNAPCRAFT_PART_INSTALL}/firmware/smsc75xx ${SNAPCRAFT_PART_INSTALL}/lib
+      ln -s ../firmware ${SNAPCRAFT_PART_INSTALL}/lib/firmware
+    stage:
+      - -firmware/amd
+      - -firmware/amdgpu
+      - -firmware/cavium
+      - -firmware/dpaa2
+      - -firmware/i915
+      - -firmware/imx
+      - -firmware/intel
+      - -firmware/iwlwifi-*
+      - -firmware/liquidio
+      - -firmware/matrox
+      - -firmware/mediatek
+      - -firmware/mellanox
+      - -firmware/mrvl
+      - -firmware/netronome
+      - -firmware/nvidia
+      - -firmware/qed
+      - -firmware/radeon
+      - -firmware/rockchip
     organize:
       lib/firmware: firmware
     prime:
