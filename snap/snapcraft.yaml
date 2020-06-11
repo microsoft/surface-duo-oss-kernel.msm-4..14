@@ -30,6 +30,26 @@ parts:
       mkdir -p ${SNAPCRAFT_PART_INSTALL}/lib
       ln -sf ../modules ${SNAPCRAFT_PART_INSTALL}/lib/modules
       snapcraftctl set-version $(git describe --tags | cut -c 15-)
+    organize:
+      initrd.img: initrd
+    prime:
+      - -initrd*
+
+  initrd-overlay:
+    plugin: nil
+    source: initrd-overlay
+    after:
+      - kernel
+      - firmware
+    override-build: |
+      echo "Preparing overlay initrd"
+      mkdir -p lib/firmware
+      cp -r ${SNAPCRAFT_STAGE}/firmware/regulatory.db* lib/firmware/
+      find . | cpio --quiet -o -H newc | lzma -7 > $SNAPCRAFT_PART_INSTALL/initrd-overlay.img
+      cat $SNAPCRAFT_STAGE/initrd $SNAPCRAFT_PART_INSTALL/initrd-overlay.img > $SNAPCRAFT_PART_INSTALL/initrd.img
+    prime:
+      - initrd.img
+
   firmware:
     plugin: nil
     stage-packages:
