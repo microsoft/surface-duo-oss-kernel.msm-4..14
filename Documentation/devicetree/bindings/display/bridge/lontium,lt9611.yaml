@@ -19,14 +19,12 @@ properties:
 
   reg:
     maxItems: 1
-    description: base I2C address of the device.
 
   "#sound-dai-cells":
     const: 1
 
   interrupts:
     maxItems: 1
-    description: interrupt line for the chip
 
   reset-gpios:
     maxItems: 1
@@ -50,66 +48,64 @@ properties:
 
       port@0:
         type: object
-        additionalProperties: false
-
         description: |
-          HDMI port for HDMI output
+          Primary MIPI port-1 for MIPI input
 
         properties:
           reg:
             const: 0
 
         patternProperties:
-          endpoint:
+          "^endpoint(@[0-9])$":
             type: object
             additionalProperties: false
 
             properties:
-              remote-endpoint: true
+              remote-endpoint:
+                $ref: /schemas/types.yaml#/definitions/phandle
 
         required:
           - reg
 
       port@1:
         type: object
-        additionalProperties: false
-
         description: |
-          MIPI port-1 for MIPI input
+          Additional MIPI port-2 for MIPI input, used in combination
+          with primary MIPI port-1 to drive higher resolution displays
 
         properties:
           reg:
             const: 1
 
         patternProperties:
-          endpoint:
+          "^endpoint(@[0-9])$":
             type: object
             additionalProperties: false
 
             properties:
-              remote-endpoint: true
+              remote-endpoint:
+                $ref: /schemas/types.yaml#/definitions/phandle
 
         required:
           - reg
 
       port@2:
         type: object
-        additionalProperties: false
-
         description: |
-          MIPI port-2 for MIPI input
+          HDMI port for HDMI output
 
         properties:
           reg:
             const: 2
 
         patternProperties:
-          endpoint:
+          "^endpoint(@[0-9])$":
             type: object
             additionalProperties: false
 
             properties:
-              remote-endpoint: true
+              remote-endpoint:
+                $ref: /schemas/types.yaml#/definitions/phandle
 
         required:
           - reg
@@ -118,7 +114,7 @@ properties:
       - "#address-cells"
       - "#size-cells"
       - port@0
-      - port@1
+      - port@2
 
 required:
   - compatible
@@ -139,7 +135,7 @@ examples:
       #address-cells = <1>;
       #size-cells = <0>;
 
-      lt9611_codec: hdmi-bridge@3b {
+      hdmi-bridge@3b {
         compatible = "lontium,lt9611";
         reg = <0x3b>;
 
@@ -155,24 +151,26 @@ examples:
 
           port@0 {
             reg = <0>;
-            lt9611_out: endpoint {
-              remote-endpoint = <&hdmi_con>;
-            };
-          };
-
-          port@1 {
-            reg = <1>;
             lt9611_a: endpoint {
               remote-endpoint = <&dsi0_out>;
             };
           };
 
-          port@2 {
-            reg = <2>;
+          port@1 {
+            reg = <1>;
             lt9611_b: endpoint {
               remote-endpoint = <&dsi1_out>;
+            };
+          };
+
+          port@2 {
+            reg = <2>;
+            lt9611_out: endpoint {
+              remote-endpoint = <&hdmi_con>;
             };
           };
         };
       };
     };
+
+...
