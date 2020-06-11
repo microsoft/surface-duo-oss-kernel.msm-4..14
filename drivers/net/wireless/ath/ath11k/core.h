@@ -353,7 +353,10 @@ struct ath11k_sta {
 #endif
 };
 
-#define ATH11K_NUM_CHANS 41
+#define ATH11K_MIN_5G_FREQ 4150
+#define ATH11K_MIN_6G_FREQ 5945
+#define ATH11K_MAX_6G_FREQ 7115
+#define ATH11K_NUM_CHANS 100
 #define ATH11K_MAX_5G_CHAN 173
 
 enum ath11k_state {
@@ -431,6 +434,7 @@ struct ath11k {
 	u32 vht_cap_info;
 	struct ath11k_he ar_he;
 	enum ath11k_state state;
+	bool supports_6ghz;
 	struct {
 		struct completion started;
 		struct completion completed;
@@ -548,6 +552,7 @@ struct ath11k_band_cap {
 	u32 he_mcs;
 	u32 he_cap_phy_info[PSOC_HOST_MAX_PHY_SIZE];
 	struct ath11k_ppe_threshold he_ppet;
+	u16 he_6ghz_capa;
 };
 
 struct ath11k_pdev_cap {
@@ -607,7 +612,9 @@ struct ath11k_base {
 	void __iomem *mem;
 	unsigned long mem_len;
 
-	const struct ath11k_hif_ops *hif_ops;
+	struct {
+		const struct ath11k_hif_ops *ops;
+	} hif;
 
 	struct ath11k_ce ce;
 	struct timer_list rx_replenish_retry;
@@ -665,6 +672,9 @@ struct ath11k_base {
 
 	/* Round robbin based TCL ring selector */
 	atomic_t tcl_ring_selector;
+
+	/* must be last */
+	u8 drv_priv[0] __aligned(sizeof(void *));
 };
 
 struct ath11k_fw_stats_pdev {
@@ -801,7 +811,8 @@ struct ath11k_peer *ath11k_peer_find_by_id(struct ath11k_base *ab, int peer_id);
 int ath11k_core_qmi_firmware_ready(struct ath11k_base *ab);
 int ath11k_core_init(struct ath11k_base *ath11k);
 void ath11k_core_deinit(struct ath11k_base *ath11k);
-struct ath11k_base *ath11k_core_alloc(struct device *dev);
+struct ath11k_base *ath11k_core_alloc(struct device *dev, size_t priv_size,
+				      enum ath11k_bus bus);
 void ath11k_core_free(struct ath11k_base *ath11k);
 int ath11k_core_fetch_bdf(struct ath11k_base *ath11k,
 			  struct ath11k_board_data *bd);
