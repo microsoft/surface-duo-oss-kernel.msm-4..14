@@ -13703,52 +13703,8 @@ CONFIG_APPLDATA_MEM                             policy<{'s390x': 'm'}>
 CONFIG_APPLDATA_OS                              policy<{'s390x': 'm'}>
 CONFIG_APPLDATA_NET_SUM                         policy<{'s390x': 'm'}>
 
-
-## v- UNMATCHED CONFIGS
-
-
-## ^- UNMATCHED CONFIGS
-
-
-## v- UNMATCHED MENUS
-
-
-## v- UNMATCHED CONFIGS
-
-
-## ^- UNMATCHED CONFIGS
-
-
-## v- UNMATCHED MENUS
-
-
-## v- UNMATCHED CONFIGS
-
-CONFIG_CAPI_TRACE                               policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y'}>
-CONFIG_HNS                                      policy<{'arm64': 'm', 'armhf': 'm'}>
-CONFIG_ISDN_CAPI                                policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y'}>
-CONFIG_ISDN_CAPI_MIDDLEWARE                     policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y'}>
-CONFIG_NET_DSA_TAG_8021Q                        policy<{'amd64': 'm', 'arm64': 'm', 'armhf': 'm', 'i386': 'm', 'ppc64el': 'm'}>
-CONFIG_PCIE_CADENCE_EP                          policy<{'arm64': 'y', 'armhf': 'y', 'ppc64el': 'y'}>
-CONFIG_PCIE_CADENCE_HOST                        policy<{'arm64': 'y', 'armhf': 'y', 'ppc64el': 'y'}>
-CONFIG_PINCTRL_SPRD                             policy<{'arm64': 'y'}>
-CONFIG_SND_SOC_SOF_IMX8                         policy<{'arm64': 'm'}>
-
-## ^- UNMATCHED CONFIGS
-
-
-## v- UNMATCHED MENUS
-
 # Menu: System Type >> Samsung EXYNOS >> SAMSUNG EXYNOS5 >> Architecture: arm
 
-
-## ^- UNMATCHED MENUS
-
-
-## ^- UNMATCHED MENUS
-
-
-## ^- UNMATCHED MENUS
 
 # Menu: FOOTER
 
