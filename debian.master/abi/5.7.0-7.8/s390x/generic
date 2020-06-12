@@ -10197,6 +10197,7 @@ EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	crypto_shash_final
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	crypto_shash_finup
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	crypto_shash_setkey
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	crypto_shash_update
+EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	crypto_shoot_alg
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	crypto_skcipher_decrypt
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	crypto_skcipher_encrypt
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	crypto_skcipher_setkey
