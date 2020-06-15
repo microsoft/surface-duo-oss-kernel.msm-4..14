@@ -354,10 +354,13 @@ struct ieee80211_sta_he_cap {
  *
  * @types_mask: interface types mask
  * @he_cap: holds the HE capabilities
+ * @he_6ghz_capa: HE 6 GHz capabilities, must be filled in for a
+ *	6 GHz band channel (and 0 may be valid value).
  */
 struct ieee80211_sband_iftype_data {
 	u16 types_mask;
 	struct ieee80211_sta_he_cap he_cap;
+	struct ieee80211_he_6ghz_capa he_6ghz_capa;
 };
 
 /**
@@ -507,6 +510,26 @@ static inline const struct ieee80211_sta_he_cap *
 ieee80211_get_he_sta_cap(const struct ieee80211_supported_band *sband)
 {
 	return ieee80211_get_he_iftype_cap(sband, NL80211_IFTYPE_STATION);
+}
+
+/**
+ * ieee80211_get_he_6ghz_capa - return HE 6 GHz capabilities
+ * @sband: the sband to search for the STA on
+ * @iftype: the iftype to search for
+ *
+ * Return: the 6GHz capabilities
+ */
+static inline __le16
+ieee80211_get_he_6ghz_capa(const struct ieee80211_supported_band *sband,
+			   enum nl80211_iftype iftype)
+{
+	const struct ieee80211_sband_iftype_data *data =
+		ieee80211_get_sband_iftype_data(sband, iftype);
+
+	if (WARN_ON(!data || !data->he_cap.has_he))
+		return 0;
+
+	return data->he_6ghz_capa.capa;
 }
 
 /**
@@ -1238,6 +1261,7 @@ struct sta_txpwr {
  * @he_capa_len: the length of the HE capabilities
  * @airtime_weight: airtime scheduler weight for this station
  * @txpwr: transmit power for an associated station
+ * @he_6ghz_capa: HE 6 GHz Band capabilities of station
  */
 struct station_parameters {
 	const u8 *supported_rates;
@@ -1270,6 +1294,7 @@ struct station_parameters {
 	u8 he_capa_len;
 	u16 airtime_weight;
 	struct sta_txpwr txpwr;
+	const struct ieee80211_he_6ghz_capa *he_6ghz_capa;
 };
 
 /**
@@ -2911,12 +2936,17 @@ struct cfg80211_wowlan_wakeup {
 
 /**
  * struct cfg80211_gtk_rekey_data - rekey data
- * @kek: key encryption key (NL80211_KEK_LEN bytes)
- * @kck: key confirmation key (NL80211_KCK_LEN bytes)
+ * @kek: key encryption key (@kek_len bytes)
+ * @kck: key confirmation key (@kck_len bytes)
  * @replay_ctr: replay counter (NL80211_REPLAY_CTR_LEN bytes)
+ * @kek_len: length of kek
+ * @kck_len length of kck
+ * @akm: akm (oui, id)
  */
 struct cfg80211_gtk_rekey_data {
 	const u8 *kek, *kck, *replay_ctr;
+	u32 akm;
+	u8 kek_len, kck_len;
 };
 
 /**
@@ -4141,9 +4171,10 @@ struct cfg80211_ops {
  *	beaconing mode (AP, IBSS, Mesh, ...).
  * @WIPHY_FLAG_HAS_STATIC_WEP: The device supports static WEP key installation
  *	before connection.
+ * @WIPHY_FLAG_SUPPORTS_EXT_KEK_KCK: The device supports bigger kek and kck keys
  */
 enum wiphy_flags {
-	/* use hole at 0 */
+	WIPHY_FLAG_SUPPORTS_EXT_KEK_KCK		= BIT(0),
 	/* use hole at 1 */
 	/* use hole at 2 */
 	WIPHY_FLAG_NETNS_OK			= BIT(3),
@@ -5275,6 +5306,21 @@ static inline struct ieee80211_channel *
 ieee80211_get_channel(struct wiphy *wiphy, int freq)
 {
 	return ieee80211_get_channel_khz(wiphy, MHZ_TO_KHZ(freq));
+}
+
+/**
+ * cfg80211_channel_is_psc - Check if the channel is a 6 GHz PSC
+ * @chan: control channel to check
+ *
+ * The Preferred Scanning Channels (PSC) are defined in
+ * Draft IEEE P802.11ax/D5.0, 26.17.2.3.3
+ */
+static inline bool cfg80211_channel_is_psc(struct ieee80211_channel *chan)
+{
+	if (chan->band != NL80211_BAND_6GHZ)
+		return false;
+
+	return ieee80211_frequency_to_channel(chan->center_freq) % 16 == 5;
 }
 
 /**

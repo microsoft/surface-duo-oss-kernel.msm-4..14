@@ -2209,6 +2209,28 @@ ieee80211_he_ppe_size(u8 ppe_thres_hdr, const u8 *phy_cap_info)
 #define IEEE80211_HE_OPERATION_PARTIAL_BSS_COLOR		0x40000000
 #define IEEE80211_HE_OPERATION_BSS_COLOR_DISABLED		0x80000000
 
+/**
+ * ieee80211_he_6ghz_oper - HE 6 GHz operation Information field
+ * @primary: primary channel
+ * @control: control flags
+ * @ccfs0: channel center frequency segment 0
+ * @ccfs1: channel center frequency segment 1
+ * @minrate: minimum rate (in 1 Mbps units)
+ */
+struct ieee80211_he_6ghz_oper {
+	u8 primary;
+#define IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH	0x3
+#define		IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_20MHZ	0
+#define		IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_40MHZ	1
+#define		IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_80MHZ	2
+#define		IEEE80211_HE_6GHZ_OPER_CTRL_CHANWIDTH_160MHZ	3
+#define IEEE80211_HE_6GHZ_OPER_CTRL_DUP_BEACON	0x4
+	u8 control;
+	u8 ccfs0;
+	u8 ccfs1;
+	u8 minrate;
+} __packed;
+
 /*
  * ieee80211_he_oper_size - calculate 802.11ax HE Operations IE size
  * @he_oper_ie: byte data of the He Operations IE, stating from the byte
@@ -2235,12 +2257,40 @@ ieee80211_he_oper_size(const u8 *he_oper_ie)
 	if (he_oper_params & IEEE80211_HE_OPERATION_CO_HOSTED_BSS)
 		oper_len++;
 	if (he_oper_params & IEEE80211_HE_OPERATION_6GHZ_OP_INFO)
-		oper_len += 4;
+		oper_len += sizeof(struct ieee80211_he_6ghz_oper);
 
 	/* Add the first byte (extension ID) to the total length */
 	oper_len++;
 
 	return oper_len;
+}
+
+/**
+ * ieee80211_he_6ghz_oper - obtain 6 GHz operation field
+ * @he_oper: HE operation element (must be pre-validated for size)
+ *	but may be %NULL
+ *
+ * Return: a pointer to the 6 GHz operation field, or %NULL
+ */
+static inline const struct ieee80211_he_6ghz_oper *
+ieee80211_he_6ghz_oper(const struct ieee80211_he_operation *he_oper)
+{
+	const u8 *ret = (void *)&he_oper->optional;
+	u32 he_oper_params;
+
+	if (!he_oper)
+		return NULL;
+
+	he_oper_params = le32_to_cpu(he_oper->he_oper_params);
+
+	if (!(he_oper_params & IEEE80211_HE_OPERATION_6GHZ_OP_INFO))
+		return NULL;
+	if (he_oper_params & IEEE80211_HE_OPERATION_VHT_OPER_INFO)
+		ret += 3;
+	if (he_oper_params & IEEE80211_HE_OPERATION_CO_HOSTED_BSS)
+		ret++;
+
+	return (void *)ret;
 }
 
 /* HE Spatial Reuse defines */
@@ -2754,6 +2804,8 @@ enum ieee80211_eid {
 	WLAN_EID_QUIET_CHANNEL = 198,
 	WLAN_EID_OPMODE_NOTIF = 199,
 
+	WLAN_EID_REDUCED_NEIGHBOR_REPORT = 201,
+
 	WLAN_EID_S1G_BCN_COMPAT = 213,
 	WLAN_EID_S1G_SHORT_BCN_INTERVAL = 214,
 	WLAN_EID_S1G_CAPABILITIES = 217,
@@ -2787,9 +2839,19 @@ enum ieee80211_eid_ext {
 	WLAN_EID_EXT_UORA = 37,
 	WLAN_EID_EXT_HE_MU_EDCA = 38,
 	WLAN_EID_EXT_HE_SPR = 39,
+	WLAN_EID_EXT_NDP_FEEDBACK_REPORT_PARAMSET = 41,
+	WLAN_EID_EXT_BSS_COLOR_CHG_ANN = 42,
+	WLAN_EID_EXT_QUIET_TIME_PERIOD_SETUP = 43,
+	WLAN_EID_EXT_ESS_REPORT = 45,
+	WLAN_EID_EXT_OPS = 46,
+	WLAN_EID_EXT_HE_BSS_LOAD = 47,
 	WLAN_EID_EXT_MAX_CHANNEL_SWITCH_TIME = 52,
 	WLAN_EID_EXT_MULTIPLE_BSSID_CONFIGURATION = 55,
 	WLAN_EID_EXT_NON_INHERITANCE = 56,
+	WLAN_EID_EXT_KNOWN_BSSID = 57,
+	WLAN_EID_EXT_SHORT_SSID_LIST = 58,
+	WLAN_EID_EXT_HE_6GHZ_CAPA = 59,
+	WLAN_EID_EXT_UL_MU_POWER_CAPA = 60,
 };
 
 /* Action category code */
@@ -3020,7 +3082,7 @@ enum ieee80211_tdls_actioncode {
 #define WLAN_EXT_CAPA10_OBSS_NARROW_BW_RU_TOLERANCE_SUPPORT BIT(7)
 
 /* Defines support for enhanced multi-bssid advertisement*/
-#define WLAN_EXT_CAPA11_EMA_SUPPORT	BIT(1)
+#define WLAN_EXT_CAPA11_EMA_SUPPORT	BIT(3)
 
 /* TDLS specific payload type in the LLC/SNAP header */
 #define WLAN_TDLS_SNAP_RFTYPE	0x2
@@ -3331,6 +3393,24 @@ struct ieee80211_tspec_ie {
 	__le16 sba;
 	__le16 medium_time;
 } __packed;
+
+struct ieee80211_he_6ghz_capa {
+	/* uses IEEE80211_HE_6GHZ_CAP_* below */
+	__le16 capa;
+} __packed;
+
+/* HE 6 GHz band capabilities */
+/* uses enum ieee80211_min_mpdu_spacing values */
+#define IEEE80211_HE_6GHZ_CAP_MIN_MPDU_START	0x0007
+/* uses enum ieee80211_vht_max_ampdu_length_exp values */
+#define IEEE80211_HE_6GHZ_CAP_MAX_AMPDU_LEN_EXP	0x0038
+/* uses IEEE80211_VHT_CAP_MAX_MPDU_LENGTH_* values */
+#define IEEE80211_HE_6GHZ_CAP_MAX_MPDU_LEN	0x00c0
+/* WLAN_HT_CAP_SM_PS_* values */
+#define IEEE80211_HE_6GHZ_CAP_SM_PS		0x0600
+#define IEEE80211_HE_6GHZ_CAP_RD_RESPONDER	0x0800
+#define IEEE80211_HE_6GHZ_CAP_RX_ANTPAT_CONS	0x1000
+#define IEEE80211_HE_6GHZ_CAP_TX_ANTPAT_CONS	0x2000
 
 /**
  * ieee80211_get_qos_ctl - get pointer to qos control bytes
@@ -3674,5 +3754,31 @@ static inline bool for_each_element_completed(const struct element *element,
  */
 #define WLAN_RSNX_CAPA_PROTECTED_TWT BIT(4)
 #define WLAN_RSNX_CAPA_SAE_H2E BIT(5)
+
+/*
+ * reduced neighbor report, based on Draft P802.11ax_D5.0,
+ * section 9.4.2.170
+ */
+#define IEEE80211_AP_INFO_TBTT_HDR_TYPE				0x03
+#define IEEE80211_AP_INFO_TBTT_HDR_FILTERED			0x04
+#define IEEE80211_AP_INFO_TBTT_HDR_COLOC			0x08
+#define IEEE80211_AP_INFO_TBTT_HDR_COUNT			0xF0
+#define IEEE80211_TBTT_INFO_OFFSET_BSSID_BSS_PARAM		8
+#define IEEE80211_TBTT_INFO_OFFSET_BSSID_SSSID_BSS_PARAM	12
+
+#define IEEE80211_RNR_TBTT_PARAMS_OCT_RECOMMENDED		0x01
+#define IEEE80211_RNR_TBTT_PARAMS_SAME_SSID			0x02
+#define IEEE80211_RNR_TBTT_PARAMS_MULTI_BSSID			0x04
+#define IEEE80211_RNR_TBTT_PARAMS_TRANSMITTED_BSSID		0x08
+#define IEEE80211_RNR_TBTT_PARAMS_COLOC_ESS			0x10
+#define IEEE80211_RNR_TBTT_PARAMS_PROBE_ACTIVE			0x20
+#define IEEE80211_RNR_TBTT_PARAMS_COLOC_AP			0x40
+
+struct ieee80211_neighbor_ap_info {
+       u8 tbtt_info_hdr;
+       u8 tbtt_info_len;
+       u8 op_class;
+       u8 channel;
+} __packed;
 
 #endif /* LINUX_IEEE80211_H */
