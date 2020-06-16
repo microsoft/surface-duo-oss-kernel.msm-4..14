@@ -69,13 +69,13 @@
 #define ATH11K_FW_DIR			"ath11k"
 
 /* IPQ8074 definitions */
-#define IPQ8074_FW_DIR			"IPQ8074"
+#define IPQ8074_FW_DIR			ATH11K_FW_DIR "/IPQ8074/hw2.0"
 #define IPQ8074_MAX_BOARD_DATA_SZ	(256 * 1024)
 #define IPQ8074_MAX_CAL_DATA_SZ		IPQ8074_MAX_BOARD_DATA_SZ
 
 #define ATH11K_BOARD_MAGIC		"QCA-ATH11K-BOARD"
 #define ATH11K_BOARD_API2_FILE		"board-2.bin"
-#define ATH11K_DEFAULT_BOARD_FILE	"bdwlan.bin"
+#define ATH11K_DEFAULT_BOARD_FILE	"board.bin"
 #define ATH11K_DEFAULT_CAL_FILE		"caldata.bin"
 
 enum ath11k_hw_rate_cck {
@@ -97,6 +97,11 @@ enum ath11k_hw_rate_ofdm {
 	ATH11K_HW_RATE_OFDM_36M,
 	ATH11K_HW_RATE_OFDM_18M,
 	ATH11K_HW_RATE_OFDM_9M,
+};
+
+enum ath11k_bus {
+	ATH11K_BUS_AHB,
+	ATH11K_BUS_PCI,
 };
 
 struct ath11k_hw_params {

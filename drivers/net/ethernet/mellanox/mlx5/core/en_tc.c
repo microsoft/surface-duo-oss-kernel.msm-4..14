@@ -210,8 +210,8 @@ mlx5e_tc_match_to_reg_match(struct mlx5_flow_spec *spec,
 	fmask = headers_c + soffset;
 	fval = headers_v + soffset;
 
-	mask = cpu_to_be32(mask) >> (32 - (match_len * 8));
-	data = cpu_to_be32(data) >> (32 - (match_len * 8));
+	mask = (__force u32)(cpu_to_be32(mask)) >> (32 - (match_len * 8));
+	data = (__force u32)(cpu_to_be32(data)) >> (32 - (match_len * 8));
 
 	memcpy(fmask, &mask, match_len);
 	memcpy(fval, &data, match_len);
@@ -1873,7 +1873,7 @@ enc_opts_is_dont_care_or_full_match(struct mlx5e_priv *priv,
 		    memchr_inv(opt->opt_data, 0, opt->length * 4)) {
 			*dont_care = false;
 
-			if (opt->opt_class != U16_MAX ||
+			if (opt->opt_class != htons(U16_MAX) ||
 			    opt->type != U8_MAX) {
 				NL_SET_ERR_MSG(extack,
 					       "Partial match of tunnel options in chain > 0 isn't supported");
@@ -2153,7 +2153,7 @@ static int mlx5e_flower_parse_meta(struct net_device *filter_dev,
 	flow_rule_match_meta(rule, &match);
 	if (match.mask->ingress_ifindex != 0xFFFFFFFF) {
 		NL_SET_ERR_MSG_MOD(extack, "Unsupported ingress ifindex mask");
-		return -EINVAL;
+		return -EOPNOTSUPP;
 	}
 
 	ingress_dev = __dev_get_by_index(dev_net(filter_dev),
@@ -2161,13 +2161,13 @@ static int mlx5e_flower_parse_meta(struct net_device *filter_dev,
 	if (!ingress_dev) {
 		NL_SET_ERR_MSG_MOD(extack,
 				   "Can't find the ingress port to match on");
-		return -EINVAL;
+		return -ENOENT;
 	}
 
 	if (ingress_dev != filter_dev) {
 		NL_SET_ERR_MSG_MOD(extack,
 				   "Can't match on the ingress filter port");
-		return -EINVAL;
+		return -EOPNOTSUPP;
 	}
 
 	return 0;
@@ -2815,10 +2815,10 @@ static int offload_pedit_fields(struct mlx5e_priv *priv,
 			continue;
 
 		if (f->field_bsize == 32) {
-			mask_be32 = (__be32)mask;
+			mask_be32 = (__force __be32)(mask);
 			mask = (__force unsigned long)cpu_to_le32(be32_to_cpu(mask_be32));
 		} else if (f->field_bsize == 16) {
-			mask_be32 = (__be32)mask;
+			mask_be32 = (__force __be32)(mask);
 			mask_be16 = *(__be16 *)&mask_be32;
 			mask = (__force unsigned long)cpu_to_le16(be16_to_cpu(mask_be16));
 		}
@@ -3667,7 +3667,7 @@ static int mlx5e_attach_decap(struct mlx5e_priv *priv,
 	struct mlx5e_decap_entry *d;
 	struct mlx5e_decap_key key;
 	uintptr_t hash_key;
-	int err;
+	int err = 0;
 
 	parse_attr = attr->parse_attr;
 	if (sizeof(parse_attr->eth) > MLX5_CAP_ESW(priv->mdev, max_encap_header_size)) {
@@ -4162,10 +4162,6 @@ static int parse_tc_fdb_actions(struct mlx5e_priv *priv,
 				if (!mlx5e_is_valid_eswitch_fwd_dev(priv, out_dev)) {
 					NL_SET_ERR_MSG_MOD(extack,
 							   "devices are not on same switch HW, can't offload forwarding");
-					netdev_warn(priv->netdev,
-						    "devices %s %s not on same switch HW, can't offload forwarding\n",
-						    priv->netdev->name,
-						    out_dev->name);
 					return -EOPNOTSUPP;
 				}
 
@@ -4950,7 +4946,7 @@ void mlx5e_tc_stats_matchall(struct mlx5e_priv *priv,
 	dpkts = cur_stats.rx_packets - rpriv->prev_vf_vport_stats.rx_packets;
 	dbytes = cur_stats.rx_bytes - rpriv->prev_vf_vport_stats.rx_bytes;
 	rpriv->prev_vf_vport_stats = cur_stats;
-	flow_stats_update(&ma->stats, dpkts, dbytes, jiffies,
+	flow_stats_update(&ma->stats, dbytes, dpkts, jiffies,
 			  FLOW_ACTION_HW_STATS_DELAYED);
 }
 

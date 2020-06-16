@@ -708,7 +708,7 @@ static int nfp_flower_sync_feature_bits(struct nfp_app *app)
 	err = nfp_rtsym_write_le(app->pf->rtbl,
 				 "_abi_flower_balance_sync_enable", 1);
 	if (!err) {
-		app_priv->flower_ext_feats |= NFP_FL_ENABLE_LAG;
+		app_priv->flower_en_feats |= NFP_FL_ENABLE_LAG;
 		nfp_flower_lag_init(&app_priv->nfp_lag);
 	} else if (err == -ENOENT) {
 		nfp_warn(app->cpp, "LAG not supported by FW.\n");
@@ -721,7 +721,7 @@ static int nfp_flower_sync_feature_bits(struct nfp_app *app)
 		err = nfp_rtsym_write_le(app->pf->rtbl,
 					 "_abi_flower_merge_hint_enable", 1);
 		if (!err) {
-			app_priv->flower_ext_feats |= NFP_FL_ENABLE_FLOW_MERGE;
+			app_priv->flower_en_feats |= NFP_FL_ENABLE_FLOW_MERGE;
 			nfp_flower_internal_port_init(app_priv);
 		} else if (err == -ENOENT) {
 			nfp_warn(app->cpp,
@@ -830,6 +830,10 @@ static int nfp_flower_init(struct nfp_app *app)
 	if (err)
 		goto err_cleanup;
 
+	err = flow_indr_dev_register(nfp_flower_indr_setup_tc_cb, app);
+	if (err)
+		goto err_cleanup;
+
 	if (app_priv->flower_ext_feats & NFP_FL_FEATS_VF_RLIM)
 		nfp_flower_qos_init(app);
 
@@ -840,7 +844,7 @@ static int nfp_flower_init(struct nfp_app *app)
 	return 0;
 
 err_cleanup:
-	if (app_priv->flower_ext_feats & NFP_FL_ENABLE_LAG)
+	if (app_priv->flower_en_feats & NFP_FL_ENABLE_LAG)
 		nfp_flower_lag_cleanup(&app_priv->nfp_lag);
 	nfp_flower_metadata_cleanup(app);
 err_free_app_priv:
@@ -855,6 +859,9 @@ static void nfp_flower_clean(struct nfp_app *app)
 	skb_queue_purge(&app_priv->cmsg_skbs_high);
 	skb_queue_purge(&app_priv->cmsg_skbs_low);
 	flush_work(&app_priv->cmsg_work);
+
+	flow_indr_dev_unregister(nfp_flower_indr_setup_tc_cb, app,
+				 nfp_flower_setup_indr_block_cb);
 
 	if (app_priv->flower_ext_feats & NFP_FL_FEATS_VF_RLIM)
 		nfp_flower_qos_cleanup(app);
@@ -958,10 +965,6 @@ nfp_flower_netdev_event(struct nfp_app *app, struct net_device *netdev,
 		if (ret & NOTIFY_STOP_MASK)
 			return ret;
 	}
-
-	ret = nfp_flower_reg_indir_block_handler(app, netdev, event);
-	if (ret & NOTIFY_STOP_MASK)
-		return ret;
 
 	ret = nfp_flower_internal_port_event_handler(app, netdev, event);
 	if (ret & NOTIFY_STOP_MASK)
