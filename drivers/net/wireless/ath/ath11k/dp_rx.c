@@ -467,7 +467,8 @@ static void ath11k_dp_rx_pdev_srng_free(struct ath11k *ar)
 	ath11k_dp_srng_cleanup(ab, &dp->rx_refill_buf_ring.refill_buf_ring);
 
 	for (i = 0; i < NUM_RXDMA_PER_PDEV; i++) {
-		ath11k_dp_srng_cleanup(ab, &dp->rx_mac_buf_ring[i]);
+		if (ab->hw_params.misc_caps & MISC_CAPS_HOST2FW_RXBUF_RING)
+			ath11k_dp_srng_cleanup(ab, &dp->rx_mac_buf_ring[i]);
 		ath11k_dp_srng_cleanup(ab, &dp->rxdma_err_dst_ring[i]);
 		ath11k_dp_srng_cleanup(ab,
 				       &dp->rx_mon_status_refill_ring[i].refill_buf_ring);
@@ -526,14 +527,16 @@ static int ath11k_dp_rx_pdev_srng_alloc(struct ath11k *ar)
 		return ret;
 	}
 
-	for (i = 0; i < NUM_RXDMA_PER_PDEV; i++) {
-		ret = ath11k_dp_srng_setup(ab,
-					   &dp->rx_mac_buf_ring[i],
-					   HAL_RXDMA_BUF, 1,
-					   dp->mac_id + i, 1024);
-		if (ret) {
-			ath11k_warn(ab, "failed to setup rx_mac_buf_ring %d\n", i);
-			return ret;
+	if (ab->hw_params.misc_caps & MISC_CAPS_HOST2FW_RXBUF_RING) {
+		for (i = 0; i < NUM_RXDMA_PER_PDEV; i++) {
+			ret = ath11k_dp_srng_setup(ab,
+						   &dp->rx_mac_buf_ring[i],
+						   HAL_RXDMA_BUF, 1,
+						   dp->mac_id + i, 1024);
+			if (ret) {
+				ath11k_warn(ab, "failed to setup rx_mac_buf_ring %d\n", i);
+				return ret;
+			}
 		}
 	}
 
@@ -4180,14 +4183,16 @@ int ath11k_dp_rx_pdev_alloc(struct ath11k_base *ab, int mac_id)
 		return ret;
 	}
 
-	for (i = 0; i < NUM_RXDMA_PER_PDEV; i++) {
-		ring_id = dp->rx_mac_buf_ring[i].ring_id;
-		ret = ath11k_dp_tx_htt_srng_setup(ab, ring_id,
-						  mac_id + i, HAL_RXDMA_BUF);
-		if (ret) {
-			ath11k_warn(ab, "failed to configure rx_mac_buf_ring%d %d\n",
-				    i, ret);
-			return ret;
+	if (ab->hw_params.misc_caps & MISC_CAPS_HOST2FW_RXBUF_RING) {
+		for (i = 0; i < NUM_RXDMA_PER_PDEV; i++) {
+			ring_id = dp->rx_mac_buf_ring[i].ring_id;
+			ret = ath11k_dp_tx_htt_srng_setup(ab, ring_id,
+							  mac_id + i, HAL_RXDMA_BUF);
+			if (ret) {
+				ath11k_warn(ab, "failed to configure rx_mac_buf_ring%d %d\n",
+					    i, ret);
+				return ret;
+			}
 		}
 	}
 
