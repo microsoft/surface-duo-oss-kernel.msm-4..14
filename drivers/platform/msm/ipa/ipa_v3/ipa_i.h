@@ -1836,6 +1836,7 @@ struct ipa3_app_clock_vote {
  * @app_vote: holds userspace application clock vote count
  * IPA context - holds all relevant info about IPA driver and its state
  * @coal_cmd_pyld: holds the coslescing close frame command payload
+ * @manual_fw_load: bool,if fw load is done manually
  */
 struct ipa3_context {
 	struct ipa3_char_device_context cdev;
@@ -2015,6 +2016,7 @@ struct ipa3_context {
 	struct mutex act_tbl_lock;
 	int uc_act_tbl_total;
 	int uc_act_tbl_next_index;
+	bool manual_fw_load;
 };
 
 struct ipa3_plat_drv_res {
@@ -2064,6 +2066,7 @@ struct ipa3_plat_drv_res {
 	u32 secure_debug_check_action;
 	bool ipa_mhi_proxy;
 	bool ipa_wan_skb_page;
+	bool manual_fw_load;
 };
 
 /**
