@@ -437,17 +437,15 @@ struct icc_path *of_icc_get_by_index(struct device *dev, int idx)
 	if (ret)
 		return ERR_PTR(ret);
 
-	of_node_put(src_args.np);
-
 	ret = of_parse_phandle_with_args(np, "interconnects",
 					 "#interconnect-cells", idx * 2 + 1,
 					 &dst_args);
 	if (ret)
 		return ERR_PTR(ret);
 
-	of_node_put(dst_args.np);
-
 	src_node = of_icc_get_from_provider(&src_args);
+
+	of_node_put(src_args.np);
 
 	if (IS_ERR(src_node)) {
 		if (PTR_ERR(src_node) != -EPROBE_DEFER)
@@ -457,6 +455,8 @@ struct icc_path *of_icc_get_by_index(struct device *dev, int idx)
 	}
 
 	dst_node = of_icc_get_from_provider(&dst_args);
+
+	of_node_put(dst_args.np);
 
 	if (IS_ERR(dst_node)) {
 		if (PTR_ERR(dst_node) != -EPROBE_DEFER)
