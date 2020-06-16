@@ -3701,8 +3701,6 @@ void igc_update_stats(struct igc_adapter *adapter)
 	adapter->stats.prc511 += rd32(IGC_PRC511);
 	adapter->stats.prc1023 += rd32(IGC_PRC1023);
 	adapter->stats.prc1522 += rd32(IGC_PRC1522);
-	adapter->stats.symerrs += rd32(IGC_SYMERRS);
-	adapter->stats.sec += rd32(IGC_SEC);
 
 	mpc = rd32(IGC_MPC);
 	adapter->stats.mpc += mpc;
@@ -3741,6 +3739,7 @@ void igc_update_stats(struct igc_adapter *adapter)
 
 	adapter->stats.tpt += rd32(IGC_TPT);
 	adapter->stats.colc += rd32(IGC_COLC);
+	adapter->stats.colc += rd32(IGC_RERC);
 
 	adapter->stats.algnerrc += rd32(IGC_ALGNERRC);
 
@@ -5185,7 +5184,7 @@ static int igc_probe(struct pci_dev *pdev,
 	pcie_print_link_status(pdev);
 	netdev_info(netdev, "MAC: %pM\n", netdev->dev_addr);
 
-	dev_pm_set_driver_flags(&pdev->dev, DPM_FLAG_NEVER_SKIP);
+	dev_pm_set_driver_flags(&pdev->dev, DPM_FLAG_NO_DIRECT_COMPLETE);
 
 	pm_runtime_put_noidle(&pdev->dev);
 

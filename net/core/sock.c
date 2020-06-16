@@ -594,13 +594,15 @@ out:
 	return ret;
 }
 
-int sock_bindtoindex(struct sock *sk, int ifindex)
+int sock_bindtoindex(struct sock *sk, int ifindex, bool lock_sk)
 {
 	int ret;
 
-	lock_sock(sk);
+	if (lock_sk)
+		lock_sock(sk);
 	ret = sock_bindtoindex_locked(sk, ifindex);
-	release_sock(sk);
+	if (lock_sk)
+		release_sock(sk);
 
 	return ret;
 }
@@ -646,7 +648,7 @@ static int sock_setbindtodevice(struct sock *sk, char __user *optval,
 			goto out;
 	}
 
-	return sock_bindtoindex(sk, index);
+	return sock_bindtoindex(sk, index, true);
 out:
 #endif
 
@@ -3712,3 +3714,11 @@ bool sk_busy_loop_end(void *p, unsigned long start_time)
 }
 EXPORT_SYMBOL(sk_busy_loop_end);
 #endif /* CONFIG_NET_RX_BUSY_POLL */
+
+int sock_bind_add(struct sock *sk, struct sockaddr *addr, int addr_len)
+{
+	if (!sk->sk_prot->bind_add)
+		return -EOPNOTSUPP;
+	return sk->sk_prot->bind_add(sk, addr, addr_len);
+}
+EXPORT_SYMBOL(sock_bind_add);
