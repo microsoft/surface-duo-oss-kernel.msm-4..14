@@ -1190,11 +1190,19 @@ static void ath11k_pci_remove(struct pci_dev *pdev)
 	ath11k_core_free(ab);
 }
 
+static void ath11k_pci_shutdown(struct pci_dev *pdev)
+{
+	struct ath11k_base *ab = pci_get_drvdata(pdev);
+
+	ath11k_pci_power_down(ab);
+}
+
 static struct pci_driver ath11k_pci_driver = {
 	.name = "ath11k_pci",
 	.id_table = ath11k_pci_id_table,
 	.probe = ath11k_pci_probe,
 	.remove = ath11k_pci_remove,
+	.shutdown = ath11k_pci_shutdown,
 };
 
 static int ath11k_pci_init(void)
