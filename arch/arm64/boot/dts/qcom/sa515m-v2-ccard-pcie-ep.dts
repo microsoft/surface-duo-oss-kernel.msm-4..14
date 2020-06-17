@@ -43,6 +43,7 @@
 
 &pcie_ep {
 	status = "ok";
+	qcom,pcie-perst-enum;
 };
 
 &mhi_device {
