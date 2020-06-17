@@ -9,8 +9,8 @@
  */
 
 /dts-v1/;
-#include "fsl-s32r45x.dtsi"
-#include <dt-bindings/pinctrl/s32r45x-pinctrl.h>
+#include "fsl-s32r45.dtsi"
+#include <dt-bindings/pinctrl/s32r45-pinctrl.h>
 
 / {
 	chosen {
