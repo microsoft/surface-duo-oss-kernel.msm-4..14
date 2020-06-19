@@ -389,7 +389,7 @@ static int msm8916_icc_set(struct icc_node *src, struct icc_node *dst)
 		ret = qcom_icc_rpm_smd_send(QCOM_SMD_RPM_ACTIVE_STATE,
 					    RPM_BUS_MASTER_REQ,
 					    qn->mas_rpm_id,
-					    sum_bw);
+					    src->avg_bw);
 		if (ret) {
 			pr_err("qcom_icc_rpm_smd_send mas %d error %d\n",
 			       qn->mas_rpm_id, ret);
@@ -401,7 +401,7 @@ static int msm8916_icc_set(struct icc_node *src, struct icc_node *dst)
 		ret = qcom_icc_rpm_smd_send(QCOM_SMD_RPM_ACTIVE_STATE,
 					    RPM_BUS_SLAVE_REQ,
 					    qn->slv_rpm_id,
-					    sum_bw);
+					    src->avg_bw);
 		if (ret) {
 			pr_err("qcom_icc_rpm_smd_send slv error %d\n",
 			       ret);
