@@ -13131,6 +13131,7 @@ CONFIG_LEGACY_VSYSCALL_XONLY                    flag<REVIEW>
 
 # Menu: Security options
 CONFIG_SECURITY_DMESG_RESTRICT                  policy<{'amd64': 'n', 'arm64': 'n', 'armhf': 'n', 'i386': 'n', 'ppc64el': 'n', 's390x': 'n'}>
+CONFIG_SECURITY_PERF_EVENTS_RESTRICT            policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y', 's390x': 'y'}>
 CONFIG_SECURITYFS                               policy<{'amd64': 'y', 'arm64': 'y', 'armhf': 'y', 'i386': 'y', 'ppc64el': 'y', 's390x': 'y'}>
 CONFIG_PAGE_TABLE_ISOLATION                     policy<{'amd64': 'y', 'i386': 'y'}>
 CONFIG_INTEL_TXT                                policy<{'amd64': 'y', 'i386': 'y'}>
@@ -13702,9 +13703,6 @@ CONFIG_APPLDATA_BASE                            policy<{'s390x': 'y'}>
 CONFIG_APPLDATA_MEM                             policy<{'s390x': 'm'}>
 CONFIG_APPLDATA_OS                              policy<{'s390x': 'm'}>
 CONFIG_APPLDATA_NET_SUM                         policy<{'s390x': 'm'}>
-
-# Menu: System Type >> Samsung EXYNOS >> SAMSUNG EXYNOS5 >> Architecture: arm
-
 
 # Menu: FOOTER
 
