@@ -470,7 +470,7 @@ __vfs_removexattr_locked(struct dentry *dentry, const char *name,
 
 	error = try_break_deleg(inode, delegated_inode);
 	if (error)
-		goto out;
+		return error;
 
 	error = __vfs_removexattr_noperm(dentry, name);
 
