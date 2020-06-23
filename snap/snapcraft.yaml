@@ -40,6 +40,18 @@ parts:
         prime:
             - -kernel.img
 
+    initrd:
+        plugin: nil
+        source: initrd-overlay
+        override-build: |
+            echo "Preparing overlay initrd"
+            find . | cpio --create --quiet --format='newc' --owner=0:0 | lzma -7 > ${SNAPCRAFT_PART_INSTALL}/initrd-overlay.img
+            wget https://people.canonical.com/~okubik/uc18_initrds/initrd-arm64.img -O ${SNAPCRAFT_PART_INSTALL}/initrd-clean.img
+            cat ${SNAPCRAFT_PART_INSTALL}/initrd-clean.img \
+                ${SNAPCRAFT_PART_INSTALL}/initrd-overlay.img \
+                > ${SNAPCRAFT_PART_INSTALL}/initrd.img
+        stage:
+
     firmware:
         plugin: nil
         stage-packages:
