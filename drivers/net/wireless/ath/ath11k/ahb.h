@@ -8,6 +8,5 @@
 #include "core.h"
 
 #define ATH11K_AHB_RECOVERY_TIMEOUT (3 * HZ)
-struct ath11k_base;
 
 #endif
