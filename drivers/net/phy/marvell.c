@@ -429,7 +429,7 @@ static int m88e1101_config_aneg(struct phy_device *phydev)
 	return marvell_config_aneg(phydev);
 }
 
-#ifdef CONFIG_OF_MDIO
+#if IS_ENABLED(CONFIG_OF_MDIO)
 /* Set and/or override some configuration registers based on the
  * marvell,reg-init property stored in the of_node for the phydev.
  *
@@ -1867,7 +1867,7 @@ static int marvell_vct5_amplitude_graph(struct phy_device *phydev)
 	 */
 	page = phy_select_page(phydev, MII_MARVELL_VCT5_PAGE);
 	if (page < 0)
-		return page;
+		goto restore_page;
 
 	for (distance = priv->first;
 	     distance <= priv->last;

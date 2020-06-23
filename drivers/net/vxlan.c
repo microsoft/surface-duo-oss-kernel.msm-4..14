@@ -81,7 +81,7 @@ struct vxlan_fdb {
 	u16		  flags;	/* see ndm_flags and below */
 	struct list_head  nh_list;
 	struct nexthop __rcu *nh;
-	struct vxlan_dev  *vdev;
+	struct vxlan_dev  __rcu *vdev;
 };
 
 #define NTF_VXLAN_ADDED_BY_USER 0x100
@@ -837,7 +837,7 @@ static struct vxlan_fdb *vxlan_fdb_alloc(struct vxlan_dev *vxlan, const u8 *mac,
 	f->updated = f->used = jiffies;
 	f->vni = src_vni;
 	f->nh = NULL;
-	f->vdev = vxlan;
+	RCU_INIT_POINTER(f->vdev, vxlan);
 	INIT_LIST_HEAD(&f->nh_list);
 	INIT_LIST_HEAD(&f->remotes);
 	memcpy(f->eth_addr, mac, ETH_ALEN);
@@ -857,7 +857,6 @@ static int vxlan_fdb_nh_update(struct vxlan_dev *vxlan, struct vxlan_fdb *fdb,
 			       u32 nhid, struct netlink_ext_ack *extack)
 {
 	struct nexthop *old_nh = rtnl_dereference(fdb->nh);
-	struct nh_group *nhg;
 	struct nexthop *nh;
 	int err = -EINVAL;
 
@@ -876,28 +875,27 @@ static int vxlan_fdb_nh_update(struct vxlan_dev *vxlan, struct vxlan_fdb *fdb,
 			nh = NULL;
 			goto err_inval;
 		}
-		if (!nh->is_fdb_nh) {
+		if (!nexthop_is_fdb(nh)) {
 			NL_SET_ERR_MSG(extack, "Nexthop is not a fdb nexthop");
 			goto err_inval;
 		}
 
-		if (!nh->is_group || !nh->nh_grp->mpath) {
+		if (!nexthop_is_multipath(nh)) {
 			NL_SET_ERR_MSG(extack, "Nexthop is not a multipath group");
 			goto err_inval;
 		}
 
 		/* check nexthop group family */
-		nhg = rtnl_dereference(nh->nh_grp);
 		switch (vxlan->default_dst.remote_ip.sa.sa_family) {
 		case AF_INET:
-			if (!nhg->has_v4) {
+			if (!nexthop_has_v4(nh)) {
 				err = -EAFNOSUPPORT;
 				NL_SET_ERR_MSG(extack, "Nexthop group family not supported");
 				goto err_inval;
 			}
 			break;
 		case AF_INET6:
-			if (nhg->has_v4) {
+			if (nexthop_has_v4(nh)) {
 				err = -EAFNOSUPPORT;
 				NL_SET_ERR_MSG(extack, "Nexthop group family not supported");
 				goto err_inval;
@@ -963,7 +961,7 @@ static void __vxlan_fdb_free(struct vxlan_fdb *f)
 	nh = rcu_dereference_raw(f->nh);
 	if (nh) {
 		rcu_assign_pointer(f->nh, NULL);
-		list_del_rcu(&f->nh_list);
+		rcu_assign_pointer(f->vdev, NULL);
 		nexthop_put(nh);
 	}
 
@@ -1000,7 +998,7 @@ static void vxlan_fdb_destroy(struct vxlan_dev *vxlan, struct vxlan_fdb *f,
 	}
 
 	hlist_del_rcu(&f->hlist);
-	f->vdev = NULL;
+	list_del_rcu(&f->nh_list);
 	call_rcu(&f->rcu, vxlan_fdb_free);
 }
 
@@ -1195,6 +1193,10 @@ static int vxlan_fdb_parse(struct nlattr *tb[], struct vxlan_dev *vxlan,
 {
 	struct net *net = dev_net(vxlan->dev);
 	int err;
+
+	if (tb[NDA_NH_ID] && (tb[NDA_DST] || tb[NDA_VNI] || tb[NDA_IFINDEX] ||
+	    tb[NDA_PORT]))
+		return -EINVAL;
 
 	if (tb[NDA_DST]) {
 		err = vxlan_nla_get_addr(ip, tb[NDA_DST]);
@@ -2088,6 +2090,10 @@ static struct sk_buff *vxlan_na_create(struct sk_buff *request,
 	ns_olen = request->len - skb_network_offset(request) -
 		sizeof(struct ipv6hdr) - sizeof(*ns);
 	for (i = 0; i < ns_olen-1; i += (ns->opt[i+1]<<3)) {
+		if (!ns->opt[i + 1]) {
+			kfree_skb(reply);
+			return NULL;
+		}
 		if (ns->opt[i] == ND_OPT_SOURCE_LL_ADDR) {
 			daddr = ns->opt + i + sizeof(struct nd_opt_hdr);
 			break;
@@ -4237,10 +4243,8 @@ static int vxlan_changelink(struct net_device *dev, struct nlattr *tb[],
 		mod_timer(&vxlan->age_timer, jiffies);
 
 	netdev_adjacent_change_commit(dst->remote_dev, lowerdev, dev);
-	if (lowerdev && lowerdev != dst->remote_dev) {
+	if (lowerdev && lowerdev != dst->remote_dev)
 		dst->remote_dev = lowerdev;
-		netdev_update_lockdep_key(lowerdev);
-	}
 	vxlan_config_apply(dev, &conf, lowerdev, vxlan->net, true);
 	return 0;
 }
@@ -4611,17 +4615,35 @@ static struct notifier_block vxlan_switchdev_notifier_block __read_mostly = {
 	.notifier_call = vxlan_switchdev_event,
 };
 
+static void vxlan_fdb_nh_flush(struct nexthop *nh)
+{
+	struct vxlan_fdb *fdb;
+	struct vxlan_dev *vxlan;
+	u32 hash_index;
+
+	rcu_read_lock();
+	list_for_each_entry_rcu(fdb, &nh->fdb_list, nh_list) {
+		vxlan = rcu_dereference(fdb->vdev);
+		WARN_ON(!vxlan);
+		hash_index = fdb_head_index(vxlan, fdb->eth_addr,
+					    vxlan->default_dst.remote_vni);
+		spin_lock_bh(&vxlan->hash_lock[hash_index]);
+		if (!hlist_unhashed(&fdb->hlist))
+			vxlan_fdb_destroy(vxlan, fdb, false, false);
+		spin_unlock_bh(&vxlan->hash_lock[hash_index]);
+	}
+	rcu_read_unlock();
+}
+
 static int vxlan_nexthop_event(struct notifier_block *nb,
 			       unsigned long event, void *ptr)
 {
 	struct nexthop *nh = ptr;
-	struct vxlan_fdb *fdb, *tmp;
 
 	if (!nh || event != NEXTHOP_EVENT_DEL)
 		return NOTIFY_DONE;
 
-	list_for_each_entry_safe(fdb, tmp, &nh->fdb_list, nh_list)
-		vxlan_fdb_destroy(fdb->vdev, fdb, false, false);
+	vxlan_fdb_nh_flush(nh);
 
 	return NOTIFY_DONE;
 }

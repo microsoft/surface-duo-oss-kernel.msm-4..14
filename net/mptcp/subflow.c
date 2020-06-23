@@ -393,6 +393,7 @@ static void mptcp_sock_destruct(struct sock *sk)
 		sock_orphan(sk);
 	}
 
+	mptcp_token_destroy(mptcp_sk(sk)->token);
 	inet_sock_destruct(sk);
 }
 
@@ -411,6 +412,20 @@ static void subflow_ulp_fallback(struct sock *sk,
 	icsk->icsk_ulp_ops = NULL;
 	rcu_assign_pointer(icsk->icsk_ulp_data, NULL);
 	tcp_sk(sk)->is_mptcp = 0;
+}
+
+static void subflow_drop_ctx(struct sock *ssk)
+{
+	struct mptcp_subflow_context *ctx = mptcp_subflow_ctx(ssk);
+
+	if (!ctx)
+		return;
+
+	subflow_ulp_fallback(ssk, ctx);
+	if (ctx->conn)
+		sock_put(ctx->conn);
+
+	kfree_rcu(ctx, rcu);
 }
 
 static struct sock *subflow_syn_recv_sock(const struct sock *sk,
@@ -485,10 +500,7 @@ create_child:
 			if (fallback_is_fatal)
 				goto dispose_child;
 
-			if (ctx) {
-				subflow_ulp_fallback(child, ctx);
-				kfree_rcu(ctx, rcu);
-			}
+			subflow_drop_ctx(child);
 			goto out;
 		}
 
@@ -537,6 +549,7 @@ out:
 	return child;
 
 dispose_child:
+	subflow_drop_ctx(child);
 	tcp_rsk(req)->drop_req = true;
 	tcp_send_active_reset(child, GFP_ATOMIC);
 	inet_csk_prepare_for_destroy_sock(child);

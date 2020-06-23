@@ -7,40 +7,30 @@
 #include <linux/slab.h>
 #include <linux/remoteproc.h>
 #include <linux/firmware.h>
-#include "ahb.h"
 #include "core.h"
 #include "dp_tx.h"
 #include "dp_rx.h"
 #include "debug.h"
+#include "hif.h"
 
 unsigned int ath11k_debug_mask;
 module_param_named(debug_mask, ath11k_debug_mask, uint, 0644);
 MODULE_PARM_DESC(debug_mask, "Debugging mask");
 
-static const struct ath11k_hw_params ath11k_hw_params = {
-	.name = "ipq8074",
-	.fw = {
-		.dir = IPQ8074_FW_DIR,
-		.board_size = IPQ8074_MAX_BOARD_DATA_SZ,
-		.cal_size =  IPQ8074_MAX_CAL_DATA_SZ,
+static const struct ath11k_hw_params ath11k_hw_params[] = {
+	{
+		.hw_rev = ATH11K_HW_IPQ8074,
+		.name = "ipq8074 hw2.0",
+		.fw = {
+			.dir = "IPQ8074/hw2.0",
+			.board_size = 256 * 1024,
+			.cal_size = 256 * 1024,
+		},
+		.max_radios = 3,
+		.bdf_addr = 0x4B0C0000,
+		.hw_ops = &ipq8074_ops,
 	},
 };
-
-/* Map from pdev index to hw mac index */
-u8 ath11k_core_get_hw_mac_id(struct ath11k_base *ab, int pdev_idx)
-{
-	switch (pdev_idx) {
-	case 0:
-		return 0;
-	case 1:
-		return 2;
-	case 2:
-		return 1;
-	default:
-		ath11k_warn(ab, "Invalid pdev idx %d\n", pdev_idx);
-		return ATH11K_INVALID_HW_MAC_ID;
-	}
-}
 
 static int ath11k_core_create_board_name(struct ath11k_base *ab, char *name,
 					 size_t name_len)
@@ -58,29 +48,24 @@ static int ath11k_core_create_board_name(struct ath11k_base *ab, char *name,
 	return 0;
 }
 
-static const struct firmware *ath11k_fetch_fw_file(struct ath11k_base *ab,
-						   const char *dir,
-						   const char *file)
+const struct firmware *ath11k_core_firmware_request(struct ath11k_base *ab,
+						    const char *file)
 {
-	char filename[100];
 	const struct firmware *fw;
+	char path[100];
 	int ret;
 
 	if (file == NULL)
 		return ERR_PTR(-ENOENT);
 
-	if (dir == NULL)
-		dir = ".";
+	ath11k_core_create_firmware_path(ab, file, path, sizeof(path));
 
-	snprintf(filename, sizeof(filename), "%s/%s", dir, file);
-	ret = firmware_request_nowarn(&fw, filename, ab->dev);
-	ath11k_dbg(ab, ATH11K_DBG_BOOT, "boot fw request '%s': %d\n",
-		   filename, ret);
-
+	ret = firmware_request_nowarn(&fw, path, ab->dev);
 	if (ret)
 		return ERR_PTR(ret);
-	ath11k_warn(ab, "Downloading BDF: %s, size: %zu\n",
-		    filename, fw->size);
+
+	ath11k_dbg(ab, ATH11K_DBG_BOOT, "boot firmware request %s size %zu\n",
+		   path, fw->size);
 
 	return fw;
 }
@@ -180,26 +165,30 @@ static int ath11k_core_fetch_board_data_api_n(struct ath11k_base *ab,
 {
 	size_t len, magic_len;
 	const u8 *data;
-	char *filename = ATH11K_BOARD_API2_FILE;
+	char *filename, filepath[100];
 	size_t ie_len;
 	struct ath11k_fw_ie *hdr;
 	int ret, ie_id;
 
+	filename = ATH11K_BOARD_API2_FILE;
+
 	if (!bd->fw)
-		bd->fw = ath11k_fetch_fw_file(ab,
-					      ab->hw_params.fw.dir,
-					      filename);
+		bd->fw = ath11k_core_firmware_request(ab, filename);
+
 	if (IS_ERR(bd->fw))
 		return PTR_ERR(bd->fw);
 
 	data = bd->fw->data;
 	len = bd->fw->size;
 
+	ath11k_core_create_firmware_path(ab, filename,
+					 filepath, sizeof(filepath));
+
 	/* magic has extra null byte padded */
 	magic_len = strlen(ATH11K_BOARD_MAGIC) + 1;
 	if (len < magic_len) {
-		ath11k_err(ab, "failed to find magic value in %s/%s, file too short: %zu\n",
-			   ab->hw_params.fw.dir, filename, len);
+		ath11k_err(ab, "failed to find magic value in %s, file too short: %zu\n",
+			   filepath, len);
 		ret = -EINVAL;
 		goto err;
 	}
@@ -213,8 +202,8 @@ static int ath11k_core_fetch_board_data_api_n(struct ath11k_base *ab,
 	/* magic is padded to 4 bytes */
 	magic_len = ALIGN(magic_len, 4);
 	if (len < magic_len) {
-		ath11k_err(ab, "failed: %s/%s too small to contain board data, len: %zu\n",
-			   ab->hw_params.fw.dir, filename, len);
+		ath11k_err(ab, "failed: %s too small to contain board data, len: %zu\n",
+			   filepath, len);
 		ret = -EINVAL;
 		goto err;
 	}
@@ -262,8 +251,8 @@ static int ath11k_core_fetch_board_data_api_n(struct ath11k_base *ab,
 out:
 	if (!bd->data || !bd->len) {
 		ath11k_err(ab,
-			   "failed to fetch board data for %s from %s/%s\n",
-			   boardname, ab->hw_params.fw.dir, filename);
+			   "failed to fetch board data for %s from %s\n",
+			   boardname, filepath);
 		ret = -ENODATA;
 		goto err;
 	}
@@ -278,9 +267,7 @@ err:
 static int ath11k_core_fetch_board_data_api_1(struct ath11k_base *ab,
 					      struct ath11k_board_data *bd)
 {
-	bd->fw = ath11k_fetch_fw_file(ab,
-				      ab->hw_params.fw.dir,
-				      ATH11K_DEFAULT_BOARD_FILE);
+	bd->fw = ath11k_core_firmware_request(ab, ATH11K_DEFAULT_BOARD_FILE);
 	if (IS_ERR(bd->fw))
 		return PTR_ERR(bd->fw);
 
@@ -324,7 +311,7 @@ static void ath11k_core_stop(struct ath11k_base *ab)
 {
 	if (!test_bit(ATH11K_FLAG_CRASH_FLUSH, &ab->dev_flags))
 		ath11k_qmi_firmware_stop(ab);
-	ath11k_ahb_stop(ab);
+	ath11k_hif_stop(ab);
 	ath11k_wmi_detach(ab);
 	ath11k_dp_pdev_reo_cleanup(ab);
 
@@ -347,7 +334,7 @@ static int ath11k_core_soc_create(struct ath11k_base *ab)
 		goto err_qmi_deinit;
 	}
 
-	ret = ath11k_ahb_power_up(ab);
+	ret = ath11k_hif_power_up(ab);
 	if (ret) {
 		ath11k_err(ab, "failed to power up :%d\n", ret);
 		goto err_debugfs_reg;
@@ -399,8 +386,16 @@ static int ath11k_core_pdev_create(struct ath11k_base *ab)
 		goto err_dp_pdev_free;
 	}
 
+	ret = ath11k_spectral_init(ab);
+	if (ret) {
+		ath11k_err(ab, "failed to init spectral %d\n", ret);
+		goto err_thermal_unregister;
+	}
+
 	return 0;
 
+err_thermal_unregister:
+	ath11k_thermal_unregister(ab);
 err_dp_pdev_free:
 	ath11k_dp_pdev_free(ab);
 err_mac_unregister:
@@ -413,9 +408,10 @@ err_pdev_debug:
 
 static void ath11k_core_pdev_destroy(struct ath11k_base *ab)
 {
+	ath11k_spectral_deinit(ab);
 	ath11k_thermal_unregister(ab);
 	ath11k_mac_unregister(ab);
-	ath11k_ahb_ext_irq_disable(ab);
+	ath11k_hif_irq_disable(ab);
 	ath11k_dp_pdev_free(ab);
 	ath11k_debug_pdev_destroy(ab);
 }
@@ -443,7 +439,7 @@ static int ath11k_core_start(struct ath11k_base *ab,
 		goto err_wmi_detach;
 	}
 
-	ret = ath11k_ahb_start(ab);
+	ret = ath11k_hif_start(ab);
 	if (ret) {
 		ath11k_err(ab, "failed to start HIF: %d\n", ret);
 		goto err_wmi_detach;
@@ -522,7 +518,7 @@ err_reo_cleanup:
 err_mac_destroy:
 	ath11k_mac_destroy(ab);
 err_hif_stop:
-	ath11k_ahb_stop(ab);
+	ath11k_hif_stop(ab);
 err_wmi_detach:
 	ath11k_wmi_detach(ab);
 err_firmware_stop:
@@ -559,7 +555,7 @@ int ath11k_core_qmi_firmware_ready(struct ath11k_base *ab)
 		ath11k_err(ab, "failed to create pdev core: %d\n", ret);
 		goto err_core_stop;
 	}
-	ath11k_ahb_ext_irq_enable(ab);
+	ath11k_hif_irq_enable(ab);
 	mutex_unlock(&ab->core_lock);
 
 	return 0;
@@ -579,9 +575,10 @@ static int ath11k_core_reconfigure_on_crash(struct ath11k_base *ab)
 
 	mutex_lock(&ab->core_lock);
 	ath11k_thermal_unregister(ab);
-	ath11k_ahb_ext_irq_disable(ab);
+	ath11k_hif_irq_disable(ab);
 	ath11k_dp_pdev_free(ab);
-	ath11k_ahb_stop(ab);
+	ath11k_spectral_deinit(ab);
+	ath11k_hif_stop(ab);
 	ath11k_wmi_detach(ab);
 	ath11k_dp_pdev_reo_cleanup(ab);
 	mutex_unlock(&ab->core_lock);
@@ -706,6 +703,30 @@ static void ath11k_core_restart(struct work_struct *work)
 	complete(&ab->driver_recovery);
 }
 
+static int ath11k_init_hw_params(struct ath11k_base *ab)
+{
+	const struct ath11k_hw_params *hw_params = NULL;
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(ath11k_hw_params); i++) {
+		hw_params = &ath11k_hw_params[i];
+
+		if (hw_params->hw_rev == ab->hw_rev)
+			break;
+	}
+
+	if (i == ARRAY_SIZE(ath11k_hw_params)) {
+		ath11k_err(ab, "Unsupported hardware version: 0x%x\n", ab->hw_rev);
+		return -EINVAL;
+	}
+
+	ab->hw_params = *hw_params;
+
+	ath11k_dbg(ab, ATH11K_DBG_BOOT, "Hardware name %s\n", ab->hw_params.name);
+
+	return 0;
+}
+
 int ath11k_core_init(struct ath11k_base *ab)
 {
 	struct device *dev = ab->dev;
@@ -724,7 +745,12 @@ int ath11k_core_init(struct ath11k_base *ab)
 		return -EINVAL;
 	}
 	ab->tgt_rproc = prproc;
-	ab->hw_params = ath11k_hw_params;
+
+	ret = ath11k_init_hw_params(ab);
+	if (ret) {
+		ath11k_err(ab, "failed to get hw params %d\n", ret);
+		return ret;
+	}
 
 	ret = ath11k_core_soc_create(ab);
 	if (ret) {
@@ -744,7 +770,7 @@ void ath11k_core_deinit(struct ath11k_base *ab)
 
 	mutex_unlock(&ab->core_lock);
 
-	ath11k_ahb_power_down(ab);
+	ath11k_hif_power_down(ab);
 	ath11k_mac_destroy(ab);
 	ath11k_core_soc_destroy(ab);
 }
@@ -754,11 +780,12 @@ void ath11k_core_free(struct ath11k_base *ab)
 	kfree(ab);
 }
 
-struct ath11k_base *ath11k_core_alloc(struct device *dev)
+struct ath11k_base *ath11k_core_alloc(struct device *dev, size_t priv_size,
+				      enum ath11k_bus bus)
 {
 	struct ath11k_base *ab;
 
-	ab = kzalloc(sizeof(*ab), GFP_KERNEL);
+	ab = kzalloc(sizeof(*ab) + priv_size, GFP_KERNEL);
 	if (!ab)
 		return NULL;
 
@@ -784,24 +811,3 @@ err_sc_free:
 	kfree(ab);
 	return NULL;
 }
-
-static int __init ath11k_init(void)
-{
-	int ret;
-
-	ret = ath11k_ahb_init();
-	if (ret)
-		printk(KERN_ERR "failed to register ath11k ahb driver: %d\n",
-		       ret);
-	return ret;
-}
-module_init(ath11k_init);
-
-static void __exit ath11k_exit(void)
-{
-	ath11k_ahb_exit();
-}
-module_exit(ath11k_exit);
-
-MODULE_DESCRIPTION("Driver support for Qualcomm Technologies 802.11ax wireless chip");
-MODULE_LICENSE("Dual BSD/GPL");
