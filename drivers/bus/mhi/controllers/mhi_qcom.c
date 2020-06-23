@@ -33,12 +33,16 @@ struct firmware_info {
 };
 
 static const struct firmware_info firmware_table[] = {
-	{.dev_id = 0x307, .fw_image = "sdx60m/sbl1.mbn"},
-	{.dev_id = 0x306, .fw_image = "sdx55m/sbl1.mbn"},
+	{.dev_id = 0x308, .fw_image = "sdx65m/sbl1.mbn",
+	 .edl_image = "sdx65m/edl.mbn"},
+	{.dev_id = 0x307, .fw_image = "sdx60m/sbl1.mbn",
+	 .edl_image = "sdx60m/edl.mbn"},
+	{.dev_id = 0x306, .fw_image = "sdx55m/sbl1.mbn",
+	 .edl_image = "sdx55m/edl.mbn"},
 	{.dev_id = 0x305, .fw_image = "sdx50m/sbl1.mbn"},
 	{.dev_id = 0x304, .fw_image = "sbl.mbn", .edl_image = "edl.mbn"},
 	/* default, set to debug.mbn */
-	{.fw_image = "debug.mbn"},
+	{.fw_image = "debug.mbn", .edl_image = "debug.mbn"},
 };
 
 static int debug_mode;
@@ -516,6 +520,22 @@ static int mhi_qcom_power_up(struct mhi_controller *mhi_cntrl)
 	return ret;
 }
 
+static void mhi_qcom_fatal_worker(struct work_struct *work)
+{
+	struct mhi_dev *mhi_dev = container_of(work, struct mhi_dev,
+					       fatal_worker);
+	struct device *dev = &mhi_dev->pci_dev->dev;
+	struct mhi_controller *mhi_cntrl = dev_get_drvdata(dev);
+	int ret;
+
+	mhi_power_down(mhi_cntrl, true);
+
+	ret = mhi_qcom_power_up(mhi_cntrl);
+	if (ret)
+		MHI_ERR("Power up failure after SYS ERROR in PBL, ret:%d\n",
+			ret);
+}
+
 static int mhi_runtime_get(struct mhi_controller *mhi_cntrl, void *priv)
 {
 	struct mhi_dev *mhi_dev = priv;
@@ -559,6 +579,10 @@ static void mhi_status_cb(struct mhi_controller *mhi_cntrl,
 		}
 		pm_runtime_put(dev);
 		mhi_arch_mission_mode_enter(mhi_cntrl);
+		break;
+	case MHI_CB_FATAL_ERROR:
+		MHI_CNTRL_ERR("Perform power cycle due to SYS ERROR in PBL\n");
+		schedule_work(&mhi_dev->fatal_worker);
 		break;
 	default:
 		MHI_CNTRL_LOG("Unhandled cb:0x%x\n", reason);
@@ -668,7 +692,7 @@ static struct mhi_controller *mhi_register_controller(struct pci_dev *pci_dev)
 	struct mhi_controller *mhi_cntrl;
 	struct mhi_dev *mhi_dev;
 	struct device_node *of_node = pci_dev->dev.of_node;
-	const struct firmware_info *firmware_info;
+	const struct firmware_info *firmware_info, *debug_info;
 	bool use_bb;
 	u64 addr_win[2];
 	int ret, i, len;
@@ -761,8 +785,11 @@ static struct mhi_controller *mhi_register_controller(struct pci_dev *pci_dev)
 	}
 
 	if (debug_mode) {
+		debug_info = firmware_table + (len - 1);
+		mhi_cntrl->fw_image_fallback = debug_info->fw_image;
+
 		if (debug_mode <= MHI_DEBUG_D3)
-			firmware_info = firmware_table + (len - 1);
+			firmware_info = debug_info;
 		MHI_CNTRL_LOG("fw info: debug_mode:%d dev_id:%d image:%s\n",
 			      debug_mode, firmware_info->dev_id,
 			      firmware_info->fw_image);
@@ -785,6 +812,7 @@ static struct mhi_controller *mhi_register_controller(struct pci_dev *pci_dev)
 		goto error_register;
 
 	INIT_WORK(&mhi_cntrl->reg_write_work, mhi_reg_write_work);
+	INIT_WORK(&mhi_dev->fatal_worker, mhi_qcom_fatal_worker);
 
 	mhi_cntrl->reg_write_q = kcalloc(REG_WRITE_QUEUE_LEN,
 					sizeof(*mhi_cntrl->reg_write_q),
@@ -883,6 +911,7 @@ static struct pci_device_id mhi_pcie_device_id[] = {
 	{PCI_DEVICE(MHI_PCIE_VENDOR_ID, 0x0305)},
 	{PCI_DEVICE(MHI_PCIE_VENDOR_ID, 0x0306)},
 	{PCI_DEVICE(MHI_PCIE_VENDOR_ID, 0x0307)},
+	{PCI_DEVICE(MHI_PCIE_VENDOR_ID, 0x0308)},
 	{PCI_DEVICE(MHI_PCIE_VENDOR_ID, MHI_PCIE_DEBUG_ID)},
 	{0},
 };
