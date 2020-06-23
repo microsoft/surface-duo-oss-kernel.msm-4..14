@@ -73,6 +73,27 @@ parts:
         prime:
             - boot.img
 
+    bootimg:
+        plugin: nil
+        after:
+            - kernel
+            - skales
+            - initrd
+        override-build: |
+            python3 ${SNAPCRAFT_STAGE}/skales/dtbTool -o dt.img -s 4096 ${SNAPCRAFT_STAGE}/dtbs/qcom/
+            python3 ${SNAPCRAFT_STAGE}/skales/mkbootimg \
+                --kernel=${SNAPCRAFT_STAGE}/kernel.img \
+                --dt=dt.img \
+                --pagesize 4096 \
+                --base 0x80000000 \
+                --ramdisk=${SNAPCRAFT_STAGE}/initrd.img \
+                --cmdline="console=tty0 console=ttyMSM0,115200n8 root=/dev/disk/by-label/writable init=/lib/systemd/systemd ro rng_core.default_quality=700 fixrtc" \
+                --output=${SNAPCRAFT_PART_INSTALL}/boot-db820c.img
+            ln -f ${SNAPCRAFT_PART_INSTALL}/boot-db820c.img ${SNAPCRAFT_PART_INSTALL}/boot-db410c.img
+        prime:
+            - boot-db410c.img
+            - boot-db820c.img
+
     firmware:
         plugin: nil
         stage-packages:
