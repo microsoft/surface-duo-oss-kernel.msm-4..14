@@ -14,6 +14,15 @@ build-base: core18
 
 parts:
     kernel:
+        after:
+            - initrd
+            - skales
+            - firmware
+            - firmware-ath10k
+            - firmware-dragonboard410c
+            - firmware-dragonboard820c
+            - firmware-dragonboard845c
+            - firmware-qcom-media
         plugin: kernel
         source: .
         source-type: git
