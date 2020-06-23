@@ -1550,6 +1550,43 @@ static int __cam_req_mgr_process_sof_freeze(void *priv, void *data)
 	return rc;
 }
 
+
+static int __cam_req_mgr_process_no_buf_done(void *priv, void *data)
+{
+	struct cam_req_mgr_core_link    *link = NULL;
+	struct cam_req_mgr_core_session *session = NULL;
+	struct cam_req_mgr_message       msg;
+	int rc = 0;
+
+	if (!data || !priv) {
+		CAM_ERR(CAM_CRM, "input args NULL %pK %pK", data, priv);
+		return -EINVAL;
+	}
+
+	link = (struct cam_req_mgr_core_link *)priv;
+	session = (struct cam_req_mgr_core_session *)link->parent;
+
+	CAM_ERR(CAM_CRM, "__cam_req_mgr_process_no_buf_done %d link 0x%x",
+		session->session_hdl, link->link_hdl);
+
+	memset(&msg, 0, sizeof(msg));
+
+	msg.session_hdl = session->session_hdl;
+	msg.u.err_msg.error_type = CAM_REQ_MGR_ERROR_TYPE_DEVICE;
+	msg.u.err_msg.request_id = 0;
+	msg.u.err_msg.link_hdl   = link->link_hdl;
+
+	rc = cam_req_mgr_notify_message(&msg,
+		V4L_EVENT_CAM_REQ_MGR_ERROR, V4L_EVENT_CAM_REQ_MGR_EVENT);
+
+	if (rc)
+		CAM_ERR(CAM_CRM,
+			"Error notifying SOF freeze for session %d link 0x%x rc %d",
+			session->session_hdl, link->link_hdl, rc);
+
+	return rc;
+}
+
 /**
  * __cam_req_mgr_sof_freeze()
  *
@@ -1581,6 +1618,36 @@ static void __cam_req_mgr_sof_freeze(unsigned long data)
 	task->process_cb = &__cam_req_mgr_process_sof_freeze;
 	cam_req_mgr_workq_enqueue_task(task, link, CRM_TASK_PRIORITY_0);
 }
+
+
+static void __cam_req_mgr_no_buf_done(unsigned long data)
+{
+	struct cam_req_mgr_timer     *timer = (struct cam_req_mgr_timer *)data;
+	struct crm_workq_task               *task = NULL;
+	struct cam_req_mgr_core_link        *link = NULL;
+	struct crm_task_payload             *task_data;
+
+	if (!timer) {
+		CAM_ERR(CAM_CRM, "NULL timer");
+		return;
+	}
+
+	CAM_ERR(CAM_CRM, "__cam_req_mgr_no_buf_done");
+
+	link = (struct cam_req_mgr_core_link *)timer->parent;
+	task = cam_req_mgr_workq_get_task(link->workq);
+	if (!task) {
+		CAM_ERR(CAM_CRM, "No empty task");
+		return;
+	}
+
+	task_data = (struct crm_task_payload *)task->payload;
+	task_data->type = CRM_WORKQ_TASK_NOTIFY_ERR;
+	task->process_cb = &__cam_req_mgr_process_no_buf_done;
+	cam_req_mgr_workq_enqueue_task(task, link, CRM_TASK_PRIORITY_0);
+}
+
+
 
 /**
  * __cam_req_mgr_create_subdevs()
@@ -2780,6 +2847,7 @@ static int __cam_req_mgr_unlink(struct cam_req_mgr_core_link *link)
 	mutex_lock(&link->lock);
 	/* Destroy timer of link */
 	crm_timer_exit(&link->watchdog);
+	crm_timer_exit(&link->buf_done_timer);
 
 	/* Destroy workq of link */
 	cam_req_mgr_workq_destroy(&link->workq);
@@ -2946,6 +3014,17 @@ int cam_req_mgr_link(struct cam_req_mgr_ver_info *link_info)
 		cam_req_mgr_workq_destroy(&link->workq);
 		goto setup_failed;
 	}
+
+	/* Start BD watchdog timer */
+			rc = crm_timer_init(&link->buf_done_timer,
+				CAM_BUF_DONE_WATCHDOG_TIMEOUT, link,
+				&__cam_req_mgr_no_buf_done);
+			if (rc < 0) {
+				CAM_ERR(CAM_CRM,
+					"SOF timer start fails: link=0x%x",
+					link->link_hdl);
+				rc = -EFAULT;
+			}
 
 	mutex_unlock(&link->lock);
 	mutex_unlock(&g_crm_core_dev->crm_lock);
@@ -3424,6 +3503,7 @@ int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control)
 					link->link_hdl);
 				rc = -EFAULT;
 			}
+
 			/* notify nodes */
 			for (j = 0; j < link->num_devs; j++) {
 				dev = &link->l_dev[j];
@@ -3438,6 +3518,7 @@ int cam_req_mgr_link_control(struct cam_req_mgr_link_control *control)
 			/* Destroy SOF watchdog timer */
 			spin_lock_bh(&link->link_state_spin_lock);
 			crm_timer_exit(&link->watchdog);
+			crm_timer_exit(&link->buf_done_timer);
 			spin_unlock_bh(&link->link_state_spin_lock);
 			/* notify nodes */
 			for (j = 0; j < link->num_devs; j++) {
