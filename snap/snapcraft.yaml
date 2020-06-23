@@ -1,13 +1,18 @@
-name: pc-kernel
-version: null
+name: snapdragon-kernel
+version: nil
 version-script: |
-    . debian/debian.env
-    dpkg-parsechangelog -l $DEBIAN/changelog -S version
-summary: The Ubuntu generic Linux kernel
-description: This Ubuntu generic Linux kernel
+    git describe --tags | cut -c 19-42
+summary: Snapdragon kernel for snappy
+description: This is a snapdragon snapped kernel, based off linaro kernel
 grade: stable
 confinement: strict
 type: kernel
+
+architectures:
+  - build-on: [amd64, arm64]
+    run-on: arm64
+
+build-base: core18
 
 parts:
   kernel:
