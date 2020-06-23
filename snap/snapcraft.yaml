@@ -15,18 +15,33 @@ architectures:
 build-base: core18
 
 parts:
-  kernel:
-    plugin: kernel
-    source: .
-    source-type: git
-    kconfigflavour: snapdragon
-    kconfigs:
-      - CONFIG_DEBUG_INFO=n
-    override-build: |
-      cp debian/scripts/retpoline-extract-one \
-        $SNAPCRAFT_PART_BUILD/scripts/ubuntu-retpoline-extract-one
-      snapcraftctl build
-    kernel-with-firmware: false
+    kernel:
+        plugin: kernel
+        source: .
+        source-type: git
+        kconfigflavour: snapdragon
+        kernel-with-firmware: false
+        kernel-image-target: Image.gz
+        kconfigs:
+            - CONFIG_DEBUG_INFO=n
+        override-build: |
+            cp debian/scripts/retpoline-extract-one \
+                ${SNAPCRAFT_PART_BUILD}/scripts/ubuntu-retpoline-extract-one
+            snapcraftctl build
+            cp ${SNAPCRAFT_PART_INSTALL}/dtbs/qcom/*.dtb ${SNAPCRAFT_PART_INSTALL}/dtbs/
+            mkdir -p ${SNAPCRAFT_PART_INSTALL}/lib
+            ln -sf ../modules ${SNAPCRAFT_PART_INSTALL}/lib/modules
+        stage:
+            - System.map-*
+            - config-*
+            - dtbs
+            - kernel.img
+            - lib
+            - modules
+            - -modules/*/build
+            - -modules/*/source
+        prime:
+            - -kernel.img
   firmware:
     plugin: nil
     stage-packages:
