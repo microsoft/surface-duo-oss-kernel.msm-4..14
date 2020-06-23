@@ -654,8 +654,8 @@ static int32_t q6asm_stream_callback(struct apr_device *adev,
 			}
 			break;
 		default:
-			dev_err(ac->dev, "command[0x%x] not expecting rsp\n",
-				result->opcode);
+			dev_err(ac->dev, "command[0x%x] not expecting rsp status [0x%x]\n",
+				result->opcode, result->status);
 			break;
 		}
 
@@ -675,6 +675,7 @@ static int32_t q6asm_stream_callback(struct apr_device *adev,
 			phys_addr_t phys;
 			unsigned long flags;
 			int token = hdr->token & ASM_WRITE_TOKEN_MASK;
+			struct audio_buffer *ab;
 
 			spin_lock_irqsave(&ac->lock, flags);
 
@@ -686,12 +687,13 @@ static int32_t q6asm_stream_callback(struct apr_device *adev,
 				goto done;
 			}
 
-			phys = port->buf[token].phys;
+			ab = &port->buf[token];
+			phys = ab->phys;
 
-			if (lower_32_bits(phys) != result->opcode ||
+			if (lower_32_bits(phys) != (result->opcode) ||
 			    upper_32_bits(phys) != result->status) {
 				dev_err(ac->dev, "Expected addr %pa\n",
-					&port->buf[token].phys);
+					&phys);
 				spin_unlock_irqrestore(&ac->lock, flags);
 				ret = -EINVAL;
 				goto done;
@@ -1604,7 +1606,8 @@ int q6asm_write_async(struct audio_client *ac, uint32_t stream_id, uint32_t len,
 
 	write->flags = wflags;
 
-	port->dsp_buf++;
+	if (len)
+		port->dsp_buf++;
 
 	if (port->dsp_buf >= port->num_periods)
 		port->dsp_buf = 0;
