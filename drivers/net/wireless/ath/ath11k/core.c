@@ -728,12 +728,11 @@ static int ath11k_init_hw_params(struct ath11k_base *ab)
 	return 0;
 }
 
-int ath11k_core_init(struct ath11k_base *ab)
+static int ath11k_core_get_rproc_hdl(struct ath11k_base *ab)
 {
 	struct device *dev = ab->dev;
 	struct rproc *prproc;
 	phandle rproc_phandle;
-	int ret;
 
 	if (of_property_read_u32(dev->of_node, "qcom,rproc", &rproc_phandle)) {
 		ath11k_err(ab, "failed to get q6_rproc handle\n");
@@ -746,6 +745,16 @@ int ath11k_core_init(struct ath11k_base *ab)
 		return -EINVAL;
 	}
 	ab->tgt_rproc = prproc;
+
+	return 0;
+}
+
+int ath11k_core_init(struct ath11k_base *ab)
+{
+	int ret;
+
+	if (!ab->mhi_support)
+		ath11k_core_get_rproc_hdl(ab);
 
 	ret = ath11k_init_hw_params(ab);
 	if (ret) {
