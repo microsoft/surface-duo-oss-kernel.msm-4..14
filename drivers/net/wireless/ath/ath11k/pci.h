@@ -2,6 +2,10 @@
 /*
  * Copyright (c) 2019-2020 The Linux Foundation. All rights reserved.
  */
+#ifndef _ATH11K_PCI_H
+#define _ATH11K_PCI_H
+
+#include <linux/mhi.h>
 
 #define PCI_BAR_NUM			0
 #define PCI_DMA_MASK_64_BIT		64
@@ -29,4 +33,13 @@ struct ath11k_pci {
 	u32 chip_id;
 	struct ath11k_msi_config *msi_config;
 	u32 msi_ep_base_data;
+	struct mhi_controller *mhi_ctrl;
+	unsigned long mhi_state;
 };
+
+int ath11k_pci_get_user_msi_assignment(struct ath11k_pci *ar_pci, char *user_name,
+				       int *num_vectors, u32 *user_base_data,
+				       u32 *base_vector);
+
+int ath11k_pci_get_msi_irq(struct device *dev, unsigned int vector);
+#endif
