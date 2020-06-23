@@ -51,6 +51,27 @@ parts:
                 ${SNAPCRAFT_PART_INSTALL}/initrd-overlay.img \
                 > ${SNAPCRAFT_PART_INSTALL}/initrd.img
         stage:
+            - initrd.img
+
+    bootimg-db845:
+        plugin: nil
+        after:
+            - kernel
+            - initrd
+        override-build: |
+            cat ${SNAPCRAFT_STAGE}/kernel.img ${SNAPCRAFT_STAGE}/dtbs/qcom/sdm845-db845c.dtb > Image.gz+dtb845
+            mkbootimg \
+                --kernel Image.gz+dtb845 \
+                --ramdisk ${SNAPCRAFT_STAGE}/initrd.img \
+                --output ${SNAPCRAFT_PART_INSTALL}/boot.img \
+                --pagesize 4096 \
+                --base 0x80000000 \
+                --kernel_offset 0x8000 \
+                --ramdisk_offset 0x1000000 \
+                --tags_offset 0x100 \
+                --cmdline 'console=tty0 console=ttyMSM0,115200n8 root=/dev/disk/by-label/writable init=/lib/systemd/systemd ro rng_core.default_quality=700 fixrtc clk_ignore_unused pd_ignore_unused'
+        prime:
+            - boot.img
 
     firmware:
         plugin: nil
