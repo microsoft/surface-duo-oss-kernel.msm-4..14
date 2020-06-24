@@ -251,8 +251,6 @@ static int shiftfs_d_weak_revalidate(struct dentry *dentry, unsigned int flags)
 		struct inode *loweri = d_inode(lowerd);
 
 		shiftfs_copyattr(loweri, inode);
-		if (!inode->i_nlink)
-			err = 0;
 	}
 
 	return err;
@@ -278,8 +276,6 @@ static int shiftfs_d_revalidate(struct dentry *dentry, unsigned int flags)
 		struct inode *loweri = d_inode(lowerd);
 
 		shiftfs_copyattr(loweri, inode);
-		if (!inode->i_nlink)
-			err = 0;
 	}
 
 	return err;
