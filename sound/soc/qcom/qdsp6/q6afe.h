@@ -5,7 +5,7 @@
 
 #include <dt-bindings/sound/qcom,q6afe.h>
 
-#define AFE_PORT_MAX		105
+#define AFE_PORT_MAX		127
 
 #define MSM_AFE_PORT_TYPE_RX 0
 #define MSM_AFE_PORT_TYPE_TX 1
@@ -132,6 +132,8 @@
 #define Q6AFE_LPASS_CLK_ID_INT_MCLK_0                             0x305
 /* Clock ID for INT MCLK1 */
 #define Q6AFE_LPASS_CLK_ID_INT_MCLK_1                             0x306
+/* Clock ID for MCLK5 */
+#define Q6AFE_LPASS_CLK_ID_MCLK_5                                 0x308
 
 /* Clock attribute for invalid use (reserved for internal usage) */
 #define Q6AFE_LPASS_CLK_ATTRIBUTE_INVALID		0x0
@@ -184,11 +186,21 @@ struct q6afe_tdm_cfg {
 	u16	ch_mapping[AFE_MAX_CHAN_COUNT];
 };
 
+struct q6afe_cdc_dma_cfg {
+	u16	sample_rate;
+	u16	bit_width;
+	u16	data_format;
+	u16	num_channels;
+	u16	active_channels_mask;
+};
+
+
 struct q6afe_port_config {
 	struct q6afe_hdmi_cfg hdmi;
 	struct q6afe_slim_cfg slim;
 	struct q6afe_i2s_cfg i2s_cfg;
 	struct q6afe_tdm_cfg tdm;
+	struct q6afe_cdc_dma_cfg dma_cfg;
 };
 
 struct q6afe_port;
@@ -205,6 +217,8 @@ void q6afe_slim_port_prepare(struct q6afe_port *port,
 			  struct q6afe_slim_cfg *cfg);
 int q6afe_i2s_port_prepare(struct q6afe_port *port, struct q6afe_i2s_cfg *cfg);
 void q6afe_tdm_port_prepare(struct q6afe_port *port, struct q6afe_tdm_cfg *cfg);
+void q6afe_cdc_dma_port_prepare(struct q6afe_port *port,
+				struct q6afe_cdc_dma_cfg *cfg);
 
 int q6afe_port_set_sysclk(struct q6afe_port *port, int clk_id,
 			  int clk_src, int clk_root,
