@@ -135,6 +135,15 @@
 /* Clock ID for MCLK5 */
 #define Q6AFE_LPASS_CLK_ID_MCLK_5                                 0x308
 
+#define Q6AFE_CLK_ID_WSA_CORE_MCLK				0x309
+#define Q6AFE_CLK_ID_WSA_CORE_NPL_MCLK				0x30a
+#define Q6AFE_CLK_ID_VA_CORE_MCLK				0x30b
+#define Q6AFE_CLK_ID_TX_CORE_MCLK				0x30c
+#define Q6AFE_CLK_ID_TX_CORE_NPL_MCLK				0x30d
+#define Q6AFE_CLK_ID_RX_CORE_MCLK				0x30e
+#define Q6AFE_CLK_ID_RX_CORE_NPL_MCLK				0x30f
+#define Q6AFE_CLK_ID_VA_CORE_2X_MCLK				0x310
+
 /* Clock attribute for invalid use (reserved for internal usage) */
 #define Q6AFE_LPASS_CLK_ATTRIBUTE_INVALID		0x0
 /* Clock attribute for no couple case */
@@ -223,6 +232,7 @@ void q6afe_cdc_dma_port_prepare(struct q6afe_port *port,
 int q6afe_port_set_sysclk(struct q6afe_port *port, int clk_id,
 			  int clk_src, int clk_root,
 			  unsigned int freq, int dir);
+struct q6afe;
 int q6afe_vote_lpass_core_hw(struct q6afe *afe, uint32_t hw_block_id,
 			     char *client_name, uint32_t *client_handle);
 int q6afe_unvote_lpass_core_hw(struct q6afe *afe, uint32_t hw_block_id,

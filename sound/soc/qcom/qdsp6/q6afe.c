@@ -1136,6 +1136,7 @@ int q6afe_port_set_sysclk(struct q6afe_port *port, int clk_id,
 	case Q6AFE_LPASS_CLK_ID_PRI_MI2S_IBIT ... Q6AFE_LPASS_CLK_ID_QUI_MI2S_OSR:
 	case Q6AFE_LPASS_CLK_ID_MCLK_1 ... Q6AFE_LPASS_CLK_ID_INT_MCLK_1:
 	case Q6AFE_LPASS_CLK_ID_PRI_TDM_IBIT ... Q6AFE_LPASS_CLK_ID_QUIN_TDM_EBIT:
+	case Q6AFE_CLK_ID_WSA_CORE_MCLK ... Q6AFE_CLK_ID_VA_CORE_2X_MCLK:
 		cset.clk_set_minor_version = AFE_API_VERSION_CLOCK_SET;
 		cset.clk_id = clk_id;
 		cset.clk_freq_in_hz = freq;
