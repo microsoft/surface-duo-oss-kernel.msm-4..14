@@ -1327,6 +1327,9 @@ static const struct of_device_id qcom_slim_ngd_dt_match[] = {
 	},{
 		.compatible = "qcom,slim-ngd-v2.1.0",
 		.data = &ngd_v1_5_offset_info,
+	},{
+		.compatible = "qcom,slim-ngd-v2.2.0",
+		.data = &ngd_v1_5_offset_info,
 	},
 	{}
 };
