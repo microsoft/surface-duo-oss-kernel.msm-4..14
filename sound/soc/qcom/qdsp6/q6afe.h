@@ -223,4 +223,8 @@ void q6afe_cdc_dma_port_prepare(struct q6afe_port *port,
 int q6afe_port_set_sysclk(struct q6afe_port *port, int clk_id,
 			  int clk_src, int clk_root,
 			  unsigned int freq, int dir);
+int q6afe_vote_lpass_core_hw(struct q6afe *afe, uint32_t hw_block_id,
+			     char *client_name, uint32_t *client_handle);
+int q6afe_unvote_lpass_core_hw(struct q6afe *afe, uint32_t hw_block_id,
+			       uint32_t client_handle);
 #endif /* __Q6AFE_H__ */
