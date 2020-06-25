@@ -8492,6 +8492,7 @@ EXPORT_SYMBOL	 vmlinux 0x00000000	ktime_get_real_ts64
 EXPORT_SYMBOL	 vmlinux 0x00000000	kvasprintf
 EXPORT_SYMBOL	 vmlinux 0x00000000	kvasprintf_const
 EXPORT_SYMBOL	 vmlinux 0x00000000	kvfree
+EXPORT_SYMBOL	 vmlinux 0x00000000	kvfree_sensitive
 EXPORT_SYMBOL	 vmlinux 0x00000000	kvmalloc_node
 EXPORT_SYMBOL	 vmlinux 0x00000000	kzfree
 EXPORT_SYMBOL	 vmlinux 0x00000000	laptop_mode
@@ -12781,7 +12782,6 @@ EXPORT_SYMBOL_GPL	 drivers/media/common/videobuf2/videobuf2-common 0x00000000	vb
 EXPORT_SYMBOL_GPL	 drivers/media/common/videobuf2/videobuf2-common 0x00000000	vb2_thread_stop
 EXPORT_SYMBOL_GPL	 drivers/media/common/videobuf2/videobuf2-common 0x00000000	vb2_wait_for_all_buffers
 EXPORT_SYMBOL_GPL	 drivers/media/common/videobuf2/videobuf2-common 0x00000000	vb2_write
-EXPORT_SYMBOL_GPL	 drivers/media/common/videobuf2/videobuf2-dma-contig 0x00000000	vb2_dma_contig_clear_max_seg_size
 EXPORT_SYMBOL_GPL	 drivers/media/common/videobuf2/videobuf2-dma-contig 0x00000000	vb2_dma_contig_memops
 EXPORT_SYMBOL_GPL	 drivers/media/common/videobuf2/videobuf2-dma-contig 0x00000000	vb2_dma_contig_set_max_seg_size
 EXPORT_SYMBOL_GPL	 drivers/media/common/videobuf2/videobuf2-dma-sg 0x00000000	vb2_dma_sg_memops
@@ -18419,6 +18419,7 @@ EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__mnt_is_readonly
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__module_address
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__module_text_address
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__ndisc_fill_addr_option
+EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__netdev_watchdog_up
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__netif_set_xps_queue
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__netpoll_cleanup
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__netpoll_free
@@ -21078,7 +21079,6 @@ EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	iommu_group_alloc
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	iommu_group_for_each_dev
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	iommu_group_get
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	iommu_group_get_by_id
-EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	iommu_group_get_for_dev
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	iommu_group_get_iommudata
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	iommu_group_id
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	iommu_group_put
