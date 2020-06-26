@@ -24,8 +24,6 @@ Optional properties:
   from userspace
 - spi-fifo-size: the number of FIFO buffer entries, for both TX and RX. Defaults
   to 4.
-- spi-extended-mode: Empty property specifying the Extended (32-bit) SPI Mode
-  support.
 
 Optional SPI slave node properties:
 - fsl,spi-cs-sck-delay: a delay in nanoseconds between activating chip
