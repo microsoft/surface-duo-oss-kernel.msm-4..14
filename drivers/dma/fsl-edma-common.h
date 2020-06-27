@@ -210,7 +210,6 @@ struct fsl_edma_drvdata {
 struct fsl_edma_irq {
 	char *name;
 	irqreturn_t (*irqhandler)(int irq, void *data);
-	int irqno;
 };
 
 struct fsl_edma_ops {
@@ -233,6 +232,7 @@ struct fsl_edma_engine {
 	int			errirq;
 	bool			big_endian;
 	struct edma_regs	regs;
+	int			*irq_nos;
 	struct fsl_edma_chan	chans[];
 };
 
