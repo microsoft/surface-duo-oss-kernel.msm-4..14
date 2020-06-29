@@ -31,6 +31,8 @@ parts:
         kernel-image-target: Image.gz
         kconfigs:
             - CONFIG_DEBUG_INFO=n
+            - CONFIG_BLK_DEV_DM=y
+            - CONFIG_DM_CRYPT=y
         override-build: |
             cp debian/scripts/retpoline-extract-one \
                 ${SNAPCRAFT_PART_BUILD}/scripts/ubuntu-retpoline-extract-one
@@ -52,7 +54,57 @@ parts:
     initrd:
         plugin: nil
         source: initrd-overlay
+        stage-packages:
+            - on arm64:
+                - cryptsetup-bin
+                - dmsetup
+                - e2fsprogs
+                - rsync
+                - libargon2-0
+                - libcryptsetup12
+                - libgcrypt20
+                - libgpg-error0
+                - libjson-c3
+            - else:
+                - cryptsetup-bin:arm64
+                - dmsetup:arm64
+                - e2fsprogs:arm64
+                - rsync:arm64
+                - libargon2-0:arm64
+                - libcryptsetup12:arm64
+                - libgcrypt20:arm64
+                - libgpg-error0:arm64
+                - libjson-c3:arm64
         override-build: |
+            echo "Cleaning staged packages first"
+            for d in lib/x86_64-linux-gnu \
+                     usr/lib/x86_64-linux-gnu \
+                     lib/systemd etc usr/share \
+                     usr/lib/gcc \
+                     var \
+                     sbin/e2fsck \
+                     sbin/dumpe2fs \
+                     sbin/resize2fs
+            do
+                [ -e ${SNAPCRAFT_PART_INSTALL}/${d} ] && rm -rf ${SNAPCRAFT_PART_INSTALL}/${d}
+            done
+            find  ${SNAPCRAFT_PART_INSTALL}/lib/ \
+               ! -name "libcryptsetup.so.*" \
+               ! -name "libgcrypt.so.*" \
+               ! -name "libgpg-error.so.*" \
+               ! -name "libcrypto.so*" \
+               ! -name "libssl.so*" \
+               ! -name "libbsd.so*" \
+               ! -name "libjson-c.so*" \
+               ! -name "*.rules" \
+               \( -type f -o -type l \) \
+               -exec rm -v {} \;
+            find  ${SNAPCRAFT_PART_INSTALL}/usr/lib \
+               ! -name "libargon2.so*" \
+               ! -name "libonig.so.*" \
+               \( -type f -o -type l \) \
+               -exec rm -v {} \;
+            cp -r ${SNAPCRAFT_PART_INSTALL}/* ${SNAPCRAFT_PART_BUILD}/
             echo "Preparing overlay initrd"
             find . | cpio --create --quiet --format='newc' --owner=0:0 | lzma -7 > ${SNAPCRAFT_PART_INSTALL}/initrd-overlay.img
             wget https://people.canonical.com/~okubik/uc18_initrds/initrd-arm64.img -O ${SNAPCRAFT_PART_INSTALL}/initrd-clean.img
