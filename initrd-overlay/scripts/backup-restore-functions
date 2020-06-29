@@ -1,0 +1,71 @@
+# -*- shell-script -*-
+
+# This is device specific, implementation of backup and restore functionality
+
+# all backup files are stored under ${seedpath} path which is
+# ${seedpath} is defined in generic 'crypto-function' which is sourced alongside
+# this file and we can refer to ${seedpath} as location of backup files
+# generic helper functions available from backup/restore operations are
+# restore_partition <partion name> <source file>
+# backup_partition  <partion name> <target file>
+
+# restore data from save partition
+# this is called as part of factory reset
+# - type: type of factory reset, e.g. "hard"
+do_restore_from_save()
+{
+    local type="${1}"
+    echo "Not restoring any data from save partition"
+}
+
+# restore all required system boot partition(s)
+# this is called as part of factory reset
+# - type: type of factory reset, e.g. "hard"
+do_restore_systemboot()
+{
+    local type="${1}"
+    echo "Restoring system boot...."
+    # seed should be already be mounted from previous steps
+    # restore snapbootsel as last, to signal successful restore
+    if [ -f "${seedpath}/boot/boot.img" ]; then
+        restore_partition "boot_a" "${seedpath}/boot/boot.img"
+    fi
+    echo "Boot partition restored"
+    # if we have snapbootselbak.bin use it, otherwise use snapbootsel.bin
+    if [ -f "${seedpath}/boot/snapbootselbak.bin" ]; then
+        restore_partition "snapbootselbak" "${seedpath}/boot/snapbootselbak.bin"
+    elif [ -f "${seedpath}/boot/snapbootsel.bin" ]; then
+        restore_partition "snapbootselbak" "${seedpath}/boot/snapbootsel.bin"
+    fi
+    echo "snapbootselbak partition restored"
+    if [ -f "${seedpath}/boot/snapbootsel.bin" ]; then
+        restore_partition "snapbootsel" "${seedpath}/boot/snapbootsel.bin"
+    fi
+    echo "snapbootsel partition restored"
+
+    # if this is hard factory reset, also restore bootloader
+    case ${type} in
+        hard)
+            echo "restoring bootloaders..."
+            [ -f "${seedpath}/boot/abl.elf" ] && restore_partition "abl_a" "${seedpath}/boot/abl.elf"
+            ;;
+    esac
+}
+
+
+# restore all required system boot partition(s)
+# function ensures we have backup needed for factory reset
+do_backup_systemboot()
+{
+    # make a raw backup of system-boot partitions if needed
+    # seed is already mounted from crypt setup
+    mkdir -p ${seedpath}/boot
+
+    [ ! -f "${seedpath}/boot/boot.img" ]           && backup_partition "boot_a"            "${seedpath}/boot/boot.img"
+    [ ! -f "${seedpath}/boot/boot.img" ]           && backup_partition "boot"              "${seedpath}/boot/boot.img"
+    [ ! -f "${seedpath}/boot/snapbootsel.bin" ]    && backup_partition "snapbootsel"       "${seedpath}/boot/snapbootsel.bin"
+    [ ! -f "${seedpath}/boot/snapbootselbak.bin" ] && backup_partition "snapbootselbak"    "${seedpath}/boot/snapbootselbak.bin"
+    [ ! -f "${seedpath}/boot/abl.img" ]            && backup_partition "abl_a"             "${seedpath}/boot/abl.img"
+    [ ! -f "${seedpath}/boot/aboot.img" ]          && backup_partition "aboot"             "${seedpath}/boot/aboot.img"
+    [ ! -f "${seedpath}/boot/aboot.img" ]          && backup_partition "aboot_a"           "${seedpath}/boot/aboot.img"
+}
