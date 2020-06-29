@@ -1,0 +1,67 @@
+# -*- shell-script -*-
+
+# This is device specific, add key creation specifcs here
+
+# (create key, write to device specific secure storage,
+# read from device specific storage and echo key from
+# obtain_crypto_key
+
+KEY_STORE="/dev/disk/by-partlabel/key-store"
+
+# generate new random key
+# generate new key in two steps, first random key is used as seed
+# for TEE based key generation
+generate_new_key() {
+    local seed=$(cat /dev/urandom | tr -cd "[:print:]" | dd bs=64 count=1)
+    # use random key as seed
+    local key=$(fde-key -g "${seed}")
+    echo "${key}"
+}
+
+# read key for passed label from key store
+read_key_from_store(){
+    local label="$1"
+    # echo $(fde-key -r "${KEY_STORE}" -l "${label}")
+    echo "ubuntu-${label}"
+}
+
+
+# generate new key and store it to the key store
+# we read key back to make sure we really stored the key
+# otherwise we might encrypt disk with key we do not have stored
+save_new_key_to_store() {
+    local label="${1}"
+    # local key="$(generate_new_key)"
+    # fde-key -s "${KEY_STORE}" -l "${label}" -k "${key}" >/dev/kmsg 2>&1
+    # # read key back from store
+    # local key_back=$(read_key_from_store "${label}")
+    # if [ "${key}" != "${key_back}" ];then
+    #     echo "!!!! Failed to save secure key to key store!!!!" >/dev/kmsg 2>&1 || true
+    #     exit
+    # else
+    #     echo "${key}"
+    # fi
+    echo "ubuntu-${label}"
+}
+
+# get crypto key for passed partition from key store
+obtain_crypto_key() {
+    # we use key store backed by TEE, where each partition has own key
+    # if key for given partition label does not exist yet, create it
+    local label="$1"
+    local key=$(read_key_from_store "${label}")
+    # if [ -z "${key}" ]; then
+    #     # no key configured for given label, generate and store new one
+    #     echo $(save_new_key_to_store "${label}")
+    # else
+    #     echo "${key}"
+    # fi
+    echo "ubuntu-${label}"
+}
+
+# reset crypto key in store for passed  partition
+# new key is generated and stored to the key store
+reset_crypto_key() {
+    local label="$1"
+    echo $(save_new_key_to_store "${label}")
+}

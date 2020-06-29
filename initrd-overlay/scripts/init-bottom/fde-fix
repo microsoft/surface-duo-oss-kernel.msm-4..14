@@ -1,0 +1,19 @@
+#!/bin/sh -e
+
+PREREQS=""
+
+prereqs() { echo "$PREREQS"; }
+
+case "$1" in
+    prereqs)
+    prereqs
+    exit 0
+    ;;
+esac
+
+
+# Do here fde tweaks so system runs as expected
+fstab="/root/etc/fstab"
+echo "LABEL=seed /writable/seed auto defaults,ro,x-systemd.before=/snap 0 0" >> "$fstab"
+echo "LABEL=save /writable/save auto defaults,nofail,x-systemd.before=/snap 0 0" >> "$fstab"
+echo "/writable/seed/system-data/var/lib/snapd/seed /var/lib/snapd/seed none bind,x-systemd.before=/snap,x-systemd.requires-mounts-for=/writable/seed 0 0" >> "$fstab"

@@ -1,0 +1,547 @@
+# -*- shell-script -*-
+
+# bail out if anything fails and let it run from the beginnig
+set -e
+
+# needs additional binaries:
+# - tune2fs
+# - cryptsetup
+# - rsync
+
+datapath="/tmpmntData"
+savepath="/tmpmntSave"
+seedpath="/seed"
+data_part_label="writable"
+save_part_label="save"
+seed_part_label="seed"
+resize_tmpfile="/run/initramfs/old-table.txt"
+
+# log files
+IWLOG="/run/initramfs/init-crypt.log"
+ISLOG="/run/initramfs/init-save.log"
+FWLOG="/run/initramfs/format-writable.log"
+BSBLOG="/run/initramfs/backup-systemboot.log"
+RSBLOG="/run/initramfs/restore-systemboot.log"
+RFSLOG="/run/initramfs/restore-from-save.log"
+BSALOG="/run/initramfs/backup-serial.log"
+RSALOG="/run/initramfs/restore-serial.log"
+RSZLOG="/run/initramfs/resize-writable.log"
+while read opt; do
+    for word in $opt; do
+        case $word in
+            debug)
+                IWLOG="/dev/kmsg"
+                ISLOG="/dev/kmsg"
+                FWLOG="/dev/kmsg"
+                BSBLOG="/dev/kmsg"
+                RSBLOG="/dev/kmsg"
+                RFSLOG="/dev/kmsg"
+                BSALOG="/dev/kmsg"
+                RSALOG="/dev/kmsg"
+                RSZLOG="/dev/kmsg"
+                ;;
+        esac
+    done
+done < /proc/cmdline
+
+# clean up after init_crypt_root
+# all temp mounts are unmounted and
+# ecnrypted volumes are closed
+post_init_cleanup()
+{
+    # cleanup
+    if grep -q "${datapath}" /proc/mounts ; then
+      umount "${datapath}" || true
+    fi
+    if grep -q "${savepath}" /proc/mounts ; then
+      umount "${savepath}" || true
+    fi
+
+    if grep -q "${seedpath}" /proc/mounts ; then
+      umount "${seedpath}" || true
+    fi
+
+    # close the devices
+    cryptsetup luksClose ${data_part_label} || true
+    cryptsetup luksClose ${save_part_label} || true
+}
+
+# initialising crypto root can take some time, so it can be interupted
+# we try to make each step recoverable, steps can be bnroken to
+# - make sure seed label and part label are in sync
+# - setup rootfs crypto root
+# - rsync initial data to crypto root
+# - backup save to new encrypted root
+# - create new crypto seed
+#    - if anything fails till here, we re-run init as we
+#      do not have two encrypted partition
+# - restore saved seed
+#    - if we fail at this point, we can complete save restore after root mount
+#      as we should have still save back directory in root
+#
+# we have 3 partitions seed/save/writable
+# - seed is plain and unless backing up system it should be RO mount
+# - save is encrypted partition, persistent over factory resets
+#   save partition can have initial plain data, which should be encrypted
+#   at first boot
+# - writable is encrypted data/rootfs partition
+init_crypt_root()
+{
+    echo "initialising crypto partition" >/dev/kmsg || true
+    # create initial encrypted partition from original "seed partition"
+    # copy initial data from seed partition, do not mount seed itself
+    # as this is done by ubuntu-core-rootfs functions
+
+    # if needed, load modules
+    modprobe dm-crypt >/dev/null 2>&1 || true
+    modprobe sha256 >/dev/null 2>&1 || true
+    modprobe aes >/dev/null 2>&1 || true
+
+    # find "seed" partition and matching disk device
+    seed_part="$(findfs LABEL=${seed_part_label})" >/dev/null 2>&1 || true
+    seed_partlabel="$(findfs PARTLABEL=${seed_part_label})" >/dev/null 2>&1 || true
+    if [ -z "$seed_part" ] || [ "${seed_part}" !=  "${seed_partlabel}" ] ; then
+      echo "label and partlabel for seed out of sync[${seed_part}]vs[${seed_partlabel}], trying to sync it" >/dev/kmsg || true
+      # ubuntu-image has limited build options, so it might have created seed with writable fs label
+      # honor partition label in this case and relabel fs label as this is our seed
+      e2label ${seed_partlabel} seed >>${IWLOG} 2>&1 || true
+      rootdevice="$(echo "${seed_partlabel}" | sed 's/[0-9]*$//;s/p$//')"
+      # refresh partition table
+      blockdev --rereadpt "${rootdevice}" >/dev/null 2>&1 || true
+      seed_part="$(findfs LABEL=${seed_part_label})" >/dev/null 2>&1 || true
+    else
+      rootdevice="$(echo "${seed_part}" | sed 's/[0-9]*$//;s/p$//')"
+    fi
+
+    # make sure we have seed partition to start with
+    if [ -z "${seed_part}" ]; then
+      echo "ERROR: there is no seed partition, bailing out!!!!" >/dev/kmsg || true
+      return 1
+    fi
+
+    # set clock to image creation time so we are not too far off
+    # even without rtc battery
+    local stamp="$(tune2fs -l "${seed_part}" | grep "created" | sed 's/^.*: [ \t]*//;')"
+    date --set="${stamp}" >>${IWLOG} 2>&1 || true
+
+    # prepare new data partition
+    local enc_data="$(findfs PARTLABEL=${data_part_label})" >/dev/null 2>&1 || true
+    # resize partition first if needed
+    resize_writable "${enc_data}" >>${RSZLOG} 2>&1
+
+    # echo "Encrypted root: formatting encrypted rootfs, please wait ... " >/dev/kmsg 2>&1 || true
+    format_crypt_root "$enc_data" >>${FWLOG} 2>&1
+
+    echo "Encrypted root: backing up bootpartition, please wait ... " >/dev/kmsg || true
+    backup_systemboot >>${BSBLOG} 2>&1 || true
+    echo "Encrypted root: backing up bootpartition: done" >/dev/kmsg || true
+
+    # if we have save partition, configure it as well
+    local enc_save="$(findfs PARTLABEL=${save_part_label})" >/dev/null 2>&1 || true
+    if [ -n "${enc_save}" ]; then
+        init_save_partition ${enc_save} >>${IWLOG} 2>&1 || true
+    fi
+
+    # refresh partition table
+    blockdev --rereadpt "$rootdevice" >/dev/null 2>&1 || true
+
+    # cleanup
+    post_init_cleanup >>${IWLOG} 2>&1 || true
+
+    # mark superblock of restore partition readonly
+    tune2fs -E mount_opts="ro" ${seed_part} >>${IWLOG} 2>&1 || true
+}
+
+# Initialise save partition
+# try to backup content of save partition before encrypting it
+init_save_partition()
+{
+    local device=${1}
+    local save_backup="${datapath}/save-backup"
+    # if save is already encrypted leave it, save is persistent over factory resets
+    local cryptodisk="$(blkid -t TYPE=crypto_LUKS -o device | grep "${enc_save}")" >/dev/null 2>&1 || true
+    if [ -z "${cryptodisk}" ]; then
+        # attempt to backup save, do not fail if not successful
+        mkdir -p "${savepath}" >>${ISLOG} 2>&1 || true
+        mount "${device}" "${savepath}" >>${ISLOG} 2>&1 || true
+        if grep -q ^"${device}" /proc/mounts; then
+            # use data part as temp transport storage, it is already mounted
+            echo "Backing up content of unencrypted save" >>${ISLOG}
+            mkdir -p "${save_backup}" >>${ISLOG} 2>&1 || true
+            rsync -a --stats -r ${savepath}/* ${save_backup} >>${ISLOG} 2>&1 || true
+            umount "${savepath}" >>${ISLOG} 2>&1 || true
+        fi
+        # get the key
+        echo ""
+        local key="$(obtain_crypto_key save)"
+        echo "seting up encrypted save partition"  >>${ISLOG} 2>&1
+        printf '%s' "$key" | cryptsetup luksFormat "$device" -c aes-xts-plain64 -s 256 -h sha256 >>${ISLOG} 2>&1
+        # unlock partition and save data back
+        unlock_crypt_device "${device}" "${save_part_label}" >>${ISLOG} 2>&1
+        # format save with new filesystem
+        mkfs.ext4 /dev/mapper/${save_part_label} -L ${save_part_label} >>${ISLOG} 2>&1 || true
+        # restore data back to save if we have any, do not fail if not successful
+        if [ -d "${save_backup}" ]; then
+            mount "/dev/mapper/${save_part_label}" "${savepath}" >>${ISLOG} 2>&1 || true
+            rsync -a --stats -r ${save_backup}/* ${savepath} >>${ISLOG} 2>&1 || true
+            rm -rf "${save_backup}" >>${ISLOG} 2>&1 || true
+            umount "${savepath}" >>${ISLOG} 2>&1 || true
+        fi
+    fi
+}
+
+# Format root partition and encrypt it
+# - device node to be formated and ecnrypted
+format_crypt_root()
+{
+    # formats and populates an already encrypted partiton
+    local seed_part="$(findfs LABEL=seed)"
+    local device="${1}"
+
+    # always recreate crypto root with new key
+    local key="$(reset_crypto_key writable)"
+    printf '%s' "$key" | cryptsetup luksFormat "$device" -c aes-xts-plain64 -s 256 -h sha256
+
+    # unlock the device
+    unlock_crypt_device "${device}" "writable"
+
+    # format crypt_root with new filesystem
+    mkfs.ext4 /dev/mapper/${data_part_label} -L ${data_part_label}
+
+    # mount filesystems
+    mkdir -p ${seedpath}
+    mkdir -p ${datapath}
+    mount -o ro "${seed_part}" "${seedpath}"
+    mount "/dev/mapper/${data_part_label}" "${datapath}"
+
+    # copy content from seed to clean writable
+    rsync -a --stats --exclude 'system-data/var/lib/snapd/seed' ${seedpath}/system-data ${datapath}
+    sync
+    # seed partition is mounted by systemd, make sure core and kernel snaps
+    # are availble to initrd scripts
+    mkdir -p ${datapath}/system-data/var/lib/snapd/seed
+    find ${datapath}/system-data/var/lib/snapd/snaps/ -type l | while read snap; do
+       rsync -a --stats $(ls -al ${snap} | awk -v SEED="${seedpath}/system-data/var/lib/snapd/snaps/" '{print SEED $6" "$4}')
+       sync
+    done
+    # defer clean up of datapath, and seedpath as we might use it during next steps
+}
+
+# backup system boot components
+# function calls do_backup_systemboot implementation
+backup_systemboot()
+{
+    # make a raw backup of system-boot
+
+    # find seed partitions, we need to remount to rw
+    local seed_part="$(findfs LABEL=seed)"
+
+    # only progress if seed partition is found
+    [ -n "${seed_part}" ] || return 1
+
+    # mount/umount target partition
+    mount -o remount,rw "${seed_part}" "${seedpath}"
+
+    do_backup_systemboot
+}
+
+# backup serial to save partition
+# back up serial assertion and device key to save partition
+backup_serial_to_save()
+{
+    # first mount data and save
+    echo "Backing up serial assertion and device key..."
+    mount_data_and_save >>${BSALOG} 2>&1 || true
+    mkdir -p \
+        ${savepath}/system-data/var/lib/snapd/device \
+        ${savepath}/system-data/var/lib/snapd/assertions/asserts-v0
+    # clean old key and assertion first
+    rm -rf \
+        ${savepath}/system-data/var/lib/snapd/device/private-keys-v1 \
+        ${savepath}/system-data/var/lib/snapd/assertions/asserts-v0/serial
+
+    cp -r ${datapath}/system-data/var/lib/snapd/device/private-keys-v1 \
+          ${savepath}/system-data/var/lib/snapd/device/
+    cp -r ${datapath}/system-data/var/lib/snapd/assertions/asserts-v0/serial \
+          ${savepath}/system-data/var/lib/snapd/assertions/asserts-v0/
+
+    # cleanup, only unmount as we are called after unlock
+    umount "${datapath}" || true >> ${BSALOG} 2>&1 || true
+    umount "${savepath}" || true >> ${BSALOG} 2>&1 || true
+    echo "Serial assertion and device key backed up" >> ${BSALOG} || true
+}
+
+# perform factory reset
+# restore serial assertion and device key from save partition
+factory_reset()
+{
+    local type="${1}"
+    echo "Doing a factory reset (${type}), all user data will be wiped !!!"
+
+    # format disk and restore system to virgin state
+    format_crypt_root "$(findfs PARTLABEL=${data_part_label})" >>${FWLOG} 2>&1
+    # TODO: do we want to wipe saved data in case of "hard" factory reset?
+    echo "Restoring system-boot partition to factory state"
+    restore_systemboot "${type}" || true >>${RSBLOG} 2>&1
+    echo "Restoring data from save partition"
+    restore_from_save "${type}" || true >>${RFSLOG} 2>&1
+    # back up logs
+    mkdir -p ${datapath}/system-data/var/log/cryptoroot
+    cp -a /run/initramfs/* ${datapath}/system-data/var/log/cryptoroot/
+    sync
+    post_init_cleanup || true
+    echo "Rebooting to clear the bootloader state ..."
+    sync
+    sleep 2
+}
+
+# restore system boot components
+# function calls do_restore_systemboot implementation
+restore_systemboot()
+{
+    local type="${1}"
+    # make a raw backup of system-boot partitions if needed
+    # seed is already mounted from crypt settup
+    do_restore_systemboot "${type}"
+}
+
+# restore data from save partition if needed
+# function calls do_restore_from_save if implemented
+restore_from_save() {
+    # type of factory reset
+    local type="${1}"
+    echo "Restoring from save partition...."
+    # first mount data and save
+    mount_data_and_save
+    # copy here all the data needed
+    do_restore_from_save
+    sync
+    # cleanup will be done by calling functions
+}
+
+# restore serial from save partition
+# restore serial assertion and device key from save partition
+restore_serial_from_save()
+{
+    echo "Restoring serial from save partition...."
+    # first mount data and save
+    mount_data_and_save >> ${RSALOG} 2>&1 || true
+    # get current key id
+    local new_key_id=$(basename ${datapath}/system-data/var/lib/snapd/device/private-keys-v1/*)
+    local old_key_id=$(basename ${savepath}/system-data/var/lib/snapd/device/private-keys-v1/*)
+    echo "device key in ${datapath}: [${new_key_id}]" >> ${RSALOG} 2>&1 || true
+    echo "device key in ${savepath}: [${old_key_id}]" >> ${RSALOG} 2>&1 || true
+    if [ "${new_key_id}" != "${old_key_id}" ]; then
+        echo "Restoring keys and serial assertion from save partition" >> ${RSALOG} 2>&1 || true
+        rsync -rv --stats  ${savepath}/system-data ${datapath} >> ${RSALOG} 2>&1 || true
+        sed -i 's/'"${new_key_id}"'/'"${old_key_id}"'/g' ${datapath}/system-data/var/lib/snapd/state.json
+        ls -al ${datapath}/system-data/var/lib/snapd/device/private-keys-v1/ >> ${RSALOG} 2>&1 || true
+        rm ${datapath}/system-data/var/lib/snapd/device/private-keys-v1/${new_key_id} >> ${RSALOG} 2>&1 || true
+        sync
+    else
+        echo "new and old device keys are identical, not restoring" >> ${RSALOG} 2>&1 || true
+    fi
+    # cleanup, only unmount as we are called after unlock
+    umount "${datapath}" >> ${RSALOG} 2>&1 || true
+    umount "${savepath}" >> ${RSALOG} 2>&1 || true
+    echo "Serial assertion and device key restore is complete" >> ${RSALOG} 2>&1 || true
+}
+
+# helper function to mount data and save partitions
+# encrypted partitions are unlocked if needed
+mount_data_and_save()
+{
+    echo "Mount ${data_part_label} and ${save_part_label}"
+    if ! grep -q "${datapath}" /proc/mounts ; then
+        if [ ! -e "/dev/mapper/${data_part_label}" ]; then
+            echo "Unlocking ${data_part_label} partition"
+            local enc_data="$(findfs PARTLABEL=${data_part_label})"
+            unlock_crypt_device "${enc_data}" "${data_part_label}"
+        fi
+        echo "Mounting ${data_part_label} partition"
+        mkdir -p "${datapath}"
+        mount "/dev/mapper/${data_part_label}" "${datapath}"
+    fi
+    if ! grep -q "${savepath}" /proc/mounts ; then
+        if [ ! -e "/dev/mapper/${save_part_label}" ]; then
+            echo "Unlocking ${save_part_label} partition"
+            enc_save="$(findfs PARTLABEL=${save_part_label})"
+            unlock_crypt_device "${enc_save}" "${save_part_label}"
+        fi
+        echo "Mounting ${save_part_label} partition"
+        mkdir -p "${savepath}"
+        mount "/dev/mapper/${save_part_label}" "${savepath}"
+    fi
+}
+
+# backup single partition
+# - partition to back up
+# - image file to backup to
+backup_partition()
+{
+    # backup single partition
+    local partition="${1}"
+    local imagepath="${2}"
+
+    # partition can be either full path or part name
+    [ ! -e ${partition} ] && partition="$(findfs PARTLABEL=${1})"
+
+    # only progress if partition is found
+    [ -n "${partition}" ] || return 1
+
+    # unmount partition if mounted
+    if grep -q ^"${partition}" /proc/mounts; then
+        umount "${partition}" || true
+    fi
+
+    # back up partition to img file so we keep the
+    # exact filesystem, determine if we compress it backup
+    if [ "${imagepath##*.}" = "gz" ]; then
+        dd if="${partition}" bs=1024k | gzip -c >"${imagepath}.gz"
+    else
+        dd if="${partition}" bs=1024k of="${imagepath}"
+    fi
+    sync
+}
+
+# Restore partion
+# - partition device node or label of partition to be restored
+# - image to use for restore
+restore_partition()
+{
+    # restore single  partition
+    local partition="${1}"
+    local imagepath="${2}"
+
+    # partition can be either full path or part name
+    [ ! -e ${partition} ] && partition="$(findfs PARTLABEL=${1})"
+
+    # only progress if partition is found
+    [ -n "${partition}" ] || return 1
+
+    # unmount partition if mounted
+    if grep -q ^"${partition}" /proc/mounts; then
+        umount "${partition}"
+    fi
+
+    # write partition content back
+    # we might have raw or compressed image
+    if [ -f "${imagepath}.gz" ];then
+      zcat "${imagepath}.gz" | dd of="${partition}"
+    elif [ -e "${imagepath}" ]; then
+      dd if="${imagepath}" of="${partition}"
+    fi
+    sync
+}
+
+##
+# Unlock crypt device
+# - encrypted device node
+# - device target label
+# - optional: if to log succcess to kmsg
+unlock_crypt_device()
+{
+    local device="${1}"
+    local label="${2}"
+    local key="$(obtain_crypto_key ${label})"
+
+    # unlock crypt_root
+    printf '%s' "${key}" | cryptsetup luksOpen "${device}" "${label}"
+    echo "Crypt device ${device} unlocked as ${label}"
+}
+
+# resize function imported from upstream UC18 initrd tuned for our case
+resize_writable()
+{
+    local writable_part="${1}"
+    local syspath="$(dirname "$(realpath /sys/class/block/"$(basename "${writable_part}")")")"
+    local device="$(realpath /dev/block/"$(cat "${syspath}"/dev)")"
+    local partition=$(cat "${syspath}"/"$(basename "${writable_part}")"/partition)
+
+    # We use 1024 bytes blocks for the operations
+    local device_size="$(($(cat "${syspath}"/size)/2))"
+    local sum_size="$(($(grep "$(basename "${device}")[a-z0-9]" /proc/partitions|\
+      tr -s ' '|cut -d' ' -f4|tr '\n' '+'|sed 's/+$//')))"
+
+    local free_space=$((device_size-sum_size))
+
+    local min_free_space=$((device_size/10))
+
+    if [ "${min_free_space}" -lt "${free_space}" ]; then
+        echo "initrd: found more than 10% free space on disk, resizing ${writable_part}"\
+            >/dev/kmsg || true
+        echo "initrd: partition to full disk size, see ${RSZLOG} for details" >/dev/kmsg || true
+        # back up the original partition table for later use or debugging
+        parted -ms "${device}" unit B print >${resize_tmpfile} 2>/dev/null
+        # grow our selected partition to max space available
+        table="$(parted -ms "${device}" print| grep ^/| cut -d: -f6)"
+        case $table in
+            gpt)
+                # do_gpt needs the device name
+                resize_do_gpt "${device}" >>${RSZLOG} 2>&1
+                ;;
+            mbr|msdos)
+                # do_mbr needs the device node and partition number
+                resize_do_mbr "${device}" "${partition}" >>${RSZLOG} 2>&1
+                ;;
+            *)
+                echo "unknown partition table type, not resizing" >>${RSZLOG}
+                exit 0
+                ;;
+        esac
+    fi
+}
+
+# resize function imported from upstream UC18 initrd tuned for our case
+resize_get_end()
+{
+    local NUM=$1
+    local lastpart="$(grep -cE ^'[0-9]{1,}': ${resize_tmpfile})"
+    if [ "${lastpart}" = "${NUM}" ]; then
+        local endsize="$(parted -ms "${DEV}" print| grep ^/ | cut -d: -f2)"
+    else
+        # we are not at the end ! get the start of the next partition
+        # (minus 1 byte) instead of using the absolute end of the disk
+        local endsize=$(($(parted -ms "${DEV}" unit B print|grep ^$((NUM+1)):|\
+            cut -d: -f2|sed 's/B$//')-1))
+    fi
+    echo "${endsize}"
+}
+
+# resize function imported from upstream UC18 initrd tuned for our case
+resize_do_gpt()
+{
+    local DISK="${1}"
+
+    local PARTNUM="$(sgdisk -p "${DISK}"|grep writable|sed -r 's/^([^ ]*[ ]*){1}([^ ]*).*/\2/')"
+    local GUID="$(sgdisk -i "${PARTNUM}" "${DISK}"|grep unique| sed 's/^.*: //g')"
+    local FIRST="$(sgdisk -i "${PARTNUM}" "${DISK}"|grep ^First| sed 's/^.*: //g;s/ .*$//')"
+
+    {
+        echo "fixing backup GPT"
+        sgdisk --move-second-header "${DISK}"
+
+        echo "Deleting partition ${PARTNUM}"
+        sgdisk -d "${PARTNUM}" "${DISK}"
+
+        echo "Creating partition ${PARTNUM} at ${FIRST}"
+        sgdisk -n "${PARTNUM}":"${FIRST}":0 "${DISK}"
+
+        echo "Setting GUID of partition ${PARTNUM} to ${GUID}"
+        sgdisk -u "${PARTNUM}":"${GUID}" "${DISK}"
+
+        echo "Setting name of ${PARTNUM} to writable"
+        sgdisk -c "${PARTNUM}":writable "${DISK}"
+
+        sgdisk -p "${DISK}" >/run/initramfs/new-gpt-table.txt 2>/dev/null
+    } >>${RSZLOG} 2>&1
+}
+
+# resize function imported from upstream UC18 initrd tuned for our case
+resize_do_mbr()
+{
+    local DEV="${1}"
+    local PART="${2}"
+    local endsize=$(resize_get_end "${PART}")
+    parted -s "${DEV}" resizepart "${PART}" "${endsize}"
+}
