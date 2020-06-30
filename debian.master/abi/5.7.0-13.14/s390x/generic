@@ -12411,6 +12411,7 @@ EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	sk_psock_destroy
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	sk_psock_drop
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	sk_psock_init
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	sk_psock_msg_verdict
+EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	sk_psock_tls_strp_read
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	sk_set_memalloc
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	sk_set_peek_off
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	sk_setup_caps
@@ -12482,6 +12483,7 @@ EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	software_node_find_by_name
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	software_node_fwnode
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	software_node_register
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	software_node_register_nodes
+EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	software_node_unregister
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	software_node_unregister_nodes
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	splice_to_pipe
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	split_page
