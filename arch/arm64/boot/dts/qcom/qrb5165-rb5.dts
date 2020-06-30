@@ -445,6 +445,38 @@
 		"GPIO_10_P"; /* Green LED */
 };
 
+&pm8150b_gpios {
+	gpio-line-names =
+		"NC",
+		"NC",
+		"NC",
+		"NC",
+		"HAP_BOOST_EN", /* SOM */
+		"SMB_STAT", /* SOM */
+		"NC",
+		"NC",
+		"SDM_FORCE_USB_BOOT",
+		"NC",
+		"NC",
+		"NC";
+};
+
+&pm8150l_gpios {
+	gpio-line-names =
+		"NC",
+		"PM3003A_EN",
+		"NC",
+		"NC",
+		"PM_GPIO5", /* HDMI RST_N */
+		"PM_GPIO-A", /* PWM */
+		"PM_GPIO7",
+		"NC",
+		"NC",
+		"PM_GPIO-B",
+		"NC",
+		"PM3003A_MODE";
+};
+
 &qupv3_id_0 {
 	status = "okay";
 };
