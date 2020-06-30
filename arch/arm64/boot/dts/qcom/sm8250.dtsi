@@ -1068,6 +1068,41 @@
 			#hwlock-cells = <1>;
 		};
 
+		slimbam: dma@3a84000 {
+			compatible = "qcom,bam-v1.7.0";
+			qcom,controlled-remotely;
+			reg = <0 0x3a84000 0 0x2a000>;
+			num-channels  = <31>;
+			interrupts = <GIC_SPI 164 IRQ_TYPE_LEVEL_HIGH>;
+			#dma-cells = <1>;
+			qcom,ee = <1>;
+			qcom,num-ees = <2>;
+			iommus = <&apps_smmu 0x1826 0x0>;
+		};
+
+		slim: slim@3ac0000 {
+			compatible = "qcom,slim-ngd-v2.2.0";
+			reg = <0 0x3ac0000 0 0x2c000>;
+			interrupts = <GIC_SPI 163 IRQ_TYPE_LEVEL_HIGH>;
+
+			qcom,apps-ch-pipes = <0x780000>;
+			qcom,ea-pc = <0x270>;
+			status = "okay";
+			dmas =	<&slimbam 3>, <&slimbam 4>,
+				<&slimbam 5>, <&slimbam 6>;
+			dma-names = "rx", "tx", "tx2", "rx2";
+
+			iommus = <&apps_smmu 0x1826 0x0>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			ngd@1 {
+				reg = <1>;
+				#address-cells = <2>;
+				#size-cells = <0>;
+			};
+		};
+
 		gpu: gpu@3d00000 {
 			/*
 			 * note: the amd,imageon compatible makes it possible
