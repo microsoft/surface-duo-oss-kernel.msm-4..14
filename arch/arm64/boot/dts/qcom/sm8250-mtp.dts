@@ -155,7 +155,7 @@
 
 &adsp {
 	status = "okay";
-	firmware-name = "qcom/sm8250/adsp.mbn";
+	firmware-name = "qcom/sm8250/adsp.mdt";
 };
 
 &apps_rsc {
