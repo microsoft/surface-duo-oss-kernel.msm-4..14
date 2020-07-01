@@ -6,6 +6,7 @@
  *
  * Copyright (c) 2004 Freescale Semiconductor, Inc.
  * Copyright (c) 2006, 2007  Maciej W. Rozycki
+ * Copyright 2020 NXP
  */
 
 #include <linux/kernel.h>
@@ -43,6 +44,7 @@ static const char *phy_state_to_str(enum phy_state st)
 	PHY_STATE_STR(UP)
 	PHY_STATE_STR(RUNNING)
 	PHY_STATE_STR(NOLINK)
+	PHY_STATE_STR(CHANGELINK)
 	PHY_STATE_STR(HALTED)
 	}
 
@@ -913,6 +915,7 @@ void phy_state_machine(struct work_struct *work)
 		break;
 	case PHY_NOLINK:
 	case PHY_RUNNING:
+	case PHY_CHANGELINK:
 		err = phy_check_link_status(phydev);
 		break;
 	case PHY_HALTED:
