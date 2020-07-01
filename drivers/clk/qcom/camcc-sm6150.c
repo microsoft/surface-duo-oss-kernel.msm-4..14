@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1806,7 +1806,8 @@ static int __init cam_cc_sm6150_init(void)
 {
 	return platform_driver_register(&cam_cc_sm6150_driver);
 }
-subsys_initcall(cam_cc_sm6150_init);
+early_subsys_initcall(cam_cc_sm6150_init, EARLY_SUBSYS_PLATFORM,
+EARLY_INIT_LEVEL5);
 
 static void __exit cam_cc_sm6150_exit(void)
 {
