@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 NXP
+ * Copyright 2017,2020 NXP
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -69,8 +69,10 @@ static int nxp_config_init(struct phy_device *phydev)
 
 		if (reg_val & ESTATUS_100T1_FULL) {
 			/* update phydev to include the supported features */
-			phydev->supported |= SUPPORTED_100BASET1_FULL;
-			phydev->advertising |= ADVERTISED_100BASET1_FULL;
+			linkmode_set_bit(ETHTOOL_LINK_MODE_100baseT_Full_BIT,
+					 phydev->supported);
+			linkmode_set_bit(ETHTOOL_LINK_MODE_100baseT_Full_BIT,
+					 phydev->advertising);
 		}
 	}
 
@@ -1900,7 +1902,7 @@ static struct phy_driver nxp_drivers[] = {
 	 .phy_id = NXP_PHY_ID_TJA1100,
 	 .name = "TJA1100",
 	 .phy_id_mask = NXP_PHY_ID_MASK,
-	 .features = (SUPPORTED_TP | SUPPORTED_MII | SUPPORTED_100BASET1_FULL),
+	 .features = PHY_BASIC_T1_FEATURES,
 	 .flags = 0,
 	 .probe = &nxp_probe,
 	 .remove = &nxp_remove,
@@ -1917,7 +1919,7 @@ static struct phy_driver nxp_drivers[] = {
 	 .phy_id = NXP_PHY_ID_TJA1102P0,
 	 .name = "TJA1102_p0",
 	 .phy_id_mask = NXP_PHY_ID_MASK,
-	 .features = (SUPPORTED_TP | SUPPORTED_MII | SUPPORTED_100BASET1_FULL),
+	 .features = PHY_BASIC_T1_FEATURES,
 	 .flags = 0,
 	 .probe = &nxp_probe,
 	 .remove = &nxp_remove,
@@ -1934,7 +1936,7 @@ static struct phy_driver nxp_drivers[] = {
 	 .phy_id = NXP_PHY_ID_TJA1102S,
 	 .name = "TJA1102S",
 	 .phy_id_mask = NXP_PHY_ID_MASK,
-	 .features = (SUPPORTED_TP | SUPPORTED_MII | SUPPORTED_100BASET1_FULL),
+	 .features = PHY_BASIC_T1_FEATURES,
 	 .flags = 0,
 	 .probe = &nxp_probe,
 	 .remove = &nxp_remove,
@@ -1954,7 +1956,7 @@ static struct phy_driver nxp_TJA1102p1_fixup_driver = {
 	.phy_id = NXP_PHY_ID_TJA1102P1,
 	.name = "TJA1102_p1",
 	.phy_id_mask = NXP_PHY_ID_MASK,
-	.features = (SUPPORTED_TP | SUPPORTED_MII | SUPPORTED_100BASET1_FULL),
+	.features = PHY_BASIC_T1_FEATURES,
 	.flags = 0,
 	.probe = &nxp_probe,
 	.remove = &nxp_remove,
