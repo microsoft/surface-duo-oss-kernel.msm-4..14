@@ -546,6 +546,8 @@ struct diag_mask_info {
 	int mask_len;
 	uint8_t *update_buf;
 	int update_buf_len;
+	uint8_t *update_buf_client;
+	int update_buf_client_len;
 	uint8_t status;
 	struct mutex lock;
 };
@@ -631,6 +633,7 @@ struct diagchar_dev {
 	struct list_head diag_id_list;
 	struct mutex diag_id_mutex;
 	struct mutex cmd_reg_mutex;
+	spinlock_t dci_mempool_lock;
 	uint32_t cmd_reg_count;
 	struct mutex diagfwd_channel_mutex[NUM_PERIPHERALS];
 	/* Sizes that reflect memory pool sizes */
