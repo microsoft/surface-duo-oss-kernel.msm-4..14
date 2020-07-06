@@ -447,6 +447,13 @@
 	};
 };
 
+&gpu {
+	zap-shader {
+		memory-region = <&gpu_mem>;
+		firmware-name = "qcom/a650_zap.mdt";
+	};
+};
+
 /* LS-I2C0 */
 &i2c4 {
 	status = "okay";
