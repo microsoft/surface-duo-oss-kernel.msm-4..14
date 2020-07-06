@@ -15759,6 +15759,7 @@ EXPORT_SYMBOL_GPL	 drivers/usb/gadget/function/usb_f_rndis 0x00000000	rndis_sign
 EXPORT_SYMBOL_GPL	 drivers/usb/gadget/function/usb_f_rndis 0x00000000	rndis_uninit
 EXPORT_SYMBOL_GPL	 drivers/usb/gadget/libcomposite 0x00000000	alloc_ep_req
 EXPORT_SYMBOL_GPL	 drivers/usb/gadget/libcomposite 0x00000000	config_ep_by_speed
+EXPORT_SYMBOL_GPL	 drivers/usb/gadget/libcomposite 0x00000000	config_ep_by_speed_and_alt
 EXPORT_SYMBOL_GPL	 drivers/usb/gadget/libcomposite 0x00000000	unregister_gadget_item
 EXPORT_SYMBOL_GPL	 drivers/usb/gadget/libcomposite 0x00000000	usb_add_config
 EXPORT_SYMBOL_GPL	 drivers/usb/gadget/libcomposite 0x00000000	usb_add_config_only
