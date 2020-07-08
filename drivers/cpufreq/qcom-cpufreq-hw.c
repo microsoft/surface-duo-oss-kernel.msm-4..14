@@ -30,7 +30,6 @@
 #define REG_PERF_STATE			0x920
 
 static unsigned long cpu_hw_rate, xo_rate;
-static struct platform_device *global_pdev;
 static bool icc_scaling_enabled;
 
 static int qcom_cpufreq_set_bw(struct cpufreq_policy *policy,
@@ -249,7 +248,8 @@ static void qcom_get_related_cpus(int index, struct cpumask *m)
 
 static int qcom_cpufreq_hw_cpu_init(struct cpufreq_policy *policy)
 {
-	struct device *dev = &global_pdev->dev;
+	struct platform_device *pdev = cpufreq_get_driver_data();
+	struct device *dev = &pdev->dev;
 	struct of_phandle_args args;
 	struct device_node *cpu_np;
 	struct device *cpu_dev;
@@ -276,7 +276,7 @@ static int qcom_cpufreq_hw_cpu_init(struct cpufreq_policy *policy)
 
 	index = args.args[0];
 
-	res = platform_get_resource(global_pdev, IORESOURCE_MEM, index);
+	res = platform_get_resource(pdev, IORESOURCE_MEM, index);
 	if (!res)
 		return -ENODEV;
 
@@ -325,11 +325,12 @@ static int qcom_cpufreq_hw_cpu_exit(struct cpufreq_policy *policy)
 {
 	struct device *cpu_dev = get_cpu_device(policy->cpu);
 	void __iomem *base = policy->driver_data - REG_PERF_STATE;
+	struct platform_device *pdev = cpufreq_get_driver_data();
 
 	dev_pm_opp_remove_all_dynamic(cpu_dev);
 	dev_pm_opp_of_cpumask_remove_table(policy->related_cpus);
 	kfree(policy->freq_table);
-	devm_iounmap(&global_pdev->dev, base);
+	devm_iounmap(&pdev->dev, base);
 
 	return 0;
 }
@@ -374,7 +375,7 @@ static int qcom_cpufreq_hw_driver_probe(struct platform_device *pdev)
 	cpu_hw_rate = clk_get_rate(clk) / CLK_HW_DIV;
 	clk_put(clk);
 
-	global_pdev = pdev;
+	cpufreq_qcom_hw_driver.driver_data = pdev;
 
 	/* Check for optional interconnect paths on CPU0 */
 	cpu_dev = get_cpu_device(0);
