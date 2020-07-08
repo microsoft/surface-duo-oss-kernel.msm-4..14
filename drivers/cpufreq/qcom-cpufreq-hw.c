@@ -12,6 +12,7 @@
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
 #include <linux/pm_opp.h>
+#include <linux/regmap.h>
 #include <linux/slab.h>
 
 #define LUT_MAX_ENTRIES			40U
@@ -32,6 +33,7 @@ struct qcom_cpufreq_soc_data {
 
 struct qcom_cpufreq_data {
 	void __iomem *base;
+	struct regmap *regmap;
 	const struct qcom_cpufreq_soc_data *soc_data;
 };
 
@@ -85,8 +87,11 @@ static int qcom_cpufreq_hw_target_index(struct cpufreq_policy *policy,
 	struct qcom_cpufreq_data *data = policy->driver_data;
 	const struct qcom_cpufreq_soc_data *soc_data = data->soc_data;
 	unsigned long freq = policy->freq_table[index].frequency;
+	int ret;
 
-	writel_relaxed(index, data->base + soc_data->reg_perf_state);
+	ret = regmap_write(data->regmap, soc_data->reg_perf_state, index);
+	if (ret)
+		return ret;
 
 	if (icc_scaling_enabled)
 		qcom_cpufreq_set_bw(policy, freq);
@@ -102,6 +107,7 @@ static unsigned int qcom_cpufreq_hw_get(unsigned int cpu)
 	const struct qcom_cpufreq_soc_data *soc_data;
 	struct cpufreq_policy *policy;
 	unsigned int index;
+	int ret;
 
 	policy = cpufreq_cpu_get_raw(cpu);
 	if (!policy)
@@ -110,7 +116,10 @@ static unsigned int qcom_cpufreq_hw_get(unsigned int cpu)
 	data = policy->driver_data;
 	soc_data = data->soc_data;
 
-	index = readl_relaxed(data->base + soc_data->reg_perf_state);
+	ret = regmap_read(data->regmap, soc_data->reg_perf_state, &index);
+	if (ret)
+		return 0;
+
 	index = min(index, LUT_MAX_ENTRIES - 1);
 
 	return policy->freq_table[index].frequency;
@@ -123,9 +132,12 @@ static unsigned int qcom_cpufreq_hw_fast_switch(struct cpufreq_policy *policy,
 	const struct qcom_cpufreq_soc_data *soc_data = data->soc_data;
 	unsigned int index;
 	unsigned long freq;
+	int ret;
 
 	index = policy->cached_resolved_idx;
-	writel_relaxed(index, data->base + soc_data->reg_perf_state);
+	ret = regmap_write(data->regmap, soc_data->reg_perf_state, index);
+	if (ret)
+		return 0;
 
 	freq = policy->freq_table[index].frequency;
 	arch_set_freq_scale(policy->related_cpus, freq,
@@ -171,14 +183,24 @@ static int qcom_cpufreq_hw_read_lut(struct device *cpu_dev,
 	}
 
 	for (i = 0; i < LUT_MAX_ENTRIES; i++) {
-		data = readl_relaxed(drv_data->base + soc_data->reg_freq_lut +
-				      i * soc_data->lut_row_size);
+		ret = regmap_read(drv_data->regmap, soc_data->reg_freq_lut +
+				  i * soc_data->lut_row_size, &data);
+		if (ret) {
+			kfree(table);
+			return ret;
+		}
+
 		src = FIELD_GET(LUT_SRC, data);
 		lval = FIELD_GET(LUT_L_VAL, data);
 		core_count = FIELD_GET(LUT_CORE_COUNT, data);
 
-		data = readl_relaxed(drv_data->base + soc_data->reg_volt_lut +
-				      i * soc_data->lut_row_size);
+		ret = regmap_read(drv_data->regmap, soc_data->reg_volt_lut +
+				  i * soc_data->lut_row_size, &data);
+		if (ret) {
+			kfree(table);
+			return ret;
+		}
+
 		volt = FIELD_GET(LUT_VOLT, data) * 1000;
 
 		if (src)
@@ -248,6 +270,13 @@ static void qcom_get_related_cpus(int index, struct cpumask *m)
 	}
 }
 
+static struct regmap_config qcom_cpufreq_regmap = {
+	.reg_bits = 32,
+	.reg_stride = 4,
+	.val_bits = 32,
+	.fast_io = true,
+};
+
 static const struct qcom_cpufreq_soc_data qcom_soc_data = {
 	.reg_enable = 0x0,
 	.reg_freq_lut = 0x110,
@@ -274,6 +303,7 @@ static int qcom_cpufreq_hw_cpu_init(struct cpufreq_policy *policy)
 	struct qcom_cpufreq_data *data;
 	const struct of_device_id *match;
 	int ret, index;
+	u32 val;
 
 	cpu_dev = get_cpu_device(policy->cpu);
 	if (!cpu_dev) {
@@ -316,9 +346,18 @@ static int qcom_cpufreq_hw_cpu_init(struct cpufreq_policy *policy)
 
 	data->soc_data = match->data;
 	data->base = base;
+	data->regmap = devm_regmap_init_mmio(dev, base, &qcom_cpufreq_regmap);
+	if (IS_ERR(data->regmap)) {
+		ret = PTR_ERR(data->regmap);
+		goto error;
+	}
 
 	/* HW should be in enabled state to proceed */
-	if (!(readl_relaxed(base + data->soc_data->reg_enable) & 0x1)) {
+	ret = regmap_read(data->regmap, data->soc_data->reg_enable, &val);
+	if (ret)
+		goto error;
+
+	if (!(val & 0x1)) {
 		dev_err(dev, "Domain-%d cpufreq hardware not enabled\n", index);
 		ret = -ENODEV;
 		goto error;
