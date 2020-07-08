@@ -219,6 +219,15 @@ config THERMAL_MMIO
 	  register or shared memory, is a potential candidate to work with this
 	  driver.
 
+config S32GEN1_THERMAL
+	bool "Temperature sensor driver for NXP s32G SoCs"
+	depends on SYSFS && THERMAL_HWMON
+	help
+	  Support for Temperature Monitoring Unit (TMU) found on NXP s32gen1
+	  SoCs. It supports reporting the immediate and average temperature
+	  in a manner compatible with lm-sensors. Calibration takes into
+	  consideration the trim from the fuses, which are chip specific.
+
 config HISI_THERMAL
 	tristate "Hisilicon thermal driver"
 	depends on ARCH_HISI || COMPILE_TEST
