@@ -34,6 +34,17 @@
 		regulator-always-on;
 	};
 
+	hdmi-out {
+		compatible = "hdmi-connector";
+		type = "a";
+
+		port {
+			hdmi_con: endpoint {
+				remote-endpoint = <&lt9611_out>;
+			};
+		};
+	};
+
 	leds {
 		compatible = "gpio-leds";
 
@@ -58,6 +69,37 @@
 			default-state = "off";
 		};
 
+	};
+
+	lt9611_1v2: lt9611-vdd12-regulator {
+		compatible = "regulator-fixed";
+		regulator-name = "LT9611_1V2";
+
+		vin-supply = <&vdc_3v3>;
+		regulator-min-microvolt = <1200000>;
+		regulator-max-microvolt = <1200000>;
+
+		/* not connected on the board
+		gpio = <&pm8150l_gpios 7 GPIO_ACTIVE_HIGH>;
+		enable-active-high;
+		*/
+		regulator-boot-on;
+		regulator-always-on;
+	};
+
+	lt9611_3v3: lt9611-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "LT9611_3V3";
+
+		vin-supply = <&vdc_3v3>;
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		regulator-boot-on;
+		regulator-always-on;
+
+		// TODO: make it possible to drive same GPIO from two clients
+		// gpio = <&pm8150l_gpios 7 GPIO_ACTIVE_HIGH>;
+		// enable-active-high;
 	};
 
 	vbat: vbat-regulator {
@@ -459,7 +501,7 @@
 	ports {
 		port@1 {
 			endpoint {
-				//remote-endpoint = <&lt9611_a>;
+				remote-endpoint = <&lt9611_a>;
 				data-lanes = <0 1 2 3>;
 			};
 		};
@@ -485,6 +527,54 @@
 
 &i2c5 {
 	status = "okay";
+	clock-frequency = <400000>;
+
+	lt9611_codec: hdmi-bridge@2b {
+		compatible = "lontium,lt9611uxc";
+		reg = <0x2b>;
+		#sound-dai-cells = <1>;
+
+		interrupts-extended = <&tlmm 63 IRQ_TYPE_EDGE_FALLING>;
+
+		reset-gpios = <&pm8150l_gpios 5 GPIO_ACTIVE_HIGH>;
+
+		vdd-supply = <&lt9611_1v2>;
+		vcc-supply = <&lt9611_3v3>;
+
+		pinctrl-names = "default";
+		pinctrl-0 = <&lt9611_irq_pin &lt9611_rst_pin>;
+
+		ports {
+			#address-cells = <1>;
+			#size-cells = <0>;
+
+			port@0 {
+				reg = <0>;
+
+				lt9611_out: endpoint {
+					remote-endpoint = <&hdmi_con>;
+				};
+			};
+
+			port@1 {
+				reg = <1>;
+
+				lt9611_a: endpoint {
+					remote-endpoint = <&dsi0_out>;
+				};
+			};
+
+#if 0
+			port@2 {
+				reg = <2>;
+
+				lt9611_b: endpoint {
+					remote-endpoint = <&dsi1_out>;
+				};
+			};
+#endif
+		};
+	};
 };
 
 /* LS-I2C1 */
@@ -545,6 +635,15 @@
 		"PM_GPIO-B",
 		"NC",
 		"PM3003A_MODE";
+
+	lt9611_rst_pin: lt9611-rst-pin {
+		pins = "gpio5";
+		function = "normal";
+
+		output-high;
+		input-disable;
+		power-source = <0>;
+	};
 };
 
 &qupv3_id_0 {
@@ -747,6 +846,13 @@
 		"HST_BLE_SNS_UART_RX",
 		"HST_WLAN_UART_TX",
 		"HST_WLAN_UART_RX";
+
+	lt9611_irq_pin: lt9611-irq {
+		pins = "gpio63";
+		function = "gpio";
+		bias-disable;
+	};
+
 };
 
 &uart12 {
