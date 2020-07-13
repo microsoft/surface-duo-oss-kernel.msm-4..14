@@ -386,6 +386,7 @@ void shd_update_shared_plane(struct drm_plane *plane,
 static int shd_display_atomic_check(struct msm_kms *kms,
 		struct drm_atomic_state *state)
 {
+	struct msm_drm_private *priv;
 	struct drm_crtc *crtc;
 	struct drm_crtc_state *old_crtc_state, *new_crtc_state;
 	struct drm_connector_state *conn_state;
@@ -419,7 +420,7 @@ static int shd_display_atomic_check(struct msm_kms *kms,
 	}
 
 	if (!base_mask)
-		goto end;
+		return g_shd_kms->orig_funcs->atomic_check(kms, state);
 
 	/*
 	 * If base display need to be enabled/disabled, add state
@@ -431,6 +432,11 @@ static int shd_display_atomic_check(struct msm_kms *kms,
 		if (!(drm_crtc_mask(base->crtc) & base_mask))
 			continue;
 
+		/* always add base crtc's lock into state */
+		rc = drm_modeset_lock(&base->crtc->mutex, state->acquire_ctx);
+		if (rc)
+			return rc;
+
 		/* read old crtc state from all shared displays */
 		crtc_mask = active_mask = 0;
 		list_for_each_entry(display, &base->disp_list, head) {
@@ -438,12 +444,6 @@ static int shd_display_atomic_check(struct msm_kms *kms,
 			if (display->crtc->state->active)
 				active_mask |= drm_crtc_mask(display->crtc);
 		}
-
-		/* always add base crtc into state */
-		new_crtc_state = drm_atomic_get_crtc_state(state,
-				base->crtc);
-		if (IS_ERR(new_crtc_state))
-			return PTR_ERR(new_crtc_state);
 
 		/* apply changes in state */
 		active_mask |= (enable_mask & crtc_mask);
@@ -453,6 +453,14 @@ static int shd_display_atomic_check(struct msm_kms *kms,
 		/* skip if there is no change */
 		if (base->crtc->state->active == active)
 			continue;
+
+		new_crtc_state = drm_atomic_get_crtc_state(state,
+				base->crtc);
+		if (IS_ERR(new_crtc_state))
+			return PTR_ERR(new_crtc_state);
+
+		/* if base display is in state, no need to wait */
+		base_mask &= ~drm_crtc_mask(base->crtc);
 
 		new_crtc_state->active = active;
 
@@ -479,8 +487,21 @@ static int shd_display_atomic_check(struct msm_kms *kms,
 				base->crtc->base.id, base->mode.name, active);
 	}
 
-end:
-	return g_shd_kms->orig_funcs->atomic_check(kms, state);
+	rc = g_shd_kms->orig_funcs->atomic_check(kms, state);
+	if (rc)
+		return rc;
+
+	/* wait if there is base thread running */
+	if (base_mask) {
+		priv = state->dev->dev_private;
+		spin_lock(&priv->pending_crtcs_event.lock);
+		wait_event_interruptible_locked(
+				priv->pending_crtcs_event,
+				!(priv->pending_crtcs & base_mask));
+		spin_unlock(&priv->pending_crtcs_event.lock);
+	}
+
+	return 0;
 }
 
 static int shd_connector_get_info(struct drm_connector *connector,
