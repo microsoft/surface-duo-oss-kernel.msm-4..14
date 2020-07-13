@@ -17842,12 +17842,12 @@ EXPORT_SYMBOL_GPL	 sound/pci/hda/snd-hda-codec-generic 0x00000000	hda_main_out_b
 EXPORT_SYMBOL_GPL	 sound/pci/hda/snd-hda-codec-generic 0x00000000	snd_hda_activate_path
 EXPORT_SYMBOL_GPL	 sound/pci/hda/snd-hda-codec-generic 0x00000000	snd_hda_add_new_path
 EXPORT_SYMBOL_GPL	 sound/pci/hda/snd-hda-codec-generic 0x00000000	snd_hda_gen_add_kctl
-EXPORT_SYMBOL_GPL	 sound/pci/hda/snd-hda-codec-generic 0x00000000	snd_hda_gen_add_micmute_led
+EXPORT_SYMBOL_GPL	 sound/pci/hda/snd-hda-codec-generic 0x00000000	snd_hda_gen_add_micmute_led_cdev
+EXPORT_SYMBOL_GPL	 sound/pci/hda/snd-hda-codec-generic 0x00000000	snd_hda_gen_add_mute_led_cdev
 EXPORT_SYMBOL_GPL	 sound/pci/hda/snd-hda-codec-generic 0x00000000	snd_hda_gen_build_controls
 EXPORT_SYMBOL_GPL	 sound/pci/hda/snd-hda-codec-generic 0x00000000	snd_hda_gen_build_pcms
 EXPORT_SYMBOL_GPL	 sound/pci/hda/snd-hda-codec-generic 0x00000000	snd_hda_gen_check_power_status
 EXPORT_SYMBOL_GPL	 sound/pci/hda/snd-hda-codec-generic 0x00000000	snd_hda_gen_fix_pin_power
-EXPORT_SYMBOL_GPL	 sound/pci/hda/snd-hda-codec-generic 0x00000000	snd_hda_gen_fixup_micmute_led
 EXPORT_SYMBOL_GPL	 sound/pci/hda/snd-hda-codec-generic 0x00000000	snd_hda_gen_free
 EXPORT_SYMBOL_GPL	 sound/pci/hda/snd-hda-codec-generic 0x00000000	snd_hda_gen_hp_automute
 EXPORT_SYMBOL_GPL	 sound/pci/hda/snd-hda-codec-generic 0x00000000	snd_hda_gen_init
@@ -20656,7 +20656,6 @@ EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	get_state_synchronize_rcu
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	get_task_mm
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	get_task_pid
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	get_timespec64
-EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	get_umwait_control_msr
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	get_user_pages_fast
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	get_xsave_addr
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	getboottime64
