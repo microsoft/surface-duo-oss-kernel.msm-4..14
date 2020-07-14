@@ -188,7 +188,6 @@
 		pinctrl-names = "default";
 		pinctrl-0 = <&sdx_ext_ipc_gpio_default>;
 	};
-
 };
 
 &thermal_zones {
