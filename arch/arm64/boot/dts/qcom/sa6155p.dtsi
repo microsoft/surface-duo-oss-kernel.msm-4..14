@@ -599,7 +599,7 @@
 	devices = <&cmd_db &apps_rsc &ldoa2 &ldoa5 &ldoa10 &ldoa11
 		&ldoa12 &ldoa17 &smpa2 &smpa4 &ufs_phy_gdsc &clock_rpmh
 		&clock_gcc &ad_hoc_bus &ufs_ice &ufsphy_mem &ufshc_mem
-		&tlmm &bps_gdsc &ipe_0_gdsc
+		&tlmm &bps_gdsc &ipe_0_gdsc &sdhc_1 &sdcc1_ice
 		&ife_0_gdsc &ife_1_gdsc &titan_top_gdsc &usb20_sec_gdsc
 		&qupv3_se4_i2c &qupv3_se10_i2c
 		&qupv3_2 &qupv3_1 &qupv3_0
