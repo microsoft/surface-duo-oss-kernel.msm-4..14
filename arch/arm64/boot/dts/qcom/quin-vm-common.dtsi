@@ -75,6 +75,18 @@
 			};
 		};
 	};
+
+	virt_blk: virt_blk {
+		compatible = "virt_blk,names";
+		block-names = "la_system",
+				"la_userdata",
+				"la_vendor",
+				"la_persist",
+				"modem",
+				"bluetooth",
+				"la_misc",
+				"vbmeta";
+	};
 };
 
 &soc {
