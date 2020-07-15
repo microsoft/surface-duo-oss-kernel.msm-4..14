@@ -1,5 +1,5 @@
 /*
- * Copyright 2017 NXP
+ * Copyright 2017,2020 NXP
  *
  * This program is free software; you can redistribute  it and/or modify it
  * under  the terms of  the GNU General  Public License as published by the
@@ -161,8 +161,6 @@
  * include/uapi/linux/ethtool.h
  */
 #define ESTATUS_100T1_FULL        BIT(7)
-#define SUPPORTED_100BASET1_FULL  BIT(27)
-#define ADVERTISED_100BASET1_FULL BIT(27)
 
 /* length of delay during one loop iteration in
  * wait_on_condition (in us)

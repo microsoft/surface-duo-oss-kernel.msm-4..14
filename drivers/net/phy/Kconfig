@@ -444,6 +444,12 @@ config NXP_TJA11XX_PHY
 	---help---
 	  Currently supports the NXP TJA1100 and TJA1101 PHY.
 
+config NXP_TJA110X_PHY
+	tristate "Driver for NXP TJA110X PHY"
+	help
+	  Currently supports the TJA110X Ethernet PHYs.
+	  Enables support for TJA1102 PHY from S32V234 NXP platforms.
+
 config QSEMI_PHY
 	tristate "Quality Semiconductor PHYs"
 	---help---
