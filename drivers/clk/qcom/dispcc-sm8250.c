@@ -1350,6 +1350,34 @@ static int disp_cc_sm8250_probe(struct platform_device *pdev)
 {
 	struct regmap *regmap;
 
+	if (of_property_read_bool(pdev->dev.of_node, "dpu-disable-interfaces")) {
+#define INTF_TIMING_ENGINE_EN           0x000
+#define INTF_MUX                        0x25C
+		void *ptr;
+		u32 d;
+		int j, i;
+		phys_addr_t base[] = {
+			0x6b000,
+			0x6b800,
+			0x6c000,
+			0x6c800,
+		};
+		for (j = 0; j < ARRAY_SIZE(base); j++) {
+			pr_info("base %x\n", base[j]);
+			ptr = ioremap(0xae00000 + base[j], 0x800);
+			for (i = 0; i < 4; i++) {
+				pr_info("%d\n", i);
+				writel(0, ptr + INTF_TIMING_ENGINE_EN);
+				d = readl(ptr + INTF_MUX);
+				pr_info("%d: %x\n", i, d);
+				//writel(d | 0xf, ptr + INTF_MUX);
+				writel(0xf000f, ptr + INTF_MUX);
+			}
+			iounmap(ptr);
+		}
+		pr_err("DISABLED INTF!!!\n");
+	}
+
 	regmap = qcom_cc_map(pdev, &disp_cc_sm8250_desc);
 	if (IS_ERR(regmap)) {
 		pr_err("Failed to map the disp_cc registers\n");

@@ -505,6 +505,10 @@
 	};
 };
 
+&dispcc {
+	dpu-disable-interfaces;
+};
+
 &dsi0 {
 	status = "okay";
 	vdda-supply = <&vreg_l5a_0p875>;
