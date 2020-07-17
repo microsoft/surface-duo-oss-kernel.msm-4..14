@@ -1,0 +1,21 @@
+* virtio block names
+
+Required properties:
+
+- compatible:	"virt_blk,names" compatibility string
+- block-names:	Name of the partitions to set for virtual disks
+
+Example:
+
+        virt_blk: virt_blk {
+                compatible = "virt_blk,names";
+                block-names = "la_system",
+                                "la_userdata",
+                                "la_vendor",
+                                "la_persist",
+                                "modem",
+                                "bluetooth",
+                                "la_misc",
+                                "vbmeta";
+        };
+
