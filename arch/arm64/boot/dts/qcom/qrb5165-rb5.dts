@@ -485,7 +485,10 @@
 		platform {
 			sound-dai = <&q6routing>;
 		};
-		//FIXME DUMMY Codec for now!
+
+		codec {
+			sound-dai =  <&lt9611_codec 0>;
+		};
 	};
 };
 
