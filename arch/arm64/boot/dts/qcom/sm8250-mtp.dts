@@ -151,6 +151,20 @@
 		regulator-always-on;
 		vin-supply = <&vph_pwr>;
 	};
+
+	display_panel_avdd: display_gpio_regulator@1 {
+		compatible = "regulator-fixed";
+		regulator-name = "display_panel_avdd";
+		regulator-min-microvolt = <5500000>;
+		regulator-max-microvolt = <5500000>;
+		regulator-enable-ramp-delay = <233>;
+		gpio = <&tlmm 61 0>;
+		enable-active-high;
+		regulator-boot-on;
+		pinctrl-names = "default";
+		pinctrl-0 = <&display_panel_avdd_default>;
+	};
+
 };
 
 &adsp {
@@ -463,6 +477,47 @@
 	firmware-name = "qcom/sm8250/cdsp.mbn";
 };
 
+&dsi0 {
+	status = "okay";
+	vdda-supply = <&vreg_l9a_1p2>;
+
+	#address-cells = <1>;
+	#size-cells = <0>;
+
+	ports {
+		port@1 {
+			endpoint {
+				data-lanes = <0 1 2 3>;
+			};
+		};
+	};
+};
+
+&dsi0_phy {
+	status = "okay";
+	vdds-supply = <&vreg_l5a_0p875>;
+};
+
+#if 0
+&dsi1 {
+	status = "okay";
+	vdda-supply = <&vreg_l9a_1p2>;
+
+	ports {
+		port@1 {
+			endpoint {
+				data-lanes = <0 1 2 3>;
+			};
+		};
+	};
+};
+
+&dsi1_phy {
+	status = "okay";
+	vdds-supply = <&vreg_l5a_0p875>;
+};
+#endif
+
 &gpu {
 	zap-shader {
 		memory-region = <&gpu_mem>;
@@ -488,6 +543,14 @@
 
 	/* smb1390 @ 10 */
 	/* rtc6226 @ 64 */
+};
+
+&mdss {
+	status = "okay";
+};
+
+&mdss_mdp {
+	status = "okay";
 };
 
 &pm8150_adc {
@@ -628,6 +691,21 @@
 
 &tlmm {
 	gpio-reserved-ranges = <28 4>, <40 4>;
+
+	display_panel_avdd_default: display_panel_avdd_default {
+                mux {
+                        pins = "gpio61";
+                        function = "gpio";
+                };
+
+                config {
+                        pins = "gpio61";
+                        drive-strength = <8>;
+                        bias-disable = <0>;
+                        output-high;
+                };
+        };
+
 };
 
 &uart12 {
