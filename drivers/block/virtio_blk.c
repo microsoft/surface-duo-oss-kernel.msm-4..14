@@ -15,6 +15,7 @@
 #include <linux/blk-mq.h>
 #include <linux/blk-mq-virtio.h>
 #include <linux/numa.h>
+#include <linux/of.h>
 #include <linux/pfk.h>
 #include <crypto/ice.h>
 
@@ -760,6 +761,7 @@ static int virtblk_probe(struct virtio_device *vdev)
 	u32 v, blk_size, sg_elems, opt_io_size;
 	u16 min_io_size;
 	u8 physical_block_exp, alignment_offset;
+	struct device_node *blk_names;
 
 	if (!vdev->config->get) {
 		dev_err(&vdev->dev, "%s failure: config access disabled\n",
@@ -845,7 +847,23 @@ static int virtblk_probe(struct virtio_device *vdev)
 
 	q->queuedata = vblk;
 
-	virtblk_name_format("vd", index, vblk->disk->disk_name, DISK_NAME_LEN);
+	blk_names = of_find_compatible_node(NULL, NULL,	"virt_blk,names");
+	if (!blk_names)
+		virtblk_name_format("vd", index, vblk->disk->disk_name,
+								DISK_NAME_LEN);
+	else {
+		const char *block_name;
+
+		if (of_property_read_string_index(blk_names, "block-names",
+						index, &block_name) < 0)
+			virtblk_name_format("vd", index,
+						vblk->disk->disk_name,
+						DISK_NAME_LEN);
+		else
+			snprintf(vblk->disk->disk_name,
+				sizeof(vblk->disk->disk_name),
+				block_name);
+	}
 
 	vblk->disk->major = major;
 	vblk->disk->first_minor = index_to_minor(index);
