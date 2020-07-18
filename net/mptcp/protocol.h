@@ -89,6 +89,7 @@
 #define MPTCP_SEND_SPACE	1
 #define MPTCP_WORK_RTX		2
 #define MPTCP_WORK_EOF		3
+#define MPTCP_FALLBACK_DONE	4
 
 struct mptcp_options_received {
 	u64	sndr_key;
@@ -173,8 +174,6 @@ struct mptcp_pm_data {
 	u8		local_addr_max;
 	u8		subflows_max;
 	u8		status;
-
-	struct		work_struct work;
 };
 
 struct mptcp_data_frag {
@@ -208,6 +207,12 @@ struct mptcp_sock {
 	struct socket	*subflow; /* outgoing connect/listener/!mp_capable */
 	struct sock	*first;
 	struct mptcp_pm_data	pm;
+	struct {
+		u32	space;	/* bytes copied in last measurement window */
+		u32	copied; /* bytes copied in this measurement window */
+		u64	time;	/* start time of measurement window */
+		u64	rtt_us; /* last maximum rtt of subflows */
+	} rcvq_space;
 };
 
 #define mptcp_for_each_subflow(__msk, __subflow)			\
@@ -250,6 +255,7 @@ struct mptcp_subflow_request_sock {
 	u32	local_nonce;
 	u32	remote_nonce;
 	struct mptcp_sock	*msk;
+	struct hlist_nulls_node token_node;
 };
 
 static inline struct mptcp_subflow_request_sock *
@@ -337,7 +343,7 @@ mptcp_subflow_get_mapped_dsn(const struct mptcp_subflow_context *subflow)
 
 int mptcp_is_enabled(struct net *net);
 bool mptcp_subflow_data_available(struct sock *sk);
-void mptcp_subflow_init(void);
+void __init mptcp_subflow_init(void);
 
 /* called with sk socket lock held */
 int __mptcp_subflow_connect(struct sock *sk, int ifindex,
@@ -355,14 +361,9 @@ static inline void mptcp_subflow_tcp_fallback(struct sock *sk,
 	inet_csk(sk)->icsk_af_ops = ctx->icsk_af_ops;
 }
 
-extern const struct inet_connection_sock_af_ops ipv4_specific;
+void __init mptcp_proto_init(void);
 #if IS_ENABLED(CONFIG_MPTCP_IPV6)
-extern const struct inet_connection_sock_af_ops ipv6_specific;
-#endif
-
-void mptcp_proto_init(void);
-#if IS_ENABLED(CONFIG_MPTCP_IPV6)
-int mptcp_proto_v6_init(void);
+int __init mptcp_proto_v6_init(void);
 #endif
 
 struct sock *mptcp_sk_clone(const struct sock *sk,
@@ -372,17 +373,27 @@ void mptcp_get_options(const struct sk_buff *skb,
 		       struct mptcp_options_received *mp_opt);
 
 void mptcp_finish_connect(struct sock *sk);
+void mptcp_rcv_space_init(struct mptcp_sock *msk, const struct sock *ssk);
 void mptcp_data_ready(struct sock *sk, struct sock *ssk);
 bool mptcp_finish_join(struct sock *sk);
 void mptcp_data_acked(struct sock *sk);
 void mptcp_subflow_eof(struct sock *sk);
 
+void __init mptcp_token_init(void);
+static inline void mptcp_token_init_request(struct request_sock *req)
+{
+	mptcp_subflow_rsk(req)->token_node.pprev = NULL;
+}
+
 int mptcp_token_new_request(struct request_sock *req);
-void mptcp_token_destroy_request(u32 token);
+void mptcp_token_destroy_request(struct request_sock *req);
 int mptcp_token_new_connect(struct sock *sk);
-int mptcp_token_new_accept(u32 token, struct sock *conn);
+void mptcp_token_accept(struct mptcp_subflow_request_sock *r,
+			struct mptcp_sock *msk);
 struct mptcp_sock *mptcp_token_get_sock(u32 token);
-void mptcp_token_destroy(u32 token);
+struct mptcp_sock *mptcp_token_iter_next(const struct net *net, long *s_slot,
+					 long *s_num);
+void mptcp_token_destroy(struct mptcp_sock *msk);
 
 void mptcp_crypto_key_sha(u64 key, u32 *token, u64 *idsn);
 static inline void mptcp_crypto_key_gen_sha(u64 *key, u32 *token, u64 *idsn)
@@ -399,9 +410,8 @@ static inline void mptcp_crypto_key_gen_sha(u64 *key, u32 *token, u64 *idsn)
 
 void mptcp_crypto_hmac_sha(u64 key1, u64 key2, u8 *msg, int len, void *hmac);
 
-void mptcp_pm_init(void);
+void __init mptcp_pm_init(void);
 void mptcp_pm_data_init(struct mptcp_sock *msk);
-void mptcp_pm_close(struct mptcp_sock *msk);
 void mptcp_pm_new_connection(struct mptcp_sock *msk, int server_side);
 void mptcp_pm_fully_established(struct mptcp_sock *msk);
 bool mptcp_pm_allow_new_subflow(struct mptcp_sock *msk);
@@ -433,7 +443,7 @@ bool mptcp_pm_addr_signal(struct mptcp_sock *msk, unsigned int remaining,
 			  struct mptcp_addr_info *saddr);
 int mptcp_pm_get_local_id(struct mptcp_sock *msk, struct sock_common *skc);
 
-void mptcp_pm_nl_init(void);
+void __init mptcp_pm_nl_init(void);
 void mptcp_pm_nl_data_init(struct mptcp_sock *msk);
 void mptcp_pm_nl_fully_established(struct mptcp_sock *msk);
 void mptcp_pm_nl_subflow_established(struct mptcp_sock *msk);
@@ -453,5 +463,47 @@ static inline bool before64(__u64 seq1, __u64 seq2)
 #define after64(seq2, seq1)	before64(seq1, seq2)
 
 void mptcp_diag_subflow_init(struct tcp_ulp_ops *ops);
+
+static inline bool __mptcp_check_fallback(struct mptcp_sock *msk)
+{
+	return test_bit(MPTCP_FALLBACK_DONE, &msk->flags);
+}
+
+static inline bool mptcp_check_fallback(struct sock *sk)
+{
+	struct mptcp_subflow_context *subflow = mptcp_subflow_ctx(sk);
+	struct mptcp_sock *msk = mptcp_sk(subflow->conn);
+
+	return __mptcp_check_fallback(msk);
+}
+
+static inline void __mptcp_do_fallback(struct mptcp_sock *msk)
+{
+	if (test_bit(MPTCP_FALLBACK_DONE, &msk->flags)) {
+		pr_debug("TCP fallback already done (msk=%p)", msk);
+		return;
+	}
+	set_bit(MPTCP_FALLBACK_DONE, &msk->flags);
+}
+
+static inline void mptcp_do_fallback(struct sock *sk)
+{
+	struct mptcp_subflow_context *subflow = mptcp_subflow_ctx(sk);
+	struct mptcp_sock *msk = mptcp_sk(subflow->conn);
+
+	__mptcp_do_fallback(msk);
+}
+
+#define pr_fallback(a) pr_debug("%s:fallback to TCP (msk=%p)", __func__, a)
+
+static inline bool subflow_simultaneous_connect(struct sock *sk)
+{
+	struct mptcp_subflow_context *subflow = mptcp_subflow_ctx(sk);
+	struct sock *parent = subflow->conn;
+
+	return sk->sk_state == TCP_ESTABLISHED &&
+	       !mptcp_sk(parent)->pm.server_side &&
+	       !subflow->conn_finished;
+}
 
 #endif /* __MPTCP_PROTOCOL_H */

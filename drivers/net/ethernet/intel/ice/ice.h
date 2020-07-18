@@ -55,7 +55,6 @@
 #include "ice_xsk.h"
 #include "ice_arfs.h"
 
-extern const char ice_drv_ver[];
 #define ICE_BAR0		0
 #define ICE_REQ_DESC_MULTIPLE	32
 #define ICE_MIN_NUM_DESC	64
@@ -374,6 +373,7 @@ struct ice_pf {
 	struct devlink_port devlink_port;
 
 	struct devlink_region *nvm_region;
+	struct devlink_region *devcaps_region;
 
 	/* OS reserved IRQ details */
 	struct msix_entry *msix_entries;

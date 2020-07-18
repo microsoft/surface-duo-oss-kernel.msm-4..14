@@ -44,6 +44,7 @@ struct phylink_link_state;
 #define DSA_TAG_PROTO_KSZ8795_VALUE		14
 #define DSA_TAG_PROTO_OCELOT_VALUE		15
 #define DSA_TAG_PROTO_AR9331_VALUE		16
+#define DSA_TAG_PROTO_RTL4_A_VALUE		17
 
 enum dsa_tag_protocol {
 	DSA_TAG_PROTO_NONE		= DSA_TAG_PROTO_NONE_VALUE,
@@ -63,6 +64,7 @@ enum dsa_tag_protocol {
 	DSA_TAG_PROTO_KSZ8795		= DSA_TAG_PROTO_KSZ8795_VALUE,
 	DSA_TAG_PROTO_OCELOT		= DSA_TAG_PROTO_OCELOT_VALUE,
 	DSA_TAG_PROTO_AR9331		= DSA_TAG_PROTO_AR9331_VALUE,
+	DSA_TAG_PROTO_RTL4_A		= DSA_TAG_PROTO_RTL4_A_VALUE,
 };
 
 struct packet_type;
@@ -144,7 +146,7 @@ struct dsa_mall_mirror_tc_entry {
 
 /* TC port policer entry */
 struct dsa_mall_policer_tc_entry {
-	s64 burst;
+	u32 burst;
 	u64 rate_bytes_per_sec;
 };
 
@@ -610,7 +612,7 @@ struct dsa_switch_ops {
 	 * MTU change functionality. Switches can also adjust their MRU through
 	 * this method. By MTU, one understands the SDU (L2 payload) length.
 	 * If the switch needs to account for the DSA tag on the CPU port, this
-	 * method needs to to do so privately.
+	 * method needs to do so privately.
 	 */
 	int	(*port_change_mtu)(struct dsa_switch *ds, int port,
 				   int new_mtu);

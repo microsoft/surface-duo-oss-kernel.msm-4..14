@@ -2606,11 +2606,10 @@ mvneta_tso_put_data(struct net_device *dev, struct mvneta_tx_queue *txq,
 static int mvneta_tx_tso(struct sk_buff *skb, struct net_device *dev,
 			 struct mvneta_tx_queue *txq)
 {
-	int total_len, data_left;
+	int hdr_len, total_len, data_left;
 	int desc_count = 0;
 	struct mvneta_port *pp = netdev_priv(dev);
 	struct tso_t tso;
-	int hdr_len = skb_transport_offset(skb) + tcp_hdrlen(skb);
 	int i;
 
 	/* Count needed descriptors */
@@ -2623,7 +2622,7 @@ static int mvneta_tx_tso(struct sk_buff *skb, struct net_device *dev,
 	}
 
 	/* Initialize the TSO handler, and prepare the first payload */
-	tso_start(skb, &tso);
+	hdr_len = tso_start(skb, &tso);
 
 	total_len = skb->len - hdr_len;
 	while (total_len > 0) {
@@ -3612,6 +3611,10 @@ static void mvneta_start_dev(struct mvneta_port *pp)
 		    MVNETA_CAUSE_LINK_CHANGE);
 
 	phylink_start(pp->phylink);
+
+	/* We may have called phy_speed_down before */
+	phylink_speed_up(pp->phylink);
+
 	netif_tx_start_all_queues(pp->dev);
 
 	clear_bit(__MVNETA_DOWN, &pp->state);
@@ -3622,6 +3625,9 @@ static void mvneta_stop_dev(struct mvneta_port *pp)
 	unsigned int cpu;
 
 	set_bit(__MVNETA_DOWN, &pp->state);
+
+	if (device_may_wakeup(&pp->dev->dev))
+		phylink_speed_down(pp->phylink, false);
 
 	phylink_stop(pp->phylink);
 
@@ -4090,6 +4096,10 @@ static int mvneta_mdio_probe(struct mvneta_port *pp)
 
 	phylink_ethtool_get_wol(pp->phylink, &wol);
 	device_set_wakeup_capable(&pp->dev->dev, !!wol.supported);
+
+	/* PHY WoL may be enabled but device wakeup disabled */
+	if (wol.supported)
+		device_set_wakeup_enable(&pp->dev->dev, !!wol.wolopts);
 
 	return err;
 }

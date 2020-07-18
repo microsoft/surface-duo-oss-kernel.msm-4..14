@@ -83,6 +83,8 @@ static int parse_capability(struct hinic_hwdev *hwdev,
 		nic_cap->max_vf_qps = dev_cap->max_vf_sqs + 1;
 	}
 
+	hwdev->port_id = dev_cap->port_id;
+
 	return 0;
 }
 
@@ -705,6 +707,68 @@ static int hinic_l2nic_reset(struct hinic_hwdev *hwdev)
 	return 0;
 }
 
+int hinic_get_interrupt_cfg(struct hinic_hwdev *hwdev,
+			    struct hinic_msix_config *interrupt_info)
+{
+	u16 out_size = sizeof(*interrupt_info);
+	struct hinic_pfhwdev *pfhwdev;
+	int err;
+
+	if (!hwdev || !interrupt_info)
+		return -EINVAL;
+
+	pfhwdev = container_of(hwdev, struct hinic_pfhwdev, hwdev);
+
+	interrupt_info->func_id = HINIC_HWIF_FUNC_IDX(hwdev->hwif);
+
+	err = hinic_msg_to_mgmt(&pfhwdev->pf_to_mgmt, HINIC_MOD_COMM,
+				HINIC_COMM_CMD_MSI_CTRL_REG_RD_BY_UP,
+				interrupt_info, sizeof(*interrupt_info),
+				interrupt_info, &out_size, HINIC_MGMT_MSG_SYNC);
+	if (err || !out_size || interrupt_info->status) {
+		dev_err(&hwdev->hwif->pdev->dev, "Failed to get interrupt config, err: %d, status: 0x%x, out size: 0x%x\n",
+			err, interrupt_info->status, out_size);
+		return -EIO;
+	}
+
+	return 0;
+}
+
+int hinic_set_interrupt_cfg(struct hinic_hwdev *hwdev,
+			    struct hinic_msix_config *interrupt_info)
+{
+	u16 out_size = sizeof(*interrupt_info);
+	struct hinic_msix_config temp_info;
+	struct hinic_pfhwdev *pfhwdev;
+	int err;
+
+	if (!hwdev)
+		return -EINVAL;
+
+	pfhwdev = container_of(hwdev, struct hinic_pfhwdev, hwdev);
+
+	interrupt_info->func_id = HINIC_HWIF_FUNC_IDX(hwdev->hwif);
+
+	err = hinic_get_interrupt_cfg(hwdev, &temp_info);
+	if (err)
+		return -EINVAL;
+
+	interrupt_info->lli_credit_cnt = temp_info.lli_timer_cnt;
+	interrupt_info->lli_timer_cnt = temp_info.lli_timer_cnt;
+
+	err = hinic_msg_to_mgmt(&pfhwdev->pf_to_mgmt, HINIC_MOD_COMM,
+				HINIC_COMM_CMD_MSI_CTRL_REG_WR_BY_UP,
+				interrupt_info, sizeof(*interrupt_info),
+				interrupt_info, &out_size, HINIC_MGMT_MSG_SYNC);
+	if (err || !out_size || interrupt_info->status) {
+		dev_err(&hwdev->hwif->pdev->dev, "Failed to get interrupt config, err: %d, status: 0x%x, out size: 0x%x\n",
+			err, interrupt_info->status, out_size);
+		return -EIO;
+	}
+
+	return 0;
+}
+
 /**
  * hinic_init_hwdev - Initialize the NIC HW
  * @pdev: the NIC pci device
@@ -777,6 +841,8 @@ struct hinic_hwdev *hinic_init_hwdev(struct pci_dev *pdev)
 		goto err_dev_cap;
 	}
 
+	mutex_init(&hwdev->func_to_io.nic_cfg.cfg_mutex);
+
 	err = hinic_vf_func_init(hwdev);
 	if (err) {
 		dev_err(&pdev->dev, "Failed to init nic mbox\n");
@@ -830,6 +896,8 @@ void hinic_free_hwdev(struct hinic_hwdev *hwdev)
 						     hwdev);
 
 	set_resources_state(hwdev, HINIC_RES_CLEAN);
+
+	hinic_vf_func_free(hwdev);
 
 	free_pfhwdev(pfhwdev);
 
@@ -980,4 +1048,30 @@ void hinic_hwdev_set_msix_state(struct hinic_hwdev *hwdev, u16 msix_index,
 				enum hinic_msix_state flag)
 {
 	hinic_set_msix_state(hwdev->hwif, msix_index, flag);
+}
+
+int hinic_get_board_info(struct hinic_hwdev *hwdev,
+			 struct hinic_comm_board_info *board_info)
+{
+	u16 out_size = sizeof(*board_info);
+	struct hinic_pfhwdev *pfhwdev;
+	int err;
+
+	if (!hwdev || !board_info)
+		return -EINVAL;
+
+	pfhwdev = container_of(hwdev, struct hinic_pfhwdev, hwdev);
+
+	err = hinic_msg_to_mgmt(&pfhwdev->pf_to_mgmt, HINIC_MOD_COMM,
+				HINIC_COMM_CMD_GET_BOARD_INFO,
+				board_info, sizeof(*board_info),
+				board_info, &out_size, HINIC_MGMT_MSG_SYNC);
+	if (err || board_info->status || !out_size) {
+		dev_err(&hwdev->hwif->pdev->dev,
+			"Failed to get board info, err: %d, status: 0x%x, out size: 0x%x\n",
+			err, board_info->status, out_size);
+		return -EIO;
+	}
+
+	return 0;
 }

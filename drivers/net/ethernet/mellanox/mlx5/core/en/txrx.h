@@ -11,6 +11,11 @@
 enum mlx5e_icosq_wqe_type {
 	MLX5E_ICOSQ_WQE_NOP,
 	MLX5E_ICOSQ_WQE_UMR_RX,
+#ifdef CONFIG_MLX5_EN_TLS
+	MLX5E_ICOSQ_WQE_UMR_TLS,
+	MLX5E_ICOSQ_WQE_SET_PSV_TLS,
+	MLX5E_ICOSQ_WQE_GET_PSV_TLS,
+#endif
 };
 
 static inline bool
@@ -114,8 +119,18 @@ struct mlx5e_icosq_wqe_info {
 		struct {
 			struct mlx5e_rq *rq;
 		} umr;
+#ifdef CONFIG_MLX5_EN_TLS
+		struct {
+			struct mlx5e_ktls_offload_context_rx *priv_rx;
+		} tls_set_params;
+		struct {
+			struct mlx5e_ktls_rx_resync_buf *buf;
+		} tls_get_params;
+#endif
 	};
 };
+
+void mlx5e_free_icosq_descs(struct mlx5e_icosq *sq);
 
 static inline u16 mlx5e_icosq_get_next_pi(struct mlx5e_icosq *sq, u16 size)
 {
@@ -182,7 +197,7 @@ mlx5e_notify_hw(struct mlx5_wq_cyc *wq, u16 pc, void __iomem *uar_map,
 
 static inline bool mlx5e_transport_inline_tx_wqe(struct mlx5_wqe_ctrl_seg *cseg)
 {
-	return cseg && !!cseg->tisn;
+	return cseg && !!cseg->tis_tir_num;
 }
 
 static inline u8
@@ -253,7 +268,7 @@ static inline void mlx5e_rqwq_reset(struct mlx5e_rq *rq)
 	}
 }
 
-static inline void mlx5e_dump_error_cqe(struct mlx5e_cq *cq, u32 sqn,
+static inline void mlx5e_dump_error_cqe(struct mlx5e_cq *cq, u32 qn,
 					struct mlx5_err_cqe *err_cqe)
 {
 	struct mlx5_cqwq *wq = &cq->wq;
@@ -262,11 +277,51 @@ static inline void mlx5e_dump_error_cqe(struct mlx5e_cq *cq, u32 sqn,
 	ci = mlx5_cqwq_ctr2ix(wq, wq->cc - 1);
 
 	netdev_err(cq->channel->netdev,
-		   "Error cqe on cqn 0x%x, ci 0x%x, sqn 0x%x, opcode 0x%x, syndrome 0x%x, vendor syndrome 0x%x\n",
-		   cq->mcq.cqn, ci, sqn,
+		   "Error cqe on cqn 0x%x, ci 0x%x, qn 0x%x, opcode 0x%x, syndrome 0x%x, vendor syndrome 0x%x\n",
+		   cq->mcq.cqn, ci, qn,
 		   get_cqe_opcode((struct mlx5_cqe64 *)err_cqe),
 		   err_cqe->syndrome, err_cqe->vendor_err_synd);
 	mlx5_dump_err_cqe(cq->mdev, err_cqe);
+}
+
+static inline u32 mlx5e_rqwq_get_size(struct mlx5e_rq *rq)
+{
+	switch (rq->wq_type) {
+	case MLX5_WQ_TYPE_LINKED_LIST_STRIDING_RQ:
+		return mlx5_wq_ll_get_size(&rq->mpwqe.wq);
+	default:
+		return mlx5_wq_cyc_get_size(&rq->wqe.wq);
+	}
+}
+
+static inline u32 mlx5e_rqwq_get_cur_sz(struct mlx5e_rq *rq)
+{
+	switch (rq->wq_type) {
+	case MLX5_WQ_TYPE_LINKED_LIST_STRIDING_RQ:
+		return rq->mpwqe.wq.cur_sz;
+	default:
+		return rq->wqe.wq.cur_sz;
+	}
+}
+
+static inline u16 mlx5e_rqwq_get_head(struct mlx5e_rq *rq)
+{
+	switch (rq->wq_type) {
+	case MLX5_WQ_TYPE_LINKED_LIST_STRIDING_RQ:
+		return mlx5_wq_ll_get_head(&rq->mpwqe.wq);
+	default:
+		return mlx5_wq_cyc_get_head(&rq->wqe.wq);
+	}
+}
+
+static inline u16 mlx5e_rqwq_get_wqe_counter(struct mlx5e_rq *rq)
+{
+	switch (rq->wq_type) {
+	case MLX5_WQ_TYPE_LINKED_LIST_STRIDING_RQ:
+		return mlx5_wq_ll_get_counter(&rq->mpwqe.wq);
+	default:
+		return mlx5_wq_cyc_get_counter(&rq->wqe.wq);
+	}
 }
 
 /* SW parser related functions */

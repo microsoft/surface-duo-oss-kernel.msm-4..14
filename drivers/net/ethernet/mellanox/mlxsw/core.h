@@ -61,6 +61,7 @@ void mlxsw_core_ptp_transmitted(struct mlxsw_core *mlxsw_core,
 struct mlxsw_rx_listener {
 	void (*func)(struct sk_buff *skb, u8 local_port, void *priv);
 	u8 local_port;
+	u8 mirror_reason;
 	u16 trap_id;
 };
 
@@ -176,6 +177,7 @@ struct mlxsw_rx_info {
 		u16 lag_id;
 	} u;
 	u8 lag_port_index;
+	u8 mirror_reason;
 	int trap_id;
 };
 
@@ -191,8 +193,8 @@ void mlxsw_core_lag_mapping_clear(struct mlxsw_core *mlxsw_core,
 
 void *mlxsw_core_port_driver_priv(struct mlxsw_core_port *mlxsw_core_port);
 int mlxsw_core_port_init(struct mlxsw_core *mlxsw_core, u8 local_port,
-			 u32 port_number, bool split,
-			 u32 split_port_subnumber,
+			 u32 port_number, bool split, u32 split_port_subnumber,
+			 bool splittable, u32 lanes,
 			 const unsigned char *switch_id,
 			 unsigned char switch_id_len);
 void mlxsw_core_port_fini(struct mlxsw_core *mlxsw_core, u8 local_port);

@@ -1,33 +1,7 @@
+// SPDX-License-Identifier: (GPL-2.0-only OR BSD-3-Clause)
 /* QLogic qed NIC Driver
  * Copyright (c) 2015-2017  QLogic Corporation
- *
- * This software is available to you under a choice of one of two
- * licenses.  You may choose to be licensed under the terms of the GNU
- * General Public License (GPL) Version 2, available from the file
- * COPYING in the main directory of this source tree, or the
- * OpenIB.org BSD license below:
- *
- *     Redistribution and use in source and binary forms, with or
- *     without modification, are permitted provided that the following
- *     conditions are met:
- *
- *      - Redistributions of source code must retain the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer.
- *
- *      - Redistributions in binary form must reproduce the above
- *        copyright notice, this list of conditions and the following
- *        disclaimer in the documentation and /or other materials
- *        provided with the distribution.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS
- * BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * Copyright (c) 2019-2020 Marvell International Ltd.
  */
 
 #include <linux/etherdevice.h>
@@ -849,16 +823,17 @@ static int qed_iov_enable_vf_access(struct qed_hwfn *p_hwfn,
 }
 
 /**
- * @brief qed_iov_config_perm_table - configure the permission
- *      zone table.
- *      In E4, queue zone permission table size is 320x9. There
- *      are 320 VF queues for single engine device (256 for dual
- *      engine device), and each entry has the following format:
- *      {Valid, VF[7:0]}
- * @param p_hwfn
- * @param p_ptt
- * @param vf
- * @param enable
+ * qed_iov_config_perm_table() - Configure the permission zone table.
+ *
+ * @p_hwfn: HW device data.
+ * @p_ptt: PTT window for writing the registers.
+ * @vf: VF info data.
+ * @enable: The actual permision for this VF.
+ *
+ * In E4, queue zone permission table size is 320x9. There
+ * are 320 VF queues for single engine device (256 for dual
+ * engine device), and each entry has the following format:
+ * {Valid, VF[7:0]}
  */
 static void qed_iov_config_perm_table(struct qed_hwfn *p_hwfn,
 				      struct qed_ptt *p_ptt,
@@ -4030,7 +4005,7 @@ static int qed_sriov_vfpf_msg(struct qed_hwfn *p_hwfn,
 	/* List the physical address of the request so that handler
 	 * could later on copy the message from it.
 	 */
-	p_vf->vf_mbx.pending_req = (((u64)vf_msg->hi) << 32) | vf_msg->lo;
+	p_vf->vf_mbx.pending_req = HILO_64(vf_msg->hi, vf_msg->lo);
 
 	/* Mark the event and schedule the workqueue */
 	p_vf->vf_mbx.b_pending_msg = true;
@@ -4062,9 +4037,7 @@ static void qed_sriov_vfpf_malicious(struct qed_hwfn *p_hwfn,
 	}
 }
 
-static int qed_sriov_eqe_event(struct qed_hwfn *p_hwfn,
-			       u8 opcode,
-			       __le16 echo,
+static int qed_sriov_eqe_event(struct qed_hwfn *p_hwfn, u8 opcode, __le16 echo,
 			       union event_ring_data *data, u8 fw_return_code)
 {
 	switch (opcode) {

@@ -191,13 +191,8 @@ static inline int mlx5e_get_max_num_channels(struct mlx5_core_dev *mdev)
 
 struct mlx5e_tx_wqe {
 	struct mlx5_wqe_ctrl_seg ctrl;
-	union {
-		struct {
-			struct mlx5_wqe_eth_seg  eth;
-			struct mlx5_wqe_data_seg data[0];
-		};
-		u8 tls_progress_params_ctx[0];
-	};
+	struct mlx5_wqe_eth_seg  eth;
+	struct mlx5_wqe_data_seg data[0];
 };
 
 struct mlx5e_rx_wqe_ll {
@@ -213,10 +208,7 @@ struct mlx5e_umr_wqe {
 	struct mlx5_wqe_ctrl_seg       ctrl;
 	struct mlx5_wqe_umr_ctrl_seg   uctrl;
 	struct mlx5_mkey_seg           mkc;
-	union {
-		struct mlx5_mtt        inline_mtts[0];
-		u8                     tls_static_params_ctx[0];
-	};
+	struct mlx5_mtt                inline_mtts[0];
 };
 
 extern const char mlx5e_self_tests[][ETH_GSTRING_LEN];
@@ -271,6 +263,7 @@ enum {
 	MLX5E_RQ_STATE_AM,
 	MLX5E_RQ_STATE_NO_CSUM_COMPLETE,
 	MLX5E_RQ_STATE_CSUM_FULL, /* cqe_csum_full hw bit is set */
+	MLX5E_RQ_STATE_FPGA_TLS, /* FPGA TLS enabled */
 };
 
 struct mlx5e_cq {
@@ -651,9 +644,11 @@ struct mlx5e_channel {
 	/* AF_XDP zero-copy */
 	struct mlx5e_rq            xskrq;
 	struct mlx5e_xdpsq         xsksq;
-	struct mlx5e_icosq         xskicosq;
-	/* xskicosq can be accessed from any CPU - the spinlock protects it. */
-	spinlock_t                 xskicosq_lock;
+
+	/* Async ICOSQ */
+	struct mlx5e_icosq         async_icosq;
+	/* async_icosq can be accessed from any CPU - the spinlock protects it. */
+	spinlock_t                 async_icosq_lock;
 
 	/* data path - accessed per napi poll */
 	struct irq_desc *irq_desc;
@@ -856,26 +851,6 @@ int mlx5e_napi_poll(struct napi_struct *napi, int budget);
 bool mlx5e_poll_tx_cq(struct mlx5e_cq *cq, int napi_budget);
 int mlx5e_poll_rx_cq(struct mlx5e_cq *cq, int budget);
 void mlx5e_free_txqsq_descs(struct mlx5e_txqsq *sq);
-
-static inline u32 mlx5e_rqwq_get_size(struct mlx5e_rq *rq)
-{
-	switch (rq->wq_type) {
-	case MLX5_WQ_TYPE_LINKED_LIST_STRIDING_RQ:
-		return mlx5_wq_ll_get_size(&rq->mpwqe.wq);
-	default:
-		return mlx5_wq_cyc_get_size(&rq->wqe.wq);
-	}
-}
-
-static inline u32 mlx5e_rqwq_get_cur_sz(struct mlx5e_rq *rq)
-{
-	switch (rq->wq_type) {
-	case MLX5_WQ_TYPE_LINKED_LIST_STRIDING_RQ:
-		return rq->mpwqe.wq.cur_sz;
-	default:
-		return rq->wqe.wq.cur_sz;
-	}
-}
 
 bool mlx5e_check_fragmented_striding_rq_cap(struct mlx5_core_dev *mdev);
 bool mlx5e_striding_rq_possible(struct mlx5_core_dev *mdev,
