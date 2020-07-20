@@ -1936,7 +1936,8 @@ void msm_dsi_host_destroy(struct mipi_dsi_host *host)
 
 	if (msm_host->has_opp_table)
 		dev_pm_opp_of_remove_table(&msm_host->pdev->dev);
-	dev_pm_opp_put_clkname(msm_host->opp_table);
+	if (msm_host->opp_table)
+		dev_pm_opp_put_clkname(msm_host->opp_table);
 	pm_runtime_disable(&msm_host->pdev->dev);
 }
 
