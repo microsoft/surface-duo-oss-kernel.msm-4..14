@@ -1662,7 +1662,7 @@ static int ath11k_qmi_respond_fw_mem_request(struct ath11k_base *ab)
 	 * failure to FW and FW will then request mulitple blocks of small
 	 * chunk size memory.
 	 */
-	if (!ab->bus_params.fixed_mem_region && ab->qmi.mem_seg_count <= 2) {
+	if (!ab->bus_params.fixed_mem_region && ab->qmi.target_mem_delayed) {
 		ath11k_dbg(ab, ATH11K_DBG_QMI, "qmi delays mem_request %d\n",
 			   ab->qmi.mem_seg_count);
 		memset(req, 0, sizeof(*req));
@@ -1732,6 +1732,8 @@ static int ath11k_qmi_alloc_target_mem_chunk(struct ath11k_base *ab)
 	int i;
 	struct target_mem_chunk *chunk;
 
+	ab->qmi.target_mem_delayed = false;
+
 	for (i = 0; i < ab->qmi.mem_seg_count; i++) {
 		chunk = &ab->qmi.target_mem[i];
 		chunk->vaddr = dma_alloc_coherent(ab->dev,
@@ -1742,6 +1744,11 @@ static int ath11k_qmi_alloc_target_mem_chunk(struct ath11k_base *ab)
 			ath11k_err(ab, "failed to alloc memory, size: 0x%x, type: %u\n",
 				   chunk->size,
 				   chunk->type);
+			if (ab->qmi.mem_seg_count <= 2) {
+				ath11k_qmi_free_target_mem_chunk(ab);
+				ab->qmi.target_mem_delayed = true;
+				return 0;
+			}
 			return -EINVAL;
 		}
 	}
@@ -1942,7 +1949,7 @@ static int ath11k_qmi_load_bdf(struct ath11k_base *ab)
 		req->seg_id_valid = 1;
 		req->seg_id = type;
 		req->data_valid = 1;
-		req->bdf_type = 1;
+		req->bdf_type = 0;
 		req->bdf_type_valid = 1;
 		req->end_valid = 1;
 		req->end = 1;
@@ -2019,7 +2026,7 @@ static int ath11k_qmi_load_bdf_target_mem(struct ath11k_base *ab)
 		req->seg_id_valid = 1;
 		req->data_valid = 1;
 		req->data_len = ATH11K_QMI_MAX_BDF_FILE_NAME_SIZE;
-		req->bdf_type = 1;
+		req->bdf_type = 0;
 		req->bdf_type_valid = 1;
 		req->end_valid = 1;
 		req->end = 0;
@@ -2448,7 +2455,7 @@ static void ath11k_qmi_msg_mem_request_cb(struct qmi_handle *qmi_hdl,
 				    ret);
 			return;
 		}
-	} else if (msg->mem_seg_len > 2) {
+	} else {
 		ret = ath11k_qmi_alloc_target_mem_chunk(ab);
 		if (ret) {
 			ath11k_warn(ab, "qmi failed to alloc target memory: %d\n",
