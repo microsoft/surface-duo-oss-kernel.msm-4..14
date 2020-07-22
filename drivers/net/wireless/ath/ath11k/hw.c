@@ -9,6 +9,7 @@
 
 #include "hw.h"
 #include "core.h"
+#include "ce.h"
 
 const char *ath11k_irq_name[ATH11K_IRQ_NUM_MAX] = {
 	"misc-pulse1",
