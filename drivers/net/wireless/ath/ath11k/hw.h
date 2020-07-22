@@ -124,6 +124,8 @@ struct ath11k_hw_params {
 
 extern const struct ath11k_hw_ops ipq8074_ops;
 extern const struct ath11k_hw_ops ipq6018_ops;
+extern const struct ath11k_hw_ops qca6390_ops;
+
 extern const char *ath11k_irq_name[];
 
 static inline
