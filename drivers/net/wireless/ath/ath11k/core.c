@@ -41,6 +41,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.rx_mac_buf_ring = false,
 		.vdev_start_delay = false,
 		.htt_peer_map_v2 = true,
+		.tcl_0_only = false,
 	},
 	{
 		.name = "qca6390 hw2.0",
@@ -64,6 +65,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.rx_mac_buf_ring = true,
 		.vdev_start_delay = true,
 		.htt_peer_map_v2 = false,
+		.tcl_0_only = true,
 	},
 };
 
