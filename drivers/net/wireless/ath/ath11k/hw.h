@@ -61,6 +61,8 @@
 #define TARGET_DMA_BURST_SIZE		1
 #define TARGET_RX_BATCHMODE		1
 
+#define ATH11K_IRQ_CE0_OFFSET		4
+
 #define ATH11K_HW_MAX_QUEUES		4
 #define ATH11K_QUEUE_LEN		4096
 
@@ -121,6 +123,7 @@ struct ath11k_hw_params {
 
 extern const struct ath11k_hw_ops ipq8074_ops;
 extern const struct ath11k_hw_ops ipq6018_ops;
+extern const char *ath11k_irq_name[];
 
 static inline
 int ath11k_hw_get_mac_from_pdev_id(struct ath11k_hw_params *hw,
