@@ -34,6 +34,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.regs = &ipq8074_regs,
 		.host_ce_config = ath11k_host_ce_config_ipq8074,
 		.ce_count = 12,
+		.single_pdev_only = false,
 	},
 	{
 		.name = "qca6390 hw2.0",
@@ -50,6 +51,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.regs = &qca6390_regs,
 		.host_ce_config = ath11k_host_ce_config_qca6390,
 		.ce_count = 9,
+		.single_pdev_only = true,
 	},
 };
 
