@@ -9,6 +9,9 @@
 
 #include "core.h"
 
+/* FIXME_KVALO: this should be in hw_params */
+/* #define ATH11K_IRQ_CE0_OFFSET 3 */
+
 struct ath11k_msi_user {
 	char *name;
 	int num_vectors;
