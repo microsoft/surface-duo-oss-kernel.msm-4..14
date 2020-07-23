@@ -1,6 +1,7 @@
 # Recreate any symlinks created since the orig.
 # Remove any files deleted from the orig.
 rm -f 'arch/arm/boot/compressed/libfdt_env.h'
+rm -f 'arch/x86/events/intel/rapl.c'
 rm -f 'drivers/input/serio/i8042-ppcio.h'
 rm -f 'drivers/regulator/da903x.c'
 chmod +x 'debian/cloud-tools/hv_get_dhcp_info'
