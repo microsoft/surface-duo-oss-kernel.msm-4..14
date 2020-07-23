@@ -59,6 +59,7 @@
 			 0x1a4>; /* GSI_IF_STS */
 		qcom,dwc-usb3-msm-tx-fifo-size = <21288>;
 		qcom,pm-qos-latency = <61>;
+		qcom,host-poweroff-in-pm-suspend;
 		status = "disabled";
 		dwc3@a600000 {
 			compatible = "snps,dwc3";
