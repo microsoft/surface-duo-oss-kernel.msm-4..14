@@ -367,7 +367,8 @@ void shd_skip_shared_plane_update(struct drm_plane *plane,
 }
 
 static int shd_display_set_default_clock(struct drm_crtc_state *crtc_state,
-		struct drm_connector_state *conn_state)
+		struct drm_connector_state *conn_state,
+		struct drm_display_mode *mode)
 {
 	struct msm_drm_private *priv;
 	struct sde_kms *sde_kms;
@@ -386,15 +387,17 @@ static int shd_display_set_default_clock(struct drm_crtc_state *crtc_state,
 	if (!sde_conn->ops.get_mode_info)
 		return 0;
 
-	ret = sde_conn->ops.get_mode_info(&sde_conn->base, &crtc_state->mode,
+	ret = sde_conn->ops.get_mode_info(&sde_conn->base, mode,
 			&mode_info,
 			sde_kms->catalog->max_mixer_width,
 			sde_conn->display);
 	if (ret)
 		return ret;
 
-	if (!mode_info.topology.num_lm)
-		return 0;
+	if (!mode_info.topology.num_lm) {
+		mode_info.topology.num_lm = 1;
+		pr_info("fixup base topology to 1 lm\n");
+	}
 
 	/* calculate clock based on layer mixer */
 	core_clk = crtc_state->mode.clock / mode_info.topology.num_lm;
@@ -564,7 +567,8 @@ static int shd_display_atomic_check(struct msm_kms *kms,
 			return rc;
 		}
 
-		rc = shd_display_set_default_clock(new_crtc_state, conn_state);
+		rc = shd_display_set_default_clock(new_crtc_state,
+				conn_state, &base->mode);
 		if (rc) {
 			SDE_ERROR("failed to set default clock\n");
 			return rc;
