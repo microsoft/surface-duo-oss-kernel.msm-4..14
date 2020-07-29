@@ -71,6 +71,8 @@ struct sde_cp_node_dummy {
 
 static struct shd_kms *g_shd_kms;
 
+static struct dsi_display_mode_priv_info shd_default_priv_info;
+
 static enum drm_connector_status shd_display_base_detect(
 		struct drm_connector *connector,
 		bool force,
@@ -108,6 +110,13 @@ static int shd_display_init_base_connector(struct drm_device *dev,
 	base->ops = sde_conn->ops;
 	sde_conn->ops.detect = shd_display_base_detect;
 
+	/* parse builtin modes */
+	if (base->connector->connector_type == DRM_MODE_CONNECTOR_DSI) {
+		if (sde_conn->ops.get_modes)
+			sde_conn->ops.get_modes(base->connector,
+					sde_conn->display);
+	}
+
 	SDE_DEBUG("found base connector %d\n", base->connector->base.id);
 
 	return rc;
@@ -144,23 +153,7 @@ static int shd_display_init_base_encoder(struct drm_device *dev,
 		return -ENOENT;
 	}
 
-	switch (base->encoder->encoder_type) {
-	case DRM_MODE_ENCODER_DSI:
-		base->connector_type = DRM_MODE_CONNECTOR_DSI;
-		break;
-	case DRM_MODE_ENCODER_TMDS:
-	case DRM_MODE_ENCODER_DPMST:
-		base->connector_type = DRM_MODE_CONNECTOR_DisplayPort;
-		break;
-	default:
-		base->connector_type = DRM_MODE_CONNECTOR_Unknown;
-		break;
-	}
-
-	SDE_DEBUG("found base encoder %d, type %d, connect type %d\n",
-			base->encoder->base.id,
-			base->encoder->encoder_type,
-			base->connector_type);
+	SDE_DEBUG("found base encoder %d\n", base->encoder->base.id);
 
 	return rc;
 }
@@ -612,7 +605,7 @@ static int shd_connector_get_info(struct drm_connector *connector,
 		return -EINVAL;
 	}
 
-	info->intf_type = display->base->connector_type;
+	info->intf_type = display->base->connector->connector_type;
 	info->capabilities = MSM_DISPLAY_CAP_VID_MODE |
 				MSM_DISPLAY_CAP_HOT_PLUG |
 				MSM_DISPLAY_CAP_MST_MODE;
@@ -1297,6 +1290,7 @@ static int shd_parse_base(struct shd_display_base *base)
 		goto fail;
 	}
 
+	mode->private = (int *)&shd_default_priv_info;
 	mode->hsync_start = mode->hdisplay + h_front_porch;
 	mode->hsync_end = mode->hsync_start + h_pulse_width;
 	mode->htotal = mode->hsync_end + h_back_porch;

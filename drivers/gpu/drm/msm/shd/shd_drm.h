@@ -45,7 +45,6 @@ struct shd_display_base {
 	struct sde_connector_ops ops;
 
 	int intf_idx;
-	int connector_type;
 	bool mst_port;
 };
 
