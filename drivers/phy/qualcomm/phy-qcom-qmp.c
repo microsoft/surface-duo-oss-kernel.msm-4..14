@@ -19,6 +19,7 @@
 #include <linux/regulator/consumer.h>
 #include <linux/reset.h>
 #include <linux/slab.h>
+#include <linux/usb/typec_mux.h>
 
 #include <dt-bindings/phy/phy.h>
 
@@ -65,6 +66,9 @@
 
 /* QPHY_V3_PCS_MISC_CLAMP_ENABLE register bits */
 #define CLAMP_EN				BIT(0) /* enables i/o clamp_n */
+
+#define SW_PORTSELECT_VAL			BIT(0)
+#define SW_PORTSELECT_MUX			BIT(1)
 
 #define PHY_INIT_COMPLETE_TIMEOUT		10000
 #define POWER_DOWN_DELAY_US_MIN			10
@@ -2004,6 +2008,8 @@ struct qmp_phy {
  * @phy_initialized: indicate if PHY has been initialized
  * @mode: current PHY mode
  * @ufs_reset: optional UFS PHY reset handle
+ * @sw: typec switch for receiving orientation changes
+ * @orientation: carries current CC orientation
  */
 struct qcom_qmp {
 	struct device *dev;
@@ -2023,6 +2029,8 @@ struct qcom_qmp {
 	enum phy_mode mode;
 
 	struct reset_control *ufs_reset;
+	struct typec_switch *sw;
+	enum typec_orientation orientation;
 };
 
 static inline void qphy_setbits(void __iomem *base, u32 offset, u32 val)
@@ -2724,6 +2732,7 @@ static int qcom_qmp_phy_com_init(struct qmp_phy *qphy)
 	void __iomem *pcs = qphy->pcs;
 	void __iomem *dp_com = qmp->dp_com;
 	int ret, i;
+	unsigned int val;
 
 	mutex_lock(&qmp->phy_mutex);
 	if (qmp->init_count++) {
@@ -2773,6 +2782,13 @@ static int qcom_qmp_phy_com_init(struct qmp_phy *qphy)
 		qphy_setbits(dp_com, QPHY_V3_DP_COM_PHY_MODE_CTRL,
 			     USB3_MODE | DP_MODE);
 
+		if (cfg->is_dual_lane_phy) {
+			val = SW_PORTSELECT_MUX;
+			if (qmp->orientation == TYPEC_ORIENTATION_REVERSE)
+				val |= SW_PORTSELECT_VAL;
+			qphy_setbits(dp_com, QPHY_V3_DP_COM_TYPEC_CTRL, val);
+		}
+
 		/* bring both QMP USB and QMP DP PHYs PCS block out of reset */
 		qphy_clrbits(dp_com, QPHY_V3_DP_COM_RESET_OVRD_CTRL,
 			     SW_DPPHY_RESET_MUX | SW_DPPHY_RESET |
@@ -2801,7 +2817,7 @@ static int qcom_qmp_phy_com_init(struct qmp_phy *qphy)
 
 	if (cfg->has_phy_com_ctrl) {
 		void __iomem *status;
-		unsigned int mask, val;
+		unsigned int mask;
 
 		qphy_clrbits(serdes, cfg->regs[QPHY_COM_SW_RESET], SW_RESET);
 		qphy_setbits(serdes, cfg->regs[QPHY_COM_START_CONTROL],
@@ -3518,6 +3534,47 @@ static const struct dev_pm_ops qcom_qmp_phy_pm_ops = {
 			   qcom_qmp_phy_runtime_resume, NULL)
 };
 
+#if IS_ENABLED(CONFIG_PHY_QCOM_QMP_TYPEC)
+static int qcom_qmp_phy_typec_switch_set(struct typec_switch *sw,
+					 enum typec_orientation orientation)
+{
+	struct qcom_qmp *qmp = typec_switch_get_drvdata(sw);
+	struct qmp_phy *qphy = qmp->phys[0];
+
+	qmp->orientation = orientation;
+	if (qmp->phy_initialized) {
+		qcom_qmp_phy_disable(qphy->phy);
+		qcom_qmp_phy_enable(qphy->phy);
+	}
+
+	return 0;
+}
+
+static int qcom_qmp_phy_typec_switch_register(struct qcom_qmp *qmp)
+{
+	struct typec_switch_desc sw_desc;
+	struct device *dev = qmp->dev;
+
+	if (qmp->cfg->is_dual_lane_phy) {
+		sw_desc.drvdata = qmp;
+		sw_desc.fwnode = dev->fwnode;
+		sw_desc.set = qcom_qmp_phy_typec_switch_set;
+		qmp->sw = typec_switch_register(dev, &sw_desc);
+		if (IS_ERR(qmp->sw)) {
+			dev_err(dev, "Error registering typec switch: %ld\n",
+				PTR_ERR(qmp->sw));
+		}
+	}
+
+	return 0;
+}
+#else
+static int qcom_qmp_phy_typec_switch_register(struct qcom_qmp *qmp)
+{
+	return 0;
+}
+#endif
+
 static int qcom_qmp_phy_probe(struct platform_device *pdev)
 {
 	struct qcom_qmp *qmp;
@@ -3526,7 +3583,7 @@ static int qcom_qmp_phy_probe(struct platform_device *pdev)
 	struct device_node *child;
 	struct phy_provider *phy_provider;
 	void __iomem *base;
-	int num, id;
+	int num = 0, id;
 	int ret;
 
 	qmp = devm_kzalloc(dev, sizeof(*qmp), GFP_KERNEL);
@@ -3578,7 +3635,11 @@ static int qcom_qmp_phy_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	num = of_get_available_child_count(dev->of_node);
+	qcom_qmp_phy_typec_switch_register(qmp);
+	for_each_available_child_of_node(dev->of_node, child) {
+		if (!strncmp("lanes", child->name, 5))
+			num++;
+	}
 	/* do we have a rogue child node ? */
 	if (num > qmp->cfg->nlanes)
 		return -EINVAL;
@@ -3598,6 +3659,9 @@ static int qcom_qmp_phy_probe(struct platform_device *pdev)
 
 	for_each_available_child_of_node(dev->of_node, child) {
 		/* Create per-lane phy */
+		if (strncmp("lanes", child->name, 5))
+			continue;
+
 		ret = qcom_qmp_phy_create(dev, child, id);
 		if (ret) {
 			dev_err(dev, "failed to create lane%d phy, %d\n",
