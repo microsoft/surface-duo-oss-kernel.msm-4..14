@@ -60,6 +60,7 @@
 #include <linux/genetlink.h>
 #include <linux/net_namespace.h>
 #include <linux/nospec.h>
+#include <linux/btf_ids.h>
 
 #include <net/net_namespace.h>
 #include <net/netns/generic.h>
@@ -1620,7 +1621,7 @@ static void netlink_update_socket_mc(struct netlink_sock *nlk,
 }
 
 static int netlink_setsockopt(struct socket *sock, int level, int optname,
-			      char __user *optval, unsigned int optlen)
+			      sockptr_t optval, unsigned int optlen)
 {
 	struct sock *sk = sock->sk;
 	struct netlink_sock *nlk = nlk_sk(sk);
@@ -1631,7 +1632,7 @@ static int netlink_setsockopt(struct socket *sock, int level, int optname,
 		return -ENOPROTOOPT;
 
 	if (optlen >= sizeof(int) &&
-	    get_user(val, (unsigned int __user *)optval))
+	    copy_from_sockptr(&val, optval, sizeof(val)))
 		return -EFAULT;
 
 	switch (optname) {
@@ -2803,7 +2804,10 @@ static const struct rhashtable_params netlink_rhashtable_params = {
 };
 
 #if defined(CONFIG_BPF_SYSCALL) && defined(CONFIG_PROC_FS)
-static const struct bpf_iter_reg netlink_reg_info = {
+BTF_ID_LIST(btf_netlink_sock_id)
+BTF_ID(struct, netlink_sock)
+
+static struct bpf_iter_reg netlink_reg_info = {
 	.target			= "netlink",
 	.seq_ops		= &netlink_seq_ops,
 	.init_seq_private	= bpf_iter_init_seq_net,
@@ -2818,6 +2822,7 @@ static const struct bpf_iter_reg netlink_reg_info = {
 
 static int __init bpf_iter_register(void)
 {
+	netlink_reg_info.ctx_arg_info[0].btf_id = *btf_netlink_sock_id;
 	return bpf_iter_reg_target(&netlink_reg_info);
 }
 #endif
