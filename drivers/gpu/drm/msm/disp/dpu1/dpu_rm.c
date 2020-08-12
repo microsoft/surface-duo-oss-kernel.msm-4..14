@@ -280,7 +280,7 @@ static bool _dpu_rm_check_lm_and_get_connected_blks(struct dpu_rm *rm,
 
 	idx = lm_cfg->dspp - DSPP_0;
 	if (idx < 0 || idx >= ARRAY_SIZE(rm->dspp_blks)) {
-		DPU_ERROR("failed to get dspp on lm %d\n", lm_cfg->dspp);
+		DPU_ERROR("failed to get dspp %d (%d) on lm %d\n", idx, lm_cfg->dspp, lm_cfg->id);
 		return false;
 	}
 
