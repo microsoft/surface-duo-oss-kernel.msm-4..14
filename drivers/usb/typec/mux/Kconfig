@@ -19,4 +19,11 @@ config TYPEC_MUX_INTEL_PMC
 	  control the USB role switch and also the multiplexer/demultiplexer
 	  switches used with USB Type-C Alternate Modes.
 
+config TYPEC_MUX_GPIO
+	tristate "GPIO DP aux switch"
+	depends on I2C
+	help
+	  Driver for GPIO-controlled DP aux switch, to flip DP aux lanes
+	  when orientation changes.
+
 endmenu
