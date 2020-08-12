@@ -436,6 +436,12 @@ static const struct can_bittiming_const flexcan_fd_data_bittiming_const = {
 	.brp_inc = 1,
 };
 
+static int is_s32_flexcan(const struct flexcan_priv *data)
+{
+	return ((data->devtype_data == &fsl_s32gen1_devtype_data) ||
+		(data->devtype_data == &fsl_s32v234_devtype_data));
+}
+
 /* FlexCAN module is essentially modelled as a little-endian IP in most
  * SoCs, i.e the registers as well as the message buffer areas are
  * implemented in a little-endian fashion.
