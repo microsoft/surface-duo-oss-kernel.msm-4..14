@@ -137,6 +137,45 @@
 #define FLEXCAN_ESR_ERR_STATE \
 	(FLEXCAN_ESR_TWRN_INT | FLEXCAN_ESR_RWRN_INT | FLEXCAN_ESR_BOFF_INT)
 
+/* FLEXCAN Bit Timing register (CBT) bits */
+#define FLEXCAN_CBT_BTF		        BIT(31)
+#define FLEXCAN_CBT_EPRESDIV_SHIFT	(21)
+#define FLEXCAN_CBT_EPRESDIV_MASK	(0x3ff)
+#define FLEXCAN_CBT_EPRESDIV(x)		(((x) & FLEXCAN_CBT_EPRESDIV_MASK) << \
+	FLEXCAN_CBT_EPRESDIV_SHIFT)
+#define FLEXCAN_CBT_ERJW_SHIFT	(16)
+#define FLEXCAN_CBT_ERJW_MASK	(0x1f)
+#define FLEXCAN_CBT_ERJW(x)		(((x) & FLEXCAN_CBT_ERJW_MASK) << \
+	FLEXCAN_CBT_ERJW_SHIFT)
+#define FLEXCAN_CBT_EPROPSEG_SHIFT	(10)
+#define FLEXCAN_CBT_EPROPSEG_MASK	(0x3f)
+#define FLEXCAN_CBT_EPROPSEG(x)		(((x) & FLEXCAN_CBT_EPROPSEG_MASK) << \
+	FLEXCAN_CBT_EPROPSEG_SHIFT)
+#define FLEXCAN_CBT_EPSEG_SHIFT		(5)
+#define FLEXCAN_CBT_EPSEG_MASK		(0x1f)
+#define FLEXCAN_CBT_EPSEG1(x)		(((x) & FLEXCAN_CBT_EPSEG_MASK) << \
+	FLEXCAN_CBT_EPSEG_SHIFT)
+#define FLEXCAN_CBT_EPSEG2(x)		((x) & FLEXCAN_CBT_EPSEG_MASK)
+
+/* FLEXCAN FD Bit Timing register (FDCBT) bits */
+#define FLEXCAN_FDCBT_FPRESDIV_SHIFT	(20)
+#define FLEXCAN_FDCBT_FPRESDIV_MASK		(0x3ff)
+#define FLEXCAN_FDCBT_FPRESDIV(x)	(((x) & \
+	FLEXCAN_FDCBT_FPRESDIV_MASK) << FLEXCAN_FDCBT_FPRESDIV_SHIFT)
+#define FLEXCAN_FDCBT_FRJW_SHIFT	(16)
+#define FLEXCAN_FDCBT_FRJW_MASK		(0x07)
+#define FLEXCAN_FDCBT_FRJW(x)		(((x) & FLEXCAN_FDCBT_FRJW_MASK) << \
+	FLEXCAN_FDCBT_FRJW_SHIFT)
+#define FLEXCAN_FDCBT_FPROPSEG_SHIFT	(10)
+#define FLEXCAN_FDCBT_FPROPSEG_MASK		(0x1f)
+#define FLEXCAN_FDCBT_FPROPSEG(x)	(((x) & \
+	FLEXCAN_FDCBT_FPROPSEG_MASK) << FLEXCAN_FDCBT_FPROPSEG_SHIFT)
+#define FLEXCAN_FDCBT_FPSEG_SHIFT	(5)
+#define FLEXCAN_FDCBT_FPSEG_MASK	(0x07)
+#define FLEXCAN_FDCBT_FPSEG1(x)		(((x) & FLEXCAN_FDCBT_FPSEG_MASK) << \
+	FLEXCAN_FDCBT_FPSEG_SHIFT)
+#define FLEXCAN_FDCBT_FPSEG2(x)		((x) & FLEXCAN_FDCBT_FPSEG_MASK)
+
 /* FLEXCAN interrupt flag register (IFLAG) bits */
 /* Errata ERR005829 step7: Reserve first valid MB */
 #define FLEXCAN_TX_MB_RESERVED_OFF_FIFO		8
@@ -239,7 +278,8 @@ struct flexcan_regs {
 	u32 crcr;		/* 0x44 */
 	u32 rxfgmask;		/* 0x48 */
 	u32 rxfir;		/* 0x4c */
-	u32 _reserved3[12];	/* 0x50 */
+	u32 cbt;		/* 0x50 */
+	u32 _reserved3[11];	/* 0x54 */
 	u8 mb[2][512];		/* 0x80 */
 	/* FIFO-mode:
 	 *			MB
@@ -1180,24 +1220,31 @@ static void flexcan_set_bittiming(struct net_device *dev)
 {
 	const struct flexcan_priv *priv = netdev_priv(dev);
 	const struct can_bittiming *bt = &priv->can.bittiming;
+	const struct can_bittiming *dbt = &priv->can.data_bittiming;
 	struct flexcan_regs __iomem *regs = priv->regs;
 	u32 reg;
 
 	reg = priv->read(&regs->ctrl);
-	reg &= ~(FLEXCAN_CTRL_PRESDIV(0xff) |
-		 FLEXCAN_CTRL_RJW(0x3) |
-		 FLEXCAN_CTRL_PSEG1(0x7) |
-		 FLEXCAN_CTRL_PSEG2(0x7) |
-		 FLEXCAN_CTRL_PROPSEG(0x7) |
-		 FLEXCAN_CTRL_LPB |
-		 FLEXCAN_CTRL_SMP |
-		 FLEXCAN_CTRL_LOM);
 
-	reg |= FLEXCAN_CTRL_PRESDIV(bt->brp - 1) |
-		FLEXCAN_CTRL_PSEG1(bt->phase_seg1 - 1) |
-		FLEXCAN_CTRL_PSEG2(bt->phase_seg2 - 1) |
-		FLEXCAN_CTRL_RJW(bt->sjw - 1) |
-		FLEXCAN_CTRL_PROPSEG(bt->prop_seg - 1);
+	if (is_s32_flexcan(priv)) {
+		reg &= ~(FLEXCAN_CTRL_LPB |
+				FLEXCAN_CTRL_SMP | FLEXCAN_CTRL_LOM);
+	} else {
+		reg &= ~(FLEXCAN_CTRL_PRESDIV(0xff) |
+			 FLEXCAN_CTRL_RJW(0x3) |
+			 FLEXCAN_CTRL_PSEG1(0x7) |
+			 FLEXCAN_CTRL_PSEG2(0x7) |
+			 FLEXCAN_CTRL_PROPSEG(0x7) |
+			 FLEXCAN_CTRL_LPB |
+			 FLEXCAN_CTRL_SMP |
+			 FLEXCAN_CTRL_LOM);
+
+		reg |= FLEXCAN_CTRL_PRESDIV(bt->brp - 1) |
+			FLEXCAN_CTRL_PSEG1(bt->phase_seg1 - 1) |
+			FLEXCAN_CTRL_PSEG2(bt->phase_seg2 - 1) |
+			FLEXCAN_CTRL_RJW(bt->sjw - 1) |
+			FLEXCAN_CTRL_PROPSEG(bt->prop_seg - 1);
+	}
 
 	if (priv->can.ctrlmode & CAN_CTRLMODE_LOOPBACK)
 		reg |= FLEXCAN_CTRL_LPB;
@@ -1211,7 +1258,73 @@ static void flexcan_set_bittiming(struct net_device *dev)
 
 	/* print chip status */
 	netdev_dbg(dev, "%s: mcr=0x%08x ctrl=0x%08x\n", __func__,
-		   priv->read(&regs->mcr), priv->read(&regs->ctrl));
+			priv->read(&regs->mcr), priv->read(&regs->ctrl));
+
+	if (is_s32_flexcan(priv)) {
+		if (priv->can.ctrlmode_supported & CAN_CTRLMODE_FD) {
+			reg = FLEXCAN_CBT_EPRESDIV(bt->brp - 1) |
+				FLEXCAN_CBT_EPSEG1(bt->phase_seg1 - 1) |
+				FLEXCAN_CBT_EPSEG2(bt->phase_seg2 - 1) |
+				FLEXCAN_CBT_ERJW(bt->sjw - 1) |
+				FLEXCAN_CBT_EPROPSEG(bt->prop_seg - 1) |
+				FLEXCAN_CBT_BTF;
+			priv->write(reg, &regs->cbt);
+
+			netdev_dbg(dev, "bt: prediv %d seg1 %d seg2 %d rjw %d propseg %d\n",
+				   bt->brp - 1, bt->phase_seg1 - 1,
+				   bt->phase_seg2 - 1, bt->sjw - 1,
+				   bt->prop_seg - 1);
+
+			if (priv->can.ctrlmode & CAN_CTRLMODE_FD) {
+				reg = FLEXCAN_FDCBT_FPRESDIV(dbt->brp - 1) |
+					FLEXCAN_FDCBT_FPSEG1(dbt->phase_seg1
+							- 1) |
+					FLEXCAN_FDCBT_FPSEG2(dbt->phase_seg2
+							- 1) |
+					FLEXCAN_FDCBT_FRJW(dbt->sjw - 1) |
+					FLEXCAN_FDCBT_FPROPSEG(dbt->prop_seg);
+				priv->write(reg, &regs->fdcbt);
+
+				if (bt->brp != dbt->brp)
+					netdev_warn(dev, "PRESDIV not the same, may risk transfer errors\n");
+
+				netdev_dbg(dev, "fdbt: prediv %d seg1 %d seg2 %d rjw %d propseg %d\n",
+					   dbt->brp - 1, dbt->phase_seg1 - 1,
+					   dbt->phase_seg2 - 1,
+					   dbt->sjw - 1, dbt->prop_seg);
+
+				netdev_dbg(dev, "%s: mcr=0x%08x ctrl=0x%08x cbt=0x%08x fdcbt=0x%08x\n",
+					   __func__, priv->read(&regs->mcr),
+					   priv->read(&regs->ctrl),
+					   priv->read(&regs->cbt),
+					   priv->read(&regs->fdcbt));
+			}
+		} else {
+			reg = priv->read(&regs->ctrl);
+			reg &= ~(FLEXCAN_CTRL_PRESDIV(0xff) |
+				 FLEXCAN_CTRL_RJW(0x3) |
+				 FLEXCAN_CTRL_PSEG1(0x7) |
+				 FLEXCAN_CTRL_PSEG2(0x7) |
+				 FLEXCAN_CTRL_PROPSEG(0x7));
+
+			reg |= FLEXCAN_CTRL_PRESDIV(bt->brp - 1) |
+				FLEXCAN_CTRL_PSEG1(bt->phase_seg1 - 1) |
+				FLEXCAN_CTRL_PSEG2(bt->phase_seg2 - 1) |
+				FLEXCAN_CTRL_RJW(bt->sjw - 1) |
+				FLEXCAN_CTRL_PROPSEG(bt->prop_seg - 1);
+			priv->write(reg, &regs->ctrl);
+
+			netdev_dbg(dev, "bt: prediv %d seg1 %d seg2 %d rjw %d propseg %d\n",
+				   bt->brp - 1, bt->phase_seg1 - 1,
+				   bt->phase_seg2 - 1, bt->sjw - 1,
+				   bt->prop_seg - 1);
+
+			/* print chip status */
+			netdev_dbg(dev, "%s: mcr=0x%08x ctrl=0x%08x\n",
+				   __func__, priv->read(&regs->mcr),
+				   priv->read(&regs->ctrl));
+		}
+	}
 }
 
 /* flexcan_chip_start
