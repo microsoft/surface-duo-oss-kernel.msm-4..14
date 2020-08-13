@@ -1997,6 +1997,9 @@
 				assigned-clock-rates = <460000000>,
 						       <19200000>;
 
+				operating-points-v2 = <&mdp_opp_table>;
+				power-domains = <&rpmhpd SM8250_MMCX>;
+
 				interrupt-parent = <&mdss>;
 				interrupts = <0 IRQ_TYPE_LEVEL_HIGH>;
 
@@ -2018,6 +2021,30 @@
 						dpu_intf2_out: endpoint {
 							remote-endpoint = <&dsi1_in>;
 						};
+					};
+				};
+
+				mdp_opp_table: mdp-opp-table {
+					compatible = "operating-points-v2";
+
+					opp-200000000 {
+						opp-hz = /bits/ 64 <200000000>;
+						required-opps = <&rpmhpd_opp_low_svs>;
+					};
+
+					opp-300000000 {
+						opp-hz = /bits/ 64 <300000000>;
+						required-opps = <&rpmhpd_opp_svs>;
+					};
+
+					opp-345000000 {
+						opp-hz = /bits/ 64 <345000000>;
+						required-opps = <&rpmhpd_opp_svs_l1>;
+					};
+
+					opp-460000000 {
+						opp-hz = /bits/ 64 <460000000>;
+						required-opps = <&rpmhpd_opp_nom>;
 					};
 				};
 			};
@@ -2042,6 +2069,9 @@
 					      "core",
 					      "iface",
 					      "bus";
+
+				operating-points-v2 = <&dsi_opp_table>;
+				power-domains = <&rpmhpd SM8250_MMCX>;
 
 				phys = <&dsi0_phy>;
 				phy-names = "dsi";
@@ -2107,6 +2137,9 @@
 					      "iface",
 					      "bus";
 
+				operating-points-v2 = <&dsi_opp_table>;
+				power-domains = <&rpmhpd SM8250_MMCX>;
+
 				phys = <&dsi1_phy>;
 				phy-names = "dsi";
 
@@ -2148,6 +2181,25 @@
 				clock-names = "iface", "ref";
 
 				status = "disabled";
+
+				dsi_opp_table: dsi-opp-table {
+					compatible = "operating-points-v2";
+
+					opp-187500000 {
+						opp-hz = /bits/ 64 <187500000>;
+						required-opps = <&rpmhpd_opp_low_svs>;
+					};
+
+					opp-300000000 {
+						opp-hz = /bits/ 64 <300000000>;
+						required-opps = <&rpmhpd_opp_svs>;
+					};
+
+					opp-358000000 {
+						opp-hz = /bits/ 64 <358000000>;
+						required-opps = <&rpmhpd_opp_svs_l1>;
+					};
+				};
 			};
 		};
 
