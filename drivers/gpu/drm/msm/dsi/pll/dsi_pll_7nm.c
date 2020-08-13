@@ -515,6 +515,7 @@ static unsigned long dsi_pll_7nm_vco_recalc_rate(struct clk_hw *hw,
 	u64 multiplier;
 	u32 frac;
 	u32 dec;
+	u32 outdiv;
 	u64 pll_freq, tmp64;
 
 	dec = pll_read(base + REG_DSI_7nm_PHY_PLL_DECIMAL_DIV_START_1);
@@ -525,6 +526,8 @@ static unsigned long dsi_pll_7nm_vco_recalc_rate(struct clk_hw *hw,
 		  0xff) << 8);
 	frac |= ((pll_read(base + REG_DSI_7nm_PHY_PLL_FRAC_DIV_START_HIGH_1) &
 		  0x3) << 16);
+
+	outdiv = 1 << (pll_read(base + REG_DSI_7nm_PHY_PLL_PLL_OUTDIV_RATE) & 0x3);
 
 	/*
 	 * TODO:
@@ -538,8 +541,8 @@ static unsigned long dsi_pll_7nm_vco_recalc_rate(struct clk_hw *hw,
 
 	vco_rate = pll_freq;
 
-	DBG("DSI PLL%d returning vco rate = %lu, dec = %x, frac = %x",
-	    pll_7nm->id, (unsigned long)vco_rate, dec, frac);
+	DBG("DSI PLL%d returning vco rate = %lu, dec = %x, frac = %x, outdiv = %x",
+	    pll_7nm->id, (unsigned long)vco_rate, dec, frac, outdiv);
 
 	return (unsigned long)vco_rate;
 }
