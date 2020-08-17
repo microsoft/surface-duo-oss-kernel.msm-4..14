@@ -49,25 +49,29 @@
 			device_type = "cpu";
 			compatible = "arm,cortex-a53";
 			reg = <0x0 0x0>;
-			/* enable-method (psci/spin-table) and the
-			   cpu-release-addr (if the latter) will be fixed up
-			   by u-boot, unless explicitly specified here.
-			*/
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x00>;
 		};
 		cpu1: cpu@1 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a53";
 			reg = <0x0 0x1>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x00>;
 		};
 		cpu2: cpu@100 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a53";
 			reg = <0x0 0x100>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x00>;
 		};
 		cpu3: cpu@101 {
 			device_type = "cpu";
 			compatible = "arm,cortex-a53";
 			reg = <0x0 0x101>;
+			enable-method = "spin-table";
+			cpu-release-addr = <0x0 0x00>;
 		};
 
 		cluster0_l2_cache: l2-cache0 {
@@ -86,10 +90,6 @@
 		#address-cells = <1>;
 		#size-cells = <0>;
 
-		fxosc: fxosc {
-			compatible = "fixed-clock";
-			#clock-cells = <0>;
-		};
 		firc {
 			compatible = "fixed-clock";
 			clock-frequency = <48000000>;
@@ -120,6 +120,28 @@
 			     <1 14 0xf08>,
 			     <1 11 0xf08>,
 			     <1 10 0xf08>;
+	};
+
+	fxosc: fxosc@40050000 {
+		compatible = "fsl,s32gen1-fxosc";
+		reg = <0x0 0x40050000 0x0 0x3000>;
+		clock-frequency = <40000000>;
+		#clock-cells = <1>;
+	};
+
+	rdc: rdc@440080000 {
+		compatible = "fsl,s32gen1-rdc";
+		reg = <0x0 0x40080000 0x0 0x3000>;
+	};
+
+	rgm: rgm@40078000 {
+		compatible = "fsl,s32gen1-rgm";
+		reg = <0x0 0x40078000 0x0 0x3000>;
+	};
+
+	mc_me: mc_me@40088000 {
+		compatible = "fsl,s32gen1-mc_me";
+		reg = <0x0 0x40088000 0x0 0x3000>;
 	};
 
 	mc_cgm0: mc_cgm0@40030000 {
@@ -213,6 +235,14 @@
 		clocks = <&clks S32GEN1_CLK_XBAR_DIV3>;
 		clock-names = "stm";
 		cpu = <3>;
+		status = "disabled";
+	};
+
+	stm2: stm@40124000{
+		compatible = "fsl,s32gen1-stm-global";
+		reg = <0x0 0x40124000 0x0 0x3000>;
+		clocks = <&clks S32GEN1_CLK_XBAR_DIV3>;
+		clock-names = "stm";
 		status = "disabled";
 	};
 
@@ -667,7 +697,7 @@
 		tx-fifo-depth = <20480>;
 		rx-fifo-depth = <20480>;
 		clocks = <&clks S32GEN1_CLK_XBAR>, <&clks S32GEN1_CLK_XBAR>,
-			     <&clks S32GEN1_CLK_GMAC_TX>;
+			     <&clks S32GEN1_CLK_GMAC_0_TX>;
 		clock-names = "stmmaceth", "pclk", "tx";
 		gmac0_mdio: mdio0 {
 			compatible = "snps,dwmac-mdio";
@@ -708,10 +738,10 @@
 					"pcs", "tlp_req_no_comp";
 		#interrupt-cells = <1>;
 		interrupt-map-mask = <0 0 0 0x7>;
-		interrupt-map = <0 0 0 1 &gic 0 128 4>,
-					<0 0 0 2 &gic 0 129 4>,
-					<0 0 0 3 &gic 0 130 4>,
-					<0 0 0 4 &gic 0 131 4>;
+		interrupt-map = <0 0 0 1 &gic 0 0 0 128 4>,
+					<0 0 0 2 &gic 0 0 0 129 4>,
+					<0 0 0 3 &gic 0 0 0 130 4>,
+					<0 0 0 4 &gic 0 0 0 131 4>;
 
 		/* EP mode only */
 		num-ib-windows = <6>;
@@ -752,10 +782,10 @@
 					"pcs", "tlp_req_no_comp";
 		#interrupt-cells = <1>;
 		interrupt-map-mask = <0 0 0 0x7>;
-		interrupt-map = <0 0 0 1 &gic 0 219 4>,
-					<0 0 0 2 &gic 0 220 4>,
-					<0 0 0 3 &gic 0 221 4>,
-					<0 0 0 4 &gic 0 222 4>;
+		interrupt-map = <0 0 0 1 &gic 0 0 0 219 4>,
+					<0 0 0 2 &gic 0 0 0 220 4>,
+					<0 0 0 3 &gic 0 0 0 221 4>,
+					<0 0 0 4 &gic 0 0 0 222 4>;
 
 		/* EP mode only */
 		num-ib-windows = <6>;
@@ -763,6 +793,40 @@
 
 		status = "disabled";
 	};
+
+	pwm0: pwm@401F4000 {
+		compatible = "fsl,s32gen1-ftm-pwm";
+		#pwm-cells = <3>;
+		reg = <0x0 0x401F4000 0x0 0x1000>;
+		clock-names = "ftm_sys", "ftm_ext",
+			      "ftm_fix", "ftm_cnt_clk_en";
+		clocks = <&clks S32GEN1_CLK_PER>,
+			 <&clks S32GEN1_CLK_FTM0_REF>,
+			 <&clks S32GEN1_CLK_PER>,
+			 <&clks S32GEN1_CLK_PER>;
+		status = "disabled";
+	};
+
+	pwm1: pwm@402E4000 {
+		compatible = "fsl,s32gen1-ftm-pwm";
+		#pwm-cells = <3>;
+		reg = <0x0 0x402E4000 0x0 0x1000>;
+		clock-names = "ftm_sys", "ftm_ext",
+			      "ftm_fix", "ftm_cnt_clk_en";
+		clocks = <&clks S32GEN1_CLK_PER>,
+			 <&clks S32GEN1_CLK_FTM1_REF>,
+			 <&clks S32GEN1_CLK_PER>,
+			 <&clks S32GEN1_CLK_PER>;
+		status = "disabled";
+	};
+
+	tmu: tmu@400A8000 {
+		compatible = "fsl,s32gen1-tmu";
+		reg = <0x0 0x400A8000 0x0 0x3000>,
+			<0x0 0x400A4200 0x0 0x1FC>;
+		status = "okay";
+	};
+
 };
 
 &cluster0_l2_cache {

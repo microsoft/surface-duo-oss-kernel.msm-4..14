@@ -9,7 +9,7 @@
  */
 
 #include "fsl-s32-gen1.dtsi"
-#include <dt-bindings/pinctrl/s32g275-pinctrl.h>
+#include <dt-bindings/pinctrl/s32g274-pinctrl.h>
 
 / {
 	chosen {
@@ -31,7 +31,7 @@
 	};
 
 	clks: clks@40038000 {
-		compatible = "fsl,s32g275-clocking";
+		compatible = "fsl,s32g274-clocking";
 		reg = <0x0 0x40038000 0x0 0x3000>, /*armpll*/
 		      <0x0 0x4003C000 0x0 0x3000>, /*periphpll*/
 		      <0x0 0x40040000 0x0 0x3000>, /*accelpll*/
@@ -46,17 +46,85 @@
 		reg = <0x0 0x44018000 0x0 0x3000>;
 	};
 
-	pfe: ethernet@46080000 {
-		compatible = "fsl,s32g275-pfe";
-		reg = <0x0 0x46000000 0x0 0x1000000>;
+	pfe: pfe@46080000 {
+		compatible = "fsl,s32g274a-pfeng",
+			     "fsl,s32g274-pfe";
+		reg = <0x0 0x46000000 0x0 0x1000000>,	 /* PFE controller */
+			  <0x0 0x4007ca00 0x0 0x4>,	 /* S32G274a syscon */
+			  <0x0 0x83400000 0x0 0xc00000>; /* PFE DDR 12M */
+		#address-cells = <1>;
+		#size-cells = <0>;
 		interrupt-parent = <&gic>;
 		interrupts =  <0 190 1>, /* hif0 */
-		              <0 191 1>, /* hif1 */
-		              <0 192 1>, /* hif2 */
-		              <0 193 1>, /* hif3 */
-		              <0 194 1>; /* bmu */
+			      <0 191 1>, /* hif1 */
+			      <0 192 1>, /* hif2 */
+			      <0 193 1>, /* hif3 */
+			      <0 194 1>, /* bmu */
+			      <0 195 1>, /* nocpy */
+			      <0 196 1>, /* upe/gpt */
+			      <0 197 1>; /* safety */
 		interrupt-names = "hif0", "hif1", "hif2", "hif3",
-		                  "bmu";
+				  "bmu", "nocpy", "upegpt", "safety";
+		clocks = <&clks S32GEN1_CLK_PFE_SYS>,
+			 <&clks S32GEN1_CLK_PFE_PE>,
+			 <&clks S32GEN1_CLK_XBAR>;
+		clock-names = "pfe_sys", "pfe_pe", "xbar";
+		firmware-name = "s32g_pfe_class.fw";
+		/* EMAC 0 */
+		pfe0_if: ethernet@0 {
+			compatible = "fsl,pfeng-logif";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			reg = <0>;
+			local-mac-address = [ 00 04 9F BE EF 00 ];
+			fsl,pfeng-if-name = "pfe0";
+			fsl,pfeng-emac-id = <0>; /* Phy IF (EMAC) id */
+			pfe0_mdio: mdio@0 {
+				compatible = "fsl,pfeng-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0x1>;
+			};
+		};
+		/* EMAC 1 */
+		pfe1_if: ethernet@1 {
+			compatible = "fsl,pfeng-logif";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			reg = <1>;
+			clocks = <&clks S32GEN1_CLK_PFE_EMAC_1_TX>;
+			clock-names = "tx";
+			local-mac-address = [ 00 04 9F BE EF 01 ];
+			fsl,pfeng-if-name = "pfe1";
+			fsl,pfeng-emac-id = <1>; /* Phy IF (EMAC) id */
+			pfe1_mdio: mdio@0 {
+				compatible = "fsl,pfeng-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0x1>;
+			};
+		};
+		/* EMAC 2 */
+		pfe2_if: ethernet@2 {
+			compatible = "fsl,pfeng-logif";
+			#address-cells = <1>;
+			#size-cells = <0>;
+			status = "okay";
+			reg = <2>;
+			clocks = <&clks S32GEN1_CLK_PFE_EMAC_2_TX>;
+			clock-names = "tx";
+			local-mac-address = [ 00 04 9F BE EF 02 ];
+			fsl,pfeng-if-name = "pfe2";
+			fsl,pfeng-emac-id = <2>; /* Phy IF (EMAC) id */
+			pfe2_mdio: mdio@0 {
+				compatible = "fsl,pfeng-mdio";
+				#address-cells = <1>;
+				#size-cells = <0>;
+				reg = <0x1>;
+			};
+		};
 	};
 
 	siul2_0 {
@@ -64,12 +132,12 @@
 		#address-cells = <2>;
 		#size-cells = <2>;
 		status = "okay";
-			  /* PINCTRL */
+			  /* MSCR 0-101 */
 		ranges = <1 0 0x0 0x4009C240 0x0 0x198>,
-			 /* IMCR range */
+			 /* IMCR range 512–595 */
 			 <2 0 0x0 0x4009CA40 0x0 0x150>;
 		pinctrl0: siul2-pinctrl0@4009C000 {
-			compatible = "fsl,s32g275-siul2_0-pinctrl";
+			compatible = "fsl,s32g274-siul2_0-pinctrl";
 			#pinctrl-cells = <2>;
 			reg = <0x1 0x0 0x0 0x198>,
 			<0x2 0x0 0x0 0x150>;
@@ -79,119 +147,32 @@
 			<&pinctrl0 512 595>;
 			status = "okay";
 		};
-		/*
-		 * Note gpio controller nodes are split into sections
-		 * of contiguous GPIO numbering at this
-		 * point in time, functions working with gpio chips
-		 * assume this for many things.
-		 */
-		gpioother0: siul2-gpio0@4009C002 {
+		gpio0: siul2-gpio0 {
 			compatible = "fsl,s32gen1-siul2-gpio";
 			gpio-controller;
 			#gpio-cells = <2>;
-			gpio-ranges = <&pinctrl0 0 0 19>;
+				/* GPIO 0-101 */
+			gpio-ranges = <&pinctrl0 0 0 102>;
 				/* Pad Data I/0 Registers */
-			regmap0 = <&opad0_regs>;
-			regmap1 = <&ipad0_regs>;
-			status = "okay";
-		};
-		gpioeirq0: siul2-gpio0@4009C004 {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-				/* GPIO 0-15,27-32 */
-			gpio-ranges = <&pinctrl0 0 19 11>,
-				/* EIRQ pins */
-				<&pinctrl1 910 910 11>;
+			eirq-ranges =
+				/* EIRQ[0] - EIRQ[10] */
+				<&pinctrl0 0 19 11>,
+				/* EIRQ[11] */
+				<&pinctrl0 0 S32GEN1_INVALID_GPIO 1>,
+				/* EIRQ[12] */
+				<&pinctrl0 0 31 1>,
+				/* EIRQ[13] - EIRQ[15] */
+				<&pinctrl0 0 33 3>,
+				/* EIRQ[16] - EIRQ[26] */
+				<&pinctrl0 0 S32GEN1_INVALID_GPIO 11>,
+				/* EIRQ[27] - EIRQ[31] */
+				<&pinctrl0 0 36 5>;
 				/* Pad Data I/0 Registers */
 			regmap0 = <&opad0_regs>;
 			regmap1 = <&ipad0_regs>;
 			regmap2 = <&irq_regs>;
 			interrupt-controller;
-			interrupts = <0 0 4>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_gpioeirq0>;
-			status = "okay";
-		};
-		gpioother1: siul2-gpio0@4009C006 {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-			gpio-ranges = <&pinctrl0 0 30 1>;
-				/* Pad Data I/0 Registers */
-			regmap0 = <&opad0_regs>;
-			regmap1 = <&ipad0_regs>;
-			status = "okay";
-		};
-		gpioeirq1: siul2-gpio0@4009C008 {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-				/* GPIO 0-15,27-32 */
-			gpio-ranges = <&pinctrl0 0 31 1>,
-				/* EIRQ pins */
-				<&pinctrl1 922 922 1>;
-				/* Pad Data I/0 Registers */
-			regmap0 = <&opad0_regs>;
-			regmap1 = <&ipad0_regs>;
-			regmap2 = <&irq_regs>;
-			interrupt-controller;
-			interrupts = <0 12 4>;
-			pinctrl-names = "default";
-			status = "okay";
-		};
-		gpioother2: siul2-gpio0@4009C00A {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-			gpio-ranges = <&pinctrl0 0 32 1>;
-				/* Pad Data I/0 Registers */
-			regmap0 = <&opad0_regs>;
-			regmap1 = <&ipad0_regs>;
-			status = "okay";
-		};
-		gpioeirq2: siul2-gpio0@4009C00C {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-				/* GPIO 0-15,27-32 */
-			gpio-ranges = <&pinctrl0 0 33 3>,
-				/* EIRQ pins */
-				<&pinctrl1 923 923 3>;
-				/* Pad Data I/0 Registers */
-			regmap0 = <&opad0_regs>;
-			regmap1 = <&ipad0_regs>;
-			regmap2 = <&irq_regs>;
-			interrupt-controller;
-			interrupts = <0 13 4>;
-			pinctrl-names = "default";
-			status = "okay";
-		};
-		gpioeirq3: siul2-gpio0@4009C00E {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-				/* GPIO 0-15,27-32 */
-			gpio-ranges = <&pinctrl0 0 36 5>,
-				/* EIRQ pins */
-				<&pinctrl1 937 937 5>;
-				/* Pad Data I/0 Registers */
-			regmap0 = <&opad0_regs>;
-			regmap1 = <&ipad0_regs>;
-			regmap2 = <&irq_regs>;
-			interrupt-controller;
-			interrupts = <0 27 4>;
-			pinctrl-names = "default";
-			status = "okay";
-		};
-		gpioother3: siul2-gpio0@4009C010 {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-			gpio-ranges = <&pinctrl0 0 41 61>;
-				/* Pad Data I/0 Registers */
-			regmap0 = <&opad0_regs>;
-			regmap1 = <&ipad0_regs>;
+			interrupts = <0 210 4>;
 			status = "okay";
 		};
 	};
@@ -202,20 +183,20 @@
 		#size-cells = <2>;
 		status = "okay";
 
-			  /* PINCTRL */
+			  /* MSCR 112-190 */
 		ranges = <1 0 0x0 0x44010400 0x0 0x13C>,
-			 /* IMCR range */
+			 /* IMCR range 631-1023 */
 			 <2 0 0x0 0x44010C1C 0x0 0x5E4>;
 
 		pinctrl1: siul2-pinctrl1@44010000 {
-			compatible = "fsl,s32g275-siul2_1-pinctrl";
+			compatible = "fsl,s32g274-siul2_1-pinctrl";
 			#pinctrl-cells = <2>;
 			reg = <0x1 0x0 0x0 0x13C>,
 			<0x2 0x0 0x0 0x5E4>;
 			/* MSCR range */
 			pins = <&pinctrl1 112 190>,
 			/* IMCR range */
-			<&pinctrl1 631 1007>;
+			<&pinctrl1 631 1023>;
 			status = "okay";
 		};
 		/*
@@ -224,118 +205,39 @@
 		 * point in time, functions working with gpio chips
 		 * assume this for many things.
 		 */
-		gpioother4: siul2-gpio0@44010002 {
+		gpio1: siul2-gpio1 {
 			compatible = "fsl,s32gen1-siul2-gpio";
 			gpio-controller;
 			#gpio-cells = <2>;
-			gpio-ranges = <&pinctrl1 0 112 1>;
-				/* Pad Data I/0 Registers */
-			regmap0 = <&opad1_regs>;
-			regmap1 = <&ipad1_regs>;
-			status = "okay";
-		};
-		gpioeirq4: siul2-gpio0@44010004 {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-				/* GPIO 0-15,27-32 */
-			gpio-ranges = <&pinctrl1 0 113 3>,
-				/* EIRQ pins */
-				<&pinctrl1 933 933 3>;
-				/* Pad Data I/0 Registers */
-			regmap0 = <&opad1_regs>;
-			regmap1 = <&ipad1_regs>;
-			regmap2 = <&irq_regs>;
-			interrupt-controller;
-			interrupts = <0 23 4>;
-			status = "okay";
-		};
-		gpioother5: siul2-gpio0@44010006 {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-			gpio-ranges = <&pinctrl1 0 116 1>;
-				/* Pad Data I/0 Registers */
-			regmap0 = <&opad1_regs>;
-			regmap1 = <&ipad1_regs>;
-			status = "okay";
-		};
-		gpioeirq5: siul2-gpio0@44010008 {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-				/* GPIO 0-15,27-32 */
-			gpio-ranges = <&pinctrl1 0 117 1>,
-				/* EIRQ pins */
-				<&pinctrl1 936 936 1>;
+				/* GPIO 112-190 */
+			gpio-ranges = <&pinctrl1 0 112 79>;
+			eirq-ranges =
+				/* EIRQ[0] - EIRQ[1] */
+				<&pinctrl1 0 151 2>,
+				/* EIRQ[2] - EIRQ[7] */
+				<&pinctrl1 0 177 6>,
+				/* EIRQ[8] */
+				<&pinctrl1 0 154 1>,
+				/* EIRQ[9] */
+				<&pinctrl1 0 160 1>,
+				/* EIRQ[10] */
+				<&pinctrl1 0 165 1>,
+				/* EIRQ[11] */
+				<&pinctrl1 0 168 1>,
+				/* EIRQ[12] - EIRQ[15] */
+				<&pinctrl1 0 S32GEN1_INVALID_GPIO 4>,
+				/* EIRQ[16] - EIRQ[22] */
+				<&pinctrl1 0 184 7>,
+				/* EIRQ[23] - EIRQ[25] */
+				<&pinctrl1 0 113 3>,
+				/* EIRQ[26] */
+				<&pinctrl1 0 117 1>;
 				/* Pad Data I/0 Registers */
 			regmap0 = <&opad1_regs>;
 			regmap1 = <&ipad1_regs>;
 			regmap2 = <&irq_regs>;
 			interrupt-controller;
-			interrupts = <0 26 4>;
-			status = "okay";
-		};
-		gpioother6: siul2-gpio0@4401000A {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-			gpio-ranges = <&pinctrl1 0 118 5>;
-				/* Pad Data I/0 Registers */
-			regmap0 = <&opad1_regs>;
-			regmap1 = <&ipad1_regs>;
-			status = "okay";
-		};
-		gpioother7: siul2-gpio0@4401000C {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-			gpio-ranges = <&pinctrl1 0 144 24>;
-				/* Pad Data I/0 Registers */
-			regmap0 = <&opad1_regs>;
-			regmap1 = <&ipad1_regs>;
-			status = "okay";
-		};
-		gpioeirq6: siul2-gpio0@4401000E {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-				/* GPIO 0-15,27-32 */
-			gpio-ranges = <&pinctrl1 0 168 1>,
-				/* EIRQ pins */
-				<&pinctrl1 921 921 1>;
-				/* Pad Data I/0 Registers */
-			regmap0 = <&opad1_regs>;
-			regmap1 = <&ipad1_regs>;
-			regmap2 = <&irq_regs>;
-			interrupt-controller;
-			interrupts = <0 11 4>;
-			status = "okay";
-		};
-		gpioother8: siul2-gpio0@44010010 {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-			gpio-ranges = <&pinctrl1 0 169 15>;
-				/* Pad Data I/0 Registers */
-			regmap0 = <&opad1_regs>;
-			regmap1 = <&ipad1_regs>;
-			status = "okay";
-		};
-		gpioeirq7: siul2-gpio0@44010012 {
-			compatible = "fsl,s32gen1-siul2-gpio";
-			gpio-controller;
-			#gpio-cells = <2>;
-				/* GPIO 0-15,27-32 */
-			gpio-ranges = <&pinctrl1 0 184 7>,
-				/* EIRQ pins */
-				<&pinctrl1 926 926 7>;
-				/* Pad Data I/0 Registers */
-			regmap0 = <&opad1_regs>;
-			regmap1 = <&ipad1_regs>;
-			regmap2 = <&irq_regs>;
-			interrupt-controller;
-			interrupts = <0 16 4>;
+			interrupts = <0 210 4>;
 			status = "okay";
 		};
 	};
@@ -380,7 +282,7 @@
 		clocks = <&clks S32GEN1_CLK_XBAR_DIV4>,
 		         <&clks S32GEN1_CLK_SIRC>;
 		fsl,usbmisc = <&usbmisc 0>;
-		ahb-burst-config = <0x0>;
+		ahb-burst-config = <0x3>;
 		tx-burst-size-dword = <0x10>;
 		rx-burst-size-dword = <0x10>;
 		phy_type = "ulpi";
