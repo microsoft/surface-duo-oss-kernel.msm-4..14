@@ -68,15 +68,12 @@
 
 #define ATH11K_FW_DIR			"ath11k"
 
-/* IPQ8074 definitions */
-#define IPQ8074_FW_DIR			"IPQ8074"
-#define IPQ8074_MAX_BOARD_DATA_SZ	(256 * 1024)
-#define IPQ8074_MAX_CAL_DATA_SZ		IPQ8074_MAX_BOARD_DATA_SZ
-
 #define ATH11K_BOARD_MAGIC		"QCA-ATH11K-BOARD"
 #define ATH11K_BOARD_API2_FILE		"board-2.bin"
-#define ATH11K_DEFAULT_BOARD_FILE	"bdwlan.bin"
+#define ATH11K_DEFAULT_BOARD_FILE	"board.bin"
 #define ATH11K_DEFAULT_CAL_FILE		"caldata.bin"
+#define ATH11K_AMSS_FILE		"amss.bin"
+#define ATH11K_M3_FILE			"m3.bin"
 
 enum ath11k_hw_rate_cck {
 	ATH11K_HW_RATE_CCK_LP_11M = 0,
@@ -104,14 +101,57 @@ enum ath11k_bus {
 	ATH11K_BUS_PCI,
 };
 
+#define ATH11K_EXT_IRQ_GRP_NUM_MAX 11
+
+struct ath11k_hw_ring_mask {
+	u8 tx[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+	u8 rx_mon_status[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+	u8 rx[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+	u8 rx_err[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+	u8 rx_wbm_rel[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+	u8 reo_status[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+	u8 rxdma2host[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+	u8 host2rxdma[ATH11K_EXT_IRQ_GRP_NUM_MAX];
+};
+
+struct ath11k_hw_ops {
+	u8 (*get_hw_mac_from_pdev_id)(int pdev_id);
+};
+
 struct ath11k_hw_params {
 	const char *name;
+	u16 hw_rev;
+	u8 max_radios;
+	u32 bdf_addr;
+
 	struct {
 		const char *dir;
 		size_t board_size;
 		size_t cal_size;
 	} fw;
+
+	const struct ath11k_hw_ops *hw_ops;
+
+	const struct ath11k_hw_ring_mask *ring_mask;
+
+	bool internal_sleep_clock;
 };
+
+extern const struct ath11k_hw_ops ipq8074_ops;
+extern const struct ath11k_hw_ops ipq6018_ops;
+extern const struct ath11k_hw_ops qca6390_ops;
+
+extern const struct ath11k_hw_ring_mask ath11k_hw_ring_mask_ipq8074;
+
+static inline
+int ath11k_hw_get_mac_from_pdev_id(struct ath11k_hw_params *hw,
+				   int pdev_idx)
+{
+	if (hw->hw_ops->get_hw_mac_from_pdev_id)
+		return hw->hw_ops->get_hw_mac_from_pdev_id(pdev_idx);
+
+	return 0;
+}
 
 struct ath11k_fw_ie {
 	__le32 id;
