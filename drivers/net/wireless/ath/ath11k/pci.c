@@ -883,6 +883,7 @@ static int ath11k_pci_probe(struct pci_dev *pdev,
 	struct ath11k_pci *ab_pci;
 	u32 soc_hw_version, soc_hw_version_major, soc_hw_version_minor;
 	int ret;
+	u32 val;
 
 	dev_warn(&pdev->dev, "WARNING: ath11k PCI support is experimental!\n");
 
@@ -921,6 +922,9 @@ static int ath11k_pci_probe(struct pci_dev *pdev,
 			   soc_hw_version_major, soc_hw_version_minor);
 
 		switch (soc_hw_version_major) {
+		case 1:
+			ab->hw_rev = ATH11K_HW_QCA6390_HW11;
+			break;
 		case 2:
 			ab->hw_rev = ATH11K_HW_QCA6390_HW20;
 			break;
