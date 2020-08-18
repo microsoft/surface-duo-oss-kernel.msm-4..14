@@ -3206,6 +3206,11 @@
 							#size-cells = <0>;
 							#sound-dai-cells = <1>;
 						};
+
+						q6afecc: cc {
+							compatible = "qcom,q6afe-clocks";
+							#clock-cells = <2>;
+						};
 					};
 
 					q6asm: apr-service@7 {
