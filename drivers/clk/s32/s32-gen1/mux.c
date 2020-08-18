@@ -44,7 +44,7 @@ void init_s32gen1_clk_mux(struct s32gen1_clk_mux *s32mux,
 	if (!init->ops)
 		init->ops = &s32gen1_clk_mux_ops;
 
-	init->flags = CLK_SET_RATE_NO_REPARENT | CLK_IS_BASIC;
+	init->flags = CLK_SET_RATE_NO_REPARENT;
 
 	mux = &s32mux->mux;
 

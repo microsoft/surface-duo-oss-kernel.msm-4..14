@@ -119,7 +119,7 @@ struct clk *s32gen1_clk_cgm_div(const char *name, const char *parent,
 
 	init.name = name;
 	init.ops = &clk_cgm_div_ops;
-	init.flags = CLK_SET_RATE_PARENT | CLK_IS_BASIC;
+	init.flags = CLK_SET_RATE_PARENT;
 	init.parent_names = &parent;
 	init.num_parents =  1;
 

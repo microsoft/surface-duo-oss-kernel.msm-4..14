@@ -135,7 +135,7 @@ struct clk *s32gen1_fxosc(const char *compatible)
 
 	init.name = "fxosc";
 	init.ops = &fxosc_ops;
-	init.flags = CLK_IS_BASIC;
+	init.flags = 0;
 	init.parent_names = NULL;
 	init.num_parents = 0;
 

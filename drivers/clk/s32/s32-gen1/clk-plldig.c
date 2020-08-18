@@ -450,7 +450,7 @@ struct clk *s32gen1_clk_plldig_phi(enum s32gen1_plldig_type type,
 
 	init.name = name;
 	init.ops = &plldig_phi_ops;
-	init.flags = CLK_SET_RATE_PARENT | CLK_IS_BASIC;
+	init.flags = CLK_SET_RATE_PARENT;
 	init.parent_names = &parent;
 	init.num_parents = 1;
 
