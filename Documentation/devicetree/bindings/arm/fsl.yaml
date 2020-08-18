@@ -334,5 +334,41 @@ properties:
               - fsl,ls2088a-qds
               - fsl,ls2088a-rdb
           - const: fsl,ls2088a
+      - description:
+          Freescale S32V234 boards
+
+          S32V234 Customer Evaluation Board (S32V234EVB) SCH 28899
+          S32V234 Customer Evaluation Boards from 2016, quarter4, such as
+              S32V234EVB and S32V234BBMINI
+          S32V234 TMDP board (aka Delphi board)
+          S32V234 PCIE board
+        items:
+          - enum:
+              - fsl,s32v234-evb
+              - fsl,s32v234-evb2016q4
+              - fsl,s32v234-tmdp
+              - fsl,s32v234-pcie
+          - const: fsl,s32v234
+      - description: Freescale S32V344 base Simulator model
+        items:
+          - enum:
+              - fsl,s32v344-simu
+          - const: fsl,s32v344
+      - description:
+          Freescale S32G based boards
+
+          S32G274 base Simulator model
+        items:
+          - enum:
+              - fsl,s32g274-simu
+          - const: fsl,s32g274
+      - description:
+          Freescale S32R based boards
+
+          S32R45 base Simulator model
+        items:
+          - enum:
+              - fsl,s32r45-simu
+          - const: fsl,s32r45
 
 ...
