@@ -548,20 +548,58 @@
 	};
 };
 
+/* TERT I2S Uses 1 I2S SD Lines for audio on LT9611 HDMI Bridge */
+&q6afedai {
+	qi2s@20 {
+		reg = <20>;
+		qcom,sd-lines = <0>;
+	};
+};
+
 &q6asmdai {
 	dai@0 {
 		reg = <0>;
+	};
+
+	dai@1 {
+		reg = <1>;
+	};
+};
+
+&swr0 {
+
+	left_spkr: wsa8810-left{
+		compatible = "sdw10217211000";
+		reg = <0 3>;
+		powerdown-gpios = <&tlmm 130 GPIO_ACTIVE_HIGH>;
+		#thermal-sensor-cells = <0>;
+		sound-name-prefix = "SpkrLeft";
+		#sound-dai-cells = <0>;
+	};
+
+
+	right_spkr: wsa8810-right{
+		compatible = "sdw10217211000";
+		reg = <0 4>;
+		powerdown-gpios = <&tlmm 130 GPIO_ACTIVE_HIGH>;
+		#thermal-sensor-cells = <0>;
+		sound-name-prefix = "SpkrRight";
+		#sound-dai-cells = <0>;
 	};
 };
 
 &sound {
 	compatible = "qcom,sm8250-sndcard";
-	pinctrl-0 = <&pri_mi2s_sck_active
-			 &pri_mi2s_sd0_active
-			 &pri_mi2s_sd1_active
-			 &pri_mi2s_ws_active>;
+	pinctrl-0 = <&tert_mi2s_sck_active
+			 &tert_mi2s_sd0_active
+			 &tert_mi2s_ws_active>;
 	pinctrl-names = "default";
 	model = "RB5";
+	audio-routing =
+		"SpkrLeft IN", "WSA_SPK1 OUT",
+		"SpkrRight IN", "WSA_SPK2 OUT",
+		"MM_DL1",  "MultiMedia1 Playback",
+		"MM_DL2",  "MultiMedia2 Playback";
 
 	mm1-dai-link {
 		link-name = "MultiMedia1";
@@ -570,10 +608,17 @@
 		};
 	};
 
-	hdmi-dai-link {
-		link-name = "LS-I2S Playback";
+	mm2-dai-link {
+		link-name = "MultiMedia2";
 		cpu {
-			sound-dai = <&q6afedai PRIMARY_MI2S_RX>;
+			sound-dai = <&q6asmdai  MSM_FRONTEND_DAI_MULTIMEDIA2>;
+		};
+	};
+
+	hdmi-dai-link {
+		link-name = "HDMI Playback";
+		cpu {
+			sound-dai = <&q6afedai TERTIARY_MI2S_RX>;
 		};
 
 		platform {
@@ -582,6 +627,21 @@
 
 		codec {
 			sound-dai =  <&lt9611_codec 0>;
+		};
+	};
+
+	dma-dai-link {
+		link-name = "WSA Playback";
+		cpu {
+			sound-dai = <&q6afedai WSA_CODEC_DMA_RX_0>;
+		};
+
+		platform {
+			sound-dai = <&q6routing>;
+		};
+
+		codec {
+			sound-dai = <&left_spkr>, <&right_spkr>, <&swr0 0>, <&wsamacro>;
 		};
 	};
 };
