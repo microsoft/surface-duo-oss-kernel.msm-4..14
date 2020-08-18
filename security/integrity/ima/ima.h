@@ -419,7 +419,7 @@ static inline void security_filter_rule_free(void *lsmrule)
 {
 }
 
-static inline int security_filter_rule_match(u32 secid, u32 field, u32 op,
+static inline int security_filter_rule_match(strcut lsmblob *blob, u32 field, u32 op,
 					     void *lsmrule)
 {
 	return -EINVAL;
