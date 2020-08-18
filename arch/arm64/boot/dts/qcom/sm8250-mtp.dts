@@ -477,6 +477,11 @@
 	firmware-name = "qcom/sm8250/cdsp.mbn";
 };
 
+&dispcc {
+	dpu-disable-interfaces;
+};
+
+#if 0
 &dsi0 {
 	status = "okay";
 	vdda-supply = <&vreg_l9a_1p2>;
@@ -497,6 +502,7 @@
 	status = "okay";
 	vdds-supply = <&vreg_l5a_0p875>;
 };
+#endif
 
 #if 0
 &dsi1 {
@@ -545,6 +551,7 @@
 	/* rtc6226 @ 64 */
 };
 
+#if 0
 &mdss {
 	status = "okay";
 };
@@ -552,6 +559,7 @@
 &mdss_mdp {
 	status = "okay";
 };
+#endif
 
 &pm8150_adc {
 	xo-therm@4c {
