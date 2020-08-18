@@ -7,12 +7,15 @@
 #include <dt-bindings/clock/qcom,dispcc-sm8250.h>
 #include <dt-bindings/clock/qcom,gcc-sm8250.h>
 #include <dt-bindings/clock/qcom,gpucc-sm8250.h>
+#include <dt-bindings/clock/qcom,sm8250-lpass-audiocc.h>
+#include <dt-bindings/clock/qcom,sm8250-lpass-aoncc.h>
 #include <dt-bindings/clock/qcom,rpmh.h>
 #include <dt-bindings/interconnect/qcom,sm8250.h>
 #include <dt-bindings/mailbox/qcom-ipcc.h>
 #include <dt-bindings/power/qcom-aoss-qmp.h>
 #include <dt-bindings/power/qcom-rpmpd.h>
 #include <dt-bindings/soc/qcom,apr.h>
+#include <dt-bindings/sound/qcom,q6afe.h>
 #include <dt-bindings/soc/qcom,rpmh-rsc.h>
 #include <dt-bindings/thermal/thermal.h>
 
@@ -1714,7 +1717,7 @@
 			compatible = "qcom,sm8250-slpi-pas";
 			reg = <0 0x05c00000 0 0x4000>;
 
-			interrupts-extended = <&pdc 9 IRQ_TYPE_LEVEL_HIGH>,
+			interrupts-extended = <&pdc 9 IRQ_TYPE_EDGE_RISING>,
 					      <&smp2p_slpi_in 0 IRQ_TYPE_EDGE_RISING>,
 					      <&smp2p_slpi_in 1 IRQ_TYPE_EDGE_RISING>,
 					      <&smp2p_slpi_in 2 IRQ_TYPE_EDGE_RISING>,
@@ -1753,7 +1756,7 @@
 			compatible = "qcom,sm8250-cdsp-pas";
 			reg = <0 0x08300000 0 0x10000>;
 
-			interrupts-extended = <&intc GIC_SPI 578 IRQ_TYPE_LEVEL_HIGH>,
+			interrupts-extended = <&intc GIC_SPI 578 IRQ_TYPE_EDGE_RISING>,
 					      <&smp2p_cdsp_in 0 IRQ_TYPE_EDGE_RISING>,
 					      <&smp2p_cdsp_in 1 IRQ_TYPE_EDGE_RISING>,
 					      <&smp2p_cdsp_in 2 IRQ_TYPE_EDGE_RISING>,
@@ -3038,6 +3041,47 @@
 					output-high;
 				};
 			};
+
+			tert_mi2s_sck_active: tert-mi2s-sck-active {
+				mux {
+					pins = "gpio133";
+					function = "mi2s2_sck";
+				};
+
+				config {
+					pins = "gpio133";
+					drive-strength = <8>;
+					bias-disable;
+					output-high;
+				};
+			};
+
+			tert_mi2s_sd0_active: tert-mi2s-sd0-active {
+				mux {
+					pins = "gpio134";
+					function = "mi2s2_data0";
+				};
+
+				config {
+					pins = "gpio134";
+					drive-strength = <8>;
+					bias-disable;
+					output-high;
+				};
+			};
+
+			tert_mi2s_ws_active: tert-mi2s-ws-active {
+				mux {
+					pins = "gpio135";
+					function = "mi2s2_ws";
+				};
+
+				config {
+					pins = "gpio135";
+					drive-strength = <8>;
+					output-high;
+				};
+			};
 		};
 
 		apps_smmu: iommu@15000000 {
@@ -3145,11 +3189,176 @@
 					<GIC_SPI 707 IRQ_TYPE_LEVEL_HIGH>;
 		};
 
+
+//		lpass@2c00000 {
+//			compatible = "qcom,sm8250-lpass";
+
+			lpass_tlmm: pinctrl@33c0000{
+				compatible = "qcom,sm8250-lpass-lpi-pinctrl";
+				reg = <0 0x33c0000 0x0 0x20000>,
+					 <0 0x355a000 0x0 0x1000>;
+				gpio-controller;
+				#gpio-cells = <2>;
+
+				clocks = <&q6afecc LPASS_HW_MACRO_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>,
+					<&q6afecc LPASS_HW_DCODEC_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>,
+					<&q6afecc LPASS_CLK_ID_WSA_CORE_MCLK LPASS_CLK_ATTRIBUTE_COUPLE_NO>,
+					<&q6afecc LPASS_CLK_ID_WSA_CORE_NPL_MCLK LPASS_CLK_ATTRIBUTE_COUPLE_NO>;
+				clock-names = "core", "audio","iface", "npl";
+
+
+				wsa_swr_clk_pin {
+					wsa_swr_clk_sleep: wsa_swr_clk_sleep {
+						mux {
+							pins = "gpio10";
+							function = "func2";
+							drive-strength = <2>;
+							input-enable;
+							bias-pull-down;
+						};
+					};
+	
+					wsa_swr_clk_active: wsa_swr_clk_active {
+						mux {
+							pins = "gpio10";
+							function = "func2";
+							drive-strength = <2>;
+							slew-rate = <1>;
+							bias-disable;
+						};
+					};
+				};
+	
+				wsa_swr_data_pin {
+					wsa_swr_data_sleep: wsa_swr_data_sleep {
+						mux {
+							pins = "gpio11";
+							function = "func2";
+							drive-strength = <2>;
+							input-enable;
+							bias-pull-down;
+						};
+					};
+	
+					wsa_swr_data_active: wsa_swr_data_active {
+						mux {
+							pins = "gpio11";
+							function = "func2";
+							drive-strength = <2>;
+							slew-rate = <1>;
+							bias-bus-hold;
+						};
+					};
+				};
+
+		                cdc_dmic01_data_active: dmic01_data_active {
+		                        mux {
+		                                pins = "gpio7";
+		                                function = "func1";
+		                                drive-strength = <8>;
+		                                input-enable;
+		                        };
+		                };
+
+		                cdc_dmic01_data_sleep: dmic01_data_sleep {
+		                        mux {
+		                                pins = "gpio7";
+		                                function = "func1";
+		                                drive-strength = <2>;
+		                                pull-down;
+		                                input-enable;
+		                        };
+		                };
+
+		                cdc_dmic01_clk_active: dmic01_clk_active {
+		                        mux {
+		                                pins = "gpio6";
+		                                function = "func1";
+		                                drive-strength = <8>;
+		                                output-high;
+		                        };
+		                };
+
+		                cdc_dmic01_clk_sleep: dmic01_clk_sleep {
+		                        mux {
+		                                pins = "gpio6";
+		                                function = "func1";
+		                                drive-strength = <2>;
+		                                bias-disable;
+		                                output-low;
+		                        };
+		                };
+
+			};
+
+			audiocc: audiocc@3300000 {
+				compatible = "qcom,sm8250-lpass-audiocc";
+				reg = <0 0x03300000 0 0x30000>;
+				#clock-cells = <1>;
+				clocks = <&q6afecc LPASS_HW_MACRO_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>,
+					<&q6afecc LPASS_HW_DCODEC_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>,
+					<&q6afecc LPASS_CLK_ID_TX_CORE_MCLK LPASS_CLK_ATTRIBUTE_COUPLE_NO>;
+				clock-names = "core", "audio", "bus";
+			};
+
+			aoncc: aoncc@3380000 {
+				compatible = "qcom,sm8250-lpass-aoncc";
+				reg = <0 0x03380000 0 0x40000>;
+				#clock-cells = <1>;
+				clocks = <&q6afecc LPASS_HW_MACRO_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>,
+					<&q6afecc LPASS_HW_DCODEC_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>,
+					<&q6afecc LPASS_CLK_ID_TX_CORE_NPL_MCLK LPASS_CLK_ATTRIBUTE_COUPLE_NO>;
+				clock-names = "core", "audio", "bus";
+			};
+
+			wsamacro: lpass-wsa-macro@3240000 {
+				pinctrl-names = "default";
+				pinctrl-0 = <&wsa_swr_clk_active &wsa_swr_data_active>;
+
+				compatible = "qcom,sm8250-lpass-wsa-macro";
+				reg = <0 0x3240000 0 0x1000>;
+				clocks = <&audiocc LPASS_CDC_WSA_MCLK>,
+					<&audiocc LPASS_CDC_WSA_NPL>,
+					<&q6afecc LPASS_HW_MACRO_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>,
+					<&q6afecc LPASS_HW_DCODEC_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>,
+					<&aoncc LPASS_CDC_VA_MCLK>;
+
+				clock-names = "mclk", "npl", "macro", "dcodec", "va";
+
+				#clock-cells = <0>;
+				clock-frequency = <9600000>;
+				clock-output-names = "mclk";
+				#address-cells = <2>;
+				#size-cells = <2>;
+				#sound-dai-cells = <0>;
+				ranges;
+
+				swr0: controller@3250000 {
+					reg = <0 0x3250000 0 0x2000>;
+					compatible = "qcom,soundwire-v1.5.1";
+					interrupts = <GIC_SPI 202 IRQ_TYPE_LEVEL_HIGH>;
+					clocks = <&wsamacro>;
+					clock-names = "iface";
+
+					qcom,din-ports = <2>;
+					qcom,dout-ports = <6>;
+
+					qcom,ports-sinterval-low =	/bits/ 8 <0x07 0x1F 0x3F 0x07 0x1F 0x3F 0x0F 0x0F>;
+					qcom,ports-offset1 = 		/bits/ 8 <0x01 0x02 0x0C 0x06 0x12 0x0D 0x07 0x0A >;
+					qcom,ports-offset2 = 		/bits/ 8 <0xFF 0x00 0x1F 0xFF 0x00 0x1F 0x00 0x00>;
+					qcom,ports-block-pack-mode = 	/bits/ 8 <0x0 0x0 0x1 0x0 0x0 0x1 0x0 0x0>;
+
+					#sound-dai-cells = <1>;
+					#address-cells = <2>;
+					#size-cells = <0>;
+				};
+			};
+		//};
 		adsp: remoteproc@17300000 {
 			compatible = "qcom,sm8250-adsp-pas";
 			reg = <0 0x17300000 0 0x100>;
 
-			interrupts-extended = <&pdc 6 IRQ_TYPE_LEVEL_HIGH>,
+			interrupts-extended = <&pdc 6 IRQ_TYPE_EDGE_RISING>,
 					      <&smp2p_adsp_in 0 IRQ_TYPE_EDGE_RISING>,
 					      <&smp2p_adsp_in 1 IRQ_TYPE_EDGE_RISING>,
 					      <&smp2p_adsp_in 2 IRQ_TYPE_EDGE_RISING>,
