@@ -225,6 +225,21 @@
 		regulator-max-microvolt = <1800000>;
 		regulator-always-on;
 	};
+
+	dummy {
+		compatible = "qcom-dummy";
+		vddaon-supply = <&vreg_s6a_0p95>;
+		vddpmu-supply = <&vreg_s2f_0p95>;
+		vddrfa1-supply = <&vreg_s2f_0p95>;
+		vddrfa2-supply = <&vreg_s8c_1p3>;
+		vddrfa3-supply = <&vreg_s5a_1p9>;
+		vddpcie1-supply = <&vreg_s8c_1p3>;
+		vddpcie2-supply = <&vreg_s5a_1p9>;
+		vddio-supply = <&vreg_s4a_1p8>;
+		pinctrl-names = "wlan_en_active", "bt_en_active";
+		pinctrl-0 = <&wlan_default_state>;
+		pinctrl-1 = <&bt_default_state>;
+	};
 };
 
 &apps_rsc {
@@ -237,6 +252,13 @@
 		vdd-l2-supply = <&vreg_s8c_1p3>;
 		vdd-l5-l6-supply = <&vreg_bob>;
 		vdd-l7-supply = <&vreg_s4a_1p8>;
+
+		vreg_s2f_0p95: smps2 {
+			regulator-name = "vreg_s2f_0p95";
+			regulator-min-microvolt = <512000>;
+			regulator-max-microvolt = <1100000>;
+			regulator-initial-mode = <RPMH_REGULATOR_MODE_AUTO>;
+		};
 
 		vreg_l1f_1p1: ldo1 {
 			regulator-name = "vreg_l1f_1p1";
@@ -1170,6 +1192,29 @@
 			bias-pull-up;
 		};
 	};
+
+	wlan_default_state: wlan-default-state {
+		wlan-en {
+			pins = "gpio20";
+			function = "gpio";
+
+			drive-strength = <16>;
+			output-high;
+			bias-pull-up;
+		};
+	};
+
+	bt_default_state: bt-default-state {
+		bt-en {
+			pins = "gpio21";
+			function = "gpio";
+
+			drive-strength = <16>;
+			output-high;
+			bias-pull-up;
+		};
+	};
+
 };
 
 &uart12 {
