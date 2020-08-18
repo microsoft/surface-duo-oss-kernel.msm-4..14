@@ -25,6 +25,9 @@
 #include <drm/drm_mipi_dsi.h>
 #include <drm/drm_print.h>
 
+#define EDID_BLOCK_SIZE	128
+#define EDID_NUM_BLOCKS 2
+
 struct lt9611uxc {
 	struct device *dev;
 	struct drm_bridge bridge;
@@ -47,6 +50,7 @@ struct lt9611uxc {
 
 	bool hpd_supported;
 	struct display_timings *timings;
+	u8 edid_buf[EDID_BLOCK_SIZE * EDID_NUM_BLOCKS];
 };
 
 #define LT9611_PAGE_CONTROL	0xff
@@ -81,11 +85,15 @@ struct lt9611uxc_mode {
 };
 
 static struct lt9611uxc_mode lt9611uxc_modes[] = {
+#if 0
 	{ 3840, 2160, 60, 4, 2 }, /* 3840x2160 24bit 60Hz 4Lane 2ports */
 	{ 3840, 2160, 30, 4, 2 }, /* 3840x2160 24bit 30Hz 4Lane 2ports */
 	{ 1920, 1080, 60, 4, 1 }, /* 1080P 24bit 60Hz 4lane 1port */
 	{ 1920, 1080, 30, 3, 1 }, /* 1080P 24bit 30Hz 3lane 1port */
 	{ 1920, 1080, 24, 3, 1 },
+#endif
+	{ 1024, 768, 60, 4, 1},
+	{ 800, 600, 60, 4, 1},
 	{ 720, 480, 60, 4, 1 },
 	{ 720, 576, 50, 2, 1 },
 	{ 640, 480, 60, 2, 1 },
@@ -306,24 +314,58 @@ static void lt9611uxc_bridge_post_disable(struct drm_bridge *bridge)
 {
 }
 
+static void lt9611uxc_video_setup(struct lt9611uxc *lt9611uxc,
+		const struct drm_display_mode *mode)
+{
+	u32 h_total, hactive, hsync_len, hfront_porch, hsync_porch;
+	u32 v_total, vactive, vsync_len, vfront_porch, vsync_porch;
+
+	h_total = mode->htotal;
+	v_total = mode->vtotal;
+
+	hactive = mode->hdisplay;
+	hsync_len = mode->hsync_end - mode->hsync_start;
+	hfront_porch = mode->hsync_start - mode->hdisplay;
+	hsync_porch = hsync_len + mode->htotal - mode->hsync_end;
+
+	vactive = mode->vdisplay;
+	vsync_len = mode->vsync_end - mode->vsync_start;
+	vfront_porch = mode->vsync_start - mode->vdisplay;
+	vsync_porch = vsync_len + mode->vtotal - mode->vsync_end;
+
+	regmap_write(lt9611uxc->regmap, 0xd00d, (u8)(v_total / 256));
+	regmap_write(lt9611uxc->regmap, 0xd00e, (u8)(v_total % 256));
+
+	regmap_write(lt9611uxc->regmap, 0xd00f, (u8)(vactive / 256));
+	regmap_write(lt9611uxc->regmap, 0xd010, (u8)(vactive % 256));
+
+	regmap_write(lt9611uxc->regmap, 0xd011, (u8)(h_total / 256));
+	regmap_write(lt9611uxc->regmap, 0xd012, (u8)(h_total % 256));
+
+	regmap_write(lt9611uxc->regmap, 0xd013, (u8)(hactive / 256));
+	regmap_write(lt9611uxc->regmap, 0xd014, (u8)(hactive % 256));
+
+	regmap_write(lt9611uxc->regmap, 0xd015, (u8)(vsync_len % 256));
+
+	regmap_update_bits(lt9611uxc->regmap, 0xd016, 0xf, (u8)(hsync_len / 256));
+	regmap_write(lt9611uxc->regmap, 0xd017, (u8)(hsync_len % 256));
+
+	regmap_update_bits(lt9611uxc->regmap, 0xd018, 0xf, (u8)(vfront_porch / 256));
+	regmap_write(lt9611uxc->regmap, 0xd019, (u8)(vfront_porch % 256));
+
+	regmap_update_bits(lt9611uxc->regmap, 0xd01a, 0xf, (u8)(hfront_porch / 256));
+	regmap_write(lt9611uxc->regmap, 0xd01b, (u8)(hfront_porch % 256));
+}
+
 static void lt9611uxc_bridge_mode_set(struct drm_bridge *bridge,
 				   const struct drm_display_mode *mode,
 				   const struct drm_display_mode *adj_mode)
 {
 	struct lt9611uxc *lt9611uxc = bridge_to_lt9611uxc(bridge);
-	struct lt9611uxc_mode *lt9611uxc_mode;
-	int ret;
 
-	lt9611uxc_mode = lt9611uxc_find_mode(mode);
-	if (lt9611uxc_mode->lanes != lt9611uxc->dsi0->lanes) {
-		dev_info(lt9611uxc->dev, "reattaching to change host lanes to %d\n", lt9611uxc_mode->lanes);
-		mipi_dsi_detach(lt9611uxc->dsi0);
-		lt9611uxc->dsi0->lanes = lt9611uxc_mode->lanes;
-		ret = mipi_dsi_attach(lt9611uxc->dsi0);
-		if (ret)
-			dev_err(lt9611uxc->dev, "failed to change host lanes\n");
-
-	}
+	lt9611uxc_lock(lt9611uxc);
+	lt9611uxc_video_setup(lt9611uxc, mode);
+	lt9611uxc_unlock(lt9611uxc);
 }
 
 static enum drm_connector_status lt9611uxc_bridge_detect(struct drm_bridge *bridge)
@@ -376,6 +418,61 @@ static int lt9611uxc_bridge_get_modes(struct drm_bridge *bridge,
 	return i;
 }
 
+static int lt9611uxc_read_edid(struct lt9611uxc *lt9611uxc)
+{
+	int ret = 0;
+	int i;
+
+	/* memset to clear old buffer, if any */
+	memset(lt9611uxc->edid_buf, 0, sizeof(lt9611uxc->edid_buf));
+
+	lt9611uxc_lock(lt9611uxc);
+
+	regmap_write(lt9611uxc->regmap, 0xb00b, 0x10);
+
+#define EDID_SEG 16
+	for (i = 0; i < 2 * EDID_BLOCK_SIZE; i += EDID_SEG) {
+		regmap_write(lt9611uxc->regmap, 0xb00a, i);
+		ret = regmap_noinc_read(lt9611uxc->regmap, 0xb0b0, &lt9611uxc->edid_buf[i], EDID_SEG);
+		if (ret < 0)
+			break;
+	}
+
+	lt9611uxc_unlock(lt9611uxc);
+	return ret;
+}
+
+static int lt9611uxc_get_edid_block(void *data, u8 *buf, unsigned int block, size_t len)
+{
+	struct lt9611uxc *lt9611uxc = data;
+	int ret;
+
+	if (len > EDID_BLOCK_SIZE)
+		return -EINVAL;
+
+	if (block >= EDID_NUM_BLOCKS)
+		return -EINVAL;
+
+	if (block == 0) {
+		ret = lt9611uxc_read_edid(lt9611uxc);
+		if (ret) {
+			dev_err(lt9611uxc->dev, "edid read failed\n");
+			return ret;
+		}
+	}
+
+	memcpy(buf, lt9611uxc->edid_buf + block * EDID_BLOCK_SIZE, len);
+	return 0;
+};
+
+struct edid* lt9611uxc_bridge_get_edid(struct drm_bridge *bridge,
+		struct drm_connector *connector)
+{
+	struct lt9611uxc *lt9611uxc = bridge_to_lt9611uxc(bridge);
+
+	return drm_do_get_edid(connector, lt9611uxc_get_edid_block, lt9611uxc);
+}
+
 static const struct drm_bridge_funcs lt9611uxc_bridge_funcs = {
 	.attach = lt9611uxc_bridge_attach,
 	.detach = lt9611uxc_bridge_detach,
@@ -386,16 +483,15 @@ static const struct drm_bridge_funcs lt9611uxc_bridge_funcs = {
 	.mode_set = lt9611uxc_bridge_mode_set,
 	.detect = lt9611uxc_bridge_detect,
 	.get_modes = lt9611uxc_bridge_get_modes,
+	.get_edid = lt9611uxc_bridge_get_edid,
 };
 
 static int lt9611uxc_parse_dt(struct device *dev,
 			   struct lt9611uxc *lt9611uxc)
 {
 	lt9611uxc->timings = of_get_display_timings(dev->of_node);
-	if (!lt9611uxc->timings) {
-		dev_err(dev, "could not get panel timings\n");
-		return -EINVAL;
-	}
+	if (!lt9611uxc->timings)
+		dev_info(dev, "no display timings provided\n");
 
 	lt9611uxc->dsi0_node = of_graph_get_remote_node(dev->of_node, 1, -1);
 	if (!lt9611uxc->dsi0_node) {
@@ -546,9 +642,11 @@ static int lt9611uxc_probe(struct i2c_client *client,
 
 	lt9611uxc->bridge.funcs = &lt9611uxc_bridge_funcs;
 	lt9611uxc->bridge.of_node = client->dev.of_node;
-	lt9611uxc->bridge.ops = DRM_BRIDGE_OP_DETECT |
-				/* DRM_BRIDGE_OP_EDID |*/
-				DRM_BRIDGE_OP_MODES;
+	lt9611uxc->bridge.ops = DRM_BRIDGE_OP_DETECT;
+	if (lt9611uxc->timings)
+		lt9611uxc->bridge.ops |= DRM_BRIDGE_OP_MODES;
+	else
+		lt9611uxc->bridge.ops |= DRM_BRIDGE_OP_EDID;
 	if (lt9611uxc->hpd_supported)
 		lt9611uxc->bridge.ops |= DRM_BRIDGE_OP_HPD;
 	lt9611uxc->bridge.type = DRM_MODE_CONNECTOR_HDMIA;
