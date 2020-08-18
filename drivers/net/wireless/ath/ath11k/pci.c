@@ -760,11 +760,18 @@ static void ath11k_pci_free_region(struct ath11k_pci *ab_pci)
 static int ath11k_pci_power_up(struct ath11k_base *ab)
 {
 	struct ath11k_pci *ab_pci = ath11k_pci_priv(ab);
+	u8 aspm;
 	int ret;
 
 	ab_pci->register_window = 0;
 	clear_bit(ATH11K_PCI_FLAG_INIT_DONE, &ab_pci->flags);
 	ath11k_pci_sw_reset(ab_pci->ab);
+
+	pci_read_config_byte(ab_pci->pdev, 0x80, &aspm);
+	pci_write_config_byte(ab_pci->pdev, 0x80, aspm & 0xfd);
+
+	ath11k_info(ab, "aspm 0x%x changed to 0x%x\n",
+		    aspm, aspm & 0xfd);
 
 	ret = ath11k_mhi_start(ab_pci);
 	if (ret) {
