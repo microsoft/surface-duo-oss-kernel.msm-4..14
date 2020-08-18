@@ -263,6 +263,12 @@ config QCOM_FASTRPC
 	  applications DSP processor. Say M if you want to enable this
 	  module.
 
+config QCOM_DUMMY
+	tristate "Qualcomm dummy"
+	depends on ARCH_QCOM || COMPILE_TEST
+	help
+	  module.
+
 config SGI_GRU
 	tristate "SGI GRU driver"
 	depends on X86_UV && SMP
