@@ -2024,7 +2024,7 @@ static int ath11k_qmi_load_bdf_qmi(struct ath11k_base *ab)
 		req->seg_id_valid = 1;
 		req->data_valid = 1;
 		req->data_len = ATH11K_QMI_MAX_BDF_FILE_NAME_SIZE;
-		req->bdf_type = ATH11K_QMI_BDF_TYPE_BIN;
+		req->bdf_type = ATH11K_QMI_BDF_TYPE_ELF;
 		req->bdf_type_valid = 1;
 		req->end_valid = 1;
 		req->end = 0;
