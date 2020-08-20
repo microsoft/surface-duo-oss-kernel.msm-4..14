@@ -474,7 +474,7 @@
 
 &cdsp {
 	status = "okay";
-	firmware-name = "qcom/sm8250/cdsp.mbn";
+	firmware-name = "qcom/sm8250/cdsp.mdt";
 };
 
 &dispcc {
@@ -694,7 +694,7 @@
 
 &slpi {
 	status = "okay";
-	firmware-name = "qcom/sm8250/slpi.mbn";
+	firmware-name = "qcom/sm8250/slpi.mdt";
 };
 
 &tlmm {
