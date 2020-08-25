@@ -5729,6 +5729,17 @@ EXPORT_SYMBOL	 sound/usb/snd-usbmidi-lib 0x00000000	snd_usbmidi_input_start
 EXPORT_SYMBOL	 sound/usb/snd-usbmidi-lib 0x00000000	snd_usbmidi_input_stop
 EXPORT_SYMBOL	 sound/usb/snd-usbmidi-lib 0x00000000	snd_usbmidi_resume
 EXPORT_SYMBOL	 sound/usb/snd-usbmidi-lib 0x00000000	snd_usbmidi_suspend
+EXPORT_SYMBOL	 ubuntu/hio/hio 0x00000000	ssd_bm_status
+EXPORT_SYMBOL	 ubuntu/hio/hio 0x00000000	ssd_get_label
+EXPORT_SYMBOL	 ubuntu/hio/hio 0x00000000	ssd_get_pciaddr
+EXPORT_SYMBOL	 ubuntu/hio/hio 0x00000000	ssd_get_temperature
+EXPORT_SYMBOL	 ubuntu/hio/hio 0x00000000	ssd_get_version
+EXPORT_SYMBOL	 ubuntu/hio/hio 0x00000000	ssd_register_event_notifier
+EXPORT_SYMBOL	 ubuntu/hio/hio 0x00000000	ssd_reset
+EXPORT_SYMBOL	 ubuntu/hio/hio 0x00000000	ssd_set_otprotect
+EXPORT_SYMBOL	 ubuntu/hio/hio 0x00000000	ssd_set_wmode
+EXPORT_SYMBOL	 ubuntu/hio/hio 0x00000000	ssd_submit_pbio
+EXPORT_SYMBOL	 ubuntu/hio/hio 0x00000000	ssd_unregister_event_notifier
 EXPORT_SYMBOL	 vmlinux 0x00000000	EISA_bus
 EXPORT_SYMBOL	 vmlinux 0x00000000	IO_APIC_get_PCI_irq_vector
 EXPORT_SYMBOL	 vmlinux 0x00000000	I_BDEV
