@@ -890,9 +890,9 @@ firmware:       mrvl/sd8787_uapsta.bin
 firmware:       mrvl/sd8797_uapsta.bin
 firmware:       mrvl/sd8887_uapsta.bin
 firmware:       mrvl/sd8897_uapsta.bin
-firmware:       mrvl/sd8977_uapsta.bin
 firmware:       mrvl/sd8987_uapsta.bin
-firmware:       mrvl/sd8997_uapsta.bin
+firmware:       mrvl/sdsd8977_combo_v2.bin
+firmware:       mrvl/sdsd8997_combo_v4.bin
 firmware:       mrvl/usb8766_uapsta.bin
 firmware:       mrvl/usb8797_uapsta.bin
 firmware:       mrvl/usb8801_uapsta.bin
