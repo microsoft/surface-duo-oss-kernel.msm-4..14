@@ -40,6 +40,7 @@ struct lt9611uxc {
 	struct device_node *dsi1_node;
 	struct mipi_dsi_device *dsi0;
 	struct mipi_dsi_device *dsi1;
+	struct platform_device *audio_pdev;
 
 	struct gpio_desc *reset_gpio;
 	struct gpio_desc *enable_gpio;
@@ -562,6 +563,70 @@ static int lt9611uxc_read_version(struct lt9611uxc *lt9611uxc)
 	return ret < 0 ? ret : rev;
 }
 
+static int lt9611uxc_hdmi_hw_params(struct device *dev, void *data,
+				 struct hdmi_codec_daifmt *fmt,
+				 struct hdmi_codec_params *hparms)
+{
+	/* LT9611UXC will automatically detect rate and bitness, so no need to
+	 * setup anything here. */
+	return 0;
+}
+
+static void lt9611uxc_audio_shutdown(struct device *dev, void *data)
+{
+}
+
+static int lt9611uxc_hdmi_i2s_get_dai_id(struct snd_soc_component *component,
+				      struct device_node *endpoint)
+{
+	struct of_endpoint of_ep;
+	int ret;
+
+	ret = of_graph_parse_endpoint(endpoint, &of_ep);
+	if (ret < 0)
+		return ret;
+
+	/*
+	 * HDMI sound should be located as reg = <2>
+	 * Then, it is sound port 0
+	 */
+	if (of_ep.port == 2)
+		return 0;
+
+	return -EINVAL;
+}
+
+static const struct hdmi_codec_ops lt9611uxc_codec_ops = {
+	.hw_params	= lt9611uxc_hdmi_hw_params,
+	.audio_shutdown = lt9611uxc_audio_shutdown,
+	.get_dai_id	= lt9611uxc_hdmi_i2s_get_dai_id,
+};
+
+static int lt9611uxc_audio_init(struct device *dev, struct lt9611uxc *lt9611uxc)
+{
+	struct hdmi_codec_pdata codec_data = {
+		.ops = &lt9611uxc_codec_ops,
+		.max_i2s_channels = 2,
+		.i2s = 1,
+		.data = lt9611uxc,
+	};
+
+	lt9611uxc->audio_pdev =
+		platform_device_register_data(dev, HDMI_CODEC_DRV_NAME,
+					      PLATFORM_DEVID_AUTO,
+					      &codec_data, sizeof(codec_data));
+
+	return PTR_ERR_OR_ZERO(lt9611uxc->audio_pdev);
+}
+
+static void lt9611uxc_audio_exit(struct lt9611uxc *lt9611uxc)
+{
+	if (lt9611uxc->audio_pdev) {
+		platform_device_unregister(lt9611uxc->audio_pdev);
+		lt9611uxc->audio_pdev = NULL;
+	}
+}
+
 static int lt9611uxc_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
@@ -653,7 +718,7 @@ static int lt9611uxc_probe(struct i2c_client *client,
 
 	drm_bridge_add(&lt9611uxc->bridge);
 
-	return 0;
+	return lt9611uxc_audio_init(dev, lt9611uxc);
 
 err_disable_regulators:
 	regulator_bulk_disable(ARRAY_SIZE(lt9611uxc->supplies), lt9611uxc->supplies);
@@ -670,6 +735,7 @@ static int lt9611uxc_remove(struct i2c_client *client)
 	struct lt9611uxc *lt9611uxc = i2c_get_clientdata(client);
 
 	disable_irq(client->irq);
+	lt9611uxc_audio_exit(lt9611uxc);
 	drm_bridge_remove(&lt9611uxc->bridge);
 
 	mutex_destroy(&lt9611uxc->ocm_lock);
