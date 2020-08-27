@@ -40,7 +40,7 @@ static ssize_t get_init(struct device *dev, struct device_attribute *attr,
 	int initialized;
 	u32	reg_content;
 
-	reg_content = ioread32be(timer_base + STM_CR);
+	reg_content = readl(timer_base + STM_CR);
 	initialized = !!(reg_content & STM_CR_TEN);
 
 	return snprintf(buf, INPUT_LEN, "%d\n", initialized);
@@ -58,11 +58,11 @@ static ssize_t set_init(struct device *dev, struct device_attribute *attr,
 		return count;
 	}
 	if (should_init) {
-		iowrite32be(0, timer_base + STM_CNT);
-		iowrite32be(STM_CR_CPS | STM_CR_FRZ | STM_CR_TEN,
+		writel(0, timer_base + STM_CNT);
+		writel(STM_CR_CPS | STM_CR_FRZ | STM_CR_TEN,
 						timer_base + STM_CR);
 	} else {
-		iowrite32be(0, timer_base + STM_CR);
+		writel(0, timer_base + STM_CR);
 	}
 	return count;
 }
@@ -72,7 +72,7 @@ static ssize_t get_time(struct device *dev, struct device_attribute *attr,
 {
 	u32 cur_time;
 
-	cur_time = ioread32be(timer_base + STM_CNT);
+	cur_time = readl(timer_base + STM_CNT);
 
 	return snprintf(buf, OUTPUT_LEN, "0x%08x\n", cur_time);
 }
