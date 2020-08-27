@@ -45,6 +45,8 @@ struct lt9611uxc {
 	struct gpio_desc *reset_gpio;
 	struct gpio_desc *enable_gpio;
 
+	bool sleep;
+
 	struct regulator_bulk_data supplies[2];
 
 	struct i2c_client *client;
@@ -150,6 +152,8 @@ static void lt9611uxc_reset(struct lt9611uxc *lt9611uxc)
 
 	gpiod_set_value_cansleep(lt9611uxc->reset_gpio, 1);
 	msleep(180);
+
+	lt9611uxc->sleep = false;
 }
 
 static void lt9611uxc_assert_5v(struct lt9611uxc *lt9611uxc)
@@ -313,6 +317,12 @@ lt9611uxc_bridge_mode_valid(struct drm_bridge *bridge,
 
 static void lt9611uxc_bridge_post_disable(struct drm_bridge *bridge)
 {
+	struct lt9611uxc *lt9611uxc = bridge_to_lt9611uxc(bridge);
+
+	lt9611uxc_lock(lt9611uxc);
+	regmap_update_bits(lt9611uxc->regmap, 0xb024, 0x1, 0x1);
+	lt9611uxc->sleep = true;
+	lt9611uxc_unlock(lt9611uxc);
 }
 
 static void lt9611uxc_video_setup(struct lt9611uxc *lt9611uxc,
@@ -363,6 +373,9 @@ static void lt9611uxc_bridge_mode_set(struct drm_bridge *bridge,
 				   const struct drm_display_mode *adj_mode)
 {
 	struct lt9611uxc *lt9611uxc = bridge_to_lt9611uxc(bridge);
+
+	if (lt9611uxc->sleep)
+		lt9611uxc_reset(lt9611uxc);
 
 	lt9611uxc_lock(lt9611uxc);
 	lt9611uxc_video_setup(lt9611uxc, mode);
