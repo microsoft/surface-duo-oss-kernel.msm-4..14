@@ -213,14 +213,6 @@ static struct lt9611uxc_mode *lt9611uxc_find_mode(const struct drm_display_mode 
 	return NULL;
 }
 
-static void lt9611uxc_bridge_enable(struct drm_bridge *bridge)
-{
-}
-
-static void lt9611uxc_bridge_disable(struct drm_bridge *bridge)
-{
-}
-
 static struct mipi_dsi_device *lt9611uxc_attach_dsi(struct lt9611uxc *lt9611uxc,
 						 struct device_node *dsi_node)
 {
@@ -491,8 +483,6 @@ static const struct drm_bridge_funcs lt9611uxc_bridge_funcs = {
 	.attach = lt9611uxc_bridge_attach,
 	.detach = lt9611uxc_bridge_detach,
 	.mode_valid = lt9611uxc_bridge_mode_valid,
-	.enable = lt9611uxc_bridge_enable,
-	.disable = lt9611uxc_bridge_disable,
 	.post_disable = lt9611uxc_bridge_post_disable,
 	.mode_set = lt9611uxc_bridge_mode_set,
 	.detect = lt9611uxc_bridge_detect,
