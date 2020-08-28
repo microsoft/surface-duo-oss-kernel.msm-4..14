@@ -114,6 +114,14 @@ Optional properties:
 			- snps,high_credit: max write outstanding req. limit
 			- snps,low_credit: max read outstanding req. limit
 		- snps,priority: TX queue priority (Range: 0x0 to 0xF)
+- io-macro-info: Sub node to define io macro parameters
+	- rx-prog-swap: boolean value to enable RX_PROG_SWAP for 10/100M
+	- rx-dll-bypass: boolean value to indicate RX DLL in bypass mode at 1000M
+	- prg-rclk-dly: internal rx clk delay for 1000M (Range: 900ps to 1500ps)
+                    This setting does not apply if rx-dll-bypass is enabled
+	- clear-cdr-ext-en: boolean value to clear CDR_EXT_EN for 1000M
+	- sdcc-usr-ctl: 32 bit register value. Provide to apply a specific value
+
 Examples:
 
 	stmmac_axi_setup: stmmac-axi-config {
