@@ -174,20 +174,20 @@ static int veth_ipa_offload_init(struct veth_ipa_dev *pdata)
 	VETH_IPA_DEBUG("IPA VLAN mode %d\n", ipa_vlan_mode);
 	VETH_IPA_DEBUG("IPA VLAN mode %d vlan id %d mac %pM\n",
 				   ipa_vlan_mode, pdata->prv_ipa.vlan_id,
-				   pdata->device_ethaddr);
+				   pdata->net->dev_addr);
 	pdata->prv_ipa.vlan_id = 1;
 	memset(&in, 0, sizeof(in));
 	memset(&out, 0, sizeof(out));
 
 	/* Building ETH Header */
-	if (!pdata->prv_ipa.vlan_id || !ipa_vlan_mode) {
+	if (!pdata->prv_ipa.vlan_id && !ipa_vlan_mode) {
 		memset(&eth_l2_hdr_v4, 0, sizeof(eth_l2_hdr_v4));
 		memset(&eth_l2_hdr_v6, 0, sizeof(eth_l2_hdr_v6));
 		memcpy(&eth_l2_hdr_v4.h_source,
-			pdata->device_ethaddr, ETH_ALEN);
+			pdata->net->dev_addr, ETH_ALEN);
 		eth_l2_hdr_v4.h_proto = htons(ETH_P_IP);
 		memcpy(&eth_l2_hdr_v6.h_source,
-			pdata->device_ethaddr, ETH_ALEN);
+			pdata->net->dev_addr, ETH_ALEN);
 		eth_l2_hdr_v6.h_proto = htons(ETH_P_IPV6);
 		in.hdr_info[0].hdr = (u8 *)&eth_l2_hdr_v4;
 		in.hdr_info[0].hdr_len = ETH_HLEN;
