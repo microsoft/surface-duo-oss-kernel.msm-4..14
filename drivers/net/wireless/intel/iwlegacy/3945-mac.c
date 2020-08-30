@@ -365,7 +365,7 @@ il3945_build_tx_cmd_hwcrypto(struct il_priv *il, struct ieee80211_tx_info *info,
 
 	case WLAN_CIPHER_SUITE_WEP104:
 		tx_cmd->sec_ctl |= TX_CMD_SEC_KEY128;
-		/* fall through */
+		fallthrough;
 	case WLAN_CIPHER_SUITE_WEP40:
 		tx_cmd->sec_ctl |=
 		    TX_CMD_SEC_WEP | (info->control.hw_key->
@@ -1374,9 +1374,9 @@ il3945_dump_nic_error_log(struct il_priv *il)
 }
 
 static void
-il3945_irq_tasklet(unsigned long data)
+il3945_irq_tasklet(struct tasklet_struct *t)
 {
-	struct il_priv *il = (struct il_priv *)data;
+	struct il_priv *il = from_tasklet(il, t, irq_tasklet);
 	u32 inta, handled = 0;
 	u32 inta_fh;
 	unsigned long flags;
@@ -3399,9 +3399,7 @@ il3945_setup_deferred_work(struct il_priv *il)
 
 	timer_setup(&il->watchdog, il_bg_watchdog, 0);
 
-	tasklet_init(&il->irq_tasklet,
-		     il3945_irq_tasklet,
-		     (unsigned long)il);
+	tasklet_setup(&il->irq_tasklet, il3945_irq_tasklet);
 }
 
 static void
