@@ -19,6 +19,8 @@
 		};
 	};
 
+	/delete-node/ cpus;
+	/delete-node/ rename_blk;
 };
 
 &hab {

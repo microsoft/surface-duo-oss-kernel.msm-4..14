@@ -725,6 +725,7 @@ static void smblib_uusb_removal(struct smb_charger *chg)
 	vote(chg->pl_enable_votable_indirect, USBIN_V_VOTER, false, 0);
 	vote(chg->usb_icl_votable, SW_QC3_VOTER, false, 0);
 	vote(chg->hvdcp_hw_inov_dis_votable, OV_VOTER, false, 0);
+	vote(chg->usb_icl_votable, USBIN_USBIN_BOOST_VOTER, false, 0);
 
 	cancel_delayed_work_sync(&chg->hvdcp_detect_work);
 
@@ -1146,6 +1147,44 @@ static int __smblib_set_prop_typec_power_role(struct smb_charger *chg,
 	}
 
 	return rc;
+}
+
+static inline bool typec_in_src_mode(struct smb_charger *chg)
+{
+	return (chg->typec_mode > POWER_SUPPLY_TYPEC_NONE &&
+		chg->typec_mode < POWER_SUPPLY_TYPEC_SOURCE_DEFAULT);
+}
+
+int smblib_get_prop_typec_select_rp(struct smb_charger *chg,
+				    union power_supply_propval *val)
+{
+	int rc, rp;
+	u8 stat;
+
+	if (!typec_in_src_mode(chg))
+		return -ENODATA;
+
+	rc = smblib_read(chg, TYPE_C_CFG_2_REG, &stat);
+	if (rc < 0) {
+		smblib_err(chg, "Couldn't read TYPE_C_CURRSRC_CFG_REG rc=%d\n",
+				rc);
+		return rc;
+	}
+
+	switch (stat & EN_80UA_180UA_CUR_SOURCE_BIT) {
+	case TYPEC_SRC_RP_STD:
+		rp = POWER_SUPPLY_TYPEC_SRC_RP_STD;
+		break;
+	case TYPEC_SRC_RP_1P5A:
+		rp = POWER_SUPPLY_TYPEC_SRC_RP_1P5A;
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	val->intval = rp;
+
+	return 0;
 }
 
 int smblib_toggle_stat(struct smb_charger *chg, int reset)
@@ -1678,6 +1717,8 @@ int smblib_vbus_regulator_enable(struct regulator_dev *rdev)
 	rc = _smblib_vbus_regulator_enable(rdev);
 	if (rc >= 0)
 		chg->otg_en = true;
+	else
+		vote(chg->usb_icl_votable, USBIN_USBIN_BOOST_VOTER, false, 0);
 
 unlock:
 	mutex_unlock(&chg->otg_oc_lock);
@@ -2859,6 +2900,42 @@ int smblib_set_prop_typec_power_role(struct smb_charger *chg,
 		return __smblib_set_prop_typec_power_role(chg, val);
 
 	return 0;
+}
+
+int smblib_set_prop_typec_select_rp(struct smb_charger *chg,
+				    const union power_supply_propval *val)
+{
+	int rc = 0;
+
+	if (!typec_in_src_mode(chg)) {
+		smblib_err(chg, "Couldn't set curr src: not in SRC mode\n");
+		return -EINVAL;
+	}
+
+	if (val->intval < 0 || val->intval >= TYPEC_SRC_RP_MAX_ELEMENTS)
+		return -EINVAL;
+
+	switch (val->intval) {
+	case TYPEC_SRC_RP_STD:
+		rc = smblib_masked_write(chg, TYPE_C_CFG_2_REG,
+			EN_80UA_180UA_CUR_SOURCE_BIT,
+			TYPEC_SRC_RP_STD);
+		break;
+	case TYPEC_SRC_RP_1P5A:
+	case TYPEC_SRC_RP_3A:
+	case TYPEC_SRC_RP_3A_DUPLICATE:
+		rc = smblib_masked_write(chg, TYPE_C_CFG_2_REG,
+			EN_80UA_180UA_CUR_SOURCE_BIT,
+			TYPEC_SRC_RP_1P5A);
+		break;
+	default:
+		return -EINVAL;
+	}
+
+	if (rc < 0)
+		smblib_err(chg, "Couldn't write to TYPE_C_CURRSRC_CFG rc=%d\n",
+				rc);
+	return rc;
 }
 
 int smblib_set_prop_pd_voltage_min(struct smb_charger *chg,
@@ -4314,6 +4391,7 @@ static void smblib_handle_typec_removal(struct smb_charger *chg)
 	vote(chg->pl_enable_votable_indirect, USBIN_V_VOTER, false, 0);
 	vote(chg->awake_votable, PL_DELAY_VOTER, false, 0);
 
+	vote(chg->usb_icl_votable, USBIN_USBIN_BOOST_VOTER, false, 0);
 	chg->vconn_attempts = 0;
 	chg->otg_attempts = 0;
 	chg->pulse_cnt = 0;

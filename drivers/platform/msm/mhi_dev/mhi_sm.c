@@ -1102,7 +1102,7 @@ int mhi_dev_sm_init(struct mhi_dev *mhi_dev)
 
 	/*init debugfs*/
 	mhi_sm_debugfs_init();
-	mhi_sm_ctx->mhi_sm_wq = create_singlethread_workqueue("mhi_sm_wq");
+	mhi_sm_ctx->mhi_sm_wq = alloc_workqueue("mhi_sm_wq", WQ_HIGHPRI, 0);
 	if (!mhi_sm_ctx->mhi_sm_wq) {
 		MHI_SM_ERR("Failed to create singlethread_workqueue: sm_wq\n");
 		res = -ENOMEM;
@@ -1142,6 +1142,7 @@ int mhi_dev_sm_exit(struct mhi_dev *mhi_dev)
 	flush_workqueue(mhi_sm_ctx->mhi_sm_wq);
 	destroy_workqueue(mhi_sm_ctx->mhi_sm_wq);
 	/* Initiate MHI IPA reset */
+	ipa_dma_disable();
 	ipa_mhi_destroy();
 	ipa_dma_destroy();
 	mutex_destroy(&mhi_sm_ctx->mhi_state_lock);

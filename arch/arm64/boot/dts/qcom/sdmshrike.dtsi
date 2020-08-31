@@ -46,6 +46,7 @@
 		hsuart0 = &qupv3_se13_4uart;
 		spi0 = &qupv3_se3_spi;
 		i2c0 = &qupv3_se4_i2c;
+		i2c2 = &qupv3_se2_i2c;
 	};
 
 	cpus {
@@ -719,7 +720,7 @@
 			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
 			reusable;
 			alignment = <0x0 0x400000>;
-			size = <0x0 0x2800000>;
+			size = <0x0 0x3c00000>;
 			linux,cma-default;
 		};
 	};
@@ -1234,6 +1235,11 @@
 		priority = <0>;
 		mbox-desc-offset = <0x0>;
 		#mbox-cells = <1>;
+	};
+
+	qcom,sps {
+		compatible = "qcom,msm-sps-4k";
+		qcom,pipe-attr-ee;
 	};
 
 	tcsr_mutex_block: syscon@1f40000 {
@@ -2842,6 +2848,7 @@
 #include "sdmshrike-regulators.dtsi"
 #include "sdmshrike-ion.dtsi"
 #include "sdmshrike-bus.dtsi"
+#include "sdmshrike-coresight.dtsi"
 #include "msm-arm-smmu-sdmshrike.dtsi"
 #include "sdmshrike-usb.dtsi"
 #include "sdmshrike-qupv3.dtsi"
