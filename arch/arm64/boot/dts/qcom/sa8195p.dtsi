@@ -800,7 +800,3 @@
 		&mdss_core_gdsc &gpu_cx_gdsc &gpu_gx_gdsc &npu_core_gdsc>;
 };
 
-&qupv3_se2_i2c {
-	qcom,clk-freq-out = <400000>;
-	status = "ok";
-};
