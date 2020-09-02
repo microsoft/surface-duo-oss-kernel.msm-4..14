@@ -1,4 +1,4 @@
-/* Copyright (c) 2018-2019, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -13,7 +13,7 @@
 #include <dt-bindings/regulator/qcom,rpmh-regulator.h>
 
 &soc {
-	rpmh-regulator-smpa2 {
+	smpa2: rpmh-regulator-smpa2 {
 		compatible = "qcom,rpmh-arc-regulator";
 		mboxes = <&apps_rsc 0>;
 		qcom,resource-name = "cx.lvl";
@@ -58,7 +58,7 @@
 		};
 	};
 
-	rpmh-regulator-smpa4 {
+	smpa4: rpmh-regulator-smpa4 {
 		compatible = "qcom,rpmh-vrm-regulator";
 		mboxes = <&apps_rsc 0>;
 		qcom,resource-name = "smpa4";
@@ -116,7 +116,7 @@
 		};
 	};
 
-	rpmh-regulator-ldoa2 {
+	ldoa2: rpmh-regulator-ldoa2 {
 		compatible = "qcom,rpmh-vrm-regulator";
 		mboxes = <&apps_rsc 0>;
 		qcom,resource-name = "ldoa2";
@@ -154,7 +154,7 @@
 		};
 	};
 
-	rpmh-regulator-ldoa5 {
+	ldoa5: rpmh-regulator-ldoa5 {
 		compatible = "qcom,rpmh-vrm-regulator";
 		mboxes = <&apps_rsc 0>;
 		qcom,resource-name = "ldoa5";
@@ -230,7 +230,7 @@
 		};
 	};
 
-	rpmh-regulator-ldoa10 {
+	ldoa10: rpmh-regulator-ldoa10 {
 		compatible = "qcom,rpmh-vrm-regulator";
 		mboxes = <&apps_rsc 0>;
 		qcom,resource-name = "ldoa10";
@@ -249,7 +249,7 @@
 		};
 	};
 
-	rpmh-regulator-ldoa11 {
+	ldoa11: rpmh-regulator-ldoa11 {
 		compatible = "qcom,rpmh-vrm-regulator";
 		mboxes = <&apps_rsc 0>;
 		qcom,resource-name = "ldoa11";
@@ -268,7 +268,7 @@
 		};
 	};
 
-	rpmh-regulator-ldoa12 {
+	ldoa12: rpmh-regulator-ldoa12 {
 		compatible = "qcom,rpmh-vrm-regulator";
 		mboxes = <&apps_rsc 0>;
 		qcom,resource-name = "ldoa12";
@@ -344,7 +344,7 @@
 		};
 	};
 
-	rpmh-regulator-ldoa17 {
+	ldoa17: rpmh-regulator-ldoa17 {
 		compatible = "qcom,rpmh-vrm-regulator";
 		mboxes = <&apps_rsc 0>;
 		qcom,resource-name = "ldoa17";

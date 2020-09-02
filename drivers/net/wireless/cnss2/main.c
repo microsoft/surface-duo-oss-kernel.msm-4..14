@@ -2194,12 +2194,32 @@ static void __exit cnss_exit(void)
 	cnss_debug_deinit();
 }
 
+#ifndef MODULE
+#ifdef CONFIG_CNSS_ASYNC
 static int __init cnss_set_sync(void)
 {
 	cnss_platform_driver.driver.probe_type = 0;
 	return 0;
 }
 early_init(cnss_set_sync, EARLY_SUBSYS_5, EARLY_INIT_LEVEL4);
+#endif
+
+static DECLARE_COMPLETION(cnss_start);
+
+static int __init cnss_sync(void)
+{
+	complete(&cnss_start);
+	return 0;
+}
+device_initcall_sync(cnss_sync);
+
+static int __init cnss_wait(void)
+{
+	wait_for_completion(&cnss_start);
+	return 0;
+}
+early_init(cnss_wait, EARLY_SUBSYS_5, EARLY_INIT_LEVEL5);
+#endif
 
 early_module_init(cnss_initialize, EARLY_SUBSYS_5, EARLY_INIT_LEVEL5);
 module_exit(cnss_exit);

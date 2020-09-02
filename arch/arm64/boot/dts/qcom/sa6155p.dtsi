@@ -595,6 +595,30 @@
 	};
 };
 
+&early_devices {
+	devices = <&cmd_db &apps_rsc &ldoa2 &ldoa5 &ldoa10 &ldoa11
+		&ldoa12 &ldoa17 &smpa2 &smpa4 &ufs_phy_gdsc &clock_rpmh
+		&clock_gcc &ad_hoc_bus &ufs_ice &ufsphy_mem &ufshc_mem
+		&tlmm &bps_gdsc &ipe_0_gdsc
+		&ife_0_gdsc &ife_1_gdsc &titan_top_gdsc &usb20_sec_gdsc
+		&qupv3_se4_i2c &qupv3_se10_i2c
+		&qupv3_2 &qupv3_1 &qupv3_0
+		&clock_cpucc &clock_camcc &clock_aop &clock_dispcc
+		&clock_gpucc &clock_gpucc &clock_scc &clock_videocc &rgmu
+		&apps_smmu &kgsl_smmu &anoc_1_tbu &anoc_2_tbu
+		&mnoc_hf_0_tbu &adsp_tbu
+		&mnoc_sf_0_tbu &gfx_0_tbu &gfx_1_tbu &emac_gdsc &vcodec0_gdsc
+		&pcie_0_gdsc &usb30_prim_gdsc &venus_gdsc
+		&hlos1_vote_aggre_noc_mmu_audio_tbu_gdsc
+		&hlos1_vote_aggre_noc_mmu_tbu1_gdsc &tcsr_mutex &smem
+		&hlos1_vote_aggre_noc_mmu_tbu2_gdsc
+		&hlos1_vote_aggre_noc_mmu_pcie_tbu_gdsc
+		&hlos1_vote_mmnoc_mmu_tbu_hf0_gdsc
+		&hlos1_vote_mmnoc_mmu_tbu_sf_gdsc
+		&hlos1_vote_mmnoc_mmu_tbu_hf1_gdsc
+		&mdss_core_gdsc &gpu_cx_gdsc &gpu_gx_gdsc>;
+};
+
 /* Audio device tree */
 #include "sa6155-audio.dtsi"
 #include "sa6155-pcie.dtsi"

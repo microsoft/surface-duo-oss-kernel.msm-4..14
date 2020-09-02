@@ -3732,7 +3732,8 @@ static int __init gcc_sm6150_init(void)
 {
 	return platform_driver_register(&gcc_sm6150_driver);
 }
-subsys_initcall(gcc_sm6150_init);
+early_subsys_initcall(gcc_sm6150_init, EARLY_SUBSYS_PLATFORM,
+EARLY_INIT_LEVEL0);
 
 static void __exit gcc_sm6150_exit(void)
 {
