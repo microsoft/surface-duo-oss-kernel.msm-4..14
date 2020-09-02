@@ -130,6 +130,7 @@ enum qca_btsoc_type {
 	QCA_WCN3998,
 	QCA_WCN3991,
 	QCA_QCA6390,
+	QCA_QCA6391,
 };
 
 #if IS_ENABLED(CONFIG_BT_QCA)
