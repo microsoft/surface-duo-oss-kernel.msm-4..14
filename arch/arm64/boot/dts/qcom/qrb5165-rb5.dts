@@ -20,6 +20,7 @@
 
 	aliases {
 		serial0 = &uart12;
+		hsuart0 = &uart6;
 	};
 
 	chosen {
@@ -918,6 +919,27 @@
 	status = "okay";
 };
 
+&qup_uart6_default {
+       ctsrx {
+               pins = "gpio16", "gpio19";
+               drive-strength = <2>;
+               bias-disable;
+       };
+
+       rts {
+               pins = "gpio17";
+               drive-strength = <2>;
+               bias-disable;
+       };
+
+       tx {
+               pins = "gpio18";
+               drive-strength = <2>;
+               bias-pull-up;
+       };
+};
+
+
 &slpi {
 	status = "okay";
 	firmware-name = "qcom/sm8250/slpi.mdt";
@@ -1215,6 +1237,13 @@
 		};
 	};
 
+};
+
+&uart6 {
+	status = "okay";
+	bluetooth {
+		compatible = "qcom,qca6391-bt";
+	};
 };
 
 &uart12 {
