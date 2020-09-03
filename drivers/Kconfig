@@ -229,4 +229,6 @@ source "drivers/interconnect/Kconfig"
 
 source "drivers/counter/Kconfig"
 
+source "drivers/ddr/s32-gen1/Kconfig"
+
 endmenu
