@@ -730,6 +730,14 @@ int mhi_dev_net_interface_init(void)
 	/*Process pending packet work queue*/
 	mhi_net_client->pending_pckt_wq =
 		create_singlethread_workqueue("pending_xmit_pckt_wq");
+
+	if (!mhi_net_client->pending_pckt_wq) {
+		ret_val = -ENOMEM;
+		mhi_dev_net_log(MHI_ERROR,
+				"Unable to allocate pending_pckt_wq\n");
+		goto workqueue_alloc_fail;
+	}
+
 	INIT_WORK(&mhi_net_client->xmit_work,
 			mhi_dev_net_process_queue_packets);
 
@@ -794,6 +802,7 @@ register_state_cb_fail:
 client_register_fail:
 channel_init_fail:
 	destroy_workqueue(mhi_net_client->pending_pckt_wq);
+workqueue_alloc_fail:
 	kfree(mhi_net_client);
 	kfree(mhi_net_ipc_log);
 	return ret_val;
