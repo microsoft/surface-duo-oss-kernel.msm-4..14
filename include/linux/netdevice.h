@@ -618,7 +618,7 @@ struct netdev_queue {
 	/* Subordinate device that the queue has been assigned to */
 	struct net_device	*sb_dev;
 #ifdef CONFIG_XDP_SOCKETS
-	struct xdp_umem         *umem;
+	struct xsk_buff_pool    *pool;
 #endif
 /*
  * write-mostly part
@@ -640,10 +640,14 @@ struct netdev_queue {
 extern int sysctl_fb_tunnels_only_for_init_net;
 extern int sysctl_devconf_inherit_init_net;
 
+/*
+ * sysctl_fb_tunnels_only_for_init_net == 0 : For all netns
+ *                                     == 1 : For initns only
+ *                                     == 2 : For none.
+ */
 static inline bool net_has_fallback_tunnels(const struct net *net)
 {
-	return net == &init_net ||
-	       !IS_ENABLED(CONFIG_SYSCTL) ||
+	return (net == &init_net && sysctl_fb_tunnels_only_for_init_net == 1) ||
 	       !sysctl_fb_tunnels_only_for_init_net;
 }
 
@@ -751,7 +755,7 @@ struct netdev_rx_queue {
 	struct net_device		*dev;
 	struct xdp_rxq_info		xdp_rxq;
 #ifdef CONFIG_XDP_SOCKETS
-	struct xdp_umem                 *umem;
+	struct xsk_buff_pool            *pool;
 #endif
 } ____cacheline_aligned_in_smp;
 
@@ -879,7 +883,7 @@ enum bpf_netdev_command {
 	/* BPF program for offload callbacks, invoked at program load time. */
 	BPF_OFFLOAD_MAP_ALLOC,
 	BPF_OFFLOAD_MAP_FREE,
-	XDP_SETUP_XSK_UMEM,
+	XDP_SETUP_XSK_POOL,
 };
 
 struct bpf_prog_offload_ops;
@@ -913,9 +917,9 @@ struct netdev_bpf {
 		struct {
 			struct bpf_offloaded_map *offmap;
 		};
-		/* XDP_SETUP_XSK_UMEM */
+		/* XDP_SETUP_XSK_POOL */
 		struct {
-			struct xdp_umem *umem;
+			struct xsk_buff_pool *pool;
 			u16 queue_id;
 		} xsk;
 	};
@@ -2191,6 +2195,22 @@ static inline
 int netdev_get_num_tc(struct net_device *dev)
 {
 	return dev->num_tc;
+}
+
+static inline void net_prefetch(void *p)
+{
+	prefetch(p);
+#if L1_CACHE_BYTES < 128
+	prefetch((u8 *)p + L1_CACHE_BYTES);
+#endif
+}
+
+static inline void net_prefetchw(void *p)
+{
+	prefetchw(p);
+#if L1_CACHE_BYTES < 128
+	prefetchw((u8 *)p + L1_CACHE_BYTES);
+#endif
 }
 
 void netdev_unbind_sb_channel(struct net_device *dev,
