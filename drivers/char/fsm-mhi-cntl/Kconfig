@@ -1,0 +1,6 @@
+menuconfig FSM_MHI_CNTL
+	tristate "FSM MHI Ops Control Driver"
+	depends on MHI_QCOM
+	help
+	  This driver can control the MHI power management
+	  operations to communicate with FSM-EP.
