@@ -671,8 +671,18 @@ static void mhi_pm_disable_transition(struct mhi_controller *mhi_cntrl,
 
 	mutex_lock(&mhi_cntrl->pm_mutex);
 
+	/*
+	 * The only thing we support is pci_remove forcefully. At this point the mhi
+	 * device may crash.
+	 * The driver may have outstanding dma transfer request to device. The
+	 * dev_wake may not be zero, Since device crashes already, there is no
+	 * event coming to decrement dev_wake count.
+	 * Disable the following assert.
+	 */
+#ifdef GRACEFUL_PCI_REMOVE
 	MHI_ASSERT(atomic_read(&mhi_cntrl->dev_wake), "dev_wake != 0");
 	MHI_ASSERT(atomic_read(&mhi_cntrl->pending_pkts), "pending_pkts != 0");
+#endif
 
 	/* reset the ev rings and cmd rings */
 	MHI_CNTRL_LOG("Resetting EV CTXT and CMD CTXT\n");
@@ -999,6 +1009,9 @@ int mhi_async_power_up(struct mhi_controller *mhi_cntrl)
 	next_state = MHI_IN_PBL(current_ee) ?
 		MHI_ST_TRANSITION_PBL : MHI_ST_TRANSITION_READY;
 
+	MHI_CNTRL_LOG("%s, current_ee: %d %d\n", __func__,
+		current_ee, next_state);
+
 	mhi_queue_state_transition(mhi_cntrl, next_state);
 
 	mhi_init_debugfs(mhi_cntrl);
@@ -1095,6 +1108,10 @@ void mhi_power_down(struct mhi_controller *mhi_cntrl, bool graceful)
 
 	mutex_unlock(&mhi_cntrl->pm_mutex);
 
+#ifndef GRACEFUL_PCI_REMOVE
+	mhi_cntrl->mhi_removed  = true;
+#endif
+
 	mhi_queue_disable_transition(mhi_cntrl, transition_state);
 
 	MHI_CNTRL_LOG("Wait for shutdown to complete\n");
@@ -1151,6 +1168,8 @@ int mhi_pm_suspend(struct mhi_controller *mhi_cntrl)
 		MHI_VERB("Busy, aborting M3\n");
 		return -EBUSY;
 	}
+
+	udelay(1000);	/* a delay of such is necessary */
 
 	/* exit MHI out of M2 state */
 	read_lock_bh(&mhi_cntrl->pm_lock);
@@ -1378,6 +1397,8 @@ int mhi_pm_resume(struct mhi_controller *mhi_cntrl)
 		if (itr->mhi_dev)
 			mhi_notify(itr->mhi_dev, MHI_CB_LPM_EXIT);
 	}
+
+	udelay(1000);
 
 	write_lock_irq(&mhi_cntrl->pm_lock);
 	cur_state = mhi_tryset_pm_state(mhi_cntrl, MHI_PM_M3_EXIT);

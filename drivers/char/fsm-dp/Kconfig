@@ -1,0 +1,15 @@
+menuconfig FSM_DP
+	tristate "FSM DP Interface Core"
+	depends on MHI_BUS
+	default m
+	help
+	  FSM DP driver interface. The FSM DP character driver
+	  provides a datapath server to user space.
+
+if FSM_DP
+config FSM_DP_TEST
+	bool "FSM DP driver testing"
+	depends on FSM_DP
+	help
+	  To enable the features in driver for testing.
+endif # FSM_DP

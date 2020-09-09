@@ -12,6 +12,8 @@
 #ifndef _MHI_H_
 #define _MHI_H_
 
+#include <linux/skbuff.h>
+
 struct mhi_chan;
 struct mhi_event;
 struct mhi_ctxt;
@@ -47,6 +49,7 @@ enum MHI_CB {
 	MHI_CB_SYS_ERROR,
 	MHI_CB_FATAL_ERROR,
 	MHI_CB_FW_FALLBACK_IMG,
+	MHI_CB_DEVICE_DESTROYED,
 };
 
 /**
@@ -66,11 +69,19 @@ enum MHI_DEBUG_LEVEL {
  * @MHI_EOB: End of buffer for bulk transfer
  * @MHI_EOT: End of transfer
  * @MHI_CHAIN: Linked transfer
+ * @MHI_FLAGS_DMA_ADDR: DMA address available
  */
 enum MHI_FLAGS {
 	MHI_EOB,
 	MHI_EOT,
 	MHI_CHAIN,
+	/*
+	 * Make sure there is no conflict of MHI_FLAGS_DMA_ADDR, and
+	 * MHI_FLAGS_COHERENT_ADDR with other MHI_FLAGS.
+	 * Internally, MHI_FLAGS are used as bit fields.
+	 */
+	MHI_FLAGS_COHERENT_ADDR = 1 << 6,
+	MHI_FLAGS_DMA_ADDR = 1 << 7,
 };
 
 /**
@@ -420,6 +431,8 @@ struct mhi_controller {
 	struct reg_write_info *reg_write_q;
 	atomic_t write_idx;
 	u32 read_idx;
+
+	bool mhi_removed;
 };
 
 /**
@@ -461,6 +474,14 @@ struct mhi_device {
 		       size_t, enum MHI_FLAGS);
 	int (*dl_xfer)(struct mhi_device *, struct mhi_chan *, void *,
 		       size_t, enum MHI_FLAGS);
+	int (*ul_n_xfer)(struct mhi_device *, struct mhi_chan *, void **,
+			size_t *, enum MHI_FLAGS *, dma_addr_t *,
+			unsigned int);
+	int (*dl_n_xfer)(struct mhi_device *, struct mhi_chan *, void **,
+			size_t *, enum MHI_FLAGS *, dma_addr_t *,
+			unsigned int);
+	int (*ul_skb_xfer)(struct mhi_device *mhi_dev, struct mhi_chan *chan,
+				void *skb, size_t len, enum MHI_FLAGS flags);
 	void (*status_cb)(struct mhi_device *, enum MHI_CB);
 };
 
@@ -470,12 +491,17 @@ struct mhi_device {
  * @dir: Channel direction
  * @bytes_xfer: # of bytes transferred
  * @transaction_status: Status of last trasnferred
+ * @buf_indirect:
+ *            true  - in-direct (such as skb)
+ *	      false - direct where buf_addr is pointing to buffer address
+ *            Some client may need to support both types
  */
 struct mhi_result {
 	void *buf_addr;
 	enum dma_data_direction dir;
 	size_t bytes_xferd;
 	int transaction_status;
+	bool buf_indirect;
 };
 
 /**
@@ -553,6 +579,32 @@ static inline int mhi_queue_transfer(struct mhi_device *mhi_dev,
 	else
 		return mhi_dev->dl_xfer(mhi_dev, mhi_dev->dl_chan, buf, len,
 					mflags);
+}
+static inline int mhi_ul_skb_xfer(struct mhi_device *mhi_dev,
+		struct sk_buff *skb)
+{
+	if (!mhi_dev->ul_skb_xfer)
+		return -EIO;
+	return mhi_dev->ul_skb_xfer(mhi_dev, mhi_dev->ul_chan, skb,
+					skb->len, MHI_EOT);
+}
+
+static inline int mhi_queue_n_transfer(struct mhi_device *mhi_dev,
+				     enum dma_data_direction dir,
+				     void **buf_array,
+				     size_t *len_array,
+				     enum MHI_FLAGS *mflags_array,
+				     dma_addr_t *dma_addr_array,
+				     unsigned int num)
+{
+	if (dir == DMA_TO_DEVICE)
+		return mhi_dev->ul_n_xfer(mhi_dev, mhi_dev->ul_chan,
+				buf_array, len_array, mflags_array,
+				dma_addr_array, num);
+	else
+		return mhi_dev->dl_n_xfer(mhi_dev, mhi_dev->dl_chan,
+				buf_array, len_array, mflags_array,
+				dma_addr_array, num);
 }
 
 static inline void *mhi_controller_get_devdata(struct mhi_controller *mhi_cntrl)
@@ -678,6 +730,15 @@ int mhi_resume_transfer(struct mhi_device *mhi_dev);
  * @dir: Direction of the channel
  */
 int mhi_get_no_free_descriptors(struct mhi_device *mhi_dev,
+				enum dma_data_direction dir);
+
+/**
+ * mhi_get_total_descriptors - Get transfer ring length
+ * Get total # of TD  to queue buffers
+ * @mhi_dev: Device associated with the channels
+ * @dir: Direction of the channel
+ */
+int mhi_get_total_descriptors(struct mhi_device *mhi_dev,
 				enum dma_data_direction dir);
 
 /**

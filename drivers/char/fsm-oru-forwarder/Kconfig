@@ -1,0 +1,8 @@
+menuconfig FSM_ORU_FORWARDER
+	tristate "FSM ORU Forwarder"
+	depends on FSM_DP
+	default m
+	help
+	  FSM ORU Forwarder interface. The FSM ORU Forwarder character driver
+	  provides Forwarding function between FSM DP datapath and ethernet interface.
+

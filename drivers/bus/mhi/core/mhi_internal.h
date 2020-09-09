@@ -648,6 +648,17 @@ struct mhi_buf_info {
 	bool used; /* indicate element is free to use */
 	bool pre_mapped; /* already pre-mapped by client */
 	enum dma_data_direction dir;
+	bool wake_put;	/*
+			 * for DMA_TO_DEVICE only. Flag to indicate
+			 * to wake_put when this xfer is done.
+			 */
+#define MHI_DMA_PHY 1
+#define MHI_DMA_COHERENT 2
+	u32 dma_flag;	/*
+			 * Do dma_sync instead of dma_map
+			 * if this flag is on
+			 */
+	bool buf_type_skb;
 };
 
 struct mhi_event {
@@ -684,6 +695,7 @@ struct mhi_chan {
 	struct mhi_ring buf_ring;
 	struct mhi_ring tre_ring;
 	u32 er_index;
+	u32 intmod;
 	enum mhi_ch_type type;
 	enum dma_data_direction dir;
 	struct db_cfg db_cfg;
@@ -701,8 +713,14 @@ struct mhi_chan {
 	/* functions that generate the transfer ring elements */
 	int (*gen_tre)(struct mhi_controller *, struct mhi_chan *, void *,
 		       void *, size_t, enum MHI_FLAGS);
+	int (*gen_n_tre)(struct mhi_controller *, struct mhi_chan *, void **,
+			void **, size_t *, enum MHI_FLAGS *, dma_addr_t *,
+			unsigned int);
 	int (*queue_xfer)(struct mhi_device *, struct mhi_chan *, void *,
 			  size_t, enum MHI_FLAGS);
+	int (*queue_n_xfer)(struct mhi_device *, struct mhi_chan *, void **,
+			size_t *, enum MHI_FLAGS *, dma_addr_t *,
+			unsigned int);
 	/* xfer call back */
 	struct mhi_device *mhi_dev;
 	void (*xfer_cb)(struct mhi_device *, struct mhi_result *);
@@ -812,8 +830,20 @@ static inline void mhi_trigger_resume(struct mhi_controller *mhi_cntrl)
 /* queue transfer buffer */
 int mhi_gen_tre(struct mhi_controller *mhi_cntrl, struct mhi_chan *mhi_chan,
 		void *buf, void *cb, size_t buf_len, enum MHI_FLAGS flags);
+int mhi_gen_n_tre(struct mhi_controller *mhi_cntrl, struct mhi_chan *mhi_chan,
+		void **buf_array, void **cb_array, size_t *buf_len_array,
+		enum MHI_FLAGS *flags_array, dma_addr_t *dma_addr_array,
+		unsigned int num);
 int mhi_queue_buf(struct mhi_device *mhi_dev, struct mhi_chan *mhi_chan,
 		  void *buf, size_t len, enum MHI_FLAGS mflags);
+int mhi_queue_n_buf(struct mhi_device *mhi_dev, struct mhi_chan *mhi_chan,
+		void **buf_array, size_t *len_array,
+		enum MHI_FLAGS *mflags_array, dma_addr_t *dma_addr_array,
+		unsigned int num);
+int mhi_queue_n_buf_not_supported(struct mhi_device *mhi_dev,
+		struct mhi_chan *mhi_chan, void **buf_array, size_t *len_array,
+		enum MHI_FLAGS *mflags_array, dma_addr_t *dma_addr_array,
+		unsigned int num);
 int mhi_queue_skb(struct mhi_device *mhi_dev, struct mhi_chan *mhi_chan,
 		  void *buf, size_t len, enum MHI_FLAGS mflags);
 int mhi_queue_sclist(struct mhi_device *mhi_dev, struct mhi_chan *mhi_chan,

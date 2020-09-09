@@ -1,0 +1,8 @@
+menuconfig FSM_TTI_INTR
+	tristate "FSM TTI INTERRUPT Interface Driver"
+	default m
+	help
+	  The driver updates sfn and slot number based
+	  on TTI interrupts and provides a notification
+	  to user space.
+
