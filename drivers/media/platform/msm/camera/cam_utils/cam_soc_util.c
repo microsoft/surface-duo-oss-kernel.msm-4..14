@@ -1,4 +1,5 @@
 /* Copyright (c) 2015-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1511,12 +1512,20 @@ int cam_soc_util_request_platform_resource(
 	for (i = 0; i < soc_info->num_clk; i++) {
 		soc_info->clk[i] = clk_get(soc_info->dev,
 			soc_info->clk_name[i]);
-		if (!soc_info->clk[i]) {
+		/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+		/*if (!soc_info->clk[i]) {
 			CAM_ERR(CAM_UTIL, "get failed for %s",
 				soc_info->clk_name[i]);
 			rc = -ENOENT;
 			goto put_clk;
+		}*/
+		if (IS_ERR(soc_info->clk[i])) {
+			CAM_ERR(CAM_UTIL, "get failed for %s",
+				soc_info->clk_name[i]);
+			rc = PTR_ERR(soc_info->clk[i]);
+			goto put_clk;
 		}
+		/* MSCHANGE End */
 	}
 
 	rc = cam_soc_util_request_pinctrl(soc_info);

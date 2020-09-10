@@ -1,6 +1,7 @@
 /*
  *  Universal power supply monitor class
  *
+ * Copyright (c) 2020 Microsoft Corporation
  *  Copyright © 2007  Anton Vorontsov <cbou@mail.ru>
  *  Copyright © 2004  Szabolcs Gyurko
  *  Copyright © 2003  Ian Molton <spyro@f2s.com>
@@ -367,6 +368,9 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_SERIAL_NUMBER,
 	POWER_SUPPLY_PROP_BATTERY_TYPE,
 	POWER_SUPPLY_PROP_CYCLE_COUNTS,
+	/* MSCHANGE adding fault query for EXTFGS */
+	POWER_SUPPLY_PROP_PROTECTOR_STATUS,
+	POWER_SUPPLY_PROP_PROTECTOR_STATE,
 };
 
 enum power_supply_type {
