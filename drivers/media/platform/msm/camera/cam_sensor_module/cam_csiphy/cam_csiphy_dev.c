@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -188,16 +189,26 @@ static int32_t cam_csiphy_platform_probe(struct platform_device *pdev)
 	rc = cam_cpas_register_client(&cpas_parms);
 	if (rc) {
 		CAM_ERR(CAM_CSIPHY, "CPAS registration failed rc: %d", rc);
-		goto csiphy_no_resource;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//		goto csiphy_no_resource;
+		goto csiphy_cpas_failed;
+/* MSCHANGE End */
 	}
 	CAM_DBG(CAM_CSIPHY, "CPAS registration successful handle=%d",
 		cpas_parms.client_handle);
 	new_csiphy_dev->cpas_handle = cpas_parms.client_handle;
 
 	return rc;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+csiphy_cpas_failed:
+	platform_set_drvdata(pdev, NULL);
+	cam_unregister_subdev(&(new_csiphy_dev->v4l2_dev_str));
+/* MSCHANGE End */
 csiphy_no_resource:
 	mutex_destroy(&new_csiphy_dev->mutex);
 	kfree(new_csiphy_dev->ctrl_reg);
+	/* MSCHANGE Handle errors properly to support Deferring initialization*/
+	new_csiphy_dev->ctrl_reg = NULL;
 	devm_kfree(&pdev->dev, new_csiphy_dev);
 	return rc;
 }

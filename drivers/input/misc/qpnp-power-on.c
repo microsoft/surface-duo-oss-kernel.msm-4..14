@@ -1,4 +1,5 @@
 /* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -32,6 +33,7 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/regulator/of_regulator.h>
+#include <linux/soc/surface/surface_utils.h> // MSCHANGE adding poweron telemetry
 
 #define PMIC_VER_8941				0x01
 #define PMIC_VERSION_REG			0x0105
@@ -153,6 +155,33 @@
 #define QPNP_PON_BUFFER_SIZE			9
 
 #define QPNP_POFF_REASON_UVLO			13
+
+// MSCHANGE adding poweron telemetry
+
+// this enum gets the values from system/core/bootstat/bootstat.cpp which has the bootreason list that Android publishes
+enum Pon_Driver_Reason {
+    UVLO = 93,
+    OVLO = 130,  // Note: {"pon1", 130} there isn't an entry corresponding to OVLO so repurposing pon1 for this
+    LONG_POWER_KEY_PRESS = 78,  // {"reboot_longkey", 78}
+    BATTERY_DRIVER_TRIGGERED_RSOC_IMBALANCE = 9,
+	BATTERY_DRIVER_TRIGGERED_FG_FAULT = 10
+};
+
+#pragma pack(1)
+typedef struct POWERON_TELEMETRY_BINARY
+{
+	uint8_t TelemetryPonValue;
+} *PPOWERON_TELEMETRY_BINARY;
+#pragma pack()
+
+typedef struct POWERON_TELEMETRY
+{
+    bool IsPowerOnTelemetryPresent;
+    bool FileRestoreOptin;
+    struct POWERON_TELEMETRY_BINARY PowerOnTelemetryBinary;
+} *PPOWERON_TELEMETRY;
+
+struct POWERON_TELEMETRY PowerOnTelemetry = {0};  // main struct for all power-on telemetry
 
 enum qpnp_pon_version {
 	QPNP_PON_GEN1_V1,
@@ -1981,6 +2010,94 @@ static void qpnp_pon_debugfs_remove(struct qpnp_pon *pon)
 {}
 #endif
 
+
+// MSCHANGE adding poweron telemetry
+static ssize_t telem_poweron_payload_read(struct kobject *kobj, struct kobj_attribute *attr,
+		      char *buf)
+{
+	memcpy(buf, &PowerOnTelemetry.PowerOnTelemetryBinary, sizeof(PowerOnTelemetry.PowerOnTelemetryBinary));
+	return sizeof(PowerOnTelemetry.PowerOnTelemetryBinary);
+}
+
+static ssize_t telem_poweron_status_read(struct kobject *kobj, struct kobj_attribute *attr,
+		      char *buf)
+{
+    uint32_t telem_poweron_status = 0;
+    telem_poweron_status = PowerOnTelemetry.FileRestoreOptin | (PowerOnTelemetry.IsPowerOnTelemetryPresent << 1);
+    return sprintf(buf, "%d", telem_poweron_status);
+}
+
+static struct kobj_attribute telem_poweron_payload_attribute =
+	__ATTR(payload, 0664, telem_poweron_payload_read, NULL);
+
+static struct kobj_attribute telem_poweron_status_attribute = 
+	__ATTR(status, 0664, telem_poweron_status_read, NULL);
+
+static struct attribute *attrs[] = {
+    &telem_poweron_payload_attribute.attr,
+    &telem_poweron_status_attribute.attr,
+    NULL,	/* need to NULL terminate the list of attributes */
+};
+
+static struct attribute_group attr_group = {
+	.attrs = attrs,
+};
+
+static int qpnp_pon_sysfs_init(struct qpnp_pon *pon)
+{
+	int rc;
+    struct kobject *PowerOnTelemetryKobj = {0};
+    struct kobject *PowerOnTelemetryKobjInstance = {0};
+	static bool KobjectInitialized = false;
+
+	PowerOnTelemetry.FileRestoreOptin = false; 
+
+    rc = telemetry_init();
+    if (rc < 0)
+    {
+        pr_err("qpnp_pon_sysfs_init: failed to create telemetry parent obj");
+        goto qpnp_pon_sysfs_init_exit;
+    }
+
+	if (KobjectInitialized == false)
+	{
+		PowerOnTelemetryKobj = kobject_create_and_add("poweron", telemetry_kobj);
+		if (!PowerOnTelemetryKobj) 
+		{
+			pr_err("qpnp_pon_sysfs_init: failed to create poweron parent obj");
+			rc = -ENOMEM;
+			kobject_put(PowerOnTelemetryKobj); //decrease reference count
+			goto qpnp_pon_sysfs_init_exit;
+		}
+
+		// Setup sysfs directory for instance
+		PowerOnTelemetryKobjInstance = kobject_create_and_add("1", PowerOnTelemetryKobj);
+		if (!PowerOnTelemetryKobjInstance)
+		{
+			pr_err("qpnp_pon_sysfs_init: failed to create telem_poweron_1 parent obj");
+			rc = -ENOMEM;
+			kobject_put(PowerOnTelemetryKobjInstance); //decrease reference count
+			goto qpnp_pon_sysfs_init_exit;
+		}
+
+		// Add 'files' under the sysfs directory for pack 1
+		rc = sysfs_create_group(PowerOnTelemetryKobjInstance, &attr_group);
+		if (rc)
+		{
+			pr_err("qpnp_pon_sysfs_init: failed to add sysfs group for telem_poweron_1");
+			rc = -EINVAL;
+			kobject_del(PowerOnTelemetryKobjInstance);
+			goto qpnp_pon_sysfs_init_exit;
+		}
+
+		KobjectInitialized = true;	
+	}
+
+qpnp_pon_sysfs_init_exit:
+    return rc;
+}
+// MSCHANGE end: adding poweron telemetry
+
 static int qpnp_pon_read_gen2_pon_off_reason(struct qpnp_pon *pon, u16 *reason,
 					int *reason_index_offset)
 {
@@ -2090,6 +2207,7 @@ static int qpnp_pon_read_hardware_info(struct qpnp_pon *pon, bool sys_reset)
 	unsigned int pon_sts = 0;
 	u16 poff_sts = 0;
 	int rc, index;
+	unsigned int reboot_reason = 0;  // MSCHANGE battery driver triggered reset reason
 
 	/* Read PON_PERPH_SUBTYPE register to get PON type */
 	rc = qpnp_pon_read(pon, QPNP_PON_PERPH_SUBTYPE(pon), &reg);
@@ -2173,6 +2291,42 @@ static int qpnp_pon_read_hardware_info(struct qpnp_pon *pon, bool sys_reset)
 			 to_spmi_device(dev->parent)->usid,
 			 qpnp_poff_reason[index]);
 	}
+
+	// MSCHANGE log power on and off information for telemetry service
+	if (sys_reset)
+	{
+		PowerOnTelemetry.IsPowerOnTelemetryPresent = false; // setting telemetry present flag to false initially
+		if(pon->pon_trigger_reason == PON_SMPL || pon->pon_power_off_reason == 0x16)
+		{
+			PowerOnTelemetry.PowerOnTelemetryBinary.TelemetryPonValue = UVLO;
+			PowerOnTelemetry.IsPowerOnTelemetryPresent = true;
+		}
+		else if(pon->pon_power_off_reason == 0x15)
+		{
+			PowerOnTelemetry.PowerOnTelemetryBinary.TelemetryPonValue = OVLO;
+			PowerOnTelemetry.IsPowerOnTelemetryPresent = true;
+		}
+		else if(pon->pon_trigger_reason == 0x7 && pon->pon_power_off_reason == 0x27)
+		{
+			PowerOnTelemetry.PowerOnTelemetryBinary.TelemetryPonValue = LONG_POWER_KEY_PRESS;
+			PowerOnTelemetry.IsPowerOnTelemetryPresent = true;
+		}
+		else
+		{
+			reboot_reason = get_pmic_reset_reason();
+			if(reboot_reason == BATTERY_DRIVER_TRIGGERED_RSOC_IMBALANCE)
+			{
+				PowerOnTelemetry.PowerOnTelemetryBinary.TelemetryPonValue = BATTERY_DRIVER_TRIGGERED_RSOC_IMBALANCE;
+				PowerOnTelemetry.IsPowerOnTelemetryPresent = true;
+			}
+			else if(reboot_reason == BATTERY_DRIVER_TRIGGERED_FG_FAULT)
+			{
+				PowerOnTelemetry.PowerOnTelemetryBinary.TelemetryPonValue = BATTERY_DRIVER_TRIGGERED_FG_FAULT;
+				PowerOnTelemetry.IsPowerOnTelemetryPresent = true;
+			}
+		}
+	}
+	// MSCHANGE end
 
 	if ((pon->pon_trigger_reason == PON_SMPL ||
 		pon->pon_power_off_reason == QPNP_POFF_REASON_UVLO) &&
@@ -2378,6 +2532,14 @@ static int qpnp_pon_probe(struct platform_device *pdev)
 		sys_reset_dev = pon;
 
 	qpnp_pon_debugfs_init(pon);
+
+	// MSCHANGE adding poweron telemetry
+	rc = qpnp_pon_sysfs_init(pon);
+	if (rc) {
+		dev_err(dev, "qpnp_pon_sysfs_init failed, rc=%d\n",
+			rc);
+		return rc;
+	}
 
 	return 0;
 }

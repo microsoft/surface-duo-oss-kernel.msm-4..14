@@ -1,4 +1,5 @@
 /* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -28,6 +29,19 @@
 #include <linux/usb/class-dual-role.h>
 #include <linux/usb/usbpd.h>
 #include "usbpd.h"
+
+/* MSFT_CHANGE_START */
+
+/* To start USB stack for USB3.1 complaince testing */
+static bool usb_compliance_mode;
+module_param(usb_compliance_mode, bool, 0644);
+MODULE_PARM_DESC(usb_compliance_mode, "Start USB stack for USB3.1 compliance testing");
+
+static bool disable_usb_pd;
+module_param(disable_usb_pd, bool, 0644);
+MODULE_PARM_DESC(disable_usb_pd, "Disable USB PD for USB3.1 compliance testing");
+
+/* MSFT_CHANGE_END */
 
 enum usbpd_state {
 	PE_UNKNOWN,
@@ -360,7 +374,7 @@ module_param(check_vsafe0v, bool, 0600);
 static int min_sink_current = 900;
 module_param(min_sink_current, int, 0600);
 
-static const u32 default_src_caps[] = { 0x36019096 };	/* VSafe5V @ 1.5A */
+static const u32 default_src_caps[] = { 0x36019040 };	/* VSafe5V @ .6A */ //MSCHANGE: cap Source PDO to 600ma
 static const u32 default_snk_caps[] = { 0x2601912C };	/* VSafe5V @ 3A */
 
 struct vdm_tx {
@@ -797,6 +811,18 @@ static int pd_select_pdo(struct usbpd *pd, int pdo_pos, int uv, int ua)
 	u8 type;
 	u32 pdo = pd->received_pdos[pdo_pos - 1];
 
+	//MSCHANGE: Cap input voltage to 5V when rsoc is high (above 90%) to avoid potential OVLO
+	int ret;
+	union power_supply_propval val = {0};
+	ret = power_supply_get_property(pd->bms_psy, POWER_SUPPLY_PROP_CAPACITY,
+					&val);
+
+	if ((val.intval > 90) &&
+	    (((PD_SRC_PDO_FIXED_VOLTAGE(pdo) * 50) > 5000) || (uv > 5000000))) {
+		pr_err("Battery %d Requested Voltage:%d pdouv:%d\n", val.intval, uv, (PD_SRC_PDO_FIXED_VOLTAGE(pdo) * 50) );
+		return 0;
+	}
+
 	type = PD_SRC_PDO_TYPE(pdo);
 	if (type == PD_SRC_PDO_TYPE_FIXED) {
 		curr = max_current = PD_SRC_PDO_FIXED_MAX_CURR(pdo) * 10;
@@ -895,6 +921,7 @@ static void pd_send_hard_reset(struct usbpd *pd)
 	pd->hard_reset_count++;
 	pd_phy_signal(HARD_RESET_SIG);
 	pd->in_pr_swap = false;
+	pd->pd_connected = false; //MSCHANGE: Needed to support TypeC compliance tests
 	power_supply_set_property(pd->usb_psy, POWER_SUPPLY_PROP_PR_SWAP, &val);
 }
 
@@ -1360,7 +1387,7 @@ static void usbpd_set_state(struct usbpd *pd, enum usbpd_state next_state)
 
 		dual_role_instance_changed(pd->dual_role);
 
-		val.intval = 1; /* Rp-1.5A; SinkTxNG for PD 3.0 */
+		val.intval = 0; /* MSCHANGE: Set Default Rp for default USB power*/
 		power_supply_set_property(pd->usb_psy,
 				POWER_SUPPLY_PROP_TYPEC_SRC_RP, &val);
 
@@ -1599,12 +1626,22 @@ static void usbpd_set_state(struct usbpd *pd, enum usbpd_state next_state)
 			if (!ret) {
 				usbpd_dbg(&pd->dev, "type:%d\n", val.intval);
 				if (val.intval == POWER_SUPPLY_TYPE_USB ||
-					val.intval == POWER_SUPPLY_TYPE_USB_CDP)
+					val.intval == POWER_SUPPLY_TYPE_USB_CDP ||
+					usb_compliance_mode)
 					start_usb_peripheral(pd);
 			}
 		}
 
 		dual_role_instance_changed(pd->dual_role);
+
+		/* MSCHANGE Start
+		 * To support the Type-C reconnecting, we should not come out of the case
+		 * when the value of val.intval is empty */
+
+		if (disable_usb_pd)
+			break;
+
+		/* MSCHANGE End*/
 
 		pd_reset_protocol(pd);
 
@@ -2688,6 +2725,10 @@ static void usbpd_sm(struct work_struct *w)
 		ret = pd_send_msg(pd, MSG_SOURCE_CAPABILITIES, default_src_caps,
 				ARRAY_SIZE(default_src_caps), SOP_MSG);
 		if (ret) {
+			if (pd->pd_connected) { //MSCHANGE: Needed to support TypeC compliance tests
+				usbpd_set_state(pd, PE_SEND_SOFT_RESET);
+				return;
+			}
 			pd->caps_count++;
 			if (pd->caps_count >= PD_CAPS_COUNT) {
 				usbpd_dbg(&pd->dev, "Src CapsCounter exceeded, disabling PD\n");
@@ -4063,7 +4104,7 @@ static ssize_t select_pdo_store(struct device *dev,
 	int ret;
 
 	mutex_lock(&pd->swap_lock);
-
+        
 	/* Only allowed if we are already in explicit sink contract */
 	if (pd->current_state != PE_SNK_READY) {
 		usbpd_err(&pd->dev, "select_pdo: Cannot select new PDO yet\n");

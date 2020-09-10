@@ -1,4 +1,5 @@
 /* Copyright (c) 2013-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -330,10 +331,32 @@ static void msm_restart_prepare(const char *cmd)
 			qpnp_pon_set_restart_reason(
 				PON_RESTART_REASON_KEYS_CLEAR);
 			__raw_writel(0x7766550a, restart_reason);
-		} else if (!strncmp(cmd, "oem-", 4)) {
+		} else if (!strcmp(cmd, "shipmode")) {              // MSCHANGE: Enable shipmode
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_REASON_SHIPMODE);
+			__raw_writel(0x7766550b, restart_reason);
+		} else if (!strcmp(cmd, "rnrmode")) {
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_REASON_RNRMODE);
+			__raw_writel(0x7766550c, restart_reason);
+		} else if (!strncmp(cmd, "oem-rsocimbalance", 17)) { // MSCHANGE battery driver triggered reset reason
 			unsigned long code;
 			int ret;
 
+			// MSCHANGE battery driver triggered reset reason
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_BATTERY_DRIVER_TRIGGERED_RSOC_IMBALANCE);
+			ret = kstrtoul(cmd + 4, 16, &code);
+			if (!ret)
+				__raw_writel(0x6f656d00 | (code & 0xff),
+					     restart_reason);
+		} else if (!strncmp(cmd, "oem-fgfault", 11)) { // MSCHANGE battery driver triggered reset reason
+			unsigned long code;
+			int ret;
+
+			// MSCHANGE battery driver triggered reset reason
+			qpnp_pon_set_restart_reason(
+				PON_RESTART_BATTERY_DRIVER_TRIGGERED_FG_FAULT);
 			ret = kstrtoul(cmd + 4, 16, &code);
 			if (!ret)
 				__raw_writel(0x6f656d00 | (code & 0xff),
