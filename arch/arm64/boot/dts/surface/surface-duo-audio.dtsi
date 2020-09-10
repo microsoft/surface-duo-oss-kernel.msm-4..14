@@ -1,0 +1,81 @@
+/*
+ * Copyright (c) 2020 Microsoft Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ */
+
+#include "../qcom/sm8150-audio-overlay.dtsi"
+
+&snd_934x {
+	qcom,msm-mbhc-hphl-swh = <0>;
+	qcom,msm-mbhc-gnd-swh = <0>;
+	qcom,msm-mbhc-usbc-audio-supported = <0>;
+	qcom,wsa-max-devs = <1>;
+	qcom,wsa-devs = <&wsa881x_70213>;
+	qcom,wsa-aux-dev-prefix = "SpkrLeft";
+};
+
+&wsa881x_70211 {
+	status = "disabled";
+};
+
+&wsa881x_70212 {
+	status = "disabled";
+};
+
+&wsa881x_70213 {
+	status = "ok";
+};
+
+&wsa881x_70214 {
+	status = "disabled";
+};
+
+&wcd_intr_default {
+	mux {
+		pins = "gpio133";
+	};
+
+	config {
+		pins = "gpio133";
+	};
+};
+
+&wcd9xxx_intc {
+	qcom,gpio-connect = <&tlmm 133 0>;
+	pinctrl-names = "default";
+	pinctrl-0 = <&wcd_intr_default>;
+};
+
+&tlmm {
+	wsa_en_active: wsa_en_active {
+		mux {
+			pins = "gpio142";
+		};
+
+		config {
+			pins = "gpio142";
+			output-high;
+		};
+	};
+
+	wsa_en_sleep: wsa_en_sleep {
+		mux {
+			pins = "gpio142";
+		};
+
+		config {
+			pins = "gpio142";
+			input-enable;
+		};
+	};
+};
+
+&wsa_spk_wcd_sd1 {
+	compatible = "qcom,msm-cdc-pinctrl";
+	pinctrl-names = "aud_active", "aud_sleep";
+	pinctrl-0 = <&wsa_en_active>;
+	pinctrl-1 = <&wsa_en_sleep>;
+};
