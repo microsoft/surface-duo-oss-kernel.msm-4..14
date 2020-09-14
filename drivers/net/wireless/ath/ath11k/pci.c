@@ -886,6 +886,9 @@ static int ath11k_pci_probe(struct pci_dev *pdev,
 		case 2:
 			ab->hw_rev = ATH11K_HW_QCA6390_HW20;
 			break;
+		case 1:
+			ab->hw_rev = ATH11K_HW_QCA6390_HW11;
+			break;
 		default:
 			dev_err(&pdev->dev, "Unsupported QCA6390 SOC hardware version: %d %d\n",
 				soc_hw_version_major, soc_hw_version_minor);
