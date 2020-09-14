@@ -623,20 +623,6 @@ void hns3_request_update_promisc_mode(struct hnae3_handle *handle)
 		ops->request_update_promisc_mode(handle);
 }
 
-int hns3_update_promisc_mode(struct net_device *netdev, u8 promisc_flags)
-{
-	struct hns3_nic_priv *priv = netdev_priv(netdev);
-	struct hnae3_handle *h = priv->ae_handle;
-
-	if (h->ae_algo->ops->set_promisc_mode) {
-		return h->ae_algo->ops->set_promisc_mode(h,
-						promisc_flags & HNAE3_UPE,
-						promisc_flags & HNAE3_MPE);
-	}
-
-	return 0;
-}
-
 void hns3_enable_vlan_filter(struct net_device *netdev, bool enable)
 {
 	struct hns3_nic_priv *priv = netdev_priv(netdev);
@@ -3093,10 +3079,7 @@ static int hns3_handle_rx_bd(struct hns3_enet_ring *ring)
 	 * lines. In such a case, single fetch would suffice to cache in the
 	 * relevant part of the header.
 	 */
-	prefetch(ring->va);
-#if L1_CACHE_BYTES < 128
-	prefetch(ring->va + L1_CACHE_BYTES);
-#endif
+	net_prefetch(ring->va);
 
 	if (!skb) {
 		ret = hns3_alloc_skb(ring, length, ring->va);
@@ -3673,12 +3656,10 @@ static void hns3_ring_get_cfg(struct hnae3_queue *q, struct hns3_nic_priv *priv,
 		ring = &priv->ring[q->tqp_index];
 		desc_num = priv->ae_handle->kinfo.num_tx_desc;
 		ring->queue_index = q->tqp_index;
-		ring->io_base = (u8 __iomem *)q->io_base + HNS3_TX_REG_OFFSET;
 	} else {
 		ring = &priv->ring[q->tqp_index + queue_num];
 		desc_num = priv->ae_handle->kinfo.num_rx_desc;
 		ring->queue_index = q->tqp_index;
-		ring->io_base = q->io_base;
 	}
 
 	hnae3_set_bit(ring->flag, HNAE3_RING_TYPE_B, ring_type);
