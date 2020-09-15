@@ -101,6 +101,18 @@ struct reset_attribute {
 	static struct reset_attribute reset_attr_##_name = \
 			__ATTR(_name, _mode, _show, _store)
 
+static int __init minidump_setup(char *str)
+{
+	unsigned long enabled;
+	int error = kstrtoul(str, 0, &enabled);
+
+	if (!error)
+		dload_type = enabled ? SCM_DLOAD_MINIDUMP : SCM_DLOAD_FULLDUMP;
+	return 1;
+}
+
+__setup("minidump=", minidump_setup);
+
 module_param_call(download_mode, dload_set, param_get_int,
 			&download_mode, 0644);
 
