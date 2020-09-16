@@ -136,8 +136,10 @@ static irqreturn_t lt9611uxc_irq_thread_handler(int irq, void *dev_id)
 
 	lt9611uxc_unlock(lt9611uxc);
 
-	if (irq_status & 0x3 && lt9611uxc->bridge.dev)
-		drm_kms_helper_hotplug_event(lt9611uxc->bridge.dev);
+	if (irq_status & 0x3)
+		drm_bridge_hpd_notify(&lt9611uxc->bridge, (hpd_status & BIT(1)) ?
+				connector_status_connected :
+				connector_status_disconnected);
 
 	return IRQ_HANDLED;
 }
