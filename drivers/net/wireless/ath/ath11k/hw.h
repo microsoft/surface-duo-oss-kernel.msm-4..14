@@ -155,6 +155,8 @@ struct ath11k_hw_params {
 	bool vdev_start_delay;
 	bool htt_peer_map_v2;
 	bool tcl_0_only;
+
+	u16 interface_modes;
 };
 
 struct ath11k_hw_ops {
