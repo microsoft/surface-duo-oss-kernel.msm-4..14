@@ -157,6 +157,7 @@ struct ath11k_hw_params {
 	bool tcl_0_only;
 
 	u16 interface_modes;
+	bool supports_monitor;
 };
 
 struct ath11k_hw_ops {
