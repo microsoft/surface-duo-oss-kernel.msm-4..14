@@ -1806,7 +1806,6 @@ CONFIG_LOGO                                     policy<{'amd64': 'n', 'arm64': '
 
 # Menu: Device Drivers >> Graphics support >> Console display driver support
 CONFIG_VGA_CONSOLE                              policy<{'amd64': 'y', 'ppc64el': 'y'}>
-CONFIG_VGACON_SOFT_SCROLLBACK                   policy<{'amd64': 'n', 'ppc64el': 'n'}>
 CONFIG_DUMMY_CONSOLE_COLUMNS                    policy<{'amd64': '80', 'arm64': '80', 'ppc64el': '80', 's390x': '80'}>
 CONFIG_DUMMY_CONSOLE_ROWS                       policy<{'amd64': '25', 'arm64': '25', 'ppc64el': '25', 's390x': '25'}>
 
