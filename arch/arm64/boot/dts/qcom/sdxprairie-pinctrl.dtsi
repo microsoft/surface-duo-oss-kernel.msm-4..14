@@ -1686,14 +1686,16 @@
 			};
 		};
 
-		wakeup_gpio_default: wakeup_gpio_default {
+		sdx_ext_ipc_gpio_default: sdx_ext_ipc_gpio_default {
 			mux {
-				pins = "gpio22";
+				pins = "gpio64", "gpio63", "gpio66",
+					"gpio87", "gpio22";
 				function = "gpio";
 			};
 
 			config {
-				pins = "gpio22";
+				pins = "gpio64", "gpio63", "gpio66",
+					"gpio87", "gpio22";
 				drive-strength = <2>;
 				bias-pull-down;
 			};
