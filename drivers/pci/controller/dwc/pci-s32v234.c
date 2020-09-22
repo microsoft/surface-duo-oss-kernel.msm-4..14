@@ -1331,6 +1331,8 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 	pcie->dev = dev;
 	pcie->ops = &s32v234_pcie_ops;
 
+	s32v234_pp->send_signal_to_user = send_signal_to_user;
+
 	/* Added for PCI abort handling */
 	dbi_base = platform_get_resource(pdev, IORESOURCE_MEM, 0);
 	pcie->dbi_base = devm_ioremap_resource(dev, dbi_base);
