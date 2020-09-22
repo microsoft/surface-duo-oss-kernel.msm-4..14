@@ -1915,7 +1915,7 @@ static int veth_ipa_stop(struct net_device *net)
 
 	if (pdata->state == VETH_IPA_DOWN) {
 		VETH_IPA_ERROR("can't do network interface down without up\n");
-		return -EPERM;
+		return 0;
 	}
 
 	pdata->state = VETH_IPA_DOWN;
