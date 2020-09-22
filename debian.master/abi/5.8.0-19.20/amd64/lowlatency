@@ -18654,7 +18654,6 @@ EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__ftrace_vprintk
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__generic_fsdax_supported
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__get_current_cr3_fast
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__get_task_comm
-EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__get_vm_area_caller
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__hrtimer_get_remaining
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__hvc_resize
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__hwspin_lock_timeout
@@ -21832,7 +21831,6 @@ EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	lzo1x_1_compress
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	lzo1x_decompress_safe
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	lzorle1x_1_compress
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	machine_check_poll
-EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	map_kernel_range
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	mark_mounts_for_expiry
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	mark_tsc_unstable
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	max8997_bulk_read
