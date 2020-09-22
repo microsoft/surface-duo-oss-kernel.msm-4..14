@@ -1403,7 +1403,7 @@ static int s32v234_pcie_probe(struct platform_device *pdev)
 		}
 		dw_pcie_dma_clear_regs(pcie, &s32v234_pp->dma);
 
-		memset(&s32v234_pp->info, 0, sizeof(struct siginfo));
+		memset(&s32v234_pp->info, 0, sizeof(struct kernel_siginfo));
 		s32v234_pp->info.si_signo = SIGUSR1;
 		s32v234_pp->info.si_code = SI_USER;
 		s32v234_pp->info.si_int = 0;
