@@ -159,7 +159,13 @@ static struct platform_driver arm_smc_mbox_driver = {
 	.probe		= arm_smc_mbox_probe,
 	.remove		= arm_smc_mbox_remove,
 };
-module_platform_driver(arm_smc_mbox_driver);
+
+static int __init arm_smc_mbox_init(void)
+{
+	return platform_driver_register(&arm_smc_mbox_driver);
+
+}
+postcore_initcall_sync(arm_smc_mbox_init);
 
 MODULE_AUTHOR("Peng Fan <peng.fan@nxp.com>");
 MODULE_DESCRIPTION("Generic ARM smc mailbox driver");
