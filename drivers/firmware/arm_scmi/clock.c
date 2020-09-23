@@ -351,4 +351,4 @@ static int __init scmi_clock_init(void)
 	return scmi_protocol_register(SCMI_PROTOCOL_CLOCK,
 				      &scmi_clock_protocol_init);
 }
-subsys_initcall(scmi_clock_init);
+postcore_initcall_sync(scmi_clock_init);

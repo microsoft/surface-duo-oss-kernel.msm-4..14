@@ -217,7 +217,7 @@ static int __init scmi_bus_init(void)
 
 	return retval;
 }
-subsys_initcall(scmi_bus_init);
+postcore_initcall(scmi_bus_init);
 
 static void __exit scmi_bus_exit(void)
 {
