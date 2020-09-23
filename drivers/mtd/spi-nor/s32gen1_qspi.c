@@ -28,6 +28,8 @@
 
 #define QUADSPI_LUT(x)	(QUADSPI_LUT_BASE + (x) * 4)
 
+#define QUADSPI_S32GEN1_HIGH_FREQUENCY_VALUE	200000000
+
 struct lut_config {
 	bool enabled;
 	u32 conf[MAX_LUTS_CONFIGS];
@@ -761,6 +763,9 @@ static int enable_ddr(struct fsl_qspi *q)
 
 	while (qspi_readl(q, base + QUADSPI_SR) & QUADSPI_SR_BUSY_MASK)
 		;
+
+	if (q->clk_rate == QUADSPI_S32GEN1_HIGH_FREQUENCY_VALUE)
+		ddr_config.dllcr |= QUADSPI_DLLCR_FREQEN_EN;
 
 	/* Disable the module */
 	mcr = qspi_readl(q, base + QUADSPI_MCR);
