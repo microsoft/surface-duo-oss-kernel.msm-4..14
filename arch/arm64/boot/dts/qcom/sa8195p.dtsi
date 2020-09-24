@@ -281,11 +281,33 @@
 		read-only;
 		ranges;
 	};
+
+	pps {
+		gpios = <&tlmm 88 0>;
+		assert-falling-edge;
+		compatible = "pps-gpio";
+		status = "okay";
+	};
+
+	tti {
+		gpios = <&tlmm 94 0>;
+		assert-falling-edge;
+		compatible = "tti-gpio";
+		status = "okay";
+	};
+
+	qcom,fsm-dp {
+		compatible = "qcom,fsm-dp";
+		qcom,ul-bufs = <16320 4096>;
+		qcom,rx-queue-size = <1024 1024 1024 1024>;
+		dma-coherent;
+	};
 };
 
 &usb0 {
 	qcom,default-mode-none;
 	qcom,ignore-wakeup-src-in-hostmode;
+	status = "ok";
 };
 
 &usb1 {

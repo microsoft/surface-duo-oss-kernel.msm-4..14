@@ -599,6 +599,14 @@ config TILE_SROM
 source "drivers/char/xillybus/Kconfig"
 source "drivers/char/diag/Kconfig"
 
+source "drivers/char/fsm-dp/Kconfig"
+
+source "drivers/char/fsm-tti-intr/Kconfig"
+
+source "drivers/char/fsm-oru-forwarder/Kconfig"
+
+source "drivers/char/fsm-mhi-cntl/Kconfig"
+
 config MSM_FASTCVPD
 	bool "QTI FASTCVP driver"
 	depends on QCOM_GLINK

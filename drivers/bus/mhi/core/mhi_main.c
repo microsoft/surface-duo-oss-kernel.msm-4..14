@@ -33,7 +33,14 @@ int __must_check mhi_read_reg(struct mhi_controller *mhi_cntrl,
 			      u32 offset,
 			      u32 *out)
 {
-	u32 tmp = readl_relaxed(base + offset);
+	u32 tmp;
+
+
+	if (mhi_cntrl->mhi_removed) {
+		MHI_LOG("%s mhi removed\n", __func__);
+		return -1;
+	}
+	tmp  = readl_relaxed(base + offset);
 
 	/* unexpected value, query the link status */
 	if (PCI_INVALID_READ(tmp) &&
@@ -157,6 +164,10 @@ void mhi_write_reg(struct mhi_controller *mhi_cntrl,
 		   u32 offset,
 		   u32 val)
 {
+	if (mhi_cntrl->mhi_removed) {
+		MHI_CNTRL_LOG("%s mhi removed\n", __func__);
+		return;
+	}
 	writel_relaxed(val, base + offset);
 }
 
@@ -183,6 +194,10 @@ void mhi_write_db(struct mhi_controller *mhi_cntrl,
 		  void __iomem *db_addr,
 		  dma_addr_t wp)
 {
+	if (mhi_cntrl->mhi_removed) {
+		MHI_CNTRL_LOG("%s mhi removed\n", __func__);
+		return;
+	}
 	mhi_cntrl->write_reg(mhi_cntrl, db_addr, 4, upper_32_bits(wp));
 	mhi_cntrl->write_reg(mhi_cntrl, db_addr, 0, lower_32_bits(wp));
 }
@@ -192,6 +207,11 @@ void mhi_db_brstmode(struct mhi_controller *mhi_cntrl,
 		     void __iomem *db_addr,
 		     dma_addr_t wp)
 {
+	if (mhi_cntrl->mhi_removed) {
+		MHI_CNTRL_LOG("%s mhi removed\n", __func__);
+		return;
+	}
+
 	if (db_cfg->db_mode) {
 		db_cfg->db_val = wp;
 		mhi_write_db(mhi_cntrl, db_addr, wp);
@@ -204,6 +224,11 @@ void mhi_db_brstmode_disable(struct mhi_controller *mhi_cntrl,
 			     void __iomem *db_addr,
 			     dma_addr_t wp)
 {
+	if (mhi_cntrl->mhi_removed) {
+		MHI_CNTRL_LOG("%s mhi removed\n", __func__);
+		return;
+	}
+
 	db_cfg->db_val = wp;
 	mhi_write_db(mhi_cntrl, db_addr, wp);
 }
@@ -446,11 +471,18 @@ int mhi_queue_skb(struct mhi_device *mhi_dev,
 	struct mhi_ring *buf_ring = &mhi_chan->buf_ring;
 	struct mhi_buf_info *buf_info;
 	struct mhi_tre *mhi_tre;
+	bool assert_wake = false;
 	int ret;
+	uint32_t nseg = 1;
+	uint32_t i;
+	void *save_tre_wp;
+	void *save_buf_wp;
+	bool last;
 
-	if (mhi_is_ring_full(mhi_cntrl, tre_ring))
-		return -ENOMEM;
-
+	if (skb_is_nonlinear(skb))
+		nseg += skb_shinfo(skb)->nr_frags;
+	if (get_nr_avail_ring_elements(mhi_cntrl, tre_ring) < nseg)
+		return -EAGAIN;
 	read_lock_bh(&mhi_cntrl->pm_lock);
 	if (unlikely(MHI_PM_IN_ERROR_STATE(mhi_cntrl->pm_state))) {
 		MHI_VERB("MHI is not in activate state, pm_state:%s\n",
@@ -461,54 +493,168 @@ int mhi_queue_skb(struct mhi_device *mhi_dev,
 	}
 
 	/* we're in M3 or transitioning to M3 */
-	if (MHI_PM_IN_SUSPEND_STATE(mhi_cntrl->pm_state))
-		mhi_trigger_resume(mhi_cntrl);
+	if (MHI_PM_IN_SUSPEND_STATE(mhi_cntrl->pm_state)) {
+		mhi_cntrl->runtime_get(mhi_cntrl, mhi_cntrl->priv_data);
+		mhi_cntrl->runtime_put(mhi_cntrl, mhi_cntrl->priv_data);
+	}
 
-	/* toggle wake to exit out of M2 */
-	mhi_cntrl->wake_toggle(mhi_cntrl);
+	/*
+	 * For UL channels always assert WAKE until work is done,
+	 * For DL channels only assert if MHI is in a LPM
+	 */
+	if (mhi_chan->dir == DMA_TO_DEVICE ||
+	    (mhi_chan->dir == DMA_FROM_DEVICE &&
+	     mhi_cntrl->pm_state != MHI_PM_M0)) {
+		assert_wake = true;
+		mhi_cntrl->wake_get(mhi_cntrl, false);
+	}
 
-	/* generate the tre */
-	buf_info = buf_ring->wp;
-	buf_info->v_addr = skb->data;
-	buf_info->cb_buf = skb;
-	buf_info->wp = tre_ring->wp;
-	buf_info->dir = mhi_chan->dir;
-	buf_info->len = len;
-	ret = mhi_cntrl->map_single(mhi_cntrl, buf_info);
-	if (ret)
-		goto map_error;
+	save_tre_wp = buf_ring->wp;
+	save_buf_wp = tre_ring->wp;
 
-	mhi_tre = tre_ring->wp;
+	for (i = 0; i < nseg; i++) {
+		last = (i == nseg - 1);
+		buf_info = buf_ring->wp;
+		if (i == 0) {
+			buf_info->len = skb->len - skb->data_len;
+			buf_info->v_addr = skb->data;
+		} else {
+			buf_info->len =
+				skb_frag_size(&skb_shinfo(skb)->frags[i - 1]);
+			buf_info->v_addr =
+				skb_frag_address(&skb_shinfo(skb)->frags[i - 1]);
+		}
+		if (last)
+			buf_info->cb_buf = skb;
+		else
+			buf_info->cb_buf = NULL;
+		buf_info->wp = tre_ring->wp;
+		buf_info->dir = mhi_chan->dir;
+		if (assert_wake && last)
+			buf_info->wake_put = true;
+		else
+			buf_info->wake_put = false;
+		buf_info->dma_flag = false;
+		buf_info->buf_type_skb = true;
+		ret = mhi_cntrl->map_single(mhi_cntrl, buf_info);
+		if (ret)
+			goto map_error;
 
-	mhi_tre->ptr = MHI_TRE_DATA_PTR(buf_info->p_addr);
-	mhi_tre->dword[0] = MHI_TRE_DATA_DWORD0(buf_info->len);
-	mhi_tre->dword[1] = MHI_TRE_DATA_DWORD1(mhi_chan->bei, 1, 0, 0);
+		mhi_tre = tre_ring->wp;
+		mhi_tre->ptr = MHI_TRE_DATA_PTR(buf_info->p_addr);
+		mhi_tre->dword[0] = MHI_TRE_DATA_DWORD0(buf_info->len);
+		if (last)
+			/* bei, eot */
+			mhi_tre->dword[1] = MHI_TRE_DATA_DWORD1(1, 1, 0, 0);
+		else
+			/* bei, chain */
+			mhi_tre->dword[1] = MHI_TRE_DATA_DWORD1(1, 0, 0, 1);
 
-	MHI_VERB("chan:%d WP:0x%llx TRE:0x%llx 0x%08x 0x%08x\n", mhi_chan->chan,
-		 (u64)mhi_to_physical(tre_ring, mhi_tre), mhi_tre->ptr,
-		 mhi_tre->dword[0], mhi_tre->dword[1]);
+		MHI_VERB("chan:%d WP:0x%llx TRE:0x%llx 0x%08x 0x%08x\n",
+			mhi_chan->chan,
+			(u64)mhi_to_physical(tre_ring, mhi_tre), mhi_tre->ptr,
+			mhi_tre->dword[0], mhi_tre->dword[1]);
 
-	/* increment WP */
-	mhi_add_ring_element(mhi_cntrl, tre_ring);
-	mhi_add_ring_element(mhi_cntrl, buf_ring);
-
-	if (mhi_chan->dir == DMA_TO_DEVICE)
-		atomic_inc(&mhi_cntrl->pending_pkts);
-
+		/* increment WP */
+		mhi_add_ring_element(mhi_cntrl, tre_ring);
+		mhi_add_ring_element(mhi_cntrl, buf_ring);
+	}
 	if (likely(MHI_DB_ACCESS_VALID(mhi_cntrl))) {
 		read_lock_bh(&mhi_chan->lock);
 		mhi_ring_chan_db(mhi_cntrl, mhi_chan);
 		read_unlock_bh(&mhi_chan->lock);
 	}
 
+	if (mhi_chan->dir == DMA_FROM_DEVICE && assert_wake)
+		mhi_cntrl->wake_put(mhi_cntrl, true);
+
 	read_unlock_bh(&mhi_cntrl->pm_lock);
 
 	return 0;
 
 map_error:
+	buf_ring->wp = save_tre_wp;
+	tre_ring->wp = save_buf_wp;
+	if (assert_wake)
+		mhi_cntrl->wake_put(mhi_cntrl, false);
 	read_unlock_bh(&mhi_cntrl->pm_lock);
 
 	return ret;
+}
+
+int mhi_gen_n_tre(struct mhi_controller *mhi_cntrl,
+		struct mhi_chan *mhi_chan,
+		void *buf_array[],
+		void *cb_array[],
+		size_t buf_len_array[],
+		enum MHI_FLAGS flags_array[],
+		dma_addr_t dma_addr_array[],
+		unsigned int num)
+{
+	struct mhi_ring *buf_ring, *tre_ring;
+	struct mhi_tre *mhi_tre;
+	struct mhi_buf_info *buf_info;
+	int eot, eob, chain;
+	int phy;
+	int ret = 0;
+	void *save_tre_wp;
+	void *save_buf_wp;
+	int i;
+
+	buf_ring = &mhi_chan->buf_ring;
+	tre_ring = &mhi_chan->tre_ring;
+	save_tre_wp = buf_ring->wp;
+	save_buf_wp = tre_ring->wp;
+	i = 0;
+	while (num-- > 0) {
+		buf_info = buf_ring->wp;
+		buf_info->v_addr = buf_array[i];
+		buf_info->cb_buf = cb_array[i];
+		buf_info->wp = tre_ring->wp;
+		buf_info->dir = mhi_chan->dir;
+		buf_info->len = buf_len_array[i];
+		buf_info->buf_type_skb = false;
+		phy = (!!(flags_array[i] & MHI_FLAGS_DMA_ADDR)
+					&& dma_addr_array);
+		if (phy)
+			buf_info->dma_flag = MHI_DMA_PHY;
+		else
+			buf_info->dma_flag = 0;
+
+		if (mhi_chan->dir == DMA_TO_DEVICE)
+			buf_info->wake_put = (num == 0); /* last or not*/
+		if (phy) {
+			buf_info->p_addr = dma_addr_array[i];
+			if (flags_array[i] & MHI_FLAGS_COHERENT_ADDR)
+				buf_info->dma_flag |= MHI_DMA_COHERENT;
+			else
+				dma_sync_single_for_device(mhi_cntrl->dev,
+					buf_info->p_addr, buf_info->len,
+					buf_info->dir);
+		} else
+			ret = mhi_cntrl->map_single(mhi_cntrl, buf_info);
+		if (ret) {
+			buf_ring->wp = save_tre_wp;
+			tre_ring->wp = save_buf_wp;
+			return ret;
+		}
+
+		eob = !!(flags_array[i] & MHI_EOB);
+		eot = !!(flags_array[i] & MHI_EOT);
+		chain = !!(flags_array[i] & MHI_CHAIN);
+
+		mhi_tre = tre_ring->wp;
+		mhi_tre->ptr = MHI_TRE_DATA_PTR(buf_info->p_addr);
+		mhi_tre->dword[0] = MHI_TRE_DATA_DWORD0(buf_len_array[i]);
+		mhi_tre->dword[1] = MHI_TRE_DATA_DWORD1(mhi_chan->bei, eot, eob, chain);
+
+		/* increment WP */
+		mhi_add_ring_element(mhi_cntrl, tre_ring);
+		mhi_add_ring_element(mhi_cntrl, buf_ring);
+		i++;
+	}
+
+	return 0;
 }
 
 int mhi_queue_dma(struct mhi_device *mhi_dev,
@@ -626,6 +772,10 @@ int mhi_gen_tre(struct mhi_controller *mhi_cntrl,
 	buf_info->wp = tre_ring->wp;
 	buf_info->dir = mhi_chan->dir;
 	buf_info->len = buf_len;
+	buf_info->dma_flag = false;
+	buf_info->buf_type_skb = false;
+	if (mhi_chan->dir == DMA_TO_DEVICE)
+		buf_info->wake_put = true;
 
 	ret = mhi_cntrl->map_single(mhi_cntrl, buf_info);
 	if (ret)
@@ -648,6 +798,96 @@ int mhi_gen_tre(struct mhi_controller *mhi_cntrl,
 	mhi_add_ring_element(mhi_cntrl, tre_ring);
 	mhi_add_ring_element(mhi_cntrl, buf_ring);
 
+	return 0;
+}
+
+bool mhi_deliver_bufs(struct mhi_controller *mhi_cntrl,
+		  struct mhi_chan *mhi_chan)
+{
+	unsigned long flags;
+	bool assert_wake = false;
+
+	read_lock_irqsave(&mhi_cntrl->pm_lock, flags);
+
+	/* we're in M3 or transitioning to M3 */
+	if (MHI_PM_IN_SUSPEND_STATE(mhi_cntrl->pm_state)) {
+		mhi_cntrl->runtime_get(mhi_cntrl, mhi_cntrl->priv_data);
+		mhi_cntrl->runtime_put(mhi_cntrl, mhi_cntrl->priv_data);
+	}
+
+	/*
+	 * For UL channels always assert WAKE until work is done,
+	 * For DL channels only assert if MHI is in a LPM
+	 */
+	if (mhi_chan->dir == DMA_TO_DEVICE ||
+	    (mhi_chan->dir == DMA_FROM_DEVICE &&
+	     mhi_cntrl->pm_state != MHI_PM_M0)) {
+		assert_wake = true;
+		mhi_cntrl->wake_get(mhi_cntrl, false);
+	}
+
+	if (likely(MHI_DB_ACCESS_VALID(mhi_cntrl))) {
+		unsigned long flags;
+
+		read_lock_irqsave(&mhi_chan->lock, flags);
+		mhi_ring_chan_db(mhi_cntrl, mhi_chan);
+		read_unlock_irqrestore(&mhi_chan->lock, flags);
+	}
+
+	if (mhi_chan->dir == DMA_FROM_DEVICE && assert_wake) {
+		mhi_cntrl->wake_put(mhi_cntrl, true);
+		assert_wake = false;
+	}
+
+	read_unlock_irqrestore(&mhi_cntrl->pm_lock, flags);
+	return assert_wake;
+}
+
+int mhi_queue_n_buf_not_supported(struct mhi_device *mhi_dev,
+		  struct mhi_chan *mhi_chan,
+		  void *buf_array[],
+		  size_t len_array[],
+		  enum MHI_FLAGS mflags_array[],
+		  dma_addr_t  dma_addr_array[],
+		  unsigned int num)
+{
+	return -EPERM;
+}
+
+int mhi_queue_n_buf(struct mhi_device *mhi_dev,
+		  struct mhi_chan *mhi_chan,
+		  void *buf_array[],
+		  size_t len_array[],
+		  enum MHI_FLAGS mflags_array[],
+		  dma_addr_t  dma_addr_array[],
+		  unsigned int num)
+{
+	struct mhi_controller *mhi_cntrl = mhi_dev->mhi_cntrl;
+	struct mhi_ring *tre_ring;
+	int ret;
+
+	/*
+	 * this check here only as a guard, it's always
+	 * possible mhi can enter error while executing rest of function,
+	 * which is not fatal so we do not need to hold pm_lock
+	 */
+	if (unlikely(MHI_PM_IN_ERROR_STATE(mhi_cntrl->pm_state))) {
+		MHI_VERB("MHI is not in active state, pm_state:%s\n",
+			 to_mhi_pm_state_str(mhi_cntrl->pm_state));
+
+		return -EIO;
+	}
+
+	tre_ring = &mhi_chan->tre_ring;
+	if (get_nr_avail_ring_elements(mhi_cntrl, tre_ring) < num)
+		return -EAGAIN;
+
+	ret = mhi_chan->gen_n_tre(mhi_cntrl, mhi_chan, buf_array,
+				buf_array, len_array, mflags_array,
+				dma_addr_array, num);
+	if (unlikely(ret))
+		return ret;
+	mhi_deliver_bufs(mhi_cntrl, mhi_chan);
 	return 0;
 }
 
@@ -726,6 +966,7 @@ int mhi_destroy_device(struct device *dev, void *data)
 	MHI_LOG("destroy device for chan:%s\n", mhi_dev->chan_name);
 
 	/* notify the client and remove the device from mhi bus */
+	mhi_notify(mhi_dev, MHI_CB_DEVICE_DESTROYED);
 	device_del(dev);
 	put_device(dev);
 
@@ -819,8 +1060,10 @@ void mhi_create_devices(struct mhi_controller *mhi_cntrl)
 		    !(mhi_chan->ee_mask & BIT(mhi_cntrl->ee)))
 			continue;
 		mhi_dev = mhi_alloc_device(mhi_cntrl);
-		if (!mhi_dev)
+		if (!mhi_dev) {
+			MHI_ERR("mhi_alloc_device failed\n");
 			return;
+		}
 
 		mhi_dev->dev_type = MHI_XFER_TYPE;
 		switch (mhi_chan->dir) {
@@ -828,7 +1071,9 @@ void mhi_create_devices(struct mhi_controller *mhi_cntrl)
 			mhi_dev->ul_chan = mhi_chan;
 			mhi_dev->ul_chan_id = mhi_chan->chan;
 			mhi_dev->ul_xfer = mhi_chan->queue_xfer;
+			mhi_dev->ul_n_xfer = mhi_chan->queue_n_xfer;
 			mhi_dev->ul_event_id = mhi_chan->er_index;
+			mhi_dev->ul_skb_xfer = mhi_queue_skb;
 			break;
 		case DMA_NONE:
 		case DMA_BIDIRECTIONAL:
@@ -839,6 +1084,7 @@ void mhi_create_devices(struct mhi_controller *mhi_cntrl)
 			mhi_dev->dl_chan = mhi_chan;
 			mhi_dev->dl_chan_id = mhi_chan->chan;
 			mhi_dev->dl_xfer = mhi_chan->queue_xfer;
+			mhi_dev->dl_n_xfer = mhi_chan->queue_n_xfer;
 			mhi_dev->dl_event_id = mhi_chan->er_index;
 		}
 
@@ -853,12 +1099,15 @@ void mhi_create_devices(struct mhi_controller *mhi_cntrl)
 					mhi_dev->ul_chan = mhi_chan;
 					mhi_dev->ul_chan_id = mhi_chan->chan;
 					mhi_dev->ul_xfer = mhi_chan->queue_xfer;
+					mhi_dev->ul_n_xfer = mhi_chan->queue_n_xfer;
+					mhi_dev->ul_skb_xfer = mhi_queue_skb;
 					mhi_dev->ul_event_id =
 						mhi_chan->er_index;
 				} else {
 					mhi_dev->dl_chan = mhi_chan;
 					mhi_dev->dl_chan_id = mhi_chan->chan;
 					mhi_dev->dl_xfer = mhi_chan->queue_xfer;
+					mhi_dev->dl_n_xfer = mhi_chan->queue_n_xfer;
 					mhi_dev->dl_event_id =
 						mhi_chan->er_index;
 				}
@@ -936,7 +1185,7 @@ static int parse_xfer_event(struct mhi_controller *mhi_cntrl,
 		struct mhi_tre *local_rp, *ev_tre;
 		void *dev_rp;
 		struct mhi_buf_info *buf_info;
-		u16 xfer_len;
+		size_t xfer_len;
 
 		/* Get the TRB this event points to */
 		ev_tre = mhi_to_virtual(tre_ring, ptr);
@@ -951,6 +1200,8 @@ static int parse_xfer_event(struct mhi_controller *mhi_cntrl,
 		/* local rp */
 		local_rp = tre_ring->rp;
 		while (local_rp != dev_rp) {
+			bool wake_put;
+
 			buf_info = buf_ring->rp;
 			/* if it's last tre get len from the event */
 			if (local_rp == ev_tre)
@@ -958,21 +1209,28 @@ static int parse_xfer_event(struct mhi_controller *mhi_cntrl,
 			else
 				xfer_len = buf_info->len;
 
-			/* unmap if it's not premapped by client */
-			if (likely(!buf_info->pre_mapped))
+			wake_put = buf_info->wake_put;
+			if (buf_info->dma_flag & MHI_DMA_PHY) {
+				if (!(buf_info->dma_flag & MHI_DMA_COHERENT))
+					dma_sync_single_for_cpu(mhi_cntrl->dev,
+						buf_info->p_addr, buf_info->len,
+							buf_info->dir);
+			} else
 				mhi_cntrl->unmap_single(mhi_cntrl, buf_info);
-
+			result.buf_indirect = buf_info->buf_type_skb;
 			result.buf_addr = buf_info->cb_buf;
-			result.bytes_xferd = min_t(u16, xfer_len,
-					buf_info->len);
+
+			result.bytes_xferd = min_t(size_t, xfer_len,
+										buf_info->len);
 			mhi_del_ring_element(mhi_cntrl, buf_ring);
 			mhi_del_ring_element(mhi_cntrl, tre_ring);
 			local_rp = tre_ring->rp;
 
 			/* notify client */
-			mhi_chan->xfer_cb(mhi_chan->mhi_dev, &result);
+			if (buf_info->cb_buf)
+				mhi_chan->xfer_cb(mhi_chan->mhi_dev, &result);
 
-			if (mhi_chan->dir == DMA_TO_DEVICE)
+			if (mhi_chan->dir == DMA_TO_DEVICE && wake_put)
 				atomic_dec(&mhi_cntrl->pending_pkts);
 
 			/*
@@ -1977,11 +2235,18 @@ static void mhi_reset_data_chan(struct mhi_controller *mhi_cntrl,
 	while (tre_ring->rp != tre_ring->wp) {
 		struct mhi_buf_info *buf_info = buf_ring->rp;
 
-		if (mhi_chan->dir == DMA_TO_DEVICE)
+		if (buf_info->wake_put && mhi_chan->dir == DMA_TO_DEVICE)
 			atomic_dec(&mhi_cntrl->pending_pkts);
 
-		if (!buf_info->pre_mapped)
-			mhi_cntrl->unmap_single(mhi_cntrl, buf_info);
+		if (buf_info->dma_flag & MHI_DMA_PHY) {
+			if (!(buf_info->dma_flag & MHI_DMA_COHERENT))
+				dma_sync_single_for_cpu(mhi_cntrl->dev,
+					buf_info->p_addr, buf_info->len,
+					buf_info->dir);
+		} else {
+			if (!buf_info->pre_mapped)
+				mhi_cntrl->unmap_single(mhi_cntrl, buf_info);
+		}
 		mhi_del_ring_element(mhi_cntrl, buf_ring);
 		mhi_del_ring_element(mhi_cntrl, tre_ring);
 
@@ -1989,6 +2254,7 @@ static void mhi_reset_data_chan(struct mhi_controller *mhi_cntrl,
 			kfree(buf_info->cb_buf);
 		} else {
 			result.buf_addr = buf_info->cb_buf;
+			result.buf_indirect = buf_info->buf_type_skb;
 			mhi_chan->xfer_cb(mhi_chan->mhi_dev, &result);
 		}
 	}
@@ -2497,6 +2763,17 @@ int mhi_get_no_free_descriptors(struct mhi_device *mhi_dev,
 	return get_nr_avail_ring_elements(mhi_cntrl, tre_ring);
 }
 EXPORT_SYMBOL(mhi_get_no_free_descriptors);
+
+int mhi_get_total_descriptors(struct mhi_device *mhi_dev,
+				enum dma_data_direction dir)
+{
+	struct mhi_chan *mhi_chan = (dir == DMA_TO_DEVICE) ?
+		mhi_dev->ul_chan : mhi_dev->dl_chan;
+	struct mhi_ring *tre_ring = &mhi_chan->tre_ring;
+
+	return tre_ring->elements;
+}
+EXPORT_SYMBOL(mhi_get_total_descriptors);
 
 static int __mhi_bdf_to_controller(struct device *dev, void *tmp)
 {

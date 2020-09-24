@@ -24,6 +24,7 @@
 #include <linux/slab.h>
 #include <linux/uaccess.h>
 #include <linux/mhi.h>
+#include <linux/fsm_mhi_cntl.h>
 #include "mhi_qcom.h"
 
 struct firmware_info {
@@ -33,14 +34,7 @@ struct firmware_info {
 };
 
 static const struct firmware_info firmware_table[] = {
-	{.dev_id = 0x308, .fw_image = "sdx65m/sbl1.mbn",
-	 .edl_image = "sdx65m/edl.mbn"},
-	{.dev_id = 0x307, .fw_image = "sdx60m/sbl1.mbn",
-	 .edl_image = "sdx60m/edl.mbn"},
-	{.dev_id = 0x306, .fw_image = "sdx55m/sbl1.mbn",
-	 .edl_image = "sdx55m/edl.mbn"},
-	{.dev_id = 0x305, .fw_image = "sdx50m/sbl1.mbn"},
-	{.dev_id = 0x304, .fw_image = "sbl.mbn", .edl_image = "edl.mbn"},
+	{.dev_id = 0x305, .fw_image = "fsm100xx/sbl1.mbn"},
 	/* default, set to debug.mbn */
 	{.fw_image = "debug.mbn", .edl_image = "debug.mbn"},
 };
@@ -803,9 +797,6 @@ static struct mhi_controller *mhi_register_controller(struct pci_dev *pci_dev)
 	if (ret)
 		goto error_register;
 
-	if (mhi_dev->allow_m1)
-		goto skip_offload;
-
 	mhi_cntrl->offload_wq = alloc_ordered_workqueue("offload_wq",
 			WQ_MEM_RECLAIM | WQ_HIGHPRI);
 	if (!mhi_cntrl->offload_wq)
@@ -822,10 +813,6 @@ static struct mhi_controller *mhi_register_controller(struct pci_dev *pci_dev)
 
 	atomic_set(&mhi_cntrl->write_idx, -1);
 
-skip_offload:
-	if (sysfs_create_group(&mhi_cntrl->mhi_dev->dev.kobj, &mhi_qcom_group))
-		MHI_CNTRL_ERR("Error while creating the sysfs group\n");
-
 	return mhi_cntrl;
 
 error_free_wq:
@@ -835,6 +822,9 @@ error_register:
 
 	return ERR_PTR(-EINVAL);
 }
+
+/* Will be used for pci_remove */
+static struct mhi_controller *mhi_cntrl_local = NULL;
 
 int mhi_pci_probe(struct pci_dev *pci_dev,
 		  const struct pci_device_id *device_id)
@@ -855,7 +845,9 @@ int mhi_pci_probe(struct pci_dev *pci_dev,
 	if (IS_ERR(mhi_cntrl))
 		return PTR_ERR(mhi_cntrl);
 
+	mhi_cntrl->dev_id = pci_dev->device;
 	mhi_dev = mhi_controller_get_devdata(mhi_cntrl);
+	mhi_dev->pci_dev = pci_dev;
 	mhi_dev->powered_on = true;
 
 	ret = mhi_arch_pcie_init(mhi_cntrl);
@@ -870,6 +862,7 @@ int mhi_pci_probe(struct pci_dev *pci_dev,
 	if (ret)
 		goto error_init_pci;
 
+	mhi_cntrl->mhi_removed = false;
 	/* start power up sequence */
 	if (!debug_mode) {
 		ret = mhi_qcom_power_up(mhi_cntrl);
@@ -877,7 +870,12 @@ int mhi_pci_probe(struct pci_dev *pci_dev,
 			goto error_power_up;
 	}
 
+	mhi_pci_cntl_register(mhi_cntrl);
+	MHI_CNTRL_LOG("Registered with MHI Control Driver");
+
 	pm_runtime_mark_last_busy(&pci_dev->dev);
+
+	mhi_cntrl_local = mhi_cntrl;
 
 	MHI_CNTRL_LOG("Return successful\n");
 
@@ -893,6 +891,23 @@ error_iommu_init:
 	mhi_arch_pcie_deinit(mhi_cntrl);
 
 	return ret;
+}
+
+void mhi_pci_remove(struct pci_dev *pci_dev)
+{
+	struct mhi_controller *mhi_cntrl = NULL;
+
+	/* find a matching controller */
+	mhi_cntrl = mhi_cntrl_local;
+	if (IS_ERR(mhi_cntrl))
+		return;
+
+	MHI_CNTRL_LOG("Initiating mhi_pci_remove\n");
+
+	mhi_power_down(mhi_cntrl, true);
+	mhi_deinit_pci_dev(mhi_cntrl);
+	mhi_arch_iommu_deinit(mhi_cntrl);
+	mhi_arch_pcie_deinit(mhi_cntrl);
 }
 
 static const struct dev_pm_ops pm_ops = {
@@ -920,6 +935,7 @@ static struct pci_driver mhi_pcie_driver = {
 	.name = "mhi",
 	.id_table = mhi_pcie_device_id,
 	.probe = mhi_pci_probe,
+	.remove = mhi_pci_remove,
 	.driver = {
 		.pm = &pm_ops
 	}

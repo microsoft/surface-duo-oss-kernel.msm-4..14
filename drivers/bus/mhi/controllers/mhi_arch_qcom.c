@@ -136,7 +136,7 @@ static int mhi_arch_set_bus_request(struct mhi_controller *mhi_cntrl, int index)
 	struct mhi_dev *mhi_dev = mhi_controller_get_devdata(mhi_cntrl);
 	struct arch_info *arch_info = mhi_dev->arch_info;
 
-	MHI_LOG("Setting bus request to index %d\n", index);
+	MHI_CNTRL_LOG("Setting bus request to index %d\n", index);
 
 	if (arch_info->bus_client)
 		return msm_bus_scale_client_update_request(
@@ -386,7 +386,7 @@ static  int mhi_arch_pcie_scale_bw(struct mhi_controller *mhi_cntrl,
 	/* do a bus scale vote based on gen speeds */
 	mhi_arch_set_bus_request(mhi_cntrl, link_info->target_link_speed);
 
-	MHI_LOG("BW changed to speed:0x%x width:0x%x\n",
+	MHI_CNTRL_LOG("BW changed to speed:0x%x width:0x%x\n",
 		link_info->target_link_speed,
 		link_info->target_link_width);
 
@@ -439,6 +439,98 @@ static struct mhi_driver mhi_bl_driver = {
 		.owner = THIS_MODULE,
 	},
 };
+
+void mhi_arch_pcie_ops_power_off(void *priv)
+{
+	struct mhi_controller *mhi_cntrl = priv;
+	struct mhi_dev *mhi_dev = mhi_controller_get_devdata(mhi_cntrl);
+	struct pci_dev *pci_dev = mhi_dev->pci_dev;
+
+	/*
+	 * Abort system suspend if system is preparing to go to suspend
+	 * by grabbing wake source.
+	 * If system is suspended, wait for pm notifier callback to notify
+	 * that resume has occurred with PM_POST_SUSPEND event.
+	 */
+	pm_stay_awake(&mhi_cntrl->mhi_dev->dev);
+
+	/* if link is in drv suspend, wake it up */
+	pm_runtime_get_sync(&pci_dev->dev);
+
+	mutex_lock(&mhi_cntrl->pm_mutex);
+	if (!mhi_dev->powered_on) {
+		MHI_CNTRL_LOG("Not in active state\n");
+		mutex_unlock(&mhi_cntrl->pm_mutex);
+		pm_runtime_put_noidle(&pci_dev->dev);
+	}
+	else {
+		mhi_dev->powered_on = false;
+		mutex_unlock(&mhi_cntrl->pm_mutex);
+
+		pm_runtime_put_noidle(&pci_dev->dev);
+
+		MHI_CNTRL_LOG("Triggering shutdown process\n");
+
+		mhi_power_down(mhi_cntrl, true);
+
+		/* turn the link off */
+		mhi_deinit_pci_dev(mhi_cntrl);
+
+		mhi_arch_link_off(mhi_cntrl);
+
+		mhi_arch_iommu_deinit(mhi_cntrl);
+
+		mhi_arch_pcie_deinit(mhi_cntrl);
+
+		pm_relax(&mhi_cntrl->mhi_dev->dev);
+	}
+}
+EXPORT_SYMBOL(mhi_arch_pcie_ops_power_off);
+
+int mhi_arch_pcie_ops_power_on(void *priv)
+{
+	struct mhi_controller *mhi_cntrl = priv;
+	struct mhi_dev *mhi_dev = mhi_controller_get_devdata(mhi_cntrl);
+	struct pci_dev *pci_dev = mhi_dev->pci_dev;
+	int ret;
+
+	mutex_lock(&mhi_cntrl->pm_mutex);
+	if (mhi_dev->powered_on) {
+		MHI_CNTRL_LOG("MHI still in active state\n");
+		mutex_unlock(&mhi_cntrl->pm_mutex);
+		return 0;
+	}
+
+	MHI_CNTRL_LOG("Enter\n");
+
+	/* reset rpm state */
+	pm_runtime_set_active(&pci_dev->dev);
+
+	pm_runtime_enable(&pci_dev->dev);
+
+	mutex_unlock(&mhi_cntrl->pm_mutex);
+
+	pm_runtime_forbid(&pci_dev->dev);
+
+	ret = pm_runtime_get_sync(&pci_dev->dev);
+	if (ret < 0) {
+		MHI_CNTRL_ERR("Error with rpm resume, ret:%d\n", ret);
+		return ret;
+	}
+
+	/* re-start the link & recover default cfg states */
+	ret = msm_pcie_pm_control(MSM_PCIE_RESUME, pci_dev->bus->number,
+				  pci_dev, NULL, 0);
+	if (ret) {
+		MHI_CNTRL_ERR("Failed to resume pcie bus ret %d\n", ret);
+		return ret;
+	}
+
+	mhi_pci_probe(pci_dev, NULL);
+	return 0;
+}
+EXPORT_SYMBOL(mhi_arch_pcie_ops_power_on);
+
 
 int mhi_arch_pcie_init(struct mhi_controller *mhi_cntrl)
 {
@@ -521,7 +613,7 @@ int mhi_arch_pcie_init(struct mhi_controller *mhi_cntrl)
 		arch_info->esoc_client = devm_register_esoc_client(
 						&mhi_dev->pci_dev->dev, "mdm");
 		if (IS_ERR_OR_NULL(arch_info->esoc_client)) {
-			MHI_CNTRL_ERR("Failed to register esoc client\n");
+			MHI_CNTRL_LOG("esoc client registration is not required\n");
 		} else {
 			/* register for power on/off hooks */
 			struct esoc_client_hook *esoc_ops =
@@ -565,6 +657,9 @@ int mhi_arch_pcie_init(struct mhi_controller *mhi_cntrl)
 	cur_link_info->target_link_speed = linkstat & PCI_EXP_LNKSTA_CLS;
 	cur_link_info->target_link_width = (linkstat & PCI_EXP_LNKSTA_NLW) >>
 					    PCI_EXP_LNKSTA_NLW_SHIFT;
+
+	MHI_CNTRL_LOG("MHI-PCIe Current link status: val:%x speed: %d, width:%d\n",
+		linkstat, cur_link_info->target_link_speed, cur_link_info->target_link_width);
 
 	return mhi_arch_set_bus_request(mhi_cntrl,
 					cur_link_info->target_link_speed);
@@ -712,7 +807,7 @@ int mhi_arch_link_suspend(struct mhi_controller *mhi_cntrl)
 	struct pci_dev *pci_dev = mhi_dev->pci_dev;
 	int ret = 0;
 
-	MHI_LOG("Entered with suspend_mode:%s\n",
+	MHI_CNTRL_LOG("Entered with suspend_mode:%s\n",
 		TO_MHI_SUSPEND_MODE_STR(mhi_dev->suspend_mode));
 
 	/* disable inactivity timer */
@@ -750,7 +845,7 @@ exit_suspend:
 	if (ret && !mhi_dev->allow_m1)
 		msm_pcie_l1ss_timeout_enable(pci_dev);
 
-	MHI_LOG("Exited with ret:%d\n", ret);
+	MHI_CNTRL_LOG("Exited with ret:%d\n", ret);
 
 	return ret;
 }
@@ -804,7 +899,7 @@ int mhi_arch_link_resume(struct mhi_controller *mhi_cntrl)
 	struct pci_dev *pci_dev = mhi_dev->pci_dev;
 	int ret = 0;
 
-	MHI_LOG("Entered with suspend_mode:%s\n",
+	MHI_CNTRL_LOG("Entered with suspend_mode:%s\n",
 		TO_MHI_SUSPEND_MODE_STR(mhi_dev->suspend_mode));
 
 	switch (mhi_dev->suspend_mode) {
