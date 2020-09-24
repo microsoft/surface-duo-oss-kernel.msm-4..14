@@ -129,7 +129,7 @@ struct clk *s32gen1_clk_cgm_div(const char *name, const char *parent,
 	div->reg = CGM_MUXn_DC(cgm_addr, index);
 	div->shift = MC_CGM_MUX_DCn_DIV_OFFSET;
 	div->width = MC_CGM_MUX_DCn_DIV_SIZE;
-	div->flags = 0;
+	div->flags = CLK_DIVIDER_ROUND_CLOSEST;
 	div->lock = lock;
 	div->hw.init = &init;
 	div->table = NULL;
