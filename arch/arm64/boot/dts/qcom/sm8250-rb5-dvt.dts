@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: BSD-3-Clause
+/*
+ * Copyright (c) 2020, Linaro Ltd.
+ */
+
+/dts-v1/;
+
+#include "qrb5165-rb5.dts"
+
+&left_spkr {
+	compatible = "sdw10217201000";
+	reg = <0 1>;
+};
+
+&right_spkr {
+	compatible = "sdw10217201000";
+	reg = <0 2>;
+};
