@@ -659,6 +659,21 @@ static int fsl_qspi_nor_setup_last(struct fsl_qspi *q)
 	/* Init for AHB read */
 	return fsl_qspi_init_ahb_read(q);
 }
+#else
+static int fsl_qspi_nor_setup_last(struct fsl_qspi *q)
+{
+	unsigned long rate = q->clk_rate;
+	int ret;
+
+	/* disable and unprepare clock to avoid glitch pass to controller */
+	fsl_qspi_clk_disable_unprep(q);
+
+	ret = clk_set_rate(q->clk, rate);
+	if (ret)
+		return ret;
+
+	return fsl_qspi_clk_prep_enable(q);
+}
 #endif
 
 static const struct of_device_id fsl_qspi_dt_ids[] = {
@@ -1003,16 +1018,13 @@ static int fsl_qspi_probe(struct platform_device *pdev)
 	}
 
 	/* finish the rest init. */
-#ifndef CONFIG_SOC_S32GEN1
 	ret = fsl_qspi_nor_setup_last(q);
 	if (ret)
 		goto last_init_failed;
-#endif
 
 	fsl_qspi_clk_disable_unprep(q);
 	return 0;
 
-#ifndef CONFIG_SOC_S32GEN1
 last_init_failed:
 	for (i = 0; i < q->nor_num; i++) {
 		/* skip the holes */
@@ -1020,7 +1032,6 @@ last_init_failed:
 			i *= 2;
 		mtd_device_unregister(&q->nor[i].mtd);
 	}
-#endif
 mutex_failed:
 	mutex_destroy(&q->lock);
 irq_failed:
