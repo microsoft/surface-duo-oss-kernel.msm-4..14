@@ -340,12 +340,14 @@ properties:
           S32V234 Customer Evaluation Board (S32V234EVB) SCH 28899
           S32V234 Customer Evaluation Boards from 2016, quarter4, such as
               S32V234EVB and S32V234BBMINI
+          S32V234 CAMPPS32V2 Camera Card
           S32V234 TMDP board (aka Delphi board)
           S32V234 PCIE board
         items:
           - enum:
               - fsl,s32v234-evb
               - fsl,s32v234-evb2016q4
+              - fsl,s32v234-campps32v2
               - fsl,s32v234-tmdp
               - fsl,s32v234-pcie
           - const: fsl,s32v234
