@@ -21,8 +21,10 @@ mkdir -p "$fit_d"
 # Export variables to be used by hooks
 export KERNEL_VERSION
 export KERNEL_MODULES_D
+cp -a "$KERNEL_MODULES_D" modules
 initrd_f=initrd.img
-ubuntu-core-initramfs create-initrd --output "$initrd_f" --kernelver "$KERNEL_VERSION"
+ubuntu-core-initramfs create-initrd --output "$initrd_f" --kerneldir modules
+rm -rf modules
 mv "$initrd_f" "$fit_d"
 
 mkdir -p "$fit_d"/dtbs/
