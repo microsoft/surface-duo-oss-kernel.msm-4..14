@@ -64,6 +64,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 					BIT(NL80211_IFTYPE_MESH_POINT),
 		.supports_monitor = true,
 		.wakeup_mhi = false,
+		.shadow_support = false,
 	},
 	{
 		.hw_rev = ATH11K_HW_IPQ6018_HW10,
@@ -100,6 +101,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 					BIT(NL80211_IFTYPE_MESH_POINT),
 		.supports_monitor = true,
 		.wakeup_mhi = false,
+		.shadow_support = false,
 	},
 	{
 		.name = "qca6390 hw2.0",
@@ -135,6 +137,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 					BIT(NL80211_IFTYPE_AP),
 		.supports_monitor = false,
 		.wakeup_mhi = true,
+		.shadow_support = true,
 	},
 };
 
@@ -415,6 +418,7 @@ static void ath11k_core_stop(struct ath11k_base *ab)
 {
 	if (!test_bit(ATH11K_FLAG_CRASH_FLUSH, &ab->dev_flags))
 		ath11k_qmi_firmware_stop(ab);
+
 	ath11k_hif_stop(ab);
 	ath11k_wmi_detach(ab);
 	ath11k_dp_pdev_reo_cleanup(ab);
@@ -634,6 +638,10 @@ err_firmware_stop:
 int ath11k_core_qmi_firmware_ready(struct ath11k_base *ab)
 {
 	int ret;
+
+	if (ab->hw_params.shadow_support)
+		ath11k_ce_get_shadow_config(ab, &ab->qmi.ce_cfg.shadow_reg_v2,
+					    &ab->qmi.ce_cfg.shadow_reg_v2_len);
 
 	ret = ath11k_ce_init_pipes(ab);
 	if (ret) {
