@@ -1174,6 +1174,19 @@ void ath11k_hal_srng_get_shadow_config(struct ath11k_base *ab,
 	*cfg = hal->shadow_reg_addr;
 }
 
+/* it must be called with srng->lock being hold */
+void ath11k_hal_srng_shadow_update_hp_tp(struct ath11k_base *ab,
+					 struct hal_srng *srng)
+{
+	/* check whether the ring is emptry. Update the shadow
+	 * HP only when then ring isn't' empty.
+	 */
+	if (srng->ring_dir == HAL_SRNG_DIR_SRC &&
+	    *(volatile u32 *)srng->u.src_ring.tp_addr !=
+			srng->u.src_ring.hp)
+		ath11k_hal_srng_access_end(ab, srng);
+}
+
 static int ath11k_hal_srng_create_config(struct ath11k_base *ab)
 {
 	struct ath11k_hal *hal = &ab->hal;
