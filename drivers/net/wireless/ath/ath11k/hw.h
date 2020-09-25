@@ -162,6 +162,7 @@ struct ath11k_hw_params {
 	bool wakeup_mhi;
 	bool shadow_support;
 	bool shadow_support_fix;
+	bool idle_ps;
 };
 
 struct ath11k_hw_ops {
