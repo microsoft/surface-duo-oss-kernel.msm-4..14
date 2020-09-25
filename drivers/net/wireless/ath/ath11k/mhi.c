@@ -465,3 +465,27 @@ void ath11k_mhi_stop(struct ath11k_pci *ab_pci)
 	ath11k_mhi_set_state(ab_pci, ATH11K_MHI_DEINIT);
 }
 
+void ath11k_mhi_suspend(struct ath11k_pci *ab_pci)
+{
+	ath11k_mhi_set_state(ab_pci, ATH11K_MHI_SUSPEND);
+}
+
+void ath11k_mhi_resume(struct ath11k_pci *ab_pci)
+{
+	ath11k_mhi_set_state(ab_pci, ATH11K_MHI_RESUME);
+}
+
+void ath11k_mhi_force_rddm(struct ath11k_pci *ab_pci)
+{
+	ath11k_mhi_set_state(ab_pci, ATH11K_MHI_TRIGGER_RDDM);
+}
+
+void ath11k_mhi_wakeup(struct ath11k_pci *ar_pci)
+{
+	mhi_device_get_sync(ar_pci->mhi_ctrl->mhi_dev);
+}
+
+void ath11k_mhi_release(struct ath11k_pci *ar_pci)
+{
+	mhi_device_put(ar_pci->mhi_ctrl->mhi_dev);
+}

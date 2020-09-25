@@ -159,6 +159,7 @@ struct ath11k_hw_params {
 
 	u16 interface_modes;
 	bool supports_monitor;
+	bool wakeup_mhi;
 };
 
 struct ath11k_hw_ops {

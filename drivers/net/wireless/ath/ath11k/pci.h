@@ -24,6 +24,12 @@
 /* register used for handshake mechanism to validate UMAC is awake */
 #define PCIE_SOC_WAKE_PCIE_LOCAL_REG		0x3004
 
+/* BAR0 + 4k is always accessible, and no
+ * need to force wakeup.
+ * 4K - 32 = 0xFE0
+ */
+#define ACCESS_ALWAYS_OFF 0xFE0
+
 struct ath11k_msi_user {
 	char *name;
 	int num_vectors;
@@ -48,6 +54,7 @@ struct ath11k_pci {
 
 	/* protects register_window above */
 	spinlock_t window_lock;
+	bool init_done;
 };
 
 static inline struct ath11k_pci *ath11k_pci_priv(struct ath11k_base *ab)
