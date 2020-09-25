@@ -65,6 +65,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.supports_monitor = true,
 		.wakeup_mhi = false,
 		.shadow_support = false,
+		.shadow_support_fix = false,
 	},
 	{
 		.hw_rev = ATH11K_HW_IPQ6018_HW10,
@@ -102,6 +103,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.supports_monitor = true,
 		.wakeup_mhi = false,
 		.shadow_support = false,
+		.shadow_support_fix = false,
 	},
 	{
 		.name = "qca6390 hw2.0",
@@ -138,6 +140,7 @@ static const struct ath11k_hw_params ath11k_hw_params[] = {
 		.supports_monitor = false,
 		.wakeup_mhi = true,
 		.shadow_support = true,
+		.shadow_support_fix = true,
 	},
 };
 

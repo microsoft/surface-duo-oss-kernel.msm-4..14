@@ -161,6 +161,7 @@ struct ath11k_hw_params {
 	bool supports_monitor;
 	bool wakeup_mhi;
 	bool shadow_support;
+	bool shadow_support_fix;
 };
 
 struct ath11k_hw_ops {
