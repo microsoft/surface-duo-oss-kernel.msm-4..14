@@ -566,6 +566,7 @@ struct ocelot_port {
 	u8				ptp_cmd;
 	struct sk_buff_head		tx_skbs;
 	u8				ts_id;
+	spinlock_t			ts_id_lock;
 
 	phy_interface_t			phy_mode;
 
@@ -677,6 +678,7 @@ void ocelot_configure_cpu(struct ocelot *ocelot, int npi,
 int ocelot_init(struct ocelot *ocelot);
 void ocelot_deinit(struct ocelot *ocelot);
 void ocelot_init_port(struct ocelot *ocelot, int port);
+void ocelot_deinit_port(struct ocelot *ocelot, int port);
 
 /* DSA callbacks */
 void ocelot_port_enable(struct ocelot *ocelot, int port,
@@ -708,8 +710,8 @@ int ocelot_vlan_add(struct ocelot *ocelot, int port, u16 vid, bool pvid,
 int ocelot_vlan_del(struct ocelot *ocelot, int port, u16 vid);
 int ocelot_hwstamp_get(struct ocelot *ocelot, int port, struct ifreq *ifr);
 int ocelot_hwstamp_set(struct ocelot *ocelot, int port, struct ifreq *ifr);
-int ocelot_port_add_txtstamp_skb(struct ocelot_port *ocelot_port,
-				 struct sk_buff *skb);
+void ocelot_port_add_txtstamp_skb(struct ocelot *ocelot, int port,
+				  struct sk_buff *clone);
 void ocelot_get_txtstamp(struct ocelot *ocelot);
 void ocelot_port_set_maxlen(struct ocelot *ocelot, int port, size_t sdu);
 int ocelot_get_max_mtu(struct ocelot *ocelot, int port);

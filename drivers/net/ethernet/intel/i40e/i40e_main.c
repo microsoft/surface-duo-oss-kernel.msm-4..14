@@ -287,6 +287,7 @@ void i40e_service_event_schedule(struct i40e_pf *pf)
 /**
  * i40e_tx_timeout - Respond to a Tx Hang
  * @netdev: network interface device structure
+ * @txqueue: queue number timing out
  *
  * If any port has noticed a Tx timeout, it is likely that the whole
  * device is munged, not just the one netdev port, so go for the full
@@ -1609,6 +1610,8 @@ static int i40e_set_mac(struct net_device *netdev, void *p)
  * i40e_config_rss_aq - Prepare for RSS using AQ commands
  * @vsi: vsi structure
  * @seed: RSS hash seed
+ * @lut: pointer to lookup table of lut_size
+ * @lut_size: size of the lookup table
  **/
 static int i40e_config_rss_aq(struct i40e_vsi *vsi, const u8 *seed,
 			      u8 *lut, u16 lut_size)
@@ -3122,12 +3125,12 @@ static void i40e_config_xps_tx_ring(struct i40e_ring *ring)
 }
 
 /**
- * i40e_xsk_umem - Retrieve the AF_XDP ZC if XDP and ZC is enabled
+ * i40e_xsk_pool - Retrieve the AF_XDP buffer pool if XDP and ZC is enabled
  * @ring: The Tx or Rx ring
  *
- * Returns the UMEM or NULL.
+ * Returns the AF_XDP buffer pool or NULL.
  **/
-static struct xdp_umem *i40e_xsk_umem(struct i40e_ring *ring)
+static struct xsk_buff_pool *i40e_xsk_pool(struct i40e_ring *ring)
 {
 	bool xdp_on = i40e_enabled_xdp_vsi(ring->vsi);
 	int qid = ring->queue_index;
@@ -3138,7 +3141,7 @@ static struct xdp_umem *i40e_xsk_umem(struct i40e_ring *ring)
 	if (!xdp_on || !test_bit(qid, ring->vsi->af_xdp_zc_qps))
 		return NULL;
 
-	return xdp_get_umem_from_qid(ring->vsi->netdev, qid);
+	return xsk_get_pool_from_qid(ring->vsi->netdev, qid);
 }
 
 /**
@@ -3157,7 +3160,7 @@ static int i40e_configure_tx_ring(struct i40e_ring *ring)
 	u32 qtx_ctl = 0;
 
 	if (ring_is_xdp(ring))
-		ring->xsk_umem = i40e_xsk_umem(ring);
+		ring->xsk_pool = i40e_xsk_pool(ring);
 
 	/* some ATR related tx ring init */
 	if (vsi->back->flags & I40E_FLAG_FD_ATR_ENABLED) {
@@ -3280,12 +3283,13 @@ static int i40e_configure_rx_ring(struct i40e_ring *ring)
 		xdp_rxq_info_unreg_mem_model(&ring->xdp_rxq);
 
 	kfree(ring->rx_bi);
-	ring->xsk_umem = i40e_xsk_umem(ring);
-	if (ring->xsk_umem) {
+	ring->xsk_pool = i40e_xsk_pool(ring);
+	if (ring->xsk_pool) {
 		ret = i40e_alloc_rx_bi_zc(ring);
 		if (ret)
 			return ret;
-		ring->rx_buf_len = xsk_umem_get_rx_frame_size(ring->xsk_umem);
+		ring->rx_buf_len =
+		  xsk_pool_get_rx_frame_size(ring->xsk_pool);
 		/* For AF_XDP ZC, we disallow packets to span on
 		 * multiple buffers, thus letting us skip that
 		 * handling in the fast-path.
@@ -3320,8 +3324,8 @@ static int i40e_configure_rx_ring(struct i40e_ring *ring)
 	rx_ctx.base = (ring->dma / 128);
 	rx_ctx.qlen = ring->count;
 
-	/* use 32 byte descriptors */
-	rx_ctx.dsize = 1;
+	/* use 16 byte descriptors */
+	rx_ctx.dsize = 0;
 
 	/* descriptor type is always zero
 	 * rx_ctx.dtype = 0;
@@ -3368,8 +3372,8 @@ static int i40e_configure_rx_ring(struct i40e_ring *ring)
 	ring->tail = hw->hw_addr + I40E_QRX_TAIL(pf_q);
 	writel(0, ring->tail);
 
-	if (ring->xsk_umem) {
-		xsk_buff_set_rxq_info(ring->xsk_umem, &ring->xdp_rxq);
+	if (ring->xsk_pool) {
+		xsk_pool_set_rxq_info(ring->xsk_pool, &ring->xdp_rxq);
 		ok = i40e_alloc_rx_buffers_zc(ring, I40E_DESC_UNUSED(ring));
 	} else {
 		ok = !i40e_alloc_rx_buffers(ring, I40E_DESC_UNUSED(ring));
@@ -3380,7 +3384,7 @@ static int i40e_configure_rx_ring(struct i40e_ring *ring)
 		 */
 		dev_info(&vsi->back->pdev->dev,
 			 "Failed to allocate some buffers on %sRx ring %d (pf_q %d)\n",
-			 ring->xsk_umem ? "UMEM enabled " : "",
+			 ring->xsk_pool ? "AF_XDP ZC enabled " : "",
 			 ring->queue_index, pf_q);
 	}
 
@@ -5814,7 +5818,6 @@ static int i40e_vsi_reconfig_rss(struct i40e_vsi *vsi, u16 rss_size)
 /**
  * i40e_channel_setup_queue_map - Setup a channel queue map
  * @pf: ptr to PF device
- * @vsi: the VSI being setup
  * @ctxt: VSI context structure
  * @ch: ptr to channel structure
  *
@@ -6057,8 +6060,7 @@ static inline int i40e_setup_hw_channel(struct i40e_pf *pf,
 /**
  * i40e_setup_channel - setup new channel using uplink element
  * @pf: ptr to PF device
- * @type: type of channel to be created (VMDq2/VF)
- * @uplink_seid: underlying HW switching element (VEB) ID
+ * @vsi: pointer to the VSI to set up the channel within
  * @ch: ptr to channel structure
  *
  * Setup new channel (VSI) based on specified type (VMDq2/VF)
@@ -7779,7 +7781,7 @@ int i40e_add_del_cloud_filter_big_buf(struct i40e_vsi *vsi,
 /**
  * i40e_parse_cls_flower - Parse tc flower filters provided by kernel
  * @vsi: Pointer to VSI
- * @cls_flower: Pointer to struct flow_cls_offload
+ * @f: Pointer to struct flow_cls_offload
  * @filter: Pointer to cloud filter structure
  *
  **/
@@ -8160,8 +8162,8 @@ static int i40e_delete_clsflower(struct i40e_vsi *vsi,
 
 /**
  * i40e_setup_tc_cls_flower - flower classifier offloads
- * @netdev: net device to configure
- * @type_data: offload data
+ * @np: net device to configure
+ * @cls_flower: offload data
  **/
 static int i40e_setup_tc_cls_flower(struct i40e_netdev_priv *np,
 				    struct flow_cls_offload *cls_flower)
@@ -9585,6 +9587,7 @@ end_reconstitute:
 /**
  * i40e_get_capabilities - get info about the HW
  * @pf: the PF struct
+ * @list_type: AQ capability to be queried
  **/
 static int i40e_get_capabilities(struct i40e_pf *pf,
 				 enum i40e_admin_queue_opc list_type)
@@ -10546,7 +10549,7 @@ static void i40e_service_task(struct work_struct *work)
 
 /**
  * i40e_service_timer - timer callback
- * @data: pointer to PF struct
+ * @t: timer list pointer
  **/
 static void i40e_service_timer(struct timer_list *t)
 {
@@ -11185,11 +11188,10 @@ static int i40e_init_msix(struct i40e_pf *pf)
  * i40e_vsi_alloc_q_vector - Allocate memory for a single interrupt vector
  * @vsi: the VSI being configured
  * @v_idx: index of the vector in the vsi struct
- * @cpu: cpu to be used on affinity_mask
  *
  * We allocate one q_vector.  If allocation fails we return -ENOMEM.
  **/
-static int i40e_vsi_alloc_q_vector(struct i40e_vsi *vsi, int v_idx, int cpu)
+static int i40e_vsi_alloc_q_vector(struct i40e_vsi *vsi, int v_idx)
 {
 	struct i40e_q_vector *q_vector;
 
@@ -11222,7 +11224,7 @@ static int i40e_vsi_alloc_q_vector(struct i40e_vsi *vsi, int v_idx, int cpu)
 static int i40e_vsi_alloc_q_vectors(struct i40e_vsi *vsi)
 {
 	struct i40e_pf *pf = vsi->back;
-	int err, v_idx, num_q_vectors, current_cpu;
+	int err, v_idx, num_q_vectors;
 
 	/* if not MSIX, give the one vector only to the LAN VSI */
 	if (pf->flags & I40E_FLAG_MSIX_ENABLED)
@@ -11232,15 +11234,10 @@ static int i40e_vsi_alloc_q_vectors(struct i40e_vsi *vsi)
 	else
 		return -EINVAL;
 
-	current_cpu = cpumask_first(cpu_online_mask);
-
 	for (v_idx = 0; v_idx < num_q_vectors; v_idx++) {
-		err = i40e_vsi_alloc_q_vector(vsi, v_idx, current_cpu);
+		err = i40e_vsi_alloc_q_vector(vsi, v_idx);
 		if (err)
 			goto err_out;
-		current_cpu = cpumask_next(current_cpu, cpu_online_mask);
-		if (unlikely(current_cpu >= nr_cpu_ids))
-			current_cpu = cpumask_first(cpu_online_mask);
 	}
 
 	return 0;
@@ -12379,6 +12376,7 @@ static int i40e_get_phys_port_id(struct net_device *netdev,
  * @addr: the MAC address entry being added
  * @vid: VLAN ID
  * @flags: instructions from stack about fdb operation
+ * @extack: netlink extended ack, unused currently
  */
 static int i40e_ndo_fdb_add(struct ndmsg *ndm, struct nlattr *tb[],
 			    struct net_device *dev,
@@ -12644,7 +12642,7 @@ static int i40e_xdp_setup(struct i40e_vsi *vsi,
 	 */
 	if (need_reset && prog)
 		for (i = 0; i < vsi->num_queue_pairs; i++)
-			if (vsi->xdp_rings[i]->xsk_umem)
+			if (vsi->xdp_rings[i]->xsk_pool)
 				(void)i40e_xsk_wakeup(vsi->netdev, i,
 						      XDP_WAKEUP_RX);
 
@@ -12923,8 +12921,8 @@ static int i40e_xdp(struct net_device *dev,
 	switch (xdp->command) {
 	case XDP_SETUP_PROG:
 		return i40e_xdp_setup(vsi, xdp->prog);
-	case XDP_SETUP_XSK_UMEM:
-		return i40e_xsk_umem_setup(vsi, xdp->xsk.umem,
+	case XDP_SETUP_XSK_POOL:
+		return i40e_xsk_pool_setup(vsi, xdp->xsk.pool,
 					   xdp->xsk.queue_id);
 	default:
 		return -EINVAL;

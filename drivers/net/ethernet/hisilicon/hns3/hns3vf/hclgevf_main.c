@@ -19,8 +19,9 @@ static struct hnae3_ae_algo ae_algovf;
 static struct workqueue_struct *hclgevf_wq;
 
 static const struct pci_device_id ae_algovf_pci_tbl[] = {
-	{PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_100G_VF), 0},
-	{PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_100G_RDMA_DCB_PFC_VF), 0},
+	{PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_VF), 0},
+	{PCI_VDEVICE(HUAWEI, HNAE3_DEV_ID_RDMA_DCB_PFC_VF),
+	 HNAE3_DEV_SUPPORT_ROCE_DCB_BITS},
 	/* required last entry */
 	{0, }
 };
@@ -171,7 +172,7 @@ static u8 *hclgevf_tqps_get_strings(struct hnae3_handle *handle, u8 *data)
 {
 	struct hnae3_knic_private_info *kinfo = &handle->kinfo;
 	u8 *buff = data;
-	int i = 0;
+	int i;
 
 	for (i = 0; i < kinfo->num_tqps; i++) {
 		struct hclgevf_tqp *tqp = container_of(kinfo->tqp[i],
@@ -1788,10 +1789,10 @@ static int hclgevf_reset_prepare_wait(struct hclgevf_dev *hdev)
 {
 #define HCLGEVF_RESET_SYNC_TIME 100
 
-	struct hclge_vf_to_pf_msg send_msg;
-	int ret = 0;
-
 	if (hdev->reset_type == HNAE3_VF_FUNC_RESET) {
+		struct hclge_vf_to_pf_msg send_msg;
+		int ret;
+
 		hclgevf_build_send_msg(&send_msg, HCLGE_MBX_RESET, 0);
 		ret = hclgevf_send_mbx_msg(hdev, &send_msg, true, NULL, 0);
 		if (ret) {
@@ -1806,10 +1807,10 @@ static int hclgevf_reset_prepare_wait(struct hclgevf_dev *hdev)
 	/* inform hardware that preparatory work is done */
 	msleep(HCLGEVF_RESET_SYNC_TIME);
 	hclgevf_reset_handshake(hdev, true);
-	dev_info(&hdev->pdev->dev, "prepare reset(%d) wait done, ret:%d\n",
-		 hdev->reset_type, ret);
+	dev_info(&hdev->pdev->dev, "prepare reset(%d) wait done\n",
+		 hdev->reset_type);
 
-	return ret;
+	return 0;
 }
 
 static void hclgevf_dump_rst_info(struct hclgevf_dev *hdev)
@@ -2186,6 +2187,9 @@ static void hclgevf_periodic_service_task(struct hclgevf_dev *hdev)
 	unsigned long delta = round_jiffies_relative(HZ);
 	struct hnae3_handle *handle = &hdev->nic;
 
+	if (test_bit(HCLGEVF_STATE_RST_FAIL, &hdev->state))
+		return;
+
 	if (time_is_after_jiffies(hdev->last_serv_processed + HZ)) {
 		delta = jiffies - hdev->last_serv_processed;
 
@@ -2551,13 +2555,7 @@ static int hclgevf_set_alive(struct hnae3_handle *handle, bool alive)
 
 static int hclgevf_client_start(struct hnae3_handle *handle)
 {
-	int ret;
-
-	ret = hclgevf_set_alive(handle, true);
-	if (ret)
-		return ret;
-
-	return 0;
+	return hclgevf_set_alive(handle, true);
 }
 
 static void hclgevf_client_stop(struct hnae3_handle *handle)

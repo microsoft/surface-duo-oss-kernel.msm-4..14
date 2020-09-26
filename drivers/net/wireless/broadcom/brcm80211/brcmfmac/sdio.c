@@ -664,9 +664,15 @@ static void pkt_align(struct sk_buff *p, int len, int align)
 /* To check if there's window offered */
 static bool data_ok(struct brcmf_sdio *bus)
 {
-	/* Reserve TXCTL_CREDITS credits for txctl */
-	return (bus->tx_max - bus->tx_seq) > TXCTL_CREDITS &&
-	       ((bus->tx_max - bus->tx_seq) & 0x80) == 0;
+	u8 tx_rsv = 0;
+
+	/* Reserve TXCTL_CREDITS credits for txctl when it is ready to send */
+	if (bus->ctrl_frame_stat)
+		tx_rsv = TXCTL_CREDITS;
+
+	return (bus->tx_max - bus->tx_seq - tx_rsv) != 0 &&
+	       ((bus->tx_max - bus->tx_seq - tx_rsv) & 0x80) == 0;
+
 }
 
 /* To check if there's window offered */
@@ -4272,8 +4278,9 @@ static void brcmf_sdio_firmware_callback(struct device *dev, int err,
 			brcmf_sdiod_writeb(sdiod, SBSDIO_FUNC1_MESBUSYCTRL,
 					   CY_43012_MESBUSYCTRL, &err);
 			break;
+		case SDIO_DEVICE_ID_BROADCOM_4329:
 		case SDIO_DEVICE_ID_BROADCOM_4339:
-			brcmf_dbg(INFO, "set F2 watermark to 0x%x*4 bytes for 4339\n",
+			brcmf_dbg(INFO, "set F2 watermark to 0x%x*4 bytes\n",
 				  CY_4339_F2_WATERMARK);
 			brcmf_sdiod_writeb(sdiod, SBSDIO_WATERMARK,
 					   CY_4339_F2_WATERMARK, &err);
@@ -4286,7 +4293,7 @@ static void brcmf_sdio_firmware_callback(struct device *dev, int err,
 					   CY_4339_MESBUSYCTRL, &err);
 			break;
 		case SDIO_DEVICE_ID_BROADCOM_43455:
-			brcmf_dbg(INFO, "set F2 watermark to 0x%x*4 bytes for 43455\n",
+			brcmf_dbg(INFO, "set F2 watermark to 0x%x*4 bytes\n",
 				  CY_43455_F2_WATERMARK);
 			brcmf_sdiod_writeb(sdiod, SBSDIO_WATERMARK,
 					   CY_43455_F2_WATERMARK, &err);
@@ -4299,9 +4306,7 @@ static void brcmf_sdio_firmware_callback(struct device *dev, int err,
 					   CY_43455_MESBUSYCTRL, &err);
 			break;
 		case SDIO_DEVICE_ID_BROADCOM_4359:
-			/* fallthrough */
 		case SDIO_DEVICE_ID_BROADCOM_4354:
-			/* fallthrough */
 		case SDIO_DEVICE_ID_BROADCOM_4356:
 			brcmf_dbg(INFO, "set F2 watermark to 0x%x*4 bytes\n",
 				  CY_435X_F2_WATERMARK);

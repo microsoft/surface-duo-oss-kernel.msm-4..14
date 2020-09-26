@@ -4202,7 +4202,7 @@ static struct fib6_info *rt6_add_route_info(struct net *net,
 		.fc_nlinfo.nl_net = net,
 	};
 
-	cfg.fc_table = l3mdev_fib_table(dev) ? : RT6_TABLE_INFO,
+	cfg.fc_table = l3mdev_fib_table(dev) ? : RT6_TABLE_INFO;
 	cfg.fc_dst = *prefix;
 	cfg.fc_gateway = *gwaddr;
 
@@ -5284,9 +5284,10 @@ static int ip6_route_multipath_del(struct fib6_config *cfg,
 {
 	struct fib6_config r_cfg;
 	struct rtnexthop *rtnh;
+	int last_err = 0;
 	int remaining;
 	int attrlen;
-	int err = 1, last_err = 0;
+	int err;
 
 	remaining = cfg->fc_mp_len;
 	rtnh = (struct rtnexthop *)cfg->fc_mp;

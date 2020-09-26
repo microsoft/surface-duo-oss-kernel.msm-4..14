@@ -40,7 +40,9 @@ static struct dentry *nsim_dev_ddir;
 #define NSIM_DEV_DUMMY_REGION_SIZE (1024 * 32)
 
 static int
-nsim_dev_take_snapshot(struct devlink *devlink, struct netlink_ext_ack *extack,
+nsim_dev_take_snapshot(struct devlink *devlink,
+		       const struct devlink_region_ops *ops,
+		       struct netlink_ext_ack *extack,
 		       u8 **data)
 {
 	void *dummy_data;
@@ -68,7 +70,7 @@ static ssize_t nsim_dev_take_snapshot_write(struct file *file,
 
 	devlink = priv_to_devlink(nsim_dev);
 
-	err = nsim_dev_take_snapshot(devlink, NULL, &dummy_data);
+	err = nsim_dev_take_snapshot(devlink, NULL, NULL, &dummy_data);
 	if (err)
 		return err;
 
@@ -768,6 +770,8 @@ static int nsim_dev_flash_update(struct devlink *devlink, const char *file_name,
 						   component,
 						   NSIM_DEV_FLASH_SIZE,
 						   NSIM_DEV_FLASH_SIZE);
+		devlink_flash_update_timeout_notify(devlink, "Flash select",
+						    component, 81);
 		devlink_flash_update_status_notify(devlink, "Flashing done",
 						   component, 0, 0);
 		devlink_flash_update_end_notify(devlink);

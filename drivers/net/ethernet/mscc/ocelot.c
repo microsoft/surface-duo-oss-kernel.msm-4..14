@@ -413,21 +413,20 @@ void ocelot_port_disable(struct ocelot *ocelot, int port)
 }
 EXPORT_SYMBOL(ocelot_port_disable);
 
-int ocelot_port_add_txtstamp_skb(struct ocelot_port *ocelot_port,
-				 struct sk_buff *skb)
+void ocelot_port_add_txtstamp_skb(struct ocelot *ocelot, int port,
+				  struct sk_buff *clone)
 {
-	struct skb_shared_info *shinfo = skb_shinfo(skb);
-	struct ocelot *ocelot = ocelot_port->ocelot;
+	struct ocelot_port *ocelot_port = ocelot->ports[port];
 
-	if (ocelot->ptp && shinfo->tx_flags & SKBTX_HW_TSTAMP &&
-	    ocelot_port->ptp_cmd == IFH_REW_OP_TWO_STEP_PTP) {
-		shinfo->tx_flags |= SKBTX_IN_PROGRESS;
-		/* Store timestamp ID in cb[0] of sk_buff */
-		skb->cb[0] = ocelot_port->ts_id % 4;
-		skb_queue_tail(&ocelot_port->tx_skbs, skb);
-		return 0;
-	}
-	return -ENODATA;
+	spin_lock(&ocelot_port->ts_id_lock);
+
+	skb_shinfo(clone)->tx_flags |= SKBTX_IN_PROGRESS;
+	/* Store timestamp ID in cb[0] of sk_buff */
+	clone->cb[0] = ocelot_port->ts_id;
+	ocelot_port->ts_id = (ocelot_port->ts_id + 1) % 4;
+	skb_queue_tail(&ocelot_port->tx_skbs, clone);
+
+	spin_unlock(&ocelot_port->ts_id_lock);
 }
 EXPORT_SYMBOL(ocelot_port_add_txtstamp_skb);
 
@@ -506,9 +505,7 @@ void ocelot_get_txtstamp(struct ocelot *ocelot)
 		/* Set the timestamp into the skb */
 		memset(&shhwtstamps, 0, sizeof(shhwtstamps));
 		shhwtstamps.hwtstamp = ktime_set(ts.tv_sec, ts.tv_nsec);
-		skb_tstamp_tx(skb_match, &shhwtstamps);
-
-		dev_kfree_skb_any(skb_match);
+		skb_complete_tx_timestamp(skb_match, &shhwtstamps);
 
 		/* Next ts */
 		ocelot_write(ocelot, SYS_PTP_NXT_PTP_NXT, SYS_PTP_NXT);
@@ -1300,6 +1297,7 @@ void ocelot_init_port(struct ocelot *ocelot, int port)
 	struct ocelot_port *ocelot_port = ocelot->ports[port];
 
 	skb_queue_head_init(&ocelot_port->tx_skbs);
+	spin_lock_init(&ocelot_port->ts_id_lock);
 
 	/* Basic L2 initialization */
 
@@ -1544,18 +1542,18 @@ EXPORT_SYMBOL(ocelot_init);
 
 void ocelot_deinit(struct ocelot *ocelot)
 {
-	struct ocelot_port *port;
-	int i;
-
 	cancel_delayed_work(&ocelot->stats_work);
 	destroy_workqueue(ocelot->stats_queue);
 	mutex_destroy(&ocelot->stats_lock);
-
-	for (i = 0; i < ocelot->num_phys_ports; i++) {
-		port = ocelot->ports[i];
-		skb_queue_purge(&port->tx_skbs);
-	}
 }
 EXPORT_SYMBOL(ocelot_deinit);
+
+void ocelot_deinit_port(struct ocelot *ocelot, int port)
+{
+	struct ocelot_port *ocelot_port = ocelot->ports[port];
+
+	skb_queue_purge(&ocelot_port->tx_skbs);
+}
+EXPORT_SYMBOL(ocelot_deinit_port);
 
 MODULE_LICENSE("Dual MIT/GPL");

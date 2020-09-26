@@ -7,6 +7,7 @@
 #include <soc/mscc/ocelot_sys.h>
 #include <soc/mscc/ocelot.h>
 #include <linux/of_platform.h>
+#include <linux/pcs-lynx.h>
 #include <linux/packing.h>
 #include <linux/iopoll.h>
 #include "felix.h"
@@ -15,23 +16,12 @@
 #define VSC9953_VCAP_IS2_ENTRY_WIDTH		376
 #define VSC9953_VCAP_PORT_CNT			10
 
-#define MSCC_MIIM_REG_STATUS			0x0
-#define		MSCC_MIIM_STATUS_STAT_BUSY	BIT(3)
-#define MSCC_MIIM_REG_CMD			0x8
-#define		MSCC_MIIM_CMD_OPR_WRITE		BIT(1)
-#define		MSCC_MIIM_CMD_OPR_READ		BIT(2)
-#define		MSCC_MIIM_CMD_WRDATA_SHIFT	4
-#define		MSCC_MIIM_CMD_REGAD_SHIFT	20
-#define		MSCC_MIIM_CMD_PHYAD_SHIFT	25
-#define		MSCC_MIIM_CMD_VLD		BIT(31)
-#define MSCC_MIIM_REG_DATA			0xC
-#define		MSCC_MIIM_DATA_ERROR		(BIT(16) | BIT(17))
-
-#define MSCC_PHY_REG_PHY_CFG		0x0
-#define		PHY_CFG_PHY_ENA		(BIT(0) | BIT(1) | BIT(2) | BIT(3))
-#define		PHY_CFG_PHY_COMMON_RESET BIT(4)
-#define		PHY_CFG_PHY_RESET	(BIT(5) | BIT(6) | BIT(7) | BIT(8))
-#define MSCC_PHY_REG_PHY_STATUS		0x4
+#define MSCC_MIIM_CMD_OPR_WRITE			BIT(1)
+#define MSCC_MIIM_CMD_OPR_READ			BIT(2)
+#define MSCC_MIIM_CMD_WRDATA_SHIFT		4
+#define MSCC_MIIM_CMD_REGAD_SHIFT		20
+#define MSCC_MIIM_CMD_PHYAD_SHIFT		25
+#define MSCC_MIIM_CMD_VLD			BIT(31)
 
 static const u32 vsc9953_ana_regmap[] = {
 	REG(ANA_ADVLEARN,			0x00b500),
@@ -659,17 +649,17 @@ static struct vcap_field vsc9953_vcap_is2_keys[] = {
 	[VCAP_IS2_HK_DIP_EQ_SIP]		= {122,   1},
 	/* IP4_TCP_UDP (TYPE=100) */
 	[VCAP_IS2_HK_TCP]			= {123,   1},
-	[VCAP_IS2_HK_L4_SPORT]			= {124,  16},
-	[VCAP_IS2_HK_L4_DPORT]			= {140,  16},
+	[VCAP_IS2_HK_L4_DPORT]			= {124,  16},
+	[VCAP_IS2_HK_L4_SPORT]			= {140,  16},
 	[VCAP_IS2_HK_L4_RNG]			= {156,   8},
 	[VCAP_IS2_HK_L4_SPORT_EQ_DPORT]		= {164,   1},
 	[VCAP_IS2_HK_L4_SEQUENCE_EQ0]		= {165,   1},
-	[VCAP_IS2_HK_L4_URG]			= {166,   1},
-	[VCAP_IS2_HK_L4_ACK]			= {167,   1},
-	[VCAP_IS2_HK_L4_PSH]			= {168,   1},
-	[VCAP_IS2_HK_L4_RST]			= {169,   1},
-	[VCAP_IS2_HK_L4_SYN]			= {170,   1},
-	[VCAP_IS2_HK_L4_FIN]			= {171,   1},
+	[VCAP_IS2_HK_L4_FIN]			= {166,   1},
+	[VCAP_IS2_HK_L4_SYN]			= {167,   1},
+	[VCAP_IS2_HK_L4_RST]			= {168,   1},
+	[VCAP_IS2_HK_L4_PSH]			= {169,   1},
+	[VCAP_IS2_HK_L4_ACK]			= {170,   1},
+	[VCAP_IS2_HK_L4_URG]			= {171,   1},
 	/* IP4_OTHER (TYPE=101) */
 	[VCAP_IS2_HK_IP4_L3_PROTO]		= {123,   8},
 	[VCAP_IS2_HK_L3_PAYLOAD]		= {131,  56},
@@ -819,6 +809,10 @@ out:
 	return err;
 }
 
+/* CORE_ENA is in SYS:SYSTEM:RESET_CFG
+ * MEM_INIT is in SYS:SYSTEM:RESET_CFG
+ * MEM_ENA is in SYS:SYSTEM:RESET_CFG
+ */
 static int vsc9953_reset(struct ocelot *ocelot)
 {
 	int val, err;
@@ -834,8 +828,8 @@ static int vsc9953_reset(struct ocelot *ocelot)
 	}
 
 	/* initialize switch mem ~40us */
-	ocelot_field_write(ocelot, SYS_RESET_CFG_MEM_INIT, 1);
 	ocelot_field_write(ocelot, SYS_RESET_CFG_MEM_ENA, 1);
+	ocelot_field_write(ocelot, SYS_RESET_CFG_MEM_INIT, 1);
 
 	err = readx_poll_timeout(vsc9953_sys_ram_init_status, ocelot, val, !val,
 				 VSC9953_SYS_RAMINIT_SLEEP,
@@ -846,7 +840,6 @@ static int vsc9953_reset(struct ocelot *ocelot)
 	}
 
 	/* enable switch core */
-	ocelot_field_write(ocelot, SYS_RESET_CFG_MEM_ENA, 1);
 	ocelot_field_write(ocelot, SYS_RESET_CFG_CORE_ENA, 1);
 
 	return 0;
@@ -960,23 +953,49 @@ static int vsc9953_mdio_bus_alloc(struct ocelot *ocelot)
 
 	for (port = 0; port < felix->info->num_ports; port++) {
 		struct ocelot_port *ocelot_port = ocelot->ports[port];
-		struct phy_device *pcs;
 		int addr = port + 4;
+		struct mdio_device *pcs;
+		struct lynx_pcs *lynx;
+
+		if (dsa_is_unused_port(felix->ds, port))
+			continue;
 
 		if (ocelot_port->phy_mode == PHY_INTERFACE_MODE_INTERNAL)
 			continue;
 
-		pcs = get_phy_device(felix->imdio, addr, false);
+		pcs = mdio_device_create(felix->imdio, addr);
 		if (IS_ERR(pcs))
 			continue;
 
-		pcs->interface = ocelot_port->phy_mode;
-		felix->pcs[port] = pcs;
+		lynx = lynx_pcs_create(pcs);
+		if (!lynx) {
+			mdio_device_free(pcs);
+			continue;
+		}
+
+		felix->pcs[port] = lynx;
 
 		dev_info(dev, "Found PCS at internal MDIO address %d\n", addr);
 	}
 
 	return 0;
+}
+
+static void vsc9953_mdio_bus_free(struct ocelot *ocelot)
+{
+	struct felix *felix = ocelot_to_felix(ocelot);
+	int port;
+
+	for (port = 0; port < ocelot->num_phys_ports; port++) {
+		struct lynx_pcs *pcs = felix->pcs[port];
+
+		if (!pcs)
+			continue;
+
+		mdio_device_free(pcs->mdio);
+		lynx_pcs_destroy(pcs);
+	}
+	mdiobus_unregister(felix->imdio);
 }
 
 static void vsc9953_xmit_template_populate(struct ocelot *ocelot, int port)
@@ -1008,14 +1027,11 @@ static const struct felix_info seville_info_vsc9953 = {
 	.vcap_is2_keys		= vsc9953_vcap_is2_keys,
 	.vcap_is2_actions	= vsc9953_vcap_is2_actions,
 	.vcap			= vsc9953_vcap_props,
-	.shared_queue_sz	= 128 * 1024,
+	.shared_queue_sz	= 2048 * 1024,
 	.num_mact_rows		= 2048,
 	.num_ports		= 10,
 	.mdio_bus_alloc		= vsc9953_mdio_bus_alloc,
-	.mdio_bus_free		= vsc9959_mdio_bus_free,
-	.pcs_config		= vsc9959_pcs_config,
-	.pcs_link_up		= vsc9959_pcs_link_up,
-	.pcs_link_state		= vsc9959_pcs_link_state,
+	.mdio_bus_free		= vsc9953_mdio_bus_free,
 	.phylink_validate	= vsc9953_phylink_validate,
 	.prevalidate_phy_mode	= vsc9953_prevalidate_phy_mode,
 	.xmit_template_populate	= vsc9953_xmit_template_populate,
@@ -1094,7 +1110,7 @@ static const struct of_device_id seville_of_match[] = {
 };
 MODULE_DEVICE_TABLE(of, seville_of_match);
 
-struct platform_driver seville_vsc9953_driver = {
+static struct platform_driver seville_vsc9953_driver = {
 	.probe		= seville_probe,
 	.remove		= seville_remove,
 	.driver = {
@@ -1102,3 +1118,7 @@ struct platform_driver seville_vsc9953_driver = {
 		.of_match_table	= of_match_ptr(seville_of_match),
 	},
 };
+module_platform_driver(seville_vsc9953_driver);
+
+MODULE_DESCRIPTION("Seville Switch driver");
+MODULE_LICENSE("GPL v2");
