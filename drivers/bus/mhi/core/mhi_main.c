@@ -473,12 +473,24 @@ int mhi_queue_skb(struct mhi_device *mhi_dev,
 	struct mhi_tre *mhi_tre;
 	bool assert_wake = false;
 	int ret;
-	uint32_t nseg = 1;
+	uint32_t nseg = 0;
 	uint32_t i;
 	void *save_tre_wp;
 	void *save_buf_wp;
 	bool last;
+	struct sk_buff *fskb;
+	struct sk_buff *tskb;
+	bool frag_array;
+	int frag_index;
 
+	fskb = skb_shinfo(skb)->frag_list;
+	while (fskb != NULL) {
+		nseg += 1;
+		if (skb_is_nonlinear(fskb))
+			nseg += skb_shinfo(fskb)->nr_frags;
+		fskb = fskb->next;
+	}
+	nseg++;
 	if (skb_is_nonlinear(skb))
 		nseg += skb_shinfo(skb)->nr_frags;
 	if (get_nr_avail_ring_elements(mhi_cntrl, tre_ring) < nseg)
@@ -512,17 +524,41 @@ int mhi_queue_skb(struct mhi_device *mhi_dev,
 	save_tre_wp = buf_ring->wp;
 	save_buf_wp = tre_ring->wp;
 
+	tskb = skb;
+	frag_array = false;
+	frag_index = 0;
 	for (i = 0; i < nseg; i++) {
 		last = (i == nseg - 1);
 		buf_info = buf_ring->wp;
-		if (i == 0) {
-			buf_info->len = skb->len - skb->data_len;
-			buf_info->v_addr = skb->data;
+
+		MHI_ASSERT(tskb == NULL, "mhi_queue_skb: tskb NULL");
+
+		if (!frag_array) {
+			buf_info->len = tskb->len - tskb->data_len;
+			buf_info->v_addr = tskb->data;
+			if (skb_is_nonlinear(tskb)) {
+				frag_array = true;
+				frag_index = 0;
+			} else {
+				if (tskb == skb)
+					tskb = skb_shinfo(tskb)->frag_list;
+				else
+					tskb = tskb->next;
+			}
 		} else {
-			buf_info->len =
-				skb_frag_size(&skb_shinfo(skb)->frags[i - 1]);
-			buf_info->v_addr =
-				skb_frag_address(&skb_shinfo(skb)->frags[i - 1]);
+			buf_info->len = skb_frag_size(
+					&skb_shinfo(tskb)->frags[frag_index]);
+			buf_info->v_addr = skb_frag_address(
+					&skb_shinfo(tskb)->frags[frag_index]);
+			frag_index++;
+			if (frag_index == skb_shinfo(tskb)->nr_frags) {
+				frag_array = false;
+				frag_index = 0;
+				if (tskb == skb)
+					tskb = skb_shinfo(tskb)->frag_list;
+				else
+					tskb = tskb->next;
+			}
 		}
 		if (last)
 			buf_info->cb_buf = skb;
@@ -2252,7 +2288,7 @@ static void mhi_reset_data_chan(struct mhi_controller *mhi_cntrl,
 
 		if (mhi_chan->pre_alloc) {
 			kfree(buf_info->cb_buf);
-		} else {
+		} else if (buf_info->cb_buf) {
 			result.buf_addr = buf_info->cb_buf;
 			result.buf_indirect = buf_info->buf_type_skb;
 			mhi_chan->xfer_cb(mhi_chan->mhi_dev, &result);

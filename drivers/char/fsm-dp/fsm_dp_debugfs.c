@@ -689,6 +689,285 @@ static int debugfs_drv_show(struct seq_file *s, void *unused)
 }
 DEFINE_DEBUGFS_OPS(debugfs_drv, debugfs_drv_show, NULL);
 
+
+static int debugfs_traffic_status_show(struct seq_file *s, void *unused)
+{
+	struct fsm_dp_traffic *traffic = (struct fsm_dp_traffic *)s->private;
+
+	if (!traffic->traffic_timestamp)
+		return 0;
+	if (traffic->ul_cnt)
+		seq_printf(s, "Avg FSM-DP UL ns    %6llu\n",
+			traffic->ul_ktime / traffic->ul_cnt);
+	if (traffic->dl_cnt)
+		seq_printf(s, "Avg FSM-DP DL ns    %6llu\n",
+			traffic->dl_ktime / traffic->dl_cnt);
+	return 0;
+}
+
+DEFINE_DEBUGFS_OPS(debugfs_traffic_status, debugfs_traffic_status_show, NULL);
+
+static int debugfs_traffic_timestamp_get(struct seq_file *s, void *unused)
+{
+	struct fsm_dp_traffic *traffic = (struct fsm_dp_traffic *)s->private;
+
+	seq_printf(s, "timestamp    %d\n", traffic->traffic_timestamp);
+	return 0;
+}
+
+static ssize_t debugfs_traffic_timestamp_set(
+	struct file *fp,
+	const char __user *buf,
+	size_t count,
+	loff_t *ppos)
+{
+	struct fsm_dp_traffic *traffic = (struct fsm_dp_traffic *)
+			(((struct seq_file *)fp->private_data)->private);
+	unsigned int enable = 0;
+
+	if (kstrtouint_from_user(buf, count, 0, &enable))
+		return -EFAULT;
+	traffic->traffic_timestamp = enable;
+	if (enable) {
+		traffic->dl_ktime = 0;
+		traffic->ul_ktime = 0;
+		traffic->dl_cnt = 0;
+		traffic->ul_cnt = 0;
+	}
+	return count;
+}
+
+DEFINE_DEBUGFS_OPS(
+	debugfs_traffic_timestamp,
+	debugfs_traffic_timestamp_get,
+	debugfs_traffic_timestamp_set);
+
+static unsigned long fsm_dp_gap_array[FSM_DP_TRAFFIC_ARRAY_SIZE];
+static int debugfs_traffic_ul_get(struct seq_file *s, void *unused)
+{
+	struct fsm_dp_traffic *traffic = (struct fsm_dp_traffic *)s->private;
+	unsigned long max_gap = 0;
+	unsigned long min_gap = 0xffffffff;
+	unsigned long total_gap = 0;
+	unsigned long gap;
+
+	ktime_t max_service = 0;
+	ktime_t min_service = 0xffffffff;
+	ktime_t total_service = 0;
+	ktime_t service;
+	int i;
+	unsigned int dist[5];
+
+	seq_printf(s, "UL collect done:       %d\n\n",
+					traffic->ul_traffic_collect_done);
+	if (!traffic->ul_traffic_collect_done)
+		return 0;
+
+	for (i = 0; i < FSM_DP_TRAFFIC_ARRAY_SIZE; i++) {
+
+		service = traffic->ul_traffic[i].complete_ktime -
+				traffic->ul_traffic[i].arrival_ktime;
+
+
+		if (service >= max_service)
+			max_service = service;
+		if (service <= min_service)
+			min_service = service;
+		total_service += service;
+	}
+	seq_printf(s, "UL max sericve time:  %lld ns\n", max_service);
+	seq_printf(s, "UL min service time: %lld ns\n", min_service);
+	seq_printf(s, "UL avg service time: %lld ns\n",
+				total_service / FSM_DP_TRAFFIC_ARRAY_SIZE);
+
+	dist[0] = dist[1] = dist[2] = dist[3] = dist[4] = 0;
+	for (i = 1; i < FSM_DP_TRAFFIC_ARRAY_SIZE; i++) {
+		gap = traffic->ul_traffic[i].arrival_ktime -
+			traffic->ul_traffic[i - 1].arrival_ktime;
+		fsm_dp_gap_array[i - 1] = gap / 1000;
+		if (gap >= max_gap)
+			max_gap = gap;
+		if (gap <= min_gap)
+			min_gap = gap;
+		total_gap += gap;
+		if (gap  >= 1000000)
+			dist[4]++;
+		else if (gap < 100000)
+			dist[0]++;
+		else if (gap < 200000)
+			dist[1]++;
+		else if (gap  < 500000)
+			dist[2]++;
+		else
+			dist[3]++;
+	}
+	seq_printf(s, "UL max gap:       %ld us\n",
+						max_gap / 1000);
+	seq_printf(s, "UL min gap:       %ld us\n",
+						min_gap / 1000);
+	seq_printf(s, "UL avg gap:       %ld us\n",
+				total_gap / (1000 *
+					(FSM_DP_TRAFFIC_ARRAY_SIZE - 1)));
+
+	seq_printf(s, "UL dist: < 100 us %d , < 200 us %d, < 500 us %d, < 1000 us %d, > 1000 us %d\n",
+			dist[0], dist[1], dist[2], dist[3], dist[4]);
+
+	for (i = 0; i < (FSM_DP_TRAFFIC_ARRAY_SIZE / 8) - 1; i++) {
+		pr_info("UL gap in us: %ld %ld %ld %ld %ld %ld %ld %ld\n",
+			fsm_dp_gap_array[i * 8], fsm_dp_gap_array[i * 8 + 1],
+			fsm_dp_gap_array[i * 8 + 2], fsm_dp_gap_array[i * 8 + 3],
+			fsm_dp_gap_array[i * 8 + 4], fsm_dp_gap_array[i * 8 + 5],
+			fsm_dp_gap_array[i * 8 + 6], fsm_dp_gap_array[i * 8 + 7]);
+	}
+	i = (FSM_DP_TRAFFIC_ARRAY_SIZE / 8) - 1;
+	pr_info("UL gap in us: %ld %ld %ld %ld %ld %ld %ld\n",
+			fsm_dp_gap_array[i * 8], fsm_dp_gap_array[i * 8 + 1],
+			fsm_dp_gap_array[i * 8 + 2], fsm_dp_gap_array[i * 8 + 3],
+			fsm_dp_gap_array[i * 8 + 4], fsm_dp_gap_array[i * 8 + 5],
+			fsm_dp_gap_array[i * 8 + 6]);
+	return 0;
+}
+
+static ssize_t debugfs_traffic_ul_set(
+	struct file *fp,
+	const char __user *buf,
+	size_t count,
+	loff_t *ppos)
+{
+	struct fsm_dp_traffic *traffic = (struct fsm_dp_traffic *)
+			(((struct seq_file *)fp->private_data)->private);
+	unsigned int enable = 0;
+
+	if (kstrtouint_from_user(buf, count, 0, &enable))
+		return -EFAULT;
+	if (enable && traffic->traffic_timestamp) {
+		traffic->ul_traffic_index = -1;
+		traffic->ul_traffic_collect_done = false;
+		traffic->ul_traffic_collect = true;
+	} else {
+		traffic->ul_traffic_collect = false;
+	}
+	return count;
+}
+
+DEFINE_DEBUGFS_OPS(
+	debugfs_traffic_ul,
+	debugfs_traffic_ul_get,
+	debugfs_traffic_ul_set);
+
+static int debugfs_traffic_dl_get(struct seq_file *s, void *unused)
+{
+	struct fsm_dp_traffic *traffic = (struct fsm_dp_traffic *)s->private;
+	unsigned long max_gap = 0;
+	unsigned long min_gap = 0xffffffff;
+	unsigned long total_gap = 0;
+	unsigned long gap;
+
+	ktime_t max_service = 0;
+	ktime_t min_service = 0xffffffff;
+	ktime_t total_service = 0;
+	ktime_t service;
+	int i;
+	unsigned int dist[5];
+
+	seq_printf(s, "DL collect done:       %d\n\n",
+					traffic->dl_traffic_collect_done);
+	if (!traffic->dl_traffic_collect_done)
+		return 0;
+
+	for (i = 0; i < FSM_DP_TRAFFIC_ARRAY_SIZE; i++) {
+		service = traffic->dl_traffic[i].complete_ktime -
+				traffic->dl_traffic[i].arrival_ktime;
+
+		if (service >= max_service)
+			max_service = service;
+		if (service <= min_service)
+			min_service = service;
+		total_service += service;
+	}
+	seq_printf(s, "DL max sericve time:  %lld us\n",
+					max_service  / 1000);
+	seq_printf(s, "DL min service time: %lld us\n",
+					min_service  / 1000);
+	seq_printf(s, "DL avg service time: %lld us\n",
+				total_service / (1000 *
+					FSM_DP_TRAFFIC_ARRAY_SIZE));
+
+	dist[0] = dist[1] = dist[2] = dist[3] = dist[4] = 0;
+	for (i = 1; i < FSM_DP_TRAFFIC_ARRAY_SIZE; i++) {
+		gap = traffic->dl_traffic[i].arrival_ktime -
+			traffic->dl_traffic[i - 1].arrival_ktime;
+		fsm_dp_gap_array[i - 1] = gap / 1000;
+		if (gap >= max_gap)
+			max_gap = gap;
+		if (gap <= min_gap)
+			min_gap = gap;
+		total_gap += gap;
+		if (gap  >= 1000000)
+			dist[4]++;
+		else if (gap < 100000)
+			dist[0]++;
+		else if (gap < 200000)
+			dist[1]++;
+		else if (gap  < 500000)
+			dist[2]++;
+		else
+			dist[3]++;
+	}
+	seq_printf(s, "DL max gap:       %ld us\n",
+						max_gap / 1000);
+	seq_printf(s, "DL min gap:       %ld us\n",
+						min_gap / 1000);
+	seq_printf(s, "DL avg gap:       %ld us\n",
+				total_gap / (1000 *
+					(FSM_DP_TRAFFIC_ARRAY_SIZE - 1)));
+
+	seq_printf(s, "UL dist: < 100 us %d , < 200 us %d, < 500 us %d, < 1000 us %d, > 1000 us %d\n",
+			dist[0], dist[1], dist[2], dist[3], dist[4]);
+
+	for (i = 0; i < (FSM_DP_TRAFFIC_ARRAY_SIZE / 8) - 1; i++) {
+		pr_info("DL gap in us: %ld %ld %ld %ld %ld %ld %ld %ld\n",
+			fsm_dp_gap_array[i * 8], fsm_dp_gap_array[i * 8 + 1],
+			fsm_dp_gap_array[i * 8 + 2], fsm_dp_gap_array[i * 8 + 3],
+			fsm_dp_gap_array[i * 8 + 4], fsm_dp_gap_array[i * 8 + 5],
+			fsm_dp_gap_array[i * 8 + 6], fsm_dp_gap_array[i * 8 + 7]);
+	}
+	i = (FSM_DP_TRAFFIC_ARRAY_SIZE / 8) - 1;
+	pr_info("DL gap in us: %ld %ld %ld %ld %ld %ld %ld\n",
+			fsm_dp_gap_array[i * 8], fsm_dp_gap_array[i * 8 + 1],
+			fsm_dp_gap_array[i * 8 + 2], fsm_dp_gap_array[i * 8 + 3],
+			fsm_dp_gap_array[i * 8 + 4], fsm_dp_gap_array[i * 8 + 5],
+			fsm_dp_gap_array[i * 8 + 6]);
+	return 0;
+}
+
+static ssize_t debugfs_traffic_dl_set(
+	struct file *fp,
+	const char __user *buf,
+	size_t count,
+	loff_t *ppos)
+{
+	struct fsm_dp_traffic *traffic = (struct fsm_dp_traffic *)
+			(((struct seq_file *)fp->private_data)->private);
+	unsigned int enable = 0;
+
+	if (kstrtouint_from_user(buf, count, 0, &enable))
+		return -EFAULT;
+	if (enable && traffic->traffic_timestamp) {
+		traffic->dl_traffic_index = -1;
+		traffic->dl_traffic_collect_done = false;
+		traffic->dl_traffic_collect = true;
+	} else {
+		traffic->dl_traffic_collect = false;
+	}
+	return count;
+}
+
+DEFINE_DEBUGFS_OPS(
+	debugfs_traffic_dl,
+	debugfs_traffic_dl_get,
+	debugfs_traffic_dl_set);
+
 static int debugfs_create_loopback_dir(struct dentry *parent,
 				       struct fsm_dp_drv *drv)
 {
@@ -701,6 +980,41 @@ static int debugfs_create_loopback_dir(struct dentry *parent,
 	entry = debugfs_create_file("status", 0444, dentry,
 				    &drv->loopback,
 				    &debugfs_loopback_ops);
+	if (!entry)
+		return -ENOMEM;
+	return 0;
+}
+
+static int debugfs_create_traffic_dir(struct dentry *parent,
+				       struct fsm_dp_drv *drv)
+{
+	struct dentry *entry = NULL, *dentry = NULL;
+
+	dentry = debugfs_create_dir("traffic", parent);
+	if (IS_ERR(dentry))
+		return -ENOMEM;
+
+	entry = debugfs_create_file("time_stamp", 0444, dentry,
+				    &drv->traffic,
+				    &debugfs_traffic_timestamp_ops);
+	if (!entry)
+		return -ENOMEM;
+
+	entry = debugfs_create_file("dl", 0444, dentry,
+				    &drv->traffic,
+				    &debugfs_traffic_dl_ops);
+	if (!entry)
+		return -ENOMEM;
+
+	entry = debugfs_create_file("ul", 0444, dentry,
+				    &drv->traffic,
+				    &debugfs_traffic_ul_ops);
+	if (!entry)
+		return -ENOMEM;
+
+	entry = debugfs_create_file("status", 0444, dentry,
+				    &drv->traffic,
+				    &debugfs_traffic_status_ops);
 	if (!entry)
 		return -ENOMEM;
 	return 0;
@@ -920,6 +1234,9 @@ int fsm_dp_debugfs_init(struct fsm_dp_drv *drv)
 		goto err;
 
 	if (debugfs_create_loopback_dir(__dent, drv))
+		goto err;
+
+	if (debugfs_create_traffic_dir(__dent, drv))
 		goto err;
 
 #ifdef CONFIG_FSM_DP_TEST
