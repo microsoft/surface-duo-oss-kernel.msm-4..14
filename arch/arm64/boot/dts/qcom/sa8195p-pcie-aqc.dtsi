@@ -1,0 +1,53 @@
+/*
+ * Copyright (c) 2018-2020, The Linux Foundation. All rights reserved.
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ */
+
+&pcie_rc1{
+	aquantia,aqc107@pcie_rc1 {
+		reg = <0 0 0 0 0>;
+
+		compatible = "aquantia,aqc-107";
+
+		pci-ids =
+			"1d6a:0001",
+			"1d6a:d107",
+			"1d6a:07b1",
+			"1d6a:87b1",
+			"1d6a:d108",
+			"1d6a:08b1",
+			"1d6a:88b1",
+			"1d6a:d109",
+			"1d6a:09b1",
+			"1d6a:89b1",
+			"1d6a:d100",
+			"1d6a:00b1",
+			"1d6a:80b1",
+			"1d6a:11b1",
+			"1d6a:91b1",
+			"1d6a:12b1",
+			"1d6a:92b1",
+			"1d6a:00c0",
+			"1d6a:04c0",
+			"1d6a:12c0",
+			"1d6a:14c0",
+			"1d6a:93c0",
+			"1d6a:94c0";
+
+		qcom,smmu;
+
+		qcom,smmu-iova-base = /bits/ 64 <0x00000000>;
+		qcom,smmu-iova-size = /bits/ 64 <0x100000000>;
+
+		qcom,smmu-attr-atomic;
+		qcom,smmu-attr-fastmap;
+	};
+};

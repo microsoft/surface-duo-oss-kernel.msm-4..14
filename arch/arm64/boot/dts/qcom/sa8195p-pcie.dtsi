@@ -315,6 +315,8 @@
 				0 0 0 3 &intc 0 745 0
 				0 0 0 4 &intc 0 744 0>;
 
+		dma-coherent;
+
 		qcom,tcsr = <0x0 0x0>;
 		qcom,phy-sequence = <0x0a40 0x03 0x0
 				0x0010 0x00 0x0
