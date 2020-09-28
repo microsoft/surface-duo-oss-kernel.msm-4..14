@@ -27,6 +27,7 @@
 #include <linux/udp.h>
 #include <linux/if_vlan.h>
 #include <linux/timer.h>
+#include <linux/workqueue.h>
 #include <linux/if_arp.h>
 #include <net/netlink.h>
 #include <net/checksum.h>
@@ -45,6 +46,12 @@
 #define DEFAULT_MY_IP_ADDR 0xc0a86401
 #define FSM_IPV4_HEADER_SIZE sizeof(struct iphdr)
 #define FSM_IPV4_HEADER_LEN (FSM_IPV4_HEADER_SIZE >> 2)
+#define DEFAULT_UPLANE_DL_CONCAT_MIN_DELAY (6)
+#define DEFAULT_UPLANE_DL_CONCAT_MAX_DELAY (10)
+#define DEFAULT_CPLANE_DL_CONCAT_MIN_DELAY (10)
+#define DEFAULT_CPLANE_DL_CONCAT_MAX_DELAY (30)
+#define FSM_ORU_MAX_ECPRI_PDU_SIZE (FSM_DP_MAX_DL_MSG_LEN - \
+					sizeof(struct fsm_dp_msghdr))
 
 static unsigned int oru_fwd_etype = ECPRI_ETHER_TYPE;
 module_param(oru_fwd_etype, int, 0660);
@@ -61,6 +68,8 @@ static unsigned char fsm_oru_fwd_target_eth[ETH_ALEN] = {
 static bool fsm_oru_fwd_has_target_eth;
 static bool fsm_oru_fwd_has_target_ip;
 static unsigned int _fwd_cycles_per_ms;
+static unsigned int _fwd_cycles_per_call;
+static unsigned int _fwd_cycles_per_ktime_get;
 
 static bool fsm_oru_fwd_enable;
 static char fsm_oru_fwd_netdev_name[FSM_ORU_FWD_MAX_STR_LEN] = "eth1";
@@ -84,6 +93,8 @@ static uint32_t fsm_oru_du_ip_addr = 0xffffffff;
 static uint32_t fsm_oru_my_ip_addr = DEFAULT_MY_IP_ADDR;
 static uint16_t fwd_oru_ip_hdr_id = 0x1234;
 
+static bool fsm_oru_dl_concat = false;
+
 static struct fsm_oru_fwd_cfg fsm_oru_fwd_cfg = {
 	"eth1",
 	ECPRI_ETHER_TYPE,
@@ -94,6 +105,14 @@ static struct fsm_oru_fwd_cfg fsm_oru_fwd_cfg = {
 	false, 0,
 	0
 };
+
+static struct fsm_oru_fwd_dl_concat_cfg fsm_oru_fwd_dl_concat_cfg = {
+	false,
+	DEFAULT_UPLANE_DL_CONCAT_MIN_DELAY, DEFAULT_UPLANE_DL_CONCAT_MAX_DELAY,
+	DEFAULT_CPLANE_DL_CONCAT_MIN_DELAY, DEFAULT_CPLANE_DL_CONCAT_MAX_DELAY,
+	FSM_ORU_MAX_ECPRI_PDU_SIZE
+};
+
 static uint8_t  bogus_du_mac[ETH_ALEN] = {0x00, 0x10, 0xf3, 0x81, 0x92, 0x03};
 static uint32_t bogus_du_ip = 0xc0a86402; /* host order */
 static struct sock *nl_socket_handle;
@@ -111,10 +130,40 @@ struct ofwd_netdev_priv {
 	uint32_t mru;
 };
 
+struct ecpri_common_header {
+	uint8_t rev_c;
+	uint8_t msg_type;
+	uint16_t payload_size;
+} __attribute__((packed));
+
+#define ECPRI_REV_MASK		0xf0
+#define ECPRI_REV_SHIFT		4
+#define ECRPI_C_MASK		1
+#define ECRPI_REV_SUPPORTED	1  /* support version 1.0, 1.1, 1.2, 2.0 */
+
+/* message type */
+#define ECPRI_MSG_IQ_DATA	0
+#define ECPRI_MSG_BIT_SEQ	1
+#define ECPRI_MSG_RTIME_CNTRL	2
+#define ECRRI_MSG_DATA_XFER	3
+#define ECRRI_MSG_MEMORY_ACCESS	4
+#define ECRRI_MSG_DELAY_MEASURE	5
+#define ECRRI_MSG_REMOTE_RESET	6
+#define ECRRI_MSG_EVENT_IND	7
+
+static inline uint8_t get_ecrpi_rev(struct ecpri_common_header *hdr)
+{
+	return ((hdr->rev_c & ECPRI_REV_MASK) >> ECPRI_REV_SHIFT);
+}
+
+static inline bool ecpri_cbit(struct ecpri_common_header *hdr)
+{
+	return (hdr->rev_c & ECRPI_C_MASK);
+}
+
 struct ofwd_netdev_priv *ofwd_netdev_priv;
 
 #undef FSM_ORU_FWD_TEST
-#undef FSM_ORU_FWD_MEASURE_CYCLE
 
 #define MEM_DUMP_COL_WIDTH 16
 #define MAX_MEM_DUMP_SIZE 256
@@ -146,10 +195,30 @@ static u64 _fwd_free_ul_buf;
 static u64 _fwd_loopback_cnt;
 static u64 _fwd_netdev_other_cnt;
 
-#ifdef FSM_ORU_FWD_MEASURE_CYCLE
-static u64 _fwd_ul_cycles;
+static unsigned int _fwd_dl_cycles_pkt_cnt;
+static unsigned int _fwd_ul_cycles_pkt_cnt;
 static u64 _fwd_dl_cycles;
-#endif
+static u64 _fwd_ul_cycles;
+
+static int fwd_ul_traffic_index = -1;
+
+static bool fwd_ul_traffic_collect_done;
+static bool fwd_ul_traffic_collect;
+
+static int fwd_dl_traffic_index = -1;
+
+static bool fwd_dl_traffic_collect_done;
+static bool fwd_dl_traffic_collect;
+static bool _fwd_traffic_timestamp;
+
+struct fwd_time_stamp {
+	unsigned long arrival_cycle;
+	unsigned long complete_cycle;
+};
+
+#define FWD_TRAFFIC_ARRAY_SIZE 256
+static struct fwd_time_stamp fwd_ul_traffic[FWD_TRAFFIC_ARRAY_SIZE];
+static struct fwd_time_stamp fwd_dl_traffic[FWD_TRAFFIC_ARRAY_SIZE];
 
 static bool _fwd_loop_back; /* recv and loop back to net control */
 
@@ -162,12 +231,65 @@ static int _fsm_oru_forwarder_rcv(
 static int _fsm_oru_fwd_enable(void);
 static int _fsm_oru_fwd_disable(void);
 
+static inline unsigned long fwd_get_cycles(void)
+{
+	if (_fwd_traffic_timestamp)
+		return get_cycles();
+	else
+		return 0;
+}
+
+static spinlock_t fsm_oru_fwd_uplane_lock;
+static spinlock_t fsm_oru_fwd_cplane_lock;
+
+static struct hrtimer _fsm_oru_concat_uplane_hrtimer;
+static struct hrtimer _fsm_oru_concat_cplane_hrtimer;
+
+static struct workqueue_struct *_fsm_oru_wq;
+
+static struct work_struct _fsm_oru_uplane_work;
+static struct work_struct _fsm_oru_cplane_work;
+
+#define FSM_QUEUE_MAX  FSM_DP_MAX_SG_IOV_SIZE
+
+static uint32_t _fsm_queue_uplane_index;
+static uint32_t _fsm_queue_uplane_length;
+static int _fsm_oru_queue_uplane_seg;
+static unsigned long _fsm_queue_uplane_1st_cycle;
+static struct sk_buff *skb_uplane_queue[FSM_QUEUE_MAX];
+
+static uint32_t _fsm_queue_cplane_index;
+static uint32_t _fsm_queue_cplane_length;
+static int _fsm_oru_queue_cplane_seg;
+static unsigned long _fsm_queue_cplane_1st_cycle;
+static struct sk_buff *skb_cplane_queue[FSM_QUEUE_MAX];
+
+static int fsm_oru_queue_max = FSM_QUEUE_MAX;
+
+static uint32_t fsm_oru_dl_concat_uplane_min_delay =
+				DEFAULT_UPLANE_DL_CONCAT_MIN_DELAY;
+static uint32_t fsm_oru_dl_concat_uplane_max_delay =
+				DEFAULT_UPLANE_DL_CONCAT_MAX_DELAY;
+static uint32_t fsm_oru_dl_concat_uplane_min_delay_cycle;
+static uint32_t fsm_oru_dl_concat_uplane_max_delay_cycle;
+
+static uint32_t fsm_oru_dl_concat_cplane_min_delay =
+				DEFAULT_CPLANE_DL_CONCAT_MIN_DELAY;
+static uint32_t fsm_oru_dl_concat_cplane_max_delay =
+				DEFAULT_CPLANE_DL_CONCAT_MAX_DELAY;
+
+static uint32_t fsm_oru_dl_max_pdu_size = FSM_ORU_MAX_ECPRI_PDU_SIZE;
+static uint32_t fsm_oru_dl_concat_cplane_min_delay_cycle;
+static uint32_t fsm_oru_dl_concat_cplane_max_delay_cycle;
+
+
+static void fsm_queue_flush(unsigned long flags, int type);
+
+
 static int debugfs_fwd_status_show(struct seq_file *s, void *unused)
 {
-#ifdef FSM_ORU_FWD_MEASURE_CYCLE
 	unsigned int avg_dl;
 	unsigned int avg_ul;
-#endif
 
 	seq_printf(s, "FWD enabled:          %d\n", fsm_oru_fwd_enable);
 	seq_printf(s, "FWD type              %s\n",
@@ -186,19 +308,21 @@ static int debugfs_fwd_status_show(struct seq_file *s, void *unused)
 	seq_printf(s, "FWD Free UL buffers:  %llu\n", _fwd_free_ul_buf);
 	seq_printf(s, "FWD loopback CNT:     %llu\n", _fwd_loopback_cnt);
 	seq_printf(s, "FWD netdev other CNT: %llu\n", _fwd_netdev_other_cnt);
-#ifdef FSM_ORU_FWD_MEASURE_CYCLE
 	seq_printf(s, "System Cycles per ms  %u\n", _fwd_cycles_per_ms);
-	avg_ul = (_fwd_ul_cycles * 10000 / _fwd_rx_from_device_cnt) /
-							_fwd_cycles_per_ms;
-	avg_dl = (_fwd_dl_cycles * 10000 / _fwd_rx_from_device_cnt) /
-							_fwd_cycles_per_ms;
-	if (_fwd_from_net_cnt)
+	if (_fwd_ul_cycles_pkt_cnt) {
+		avg_ul = (_fwd_ul_cycles * 10000 /
+				_fwd_ul_cycles_pkt_cnt) /
+					_fwd_cycles_per_ms;
 		seq_printf(s, "Avg UL Fwd us    %4u.%1u\n",
 						avg_ul / 10, avg_ul % 10);
-	if (_fwd_from_net_cnt)
+	}
+	if (_fwd_dl_cycles_pkt_cnt) {
+		avg_dl = (_fwd_dl_cycles * 10000 /
+				_fwd_dl_cycles_pkt_cnt) /
+					_fwd_cycles_per_ms;
 		seq_printf(s, "Avg DL Fwd us    %4u.%1u\n",
 						avg_dl / 10, avg_dl % 10);
-#endif
+	}
 	return 0;
 }
 DEFINE_DEBUGFS_OPS(debugfs_fwd_status, debugfs_fwd_status_show, NULL);
@@ -250,6 +374,469 @@ DEFINE_DEBUGFS_OPS(
 	debugfs_fwd_loopback_set
 );
 
+static ssize_t debugfs_fwd_traffic_ul_set(
+	struct file *s,
+	const char __user *buf,
+	size_t count,
+	loff_t *ppos
+)
+{
+	unsigned int enable = 0;
+
+	if (kstrtouint_from_user(buf, count, 0, &enable))
+		return -EFAULT;
+	if (enable && _fwd_traffic_timestamp) {
+		fwd_ul_traffic_index = -1;
+		fwd_ul_traffic_collect_done = false;
+		fwd_ul_traffic_collect = true;
+	} else {
+		fwd_ul_traffic_collect = false;
+	}
+	return count;
+}
+
+static unsigned long fwd_gap_array[FWD_TRAFFIC_ARRAY_SIZE];
+static int debugfs_fwd_traffic_ul_get(struct seq_file *s, void *unused)
+{
+	unsigned long max_gap = 0;
+	unsigned long min_gap = 0xffffffff;
+	unsigned long total_gap = 0;
+	unsigned long gap;
+
+	unsigned long max_service = 0;
+	unsigned long min_service = 0xffffffff;
+	unsigned long total_service = 0;
+	unsigned long service;
+	int i;
+	unsigned int dist[5];
+
+	seq_printf(s, "UL collect done:       %d\n\n",
+					fwd_ul_traffic_collect_done);
+	if (!fwd_ul_traffic_collect_done)
+		return 0;
+
+	for (i = 0; i < FWD_TRAFFIC_ARRAY_SIZE; i++) {
+		service = fwd_ul_traffic[i].complete_cycle -
+				fwd_ul_traffic[i].arrival_cycle;
+		if (service >= max_service)
+			max_service = service;
+		if (service <= min_service)
+			min_service = service;
+		total_service += service;
+	}
+	seq_printf(s, "UL max serive time:  %ld us\n",
+			(max_service * 1000) / _fwd_cycles_per_ms);
+	seq_printf(s, "UL min service time: %ld us\n",
+			(min_service * 1000) / _fwd_cycles_per_ms);
+	seq_printf(s, "UL avg service time: %ld us\n",
+			(total_service * 1000) / (_fwd_cycles_per_ms *
+					FWD_TRAFFIC_ARRAY_SIZE));
+
+	dist[0] = dist[1] = dist[2] = dist[3] = dist[4] = 0;
+	for (i = 1; i < FWD_TRAFFIC_ARRAY_SIZE; i++) {
+		gap = fwd_ul_traffic[i].arrival_cycle -
+			fwd_ul_traffic[i - 1].arrival_cycle;
+		fwd_gap_array[i - 1] = gap;
+		if (gap >= max_gap)
+			max_gap = gap;
+		if (gap <= min_gap)
+			min_gap = gap;
+		total_gap += gap;
+		if ((gap * 10) >= _fwd_cycles_per_ms)
+			dist[4]++;
+		else if ((gap * 200) < _fwd_cycles_per_ms)
+			dist[0]++;
+		else if ((gap * 100) < _fwd_cycles_per_ms)
+			dist[1]++;
+		else if ((gap * 50) < _fwd_cycles_per_ms)
+			dist[2]++;
+		else
+			dist[3]++;
+	}
+	seq_printf(s, "UL max gap:       %ld us\n",
+			(max_gap * 1000)/_fwd_cycles_per_ms);
+	seq_printf(s, "UL min gap:       %ld us\n",
+			(min_gap * 1000)/_fwd_cycles_per_ms);
+	seq_printf(s, "UL avg gap:       %ld us\n",
+			(total_gap * 1000) / (_fwd_cycles_per_ms *
+					(FWD_TRAFFIC_ARRAY_SIZE - 1)));
+
+	seq_printf(s, "UL dist: < 5 us %d , < 10 us %d, < 20 us %d, < 100 us %d, > 100 us %d\n",
+			dist[0], dist[1], dist[2], dist[3], dist[4]);
+
+	for (i = 0; i < (FWD_TRAFFIC_ARRAY_SIZE / 8) - 1; i++) {
+		pr_info("gap %ld %ld %ld %ld %ld %ld %ld %ld\n",
+			fwd_gap_array[i * 8], fwd_gap_array[i * 8 + 1],
+			fwd_gap_array[i * 8 + 2], fwd_gap_array[i * 8 + 3],
+			fwd_gap_array[i * 8 + 4], fwd_gap_array[i * 8 + 5],
+			fwd_gap_array[i * 8 + 6], fwd_gap_array[i * 8 + 7]);
+	}
+	i = (FWD_TRAFFIC_ARRAY_SIZE / 8) - 1;
+	pr_info("gap %ld %ld %ld %ld %ld %ld %ld\n",
+			fwd_gap_array[i * 8], fwd_gap_array[i * 8 + 1],
+			fwd_gap_array[i * 8 + 2], fwd_gap_array[i * 8 + 3],
+			fwd_gap_array[i * 8 + 4], fwd_gap_array[i * 8 + 5],
+			fwd_gap_array[i * 8 + 6]);
+	return 0;
+}
+DEFINE_DEBUGFS_OPS(
+	debugfs_fwd_traffic_ul,
+	debugfs_fwd_traffic_ul_get,
+	debugfs_fwd_traffic_ul_set);
+
+
+static ssize_t debugfs_fwd_traffic_dl_set(
+	struct file *s,
+	const char __user *buf,
+	size_t count,
+	loff_t *ppos
+)
+{
+	unsigned int enable = 0;
+
+	if (kstrtouint_from_user(buf, count, 0, &enable))
+		return -EFAULT;
+	if (enable && _fwd_traffic_timestamp) {
+		fwd_dl_traffic_index = -1;
+		fwd_dl_traffic_collect_done = false;
+		fwd_dl_traffic_collect = true;
+	} else {
+		fwd_dl_traffic_collect = false;
+	}
+	return count;
+}
+
+static int debugfs_fwd_traffic_dl_get(struct seq_file *s, void *unused)
+{
+	unsigned long max_gap = 0;
+	unsigned long min_gap = 0xffffffff;
+	unsigned long total_gap = 0;
+	unsigned long gap;
+
+	unsigned long max_service = 0;
+	unsigned long min_service = 0xffffffff;
+	unsigned long total_service = 0;
+	unsigned long service;
+	int i;
+	unsigned int dist[5];
+
+	seq_printf(s, "DL collect done:       %d\n\n",
+					fwd_dl_traffic_collect_done);
+	if (!fwd_dl_traffic_collect_done)
+		return 0;
+
+	for (i = 0; i < FWD_TRAFFIC_ARRAY_SIZE; i++) {
+		service = fwd_dl_traffic[i].complete_cycle -
+				fwd_dl_traffic[i].arrival_cycle;
+		if (service >= max_service)
+			max_service = service;
+		if (service <= min_service)
+			min_service = service;
+		total_service += service;
+	}
+	seq_printf(s, "DL max serive time:  %ld us\n",
+			(max_service * 1000) / _fwd_cycles_per_ms);
+	seq_printf(s, "DL min service time: %ld us\n",
+			(min_service * 1000) / _fwd_cycles_per_ms);
+	seq_printf(s, "DL avg service time: %ld us\n",
+			(total_service * 1000) / (_fwd_cycles_per_ms *
+					FWD_TRAFFIC_ARRAY_SIZE));
+
+	dist[0] = dist[1] = dist[2] = dist[3] = dist[4] = 0;
+	for (i = 1; i < FWD_TRAFFIC_ARRAY_SIZE; i++) {
+		gap = fwd_dl_traffic[i].arrival_cycle -
+			fwd_dl_traffic[i - 1].arrival_cycle;
+		fwd_gap_array[i - 1] = gap;
+		if (gap >= max_gap)
+			max_gap = gap;
+		if (gap <= min_gap)
+			min_gap = gap;
+		total_gap += gap;
+		if ((gap * 10) >= _fwd_cycles_per_ms)
+			dist[4]++;
+		else if ((gap * 200) < _fwd_cycles_per_ms)
+			dist[0]++;
+		else if ((gap * 100) < _fwd_cycles_per_ms)
+			dist[1]++;
+		else if ((gap * 50) < _fwd_cycles_per_ms)
+			dist[2]++;
+		else
+			dist[3]++;
+	}
+	seq_printf(s, "DL max gap:       %ld us\n",
+			(max_gap * 1000)/_fwd_cycles_per_ms);
+	seq_printf(s, "DL min gap:       %ld us\n",
+			(min_gap * 1000)/_fwd_cycles_per_ms);
+	seq_printf(s, "DL avg gap:       %ld us\n",
+			(total_gap * 1000) / (_fwd_cycles_per_ms *
+					(FWD_TRAFFIC_ARRAY_SIZE - 1)));
+
+	seq_printf(s, "DL dist: < 5 us %d , < 10 us %d, < 20 us %d, < 100 us %d, > 100 us %d\n",
+			dist[0], dist[1], dist[2], dist[3], dist[4]);
+
+	for (i = 0; i < (FWD_TRAFFIC_ARRAY_SIZE / 8) - 1; i++) {
+		pr_info("DL gap %ld %ld %ld %ld %ld %ld %ld %ld\n",
+			fwd_gap_array[i * 8], fwd_gap_array[i * 8 + 1],
+			fwd_gap_array[i * 8 + 2], fwd_gap_array[i * 8 + 3],
+			fwd_gap_array[i * 8 + 4], fwd_gap_array[i * 8 + 5],
+			fwd_gap_array[i * 8 + 6], fwd_gap_array[i * 8 + 7]);
+	}
+	i = (FWD_TRAFFIC_ARRAY_SIZE / 8) - 1;
+	pr_info("DL gap %ld %ld %ld %ld %ld %ld %ld\n",
+			fwd_gap_array[i * 8], fwd_gap_array[i * 8 + 1],
+			fwd_gap_array[i * 8 + 2], fwd_gap_array[i * 8 + 3],
+			fwd_gap_array[i * 8 + 4], fwd_gap_array[i * 8 + 5],
+			fwd_gap_array[i * 8 + 6]);
+	return 0;
+}
+DEFINE_DEBUGFS_OPS(
+	debugfs_fwd_traffic_dl,
+	debugfs_fwd_traffic_dl_get,
+	debugfs_fwd_traffic_dl_set);
+
+
+static int debugfs_fwd_traffic_timestamp_get(struct seq_file *s, void *unused)
+{
+
+	seq_printf(s, "FWD traffic timtstamp:       %d\n",
+					_fwd_traffic_timestamp);
+	return 0;
+}
+
+static ssize_t debugfs_fwd_traffic_timestamp_set(
+	struct file *s,
+	const char __user *buf,
+	size_t count,
+	loff_t *ppos
+)
+{
+	unsigned int enable = 0;
+
+	if (kstrtouint_from_user(buf, count, 0, &enable))
+		return -EFAULT;
+	_fwd_traffic_timestamp = enable;
+	if (enable) {
+		_fwd_dl_cycles = 0;
+		_fwd_ul_cycles = 0;
+		_fwd_ul_cycles_pkt_cnt = 0;
+		_fwd_dl_cycles_pkt_cnt = 0;
+	}
+	return count;
+}
+DEFINE_DEBUGFS_OPS(
+	debugfs_fwd_traffic_timestamp,
+	debugfs_fwd_traffic_timestamp_get,
+	debugfs_fwd_traffic_timestamp_set);
+
+static int debugfs_create_traffic_dir(struct dentry *parent)
+{
+	struct dentry *entry = NULL, *dentry = NULL;
+
+	dentry = debugfs_create_dir("traffic", parent);
+	if (IS_ERR(dentry))
+		return -ENOMEM;
+	entry = debugfs_create_file("fwd_ul", 0444, dentry, NULL,
+		&debugfs_fwd_traffic_ul_ops);
+	if (!entry)
+		return -ENOMEM;
+	entry = debugfs_create_file("fwd_dl", 0444, dentry, NULL,
+		&debugfs_fwd_traffic_dl_ops);
+	if (!entry)
+		return -ENOMEM;
+	entry = debugfs_create_file("time_stamp", 0444, dentry, NULL,
+		&debugfs_fwd_traffic_timestamp_ops);
+	if (!entry)
+		return -ENOMEM;
+	return 0;
+}
+
+static int debugfs_fwd_concat_get(struct seq_file *s, void *unused)
+{
+	seq_printf(s, "max number of concatenated messages: %d\n",
+					fsm_oru_queue_max);
+	return 0;
+}
+
+static ssize_t debugfs_fwd_concat_set(
+	struct file *s,
+	const char __user *buf,
+	size_t count,
+	loff_t *ppos
+)
+{
+	unsigned int concat = 0;
+
+	if (kstrtouint_from_user(buf, count, 0, &concat))
+		return -EFAULT;
+	if (concat > FSM_QUEUE_MAX)
+		concat = FSM_QUEUE_MAX;
+	fsm_oru_queue_max = concat;
+	return count;
+}
+DEFINE_DEBUGFS_OPS(
+	debugfs_fwd_concat,
+	debugfs_fwd_concat_get,
+	debugfs_fwd_concat_set
+);
+
+static int debugfs_fwd_dlmax_pdu_get(struct seq_file *s, void *unused)
+{
+	seq_printf(s, "max dl concatenated msg size:  %d\n",
+					fsm_oru_dl_max_pdu_size);
+	return 0;
+}
+
+static ssize_t debugfs_fwd_dlmax_pdu_set(
+	struct file *s,
+	const char __user *buf,
+	size_t count,
+	loff_t *ppos
+)
+{
+	unsigned int concat = 0;
+
+	if (kstrtouint_from_user(buf, count, 0, &concat))
+		return -EFAULT;
+	if (concat > FSM_ORU_MAX_ECPRI_PDU_SIZE)
+		concat = FSM_ORU_MAX_ECPRI_PDU_SIZE;
+	fsm_oru_dl_max_pdu_size = concat;
+	return count;
+}
+DEFINE_DEBUGFS_OPS(
+	debugfs_fwd_dlmax_pdu,
+	debugfs_fwd_dlmax_pdu_get,
+	debugfs_fwd_dlmax_pdu_set
+);
+static int debugfs_fwd_concat_max_get(struct seq_file *s, void *unused)
+{
+
+	seq_printf(s, "max concatenate timer:       %d us\n",
+				fsm_oru_dl_concat_uplane_max_delay);
+	seq_printf(s, "max concatenate cycle:       %d cycle\n",
+				fsm_oru_dl_concat_uplane_max_delay_cycle);
+	return 0;
+}
+
+static ssize_t debugfs_fwd_concat_max_set(
+	struct file *s,
+	const char __user *buf,
+	size_t count,
+	loff_t *ppos
+)
+{
+	unsigned int concat = 0;
+
+	if (kstrtouint_from_user(buf, count, 0, &concat))
+		return -EFAULT;
+	fsm_oru_dl_concat_uplane_max_delay = concat;
+	fsm_oru_dl_concat_uplane_max_delay_cycle =
+		fsm_oru_dl_concat_uplane_max_delay * _fwd_cycles_per_ms / 1000;
+	return count;
+}
+DEFINE_DEBUGFS_OPS(
+	debugfs_fwd_concat_max,
+	debugfs_fwd_concat_max_get,
+	debugfs_fwd_concat_max_set
+);
+
+static int debugfs_fwd_concat_min_get(struct seq_file *s, void *unused)
+{
+
+	seq_printf(s, "u plane min concatenate timer:    %d us\n",
+				fsm_oru_dl_concat_uplane_min_delay);
+	seq_printf(s, "u plane min concatenate cycle:    %d cycle\n",
+				fsm_oru_dl_concat_uplane_min_delay_cycle);
+	return 0;
+}
+
+static ssize_t debugfs_fwd_concat_min_set(
+	struct file *s,
+	const char __user *buf,
+	size_t count,
+	loff_t *ppos
+)
+{
+	unsigned int concat = 0;
+
+	if (kstrtouint_from_user(buf, count, 0, &concat))
+		return -EFAULT;
+	fsm_oru_dl_concat_uplane_min_delay = concat;
+	fsm_oru_dl_concat_uplane_min_delay_cycle =
+		fsm_oru_dl_concat_uplane_min_delay * _fwd_cycles_per_ms / 1000;
+	return count;
+}
+DEFINE_DEBUGFS_OPS(
+	debugfs_fwd_concat_min,
+	debugfs_fwd_concat_min_get,
+	debugfs_fwd_concat_min_set
+);
+
+static int debugfs_fwd_concat_cplane_max_get(struct seq_file *s, void *unused)
+{
+
+	seq_printf(s, "c plane max concatenate timer:       %d us\n",
+				fsm_oru_dl_concat_cplane_max_delay);
+	seq_printf(s, "c plane max concatenate cycle:       %d cycle\n",
+				fsm_oru_dl_concat_cplane_max_delay_cycle);
+	return 0;
+}
+
+static ssize_t debugfs_fwd_concat_cplane_max_set(
+	struct file *s,
+	const char __user *buf,
+	size_t count,
+	loff_t *ppos
+)
+{
+
+	unsigned int concat = 0;
+
+	if (kstrtouint_from_user(buf, count, 0, &concat))
+		return -EFAULT;
+	fsm_oru_dl_concat_cplane_max_delay = concat;
+	fsm_oru_dl_concat_cplane_max_delay_cycle =
+		fsm_oru_dl_concat_cplane_max_delay *
+			_fwd_cycles_per_ms / 1000;
+	return count;
+}
+DEFINE_DEBUGFS_OPS(
+	debugfs_fwd_concat_cplane_max,
+	debugfs_fwd_concat_cplane_max_get,
+	debugfs_fwd_concat_cplane_max_set
+);
+
+static int debugfs_fwd_concat_cplane_min_get(struct seq_file *s, void *unused)
+{
+	seq_printf(s, "c plane min concatenate timer:    %d us\n",
+				fsm_oru_dl_concat_cplane_min_delay);
+	seq_printf(s, "c plane min concatenate cycle:    %d cycle\n",
+				fsm_oru_dl_concat_cplane_min_delay_cycle);
+	return 0;
+}
+
+static ssize_t debugfs_fwd_concat_cplane_min_set(
+	struct file *s,
+	const char __user *buf,
+	size_t count,
+	loff_t *ppos
+)
+{
+	unsigned int concat = 0;
+
+	if (kstrtouint_from_user(buf, count, 0, &concat))
+		return -EFAULT;
+	fsm_oru_dl_concat_cplane_min_delay = concat;
+	fsm_oru_dl_concat_cplane_min_delay_cycle =
+		fsm_oru_dl_concat_cplane_min_delay *
+			_fwd_cycles_per_ms / 1000;
+	return count;
+}
+DEFINE_DEBUGFS_OPS(
+	debugfs_fwd_concat_cplane_min,
+	debugfs_fwd_concat_cplane_min_get,
+	debugfs_fwd_concat_cplane_min_set
+);
+
 static int fsm_oru_fwd_debugfs_init(void)
 {
 	struct dentry *entry = NULL;
@@ -271,6 +858,34 @@ static int fsm_oru_fwd_debugfs_init(void)
 		&debugfs_fwd_loopback_ops);
 	if (!entry)
 		goto err;
+	if (debugfs_create_traffic_dir(__dent))
+		goto err;
+	entry = debugfs_create_file("concat-max-msg", 0444, __dent, NULL,
+		&debugfs_fwd_concat_ops);
+	if (!entry)
+		goto err;
+	entry = debugfs_create_file("concat-dl-max-pdu-size", 0444,
+		__dent, NULL, &debugfs_fwd_dlmax_pdu_ops);
+	if (!entry)
+		goto err;
+	entry = debugfs_create_file("concat-uplane-min-delay", 0444,
+		__dent, NULL, &debugfs_fwd_concat_min_ops);
+	if (!entry)
+		goto err;
+	entry = debugfs_create_file("concat-uplane-max-delay", 0444,
+		__dent, NULL, &debugfs_fwd_concat_max_ops);
+	if (!entry)
+		goto err;
+
+	entry = debugfs_create_file("concat-cplane-min-delay", 0444,
+		__dent, NULL, &debugfs_fwd_concat_cplane_min_ops);
+	if (!entry)
+		goto err;
+	entry = debugfs_create_file("concat-cplane-max-delay", 0444,
+		__dent, NULL, &debugfs_fwd_concat_cplane_max_ops);
+	if (!entry)
+		goto err;
+
 	return 0;
 err:
 	debugfs_remove_recursive(__dent);
@@ -301,10 +916,23 @@ static int _fsm_oru_fwd_enable(void)
 
 	netdev = dev_get_by_name(&init_net, fsm_oru_fwd_netdev_name);
 	if (!netdev) {
-		pr_err("%s: can not get device %s\n", __func__,
+		pr_warn("%s: can not get device %s\n", __func__,
 					fsm_oru_fwd_netdev_name);
-		return -ENODEV;
+		return 0;
 	}
+
+	_fsm_queue_uplane_index = 0;
+	_fsm_queue_uplane_length = 0;
+	_fsm_queue_uplane_1st_cycle = 0;
+	_fsm_oru_queue_uplane_seg = 0;
+	memset(skb_uplane_queue, 0, sizeof(skb_uplane_queue));
+
+	_fsm_queue_cplane_index = 0;
+	_fsm_queue_cplane_length = 0;
+	_fsm_queue_cplane_1st_cycle = 0;
+	_fsm_oru_queue_cplane_seg = 0;
+	memset(skb_cplane_queue, 0, sizeof(skb_cplane_queue));
+
 	fsm_oru_forwarder_netdev = netdev;
 	fsm_oru_fwd_pt.dev = netdev;
 	fsm_oru_fwd_pt.type = htons(oru_fwd_etype);
@@ -323,6 +951,17 @@ static int _fsm_oru_fwd_enable(void)
 
 static int _fsm_oru_fwd_disable(void)
 {
+	unsigned long flags;
+
+	if (!fsm_oru_fwd_enable)
+		return 0;
+
+	spin_lock_irqsave(&fsm_oru_fwd_uplane_lock, flags);
+	fsm_queue_flush(flags, FSM_ORU_MSG_TYPE_UPLANE);
+
+	spin_lock_irqsave(&fsm_oru_fwd_cplane_lock, flags);
+	fsm_queue_flush(flags, FSM_ORU_MSG_TYPE_CPLANE);
+
 	if (fsm_oru_forwarder_netdev)
 		dev_remove_pack(&fsm_oru_fwd_pt);
 	fsm_oru_forwarder_netdev = NULL;
@@ -364,6 +1003,28 @@ static void fsm_oru_fwd_nl_set_cfg(
 	resp_fwd->return_code = FSM_ORU_FWD_CONFIG_OK;
 }
 
+static void fsm_oru_fwd_nl_get_dl_concat_cfg(
+	struct fsm_oru_fwd_nl_msg_s *fwd_header,
+	struct fsm_oru_fwd_nl_msg_s *resp_fwd
+)
+{
+	unsigned char size =
+		sizeof(((struct fsm_oru_fwd_nl_msg_s *)0)->fwd_config);
+	resp_fwd->crd = FSM_ORU_FWD_NETLINK_MSG_RETURNDATA;
+	resp_fwd->arg_length = size;
+	resp_fwd->fwd_dl_concat_config = fsm_oru_fwd_dl_concat_cfg;
+}
+
+static void fsm_oru_fwd_nl_set_dl_concat_cfg(
+	struct fsm_oru_fwd_nl_msg_s *fwd_header,
+	struct fsm_oru_fwd_nl_msg_s *resp_fwd
+)
+{
+
+	resp_fwd->crd = FSM_ORU_FWD_NETLINK_MSG_RETURNCODE;
+	fsm_oru_fwd_dl_concat_cfg = fwd_header->fwd_dl_concat_config;
+	resp_fwd->return_code = FSM_ORU_FWD_CONFIG_OK;
+}
 static void fsm_oru_fwd_nl_control(
 	struct fsm_oru_fwd_nl_msg_s *fwd_header,
 	struct fsm_oru_fwd_nl_msg_s *resp_fwd
@@ -386,6 +1047,29 @@ static void fsm_oru_fwd_nl_control(
 		fsm_oru_my_udp_port = fsm_oru_fwd_cfg.my_udp_port;
 		fsm_oru_du_ip_addr = fsm_oru_fwd_cfg.du_ip_addr;
 		fsm_oru_my_ip_addr = fsm_oru_fwd_cfg.my_ip_addr;
+
+		fsm_oru_dl_concat = fsm_oru_fwd_dl_concat_cfg.dl_concat;
+		fsm_oru_dl_concat_uplane_min_delay =
+				fsm_oru_fwd_dl_concat_cfg.dl_concat_uplane_min_delay;
+		fsm_oru_dl_concat_uplane_max_delay =
+				fsm_oru_fwd_dl_concat_cfg.dl_concat_uplane_max_delay;
+		fsm_oru_dl_concat_uplane_min_delay_cycle = _fwd_cycles_per_ms *
+				fsm_oru_dl_concat_uplane_min_delay / 1000;
+		fsm_oru_dl_concat_uplane_max_delay_cycle =  _fwd_cycles_per_ms *
+				fsm_oru_dl_concat_uplane_max_delay / 1000;
+
+		fsm_oru_dl_concat_cplane_min_delay =
+				fsm_oru_fwd_dl_concat_cfg.dl_concat_cplane_min_delay;
+		fsm_oru_dl_concat_cplane_max_delay =
+				fsm_oru_fwd_dl_concat_cfg.dl_concat_cplane_max_delay;
+		fsm_oru_dl_concat_cplane_min_delay_cycle = _fwd_cycles_per_ms *
+				fsm_oru_dl_concat_cplane_min_delay / 1000;
+		fsm_oru_dl_concat_cplane_max_delay_cycle =  _fwd_cycles_per_ms *
+				fsm_oru_dl_concat_cplane_max_delay / 1000;
+		if (fsm_oru_fwd_dl_concat_cfg.dl_max_pdu_size > FSM_ORU_MAX_ECPRI_PDU_SIZE)
+			fsm_oru_dl_max_pdu_size = FSM_ORU_MAX_ECPRI_PDU_SIZE;
+		else
+			fsm_oru_dl_max_pdu_size = fsm_oru_fwd_dl_concat_cfg.dl_max_pdu_size;
 
 		resp_fwd->return_code = _fsm_oru_fwd_enable();
 	} else
@@ -442,6 +1126,23 @@ static void fsm_oru_fwd_nl_state(
 	resp_fwd->fwd_op_status.vlan_id = fsm_oru_fwd_vlan_id;
 	resp_fwd->fwd_op_status.vlan_priority = fsm_oru_fwd_vlan_priority;
 	resp_fwd->fwd_op_status.on_off = fsm_oru_fwd_enable;
+
+	resp_fwd->fwd_op_status.use_ip = fsm_oru_use_ip;
+	resp_fwd->fwd_op_status.du_udp_port = fsm_oru_du_udp_port;
+	resp_fwd->fwd_op_status.my_udp_port = fsm_oru_my_udp_port;
+	resp_fwd->fwd_op_status.du_ip_addr = fsm_oru_du_ip_addr;
+	resp_fwd->fwd_op_status.my_ip_addr = fsm_oru_my_ip_addr;
+	resp_fwd->fwd_op_status.my_ip_addr = fsm_oru_my_ip_addr;
+	resp_fwd->fwd_op_status.dl_concat_uplane_min_delay =
+					fsm_oru_dl_concat_uplane_min_delay;
+	resp_fwd->fwd_op_status.dl_concat_uplane_max_delay =
+					fsm_oru_dl_concat_uplane_max_delay;
+	resp_fwd->fwd_op_status.dl_concat_cplane_min_delay =
+					fsm_oru_dl_concat_cplane_min_delay;
+	resp_fwd->fwd_op_status.dl_concat_cplane_max_delay =
+					fsm_oru_dl_concat_cplane_max_delay;
+	resp_fwd->fwd_op_status.dl_max_pdu_size =
+					fsm_oru_dl_max_pdu_size;
 }
 
 void fsm_oru_fwd_netlink_msg_handler(struct sk_buff *skb)
@@ -506,6 +1207,14 @@ void fsm_oru_fwd_netlink_msg_handler(struct sk_buff *skb)
 
 	case FSM_ORU_FWD_NETLINK_ECHO:
 		fsm_oru_fwd_nl_echo(fwd_header, resp_fwd);
+		break;
+
+	case FSM_ORU_FWD_NETLINK_SET_CONCAT_CONFIG:
+		fsm_oru_fwd_nl_set_dl_concat_cfg(fwd_header, resp_fwd);
+		break;
+
+	case FSM_ORU_FWD_NETLINK_GET_CONCAT_CONFIG:
+		fsm_oru_fwd_nl_get_dl_concat_cfg(fwd_header, resp_fwd);
 		break;
 
 	default:
@@ -577,6 +1286,230 @@ drop:
 	return NET_RX_SUCCESS;
 }
 
+
+/*
+ * fsm_queue_flush: flush queued skbs
+ * Before the call, spinlock is locked.
+ * The spinlock will be unlocked when this function is done
+ * type: 0 Uplane, 1 Cplane.
+ */
+static void fsm_queue_flush(unsigned long flags, int type)
+{
+	struct sk_buff *skb_queue_sav[FSM_QUEUE_MAX];
+	struct sk_buff *tskb, *pskb, *fskb;
+	int rc;
+	struct ecpri_common_header *ecpri_hdr;
+	unsigned int i;
+	unsigned int num_queue_entries;
+	unsigned long cycle_start;
+	struct sk_buff **pskbq;
+
+	if (type == FSM_ORU_MSG_TYPE_UPLANE) {
+		if (_fsm_queue_uplane_index == 0) {
+			spin_unlock_irqrestore(&fsm_oru_fwd_uplane_lock,
+						flags);
+			return;
+		}
+		num_queue_entries = _fsm_queue_uplane_index;
+		fskb = pskb = skb_uplane_queue[0];
+	} else {
+		if (_fsm_queue_cplane_index == 0) {
+			spin_unlock_irqrestore(&fsm_oru_fwd_cplane_lock,
+						flags);
+			return;
+		}
+		num_queue_entries = _fsm_queue_cplane_index;
+		fskb = pskb = skb_cplane_queue[0];
+	}
+
+	cycle_start = fwd_get_cycles();
+
+	pskbq = (type == FSM_ORU_MSG_TYPE_CPLANE) ?
+			&skb_cplane_queue[0] : &skb_uplane_queue[0];
+	for (i = 0; i < num_queue_entries; i++) {
+
+		tskb = *pskbq++;
+		skb_queue_sav[i] = tskb;
+		tskb->next = NULL;
+		skb_shinfo(tskb)->frag_list = NULL;
+		ecpri_hdr = (struct ecpri_common_header *) tskb->data;
+		if (i != num_queue_entries - 1)
+			ecpri_hdr->rev_c |= ECRPI_C_MASK;
+		if (i != 0) {
+			if (i == 1)
+				skb_shinfo(fskb)->frag_list = tskb;
+			else
+				pskb->next = tskb;
+		}
+		pskb = tskb;
+	}
+	if (type == FSM_ORU_MSG_TYPE_UPLANE) {
+		_fsm_queue_uplane_index = 0;
+		_fsm_queue_uplane_length = 0;
+		_fsm_oru_queue_uplane_seg = 0;
+		hrtimer_cancel(&_fsm_oru_concat_uplane_hrtimer);
+		spin_unlock_irqrestore(&fsm_oru_fwd_uplane_lock, flags);
+	} else {
+		_fsm_queue_cplane_index = 0;
+		_fsm_queue_cplane_length = 0;
+		_fsm_oru_queue_cplane_seg = 0;
+		hrtimer_cancel(&_fsm_oru_concat_cplane_hrtimer);
+		spin_unlock_irqrestore(&fsm_oru_fwd_cplane_lock, flags);
+	}
+
+	fskb->tstamp = cycle_start;
+	rc = fsm_dp_tx_skb(fsm_dp_tx_handle, fskb);
+	_fwd_tx_cnt++;
+	_fwd_dl_cycles += (fwd_get_cycles() - cycle_start);
+	_fwd_dl_cycles_pkt_cnt++;
+
+	if (!rc)
+		return;
+	if (rc) {
+		for (i = 0; i < num_queue_entries; i++)
+			kfree_skb(skb_queue_sav[i]);
+		_fwd_tx_err++;
+	}
+}
+
+static void _fsm_oru_timeout_work(struct work_struct *work)
+{
+	unsigned long flags;
+	int type;
+
+	type = (work == &_fsm_oru_cplane_work) ?
+		FSM_ORU_MSG_TYPE_CPLANE : FSM_ORU_MSG_TYPE_UPLANE;
+
+	if (type == FSM_ORU_MSG_TYPE_CPLANE)
+		spin_lock_irqsave(&fsm_oru_fwd_cplane_lock, flags);
+	else
+		spin_lock_irqsave(&fsm_oru_fwd_uplane_lock, flags);
+	fsm_queue_flush(flags, type);
+}
+
+static int _fsm_queue_tx_skb(struct sk_buff *skb)
+{
+	struct ecpri_common_header *ecpri_hdr;
+	unsigned long flags;
+	unsigned long pkt_cycle;
+	int type;
+	unsigned int ecpri_plen;
+	unsigned int ecpri_mlen;
+
+	if (!fsm_oru_dl_concat) {
+		_fwd_tx_cnt++;
+		return fsm_dp_tx_skb(fsm_dp_tx_handle, skb);
+	}
+	ecpri_hdr = (struct ecpri_common_header *) skb->data;
+	type = ((ecpri_hdr->msg_type != ECPRI_MSG_IQ_DATA)
+			&& (ecpri_hdr->msg_type != ECPRI_MSG_BIT_SEQ));
+
+
+	/*
+	 * if ecpri msg already has been ccncatenated, flush the queue and
+	 * msg.
+	 */
+	if (ecpri_cbit(ecpri_hdr)) {
+		if (type == FSM_ORU_MSG_TYPE_CPLANE)
+			spin_lock_irqsave(&fsm_oru_fwd_cplane_lock, flags);
+		else
+			spin_lock_irqsave(&fsm_oru_fwd_uplane_lock, flags);
+		fsm_queue_flush(flags, type);
+		_fwd_tx_cnt++;
+		return fsm_dp_tx_skb(fsm_dp_tx_handle, skb);
+	}
+
+	ecpri_mlen = ntohs(ecpri_hdr->payload_size);
+	ecpri_plen =  ecpri_mlen + sizeof(*ecpri_hdr);
+	if (skb->len < ecpri_plen) {
+		pr_err("%s: ill formatted ecpri msg length %d, packet length %d\n",
+				__func__, ecpri_plen, skb->len);
+		return -1;
+	}
+
+	/* remove ethernet padding */
+	if (!skb_is_nonlinear(skb) && skb->len != ecpri_plen)
+		skb_trim(skb, ecpri_plen);
+
+	/* do padding if necessary */
+	if (ecpri_mlen & 3) {
+		unsigned int pad_len;
+
+		pad_len = 4 - (ecpri_mlen & 3);
+		if (skb_is_nonlinear(skb)) {
+			struct skb_shared_info *sinfo;
+			skb_frag_t *frag;
+
+			sinfo = skb_shinfo(skb);
+			frag = &sinfo->frags[sinfo->nr_frags - 1];
+			skb_frag_size_add(frag, pad_len);
+			skb->len += pad_len;
+			skb->data_len += pad_len;
+		} else {
+			__skb_put(skb, pad_len);
+		}
+	}
+
+	pkt_cycle = get_cycles();
+
+	if (type == FSM_ORU_MSG_TYPE_CPLANE) {
+		spin_lock_irqsave(&fsm_oru_fwd_cplane_lock, flags);
+		if (((_fsm_oru_queue_cplane_seg +
+			skb_shinfo(skb)->nr_frags + 1) >
+				FSM_DP_MAX_SG_IOV_SIZE) ||
+			((_fsm_queue_cplane_length + skb->len)
+						> fsm_oru_dl_max_pdu_size)) {
+			fsm_queue_flush(flags, type);
+			spin_lock_irqsave(&fsm_oru_fwd_cplane_lock, flags);
+		}
+		skb_cplane_queue[_fsm_queue_cplane_index] = skb;
+		_fsm_queue_cplane_index++;
+		_fsm_queue_cplane_length += skb->len;
+		_fsm_oru_queue_cplane_seg += skb_shinfo(skb)->nr_frags + 1;
+		if (_fsm_queue_cplane_index == 1) {
+			_fsm_queue_cplane_1st_cycle = pkt_cycle;
+			hrtimer_start(&_fsm_oru_concat_cplane_hrtimer,
+				ns_to_ktime(fsm_oru_dl_concat_cplane_max_delay *
+									1000),
+				HRTIMER_MODE_REL_PINNED);
+		} else if (_fsm_queue_cplane_index >= fsm_oru_queue_max ||
+			(pkt_cycle - _fsm_queue_cplane_1st_cycle) >=
+				fsm_oru_dl_concat_cplane_min_delay_cycle) {
+			fsm_queue_flush(flags, type);
+			return 0;
+		}
+		spin_unlock_irqrestore(&fsm_oru_fwd_cplane_lock, flags);
+	} else {
+		spin_lock_irqsave(&fsm_oru_fwd_uplane_lock, flags);
+		if (((_fsm_oru_queue_uplane_seg +
+				skb_shinfo(skb)->nr_frags + 1) >
+					FSM_DP_MAX_SG_IOV_SIZE) ||
+			((_fsm_queue_uplane_length + skb->len)
+						> fsm_oru_dl_max_pdu_size)) {
+			fsm_queue_flush(flags, type);
+			spin_lock_irqsave(&fsm_oru_fwd_uplane_lock, flags);
+		}
+		skb_uplane_queue[_fsm_queue_uplane_index] = skb;
+		_fsm_queue_uplane_index++;
+		_fsm_queue_uplane_length += skb->len;
+		_fsm_oru_queue_uplane_seg += skb_shinfo(skb)->nr_frags + 1;
+		if (_fsm_queue_uplane_index == 1) {
+			_fsm_queue_uplane_1st_cycle = pkt_cycle;
+			hrtimer_start(&_fsm_oru_concat_uplane_hrtimer,
+				ns_to_ktime(fsm_oru_dl_concat_uplane_max_delay *
+									1000),
+				HRTIMER_MODE_REL_PINNED);
+		} else if (_fsm_queue_uplane_index >= fsm_oru_queue_max ||
+			(pkt_cycle - _fsm_queue_uplane_1st_cycle) >=
+				fsm_oru_dl_concat_uplane_min_delay_cycle) {
+			fsm_queue_flush(flags, type);
+			return 0;
+		}
+		spin_unlock_irqrestore(&fsm_oru_fwd_uplane_lock, flags);
+	}
+	return 0;
+}
+
 static int _fsm_oru_forwarder_rcv(
 	struct sk_buff *skb,
 	struct net_device *ifp,
@@ -585,17 +1518,12 @@ static int _fsm_oru_forwarder_rcv(
 )
 {
 	struct ethhdr *hdr;
-#ifdef FSM_ORU_FWD_MEASURE_CYCLE
-	unsigned long cycle_start;
-#endif
 
 	if (!skb) {
 		_fwd_drop++;
 		return NET_RX_DROP;
 	}
-#ifdef FSM_ORU_FWD_MEASURE_CYCLE
-	cycle_start = get_cycles();
-#endif
+
 	_fwd_from_net_cnt++;
 
 
@@ -609,23 +1537,64 @@ static int _fsm_oru_forwarder_rcv(
 	if (_fwd_loop_back)
 		return _fwd_do_loopback(skb, ifp);
 
-	if (!fsm_dp_tx_handle ||
-			fsm_dp_tx_skb(fsm_dp_tx_handle, skb)) {
+	if (!fsm_dp_tx_handle || _fsm_queue_tx_skb(skb)) {
 		kfree_skb(skb);
 		_fwd_tx_err++;
 		return NET_RX_DROP;
 	}
-	_fwd_tx_cnt++;
-#ifdef FSM_ORU_FWD_MEASURE_CYCLE
-	_fwd_dl_cycles += (get_cycles() - cycle_start);
-#endif
 	return  NET_RX_SUCCESS;
+}
+
+static inline void _fwd_dl_traffic_collect(struct sk_buff *skb)
+{
+	struct fwd_time_stamp *pts;
+
+	if (fwd_dl_traffic_collect) {
+		if (fwd_dl_traffic_index >= 0) {
+			pts = &fwd_dl_traffic[fwd_dl_traffic_index];
+			pts->arrival_cycle = skb->tstamp;
+			pts->complete_cycle = fwd_get_cycles();
+		}
+		if (++fwd_dl_traffic_index >= FWD_TRAFFIC_ARRAY_SIZE) {
+			fwd_dl_traffic_collect = false;
+			fwd_dl_traffic_collect_done = true;
+		}
+	}
+}
+
+static inline void _fwd_ul_traffic_collect(struct sk_buff *skb)
+{
+	struct fwd_time_stamp *pts;
+
+	if (fwd_ul_traffic_collect) {
+		if (fwd_ul_traffic_index >= 0) {
+			pts = &fwd_ul_traffic[fwd_ul_traffic_index];
+			pts->arrival_cycle = skb->tstamp;
+			pts->complete_cycle = fwd_get_cycles();
+		}
+		if (++fwd_ul_traffic_index >= FWD_TRAFFIC_ARRAY_SIZE) {
+			fwd_ul_traffic_collect = false;
+			fwd_ul_traffic_collect_done = true;
+		}
+	}
+}
+
+static void _fsm_oru_forwarder_free_skb_list(struct sk_buff *skb)
+{
+	struct sk_buff *fskb;
+
+	fskb = skb_shinfo(skb)->frag_list;
+	if (fskb)
+		kfree_skb_list(fskb);
+	skb_shinfo(skb)->frag_list = NULL;
+	kfree_skb(skb);
 }
 
 int fsm_dp_tx_cmplt_cb(struct sk_buff *skb)
 {
 
-	kfree_skb(skb);
+	_fwd_dl_traffic_collect(skb);
+	_fsm_oru_forwarder_free_skb_list(skb);
 	return 0;
 }
 
@@ -635,6 +1604,7 @@ void fsm_oru_forwarder_skb_free(struct sk_buff *skb)
 
 	/* buf is now pointing to the receive buffer start of user data area */
 	buf = (char *) skb_uarg(skb);
+	_fwd_ul_traffic_collect(skb);
 	if (atomic_dec_and_test((atomic_t *)buf)) {
 		fsm_dp_rel_rx_buf(fsm_dp_rx_handle, buf);
 		_fwd_free_ul_buf++;
@@ -645,7 +1615,8 @@ static int fsm_oru_fwd_send2_net(
 	struct page *page,
 	unsigned int page_offset,
 	char *orig_buf,
-	unsigned int length
+	unsigned int length,
+	unsigned long cycle_start
 )
 {
 	int rc = 0;
@@ -675,6 +1646,7 @@ static int fsm_oru_fwd_send2_net(
 		return -ENOMEM;
 	}
 	skb->dev = fsm_oru_forwarder_netdev;
+	skb->tstamp = cycle_start;
 
 	if (fsm_oru_use_ip) {
 		udphdr = skb_push(skb, sizeof(*udphdr));
@@ -778,14 +1750,10 @@ int fsm_oru_fwd_rx_ind_cb(
 	struct fsm_dp_aggrhdr *pa;
 	struct fsm_dp_aggriob *piob;
 	unsigned int plen;
-#ifdef FSM_ORU_FWD_MEASURE_CYCLE
 	unsigned long cycle_start;
-#endif
 
 	_fwd_rx_from_device_cnt++;
-#ifdef FSM_ORU_FWD_MEASURE_CYCLE
-	cycle_start = get_cycles();
-#endif
+	cycle_start = fwd_get_cycles();
 	/* did we acquire target ethernet address ? */
 	if (!fsm_oru_fwd_enable) {
 		_fwd_drop++;
@@ -836,15 +1804,14 @@ int fsm_oru_fwd_rx_ind_cb(
 			piob++, plen = piob->size, poff = piob->offset;
 		rc = fsm_oru_fwd_send2_net(
 			page, page_offset + poff,
-			orig_buf, plen);
+			orig_buf, plen, cycle_start);
 		if (rc)
 			goto err_rel;
 		else
 			good_sent++;
 	}
-#ifdef FSM_ORU_FWD_MEASURE_CYCLE
-	_fwd_ul_cycles += (get_cycles() - cycle_start);
-#endif
+	_fwd_ul_cycles += (fwd_get_cycles() - cycle_start);
+	_fwd_ul_cycles_pkt_cnt++;
 	return 0;
 err_rel:
 	for (i = 0; i < num_pkt - good_sent; i++)
@@ -891,6 +1858,12 @@ static void _fsm_oru_fwd_cleanup(void)
 
 	if (nl_socket_handle)
 		netlink_kernel_release(nl_socket_handle);
+	hrtimer_cancel(&_fsm_oru_concat_uplane_hrtimer);
+	hrtimer_cancel(&_fsm_oru_concat_cplane_hrtimer);
+
+	if (_fsm_oru_wq)
+		destroy_workqueue(_fsm_oru_wq);
+	_fsm_oru_wq = NULL;
 }
 
 static netdev_tx_t oru_netdev_start_xmit(
@@ -902,10 +1875,9 @@ static netdev_tx_t oru_netdev_start_xmit(
 	uint16_t srcport;
 	__be32 src_addr;
 	struct neighbour *n;
+	unsigned long cycle_start;
 
-#ifdef FSM_ORU_FWD_MEASURE_CYCLE
-	cycle_start = get_cycles();
-#endif
+	cycle_start = fwd_get_cycles();
 	/* check traffic for IP forwarding */
 	if (!fsm_oru_use_ip)
 		goto other_traffic;
@@ -944,13 +1916,10 @@ static netdev_tx_t oru_netdev_start_xmit(
 		return _fwd_do_loopback(skb, fsm_oru_forwarder_netdev);
 	skb_pull(skb, sizeof(*iph));
 	skb_pull(skb, sizeof(*udphdr));
-	if (!fsm_dp_tx_handle ||
-		fsm_dp_tx_skb(fsm_dp_tx_handle, skb))
+	if (!fsm_dp_tx_handle || _fsm_queue_tx_skb(skb))
 		goto tx_err;
 	_fwd_tx_cnt++;
-#ifdef FSM_ORU_FWD_MEASURE_CYCLE
-	_fwd_dl_cycles += (get_cycles() - cycle_start);
-#endif
+	_fwd_dl_cycles += (fwd_get_cycles() - cycle_start);
 	return NETDEV_TX_OK;
 other_traffic:
 	_fwd_netdev_other_cnt++;
@@ -1039,6 +2008,49 @@ static int fsm_oru_fwd_netdev_init(void)
 	return 0;
 }
 
+static void _fsm_oru_fwd_init_time_measurement(void)
+{
+	unsigned long cycle_start;
+	ktime_t ktime_start;
+	ktime_t ns_per_get_cycles;
+	ktime_t ns_per_ktime;
+
+	cycle_start = get_cycles();
+	_fwd_cycles_per_call =  get_cycles() - cycle_start;
+
+	cycle_start = get_cycles();
+	ktime_get();
+	_fwd_cycles_per_ktime_get =  get_cycles() - cycle_start;
+
+	cycle_start = get_cycles();
+	udelay(1000);
+	_fwd_cycles_per_ms = get_cycles() - cycle_start;
+	pr_info("cycle per ms %d, per get_cycles call %d, per ktime_get %d\n",
+		_fwd_cycles_per_ms, _fwd_cycles_per_call,
+		_fwd_cycles_per_ktime_get);
+
+	ktime_start = ktime_get();
+	get_cycles();
+	ns_per_get_cycles = ktime_get() - ktime_start;
+
+	ktime_start = ktime_get();
+	ktime_get();
+	ns_per_ktime = ktime_get() - ktime_start;
+
+	pr_info("ns per ktime_get %lld, per get_cycles %lld\n",
+		ns_per_ktime, ns_per_get_cycles);
+
+	fsm_oru_dl_concat_uplane_min_delay_cycle = _fwd_cycles_per_ms *
+				fsm_oru_dl_concat_uplane_min_delay / 1000;
+	fsm_oru_dl_concat_uplane_max_delay_cycle =  _fwd_cycles_per_ms *
+				fsm_oru_dl_concat_uplane_max_delay / 1000;
+	fsm_oru_dl_concat_cplane_min_delay_cycle =
+		fsm_oru_dl_concat_cplane_min_delay *
+			_fwd_cycles_per_ms / 1000;
+	fsm_oru_dl_concat_cplane_max_delay_cycle =  _fwd_cycles_per_ms *
+				fsm_oru_dl_concat_cplane_max_delay / 1000;
+}
+
 static void _fsm_oru_fwd_exit(void)
 {
 	_fsm_oru_fwd_cleanup();
@@ -1046,19 +2058,46 @@ static void _fsm_oru_fwd_exit(void)
 							oru_fwd_etype);
 }
 
+static enum hrtimer_restart _fsm_oru_fwd_concat_timer_handler(
+		struct hrtimer *me)
+{
+
+	queue_work(_fsm_oru_wq, &_fsm_oru_uplane_work);
+	return HRTIMER_NORESTART;
+}
+
 static int _fsm_oru_fwd_init(void)
 {
 	int ret = 0;
-	unsigned long cycle_start;
+	struct workqueue_struct *wq;
 
 	pr_info("ORU Forwarder loaded. dev %s oru_fwd_etype=%x\n",
 					fsm_oru_fwd_netdev_name, oru_fwd_etype);
+
 
 	nl_socket_handle = _fsm_oru_fwd_start_netlink();
 	if (!nl_socket_handle) {
 		pr_err("%s: Failed to init netlink socket\n", __func__);
 		return -ENOMEM;
 	}
+
+	spin_lock_init(&fsm_oru_fwd_uplane_lock);
+	hrtimer_init(&_fsm_oru_concat_uplane_hrtimer, CLOCK_MONOTONIC,
+			HRTIMER_MODE_REL);
+	hrtimer_init(&_fsm_oru_concat_cplane_hrtimer, CLOCK_MONOTONIC,
+			HRTIMER_MODE_REL);
+	_fsm_oru_concat_uplane_hrtimer.function =
+				_fsm_oru_fwd_concat_timer_handler;
+	_fsm_oru_concat_cplane_hrtimer.function =
+				_fsm_oru_fwd_concat_timer_handler;
+	wq = alloc_workqueue("fsm_oru_concat", WQ_MEM_RECLAIM, 0);
+	if (!wq) {
+		ret = -ENOMEM;
+		goto out;
+	}
+	_fsm_oru_wq = wq;
+	INIT_WORK(&_fsm_oru_uplane_work, _fsm_oru_timeout_work);
+	INIT_WORK(&_fsm_oru_cplane_work, _fsm_oru_timeout_work);
 
 	ret =  _fsm_oru_fwd_enable();
 	if (ret)
@@ -1086,11 +2125,12 @@ static int _fsm_oru_fwd_init(void)
 	}
 	fsm_dp_rx_handle = fsm_dp_tx_handle;
 #endif
-	cycle_start = get_cycles();
-	udelay(1000);
-	_fwd_cycles_per_ms = get_cycles() - cycle_start;
+
+	_fsm_oru_fwd_init_time_measurement();
 
 	ret = fsm_oru_fwd_netdev_init();
+	if (ret)
+		goto out;
 
 	ret = fsm_oru_fwd_debugfs_init();
 	if (!ret)

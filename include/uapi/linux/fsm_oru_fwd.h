@@ -15,6 +15,9 @@
 #include <linux/netlink.h>
 #include <linux/if_ether.h>
 
+#define FSM_ORU_MSG_TYPE_UPLANE	(0)
+#define FSM_ORU_MSG_TYPE_CPLANE	(1)
+
 /* Netlink API */
 #define FSM_ORU_FWD_NETLINK_PROTO (MAX_LINKS - 1)
 #define FSM_ORU_FWD_MAX_STR_LEN  16
@@ -37,13 +40,33 @@ struct fsm_oru_fwd_cfg {
 	uint8_t  vlan_priority;
 };
 
+struct fsm_oru_fwd_dl_concat_cfg {
+	bool     dl_concat;
+	uint32_t dl_concat_uplane_min_delay;
+	uint32_t dl_concat_uplane_max_delay;
+	uint32_t dl_concat_cplane_min_delay;
+	uint32_t dl_concat_cplane_max_delay;
+	uint32_t dl_max_pdu_size;
+};
+
 struct fwd_op_status {
 	uint8_t  dev[FSM_ORU_FWD_MAX_STR_LEN];
 	uint16_t ether_type;
 	uint8_t  du_mac[ETH_ALEN];
+	bool     use_ip;
+	uint32_t du_ip_addr;
+	uint32_t my_ip_addr;
+	uint16_t du_udp_port;
+	uint16_t my_udp_port;
 	uint8_t  vlan_enabled;
 	uint16_t vlan_id;
 	uint8_t  vlan_priority;
+	bool     dl_concat;
+	uint32_t dl_concat_uplane_min_delay;
+	uint32_t dl_concat_uplane_max_delay;
+	uint32_t dl_concat_cplane_min_delay;
+	uint32_t dl_concat_cplane_max_delay;
+	uint32_t dl_max_pdu_size;
 	uint8_t  on_off;
 };
 
@@ -74,6 +97,7 @@ struct fsm_oru_fwd_nl_msg_s {
 		struct fwd_op_status fwd_op_status;
 		struct fwd_stats fwd_stats;
 		bool enable;
+		struct fsm_oru_fwd_dl_concat_cfg fwd_dl_concat_config;
 	};
 };
 
@@ -156,7 +180,28 @@ c	 *       unsigned char[6] du: mac address. If 0xffffff,
 	 * Returns:
 	 *	data: echoed msg
 	 */
-	FSM_ORU_FWD_NETLINK_ECHO
+	FSM_ORU_FWD_NETLINK_ECHO,
+
+
+	/*
+	 * FSM_ORU_FWD_NETLINK_SET_CONCAT_CONFIG:
+	 *	Set the concatenation configuration for the forwarder
+	 *
+	 * Args:
+	 *      struct fsm_oru_fwd_dl_concat_cfg
+	 *
+	 * Returns: status code
+	 */
+	FSM_ORU_FWD_NETLINK_SET_CONCAT_CONFIG,
+
+	/*
+	 * FSM_ORU_FWD_NETLINK_GET_CONCAT_CONFIG:
+	 *	Get the concatenation configuration for the forwarder
+	 * Args:
+	 * Returns:
+	 *      struct fsm_oru_fwd_dl_concat_cfg
+	 */
+	FSM_ORU_FWD_NETLINK_GET_CONCAT_CONFIG
 };
 
 enum  fsm_oru_fwd_netlink_config_return_e {
