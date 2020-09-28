@@ -1009,7 +1009,7 @@ int mhi_async_power_up(struct mhi_controller *mhi_cntrl)
 	next_state = MHI_IN_PBL(current_ee) ?
 		MHI_ST_TRANSITION_PBL : MHI_ST_TRANSITION_READY;
 
-	MHI_CNTRL_LOG("%s, current_ee: %d %d\n", __func__,
+	MHI_CNTRL_LOG("Current MHI state:%d, Next state:%d\n",
 		current_ee, next_state);
 
 	mhi_queue_state_transition(mhi_cntrl, next_state);

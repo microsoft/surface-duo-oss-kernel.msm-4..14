@@ -587,7 +587,6 @@ static void fsm_dp_mempool_release(struct fsm_dp_mempool *mempool)
 		wmb();
 		fsm_dp_mem_cleanup(&mempool->mem);
 		fsm_dp_ring_cleanup(&mempool->ring);
-		atomic_set(&mempool->out_xmit, 0);
 		kfree(mempool->dummy_buf);
 		kfree(mempool);
 		FSM_DP_DEBUG("%s: mempool is freed, type=%u\n", __func__, type);
@@ -729,7 +728,7 @@ done:
 void fsm_dp_mempool_free(struct fsm_dp_mempool *mempool)
 {
 	struct fsm_dp_drv *pdrv = NULL;
-	enum fsm_dp_mem_type mempool_type = FSM_DP_MEM_TYPE_LAST;
+	enum fsm_dp_mem_type mempool_type;
 
 	if (!mempool)
 		return;
