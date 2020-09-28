@@ -275,12 +275,7 @@ static int shd_crtc_atomic_check(struct drm_crtc *crtc,
 {
 	struct sde_crtc *sde_crtc = to_sde_crtc(crtc);
 	struct shd_crtc *shd_crtc = sde_crtc->priv_handle;
-	struct sde_crtc_state *sde_crtc_state = to_sde_crtc_state(state);
 	int rc;
-
-	/* disable bw voting if not full size in vertical */
-	if (shd_crtc->display->roi.h != shd_crtc->display->base->mode.vdisplay)
-		sde_crtc_state->bw_control = false;
 
 	rc = shd_crtc->orig_helper_funcs->atomic_check(crtc, state);
 	if (rc)
@@ -371,6 +366,111 @@ void shd_skip_shared_plane_update(struct drm_plane *plane,
 			sde_crtc->mixers[i].hw_ctl, sspp, is_virtual);
 }
 
+static int shd_display_set_default_clock(struct drm_crtc_state *crtc_state,
+		struct drm_connector_state *conn_state)
+{
+	struct msm_drm_private *priv;
+	struct sde_kms *sde_kms;
+	struct sde_crtc *sde_crtc;
+	struct sde_crtc_state *cstate;
+	struct sde_connector *sde_conn;
+	struct msm_mode_info mode_info;
+	struct drm_property *drm_prop;
+	u64 core_clk;
+	int ret;
+
+	priv = crtc_state->crtc->dev->dev_private;
+	sde_kms = to_sde_kms(priv->kms);
+	sde_conn = to_sde_connector(conn_state->connector);
+
+	if (!sde_conn->ops.get_mode_info)
+		return 0;
+
+	ret = sde_conn->ops.get_mode_info(&sde_conn->base, &crtc_state->mode,
+			&mode_info,
+			sde_kms->catalog->max_mixer_width,
+			sde_conn->display);
+	if (ret)
+		return ret;
+
+	if (!mode_info.topology.num_lm)
+		return 0;
+
+	/* calculate clock based on layer mixer */
+	core_clk = crtc_state->mode.clock / mode_info.topology.num_lm;
+	core_clk *= 1050ULL;
+
+	/* 3dmerge + dsc we need to double the clock */
+	if (mode_info.topology.num_enc &&
+			mode_info.topology.num_lm > mode_info.topology.num_enc)
+		core_clk *= 2;
+
+	cstate = to_sde_crtc_state(crtc_state);
+	sde_crtc = to_sde_crtc(crtc_state->crtc);
+
+	drm_prop = sde_crtc->property_info.property_array[CRTC_PROP_CORE_CLK];
+	ret = msm_property_atomic_set(&sde_crtc->property_info,
+			&cstate->property_state,
+			drm_prop,
+			core_clk);
+	if (ret)
+		return ret;
+
+	drm_prop = sde_crtc->property_info.property_array[CRTC_PROP_CORE_AB];
+	ret = msm_property_atomic_set(&sde_crtc->property_info,
+			&cstate->property_state,
+			drm_prop,
+			0);
+	if (ret)
+		return ret;
+
+	drm_prop = sde_crtc->property_info.property_array[CRTC_PROP_CORE_IB];
+	ret = msm_property_atomic_set(&sde_crtc->property_info,
+			&cstate->property_state,
+			drm_prop,
+			0);
+	if (ret)
+		return ret;
+
+	drm_prop = sde_crtc->property_info.property_array[CRTC_PROP_LLCC_AB];
+	ret = msm_property_atomic_set(&sde_crtc->property_info,
+			&cstate->property_state,
+			drm_prop,
+			0);
+	if (ret)
+		return ret;
+
+	drm_prop = sde_crtc->property_info.property_array[CRTC_PROP_LLCC_IB];
+	ret = msm_property_atomic_set(&sde_crtc->property_info,
+			&cstate->property_state,
+			drm_prop,
+			0);
+	if (ret)
+		return ret;
+
+	drm_prop = sde_crtc->property_info.property_array[CRTC_PROP_DRAM_AB];
+	ret = msm_property_atomic_set(&sde_crtc->property_info,
+			&cstate->property_state,
+			drm_prop,
+			0);
+	if (ret)
+		return ret;
+
+	drm_prop = sde_crtc->property_info.property_array[CRTC_PROP_DRAM_IB];
+	ret = msm_property_atomic_set(&sde_crtc->property_info,
+			&cstate->property_state,
+			drm_prop,
+			0);
+	if (ret)
+		return ret;
+
+	cstate->bw_control = true;
+	cstate->bw_split_vote = true;
+
+	SDE_DEBUG("set base core clock %llu\n", core_clk);
+
+	return 0;
+}
 static int shd_display_atomic_check(struct msm_kms *kms,
 				struct drm_atomic_state *state)
 {
@@ -461,6 +561,12 @@ static int shd_display_atomic_check(struct msm_kms *kms,
 				active ? &base->mode : NULL);
 		if (rc) {
 			SDE_ERROR("failed to set mode for crtc\n");
+			return rc;
+		}
+
+		rc = shd_display_set_default_clock(new_crtc_state, conn_state);
+		if (rc) {
+			SDE_ERROR("failed to set default clock\n");
 			return rc;
 		}
 
