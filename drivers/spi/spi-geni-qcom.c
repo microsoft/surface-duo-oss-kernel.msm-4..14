@@ -1145,6 +1145,9 @@ static void setup_fifo_xfer(struct spi_transfer *xfer,
 	if (mas->disable_dma_mode) {
 		mas->cur_xfer_mode = FIFO_MODE;
 		geni_se_select_mode(mas->base, mas->cur_xfer_mode);
+	} else if (spi->slave) {
+		mas->cur_xfer_mode = SE_DMA;
+		geni_se_select_mode(mas->base, mas->cur_xfer_mode);
 	} else {
 		fifo_size = (mas->tx_fifo_depth *
 				mas->tx_fifo_width / mas->cur_word_len);
