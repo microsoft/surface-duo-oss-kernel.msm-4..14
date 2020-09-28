@@ -377,6 +377,9 @@ static int shd_display_set_default_clock(struct drm_crtc_state *crtc_state,
 	sde_kms = to_sde_kms(priv->kms);
 	sde_conn = to_sde_connector(conn_state->connector);
 
+	if (!crtc_state->active)
+		return 0;
+
 	if (!sde_conn->ops.get_mode_info)
 		return 0;
 
