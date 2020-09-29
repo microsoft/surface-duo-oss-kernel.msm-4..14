@@ -26,6 +26,7 @@
 #include <trace/events/devlink.h>
 
 #include "core.h"
+#include "core_env.h"
 #include "item.h"
 #include "cmd.h"
 #include "port.h"
@@ -87,6 +88,8 @@ struct mlxsw_core {
 	struct {
 		struct devlink_health_reporter *fw_fatal;
 	} health;
+	struct mlxsw_env *env;
+	bool is_initialized; /* Denotes if core was already initialized. */
 	unsigned long driver_priv[];
 	/* driver_priv has to be always the last item */
 };
@@ -132,6 +135,11 @@ bool mlxsw_core_res_query_enabled(const struct mlxsw_core *mlxsw_core)
 	return mlxsw_core->driver->res_query_enabled;
 }
 EXPORT_SYMBOL(mlxsw_core_res_query_enabled);
+
+bool mlxsw_core_temp_warn_enabled(const struct mlxsw_core *mlxsw_core)
+{
+	return mlxsw_core->driver->temp_warn_enabled;
+}
 
 bool
 mlxsw_core_fw_rev_minor_subminor_validate(const struct mlxsw_fw_rev *rev,
@@ -1102,16 +1110,13 @@ static int mlxsw_core_fw_rev_validate(struct mlxsw_core *mlxsw_core,
 }
 
 static int mlxsw_core_fw_flash_update(struct mlxsw_core *mlxsw_core,
-				      const char *file_name, const char *component,
+				      struct devlink_flash_update_params *params,
 				      struct netlink_ext_ack *extack)
 {
 	const struct firmware *firmware;
 	int err;
 
-	if (component)
-		return -EOPNOTSUPP;
-
-	err = request_firmware_direct(&firmware, file_name, mlxsw_core->bus_info->dev);
+	err = request_firmware_direct(&firmware, params->file_name, mlxsw_core->bus_info->dev);
 	if (err)
 		return err;
 	err = mlxsw_core_fw_flash(mlxsw_core, firmware, extack);
@@ -1434,13 +1439,12 @@ mlxsw_devlink_core_bus_device_reload_up(struct devlink *devlink,
 }
 
 static int mlxsw_devlink_flash_update(struct devlink *devlink,
-				      const char *file_name,
-				      const char *component,
+				      struct devlink_flash_update_params *params,
 				      struct netlink_ext_ack *extack)
 {
 	struct mlxsw_core *mlxsw_core = devlink_priv(devlink);
 
-	return mlxsw_core_fw_flash_update(mlxsw_core, file_name, component, extack);
+	return mlxsw_core_fw_flash_update(mlxsw_core, params, extack);
 }
 
 static int mlxsw_devlink_trap_init(struct devlink *devlink,
@@ -1947,6 +1951,11 @@ __mlxsw_core_bus_device_register(const struct mlxsw_bus_info *mlxsw_bus_info,
 	if (err)
 		goto err_thermal_init;
 
+	err = mlxsw_env_init(mlxsw_core, &mlxsw_core->env);
+	if (err)
+		goto err_env_init;
+
+	mlxsw_core->is_initialized = true;
 	devlink_params_publish(devlink);
 
 	if (!reload)
@@ -1954,6 +1963,8 @@ __mlxsw_core_bus_device_register(const struct mlxsw_bus_info *mlxsw_bus_info,
 
 	return 0;
 
+err_env_init:
+	mlxsw_thermal_fini(mlxsw_core->thermal);
 err_thermal_init:
 	mlxsw_hwmon_fini(mlxsw_core->hwmon);
 err_hwmon_init:
@@ -2030,6 +2041,8 @@ void mlxsw_core_bus_device_unregister(struct mlxsw_core *mlxsw_core,
 	}
 
 	devlink_params_unpublish(devlink);
+	mlxsw_core->is_initialized = false;
+	mlxsw_env_fini(mlxsw_core->env);
 	mlxsw_thermal_fini(mlxsw_core->thermal);
 	mlxsw_hwmon_fini(mlxsw_core->hwmon);
 	if (mlxsw_core->driver->fini)
@@ -2832,6 +2845,16 @@ mlxsw_core_port_devlink_port_get(struct mlxsw_core *mlxsw_core,
 	return devlink_port;
 }
 EXPORT_SYMBOL(mlxsw_core_port_devlink_port_get);
+
+struct mlxsw_env *mlxsw_core_env(const struct mlxsw_core *mlxsw_core)
+{
+	return mlxsw_core->env;
+}
+
+bool mlxsw_core_is_initialized(const struct mlxsw_core *mlxsw_core)
+{
+	return mlxsw_core->is_initialized;
+}
 
 int mlxsw_core_module_max_width(struct mlxsw_core *mlxsw_core, u8 module)
 {
