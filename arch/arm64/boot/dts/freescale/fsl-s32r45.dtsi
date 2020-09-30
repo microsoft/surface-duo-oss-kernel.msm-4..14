@@ -10,6 +10,8 @@
 
 #include "fsl-s32-gen1.dtsi"
 #include <dt-bindings/pinctrl/s32r45-pinctrl.h>
+#include <dt-bindings/clock/s32r45-scmi-clock.h>
+
 / {
 	model = "Freescale S32R45";
 	compatible = "fsl,s32r45-simu", "fsl,s32r45",
@@ -55,8 +57,8 @@
 			     <0 194 4>,
 			     <0 195 4>;
 		interrupt-names = "state", "berr", "mb_0-7", "mb_8-127";
-		clocks = <&clks S32GEN1_CLK_CAN>,
-			 <&clks S32GEN1_CLK_XBAR_DIV3>;
+		clocks = <&clks S32GEN1_SCMI_CLK_FLEXCAN_CAN>,
+			 <&clks S32GEN1_SCMI_CLK_FLEXCAN_REG>;
 		clock-names = "per", "ipg";
 		status = "disabled";
 	};
@@ -69,8 +71,8 @@
 			     <0 198 4>,
 			     <0 199 4>;
 		interrupt-names = "state", "berr", "mb_0-7", "mb_8-127";
-		clocks = <&clks S32GEN1_CLK_CAN>,
-			 <&clks S32GEN1_CLK_XBAR_DIV3>;
+		clocks = <&clks S32GEN1_SCMI_CLK_FLEXCAN_CAN>,
+			 <&clks S32GEN1_SCMI_CLK_FLEXCAN_REG>;
 		clock-names = "per", "ipg";
 		status = "disabled";
 	};
@@ -83,8 +85,8 @@
 			     <0 202 4>,
 			     <0 203 4>;
 		interrupt-names = "state", "berr", "mb_0-7", "mb_8-127";
-		clocks = <&clks S32GEN1_CLK_CAN>,
-			 <&clks S32GEN1_CLK_XBAR_DIV3>;
+		clocks = <&clks S32GEN1_SCMI_CLK_FLEXCAN_CAN>,
+			 <&clks S32GEN1_SCMI_CLK_FLEXCAN_REG>;
 		clock-names = "per", "ipg";
 		status = "disabled";
 	};
@@ -97,13 +99,11 @@
 			     <0 206 4>,
 			     <0 207 4>;
 		interrupt-names = "state", "berr", "mb_0-7", "mb_8-127";
-		clocks = <&clks S32GEN1_CLK_CAN>,
-			 <&clks S32GEN1_CLK_XBAR_DIV3>;
+		clocks = <&clks S32GEN1_SCMI_CLK_FLEXCAN_CAN>,
+			 <&clks S32GEN1_SCMI_CLK_FLEXCAN_REG>;
 		clock-names = "per", "ipg";
 		status = "disabled";
 	};
-
-
 
 	siul2_0 {
 		compatible = "simple-mfd";
@@ -256,5 +256,4 @@
 			#size-cells = <0>;
 		};
 	};
-
 };
