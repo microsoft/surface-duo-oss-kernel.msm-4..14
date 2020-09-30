@@ -19,7 +19,13 @@ obj-$(CONFIG_HIO)             += hio/
 ##
 ##
 ##
+obj-$(CONFIG_UBUNTU_HOST)      += ubuntu-host/
+##
+##
+##
+ifeq ($(ARCH),x86)
 obj-y				+= xr-usb-serial/
+endif
 ##
 ##
 ##
