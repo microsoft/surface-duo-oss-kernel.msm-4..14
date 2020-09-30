@@ -727,9 +727,15 @@
 		interrupt-names = "macirq";
 		tx-fifo-depth = <20480>;
 		rx-fifo-depth = <20480>;
-		clocks = <&clks S32GEN1_CLK_XBAR>, <&clks S32GEN1_CLK_XBAR>,
-			     <&clks S32GEN1_CLK_GMAC_0_TX>;
-		clock-names = "stmmaceth", "pclk", "tx";
+		clocks = <&clks S32GEN1_SCMI_CLK_GMAC0_AXI>,
+			 <&clks S32GEN1_SCMI_CLK_GMAC0_AXI>,
+			 <&clks S32GEN1_SCMI_CLK_GMAC0_TX_SGMII>,
+			 <&clks S32GEN1_SCMI_CLK_GMAC0_TX_RGMII>,
+			 <&clks S32GEN1_SCMI_CLK_GMAC0_TX_RMII>,
+			 <&clks S32GEN1_SCMI_CLK_GMAC0_TX_MII>;
+		clock-names = "stmmaceth", "pclk",
+			      "tx_sgmii", "tx_rgmii",
+			      "tx_rmii", "tx_mii";
 		gmac0_mdio: mdio0 {
 			compatible = "snps,dwmac-mdio";
 			#address-cells = <1>;
