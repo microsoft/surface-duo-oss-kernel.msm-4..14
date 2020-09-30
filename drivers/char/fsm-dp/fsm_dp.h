@@ -173,6 +173,32 @@ struct fsm_dp_core_stats {
 	unsigned long rx_budget_overflow;
 };
 
+#define FSM_DP_TRAFFIC_ARRAY_SIZE 256
+struct fsm_dp_time_stamp {
+	ktime_t arrival_ktime;
+	ktime_t complete_ktime;
+};
+
+struct fsm_dp_traffic {
+
+	bool traffic_timestamp;
+
+	int ul_traffic_index;
+	bool ul_traffic_collect_done;
+	bool ul_traffic_collect;
+	struct fsm_dp_time_stamp ul_traffic[FSM_DP_TRAFFIC_ARRAY_SIZE];
+
+	int dl_traffic_index;
+	bool dl_traffic_collect_done;
+	bool dl_traffic_collect;
+	struct fsm_dp_time_stamp dl_traffic[FSM_DP_TRAFFIC_ARRAY_SIZE];
+
+	ktime_t dl_ktime;
+	ktime_t ul_ktime;
+	unsigned long dl_cnt;
+	unsigned long ul_cnt;
+};
+
 struct fsm_dp_drv {
 	struct device *dev;
 	struct class *dev_class;
@@ -189,6 +215,7 @@ struct fsm_dp_drv {
 	struct fsm_dp_loopback_task loopback;
 	struct fsm_dp_core_stats stats;
 	struct work_struct alloc_work;
+	struct fsm_dp_traffic traffic;
 
 #ifdef CONFIG_FSM_DP_TEST
 	struct fsm_dp_test_ring test_ring;
@@ -243,5 +270,93 @@ fsm_dp_find_reg_db_type(enum fsm_dp_msg_type msg_type)
 };
 
 void fsm_dp_mempool_dev_destroy(struct fsm_dp_drv *pdrv);
+
+static inline void fsm_dp_collect_ts_dl_traffic_window(
+	struct fsm_dp_traffic *traffic,
+	struct fsm_dp_buf_cntrl *pbuf)
+{
+	ktime_t start;
+
+	if (traffic->traffic_timestamp && traffic->dl_traffic_collect &&
+		!traffic->dl_traffic_collect_done) {
+		start = *((ktime_t *)(&pbuf->ts));
+		if (traffic->dl_traffic_index >= 0) {
+			struct fsm_dp_time_stamp *pt;
+
+			pt = &traffic->dl_traffic[traffic->dl_traffic_index];
+			pt->arrival_ktime = start;
+			pt->complete_ktime = ktime_get();
+		}
+		if (++traffic->dl_traffic_index >= FSM_DP_TRAFFIC_ARRAY_SIZE) {
+			traffic->dl_traffic_collect = false;
+			traffic->dl_traffic_collect_done = true;
+		}
+	}
+};
+
+static inline ktime_t fsm_dp_traffic_ts_begin(void)
+{
+	return ktime_get();
+};
+
+static inline void fsm_dp_traffic_ts_store_dl_msg(
+	struct fsm_dp_traffic *traffic,
+	struct fsm_dp_buf_cntrl *pbuf,
+	ktime_t msg_start)
+{
+	if (traffic->traffic_timestamp)
+		*((ktime_t *)(&pbuf->ts)) = msg_start;
+};
+
+static inline void fsm_dp_traffic_ts_dl_end(
+	struct fsm_dp_traffic *traffic,
+	bool sg,
+	unsigned int iov_nr,
+	ktime_t msg_start)
+{
+
+	if (traffic->traffic_timestamp) {
+		if (sg) {
+			traffic->dl_cnt++;
+			traffic->dl_ktime += (ktime_get() - msg_start);
+		} else {
+			traffic->dl_cnt += iov_nr;
+			traffic->dl_ktime +=
+				(ktime_get() - msg_start) * iov_nr;
+		}
+	}
+}
+
+static inline void fsm_dp_traffic_ts_ul_end_and_collect(
+	struct fsm_dp_traffic *traffic,
+	struct fsm_dp_buf_cntrl *pbuf,
+	ktime_t msg_start)
+{
+	ktime_t end, service;
+
+	if (!traffic->traffic_timestamp)
+		return;
+	end = ktime_get();
+	pbuf->ts = ktime_to_timespec(end);
+	service = end - msg_start;
+	traffic->ul_cnt++;
+	traffic->ul_ktime += service;
+	if (traffic->ul_traffic_collect &&
+			!traffic->ul_traffic_collect_done) {
+		struct fsm_dp_time_stamp *pt;
+
+		if (traffic->ul_traffic_index >= 0) {
+			pt = &traffic->ul_traffic[traffic->ul_traffic_index];
+
+			pt->arrival_ktime = msg_start;
+			pt->complete_ktime = end;
+		}
+		if (++traffic->ul_traffic_index >=
+					FSM_DP_TRAFFIC_ARRAY_SIZE) {
+			traffic->ul_traffic_collect = false;
+			traffic->ul_traffic_collect_done = true;
+		}
+	}
+}
 
 #endif /* __FSM_DP__ */

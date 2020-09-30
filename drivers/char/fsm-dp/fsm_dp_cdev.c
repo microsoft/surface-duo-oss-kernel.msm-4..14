@@ -105,6 +105,8 @@ static int __cdev_tx(
 #endif
 	unsigned int c_offset;
 	unsigned int cluster;
+	ktime_t start = 0;
+	struct fsm_dp_traffic *traffic = &pdrv->traffic;
 
 	FSM_DP_DEBUG("%s: iov_nr=%u\n", __func__, iov_nr);
 	if (iov_nr > FSM_DP_MAX_IOV_SIZE)
@@ -114,6 +116,7 @@ static int __cdev_tx(
 				   sizeof(struct iovec) * iov_nr))
 		return -EFAULT;
 
+	start = fsm_dp_traffic_ts_begin();
 	for (n = 0; n < iov_nr; n++) {
 		mempool_vma = find_mempool_vma(cdev,
 					       iov[n].iov_base,
@@ -140,7 +143,6 @@ static int __cdev_tx(
 				atomic_inc_return(&pdrv->tx_seqnum);
 			c_offset -= sizeof(struct fsm_dp_msghdr);
 		}
-#ifdef FSM_DP_BUFFER_FENCING
 		{
 			unsigned long b_backtrack;
 			struct fsm_dp_buf_cntrl *p;
@@ -167,10 +169,10 @@ static int __cdev_tx(
 					FSM_DP_BUFFER_FENCE_SIG);
 				return -EINVAL;
 			}
-			p->state = FSM_DP_BUF_STATE_KERNEL_XMIT_DMA;
 			p->xmit_status = FSM_DP_XMIT_IN_PROGRESS;
+			fsm_dp_traffic_ts_store_dl_msg(traffic, p, start);
+			p->state = FSM_DP_BUF_STATE_KERNEL_XMIT_DMA;
 		}
-#endif
 		atomic_inc(&mempool->out_xmit);
 		if (mempool->mem.loc.dma_mapped &&
 				cdev->tx_mode != TX_MODE_LOOPBACK) {
@@ -208,8 +210,10 @@ static int __cdev_tx(
 			p->xmit_status = ret;
 		}
 #endif
-	} else
+	} else {
 		ret = iov_nr;
+		fsm_dp_traffic_ts_dl_end(traffic, sg, iov_nr, start);
+	}
 	wmb(); /* make other CPU see */
 	return ret;
 }
