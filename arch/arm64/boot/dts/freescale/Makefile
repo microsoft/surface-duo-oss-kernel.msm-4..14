@@ -34,6 +34,8 @@ dtb-$(CONFIG_ARCH_MXC) += imx8qxp-ai_ml.dtb
 dtb-$(CONFIG_ARCH_MXC) += imx8qxp-mek.dtb
 
 dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-bbmini.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-campps32v2-primary.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-campps32v2-secondary.dtb
 dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-evb28899.dtb
 dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-evb.dtb
 dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-evbbcm.dtb
