@@ -101,8 +101,16 @@ static struct pll_vco gpu_cc_pll_vco[] = {
 	{ 500000000,  1000000000, 2 },
 };
 
+static struct pll_vco gpu_cc_pll0_vco[] = {
+	{ 1000000000, 2000000000, 0 },
+};
+
+static struct pll_vco gpu_cc_pll1_vco[] = {
+	{ 500000000,  1000000000, 2 },
+};
+
 /* 1020MHz configuration */
-static const struct alpha_pll_config gpu_pll0_config = {
+static struct alpha_pll_config gpu_pll0_config = {
 	.l = 0x35,
 	.config_ctl_val = 0x4001055b,
 	.test_ctl_hi_val = 0x1,
@@ -116,7 +124,7 @@ static const struct alpha_pll_config gpu_pll0_config = {
 };
 
 /* 930MHz configuration */
-static const struct alpha_pll_config gpu_pll1_config = {
+static struct alpha_pll_config gpu_pll1_config = {
 	.l = 0x30,
 	.config_ctl_val = 0x4001055b,
 	.test_ctl_hi_val = 0x1,
@@ -129,11 +137,24 @@ static const struct alpha_pll_config gpu_pll1_config = {
 	.aux2_output_mask = BIT(2),
 };
 
+static struct clk_init_data gpu_cc_pll0_out_aux2_sa6155 = {
+	.name = "gpu_cc_pll0_out_aux2",
+	.parent_names = (const char *[]){ "bi_tcxo" },
+	.num_parents = 1,
+	.ops = &clk_alpha_pll_slew_ops,
+	.vdd_class = &vdd_mx,
+	.num_rate_max = VDD_MX_NUM,
+	.rate_max = (unsigned long[VDD_MX_NUM]) {
+		[VDD_MX_MIN] = 1000000000,
+		[VDD_MX_NOMINAL] = 2000000000},
+};
+
 static struct clk_alpha_pll gpu_cc_pll0_out_aux2 = {
 	.offset = 0x0,
 	.vco_table = gpu_cc_pll_vco,
 	.num_vco = ARRAY_SIZE(gpu_cc_pll_vco),
 	.flags = SUPPORTS_DYNAMIC_UPDATE,
+	.config = &gpu_pll0_config,
 	.clkr = {
 		.hw.init = &(struct clk_init_data){
 		.name = "gpu_cc_pll0_out_aux2",
@@ -149,11 +170,24 @@ static struct clk_alpha_pll gpu_cc_pll0_out_aux2 = {
 	},
 };
 
+static struct clk_init_data gpu_cc_pll1_out_aux2_sa6155 = {
+	.name = "gpu_cc_pll1_out_aux2",
+	.parent_names = (const char *[]){ "bi_tcxo" },
+	.num_parents = 1,
+	.ops = &clk_alpha_pll_slew_ops,
+	.vdd_class = &vdd_mx,
+	.num_rate_max = VDD_MX_NUM,
+	.rate_max = (unsigned long[VDD_MX_NUM]) {
+		[VDD_MX_MIN] = 1000000000,
+		[VDD_MX_NOMINAL] = 2000000000},
+};
+
 static struct clk_alpha_pll gpu_cc_pll1_out_aux2 = {
 	.offset = 0x100,
 	.vco_table = gpu_cc_pll_vco,
 	.num_vco = ARRAY_SIZE(gpu_cc_pll_vco),
 	.flags = SUPPORTS_DYNAMIC_UPDATE,
+	.config = &gpu_pll1_config,
 	.clkr = {
 		.hw.init = &(struct clk_init_data){
 		.name = "gpu_cc_pll1_out_aux2",
@@ -521,6 +555,13 @@ static void gpucc_sm6150_fixup_sa6155(struct platform_device *pdev)
 	vdd_mx.cur_level = VDD_MX_NUM_SA6155;
 	gpu_cc_gx_gfx3d_clk_src.clkr.hw.init->rate_max[VDD_HIGH_L1] = 0;
 	gpu_cc_gx_gfx3d_clk_src.freq_tbl = ftbl_gpu_cc_gx_gfx3d_clk_src_sa6155;
+
+	gpu_cc_pll0_out_aux2.vco_table = gpu_cc_pll0_vco;
+	gpu_cc_pll0_out_aux2.num_vco = ARRAY_SIZE(gpu_cc_pll0_vco);
+	gpu_cc_pll0_out_aux2.clkr.hw.init = &gpu_cc_pll0_out_aux2_sa6155;
+	gpu_cc_pll1_out_aux2.vco_table = gpu_cc_pll1_vco;
+	gpu_cc_pll1_out_aux2.num_vco = ARRAY_SIZE(gpu_cc_pll1_vco);
+	gpu_cc_pll1_out_aux2.clkr.hw.init = &gpu_cc_pll1_out_aux2_sa6155;
 }
 
 static int gpu_cc_sm6150_probe(struct platform_device *pdev)
@@ -560,9 +601,9 @@ static int gpu_cc_sm6150_probe(struct platform_device *pdev)
 	}
 
 	clk_alpha_pll_configure(&gpu_cc_pll0_out_aux2, regmap,
-					&gpu_pll0_config);
+					gpu_cc_pll0_out_aux2.config);
 	clk_alpha_pll_configure(&gpu_cc_pll1_out_aux2, regmap,
-					&gpu_pll1_config);
+					gpu_cc_pll1_out_aux2.config);
 
 	ret = qcom_cc_really_probe(pdev, &gpu_cc_sm6150_desc, regmap);
 	if (ret) {

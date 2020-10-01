@@ -122,7 +122,7 @@ static void _sde_shd_hw_ctl_clear_blendstages_in_range(
 			if (!sspp_cfg->bits)
 				continue;
 
-			if (hw_ctl->mixer_cfg[lm].mixercfg_skip_sspp_mask &
+			if (hw_ctl->mixer_cfg[lm].mixercfg_skip_sspp_mask[j] &
 					(1 << i))
 				continue;
 
@@ -242,7 +242,8 @@ exit:
 	hw_ctl->mixer_cfg[lm].mixercfg_ext = mixercfg[1];
 	hw_ctl->mixer_cfg[lm].mixercfg_ext2 = mixercfg[2];
 	hw_ctl->mixer_cfg[lm].mixercfg_ext3 = mixercfg[3];
-	hw_ctl->mixer_cfg[lm].mixercfg_skip_sspp_mask = 0;
+	hw_ctl->mixer_cfg[lm].mixercfg_skip_sspp_mask[0] = 0;
+	hw_ctl->mixer_cfg[lm].mixercfg_skip_sspp_mask[1] = 0;
 }
 
 static void _sde_shd_flush_hw_ctl(struct sde_hw_ctl *ctx)
@@ -442,7 +443,7 @@ void sde_shd_hw_lm_init_op(struct sde_hw_mixer *ctx)
 }
 
 void sde_shd_hw_skip_sspp_clear(struct sde_hw_ctl *ctx,
-	enum sde_sspp sspp)
+	enum sde_sspp sspp, int multirect_idx)
 {
 	struct sde_shd_hw_ctl *hw_ctl;
 	int i;
@@ -452,7 +453,7 @@ void sde_shd_hw_skip_sspp_clear(struct sde_hw_ctl *ctx,
 	for (i = 0; i < ctx->mixer_count; i++) {
 		int lm = ctx->mixer_hw_caps[i].id;
 
-		hw_ctl->mixer_cfg[lm].mixercfg_skip_sspp_mask |=
+		hw_ctl->mixer_cfg[lm].mixercfg_skip_sspp_mask[multirect_idx] |=
 			(1 << sspp);
 	}
 }

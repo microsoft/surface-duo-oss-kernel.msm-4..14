@@ -19,6 +19,7 @@
 #include <linux/input.h>
 #include <linux/io.h>
 #include <soc/qcom/scm.h>
+#include <soc/qcom/boot_stats.h>
 
 #include <linux/msm-bus-board.h>
 #include <linux/msm-bus.h>
@@ -1328,6 +1329,8 @@ static int adreno_probe(struct platform_device *pdev)
 	struct adreno_device *adreno_dev;
 	int status;
 
+	place_marker("M - DRIVER GPU Init");
+
 	adreno_dev = adreno_get_dev(pdev);
 
 	if (adreno_dev == NULL) {
@@ -1465,6 +1468,9 @@ static int adreno_probe(struct platform_device *pdev)
 		}
 	}
 #endif
+
+	place_marker("M - DRIVER GPU Ready");
+
 out:
 	if (status) {
 		adreno_ringbuffer_close(adreno_dev);
@@ -1678,6 +1684,8 @@ static int adreno_init(struct kgsl_device *device)
 	if (test_bit(ADRENO_DEVICE_INITIALIZED, &adreno_dev->priv))
 		return 0;
 
+	place_marker("M - DRIVER ADRENO Init");
+
 	/*
 	 * Either the microcode read failed because the usermodehelper isn't
 	 * available or the microcode was corrupted. Fail the init and force
@@ -1763,6 +1771,8 @@ static int adreno_init(struct kgsl_device *device)
 		else
 			WARN(1, "adreno: GPU preemption is disabled\n");
 	}
+
+	place_marker("M - DRIVER ADRENO Ready");
 
 	return 0;
 }
@@ -4020,6 +4030,19 @@ static void adreno_gpu_model(struct kgsl_device *device, char *str,
 			 ADRENO_CHIPID_MAJOR(adreno_dev->chipid),
 			 ADRENO_CHIPID_MINOR(adreno_dev->chipid),
 			 ADRENO_CHIPID_PATCH(adreno_dev->chipid) + 1);
+}
+
+u32 adreno_get_ucode_version(const u32 *data)
+{
+	u32 version;
+
+	version = data[1];
+
+	if ((version & 0xf) != 0xa)
+		return version;
+
+	version &= ~0xfff;
+	return  version | ((data[3] & 0xfff000) >> 12);
 }
 
 static const struct kgsl_functable adreno_functable = {
