@@ -9,9 +9,8 @@
 * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 * GNU General Public License for more details.
 */
-
-#ifndef __PCIE_SSR_H__
-#define __PCIE_SSR_H__
+#ifndef __FSM_MHI_CNTL_H__
+#define __FSM_MHI_CNTL_H__
 
 #include <linux/platform_device.h>
 
@@ -22,4 +21,4 @@ int fsm_mhi_cntl_remove(struct platform_device *pdev);
 int mhi_arch_pcie_ops_power_on(void *priv);
 void mhi_arch_pcie_ops_power_off(void *priv);
 
-#endif
+#endif /*__FSM_MHI_CNTL_H__*/

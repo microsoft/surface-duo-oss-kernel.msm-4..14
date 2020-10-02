@@ -904,10 +904,7 @@ void mhi_pci_remove(struct pci_dev *pci_dev)
 
 	MHI_CNTRL_LOG("Initiating mhi_pci_remove\n");
 
-	mhi_power_down(mhi_cntrl, true);
-	mhi_deinit_pci_dev(mhi_cntrl);
-	mhi_arch_iommu_deinit(mhi_cntrl);
-	mhi_arch_pcie_deinit(mhi_cntrl);
+	mhi_arch_pcie_ops_power_off(mhi_cntrl);
 }
 
 static const struct dev_pm_ops pm_ops = {

@@ -1256,8 +1256,7 @@ static int parse_xfer_event(struct mhi_controller *mhi_cntrl,
 			result.buf_indirect = buf_info->buf_type_skb;
 			result.buf_addr = buf_info->cb_buf;
 
-			result.bytes_xferd = min_t(size_t, xfer_len,
-										buf_info->len);
+			result.bytes_xferd = min_t(size_t, xfer_len, buf_info->len);
 			mhi_del_ring_element(mhi_cntrl, buf_ring);
 			mhi_del_ring_element(mhi_cntrl, tre_ring);
 			local_rp = tre_ring->rp;

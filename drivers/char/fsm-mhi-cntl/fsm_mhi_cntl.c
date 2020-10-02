@@ -109,19 +109,20 @@ static int fsm_mhi_cntl_power_show(struct seq_file *m, void *v)
 	int i;
 
 	for (i = 0; i < PCIE_MHI_MAX_POWER_OPTION; i++)
-		seq_printf(m, "\t%d:\t %s\n", i,
-					pcie_mhi_power_option_desc[i]);
+		seq_printf(m, "\t%d:\t %s\n", i, pcie_mhi_power_option_desc[i]);
 
 	return 0;
 }
 
-static int fsm_mhi_cntl_power_open(struct inode *inode, struct file *file)
+static int fsm_mhi_cntl_power_open(
+	struct inode *inode,
+	struct file *file)
 {
 	return single_open(file, fsm_mhi_cntl_power_show, NULL);
 }
 
 static ssize_t fsm_mhi_cntl_power_select(struct file *file,
-			const char __user *buf,	size_t count, loff_t *ppos)
+			const char __user *buf, size_t count, loff_t *ppos)
 {
 	int i, ret;
 	unsigned int powercase = 0;
@@ -155,10 +156,12 @@ static int fsm_pcie_mhi_cntl_debugfs_init(void)
 	}
 
 	dfile_power = debugfs_create_file("power", 0664,
-					dent_pcie_mhi_cntl, NULL,&fsm_mhi_cntl_power_ops);
+					dent_pcie_mhi_cntl, NULL,
+					&fsm_mhi_cntl_power_ops);
 
 	if (!dfile_power || IS_ERR(dfile_power)) {
-			FSM_MHI_CNTL_DBG("PCIe: fail to create the file for debug_fs case.\n");
+			FSM_MHI_CNTL_DBG(
+				"PCIe: fail to create the file for debug_fs case.\n");
 			goto power_error;
 	}
 	return 0;
@@ -166,7 +169,6 @@ static int fsm_pcie_mhi_cntl_debugfs_init(void)
 power_error:
 	debugfs_remove(dfile_power);
 	return -EINVAL;
-
 }
 
 void mhi_pci_cntl_register(void *priv) {
