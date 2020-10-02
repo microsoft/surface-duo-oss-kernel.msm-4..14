@@ -9,7 +9,7 @@
  */
 
 /dts-v1/;
-#include "fsl-s32v234-campps32v2.dtsi"
+#include "fsl-s32v234-campp.dtsi"
 
 / {
 	chosen {
