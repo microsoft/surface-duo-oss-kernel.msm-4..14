@@ -14,6 +14,7 @@
 #define _CAM_VFE_HW_INTF_H_
 
 #include "cam_isp_hw.h"
+#include "cam_hw_intf.h"
 
 #define CAM_VFE_HW_NUM_MAX                       4
 
@@ -123,6 +124,7 @@ struct cam_vfe_hw_vfe_out_acquire_args {
 	uint32_t                           dual_slave_core;
 	struct cam_cdm_utils_ops          *cdm_ops;
 	void                              *ctx;
+	cam_hw_mgr_event_cb_func           event_cb;
 };
 
 /*

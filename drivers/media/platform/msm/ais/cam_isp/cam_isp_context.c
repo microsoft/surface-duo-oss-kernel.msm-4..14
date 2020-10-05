@@ -439,6 +439,7 @@ static int __cam_isp_ctx_handle_buf_done_in_activated_state(
 	struct cam_ctx_request  *req;
 	struct cam_isp_ctx_req  *req_isp;
 	struct cam_context *ctx = ctx_isp->base;
+	struct cam_req_mgr_core_link	*link = NULL;
 
 	if (list_empty(&ctx->active_req_list)) {
 		CAM_WARN(CAM_ISP, "Buf done with no active request!");
@@ -451,6 +452,9 @@ static int __cam_isp_ctx_handle_buf_done_in_activated_state(
 			struct cam_ctx_request, list);
 
 	trace_cam_buf_done("ISP", ctx, req);
+	link = (struct cam_req_mgr_core_link *)
+		cam_get_device_priv(ctx->link_hdl);
+	crm_timer_reset(link ->buf_done_timer);
 
 	req_isp = (struct cam_isp_ctx_req *) req->req_priv;
 	if (ctx_isp->frame_id == 1)
@@ -1221,11 +1225,19 @@ static int __cam_isp_ctx_handle_error(struct cam_isp_context *ctx_isp,
 			(struct cam_isp_hw_error_event_data *)evt_data;
 
 	uint32_t error_type = error_event_data->error_type;
+	bool                             is_csid_fatal = false;
 
-	CAM_DBG(CAM_ISP, "Enter error_type = %d", error_type);
+	CAM_ERR(CAM_ISP, "Enter error_type = %d", error_type);
 	if ((error_type == CAM_ISP_HW_ERROR_OVERFLOW) ||
-		(error_type == CAM_ISP_HW_ERROR_BUSIF_OVERFLOW))
+		(error_type == CAM_ISP_HW_ERROR_BUSIF_OVERFLOW)) {
 		notify.error = CRM_KMD_ERR_OVERFLOW;
+	} else if (error_type == CAM_ISP_HW_ERROR_CSID_FATAL){
+		notify.error = CRM_KMD_ERR_FATAL;
+		is_csid_fatal = true;
+	} else if (error_type == CAM_ISP_HW_ERROR_VIOLATION)
+	    notify.error = CRM_KMD_ERR_VIOLATION;
+
+
 
 	/*
 	 * The error is likely caused by first request on the active list.
@@ -1395,14 +1407,18 @@ end:
 		 * and to dump relevant info
 		 */
 
-		if (notify.error == CRM_KMD_ERR_OVERFLOW) {
+		if ((notify.error == CRM_KMD_ERR_OVERFLOW) ||
+			(notify.error == CRM_KMD_ERR_VIOLATION) ||
+			(notify.error == CRM_KMD_ERR_FATAL) ||
+			(is_csid_fatal == true)) {
 			req_msg.session_hdl = ctx_isp->base->session_hdl;
 			req_msg.u.err_msg.device_hdl = ctx_isp->base->dev_hdl;
 			req_msg.u.err_msg.error_type =
-				CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
+                    CAM_REQ_MGR_ERROR_TYPE_RECOVERY;
 			req_msg.u.err_msg.link_hdl = ctx_isp->base->link_hdl;
 			req_msg.u.err_msg.request_id = error_request_id;
 			req_msg.u.err_msg.resource_size = 0x0;
+			CAM_ERR(CAM_ISP,"cam_req_mgr_notify_message err type %d",notify.error);
 
 			if (cam_req_mgr_notify_message(&req_msg,
 					V4L_EVENT_CAM_REQ_MGR_ERROR,

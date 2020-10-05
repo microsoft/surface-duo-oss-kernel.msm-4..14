@@ -29,7 +29,7 @@ struct sde_shd_ctl_mixer_cfg {
 	u32 mixercfg_ext2_mask;
 	u32 mixercfg_ext3_mask;
 
-	u32 mixercfg_skip_sspp_mask;
+	u32 mixercfg_skip_sspp_mask[2];
 };
 
 struct sde_shd_hw_ctl {
@@ -67,6 +67,6 @@ void sde_shd_hw_ctl_init_op(struct sde_hw_ctl *ctx);
 void sde_shd_hw_lm_init_op(struct sde_hw_mixer *ctx);
 
 void sde_shd_hw_skip_sspp_clear(struct sde_hw_ctl *ctx,
-	enum sde_sspp sspp);
+	enum sde_sspp sspp, int multirect_idx);
 
 #endif

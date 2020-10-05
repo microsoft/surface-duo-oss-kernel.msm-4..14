@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -39,51 +39,38 @@
 #ifdef CONFIG_DRM_SDE_SHD
 #include "../shd/shd_drm.h"
 #else
-static bool shd_is_crtc_shared(struct drm_crtc *crtc1,
-		struct drm_crtc *crtc2, bool check_roi)
+static u32 shd_get_shared_crtc_mask(struct drm_crtc *crtc)
 {
-	return false;
+	return drm_crtc_mask(crtc);
 }
-static void shd_update_shared_plane(struct drm_plane *plane,
-		struct drm_crtc *crtc)
+static void shd_skip_shared_plane_update(struct drm_plane *plane,
+	struct drm_crtc *crtc)
 {
 }
 #endif
 
-enum shp_seamless_mode {
-	SHP_SEAMLESS_MODE_RESTRICT = 0,
-	SHP_SEAMLESS_MODE_SHARED,
-	SHP_SEAMLESS_MODE_NONE,
-};
-
-struct shp_plane;
-
 struct shp_pool {
-	struct shp_plane *active;
 	struct list_head plane_list;
-	int index;
 };
 
 struct shp_plane_state {
 	bool handoff;
-	bool active_changed_flag;
-	bool detach_attach_flag;
-	bool handoff_changed;
-	bool handoff_done;
+	bool active;
+	bool skip_update;
 	uint32_t possible_crtcs;
-	uint32_t pending_crtcs;
 };
 
 struct shp_plane {
 	struct shp_pool *pool;
 	struct list_head head;
 	bool is_shared;
-	enum shp_seamless_mode seamless_mode;
 	bool detach_handoff;
-	bool init_active;
 
 	struct drm_plane_funcs funcs;
 	const struct drm_plane_funcs *funcs_orig;
+
+	struct drm_plane_helper_funcs helper_funcs;
+	const struct drm_plane_helper_funcs *helper_funcs_orig;
 
 	struct shp_plane *master;
 	struct drm_plane *plane;
@@ -95,7 +82,7 @@ struct shp_plane {
 
 struct shp_device {
 	struct drm_device *dev;
-
+	struct shp_pool pools[SSPP_MAX];
 	struct shp_plane *planes;
 	int num_planes;
 
@@ -103,9 +90,6 @@ struct shp_device {
 
 	struct msm_kms_funcs kms_funcs;
 	const struct msm_kms_funcs *orig_kms_funcs;
-
-	struct mutex dev_lock;
-	uint32_t pending_plane_mask[MAX_CRTCS];
 };
 
 struct shp_device g_shp_device;
@@ -120,335 +104,139 @@ static void shp_plane_send_uevent(struct drm_device *dev)
 	SDE_DEBUG("possible crtcs update uevent\n");
 }
 
-static void shp_plane_update_pending(struct shp_plane *plane)
-{
-	struct shp_device *shp_dev = &g_shp_device;
-	struct drm_crtc *crtc;
-	struct shp_plane_state *shp_state = &plane->new_state;
-	uint32_t plane_mask = (1 << drm_plane_index(plane->plane));
-	uint32_t crtc_idx;
-
-	mutex_lock(&shp_dev->dev_lock);
-
-	drm_for_each_crtc(crtc, shp_dev->dev) {
-		crtc_idx = drm_crtc_index(crtc);
-
-		if (shp_state->pending_crtcs & (1 << crtc_idx))
-			shp_dev->pending_plane_mask[crtc_idx] |= plane_mask;
-		else
-			shp_dev->pending_plane_mask[crtc_idx] &= ~plane_mask;
-	}
-
-	mutex_unlock(&shp_dev->dev_lock);
-}
-
-static int shp_plane_validate(struct drm_plane *plane,
+int shp_plane_validate(struct shp_plane *splane,
 		struct drm_plane_state *state)
 {
-	struct shp_device *shp_dev = &g_shp_device;
-	struct shp_plane *shp_plane = &shp_dev->planes[plane->index];
-	struct shp_plane *p;
-	struct drm_crtc *crtc;
+	struct drm_plane *plane = splane->plane;
+	struct shp_pool *pool = splane->pool;
+	struct shp_plane_state *shp_state = &splane->new_state;
 	struct drm_plane_state *plane_state;
-	struct shp_plane_state *shp_state = &shp_plane->new_state;
+	struct shp_plane *p;
 	struct shp_plane_state *pstate;
-	uint32_t crtc_mask;
+	int ret;
 
-	if (shp_state->handoff_done) {
-		list_for_each_entry(p, &shp_plane->pool->plane_list,
-					head) {
-			plane_state = drm_atomic_get_plane_state(state->state,
-						p->plane);
+	if (!shp_state->active) {
+		/* handoff only if plane is staged */
+		if (!state->crtc)
+			return 0;
+
+		list_for_each_entry(p, &pool->plane_list, head) {
+			plane_state = drm_atomic_get_plane_state(
+				state->state, p->plane);
 			if (IS_ERR(plane_state))
 				return PTR_ERR(plane_state);
 
 			pstate = &p->new_state;
-
-			if (p->master != shp_plane->master)
-				pstate->possible_crtcs = 0;
-			else
+			if (p->master == splane) {
 				pstate->possible_crtcs = p->default_crtcs;
+				pstate->active = true;
+				SDE_DEBUG("plane%d set to active",
+					p->plane->base.id);
+				continue;
+			}
 
-			pstate->pending_crtcs = 0;
+			if (pstate->active) {
+				if (p == p->master && !pstate->handoff) {
+					SDE_DEBUG("plane%d is busy\n",
+						p->plane->base.id);
+					return -EBUSY;
+				}
+
+				/* skip update for seamless handoff */
+				if (p->plane->state->crtc)
+					pstate->skip_update = true;
+			}
+
+			ret = drm_atomic_set_crtc_for_plane(plane_state, NULL);
+			if (ret)
+				return ret;
+
+			drm_atomic_set_fb_for_plane(plane_state, NULL);
+
+			pstate->possible_crtcs = 0;
+			pstate->active = false;
 			pstate->handoff = false;
 
-			SDE_DEBUG("plane%d: 0x%x m=%d h=%d c=%d 0x%x\n",
+			SDE_DEBUG("plane%d: 0x%x h=%d c=%d a=%d\n",
 				p->plane->base.id,
 				pstate->possible_crtcs,
-				p->master->plane->base.id,
 				pstate->handoff,
 				plane_state->crtc ?
 					plane_state->crtc->base.id : 0,
-				pstate->pending_crtcs);
-		}
-	} else if (shp_state->handoff_changed) {
-		if (!state->crtc) {
-			crtc_mask = 0xFFFFFFFF;
-			shp_state->pending_crtcs = 0;
-			shp_state->handoff = false;
-		} else {
-			bool check_roi;
-
-			crtc_mask = 0;
-			switch (shp_plane->seamless_mode) {
-			case SHP_SEAMLESS_MODE_RESTRICT:
-				check_roi = true;
-				break;
-			case SHP_SEAMLESS_MODE_SHARED:
-				check_roi = false;
-				break;
-			default:
-				goto next;
-			}
-
-			/* Due to the H/W limitation, here we only allow crtcs
-			 * that share the same display to be handed off.
-			 */
-			drm_for_each_crtc(crtc, state->plane->dev) {
-				if (shd_is_crtc_shared(state->crtc,
-						crtc, check_roi)) {
-					crtc_mask |= drm_crtc_mask(crtc);
-					SDE_DEBUG("add pending crtc%d\n",
-						crtc->base.id);
-				}
-			}
-next:
-			shp_state->pending_crtcs = crtc_mask;
-		}
-
-		list_for_each_entry(p, &shp_plane->pool->plane_list,
-					head) {
-			plane_state = drm_atomic_get_plane_state(state->state,
-						p->plane);
-			if (IS_ERR(plane_state))
-				return PTR_ERR(plane_state);
-
-			pstate = &p->new_state;
-
-			if (p->master != shp_plane->master)
-				pstate->possible_crtcs =
-					crtc_mask & p->default_crtcs;
-			else if (state->crtc ||
-				(shp_plane->seamless_mode ==
-					SHP_SEAMLESS_MODE_NONE))
-				pstate->possible_crtcs = p->default_crtcs;
-			else
-				pstate->possible_crtcs = 0;
-
-			SDE_DEBUG("plane%d: 0x%x m=%d h=%d c=%d 0x%x\n",
-				p->plane->base.id,
-				pstate->possible_crtcs,
-				p->master->plane->base.id,
-				pstate->handoff,
-				plane_state->crtc ?
-					plane_state->crtc->base.id : 0,
-				pstate->pending_crtcs);
-		}
-	} else {
-		list_for_each_entry(p, &shp_plane->pool->plane_list, head) {
-			plane_state = drm_atomic_get_plane_state(state->state,
-						p->plane);
-			if (IS_ERR(plane_state))
-				return PTR_ERR(plane_state);
-
-			pstate = &p->new_state;
-
-			if (p->master != shp_plane->master)
-				pstate->possible_crtcs = p->default_crtcs;
-
-			SDE_DEBUG("plane%d: 0x%x m=%d h=%d c=%d 0x%x\n",
-				p->plane->base.id,
-				pstate->possible_crtcs,
-				p->master->plane->base.id,
-				pstate->handoff,
-				plane_state->crtc ?
-					plane_state->crtc->base.id : 0,
-				pstate->pending_crtcs);
+				pstate->active);
 		}
 	}
 
-	if (shp_plane->pool->active != shp_plane && state->crtc) {
-		SDE_DEBUG("plane%d set to active\n", plane->base.id);
-		shp_state->active_changed_flag = true;
+	if (shp_state->handoff != splane->state.handoff ||
+			state->crtc != plane->state->crtc) {
+		uint32_t crtc_mask;
 
-		p = shp_plane->pool->active;
-		if (p && p->plane->state->crtc) {
-			SDE_DEBUG("old active plane%d crtc%d\n",
+		if (splane->detach_handoff && !state->crtc) {
+			shp_state->active = false;
+			crtc_mask = 0xFFFFFFFF;
+		} else if (!shp_state->handoff) {
+			crtc_mask = 0;
+		} else if (state->crtc) {
+			crtc_mask = shd_get_shared_crtc_mask(state->crtc);
+		} else {
+			crtc_mask = 0xFFFFFFFF;
+		}
+
+		list_for_each_entry(p, &pool->plane_list, head) {
+			plane_state = drm_atomic_get_plane_state(
+				state->state, p->plane);
+			if (IS_ERR(plane_state))
+				return PTR_ERR(plane_state);
+
+			pstate = &p->new_state;
+			if (p->master != splane)
+				pstate->possible_crtcs =
+					crtc_mask & p->default_crtcs;
+
+			SDE_DEBUG("plane%d: 0x%x h=%d c=%d a=%d\n",
 				p->plane->base.id,
-				p->plane->state->crtc->base.id);
-			p->new_state.detach_attach_flag = true;
+				pstate->possible_crtcs,
+				pstate->handoff,
+				plane_state->crtc ?
+					plane_state->crtc->base.id : 0,
+				pstate->active);
 		}
 	}
 
 	return 0;
 }
 
-static int shp_atomic_check(struct drm_atomic_state *state)
+int shp_atomic_check(struct drm_atomic_state *state)
 {
 	struct shp_device *shp_dev = &g_shp_device;
-	struct shp_plane *shp_plane, *p;
+	struct shp_plane *shp_plane;
 	struct drm_plane *plane;
-	struct drm_crtc *crtc;
-	struct drm_crtc_state *crtc_state, *cstate;
 	struct drm_plane_state *plane_state;
-	struct shp_plane_state *new_state, *old_state;
-	struct shp_plane_state *pstate;
-	uint32_t pending_crtcs, pending_planes;
 	uint32_t plane_mask = 0;
-	int index;
 	int i, ret;
 
-	for_each_new_crtc_in_state(state, crtc, crtc_state, i) {
-		mutex_lock(&shp_dev->dev_lock);
-		pending_planes =
-			shp_dev->pending_plane_mask[drm_crtc_index(crtc)];
-		mutex_unlock(&shp_dev->dev_lock);
-
-		/* check pending planes */
-		if (!pending_planes)
-			continue;
-
-		/* check active crtc */
-		if (!crtc_state->active || !crtc_state->plane_mask)
-			continue;
-
-		SDE_DEBUG("crtc%d pending plane_mask=0x%x\n",
-			crtc->base.id, pending_planes);
-
-		drm_for_each_plane_mask(plane, state->dev, pending_planes) {
-			shp_plane = &shp_dev->planes[plane->index];
-			new_state = &shp_plane->new_state;
-			old_state = &shp_plane->state;
-
-			plane_state = drm_atomic_get_existing_plane_state(
-					state, plane);
-			if (plane_state) {
-				pending_crtcs = new_state->pending_crtcs;
-
-				if (!(pending_crtcs & drm_crtc_mask(crtc)))
-					continue;
-			} else {
-				/* lock and test plane state first */
-				ret = drm_modeset_lock(&plane->mutex,
-							state->acquire_ctx);
-				if (ret)
-					return ret;
-
-				pending_crtcs = new_state->pending_crtcs;
-
-				/* skip if crtc is no longer pending */
-				if (!(pending_crtcs & drm_crtc_mask(crtc))) {
-					drm_modeset_unlock(&plane->mutex);
-					continue;
-				}
-
-				/* continue adding plane into state */
-				plane_state =
-					plane->funcs->atomic_duplicate_state(
-							plane);
-				if (!plane_state)
-					return -ENOMEM;
-
-				/* update plane in state */
-				index = drm_plane_index(plane);
-				state->planes[index].state = plane_state;
-				state->planes[index].ptr = plane;
-				state->planes[index].old_state = plane->state;
-				state->planes[index].new_state = plane_state;
-				plane_state->state = state;
-
-				/* add affected crtc */
-				if (plane_state->crtc) {
-					cstate = drm_atomic_get_crtc_state(
-						state, plane_state->crtc);
-					if (IS_ERR(cstate))
-						return PTR_ERR(cstate);
-				}
-			}
-
-			SDE_DEBUG("update crtc%d pending plane%d\n",
-				crtc->base.id,
-				plane->base.id);
-
-			/* detach pending planes */
-			list_for_each_entry(p, &shp_plane->pool->plane_list,
-							head) {
-				plane_state = drm_atomic_get_plane_state(state,
-						p->plane);
-				if (IS_ERR(plane_state))
-					return PTR_ERR(plane_state);
-
-				pstate = &p->new_state;
-
-				drm_atomic_set_fb_for_plane(plane_state,
-						NULL);
-				drm_atomic_set_crtc_for_plane(plane_state,
-						NULL);
-
-				pstate->possible_crtcs = 0;
-			}
-
-			new_state->pending_crtcs = 0;
-			new_state->handoff = false;
-
-			/* add to check list */
-			plane_mask |= (1 << drm_plane_index(plane));
-		}
-	}
-
-	/* mark updated planes */
 	for_each_plane_in_state(state, plane, plane_state, i) {
 		shp_plane = &shp_dev->planes[plane->index];
-		new_state = &shp_plane->new_state;
-		old_state = &shp_plane->state;
 
-		/* allow changes only when possible_crtcs is valid */
-		if (!shp_plane->is_shared || !new_state->possible_crtcs ||
-			shp_plane != shp_plane->master)
+		if (!shp_plane->is_shared || shp_plane != shp_plane->master)
 			continue;
 
-		/* check detach_handoff flag */
-		if (shp_plane->detach_handoff) {
-			if (plane_state->crtc && !plane->state->crtc)
-				new_state->handoff_done = true;
-			else if (!plane_state->crtc && plane->state->crtc)
-				new_state->handoff_changed = true;
+		if (!plane->possible_crtcs)
+			continue;
 
-		/* check active change */
-		} else if (plane_state->crtc &&
-			shp_plane->pool->active != shp_plane->master) {
-			if (new_state->handoff)
-				new_state->handoff_changed = true;
-			else
-				new_state->handoff_done = true;
-			SDE_DEBUG("activate plane%d\n", plane->base.id);
-
-		/* check handoff set */
-		} else if (new_state->handoff && (!old_state->handoff ||
-			plane_state->crtc != plane->state->crtc)) {
-			new_state->handoff_changed = true;
-			SDE_DEBUG("set plane%d handoff\n", plane->base.id);
-
-		/* check handoff clear */
-		} else if (!new_state->handoff && old_state->handoff) {
-			new_state->handoff_done = true;
-			SDE_DEBUG("clear plane%d handoff\n", plane->base.id);
-		}
-
-		/* add state changed planes into mask */
-		if (new_state->handoff_done || new_state->handoff_changed) {
-			if (shp_plane->pool->active)
-				plane_mask &= ~(1 << drm_plane_index(
-					shp_plane->pool->active->plane));
-			plane_mask |= (1 << drm_plane_index(plane));
-		}
+		plane_mask |= (1 << plane->index);
 	}
 
-	/* validate all affected planes */
+	if (!plane_mask)
+		return 0;
+
 	drm_for_each_plane_mask(plane, state->dev, plane_mask) {
+		shp_plane = &shp_dev->planes[plane->index];
+
 		plane_state = drm_atomic_get_existing_plane_state(
-					state, plane);
-		ret = shp_plane_validate(plane, plane_state);
+			state, plane);
+
+		ret = shp_plane_validate(shp_plane, plane_state);
 		if (ret)
 			return ret;
 	}
@@ -480,59 +268,44 @@ static void shp_kms_post_swap(struct msm_kms *kms,
 	struct shp_plane *shp_plane;
 	struct drm_plane_state *old_plane_state, *new_plane_state;
 	struct drm_plane *plane;
-	struct shp_plane_state *new_state, *old_state;
+	struct shp_plane_state *new_state;
 	bool update = false;
 	int i;
 
 	for_each_oldnew_plane_in_state(state, plane, old_plane_state,
 				new_plane_state, i) {
 		shp_plane = &shp_dev->planes[plane->index];
-		new_state = &shp_plane->new_state;
-		old_state = &shp_plane->state;
 
 		if (!shp_plane->is_shared)
 			continue;
 
+		new_state = &shp_plane->new_state;
+
 		if (plane->possible_crtcs != new_state->possible_crtcs) {
-			update = true;
-			SDE_DEBUG("plane%d crtcs 0x%x to 0x%x\n",
-				shp_plane->plane->base.id,
+			SDE_DEBUG("plane%d possible_crtcs 0x%x to 0x%x\n",
+				plane->base.id,
 				plane->possible_crtcs,
 				new_state->possible_crtcs);
 			plane->possible_crtcs = new_state->possible_crtcs;
+			update = true;
 		}
 
-		if (new_state->pending_crtcs != old_state->pending_crtcs) {
-			SDE_DEBUG("plane%d pending_crtcs 0x%x to 0x%x\n",
+		shp_plane->state.handoff = new_state->handoff;
+
+		if (shp_plane->state.active != new_state->active) {
+			SDE_DEBUG("plane%d active %d\n",
 				plane->base.id,
-				old_state->pending_crtcs,
-				new_state->pending_crtcs);
-			shp_plane_update_pending(shp_plane);
-			old_state->pending_crtcs =
-				new_state->pending_crtcs;
-		}
-
-		if (new_state->detach_attach_flag) {
-			if (!old_plane_state->crtc) {
-				SDE_ERROR("plane%d invalid detach state\n",
-					plane->base.id);
-			} else {
-				shd_update_shared_plane(plane,
+				new_state->active);
+			shp_plane->state.active = new_state->active;
+			if (new_state->skip_update) {
+				shd_skip_shared_plane_update(plane,
 					old_plane_state->crtc);
 				SDE_DEBUG("plane%d skip detach\n",
 					plane->base.id);
 			}
 		}
 
-		if (new_state->active_changed_flag) {
-			SDE_DEBUG("active plane%d to plane%d\n",
-				shp_plane->pool->active ?
-				shp_plane->pool->active->plane->base.id : 0,
-				plane->base.id);
-			shp_plane->pool->active = shp_plane;
-		}
-
-		old_state->handoff = new_state->handoff;
+		shp_plane->state.skip_update = new_state->skip_update;
 	}
 
 	if (shp_dev->orig_kms_funcs->prepare_fence)
@@ -549,23 +322,11 @@ static int shp_plane_atomic_set_property(struct drm_plane *plane,
 {
 	struct shp_device *shp_dev = &g_shp_device;
 	struct shp_plane *shp_plane;
-	struct shp_plane_state *shp_state;
-
-	if (plane->index >= shp_dev->num_planes) {
-		SDE_ERROR("invalid plane index %d\n", plane->index);
-		return -EINVAL;
-	}
 
 	shp_plane = &shp_dev->planes[plane->index];
-	shp_state = &shp_plane->new_state;
 
 	if (property == shp_dev->handoff_prop) {
-		if (is_sde_plane_virtual(plane)) {
-			SDE_ERROR("virtual plane doesn't support handoff\n");
-			return -EINVAL;
-		}
-
-		shp_state->handoff = !!val;
+		shp_plane->new_state.handoff = !!val;
 		return 0;
 	}
 
@@ -580,18 +341,11 @@ static int shp_plane_atomic_get_property(struct drm_plane *plane,
 {
 	struct shp_device *shp_dev = &g_shp_device;
 	struct shp_plane *shp_plane;
-	struct shp_plane_state *shp_state;
-
-	if (plane->index >= shp_dev->num_planes) {
-		SDE_ERROR("invalid plane index %d\n", plane->index);
-		return -EINVAL;
-	}
 
 	shp_plane = &shp_dev->planes[plane->index];
-	shp_state = &shp_plane->new_state;
 
 	if (property == shp_dev->handoff_prop) {
-		*val = shp_state->handoff;
+		*val = shp_plane->new_state.handoff;
 		return 0;
 	}
 
@@ -606,26 +360,39 @@ struct drm_plane_state *shp_plane_atomic_duplicate_state(
 	struct shp_plane *shp_plane;
 	struct shp_plane_state *new_state, *old_state;
 
-	if (plane->index >= shp_dev->num_planes) {
-		SDE_ERROR("invalid plane index %d\n", plane->index);
-		return NULL;
-	}
-
 	shp_plane = &shp_dev->planes[plane->index];
-	new_state = &shp_plane->new_state;
-	old_state = &shp_plane->state;
 
 	if (shp_plane->is_shared) {
-		new_state->pending_crtcs = old_state->pending_crtcs;
+		new_state = &shp_plane->new_state;
+		old_state = &shp_plane->state;
+
 		new_state->possible_crtcs = plane->possible_crtcs;
 		new_state->handoff = old_state->handoff;
-		new_state->active_changed_flag = false;
-		new_state->detach_attach_flag = false;
-		new_state->handoff_changed = false;
-		new_state->handoff_done = false;
+		new_state->active = old_state->active;
+		new_state->skip_update = false;
 	}
 
 	return shp_plane->funcs_orig->atomic_duplicate_state(plane);
+}
+
+static void shp_plane_atomic_update(struct drm_plane *plane,
+				struct drm_plane_state *old_state)
+{
+	struct shp_device *shp_dev = &g_shp_device;
+	struct shp_plane *shp_plane;
+
+	shp_plane = &shp_dev->planes[plane->index];
+
+	if (shp_plane->is_shared) {
+		/* skip h/w update for seamless handoff */
+		if (shp_plane->state.skip_update) {
+			SDE_DEBUG("skip plane%d update\n",
+				plane->base.id);
+			return;
+		}
+	}
+
+	return shp_plane->helper_funcs_orig->atomic_update(plane, old_state);
 }
 
 static int shp_parse(struct platform_device *pdev, struct shp_device *shp)
@@ -634,14 +401,12 @@ static int shp_parse(struct platform_device *pdev, struct shp_device *shp)
 	struct msm_drm_private *priv = dev->dev_private;
 	struct sde_kms *sde_kms = to_sde_kms(priv->kms);
 	struct device_node *of_node, *parent_node;
-	struct shp_pool *shp_pool;
 	struct shp_plane *shp_plane, *parent, *p;
 	struct shp_plane_state *shp_state;
 	struct drm_plane *plane;
 	enum sde_sspp sspp;
 	const char *name;
 	int dup_count, system_count, total_count, i, j;
-	int index;
 	int rc = 0;
 
 	parent_node = of_get_child_by_name(pdev->dev.of_node,
@@ -651,7 +416,7 @@ static int shp_parse(struct platform_device *pdev, struct shp_device *shp)
 		return -ENODEV;
 	}
 
-	dup_count = of_get_child_count(parent_node);
+	dup_count = of_get_child_count(parent_node) * 2;
 	if (!dup_count) {
 		SDE_ERROR("no duplicated planes defined\n");
 		return -EINVAL;
@@ -670,12 +435,9 @@ static int shp_parse(struct platform_device *pdev, struct shp_device *shp)
 		goto out;
 	}
 
-	shp_pool = devm_kzalloc(&pdev->dev,
-			sizeof(*shp_pool) * system_count, GFP_KERNEL);
-	if (!shp_pool) {
-		rc = -ENOMEM;
-		goto out;
-	}
+	/* init sspp pool */
+	for (i = 0; i < SSPP_MAX; i++)
+		INIT_LIST_HEAD(&shp->pools[i].plane_list);
 
 	/* init swap state function */
 	shp->orig_kms_funcs = priv->kms->funcs;
@@ -684,8 +446,8 @@ static int shp_parse(struct platform_device *pdev, struct shp_device *shp)
 	shp->kms_funcs.atomic_check = shp_kms_atomic_check;
 	priv->kms->funcs = &shp->kms_funcs;
 
-	/* init system planes states */
-	index = system_count;
+	/* add shared planes */
+	shp->num_planes = system_count;
 	for_each_child_of_node(parent_node, of_node) {
 		rc = of_property_read_string(of_node,
 				"qcom,plane-parent", &name);
@@ -695,17 +457,11 @@ static int shp_parse(struct platform_device *pdev, struct shp_device *shp)
 		}
 
 		parent = NULL;
-		for (j = 0; j < system_count; j++) {
-			if (!strcmp(priv->planes[j]->name, name)) {
-				parent = &shp->planes[j];
-				if (!parent->is_shared) {
-					parent->is_shared = true;
-					parent->plane = priv->planes[j];
-					parent->pool = &shp_pool[j];
-					parent->pool->index = j;
-					INIT_LIST_HEAD(
-						&parent->pool->plane_list);
-				}
+		for (i = 0; i < system_count; i++) {
+			if (!strcmp(priv->planes[i]->name, name)) {
+				parent = &shp->planes[i];
+				parent->plane = priv->planes[i];
+				BUG_ON(parent->plane->index != i);
 				break;
 			}
 		}
@@ -716,13 +472,52 @@ static int shp_parse(struct platform_device *pdev, struct shp_device *shp)
 			goto out;
 		}
 
-		if (is_sde_plane_virtual(priv->planes[j])) {
-			SDE_ERROR("virtual plane %s is not supported\n", name);
+		if (is_sde_plane_virtual(parent->plane)) {
+			SDE_ERROR("virtual plane %s can't set as parent\n",
+				name);
 			rc = -EINVAL;
 			goto out;
 		}
 
-		sspp = sde_plane_pipe(parent->plane);
+		rc = of_property_read_string(of_node,
+				"qcom,plane-name", &name);
+		if (rc) {
+			SDE_ERROR("failed to get plane name\n");
+			goto out;
+		}
+
+		/* init shared parent */
+		if (!parent->is_shared) {
+			parent->is_shared = true;
+			parent->master = parent;
+			parent->state.active = true;
+			parent->default_crtcs =
+				parent->plane->possible_crtcs;
+			sspp = sde_plane_pipe(parent->plane);
+			parent->pool = &shp->pools[sspp];
+			list_add_tail(&parent->head,
+				&parent->pool->plane_list);
+			drm_object_attach_property(&parent->plane->base,
+				shp->handoff_prop, 0);
+
+			/* init virtual plane */
+			for (j = i + 1; j < system_count; j++) {
+				if (sspp == sde_plane_pipe(priv->planes[j])) {
+					p = &shp->planes[j];
+					p->plane = priv->planes[j];
+					p->is_shared = true;
+					p->master = parent;
+					p->state.active = true;
+					p->default_crtcs =
+						p->plane->possible_crtcs;
+					p->pool = parent->pool;
+					list_add_tail(&p->head,
+						&parent->pool->plane_list);
+					break;
+				}
+			}
+		}
+
 		plane = sde_plane_init(dev, sspp,
 				parent->plane->type,
 				parent->plane->possible_crtcs, 0);
@@ -733,9 +528,11 @@ static int shp_parse(struct platform_device *pdev, struct shp_device *shp)
 			goto out;
 		}
 
+		/* create plane */
 		plane->possible_crtcs = 0;
-		BUG_ON(plane->index != index);
-		shp_plane = &shp->planes[index++];
+		plane->name = kasprintf(GFP_KERNEL, "%s", name);
+		BUG_ON(plane->index != shp->num_planes);
+		shp_plane = &shp->planes[shp->num_planes++];
 		shp_plane->plane = plane;
 		shp_plane->master = shp_plane;
 		shp_plane->pool = parent->pool;
@@ -744,76 +541,49 @@ static int shp_parse(struct platform_device *pdev, struct shp_device *shp)
 		drm_object_attach_property(&shp_plane->plane->base,
 				shp->handoff_prop, 0);
 		shp_plane->is_shared = true;
+
+		/* init shared plane state */
 		shp_state = &shp_plane->state;
-
-		if (!of_property_read_string(of_node,
-				"qcom,plane-name", &name))
-			plane->name = kasprintf(GFP_KERNEL, "%s", name);
-
 		shp_state->handoff = of_property_read_bool(of_node,
 				"qcom,plane-init-handoff");
-
+		shp_state->active = of_property_read_bool(of_node,
+				"qcom,plane-init-active");
 		shp_plane->detach_handoff = of_property_read_bool(of_node,
 				"qcom,plane-detach-handoff");
 
-		shp_plane->init_active = of_property_read_bool(of_node,
-				"qcom,plane-init-active");
-
-		if (!of_property_read_string(of_node,
-				"qcom,plane-seamless-mode", &name)) {
-			if (!strcmp(name, "shared"))
-				shp_plane->seamless_mode =
-					SHP_SEAMLESS_MODE_SHARED;
-			else if (!strcmp(name, "restrict"))
-				shp_plane->seamless_mode =
-					SHP_SEAMLESS_MODE_RESTRICT;
-			else
-				shp_plane->seamless_mode =
-					SHP_SEAMLESS_MODE_NONE;
-
-			/* update parent's seamless mode */
-			parent->seamless_mode = shp_plane->seamless_mode;
-		}
-
-		/* reset plane */
 		if (plane->funcs->reset)
 			plane->funcs->reset(plane);
-	}
 
-	shp->num_planes = index;
+		if (of_property_read_string(of_node,
+				"qcom,plane-virt-name", &name))
+			continue;
 
-	/* init system planes states to active state */
-	for (i = 0; i < system_count; i++) {
-		shp_plane = &shp->planes[i];
-		shp_plane->plane = priv->planes[i];
-		BUG_ON(shp_plane->plane->index != i);
+		/* create virtual plane */
+		plane = sde_plane_init(dev, sspp,
+				parent->plane->type,
+				parent->plane->possible_crtcs, plane->base.id);
 
-		if (is_sde_plane_virtual(shp_plane->plane)) {
-			for (j = 0; j < i; j++) {
-				if (sde_plane_pipe(shp_plane->plane) ==
-					sde_plane_pipe(priv->planes[j])) {
-					if (!shp->planes[j].is_shared)
-						break;
-					shp_plane->pool = &shp_pool[j];
-					shp_plane->master = &shp->planes[j];
-					shp_plane->is_shared = true;
-					break;
-				}
-			}
-			if (!shp_plane->master)
-				continue;
-		} else {
-			if (!shp_plane->is_shared)
-				continue;
-
-			shp_plane->master = shp_plane;
-			shp_plane->pool->active = shp_plane;
-			drm_object_attach_property(&shp_plane->plane->base,
-				shp->handoff_prop, 0);
+		if (!plane) {
+			SDE_ERROR("failed to init plane %d\n", plane->index);
+			rc = -EINVAL;
+			goto out;
 		}
 
-		shp_plane->default_crtcs = shp_plane->plane->possible_crtcs;
+		plane->possible_crtcs = 0;
+		plane->name = kasprintf(GFP_KERNEL, "%s", name);
+		BUG_ON(plane->index != shp->num_planes);
+		p = shp_plane;
+		shp_plane = &shp->planes[shp->num_planes++];
+		shp_plane->plane = plane;
+		shp_plane->master = p;
+		shp_plane->pool = parent->pool;
+		shp_plane->default_crtcs = parent->plane->possible_crtcs;
 		list_add_tail(&shp_plane->head, &shp_plane->pool->plane_list);
+		shp_plane->is_shared = true;
+		shp_plane->state.active = p->state.active;
+
+		if (plane->funcs->reset)
+			plane->funcs->reset(plane);
 	}
 
 	/* setup all planes with new atomic check */
@@ -831,38 +601,33 @@ static int shp_parse(struct platform_device *pdev, struct shp_device *shp)
 		shp_plane->funcs.atomic_duplicate_state =
 				shp_plane_atomic_duplicate_state;
 		shp_plane->plane->funcs = &shp_plane->funcs;
+
+		shp_plane->helper_funcs =
+				*shp_plane->plane->helper_private;
+		shp_plane->helper_funcs_orig =
+				shp_plane->plane->helper_private;
+		shp_plane->helper_funcs.atomic_update =
+				shp_plane_atomic_update;
+		shp_plane->plane->helper_private = &shp_plane->helper_funcs;
 	}
 
-	/* update init-handoff cases */
+	/* update init-active cases */
 	for (i = system_count; i < shp->num_planes; i++) {
 		shp_plane = &shp->planes[i];
 		shp_state = &shp_plane->state;
-		if (!shp_state->handoff && !shp_plane->init_active)
+
+		if (!shp_state->active || shp_plane->master != shp_plane)
 			continue;
 
-		/* set plane to active state */
-		shp_plane->pool->active = shp_plane;
-
 		/* update possible crtcs */
-		list_for_each_entry(p,
-			&shp_plane->pool->plane_list, head) {
-
-			/* only one plane can set to init_active or
-			 * init_handoff state
-			 */
-			if (p != shp_plane &&
-				(p->init_active || p->state.handoff)) {
-				SDE_ERROR("both %s and %s set to active\n",
-					shp_plane->plane->name,
-					p->plane->name);
-				rc = -EINVAL;
-				goto out;
-			}
-
+		list_for_each_entry(p, &shp_plane->pool->plane_list, head) {
 			if (shp_state->handoff || p->master == shp_plane)
 				p->plane->possible_crtcs = p->default_crtcs;
 			else
 				p->plane->possible_crtcs = 0;
+
+			if (p->master != shp_plane)
+				p->state.active = false;
 		}
 	}
 
@@ -878,13 +643,14 @@ out:
 			continue;
 
 		shp_state = &shp_plane->state;
-		SDE_DEBUG("%s: crtcs=0x%x/0x%x pool=%d virt=%d handoff=%d\n",
+		SDE_DEBUG("%s[%d]: 0x%x/0x%x v=%d h=%d a=%d\n",
 			shp_plane->plane->name,
+			shp_plane->plane->base.id,
 			shp_plane->plane->possible_crtcs,
 			shp_plane->default_crtcs,
-			shp_plane->pool->index,
 			is_sde_plane_virtual(shp_plane->plane),
-			shp_state->handoff);
+			shp_state->handoff,
+			shp_state->active);
 	}
 
 	return rc;
@@ -912,6 +678,11 @@ static bool sde_shp_has_unprobed_device(const char *drv_name)
 
 	return (dev != NULL);
 }
+#else
+static bool sde_shp_has_unprobed_device(const char *drv_name)
+{
+	return false;
+}
 #endif
 
 static int sde_shp_probe(struct platform_device *pdev)
@@ -931,19 +702,16 @@ static int sde_shp_probe(struct platform_device *pdev)
 	if (!dev)
 		return -EPROBE_DEFER;
 
-#ifdef CONFIG_DRM_SDE_SHD
 	if (sde_shp_has_unprobed_device("sde_shd"))
 		return -EPROBE_DEFER;
-#endif
 
 	shp_dev = &g_shp_device;
 	if (shp_dev->dev) {
-		pr_err("only single device is supported\n");
+		SDE_ERROR("only single device is supported\n");
 		return -EEXIST;
 	}
 
 	shp_dev->dev = dev;
-	mutex_init(&shp_dev->dev_lock);
 	shp_dev->handoff_prop = drm_property_create_range(dev,
 			DRM_MODE_PROP_ATOMIC, "handoff", 0, 1);
 
@@ -953,6 +721,7 @@ static int sde_shp_probe(struct platform_device *pdev)
 	ret = shp_parse(pdev, shp_dev);
 	if (ret) {
 		SDE_ERROR("failed to parse shared plane device\n");
+		drm_property_destroy(dev, shp_dev->handoff_prop);
 		return ret;
 	}
 

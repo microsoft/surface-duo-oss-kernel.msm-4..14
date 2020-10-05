@@ -113,6 +113,8 @@ struct cam_vfe_bus_ver2_common_data {
 	uint32_t                                    num_sec_out;
 	uint32_t                                    addr_no_sync;
 	uint32_t                                    camera_hw_version;
+	void                                        *ctx;
+	cam_hw_mgr_event_cb_func                    event_cb;
 };
 
 struct cam_vfe_bus_ver2_wm_resource_data {
@@ -1429,7 +1431,12 @@ static int cam_vfe_bus_err_bottom_half(void *ctx_priv,
 	if (val & 0x0800000)
 		CAM_INFO(CAM_ISP, "DISP YC 16:1 violation");
 
+
+	common_data->event_cb(common_data->ctx,CAM_ISP_HW_EVENT_ERROR,evt_payload);
+	CAM_ERR(CAM_ISP, "Vfe%d Violation reported", evt_payload->core_index);
+
 	cam_vfe_bus_put_evt_payload(common_data, &evt_payload);
+
 	return 0;
 }
 
@@ -2140,6 +2147,8 @@ static int cam_vfe_bus_acquire_vfe_out(void *bus_priv, void *acquire_args,
 	rsrc_node->tasklet_info = acq_args->tasklet;
 	rsrc_node->cdm_ops = out_acquire_args->cdm_ops;
 	rsrc_data->cdm_util_ops = out_acquire_args->cdm_ops;
+	rsrc_data->common_data->ctx = acq_args->vfe_out.ctx;
+	rsrc_data->common_data->event_cb = acq_args->vfe_out.event_cb;
 
 	/* Reserve Composite Group */
 	if (num_wm > 1 || (out_acquire_args->is_dual) ||
@@ -2483,7 +2492,7 @@ static int cam_vfe_bus_error_irq_top_half(uint32_t evt_id,
 
 	CAM_ERR_RATE_LIMIT(CAM_ISP, "Bus Err IRQ");
 	for (i = 0; i < th_payload->num_registers; i++) {
-		CAM_ERR_RATE_LIMIT(CAM_ISP, "vfe:%d: IRQ_Status%d: 0x%x",
+		CAM_ERR(CAM_ISP, "vfe:%d: IRQ_Status%d: 0x%x",
 		bus_priv->common_data.core_index, i,
 			th_payload->evt_status_arr[i]);
 	}
@@ -2501,6 +2510,7 @@ static int cam_vfe_bus_error_irq_top_half(uint32_t evt_id,
 
 	evt_payload->core_index = bus_priv->common_data.core_index;
 	evt_payload->evt_id  = evt_id;
+	evt_payload->error_type = CAM_ISP_HW_ERROR_VIOLATION;
 	evt_payload->ctx = &bus_priv->common_data;
 	evt_payload->debug_status_0 = cam_io_r_mb(
 		bus_priv->common_data.mem_base +
