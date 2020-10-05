@@ -1,0 +1,16 @@
+NXP LPDDR4 ERR050543
+
+The ddr dts node provides a configuration handle for the DDR controller driver.
+
+Required properties:
+- compatible should be: "fsl,s32gen1-ddr"
+- reg: should be the DDRC base address
+- perf-phandle: the phandle to the ddr-perf node
+
+Example:
+
+ddr: ddr@403C0000 {
+		compatible = "fsl,s32gen1-ddr";
+		reg = <0x0 0x403C0000 0x0 0x100>;
+		perf-phandle = <&perf>;
+};
