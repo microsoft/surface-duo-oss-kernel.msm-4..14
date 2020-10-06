@@ -102,6 +102,9 @@
 #define IPA_LOW_16_BIT_MASK (0xFFFF)
 #define IPA4_5_GSI_RING_SIZE_ALIGN (16 * PAGE_SIZE)
 
+/* Default aggregation timeout for WAN/LAN pipes. */
+#define IPA_GENERIC_AGGR_TIME_LIMIT 500 /* 0.5msec */
+
 #define IPADBG(fmt, args...) \
 	do { \
 		pr_debug(DRV_NAME " %s:%d " fmt, __func__, __LINE__, ## args);\
@@ -2028,6 +2031,9 @@ struct ipa3_context {
 	int uc_act_tbl_total;
 	int uc_act_tbl_next_index;
 	bool manual_fw_load;
+	u32 wan_aggr_time_limit;
+	u32 lan_aggr_time_limit;
+	u32 rndis_aggr_time_limit;
 };
 
 struct ipa3_plat_drv_res {
@@ -2079,6 +2085,9 @@ struct ipa3_plat_drv_res {
 	bool ipa_mhi_proxy;
 	bool ipa_wan_skb_page;
 	bool manual_fw_load;
+	u32 wan_aggr_time_limit;
+	u32 lan_aggr_time_limit;
+	u32 rndis_aggr_time_limit;
 };
 
 /**
@@ -2780,6 +2789,9 @@ int ipa3_remove_interrupt_handler(enum ipa_irq_type interrupt);
  * Miscellaneous
  */
 int ipa3_get_ep_mapping(enum ipa_client_type client);
+
+int ipa3_get_default_aggr_time_limit(enum ipa_client_type client,
+	u32 *default_aggr_time_limit);
 
 bool ipa3_is_ready(void);
 
