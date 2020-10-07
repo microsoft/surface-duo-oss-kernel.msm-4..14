@@ -617,6 +617,8 @@ static int s32_adc_probe(struct platform_device *pdev)
 		goto error_iio_device_register;
 	}
 
+	dev_info(&pdev->dev, "Device initialized successfully.\n");
+
 	return 0;
 
 error_iio_device_register:
