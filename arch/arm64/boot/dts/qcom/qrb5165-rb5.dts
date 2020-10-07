@@ -242,6 +242,12 @@
 		pinctrl-0 = <&wlan_default_state>;
 		pinctrl-1 = <&bt_default_state>;
 	};
+
+	clk40M: can_clock {
+		compatible = "fixed-clock";
+		#clock-cells = <0>;
+		clock-frequency = <40000000>;
+	};
 };
 
 &apps_rsc {
@@ -1026,6 +1032,17 @@
 /* CAN */
 &spi0 {
 	status = "okay";
+
+	can@0 {
+		compatible = "microchip,mcp2517fd";
+		reg = <0>;
+		clocks = <&clk40M>;
+		interrupt-parent = <&tlmm>;
+		interrupts = <15 IRQ_TYPE_LEVEL_HIGH>;
+		spi-max-frequency = <10000000>;
+		vdd-supply = <&vdc_5v>;
+		xceiver-supply = <&vdc_5v>;
+	};
 };
 
 &tlmm {
