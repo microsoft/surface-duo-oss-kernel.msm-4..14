@@ -1076,9 +1076,12 @@ EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_copy_ah_attr_to_u
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_copy_path_rec_from_user
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_copy_path_rec_to_user
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_copy_qp_attr_to_user
+EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_register_peer_memory_client
+EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_activate_invalidation_notifier
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_copy_from
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_find_best_pgsz
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_get
+EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_get_peer
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_odp_alloc_child
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_odp_alloc_implicit
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_odp_get
@@ -1087,6 +1090,7 @@ EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_odp_release
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_odp_unmap_dma_pages
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_page_count
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_release
+EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_unregister_peer_memory_client
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_uverbs_flow_resources_free
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_uverbs_get_ucontext_file
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	uverbs_copy_to
@@ -6348,6 +6352,7 @@ EXPORT_SYMBOL	 vmlinux 0x00000000	ssch
 EXPORT_SYMBOL	 vmlinux 0x00000000	starget_for_each_device
 EXPORT_SYMBOL	 vmlinux 0x00000000	start_tty
 EXPORT_SYMBOL	 vmlinux 0x00000000	stop_tty
+EXPORT_SYMBOL	 vmlinux 0x00000000	stpcpy
 EXPORT_SYMBOL	 vmlinux 0x00000000	strcasecmp
 EXPORT_SYMBOL	 vmlinux 0x00000000	strcat
 EXPORT_SYMBOL	 vmlinux 0x00000000	strchr
@@ -10346,6 +10351,7 @@ EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	dax_layout_busy_page
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	dax_read_lock
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	dax_read_unlock
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	dax_region_put
+EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	dax_supported
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	dax_write_cache
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	dax_write_cache_enabled
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	dax_writeback_mapping_range
