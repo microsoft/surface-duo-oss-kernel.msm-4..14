@@ -571,6 +571,10 @@
 	dai@1 {
 		reg = <1>;
 	};
+
+	dai@2 {
+		reg = <2>;
+	};
 };
 
 &swr0 {
@@ -595,6 +599,12 @@
 	};
 };
 
+&vamacro {
+	pinctrl-0 = <&cdc_dmic01_clk_active &cdc_dmic01_data_active>;
+	pinctrl-names = "default";
+	vdd-micb-supply = <&vreg_s4a_1p8>;
+};
+
 &sound {
 	compatible = "qcom,sm8250-sndcard";
 	pinctrl-0 = <&tert_mi2s_sck_active
@@ -605,8 +615,11 @@
 	audio-routing =
 		"SpkrLeft IN", "WSA_SPK1 OUT",
 		"SpkrRight IN", "WSA_SPK2 OUT",
+		"VA DMIC0", "vdd-micb",
+                "VA DMIC1", "vdd-micb",
 		"MM_DL1",  "MultiMedia1 Playback",
-		"MM_DL2",  "MultiMedia2 Playback";
+		"MM_DL2",  "MultiMedia2 Playback",
+		"MultiMedia3 Capture", "MM_UL3";
 
 	mm1-dai-link {
 		link-name = "MultiMedia1";
@@ -619,6 +632,13 @@
 		link-name = "MultiMedia2";
 		cpu {
 			sound-dai = <&q6asmdai  MSM_FRONTEND_DAI_MULTIMEDIA2>;
+		};
+	};
+
+	mm3-dai-link {
+		link-name = "MultiMedia3";
+		cpu {
+			sound-dai = <&q6asmdai  MSM_FRONTEND_DAI_MULTIMEDIA3>;
 		};
 	};
 
@@ -649,6 +669,21 @@
 
 		codec {
 			sound-dai = <&left_spkr>, <&right_spkr>, <&swr0 0>, <&wsamacro>;
+		};
+	};
+
+	va-dai-link {
+		link-name = "VA Capture";
+		cpu {
+			sound-dai = <&q6afedai VA_CODEC_DMA_TX_0>;
+		};
+
+		platform {
+			sound-dai = <&q6routing>;
+		};
+
+		codec {
+			sound-dai = <&vamacro 0>;
 		};
 	};
 };
