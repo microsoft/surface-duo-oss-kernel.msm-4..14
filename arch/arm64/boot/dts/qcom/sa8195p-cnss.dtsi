@@ -55,6 +55,7 @@
 		qca,bt-vdd-vl-current-level = <0>;
 		qca,bt-vdd-vm-current-level = <0>;
 		qca,bt-vdd-vh-current-level = <450000>;
+		status = "disabled";
 	};
 
 	/* Rome 3.3V supply */
@@ -113,6 +114,7 @@
 		pinctrl-names = "wlan_en_active", "wlan_en_sleep";
 		pinctrl-0 = <&cnss_wlan_en_active>;
 		pinctrl-1 = <&cnss_wlan_en_sleep>;
+		status = "disabled";
 
 		chip_cfg@0 {
 			reg = <0x10000000 0x10000000>,

@@ -14,8 +14,6 @@
 #include "sdmshrike-v2.dtsi"
 #include "sa8155-audio.dtsi"
 #include "sa8195-pmic.dtsi"
-#include "sa8195p-camera.dtsi"
-#include "sa8195p-camera-sensor.dtsi"
 #include "sa8195p-pcie.dtsi"
 #include "sm8150-npu.dtsi"
 
@@ -328,10 +326,6 @@
 &pil_ssc {
 	vdd_cx-supply = <&VDD_CX_LEVEL>;
 	vdd_mx-supply = <&VDD_MX_LEVEL>;
-	status = "ok";
-};
-
-&ssc_sensors {
 	status = "disabled";
 };
 
@@ -465,11 +459,11 @@
 
 &pil_lpass {
 	vdd_cx-supply = <&VDD_CX_LEVEL>;
-	status = "ok";
+	status = "disabled";
 };
 
 &pil_spss {
-	status = "ok";
+	status = "disabled";
 };
 
 &clock_scc {

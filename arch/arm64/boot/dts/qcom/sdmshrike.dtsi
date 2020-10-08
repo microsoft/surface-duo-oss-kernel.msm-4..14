@@ -570,18 +570,6 @@
 			reg = <0x0 0x86200000 0x0 0x5500000>;
 		};
 
-		pil_camera_mem: camera_region@8b700000 {
-			compatible = "removed-dma-pool";
-			no-map;
-			reg = <0x0 0x8b700000 0x0 0x500000>;
-		};
-
-		pil_wlan_fw_mem: pil_wlan_fw_region@8bc00000 {
-			compatible = "removed-dma-pool";
-			no-map;
-			reg = <0x0 0x8bc00000 0x0 0x180000>;
-		};
-
 		pil_npu_mem: pil_npu_region@0x8bd80000 {
 			compatible = "removed-dma-pool";
 			no-map;
@@ -624,12 +612,6 @@
 			reg = <0x0 0x98710000 0x0 0x5000>;
 		};
 
-		pil_gpu_mem: pil_gpu_region@0x98715000 {
-			compatible = "removed-dma-pool";
-			no-map;
-			reg = <0x0 0x98715000 0x0 0x2000>;
-		};
-
 		pil_spss_mem: pil_spss_region@0x98800000 {
 			compatible = "removed-dma-pool";
 			no-map;
@@ -659,22 +641,6 @@
 			label = "disp_rdump_region";
 		};
 
-		adsp_mem: adsp_region {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0x1000000>;
-		};
-
-		cdsp_mem: cdsp_region {
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0x400000>;
-		};
-
 		user_contig_mem: user_contig_region {
 			compatible = "shared-dma-pool";
 			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
@@ -697,14 +663,6 @@
 			reusable;
 			alignment = <0x0 0x400000>;
 			size = <0x0 0x800000>;
-		};
-
-		secure_display_memory: secure_display_region { /* Secure UI */
-			compatible = "shared-dma-pool";
-			alloc-ranges = <0x0 0x00000000 0x0 0xffffffff>;
-			reusable;
-			alignment = <0x0 0x400000>;
-			size = <0x0 0xA000000>;
 		};
 
 		dump_mem: mem_dump_region {
@@ -769,14 +727,6 @@
 		qcom,spss-prod-firmware-name = "spss2p";  /* 8 chars max */
 		qcom,spss-debug-reg-addr = <0x01886020>;
 		qcom,spss-emul-type-reg-addr = <0x01fc8004>;
-		status = "ok";
-	};
-
-	qcom,spcom {
-		compatible = "qcom,spcom";
-
-		/* predefined channels, remote side is server */
-		qcom,spcom-ch-names = "sp_kernel", "sp_ssr";
 		status = "ok";
 	};
 
@@ -1768,6 +1718,7 @@
 
 		mboxes = <&qmp_aop 0>;
 		mbox-names = "adsp-pil";
+		status = "disabled";
 	};
 
 	pil_ssc: qcom,ssc@5c00000 {
@@ -1790,7 +1741,7 @@
 		qcom,sysmon-id = <3>;
 		qcom,ssctl-instance-id = <0x16>;
 		qcom,firmware-name = "slpi";
-		status = "ok";
+		status = "disabled";
 		memory-region = <&pil_slpi_mem>;
 
 		/* Inputs from ssc */
@@ -1833,7 +1784,7 @@
 		clock-names = "xo";
 		qcom,proxy-clock-names = "xo";
 		qcom,pil-generic-irq-handler;
-		status = "ok";
+		status = "disabled";
 		qcom,signal-aop;
 		qcom,complete-ramdump;
 
@@ -1851,7 +1802,7 @@
 		compatible = "qcom,pil-tz-generic";
 		reg = <0x9800000 0x800000>;
 
-		status = "ok";
+		status = "disabled";
 		qcom,pas-id = <23>;
 		qcom,firmware-name = "npu";
 
@@ -1905,6 +1856,7 @@
 
 		mboxes = <&qmp_aop 0>;
 		mbox-names = "cdsp-pil";
+		status = "disabled";
 	};
 
 	pil_venus: qcom,venus@aae0000 {
@@ -1934,11 +1886,6 @@
 		qcom,proxy-timeout-ms = <100>;
 		qcom,firmware-name = "venus";
 		memory-region = <&pil_video_mem>;
-	};
-
-	ssc_sensors: qcom,msm-ssc-sensors {
-		compatible = "qcom,msm-ssc-sensors";
-		qcom,firmware-name = "slpi";
 		status = "disabled";
 	};
 
@@ -2312,16 +2259,6 @@
 		reset-names = "core_reset";
 
 		status = "disabled";
-	};
-
-	qcom,msm-cdsp-loader {
-		compatible = "qcom,cdsp-loader";
-		qcom,proc-img-to-load = "cdsp";
-	};
-
-	qcom,msm-adsprpc-mem {
-		compatible = "qcom,msm-adsprpc-mem-region";
-		memory-region = <&adsp_mem>;
 	};
 
 	msm_fastrpc: qcom,msm_fastrpc {

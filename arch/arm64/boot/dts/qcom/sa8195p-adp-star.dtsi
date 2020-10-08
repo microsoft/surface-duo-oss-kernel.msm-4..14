@@ -62,7 +62,7 @@
 };
 
 &pil_lpass {
-	status = "ok";
+	status = "disabled";
 };
 
 &pil_ssc {
@@ -70,25 +70,22 @@
 };
 
 &pil_spss {
-	status = "ok";
+	status = "disabled";
 };
 
 &pil_turing {
-	status = "ok";
+	status = "disabled";
 };
 
 &pil_venus {
-	status = "ok";
+	status = "disabled";
 };
 
 &pil_npu {
-	status = "ok";
+	status = "disabled";
 };
 
 &glink_modem {
 	status = "disabled";
 };
 
-&ssc_sensors {
-	status = "disabled";
-};
