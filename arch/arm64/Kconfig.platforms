@@ -34,6 +34,10 @@ menu "S32 SOC selection"
 	config SOC_S32GEN1
 		bool "S32 GEN1 SOC"
 		select NXP_ERRATUM_ERR050543
+		select MAILBOX
+		select ARM_SMC_MBOX
+		select ARM_SCMI_PROTOCOL
+		select COMMON_CLK_SCMI
 endmenu
 
 menu "STM timer used as system timer"
