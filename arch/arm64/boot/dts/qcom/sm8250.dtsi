@@ -3347,9 +3347,10 @@
 					<&audiocc LPASS_CDC_WSA_NPL>,
 					<&q6afecc LPASS_HW_MACRO_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>,
 					<&q6afecc LPASS_HW_DCODEC_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>,
-					<&aoncc LPASS_CDC_VA_MCLK>;
+					<&aoncc LPASS_CDC_VA_MCLK>,
+					<&vamacro>;
 
-				clock-names = "mclk", "npl", "macro", "dcodec", "va";
+				clock-names = "mclk", "npl", "macro", "dcodec", "va", "fsgen";
 
 				#clock-cells = <0>;
 				clock-frequency = <9600000>;
@@ -3378,6 +3379,25 @@
 					#address-cells = <2>;
 					#size-cells = <0>;
 				};
+			};
+
+			vamacro: lpass-va-macro@3370000 {
+				compatible = "qcom,sm8250-lpass-va-macro";
+				reg = <0 0x3370000 0 0x1000>,
+					<0 0x3220000 0 0x1000>;
+				clocks = <&audiocc LPASS_CDC_VA_MCLK>,
+					<&q6afecc LPASS_HW_MACRO_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>,
+					<&q6afecc LPASS_HW_DCODEC_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>;
+
+				clock-names = "mclk", "macro", "dcodec";
+
+				#clock-cells = <0>;
+				clock-frequency = <9600000>;
+				clock-output-names = "fsgen";
+				#sound-dai-cells = <1>;
+		                qcom,vdd-micb-voltage = <1800000 1800000>;
+		                qcom,vdd-micb-current = <11200>;
+		                qcom,dmic-sample-rate = <600000>;
 			};
 		//};
 		adsp: remoteproc@17300000 {
