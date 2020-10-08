@@ -51,7 +51,6 @@ Build-Depends-Indep:
  python3-sphinx-rtd-theme <!stage1>,
  fontconfig <!stage1>,
  python3-docutils <!stage1>,
- python3-venv <!stage1>,
  imagemagick <!stage1>,
  graphviz <!stage1>,
  dvipng <!stage1>,
