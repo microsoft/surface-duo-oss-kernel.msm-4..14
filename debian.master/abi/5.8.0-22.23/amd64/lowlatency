@@ -1453,12 +1453,9 @@ EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_copy_ah_attr_to_u
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_copy_path_rec_from_user
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_copy_path_rec_to_user
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_copy_qp_attr_to_user
-EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_register_peer_memory_client
-EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_activate_invalidation_notifier
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_copy_from
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_find_best_pgsz
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_get
-EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_get_peer
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_odp_alloc_child
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_odp_alloc_implicit
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_odp_get
@@ -1467,7 +1464,6 @@ EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_odp_release
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_odp_unmap_dma_pages
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_page_count
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_umem_release
-EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_unregister_peer_memory_client
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_uverbs_flow_resources_free
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	ib_uverbs_get_ucontext_file
 EXPORT_SYMBOL	 drivers/infiniband/core/ib_uverbs 0x00000000	uverbs_copy_to
@@ -6625,6 +6621,7 @@ EXPORT_SYMBOL	 vmlinux 0x00000000	atomic_dec_and_mutex_lock
 EXPORT_SYMBOL	 vmlinux 0x00000000	audit_log
 EXPORT_SYMBOL	 vmlinux 0x00000000	audit_log_end
 EXPORT_SYMBOL	 vmlinux 0x00000000	audit_log_format
+EXPORT_SYMBOL	 vmlinux 0x00000000	audit_log_object_context
 EXPORT_SYMBOL	 vmlinux 0x00000000	audit_log_start
 EXPORT_SYMBOL	 vmlinux 0x00000000	audit_log_task_context
 EXPORT_SYMBOL	 vmlinux 0x00000000	audit_log_task_info
@@ -18685,6 +18682,7 @@ EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__irq_alloc_domain_generic_chips
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__irq_domain_add
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__irq_domain_alloc_fwnode
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__irq_set_handler
+EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__kernel_write
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__kprobe_event_add_fields
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__kprobe_event_gen_cmd_start
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	__kthread_init_worker
@@ -19372,6 +19370,7 @@ EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	blk_queue_max_discard_segments
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	blk_queue_max_zone_append_sectors
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	blk_queue_required_elevator_features
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	blk_queue_rq_timeout
+EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	blk_queue_set_zoned
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	blk_queue_write_cache
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	blk_register_queue
 EXPORT_SYMBOL_GPL	 vmlinux 0x00000000	blk_req_needs_zone_write_lock
