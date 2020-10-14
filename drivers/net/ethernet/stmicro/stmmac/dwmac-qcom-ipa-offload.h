@@ -58,6 +58,7 @@ static inline void ethqos_ipa_offload_event_handler(void *data, int ev)
 #define EV_USR_SUSPEND (EV_DPM_RESUME + 1)
 #define EV_USR_RESUME (EV_USR_SUSPEND + 1)
 #define EV_IPA_OFFLOAD_REMOVE (EV_USR_RESUME + 1)
-#define EV_IPA_OFFLOAD_MAX (EV_IPA_OFFLOAD_REMOVE + 1)
+#define EV_LOOPBACK_DMA_MAP (EV_IPA_OFFLOAD_REMOVE + 1)
+#define EV_IPA_OFFLOAD_MAX (EV_LOOPBACK_DMA_MAP + 1)
 
 #endif
