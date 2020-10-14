@@ -1919,7 +1919,7 @@ static int ethqos_ipa_offload_suspend(struct qcom_ethqos *ethqos)
 
 	ETHQOSDBG("Suspend/disable IPA offload\n");
 
-	priv->hw->dma->stop_rx(priv->ioaddr, IPA_DMA_RX_CH);
+	priv->hw->dma->stop_rx_chan(priv->ioaddr, IPA_DMA_RX_CH);
 	if (ret != 0) {
 		ETHQOSERR("stop_dma_rx failed %d\n", ret);
 		return ret;
@@ -1936,7 +1936,7 @@ static int ethqos_ipa_offload_suspend(struct qcom_ethqos *ethqos)
 		ETHQOSDBG("IPA Offload Disconnect Successfully\n");
 	}
 
-	priv->hw->dma->stop_tx(priv->ioaddr, IPA_DMA_TX_CH);
+	priv->hw->dma->stop_tx_chan(priv->ioaddr, IPA_DMA_TX_CH);
 
 	if (ret != 0) {
 		ETHQOSERR("stop_dma_tx failed %d\n", ret);
