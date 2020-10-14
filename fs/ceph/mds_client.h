@@ -369,7 +369,7 @@ struct ceph_quotarealm_inode {
 
 struct cap_wait {
 	struct list_head	list;
-	unsigned long		ino;
+	u64			ino;
 	pid_t			tgid;
 	int			need;
 	int			want;
