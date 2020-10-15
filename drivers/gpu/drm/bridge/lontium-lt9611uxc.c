@@ -442,7 +442,7 @@ static int lt9611uxc_read_edid(struct lt9611uxc *lt9611uxc)
 
 	regmap_write(lt9611uxc->regmap, 0xb00b, 0x10);
 
-#define EDID_SEG 16
+#define EDID_SEG 128
 	for (i = 0; i < 2 * EDID_BLOCK_SIZE; i += EDID_SEG) {
 		regmap_write(lt9611uxc->regmap, 0xb00a, i);
 		ret = regmap_noinc_read(lt9611uxc->regmap, 0xb0b0, &lt9611uxc->edid_buf[i], EDID_SEG);
