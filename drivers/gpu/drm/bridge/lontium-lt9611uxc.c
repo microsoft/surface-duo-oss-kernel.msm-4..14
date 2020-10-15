@@ -314,12 +314,14 @@ lt9611uxc_bridge_mode_valid(struct drm_bridge *bridge,
 
 static void lt9611uxc_bridge_post_disable(struct drm_bridge *bridge)
 {
+#if 0
 	struct lt9611uxc *lt9611uxc = bridge_to_lt9611uxc(bridge);
 
 	lt9611uxc_lock(lt9611uxc);
 	regmap_update_bits(lt9611uxc->regmap, 0xb024, 0x1, 0x1);
 	lt9611uxc->sleep = true;
 	lt9611uxc_unlock(lt9611uxc);
+#endif
 }
 
 static void lt9611uxc_video_setup(struct lt9611uxc *lt9611uxc,
@@ -371,8 +373,7 @@ static void lt9611uxc_bridge_mode_set(struct drm_bridge *bridge,
 {
 	struct lt9611uxc *lt9611uxc = bridge_to_lt9611uxc(bridge);
 
-	if (lt9611uxc->sleep)
-		lt9611uxc_reset(lt9611uxc);
+	lt9611uxc_reset(lt9611uxc);
 
 	lt9611uxc_lock(lt9611uxc);
 	lt9611uxc_video_setup(lt9611uxc, mode);
