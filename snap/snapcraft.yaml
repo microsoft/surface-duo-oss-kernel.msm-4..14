@@ -111,7 +111,7 @@ parts:
                 --kernel_offset 0x8000 \
                 --ramdisk_offset 0x1000000 \
                 --tags_offset 0x100 \
-                --cmdline 'console=tty0 console=ttyMSM0,115200n8 root=/dev/disk/by-label/writable init=/lib/systemd/systemd ro fixrtc clk_ignore_unused pd_ignore_unused'
+                --cmdline 'console=tty0 console=ttyMSM0,115200n8 panic=-1 clk_ignore_unused pd_ignore_unused snapd_lk_boot_disk=sde'
         prime:
             - boot.img
 
@@ -130,7 +130,7 @@ parts:
                 --kernel_offset 0x8000 \
                 --ramdisk_offset 0x1000000 \
                 --tags_offset 0x100 \
-                --cmdline 'console=tty0 console=ttyMSM0,115200n8 root=/dev/disk/by-label/writable init=/lib/systemd/systemd ro fixrtc'
+                --cmdline 'console=tty0 console=ttyMSM0,115200n8 snapd_lk_boot_disk=sde'
             ln ${SNAPCRAFT_PART_INSTALL}/boot-db820c.img ${SNAPCRAFT_PART_INSTALL}/boot-ifc6640.img
         prime:
             - boot-db820c.img
@@ -151,7 +151,7 @@ parts:
                 --kernel_offset 0x8000 \
                 --ramdisk_offset 0x1000000 \
                 --tags_offset 0x100 \
-                --cmdline 'console=tty0 console=ttyMSM0,115200n8 root=/dev/disk/by-label/writable init=/lib/systemd/systemd ro fixrtc'
+                --cmdline 'console=tty0 console=ttyMSM0,115200n8 snapd_lk_boot_disk=mmcblk0'
         prime:
             - boot-db410c.img
 
