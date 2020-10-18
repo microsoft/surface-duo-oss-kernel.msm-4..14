@@ -77,7 +77,7 @@ parts:
                 --kernel_offset 0x8000 \
                 --ramdisk_offset 0x1000000 \
                 --tags_offset 0x100 \
-                --cmdline 'console=tty0 console=ttyMSM0,115200n8 root=/dev/disk/by-label/writable init=/lib/systemd/systemd ro rng_core.default_quality=700 fixrtc clk_ignore_unused pd_ignore_unused'
+                --cmdline 'console=tty0 console=ttyMSM0,115200n8 rng_core.default_quality=700 panic=-1 clk_ignore_unused pd_ignore_unused'
         prime:
             - boot.img
 
@@ -95,7 +95,7 @@ parts:
                 --pagesize 4096 \
                 --base 0x80000000 \
                 --ramdisk=${SNAPCRAFT_STAGE}/initrd.img \
-                --cmdline="console=tty0 console=ttyMSM0,115200n8 root=/dev/disk/by-label/writable init=/lib/systemd/systemd ro rng_core.default_quality=700 fixrtc" \
+                --cmdline "console=tty0 console=ttyMSM0,115200n8 rng_core.default_quality=700 panic=-1" \
                 --output=${SNAPCRAFT_PART_INSTALL}/boot-db820c.img
             ln -f ${SNAPCRAFT_PART_INSTALL}/boot-db820c.img ${SNAPCRAFT_PART_INSTALL}/boot-db410c.img
         prime:
