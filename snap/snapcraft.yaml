@@ -48,18 +48,38 @@ parts:
         prime:
             - -kernel.img
 
-    initrd:
+    initrd-uc20:
         plugin: nil
-        source: initrd-overlay
+        after:
+            - kernel
         override-build: |
-            echo "Preparing overlay initrd"
-            find . | cpio --create --quiet --format='newc' --owner=0:0 | lzma -7 > ${SNAPCRAFT_PART_INSTALL}/initrd-overlay.img
-            wget https://people.canonical.com/~okubik/uc18_initrds/initrd-arm64.img -O ${SNAPCRAFT_PART_INSTALL}/initrd-clean.img
-            cat ${SNAPCRAFT_PART_INSTALL}/initrd-clean.img \
-                ${SNAPCRAFT_PART_INSTALL}/initrd-overlay.img \
-                > ${SNAPCRAFT_PART_INSTALL}/initrd.img
-        stage:
-            - initrd.img
+            # UC20 initrd builder only supports native build!
+            # we will handle cross build as best effort
+            if [ "$(arch)" != "aarch64" ]; then
+              # use prebuilt binary instead
+              echo "Cross compilation detected"
+              echo "Using prebuilt initrd blob instead"
+              wget https://people.canonical.com/~okubik/uc20_initrds/initrd-arm64.img \
+                -O ${SNAPCRAFT_PART_INSTALL}/vanilla-initrd.img
+            else
+              # build UC20 initrd
+              if [ -z "$(which ubuntu-core-initramfs)" ]; then
+                sudo add-apt-repository -y ppa:snappy-dev/image
+                sudo apt-get install -y ubuntu-core-initramfs
+              fi
+              kernel_version="$(basename ${SNAPCRAFT_STAGE}/config-* | sed 's/config-//g')"
+              echo "kernel version: [${kernel_version}]"
+              # we need to run tool as root to get rigt permissions
+              sudo ubuntu-core-initramfs create-initrd \
+                  --kerneldir ${SNAPCRAFT_STAGE}/lib/modules \
+                  --kernelver ${kernel_version} \
+                  --output ${SNAPCRAFT_PART_INSTALL}/initrd
+              sudo chown ${USER}:${USER} ${SNAPCRAFT_PART_INSTALL}/initrd*
+              ln -f ${SNAPCRAFT_PART_INSTALL}/initrd-* ${SNAPCRAFT_PART_INSTALL}/vanilla-initrd.img
+            fi
+        prime:
+            - -*
+
 
     bootimg-db845:
         plugin: nil
