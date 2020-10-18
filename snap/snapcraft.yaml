@@ -15,7 +15,6 @@ build-base: core18
 parts:
     kernel:
         after:
-            - initrd
             - skales
             - firmware
             - firmware-ath10k
