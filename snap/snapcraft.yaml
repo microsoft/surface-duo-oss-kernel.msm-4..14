@@ -87,6 +87,32 @@ parts:
         prime:
             - -initrd.img
 
+    snap-bootstrap:
+        plugin: nil
+        build-snaps:
+          - go
+        override-pull: |
+            mkdir -p go/src/github.com/snapcore
+            # https://github.com/snapcore/snapd.git \
+            git clone https://github.com/kubiko/snapd.git \
+                      -b uc20-lk-bootloader \
+                      go/src/github.com/snapcore/snapd
+        override-build: |
+            GOPATH=${SNAPCRAFT_PART_BUILD}/go
+            export GOPATH
+            cd ${SNAPCRAFT_PART_BUILD}/go/src/github.com/snapcore/snapd
+            ./get-deps.sh
+            # handle cross build case
+            if [ "$(arch)" != "aarch64" ]; then
+                echo "Cross compilation detected"
+                CGO_ENABLED=1 CC=aarch64-linux-gnu-gcc GOOS=linux GOARCH=arm64 go build \
+                    -o ${SNAPCRAFT_PART_INSTALL}/snap-bootstrap ./cmd/snap-bootstrap/
+            else
+                CGO_ENABLED=1 go build -o ${SNAPCRAFT_PART_INSTALL}/snap-bootstrap ./cmd/snap-bootstrap
+            fi
+        prime:
+            - -*
+
     bootimg-db845:
         plugin: nil
         after:
@@ -256,3 +282,8 @@ build-packages:
     - flex
     - bison
     - wget
+    - on amd64:
+        - gcc-aarch64-linux-gnu:amd64
+        - libc6-dev-arm64-cross:amd64
+    - else:
+        - gcc
