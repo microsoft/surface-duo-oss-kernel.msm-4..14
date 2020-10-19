@@ -755,28 +755,29 @@
 			port@0 {
 				reg = <0>;
 
-				lt9611_out: endpoint {
-					remote-endpoint = <&hdmi_con>;
-				};
-			};
-
-			port@1 {
-				reg = <1>;
-
 				lt9611_a: endpoint {
 					remote-endpoint = <&dsi0_out>;
 				};
 			};
 
 #if 0
-			port@2 {
-				reg = <2>;
+			port@1 {
+				reg = <1>;
 
 				lt9611_b: endpoint {
 					remote-endpoint = <&dsi1_out>;
 				};
 			};
 #endif
+
+			port@2 {
+				reg = <2>;
+
+				lt9611_out: endpoint {
+					remote-endpoint = <&hdmi_con>;
+				};
+			};
+
 		};
 	};
 };
