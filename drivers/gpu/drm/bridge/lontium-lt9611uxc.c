@@ -505,13 +505,13 @@ static int lt9611uxc_parse_dt(struct device *dev,
 	if (!lt9611uxc->timings)
 		dev_info(dev, "no display timings provided\n");
 
-	lt9611uxc->dsi0_node = of_graph_get_remote_node(dev->of_node, 1, -1);
+	lt9611uxc->dsi0_node = of_graph_get_remote_node(dev->of_node, 0, -1);
 	if (!lt9611uxc->dsi0_node) {
 		dev_err(lt9611uxc->dev, "failed to get remote node for primary dsi\n");
 		return -ENODEV;
 	}
 
-	lt9611uxc->dsi1_node = of_graph_get_remote_node(dev->of_node, 2, -1);
+	lt9611uxc->dsi1_node = of_graph_get_remote_node(dev->of_node, 1, -1);
 
 	return 0;
 }
