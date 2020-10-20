@@ -1655,6 +1655,7 @@
 #include "sdm429-audio.dtsi"
 #include "sdm429-thermal.dtsi"
 #include "sdm429-coresight.dtsi"
+#include "sdm429-camera.dtsi"
 
 &venus_gdsc {
 	clock-names = "bus_clk", "core_clk";
@@ -1729,4 +1730,3 @@
 &blsp2_uart2_hs {
 	status = "okay";
 };
-
