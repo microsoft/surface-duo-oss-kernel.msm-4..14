@@ -48,6 +48,8 @@ struct lpg_data;
  * @lut_bitmap:	allocation bitmap for LUT entries
  * @triled_base: base address of the TRILED block (optional)
  * @triled_src:	power-source for the TRILED
+ * @triled_has_atc_ctl:	true if there is TRI_LED_ATC_CTL register
+ * @triled_has_src_sel:	true if there is TRI_LED_SRC_SEL register
  * @channels:	list of PWM channels
  * @num_channels: number of @channels
  */
@@ -65,6 +67,8 @@ struct lpg {
 
 	u32 triled_base;
 	u32 triled_src;
+	bool triled_has_atc_ctl;
+	bool triled_has_src_sel;
 
 	struct lpg_channel *channels;
 	unsigned int num_channels;
@@ -165,6 +169,8 @@ struct lpg_channel_data {
  * @lut_base:		base address of LUT block
  * @lut_size:		number of entries in LUT
  * @triled_base:	base address of TRILED
+ * @triled_has_atc_ctl:	true if there is TRI_LED_ATC_CTL register
+ * @triled_has_src_sel:	true if there is TRI_LED_SRC_SEL register
  * @pwm_9bit_mask:	bitmask for switching from 6bit to 9bit pwm
  * @num_channels:	number of channels in LPG
  * @channels:		list of channel initialization data
@@ -173,6 +179,8 @@ struct lpg_data {
 	unsigned int lut_base;
 	unsigned int lut_size;
 	unsigned int triled_base;
+	bool triled_has_atc_ctl;
+	bool triled_has_src_sel;
 	unsigned int pwm_9bit_mask;
 	int num_channels;
 	struct lpg_channel_data *channels;
@@ -986,18 +994,24 @@ static int lpg_init_triled(struct lpg *lpg)
 		return 0;
 
 	lpg->triled_base = lpg->data->triled_base;
+	lpg->triled_has_atc_ctl = lpg->data->triled_has_atc_ctl;
+	lpg->triled_has_src_sel = lpg->data->triled_has_src_sel;
 
-	ret = of_property_read_u32(np, "qcom,power-source", &lpg->triled_src);
-	if (ret || lpg->triled_src == 2 || lpg->triled_src > 3) {
-		dev_err(lpg->dev, "invalid power source\n");
-		return -EINVAL;
+	if (lpg->triled_has_src_sel) {
+		ret = of_property_read_u32(np, "qcom,power-source", &lpg->triled_src);
+		if (ret || lpg->triled_src == 2 || lpg->triled_src > 3) {
+			dev_err(lpg->dev, "invalid power source\n");
+			return -EINVAL;
+		}
 	}
 
 	/* Disable automatic trickle charge LED */
-	regmap_write(lpg->map, lpg->triled_base + TRI_LED_ATC_CTL, 0);
+	if (lpg->triled_has_atc_ctl)
+		regmap_write(lpg->map, lpg->triled_base + TRI_LED_ATC_CTL, 0);
 
 	/* Configure power source */
-	regmap_write(lpg->map, lpg->triled_base + TRI_LED_SRC_SEL, lpg->triled_src);
+	if (lpg->triled_has_src_sel)
+		regmap_write(lpg->map, lpg->triled_base + TRI_LED_SRC_SEL, lpg->triled_src);
 
 	/* Default all outputs to off */
 	regmap_write(lpg->map, lpg->triled_base + TRI_LED_EN_CTL, 0);
@@ -1099,6 +1113,8 @@ static const struct lpg_data pm8941_lpg_data = {
 	.lut_size = 64,
 
 	.triled_base = 0xd000,
+	.triled_has_atc_ctl = true,
+	.triled_has_src_sel = true,
 
 	.pwm_9bit_mask = 3 << 4,
 
@@ -1137,6 +1153,8 @@ static const struct lpg_data pmi8994_lpg_data = {
 	.lut_size = 24,
 
 	.triled_base = 0xd000,
+	.triled_has_atc_ctl = true,
+	.triled_has_src_sel = true,
 
 	.pwm_9bit_mask = BIT(4),
 
@@ -1166,12 +1184,48 @@ static const struct lpg_data pmi8998_lpg_data = {
 	},
 };
 
+static const struct lpg_data pm8150b_lpg_data = {
+	.lut_base = 0xb000,
+	.lut_size = 49,
+
+	.triled_base = 0xd000,
+
+	.pwm_9bit_mask = BIT(4),
+
+	.num_channels = 2,
+	.channels = (struct lpg_channel_data[]) {
+		{ .base = 0xb100, .triled_mask = BIT(7) },
+		{ .base = 0xb200, .triled_mask = BIT(6) },
+	},
+};
+
+static const struct lpg_data pm8150l_lpg_data = {
+	.lut_base = 0xb000,
+	.lut_size = 49,
+
+	.triled_base = 0xd000,
+
+	.pwm_9bit_mask = BIT(4),
+
+	.num_channels = 5,
+	.channels = (struct lpg_channel_data[]) {
+		{ .base = 0xb100, .triled_mask = BIT(7) },
+		{ .base = 0xb200, .triled_mask = BIT(6) },
+		{ .base = 0xb300, .triled_mask = BIT(5) },
+		{ .base = 0xbc00 },
+		{ .base = 0xbd00 },
+
+	},
+};
+
 static const struct of_device_id lpg_of_table[] = {
 	{ .compatible = "qcom,pm8916-pwm", .data = &pm8916_pwm_data },
 	{ .compatible = "qcom,pm8941-lpg", .data = &pm8941_lpg_data },
 	{ .compatible = "qcom,pm8994-lpg", .data = &pm8994_lpg_data },
 	{ .compatible = "qcom,pmi8994-lpg", .data = &pmi8994_lpg_data },
 	{ .compatible = "qcom,pmi8998-lpg", .data = &pmi8998_lpg_data },
+	{ .compatible = "qcom,pm8150b-lpg", .data = &pm8150b_lpg_data },
+	{ .compatible = "qcom,pm8150l-lpg", .data = &pm8150l_lpg_data },
 	{}
 };
 MODULE_DEVICE_TABLE(of, lpg_of_table);
