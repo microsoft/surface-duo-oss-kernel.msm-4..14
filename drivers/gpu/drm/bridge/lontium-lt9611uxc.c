@@ -4,6 +4,7 @@
  * Copyright (c) 2019-2020. Linaro Limited.
  */
 
+#include <linux/firmware.h>
 #include <linux/gpio/consumer.h>
 #include <linux/interrupt.h>
 #include <linux/module.h>
@@ -54,6 +55,7 @@ struct lt9611uxc {
 	bool hpd_supported;
 	struct display_timings *timings;
 	u8 edid_buf[EDID_BLOCK_SIZE * EDID_NUM_BLOCKS];
+	uint8_t fw_version;
 };
 
 #define LT9611_PAGE_CONTROL	0xff
@@ -636,12 +638,202 @@ static void lt9611uxc_audio_exit(struct lt9611uxc *lt9611uxc)
 	}
 }
 
+#define LT9611UXC_FW_PAGE_SIZE 32
+static void lt9611uxc_firmware_write_page(struct lt9611uxc *lt9611uxc, u16 addr, const u8 *buf)
+{
+	struct reg_sequence seq_write_prepare[] = {
+		REG_SEQ0(0x805a, 0x04),
+		REG_SEQ0(0x805a, 0x00),
+
+		REG_SEQ0(0x805e, 0xdf),
+		REG_SEQ0(0x805a, 0x20),
+		REG_SEQ0(0x805a, 0x00),
+		REG_SEQ0(0x8058, 0x21),
+	};
+
+	struct reg_sequence seq_write_addr[] = {
+		REG_SEQ0(0x805b, (addr >> 16) & 0xff),
+		REG_SEQ0(0x805c, (addr >> 8) & 0xff),
+		REG_SEQ0(0x805d, addr & 0xff),
+		REG_SEQ0(0x805a, 0x10),
+		REG_SEQ0(0x805a, 0x00),
+	};
+
+	regmap_write(lt9611uxc->regmap, 0x8108, 0xbf);
+	msleep(20);
+	regmap_write(lt9611uxc->regmap, 0x8108, 0xff);
+	msleep(20);
+	regmap_multi_reg_write(lt9611uxc->regmap, seq_write_prepare, ARRAY_SIZE(seq_write_prepare));
+	regmap_noinc_write(lt9611uxc->regmap, 0x8059, buf, LT9611UXC_FW_PAGE_SIZE);
+	regmap_multi_reg_write(lt9611uxc->regmap, seq_write_addr, ARRAY_SIZE(seq_write_addr));
+	msleep(20);
+}
+
+static void lt9611uxc_firmware_read_page(struct lt9611uxc *lt9611uxc, u16 addr, char *buf)
+{
+	struct reg_sequence seq_read_page[] = {
+		REG_SEQ0(0x805a, 0xa0),
+		REG_SEQ0(0x805a, 0x80),
+		REG_SEQ0(0x805b, (addr >> 16) & 0xff),
+		REG_SEQ0(0x805c, (addr >> 8) & 0xff),
+		REG_SEQ0(0x805d, addr & 0xff),
+		REG_SEQ0(0x805a, 0x90),
+		REG_SEQ0(0x805a, 0x80),
+		REG_SEQ0(0x8058, 0x21),
+	};
+
+	regmap_multi_reg_write(lt9611uxc->regmap, seq_read_page, ARRAY_SIZE(seq_read_page));
+	regmap_noinc_read(lt9611uxc->regmap, 0x805f, buf, LT9611UXC_FW_PAGE_SIZE);
+}
+
+static char *lt9611uxc_firmware_read(struct lt9611uxc *lt9611uxc, size_t size)
+{
+	struct reg_sequence seq_read_setup[] = {
+		REG_SEQ0(0x805a, 0x84),
+		REG_SEQ0(0x805a, 0x80),
+	};
+
+	char *readbuf;
+	u16 offset;
+
+	readbuf = kzalloc(ALIGN(size, 32), GFP_KERNEL);
+	if (!readbuf)
+		return NULL;
+
+	regmap_multi_reg_write(lt9611uxc->regmap, seq_read_setup, ARRAY_SIZE(seq_read_setup));
+
+	for (offset = 0;
+	     offset < size;
+	     offset += LT9611UXC_FW_PAGE_SIZE)
+		lt9611uxc_firmware_read_page(lt9611uxc, offset, &readbuf[offset]);
+
+	return readbuf;
+}
+
+static int lt9611uxc_firmware_update(struct lt9611uxc *lt9611uxc)
+{
+	int ret;
+	u16 offset;
+	size_t remain;
+	char *readbuf;
+	const struct firmware *fw;
+
+	struct reg_sequence seq_setup[] = {
+		REG_SEQ0(0x805e, 0xdf),
+		REG_SEQ0(0x8058, 0x00),
+		REG_SEQ0(0x8059, 0x50),
+		REG_SEQ0(0x805a, 0x10),
+		REG_SEQ0(0x805a, 0x00),
+	};
+
+
+	struct reg_sequence seq_block_erase[] = {
+		REG_SEQ0(0x805a, 0x04),
+		REG_SEQ0(0x805a, 0x00),
+		REG_SEQ0(0x805b, 0x00),
+		REG_SEQ0(0x805c, 0x00),
+		REG_SEQ0(0x805d, 0x00),
+		REG_SEQ0(0x805a, 0x01),
+		REG_SEQ0(0x805a, 0x00),
+	};
+
+	ret = request_firmware(&fw, "lt9611uxc_fw.bin", lt9611uxc->dev);
+	if (ret < 0)
+		return ret;
+
+	dev_info(lt9611uxc->dev, "Updating firmware\n");
+	lt9611uxc_lock(lt9611uxc);
+
+	regmap_multi_reg_write(lt9611uxc->regmap, seq_setup, ARRAY_SIZE(seq_setup));
+
+	/*
+	 * Need erase block 2 timess here. Sometimes, block erase can fail.
+	 * This is a workaroud.
+	 */
+	regmap_multi_reg_write(lt9611uxc->regmap, seq_block_erase, ARRAY_SIZE(seq_block_erase));
+	msleep(3000);
+	regmap_multi_reg_write(lt9611uxc->regmap, seq_block_erase, ARRAY_SIZE(seq_block_erase));
+	msleep(3000);
+
+	for (offset = 0, remain = fw->size;
+	     remain >= LT9611UXC_FW_PAGE_SIZE;
+	     offset += LT9611UXC_FW_PAGE_SIZE, remain -= LT9611UXC_FW_PAGE_SIZE)
+		lt9611uxc_firmware_write_page(lt9611uxc, offset, fw->data + offset);
+
+	if (remain > 0) {
+		char buf[LT9611UXC_FW_PAGE_SIZE];
+
+		memset(buf, 0xff, LT9611UXC_FW_PAGE_SIZE);
+		memcpy(buf, fw->data + offset, remain);
+		lt9611uxc_firmware_write_page(lt9611uxc, offset, buf);
+	}
+	msleep(20);
+
+	readbuf = lt9611uxc_firmware_read(lt9611uxc, fw->size);
+	if (!readbuf) {
+		ret = -ENOMEM;
+		goto out;
+	}
+
+	if (!memcmp(readbuf, fw->data, fw->size)) {
+		dev_err(lt9611uxc->dev, "Firmware update failed\n");
+		print_hex_dump(KERN_ERR, "fw: ", DUMP_PREFIX_OFFSET, 16, 1, readbuf, fw->size, false);
+		ret = -EINVAL;
+	} else {
+		dev_info(lt9611uxc->dev, "Firmware updates successfully\n");
+		ret = 0;
+	}
+	kfree(readbuf);
+
+out:
+	lt9611uxc_unlock(lt9611uxc);
+	lt9611uxc_reset(lt9611uxc);
+	release_firmware(fw);
+
+	return ret;
+}
+
+static ssize_t lt9611uxc_firmware_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t len)
+{
+	struct lt9611uxc *lt9611uxc = dev_get_drvdata(dev);
+	int ret;
+
+	ret = lt9611uxc_firmware_update(lt9611uxc);
+	if (ret < 0)
+		return ret;
+	return len;
+}
+
+static ssize_t lt9611uxc_firmware_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	struct lt9611uxc *lt9611uxc = dev_get_drvdata(dev);
+
+	return snprintf(buf, PAGE_SIZE, "%02x\n", lt9611uxc->fw_version);
+}
+
+static DEVICE_ATTR_RW(lt9611uxc_firmware);
+
+static struct attribute *lt9611uxc_attrs[] = {
+	&dev_attr_lt9611uxc_firmware.attr,
+	NULL,
+};
+
+static const struct attribute_group lt9611uxc_attr_group = {
+	.attrs = lt9611uxc_attrs,
+};
+
+static const struct attribute_group *lt9611uxc_attr_groups[] = {
+	&lt9611uxc_attr_group,
+	NULL,
+};
+
 static int lt9611uxc_probe(struct i2c_client *client,
 			const struct i2c_device_id *id)
 {
 	struct lt9611uxc *lt9611uxc;
 	struct device *dev = &client->dev;
 	int ret;
+	bool fw_updated = false;
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C)) {
 		dev_err(dev, "device doesn't support I2C\n");
@@ -690,19 +882,31 @@ static int lt9611uxc_probe(struct i2c_client *client,
 		goto err_disable_regulators;
 	}
 
+retry:
 	ret = lt9611uxc_read_version(lt9611uxc);
 	if (ret < 0) {
 		dev_err(dev, "failed to read FW version\n");
 		goto err_disable_regulators;
 	} else if (ret == 0) {
-		dev_err(dev, "FW version 0, FW update not supported\n");
-		ret = -EOPNOTSUPP;
-		goto err_disable_regulators;
+		if (!fw_updated) {
+			fw_updated = true;
+			dev_err(dev, "FW version 0, enforcing firmware update\n");
+			ret = lt9611uxc_firmware_update(lt9611uxc);
+			if (ret < 0)
+				goto err_disable_regulators;
+			else
+				goto retry;
+		} else {
+			dev_err(dev, "FW version 0, update failed\n");
+			ret = -EOPNOTSUPP;
+			goto err_disable_regulators;
+		}
 	} else if (ret < 0x40) {
 		dev_info(dev, "FW version 0x%x, HPD not supported\n", ret);
 	} else {
 		lt9611uxc->hpd_supported = true;
 	}
+	lt9611uxc->fw_version = ret;
 
 	ret = devm_request_threaded_irq(dev, client->irq, NULL,
 					lt9611uxc_irq_thread_handler,
@@ -772,6 +976,7 @@ static struct i2c_driver lt9611uxc_driver = {
 	.driver = {
 		.name = "lt9611uxc",
 		.of_match_table = lt9611uxc_match_table,
+		.dev_groups = lt9611uxc_attr_groups,
 	},
 	.probe = lt9611uxc_probe,
 	.remove = lt9611uxc_remove,
