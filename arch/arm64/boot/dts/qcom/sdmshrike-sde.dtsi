@@ -21,6 +21,7 @@
 			"vbif_phys",
 			"regdma_phys";
 
+		status = "disabled";
 		clocks =
 			<&clock_gcc GCC_DISP_AHB_CLK>,
 			<&clock_gcc GCC_DISP_HF_AXI_CLK>,
