@@ -486,7 +486,7 @@
 		qcom,phy-power-down-offset = <0xa40>;
 		qcom,core-preset = <0x77777777>;
 
-		qcom,boot-option = <0x3>;
+		qcom,boot-option = <0x2>;
 
 		linux,pci-domain = <1>;
 
