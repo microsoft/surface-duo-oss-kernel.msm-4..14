@@ -11,6 +11,7 @@
 #include <linux/kernel.h>
 #include <linux/ktime.h>
 #include <linux/pm_domain.h>
+#include <linux/pm_opp.h>
 #include <linux/regmap.h>
 #include <linux/regulator/consumer.h>
 #include <linux/reset-controller.h>
@@ -398,6 +399,11 @@ int gdsc_register(struct gdsc_desc *desc,
 	if (!data->domains)
 		return -ENOMEM;
 
+	/* For some GDSC an external power domain must be enabled to access registers. */
+	ret = of_get_required_opp_performance_state(dev->of_node, 0);
+	if (ret > 0)
+		dev_pm_genpd_set_performance_state(dev, ret);
+
 	for (i = 0; i < num; i++) {
 		if (!scs[i] || !scs[i]->supply)
 			continue;
@@ -445,6 +451,7 @@ void gdsc_unregister(struct gdsc_desc *desc)
 			pm_genpd_remove_subdomain(scs[i]->parent, &scs[i]->pd);
 	}
 	of_genpd_del_provider(dev->of_node);
+	dev_pm_genpd_set_performance_state(dev, 0);
 }
 
 /*

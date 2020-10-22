@@ -12,6 +12,7 @@
 #include <linux/of_address.h>
 #include <linux/of_platform.h>
 #include <linux/pm_opp.h>
+#include <linux/regmap.h>
 #include <linux/slab.h>
 
 #define LUT_MAX_ENTRIES			40U
@@ -19,18 +20,24 @@
 #define LUT_L_VAL			GENMASK(7, 0)
 #define LUT_CORE_COUNT			GENMASK(18, 16)
 #define LUT_VOLT			GENMASK(11, 0)
-#define LUT_ROW_SIZE			32
 #define CLK_HW_DIV			2
 #define LUT_TURBO_IND			1
 
-/* Register offsets */
-#define REG_ENABLE			0x0
-#define REG_FREQ_LUT			0x110
-#define REG_VOLT_LUT			0x114
-#define REG_PERF_STATE			0x920
+struct qcom_cpufreq_soc_data {
+	u32 reg_enable;
+	u32 reg_freq_lut;
+	u32 reg_volt_lut;
+	u32 reg_perf_state;
+	u8 lut_row_size;
+};
+
+struct qcom_cpufreq_data {
+	void __iomem *base;
+	struct regmap *regmap;
+	const struct qcom_cpufreq_soc_data *soc_data;
+};
 
 static unsigned long cpu_hw_rate, xo_rate;
-static struct platform_device *global_pdev;
 static bool icc_scaling_enabled;
 
 static int qcom_cpufreq_set_bw(struct cpufreq_policy *policy,
@@ -77,10 +84,14 @@ static int qcom_cpufreq_update_opp(struct device *cpu_dev,
 static int qcom_cpufreq_hw_target_index(struct cpufreq_policy *policy,
 					unsigned int index)
 {
-	void __iomem *perf_state_reg = policy->driver_data;
+	struct qcom_cpufreq_data *data = policy->driver_data;
+	const struct qcom_cpufreq_soc_data *soc_data = data->soc_data;
 	unsigned long freq = policy->freq_table[index].frequency;
+	int ret;
 
-	writel_relaxed(index, perf_state_reg);
+	ret = regmap_write(data->regmap, soc_data->reg_perf_state, index);
+	if (ret)
+		return ret;
 
 	if (icc_scaling_enabled)
 		qcom_cpufreq_set_bw(policy, freq);
@@ -92,17 +103,23 @@ static int qcom_cpufreq_hw_target_index(struct cpufreq_policy *policy,
 
 static unsigned int qcom_cpufreq_hw_get(unsigned int cpu)
 {
-	void __iomem *perf_state_reg;
+	struct qcom_cpufreq_data *data;
+	const struct qcom_cpufreq_soc_data *soc_data;
 	struct cpufreq_policy *policy;
 	unsigned int index;
+	int ret;
 
 	policy = cpufreq_cpu_get_raw(cpu);
 	if (!policy)
 		return 0;
 
-	perf_state_reg = policy->driver_data;
+	data = policy->driver_data;
+	soc_data = data->soc_data;
 
-	index = readl_relaxed(perf_state_reg);
+	ret = regmap_read(data->regmap, soc_data->reg_perf_state, &index);
+	if (ret)
+		return 0;
+
 	index = min(index, LUT_MAX_ENTRIES - 1);
 
 	return policy->freq_table[index].frequency;
@@ -111,12 +128,16 @@ static unsigned int qcom_cpufreq_hw_get(unsigned int cpu)
 static unsigned int qcom_cpufreq_hw_fast_switch(struct cpufreq_policy *policy,
 						unsigned int target_freq)
 {
-	void __iomem *perf_state_reg = policy->driver_data;
+	struct qcom_cpufreq_data *data = policy->driver_data;
+	const struct qcom_cpufreq_soc_data *soc_data = data->soc_data;
 	unsigned int index;
 	unsigned long freq;
+	int ret;
 
 	index = policy->cached_resolved_idx;
-	writel_relaxed(index, perf_state_reg);
+	ret = regmap_write(data->regmap, soc_data->reg_perf_state, index);
+	if (ret)
+		return 0;
 
 	freq = policy->freq_table[index].frequency;
 	arch_set_freq_scale(policy->related_cpus, freq,
@@ -126,8 +147,7 @@ static unsigned int qcom_cpufreq_hw_fast_switch(struct cpufreq_policy *policy,
 }
 
 static int qcom_cpufreq_hw_read_lut(struct device *cpu_dev,
-				    struct cpufreq_policy *policy,
-				    void __iomem *base)
+				    struct cpufreq_policy *policy)
 {
 	u32 data, src, lval, i, core_count, prev_freq = 0, freq;
 	u32 volt;
@@ -135,6 +155,8 @@ static int qcom_cpufreq_hw_read_lut(struct device *cpu_dev,
 	struct dev_pm_opp *opp;
 	unsigned long rate;
 	int ret;
+	struct qcom_cpufreq_data *drv_data = policy->driver_data;
+	const struct qcom_cpufreq_soc_data *soc_data = drv_data->soc_data;
 
 	table = kcalloc(LUT_MAX_ENTRIES + 1, sizeof(*table), GFP_KERNEL);
 	if (!table)
@@ -161,14 +183,24 @@ static int qcom_cpufreq_hw_read_lut(struct device *cpu_dev,
 	}
 
 	for (i = 0; i < LUT_MAX_ENTRIES; i++) {
-		data = readl_relaxed(base + REG_FREQ_LUT +
-				      i * LUT_ROW_SIZE);
+		ret = regmap_read(drv_data->regmap, soc_data->reg_freq_lut +
+				  i * soc_data->lut_row_size, &data);
+		if (ret) {
+			kfree(table);
+			return ret;
+		}
+
 		src = FIELD_GET(LUT_SRC, data);
 		lval = FIELD_GET(LUT_L_VAL, data);
 		core_count = FIELD_GET(LUT_CORE_COUNT, data);
 
-		data = readl_relaxed(base + REG_VOLT_LUT +
-				      i * LUT_ROW_SIZE);
+		ret = regmap_read(drv_data->regmap, soc_data->reg_volt_lut +
+				  i * soc_data->lut_row_size, &data);
+		if (ret) {
+			kfree(table);
+			return ret;
+		}
+
 		volt = FIELD_GET(LUT_VOLT, data) * 1000;
 
 		if (src)
@@ -238,15 +270,48 @@ static void qcom_get_related_cpus(int index, struct cpumask *m)
 	}
 }
 
+static struct regmap_config qcom_cpufreq_regmap = {
+	.reg_bits = 32,
+	.reg_stride = 4,
+	.val_bits = 32,
+	.fast_io = true,
+};
+
+static const struct qcom_cpufreq_soc_data qcom_soc_data = {
+	.reg_enable = 0x0,
+	.reg_freq_lut = 0x110,
+	.reg_volt_lut = 0x114,
+	.reg_perf_state = 0x920,
+	.lut_row_size = 32,
+};
+
+static const struct qcom_cpufreq_soc_data sm8250_soc_data = {
+	.reg_enable = 0x0,
+	.reg_freq_lut = 0x100,
+	.reg_volt_lut = 0x200,
+	.reg_perf_state = 0x320,
+	.lut_row_size = 4,
+};
+
+static const struct of_device_id qcom_cpufreq_hw_match[] = {
+	{ .compatible = "qcom,cpufreq-hw", .data = &qcom_soc_data },
+	{ .compatible = "qcom,sm8250-epss", .data = &sm8250_soc_data },
+	{}
+};
+MODULE_DEVICE_TABLE(of, qcom_cpufreq_hw_match);
+
 static int qcom_cpufreq_hw_cpu_init(struct cpufreq_policy *policy)
 {
-	struct device *dev = &global_pdev->dev;
+	struct platform_device *pdev = cpufreq_get_driver_data();
+	struct device *dev = &pdev->dev;
 	struct of_phandle_args args;
 	struct device_node *cpu_np;
 	struct device *cpu_dev;
-	struct resource *res;
 	void __iomem *base;
+	struct qcom_cpufreq_data *data;
+	const struct of_device_id *match;
 	int ret, index;
+	u32 val;
 
 	cpu_dev = get_cpu_device(policy->cpu);
 	if (!cpu_dev) {
@@ -267,16 +332,36 @@ static int qcom_cpufreq_hw_cpu_init(struct cpufreq_policy *policy)
 
 	index = args.args[0];
 
-	res = platform_get_resource(global_pdev, IORESOURCE_MEM, index);
-	if (!res)
-		return -ENODEV;
+	base = devm_platform_ioremap_resource(pdev, index);
+	if (IS_ERR(base))
+		return PTR_ERR(base);
 
-	base = devm_ioremap(dev, res->start, resource_size(res));
-	if (!base)
-		return -ENOMEM;
+	data = devm_kzalloc(dev, sizeof(*data), GFP_KERNEL);
+	if (!data) {
+		ret = -ENOMEM;
+		goto error;
+	}
+
+	match = of_match_device(qcom_cpufreq_hw_match, &pdev->dev);
+	if (!match) {
+		ret = -ENODEV;
+		goto error;
+	}
+
+	data->soc_data = match->data;
+	data->base = base;
+	data->regmap = devm_regmap_init_mmio(dev, base, &qcom_cpufreq_regmap);
+	if (IS_ERR(data->regmap)) {
+		ret = PTR_ERR(data->regmap);
+		goto error;
+	}
 
 	/* HW should be in enabled state to proceed */
-	if (!(readl_relaxed(base + REG_ENABLE) & 0x1)) {
+	ret = regmap_read(data->regmap, data->soc_data->reg_enable, &val);
+	if (ret)
+		goto error;
+
+	if (!(val & 0x1)) {
 		dev_err(dev, "Domain-%d cpufreq hardware not enabled\n", index);
 		ret = -ENODEV;
 		goto error;
@@ -289,9 +374,9 @@ static int qcom_cpufreq_hw_cpu_init(struct cpufreq_policy *policy)
 		goto error;
 	}
 
-	policy->driver_data = base + REG_PERF_STATE;
+	policy->driver_data = data;
 
-	ret = qcom_cpufreq_hw_read_lut(cpu_dev, policy, base);
+	ret = qcom_cpufreq_hw_read_lut(cpu_dev, policy);
 	if (ret) {
 		dev_err(dev, "Domain-%d failed to read LUT\n", index);
 		goto error;
@@ -315,12 +400,13 @@ error:
 static int qcom_cpufreq_hw_cpu_exit(struct cpufreq_policy *policy)
 {
 	struct device *cpu_dev = get_cpu_device(policy->cpu);
-	void __iomem *base = policy->driver_data - REG_PERF_STATE;
+	struct qcom_cpufreq_data *data = policy->driver_data;
+	struct platform_device *pdev = cpufreq_get_driver_data();
 
 	dev_pm_opp_remove_all_dynamic(cpu_dev);
 	dev_pm_opp_of_cpumask_remove_table(policy->related_cpus);
 	kfree(policy->freq_table);
-	devm_iounmap(&global_pdev->dev, base);
+	devm_iounmap(&pdev->dev, data->base);
 
 	return 0;
 }
@@ -365,7 +451,7 @@ static int qcom_cpufreq_hw_driver_probe(struct platform_device *pdev)
 	cpu_hw_rate = clk_get_rate(clk) / CLK_HW_DIV;
 	clk_put(clk);
 
-	global_pdev = pdev;
+	cpufreq_qcom_hw_driver.driver_data = pdev;
 
 	/* Check for optional interconnect paths on CPU0 */
 	cpu_dev = get_cpu_device(0);
@@ -389,12 +475,6 @@ static int qcom_cpufreq_hw_driver_remove(struct platform_device *pdev)
 {
 	return cpufreq_unregister_driver(&cpufreq_qcom_hw_driver);
 }
-
-static const struct of_device_id qcom_cpufreq_hw_match[] = {
-	{ .compatible = "qcom,cpufreq-hw" },
-	{}
-};
-MODULE_DEVICE_TABLE(of, qcom_cpufreq_hw_match);
 
 static struct platform_driver qcom_cpufreq_hw_driver = {
 	.probe = qcom_cpufreq_hw_driver_probe,
