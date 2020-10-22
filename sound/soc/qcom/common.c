@@ -26,6 +26,9 @@ int qcom_snd_parse_of(struct snd_soc_card *card)
 		return ret;
 	}
 
+	if (of_property_read_bool(dev->of_node, "model"))
+		of_property_read_string_index(dev->of_node, "model", 0,
+					      &card->long_name);
 	/* DAPM routes */
 	if (of_property_read_bool(dev->of_node, "audio-routing")) {
 		ret = snd_soc_of_parse_audio_routing(card, "audio-routing");
