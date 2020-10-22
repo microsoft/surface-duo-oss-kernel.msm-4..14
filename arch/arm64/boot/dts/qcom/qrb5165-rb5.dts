@@ -606,12 +606,12 @@
 };
 
 &sound {
-	compatible = "qcom,sm8250-sndcard";
+	compatible = "qcom,qrb5165-rb5";
 	pinctrl-0 = <&tert_mi2s_sck_active
 			 &tert_mi2s_sd0_active
 			 &tert_mi2s_ws_active>;
 	pinctrl-names = "default";
-	model = "RB5";
+	model = "Qualcomm-RB5-WSA8815-Speakers-DMIC0";
 	audio-routing =
 		"SpkrLeft IN", "WSA_SPK1 OUT",
 		"SpkrRight IN", "WSA_SPK2 OUT",
