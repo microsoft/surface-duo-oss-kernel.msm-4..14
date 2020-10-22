@@ -3359,33 +3359,33 @@
 				#size-cells = <2>;
 				#sound-dai-cells = <0>;
 				ranges;
+			};
 
-				swr0: controller@3250000 {
-					reg = <0 0x3250000 0 0x2000>;
-					compatible = "qcom,soundwire-v1.5.1";
-					interrupts = <GIC_SPI 202 IRQ_TYPE_LEVEL_HIGH>;
-					clocks = <&wsamacro>;
-					clock-names = "iface";
+			swr0: controller@3250000 {
+				reg = <0 0x3250000 0 0x2000>;
+				compatible = "qcom,soundwire-v1.5.1";
+				interrupts = <GIC_SPI 202 IRQ_TYPE_LEVEL_HIGH>;
+				clocks = <&wsamacro>;
+				clock-names = "iface";
 
-					qcom,din-ports = <2>;
-					qcom,dout-ports = <6>;
+				qcom,din-ports = <2>;
+				qcom,dout-ports = <6>;
 
-					qcom,ports-sinterval-low =	/bits/ 8 <0x07 0x1F 0x3F 0x07 0x1F 0x3F 0x0F 0x0F>;
-					qcom,ports-offset1 = 		/bits/ 8 <0x01 0x02 0x0C 0x06 0x12 0x0D 0x07 0x0A >;
-					qcom,ports-offset2 = 		/bits/ 8 <0xFF 0x00 0x1F 0xFF 0x00 0x1F 0x00 0x00>;
-					qcom,ports-block-pack-mode = 	/bits/ 8 <0x0 0x0 0x1 0x0 0x0 0x1 0x0 0x0>;
+				qcom,ports-sinterval-low =	/bits/ 8 <0x07 0x1F 0x3F 0x07 0x1F 0x3F 0x0F 0x0F>;
+				qcom,ports-offset1 = 		/bits/ 8 <0x01 0x02 0x0C 0x06 0x12 0x0D 0x07 0x0A >;
+				qcom,ports-offset2 = 		/bits/ 8 <0xFF 0x00 0x1F 0xFF 0x00 0x1F 0x00 0x00>;
+				qcom,ports-block-pack-mode = 	/bits/ 8 <0x0 0x0 0x1 0x0 0x0 0x1 0x0 0x0>;
 
-					#sound-dai-cells = <1>;
-					#address-cells = <2>;
-					#size-cells = <0>;
-				};
+				#sound-dai-cells = <1>;
+				#address-cells = <2>;
+				#size-cells = <0>;
 			};
 
 			vamacro: lpass-va-macro@3370000 {
 				compatible = "qcom,sm8250-lpass-va-macro";
 				reg = <0 0x3370000 0 0x1000>,
 					<0 0x3220000 0 0x1000>;
-				clocks = <&audiocc LPASS_CDC_VA_MCLK>,
+				clocks = <&aoncc LPASS_CDC_VA_MCLK>,
 					<&q6afecc LPASS_HW_MACRO_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>,
 					<&q6afecc LPASS_HW_DCODEC_VOTE LPASS_CLK_ATTRIBUTE_COUPLE_NO>;
 
