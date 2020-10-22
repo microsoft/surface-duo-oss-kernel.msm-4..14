@@ -154,11 +154,6 @@
 			no-map;
 		};
 
-		slpi_region: slpi@90b00000 {
-			reg = <0x0 0x90b00000 0x0 0xa00000>;
-			no-map;
-		};
-
 		venus_region: venus@90400000 {
 			reg = <0x0 0x90400000 0x0 0x700000>;
 			no-map;
@@ -2120,6 +2115,55 @@
 					};
 				};
 
+				fastrpc {
+					compatible = "qcom,fastrpc";
+					qcom,smd-channels = "fastrpcsmd-apps-dsp";
+					/* DOMAIN_ADSP */
+					label = "adsp";
+					#address-cells = <1>;
+					#size-cells = <0>;
+
+					cb@8 {
+						compatible = "qcom,fastrpc-compute-cb";
+						reg = <8>;
+						iommus = <&lpass_q6_smmu 8>;
+					};
+					cb@9 {
+						compatible = "qcom,fastrpc-compute-cb";
+						reg = <9>;
+						iommus = <&lpass_q6_smmu 9>;
+					};
+					cb@10 {
+						compatible = "qcom,fastrpc-compute-cb";
+						reg = <10>;
+						iommus = <&lpass_q6_smmu 10>;
+					};
+					cb@11 {
+						reg = <11>;
+						compatible = "qcom,fastrpc-compute-cb";
+						iommus = <&lpass_q6_smmu 11>;
+					};
+					cb@12 {
+						reg = <12>;
+						compatible = "qcom,fastrpc-compute-cb";
+						iommus = <&lpass_q6_smmu 12>;
+					};
+					cb@5 {
+						reg = <5>;
+						compatible = "qcom,fastrpc-compute-cb";
+						iommus = <&lpass_q6_smmu 5>;
+					};
+					cb@6 {
+						reg = <6>;
+						compatible = "qcom,fastrpc-compute-cb";
+						iommus = <&lpass_q6_smmu 6>;
+					};
+					cb@7 {
+						reg = <7>;
+						compatible = "qcom,fastrpc-compute-cb";
+						iommus = <&lpass_q6_smmu 7>;
+					};
+				};
 			};
 		};
 
@@ -2454,3 +2498,5 @@
 	};
 };
 #include "msm8996-pins.dtsi"
+#include "pm8994.dtsi"
+#include "pmi8994.dtsi"
