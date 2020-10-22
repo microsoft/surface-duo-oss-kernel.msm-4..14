@@ -65,23 +65,9 @@ module_param(disable_bypass, bool, S_IRUGO);
 MODULE_PARM_DESC(disable_bypass,
 	"Disable bypass streams such that incoming transactions from devices that are not attached to an iommu domain will report an abort back to the device and will not be allowed to pass through the SMMU.");
 
-struct arm_smmu_s2cr {
-	struct iommu_group		*group;
-	int				count;
-	enum arm_smmu_s2cr_type		type;
-	enum arm_smmu_s2cr_privcfg	privcfg;
-	u8				cbndx;
-};
-
 #define s2cr_init_val (struct arm_smmu_s2cr){				\
 	.type = disable_bypass ? S2CR_TYPE_FAULT : S2CR_TYPE_BYPASS,	\
 }
-
-struct arm_smmu_smr {
-	u16				mask;
-	u16				id;
-	bool				valid;
-};
 
 struct arm_smmu_cb {
 	u64				ttbr[2];
@@ -651,7 +637,9 @@ static void arm_smmu_write_context_bank(struct arm_smmu_device *smmu, int idx)
 
 	/* SCTLR */
 	reg = ARM_SMMU_SCTLR_CFIE | ARM_SMMU_SCTLR_CFRE | ARM_SMMU_SCTLR_AFE |
-	      ARM_SMMU_SCTLR_TRE | ARM_SMMU_SCTLR_M;
+	      ARM_SMMU_SCTLR_TRE;
+	if (cfg->m)
+		reg |= ARM_SMMU_SCTLR_M;
 	if (stage1)
 		reg |= ARM_SMMU_SCTLR_S1_ASIDPNE;
 	if (IS_ENABLED(CONFIG_CPU_BIG_ENDIAN))
@@ -661,7 +649,8 @@ static void arm_smmu_write_context_bank(struct arm_smmu_device *smmu, int idx)
 }
 
 static int arm_smmu_init_domain_context(struct iommu_domain *domain,
-					struct arm_smmu_device *smmu)
+					struct arm_smmu_device *smmu,
+					bool boot_domain)
 {
 	int irq, start, ret = 0;
 	unsigned long ias, oas;
@@ -676,7 +665,11 @@ static int arm_smmu_init_domain_context(struct iommu_domain *domain,
 	if (smmu_domain->smmu)
 		goto out_unlock;
 
-	if (domain->type == IOMMU_DOMAIN_IDENTITY) {
+	/*
+	 * Nothing to do for IDENTITY domains,unless disabled context banks are
+	 * used to emulate bypass mappings on Qualcomm platforms.
+	 */
+	if (domain->type == IOMMU_DOMAIN_IDENTITY && !smmu->qcom_bypass_quirk) {
 		smmu_domain->stage = ARM_SMMU_DOMAIN_BYPASS;
 		smmu_domain->smmu = smmu;
 		goto out_unlock;
@@ -776,6 +769,15 @@ static int arm_smmu_init_domain_context(struct iommu_domain *domain,
 		ret = -EINVAL;
 		goto out_unlock;
 	}
+
+	/*
+	 * Use the last context bank for identity mappings during boot, to
+	 * avoid overwriting in-use bank configuration while we're setting up
+	 * the new mappings.
+	 */
+	if (boot_domain)
+		start = smmu->num_context_banks - 1;
+
 	ret = __arm_smmu_alloc_bitmap(smmu->context_map, start,
 				      smmu->num_context_banks);
 	if (ret < 0)
@@ -823,6 +825,10 @@ static int arm_smmu_init_domain_context(struct iommu_domain *domain,
 	domain->pgsize_bitmap = pgtbl_cfg.pgsize_bitmap;
 	domain->geometry.aperture_end = (1UL << ias) - 1;
 	domain->geometry.force_aperture = true;
+
+	/* Enable translation for non-identity context banks */
+	if (domain->type != IOMMU_DOMAIN_IDENTITY)
+		cfg->m = true;
 
 	/* Initialise the context bank with our page table cfg */
 	arm_smmu_init_context_bank(smmu_domain, &pgtbl_cfg);
@@ -1157,7 +1163,10 @@ static int arm_smmu_attach_dev(struct iommu_domain *domain, struct device *dev)
 	struct iommu_fwspec *fwspec = dev_iommu_fwspec_get(dev);
 	struct arm_smmu_master_cfg *cfg;
 	struct arm_smmu_device *smmu;
+	bool free_identity_domain = false;
+	int idx;
 	int ret;
+	int i;
 
 	if (!fwspec || fwspec->ops != &arm_smmu_ops) {
 		dev_err(dev, "cannot attach to SMMU, is it on the same bus?\n");
@@ -1182,7 +1191,7 @@ static int arm_smmu_attach_dev(struct iommu_domain *domain, struct device *dev)
 		return ret;
 
 	/* Ensure that the domain is finalised */
-	ret = arm_smmu_init_domain_context(domain, smmu);
+	ret = arm_smmu_init_domain_context(domain, smmu, false);
 	if (ret < 0)
 		goto rpm_put;
 
@@ -1198,8 +1207,33 @@ static int arm_smmu_attach_dev(struct iommu_domain *domain, struct device *dev)
 		goto rpm_put;
 	}
 
+	/* Decrement use counter for any references to the identity domain */
+	mutex_lock(&smmu->stream_map_mutex);
+	if (smmu->identity) {
+		struct arm_smmu_domain *identity = to_smmu_domain(smmu->identity);
+
+		for_each_cfg_sme(cfg, fwspec, i, idx) {
+			dev_err(smmu->dev, "%s() %#x\n", __func__, smmu->smrs[idx].id);
+			if (smmu->s2crs[idx].cbndx == identity->cfg.cbndx) {
+				smmu->num_identity_masters--;
+				if (smmu->num_identity_masters == 0)
+					free_identity_domain = true;
+			}
+		}
+	}
+	mutex_unlock(&smmu->stream_map_mutex);
+
 	/* Looks ok, so add the device to the domain */
 	ret = arm_smmu_domain_add_master(smmu_domain, cfg, fwspec);
+
+	/*
+	 * The last stream map to reference the identity domain has been
+	 * overwritten, so it's now okay to free it.
+	 */
+	if (free_identity_domain) {
+		arm_smmu_domain_free(smmu->identity);
+		smmu->identity = NULL;
+	}
 
 	/*
 	 * Setup an autosuspend delay to avoid bouncing runpm state.
@@ -1931,6 +1965,56 @@ static int arm_smmu_device_cfg_probe(struct arm_smmu_device *smmu)
 	return 0;
 }
 
+int arm_smmu_setup_identity(struct arm_smmu_device *smmu)
+{
+	struct device *dev = smmu->dev;
+	int cbndx = 0xff;
+	int type = S2CR_TYPE_BYPASS;
+	int ret;
+	int i;
+
+	if (smmu->qcom_bypass_quirk) {
+		/* Create a IDENTITY domain to use for all inherited streams */
+		smmu->identity = arm_smmu_domain_alloc(IOMMU_DOMAIN_IDENTITY);
+		if (!smmu->identity) {
+			dev_err(dev, "failed to create identity domain\n");
+			return -ENOMEM;
+		}
+
+		smmu->identity->pgsize_bitmap = smmu->pgsize_bitmap;
+		smmu->identity->type = IOMMU_DOMAIN_IDENTITY;
+		smmu->identity->ops = &arm_smmu_ops;
+
+		ret = arm_smmu_init_domain_context(smmu->identity, smmu, true);
+		if (ret < 0) {
+			dev_err(dev, "failed to initialize identity domain: %d\n", ret);
+			return ret;
+		}
+
+		type = S2CR_TYPE_TRANS;
+		cbndx = to_smmu_domain(smmu->identity)->cfg.cbndx;
+	}
+
+	for (i = 0; i < smmu->num_mapping_groups; i++) {
+		if (smmu->smrs[i].valid) {
+			smmu->s2crs[i].type = type;
+			smmu->s2crs[i].privcfg = S2CR_PRIVCFG_DEFAULT;
+			smmu->s2crs[i].cbndx = cbndx;
+			smmu->s2crs[i].count++;
+
+			smmu->num_identity_masters++;
+		}
+	}
+
+	/* If no mappings where found, free the identiy domain again */
+	if (smmu->identity && !smmu->num_identity_masters) {
+		arm_smmu_domain_free(smmu->identity);
+		smmu->identity = NULL;
+	}
+
+	return 0;
+}
+
 struct arm_smmu_match_data {
 	enum arm_smmu_arch_version version;
 	enum arm_smmu_implementation model;
@@ -2187,6 +2271,10 @@ static int arm_smmu_device_probe(struct platform_device *pdev)
 		return err;
 
 	err = arm_smmu_device_cfg_probe(smmu);
+	if (err)
+		return err;
+
+	err = arm_smmu_setup_identity(smmu);
 	if (err)
 		return err;
 
