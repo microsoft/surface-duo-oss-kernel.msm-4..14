@@ -1,0 +1,24 @@
+name: $(Date:yyyy).$(Date:Mdd).$(Rev:r)
+
+variables:
+- template: '/templates/eos-build-vars.yaml@eos_build'
+- template: '/config/vars.yaml@eos_build'
+
+trigger: none
+pr:
+  autoCancel: true
+
+resources:
+  repositories:
+    - repository: eos_build
+      type: git
+      name: eos/build
+      ref: 'refs/heads/eos/10/master'
+
+stages:
+  - template: /config/target-build-config.yaml@eos_build
+    parameters:
+      prRepoName: 'kernel/msm-4.14'
+      prRepoBranch: '$(Build.SourceBranch)'
+      prRepoOrigin: 'device-caf'
+      repoBuildBranch: '$(System.PullRequest.TargetBranch)'

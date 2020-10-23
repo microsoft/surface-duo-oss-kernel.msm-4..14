@@ -1,4 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0
+#
+# Copyright (c) 2020 Microsoft Corporation
+#
+# This program is free software; you can redistribute it and/or modify it
+# under the terms of the GNU General Public License version 2 as published by
+# the Free Software Foundation.
+#
 dts-dirs += actions
 dts-dirs += al
 dts-dirs += allwinner
@@ -24,6 +31,7 @@ dts-dirs += sprd
 dts-dirs += xilinx
 dts-dirs += lg
 dts-dirs += zte
+dts-dirs += surface
 
 subdir-y	:= $(dts-dirs)
 

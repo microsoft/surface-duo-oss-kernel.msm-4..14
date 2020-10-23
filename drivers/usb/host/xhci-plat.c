@@ -3,6 +3,7 @@
  *
  * Copyright (C) 2012 Texas Instruments Incorporated - http://www.ti.com
  * Author: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * A lot of code borrowed from the Linux xHCI driver.
  *
@@ -90,6 +91,8 @@ static int xhci_plat_setup(struct usb_hcd *hcd)
 
 static int xhci_plat_start(struct usb_hcd *hcd)
 {
+	hcd->power_budget = 600; //MSCHANGE: cap Power budget to 600ma
+
 	xhci_priv_plat_start(hcd);
 	return xhci_run(hcd);
 }

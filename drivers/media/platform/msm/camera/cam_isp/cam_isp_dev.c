@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2018, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -172,7 +173,10 @@ static int cam_isp_dev_probe(struct platform_device *pdev)
 
 	return 0;
 unregister:
-	rc = cam_subdev_remove(&g_isp_dev.sd);
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//	rc = cam_subdev_remove(&g_isp_dev.sd);
+	cam_subdev_remove(&g_isp_dev.sd);
+/* MSCHANGE End */
 err:
 	return rc;
 }

@@ -1,5 +1,6 @@
 /*
  * Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -1584,6 +1585,18 @@ static int dsi_panel_parse_cmd_host_config(struct dsi_cmd_engine_cfg *cfg,
 		goto error;
 	}
 
+    /* MS_CHANGE start */
+	/* Workaround for SW43408A panels */
+	val = 0;
+	rc = utils->read_u32(utils->data, "qcom,mdss-dsi-idle_ctrl", &val);
+	if (rc) {
+		pr_debug("[%s] fallback to default, no delay in ctrl\n", name);
+		cfg->idle_ctrl = 0;
+	} else {
+		cfg->idle_ctrl = val;
+	}
+	/* MS_CHANGE end */
+
 error:
 	return rc;
 }
@@ -1610,6 +1623,7 @@ static int dsi_panel_parse_panel_mode(struct dsi_panel *panel)
 		goto error;
 	}
 
+    panel->host_config.block_dma_within_frame = false; /* MS_CHANGE */
 	if (panel_mode == DSI_OP_VIDEO_MODE) {
 		rc = dsi_panel_parse_video_host_config(&panel->video_config,
 						       utils,
@@ -1630,6 +1644,11 @@ static int dsi_panel_parse_panel_mode(struct dsi_panel *panel)
 			       panel->name, rc);
 			goto error;
 		}
+		/* MS_CHANGE start */
+		if (panel->cmd_config.idle_ctrl > 0) {
+			panel->host_config.block_dma_within_frame = true;
+		}
+		/* MS_CHANGE end */
 	}
 
 	panel->panel_mode = panel_mode;

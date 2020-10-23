@@ -1,4 +1,5 @@
 /* Copyright (c) 2017-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -376,7 +377,10 @@ static int cam_fd_mgr_util_pdev_get_hw_intf(struct device_node *of_node,
 	hw_intf = (struct cam_hw_intf *)platform_get_drvdata(child_pdev);
 	if (!hw_intf) {
 		CAM_ERR(CAM_FD, "No driver data for child device");
-		rc = -ENODEV;
+/* MSCHANGE START Handle errors properly to support Deferring initialization*/
+//		rc = -ENODEV;
+		rc = -EPROBE_DEFER;
+/* MSCHANGE End */
 		goto put_node;
 	}
 
