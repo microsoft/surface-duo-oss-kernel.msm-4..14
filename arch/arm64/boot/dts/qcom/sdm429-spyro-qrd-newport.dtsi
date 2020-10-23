@@ -123,10 +123,10 @@
 				cy,name = "cyttsp5_mt";
 
 				cy,inp_dev_name = "cyttsp5_mt";
-				cy,flags = <0x28>;
+				cy,flags = <0x8>;
 				cy,abs =
-					<0x35 0 320 0 0
-					 0x36 0 360 0 0
+					<0x35 0 368 0 0
+					 0x36 0 448 0 0
 					 0x3a 0 255 0 0
 					 0xffff 0 255 0 0
 					 0x39 0 15 0 0
