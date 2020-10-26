@@ -369,6 +369,8 @@
 		spi-fifo-size = <5>;
 		spi-cpol;
 		spi-cpha;
+		dmas = <&edma0 0 7>, <&edma0 0 8>;
+		dma-names = "tx", "rx";
 		status = "disabled";
 	};
 
@@ -383,6 +385,8 @@
 		spi-fifo-size = <5>;
 		spi-cpol;
 		spi-cpha;
+		dmas = <&edma0 0 10>, <&edma0 0 11>;
+		dma-names = "tx", "rx";
 		status = "disabled";
 	};
 
@@ -397,6 +401,8 @@
 		spi-fifo-size = <5>;
 		spi-cpol;
 		spi-cpha;
+		dmas = <&edma0 0 13>, <&edma0 0 14>;
+		dma-names = "tx", "rx";
 		status = "disabled";
 	};
 
@@ -609,6 +615,8 @@
 		spi-fifo-size = <5>;
 		spi-cpol;
 		spi-cpha;
+		dmas = <&edma0 1 7>, <&edma0 1 8>;
+		dma-names = "tx", "rx";
 		status = "disabled";
 	};
 
@@ -623,6 +631,8 @@
 		spi-fifo-size = <5>;
 		spi-cpol;
 		spi-cpha;
+		dmas = <&edma0 1 10>, <&edma0 1 11>;
+		dma-names = "tx", "rx";
 		status = "disabled";
 	};
 
@@ -637,6 +647,8 @@
 		spi-fifo-size = <5>;
 		spi-cpol;
 		spi-cpha;
+		dmas = <&edma0 1 13>, <&edma0 1 14>;
+		dma-names = "tx", "rx";
 		status = "disabled";
 	};
 
