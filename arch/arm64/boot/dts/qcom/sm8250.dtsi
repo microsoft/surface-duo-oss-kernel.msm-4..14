@@ -2416,7 +2416,6 @@
 			interrupt-controller;
 			#interrupt-cells = <2>;
 			gpio-ranges = <&tlmm 0 0 180>;
-			wakeup-parent = <&pdc>;
 
 			pri_mi2s_sck_active: pri-mi2s-sck-active {
 				mux {
