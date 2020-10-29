@@ -52,10 +52,9 @@ int poll_derating_temp_errata(void __iomem *ddrc_base,
 	 */
 	reg = readl(ddrc_base + OFFSET_DDRC_RFSHCTL3);
 	bf_val = (reg >> DDRC_RFSHCTL3_UPDATE_SHIFT) &
-		DDRC_RFSHCTL3_AUTO_REFRESH_FLAG;
+		DDRC_RFSHCTL3_AUTO_REFRESH_VAL;
 	bf_val = bf_val ^ 1;
-	writel((reg & ~(DDRC_RFSHCTL3_AUTO_REFRESH_FLAG <<
-					DDRC_RFSHCTL3_UPDATE_SHIFT)) |
+	writel((reg & ~DDRC_RFSHCTL3_MASK) |
 			(bf_val << DDRC_RFSHCTL3_UPDATE_SHIFT),
 		   ddrc_base + OFFSET_DDRC_RFSHCTL3);
 
