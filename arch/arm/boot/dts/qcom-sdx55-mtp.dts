@@ -6,6 +6,7 @@
 
 /dts-v1/;
 
+#include <dt-bindings/gpio/gpio.h>
 #include "qcom-sdx55.dtsi"
 
 / {
@@ -20,8 +21,60 @@
 	chosen {
 		stdout-path = "serial0:115200n8";
 	};
+
+	vreg_sd_vdd: sd-vdd {
+		compatible = "regulator-fixed";
+		regulator-name = "vreg_sd_vdd";
+		regulator-min-microvolt = <2950000>;
+		regulator-max-microvolt = <2950000>;
+	};
+
+	vreg_vddpx_2: vddpx-2 {
+		compatible = "regulator-fixed";
+		regulator-name = "vreg_vddpx_2";
+		regulator-min-microvolt = <2850000>;
+		regulator-max-microvolt = <2850000>;
+	};
 };
 
 &blsp1_uart3 {
 	status = "ok";
+};
+
+&sdhc_1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&sdc1_default_state &sdc1_card_det_n>;
+	vmmc-supply = <&vreg_sd_vdd>;
+	vqmmc-supply = <&vreg_vddpx_2>;
+	bus-width = <4>;
+	cd-gpios = <&tlmm 99 GPIO_ACTIVE_LOW>;
+	status = "ok";
+};
+
+&tlmm {
+	sdc1_default_state: sdc1-default {
+		clk {
+			pins = "sdc1_clk";
+			bias-disable;
+			drive-strength = <16>;
+		};
+
+		cmd {
+			pins = "sdc1_cmd";
+			bias-pull-up;
+			drive-strength = <10>;
+		};
+
+		data {
+			pins = "sdc1_data";
+			bias-pull-up;
+			drive-strength = <10>;
+		};
+	};
+
+	sdc1_card_det_n: sd-card-det-n {
+		pins = "gpio99";
+		function = "gpio";
+		bias-pull-up;
+	};
 };
