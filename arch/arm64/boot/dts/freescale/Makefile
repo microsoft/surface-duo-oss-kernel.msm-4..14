@@ -46,6 +46,7 @@ dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-simulator.dtb
 dtb-$(CONFIG_ARCH_S32) += fsl-s32v234-tmdp.dtb
 dtb-$(CONFIG_ARCH_S32) += fsl-s32v344-simulator.dtb
 dtb-$(CONFIG_ARCH_S32) += fsl-s32g274-simulator.dtb
+dtb-$(CONFIG_ARCH_S32) += fsl-s32g274a-bluebox3.dtb
 dtb-$(CONFIG_ARCH_S32) += fsl-s32g274a-emu.dtb
 dtb-$(CONFIG_ARCH_S32) += fsl-s32g274a-evb.dtb
 dtb-$(CONFIG_ARCH_S32) += fsl-s32g274a-rdb.dtb
