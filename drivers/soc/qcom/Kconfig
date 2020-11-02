@@ -1050,6 +1050,13 @@ config QCOM_SOC_INFO
 	  based on the chip ID and querying the SoC revision. This information is
 	  loaded by the bootloader into SMEM during the boot up process.
 
+config SUBSYS_BACKUP
+	bool "Subsystem Backup-Restore driver"
+	help
+	  This driver helps HLOS to backup-restore the remote subsystem image.
+	  This driver implements the QMI interface and responds to the backup
+	  and restore requests from the remote subsystem.
+
 endmenu
 
 config QCOM_HYP_CORE_CTL
