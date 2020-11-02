@@ -1608,6 +1608,8 @@ static int veth_ipa_init(struct platform_device *pdev)
 
 	dev->netdev_ops = &veth_ipa_netdev_ops;
 	VETH_IPA_DEBUG("internal data structures were initialized\n");
+	veth_ipa_pdata->outstanding_low = DEFAULT_OUTSTANDING_LOW;
+	veth_ipa_pdata->outstanding_high = DEFAULT_OUTSTANDING_HIGH;
 
 	veth_ipa_debugfs_init(veth_ipa_pdata);
 
@@ -1781,7 +1783,6 @@ static netdev_tx_t veth_ipa_start_xmit
 
 	struct veth_ipa_dev *veth_ipa_ctx = netdev_priv(net);
 	netif_trans_update(net);
-
 	VETH_IPA_DEBUG_XMIT("Tx, len=%d, skb->protocol=%d, outstanding=%d\n",
 		skb->len,
 		skb->protocol,
@@ -1789,21 +1790,12 @@ static netdev_tx_t veth_ipa_start_xmit
 
 	if (unlikely(netif_queue_stopped(net))) {
 		VETH_IPA_ERROR("interface queue is stopped\n");
-		goto out;
+		status = NETDEV_TX_BUSY;
+		goto fail_tx_packet;
 	}
 
-	if (unlikely(veth_ipa_ctx->state != VETH_IPA_CONNECTED_AND_UP)) {
+	if (unlikely(veth_ipa_ctx->state != VETH_IPA_CONNECTED_AND_UP))
 		return NETDEV_TX_BUSY;
-	}
-
-#ifdef VETH_PM_ENB
-	ret = resource_request(veth_ipa_ctx);
-
-	if (ret) {
-		VETH_IPA_DEBUG("Waiting to resource\n");
-		netif_stop_queue(net);
-		goto resource_busy;
-	}
 
 	if (atomic_read(&veth_ipa_ctx->outstanding_pkts) >=
 			veth_ipa_ctx->outstanding_high) {
@@ -1811,7 +1803,7 @@ static netdev_tx_t veth_ipa_start_xmit
 			veth_ipa_ctx->outstanding_high);
 		netif_stop_queue(net);
 		status = NETDEV_TX_BUSY;
-		goto out;
+		goto fail_tx_packet;
 	}
 
 	if (veth_ipa_ctx->is_vlan_mode)
@@ -1820,7 +1812,7 @@ static netdev_tx_t veth_ipa_start_xmit
 				"ether_type != ETH_P_8021Q && vlan, prot = 0x%X\n",
 				skb->protocol);
 
-#endif
+
 
 	/* ysk send the marked packets to ipa rest to sw path eth0_dev.
 		  define marcos for marks or get if from config.*/
@@ -1849,9 +1841,8 @@ static netdev_tx_t veth_ipa_start_xmit
 	goto out;
 
 fail_tx_packet:
+	return status;
 out:
-
-	status = NETDEV_TX_OK;
 	return status;
 
 }
@@ -1891,17 +1882,26 @@ static void veth_ipa_packet_receive_notify
 		return;
 	}
 
-	if (evt != IPA_RECEIVE) {
-		VETH_IPA_ERROR(
-			"%s: A none IPA_RECEIVE event in VETH_ipa_receive\n",
-			__func__);
+	if (evt == IPA_WRITE_DONE) {
+		atomic_dec(&veth_ipa_ctx->outstanding_pkts);
+		if
+		(netif_queue_stopped(veth_ipa_ctx->net) &&
+			netif_carrier_ok(veth_ipa_ctx->net) &&
+			atomic_read(&veth_ipa_ctx->outstanding_pkts) <
+					(veth_ipa_ctx->outstanding_low)) {
+			netif_wake_queue(veth_ipa_ctx->net);
+		}
+		kfree_skb(skb);
 		return;
 	}
-
+	if (evt != IPA_WRITE_DONE && evt != IPA_RECEIVE) {
+		VETH_IPA_ERROR("Non TX_complete or Receive Event");
+		return;
+	}
 	skb->dev = veth_ipa_ctx->net;
 	skb->protocol = eth_type_trans(skb, veth_ipa_ctx->net);
 
-	result = netif_rx(skb);
+	result = netif_rx_ni(skb);
 	if (result)
 		VETH_IPA_ERROR("fail on netif_rx\n");
 	veth_ipa_ctx->net->stats.rx_packets++;
