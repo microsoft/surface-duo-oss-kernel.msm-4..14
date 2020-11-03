@@ -529,6 +529,11 @@ static int dp_hpd_plug_handle(struct dp_display_private *dp, u32 data)
 	if (ret) {	/* link train failed */
 		hpd->hpd_high = 0;
 		dp->hpd_state = ST_DISCONNECTED;
+
+		if (ret == -ECONNRESET) { /* cable unplugged */
+			dp->core_initialized = false;
+		}
+
 	} else {
 		/* start sentinel checking in case of missing uevent */
 		dp_add_event(dp, EV_CONNECT_PENDING_TIMEOUT, 0, tout);
@@ -832,6 +837,9 @@ static int dp_display_disable(struct dp_display_private *dp, u32 data)
 	struct msm_dp *dp_display;
 
 	dp_display = g_dp_display;
+
+	if (!dp_display->power_on)
+		return 0;
 
 	/* wait only if audio was enabled */
 	if (dp_display->audio_enabled) {
@@ -1205,7 +1213,7 @@ static int dp_pm_resume(struct device *dev)
 
 	dp_catalog_ctrl_hpd_config(dp->catalog);
 
-	status = dp_catalog_hpd_get_state_status(dp->catalog);
+	status = dp_catalog_link_is_connected(dp->catalog);
 
 	if (status)
 		dp->dp_display.is_connected = true;
