@@ -43,6 +43,46 @@ parts:
         prime:
             - -kernel.img
 
+    initrd:
+        after:
+            - firmware
+            - kernel
+        plugin: initrd
+        initrd-modules:
+            - ath
+            - atl1c
+            - btqca
+            - btbcm
+            - drm
+            - drm-kms-helper
+            - gpio-wcd934x
+            - i2c-qcom-geni
+            - mdt-loader
+            - phy-qcom-qusb2
+            - qcom-common
+            - qcom-emac
+            - qcom-glink-smem
+            - qcom_spmi_temp_alarm
+            - qcom_vadc_common
+            - qcom-usb-vbus-regulator
+            - qmi-helpers
+            - regmap-slimbus
+            - rmnet
+            - rtc_pm8xxx
+            - slimbus
+            - spi-qcom-qspi
+            - xhci-hcd
+            - xhci-pci
+            - xhci-plat-hcd
+            - wcd934x
+        initrd-firmware:
+            - firmware/regulatory.db
+            - firmware/regulatory.db.p7s
+        stage:
+            - initrd.img
+        prime:
+            - -initrd.img
+
     firmware:
         plugin: nil
         stage-packages:
