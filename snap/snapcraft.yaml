@@ -87,6 +87,65 @@ parts:
             - -initrd.img
             - -kernel.img
 
+    bootimg-db845:
+        plugin: nil
+        after:
+            - kernel
+        override-build: |
+            cat ${SNAPCRAFT_STAGE}/kernel.img ${SNAPCRAFT_STAGE}/dtbs/qcom/sdm845-db845c.dtb > Image.gz+dtb845
+            mkbootimg \
+                --kernel Image.gz+dtb845 \
+                --ramdisk ${SNAPCRAFT_STAGE}/initrd.img \
+                --output ${SNAPCRAFT_PART_INSTALL}/boot.img \
+                --pagesize 4096 \
+                --base 0x80000000 \
+                --kernel_offset 0x8000 \
+                --ramdisk_offset 0x1000000 \
+                --tags_offset 0x100 \
+                --cmdline 'console=tty0 console=ttyMSM0,115200n8 root=/dev/disk/by-label/writable init=/lib/systemd/systemd ro fixrtc clk_ignore_unused pd_ignore_unused'
+        prime:
+            - boot.img
+
+    bootimg-db820:
+        plugin: nil
+        after:
+            - kernel
+        override-build: |
+            cat ${SNAPCRAFT_STAGE}/kernel.img ${SNAPCRAFT_STAGE}/dtbs/qcom/apq8096-db820c.dtb > Image.gz+dtb820c
+            mkbootimg \
+                --kernel Image.gz+dtb820c \
+                --ramdisk ${SNAPCRAFT_STAGE}/initrd.img \
+                --output ${SNAPCRAFT_PART_INSTALL}/boot-db820c.img \
+                --pagesize 4096 \
+                --base 0x80000000 \
+                --kernel_offset 0x8000 \
+                --ramdisk_offset 0x1000000 \
+                --tags_offset 0x100 \
+                --cmdline 'console=tty0 console=ttyMSM0,115200n8 root=/dev/disk/by-label/writable init=/lib/systemd/systemd ro fixrtc'
+            ln ${SNAPCRAFT_PART_INSTALL}/boot-db820c.img ${SNAPCRAFT_PART_INSTALL}/boot-ifc6640.img
+        prime:
+            - boot-db820c.img
+            - boot-ifc6640.img
+
+    bootimg-db410c:
+        plugin: nil
+        after:
+            - kernel
+        override-build: |
+            cat ${SNAPCRAFT_STAGE}/kernel.img ${SNAPCRAFT_STAGE}/dtbs/qcom/apq8016-sbc.dtb > Image.gz+dtbdb410c
+            mkbootimg \
+                --kernel Image.gz+dtbdb410c \
+                --ramdisk ${SNAPCRAFT_STAGE}/initrd.img \
+                --output ${SNAPCRAFT_PART_INSTALL}/boot-db410c.img \
+                --pagesize 2048 \
+                --base 0x80000000 \
+                --kernel_offset 0x8000 \
+                --ramdisk_offset 0x1000000 \
+                --tags_offset 0x100 \
+                --cmdline 'console=tty0 console=ttyMSM0,115200n8 root=/dev/disk/by-label/writable init=/lib/systemd/systemd ro fixrtc'
+        prime:
+            - boot-db410c.img
+
     firmware:
         plugin: nil
         stage-packages:
