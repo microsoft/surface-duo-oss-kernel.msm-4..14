@@ -43,49 +43,37 @@ parts:
         prime:
             - -kernel.img
 
-    initrd:
+    initrd-uc20:
+        plugin: nil
         after:
-            - firmware
             - kernel
-        plugin: initrd
-        initrd-flavour: fde
-        initrd-modules:
-            - aes
-            - ath
-            - atl1c
-            - btqca
-            - btbcm
-            - dm-crypt
-            - drm
-            - drm-kms-helper
-            - gpio-wcd934x
-            - i2c-qcom-geni
-            - mdt-loader
-            - phy-qcom-qusb2
-            - qcom-common
-            - qcom-emac
-            - qcom-glink-smem
-            - qcom_spmi_temp_alarm
-            - qcom_vadc_common
-            - qcom-usb-vbus-regulator
-            - qmi-helpers
-            - regmap-slimbus
-            - rmnet
-            - rtc_pm8xxx
-            - sha256
-            - slimbus
-            - spi-qcom-qspi
-            - xhci-hcd
-            - xhci-pci
-            - xhci-plat-hcd
-            - wcd934x
-        initrd-firmware:
-            - firmware/regulatory.db
-            - firmware/regulatory.db.p7s
-        stage:
-            - initrd.img
+        override-build: |
+            # UC20 initrd builder only supports native build!
+            # we will handle cross build as best effort
+            if [ "$(arch)" != "aarch64" ]; then
+              # use prebuilt binary instead
+              echo "Cross compilation detected"
+              echo "Using prebuilt initrd blob instead"
+              wget https://people.canonical.com/~okubik/uc20_initrds/initrd-arm64.img \
+                -O ${SNAPCRAFT_PART_INSTALL}/vanilla-initrd.img
+            else
+              # build UC20 initrd
+              if [ -z "$(which ubuntu-core-initramfs)" ]; then
+                sudo add-apt-repository -y ppa:snappy-dev/image
+                sudo apt-get install -y ubuntu-core-initramfs
+              fi
+              kernel_version="$(basename ${SNAPCRAFT_STAGE}/config-* | sed 's/config-//g')"
+              echo "kernel version: [${kernel_version}]"
+              # we need to run tool as root to get rigt permissions
+              sudo ubuntu-core-initramfs create-initrd \
+                  --kerneldir ${SNAPCRAFT_STAGE}/lib/modules \
+                  --kernelver ${kernel_version} \
+                  --output ${SNAPCRAFT_PART_INSTALL}/initrd
+              sudo chown ${USER}:${USER} ${SNAPCRAFT_PART_INSTALL}/initrd*
+              ln -f ${SNAPCRAFT_PART_INSTALL}/initrd-* ${SNAPCRAFT_PART_INSTALL}/vanilla-initrd.img
+            fi
         prime:
-            - -initrd.img
+            - -*
 
     snap-bootstrap:
         plugin: nil
