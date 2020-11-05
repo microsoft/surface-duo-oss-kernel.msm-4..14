@@ -31,16 +31,60 @@ parts:
             cp ${SNAPCRAFT_PART_INSTALL}/dtbs/qcom/*.dtb ${SNAPCRAFT_PART_INSTALL}/dtbs/
             mkdir -p ${SNAPCRAFT_PART_INSTALL}/lib
             ln -sf ../modules ${SNAPCRAFT_PART_INSTALL}/lib/modules
+        kernel-initrd-modules:
+            - aes
+            - ath
+            - atl1c
+            - atusb
+            - btqca
+            - btbcm
+            - camcc-sdm845
+            - dm-crypt
+            - drm
+            - drm-kms-helper
+            - gpio-wcd934x
+            - i2c-qcom-geni
+            - ieee802154
+            - ipa
+            - ipvlan
+            - libarc4
+            - libcrc32c
+            - lontium-lt9611
+            - mac802154
+            - mdt-loader
+            - phy-qcom-qusb2
+            - qcom-common
+            - qcom-emac
+            - qcom-glink-smem
+            - qcom-spmi-temp_alarm
+            - qcom-vadc-common
+            - qcom-usb-vbus-regulator
+            - qmi-helpers
+            - regmap-slimbus
+            - rmnet
+            - rtc-pm8xxx
+            - sha256
+            - slimbus
+            - spi-qcom-qspi
+            - xhci-hcd
+            - xhci-pci
+            - xhci-plat-hcd
+            - wcd934x
+        kernel-initrd-firmware:
+            - firmware/regulatory.db
+            - firmware/regulatory.db.p7s
         stage:
             - System.map-*
             - config-*
             - dtbs
+            - initrd.img
             - kernel.img
             - lib
             - modules
             - -modules/*/build
             - -modules/*/source
         prime:
+            - -initrd.img
             - -kernel.img
 
     firmware:
