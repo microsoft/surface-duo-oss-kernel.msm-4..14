@@ -48,11 +48,14 @@ parts:
             - firmware
             - kernel
         plugin: initrd
+        initrd-flavour: fde
         initrd-modules:
+            - aes
             - ath
             - atl1c
             - btqca
             - btbcm
+            - dm-crypt
             - drm
             - drm-kms-helper
             - gpio-wcd934x
@@ -69,6 +72,7 @@ parts:
             - regmap-slimbus
             - rmnet
             - rtc_pm8xxx
+            - sha256
             - slimbus
             - spi-qcom-qspi
             - xhci-hcd
