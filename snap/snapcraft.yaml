@@ -43,6 +43,20 @@ parts:
         prime:
             - -kernel.img
 
+    initrd:
+        plugin: nil
+        after:
+            - snap-bootstrap
+            - initrd-uc20
+        override-build: |
+            # replace custom snap-bootstrap in initrd
+            echo "Replacing snap-bootstrap with custom one"
+            unmkinitramfs ${SNAPCRAFT_STAGE}/vanilla-initrd.img .
+            cp ${SNAPCRAFT_STAGE}/snap-bootstrap usr/lib/snapd/snap-bootstrap
+            find . | cpio --create --quiet --format='newc' --owner=0:0 | lz4 -l -7 > ${SNAPCRAFT_PART_INSTALL}/initrd.img
+        prime:
+            - -*
+
     initrd-uc20:
         plugin: nil
         after:
@@ -270,6 +284,7 @@ build-packages:
     - flex
     - bison
     - wget
+    - lz4
     - on amd64:
         - gcc-aarch64-linux-gnu:amd64
         - libc6-dev-arm64-cross:amd64
