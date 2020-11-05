@@ -88,6 +88,29 @@ parts:
             - -initrd.img
             - -kernel.img
 
+    bootimg:
+        plugin: nil
+        after:
+            - kernel
+        override-build: |
+            cat ${SNAPCRAFT_STAGE}/kernel.img \
+                ${SNAPCRAFT_STAGE}/dtbs/qcom/sdm845-db845c.dtb \
+                ${SNAPCRAFT_STAGE}/dtbs/qcom/apq8096-db820c.dtb \
+                ${SNAPCRAFT_STAGE}/dtbs/qcom/apq8016-sbc.dtb \
+                 > Image.gz+dtbs
+            mkbootimg \
+                --kernel Image.gz+dtbs \
+                --ramdisk ${SNAPCRAFT_STAGE}/initrd.img \
+                --output ${SNAPCRAFT_PART_INSTALL}/boot.img \
+                --pagesize 4096 \
+                --base 0x80000000 \
+                --kernel_offset 0x8000 \
+                --ramdisk_offset 0x1000000 \
+                --tags_offset 0x100 \
+                --cmdline 'console=tty0 console=ttyMSM0,115200n8 panic=-1 clk_ignore_unused pd_ignore_unused snapd_lk_boot_disk=sde'
+        prime:
+            - boot.img
+
     firmware:
         plugin: nil
         stage-packages:
