@@ -69,10 +69,9 @@ static irqreturn_t fsl_edma_tx_handler(int irq, void *dev_id)
 			fsl_chan = &fsl_edma->chans[ch];
 
 			spin_lock(&fsl_chan->vchan.lock);
-			/* It is possible that fsl_edma_terminate_all() has
-			 * canceled transfers on this channel
-			 */
+
 			if (!fsl_chan->edesc) {
+				/* terminate_all called before */
 				spin_unlock(&fsl_chan->vchan.lock);
 				continue;
 			}
