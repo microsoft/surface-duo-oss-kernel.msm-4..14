@@ -87,7 +87,7 @@ static const u32 rtw8822b_txscale_tbl[RTW_TXSCALE_SIZE] = {
 	0x2d3, 0x2fe, 0x32b, 0x35c, 0x38e, 0x3c4, 0x3fe
 };
 
-static const u8 rtw8822b_get_swing_index(struct rtw_dev *rtwdev)
+static u8 rtw8822b_get_swing_index(struct rtw_dev *rtwdev)
 {
 	u8 i = 0;
 	u32 swing, table_value;
@@ -2164,7 +2164,10 @@ static const struct coex_table_para table_sant_8822b[] = {
 	{0x55555555, 0x5a5a5a5a},
 	{0x55555555, 0xaaaaaaaa},
 	{0x55555555, 0x6a5a6a5a},
-	{0x66556655, 0x66556655}
+	{0x66556655, 0x66556655},
+	{0x66556aaa, 0x6a5a6aaa}, /* case-30 */
+	{0xffffffff, 0x5aaa5aaa},
+	{0x56555555, 0x5a5a5aaa},
 };
 
 /* Non-Shared-Antenna Coex Table */

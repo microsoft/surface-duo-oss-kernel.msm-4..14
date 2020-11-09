@@ -37,7 +37,7 @@
 #define RTW_TP_SHIFT			18 /* bytes/2s --> Mbps */
 
 extern bool rtw_bf_support;
-extern unsigned int rtw_fw_lps_deep_mode;
+extern bool rtw_disable_lps_deep_mode;
 extern unsigned int rtw_debug_mask;
 extern const struct ieee80211_ops rtw_ops;
 
@@ -664,6 +664,7 @@ enum rtw_pwr_state {
 struct rtw_lps_conf {
 	enum rtw_lps_mode mode;
 	enum rtw_lps_deep_mode deep_mode;
+	enum rtw_lps_deep_mode wow_deep_mode;
 	enum rtw_pwr_state state;
 	u8 awake_interval;
 	u8 rlbm;
@@ -1305,6 +1306,7 @@ struct rtw_coex_stat {
 	bool bt_init_scan;
 	bool bt_slave;
 	bool bt_418_hid_exist;
+	bool bt_ble_hid_exist;
 	bool bt_mailbox_reply;
 
 	bool wl_under_lps;
@@ -1633,6 +1635,7 @@ struct rtw_fw_state {
 	u8 sub_index;
 	u16 h2c_version;
 	u8 prev_dump_seq;
+	u32 feature;
 };
 
 struct rtw_hal {
@@ -1739,6 +1742,7 @@ struct rtw_dev {
 	/* lps power state & handler work */
 	struct rtw_lps_conf lps_conf;
 	bool ps_enabled;
+	struct completion lps_leave_check;
 
 	struct dentry *debugfs;
 

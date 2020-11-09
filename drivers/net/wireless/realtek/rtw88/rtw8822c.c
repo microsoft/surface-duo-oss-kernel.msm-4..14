@@ -2442,7 +2442,7 @@ static void rtw8822c_dpk_rxbb_dc_cal(struct rtw_dev *rtwdev, u8 path)
 static u8 rtw8822c_dpk_dc_corr_check(struct rtw_dev *rtwdev, u8 path)
 {
 	u16 dc_i, dc_q;
-	u8 corr_val, corr_idx;
+	u8 corr_idx;
 
 	rtw_write32(rtwdev, REG_RXSRAM_CTL, 0x000900f0);
 	dc_i = (u16)rtw_read32_mask(rtwdev, REG_STAT_RPT, GENMASK(27, 16));
@@ -2455,7 +2455,7 @@ static u8 rtw8822c_dpk_dc_corr_check(struct rtw_dev *rtwdev, u8 path)
 
 	rtw_write32(rtwdev, REG_RXSRAM_CTL, 0x000000f0);
 	corr_idx = (u8)rtw_read32_mask(rtwdev, REG_STAT_RPT, GENMASK(7, 0));
-	corr_val = (u8)rtw_read32_mask(rtwdev, REG_STAT_RPT, GENMASK(15, 8));
+	rtw_read32_mask(rtwdev, REG_STAT_RPT, GENMASK(15, 8));
 
 	if (dc_i > 200 || dc_q > 200 || corr_idx < 40 || corr_idx > 65)
 		return 1;
@@ -4006,7 +4006,10 @@ static const struct coex_table_para table_sant_8822c[] = {
 	{0x55555555, 0x5a5a5a5a},
 	{0x55555555, 0xaaaaaaaa},
 	{0x55555555, 0x6a5a6a5a},
-	{0x66556655, 0x66556655}
+	{0x66556655, 0x66556655},
+	{0x66556aaa, 0x6a5a6aaa}, /* case-30 */
+	{0xffffffff, 0x5aaa5aaa},
+	{0x56555555, 0x5a5a5aaa},
 };
 
 /* Non-Shared-Antenna Coex Table */
@@ -4337,8 +4340,8 @@ struct rtw_chip_info rtw8822c_hw_spec = {
 	.wowlan_stub = &rtw_wowlan_stub_8822c,
 	.max_sched_scan_ssids = 4,
 #endif
-	.coex_para_ver = 0x20070217,
-	.bt_desired_ver = 0x17,
+	.coex_para_ver = 0x201029,
+	.bt_desired_ver = 0x1c,
 	.scbd_support = true,
 	.new_scbd10_def = true,
 	.pstdma_type = COEX_PSTDMA_FORCE_LPSOFF,
