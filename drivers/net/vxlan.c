@@ -66,6 +66,7 @@ struct vxlan_net {
 	struct list_head  vxlan_list;
 	struct hlist_head sock_list[PORT_HASH_SIZE];
 	spinlock_t	  sock_lock;
+	struct notifier_block nexthop_notifier_block;
 };
 
 /* Forwarding table entry */
@@ -4683,19 +4684,20 @@ static void vxlan_fdb_nh_flush(struct nexthop *nh)
 static int vxlan_nexthop_event(struct notifier_block *nb,
 			       unsigned long event, void *ptr)
 {
-	struct nexthop *nh = ptr;
+	struct nh_notifier_info *info = ptr;
+	struct nexthop *nh;
 
-	if (!nh || event != NEXTHOP_EVENT_DEL)
+	if (event != NEXTHOP_EVENT_DEL)
+		return NOTIFY_DONE;
+
+	nh = nexthop_find_by_id(info->net, info->id);
+	if (!nh)
 		return NOTIFY_DONE;
 
 	vxlan_fdb_nh_flush(nh);
 
 	return NOTIFY_DONE;
 }
-
-static struct notifier_block vxlan_nexthop_notifier_block __read_mostly = {
-	.notifier_call = vxlan_nexthop_event,
-};
 
 static __net_init int vxlan_init_net(struct net *net)
 {
@@ -4704,11 +4706,13 @@ static __net_init int vxlan_init_net(struct net *net)
 
 	INIT_LIST_HEAD(&vn->vxlan_list);
 	spin_lock_init(&vn->sock_lock);
+	vn->nexthop_notifier_block.notifier_call = vxlan_nexthop_event;
 
 	for (h = 0; h < PORT_HASH_SIZE; ++h)
 		INIT_HLIST_HEAD(&vn->sock_list[h]);
 
-	return register_nexthop_notifier(net, &vxlan_nexthop_notifier_block);
+	return register_nexthop_notifier(net, &vn->nexthop_notifier_block,
+					 NULL);
 }
 
 static void vxlan_destroy_tunnels(struct net *net, struct list_head *head)
@@ -4740,8 +4744,11 @@ static void __net_exit vxlan_exit_batch_net(struct list_head *net_list)
 	LIST_HEAD(list);
 
 	rtnl_lock();
-	list_for_each_entry(net, net_list, exit_list)
-		unregister_nexthop_notifier(net, &vxlan_nexthop_notifier_block);
+	list_for_each_entry(net, net_list, exit_list) {
+		struct vxlan_net *vn = net_generic(net, vxlan_net_id);
+
+		unregister_nexthop_notifier(net, &vn->nexthop_notifier_block);
+	}
 	list_for_each_entry(net, net_list, exit_list)
 		vxlan_destroy_tunnels(net, &list);
 
