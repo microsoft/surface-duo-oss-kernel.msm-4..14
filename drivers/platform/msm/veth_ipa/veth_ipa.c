@@ -27,7 +27,6 @@
 #include <linux/habmm.h>
 #include <linux/habmmid.h>
 
-
 #include "veth_ipa.h"
 #include "./veth_emac_mgt.h"
 #include "../ipa/ipa_common_i.h"
@@ -50,6 +49,9 @@
 #define IPA_VETH_IPC_LOG_PAGES   50
 
 #define PAGE_SIZE_1 4096
+
+/* ysk eth0_dev is the SW path virtio net device */
+struct net_device   *eth0_dev = NULL;
 
 static int veth_ipa_open(struct net_device *net);
 static void veth_ipa_packet_receive_notify
@@ -176,20 +178,20 @@ static int veth_ipa_offload_init(struct veth_ipa_dev *pdata)
 	VETH_IPA_DEBUG("IPA VLAN mode %d\n", ipa_vlan_mode);
 	VETH_IPA_DEBUG("IPA VLAN mode %d vlan id %d mac %pM\n",
 				   ipa_vlan_mode, pdata->prv_ipa.vlan_id,
-				   pdata->device_ethaddr);
+				   pdata->net->dev_addr);
 	pdata->prv_ipa.vlan_id = 1;
 	memset(&in, 0, sizeof(in));
 	memset(&out, 0, sizeof(out));
 
 	/* Building ETH Header */
-	if (!pdata->prv_ipa.vlan_id || !ipa_vlan_mode) {
+	if (!pdata->prv_ipa.vlan_id && !ipa_vlan_mode) {
 		memset(&eth_l2_hdr_v4, 0, sizeof(eth_l2_hdr_v4));
 		memset(&eth_l2_hdr_v6, 0, sizeof(eth_l2_hdr_v6));
 		memcpy(&eth_l2_hdr_v4.h_source,
-			pdata->device_ethaddr, ETH_ALEN);
+			pdata->net->dev_addr, ETH_ALEN);
 		eth_l2_hdr_v4.h_proto = htons(ETH_P_IP);
 		memcpy(&eth_l2_hdr_v6.h_source,
-			pdata->device_ethaddr, ETH_ALEN);
+			pdata->net->dev_addr, ETH_ALEN);
 		eth_l2_hdr_v6.h_proto = htons(ETH_P_IPV6);
 		in.hdr_info[0].hdr = (u8 *)&eth_l2_hdr_v4;
 		in.hdr_info[0].hdr_len = ETH_HLEN;
@@ -1522,6 +1524,12 @@ static int veth_ipa_emac_evt_mgmt(void *arg)
   //kfree(msg);
 	return 0;
 }
+
+rx_handler_result_t swpath_rx_handler(struct sk_buff **pskb)
+{
+	return netif_rx(*pskb);
+}
+
 /**
  * veth_ipa_init() - create network device and initializes
  *  internal data structures
@@ -1645,6 +1653,19 @@ static int veth_ipa_init(struct platform_device *pdev)
 	if (veth_ipa_pdata->prv_ipa.ipa_ready)
 		veth_ipa_ready(veth_ipa_pdata);
 
+	/* ysk get the netdevice for the SW path eth interface check
+	   if it makes sense to save the eth0_dev in the ctx */
+	eth0_dev = dev_get_by_name(&init_net,"eth0");
+	if (eth0_dev == NULL) {
+	  VETH_IPA_ERROR("could not get the netdev by name eth0");
+	  //check if we need to abort and return or continue...
+	}
+
+	/*ysk register for an rx handler to handle the rx packets from this
+	  interface may be its not necessary the rx packets can go up the
+	  stack directly i think...need to experiment it.*/
+	result = netdev_rx_handler_register(eth0_dev, swpath_rx_handler, (void*)dev);
+
 	VETH_IPA_LOG_EXIT();
 
 	return 0;
@@ -1674,6 +1695,7 @@ static int veth_ipa_open(struct net_device *net)
 	struct veth_ipa_dev *veth_ipa_ctx;
 	struct task_struct  *emac_evt;
 	unsigned int mmid;
+
 #ifndef INT_NOIPA
 	//int next_state;
 #endif
@@ -1720,7 +1742,6 @@ static int veth_ipa_open(struct net_device *net)
 	veth_ipa_init_flag = true;
 	pr_info("VETH_IPA init flag set to true\n");
 	veth_ipa_offload_event_handler(veth_ipa_ctx, EV_DEV_OPEN);
-
 
 #endif
 
@@ -1801,12 +1822,26 @@ static netdev_tx_t veth_ipa_start_xmit
 
 #endif
 
-	ret = ipa_tx_dp(IPA_CLIENT_ETHERNET_CONS, skb, NULL);
-
-	if (ret) {
-		VETH_IPA_ERROR("ipa transmit failed (%d)\n", ret);
-		goto fail_tx_packet;
+	/* ysk send the marked packets to ipa rest to sw path eth0_dev.
+		  define marcos for marks or get if from config.*/
+	if ((skb->mark == 1) || (skb->mark == 2)) {
+		ret = ipa_tx_dp(IPA_CLIENT_ETHERNET_CONS, skb, NULL);
+		if (ret) {
+			VETH_IPA_ERROR("ipa transmit failed (%d)\n", ret);
+			goto fail_tx_packet;
+		}
 	}
+	else {
+		if (eth0_dev != NULL) {
+			skb->dev = eth0_dev;
+			status = dev_queue_xmit(skb);
+			goto out;
+		}
+		else {
+			VETH_IPA_ERROR("eth0_dev or ndo_start_xmit is NULL");
+		}
+	}
+
 
 	atomic_inc(&veth_ipa_ctx->outstanding_pkts);
 
@@ -2268,7 +2303,7 @@ static int veth_ipa_ap_suspend(struct device *dev)
 	struct veth_ipa_dev *pdata = veth_pdata_p;
 
 	pr_info("VETH_IPA suspend init flag check\n");
-	if (!veth_ipa_init_flag)
+	if(!veth_ipa_init_flag)
 		return 0;
 
 	pr_info("%s: veth_global_pdata->state = %d\n",
@@ -2289,7 +2324,7 @@ static int veth_ipa_ap_resume(struct device *dev)
 	pr_info("veth_ipa_ap_resume\n");
 	pr_info("VETH_IPA resume init flag check\n");
 
-	if (!veth_ipa_init_flag)
+	if(!veth_ipa_init_flag)
 		return 0;
 	pr_info("%s: veth_global_pdata->state = %d\n",
 			__func__,
