@@ -69,6 +69,7 @@ obj-$(CONFIG_MSM_JTAGV8) += jtagv8.o jtagv8-etm.o
 obj-$(CONFIG_MSM_CDSP_LOADER) += qdsp6v2/
 obj-$(CONFIG_QCOM_SMCINVOKE) += smcinvoke.o
 obj-$(CONFIG_SDX_EXT_IPC) += sdx_ext_ipc.o
+obj-$(CONFIG_QTI_NOTIFY_RESUME) += resume_notify.o
 obj-$(CONFIG_MSM_PIL_SSR_BG) += subsys-pil-bg.o
 obj-$(CONFIG_QTI_NOTIFY_SIDEBAND) += sideband_notify.o
 
