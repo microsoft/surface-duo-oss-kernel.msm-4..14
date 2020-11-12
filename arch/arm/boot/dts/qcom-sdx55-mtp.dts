@@ -45,6 +45,18 @@
 	status = "ok";
 };
 
+&qpic_nand {
+	status = "ok";
+
+	nand@0 {
+		reg = <0>;
+
+		nand-ecc-strength = <8>;
+		nand-ecc-step-size = <512>;
+		nand-bus-width = <8>;
+	};
+};
+
 &sdhc_1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdc1_default_state &sdc1_card_det_n>;
