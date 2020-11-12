@@ -41,6 +41,10 @@
 	status = "ok";
 };
 
+&qpic_bam {
+	status = "ok";
+};
+
 &sdhc_1 {
 	pinctrl-names = "default";
 	pinctrl-0 = <&sdc1_default_state &sdc1_card_det_n>;
