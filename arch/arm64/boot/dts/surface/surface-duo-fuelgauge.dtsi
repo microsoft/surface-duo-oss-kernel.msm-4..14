@@ -1,0 +1,37 @@
+/*
+ * Copyright (c) 2020 Microsoft Corporation
+ *
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 as published by
+ * the Free Software Foundation.
+ */
+
+
+&pm8150b_fg {
+	status = "ok";
+	ms,pack1_fg = <&fuel_gauge_pack1>;
+	ms,pack2_fg = <&fuel_gauge_pack2>;
+	#thermal-sensor-cells = <0>;
+};
+
+&qupv3_se17_i2c {
+	status = "ok";
+
+	fuel_gauge_pack1: bq27742_g1@0x55 {
+		#thermal-sensor-cells = <0>;
+		compatible = "ti,bq27742";
+		reg = <0x55>;
+		battery-name = "pack1 battery";
+	};
+};
+
+&qupv3_se1_i2c {
+	status = "ok";
+
+	fuel_gauge_pack2: bq27742_g1@0x55 {
+		#thermal-sensor-cells = <0>;
+		compatible = "ti,bq27742";
+		reg = <0x55>;
+		battery-name = "pack2 battery";
+	};
+};

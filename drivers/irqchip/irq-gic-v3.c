@@ -2,6 +2,8 @@
  * Copyright (C) 2013-2017 ARM Limited, All Rights Reserved.
  * Author: Marc Zyngier <marc.zyngier@arm.com>
  *
+ * Copyright (c) 2020 Microsoft Corporation
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -43,6 +45,8 @@
 #include <linux/syscore_ops.h>
 #include <linux/suspend.h>
 #include <linux/notifier.h>
+
+#include "linux/wakeup_reason.h"
 
 #include "irq-gic-common.h"
 
@@ -442,8 +446,10 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 	u32 pending[32];
 	void __iomem *base = gic_data.dist_base;
 
-	if (!msm_show_resume_irq_mask)
-		return;
+	/* MS_CHANGE START */
+	//if (!msm_show_resume_irq_mask)
+	//	return;
+	/* MS_CHANGE END */
 
 	for (i = 0; i * 32 < gic->irq_nr; i++) {
 		enabled = readl_relaxed(base + GICD_ICENABLER + i * 4);
@@ -455,7 +461,8 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 	     i < gic->irq_nr;
 	     i = find_next_bit((unsigned long *)pending, gic->irq_nr, i+1)) {
 		unsigned int irq = irq_find_mapping(gic->domain, i);
-		struct irq_desc *desc = irq_to_desc(irq);
+		/* MS_CHANGE START */
+		/* struct irq_desc *desc = irq_to_desc(irq);
 		const char *name = "null";
 
 		if (desc == NULL)
@@ -463,7 +470,10 @@ static void gic_show_resume_irq(struct gic_chip_data *gic)
 		else if (desc->action && desc->action->name)
 			name = desc->action->name;
 
-		pr_warn("%s: %d triggered %s\n", __func__, irq, name);
+		pr_warn("%s: %d triggered %s\n", __func__, irq, name); */
+		// Logging wakeup reason
+		log_wakeup_reason(irq);
+		/* MS_CHANGE END */
 	}
 }
 

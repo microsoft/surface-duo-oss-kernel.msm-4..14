@@ -1,4 +1,5 @@
 /* Copyright (c) 2016-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2020 Microsoft Corporation
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -413,6 +414,8 @@ struct fg_dev {
 	struct regmap		*regmap;
 	struct dentry		*dfs_root;
 	struct power_supply	*fg_psy;
+	struct power_supply *pack1_fg;   // MSCHANGE adding pack1 fuel guage
+	struct power_supply *pack2_fg;   // adding pack2 fuel guage
 	struct power_supply	*batt_psy;
 	struct power_supply	*usb_psy;
 	struct power_supply	*dc_psy;
@@ -561,6 +564,8 @@ extern s64 fg_float_decode(u16 val);
 extern bool usb_psy_initialized(struct fg_dev *fg);
 extern bool dc_psy_initialized(struct fg_dev *fg);
 extern bool batt_psy_initialized(struct fg_dev *fg);
+extern bool pack1_fg_psy_initialized(struct fg_dev *fg);     // MSCHANGE adding PACK1 and PACK2 fuel gauge initialization functions
+extern bool pack2_fg_psy_initialized(struct fg_dev *fg);
 extern bool pc_port_psy_initialized(struct fg_dev *fg);
 extern void fg_notify_charger(struct fg_dev *fg);
 extern bool is_input_present(struct fg_dev *fg);
