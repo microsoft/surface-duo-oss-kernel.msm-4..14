@@ -27,7 +27,6 @@
 #include <linux/habmm.h>
 #include <linux/habmmid.h>
 
-
 #include "veth_ipa.h"
 #include "./veth_emac_mgt.h"
 #include "../ipa/ipa_common_i.h"
@@ -50,6 +49,9 @@
 #define IPA_VETH_IPC_LOG_PAGES   50
 
 #define PAGE_SIZE_1 4096
+
+/* ysk eth0_dev is the SW path virtio net device */
+struct net_device   *eth0_dev = NULL;
 
 static int veth_ipa_open(struct net_device *net);
 static void veth_ipa_packet_receive_notify
@@ -127,6 +129,8 @@ static const char * const IPA_OFFLOAD_EVENT_string[] = {
 	"EV_EMAC_DEINIT"
 };
 
+static bool veth_ipa_init_flag;
+
 
 /**
  * veth_ipa_offload_init() - Called from driver to initialize
@@ -174,20 +178,20 @@ static int veth_ipa_offload_init(struct veth_ipa_dev *pdata)
 	VETH_IPA_DEBUG("IPA VLAN mode %d\n", ipa_vlan_mode);
 	VETH_IPA_DEBUG("IPA VLAN mode %d vlan id %d mac %pM\n",
 				   ipa_vlan_mode, pdata->prv_ipa.vlan_id,
-				   pdata->device_ethaddr);
+				   pdata->net->dev_addr);
 	pdata->prv_ipa.vlan_id = 1;
 	memset(&in, 0, sizeof(in));
 	memset(&out, 0, sizeof(out));
 
 	/* Building ETH Header */
-	if (!pdata->prv_ipa.vlan_id || !ipa_vlan_mode) {
+	if (!pdata->prv_ipa.vlan_id && !ipa_vlan_mode) {
 		memset(&eth_l2_hdr_v4, 0, sizeof(eth_l2_hdr_v4));
 		memset(&eth_l2_hdr_v6, 0, sizeof(eth_l2_hdr_v6));
 		memcpy(&eth_l2_hdr_v4.h_source,
-			pdata->device_ethaddr, ETH_ALEN);
+			pdata->net->dev_addr, ETH_ALEN);
 		eth_l2_hdr_v4.h_proto = htons(ETH_P_IP);
 		memcpy(&eth_l2_hdr_v6.h_source,
-			pdata->device_ethaddr, ETH_ALEN);
+			pdata->net->dev_addr, ETH_ALEN);
 		eth_l2_hdr_v6.h_proto = htons(ETH_P_IPV6);
 		in.hdr_info[0].hdr = (u8 *)&eth_l2_hdr_v4;
 		in.hdr_info[0].hdr_len = ETH_HLEN;
@@ -366,10 +370,10 @@ int veth_set_ul_dl_smmu_ipa_params(struct veth_ipa_dev *pdata,
 		return -ENOMEM;
 	}
 
-	ret = dma_get_sgtable(ipa_get_dma_dev(),
+	ret = dma_get_sgtable(&pdata->pdev->dev,
 		ul->buff_pool_base_sgt,
 		veth_emac_mem->rx_buff_pool_base_va,
-		veth_emac_mem->rx_buff_pool_base_iova,
+		veth_emac_mem->rx_buff_pool_base_pa,
 		(sizeof(uint32_t) * VETH_RX_DESC_CNT * 4)
 		);
 	/*using ipa dev node for buff pool*/
@@ -424,10 +428,10 @@ int veth_set_ul_dl_smmu_ipa_params(struct veth_ipa_dev *pdata,
 
 	if (!dl->buff_pool_base_sgt)
 		return -ENOMEM;
-	ret = dma_get_sgtable(ipa_get_dma_dev(),
+	ret = dma_get_sgtable(&pdata->pdev->dev,
 		dl->buff_pool_base_sgt,
 		veth_emac_mem->tx_buff_pool_base_va,
-		veth_emac_mem->tx_buff_pool_base_iova,
+		veth_emac_mem->tx_buff_pool_base_pa,
 		(sizeof(uint32_t) * VETH_TX_DESC_CNT * 4)
 		);
 	if (ret) {
@@ -1520,6 +1524,12 @@ static int veth_ipa_emac_evt_mgmt(void *arg)
   //kfree(msg);
 	return 0;
 }
+
+rx_handler_result_t swpath_rx_handler(struct sk_buff **pskb)
+{
+	return netif_rx(*pskb);
+}
+
 /**
  * veth_ipa_init() - create network device and initializes
  *  internal data structures
@@ -1582,7 +1592,6 @@ static int veth_ipa_init(struct platform_device *pdev)
 		goto fail_netdev_priv;
 	}
 
-	veth_pdata_p = veth_ipa_pdata;
 
 	memset(veth_ipa_pdata, 0, sizeof(*veth_ipa_pdata));
 	VETH_IPA_DEBUG("veth_ipa_pdata; (private) = %pK\n", veth_ipa_pdata);
@@ -1599,6 +1608,8 @@ static int veth_ipa_init(struct platform_device *pdev)
 
 	dev->netdev_ops = &veth_ipa_netdev_ops;
 	VETH_IPA_DEBUG("internal data structures were initialized\n");
+	veth_ipa_pdata->outstanding_low = DEFAULT_OUTSTANDING_LOW;
+	veth_ipa_pdata->outstanding_high = DEFAULT_OUTSTANDING_HIGH;
 
 	veth_ipa_debugfs_init(veth_ipa_pdata);
 
@@ -1634,13 +1645,28 @@ static int veth_ipa_init(struct platform_device *pdev)
 	mutex_init(&veth_ipa_pdata->prv_ipa.ipa_lock);
 	veth_ipa_pdata->prv_ipa.emac_init = false;
 	veth_ipa_pdata->veth_emac_mem.init_complete = false;
+	pr_info("VETH_IPA init flag set to false\n");
+	veth_ipa_init_flag = false;
 	VETH_IPA_STATE_DEBUG(veth_ipa_pdata);
-
+	veth_pdata_p = veth_ipa_pdata;
 	VETH_IPA_INFO("VETH_IPA was initialized successfully\n");
 
 
 	if (veth_ipa_pdata->prv_ipa.ipa_ready)
 		veth_ipa_ready(veth_ipa_pdata);
+
+	/* ysk get the netdevice for the SW path eth interface check
+	   if it makes sense to save the eth0_dev in the ctx */
+	eth0_dev = dev_get_by_name(&init_net,"eth0");
+	if (eth0_dev == NULL) {
+	  VETH_IPA_ERROR("could not get the netdev by name eth0");
+	  //check if we need to abort and return or continue...
+	}
+
+	/*ysk register for an rx handler to handle the rx packets from this
+	  interface may be its not necessary the rx packets can go up the
+	  stack directly i think...need to experiment it.*/
+	result = netdev_rx_handler_register(eth0_dev, swpath_rx_handler, (void*)dev);
 
 	VETH_IPA_LOG_EXIT();
 
@@ -1671,6 +1697,7 @@ static int veth_ipa_open(struct net_device *net)
 	struct veth_ipa_dev *veth_ipa_ctx;
 	struct task_struct  *emac_evt;
 	unsigned int mmid;
+
 #ifndef INT_NOIPA
 	//int next_state;
 #endif
@@ -1714,8 +1741,9 @@ static int veth_ipa_open(struct net_device *net)
 		VETH_IPA_INFO("%s: Starting EMAC kthread\n", __func__);
 		veth_ipa_ctx->veth_emac_mem.init_complete = true;
 	}
+	veth_ipa_init_flag = true;
+	pr_info("VETH_IPA init flag set to true\n");
 	veth_ipa_offload_event_handler(veth_ipa_ctx, EV_DEV_OPEN);
-
 
 #endif
 
@@ -1755,7 +1783,6 @@ static netdev_tx_t veth_ipa_start_xmit
 
 	struct veth_ipa_dev *veth_ipa_ctx = netdev_priv(net);
 	netif_trans_update(net);
-
 	VETH_IPA_DEBUG_XMIT("Tx, len=%d, skb->protocol=%d, outstanding=%d\n",
 		skb->len,
 		skb->protocol,
@@ -1763,21 +1790,12 @@ static netdev_tx_t veth_ipa_start_xmit
 
 	if (unlikely(netif_queue_stopped(net))) {
 		VETH_IPA_ERROR("interface queue is stopped\n");
-		goto out;
+		status = NETDEV_TX_BUSY;
+		goto fail_tx_packet;
 	}
 
-	if (unlikely(veth_ipa_ctx->state != VETH_IPA_CONNECTED_AND_UP)) {
+	if (unlikely(veth_ipa_ctx->state != VETH_IPA_CONNECTED_AND_UP))
 		return NETDEV_TX_BUSY;
-	}
-
-#ifdef VETH_PM_ENB
-	ret = resource_request(veth_ipa_ctx);
-
-	if (ret) {
-		VETH_IPA_DEBUG("Waiting to resource\n");
-		netif_stop_queue(net);
-		goto resource_busy;
-	}
 
 	if (atomic_read(&veth_ipa_ctx->outstanding_pkts) >=
 			veth_ipa_ctx->outstanding_high) {
@@ -1785,7 +1803,7 @@ static netdev_tx_t veth_ipa_start_xmit
 			veth_ipa_ctx->outstanding_high);
 		netif_stop_queue(net);
 		status = NETDEV_TX_BUSY;
-		goto out;
+		goto fail_tx_packet;
 	}
 
 	if (veth_ipa_ctx->is_vlan_mode)
@@ -1794,14 +1812,28 @@ static netdev_tx_t veth_ipa_start_xmit
 				"ether_type != ETH_P_8021Q && vlan, prot = 0x%X\n",
 				skb->protocol);
 
-#endif
 
-	ret = ipa_tx_dp(IPA_CLIENT_ETHERNET_CONS, skb, NULL);
 
-	if (ret) {
-		VETH_IPA_ERROR("ipa transmit failed (%d)\n", ret);
-		goto fail_tx_packet;
+	/* ysk send the marked packets to ipa rest to sw path eth0_dev.
+		  define marcos for marks or get if from config.*/
+	if ((skb->mark == 1) || (skb->mark == 2)) {
+		ret = ipa_tx_dp(IPA_CLIENT_ETHERNET_CONS, skb, NULL);
+		if (ret) {
+			VETH_IPA_ERROR("ipa transmit failed (%d)\n", ret);
+			goto fail_tx_packet;
+		}
 	}
+	else {
+		if (eth0_dev != NULL) {
+			skb->dev = eth0_dev;
+			status = dev_queue_xmit(skb);
+			goto out;
+		}
+		else {
+			VETH_IPA_ERROR("eth0_dev or ndo_start_xmit is NULL");
+		}
+	}
+
 
 	atomic_inc(&veth_ipa_ctx->outstanding_pkts);
 
@@ -1809,9 +1841,8 @@ static netdev_tx_t veth_ipa_start_xmit
 	goto out;
 
 fail_tx_packet:
+	return status;
 out:
-
-	status = NETDEV_TX_OK;
 	return status;
 
 }
@@ -1851,17 +1882,26 @@ static void veth_ipa_packet_receive_notify
 		return;
 	}
 
-	if (evt != IPA_RECEIVE) {
-		VETH_IPA_ERROR(
-			"%s: A none IPA_RECEIVE event in VETH_ipa_receive\n",
-			__func__);
+	if (evt == IPA_WRITE_DONE) {
+		atomic_dec(&veth_ipa_ctx->outstanding_pkts);
+		if
+		(netif_queue_stopped(veth_ipa_ctx->net) &&
+			netif_carrier_ok(veth_ipa_ctx->net) &&
+			atomic_read(&veth_ipa_ctx->outstanding_pkts) <
+					(veth_ipa_ctx->outstanding_low)) {
+			netif_wake_queue(veth_ipa_ctx->net);
+		}
+		kfree_skb(skb);
 		return;
 	}
-
+	if (evt != IPA_WRITE_DONE && evt != IPA_RECEIVE) {
+		VETH_IPA_ERROR("Non TX_complete or Receive Event");
+		return;
+	}
 	skb->dev = veth_ipa_ctx->net;
 	skb->protocol = eth_type_trans(skb, veth_ipa_ctx->net);
 
-	result = netif_rx(skb);
+	result = netif_rx_ni(skb);
 	if (result)
 		VETH_IPA_ERROR("fail on netif_rx\n");
 	veth_ipa_ctx->net->stats.rx_packets++;
@@ -1915,7 +1955,7 @@ static int veth_ipa_stop(struct net_device *net)
 
 	if (pdata->state == VETH_IPA_DOWN) {
 		VETH_IPA_ERROR("can't do network interface down without up\n");
-		return -EPERM;
+		return 0;
 	}
 
 	pdata->state = VETH_IPA_DOWN;
@@ -2262,6 +2302,9 @@ static int veth_ipa_ap_suspend(struct device *dev)
 	int    ret = 0;
 	struct veth_ipa_dev *pdata = veth_pdata_p;
 
+	pr_info("VETH_IPA suspend init flag check\n");
+	if(!veth_ipa_init_flag)
+		return 0;
 
 	pr_info("%s: veth_global_pdata->state = %d\n",
 			__func__,
@@ -2279,6 +2322,10 @@ static int veth_ipa_ap_resume(struct device *dev)
 	struct veth_ipa_dev *pdata = veth_pdata_p;
 
 	pr_info("veth_ipa_ap_resume\n");
+	pr_info("VETH_IPA resume init flag check\n");
+
+	if(!veth_ipa_init_flag)
+		return 0;
 	pr_info("%s: veth_global_pdata->state = %d\n",
 			__func__,
 			veth_pdata_p->state);
