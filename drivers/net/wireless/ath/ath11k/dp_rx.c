@@ -2862,7 +2862,7 @@ static int ath11k_dp_rx_reap_mon_status_ring(struct ath11k_base *ab, int mac_id,
 
 			dma_unmap_single(ab->dev, rxcb->paddr,
 					 skb->len + skb_tailroom(skb),
-					 DMA_BIDIRECTIONAL);
+					 DMA_FROM_DEVICE);
 
 			tlv = (struct hal_tlv_hdr *)skb->data;
 			if (FIELD_GET(HAL_TLV_HDR_TAG, tlv->tl) !=
