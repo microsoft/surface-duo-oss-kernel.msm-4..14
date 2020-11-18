@@ -2112,7 +2112,7 @@ static struct clk *wcd934x_register_mclk_output(struct wcd934x_codec *wcd)
 	wcd->hw.init = &init;
 
 	hw = &wcd->hw;
-	ret = clk_hw_register(wcd->dev->parent, hw);
+	ret = devm_clk_hw_register(wcd->dev->parent, hw);
 	if (ret)
 		return ERR_PTR(ret);
 
@@ -5050,6 +5050,13 @@ static int wcd934x_codec_probe(struct platform_device *pdev)
 					       wcd934x_slim_dais,
 					       ARRAY_SIZE(wcd934x_slim_dais));
 }
+static int wcd934x_codec_remove(struct platform_device *pdev)
+{
+	of_clk_del_provider(pdev->dev.of_node);
+
+	return 0;
+}
+
 
 static const struct platform_device_id wcd934x_driver_id[] = {
 	{
@@ -5061,6 +5068,7 @@ MODULE_DEVICE_TABLE(platform, wcd934x_driver_id);
 
 static struct platform_driver wcd934x_codec_driver = {
 	.probe	= &wcd934x_codec_probe,
+	.remove = wcd934x_codec_remove,
 	.id_table = wcd934x_driver_id,
 	.driver = {
 		.name	= "wcd934x-codec",
