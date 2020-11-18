@@ -595,6 +595,9 @@ struct msm_isp_unmap_buf_req {
 	uint32_t fd;
 };
 
+struct msm_isp_flush_queue_req {
+	uint32_t bufq_handle;
+};
 struct msm_isp_buf_request {
 	uint32_t session_id;
 	uint32_t stream_id;
@@ -1006,6 +1009,7 @@ enum msm_isp_ioctl_cmd_code {
 	MSM_ISP_REQUEST_BUF_VER2,
 	MSM_ISP_DUAL_HW_LPM_MODE,
 	MSM_ISP32_REQUEST_STREAM,
+        MSM_ISP_FLUSH_QUEUE,
 	MSM_ISP_DUAL_SYNC_CFG,
 	MSM_ISP_DUAL_SYNC_CFG_VER2,
 	MSM_ISP_NANOSEC_TIMESTAMP,
@@ -1014,6 +1018,10 @@ enum msm_isp_ioctl_cmd_code {
 #define VIDIOC_MSM_VFE_REG_CFG \
 	_IOWR('V', MSM_VFE_REG_CFG, \
 		struct msm_vfe_cfg_cmd2)
+
+#define VIDIOC_MSM_ISP_FLUSH_QUEUE \
+	_IOWR('V', MSM_ISP_FLUSH_QUEUE, \
+		struct msm_isp_flush_queue_req)
 
 #define VIDIOC_MSM_ISP_REQUEST_BUF \
 	_IOWR('V', MSM_ISP_REQUEST_BUF, \

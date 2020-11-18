@@ -892,6 +892,7 @@ static long msm_isp_ioctl_unlocked(struct v4l2_subdev *sd,
 		/* fallthrough */
 	case VIDIOC_MSM_ISP_DEQUEUE_BUF:
 		/* fallthrough */
+        case VIDIOC_MSM_ISP_FLUSH_QUEUE:
 	case VIDIOC_MSM_ISP_UNMAP_BUF: {
 		mutex_lock(&vfe_dev->buf_mgr->lock);
 		rc = msm_isp_proc_buf_cmd(vfe_dev->buf_mgr, cmd, arg);

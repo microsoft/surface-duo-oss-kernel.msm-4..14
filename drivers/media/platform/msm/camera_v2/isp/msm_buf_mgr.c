@@ -446,6 +446,40 @@ static int msm_isp_buf_unprepare_all(struct msm_isp_buf_mgr *buf_mgr,
 	return 0;
 }
 
+static int msm_isp_flush_queue(struct msm_isp_buf_mgr *buf_mgr,
+    uint32_t bufq_handle)
+{
+    uint32_t rc = 0;
+    int i = 0;
+    struct msm_isp_bufq *bufq = NULL;
+
+    bufq = msm_isp_get_bufq(buf_mgr, bufq_handle);
+    if (!bufq) {
+        pr_err_ratelimited("%s: Invalid bufq\n", __func__);
+        return rc;
+    }
+
+    rc = msm_isp_buf_unprepare_all(buf_mgr, bufq_handle);
+
+    INIT_LIST_HEAD(&bufq->head);
+
+    memset(bufq->bufs, 0x0, bufq->num_bufs*sizeof(bufq->bufs[0]));
+    for (i = 0; i < bufq->num_bufs; i++) {
+        bufq->bufs[i].state = MSM_ISP_BUFFER_STATE_INITIALIZED;
+        bufq->bufs[i].buf_debug.put_state[0] =
+                MSM_ISP_BUFFER_STATE_PUT_PREPARED;
+        bufq->bufs[i].buf_debug.put_state[1] =
+                MSM_ISP_BUFFER_STATE_PUT_PREPARED;
+        bufq->bufs[i].buf_debug.put_state_last = 0;
+        bufq->bufs[i].bufq_handle = bufq->bufq_handle;
+        bufq->bufs[i].buf_idx = i;
+        INIT_LIST_HEAD(&bufq->bufs[i].list);
+    }
+
+    return rc;
+
+}
+
 static int msm_isp_get_buf_by_index(struct msm_isp_buf_mgr *buf_mgr,
 	uint32_t bufq_handle, uint32_t buf_index,
 	struct msm_isp_buffer **buf_info)
@@ -1400,6 +1434,13 @@ int msm_isp_proc_buf_cmd(struct msm_isp_buf_mgr *buf_mgr,
 		struct msm_isp_unmap_buf_req *unmap_req = arg;
 
 		rc = buf_mgr->ops->unmap_buf(buf_mgr, unmap_req->fd);
+		break;
+	}
+        case VIDIOC_MSM_ISP_FLUSH_QUEUE: {
+		struct msm_isp_flush_queue_req *flush_req  = arg;
+
+		printk(KERN_ERR "ayakira %s flush queue\n", __func__);
+		rc = msm_isp_flush_queue(buf_mgr, flush_req->bufq_handle);
 		break;
 	}
 	}

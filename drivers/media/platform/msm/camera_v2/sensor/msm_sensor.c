@@ -339,6 +339,20 @@ static int msm_sensor_get_af_status(struct msm_sensor_ctrl_t *s_ctrl,
 	return 0;
 }
 
+static int32_t msm_sensor_get_subdev_id(
+    struct msm_sensor_ctrl_t *s_ctrl, void *arg)
+{
+    uint32_t *subdev_id = (uint32_t *)arg;
+
+    if (!subdev_id) {
+        pr_err("%s:%d failed\n", __func__, __LINE__);
+        return -EINVAL;
+    }
+    *subdev_id = s_ctrl->id;
+    pr_debug("%s:%d subdev_id %d\n", __func__, __LINE__, *subdev_id);
+    return 0;
+}
+
 static long msm_sensor_subdev_ioctl(struct v4l2_subdev *sd,
 			unsigned int cmd, void *arg)
 {
@@ -351,6 +365,9 @@ static long msm_sensor_subdev_ioctl(struct v4l2_subdev *sd,
 		return -EBADF;
 	}
 	switch (cmd) {
+	case VIDIOC_MSM_SENSOR_GET_SUBDEV_ID:
+		rc = msm_sensor_get_subdev_id(s_ctrl, arg);
+		return rc;
 	case VIDIOC_MSM_SENSOR_CFG:
 #ifdef CONFIG_COMPAT
 		if (is_compat_task())
