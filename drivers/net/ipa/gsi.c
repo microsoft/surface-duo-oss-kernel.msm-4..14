@@ -21,6 +21,7 @@
 #include "gsi_trans.h"
 #include "ipa_gsi.h"
 #include "ipa_data.h"
+#include "ipa_version.h"
 
 /**
  * DOC: The IPA Generic Software Interface
@@ -108,62 +109,6 @@ struct gsi_event {
 	u8 chid;
 };
 
-/* Hardware values from the error log register error code field */
-enum gsi_err_code {
-	GSI_INVALID_TRE_ERR			= 0x1,
-	GSI_OUT_OF_BUFFERS_ERR			= 0x2,
-	GSI_OUT_OF_RESOURCES_ERR		= 0x3,
-	GSI_UNSUPPORTED_INTER_EE_OP_ERR		= 0x4,
-	GSI_EVT_RING_EMPTY_ERR			= 0x5,
-	GSI_NON_ALLOCATED_EVT_ACCESS_ERR	= 0x6,
-	GSI_HWO_1_ERR				= 0x8,
-};
-
-/* Hardware values from the error log register error type field */
-enum gsi_err_type {
-	GSI_ERR_TYPE_GLOB	= 0x1,
-	GSI_ERR_TYPE_CHAN	= 0x2,
-	GSI_ERR_TYPE_EVT	= 0x3,
-};
-
-/* Hardware values used when programming an event ring */
-enum gsi_evt_chtype {
-	GSI_EVT_CHTYPE_MHI_EV	= 0x0,
-	GSI_EVT_CHTYPE_XHCI_EV	= 0x1,
-	GSI_EVT_CHTYPE_GPI_EV	= 0x2,
-	GSI_EVT_CHTYPE_XDCI_EV	= 0x3,
-};
-
-/* Hardware values used when programming a channel */
-enum gsi_channel_protocol {
-	GSI_CHANNEL_PROTOCOL_MHI	= 0x0,
-	GSI_CHANNEL_PROTOCOL_XHCI	= 0x1,
-	GSI_CHANNEL_PROTOCOL_GPI	= 0x2,
-	GSI_CHANNEL_PROTOCOL_XDCI	= 0x3,
-};
-
-/* Hardware values representing an event ring immediate command opcode */
-enum gsi_evt_cmd_opcode {
-	GSI_EVT_ALLOCATE	= 0x0,
-	GSI_EVT_RESET		= 0x9,
-	GSI_EVT_DE_ALLOC	= 0xa,
-};
-
-/* Hardware values representing a generic immediate command opcode */
-enum gsi_generic_cmd_opcode {
-	GSI_GENERIC_HALT_CHANNEL	= 0x1,
-	GSI_GENERIC_ALLOCATE_CHANNEL	= 0x2,
-};
-
-/* Hardware values representing a channel immediate command opcode */
-enum gsi_ch_cmd_opcode {
-	GSI_CH_ALLOCATE	= 0x0,
-	GSI_CH_START	= 0x1,
-	GSI_CH_STOP	= 0x2,
-	GSI_CH_RESET	= 0x9,
-	GSI_CH_DE_ALLOC	= 0xa,
-};
-
 /** gsi_channel_scratch_gpi - GPI protocol scratch register
  * @max_outstanding_tre:
  *	Defines the maximum number of TREs allowed in a single transaction
@@ -229,21 +174,70 @@ static u32 gsi_channel_id(struct gsi_channel *channel)
 	return channel - &channel->gsi->channel[0];
 }
 
+/* Update the GSI IRQ type register with the cached value */
+static void gsi_irq_type_update(struct gsi *gsi, u32 val)
+{
+	gsi->type_enabled_bitmap = val;
+	iowrite32(val, gsi->virt + GSI_CNTXT_TYPE_IRQ_MSK_OFFSET);
+}
+
+static void gsi_irq_type_enable(struct gsi *gsi, enum gsi_irq_type_id type_id)
+{
+	gsi_irq_type_update(gsi, gsi->type_enabled_bitmap | BIT(type_id));
+}
+
+static void gsi_irq_type_disable(struct gsi *gsi, enum gsi_irq_type_id type_id)
+{
+	gsi_irq_type_update(gsi, gsi->type_enabled_bitmap & ~BIT(type_id));
+}
+
+/* Turn off all GSI interrupts initially */
+static void gsi_irq_setup(struct gsi *gsi)
+{
+	/* Disable all interrupt types */
+	gsi_irq_type_update(gsi, 0);
+
+	/* Clear all type-specific interrupt masks */
+	iowrite32(0, gsi->virt + GSI_CNTXT_SRC_CH_IRQ_MSK_OFFSET);
+	iowrite32(0, gsi->virt + GSI_CNTXT_SRC_EV_CH_IRQ_MSK_OFFSET);
+	iowrite32(0, gsi->virt + GSI_CNTXT_GLOB_IRQ_EN_OFFSET);
+	iowrite32(0, gsi->virt + GSI_CNTXT_SRC_IEOB_IRQ_MSK_OFFSET);
+	iowrite32(0, gsi->virt + GSI_INTER_EE_SRC_CH_IRQ_OFFSET);
+	iowrite32(0, gsi->virt + GSI_INTER_EE_SRC_EV_CH_IRQ_OFFSET);
+	iowrite32(0, gsi->virt + GSI_CNTXT_GSI_IRQ_EN_OFFSET);
+}
+
+/* Turn off all GSI interrupts when we're all done */
+static void gsi_irq_teardown(struct gsi *gsi)
+{
+	/* Nothing to do */
+}
+
 static void gsi_irq_ieob_enable(struct gsi *gsi, u32 evt_ring_id)
 {
+	bool enable_ieob = !gsi->ieob_enabled_bitmap;
 	u32 val;
 
-	gsi->event_enable_bitmap |= BIT(evt_ring_id);
-	val = gsi->event_enable_bitmap;
+	gsi->ieob_enabled_bitmap |= BIT(evt_ring_id);
+	val = gsi->ieob_enabled_bitmap;
 	iowrite32(val, gsi->virt + GSI_CNTXT_SRC_IEOB_IRQ_MSK_OFFSET);
+
+	/* Enable the interrupt type if this is the first channel enabled */
+	if (enable_ieob)
+		gsi_irq_type_enable(gsi, GSI_IEOB);
 }
 
 static void gsi_irq_ieob_disable(struct gsi *gsi, u32 evt_ring_id)
 {
 	u32 val;
 
-	gsi->event_enable_bitmap &= ~BIT(evt_ring_id);
-	val = gsi->event_enable_bitmap;
+	gsi->ieob_enabled_bitmap &= ~BIT(evt_ring_id);
+
+	/* Disable the interrupt type if this was the last enabled channel */
+	if (!gsi->ieob_enabled_bitmap)
+		gsi_irq_type_disable(gsi, GSI_IEOB);
+
+	val = gsi->ieob_enabled_bitmap;
 	iowrite32(val, gsi->virt + GSI_CNTXT_SRC_IEOB_IRQ_MSK_OFFSET);
 }
 
@@ -252,38 +246,32 @@ static void gsi_irq_enable(struct gsi *gsi)
 {
 	u32 val;
 
-	/* We don't use inter-EE channel or event interrupts */
-	val = GSI_CNTXT_TYPE_IRQ_MSK_ALL;
-	val &= ~INTER_EE_CH_CTRL_FMASK;
-	val &= ~INTER_EE_EV_CTRL_FMASK;
-	iowrite32(val, gsi->virt + GSI_CNTXT_TYPE_IRQ_MSK_OFFSET);
+	/* Global interrupts include hardware error reports.  Enable
+	 * that so we can at least report the error should it occur.
+	 */
+	iowrite32(BIT(ERROR_INT), gsi->virt + GSI_CNTXT_GLOB_IRQ_EN_OFFSET);
+	gsi_irq_type_update(gsi, gsi->type_enabled_bitmap | BIT(GSI_GLOB_EE));
 
-	val = GENMASK(gsi->channel_count - 1, 0);
-	iowrite32(val, gsi->virt + GSI_CNTXT_SRC_CH_IRQ_MSK_OFFSET);
-
-	val = GENMASK(gsi->evt_ring_count - 1, 0);
-	iowrite32(val, gsi->virt + GSI_CNTXT_SRC_EV_CH_IRQ_MSK_OFFSET);
-
-	/* Each IEOB interrupt is enabled (later) as needed by channels */
-	iowrite32(0, gsi->virt + GSI_CNTXT_SRC_IEOB_IRQ_MSK_OFFSET);
-
-	val = GSI_CNTXT_GLOB_IRQ_ALL;
-	iowrite32(val, gsi->virt + GSI_CNTXT_GLOB_IRQ_EN_OFFSET);
-
-	/* Never enable GSI_BREAK_POINT */
-	val = GSI_CNTXT_GSI_IRQ_ALL & ~BREAK_POINT_FMASK;
+	/* General GSI interrupts are reported to all EEs; if they occur
+	 * they are unrecoverable (without reset).  A breakpoint interrupt
+	 * also exists, but we don't support that.  We want to be notified
+	 * of errors so we can report them, even if they can't be handled.
+	 */
+	val = BIT(BUS_ERROR);
+	val |= BIT(CMD_FIFO_OVRFLOW);
+	val |= BIT(MCS_STACK_OVRFLOW);
 	iowrite32(val, gsi->virt + GSI_CNTXT_GSI_IRQ_EN_OFFSET);
+	gsi_irq_type_update(gsi, gsi->type_enabled_bitmap | BIT(GSI_GENERAL));
 }
 
-/* Disable all GSI_interrupt types */
+/* Disable all GSI interrupt types */
 static void gsi_irq_disable(struct gsi *gsi)
 {
+	gsi_irq_type_update(gsi, 0);
+
+	/* Clear the type-specific interrupt masks set by gsi_irq_enable() */
 	iowrite32(0, gsi->virt + GSI_CNTXT_GSI_IRQ_EN_OFFSET);
 	iowrite32(0, gsi->virt + GSI_CNTXT_GLOB_IRQ_EN_OFFSET);
-	iowrite32(0, gsi->virt + GSI_CNTXT_SRC_IEOB_IRQ_MSK_OFFSET);
-	iowrite32(0, gsi->virt + GSI_CNTXT_SRC_EV_CH_IRQ_MSK_OFFSET);
-	iowrite32(0, gsi->virt + GSI_CNTXT_SRC_CH_IRQ_MSK_OFFSET);
-	iowrite32(0, gsi->virt + GSI_CNTXT_TYPE_IRQ_MSK_OFFSET);
 }
 
 /* Return the virtual address associated with a ring index */
@@ -337,13 +325,30 @@ static int evt_ring_command(struct gsi *gsi, u32 evt_ring_id,
 	struct gsi_evt_ring *evt_ring = &gsi->evt_ring[evt_ring_id];
 	struct completion *completion = &evt_ring->completion;
 	struct device *dev = gsi->dev;
+	bool success;
 	u32 val;
+
+	/* We only perform one event ring command at a time, and event
+	 * control interrupts should only occur when such a command
+	 * is issued here.  Only permit *this* event ring to trigger
+	 * an interrupt, and only enable the event control IRQ type
+	 * when we expect it to occur.
+	 */
+	val = BIT(evt_ring_id);
+	iowrite32(val, gsi->virt + GSI_CNTXT_SRC_EV_CH_IRQ_MSK_OFFSET);
+	gsi_irq_type_enable(gsi, GSI_EV_CTRL);
 
 	val = u32_encode_bits(evt_ring_id, EV_CHID_FMASK);
 	val |= u32_encode_bits(opcode, EV_OPCODE_FMASK);
 
-	if (gsi_command(gsi, GSI_EV_CH_CMD_OFFSET, val, completion))
-		return 0;	/* Success! */
+	success = gsi_command(gsi, GSI_EV_CH_CMD_OFFSET, val, completion);
+
+	/* Disable the interrupt again */
+	gsi_irq_type_disable(gsi, GSI_EV_CTRL);
+	iowrite32(0, gsi->virt + GSI_CNTXT_SRC_EV_CH_IRQ_MSK_OFFSET);
+
+	if (success)
+		return 0;
 
 	dev_err(dev, "GSI command %u for event ring %u timed out, state %u\n",
 		opcode, evt_ring_id, evt_ring->state);
@@ -433,13 +438,29 @@ gsi_channel_command(struct gsi_channel *channel, enum gsi_ch_cmd_opcode opcode)
 	u32 channel_id = gsi_channel_id(channel);
 	struct gsi *gsi = channel->gsi;
 	struct device *dev = gsi->dev;
+	bool success;
 	u32 val;
+
+	/* We only perform one channel command at a time, and channel
+	 * control interrupts should only occur when such a command is
+	 * issued here.  So we only permit *this* channel to trigger
+	 * an interrupt and only enable the channel control IRQ type
+	 * when we expect it to occur.
+	 */
+	val = BIT(channel_id);
+	iowrite32(val, gsi->virt + GSI_CNTXT_SRC_CH_IRQ_MSK_OFFSET);
+	gsi_irq_type_enable(gsi, GSI_CH_CTRL);
 
 	val = u32_encode_bits(channel_id, CH_CHID_FMASK);
 	val |= u32_encode_bits(opcode, CH_OPCODE_FMASK);
+	success = gsi_command(gsi, GSI_CH_CMD_OFFSET, val, completion);
 
-	if (gsi_command(gsi, GSI_CH_CMD_OFFSET, val, completion))
-		return 0;	/* Success! */
+	/* Disable the interrupt again */
+	gsi_irq_type_disable(gsi, GSI_CH_CTRL);
+	iowrite32(0, gsi->virt + GSI_CNTXT_SRC_CH_IRQ_MSK_OFFSET);
+
+	if (success)
+		return 0;
 
 	dev_err(dev, "GSI command %u for channel %u timed out, state %u\n",
 		opcode, channel_id, gsi_channel_state(channel));
@@ -607,7 +628,8 @@ static void gsi_evt_ring_program(struct gsi *gsi, u32 evt_ring_id)
 	size_t size = evt_ring->ring.count * GSI_RING_ELEMENT_SIZE;
 	u32 val;
 
-	val = u32_encode_bits(GSI_EVT_CHTYPE_GPI_EV, EV_CHTYPE_FMASK);
+	/* We program all event rings as GPI type/protocol */
+	val = u32_encode_bits(GSI_CHANNEL_TYPE_GPI, EV_CHTYPE_FMASK);
 	val |= EV_INTYPE_FMASK;
 	val |= u32_encode_bits(GSI_RING_ELEMENT_SIZE, EV_ELEMENT_SIZE_FMASK);
 	iowrite32(val, gsi->virt + GSI_EV_CH_E_CNTXT_0_OFFSET(evt_ring_id));
@@ -714,8 +736,8 @@ static void gsi_channel_program(struct gsi_channel *channel, bool doorbell)
 	/* Arbitrarily pick TRE 0 as the first channel element to use */
 	channel->tre_ring.index = 0;
 
-	/* We program all channels to use GPI protocol */
-	val = u32_encode_bits(GSI_CHANNEL_PROTOCOL_GPI, CHTYPE_PROTOCOL_FMASK);
+	/* We program all channels as GPI type/protocol */
+	val = u32_encode_bits(GSI_CHANNEL_TYPE_GPI, CHTYPE_PROTOCOL_FMASK);
 	if (channel->toward_ipa)
 		val |= CHTYPE_DIR_FMASK;
 	val |= u32_encode_bits(channel->evt_ring_id, ERINDEX_FMASK);
@@ -742,11 +764,12 @@ static void gsi_channel_program(struct gsi_channel *channel, bool doorbell)
 
 	/* Max prefetch is 1 segment (do not set MAX_PREFETCH_FMASK) */
 
-	/* Enable the doorbell engine if requested */
-	if (doorbell)
+	/* We enable the doorbell engine for IPA v3.5.1 */
+	if (gsi->version == IPA_VERSION_3_5_1 && doorbell)
 		val |= USE_DB_ENG_FMASK;
 
-	if (!channel->use_prefetch)
+	/* Starting with IPA v4.0 the command channel uses the escape buffer */
+	if (gsi->version != IPA_VERSION_3_5_1 && channel->command)
 		val |= USE_ESCAPE_BUF_ONLY_FMASK;
 
 	iowrite32(val, gsi->virt + GSI_CH_C_QOS_OFFSET(channel_id));
@@ -829,8 +852,8 @@ int gsi_channel_stop(struct gsi *gsi, u32 channel_id)
 	return ret;
 }
 
-/* Reset and reconfigure a channel (possibly leaving doorbell disabled) */
-void gsi_channel_reset(struct gsi *gsi, u32 channel_id, bool legacy)
+/* Reset and reconfigure a channel, (possibly) enabling the doorbell engine */
+void gsi_channel_reset(struct gsi *gsi, u32 channel_id, bool doorbell)
 {
 	struct gsi_channel *channel = &gsi->channel[channel_id];
 
@@ -838,10 +861,10 @@ void gsi_channel_reset(struct gsi *gsi, u32 channel_id, bool legacy)
 
 	gsi_channel_reset_command(channel);
 	/* Due to a hardware quirk we may need to reset RX channels twice. */
-	if (legacy && !channel->toward_ipa)
+	if (gsi->version == IPA_VERSION_3_5_1 && !channel->toward_ipa)
 		gsi_channel_reset_command(channel);
 
-	gsi_channel_program(channel, legacy);
+	gsi_channel_program(channel, doorbell);
 	gsi_channel_trans_cancel_pending(channel);
 
 	mutex_unlock(&gsi->mutex);
@@ -989,7 +1012,7 @@ static void gsi_isr_evt_ctrl(struct gsi *gsi)
 static void
 gsi_isr_glob_chan_err(struct gsi *gsi, u32 err_ee, u32 channel_id, u32 code)
 {
-	if (code == GSI_OUT_OF_RESOURCES_ERR) {
+	if (code == GSI_OUT_OF_RESOURCES) {
 		dev_err(gsi->dev, "channel %u out of resources\n", channel_id);
 		complete(&gsi->channel[channel_id].completion);
 		return;
@@ -1004,7 +1027,7 @@ gsi_isr_glob_chan_err(struct gsi *gsi, u32 err_ee, u32 channel_id, u32 code)
 static void
 gsi_isr_glob_evt_err(struct gsi *gsi, u32 err_ee, u32 evt_ring_id, u32 code)
 {
-	if (code == GSI_OUT_OF_RESOURCES_ERR) {
+	if (code == GSI_OUT_OF_RESOURCES) {
 		struct gsi_evt_ring *evt_ring = &gsi->evt_ring[evt_ring_id];
 		u32 channel_id = gsi_channel_id(evt_ring->channel);
 
@@ -1034,8 +1057,8 @@ static void gsi_isr_glob_err(struct gsi *gsi)
 	iowrite32(~0, gsi->virt + GSI_ERROR_LOG_CLR_OFFSET);
 
 	ee = u32_get_bits(val, ERR_EE_FMASK);
-	which = u32_get_bits(val, ERR_VIRT_IDX_FMASK);
 	type = u32_get_bits(val, ERR_TYPE_FMASK);
+	which = u32_get_bits(val, ERR_VIRT_IDX_FMASK);
 	code = u32_get_bits(val, ERR_CODE_FMASK);
 
 	if (type == GSI_ERR_TYPE_CHAN)
@@ -1054,7 +1077,7 @@ static void gsi_isr_gp_int1(struct gsi *gsi)
 
 	val = ioread32(gsi->virt + GSI_CNTXT_SCRATCH_0_OFFSET);
 	result = u32_get_bits(val, GENERIC_EE_RESULT_FMASK);
-	if (result != GENERIC_EE_SUCCESS_FVAL)
+	if (result != GENERIC_EE_SUCCESS)
 		dev_err(gsi->dev, "global INT1 generic result %u\n", result);
 
 	complete(&gsi->completion);
@@ -1067,15 +1090,15 @@ static void gsi_isr_glob_ee(struct gsi *gsi)
 
 	val = ioread32(gsi->virt + GSI_CNTXT_GLOB_IRQ_STTS_OFFSET);
 
-	if (val & ERROR_INT_FMASK)
+	if (val & BIT(ERROR_INT))
 		gsi_isr_glob_err(gsi);
 
 	iowrite32(val, gsi->virt + GSI_CNTXT_GLOB_IRQ_CLR_OFFSET);
 
-	val &= ~ERROR_INT_FMASK;
+	val &= ~BIT(ERROR_INT);
 
-	if (val & GP_INT1_FMASK) {
-		val ^= GP_INT1_FMASK;
+	if (val & BIT(GP_INT1)) {
+		val ^= BIT(GP_INT1);
 		gsi_isr_gp_int1(gsi);
 	}
 
@@ -1110,8 +1133,7 @@ static void gsi_isr_general(struct gsi *gsi)
 	val = ioread32(gsi->virt + GSI_CNTXT_GSI_IRQ_STTS_OFFSET);
 	iowrite32(val, gsi->virt + GSI_CNTXT_GSI_IRQ_CLR_OFFSET);
 
-	if (val)
-		dev_err(dev, "unexpected general interrupt 0x%08x\n", val);
+	dev_err(dev, "unexpected general interrupt 0x%08x\n", val);
 }
 
 /**
@@ -1128,6 +1150,7 @@ static irqreturn_t gsi_isr(int irq, void *dev_id)
 	u32 intr_mask;
 	u32 cnt = 0;
 
+	/* enum gsi_irq_type_id defines GSI interrupt types */
 	while ((intr_mask = ioread32(gsi->virt + GSI_CNTXT_TYPE_IRQ_OFFSET))) {
 		/* intr_mask contains bitmask of pending GSI interrupts */
 		do {
@@ -1136,19 +1159,19 @@ static irqreturn_t gsi_isr(int irq, void *dev_id)
 			intr_mask ^= gsi_intr;
 
 			switch (gsi_intr) {
-			case CH_CTRL_FMASK:
+			case BIT(GSI_CH_CTRL):
 				gsi_isr_chan_ctrl(gsi);
 				break;
-			case EV_CTRL_FMASK:
+			case BIT(GSI_EV_CTRL):
 				gsi_isr_evt_ctrl(gsi);
 				break;
-			case GLOB_EE_FMASK:
+			case BIT(GSI_GLOB_EE):
 				gsi_isr_glob_ee(gsi);
 				break;
-			case IEOB_FMASK:
+			case BIT(GSI_IEOB):
 				gsi_isr_ieob(gsi);
 				break;
-			case GENERAL_FMASK:
+			case BIT(GSI_GENERAL):
 				gsi_isr_general(gsi);
 				break;
 			default:
@@ -1166,6 +1189,34 @@ static irqreturn_t gsi_isr(int irq, void *dev_id)
 	}
 
 	return IRQ_HANDLED;
+}
+
+static int gsi_irq_init(struct gsi *gsi, struct platform_device *pdev)
+{
+	struct device *dev = &pdev->dev;
+	unsigned int irq;
+	int ret;
+
+	ret = platform_get_irq_byname(pdev, "gsi");
+	if (ret <= 0) {
+		dev_err(dev, "DT error %d getting \"gsi\" IRQ property\n", ret);
+		return ret ? : -EINVAL;
+	}
+	irq = ret;
+
+	ret = request_irq(irq, gsi_isr, 0, "gsi", gsi);
+	if (ret) {
+		dev_err(dev, "error %d requesting \"gsi\" IRQ\n", ret);
+		return ret;
+	}
+	gsi->irq = irq;
+
+	return 0;
+}
+
+static void gsi_irq_exit(struct gsi *gsi)
+{
+	free_irq(gsi->irq, gsi);
 }
 
 /* Return the transaction associated with a transfer completion event */
@@ -1452,8 +1503,7 @@ static void gsi_evt_ring_teardown(struct gsi *gsi)
 }
 
 /* Setup function for a single channel */
-static int gsi_channel_setup_one(struct gsi *gsi, u32 channel_id,
-				 bool legacy)
+static int gsi_channel_setup_one(struct gsi *gsi, u32 channel_id)
 {
 	struct gsi_channel *channel = &gsi->channel[channel_id];
 	u32 evt_ring_id = channel->evt_ring_id;
@@ -1472,7 +1522,7 @@ static int gsi_channel_setup_one(struct gsi *gsi, u32 channel_id,
 	if (ret)
 		goto err_evt_ring_de_alloc;
 
-	gsi_channel_program(channel, legacy);
+	gsi_channel_program(channel, true);
 
 	if (channel->toward_ipa)
 		netif_tx_napi_add(&gsi->dummy_dev, &channel->napi,
@@ -1511,7 +1561,18 @@ static int gsi_generic_command(struct gsi *gsi, u32 channel_id,
 			       enum gsi_generic_cmd_opcode opcode)
 {
 	struct completion *completion = &gsi->completion;
+	bool success;
 	u32 val;
+
+	/* The error global interrupt type is always enabled (until we
+	 * teardown), so we won't change that.  A generic EE command
+	 * completes with a GSI global interrupt of type GP_INT1.  We
+	 * only perform one generic command at a time (to allocate or
+	 * halt a modem channel) and only from this function.  So we
+	 * enable the GP_INT1 IRQ type here while we're expecting it.
+	 */
+	val = BIT(ERROR_INT) | BIT(GP_INT1);
+	iowrite32(val, gsi->virt + GSI_CNTXT_GLOB_IRQ_EN_OFFSET);
 
 	/* First zero the result code field */
 	val = ioread32(gsi->virt + GSI_CNTXT_SCRATCH_0_OFFSET);
@@ -1523,8 +1584,13 @@ static int gsi_generic_command(struct gsi *gsi, u32 channel_id,
 	val |= u32_encode_bits(channel_id, GENERIC_CHID_FMASK);
 	val |= u32_encode_bits(GSI_EE_MODEM, GENERIC_EE_FMASK);
 
-	if (gsi_command(gsi, GSI_GENERIC_CMD_OFFSET, val, completion))
-		return 0;	/* Success! */
+	success = gsi_command(gsi, GSI_GENERIC_CMD_OFFSET, val, completion);
+
+	/* Disable the GP_INT1 IRQ type again */
+	iowrite32(BIT(ERROR_INT), gsi->virt + GSI_CNTXT_GLOB_IRQ_EN_OFFSET);
+
+	if (success)
+		return 0;
 
 	dev_err(gsi->dev, "GSI generic command %u to channel %u timed out\n",
 		opcode, channel_id);
@@ -1540,16 +1606,11 @@ static int gsi_modem_channel_alloc(struct gsi *gsi, u32 channel_id)
 
 static void gsi_modem_channel_halt(struct gsi *gsi, u32 channel_id)
 {
-	int ret;
-
-	ret = gsi_generic_command(gsi, channel_id, GSI_GENERIC_HALT_CHANNEL);
-	if (ret)
-		dev_err(gsi->dev, "error %d halting modem channel %u\n",
-			ret, channel_id);
+	(void)gsi_generic_command(gsi, channel_id, GSI_GENERIC_HALT_CHANNEL);
 }
 
 /* Setup function for channels */
-static int gsi_channel_setup(struct gsi *gsi, bool legacy)
+static int gsi_channel_setup(struct gsi *gsi)
 {
 	u32 channel_id = 0;
 	u32 mask;
@@ -1561,7 +1622,7 @@ static int gsi_channel_setup(struct gsi *gsi, bool legacy)
 	mutex_lock(&gsi->mutex);
 
 	do {
-		ret = gsi_channel_setup_one(gsi, channel_id, legacy);
+		ret = gsi_channel_setup_one(gsi, channel_id);
 		if (ret)
 			goto err_unwind;
 	} while (++channel_id < gsi->channel_count);
@@ -1647,10 +1708,11 @@ static void gsi_channel_teardown(struct gsi *gsi)
 }
 
 /* Setup function for GSI.  GSI firmware must be loaded and initialized */
-int gsi_setup(struct gsi *gsi, bool legacy)
+int gsi_setup(struct gsi *gsi)
 {
 	struct device *dev = gsi->dev;
 	u32 val;
+	int ret;
 
 	/* Here is where we first touch the GSI hardware */
 	val = ioread32(gsi->virt + GSI_GSI_STATUS_OFFSET);
@@ -1658,6 +1720,8 @@ int gsi_setup(struct gsi *gsi, bool legacy)
 		dev_err(dev, "GSI has not been enabled\n");
 		return -EIO;
 	}
+
+	gsi_irq_setup(gsi);
 
 	val = ioread32(gsi->virt + GSI_GSI_HW_PARAM_2_OFFSET);
 
@@ -1691,13 +1755,18 @@ int gsi_setup(struct gsi *gsi, bool legacy)
 	/* Writing 1 indicates IRQ interrupts; 0 would be MSI */
 	iowrite32(1, gsi->virt + GSI_CNTXT_INTSET_OFFSET);
 
-	return gsi_channel_setup(gsi, legacy);
+	ret = gsi_channel_setup(gsi);
+	if (ret)
+		gsi_irq_teardown(gsi);
+
+	return ret;
 }
 
 /* Inverse of gsi_setup() */
 void gsi_teardown(struct gsi *gsi)
 {
 	gsi_channel_teardown(gsi);
+	gsi_irq_teardown(gsi);
 }
 
 /* Initialize a channel's event ring */
@@ -1745,7 +1814,7 @@ static void gsi_evt_ring_init(struct gsi *gsi)
 	u32 evt_ring_id = 0;
 
 	gsi->event_bitmap = gsi_event_bitmap_init(GSI_EVT_RING_COUNT_MAX);
-	gsi->event_enable_bitmap = 0;
+	gsi->ieob_enabled_bitmap = 0;
 	do
 		init_completion(&gsi->evt_ring[evt_ring_id].completion);
 	while (++evt_ring_id < GSI_EVT_RING_COUNT_MAX);
@@ -1814,7 +1883,7 @@ static bool gsi_channel_data_valid(struct gsi *gsi,
 /* Init function for a single channel */
 static int gsi_channel_init_one(struct gsi *gsi,
 				const struct ipa_gsi_endpoint_data *data,
-				bool command, bool prefetch)
+				bool command)
 {
 	struct gsi_channel *channel;
 	u32 tre_count;
@@ -1838,7 +1907,6 @@ static int gsi_channel_init_one(struct gsi *gsi,
 	channel->gsi = gsi;
 	channel->toward_ipa = data->toward_ipa;
 	channel->command = command;
-	channel->use_prefetch = command && prefetch;
 	channel->tlv_count = data->channel.tlv_count;
 	channel->tre_count = tre_count;
 	channel->event_count = data->channel.event_count;
@@ -1892,12 +1960,15 @@ static void gsi_channel_exit_one(struct gsi_channel *channel)
 }
 
 /* Init function for channels */
-static int gsi_channel_init(struct gsi *gsi, bool prefetch, u32 count,
-			    const struct ipa_gsi_endpoint_data *data,
-			    bool modem_alloc)
+static int gsi_channel_init(struct gsi *gsi, u32 count,
+			    const struct ipa_gsi_endpoint_data *data)
 {
+	bool modem_alloc;
 	int ret = 0;
 	u32 i;
+
+	/* IPA v4.2 requires the AP to allocate channels for the modem */
+	modem_alloc = gsi->version == IPA_VERSION_4_2;
 
 	gsi_evt_ring_init(gsi);
 
@@ -1916,7 +1987,7 @@ static int gsi_channel_init(struct gsi *gsi, bool prefetch, u32 count,
 			continue;
 		}
 
-		ret = gsi_channel_init_one(gsi, &data[i], command, prefetch);
+		ret = gsi_channel_init_one(gsi, &data[i], command);
 		if (ret)
 			goto err_unwind;
 	}
@@ -1952,19 +2023,19 @@ static void gsi_channel_exit(struct gsi *gsi)
 }
 
 /* Init function for GSI.  GSI hardware does not need to be "ready" */
-int gsi_init(struct gsi *gsi, struct platform_device *pdev, bool prefetch,
-	     u32 count, const struct ipa_gsi_endpoint_data *data,
-	     bool modem_alloc)
+int gsi_init(struct gsi *gsi, struct platform_device *pdev,
+	     enum ipa_version version, u32 count,
+	     const struct ipa_gsi_endpoint_data *data)
 {
 	struct device *dev = &pdev->dev;
 	struct resource *res;
 	resource_size_t size;
-	unsigned int irq;
 	int ret;
 
 	gsi_validate_build();
 
 	gsi->dev = dev;
+	gsi->version = version;
 
 	/* The GSI layer performs NAPI on all endpoints.  NAPI requires a
 	 * network device structure, but the GSI layer does not have one,
@@ -1972,55 +2043,43 @@ int gsi_init(struct gsi *gsi, struct platform_device *pdev, bool prefetch,
 	 */
 	init_dummy_netdev(&gsi->dummy_dev);
 
-	ret = platform_get_irq_byname(pdev, "gsi");
-	if (ret <= 0) {
-		dev_err(dev, "DT error %d getting \"gsi\" IRQ property\n", ret);
-		return ret ? : -EINVAL;
-	}
-	irq = ret;
-
-	ret = request_irq(irq, gsi_isr, 0, "gsi", gsi);
-	if (ret) {
-		dev_err(dev, "error %d requesting \"gsi\" IRQ\n", ret);
-		return ret;
-	}
-	gsi->irq = irq;
-
 	/* Get GSI memory range and map it */
 	res = platform_get_resource_byname(pdev, IORESOURCE_MEM, "gsi");
 	if (!res) {
 		dev_err(dev, "DT error getting \"gsi\" memory property\n");
-		ret = -ENODEV;
-		goto err_free_irq;
+		return -ENODEV;
 	}
 
 	size = resource_size(res);
 	if (res->start > U32_MAX || size > U32_MAX - res->start) {
 		dev_err(dev, "DT memory resource \"gsi\" out of range\n");
-		ret = -EINVAL;
-		goto err_free_irq;
+		return -EINVAL;
 	}
 
 	gsi->virt = ioremap(res->start, size);
 	if (!gsi->virt) {
 		dev_err(dev, "unable to remap \"gsi\" memory\n");
-		ret = -ENOMEM;
-		goto err_free_irq;
+		return -ENOMEM;
 	}
 
-	ret = gsi_channel_init(gsi, prefetch, count, data, modem_alloc);
+	init_completion(&gsi->completion);
+
+	ret = gsi_irq_init(gsi, pdev);
 	if (ret)
 		goto err_iounmap;
 
+	ret = gsi_channel_init(gsi, count, data);
+	if (ret)
+		goto err_irq_exit;
+
 	mutex_init(&gsi->mutex);
-	init_completion(&gsi->completion);
 
 	return 0;
 
+err_irq_exit:
+	gsi_irq_exit(gsi);
 err_iounmap:
 	iounmap(gsi->virt);
-err_free_irq:
-	free_irq(gsi->irq, gsi);
 
 	return ret;
 }
@@ -2030,7 +2089,7 @@ void gsi_exit(struct gsi *gsi)
 {
 	mutex_destroy(&gsi->mutex);
 	gsi_channel_exit(gsi);
-	free_irq(gsi->irq, gsi);
+	gsi_irq_exit(gsi);
 	iounmap(gsi->virt);
 }
 

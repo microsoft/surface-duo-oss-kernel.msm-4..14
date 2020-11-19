@@ -26,6 +26,7 @@ static const struct ipa_gsi_endpoint_data ipa_gsi_endpoint_data[] = {
 		.endpoint = {
 			.seq_type	= IPA_SEQ_DMA_ONLY,
 			.config = {
+				.resource_group	= 1,
 				.dma_mode	= true,
 				.dma_endpoint	= IPA_ENDPOINT_AP_LAN_RX,
 			},
@@ -44,6 +45,7 @@ static const struct ipa_gsi_endpoint_data ipa_gsi_endpoint_data[] = {
 		.endpoint = {
 			.seq_type	= IPA_SEQ_INVALID,
 			.config = {
+				.resource_group	= 1,
 				.aggregation	= true,
 				.status_enable	= true,
 				.rx = {
@@ -67,6 +69,7 @@ static const struct ipa_gsi_endpoint_data ipa_gsi_endpoint_data[] = {
 			.seq_type	=
 				IPA_SEQ_2ND_PKT_PROCESS_PASS_NO_DEC_UCP,
 			.config = {
+				.resource_group	= 1,
 				.checksum	= true,
 				.qmap		= true,
 				.status_enable	= true,
@@ -90,6 +93,7 @@ static const struct ipa_gsi_endpoint_data ipa_gsi_endpoint_data[] = {
 		.endpoint = {
 			.seq_type	= IPA_SEQ_INVALID,
 			.config = {
+				.resource_group	= 1,
 				.checksum	= true,
 				.qmap		= true,
 				.aggregation	= true,
@@ -146,11 +150,11 @@ static const struct ipa_resource_src ipa_resource_src[] = {
 		.type = IPA_RESOURCE_TYPE_SRC_PKT_CONTEXTS,
 		.limits[0] = {
 			.min = 1,
-			.max = 63,
+			.max = 255,
 		},
 		.limits[1] = {
 			.min = 1,
-			.max = 63,
+			.max = 255,
 		},
 	},
 	{
