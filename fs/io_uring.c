@@ -952,20 +952,33 @@ static void io_sq_thread_drop_mm(void)
 	if (mm) {
 		kthread_unuse_mm(mm);
 		mmput(mm);
+		current->mm = NULL;
 	}
 }
 
 static int __io_sq_thread_acquire_mm(struct io_ring_ctx *ctx)
 {
-	if (!current->mm) {
-		if (unlikely(!(ctx->flags & IORING_SETUP_SQPOLL) ||
-			     !ctx->sqo_task->mm ||
-			     !mmget_not_zero(ctx->sqo_task->mm)))
-			return -EFAULT;
-		kthread_use_mm(ctx->sqo_task->mm);
+	struct mm_struct *mm;
+
+	if (current->mm)
+		return 0;
+
+	/* Should never happen */
+	if (unlikely(!(ctx->flags & IORING_SETUP_SQPOLL)))
+		return -EFAULT;
+
+	task_lock(ctx->sqo_task);
+	mm = ctx->sqo_task->mm;
+	if (unlikely(!mm || !mmget_not_zero(mm)))
+		mm = NULL;
+	task_unlock(ctx->sqo_task);
+
+	if (mm) {
+		kthread_use_mm(mm);
+		return 0;
 	}
 
-	return 0;
+	return -EFAULT;
 }
 
 static int io_sq_thread_acquire_mm(struct io_ring_ctx *ctx,
@@ -1139,6 +1152,9 @@ static void io_prep_async_work(struct io_kiocb *req)
 	const struct io_op_def *def = &io_op_defs[req->opcode];
 
 	io_req_init_async(req);
+
+	if (req->flags & REQ_F_FORCE_ASYNC)
+		req->work.flags |= IO_WQ_WORK_CONCURRENT;
 
 	if (req->flags & REQ_F_ISREG) {
 		if (def->hash_reg_file || (req->ctx->flags & IORING_SETUP_IOPOLL))
@@ -6281,13 +6297,6 @@ fail_req:
 			if (unlikely(ret))
 				goto fail_req;
 		}
-
-		/*
-		 * Never try inline submit of IOSQE_ASYNC is set, go straight
-		 * to async execution.
-		 */
-		io_req_init_async(req);
-		req->work.flags |= IO_WQ_WORK_CONCURRENT;
 		io_queue_async_work(req);
 	} else {
 		__io_queue_sqe(req, sqe, cs);
@@ -8180,7 +8189,21 @@ static bool io_timeout_remove_link(struct io_ring_ctx *ctx,
 
 static bool io_cancel_link_cb(struct io_wq_work *work, void *data)
 {
-	return io_match_link(container_of(work, struct io_kiocb, work), data);
+	struct io_kiocb *req = container_of(work, struct io_kiocb, work);
+	bool ret;
+
+	if (req->flags & REQ_F_LINK_TIMEOUT) {
+		unsigned long flags;
+		struct io_ring_ctx *ctx = req->ctx;
+
+		/* protect against races with linked timeouts */
+		spin_lock_irqsave(&ctx->completion_lock, flags);
+		ret = io_match_link(req, data);
+		spin_unlock_irqrestore(&ctx->completion_lock, flags);
+	} else {
+		ret = io_match_link(req, data);
+	}
+	return ret;
 }
 
 static void io_attempt_cancel(struct io_ring_ctx *ctx, struct io_kiocb *req)
@@ -8855,6 +8878,7 @@ static int io_uring_create(unsigned entries, struct io_uring_params *p,
 		 * to a power-of-two, if it isn't already. We do NOT impose
 		 * any cq vs sq ring sizing.
 		 */
+		p->cq_entries = roundup_pow_of_two(p->cq_entries);
 		if (p->cq_entries < p->sq_entries)
 			return -EINVAL;
 		if (p->cq_entries > IORING_MAX_CQ_ENTRIES) {
@@ -8862,7 +8886,6 @@ static int io_uring_create(unsigned entries, struct io_uring_params *p,
 				return -EINVAL;
 			p->cq_entries = IORING_MAX_CQ_ENTRIES;
 		}
-		p->cq_entries = roundup_pow_of_two(p->cq_entries);
 	} else {
 		p->cq_entries = 2 * p->sq_entries;
 	}
