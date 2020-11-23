@@ -15,3 +15,13 @@ config FS_ENCRYPTION
 	  efficient since it avoids caching the encrypted and
 	  decrypted pages in the page cache.  Currently Ext4,
 	  F2FS and UBIFS make use of this feature.
+
+config ENABLE_LEGACY_PFK
+	bool "Legacy method to generate per file key"
+	depends on PFK
+	default n
+	help
+	  Enable legacy method to generate aes keys derived
+	  from nonce and master key. In private mode the keys
+	  will be use as file encryption keys and set into
+	  inline crypto engine hardware.

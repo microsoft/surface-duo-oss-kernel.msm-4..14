@@ -286,49 +286,54 @@ static int setup_v1_file_key_direct(struct fscrypt_info *ci,
 static int setup_v1_file_key_derived(struct fscrypt_info *ci,
 				     const u8 *raw_master_key)
 {
-	u8 *derived_key;
+	u8 *derived_key = NULL;
 	int err;
 
-	/*
-	 * This cannot be a stack buffer because it will be passed to the
-	 * scatterlist crypto API during derive_key_aes().
-	 */
-	derived_key = kmalloc(ci->ci_mode->keysize, GFP_NOFS);
-	if (!derived_key)
-		return -ENOMEM;
+	if (S_ISREG(ci->ci_inode->i_mode) &&
+	   (fscrypt_policy_contents_mode(&(ci->ci_policy)) == FSCRYPT_MODE_PRIVATE)) {
+		if (ci->ci_mode->keysize != FSCRYPT_MAX_KEY_SIZE) {
+			err = -EINVAL;
+		} else {
+#if IS_ENABLED(CONFIG_ENABLE_LEGACY_PFK)
+			err = derive_key_aes(raw_master_key, ci->ci_nonce,
+					     ci->ci_raw_key, ci->ci_mode->keysize);
+#else
+			/* Class keys: Inline encryption: no key derivation required
+			 * because IVs are assigned based on iv_sector.
+			 */
+			memcpy(ci->ci_raw_key, raw_master_key, ci->ci_mode->keysize);
+			err = 0;
+#endif
+		}
+	} else {
+		/*
+		 * This cannot be a stack buffer because it will be passed to the
+		 * scatterlist crypto API during derive_key_aes().
+		 */
+		derived_key = kmalloc(ci->ci_mode->keysize, GFP_NOFS);
+		if (!derived_key)
+			return -ENOMEM;
 
-	err = derive_key_aes(raw_master_key, ci->ci_nonce,
-			     derived_key, ci->ci_mode->keysize);
-	if (err)
-		goto out;
+		err = derive_key_aes(raw_master_key, ci->ci_nonce,
+				     derived_key, ci->ci_mode->keysize);
+		if (err)
+			goto out;
 
-	err = fscrypt_set_derived_key(ci, derived_key);
+		err = fscrypt_set_derived_key(ci, derived_key);
+	}
 out:
-	kzfree(derived_key);
+	if (derived_key)
+		kzfree(derived_key);
+
 	return err;
 }
 
 int fscrypt_setup_v1_file_key(struct fscrypt_info *ci, const u8 *raw_master_key)
 {
-	int err;
-	if (ci->ci_policy.v1.flags & FSCRYPT_POLICY_FLAG_DIRECT_KEY) {
+	if (ci->ci_policy.v1.flags & FSCRYPT_POLICY_FLAG_DIRECT_KEY)
 		return setup_v1_file_key_direct(ci, raw_master_key);
-	} else if(S_ISREG(ci->ci_inode->i_mode) &&
-		(fscrypt_policy_contents_mode(&(ci->ci_policy)) == FSCRYPT_MODE_PRIVATE)) {
-		/* Inline encryption: no key derivation required because IVs are
-		* assigned based on iv_sector.
-		*/
-		if (ci->ci_mode->keysize != FSCRYPT_MAX_KEY_SIZE) {
-			err = -EINVAL;
-		} else {
-			memcpy(ci->ci_raw_key, raw_master_key, ci->ci_mode->keysize);
-			err = 0;
-		}
-	}
-	else {
+	else
 		return setup_v1_file_key_derived(ci, raw_master_key);
-	}
-	return err;
 }
 
 int fscrypt_setup_v1_file_key_via_subscribed_keyrings(struct fscrypt_info *ci)
