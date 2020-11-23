@@ -111,7 +111,12 @@ enum ath11k_firmware_mode {
 
 	/* factory tests etc */
 	ATH11K_FIRMWARE_MODE_FTM,
+
+	/* Cold boot calibration */
+	ATH11K_FIRMWARE_MODE_COLD_BOOT = 7,
 };
+
+extern bool ath11k_cold_boot_cal;
 
 #define ATH11K_IRQ_NUM_MAX 52
 #define ATH11K_EXT_IRQ_NUM_MAX	16
@@ -723,9 +728,6 @@ struct ath11k_base {
 	} stats;
 	u32 pktlog_defs_checksum;
 
-	/* Round robbin based TCL ring selector */
-	atomic_t tcl_ring_selector;
-
 	struct ath11k_dbring_cap *db_caps;
 	u32 num_db_cap;
 
@@ -883,6 +885,7 @@ void ath11k_core_free(struct ath11k_base *ath11k);
 int ath11k_core_fetch_bdf(struct ath11k_base *ath11k,
 			  struct ath11k_board_data *bd);
 void ath11k_core_free_bdf(struct ath11k_base *ab, struct ath11k_board_data *bd);
+int ath11k_core_check_dt(struct ath11k_base *ath11k);
 
 void ath11k_core_halt(struct ath11k *ar);
 
