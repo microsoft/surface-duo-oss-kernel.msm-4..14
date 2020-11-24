@@ -111,7 +111,12 @@ enum ath11k_firmware_mode {
 
 	/* factory tests etc */
 	ATH11K_FIRMWARE_MODE_FTM,
+
+	/* Cold boot calibration */
+	ATH11K_FIRMWARE_MODE_COLD_BOOT = 7,
 };
+
+extern bool ath11k_cold_boot_cal;
 
 #define ATH11K_IRQ_NUM_MAX 52
 #define ATH11K_EXT_IRQ_NUM_MAX	16
@@ -425,11 +430,7 @@ struct ath11k_per_peer_tx_stats {
 };
 
 #define ATH11K_FLUSH_TIMEOUT (5 * HZ)
-
-struct ath11k_vdev_stop_status {
-	bool stop_in_progress;
-	u32  vdev_id;
-};
+#define ATH11K_VDEV_DELETE_TIMEOUT_HZ (5 * HZ)
 
 struct ath11k {
 	struct ath11k_base *ab;
@@ -500,13 +501,14 @@ struct ath11k {
 	u8 lmac_id;
 
 	struct completion peer_assoc_done;
+	struct completion peer_delete_done;
 
 	int install_key_status;
 	struct completion install_key_done;
 
 	int last_wmi_vdev_start_status;
-	struct ath11k_vdev_stop_status vdev_stop_status;
 	struct completion vdev_setup_done;
+	struct completion vdev_delete_done;
 
 	int num_peers;
 	int max_num_peers;
@@ -723,9 +725,6 @@ struct ath11k_base {
 	} stats;
 	u32 pktlog_defs_checksum;
 
-	/* Round robbin based TCL ring selector */
-	atomic_t tcl_ring_selector;
-
 	struct ath11k_dbring_cap *db_caps;
 	u32 num_db_cap;
 
@@ -883,6 +882,7 @@ void ath11k_core_free(struct ath11k_base *ath11k);
 int ath11k_core_fetch_bdf(struct ath11k_base *ath11k,
 			  struct ath11k_board_data *bd);
 void ath11k_core_free_bdf(struct ath11k_base *ab, struct ath11k_board_data *bd);
+int ath11k_core_check_dt(struct ath11k_base *ath11k);
 
 void ath11k_core_halt(struct ath11k *ar);
 
