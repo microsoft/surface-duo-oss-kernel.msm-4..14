@@ -120,6 +120,11 @@ DECLARE_RESTRICTED_HOOK(android_rvh_sched_setaffinity,
 	TP_PROTO(struct task_struct *p, const struct cpumask *in_mask, int *retval),
 	TP_ARGS(p, in_mask, retval), 1);
 
+DECLARE_RESTRICTED_HOOK(android_rvh_update_cpus_allowed,
+	TP_PROTO(struct task_struct *p, cpumask_var_t cpus_requested,
+		 const struct cpumask *new_mask, int *ret),
+	TP_ARGS(p, cpus_requested, new_mask, ret), 1);
+
 DECLARE_RESTRICTED_HOOK(android_rvh_set_task_cpu,
 	TP_PROTO(struct task_struct *p, unsigned int new_cpu),
 	TP_ARGS(p, new_cpu), 1);
@@ -267,6 +272,7 @@ DECLARE_RESTRICTED_HOOK(android_rvh_replace_next_task_fair,
 #define trace_android_rvh_set_iowait(p, should_iowait_boost)
 #define trace_android_rvh_set_sugov_update(sg_policy, next_freq, should_update)
 #define trace_android_rvh_sched_setaffinity(p, in_mask, retval)
+#define trace_android_rvh_update_cpus_allowed(p, cpus_requested, new_mask, ret)
 #define trace_android_rvh_cpu_cgroup_attach(tset)
 #endif
 
