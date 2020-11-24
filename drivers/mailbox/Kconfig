@@ -234,4 +234,13 @@ config ZYNQMP_IPI_MBOX
 	  message to the IPI buffer and will access the IPI control
 	  registers to kick the other processor or enquire status.
 
+config NXP_LLCE_MBOX
+	tristate "NXP LLCE Mailbox"
+	depends on OF && m
+	help
+	  Say yes here to add support for LLCE mailbox driver.
+	  This mailbox driver is used to send notification or messages
+	  between the LLCE accelerator and A53 cores. It will exchange
+	  messages using a shared memory.
+
 endif
