@@ -3,6 +3,7 @@
  * Generic on-chip SRAM allocation driver
  *
  * Copyright (C) 2012 Philipp Zabel, Pengutronix
+ * Copyright 2020 NXP
  */
 
 #include <linux/clk.h>
@@ -317,7 +318,7 @@ err_chunks:
 	return ret;
 }
 
-static int atmel_securam_wait(struct platform_device *pdev)
+static int atmel_securam_wait(__always_unused struct device *dev)
 {
 	struct regmap *regmap;
 	u32 val;
@@ -331,9 +332,9 @@ static int atmel_securam_wait(struct platform_device *pdev)
 					10000, 500000);
 }
 
-static int llce_init_sram(struct platform_device *pdev)
+static int llce_init_sram(struct device *dev)
 {
-	struct sram_dev *sram = platform_get_drvdata(pdev);
+	struct sram_dev *sram = dev_get_drvdata(dev);
 	size_t size = gen_pool_size(sram->pool);
 
 	memset_io((void __iomem *)sram->virt_base, 0, size);
@@ -353,7 +354,7 @@ static int sram_probe(struct platform_device *pdev)
 	struct resource *res;
 	size_t size;
 	int ret;
-	int (*init_func)(struct platform_device *pdev);
+	int (*init_func)(struct device *dev);
 
 	sram = devm_kzalloc(&pdev->dev, sizeof(*sram), GFP_KERNEL);
 	if (!sram)
@@ -400,7 +401,7 @@ static int sram_probe(struct platform_device *pdev)
 
 	init_func = of_device_get_match_data(&pdev->dev);
 	if (init_func) {
-		ret = init_func(pdev);
+		ret = init_func(&pdev->dev);
 		if (ret)
 			goto err_free_partitions;
 	}
@@ -434,10 +435,43 @@ static int sram_remove(struct platform_device *pdev)
 	return 0;
 }
 
+static int __maybe_unused sram_suspend(struct device *dev)
+{
+	struct sram_dev *sram = dev_get_drvdata(dev);
+
+	if (sram->clk)
+		clk_disable_unprepare(sram->clk);
+
+	return 0;
+}
+
+static int __maybe_unused sram_resume(struct device *dev)
+{
+	struct sram_dev *sram = dev_get_drvdata(dev);
+	int (*init_func)(struct device *dev);
+	int ret;
+
+	if (sram->clk)
+		clk_prepare_enable(sram->clk);
+
+	init_func = of_device_get_match_data(dev);
+	if (!init_func)
+		return 0;
+
+	ret = init_func(dev);
+	if (ret)
+		dev_err(dev, "Failed to initialize SRAM\n");
+
+	return ret;
+}
+
+static SIMPLE_DEV_PM_OPS(sram_pm_ops, sram_suspend, sram_resume);
+
 static struct platform_driver sram_driver = {
 	.driver = {
 		.name = "sram",
 		.of_match_table = sram_dt_ids,
+		.pm = &sram_pm_ops,
 	},
 	.probe = sram_probe,
 	.remove = sram_remove,
