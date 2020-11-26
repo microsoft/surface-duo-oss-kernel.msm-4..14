@@ -928,11 +928,6 @@ static struct syscore_ops s32gen1_clk_syscore_ops = {
 	.resume = s32gen1_clk_resume,
 };
 
-static void __init s32v344_clocks_init(struct device_node *clks_node)
-{
-	s32gen1_clocks_init(clks_node);
-}
-
 static void __init s32g274_clocks_init(struct device_node *clks_node)
 {
 	s32gen1_clocks_init(clks_node);
@@ -951,6 +946,5 @@ static void __init s32r45_clocks_init(struct device_node *clks_node)
 	register_syscore_ops(&s32gen1_clk_syscore_ops);
 }
 
-CLK_OF_DECLARE(S32V344, "fsl,s32v344-clocking", s32v344_clocks_init);
 CLK_OF_DECLARE(S32G274, "fsl,s32g274-clocking", s32g274_clocks_init);
 CLK_OF_DECLARE(S32R45, "fsl,s32r45-clocking", s32r45_clocks_init);

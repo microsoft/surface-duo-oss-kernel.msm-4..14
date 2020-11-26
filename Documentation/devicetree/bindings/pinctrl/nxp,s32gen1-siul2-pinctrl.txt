@@ -8,8 +8,6 @@ Required properties:
 	* "fsl,s32g274-siul2_1-pinctrl"
 	* "fsl,s32r45-siul2_0-pinctrl"
 	* "fsl,s32r45-siul2_1-pinctrl"
-	* "fsl,s32v344-siul2_0-pinctrl"
-	* "fsl,s32v344-siul2_1-pinctrl"
 	  Backward compatible string for the use cases
 	  when the user boots kernel with an old device tree. It's not
 	  recommended to use it anymore.
