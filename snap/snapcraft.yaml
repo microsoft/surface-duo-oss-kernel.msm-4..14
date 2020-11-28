@@ -39,7 +39,8 @@ parts:
             cp ${SNAPCRAFT_PART_INSTALL}/dtbs/qcom/*.dtb ${SNAPCRAFT_PART_INSTALL}/dtbs/
             mkdir -p ${SNAPCRAFT_PART_INSTALL}/lib
             ln -sf ../modules ${SNAPCRAFT_PART_INSTALL}/lib/modules
-        kernel-initrd-flavour: fde
+        kernel-initrd-core-base: core20
+        kernel-initrd-flavour: lk
         kernel-initrd-modules:
             - aes
             - ath
