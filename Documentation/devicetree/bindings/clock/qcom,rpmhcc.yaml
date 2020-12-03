@@ -21,6 +21,7 @@ properties:
       - qcom,sdm845-rpmh-clk
       - qcom,sm8150-rpmh-clk
       - qcom,sm8250-rpmh-clk
+      - qcom,sm8350-rpmh-clk
 
   clocks:
     maxItems: 1
