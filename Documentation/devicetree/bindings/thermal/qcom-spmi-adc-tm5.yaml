@@ -112,6 +112,9 @@ additionalProperties: false
 
 examples:
   - |
+        #include <dt-bindings/interrupt-controller/irq.h>
+        #include <dt-bindings/iio/qcom,spmi-vadc.h>
+
         pm8150b_adc: adc@3100 {
             compatible = "qcom,spmi-adc5";
             /* Other propreties are omitted */
